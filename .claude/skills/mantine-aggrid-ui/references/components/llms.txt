@@ -64,6 +64,7 @@
 - [MarkdownEditor](markdown-editor.md): 메모·설명처럼 서식(제목·굵게·목록·할 일·인용·링크)이 있는 글을 마크다운 문자열로 편집하고 보여 줄 때 쓴다. 서식 모드와 MD(원문) 모드를 오가며 고친다.
 - [NoticeBodyView](notice-body-view.md): 공지 본문을 일반 글(TEXT)·마크다운(MD)·HTML 세 형식으로 읽기 전용으로 보여 줄 때 쓴다. 세 형식 모두 같은 문서 서식(제목·목록·인용·코드·표·링크)으로 보인다.
 - [DetailPopover](detail-popover.md): 정보 아이콘(또는 감싼 글자)을 누르면 팝업에 가까운 큰 패널(제목·닫기·내부 스크롤)을 그 자리에 여는 상세 팝오버다. 툴팁에 담기 어려운 긴 설명(HTML 본문, 라벨-값 표)을 화면 이동 없이 보여 줄 때 쓴다.
+- [JsonView](json-view.md): JSON 값(서버 설정·캐시 값·응답 본문처럼 모양이 정해지지 않은 값)을 읽기 전용 트리로 살펴볼 때 쓴다. 객체·배열은 접고 펼 수 있고, 글자·수·참거짓·null 은 종류별 색으로 보인다. 글자 값은 JSON 표기(따옴표·역슬래시·줄바꿈 이스케이프)로 보인다.
 - [MatrixTable](matrix-table.md): "첫 열(라벨) + 동적으로 늘어나는 열 + 셀마다 직접 그린 값" 구조의 비교 매트릭스(피벗) 표를 보일 때 쓴다.
 - [차트 (DonutChart · PieChart · HBarChart · LineChart · StackedBarChart · StackedColumnChart)](charts.md): 현황 대시보드에서 비율(도넛·파이), 항목별 크기(가로 막대), 추이(선), 구성 비율(누적 막대), 기간별 누적 실적과 계획선(세로 누적 막대)을 간단한 SVG 차트로 보일 때 쓴다.
 - [exportToExcel](export-to-excel.md): 화면의 목록 데이터를 엑셀(.xlsx) 파일로 내려받게 할 때 쓴다. ag-grid 의 Excel Export 는 Enterprise 기능이라 쓰지 않는다.

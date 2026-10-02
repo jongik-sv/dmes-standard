@@ -146,6 +146,10 @@
       "types": "./dist/types/components/detail-popover/index.d.ts",
       "import": "./dist/detail-popover.js"
     },
+    "./json-view": {
+      "types": "./dist/types/components/json-view/index.d.ts",
+      "import": "./dist/json-view.js"
+    },
     "./dashboard": {
       "types": "./dist/types/components/dashboard/index.d.ts",
       "import": "./dist/dashboard.js"

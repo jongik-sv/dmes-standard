@@ -16,5 +16,13 @@ includeBuild('../aps-core') {
     }
 }
 
+// MDM 메타 캐시(2026-10-02) — cactus-core 가 maru-mdm-engine 을 api 로 문다. 중첩 includeBuild 전달에 기대지 않고
+// mdm/settings.gradle 과 같이 명시한다(Task 0 실측은 커밋 메시지 참고).
+includeBuild('../maru-mdm-engine') {
+    dependencySubstitution {
+        substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')
+    }
+}
+
 include 'lib'
 include 'api'

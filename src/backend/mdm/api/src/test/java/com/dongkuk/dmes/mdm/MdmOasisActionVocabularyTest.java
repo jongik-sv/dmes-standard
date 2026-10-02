@@ -80,6 +80,14 @@ class MdmOasisActionVocabularyTest {
         assertTrue(new java.util.HashSet<>(MdmPermissions.EDIT_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
     }
 
+    /** spec 2026-10-02-mdm-meta-cache-design §3.4 — 메타 제공은 화면이 아니라 업무 모듈 캐시가 부르는 서비스다. action 은 기존 어휘(search·view)를 쓴다. */
+    @Test
+    void feed_metaFeed_bpmn_의_액션은_어휘_안의_search_view_save_다() throws Exception {
+        Path path = bpmnPath("feed", "metaFeed.bpmn");
+        assertActionsWithinVocabulary(path);
+        assertEquals(Set.of("search", "view", "save"),actionsFromGateway(path));
+    }
+
     /** D-144 2단계 — 룰 세트 확정. confirm 은 CONFIRM 세트에만 있다(ruleConfirm 과 같다). */
     @Test
     void dme_ruleSetConfirm_bpmn_의_모든_액션이_어휘_안에_있다() throws Exception {
@@ -193,7 +201,12 @@ class MdmOasisActionVocabularyTest {
                 bpmnScreens.add(name.substring(0, name.length() - ".bpmn".length()));
             }
         }
-        assertEquals(24, bpmnScreens.size(), "BPMN 화면 수가 24개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
+        assertEquals(25, bpmnScreens.size(), "BPMN 수가 25개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
+        // metaFeed(services/feed) 는 화면이 아니라 업무 모듈 캐시가 부르는 서비스다 — 그룹 RBAC(seedMdmObjectRbac)를 받지 않고
+        // SYSADMIN 전용 OBJECT 로만 시드한다(Task 11 의 seedMdmCacheMenus). spec 2026-10-02-mdm-meta-cache-design §5.5·§9.
+        bpmnScreens.remove("metaFeed");
+        assertTrue(source.contains("insertMcmSecObjIfAbsent(\"metaFeed\", "),
+                "metaFeed OBJECT(SYSTEM_CODE=mdm, SYSADMIN 전용) 시드가 없다 — BFF 권한키 mdm/metafeed/save 가 없어 화면 삭제·재등록이 403 이다");
 
         Set<String> seeded = objectIdsFromSeedCalls(source);
         Set<String> missing = new LinkedHashSet<>(bpmnScreens);

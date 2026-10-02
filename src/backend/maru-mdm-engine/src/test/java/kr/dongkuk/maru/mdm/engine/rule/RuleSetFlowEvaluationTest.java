@@ -47,12 +47,12 @@ class RuleSetFlowEvaluationTest {
     private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private RuleSetResult run(FlowDefinition f, Map<String, Object> record) {
-        lookup.addSet(new RuleSetDefinition("S", List.of(), SetStatus.INUSE, f));
+        lookup.addSet(new RuleSetDefinition("S", null, null, null, List.of(), SetStatus.INUSE, f));
         return engine.evaluateSet("S", record, SampleRules.EVAL_TS);
     }
 
     private EngineEvaluationException fail(FlowDefinition f, Map<String, Object> record) {
-        lookup.addSet(new RuleSetDefinition("S", List.of(), SetStatus.INUSE, f));
+        lookup.addSet(new RuleSetDefinition("S", null, null, null, List.of(), SetStatus.INUSE, f));
         return assertThrows(EngineEvaluationException.class, () -> engine.evaluateSet("S", record, SampleRules.EVAL_TS));
     }
 

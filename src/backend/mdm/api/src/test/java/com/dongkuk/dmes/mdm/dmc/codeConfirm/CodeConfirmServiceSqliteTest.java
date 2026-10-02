@@ -22,6 +22,7 @@ import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeConfirmCheck;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.common.version.VersionSpiRegistry;
@@ -481,5 +482,13 @@ class CodeConfirmServiceSqliteTest extends AbstractMdmSharedDbTest {
         service.confirm(confirm("P", "1.002", 0L, "2026-01-01 00:00:01", false));
         assertEquals("RELEASED", verRow("P", "1.002").get("STATUS"));
         assertEquals("2026-01-01 00:00:01", verRow("P", "1.001").get("APPLY_TO"));
+    }
+
+    @Test
+    void META_코드_확정은_코드를_기록한다() {
+        seedM();
+        MetaRevTestSupport.clear(jdbc);
+        service.confirm(confirm("M", "1.001", RV, "2026-08-01 00:00:00", false));
+        assertEquals(List.of("CODE:M:SAVE"), MetaRevTestSupport.rows(jdbc));
     }
 }

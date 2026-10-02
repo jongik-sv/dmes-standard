@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dma.DmaTestSupport;
@@ -356,5 +357,18 @@ class CodeEditHeaderSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals(expected.code(), e.getErrors().get(0).code(), e.getMessage());
         assertTrue(e.getMessage().startsWith(expected.defaultMessage()), e.getMessage());
         return e;
+    }
+
+    @Test
+    void META_폐기는_코드를_기록한다() {
+        seeds.seedCode("PROC_CD", "INUSE", "MDM");
+        seeds.released("PROC_CD", "1.000", PAST, OPEN_END);
+        seeds.seedItem("PROC_CD", "A", "1.000", OPEN, "a", 1);
+        seeds.seedBase("PROC_CD");
+        MetaRevTestSupport.clear(jdbc);
+
+        tx.execute(s -> service.deprecate(deprecateReq("PROC_CD", 0L)));
+
+        assertEquals(List.of("CODE:PROC_CD:SAVE"), MetaRevTestSupport.rows(jdbc));
     }
 }

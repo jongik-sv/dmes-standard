@@ -48,7 +48,7 @@ class RuleSetTraceEditTest {
     private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private RunTrace trace(FlowDefinition f, Map<String, Object> record, TraceEdit... edits) {
-        return engine.traceSet(new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, f), record, SampleRules.EVAL_TS, List.of(edits));
+        return engine.traceSet(new RuleSetDefinition("DRAFT", null, null, null, List.of(), SetStatus.INUSE, f), record, SampleRules.EVAL_TS, List.of(edits));
     }
 
     private static TraceEdit edit(int beforeSeq, String nodeId, Object... kv) {
@@ -221,7 +221,7 @@ class RuleSetTraceEditTest {
 
     @Test
     void 고친_값의_목록_자체가_null_이면_거부한다() {
-        RuleSetDefinition set = new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, chain());
+        RuleSetDefinition set = new RuleSetDefinition("DRAFT", null, null, null, List.of(), SetStatus.INUSE, chain());
         assertThrows(NullPointerException.class, () -> engine.traceSet(set, rec("X", BigDecimal.ONE), SampleRules.EVAL_TS, null));
     }
 

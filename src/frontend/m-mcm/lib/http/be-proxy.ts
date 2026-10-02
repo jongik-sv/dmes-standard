@@ -18,6 +18,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 import { hasAnyRole } from "@dk-oasis/shared/auth-rbac-policy";
+import { forwardedForHeader } from "./forwarded-for";
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL ?? "http://localhost:8080";
 const BACKEND_CLIENT_KEY = process.env.BACKEND_CLIENT_KEY;
@@ -244,6 +245,11 @@ export async function forwardToBackend(
     "X-Authenticated-User": (token.sub as string) ?? "",
     "X-Authenticated-Role": roleHeader,
   };
+  // Content-Type 은 pickRequestHeaders 가 이미 넘긴다(대소문자가 다른 키를 또 넣으면 값이 겹친다).
+  const forwardedFor = forwardedForHeader(req.headers);
+  if (forwardedFor) {
+    headers["X-Forwarded-For"] = forwardedFor;
+  }
 
   const body =
     req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined;

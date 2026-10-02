@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dongkuk.oasis.audit.AuditHolder;
 import com.dongkuk.dmes.cactus.audit.CactusAudit;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
@@ -181,5 +182,22 @@ class RuleSetConfirmServiceSqliteTest extends AbstractMdmSharedDbTest {
         // 버전이 없는 경우는 지금처럼 실패한다
         v.setVer("9.000");
         assertThatThrownBy(() -> service.view(v)).hasMessageContaining("버전이 없습니다");
+    }
+
+    /** MDM 메타 캐시(spec 2026-10-02 §3.3) — 세트 확정은 공통 버전 상태 서비스 한 곳에서 RULE_SET 을 한 번 기록한다. 거부된 확정은 기록하지 않는다. */
+    @Test
+    void META_세트_확정은_RULE_SET_을_한_번_기록하고_거부된_확정은_기록하지_않는다() {
+        RuleSetConfirmRequest c = new RuleSetConfirmRequest();
+        c.setSetId("S_C");
+        c.setVer("2.000");
+        c.setRowVersion(3L);                                                                      // 틀린 행 버전 → 거부
+        c.setApplyFrom("2026-06-15 09:00:00");
+        MetaRevTestSupport.clear(jdbc);
+        assertThatThrownBy(() -> service.confirm(c));
+        assertThat(MetaRevTestSupport.rows(jdbc)).isEmpty();
+
+        c.setRowVersion(4L);
+        service.confirm(c);
+        assertThat(MetaRevTestSupport.rows(jdbc)).containsExactly("RULE_SET:S_C:SAVE");
     }
 }

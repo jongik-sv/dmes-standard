@@ -63,6 +63,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 엑셀 내보내기 | `utils`: `exportToExcel` (xlsx 기반 — ag-grid Excel Export(Enterprise)가 필요 없다) |
 | 메시지·토스트 | `message-provider` (Part B §9, UI-Visual-Standard §8) |
 | 모달·트리·탭·룩업 | `modal`, `tree`, `tabs`, `lookup` |
+| 모양이 정해지지 않은 JSON 값 보기(캐시 값·설정·응답 본문) | `json-view`: `JsonView`(읽기 전용 접는 트리, `fill` 로 패널 남은 높이 채움) |
 | 서식 있는 메모·설명(마크다운) 편집·표시 | `markdown-editor`: `MarkdownEditor`(편집기 — `editable` 로 읽기·편집 전환, 여닫기는 화면이 정함), `MarkdownField`(폼·패널 칸 — 고칠 수 있으면 처음부터 편집기, `fill` 로 남은 높이 채움), `MarkdownView`(읽기 전용). 서식 없는 여러 줄 입력은 `form` 의 `Textarea` |
 
 - **데이터테이블(머리행 + 데이터 행이 반복되는 목록)은 반드시 공용 `AgDataGrid` 로 그린다.** 크기·테두리·선택·편집 모양이 모든 화면에서 같아야 하기 때문이다. 원시 `<table>` 이나 다른 그리드 라이브러리로 목록을 그리지 않는다(두 번째 그리드였던 `CustomDataGrid` 는 2026-09-29 삭제). 카드·패널·모달 안의 몇 행짜리 작은 목록도 예외가 아니며, `height="auto"`(행 수만큼 높이가 늘어남)로 그린다. 행 선택은 `onRowClick`·`highlightedRowKey`, 셀 안 배지·버튼은 `GridColumn.render`, 셀 편집은 `editable`·`cellEditor` 로 한다. 예외는 라벨-값 짝으로 된 폼 배치 표(`<thead>` 없음)와 `matrix-table` 뿐이다. `A audit` 가 화면의 `<thead>` 를 잡는다.

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dongkuk.dmes.cactus.audit.CactusAudit;
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
@@ -250,5 +251,13 @@ class RuleHeaderServiceTest extends AbstractMdmSharedDbTest {
         RuleVersionRequest copy = new RuleVersionRequest();
         copy.setMaruRuleId("QLTY_GRD_JDG");
         assertEquals("MDM009", mdm(() -> versions.newVersion(copy)));
+    }
+
+    @Test
+    void META_헤더_저장과_폐기는_룰을_기록한다() {
+        MetaRevTestSupport.clear(jdbc);
+        service.saveHeader(header(jdbc, "QLTY_GRD_JDG", "메타 기록"));
+        service.deprecate(ruleTarget("QLTY_GRD_JDG"));
+        assertEquals(List.of("RULE:QLTY_GRD_JDG:SAVE", "RULE:QLTY_GRD_JDG:SAVE"), MetaRevTestSupport.rows(jdbc));
     }
 }

@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSegments;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary.Summary;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary.VerRow;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.security.MdmStewardGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
@@ -89,12 +90,13 @@ public class CodeEditService {
     private final MdmCurrentUser currentUser;
     private final MasterCodeRemoval removal;
     private final Clock clock;
+    private final MetaRevisionRecorder recorder;
 
     public CodeEditService(EntityManager entityManager, MdmCodeRepository codes, MasterCodeLedgerQueries ledger,
                            MasterCodeVersionSegments segments, VersionWriteGuard writeGuard,
                            VersionStateService versionState, DraftOwnershipService ownership,
                            MdmStewardGuard stewardGuard, MdmCurrentUser currentUser, MasterCodeRemoval removal,
-                           Clock clock) {
+                           Clock clock, MetaRevisionRecorder recorder) {
         this.entityManager = entityManager;
         this.codes = codes;
         this.ledger = ledger;
@@ -106,6 +108,7 @@ public class CodeEditService {
         this.currentUser = currentUser;
         this.removal = removal;
         this.clock = clock;
+        this.recorder = recorder;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -187,6 +190,7 @@ public class CodeEditService {
         code.setAttr09Name(labels[8]);
         code.setAttr10Name(labels[9]);
         markInUseIfApplied(code, summary); // I18
+        recorder.code(code.getMaruCodeId()); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
         log.info("[codeEdit] save — id={} lvlCnt={}", code.getMaruCodeId(), lvlCnt);
         return buildView(code.getMaruCodeId());
     }
@@ -210,6 +214,7 @@ public class CodeEditService {
         requireAuditVer(code, request.getAuditVer());
         // 행(VER·ITEM·CATE)은 지우지 않는다 — 과거 기준일 판정이 계속된다(04 「코드 삭제와 마루 코드 폐기」).
         code.setStatus(MaruObjectStatus.DEPRECATED.name());
+        recorder.code(code.getMaruCodeId()); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
         log.info("[codeEdit] execute(deprecate) — id={}", code.getMaruCodeId());
         return buildView(code.getMaruCodeId());
     }
@@ -330,6 +335,7 @@ public class CodeEditService {
         removal.deleteChildRows(id);
         codes.delete(code);
         entityManager.flush();
+        recorder.code(id); // 메타 캐시 무효화 — 지운 코드의 "없음" 캐시도 다시 확인하게 한다
         log.info("[codeEdit] delete(CODE) — id={} versions={}", id, versions.size());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("deleted", CodeDraftRequest.TARGET_CODE);

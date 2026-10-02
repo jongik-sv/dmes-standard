@@ -5,6 +5,7 @@
  */
 package com.dongkuk.dmes.mdm.dmb.layoutMng.service;
 
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutHeaderRef;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutItemSnapshot;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
@@ -85,11 +86,12 @@ public class LayoutMngService {
     private final LayoutSnapshotAssembler assembler;
     private final LayoutSampleRenderer renderer;
     private final LayoutImpactFinder impactFinder;
+    private final MetaRevisionRecorder recorder;
 
     public LayoutMngService(LayoutQueries queries, LayoutDictionary dictionary, LayoutWriter writer,
                             MdmLayoutRepository layoutRepository, LayoutDraftBuilder draftBuilder, LayoutVersioner versioner,
                             LayoutVersionStore versionStore, LayoutSnapshotAssembler assembler, LayoutSampleRenderer renderer,
-                            LayoutImpactFinder impactFinder) {
+                            LayoutImpactFinder impactFinder, MetaRevisionRecorder recorder) {
         this.queries = queries;
         this.dictionary = dictionary;
         this.writer = writer;
@@ -100,6 +102,7 @@ public class LayoutMngService {
         this.assembler = assembler;
         this.renderer = renderer;
         this.impactFinder = impactFinder;
+        this.recorder = recorder;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -313,6 +316,7 @@ public class LayoutMngService {
         writer.replaceItems(messageId, LayoutRows.entities(messageId, d.items(), d.itemLengths(), s.bodyOffsets()));
         // ⑨ 스냅샷 버전 — 바뀌었을 때만(I15). 응답 ver 는 버전을 올린 뒤의 감사 VER(I16)
         LayoutVersioner.Outcome v = versioner.record(messageId);
+        recorder.layouts(List.of(messageId)); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("layoutId", messageId);
         out.put("ver", v.ver());

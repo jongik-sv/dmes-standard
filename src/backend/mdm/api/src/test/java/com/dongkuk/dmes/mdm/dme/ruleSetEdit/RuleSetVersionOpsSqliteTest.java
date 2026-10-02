@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dongkuk.dmes.cactus.audit.CactusAudit;
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.FakeStewardDirectory;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
@@ -166,5 +167,24 @@ class RuleSetVersionOpsSqliteTest extends AbstractMdmSharedDbTest {
         currentUser.set("lee", DmeTestSupport.STD_ADMIN);
         assertThat(mdm(() -> service.copy(req(null, "MAJOR", null, null)))).isEqualTo("MDM013");
         assertThat(versionCount()).isEqualTo(1);
+    }
+
+    /**
+     * MDM 메타 캐시(spec 2026-10-02 §3.3) — RELEASED 를 바꾸는 확정 취소는 RULE_SET 을 한 번 기록하고(공통 버전 상태 서비스), DRAFT 만 바꾸는
+     * 새 버전·해제·선점·DRAFT 삭제는 기록하지 않는다.
+     */
+    @Test
+    void META_확정_취소만_기록하고_DRAFT_조작은_기록하지_않는다() {
+        MetaRevTestSupport.clear(jdbc);
+        service.copy(req(null, "MAJOR", null, null));                                    // 2.000 DRAFT kim, rv 0
+        service.unlock(req("2.000", null, 0L, null));
+        service.lock(req("2.000", null, 1L, null));
+        service.delete(req("2.000", null, 2L, RuleSetVersionRequest.TARGET_VERSION));
+        assertThat(MetaRevTestSupport.rows(jdbc)).isEmpty();
+
+        DmeTestSupport.ruleSetVersion(jdbc, "S_O", "3.000", "MAJOR", "RELEASED", "kim", "[]", "2026-07-01 00:00:00", "9999-12-31 00:00:00", 0);
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_O' AND VER = 1");
+        service.delete(req("3.000", null, 0L, RuleSetVersionRequest.TARGET_CONFIRM));
+        assertThat(MetaRevTestSupport.rows(jdbc)).containsExactly("RULE_SET:S_O:SAVE");
     }
 }

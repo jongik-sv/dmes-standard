@@ -66,6 +66,10 @@ const RBAC_POLICY: RbacPolicyConfig = {
     //   "/api/mcm/oasis/ntfNotification/"  알림 조회/읽음 처리
     //   "/api/mcm/notify/ws-ticket"        WS 단명 티켓 발급 (본인 티켓)
   ],
+  // MDM 메타 캐시(2026-10-02) — 모든 업무 모듈의 cactus 엔드포인트 /api/{module}/mdmMeta/*. 모듈 이름과 무관한 한 규칙이라 새 모듈이
+  // 캐시를 켜도 여기를 고치지 않는다. 화면 메타(columns·domains)는 로그인한 모든 사용자, 관리(status·entries·entry·load)는 각 모듈
+  // MdmMetaController 가 SYSADMIN 을 다시 본다. mcm BE EndpointPermissionFilter 의 AUTH_ONLY(/api/mcm/mdmMeta/)와 동기화.
+  authOnlyPatterns: [/^\/api\/[^/]+\/mdmMeta\//],
   lovPattern: /^\/api\/[^/]+\/lov\//,
   unmatchedDeny: process.env.RBAC_DEFAULT_DENY === "true",
 };

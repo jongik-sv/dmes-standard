@@ -20,10 +20,11 @@ export const HISTORY_TRUNCATED_NOTICE = "최근 10,000건만 표시됩니다. �
 export const DEFAULT_UNUSED_DAYS = 90;
 export const MAX_UNUSED_DAYS = 3650;
 
+/** 구분 라벨 — 열람(첫 업무 호출로 시작한 구간)인지만 보인다. SWITCH 는 2026-10-03 이전 기록의 하위 호환 값이다. */
 export const START_KIND_LABEL: Record<UsageStartKind, string> = {
-  OPEN: "열기",
-  SWITCH: "전환",
-  RESUME: "재개",
+  OPEN: "열람",
+  SWITCH: "계속",
+  RESUME: "계속",
 };
 
 /** shared LineDataPoint 와 같은 모양. */
@@ -175,7 +176,7 @@ export function toTopBars(rows: readonly ScreenUsageTopScreen[], color: string):
 const DURATION_KEYS = ["durationMs", "avgDurationMs", "totalDurationMs"];
 const YMD_KEYS = ["usageDt", "lastUsedDt"];
 
-/** 엑셀용 행 — 이용 시간·일자·시작 사유를 화면과 같은 글자로 바꾼다. 원본 행은 바꾸지 않는다. */
+/** 엑셀용 행 — 이용 시간·일자·구분을 화면과 같은 글자로 바꾼다. 원본 행은 바꾸지 않는다. */
 export function toExportRows(rows: readonly Record<string, unknown>[]): Record<string, unknown>[] {
   return rows.map((r) => {
     const out: Record<string, unknown> = { ...r };

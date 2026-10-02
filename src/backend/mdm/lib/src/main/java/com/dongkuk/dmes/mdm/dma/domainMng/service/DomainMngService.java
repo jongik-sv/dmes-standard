@@ -11,6 +11,7 @@ import com.dongkuk.dmes.mdm.common.dictionary.DomainNode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeReader;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeSnapshot;
 import com.dongkuk.dmes.mdm.common.dictionary.EffectiveDomainView;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainImpact;
@@ -73,13 +74,14 @@ public class DomainMngService {
     private final MdmDomainImpactLookup impactLookup;
     private final MdmDomainRepository domainRepository;
     private final MdmUnitRepository unitRepository;
+    private final MetaRevisionRecorder recorder;
 
     public DomainMngService(DomainTreeReader reader, DomainChainAssembler assembler, DomainRuleChecker checker,
                             DomainTestCaseRunner runner, DomainChangeClassifier classifier,
                             DomainUnlinkMaterializer materializer, DomainExpressionCompiler compiler,
                             DomainImpactQueries queries,
                             MdmDomainImpactLookup impactLookup, MdmDomainRepository domainRepository,
-                            MdmUnitRepository unitRepository) {
+                            MdmUnitRepository unitRepository, MetaRevisionRecorder recorder) {
         this.reader = reader;
         this.assembler = assembler;
         this.checker = checker;
@@ -91,6 +93,7 @@ public class DomainMngService {
         this.impactLookup = impactLookup;
         this.domainRepository = domainRepository;
         this.unitRepository = unitRepository;
+        this.recorder = recorder;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -260,6 +263,8 @@ public class DomainMngService {
             warnings.addAll(after);
             rerun.addAll(d.rerunIds());
         }
+        // 5 메타 캐시 무효화 — 이 도메인·하위 도메인·참조 컬럼(spec 2026-10-02 §3.2). 같은 트랜잭션이라 위에서 던지면 남지 않는다
+        recorder.domain(entity.getDomainId());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("domainId", entity.getDomainId());
         out.put("ver", entity.getVersion());

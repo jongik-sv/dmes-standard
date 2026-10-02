@@ -5,6 +5,7 @@ import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireMdm;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.rule.RuleNativeWrites;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
@@ -58,11 +59,13 @@ public class RuleHeaderService {
     private final MdmRuleRepository ruleRepository;
     private final VersionRowStore versionStore;
     private final MdmNativeAuditSupport audit;
+    private final MetaRevisionRecorder recorder;
     private final TransactionTemplate tx;
 
     public RuleHeaderService(RuleScreenSupport support, RuleQueries queries, RuleStewardCheck stewardCheck,
                              VersionWriteGuard writeGuard, RuleNativeWrites writes, MdmRuleRepository ruleRepository,
-                             VersionRowStore versionStore, MdmNativeAuditSupport audit, PlatformTransactionManager transactionManager) {
+                             VersionRowStore versionStore, MdmNativeAuditSupport audit, PlatformTransactionManager transactionManager,
+                             MetaRevisionRecorder recorder) {
         this.support = support;
         this.queries = queries;
         this.stewardCheck = stewardCheck;
@@ -71,6 +74,7 @@ public class RuleHeaderService {
         this.ruleRepository = ruleRepository;
         this.versionStore = versionStore;
         this.audit = audit;
+        this.recorder = recorder;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -100,6 +104,7 @@ public class RuleHeaderService {
             target.setUsageNote(blankToNull(request.getUsageNote()));
             MdmRule out = ruleRepository.saveAndFlush(target);
             promoteIfApplied(rule, versions, now);
+            recorder.rule(rule.getMaruRuleId()); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
             return out;
         });
         return new RuleMngSaveResult(rule.getMaruRuleId(), RuleMngSaveRequest.TARGET_HEADER, saved.getVersion());
@@ -157,7 +162,11 @@ public class RuleHeaderService {
         RuleScreenSupport.requireNoVersionInApproval(versions);
         Integer changed = tx.execute(status -> {
             promoteIfApplied(rule, versions, now); // 폐기 UPDATE 가 STATUS = 'INUSE' 를 조건으로 쓴다
-            return writes.deprecate(rule.getMaruRuleId());
+            int n = writes.deprecate(rule.getMaruRuleId());
+            if (n > 0) {
+                recorder.rule(rule.getMaruRuleId()); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
+            }
+            return n;
         });
         if (changed == null || changed == 0) {
             throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "사용 중(INUSE)인 룰만 폐기할 수 있습니다", List.of());

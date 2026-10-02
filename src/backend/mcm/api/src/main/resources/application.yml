@@ -77,6 +77,19 @@ cactus:
     transactional: true
     cache:
       size: 100                # BPMN parsing cache size (R-multi-22 fix — CactusCachingServiceProvider)
+  # ── MDM 메타 캐시(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.1) ──
+  #  MDM(8096)에서 컬럼·도메인·룰·룰세트·코드·전문 정의를 받아 이 인스턴스에 캐시하고 10초마다 변경 기록을 확인한다.
+  #  끄려면 MDM_CACHE_ENABLED=false. client-key 는 MDM 이 받는 BACKEND_CLIENT_KEY 와 같아야 한다.
+  mdm:
+    enabled: ${MDM_CACHE_ENABLED:true}
+    module: mcm
+    base-url: ${MDM_WAS_URL:http://localhost:8096}
+    client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
+    poll-interval: 10s
+    max-entries: 20000
+    max-age: 60m
+    connect-timeout: 2s
+    read-timeout: 5s
   # ── caravan-hub 통합 클라이언트 (DefaultCaravanHubIntegrationClient → POST {base-url}/caravanHubApi/v1/send) ──
   #   코드 하드코딩 기본값(SeraiClientProperties.baseUrl=http://localhost:8200) 대신 yml/env 로 주입한다.
   #   운영/개발계는 CARAVAN_HUB_BASE_URL 환경변수로 override 한다.
@@ -154,6 +167,13 @@ caravan-console:
   repository:                             # caravan-console 메타 Repository → caravan EMF/TxMgr (Kafka 스키마 CARAVANUSER)
     emf-bean: cactusEntityManagerFactoryCaravan
     tx-bean:  cactusTransactionManagerCaravan
+
+# ── 클라이언트 IP 판정 (화면 사용 기록 등) ──
+# trusted-proxies = X-Forwarded-For 를 믿을 직전 홉 IP 목록(쉼표 구분, CIDR 미지원).
+# 운영에서는 BFF 와 NGINX 의 IP 를 반드시 추가한다. 목록에 없으면 헤더를 무시하고 remoteAddr 를 쓴다.
+dmes:
+  client-ip:
+    trusted-proxies: 127.0.0.1,::1
 
 # ── 로깅 ──
 logging:

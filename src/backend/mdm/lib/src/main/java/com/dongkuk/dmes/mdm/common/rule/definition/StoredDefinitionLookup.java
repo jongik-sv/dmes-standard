@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -166,6 +167,28 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
         return RuleVersions.currentReleased(versions, at).map(v -> toDefinition(setId, status, v));
     }
 
+    /**
+     * 세트의 RELEASED 버전 전부(적용 시작이 있는 것), VER 오름차순 — MDM 메타 피드(spec 2026-10-02-mdm-meta-cache-design §4.1)가 업무 모듈 캐시에
+     * 보낸다. 받는 쪽은 {@link #ruleSet} 과 같은 규칙({@code APPLY_FROM <= t < APPLY_TO}, 여럿이면 VER 최대)으로 판정 시각마다 고른다.
+     * 상태는 버전마다 그 적용 시작 시각의 계산 상태다 — 고를 수 있는 시각 t({@code >= APPLY_FROM})의 {@link RuleVersions#effectiveStatus} 와 늘 같다
+     * (저장 CREATED 는 INUSE, 그 밖에는 저장값). 세트가 없으면 빈 값, 있는데 RELEASED 가 없으면 빈 목록이다. 정의 조립은 {@link #ruleSet} 과 같은 길이다.
+     */
+    public Optional<List<RuleSetDefinition>> releasedSets(String setId) {
+        Optional<MdmRuleSet> parent = sets.findById(setId);
+        if (parent.isEmpty()) {
+            return Optional.empty();
+        }
+        List<MdmRuleSetVer> versions = setVersions.versions(setId);
+        List<RuleSetDefinition> out = new ArrayList<>();
+        for (MdmRuleSetVer v : versions) {
+            if ("RELEASED".equals(v.getStatus()) && v.getApplyFrom() != null) {
+                out.add(toDefinition(setId, RuleVersions.effectiveStatus(parent.get().getStatus(), versions, v.getApplyFrom()), v));
+            }
+        }
+        out.sort(Comparator.comparing(RuleSetDefinition::ver)); // scale 3 BigDecimal — compareTo 수 비교
+        return Optional.of(out);
+    }
+
     /** 저장값 읽기 — 저장된 값이 깨져 난 예외를 {@link StoredDefinitionException} 으로 감싼다(메시지는 원인 그대로). */
     private static <T> T readStored(Supplier<T> read) {
         try {
@@ -245,7 +268,7 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
 
     private static RuleSetDefinition toDefinition(String setId, String status, MdmRuleSetVer v) {
         List<String> ids = readStored(() -> DomainJson.readList(v.getRuleIds()).stream().map(String::valueOf).toList());
-        return new RuleSetDefinition(setId, ids, SetStatus.valueOf(status),
+        return new RuleSetDefinition(setId, v.getVer(), v.getApplyFrom(), v.getApplyTo(), ids, SetStatus.valueOf(status),
                 v.getFlowJson() == null ? null : readStored(() -> RuleSetFlowJson.parse(v.getFlowJson())));
     }
 }

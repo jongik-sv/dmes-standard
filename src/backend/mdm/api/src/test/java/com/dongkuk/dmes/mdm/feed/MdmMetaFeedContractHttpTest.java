@@ -1,0 +1,290 @@
+package com.dongkuk.dmes.mdm.feed;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.dongkuk.dmes.cactus.mdm.MdmDefinitionLookup;
+import com.dongkuk.dmes.cactus.mdm.MdmMetaCache;
+import com.dongkuk.dmes.cactus.mdm.MdmMetaClient;
+import com.dongkuk.dmes.cactus.mdm.MdmMetaService;
+import com.dongkuk.dmes.cactus.mdm.MdmTargetType;
+import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
+import com.dongkuk.dmes.mdm.common.mastercode.MdmCodeLookup;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
+import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
+import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
+import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
+import com.dongkuk.dmes.mdm.dmc.MasterCodeSeeds;
+import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
+import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
+import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
+import java.math.BigDecimal;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+import javax.sql.DataSource;
+import kr.dongkuk.maru.mdm.engine.domain.DefaultDomainValidator;
+import kr.dongkuk.maru.mdm.engine.domain.DomainValidator;
+import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
+import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
+import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
+import kr.dongkuk.maru.mdm.engine.spi.EngineLookups;
+import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
+import kr.dongkuk.maru.mdm.engine.spi.MasterLookup;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.client.RestClient;
+
+/**
+ * Review Focus 1 — 피드(MDM)와 클라이언트(cactus)를 실제 HTTP 로 잇는 계약 시험(spec 2026-10-02 §3.4·§5.2). 양쪽 단위 시험은 각자 가짜를
+ * 쓰므로 JSON 표류(LocalDateTime 형식·BigDecimal·Map&lt;Integer,…&gt; 키·enum·null)를 못 잡는다. MDM 원장에서 직접 만든 정의
+ * ({@link StoredDefinitionLookup}, 빈이 아니라 new)와 HTTP 로 받아 되읽은 정의가 같은 판정을 내는지 본다.
+ */
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
+        properties = "cactus.security.client-key=" + MdmMetaFeedContractHttpTest.TEST_CLIENT_KEY)
+@ActiveProfiles("local")
+class MdmMetaFeedContractHttpTest {
+
+    static final String TEST_CLIENT_KEY = "mdm-feed-contract-test-key";
+    private static final String Q = "QLTY_GRD_JDG";
+
+    @TempDir
+    static Path tempDir;
+
+    @LocalServerPort
+    int port;
+
+    @Autowired
+    DataSource dataSource;
+    @Autowired
+    MdmEvaluator mdmEvaluator;
+    @Autowired
+    RuleQueries ruleQueries;
+    @Autowired
+    StoredRuleDefinitions storedRuleDefinitions;
+    @Autowired
+    MdmRuleRepository ruleRepository;
+    @Autowired
+    MdmRuleSetRepository ruleSetRepository;
+    @Autowired
+    RuleSetVersionQueries ruleSetVersionQueries;
+    @Autowired
+    MasterCodeLedgerQueries ledger;
+
+    private JdbcTemplate jdbc;
+    private MdmMetaService service;
+    private MdmDefinitionLookup lookup;
+    private DomainValidator validator;
+
+    @DynamicPropertySource
+    static void overrideDatasource(DynamicPropertyRegistry registry) {
+        Path dbFile = tempDir.resolve("mdm-feed-contract-test.db");
+        registry.add("spring.datasource.url", () -> "jdbc:sqlite:" + dbFile);
+    }
+
+    @BeforeEach
+    void setUp() {
+        jdbc = new JdbcTemplate(dataSource);
+        MetaRevTestSupport.clear(jdbc);
+        DmeTestSupport.clear(jdbc);
+        DmeTestSupport.clearDictionary(jdbc);
+        new MasterCodeSeeds(jdbc).clear();
+
+        RestClient restClient = RestClient.builder().defaultHeader("X-Client-Key", effectiveClientKey()).build();
+        MdmMetaClient client = new MdmMetaClient(restClient, "http://127.0.0.1:" + port, "mls");
+        MdmMetaCache cache = new MdmMetaCache(1000, Duration.ofMinutes(60), Clock.systemUTC());
+        cache.clear(0);
+        service = new MdmMetaService(client, cache, Clock.systemUTC());
+        lookup = new MdmDefinitionLookup(service);
+        validator = new DefaultDomainValidator(lookup,
+                new MdmEvaluator(new EngineLookups(lookup, lookup, CodeEffLookup.NONE, MasterLookup.NONE, FunctionProvider.NONE)));
+
+        // 사전: sampleRule 의 COIL_THK(QTY NUMBER scale 2)에 표준식을 단다. 세 버전 룰(D-144 major/minor 소수):
+        // 1.000 [2026-01-01, 2026-07-01), 1.001 MINOR [2026-07-01, 2027-01-01), 2.000 MAJOR [2027-01-01, 열린 끝).
+        // SQLite NUMERIC 은 1.000·2.000 을 INTEGER, 1.001 을 REAL 로 저장한다 — 두 저장 형태가 모두 HTTP 를 지난다.
+        DmeTestSupport.sampleRule(jdbc);
+        jdbc.update("UPDATE TB_MDM_DOMAIN SET STD_RULE = 'value >= 0', STD_AST = ? WHERE STD_NAME = 'COIL_THK_D'", ast("value >= 0"));
+        jdbc.update("UPDATE TB_MDM_COLUMN SET REQUIRED = 1 WHERE PHYS_NAME = 'COIL_THK'");
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_ID = ? AND VER = 1", Q);
+        DmeTestSupport.released(jdbc, Q, new BigDecimal("1.001"), "MINOR", "FIRST", "2026-07-01 00:00:00", "2027-01-01 00:00:00");
+        DmeTestSupport.sampleDefinition(jdbc, Q, new BigDecimal("1.001"));
+        DmeTestSupport.released(jdbc, Q, new BigDecimal("2.000"), "MAJOR", "FIRST", "2027-01-01 00:00:00", null);
+        DmeTestSupport.sampleDefinition(jdbc, Q, new BigDecimal("2.000"));
+        // 세 버전 세트(D-144 2단계): 1.000 [2000-01-01, 2026-07-01), 1.001 MINOR [2026-07-01, 2027-01-01), 2.000 MAJOR [2027-01-01, 9999-12-31).
+        // 세트 정의에는 판정 결과가 없으므로 버전마다 ruleIds 를 달리 해 고른 버전을 내용으로도 가른다. 부모 CREATED → 계산 상태 INUSE.
+        DmeTestSupport.ruleSet(jdbc, "CT_SET", "계약 세트", "[\"" + Q + "\"]", "CREATED", 0);
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'CT_SET' AND VER = 1");
+        DmeTestSupport.ruleSetVersion(jdbc, "CT_SET", "1.001", "MINOR", "RELEASED", null, "[\"" + Q + "\",\"CT_R2\"]",
+                "2026-07-01 00:00:00", "2027-01-01 00:00:00", 0);
+        DmeTestSupport.ruleSetVersion(jdbc, "CT_SET", "2.000", "MAJOR", "RELEASED", null, "[\"CT_R3\"]", "2027-01-01 00:00:00",
+                "9999-12-31 00:00:00", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "CT_SET", "2.000",
+                "{\"version\":1,\"nodes\":[{\"id\":\"s\",\"kind\":\"START\"},{\"id\":\"r\",\"kind\":\"RULE\",\"ruleId\":\"CT_R3\"},"
+                        + "{\"id\":\"e\",\"kind\":\"END\"}],\"edges\":[{\"id\":\"e1\",\"from\":\"s\",\"to\":\"r\"},"
+                        + "{\"id\":\"e2\",\"from\":\"r\",\"to\":\"e\"}]}");
+        DmeTestSupport.ruleSetDraft(jdbc, "CT_SET", "3.000", "kim", "[\"CT_DRAFT\"]", 0);
+
+        // 코드: CT_CD 1.000 RELEASED(A), CODE 도메인 + 컬럼 CT_CODE_COL
+        MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
+        seeds.seedCode("CT_CD", "INUSE", "MDM");
+        seeds.released("CT_CD", "1.000", "2026-01-01 00:00:00", MasterCodeSeeds.OPEN_END);
+        seeds.seedItem("CT_CD", "A", "1.000", MasterCodeSeeds.OPEN, "에이", 1);
+        seeds.seedBase("CT_CD");
+        jdbc.update("INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, MARU_CODE_ID, CATE_ID, VER) "
+                + "VALUES ('계약 코드', 'CT_CODE_D', 'CODE', 'STRING', 'CT_CD', 'BASE', 0)");
+        long codeDomain = jdbc.queryForObject("SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'CT_CODE_D'", Long.class);
+        DmeTestSupport.column(jdbc, "CT_CODE_COL", codeDomain);
+    }
+
+    @Test
+    void 컬럼_검증이_MDM_HTTP_로_받은_정의로_돈다() {
+        Instant now = Instant.now();
+        assertTrue(validator.validate("TB_ANY", "COIL_THK", Map.of("COIL_THK", "1.5"), now).valid());
+        DomainValidator.ValidationResult bad = validator.validate("TB_ANY", "COIL_THK", Map.of("COIL_THK", "-1"), now);
+        assertFalse(bad.valid());
+        assertEquals(DomainValidator.Step.STD_EXPR, bad.failures().get(0).step());
+    }
+
+    @Test
+    void CODE_도메인_컬럼이_MDM_HTTP_로_받은_코드_원본으로_MASTER_를_판정한다() {
+        Instant now = Instant.now();
+        assertTrue(validator.validate("T", "CT_CODE_COL", Map.of("CT_CODE_COL", "A"), now).valid());
+        assertFalse(validator.validate("T", "CT_CODE_COL", Map.of("CT_CODE_COL", "Z"), now).valid());
+        CodeRows rows = (CodeRows) service.one(MdmTargetType.CODE, "CT_CD").orElseThrow();
+        assertEquals(0, rows.versions().get(0).ver().compareTo(new BigDecimal("1.000")));
+        assertEquals(LocalDateTime.of(2026, 1, 1, 0, 0), rows.versions().get(0).applyFrom());
+    }
+
+    /**
+     * 코드 버전 자리수(DECIMAL(7,3) → scale 3, 엔진 계약 #17)가 MDM 직렬화({@code MetaFeedJson}) → OASIS 응답 → cactus 역직렬화({@code MdmJson})를
+     * 거쳐도 그대로다. 레코드 equals 는 {@code BigDecimal.equals}(자리수까지 비교)를 쓰므로 원장에서 직접 만든 값과 같으면 자리수가 지켜진 것이다.
+     */
+    @Test
+    void CODE_원본은_HTTP_왕복_뒤에도_원장_값과_자리수까지_같다() {
+        CodeRows direct = new MdmCodeLookup(ledger).code("CT_CD").orElseThrow();
+        CodeRows viaHttp = (CodeRows) service.one(MdmTargetType.CODE, "CT_CD").orElseThrow();
+
+        assertEquals(direct, viaHttp);
+        assertEquals(new BigDecimal("1.000"), viaHttp.versions().get(0).ver());
+        assertEquals(3, viaHttp.versions().get(0).ver().scale());
+        assertEquals(3, viaHttp.items().get(0).fromVer().scale());
+        assertEquals(new BigDecimal("9999.000"), viaHttp.items().get(0).toVer());
+        assertEquals(3, viaHttp.categories().get(0).fromVer().scale());
+        assertEquals(LocalDateTime.of(9999, 12, 31, 0, 0), viaHttp.versions().get(0).applyTo());
+    }
+
+    @Test
+    void 룰은_적용_기간_경계_양쪽에서_MDM_원장과_같은_버전과_내용을_고른다() {
+        StoredDefinitionLookup stored = stored();
+        // 경계마다 기대 버전을 못박는다 — 원장·HTTP 가 같은 틀린 버전을 고르는 경우도 잡는다. equals 는 자리수까지 본다(1.000 ≠ 1).
+        Map<LocalDateTime, BigDecimal> expected = new java.util.LinkedHashMap<>();
+        expected.put(LocalDateTime.of(2026, 6, 30, 23, 59, 59), new BigDecimal("1.000"));
+        expected.put(LocalDateTime.of(2026, 7, 1, 0, 0), new BigDecimal("1.001"));
+        expected.put(LocalDateTime.of(2026, 12, 31, 23, 59, 59), new BigDecimal("1.001"));
+        expected.put(LocalDateTime.of(2027, 1, 1, 0, 0), new BigDecimal("2.000"));
+        expected.forEach((at, ver) -> {
+            Instant ts = at.atZone(MdmDefinitionLookup.KST).toInstant();
+            RuleDefinition viaHttp = lookup.rule(Q, ts).orElseThrow();
+            RuleDefinition direct = stored.rule(Q, ts).orElseThrow();
+            assertEquals(ver, direct.ver(), "원장 판정 시각 " + at);
+            assertEquals(ver, viaHttp.ver(), "HTTP 판정 시각 " + at);
+            assertEquals(3, viaHttp.ver().scale(), "HTTP 판정 시각 " + at);
+            assertEquals(fingerprint(direct), fingerprint(viaHttp), "판정 시각 " + at);
+            // fingerprint 는 키를 문자열로 이어 붙여 Integer 1 과 "1" 을 가르지 못한다 — 행(셀 맵 키 타입·op·left·right·list·val 포함)을 그대로 비교한다
+            assertEquals(direct.rows(), viaHttp.rows(), "판정 시각 " + at);
+            viaHttp.rows().forEach(r -> r.cells().keySet().forEach(k -> assertEquals(Integer.class, ((Object) k).getClass())));
+        });
+        // 적용 시작 전은 원장·HTTP 모두 없다
+        Instant beforeAll = LocalDateTime.of(2025, 12, 31, 23, 59, 59).atZone(MdmDefinitionLookup.KST).toInstant();
+        assertTrue(stored.rule(Q, beforeAll).isEmpty());
+        assertTrue(lookup.rule(Q, beforeAll).isEmpty());
+    }
+
+    /**
+     * D-144 2단계 — 세트도 RELEASED 버전 목록이 HTTP 를 지나 업무 모듈이 판정 시각으로 고른다. 경계마다 기대 버전을 못박고, 원장
+     * ({@code StoredDefinitionLookup.ruleSet(id, T)})과 HTTP 가 레코드 전체(ver 자리수·적용 구간·ruleIds·상태·흐름)까지 같은지 본다. DRAFT 3.000 은 오지 않는다.
+     */
+    @Test
+    void 룰_세트는_적용_기간_경계_양쪽에서_MDM_원장과_같은_버전과_내용을_고른다() {
+        StoredDefinitionLookup stored = stored();
+        Map<LocalDateTime, BigDecimal> expected = new java.util.LinkedHashMap<>();
+        expected.put(LocalDateTime.of(2000, 1, 1, 0, 0), new BigDecimal("1.000"));
+        expected.put(LocalDateTime.of(2026, 6, 30, 23, 59, 59), new BigDecimal("1.000"));
+        expected.put(LocalDateTime.of(2026, 7, 1, 0, 0), new BigDecimal("1.001"));
+        expected.put(LocalDateTime.of(2026, 12, 31, 23, 59, 59), new BigDecimal("1.001"));
+        expected.put(LocalDateTime.of(2027, 1, 1, 0, 0), new BigDecimal("2.000"));
+        Map<BigDecimal, List<String>> members = Map.of(new BigDecimal("1.000"), List.of(Q), new BigDecimal("1.001"), List.of(Q, "CT_R2"),
+                new BigDecimal("2.000"), List.of("CT_R3"));
+        expected.forEach((at, ver) -> {
+            Instant ts = at.atZone(MdmDefinitionLookup.KST).toInstant();
+            RuleSetDefinition viaHttp = lookup.ruleSet("CT_SET", ts).orElseThrow();
+            RuleSetDefinition direct = stored.ruleSet("CT_SET", ts).orElseThrow();
+            assertEquals(ver, direct.ver(), "원장 판정 시각 " + at);
+            assertEquals(ver, viaHttp.ver(), "HTTP 판정 시각 " + at);
+            assertEquals(3, viaHttp.ver().scale(), "HTTP 판정 시각 " + at);
+            assertEquals(members.get(ver), viaHttp.ruleIds(), "판정 시각 " + at);
+            assertEquals(direct, viaHttp, "판정 시각 " + at);                                      // 레코드 equals — 흐름·상태·구간까지
+        });
+        assertTrue(lookup.ruleSet("CT_SET", LocalDateTime.of(2027, 1, 1, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant())
+                .orElseThrow().flow() != null, "2.000 흐름이 HTTP 를 지난다");
+        // 캐시 값은 RELEASED 버전 목록(ver 오름차순, DRAFT 3.000 없음)
+        @SuppressWarnings("unchecked")
+        List<RuleSetDefinition> cached = (List<RuleSetDefinition>) service.one(MdmTargetType.RULE_SET, "CT_SET").orElseThrow();
+        assertEquals(List.of(new BigDecimal("1.000"), new BigDecimal("1.001"), new BigDecimal("2.000")),
+                cached.stream().map(RuleSetDefinition::ver).toList());
+        cached.forEach(d -> assertEquals(3, d.ver().scale(), d.toString()));
+        // 적용 시작 전은 원장·HTTP 모두 없다
+        Instant beforeAll = LocalDateTime.of(1999, 12, 31, 23, 59, 59).atZone(MdmDefinitionLookup.KST).toInstant();
+        assertTrue(stored.ruleSet("CT_SET", beforeAll).isEmpty());
+        assertTrue(lookup.ruleSet("CT_SET", beforeAll).isEmpty());
+    }
+
+    private StoredDefinitionLookup stored() {
+        return new StoredDefinitionLookup(ruleQueries, storedRuleDefinitions, ruleRepository, ruleSetVersionQueries, ruleSetRepository);
+    }
+
+    /** 판정에 쓰이는 칸 — ver·적용 구간·종류·적중·변수·행 셀 텍스트(키는 var_id 정수). AST Map 은 숫자 타입이 왕복에서 바뀔 수 있어 뺀다. */
+    static String fingerprint(RuleDefinition d) {
+        String vars = d.vars().stream().map(v -> v.varId() + ":" + v.varKind() + ":" + v.varName() + ":" + v.dataType() + ":" + v.scale())
+                .collect(Collectors.joining(","));
+        String rows = d.rows().stream().map(r -> r.rowId() + ":" + r.seq() + ":" + r.rowKind() + ":"
+                + new TreeMap<>(r.cells()).entrySet().stream().map(e -> e.getKey() + "=" + e.getValue().text()).collect(Collectors.joining("|")))
+                .collect(Collectors.joining(","));
+        return d.ruleId() + "/" + d.ver() + "/" + d.applyFrom() + "/" + d.applyTo() + "/" + d.ruleKind() + "/" + d.hitPolicy()
+                + "/" + d.contract().always().size() + "/" + vars + "/" + rows;
+    }
+
+    String ast(String text) {
+        try {
+            return DomainJson.write(AstExporter.export(text, mdmEvaluator.configuration()));
+        } catch (com.ezylang.evalex.parser.ParseException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    static String effectiveClientKey() {
+        String env = System.getenv("BACKEND_CLIENT_KEY");
+        return (env != null && !env.isBlank()) ? env : TEST_CLIENT_KEY;
+    }
+}

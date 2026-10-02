@@ -54,9 +54,9 @@ class RuleSetLegacyMergeTest {
     private record Run(RuleSetResult result, RunTrace trace) {}
 
     private Run both(FlowDefinition f, Map<String, Object> record) {
-        lookup.addSet(new RuleSetDefinition("S", List.of(), SetStatus.INUSE, f));
+        lookup.addSet(new RuleSetDefinition("S", null, null, null, List.of(), SetStatus.INUSE, f));
         return new Run(engine.evaluateSet("S", record, SampleRules.EVAL_TS),
-                engine.traceSet(new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, f), record, SampleRules.EVAL_TS));
+                engine.traceSet(new RuleSetDefinition("DRAFT", null, null, null, List.of(), SetStatus.INUSE, f), record, SampleRules.EVAL_TS));
     }
 
     private static List<String> path(RuleSetResult r, Predicate<RuleSetResult.PathStep> keep) {
