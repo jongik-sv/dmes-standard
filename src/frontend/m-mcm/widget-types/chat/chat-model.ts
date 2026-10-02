@@ -197,12 +197,18 @@ export function resolveWelcome(definition: unknown): string {
   return definition.welcome.trim();
 }
 
+/** 위젯관리 화면 미리보기(WidgetPreview)가 쓰는 자리표시 값 — 저장 전 정의의 widgetId 와 모든 미리보기의 instId. */
+export const PREVIEW_WIDGET_ID = "def.preview";
+export const PREVIEW_INST_ID = "preview";
+
 /**
- * 서버와 실제로 대화하는지 — 저장된 정의(`def.…`)만 대화한다. 저장 전 미리보기(관리 화면)나 `__preview` 정의는
- * 서버를 부르지 않고 첫 인사만 보인다(저장 전 defId 로 send 하면 서버가 거절한다).
+ * 서버와 실제로 대화하는지 — 저장된 정의(`def.…`)를 홈 등에 놓은 위젯만 대화한다. 관리 화면 미리보기(instId `preview`,
+ * 저장 전이면 widgetId `def.preview`)나 `__preview` 정의는 서버를 부르지 않고 첫 인사만 보인다. 미리보기는 저장된 설정으로
+ * 답하므로 화면의 편집값과 어긋나고, 관리자 본인의 `preview` 인스턴스에 기록만 쌓이기 때문이다.
  */
-export function isLiveChat(widgetId: string, definition: unknown): boolean {
-  if (!/^def\./.test(widgetId)) return false;
+export function isLiveChat(widgetId: string, definition: unknown, instanceId?: string): boolean {
+  if (!/^def\./.test(widgetId) || widgetId === PREVIEW_WIDGET_ID) return false;
+  if (instanceId === PREVIEW_INST_ID) return false;
   return !(isRecord(definition) && definition.__preview);
 }
 
@@ -319,16 +325,18 @@ export function queryWidgetIds(defs: unknown): string[] {
 /**
  * 다중 선택 목록 — 후보를 「제목(ID)」(제목이 없으면 ID)로 가나다순으로 늘어놓는다.
  * 이미 골라 둔 것이 후보에 없으면(삭제·사용 중지) 「ID (사용할 수 없음)」로 뒤에 붙여 관리자가 알아보고 뺄 수 있게 한다.
+ * 목록을 아직 못 불러왔으면(defs 가 배열이 아님 — 불러오는 중·실패) 후보를 알 수 없으므로 고른 ID 를 그대로 보인다.
  */
 export function buildQueryWidgetOptions(defs: unknown, selectedIds: readonly string[]): QueryWidgetOption[] {
   const options = queryWidgetRows(defs)
     .map((r) => ({ value: r.widgetId, label: r.title ? `${r.title}(${r.widgetId})` : r.widgetId }))
     .sort((a, b) => a.label.localeCompare(b.label, "ko"));
   const known = new Set(options.map((o) => o.value));
+  const listed = Array.isArray(defs);
   for (const id of selectedIds) {
     if (known.has(id)) continue;
     known.add(id);
-    options.push({ value: id, label: `${id} (사용할 수 없음)` });
+    options.push({ value: id, label: listed ? `${id} (사용할 수 없음)` : id });
   }
   return options;
 }

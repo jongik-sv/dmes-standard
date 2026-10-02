@@ -24,6 +24,8 @@ import {
   parseHistory,
   parseLinks,
   parseReply,
+  PREVIEW_INST_ID,
+  PREVIEW_WIDGET_ID,
   queryWidgetIds,
   remainingChars,
   resetRequest,
@@ -271,12 +273,20 @@ describe("화면 목록(첫 인사)", () => {
 });
 
 describe("미리보기 판정", () => {
-  it("저장된 정의(def.…)만 서버와 대화하고, 저장 전·__preview 는 서버를 부르지 않는다", () => {
-    expect(isLiveChat("def.k3x9q2ab", { welcome: "x" })).toBe(true);
+  it("저장된 정의(def.…)를 놓은 위젯만 서버와 대화하고, 저장 전·__preview 는 서버를 부르지 않는다", () => {
+    expect(isLiveChat("def.k3x9q2ab", { welcome: "x" }, "inst-1")).toBe(true);
     expect(isLiveChat("def.k3x9q2ab", null)).toBe(true);
     expect(isLiveChat("", {})).toBe(false);
     expect(isLiveChat("new", {})).toBe(false);
-    expect(isLiveChat("def.k3x9q2ab", { __preview: true })).toBe(false);
+    expect(isLiveChat("def.k3x9q2ab", { __preview: true }, "inst-1")).toBe(false);
+  });
+
+  it("위젯관리 미리보기(instId preview·저장 전 widgetId def.preview)는 저장된 정의여도 대화하지 않는다", () => {
+    expect(PREVIEW_INST_ID).toBe("preview");
+    expect(PREVIEW_WIDGET_ID).toBe("def.preview");
+    expect(isLiveChat("def.preview", {}, "preview")).toBe(false);
+    expect(isLiveChat("def.preview", {}, "inst-1")).toBe(false);
+    expect(isLiveChat("def.k3x9q2ab", {}, "preview")).toBe(false);
   });
 });
 
@@ -465,6 +475,15 @@ describe("편집기 설정", () => {
   it("defs 가 배열이 아니어도 죽지 않는다", () => {
     expect(buildQueryWidgetOptions(undefined as unknown as unknown[], [])).toEqual([]);
     expect(queryWidgetIds(null as unknown as unknown[])).toEqual([]);
+  });
+
+  it("목록을 아직 못 불러왔으면(null) 고른 ID 를 「사용할 수 없음」 없이 그대로 보인다", () => {
+    expect(buildQueryWidgetOptions(null, ["def.tbl", "def.num"])).toEqual([
+      { value: "def.tbl", label: "def.tbl" },
+      { value: "def.num", label: "def.num" },
+    ]);
+    // 빈 배열(읽었더니 후보가 없음)이면 사용할 수 없음
+    expect(buildQueryWidgetOptions([], ["def.tbl"])).toEqual([{ value: "def.tbl", label: "def.tbl (사용할 수 없음)" }]);
   });
 
   it("validateChatConfig — 목록을 불러왔을 때만 사용할 수 없는 쿼리 위젯을 막는다", () => {

@@ -46,6 +46,7 @@ export default function ChatEditor({ value, onChange, onValidate }: WidgetTypeEd
     };
   }, []);
 
+  // defs 가 null(불러오는 중·실패)이면 고른 ID 를 그대로 보인다 — 「사용할 수 없음」 표시는 목록을 읽은 뒤에만.
   const options = useMemo(() => buildQueryWidgetOptions(defs, cfg.dataQueryDefIds), [defs, cfg.dataQueryDefIds]);
   const availableIds = useMemo(() => (defs ? queryWidgetIds(defs) : null), [defs]);
   const errors = useMemo(() => validateChatConfig(cfg, availableIds), [cfg, availableIds]);

@@ -40,11 +40,12 @@ const LOW_REMAINING = 100;
 export default function ChatRenderer({ instanceId, widgetId, definition, refreshKey }: WidgetProps) {
   const setStatus = useWidgetStatus();
   const { showMessage } = useMessage();
-  const live = isLiveChat(widgetId, definition);
+  const live = isLiveChat(widgetId, definition, instanceId);
   const welcome = resolveWelcome(definition);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [showWelcome, setShowWelcome] = useState(true);
+  // 서버와 대화하는 위젯은 기록을 읽은 뒤에야 첫 인사를 정한다(처음에 보였다 사라지는 깜빡임 방지). 미리보기는 바로 보인다.
+  const [showWelcome, setShowWelcome] = useState(!live);
   const [loaded, setLoaded] = useState(!live);
   const [attempt, setAttempt] = useState(0);
   const [draft, setDraft] = useState("");
