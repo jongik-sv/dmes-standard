@@ -7,14 +7,84 @@ export class HttpError extends Error {
    * `status` 로 대략적인 분류만 가능 — 4xx/5xx).
    */
   public readonly code?: string;
+  /**
+   * BE 오류 상세(OASIS CactusResponse `errors` — cactus-core `ErrorDetail`)를 그대로 보존한다. 저장 검증(MdmValidator) 오류를 그리드·폼 칸에
+   * 표시할 때 {@link toFieldErrors} 로 읽는다. 상세가 없으면 undefined.
+   */
+  public readonly errors?: BackendErrorDetail[];
 
-  constructor(status: number, statusText: string, message?: string, code?: string) {
+  constructor(status: number, statusText: string, message?: string, code?: string, errors?: BackendErrorDetail[]) {
     super(message ?? `Request failed with ${status} ${statusText}`);
     this.name = "HttpError";
     this.status = status;
     this.statusText = statusText;
     this.code = code;
+    this.errors = errors;
   }
+}
+
+/** BE 오류 상세 한 건 — cactus-core `ErrorDetail(grid, rowKey, rowIndex, field, code, message)`. */
+export interface BackendErrorDetail {
+  grid?: string | null;
+  rowKey?: string | number | null;
+  rowIndex?: number | null;
+  field?: string | null;
+  code?: string | null;
+  message: string;
+}
+
+/** 칸 하나의 서버 오류 — `AgDataGrid fieldErrors` 와 폼 칸 표시가 읽는 모양(spec §4, C9). */
+export interface FieldErrorItem {
+  /** 요청 행의 `rowKey` 값. */
+  rowKey?: string;
+  /** 요청 목록에서의 자리. */
+  rowIndex?: number;
+  /** 요청 행의 원래 키. */
+  field: string;
+  message: string;
+}
+
+function errorDetailsOf(source: unknown): unknown[] | null {
+  if (Array.isArray(source)) return source;
+  if (source && typeof source === "object") {
+    const errors = (source as { errors?: unknown }).errors;
+    if (Array.isArray(errors)) return errors;
+  }
+  return null;
+}
+
+/**
+ * 서버 오류 → 칸 오류 목록. `field` 가 있는 상세만 남긴다(검증 불가 `MDM_UNAVAILABLE` 처럼 칸이 없는 것은 메시지로 보인다).
+ *
+ * @param source {@link apiRequest} 가 던진 {@link HttpError}, OASIS 응답 봉투(`{ meta, errors }`), 또는 상세 배열
+ * @param grid 주면 그 그리드의 상세와 grid 가 없는 상세(폼 하나)만
+ */
+export function toFieldErrors(source: unknown, grid?: string): FieldErrorItem[] {
+  const details = errorDetailsOf(source);
+  if (!details) return [];
+  const out: FieldErrorItem[] = [];
+  for (const d of details) {
+    if (!d || typeof d !== "object") continue;
+    const e = d as BackendErrorDetail;
+    if (typeof e.field !== "string" || e.field.length === 0) continue;
+    if (grid != null && e.grid != null && e.grid !== "" && e.grid !== grid) continue;
+    const item: FieldErrorItem = { field: e.field, message: typeof e.message === "string" ? e.message : "" };
+    if (e.rowKey != null && e.rowKey !== "") item.rowKey = String(e.rowKey);
+    if (typeof e.rowIndex === "number" && Number.isInteger(e.rowIndex)) item.rowIndex = e.rowIndex;
+    out.push(rowKeyFirst(item));
+  }
+  return out;
+}
+
+/** 키 순서를 rowKey → rowIndex → field → message 로(로그·시험에서 읽기 쉽게). */
+function rowKeyFirst(item: FieldErrorItem): FieldErrorItem {
+  const { rowKey, rowIndex, field, message } = item;
+  return {
+    ...(rowKey !== undefined ? { rowKey } : {}),
+    ...(rowIndex !== undefined ? { rowIndex } : {}),
+    field,
+    message,
+  };
 }
 
 const NETWORK_ERROR_MESSAGE =
@@ -158,6 +228,7 @@ interface ApiErrorBody {
   errors?: Array<{
     grid?: string;
     rowKey?: string;
+    rowIndex?: number;
     field?: string;
     code?: string;
     message: string;
@@ -292,11 +363,13 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     // BE 표준 에러 응답의 code 를 HttpError 에 보존한다. body.error.code 가 aps-core ApiResponse(현재
     // 실제 응답 형태) 의 위치이고, 나머지는 다른 백엔드 형태(§ApiErrorBody 주석) 호환.
     const code = body.error?.code ?? body.errorCode ?? body.meta?.code;
+    // OASIS 오류 상세(grid·rowKey·rowIndex·field)는 칸 표시용으로 그대로 싣는다(toFieldErrors).
+    const details = Array.isArray(body.errors) && body.errors.length > 0 ? (body.errors as BackendErrorDetail[]) : undefined;
     if (fieldErrors && fieldErrors.length > 0) {
       const detail = fieldErrors.map((fe) => `${fe.field}: ${fe.message}`).join(", ");
-      throw new HttpError(res.status, res.statusText, `${baseMsg} — ${detail}`, code);
+      throw new HttpError(res.status, res.statusText, `${baseMsg} — ${detail}`, code, details);
     }
-    throw new HttpError(res.status, res.statusText, baseMsg, code);
+    throw new HttpError(res.status, res.statusText, baseMsg, code, details);
   }
 
   // 204 No Content 등 body 가 없는 응답 처리
