@@ -195,15 +195,17 @@ function stdExprFails(ast: AstNode, value: unknown): boolean {
   }
 }
 
-/** 지운 행 — 서버 MdmValidator 처럼 건너뛴다(`rowStatus` D·deleted, 행 상태 관리자의 deleted 표시). */
+/**
+ * 지운 행 — 서버 MdmValidator 처럼 건너뛴다. `rowStatus` 는 앞뒤 공백을 걷고 대소문자를 무시해 D·deleted 를 본다(서버와 같은 판정이라
+ * 화면이 통과시킨 `" D "`·`"DELETED"` 를 서버가 검사하거나 그 반대가 되지 않는다). 행 상태 관리자의 deleted 표시도 지운 행이다.
+ */
 function isDeletedRow(row: Record<string, unknown>): boolean {
   const status = row.rowStatus;
-  return (
-    status === "D" ||
-    status === "deleted" ||
-    row._rowState === "deleted" ||
-    row.nativeeditor_status === "deleted"
-  );
+  if (status !== null && status !== undefined) {
+    const s = String(status).trim().toLowerCase();
+    if (s === "d" || s === "deleted") return true;
+  }
+  return row._rowState === "deleted" || row.nativeeditor_status === "deleted";
 }
 
 /**

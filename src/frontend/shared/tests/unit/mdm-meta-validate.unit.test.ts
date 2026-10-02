@@ -422,6 +422,26 @@ describe("useMdmValidation", () => {
     await m.unmount();
   });
 
+  it("validateRows — 삭제 행 판정은 서버 MdmValidator 처럼 앞뒤 공백·대소문자를 무시한다", async () => {
+    vi.stubGlobal("fetch", fakeMetaFetch({ columns: { TITLE, QTY } }).fn);
+    const m = await mount(true, ["title", "qty"]);
+    const bad = { title: "", qty: "x" }; // 검사하면 title REQUIRED · qty TYPE
+    const rows = [
+      { ...bad, rowStatus: "d" },
+      { ...bad, rowStatus: "DELETED" },
+      { ...bad, rowStatus: " D " },
+      { ...bad, rowStatus: " Deleted " },
+      { ...bad, rowStatus: "deleted" },
+      { ...bad, rowStatus: "U" }, // 삭제가 아니다 — 검사한다
+      { ...bad, rowStatus: "" },
+      { ...bad, rowStatus: 7 }, // 문자열이 아니어도 던지지 않는다
+      { ...bad, rowStatus: "DEL" }, // D·deleted 만 삭제다
+    ];
+    const all = m.api().validateRows(rows, ["title"]);
+    expect(all.map((r) => r.rowIndex)).toEqual([5, 6, 7, 8]);
+    await m.unmount();
+  });
+
   it("disabled 공급자 아래에서는 검사하지 않는다", async () => {
     const f = fakeMetaFetch({ columns: { TITLE } });
     vi.stubGlobal("fetch", f.fn);
