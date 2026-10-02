@@ -26,6 +26,7 @@ class SqlGuardTest {
     private static final String EMPTY = "SQL 을 입력해 주세요";
     private static final String UNCLOSED = "닫히지 않은 따옴표·괄호·주석이 있습니다";
     private static final String SPECIAL = "특수 문자열 표기(E'…', q'…', $$…$$)는 쓸 수 없습니다";
+    private static final String NESTED = "주석 안에 /* 를 다시 쓸 수 없습니다(DB 마다 겹친 주석을 다르게 읽습니다)";
 
     /** 원문 → 실행할 SQL(끝 ; 만 지우고 앞뒤 공백 정리) → 쓰인 변수(처음 나온 순서, 중복 없음). */
     static Stream<Arguments> allowed() {
@@ -47,8 +48,12 @@ class SqlGuardTest {
                         List.of("userId", "deptCd")),
                 arguments("SELECT updated_at, created_by, deleted_yn FROM v$session", "SELECT updated_at, created_by, deleted_yn FROM v$session",
                         List.of()),
-                arguments("SELECT [update] FROM t", "SELECT [update] FROM t", List.of()),
-                arguments("Select :yesterday, :now; -- 끝", "Select :yesterday, :now -- 끝", List.of("yesterday", "now")));
+                arguments("Select :yesterday, :now; -- 끝", "Select :yesterday, :now -- 끝", List.of("yesterday", "now")),
+                // 1차 리뷰 뒤 덧붙인 사례: PostgreSQL 배열 첨자·띄어 쓴 비트 연산 &·주석 두 개·Spring 이 바인딩하는 &name
+                arguments("SELECT a[1] FROM t", "SELECT a[1] FROM t", List.of()),
+                arguments("SELECT a & b FROM t", "SELECT a & b FROM t", List.of()),
+                arguments("SELECT 1 /* a */ /* b */ FROM t", "SELECT 1 /* a */ /* b */ FROM t", List.of()),
+                arguments("SELECT 1 FROM t WHERE a = &userId", "SELECT 1 FROM t WHERE a = &userId", List.of("userId")));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -88,7 +93,21 @@ class SqlGuardTest {
                 arguments("SELECT ['] FROM t; DELETE FROM t; --']", MULTI),
                 arguments("SELECT :userid FROM t",
                         "알 수 없는 변수입니다: :userid (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
-                arguments("(SELECT 1)", NOT_SELECT));
+                arguments("(SELECT 1)", NOT_SELECT),
+                // 1차 리뷰 뒤 덧붙인 사례 — 겹친 주석(PostgreSQL·MSSQL 과 Oracle·SQLite 가 다르게 읽는다)
+                arguments("SELECT 1 /* a /* b */ */", NESTED),
+                arguments("SELECT 1 /* x /* y */", NESTED),
+                arguments("SELECT 1 /* x /*/ FROM t", NESTED),
+                // 대괄호는 PostgreSQL 에서 식이다 — 그 안의 ;·금지 낱말·변수도 본다
+                arguments("SELECT [a;b] FROM t", MULTI),
+                arguments("SELECT [update] FROM t", "쓸 수 없는 낱말이 있습니다: UPDATE"),
+                arguments("SELECT a[:foo] FROM t",
+                        "알 수 없는 변수입니다: :foo (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
+                // Spring 이 변수로 바꾸는 &name·점 붙은 이름도 같은 규칙(검사는 통과하고 실행 때 늘 실패하는 SQL 을 막는다)
+                arguments("SELECT a FROM t WHERE (f &mask) = 1",
+                        "알 수 없는 변수입니다: &mask (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
+                arguments("SELECT :userId.x FROM t",
+                        "알 수 없는 변수입니다: :userId.x (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")

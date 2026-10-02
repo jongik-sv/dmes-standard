@@ -65,9 +65,13 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>SQL 은 늘 {@link SqlGuard} 검사(§7.1)를 거친다. 저장된 정의도 실행 때마다 다시 검사한다.</li>
  *   <li>실행은 별도(REQUIRES_NEW)·읽기 전용 트랜잭션에서 하고 <b>늘 롤백</b>한다. 행 상한+1·10초·가져오기 100(§7.3).</li>
  *   <li>시스템 변수(§7.2)는 SQL 이 쓰는 것만 만들고 바인딩한다. 사용자 값은 늘 인증 컨텍스트에서 얻는다(IDOR).</li>
- *   <li>결과 캐시: 키 (defId, 행 상한, 쓰인 시스템 변수 값들), 30초. 정의 저장 이벤트가 오면 그 defId 캐시를 비운다.</li>
+ *   <li>결과 캐시: 키 (defId, 행 상한, 쓰인 시스템 변수 값들 — {@code :now} 는 30초 구간 시작), 30초. 정의 저장 이벤트가 오면
+ *       그 defId 캐시를 비운다.</li>
  *   <li>DB 오류: 사용자에게는 고정 문구, 서버 로그에는 defId·원인. 관리자 미리보기만 DB 메시지를 보여 준다.</li>
  * </ul>
+ * <b>운영 주의</b>: {@code readOnly} 는 SQLite 에서 효과가 없고 SQL Server 에서는 힌트일 뿐이며, SQL Server 는 {@code ;} 없이도
+ * 한 배치에 문장을 이어 쓸 수 있다. 그래서 운영 DB 에서는 이 실행기에 <b>읽기 권한만 가진 DB 계정의 DataSource</b> 를 붙이는 것이
+ * 근본 대책이다(실행기는 DataSource 만 받으므로 빈 연결만 바꾸면 된다).
  */
 @Component
 public class WidgetQueryExecutor implements WidgetQueryRunner {
@@ -81,7 +85,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     static final int QUERY_TIMEOUT_SEC = 10;
     static final int FETCH_SIZE = 100;
     static final Duration CACHE_TTL = Duration.ofSeconds(30);
-    /** 캐시 항목 상한 — :now 를 쓰는 SQL 처럼 늘 키가 바뀌는 경우에도 메모리가 끝없이 늘지 않게. 넘으면 그 결과는 캐시하지 않는다. */
+    /** 캐시 항목 상한 — 사용자마다 키가 다른 SQL(:userId 등)이 많아도 메모리가 끝없이 늘지 않게. 넘으면 그 결과는 캐시하지 않는다. */
     static final int CACHE_MAX_ENTRIES = 1000;
     static final int CLOB_MAX_CHARS = 4000;
 
@@ -151,8 +155,8 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         SqlGuard.Validated validated = SqlGuard.check(sqlOf(def));
         Map<String, Object> values = systemValues(validated.variables());
 
-        CacheKey key = new CacheKey(id, maxRows, values);
         Instant now = clock.instant();
+        CacheKey key = new CacheKey(id, maxRows, cacheKeyValues(values, now));
         CachedResult hit = cache.get(key);
         if (hit != null && now.isBefore(hit.expiresAt())) return hit.result();
 
@@ -199,6 +203,23 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
 
     TransactionTemplate transactionTemplate() {
         return transactionTemplate;
+    }
+
+    int cacheSize() {
+        return cache.size();
+    }
+
+    /**
+     * 캐시 키에 넣을 변수 값. {@code :now} 는 부를 때마다 바뀌어(나노초) 그대로 넣으면 호출마다 새 항목이 생기고, 상한(1000)이 차면
+     * 다른 정의의 결과까지 캐시되지 않는다. 그래서 키에는 TTL(30초) 구간의 시작 시각만 넣는다 — 같은 구간의 호출은 한 항목을 다시 쓴다.
+     * 바인딩 값은 그대로 현재 시각이다(캐시된 결과가 최대 30초 묵는 것은 다른 변수와 같다).
+     */
+    static Map<String, Object> cacheKeyValues(Map<String, Object> values, Instant now) {
+        if (!values.containsKey("now")) return values;
+        long ttl = CACHE_TTL.toSeconds();
+        Map<String, Object> keyValues = new TreeMap<>(values);
+        keyValues.put("now", Instant.ofEpochSecond(Math.floorDiv(now.getEpochSecond(), ttl) * ttl));
+        return Collections.unmodifiableMap(keyValues);
     }
 
     /**

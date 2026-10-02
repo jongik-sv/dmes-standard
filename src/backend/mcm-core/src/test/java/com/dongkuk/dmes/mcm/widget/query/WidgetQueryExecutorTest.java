@@ -192,6 +192,40 @@ class WidgetQueryExecutorTest {
     }
 
     @Test
+    @DisplayName(":now 를 쓰는 SQL 은 30초 구간마다 한 항목만 캐시한다 — 여러 번 불러도 다른 정의의 캐시가 유지된다")
+    void nowVariableDoesNotFloodCache() {
+        def("def.other", "query-number", "SELECT COUNT(*) AS CNT FROM WIDGET_T");
+        def("def.now", "query-number", "SELECT COUNT(*) AS CNT FROM WIDGET_T WHERE DT IS NULL OR DT <= :now");
+        assertThat(count("def.other")).isEqualTo(600L);
+        assertThat(count("def.now")).isEqualTo(600L);
+        insertRow(601);
+
+        // 상한(1000)을 넘게 부른다 — 10ms 씩 12초, 모두 T0 에서 시작한 같은 30초 구간이다.
+        for (int i = 0; i < WidgetQueryExecutor.CACHE_MAX_ENTRIES + 200; i++) {
+            clock.advance(Duration.ofMillis(10));
+            assertThat(count("def.now")).isEqualTo(600L);
+        }
+        assertThat(executor.cacheSize()).isEqualTo(2);
+        assertThat(count("def.other")).isEqualTo(600L);
+
+        clock.advance(Duration.ofSeconds(19)); // T0+31초 — 다음 구간, def.other 도 만료
+        assertThat(count("def.now")).isEqualTo(601L);
+        assertThat(count("def.other")).isEqualTo(601L);
+    }
+
+    @Test
+    @DisplayName("캐시 키의 :now 는 30초 구간 시작으로 내리고, 다른 변수는 그대로 둔다")
+    void cacheKeyTruncatesNowToTtlWindow() {
+        Map<String, Object> values = Map.of("now", java.sql.Timestamp.valueOf("2026-10-01 00:30:17"), "userId", "userA");
+        Map<String, Object> key = WidgetQueryExecutor.cacheKeyValues(values, T0.plusSeconds(17));
+        assertThat(key).containsEntry("now", T0).containsEntry("userId", "userA");
+        assertThat(WidgetQueryExecutor.cacheKeyValues(values, T0.plusSeconds(29))).isEqualTo(key);
+        assertThat(WidgetQueryExecutor.cacheKeyValues(values, T0.plusSeconds(30))).containsEntry("now", T0.plusSeconds(30));
+        Map<String, Object> noNow = Map.of("userId", "userA");
+        assertThat(WidgetQueryExecutor.cacheKeyValues(noNow, T0)).isSameAs(noNow);
+    }
+
+    @Test
     @DisplayName("정의 저장 이벤트는 그 정의의 캐시만 비운다")
     void evictsOnDefSaved() {
         def("def.count", "query-number", "SELECT COUNT(*) AS CNT FROM WIDGET_T");
