@@ -18,6 +18,9 @@ export interface UsageSegment {
   endedAt: number; // epoch ms
 }
 
+/** PortalShell `onUsageSegments` 가 구간을 넘기는 사유. 로그아웃이면 호출부가 바로 보내고 끝나기를 알려야 한다. */
+export type UsageEmitReason = "normal" | "logout";
+
 /** 활성 화면을 알릴 때 쓰는 시작 사유. RESUME 은 추적기가 스스로 붙인다. */
 export type UsageActivateKind = "OPEN" | "SWITCH";
 

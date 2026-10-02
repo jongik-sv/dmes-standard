@@ -40,6 +40,15 @@ import { ErrorBoundary } from "../components/error-boundary";
 import { useTabHistory } from "./use-tab-history";
 import { useFullscreenSidebarHover } from "./use-fullscreen-sidebar-hover";
 import { useTabFullscreen } from "./use-tab-fullscreen";
+import {
+  UsageTracker,
+  toUsagePageId,
+  type UsageEmitReason,
+  type UsageSegment,
+} from "./usage-tracker";
+
+/** 로그아웃 때 화면 사용 구간 전송을 기다리는 최대 시간(ms). 넘기면 기다리지 않고 signOut 한다. */
+const USAGE_LOGOUT_WAIT_MS = 1500;
 import "./portal-shell.css";
 
 const PORTAL_HEADER_HEIGHT = 44;
@@ -169,6 +178,15 @@ export interface PortalShellProps {
   isStartPagesLoaded?: boolean;
   /** 기본 화면 등록/해제 토글 — 탭 우클릭 메뉴와 사이드바 해제 버튼이 부른다. 미지정 시 등록 메뉴를 숨긴다. */
   onToggleStartPage?: (pageId: string) => void;
+  /**
+   * 화면 사용 구간 수집 — 활성 탭(홈 제외)을 실제로 보고 있던 구간이 닫힐 때마다 호출한다.
+   * 미지정이면 추적기를 만들지 않는다. 큐·전송·재시도는 호출부(usage-sender) 몫이다.
+   * 로그아웃 때는 열린 구간을 닫아 `reason: "logout"` 으로 넘기고, 돌려받은 Promise 를 최대 1500ms 기다린 뒤 signOut 한다.
+   */
+  onUsageSegments?: (
+    segments: UsageSegment[],
+    info: { reason: UsageEmitReason }
+  ) => void | Promise<void>;
 }
 
 /**
@@ -242,6 +260,7 @@ export function PortalShell({
   startPages,
   isStartPagesLoaded = true,
   onToggleStartPage,
+  onUsageSegments,
 }: PortalShellProps) {
   const [tabs, setTabs] = useState<PortalShellTabState[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -265,6 +284,21 @@ export function PortalShell({
   const restoredTabCountRef = useRef<number>(0);
   /** 기본 화면 자동 열기를 이 마운트에서 이미 판단했는지(등록·해제 후 재조회 때 다시 열지 않는다). */
   const startPagesAppliedRef = useRef<boolean>(false);
+  /** 최신 tabs — 활성 탭 effect 가 deps 없이 탭 정보(pageId·isHome)를 읽는다. */
+  const tabsRef = useRef<PortalShellTabState[]>(tabs);
+  tabsRef.current = tabs;
+  /** 화면 사용 추적기 — onUsageSegments 가 있을 때만 만든다. */
+  const usageTrackerRef = useRef<UsageTracker | null>(null);
+  /**
+   * 새로 만든 탭 ID(openPageTab·기본 화면 자동 열기) — 그 탭의 첫 활성화를 OPEN 으로 센다. 탭 ID 기준이라
+   * StrictMode 가 setTabs 업데이터를 두 번 불러도 OPEN 이 두 번 나오지 않는다(실제로 안 생긴 ID 는 effect 가 지운다).
+   */
+  const usageOpenTabIdsRef = useRef<Set<string>>(new Set());
+  const onUsageSegmentsRef = useRef(onUsageSegments);
+  onUsageSegmentsRef.current = onUsageSegments;
+  const isUsageTrackingEnabled = onUsageSegments != null;
+  /** 로그아웃으로 구간을 닫는 동안 onUsageSegments 가 돌려준 Promise 를 모은다(아니면 null). */
+  const usageLogoutPendingRef = useRef<Promise<void>[] | null>(null);
 
   const resolvedHomePageId = homePageId?.trim() || defaultHomePageId?.trim() || null;
   const homeTabId = resolvedHomePageId ? createHomeTabId(resolvedHomePageId) : null;
@@ -475,6 +509,8 @@ export function PortalShell({
           return prev.map((tab) => (tab.id === existing.id ? { ...tab, title: displayText } : tab));
         }
         const tabId = createTabId(pageId);
+        // 새 탭의 첫 활성화는 OPEN — 활성 탭 effect 가 소비한다.
+        usageOpenTabIdsRef.current.add(tabId);
         setActiveTabId(tabId);
         const created: PortalShellTabState = {
           id: tabId,
@@ -533,14 +569,37 @@ export function PortalShell({
   }, []);
 
   const doLogout = useCallback(() => {
+    // 화면 사용 구간을 맨 먼저 닫는다(확인창 취소 때는 불리지 않는 위치). onUsageSegments 가 reason "logout" 으로
+    // 불리고, 호출부가 돌려준 Promise(keepalive flush)를 최대 USAGE_LOGOUT_WAIT_MS 기다린 뒤 signOut 한다.
+    const pendingUsage: Promise<void>[] = [];
+    usageLogoutPendingRef.current = pendingUsage;
+    try {
+      usageTrackerRef.current?.end();
+    } finally {
+      usageLogoutPendingRef.current = null;
+    }
     writeSecureJson(storageKey, { tabs: [], activeTabId: null });
     // 다시 로그인하면 처음 시작이다 — 기본 화면을 다시 연다.
     clearStartPagesOpened(storageKey);
     if (typeof window !== "undefined") {
       localStorage.removeItem("oasis.sidebar.width");
     }
-    void signOut({ callbackUrl: "/login", redirect: true }).catch(() => {
-      window.location.href = "/login";
+    const runSignOut = () => {
+      void signOut({ callbackUrl: "/login", redirect: true }).catch(() => {
+        window.location.href = "/login";
+      });
+    };
+    if (pendingUsage.length === 0) {
+      runSignOut();
+      return;
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, USAGE_LOGOUT_WAIT_MS);
+    });
+    void Promise.race([Promise.all(pendingUsage), timeout]).then(() => {
+      clearTimeout(timer);
+      runSignOut();
     });
   }, [storageKey]);
 
@@ -841,7 +900,11 @@ export function PortalShell({
     // 목록을 기다리는 사이 사용자가 메뉴로 연 탭이 있으면 그 탭을 그대로 둔다(홈을 보고 있을 때만 바꾼다).
     if (restoredTabCountRef.current === 0) {
       const firstId = created[0].id;
-      setActiveTabId((prev) => (prev == null || prev === homeTabId ? firstId : prev));
+      setActiveTabId((prev) => {
+        if (prev != null && prev !== homeTabId) return prev;
+        usageOpenTabIdsRef.current.add(firstId); // 기본 화면 자동 열기도 OPEN 으로 센다
+        return firstId;
+      });
     }
   }, [
     homeTabId,
@@ -940,6 +1003,55 @@ export function PortalShell({
     window.dispatchEvent(
       new CustomEvent("portal-tab-activated", { detail: { tabId: activeTabId } })
     );
+  }, [activeTabId]);
+
+  // 화면 사용 추적기 — onUsageSegments 가 있을 때만 만든다. document·window 를 넘겨 가림·pagehide·입력 리스너를 단다.
+  useEffect(() => {
+    if (!isUsageTrackingEnabled) return;
+    const tracker = new UsageTracker({
+      onSegments: (segments) => {
+        const pending = usageLogoutPendingRef.current;
+        const result = onUsageSegmentsRef.current?.(segments, {
+          reason: pending ? "logout" : "normal",
+        });
+        if (pending && result) {
+          // 로그아웃 때 돌려받은 Promise 는 doLogout 이 기다린다. 거부돼도 로그아웃을 막지 않는다.
+          pending.push(
+            Promise.resolve(result).catch((err) => {
+              console.warn("[usage] 로그아웃 때 화면 사용 구간 전송 실패", err);
+            })
+          );
+        }
+      },
+      doc: document,
+      win: window,
+    });
+    usageTrackerRef.current = tracker;
+    // prop 이 나중에 생긴 경우 지금 보고 있는 탭부터 잰다(첫 마운트에는 활성 탭이 없어 아무것도 안 한다).
+    const current = tabsRef.current.find((tab) => tab.id === activeTabIdRef.current);
+    tracker.activate(current && !current.isHome ? toUsagePageId(current.pageId) : null);
+    return () => {
+      if (usageTrackerRef.current === tracker) usageTrackerRef.current = null;
+      tracker.dispose(); // 열린 구간을 넘기고 리스너·타이머를 뗀다
+    };
+  }, [isUsageTrackingEnabled]);
+
+  // 활성 탭이 바뀌면 이전 구간을 닫고 새 구간을 연다. 활성 탭이 바뀌는 모든 경로가 activeTabId 로 모인다.
+  useEffect(() => {
+    const openIds = usageOpenTabIdsRef.current;
+    const isNewTab = activeTabId != null && openIds.delete(activeTabId);
+    // StrictMode 이중 업데이터가 남긴, 실제로 생기지 않은 탭 ID 는 지운다.
+    for (const id of openIds) {
+      if (!tabsRef.current.some((tab) => tab.id === id)) openIds.delete(id);
+    }
+    const tracker = usageTrackerRef.current;
+    if (!tracker) return;
+    const tab = activeTabId ? tabsRef.current.find((t) => t.id === activeTabId) : undefined;
+    if (!tab || tab.isHome) {
+      tracker.activate(null); // 홈·탭 없음 — 끝내기만
+      return;
+    }
+    tracker.activate(toUsagePageId(tab.pageId), isNewTab ? "OPEN" : "SWITCH");
   }, [activeTabId]);
 
   // Persist to storage
