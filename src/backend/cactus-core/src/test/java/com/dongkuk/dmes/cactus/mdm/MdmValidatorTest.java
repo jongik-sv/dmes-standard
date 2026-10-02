@@ -167,6 +167,78 @@ class MdmValidatorTest {
         assertThat(r.ruleSetResults().get(0)).singleElement().satisfies(s -> assertThat(s.setId()).isEqualTo("S1"));
     }
 
+    /**
+     * 같은 물리명으로 바뀌는 키가 둘 이상이면(별칭 충돌) 하나를 고르지 않고 E002 로 거부한다 — 서비스가 저장하는 키와 검증기가 검사하는 키가 갈려
+     * 서버 검증을 우회하지 못하게. 키 순서(요청자가 정한다)와 앞뒤 공백 키도 같다. 같은 칸 오류는 한 번만.
+     */
+    @Test
+    void 같은_물리명으로_바뀌는_키가_여럿이면_고르지_않고_E002_로_거부한다() {
+        feed.put(MdmTargetType.COLUMN, "TITLE", str("TITLE", "제목", 5, false));
+        String bad = "x".repeat(50);
+
+        MdmValidationResult r = validateRows(List.of(
+                row("rowStatus", "C", "title", "ok", "TITLE", bad),   // 앞 키 정상·뒤 키 위반
+                row("rowStatus", "C", "TITLE", bad, "title", "ok"),   // 순서 반대
+                row("rowStatus", "C", "title", "ok", " TITLE", bad),  // trim 으로 같은 물리명
+                row("rowStatus", "C", "TITLE", "ok")), "TITLE");
+
+        assertThat(r.errors()).extracting(e -> e.rowIndex() + ":" + e.field() + ":" + e.code())
+                .containsExactly("0:TITLE:E002", "1:TITLE:E002", "2:TITLE:E002");
+        assertThat(r.errors()).extracting(ErrorDetail::message).allSatisfy(m -> assertThat(m).startsWith("제목: 값 형식이 올바르지 않습니다"));
+        assertThat(r.errors().get(0).message()).contains("title", "TITLE");
+    }
+
+    @Test
+    void 룰_세트_레코드도_별칭_충돌이면_판정하지_않고_E002_다() {
+        feed.put(MdmTargetType.COLUMN, "TITLE", str("TITLE", "제목", 5, false));
+        feed.put(MdmTargetType.RULE_SET, "S1", List.of(set("S1", "R1")));
+        feed.put(MdmTargetType.RULE, "R1", List.of(contractRule("R1", "TITLE", DataType.STRING)));
+
+        MdmValidationResult onlySet = validator.validate(MdmValidationRequest.rows("g", List.of(
+                row("title", "a", "TITLE", "b"),
+                row("TITLE", "b"))).ruleSet("S1").build());
+        MdmValidationResult both = validator.validate(MdmValidationRequest.rows("g", List.of(
+                row("title", "a", "TITLE", "b"))).columns("TITLE").ruleSet("S1").build());
+
+        assertThat(onlySet.errors()).extracting(e -> e.rowIndex() + ":" + e.field() + ":" + e.code()).containsExactly("0:TITLE:E002");
+        assertThat(onlySet.ruleSetResults()).as("충돌 행은 판정하지 않는다").containsOnlyKeys(1);
+        assertThat(both.errors()).as("컬럼·룰 세트가 같은 칸을 봐도 오류는 하나").hasSize(1);
+    }
+
+    /** 검사 대상 칸의 값이 배열·목록·객체면 빈 값으로 보지 않고 E002 다(빠뜨리면 길이·타입·표준식 검사를 건너뛰고 서비스는 "[…]" 를 저장한다). */
+    @Test
+    void 검사_대상_칸의_값이_스칼라가_아니면_E002_다() {
+        feed.put(MdmTargetType.COLUMN, "TITLE", str("TITLE", "제목", 5, false));
+        feed.put(MdmTargetType.COLUMN, "NAME", str("NAME", "이름", 5, true));
+
+        MdmValidationResult r = validateRows(List.of(
+                row("TITLE", List.of("x".repeat(5000)), "NAME", "n"),
+                row("TITLE", Map.of("a", "b"), "NAME", "n"),
+                row("TITLE", new String[]{"x"}, "NAME", "n"),
+                row("TITLE", "ok", "NAME", List.of("a")),            // 필수 칸도 E001 이 아니라 형식 오류
+                row("TITLE", List.of("x"), "title", "ok", "NAME", "n"), // 비스칼라 정확한 키 + 스칼라 별칭 — 별칭이 대신하지 않는다
+                row("TITLE", "ok", "NAME", "n", "ATTACH", List.of(1, 2), "META", Map.of("k", "v"))), // 검사 대상이 아닌 칸은 그대로 뺀다
+                "TITLE", "NAME");
+
+        assertThat(r.errors()).extracting(e -> e.rowIndex() + ":" + e.field() + ":" + e.code())
+                .containsExactly("0:TITLE:E002", "1:TITLE:E002", "2:TITLE:E002", "3:NAME:E002", "4:TITLE:E002");
+        assertThat(r.errors().get(0).message()).isEqualTo("제목: 값 형식이 올바르지 않습니다");
+        assertThat(r.errors().get(3).message()).isEqualTo("이름: 값 형식이 올바르지 않습니다");
+    }
+
+    @Test
+    void 비즈니스식_요구_변수가_스칼라가_아니거나_별칭이_충돌하면_그_칸이_E002_다() {
+        feed.put(MdmTargetType.COLUMN, "QTY", withBiz(num("QTY", "수량", 10, 0, null), "value <= MAX_QTY", List.of("MAX_QTY")));
+
+        MdmValidationResult r = validateRows(List.of(
+                row("qty", 2, "maxQty", List.of(3)),
+                row("qty", 2, "maxQty", 3, "MAX_QTY", 1),
+                row("qty", 2, "maxQty", 3)), "qty");
+
+        assertThat(r.errors()).extracting(e -> e.rowIndex() + ":" + e.field() + ":" + e.code()).containsExactly("0:maxQty:E002", "1:MAX_QTY:E002");
+        assertThat(r.errors()).extracting(ErrorDetail::message).allSatisfy(m -> assertThat(m).contains("값 형식이 올바르지 않습니다"));
+    }
+
     @Test
     void 오류의_field_는_행의_원래_키이고_rowKey_rowIndex_grid_를_싣는다() {
         feed.put(MdmTargetType.COLUMN, "CODE_NM", str("CODE_NM", "코드명", 3, false));

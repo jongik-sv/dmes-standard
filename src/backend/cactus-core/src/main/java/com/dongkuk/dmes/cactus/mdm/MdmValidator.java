@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -284,36 +285,86 @@ public class MdmValidator {
     }
 
     /**
-     * 행 하나를 물리명 키로 본 것. 예약 키({@code rowStatus}·{@code rowKey}·{@code _} 접두·EvalEx 상수·{@code EVAL_TS}·받는 노드 이름)와
-     * 스칼라가 아닌 값은 뺀다. 물리명이 겹치면 앞의 키를 쓴다.
+     * 행 하나를 물리명 키로 본 것. 예약 키({@code rowStatus}·{@code rowKey}·{@code _} 접두·EvalEx 상수·{@code EVAL_TS}·받는 노드 이름)는 뺀다.
+     *
+     * <p>칸 하나를 풀 때({@link #cell}) 같은 물리명으로 바뀌는 행 키가 둘 이상이면(예: {@code title}·{@code TITLE}·{@code " TITLE"}) 하나를 고르지
+     * 않는다 — 서비스가 저장하는 키와 검증기가 검사하는 키가 갈리면 서버 검증을 우회당한다(행 키 순서는 요청자가 정한다). 값이 스칼라가 아니면(배열·
+     * 목록·객체) 빈 값으로 보지 않는다 — 검사 대상 칸이면 둘 다 형식 오류(E002)다. 검사 대상이 아닌 칸은 룰 세트 레코드({@link #scalarRecord})에서
+     * 스칼라가 아니면 빠진다.
      */
     private static final class RowView {
 
         final String grid;
         final int index;
         final String rowKey;
-        /** 물리명 → 원래 키. */
-        final Map<String, String> original = new LinkedHashMap<>();
-        /** 물리명 → 값(Double·Float 는 BigDecimal 로). */
-        final Map<String, Object> values = new LinkedHashMap<>();
+        private final Map<String, Object> row;
+        /** 물리명 → 그 물리명으로 바뀌는 원래 키(행 순서). 값이 스칼라가 아닌 키도 담는다. */
+        private final Map<String, List<String>> keys = new LinkedHashMap<>();
+        /** 형식 오류를 이미 낸 물리명 — 컬럼·비즈니스식 요구 변수·룰 세트가 같은 칸을 봐도 한 번만. */
+        private final Set<String> reported = new HashSet<>();
 
         RowView(String grid, int index, Map<String, Object> row) {
             this.grid = grid;
             this.index = index;
+            this.row = row;
             Object key = row.get("rowKey");
             this.rowKey = key == null ? null : key.toString();
             row.forEach((k, v) -> {
                 String phys = MdmNames.toPhysName(k);
-                if (phys == null || reserved(k, phys) || !scalar(v) || original.containsKey(phys)) {
-                    return;
+                if (phys != null && !reserved(k, phys)) {
+                    keys.computeIfAbsent(phys, p -> new ArrayList<>(1)).add(k);
                 }
-                original.put(phys, k);
-                values.put(phys, normalize(v));
             });
         }
 
-        boolean has(String phys) {
-            return values.containsKey(phys);
+        /**
+         * 칸 하나. {@code name} 은 요청에 적은 이름(오류 field 를 고를 때 쓴다). 키가 없으면 빈 값, 하나면 그 값, 여럿이면 {@link CellKind#AMBIGUOUS}
+         * (field 는 이름·물리명과 글자까지 같은 키, 없으면 이름).
+         */
+        Cell cell(String name, String phys) {
+            List<String> ks = keys.get(phys);
+            if (ks == null) {
+                return new Cell(CellKind.ABSENT, name, null, List.of());
+            }
+            if (ks.size() > 1) {
+                return new Cell(CellKind.AMBIGUOUS, ks.contains(name) ? name : ks.contains(phys) ? phys : name, null, ks);
+            }
+            String k = ks.get(0);
+            Object v = row.get(k);
+            return scalar(v) ? new Cell(CellKind.VALUE, k, normalize(v), ks) : new Cell(CellKind.NON_SCALAR, k, null, ks);
+        }
+
+        /** 그 물리명의 원래 키 — 하나뿐일 때만, 아니면 null. */
+        String field(String phys) {
+            List<String> ks = keys.get(phys);
+            return ks != null && ks.size() == 1 ? ks.get(0) : null;
+        }
+
+        /** 같은 물리명으로 바뀌는 키가 둘 이상인 물리명. */
+        List<String> ambiguous() {
+            List<String> out = new ArrayList<>();
+            keys.forEach((phys, ks) -> {
+                if (ks.size() > 1) {
+                    out.add(phys);
+                }
+            });
+            return out;
+        }
+
+        /** 룰 세트 레코드 — 키가 하나뿐이고 값이 스칼라인 칸을 물리명 키로(Double·Float 는 BigDecimal 로). */
+        Map<String, Object> scalarRecord() {
+            Map<String, Object> out = new LinkedHashMap<>();
+            keys.forEach((phys, ks) -> {
+                if (ks.size() == 1 && scalar(row.get(ks.get(0)))) {
+                    out.put(phys, normalize(row.get(ks.get(0))));
+                }
+            });
+            return out;
+        }
+
+        /** 이 칸의 형식 오류를 처음 낼 때만 참. */
+        boolean firstReport(String phys) {
+            return reported.add(phys);
         }
 
         ErrorDetail error(String field, String code, String message) {
@@ -330,6 +381,34 @@ public class MdmValidator {
         }
     }
 
+    private enum CellKind { ABSENT, VALUE, AMBIGUOUS, NON_SCALAR }
+
+    /** 행에서 푼 칸 하나 — {@code field} 는 오류에 실을 원래 키, {@code keys} 는 그 물리명으로 바뀌는 행 키 전부. */
+    private record Cell(CellKind kind, String field, Object value, List<String> keys) {
+
+        boolean malformed() {
+            return kind == CellKind.AMBIGUOUS || kind == CellKind.NON_SCALAR;
+        }
+    }
+
+    /** 형식 오류(E002) — 별칭 충돌·스칼라가 아닌 값. 같은 행·같은 칸은 한 번만. */
+    private static void formatError(RowView row, String phys, Cell cell, String label, List<ErrorDetail> errors) {
+        if (!row.firstReport(phys)) {
+            return;
+        }
+        String message = label + ": 값 형식이 올바르지 않습니다";
+        if (cell.kind() == CellKind.AMBIGUOUS) {
+            message += "(같은 칸을 가리키는 키가 여럿입니다: " + String.join(", ", cell.keys()) + ")";
+        }
+        errors.add(row.error(cell.field(), INVALID, message));
+    }
+
+    /** 캡션 — 캐시에 있는 컬럼 메타로만(MDM 을 부르지 않는다), 없으면 {@code fallback}. */
+    private String cachedLabel(String phys, String fallback) {
+        return service.cached(MdmTargetType.COLUMN, phys).filter(e -> !e.absent())
+                .map(e -> MdmValueChecks.caption((MdmColumnMeta) e.value(), fallback)).orElse(fallback);
+    }
+
     /** JSON 의 Double·Float 를 엔진이 받는 BigDecimal 로(문자열 표기 그대로). */
     static Object normalize(Object v) {
         if ((v instanceof Double || v instanceof Float) && Double.isFinite(((Number) v).doubleValue())) {
@@ -343,9 +422,14 @@ public class MdmValidator {
     private void checkColumn(RowView row, String requestName, MdmColumnMeta meta, Instant ts, MdmCachedDefinitions.MissLog misses,
                              List<ErrorDetail> errors, Set<String> unavailable) {
         String phys = meta.physName() != null ? MdmNames.toPhysName(meta.physName()) : MdmNames.toPhysName(requestName);
-        String field = row.original.getOrDefault(phys, requestName);
+        Cell cell = row.cell(requestName, phys);
+        String field = cell.field();
         String caption = MdmValueChecks.caption(meta, field);
-        Object raw = row.values.get(phys);
+        if (cell.malformed()) {
+            formatError(row, phys, cell, caption, errors);
+            return;
+        }
+        Object raw = cell.value();
         if (raw instanceof String s && s.isBlank()) {
             raw = null;
         }
@@ -362,13 +446,21 @@ public class MdmValidator {
         record.put(phys, value);
         Set<String> need = bizVars(meta);
         List<String> absent = new ArrayList<>();
+        boolean malformedVar = false;
         for (String n : need) {
             String p = MdmNames.toPhysName(n);
-            if (p != null && row.has(p)) {
-                record.putIfAbsent(p, row.values.get(p));
-            } else {
+            Cell var = p == null ? null : row.cell(n, p);
+            if (var == null || var.kind() == CellKind.ABSENT) {
                 absent.add(n);
+            } else if (var.malformed()) {
+                formatError(row, p, var, cachedLabel(p, var.field()), errors);
+                malformedVar = true;
+            } else {
+                record.putIfAbsent(p, var.value());
             }
+        }
+        if (malformedVar) {
+            return;
         }
         int before = misses.size();
         ValidationResult result;
@@ -436,7 +528,16 @@ public class MdmValidator {
 
     private void checkRuleSet(RowView row, String setId, Instant ts, MdmCachedDefinitions.MissLog misses, List<ErrorDetail> errors,
                               Set<String> unavailable, Map<Integer, List<RuleSetResult>> results) {
-        Map<String, Object> record = Collections.unmodifiableMap(new LinkedHashMap<>(row.values));
+        List<String> ambiguous = row.ambiguous();
+        if (!ambiguous.isEmpty()) {
+            // 별칭 충돌 칸은 하나를 골라 넘기지도, 빼지도 않는다(빼면 선택 변수로 보고 통과할 수 있다) — 형식 오류로 막고 이 행은 판정하지 않는다
+            for (String phys : ambiguous) {
+                Cell cell = row.cell(phys, phys);
+                formatError(row, phys, cell, cachedLabel(phys, cell.field()), errors);
+            }
+            return;
+        }
+        Map<String, Object> record = Collections.unmodifiableMap(row.scalarRecord());
         int before = misses.size();
         RuleSetResult result;
         try {
@@ -471,10 +572,8 @@ public class MdmValidator {
         log.warn("[mdm] 룰 세트 위반 — set={} grid={} row={} code={} rule={} name={} {}", setId, row.grid, row.index, v.code(), v.ruleId(),
                 v.name(), v.message());
         String phys = v.name() == null ? null : MdmNames.toPhysName(v.name());
-        String field = phys == null ? null : row.original.get(phys);
-        String label = phys == null ? null : service.cached(MdmTargetType.COLUMN, phys) // 캐시만 — 캡션을 얻으려고 MDM 을 부르지 않는다
-                .filter(e -> !e.absent()).map(e -> MdmValueChecks.caption((MdmColumnMeta) e.value(), field != null ? field : v.name()))
-                .orElse(field != null ? field : v.name());
+        String field = phys == null ? null : row.field(phys);
+        String label = phys == null ? null : cachedLabel(phys, field != null ? field : v.name()); // 캐시만 — 캡션을 얻으려고 MDM 을 부르지 않는다
         String setLabel = "룰 세트 " + setId;
         return switch (v.code()) {
             case MISSING_KEY, REQUIRED_NULL -> label != null
