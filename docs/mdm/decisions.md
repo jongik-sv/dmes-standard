@@ -1343,3 +1343,11 @@
 - **Rationale**: 상대 버전을 박으면 룰 하나 확정이 세트·전문 새 버전으로 연쇄되므로 판정 시각 해석이 낫다. 마스터코드가 이미 쓰는 소수 버전과 공통 확정 엔진(ADR-0002)을 재사용해 네 대상의 처리 경로를 같게 한다
 - **Reversible**: no(번호 칼럼 타입·`VER_KIND`·번복된 기존 결정. 되돌리려면 새 ADR)
 - **Source**: 사용자 결정 2026-10-02. [ADR-0006](adr/0006-object-versioning-major-minor.md), 스펙 [`2026-10-02-mdm-object-versioning-design.md`](../superpowers/specs/2026-10-02-mdm-object-versioning-design.md). 원천 설계 문서 갱신 대상: 06:905·06:927·06:971·06:988·03:72(다른 저장소)
+
+## D-145 (2026-10-02T13:00:00Z)
+- **Phase**: build(룰 화면 경계값 테스트 케이스 자동 생성)
+- **Decision needed**: 외부 원천(EXTERNAL) 룰은 테스트 케이스도 쓸 수 없어(TSK-08-04 I29) 조회 전용 룰에서 경계값 생성·케이스 저장을 쓸 수 없다
+- **Decision made**: 외부 원천 룰도 테스트 케이스(`TB_MDM_RULE_TEST_CASE`) 쓰기·삭제를 허용한다(`RuleTestCaseService` 의 `requireMdm` 제거, 화면 카드 ⑥ 쓰기 조건에서 원천 조건 제거). 표 정의·버전·헤더 저장은 여전히 MDM 원천만이다. 폐기(DEPRECATED) 룰과 담당자 검사는 그대로다
+- **Rationale**: 케이스는 버전과 무관한 검증 자료라 원천 시스템의 정의를 바꾸지 않는다. 외부에서 들어온 룰일수록 판정을 케이스로 고정해 두는 가치가 크다
+- **Reversible**: yes(검사 한 줄과 화면 조건)
+- **Source**: 사용자 요청 2026-10-02 "경계값 생성은 EQP_CHK_JDG 룰로 해". TSK-08-04 I29 의 "케이스 쓰기도 MDM 원천만" 을 번복
