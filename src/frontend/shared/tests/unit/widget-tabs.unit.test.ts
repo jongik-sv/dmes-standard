@@ -83,6 +83,39 @@ describe("WidgetTabs", () => {
   });
 });
 
+describe("WidgetTabs 이름 입력 보강", () => {
+  const key = (el: Element, k: string) => act(() => el.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true })));
+  const blur = (el: Element) => act(() => el.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+
+  it("Escape 로 취소한 뒤 blur 가 나도 확정하지 않는다", () => {
+    const hs = renderTabs({ renamingTabId: "tab-2" });
+    const input = host.querySelector(".cm-widget-tab__name") as HTMLInputElement;
+    key(input, "Escape");
+    blur(input);
+    expect(hs.onRenameCancel).toHaveBeenCalledTimes(1);
+    expect(hs.onRenameCommit).not.toHaveBeenCalled();
+  });
+
+  it("Enter 로 확정에 성공한 뒤 blur 가 나도 한 번만 확정한다", () => {
+    const hs = renderTabs({ renamingTabId: "tab-2" });
+    const input = host.querySelector(".cm-widget-tab__name") as HTMLInputElement;
+    key(input, "Enter");
+    blur(input);
+    expect(hs.onRenameCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("이름 입력 칸이나 ⋯ 버튼의 Enter·Space 는 탭 선택을 부르지 않는다", () => {
+    const hs = renderTabs({ renamingTabId: "tab-2" });
+    const input = host.querySelector(".cm-widget-tab__name") as HTMLInputElement;
+    key(input, " ");
+    key(input, "Enter");
+    key(host.querySelector('[data-tab-menu="tab-1"]')!, "Enter");
+    expect(hs.onSelect).not.toHaveBeenCalled();
+    key(host.querySelector('[data-tab-id="tab-1"]')!, "Enter");
+    expect(hs.onSelect).toHaveBeenCalledWith("tab-1");
+  });
+});
+
 describe("WidgetPicker", () => {
   const REG: WidgetRegistry = {
     "t.a": { meta: { id: "t.a", title: "공지사항", description: "공지 목록", defaultSize: { w: 10, h: 16 } }, load: async () => ({ default: () => null }) },

@@ -35,11 +35,18 @@ function RenameInput({ tab, onCommit, onCancel }: { tab: WidgetTab; onCommit: (n
   const [value, setValue] = useState(tab.name);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
+  /** Escape·성공 확정 뒤 입력 칸이 사라지며 나는 blur 로 다시 확정되지 않게 한다. */
+  const doneRef = useRef(false);
   useEffect(() => {
     ref.current?.focus();
     ref.current?.select();
   }, []);
-  const commit = () => setError(onCommit(value));
+  const commit = () => {
+    if (doneRef.current) return;
+    const message = onCommit(value);
+    if (message === null) doneRef.current = true;
+    setError(message);
+  };
   return (
     <>
       <input
@@ -52,7 +59,10 @@ function RenameInput({ tab, onCommit, onCancel }: { tab: WidgetTab; onCommit: (n
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Enter") commit();
-          if (e.key === "Escape") onCancel();
+          if (e.key === "Escape") {
+            doneRef.current = true;
+            onCancel();
+          }
         }}
         onBlur={commit}
       />
@@ -96,7 +106,7 @@ export function WidgetTabs(props: WidgetTabsProps) {
           className="cm-widget-tab"
           data-tab-id={t.tabId}
           onClick={() => props.onSelect(t.tabId)}
-          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && props.onSelect(t.tabId)}
+          onKeyDown={(e) => e.target === e.currentTarget && (e.key === "Enter" || e.key === " ") && props.onSelect(t.tabId)}
         >
           {renamingTabId === t.tabId ? (
             <RenameInput tab={t} onCommit={(name) => props.onRenameCommit(t.tabId, name)} onCancel={props.onRenameCancel} />
