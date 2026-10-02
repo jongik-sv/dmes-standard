@@ -59,10 +59,11 @@ WidgetWorkspaceProps
 | userId | `string \| null` | - | 있으면 마지막 탭을 `localStorage` `dmes:widget:lastTab:{userId}` 에 기억 |
 | confirm | `(title, message) => Promise<boolean>` | - | 없으면 `useMessage` 확인 창 |
 | notify | `(message, kind: "success" \| "error") => void` | - | 없으면 `useMessage` 토스트 |
-| boardWidth | `number` | - | 시험용 고정 폭(px) |
+| boardWidth | `number` | - | 시험용 고정 폭(px). 보드에 넘기는 픽셀 폭 |
+| workspaceWidth | `number` | - | 시험용 고정 폭(px). 서랍 자리까지 포함한 바깥 폭 — 칸 수·편집 가능 판정에 쓴다(칸 수는 서랍 열림에 흔들리지 않는다) |
 | testId | `string` | - | 뿌리 `data-testid` |
 
-WidgetBoardProps: `items`·`registry`·`editing`·`tabLocked`(필수), `onChange(items)`(필수), `onWideChange?(wide)`(안정된 함수를 넘긴다 — effect 의존성에 들어간다), `width?`(고정 폭), `testId?`.
+WidgetBoardProps: `items`·`registry`·`editing`·`tabLocked`(필수), `onChange(items)`(필수), `onWideChange?(wide)`(안정된 함수를 넘긴다 — effect 의존성에 들어간다), `cols?: 24 | 12 | 1`(칸 수를 바깥에서 정함, 없으면 보드 자기 폭으로 판정), `width?`(고정 폭), `testId?`.
 
 WidgetFrameProps: `item`·`entry`(`undefined` 면 「없는 위젯」 칸)·`editing`·`onToggleLock`·`onRemove`(필수), `sizeLabel?`·`onKeyMove?`. 제목 줄(제목·부제·새로 고침·화면 열기·잠금·빼기), 로딩 틀, 오류 경계를 그린다.
 

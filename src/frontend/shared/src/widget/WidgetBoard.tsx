@@ -41,6 +41,8 @@ export interface WidgetBoardProps {
   onChange: (items: WidgetItem[]) => void;
   /** 넓은 화면(24칸) 여부가 바뀔 때. 작업 공간이 [배치 편집]을 막는 데 쓴다. */
   onWideChange?: (wide: boolean) => void;
+  /** 칸 수를 바깥에서 정해 줄 때(24·12·1). 없으면 보드 자기 폭으로 판정한다. 서랍 열림이 칸 수를 흔들지 않게 한다. */
+  cols?: 24 | 12 | 1;
   /** 고정 폭(px). 없으면 컨테이너 폭을 잰다. */
   width?: number;
   testId?: string;
@@ -54,10 +56,10 @@ function applyLayout(layout: Layout, items: readonly WidgetItem[]): WidgetItem[]
   });
 }
 
-export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onWideChange, width: fixedWidth, testId }: WidgetBoardProps) {
+export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onWideChange, cols: colsOverride, width: fixedWidth, testId }: WidgetBoardProps) {
   const measured = useContainerWidth({ initialWidth: fixedWidth ?? 1280 });
   const width = fixedWidth ?? measured.width;
-  const cols = colsForWidth(width);
+  const cols = colsOverride ?? colsForWidth(width);
   const wide = cols === WIDGET_COLS;
   const canEdit = editing && wide && !tabLocked;
   const [sizeLabel, setSizeLabel] = useState<{ id: string; text: string } | null>(null);

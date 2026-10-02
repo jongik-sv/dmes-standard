@@ -70,6 +70,12 @@ describe("WidgetBoard", () => {
     expect(onWideChange).toHaveBeenLastCalledWith(false);
   });
 
+  it("cols 를 넘기면 보드 자기 폭이 작아도 그 칸 수를 쓴다", () => {
+    render({ editing: true, width: 1030, cols: 24 });
+    expect(host.querySelector(".cm-widget-board")!.getAttribute("data-cols")).toBe("24");
+    expect(host.querySelector(".react-resizable-handle")).not.toBeNull();
+  });
+
   it("✕ 로 빼면 onChange 로 뺀 배치를 알린다", async () => {
     const { onChange } = render({ editing: true });
     const remove = host.querySelector('.cm-widget[data-inst-id="a"] [data-action="remove"]') as HTMLButtonElement;

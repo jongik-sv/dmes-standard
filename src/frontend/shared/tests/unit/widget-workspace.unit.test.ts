@@ -87,6 +87,36 @@ describe("WidgetWorkspace", () => {
     expect(btn('[data-action="start-edit"]').title).toBe("넓은 화면에서 편집할 수 있습니다");
   });
 
+  it("서랍이 보드 폭을 줄여도 칸 수·손잡이·서랍이 유지된다(D1)", async () => {
+    // 바깥 폭 1300(24칸), 보드 폭 1030(서랍이 연 상태를 흉내)
+    const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }]);
+    const props = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), workspaceWidth: 1300, boardWidth: 1030 };
+    act(() => root.render(h(WidgetWorkspace, props)));
+    await flush();
+    click('[data-action="start-edit"]');
+    for (let n = 0; n < 4; n += 1) {
+      act(() => root.render(h(WidgetWorkspace, { ...props })));
+      await flush();
+      expect(host.querySelector(".cm-widget-board")!.getAttribute("data-cols")).toBe("24");
+      expect(host.querySelector(".react-resizable-handle")).not.toBeNull();
+      expect(host.querySelector(".cm-widget-picker")).not.toBeNull();
+    }
+  });
+
+  it("편집 중 바깥 폭이 문턱 밑으로 가면 서랍이 사라지고 [완료]·[취소]는 동작한다", async () => {
+    const store = makeStore([]);
+    const props = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), workspaceWidth: 1300, boardWidth: 1030 };
+    act(() => root.render(h(WidgetWorkspace, props)));
+    await flush();
+    click('[data-action="start-edit"]');
+    act(() => root.render(h(WidgetWorkspace, { ...props, workspaceWidth: 1000 })));
+    await flush();
+    expect(host.querySelector(".cm-widget-picker")).toBeNull();
+    expect(host.querySelector(".react-resizable-handle")).toBeNull();
+    expect(btn('[data-action="done-edit"]')).not.toBeNull();
+    expect(btn('[data-action="cancel-edit"]').disabled).toBe(false);
+  });
+
   it("편집 → 위젯 빼기 → [완료] 는 바뀐 탭만 저장한다", async () => {
     const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }]);
     await mount(store);

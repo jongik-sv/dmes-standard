@@ -8,9 +8,10 @@
  * - 불러오기 실패면 기본 「홈」을 보이고 [배치 편집]을 막는다(빈 상태로 덮어쓰지 않게).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useContainerWidth } from "react-grid-layout";
 
 import { useMessage } from "../components/message-provider";
-import { HOME_TAB_ID, MAX_TABS } from "./constants";
+import { HOME_TAB_ID, MAX_TABS, WIDGET_COLS } from "./constants";
 import { WidgetBoard } from "./WidgetBoard";
 import { WidgetPicker } from "./WidgetPicker";
 import { WidgetStyle } from "./styles";
@@ -19,6 +20,7 @@ import type { WidgetItem, WidgetRegistry, WidgetStore, WidgetTab } from "./types
 import {
   addItem,
   canAddWidget,
+  colsForWidth,
   homeTab,
   newInstanceId,
   nextTabId,
@@ -36,8 +38,10 @@ export interface WidgetWorkspaceProps {
   userId?: string | null;
   confirm?: (title: string, message: string) => Promise<boolean>;
   notify?: (message: string, kind: "success" | "error") => void;
-  /** 시험용 고정 폭. */
+  /** 시험용 고정 폭 — 보드(react-grid-layout)에 넘기는 픽셀 폭. */
   boardWidth?: number;
+  /** 시험용 고정 폭 — 서랍 자리까지 포함한 바깥 폭. 칸 수·편집 가능 판정에 쓴다(없으면 boardWidth, 그것도 없으면 잰 폭). */
+  workspaceWidth?: number;
   testId?: string;
 }
 
@@ -75,7 +79,7 @@ function writeLastTab(userId: string | null | undefined, tabId: string) {
   }
 }
 
-export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm, notify, boardWidth, testId }: WidgetWorkspaceProps) {
+export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm, notify, boardWidth, workspaceWidth, testId }: WidgetWorkspaceProps) {
   const message = useOptionalMessage();
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [tabs, setTabs] = useState<WidgetTab[]>([]);
@@ -83,7 +87,10 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
   const [editing, setEditing] = useState(false);
   const [snapshot, setSnapshot] = useState<WidgetTab[] | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
-  const [wide, setWide] = useState(true);
+  // 칸 수는 서랍 자리까지 포함한 바깥 폭으로 정한다 — 서랍이 보드 폭을 줄여도 칸 수가 바뀌지 않게(D1).
+  const outer = useContainerWidth({ initialWidth: workspaceWidth ?? boardWidth ?? 1280 });
+  const cols = colsForWidth(workspaceWidth ?? boardWidth ?? outer.width);
+  const wide = cols === WIDGET_COLS;
   const [saving, setSaving] = useState(false);
   const loadSeq = useRef(0);
 
@@ -293,7 +300,7 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
 
   if (status === "loading" || !active) {
     return (
-      <div className="cm-widget-ws" data-testid={testId} aria-busy="true">
+      <div ref={outer.containerRef} className="cm-widget-ws" data-testid={testId} aria-busy="true">
         <WidgetStyle />
         <div className="cm-widget-tabs" />
         <div className="cm-widget__skeleton">
@@ -338,7 +345,7 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
   );
 
   return (
-    <div className="cm-widget-ws" data-testid={testId}>
+    <div ref={outer.containerRef} className="cm-widget-ws" data-testid={testId}>
       <WidgetStyle />
       {status === "error" && (
         <div className="cm-widget-ws__banner" role="alert">
@@ -373,7 +380,7 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
             editing={editing}
             tabLocked={active.locked}
             onChange={setActiveItems}
-            onWideChange={setWide}
+            cols={cols}
             width={boardWidth}
           />
         </div>
