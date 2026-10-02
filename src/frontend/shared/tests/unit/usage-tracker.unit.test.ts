@@ -295,6 +295,86 @@ describe("UsageTracker 무입력", () => {
   });
 });
 
+describe("UsageTracker 무입력 — 판정 타이머가 멈춘 사이 다른 동작이 먼저 올 때(설계 §3.1)", () => {
+  /** 0분 OPEN, 5분 입력 뒤 타이머 없이 시계만 40분으로 보낸다. advance 를 쓰면 60초 판정이 먼저 닫아 버린다. */
+  function idleUntil40(): UsageTracker {
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    vi.setSystemTime(BASE + 5 * MIN);
+    input();
+    vi.setSystemTime(BASE + 40 * MIN);
+    return t;
+  }
+
+  it("(a) 40분에 탭을 바꾸면 마지막 입력(5분)까지만 내고 새 탭 구간은 40분에 시작한다", () => {
+    const t = idleUntil40();
+    t.activate("csa/b");
+    expect(emitted.map(rows)).toEqual([[["csa/a", "OPEN", 0, 5 * MIN]]]);
+    vi.setSystemTime(BASE + 41 * MIN);
+    t.end();
+    expect(emitted.map(rows)).toEqual([
+      [["csa/a", "OPEN", 0, 5 * MIN]],
+      [["csa/b", "SWITCH", 40 * MIN, 41 * MIN]],
+    ]);
+  });
+
+  it("(b) 40분에 클릭하면 0–5분을 내고 40분부터 RESUME 으로 다시 연다", () => {
+    const t = idleUntil40();
+    input();
+    expect(emitted.map(rows)).toEqual([[["csa/a", "OPEN", 0, 5 * MIN]]]);
+    vi.setSystemTime(BASE + 42 * MIN);
+    t.end();
+    expect(emitted.map(rows)).toEqual([
+      [["csa/a", "OPEN", 0, 5 * MIN]],
+      [["csa/a", "RESUME", 40 * MIN, 42 * MIN]],
+    ]);
+  });
+
+  it("(c-1) 40분에 가려지면 0–5분만 낸다", () => {
+    const t = idleUntil40();
+    setVisibility("hidden");
+    expect(emitted.map(rows)).toEqual([[["csa/a", "OPEN", 0, 5 * MIN]]]);
+    t.end();
+    expect(emitted).toHaveLength(1);
+  });
+
+  it("(c-2) 40분에 pagehide 가 오면 0–5분만 낸다", () => {
+    const t = idleUntil40();
+    win.dispatchEvent(new Event("pagehide"));
+    expect(emitted.map(rows)).toEqual([[["csa/a", "OPEN", 0, 5 * MIN]]]);
+    t.end();
+    expect(emitted).toHaveLength(1);
+  });
+
+  it("(d) 공백이 30분 미만(28분)이면 지금처럼 15분 상한으로 0–15, 15–28 을 낸다(합의된 15+α 동작)", () => {
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    vi.setSystemTime(BASE + 28 * MIN);
+    t.activate("csa/b");
+    expect(emitted.map(rows)).toEqual([
+      [
+        ["csa/a", "OPEN", 0, 15 * MIN],
+        ["csa/a", "RESUME", 15 * MIN, 28 * MIN],
+      ],
+    ]);
+  });
+
+  it("(e) 30분 이상 무입력 뒤 end() 는 마지막 입력 시각까지만 낸다", () => {
+    const t = create();
+    t.activate("csa/a", "OPEN");
+    vi.setSystemTime(BASE + 20 * MIN);
+    input(); // 20분 — 판정 타이머 없이 마지막 입력
+    vi.setSystemTime(BASE + 55 * MIN);
+    t.end();
+    expect(emitted.map(rows)).toEqual([
+      [
+        ["csa/a", "OPEN", 0, 15 * MIN],
+        ["csa/a", "RESUME", 15 * MIN, 20 * MIN],
+      ],
+    ]);
+  });
+});
+
 describe("UsageTracker 15분 자르기", () => {
   it("15분 판정 때 마지막 입력 시각에서 자르고 그 시각부터 RESUME 으로 이어 간다", () => {
     const t = create();
@@ -317,19 +397,16 @@ describe("UsageTracker 15분 자르기", () => {
     expect(new Set(all().map((s) => s.clientSegId)).size).toBe(3);
   });
 
-  it("타이머가 멈춰 있다가 닫혀도(절전·백그라운드 제한) 15분 넘는 구간을 내지 않는다", () => {
+  it("타이머가 멈춘 사이(절전·백그라운드 제한) 무입력 30분이 지나면 판정보다 입력이 먼저 와도 공백을 이용 시간으로 내지 않는다", () => {
     const t = create();
-    t.activate("csa/a", "OPEN");
+    t.activate("csa/a", "OPEN"); // 마지막 입력 = 0분
     vi.setSystemTime(BASE + 40 * MIN); // 시계만 가고 타이머는 돌지 않았다
-    input();
+    input(); // 0분에서 닫으면 길이 0 이라 버리고, 40분에 RESUME 으로 다시 연다
     t.activate("csa/b");
-    expect(emitted.map(rows)).toEqual([
-      [
-        ["csa/a", "OPEN", 0, 15 * MIN],
-        ["csa/a", "RESUME", 15 * MIN, 30 * MIN],
-        ["csa/a", "RESUME", 30 * MIN, 40 * MIN],
-      ],
-    ]);
+    expect(emitted).toEqual([]);
+    vi.setSystemTime(BASE + 41 * MIN);
+    t.end();
+    expect(emitted.map(rows)).toEqual([[["csa/b", "SWITCH", 40 * MIN, 41 * MIN]]]);
   });
 });
 

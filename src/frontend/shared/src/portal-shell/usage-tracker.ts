@@ -122,6 +122,7 @@ export class UsageTracker {
   private readonly handleVisibilityChange = (): void => {
     if (this.disposed) return;
     const t = this.time();
+    this.closeIfIdle(t);
     if (this.isHidden()) {
       this.close(t);
       return;
@@ -132,12 +133,13 @@ export class UsageTracker {
 
   private readonly handlePageHide = (): void => {
     if (this.disposed) return;
-    this.close(this.time());
+    this.closeNow(this.time());
   };
 
   private readonly handleInput = (): void => {
     if (this.disposed) return;
     const t = this.time();
+    this.closeIfIdle(t); // 판정 타이머가 멈춰 있던 무입력 30분 — 공백을 이용 시간으로 넣지 않는다
     this.lastInputAt = t;
     if (!this.open) this.openIfVisible(t); // 무입력·pagehide 뒤 돌아온 입력 → RESUME
   };
@@ -170,7 +172,7 @@ export class UsageTracker {
       return;
     }
     const t = this.time();
-    this.close(t);
+    this.closeNow(t);
     this.pageId = pageId;
     this.nextKind = startKind;
     this.lastInputAt = t;
@@ -180,7 +182,7 @@ export class UsageTracker {
   /** 로그아웃 — 열린 구간을 닫고, 다시 activate 될 때까지 열지 않는다. */
   end(): void {
     if (this.disposed) return;
-    this.close(this.time());
+    this.closeNow(this.time());
     this.pageId = null;
   }
 
@@ -188,10 +190,7 @@ export class UsageTracker {
   tick(): void {
     if (this.disposed || !this.open) return;
     const t = this.time();
-    if (t - this.lastInputAt >= this.idleMs) {
-      this.close(Math.max(this.open.startedAt, this.lastInputAt));
-      return; // 다음 입력 때 RESUME 으로 다시 연다
-    }
+    if (this.closeIfIdle(t)) return; // 다음 입력 때 RESUME 으로 다시 연다
     this.emit(this.cutAtLastInput(t));
   }
 
@@ -221,6 +220,22 @@ export class UsageTracker {
     if (this.open || this.pageId == null || this.isHidden()) return;
     this.open = { id: this.createId(), pageId: this.pageId, startKind: this.nextKind, startedAt: t };
     this.nextKind = "RESUME";
+  }
+
+  /**
+   * 무입력 규칙(설계 §3.1) — 마지막 입력 뒤 30분 이상 지났으면 열린 구간을 마지막 입력 시각에서 닫는다.
+   * 60초 판정만 믿지 않는다: 절전·백그라운드 제한으로 타이머가 멈췄다가 판정보다 입력·전환·가림이 먼저 와도
+   * 공백이 이용 시간으로 잡히지 않게, 구간을 건드리는 모든 경로가 먼저 부른다. 닫았으면 true.
+   */
+  private closeIfIdle(t: number): boolean {
+    if (!this.open || t - this.lastInputAt < this.idleMs) return false;
+    this.close(Math.max(this.open.startedAt, this.lastInputAt));
+    return true;
+  }
+
+  /** 지금(t) 구간을 닫는다. 무입력 30분이 지났으면 마지막 입력 시각에서 닫는다. */
+  private closeNow(t: number): void {
+    if (!this.closeIfIdle(t)) this.close(t);
   }
 
   /** 열린 구간을 at 에서 닫는다. 15분이 넘으면 15분 조각으로 나눠 함께 넘긴다. */
