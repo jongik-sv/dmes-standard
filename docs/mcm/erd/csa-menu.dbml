@@ -371,6 +371,21 @@ Table TB_MCM_SEC_USER_WIDGET_CHAT {
   Note: 'AI 챗봇 위젯 대화 기록. 인스턴스당 최근 100개. 감사 컬럼 9개.'
 }
 
+// 메모장 위젯 개인 메모 (2026-10-03, 스펙 widget-admin-generic §17.2)
+Table TB_MCM_SEC_USER_WIDGET_MEMO {
+  USER_ID varchar(50)  [note: '→ TB_MCM_SEC_USER (인증 정보에서만 얻는다)']
+  INST_ID varchar(40)  [note: '배치 칸 ID(WidgetProps.instanceId)']
+  DEF_ID  varchar(100) [not null, note: '정의 위젯 ID(def.xxxxxxxx) — memo 유형·scope=personal']
+  FMT     varchar(10)  [not null, note: 'text · md · html']
+  CONTENT text         [note: '본문 20,000자 이하. 빈 메모는 Oracle 이 NULL 로 저장하므로 NULL 허용']
+
+  indexes {
+    (USER_ID, INST_ID) [pk]
+  }
+
+  Note: '메모장 위젯 개인 메모. 사용자당 100개(새 INST_ID 저장 때만 센다). U_AT = 마지막 저장 시각. 감사 컬럼 9개.'
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // 기본 화면 (메뉴 참조) — 포털을 처음 시작할 때 자동으로 여는 화면. 2026-10-02 신설
 // ────────────────────────────────────────────────────────────────────────────
@@ -460,6 +475,8 @@ Ref: TB_MCM_SEC_USER_WIDGET.(USER_ID, TAB_ID) > TB_MCM_SEC_USER_WIDGET_TAB.(USER
 
 // 위젯 B·C·D (논리 참조 — 코드 위젯 ID 는 DB 에 없을 수 있어 FK 를 두지 않는다)
 Ref: TB_MCM_SEC_USER_WIDGET_CHAT.USER_ID > TB_MCM_SEC_USER.USER_ID
+Ref: TB_MCM_SEC_USER_WIDGET_MEMO.USER_ID > TB_MCM_SEC_USER.USER_ID
+Ref: TB_MCM_SEC_USER_WIDGET_MEMO.DEF_ID  > TB_MCM_WIDGET_DEF.WIDGET_ID
 
 // 기본 화면
 Ref: TB_MCM_SEC_USER_START_PGM.USER_ID     > TB_MCM_SEC_USER.USER_ID
@@ -510,4 +527,5 @@ TableGroup "위젯" {
   TB_MCM_WIDGET_MEDIA
   TB_MCM_EXCHANGE_RATE
   TB_MCM_SEC_USER_WIDGET_CHAT
+  TB_MCM_SEC_USER_WIDGET_MEMO
 }

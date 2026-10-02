@@ -58,6 +58,7 @@ const RBAC_POLICY: RbacPolicyConfig = {
     "/api/mcm/oasis/widgetData/run", // 쿼리 위젯 실행 — defId 만 받는다
     "/api/mcm/oasis/widgetExt/", // 환율·날씨
     "/api/mcm/oasis/widgetChat/", // AI 챗봇(본인 대화)
+    "/api/mcm/oasis/widgetMemo/", // 메모장 위젯 개인 메모(본인 메모, load·save)
     // 미디어 파일 내려받기는 접두가 아니라 아래 authOnlyReadPatterns 로 연다(REST 신경로라 접두 뒤에 임의 BE 경로를 붙일 수 있다).
     // 포털 홈 공지 목록(mls noticeBoard) — 로그인한 모든 사용자. 서비스가 현재 사용자 역할로 게시 대상을 거른다
     // (본인 기준 데이터). 조회 action 하나만 연다 — noticeBoard 에는 쓰기 action 이 없다. BE EndpointPermissionFilter 와 동기화.

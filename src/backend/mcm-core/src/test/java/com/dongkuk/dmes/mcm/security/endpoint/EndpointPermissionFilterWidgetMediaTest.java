@@ -180,6 +180,8 @@ class EndpointPermissionFilterWidgetMediaTest {
             "/oasis/widgetData/run",
             "/oasis/widgetExt/exchange",
             "/oasis/widgetChat/send",
+            "/oasis/widgetMemo/load",
+            "/oasis/widgetMemo/save",
             "/oasis/secUser/myMenusTree",
             "/api/mcm/mdmMeta/columns"
     })
