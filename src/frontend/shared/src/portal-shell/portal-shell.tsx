@@ -509,15 +509,15 @@ export function PortalShell({
     });
   }, []);
 
-  const refreshActiveTab = useCallback(() => {
-    if (!activeTabId) return;
+  /** 탭 우클릭 '새로고침' — 그 탭의 화면을 다시 불러온다(활성 탭이 아니어도 된다). */
+  const refreshTab = useCallback((tabId: string) => {
     setTabs((prev) =>
       prev.map((tab) => {
-        if (tab.id !== activeTabId) return tab;
+        if (tab.id !== tabId) return tab;
         return { ...tab, component: null, isLoading: true, errorMessage: null };
       })
     );
-  }, [activeTabId]);
+  }, []);
 
   const toggleHeaderVisible = useCallback(() => {
     setIsHeaderVisible((prev) => !prev);
@@ -558,11 +558,6 @@ export function PortalShell({
     [openPageTab, isTabFullscreen]
   );
 
-  const isCurrentPageFavorite = useMemo(() => {
-    if (!activeTab) return false;
-    return favoritePageIdSet.has(activeTab.pageId);
-  }, [activeTab, favoritePageIdSet]);
-
   // 폴더 선택 팝업용 — 기존 즐겨찾기 폴더 목록 (folder 행에서 추출. name=FVT_FOLD_ID / displayText=FVT_FOLD_NM).
   const favoriteFolders = useMemo(
     () =>
@@ -571,24 +566,33 @@ export function PortalShell({
         .map((f) => ({ fvtFoldId: f.name, fvtFoldNm: f.displayText || f.name })),
     [favoriteMenus]
   );
-  const [isFolderPickerOpen, setIsFolderPickerOpen] = useState(false);
+  /** 폴더 선택 팝업의 대상 화면 — 탭 우클릭 '즐겨찾기 추가'로 연다(활성 탭이 아니라 우클릭한 탭). */
+  const [favoritePickerTarget, setFavoritePickerTarget] = useState<{
+    pageId: string;
+    title: string;
+  } | null>(null);
 
-  const handleToggleFavorite = useCallback(() => {
-    if (!activeTab || !onToggleFavorite) return;
-    if (isCurrentPageFavorite) {
-      onToggleFavorite(activeTab.pageId); // 이미 등록 → 폴더 무관 제거
-    } else {
-      setIsFolderPickerOpen(true); // 미등록 → 폴더 선택 팝업
-    }
-  }, [activeTab, onToggleFavorite, isCurrentPageFavorite]);
+  const handleToggleFavoritePage = useCallback(
+    (pageId: string) => {
+      if (!onToggleFavorite) return;
+      if (favoritePageIdSet.has(pageId)) {
+        onToggleFavorite(pageId); // 이미 등록 → 폴더 무관 제거
+        return;
+      }
+      const title = tabs.find((tab) => tab.pageId === pageId)?.title;
+      setFavoritePickerTarget({ pageId, title: title ?? resolveDisplayText(pageId, pageId) }); // 미등록 → 폴더 선택 팝업
+    },
+    [onToggleFavorite, favoritePageIdSet, tabs, resolveDisplayText]
+  );
 
   const handleFolderPickerConfirm = useCallback(
     (choice: FavoriteFolderChoice) => {
-      setIsFolderPickerOpen(false);
-      if (!activeTab || !onToggleFavorite) return;
-      onToggleFavorite(activeTab.pageId, choice);
+      const target = favoritePickerTarget;
+      setFavoritePickerTarget(null);
+      if (!target || !onToggleFavorite) return;
+      onToggleFavorite(target.pageId, choice);
     },
-    [activeTab, onToggleFavorite]
+    [favoritePickerTarget, onToggleFavorite]
   );
 
   // 사이드바 즐겨찾기 그룹 추가/삭제 + leaf 해제(=토글 off).
@@ -624,14 +628,14 @@ export function PortalShell({
     () => new Set((startPageLeaves ?? []).map((leaf) => leaf.pageId)),
     [startPageLeaves]
   );
-  // 메뉴에 있는 화면만 서버가 기본 화면으로 받는다(홈 화면은 제외).
-  const canRegisterStartPage = useCallback(
+  // 메뉴에 있는 화면만 서버가 즐겨찾기·기본 화면으로 받는다(홈 화면은 제외).
+  const canRegisterPage = useCallback(
     (pageId: string) => pageId !== resolvedHomePageId && menuSearchItemByPageId.has(pageId),
     [menuSearchItemByPageId, resolvedHomePageId]
   );
 
   /**
-   * 활성 탭 컨텐츠 PNG 캡쳐 → 다운로드.
+   * 탭 우클릭 '캡쳐' — 그 탭 화면을 PNG 로 내려받는다. 보이는 화면만 찍히므로 다른 탭이면 먼저 그 탭으로 옮긴다.
    *
    * <p>html-to-image 의 `toPng` 으로 `.portal-shell__content-area` 를 PNG dataURL 로 변환 후
    * blob 다운로드. 파일명: {탭제목 sanitize}-{ISO 시각}.png
@@ -639,28 +643,40 @@ export function PortalShell({
    * <p>html-to-image 는 SVG foreignObject 로 DOM 을 감싸 렌더 — 글꼴 metric 측정을 안 해서
    * 한글 baseline 잘림 같은 html2canvas 의 알려진 issue 가 없다. dynamic import 로 lazy 로드.
    */
-  const handleCapture = useCallback(async () => {
-    const target = document.querySelector<HTMLElement>(".portal-shell__content-area");
-    if (!target) return;
-    try {
-      const { toPng } = await import("html-to-image");
-      const dataUrl = await toPng(target, {
-        backgroundColor: "#ffffff",
-        cacheBust: true,
-        pixelRatio: window.devicePixelRatio || 1,
-      });
-      const tabTitle = activeTab?.title?.replace(/[\\/:*?"<>|]/g, "_") ?? "screen";
-      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = `${tabTitle}-${ts}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch (err) {
-      console.error("[PortalShell] capture failed", err);
-    }
-  }, [activeTab]);
+  const captureTab = useCallback(
+    async (tabId: string) => {
+      const tab = tabs.find((t) => t.id === tabId);
+      if (!tab) return;
+      if (tabId !== activeTabIdRef.current) {
+        navigateToTab(tabId, tab.pageId);
+        // 탭 전환(display 전환)이 화면에 그려진 뒤 찍는다.
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        );
+      }
+      const target = document.querySelector<HTMLElement>(".portal-shell__content-area");
+      if (!target) return;
+      try {
+        const { toPng } = await import("html-to-image");
+        const dataUrl = await toPng(target, {
+          backgroundColor: "#ffffff",
+          cacheBust: true,
+          pixelRatio: window.devicePixelRatio || 1,
+        });
+        const tabTitle = tab.title?.replace(/[\\/:*?"<>|]/g, "_") || "screen";
+        const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+        const a = document.createElement("a");
+        a.href = dataUrl;
+        a.download = `${tabTitle}-${ts}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } catch (err) {
+        console.error("[PortalShell] capture failed", err);
+      }
+    },
+    [tabs, navigateToTab]
+  );
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -758,7 +774,12 @@ export function PortalShell({
     }));
     setTabs((prev) => {
       const toOpen = new Set(
-        planStartPageOpen({ tabs: prev, startPageIds: candidates, allowedPageIds, homePageId: resolvedHomePageId })
+        planStartPageOpen({
+          tabs: prev,
+          startPageIds: candidates,
+          allowedPageIds,
+          homePageId: resolvedHomePageId,
+        })
       );
       const appended = created.filter((tab) => toOpen.has(tab.pageId));
       return appended.length > 0 ? [...prev, ...appended] : prev;
@@ -975,18 +996,18 @@ export function PortalShell({
                 onGoHome={() => {
                   if (homeTabId && resolvedHomePageId) navigateToTab(homeTabId, resolvedHomePageId);
                 }}
-                onRefresh={refreshActiveTab}
+                onRefreshTab={refreshTab}
                 isHeaderVisible={isHeaderVisible}
                 onToggleHeader={toggleHeaderVisible}
-                isCurrentPageFavorite={isCurrentPageFavorite}
-                onToggleFavorite={handleToggleFavorite}
-                onCapture={handleCapture}
+                favoritePageIds={favoritePageIdSet}
+                onToggleFavoritePage={onToggleFavorite ? handleToggleFavoritePage : undefined}
+                onCaptureTab={captureTab}
                 onEnterFullscreen={activeTab ? tabFullscreen.enter : undefined}
                 isFullscreen={isTabFullscreen}
                 onExitFullscreen={exitTabFullscreen}
                 startPageIds={startPageIdSet}
                 onToggleStartPage={startPages ? onToggleStartPage : undefined}
-                canRegisterStartPage={canRegisterStartPage}
+                canRegisterPage={canRegisterPage}
               />
               <div className="portal-shell__content-area">
                 {tabs.length === 0 ? (
@@ -1015,11 +1036,11 @@ export function PortalShell({
         </div>
       </AppShell.Main>
       <FavoriteFolderPickerModal
-        open={isFolderPickerOpen}
+        open={favoritePickerTarget !== null}
         folders={favoriteFolders}
-        pageLabel={activeTab?.title}
+        pageLabel={favoritePickerTarget?.title}
         onConfirm={handleFolderPickerConfirm}
-        onCancel={() => setIsFolderPickerOpen(false)}
+        onCancel={() => setFavoritePickerTarget(null)}
       />
       <MenuSearchDialog
         open={isMenuSearchOpen}

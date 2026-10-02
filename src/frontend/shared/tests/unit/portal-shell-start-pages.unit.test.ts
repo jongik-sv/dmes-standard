@@ -85,6 +85,14 @@ describe("getTabCloseTargets", () => {
     expect(getTabCloseTargets(tabs, "a", "all")).toEqual(["c", "a", "b"]);
   });
 
+  it("홈 탭 기준 — 오른쪽·다른 탭은 홈을 뺀 전부, 탭 닫기·왼쪽은 없음", () => {
+    expect(getTabCloseTargets(tabs, "home", "this")).toEqual([]);
+    expect(getTabCloseTargets(tabs, "home", "left")).toEqual([]);
+    expect(getTabCloseTargets(tabs, "home", "right")).toEqual(["c", "a", "b"]);
+    expect(getTabCloseTargets(tabs, "home", "others")).toEqual(["c", "a", "b"]);
+    expect(getTabCloseTargets(tabs, "home", "all")).toEqual(["c", "a", "b"]);
+  });
+
   it("기준 탭이 없으면 all 외에는 빈 배열", () => {
     expect(getTabCloseTargets(tabs, "zz", "left")).toEqual([]);
     expect(getTabCloseTargets(tabs, "zz", "others")).toEqual([]);
@@ -269,7 +277,7 @@ describe("TabsBar 컨텍스트 메뉴", () => {
         onGoHome: () => {},
         startPageIds: new Set<string>(),
         onToggleStartPage,
-        canRegisterStartPage: (pageId: string) => pageId !== "t:g/b",
+        canRegisterPage: (pageId: string) => pageId !== "t:g/b",
       })
     );
     openContextMenu(r.host, "b");
@@ -278,6 +286,111 @@ describe("TabsBar 컨텍스트 메뉴", () => {
     expect(item.classList.contains("is-disabled")).toBe(true);
     act(() => item.click());
     expect(onToggleStartPage).not.toHaveBeenCalled();
+    r.unmount();
+  });
+
+  const fullProps = (over: Record<string, unknown> = {}) => ({
+    tabs,
+    activeTabId: "c",
+    onTabClick: () => {},
+    onTabClose: () => {},
+    onGoHome: () => {},
+    onRefreshTab: vi.fn(),
+    onCaptureTab: vi.fn(),
+    favoritePageIds: new Set(["t:g/a"]),
+    onToggleFavoritePage: vi.fn(),
+    startPageIds: new Set<string>(),
+    onToggleStartPage: vi.fn(),
+    ...over,
+  });
+
+  it("구분선 아래 순서는 새로고침·캡쳐·즐겨찾기·기본 화면이고 모든 항목 앞에 아이콘이 있다", () => {
+    const r = renderWithMantine(createElement(TabsBar, fullProps()));
+    openContextMenu(r.host, "b");
+    const items = Array.from(
+      document.querySelectorAll<HTMLElement>(".tab-context-menu .tab-context-menu-item")
+    );
+    expect(items.map((el) => el.textContent?.trim())).toEqual([
+      "탭 닫기",
+      "왼쪽 탭 닫기",
+      "오른쪽 탭 닫기",
+      "다른 탭 닫기",
+      "모든 탭 닫기",
+      "새로고침",
+      "캡쳐",
+      "즐겨찾기 추가",
+      "기본 화면 등록",
+    ]);
+    for (const el of items) {
+      expect(el.firstElementChild?.tagName.toLowerCase()).toBe("svg");
+    }
+    expect(document.querySelectorAll(".tab-context-menu-separator")).toHaveLength(1);
+    r.unmount();
+  });
+
+  it("새로고침·캡쳐·즐겨찾기는 우클릭한 탭 기준이고 즐겨찾기 라벨은 등록 여부를 따른다", () => {
+    const props = fullProps();
+    const r = renderWithMantine(createElement(TabsBar, props));
+    openContextMenu(r.host, "a");
+    act(() => menuItem("새로고침")!.click());
+    expect(props.onRefreshTab).toHaveBeenLastCalledWith("a");
+
+    openContextMenu(r.host, "a");
+    act(() => menuItem("캡쳐")!.click());
+    expect(props.onCaptureTab).toHaveBeenLastCalledWith("a");
+
+    openContextMenu(r.host, "a");
+    act(() => menuItem("즐겨찾기 해제")!.click());
+    expect(props.onToggleFavoritePage).toHaveBeenLastCalledWith("t:g/a");
+
+    openContextMenu(r.host, "b");
+    act(() => menuItem("즐겨찾기 추가")!.click());
+    expect(props.onToggleFavoritePage).toHaveBeenLastCalledWith("t:g/b");
+    expect(document.querySelector(".tab-context-menu")).toBeNull();
+    r.unmount();
+  });
+
+  it("홈 탭도 우클릭 메뉴가 열려 새로고침·캡쳐를 하고, 등록 항목은 disabled 다", () => {
+    const props = fullProps({ canRegisterPage: (pageId: string) => pageId !== "t:home" });
+    const r = renderWithMantine(createElement(TabsBar, props));
+    openContextMenu(r.host, "home");
+    expect(menuItem("탭 닫기")!.getAttribute("aria-disabled")).toBe("true");
+    expect(menuItem("오른쪽 탭 닫기")!.getAttribute("aria-disabled")).toBeNull();
+    expect(menuItem("즐겨찾기 추가")!.getAttribute("aria-disabled")).toBe("true");
+    expect(menuItem("기본 화면 등록")!.getAttribute("aria-disabled")).toBe("true");
+    act(() => menuItem("즐겨찾기 추가")!.click());
+    expect(props.onToggleFavoritePage).not.toHaveBeenCalled();
+    act(() => menuItem("새로고침")!.click());
+    expect(props.onRefreshTab).toHaveBeenLastCalledWith("home");
+    r.unmount();
+  });
+
+  it("탭 제목 앞에 기본 화면·즐겨찾기 표시 아이콘을 붙인다", () => {
+    const r = renderWithMantine(
+      createElement(TabsBar, fullProps({ startPageIds: new Set(["t:g/a", "t:g/c"]) }))
+    );
+    const marks = (tabId: string) =>
+      Array.from(r.host.querySelectorAll<HTMLElement>(`[data-tab-id="${tabId}"] .tab-mark`)).map(
+        (el) => el.getAttribute("aria-label")
+      );
+    expect(marks("a")).toEqual(["기본 화면", "즐겨찾기"]);
+    expect(marks("c")).toEqual(["기본 화면"]);
+    expect(marks("b")).toEqual([]);
+    r.unmount();
+  });
+
+  it("탭바 오른쪽에는 탭 목록·전체 화면·헤더 접기만 남는다", () => {
+    const r = renderWithMantine(
+      createElement(TabsBar, {
+        ...fullProps(),
+        onToggleHeader: () => {},
+        onEnterFullscreen: () => {},
+      })
+    );
+    const labels = Array.from(r.host.querySelectorAll<HTMLElement>(".tabs-controls button")).map(
+      (b) => b.getAttribute("aria-label")
+    );
+    expect(labels).toEqual(["탭 목록", "전체 화면으로 보기", "헤더 접기"]);
     r.unmount();
   });
 });

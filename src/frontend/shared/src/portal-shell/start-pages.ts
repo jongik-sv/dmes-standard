@@ -52,8 +52,12 @@ export function getTabCloseTargets(
   scope: TabCloseScope
 ): string[] {
   const nonHome = tabs.filter((tab) => !tab.isHome).map((tab) => tab.id);
-  const index = nonHome.indexOf(targetTabId);
   if (scope === "all") return nonHome;
+  // 홈 탭(늘 맨 왼쪽)에서 우클릭 — 오른쪽·다른 탭은 홈을 뺀 전부, 홈 자신과 왼쪽은 닫을 것이 없다.
+  if (tabs.some((tab) => tab.isHome && tab.id === targetTabId)) {
+    return scope === "right" || scope === "others" ? nonHome : [];
+  }
+  const index = nonHome.indexOf(targetTabId);
   if (index < 0) return [];
   switch (scope) {
     case "this":

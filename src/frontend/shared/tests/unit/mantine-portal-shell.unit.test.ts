@@ -116,35 +116,6 @@ describe("portal-shell (Mantine 구현) 계약", () => {
     r.unmount();
   });
 
-  it("TabsBar 의 우측 액션 버튼은 홈·새로고침·즐겨찾기 콜백을 그대로 호출한다", () => {
-    const onRefresh = vi.fn();
-    const onToggleFavorite = vi.fn();
-    const r = renderWithMantine(
-      createElement(TabsBar, {
-        tabs: [tab("home", "홈", "mcm:home", true)],
-        activeTabId: "home",
-        onTabClick: () => {},
-        onTabClose: () => {},
-        onGoHome: () => {},
-        onRefresh,
-        onToggleFavorite,
-      })
-    );
-
-    const buttons = Array.from(r.host.querySelectorAll<HTMLElement>(".tabs-controls button"));
-    const refresh = buttons.find((b) => b.getAttribute("aria-label") === "새로고침");
-    const favorite = buttons.find((b) => b.getAttribute("aria-label") === "즐겨찾기 추가");
-    expect(refresh).toBeDefined();
-    expect(favorite).toBeDefined();
-
-    act(() => refresh!.click());
-    act(() => favorite!.click());
-    expect(onRefresh).toHaveBeenCalled();
-    expect(onToggleFavorite).toHaveBeenCalled();
-
-    r.unmount();
-  });
-
   it("TabsBar 의 아이콘 버튼은 네이티브 title 대신 Mantine Tooltip 을 쓴다", () => {
     // happy-dom 에서는 floating-ui hover 가 열리지 않아 툴팁 표시는 브라우저에서 확인한다.
     const source = readFileSync(
@@ -153,7 +124,7 @@ describe("portal-shell (Mantine 구현) 계약", () => {
     );
     const controls = source.slice(source.indexOf('className="tabs-controls"'));
     expect(controls).not.toMatch(/\btitle=/);
-    for (const label of ["새로고침", "탭 목록", "전체 화면으로 보기", "전체 화면 끝내기 (Esc)"]) {
+    for (const label of ["탭 목록", "전체 화면으로 보기", "전체 화면 끝내기 (Esc)"]) {
       expect(controls).toContain(`<ControlTooltip label="${label}">`);
     }
   });

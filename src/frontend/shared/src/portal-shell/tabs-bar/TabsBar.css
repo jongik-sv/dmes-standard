@@ -158,8 +158,26 @@
   border-color: var(--color-border);
 }
 
+.home-tab {
+  gap: 4px;
+}
+
 .home-tab svg {
   display: block;
+}
+
+/* 탭 제목 앞 표시 — 기본 화면(집)·즐겨찾기(별). 제목보다 작고, 색으로 구분한다. */
+.tab-mark {
+  flex-shrink: 0;
+  margin-right: 3px;
+}
+
+.tab-mark--start {
+  color: var(--color-primary);
+}
+
+.tab-mark--favorite {
+  color: var(--color-warning);
 }
 
 .tab-title {
@@ -416,7 +434,10 @@
 }
 
 .tab-context-menu-item {
-  padding: 6px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 10px;
   cursor: pointer;
   white-space: nowrap;
   transition: background-color var(--transition-fast);
@@ -426,9 +447,18 @@
   background-color: var(--color-bg-hover);
 }
 
+.tab-context-menu-icon {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+
 .tab-context-menu-item.is-disabled {
   color: var(--color-text-disabled);
   cursor: default;
+}
+
+.tab-context-menu-item.is-disabled .tab-context-menu-icon {
+  color: inherit;
 }
 
 .tab-context-menu-item.is-disabled:hover {
