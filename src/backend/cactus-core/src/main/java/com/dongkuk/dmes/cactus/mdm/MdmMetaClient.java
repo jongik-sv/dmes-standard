@@ -55,21 +55,28 @@ public class MdmMetaClient implements MdmMetaFeed {
             items.add(new MdmChange(n.path("seq").asLong(), n.path("type").asText(null), n.path("key").asText(null),
                     n.path("kind").asText(null)));
         }
-        return new MdmChanges(result.path("latestSeq").asLong(0L), items, result.path("truncated").asBoolean(false));
+        JsonNode latestSeq = result.path("latestSeq");
+        if (!latestSeq.isNumber()) {
+            // 0 으로 읽으면 폴러가 역행(규칙 4)으로 보고 캐시를 통째로 비운다 — 손상된 응답으로 다룬다.
+            throw new MdmUnavailableException("MDM 응답에 latestSeq 가 없습니다(search)");
+        }
+        return new MdmChanges(latestSeq.asLong(), items, result.path("truncated").asBoolean(false));
     }
 
     @Override
     public MdmFetchResult fetch(MdmTargetType type, Collection<String> keys) {
         JsonNode result = call("view", MdmJson.MAPPER.createObjectNode().put("type", type.name()), keys);
         Map<String, Object> found = new LinkedHashMap<>();
+        Map<String, String> failed = new LinkedHashMap<>();
         for (JsonNode n : result.path("items")) {
             JsonNode value = n.path("value");
             if (value.isMissingNode() || value.isNull()) {
-                continue; // found 에 null 을 넣지 않는다
+                // 건너뛰면 그 키가 "없음"으로 60분 캐시된다 — 받을 수 없는 키(failed)로 돌린다.
+                failed.put(n.path("key").asText(), "value 없음");
+                continue;
             }
             found.put(n.path("key").asText(), convert(type, value));
         }
-        Map<String, String> failed = new LinkedHashMap<>();
         for (JsonNode n : result.path("failed")) {
             failed.put(n.path("key").asText(), n.path("message").asText(""));
         }

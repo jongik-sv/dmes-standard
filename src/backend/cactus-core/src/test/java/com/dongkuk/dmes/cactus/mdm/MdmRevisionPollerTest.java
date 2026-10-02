@@ -179,6 +179,9 @@ class MdmRevisionPollerTest {
         assertThat(cache.get(MdmTargetType.COLUMN, "A")).isPresent();
         assertThat(cache.get(MdmTargetType.COLUMN, "B")).isEmpty();
         service.lookup(MdmTargetType.COLUMN, List.of("B")); // B 를 다시 적재해 둔다
+        // 순번 5 가 커밋되기 전에 Ticket(6) 을 받아 옛 A 를 읽은 적재가 있다고 친다.
+        MdmMetaCache.Ticket before = cache.ticket();
+        MdmMetaCache.Ticket beforeSeqOnly = new MdmMetaCache.Ticket(before.generation(), before.appliedSeq()); // 표지 검사 없이 순번만
 
         // 순번 5(A)가 늦게 커밋됐다 — 되돌아보기 구간이 5·6 을 다시 준다.
         feed.changes.add(changes(6, false, new MdmChange(5, "COLUMN", "A", "SAVE"), new MdmChange(6, "COLUMN", "B", "SAVE")));
@@ -188,6 +191,33 @@ class MdmRevisionPollerTest {
         assertThat(cache.get(MdmTargetType.COLUMN, "A")).isEmpty();
         assertThat(cache.get(MdmTargetType.COLUMN, "B")).as("이미 처리한 순번 6 은 두 번 지우지 않는다").isPresent();
         assertThat(cache.appliedSeq()).isEqualTo(6);
+        // 규칙 5: 늦은 순번의 지움 기록은 applied + 1 이라 그 전에 받은 Ticket(6) 의 옛 값을 넣지 못한다.
+        assertThat(cache.put(MdmTargetType.COLUMN, "A", "옛 A", beforeSeqOnly)).isFalse();
+        assertThat(cache.put(MdmTargetType.COLUMN, "A", "옛 A", before)).isFalse();
+        assertThat(cache.get(MdmTargetType.COLUMN, "A")).isEmpty();
+    }
+
+    @Test
+    void 되돌아보기를_켠_채_규칙3_4_로_비우면_처리한_순번_기억도_비운다() {
+        poller = new MdmRevisionPoller(feed, cache, service, clock, Duration.ofSeconds(10), 1000, 100);
+        started(4);
+        feed.changes.add(changes(6, false, new MdmChange(5, "COLUMN", "A", "SAVE"), new MdmChange(6, "COLUMN", "B", "SAVE")));
+        poller.pollOnce();
+        assertThat(poller.processedSeqCount()).isEqualTo(2);
+
+        feed.changes.add(changes(5000, true, new MdmChange(7, "COLUMN", "A", "SAVE"))); // 규칙 3
+        poller.pollOnce();
+        assertThat(poller.processedSeqCount()).isZero();
+        assertThat(cache.appliedSeq()).isEqualTo(5000);
+
+        feed.changes.add(changes(5001, false, new MdmChange(5001, "COLUMN", "A", "SAVE")));
+        poller.pollOnce();
+        assertThat(poller.processedSeqCount()).isEqualTo(1);
+
+        feed.changes.add(changes(3, false)); // 규칙 4 — 역행
+        poller.pollOnce();
+        assertThat(poller.processedSeqCount()).isZero();
+        assertThat(cache.appliedSeq()).isEqualTo(3);
     }
 
     @Test

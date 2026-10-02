@@ -177,7 +177,7 @@ class MdmMetaClientTest {
     }
 
     @Test
-    void fetch_는_value_가_없거나_null_인_항목을_found_에_넣지_않는다() {
+    void fetch_는_value_가_없거나_null_인_항목을_found_에_넣지_않고_failed_로_돌린다() {
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
                 .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"1\",\"value\":{\"layoutName\":\"전문\"}},{\"key\":\"2\",\"value\":null},"
                         + "{\"key\":\"3\"}],\"failed\":[]}"), MediaType.APPLICATION_JSON));
@@ -186,6 +186,28 @@ class MdmMetaClientTest {
 
         assertThat(r.found()).containsOnlyKeys("1");
         assertThat(r.found().values()).doesNotContainNull();
+        // 건너뛰면 "없음"으로 60분 캐시된다 — 받을 수 없는 키로 돌린다.
+        assertThat(r.failed()).containsOnlyKeys("2", "3");
+        assertThat(r.failed().get("2")).contains("value 없음");
+    }
+
+    @Test
+    void changes_는_latestSeq_가_없거나_null_이거나_숫자가_아니면_MdmUnavailableException() {
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/search"))
+                .andRespond(withSuccess(ok("{\"items\":[],\"truncated\":false}"), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/search"))
+                .andRespond(withSuccess(ok("{\"latestSeq\":null,\"items\":[],\"truncated\":false}"), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/search"))
+                .andRespond(withSuccess(ok("{\"latestSeq\":\"abc\",\"items\":[],\"truncated\":false}"), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/search"))
+                .andRespond(withSuccess(ok("{\"latestSeq\":0,\"items\":[],\"truncated\":false}"), MediaType.APPLICATION_JSON));
+
+        for (int i = 0; i < 3; i++) {
+            assertThatThrownBy(() -> client.changes(5, 1000)).isInstanceOf(MdmUnavailableException.class)
+                    .hasMessageContaining("latestSeq");
+        }
+        assertThat(client.changes(0, 1000).latestSeq()).as("0 은 정상 값이다(기록이 없는 MDM)").isZero();
+        server.verify();
     }
 
     @Test
