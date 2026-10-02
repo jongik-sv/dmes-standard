@@ -72,7 +72,3 @@
 
 - mantine-aggrid-ui 스킬에 어설픈 테이블을 그리지 말고 표모양은 aggrid를 사용하라고 해줘.
 
-
-### 버그·기술 부채
-
-- 포털 인증 쿠키 접두어가 `m-mcm/lib/auth/config.ts:22` 에 `"oasis-mcm-auth"` 로 고정되어 `AUTH_COOKIE_PREFIX` 환경 변수를 무시한다. proxy 는 환경 변수 접두어를, 로그인 페이지는 고정 접두어를 봐서 접두어를 바꾸면 `/login` 무한 리디렉션이 난다(2026-10-02 위젯 E2E 중 발견).
