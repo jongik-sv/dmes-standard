@@ -276,4 +276,73 @@ describe("WidgetWorkspace", () => {
     expect(store.calls).toEqual(["load", "saveTab:home", "saveTab:tab-1:내 생산:1"]);
     expect(btn('[data-action="start-edit"]')).not.toBeNull();
   });
+
+  const REG2: WidgetRegistry = {
+    ...REG,
+    "t.b": { meta: { id: "t.b", title: "나", defaultSize: { w: 6, h: 6 } }, load: async () => ({ default: () => h("p", null, "나") }) },
+  };
+
+  it("서랍에서 눌러 추가한 위젯으로 스크롤한다(§3.4)", async () => {
+    const scroll = vi.fn();
+    const orig = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scroll;
+    try {
+      await mount(makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a")] }]), { registry: REG2 });
+      click('[data-action="start-edit"]');
+      expect(scroll).not.toHaveBeenCalled();
+      click('.cm-widget-picker [data-widget-id="t.b"]');
+      await flush();
+      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(scroll).toHaveBeenCalledWith({ block: "nearest" });
+      expect((scroll.mock.contexts[0] as HTMLElement).getAttribute("data-widget-id")).toBe("t.b");
+    } finally {
+      HTMLElement.prototype.scrollIntoView = orig;
+    }
+  });
+
+  it("저장 중에는 서랍·빼기·Escape 가 동작하지 않는다", async () => {
+    const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }]);
+    let release: () => void = () => {};
+    (store.saveTab as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise<void>((r) => { release = r; }));
+    const { confirm } = await mount(store, { registry: REG2 });
+    click('[data-action="start-edit"]');
+    click('.cm-widget[data-inst-id="a"] [data-action="remove"]');
+    click('[data-action="done-edit"]');
+    await flush();
+    expect(host.querySelector(".cm-widget-picker")).toBeNull();
+    expect(host.querySelector('.cm-widget-board [data-action="remove"]')).toBeNull();
+    act(() => document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    await flush();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(btn('[data-action="done-edit"]')).not.toBeNull();
+    release();
+    await flush();
+    expect(btn('[data-action="start-edit"]')).not.toBeNull();
+  });
+
+  it("기본 배치로 되돌리면 화면의 홈 탭 잠금도 풀린다(서버가 행을 지우므로)", async () => {
+    const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: true, items: [it_("a")] }]);
+    await mount(store);
+    expect(host.querySelector(".cm-widget-tab__lock")).not.toBeNull();
+    act(() => btn('[data-tab-menu="home"]').click());
+    const reset = [...document.querySelectorAll(".cm-widget-menu button")].find((b) => b.textContent?.includes("기본 배치")) as HTMLButtonElement;
+    act(() => reset.click());
+    await flush();
+    expect(store.calls).toContain("resetHome");
+    expect(host.querySelector(".cm-widget-tab__lock")).toBeNull();
+  });
+
+  it("확인 창(role=dialog) 안의 Escape 는 편집 취소를 다시 부르지 않는다", async () => {
+    const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }]);
+    const { confirm } = await mount(store);
+    click('[data-action="start-edit"]');
+    click('.cm-widget[data-inst-id="a"] [data-action="remove"]');
+    const dlg = document.createElement("div");
+    dlg.setAttribute("role", "dialog");
+    document.body.appendChild(dlg);
+    act(() => dlg.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    await flush();
+    dlg.remove();
+    expect(confirm).not.toHaveBeenCalled();
+  });
 });

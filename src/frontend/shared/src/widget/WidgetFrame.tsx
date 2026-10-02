@@ -132,7 +132,7 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
 
   if (!entry) {
     return (
-      <section className="cm-widget cm-widget--missing" data-widget-id={item.widgetId} data-editing={editing ? "true" : undefined}>
+      <section className="cm-widget cm-widget--missing" data-inst-id={item.instId} data-widget-id={item.widgetId} data-editing={editing ? "true" : undefined}>
         <WidgetStyle />
         <div className="cm-widget__head">
           <h3 className="cm-widget__title">없는 위젯</h3>

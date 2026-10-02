@@ -203,6 +203,7 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
   };
 
   const cancelEdit = async () => {
+    if (saving) return;
     if (changedTabs.length > 0 && !(await ask("변경 내용을 버릴까요?", "배치 편집을 시작한 뒤 바꾼 내용이 모두 사라집니다."))) return;
     const restored = snapshot ?? tabs;
     setTabs(restored);
@@ -217,7 +218,7 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
     if (!editing) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (e.key !== "Escape" || t?.closest("input, textarea, [role='menu']")) return;
+      if (e.key !== "Escape" || t?.closest("input, textarea, [role='menu'], [role='dialog']")) return;
       void cancelRef.current();
     };
     document.addEventListener("keydown", onKey);
@@ -288,14 +289,36 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
 
   const resetHome = async () => {
     if (!(await ask("기본 배치로 되돌릴까요?", "「홈」 탭의 내 배치를 지우고 기본 배치로 돌아갑니다."))) return;
-    const next = tabs.map((t) => (t.tabId === HOME_TAB_ID ? { ...defaultHome(), locked: t.locked } : t));
+    const next = tabs.map((t) => (t.tabId === HOME_TAB_ID ? defaultHome() : t));
     await saveNow(next, () => store.resetHome());
   };
+
+  // 서랍에서 눌러 추가한 위젯으로 스크롤한다(스펙 §3.4). 격자가 칸을 그리는 시점이 한 박자 늦을 수 있어 찾을 때까지 몇 프레임 다시 본다.
+  const scrollToRef = useRef<string | null>(null);
+  useEffect(() => {
+    const instId = scrollToRef.current;
+    if (!instId) return;
+    let tries = 0;
+    let frame = 0;
+    const seek = () => {
+      const el = outer.containerRef.current?.querySelector<HTMLElement>(`[data-inst-id="${instId}"]`);
+      if (el) {
+        if (scrollToRef.current === instId) scrollToRef.current = null;
+        el.scrollIntoView({ block: "nearest" });
+      } else if ((tries += 1) < 10) {
+        frame = requestAnimationFrame(seek);
+      }
+    };
+    seek();
+    return () => cancelAnimationFrame(frame);
+  }, [tabs, outer.containerRef]);
 
   const addFromPicker = (widgetId: string) => {
     const meta = registry[widgetId]?.meta;
     if (!active || !meta || !canAddWidget(active.items, meta)) return;
-    setActiveItems(addItem(active.items, widgetId, meta, newInstanceId()));
+    const instId = newInstanceId();
+    scrollToRef.current = instId;
+    setActiveItems(addItem(active.items, widgetId, meta, instId));
   };
 
   if (status === "loading" || !active) {
@@ -378,13 +401,13 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
             items={active.items}
             registry={registry}
             editing={editing}
-            tabLocked={active.locked}
+            tabLocked={active.locked || saving}
             onChange={setActiveItems}
             cols={cols}
             width={boardWidth}
           />
         </div>
-        {editing && wide && !active.locked && <WidgetPicker registry={registry} items={active.items} onAdd={addFromPicker} />}
+        {editing && !saving && wide && !active.locked && <WidgetPicker registry={registry} items={active.items} onAdd={addFromPicker} />}
       </div>
     </div>
   );

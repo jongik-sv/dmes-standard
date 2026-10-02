@@ -90,9 +90,10 @@ export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onW
           minH: min.h,
           maxW: Math.min(max.w, cols),
           maxH: max.h,
-          static: it.locked || !canEdit,
+          // 등록부에 없는 칸은 잠겨 있어도 뺄 수 있어야 하므로 잠금으로 굳히지 않는다.
+          static: (it.locked && Boolean(registry[it.widgetId])) || !canEdit,
           // react-grid-layout 은 손잡이를 항상 그리고 CSS 로만 숨기므로, 편집할 수 없으면 아예 넘기지 않는다.
-          resizeHandles: it.locked || !canEdit ? [] : [...WIDGET_RESIZE_HANDLES],
+          resizeHandles: (it.locked && Boolean(registry[it.widgetId])) || !canEdit ? [] : [...WIDGET_RESIZE_HANDLES],
         };
       }),
     [shown, registry, cols, canEdit]
@@ -154,7 +155,7 @@ export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onW
               editing={canEdit}
               sizeLabel={sizeLabel?.id === it.instId ? sizeLabel.text : null}
               onToggleLock={(instId) => onChange(toggleLock(items, instId))}
-              onRemove={(instId) => onChange(removeItem(items, instId))}
+              onRemove={(instId) => onChange(removeItem(items, instId, !registry[it.widgetId]))}
               onKeyMove={onKeyMove}
             />
           </div>

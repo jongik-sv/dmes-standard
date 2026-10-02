@@ -143,9 +143,10 @@ export function addItem(
   return compactPreferring([...items, placed], instId);
 }
 
-export function removeItem(items: readonly WidgetItem[], instId: string): WidgetItem[] {
+/** 잠긴 위젯은 빼지 않는다. `force`(등록부에 없는 위젯 칸)면 잠금과 무관하게 뺀다. */
+export function removeItem(items: readonly WidgetItem[], instId: string, force = false): WidgetItem[] {
   const target = items.find((i) => i.instId === instId);
-  if (!target || target.locked) return [...items];
+  if (!target || (target.locked && !force)) return [...items];
   return compact(items.filter((i) => i.instId !== instId));
 }
 

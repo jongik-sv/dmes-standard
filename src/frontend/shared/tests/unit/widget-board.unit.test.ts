@@ -96,4 +96,14 @@ describe("WidgetBoard", () => {
     act(() => head.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
     expect(onChange.mock.calls[0][0].find((i: WidgetItem) => i.instId === "a").x).toBe(1);
   });
+
+  it("잠긴 채 등록부에서 사라진 위젯도 ✕ 로 뺄 수 있고 static 으로 굳지 않는다", () => {
+    const items = [it_("a", "t.a", 0, 0), it_("g", "gone.x", 6, 0, { locked: true })];
+    const { onChange } = render({ editing: true, items });
+    const frame = host.querySelector('.cm-widget[data-inst-id="g"]');
+    expect(frame).not.toBeNull();
+    expect(frame!.closest(".react-grid-item")!.className).not.toContain("static");
+    act(() => (frame!.querySelector('[data-action="remove"]') as HTMLButtonElement).click());
+    expect(onChange.mock.calls[0][0].map((i: WidgetItem) => i.instId)).toEqual(["a"]);
+  });
 });
