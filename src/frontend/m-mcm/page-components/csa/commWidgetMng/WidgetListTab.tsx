@@ -20,6 +20,7 @@ import { toWidgetDefRow, type WidgetDefRow } from "@dk-oasis/shared/widget";
 
 import { WIDGET_REGISTRY } from "@/lib/generated/widget-registry";
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
+import { notifyWidgetDefsChanged } from "@/lib/widget-defs-events";
 
 import { deleteWidgetDef, saveWidgetDef, searchWidgetDefs } from "./api";
 import {
@@ -301,6 +302,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
     setIsBusy(true);
     try {
       const saved = await saveWidgetDef(toSaveParams(form));
+      notifyWidgetDefsChanged();
       showMessage({ message: "저장되었습니다.", alertType: "success", toast: true });
       // 다시 조회가 실패해도 폼이 widgetId "" 로 남아 [저장]이 정의 행을 하나 더 만들지 않게, 받은 ID 를 폼·기준값에 먼저 넣는다.
       const savedId = saved.widgetId || form.widgetId;
@@ -328,6 +330,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
         setIsBusy(true);
         try {
           await deleteWidgetDef(row.widgetId);
+          notifyWidgetDefsChanged();
           showMessage({
             message: isCode ? "코드 값으로 되돌렸습니다." : "삭제되었습니다.",
             alertType: "success",

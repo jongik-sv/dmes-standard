@@ -180,12 +180,42 @@ export function WidgetWorkspace({
     }
   }, [store, registry, defaultHome, memoUserId, single]);
 
+  // 등록부·기본 배치만 바뀌면(정의 위젯 새로 고침) 편집 중일 때 다시 불러오기를 편집이 끝날 때까지 미룬다 — 바로 불러오면 편집 중이던 변경이 버려진다.
+  // 미루는 동안에도 서랍·보드는 새 registry prop 을 쓰므로 새 위젯은 서랍에 바로 보인다.
+  // store·사용자·단일 탭 여부가 바뀌면 다른 배치이므로 예전처럼 바로 다시 불러오고 편집을 끝낸다.
+  const editingRef = useRef(false);
+  editingRef.current = editing;
+  const reloadPending = useRef(false);
+  const sourceRef = useRef({ store, memoUserId, single });
+
   useEffect(() => {
+    const prev = sourceRef.current;
+    const sourceChanged = prev.store !== store || prev.memoUserId !== memoUserId || prev.single !== single;
+    sourceRef.current = { store, memoUserId, single };
+    if (editingRef.current && !sourceChanged) {
+      reloadPending.current = true;
+      return;
+    }
+    reloadPending.current = false;
     void load();
     return () => {
       loadSeq.current += 1;
     };
-  }, [load]);
+  }, [load, store, memoUserId, single]);
+
+  useEffect(() => {
+    if (editing || !reloadPending.current) return;
+    reloadPending.current = false;
+    void load();
+  }, [editing, load]);
+
+  // 미룬 다시 불러오기가 언마운트 뒤에 상태를 쓰지 않게 한다.
+  useEffect(
+    () => () => {
+      loadSeq.current += 1;
+    },
+    []
+  );
 
   const active = tabs.find((t) => t.tabId === activeTabId) ?? tabs[0];
   const setActiveItems = (items: WidgetItem[]) =>
