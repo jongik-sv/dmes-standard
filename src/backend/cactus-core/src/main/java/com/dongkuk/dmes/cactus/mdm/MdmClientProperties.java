@@ -16,10 +16,14 @@ public class MdmClientProperties {
     private String baseUrl = "http://localhost:8096";
     private String clientKey;
     private Duration pollInterval = Duration.ofSeconds(10);
-    /** 대상 합계 상한. 넘으면 적재가 오래된 순으로 지운다. */
+    /** 대상 합계 상한. 넘으면 만료 항목, 그다음 오래 조회되지 않은 순(LRU)으로 지운다. */
     private int maxEntries = 20_000;
-    /** 기록 누락에 대비한 안전망 — 이 수명이 지난 항목은 조회 때 버린다. */
-    private Duration maxAge = Duration.ofMinutes(60);
+    /**
+     * 적재 뒤 절대 상한 — 조회가 아무리 많아도 이 시간이 지나면 버리고 MDM 에서 다시 받는다(폴링이 오래 끊겨 지움 기록을 놓친 경우의 안전망).
+     */
+    private Duration maxAge = Duration.ofHours(24);
+    /** 유휴 수명 — 마지막 조회 뒤 이 시간 동안 다시 조회되지 않으면 만료. 조회될 때마다 연장된다. */
+    private Duration maxIdle = Duration.ofMinutes(60);
     private Duration connectTimeout = Duration.ofSeconds(2);
     private Duration readTimeout = Duration.ofSeconds(5);
     /** 한 번 폴링에서 받는 변경 수 상한. 넘으면(truncated) 캐시를 비운다(§5.3-3). */
@@ -37,6 +41,7 @@ public class MdmClientProperties {
     public Duration getPollInterval() { return pollInterval; }
     public int getMaxEntries() { return maxEntries; }
     public Duration getMaxAge() { return maxAge; }
+    public Duration getMaxIdle() { return maxIdle; }
     public Duration getConnectTimeout() { return connectTimeout; }
     public Duration getReadTimeout() { return readTimeout; }
     public int getPageLimit() { return pageLimit; }
@@ -49,6 +54,7 @@ public class MdmClientProperties {
     public void setPollInterval(Duration v) { this.pollInterval = v; }
     public void setMaxEntries(int v) { this.maxEntries = v; }
     public void setMaxAge(Duration v) { this.maxAge = v; }
+    public void setMaxIdle(Duration v) { this.maxIdle = v; }
     public void setConnectTimeout(Duration v) { this.connectTimeout = v; }
     public void setReadTimeout(Duration v) { this.readTimeout = v; }
     public void setPageLimit(int v) { this.pageLimit = v; }

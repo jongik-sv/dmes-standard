@@ -44,7 +44,7 @@ public class MdmAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public MdmMetaCache mdmMetaCache(MdmClientProperties props) {
-        return new MdmMetaCache(props.getMaxEntries(), props.getMaxAge(), Clock.systemUTC());
+        return new MdmMetaCache(props.getMaxEntries(), props.getMaxAge(), props.getMaxIdle(), Clock.systemUTC());
     }
 
     @Bean

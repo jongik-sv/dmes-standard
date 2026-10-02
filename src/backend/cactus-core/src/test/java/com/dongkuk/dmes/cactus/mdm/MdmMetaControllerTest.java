@@ -43,6 +43,7 @@ class MdmMetaControllerTest {
     private MutableClock clock;
     private MdmMetaController controller;
     private MockMvc mvc;
+    private MdmColumnMeta coilThk;
     private final Logger controllerLog = (Logger) LoggerFactory.getLogger(MdmMetaController.class);
     private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
 
@@ -59,16 +60,17 @@ class MdmMetaControllerTest {
         SecurityContextHolder.clearContext();
         clock = new MutableClock(Instant.parse("2026-10-02T00:00:00Z"));
         feed = new FakeMetaFeed();
-        MdmMetaCache cache = new MdmMetaCache(100, Duration.ofMinutes(60), clock);
+        MdmMetaCache cache = new MdmMetaCache(100, Duration.ofHours(24), Duration.ofMinutes(60), clock); // 절대 상한 24시간·유휴 60분
         cache.clear(0);
         MdmMetaService service = new MdmMetaService(feed, cache, clock);
         MdmRevisionPoller poller = new MdmRevisionPoller(feed, cache, service, clock, Duration.ofSeconds(10), 1000);
         controller = new MdmMetaController("mls", "123@host", service, cache, poller, clock);
         mvc = MockMvcBuilders.standaloneSetup(controller).setCustomHandlerMapping(CactusRequestMappingHandlerMapping::new).build();
 
-        feed.put(MdmTargetType.COLUMN, "COIL_THK", new MdmColumnMeta("COIL_THK", "코일 두께", null, "두께", null, "설명", null, "NUMBER", 10, 2,
+        coilThk = new MdmColumnMeta("COIL_THK", "코일 두께", null, "두께", null, "설명", null, "NUMBER", 10, 2,
                 true, null, null, null, null, new MdmColumnMeta.DomainRef("7", "두께", "QTY"),
-                new MdmColumnMeta.Expr("value >= 0", null), new MdmColumnMeta.BizExpr("value <= COIL_WID"), List.of("COIL_WID"), null));
+                new MdmColumnMeta.Expr("value >= 0", null), new MdmColumnMeta.BizExpr("value <= COIL_WID"), List.of("COIL_WID"), null);
+        feed.put(MdmTargetType.COLUMN, "COIL_THK", coilThk);
     }
 
     @Test
@@ -183,7 +185,8 @@ class MdmMetaControllerTest {
                 .andExpect(jsonPath("$.appliedSeq").value(0))
                 .andExpect(jsonPath("$.counts.COLUMN").value(0))
                 .andExpect(jsonPath("$.maxEntries").value(100))
-                .andExpect(jsonPath("$.maxAgeSeconds").value(3600));
+                .andExpect(jsonPath("$.maxAgeSeconds").value(86400))
+                .andExpect(jsonPath("$.maxIdleSeconds").value(3600));
     }
 
     /** 검토 반영(R10 보강) — 인증된 사용자가 있으면 그 권한으로만 판정하고 헤더는 보지 않는다. */
@@ -363,7 +366,7 @@ class MdmMetaControllerTest {
     }
 
     @Test
-    void entry_는_max_age_가_지난_항목을_없는_것으로_본다() throws Exception {
+    void entry_는_유휴_수명이_지난_항목을_없는_것으로_본다() throws Exception {
         mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
         clock.advance(Duration.ofMinutes(60));
 
@@ -405,6 +408,81 @@ class MdmMetaControllerTest {
                 .andExpect(jsonPath("$.missing[0]").value("NOPE"));
         mvc.perform(post("/api/mls/mdmMeta/load").contentType(MediaType.APPLICATION_JSON).content("{\"type\":\"COLUMN\",\"keys\":[\"x\"]}"))
                 .andExpect(status().isForbidden());
+    }
+
+    // ── A2: 추정 크기·힙·유휴 수명·정렬·마지막 조회 ──
+
+    @Test
+    void status_는_종류별_추정_크기_합계_힙_유휴_수명을_준다() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\",\"NOPE\"]}"));
+        long size = MdmJson.MAPPER.writeValueAsBytes(coilThk).length;
+        assertThat(size).isPositive();
+
+        String body = mvc.perform(get("/api/mls/mdmMeta/status").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.counts.COLUMN").value(2))
+                .andExpect(jsonPath("$.bytes.COLUMN").value(size)) // 없음 항목(NOPE)은 0
+                .andExpect(jsonPath("$.bytes.DOMAIN").value(0))
+                .andExpect(jsonPath("$.totalBytes").value(size))
+                .andExpect(jsonPath("$.heap.usedBytes").isNumber())
+                .andExpect(jsonPath("$.heap.maxBytes").isNumber())
+                .andExpect(jsonPath("$.maxIdleSeconds").value(3600))
+                .andExpect(jsonPath("$.maxAgeSeconds").value(86400))
+                .andReturn().getResponse().getContentAsString();
+        var heap = MdmJson.MAPPER.readTree(body).get("heap");
+        assertThat(heap.get("usedBytes").asLong()).isPositive();
+        assertThat(heap.get("maxBytes").asLong()).isGreaterThanOrEqualTo(heap.get("usedBytes").asLong());
+    }
+
+    @Test
+    void entries_는_sort_로_크기_순_조회_수_순으로_정렬하고_잘못된_값은_400() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"names\":[\"ZZZ\",\"COIL_THK\",\"AAA\"]}"));
+        for (int i = 0; i < 3; i++) {
+            mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"ZZZ\"]}"));
+        }
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
+
+        mvc.perform(get("/api/mls/mdmMeta/entries").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(jsonPath("$.items[*].key").value(org.hamcrest.Matchers.contains("AAA", "COIL_THK", "ZZZ")));
+        mvc.perform(get("/api/mls/mdmMeta/entries").param("sort", "key").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(jsonPath("$.items[*].key").value(org.hamcrest.Matchers.contains("AAA", "COIL_THK", "ZZZ")));
+        mvc.perform(get("/api/mls/mdmMeta/entries").param("sort", "bytes").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].key").value(org.hamcrest.Matchers.contains("COIL_THK", "AAA", "ZZZ"))) // 같은 크기는 키 순
+                .andExpect(jsonPath("$.items[0].bytes").value(MdmJson.MAPPER.writeValueAsBytes(coilThk).length))
+                .andExpect(jsonPath("$.items[1].bytes").value(0));
+        mvc.perform(get("/api/mls/mdmMeta/entries").param("sort", "hits").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(jsonPath("$.items[*].key").value(org.hamcrest.Matchers.contains("ZZZ", "COIL_THK", "AAA")))
+                .andExpect(jsonPath("$.items[0].hits").value(3));
+        // 정렬은 페이지를 자르기 전에 한다
+        mvc.perform(get("/api/mls/mdmMeta/entries").param("sort", "bytes").param("size", "1").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(jsonPath("$.total").value(3))
+                .andExpect(jsonPath("$.items[0].key").value("COIL_THK"));
+        mvc.perform(get("/api/mls/mdmMeta/entries").param("sort", "size").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/mls/mdmMeta/entries").param("sort", "bytes")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void entry_와_entries_는_추정_크기와_마지막_조회_시각을_싣고_읽기만_해서_그_시각을_옮기지_않는다() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
+        clock.advance(Duration.ofMinutes(10));
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}")); // 히트
+        clock.advance(Duration.ofMinutes(5));
+
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK").header("X-Authenticated-Role", "SYSADMIN"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.loadedAt").value("2026-10-02T00:00:00Z"))
+                    .andExpect(jsonPath("$.lastAccessAt").value("2026-10-02T00:10:00Z"))
+                    .andExpect(jsonPath("$.bytes").value(MdmJson.MAPPER.writeValueAsBytes(coilThk).length))
+                    .andExpect(jsonPath("$.hits").value(1))
+                    .andExpect(jsonPath("$.remainingSeconds").value(55 * 60));
+            mvc.perform(get("/api/mls/mdmMeta/entries").header("X-Authenticated-Role", "SYSADMIN"))
+                    .andExpect(jsonPath("$.items[0].lastAccessAt").value("2026-10-02T00:10:00Z"))
+                    .andExpect(jsonPath("$.items[0].bytes").value(MdmJson.MAPPER.writeValueAsBytes(coilThk).length));
+        }
     }
 
     private List<ILoggingEvent> warnings() {

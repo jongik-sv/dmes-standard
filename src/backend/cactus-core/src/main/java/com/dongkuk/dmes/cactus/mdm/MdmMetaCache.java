@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -17,11 +18,18 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * MDM 메타 캐시(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.2) — 대상 종류별 {@code ConcurrentHashMap}. 항목은 값 또는
- * "없음", 적재 시각, 적재 직전 {@code appliedSeq}, 조회 수를 가진다. {@code max-age} 가 지난 항목은 조회 때 버린다. Caffeine 을 쓰지 않는다(§5.1).
+ * "없음", 적재 시각, 마지막 조회 시각, 적재 직전 {@code appliedSeq}, 조회 수, 추정 크기를 가진다. Caffeine 을 쓰지 않는다(§5.1).
  *
- * <p>상한: 합계가 {@code max-entries} 를 넘으면 한 번에 {@code max-entries × 0.95} 까지 줄인다 — {@code max-age} 가 지난 항목을 먼저 모두
- * 지우고, 그래도 넘으면 적재가 오래된 순으로 지운다. 묶음 적재({@link #putAll})는 다 넣은 뒤 한 번만 줄인다(잠금을 쥔 채 정렬을 키 수만큼
- * 반복하지 않는다).
+ * <p>수명(A2, 2026-10-02): 마지막 조회({@link #get} 히트 — 적재 직후에는 적재 시각) 뒤 {@code max-idle} 동안 다시 조회되지 않거나, 적재 뒤
+ * {@code max-age}(절대 상한 — 폴링이 오래 끊겨 지움 기록을 놓친 경우의 안전망)가 지나면 만료다. 즉 자주 조회되는 항목일수록 오래 남되
+ * {@code max-age} 를 넘지는 않는다. 만료 항목은 조회 때 버린다. {@link #peek}·{@link #entries}(관리 화면)는 마지막 조회 시각·조회 수를 바꾸지 않는다.
+ *
+ * <p>상한: 합계가 {@code max-entries} 를 넘으면 한 번에 {@code max-entries × 0.95} 까지 줄인다 — 만료 항목을 먼저 모두 지우고, 그래도 넘으면
+ * 오래 조회되지 않은 순(LRU, 마지막 조회 시각 기준)으로 지운다. 묶음 적재({@link #putAll})는 다 넣은 뒤 한 번만 줄인다(잠금을 쥔 채 정렬을 키
+ * 수만큼 반복하지 않는다).
+ *
+ * <p>추정 크기: 적재 때 값을 {@link MdmJson#MAPPER} 로 직렬화한 UTF-8 바이트 수를 한 번 재어 둔다("없음"은 0, 직렬화 실패는 -1 — 합계에서
+ * 뺀다). 직렬화는 잠금 밖에서 한다. JVM 실제 점유는 객체 머리·참조 때문에 이보다 크다.
  *
  * <p>적재와 경합(§5.3-5, Ruling R7): 적재는 시작할 때 {@link Ticket} 을 받고, 넣을 때 아래 셋 중 하나면 넣지 않는다(호출자에게 값은 돌려준다)
  * — 늦게 도착한 옛 값이 남지 않는다. 지움 기록은 5분 뒤 {@link #markApplied} 때 정리한다.
@@ -43,7 +51,10 @@ public final class MdmMetaCache {
 
     private final int maxEntries;
     private final int trimTarget;
+    /** 적재 뒤 절대 상한. */
     private final Duration maxAge;
+    /** 마지막 조회 뒤 유휴 수명 — 조회될 때마다 연장된다. */
+    private final Duration maxIdle;
     private final Clock clock;
     private final Map<MdmTargetType, ConcurrentHashMap<String, Entry>> maps = new EnumMap<>(MdmTargetType.class);
     private final ConcurrentHashMap<String, Tombstone> tombstones = new ConcurrentHashMap<>();
@@ -53,10 +64,20 @@ public final class MdmMetaCache {
     private volatile long appliedSeq = -1L;
     private volatile long trimPasses;
 
+    /** 유휴 수명을 절대 상한과 같게 둔다 — 적재 뒤 {@code maxAge} 만 보는 예전 동작이다. */
     public MdmMetaCache(int maxEntries, Duration maxAge, Clock clock) {
+        this(maxEntries, maxAge, maxAge, clock);
+    }
+
+    /**
+     * @param maxAge  적재 뒤 절대 상한(히트가 많아도 이 시간 뒤에는 다시 받는다)
+     * @param maxIdle 마지막 조회 뒤 유휴 수명(조회될 때마다 연장)
+     */
+    public MdmMetaCache(int maxEntries, Duration maxAge, Duration maxIdle, Clock clock) {
         this.maxEntries = Math.max(1, maxEntries);
         this.trimTarget = Math.max(1, (int) (this.maxEntries * TRIM_TARGET_RATIO));
         this.maxAge = maxAge;
+        this.maxIdle = maxIdle;
         this.clock = clock;
         for (MdmTargetType t : MdmTargetType.values()) {
             maps.put(t, new ConcurrentHashMap<>());
@@ -68,12 +89,18 @@ public final class MdmMetaCache {
         private final Object value;
         private final Instant loadedAt;
         private final long loadSeq;
+        /** 추정 크기(UTF-8 JSON 바이트). "없음"은 0, 직렬화 실패는 -1. */
+        private final long bytes;
         private final AtomicLong hits = new AtomicLong();
+        /** 마지막 조회 시각(epoch millis) — {@link #get} 히트에서만 옮긴다. 적재 직후에는 적재 시각. */
+        private volatile long lastAccessMillis;
 
-        Entry(Object value, Instant loadedAt, long loadSeq) {
+        Entry(Object value, Instant loadedAt, long loadSeq, long bytes) {
             this.value = value;
             this.loadedAt = loadedAt;
             this.loadSeq = loadSeq;
+            this.bytes = bytes;
+            this.lastAccessMillis = loadedAt.toEpochMilli();
         }
 
         public Object value() { return value; }
@@ -81,6 +108,8 @@ public final class MdmMetaCache {
         public Instant loadedAt() { return loadedAt; }
         public long loadSeq() { return loadSeq; }
         public long hits() { return hits.get(); }
+        public long bytes() { return bytes; }
+        public Instant lastAccessAt() { return Instant.ofEpochMilli(lastAccessMillis); }
     }
 
     /**
@@ -93,9 +122,9 @@ public final class MdmMetaCache {
         }
     }
 
-    /** 관리 화면용 항목 한 줄. */
+    /** 관리 화면용 항목 한 줄. {@code bytes} 는 추정 크기(-1 = 잴 수 없음), {@code remainingSeconds} 는 두 기한 중 이른 쪽까지. */
     public record EntryView(MdmTargetType type, String key, boolean absent, Object value, Instant loadedAt, long hits,
-                            long remainingSeconds, long loadSeq) {
+                            long remainingSeconds, long loadSeq, Instant lastAccessAt, long bytes) {
     }
 
     /** 지움 기록 — 순번(폴러 지움만, 이 인스턴스 지움은 {@code Long.MIN_VALUE}), 시각, 표지. */
@@ -106,8 +135,14 @@ public final class MdmMetaCache {
         return maxEntries;
     }
 
+    /** 적재 뒤 절대 상한. */
     public Duration maxAge() {
         return maxAge;
+    }
+
+    /** 마지막 조회 뒤 유휴 수명. */
+    public Duration maxIdle() {
+        return maxIdle;
     }
 
     /** 첫 폴링 전에는 -1. */
@@ -125,19 +160,27 @@ public final class MdmMetaCache {
         if (e == null) {
             return Optional.empty();
         }
-        if (expired(e, clock.instant())) {
+        Instant now = clock.instant();
+        if (expired(e, now)) { // 연장하기 전의 마지막 조회 시각으로 판정한다 — 이미 만료된 항목을 되살리지 않는다
             map.remove(key, e);
             return Optional.empty();
         }
+        e.lastAccessMillis = now.toEpochMilli();
         e.hits.incrementAndGet();
         return Optional.of(e);
     }
 
-    /** 적재 결과를 넣는다. 넣지 않았으면 false(경합 — 호출자는 값을 돌려주되 캐시하지 않은 것이다). */
-    public synchronized boolean put(MdmTargetType type, String key, Object value, Ticket ticket) {
-        boolean put = putOne(type, key, value, ticket, clock.instant());
-        trimIfOver();
-        return put;
+    /**
+     * 적재 결과를 넣는다. 넣지 않았으면 false(경합 — 호출자는 값을 돌려주되 캐시하지 않은 것이다). 추정 크기는 잠금 밖에서 잰다(잠금은
+     * {@link #ticket}·{@link #evict}·{@link #clear} 와 같은 {@code this}).
+     */
+    public boolean put(MdmTargetType type, String key, Object value, Ticket ticket) {
+        long bytes = sizeOf(value);
+        synchronized (this) {
+            boolean put = putOne(type, key, value, bytes, ticket, clock.instant());
+            trimIfOver();
+            return put;
+        }
     }
 
     /**
@@ -145,16 +188,20 @@ public final class MdmMetaCache {
      *
      * @return 실제로 넣은 키(경합으로 거른 키는 빠진다)
      */
-    public synchronized Set<String> putAll(MdmTargetType type, Map<String, Object> values, Ticket ticket) {
-        Instant now = clock.instant();
-        Set<String> put = new LinkedHashSet<>();
-        values.forEach((key, value) -> {
-            if (putOne(type, key, value, ticket, now)) {
-                put.add(key);
-            }
-        });
-        trimIfOver();
-        return put;
+    public Set<String> putAll(MdmTargetType type, Map<String, Object> values, Ticket ticket) {
+        Map<String, Long> sizes = new HashMap<>(); // 직렬화는 잠금 밖에서
+        values.forEach((key, value) -> sizes.put(key, sizeOf(value)));
+        synchronized (this) {
+            Instant now = clock.instant();
+            Set<String> put = new LinkedHashSet<>();
+            values.forEach((key, value) -> {
+                if (putOne(type, key, value, sizes.get(key), ticket, now)) {
+                    put.add(key);
+                }
+            });
+            trimIfOver();
+            return put;
+        }
     }
 
     /** 폴링이 받은 변경 하나 — 지우고 지움 기록을 남긴다(같은 키의 기록이 있으면 큰 순번을 지킨다). */
@@ -192,6 +239,21 @@ public final class MdmMetaCache {
         return out;
     }
 
+    /** 종류별 추정 크기 합계(바이트). {@link #sizes} 와 같은 항목을 센다. 잴 수 없는 항목(-1)은 뺀다. */
+    public Map<MdmTargetType, Long> bytes() {
+        Map<MdmTargetType, Long> out = new EnumMap<>(MdmTargetType.class);
+        maps.forEach((t, m) -> {
+            long sum = 0;
+            for (Entry e : m.values()) {
+                if (e.bytes() > 0) {
+                    sum += e.bytes();
+                }
+            }
+            out.put(t, sum);
+        });
+        return out;
+    }
+
     /**
      * 항목 하나를 읽기만 한다(관리 화면 항목 상세 보기). {@link #get} 과 달리 조회 수를 올리지 않고, 만료 항목도 지우지 않은 채 "없음"(빈 값)으로
      * 답한다 — 캐시 상태(조회 수·지움 기록·세대)를 하나도 바꾸지 않는다. MDM 적재도 하지 않는다.
@@ -208,7 +270,7 @@ public final class MdmMetaCache {
         return Optional.of(view(type, key, e, now));
     }
 
-    /** 대상 종류(null 이면 전체)·키 부분 일치(대소문자 무시)로 거른 항목. 종류·키 순. */
+    /** 대상 종류(null 이면 전체)·키 부분 일치(대소문자 무시)로 거른 항목. 종류·키 순. 읽기만 한다(마지막 조회 시각·조회 수 그대로). */
     public List<EntryView> entries(MdmTargetType type, String q) {
         Instant now = clock.instant();
         String needle = q == null || q.isBlank() ? null : q.trim().toUpperCase(Locale.ROOT);
@@ -229,8 +291,10 @@ public final class MdmMetaCache {
     }
 
     private EntryView view(MdmTargetType type, String key, Entry e, Instant now) {
-        long remaining = Math.max(0L, Duration.between(now, e.loadedAt().plus(maxAge)).getSeconds());
-        return new EntryView(type, key, e.absent(), e.value(), e.loadedAt(), e.hits(), remaining, e.loadSeq());
+        long lastAccess = e.lastAccessMillis;
+        long remaining = Math.max(0L, Duration.between(now, expiresAt(e, lastAccess)).getSeconds());
+        return new EntryView(type, key, e.absent(), e.value(), e.loadedAt(), e.hits(), remaining, e.loadSeq(),
+                Instant.ofEpochMilli(lastAccess), e.bytes());
     }
 
     int tombstoneCount() {
@@ -243,7 +307,7 @@ public final class MdmMetaCache {
     }
 
     /** 잠금 안에서 부른다. */
-    private boolean putOne(MdmTargetType type, String key, Object value, Ticket ticket, Instant now) {
+    private boolean putOne(MdmTargetType type, String key, Object value, long bytes, Ticket ticket, Instant now) {
         if (ticket.generation() != generation.get()) {
             return false;
         }
@@ -251,7 +315,7 @@ public final class MdmMetaCache {
         if (t != null && (t.seq() > ticket.appliedSeq() || t.stamp() > ticket.stamp())) {
             return false;
         }
-        maps.get(type).put(key, new Entry(value, now, ticket.appliedSeq()));
+        maps.get(type).put(key, new Entry(value, now, ticket.appliedSeq(), bytes));
         return true;
     }
 
@@ -263,7 +327,7 @@ public final class MdmMetaCache {
                 (old, fresh) -> new Tombstone(Math.max(old.seq(), fresh.seq()), fresh.at(), fresh.stamp()));
     }
 
-    /** 잠금 안에서 부른다. 상한을 넘었으면 한 번에 목표치까지 줄인다 — 만료 항목 먼저, 그다음 적재가 오래된 순. */
+    /** 잠금 안에서 부른다. 상한을 넘었으면 한 번에 목표치까지 줄인다 — 만료 항목 먼저, 그다음 오래 조회되지 않은 순(LRU). */
     private void trimIfOver() {
         int total = 0;
         for (ConcurrentHashMap<String, Entry> m : maps.values()) {
@@ -274,7 +338,8 @@ public final class MdmMetaCache {
         }
         trimPasses++;
         Instant now = clock.instant();
-        record Slot(MdmTargetType type, String key, Entry entry) {
+        // 마지막 조회 시각은 정렬 중에도 get 이 옮길 수 있다 — 스냅샷으로 정렬해 Comparator 계약을 지킨다.
+        record Slot(MdmTargetType type, String key, Entry entry, long lastAccess) {
         }
         List<Slot> live = new ArrayList<>();
         for (Map.Entry<MdmTargetType, ConcurrentHashMap<String, Entry>> m : maps.entrySet()) {
@@ -282,7 +347,7 @@ public final class MdmMetaCache {
                 if (expired(e, now)) {
                     m.getValue().remove(k, e);
                 } else {
-                    live.add(new Slot(m.getKey(), k, e));
+                    live.add(new Slot(m.getKey(), k, e, e.lastAccessMillis));
                 }
             });
         }
@@ -290,15 +355,35 @@ public final class MdmMetaCache {
         if (over <= 0) {
             return;
         }
-        live.sort(Comparator.comparing((Slot s) -> s.entry().loadedAt()));
+        live.sort(Comparator.comparingLong(Slot::lastAccess));
         for (int i = 0; i < over; i++) {
             Slot s = live.get(i);
             maps.get(s.type()).remove(s.key(), s.entry());
         }
     }
 
+    /** {@code now >= 마지막 조회 + maxIdle} 또는 {@code now >= 적재 + maxAge}. */
     private boolean expired(Entry e, Instant now) {
-        return !e.loadedAt().plus(maxAge).isAfter(now);
+        return !expiresAt(e, e.lastAccessMillis).isAfter(now);
+    }
+
+    /** 두 기한 중 이른 쪽 — 마지막 조회 + maxIdle, 적재 + maxAge. */
+    private Instant expiresAt(Entry e, long lastAccessMillis) {
+        Instant idle = Instant.ofEpochMilli(lastAccessMillis).plus(maxIdle);
+        Instant age = e.loadedAt().plus(maxAge);
+        return idle.isBefore(age) ? idle : age;
+    }
+
+    /** 추정 크기 — UTF-8 JSON 직렬화 바이트 수. "없음"은 0, 직렬화 실패는 조용히 -1(화면은 "-"). */
+    static long sizeOf(Object value) {
+        if (value == null) {
+            return 0L;
+        }
+        try {
+            return MdmJson.MAPPER.writeValueAsBytes(value).length;
+        } catch (Exception e) {
+            return -1L;
+        }
     }
 
     private static String id(MdmTargetType type, String key) {

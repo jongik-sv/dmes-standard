@@ -63,10 +63,24 @@ class MdmAutoConfigurationTest {
             MdmClientProperties p = ctx.getBean(MdmClientProperties.class);
             assertThat(p.getPollInterval()).isEqualTo(Duration.ofSeconds(10));
             assertThat(p.getMaxEntries()).isEqualTo(20_000);
-            assertThat(p.getMaxAge()).isEqualTo(Duration.ofMinutes(60));
+            assertThat(p.getMaxAge()).as("적재 뒤 절대 상한").isEqualTo(Duration.ofHours(24));
+            assertThat(p.getMaxIdle()).as("마지막 조회 뒤 유휴 수명").isEqualTo(Duration.ofMinutes(60));
+            MdmMetaCache cache = ctx.getBean(MdmMetaCache.class);
+            assertThat(cache.maxAge()).isEqualTo(Duration.ofHours(24));
+            assertThat(cache.maxIdle()).isEqualTo(Duration.ofMinutes(60));
             assertThat(p.getReadTimeout()).isEqualTo(Duration.ofSeconds(5));
             assertThat(p.getConnectTimeout()).isEqualTo(Duration.ofMillis(200));
             assertThat(p.getRevisionLookback()).isEqualTo(MdmRevisionPoller.DEFAULT_LOOKBACK);
+        });
+    }
+
+    @Test
+    void max_idle_과_max_age_설정이_캐시에_닿는다() {
+        runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.max-idle=15m", "cactus.mdm.max-age=2h").run(ctx -> {
+            assertThat(ctx.getBean(MdmClientProperties.class).getMaxIdle()).isEqualTo(Duration.ofMinutes(15));
+            MdmMetaCache cache = ctx.getBean(MdmMetaCache.class);
+            assertThat(cache.maxIdle()).isEqualTo(Duration.ofMinutes(15));
+            assertThat(cache.maxAge()).isEqualTo(Duration.ofHours(2));
         });
     }
 
