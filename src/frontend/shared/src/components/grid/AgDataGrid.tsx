@@ -460,7 +460,8 @@ export function MdmGridTooltip(props: ITooltipParams & Partial<MdmGridTooltipPar
       </div>
     );
   }
-  const value = props.valueFormatted ?? props.value;
+  // ag-grid 기본 TooltipComponent 와 같게 value(tooltipValueGetter 결과)만 그린다 — valueFormatted 는 쓰지 않는다.
+  const value = props.value;
   return <div className="ag-tooltip">{value == null ? "" : String(value)}</div>;
 }
 
@@ -1054,6 +1055,8 @@ function AgDataGridComponent({
   //   컬럼 폭 합이 그리드보다 좁아도 우측이 빈 채로 남았다(2026-08-07 CR 이력 화면에서 실측: 그리드 976px
   //   vs 컬럼합 694px). 데이터 유무와 무관하게 마운트 후 한 번은 반드시 맞춘다.
   //   deps 는 길이만 본다 — 배열을 인라인으로 만드는 페이지에서 매 렌더 재실행되는 것을 피한다.
+  //   mdm(포털 탭 MDM 메타)은 받아 온 뒤 한 번 바뀐다 — 열 정의를 다시 넣으면 ag-grid 가 colDef.width 를 다시 적용해
+  //   채워 둔 여백이 사라지고(fixed·auto), 캡션이 길어지면 내용 폭도 달라지므로 다시 맞춘다. 공급자 밖이면 늘 undefined 라 영향이 없다.
   useEffect(() => {
     if (!gridReady || userResizedRef.current) return;
     if (resolvedColumnSizing === "auto" && shouldAutoSizeColumns) {
@@ -1066,6 +1069,7 @@ function AgDataGridComponent({
     gridReady,
     data.length,
     columns.length,
+    mdm,
     resolvedColumnSizing,
     shouldAutoSizeColumns,
     scheduleAutoSizeAllColumns,

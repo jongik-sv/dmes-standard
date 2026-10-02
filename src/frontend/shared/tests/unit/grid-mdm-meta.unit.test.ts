@@ -142,11 +142,11 @@ describe("MdmGridTooltip", () => {
     expect(host.querySelector('[data-mdm-section="title"]')?.textContent).toContain("공지 제목");
   });
 
-  it("셀이면 기본 툴팁처럼 값 글자만 그린다", () => {
+  it("셀이면 기본 툴팁(TooltipComponent)처럼 value 글자만 그린다 — valueFormatted 는 쓰지 않는다", () => {
     render(
-      createElement(MdmGridTooltip, { location: "cell", value: "원래 값", valueFormatted: null, mdmColumn: TITLE } as never)
+      createElement(MdmGridTooltip, { location: "cell", value: "1234", valueFormatted: "1,234", mdmColumn: TITLE } as never)
     );
-    expect(host.textContent).toBe("원래 값");
+    expect(host.textContent).toBe("1234");
     expect(host.querySelector(".ag-tooltip")).not.toBeNull();
     expect(host.querySelector("[data-mdm-section]")).toBeNull();
   });
