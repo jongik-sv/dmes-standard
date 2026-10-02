@@ -3301,7 +3301,7 @@ WidgetWorkspaceProps
 | boardWidth | `number` | - | 시험용 고정 폭(px). 보드에 넘기는 픽셀 폭 |
 | workspaceWidth | `number` | - | 시험용 고정 폭(px). 서랍 자리까지 포함한 바깥 폭 — 칸 수·편집 가능 판정에 쓴다(칸 수는 서랍 열림에 흔들리지 않는다) |
 | testId | `string` | - | 뿌리 `data-testid`. 정의 목록 실패 띠는 `{testId}-registry-error`(testId 가 없으면 띠에 testid 없음) |
-| registryStatus | `"ready" \| "loading" \| "error"` | `"ready"` | 정의 위젯 목록(`widgetDef/list`) 상태. loading·error 면 [배치 편집]·(+) 새 탭을 막고 탭 메뉴(⋯)를 숨기며, error 면 탭 줄(또는 단일 탭 제목) 위에 「위젯 정의를 불러오지 못했습니다」 띠 |
+| registryStatus | `"ready" \| "loading" \| "error"` | `"ready"` | 정의 위젯 목록(`widgetDef/list`) 상태. loading·error 면 [배치 편집]·(+) 새 탭만 막고(⋯ 탭 메뉴는 보기 모드에서 그대로), error 면 탭 줄(또는 단일 탭 제목) 위에 「위젯 정의를 불러오지 못했습니다」 띠 |
 | onRetryRegistry | `() => void` | - | 띠의 [다시 시도](`data-action="retry-registry"`). 없으면 버튼을 그리지 않는다 |
 | typeTitles | `Readonly<Record<string, string>>` | - | 유형 ID → 이름. 서랍이 정의 위젯 제목 아래에 유형 이름을 보인다(서랍 검색도 유형 이름으로 찾는다) |
 | singleTab | `{ title: string }` | - | 탭 줄을 숨기고 「홈」 하나만 다룬다(관리자 기본 배치 편집). 인라인 객체로 넘겨도 다시 불러오지 않는다 |
@@ -3310,7 +3310,7 @@ WidgetBoardProps: `items`·`registry`·`editing`·`tabLocked`(필수), `onChange
 
 WidgetFrameProps: `item`·`entry`(`undefined` 면 「없는 위젯」 칸, `entry.meta.disabled` 면 사용 중지 칸)·`editing`·`onToggleLock`·`onRemove`(필수), `sizeLabel?`·`onKeyMove?`. 제목 줄(제목·부제·새로 고침·화면 열기·잠금·빼기), 로딩 틀, 오류 경계를 그린다. 관리 화면 미리보기처럼 보드 밖에서 단독으로 그려도 된다.
 
-WidgetTabsProps: `tabs`·`activeTabId`·`editing`·`renamingTabId`·`onSelect`·`onAdd`·`onRenameStart`·`onRenameCommit`(오류 문구를 돌려주면 입력 칸 유지)·`onRenameCancel`·`onToggleLock`·`onMove`·`onDelete`·`onResetHome`, 선택 `menuDisabled`·`trailing`.
+WidgetTabsProps: `tabs`·`activeTabId`·`editing`·`renamingTabId`·`onSelect`·`onAdd`·`onRenameStart`·`onRenameCommit`(오류 문구를 돌려주면 입력 칸 유지)·`onRenameCancel`·`onToggleLock`·`onMove`·`onDelete`·`onResetHome`, 선택 `menuDisabled`(⋯ 메뉴와 (+) 모두 막음)·`addDisabled`(⋯ 는 두고 (+) 만 막음)·`addTitle`((+) 의 title, 막은 이유를 알릴 때)·`trailing`.
 
 WidgetPickerProps: `registry`·`items`·`onAdd(widgetId)`, 선택 `typeTitles`(유형 ID → 이름, 정의 위젯 제목 아래 작은 글씨). [위젯 추가] 서랍 — 검색·눌러 추가·격자로 끌어 놓기. 사용 중지 위젯은 보이지 않고, 이미 놓인 위젯(`multiple: false`)과 탭 한도(30개)는 막는다.
 
@@ -3341,6 +3341,7 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 - 격자: 넓은 화면(≥960px) 24칸, 중간(≥768px) 12칸, 좁은 화면 1칸. 세로 한 칸 20px, 간격 8px. 저장은 넓은 화면 배치 하나뿐이고 중간·좁은 화면은 다시 흘린 배치를 보기 전용으로 보인다.
 - 한도: 탭 사용자당 10개, 위젯 탭당 30개, 탭 이름 1~20자(사용자 안 중복 금지). 「홈」 탭은 ID `home`, 늘 첫 자리이고 지우기·이름 바꾸기가 안 된다.
 - 위젯 최소 크기 기본 `{ w: 4, h: 6 }`, 크기 조절 손잡이 8방향.
+- 편집 모드의 보드(`.cm-widget-board[data-editing="true"]`)에서는 shared 위젯 스타일이 안의 `iframe` 에 `pointer-events: none` 을 건다(iframe 이 마우스를 삼켜 끌기·크기 조절이 끊기는 것을 막는다). 위젯 유형마다 따로 막지 않는다.
 - 서버에서 받은 배치는 `sanitizeLayout` 이 정리한다(격자 밖·겹침·최소 크기 미만·중복 instId). 등록부에 없는 위젯 ID 는 보기 모드에서 숨기고 편집 모드에서 「없는 위젯」 칸으로 보여 준다. 없는 위젯 칸은 잠겨 있어도 ✕ 로 뺄 수 있다(`removeItem(items, instId, force)`).
 
 ## 흔한 실수

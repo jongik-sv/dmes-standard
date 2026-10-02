@@ -15,8 +15,12 @@ export interface WidgetTabsProps {
   tabs: readonly WidgetTab[];
   activeTabId: string;
   editing: boolean;
-  /** 불러오기 실패 등으로 탭 메뉴·추가를 막는다. */
+  /** 불러오기 실패 등으로 탭 메뉴(⋯)와 (+) 를 막는다. */
   menuDisabled?: boolean;
+  /** (+) 새 탭만 막는다(⋯ 탭 메뉴는 그대로). 정의 목록이 준비되지 않았을 때처럼 편집 진입로만 닫을 때 쓴다. */
+  addDisabled?: boolean;
+  /** (+) 의 title. 없으면 「새 탭 (최대 N개)」. addDisabled 이유를 알릴 때 넘긴다. */
+  addTitle?: string;
   renamingTabId: string | null;
   onSelect: (tabId: string) => void;
   onAdd: () => void;
@@ -136,9 +140,9 @@ export function WidgetTabs(props: WidgetTabsProps) {
         type="button"
         className="cm-widget-tabs__add"
         data-action="add-tab"
-        title={`새 탭 (최대 ${MAX_TABS}개)`}
+        title={props.addTitle ?? `새 탭 (최대 ${MAX_TABS}개)`}
         aria-label="새 탭"
-        disabled={menuDisabled || tabs.length >= MAX_TABS}
+        disabled={menuDisabled || props.addDisabled || tabs.length >= MAX_TABS}
         onClick={props.onAdd}
       >
         +

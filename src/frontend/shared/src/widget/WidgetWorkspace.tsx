@@ -446,8 +446,10 @@ export function WidgetWorkspace({
           tabs={tabs}
           activeTabId={active.tabId}
           editing={editing}
-          // 정의 목록이 loading·error 면 (+) 새 탭(편집 진입로)도 막는다 — WidgetTabs 는 (+)·⋯ 메뉴를 한 prop 으로 막는다.
-          menuDisabled={status === "error" || saving || !registryReady}
+          menuDisabled={status === "error" || saving}
+          // 정의 목록이 loading·error 면 (+) 새 탭(편집 진입로)만 막는다 — ⋯ 탭 메뉴는 보기 모드에서 그대로 쓴다.
+          addDisabled={!registryReady}
+          addTitle={registryStatus === "loading" ? "위젯 목록을 불러오는 중입니다" : registryStatus === "error" ? "위젯 정의를 불러오지 못했습니다" : undefined}
           renamingTabId={renamingTabId}
           onSelect={selectTab}
           onAdd={addTab}

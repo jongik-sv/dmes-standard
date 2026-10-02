@@ -417,6 +417,21 @@ describe("WidgetWorkspace", () => {
     expect(host.querySelector('[data-action="retry-registry"]')).toBeNull();
   });
 
+  it('registryStatus="loading"·"error" 에서 (+) 새 탭만 막히고 ⋯ 탭 메뉴는 보인다', async () => {
+    await mount(makeStore([]), { registryStatus: "loading" });
+    expect(btn('[data-action="add-tab"]').disabled).toBe(true);
+    expect(btn('[data-action="add-tab"]').title).toBe("위젯 목록을 불러오는 중입니다");
+    expect(host.querySelector('[data-tab-menu="home"]')).not.toBeNull();
+    click('[data-action="add-tab"]');
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(1);
+    act(() => root.unmount());
+    root = createRoot(host);
+    await mount(makeStore([]), { registryStatus: "error" });
+    expect(btn('[data-action="add-tab"]').disabled).toBe(true);
+    expect(btn('[data-action="add-tab"]').title).toBe("위젯 정의를 불러오지 못했습니다");
+    expect(host.querySelector('[data-tab-menu="home"]')).not.toBeNull();
+  });
+
   it("registryStatus 가 ready 로 바뀌면 띠가 사라지고 [배치 편집]이 켜진다", async () => {
     const store = makeStore([]);
     const base = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), boardWidth: 1440, testId: "ws" };

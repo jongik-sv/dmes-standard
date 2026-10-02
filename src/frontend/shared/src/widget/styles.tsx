@@ -64,6 +64,8 @@ export const WIDGET_CSS = `
 /* ── 보드·탭·서랍·작업 공간(뒤 작업에서 쓰는 클래스도 여기 둔다) ── */
 .cm-widget-board { position: relative; min-height: 120px; }
 .cm-widget-board[data-editing="true"] { border-radius: var(--radius-md); outline: 1px dashed color-mix(in srgb, var(--color-primary) 35%, transparent); outline-offset: 2px; background-color: color-mix(in srgb, var(--color-primary) 2%, transparent); }
+/* 편집 모드에서는 iframe 이 마우스를 삼켜 끌기·크기 조절이 끊기므로 유형 구분 없이 한 번에 막는다. */
+.cm-widget-board[data-editing="true"] iframe { pointer-events: none; }
 .cm-widget-board__empty { padding: 40px 12px; text-align: center; font-size: var(--font-size-sm); color: var(--color-text-muted); }
 .cm-widget-tabs { display: flex; align-items: flex-end; gap: 4px; min-height: 34px; border-bottom: 1px solid var(--color-border); }
 .cm-widget-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 32px; margin-bottom: -1px; padding: 0 6px 0 12px; border: 1px solid transparent; border-bottom: 0; border-radius: var(--radius-md) var(--radius-md) 0 0; background: transparent; color: var(--color-text-secondary); font-size: var(--font-size-md); cursor: pointer; }
