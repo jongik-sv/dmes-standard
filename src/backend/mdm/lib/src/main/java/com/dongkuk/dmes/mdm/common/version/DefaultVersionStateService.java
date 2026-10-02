@@ -9,6 +9,7 @@ import static com.dongkuk.dmes.mdm.common.version.VersionPreconditions.requireRo
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.AuditStamp;
@@ -52,10 +53,12 @@ public class DefaultVersionStateService implements VersionStateService {
     private final VersionSpiRegistry spis;
     private final MdmNativeAuditSupport audit;
     private final Clock clock;
+    private final MetaRevisionRecorder recorder;
 
     public DefaultVersionStateService(PlatformTransactionManager transactionManager, VersionRowStore store,
                                       MdmCurrentUser currentUser, ApplyFromOrderCheck applyFromOrderCheck,
-                                      VersionSpiRegistry spis, MdmNativeAuditSupport audit, Clock clock) {
+                                      VersionSpiRegistry spis, MdmNativeAuditSupport audit, Clock clock,
+                                      MetaRevisionRecorder recorder) {
         this.tx = new TransactionTemplate(transactionManager);
         this.store = store;
         this.pre = new VersionPreconditions(currentUser, store);
@@ -63,6 +66,7 @@ public class DefaultVersionStateService implements VersionStateService {
         this.spis = spis;
         this.audit = audit;
         this.clock = clock;
+        this.recorder = recorder;
     }
 
     @Override
@@ -110,6 +114,7 @@ public class DefaultVersionStateService implements VersionStateService {
             if (!applyFrom.isAfter(now)) {
                 store.markParentInUse(ref.target(), ref.objectId(), stamp);
             }
+            record(ref);
             return new ConfirmResult(draft.ref(), expected + VersionConventions.ROW_VERSION_STEP,
                     previous.map(VersionRow::ref).orElse(null), List.copyOf(warnings));
         });
@@ -159,6 +164,7 @@ public class DefaultVersionStateService implements VersionStateService {
             });
 
             // D8-8 — 상위 CREATED/INUSE 는 되돌리지 않는다(조회가 계산값을 돌려준다, D6).
+            record(released);
         });
     }
 
@@ -194,6 +200,14 @@ public class DefaultVersionStateService implements VersionStateService {
     private static void requireOneRow(int updated, String step, VersionRef ref) {
         if (updated != 1) {
             throw new IllegalStateException(step + " 갱신 행 수가 1이 아닙니다: " + updated + " " + ref);
+        }
+    }
+
+    /** 메타 캐시 무효화(spec 2026-10-02 §3.3) — 확정·확정 취소는 룰·코드 공통이라 여기 한 곳에서 기록한다. 호출하는 쪽에 또 걸면 이중 기록이다. */
+    private void record(VersionRef ref) {
+        switch (ref.target()) {
+            case BUSINESS_RULE -> recorder.rule(ref.objectId());
+            case MASTER_CODE -> recorder.code(ref.objectId());
         }
     }
 }

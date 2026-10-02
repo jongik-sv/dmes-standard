@@ -16,6 +16,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleIoReader;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetGuide;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
@@ -708,5 +709,21 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         jdbc.update("UPDATE TB_MDM_RULE_SET SET RULE_IDS = '[\"R_GRD\",\"R_FCT\",\"R_SPD\"]' WHERE MARU_RULE_SET_ID = 'S_OLD'");
 
         assertEquals("MDM024", refuseCode(() -> service.restore(statusReq("S_OLD", 2L))));
+    }
+
+    @Test
+    void META_저장_폐기_되살리기는_룰_세트를_기록한다() {
+        MetaRevTestSupport.clear(jdbc);
+        service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_GRD", "R_DUP", "R_FCT"));
+        service.delete(statusReq("S_CYC", 1L));
+        service.restore(statusReq("S_OLD", 2L));
+        assertEquals(List.of("RULE_SET:S_CHAIN:SAVE", "RULE_SET:S_CYC:SAVE", "RULE_SET:S_OLD:SAVE"), MetaRevTestSupport.rows(jdbc));
+    }
+
+    @Test
+    void META_거부된_저장은_기록하지_않는다() {
+        MetaRevTestSupport.clear(jdbc);
+        refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 2L, "R_GRD")));
+        assertEquals(List.of(), MetaRevTestSupport.rows(jdbc));
     }
 }

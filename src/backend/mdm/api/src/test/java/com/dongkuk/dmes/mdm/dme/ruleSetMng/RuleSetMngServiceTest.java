@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.audit.CactusAudit;
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
@@ -318,5 +319,12 @@ class RuleSetMngServiceTest extends AbstractMdmSharedDbTest {
         currentUser.set("park", STD_ADMIN);
         assertEquals("MDM013", code(refuse(() -> service.register(regReq("S_NEW", "새 세트", null)))));
         assertEquals(6, search(null, null, null, null, null, null).getTotalCount(), "조회는 담당자가 아니어도 된다");
+    }
+
+    @Test
+    void META_등록은_룰_세트를_기록한다() {
+        MetaRevTestSupport.clear(jdbc);
+        service.register(regReq("S_META", "메타 세트", null));
+        assertEquals(List.of("RULE_SET:S_META:SAVE"), MetaRevTestSupport.rows(jdbc));
     }
 }

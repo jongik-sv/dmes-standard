@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dme.ruleSetMng.service;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.rule.RuleIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleIoReader;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
@@ -51,14 +52,17 @@ public class RuleSetMngService {
     private final RuleQueries queries;
     private final RuleIoReader ioReader;
     private final RuleStewardCheck stewardCheck;
+    private final MetaRevisionRecorder recorder;
     private final TransactionTemplate tx;
 
     public RuleSetMngService(MdmRuleSetRepository setRepository, RuleQueries queries, RuleIoReader ioReader,
-                             RuleStewardCheck stewardCheck, PlatformTransactionManager transactionManager) {
+                             RuleStewardCheck stewardCheck, PlatformTransactionManager transactionManager,
+                             MetaRevisionRecorder recorder) {
         this.setRepository = setRepository;
         this.queries = queries;
         this.ioReader = ioReader;
         this.stewardCheck = stewardCheck;
+        this.recorder = recorder;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -171,6 +175,7 @@ public class RuleSetMngService {
             MdmRuleSet set = new MdmRuleSet(id, name, "[]");
             set.setDescription(blankToNull(request.getDescription()));
             setRepository.saveAndFlush(set);
+            recorder.ruleSet(id); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
         });
         return new RuleSetRegResult(id, 0L);
     }

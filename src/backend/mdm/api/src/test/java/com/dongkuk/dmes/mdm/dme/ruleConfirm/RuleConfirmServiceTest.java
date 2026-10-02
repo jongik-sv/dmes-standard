@@ -12,6 +12,7 @@ import com.dongkuk.dmes.cactus.audit.CactusAudit;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmCheck;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.common.version.VersionSpiRegistry;
@@ -74,6 +75,8 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
     MutableClock clock;
     @Autowired
     JdbcTemplate jdbc;
+    @Autowired
+    org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void seed() {
@@ -528,5 +531,25 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
         assertEquals(ErrorCode.BUSINESS_ERROR, c.getErrorCode());
         assertTrue(v.getMessage().contains("외부 원천(EXTERNAL)"), v.getMessage());
         assertEquals("DRAFT|-|0 / []", draftState("EXT_JDG", 1));
+    }
+
+    // ------------------------------------------------------------------ 메타 변경 기록(spec 2026-10-02 §3.3)
+
+    @Test
+    void META_확정은_룰을_기록한다() {
+        MetaRevTestSupport.clear(jdbc);
+        service.confirm(confirm(Q, 2, 0L, "2026-03-01 00:00:00", true));
+        assertEquals(List.of("RULE:" + Q + ":SAVE"), MetaRevTestSupport.rows(jdbc));
+    }
+
+    @Test
+    void META_확정이_바깥_트랜잭션과_함께_롤백되면_기록도_없다() {
+        MetaRevTestSupport.clear(jdbc);
+        new org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult(s -> {
+            service.confirm(confirm(NEW, 1, 0L, "2026-06-15 09:00:00", true));
+            s.setRollbackOnly();
+        });
+        assertEquals("DRAFT", jdbc.queryForObject("SELECT STATUS FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER = 1", String.class, NEW));
+        assertEquals(List.of(), MetaRevTestSupport.rows(jdbc));
     }
 }

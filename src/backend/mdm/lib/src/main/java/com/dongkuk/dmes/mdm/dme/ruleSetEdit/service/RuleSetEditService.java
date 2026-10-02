@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dme.ruleSetEdit.service;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.rule.CondIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge;
 import com.dongkuk.dmes.mdm.common.rule.RuleIdRules;
@@ -95,12 +96,13 @@ public class RuleSetEditService {
     private final RuleSetTestCaseService caseService;
     private final RuleSetTestCaseQueries caseQueries;
     private final RuleEditService ruleEditService;
+    private final MetaRevisionRecorder recorder;
     private final TransactionTemplate tx;
 
     public RuleSetEditService(MdmRuleSetRepository setRepository, RuleQueries queries, RuleIoReader ioReader,
                               RuleStewardCheck stewardCheck, RuleSetWrites writes, RuleSetRunner runner,
                               RuleSetTestCaseService caseService, RuleSetTestCaseQueries caseQueries, RuleEditService ruleEditService,
-                              PlatformTransactionManager transactionManager) {
+                              PlatformTransactionManager transactionManager, MetaRevisionRecorder recorder) {
         this.caseService = caseService;
         this.caseQueries = caseQueries;
         this.ruleEditService = ruleEditService;
@@ -110,6 +112,7 @@ public class RuleSetEditService {
         this.stewardCheck = stewardCheck;
         this.writes = writes;
         this.runner = runner;
+        this.recorder = recorder;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -244,6 +247,7 @@ public class RuleSetEditService {
             if (writes.update(setId, name, DomainJson.write(ids), flowJson, description, rv) == 0) {
                 throw writeMissed(setId, rv, INUSE);
             }
+            recorder.ruleSet(setId); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
         });
         return new RuleSetSaveResult(setId, rv + 1, warnings(checks));
     }
@@ -260,6 +264,7 @@ public class RuleSetEditService {
             if (writes.deprecate(setId, rv) == 0) {
                 throw writeMissed(setId, rv, INUSE);
             }
+            recorder.ruleSet(setId); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
         });
         return new RuleSetStatusResult(setId, DEPRECATED, rv + 1, List.of());
     }
@@ -289,6 +294,7 @@ public class RuleSetEditService {
             if (writes.restore(setId, rv) == 0) {
                 throw writeMissed(setId, rv, DEPRECATED);
             }
+            recorder.ruleSet(setId); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
             return warnings(checks);
         });
         return new RuleSetStatusResult(setId, INUSE, rv + 1, warns);
