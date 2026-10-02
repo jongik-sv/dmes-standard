@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mcm.screenusage.support;
 
+import com.dongkuk.dmes.mcm.screenusage.repository.ScreenUsageDayRepository;
 import com.dongkuk.dmes.mcm.screenusage.repository.ScreenUsageLogRepository;
+import com.dongkuk.dmes.mcm.screenusage.service.ScreenUsageDayWriter;
 import jakarta.persistence.EntityManagerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -48,6 +50,12 @@ public class ScreenUsageJpaTestConfig {
         props.put("hibernate.hbm2ddl.auto", "create-drop");
         em.setJpaProperties(props);
         return em;
+    }
+
+    /** 일자 단위 delete+insert 트랜잭션 — @Transactional 프록시가 걸리도록 빈으로 등록한다. */
+    @Bean
+    public ScreenUsageDayWriter screenUsageDayWriter(ScreenUsageDayRepository dayRepository) {
+        return new ScreenUsageDayWriter(dayRepository);
     }
 
     @Bean
