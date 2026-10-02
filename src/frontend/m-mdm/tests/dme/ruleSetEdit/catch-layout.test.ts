@@ -38,7 +38,7 @@ describe("받는 노드 배치(받는 노드 spec §8, Ruling R15)", () => {
   it("받는 노드는 룰 아래 테두리에 걸쳐 왼쪽부터 순번대로 놓인다", () => {
     expect(catchSpot({ x: 100, y: 200 }, { w: 232, h: 68 }, 0)).toEqual({ x: 116, y: 254 });
     expect(catchSpot({ x: 100, y: 200 }, { w: 232, h: 68 }, 1)).toEqual({ x: 152, y: 254 });
-    expect([...catchSlots(guarded())]).toEqual([["c1", { attachTo: "r1", k: 0 }], ["c2", { attachTo: "r1", k: 1 }]]);
+    expect([...catchSlots(guarded())]).toEqual([["c1", { attachTo: "r1", k: 0, spot: null }], ["c2", { attachTo: "r1", k: 1, spot: null }]]);
   });
 
   it("붙은 노드가 없거나 받을 수 없는 종류면 자리 목록에서 빠진다", () => {

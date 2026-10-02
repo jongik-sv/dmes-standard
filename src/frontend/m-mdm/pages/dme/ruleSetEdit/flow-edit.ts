@@ -11,6 +11,7 @@
  * 설명: `view.descs` 의 노드 설명도 같은 자리에서 `descsFor` 로 정리하고, `updateNodeDesc` 가 바꾼다(`node-desc.ts`).
  * 받는 노드(받는 노드 spec §8): CATCH 노드만 attachTo·catches 를 label 뒤에 갖는다. 만들기 addCatch·종류 setCatchKinds(파일 끝), 룰을 지우면 붙은 받는 노드도
  * 지운다. 위치는 저장하지 않는다(setPositions). 받는 노드는 옮기기·복사·그룹 대상이 아니고, 처리 갈래가 돌아오는 룰은 옮기지 않는다.
+ * 받는 노드를 룰 테두리의 다른 자리로 옮기면 `view.catchSpots` 에 변·거리를 적는다(`setCatchSpot`, D-142). 없으면 아래 변 기본 자리(R15)다.
  * 합류 없애기(implicit-join spec §8, D-136): IF 와 처리 갈래는 합류 없이 모이는 자리·돌아오는 자리로 바로 간다. MERGE 는 병렬 합류에만 쓴다.
  * `toEditFlow` 는 옛 형식(IF 합류·돌아오는 합류)을 `upgradeLegacyMerges` 로 바꿔 연다. IF 블록의 출구는 선 하나가 아니라 꼬리 선 목록(`tailsOf`)이고,
  * 끝내는 갈래 몸(END 로 가는 갈래)도 블록에 든다. 연산 결과에 짝 합류 없는 IF 의 같은 from→to 선이 둘 생기면 거부한다(`IF_EMPTY_TWICE`, B2).
@@ -62,6 +63,19 @@ export interface FlowView {
   styles?: Record<string, NodeStyle>;
   /** 노드 ID → 설명(RULE·TASK·IF·PARALLEL·START·END, 최대 1000자). 비면 키를 두지 않는다(저장 글자·dirty 비교가 예전 세트와 같다). */
   descs?: Record<string, string>;
+  /** 받는 노드 ID → 룰 테두리 위 자리(D-142). 옮기지 않은 받는 노드는 키가 없고 아래 변 기본 자리(R15)에 그린다. 비면 키를 두지 않는다. */
+  catchSpots?: Record<string, CatchSpot>;
+}
+/** 받는 노드가 걸칠 룰 테두리 변. */
+export type CatchSide = "top" | "right" | "bottom" | "left";
+export const CATCH_SIDES: readonly CatchSide[] = ["top", "right", "bottom", "left"];
+/**
+ * 받는 노드 자리(D-142) — 걸친 변과, 그 변의 시작(위·아래 변은 왼쪽 끝, 왼·오른 변은 위쪽 끝)에서 원 가운데까지의 거리(흐름 좌표, 정수).
+ * 그릴 때 변 길이에 맞춰 자르므로(`catchSpot`) 룰 크기가 줄어도 원이 모서리 밖으로 나가지 않는다.
+ */
+export interface CatchSpot {
+  side: CatchSide;
+  at: number;
 }
 /** 선 이름표 오프셋(흐름 좌표, 정수). 기본 자리(선 끝·경로에서 계산한 자리)에 더한다 — 선 끝이 움직여도 기본 자리를 따라간다. */
 export interface LabelOffset {
@@ -203,11 +217,32 @@ function labelsFor(
   return out;
 }
 
-/** view 에 외관·설명을 싣는다 — 비면 styles·descs 키를 두지 않는다(계획 Ruling 1). 나머지 칸은 그대로(복사하지 않는다). 키 순서는 …labels, styles, descs. */
-function withStyles(v: FlowView, styles: Record<string, NodeStyle>, descs: Record<string, string> = {}): FlowView {
+/** 받는 노드 자리 하나 — 모양이 맞으면 거리를 정수로 반올림한 사본, 아니면 null. */
+function copyCatchSpot(v: unknown): CatchSpot | null {
+  if (!isObj(v) || !CATCH_SIDES.includes(v.side as CatchSide) || !finite(v.at)) return null;
+  return { side: v.side as CatchSide, at: Math.max(0, Math.round(v.at)) };
+}
+/** 흐름에 있는 받는 노드의 자리만, 노드 배열 순서로 복사한다(모양이 틀린 항목·없는 노드·받는 노드가 아닌 노드는 버린다). */
+function catchSpotsFor(nodes: readonly FlowNode[], spots: Readonly<Record<string, unknown>> | undefined): Record<string, CatchSpot> {
+  const out: Record<string, CatchSpot> = {};
+  if (!spots) return out;
+  for (const n of nodes) {
+    if (n.kind !== "CATCH") continue;
+    const c = copyCatchSpot(spots[n.id]);
+    if (c) out[n.id] = c;
+  }
+  return out;
+}
+
+/**
+ * view 에 외관·설명·받는 노드 자리를 싣는다 — 비면 styles·descs·catchSpots 키를 두지 않는다(계획 Ruling 1). 나머지 칸은 그대로(복사하지 않는다).
+ * 키 순서는 …labels, styles, descs, catchSpots. catchSpots 를 주지 않으면 v 의 것을 그대로 싣는다(정리는 done·clone 이 한다).
+ */
+function withStyles(v: FlowView, styles: Record<string, NodeStyle>, descs: Record<string, string> = {}, catchSpots: Record<string, CatchSpot> | undefined = v.catchSpots): FlowView {
   const out: FlowView = { positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes, labels: v.labels };
   if (Object.keys(styles).length > 0) out.styles = styles;
   if (Object.keys(descs).length > 0) out.descs = descs;
+  if (catchSpots && Object.keys(catchSpots).length > 0) out.catchSpots = catchSpots;
   return out;
 }
 
@@ -218,7 +253,7 @@ function copyView(v: FlowView | undefined, nodes: readonly FlowNode[], edges: re
     positions, notes: (v?.notes ?? []).map(copyNote), groups: (v?.groups ?? []).map(copyGroup), routes: routesFor(edges, v?.routes),
     labels: labelsFor(edges, v?.labels),
   };
-  return withStyles(view, stylesFor(nodes, v?.styles), descsFor(nodes, v?.descs));
+  return withStyles(view, stylesFor(nodes, v?.styles), descsFor(nodes, v?.descs), catchSpotsFor(nodes, v?.catchSpots));
 }
 
 /** 고쳐도 되는 깊은 복사본(칸을 모두 채운다). 흐름에 없는 선의 경로·이름표 오프셋, 흐름에 없는 노드·룰/빈 단계가 아닌 노드의 외관은 버린다. */
@@ -287,6 +322,14 @@ function sanitizeView(raw: unknown): FlowView {
     }
     if (Object.keys(descs).length > 0) view.descs = descs;
   }
+  if (isObj(raw.catchSpots)) {
+    const spots: Record<string, CatchSpot> = {};
+    for (const [k, c] of Object.entries(raw.catchSpots)) {
+      const v = copyCatchSpot(c);
+      if (v) spots[k] = v;
+    }
+    if (Object.keys(spots).length > 0) view.catchSpots = spots;
+  }
   return view;
 }
 
@@ -324,7 +367,8 @@ const done = (flow: EditFlow): EditResult => {
   if (!flow.view) return { ok: true, flow };
   const routes = routesFor(flow.edges, flow.view.routes);
   const labels = labelsFor(flow.edges, flow.view.labels);
-  return { ok: true, flow: { ...flow, view: withStyles({ ...flow.view, routes, labels }, stylesFor(flow.nodes, flow.view.styles), descsFor(flow.nodes, flow.view.descs)) } };
+  const view = withStyles({ ...flow.view, routes, labels }, stylesFor(flow.nodes, flow.view.styles), descsFor(flow.nodes, flow.view.descs), catchSpotsFor(flow.nodes, flow.view.catchSpots));
+  return { ok: true, flow: { ...flow, view } };
 };
 const findNode = (f: EditFlow, id: string) => f.nodes.find((n) => n.id === id);
 const findEdge = (f: EditFlow, id: string) => f.edges.find((e) => e.id === id);
@@ -510,7 +554,10 @@ function dropNodes(f: EditFlow, ids: ReadonlySet<string>): EditFlow {
   const notes = f.view.notes.map((n) => (n.attach != null && ids.has(n.attach) ? { ...n, attach: null } : n));
   return {
     version: f.version, nodes, edges,
-    view: withStyles({ positions, notes, groups, routes: f.view.routes, labels: f.view.labels }, stylesFor(nodes, f.view.styles), descsFor(nodes, f.view.descs)),
+    view: withStyles(
+      { positions, notes, groups, routes: f.view.routes, labels: f.view.labels }, stylesFor(nodes, f.view.styles), descsFor(nodes, f.view.descs),
+      catchSpotsFor(nodes, f.view.catchSpots),
+    ),
   };
 }
 
@@ -567,7 +614,10 @@ export function toEditFlowCounted(raw: (RuleSetFlow & { view?: unknown }) | null
     version: 1,
     nodes,
     edges,
-    view: withStyles({ ...view, routes: routesFor(edges, view.routes), labels: labelsFor(edges, view.labels) }, stylesFor(nodes, view.styles), descsFor(nodes, view.descs)),
+    view: withStyles(
+      { ...view, routes: routesFor(edges, view.routes), labels: labelsFor(edges, view.labels) }, stylesFor(nodes, view.styles), descsFor(nodes, view.descs),
+      catchSpotsFor(nodes, view.catchSpots),
+    ),
   };
   return upgradeLegacyMerges(base);
 }
@@ -578,7 +628,7 @@ export function toEditFlow(raw: (RuleSetFlow & { view?: unknown }) | null, ruleI
 }
 
 /**
- * P2 정규 JSON 과 같은 키 순서의 문자열. view 항목도 고정 키 순서로 쓴다 — 외관(styles)과 설명(descs)은 있을 때만 이 순서로 뒤에 둔다(S-D1).
+ * P2 정규 JSON 과 같은 키 순서의 문자열. view 항목도 고정 키 순서로 쓴다 — 외관(styles)·설명(descs)·받는 노드 자리(catchSpots)는 있을 때만 이 순서로 뒤에 둔다(S-D1).
  * 설명은 쓸 때 앞뒤 공백을 지운다(편집 중 상태는 공백을 그대로 둔다 — 입력 중 단어 사이 공백이 사라지지 않게).
  */
 export function flowJsonOf(f: EditFlow): string {
@@ -587,7 +637,10 @@ export function flowJsonOf(f: EditFlow): string {
   const descs = descsFor(c.nodes, v.descs, true);
   return JSON.stringify({
     version: 1, nodes: c.nodes, edges: c.edges,
-    view: { positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes, labels: v.labels, ...(v.styles ? { styles: v.styles } : {}), ...(Object.keys(descs).length > 0 ? { descs } : {}) },
+    view: {
+      positions: v.positions, notes: v.notes, groups: v.groups, routes: v.routes, labels: v.labels, ...(v.styles ? { styles: v.styles } : {}),
+      ...(Object.keys(descs).length > 0 ? { descs } : {}), ...(v.catchSpots ? { catchSpots: v.catchSpots } : {}),
+    },
   });
 }
 
@@ -1601,6 +1654,26 @@ export function setCatchKinds(f: EditFlow, catchId: string, kinds: readonly Catc
     }
   }
   c.catches = [...sorted];
+  return done(g);
+}
+
+/**
+ * 받는 노드를 붙은 룰 테두리의 다른 자리로 옮긴다(D-142, 캔버스 끌기). spot 이 null 이면 아래 변 기본 자리(R15)로 되돌린다.
+ * 같은 자리면 편집을 만들지 않도록 입력 흐름을 그대로 돌려준다. 겹침 판정은 그린 크기를 아는 캔버스가 한다.
+ * 받는 노드에서 나가는 선의 저장 경로(꺾는 점)는 지운다 — 예전 출발 자리에 맞춘 점이라 남기면 첫 구간이 사선이 된다. 지운 선은 자동 경로로 그린다.
+ */
+export function setCatchSpot(f: EditFlow, catchId: string, spot: CatchSpot | null): EditResult {
+  const c = findNode(f, catchId);
+  if (!c || c.kind !== "CATCH") return fail(`받는 노드 ${catchId}를 찾지 못했다`);
+  const next = spot ? copyCatchSpot(spot) : null;
+  const cur = f.view.catchSpots?.[catchId] ?? null;
+  if (next?.side === cur?.side && next?.at === cur?.at) return { ok: true, flow: f };
+  const g = clone(f);
+  const spots = { ...(g.view.catchSpots ?? {}) };
+  if (next) spots[catchId] = next;
+  else delete spots[catchId];
+  g.view = withStyles(g.view, g.view.styles ?? {}, g.view.descs ?? {}, catchSpotsFor(g.nodes, spots));
+  dropRoutes(g, outOf(g, catchId));
   return done(g);
 }
 

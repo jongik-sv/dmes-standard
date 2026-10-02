@@ -1,5 +1,6 @@
 /**
- * 받는 노드(받는 노드 spec §8) — 룰 아래 테두리에 걸친 작은 원(번개), 룰 노드 오른쪽 아래 "예외" 연결점. 색은 의미 토큰만, 한 변 색 바 없음(Local-Rules §8).
+ * 받는 노드(받는 노드 spec §8) — 룰 테두리에 걸친 작은 원(번개, 기본은 아래 변·편집 모드에서 끌어 네 변 어디로든 옮긴다 D-142), 룰 노드 오른쪽 아래 "예외" 연결점.
+ * 색은 의미 토큰만, 한 변 색 바 없음(Local-Rules §8).
  * 받는 노드에서 나가는 선의 빨간 점선은 선 그리기(FlowCanvas 의 선 style)가 정한다.
  * 디버거(받는 노드 spec §9): 받는 노드로 넘긴 룰(`data-state="caught"`)은 주황 점선 테두리·주황 칩. 상태 규칙은 base 의 `data-state` 규칙과 같은
  * 우선순위이고 이 파일이 뒤에 붙어 이긴다. 툴바 [받은 예외 N건] 목록은 단추 아래에 뜬다.
@@ -12,6 +13,8 @@ export const CATCH_CSS = `
   background: var(--color-bg); color: var(--color-danger); display: flex; align-items: center; justify-content: center;
 }
 .rsf-node.rsf-catch .rsf-catch-icon { display: flex; }
+.rsf-node.rsf-catch.rsf-catch-movable { cursor: grab; }
+.rsf-node.rsf-catch.rsf-catch-movable:active { cursor: grabbing; }
 .rsf-canvas .react-flow__handle.rsf-catch-link {
   width: 14px; height: 14px; min-width: 0; min-height: 0; z-index: 6; opacity: 0; cursor: crosshair; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; left: auto; right: 6px; transform: translateY(50%);

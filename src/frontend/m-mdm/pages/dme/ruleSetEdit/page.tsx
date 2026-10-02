@@ -45,8 +45,8 @@ import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
 import { VariablePanel } from "./debugger/VariablePanel";
 import {
-  addCatch, connect, flowJsonOf, reconnectEdge, setGroupPad, setGroupsColor, setLabelOffset, setNodesColor, setPositions, setRoute, shiftRoutes, nextId, updateEdge, updateNodeLabel, updateNote,
-  type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
+  addCatch, connect, flowJsonOf, setCatchSpot, reconnectEdge, setGroupPad, setGroupsColor, setLabelOffset, setNodesColor, setPositions, setRoute, shiftRoutes, nextId, updateEdge, updateNodeLabel, updateNote,
+  type CatchSpot, type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
 } from "./flow-edit";
 import { autoArrange, restyleNode, shiftSpace, type NodeLayoutSource, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
 import type { NodeColor, NodeSize } from "./node-style";
@@ -299,6 +299,11 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const onNodeSizeChange = useCallback(
     (id: string, size: NodeSize, drawn: Record<string, FlowPos>, blocks: SpaceBlocks) =>
       editing && edit((f) => restyleNode(f, id, { w: size.w, h: size.h }, drawn, blocks)),
+    [editing, edit],
+  );
+  // 받는 노드 자리(D-142) — 룰 테두리를 따라 끌어 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸).
+  const onCatchSpotChange = useCallback(
+    (catchId: string, spot: CatchSpot) => editing && edit((f) => setCatchSpot(f, catchId, spot)),
     [editing, edit],
   );
   // 노드 색(S1, 우클릭 「색상」) — 여러 노드여도 편집 한 번. 크기가 안 바뀌므로 위치는 건드리지 않는다. 이미 그 색이면 편집을 만들지 않는다.
@@ -752,6 +757,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         onLabelOffsetChange={onLabelOffsetChange}
                         onGroupPadChange={onGroupPadChange}
                         onNodeSizeChange={onNodeSizeChange}
+                        onCatchSpotChange={onCatchSpotChange}
                         removeRoutePointRef={removeRoutePointRef}
                         clearSelectionRef={clearCanvasSelectionRef}
                         alignSourceRef={alignSourceRef}

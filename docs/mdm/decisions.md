@@ -1319,3 +1319,19 @@
 - **Rationale**: 도메인이 아직 정해지지 않은 컬럼도 사전에 먼저 올려 두고 나중에 도메인을 붙일 수 있어야 한다(사용자 요청). FK 를 남기므로 잘못된 도메인 값은 여전히 막힌다. 룰 변수 타입 해석(`RuleVarTypeResolver`)·레이아웃 파생(`LayoutDictionary.derive`)·도메인 영향도(`DomainImpactQueries`, LEFT JOIN)는 이미 도메인 없는 컬럼을 견딘다
 - **Reversible**: yes(되돌리려면 새 마이그레이션에서 같은 방식으로 NOT NULL 을 다시 걸어야 하고, 그 전에 DOMAIN_ID 가 NULL 인 컬럼에 도메인을 채워야 한다)
 - **Source**: 사용자 요청 2026-10-02. 영향: `V16__column_domain_optional.sql`, `MdmColumn`, `ColumnMngService`(save 필수·존재 검사), `LayoutQueries`, 화면 `columnMng/page.tsx`·`save-form.ts`·`types.ts`, 문서 `erd/02-term-domain-column.*`·`screens/columnMng/columnMng_기능설계서.md`(D-006·V-001·V-006). 시험 `MdmColumnDomainOptionalMigrationTest`(자식 행이 있는 DB 에서 행·칼럼·인덱스·FK·자식 FK·상한 보존), `ColumnMngServiceSqliteTest.D141_…`, `LayoutMngServiceSqliteTest.D141_…`, `MdmSharedContractMigrationTest`(버전 집합에 16), 화면 `save-form.test.ts`. 로컬 DB 사본(컬럼 7,858·매핑 11,168·레이아웃 항목 32)에 V16 을 FK 켠 채 적용해 행·인덱스·FK·상한이 같고 `foreign_key_check` 위반 0 임을 확인했다(실제 `src/backend/data/mdm.db` 적용은 서버 재기동 때)
+
+## D-142 (2026-10-02T13:20:00Z)
+- **Phase**: change(룰 세트 흐름도 — 받는 노드 자리 옮기기)
+- **Decision needed**: 사용자 요청 "룰 세트 편집에서 exception을 현재는 아래쪽에 4개를 붙일 수 있는데 사각형 여러 위치로 이동할 수 있게 해줘". 받는 노드(CATCH)는 룰 아래 변 왼쪽부터 36px 간격 고정 자리(R15)에만 그려졌다. 어디까지 옮기게 하고 무엇에 저장할지
+- **Decision made**: (1) 편집 모드에서 받는 노드 원을 끌면 붙은 룰 테두리 네 변을 따라 미끄러진다. 끄는 점에서 가장 가까운 변에 대고(모서리 바깥이면 더 많이 벗어난 방향의 변), 원이 모서리를 넘지 않게 변 양 끝 14px 안으로 자르며, 변 가운데 ±6px 안이면 가운데에 붙인다(`catchSpotAt`). 화면 4px 미만 움직임은 누르기로 본다. 같은 룰의 다른 받는 노드와 겹치는 자리(가운데 거리 28px 미만)면 놓아도 올리지 않는다 (2) 저장은 `view.catchSpots[받는 노드 ID] = {side: top|right|bottom|left, at: 변 시작에서 원 가운데까지 정수}`. 옮기지 않은 받는 노드는 키가 없고 R15 기본 자리 그대로라 기존 세트의 저장 글자·dirty 비교가 바뀌지 않는다. 받는 노드를 지우면 자리도 지운다 (3) 받는 노드에서 나가는 선은 걸친 변 바깥쪽으로 나간다(`handlesOf` 의 catchSide). 아래 변이 아닌 자리의 빈 끝내는 갈래는 아래에서 출발하는 자동 우회 경로(`endingRoutes`)를 쓰지 않는다. 자리를 바꾸면 그 받는 노드에서 나가는 선의 저장 경로(꺾는 점)를 지운다(예전 출발 자리에 맞춘 점이라 첫 구간이 사선이 된다) (4) React Flow 끌기 대상으로 바꾸지 않고 따로 포인터 끌기를 둔다(여러 노드를 함께 끌 때 받는 노드가 `view.positions` 에 적히지 않게). 놓을 때 편집 한 번(`setCatchSpot`, 되돌리기 한 칸) (5) 자동 배치(dagre)는 그대로라 처리 갈래 몸은 여전히 룰 아래 층에 놓인다
+- **Rationale**: 변·거리로 저장하면 룰을 옮기거나 크기를 바꿔도 받는 노드가 테두리를 따라간다. 서버는 view 를 받은 그대로 저장하고(`RuleSetFlowJson.canonical`) 검사하지 않아 백엔드 변경이 없다(D-138 그룹 색과 같다)
+- **Reversible**: yes(view 의 선택적 키 하나. 되돌리면 정규화가 키를 버리고 모두 아래 변 기본 자리로 그린다)
+- **Source**: 사용자 요청 2026-10-02. 영향: `flow-edit.ts`(CatchSpot·catchSpotsFor·setCatchSpot·sanitizeView·flowJsonOf), `flow-layout.ts`(catchSpot·catchSpotAt·catchSideOf·catchSlots.spot·endingRoutes), `canvas/catch-move.ts`(신규), `canvas/nodes.tsx`(catchSide·nopan·handlesOf), `canvas/FlowCanvas.tsx`(onCatchSpotChange·끌기), `page.tsx`, `styles/catch.ts`. 테스트 `tests/dme/ruleSetEdit/catch-spot.test.ts`(19건)
+
+## D-143 (2026-10-02T13:30:00Z)
+- **Phase**: change(룰 세트 흐름도 — 꺾는 점 끌기 맞춤)
+- **Decision needed**: 사용자 요청 "선의 점을 옮기는데 그랩기능이 있으면 좋겠어. 그래야 직각을 맞추기 편할것 같아". 선분 끌기에는 이웃과 일직선 맞춤(`snapSegmentDelta`)이 있었지만 꺾는 점(저장 점·자동 경로 점) 끌기에는 맞춤이 없었다
+- **Decision made**: 꺾는 점을 끄는 동안 x·y 를 따로, 앞 이웃(앞 꺾는 점, 맨 앞이면 선 시작 손잡이)·뒤 이웃(뒤 꺾는 점, 맨 뒤면 선 끝 손잡이) 가운데 화면 6px(`SEGMENT_SNAP_PX`) 안에서 가장 가까운 것의 좌표로 맞춘다(`snapRoutePoint`). 맞은 축마다 노드 끌기와 같은 안내선(`flow-snap-guide`)을 끄는 점과 이웃 사이에 양 끝 24 더 늘여 그리고, 놓거나 취소하면 지운다. Alt 를 누른 채 끌면 맞추지 않는다(노드 끌기 G1 과 같다). 저장 형식은 그대로다
+- **Rationale**: 이웃과 x 나 y 가 같아지면 그 사이 구간이 세로·가로 일직선이 되어 직각 꺾임을 손으로 맞출 필요가 없다. 선분 끌기와 같은 6px 범위를 써서 두 조작의 느낌을 맞춘다
+- **Reversible**: yes(`canvas/route-path.ts` 의 `snapRoutePoint`, `FlowCanvas` routeApi.startDrag. 저장 형식 변경 없음)
+- **Source**: 사용자 요청 2026-10-02. 테스트 `tests/dme/ruleSetEdit/flow-route.test.ts`(snapRoutePoint 2건, 캔버스 끌기 맞춤·Alt 1건)

@@ -21,10 +21,11 @@ import type { FlowNode } from "@/contract/engine-contract.generated";
 
 import { catchTitle } from "../catch-text";
 import { storeKeys } from "../debugger/local-store";
-import { TASK_LABEL, type FlowNote } from "../flow-edit";
+import { TASK_LABEL, type CatchSide, type FlowNote } from "../flow-edit";
 import { NODE_SIZE } from "../flow-layout";
 import { NODE_H_MIN, NODE_ICON_LABEL, type NodeSize, type NodeStyle } from "../node-style";
 import type { RuleIo, VarDisplay } from "../types";
+import { CatchMoveContext } from "./catch-move";
 import { GROUP_GRIPS, GroupSizeContext, type GroupGrip } from "./group-size";
 import { NOTE_GRIPS, NoteSizeContext } from "./note-size";
 import { NODE_GRIPS, NodeSizeContext, type NodeGrip } from "./node-size";
@@ -69,6 +70,10 @@ export type FlowNodeData = {
   resizable?: boolean;
   /** 노드 설명(`view.descs`) — 있으면 제목 옆에 설명 아이콘을 그리고 title 로 전체를 보인다. 접힌 분기 상자는 설명을 그리지 않는다. */
   desc?: string;
+  /** 받는 노드가 걸친 룰 테두리 변(D-142) — 나가는 그리기 연결점이 이 변 바깥쪽을 향한다. 받는 노드가 아니거나 옮기지 않았으면 없다(아래). */
+  catchSide?: CatchSide;
+  /** 편집 모드 받는 노드 — 원을 끌어 룰 테두리의 다른 자리로 옮긴다(D-142). */
+  catchMovable?: boolean;
 };
 export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; /** 편집 모드이고 고른 메모 — 크기 손잡이. */ resizable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
 export type GroupNodeData = {
@@ -427,11 +432,14 @@ const NODE_GRIP_LABEL: Record<NodeGrip, string> = { e: "오른쪽 변", s: "아�
 /** 시작·끝·룰·IF·병렬·합류 — 모양은 kind 로 갈린다. */
 export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
   const sizing = useContext(NodeSizeContext);
+  const catchMove = useContext(CatchMoveContext);
   const { node, overlay, selected, flash, mark, collapsed } = data;
   const kind = node.kind;
   const st = collapsed ? undefined : data.style;
   const stateCls = overlay ? STATE_CLASS[overlay.state] : undefined;
-  const cls = `rsf-node ${collapsed ? "rsf-block" : KIND_CLASS[kind]}${stateCls ? ` ${stateCls}` : ""}${flash ? " rsf-flash" : ""}${data.dropTarget ? " rsf-node-drop" : ""}`;
+  // 옮길 수 있는 받는 노드(D-142)는 누르고 끌어도 화면이 움직이지 않는다(nopan) — 끌기는 CatchMoveContext 가 한다.
+  const movable = kind === "CATCH" && !!data.catchMovable;
+  const cls = `rsf-node ${collapsed ? "rsf-block" : KIND_CLASS[kind]}${stateCls ? ` ${stateCls}` : ""}${flash ? " rsf-flash" : ""}${data.dropTarget ? " rsf-node-drop" : ""}${movable ? " rsf-catch-movable nopan" : ""}`;
   return (
     <div
       className={cls}
@@ -443,6 +451,8 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
       data-color={st?.color}
       data-shape={st?.shape}
       data-no-open={kind === "RULE" && st?.hide?.includes("open") ? "true" : undefined}
+      data-catch-side={kind === "CATCH" ? (data.catchSide ?? "bottom") : undefined}
+      onPointerDown={movable && catchMove ? (e) => catchMove.startDrag(e, node.id) : undefined}
     >
       {kind !== "START" && kind !== "CATCH" && <Handle id={ANCHOR_IN} type="target" position={Position.Top} className="rsf-anchor" isConnectableStart={false} />}
       <BreakpointDot data={data} />
@@ -482,7 +492,15 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
           <IconPencil size={10} aria-hidden="true" />
         </span>
       )}
-      {kind !== "END" && <Handle id={ANCHOR_OUT} type="source" position={Position.Bottom} className="rsf-anchor" isConnectableStart={false} />}
+      {kind !== "END" && (
+        <Handle
+          id={ANCHOR_OUT}
+          type="source"
+          position={kind === "CATCH" ? SIDE_POSITION[data.catchSide ?? "bottom"] : Position.Bottom}
+          className="rsf-anchor"
+          isConnectableStart={false}
+        />
+      )}
       {data.linkable && kind !== "CATCH" && <LinkHandles node={node} isConnectable={isConnectable} />}
       {data.linkable && (kind === "RULE" || kind === "TASK") && !collapsed && <CatchHandle node={node} isConnectable={isConnectable} />}
       {data.resizable &&
@@ -639,9 +657,9 @@ export const NODE_TYPES: NodeTypes = { rsfFlow: FlowNodeView, rsfNote: NoteNodeV
  * 노드에 넘기는 연결점 목록 — React Flow 가 측정 없이 연결점 위치를 알고(테스트 환경에서도 선이 그려진다), 끌기를 시작한 손잡이를 id 로 찾는다.
  * 그리는 연결점(`FlowNodeView`)과 id·종류·자리가 같아야 한다(C1). 잇기 손잡이·몸통 받기는 편집 모드에서만 그리지만 목록에는 늘 둔다
  * (없는 요소는 누를 수 없으니 해가 없고, 모드가 바뀔 때 목록을 다시 맞추지 않아도 된다).
- * size 는 그린 크기(노드별 크기 `nodeSizeOf`, S1) — 없으면 종류별 크기.
+ * size 는 그린 크기(노드별 크기 `nodeSizeOf`, S1) — 없으면 종류별 크기. catchSide 는 받는 노드가 걸친 변(D-142) — 나가는 연결점이 그 변 바깥쪽 가운데다.
  */
-export function handlesOf(kind: FlowNode["kind"], size: NodeSize = NODE_SIZE[kind]): NonNullable<Node["handles"]> {
+export function handlesOf(kind: FlowNode["kind"], size: NodeSize = NODE_SIZE[kind], catchSide: CatchSide = "bottom"): NonNullable<Node["handles"]> {
   const { w, h } = size;
   const s = ANCHOR_PX;
   const g = LINK_HANDLE_PX;
@@ -653,7 +671,10 @@ export function handlesOf(kind: FlowNode["kind"], size: NodeSize = NODE_SIZE[kin
   const sides = [side("top", w / 2, 0), side("right", w, h / 2), side("bottom", w / 2, h), side("left", 0, h / 2)];
   if (kind === "START") return [out, ...sides];
   if (kind === "END") return [into, body];
-  if (kind === "CATCH") return [out];
+  if (kind === "CATCH") {
+    const at: Record<CatchSide, { x: number; y: number }> = { top: { x: w / 2, y: 0 }, right: { x: w, y: h / 2 }, bottom: { x: w / 2, y: h }, left: { x: 0, y: h / 2 } };
+    return [{ ...out, position: SIDE_POSITION[catchSide], x: at[catchSide].x - s / 2, y: at[catchSide].y - s / 2 }];
+  }
   if (kind === "RULE" || kind === "TASK") {
     const catchHandle = { id: CATCH_HANDLE, type: "source" as const, position: Position.Bottom, x: w - g * 2, y: h - g / 2, width: g, height: g };
     return [into, body, out, ...sides, catchHandle];

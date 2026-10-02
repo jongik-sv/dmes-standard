@@ -50,7 +50,9 @@
  * (선 객체에만 주고 저장하지 않는다). 누르기 잇기(`connectOnClick`)는 끈다 — 손잡이를 잘못 누른 뒤 노드를 누르면 선이 생기는 것을 막는다.
  * 끄는 동안의 연결 상태는 React Flow 내부 저장소에만 있어 page 를 다시 그리지 않고 배치(dagre)도 다시 돌지 않는다. page 는 놓을 때 `onConnect` 를 한 번 받는다.
  *
- * 받는 노드(받는 노드 spec §8): CATCH 노드는 끌 수 없고 자리는 붙은 룰의 지금 그린 자리(끌기 중 포함)에서 `catchSpot` 으로 정한다 — 룰을 끌면 같은 렌더에서 따라간다.
+ * 받는 노드(받는 노드 spec §8): CATCH 노드는 React Flow 끌기 대상이 아니고 자리는 붙은 룰의 지금 그린 자리(끌기 중 포함)에서 `catchSpot` 으로 정한다 — 룰을 끌면 같은 렌더에서 따라간다.
+ * 편집 모드에서 받는 노드 원을 끌면 붙은 룰 테두리(네 변)를 따라 미끄러지고(`catchSpotAt`, `CatchMoveStore`), 놓을 때 `onCatchSpotChange` 를 한 번 부른다(D-142).
+ * 같은 룰의 다른 받는 노드와 겹치는 자리면 올리지 않는다. 나가는 선은 받는 노드가 걸친 변 바깥쪽으로 나간다(`handlesOf` 의 catchSide).
  * 편집 모드 룰 노드의 "예외" 연결점(`CATCH_HANDLE`)을 끌어 놓으면 `onAddCatch(룰, 놓은 노드)` 를 놓을 때 한 번 부른다. 받는 노드에서 나가는 선은 빨간 점선이다.
  * 받는 노드로 들어가는 선은 `linkAllowed` 가 막는다(받는 노드에는 잇기 손잡이가 없어 새 선이 시작하지 않고, 처리 갈래 첫 선의 끝 옮기기는 된다). 스냅 후보에서 받는 노드를 뺀다.
  *
@@ -75,8 +77,13 @@ import { IconPlus } from "@tabler/icons-react";
 
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
-import { MAX_LABEL_OFFSET, blockMembers, normalizePad, type GroupPad, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
-import { beyondLine, catchSlots, catchSpot, drawnPositions, endingRoutes, foldOffsetX, groupBox, nodeSizeOf, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
+import {
+  MAX_LABEL_OFFSET, blockMembers, normalizePad, type CatchSpot, type GroupPad, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart,
+} from "../flow-edit";
+import {
+  NODE_SIZE, beyondLine, catchSlots, catchSpot, catchSpotAt, drawnPositions, endingRoutes, foldOffsetX, groupBox, nodeSizeOf, spaceMinDelta,
+  type SpaceAxis, type SpaceBlocks,
+} from "../flow-layout";
 import { CATCHABLE } from "../flow-model";
 import { STYLED_KINDS, type NodeSize } from "../node-style";
 import { typedText } from "../trace-view";
@@ -85,11 +92,15 @@ import type { FlowMode } from "../state/useRuleSetEdit";
 import type { RuleIoMap, RuleSetCheck, VarDisplay } from "../types";
 import { FOLD_EDGE_PREFIX, collapseView } from "./collapse";
 import { boundsOf, snapHitIn, snapIndex, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
-import { ROUTE_RADIUS, ROUTE_STUB, autoRoute, finishRoute, insertRoutePoint, isClear, moveSegment, roundPoint, routeMidpoint, routePath, segmentAxis, segmentHandles, snapSegmentDelta, type SegmentHandle } from "./route-path";
+import {
+  ROUTE_RADIUS, ROUTE_STUB, autoRoute, finishRoute, insertRoutePoint, isClear, moveSegment, roundPoint, routeMidpoint, routePath, segmentAxis, segmentHandles,
+  snapRoutePoint, snapSegmentDelta, type SegmentHandle,
+} from "./route-path";
 import { SEG_BAR_LONG, SEG_BAR_SHORT } from "../styles/route";
 import type { MenuTarget } from "./context-menu";
 import { NoteSizeContext, createNoteSizeStore, dragNoteSize, sameNoteSize, type NoteSizeApi } from "./note-size";
 import { NodeSizeContext, createNodeSizeStore, dragNodeSize, sameSize, type NodeSizeApi } from "./node-size";
+import { CATCH_MOVE_THRESHOLD_PX, CatchMoveContext, createCatchMoveStore, type CatchMoveApi } from "./catch-move";
 import { GroupSizeContext, ZERO_PAD, createGroupPadStore, dragGroupPad, samePad, type GroupSizeApi } from "./group-size";
 import { ANCHOR_IN, ANCHOR_OUT, CATCH_HANDLE, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
 import type { EdgeState, Overlay } from "./overlay";
@@ -288,6 +299,8 @@ export interface FlowCanvasProps {
    * 끄는 동안은 부르지 않고 놓을 때 한 번, 바뀌었을 때만. 편집 모드에서만 부른다.
    */
   onNodeSizeChange?: (nodeId: string, size: NodeSize, drawn: Record<string, FlowPos>, blocks: SpaceBlocks) => void;
+  /** 받는 노드를 룰 테두리의 다른 자리로 끌어 놓음(D-142) — 놓을 때 한 번, 자리가 바뀌고 같은 룰의 다른 받는 노드와 겹치지 않을 때만. 편집 모드에서만 부른다. */
+  onCatchSpotChange?: (catchId: string, spot: CatchSpot) => void;
   /** 캔버스가 "고른 꺾는 점 빼기 — 뺐으면 true" 를 채우는 ref(page 의 delete 단축키가 먼저 부른다, C14). */
   removeRoutePointRef?: MutableRefObject<(() => boolean) | null>;
   /** 캔버스가 "React Flow 선택 모두 비우기" 를 채우는 ref(page 의 Esc 가 부른다 — disableKeyboardA11y 로 내장 Esc 가 없다). */
@@ -1221,6 +1234,9 @@ function Inner(props: FlowCanvasProps) {
   // 메모 크기 끌기 — 끄는 동안의 크기(노드 크기와 같은 방식).
   const noteSizeStore = useMemo(createNoteSizeStore, []);
   const noteSizeDrag = useSyncExternalStore(noteSizeStore.subscribe, () => noteSizeStore.drag, () => null);
+  // 받는 노드 옮기기(D-142) — 끄는 동안의 자리. 구독 값이 바뀌면 Inner 가 다시 그려 nodes memo 만 다시 돈다.
+  const catchMoveStore = useMemo(createCatchMoveStore, []);
+  const catchMoveDrag = useSyncExternalStore(catchMoveStore.subscribe, () => catchMoveStore.drag, () => null);
 
   const rawNodes = useMemo(() => {
     const out: Node[] = [];
@@ -1245,7 +1261,8 @@ function Inner(props: FlowCanvasProps) {
       const slot = n.kind === "CATCH" ? slots.get(n.id) : undefined;
       const rulePos = slot ? pos[slot.attachTo] : undefined;
       if (n.kind === "CATCH" && !rulePos) continue; // 붙은 룰이 안 보이면(접힌 블록 안) 받는 노드도 그리지 않는다
-      const p = rulePos && slot ? catchSpot(rulePos, sizes.get(slot.attachTo)!, slot.k) : (pos[n.id] ?? { x: 0, y: 0 });
+      const spot = catchMoveDrag?.catchId === n.id ? catchMoveDrag.spot : (slot?.spot ?? null); // 끄는 중이면 그 자리(D-142)
+      const p = rulePos && slot ? catchSpot(rulePos, sizes.get(slot.attachTo)!, slot.k, spot) : (pos[n.id] ?? { x: 0, y: 0 });
       const block = view.blocks[n.id];
       const s = sizes.get(n.id)!;
       const data: FlowNodeData = {
@@ -1267,10 +1284,11 @@ function Inner(props: FlowCanvasProps) {
         style: block ? undefined : vflow.view.styles?.[n.id],
         desc: block ? undefined : vflow.view.descs?.[n.id],
         resizable: editable && single && selectedId === n.id && !block && STYLED_KINDS.has(n.kind),
+        ...(n.kind === "CATCH" ? { catchSide: spot?.side ?? "bottom", catchMovable: editable && !!props.onCatchSpotChange } : {}),
       };
       out.push({
         id: n.id, type: "rsfFlow", position: p, width: s.w, height: s.h, measured: staleMeasure(measured[n.id], s) ? { width: s.w, height: s.h } : measured[n.id], data,
-        handles: handlesOf(block ? "RULE" : n.kind, s), draggable: editable && n.kind !== "CATCH",
+        handles: handlesOf(block ? "RULE" : n.kind, s, spot?.side), draggable: editable && n.kind !== "CATCH",
         // 고르거나 끄는 룰은 React Flow 가 1000 올려 그린다 — 받는 노드(룰 테두리에 걸친 원)가 그 아래로 깔려 위쪽 반이 가려지지 않게 더 올려 둔다.
         ...(n.kind === "CATCH" ? { zIndex: SELECT_ELEVATION + 1 } : {}),
         selected: rfSel.has(n.id),
@@ -1285,7 +1303,7 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     return out;
-  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, nodeSizeDrag, noteSizeDrag, dropNode, onRenameTask]);
+  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, nodeSizeDrag, noteSizeDrag, catchMoveDrag, dropNode, onRenameTask, props.onCatchSpotChange]);
   /**
    * 내용이 같은 노드는 이전 객체를 그대로 넘긴다(구조적 공유, `reuse.ts`) — 끌기 프레임·선택마다 위 memo 가 모든 노드를 새로 만들어도
    * React Flow 는 바뀐 노드만 다시 그린다. 잰 크기(measured)도 견주므로 화면 맞춤(fitView) 동작은 그대로다.
@@ -1744,6 +1762,7 @@ function Inner(props: FlowCanvasProps) {
   const flowAtRef = useRef(flowAt);
   flowAtRef.current = flowAt;
   const routeApi = useMemo<RouteApi>(() => {
+    const geo: RouteApi["geo"] = new Map();
     const removePoint = (edgeId: string, points: readonly FlowPos[], index: number) => {
       routeStore.sel = null;
       routeStore.emit();
@@ -1751,7 +1770,7 @@ function Inner(props: FlowCanvasProps) {
     };
     return {
       store: routeStore,
-      geo: new Map(),
+      geo,
       removePoint,
       addPoint: (edgeId, points, source, target, clientX, clientY) => {
         routeChangeRef.current?.(edgeId, insertRoutePoint(points, source, target, flowAtRef.current(clientX, clientY)));
@@ -1764,9 +1783,17 @@ function Inner(props: FlowCanvasProps) {
         routeStore.sel = auto ? null : { edgeId, index };
         routeStore.drag = { edgeId, index, points: original };
         routeStore.emit();
+        // 맞춤 이웃 — 앞뒤 꺾는 점, 맨 앞·맨 뒤 점이면 선의 시작·끝 손잡이(그린 선 끝 좌표).
+        const ends = geo.get(edgeId)?.();
+        const prev = index > 0 ? original[index - 1] : ends?.source;
+        const nextN = index < original.length - 1 ? original[index + 1] : ends?.target;
         let moved = false;
         const onMoveEvt = (ev: MouseEvent) => {
-          const at = flowAtRef.current(ev.clientX, ev.clientY);
+          const raw = flowAtRef.current(ev.clientX, ev.clientY);
+          // 이웃과 x·y 가 가까우면 맞춰 붙인다(직각 맞추기). Alt 를 누른 채 끌면 붙이지 않는다(노드 끌기와 같다).
+          const snap = ev.altKey ? { point: raw, guides: NO_GUIDES } : snapRoutePoint(raw, prev, nextN, rf.getZoom());
+          const at = roundPoint(snap.point);
+          snapStore.set(snap.guides.length > 0 ? snap.guides : NO_GUIDES);
           if (at.x === routeStore.drag?.points[index]?.x && at.y === routeStore.drag?.points[index]?.y) return;
           moved = true;
           const next = original.map((p) => ({ x: p.x, y: p.y }));
@@ -1775,6 +1802,7 @@ function Inner(props: FlowCanvasProps) {
           routeStore.emit();
         };
         const stop = () => {
+          snapStore.set(NO_GUIDES);
           window.removeEventListener("pointermove", onMoveEvt);
           window.removeEventListener("pointerup", onUpEvt);
           window.removeEventListener("pointercancel", onCancelEvt);
@@ -1844,7 +1872,7 @@ function Inner(props: FlowCanvasProps) {
         window.addEventListener("pointercancel", onCancelEvt);
       },
     };
-  }, [routeStore, rf]);
+  }, [routeStore, rf, snapStore]);
 
   // 고른 손잡이는 편집 모드에서 그 선을 고르고 있는 동안, 그 점이 남아 있는 동안만 유지한다.
   useEffect(() => {
@@ -2140,6 +2168,84 @@ function Inner(props: FlowCanvasProps) {
     }
   }, [editable, nodeSizeStore]);
   useEffect(() => () => nodeSizeDragRef.current?.stop(), []);
+
+  // 받는 노드 옮기기(D-142) — 끄는 동안은 catchMoveStore 에만 두고 놓을 때 onCatchSpotChange 를 한 번 부른다(되돌리기 한 칸).
+  const catchSpotChangeRef = useRef(props.onCatchSpotChange);
+  catchSpotChangeRef.current = props.onCatchSpotChange;
+  const catchMoveRef = useRef<{ stop: () => void } | null>(null);
+  const catchMoveApi = useMemo<CatchMoveApi>(() => ({
+    startDrag: (e, catchId) => {
+      if (e.button !== 0 || !editableRef.current) return;
+      catchMoveRef.current?.stop();
+      const slot = catchSlots(fullRef.current).get(catchId);
+      const host = slot && fullRef.current.nodes.find((x) => x.id === slot.attachTo);
+      if (!slot || !host) return;
+      const sx = e.clientX;
+      const sy = e.clientY;
+      let dragging = false;
+      const onMoveEvt = (ev: MouseEvent) => {
+        if (ev.buttons === 0) {
+          finish(false); // pointerup 을 잃었다(창 밖에서 놓음) — 기록 없이 버린다
+          return;
+        }
+        if (!dragging) {
+          if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < CATCH_MOVE_THRESHOLD_PX) return;
+          dragging = true;
+        }
+        const at = posRef.current[host.id];
+        if (!at) return;
+        const p = rf.screenToFlowPosition({ x: ev.clientX, y: ev.clientY });
+        const spot = catchSpotAt(at, nodeSizeOf(fullRef.current, host, viewRef.current.blocks), p);
+        const cur = catchMoveStore.drag;
+        if (cur && cur.catchId === catchId && cur.spot.side === spot.side && cur.spot.at === spot.at) return;
+        catchMoveStore.drag = { catchId, spot };
+        catchMoveStore.emit();
+      };
+      const finish = (commit: boolean) => {
+        stop();
+        const d = catchMoveStore.drag;
+        if (!d) return;
+        catchMoveStore.drag = null;
+        catchMoveStore.emit();
+        if (!commit || !editableRef.current) return;
+        // 끄는 중 되돌리기·삭제로 받는 노드나 룰이 사라졌거나 다른 룰로 옮겨졌으면 적지 않는다.
+        const now = catchSlots(fullRef.current);
+        const mine = now.get(catchId);
+        const at = posRef.current[host.id];
+        if (!mine || mine.attachTo !== host.id || !at) return;
+        if (mine.spot?.side === d.spot.side && mine.spot?.at === d.spot.at) return;
+        const size = nodeSizeOf(fullRef.current, host, viewRef.current.blocks);
+        const me = catchSpot(at, size, mine.k, d.spot);
+        for (const [id, o] of now) {
+          if (id === catchId || o.attachTo !== host.id) continue;
+          const other = catchSpot(at, size, o.k, o.spot);
+          if (Math.hypot(other.x - me.x, other.y - me.y) < NODE_SIZE.CATCH.w) return; // 다른 받는 노드와 겹치면 올리지 않는다(제자리로 돌아간다)
+        }
+        catchSpotChangeRef.current?.(catchId, d.spot);
+      };
+      const onUpEvt = () => finish(true);
+      const onCancelEvt = () => finish(false);
+      const stop = () => {
+        catchMoveRef.current = null;
+        window.removeEventListener("pointermove", onMoveEvt);
+        window.removeEventListener("pointerup", onUpEvt);
+        window.removeEventListener("pointercancel", onCancelEvt);
+      };
+      catchMoveRef.current = { stop };
+      window.addEventListener("pointermove", onMoveEvt);
+      window.addEventListener("pointerup", onUpEvt);
+      window.addEventListener("pointercancel", onCancelEvt);
+    },
+  }), [catchMoveStore, rf]);
+  useEffect(() => {
+    if (editable) return;
+    catchMoveRef.current?.stop();
+    if (catchMoveStore.drag) {
+      catchMoveStore.drag = null;
+      catchMoveStore.emit();
+    }
+  }, [editable, catchMoveStore]);
+  useEffect(() => () => catchMoveRef.current?.stop(), []);
   // 메모 크기 — 끄는 동안은 noteSizeStore 에만 두고 놓을 때 onNoteChange(id, {w,h}) 를 한 번 부른다(되돌리기 한 칸).
   const noteChangeRef = useRef(props.onNoteChange);
   noteChangeRef.current = props.onNoteChange;
@@ -2419,6 +2525,7 @@ function Inner(props: FlowCanvasProps) {
     <LabelContext.Provider value={labelApi}>
     <GroupSizeContext.Provider value={groupSizeApi}>
     <NodeSizeContext.Provider value={nodeSizeApi}>
+    <CatchMoveContext.Provider value={catchMoveApi}>
     <NoteSizeContext.Provider value={noteSizeApi}>
     <div
       ref={wrapRef}
@@ -2502,6 +2609,7 @@ function Inner(props: FlowCanvasProps) {
       </ReactFlow>
     </div>
     </NoteSizeContext.Provider>
+    </CatchMoveContext.Provider>
     </NodeSizeContext.Provider>
     </GroupSizeContext.Provider>
     </LabelContext.Provider>

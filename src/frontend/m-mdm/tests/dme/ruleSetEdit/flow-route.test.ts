@@ -9,7 +9,7 @@ import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { buildMenu, type CanvasActions, type MenuContext } from "../../../pages/dme/ruleSetEdit/canvas/context-menu";
 import { MENU_PROVIDERS } from "../../../pages/dme/ruleSetEdit/canvas/menus";
-import { insertRoutePoint, routeMidpoint, routePath } from "../../../pages/dme/ruleSetEdit/canvas/route-path";
+import { insertRoutePoint, routeMidpoint, routePath, snapRoutePoint } from "../../../pages/dme/ruleSetEdit/canvas/route-path";
 import {
   EMPTY_VIEW, addNote, clearRoutes, dissolveSplit, flowJsonOf, insertSplit, moveNode, removeNode, setRoute, toEditFlow, updateEdge,
   type EditFlow, type EditResult, type FlowPos,
@@ -262,6 +262,21 @@ const pathOf = (edgeId: string) => q(`rf__edge-${edgeId}`)!.querySelector("path.
 const fire = async (el: Element | Window, type: string, init: MouseEventInit = {}) =>
   act(async () => { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, ...init })); });
 
+describe("snapRoutePoint — 꺾는 점 끌기 맞춤", () => {
+  it("x·y 를 따로 가장 가까운 이웃(화면 6px 안)에 맞추고 맞은 축마다 안내선을 준다", () => {
+    expect(snapRoutePoint(P(103, 52), P(100, 0), P(300, 50), 1)).toEqual({
+      point: P(100, 50),
+      guides: [{ axis: "x", at: 100, from: -24, to: 74 }, { axis: "y", at: 50, from: 76, to: 324 }], // 양 끝으로 24 더 늘인다
+    });
+    expect(snapRoutePoint(P(110, 60), P(100, 0), P(300, 50), 1)).toEqual({ point: P(110, 60), guides: [] });
+  });
+  it("범위는 화면 px 라 확대하면 흐름 좌표로 좁아진다. 이웃이 없으면 그대로다", () => {
+    expect(snapRoutePoint(P(104, 20), P(100, 0), undefined, 2).point).toEqual(P(104, 20));
+    expect(snapRoutePoint(P(102, 20), P(100, 0), undefined, 2).point).toEqual(P(100, 20));
+    expect(snapRoutePoint(P(102, 20), undefined, undefined, 1)).toEqual({ point: P(102, 20), guides: [] });
+  });
+});
+
 describe("FlowCanvas 선 경로", () => {
   const routed = () => ok(setRoute(ifFlow(), "e2", [P(300, 120), P(340, 200)]));
 
@@ -303,6 +318,25 @@ describe("FlowCanvas 선 경로", () => {
     expect(points).toHaveLength(2);
     expect(points[1]).toEqual(P(340, 200));
     expect(points[0]).not.toEqual(P(300, 120));
+  });
+
+  it("꺾는 점을 끌 때 이웃 점과 x·y 가 가까우면 맞춰 붙이고 안내선을 보인다 — Alt 를 누르면 붙이지 않는다", async () => {
+    const onRouteChange = vi.fn();
+    await draw(props({ flow: routed(), selectedEdgeId: "e2", onRouteChange }));
+    const vp = document.querySelector(".react-flow__viewport") as HTMLElement;
+    const [tx, ty, k] = /translate\(\s*(-?[\d.]+)px,\s*(-?[\d.]+)px\)\s*scale\(\s*([\d.]+)\s*\)/.exec(vp.style.transform)!.slice(1).map(Number);
+    const at = (x: number, y: number) => ({ clientX: x * k + tx, clientY: y * k + ty });
+    await fire(q("flow-route-handle-e2-0")!, "pointerdown", { ...at(300, 120), button: 0 });
+    await fire(window, "pointermove", { ...at(343, 100), buttons: 1 }); // 뒤 이웃 (340,200) 과 x 가 3 차이
+    expect([...document.querySelectorAll('[data-testid="flow-snap-guide"]')].map((g) => [g.getAttribute("data-axis"), g.getAttribute("data-at")])).toEqual([["x", "340"]]);
+    await fire(window, "pointerup", at(343, 100));
+    expect((onRouteChange.mock.calls[0][1] as FlowPos[])[0]).toEqual(P(340, 100));
+    expect(document.querySelectorAll('[data-testid="flow-snap-guide"]')).toHaveLength(0); // 놓으면 안내선을 지운다
+    await draw(props({ flow: routed(), selectedEdgeId: "e2", onRouteChange }));
+    await fire(q("flow-route-handle-e2-0")!, "pointerdown", { ...at(300, 120), button: 0 });
+    await fire(window, "pointermove", { ...at(343, 100), buttons: 1, altKey: true });
+    await fire(window, "pointerup", at(343, 100));
+    expect((onRouteChange.mock.calls[1][1] as FlowPos[])[0]).toEqual(P(343, 100));
   });
 
   it("움직이지 않고 놓으면 onRouteChange 를 부르지 않는다", async () => {

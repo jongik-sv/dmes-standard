@@ -7,7 +7,9 @@ import dagre from "@dagrejs/dagre";
 
 import type { FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
-import { clearLabels, clearRoutes, setNodeStyle, setPositions, type EditFlow, type EditResult, type FlowPos, type GroupPad } from "./flow-edit";
+import {
+  clearLabels, clearRoutes, setNodeStyle, setPositions, type CatchSide, type CatchSpot, type EditFlow, type EditResult, type FlowPos, type GroupPad,
+} from "./flow-edit";
 import { CATCHABLE, isBlankJava, parseFlow, type Guarded, type Seq, type Split } from "./flow-model";
 import { STYLED_KINDS, type NodeSize, type NodeStyle, type NodeStylePatch } from "./node-style";
 
@@ -19,11 +21,11 @@ export const NODE_SIZE: Readonly<Record<FlowNodeKind, { w: number; h: number }>>
   IF: { w: 176, h: 44 },
   PARALLEL: { w: 200, h: 14 },
   MERGE: { w: 200, h: 14 }, // 병렬 합류 — 병렬 분기와 같은 크기의 속 빈 막대(implicit-join spec §10)
-  CATCH: { w: 28, h: 28 }, // 받는 노드 — 룰 아래 테두리에 걸친 작은 원(받는 노드 spec §8, Ruling R15)
+  CATCH: { w: 28, h: 28 }, // 받는 노드 — 룰 테두리에 걸친 작은 원(받는 노드 spec §8, Ruling R15 아래 변 기본, D-142 네 변)
 };
 
-/** 외관(view.styles)을 읽을 수 있는 흐름 — EditFlow, 또는 view 없는 RuleSetFlow. */
-export type StyledFlow = { view?: { styles?: Readonly<Record<string, NodeStyle>> } };
+/** 외관(view.styles)·받는 노드 자리(view.catchSpots)를 읽을 수 있는 흐름 — EditFlow, 또는 view 없는 RuleSetFlow. */
+export type StyledFlow = { view?: { styles?: Readonly<Record<string, NodeStyle>>; catchSpots?: Readonly<Record<string, CatchSpot>> } };
 
 /**
  * 노드 하나의 그린 크기(S-D5) — 종류별 크기, RULE·TASK 는 외관의 w·h, 접힌 분기(folded)는 룰 기본 크기.
@@ -49,14 +51,75 @@ const RANKSEP = 46;
 export const CATCH_LEFT = 16;
 export const CATCH_STEP = 36;
 
-/** 받는 노드 좌상단 — 룰 아래 테두리에 걸친다(세로 가운데가 테두리). k 는 그 룰의 받는 노드 순번(노드 배열 순서). */
-export function catchSpot(rule: FlowPos, ruleSize: NodeSize, k: number): FlowPos {
-  return { x: rule.x + CATCH_LEFT + k * CATCH_STEP, y: rule.y + ruleSize.h - Math.round(NODE_SIZE.CATCH.h / 2) };
+/** 받는 노드 원 반지름 — 옮긴 자리(D-142)는 원이 모서리를 넘지 않게 변 양 끝에서 이만큼 안쪽으로 자른다. */
+const CATCH_R = Math.round(NODE_SIZE.CATCH.w / 2);
+/** 옮길 때 변 가운데에서 이 거리(흐름 좌표) 안이면 가운데에 붙인다. */
+const CATCH_CENTER_SNAP = 6;
+
+/** 변 길이 — 위·아래 변은 룰 너비, 왼·오른 변은 룰 높이. */
+const sideLength = (side: CatchSide, size: NodeSize) => (side === "top" || side === "bottom" ? size.w : size.h);
+/** 변 위 거리를 원이 변 안에 머무는 범위로 자른다(변이 원보다 짧으면 가운데). */
+function clampAt(at: number, len: number): number {
+  if (len <= CATCH_R * 2) return Math.round(len / 2);
+  return Math.max(CATCH_R, Math.min(len - CATCH_R, Math.round(at)));
 }
 
-/** 받는 노드 ID → 붙은 노드 ID·순번(노드 배열 순서). 붙은 노드가 없거나 받을 수 없는 종류면 넣지 않는다. */
-export function catchSlots(f: RuleSetFlow): Map<string, { attachTo: string; k: number }> {
-  const out = new Map<string, { attachTo: string; k: number }>();
+/**
+ * 받는 노드 좌상단 — 룰 테두리에 걸친다(원 가운데가 테두리 위). spot 이 없으면 아래 변 기본 자리(R15): 왼쪽에서 16, 받는 노드마다 36씩 오른쪽
+ * (k 는 그 룰의 받는 노드 순번, 노드 배열 순서). spot 이 있으면 그 변의 그 거리(D-142) — 룰 크기에 맞춰 자른다.
+ */
+export function catchSpot(rule: FlowPos, ruleSize: NodeSize, k: number, spot?: CatchSpot | null): FlowPos {
+  if (!spot) return { x: rule.x + CATCH_LEFT + k * CATCH_STEP, y: rule.y + ruleSize.h - CATCH_R };
+  const at = clampAt(spot.at, sideLength(spot.side, ruleSize));
+  switch (spot.side) {
+    case "top":
+      return { x: rule.x + at - CATCH_R, y: rule.y - CATCH_R };
+    case "bottom":
+      return { x: rule.x + at - CATCH_R, y: rule.y + ruleSize.h - CATCH_R };
+    case "left":
+      return { x: rule.x - CATCH_R, y: rule.y + at - CATCH_R };
+    case "right":
+      return { x: rule.x + ruleSize.w - CATCH_R, y: rule.y + at - CATCH_R };
+  }
+}
+
+/**
+ * 끄는 점(흐름 좌표)에 가장 가까운 룰 테두리 자리(D-142) — 가장 가까운 변에 대고 변 위 거리를 자른다. 변 가운데 근처면 가운데에 붙인다.
+ * 룰 안쪽 점도 가장 가까운 변으로 간다. 모서리 바깥(가로·세로 둘 다 벗어남)이면 더 많이 벗어난 방향의 변이다(같으면 위·아래 변).
+ */
+export function catchSpotAt(rule: FlowPos, ruleSize: NodeSize, p: FlowPos): CatchSpot {
+  const { w, h } = ruleSize;
+  const lx = p.x - rule.x;
+  const ly = p.y - rule.y;
+  const out = (v: number, len: number) => (v < 0 ? -v : v > len ? v - len : 0);
+  const ex = out(lx, w);
+  const ey = out(ly, h);
+  let side: CatchSide;
+  if (ex > 0 && ey > 0) side = ey >= ex ? (ly < 0 ? "top" : "bottom") : lx < 0 ? "left" : "right";
+  else {
+    // 변까지 거리 — 변 밖으로 벗어난 만큼도 더한다(변 바깥 띠에서는 그 변이 이긴다).
+    const dist: Record<CatchSide, number> = {
+      top: Math.abs(ly) + ex,
+      bottom: Math.abs(ly - h) + ex,
+      left: Math.abs(lx) + ey,
+      right: Math.abs(lx - w) + ey,
+    };
+    side = (["bottom", "right", "top", "left"] as const).reduce((a, c) => (dist[c] < dist[a] ? c : a));
+  }
+  const len = sideLength(side, ruleSize);
+  const raw = side === "top" || side === "bottom" ? lx : ly;
+  const at = Math.abs(raw - len / 2) <= CATCH_CENTER_SNAP ? len / 2 : raw;
+  return { side, at: clampAt(at, len) };
+}
+
+/** 받는 노드가 걸친 변 — 옮기지 않았으면 아래 변. 나가는 선이 이 변 바깥쪽으로 나간다(D-142). */
+export function catchSideOf(f: StyledFlow, catchId: string): CatchSide {
+  return f.view?.catchSpots?.[catchId]?.side ?? "bottom";
+}
+
+/** 받는 노드 ID → 붙은 노드 ID·순번(노드 배열 순서)·옮긴 자리(없으면 null). 붙은 노드가 없거나 받을 수 없는 종류면 넣지 않는다. */
+export function catchSlots(f: RuleSetFlow & StyledFlow): Map<string, { attachTo: string; k: number; spot: CatchSpot | null }> {
+  const out = new Map<string, { attachTo: string; k: number; spot: CatchSpot | null }>();
   const kindOf = new Map((f.nodes ?? []).map((n) => [n.id, n.kind] as const));
   const count = new Map<string, number>();
   for (const n of f.nodes ?? []) {
@@ -65,7 +128,7 @@ export function catchSlots(f: RuleSetFlow): Map<string, { attachTo: string; k: n
     if (!k || !CATCHABLE.has(k)) continue;
     const i = count.get(n.attachTo) ?? 0;
     count.set(n.attachTo, i + 1);
-    out.set(n.id, { attachTo: n.attachTo, k: i });
+    out.set(n.id, { attachTo: n.attachTo, k: i, spot: f.view?.catchSpots?.[n.id] ?? null });
   }
   return out;
 }
@@ -84,7 +147,7 @@ export function placeCatches(
       delete out[id];
       continue;
     }
-    out[id] = catchSpot(at, nodeSizeOf(f, byId.get(s.attachTo)!, blocks), s.k);
+    out[id] = catchSpot(at, nodeSizeOf(f, byId.get(s.attachTo)!, blocks), s.k, s.spot);
   }
   return out;
 }
@@ -503,6 +566,8 @@ export function endingRoutes(
     });
   for (const tail of tails) {
     const e = (f.edges ?? []).find((x) => x.from === tail && byId.get(x.to)?.kind === "END");
+    // 아래 변이 아닌 자리로 옮긴 받는 노드(D-142)는 선이 옆·위로 나가므로 아래에서 출발하는 이 경로를 쓰지 않는다(기본 계단 선).
+    if (e && byId.get(e.from)?.kind === "CATCH" && catchSideOf(f, e.from) !== "bottom") continue;
     const sp = e && pos[e.from];
     const tp = e && pos[e.to];
     if (!e || !sp || !tp) continue;

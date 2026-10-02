@@ -293,6 +293,49 @@ export function moveSegment(full: readonly FlowPos[], index: number, delta: numb
   return { points: pts.slice(1, -1), seg };
 }
 
+/** 꺾는 점 끌기 맞춤 안내선 — axis "x" 는 x = at 세로선(from~to 는 y), "y" 는 y = at 가로선(from~to 는 x). snap.ts 의 Guide 와 같은 모양. */
+export interface RoutePointGuide {
+  axis: "x" | "y";
+  at: number;
+  from: number;
+  to: number;
+}
+
+/**
+ * 꺾는 점 끌기 맞춤 — 끄는 점의 x·y 를 따로, 앞 이웃(앞 꺾는 점이나 시작 손잡이)·뒤 이웃(뒤 꺾는 점이나 끝 손잡이) 가운데 화면 SEGMENT_SNAP_PX 안에서
+ * 가장 가까운 것의 좌표로 맞춘다. 맞으면 그 이웃과 이은 구간이 세로·가로 일직선(직각)이 된다. 맞은 축마다 끄는 점과 그 이웃을 잇는 안내선을 준다
+ * (그 구간과 겹쳐 가려지지 않게 양 끝으로 ROUTE_GUIDE_OVERHANG 만큼 더 늘인다).
+ * 이웃이 없거나(undefined) 가까운 후보가 없으면 점 그대로·안내선 없음.
+ */
+/** 꺾는 점 맞춤 안내선을 양 끝으로 더 늘이는 길이(흐름 좌표). */
+export const ROUTE_GUIDE_OVERHANG = 24;
+export function snapRoutePoint(
+  at: FlowPos, prev: FlowPos | undefined, next: FlowPos | undefined, zoom: number,
+): { point: FlowPos; guides: RoutePointGuide[] } {
+  const limit = SEGMENT_SNAP_PX / (zoom > 0 ? zoom : 1);
+  const near = (c: "x" | "y") => {
+    let best: FlowPos | null = null;
+    let bestD = limit;
+    for (const n of [prev, next]) {
+      if (!n) continue;
+      const d = Math.abs(n[c] - at[c]);
+      if (d <= bestD) {
+        bestD = d;
+        best = n;
+      }
+    }
+    return best;
+  };
+  const nx = near("x");
+  const ny = near("y");
+  const point = { x: nx ? nx.x : at.x, y: ny ? ny.y : at.y };
+  const guides: RoutePointGuide[] = [];
+  const o = ROUTE_GUIDE_OVERHANG;
+  if (nx) guides.push({ axis: "x", at: point.x, from: Math.min(point.y, nx.y) - o, to: Math.max(point.y, nx.y) + o });
+  if (ny) guides.push({ axis: "y", at: point.y, from: Math.min(point.x, ny.x) - o, to: Math.max(point.x, ny.x) + o });
+  return { point, guides };
+}
+
 /**
  * 끄는 동안의 일직선 맞춤(스펙 §3.2) — 옮긴 선분이 앞 이웃의 시작점(full[index-1])이나 뒤 이웃의 끝점(full[index+2])과
  * 화면 SEGMENT_SNAP_PX 안이면 그 좌표로 맞춘 delta. 노드 연결점(양 끝)은 후보에서 뺀다. 가까운 후보가 없으면 delta 그대로.
