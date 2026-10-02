@@ -96,6 +96,29 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 - 열 그룹: `GridColumn.children` 이 있으면 그 항목은 열 그룹이고 잎만 데이터 열이다.
 - 행 드래그: `rowDragField`(손잡이 열 key)와 `onRowOrderChange(orderedKeys)` 를 항상 함께 준다. 켜면 정렬이 꺼진다. 순서는 호출자가 `data` 를 다시 만들어 넘겨 확정한다.
 
+### MDM 캡션·머리글 툴팁(2026-10-03)
+
+포털 탭은 본문을 `MdmMetaProvider` 로 감싼다([mdm-meta](mdm-meta.md)). 그래서 화면이 아무것도 하지 않아도 다음이 된다.
+
+- `header` 를 **비운(생략한)** 열은 MDM 컬럼 사전 캡션(`labelShort` → `labelMid` → `labelLong` → `columnName`)으로 머리글을 채운다. MDM 에 없으면 `key`.
+  열 `key` 를 물리명으로 바꿔(`noticeTitle` → `NOTICE_TITLE`, 대문자는 그대로) 찾는다. 다른 물리명이면 `meta: "TITLE"`, 끄려면 `meta: false`.
+- `header` 를 적은 열은 그대로다. 공급자가 `captionPriority="mdm"` 이면 MDM 캡션이 이긴다. `header: ""` 는 일부러 비운 머리글로 그대로 둔다.
+- MDM 메타가 있는 열은 머리글에 마우스를 올리면 `MdmMetaCard`(형식·필수·도메인·허용 코드 등) 툴팁이 뜬다. 화면이 `headerTooltip`·`headerComponent` 를 주면 그대로 둔다.
+- 포털 밖(단독 실행·시험)에서는 예전과 똑같다. 단 `header` 를 비우면 `key` 가 머리글이다.
+- 엑셀 내보내기처럼 화면이 `header` 를 직접 읽으면 `useResolvedGridColumns(columns)` 로 그리드와 같은 캡션을 받는다.
+
+```tsx
+import { AgDataGrid, useResolvedGridColumns, type GridColumn } from "@dk-oasis/shared/grid";
+
+const COLUMNS: GridColumn[] = [
+  { key: "TITLE", width: 300 },              // 머리글 = MDM "제목", 툴팁 = MdmMetaCard
+  { key: "CATEGORY", meta: "CATEGORY" },     // 명시 물리명
+  { key: "regDt", header: "등록일", meta: false }, // MDM 연결 끔
+];
+
+const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와 같은 캡션으로 채워진다
+```
+
 ## Props
 
 자주 쓰는 props. 기본값은 소스의 구조분해 기본값이다.
@@ -149,7 +172,8 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 | 필드 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
 | key | `string` | 필수 | 행 데이터의 필드 이름 |
-| header | `string` | 필수 | 머리 글자 |
+| header | `string` | 생략 가능 | 머리 글자. 생략하면 MDM 캡션(포털 탭 안), 그 밖에는 `key`. `""` 는 빈 머리글 |
+| meta | `string \| false` | `key` 의 물리명 | MDM 컬럼 사전 연결 물리명. `false` 면 끈다 |
 | width | `number \| string` | 방식별 | fixed 는 픽셀(생략하면 120), fit 은 가중치(생략하면 1) |
 | minWidth | `number` | 50 | 최소 폭 |
 | align | `"left" \| "center" \| "right"` | `"left"` | 셀 정렬 |
@@ -167,7 +191,7 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 | pinned | `"left" \| "right"` | - | 틀고정 |
 | cellClass | `string \| string[] \| (row) => …` | - | 셀 상시 클래스 |
 | cellClassRules | `Record<string, (row) => boolean>` | - | 조건부 셀 클래스 |
-| rowDrag · headerTooltip | `boolean` · `string` | - | 이 열에 행 드래그 손잡이(`onRowOrderChange` 필요) · 머리 툴팁 |
+| rowDrag · headerTooltip | `boolean` · `string` | - | 이 열에 행 드래그 손잡이(`onRowOrderChange` 필요) · 머리 툴팁(주면 MDM 툴팁 대신 이것) |
 | headerStyle · headerComponent · headerComponentParams | ag-grid 패스스루 | - | 머리 인라인 스타일(색은 의미 토큰만) · 커스텀 머리 컴포넌트 |
 | children | `GridColumn[]` | - | 있으면 열 그룹. `groupId` 는 `key` |
 
@@ -190,6 +214,8 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 | 추가한 행이 맨 앞에 있을 줄 안다 | `nativeeditor_status: "inserted"` 행은 항상 맨 뒤로 정렬되고, `onRowClick` 에는 그 행의 rowKey 칸이 임시 ID(`__new_N`)로 바뀌어 온다 |
 | `onRowSelect` 의 두 번째 인자를 항상 배열로 쓴다 | 1건이면 객체, 그 밖에는 배열이다 |
 | `rowClickCheck` 를 편집 열이 있는 그리드에 쓴다 | `checkRowOnEdit` 을 쓴다 |
+| MDM 캡션을 쓰려고 `header: ""` 를 준다 | `header` 를 생략한다. `""` 는 빈 머리글로 그대로 남는다 |
+| 엑셀 내보내기에서 `c.header` 를 그대로 읽는다(`header` 생략 열은 undefined) | `useResolvedGridColumns(COLUMNS)` 결과의 `header` 를 쓴다 |
 
 ## 실제 사용 예
 
