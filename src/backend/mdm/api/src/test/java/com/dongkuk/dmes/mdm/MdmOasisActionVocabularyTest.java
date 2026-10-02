@@ -81,10 +81,10 @@ class MdmOasisActionVocabularyTest {
 
     /** spec 2026-10-02-mdm-meta-cache-design §3.4 — 메타 제공은 화면이 아니라 업무 모듈 캐시가 부르는 서비스다. action 은 기존 어휘(search·view)를 쓴다. */
     @Test
-    void feed_metaFeed_bpmn_의_액션은_어휘_안의_search_view_다() throws Exception {
+    void feed_metaFeed_bpmn_의_액션은_어휘_안의_search_view_save_다() throws Exception {
         Path path = bpmnPath("feed", "metaFeed.bpmn");
         assertActionsWithinVocabulary(path);
-        assertEquals(Set.of("search", "view"), actionsFromGateway(path));
+        assertEquals(Set.of("search", "view", "save"),actionsFromGateway(path));
     }
 
     @Test

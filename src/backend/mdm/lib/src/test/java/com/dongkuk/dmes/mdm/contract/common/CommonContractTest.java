@@ -45,7 +45,7 @@ class CommonContractTest {
             assertTrue(code.defaultMessage() != null && !code.defaultMessage().isBlank(), code + " 기본 메시지");
             assertTrue(Set.of(400, 403, 409, 500).contains(code.httpStatus()), code + " 의미 HTTP 상태");
         }
-        assertEquals(26, MdmErrorCode.values().length);
+        assertEquals(27, MdmErrorCode.values().length);
     }
 
     @Test
@@ -112,6 +112,13 @@ class CommonContractTest {
         // P-D9(spec §9.1-9) — 저장된 룰 정의(셀·AST·FLOW_JSON)를 읽지 못함. 입력 오류(MDM021)가 아니라 데이터 손상이라 의미 상태 500.
         assertCode(MdmErrorCode.STORED_DEFINITION_CORRUPT, "MDM026", 500,
                 com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "저장된 룰 정의를 읽을 수 없습니다");
+    }
+
+    @Test
+    void 메타_캐시가_더한_SYSADMIN_전용_코드() {
+        // spec 2026-10-02-mdm-meta-cache-design §3.4 force — 화면 삭제·재등록 강제 기록은 SYSADMIN 만.
+        assertCode(MdmErrorCode.SYSADMIN_ROLE_REQUIRED, "MDM027", 403,
+                com.dongkuk.dmes.cactus.common.ErrorCode.ACCESS_DENIED, "시스템 관리자만 할 수 있습니다");
     }
 
     private static void assertCode(MdmErrorCode code, String id, int status,

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutSnapshotJson;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dmc.MasterCodeSeeds;
@@ -18,7 +20,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.util.List;
 import javax.sql.DataSource;
 import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
@@ -180,6 +184,167 @@ class MetaFeedOasisHttpTest {
         JsonNode r = view("COLUMN");
         assertEquals(0, r.path("items").size());
         assertEquals(0, r.path("failed").size());
+    }
+
+    // ------------------------------------------------------------------ view RULE·RULE_SET·CODE·LAYOUT
+
+    @Test
+    void view_RULE_은_RELEASED_버전_전체를_ver_순으로_주고_DRAFT_는_빼며_확정이_없으면_빈_배열이다() throws Exception {
+        DmeTestSupport.sampleRule(jdbc);
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 1");
+        DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", 2, "FIRST", "2026-07-01 00:00:00", null);
+        DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", 2);
+        DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 3, "DRAFT", "kim", "FIRST", 2);
+        DmeTestSupport.rule(jdbc, "NOREL_JDG", "확정 없음", "DECISION", "CREATED");
+        DmeTestSupport.pending(jdbc, "NOREL_JDG", 1, "DRAFT", "kim", "FIRST", null);
+
+        JsonNode r = view("RULE", "QLTY_GRD_JDG", "NOREL_JDG", "NO_SUCH_JDG");
+
+        assertEquals(2, r.path("items").size(), r.toString());
+        JsonNode versions = item(r, "QLTY_GRD_JDG");
+        assertEquals(2, versions.size(), versions.toString());
+        assertEquals(1, versions.get(0).path("ver").asInt());
+        assertEquals("2026-01-01T00:00:00", versions.get(0).path("applyFrom").asText());
+        assertEquals("2026-07-01T00:00:00", versions.get(0).path("applyTo").asText());
+        assertEquals(2, versions.get(1).path("ver").asInt());
+        assertEquals("DECISION", versions.get(1).path("ruleKind").asText());
+        assertEquals("FIRST", versions.get(1).path("hitPolicy").asText());
+        boolean varKey = false;
+        for (JsonNode row : versions.get(1).path("rows")) {
+            varKey |= row.path("cells").has("1");
+        }
+        assertTrue(varKey, "셀 키는 var_id 문자열이다: " + versions.get(1).path("rows"));
+        assertEquals(0, item(r, "NOREL_JDG").size());
+    }
+
+    @Test
+    void view_RULE_은_저장값이_깨진_룰만_failed_로_돌려준다() throws Exception {
+        DmeTestSupport.sampleRule(jdbc);
+        DmeTestSupport.rule(jdbc, "BROKEN_JDG", "깨진 판정", "DECISION", "INUSE");
+        DmeTestSupport.released(jdbc, "BROKEN_JDG", 1, "FIRST", "2026-01-01 00:00:00", null);
+        DmeTestSupport.sampleDefinition(jdbc, "BROKEN_JDG", 1);
+        jdbc.update("UPDATE TB_MDM_RULE_ROW SET CELLS = '{\"x\":1}' WHERE MARU_RULE_ID = 'BROKEN_JDG' AND VER = 1 AND ROW_ID = 1");
+
+        JsonNode r = view("RULE", "QLTY_GRD_JDG", "BROKEN_JDG");
+
+        assertEquals(1, r.path("items").size(), r.toString());
+        assertEquals(1, r.path("failed").size(), r.toString());
+        assertEquals("BROKEN_JDG", r.path("failed").get(0).path("key").asText());
+        assertFalse(r.path("failed").get(0).path("message").asText().isBlank());
+    }
+
+    @Test
+    void view_RULE_SET_은_세트_정의를_주고_흐름이_깨진_세트는_failed_다() throws Exception {
+        DmeTestSupport.ruleSet(jdbc, "FEED_SET", "피드 세트", "[\"QLTY_GRD_JDG\"]", "INUSE", 0);
+        DmeTestSupport.ruleSet(jdbc, "FEED_BAD", "깨진 세트", "[]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "FEED_BAD", "{\"version\":1,\"nodes\":\"x\",\"edges\":[]}");
+
+        JsonNode r = view("RULE_SET", "FEED_SET", "FEED_BAD", "NO_SET");
+
+        JsonNode set = item(r, "FEED_SET");
+        assertEquals("FEED_SET", set.path("setId").asText());
+        assertEquals("QLTY_GRD_JDG", set.path("ruleIds").get(0).asText());
+        assertEquals("INUSE", set.path("status").asText());
+        assertTrue(set.path("flow").isNull(), set.toString());
+        assertEquals("FEED_BAD", r.path("failed").get(0).path("key").asText(), r.toString());
+    }
+
+    @Test
+    void view_CODE_는_다섯_표_원본을_버전_자리수와_적용_구간_그대로_준다() throws Exception {
+        MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
+        seeds.seedCode("FEED_CD", "INUSE", "MDM");
+        seeds.released("FEED_CD", "1.000", "2026-01-01 00:00:00", MasterCodeSeeds.OPEN_END);
+        seeds.seedItem("FEED_CD", "A", "1.000", MasterCodeSeeds.OPEN, "에이", 1);
+        seeds.seedBase("FEED_CD");
+
+        JsonNode code = item(view("CODE", "FEED_CD", "NO_CD"), "FEED_CD");
+
+        assertEquals("FEED_CD", code.path("header").path("maruCodeId").asText());
+        assertEquals("INUSE", code.path("header").path("status").asText());
+        JsonNode ver = code.path("versions").get(0);
+        assertEquals(0, ver.path("ver").decimalValue().compareTo(new BigDecimal("1.000")), ver.toString());
+        assertEquals("RELEASED", ver.path("status").asText());
+        assertEquals("2026-01-01T00:00:00", ver.path("applyFrom").asText());
+        assertEquals("A", code.path("items").get(0).path("code").asText());
+        assertEquals("BASE", code.path("categories").get(0).path("cateId").asText());
+    }
+
+    @Test
+    void view_LAYOUT_은_최신_버전_스냅샷을_주고_버전이_없는_ID_는_뺀다() throws Exception {
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_KIND, LAYOUT_NAME, TOTAL_LENGTH) VALUES ('MESSAGE', '피드 전문', 10)");
+        long id = jdbc.queryForObject("SELECT LAYOUT_ID FROM TB_MDM_LAYOUT WHERE LAYOUT_NAME = '피드 전문'", Long.class);
+        String snapshot = LayoutSnapshotJson.write(new MdmLayoutSnapshot(id, "피드 전문", null, null, null, null, null, 1L, 10,
+                List.of(), List.of()));
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, LAYOUT_VERSION, TOTAL_LENGTH, SNAPSHOT_JSON) VALUES (?, 1, 10, ?)", id, snapshot);
+
+        JsonNode r = view("LAYOUT", String.valueOf(id), "999999", "abc");
+
+        assertEquals(1, r.path("items").size(), r.toString());
+        assertEquals("피드 전문", item(r, String.valueOf(id)).path("layoutName").asText());
+    }
+
+    // ------------------------------------------------------------------ Ruling R3 순환·깨진 도메인 체인
+
+    @Test
+    void view_COLUMN_은_도메인_체인이_순환이면_도메인_칸과_식_코드_참조를_비워_준다() throws Exception {
+        long a = domain("FD_CYC_A", "QTY", "NUMBER", 10, 2, null, "value >= 0");
+        long b = domain("FD_CYC_B", "QTY", "NUMBER", null, null, a, "value <= 100");
+        jdbc.update("UPDATE TB_MDM_DOMAIN SET PARENT_DOMAIN_ID = ? WHERE DOMAIN_ID = ?", b, a);
+        jdbc.update("INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, DOMAIN_ID) VALUES ('순환 칼럼', 'CYC_COL', ?)", a);
+
+        JsonNode r = view("COLUMN", "CYC_COL");
+
+        assertEquals(1, r.path("items").size(), r.toString());
+        assertEquals(0, r.path("failed").size(), r.toString());
+        JsonNode col = item(r, "CYC_COL");
+        assertEquals("CYC_COL", col.path("physName").asText());
+        assertTrue(col.path("domain").isNull(), col.toString());
+        assertTrue(col.path("stdExpr").isNull(), col.toString());
+        assertTrue(col.path("bizExpr").isNull(), col.toString());
+        assertTrue(col.path("codeRef").isNull(), col.toString());
+    }
+
+    @Test
+    void view_DOMAIN_은_도메인_키_자체가_순환이면_failed_로_돌려준다() throws Exception {
+        long a = domain("FD_CYD_A", "QTY", "NUMBER", 10, 2, null, "value >= 0");
+        long b = domain("FD_CYD_B", "QTY", "NUMBER", null, null, a, null);
+        jdbc.update("UPDATE TB_MDM_DOMAIN SET PARENT_DOMAIN_ID = ? WHERE DOMAIN_ID = ?", b, a);
+        long ok = domain("FD_CYD_OK", "QTY", "NUMBER", 5, 0, null, null);
+
+        JsonNode r = view("DOMAIN", String.valueOf(a), String.valueOf(ok));
+
+        assertEquals(1, r.path("items").size(), r.toString());
+        assertEquals("FD_CYD_OK", item(r, String.valueOf(ok)).path("stdName").asText());
+        assertEquals(1, r.path("failed").size(), r.toString());
+        assertEquals(String.valueOf(a), r.path("failed").get(0).path("key").asText());
+        assertFalse(r.path("failed").get(0).path("message").asText().isBlank());
+    }
+
+    // ------------------------------------------------------------------ save(force)
+
+    @Test
+    void save_는_SYSADMIN_만_펼치지_않고_강제_기록을_남긴다() throws Exception {
+        ObjectNode params = json.createObjectNode().put("type", "COLUMN").put("kind", "RELOAD");
+
+        JsonNode denied = post("save", "SYSTEM", body(params, "coil_thk"));
+        assertFalse(denied.path("meta").path("success").asBoolean(true), denied.toString());
+        assertTrue(denied.path("meta").path("message").asText().startsWith(MdmErrorCode.SYSADMIN_ROLE_REQUIRED.defaultMessage()),
+                denied.toString());
+        assertEquals(List.of(), MetaRevTestSupport.rows(jdbc));
+
+        JsonNode ok = result(post("save", "SYSADMIN", body(params, "coil_thk", "COIL_WID")));
+        assertEquals(2, ok.path("count").asInt(), ok.toString());
+        assertEquals(ok.path("fromSeq").asLong() + 1, ok.path("toSeq").asLong());
+        assertEquals(List.of("COLUMN:COIL_THK:RELOAD", "COLUMN:COIL_WID:RELOAD"), MetaRevTestSupport.rows(jdbc));
+    }
+
+    @Test
+    void save_는_kind_가_EVICT_RELOAD_가_아니거나_키가_없으면_MDM021_이다() throws Exception {
+        JsonNode badKind = post("save", "SYSADMIN", body(json.createObjectNode().put("type", "RULE").put("kind", "SAVE"), "R1"));
+        assertTrue(badKind.path("meta").path("message").asText().startsWith(MdmErrorCode.INVALID_INPUT.defaultMessage()), badKind.toString());
+        JsonNode noKeys = post("save", "SYSADMIN", body(json.createObjectNode().put("type", "RULE").put("kind", "EVICT")));
+        assertTrue(noKeys.path("meta").path("message").asText().startsWith(MdmErrorCode.INVALID_INPUT.defaultMessage()), noKeys.toString());
+        assertEquals(List.of(), MetaRevTestSupport.rows(jdbc));
     }
 
     // ------------------------------------------------------------------ 도우미
