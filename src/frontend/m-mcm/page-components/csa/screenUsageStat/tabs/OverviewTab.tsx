@@ -1,3 +1,5 @@
+"use client";
+
 /** 개요 탭 화면 — KPI 4개, 일별 열람 추이, 많이 연 화면 상위 10개. */
 import { useMemo } from "react";
 
