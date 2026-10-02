@@ -1,0 +1,446 @@
+/** @vitest-environment happy-dom */
+/**
+ * 메모장 렌더러·편집기 동작 시험(스펙 2026-10-02-widget-admin-generic §17.4).
+ * - 서버 호출(./api)과 shared 의 폼 부품·위젯 틀 훅은 대역으로 바꾼다. 형식별 보기(NoticeBodyView)는 실물을 쓴다 —
+ *   html 정화(script·onclick·style 제거)와 text 줄바꿈을 실제 DOM 으로 확인한다(shared dist 가 필요하다).
+ * - JSX 없이 createElement 로 쓴다(vitest include 가 *.test.ts 만 잡는다).
+ */
+import { act, createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { MemoServiceError, type MemoRecord } from "./memo-model";
+
+const h = vi.hoisted(() => ({
+  fetchMemo: vi.fn(),
+  saveMemo: vi.fn(),
+  setStatus: vi.fn(),
+}));
+
+vi.mock("./api", () => ({ fetchMemo: h.fetchMemo, saveMemo: h.saveMemo }));
+
+vi.mock("@dk-oasis/shared/widget", () => ({ useWidgetStatus: () => h.setStatus }));
+
+vi.mock("@dk-oasis/shared/form", async () => {
+  const { createElement: el } = await import("react");
+  return {
+    Button: (p: { children?: unknown; onClick?: () => void; disabled?: boolean; "data-testid"?: string; variant?: string }) =>
+      el("button", { type: "button", onClick: p.onClick, disabled: p.disabled, "data-testid": p["data-testid"], "data-variant": p.variant }, p.children as never),
+    Select: (p: {
+      value?: string;
+      onChange?: (v: string) => void;
+      options?: { value: string; label: string }[];
+      disabled?: boolean;
+      "data-testid"?: string;
+      "aria-label"?: string;
+    }) =>
+      el(
+        "select",
+        {
+          value: p.value,
+          disabled: p.disabled,
+          "data-testid": p["data-testid"],
+          "aria-label": p["aria-label"],
+          onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value),
+        },
+        (p.options ?? []).map((o) => el("option", { key: o.value, value: o.value }, o.label))
+      ),
+    Textarea: (p: {
+      value?: string;
+      onChange?: (v: string) => void;
+      readOnly?: boolean;
+      "data-testid"?: string;
+      "aria-label"?: string;
+    }) =>
+      el("textarea", {
+        value: p.value,
+        readOnly: p.readOnly,
+        "data-testid": p["data-testid"],
+        "aria-label": p["aria-label"],
+        onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value),
+      }),
+    FormGroup: (p: { label?: string; children?: unknown }) => el("div", { "data-group": p.label }, p.children as never),
+  };
+});
+
+vi.mock("@dk-oasis/shared/markdown-editor", async () => {
+  const { createElement: el } = await import("react");
+  return {
+    MarkdownField: (p: { value?: string; onChange?: (v: string) => void; testId?: string }) =>
+      el("textarea", { value: p.value, "data-testid": p.testId, onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value) }),
+  };
+});
+
+// 대역을 건 뒤에 읽는다(vi.mock 은 import 보다 먼저 올라가므로 정적 import 여도 대역이 적용되지만, 순서를 눈에 보이게 둔다).
+const { default: MemoRenderer } = await import("./renderer");
+const { default: MemoTypeEditor } = await import("./editor");
+
+(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+let container: HTMLDivElement;
+let root: Root;
+
+beforeEach(() => {
+  h.fetchMemo.mockReset();
+  h.saveMemo.mockReset();
+  h.setStatus.mockReset();
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  container.remove();
+});
+
+const q = (testId: string) => container.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+const must = (testId: string) => {
+  const found = q(testId);
+  if (!found) throw new Error(`[data-testid="${testId}"] 가 없습니다. 지금 화면: ${container.innerHTML.slice(0, 400)}`);
+  return found;
+};
+
+async function flush() {
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
+}
+
+async function click(testId: string) {
+  await act(async () => {
+    must(testId).click();
+  });
+  await flush();
+}
+
+async function typeInto(testId: string, text: string) {
+  const el = must(testId) as HTMLTextAreaElement;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(el, text);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+async function choose(testId: string, value: string) {
+  const el = must(testId) as HTMLSelectElement;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(el, value);
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
+const record = (over: Partial<MemoRecord> = {}): MemoRecord => ({
+  instId: "inst-1",
+  defId: "def.abc12345",
+  format: "text",
+  content: "저장된 메모",
+  updatedAt: "2026-10-03T10:00:00",
+  ...over,
+});
+
+interface RenderProps {
+  definition?: unknown;
+  widgetId?: string;
+  instanceId?: string;
+  refreshKey?: number;
+}
+
+async function renderWidget(p: RenderProps = {}) {
+  const props = {
+    instanceId: p.instanceId ?? "inst-1",
+    widgetId: p.widgetId ?? "def.abc12345",
+    definition: p.definition ?? { scope: "personal", format: "text", content: "" },
+    refreshKey: p.refreshKey ?? 0,
+    size: { w: 8, h: 10 },
+    config: null,
+  };
+  await act(async () => {
+    root.render(createElement(MemoRenderer, props as never));
+  });
+  await flush();
+  return props;
+}
+
+describe("공용 메모 — 보기만", () => {
+  const shared = (format: string, content: string) => ({ scope: "shared", format, content });
+
+  it("text 는 줄바꿈을 유지하는 글로 보이고 서버를 부르지 않으며 [편집]이 없다", async () => {
+    await renderWidget({ definition: shared("text", "첫 줄\n둘째 줄\n\n<b>태그</b>") });
+    const body = container.querySelector(".nbv-text");
+    expect(body).not.toBeNull();
+    expect(body!.textContent).toBe("첫 줄\n둘째 줄\n\n<b>태그</b>"); // 줄바꿈은 그대로, 태그는 글자 그대로
+    expect(body!.querySelector("b")).toBeNull();
+    expect(q("memo-edit")).toBeNull();
+    expect(h.fetchMemo).not.toHaveBeenCalled();
+    expect(h.saveMemo).not.toHaveBeenCalled();
+  });
+
+  it("md 는 마크다운 보기로 그린다", async () => {
+    await renderWidget({ definition: shared("md", "# 큰제목\n\n- 항목하나\n- 항목둘") });
+    const view = must("widget-memo-shared");
+    expect(view.getAttribute("data-format")).toBe("MD");
+    expect(view.querySelector("h1")?.textContent).toBe("큰제목");
+    expect(view.querySelectorAll("li")).toHaveLength(2);
+  });
+
+  // happy-dom 의 노드 순회는 지운 노드의 다음 형제를 건너뛰는 결함이 있어(실제 브라우저에는 없다, shared notice-body-view 시험과 같은 사정)
+  // 지워지는 요소 뒤에 다른 요소를 두지 않고 따로 시험한다.
+  it("html 은 정화해서 보인다 — onclick·on*·style 속성은 지우고 본문은 남긴다", async () => {
+    await renderWidget({
+      definition: shared("html", '<h3 onclick="steal()" style="color:red">제목</h3><p style="position:fixed" onmouseover="x()">본문</p>'),
+    });
+    const view = must("widget-memo-shared");
+    expect(view.getAttribute("data-format")).toBe("HTML");
+    expect(view.innerHTML).not.toMatch(/onclick|onmouseover|style=/i);
+    expect(view.querySelector("h3")?.textContent).toBe("제목");
+    expect(view.querySelector("p")?.textContent).toBe("본문");
+  });
+
+  it("html 은 정화해서 보인다 — script 는 지우고 실행하지 않는다", async () => {
+    await renderWidget({ definition: shared("html", "<p>본문</p><script>window.__memoPwned = 1</script>") });
+    const view = must("widget-memo-shared");
+    expect(view.querySelector("script")).toBeNull();
+    expect(view.querySelector("p")?.textContent).toBe("본문");
+    expect((window as unknown as { __memoPwned?: number }).__memoPwned).toBeUndefined();
+  });
+
+  it("내용이 비면 「내용이 없습니다」", async () => {
+    await renderWidget({ definition: shared("text", "  \n ") });
+    expect(container.textContent).toContain("내용이 없습니다");
+    expect(q("memo-edit")).toBeNull();
+  });
+});
+
+describe("개인 메모 — load → 보기 → 편집 → 저장", () => {
+  it("마운트 때 instanceId 로 load 하고 메모를 보기 모드로 보인다(저장 단추는 없다)", async () => {
+    h.fetchMemo.mockResolvedValue(record({ content: "내 메모\n둘째 줄" }));
+    await renderWidget();
+    expect(h.fetchMemo).toHaveBeenCalledTimes(1);
+    expect(h.fetchMemo).toHaveBeenCalledWith("inst-1");
+    expect(must("widget-memo-body").textContent).toContain("내 메모");
+    expect(must("memo-edit").hasAttribute("disabled")).toBe(false);
+    expect(q("memo-save")).toBeNull();
+    expect(q("memo-input")).toBeNull();
+    expect(h.setStatus).toHaveBeenLastCalledWith({ kind: "ready" });
+  });
+
+  it("메모가 없으면 안내 문구를 보인다", async () => {
+    h.fetchMemo.mockResolvedValue(null);
+    await renderWidget();
+    expect(must("memo-empty").textContent).toBe("메모가 없습니다. [편집]을 눌러 쓰세요");
+  });
+
+  it("[편집] → 입력칸·형식 선택·글자 수·[저장]·[취소] 가 나타나고, 쓴 글을 저장하면 서버 값으로 보기에 돌아온다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ format: "md", content: "처음 글" }));
+    h.saveMemo.mockResolvedValue(record({ format: "html", content: "<p>새 글</p>" }));
+    await renderWidget();
+
+    await click("memo-edit");
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("처음 글");
+    expect((must("memo-format") as HTMLSelectElement).value).toBe("md");
+    expect(must("memo-count").textContent).toBe("4 / 20,000자");
+    expect(must("memo-save")).toBeTruthy();
+    expect(must("memo-cancel")).toBeTruthy();
+    expect(q("memo-edit")).toBeNull();
+
+    await typeInto("memo-input", "<p>새 글</p>");
+    expect(must("memo-count").textContent).toBe("10 / 20,000자");
+    await choose("memo-format", "html");
+    await click("memo-save");
+
+    expect(h.saveMemo).toHaveBeenCalledTimes(1);
+    expect(h.saveMemo).toHaveBeenCalledWith({ instId: "inst-1", defId: "def.abc12345", format: "html", content: "<p>새 글</p>" });
+    expect(q("memo-input")).toBeNull(); // 보기로 돌아왔다
+    expect(must("widget-memo-body").getAttribute("data-format")).toBe("HTML");
+    expect(must("widget-memo-body").textContent).toBe("새 글");
+    expect(h.fetchMemo).toHaveBeenCalledTimes(1); // 저장 뒤 다시 읽지 않는다(서버가 돌려준 값을 쓴다)
+  });
+
+  it("메모가 없던 칸의 첫 편집은 정의의 형식으로 시작한다", async () => {
+    h.fetchMemo.mockResolvedValue(null);
+    await renderWidget({ definition: { scope: "personal", format: "md", content: "" } });
+    await click("memo-edit");
+    expect((must("memo-format") as HTMLSelectElement).value).toBe("md");
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("");
+  });
+
+  it("[취소] 는 쓰던 글을 버리고 저장하지 않은 채 보기로 돌아온다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ content: "원래 글" }));
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input", "고치다 만 글");
+    await click("memo-cancel");
+    expect(h.saveMemo).not.toHaveBeenCalled();
+    expect(q("memo-input")).toBeNull();
+    expect(must("widget-memo-body").textContent).toContain("원래 글");
+    // 다시 편집하면 서버 값에서 시작한다
+    await click("memo-edit");
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("원래 글");
+  });
+
+  it("저장이 실패하면 입력칸 위에 서버 문구를 보이고 쓰던 글·형식은 그대로 둔다", async () => {
+    h.fetchMemo.mockResolvedValue(record());
+    h.saveMemo.mockRejectedValue(new MemoServiceError("메모는 100개까지 저장할 수 있습니다"));
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input", "꼭 지켜야 할 글");
+    await choose("memo-format", "md");
+    await click("memo-save");
+
+    expect(must("memo-error").textContent).toBe("메모는 100개까지 저장할 수 있습니다");
+    expect(must("memo-error").getAttribute("role")).toBe("alert");
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("꼭 지켜야 할 글");
+    expect((must("memo-format") as HTMLSelectElement).value).toBe("md");
+    expect(must("memo-save").hasAttribute("disabled")).toBe(false); // 다시 시도할 수 있다
+    // 오류 문구는 입력칸 위에 있다
+    const order = must("memo-error").compareDocumentPosition(must("memo-input"));
+    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 틀의 error 로 알리지 않는다(틀이 본문을 숨겨 쓰던 글이 사라진다)
+    expect(h.setStatus).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "error" }));
+  });
+
+  it("서버 문구가 없는 오류(네트워크 등)는 기본 저장 오류 문구로 보이고, 다시 저장하면 성공한다", async () => {
+    h.fetchMemo.mockResolvedValue(null);
+    h.saveMemo.mockRejectedValueOnce(new Error("Failed to fetch")).mockResolvedValueOnce(record({ content: "썼다" }));
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input", "썼다");
+    await click("memo-save");
+    expect(must("memo-error").textContent).toBe("메모를 저장하지 못했습니다. 잠시 뒤 다시 시도하세요.");
+    await click("memo-save");
+    expect(q("memo-error")).toBeNull();
+    expect(q("memo-input")).toBeNull();
+    expect(must("widget-memo-body").textContent).toBe("썼다");
+  });
+
+  it("20,000자를 넘기면 글자 수가 경고 표시가 되고 [저장]을 막는다", async () => {
+    h.fetchMemo.mockResolvedValue(null);
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input", "가".repeat(20000));
+    expect(must("memo-save").hasAttribute("disabled")).toBe(false);
+    await typeInto("memo-input", "가".repeat(20001));
+    expect(must("memo-count").textContent).toBe("20,001 / 20,000자");
+    expect(must("memo-count").className).toContain("mcm-memo__count--over");
+    expect(must("memo-save").hasAttribute("disabled")).toBe(true);
+    expect(h.saveMemo).not.toHaveBeenCalled();
+  });
+
+  it("불러오기에 실패하면 틀에 오류·다시 시도를 알리고, 다시 시도하면 다시 읽는다", async () => {
+    h.fetchMemo.mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce(record({ content: "다시 읽음" }));
+    await renderWidget();
+    const errorCall = h.setStatus.mock.calls.map((c) => c[0]).find((s) => s.kind === "error");
+    expect(errorCall).toMatchObject({ kind: "error", message: "메모를 불러오지 못했습니다." });
+    await act(async () => {
+      errorCall.retry();
+    });
+    await flush();
+    expect(h.fetchMemo).toHaveBeenCalledTimes(2);
+    expect(must("widget-memo-body").textContent).toContain("다시 읽음");
+  });
+
+  it("새로 고침 신호는 보기에서는 다시 읽지만 편집 중에는 읽지 않는다(쓰던 글 보호)", async () => {
+    h.fetchMemo.mockResolvedValue(record());
+    const props = await renderWidget();
+    expect(h.fetchMemo).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      root.render(createElement(MemoRenderer, { ...props, refreshKey: 1 } as never));
+    });
+    await flush();
+    expect(h.fetchMemo).toHaveBeenCalledTimes(2);
+
+    await click("memo-edit");
+    await typeInto("memo-input", "쓰는 중");
+    await act(async () => {
+      root.render(createElement(MemoRenderer, { ...props, refreshKey: 2 } as never));
+    });
+    await flush();
+    expect(h.fetchMemo).toHaveBeenCalledTimes(2);
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("쓰는 중");
+  });
+});
+
+describe("개인 메모 — 관리 화면 미리보기", () => {
+  it.each([
+    ["instId 가 preview", { instanceId: "preview", widgetId: "def.abc12345" }],
+    ["저장 전 정의(def.preview)", { instanceId: "inst-1", widgetId: "def.preview" }],
+    ["저장 전 정의(빈 widgetId)", { instanceId: "preview", widgetId: "" }],
+  ])("%s — load·save 를 부르지 않고 안내만 보이며 [편집]은 막힌다", async (_name, ids) => {
+    await renderWidget(ids);
+    expect(h.fetchMemo).not.toHaveBeenCalled();
+    expect(h.saveMemo).not.toHaveBeenCalled();
+    expect(must("memo-preview-hint").textContent).toBe("미리보기에서는 저장하지 않습니다");
+    expect(must("memo-edit").hasAttribute("disabled")).toBe(true);
+    await click("memo-edit");
+    expect(q("memo-input")).toBeNull();
+    expect(h.setStatus).toHaveBeenLastCalledWith({ kind: "ready" });
+  });
+});
+
+describe("편집기", () => {
+  const onChange = vi.fn();
+  const onValidate = vi.fn();
+  beforeEach(() => {
+    onChange.mockReset();
+    onValidate.mockReset();
+  });
+
+  async function renderEditor(value: unknown) {
+    await act(async () => {
+      root.render(createElement(MemoTypeEditor, { value, onChange, onValidate } as never));
+    });
+  }
+
+  it("개인 메모는 내용 칸 없이 안내 문구(§17.4 그대로)를 보인다", async () => {
+    await renderEditor({ scope: "personal", format: "md", content: "" });
+    expect(must("widget-memo-personal-note").textContent).toBe("사용자가 홈에서 직접 씁니다. 형식은 새 메모의 처음 형식입니다");
+    expect(q("widget-memo-content")).toBeNull();
+    expect((must("widget-memo-scope") as HTMLSelectElement).value).toBe("personal");
+    expect((must("widget-memo-format") as HTMLSelectElement).value).toBe("md");
+  });
+
+  it("공용 text·html 은 입력칸, md 는 마크다운 편집기를 보이고 쓴 글을 설정으로 올린다", async () => {
+    await renderEditor({ scope: "shared", format: "text", content: "안내" });
+    await typeInto("widget-memo-content", "안내 글");
+    expect(onChange).toHaveBeenLastCalledWith({ scope: "shared", format: "text", content: "안내 글" });
+
+    await renderEditor({ scope: "shared", format: "html", content: "<p>a</p>" });
+    expect(q("widget-memo-content")).not.toBeNull();
+    expect(q("widget-memo-content-md")).toBeNull();
+
+    await renderEditor({ scope: "shared", format: "md", content: "# a" });
+    expect(q("widget-memo-content")).toBeNull();
+    await typeInto("widget-memo-content-md", "# b");
+    expect(onChange).toHaveBeenLastCalledWith({ scope: "shared", format: "md", content: "# b" });
+  });
+
+  it("종류를 개인으로 바꾸면 내용을 비우고 다시 공용으로 돌리면 쓰던 내용이 살아난다", async () => {
+    await renderEditor({ scope: "shared", format: "text", content: "쓰던 안내" });
+    await choose("widget-memo-scope", "personal");
+    expect(onChange).toHaveBeenLastCalledWith({ scope: "personal", format: "text", content: "" });
+
+    await renderEditor({ scope: "personal", format: "text", content: "" });
+    await choose("widget-memo-scope", "shared");
+    expect(onChange).toHaveBeenLastCalledWith({ scope: "shared", format: "text", content: "쓰던 안내" });
+  });
+
+  it("형식을 바꾸면 설정의 format 만 바뀐다", async () => {
+    await renderEditor({ scope: "shared", format: "text", content: "글" });
+    await choose("widget-memo-format", "html");
+    expect(onChange).toHaveBeenLastCalledWith({ scope: "shared", format: "html", content: "글" });
+  });
+
+  it("검사 결과를 onValidate 로 알린다 — 정상은 빈 배열, 20,000자 초과·틀린 값은 오류", async () => {
+    await renderEditor({ scope: "shared", format: "text", content: "정상" });
+    expect(onValidate).toHaveBeenLastCalledWith([]);
+    await renderEditor({ scope: "shared", format: "text", content: "가".repeat(20001) });
+    expect(onValidate).toHaveBeenLastCalledWith(["내용은 20,000자까지 쓸 수 있습니다"]);
+    await renderEditor({ scope: "team", format: "rtf", content: "" });
+    expect(onValidate).toHaveBeenLastCalledWith([
+      "종류는 공용 메모·개인 메모 중에서 고르세요",
+      "형식은 텍스트·md·html 중에서 고르세요",
+    ]);
+  });
+});
