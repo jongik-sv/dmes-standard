@@ -2,6 +2,8 @@
  * 작성자: Agent
  * 작성일: 2026-09-03
  * 내용: noticeMgmt (공지사항 관리) OASIS 서비스 — search / save / changeStatus 3 action
+ * 수정: 2026-10-02 — 본문 형식(CONTENT_FORMAT)·공지 분류(NOTICE_CATEGORY)·상단 고정(PIN_YN) 추가, HTML 소독, 본문 상한 4000자 → 20만 자
+ * 수정: 2026-10-02 — 게시 대상(TARGET_SCOPE ALL/ROLE + TB_MLS_NOTICE_TARGET 역할 목록) 추가
  */
 package com.dongkuk.dmes.mls.lsh.noticeMgmt.service;
 
@@ -9,9 +11,13 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.dongkuk.dmes.mls.entity.Notice;
+import com.dongkuk.dmes.mls.entity.NoticeTarget;
+import com.dongkuk.dmes.mls.lsh.common.NoticeCodes;
+import com.dongkuk.dmes.mls.lsh.common.NoticeHtmlSanitizer;
 import com.dongkuk.dmes.mls.lsh.noticeMgmt.dto.NoticeMgmtChangeStatusRequest;
 import com.dongkuk.dmes.mls.lsh.noticeMgmt.dto.NoticeMgmtSearchRequest;
 import com.dongkuk.dmes.mls.repository.NoticeRepository;
+import com.dongkuk.dmes.mls.repository.NoticeTargetRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -19,11 +25,16 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Pattern;
 
 /**
  * 공지사항 관리 ({@code noticeMgmt}) OASIS 진입 서비스.
@@ -34,7 +45,7 @@ import java.util.Set;
  *
  * <p>BPMN {@code services/lsh/noticeMgmt.bpmn} 의 {@code actionGateway} 3 분기와 1:1 이다.
  * <ul>
- *   <li>{@code search}       → {@link #search(NoticeMgmtSearchRequest)} — §3 조회조건 S-001~S-004</li>
+ *   <li>{@code search}       → {@link #search(NoticeMgmtSearchRequest)} — §3 조회조건 S-001~S-006</li>
  *   <li>{@code save}         → {@link #save(List)} — §5.1 B-003 저장 / B-004 삭제 (rowStatus C/U/D)</li>
  *   <li>{@code changeStatus} → {@link #changeStatus(NoticeMgmtChangeStatusRequest)} — §5.1 B-005 게시중지</li>
  * </ul>
@@ -54,12 +65,10 @@ public class NoticeMgmtService {
 
     private static final Logger log = LoggerFactory.getLogger(NoticeMgmtService.class);
 
-    /** LV-001 게시상태 도메인 (기능설계서 §10). 코드 마스터 미등재 — 화면 인라인 상수. */
-    private static final Set<String> STATUS_DOMAIN = Set.of("DRAFT", "POSTED", "STOPPED");
-
-    private static final String STATUS_DRAFT = "DRAFT";
-    private static final String STATUS_POSTED = "POSTED";
-    private static final String STATUS_STOPPED = "STOPPED";
+    // LV-001~LV-003 코드값은 noticeBoard 와 같이 쓰므로 NoticeCodes 한 곳에 둔다 (기능설계서 §10).
+    private static final String STATUS_DRAFT = NoticeCodes.STATUS_DRAFT;
+    private static final String STATUS_POSTED = NoticeCodes.STATUS_POSTED;
+    private static final String STATUS_STOPPED = NoticeCodes.STATUS_STOPPED;
 
     /** 채번 prefix 포맷 — {@code NT} + {@code yyyyMMdd}. 일자별 4자리 순번이 뒤에 붙는다. */
     private static final DateTimeFormatter ID_DATE = DateTimeFormatter.ofPattern("yyyyMMdd", Locale.KOREA);
@@ -67,10 +76,18 @@ public class NoticeMgmtService {
     /** 저장 body 최상위 grid 키 (기능설계서 §1.3 기본값 채택). {@code errors[].grid} 값과 동일해야 한다. */
     private static final String GRID_MASTER = "master";
 
-    private final NoticeRepository noticeRepository;
+    /** V-003 내용 최대 길이 (2026-10-02 — 4000자 제한을 풀면서 서버 상한을 20만 자로 둔다). */
+    static final int CONTENT_MAX_LENGTH = 200_000;
 
-    public NoticeMgmtService(NoticeRepository noticeRepository) {
+    /** 대상 역할 ID 형식 — mcm TB_MCM_SEC_ROLE.ROLE_ID 관례(영문 대문자·숫자·밑줄). 존재 여부는 다른 DB 라 확인할 수 없다. */
+    private static final Pattern ROLE_ID_PATTERN = Pattern.compile("^[A-Z0-9_]{1,100}$");
+
+    private final NoticeRepository noticeRepository;
+    private final NoticeTargetRepository noticeTargetRepository;
+
+    public NoticeMgmtService(NoticeRepository noticeRepository, NoticeTargetRepository noticeTargetRepository) {
         this.noticeRepository = noticeRepository;
+        this.noticeTargetRepository = noticeTargetRepository;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -80,7 +97,10 @@ public class NoticeMgmtService {
     /**
      * 공지사항 목록 조회 (기능설계서 §3 / B-001).
      *
-     * @param request S-001~S-004. null 이면 전건 조회 (화면 최초 진입 시 FE 가 빈 봉투를 보낸다).
+     * <p>S-005 공지 분류·S-006 본문 형식은 빈 값이면 전체이고, 값이 있으면 허용 코드(LV-002·LV-003)인지 먼저 본다.
+     * 허용 밖 값을 조용히 0건으로 돌려주면 화면 오타가 "공지 없음" 으로 보이므로 오류로 알린다.
+     *
+     * @param request S-001~S-006. null 이면 전건 조회 (화면 최초 진입 시 FE 가 빈 봉투를 보낸다).
      * @return {@code {"list": [...]}} — BPMN {@code output="result"} 로 {@code data.result.list} 에 실린다.
      */
     public Map<String, Object> search(NoticeMgmtSearchRequest request) {
@@ -88,10 +108,14 @@ public class NoticeMgmtService {
         String status = request != null ? request.getNoticeStatus() : null;
         LocalDate fromDt = parseDate(request != null ? request.getPostStartDt() : null);
         LocalDate toDt = parseDate(request != null ? request.getPostEndDt() : null);
+        String category = searchCode(request != null ? request.getNoticeCategory() : null,
+                NoticeCodes.CATEGORY_DOMAIN, "공지 분류");
+        String format = searchCode(request != null ? request.getContentFormat() : null,
+                NoticeCodes.FORMAT_DOMAIN, "본문 형식");
 
-        List<Notice> rows = noticeRepository.searchByFilter(title, status, fromDt, toDt);
-        log.info("[noticeMgmt] search — title={} status={} from={} to={} rows={}",
-                title, status, fromDt, toDt, rows.size());
+        List<Notice> rows = noticeRepository.searchByFilter(title, status, fromDt, toDt, category, format);
+        log.info("[noticeMgmt] search — title={} status={} from={} to={} category={} format={} rows={}",
+                title, status, fromDt, toDt, category, format, rows.size());
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("list", toRows(rows));
@@ -116,13 +140,16 @@ public class NoticeMgmtService {
      * 오류를 하나씩 고치며 저장을 반복해야 한다. 수집한 {@link ErrorDetail} 은 Level B 응답의
      * {@code errors[]} 로 내려가 화면이 행·필드 단위로 표시한다.
      *
-     * @return {@code {"cntMerge": n, "list": [...]}} — 처리 건수 + 재조회 결과 (§5.2 B-003 4단계)
+     * @return {@code {"cntMerge": n, "savedIds": [...], "list": [...]}} — 처리 건수 + 저장(C/U)한 공지번호(입력 행 순서, 신규는
+     *         서버 채번값. 삭제·미변경 행은 빠진다) + 재조회 결과 (§5.2 B-003 4단계). 2026-10-02 savedIds 추가 — 신규 저장 뒤
+     *         화면이 새 NOTICE_ID 로 행을 다시 고를 수 있게 한다.
      */
     public Map<String, Object> save(List<Map<String, Object>> master) {
         int cntInsert = 0;
         int cntUpdate = 0;
         int cntDelete = 0;
         List<ErrorDetail> errors = new ArrayList<>();
+        List<String> savedIds = new ArrayList<>();
 
         if (master != null) {
             for (int i = 0; i < master.size(); i++) {
@@ -135,9 +162,9 @@ public class NoticeMgmtService {
 
                 switch (rowStatus) {
                     case "C" -> {
-                        validateRow(row, i, noticeId, errors);
+                        validateRow(row, i, noticeId, null, errors);
                         if (errors.isEmpty()) {
-                            insertRow(row);
+                            savedIds.add(insertRow(row));
                             cntInsert++;
                         }
                     }
@@ -147,9 +174,10 @@ public class NoticeMgmtService {
                                     ErrorCode.REQUIRED_VALUE.getCode(), "수정 대상 공지번호가 없습니다."));
                             continue;
                         }
-                        validateRow(row, i, noticeId, errors);
+                        validateRow(row, i, noticeId, noticeId, errors);
                         if (errors.isEmpty()) {
                             updateRow(noticeId, row, i);
+                            savedIds.add(noticeId);
                             cntUpdate++;
                         }
                     }
@@ -177,7 +205,8 @@ public class NoticeMgmtService {
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cntMerge", cnt);
-        out.put("list", toRows(noticeRepository.searchByFilter(null, null, null, null)));
+        out.put("savedIds", savedIds);
+        out.put("list", toRows(noticeRepository.searchAll()));
         return out;
     }
 
@@ -196,7 +225,7 @@ public class NoticeMgmtService {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "공지번호가 없습니다.");
         }
         String target = request.getNoticeStatus();
-        if (!STATUS_DOMAIN.contains(target)) {
+        if (!NoticeCodes.STATUS_DOMAIN.contains(target)) {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "게시상태 값이 올바르지 않습니다.");
         }
 
@@ -218,7 +247,7 @@ public class NoticeMgmtService {
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cntMerge", 1);
-        out.put("list", toRows(noticeRepository.searchByFilter(null, null, null, null)));
+        out.put("list", toRows(noticeRepository.searchAll()));
         return out;
     }
 
@@ -239,8 +268,14 @@ public class NoticeMgmtService {
         };
     }
 
-    /** V-001~V-004 + XV-001~XV-002 서버 재검증 (기능설계서 §6). */
-    private void validateRow(Map<String, Object> row, int idx, String rowKey, List<ErrorDetail> errors) {
+    /**
+     * V-001·V-002·V-004~V-007 + XV-001~XV-002 서버 재검증 (기능설계서 §6).
+     *
+     * <p>V-003(내용 길이)은 2026-10-02 에 4000자 → 20만 자로 바꿨다(DB 컬럼 길이가 아니라 서버 검증). V-005~V-007 은 키가 있고 값이 비어 있지 않을 때만 본다 —
+     * 빈 값·키 없음은 {@link #applyRow} 가 기본값·기존값으로 처리한다.
+     */
+    private void validateRow(Map<String, Object> row, int idx, String rowKey, String storedNoticeId,
+                             List<ErrorDetail> errors) {
         String title = str(row.get("TITLE"));
         String content = str(row.get("CONTENT"));
         String status = str(row.get("NOTICE_STATUS"));
@@ -254,14 +289,27 @@ public class NoticeMgmtService {
             errors.add(ErrorDetail.ofGrid(GRID_MASTER, rowKey, idx, "TITLE",
                     ErrorCode.INVALID_VALUE.getCode(), "제목은 200자를 넘을 수 없습니다."));  // V-002
         }
-        if (content != null && content.length() > 4000) {
+        if (content != null && content.length() > CONTENT_MAX_LENGTH) {
             errors.add(ErrorDetail.ofGrid(GRID_MASTER, rowKey, idx, "CONTENT",
-                    ErrorCode.INVALID_VALUE.getCode(), "내용은 4000자를 넘을 수 없습니다."));  // V-003
+                    ErrorCode.INVALID_VALUE.getCode(), "내용은 200,000자를 넘을 수 없습니다."));             // V-003
         }
-        if (isBlank(status) || !STATUS_DOMAIN.contains(status)) {
+        if (isBlank(status) || !NoticeCodes.STATUS_DOMAIN.contains(status)) {
             errors.add(ErrorDetail.ofGrid(GRID_MASTER, rowKey, idx, "NOTICE_STATUS",
                     ErrorCode.REQUIRED_VALUE.getCode(), "게시상태를 선택하세요."));           // V-004
         }
+        if (!isAllowedOrBlank(row.get("CONTENT_FORMAT"), NoticeCodes.FORMAT_DOMAIN)) {
+            errors.add(ErrorDetail.ofGrid(GRID_MASTER, rowKey, idx, "CONTENT_FORMAT",
+                    ErrorCode.INVALID_VALUE.getCode(), "본문 형식은 TEXT·MD·HTML 중 하나여야 합니다."));      // V-005
+        }
+        if (!isAllowedOrBlank(row.get("NOTICE_CATEGORY"), NoticeCodes.CATEGORY_DOMAIN)) {
+            errors.add(ErrorDetail.ofGrid(GRID_MASTER, rowKey, idx, "NOTICE_CATEGORY",
+                    ErrorCode.INVALID_VALUE.getCode(), "공지 분류는 NORMAL·MAINT·URGENT 중 하나여야 합니다.")); // V-006
+        }
+        if (!isAllowedOrBlank(yn(row.get("PIN_YN")), NoticeCodes.YN_DOMAIN)) {
+            errors.add(ErrorDetail.ofGrid(GRID_MASTER, rowKey, idx, "PIN_YN",
+                    ErrorCode.INVALID_VALUE.getCode(), "상단 고정은 Y 또는 N 이어야 합니다."));              // V-007
+        }
+        validateTargets(row, idx, rowKey, storedNoticeId, errors);                                     // V-008~V-010
         if (from != null && to != null && from.isAfter(to)) {
             errors.add(ErrorDetail.ofGrid(GRID_MASTER, rowKey, idx, "POST_START_DT",
                     ErrorCode.INVALID_VALUE.getCode(),
@@ -274,10 +322,13 @@ public class NoticeMgmtService {
         }
     }
 
-    private void insertRow(Map<String, Object> row) {
+    /** @return 채번한 공지번호 */
+    private String insertRow(Map<String, Object> row) {
         Notice entity = new Notice(nextNoticeId());
         applyRow(entity, row);
         noticeRepository.save(entity);
+        syncTargets(entity, row);
+        return entity.getNoticeId();
     }
 
     private void updateRow(String noticeId, Map<String, Object> row, int idx) {
@@ -287,6 +338,7 @@ public class NoticeMgmtService {
                                 ErrorCode.INVALID_VALUE.getCode(), "수정 대상 공지가 없습니다."))));
         applyRow(entity, row);
         noticeRepository.save(entity);
+        syncTargets(entity, row);
     }
 
     /** §7.1 — 게시중(POSTED) 건은 삭제할 수 없다. DB 값을 다시 읽어 판정한다. */
@@ -301,16 +353,44 @@ public class NoticeMgmtService {
                     "게시중인 공지는 삭제할 수 없습니다. 게시중지 후 삭제하세요."));
             return;
         }
+        noticeTargetRepository.deleteAll(noticeTargetRepository.findByNoticeIds(List.of(noticeId)));
         noticeRepository.delete(entity);
     }
 
+    /**
+     * 화면 행 → 엔티티.
+     *
+     * <p>V3 세 컬럼({@code CONTENT_FORMAT}·{@code NOTICE_CATEGORY}·{@code PIN_YN})은 <b>키가 없으면 저장된 값을 그대로 둔다</b>.
+     * 세 컬럼을 모르는 이전 화면이 수정(U) 행을 보내도 MD·HTML 공지가 TEXT 로 돌아가거나 고정이 풀리지 않게 하려는 것이다.
+     * 키가 있는데 값이 비어 있으면 기본값(TEXT·NORMAL·N)으로 둔다. 신규(C) 엔티티는 필드 초기값이 이미 기본값이다.
+     *
+     * <p>본문 형식이 최종적으로 HTML 이면 본문을 {@link NoticeHtmlSanitizer} 로 소독해서 저장한다. 형식 키가 없어 저장된
+     * 형식(HTML)을 이어받는 경우도 소독한다.
+     */
     private void applyRow(Notice entity, Map<String, Object> row) {
         entity.setTitle(str(row.get("TITLE")));
-        entity.setContent(str(row.get("CONTENT")));
         String status = str(row.get("NOTICE_STATUS"));
         entity.setNoticeStatus(isBlank(status) ? STATUS_DRAFT : status);
         entity.setPostStartDt(parseDate(str(row.get("POST_START_DT"))));
         entity.setPostEndDt(parseDate(str(row.get("POST_END_DT"))));
+
+        if (row.containsKey("CONTENT_FORMAT")) {
+            entity.setContentFormat(codeOrDefault(row.get("CONTENT_FORMAT"), NoticeCodes.FORMAT_TEXT));
+        }
+        if (row.containsKey("NOTICE_CATEGORY")) {
+            entity.setNoticeCategory(codeOrDefault(row.get("NOTICE_CATEGORY"), NoticeCodes.CATEGORY_NORMAL));
+        }
+        if (row.containsKey("PIN_YN")) {
+            entity.setPinYn(codeOrDefault(yn(row.get("PIN_YN")), NoticeCodes.NO));
+        }
+        if (row.containsKey("TARGET_SCOPE")) {
+            entity.setTargetScope(codeOrDefault(row.get("TARGET_SCOPE"), NoticeCodes.SCOPE_ALL));
+        }
+
+        String content = str(row.get("CONTENT"));
+        entity.setContent(NoticeCodes.FORMAT_HTML.equals(entity.getContentFormat())
+                ? NoticeHtmlSanitizer.sanitize(content)
+                : content);
     }
 
     /**
@@ -333,8 +413,9 @@ public class NoticeMgmtService {
         return prefix + String.format("%04d", seq);
     }
 
-    /** Entity → 화면 행 (기능설계서 §3.2 G-001~G-005 + §4 D-003 내용). */
+    /** Entity → 화면 행 (기능설계서 §3.2 G-001~G-010 + §4 D-003 내용). 대상 역할은 한 번의 조회로 붙인다. */
     private List<Map<String, Object>> toRows(List<Notice> rows) {
+        Map<String, List<String>> targets = targetsByNotice(rows.stream().map(Notice::getNoticeId).toList());
         List<Map<String, Object>> out = new ArrayList<>(rows.size());
         for (Notice n : rows) {
             Map<String, Object> map = new LinkedHashMap<>();
@@ -342,6 +423,11 @@ public class NoticeMgmtService {
             map.put("TITLE", n.getTitle());
             map.put("CONTENT", n.getContent());
             map.put("NOTICE_STATUS", n.getNoticeStatus());
+            map.put("CONTENT_FORMAT", n.getContentFormat());
+            map.put("NOTICE_CATEGORY", n.getNoticeCategory());
+            map.put("PIN_YN", n.getPinYn());
+            map.put("TARGET_SCOPE", n.getTargetScope());
+            map.put("TARGET_ROLES", targets.getOrDefault(n.getNoticeId(), List.of()));
             map.put("POST_START_DT", n.getPostStartDt() == null ? null : n.getPostStartDt().toString());
             map.put("POST_END_DT", n.getPostEndDt() == null ? null : n.getPostEndDt().toString());
             map.put("C_USR_ID", n.getCreatedBy());
@@ -384,6 +470,160 @@ public class NoticeMgmtService {
             log.debug("[noticeMgmt] 날짜 파싱 실패 — raw={}", raw);
             return null;
         }
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // 게시 대상 (V4)
+    // ────────────────────────────────────────────────────────────────
+
+    /**
+     * V-008~V-010 — 게시 대상 검증.
+     *
+     * <p>최종 범위·대상은 {@link #applyRow}·{@link #syncTargets} 와 같은 규칙으로 계산한다 — 키가 없으면 저장된 값(신규는
+     * ALL·대상 없음), 키가 있는데 비어 있으면 기본값(ALL·대상 없음). 최종 범위가 ROLE 인데 대상이 비어 있으면 거부한다
+     * (아무에게도 보이지 않는 공지가 된다).
+     */
+    private void validateTargets(Map<String, Object> row, int idx, String rowKey, String storedNoticeId,
+                                 List<ErrorDetail> errors) {
+        if (!isAllowedOrBlank(row.get("TARGET_SCOPE"), NoticeCodes.SCOPE_DOMAIN)) {
+            errors.add(ErrorDetail.ofGrid(GRID_MASTER, rowKey, idx, "TARGET_SCOPE",
+                    ErrorCode.INVALID_VALUE.getCode(), "게시 대상은 ALL 또는 ROLE 이어야 합니다."));           // V-008
+            return;
+        }
+        Set<String> roles = row.containsKey("TARGET_ROLES") ? parseRoles(row.get("TARGET_ROLES")) : null;
+        if (roles != null) {
+            for (String roleId : roles) {
+                if (!ROLE_ID_PATTERN.matcher(roleId).matches()) {
+                    errors.add(ErrorDetail.ofGrid(GRID_MASTER, rowKey, idx, "TARGET_ROLES",
+                            ErrorCode.INVALID_VALUE.getCode(), "대상 역할 ID 형식이 올바르지 않습니다: " + roleId)); // V-009
+                    return;
+                }
+            }
+        }
+
+        String scope;
+        if (row.containsKey("TARGET_SCOPE")) {
+            scope = codeOrDefault(row.get("TARGET_SCOPE"), NoticeCodes.SCOPE_ALL);
+        } else if (storedNoticeId != null) {
+            scope = noticeRepository.findById(storedNoticeId).map(Notice::getTargetScope).orElse(NoticeCodes.SCOPE_ALL);
+        } else {
+            scope = NoticeCodes.SCOPE_ALL;
+        }
+        if (!NoticeCodes.SCOPE_ROLE.equals(scope)) {
+            return;
+        }
+        boolean empty = roles != null
+                ? roles.isEmpty()
+                : storedNoticeId == null || noticeTargetRepository.findByNoticeIds(List.of(storedNoticeId)).isEmpty();
+        if (empty) {
+            errors.add(ErrorDetail.ofGrid(GRID_MASTER, rowKey, idx, "TARGET_ROLES",
+                    ErrorCode.REQUIRED_VALUE.getCode(), "게시 대상을 역할로 정했으면 역할을 하나 이상 고르세요.")); // V-010
+        }
+    }
+
+    /**
+     * 대상 역할 저장 — 공지 저장 직후 부른다.
+     *
+     * <ul>
+     *   <li>최종 범위가 ALL 이면 남은 대상 행을 지운다(의미 없는 행을 남기지 않는다).</li>
+     *   <li>ROLE 이고 {@code TARGET_ROLES} 키가 있으면 그 목록으로 맞춘다 — 빠진 역할만 지우고 새 역할만 넣는다.</li>
+     *   <li>ROLE 이고 키가 없으면 저장된 대상을 그대로 둔다(이전 화면 호환, V3 세 컬럼과 같은 규칙).</li>
+     * </ul>
+     */
+    private void syncTargets(Notice entity, Map<String, Object> row) {
+        String noticeId = entity.getNoticeId();
+        boolean roleScope = NoticeCodes.SCOPE_ROLE.equals(entity.getTargetScope());
+        if (roleScope && !row.containsKey("TARGET_ROLES")) {
+            return;
+        }
+        Set<String> wanted = roleScope ? parseRoles(row.get("TARGET_ROLES")) : Set.of();
+        List<NoticeTarget> existing = noticeTargetRepository.findByNoticeIds(List.of(noticeId));
+        Set<String> kept = new LinkedHashSet<>();
+        List<NoticeTarget> removed = new ArrayList<>();
+        for (NoticeTarget t : existing) {
+            if (wanted.contains(t.getRoleId())) {
+                kept.add(t.getRoleId());
+            } else {
+                removed.add(t);
+            }
+        }
+        noticeTargetRepository.deleteAll(removed);
+        List<NoticeTarget> added = new ArrayList<>();
+        for (String roleId : wanted) {
+            if (!kept.contains(roleId)) {
+                added.add(new NoticeTarget(noticeId, roleId));
+            }
+        }
+        noticeTargetRepository.saveAll(added);
+    }
+
+    /** 공지번호별 대상 역할 ID (정렬됨). 한 번의 조회로 읽는다. */
+    private Map<String, List<String>> targetsByNotice(Collection<String> noticeIds) {
+        Map<String, List<String>> out = new HashMap<>();
+        if (noticeIds.isEmpty()) {
+            return out;
+        }
+        for (NoticeTarget t : noticeTargetRepository.findByNoticeIds(noticeIds)) {
+            out.computeIfAbsent(t.getNoticeId(), k -> new ArrayList<>()).add(t.getRoleId());
+        }
+        return out;
+    }
+
+    /**
+     * {@code TARGET_ROLES} 값 → 역할 ID 집합. 배열(JSON array)과 콤마 문자열을 모두 받는다. 앞뒤 공백을 걷고 대문자로 맞추며
+     * (BFF 가 역할 헤더를 대문자로 보낸다), 빈 항목은 버리고 중복은 하나로 합친다.
+     */
+    private static Set<String> parseRoles(Object raw) {
+        List<Object> items = new ArrayList<>();
+        if (raw instanceof Collection<?> c) {
+            items.addAll(c);
+        } else if (raw != null) {
+            items.addAll(List.of((Object[]) String.valueOf(raw).split(",")));
+        }
+        Set<String> out = new TreeSet<>();
+        for (Object item : items) {
+            String v = str(item);
+            if (!isBlank(v)) {
+                out.add(v.trim().toUpperCase(Locale.ROOT));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * 조회조건 코드값 정규화 — 빈 값이면 null(전체), 값이 있으면 앞뒤 공백을 걷고 대문자로 맞춘 뒤 허용 코드인지 본다.
+     *
+     * @throws BusinessException 허용 코드 밖의 값
+     */
+    private static String searchCode(String raw, Set<String> domain, String label) {
+        if (isBlank(raw)) {
+            return null;
+        }
+        String v = raw.trim().toUpperCase(Locale.ROOT);
+        if (!domain.contains(v)) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, label + " 값이 올바르지 않습니다: " + raw);
+        }
+        return v;
+    }
+
+    /** 저장 행 코드값 검사 — 빈 값(키 없음 포함)은 통과, 값이 있으면 정규화 뒤 허용 코드여야 한다. */
+    private static boolean isAllowedOrBlank(Object raw, Set<String> domain) {
+        String v = str(raw);
+        return isBlank(v) || domain.contains(v.trim().toUpperCase(Locale.ROOT));
+    }
+
+    /** 저장 행 코드값 → 저장값. 빈 값이면 기본값. 검증(V-005~V-007)을 통과한 값만 들어온다. */
+    private static String codeOrDefault(Object raw, String defaultValue) {
+        String v = str(raw);
+        return isBlank(v) ? defaultValue : v.trim().toUpperCase(Locale.ROOT);
+    }
+
+    /** PIN_YN 은 체크박스가 불리언으로 보낼 수도 있어 {@code true/false} 불리언만 Y/N 으로 바꿔 받는다. 그 밖은 그대로. */
+    private static Object yn(Object raw) {
+        if (raw instanceof Boolean b) {
+            return b ? NoticeCodes.YES : NoticeCodes.NO;
+        }
+        return raw;
     }
 
     private static String str(Object v) {

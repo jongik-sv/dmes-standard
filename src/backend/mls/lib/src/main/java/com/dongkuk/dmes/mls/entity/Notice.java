@@ -20,10 +20,12 @@ import java.time.LocalDate;
  * (기능설계서 {@code docs/mls/design/noticeMgmt/noticeMgmt_기능설계서.md} 상단 인용 정본 예외).
  * 따라서 As-Is 컬럼 카탈로그 인용은 존재하지 않고, 기능설계서 §3.2 / §4 의 To-Be 컬럼 정의가 정본이다.
  *
- * <p>본 컬럼 6 (기능설계서 §4 D-001~D-006):
+ * <p>본 컬럼 9 (기능설계서 §4 D-001~D-009):
  * <ul>
  *   <li>PK 단일 = {@code NOTICE_ID} — 서버 채번 (Service 의 {@code nextNoticeId()})</li>
  *   <li>{@code TITLE} / {@code CONTENT} / {@code NOTICE_STATUS} / {@code POST_START_DT} / {@code POST_END_DT}</li>
+ *   <li>V3(2026-10-02) — {@code CONTENT_FORMAT} / {@code NOTICE_CATEGORY} / {@code PIN_YN}</li>
+ *   <li>V4(2026-10-02) — {@code TARGET_SCOPE} (대상 역할은 자식 테이블 {@link NoticeTarget})</li>
  * </ul>
  *
  * <p>audit 9 컬럼({@code C_USR_ID}/{@code C_AT}/{@code C_SVC_ID}/{@code C_PGM_ID}/{@code U_USR_ID}/
@@ -48,9 +50,44 @@ public class Notice extends CactusAuditEntity {
     @Column(name = "TITLE", length = 200, nullable = false)
     private String title;
 
-    /** 내용 (D-003 — V-003 최대 4000자). VARCHAR(4000). 그리드 미표시. */
-    @Column(name = "CONTENT", length = 4000)
+    /**
+     * 내용 (D-003). 그리드 미표시.
+     *
+     * <p>2026-10-02 V3 — DB 쪽 4000자 제한을 없앴다. 상한(20만 자)은 서비스 검증 V-003 이 맡는다. 엔티티에 길이를 두지 않는 이유: mls 는 {@code ddl-auto=none} 이라
+     * 엔티티 길이는 스키마를 만들지 않고, SQLite 는 V2 의 VARCHAR(4000) 길이를 강제하지 않는다. 운영 방언으로 옮길 때는
+     * CLOB / TEXT 로 선언한다(V3 헤더 주석). {@code @Lob} 은 SQLite JDBC 가 {@code getClob} 을 지원하지 않아 쓰지 않는다.
+     */
+    @Column(name = "CONTENT")
     private String content;
+
+    /**
+     * 본문 형식 (D-007 — LV-002). {@code TEXT}(일반 글) / {@code MD}(마크다운) / {@code HTML}(서버 소독 HTML). VARCHAR(10).
+     *
+     * <p>초기값을 두는 이유: Hibernate 는 null 필드도 INSERT 문에 NULL 로 넣으므로 DB DEFAULT 가 적용되지 않고
+     * NOT NULL 위반이 난다. 서비스가 값을 정하지 않은 경로에서도 안전하게 기본값이 들어가게 한다.
+     */
+    @Column(name = "CONTENT_FORMAT", length = 10, nullable = false)
+    private String contentFormat = "TEXT";
+
+    /** 공지 분류 (D-008 — LV-003). {@code NORMAL}(일반) / {@code MAINT}(점검) / {@code URGENT}(긴급). VARCHAR(10). */
+    @Column(name = "NOTICE_CATEGORY", length = 10, nullable = false)
+    private String noticeCategory = "NORMAL";
+
+    /**
+     * 홈 목록 상단 고정 (D-009). {@code Y} / {@code N}. CHAR(1).
+     *
+     * <p>빈 문자열은 넣지 않는다 — 길이 1 컬럼의 {@code ''} 는 native 조회에서 {@code Character} 변환 오류를 낸 이력이 있다
+     * (mcm DataInitializer {@code normalizeSecMenuCharColumns}). 서비스가 Y/N 으로 정규화한다.
+     */
+    @Column(name = "PIN_YN", length = 1, nullable = false)
+    private String pinYn = "N";
+
+    /**
+     * 게시 대상 범위 (D-010 — LV-004, V4 2026-10-02). {@code ALL}(전체 사용자) / {@code ROLE}(TB_MLS_NOTICE_TARGET 의 역할만).
+     * VARCHAR(10). 초기값을 두는 이유는 {@link #contentFormat} 과 같다.
+     */
+    @Column(name = "TARGET_SCOPE", length = 10, nullable = false)
+    private String targetScope = "ALL";
 
     /**
      * 게시상태 (G-003 / D-004 — LV-001).
@@ -85,6 +122,10 @@ public class Notice extends CactusAuditEntity {
     public String getNoticeStatus() { return noticeStatus; }
     public LocalDate getPostStartDt() { return postStartDt; }
     public LocalDate getPostEndDt() { return postEndDt; }
+    public String getContentFormat() { return contentFormat; }
+    public String getNoticeCategory() { return noticeCategory; }
+    public String getPinYn() { return pinYn; }
+    public String getTargetScope() { return targetScope; }
 
     public void setNoticeId(String v) { this.noticeId = v; }
     public void setTitle(String v) { this.title = v; }
@@ -92,4 +133,8 @@ public class Notice extends CactusAuditEntity {
     public void setNoticeStatus(String v) { this.noticeStatus = v; }
     public void setPostStartDt(LocalDate v) { this.postStartDt = v; }
     public void setPostEndDt(LocalDate v) { this.postEndDt = v; }
+    public void setContentFormat(String v) { this.contentFormat = v; }
+    public void setNoticeCategory(String v) { this.noticeCategory = v; }
+    public void setPinYn(String v) { this.pinYn = v; }
+    public void setTargetScope(String v) { this.targetScope = v; }
 }

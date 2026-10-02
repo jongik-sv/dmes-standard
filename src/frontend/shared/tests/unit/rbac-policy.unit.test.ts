@@ -13,6 +13,7 @@ const CFG: RbacPolicyConfig = {
     "/api/mcm/oasis/secUser/myMenus",
     "/api/mcm/oasis/secUser/myButtonEndpoints",
     "/api/mcm/oasis/secFavorite/search",
+    "/api/mls/oasis/noticeBoard/search", // m-mcm proxy.ts 와 같은 값 — 포털 홈 공지 목록(2026-10-02)
   ],
   lovPattern: /^\/api\/[^/]+\/lov\//,
   unmatchedDeny: false,
@@ -133,6 +134,13 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
   it("PUBLIC 은 token 없어도 pass (loader 미호출)", async () => {
     expect(await evaluateApiPolicy("/api/auth/login", null, CFG, loadThrow)).toBe("pass");
     expect(await evaluateApiPolicy("/api/mcm/auth/refresh", null, CFG, loadThrow)).toBe("pass");
+  });
+  it("AUTH_ONLY(mls noticeBoard.search) — 권한키 없는 사용자도 pass(loader 미호출), 같은 서비스의 다른 action 은 RBAC", async () => {
+    // 홈 공지는 로그인한 모든 사용자 몫이고 게시 대상은 서비스가 사용자 역할로 거른다 — 역할 매핑 없이 열려야 한다.
+    expect(await evaluateApiPolicy("/api/mls/oasis/noticeBoard/search", viewer, CFG, loadThrow)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mls/oasis/noticeBoard/search", null, CFG, loadThrow)).toBe("unauthorized");
+    expect(await evaluateApiPolicy("/api/mls/oasis/noticeBoard/save", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    expect(await evaluateApiPolicy("/api/mls/oasis/noticeMgmt/search", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
   });
   it("AUTH_ONLY 라도 미로그인이면 unauthorized", async () => {
     expect(await evaluateApiPolicy("/api/mcm/oasis/secUser/myMenus", null, CFG, loadThrow)).toBe("unauthorized");

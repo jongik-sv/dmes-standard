@@ -12,13 +12,14 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 
 /**
  * {@code TB_MLS_NOTICE} JPA Repository (noticeMgmt 화면 owner).
  *
- * <p>기능설계서 §3 조회조건 S-001~S-004 를 단일 JPQL 로 처리한다.
- * 방언 독립을 위해 native query 를 쓰지 않는다 — local 은 SQLite, 운영은 MSSQL 이다.
+ * <p>기능설계서 §3 조회조건 S-001~S-006 과 홈 공지 목록(noticeBoard)을 JPQL 로 처리한다.
+ * 방언 독립을 위해 native query 를 쓰지 않는다 — local 은 SQLite, 운영 방언은 고객사가 정한다.
  *
  * <p><b>null-guard 관용구</b>: {@code (:p IS NULL OR :p = '' OR ...)} 는 mcm
  * {@code SecRoleRepository.searchByFilter} 가 쓰는 정본 패턴이다. FE 가 미입력 조건을 빈 문자열로
@@ -27,7 +28,8 @@ import java.util.List;
 public interface NoticeRepository extends JpaRepository<Notice, String> {
 
     /**
-     * 기능설계서 §3 조회 (S-001 제목 LIKE / S-002 게시상태 일치 / S-003·S-004 게시기간 교차).
+     * 기능설계서 §3 조회 (S-001 제목 LIKE / S-002 게시상태 일치 / S-003·S-004 게시기간 교차 /
+     * S-005 공지 분류 일치 / S-006 본문 형식 일치).
      *
      * <p><b>게시기간은 "포함" 이 아니라 "교차" 다</b> — 조회 구간 [from, to] 와 공지의 게시구간
      * [postStartDt, postEndDt] 가 하루라도 겹치면 결과에 포함한다. 게시기간이 비어 있는(NULL) 공지는
@@ -42,12 +44,55 @@ public interface NoticeRepository extends JpaRepository<Notice, String> {
               AND (:pStatus IS NULL OR :pStatus = '' OR n.noticeStatus = :pStatus)
               AND (:pFromDt IS NULL OR n.postEndDt IS NULL OR n.postEndDt >= :pFromDt)
               AND (:pToDt IS NULL OR n.postStartDt IS NULL OR n.postStartDt <= :pToDt)
+              AND (:pCategory IS NULL OR :pCategory = '' OR n.noticeCategory = :pCategory)
+              AND (:pFormat IS NULL OR :pFormat = '' OR n.contentFormat = :pFormat)
             ORDER BY n.noticeId DESC
             """)
     List<Notice> searchByFilter(@Param("pTitle") String pTitle,
                                 @Param("pStatus") String pStatus,
                                 @Param("pFromDt") LocalDate pFromDt,
-                                @Param("pToDt") LocalDate pToDt);
+                                @Param("pToDt") LocalDate pToDt,
+                                @Param("pCategory") String pCategory,
+                                @Param("pFormat") String pFormat);
+
+    /** 조건 없이 전건 — 저장·상태변경 뒤 재조회용. */
+    default List<Notice> searchAll() {
+        return searchByFilter(null, null, null, null, null, null);
+    }
+
+    /**
+     * 홈 화면 공지 목록 (noticeBoard) — 게시중이고 {@code pToday} 가 게시기간 안인 공지.
+     *
+     * <p>게시 대상(V4): {@code TARGET_SCOPE='ALL'} 이거나, {@code 'ROLE'} 이고 {@code pRoles}(현재 사용자 역할 ID) 중 하나가
+     * TB_MLS_NOTICE_TARGET 에 있는 공지. {@code pRoles} 는 비우면 안 된다 — 역할이 없는 사용자는 서비스가 결코 일치하지 않는
+     * 값 하나를 넣어 보낸다(빈 IN 목록은 방언마다 문법 오류가 난다).
+     *
+     * <p>게시기간의 시작·종료가 NULL 이면 그 쪽은 열린 구간으로 본다. 상태값({@code POSTED})과 기준일은 서비스가
+     * 고정해서 넘긴다 — 모든 로그인 사용자가 부르는 경로라 요청 값으로 조회 범위를 넓힐 수 없어야 한다.
+     *
+     * <p>정렬: 상단 고정(PIN_YN='Y') → 긴급(URGENT) → 등록 시각 최신 → 공지번호 역순. 등록 시각이 NULL 인 행
+     * (V2 시드처럼 C_AT 없이 넣은 행)은 맨 뒤로 보낸다 — DESC 정렬에서 NULL 의 위치가 SQLite 와 Oracle·PostgreSQL 이
+     * 서로 달라서 CASE 로 고정한다. 같은 이유로 {@code NULLS LAST} 대신 CASE 를 쓴다.
+     */
+    @Query("""
+            SELECT n FROM Notice n
+            WHERE n.noticeStatus = :pStatus
+              AND (n.postStartDt IS NULL OR n.postStartDt <= :pToday)
+              AND (n.postEndDt IS NULL OR n.postEndDt >= :pToday)
+              AND (n.targetScope = 'ALL'
+                   OR (n.targetScope = 'ROLE'
+                       AND EXISTS (SELECT 1 FROM NoticeTarget t
+                                    WHERE t.noticeId = n.noticeId AND t.roleId IN :pRoles)))
+            ORDER BY CASE WHEN n.pinYn = 'Y' THEN 0 ELSE 1 END,
+                     CASE WHEN n.noticeCategory = 'URGENT' THEN 0 ELSE 1 END,
+                     CASE WHEN n.createdAt IS NULL THEN 1 ELSE 0 END,
+                     n.createdAt DESC,
+                     n.noticeId DESC
+            """)
+    List<Notice> findBoard(@Param("pStatus") String pStatus,
+                           @Param("pToday") LocalDate pToday,
+                           @Param("pRoles") Collection<String> pRoles,
+                           Limit limit);
 
     /**
      * 채번 보조 — 같은 날짜 prefix 의 마지막 {@code NOTICE_ID} 1건.

@@ -32,4 +32,8 @@ dependencies {
     // Spring Boot 4 부터 FlywayAutoConfiguration 이 별도 모듈(spring-boot-flyway)로 빠졌다.
     api 'org.flywaydb:flyway-core'
     api 'org.springframework.boot:spring-boot-flyway'
+
+    // 공지 본문 HTML 소독(noticeMgmt save, CONTENT_FORMAT='HTML') — 2026-10-02 추가.
+    // Spring Boot BOM 이 관리하지 않는 라이브러리라 버전을 명시한다. 저장소에 기존 소독 라이브러리가 없었다.
+    implementation 'org.jsoup:jsoup:1.23.2'
 }

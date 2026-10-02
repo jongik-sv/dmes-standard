@@ -249,3 +249,13 @@ shared·m-mcm 의 Prettier 는 `prettier-plugin-tailwindcss` 를 쓴다. 이 플
 포털(m-mcm `app/globals.css`)이 싣는 Tailwind v4 preflight 가 `ol, ul, menu { list-style: none }`(layer base)을 건다. 화면에 글머리 점·번호가 필요하면 그 요소의 CSS 에 `list-style: disc`(중첩 `circle`)·`decimal` 과 왼쪽 들여쓰기를 직접 준다. 레이어 밖 규칙이라 preflight 를 이긴다. 단위 테스트(happy-dom)에는 preflight 가 없어 이 문제가 보이지 않는다.
 
 - 마크다운 글(메모·설명)은 `@dk-oasis/shared/markdown-editor` 가 이미 명시한다 — 화면에서 다시 그리지 않는다.
+
+## 23. 편집기 칸 — 남는 높이를 채우게 한다 (2026-10-02)
+
+`MarkdownField`(`@dk-oasis/shared/markdown-editor`)와 `Textarea` 는 기본 높이가 내용만큼(또는 `rows`)이라, 아래 빈 공간이 있어도 짧게 남는다. 공지 관리 상세에서 본문 편집기가 짧게 남고 아래가 비었다.
+
+- 상세 패널을 세로 flex(`display: flex; flex-direction: column`)로 두고, 위 입력표는 `flex: none`, 편집기를 담는 구역은 `flex: 1 1 0` 으로 남은 높이를 채운다. 편집기까지 이어지는 칸은 모두 `flex: 1 1 0; min-height: 0` 이어야 하고, `MarkdownField` 에는 `fill` 을 준다. 고정 높이(`clamp(...)` 등)를 따로 정하지 않는다.
+- 좁은 화면에서 편집기가 0 으로 찌그러지지 않게 편집 구역에 `min-height`(예: 320px)를 두고, 그보다 작으면 상세 패널이 스크롤하게 둔다.
+- `Textarea`(shared)는 `.mantine-Textarea-root`·`.mantine-Input-wrapper` 를 `flex: 1 1 0`, `textarea` 를 `height: 100%; resize: none` 으로 둔다.
+- 미리보기는 편집기 옆에 칸으로 두지 말고, 필요하면 버튼으로 여는 팝업에 둔다(편집 폭을 줄이지 않는다).
+- 예시: `m-mls/pages/lsh/noticeMgmt/notice-styles.ts` 의 `.nm-detail`·`.nm-body*`·`.nm-editor*`.

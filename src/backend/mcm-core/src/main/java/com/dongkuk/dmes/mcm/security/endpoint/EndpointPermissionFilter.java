@@ -82,7 +82,8 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             "secfavorite/deletefolder", // 사이드바 즐겨찾기 그룹 삭제
             "secstartpgm/search",       // 포털 기본 화면 조회
             "secstartpgm/toggle",       // 탭 우클릭 기본 화면 등록/해제
-            "ntfnotification/"          // 포털 알림 (list/unreadCount/markRead/markAllRead) — 본인 데이터
+            "ntfnotification/",         // 포털 알림 (list/unreadCount/markRead/markAllRead) — 본인 데이터
+            "noticeboard/search"        // 포털 홈 공지 목록(mls) — 서비스가 현재 사용자 역할로 게시 대상을 거른다 (2026-10-02)
     );
 
     private static boolean isAuthOnly(PermKey k) {

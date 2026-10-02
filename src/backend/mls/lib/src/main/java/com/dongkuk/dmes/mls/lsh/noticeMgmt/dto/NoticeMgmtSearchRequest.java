@@ -1,7 +1,7 @@
 /*
  * 작성자: Agent
  * 작성일: 2026-09-03
- * 내용: noticeMgmt action=search 요청 DTO — 기능설계서 §3 조회조건 S-001~S-004
+ * 내용: noticeMgmt action=search 요청 DTO — 기능설계서 §3 조회조건 S-001~S-006
  */
 package com.dongkuk.dmes.mls.lsh.noticeMgmt.dto;
 
@@ -32,13 +32,23 @@ public class NoticeMgmtSearchRequest {
     /** S-004 게시기간(종료) — 조회 구간 상한. {@code yyyy-MM-dd} 문자열. */
     private String postEndDt;
 
+    /** S-005 공지 분류 — {@code NOTICE_CATEGORY} 일치 (LV-003). 빈 값 = 전체. 허용 코드 밖이면 서비스가 거부한다. */
+    private String noticeCategory;
+
+    /** S-006 본문 형식 — {@code CONTENT_FORMAT} 일치 (LV-002). 빈 값 = 전체. 허용 코드 밖이면 서비스가 거부한다. */
+    private String contentFormat;
+
     public String getTitle() { return title; }
     public String getNoticeStatus() { return noticeStatus; }
     public String getPostStartDt() { return postStartDt; }
     public String getPostEndDt() { return postEndDt; }
+    public String getNoticeCategory() { return noticeCategory; }
+    public String getContentFormat() { return contentFormat; }
 
     public void setTitle(String v) { this.title = v; }
     public void setNoticeStatus(String v) { this.noticeStatus = v; }
     public void setPostStartDt(String v) { this.postStartDt = v; }
     public void setPostEndDt(String v) { this.postEndDt = v; }
+    public void setNoticeCategory(String v) { this.noticeCategory = v; }
+    public void setContentFormat(String v) { this.contentFormat = v; }
 }

@@ -48,6 +48,9 @@ const RBAC_POLICY: RbacPolicyConfig = {
     "/api/mcm/oasis/secFavorite/deleteFolder", // 사이드바 즐겨찾기 그룹 삭제
     "/api/mcm/oasis/secStartPgm/search", // 포털 기본 화면 조회 (BE EndpointPermissionFilter 와 동기화)
     "/api/mcm/oasis/secStartPgm/toggle", // 탭 우클릭 기본 화면 등록/해제
+    // 포털 홈 공지 목록(mls noticeBoard) — 로그인한 모든 사용자. 서비스가 현재 사용자 역할로 게시 대상을 거른다
+    // (본인 기준 데이터). 조회 action 하나만 연다 — noticeBoard 에는 쓰기 action 이 없다. BE EndpointPermissionFilter 와 동기화.
+    "/api/mls/oasis/noticeBoard/search",
     // 포털 알림(STOMP push) 스택 도입 시 아래 2건을 추가한다 — BE 의 AUTH_ONLY 접두 목록과 동기화할 것.
     //   "/api/mcm/oasis/ntfNotification/"  알림 조회/읽음 처리
     //   "/api/mcm/notify/ws-ticket"        WS 단명 티켓 발급 (본인 티켓)

@@ -14,6 +14,9 @@
 
 **사용자 동의**: 있음 (2026-09-03 선택).
 
+**메뉴 위치 (2026-10-02, 사용자 요청)**: 메뉴는 공통관리(`mcm`) 아래 공지관리(`lsh`)에 두고, 코드(백엔드·화면)는 mls 에 그대로 둔다 —
+OBJECT `SYSTEM_CODE=mls`, componentPath `lsh/noticeMgmt` 유지(mcm `DataInitializer.seedMlsMenus()`).
+
 **재검토 조건**: 공지사항이 실제 업무로 승격되면 물류(mls) 소속은 의미상 맞지 않는다. 그때 모듈을 옮기면
 `screenId` 는 그대로 두고 `moduleGroup` · 패키지 · BPMN 위치 · OBJECT `SYSTEM_CODE` 만 바꾸면 된다.
 
