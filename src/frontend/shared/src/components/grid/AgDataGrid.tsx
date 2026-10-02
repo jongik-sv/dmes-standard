@@ -1,7 +1,7 @@
 "use client";
 
 import "./grid.css";
-import React, { useState, useMemo, useRef, useEffect, useCallback, memo } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback, memo, type CSSProperties } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 import type {
@@ -564,20 +564,30 @@ export interface MdmGridTooltipParams {
 }
 
 /**
+ * 사용자 툴팁 상자의 폭. ag-grid React 는 사용자 툴팁을 폭 0 인 absolute 감싸개(.ag-tooltip-custom) 안에 넣는다. 그래서 absolute 인
+ * .ag-tooltip 이 내용에 맞춰 줄어들 폭을 얻지 못해 글자마다 줄이 바뀐다(2026-10-03 포털 확인). 내용 폭을 쓰고 넓은 내용은 최대 폭에서 줄을 바꾼다.
+ */
+const MDM_TOOLTIP_BOX_STYLE: CSSProperties = { width: "max-content", maxWidth: 380 };
+
+/**
  * MDM 메타가 있는 열의 ag-grid 사용자 툴팁(tooltipComponent). ag-grid 는 열의 tooltipComponent 를 머리글과 셀 툴팁에 함께 쓰므로,
  * 머리글(`location: "header"`)이면 MdmMetaCard 를, 셀이면 기본 툴팁과 같은 값 글자를 그린다.
  */
 export function MdmGridTooltip(props: ITooltipParams & Partial<MdmGridTooltipParams>) {
   if (props.location === "header" && props.mdmColumn) {
     return (
-      <div className="ag-tooltip mdm-meta-tooltip">
+      <div className="ag-tooltip mdm-meta-tooltip" style={MDM_TOOLTIP_BOX_STYLE}>
         <MdmMetaCard column={props.mdmColumn} domain={props.mdmDomain ?? null} />
       </div>
     );
   }
   // ag-grid 기본 TooltipComponent 와 같게 value(tooltipValueGetter 결과)만 그린다 — valueFormatted 는 쓰지 않는다.
   const value = props.value;
-  return <div className="ag-tooltip">{value == null ? "" : String(value)}</div>;
+  return (
+    <div className="ag-tooltip" style={MDM_TOOLTIP_BOX_STYLE}>
+      {value == null ? "" : String(value)}
+    </div>
+  );
 }
 
 /** 열 하나의 머리글 글자. MDM 이 없으면 적은 header, 그것도 없으면 key(ag-grid 가 field 로 'Code Nm' 같은 이름을 지어내지 않게). */

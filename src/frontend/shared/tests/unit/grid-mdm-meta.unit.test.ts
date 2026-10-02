@@ -150,6 +150,17 @@ describe("MdmGridTooltip", () => {
     expect(host.querySelector(".ag-tooltip")).not.toBeNull();
     expect(host.querySelector("[data-mdm-section]")).toBeNull();
   });
+
+  it("툴팁 상자는 내용 폭(max-content)을 쓰고 최대 폭을 둔다 — ag-grid React 감싸개(.ag-tooltip-custom)가 폭 0 인 absolute 라 글자마다 줄이 바뀌지 않게", () => {
+    render(createElement(MdmGridTooltip, { location: "header", value: "제목", mdmColumn: TITLE, mdmDomain: TEXT_DOMAIN } as never));
+    const header = host.querySelector<HTMLElement>(".ag-tooltip")!;
+    expect(header.style.width).toBe("max-content");
+    expect(header.style.maxWidth).toBe("380px");
+    act(() => root!.render(createElement(MdmGridTooltip, { location: "cell", value: "긴 값", mdmColumn: TITLE } as never)));
+    const cell = host.querySelector<HTMLElement>(".ag-tooltip")!;
+    expect(cell.style.width).toBe("max-content");
+    expect(cell.style.maxWidth).toBe("380px");
+  });
 });
 
 describe("AgDataGrid 렌더", () => {
