@@ -111,17 +111,8 @@ export interface ParseExprResult {
   problems: Array<{ kind: string; detail: string }>;
 }
 
-/** 도메인 검색 한 줄(서버 `searchDomains`). */
-export interface DomainRow {
-  domainId: number;
-  stdName: string;
-  domainName?: string | null;
-  domainKind?: string | null;
-  dataType: "BOOLEAN" | "NUMBER" | "STRING" | "DATE";
-  length?: number | null;
-  scale?: number | null;
-  stdRule?: string | null;
-}
+/** 도메인 검색 한 줄 — 정의는 m-mdm 공용 `@/domain`. */
+export type { DomainRow } from "@/domain";
 
 export interface RuleEditView {
   me: string;

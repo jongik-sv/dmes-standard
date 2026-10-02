@@ -88,13 +88,6 @@ export interface ColumnListRow {
   usageNote: string | null;
 }
 
-export interface DomainOption {
-  domainId: number;
-  domainName: string;
-  stdName: string;
-  label: string;
-}
-
 export interface SystemOption {
   systemCode: string;
   systemName: string;
@@ -102,7 +95,6 @@ export interface SystemOption {
 
 export interface SearchResult {
   list: ColumnListRow[];
-  domains: DomainOption[];
   systems: SystemOption[];
 }
 

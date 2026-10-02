@@ -176,7 +176,7 @@ test.describe("mdm columnMng — 컬럼 사전", () => {
     await decompose(page, "코일 두께");
     await expect(page.getByTestId("gen-preview")).toHaveText("COIL_THK");
     await page.getByTestId("gen-apply").click();
-    await expect(page.getByTestId("form-domain").locator("option:checked")).toContainText("코일 두께 (COIL_THK)");
+    await expect(page.getByTestId("form-domain")).toHaveValue("코일 두께");
     await addSystemRow(page, 0, "ERP", "ZZ_RMTL_COIL_THK_DEV");
     await page.getByRole("button", { name: "저장", exact: true }).click();
     await expect(await errorModalText(page)).toContainText(SYSTEM_FIELD_ERROR);

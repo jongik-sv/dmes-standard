@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgDataGrid } from "@dk-oasis/shared/grid";
 import { Button, Input } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
+import { DomainSearchBox, matchDomain } from "@/domain";
 import { badgeStyle } from "@/shell";
 
 import { saveColumnDraft, searchDomains, type ExprSlot } from "../../api";
@@ -41,7 +42,6 @@ import {
   type ParsedRef,
 } from "./column-draft";
 import { buildColumnGridColumns, cellPatch, toGridRow, type ColumnGridHandlers, type ExprInfo } from "./column-grid";
-import { DomainSearchBox, matchDomain } from "./DomainSearchBox";
 
 const NO_CANDIDATES: VarCandidate[] = [];
 
@@ -357,6 +357,7 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
       <Modal open={!!domainRow} title={`값 타입 도메인 찾기 · ${domainRow?.varName || "새 열"}`} size="md" onClose={() => setDomainPopup(null)}>
         {domainRow && (
           <DomainSearchBox
+            search={searchDomains}
             key={`${domainRow.key}:${domainPopup?.keyword ?? ""}`}
             testId={`col-domain-${domainRow.key}`}
             initialKeyword={domainPopup?.keyword}
