@@ -56,11 +56,11 @@
 
 | 시작 사유 (`START_KIND`) | 언제 |
 |---|---|
-| `OPEN` | `openPageTab` 이 **새 탭을 만든** 경우 |
+| `OPEN` | `openPageTab` 이 **새 탭을 만든** 경우, 기본 화면 자동 열기로 새 탭을 만든 경우 |
 | `SWITCH` | 이미 열린 탭으로 활성 탭이 바뀐 경우(탭 바 클릭, 메뉴로 기존 탭 재선택, 뒤로가기, 탭 닫힘 후 이웃 탭 활성, 새로고침 뒤 복원). 홈 탭으로 가는 경우는 구간을 끝내기만 한다 |
 | `RESUME` | 브라우저 탭이 다시 보이거나, 무입력 후 입력이 돌아오거나, 긴 구간을 자른 뒤 이어지는 경우 |
 
-종료: 다른 탭 활성화, 활성 탭 닫기, `visibilitychange` 가림, `pagehide`, 로그아웃(`doLogout` 맨 앞), 무입력 30분(종료 시각 = 마지막 입력 시각), 구간 길이 15분 도달(자르고 `RESUME` 으로 이어감 — 창이 비정상 종료돼도 잃는 시간을 15분 이내로 묶는다).
+종료: 다른 탭 활성화, 활성 탭 닫기, `visibilitychange` 가림, `pagehide`, 로그아웃(`doLogout` 맨 앞), 무입력 30분(종료 시각 = 마지막 입력 시각), 구간 길이 15분 도달(마지막 입력 시각까지 잘라 보내고 그 시각부터 `RESUME` 으로 이어감 — 창이 비정상 종료돼도 잃는 시간을 15분 이내로 묶고, 무입력 판정과도 어긋나지 않는다).
 
 - 1초 미만 구간은 버린다.
 - 홈 탭(`tab.isHome`)은 기록하지 않는다. 홈 탭이 활성인 동안에는 구간이 없고, 홈에서 다른 탭으로 가면 그 탭의 구간이 `SWITCH`(새 탭이면 `OPEN`)로 시작한다.
@@ -81,7 +81,7 @@
 - `usage-sender.ts` — 큐(최대 200건, 넘치면 오래된 것부터 버림), 20건 또는 60초마다 묶음 전송(최대 100건/요청), 실패 시 큐에 되돌려 다음 주기 재시도, `flush({ keepalive: true })`. 오류는 `console.warn` 만 남긴다.
 - `PortalShell` 에 `onUsageSegments?: (segments: UsageSegment[]) => void` prop 추가. prop 이 없으면 추적기를 만들지 않는다.
 - `portal-shell/index.ts` 에 `export *` 추가. package.json·tsup 수정은 필요 없다.
-- m-mcm `app/portal/page.tsx` 가 sender 를 만들고 prop 으로 연결한다. 전송 body 는 OASIS 형식 `{ meta: { menuId: "PORTAL_SHELL" }, params: {}, grids: { segments: { rows } } }` 이며 userId 는 넣지 않는다.
+- m-mcm `app/portal/page.tsx` 가 sender 를 만들고 prop 으로 연결한다. 전송 body 는 OASIS 형식 `{ meta: { userId, menuId: "PORTAL_SHELL" }, params: {}, grids: { segments: { rows } } }` 이다. `meta.userId` 는 OASIS 봉투 관례상 넣지만 서버는 쓰지 않고 인증 정보로 채운다.
 
 ## 4. 백엔드 (mcm-core / mcm/api)
 
@@ -131,7 +131,7 @@
 ### 4.5 통계 조회 서비스 `screenUsageStat`
 
 공통 파라미터: `fromDt`, `toDt`(yyyyMMdd), `deptCd?`, `userId?`, `pageId?`.
-조회 범위에 오늘이 포함되면 오늘분은 원본에서 같은 키로 합산해 집계 결과에 더한다.
+조회 범위가 집계 테이블 최대 일자 다음 날 이후(오늘 포함)에 걸치면 그 구간은 원본에서 같은 키로 합산해 더한다(02:00 집계 전 어제분 누락 방지).
 
 | action | 반환 | 내용 |
 |---|---|---|
@@ -139,8 +139,8 @@
 | `byScreen` | grid | 화면명(메뉴명), pageId, 메뉴 경로, 열람 횟수, 이용자 수, 총·평균 이용 시간, 마지막 이용일 |
 | `byDept` | grid | 부서코드·부서명, 이용자 수, 열람 횟수, 이용 시간, 최다 이용 화면 |
 | `byUser` | grid | 사용자 ID·이름, 부서, 열람 횟수, 이용 시간, 마지막 이용일 |
-| `unused` | grid | `MENU_VIEW_YN='Y'` 인 메뉴 화면 중 `unusedDays`(기본 90) 동안 열람이 없는 화면, 마지막 이용일(전체 기간), 메뉴 경로 |
-| `history` | grid | 원본 구간 그대로(사용자·부서·화면·시작 사유·시작·종료·길이·IP). 최근 1년, 한 번에 최대 31일 |
+| `unused` | grid | `MENU_VIEW_YN='Y'` 인 메뉴 화면 중 `unusedDays`(기본 90) 동안 이용 기록(구간 종류 무관)이 없는 화면, 마지막 이용일(전체 기간), 메뉴 경로 |
+| `history` | grid | 원본 구간 그대로(사용자·부서·화면·시작 사유·시작·종료·길이·IP). 최근 1년, 한 번에 시작·종료일 포함 최대 31일, 최신순 최대 10,000행 |
 
 - 부서별 탭의 "선택 부서의 화면별 내역"은 `byScreen` 에 `deptCd` 를 넣어 호출한다.
 - 집계 SQL 은 `GROUP BY`·`SUM`·`COUNT(DISTINCT)` 와 범위 파라미터만 쓰는 이식 가능한 SQL(JPQL 우선)로 쓴다. 계층 메뉴 경로가 필요하면 기존 `SecMenuNativeRepository` 의 방언 분기 패턴을 재사용한다.
@@ -164,7 +164,7 @@
   4. 사용자별 — `AgDataGrid`
   5. 미사용 화면 — 기준 일수 입력 + `AgDataGrid`
   6. 이용 이력 — `AgDataGrid`. 기간이 31일을 넘으면 조회 전에 안내하고 막는다
-- 엑셀은 그리드 기본 기능, 탭을 바꾸면 그 탭 기준으로 조회한다(이미 조회한 조건이 같으면 다시 부르지 않는다).
+- 엑셀은 shared 표준 `exportToExcel` 로 현재 탭 그리드를 내보낸다. 탭을 바꾸면 그 탭 기준으로 조회한다(이미 조회한 조건이 같으면 다시 부르지 않는다).
 - shared 래퍼만 쓴다(`@mantine/*`·`ag-grid-*` 직접 import 금지), 로컬 `.css` import 금지, `mantine-aggrid-ui` audit 0건.
 - 새로 만드는 공통 부품은 없다(기간은 표준 `SearchField` 2개).
 
@@ -198,8 +198,8 @@
 | U3 통계 화면 | `csa/screenUsageStat` 화면(4.5 응답 계약 기준) | 없음(계약 기준으로 병렬), 통합 확인은 U2 뒤 |
 | U4 메뉴 등록·통합 확인 | 6절 전체 | U1·U2·U3 |
 
-## 9. 열린 결정 (권장안으로 기재, 문서 검토 때 확정)
+## 9. 결정 (2026-10-02 사용자 검토로 확정)
 
-1. shared `Tabs` 는 Part B 허용 목록(§1)에 없다 → 이 화면에 사용하고 허용 목록에 `tabs` 서브패스를 추가한다(가이드 문서 수정 포함).
+1. shared `Tabs` 는 Part B 허용 목록(§1)에 없다 → **확정:** 이 화면에 사용하고 허용 목록에 `tabs` 서브패스를 추가한다(가이드 문서 수정 포함).
 2. ~~홈 탭 포함 여부~~ → **확정(사용자 지시): 홈 탭은 기록하지 않는다.**
-3. 새로고침 뒤 복원된 활성 탭 → `SWITCH` 로 시작(열람 횟수 미포함, 이용 시간만 반영).
+3. 새로고침 뒤 복원된 활성 탭 → **확정:** `SWITCH` 로 시작(열람 횟수 미포함, 이용 시간만 반영).
