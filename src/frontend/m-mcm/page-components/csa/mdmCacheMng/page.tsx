@@ -12,7 +12,7 @@ import { ContentBody, ContentPanel, PageLayout, SearchArea, SearchField } from "
 import { AgDataGrid, GridBadge, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
-import { fetchAllStatus, fetchEntries, forceKeys, groupByType } from "./api";
+import { describeForceFailure, fetchAllStatus, fetchEntries, forceByType, groupByType } from "./api";
 import { RegisterModal } from "./RegisterModal";
 import {
   MDM_CACHE_MODULES,
@@ -20,6 +20,7 @@ import {
   TARGET_TYPE_LABELS,
   TARGET_TYPE_OPTIONS,
   emptyFilters,
+  isReachable,
   type CacheEntryRow,
   type EntryFilters,
   type ForceKind,
@@ -35,6 +36,8 @@ const STATE_BADGE: Record<ModuleState, { bg?: string; color?: string; muted?: bo
   OK: { bg: "var(--color-success-soft)", color: "var(--color-success)" },
   LAGGING: { bg: "var(--color-warning-soft)", color: "var(--color-warning)" },
   FAILING: { bg: "var(--color-danger-soft)", color: "var(--color-danger)" },
+  UNAUTHORIZED: { bg: "var(--color-danger-soft)", color: "var(--color-danger)" },
+  FORBIDDEN: { bg: "var(--color-warning-soft)", color: "var(--color-warning)" },
   DOWN: { muted: true },
 };
 
@@ -109,7 +112,7 @@ export default function MdmCacheMngPage() {
       const { rows, latestSeq: latest } = await fetchAllStatus(MDM_CACHE_MODULES);
       setModules(rows);
       setLatestSeq(latest);
-      const keep = rows.find((r) => r.module === selectedModule && r.state !== "DOWN");
+      const keep = rows.find((r) => r.module === selectedModule && isReachable(r.state));
       if (keep) {
         await loadEntries(keep.module, filters);
       } else {
@@ -131,12 +134,12 @@ export default function MdmCacheMngPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** 위 행을 누르면 그 모듈의 항목을 조회한다. 연결 안 된 모듈은 항목을 비운다. */
+  /** 위 행을 누르면 그 모듈의 항목을 조회한다. 상태를 받지 못한 모듈(인증 실패·권한 없음·연결 안 됨)은 항목을 비운다. */
   const handleModuleClick = useCallback(
     async (row: Record<string, unknown>) => {
       const moduleId = String(row.module ?? "");
       setSelectedModule(moduleId);
-      if (row.state === "DOWN") {
+      if (!isReachable(row.state as ModuleState)) {
         setEntries([]);
         setSelectedKeys([]);
         return;
@@ -148,29 +151,38 @@ export default function MdmCacheMngPage() {
 
   const openRegister = () => {
     const row = modules.find((r) => r.module === selectedModule);
-    if (!row || row.state === "DOWN") {
+    if (!row || !isReachable(row.state)) {
       showMessage({ message: "모듈을(를) 선택하세요.", alertType: "warning" });
       return;
     }
     setRegisterOpen(true);
   };
 
+  /**
+   * 대상 종류마다 강제 기록한다. 하나라도 반영하면 항목 목록을 다시 조회하고, 중간에 실패하면 어느 종류까지 반영했는지 알린다.
+   * 강제 기록은 다음 확인(약 10초) 때 반영되므로 바로 다시 조회한 목록에는 아직 남아 있을 수 있다.
+   */
   const runForce = useCallback(
     async (kind: ForceKind) => {
       setIsBusy(true);
       try {
-        for (const [type, keys] of groupByType(selectedEntries)) {
-          await forceKeys(type, keys, kind);
+        const outcome = await forceByType(groupByType(selectedEntries), kind);
+        if (outcome.failedType) {
+          showMessage({ title: "오류", message: describeForceFailure(outcome), alertType: "error" });
+        } else {
+          showMessage({ message: kind === "EVICT" ? "삭제되었습니다." : "재등록을 요청했습니다.", alertType: "success", toast: true });
         }
-        showMessage({ message: kind === "EVICT" ? "삭제되었습니다." : "재등록을 요청했습니다.", alertType: "success", toast: true });
-        setSelectedKeys([]);
+        if (outcome.applied.length > 0) {
+          setSelectedKeys([]);
+          if (selectedModule) await loadEntries(selectedModule, filters);
+        }
       } catch (e) {
         showMessage({ title: "오류", message: errorText(e), alertType: "error" });
       } finally {
         setIsBusy(false);
       }
     },
-    [selectedEntries, showMessage],
+    [filters, loadEntries, selectedEntries, selectedModule, showMessage],
   );
 
   /** 중요 액션(Local-Rules §9) — 영향 범위(모든 모듈·인스턴스, 다음 확인 약 10초)를 보여 주고 확인을 받는다. */

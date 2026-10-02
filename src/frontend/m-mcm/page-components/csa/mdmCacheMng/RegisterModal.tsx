@@ -11,7 +11,7 @@ import { Button, Select, Textarea } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
-import { loadKeys, parseKeys } from "./api";
+import { describeLoadResult, loadKeys, parseKeys } from "./api";
 import { REGISTER_TYPE_OPTIONS, type MdmTargetType } from "./types";
 
 export interface RegisterModalProps {
@@ -42,22 +42,16 @@ export function RegisterModal({ open, module, onClose, onRegistered }: RegisterM
   const handleSubmit = async () => {
     const keys = parseKeys(keysText);
     if (keys.length === 0) {
-      showMessage({ message: "키을(를) 입력하세요.", alertType: "warning" });
+      showMessage({ message: "키를 입력하세요.", alertType: "warning" });
       return;
     }
     setIsBusy(true);
     try {
       const r = await loadKeys(module, type, keys);
       if (r.missing.length > 0 || r.unavailable.length > 0) {
-        showMessage({
-          title: "확인",
-          message:
-            `적재 ${r.loaded.length}건, MDM 에 없음 ${r.missing.length}건(${r.missing.join(", ")}), ` +
-            `받을 수 없음 ${r.unavailable.length}건(${r.unavailable.join(", ")})`,
-          alertType: "warning",
-        });
+        showMessage({ title: "확인", message: describeLoadResult(r), alertType: "warning" });
       } else {
-        showMessage({ message: "저장되었습니다.", alertType: "success", toast: true });
+        showMessage({ message: "적재했습니다.", alertType: "success", toast: true });
       }
       onRegistered();
       onClose();

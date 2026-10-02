@@ -36,14 +36,23 @@ export interface ModuleStatus {
   maxAgeSeconds: number;
 }
 
-export type ModuleState = "OK" | "LAGGING" | "FAILING" | "DOWN";
+/**
+ * 모듈 상태. UNAUTHORIZED·FORBIDDEN·DOWN 은 status 를 받지 못한 행이다 — 401(모듈이 BFF 요청을 인증하지 못함)·403(권한 없음)·
+ * 네트워크·5xx 등(연결 안 됨). 화면은 이 행들을 로그인 이동 없이 그리드에 보여 준다.
+ */
+export type ModuleState = "OK" | "LAGGING" | "FAILING" | "UNAUTHORIZED" | "FORBIDDEN" | "DOWN";
 
 export const MODULE_STATE_LABELS: Record<ModuleState, string> = {
   OK: "정상",
   LAGGING: "최신 아님",
   FAILING: "확인 실패",
+  UNAUTHORIZED: "인증 실패",
+  FORBIDDEN: "권한 없음",
   DOWN: "연결 안 됨",
 };
+
+/** status 를 받은 모듈인가(항목 조회·등록을 할 수 있는가). */
+export const isReachable = (state: ModuleState): boolean => state === "OK" || state === "LAGGING" || state === "FAILING";
 
 export interface ModuleStatusRow extends Record<string, unknown> {
   module: string;

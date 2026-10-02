@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiRequest = vi.fn();
+const getJson = vi.fn();
 
 vi.mock("@dk-oasis/shared/http", () => ({
   apiRequest: (...args: unknown[]) => apiRequest(...args),
+  getJson: (...args: unknown[]) => getJson(...args),
 }));
 
+/** shared HttpError 와 같은 모양(status 를 가진 Error). */
+const httpError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { name: "HttpError", status });
+
 import * as api from "../../../page-components/csa/mdmCacheMng/api";
+import { MODULE_STATE_LABELS, isReachable } from "../../../page-components/csa/mdmCacheMng/types";
 
 const bodyOf = (call: unknown[]) => JSON.parse((call[1] as { body: string }).body);
 
@@ -26,11 +32,12 @@ const status = (module: string, appliedSeq: number, latestSeq: number, consecuti
 describe("mdmCacheMng api", () => {
   beforeEach(() => {
     apiRequest.mockReset();
+    getJson.mockReset();
   });
 
   it("상태 — 모듈 다섯을 부르고 응답 없는 모듈은 DOWN, 뒤처지면 LAGGING, 실패 중이면 FAILING", async () => {
-    apiRequest.mockImplementation(async (url: string) => {
-      if (url.startsWith("/api/mqc/")) throw new Error("502");
+    getJson.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/mqc/")) throw httpError(502);
       if (url.startsWith("/api/mls/")) return status("mls", 5, 9);
       if (url.startsWith("/api/mpp/")) return status("mpp", 9, 9, 2);
       return status(url.split("/")[2], 9, 9);
@@ -38,7 +45,8 @@ describe("mdmCacheMng api", () => {
 
     const { rows, latestSeq } = await api.fetchAllStatus(["mcm", "mls", "mqc", "mpp", "mpn"]);
 
-    expect(apiRequest.mock.calls.map((c) => c[0])).toEqual([
+    expect(apiRequest).not.toHaveBeenCalled();
+    expect(getJson.mock.calls.map((c) => c[0])).toEqual([
       "/api/mcm/mdmMeta/status",
       "/api/mls/mdmMeta/status",
       "/api/mqc/mdmMeta/status",
@@ -57,8 +65,37 @@ describe("mdmCacheMng api", () => {
     expect(rows[2].appliedSeq).toBeNull();
   });
 
+  it("상태 — 401 은 인증 실패, 403 은 권한 없음, 네트워크·5xx 는 연결 안 됨이고 로그인으로 보내는 apiRequest 를 쓰지 않는다", async () => {
+    getJson.mockImplementation(async (url: string) => {
+      if (url.startsWith("/api/mqc/")) throw httpError(401);
+      if (url.startsWith("/api/mpp/")) throw httpError(403);
+      if (url.startsWith("/api/mpn/")) throw new Error("서버와 연결할 수 없습니다.");
+      if (url.startsWith("/api/mls/")) throw httpError(500);
+      return status("mcm", 9, 9);
+    });
+
+    const { rows } = await api.fetchAllStatus(["mcm", "mls", "mqc", "mpp", "mpn"]);
+
+    expect(apiRequest).not.toHaveBeenCalled();
+    expect(rows.map((r) => [r.module, r.state])).toEqual([
+      ["mcm", "OK"],
+      ["mls", "DOWN"],
+      ["mqc", "UNAUTHORIZED"],
+      ["mpp", "FORBIDDEN"],
+      ["mpn", "DOWN"],
+    ]);
+    expect(rows.map((r) => MODULE_STATE_LABELS[r.state])).toEqual(["정상", "연결 안 됨", "인증 실패", "권한 없음", "연결 안 됨"]);
+    expect(rows.map((r) => isReachable(r.state))).toEqual([true, false, false, false, false]);
+  });
+
+  it("항목 — 401 이어도 로그인으로 보내지 않고 상태 이름을 붙여 throw", async () => {
+    getJson.mockRejectedValue(httpError(401));
+    await expect(api.fetchEntries("mqc", { type: "", q: "" })).rejects.toThrow("인증 실패");
+    expect(apiRequest).not.toHaveBeenCalled();
+  });
+
   it("항목 — 종류·검색어·쪽을 쿼리로 보내고 행 키를 만든다", async () => {
-    apiRequest.mockResolvedValue({
+    getJson.mockResolvedValue({
       total: 1,
       page: 0,
       size: 200,
@@ -67,7 +104,7 @@ describe("mdmCacheMng api", () => {
 
     const page = await api.fetchEntries("mls", { type: "COLUMN", q: " coil " });
 
-    expect(apiRequest.mock.calls[0][0]).toBe("/api/mls/mdmMeta/entries?type=COLUMN&q=coil&page=0&size=200");
+    expect(getJson.mock.calls[0][0]).toBe("/api/mls/mdmMeta/entries?type=COLUMN&q=coil&page=0&size=200");
     expect(page.items[0].rowId).toBe("COLUMN:COIL_THK");
     expect(page.items[0].hits).toBe(3);
   });
@@ -100,6 +137,57 @@ describe("mdmCacheMng api", () => {
   it("강제 기록이 거부되면(meta.success=false) 서버 메시지로 throw", async () => {
     apiRequest.mockResolvedValue({ meta: { success: false, message: "시스템 관리자만 할 수 있습니다" } });
     await expect(api.forceKeys("COLUMN", ["A"], "EVICT")).rejects.toThrow("시스템 관리자만 할 수 있습니다");
+  });
+
+  it("강제 기록 응답에 data.result 가 없으면 성공으로 넘기지 않고 throw", async () => {
+    apiRequest.mockResolvedValue({ meta: { success: true }, data: {} });
+    await expect(api.forceKeys("COLUMN", ["A"], "EVICT")).rejects.toThrow("결과가 없습니다");
+    apiRequest.mockResolvedValue(undefined);
+    await expect(api.forceKeys("COLUMN", ["A"], "EVICT")).rejects.toThrow("결과가 없습니다");
+  });
+
+  it("여러 종류 강제 기록 — 중간에 실패하면 거기서 멈추고 적용된 종류와 실패한 종류를 알려 준다", async () => {
+    apiRequest
+      .mockResolvedValueOnce({ meta: { success: true }, data: { result: { fromSeq: 1, toSeq: 1, count: 1 } } })
+      .mockResolvedValueOnce({ meta: { success: false, message: "시스템 관리자만 할 수 있습니다" } });
+
+    const r = await api.forceByType(
+      [
+        ["COLUMN", ["A"]],
+        ["RULE", ["R"]],
+        ["CODE", ["C"]],
+      ],
+      "EVICT",
+    );
+
+    expect(apiRequest).toHaveBeenCalledTimes(2);
+    expect(r.applied).toEqual(["COLUMN"]);
+    expect(r.failedType).toBe("RULE");
+    expect(r.error).toBe("시스템 관리자만 할 수 있습니다");
+    expect(api.describeForceFailure(r)).toBe(
+      "컬럼은(는) 반영했고, 룰부터 반영하지 못했습니다(남은 종류: 룰, 마스터코드). 시스템 관리자만 할 수 있습니다",
+    );
+  });
+
+  it("여러 종류 강제 기록 — 모두 성공하면 실패 없음", async () => {
+    apiRequest.mockResolvedValue({ meta: { success: true }, data: { result: { fromSeq: 1, toSeq: 1, count: 1 } } });
+    const r = await api.forceByType(
+      [
+        ["COLUMN", ["A"]],
+        ["RULE", ["R"]],
+      ],
+      "RELOAD",
+    );
+    expect(r).toEqual({ applied: ["COLUMN", "RULE"], failedType: null, pending: [], error: null });
+  });
+
+  it("등록 결과 문구 — 빈 목록이면 괄호를 붙이지 않는다", () => {
+    expect(api.describeLoadResult({ loaded: ["A"], missing: ["X"], unavailable: [] })).toBe(
+      "적재 1건, MDM 에 없음 1건(X), 받을 수 없음 0건",
+    );
+    expect(api.describeLoadResult({ loaded: [], missing: [], unavailable: ["U1", "U2"] })).toBe(
+      "적재 0건, MDM 에 없음 0건, 받을 수 없음 2건(U1, U2)",
+    );
   });
 
   it("키 입력은 쉼표·공백·줄바꿈으로 나누고, 강제 기록은 대상 종류별로 묶는다", () => {
