@@ -18,6 +18,8 @@ import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.common.version.VersionSpiRegistry;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleConfirmCheckItem;
+import com.dongkuk.dmes.mdm.contract.version.VersionRef;
+import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
@@ -29,6 +31,7 @@ import com.dongkuk.dmes.mdm.dme.ruleConfirm.service.RuleConfirmService;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleSearchRequest;
 import com.dongkuk.dmes.mdm.dme.ruleMng.service.RuleMngService;
 import com.dongkuk.oasis.audit.AuditHolder;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -77,6 +80,8 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
     JdbcTemplate jdbc;
     @Autowired
     org.springframework.transaction.PlatformTransactionManager transactionManager;
+    @Autowired
+    VersionStateService versionStateService;
 
     @BeforeEach
     void seed() {
@@ -539,6 +544,18 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
     void META_확정은_룰을_기록한다() {
         MetaRevTestSupport.clear(jdbc);
         service.confirm(confirm(Q, 2, 0L, "2026-03-01 00:00:00", true));
+        assertEquals(List.of("RULE:" + Q + ":SAVE"), MetaRevTestSupport.rows(jdbc));
+    }
+
+    @Test
+    void META_확정_취소도_룰을_기록한다() {
+        // 미래 적용(NOW 2026-06-15 보다 뒤)으로 확정해야 취소할 수 있다(MDM025).
+        service.confirm(confirm(Q, 2, 0L, "2026-07-01 00:00:00", true));
+        MetaRevTestSupport.clear(jdbc);
+
+        versionStateService.cancelConfirm(new VersionRef(VersionTarget.BUSINESS_RULE, Q, new BigDecimal(DmeTestSupport.verText(2))), 1, "kim");
+
+        assertEquals("DRAFT", jdbc.queryForObject("SELECT STATUS FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER = 2", String.class, Q));
         assertEquals(List.of("RULE:" + Q + ":SAVE"), MetaRevTestSupport.rows(jdbc));
     }
 
