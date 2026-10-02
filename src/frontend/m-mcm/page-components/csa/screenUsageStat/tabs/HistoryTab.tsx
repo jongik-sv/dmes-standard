@@ -16,7 +16,7 @@ const HISTORY_COLUMNS: GridColumn[] = [
   durationCol("durationMs", "이용 시간"),
   {
     key: "startKind",
-    header: "시작 사유",
+    header: "구분",
     width: 80,
     align: "center",
     render: (v) =>

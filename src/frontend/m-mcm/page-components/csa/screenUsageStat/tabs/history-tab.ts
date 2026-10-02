@@ -14,7 +14,7 @@ export const HISTORY_EXPORT_COLUMNS: ExportColumn[] = [
   { key: "startedAt", header: "시작" },
   { key: "endedAt", header: "종료" },
   { key: "durationMs", header: "이용 시간" },
-  { key: "startKind", header: "시작 사유" },
+  { key: "startKind", header: "구분" },
   { key: "userId", header: "사용자 ID" },
   { key: "userNm", header: "사용자명" },
   { key: "deptNm", header: "부서" },

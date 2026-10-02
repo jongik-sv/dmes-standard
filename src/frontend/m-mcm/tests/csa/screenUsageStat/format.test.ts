@@ -247,7 +247,7 @@ describe("차트 변환", () => {
 });
 
 describe("엑셀 변환", () => {
-  it("이용 시간·일자·시작 사유를 읽는 글자로 바꾸고 원본은 그대로 둔다", () => {
+  it("이용 시간·일자·구분을 읽는 글자로 바꾸고 원본은 그대로 둔다", () => {
     const row = {
       menuNm: "사용자 관리",
       durationMs: HOUR + 2 * MIN,
@@ -263,15 +263,15 @@ describe("엑셀 변환", () => {
         avgDurationMs: "1분",
         lastUsedDt: "2026-10-02",
         usageDt: "2026-10-01",
-        startKind: "열기",
+        startKind: "열람",
       },
     ]);
     expect(row.durationMs).toBe(HOUR + 2 * MIN);
   });
 
-  it("시작 사유 라벨, 모르는 값은 그대로", () => {
-    expect(startKindLabel("SWITCH")).toBe("전환");
-    expect(startKindLabel("RESUME")).toBe("재개");
+  it("구분 라벨, 모르는 값은 그대로", () => {
+    expect(startKindLabel("SWITCH")).toBe("계속");
+    expect(startKindLabel("RESUME")).toBe("계속");
     expect(startKindLabel("X")).toBe("X");
   });
 });
