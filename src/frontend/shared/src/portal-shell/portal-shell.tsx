@@ -36,6 +36,7 @@ import { Dashboard } from "./dashboard/Dashboard";
 import { FavoriteFolderPickerModal, type FavoriteFolderChoice } from "./FavoriteFolderPickerModal";
 import type { FavoriteFolderNode } from "./sidebar/FavoritesTree";
 import { TabPageContext } from "./tab-page-context";
+import { MdmMetaProvider } from "../mdm-meta/context";
 import { ErrorBoundary } from "../components/error-boundary";
 import { useTabHistory } from "./use-tab-history";
 import { useFullscreenSidebarHover } from "./use-fullscreen-sidebar-hover";
@@ -237,7 +238,10 @@ const TabPageSlot = memo(function TabPageSlot({
 
   return (
     <div className="portal-shell__tab-page" style={{ display: isActive ? "flex" : "none" }}>
-      <TabPageContext.Provider value={contextValue}>{body}</TabPageContext.Provider>
+      {/* MDM 화면 메타 공급자(spec 2026-10-03 B7) — 탭 pageId 의 모듈로 그리드·폼 캡션·툴팁 메타를 받는다. useTabPage 를 읽으므로 안쪽에 둔다. */}
+      <TabPageContext.Provider value={contextValue}>
+        <MdmMetaProvider>{body}</MdmMetaProvider>
+      </TabPageContext.Provider>
     </div>
   );
 });
