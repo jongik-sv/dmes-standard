@@ -7,11 +7,12 @@
 import { useMemo, useState } from "react";
 import { Button, Input } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { ColumnPhysName } from "@/column-info";
 import { empty, hint, row, sectionTitle } from "@/layout/styles";
 import type { ImpactRow } from "../types";
 
 const COLUMNS: GridColumn[] = [
-  { key: "COLUMN_PHYS", header: "컬럼", width: 130 },
+  { key: "COLUMN_PHYS", header: "컬럼", width: 130, render: (v) => <ColumnPhysName physName={v as string | null} /> },
   { key: "LAYOUT_NAME", header: "레이아웃", width: 190, render: (v, r) => (v == null ? "(없음)" : `${v}${r.LAYOUT_KIND === "HEADER" ? " (헤더)" : ""}`) },
   { key: "ITEM", header: "항목", width: 190, render: (v) => (v == null ? "-" : String(v)) },
   { key: "SND_RCV", header: "송신 → 수신", width: 100, render: (v, r) => (v == null ? (r.USED_BY_COUNT != null ? `사용 전문 ${r.USED_BY_COUNT}` : "-") : String(v)) },

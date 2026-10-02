@@ -106,6 +106,14 @@ async function clickPageButton(label: string) {
   });
 }
 
+/** 머리 [조회] — 첫 진입은 목록을 자동 조회하지 않으므로(cf4fbb05) 목록 행이 필요한 시험은 먼저 누른다. */
+async function search() {
+  await clickPageButton("조회");
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
+}
+
 /** code-list 안에서 텍스트를 담은 ag-grid 행을 찾아 첫 셀을 클릭한다(HeaderList 선례). */
 /** 목록 헤더(container 안)의 [코드 등록] 버튼을 눌러 등록 팝업을 연다. */
 async function openRegPopup() {
@@ -177,6 +185,9 @@ describe("CodeMngPage", () => {
         currentVer: "1.001", currentVerLabel: "v1.001", pending: false, unappliedLabel: "없음", unappliedCount: 0 },
     ];
     await render();
+    // 첫 진입은 목록을 자동 조회하지 않는다 — [조회] 를 눌러야 불러온다(cf4fbb05).
+    expect(calls.filter((c) => c.url.includes("/oasis/codeMng/search"))).toHaveLength(0);
+    await search();
     expect(calls.some((c) => c.url.includes("/api/mdm/oasis/codeMng/search"))).toBe(true);
     expect(visibleText(container)).toContain("마루 코드");
     expect(visibleText(container)).toContain("1건");
@@ -201,6 +212,7 @@ describe("CodeMngPage", () => {
     window.addEventListener("portal-open-tab", listener);
     try {
       await render();
+      await search();
       await clickListRow("PROC_CD");
       expect(calls.some((c) => c.url.includes("/oasis/codeEdit/view") && c.body.params?.maruCodeId === "PROC_CD")).toBe(true);
       expect((container.querySelector('[data-testid="header-name"]') as HTMLInputElement)?.value).toBe("공정 코드");
@@ -225,6 +237,7 @@ describe("CodeMngPage", () => {
         currentVer: null, currentVerLabel: "미확정", pending: true, unappliedLabel: "v1.000 DRAFT", unappliedCount: 1 },
     ];
     await render();
+    await search();
     await clickListRow("PROC_CD");
     expect(container.querySelector('[data-testid="header-name"]')).toBeTruthy();
 
@@ -252,7 +265,7 @@ describe("CodeMngPage", () => {
       expect(opened).toHaveLength(0);
       expect(calls.some((c) => c.url.includes("/oasis/codeEdit/view") && c.body.params?.maruCodeId === "PROC_CD")).toBe(true);
       expect((container.querySelector('[data-testid="header-name"]') as HTMLInputElement)?.value).toBe("공정 코드");
-      expect(calls.filter((c) => c.url.includes("/codeMng/search")).length).toBe(2);
+      expect(calls.filter((c) => c.url.includes("/codeMng/search")).length).toBe(1); // 진입 자동 조회 없음 + 등록 뒤 재조회 1건
     } finally {
       window.removeEventListener("portal-open-tab", listener);
     }

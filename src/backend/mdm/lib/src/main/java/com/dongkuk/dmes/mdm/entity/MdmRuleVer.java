@@ -1,12 +1,17 @@
 package com.dongkuk.dmes.mdm.entity;
 
 import com.dongkuk.dmes.cactus.audit.CactusAuditEntity;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -29,14 +34,19 @@ public class MdmRuleVer extends CactusAuditEntity {
     private String maruRuleId;
 
     @Id
-    @Column(name = "VER")
-    private Integer ver;
+    @Column(name = "VER", nullable = false, precision = 7, scale = 3)
+    private BigDecimal ver;
+
+    /** 버전 종류(D-144). 만든 뒤 바꾸지 않는다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "VER_KIND", nullable = false, length = 20, updatable = false)
+    private VersionKind verKind;
 
     @Column(name = "STATUS", length = 20, nullable = false, updatable = false)
     private String status;
 
-    @Column(name = "BASE_VER")
-    private Integer baseVer;
+    @Column(name = "BASE_VER", precision = 7, scale = 3)
+    private BigDecimal baseVer;
 
     @Column(name = "OWNER_ID", length = 50, updatable = false)
     private String ownerId;
@@ -91,9 +101,10 @@ public class MdmRuleVer extends CactusAuditEntity {
         // JPA 기본 생성자
     }
 
-    public MdmRuleVer(String maruRuleId, Integer ver, String ownerId) {
+    public MdmRuleVer(String maruRuleId, BigDecimal ver, VersionKind verKind, String ownerId) {
         this.maruRuleId = maruRuleId;
-        this.ver = ver;
+        this.ver = VersionNumbers.scaled(ver);
+        this.verKind = verKind;
         this.ownerId = ownerId;
         this.status = "DRAFT";
         this.emergencyYn = "N";
@@ -101,9 +112,11 @@ public class MdmRuleVer extends CactusAuditEntity {
     }
 
     public String getMaruRuleId() { return maruRuleId; }
-    public Integer getVer() { return ver; }
+    /** SQLite 가 1.000 을 INTEGER 로 돌려줘도 scale 3 으로 돌려준다. */
+    public BigDecimal getVer() { return VersionNumbers.scaled(ver); }
+    public VersionKind getVerKind() { return verKind; }
     public String getStatus() { return status; }
-    public Integer getBaseVer() { return baseVer; }
+    public BigDecimal getBaseVer() { return VersionNumbers.scaled(baseVer); }
     public String getOwnerId() { return ownerId; }
     public String getHitPolicy() { return hitPolicy; }
     public LocalDateTime getApplyFrom() { return applyFrom; }
@@ -123,7 +136,7 @@ public class MdmRuleVer extends CactusAuditEntity {
 
     /** INSERT 때만 반영된다. 저장된 행의 값은 공통 버전 서비스가 네이티브 SQL 로 바꾼다(D7). */
     public void setStatus(String v) { this.status = v; }
-    public void setBaseVer(Integer v) { this.baseVer = v; }
+    public void setBaseVer(BigDecimal v) { this.baseVer = VersionNumbers.scaled(v); }
     /** INSERT 때만 반영된다. 저장된 행의 값은 공통 버전 서비스가 네이티브 SQL 로 바꾼다(D7). */
     public void setOwnerId(String v) { this.ownerId = v; }
     public void setHitPolicy(String v) { this.hitPolicy = v; }

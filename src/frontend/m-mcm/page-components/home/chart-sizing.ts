@@ -4,15 +4,13 @@
  * 기존 shared 차트(DonutChart·HBarChart·StackedBarChart)는 props·모습을 바꾸지 않으므로 기본 크기로 두고
  * 카드 안 가운데에 놓는다(home-styles 의 mcm-home-chart-center).
  */
-import type { DashboardBodySize } from "@dk-oasis/shared/dashboard";
-
 /** 범례 줄(여백 포함) 높이. */
 const LEGEND_HEIGHT = 26;
 /** 카드 높이가 정해지지 않았을 때(내용 높이) 월별 차트 높이. */
 export const MONTHLY_DEFAULT_HEIGHT = 230;
 
-/** 월별 생산 실적 차트 높이(px) — 카드 높이가 정해졌으면 본문 높이에서 범례 줄을 뺀 값, 아니면 기본 230. */
-export function monthlyChartHeight({ height }: DashboardBodySize): number {
-  if (height == null) return MONTHLY_DEFAULT_HEIGHT;
+/** 월별 생산 실적 차트 높이(px) — 본문 높이가 정해졌으면 범례 줄을 뺀 값, 아니면 기본 230. */
+export function monthlyChartHeight({ height }: { height: number | null }): number {
+  if (height == null || height <= 0) return MONTHLY_DEFAULT_HEIGHT;
   return Math.max(140, Math.round(height - LEGEND_HEIGHT));
 }

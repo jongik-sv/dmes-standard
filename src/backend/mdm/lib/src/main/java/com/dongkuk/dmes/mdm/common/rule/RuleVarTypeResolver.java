@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.common.dictionary.EffectiveDomainView;
 import com.dongkuk.dmes.mdm.entity.MdmColumn;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -61,7 +62,7 @@ public class RuleVarTypeResolver {
      * 입력 순서를 지켜 돌려준다. {@code ver} 는 이 룰의 버전(해석 규칙은 버전과 무관하다). 부를 때마다 도메인 트리·앞 룰 결과 변수·컬럼 사전을
      * 새로 읽는다 — 쓰기 트랜잭션 안에서 방금 flush 한 값이 보여야 하는 호출자(저장 검사 등, I6)는 이것을 쓴다.
      */
-    public List<ResolvedVar> resolve(String ruleId, int ver, List<MdmRuleVar> vars) {
+    public List<ResolvedVar> resolve(String ruleId, BigDecimal ver, List<MdmRuleVar> vars) {
         return resolve(vars, new Lazy(ruleId));
     }
 
@@ -220,7 +221,7 @@ public class RuleVarTypeResolver {
         }
 
         /** {@link RuleVarTypeResolver#resolve} 와 같은 결과를 범위의 읽기로 낸다. */
-        public List<ResolvedVar> resolve(String ruleId, int ver, List<MdmRuleVar> vars) {
+        public List<ResolvedVar> resolve(String ruleId, BigDecimal ver, List<MdmRuleVar> vars) {
             return RuleVarTypeResolver.this.resolve(vars, new Source() {
                 @Override
                 public DomainTreeSnapshot domains() {

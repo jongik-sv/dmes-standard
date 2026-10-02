@@ -1,6 +1,6 @@
 /**
  * ruleConfirm 응답 타입(TSK-08-05 design.md §6.5). 서버 `RuleConfirmService` 의 `data.result` 모양이다.
- * 룰 버전(ver)은 정수다(I37). 날짜는 `yyyy-MM-dd HH:mm:ss`(KST) 문자열이다.
+ * 룰 버전(ver)은 소수 셋째 자리 문자열이다(`"1.001"`, D-144 — I37 정수 규칙을 대신한다). 날짜는 `yyyy-MM-dd HH:mm:ss`(KST) 문자열이다.
  */
 import type { MdmVersionStatus } from "@/shell";
 
@@ -9,7 +9,7 @@ export interface PendingDraft {
   maruRuleId: string;
   maruRuleName: string;
   ruleKind: string;
-  ver: number;
+  ver: string;
   ownerId: string | null;
   /** 계산 상태(ADR-0002 D6). */
   ruleStatus: string;
@@ -29,12 +29,12 @@ export interface ConfirmRule {
 }
 
 export interface ConfirmVersion {
-  ver: number;
+  ver: string;
   status: MdmVersionStatus;
   ownerId: string | null;
   rowVersion: number;
   hitPolicy: string | null;
-  baseVer: number | null;
+  baseVer: string | null;
   applyFrom: string | null;
   applyTo: string | null;
   requestedBy: string | null;
@@ -42,7 +42,7 @@ export interface ConfirmVersion {
 }
 
 export interface PreviousReleased {
-  ver: number;
+  ver: string;
   hitPolicy: string | null;
   applyFrom: string | null;
   applyTo: string | null;
@@ -129,7 +129,7 @@ export interface ValidateResult {
 }
 
 export interface ConfirmResult extends Partial<ViewResult> {
-  confirmed?: { ver: number; rowVersion: number };
-  closedPreviousVer?: number | null;
+  confirmed?: { ver: string; rowVersion: number };
+  closedPreviousVer?: string | null;
   warnings?: CheckIssue[];
 }

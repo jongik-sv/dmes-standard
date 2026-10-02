@@ -69,7 +69,7 @@ public class RuleDefinitionLookupStub implements DefinitionLookup {
                 .forEach(r -> ruleRows.add(new RuleRow(r.getRowId(), r.getSeq(), RowKind.valueOf(r.getRowKind()), Map.of())));
         return Optional.of(new RuleDefinition(
                 ver.getMaruRuleId(),
-                ver.getVer(),
+                new java.math.BigDecimal(String.valueOf(ver.getVer())).setScale(3),
                 RuleKind.valueOf(rule.getRuleKind()),
                 ver.getHitPolicy() == null ? null : HitPolicy.valueOf(ver.getHitPolicy()),
                 ver.getApplyFrom(),

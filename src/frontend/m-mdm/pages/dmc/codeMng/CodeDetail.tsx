@@ -22,7 +22,7 @@ import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oa
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { DraftLockBadge, HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, VersionStatusBadge, type MdmVersionStatus } from "@/shell";
+import { DraftLockBadge, VersionActionBar, VersionStatusBadge, type MdmVersionStatus } from "@/shell";
 
 import type { VersionButtons } from "./buttons";
 import type { VerKind } from "./NewVersionModal";
@@ -267,87 +267,49 @@ export function CodeVersionCard({
   const { showMessage } = useMessage();
   const selected = view.versions.find((v) => v.ver === selectedVer) ?? null;
 
-  const handleDeleteDraft = useCallback(() => {
-    if (!selected) return;
-    showMessage({
-      title: "확인",
-      message: `${selected.verLabel} DRAFT 를 삭제할까요? 이 버전에서 바꾼 코드·카테고리도 되돌립니다.`,
-      alertType: "confirm",
-      onConfirm: onDeleteDraft,
-    });
-  }, [selected, onDeleteDraft, showMessage]);
-
-  // 확정 취소 확인창 — D8-10. 이미 적용된 버전은 되돌릴 수 없고(D8-1), 되돌리면 그 자리가 작성 중이 되어
-  // 편집을 이어 갈 수 있다. 확정 기록(row_version·확정 칸)은 남는다.
-  const handleCancelConfirm = useCallback(() => {
-    if (!selected) return;
-    showMessage({
-      title: "확정 취소",
-      message: `${selected.verLabel} 의 확정을 취소하고 작성 중인 상태로 되돌릴까요?\n`
-        + `적용 시각(${selected.applyFrom ?? ""})이 오기 전에만 되돌릴 수 있고, 이미 적용된 뒤에는 되돌릴 수 없습니다. `
-        + `취소해도 확정 기록은 남습니다.`,
-      alertType: "confirm",
-      onConfirm: onCancelConfirm,
-    });
-  }, [selected, onCancelConfirm, showMessage]);
-
   // 렌더마다 새 열 배열을 만들면 부모의 검색 입력 한 글자마다 그리드 열 정의가 다시 만들어진다.
   const columns = useMemo(() => versionColumns(view.me), [view.me]);
 
   return (
     <>
       <p style={cardTitle}>③ 버전 목록</p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", padding: "var(--spacing-xs) var(--spacing-md)" }}>
-        <Button data-testid="ver-new-major" disabled={!allowed(buttons.newMajor.enabled, "reg")} onClick={() => onOpenNewVersion("MAJOR")}>
-          새버전(major)
-        </Button>
-        <Button
-          data-testid="ver-new-minor"
-          title={buttons.newMinor.hint}
-          disabled={!allowed(buttons.newMinor.enabled, "reg")}
-          onClick={() => onOpenNewVersion("MINOR")}
-        >
-          새버전(minor)
-        </Button>
-        <Button data-testid="ver-delete" variant="danger" disabled={!allowed(buttons.delete.enabled, "delete")} onClick={handleDeleteDraft}>
-          삭제
-        </Button>
-        {/* D8 확정 취소 — 서버 판정값(cancelConfirmable)이 true 일 때만 켠다. */}
-        <Button
-          data-testid="ver-cancel-confirm"
-          variant="danger"
-          disabled={!allowed(buttons.cancelConfirm.enabled, "delete")}
-          onClick={handleCancelConfirm}
-        >
-          확정 취소
-        </Button>
-        <Button data-testid="ver-lock" disabled={!allowed(buttons.lock.enabled, "lock")} onClick={onLock}>
-          선점
-        </Button>
-        <Button data-testid="ver-unlock" disabled={!allowed(buttons.unlock.enabled, "unlock")} onClick={onUnlock}>
-          해제
-        </Button>
-        {/* D2: 넘겨받는 사람의 담당자 여부를 확인할 수단이 생길 때까지 끈다(HANDOVER_AVAILABLE). */}
-        <span data-testid="ver-handover-wrap" title={HANDOVER_AVAILABLE ? "" : HANDOVER_PENDING_TEXT}>
-          <Button
-            data-testid="ver-handover"
-            disabled={!HANDOVER_AVAILABLE || !allowed(buttons.handover.enabled, "handover")}
-            onClick={onOpenHandover}
-          >
-            {HANDOVER_AVAILABLE ? "넘기기" : "넘기기(준비 중)"}
-          </Button>
-        </span>
-        <Button
-          data-testid="ver-confirm-move"
-          variant="primary"
-          disabled={!allowed(buttons.confirmMove.enabled, "confirm")}
-          onClick={onConfirmMove}
-        >
-          확정 이동
-        </Button>
-        <Button data-testid="ver-item-edit" disabled={!allowed(buttons.itemEdit.enabled, "view")} onClick={onItemEdit}>
-          코드 편집
-        </Button>
+      <div style={{ padding: "var(--spacing-xs) var(--spacing-md)" }}>
+        <VersionActionBar
+          ids={{
+            newMajor: "ver-new-major", newMinor: "ver-new-minor", delete: "ver-delete", confirm: "ver-confirm-move",
+            cancelConfirm: "ver-cancel-confirm", lock: "ver-lock", unlock: "ver-unlock", handover: "ver-handover",
+            handoverWrap: "ver-handover-wrap",
+          }}
+          newVersionMode="majorMinor"
+          newMajor={{ enabled: allowed(buttons.newMajor.enabled, "reg") }}
+          newMinor={{ enabled: allowed(buttons.newMinor.enabled, "reg"), title: buttons.newMinor.hint }}
+          delete={{ enabled: allowed(buttons.delete.enabled, "delete") }}
+          confirm={{ enabled: allowed(buttons.confirmMove.enabled, "confirm") }}
+          // D8 확정 취소 — 서버 판정값(cancelConfirmable)이 true 일 때만 켠다.
+          cancelConfirm={{ enabled: allowed(buttons.cancelConfirm.enabled, "delete") }}
+          lock={{ enabled: allowed(buttons.lock.enabled, "lock") }}
+          unlock={{ enabled: allowed(buttons.unlock.enabled, "unlock") }}
+          handover={{ enabled: allowed(buttons.handover.enabled, "handover") }}
+          onNewMajor={() => onOpenNewVersion("MAJOR")}
+          onNewMinor={() => onOpenNewVersion("MINOR")}
+          onDelete={onDeleteDraft}
+          onConfirm={onConfirmMove}
+          onCancelConfirm={onCancelConfirm}
+          onLock={onLock}
+          onUnlock={onUnlock}
+          onHandover={onOpenHandover}
+          deleteMessage={`${selected?.verLabel ?? ""} DRAFT 를 삭제할까요? 이 버전에서 바꾼 코드·카테고리도 되돌립니다.`}
+          // 확정 취소 확인창 — D8-10. 이미 적용된 버전은 되돌릴 수 없고(D8-1), 되돌리면 그 자리가 작성 중이 되어
+          // 편집을 이어 갈 수 있다. 확정 기록(row_version·확정 칸)은 남는다.
+          cancelConfirmMessage={`${selected?.verLabel ?? ""} 의 확정을 취소하고 작성 중인 상태로 되돌릴까요?\n`
+            + `적용 시각(${selected?.applyFrom ?? ""})이 오기 전에만 되돌릴 수 있고, 이미 적용된 뒤에는 되돌릴 수 없습니다. `
+            + `취소해도 확정 기록은 남습니다.`}
+          trailing={(
+            <Button data-testid="ver-item-edit" disabled={!allowed(buttons.itemEdit.enabled, "view")} onClick={onItemEdit}>
+              코드 편집
+            </Button>
+          )}
+        />
       </div>
       {buttons.newVersionHint ? (
         <p data-testid="ver-new-hint" style={{ padding: "0 var(--spacing-md)", ...mutedText }}>

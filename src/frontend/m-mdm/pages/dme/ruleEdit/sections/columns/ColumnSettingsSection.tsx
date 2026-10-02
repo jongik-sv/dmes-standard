@@ -13,7 +13,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgDataGrid } from "@dk-oasis/shared/grid";
 import { Button, Input } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
-import { badgeStyle } from "@/shell";
+import { DomainSearchBox, matchDomain } from "@/domain";
+import { badgeStyle, sameVer } from "@/shell";
 
 import { saveColumnDraft, searchDomains, type ExprSlot } from "../../api";
 import type { RuleEditCardProps } from "../../cards";
@@ -41,7 +42,6 @@ import {
   type ParsedRef,
 } from "./column-draft";
 import { buildColumnGridColumns, cellPatch, toGridRow, type ColumnGridHandlers, type ExprInfo } from "./column-grid";
-import { DomainSearchBox, matchDomain } from "./DomainSearchBox";
 
 const NO_CANDIDATES: VarCandidate[] = [];
 
@@ -99,7 +99,7 @@ function ExprProbe(p: { text: string; slot: ExprSlot; enabled: boolean; candidat
 
 export function ColumnSettingsSection({ view, editable, runWrite, notify, setDirty, canDo, busy }: RuleEditCardProps) {
   const shared = useColumnDraftShared();
-  const selected = view.versions.find((v) => v.ver === view.selectedVer) ?? null;
+  const selected = view.versions.find((v) => sameVer(v.ver, view.selectedVer)) ?? null;
   const external = view.rule.sourceKind !== "MDM";
   const canEdit = editable && !external && selected != null;
   const candidates = view.varCandidates ?? NO_CANDIDATES;
@@ -357,6 +357,7 @@ export function ColumnSettingsSection({ view, editable, runWrite, notify, setDir
       <Modal open={!!domainRow} title={`값 타입 도메인 찾기 · ${domainRow?.varName || "새 열"}`} size="md" onClose={() => setDomainPopup(null)}>
         {domainRow && (
           <DomainSearchBox
+            search={searchDomains}
             key={`${domainRow.key}:${domainPopup?.keyword ?? ""}`}
             testId={`col-domain-${domainRow.key}`}
             initialKeyword={domainPopup?.keyword}

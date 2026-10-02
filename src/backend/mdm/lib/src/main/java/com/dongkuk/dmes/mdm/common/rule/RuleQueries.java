@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.rule;
 
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
@@ -7,9 +8,12 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -19,7 +23,11 @@ import org.springframework.stereotype.Repository;
 
 /**
  * 06 룰 조회 전용(TSK-08-02 design §2.1-C, D12). 06 리포지토리 6개는 메서드를 선언하지 않으므로(TSK-08-01 가드) 조회는 여기에
- * JPQL 로 모은다. JPQL 은 방언과 무관하게 같은 코드로 돈다. 버전 비교는 정수 VER 라 SQL 에서 해도 된다.
+ * JPQL 로 모은다. JPQL 은 방언과 무관하게 같은 코드로 돈다.
+ *
+ * <p>업무 버전 VER 는 NUMERIC(7,3)(D-144)이다. SQLite NUMERIC 친화도는 {@code 1.000} 을 INTEGER, {@code 1.001} 을 REAL 로 저장하므로
+ * 버전의 크기 비교·정렬·최대는 SQL 이 아니라 Java({@link BigDecimal#compareTo})에서 한다(규칙표 #17). SQL 에는 등호 조건만 두고
+ * 바인딩은 {@link VersionNumbers#scaled} 로 한다.
  */
 @Repository
 public class RuleQueries {
@@ -58,17 +66,23 @@ public class RuleQueries {
         return q.getSingleResult();
     }
 
+    /** 룰 ID 오름차순, 같은 룰 안에서는 VER 내림차순. */
+    private static final Comparator<MdmRuleVer> RULE_THEN_VER_DESC =
+            Comparator.comparing(MdmRuleVer::getMaruRuleId).thenComparing(MdmRuleVer::getVer, Comparator.reverseOrder());
+
     /** 여러 룰의 버전 전부(룰 ID·VER 내림차순). 목록 한 페이지의 RELEASED·미적용 칸을 한 번에 채운다. */
     public List<MdmRuleVer> versionsOf(Collection<String> ruleIds) {
         if (ruleIds.isEmpty()) {
             return List.of();
         }
-        return entityManager.createQuery("SELECT v FROM MdmRuleVer v WHERE v.maruRuleId IN :ids ORDER BY v.maruRuleId, v.ver DESC",
-                MdmRuleVer.class).setParameter("ids", ruleIds).getResultList();
+        List<MdmRuleVer> out = new ArrayList<>(entityManager.createQuery("SELECT v FROM MdmRuleVer v WHERE v.maruRuleId IN :ids",
+                MdmRuleVer.class).setParameter("ids", ruleIds).getResultList());
+        out.sort(RULE_THEN_VER_DESC);
+        return out;
     }
 
-    /** RELEASED 버전 하나의 적중 정책과 기본(DEFAULT) 행 여부 — {@link #releasedHeads}. */
-    public record ReleasedHead(String ruleId, int ver, String hitPolicy, boolean hasDefault) {
+    /** RELEASED 버전 하나의 적중 정책과 기본(DEFAULT) 행 여부 — {@link #releasedHeads}. {@code ver} 는 scale 3. */
+    public record ReleasedHead(String ruleId, BigDecimal ver, String hitPolicy, boolean hasDefault) {
     }
 
     /**
@@ -81,12 +95,14 @@ public class RuleQueries {
         }
         List<Object[]> rows = entityManager.createQuery("SELECT v.maruRuleId, v.ver, v.hitPolicy, CASE WHEN EXISTS (SELECT 1 FROM MdmRuleRow r "
                         + "WHERE r.maruRuleId = v.maruRuleId AND r.ver = v.ver AND r.rowKind = 'DEFAULT') THEN 1 ELSE 0 END FROM MdmRuleVer v "
-                        + "WHERE v.status = 'RELEASED' AND v.maruRuleId IN :ids ORDER BY v.maruRuleId, v.ver DESC", Object[].class)
+                        + "WHERE v.status = 'RELEASED' AND v.maruRuleId IN :ids", Object[].class)
                 .setParameter("ids", ruleIds).getResultList();
         List<ReleasedHead> out = new ArrayList<>(rows.size());
         for (Object[] row : rows) {
-            out.add(new ReleasedHead((String) row[0], ((Number) row[1]).intValue(), (String) row[2], ((Number) row[3]).intValue() == 1));
+            out.add(new ReleasedHead((String) row[0], VersionNumbers.scaled((BigDecimal) row[1]), (String) row[2],
+                    ((Number) row[3]).intValue() == 1));
         }
+        out.sort(Comparator.comparing(ReleasedHead::ruleId).thenComparing(ReleasedHead::ver, Comparator.reverseOrder()));
         return out;
     }
 
@@ -104,47 +120,49 @@ public class RuleQueries {
 
     /** 한 룰의 버전 전부 — VER 내림차순. */
     public List<MdmRuleVer> versions(String ruleId) {
-        return entityManager.createQuery("SELECT v FROM MdmRuleVer v WHERE v.maruRuleId = :id ORDER BY v.ver DESC", MdmRuleVer.class)
-                .setParameter("id", ruleId).getResultList();
+        List<MdmRuleVer> out = new ArrayList<>(entityManager.createQuery("SELECT v FROM MdmRuleVer v WHERE v.maruRuleId = :id",
+                MdmRuleVer.class).setParameter("id", ruleId).getResultList());
+        out.sort(RULE_THEN_VER_DESC);
+        return out;
     }
 
     /** 한 버전의 변수 — COND 먼저, seq·var_id 순. */
-    public List<MdmRuleVar> vars(String ruleId, int ver) {
+    public List<MdmRuleVar> vars(String ruleId, BigDecimal ver) {
         return entityManager.createQuery("SELECT v FROM MdmRuleVar v WHERE v.maruRuleId = :id AND v.ver = :ver "
                         + "ORDER BY CASE WHEN v.varKind = 'COND' THEN 0 ELSE 1 END, v.seq, v.varId", MdmRuleVar.class)
-                .setParameter("id", ruleId).setParameter("ver", ver).getResultList();
+                .setParameter("id", ruleId).setParameter("ver", VersionNumbers.scaled(ver)).getResultList();
     }
 
     /** 한 버전의 행 — NORMAL 먼저 seq·row_id 순, 기본 행은 마지막(06:942). */
-    public List<MdmRuleRow> rows(String ruleId, int ver) {
+    public List<MdmRuleRow> rows(String ruleId, BigDecimal ver) {
         return entityManager.createQuery("SELECT r FROM MdmRuleRow r WHERE r.maruRuleId = :id AND r.ver = :ver "
                         + "ORDER BY CASE WHEN r.rowKind = 'NORMAL' THEN 0 ELSE 1 END, r.seq, r.rowId", MdmRuleRow.class)
-                .setParameter("id", ruleId).setParameter("ver", ver).getResultList();
+                .setParameter("id", ruleId).setParameter("ver", VersionNumbers.scaled(ver)).getResultList();
     }
 
     /**
      * 여러 (룰, 버전)의 변수를 한 번에 — 룰마다 {@link #vars} 와 같은 순서(COND 먼저, seq·var_id 순). 결과는 {@code ruleVers} 의 순서대로 룰 ID →
      * 변수 목록이고, 변수가 없는 룰은 빈 목록이다. 조건은 (룰 ID, VER) 쌍 그대로라 {@link #vars} 를 룰마다 부른 것과 같은 행을 읽는다.
      */
-    public Map<String, List<MdmRuleVar>> varsOf(Map<String, Integer> ruleVers) {
+    public Map<String, List<MdmRuleVar>> varsOf(Map<String, BigDecimal> ruleVers) {
         return byRule(ruleVers, "SELECT v FROM MdmRuleVar v WHERE ", " ORDER BY v.maruRuleId, CASE WHEN v.varKind = 'COND' THEN 0 ELSE 1 END, "
                 + "v.seq, v.varId", "v", MdmRuleVar.class, MdmRuleVar::getMaruRuleId);
     }
 
     /** 여러 (룰, 버전)의 행을 한 번에 — 룰마다 {@link #rows} 와 같은 순서(NORMAL 먼저 seq·row_id 순, 기본 행은 마지막). {@link #varsOf} 와 같은 모양. */
-    public Map<String, List<MdmRuleRow>> rowsOf(Map<String, Integer> ruleVers) {
+    public Map<String, List<MdmRuleRow>> rowsOf(Map<String, BigDecimal> ruleVers) {
         return byRule(ruleVers, "SELECT r FROM MdmRuleRow r WHERE ", " ORDER BY r.maruRuleId, CASE WHEN r.rowKind = 'NORMAL' THEN 0 ELSE 1 END, "
                 + "r.seq, r.rowId", "r", MdmRuleRow.class, MdmRuleRow::getMaruRuleId);
     }
 
     /** (룰 ID, VER) 쌍 조건을 OR 로 이어 {@link #PAIR_CHUNK} 쌍씩 읽고 룰 ID 로 묶는다. 묶음마다 룰 ID 가 겹치지 않아 룰 안 순서가 지켜진다. */
-    private <T> Map<String, List<T>> byRule(Map<String, Integer> ruleVers, String select, String orderBy, String alias, Class<T> type,
+    private <T> Map<String, List<T>> byRule(Map<String, BigDecimal> ruleVers, String select, String orderBy, String alias, Class<T> type,
                                            Function<T, String> ruleIdOf) {
         Map<String, List<T>> out = new LinkedHashMap<>();
         ruleVers.keySet().forEach(id -> out.put(id, new ArrayList<>()));
-        List<Map.Entry<String, Integer>> pairs = List.copyOf(ruleVers.entrySet());
+        List<Map.Entry<String, BigDecimal>> pairs = List.copyOf(ruleVers.entrySet());
         for (int from = 0; from < pairs.size(); from += PAIR_CHUNK) {
-            List<Map.Entry<String, Integer>> chunk = pairs.subList(from, Math.min(pairs.size(), from + PAIR_CHUNK));
+            List<Map.Entry<String, BigDecimal>> chunk = pairs.subList(from, Math.min(pairs.size(), from + PAIR_CHUNK));
             StringBuilder where = new StringBuilder();
             for (int i = 0; i < chunk.size(); i++) {
                 where.append(i == 0 ? "" : " OR ").append("(").append(alias).append(".maruRuleId = :id").append(i).append(" AND ")
@@ -152,7 +170,7 @@ public class RuleQueries {
             }
             TypedQuery<T> q = entityManager.createQuery(select + where + orderBy, type);
             for (int i = 0; i < chunk.size(); i++) {
-                q.setParameter("id" + i, chunk.get(i).getKey()).setParameter("ver" + i, chunk.get(i).getValue());
+                q.setParameter("id" + i, chunk.get(i).getKey()).setParameter("ver" + i, VersionNumbers.scaled(chunk.get(i).getValue()));
             }
             for (T row : q.getResultList()) {
                 out.get(ruleIdOf.apply(row)).add(row);
@@ -162,15 +180,15 @@ public class RuleQueries {
     }
 
     /** 한 버전의 row_id — 엔티티를 영속성 컨텍스트에 올리지 않는다(같은 트랜잭션에서 행을 지우고 다시 넣는다). */
-    public List<Integer> rowIds(String ruleId, int ver) {
+    public List<Integer> rowIds(String ruleId, BigDecimal ver) {
         return entityManager.createQuery("SELECT r.rowId FROM MdmRuleRow r WHERE r.maruRuleId = :id AND r.ver = :ver", Integer.class)
-                .setParameter("id", ruleId).setParameter("ver", ver).getResultList();
+                .setParameter("id", ruleId).setParameter("ver", VersionNumbers.scaled(ver)).getResultList();
     }
 
     /** 한 버전의 행을 모두 지운다(표 저장의 전체 교체, I8). 호출자 트랜잭션 안에서만 쓴다. */
-    public int deleteRows(String ruleId, int ver) {
+    public int deleteRows(String ruleId, BigDecimal ver) {
         return entityManager.createQuery("DELETE FROM MdmRuleRow r WHERE r.maruRuleId = :id AND r.ver = :ver")
-                .setParameter("id", ruleId).setParameter("ver", ver).executeUpdate();
+                .setParameter("id", ruleId).setParameter("ver", VersionNumbers.scaled(ver)).executeUpdate();
     }
 
     /** 룰 세트 전부(작다) — 세트 ID 순. */
@@ -178,17 +196,17 @@ public class RuleQueries {
         return entityManager.createQuery("SELECT s FROM MdmRuleSet s ORDER BY s.maruRuleSetId", MdmRuleSet.class).getResultList();
     }
 
-    /** 룰마다 RELEASED 가운데 가장 큰 VER. RELEASED 가 없는 룰은 빠진다. */
-    public Map<String, Integer> latestReleasedVers(Collection<String> ruleIds) {
-        Map<String, Integer> out = new LinkedHashMap<>();
+    /** 룰마다 RELEASED 가운데 가장 큰 VER(scale 3). RELEASED 가 없는 룰은 빠진다. 최대는 Java 에서 고른다(규칙표 #17). */
+    public Map<String, BigDecimal> latestReleasedVers(Collection<String> ruleIds) {
+        Map<String, BigDecimal> out = new LinkedHashMap<>();
         if (ruleIds.isEmpty()) {
             return out;
         }
-        List<Object[]> rows = entityManager.createQuery("SELECT v.maruRuleId, MAX(v.ver) FROM MdmRuleVer v "
-                        + "WHERE v.status = 'RELEASED' AND v.maruRuleId IN :ids GROUP BY v.maruRuleId", Object[].class)
+        List<Object[]> rows = entityManager.createQuery("SELECT v.maruRuleId, v.ver FROM MdmRuleVer v "
+                        + "WHERE v.status = 'RELEASED' AND v.maruRuleId IN :ids ORDER BY v.maruRuleId", Object[].class)
                 .setParameter("ids", ruleIds).getResultList();
         for (Object[] row : rows) {
-            out.put((String) row[0], ((Number) row[1]).intValue());
+            out.merge((String) row[0], VersionNumbers.scaled((BigDecimal) row[1]), BigDecimal::max);
         }
         return out;
     }
@@ -233,13 +251,10 @@ public class RuleQueries {
 
     /** 다른 룰들의 최신 RELEASED 버전(VER 최대) 결과 변수 — 변수 타입 해석 갈래 5(design §6.4). */
     public List<MdmRuleVar> latestReleasedResultVarsExcept(String ruleId) {
-        return entityManager.createQuery("""
-                SELECT v FROM MdmRuleVar v, MdmRuleVer r
-                WHERE r.maruRuleId = v.maruRuleId AND r.ver = v.ver AND r.status = 'RELEASED' AND v.varKind = 'RESULT'
-                  AND v.maruRuleId <> :ruleId
-                  AND r.ver = (SELECT MAX(r2.ver) FROM MdmRuleVer r2 WHERE r2.maruRuleId = r.maruRuleId AND r2.status = 'RELEASED')
-                ORDER BY v.maruRuleId, v.seq, v.varId
-                """, MdmRuleVar.class).setParameter("ruleId", ruleId).getResultList();
+        return latestReleasedOnly(entityManager.createQuery(RELEASED_RESULT_VARS + """
+                WHERE r.status = 'RELEASED' AND r.maruRuleId <> :ruleId
+                ORDER BY r.maruRuleId, v.seq, v.varId
+                """, Object[].class).setParameter("ruleId", ruleId).getResultList());
     }
 
     /**
@@ -247,12 +262,10 @@ public class RuleQueries {
      * 여러 룰의 타입을 한 번에 풀 때 한 번 읽어 룰마다 거른다({@link RuleVarTypeResolver.Scope}).
      */
     public List<MdmRuleVar> latestReleasedResultVars() {
-        return entityManager.createQuery("""
-                SELECT v FROM MdmRuleVar v, MdmRuleVer r
-                WHERE r.maruRuleId = v.maruRuleId AND r.ver = v.ver AND r.status = 'RELEASED' AND v.varKind = 'RESULT'
-                  AND r.ver = (SELECT MAX(r2.ver) FROM MdmRuleVer r2 WHERE r2.maruRuleId = r.maruRuleId AND r2.status = 'RELEASED')
-                ORDER BY v.maruRuleId, v.seq, v.varId
-                """, MdmRuleVar.class).getResultList();
+        return latestReleasedOnly(entityManager.createQuery(RELEASED_RESULT_VARS + """
+                WHERE r.status = 'RELEASED'
+                ORDER BY r.maruRuleId, v.seq, v.varId
+                """, Object[].class).getResultList());
     }
 
     /**
@@ -260,12 +273,34 @@ public class RuleQueries {
      * 룰 세트 구성 지침이 결과 이름 → 만드는 룰을 찾을 때 쓴다.
      */
     public List<MdmRuleVar> latestReleasedResultVarsOfActiveRules() {
-        return entityManager.createQuery("""
-                SELECT v FROM MdmRuleVar v, MdmRuleVer r, MdmRule m
-                WHERE r.maruRuleId = v.maruRuleId AND r.ver = v.ver AND r.status = 'RELEASED' AND v.varKind = 'RESULT'
-                  AND m.maruRuleId = v.maruRuleId AND m.status <> 'DEPRECATED'
-                  AND r.ver = (SELECT MAX(r2.ver) FROM MdmRuleVer r2 WHERE r2.maruRuleId = r.maruRuleId AND r2.status = 'RELEASED')
-                ORDER BY v.maruRuleId, v.seq, v.varId
-                """, MdmRuleVar.class).getResultList();
+        return latestReleasedOnly(entityManager.createQuery(RELEASED_RESULT_VARS + """
+                JOIN MdmRule m ON m.maruRuleId = r.maruRuleId
+                WHERE r.status = 'RELEASED' AND m.status <> 'DEPRECATED'
+                ORDER BY r.maruRuleId, v.seq, v.varId
+                """, Object[].class).getResultList());
+    }
+
+    /**
+     * RELEASED 버전마다 (룰 ID, VER, 결과 변수 또는 null). 결과 변수가 없는 버전도 한 행으로 남겨 "최신 RELEASED" 를 결과 변수 유무와
+     * 무관하게 고른다 — 옛 서브쿼리 {@code MAX(r2.ver)} 와 같은 뜻을 문장 하나로 유지한다(쿼리 수 그대로).
+     */
+    private static final String RELEASED_RESULT_VARS = """
+            SELECT r.maruRuleId, r.ver, v FROM MdmRuleVer r
+            LEFT JOIN MdmRuleVar v ON v.maruRuleId = r.maruRuleId AND v.ver = r.ver AND v.varKind = 'RESULT'
+            """;
+
+    /** 룰마다 VER 가 가장 큰 RELEASED 의 결과 변수만 남긴다. 순서(룰 ID·seq·var_id)는 읽은 순서 그대로다. */
+    private static List<MdmRuleVar> latestReleasedOnly(List<Object[]> rows) {
+        Map<String, BigDecimal> latest = new HashMap<>();
+        for (Object[] row : rows) {
+            latest.merge((String) row[0], VersionNumbers.scaled((BigDecimal) row[1]), BigDecimal::max);
+        }
+        List<MdmRuleVar> out = new ArrayList<>();
+        for (Object[] row : rows) {
+            if (row[2] instanceof MdmRuleVar v && VersionNumbers.same(v.getVer(), latest.get(v.getMaruRuleId()))) {
+                out.add(v);
+            }
+        }
+        return out;
     }
 }

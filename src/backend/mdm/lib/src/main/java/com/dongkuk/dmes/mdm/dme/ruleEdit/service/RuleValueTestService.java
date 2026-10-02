@@ -10,10 +10,10 @@ import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireVer;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
-import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge.Evaluated;
 import com.dongkuk.dmes.mdm.common.rule.RuleHitPolicies;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput;
@@ -29,12 +29,14 @@ import com.dongkuk.dmes.mdm.common.rule.definition.SingleRuleDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions.Stored;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleTestResult;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleTestCase;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -102,7 +104,7 @@ public class RuleValueTestService {
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         String id = rule.getMaruRuleId();
         String target = target(request.getTarget());
-        int ver = requireVer(request.getVer());
+        BigDecimal ver = requireVer(request.getVer());
         boolean body = BODY.equals(target);
         List<Map<String, Object>> requested = body && request.getRows() != null ? request.getRows() : List.of();
         rowLimits(requested);
@@ -111,7 +113,7 @@ public class RuleValueTestService {
         // BODY 행 검사(validator)는 저장 검사와 같은 경로라 그대로 호출마다 읽는다.
         RuleVarTypeResolver.Scope scope = stored.scope();
         Stored s = stored.read(id, ver, scope)
-                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VALUE, "룰 " + id + " 에 버전 " + ver + " 이(가) 없습니다."));
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VALUE, "룰 " + id + " 에 버전 " + VersionNumbers.label(ver) + " 이(가) 없습니다."));
 
         List<Map<String, Object>> cellErrors = new ArrayList<>();
         Set<Integer> skipped = new LinkedHashSet<>();
@@ -144,7 +146,7 @@ public class RuleValueTestService {
 
         RuleTestResult out = new RuleTestResult();
         out.setTarget(target);
-        out.setVer(ver);
+        out.setVer(VersionNumbers.plain(ver));
         out.setEvalTs(LocalDateTime.ofInstant(ts, clock.getZone()).format(TS));
         out.setOutcome(e.ok() ? "OK" : "ERROR");
         List<Map<String, Object>> warnings = new ArrayList<>();

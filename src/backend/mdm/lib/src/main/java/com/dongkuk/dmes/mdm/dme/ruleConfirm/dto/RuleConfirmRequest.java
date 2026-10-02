@@ -7,19 +7,19 @@ package com.dongkuk.dmes.mdm.dme.ruleConfirm.dto;
 public class RuleConfirmRequest {
 
     private String maruRuleId;
-    private Integer ver;
+    private String ver;
     private Long rowVersion;
     private String applyFrom;
     private Boolean warningsAcknowledged;
 
     public String getMaruRuleId() { return maruRuleId; }
-    public Integer getVer() { return ver; }
+    public String getVer() { return ver; }
     public Long getRowVersion() { return rowVersion; }
     public String getApplyFrom() { return applyFrom; }
     public Boolean getWarningsAcknowledged() { return warningsAcknowledged; }
 
     public void setMaruRuleId(String v) { this.maruRuleId = v; }
-    public void setVer(Integer v) { this.ver = v; }
+    public void setVer(String v) { this.ver = v; }
     public void setRowVersion(Long v) { this.rowVersion = v; }
     public void setApplyFrom(String v) { this.applyFrom = v; }
     public void setWarningsAcknowledged(Boolean v) { this.warningsAcknowledged = v; }

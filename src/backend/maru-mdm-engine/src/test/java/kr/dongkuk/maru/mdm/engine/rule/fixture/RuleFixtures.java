@@ -1,5 +1,6 @@
 package kr.dongkuk.maru.mdm.engine.rule.fixture;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -180,7 +181,13 @@ public final class RuleFixtures {
 
     // ------------------------------------------------------------------ 정의
 
+    /** 정수 major 버전(예 1 → 1.000)으로 룰을 만든다. */
     public static RuleDefinition decision(String ruleId, int ver, HitPolicy policy, LocalDateTime applyFrom,
+            List<RuleVar> vars, InputContract contract, RuleRow... rows) {
+        return decision(ruleId, major(ver), policy, applyFrom, vars, contract, rows);
+    }
+
+    public static RuleDefinition decision(String ruleId, BigDecimal ver, HitPolicy policy, LocalDateTime applyFrom,
             List<RuleVar> vars, InputContract contract, RuleRow... rows) {
         return new RuleDefinition(ruleId, ver, RuleKind.DECISION, policy, applyFrom, FOREVER, ENGINE_VERSION,
                 List.copyOf(vars), contract, Arrays.asList(rows));
@@ -188,8 +195,17 @@ public final class RuleFixtures {
 
     public static RuleDefinition derive(String ruleId, int ver, LocalDateTime applyFrom, List<RuleVar> vars,
             InputContract contract, RuleRow... rows) {
+        return derive(ruleId, major(ver), applyFrom, vars, contract, rows);
+    }
+
+    public static RuleDefinition derive(String ruleId, BigDecimal ver, LocalDateTime applyFrom, List<RuleVar> vars,
+            InputContract contract, RuleRow... rows) {
         return new RuleDefinition(ruleId, ver, RuleKind.DERIVE, null, applyFrom, FOREVER, ENGINE_VERSION,
                 List.copyOf(vars), contract, Arrays.asList(rows));
+    }
+
+    private static BigDecimal major(int ver) {
+        return BigDecimal.valueOf(ver).setScale(3);
     }
 
     // ------------------------------------------------------------------ 레코드·위반

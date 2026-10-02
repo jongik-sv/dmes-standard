@@ -12,7 +12,10 @@ import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dmc.MasterCodeSeeds;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.cfg.JsonNodeFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
@@ -61,7 +64,11 @@ class MetaFeedOasisHttpTest {
     MdmEvaluator evaluator;
 
     private final HttpClient client = HttpClient.newHttpClient();
-    private final ObjectMapper json = new ObjectMapper();
+    /** 소수는 BigDecimal 로, 뒤 0 을 지운 채로 읽지 않는다 — 룰·코드 버전 자리수(scale 3)를 응답 그대로 본다(D-144). */
+    private final ObjectMapper json = JsonMapper.builder()
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .disable(JsonNodeFeature.STRIP_TRAILING_BIGDECIMAL_ZEROES)
+            .build();
     private JdbcTemplate jdbc;
 
     @DynamicPropertySource
@@ -190,11 +197,16 @@ class MetaFeedOasisHttpTest {
 
     @Test
     void view_RULE_은_RELEASED_버전_전체를_ver_순으로_주고_DRAFT_는_빼며_확정이_없으면_빈_배열이다() throws Exception {
+        // 룰 버전은 major/minor 소수(D-144). 1.000(SQLite INTEGER)·1.001(REAL)이 섞이고, 2.000·10.000 은 문자열 정렬이면 순서가 뒤집힌다
         DmeTestSupport.sampleRule(jdbc);
         jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 1");
-        DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", 2, "FIRST", "2026-07-01 00:00:00", null);
-        DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", 2);
-        DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 3, "DRAFT", "kim", "FIRST", 2);
+        DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", new BigDecimal("10.000"), "MAJOR", "FIRST", "2028-01-01 00:00:00", null);
+        DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", new BigDecimal("10.000"));
+        DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", new BigDecimal("1.001"), "MINOR", "FIRST", "2026-07-01 00:00:00", "2027-01-01 00:00:00");
+        DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", new BigDecimal("1.001"));
+        DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", new BigDecimal("2.000"), "MAJOR", "FIRST", "2027-01-01 00:00:00", "2028-01-01 00:00:00");
+        DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", new BigDecimal("2.000"));
+        DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", new BigDecimal("10.001"), "MINOR", "DRAFT", "kim", "FIRST", new BigDecimal("10.000"));
         DmeTestSupport.rule(jdbc, "NOREL_JDG", "확정 없음", "DECISION", "CREATED");
         DmeTestSupport.pending(jdbc, "NOREL_JDG", 1, "DRAFT", "kim", "FIRST", null);
 
@@ -202,11 +214,17 @@ class MetaFeedOasisHttpTest {
 
         assertEquals(2, r.path("items").size(), r.toString());
         JsonNode versions = item(r, "QLTY_GRD_JDG");
-        assertEquals(2, versions.size(), versions.toString());
-        assertEquals(1, versions.get(0).path("ver").asInt());
+        assertEquals(4, versions.size(), versions.toString());
+        // 수 비교 오름차순, JSON number 자리수 그대로(1.000 이 1 로 줄지 않는다)
+        List<BigDecimal> vers = new java.util.ArrayList<>();
+        versions.forEach(v -> {
+            assertTrue(v.path("ver").isBigDecimal(), "ver 는 JSON 소수: " + v.path("ver"));
+            vers.add(v.path("ver").decimalValue());
+        });
+        assertEquals(List.of(new BigDecimal("1.000"), new BigDecimal("1.001"), new BigDecimal("2.000"), new BigDecimal("10.000")), vers);
         assertEquals("2026-01-01T00:00:00", versions.get(0).path("applyFrom").asText());
         assertEquals("2026-07-01T00:00:00", versions.get(0).path("applyTo").asText());
-        assertEquals(2, versions.get(1).path("ver").asInt());
+        assertEquals("2026-07-01T00:00:00", versions.get(1).path("applyFrom").asText());
         assertEquals("DECISION", versions.get(1).path("ruleKind").asText());
         assertEquals("FIRST", versions.get(1).path("hitPolicy").asText());
         boolean varKey = false;

@@ -65,8 +65,9 @@ class MdmDefinitionLookupTest {
                 null, List.of(), null);
     }
 
-    static RuleDefinition rule(int ver, LocalDateTime from, LocalDateTime to) {
-        return new RuleDefinition("R", ver, RuleKind.DECISION, HitPolicy.FIRST, from, to, "1", List.of(),
+    /** 룰 버전은 major/minor 소수(D-144) — 문자열로 받아 scale 그대로 BigDecimal 로 싣는다. */
+    static RuleDefinition rule(String ver, LocalDateTime from, LocalDateTime to) {
+        return new RuleDefinition("R", new BigDecimal(ver), RuleKind.DECISION, HitPolicy.FIRST, from, to, "1", List.of(),
                 new InputContract(List.of(), List.of()), List.of());
     }
 
@@ -206,27 +207,44 @@ class MdmDefinitionLookupTest {
     @Test
     void 적용_기간이_겹치면_VER_가_큰_RELEASED_를_고른다() {
         List<RuleDefinition> released = List.of(
-                rule(3, LocalDateTime.of(2026, 1, 1, 0, 0), LocalDateTime.of(9999, 12, 31, 0, 0)),
-                rule(5, LocalDateTime.of(2026, 3, 1, 0, 0), null),
-                rule(4, LocalDateTime.of(2026, 2, 1, 0, 0), LocalDateTime.of(9999, 12, 31, 0, 0)));
+                rule("3.000", LocalDateTime.of(2026, 1, 1, 0, 0), LocalDateTime.of(9999, 12, 31, 0, 0)),
+                rule("5.000", LocalDateTime.of(2026, 3, 1, 0, 0), null),
+                rule("4.000", LocalDateTime.of(2026, 2, 1, 0, 0), LocalDateTime.of(9999, 12, 31, 0, 0)));
         Instant at = LocalDateTime.of(2026, 4, 1, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant();
-        assertThat(MdmDefinitionLookup.select(released, at).orElseThrow().ver()).isEqualTo(5);
+        assertThat(MdmDefinitionLookup.select(released, at).orElseThrow().ver()).isEqualTo(new BigDecimal("5.000"));
         Instant earlyFeb = LocalDateTime.of(2026, 2, 15, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant();
-        assertThat(MdmDefinitionLookup.select(released, earlyFeb).orElseThrow().ver()).isEqualTo(4);
+        assertThat(MdmDefinitionLookup.select(released, earlyFeb).orElseThrow().ver()).isEqualTo(new BigDecimal("4.000"));
+    }
+
+    /** D-144 소수 버전 — 최대는 수 비교다. 문자열 비교면 "9.000" &gt; "10.000", 자리수만 다른 1.0·1.000 은 같은 값이다. */
+    @Test
+    void 겹친_RELEASED_의_최대_VER_는_문자열이_아니라_수로_비교한다() {
+        LocalDateTime from = LocalDateTime.of(2026, 1, 1, 0, 0);
+        Instant at = LocalDateTime.of(2026, 4, 1, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant();
+
+        List<RuleDefinition> majors = List.of(rule("9.000", from, null), rule("10.000", from, null), rule("2.000", from, null));
+        assertThat(MdmDefinitionLookup.select(majors, at).orElseThrow().ver()).isEqualTo(new BigDecimal("10.000"));
+
+        List<RuleDefinition> minors = List.of(rule("1.010", from, null), rule("1.009", from, null), rule("1.000", from, null));
+        assertThat(MdmDefinitionLookup.select(minors, at).orElseThrow().ver()).isEqualTo(new BigDecimal("1.010"));
+
+        List<RuleDefinition> minorOverMajor = List.of(rule("2.000", from, null), rule("1.999", from, null));
+        assertThat(MdmDefinitionLookup.select(minorOverMajor, at).orElseThrow().ver()).isEqualTo(new BigDecimal("2.000"));
     }
 
     @Test
     void rule_은_판정_시각이_적용_기간에_든_RELEASED_버전을_고른다_경계() {
         feed.put(MdmTargetType.RULE, "R", List.of(
-                rule(1, LocalDateTime.of(2026, 1, 1, 0, 0), LocalDateTime.of(2026, 7, 1, 0, 0)),
-                rule(2, LocalDateTime.of(2026, 7, 1, 0, 0), LocalDateTime.of(9999, 12, 31, 0, 0))));
+                rule("1.000", LocalDateTime.of(2026, 1, 1, 0, 0), LocalDateTime.of(2026, 7, 1, 0, 0)),
+                rule("1.001", LocalDateTime.of(2026, 7, 1, 0, 0), LocalDateTime.of(9999, 12, 31, 0, 0))));
 
         Instant beforeSwitch = LocalDateTime.of(2026, 6, 30, 23, 59, 59).atZone(MdmDefinitionLookup.KST).toInstant();
         Instant atSwitch = LocalDateTime.of(2026, 7, 1, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant();
         Instant beforeAll = LocalDateTime.of(2025, 12, 31, 23, 59, 59).atZone(MdmDefinitionLookup.KST).toInstant();
 
-        assertThat(lookup.rule("R", beforeSwitch).orElseThrow().ver()).isEqualTo(1);
-        assertThat(lookup.rule("R", atSwitch).orElseThrow().ver()).isEqualTo(2);
+        // equals(자리수까지) — 캐시가 준 BigDecimal 을 그대로 돌려준다
+        assertThat(lookup.rule("R", beforeSwitch).orElseThrow().ver()).isEqualTo(new BigDecimal("1.000"));
+        assertThat(lookup.rule("R", atSwitch).orElseThrow().ver()).isEqualTo(new BigDecimal("1.001"));
         assertThat(lookup.rule("R", beforeAll)).isEmpty();
         assertThat(lookup.rule("NO", atSwitch)).isEmpty();
     }

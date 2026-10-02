@@ -14,6 +14,7 @@ import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveContext;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveIssueCode;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -102,13 +103,13 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
                 continue;
             }
             String s = set.getMaruRuleSetId();
-            Map<String, Integer> released = queries.latestReleasedVers(members);
+            Map<String, BigDecimal> released = queries.latestReleasedVers(members);
             Map<String, Names> others = new LinkedHashMap<>();
             for (String other : members) {
                 if (other.equals(me) || !released.containsKey(other)) {
                     continue;
                 }
-                int ver = released.get(other);
+                BigDecimal ver = released.get(other);
                 others.put(other, RuleDefinitionReads.of(queries.vars(other, ver),
                         queries.rows(other, ver).stream().map(r -> RuleCellsCodec.parse(r.getCells())).toList()));
             }

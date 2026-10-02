@@ -24,7 +24,7 @@ function must(r: EditResult): EditFlow {
   return r.flow;
 }
 const io = (ruleId: string): RuleIo => ({
-  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [],
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [],
 });
 /** start → if1{e5 갈래 1 → r4(빈 단계) / e6 그 외} → r1(모이는 자리) → r2 → r3(빈 단계) → end(implicit-join §8.2). */
 function flowOf(): EditFlow {

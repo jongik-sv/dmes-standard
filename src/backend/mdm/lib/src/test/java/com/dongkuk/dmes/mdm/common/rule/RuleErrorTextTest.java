@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainFixtures;
 import com.dongkuk.dmes.mdm.common.engine.MdmEngineConfig;
 import com.dongkuk.dmes.mdm.common.rule.definition.SingleRuleDefinitionLookup;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -241,7 +242,7 @@ class RuleErrorTextTest {
     }
 
     private static RuleDefinition def(HitPolicy p, List<RuleVar> vars, InputContract c, List<RuleRow> rows) {
-        return new RuleDefinition("R1", 1, RuleKind.DECISION, p, null, null, "1", vars, c, rows);
+        return new RuleDefinition("R1", new BigDecimal("1.000"), RuleKind.DECISION, p, null, null, "1", vars, c, rows);
     }
 
     private static Map<String, Object> m(Object... kv) {

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { newColumn } from "../../../pages/dme/ruleEdit/sections/columns/column-draft";
 import { buildColumnGridColumns, cellPatch, changedFields } from "../../../pages/dme/ruleEdit/sections/columns/column-grid";
-import { matchDomain } from "../../../pages/dme/ruleEdit/sections/columns/DomainSearchBox";
+import { matchDomain } from "@/domain";
 
 const handlers = { current: { move: () => {}, remove: () => {}, openDomain: () => {}, clearDomain: () => {} } };
 const keys = (opts: Parameters<typeof buildColumnGridColumns>[0]) => buildColumnGridColumns(opts).map((c) => c.key);

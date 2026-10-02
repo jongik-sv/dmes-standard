@@ -9,7 +9,7 @@ import { SAMPLE_VARS } from "./fixtures";
 function result(over: Partial<ValueTestResult> = {}): ValueTestResult {
   return {
     target: "VERSION",
-    ver: 1,
+    ver: "1.000",
     evalTs: "2026-09-26 10:00:00",
     outcome: "OK",
     results: { QLTY_GRD: "A", PRC_FCT: "1.05" },

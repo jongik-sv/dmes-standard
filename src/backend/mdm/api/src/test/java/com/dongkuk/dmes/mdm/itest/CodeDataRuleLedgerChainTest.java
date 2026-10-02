@@ -226,7 +226,7 @@ class CodeDataRuleLedgerChainTest {
         // ── 7) 확정된 룰을, 시험이 직접 조립한 MdmEvaluator(운영 CodeLookup + 시험 전용 MasterLookup)로 판정한다 ──
         MasterLookup dataItemMasterLookup = new DataItemMasterLookup(jdbc);
         MdmEvaluator evaluator = new MdmEvaluator(MdmEngineConfig.lookups(codeLookup, dataItemMasterLookup, FunctionProvider.NONE));
-        Stored stored = storedRuleDefinitions.read("CHAIN_JDG", 1).orElseThrow();
+        Stored stored = storedRuleDefinitions.read("CHAIN_JDG", DmeTestSupport.v(1)).orElseThrow();
         Assembled assembled = storedRuleDefinitions.assemble("CHAIN_JDG", "DERIVE", stored);
         assertTrue(assembled.failures().isEmpty(), assembled.failures().toString());
         MdmRuleEngine engine = new MdmRuleEngine(evaluator, new SingleRuleDefinitionLookup(assembled.definition()));

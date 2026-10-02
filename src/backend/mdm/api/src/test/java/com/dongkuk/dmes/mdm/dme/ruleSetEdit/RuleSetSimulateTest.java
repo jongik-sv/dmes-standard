@@ -90,6 +90,17 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
         }
     }
 
+    /**
+     * 골든과 기록을 견준다 — 숫자는 값으로 본다. 노드 기록의 룰 버전은 BigDecimal scale 3(엔진 계약, D-144)이라 메모리 트리에서는
+     * DecimalNode, 골든 파일·HTTP 응답에서 읽으면 IntNode·DoubleNode 가 된다. 노드 종류만 다르고 값은 같다.
+     */
+    public static void assertSameJson(JsonNode expected, JsonNode actual, String message) {
+        assertTrue(expected != null && expected.equals(NUMERIC_VALUE, actual), () -> message + " ==> expected: " + expected + " but was: " + actual);
+    }
+
+    private static final java.util.Comparator<JsonNode> NUMERIC_VALUE = (a, b) -> a.isNumber() && b.isNumber()
+            ? a.decimalValue().compareTo(b.decimalValue()) : a.equals(b) ? 0 : 1;
+
     /** 골든 파일의 사례 이름 → 사례 노드. */
     public static Map<String, JsonNode> readGolden() throws IOException {
         Map<String, JsonNode> out = new LinkedHashMap<>();
@@ -313,7 +324,7 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
         assertEquals(cases().stream().map(GoldenCase::name).toList(), List.copyOf(golden.keySet()), "사례 이름·순서(P5)");
         for (JsonNode actual : out) {
             JsonNode expected = golden.get(actual.path("name").asText());
-            assertEquals(expected, actual, actual.path("name").asText());
+            assertSameJson(expected, actual, actual.path("name").asText());
         }
     }
 
@@ -495,7 +506,7 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
         JsonNode expected = readGolden().get("IF_FIRST_TRUE").path("response").path("trace");
         for (String none : java.util.Arrays.asList(null, "", " ", "[]")) {
             JsonNode trace = response(simulate(c.flowJson(), c.recordJson(), none)).path("trace");
-            assertEquals(expected, trace, String.valueOf(none));
+            assertSameJson(expected, trace, String.valueOf(none));
             assertTrue(!trace.has("edits"), String.valueOf(none));
         }
     }

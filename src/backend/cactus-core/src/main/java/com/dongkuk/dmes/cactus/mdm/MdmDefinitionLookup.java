@@ -16,6 +16,7 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
  *
  * <p>룰은 캐시된 RELEASED 버전 가운데 판정 시각(KST 벽시계)이 {@code APPLY_FROM <= t < APPLY_TO} 인 것, 여럿이면 VER 가 가장 큰 것을 고른다
  * — MDM {@code RuleVersions.currentReleased} 와 같은 규칙. "현재 버전"을 캐시하지 않는다(적용 시작일 도래는 쓰기가 없어 기록이 남지 않는다).
+ * VER 는 major/minor 소수({@code BigDecimal}, D-144 — 예 {@code 1.000}·{@code 1.001})라 크기 비교는 {@code compareTo}(수 비교)로 한다.
  */
 public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
 
@@ -65,7 +66,7 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
         LocalDateTime now = LocalDateTime.ofInstant(evalTs, KST);
         return released.stream()
                 .filter(d -> d.applyFrom() != null && !d.applyFrom().isAfter(now) && (d.applyTo() == null || now.isBefore(d.applyTo())))
-                .max(Comparator.comparingInt(RuleDefinition::ver));
+                .max(Comparator.comparing(RuleDefinition::ver)); // BigDecimal compareTo — 9.000 < 10.000, 1.009 < 1.010, 1.0 == 1.000
     }
 
     /**

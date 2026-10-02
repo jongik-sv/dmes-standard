@@ -67,7 +67,7 @@ A 는 B 와 C 가 공통으로 딛는 기반이다. 업무 모듈이 MDM 메타�
 | `REG_DT` | 일시 | 기록 시각 |
 | `REG_ID` | VARCHAR | 기록한 사용자 |
 
-- Flyway 는 `flyway-migration-add` 스킬로 채번한다(현재 SQLite 마지막 V16 → V17 예상). 인덱스는 PK 하나로 충분하다(조회는 늘 `REV_SEQ > :since`).
+- Flyway 는 `flyway-migration-add` 스킬로 채번한다(작성 때 SQLite 마지막 V16 → V17 예상이었으나, dev 의 V17 `rule_version_decimal`(D-144)을 합치며 **V18** `create_mdm_meta_rev` 로 바뀌었다). 인덱스는 PK 하나로 충분하다(조회는 늘 `REV_SEQ > :since`).
 - 보관: 30일이 지난 행은 정리할 수 있다. 정리로 생긴 공백은 클라이언트가 §5.3 규칙으로 처리한다. 정리 작업 자체는 이번 범위에 넣지 않는다.
 
 ### 3.2 기록 서비스 `MetaRevisionRecorder`
@@ -129,7 +129,7 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 |---|---|---|---|
 | 컬럼 | `PHYS_NAME` | §4.2 | 엔진 `ColumnDefinition` 과 화면 메타를 이 값에서 만든다 |
 | 도메인 | `DOMAIN_ID`(문자열) | §4.3 | 툴팁 도메인 정보 |
-| 룰 | `MARU_RULE_ID` | RELEASED 버전 전체 | 평가 시각으로 그때그때 고른다. "현재 버전"을 캐시하지 않는다 — 적용 시작일 도래는 쓰기가 없어 기록이 남지 않기 때문이다 |
+| 룰 | `MARU_RULE_ID` | RELEASED 버전 전체 | 평가 시각으로 그때그때 고른다. "현재 버전"을 캐시하지 않는다 — 적용 시작일 도래는 쓰기가 없어 기록이 남지 않기 때문이다. `ver` 는 major/minor 소수(D-144, `NUMERIC(7,3)`, JSON number `1.000`·`1.001`)이고 목록 정렬·여럿일 때 최대 고르기는 수 비교(`BigDecimal.compareTo`)다 |
 | 룰세트 | `MARU_RULE_SET_ID` | `RuleSetDefinition` | 버전 없음 |
 | 마스터코드 | `MARU_CODE_ID` | `CodeRows` 원본 | 엔진 `CodeResolver` 가 기준일로 해석한다. 버전 적용 기간도 같은 이유로 원본째 둔다 |
 | 전문 | `LAYOUT_ID` | 최신 스냅샷 | 캐시만 한다. 소비 연동은 범위 밖 |
@@ -253,8 +253,8 @@ cactus:
 
 ## 8. 함께 남길 기록
 
-- **ADR**: "MDM 메타 하이브리드 배포와 리비전 무효화"를 `adr-write` 로 `docs/mdm/adr/0006-…` 에 발행한다(되돌리기 어려운 모듈 간 결정).
-- **Flyway**: `flyway-migration-add` 로 V17 채번. 운영 DDL(`application-wildfly.yml` 은 Flyway 꺼짐)은 운영 DB 확정 때 수동으로 맞춘다.
+- **ADR**: "MDM 메타 하이브리드 배포와 리비전 무효화"를 `adr-write` 로 `docs/mdm/adr/0007-…` 에 발행한다(작성 때 0006 이었으나 dev 의 ADR-0006 `object-versioning-major-minor` 와 겹쳐 0007 로 바꿨다)(되돌리기 어려운 모듈 간 결정).
+- **Flyway**: `flyway-migration-add` 로 V18 채번(dev 병합 뒤 번호). 운영 DDL(`application-wildfly.yml` 은 Flyway 꺼짐)은 운영 DB 확정 때 수동으로 맞춘다.
 - **가이드**: `docs/guide/BackEnd` 에 "업무 모듈에서 MDM 메타 켜기"(설정 블록, 엔드포인트) 짧은 절을 추가한다.
 
 ## 9. 범위 밖과 미결

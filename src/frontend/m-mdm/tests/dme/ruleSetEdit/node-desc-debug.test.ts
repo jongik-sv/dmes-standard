@@ -21,7 +21,7 @@ import { byTestId, click, installServer, ok, openSet, q, settle, srv, uninstallS
 
 const nm = (name: string, source: "DICT" | "NONE", dataType: string | null) => ({ name, source, label: null, dataType, scale: null, dateString: false, maruCodeId: null });
 const io = (ruleId: string, conds: ReturnType<typeof nm>[], results: string[]): RuleIo => ({
-  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
   conds, results: results.map((r) => nm(r, "NONE", "STRING")),
 });
 const FIRST = golden("IF_FIRST_TRUE");

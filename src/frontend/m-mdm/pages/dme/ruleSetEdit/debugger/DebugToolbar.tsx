@@ -1,15 +1,16 @@
 "use client";
 
 /**
- * 디버그 툴바(3단계 계획 §4.3·P-D22) — 흐름 툴바 아래 둘째 줄. [계속 F5] [한 단계 F10] [이전] [여기까지] [처음부터] [끝내기]·상태 문구·낡은 기록 배지·알림.
+ * 디버그 툴바(3단계 계획 §4.3·P-D22) — 흐름 툴바 아래 둘째 줄. [계속 F5] [한 단계 F10] [이전] [여기까지] [처음부터] [끝까지] [중지 Shift+F5]·상태 문구·낡은 기록 배지·알림.
  * 단추는 아이콘만 있고(`ToolButton`) 이름·단축키·꺼진 이유는 툴팁(`data-tip`)으로 보인다(2026-10-01 한 줄 툴바와 같은 방식).
- * 실행을 부를 수 있는 단추(계속·한 단계·여기까지·처음부터·끝내기)는 `execute` 권한이 없으면 꺼지고 툴팁으로 이유를 보인다. 실행 중에는 모두 꺼진다.
+ * 실행을 부를 수 있는 단추(계속·한 단계·여기까지·처음부터·끝까지)는 `execute` 권한이 없으면 꺼지고 툴팁으로 이유를 보인다. 실행 중에는 모두 꺼진다.
+ * [중지](2026-10-02)는 실행을 부르지 않으므로 권한과 무관하고, 기록이 있거나 실행 중일 때 켜진다(실행 중에도 누를 수 있어야 멈춘다). ■ 아이콘은 [중지]에만 쓴다.
  * [여기까지]는 고른 흐름 노드 기준이다(page 가 흐름 노드일 때만 selectedId 를 넘긴다). 상태 문구는 `debugStatus`(커서 k = "노드 k 실행 전", P-D13).
- * 4단계 E4: 고침 대기가 있으면 [계속]·[한 단계]·[여기까지]·[끝내기]가 고친 값으로 처음부터 다시 실행한다(훅이 판정한다). 상태 문구 끝에 고친 값·고침 대기 수.
+ * 4단계 E4: 고침 대기가 있으면 [계속]·[한 단계]·[여기까지]·[끝까지]가 고친 값으로 처음부터 다시 실행한다(훅이 판정한다). 상태 문구 끝에 고친 값·고침 대기 수.
  * 낡은 기록(흐름 구조가 실행 뒤 바뀜)이면 "지난 흐름 기준" 배지를 보이고, 다음 동작이 새로 실행한다(P-D9 — 훅이 판정한다).
  * 받는 노드(spec §9): 끝냄이면 상태 문구가 "예외로 끝남", 받은 예외가 있으면 [받은 예외 N건] 이 목록을 연다(기록의 CATCH 노드에서 만든다 — 편차 F9).
  */
-import { IconArrowBackUp, IconArrowForwardUp, IconBolt, IconPlayerPlay, IconPlayerStop, IconPlayerTrackNext, IconRotate } from "@tabler/icons-react";
+import { IconArrowBackUp, IconArrowForwardUp, IconBolt, IconPlayerPlay, IconPlayerSkipForward, IconPlayerStop, IconPlayerTrackNext, IconRotate } from "@tabler/icons-react";
 import { useState, type ReactNode } from "react";
 
 import { Button } from "@dk-oasis/shared/form";
@@ -30,6 +31,7 @@ export interface DebugToolbarProps {
 
 export const PENDING_RUN_PREFIX = "고친 값으로 처음부터 다시 실행한 뒤 ";
 const RUN_TO_NEEDS_NODE = "캔버스에서 흐름 노드를 먼저 고른다";
+export const STOP_TIP = "중지 — 디버그를 끝내고 실행 전으로 (Shift+F5)";
 
 export function DebugToolbar({ sim, canRun, selectedId }: DebugToolbarProps) {
   const busy = sim.running;
@@ -64,7 +66,8 @@ export function DebugToolbar({ sim, canRun, selectedId }: DebugToolbarProps) {
           !canRun ? RUN_DENIED_TITLE : selectedId ? `${redo}여기까지 실행 — ${selectedId}` : RUN_TO_NEEDS_NODE,
         )}
         {btn("dbg-restart", "처음부터", <IconRotate size={14} aria-hidden="true" />, () => void sim.restart(), runOff, runTitle(hasEdits ? "처음부터 — 고친 값을 모두 지운다" : "처음부터"))}
-        {btn("dbg-finish", "끝내기", <IconPlayerStop size={14} aria-hidden="true" />, () => void sim.finish(), runOff, runTitle(`${redo}끝내기 — 마지막 단계로`))}
+        {btn("dbg-finish", "끝까지", <IconPlayerSkipForward size={14} aria-hidden="true" />, () => void sim.finish(), runOff, runTitle(`${redo}끝까지 — 마지막 단계로`))}
+        {btn("dbg-stop", "중지", <IconPlayerStop size={14} aria-hidden="true" />, sim.stop, !sim.last && !busy, STOP_TIP)}
       </span>
       <span aria-hidden className="rsf-dbg-sep" />
       <span className="rsf-dbg-status" data-testid="dbg-status" data-end={end} role="status">

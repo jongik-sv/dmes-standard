@@ -6,6 +6,8 @@
  */
 import { apiRequest } from "@dk-oasis/shared/http";
 
+import type { DomainRow } from "@/domain";
+
 import type {
   CompareResult,
   Direction,
@@ -66,17 +68,32 @@ export async function callOasis<T>(
   return unwrap<T>(res);
 }
 
+/** 도메인 조건은 도메인 ID·도메인명·표준명에 대소문자 무시 부분 일치하는 키워드다(서버 domainKeyword). 비면 전체. */
 export function searchColumns(
   keyword: string,
-  domainId: string,
+  domainKeyword: string,
 ): Promise<SearchResult> {
+  const dk = domainKeyword.trim();
   return callOasis<SearchResult>("columnMng", "search", {
     keyword,
-    domainId: domainId === "" ? null : Number(domainId),
+    domainKeyword: dk === "" ? null : dk,
   });
 }
 
-/** 진입 때 도메인·시스템 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음, list 는 빈 배열). */
+/**
+ * 편집 폼 도메인 칸의 서버 검색 — 룰 편집(ruleEdit)의 도메인 검색 action(target=DOMAIN, 8건)을 그대로 쓴다.
+ * 두 화면이 같은 도메인 테이블을 같은 규칙으로 찾는다. 콤보에 전체 목록을 싣지 않는다.
+ */
+export async function searchDomains(keyword: string): Promise<DomainRow[]> {
+  const kw = keyword.trim();
+  const res = await callOasis<{ rows?: DomainRow[] }>("ruleEdit", "search", {
+    target: "DOMAIN",
+    keyword: kw === "" ? null : kw,
+  });
+  return res.rows ?? [];
+}
+
+/** 진입 때 시스템 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음, list 는 빈 배열). */
 export function loadColumnOptions(): Promise<SearchResult> {
   return callOasis<SearchResult>("columnMng", "search", { optionsOnly: true });
 }

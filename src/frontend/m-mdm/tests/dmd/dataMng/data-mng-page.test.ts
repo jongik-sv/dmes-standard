@@ -123,6 +123,17 @@ async function openRegister() {
   await flush();
 }
 
+/** 머리 [조회] — 첫 진입은 목록을 자동 조회하지 않으므로(cf4fbb05) 목록 행이 필요한 시험은 먼저 누른다. */
+async function search() {
+  const btn = Array.from(container.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "조회");
+  expect(btn, "조회").toBeTruthy();
+  await act(async () => {
+    (btn as HTMLButtonElement).click();
+  });
+  await flush();
+  await flush();
+}
+
 /** data-mng-list 안에서 텍스트를 담은 ag-grid 행을 찾아 첫 셀을 클릭한다(codeMng 선례). */
 async function clickListRow(matchText: string) {
   const rows = Array.from(document.body.querySelectorAll('[data-testid="data-mng-list"] .ag-row'));
@@ -189,6 +200,10 @@ describe("DataMngPage(dataEdit 통합)", () => {
   it("마루 데이터를 고르기 전에는 목록과 안내만 보인다", async () => {
     await render();
     expect(byTestId("data-mng-empty")).toBeTruthy();
+    // 첫 진입은 목록을 자동 조회하지 않는다 — [조회] 를 눌러야 불러온다(cf4fbb05).
+    expect(actions("dataMng", "search")).toHaveLength(0);
+    expect(visibleText(document.body)).toContain("0건");
+    await search();
     expect(visibleText(document.body)).toContain("2건");
     expect(byTestId("data-edit-name")).toBeNull();
     expect(actions("dataEdit", "view")).toHaveLength(0);
@@ -201,6 +216,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
     try {
       const snapshots: unknown[] = [];
       await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
+      await search();
       await clickListRow("PORT");
 
       expect(actions("dataEdit", "view").map((c) => c.params.maruDataId)).toEqual(["PORT"]);
@@ -218,6 +234,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
 
   it("다른 행을 클릭하면 상세가 그 데이터로 바뀐다", async () => {
     await render();
+    await search();
     await clickListRow("PORT");
     expect(nameValue()).toBe("항구");
 
@@ -234,6 +251,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
 
   it("[데이터 등록] 을 누르면 팝업에 등록 폼이 뜨고, [취소] 는 팝업만 닫으며 선택·상세는 그대로다", async () => {
     await render();
+    await search();
     await clickListRow("PORT");
     expect(nameValue()).toBe("항구");
 
@@ -284,7 +302,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
       expect(actions("dataEdit", "view").map((c) => c.params.maruDataId)).toEqual(["NEWID"]);
       expect(nameValue()).toBe("새 이름");
       expect(byTestId("data-mng-register-form")).toBeNull();
-      expect(actions("dataMng", "search")).toHaveLength(2);
+      expect(actions("dataMng", "search")).toHaveLength(1); // 진입 자동 조회 없음 + 등록 뒤 재조회 1건
       expect(opened).toHaveLength(0);
     } finally {
       window.removeEventListener("portal-open-tab", listener);
@@ -339,7 +357,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
 
     expect(actions("dataEdit", "save")[0].params).toMatchObject({ maruDataId: "PORT", auditVer: 0, maruDataName: "항구(개정)" });
     expect(nameValue()).toBe("항구(개정)");
-    expect(actions("dataMng", "search")).toHaveLength(2);
+    expect(actions("dataMng", "search")).toHaveLength(1); // 진입 자동 조회 없음 + 저장 뒤 재조회 1건
   });
 
   it("편집 불가(폐기됨) 데이터는 입력·[헤더 저장]·[폐기] 가 꺼지지만 [항목 편집 →] 은 켜져 있다", async () => {
@@ -393,6 +411,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
     window.addEventListener("portal-open-tab", listener);
     try {
       await render();
+      await search();
       await clickListRow("SHIP");
       await click(byTestId("data-edit-item-edit"));
 
@@ -405,6 +424,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
 
   it("같은 데이터를 다시 불러오는 사이 고친 폼은 늦게 온 view 응답이 덮지 않는다", async () => {
     await render({ snapshot: { maruDataId: "PORT" } });
+    await search();
     expect(nameValue()).toBe("항구");
 
     let release: (v: unknown) => void = () => {};
@@ -427,6 +447,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
 
   it("다른 데이터로 옮길 때는 응답이 폼을 새 값으로 바꾼다(이전 입력 폐기)", async () => {
     await render({ snapshot: { maruDataId: "PORT" } });
+    await search();
     await typeInto("data-edit-name", "고친 이름");
     await clickListRow("SHIP");
     expect(nameValue()).toBe("선박");
@@ -443,6 +464,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
       return baseFetch(input, init);
     }) as typeof fetch;
     await render({ snapshot: { maruDataId: "PORT" } });
+    await search();
 
     await typeInto("data-edit-name", "항구(개정)");
     await click(byTestId("data-edit-save"));

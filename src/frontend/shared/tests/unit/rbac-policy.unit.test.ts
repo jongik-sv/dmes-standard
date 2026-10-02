@@ -14,6 +14,7 @@ const CFG: RbacPolicyConfig = {
     "/api/mcm/oasis/secUser/myButtonEndpoints",
     "/api/mcm/oasis/secFavorite/search",
     "/api/mls/oasis/noticeBoard/search", // m-mcm proxy.ts 와 같은 값 — 포털 홈 공지 목록(2026-10-02)
+    "/api/mcm/oasis/secWidget/", // m-mcm proxy.ts 와 같은 값 — 사용자 위젯 탭·배치(본인 데이터, 2026-10-02)
     "/api/mls/mdmMeta/", // m-mcm proxy.ts 와 같은 값 — MDM 메타 캐시(2026-10-02)
   ],
   lovPattern: /^\/api\/[^/]+\/lov\//,
@@ -142,6 +143,13 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
     expect(await evaluateApiPolicy("/api/mls/oasis/noticeBoard/search", null, CFG, loadThrow)).toBe("unauthorized");
     expect(await evaluateApiPolicy("/api/mls/oasis/noticeBoard/save", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
     expect(await evaluateApiPolicy("/api/mls/oasis/noticeMgmt/search", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+  });
+  it("AUTH_ONLY(mcm secWidget) — 다섯 action 모두 권한키 없는 사용자도 pass, 미로그인은 unauthorized", async () => {
+    for (const action of ["search", "saveTab", "deleteTab", "reorderTabs", "resetHome"]) {
+      expect(await evaluateApiPolicy(`/api/mcm/oasis/secWidget/${action}`, viewer, CFG, loadThrow)).toBe("pass");
+    }
+    expect(await evaluateApiPolicy("/api/mcm/oasis/secWidget/search", null, CFG, loadThrow)).toBe("unauthorized");
+    expect(await evaluateApiPolicy("/api/mcm/oasis/secWidgetAdmin/search", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
   });
   it("T12 업무 모듈 mdmMeta(MDM 메타 캐시) → AUTH_ONLY pass, loader 미호출 (2026-10-02)", async () => {
     expect(await evaluateApiPolicy("/api/mls/mdmMeta/columns", viewer, CFG, loadThrow)).toBe("pass");

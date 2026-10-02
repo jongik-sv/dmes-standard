@@ -31,10 +31,10 @@ function viewResult(overrides: Record<string, unknown> = {}, version: Record<str
   return {
     rule: { maruRuleId: "QLTY_GRD_JDG", maruRuleName: "품질 등급 판정", ruleKind: "DECISION", status: "INUSE", sourceKind: "MDM" },
     version: {
-      ver: 2, status: "DRAFT", ownerId: "tester", rowVersion: 3, hitPolicy: "FIRST", baseVer: 1,
+      ver: "2.000", status: "DRAFT", ownerId: "tester", rowVersion: 3, hitPolicy: "FIRST", baseVer: "1.000",
       applyFrom: null, applyTo: null, requestedBy: null, releasedAt: null, ...version,
     },
-    previous: { ver: 1, hitPolicy: "FIRST", applyFrom: "2026-01-01 00:00:00", applyTo: "9999-12-31 00:00:00" },
+    previous: { ver: "1.000", hitPolicy: "FIRST", applyFrom: "2026-01-01 00:00:00", applyTo: "9999-12-31 00:00:00" },
     firstVersion: false,
     diff: [
       { rowId: 1, kind: "SAME", oldSeq: 1, newSeq: 1, oldCells: '{"1":{"val":"A"}}', newCells: '{"1":{"val":"A"}}', changedVarIds: [] },
@@ -142,7 +142,7 @@ describe("RuleConfirmPage", () => {
     nextView = () => viewResult();
     nextValidate = () => validateResult(items());
     confirmResponse = ok({ ...viewResult({}, { status: "RELEASED", applyFrom: "2026-10-01 00:00:00" }),
-      confirmed: { ver: 2, rowVersion: 4 }, closedPreviousVer: 1, warnings: [] });
+      confirmed: { ver: "2.000", rowVersion: 4 }, closedPreviousVer: "1.000", warnings: [] });
     rbacRows = [{ objId: "*", action: "*", endpoint: "*", httpMethod: "*" }];
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -152,7 +152,7 @@ describe("RuleConfirmPage", () => {
         calls.push({ action: m[1], params: body.params ?? {} });
         if (m[1] === "search") {
           return jsonResponse(ok({ rows: [{ maruRuleId: "QLTY_GRD_JDG", maruRuleName: "품질 등급 판정", ruleKind: "DECISION",
-            ver: 2, ownerId: "tester", ruleStatus: "INUSE" }] }));
+            ver: "2.000", ownerId: "tester", ruleStatus: "INUSE" }] }));
         }
         if (m[1] === "view") return jsonResponse(ok(nextView()));
         if (m[1] === "validate") return jsonResponse(ok(nextValidate()));
@@ -177,13 +177,13 @@ describe("RuleConfirmPage", () => {
     document.body.innerHTML = "";
   });
 
-  it("확정 대기 목록을 서버에서 받아 행으로 보이고, 행을 누르면 그 룰·버전(정수)으로 view 를 부른다", async () => {
+  it("확정 대기 목록을 서버에서 받아 행으로 보이고, 행을 누르면 그 룰·버전(문자열)으로 view 를 부른다", async () => {
     await render();
     expect(actions("search")).toHaveLength(1);
     expect(actions("view")).toHaveLength(0);
-    await click(byTestId("rc-row-QLTY_GRD_JDG-2"));
-    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: 2 }]);
-    expect(gridRow("rc-list", "QLTY_GRD_JDG-2")?.classList.contains("ag-row-highlighted")).toBe(true);
+    await click(byTestId("rc-row-QLTY_GRD_JDG-2.000"));
+    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: "2.000" }]);
+    expect(gridRow("rc-list", "QLTY_GRD_JDG-2.000")?.classList.contains("ag-row-highlighted")).toBe(true);
   });
 
   it("목록이 비면 빈 상태 문구를 보인다", async () => {
@@ -203,14 +203,28 @@ describe("RuleConfirmPage", () => {
     expect(byTestId("rc-list-empty")?.textContent).toContain("확정할 DRAFT 가 없습니다");
   });
 
-  it("P1 핸드오프 {maruRuleId, ver: \"2\"} 로 열면 ver 를 정수 2 로 바꿔 view 를 부르고 snapshot 에 남긴다", async () => {
+  it("P1 핸드오프 {maruRuleId, ver: \"2\"} 로 열면 ver 를 \"2.000\" 으로 맞춰 view 를 부르고 snapshot 에 남긴다", async () => {
     const snapshots: unknown[] = [];
     openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: "2" });
     await render({ snapshot: { maruRuleId: "OTHER", ver: 9 }, onSnapshotChange: (s: unknown) => snapshots.push(s) });
-    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: 2 }]);
-    expect(snapshots).toContainEqual({ maruRuleId: "QLTY_GRD_JDG", ver: 2 });
-    expect(byTestId("rc-target")?.textContent).toBe("QLTY_GRD_JDG 버전 2 · DECISION");
-    expect(visibleText(byTestId("rc-previous")!)).toContain("버전 1 · 2026-01-01 00:00:00");
+    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: "2.000" }]);
+    expect(snapshots).toContainEqual({ maruRuleId: "QLTY_GRD_JDG", ver: "2.000" });
+    expect(byTestId("rc-target")?.textContent).toBe("QLTY_GRD_JDG 버전 v2.000 · DECISION");
+    expect(visibleText(byTestId("rc-previous")!)).toContain("버전 v1.000 · 2026-01-01 00:00:00");
+  });
+
+  it("P1 minor 버전(ver \"1.001\")을 넘겨받으면 소수부를 지키고 대상 버전을 v1.001 로 보인다(D-144)", async () => {
+    nextView = () => viewResult({}, { ver: "1.001", baseVer: "1.000" });
+    openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: "1.001" });
+    await render();
+    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: "1.001" }]);
+    expect(byTestId("rc-target")?.textContent).toBe("QLTY_GRD_JDG 버전 v1.001 · DECISION");
+  });
+
+  it("P1 형식이 깨진 ver 는 버리고 ver 없이 부른다(서버가 DRAFT 를 고른다)", async () => {
+    openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: "1.0001" });
+    await render();
+    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG" }]);
   });
 
   it("P1 ver 없이 넘겨받으면 ver 파라미터를 보내지 않는다(null 은 빼고 보낸다)", async () => {
@@ -221,9 +235,14 @@ describe("RuleConfirmPage", () => {
     expect("ver" in params).toBe(false);
   });
 
-  it("핸드오프가 없으면 snapshot 의 룰·버전을 불러온다", async () => {
+  it("핸드오프가 없으면 snapshot 의 룰·버전을 불러온다(옛 snapshot 의 숫자 ver 도 \"2.000\" 으로 읽는다)", async () => {
     await render({ snapshot: { maruRuleId: "QLTY_GRD_JDG", ver: 2 } });
-    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: 2 }]);
+    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: "2.000" }]);
+  });
+
+  it("snapshot 의 minor 버전 문자열은 그대로 불러온다", async () => {
+    await render({ snapshot: { maruRuleId: "QLTY_GRD_JDG", ver: "1.001" } });
+    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: "1.001" }]);
   });
 
   it("diff 는 건수 요약을 보이고 같은 행은 접었다가 토글로 편다. 바뀐 칸은 변수 라벨로 보인다", async () => {
@@ -260,7 +279,7 @@ describe("RuleConfirmPage", () => {
   it("P2 검사 결과 5행(항목 4 + 적용 순서)을 표로 그리고, 거부가 없으면 확정 버튼이 활성이다(apply_from 은 초 단위 문자열)", async () => {
     await openAndValidate();
     expect(actions("validate").map((c) => c.params)).toEqual([
-      { maruRuleId: "QLTY_GRD_JDG", ver: 2, applyFrom: "2026-10-01 00:00:00" },
+      { maruRuleId: "QLTY_GRD_JDG", ver: "2.000", applyFrom: "2026-10-01 00:00:00" },
     ]);
     for (const item of [...ITEMS, "APPLY_FROM"]) expect(gridRow("rc-checks", item), item).toBeTruthy();
     expect(byTestId("rc-check-status-SAVE_CHECKS")?.textContent).toBe("통과");
@@ -317,7 +336,7 @@ describe("RuleConfirmPage", () => {
     expect(okButton().disabled).toBe(false);
     await click(okButton());
     expect(actions("confirm").map((c) => c.params)).toEqual([{
-      maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3, applyFrom: "2026-10-01 00:00:00", warningsAcknowledged: true,
+      maruRuleId: "QLTY_GRD_JDG", ver: "2.000", rowVersion: 3, applyFrom: "2026-10-01 00:00:00", warningsAcknowledged: true,
     }]);
   });
 
@@ -329,13 +348,13 @@ describe("RuleConfirmPage", () => {
     nextView = () => viewResult({}, { status: "RELEASED", applyFrom: "2026-10-01 00:00:00", applyTo: "9999-12-31 00:00:00" });
     await click(okButton());
     expect(actions("confirm").map((c) => c.params)).toEqual([{
-      maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3, applyFrom: "2026-10-01 00:00:00", warningsAcknowledged: false,
+      maruRuleId: "QLTY_GRD_JDG", ver: "2.000", rowVersion: 3, applyFrom: "2026-10-01 00:00:00", warningsAcknowledged: false,
     }]);
     await flush();
     expect(visibleText(document.body)).toContain("확정했습니다");
     expect(actions("view").length).toBeGreaterThanOrEqual(2);
     expect(actions("search").length).toBeGreaterThanOrEqual(2);
-    expect(visibleText(byTestId("rc-released")!)).toContain("직전 버전 1 의 적용을 닫았습니다");
+    expect(visibleText(byTestId("rc-released")!)).toContain("직전 버전 v1.000 의 적용을 닫았습니다");
   });
 
   it("P4 계약 변경 경고가 있으면 계약 영역을 보이고, rc-contract-ack 와 rc-ack 를 모두 체크해야 확인이 켜진다", async () => {
@@ -469,7 +488,7 @@ describe("RuleConfirmPage", () => {
     await click(byTestId("rc-validate"));
     // 초까지 서버로 간다(I38).
     expect(actions("validate").map((c) => c.params)).toEqual([
-      { maruRuleId: "QLTY_GRD_JDG", ver: 2, applyFrom: "2026-10-01 21:45:37" },
+      { maruRuleId: "QLTY_GRD_JDG", ver: "2.000", applyFrom: "2026-10-01 21:45:37" },
     ]);
     expect(confirmButton().disabled).toBe(false);
   });
@@ -495,7 +514,7 @@ describe("RuleConfirmPage", () => {
     expect(confirmButton().disabled).toBe(true);
     await click(byTestId("rc-validate"));
     expect(actions("validate").at(-1)?.params).toEqual({
-      maruRuleId: "QLTY_GRD_JDG", ver: 2, applyFrom: "2026-10-01 09:30:15",
+      maruRuleId: "QLTY_GRD_JDG", ver: "2.000", applyFrom: "2026-10-01 09:30:15",
     });
     expect(confirmButton().disabled).toBe(false);
     await click(confirmButton());
@@ -525,7 +544,7 @@ describe("RuleConfirmPage", () => {
     await click(byTestId("rc-validate"));
     // 초까지 서버로 간다(I38).
     expect(actions("validate").map((c) => c.params)).toEqual([
-      { maruRuleId: "QLTY_GRD_JDG", ver: 2, applyFrom: "2026-10-01 21:45:37" },
+      { maruRuleId: "QLTY_GRD_JDG", ver: "2.000", applyFrom: "2026-10-01 21:45:37" },
     ]);
     expect(confirmButton().disabled).toBe(false);
   });

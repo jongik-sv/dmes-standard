@@ -111,14 +111,14 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
     private static RuleConfirmViewRequest view(String id, Integer ver) {
         RuleConfirmViewRequest r = new RuleConfirmViewRequest();
         r.setMaruRuleId(id);
-        r.setVer(ver);
+        r.setVer(DmeTestSupport.verText(ver));
         return r;
     }
 
     private static RuleConfirmValidateRequest validate(String id, Integer ver, String applyFrom) {
         RuleConfirmValidateRequest r = new RuleConfirmValidateRequest();
         r.setMaruRuleId(id);
-        r.setVer(ver);
+        r.setVer(DmeTestSupport.verText(ver));
         r.setApplyFrom(applyFrom);
         return r;
     }
@@ -126,7 +126,7 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
     private static RuleConfirmRequest confirm(String id, Integer ver, Long rowVersion, String applyFrom, Boolean ack) {
         RuleConfirmRequest r = new RuleConfirmRequest();
         r.setMaruRuleId(id);
-        r.setVer(ver);
+        r.setVer(DmeTestSupport.verText(ver));
         r.setRowVersion(rowVersion);
         r.setApplyFrom(applyFrom);
         r.setWarningsAcknowledged(ack);
@@ -205,7 +205,7 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
         Map<String, Object> q = rows.get(1);
         assertEquals("품질 등급 판정", q.get("maruRuleName"));
         assertEquals("DECISION", q.get("ruleKind"));
-        assertEquals(2, q.get("ver"), "ver 는 정수");
+        assertEquals("2.000", q.get("ver"), "ver 는 scale 3 문자열(D-144)");
         assertEquals("kim", q.get("ownerId"));
         assertEquals("INUSE", q.get("ruleStatus"));
         assertEquals("CREATED", rows.get(0).get("ruleStatus"));
@@ -233,15 +233,15 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
         assertEquals("INUSE", rule.get("status"));
         assertEquals("MDM", rule.get("sourceKind"));
         Map<String, Object> version = map(v, "version");
-        assertEquals(2, version.get("ver"), "ver 를 비우면 DRAFT");
+        assertEquals("2.000", version.get("ver"), "ver 를 비우면 DRAFT");
         assertEquals("DRAFT", version.get("status"));
         assertEquals("kim", version.get("ownerId"));
         assertEquals(0L, ((Number) version.get("rowVersion")).longValue());
         assertEquals("FIRST", version.get("hitPolicy"));
-        assertEquals(1, version.get("baseVer"));
+        assertEquals("1.000", version.get("baseVer"));
         assertNull(version.get("applyFrom"));
         Map<String, Object> previous = map(v, "previous");
-        assertEquals(1, previous.get("ver"));
+        assertEquals("1.000", previous.get("ver"));
         assertEquals("FIRST", previous.get("hitPolicy"));
         assertEquals("2026-01-01 00:00:00", previous.get("applyFrom"));
         assertEquals("9999-12-31 00:00:00", previous.get("applyTo"));
@@ -279,7 +279,7 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
         Map<String, Object> v = service.view(view(Q, 1));
 
         Map<String, Object> version = map(v, "version");
-        assertEquals(1, version.get("ver"));
+        assertEquals("1.000", version.get("ver"));
         assertEquals("RELEASED", version.get("status"));
         assertEquals("2026-01-01 00:00:00", version.get("applyFrom"));
         assertEquals("9999-12-31 00:00:00", version.get("applyTo"));
@@ -288,7 +288,7 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
         assertEquals(Map.of("ADDED", 4, "REMOVED", 0, "CHANGED", 0, "SAME", 0), map(v, "diffCounts"));
 
         Map<String, Object> first = service.view(view(NEW, null));
-        assertEquals(1, map(first, "version").get("ver"));
+        assertEquals("1.000", map(first, "version").get("ver"));
         assertEquals("CREATED", map(first, "rule").get("status"));
         assertEquals(true, first.get("firstVersion"));
         assertEquals("INVALID_VALUE", code(() -> service.view(view("NO_SUCH", null))));
@@ -446,8 +446,8 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
         assertEquals("2026-03-01 00:00:00",
                 jdbc.queryForObject("SELECT APPLY_TO FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER = 1", String.class, Q));
 
-        assertEquals(Map.of("ver", 2, "rowVersion", 1L), map(r, "confirmed"));
-        assertEquals(1, r.get("closedPreviousVer"));
+        assertEquals(Map.of("ver", "2.000", "rowVersion", 1L), map(r, "confirmed"));
+        assertEquals("1.000", r.get("closedPreviousVer"));
         assertEquals(List.of("NULL_GAP", "NULL_GAP"), list(r, "warnings").stream().map(w -> w.get("code")).toList(), r.toString());
         assertEquals("RELEASED", map(r, "version").get("status"));
         assertEquals("kim", map(r, "version").get("requestedBy"));

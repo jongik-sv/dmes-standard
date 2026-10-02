@@ -6,6 +6,7 @@ import com.dongkuk.dmes.mdm.common.testdb.SharedContextResettable;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.FakeStewardDirectory;
 import com.dongkuk.dmes.mdm.common.version.VersionScenarioFakes.MutableClock;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -110,34 +111,66 @@ public final class DmeTestSupport {
      * 저장하는 것이다(D-133). 요청이 정책을 비우면 서버는 이렇게 <b>저장된 값</b>을 검사 입력으로 쓴다.
      */
     public static void setStoredHitPolicy(JdbcTemplate jdbc, String id, int ver, String hit) {
-        jdbc.update("UPDATE TB_MDM_RULE_VER SET HIT_POLICY = ? WHERE MARU_RULE_ID = ? AND VER = ?", hit, id, ver);
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET HIT_POLICY = ? WHERE MARU_RULE_ID = ? AND VER = ?", hit, id, v(ver));
+    }
+
+    /**
+     * 정수 major 번호 {@code n} 을 업무 버전 {@code n.000} 으로(D-144). 기존 시험은 정수로 부르고, minor 는 {@link BigDecimal} 판을 쓴다.
+     * SQLite NUMERIC 친화도는 {@code n.000} 을 INTEGER, {@code n.001} 을 REAL 로 저장한다.
+     */
+    public static BigDecimal v(int major) {
+        return BigDecimal.valueOf(major).setScale(3);
+    }
+
+    /** 화면 요청에 싣는 버전 문자열 — 정수 major {@code n} 을 {@code "n.000"} 으로. null 이면 null(서버 기본 버전). */
+    public static String verText(Integer major) {
+        return major == null ? null : v(major).toPlainString();
     }
 
     /** RELEASED 버전. {@code to} 가 null 이면 열린 끝. */
     public static void released(JdbcTemplate jdbc, String id, int ver, String hit, String from, String to) {
-        jdbc.update("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, HIT_POLICY, APPLY_FROM, APPLY_TO, ROW_VERSION) "
-                + "VALUES (?, ?, 'RELEASED', ?, ?, ?, 0)", id, ver, hit, from, to == null ? "9999-12-31 00:00:00" : to);
+        released(jdbc, id, v(ver), "MAJOR", hit, from, to);
+    }
+
+    /** RELEASED 버전(소수 버전·종류 지정). {@code to} 가 null 이면 열린 끝. */
+    public static void released(JdbcTemplate jdbc, String id, BigDecimal ver, String verKind, String hit, String from, String to) {
+        jdbc.update("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, VER_KIND, STATUS, HIT_POLICY, APPLY_FROM, APPLY_TO, ROW_VERSION) "
+                + "VALUES (?, ?, ?, 'RELEASED', ?, ?, ?, 0)", id, ver, verKind, hit, from, to == null ? "9999-12-31 00:00:00" : to);
     }
 
     /** 미적용 버전(DRAFT·REQUESTED·APPROVED). DRAFT 가 아니면 CHECK 가 적용 구간을 요구하므로 먼 미래 구간을 넣는다. */
     public static void pending(JdbcTemplate jdbc, String id, int ver, String status, String owner, String hit, Integer baseVer) {
+        pending(jdbc, id, v(ver), "MAJOR", status, owner, hit, baseVer == null ? null : v(baseVer));
+    }
+
+    /** 미적용 버전(소수 버전·종류 지정). */
+    public static void pending(JdbcTemplate jdbc, String id, BigDecimal ver, String verKind, String status, String owner, String hit,
+                               BigDecimal baseVer) {
         boolean draft = "DRAFT".equals(status);
-        jdbc.update("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, OWNER_ID, HIT_POLICY, BASE_VER, APPLY_FROM, APPLY_TO, ROW_VERSION) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)", id, ver, status, owner, hit, baseVer,
+        jdbc.update("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, VER_KIND, STATUS, OWNER_ID, HIT_POLICY, BASE_VER, APPLY_FROM, APPLY_TO, "
+                + "ROW_VERSION) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)", id, ver, verKind, status, owner, hit, baseVer,
                 draft ? null : "2099-01-01 00:00:00", draft ? null : "9999-12-31 00:00:00");
     }
 
     public static void var(JdbcTemplate jdbc, String id, int ver, int varId, String kind, String disp, String name, int seq) {
-        jdbc.update("INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, SEQ) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                id, ver, varId, kind, disp, name, seq);
+        var(jdbc, id, v(ver), varId, kind, disp, name, seq, null);
     }
 
     public static void row(JdbcTemplate jdbc, String id, int ver, int rowId, int seq, String kind, String cells) {
+        row(jdbc, id, v(ver), rowId, seq, kind, cells);
+    }
+
+    public static void row(JdbcTemplate jdbc, String id, BigDecimal ver, int rowId, int seq, String kind, String cells) {
         jdbc.update("INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS) VALUES (?, ?, ?, ?, ?, ?)",
                 id, ver, rowId, seq, kind, cells);
     }
 
     public static void var(JdbcTemplate jdbc, String id, int ver, int varId, String kind, String disp, String name, int seq, String dataType) {
+        var(jdbc, id, v(ver), varId, kind, disp, name, seq, dataType);
+    }
+
+    public static void var(JdbcTemplate jdbc, String id, BigDecimal ver, int varId, String kind, String disp, String name, int seq,
+                           String dataType) {
         jdbc.update("INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, SEQ, DATA_TYPE) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 id, ver, varId, kind, disp, name, seq, dataType);
     }
@@ -197,6 +230,11 @@ public final class DmeTestSupport {
 
     /** 샘플 변수 5개·행 4개를 그 버전에 넣는다. */
     public static void sampleDefinition(JdbcTemplate jdbc, String id, int ver) {
+        sampleDefinition(jdbc, id, v(ver));
+    }
+
+    /** 샘플 변수 5개·행 4개를 그 버전(소수 버전 가능)에 넣는다. */
+    public static void sampleDefinition(JdbcTemplate jdbc, String id, BigDecimal ver) {
         var(jdbc, id, ver, 1, "COND", "2", "COIL_THK", 1, null);
         var(jdbc, id, ver, 2, "COND", "1", "COIL_WID", 2, null);
         var(jdbc, id, ver, 3, "COND", "1", "SURF_GRD", 3, null);
@@ -229,6 +267,10 @@ public final class DmeTestSupport {
     }
 
     public static long rowVersion(JdbcTemplate jdbc, String id, int ver) {
+        return rowVersion(jdbc, id, v(ver));
+    }
+
+    public static long rowVersion(JdbcTemplate jdbc, String id, BigDecimal ver) {
         return jdbc.queryForObject("SELECT ROW_VERSION FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER = ?", Long.class, id, ver);
     }
 }

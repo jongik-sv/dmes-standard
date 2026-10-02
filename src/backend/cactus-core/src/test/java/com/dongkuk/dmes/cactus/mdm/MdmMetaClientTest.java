@@ -95,7 +95,7 @@ class MdmMetaClientTest {
     void fetch_RULE_은_LocalDateTime_과_정수_셀_키를_엔진_레코드로_되읽고_failed_를_돌려준다() {
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
                 .andRespond(withSuccess(ok("""
-                        {"items":[{"key":"QLTY","value":[{"ruleId":"QLTY","ver":1,"ruleKind":"DECISION","hitPolicy":"FIRST",
+                        {"items":[{"key":"QLTY","value":[{"ruleId":"QLTY","ver":1.001,"ruleKind":"DECISION","hitPolicy":"FIRST",
                          "applyFrom":"2026-01-01T00:00:00","applyTo":"2026-07-01T00:00:00","engineVersion":"1","vars":[],
                          "contract":{"always":[],"rows":[]},
                          "rows":[{"rowId":1,"seq":1,"rowKind":"NORMAL","cells":{"1":{"op":"GT","left":"1000","right":null,"list":null,
@@ -107,10 +107,30 @@ class MdmMetaClientTest {
         @SuppressWarnings("unchecked")
         List<RuleDefinition> versions = (List<RuleDefinition>) r.found().get("QLTY");
         assertThat(versions).hasSize(1);
+        // 룰 버전은 major/minor 소수(D-144) — 자리수(scale 3)까지 그대로 BigDecimal 로 읽는다
+        assertThat(versions.get(0).ver()).isEqualTo(new BigDecimal("1.001"));
         assertThat(versions.get(0).applyFrom()).isEqualTo(LocalDateTime.of(2026, 1, 1, 0, 0));
         assertThat(versions.get(0).applyTo()).isEqualTo(LocalDateTime.of(2026, 7, 1, 0, 0));
         assertThat(versions.get(0).rows().get(0).cells().get(1).text()).isEqualTo("COIL_WID > 1000");
         assertThat(r.failed()).containsEntry("BROKEN", "셀 키는 var_id 정수여야 합니다");
+    }
+
+    @Test
+    void fetch_RULE_은_major_버전_1_000_의_뒤_0_을_잃지_않는다() {
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andRespond(withSuccess(ok("""
+                        {"items":[{"key":"QLTY","value":[
+                         {"ruleId":"QLTY","ver":1.000,"ruleKind":"DECISION","hitPolicy":"FIRST","applyFrom":"2026-01-01T00:00:00",
+                          "applyTo":"2026-07-01T00:00:00","engineVersion":"1","vars":[],"contract":{"always":[],"rows":[]},"rows":[]},
+                         {"ruleId":"QLTY","ver":10.000,"ruleKind":"DECISION","hitPolicy":"FIRST","applyFrom":"2026-07-01T00:00:00",
+                          "applyTo":null,"engineVersion":"1","vars":[],"contract":{"always":[],"rows":[]},"rows":[]}]}],
+                         "failed":[]}"""), MediaType.APPLICATION_JSON));
+
+        @SuppressWarnings("unchecked")
+        List<RuleDefinition> versions = (List<RuleDefinition>) client.fetch(MdmTargetType.RULE, List.of("QLTY")).found().get("QLTY");
+
+        assertThat(versions).extracting(RuleDefinition::ver).containsExactly(new BigDecimal("1.000"), new BigDecimal("10.000"));
+        assertThat(versions.get(0).ver().scale()).isEqualTo(3);
     }
 
     @Test

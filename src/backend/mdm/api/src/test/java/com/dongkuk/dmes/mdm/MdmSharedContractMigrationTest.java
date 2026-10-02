@@ -61,7 +61,7 @@ class MdmSharedContractMigrationTest {
     }
 
     @Test
-    void flyway_가_V1_V2_V3_V4_V8_V9_V10_V11_V12_V13_V14_V15_V16_V17_를_적용했다() throws SQLException {
+    void flyway_가_V1_V2_V3_V4_V8_V9_V10_V11_V12_V13_V14_V15_V16_V17_V18_를_적용했다() throws SQLException {
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection();
              Statement s = c.createStatement();
@@ -78,9 +78,10 @@ class MdmSharedContractMigrationTest {
         // TSK-05-03 — V12(레이아웃 스냅샷 버전 이력, D2. push 직전 origin/dev 최대 버전+1) 추가 반영.
         // D-103 — V13(TB_MDM_RULE_VAR.AXIS 제거, 피벗 표현 대체) 추가 반영. V14(RULE_SET.FLOW_JSON, 룰 세트 흐름도) 추가 반영. V15(룰 세트 테스트 케이스, 흐름도 3단계) 추가 반영.
         // D-141 — V16(TB_MDM_COLUMN.DOMAIN_ID NOT NULL 해제) 추가 반영.
-        // MDM 메타 캐시 — V17(TB_MDM_META_REV 변경 기록 표) 추가 반영.
+        // D-144 — V17(룰 버전 NUMERIC(7,3) + VER_KIND) 추가 반영.
+        // MDM 메타 캐시 — V18(TB_MDM_META_REV 변경 기록 표) 추가 반영(dev 의 V17 뒤로 채번).
         // 모두 완화가 아니라 새 버전 반영이다.
-        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18"), versions);
     }
 
     @Test

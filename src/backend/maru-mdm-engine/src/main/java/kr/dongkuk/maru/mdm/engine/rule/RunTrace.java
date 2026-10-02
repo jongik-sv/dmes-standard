@@ -1,5 +1,6 @@
 package kr.dongkuk.maru.mdm.engine.rule;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,7 @@ public record RunTrace(String setId, Instant evalTs, Map<String, Object> input, 
      * @param seq 1부터
      */
     public record NodeTrace(int seq, String nodeId, NodeKind kind, NodeStatus status,
-            @Nullable String ruleId, @Nullable Integer ver, @Nullable Map<String, Object> reads, @Nullable RuleResult result,
+            @Nullable String ruleId, @Nullable BigDecimal ver, @Nullable Map<String, Object> reads, @Nullable RuleResult result,
             @Nullable List<BranchTrace> branches, @Nullable String chosenEdgeId,
             @Nullable List<String> order, @Nullable String splitId, @Nullable List<String> merged,
             @Nullable List<Violation> violations, @Nullable CatchKind catchKind, @Nullable String code, @Nullable String message) {}

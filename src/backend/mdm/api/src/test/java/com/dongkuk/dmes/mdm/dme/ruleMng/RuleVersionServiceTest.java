@@ -60,6 +60,15 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
     static RuleVersionRequest req(String id, Integer ver, Long rowVersion) {
         RuleVersionRequest r = new RuleVersionRequest();
         r.setMaruRuleId(id);
+        r.setVer(DmeTestSupport.verText(ver));
+        r.setRowVersion(rowVersion);
+        return r;
+    }
+
+    /** 응답 버전 문자열을 그대로 다시 보낸다(화면 왕복과 같다). */
+    static RuleVersionRequest reqText(String id, String ver, Long rowVersion) {
+        RuleVersionRequest r = new RuleVersionRequest();
+        r.setMaruRuleId(id);
         r.setVer(ver);
         r.setRowVersion(rowVersion);
         return r;
@@ -85,7 +94,7 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
 
         RuleVersionResult r = service.newVersion(req("QLTY_GRD_JDG", null, null));
 
-        assertEquals(new RuleVersionResultView("QLTY_GRD_JDG", 2, 0L), view(r));
+        assertEquals(new RuleVersionResultView("QLTY_GRD_JDG", "2.000", 0L), view(r));
         Map<String, Object> ver = jdbc.queryForMap("SELECT * FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2");
         assertEquals("DRAFT", ver.get("STATUS"));
         assertEquals("kim", ver.get("OWNER_ID"));
@@ -122,7 +131,7 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
 
         RuleVersionResult r = service.newVersion(req("QLTY_GRD_JDG", null, null));
 
-        assertEquals(4, r.getVer());
+        assertEquals("4.000", r.getVer());
         Map<String, Object> ver = jdbc.queryForMap("SELECT * FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 4");
         assertEquals(2, ((Number) ver.get("BASE_VER")).intValue());
         assertEquals("UNIQUE", ver.get("HIT_POLICY"));
@@ -132,7 +141,7 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
     void 번호에_빈_곳이_있어도_새_번호는_최대값_더하기_1이다() {
         jdbc.update("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, APPLY_FROM, APPLY_TO) VALUES ('QLTY_GRD_JDG', 5, 'CANCELLED', "
                 + "'2026-03-01 00:00:00', '9999-12-31 00:00:00')");
-        assertEquals(6, service.newVersion(req("QLTY_GRD_JDG", null, null)).getVer());
+        assertEquals("6.000", service.newVersion(req("QLTY_GRD_JDG", null, null)).getVer());
     }
 
     @Test
@@ -174,7 +183,7 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
     void 버전이_하나도_없으면_빈_VER_1_을_만든다() {
         DmeTestSupport.rule(jdbc, "EMPTY_CALC", "빈 산출", "DERIVE", "CREATED");
         RuleVersionResult r = service.newVersion(req("EMPTY_CALC", null, null));
-        assertEquals(1, r.getVer());
+        assertEquals("1.000", r.getVer());
         Map<String, Object> ver = jdbc.queryForMap("SELECT * FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'EMPTY_CALC'");
         assertEquals("DRAFT", ver.get("STATUS"));
         assertEquals("kim", ver.get("OWNER_ID"));
@@ -209,7 +218,7 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
         RuleVersionResult created = service.newVersion(req("QLTY_GRD_JDG", null, null));
         assertEquals(5, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
 
-        service.deleteDraft(req("QLTY_GRD_JDG", created.getVer(), created.getRowVersion()));
+        service.deleteDraft(reqText("QLTY_GRD_JDG", created.getVer(), created.getRowVersion()));
 
         assertEquals(0, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
         assertEquals(0, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
@@ -287,7 +296,7 @@ class RuleVersionServiceTest extends AbstractMdmSharedDbTest {
         assertTrue(count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'EXT_JDG'") == 1);
     }
 
-    record RuleVersionResultView(String maruRuleId, Integer ver, Long rowVersion) {}
+    record RuleVersionResultView(String maruRuleId, String ver, Long rowVersion) {}
 
     private static RuleVersionResultView view(RuleVersionResult r) {
         return new RuleVersionResultView(r.getMaruRuleId(), r.getVer(), r.getRowVersion());

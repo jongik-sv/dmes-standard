@@ -1,12 +1,14 @@
 package com.dongkuk.dmes.mdm.entity;
 
 import com.dongkuk.dmes.cactus.audit.CactusAuditEntity;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 
 /**
  * 룰 변수(열) — {@code TB_MDM_RULE_VAR}(TSK-08-01 design.md §6.0 ④·§6.2). 복합 PK 는 {@link MdmRuleVarId}.
@@ -29,8 +31,8 @@ public class MdmRuleVar extends CactusAuditEntity {
     private String maruRuleId;
 
     @Id
-    @Column(name = "VER")
-    private Integer ver;
+    @Column(name = "VER", nullable = false, precision = 7, scale = 3)
+    private BigDecimal ver;
 
     @Id
     @Column(name = "VAR_ID")
@@ -84,16 +86,16 @@ public class MdmRuleVar extends CactusAuditEntity {
         // JPA 기본 생성자
     }
 
-    public MdmRuleVar(String maruRuleId, Integer ver, Integer varId, String varKind, int seq) {
+    public MdmRuleVar(String maruRuleId, BigDecimal ver, Integer varId, String varKind, int seq) {
         this.maruRuleId = maruRuleId;
-        this.ver = ver;
+        this.ver = VersionNumbers.scaled(ver);
         this.varId = varId;
         this.varKind = varKind;
         this.seq = seq;
     }
 
     public String getMaruRuleId() { return maruRuleId; }
-    public Integer getVer() { return ver; }
+    public BigDecimal getVer() { return VersionNumbers.scaled(ver); }
     public Integer getVarId() { return varId; }
     public String getVarKind() { return varKind; }
     public String getDispType() { return dispType; }

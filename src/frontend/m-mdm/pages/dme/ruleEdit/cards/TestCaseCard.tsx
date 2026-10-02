@@ -7,8 +7,11 @@
  * 배지("실행만"/"통과"/"실패 · 불일치 키")를 보인다(I24 — 비교는 서버가 결과 변수 타입으로 한다). "불러오기" 는 케이스 입력을 ④ 입력 칸에
  * 채운다. "수정" 은 팝업에서 이름·설명·입력·기대 JSON 을 고친다. "기대값 갱신" 은 마지막 결과로 기대 JSON 을 다시 쓰고, "삭제" 는 한 번 더 눌러야 보낸다. 쓰기는 row_version 조건(MDM001)이고 뒤에
  * view 를 다시 불러온다.
+ *
+ * "경계값 생성" 은 "모두 실행" 과 같은 대상의 표·변수와 ④ 입력으로 경계값 후보(`planBoundaryCases`, 서버 안 부름)를 만들어
+ * `BoundaryCaseModal` 에서 골라 실행·저장하게 한다. 저장 묶음은 쓰기 한 번(`runWrite`)으로 감싸 view 를 한 번만 다시 불러온다.
  */
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
@@ -19,9 +22,23 @@ import { useRuleWorkbench } from "../state/workbench-context";
 import type { DraftCaseResult, TestCaseView, ValueTestCaseResult, ValueTestResult } from "../types";
 import { caseBadge, caseBadgeCss as badgeCss, expectedFromResult, mismatchText, type CaseBadge, type CaseEditFields } from "../value-test/case-model";
 import { mergeMissingInputKeys } from "../value-test/test-input";
-import { bodyTable, prepareRun, resolveTarget, targetLabel, targetOptions, useTargetView } from "../value-test/run-request";
+import { planBoundaryCases } from "../value-test/boundary-cases";
+import { emptyResultInputs } from "../value-test/boundary-run";
+import { bodyTable, defaultRowIdOf, prepareRun, resolveTarget, targetLabel, targetOptions, useTargetView } from "../value-test/run-request";
+import { BoundaryCaseModal, type BoundarySession } from "./BoundaryCaseModal";
 import { CardFrame, MutedText } from "./CardFrame";
 import { TestCaseEditModal } from "./TestCaseEditModal";
+
+/** 카드 ④ 의 입력 JSON → 객체(경계값 후보의 기본 입력). 못 읽거나 객체가 아니면 빈 객체. */
+function inputObject(json: string | null | undefined): Record<string, unknown> {
+  if (!json) return {};
+  try {
+    const v: unknown = JSON.parse(json);
+    return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
 
 /** 판정 오류는 서버가 옮긴 사용자 문장만 보인다 — 단계·코드·엔진 원문(`detail`)은 표 칸에 싣지 않는다. */
 function errorText(r: ValueTestCaseResult): string {
@@ -152,6 +169,15 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   // 수정 팝업 대상과 열 때의 칸 — [수정]을 누른 순간 한 번 고정한다(열려 있는 동안 ④ 입력 줄이 늦게 바뀌어도 고치던 칸을 덮지 않게).
   const [editing, setEditing] = useState<{ c: TestCaseView; initial: CaseEditFields } | null>(null);
+  // 경계값 후보 팝업 — [경계값 생성] 을 누른 순간의 후보·대상으로 고정한다. 닫으면 null(팝업 언마운트로 진행 중 실행을 멈춘다).
+  const [boundary, setBoundary] = useState<BoundarySession | null>(null);
+  const [boundaryError, setBoundaryError] = useState<string | null>(null);
+  const boundarySeq = useRef(0);
+  // 팝업이 열린 채 룰이 바뀌면(룰 고르기·대상 이벤트) 닫는다 — 언마운트로 진행 중 실행·저장도 멈춘다. 저장은 세션의 룰로만 한다.
+  useEffect(() => {
+    setBoundary((prev) => (prev && prev.ruleId !== ruleId ? null : prev));
+    setBoundaryError(null);
+  }, [ruleId]);
 
   // 대상은 값 테스트 카드가 고른 것, 없으면(카드 ④ 없이) 같은 기본값.
   const fallback = resolveTarget(targetOptions(view, editable), null, view)?.choice ?? null;
@@ -298,6 +324,42 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
   );
 
   const canWrite = canDo("save") && !busy && view.rule.sourceKind === "MDM";
+  // 다른 버전 대상이면 그 버전 정의를 받은 뒤에만 후보를 만든다(받는 중에 지금 버전 행으로 만들지 않게).
+  const boundaryReady = choice != null && (choice.target === "BODY" || choiceDef != null);
+
+  // [경계값 생성] — "모두 실행" 과 같은 대상의 표·변수로 후보를 만든다. 서버는 부르지 않는다.
+  const handleBoundary = () => {
+    if (!choice || !boundaryReady) return;
+    setBoundaryError(null);
+    try {
+      const body = choice.target === "BODY";
+      const rows = body ? bodyTable(view, choice.ver, tableDraft).rows : choiceDef!.rows;
+      const vars = body ? view.vars : choiceDef!.vars;
+      const baseInput = inputObject(input?.inputJson);
+      const plan = planBoundaryCases({
+        vars,
+        rows,
+        baseInput,
+        existingInputs: cases.map((c) => c.inputJson),
+      });
+      // 입력 계약 이름은 카드 ④ 가 같은 대상으로 계산해 올린 입력 줄을 쓴다(④ 가 없으면 경고하지 않는다).
+      const emptyInputs = emptyResultInputs((input?.fields ?? []).map((f) => f.name), vars, baseInput);
+      const base = prepareRun(view, choice, tableDraft, "{}").request;
+      boundarySeq.current += 1;
+      setBoundary({
+        id: boundarySeq.current,
+        ruleId,
+        plan,
+        vars,
+        defaultRowId: defaultRowIdOf(rows),
+        baseRequest: base,
+        targetLabel: targetLabel(choice),
+        emptyInputs,
+      });
+    } catch (e) {
+      setBoundaryError(e instanceof Error ? e.message : String(e));
+    }
+  };
   const resultLabel = run ? targetLabel(run) : choice ? targetLabel(choice) : "-";
 
   const actions = useRef<CaseActions | null>(null);
@@ -370,6 +432,9 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
           <Button size="sm" disabled={!canDo("execute") || busy || running || !choice || cases.length === 0} onClick={() => void handleRunAll()}>
             모두 실행
           </Button>
+          <Button size="sm" data-testid="tc-boundary" disabled={!canWrite || !boundaryReady} onClick={handleBoundary}>
+            경계값 생성
+          </Button>
         </span>
       }
     >
@@ -404,6 +469,21 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
         onSave={handleEdit}
         onClose={() => setEditing(null)}
       />
+      {boundary && (
+        <BoundaryCaseModal
+          key={boundary.id}
+          session={boundary}
+          busy={busy}
+          canExecute={canDo("execute")}
+          commit={(save) => runWrite(save)}
+          onClose={() => setBoundary(null)}
+        />
+      )}
+      {boundaryError && (
+        <p data-testid="tc-boundary-error" role="alert" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-danger)", whiteSpace: "pre-wrap" }}>
+          경계값 후보를 만들지 못했습니다. {boundaryError}
+        </p>
+      )}
       {error && (
         <p data-testid="tc-error" role="alert" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-danger)", whiteSpace: "pre-wrap" }}>
           케이스를 실행하지 못했습니다. {error}

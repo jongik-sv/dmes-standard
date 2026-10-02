@@ -212,7 +212,7 @@ describe("메뉴 그리기 — 색상 격자", () => {
 
 // ───────────────────────── 화면 ─────────────────────────
 const io = (ruleId: string): RuleIo => ({
-  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [],
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [],
 });
 function viewOf(setId: string): RuleSetView {
   return {

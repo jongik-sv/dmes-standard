@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -94,7 +95,7 @@ class RuleIoDeclaredNamesTest extends AbstractMdmSharedDbTest {
             RuleIo r = io.get(id);
             assertTrue(r.exists() && r.releasedVer() != null, id + " 입출력");
             Set<String> fromIo = upper(names(r));
-            RuleDefinition def = stored.assemble(id, r.ruleKind(), stored.read(id, r.releasedVer()).orElseThrow()).definition();
+            RuleDefinition def = stored.assemble(id, r.ruleKind(), stored.read(id, new BigDecimal(r.releasedVer())).orElseThrow()).definition();
             all.put(id, def);
             allIo.addAll(fromIo);
 
@@ -108,7 +109,7 @@ class RuleIoDeclaredNamesTest extends AbstractMdmSharedDbTest {
         // 사례가 비지 않았는지 — 두 룰 모두 조건·결과가 있고 DERIVE 는 행 required·optional 을 갖는다.
         assertEquals(Set.of("SET_THK", "SET_SURF", "S_GRD"), Set.copyOf(names(io.get("R_DEC"))));
         assertEquals(Set.of("SET_THK", "D_OPT", "D_REQ", "S_SPD"), Set.copyOf(names(io.get("R_DRV"))));
-        RuleDefinition drv = stored.assemble("R_DRV", "DERIVE", stored.read("R_DRV", 1).orElseThrow()).definition();
+        RuleDefinition drv = stored.assemble("R_DRV", "DERIVE", stored.read("R_DRV", DmeTestSupport.v(1)).orElseThrow()).definition();
         assertEquals(List.of("D_REQ"), drv.contract().rows().get(0).required().stream().map(VarType::name).toList());
         assertEquals(List.of("D_OPT"), drv.contract().rows().get(0).optional().stream().map(VarType::name).toList());
     }

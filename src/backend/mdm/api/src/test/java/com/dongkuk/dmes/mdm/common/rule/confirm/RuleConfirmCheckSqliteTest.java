@@ -115,7 +115,7 @@ class RuleConfirmCheckSqliteTest extends AbstractMdmSharedDbTest {
     // ------------------------------------------------------------------ 도우미
 
     private static VersionRef ref(String id, int ver) {
-        return new VersionRef(VersionTarget.BUSINESS_RULE, id, BigDecimal.valueOf(ver));
+        return new VersionRef(VersionTarget.BUSINESS_RULE, id, BigDecimal.valueOf(ver).setScale(3));
     }
 
     /** 확정 트랜잭션처럼 쓰기 트랜잭션 안에서 부른다. */
@@ -187,8 +187,8 @@ class RuleConfirmCheckSqliteTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.pending(jdbc, "R3", 3, "DRAFT", "kim", "FIRST", 2);
 
         assertEquals(ref("R3", 2), inTx(() -> checks.diff(ref("R3", 3))).base(), "v1·v2 RELEASED 면 v3 의 base 는 v2");
-        assertEquals(1, inTx(() -> checks.previousReleased("R3", 2)).orElseThrow().getVer(), "자기 자신은 빼고 더 작은 것");
-        assertTrue(inTx(() -> checks.previousReleased("R3", 1)).isEmpty());
+        assertEquals(new BigDecimal("1.000"), inTx(() -> checks.previousReleased("R3", new BigDecimal("2.000"))).orElseThrow().getVer(), "자기 자신은 빼고 더 작은 것");
+        assertTrue(inTx(() -> checks.previousReleased("R3", new BigDecimal("1.000"))).isEmpty());
     }
 
     // ------------------------------------------------------------------ SP2·SP3 저장 시 검사
@@ -255,7 +255,7 @@ class RuleConfirmCheckSqliteTest extends AbstractMdmSharedDbTest {
         RuleTestRequest req = new RuleTestRequest();
         req.setMaruRuleId(Q);
         req.setTarget("VERSION");
-        req.setVer(2);
+        req.setVer("2.000");
         req.setInputJson(A_INPUT);
         req.setRunCases(true);
         RuleTestResult r = ruleEdit.runTest(req);
@@ -406,7 +406,7 @@ class RuleConfirmCheckSqliteTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.released(jdbc, "R_ONLY", 1, "FIRST", "2026-01-01 00:00:00", null);
 
         List<Pending> all = inTx(() -> confirmQueries.drafts(null));
-        assertEquals(List.of("A_RULE@1", Q + "@2"), all.stream().map(p -> p.rule().getMaruRuleId() + "@" + p.version().getVer()).toList());
+        assertEquals(List.of("A_RULE@1.000", Q + "@2.000"), all.stream().map(p -> p.rule().getMaruRuleId() + "@" + p.version().getVer()).toList());
         assertEquals(List.of(Q), inTx(() -> confirmQueries.drafts("grd_j")).stream().map(p -> p.rule().getMaruRuleId()).toList(), "ID 부분 일치");
         assertEquals(List.of("A_RULE"), inTx(() -> confirmQueries.drafts("소비")).stream().map(p -> p.rule().getMaruRuleId()).toList(), "이름 부분 일치");
         assertEquals(List.of(), inTx(() -> confirmQueries.drafts("NO_SUCH")));

@@ -152,7 +152,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("rule-edit-current-name")).toHaveText("품질 등급 판정");
     // D-105 — 버전 목록(②)은 헤더·버전 화면이다. 여기는 상단 Select 로 버전을 고른다.
     const verSelect = page.getByTestId("rule-ver-select");
-    await expect(verSelect).toHaveValue("1");
+    await expect(verSelect).toHaveValue("1.000");
     await expect(verSelect.locator("option")).toHaveCount(2);
 
     const header = grid(page).locator(".ag-header");
@@ -176,7 +176,7 @@ test.describe("mdm dme/ruleEdit", () => {
 
   test("S5 편집: 행 추가·칸 편집 강조·드래그·되돌리기, 조건이 전부 - 인 행은 저장이 거부되고 조건을 채우면 저장되어 새 행 번호가 남는다", async ({ page }) => {
     await openRule(page, STEWARD, "QLTY_GRD_JDG");
-    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2");
+    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2.000");
 
     await page.getByRole("button", { name: "행 추가", exact: true }).click();
     await expect(page.getByTestId("dt-row--1")).toBeVisible();
@@ -304,11 +304,12 @@ test.describe("mdm dme/ruleEdit", () => {
   }
 
   /** 룰을 열고 고른 버전을 맞춘 뒤 열 설정을 펼친다(기본은 가장 최신 버전). */
-  async function openRuleVer(page: Page, ruleId: string, ver: number) {
+  /** ver 는 서버 표기 `"2.000"`(D-144) — 버전 고르기 값이 이 문자열이다. */
+  async function openRuleVer(page: Page, ruleId: string, ver: string) {
     await openRule(page, STEWARD, ruleId);
     const select = page.getByTestId("rule-ver-select");
-    if ((await select.inputValue()) !== String(ver)) await select.selectOption(String(ver));
-    await expect(select).toHaveValue(String(ver));
+    if ((await select.inputValue()) !== ver) await select.selectOption(ver);
+    await expect(select).toHaveValue(ver);
     await openColumns(page);
   }
 
@@ -320,7 +321,7 @@ test.describe("mdm dme/ruleEdit", () => {
   }
 
   test("C1 열 설정: BASE_SPD_LKP v2 의 결과 열 그룹 8열과 열 조건이 보이고 FLUORO 열 조건을 고쳐 적용하면 다시 불러와도 같다", async ({ page }) => {
-    await openRuleVer(page, "BASE_SPD_LKP", 2);
+    await openRuleVer(page, "BASE_SPD_LKP", "2.000");
     for (const varId of [2, 3, 4, 5, 6, 7, 8, 9]) {
       await expect(page.getByTestId(`col-grp-v${varId}`)).toHaveText("BASE_SPD");
     }
@@ -341,7 +342,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("col-grpcond-v4")).toHaveText('TOP_RESIN_CD == "FL"');
 
     await reopen(page, "BASE_SPD_LKP");
-    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2");
+    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2.000");
     await expect(page.getByTestId("col-grpcond-v4")).toHaveText('TOP_RESIN_CD == "FL"');
     await expect(page.getByTestId("col-grp-v9")).toHaveText("BASE_SPD");
     await page.getByTestId("col-table").scrollIntoViewIfNeeded(); // 포털은 안쪽 영역이 스크롤되므로 이 섹션이 보이게 한 뒤 남긴다
@@ -349,7 +350,7 @@ test.describe("mdm dme/ruleEdit", () => {
   });
 
   test("C2 피벗: E2E_PVT_LKP 가 피벗으로 보이고 셀·구간을 고쳐 저장하면 의사결정표 행과 일치하며 다시 불러와도 같다", async ({ page }) => {
-    await openRuleVer(page, "E2E_PVT_LKP", 1);
+    await openRuleVer(page, "E2E_PVT_LKP", "1.000");
     await expect(page.getByTestId("pivot-section")).toBeVisible();
     await expect(page.getByTestId("pivot-badge")).toHaveText("편집");
     await expect(page.getByTestId("pivot-col-2A")).toBeVisible();
@@ -398,12 +399,12 @@ test.describe("mdm dme/ruleEdit", () => {
   });
 
   test("C2b 피벗 표시만: 결과 열이 여럿인 BASE_SPD_LKP 는 피벗을 열지 않고 의사결정표에서 고친다", async ({ page }) => {
-    await openRuleVer(page, "BASE_SPD_LKP", 2);
+    await openRuleVer(page, "BASE_SPD_LKP", "2.000");
     await expect(page.getByTestId("pivot-section")).toHaveCount(0); // 결과 열 1개가 아니면 피벗이 보이지 않는다(pvSpec)
   });
 
   test("C2c 피벗·표 저장 상호 차단: 표 카드에 저장 안 한 행이 있으면 피벗 저장이, 피벗에 저장 안 한 편집이 있으면 표 저장이 막힌다", async ({ page }) => {
-    await openRuleVer(page, "E2E_PVT_LKP", 1);
+    await openRuleVer(page, "E2E_PVT_LKP", "1.000");
     await expect(page.getByTestId("pivot-section")).toBeVisible();
     await page.getByRole("button", { name: "행 추가", exact: true }).click();
     await expect(page.getByTestId("dt-dirty")).toBeVisible();
@@ -428,8 +429,8 @@ test.describe("mdm dme/ruleEdit", () => {
 
   test("C3 산출 룰: COIL_WGT_CALC 새 버전에서 앞 결과를 읽는 열은 되고 자기 참조는 거부되어 아무 것도 반영되지 않으며 식 미리보기가 25434.0 이다", async ({ page }) => {
     await openRule(page, STEWARD, "COIL_WGT_CALC");
-    await page.getByRole("button", { name: "새 버전", exact: true }).click();
-    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2", { timeout: 20_000 });
+    await page.getByRole("button", { name: "새 버전(major)", exact: true }).click();
+    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2.000", { timeout: 20_000 });
     await openColumns(page);
     await expect(page.getByTestId("dt-derive-notice")).toBeVisible();
     await expect(page.getByTestId("col-expr-v1")).toHaveText("ROUND(COIL_THK * COIL_WID * COIL_LEN * SPEC_GRAV / 1000, 1)");
@@ -469,7 +470,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("col-dirty")).toHaveCount(0, { timeout: 30_000 });
 
     await reopen(page, "COIL_WGT_CALC");
-    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2");
+    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2.000");
     await expect(page.getByTestId("col-expr-v1")).toHaveText("ROUND(COIL_THK * COIL_WID * COIL_LEN * SPEC_GRAV / 1000, 1)");
     // 새 열은 카운터에서 발급된 var_id(2)로 저장되고 식이 남는다.
     await expect(page.getByTestId("col-expr-v2")).toHaveText("COIL_WGT * 2");
@@ -481,7 +482,7 @@ test.describe("mdm dme/ruleEdit", () => {
   });
 
   test("C4 조건별 수식: PROD_WGT_CALC v2 의 행마다 다른 결과 식이 그리드에, 조건 열이 열 설정에 보이고 DRAFT 식에 COALESCE(SPEC_GRAV, 7.85) 가 있다", async ({ page }) => {
-    await openRuleVer(page, "PROD_WGT_CALC", 2);
+    await openRuleVer(page, "PROD_WGT_CALC", "2.000");
     for (const rowId of [1, 2, 3]) await expect(page.getByTestId(`dt-row-${rowId}`)).toBeVisible();
     await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="1"]')).toContainText("COALESCE(SPEC_GRAV, 7.85)");
     await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="2"]')).toContainText("SHEET_CNT");
@@ -494,7 +495,7 @@ test.describe("mdm dme/ruleEdit", () => {
   });
 
   test("C5 입력 계약 변경 알림: PROD_WGT_CALC v2 는 SPEC_GRAV 가 필수에서 선택이 된 것을 RELEASED 대비 알림 한 줄로 보이고 경고는 없다", async ({ page }) => {
-    await openRuleVer(page, "PROD_WGT_CALC", 2);
+    await openRuleVer(page, "PROD_WGT_CALC", "2.000");
     await expect(page.getByTestId("contract-diff-info")).toContainText("필수 입력이 선택이 되었습니다: SPEC_GRAV", { timeout: 30_000 });
     await expect(page.getByTestId("contract-diff-warning")).toHaveCount(0);
     await page.getByTestId("contract-notice").scrollIntoViewIfNeeded();
@@ -502,7 +503,7 @@ test.describe("mdm dme/ruleEdit", () => {
   });
 
   test("C6 도메인 검색·식 검사: SPEED 로 찾으면 8건 이내에 SPEED_MPM 이 있고 화이트리스트 밖 함수는 서버 평가로 넘긴다고 표시된다", async ({ page }) => {
-    await openRuleVer(page, "PROD_WGT_CALC", 2);
+    await openRuleVer(page, "PROD_WGT_CALC", "2.000");
     await page.getByTestId("col-domain-open-v2").click();
     await page.getByTestId("col-domain-v2-keyword").fill("SPEED");
     await page.getByTestId("col-domain-v2-search").click();
@@ -590,7 +591,7 @@ test.describe("mdm dme/ruleEdit", () => {
 
   test("V2 저장된 버전: 버전 1 을 돌리면 결과 값·적중 행이 보이고, 보이는 표(v2)와 달라 결과 카드에 v1 표를 따로 칠한다", async ({ page }) => {
     await openRule(page, STEWARD, VT_RULE);
-    await page.getByTestId("vt-target").selectOption({ label: "버전 1 · RELEASED" });
+    await page.getByTestId("vt-target").selectOption({ label: "버전 v1.000 · RELEASED" });
     await expect(page.getByTestId("vt-mode")).toContainText("저장된 버전");
     await fillInput(page, "COIL_THK", "2.0");
     await fillInput(page, "SURF_GRD", "A");
@@ -651,7 +652,7 @@ test.describe("mdm dme/ruleEdit", () => {
 
   test("V4 케이스: 케이스로 저장하면 케이스 표에 새 줄이 생기고, 모두 실행으로 통과·실패가 보이며, 삭제하면 사라진다", async ({ page }) => {
     await openRule(page, STEWARD, VT_RULE);
-    await page.getByTestId("vt-target").selectOption({ label: "버전 1 · RELEASED" });
+    await page.getByTestId("vt-target").selectOption({ label: "버전 v1.000 · RELEASED" });
     await fillInput(page, "COIL_THK", "1.8");
     await fillInput(page, "SURF_GRD", "B");
     await runValueTest(page);
@@ -684,7 +685,7 @@ test.describe("mdm dme/ruleEdit", () => {
 
   test("V5 서버 오류: 요청 상한을 넘는 긴 입력으로 돌리면 값 테스트 카드에 서버 오류가 보인다", async ({ page }) => {
     await openRule(page, STEWARD, VT_RULE);
-    await page.getByTestId("vt-target").selectOption({ label: "버전 1 · RELEASED" });
+    await page.getByTestId("vt-target").selectOption({ label: "버전 v1.000 · RELEASED" });
     await fillInput(page, "COIL_THK", "2.0");
     await fillInput(page, "SURF_GRD", "A".repeat(17_000));
     await valueTestCard(page).getByRole("button", { name: "실행", exact: true }).click();

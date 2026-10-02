@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.support.MdmSqliteLocalDateTimeConverter;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRowId;
@@ -30,6 +31,7 @@ import jakarta.persistence.Converter;
 import jakarta.persistence.EntityManager;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -52,6 +54,10 @@ import org.springframework.transaction.annotation.Transactional;
 @ActiveProfiles("local")
 @Transactional
 class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
+
+    private static final BigDecimal FIRST_VER = new BigDecimal("1.000");
+    /** minor 버전 — SQLite NUMERIC 친화도가 REAL 로 저장한다(D-144). */
+    private static final BigDecimal MINOR_VER = new BigDecimal("2.001");
 
     @Autowired
     MdmRuleRepository ruleRepository;
@@ -97,8 +103,8 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     @Test
     void MdmRuleVer_는_IdClass_복합_PK_로_저장_조회_왕복한다() {
         saveRule("RT_VER");
-        MdmRuleVer ver = new MdmRuleVer("RT_VER", 2, "kim");
-        ver.setBaseVer(1);
+        MdmRuleVer ver = new MdmRuleVer("RT_VER", new BigDecimal("2.001"), VersionKind.MINOR, "kim");
+        ver.setBaseVer(new BigDecimal("2.000"));
         ver.setHitPolicy("FIRST");
         ver.setDescription("두 번째");
         ver.setEmergencyReason("긴급");
@@ -111,10 +117,11 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         entityManager.flush();
         entityManager.clear();
 
-        MdmRuleVer reloaded = verRepository.findById(new MdmRuleVerId("RT_VER", 2)).orElseThrow();
-        assertEquals(2, reloaded.getVer());
+        MdmRuleVer reloaded = verRepository.findById(new MdmRuleVerId("RT_VER", new BigDecimal("2.001"))).orElseThrow();
+        assertEquals(new BigDecimal("2.001"), reloaded.getVer(), "minor 는 SQLite REAL 로 저장돼도 소수부가 남고 scale 3 이다");
+        assertEquals(VersionKind.MINOR, reloaded.getVerKind());
         assertEquals("DRAFT", reloaded.getStatus(), "생성자 기본 상태");
-        assertEquals(1, reloaded.getBaseVer());
+        assertEquals(new BigDecimal("2.000"), reloaded.getBaseVer(), "BASE_VER 도 scale 3 으로 읽는다");
         assertEquals("kim", reloaded.getOwnerId());
         assertEquals("FIRST", reloaded.getHitPolicy());
         assertEquals("두 번째", reloaded.getDescription());
@@ -130,9 +137,27 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void MdmRuleVer_의_1_000_은_SQLite_INTEGER_로_저장돼도_scale_무관하게_같은_Id_로_찾힌다() {
+        saveRule("RT_VER_INT");
+        verRepository.save(new MdmRuleVer("RT_VER_INT", new BigDecimal("1.000"), VersionKind.MAJOR, "kim"));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertEquals("integer|1", single("SELECT typeof(VER) || '|' || VER FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = 'RT_VER_INT'"));
+        MdmRuleVer reloaded = verRepository.findById(new MdmRuleVerId("RT_VER_INT", new BigDecimal("1"))).orElseThrow();
+        assertEquals(new BigDecimal("1.000"), reloaded.getVer(), "INTEGER 1 을 읽어도 scale 3");
+        assertEquals(VersionKind.MAJOR, reloaded.getVerKind());
+        assertEquals(new MdmRuleVerId("RT_VER_INT", new BigDecimal("1")), new MdmRuleVerId("RT_VER_INT", new BigDecimal("1.000")));
+        assertEquals(new MdmRuleVerId("RT_VER_INT", new BigDecimal("1")).hashCode(),
+                new MdmRuleVerId("RT_VER_INT", new BigDecimal("1.000")).hashCode());
+    }
+
+    @Test
     void MdmRuleVar_는_IdClass_복합_PK_로_저장_조회_왕복한다() {
-        saveRuleAndVersion("RT_VAR");
-        MdmRuleVar var = new MdmRuleVar("RT_VAR", 1, 4, "RESULT", 1);
+        saveRule("RT_VAR");
+        verRepository.save(new MdmRuleVer("RT_VAR", MINOR_VER, VersionKind.MINOR, "kim"));
+        entityManager.flush();
+        MdmRuleVar var = new MdmRuleVar("RT_VAR", MINOR_VER, 4, "RESULT", 1);
         var.setDispType("Value");
         var.setVarName("QLTY_GRD");
         var.setVarAst("{\"type\":\"id\"}");
@@ -148,7 +173,8 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         entityManager.flush();
         entityManager.clear();
 
-        MdmRuleVar reloaded = varRepository.findById(new MdmRuleVarId("RT_VAR", 1, 4)).orElseThrow();
+        MdmRuleVar reloaded = varRepository.findById(new MdmRuleVarId("RT_VAR", MINOR_VER, 4)).orElseThrow();
+        assertEquals(MINOR_VER, reloaded.getVer());
         assertEquals("RESULT", reloaded.getVarKind());
         assertEquals("Value", reloaded.getDispType());
         assertEquals("QLTY_GRD", reloaded.getVarName());
@@ -171,27 +197,30 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         long domainId = ((Number) entityManager.createNativeQuery(
                 "INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE) "
                         + "VALUES ('판정등급', 'RT_GRD', 'QTY', 'NUMBER') RETURNING DOMAIN_ID").getSingleResult()).longValue();
-        MdmRuleVar var = new MdmRuleVar("RT_VAR_DOM", 1, 1, "COND", 1);
+        MdmRuleVar var = new MdmRuleVar("RT_VAR_DOM", FIRST_VER, 1, "COND", 1);
         var.setVarName("COIL_THK");
         var.setDomainId(domainId);
         varRepository.save(var);
         entityManager.flush();
         entityManager.clear();
 
-        assertEquals(domainId, varRepository.findById(new MdmRuleVarId("RT_VAR_DOM", 1, 1)).orElseThrow().getDomainId());
+        assertEquals(domainId, varRepository.findById(new MdmRuleVarId("RT_VAR_DOM", FIRST_VER, 1)).orElseThrow().getDomainId());
     }
 
     @Test
     void MdmRuleRow_는_IdClass_복합_PK_로_저장_조회_왕복한다() {
-        saveRuleAndVersion("RT_ROW");
-        MdmRuleRow row = new MdmRuleRow("RT_ROW", 1, 4, "DEFAULT", 0, "{\"4\":{\"val\":\"C\"}}");
+        saveRule("RT_ROW");
+        verRepository.save(new MdmRuleVer("RT_ROW", MINOR_VER, VersionKind.MINOR, "kim"));
+        entityManager.flush();
+        MdmRuleRow row = new MdmRuleRow("RT_ROW", MINOR_VER, 4, "DEFAULT", 0, "{\"4\":{\"val\":\"C\"}}");
         row.setNote("기본 행");
         row.setTag("T1");
         rowRepository.save(row);
         entityManager.flush();
         entityManager.clear();
 
-        MdmRuleRow reloaded = rowRepository.findById(new MdmRuleRowId("RT_ROW", 1, 4)).orElseThrow();
+        MdmRuleRow reloaded = rowRepository.findById(new MdmRuleRowId("RT_ROW", MINOR_VER, 4)).orElseThrow();
+        assertEquals(MINOR_VER, reloaded.getVer());
         assertEquals(0, reloaded.getSeq());
         assertEquals("DEFAULT", reloaded.getRowKind());
         assertEquals("{\"4\":{\"val\":\"C\"}}", reloaded.getCells());
@@ -259,17 +288,17 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     @Test
     void AUD_VER_테이블은_감사_카운터를_AUD_VER_에_쓰고_업무_VER_는_그대로다() {
         saveRuleAndVersion("RT_AUD");
-        varRepository.save(new MdmRuleVar("RT_AUD", 1, 1, "COND", 1));
-        rowRepository.save(new MdmRuleRow("RT_AUD", 1, 1, "NORMAL", 1, "{}"));
+        varRepository.save(new MdmRuleVar("RT_AUD", FIRST_VER, 1, "COND", 1));
+        rowRepository.save(new MdmRuleRow("RT_AUD", FIRST_VER, 1, "NORMAL", 1, "{}"));
         entityManager.flush();
         for (String table : new String[] {"TB_MDM_RULE_VER", "TB_MDM_RULE_VAR", "TB_MDM_RULE_ROW"}) {
             assertEquals("1|0", verAndAudVer(table, "RT_AUD"), table + " 저장 직후 VER|AUD_VER");
         }
         entityManager.clear();
 
-        verRepository.findById(new MdmRuleVerId("RT_AUD", 1)).orElseThrow().setDescription("바뀜");
-        varRepository.findById(new MdmRuleVarId("RT_AUD", 1, 1)).orElseThrow().setLabel("바뀜");
-        rowRepository.findById(new MdmRuleRowId("RT_AUD", 1, 1)).orElseThrow().setNote("바뀜");
+        verRepository.findById(new MdmRuleVerId("RT_AUD", FIRST_VER)).orElseThrow().setDescription("바뀜");
+        varRepository.findById(new MdmRuleVarId("RT_AUD", FIRST_VER, 1)).orElseThrow().setLabel("바뀜");
+        rowRepository.findById(new MdmRuleRowId("RT_AUD", FIRST_VER, 1)).orElseThrow().setNote("바뀜");
         entityManager.flush();
         for (String table : new String[] {"TB_MDM_RULE_VER", "TB_MDM_RULE_VAR", "TB_MDM_RULE_ROW"}) {
             assertEquals("1|1", verAndAudVer(table, "RT_AUD"), table + " 갱신 뒤 VER|AUD_VER");
@@ -297,7 +326,7 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     void MdmRuleVer_의_서비스_소유_칼럼은_엔티티_저장으로_되돌아가지_않고_ROW_VERSION_도_자동으로_오르지_않는다() {
         saveRuleAndVersion("RT_OWN_VER");
         entityManager.clear();
-        MdmRuleVer stale = verRepository.findById(new MdmRuleVerId("RT_OWN_VER", 1)).orElseThrow();
+        MdmRuleVer stale = verRepository.findById(new MdmRuleVerId("RT_OWN_VER", FIRST_VER)).orElseThrow();
 
         native_("UPDATE TB_MDM_RULE_VER SET STATUS = 'RELEASED', OWNER_ID = 'lee', APPLY_FROM = '2026-01-01 00:00:00', "
                 + "APPLY_TO = '9999-12-31 00:00:00', REQUESTED_BY = 'kim', REQUESTED_AT = '2026-01-01 00:00:01', "
@@ -339,7 +368,7 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     @Test
     void 업무_일시는_초_단위_KST_텍스트로_저장되고_텍스트를_LocalDateTime_으로_읽는다() {
         saveRule("RT_TIME");
-        MdmRuleVer ver = new MdmRuleVer("RT_TIME", 1, null);
+        MdmRuleVer ver = new MdmRuleVer("RT_TIME", FIRST_VER, VersionKind.MAJOR, null);
         ver.setStatus("RELEASED");
         ver.setApplyFrom(LocalDateTime.of(2026, 10, 1, 0, 0, 0, 789_000_000));
         ver.setApplyTo(LocalDateTime.of(9999, 12, 31, 0, 0));
@@ -353,7 +382,7 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         native_("INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, APPLY_FROM, APPLY_TO, RELEASED_AT) "
                 + "VALUES ('RT_TIME', 2, 'RELEASED', '2026-09-21 10:00:00', '9999-12-31 00:00:00', '2026-09-20 09:08:07')");
         entityManager.clear();
-        MdmRuleVer nativeRow = verRepository.findById(new MdmRuleVerId("RT_TIME", 2)).orElseThrow();
+        MdmRuleVer nativeRow = verRepository.findById(new MdmRuleVerId("RT_TIME", new BigDecimal("2.000"))).orElseThrow();
         assertEquals(LocalDateTime.of(2026, 9, 21, 10, 0, 0), nativeRow.getApplyFrom());
         assertEquals(LocalDateTime.of(9999, 12, 31, 0, 0), nativeRow.getApplyTo());
         assertEquals(LocalDateTime.of(2026, 9, 20, 9, 8, 7), nativeRow.getReleasedAt());
@@ -364,7 +393,7 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     @Test
     void 부정형_CELLS_를_엔티티로_저장하면_JSON_CHECK_가_거부한다() {
         saveRuleAndVersion("RT_JSON");
-        rowRepository.save(new MdmRuleRow("RT_JSON", 1, 1, "NORMAL", 1, "{bad"));
+        rowRepository.save(new MdmRuleRow("RT_JSON", FIRST_VER, 1, "NORMAL", 1, "{bad"));
         RuntimeException e = assertThrows(RuntimeException.class, () -> entityManager.flush());
         assertTrue(rootMessage(e).contains("CK_TB_MDM_RULE_ROW_CELLS_JSON"), rootMessage(e));
     }
@@ -406,7 +435,7 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
 
     private void saveRuleAndVersion(String ruleId) {
         saveRule(ruleId);
-        verRepository.save(new MdmRuleVer(ruleId, 1, "kim"));
+        verRepository.save(new MdmRuleVer(ruleId, FIRST_VER, VersionKind.MAJOR, "kim"));
         entityManager.flush();
     }
 

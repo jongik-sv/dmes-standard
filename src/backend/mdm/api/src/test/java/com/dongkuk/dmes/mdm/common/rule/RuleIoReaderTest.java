@@ -89,7 +89,7 @@ class RuleIoReaderTest extends AbstractMdmSharedDbTest {
         RuleIo io = reader.read(List.of("R_MAIN")).get("R_MAIN");
 
         assertTrue(io.exists());
-        assertEquals(1, io.releasedVer());
+        assertEquals("1.000", io.releasedVer());
         assertEquals("FIRST", io.hitPolicy());
         assertEquals(List.of("COIL_THK", "X", "Y_IN", "P_IN", "G_IN", "C_IN", "R_IN"), names(io.conds()));
         assertEquals(List.of("OUT_A", "GRP", "OUT_E"), names(io.results()));
@@ -121,7 +121,7 @@ class RuleIoReaderTest extends AbstractMdmSharedDbTest {
     void 지금_RELEASED_는_적용_시작과_무관하게_VER_최대다() {
         RuleIo io = reader.read(List.of("R_VER")).get("R_VER");
 
-        assertEquals(2, io.releasedVer());
+        assertEquals("2.000", io.releasedVer());
         assertEquals("UNIQUE", io.hitPolicy());
         assertEquals(List.of("A_NEW"), names(io.conds()));
         assertEquals(List.of("RES_NEW"), names(io.results()));
@@ -141,7 +141,7 @@ class RuleIoReaderTest extends AbstractMdmSharedDbTest {
         assertEquals(new RuleIo("NO_SUCH", null, null, null, false, null, null, List.of(), List.of()), out.get("NO_SUCH"));
         RuleIo old = out.get("R_OLD");
         assertEquals("DEPRECATED", old.status());
-        assertEquals(1, old.releasedVer());
+        assertEquals("1.000", old.releasedVer());
         assertEquals(List.of(new IoName("COIL_WID", RuleIo.DICT, null, "NUMBER", 0, false, null)), old.conds());
         assertEquals(List.of("OLD_OUT"), names(old.results()));
     }

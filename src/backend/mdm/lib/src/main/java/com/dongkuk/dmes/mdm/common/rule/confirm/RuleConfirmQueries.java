@@ -6,6 +6,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -56,14 +57,14 @@ public class RuleConfirmQueries {
 
     /**
      * 확정 대기 목록 — MDM 원천 룰의 DRAFT 버전, 룰 ID·VER 오름차순. 키워드는 룰 ID·룰명 부분 일치(대문자 비교, {@code %}·{@code _}·{@code \} 는
-     * 글자 그대로). 빈 키워드는 조건에서 뺀다.
+     * 글자 그대로). 빈 키워드는 조건에서 뺀다. VER 정렬은 Java 에서 한다 — SQLite 가 1.000·1.001 을 INTEGER·REAL 로 섞어 저장한다(D-144).
      */
     public List<Pending> drafts(String keyword) {
         String kw = keyword == null || keyword.isBlank() ? null : keyword.trim().toUpperCase(Locale.ROOT);
         TypedQuery<Object[]> q = entityManager.createQuery("SELECT r, v FROM MdmRule r, MdmRuleVer v "
                 + "WHERE v.maruRuleId = r.maruRuleId AND v.status = 'DRAFT' AND r.sourceKind = 'MDM'"
                 + (kw == null ? "" : " AND (UPPER(r.maruRuleId) LIKE :kw ESCAPE '\\' OR UPPER(r.maruRuleName) LIKE :kw ESCAPE '\\')")
-                + " ORDER BY r.maruRuleId, v.ver", Object[].class);
+                + " ORDER BY r.maruRuleId", Object[].class);
         if (kw != null) {
             q.setParameter("kw", "%" + kw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%");
         }
@@ -71,6 +72,7 @@ public class RuleConfirmQueries {
         for (Object[] row : q.getResultList()) {
             out.add(new Pending((MdmRule) row[0], (MdmRuleVer) row[1]));
         }
+        out.sort(Comparator.comparing((Pending p) -> p.rule().getMaruRuleId()).thenComparing(p -> p.version().getVer()));
         return out;
     }
 }

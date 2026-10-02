@@ -8,7 +8,7 @@
  */
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { Badge, Button, SegmentedControl } from "@dk-oasis/shared/form";
-import { DashboardCard } from "@dk-oasis/shared/dashboard";
+import { WidgetHeaderActions, WidgetTitleExtra } from "@dk-oasis/shared/widget";
 
 import {
   NOTIFICATION_FILTERS,
@@ -45,16 +45,17 @@ export function NotificationCard({ onOpenNotice }: NotificationCardProps) {
   };
 
   return (
-    <DashboardCard
-      title="내 알림"
-      subtitle={`안읽음 ${unread}건`}
-      titleExtra={<Badge tone="warning" label="구현 예정" />}
-      actions={
+    <>
+      <WidgetTitleExtra>
+        <span className="mcm-home-sub">{`안읽음 ${unread}건`}</span>
+        <Badge tone="warning" label="구현 예정" />
+      </WidgetTitleExtra>
+      <WidgetHeaderActions>
         <Button size="mini" onClick={readAll} disabled={unread === 0}>
           모두 읽음
         </Button>
-      }
-      toolbar={
+      </WidgetHeaderActions>
+      <div className="mcm-home-toolbar" data-testid="home-notification-card">
         <SegmentedControl
           value={filter}
           onChange={(v) => setFilter(v as NotificationFilter)}
@@ -63,10 +64,7 @@ export function NotificationCard({ onOpenNotice }: NotificationCardProps) {
           fullWidth
           testId="home-notification-filter"
         />
-      }
-      bodyPadding={false}
-      testId="home-notification-card"
-    >
+      </div>
       <ul className="mcm-home-nf" aria-label="알림 목록" data-testid="home-notification-list">
         {shown.length === 0 ? (
           <li className="mcm-home-state">해당하는 알림이 없습니다.</li>
@@ -100,6 +98,6 @@ export function NotificationCard({ onOpenNotice }: NotificationCardProps) {
           })
         )}
       </ul>
-    </DashboardCard>
+    </>
   );
 }

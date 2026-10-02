@@ -4,6 +4,7 @@ import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleDefinitionReads;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleDefinitionReads.Names;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -35,15 +36,15 @@ public class RuleUsageFinder {
     }
 
     /** @param fallbackVer 이 룰에 RELEASED 가 없을 때 쓸 버전(view 의 선택 버전). null 이면 이 룰의 이름은 비어 있다 */
-    public List<SetUsage> find(String ruleId, Integer fallbackVer) {
+    public List<SetUsage> find(String ruleId, BigDecimal fallbackVer) {
         List<SetUsage> out = new ArrayList<>();
         for (MdmRuleSet set : queries.allSets()) {
             List<String> members = new ArrayList<>(new LinkedHashSet<>(DomainJson.readList(set.getRuleIds()).stream().map(String::valueOf).toList()));
             if (!members.contains(ruleId)) {
                 continue;
             }
-            Map<String, Integer> released = queries.latestReleasedVers(members);
-            Integer selfVer = released.containsKey(ruleId) ? released.get(ruleId) : fallbackVer;
+            Map<String, BigDecimal> released = queries.latestReleasedVers(members);
+            BigDecimal selfVer = released.containsKey(ruleId) ? released.get(ruleId) : fallbackVer;
             Names self = selfVer == null ? new Names(Set.of(), Set.of()) : names(ruleId, selfVer);
             List<String> dependsOn = new ArrayList<>();
             List<String> dependedBy = new ArrayList<>();
@@ -65,7 +66,7 @@ public class RuleUsageFinder {
     }
 
     /** 이름 계산은 {@link RuleDefinitionReads} 가 맡는다(TSK-08-04 — 세트 순서 검사와 같은 계산). */
-    private Names names(String ruleId, int ver) {
+    private Names names(String ruleId, BigDecimal ver) {
         return RuleDefinitionReads.of(queries.vars(ruleId, ver),
                 queries.rows(ruleId, ver).stream().map(r -> RuleCellsCodec.parse(r.getCells())).toList());
     }

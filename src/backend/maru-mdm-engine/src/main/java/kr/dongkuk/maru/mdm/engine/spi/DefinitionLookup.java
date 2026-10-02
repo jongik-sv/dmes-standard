@@ -1,5 +1,6 @@
 package kr.dongkuk.maru.mdm.engine.spi;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -66,7 +67,7 @@ public interface DefinitionLookup {
     /** 스냅샷 헤더 + 변수 + 입력 계약 + 행(06:1160-1164). */
     record RuleDefinition(
             String ruleId,
-            int ver,
+            BigDecimal ver,
             RuleKind ruleKind,
             HitPolicy hitPolicy,
             LocalDateTime applyFrom,

@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md`(커밋 e7401253, 결정 D1~D9). 이 계획은 스펙을 정본으로 따르되, 코드와 어긋나는 곳은 코드 사실을 따른다 — 문서 끝 「스펙과 다른 점」 표가 근거(파일:줄)와 처리를 적는다.
 
+> **번호 변경(2026-10-02, dev 병합):** dev 가 먼저 V17 `rule_version_decimal`·ADR-0006 `object-versioning-major-minor`(D-144)를 넣어, 이 계획의 마이그레이션 V17 `create_mdm_meta_rev` 는 **V18** 로, ADR-0006 `mdm-meta-hybrid-cache-revision` 은 **ADR-0007** 로 바뀌었다. 아래 본문의 번호도 새 번호로 고쳤다. 룰 버전도 정수에서 소수(`BigDecimal`, 예 `1.000`)로 바뀌었다(D-144).
+
 **작업 위치:** 워크트리 `/Users/jji/project/dmes-standard/.claude/worktrees/mdm-meta-cache`(이하 `$W`), 브랜치 `feat/mdm-meta-cache`. 모든 명령은 `$W` 기준이다. git 은 `/usr/bin/git` 으로 부른다(셸 훅이 `git` 을 다른 도구로 바꿔 워크트리 가드에 막힌다).
 
 ---
@@ -21,7 +23,7 @@
 | 태스크 | 등급 | 먼저 끝나야 할 태스크 | 고치는 곳(요약) |
 |---|---|---|---|
 | 0 빌드 배선 실측 | standard | — | cactus-core `build.gradle`·`settings.gradle`, 업무 모듈 5곳 `settings.gradle` |
-| 1 변경 기록 표·기록기 | standard | 0 | V17, `L/entity/MdmMetaRev`, `L/repository/MdmMetaRevRepository`, `L/common/metarev/*` |
+| 1 변경 기록 표·기록기 | standard | 0 | V18, `L/entity/MdmMetaRev`, `L/repository/MdmMetaRevRepository`, `L/common/metarev/*` |
 | 2 기록 지점 1(컬럼·도메인·전문) | standard | 1 | `ColumnMngService`·`DomainMngService`·`LayoutMngService`·`HeaderMngService` + 시험, `HeaderMngQueryCountTest` |
 | 3 기록 지점 2(룰·룰세트·코드·확정) | standard | 1 | `DefaultVersionStateService`·`RuleHeaderService`·`RuleSetMngService`·`RuleSetEditService`·`CodeEditService`·`CodeItemEditService` + 시험 |
 | 4 metaFeed 1(BPMN·search·view COLUMN/DOMAIN) | capable | 1 | `A/resources/services/feed/metaFeed.bpmn`, `L/feed/metaFeed/**`, `MdmOasisActionVocabularyTest` |
@@ -33,7 +35,7 @@
 | 10 엔드포인트·자동 설정 | standard | 9 | `C/MdmMetaController`·`C/MdmScreenColumn`·`C/MdmAutoConfiguration`, imports |
 | 11 업무 모듈 켜기·권한 | standard | 10 | 모듈 5곳 `application.yml`, mcm `DataInitializer`, mcm-core `EndpointPermissionFilter`, `P/proxy.ts`, shared rbac 시험, `MdmOasisActionVocabularyTest` |
 | 12 캐시 관리 화면 | standard | 11 | `P/page-components/csa/mdmCacheMng/*`, `P/tests/**`, `P/package.json`, page-registry |
-| 13 문서(ADR·가이드·인덱스) | cheap | 0~12 | `docs/mdm/adr/0006-*`, `docs/mdm/adr/README.md`, `docs/guide/BackEnd/Backend-Implementation-Guide.md`, `docs/mdm/README.md` |
+| 13 문서(ADR·가이드·인덱스) | cheap | 0~12 | `docs/mdm/adr/0007-*`, `docs/mdm/adr/README.md`, `docs/guide/BackEnd/Backend-Implementation-Guide.md`, `docs/mdm/README.md` |
 | 14 통합 수동 검증 | standard | 0~13 | (코드 변경 없음) |
 
 물결: **①** 0 단독. **②** 1 과 6 을 함께 연다(1 = mdm, 6 = cactus-core — 겹치는 파일 없음). **③** 1 뒤 2·3 을 함께(서로 다른 서비스 파일), 6 뒤 7. **④** 4(1 뒤), 8(7 뒤). **⑤** 5(4 뒤). **⑥** 9(5·8 뒤). **⑦** 10 → 11 → 12 순서. **⑧** 13·14. gradle 을 쓰는 태스크는 동시에 둘까지만 돈다(16GB 노트북 — gradle 두 벌이 한계). 같은 파일을 고치는 짝: 4→5(`MetaFeedService`·BPMN·`MdmOasisActionVocabularyTest`), 4→11(`MdmOasisActionVocabularyTest`), 2→3 없음.
@@ -289,7 +291,7 @@ EOF
 ### Task 1: MDM 변경 기록 표 `TB_MDM_META_REV` 와 기록기 `MetaRevisionRecorder`
 
 **Files:**
-- Create: `A/resources/db/migration/mdm/sqlite/V17__create_mdm_meta_rev.sql`(flyway-migration-add 스킬로 채번)
+- Create: `A/resources/db/migration/mdm/sqlite/V18__create_mdm_meta_rev.sql`(flyway-migration-add 스킬로 채번)
 - Create: `L/entity/MdmMetaRev.java`
 - Create: `L/repository/MdmMetaRevRepository.java`
 - Create: `L/common/metarev/MetaTargetType.java`, `L/common/metarev/MetaChangeKind.java`, `L/common/metarev/MetaRevisionRecorder.java`
@@ -308,10 +310,10 @@ EOF
 - [ ] **Step 1: 채번하고 마이그레이션 파일을 만든다**
 
 Run: `python3 .claude/skills/flyway-migration-add/scripts/migration_tool.py status --module mdm`
-Expected: `sqlite [방언] 13 개, 최대 V16` · `다음 안전 번호: V17`. 다른 번호가 나오면 그 번호를 쓰고 이 태스크의 파일 이름을 모두 바꾼다.
+Expected(작성 당시): `sqlite [방언] 13 개, 최대 V16` · `다음 안전 번호: V17`. dev 병합 뒤 실제 번호는 V18 이다. 다른 번호가 나오면 그 번호를 쓰고 이 태스크의 파일 이름을 모두 바꾼다.
 
 Run: `python3 .claude/skills/flyway-migration-add/scripts/migration_tool.py scaffold --module mdm --slug create_mdm_meta_rev --title "MDM 메타 변경 기록 테이블"`
-Expected: `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V17__create_mdm_meta_rev.sql` 이 생긴다. 생긴 본문을 아래로 통째로 바꾼다:
+Expected: `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V18__create_mdm_meta_rev.sql` 이 생긴다. 생긴 본문을 아래로 통째로 바꾼다:
 
 ```sql
 -- 2026-10-02 — MDM 메타 변경 기록(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §3.1).
@@ -554,7 +556,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * MDM 메타 변경 기록 — {@code TB_MDM_META_REV}(spec 2026-10-02-mdm-meta-cache-design §3.1, V17). 쓰기는
+ * MDM 메타 변경 기록 — {@code TB_MDM_META_REV}(spec 2026-10-02-mdm-meta-cache-design §3.1, V18). 쓰기는
  * {@code MetaRevisionRecorder} 의 네이티브 INSERT 가 하고, 이 엔티티는 읽기(metaFeed search)에만 쓴다.
  * {@code REV_SEQ} 는 IDENTITY(불변 규칙 10).
  */
@@ -849,7 +851,7 @@ public class MetaRevisionRecorder {
 - [ ] **Step 5: 통과를 확인한다**
 
 Run: `(cd src/backend/mdm && ../gradlew :api:test --tests '*MetaRevisionRecorderTest' --tests '*MdmBusinessRuleMigrationTest' --console=plain)`
-Expected: PASS. 두 번째는 V17 이 기존 마이그레이션 시험(빈 DB 전체 적용)을 깨지 않음을 본다.
+Expected: PASS. 두 번째는 V18 이 기존 마이그레이션 시험(빈 DB 전체 적용)을 깨지 않음을 본다.
 
 - [ ] **Step 6: 정적 가드가 그대로인지 확인한다**
 
@@ -859,7 +861,7 @@ Expected: PASS(기록기는 `common.metarev` 에 있어 `DomainMngStaticGuardTes
 - [ ] **Step 7: 커밋**
 
 ```bash
-/usr/bin/git add src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V17__create_mdm_meta_rev.sql \
+/usr/bin/git add src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V18__create_mdm_meta_rev.sql \
   src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/entity/MdmMetaRev.java \
   src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/repository/MdmMetaRevRepository.java \
   src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/metarev \
@@ -6982,10 +6984,10 @@ EOF
 ```
 
 ---
-### Task 13: 문서 — ADR-0006(하이브리드 배포와 리비전 무효화), 백엔드 가이드 절, mdm 인덱스
+### Task 13: 문서 — ADR-0007(하이브리드 배포와 리비전 무효화), 백엔드 가이드 절, mdm 인덱스
 
 **Files:**
-- Create: `docs/mdm/adr/0006-mdm-meta-hybrid-cache-revision.md`
+- Create: `docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md`
 - Modify: `docs/mdm/adr/README.md`(인덱스 표 한 줄)
 - Modify: `docs/guide/BackEnd/Backend-Implementation-Guide.md`(끝에 `## 11. 업무 모듈에서 MDM 메타 켜기`)
 - Modify: `docs/mdm/README.md`(목록 한 줄)
@@ -6999,14 +7001,14 @@ EOF
 mdm ADR 은 `docs/mdm/adr/` 에 손으로 채번한다 — `adr_tool.py` 는 경로를 `docs/{module}/design/adr` 로 고정해 mdm 에서는 `new`·`status`·`index` 를 쓰지 않는다(`docs/mdm/adr/README.md` 「위치·발행 방식 이탈」).
 
 Run: `ls docs/mdm/adr/`
-Expected: `0001`~`0005` 와 `README.md`. 다음 번호는 `0006`.
+Expected(작성 당시): `0001`~`0005` 와 `README.md`. 다음 번호는 `0006`. dev 병합 뒤 실제 번호는 `0007` 이다.
 
 - [ ] **Step 2: ADR 을 쓴다**
 
-`docs/mdm/adr/0006-mdm-meta-hybrid-cache-revision.md`(Task 0 실측 문장을 「Context」 의 빈 자리에 넣는다):
+`docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md`(Task 0 실측 문장을 「Context」 의 빈 자리에 넣는다):
 
 ```markdown
-# ADR-0006: MDM 메타는 업무 모듈이 받아 캐시하고 변경 기록 순번으로 무효화한다
+# ADR-0007: MDM 메타는 업무 모듈이 받아 캐시하고 변경 기록 순번으로 무효화한다
 
 - **Status**: PROPOSED
 - **Date**: 2026-10-02
@@ -7055,7 +7057,7 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
   트랜잭션이 순번 10 을 받은 채 늦게 커밋되는 사이 업무 모듈이 순번 11 까지 적용하면 10 의 변경을 영영 보지 못한다. 그때의 안전망은 항목
   최대 수명(60분)뿐이다. 운영 DB 를 정할 때(ADR-0004) 기록 시각 기준 겹침 재조회나 커밋 뒤 순번 발급으로 보강한다.
 - 기록 쓰기는 여러 행 `VALUES` 네이티브 INSERT 한 문장이다(SQLite·PostgreSQL·MSSQL·Oracle 23ai). 더 옛 Oracle 로 가면 고친다.
-- 운영 DDL 은 Flyway 가 꺼진 프로필(`application-wildfly.yml`)에서 운영 DB 확정 때 수동으로 맞춘다(V17 `TB_MDM_META_REV`).
+- 운영 DDL 은 Flyway 가 꺼진 프로필(`application-wildfly.yml`)에서 운영 DB 확정 때 수동으로 맞춘다(V18 `TB_MDM_META_REV`).
 - 변경 기록 보관 정리(30일)는 아직 없다. 정리로 생긴 공백은 클라이언트가 역행·truncated 규칙으로만 다룬다.
 - 업무 모듈 mqc·mpp·mpn 에는 ClientKeyFilter 가 없어 관리 엔드포인트의 SYSADMIN 확인을 BFF 가 넘긴 `X-Authenticated-Role` 헤더로 한다.
   이 모듈들의 다른 엔드포인트와 같은 신뢰 수준이다.
@@ -7082,12 +7084,12 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
 
 - [ ] **Step 3: 린트**
 
-Run: `python3 .claude/skills/adr-write/scripts/adr_tool.py lint docs/mdm/adr/0006-mdm-meta-hybrid-cache-revision.md`
+Run: `python3 .claude/skills/adr-write/scripts/adr_tool.py lint docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md`
 Expected: ERROR 0.
 
 - [ ] **Step 4: 적대적 검토(adr-write §8)**
 
-Run: 서브에이전트 하나에 "docs/mdm/adr/0006-mdm-meta-hybrid-cache-revision.md 를 spec·구현 코드(MetaRevisionRecorder·MetaFeedService·cactus mdm 패키지)와 대조해 논리·정합 결함을 찾아라. 고치지 말고 결함만 보고"를 맡긴다.
+Run: 서브에이전트 하나에 "docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md 를 spec·구현 코드(MetaRevisionRecorder·MetaFeedService·cactus mdm 패키지)와 대조해 논리·정합 결함을 찾아라. 고치지 말고 결함만 보고"를 맡긴다.
 Expected: 확인된 결함을 본문에 반영한다(Status 는 PROPOSED 그대로).
 
 - [ ] **Step 5: 인덱스·가이드·mdm 목록을 고친다**
@@ -7095,7 +7097,7 @@ Expected: 확인된 결함을 본문에 반영한다(Status 는 PROPOSED 그대�
 `docs/mdm/adr/README.md` 표 끝에 한 줄:
 
 ```markdown
-| [0006](0006-mdm-meta-hybrid-cache-revision.md) | MDM 메타는 업무 모듈이 받아 캐시하고 변경 기록 순번으로 무효화한다 | PROPOSED | 2026-10-02 | 하이브리드 배포(정의는 MDM HTTP `metaFeed`, 판정은 업무 모듈 엔진), `TB_MDM_META_REV` 증가 순번 + 10초 폴링으로 바뀐 키만 지움(규칙 5가지), cactus-core `com.dongkuk.dmes.cactus.mdm`(기본 꺼짐), 장애 시 캐시 유지·30초 건너뛰기·60분 수명, 화면 삭제·재등록 = SYSADMIN 강제 기록. 순번 순서 = 커밋 순서 가정은 SQLite 단일 쓰기에 기댄다. |
+| [0007](0007-mdm-meta-hybrid-cache-revision.md) | MDM 메타는 업무 모듈이 받아 캐시하고 변경 기록 순번으로 무효화한다 | PROPOSED | 2026-10-02 | 하이브리드 배포(정의는 MDM HTTP `metaFeed`, 판정은 업무 모듈 엔진), `TB_MDM_META_REV` 증가 순번 + 10초 폴링으로 바뀐 키만 지움(규칙 5가지), cactus-core `com.dongkuk.dmes.cactus.mdm`(기본 꺼짐), 장애 시 캐시 유지·30초 건너뛰기·60분 수명, 화면 삭제·재등록 = SYSADMIN 강제 기록. 순번 순서 = 커밋 순서 가정은 SQLite 단일 쓰기에 기댄다. |
 ```
 
 `docs/guide/BackEnd/Backend-Implementation-Guide.md` 끝에:
@@ -7105,7 +7107,7 @@ Expected: 확인된 결함을 본문에 반영한다(Status 는 PROPOSED 그대�
 ## 11. 업무 모듈에서 MDM 메타 켜기
 
 MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 정의를 업무 모듈이 받아 캐시하고 엔진으로 직접 쓴다. 결정은
-[mdm ADR-0006](../../mdm/adr/0006-mdm-meta-hybrid-cache-revision.md), 설계는
+[mdm ADR-0007](../../mdm/adr/0007-mdm-meta-hybrid-cache-revision.md), 설계는
 [spec](../../superpowers/specs/2026-10-02-mdm-meta-cache-design.md).
 
 - 켜기: 모듈 `api/src/main/resources/application.yml` 의 `cactus:` 아래(없으면 최상위 `cactus:` 를 만든다)에 둔다. 기본은 꺼짐이고 MDM 서버 자신은 켜지 않는다.
@@ -7138,16 +7140,16 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
 `docs/mdm/README.md` — `- [adr/](adr/README.md) — mdm ADR(설계 결정 기록)` 줄 아래에:
 
 ```markdown
-- 메타 제공·업무 모듈 캐시 — OASIS `metaFeed`(`services/feed/`)와 변경 기록 `TB_MDM_META_REV`, 업무 모듈 cactus 캐시. 결정 [adr/0006](adr/0006-mdm-meta-hybrid-cache-revision.md), 설계 [spec](../superpowers/specs/2026-10-02-mdm-meta-cache-design.md)
+- 메타 제공·업무 모듈 캐시 — OASIS `metaFeed`(`services/feed/`)와 변경 기록 `TB_MDM_META_REV`, 업무 모듈 cactus 캐시. 결정 [adr/0007](adr/0007-mdm-meta-hybrid-cache-revision.md), 설계 [spec](../superpowers/specs/2026-10-02-mdm-meta-cache-design.md)
 ```
 
 - [ ] **Step 6: 커밋**
 
 ```bash
-/usr/bin/git add docs/mdm/adr/0006-mdm-meta-hybrid-cache-revision.md docs/mdm/adr/README.md \
+/usr/bin/git add docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md docs/mdm/adr/README.md \
   docs/guide/BackEnd/Backend-Implementation-Guide.md docs/mdm/README.md
 /usr/bin/git commit -m "$(cat <<'EOF'
-docs(mdm): MDM 메타 하이브리드 캐시 ADR-0006 과 업무 모듈에서 켜는 법을 적는다
+docs(mdm): MDM 메타 하이브리드 캐시 ADR-0007 과 업무 모듈에서 켜는 법을 적는다
 
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
 EOF
@@ -7284,7 +7286,7 @@ pnpm -C src/frontend --filter @dk-oasis/shared test:unit
 pnpm -C src/frontend --filter @dk-oasis/mcm test
 python3 .claude/skills/mantine-aggrid-ui/scripts/mantine_docs.py audit src/frontend/m-mcm/page-components/csa/mdmCacheMng
 python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py audit src/frontend/m-mcm/page-components/csa/mdmCacheMng
-python3 .claude/skills/adr-write/scripts/adr_tool.py lint docs/mdm/adr/0006-mdm-meta-hybrid-cache-revision.md
+python3 .claude/skills/adr-write/scripts/adr_tool.py lint docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md
 ```
 Expected: 모든 시험 PASS, 컴파일 FAIL 줄 없음, 계약 검사 ERROR 0(두 번), audit 0건(두 번), 린트 ERROR 0. mdm `:api:test` 는 오래 걸린다(1000건 이상) — 백그라운드로 돌리고 끝날 때 알림을 받는다.
 
@@ -7340,4 +7342,4 @@ Expected: 모든 시험 PASS, 컴파일 FAIL 줄 없음, 계약 검사 ERROR 0(�
 - `되돌아보기_구간_밖_순번은_기억에서_버린다`: lookback=3 에서 순번 1~10 을 처리한 뒤 기억 집합 크기가 3 근처(구간 안 순번만)다.
 - `lookback_0_이면_since_는_appliedSeq_그대로다`.
 
-**ADR(Task 13).** ADR-0006 Consequences 의 "순번 순서가 커밋 순서와 같다는 가정" 문장을 "가정하지 않는다 — 폴러가 최근 `lookback` 개 순번을 다시 훑어 늦게 커밋된 기록을 잡는다. 단 lookback 구간보다 더 늦게 커밋된 기록은 `max-age` 안전망이 잡는다"로 바꾼다.
+**ADR(Task 13).** ADR-0007 Consequences 의 "순번 순서가 커밋 순서와 같다는 가정" 문장을 "가정하지 않는다 — 폴러가 최근 `lookback` 개 순번을 다시 훑어 늦게 커밋된 기록을 잡는다. 단 lookback 구간보다 더 늦게 커밋된 기록은 `max-age` 안전망이 잡는다"로 바꾼다.

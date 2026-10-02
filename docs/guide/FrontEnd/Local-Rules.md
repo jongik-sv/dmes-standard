@@ -224,6 +224,7 @@ shared `Modal`(Mantine)은 열린 창마다 window 의 Escape 를 받는다. 등
 - **초점을 가진 요소를 지우면 초점이 body 로 빠져 캔버스 단축키가 끊긴다**(선 Delete 뒤 Ctrl+Z 무반응). 단축키 디스패처가 처리한 뒤 `document.activeElement` 가 body 면 캔버스 host 로 돌린다.
 - 예시: `canvas/FlowCanvas.tsx`, `canvas/FlowToolbar.tsx`, `styles/collapse.ts`(칩)·`styles/space.ts`(선택 상자), `page.tsx` 의 `onCanvasKeyDown`.
 - **룰 세트 IF 의 끝내는 갈래(D-136, implicit-join spec J-D19)** — 흐름을 이어 갈 갈래는 「그 외」로 두고, 끝낼 갈래는 조건 갈래로 두어 끝 노드로 잇는다. 모든 갈래가 따로 END 로 가면 실행 순서 마지막 갈래(END 직행 제외)가 이어지는 갈래로 정해지므로, 안쪽 IF 에서 반대로 그리면(조건 갈래가 바깥 모이는 자리로, 「그 외」 에 몸을 두고 END 로) 구조 오류(S5·S6)로 거부된다. 화면은 IF 패널 갈래 목록 아래 안내(`flow-prop-if-ending-help`)로 같은 규칙을 보인다.
+- **디버그·실행 도구 막대에서 ■(정지, `IconPlayerStop`) 아이콘은 세션을 끝내는 [중지]에만 쓴다.** 「마지막으로 이동」 같은 동작에는 쓰지 않는다(건너뛰기 ⏭ `IconPlayerSkipForward` 를 쓴다). 2026-10-02 룰 세트 편집에서 ■ 가 [끝내기](마지막 단계로 이동)에 붙어 사용자가 중지로 오인했다 — 지금은 [중지](`dbg-stop`)가 ■, [끝까지](`dbg-finish`)가 ⏭ 이다.
 
 ## 20. AgDataGrid 화면 — 입력 한 글자·셀 편집 한 번이 그리드 전체를 다시 그리지 않게 (2026-10-01)
 
@@ -259,3 +260,24 @@ shared·m-mcm 의 Prettier 는 `prettier-plugin-tailwindcss` 를 쓴다. 이 플
 - `Textarea`(shared)는 `.mantine-Textarea-root`·`.mantine-Input-wrapper` 를 `flex: 1 1 0`, `textarea` 를 `height: 100%; resize: none` 으로 둔다.
 - 미리보기는 편집기 옆에 칸으로 두지 말고, 필요하면 버튼으로 여는 팝업에 둔다(편집 폭을 줄이지 않는다).
 - 예시: `m-mls/pages/lsh/noticeMgmt/notice-styles.ts` 의 `.nm-detail`·`.nm-body*`·`.nm-editor*`.
+
+## 24. MDM 버전 버튼 규약 — 코드·룰 화면이 같은 이름·순서·모양을 쓴다 (2026-10-02)
+
+마스터코드(codeMng)와 룰(ruleMng)의 버전 상태 전이 버튼은 `m-mdm/src/shell` 의 `VersionActionBar` 로 그린다. 화면은 활성 조건만 계산해 넘기고, 라벨·순서·모양·확인창은 이 컴포넌트가 정한다.
+
+- 라벨: `새 버전(major)`·`새 버전(minor)`·`삭제`·`확정`·`확정취소`·`선점`·`해제`·`넘기기`. `확정` 은 확정 화면으로 이동하고, `확정취소` 는 붙여 쓴다.
+- 순서: 새 버전 → 삭제 → 확정 → 확정취소 → 선점 → 해제 → 넘기기. 화면 고유 버튼(`코드 편집` 등)은 맨 뒤에 둔다.
+- 모양: `확정` 은 primary, `삭제`·`확정취소` 는 danger, 나머지는 default.
+- 노출: 버튼은 늘 보이고, 해당하지 않으면 비활성으로 둔다(조건부로 숨기지 않는다).
+- 확인창: `삭제`(제목 `확인`)와 `확정취소`(제목 `확정취소`)는 누르면 확인창을 거친 뒤 실행한다.
+- 룰도 마스터코드처럼 `새 버전(major)`·`새 버전(minor)` 두 버튼을 쓴다. 룰 세트·레이아웃·헤더 화면도 같은 두 버튼을 쓴다(D-144, [ADR-0006](../../mdm/adr/0006-object-versioning-major-minor.md)). minor 가 999 이면 minor 버튼만 비활성이다.
+- 활성 조건은 서버 판정값(`cancelConfirmable` 등)을 화면에서 다시 계산하지 않는다. 권한 action 이름은 화면별로 유지한다.
+
+## 25. 모달 안 그리드 — flex 칸만으로는 높이가 0 이 된다 (2026-10-02)
+
+shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높이는 없다. 그래서 내용이 짧으면 표·footer 아래가 크게 빈다. 이 빈 곳을 그리드로 채우려고 `flex: 1` 칸 안에 `AgDataGrid`(height 를 주지 않으면 부모 높이 100%)를 두면, 그 100% 가 기준 높이를 얻지 못해 **그리드가 0px 로 접힌다**. 단위 테스트(happy-dom)는 레이아웃을 계산하지 않아 이 문제가 보이지 않는다.
+
+- 표 칸은 `flex: 1; min-height: 200px; position: relative` 로 두고, 그 안에 `position: absolute; inset: 0` 칸을 하나 더 두어 그리드를 넣는다. 절대 위치 칸은 표 칸의 실제 높이를 기준으로 삼는다.
+- 모달 본문 div 는 `flex: 1; min-height: 0; display: flex; flex-direction: column` 이고, 위아래 안내 줄은 `flex: none` 이다.
+- 빈 곳을 없애려고 크기를 `md`(600px)로 낮추지 않는다. 다섯 열 이상의 표는 글자가 잘리고 가로 스크롤이 생긴다.
+- 예시: `m-mdm/pages/dme/ruleEdit/cards/BoundaryCaseModal.tsx` 의 `gridBox`·`gridFill`.

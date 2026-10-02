@@ -30,6 +30,7 @@ import org.springframework.stereotype.Component;
  * 빈이 아니다(D-077, ADR-0005 — {@code DefinitionLookup} 빈 0개 가드) — 호출마다 {@code new} 로 만든다.
  *
  * <p>룰은 RELEASED 버전 <b>전체</b>를 준다 — 적용 시작일 도래는 쓰기가 없어 기록이 남지 않으므로 업무 모듈이 판정 시각으로 그때그때 고른다(§4.1).
+ * 목록은 {@code ver}(소수 scale 3, D-144) 오름차순 — {@code BigDecimal.compareTo} 수 비교다. JSON 은 number 로 자리수를 지킨다({@code 1.000}).
  * 저장값이 깨져 정의를 만들 수 없는 키는 그 키만 failed 로 준다(Ruling R4).
  */
 @Component
@@ -76,7 +77,7 @@ public class MetaFeedDefinitions {
                     }
                     released.add(a.definition());
                 }
-                released.sort(Comparator.comparingInt(RuleDefinition::ver));
+                released.sort(Comparator.comparing(RuleDefinition::ver)); // ver 는 BigDecimal(D-144) — compareTo 수 비교, 문자열 정렬 아님
                 found.put(id, MetaFeedJson.plain(released));
             } catch (BusinessException | IllegalArgumentException | IllegalStateException e) {
                 failed.put(id, e.getMessage());

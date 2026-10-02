@@ -74,7 +74,7 @@ class RuleSetTraceTest {
                 ifNode.branches().stream().map(b -> b.edgeId() + ":" + b.outcome()).toList());
         NodeTrace a = t.nodes().get(2);
         assertEquals("R_A", a.ruleId());
-        assertEquals(1, a.ver());
+        assertEquals(new java.math.BigDecimal("1.000"), a.ver());
         assertEquals(List.of("X"), List.copyOf(a.reads().keySet()));
         assertNum("21", a.result().results().get("A"));
         assertEquals("if1", t.nodes().get(3).splitId());

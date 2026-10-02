@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mdm.entity;
 
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Objects;
 
 /**
@@ -11,19 +13,19 @@ import java.util.Objects;
 public class MdmRuleVerId implements Serializable {
 
     private String maruRuleId;
-    private Integer ver;
+    private BigDecimal ver;
 
     public MdmRuleVerId() {
         // JPA 기본 생성자
     }
 
-    public MdmRuleVerId(String maruRuleId, Integer ver) {
+    public MdmRuleVerId(String maruRuleId, BigDecimal ver) {
         this.maruRuleId = maruRuleId;
-        this.ver = ver;
+        this.ver = VersionNumbers.scaled(ver);
     }
 
     public String getMaruRuleId() { return maruRuleId; }
-    public Integer getVer() { return ver; }
+    public BigDecimal getVer() { return VersionNumbers.scaled(ver); }
 
     @Override
     public boolean equals(Object o) {
@@ -33,11 +35,11 @@ public class MdmRuleVerId implements Serializable {
         if (!(o instanceof MdmRuleVerId other)) {
             return false;
         }
-        return Objects.equals(maruRuleId, other.maruRuleId) && Objects.equals(ver, other.ver);
+        return Objects.equals(maruRuleId, other.maruRuleId) && VersionNumbers.same(ver, other.ver);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maruRuleId, ver);
+        return Objects.hash(maruRuleId, ver == null ? null : ver.stripTrailingZeros());
     }
 }

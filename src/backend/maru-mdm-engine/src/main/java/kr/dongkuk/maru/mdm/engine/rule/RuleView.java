@@ -1,5 +1,6 @@
 package kr.dongkuk.maru.mdm.engine.rule;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +18,7 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarKind;
  */
 public record RuleView(
         String ruleId,
-        int ver,
+        BigDecimal ver,
         RuleKind ruleKind,
         HitPolicy hitPolicy,
         LocalDateTime applyFrom,

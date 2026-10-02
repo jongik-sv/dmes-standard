@@ -222,7 +222,7 @@ describe("열 설정 섹션 렌더", () => {
     await flush();
     const save = bodies.find((b) => b.url.includes("/oasis/ruleEdit/save"))!;
     const params = save.body.params as Record<string, unknown>;
-    expect(params).toEqual({ part: "COLUMNS", maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3 });
+    expect(params).toEqual({ part: "COLUMNS", maruRuleId: "QLTY_GRD_JDG", ver: "2.000", rowVersion: 3 });
     const rows = (save.body.grids as { rows: { rows: Array<Record<string, unknown>> } }).rows.rows;
     expect(rows).toHaveLength(6);
     expect(rows[5]).toMatchObject({ varId: -1, varKind: "RESULT", varName: "NEW_RES", dataType: "STRING" });
@@ -336,7 +336,7 @@ describe("표 카드 + 열 설정 섹션(불변 13)", () => {
 
   it("적중 정책을 바꿔 열 설정과 어긋나면 [열 설정 보기] 가 접힌 열 설정을 펼친다(D-133)", async () => {
     const base = view({ varMeta: [{ varId: 4, collectAgg: "SUM" }] });
-    const v = { ...base, versions: base.versions.map((x) => (x.ver === 2 ? { ...x, hitPolicy: "COLLECT" as const } : x)) };
+    const v = { ...base, versions: base.versions.map((x) => (x.ver === "2.000" ? { ...x, hitPolicy: "COLLECT" as const } : x)) };
     await mount(createElement(DecisionTableCard, { ...props(v), extraSections: TABLE_SECTIONS }));
     expect(q<HTMLElement>("[data-testid='rule-section-columns-body']").hidden).toBe(true);
     await selectValue(q<HTMLSelectElement>("[data-testid='dt-hit-policy']"), "FIRST");

@@ -1,5 +1,6 @@
 package kr.dongkuk.maru.mdm.engine.rule;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -111,7 +112,7 @@ final class FlowRun {
     private String curNodeId;
     private NodeKind curKind;
     private String curRuleId;
-    private Integer curVer;
+    private BigDecimal curVer;
     private Map<String, Object> curReads;
     private List<BranchTrace> curBranches;
     private String curChosen;

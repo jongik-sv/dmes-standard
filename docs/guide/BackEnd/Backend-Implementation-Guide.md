@@ -393,7 +393,7 @@ void invR02_allocatedExceedsOnHandRejected() {
 ## 11. 업무 모듈에서 MDM 메타 켜기
 
 MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 정의를 업무 모듈이 받아 캐시하고 엔진으로 직접 쓴다. 결정은
-[mdm ADR-0006](../../mdm/adr/0006-mdm-meta-hybrid-cache-revision.md), 설계는
+[mdm ADR-0007](../../mdm/adr/0007-mdm-meta-hybrid-cache-revision.md), 설계는
 [spec](../../superpowers/specs/2026-10-02-mdm-meta-cache-design.md).
 
 - 켜기: 모듈 `api/src/main/resources/application.yml` 의 `cactus:` 아래(없으면 최상위 `cactus:` 를 만든다)에 둔다. 기본은 꺼짐이고 MDM 서버 자신은 켜지 않는다.

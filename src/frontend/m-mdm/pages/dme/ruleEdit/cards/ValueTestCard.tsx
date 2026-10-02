@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button, Checkbox, Input, Select } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { badgeStyle } from "@/shell";
+import { badgeStyle, fmtVer } from "@/shell";
 
 import { runValueTest, saveTestCase } from "../api";
 import type { RuleEditCardProps } from "../cards";
@@ -224,7 +224,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
       lastRun != null &&
       lastRun.key === targetKey(choice) &&
       lastRun.inputJson === inputJson &&
-      targetKey({ target: run.target, ver: run.ver ?? -1 }) === lastRun.key;
+      targetKey({ target: run.target, ver: run.ver ?? "" }) === lastRun.key;
     const rows = choice.target === "BODY" ? bodyTable(view, choice.ver, tableDraft).rows : (def?.rows ?? []);
     const expected = same && def ? expectedFromResult(run.result, def.vars, defaultRowIdOf(rows)) : null;
     const saved = await runWrite(() => saveTestCase(ruleId, { caseName: caseName.trim(), inputJson, expectedJson: expected }));
@@ -260,10 +260,10 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
 
       {defError && (
         <p role="alert" style={{ color: "var(--color-danger)" }}>
-          버전 {choice?.ver} 정의를 불러오지 못했습니다: {defError}
+          버전 {fmtVer(choice?.ver)} 정의를 불러오지 못했습니다: {defError}
         </p>
       )}
-      {choice && !def && !defError && <MutedText>버전 {choice.ver} 정의를 불러오는 중입니다.</MutedText>}
+      {choice && !def && !defError && <MutedText>버전 {fmtVer(choice.ver)} 정의를 불러오는 중입니다.</MutedText>}
       {fieldsResult?.failure && (
         <p data-testid="vt-fields-failed" style={{ color: "var(--color-danger)" }}>
           입력 계약을 계산할 수 없어 입력 칸을 만들지 못했습니다(표의 칸을 고치세요): {fieldsResult.failure}

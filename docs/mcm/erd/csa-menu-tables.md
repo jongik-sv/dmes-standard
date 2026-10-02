@@ -23,6 +23,8 @@
 | `TB_MCM_SEC_USER_PWD` | 비밀번호 (본체와 분리) | 1행 | 사용자 관리 |
 | `TB_MCM_SEC_USER_FAVORITE` | 개인 즐겨찾기 | 0행 | 포털 사이드바 |
 | `TB_MCM_SEC_USER_FAVORITE_FOLD` | 즐겨찾기 폴더 | 0행 | 포털 사이드바 |
+| `TB_MCM_SEC_USER_WIDGET_TAB` | 개인 위젯 탭 | 신규(2026-10-02) | 포털 홈 위젯 |
+| `TB_MCM_SEC_USER_WIDGET` | 개인 위젯 배치 | 신규(2026-10-02) | 포털 홈 위젯 |
 | `TB_MCM_SEC_USER_START_PGM` | 개인 기본 화면(처음 시작할 때 여는 화면) | 신설 | 포털 탭 우클릭·사이드바 |
 | `TB_MCM_SEC_USER_HIS` | 사용자 변경 이력 | 0행 | (배치·인터페이스) |
 | `TB_MCM_SEC_USER_ROLL_HIS` | 역할 부여 이력 | 0행 | (배치·인터페이스) |

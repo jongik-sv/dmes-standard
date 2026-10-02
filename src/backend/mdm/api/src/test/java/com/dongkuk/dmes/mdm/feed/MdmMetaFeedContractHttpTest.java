@@ -115,13 +115,17 @@ class MdmMetaFeedContractHttpTest {
         validator = new DefaultDomainValidator(lookup,
                 new MdmEvaluator(new EngineLookups(lookup, lookup, CodeEffLookup.NONE, MasterLookup.NONE, FunctionProvider.NONE)));
 
-        // 사전: sampleRule 의 COIL_THK(QTY NUMBER scale 2)에 표준식을 단다. 두 버전 룰: v1 [2026-01-01, 2026-07-01), v2 [2026-07-01, 열린 끝)
+        // 사전: sampleRule 의 COIL_THK(QTY NUMBER scale 2)에 표준식을 단다. 세 버전 룰(D-144 major/minor 소수):
+        // 1.000 [2026-01-01, 2026-07-01), 1.001 MINOR [2026-07-01, 2027-01-01), 2.000 MAJOR [2027-01-01, 열린 끝).
+        // SQLite NUMERIC 은 1.000·2.000 을 INTEGER, 1.001 을 REAL 로 저장한다 — 두 저장 형태가 모두 HTTP 를 지난다.
         DmeTestSupport.sampleRule(jdbc);
         jdbc.update("UPDATE TB_MDM_DOMAIN SET STD_RULE = 'value >= 0', STD_AST = ? WHERE STD_NAME = 'COIL_THK_D'", ast("value >= 0"));
         jdbc.update("UPDATE TB_MDM_COLUMN SET REQUIRED = 1 WHERE PHYS_NAME = 'COIL_THK'");
         jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_ID = ? AND VER = 1", Q);
-        DmeTestSupport.released(jdbc, Q, 2, "FIRST", "2026-07-01 00:00:00", null);
-        DmeTestSupport.sampleDefinition(jdbc, Q, 2);
+        DmeTestSupport.released(jdbc, Q, new BigDecimal("1.001"), "MINOR", "FIRST", "2026-07-01 00:00:00", "2027-01-01 00:00:00");
+        DmeTestSupport.sampleDefinition(jdbc, Q, new BigDecimal("1.001"));
+        DmeTestSupport.released(jdbc, Q, new BigDecimal("2.000"), "MAJOR", "FIRST", "2027-01-01 00:00:00", null);
+        DmeTestSupport.sampleDefinition(jdbc, Q, new BigDecimal("2.000"));
         DmeTestSupport.ruleSet(jdbc, "CT_SET", "계약 세트", "[\"" + Q + "\"]", "INUSE", 0);
 
         // 코드: CT_CD 1.000 RELEASED(A), CODE 도메인 + 컬럼 CT_CODE_COL
@@ -176,15 +180,28 @@ class MdmMetaFeedContractHttpTest {
     @Test
     void 룰은_적용_기간_경계_양쪽에서_MDM_원장과_같은_버전과_내용을_고른다() {
         StoredDefinitionLookup stored = new StoredDefinitionLookup(ruleQueries, storedRuleDefinitions, ruleRepository, ruleSetRepository);
-        for (LocalDateTime at : new LocalDateTime[] {LocalDateTime.of(2026, 6, 30, 23, 59, 59), LocalDateTime.of(2026, 7, 1, 0, 0)}) {
+        // 경계마다 기대 버전을 못박는다 — 원장·HTTP 가 같은 틀린 버전을 고르는 경우도 잡는다. equals 는 자리수까지 본다(1.000 ≠ 1).
+        Map<LocalDateTime, BigDecimal> expected = new java.util.LinkedHashMap<>();
+        expected.put(LocalDateTime.of(2026, 6, 30, 23, 59, 59), new BigDecimal("1.000"));
+        expected.put(LocalDateTime.of(2026, 7, 1, 0, 0), new BigDecimal("1.001"));
+        expected.put(LocalDateTime.of(2026, 12, 31, 23, 59, 59), new BigDecimal("1.001"));
+        expected.put(LocalDateTime.of(2027, 1, 1, 0, 0), new BigDecimal("2.000"));
+        expected.forEach((at, ver) -> {
             Instant ts = at.atZone(MdmDefinitionLookup.KST).toInstant();
             RuleDefinition viaHttp = lookup.rule(Q, ts).orElseThrow();
             RuleDefinition direct = stored.rule(Q, ts).orElseThrow();
+            assertEquals(ver, direct.ver(), "원장 판정 시각 " + at);
+            assertEquals(ver, viaHttp.ver(), "HTTP 판정 시각 " + at);
+            assertEquals(3, viaHttp.ver().scale(), "HTTP 판정 시각 " + at);
             assertEquals(fingerprint(direct), fingerprint(viaHttp), "판정 시각 " + at);
             // fingerprint 는 키를 문자열로 이어 붙여 Integer 1 과 "1" 을 가르지 못한다 — 행(셀 맵 키 타입·op·left·right·list·val 포함)을 그대로 비교한다
             assertEquals(direct.rows(), viaHttp.rows(), "판정 시각 " + at);
             viaHttp.rows().forEach(r -> r.cells().keySet().forEach(k -> assertEquals(Integer.class, ((Object) k).getClass())));
-        }
+        });
+        // 적용 시작 전은 원장·HTTP 모두 없다
+        Instant beforeAll = LocalDateTime.of(2025, 12, 31, 23, 59, 59).atZone(MdmDefinitionLookup.KST).toInstant();
+        assertTrue(stored.rule(Q, beforeAll).isEmpty());
+        assertTrue(lookup.rule(Q, beforeAll).isEmpty());
         assertEquals(stored.ruleSet("CT_SET").orElseThrow(), lookup.ruleSet("CT_SET").orElseThrow());
     }
 

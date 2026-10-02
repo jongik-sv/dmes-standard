@@ -27,7 +27,7 @@ import { byTestId, click, installServer, openSet, q, uninstallServer } from "../
 const nm = (n: string, label: string | null) => ({ name: n, source: null, label, dataType: null, scale: null, dateString: false, maruCodeId: null });
 function io(ruleId: string, conds: Array<[string, string | null]>, results: Array<[string, string | null]>): RuleIo {
   return {
-    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
     conds: conds.map(([n, l]) => nm(n, l)), results: results.map(([n, l]) => nm(n, l)),
   };
 }

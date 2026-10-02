@@ -288,7 +288,7 @@
       "type": "object",
       "properties": {
         "ruleId": { "type": "string" },
-        "ver": { "type": "integer" },
+        "ver": { "type": "number" },
         "evalTs": { "$ref": "#/$defs/LocalDateTime" },
         "hits": { "type": "array", "items": { "$ref": "#/$defs/RuleHit" } },
         "defaultApplied": { "type": "boolean" },
@@ -390,7 +390,7 @@
         "kind": { "$ref": "#/$defs/FlowNodeKind" },
         "status": { "$ref": "#/$defs/NodeStatus" },
         "ruleId": { "type": ["string", "null"] },
-        "ver": { "type": ["integer", "null"] },
+        "ver": { "type": ["number", "null"] },
         "reads": { "type": ["object", "null"], "additionalProperties": { "$ref": "#/$defs/TypedValue" } },
         "result": { "$ref": "#/$defs/RuleResult" },
         "branches": { "type": ["array", "null"], "items": { "$ref": "#/$defs/BranchTrace" } },

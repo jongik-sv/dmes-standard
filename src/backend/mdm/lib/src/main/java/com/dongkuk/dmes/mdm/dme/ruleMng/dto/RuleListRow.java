@@ -11,9 +11,9 @@ public class RuleListRow {
     private String ruleKind;
     private String sourceKind;
     private String status;
-    private Integer releasedVer;
+    private String releasedVer;
     private String hitPolicy;
-    private Integer pendingVer;
+    private String pendingVer;
     private String pendingStatus;
     private String pendingOwnerId;
 
@@ -22,9 +22,9 @@ public class RuleListRow {
     public String getRuleKind() { return ruleKind; }
     public String getSourceKind() { return sourceKind; }
     public String getStatus() { return status; }
-    public Integer getReleasedVer() { return releasedVer; }
+    public String getReleasedVer() { return releasedVer; }
     public String getHitPolicy() { return hitPolicy; }
-    public Integer getPendingVer() { return pendingVer; }
+    public String getPendingVer() { return pendingVer; }
     public String getPendingStatus() { return pendingStatus; }
     public String getPendingOwnerId() { return pendingOwnerId; }
 
@@ -33,9 +33,9 @@ public class RuleListRow {
     public void setRuleKind(String v) { this.ruleKind = v; }
     public void setSourceKind(String v) { this.sourceKind = v; }
     public void setStatus(String v) { this.status = v; }
-    public void setReleasedVer(Integer v) { this.releasedVer = v; }
+    public void setReleasedVer(String v) { this.releasedVer = v; }
     public void setHitPolicy(String v) { this.hitPolicy = v; }
-    public void setPendingVer(Integer v) { this.pendingVer = v; }
+    public void setPendingVer(String v) { this.pendingVer = v; }
     public void setPendingStatus(String v) { this.pendingStatus = v; }
     public void setPendingOwnerId(String v) { this.pendingOwnerId = v; }
 }

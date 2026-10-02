@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.entity.MdmDomain;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
+import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,8 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
 class RuleVarTypeResolverTest extends AbstractMdmSharedDbTest {
+
+    private static final BigDecimal SELF_VER = new BigDecimal("2.000");
 
     @Autowired
     RuleVarTypeResolver resolver;
@@ -103,14 +106,14 @@ class RuleVarTypeResolverTest extends AbstractMdmSharedDbTest {
     }
 
     static MdmRuleVar cond(int varId, String disp, String name) {
-        MdmRuleVar v = new MdmRuleVar("SELF_RULE", 2, varId, "COND", varId);
+        MdmRuleVar v = new MdmRuleVar("SELF_RULE", SELF_VER, varId, "COND", varId);
         v.setDispType(disp);
         v.setVarName(name);
         return v;
     }
 
     private ResolvedVar one(MdmRuleVar v) {
-        List<ResolvedVar> out = resolver.resolve("SELF_RULE", 2, List.of(v));
+        List<ResolvedVar> out = resolver.resolve("SELF_RULE", SELF_VER, List.of(v));
         assertEquals(1, out.size());
         return out.get(0);
     }
@@ -183,7 +186,7 @@ class RuleVarTypeResolverTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 선언한_DOMAIN_ID_는_그_도메인으로_푼다() {
-        MdmRuleVar v = new MdmRuleVar("SELF_RULE", 2, 9, "RESULT", 1);
+        MdmRuleVar v = new MdmRuleVar("SELF_RULE", SELF_VER, 9, "RESULT", 1);
         v.setDispType("Value");
         v.setVarName("OUT_GRD");
         v.setDomainId(code);
@@ -223,7 +226,7 @@ class RuleVarTypeResolverTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 입력_순서를_지킨다() {
-        List<ResolvedVar> out = resolver.resolve("SELF_RULE", 2, List.of(cond(3, "1", "PROD_DT"), cond(1, "2", "COIL_THK")));
+        List<ResolvedVar> out = resolver.resolve("SELF_RULE", SELF_VER, List.of(cond(3, "1", "PROD_DT"), cond(1, "2", "COIL_THK")));
         assertEquals(List.of(3, 1), out.stream().map(ResolvedVar::varId).toList());
     }
 }

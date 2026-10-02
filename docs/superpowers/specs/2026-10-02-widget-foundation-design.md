@@ -82,6 +82,10 @@ export interface WidgetMeta {
   linkPageId?: string;
   /** 한 탭에 여러 번 놓을 수 있는지(기본 true). */
   multiple?: boolean;
+  /** 제목 옆 작은 부제(예: "전일 기준"). */
+  subtitle?: string;
+  /** 본문 안쪽 여백(기본 true). 그리드처럼 칸을 꽉 채우는 위젯은 false. */
+  bodyPadding?: boolean;
 }
 
 export interface WidgetProps {
@@ -100,6 +104,8 @@ export type WidgetComponent = (props: WidgetProps) => ReactNode;
 - 위젯 본체는 제목 줄을 그리지 않는다. 제목·새로 고침·「화면 열기」·로딩·오류 표시는 `WidgetFrame` 이 맡는다.
 - 위젯 본체가 자기 높이를 정하지 않는다. 틀이 준 칸을 채우고, 넘치면 본문 안에서 스크롤한다.
 - 위젯이 진행 중 조회를 알려야 하면 `useWidgetStatus()` 훅으로 틀에 `loading`·`error(message, retry)` 를 알린다(틀이 공통 모양으로 그린다).
+- 제목 줄에 위젯 고유 버튼·배지를 두려면 `<WidgetHeaderActions>` 안에 그린다(틀의 제목 줄로 포털된다).
+- 차트처럼 본문 픽셀 크기가 필요하면 `useWidgetBodySize()` 로 `{ width, height }` 를 읽는다.
 - 위젯 안에서 포털 화면을 열 때는 기존 `openPortalTab` 을 쓴다.
 
 ### 2.3 등록부 코드 생성
@@ -114,7 +120,7 @@ export const WIDGET_REGISTRY: Record<string, {
 }> = { ... };
 ```
 
-- 생성 시 검사: `meta.id` 중복, `meta.id` 와 폴더(`{group}/{name}` → `{group}.{name}`) 불일치, `defaultSize` 가 min·max 범위 밖이면 생성을 실패시킨다.
+- 생성 시 검사: `widget.meta.ts` 에 `id: "{group}.{name}"` 문자열이 폴더와 같게 있는지, `widget.tsx` 가 짝으로 있는지, ID 중복이 없는지 확인하고 어기면 생성을 실패시킨다. 크기 범위(`defaultSize` 가 min·max 안인지)는 shared `validateWidgetMeta` 가 실행 시 검사해 콘솔 오류를 내고 범위 안으로 자른다(메타는 TS 라 생성 스크립트가 값을 읽지 않는다).
 
 ## 3. 화면과 상호작용
 
@@ -136,11 +142,12 @@ export const WIDGET_REGISTRY: Record<string, {
 
 | 항목 | 값 |
 |---|---|
-| 가로 칸 | 넓은 화면(≥1200px) 24칸 · 중간(≥768px) 12칸 · 좁은 화면 1칸 |
+| 가로 칸 | 작업 공간 폭(사이드바 제외, 서랍 자리 포함) ≥960px 24칸 · ≥768px 12칸 · 그 밖 1칸(W-D13·W-D14) |
 | 세로 한 칸 | 20px |
 | 위젯 간격 | 8px(`--spacing-sm`) |
 | 당김 | 세로(위로) 당김. 겹침 없음 |
 | 저장 | 넓은 화면 배치 하나만 저장. 중간·좁은 화면은 넓은 화면 배치를 위→아래·왼→오른 순서로 다시 흘려 자동 계산 |
+| 편집 | 넓은 화면(24칸)에서만 한다. 중간·좁은 화면에서는 [배치 편집]이 비활성이고 「넓은 화면에서 편집할 수 있습니다」 안내를 띄운다(W-D12) |
 
 ### 3.3 보기 모드(기본)
 
@@ -200,10 +207,10 @@ export const WIDGET_REGISTRY: Record<string, {
 | `WIDGET_ID` | VARCHAR(100) | `WidgetMeta.id` |
 | `POS_X` · `POS_Y` · `SIZE_W` · `SIZE_H` | INTEGER | 넓은 화면 격자 좌표·크기 |
 | `LOCK_YN` | CHAR(1) | 위젯 잠금 |
-| `CONFIG_JSON` | CLOB/TEXT | 인스턴스 설정. A 에서는 늘 NULL(C 에서 쓴다) |
+| `CONFIG_JSON` | VARCHAR(4000) | 인스턴스 설정. A 에서는 늘 NULL(C 에서 쓴다). 세 방언에서 같은 형으로 쓰려고 LOB 대신 문자열로 둔다 |
 
 - 탭 한 줄 + 인스턴스 여러 줄로 나누는 이유: C 의 인스턴스 설정, B 의 「이 위젯을 쓰는 사용자」 조회·위젯 폐기 처리가 줄 단위를 필요로 한다.
-- 로컬은 `ddl-auto: update` 로 생기고, 개발계·운영계 DDL 은 `flyway-migration-add` 규칙(방언별 번호)으로 만든다. 방언은 Oracle·PostgreSQL·SQLite 기준이다.
+- 즐겨찾기(`TB_MCM_SEC_USER_FAVORITE`)와 같은 방식으로 관리한다: 로컬은 `ddl-auto: update` 로 생기고, 개발계·운영계 스키마는 `docs/mcm/erd/csa-menu.dbml`·`csa-menu-tables.md` 에 등재해 사전 생성한다(mcm 의 사용자 개인 테이블은 Flyway 마이그레이션을 두지 않는다). 컬럼 형은 Oracle·PostgreSQL·SQLite 에서 모두 쓸 수 있는 것만 쓴다.
 
 ### 4.2 서비스(OASIS `secWidget`, `/api/mcm/oasis/secWidget/{action}`)
 
@@ -216,7 +223,7 @@ export const WIDGET_REGISTRY: Record<string, {
 | `resetHome` | — | 사용자 `home` 탭과 인스턴스를 지운다 |
 
 - `userId` 는 즐겨찾기(`SecFavoriteService`)처럼 인증 컨텍스트 값으로 강제로 바꾼다(IDOR 방지). 본문의 `userId` 는 무시한다.
-- 서버 검사: 탭 이름 1~20자·중복 금지, 탭 10개·위젯 30개 한도, 좌표·크기는 0 이상 정수이고 `POS_X + SIZE_W ≤ 24`. 위반하면 `UserException` 으로 거절하고 화면은 메시지를 보인다.
+- 서버 검사: 탭 이름 1~20자·중복 금지, 탭 10개·위젯 30개 한도, 좌표·크기는 0 이상 정수이고 `POS_X + SIZE_W ≤ 24`. 위반하면 `BusinessException(ErrorCode.INVALID_VALUE·DUPLICATE_DATA·BUSINESS_ERROR, 메시지)` 로 거절하고 화면은 메시지를 보인다. 서비스 클래스에는 `@Transactional` 을 붙이지 않고(OASIS 파라미터명 바인딩), 탭 교체·삭제의 원자성은 별도 빈 `SecWidgetTabWriter` 의 `@Transactional` 메서드로 확보한다.
 - 서버는 위젯 ID 가 등록부에 있는지 모른다(등록부는 프런트 코드 생성물). 모르는 ID 처리는 프런트가 한다(§4.4).
 - 동시 편집: 두 PC 에서 같은 탭을 저장하면 나중 저장이 이긴다(탭 단위 전체 교체). 충돌 감지는 범위 밖이다.
 
@@ -237,21 +244,22 @@ export const WIDGET_REGISTRY: Record<string, {
 
 | 지금 ID | 새 ID | 기본 자리(x,y) · 크기(w×h) | 비고 |
 |---|---|---|---|
-| kpi | `home.kpi` | 0,0 · 24×6 | 샘플 |
-| notice | `home.notice` | 0,6 · 10×16 | 실제 조회(noticeBoard). `linkPageId` = 공지관리 |
-| notifications | `home.notifications` | 10,6 · 7×16 | 샘플 |
-| quickLinks | `home.quickLinks` | 17,6 · 7×16 | 사용자 즐겨찾기 |
-| monthly | `home.monthly` | 0,22 · 9×13 | 샘플 차트 |
-| equipment | `home.equipment` | 9,22 · 6×13 | 샘플 차트 |
-| process | `home.process` | 15,22 · 9×13 | 샘플 차트 |
-| workOrders | `home.workOrders` | 0,35 · 14×14 | 샘플 그리드 |
-| alarms | `home.alarms` | 14,35 · 10×7 | 샘플 |
-| defect | `home.defect` | 14,42 · 10×7 | 샘플 차트 |
-| shipments | `home.shipments` | 0,49 · 24×10 | 샘플 그리드 |
+| kpi | `home.kpi` | 0,0 · 24×7 | 샘플 |
+| notice | `home.notice` | 0,7 · 10×16 | 실제 조회(noticeBoard). `linkPageId` = 공지관리 |
+| notifications | `home.notifications` | 10,7 · 7×16 | 샘플 |
+| quickLinks | `home.quickLinks` | 17,7 · 7×16 | 사용자 즐겨찾기 |
+| monthly | `home.monthly` | 0,23 · 9×13 | 샘플 차트 |
+| equipment | `home.equipment` | 9,23 · 6×13 | 샘플 차트 |
+| process | `home.process` | 15,23 · 9×13 | 샘플 차트 |
+| workOrders | `home.workOrders` | 0,36 · 14×14 | 샘플 그리드 |
+| alarms | `home.alarms` | 14,36 · 10×7 | 샘플 |
+| defect | `home.defect` | 14,43 · 10×7 | 샘플 차트 |
+| shipments | `home.shipments` | 0,50 · 24×10 | 샘플 그리드 |
 
-- 이 표가 `HOME_DEFAULT_LAYOUT` 이다(시안과 같다). 기본 배치에서는 아무 위젯도 잠그지 않는다(시안의 「주요 지표」 잠금은 잠금 동작을 보이기 위한 예시다).
+- 이 표가 `HOME_DEFAULT_LAYOUT` 이다(시안 대비 「주요 지표」 높이만 6→7, W-D15). 기본 배치에서는 아무 위젯도 잠그지 않는다(시안의 「주요 지표」 잠금은 잠금 동작을 보이기 위한 예시다).
 
-- 지금 카드 안 내용(조회·그리드·차트·선택 상태)은 그대로 옮기고 카드 바깥(제목 줄)만 `WidgetFrame` 으로 바꾼다.
+- 지금 카드 안 내용(조회·그리드·차트·선택 상태)은 그대로 옮기고 카드 바깥(제목 줄)만 `WidgetFrame` 으로 바꾼다. `DashboardCard` 의 `subtitle` 은 메타 `subtitle` 로, `actions` 는 `<WidgetHeaderActions>` 로, `children(size)` 는 `useWidgetBodySize()` 로 옮긴다.
+- 공지 위젯·긴급 공지 띠·알림 위젯이 공지 목록과 선택 상태를 함께 쓰므로, 화면 수준 상태 대신 `page-components/home/notice-store.ts`(구독형 저장소)에 둔다. 「내용 보기」는 공지를 고르고 공지 위젯이 현재 탭에 있으면 그 위젯으로 스크롤한다(다른 탭의 위젯을 열지는 않는다 — 위젯끼리 연동은 범위 밖).
 - 기존 localStorage `dmes:dash:v3:{userId}:mcm.home.layout` 은 읽지 않는다(행 단위 배치라 좌표로 옮길 근거가 약하다). 처음에는 모두 새 기본 배치로 보인다.
 - `LayoutControls.tsx` 는 `WidgetWorkspace` 의 편집 버튼으로 대체한다.
 
@@ -288,3 +296,7 @@ export const WIDGET_REGISTRY: Record<string, {
 | W-D9 | 기존 `DashboardBoard` 는 이번에 지우지 않음 | 삭제는 사용자 승인 사항. 홈 이전 후 따로 묻는다 |
 | W-D10 | 메타(`widget.meta.ts`)와 본체(`widget.tsx`) 분리 | 서랍은 전체 메타만 필요, 본체는 지연 로딩 |
 | W-D11 | 동시 편집은 나중 저장 승리 | 개인 화면이라 충돌 가능성이 낮다 |
+| W-D12 | 편집은 24칸 화면에서만 | 좁은 화면에서 옮긴 결과를 넓은 화면 좌표로 되돌릴 규칙이 없다. 다시 흘린 배치는 보기 전용으로 둔다 |
+| W-D13 | 칸 수·편집 가능 판정은 서랍 자리를 포함한 작업 공간 바깥 폭으로 한다. 보드가 잰 폭은 격자 픽셀 폭으로만 쓴다 | 서랍을 열면 보드가 좁아져 칸 수가 진동한 결함(E2E D1) |
+| W-D14 | 24칸 문턱을 1200 에서 960px 로 낮춘다(2026-10-02 사용자 결정) | 1440 창+사이드바(1160)와 1280 노트북+사이드바(약 1000)에서도 24칸 배치·편집을 쓰게 |
+| W-D15 | 「주요 지표」 기본 크기를 24×6 에서 24×7 로 늘리고 아래 위젯을 한 칸씩 내린다(2026-10-02 사용자 결정) | 24×6 에서는 넓은 화면에서도 KPI 카드 아래 줄이 잘리고 안쪽 스크롤바가 생김(E2E O2) |

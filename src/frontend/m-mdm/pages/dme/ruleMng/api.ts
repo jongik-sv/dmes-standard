@@ -18,6 +18,7 @@ import type {
   RuleSearchFilters,
   RuleSearchResult,
   RuleVersionResult,
+  VerKind,
 } from "./types";
 
 const SERVICE = "ruleMng";
@@ -78,13 +79,16 @@ export function saveHeader(ruleId: string, form: HeaderForm, auditVer: number | 
   });
 }
 
-/** action=copy — 새 버전(직전 RELEASED 의 변수·행을 번호 그대로 복사, 06:931). */
-export function newVersion(ruleId: string): Promise<RuleVersionResult> {
-  return callOasis<RuleVersionResult>(SERVICE, "copy", { maruRuleId: ruleId });
+/**
+ * action=copy — 새 버전(직전 RELEASED 의 변수·행을 번호 그대로 복사, 06:931). 종류(major·minor)에 따라 서버가
+ * 다음 번호(`nextMajor`·`nextMinor`)를 매긴다(D-144).
+ */
+export function newVersion(ruleId: string, verKind: VerKind): Promise<RuleVersionResult> {
+  return callOasis<RuleVersionResult>(SERVICE, "copy", { maruRuleId: ruleId, verKind });
 }
 
 /** action=delete target=VERSION — DRAFT 삭제(삭제 훅은 공통 버전 서비스가 건다). */
-export function deleteDraft(ruleId: string, ver: number, rowVersion: number): Promise<RuleVersionResult> {
+export function deleteDraft(ruleId: string, ver: string, rowVersion: number): Promise<RuleVersionResult> {
   return callOasis<RuleVersionResult>(SERVICE, "delete", { maruRuleId: ruleId, ver, rowVersion, target: "VERSION" });
 }
 
@@ -97,21 +101,21 @@ export function deprecateRule(ruleId: string): Promise<RuleVersionResult> {
  * 확정 취소(action delete target CONFIRM) — 아직 적용 시각이 오지 않은 확정 버전을 작성 중으로 되돌린다
  * (ADR-0002 D8). `deleteDraft` 와 같은 액션이지만 target 이 다르다.
  */
-export function cancelConfirm(ruleId: string, ver: number, rowVersion: number): Promise<RuleVersionResult> {
+export function cancelConfirm(ruleId: string, ver: string, rowVersion: number): Promise<RuleVersionResult> {
   return callOasis<RuleVersionResult>(SERVICE, "delete", { maruRuleId: ruleId, ver, rowVersion, target: "CONFIRM" });
 }
 
 /** action=lock — DRAFT 선점. 빈 소유자 DRAFT 에서만. */
-export function lockVersion(ruleId: string, ver: number, rowVersion: number): Promise<RuleVersionResult> {
+export function lockVersion(ruleId: string, ver: string, rowVersion: number): Promise<RuleVersionResult> {
   return callOasis<RuleVersionResult>(SERVICE, "lock", { maruRuleId: ruleId, ver, rowVersion });
 }
 
 /** action=unlock — DRAFT 해제(소유자만, ADR-0002 D3). */
-export function unlockVersion(ruleId: string, ver: number, rowVersion: number): Promise<RuleVersionResult> {
+export function unlockVersion(ruleId: string, ver: string, rowVersion: number): Promise<RuleVersionResult> {
   return callOasis<RuleVersionResult>(SERVICE, "unlock", { maruRuleId: ruleId, ver, rowVersion });
 }
 
 /** action=handover — DRAFT 넘기기(소유자만, 받는 사람은 담당자). */
-export function handoverVersion(ruleId: string, ver: number, rowVersion: number, newOwnerId: string): Promise<RuleVersionResult> {
+export function handoverVersion(ruleId: string, ver: string, rowVersion: number, newOwnerId: string): Promise<RuleVersionResult> {
   return callOasis<RuleVersionResult>(SERVICE, "handover", { maruRuleId: ruleId, ver, rowVersion, newOwnerId });
 }

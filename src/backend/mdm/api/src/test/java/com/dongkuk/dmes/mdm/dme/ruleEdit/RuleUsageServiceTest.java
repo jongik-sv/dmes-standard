@@ -88,7 +88,7 @@ class RuleUsageServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 이_룰을_담은_세트만_세트_ID_순으로_보인다() {
-        UsageInfo u = service.usage("QLTY_GRD_JDG", 1);
+        UsageInfo u = service.usage("QLTY_GRD_JDG", DmeTestSupport.v(1));
         assertEquals("3CCL 라인", u.getUsageNote());
         assertEquals(List.of("LS_A", "LS_B", "LS_D"), u.getSets().stream().map(SetInfo::getSetId).toList());
         assertEquals("3CCL", find(u, "LS_A").getSetName());
@@ -97,17 +97,17 @@ class RuleUsageServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 의존_룰은_읽는_이름을_만드는_룰이고_역의존_룰은_만드는_이름을_읽는_룰이다() {
-        SetInfo a = find(service.usage("QLTY_GRD_JDG", 1), "LS_A");
+        SetInfo a = find(service.usage("QLTY_GRD_JDG", DmeTestSupport.v(1)), "LS_A");
         assertEquals(List.of("PRE_CALC"), a.getDependsOn());
         assertEquals(List.of("POST_JDG", "EXPR_CALC", "VAR_READER"), a.getDependedBy(), "세트 순서대로, RELEASED 없는 룰은 뺀다");
-        SetInfo b = find(service.usage("QLTY_GRD_JDG", 1), "LS_B");
+        SetInfo b = find(service.usage("QLTY_GRD_JDG", DmeTestSupport.v(1)), "LS_B");
         assertEquals(List.of(), b.getDependsOn());
         assertEquals(List.of(), b.getDependedBy());
     }
 
     @Test
     void RELEASED_가_없는_룰은_선택_버전으로_계산한다() {
-        SetInfo d = find(service.usage("UNRELEASED", 1), "LS_D");
+        SetInfo d = find(service.usage("UNRELEASED", DmeTestSupport.v(1)), "LS_D");
         assertEquals(List.of("QLTY_GRD_JDG"), d.getDependsOn());
         assertEquals(List.of(), d.getDependedBy());
     }
@@ -119,7 +119,7 @@ class RuleUsageServiceTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.released(jdbc, "POST_JDG", 2, "FIRST", "2026-03-01 00:00:00", null);
         DmeTestSupport.var(jdbc, "POST_JDG", 2, 1, "COND", "1", "COIL_THK", 1, null);
         DmeTestSupport.var(jdbc, "POST_JDG", 2, 2, "RESULT", "Value", "LINE_CD", 1, "STRING");
-        assertEquals(List.of("EXPR_CALC", "VAR_READER"), find(service.usage("QLTY_GRD_JDG", 1), "LS_A").getDependedBy());
+        assertEquals(List.of("EXPR_CALC", "VAR_READER"), find(service.usage("QLTY_GRD_JDG", DmeTestSupport.v(1)), "LS_A").getDependedBy());
     }
 
     @Test

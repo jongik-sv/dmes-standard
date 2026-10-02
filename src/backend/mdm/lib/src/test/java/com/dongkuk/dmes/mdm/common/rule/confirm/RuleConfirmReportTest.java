@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
  */
 class RuleConfirmReportTest {
 
-    private static final VersionRef DRAFT = new VersionRef(VersionTarget.BUSINESS_RULE, "R1", BigDecimal.valueOf(2));
+    private static final VersionRef DRAFT = new VersionRef(VersionTarget.BUSINESS_RULE, "R1", new BigDecimal("2.000"));
 
     private static Map<String, Object> saveIssue(String code, String severity, List<Integer> rowIds, Integer varId, String message) {
         return RuleCheckReport.issue(code, severity, rowIds, varId, message);

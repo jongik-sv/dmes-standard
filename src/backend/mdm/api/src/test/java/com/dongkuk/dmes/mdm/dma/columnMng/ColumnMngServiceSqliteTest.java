@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.dma.columnMng;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -115,14 +116,14 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         Map<String, Object> result = service.search(new ColumnMngSearchRequest());
 
         assertEquals(List.of(), result.get("list"));
-        assertEquals(List.of(), result.get("domains"));
+        assertFalse(result.containsKey("domains"), "도메인 전체 목록은 응답에 싣지 않는다");
         assertEquals(List.of("APS", "DKMS", "ERP", "L2", "MES"),
                 maps(result.get("systems")).stream().map(m -> m.get("systemCode")).toList());
         assertEquals("레벨2", maps(result.get("systems")).get(3).get("systemName"));
     }
 
     @Test
-    void optionsOnly_는_목록을_비우고_도메인_시스템_콤보만_돌려준다() {
+    void optionsOnly_는_목록을_비우고_시스템_콤보만_돌려준다() {
         DmaTestSupport.column(columns, "코일 아이디", "COIL_ID", coilThk.getDomainId());
         ColumnMngSearchRequest q = new ColumnMngSearchRequest();
         q.setOptionsOnly(true);
@@ -130,7 +131,7 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         Map<String, Object> result = service.search(q);
 
         assertEquals(List.of(), result.get("list"));
-        assertEquals(2, maps(result.get("domains")).size());
+        assertFalse(result.containsKey("domains"));
         assertEquals(5, maps(result.get("systems")).size());
     }
 
@@ -157,7 +158,7 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         DmaTestSupport.column(columns, "코일 아이디", "COIL_ID", coilThk.getDomainId());
 
         List<Map<String, Object>> all = maps(service.search(search(" 두께 ", null)).get("list"));
-        List<Map<String, Object>> filtered = maps(service.search(search("두께", rmtlCoilThk.getDomainId())).get("list"));
+        List<Map<String, Object>> filtered = maps(service.search(search("두께", "rmtl_coil")).get("list"));
 
         assertEquals(List.of("원재료 코일 두께", "코일 두께"), all.stream().map(m -> m.get("columnName")).toList());
         assertEquals(1, filtered.size());
@@ -169,8 +170,26 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals("원재료코일두께", row.get("labelMid"));
         assertEquals(3, maps(service.search(new ColumnMngSearchRequest()).get("list")).size());
         assertEquals(3, maps(service.search(null).get("list")).size());
-        Map<String, Object> domain = maps(service.search(null).get("domains")).get(0);
-        assertEquals(rmtlCoilThk.getDomainId() + " 원재료 코일 두께 (RMTL_COIL_THK)", domain.get("label"));
+    }
+
+    @Test
+    void 도메인_키워드는_ID_도메인명_표준명_부분_일치를_대소문자_무시로_건다() {
+        DmaTestSupport.column(columns, "코일 두께", "COIL_THK", coilThk.getDomainId());
+        DmaTestSupport.column(columns, "원재료 코일 두께", "RMTL_COIL_THK", rmtlCoilThk.getDomainId());
+        DmaTestSupport.column(columns, "도메인 없음", "NO_DOM", null);
+
+        assertEquals(List.of("원재료 코일 두께"), names(service.search(search("", "rmtl_coil_thk"))), "표준명, 대소문자 무시");
+        assertEquals(List.of("원재료 코일 두께"), names(service.search(search("", " 원재료 "))), "도메인명 부분 일치, 앞뒤 공백 무시");
+        assertEquals(List.of("원재료 코일 두께", "코일 두께"), names(service.search(search("", "COIL_THK"))), "표준명 부분 일치는 둘 다");
+        assertEquals(List.of("코일 두께"), names(service.search(search("", String.valueOf(coilThk.getDomainId())))).stream()
+                .filter("코일 두께"::equals).toList(), "도메인 ID 문자열 일치");
+        assertEquals(List.of(), names(service.search(search("", "없는도메인"))));
+        assertEquals(3, names(service.search(search("", "  "))).size(), "빈 키워드는 전체(도메인 없는 컬럼 포함)");
+        assertEquals(List.of("원재료 코일 두께"), names(service.search(search("RMTL", "코일"))), "검색어와 도메인 키워드는 AND");
+    }
+
+    private static List<String> names(Map<String, Object> result) {
+        return maps(result.get("list")).stream().map(m -> (String) m.get("columnName")).toList();
     }
 
     // ── view ──────────────────────────────────────────────────────────────
@@ -447,7 +466,7 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         assertNull(all.get(0).get("domainId"));
         assertNull(all.get(0).get("domainName"));
         assertNull(all.get(0).get("domainStdName"));
-        List<Map<String, Object>> filtered = maps(service.search(search("", coilThk.getDomainId())).get("list"));
+        List<Map<String, Object>> filtered = maps(service.search(search("", "coil_thk")).get("list"));
         assertEquals(List.of("코일 두께"), filtered.stream().map(m -> m.get("columnName")).toList(), "도메인 필터는 도메인 없는 컬럼을 뺀다");
 
         List<Map<String, Object>> dups = maps(service.compare(compare("FORWARD", "원재료 코일두께")).get("duplicates"));
@@ -723,10 +742,10 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         return rows;
     }
 
-    private static ColumnMngSearchRequest search(String keyword, Long domainId) {
+    private static ColumnMngSearchRequest search(String keyword, String domainKeyword) {
         ColumnMngSearchRequest req = new ColumnMngSearchRequest();
         req.setKeyword(keyword);
-        req.setDomainId(domainId);
+        req.setDomainKeyword(domainKeyword);
         return req;
     }
 

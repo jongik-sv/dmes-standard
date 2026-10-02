@@ -125,6 +125,17 @@ async function click(el: Element | null) {
   await flush();
 }
 
+/** 머리 [조회] — 첫 진입은 목록을 자동 조회하지 않으므로(cf4fbb05) 목록 행이 필요한 시험은 먼저 누른다. */
+async function search() {
+  const btn = Array.from(container.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "조회");
+  expect(btn, "조회").toBeTruthy();
+  await act(async () => {
+    (btn as HTMLButtonElement).click();
+  });
+  await flush();
+  await flush();
+}
+
 async function openRow(index: number) {
   const rows = container.querySelectorAll("[data-testid=layout-list] .ag-center-cols-container .ag-row");
   const row = Array.from(rows).find((r) => r.getAttribute("row-index") === String(index)) ?? null;
@@ -153,6 +164,7 @@ describe("layoutMng 탭", () => {
 
   it("기본 탭은 편집이고 기존 편집 화면이 그대로 보인다", async () => {
     await render();
+    await search();
     await openRow(0);
     expect(q("layout-tab-edit")).not.toBeNull();
     expect(q("layout-tab-check")).not.toBeNull();
@@ -160,11 +172,13 @@ describe("layoutMng 탭", () => {
     expect(q("layout-items")).not.toBeNull();
     expect(q("layout-total-length")?.textContent).toContain("57 바이트");
     expect(q("layout-check-run")).toBeNull();
-    expect(actions).toEqual(["search", "view"]);
+    // 진입 때 콤보용 search(optionsOnly) 1건 + [조회] 1건 + view(cf4fbb05)
+    expect(actions).toEqual(["search", "search", "view"]);
   });
 
   it("등록 검증 탭에서 검증을 실행하면 7행이 보이고 거부 행에 메시지가 보인다", async () => {
     await render();
+    await search();
     await openRow(0);
     await click(q("layout-tab-check"));
     expect(q("layout-items")).toBeNull();
@@ -178,6 +192,7 @@ describe("layoutMng 탭", () => {
 
   it("샘플 렌더 결과는 구간마다 색과 가운뎃점으로 보인다", async () => {
     await render();
+    await search();
     await openRow(0);
     await click(q("layout-tab-check"));
     expect(q("sample-input-COIL_ID")).not.toBeNull();
@@ -202,6 +217,7 @@ describe("layoutMng 탭", () => {
 
   it("버전 탭은 이력이 없으면 빈 상태를, 있으면 전환 방식을 보인다", async () => {
     await render();
+    await search();
     await openRow(0);
     await click(q("layout-tab-version"));
     expect(q("version-list-empty")?.textContent).toBe("저장된 버전이 없습니다");

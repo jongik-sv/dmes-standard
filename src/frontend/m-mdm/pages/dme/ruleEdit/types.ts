@@ -1,6 +1,7 @@
 /**
  * ruleEdit 화면 타입 — 서버 `RuleEditViewResult`·`ResolvedVar`·`RuleEditSaveResult` 와 같은 칸 이름(TSK-08-02 design §6.2).
  * 일시는 KST `"yyyy-MM-dd HH:mm:ss"`. 셀은 저장 형태 JSON 문자열이다.
+ * 룰 버전은 소수 셋째 자리 문자열(`"1.001"`, D-144)이다 — 비교는 `sameVer`, 표시는 `fmtVer`(`@/shell`).
  */
 import type { RowTrace, RuleHit } from "@/contract/engine-contract.generated";
 import type { MdmVersionStatus } from "@/shell";
@@ -62,12 +63,16 @@ export interface RuleInfo {
 }
 
 export interface RuleVersionInfo {
-  ver: number;
+  ver: string;
+  /** 서버가 만들 때 정한 종류(D-144). */
+  verKind?: "MAJOR" | "MINOR";
+  /** 표시용 `"v1.001"`. */
+  verLabel?: string;
   status: MdmVersionStatus;
   applyFrom?: string | null;
   applyTo?: string | null;
   ownerId?: string | null;
-  baseVer?: number | null;
+  baseVer?: string | null;
   hitPolicy?: HitPolicyCode | null;
   rowVersion: number;
   /**
@@ -111,17 +116,8 @@ export interface ParseExprResult {
   problems: Array<{ kind: string; detail: string }>;
 }
 
-/** 도메인 검색 한 줄(서버 `searchDomains`). */
-export interface DomainRow {
-  domainId: number;
-  stdName: string;
-  domainName?: string | null;
-  domainKind?: string | null;
-  dataType: "BOOLEAN" | "NUMBER" | "STRING" | "DATE";
-  length?: number | null;
-  scale?: number | null;
-  stdRule?: string | null;
-}
+/** 도메인 검색 한 줄 — 정의는 m-mdm 공용 `@/domain`. */
+export type { DomainRow } from "@/domain";
 
 export interface RuleEditView {
   me: string;
@@ -131,7 +127,7 @@ export interface RuleEditView {
   confirmScreenReady: boolean;
   rule: RuleInfo;
   versions: RuleVersionInfo[];
-  selectedVer: number | null;
+  selectedVer: string | null;
   vars: ResolvedVar[];
   rows: StoredRow[];
   baseRows: StoredRow[];
@@ -157,7 +153,7 @@ export interface RulePickRow {
 
 export interface RuleVersionResult {
   maruRuleId?: string;
-  ver?: number | null;
+  ver?: string | null;
   rowVersion?: number | null;
 }
 
@@ -255,7 +251,7 @@ export interface ValueTestCaseResult {
 /** 값 테스트 응답(서버 `RuleTestResult`, TSK-08-04 §6.5). 판정 오류(outcome ERROR)면 results·hits·trace 가 없을 수 있다. */
 export interface ValueTestResult {
   target: ValueTestTarget;
-  ver: number | null;
+  ver: string | null;
   evalTs: string;
   outcome: "OK" | "ERROR";
   results?: Record<string, ValueTestValue>;

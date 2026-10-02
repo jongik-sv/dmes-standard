@@ -8,14 +8,14 @@ import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireVer;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
-import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
-import com.dongkuk.dmes.mdm.common.rule.RuleIssueMaps;
 import com.dongkuk.dmes.mdm.common.rule.RuleHitPolicies;
+import com.dongkuk.dmes.mdm.common.rule.RuleIssueMaps;
 import com.dongkuk.dmes.mdm.common.rule.RuleNativeWrites;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput.DraftRow;
@@ -25,6 +25,7 @@ import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveIssueCode;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveRejections;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveValidator;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdIssuer;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdKind;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdRange;
@@ -33,16 +34,17 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
-import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRowRepository;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import kr.dongkuk.maru.mdm.engine.rule.RuleAnalyzer;
 import kr.dongkuk.maru.mdm.engine.rule.RuleIssue;
@@ -113,7 +115,7 @@ public class RuleTableService implements RuleEditSavePart {
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         requireMdm(rule);
         String id = rule.getMaruRuleId();
-        int ver = requireVer(request.getVer());
+        BigDecimal ver = requireVer(request.getVer());
         long expected = requireRowVersion(request.getRowVersion());
         List<Map<String, Object>> requested = request.getRows() == null ? List.of() : request.getRows();
         // 비면 저장된 값을 쓴다. 값이 오면 정규화한다 — DERIVE 에 값이 오면 여기서 거부한다(정책이 없는 룰).
@@ -294,10 +296,10 @@ public class RuleTableService implements RuleEditSavePart {
     }
 
     /** 저장된 적중 정책 — 요청이 정책을 비우면 이 값을 쓰고, 요청 값과 견주어 바뀌었는지 가린다(D-133). */
-    private String storedHitPolicy(String id, int ver) {
+    private String storedHitPolicy(String id, BigDecimal ver) {
         // DERIVE 는 저장된 정책이 null 이다 — Optional.of(null) 로 터지지 않게 조건을 건너뛴다.
         return queries.versions(id).stream()
-                .filter(v -> v.getVer() == ver)
+                .filter(v -> VersionNumbers.same(v.getVer(), ver))
                 .map(MdmRuleVer::getHitPolicy)
                 .filter(Objects::nonNull)
                 .findFirst()

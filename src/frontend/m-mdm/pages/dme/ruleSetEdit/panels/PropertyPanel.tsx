@@ -20,7 +20,7 @@ import type { CatchKind, FlowEdge, FlowNode } from "@/contract/engine-contract.g
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, Input, Textarea } from "@dk-oasis/shared/form";
 import { MarkdownField } from "@dk-oasis/shared/markdown-editor";
-import { badgeStyle } from "@/shell";
+import { badgeStyle, fmtVer } from "@/shell";
 
 import { SOURCE_LABEL, SOURCE_TONE, typeText } from "../cards/SetIoTables";
 import {
@@ -190,7 +190,7 @@ function RuleProps({ node, io, tree, props }: { node: FlowNode; io: RuleIo | und
             <tr>
               <th style={DETAIL_LABEL_CELL}>확정 버전</th>
               <td style={DETAIL_VALUE_CELL}>
-                {missing ? "-" : io.releasedVer != null ? `v${io.releasedVer}` : <span style={badgeStyle("warning")}>RELEASED 없음</span>}
+                {missing ? "-" : io.releasedVer != null ? fmtVer(io.releasedVer) : <span style={badgeStyle("warning")}>RELEASED 없음</span>}
                 {!missing && io.status && <span style={{ ...badgeStyle("neutral"), marginLeft: 4 }}>{io.status}</span>}
               </td>
             </tr>

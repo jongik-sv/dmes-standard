@@ -3,6 +3,7 @@
  * 편집 불가(서버 판정 `editable` 거짓)면 어떤 편집도 받지 않는다. 즉시 검사는 `tableAnalysis` 가 상태마다 다시 돈다(I13).
  */
 import type { HitPolicy } from "@/evalex";
+import { sameVer } from "@/shell/version-format";
 
 import type { TableSaveRow } from "../api";
 import type { HitPolicyCode, ResolvedVar, RuleEditView, StoredRow } from "../types";
@@ -47,7 +48,7 @@ export type TableAction =
   | { type: "selectRow"; rowId: number | null };
 
 export function initTableState(view: RuleEditView): TableState {
-  const selected = view.versions.find((v) => v.ver === view.selectedVer);
+  const selected = view.versions.find((v) => sameVer(v.ver, view.selectedVer));
   const rows = gridRowsFromStored(view.vars, view.rows);
   const hit = (selected?.hitPolicy ?? null) as HitPolicyCode | null;
   const minId = rows.reduce((m, r) => Math.min(m, r.rowId), 0);

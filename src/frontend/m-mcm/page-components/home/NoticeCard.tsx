@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * 홈 공지사항 카드 — 높이 400px 고정(위젯 정의 page.tsx). 안에서 왼쪽 목록 / 오른쪽 본문 뷰어로 나누고 경계를 끌어 크기를 바꾼다
+ * 홈 공지사항 본문 — 제목 줄은 위젯 틀(WidgetFrame)이 그린다. 안에서 왼쪽 목록 / 오른쪽 본문 뷰어로 나누고 경계를 끌어 크기를 바꾼다
  * (ContentBody resizable, 크기는 사용자별로 "mcm.home.notice" 에 저장). 목록·본문은 각자 스크롤하므로
  * 고른 공지의 본문 길이가 홈 전체 배치를 움직이지 않는다.
  */
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { ContentBody, ContentPanel } from "@dk-oasis/shared/layout";
 import { Badge, Button } from "@dk-oasis/shared/form";
-import { DashboardCard } from "@dk-oasis/shared/dashboard";
+import { WidgetHeaderActions, WidgetTitleExtra } from "@dk-oasis/shared/widget";
 import { NoticeBodyView } from "@dk-oasis/shared/notice-body-view";
 
 import {
@@ -191,21 +191,20 @@ export function NoticeCard({ state, selectedId, onSelect, onRetry, canManage }: 
   }
 
   return (
-    <DashboardCard
-      title="공지사항"
-      subtitle={subtitle}
-      actions={
-        canManage ? (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }} data-testid="home-notice-card">
+      {subtitle && (
+        <WidgetTitleExtra>
+          <span className="mcm-home-sub">{subtitle}</span>
+        </WidgetTitleExtra>
+      )}
+      {canManage && (
+        <WidgetHeaderActions>
           <Button size="mini" onClick={() => openPortalTab(NOTICE_MGMT_PAGE_ID)}>
             공지 관리 ›
           </Button>
-        ) : undefined
-      }
-      bodyLayout="fill"
-      bodyPadding
-      testId="home-notice-card"
-    >
+        </WidgetHeaderActions>
+      )}
       {body}
-    </DashboardCard>
+    </div>
   );
 }

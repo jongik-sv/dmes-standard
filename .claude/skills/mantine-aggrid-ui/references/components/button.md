@@ -47,6 +47,24 @@ footer={
 
 기본 `type` 은 `"button"` 이라 form 안에서 눌러도 제출되지 않는다. 제출 버튼만 `type="submit"` 을 준다.
 
+### 복사 버튼 — CopyTextButton
+
+식별자·오류 문구를 클립보드에 복사하는 작은 버튼은 `CopyTextButton` 을 쓴다(`form` 서브패스, 2026-10-02 공개 — props·동작은 `ErrorModal`·`MessageModal` 이 쓰던 그대로다). 누르면 1.5초 동안 "복사됨"/"복사 실패" 로 바뀐다. `text` 가 함수면 누를 때 계산한다. 보안 컨텍스트(https·localhost)가 아니면 숨긴 textarea + `execCommand("copy")` 로 대신한다. 같은 동작을 버튼 없이 쓰려면 `copyText(text): Promise<boolean>`.
+
+```tsx
+import { CopyTextButton } from "@dk-oasis/shared/form";
+
+<CopyTextButton text={column.physName} />            // 기본 문구 "복사", data-testid="copy-text-button"
+<CopyTextButton text={() => `오류\n${message}`} label="오류 복사" />
+```
+
+| Prop | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| text | `string \| (() => string)` | — | 복사할 문자열 |
+| label | `string` | `"복사"` | 평소 문구 |
+| className | `string` | `"cm-btn cm-btn-outline"` | 클래스 |
+| style | `React.CSSProperties` | 없음 | 배치용(색 금지) |
+
 ## Props
 
 `ButtonProps` 는 `button` 요소의 HTML 속성(`type` 제외)을 모두 받는다. 아래는 이 래퍼가 직접 다루는 것이다.

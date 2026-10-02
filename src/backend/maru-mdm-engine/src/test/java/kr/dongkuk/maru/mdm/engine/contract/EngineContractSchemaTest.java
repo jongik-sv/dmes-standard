@@ -419,6 +419,8 @@ class EngineContractSchemaTest {
             case "string" -> t == String.class || t.isEnum()
                     || (localDateTimeRef && (t == Instant.class || t == LocalDateTime.class));
             case "integer" -> t == int.class || t == Integer.class;
+            // 룰 버전(D-144)은 소수 셋째 자리 BigDecimal 이고 JSON 숫자로 나간다.
+            case "number" -> t == java.math.BigDecimal.class;
             case "boolean" -> t == boolean.class || t == Boolean.class;
             case "array" -> t == List.class;
             case "object" -> t == Map.class || t.isRecord();
