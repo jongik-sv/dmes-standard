@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_screenUsageStat" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.2.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="screenUsageStat" name="화면 사용 통계 서비스" isExecutable="true">
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_overview</bpmn:outgoing>
+      <bpmn:outgoing>flow_byScreen</bpmn:outgoing>
+      <bpmn:outgoing>flow_byDept</bpmn:outgoing>
+      <bpmn:outgoing>flow_byUser</bpmn:outgoing>
+      <bpmn:outgoing>flow_unused</bpmn:outgoing>
+      <bpmn:outgoing>flow_history</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="overviewTask" name="개요" camunda:class="screenUsageStatService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="overview" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.screenusage.dto.ScreenUsageStatRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_overview</bpmn:incoming>
+      <bpmn:outgoing>flow_overview_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endOverview">
+      <bpmn:incoming>flow_overview_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="byScreenTask" name="화면별" camunda:class="screenUsageStatService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="byScreen" />
+          <camunda:property name="output" value="screens" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.screenusage.dto.ScreenUsageStatRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_byScreen</bpmn:incoming>
+      <bpmn:outgoing>flow_byScreen_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endByScreen">
+      <bpmn:incoming>flow_byScreen_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="byDeptTask" name="부서별" camunda:class="screenUsageStatService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="byDept" />
+          <camunda:property name="output" value="depts" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.screenusage.dto.ScreenUsageStatRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_byDept</bpmn:incoming>
+      <bpmn:outgoing>flow_byDept_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endByDept">
+      <bpmn:incoming>flow_byDept_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="byUserTask" name="사용자별" camunda:class="screenUsageStatService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="byUser" />
+          <camunda:property name="output" value="users" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.screenusage.dto.ScreenUsageStatRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_byUser</bpmn:incoming>
+      <bpmn:outgoing>flow_byUser_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endByUser">
+      <bpmn:incoming>flow_byUser_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="unusedTask" name="미사용 화면" camunda:class="screenUsageStatService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="unused" />
+          <camunda:property name="output" value="unused" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.screenusage.dto.ScreenUsageStatRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_unused</bpmn:incoming>
+      <bpmn:outgoing>flow_unused_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endUnused">
+      <bpmn:incoming>flow_unused_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="historyTask" name="이용 이력" camunda:class="screenUsageStatService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="history" />
+          <camunda:property name="output" value="history" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.screenusage.dto.ScreenUsageStatRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_history</bpmn:incoming>
+      <bpmn:outgoing>flow_history_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endHistory">
+      <bpmn:incoming>flow_history_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_overview" name="overview" sourceRef="actionGateway" targetRef="overviewTask" />
+    <bpmn:sequenceFlow id="flow_overview_end" sourceRef="overviewTask" targetRef="endOverview" />
+    <bpmn:sequenceFlow id="flow_byScreen" name="byScreen" sourceRef="actionGateway" targetRef="byScreenTask" />
+    <bpmn:sequenceFlow id="flow_byScreen_end" sourceRef="byScreenTask" targetRef="endByScreen" />
+    <bpmn:sequenceFlow id="flow_byDept" name="byDept" sourceRef="actionGateway" targetRef="byDeptTask" />
+    <bpmn:sequenceFlow id="flow_byDept_end" sourceRef="byDeptTask" targetRef="endByDept" />
+    <bpmn:sequenceFlow id="flow_byUser" name="byUser" sourceRef="actionGateway" targetRef="byUserTask" />
+    <bpmn:sequenceFlow id="flow_byUser_end" sourceRef="byUserTask" targetRef="endByUser" />
+    <bpmn:sequenceFlow id="flow_unused" name="unused" sourceRef="actionGateway" targetRef="unusedTask" />
+    <bpmn:sequenceFlow id="flow_unused_end" sourceRef="unusedTask" targetRef="endUnused" />
+    <bpmn:sequenceFlow id="flow_history" name="history" sourceRef="actionGateway" targetRef="historyTask" />
+    <bpmn:sequenceFlow id="flow_history_end" sourceRef="historyTask" targetRef="endHistory" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="screenUsageStat">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="482" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="475" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="overviewTask_di" bpmnElement="overviewTask">
+        <dc:Bounds x="370" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endOverview_di" bpmnElement="endOverview">
+        <dc:Bounds x="542" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="byScreenTask_di" bpmnElement="byScreenTask">
+        <dc:Bounds x="370" y="220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endByScreen_di" bpmnElement="endByScreen">
+        <dc:Bounds x="542" y="242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="byDeptTask_di" bpmnElement="byDeptTask">
+        <dc:Bounds x="370" y="380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endByDept_di" bpmnElement="endByDept">
+        <dc:Bounds x="542" y="402" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="byUserTask_di" bpmnElement="byUserTask">
+        <dc:Bounds x="370" y="540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endByUser_di" bpmnElement="endByUser">
+        <dc:Bounds x="542" y="562" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="unusedTask_di" bpmnElement="unusedTask">
+        <dc:Bounds x="370" y="700" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endUnused_di" bpmnElement="endUnused">
+        <dc:Bounds x="542" y="722" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="historyTask_di" bpmnElement="historyTask">
+        <dc:Bounds x="370" y="860" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endHistory_di" bpmnElement="endHistory">
+        <dc:Bounds x="542" y="882" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="500" />
+        <di:waypoint x="245" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_overview_di" bpmnElement="flow_overview">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="100" />
+        <di:waypoint x="370" y="100" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="83" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_overview_end_di" bpmnElement="flow_overview_end">
+        <di:waypoint x="470" y="100" />
+        <di:waypoint x="542" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_byScreen_di" bpmnElement="flow_byScreen">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="260" />
+        <di:waypoint x="370" y="260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="243" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_byScreen_end_di" bpmnElement="flow_byScreen_end">
+        <di:waypoint x="470" y="260" />
+        <di:waypoint x="542" y="260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_byDept_di" bpmnElement="flow_byDept">
+        <di:waypoint x="270" y="475" />
+        <di:waypoint x="270" y="420" />
+        <di:waypoint x="370" y="420" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="403" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_byDept_end_di" bpmnElement="flow_byDept_end">
+        <di:waypoint x="470" y="420" />
+        <di:waypoint x="542" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_byUser_di" bpmnElement="flow_byUser">
+        <di:waypoint x="270" y="525" />
+        <di:waypoint x="270" y="580" />
+        <di:waypoint x="370" y="580" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="508" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_byUser_end_di" bpmnElement="flow_byUser_end">
+        <di:waypoint x="470" y="580" />
+        <di:waypoint x="542" y="580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_unused_di" bpmnElement="flow_unused">
+        <di:waypoint x="270" y="525" />
+        <di:waypoint x="270" y="740" />
+        <di:waypoint x="370" y="740" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="508" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_unused_end_di" bpmnElement="flow_unused_end">
+        <di:waypoint x="470" y="740" />
+        <di:waypoint x="542" y="740" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_history_di" bpmnElement="flow_history">
+        <di:waypoint x="270" y="525" />
+        <di:waypoint x="270" y="900" />
+        <di:waypoint x="370" y="900" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="508" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_history_end_di" bpmnElement="flow_history_end">
+        <di:waypoint x="470" y="900" />
+        <di:waypoint x="542" y="900" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

@@ -9,6 +9,7 @@ import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.entity.RuleMaster;
 import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
+import com.dongkuk.dmes.mcm.screenusage.schema.ScreenUsageMssqlDdl;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.hibernate.Session;
@@ -188,6 +189,10 @@ public class DataInitializer implements ApplicationRunner {
         //  - TB_MCM_DEPT_INFO        (W5 owner) — selectUserList JOIN DEPT_NM (정책 #2 Q-004)
         // 본 메서드는 W5 의 owner DDL 멱등성을 신뢰 (IF NOT EXISTS 가드) — 본 worker 는 호환 가드 호출만.
         initMcmCsaCommUserRoleCopyArtifacts();
+
+        // 화면 사용 통계(2026-10-02) — TB_SEC_SCREEN_USAGE_LOG / _DAY + 인덱스 멱등 생성.
+        // 감사 계열(TB_SEC_AUDIT_LOG)처럼 schema 접두 없이 접속 계정 기본 스키마에 둔다. SQLite 는 ddl-auto 가 만든다.
+        initScreenUsageArtifacts();
         } else {
             // SQLite(local 단독) — entity 미보유 TB_MCM_SEC_MENU_FLD 만 보강 생성 (나머지 SEC 테이블은 ddl-auto).
             createSecMenuFldForSqlite();
@@ -322,7 +327,10 @@ public class DataInitializer implements ApplicationRunner {
                 "lock", "unlock", "handover",
                 // 2026-10-02 — mls 공지사항 관리(services/lsh/noticeMgmt.bpmn) 게시상태 변경. 이 토큰이 없어 SYSADMIN 도
                 //   게시중지가 403 이었다. 이미 시드된 DB 는 아래 ensurePermAllActions 가 끝에 덧붙인다.
-                "changeStatus"
+                "changeStatus",
+                // 2026-10-02 — mcm 화면 사용 통계(services/csa/screenUsageStat.bpmn) 6개 action. 이미 시드된 DB 는
+                //   아래 ensurePermAllActions 가 덧붙인다. screenUsage/record 는 AUTH_ONLY 라 여기 넣지 않는다.
+                "overview", "byScreen", "byDept", "byUser", "unused", "history"
 
                 // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
                 // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey
@@ -424,6 +432,9 @@ public class DataInitializer implements ApplicationRunner {
         // 2026-10-02 — 공지사항 관리(lsh/noticeMgmt) 메뉴. 메뉴는 공통관리(mcm) 아래, 코드는 mls. 포털 홈 공지 목록(noticeBoard)은
         //   AUTH_ONLY 라 시드가 없다(seedMlsMenus javadoc).
         seedMlsMenus();
+
+        // 2026-10-02 — 화면 사용 통계(csa/screenUsageStat) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 화면 사용 통계".
+        seedScreenUsageMenus();
 
         // 확장 지점 — 신규 업무 모듈을 추가할 때 여기에 seed{Module}Menus() 를 호출한다.
 
@@ -844,6 +855,28 @@ public class DataInitializer implements ApplicationRunner {
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
                 "VALUES ('SYSADMIN', 'logViewer', 'PERM_ALL'" + AUDIT_VALS + ")");
         log.info("[DataInitializer] ANALOG 로그 분석(anl) 메뉴 시드 — 폴더 2 + OBJECT 1 + 메뉴 leaf 1 + RBAC 1");
+    }
+
+    /**
+     * 화면 사용 통계(csa/screenUsageStat) 메뉴 시드 (2026-10-02) — OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1.
+     * 폴더는 기존 시스템관리 그룹 {@code csa} 를 쓰므로 더 만들지 않는다. componentPath={@code csa/screenUsageStat} 는
+     * m-mcm 페이지 레지스트리 키와 같다. FULL_SEQ 1020180 은 csa 기존 leaf(1020100~1020170) 다음이다.
+     * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
+     */
+    private void seedScreenUsageMenus() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        final String objId = "screenUsageStat";
+        insertMcmSecObjIfAbsent(objId, "화면 사용 통계", "mcm");
+        insertMcmSecMenuIfAbsent(objId, "001", "1020180", "화면 사용 통계", "csa", objId);
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", objId,       "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + objId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        log.info("[DataInitializer] 화면 사용 통계 메뉴 시드 — OBJECT 1(screenUsageStat) + 메뉴 leaf 1(csa/screenUsageStat) + RBAC(SYSADMIN 1)");
     }
 
     /**
@@ -2598,6 +2631,48 @@ public class DataInitializer implements ApplicationRunner {
                 "SELECT COUNT(*) FROM sys.objects "
                 + "WHERE object_id = OBJECT_ID(:fqn) AND type = 'U'")
                 .setParameter("fqn", schema + "." + table)
+                .getSingleResult();
+        return cnt != null && cnt.intValue() > 0;
+    }
+
+    /**
+     * 화면 사용 통계 원본·일별 집계 테이블 멱등 생성 (MSSQL 계열, 2026-10-02).
+     * <p>DDL 정본은 mcm-core {@link ScreenUsageMssqlDdl} — 운영 DBA 전달본과 같은 문장이다. 두 테이블은 schema 접두가 없어
+     * {@link #tableExists(String, String)}(schema 필수) 대신 기본 스키마로 해석하는 {@code OBJECT_ID(테이블)} 로 확인한다.
+     * local-db 는 ddl-auto=update 가 먼저 만들 수 있으므로 인덱스도 이름으로 하나씩 확인한다.
+     */
+    private void initScreenUsageArtifacts() {
+        if (!tableExistsInDefaultSchema(ScreenUsageMssqlDdl.LOG_TABLE)) {
+            nq(ScreenUsageMssqlDdl.CREATE_LOG_TABLE).executeUpdate();
+            log.info("[DataInitializer] CREATE TABLE: {}", ScreenUsageMssqlDdl.LOG_TABLE);
+        }
+        for (ScreenUsageMssqlDdl.IndexDdl index : ScreenUsageMssqlDdl.LOG_INDEXES) {
+            if (!indexExistsInDefaultSchema(ScreenUsageMssqlDdl.LOG_TABLE, index.name())) {
+                nq(index.sql()).executeUpdate();
+                log.info("[DataInitializer] CREATE INDEX: {}", index.name());
+            }
+        }
+        if (!tableExistsInDefaultSchema(ScreenUsageMssqlDdl.DAY_TABLE)) {
+            nq(ScreenUsageMssqlDdl.CREATE_DAY_TABLE).executeUpdate();
+            log.info("[DataInitializer] CREATE TABLE: {}", ScreenUsageMssqlDdl.DAY_TABLE);
+        }
+    }
+
+    /** schema 접두 없는 테이블 존재 여부 — 접속 계정 기본 스키마로 해석 (MSSQL). */
+    private boolean tableExistsInDefaultSchema(String table) {
+        Number cnt = (Number) nq(
+                "SELECT COUNT(*) FROM sys.objects WHERE object_id = OBJECT_ID(:name) AND type = 'U'")
+                .setParameter("name", table)
+                .getSingleResult();
+        return cnt != null && cnt.intValue() > 0;
+    }
+
+    /** schema 접두 없는 테이블의 인덱스 존재 여부 (MSSQL). */
+    private boolean indexExistsInDefaultSchema(String table, String indexName) {
+        Number cnt = (Number) nq(
+                "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(:name) AND name = :idx")
+                .setParameter("name", table)
+                .setParameter("idx", indexName)
                 .getSingleResult();
         return cnt != null && cnt.intValue() > 0;
     }
