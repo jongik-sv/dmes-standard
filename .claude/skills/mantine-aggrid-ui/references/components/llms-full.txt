@@ -3270,7 +3270,7 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 
 ## 실제 사용 예
 
-- `src/frontend/m-mcm/page-components/home/` (Task 10 이후): `WidgetWorkspace` 에 `WIDGET_REGISTRY`(`lib/generated/widget-registry.ts`)·`HOME_DEFAULT_LAYOUT`(`home-layout.ts`)·`secWidget` 저장소(`widget-store.ts`)를 넘기는 포털 홈.
+- `src/frontend/m-mcm/page-components/home/`: `WidgetWorkspace` 에 `WIDGET_REGISTRY`(`lib/generated/widget-registry.ts`)·`HOME_DEFAULT_LAYOUT`(`home-layout.ts`)·`secWidget` 저장소(`widget-store.ts`)를 넘기는 포털 홈.
 - `src/frontend/m-mcm/widgets/home/{이름}/`: `widget.meta.ts` + `widget.tsx` 로 이루어진 홈 위젯 11개.
 
 

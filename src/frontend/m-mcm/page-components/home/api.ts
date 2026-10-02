@@ -20,7 +20,7 @@ interface CactusEnvelope {
  * 응답 봉투 해제 + 비즈니스 거부 판정. OASIS 는 BusinessException 을 HTTP 200 + `meta.success=false` 로 돌려준다.
  * 결과는 `data.result` 안에 통째로 오므로 펼쳐 둔다.
  */
-function unwrap(res: unknown): Record<string, unknown> {
+export function unwrap(res: unknown): Record<string, unknown> {
   const env = res as CactusEnvelope;
   if (env?.meta && env.meta.success === false) {
     throw new Error(env.meta.message?.trim() || "요청이 거부되었습니다.");

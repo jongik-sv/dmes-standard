@@ -67,4 +67,6 @@ export const HOME_CSS = `
 
 .mcm-home-toolbar { padding: 6px 10px; border-bottom: 1px solid var(--color-border-light); }
 .mcm-home-sub { font-size: var(--font-size-xs); color: var(--color-text-muted); white-space: nowrap; }
+
+.mcm-home { display: flex; flex-direction: column; gap: var(--spacing-sm); padding-bottom: var(--spacing-xl); min-width: 0; }
 `;
