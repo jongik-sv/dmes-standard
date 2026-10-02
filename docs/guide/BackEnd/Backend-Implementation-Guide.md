@@ -205,6 +205,7 @@ MES 백엔드 트랜잭션 로직은 앞단(FE)에서 넘어온 값을 그대로
 - 예: 입고처리에서 메인 그리드 입고일자를 FE 에서 바꾸고 저장하지 않은 채 입고처리를 눌러 FE 가 변경값을 보내더라도, 백엔드는 해당 행의 저장된 입고일자를 재조회해 그 일자로 입고처리한다. 미저장 FE 값으로 처리하지 않는다.
 - 권한·마감·확정여부 등 가드도 백엔드 재조회로 검증한다. FE 의 disabled/숨김만 믿지 않는다.
 - 설계 단계에서 각 트랜잭션 BR 에 "백엔드 재검증" 을 명시한다.
+- 입력값의 타입·길이·필수·표준식은 MDM 컬럼 사전 정의로도 서버에서 확인한다 — [§11.2 저장 검증](#112-저장-검증mdmvalidator).
 
 ## 6. REST Controller와 응답
 
@@ -477,3 +478,46 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
    ```
 
    `401` + `WWW-Authenticate: Basic` 이면 2번이 빠진 것이고, `401 A001` 이면 클라이언트 키가 다르다. 비관리자 역할이면 403 이 맞다.
+
+### 11.2 저장 검증(MdmValidator)
+
+업무 서비스 `save()` 가 MDM 컬럼 사전·룰 세트로 입력값을 한 번 더 검사한다(화면 즉시 검증과 같은 정의, 서버가 기준). 설계는
+[spec](../../superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md) §6, 파일럿은 mls `noticeMgmt` 다. 끼어들기(AOP)는 없다 —
+**서비스가 명시적으로 부르고, 검사할 컬럼·룰 세트를 요청에 적는다.**
+
+- 받기: `MdmValidator` 를 `ObjectProvider<MdmValidator>` 로 주입한다. `cactus.mdm.enabled=false`(MDM 캐시를 끈 모듈·시험)면 빈이 없으므로
+  `getIfAvailable()` 이 null 일 때는 MDM 검증 없이 저장한다. 직접 `MdmValidator` 로 받으면 끈 모듈에서 기동이 실패한다.
+- 부르기: 저장 목록(`rowStatus`·`rowKey` 를 그대로 둔 행)과 컬럼을 넘기고 `check()` 로 던진다. 폼 한 건이면 `MdmValidationRequest.record(map)`.
+
+  ```java
+  validator.check(MdmValidationRequest.rows("master", rows)   // grid = 응답 errors[].grid, 화면 그리드 이름과 같아야 한다
+          .columns("TITLE")                                    // 화면 키(camelCase 도 된다) 또는 물리명
+          .ruleSet("RS_NOTICE_SAVE")                           // 선택 — 행마다 룰 세트를 판정한다
+          .build());
+  ```
+
+- 행: `rowStatus` 가 `D`·`deleted` 인 행은 검증기가 건너뛴다(없으면 폼으로 보고 검사). `rowIndex` 는 **요청 목록의 자리**라서 오류가 화면의 그
+  행에 붙는다. 서비스가 저장하지 않을 행(미변경·null)까지 목록에 있으면 그 자리를 `Map.of("rowStatus", "D")` 로 바꿔 자리를 지킨 채 건너뛰게 한다
+  (자리를 줄이면 오류 행 번호가 어긋난다. 미변경 행의 옛 값이 지금 저장을 막아서도 안 된다). 저장할 행이 하나도 없으면(삭제만) 부르지 않는다.
+- **칸 고르기: MDM 이 DB 보다 엄격하지 않은 칸만 `columns(...)` 에 넣는다.** MDM 컬럼 사전은 테이블 구분 없이 물리명 하나로 전역이라, 이름만
+  같고 뜻이 다른 칸이 있으면 DB 가 받는 값을 막는다. 넣기 전에 DB DDL(Flyway·엔티티)의 길이·NOT NULL 과 MDM 정의(`TB_MDM_COLUMN` +
+  `TB_MDM_DOMAIN` 의 `DATA_TYPE`·`LENGTH`·`SCALE`·`REQUIRED`)를 견주고, MDM 이 더 엄격한 칸은 빼고 이유를 주석에 남긴다. 컬럼 사전에
+  없는 컬럼을 적으면 `IllegalArgumentException`(프로그램 결함 — 개발 중에 바로 드러난다).
+- 기존 수작업 검증(`validateRow` 등)은 지우지 않는다. 겹쳐도 되고, 수작업은 DB 한도·업무 코드 값처럼 MDM 에 없는 것을 본다. 오류를 한 응답으로 모으는
+  서비스(noticeMgmt)는 `check()` 가 던진 `INVALID_VALUE` 의 `getErrors()` 를 자기 `errors` 에 합쳐서, **쓰기 전에** 먼저 보고 오류가 있으면 아무것도 쓰지
+  않는다. 검증 불가(`BUSINESS_ERROR`·`MDM_UNAVAILABLE`)는 합치지 말고 그대로 던진다.
+- 오류 모양: `ErrorDetail(grid, rowKey, rowIndex, field, code, message)`, `field` 는 요청 행의 원래 키, 코드는 필수 `E001`·그 밖 `E002`·검증 불가
+  `MDM_UNAVAILABLE`. 서비스가 가진 기존 `ErrorDetail` 의 `rowKey`(예: 공지번호)와 다를 수 있다 — MDM 쪽 `rowKey` 는 행의 `rowKey` 키 값이다.
+- MDM 장애(캐시에 정의가 없고 MDM 도 받을 수 없음): 기본은 저장 거부(`cactus.mdm.validation.on-unavailable: REJECT`), `PASS` 면 WARN 만 남기고 통과.
+  받아 둔 정의는 캐시(유휴 60분·최대 24시간)가 지키므로 영향은 오래 안 쓴 정의뿐이다. 마루 데이터 대상 `MASTER` 는 지원하지 않는다(그 컬럼은 검증 불가).
+- 시험: 서비스 시험 기반 클래스(mls `MlsTestDb`)에서 `cactus.mdm.enabled=false` 로 MDM 캐시를 끈다 — 켜 두면 로컬 MDM(8096)의 가동 여부에 따라 저장
+  결과가 달라진다. 검증기를 끼우는 시험은 `@MockitoBean MdmValidator`(요청 모양·오류 합치기)와, 가짜 `MdmMetaFeed` 위에 진짜 `MdmValidator` 를 만들어
+  `StaticListableBeanFactory` 로 서비스에 넣는 방식(오류 위치·문구, 장애 정책)을 쓴다. 예: mls `NoticeMgmtMdmSaveTest`·`NoticeMgmtMdmRealValidatorTest`.
+
+#### 파일럿 — mls noticeMgmt 칸 비교(2026-10-03, 로컬 `mdm.db`)
+
+| 서비스 키 | DB 칸 (`TB_MLS_NOTICE`) | MDM 정의 | MDM vs DB | 결과 |
+|---|---|---|---|---|
+| `TITLE` | VARCHAR(200) NOT NULL | `TITLE` STRING(1000), 선택, 도메인 `DESC`(183) | 길이 1000 ≥ 200, 필수 아님 — MDM 이 느슨 | `columns("TITLE")` 에 넣음 (200자·필수는 `validateRow` 가 계속 본다) |
+| `NOTICE_CATEGORY` | VARCHAR(10) NOT NULL | 같은 물리명 없음 (`CATEGORY` STRING(240) 은 다른 이름) | — | 뺌 (별칭 매칭은 후속, 코드 값은 `validateRow`) |
+| `CONTENT`·`NOTICE_STATUS`·`CONTENT_FORMAT`·`PIN_YN`·`TARGET_SCOPE`·`POST_START_DT`·`POST_END_DT`·`NOTICE_ID` | — | 같은 물리명 없음 | — | 뺌 |
