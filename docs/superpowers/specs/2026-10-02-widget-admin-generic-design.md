@@ -94,6 +94,8 @@ export interface WidgetProps {
   definition: unknown | null;
   /** 위젯 ID(정의 위젯이 자기 defId 로 서버를 부를 때 쓴다). */
   widgetId: string;
+  /** 틀 제목(등록부 meta.title). 선택 — 쿼리 표 엑셀 파일 이름에 쓴다(2026-10-03 추가, §17.5). */
+  title?: string;
 }
 
 /** 위젯 유형 — 정의 위젯의 본체. widget-types/{type}/ 폴더 하나. */
@@ -553,7 +555,7 @@ interface LlmClient {
 | `save` | `instId`, `defId`, `format`, `content` | `{ memo: {…같은 모양} }` |
 
 - `userId` 는 늘 `SecurityIdentity` 에서 얻고, 조회·저장은 `(userId, instId)` 로만 한다(다른 사용자 메모 접근 불가).
-- `save` 검사(E002): `instId` 1~40자 `[A-Za-z0-9_-]`, `defId` 가 **사용 중인 `memo` 유형 정의이고 `scope=personal`**, `format` 허용값, `content` 20,000자 이하, 사용자당 메모 100개 이하(새 `instId` 저장 때만 센다, 「메모는 100개까지 저장할 수 있습니다」).
+- `save` 검사(E002): `instId` 1~40자 `[A-Za-z0-9_-]`, `defId` 가 **사용 중인 `memo` 유형 정의이고 `scope=personal`**, `format` 허용값, `content` 20,000자 이하, 사용자당 메모 100개 이하(새 `instId` 저장 때만 센다, 「메모는 100개까지 저장할 수 있습니다」). 이 상한은 잠금 없이 센 **근사 상한**이다 — 동시에 새 메모를 저장하면 동시에 열린 트랜잭션 수만큼 넘을 수 있다(저장 공간 남용 방지용이라 허용, 2026-10-03 보안 리뷰).
 - BFF `proxy.ts` authOnly 접두 `/api/mcm/oasis/widgetMemo/`, BE `EndpointPermissionFilter` AUTH_ONLY 에 `widgetmemo/` 추가. BPMN `services/roleManagement/widgetMemo.bpmn`(`widgetChat.bpmn` 방식).
 
 ### 17.4 화면
@@ -562,3 +564,13 @@ interface LlmClient {
 - 개인 메모: 마운트 때 `load`, 보기 모드에 [편집]. 편집 모드 = 형식 선택(텍스트·md·html) + 입력칸 + 글자 수 + [저장]·[취소]. 저장 실패는 입력칸 위 오류 문구, 쓰던 글은 남긴다. 메모가 없으면 「메모가 없습니다. [편집]을 눌러 쓰세요」. 관리 화면 미리보기(저장소 없음)에서는 `load`·`save` 를 부르지 않고 「미리보기에서는 저장하지 않습니다」.
 - 공용 메모: 보기만, 편집 버튼 없음.
 - 유형 편집기: 종류(공용·개인) 선택, 형식 선택, 공용이면 내용 입력칸(형식에 맞는 편집기). 개인이면 「사용자가 홈에서 직접 씁니다. 형식은 새 메모의 처음 형식입니다」.
+
+### 17.5 함께 넣은 것과 남은 일 (2026-10-03)
+
+- **쿼리 표 엑셀 내려받기**: 표 아래 줄에 행 수(잘렸으면 「상위 500행만 표시합니다」)와 [엑셀]. 보이는 행(≤500)·컬럼 순서·제목 그대로, 값은 서버 원래 값(숫자는 숫자). 파일 이름 「{위젯 제목}_{yyyyMMdd}.xlsx」(못 쓰는 글자는 `_`, 80자). 겹치는 컬럼 제목은 「(2)」를 붙인다. 위젯 제목은 `WidgetProps.title`(§2)로 받는다. SheetJS 는 문자열을 수식으로 쓰지 않는다(보안 리뷰 실측).
+- **홈 스크롤**: 포털 `.page-layout` 이 overflow:hidden·높이 고정이라 `.mcm-home` 이 남은 높이를 차지하고 스스로 스크롤한다(`scrollbar-gutter: stable`).
+- **남은 일**
+  - 위젯을 빼거나 기본 배치가 바뀌어 칸 ID 가 사라져도 그 칸의 개인 메모 행은 남고 100개 상한에 포함된다. 자동 정리는 「홈」을 저장하지 않은 사용자의 기본 배치 칸 메모를 잘못 지울 수 있어 넣지 않았다.
+  - 개인 메모를 쓰다가 저장하지 않고 탭을 옮기거나 화면을 떠나면 쓰던 글은 사라진다(임시 저장 없음).
+  - 위젯관리 [기본 배치] 보드의 개인 메모 칸은 실제 칸이라, 관리자가 거기서 저장하면 관리자 본인 메모가 된다.
+  - widgetMemo AUTH_ONLY 는 기존 widgetChat 처럼 서비스 접두로 연다. BPMN action 을 더하면 `WidgetMemoBpmnActionTest` 가 실패하므로 그때 AUTH_ONLY 범위를 다시 검토한다.

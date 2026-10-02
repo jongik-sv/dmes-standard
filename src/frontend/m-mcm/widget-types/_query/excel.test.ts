@@ -50,6 +50,20 @@ describe("toExcelColumns", () => {
     expect(cols.map((c) => c.width)).toEqual([8, 16, 50]);
   });
 
+  it("겹치는 제목은 뒤 컬럼에 번호를 붙인다(빈 제목이 키로 바뀌어 겹치는 경우 포함)", () => {
+    const cols = toExcelColumns(
+      [
+        { key: "A", header: "값" },
+        { key: "B", header: "값" },
+        { key: "C", header: "값" },
+        { key: "D", header: "E" },
+        { key: "E", header: "" },
+      ],
+      []
+    );
+    expect(cols.map((c) => c.header)).toEqual(["값", "값(2)", "값(3)", "E", "E(2)"]);
+  });
+
   it("제목이 비면 키를 제목으로 쓴다", () => {
     expect(toExcelColumns([{ key: "VAL", header: "" }], [])[0].header).toBe("VAL");
   });

@@ -41,6 +41,8 @@ class WidgetMemoBpmnActionTest {
         assertEquals("action", properties(gateway).get("input"), "게이트웨이는 params.action 으로 분기");
 
         Map<String, Element> byAction = tasksByAction(doc);
+        // widgetMemo 는 서비스 접두(widgetmemo/)로 AUTH_ONLY 다. action 을 더하면 이 단언이 깨지고, 그때 새 action 이
+        // 모든 로그인 사용자에게 열려도 되는지(AUTH_ONLY 범위)를 다시 검토한다(스펙 §17.5).
         assertEquals(List.of("load", "save"), List.copyOf(byAction.keySet()));
         assertEquals(2, doc.getElementsByTagNameNS(BPMN, "serviceTask").getLength());
         for (Map.Entry<String, Element> e : byAction.entrySet()) {
