@@ -16,7 +16,7 @@
 
 | 항목 | 결정 |
 |---|---|
-| 기록 단위 | 화면 열기 + 실제 이용 시간(구간). 화면 안 버튼 동작은 수집하지 않는다 |
+| 기록 단위 | 첫 업무 호출부터 탭 단위로 누적한 실제 이용 시간(구간). 화면 안 버튼 동작은 수집하지 않는다 |
 | 보관 | 원본 구간 1년, 일별 집계 영구 |
 | 부서 기준 | 이용 당시 부서(기록 시점 스냅숏) |
 | 조회 권한 | 관리자 메뉴 권한(SYSADMIN 등 메뉴 권한 체계) |
@@ -50,34 +50,49 @@
 
 ## 3. 프런트 수집
 
-### 3.1 구간 정의
+### 3.1 구간 정의 — 첫 업무 호출부터 (2026-10-02 개정)
 
-구간 = 사용자가 한 화면을 실제로 보고 있던 연속 시간. 1구간 = 원본 1행.
+구간 = 사용자가 한 탭을 실제로 보고 있던 시간을 **탭 단위로 누적**한 것. 1구간 = 원본 1행.
+
+**활성화 전에는 기록하지 않는다.** 탭을 열기만 하면 구간을 열지 않는다. 그 탭에서 **첫 업무 호출**이 나간 순간 구간을 시작하고, 열기부터 첫 호출 전까지의 시간은 이용 시간이 아니다. 한 번이라도 업무 호출이 있었던 탭 인스턴스(탭 ID)는 "활성화됨" 상태가 된다. 활성화 상태는 메모리에만 두어 탭을 닫거나 새로고침하면 없어진다.
+
+업무 호출:
+- 같은 출처의 `/api/{모듈}/oasis/` 또는 `/api/{모듈}/rest/` 요청. 제외: `/api/*/lov/`, `/api/auth/`, `/api/mcm/auth/`, 포털 자체 요청(`secUser/myMenus*`·`myPermissions`·`myButtonEndpoints`, `secFavorite/*`, `secStartPgm/*`, `secWidget/*`, `noticeBoard/search`, `ntfNotification/*`, `screenUsage/record` — `m-mcm/proxy.ts` `authOnlyPrefixes` 기준).
+- 사용자 입력(`pointerdown`·`keydown`, 문서 단위 capture) 뒤 **5초 안**에, **입력 때와 같은 활성 탭**에서 나간 요청만 인정한다. 화면을 열 때 자동으로 나가는 조회·콤보 로딩, 사이드바 메뉴를 누른 입력 직후 새 탭의 자동 조회는 활성화로 치지 않는다.
+- 요청이 나간 시점의 활성 탭에 귀속한다(홈·탭 없음은 무시). 응답 결과와 상관없이 보낸 시점에 활성화한다.
+
+탭 단위 누적:
+- 활성화된 탭마다 열린 구간 하나를 둔다. 다른 탭(활성화 안 된 탭·홈 포함)으로 가거나 브라우저 탭이 가려지면 구간을 **닫지 않고 일시정지**한다(그동안 이용 시간이 늘지 않는다). 다시 그 탭이 보이면 같은 구간에 이어 누적한다. 전환으로 새 행이 생기지 않는다.
+- 행 = `{ startedAt: 첫 업무 호출(또는 RESUME 시작) 시각, endedAt: 마지막으로 보고 있던 시각, durationMs: 실제로 보고 있던 시간의 합(일시정지 제외) }`. `durationMs ≤ endedAt - startedAt`.
 
 | 시작 사유 (`START_KIND`) | 언제 |
 |---|---|
-| `OPEN` | `openPageTab` 이 **새 탭을 만든** 경우, 기본 화면 자동 열기로 새 탭을 만든 경우 |
-| `SWITCH` | 이미 열린 탭으로 활성 탭이 바뀐 경우(탭 바 클릭, 메뉴로 기존 탭 재선택, 뒤로가기, 탭 닫힘 후 이웃 탭 활성, 새로고침 뒤 복원). 홈 탭으로 가는 경우는 구간을 끝내기만 한다 |
-| `RESUME` | 브라우저 탭이 다시 보이거나, 무입력 후 입력이 돌아오거나, 긴 구간을 자른 뒤 이어지는 경우 |
+| `OPEN` | 활성화 안 된 탭의 첫 업무 호출. 새로 연 탭·기본 화면 자동 열기 탭·새로고침 뒤 복원된 탭 모두 같다(실제 업무가 있었으므로 열람) |
+| `RESUME` | 15분 경과·무입력 30분·`pagehide` 로 잘린 뒤 그 탭을 다시 보기 시작한 경우 |
 
-종료: 다른 탭 활성화, 활성 탭 닫기, `visibilitychange` 가림, `pagehide`, 로그아웃(`doLogout` 맨 앞), 무입력 30분(종료 시각 = 마지막 입력 시각), 구간 길이 15분 도달(마지막 입력 시각까지 잘라 보내고 그 시각부터 `RESUME` 으로 이어감 — 창이 비정상 종료돼도 잃는 시간을 15분 이내로 묶고, 무입력 판정과도 어긋나지 않는다).
+`SWITCH` 는 클라이언트가 더 이상 만들지 않는다(서버는 이전 행 호환으로 받는다).
 
-- 1초 미만 구간은 버린다.
-- 홈 탭(`tab.isHome`)은 기록하지 않는다. 홈 탭이 활성인 동안에는 구간이 없고, 홈에서 다른 탭으로 가면 그 탭의 구간이 `SWITCH`(새 탭이면 `OPEN`)로 시작한다.
-- 열람 횟수 = `OPEN` 구간 수. 이용 시간 = 모든 구간 길이 합.
-- 입력 감지: `pointerdown`·`keydown`·`wheel` 을 passive 리스너로 받고 마지막 입력 시각만 갱신한다. 무입력 판정은 60초 주기 타이머가 한다.
+내보내는 시점: 탭 닫기, 로그아웃(`doLogout` 맨 앞), `pagehide`, 무입력 30분(보고 있던 구간을 마지막 입력 시각까지 누적하고 endedAt = 마지막 입력 시각), 구간 시작 뒤 벽시계 15분 경과(60초 판정). 일시정지 중인 구간도 15분 경과·`pagehide`·로그아웃에서 함께 내보낸다. 보고 있는 구간의 15분 경과는 마지막 입력 시각에서 잘라 그 시각부터 `RESUME` 으로 잇는다(무입력 판정과 어긋나지 않게, 시작 뒤 입력이 없었으면 자르지 않는다).
+
+- `durationMs` 가 1초 미만인 구간은 버린다.
+- 홈 탭(`tab.isHome`)은 기록하지 않는다. 홈이 활성인 동안 모든 구간은 일시정지 상태다.
+- 열람 횟수 = `OPEN` 구간 수. 이용 시간 = 모든 구간 `durationMs` 합(서버 `DURATION_MS`).
+- 입력 감지: 무입력 판정은 `pointerdown`·`keydown`·`wheel` 을 passive 리스너로 받아 마지막 입력 시각만 갱신하고, 60초 주기 타이머가 판정한다. 판정 타이머가 멈췄다가(절전 등) 다른 동작이 먼저 와도 무입력 30분을 먼저 본다. 이때 닫는 구간은 15분 조각으로 나누지 않고 한 행으로 낸다.
 
 ### 3.2 삽입점 (조사 근거: `shared/src/portal-shell/portal-shell.tsx`)
 
-- 활성 탭이 바뀌는 경로는 모두 `activeTabId` 상태(`:247`)로 모인다. `activeTabId` 를 deps 로 둔 useEffect 하나에서 "이전 구간 종료 + 새 구간 시작"을 처리한다. 같은 형태의 기존 effect 가 `:938-943`(`portal-tab-activated` 발행)에 있다.
-- `OPEN`/`SWITCH` 구분은 `openPageTab` 이 새 탭을 만들 때 ref 에 "다음 활성화는 OPEN" 표시를 남기고 effect 가 그것을 소비하는 방식으로 한다. `setTabs` 업데이터 안에서 상태를 바꾸므로 StrictMode 이중 호출을 고려해 표시는 탭 ID 기준으로 둔다.
-- 로그아웃은 `doLogout`(`:535`) 맨 앞에서 활성 구간을 끝내고 flush 를 시작한다(확인창 취소 시에는 호출되지 않는 위치).
-- `visibilitychange`·`pagehide` 리스너는 새로 단다.
+- 업무 호출 감지는 `portal-shell/usage-activity.ts` — 분류(`isUsageBusinessRequest`)·5초 창(`isWithinUsageInputWindow`)은 순수 함수, 경로 목록은 상수, `installUsageActivity` 가 `window.fetch` 를 감싸고 해제 함수를 돌려준다. PortalShell 은 `onUsageSegments` 가 있을 때만 설치하고 언마운트·로그아웃 때 원래 fetch 로 되돌린다(StrictMode 이중 effect 에서도 한 겹, 다른 코드가 위에 또 감쌌으면 그 감싸기를 지우지 않고 알림만 끈다).
+- 활성화된 탭은 PortalShell 의 ref(탭 ID → 기록용 pageId)에 둔다. 첫 업무 호출이 감지되면 그 탭을 넣고 `tracker.activate({ key: 탭 ID, pageId }, "OPEN")` 을 부른다.
+- 활성 탭이 바뀌는 경로는 모두 `activeTabId` 상태로 모인다. `activeTabId` 를 deps 로 둔 useEffect 하나에서 활성화된 탭이면 `tracker.activate({ key, pageId })`(이어 누적, 구간이 없으면 RESUME), 아니면 `tracker.activate(null)`(일시정지)을 부른다.
+- 탭이 닫히면 `tabs` effect 가 활성화 상태를 지우고 `tracker.release(탭 ID)` 로 그 탭 구간을 내보낸다(보이지 않던 탭을 닫아도 같다).
+- 로그아웃은 `doLogout` 맨 앞에서 fetch 감싸기를 떼고 모든 구간을 내보낸 뒤 flush 를 시작한다(확인창 취소 시에는 호출되지 않는 위치).
+- `visibilitychange`·`pagehide` 리스너는 추적기가 단다.
 - 기존 `onPageOpen` prop 은 건드리지 않는다.
+- 감지 범위: 화면 코드는 모두 `fetch` 를 쓴다(2026-10-02 `shared/src`·`m-*` 소스에 XMLHttpRequest·axios·sendBeacon 없음). 서드파티 라이브러리가 fetch 밖에서 보내는 요청은 감지하지 않는다.
 
 ### 3.3 모듈
 
-- `usage-tracker.ts` — 순수 클래스. 시계(`now()`)와 이벤트 대상(document/window)을 주입받는다. 출력은 `UsageSegment { clientSegId, pageId, startKind, startedAt, endedAt }`(epoch ms). React 에 의존하지 않는다.
+- `usage-tracker.ts` — 순수 클래스. 시계(`now()`)와 이벤트 대상(document/window)을 주입받는다. 출력은 `UsageSegment { clientSegId, pageId, startKind, startedAt, endedAt, durationMs }`(epoch ms·ms). React 에 의존하지 않는다.
 - `usage-sender.ts` — 큐(최대 200건, 넘치면 오래된 것부터 버림), 20건 또는 60초마다 묶음 전송(최대 100건/요청), 실패 시 큐에 되돌려 다음 주기 재시도, `flush({ keepalive: true })`. 오류는 `console.warn` 만 남긴다.
 - `PortalShell` 에 `onUsageSegments?: (segments: UsageSegment[]) => void` prop 추가. prop 이 없으면 추적기를 만들지 않는다.
 - `portal-shell/index.ts` 에 `export *` 추가. package.json·tsup 수정은 필요 없다.
@@ -93,9 +108,9 @@
 | `USER_ID` | VARCHAR(50) | `SecurityIdentity.requireUserId()` |
 | `DEPT_CD` | VARCHAR(10) NULL | 기록 시점 `SecUser.deptCd` (`SecUserRepository.findById`) |
 | `PAGE_ID` | VARCHAR(200) | `${PARENT_MENU_ID}/${OBJECT_ID}` |
-| `START_KIND` | VARCHAR(10) | `OPEN`/`SWITCH`/`RESUME` |
+| `START_KIND` | VARCHAR(10) | `OPEN`/`RESUME` (`SWITCH` 는 2026-10-02 이전 행) |
 | `STARTED_AT`, `ENDED_AT` | TIMESTAMP | 클라이언트 시각 |
-| `DURATION_MS` | BIGINT | 서버가 `ENDED_AT - STARTED_AT` 로 계산 |
+| `DURATION_MS` | BIGINT | 클라이언트 `durationMs`(일시정지 제외 이용 시간). 없으면 서버가 `ENDED_AT - STARTED_AT` 로 계산 |
 | `CLIENT_SEG_ID` | VARCHAR(36) | 프런트 구간 ID |
 | `CLIENT_IP` | VARCHAR(45) NULL | 감사용 |
 | `RECEIVED_AT` | TIMESTAMP | 서버 수신 시각 |
@@ -114,7 +129,7 @@
 
 - `@Service("screenUsageService")`, 클래스에 `@Transactional` 금지(OASIS 규칙 6-B-1). 쓰기는 저장소 메서드 트랜잭션으로 한다.
 - BPMN `mcm/api/src/main/resources/services/audit/screenUsage.bpmn`, 통계는 `services/csa/screenUsageStat.bpmn` — `output` 필수(6-C-2), grids key `segments` 와 Java 파라미터 이름 일치(6-E-3).
-- 검증(통과 못 한 구간은 버리고 건수만 로그): 요청당 100건 초과 분 버림, `ENDED_AT < STARTED_AT`, 길이 > 24시간, `STARTED_AT` 이 수신 시각보다 5분 넘게 미래 또는 30일 넘게 과거, 1초 미만, `PAGE_ID` 공백·200자 초과, `START_KIND` 값 이상.
+- 검증(통과 못 한 구간은 버리고 건수만 로그): 요청당 100건 초과 분 버림, `ENDED_AT < STARTED_AT`, 길이 > 24시간, `STARTED_AT` 이 수신 시각보다 5분 넘게 미래 또는 30일 넘게 과거, 1초 미만, `PAGE_ID` 공백·200자 초과, `START_KIND` 값 이상. `durationMs` 는 선택 — 있으면 1초 이상·`ENDED_AT - STARTED_AT` 이하일 때만 `DURATION_MS` 로 저장하고 벗어나거나 숫자가 아니면 그 행을 버린다. 없거나 null 이면 `ENDED_AT - STARTED_AT`. 통계는 모두 `DURATION_MS` 합을 쓴다.
 - `PAGE_ID` 가 메뉴 마스터에 있는지는 기록 시 검사하지 않는다(메뉴 개편 뒤에도 이력을 남기기 위해). 통계 조회에서 메뉴에 없는 화면은 "(메뉴 없음)"으로 표시한다.
 - 응답 `data.result = { saved, skipped }`.
 - 권한: 로그인 사용자 전원이 호출하므로 메뉴 권한이 아닌 AUTH_ONLY 경로로 연다(`m-mcm/proxy.ts` `authOnlyPrefixes` 및 백엔드 `EndpointPermissionFilter` 의 해당 목록).
@@ -174,15 +189,16 @@
 
 1. `DataInitializer` 에 `seedScreenUsageMenus()` 추가: `insertMcmSecObjIfAbsent("screenUsageStat", "화면 사용 통계", ...)`, `insertMcmSecMenuIfAbsent(..., 부모 csa, ...)`, SYSADMIN `PERM_ALL` 매핑. 호출은 기존 확장 지점(`seedMlsMenus()` 뒤), 마지막 `recomputeMenuFullSeq()` 가 순번을 다시 매긴다.
 2. `componentPath` = `csa/screenUsageStat` 이 페이지 레지스트리 키와 같아야 한다.
-3. 실행 중인 로컬 서버·DB 에 반영(재기동으로 IfAbsent 시드 적용) → ego-browser 로 SYSADMIN 로그인 → 사이드바 시스템관리 아래 메뉴 확인 → 화면 열기 → 다른 화면 몇 개 열고 전환 → 통계 화면 [조회] 로 오늘 값이 보이는지 확인 → 작업 공간 닫기.
+3. 실행 중인 로컬 서버·DB 에 반영(재기동으로 IfAbsent 시드 적용) → ego-browser 로 SYSADMIN 로그인 → 사이드바 시스템관리 아래 메뉴 확인 → 화면 열기 → 조회 등 업무 호출 → 다른 화면 몇 개에서도 업무 호출 뒤 전환·탭 닫기 → 통계 화면 [조회] 로 오늘 값이 보이는지 확인 → 작업 공간 닫기.
 
 ## 7. 테스트
 
 | 대상 | 방식 |
 |---|---|
-| `usage-tracker` | shared vitest(happy-dom, 가짜 타이머, 주입 시계): OPEN/SWITCH/RESUME, 홈 탭 미기록, 가림·재표시, 무입력 30분, 15분 자르기, 1초 미만 제외, 로그아웃 종료 |
+| `usage-tracker` | shared vitest(가짜 타이머, 주입 시계): OPEN/RESUME, 탭 단위 일시정지·이어 누적, 홈 탭 미기록, 가림·재표시, 무입력 30분, 15분 경과(일시정지 포함), durationMs 1초 미만 제외, 탭 닫기·로그아웃 |
+| `usage-activity` | shared vitest: 업무 호출 분류(oasis·rest, LOV·인증·포털 제외, 외부 출처, Request·URL 입력), 5초 창, 같은 탭 입력, 설치·해제 |
 | `usage-sender` | shared vitest: 묶음 크기·주기, 실패 재시도, 큐 상한, keepalive flush |
-| PortalShell 연동 | shared vitest: 탭 열기·전환·닫기 시 `onUsageSegments` 호출 순서 |
+| PortalShell 연동 | shared vitest: 열기만 한 탭·자동 호출 미기록, 첫 업무 호출부터 OPEN, 전환 시 이어 누적, 탭 닫기·로그아웃 시 `onUsageSegments`, fetch 복원 |
 | 기록 서비스 | mcm-core JUnit(Mockito, `SecurityIdentity` 스텁): 검증 규칙, body userId 무시, 중복 건너뜀, 부서 스냅숏 |
 | 집계·통계 | mcm-core 저장소 테스트(기존 테스트 DB 설정) — 일자 집계 멱등성, 오늘분 원본 합산, 보관 삭제 경계, 미사용 화면 판정 |
 | OASIS 계약 | `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` ERROR 0 |
@@ -202,4 +218,4 @@
 
 1. shared `Tabs` 는 Part B 허용 목록(§1)에 없다 → **확정:** 이 화면에 사용하고 허용 목록에 `tabs` 서브패스를 추가한다(가이드 문서 수정 포함).
 2. ~~홈 탭 포함 여부~~ → **확정(사용자 지시): 홈 탭은 기록하지 않는다.**
-3. 새로고침 뒤 복원된 활성 탭 → **확정:** `SWITCH` 로 시작(열람 횟수 미포함, 이용 시간만 반영).
+3. ~~새로고침 뒤 복원된 활성 탭 → `SWITCH` 로 시작~~ → **개정(2026-10-02 사용자 결정):** 복원된 탭도 첫 업무 호출부터 `OPEN` 으로 기록한다. 탭을 열기만 하면 기록하지 않고(§3.1), 전환은 행을 만들지 않고 탭 단위로 누적한다.
