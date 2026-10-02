@@ -36,6 +36,7 @@ export default defineConfig((options) => ({
     "markdown-editor": "src/components/markdown-editor/index.ts",
     "notice-body-view": "src/components/notice-body-view/index.ts",
     dashboard: "src/components/dashboard/index.ts",
+    widget: "src/widget/index.ts",
     oasis: "src/oasis/index.ts",
     "oasis-proxy": "src/oasis-proxy/index.ts",
     lib: "src/lib/index.ts",
