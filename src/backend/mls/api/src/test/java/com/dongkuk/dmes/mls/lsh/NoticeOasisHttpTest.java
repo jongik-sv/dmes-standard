@@ -34,7 +34,8 @@ import org.springframework.test.context.DynamicPropertySource;
  * {@code data.result.list}, {@code grids.master.rows} → save 파라미터 바인딩, 서비스 오류 → {@code meta.success=false}.
  */
 @SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
-        properties = "cactus.security.client-key=" + NoticeOasisHttpTest.TEST_CLIENT_KEY)
+        properties = {"cactus.security.client-key=" + NoticeOasisHttpTest.TEST_CLIENT_KEY,
+                "cactus.mdm.enabled=false"}) // MDM 캐시·저장 검증은 로컬 MDM 서버에 기대지 않게 끈다
 class NoticeOasisHttpTest {
 
     static final String TEST_CLIENT_KEY = "mls-notice-http-test-client-key";
