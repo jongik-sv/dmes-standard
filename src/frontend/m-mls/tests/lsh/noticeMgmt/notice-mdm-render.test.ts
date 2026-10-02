@@ -2,7 +2,8 @@
 /**
  * noticeMgmt 화면 × MDM 화면 메타·값 검증(spec 2026-10-03 §7 화면 부분) — 진짜 shared(dist) 공급자·그리드·입력을 가짜 fetch 로 돌린다.
  *  - 목록 그리드(화면이 captionPriority="mdm" 으로 감싼 상태): TITLE 열은 MDM 이 있으면 MDM 캡션(labelShort), 없으면 적어 둔 "제목". 파생 열은 적은 header 그대로.
- *  - 상세 표 제목 줄: 라벨은 MDM 폼 캡션(labelMid), 화면 검사 문구가 입력 칸 오류로 보이고, 서버가 준 칸 오류가 화면 문구보다 앞선다.
+ *  - 상세 표 제목 줄: 라벨(MdmFieldLabel)은 화면(captionPriority="mdm") 안에서 MDM 폼 캡션(labelMid)이고 올리면 MDM 카드 툴팁이 뜬다.
+ *    화면 검사 문구가 입력 칸 오류로 보이고, 서버가 준 칸 오류가 화면 문구보다 앞선다.
  *  - 공급자 밖(포털 밖 단독 실행)에서는 부르지 않고 예전 라벨 "제목" 그대로.
  * 실제 MDM 의 TITLE 은 STRING(1000)·선택이라 입력 칸(200자 제한)에서는 검사에 걸리지 않으므로, 여기서는 더 엄격한 가짜 정의(5자·필수)를 쓴다.
  */
@@ -96,6 +97,7 @@ const titleRow = (props: Partial<Parameters<typeof NoticeTitleRow>[0]> = {}) =>
   );
 
 const label = () => host.querySelector("th")?.textContent;
+const tipPortal = () => document.querySelector(".form-tip-text--portal");
 const errorText = () => host.querySelector(".form-error-message")?.textContent;
 
 describe("목록 그리드 — MDM 캡션", () => {
@@ -145,10 +147,55 @@ describe("목록 그리드 — MDM 캡션", () => {
 });
 
 describe("상세 표 제목 줄", () => {
-  it("공급자 안: 라벨은 MDM 폼 캡션(labelMid)에 필수 표시", async () => {
+  it("화면(captionPriority=mdm) 안: 라벨은 MDM 폼 캡션(labelMid)에 필수 표시, 입력 칸 이름도 같다", async () => {
+    vi.stubGlobal("fetch", fakeMdmFetch().fn);
+    await show(inNoticeScreen(titleRow()));
+    expect(label()).toBe("공지제목 *");
+    expect(host.querySelector("input")?.getAttribute("aria-label")).toBe(
+      "공지제목",
+    );
+  });
+
+  it("explicit 공급자 안: 적어 둔 '제목' 이 이기고 입력 칸 이름도 같다 — 우선순위는 화면이 정한다", async () => {
     vi.stubGlobal("fetch", fakeMdmFetch().fn);
     await show(inPortalTab(titleRow()));
-    expect(label()).toBe("공지제목 *");
+    expect(label()).toBe("제목 *");
+    expect(host.querySelector("input")?.getAttribute("aria-label")).toBe(
+      "제목",
+    );
+  });
+
+  it("MDM 에 TITLE 이 있으면 라벨에 올리면 MDM 카드(컬럼·도메인 툴팁)가 뜨고 내리면 닫힌다", async () => {
+    vi.stubGlobal("fetch", fakeMdmFetch().fn);
+    await show(inNoticeScreen(titleRow()));
+    const trigger = host.querySelector("th .form-tip-trigger") as HTMLElement;
+    expect(trigger.textContent).toBe("공지제목 *");
+    expect(tipPortal()).toBeNull();
+    act(() => {
+      trigger.dispatchEvent(
+        new MouseEvent("mouseover", { bubbles: true, relatedTarget: null }),
+      );
+    });
+    const card = tipPortal()!;
+    expect(
+      card.querySelector('[data-mdm-section="title"]')?.textContent,
+    ).toContain("공지 제목");
+    expect(
+      card.querySelector('[data-mdm-section="format"]')?.textContent,
+    ).toContain("STRING(5)");
+    act(() => {
+      trigger.dispatchEvent(
+        new MouseEvent("mouseout", { bubbles: true, relatedTarget: null }),
+      );
+    });
+    expect(tipPortal()).toBeNull();
+  });
+
+  it("MDM 에 TITLE 이 없으면 라벨은 단순 글자 '제목 *' 이고 툴팁 트리거가 없다", async () => {
+    vi.stubGlobal("fetch", fakeMdmFetch({ knowsTitle: false }).fn);
+    await show(inNoticeScreen(titleRow()));
+    expect(host.querySelector("th")?.innerHTML).toBe("제목 *");
+    expect(host.querySelector(".form-tip-trigger")).toBeNull();
   });
 
   it("공급자 밖: 예전 라벨 '제목' 그대로이고 MDM 을 부르지 않는다", async () => {
