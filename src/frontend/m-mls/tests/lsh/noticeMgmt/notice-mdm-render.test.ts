@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 /**
  * noticeMgmt 화면 × MDM 화면 메타·값 검증(spec 2026-10-03 §7 화면 부분) — 진짜 shared(dist) 공급자·그리드·입력을 가짜 fetch 로 돌린다.
- *  - 목록 그리드: header 를 비운 TITLE 열은 MDM 캡션(labelShort), 적은 header 는 그대로.
+ *  - 목록 그리드(화면이 captionPriority="mdm" 으로 감싼 상태): TITLE 열은 MDM 이 있으면 MDM 캡션(labelShort), 없으면 적어 둔 "제목". 파생 열은 적은 header 그대로.
  *  - 상세 표 제목 줄: 라벨은 MDM 폼 캡션(labelMid), 화면 검사 문구가 입력 칸 오류로 보이고, 서버가 준 칸 오류가 화면 문구보다 앞선다.
  *  - 공급자 밖(포털 밖 단독 실행)에서는 부르지 않고 예전 라벨 "제목" 그대로.
  * 실제 MDM 의 TITLE 은 STRING(1000)·선택이라 입력 칸(200자 제한)에서는 검사에 걸리지 않으므로, 여기서는 더 엄격한 가짜 정의(5자·필수)를 쓴다.
@@ -18,7 +18,7 @@ import { STRICT_TITLE, settle } from "./mdm-test-env";
 import { NOTICE_COLUMNS } from "../../../pages/lsh/noticeMgmt/notice-columns";
 import { NoticeTitleRow } from "../../../pages/lsh/noticeMgmt/NoticeTitleRow";
 
-function fakeMdmFetch() {
+function fakeMdmFetch({ knowsTitle = true }: { knowsTitle?: boolean } = {}) {
   const calls: string[] = [];
   const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -29,7 +29,7 @@ function fakeMdmFetch() {
     const items: Record<string, unknown> = {};
     const missing: string[] = [];
     for (const n of body.names ?? []) {
-      if (n === "TITLE") items[n] = STRICT_TITLE;
+      if (n === "TITLE" && knowsTitle) items[n] = STRICT_TITLE;
       else missing.push(n);
     }
     return new Response(JSON.stringify({ items, missing, unavailable: [] }), {
@@ -66,6 +66,20 @@ async function show(el: ReturnType<typeof createElement>) {
 const inPortalTab = (child: ReturnType<typeof createElement>) =>
   createElement(MdmMetaProvider, { module: "mls" }, child);
 
+/** 포털 탭 공급자 안에 noticeMgmt 화면이 두는 captionPriority="mdm" 공급자(module 은 바깥을 따른다)까지 — page.tsx 의 default export 와 같은 모양. */
+const inNoticeScreen = (child: ReturnType<typeof createElement>) =>
+  inPortalTab(createElement(MdmMetaProvider, { captionPriority: "mdm" }, child));
+
+const grid = () =>
+  createElement(AgDataGrid, {
+    columns: NOTICE_COLUMNS,
+    rowKey: "NOTICE_ID",
+    data: [],
+    mdmValidate: true,
+  });
+const headers = () =>
+  [...host.querySelectorAll(".ag-header-cell-text")].map((el) => el.textContent);
+
 const titleRow = (props: Partial<Parameters<typeof NoticeTitleRow>[0]> = {}) =>
   createElement(
     "table",
@@ -85,28 +99,48 @@ const label = () => host.querySelector("th")?.textContent;
 const errorText = () => host.querySelector(".form-error-message")?.textContent;
 
 describe("목록 그리드 — MDM 캡션", () => {
-  it("header 를 비운 TITLE 열은 MDM 캡션(labelShort), 적은 header 는 그대로", async () => {
+  it("MDM 에 TITLE 이 있으면 MDM 캡션(labelShort), 파생 열은 적은 header 그대로", async () => {
     const f = fakeMdmFetch();
     vi.stubGlobal("fetch", f.fn);
-    await show(
-      inPortalTab(
-        createElement(AgDataGrid, {
-          columns: NOTICE_COLUMNS,
-          rowKey: "NOTICE_ID",
-          data: [],
-          mdmValidate: true,
-        }),
-      ),
-    );
-    const headers = [...host.querySelectorAll(".ag-header-cell-text")].map(
-      (el) => el.textContent,
-    );
-    expect(headers[2]).toBe("제목단"); // TITLE 은 세 번째 열
-    expect(headers[0]).toBe("분류");
-    // 화면의 열 key 중 TITLE 만 MDM 으로 묻는다(파생 열은 물리명이 맞지 않는다는 응답이 와도 되지만 TITLE 은 반드시 포함).
+    await show(inNoticeScreen(grid()));
+    expect(headers()[2]).toBe("제목단"); // TITLE 은 세 번째 열
+    expect(headers()[0]).toBe("분류");
     expect(f.calls.some((u) => u.endsWith("/api/mls/mdmMeta/columns"))).toBe(
       true,
     );
+  });
+
+  it("MDM 에 TITLE 이 없으면(사전에서 지워짐) 적어 둔 '제목' 이 보인다 — 열 key TITLE 이 아니다", async () => {
+    vi.stubGlobal("fetch", fakeMdmFetch({ knowsTitle: false }).fn);
+    await show(inNoticeScreen(grid()));
+    expect(headers()[2]).toBe("제목");
+    expect(headers()).not.toContain("TITLE");
+  });
+
+  it("MDM 이 오류(HTTP 500)여도 '제목' 이 보인다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ message: "x" }), { status: 500 }),
+      ),
+    );
+    await show(inNoticeScreen(grid()));
+    expect(headers()[2]).toBe("제목");
+  });
+
+  it("공급자 밖(포털 밖 단독 실행)에서는 MDM 을 부르지 않고 '제목'", async () => {
+    const f = fakeMdmFetch();
+    vi.stubGlobal("fetch", f.fn);
+    await show(grid());
+    expect(headers()[2]).toBe("제목");
+    expect(f.calls).toHaveLength(0);
+  });
+
+  it("우선순위를 바꾸지 않은(explicit) 공급자 아래에서는 적은 '제목' 이 이긴다 — 그래서 화면이 captionPriority=mdm 을 둔다", async () => {
+    vi.stubGlobal("fetch", fakeMdmFetch().fn);
+    await show(inPortalTab(grid()));
+    expect(headers()[2]).toBe("제목");
   });
 });
 

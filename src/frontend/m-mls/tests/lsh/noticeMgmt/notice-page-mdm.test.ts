@@ -91,6 +91,12 @@ const titleInput = () =>
     'input[placeholder="홈 화면 목록에 보이는 제목"]',
   ) as HTMLInputElement;
 const errorText = () => host.querySelector(".form-error-message")?.textContent;
+const gridHeaders = () =>
+  [...host.querySelectorAll(".ag-header-cell-text")].map(
+    (el) => el.textContent,
+  );
+const detailLabels = () =>
+  [...host.querySelectorAll("th")].map((el) => el.textContent);
 
 async function typeInto(input: HTMLInputElement, value: string) {
   await act(async () => {
@@ -190,5 +196,20 @@ describe("noticeMgmt 화면 — 저장 오류를 제목 칸에 붙인다", () =>
       await settle(80);
     });
     expect(server.saved()).toBe(true);
+  });
+});
+
+describe("noticeMgmt 화면 — 캡션 우선순위(captionPriority=mdm)", () => {
+  it("MDM 에 TITLE 이 있으면 목록 머리글은 labelShort, 상세 라벨은 labelMid(폼 캡션)", async () => {
+    await showPage(fakeServer({ titleMeta: STRICT_TITLE }));
+    expect(gridHeaders()[2]).toBe("제목단");
+    expect(detailLabels()).toContain("공지제목 *");
+  });
+
+  it("MDM 에 TITLE 이 없으면 목록 머리글도 상세 라벨도 '제목' 으로 같다", async () => {
+    await showPage(fakeServer({}));
+    expect(gridHeaders()[2]).toBe("제목");
+    expect(gridHeaders()).not.toContain("TITLE");
+    expect(detailLabels()).toContain("제목 *");
   });
 });

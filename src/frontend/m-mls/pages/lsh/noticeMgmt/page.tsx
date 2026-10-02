@@ -32,7 +32,7 @@ import {
 } from "@dk-oasis/shared/form";
 import { toFieldErrors } from "@dk-oasis/shared/http";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { useMdmValidation } from "@dk-oasis/shared/mdm-meta";
+import { MdmMetaProvider, useMdmValidation } from "@dk-oasis/shared/mdm-meta";
 
 import {
   changeNoticeStatus,
@@ -87,7 +87,21 @@ import {
   type TargetScope,
 } from "./types";
 
+/**
+ * 화면 진입점 — 포털 탭 공급자 안쪽에 `captionPriority="mdm"` 만 바꿔 둔다(module 은 지정하지 않아 바깥 포털 공급자를 따른다).
+ * 그러면 MDM 컬럼 사전에 있는 칸(목록 TITLE 열·상세 제목 라벨)은 MDM 이 있을 때 표준 캡션, 없거나 받지 못하면 적어 둔 "제목" 이 보인다.
+ * 기존 화면을 표준 캡션으로 바꿀 때 header 를 지우지 않는 이유다(프런트 Local-Rules 의 "MDM 캡션·툴팁·값 검증" 절). 화면 안의 훅(useMdmValidation 등)도
+ * 이 범위 안에서 돈다.
+ */
 export default function NoticeMgmtPage() {
+  return (
+    <MdmMetaProvider captionPriority="mdm">
+      <NoticeMgmtScreen />
+    </MdmMetaProvider>
+  );
+}
+
+function NoticeMgmtScreen() {
   const { showMessage } = useMessage();
   const [filters, setFilters] = useState<NoticeMgmtFilters>(emptyFilters);
   const [rows, setRows] = useState<NoticeRow[]>([]);

@@ -1,5 +1,9 @@
 /**
- * noticeMgmt 목록 그리드 열(§3.2). 화면 파일에서 떼어 낸 정의라 단위 시험이 열 모양(MDM 캡션을 쓰는 칸의 header 생략 등)을 바로 본다.
+ * noticeMgmt 목록 그리드 열(§3.2). 화면 파일에서 떼어 낸 정의라 단위 시험이 열 모양(MDM 캡션을 쓰는 칸의 대체 header, 파생 열의 meta:false 등)을 바로 본다.
+ *
+ * MDM 캡션: 화면(page.tsx)이 `MdmMetaProvider captionPriority="mdm"` 으로 감싸므로 MDM 컬럼 사전에 있는 열(`TITLE`)은 MDM 캡션이 이기고, MDM 이 없거나
+ * 받지 못하면 적어 둔 header 가 보인다. 그래서 header 를 지우지 않는다 — 지우면 MDM 을 받지 못할 때 열 key("TITLE")가 머리글로 보인다.
+ * 사전에 없는 표시용 파생 열(*_LABEL 등)은 `meta: false` 로 MDM 연결을 끈다(우선순위가 mdm 이라, 사전에 우연히 같은 이름이 생겨도 머리글이 바뀌지 않게).
  */
 import { GridBadge, type GridColumn } from "@dk-oasis/shared/grid";
 
@@ -42,6 +46,7 @@ export const NOTICE_COLUMNS: GridColumn[] = [
   {
     key: "CATEGORY_LABEL",
     header: "분류",
+    meta: false,
     width: NARROW,
     minWidth: 60,
     align: "center",
@@ -55,15 +60,17 @@ export const NOTICE_COLUMNS: GridColumn[] = [
   {
     key: "FORMAT_LABEL",
     header: "형식",
+    meta: false,
     width: NARROW,
     minWidth: 52,
     align: "center",
   },
-  // header 를 적지 않는다 — MDM 컬럼 사전 TITLE 의 캡션(labelShort "제목")과 머리글 툴팁이 자동으로 붙는다. 이 칸만 MDM 물리명과 같다.
-  { key: "TITLE", width: 100, minWidth: 180, align: "left" },
+  // 이 칸만 MDM 물리명과 같다 — MDM 이 있으면 표준 캡션(labelShort)·머리글 툴팁이 이기고(화면의 captionPriority="mdm"), 없으면 "제목"(상세 라벨과 같다).
+  { key: "TITLE", header: "제목", width: 100, minWidth: 180, align: "left" },
   {
     key: "STATUS_LABEL",
     header: "게시상태",
+    meta: false,
     width: NARROW,
     minWidth: 74,
     align: "center",
@@ -77,6 +84,7 @@ export const NOTICE_COLUMNS: GridColumn[] = [
   {
     key: "POST_PERIOD",
     header: "게시기간",
+    meta: false,
     width: NARROW,
     minWidth: 100,
     align: "center",
@@ -90,6 +98,7 @@ export const NOTICE_COLUMNS: GridColumn[] = [
   {
     key: "PIN_LABEL",
     header: "고정",
+    meta: false,
     width: NARROW,
     minWidth: 42,
     align: "center",
@@ -98,6 +107,7 @@ export const NOTICE_COLUMNS: GridColumn[] = [
   {
     key: "TARGET_LABEL",
     header: "대상",
+    meta: false,
     width: NARROW,
     minWidth: 66,
     align: "left",
