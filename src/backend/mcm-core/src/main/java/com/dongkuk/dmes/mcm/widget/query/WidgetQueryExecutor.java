@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mcm.widget.query;
 
+import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContext;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,6 +94,8 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     static final String MSG_PREVIEW_PREFIX = "쿼리 오류: ";
 
     private static final DateTimeFormatter YMD = DateTimeFormatter.ofPattern("yyyyMMdd");
+    /** 로컬 SQLite 실행 때 지우는 스키마 접두(대소문자 무시, 식별자 중간은 제외). */
+    private static final Pattern SCHEMA_PREFIX = Pattern.compile("(?i)(?<![\\p{L}\\p{N}_$#])MCMAPUSER\\.");
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final WidgetDefRepository defRepository;
@@ -235,8 +239,18 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
                 // 트랜잭션 관리자가 이 DataSource 를 관리하지 않으면 자동 커밋 연결로 돌게 된다 — 실행하지 않는다.
                 throw new IllegalStateException("위젯 쿼리 트랜잭션이 DataSource 연결을 잡지 못했습니다");
             }
-            return jdbc.queryLimited(sql, params, maxRows + 1, rs -> extract(rs, maxRows));
+            return jdbc.queryLimited(adaptForLocalSqlite(sql), params, maxRows + 1, rs -> extract(rs, maxRows));
         });
+    }
+
+    /**
+     * 로컬 SQLite 는 스키마가 없다 — JDBC 로 바로 실행하는 SQL 은 Hibernate 의 {@link McmAuditStatementInspector} 를 거치지 않으므로
+     * 같은 규칙({@code MCMAPUSER.} 접두·{@code N'…'} 접두 제거)을 여기서 적용한다. 운영 DB(Oracle·PostgreSQL)에서는 그대로 실행한다.
+     * 검사(§7.1)는 늘 원문으로 끝낸 뒤라 이 변환이 검사를 우회하지 않는다(접두를 지우기만 한다).
+     */
+    static String adaptForLocalSqlite(String sql) {
+        if (!McmAuditStatementInspector.isSqlite()) return sql;
+        return McmAuditStatementInspector.stripUnicodeLiteralPrefix(SCHEMA_PREFIX.matcher(sql).replaceAll(""));
     }
 
     /** 행을 maxRows+1 개까지만 읽는다 — 하나라도 더 있으면 버리고 truncated. CLOB 은 연결이 닫히기 전에 여기서 읽는다. */

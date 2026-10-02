@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContext;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
@@ -287,6 +288,26 @@ class WidgetQueryExecutorTest {
         assertThat(executor.preview(null, "SELECT COUNT(*) AS CNT FROM WIDGET_T;", 50).rows().get(0).get("CNT")).isEqualTo(601L);
 
         assertMessage(() -> executor.preview("mcm", "select * into x from WIDGET_T", 50), "쓸 수 없는 낱말이 있습니다: INTO");
+    }
+
+    // ── 로컬 SQLite ──────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("로컬 SQLite 모드면 MCMAPUSER. 접두·N'' 접두를 지우고 실행한다(운영 DB 는 원문 그대로)")
+    void adaptsSchemaPrefixOnLocalSqliteOnly() {
+        String sql = "SELECT COUNT(*) AS CNT FROM mcmapuser.WIDGET_T WHERE NM = N'N1'";
+        boolean before = McmAuditStatementInspector.isSqlite();
+        try {
+            McmAuditStatementInspector.setSqlite(false);
+            assertThat(WidgetQueryExecutor.adaptForLocalSqlite(sql)).isEqualTo(sql);
+
+            McmAuditStatementInspector.setSqlite(true);
+            assertThat(WidgetQueryExecutor.adaptForLocalSqlite(sql)).isEqualTo("SELECT COUNT(*) AS CNT FROM WIDGET_T WHERE NM = 'N1'");
+            def("def.schema", "query-number", sql);
+            assertThat(count("def.schema")).isEqualTo(1L); // H2 에는 MCMAPUSER 스키마가 없다 — 지우지 않으면 실패한다
+        } finally {
+            McmAuditStatementInspector.setSqlite(before);
+        }
     }
 
     // ── 트랜잭션 ─────────────────────────────────────────────────────
