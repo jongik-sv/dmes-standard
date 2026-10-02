@@ -31,6 +31,7 @@ describe("shortcuts", () => {
 
   it("디버거 기능키", () => {
     expect(shortcutOf(k("F5"), false)).toBe("continue");
+    expect(shortcutOf(k("F5", { shiftKey: true }), false)).toBe("stop");
     expect(shortcutOf(k("F10"), false)).toBe("step");
     expect(shortcutOf(k("F10", { shiftKey: true }), false)).toBe("stepBack");
     expect(shortcutOf(k("F9"), true)).toBe("breakpoint");

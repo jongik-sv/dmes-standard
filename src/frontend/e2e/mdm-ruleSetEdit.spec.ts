@@ -8,7 +8,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * 고유: E3 캔버스 편집(IF 끼우기 → 거부로 저장 꺼짐 → 조건식 → 저장 켜짐)·dirty 확인, E4 순환은 즉시 거부되고 저장이 꺼진다(P-D4),
  * (4단계) 룰은 도구 상자 [룰] 로 빈 단계를 놓고 오른쪽 「룰 지정」 으로 고른다 — 룰 찾기 팝업은 없다.
  * E5 수용 4 중복 대입 경고, E6 구성 지침 → 제안 순서 적용 → 저장 → 다시 열어 순서 유지, E7 폐기·되살리기, E9 권한(READ — 디버그 모드는 들어가지만 실행 단추가 꺼진다),
- * E10 속성 패널의 룰 편집 열기, E11 디버그 모드(단계 실행·중단점·계속·끝내기·값 표), E12 룰 박스 링크 아이콘과 박스 누르기,
+ * E10 속성 패널의 룰 편집 열기, E11 디버그 모드(단계 실행·중단점·계속·끝까지·값 표), E12 룰 박스 링크 아이콘과 박스 누르기,
  * E13 편집기(룰 목록에서 선으로 끌어 넣기·되돌리기·다시 하기·[+] 메뉴로 IF 넣기·분기 종류 바꾸기·Ctrl+Z),
  * E14 테스트 케이스(현재 입력 저장 → 모두 실행 1/1 통과 → 삭제), E15 찾기·블록 접기(접힌 블록 안 노드를 찾으면 펼쳐진다), E16 받는 노드(룰 우클릭 「예외 받기 추가」 → 저장 → 디버그에서 결과 없음 처리 갈래로 끝냄),
  * E17 옛 형식 열기(E2S_FLOW 를 열면 합류 없이 그려지고 알림, dirty 아님, 저장 뒤 다시 열면 알림 없음), E18 끝내는 갈래(갈래 마지막 선을 끝으로 옮겨 저장 → 디버그에서 그 갈래로 끝냄).
@@ -423,7 +423,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("rule-edit-current")).toHaveText("E2S_GRD", { timeout: 60_000 });
   });
 
-  test("E11 디버그 모드: E2S_FLOW 를 [한 단계] 로 따라가고 중단점까지 계속·끝내기 하면 IF 가 고른 선이 강조되고 값 표가 채워진다", async ({ page }) => {
+  test("E11 디버그 모드: E2S_FLOW 를 [한 단계] 로 따라가고 중단점까지 계속·끝까지 하면 IF 가 고른 선이 강조되고 값 표가 채워진다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
@@ -452,7 +452,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await page.getByTestId("dbg-continue").click();
     await expect(status).toHaveText(/^\d+\/\d+ · r2 실행 전$/);
 
-    // [끝내기] 는 마지막 단계로 간다. E2S_GRD 는 언제나 "A" 를 돌려주므로 IF 는 e3 갈래를 고르고, 고르지 않은 "그 외"(e4) 선은 흐려진다.
+    // [끝까지] 는 마지막 단계로 간다. E2S_GRD 는 언제나 "A" 를 돌려주므로 IF 는 e3 갈래를 고르고, 고르지 않은 "그 외"(e4) 선은 흐려진다.
     await page.getByTestId("dbg-finish").click();
     await expect(status).toHaveText(/^완료 · \d+단계 · 결과 변수 \d+개$/);
     await expect(page.getByTestId("flow-edge-label-e3")).toHaveAttribute("data-state", "chosen");
