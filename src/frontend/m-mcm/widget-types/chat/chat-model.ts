@@ -65,6 +65,11 @@ export function canSend(text: string, busy: boolean): boolean {
   return !busy && validateDraft(text) === null;
 }
 
+/** 보내기 실패 뒤 입력 칸 값 — 그사이 입력 칸이 비어 있으면(공백뿐 포함) 보낸 글을 되돌리고, 새로 쓴 글이 있으면 그대로 둔다. */
+export function restoreDraft(current: string, sent: string): string {
+  return current.trim() === "" ? sent : current;
+}
+
 /**
  * 입력 칸 키 — Enter 는 보내기, Shift+Enter 는 줄바꿈. 한글 조합 중(isComposing·keyCode 229)의 Enter 는 글자 확정이라
  * 보내면 마지막 글자가 한 번 더 들어간다.

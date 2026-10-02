@@ -94,7 +94,9 @@ export function youtubeEmbed(url: string | null | undefined): string | null {
     if (segments[0] === "watch") id = u.searchParams.get("v");
     else if (segments[0] === "shorts" || segments[0] === "embed" || segments[0] === "live") id = segments[1] ?? null;
   }
-  return id !== null && YOUTUBE_ID_RE.test(id) ? `https://www.youtube-nocookie.com/embed/${id}` : null;
+  // `/embed/videoseries?list=…` 는 재생목록 임베드다 — 'videoseries'(11자)가 영상 ID 처럼 보여도 영상이 아니므로 거절한다.
+  if (id === "videoseries") return null;
+  return id !== null && YOUTUBE_ID_RE.test(id) ?`https://www.youtube-nocookie.com/embed/${id}` : null;
 }
 
 /** 주소로 종류 자동 판정 — YouTube 주소 모양이면 youtube, 아니면 확장자(png·jpg·jpeg·gif·webp / mp4·webm). 모르면 null. */
@@ -186,6 +188,15 @@ export function clampIndex(index: number, count: number): number {
 export function slideAdvance(item: MediaItem | undefined, failed: boolean, count: number): "none" | "timer" | "ended" {
   if (count <= 1 || !item) return "none";
   return item.kind === "video" && !failed ? "ended" : "timer";
+}
+
+/**
+ * 시간 넘김 타이머를 시작해도 되는가 — 이미지는 다 받아진(loaded) 뒤 또는 실패한(failed) 뒤에 센다(큰 이미지가 받아지는 중에 넘어가지 않게).
+ * 이미지가 아닌 항목(YouTube·실패한 동영상)은 바로 센다.
+ */
+export function slideTimerReady(item: MediaItem | undefined, loaded: boolean, failed: boolean): boolean {
+  if (!item) return false;
+  return item.kind !== "image" || loaded || failed;
 }
 
 /** 항목을 한 칸 위(-1)·아래(1)로 옮긴 새 배열. 범위를 벗어나면 같은 배열을 돌려준다. */

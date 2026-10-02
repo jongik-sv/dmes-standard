@@ -19,6 +19,7 @@ import {
   normalizeMediaConfig,
   prevIndex,
   slideAdvance,
+  slideTimerReady,
   validateMediaConfig,
   youtubeEmbed,
   type MediaItem,
@@ -124,6 +125,8 @@ describe("youtubeEmbed", () => {
       "https://youtu.be/",
       "javascript:alert(1)//youtube.com/watch?v=dQw4w9WgXcQ",
       "ftp://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "https://www.youtube.com/embed/videoseries?list=PLabcdefghijk",
+      "https://youtu.be/videoseries",
     ]) {
       expect(youtubeEmbed(bad), bad).toBeNull();
     }
@@ -334,6 +337,18 @@ describe("슬라이드 이동", () => {
     expect(slideAdvance(video, false, 3)).toBe("ended");
     // 불러오기에 실패한 동영상은 끝나는 일이 없으므로 시간으로 넘긴다
     expect(slideAdvance(video, true, 3)).toBe("timer");
+  });
+
+  it("slideTimerReady — 이미지는 받아지거나 실패한 뒤에, 나머지는 바로 센다", () => {
+    const image: MediaItem = { kind: "image", src: "https://e.com/a.png" };
+    const video: MediaItem = { kind: "video", src: "https://e.com/a.mp4" };
+    const yt: MediaItem = { kind: "youtube", src: "https://youtu.be/dQw4w9WgXcQ" };
+    expect(slideTimerReady(image, false, false)).toBe(false);
+    expect(slideTimerReady(image, true, false)).toBe(true);
+    expect(slideTimerReady(image, false, true)).toBe(true);
+    expect(slideTimerReady(yt, false, false)).toBe(true);
+    expect(slideTimerReady(video, false, true)).toBe(true);
+    expect(slideTimerReady(undefined, true, false)).toBe(false);
   });
 });
 

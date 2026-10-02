@@ -30,6 +30,7 @@ import {
   isLiveChat,
   remainingChars,
   resolvePending,
+  restoreDraft,
   resolveWelcome,
   shouldSendOnKey,
   type ChatMessage,
@@ -119,6 +120,7 @@ export default function ChatRenderer({ instanceId, widgetId, definition, refresh
     } catch (e) {
       if (gen !== genRef.current) return;
       setMessages((m) => failPending(m));
+      setDraft((current) => restoreDraft(current, text)); // 다시 치지 않도록 보낸 글을 되돌린다(그사이 새로 쓴 글이 없을 때만).
       setErrorText(chatErrorMessage(e, CHAT_DEFAULT_ERROR));
     } finally {
       busyRef.current = false;

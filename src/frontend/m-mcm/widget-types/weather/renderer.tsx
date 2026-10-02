@@ -5,7 +5,7 @@
  * 지점이 둘 이상이면 위쪽 작은 탭으로 고른다(고른 지점만 서버에 묻고, 받은 값은 탭을 오가도 기억한다).
  * 데이터는 widgetExt/weather. 코드 → 이름·아이콘은 _ext/weather-codes, 서식은 _ext/format.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   IconCloud,
   IconCloudFog,
@@ -27,6 +27,14 @@ import { readWeatherConfig, validLocations } from "@/widget-types/_ext/config";
 import { formatHumidity, formatPop, formatRange, formatTemp, formatWind, weekdayLabel } from "@/widget-types/_ext/format";
 import { EXT_CSS, EXT_STYLE_HREF } from "@/widget-types/_ext/styles";
 import type { WeatherResult } from "@/widget-types/_ext/types";
+import {
+  emptyWeatherCache,
+  readWeatherCache,
+  syncWeatherCache,
+  weatherCoordKey,
+  writeWeatherCache,
+  type WeatherCache,
+} from "@/widget-types/_ext/weather-cache";
 import { weatherCodeInfo, type WeatherIconKey } from "@/widget-types/_ext/weather-codes";
 
 const LOAD_ERROR = "날씨 정보를 불러오지 못했습니다";
@@ -43,16 +51,14 @@ const ICONS: Record<WeatherIconKey, Icon> = {
   unknown: IconQuestionMark,
 };
 
-function coordKey(lat: number, lon: number): string {
-  return `${lat},${lon}`;
-}
-
 export default function WeatherWidget({ definition, refreshKey }: WidgetProps) {
   const setStatus = useWidgetStatus();
   const locations = useMemo(() => validLocations(readWeatherConfig(definition)), [definition]);
   const [active, setActive] = useState(0);
   const [attempt, setAttempt] = useState(0);
   const [results, setResults] = useState<Record<string, WeatherResult>>({});
+  // 좌표별로 받아 둔 값 — 탭을 오갈 때 서버를 다시 부르지 않는다. 새로고침(refreshKey)이 바뀌면 비운다.
+  const cacheRef = useRef<WeatherCache<WeatherResult>>(emptyWeatherCache(refreshKey));
 
   // 지점이 줄어 고른 탭이 없어졌으면 마지막 지점으로.
   const idx = Math.max(0, Math.min(active, locations.length - 1));
@@ -67,12 +73,21 @@ export default function WeatherWidget({ definition, refreshKey }: WidgetProps) {
       setStatus({ kind: "ready" });
       return;
     }
+    const key = weatherCoordKey(lat, lon);
+    cacheRef.current = syncWeatherCache(cacheRef.current, refreshKey);
+    const cached = readWeatherCache(cacheRef.current, refreshKey, key);
+    if (cached) {
+      setResults((prev) => (prev[key] === cached ? prev : { ...prev, [key]: cached }));
+      setStatus({ kind: "ready" });
+      return;
+    }
     let cancelled = false;
     setStatus({ kind: "loading" });
     fetchWeather(lat, lon)
       .then((r) => {
         if (cancelled) return;
-        setResults((prev) => ({ ...prev, [coordKey(lat, lon)]: r }));
+        cacheRef.current = writeWeatherCache(cacheRef.current, refreshKey, key, r);
+        setResults((prev) => ({ ...prev, [key]: r }));
         setStatus({ kind: "ready" });
       })
       .catch(() => {
@@ -84,7 +99,7 @@ export default function WeatherWidget({ definition, refreshKey }: WidgetProps) {
     };
   }, [lat, lon, refreshKey, attempt, setStatus]);
 
-  const result = lat === undefined || lon === undefined ? undefined : results[coordKey(lat, lon)];
+  const result = lat === undefined || lon === undefined ? undefined : results[weatherCoordKey(lat, lon)];
   const current = result?.current ?? null;
   const info = weatherCodeInfo(current?.code);
   const NowIcon = ICONS[info.icon];

@@ -2,16 +2,15 @@
 
 /**
  * 링크 모음 편집기(스펙 §6) — 항목 추가·삭제·위아래 이동, 종류(포털 화면·웹 주소) 고르기.
- * - 포털 화면은 내 메뉴(secUser/myMenusTree — 사이드바와 같은 조회)에서 검색해 고른다. 메뉴를 못 받거나 비면 pageId 를 직접 쓴다.
+ * - 포털 화면은 내 메뉴(포털이 받아 둔 secUser/myMenusTree — 추가 조회 없음)에서 검색해 고른다. 메뉴가 없거나 비면 pageId 를 직접 쓴다.
  * - 웹 주소는 http(s) 절대 주소만(입력 즉시 표시). 저장 막기는 onValidate(validateLinkItems)가 맡는다.
  */
 import { useMemo } from "react";
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from "@tabler/icons-react";
 import { Button, ComboBox, Input, Select } from "@dk-oasis/shared/form";
-import { usePortalMenu } from "@dk-oasis/shared/portal-shell";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
-import { menuItemPageId } from "@/lib/portal-menu-store";
+import { menuItemPageId, usePortalMenuItems } from "@/lib/portal-menu-store";
 
 import { readLinksConfig, type LinksConfig } from "../_content/config";
 import { useReportErrors } from "../_content/hooks";
@@ -29,8 +28,6 @@ import {
 import { ContentStyle } from "../_content/styles";
 import { WEB_URL_FORMAT_MESSAGE, isHttpUrl } from "../_content/web";
 
-const MENU_ENDPOINT = { endpoint: "/api/mcm/oasis/secUser/myMenusTree" };
-
 const KIND_OPTIONS = [
   { value: "page", label: "포털 화면" },
   { value: "url", label: "웹 주소" },
@@ -40,9 +37,10 @@ export default function LinksTypeEditor({ value, onChange, onValidate }: WidgetT
   const { items } = readLinksConfig(value);
   useReportErrors(validateLinkItems(items), onValidate);
 
-  const { menu, isLoading, errorMessage } = usePortalMenu(MENU_ENDPOINT);
-  const pageOptions = useMemo(() => (menu ? flattenMenuPages(menu.items, menuItemPageId) : []), [menu]);
-  const manualPage = errorMessage !== null || (!isLoading && pageOptions.length === 0);
+  // 포털이 이미 받아 둔 메뉴를 읽는다(편집기를 열 때마다 /api/auth/me 를 다시 부르면 일시 오류에 강제 로그아웃될 수 있다).
+  const menuItems = usePortalMenuItems();
+  const pageOptions = useMemo(() => (menuItems ? flattenMenuPages(menuItems, menuItemPageId) : []), [menuItems]);
+  const manualPage = pageOptions.length === 0;
 
   const set = (next: LinkItem[]) => onChange({ items: next } satisfies LinksConfig);
   const setKind = (index: number, kind: LinkKind) =>
@@ -120,8 +118,7 @@ export default function LinksTypeEditor({ value, onChange, onValidate }: WidgetT
                       data={pageOptions}
                       value={item.pageId ?? ""}
                       onChange={(pageId) => set(updateLinkItem(items, i, { pageId }))}
-                      placeholder={isLoading ? "메뉴를 불러오는 중입니다" : "화면 검색"}
-                      disabled={isLoading}
+                      placeholder="화면 검색"
                       aria-label={`${n}번째 링크 화면`}
                     />
                   )}
@@ -131,8 +128,8 @@ export default function LinksTypeEditor({ value, onChange, onValidate }: WidgetT
           })}
         </ol>
       )}
-      {manualPage && errorMessage !== null && (
-        <div className="mcm-wt-editor__note">메뉴를 불러오지 못해 화면 ID 를 직접 입력합니다.</div>
+      {manualPage && menuItems === null && (
+        <div className="mcm-wt-editor__note">메뉴를 받지 못해 화면 ID 를 직접 입력합니다.</div>
       )}
       <div>
         <Button size="sm" onClick={() => set(addLinkItem(items))}>

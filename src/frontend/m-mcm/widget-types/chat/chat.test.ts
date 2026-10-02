@@ -13,6 +13,7 @@ import {
   CHAT_MAX_LENGTH,
   CHAT_MAX_LINKS,
   canSend,
+  restoreDraft,
   chatErrorMessage,
   ChatServiceError,
   displayItems,
@@ -86,6 +87,12 @@ describe("글자 수 제한", () => {
     expect(validateDraft("a".repeat(2000))).toBeNull();
     expect(validateDraft(`  ${"a".repeat(2000)}  `)).toBeNull();
     expect(validateDraft("a".repeat(2001))).toBe("2,000자까지 입력할 수 있습니다.");
+  });
+
+  it("restoreDraft — 입력 칸이 비었으면 보낸 글을 되돌리고, 새 글이 있으면 둔다", () => {
+    expect(restoreDraft("", "질문")).toBe("질문");
+    expect(restoreDraft("  \n", "질문")).toBe("질문");
+    expect(restoreDraft("다음 질문", "질문")).toBe("다음 질문");
   });
 
   it("canSend — 보내는 중이거나 검사에 걸리면 false", () => {

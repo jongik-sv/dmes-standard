@@ -19,6 +19,7 @@ import {
   normalizeMediaConfig,
   prevIndex,
   slideAdvance,
+  slideTimerReady,
   youtubeEmbed,
   type MediaFit,
   type MediaItem,
@@ -32,10 +33,11 @@ interface StageMediaProps {
   /** 항목이 여럿일 때만 동영상이 저절로 시작하고, 끝나면 다음으로 넘어간다. */
   slideshow: boolean;
   onFail: () => void;
+  onLoad: () => void;
   onEnded: () => void;
 }
 
-function StageMedia({ item, fit, slideshow, onFail, onEnded }: StageMediaProps) {
+function StageMedia({ item, fit, slideshow, onFail, onLoad, onEnded }: StageMediaProps) {
   const mediaClass = fit === "cover" ? "mwm__media mwm__media--cover" : "mwm__media";
   const title = item.caption?.trim() || undefined;
   if (item.kind === "youtube") {
@@ -70,7 +72,18 @@ function StageMedia({ item, fit, slideshow, onFail, onEnded }: StageMediaProps) 
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element -- 업로드·외부 주소 원본을 그대로 보이는 위젯이라 next/image 최적화를 쓰지 않는다.
-    <img className={mediaClass} src={src} alt={title ?? ""} draggable={false} onError={onFail} />
+    <img
+      className={mediaClass}
+      src={src}
+      alt={title ?? ""}
+      draggable={false}
+      // 이미 받아진(캐시) 이미지는 onLoad 가 이미 지나갔을 수 있어 붙을 때 한 번 확인한다.
+      ref={(el) => {
+        if (el?.complete && el.naturalWidth > 0) onLoad();
+      }}
+      onLoad={onLoad}
+      onError={onFail}
+    />
   );
 }
 
@@ -81,12 +94,14 @@ export default function MediaRenderer({ definition }: WidgetProps) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [failedKey, setFailedKey] = useState<string | null>(null);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
   const current = clampIndex(index, count);
   const item = items[current];
   const itemKey = item ? `${current}:${item.kind}:${item.src}` : "";
   const mode = slideAdvance(item, failedKey === itemKey, count);
   const intervalMs = clampIntervalSec(cfg.intervalSec) * 1000;
+  const timerReady = slideTimerReady(item, loadedKey === itemKey, failedKey === itemKey);
 
   // 항목을 옮길 때마다 실패 표시를 지운다 — 한 바퀴 돌아 다시 오면 다시 불러온다(잠깐의 네트워크 오류가 계속 남지 않게).
   const goTo = useCallback((to: (i: number) => number) => {
@@ -96,12 +111,12 @@ export default function MediaRenderer({ definition }: WidgetProps) {
   const goNext = useCallback(() => goTo((i) => nextIndex(clampIndex(i, count), count)), [goTo, count]);
   const goPrev = useCallback(() => goTo((i) => prevIndex(clampIndex(i, count), count)), [goTo, count]);
 
-  // 시간 넘김 — 항목이 바뀔 때마다(itemKey) 처음부터 다시 센다. 마우스가 올라가 있으면 세지 않는다.
+  // 시간 넘김 — 항목이 바뀔 때마다(itemKey) 처음부터 다시 센다. 마우스가 올라가 있으면 세지 않고, 이미지는 다 받아진 뒤에 센다.
   useEffect(() => {
-    if (mode !== "timer" || paused) return;
+    if (mode !== "timer" || paused || !timerReady) return;
     const timer = window.setTimeout(goNext, intervalMs);
     return () => window.clearTimeout(timer);
-  }, [mode, paused, intervalMs, goNext, itemKey]);
+  }, [mode, paused, timerReady, intervalMs, goNext, itemKey]);
 
   const caption = item?.caption?.trim();
   const multiple = count > 1;
@@ -134,6 +149,7 @@ export default function MediaRenderer({ definition }: WidgetProps) {
               fit={fit}
               slideshow={multiple}
               onFail={() => setFailedKey(itemKey)}
+              onLoad={() => setLoadedKey(itemKey)}
               onEnded={goNext}
             />
           )

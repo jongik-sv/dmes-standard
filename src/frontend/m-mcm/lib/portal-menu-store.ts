@@ -3,7 +3,7 @@
 /**
  * 포털이 이미 받아 둔 "내 메뉴"(secUser/myMenusTree)를 m-mcm 화면이 다시 조회하지 않고 읽게 하는 작은 저장소.
  * - 쓰기: app/portal/page.tsx 가 usePortalMenu 결과를 받을 때마다 publishPortalMenu 로 올린다.
- * - 읽기: 화면은 usePortalMenuPageIds() 로 내가 열 수 있는 화면 pageId 집합을 받는다(받기 전이면 null).
+ * - 읽기: 화면은 usePortalMenuPageIds() 로 내가 열 수 있는 화면 pageId 집합을, usePortalMenuItems() 로 메뉴 트리를 받는다(받기 전이면 null).
  * pageId 규칙은 셸 사이드바와 같다: `${moduleId}:${componentPath}`(그룹/화면) 우선, 없으면 path + pageName.
  * 화면 묶음이 여러 번 실려도 같은 저장소를 쓰도록 globalThis 에 둔다(use-user-button-rbac 와 같은 방식).
  */
@@ -12,6 +12,8 @@ import { composePageName, type PortalShellMenuItem } from "@dk-oasis/shared/port
 
 interface MenuStore {
   pageIds: ReadonlySet<string> | null;
+  /** 메뉴 트리 원본(이름 포함) — 화면 고르기 목록 같은 곳이 다시 조회하지 않고 쓴다. 옛 저장소 객체에는 없을 수 있다. */
+  items?: PortalShellMenuItem[] | null;
   listeners: Set<() => void>;
 }
 
@@ -51,6 +53,7 @@ export function collectMenuPageIds(items: PortalShellMenuItem[]): Set<string> {
 export function publishPortalMenu(items: PortalShellMenuItem[] | null): void {
   const s = store();
   s.pageIds = items ? collectMenuPageIds(items) : null;
+  s.items = items;
   s.listeners.forEach((l) => l());
 }
 
@@ -63,9 +66,15 @@ function subscribe(listener: () => void): () => void {
 }
 
 const getSnapshot = () => store().pageIds;
+const getItemsSnapshot = () => store().items ?? null;
 const getServerSnapshot = () => null;
 
 /** 내가 열 수 있는 화면 pageId 집합(포털이 메뉴를 받기 전이면 null). */
 export function usePortalMenuPageIds(): ReadonlySet<string> | null {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+/** 포털이 받아 둔 내 메뉴 트리(받기 전이면 null). 추가 조회 없이 읽는다. */
+export function usePortalMenuItems(): PortalShellMenuItem[] | null {
+  return useSyncExternalStore(subscribe, getItemsSnapshot, getServerSnapshot);
 }
