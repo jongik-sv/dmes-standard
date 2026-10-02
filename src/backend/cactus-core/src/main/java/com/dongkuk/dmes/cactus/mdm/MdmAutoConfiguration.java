@@ -3,16 +3,8 @@ package com.dongkuk.dmes.cactus.mdm;
 import java.lang.management.ManagementFactory;
 import java.net.http.HttpClient;
 import java.time.Clock;
-import kr.dongkuk.maru.mdm.engine.domain.DefaultDomainValidator;
-import kr.dongkuk.maru.mdm.engine.domain.DomainValidator;
-import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
-import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
-import kr.dongkuk.maru.mdm.engine.rule.RuleEngine;
-import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
-import kr.dongkuk.maru.mdm.engine.spi.EngineLookups;
 import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
-import kr.dongkuk.maru.mdm.engine.spi.MasterLookup;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -77,35 +69,17 @@ public class MdmAutoConfiguration {
         return new MdmDefinitionLookup(service);
     }
 
-    // ── 저장 검증(하위 프로젝트 C spec §6.3) — 엔진은 캐시 전용 조회기(MdmCachedDefinitions)로 만든다. 그 조회기는 상태가 없어 빈마다 따로 만들고,
-    //    DefinitionLookup·CodeLookup 빈으로 등록하지 않는다(그 자리는 MdmDefinitionLookup — 평가 중 MDM 호출 금지, C6).
+    // ── 저장 검증(하위 프로젝트 C spec §6.3) — 검증기만 빈이다. 캐시 전용 엔진(MdmCachedDefinitions 위의 평가기·도메인 검증기·룰 엔진)은 검증기가
+    //    스스로 만들고 MdmEvaluator·DomainValidator·RuleEngine 같은 일반 엔진 타입으로 내놓지 않는다. 내놓으면 ① 모듈이 MdmDefinitionLookup 위에
+    //    만든 엔진 빈(평가 중 MDM 호출 가능)이 @ConditionalOnMissingBean 으로 검증기 엔진을 대신하거나 ② 업무 코드가 주입받은 엔진이 캐시 전용이라
+    //    미리 받지 않은 정의마다 RULE_NOT_FOUND·NOT_DEFINED 로 실패한다(평가 중 MDM 호출 금지 C6·검증 불가 분류 C7 을 빈 배선에 맡기지 않는다).
 
     /** 마루 데이터 대상 MASTER 는 지원하지 않는다(MasterLookup.NONE, spec §6.4). 비즈니스 함수 공급자가 빈으로 있으면 싣는다. */
     @Bean
     @ConditionalOnMissingBean
-    public MdmEvaluator mdmEvaluator(MdmMetaService service, ObjectProvider<FunctionProvider> functions) {
-        MdmCachedDefinitions cached = new MdmCachedDefinitions(service);
-        return new MdmEvaluator(new EngineLookups(cached, cached, CodeEffLookup.NONE, MasterLookup.NONE,
-                functions.getIfAvailable(() -> FunctionProvider.NONE)));
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public DomainValidator mdmDomainValidator(MdmMetaService service, MdmEvaluator evaluator) {
-        return new DefaultDomainValidator(new MdmCachedDefinitions(service), evaluator);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public RuleEngine mdmRuleEngine(MdmMetaService service, MdmEvaluator evaluator) {
-        return new MdmRuleEngine(evaluator, new MdmCachedDefinitions(service));
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public MdmValidator mdmValidator(MdmMetaService service, MdmEvaluator evaluator, DomainValidator domains, RuleEngine rules,
-                                     MdmClientProperties props) {
-        return new MdmValidator(service, evaluator, domains, rules, props.getValidation().getOnUnavailable(), Clock.systemUTC());
+    public MdmValidator mdmValidator(MdmMetaService service, ObjectProvider<FunctionProvider> functions, MdmClientProperties props) {
+        return new MdmValidator(service, functions.getIfAvailable(() -> FunctionProvider.NONE), props.getValidation().getOnUnavailable(),
+                Clock.systemUTC());
     }
 
     @Bean

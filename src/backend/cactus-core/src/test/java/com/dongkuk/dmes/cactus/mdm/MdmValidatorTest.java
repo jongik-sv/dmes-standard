@@ -20,10 +20,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import kr.dongkuk.maru.mdm.engine.domain.DefaultDomainValidator;
-import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
-import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
-import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeCateRow;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeHeader;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeItemRow;
@@ -43,9 +39,7 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleVar;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.SetStatus;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarKind;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarType;
-import kr.dongkuk.maru.mdm.engine.spi.EngineLookups;
 import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
-import kr.dongkuk.maru.mdm.engine.spi.MasterLookup;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -74,10 +68,7 @@ class MdmValidatorTest {
     }
 
     private MdmValidator validator(MdmValidator.OnUnavailable policy) {
-        MdmCachedDefinitions cached = new MdmCachedDefinitions(service);
-        MdmEvaluator evaluator = new MdmEvaluator(new EngineLookups(cached, cached, CodeEffLookup.NONE, MasterLookup.NONE, FunctionProvider.NONE));
-        return new MdmValidator(service, evaluator, new DefaultDomainValidator(cached, evaluator), new MdmRuleEngine(evaluator, cached),
-                policy, clock);
+        return new MdmValidator(service, FunctionProvider.NONE, policy, clock);
     }
 
     // ------------------------------------------------------------------ 정의 도우미

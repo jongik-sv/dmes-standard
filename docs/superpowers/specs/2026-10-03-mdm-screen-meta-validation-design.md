@@ -168,7 +168,7 @@ public class MdmValidator {
 
 ### 6.3 빈과 설정
 
-- `MdmAutoConfiguration`(enabled 일 때): `MdmEvaluator`(캐시 전용 조회기), `DefaultDomainValidator`, `MdmRuleEngine`, `MdmValidator`. 모두 `@ConditionalOnMissingBean`.
+- `MdmAutoConfiguration`(enabled 일 때): `MdmValidator` 하나(`@ConditionalOnMissingBean`). 캐시 전용 조회기 위의 `MdmEvaluator`·`DefaultDomainValidator`·`MdmRuleEngine` 은 검증기가 스스로 만들고 일반 엔진 타입 빈으로 내놓지 않는다(2026-10-03 최종 리뷰 — 모듈이 `MdmDefinitionLookup` 위에 만든 엔진 빈이 검증기에 끼어들거나, 업무 코드가 캐시 전용 엔진을 주입받지 않게).
 - `cactus.mdm.validation.on-unavailable: REJECT`(기본) | `PASS`.
 - `MasterLookup` 은 `NONE` 이다. 지금 MDM 도메인 164건 중 표준식·비즈니스식에 `MASTER` 를 직접 쓴 것은 0건이다(2026-10-03 로컬 mdm.db). CODE 도메인 18건은 마루 코드 대상 자동 `MASTER` 라 `CodeLookup` 으로 간다.
 

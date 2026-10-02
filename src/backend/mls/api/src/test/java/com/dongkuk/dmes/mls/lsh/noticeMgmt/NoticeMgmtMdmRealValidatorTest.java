@@ -26,14 +26,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import kr.dongkuk.maru.mdm.engine.domain.DefaultDomainValidator;
-import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
-import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
-import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
-import kr.dongkuk.maru.mdm.engine.spi.EngineLookups;
 import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
-import kr.dongkuk.maru.mdm.engine.spi.MasterLookup;
-import com.dongkuk.dmes.cactus.mdm.MdmCachedDefinitions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -90,11 +83,7 @@ class NoticeMgmtMdmRealValidatorTest extends MlsTestDb {
         MdmMetaCache cache = new MdmMetaCache(100, Duration.ofMinutes(60), clock);
         cache.clear(0);
         MdmMetaService meta = new MdmMetaService(feed(down, titleLength), cache, clock);
-        MdmCachedDefinitions cached = new MdmCachedDefinitions(meta);
-        MdmEvaluator evaluator = new MdmEvaluator(
-                new EngineLookups(cached, cached, CodeEffLookup.NONE, MasterLookup.NONE, FunctionProvider.NONE));
-        MdmValidator validator = new MdmValidator(meta, evaluator, new DefaultDomainValidator(cached, evaluator),
-                new MdmRuleEngine(evaluator, cached), MdmValidator.OnUnavailable.REJECT, clock);
+        MdmValidator validator = new MdmValidator(meta, FunctionProvider.NONE, MdmValidator.OnUnavailable.REJECT, clock);
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("mdmValidator", validator);
         return new NoticeMgmtService(repository, targetRepository, beans.getBeanProvider(MdmValidator.class));

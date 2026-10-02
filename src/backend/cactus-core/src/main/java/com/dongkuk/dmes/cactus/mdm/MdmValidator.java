@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import kr.dongkuk.maru.mdm.engine.domain.DefaultDomainValidator;
 import kr.dongkuk.maru.mdm.engine.domain.DomainValidator;
 import kr.dongkuk.maru.mdm.engine.domain.DomainValidator.ValidationResult;
 import kr.dongkuk.maru.mdm.engine.domain.EffectiveExpressions;
@@ -23,10 +24,15 @@ import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
+import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
 import kr.dongkuk.maru.mdm.engine.rule.RuleEngine;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
+import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
+import kr.dongkuk.maru.mdm.engine.spi.EngineLookups;
+import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
+import kr.dongkuk.maru.mdm.engine.spi.MasterLookup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +42,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p>순서(§6.2): 행 거르기(삭제 행 건너뜀) → 키 정규화(물리명, 예약 키 제외) → <b>미리 받기</b>(호출자 스레드, 종류마다 묶음 한 번 — 컬럼·룰 세트와
  * 그 룰·식이 참조하는 코드) → 컬럼마다 길이·소수(cactus) → {@link DomainValidator}(엔진) → 룰 세트마다 {@link RuleEngine#evaluateSet}(엔진).
- * 엔진 평가는 캐시 전용 조회기({@link MdmCachedDefinitions})로만 한다 — 평가 중에 MDM 을 부르지 않는다(C6). 평가 중 캐시 부재는 검증 한 번의
+ * 엔진 평가는 캐시 전용 조회기({@link MdmCachedDefinitions})로만 한다 — 평가 중에 MDM 을 부르지 않는다(C6). 그 엔진은 검증기가 스스로 만들고
+ * 빈으로 받지도 내놓지도 않는다(모듈의 엔진 빈과 섞이지 않게). 평가 중 캐시 부재는 검증 한 번의
  * 부재 기록기로 잡아 "검증 불가"로 돌린다(엔진 예외 문구에 기대지 않는다).
  *
  * <p>검증 불가 정책(C7): {@link OnUnavailable#REJECT}(기본)면 {@link #check} 가 {@code MDM_UNAVAILABLE} 로 저장을 막고,
@@ -67,18 +74,31 @@ public class MdmValidator {
     private final MdmExprRefs refs;
 
     /**
-     * @param evaluator 엔진 식 평가기 — 식 텍스트를 AST 로 풀어 참조 코드를 찾을 때 그 설정을 쓴다. {@code domains}·{@code rules} 와 함께 캐시 전용
-     *                  조회기({@link MdmCachedDefinitions})로 만든 것이어야 한다
+     * 캐시 전용 엔진(평가기·도메인 검증기·룰 엔진)을 스스로 만든다 — 모두 {@link MdmCachedDefinitions} 위에서. 엔진을 밖에서 받지 않는 것은 평가 중
+     * MDM 호출 금지(C6)와 캐시 부재 = 검증 불가(C7)를 빈 배선에 맡기지 않기 위해서다: 모듈이 자기 업무 룰용으로 {@code MdmDefinitionLookup} 위에
+     * 만든 엔진(평가 중 MDM 을 부를 수 있다)이 검증기에 끼어들 수 없다.
+     *
+     * @param functions 비즈니스 함수 공급자(없으면 {@link FunctionProvider#NONE}). 마루 데이터 대상 MASTER 는 지원하지 않는다(MasterLookup.NONE, §6.4)
      */
-    public MdmValidator(MdmMetaService service, MdmEvaluator evaluator, DomainValidator domains, RuleEngine rules,
-                        OnUnavailable onUnavailable, Clock clock) {
+    public MdmValidator(MdmMetaService service, FunctionProvider functions, OnUnavailable onUnavailable, Clock clock) {
+        this(service, cacheOnlyEvaluator(service, functions), onUnavailable, clock);
+    }
+
+    private MdmValidator(MdmMetaService service, MdmEvaluator evaluator, OnUnavailable onUnavailable, Clock clock) {
         this.service = Objects.requireNonNull(service, "service");
-        this.evaluator = Objects.requireNonNull(evaluator, "evaluator");
-        this.domains = Objects.requireNonNull(domains, "domains");
-        this.rules = Objects.requireNonNull(rules, "rules");
+        this.evaluator = evaluator;
+        MdmCachedDefinitions cached = new MdmCachedDefinitions(service);
+        this.domains = new DefaultDomainValidator(cached, evaluator);
+        this.rules = new MdmRuleEngine(evaluator, cached);
         this.onUnavailable = onUnavailable == null ? OnUnavailable.REJECT : onUnavailable;
         this.clock = Objects.requireNonNull(clock, "clock");
         this.refs = new MdmExprRefs(evaluator.configuration());
+    }
+
+    private static MdmEvaluator cacheOnlyEvaluator(MdmMetaService service, FunctionProvider functions) {
+        MdmCachedDefinitions cached = new MdmCachedDefinitions(Objects.requireNonNull(service, "service"));
+        return new MdmEvaluator(new EngineLookups(cached, cached, CodeEffLookup.NONE, MasterLookup.NONE,
+                functions == null ? FunctionProvider.NONE : functions));
     }
 
     public OnUnavailable onUnavailable() {

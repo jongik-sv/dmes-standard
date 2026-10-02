@@ -421,8 +421,12 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
   관리 화면 읽기(`entries`·`entry`)는 수명을 연장하지 않는다.
 - 빌드: cactus-core 가 `maru-mdm-engine` 을 api 로 문다. 새 업무 모듈은 settings.gradle 에 `includeBuild('../maru-mdm-engine')` +
   `substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')` 를 둔다(기존 다섯 모듈 선례).
-- 코드에서 쓰기: `MdmDefinitionLookup`(엔진 `DefinitionLookup`·`CodeLookup` 빈)을 주입해 `DefaultDomainValidator`·룰 엔진에 넘긴다.
-  MDM 을 받을 수 없으면 `MdmUnavailableException` 이다. 여러 키는 `MdmMetaService.lookup(type, keys)` 로 한 번에 받는다.
+- 코드에서 쓰기(업무 서비스가 자기 업무 룰을 돌릴 때): `MdmDefinitionLookup`(엔진 `DefinitionLookup`·`CodeLookup` 빈)을 주입해
+  `DefaultDomainValidator`·룰 엔진에 넘긴다. 이 엔진은 평가 중 캐시에 없는 정의를 MDM 에서 받으므로 MDM 을 받을 수 없으면
+  `MdmUnavailableException` 이다. 여러 키는 `MdmMetaService.lookup(type, keys)` 로 한 번에 받는다. **저장 검증은 이 엔진으로 하지 않는다** —
+  [`MdmValidator`](#112-저장-검증mdmvalidator) 는 캐시 전용 엔진(`MdmCachedDefinitions`)을 스스로 만들어 쓰고, 자동 설정은 그 엔진을
+  `MdmEvaluator`·`DomainValidator`·`RuleEngine` 빈으로 내놓지 않는다. 그래서 모듈이 위처럼 만든 엔진을 빈으로 둬도 검증기에 섞이지 않고,
+  반대로 그 타입을 주입받는 코드가 캐시 전용 엔진을 얻는 일도 없다.
 - 엔드포인트 `/api/{module}/mdmMeta/`: `columns`·`domains`(POST, 로그인 사용자 — 화면 메타·툴팁), `status`·`entries`·`entry`(GET)·`load`(POST)는
   SYSADMIN 만(`X-Authenticated-Role`). BFF `m-mcm/proxy.ts` 는 모듈 이름과 무관한 한 규칙(`authOnlyPatterns: /^\/api\/[^/]+\/mdmMeta\//`)으로
   모든 모듈을 로그인 전용으로 연다 — 새 모듈 때 고치지 않는다. `entries` 는 캐시 값을 싣지 않는다(`bizExpr.text` 같은 서버 전용 값이 브라우저로

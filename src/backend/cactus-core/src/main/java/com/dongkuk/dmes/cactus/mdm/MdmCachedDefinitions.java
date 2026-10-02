@@ -27,8 +27,8 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
  * 마루 데이터로 보고 {@code MasterLookup.NONE} 의 거짓을 내 "허용되지 않은 코드"라는 틀린 오류가 된다. 컬럼·룰·룰 세트의 부재는 빈 값이다(엔진이
  * NOT_DEFINED·RULE_NOT_FOUND·SET_NOT_FOUND 로 바꾸고, 검증기는 기록을 보고 검증 불가로 돌린다).
  *
- * <p>상태가 없다(기록기는 스레드 상속 값) — 빈마다 따로 만들어도 된다. {@code DefinitionLookup} 빈으로 등록하지 않는다(그 자리는
- * {@link MdmDefinitionLookup}).
+ * <p>상태가 없다(기록기는 스레드 상속 값). 검증기가 자기 엔진을 만들 때만 쓴다 — {@code DefinitionLookup} 빈으로도, 이것으로 만든 엔진을
+ * 일반 엔진 빈({@code MdmEvaluator}·{@code DomainValidator}·{@code RuleEngine})으로도 등록하지 않는다(그 자리는 {@link MdmDefinitionLookup}).
  */
 public final class MdmCachedDefinitions implements DefinitionLookup, CodeLookup {
 
