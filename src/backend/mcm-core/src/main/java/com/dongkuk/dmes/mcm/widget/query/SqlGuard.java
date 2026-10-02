@@ -26,7 +26,8 @@ import java.util.regex.Pattern;
  * <b>두 사본 모두</b>에 적용하고, 어느 한쪽이라도 어기면 거절한다. 실제로 바인딩할 변수는 Spring 과 같은 해석(식으로 둔 사본)에서 얻는다.
  * <p>
  * 방언마다 따옴표·주석 규칙이 달라 검사가 보는 코드와 DB 가 보는 코드가 어긋날 수 있는 표기(PostgreSQL {@code E'…'}·{@code $$…$$},
- * Oracle {@code q'…'}, 주석 안의 {@code /*} — PostgreSQL·MSSQL 은 주석을 겹쳐 열고 Oracle·SQLite 는 아니다)는 아예 받지 않는다.
+ * Oracle {@code q'…'}, SQLite 백틱 식별자, 주석 안의 {@code /*} — PostgreSQL·MSSQL 은 주석을 겹쳐 열고 Oracle·SQLite 는 아니다)는
+ * 아예 받지 않는다.
  * 닫히지 않은 따옴표·괄호·주석도 거절한다.
  * 실행할 SQL 은 가린 사본이 아니라 <b>원문</b>에서 끝 {@code ;} 만 지운 것이다(리터럴을 살려야 하므로). 감싸지 않고 그대로 실행한다.
  * 이 검사가 1차 방어선이고, 실행기의 읽기 전용·늘 롤백 트랜잭션이 2차 방어선이다(§7.3).
@@ -41,7 +42,7 @@ public final class SqlGuard {
     static final String MSG_MULTI = "문장은 하나만 쓸 수 있습니다";
     static final String MSG_FORBIDDEN = "쓸 수 없는 낱말이 있습니다: ";
     static final String MSG_UNCLOSED = "닫히지 않은 따옴표·괄호·주석이 있습니다";
-    static final String MSG_SPECIAL = "특수 문자열 표기(E'…', q'…', $$…$$)는 쓸 수 없습니다";
+    static final String MSG_SPECIAL = "특수 문자열 표기(E'…', q'…', $$…$$, `…`)는 쓸 수 없습니다";
     static final String MSG_NESTED_COMMENT = "주석 안에 /* 를 다시 쓸 수 없습니다(DB 마다 겹친 주석을 다르게 읽습니다)";
 
     /** 식별자를 이루는 글자(Oracle 의 $·# 포함) — 낱말 경계 판단용. */
@@ -57,10 +58,11 @@ public final class SqlGuard {
 
     /**
      * 이름 붙은 변수 {@code :name}·{@code &name}(Spring 이 둘 다 변수로 바꾼다). 앞 글자가 ':' 인 ':'(PostgreSQL ::text 캐스트)는
-     * 변수가 아니다. 이름 글자는 Spring 처럼 넓게 잡는다({@code :userId.x}·{@code :1} 도 한 덩어리 이름) — 좁게 잡으면
+     * 변수가 아니다. 이름은 Spring {@code NamedParameterUtils}(spring-jdbc 7.0.7) 처럼 공백·구분 글자
+     * {@code "':&,;()|=+-*%/\<>^]} 앞까지로 잡는다({@code :userId.x}·{@code :1}·{@code :{x}} 도 한 덩어리 이름) — 좁게 잡으면
      * 검사는 통과하고 실행 때 'No value supplied' 로 늘 실패하는 SQL 이 생긴다.
      */
-    private static final Pattern VARIABLE = Pattern.compile("((?<!:):|&)([\\p{L}\\p{N}_$#.]+)");
+    private static final Pattern VARIABLE = Pattern.compile("((?<!:):|&)([^\\s\"':&,;()|=+\\-*%/\\\\<>^\\]]+)");
 
     /** PostgreSQL 달러 따옴표 시작($$ 또는 $tag$). */
     private static final Pattern DOLLAR_QUOTE = Pattern.compile("\\$(?:[A-Za-z_][A-Za-z0-9_]*)?\\$");
@@ -162,6 +164,8 @@ public final class SqlGuard {
                         && DOLLAR_QUOTE.matcher(sql).region(i, n).lookingAt()) {
                     throw invalid(MSG_SPECIAL);
                 }
+                // 백틱은 SQLite(MySQL 호환)·Spring 변수 해석이 따옴표로 읽고, 다른 DB 는 아니다 — 리터럴·주석 밖에서는 받지 않는다.
+                if (c == '`') throw invalid(MSG_SPECIAL);
                 out.append(c);
                 i++;
                 continue;

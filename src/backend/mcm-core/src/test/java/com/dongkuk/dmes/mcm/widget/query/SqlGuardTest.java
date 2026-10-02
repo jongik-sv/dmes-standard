@@ -25,7 +25,7 @@ class SqlGuardTest {
     private static final String MULTI = "문장은 하나만 쓸 수 있습니다";
     private static final String EMPTY = "SQL 을 입력해 주세요";
     private static final String UNCLOSED = "닫히지 않은 따옴표·괄호·주석이 있습니다";
-    private static final String SPECIAL = "특수 문자열 표기(E'…', q'…', $$…$$)는 쓸 수 없습니다";
+    private static final String SPECIAL = "특수 문자열 표기(E'…', q'…', $$…$$, `…`)는 쓸 수 없습니다";
     private static final String NESTED = "주석 안에 /* 를 다시 쓸 수 없습니다(DB 마다 겹친 주석을 다르게 읽습니다)";
 
     /** 원문 → 실행할 SQL(끝 ; 만 지우고 앞뒤 공백 정리) → 쓰인 변수(처음 나온 순서, 중복 없음). */
@@ -107,7 +107,12 @@ class SqlGuardTest {
                 arguments("SELECT a FROM t WHERE (f &mask) = 1",
                         "알 수 없는 변수입니다: &mask (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
                 arguments("SELECT :userId.x FROM t",
-                        "알 수 없는 변수입니다: :userId.x (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"));
+                        "알 수 없는 변수입니다: :userId.x (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
+                arguments("SELECT :{userId} FROM t",
+                        "알 수 없는 변수입니다: :{userId} (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
+                // 백틱은 SQLite·Spring 만 따옴표로 읽는다 — 리터럴 경계가 갈리지 않게 받지 않는다
+                arguments("SELECT `a` FROM t", SPECIAL),
+                arguments("SELECT `'` FROM t; SELECT 2 --'", SPECIAL));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
