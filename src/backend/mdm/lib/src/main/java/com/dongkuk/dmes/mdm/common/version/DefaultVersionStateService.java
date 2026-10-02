@@ -206,13 +206,14 @@ public class DefaultVersionStateService implements VersionStateService {
     /**
      * 메타 캐시 무효화(spec 2026-10-02 §3.3) — 확정·확정 취소는 룰·코드·룰 세트(D-144 2단계) 공통이라 여기 한 곳에서 기록한다. 호출하는 쪽
      * ({@code RuleConfirmService}·{@code RuleSetConfirmService}·{@code RuleSetVersionService} 등)에 또 걸면 이중 기록이다. DRAFT 삭제는 RELEASED 를
-     * 바꾸지 않아 기록하지 않는다.
+     * 바꾸지 않아 기록하지 않는다. switch 식이라 {@code VersionTarget} 에 대상이 늘면(예: 레이아웃) 여기서 컴파일이 깨져 기록 누락을 막는다.
      */
     private void record(VersionRef ref) {
-        switch (ref.target()) {
-            case BUSINESS_RULE -> recorder.rule(ref.objectId());
-            case MASTER_CODE -> recorder.code(ref.objectId());
-            case RULE_SET -> recorder.ruleSet(ref.objectId());
-        }
+        Runnable write = switch (ref.target()) {
+            case BUSINESS_RULE -> () -> recorder.rule(ref.objectId());
+            case MASTER_CODE -> () -> recorder.code(ref.objectId());
+            case RULE_SET -> () -> recorder.ruleSet(ref.objectId());
+        };
+        write.run();
     }
 }
