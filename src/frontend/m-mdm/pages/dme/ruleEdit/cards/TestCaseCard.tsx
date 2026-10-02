@@ -4,17 +4,21 @@
  * 카드 ⑥ 테스트 케이스(TSK-08-04 design §6.6·§6.7, 시안 H7). `TB_MDM_RULE_TEST_CASE` 는 버전과 무관하다 — view 의 `testCases` 를 그린다.
  *
  * "모두 실행" 은 값 테스트 카드(④)가 고른 대상·입력(`valueTestInput`)에 `runCases` 를 실어 한 번 돌리고, 케이스마다 서버 비교 결과로
- * 배지("실행만"/"통과"/"실패 · 불일치 키")를 보인다(I24 — 비교는 서버가 결과 변수 타입으로 한다). "불러오기" 는 케이스 입력을 ④ 입력 칸에
- * 채운다. "수정" 은 팝업에서 이름·설명·입력·기대 JSON 을 고친다. "기대값 갱신" 은 마지막 결과로 기대 JSON 을 다시 쓰고, "삭제" 는 한 번 더 눌러야 보낸다. 쓰기는 row_version 조건(MDM001)이고 뒤에
- * view 를 다시 불러온다.
+ * 배지("실행만"/"통과"/"실패 · 불일치 키")를 보인다(I24 — 비교는 서버가 결과 변수 타입으로 한다).
  *
- * "경계값 생성" 은 "모두 실행" 과 같은 대상의 표·변수와 ④ 입력으로 경계값 후보(`planBoundaryCases`, 서버 안 부름)를 만들어
+ * 케이스 동작은 표 맨 앞 체크 칸으로 고른 케이스에 머리글 버튼으로 한다. "불러오기"(1건)는 케이스 입력을 ④ 입력 칸에 채우고,
+ * "실행" 은 고른 케이스를 `caseIds` 로 한 요청에 돌린다. "수정"(1건)은 팝업에서 이름·설명·입력·기대 JSON 을 고친다. "복사"·"기대값 갱신"
+ * (마지막 결과가 OK 인 것만)·"삭제"(확인창) 는 한 건씩 차례로 보내고 실패한 건의 사유를 모아 보인다. 쓰기는 row_version 조건(MDM001)이고,
+ * 묶음 하나를 쓰기 한 번(`runWrite`)으로 감싸 view 를 한 번만 다시 불러온다. 체크는 caseId 로 들고 view 에서 사라진 케이스는 빼며, 룰이 바뀌면 비운다.
+ *
+ * "경계값 생성" 은 "모두 실행" 과 같은 대상의 표·변수와 ④ 입력으로 경계값 후보(`planBoundaryCases` — 서버는 결과 열 그룹의 열 조건 파싱에만 부른다)를 만들어
  * `BoundaryCaseModal` 에서 골라 실행·저장하게 한다. 저장 묶음은 쓰기 한 번(`runWrite`)으로 감싸 view 를 한 번만 다시 불러온다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { copyTestCase, deleteTestCase, runValueTest, saveTestCase } from "../api";
 import type { RuleEditCardProps } from "../cards";
@@ -22,8 +26,9 @@ import { useRuleWorkbench } from "../state/workbench-context";
 import type { DraftCaseResult, TestCaseView, ValueTestCaseResult, ValueTestResult } from "../types";
 import { caseBadge, caseBadgeCss as badgeCss, expectedFromResult, mismatchText, type CaseBadge, type CaseEditFields } from "../value-test/case-model";
 import { mergeMissingInputKeys } from "../value-test/test-input";
-import { planBoundaryCases } from "../value-test/boundary-cases";
-import { emptyResultInputs } from "../value-test/boundary-run";
+import { serverParse } from "../expr/parse-expr";
+import { planBoundaryCases, type GroupCondColumn } from "../value-test/boundary-cases";
+import { emptyResultInputs, saveSequential } from "../value-test/boundary-run";
 import { bodyTable, defaultRowIdOf, prepareRun, resolveTarget, targetLabel, targetOptions, useTargetView } from "../value-test/run-request";
 import { BoundaryCaseModal, type BoundarySession } from "./BoundaryCaseModal";
 import { CardFrame, MutedText } from "./CardFrame";
@@ -45,17 +50,7 @@ function errorText(r: ValueTestCaseResult): string {
   return (r.errors ?? []).map((e) => e.message || e.code).join(" · ");
 }
 
-/** 셀 버튼이 부르는 동작 — 열 정의를 렌더마다 새로 만들지 않도록 ref 로 넘긴다. 케이스는 누른 순간의 최신 값으로 찾는다. */
-interface CaseActions {
-  load: (caseId: number) => void;
-  runOne: (caseId: number) => void;
-  copy: (caseId: number) => void;
-  edit: (caseId: number) => void;
-  updateExpected: (caseId: number) => void;
-  remove: (caseId: number) => void;
-}
-
-/** 케이스 표 한 행. ag-grid 는 칸 값이 바뀐 셀만 다시 그리므로, 버튼 상태·결과 표시는 글자 칸 값(`actions`·`result`)에 담는다. */
+/** 케이스 표 한 행. ag-grid 는 칸 값이 바뀐 셀만 다시 그리므로, 결과 표시는 글자 칸 값(`result`)에 담는다. */
 interface CaseRow {
   caseId: number;
   name: string;
@@ -67,17 +62,11 @@ interface CaseRow {
   badge: CaseBadge | null;
   mismatches: string;
   errors: string;
-  actions: string;
-  runDisabled: boolean;
-  runLabel: string;
-  writeDisabled: boolean;
-  updateDisabled: boolean;
-  confirmingDelete: boolean;
 }
 
-// 열은 `columnSizing="fit"` + 작은 `minWidth` 로 카드 폭에 맞춰 줄인다(RuleListGrid 선례) — 열 합이 카드보다 넓으면 ag-grid 가
-// 가로로 보이지 않는 동작 열을 그리지 않는다. 동작 열 minWidth 는 버튼 여섯 개가 잘리지 않는 폭이다.
-function caseColumns(resultLabel: string, actions: { current: CaseActions | null }): GridColumn[] {
+// 열은 `columnSizing="fit"` + 작은 `minWidth` 로 카드 폭에 맞춰 줄인다(RuleListGrid 선례). 맨 앞 체크 칸은 `selectable` 이 붙인다.
+// 남는 폭은 결과 열이 가져간다(불일치 키·오류 문장이 길다).
+function caseColumns(resultLabel: string): GridColumn[] {
   return [
     { key: "caseId", header: "case_id", width: 70, minWidth: 60 },
     {
@@ -92,13 +81,13 @@ function caseColumns(resultLabel: string, actions: { current: CaseActions | null
         );
       },
     },
-    { key: "inputJson", header: "입력", width: 200, minWidth: 120, render: (v) => <code>{String(v)}</code> },
+    { key: "inputJson", header: "입력", width: 220, minWidth: 120, render: (v) => <code>{String(v)}</code> },
     {
-      key: "expectedJson", header: "기대", width: 160, minWidth: 100,
+      key: "expectedJson", header: "기대", width: 180, minWidth: 100,
       render: (v) => (v ? <code>{String(v)}</code> : <MutedText>(기대값 없음)</MutedText>),
     },
     {
-      key: "result", header: `결과(${resultLabel})`, width: 200, minWidth: 120,
+      key: "result", header: `결과(${resultLabel})`, width: 260, minWidth: 140,
       render: (_v, row) => {
         const r = row as unknown as CaseRow;
         if (!r.badge) return <MutedText>-</MutedText>;
@@ -110,35 +99,6 @@ function caseColumns(resultLabel: string, actions: { current: CaseActions | null
             {r.mismatches && <MutedText> {r.mismatches}</MutedText>}
             {r.errors && <span style={{ color: "var(--color-danger)" }}> {r.errors}</span>}
           </>
-        );
-      },
-    },
-    {
-      key: "actions", header: "동작", width: 330, minWidth: 330, tooltip: false,
-      render: (_v, row) => {
-        const r = row as unknown as CaseRow;
-        const id = r.caseId;
-        return (
-          <span style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
-            <Button size="mini" onClick={() => actions.current?.load(id)}>
-              불러오기
-            </Button>
-            <Button size="mini" disabled={r.runDisabled} data-testid={`tc-run-${id}`} onClick={() => actions.current?.runOne(id)}>
-              {r.runLabel}
-            </Button>
-            <Button size="mini" disabled={r.writeDisabled} data-testid={`tc-copy-${id}`} onClick={() => actions.current?.copy(id)}>
-              복사
-            </Button>
-            <Button size="mini" disabled={r.writeDisabled} data-testid={`tc-edit-${id}`} onClick={() => actions.current?.edit(id)}>
-              수정
-            </Button>
-            <Button size="mini" disabled={r.updateDisabled} onClick={() => actions.current?.updateExpected(id)}>
-              기대값 갱신
-            </Button>
-            <Button size="mini" variant={r.confirmingDelete ? "danger" : "default"} disabled={r.writeDisabled} onClick={() => actions.current?.remove(id)}>
-              {r.confirmingDelete ? "삭제 확인" : "삭제"}
-            </Button>
-          </span>
         );
       },
     },
@@ -162,17 +122,44 @@ function asResult(c: ValueTestCaseResult): ValueTestResult {
 export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEditCardProps) {
   const { testRun, tableDraft, valueTestInput, setTestRun, loadCase } = useRuleWorkbench();
   const ruleId = view.rule.maruRuleId;
-  const cases: TestCaseView[] = view.testCases ?? [];
+  // 표 데이터(`rows`)의 재료는 메모한다 — AgDataGrid 의 제어형 선택 동기화는 `data` 가 바뀔 때마다 돌고, ag-grid 는 선택 알림을
+  // setTimeout 으로 미루므로, 관련 없는 이유로 다시 그릴 때마다 새 배열을 넘기면 알림 전에 동기화가 방금 한 체크를 되돌린다.
+  const cases = useMemo<TestCaseView[]>(() => view.testCases ?? [], [view.testCases]);
   const [running, setRunning] = useState(false);
-  const [runningCase, setRunningCase] = useState<number | null>(null);
+  const [runningSelected, setRunningSelected] = useState(false);
+  const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  // 묶음 쓰기(복사·기대값 갱신·삭제)에서 실패한 건의 사유 — view 를 다시 불러온 뒤에 보인다.
+  const [writeError, setWriteError] = useState<string | null>(null);
+  const { showMessage } = useMessage();
+  // 체크한 케이스 — 룰과 함께 들어 룰이 바뀌면 빈 선택으로 본다(케이스 번호는 룰마다 겹칠 수 있다).
+  const [selection, setSelection] = useState<{ ruleId: string; ids: number[] }>({ ruleId, ids: [] });
+  // 실제로 쓰는 선택은 지금 view 에 남은 케이스만이다 — 삭제·다른 사람의 변경으로 사라진 caseId 는 뺀다.
+  const selectedIds = useMemo(() => {
+    if (selection.ruleId !== ruleId) return [];
+    const live = new Set((view.testCases ?? []).map((c) => c.caseId));
+    return selection.ids.filter((id) => live.has(id));
+  }, [selection, ruleId, view.testCases]);
+  // 상태에서도 정리한다 — 사라졌던 케이스가 다시 와도 저절로 체크되지 않게. 바뀐 게 없으면 같은 객체를 돌려 다시 그리지 않는다.
+  useEffect(() => {
+    setSelection((prev) => {
+      if (prev.ruleId !== ruleId) return { ruleId, ids: [] };
+      const live = new Set((view.testCases ?? []).map((c) => c.caseId));
+      const keep = prev.ids.filter((id) => live.has(id));
+      return keep.length === prev.ids.length ? prev : { ruleId, ids: keep };
+    });
+  }, [ruleId, view.testCases]);
+  useEffect(() => setWriteError(null), [ruleId]);
   // 수정 팝업 대상과 열 때의 칸 — [수정]을 누른 순간 한 번 고정한다(열려 있는 동안 ④ 입력 줄이 늦게 바뀌어도 고치던 칸을 덮지 않게).
   const [editing, setEditing] = useState<{ c: TestCaseView; initial: CaseEditFields } | null>(null);
   // 경계값 후보 팝업 — [경계값 생성] 을 누른 순간의 후보·대상으로 고정한다. 닫으면 null(팝업 언마운트로 진행 중 실행을 멈춘다).
   const [boundary, setBoundary] = useState<BoundarySession | null>(null);
   const [boundaryError, setBoundaryError] = useState<string | null>(null);
   const boundarySeq = useRef(0);
+  // [경계값 생성] 이 열 조건을 서버 파싱으로 받는 중. 받는 사이 룰이 바뀌면 결과를 버린다(ruleRef).
+  const [boundaryPreparing, setBoundaryPreparing] = useState(false);
+  const ruleRef = useRef(ruleId);
+  ruleRef.current = ruleId;
   // 팝업이 열린 채 룰이 바뀌면(룰 고르기·대상 이벤트) 닫는다 — 언마운트로 진행 중 실행·저장도 멈춘다. 저장은 세션의 룰로만 한다.
   useEffect(() => {
     setBoundary((prev) => (prev && prev.ruleId !== ruleId ? null : prev));
@@ -185,7 +172,8 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
   const choice = input ? { target: input.target, ver: input.ver } : fallback;
 
   const run = testRun && testRun.ruleId === ruleId ? testRun : null;
-  const byCase = new Map((run?.result.cases ?? []).map((c) => [c.caseId, c] as const));
+  const runResult = run?.result;
+  const byCase = useMemo(() => new Map((runResult?.cases ?? []).map((c) => [c.caseId, c] as const)), [runResult]);
   const { def } = useTargetView(view, run ? { target: run.target, ver: run.ver } : null);
   // 수정 팝업의 기대 폼 — 결과 변수와 hit 로 고를 행은 값 테스트가 고른 대상 정의의 것(편집본이면 편집 중인 표)이다.
   const { def: choiceDef } = useTargetView(view, choice);
@@ -214,23 +202,49 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
     }
   }, [choice, view, tableDraft, input, setTestRun]);
 
-  const handleUpdateExpected = useCallback(
-    async (c: TestCaseView, r: ValueTestCaseResult) => {
-      const expected = expectedFromResult(asResult(r), def?.vars ?? view.vars, null);
-      if (!expected) return;
-      await runWrite(() =>
-        saveTestCase(ruleId, {
-          caseId: c.caseId,
-          rowVersion: c.rowVersion,
-          caseName: c.caseName,
-          inputJson: c.inputJson,
-          expectedJson: expected,
-          description: c.description ?? null,
-        }),
-      );
+  // 묶음 쓰기 — 한 건씩 차례로 보내고(실패해도 나머지를 보낸다) 쓰기 한 번으로 감싸 view 를 한 번만 다시 불러온다.
+  // 실패한 건은 사유를 모아 다시 불러온 뒤에 보인다.
+  const writeEach = useCallback(
+    async (label: string, list: TestCaseView[], write: (c: TestCaseView) => Promise<unknown>) => {
+      if (list.length === 0) return;
+      const failed: string[] = [];
+      setWriteError(null);
+      setWriting(true);
+      try {
+        await runWrite(() =>
+          saveSequential(list, write, (c, err) => {
+            if (err) failed.push(`${c.caseName}(case_id ${c.caseId}): ${err}`);
+          }),
+        );
+      } finally {
+        setWriting(false);
+      }
+      if (failed.length > 0) setWriteError(`케이스 ${failed.length}건의 ${label}에 실패했습니다.\n${failed.join("\n")}`);
     },
-    [def, view.vars, runWrite, ruleId],
+    [runWrite],
   );
+
+  // 기대값 갱신에 쓸 기대 JSON — 마지막 결과가 OK 인 케이스만 만든다(판정 오류·결과 없음은 null).
+  const expectedOf = (c: TestCaseView): string | null => {
+    const r = byCase.get(c.caseId);
+    return r && r.outcome === "OK" ? expectedFromResult(asResult(r), def?.vars ?? view.vars, null) : null;
+  };
+
+  const handleUpdateExpected = (list: TestCaseView[]) => {
+    // 기대 JSON 은 누른 순간의 결과로 고정한다. 결과가 OK 가 아닌 케이스는 보내지 않는다.
+    const expected = new Map(list.map((c) => [c.caseId, expectedOf(c)] as const));
+    const targets = list.filter((c) => expected.get(c.caseId) != null);
+    return writeEach("기대값 갱신", targets, (c) =>
+      saveTestCase(ruleId, {
+        caseId: c.caseId,
+        rowVersion: c.rowVersion,
+        caseName: c.caseName,
+        inputJson: c.inputJson,
+        expectedJson: expected.get(c.caseId)!,
+        description: c.description ?? null,
+      }),
+    );
+  };
 
   const handleEdit = useCallback(
     async (c: TestCaseView, f: CaseEditFields) => {
@@ -262,22 +276,22 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
     [choice, view, tableDraft],
   );
 
-  // "실행"(이 케이스만) — 케이스가 가진 입력 JSON 으로 그 케이스 하나만 판정한다.
-  // 값을 테스트 카드(④) 의 입력이 아니라 케이스의 저장된 입력을 쓴다(그게 케이스이므로).
+  // "실행"(체크한 케이스) — 고른 케이스를 `caseIds` 로 실어 요청 한 번에 돌린다. 서버는 케이스마다 저장된 입력으로 판정하고,
   // 기대값 비교는 서버 RuleCaseJudge 가 해 "모두 실행" 과 배지 기준이 같다.
-  const handleRunOne = useCallback(
-    async (c: TestCaseView) => {
-      if (!choice) return;
-      const prepared = prepareRun(view, choice, tableDraft, c.inputJson, true, [c.caseId]);
-      setRunningCase(c.caseId);
+  // 요청의 입력은 첫 케이스의 입력이다 — 1건이면 ⑤ 에 그 케이스 입력의 판정을 보이고, 여러 건이면 "모두 실행" 처럼 케이스 요약만 보인다.
+  const handleRunSelected = useCallback(
+    async (list: TestCaseView[]) => {
+      if (!choice || list.length === 0) return;
+      const prepared = prepareRun(view, choice, tableDraft, list[0].inputJson, true, list.map((c) => c.caseId));
+      setRunningSelected(true);
       setError(null);
       try {
         const result = await runValueTest(prepared.request);
-        setTestRun({ ...prepared.run, result });
+        setTestRun(list.length === 1 ? { ...prepared.run, result } : { ...prepared.run, result, casesOnly: true });
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
-        setRunningCase(null);
+        setRunningSelected(false);
       }
     },
     [choice, view, tableDraft, setTestRun],
@@ -294,60 +308,96 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
     [input?.fields],
   );
 
-  const handleCopy = useCallback(
-    async (c: TestCaseView) => {
+  const handleCopy = (list: TestCaseView[]) =>
+    writeEach("복사", list, (c) => {
       // 원본 값을 그대로 복제한다. 복사본에도 지금 계약의 없는 키는 null 로 채운다.
       const filled = caseInput(c);
-      await runWrite(() =>
-        copyTestCase(ruleId, {
-          ...c,
-          caseName: filled.caseName,
-          description: filled.description,
-          inputJson: filled.inputJson,
-          expectedJson: filled.expectedJson,
-        }),
-      );
-    },
-    [caseInput, runWrite, ruleId],
-  );
+      return copyTestCase(ruleId, {
+        ...c,
+        caseName: filled.caseName,
+        description: filled.description,
+        inputJson: filled.inputJson,
+        expectedJson: filled.expectedJson,
+      });
+    });
 
-  const handleDelete = useCallback(
-    async (c: TestCaseView) => {
-      if (confirmDelete !== c.caseId) {
-        setConfirmDelete(c.caseId);
-        return;
-      }
-      setConfirmDelete(null);
-      await runWrite(() => deleteTestCase(ruleId, c.caseId, c.rowVersion));
-    },
-    [confirmDelete, runWrite, ruleId],
-  );
+  // [삭제] — 확인창(VersionActionBar 와 같은 shared 확인창)을 거친다. 대상과 row_version 은 누른 순간으로 고정한다.
+  const confirmDeleteSelected = (list: TestCaseView[]) => {
+    if (list.length === 0) return;
+    const rid = ruleId;
+    showMessage({
+      title: "확인",
+      message: `선택한 케이스 ${list.length}건을 삭제하시겠습니까?`,
+      alertType: "confirm",
+      onConfirm: () => void writeEach("삭제", list, (c) => deleteTestCase(rid, c.caseId, c.rowVersion)),
+    });
+  };
 
-  const canWrite = canDo("save") && !busy && view.rule.sourceKind === "MDM";
+  // 외부 원천 룰도 케이스는 쓴다(D-145) — 케이스는 버전과 무관한 검증 자료라 원천 조건을 보지 않는다.
+  const canWrite = canDo("save") && !busy;
   // 다른 버전 대상이면 그 버전 정의를 받은 뒤에만 후보를 만든다(받는 중에 지금 버전 행으로 만들지 않게).
   const boundaryReady = choice != null && (choice.target === "BODY" || choiceDef != null);
 
-  // [경계값 생성] — "모두 실행" 과 같은 대상의 표·변수로 후보를 만든다. 서버는 부르지 않는다.
-  const handleBoundary = () => {
-    if (!choice || !boundaryReady) return;
+  // [경계값 생성] — "모두 실행" 과 같은 대상의 표·변수로 후보를 만든다. 결과 열 그룹의 열 조건만 서버 파싱으로 AST 를 받는다(불변 9).
+  const handleBoundary = async () => {
+    if (!choice || !boundaryReady || boundaryPreparing) return;
     setBoundaryError(null);
+    const body = choice.target === "BODY";
+    const vars = body ? view.vars : choiceDef!.vars;
+    // 결과 열 그룹 — resGrp 가 같은 결과 변수를 var seq 순으로 모은다. 열 조건이 하나도 없는 그룹은 뺀다.
+    const metaOf = new Map(((body ? view.varMeta : choiceDef!.varMeta) ?? []).map((m) => [m.varId, m] as const));
+    const grouped = new Map<string, Array<{ v: (typeof vars)[number]; text: string }>>();
+    for (const v of vars.filter((x) => x.varKind === "RESULT").sort((a, b) => a.seq - b.seq || a.varId - b.varId)) {
+      const m = metaOf.get(v.varId);
+      const grp = m?.resGrp?.trim();
+      if (!grp) continue;
+      grouped.set(grp, [...(grouped.get(grp) ?? []), { v, text: (m!.grpCond ?? "").trim() }]);
+    }
+    const withCond = [...grouped].filter(([, cols]) => cols.some((c) => c.text !== ""));
+    const texts = [...new Set(withCond.flatMap(([, cols]) => cols.map((c) => c.text)).filter((t) => t !== ""))];
+    const token = ++boundarySeq.current;
+    const startRule = ruleId;
+    let parsed: Array<Pick<GroupCondColumn, "ast" | "supported">> = [];
+    if (texts.length > 0) {
+      setBoundaryPreparing(true);
+      try {
+        // 하나가 실패해도 나머지는 쓴다 — 실패·problems 는 화면에서 평가하지 못하는 열 조건(supported:false)이다.
+        const results = await Promise.all(texts.map((t) => serverParse(t, "RULE_GRP_COND").then((r) => r, () => null)));
+        parsed = results.map((r) =>
+          r && r.ast && !(r.problems?.length ?? 0)
+            ? { ast: r.ast as unknown as GroupCondColumn["ast"], supported: r.supported }
+            : { ast: null, supported: false },
+        );
+      } finally {
+        setBoundaryPreparing(false);
+      }
+      if (boundarySeq.current !== token || ruleRef.current !== startRule) return;
+    }
+    const astOf = new Map(texts.map((t, i) => [t, parsed[i]] as const));
+    const groupConds = withCond.map(([group, cols]) => ({
+      group,
+      columns: cols.map(({ v, text }) => ({
+        varId: v.varId,
+        name: v.varName || v.label || `결과 열 ${v.seq}`,
+        seq: v.seq,
+        ...(text === "" ? { ast: null, supported: true } : astOf.get(text)!),
+      })),
+    }));
     try {
-      const body = choice.target === "BODY";
       const rows = body ? bodyTable(view, choice.ver, tableDraft).rows : choiceDef!.rows;
-      const vars = body ? view.vars : choiceDef!.vars;
       const baseInput = inputObject(input?.inputJson);
       const plan = planBoundaryCases({
         vars,
         rows,
         baseInput,
         existingInputs: cases.map((c) => c.inputJson),
+        groupConds,
       });
       // 입력 계약 이름은 카드 ④ 가 같은 대상으로 계산해 올린 입력 줄을 쓴다(④ 가 없으면 경고하지 않는다).
       const emptyInputs = emptyResultInputs((input?.fields ?? []).map((f) => f.name), vars, baseInput);
       const base = prepareRun(view, choice, tableDraft, "{}").request;
-      boundarySeq.current += 1;
       setBoundary({
-        id: boundarySeq.current,
+        id: token,
         ruleId,
         plan,
         vars,
@@ -362,78 +412,73 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
   };
   const resultLabel = run ? targetLabel(run) : choice ? targetLabel(choice) : "-";
 
-  const actions = useRef<CaseActions | null>(null);
-  const caseOf = (id: number) => cases.find((c) => c.caseId === id);
-  actions.current = {
-    load: (id) => {
-      const c = caseOf(id);
-      if (c) loadCase(ruleId, c.inputJson);
-    },
-    runOne: (id) => {
-      const c = caseOf(id);
-      if (c) void handleRunOne(c);
-    },
-    copy: (id) => {
-      const c = caseOf(id);
-      if (c) void handleCopy(c);
-    },
-    edit: (id) => {
-      const c = caseOf(id);
-      setEditing(c ? { c, initial: caseInput(c) } : null);
-    },
-    updateExpected: (id) => {
-      const c = caseOf(id);
-      const r = byCase.get(id);
-      if (c && r) void handleUpdateExpected(c, r);
-    },
-    remove: (id) => {
-      const c = caseOf(id);
-      if (c) void handleDelete(c);
-    },
-  };
-  const columns = useMemo(() => caseColumns(resultLabel, actions), [resultLabel]);
+  const columns = useMemo(() => caseColumns(resultLabel), [resultLabel]);
 
-  const runBlocked = !canDo("execute") || busy || running || !choice || runningCase != null;
-  const rows: CaseRow[] = cases.map((c) => {
-    const r = byCase.get(c.caseId);
-    const badge = r ? caseBadge(r) : null;
-    const mismatches = r ? mismatchText(r) : "";
-    const errors = r ? errorText(r) : "";
-    const runLabel = runningCase === c.caseId ? "실행 중..." : "실행";
-    const updateDisabled = !canWrite || !r || r.outcome !== "OK";
-    const confirmingDelete = confirmDelete === c.caseId;
-    return {
-      caseId: c.caseId,
-      name: c.description ? `${c.caseName} · ${c.description}` : c.caseName,
-      caseName: c.caseName,
-      description: c.description ?? "",
-      inputJson: c.inputJson,
-      expectedJson: c.expectedJson ?? "",
-      result: badge ? [badge.text, mismatches, errors].filter(Boolean).join(" ") : "",
-      badge,
-      mismatches,
-      errors,
-      actions: [runBlocked, runLabel, canWrite, updateDisabled, confirmingDelete].join("|"),
-      runDisabled: runBlocked,
-      runLabel,
-      writeDisabled: !canWrite,
-      updateDisabled,
-      confirmingDelete,
-    };
-  });
+  const runBlocked = !canDo("execute") || busy || running || !choice || runningSelected;
+  // 머리글 버튼의 대상 — 체크한 케이스를 표 순서대로.
+  const selectedSet = new Set(selectedIds);
+  const selectedCases = cases.filter((c) => selectedSet.has(c.caseId));
+  const single = selectedCases.length === 1 ? selectedCases[0] : null;
+  const updatable = selectedCases.filter((c) => expectedOf(c) != null);
+  const writeBlocked = !canWrite || writing;
+  const rows = useMemo<CaseRow[]>(
+    () =>
+      cases.map((c) => {
+        const r = byCase.get(c.caseId);
+        const badge = r ? caseBadge(r) : null;
+        const mismatches = r ? mismatchText(r) : "";
+        const errors = r ? errorText(r) : "";
+        return {
+          caseId: c.caseId,
+          name: c.description ? `${c.caseName} · ${c.description}` : c.caseName,
+          caseName: c.caseName,
+          description: c.description ?? "",
+          inputJson: c.inputJson,
+          expectedJson: c.expectedJson ?? "",
+          result: badge ? [badge.text, mismatches, errors].filter(Boolean).join(" ") : "",
+          badge,
+          mismatches,
+          errors,
+        };
+      }),
+    [cases, byCase],
+  );
 
   return (
     <CardFrame
       title="⑥ 테스트 케이스"
       testId="rule-card-test-cases"
       right={
-        <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--spacing-sm)" }}>
+        <span style={{ display: "inline-flex", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: "var(--spacing-sm)" }}>
           <span style={{ fontWeight: 400, color: "var(--color-text-secondary)" }}>TB_MDM_RULE_TEST_CASE · 버전과 무관</span>
+          <span data-testid="tc-selected-count" style={{ fontWeight: 400 }}>
+            선택 {selectedCases.length}건
+          </span>
+          {/* 체크한 케이스 대상 버튼 */}
+          <Button size="sm" data-testid="tc-load" disabled={!single} onClick={() => single && loadCase(ruleId, single.inputJson)}>
+            불러오기
+          </Button>
+          <Button size="sm" data-testid="tc-run" disabled={runBlocked || selectedCases.length === 0} onClick={() => void handleRunSelected(selectedCases)}>
+            {runningSelected ? "실행 중..." : "실행"}
+          </Button>
+          <Button size="sm" data-testid="tc-copy" disabled={writeBlocked || selectedCases.length === 0} onClick={() => void handleCopy(selectedCases)}>
+            복사
+          </Button>
+          <Button size="sm" data-testid="tc-edit" disabled={writeBlocked || !single} onClick={() => single && setEditing({ c: single, initial: caseInput(single) })}>
+            수정
+          </Button>
+          <Button size="sm" data-testid="tc-update-expected" disabled={writeBlocked || updatable.length === 0} onClick={() => void handleUpdateExpected(updatable)}>
+            기대값 갱신
+          </Button>
+          <Button size="sm" data-testid="tc-delete" disabled={writeBlocked || selectedCases.length === 0} onClick={() => confirmDeleteSelected(selectedCases)}>
+            삭제
+          </Button>
+          <span aria-hidden style={{ alignSelf: "stretch", width: 1, background: "var(--color-border)" }} />
           <Button size="sm" disabled={!canDo("execute") || busy || running || !choice || cases.length === 0} onClick={() => void handleRunAll()}>
             모두 실행
           </Button>
-          <Button size="sm" data-testid="tc-boundary" disabled={!canWrite || !boundaryReady} onClick={handleBoundary}>
-            경계값 생성
+          <Button size="sm" data-testid="tc-boundary" disabled={!canWrite || !boundaryReady || boundaryPreparing} onClick={() => void handleBoundary()}>
+            {boundaryPreparing ? "준비 중…" : "경계값 생성"}
           </Button>
         </span>
       }
@@ -449,6 +494,11 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
           rowKey="caseId"
           height="auto"
           columnSizing="fit"
+          selectable
+          multiSelect
+          selectedRows={selectedIds}
+          onRowSelect={(ids) => setSelection({ ruleId, ids: ids.map(Number) })}
+          rowClickCheck
           sortable={false}
           getRowHeight={() => 28}
           ariaLabel="테스트 케이스 목록"
@@ -487,6 +537,11 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
       {error && (
         <p data-testid="tc-error" role="alert" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-danger)", whiteSpace: "pre-wrap" }}>
           케이스를 실행하지 못했습니다. {error}
+        </p>
+      )}
+      {writeError && (
+        <p data-testid="tc-write-error" role="alert" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-danger)", whiteSpace: "pre-wrap" }}>
+          {writeError}
         </p>
       )}
       <p style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-text-secondary)", fontSize: "var(--font-size-sm)" }}>

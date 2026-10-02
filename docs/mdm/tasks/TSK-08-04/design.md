@@ -488,7 +488,7 @@ TSK-08-02 design.md 「E2E 서버 절차」(613~666행)를 그대로 따르되 �
 | I26 | `sameIssues` 는 분석기 코드(7종 + `DERIVE_ORDER`)만 견준다 | `M/tests/dme/ruleEdit/analysis-same.test.ts` |
 | I27 | 분석기·분석 코퍼스·TS 분석 파일 무변경 | 기존 `RuleAnalysisCorpusTest`·`rule-analysis-corpus.test.ts`·`RuleAnalyzerTest` |
 | I28 | Java `InputContracts` 와 TS `computeInputContract` 는 한 벌 코퍼스에서 같다. TS `input-contract.ts` 는 고치지 않는다 | `InputContractCorpusTest`·`evalex-input-contract-corpus.test.ts` |
-| I29 | EXTERNAL 룰은 저장 시 검사를 돌리지 않는다(저장 자체가 `requireMdm` 으로 막힌다 — 순서 불변). 케이스 쓰기도 MDM 원천만 | `RuleTestCaseServiceTest`, 기존 `RuleTableServiceTest` |
+| I29 | EXTERNAL 룰은 저장 시 검사를 돌리지 않는다(저장 자체가 `requireMdm` 으로 막힌다 — 순서 불변). 케이스 쓰기도 MDM 원천만(2026-10-02 [D-145](../../decisions.md) 로 번복 — 케이스는 외부 원천 룰도 쓴다) | `RuleTestCaseServiceTest`, 기존 `RuleTableServiceTest` |
 | I30 | `RuleCellsCodec` 은 값을 고치지 않는다(정규화는 `RuleCellRules`) | 기존 `RuleCellsCodecTest` |
 | I31 | `ResolvedVar` record 칼럼 불변(검사기가 더 필요한 값은 `RuleCheckInput.rawVars` 로 받는다) | 기존 `BAT/dme/ruleEdit/RuleEditViewTest`(view 의 vars 모양) |
 | I32 | 액션은 `execute` 하나만 더한다. 권한 세트·어휘 불변 | `DmeBpmnActionTest`, `MdmOasisActionVocabularyTest`, e2e `mdm-shell-rbac-smoke`(시드 대조) |
