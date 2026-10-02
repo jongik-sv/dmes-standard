@@ -114,7 +114,7 @@
 
 - `@Service("screenUsageService")`, 클래스에 `@Transactional` 금지(OASIS 규칙 6-B-1). 쓰기는 저장소 메서드 트랜잭션으로 한다.
 - BPMN `mcm/api/src/main/resources/services/audit/screenUsage.bpmn`, 통계는 `services/csa/screenUsageStat.bpmn` — `output` 필수(6-C-2), grids key `segments` 와 Java 파라미터 이름 일치(6-E-3).
-- 검증(통과 못 한 구간은 버리고 건수만 로그): 요청당 100건 초과 분 버림, `ENDED_AT < STARTED_AT`, 길이 > 24시간, `STARTED_AT` 이 수신 시각보다 5분 넘게 미래, 1초 미만, `PAGE_ID` 공백·200자 초과, `START_KIND` 값 이상.
+- 검증(통과 못 한 구간은 버리고 건수만 로그): 요청당 100건 초과 분 버림, `ENDED_AT < STARTED_AT`, 길이 > 24시간, `STARTED_AT` 이 수신 시각보다 5분 넘게 미래 또는 30일 넘게 과거, 1초 미만, `PAGE_ID` 공백·200자 초과, `START_KIND` 값 이상.
 - `PAGE_ID` 가 메뉴 마스터에 있는지는 기록 시 검사하지 않는다(메뉴 개편 뒤에도 이력을 남기기 위해). 통계 조회에서 메뉴에 없는 화면은 "(메뉴 없음)"으로 표시한다.
 - 응답 `data.result = { saved, skipped }`.
 - 권한: 로그인 사용자 전원이 호출하므로 메뉴 권한이 아닌 AUTH_ONLY 경로로 연다(`m-mcm/proxy.ts` `authOnlyPrefixes` 및 백엔드 `EndpointPermissionFilter` 의 해당 목록).
@@ -122,7 +122,7 @@
 ### 4.4 집계·보관 스케줄러 `ScreenUsageRollup`
 
 - `@Scheduled(cron = "0 0 2 * * *", zone = "Asia/Seoul")`. 예외는 기존 `RevokedTokenPurger` 처럼 잡아서 `log.warn`.
-- 처리 범위: 집계 테이블의 최대 `USAGE_DT` 2일 전부터 어제까지(집계 테이블이 비면 원본 최소 일자부터). 늦게 도착한 구간(큐 재전송)을 반영하기 위해 최근 2일을 다시 계산한다.
+- 처리 범위: 집계 테이블의 최대 `USAGE_DT` 2일 전부터 어제까지(집계 테이블이 비면 원본 최소 일자부터). 시작 일자는 `오늘 − 365일` 보다 이르지 않게 자른다(삭제된 원본 일자 재계산·이상 시각 방지). 늦게 도착한 구간(큐 재전송)을 반영하기 위해 최근 2일을 다시 계산한다.
 - 일자마다: 그 일자 원본을 읽어 Java 에서 키별로 합산 → 그 일자 집계 행 삭제 → 삽입. 일자 단위로 멱등이라 서버 여러 대가 동시에 돌아도 결과가 같다(ShedLock 없음).
 - 날짜를 걸치는 구간은 `STARTED_AT` 의 일자에 귀속한다.
 - 집계 뒤 `STARTED_AT < 오늘 - 365일` 이면서 집계가 끝난 일자의 원본을 삭제한다.

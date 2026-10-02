@@ -2519,6 +2519,8 @@ Expected: 계약 검사 `ERROR 0`
 
 ---
 
+> **대체됨 (2026-10-02):** 이 Task 는 탭 단위 수직 분할 결정에 따라 `2026-10-02-screen-usage-stats-slices.md` 의 F1·F2·S1~S6·V 로 대체되었다. 구현하지 않는다.
+
 ### Task 6: 통계 조회 서비스 `screenUsageStatService` (action 6개)
 
 **Files:**
@@ -3562,6 +3564,8 @@ Expected: 계약 검사 `ERROR 0`
 
 ---
 
+> **대체됨 (2026-10-02):** 이 Task 는 탭 단위 수직 분할 결정에 따라 `2026-10-02-screen-usage-stats-slices.md` 의 F1·F2·S1~S6·V 로 대체되었다. 구현하지 않는다.
+
 ### Task 7: 통계 BPMN 과 PERM_ALL action
 
 **Files:**
@@ -4096,6 +4100,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 Expected: 계약 검사 `ERROR 0`
 
 ---
+
+> **대체됨 (2026-10-02):** 이 Task 는 탭 단위 수직 분할 결정에 따라 `2026-10-02-screen-usage-stats-slices.md` 의 F1·F2·S1~S6·V 로 대체되었다. 구현하지 않는다.
 
 ### Task 9: README 와 전체 검증
 
