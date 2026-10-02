@@ -139,9 +139,10 @@ public class MdmRevisionPoller implements AutoCloseable {
                     log.debug("[mdm] 모르는 변경 기록을 건너뛴다: {}", ch);
                     continue;
                 }
-                // 늦게 커밋된 낮은 순번(seq <= applied)은 지움 기록을 applied + 1 로 남긴다. 그 순번이 커밋되기 전에 Ticket(applied) 을
-                // 받아 옛 값을 읽은 적재가 이 지움 뒤에 넣지 못하게 한다(규칙 5) — 틀려도 넣지 않는 쪽으로만 틀린다.
-                cache.evict(type.get(), ch.key(), ch.seq() > applied ? ch.seq() : applied + 1);
+                // 늦게 커밋된 낮은 순번이 그 키의 지움 기록을 낮추지 않게 이미 적용한 순번 아래로 내리지 않는다. 그 순번이 커밋되기 전에
+                // Ticket 을 받아 옛 값을 읽은 적재는 캐시의 지움 표지(stamp) 규칙이 막는다(규칙 5). 지움 뒤에 받은 Ticket 은 막지 않는다 —
+                // applied + 1 로 남기면 기동·비움 직후 되돌아보기로 다시 온 옛 순번마다 그 키가 5분 동안 캐시되지 못한다(수정 2차).
+                cache.evict(type.get(), ch.key(), Math.max(ch.seq(), applied));
                 if (RELOAD.equals(ch.kind())) {
                     reload.computeIfAbsent(type.get(), t -> new LinkedHashSet<>()).add(ch.key());
                 }

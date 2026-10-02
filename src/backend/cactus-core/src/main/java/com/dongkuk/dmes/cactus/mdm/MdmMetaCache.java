@@ -23,9 +23,17 @@ import java.util.concurrent.atomic.AtomicLong;
  * 지우고, 그래도 넘으면 적재가 오래된 순으로 지운다. 묶음 적재({@link #putAll})는 다 넣은 뒤 한 번만 줄인다(잠금을 쥔 채 정렬을 키 수만큼
  * 반복하지 않는다).
  *
- * <p>적재와 경합(§5.3-5, Ruling R7): 적재는 시작할 때 {@link Ticket} 을 받는다. 넣을 때 캐시가 통째로 비워졌거나(generation 다름), 그 키의
- * 지움 기록 순번이 {@code ticket.appliedSeq} 보다 크거나, 그 키가 Ticket 을 받은 뒤에 지워졌으면(지움 기록의 stamp 가 Ticket 의 stamp 보다
- * 큼 — 폴러 지움·이 인스턴스 지움 모두) 넣지 않는다 — 늦게 도착한 옛 값이 남지 않는다. 지움 기록은 5분 뒤 {@link #markApplied} 때 정리한다.
+ * <p>적재와 경합(§5.3-5, Ruling R7): 적재는 시작할 때 {@link Ticket} 을 받고, 넣을 때 아래 셋 중 하나면 넣지 않는다(호출자에게 값은 돌려준다)
+ * — 늦게 도착한 옛 값이 남지 않는다. 지움 기록은 5분 뒤 {@link #markApplied} 때 정리한다.
+ * <ol>
+ *   <li>캐시가 통째로 비워졌다 — {@code ticket.generation} 이 지금 세대와 다르다.</li>
+ *   <li>그 키의 지움 기록 순번이 {@code ticket.appliedSeq} 보다 크다(Ticket 이 아직 보지 못한 변경으로 지워졌다).</li>
+ *   <li>그 키가 Ticket 을 받은 뒤에 지워졌다 — 지움 기록의 stamp 가 {@code ticket.stamp} 보다 크다.</li>
+ * </ol>
+ *
+ * <p>지움 표지(stamp): 이 캐시 하나에 걸친 단조 증가 계수다. 지움({@link #evict} — 폴러, {@link #evictLocal} — 관리 화면 reload)마다 하나 올려
+ * 그 키의 지움 기록에 적고, {@link #ticket()} 은 그때의 값을 담는다. 그래서 순번과 상관없이 "지움보다 먼저 시작한 적재"는 거부되고 "지움 뒤에 시작한
+ * 적재"는 바로 넣을 수 있다 — 늦게 커밋된 낮은 순번(되돌아보기)이나 reload 가 순번을 올리지 않아도 옛 값을 막고, 새 적재를 막아 두지 않는다.
  */
 public final class MdmMetaCache {
 

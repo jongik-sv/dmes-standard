@@ -181,7 +181,6 @@ class MdmRevisionPollerTest {
         service.lookup(MdmTargetType.COLUMN, List.of("B")); // B 를 다시 적재해 둔다
         // 순번 5 가 커밋되기 전에 Ticket(6) 을 받아 옛 A 를 읽은 적재가 있다고 친다.
         MdmMetaCache.Ticket before = cache.ticket();
-        MdmMetaCache.Ticket beforeSeqOnly = new MdmMetaCache.Ticket(before.generation(), before.appliedSeq()); // 표지 검사 없이 순번만
 
         // 순번 5(A)가 늦게 커밋됐다 — 되돌아보기 구간이 5·6 을 다시 준다.
         feed.changes.add(changes(6, false, new MdmChange(5, "COLUMN", "A", "SAVE"), new MdmChange(6, "COLUMN", "B", "SAVE")));
@@ -191,10 +190,47 @@ class MdmRevisionPollerTest {
         assertThat(cache.get(MdmTargetType.COLUMN, "A")).isEmpty();
         assertThat(cache.get(MdmTargetType.COLUMN, "B")).as("이미 처리한 순번 6 은 두 번 지우지 않는다").isPresent();
         assertThat(cache.appliedSeq()).isEqualTo(6);
-        // 규칙 5: 늦은 순번의 지움 기록은 applied + 1 이라 그 전에 받은 Ticket(6) 의 옛 값을 넣지 못한다.
-        assertThat(cache.put(MdmTargetType.COLUMN, "A", "옛 A", beforeSeqOnly)).isFalse();
+        // 규칙 5: 늦은 순번의 지움 뒤에는 그 전에 받은 Ticket(6) 의 옛 값을 넣지 못한다(지움 표지 규칙).
         assertThat(cache.put(MdmTargetType.COLUMN, "A", "옛 A", before)).isFalse();
         assertThat(cache.get(MdmTargetType.COLUMN, "A")).isEmpty();
+        // 지움 뒤에 받은 Ticket 은 바로 넣을 수 있다 — 5분 막힘이 없다.
+        assertThat(cache.put(MdmTargetType.COLUMN, "A", "새 A", cache.ticket())).isTrue();
+        assertThat(cache.get(MdmTargetType.COLUMN, "A").orElseThrow().value()).isEqualTo("새 A");
+    }
+
+    @Test
+    void 기동_뒤_되돌아보기로_다시_온_옛_순번은_그_키를_캐시하지_못하게_하지_않는다() {
+        poller = new MdmRevisionPoller(feed, cache, service, clock, Duration.ofSeconds(10), 1000, 100);
+        started(5);
+        // 기동 직후 첫 정상 폴링 — since = 0 이라 실제 MDM 은 applied(5) 이하의 옛 순번을 다시 준다.
+        feed.changes.add(changes(5, false, new MdmChange(3, "COLUMN", "A", "SAVE"), new MdmChange(4, "COLUMN", "B", "SAVE"),
+                new MdmChange(5, "COLUMN", "C", "SAVE")));
+        poller.pollOnce();
+
+        assertThat(service.lookup(MdmTargetType.COLUMN, List.of("A")).found()).containsEntry("A", "a");
+        assertThat(service.lookup(MdmTargetType.COLUMN, List.of("A")).found()).containsEntry("A", "a");
+        assertThat(feed.fetchCalls.get()).as("두 번째 조회는 캐시에서").isEqualTo(1);
+    }
+
+    @Test
+    void 규칙3_4_로_비운_뒤_되돌아보기로_다시_온_옛_순번은_그_키를_캐시하지_못하게_하지_않는다() {
+        poller = new MdmRevisionPoller(feed, cache, service, clock, Duration.ofSeconds(10), 1000, 100);
+        started(5);
+        feed.changes.add(changes(5000, true)); // 규칙 3
+        poller.pollOnce();
+        feed.changes.add(changes(5000, false, new MdmChange(4990, "COLUMN", "A", "SAVE")));
+        poller.pollOnce();
+        assertThat(service.lookup(MdmTargetType.COLUMN, List.of("A")).found()).containsEntry("A", "a");
+        assertThat(service.lookup(MdmTargetType.COLUMN, List.of("A")).found()).containsEntry("A", "a");
+        assertThat(feed.fetchCalls.get()).isEqualTo(1);
+
+        feed.changes.add(changes(10, false)); // 규칙 4 — 역행
+        poller.pollOnce();
+        feed.changes.add(changes(10, false, new MdmChange(9, "COLUMN", "B", "SAVE")));
+        poller.pollOnce();
+        assertThat(service.lookup(MdmTargetType.COLUMN, List.of("B")).found()).containsEntry("B", "b");
+        assertThat(service.lookup(MdmTargetType.COLUMN, List.of("B")).found()).containsEntry("B", "b");
+        assertThat(feed.fetchCalls.get()).isEqualTo(2);
     }
 
     @Test
