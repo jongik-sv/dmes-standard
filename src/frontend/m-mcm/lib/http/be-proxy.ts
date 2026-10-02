@@ -57,6 +57,53 @@ export interface BackendBase {
 }
 
 /**
+ * 원 요청에서 BE 로 그대로 넘기는 헤더(소문자).
+ *  - content-type: 본문 형식. multipart 는 경계 문자열(boundary)이 여기 들어 있어 빠지면 본문을 못 읽는다.
+ *  - range·if-range: 미디어 위젯 동영상·이미지의 구간 요청(스펙 2026-10-02-widget-admin-generic §5.1).
+ * 쿠키·Authorization 은 넘기지 않는다 — 사용자 컨텍스트는 X-Authenticated-* 헤더로만 간다.
+ */
+const FORWARDED_REQUEST_HEADERS = ["content-type", "range", "if-range"] as const;
+
+/**
+ * BE 응답에서 브라우저로 돌려주는 헤더(소문자). 구간 응답(206)의 content-range·accept-ranges 와
+ * 형식 추측 금지(x-content-type-options)는 미디어 위젯 내려받기(§5.1)에 필요하다.
+ */
+const PASSED_RESPONSE_HEADERS = [
+  "content-type",
+  "content-disposition",
+  "cache-control",
+  "etag",
+  "last-modified",
+  "content-language",
+  "content-range",
+  "accept-ranges",
+  "x-content-type-options",
+] as const;
+
+/** 원 요청 헤더 중 BE 로 넘길 것만 고른다(값이 있는 것만). */
+export function pickRequestHeaders(source: Headers): Record<string, string> {
+  const picked: Record<string, string> = {};
+  for (const name of FORWARDED_REQUEST_HEADERS) {
+    const value = source.get(name);
+    if (value) picked[name] = value;
+  }
+  return picked;
+}
+
+/** BE 응답 헤더 중 브라우저로 돌려줄 것만 고른다. Content-Type 이 없으면 JSON 으로 둔다. */
+export function pickResponseHeaders(source: Headers): Headers {
+  const picked = new Headers();
+  for (const name of PASSED_RESPONSE_HEADERS) {
+    const value = source.get(name);
+    if (value) picked.set(name, value);
+  }
+  if (!picked.has("content-type")) {
+    picked.set("content-type", "application/json; charset=utf-8");
+  }
+  return picked;
+}
+
+/**
  * 모듈 ID → BFF→BE base URL 결정.
  * - 개발: `${MODULE.toUpperCase()}_WAS_URL` 가 있으면 직접 모듈 WAS 호출 (prefix 없음)
  * - 운영: `BACKEND_API_URL` 단일 fallback. path 에 `/{moduleId}` prefix 강제.
@@ -192,14 +239,11 @@ export async function forwardToBackend(
       : "";
   const roleHeader = roles.length > 0 ? roles.join(",") : fallbackRole;
   const headers: Record<string, string> = {
+    ...pickRequestHeaders(req.headers),
     "X-Client-Key": BACKEND_CLIENT_KEY,
     "X-Authenticated-User": (token.sub as string) ?? "",
     "X-Authenticated-Role": roleHeader,
   };
-  const contentType = req.headers.get("content-type");
-  if (contentType) {
-    headers["Content-Type"] = contentType;
-  }
 
   const body =
     req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined;
@@ -241,24 +285,7 @@ export async function forwardToBackend(
       return new NextResponse(null, { status: 204 });
     }
 
-    const responseHeaders = new Headers();
-    for (const name of [
-      "content-type",
-      "content-disposition",
-      "cache-control",
-      "etag",
-      "last-modified",
-      "content-language",
-    ]) {
-      const value = res.headers.get(name);
-      if (value) responseHeaders.set(name, value);
-    }
-    if (!responseHeaders.has("content-type")) {
-      responseHeaders.set(
-        "content-type",
-        "application/json; charset=utf-8",
-      );
-    }
+    const responseHeaders = pickResponseHeaders(res.headers);
 
     const responseBody = res.body
       ? streamBackendResponse(res.body, controller, cleanup)
