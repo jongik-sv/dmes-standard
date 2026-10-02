@@ -7321,3 +7321,23 @@ Expected: 모든 시험 PASS, 컴파일 FAIL 줄 없음, 계약 검사 ERROR 0(�
 - 스펙 대응: §3.1(Task 1) · §3.2(Task 1) · §3.3(Task 2·3, 예외 S6·S7) · §3.4(Task 4·5) · §4(계약 표, Task 4·5·6·10) · §5.1(Task 0·6·10·11) · §5.2(Task 6~10) · §5.3(Task 7·8) · §5.4(Task 7·8) · §5.5(Task 10·11) · §6(Task 11·12) · §7(각 태스크 시험 + Task 14) · §8(Task 1·13).
 - 이름 맞춤: `MdmMetaService.MdmLookup`·`MdmMetaCache.Ticket/Entry/EntryView`·`MdmRevisionPoller.Status`·`MetaRevisionRecorder.MetaRevisionRange`·`MetaFeedResult` 는 정의한 태스크와 쓰는 태스크의 글자가 같다. 피드 값 필드 이름은 `MetaFeedPayloads`(mdm) ↔ `MdmColumnMeta`·`MdmDomainMeta`(cactus) 가 같고 Task 9 계약 시험이 묶는다.
 - 실측 대기: Task 0 Step 6(중첩 includeBuild 전달), Task 6 Step 5(시간 초과 예외 메시지 모양), Task 9 Step 5(Boot 4 MVC 직렬화 왕복), Task 12 Step 7(`Select`·`Textarea` props 타입).
+
+## 검토 반영 추가 요구 (2026-10-02, 계획 검토자)
+
+### A1 (Task 8 에 포함) 순번 역전 대비 되돌아보기
+
+**문제.** 리비전 규칙은 "순번 순서 = 커밋 순서"를 가정한다. SQLite 는 쓰기가 하나라 맞지만, 운영 DB(Oracle·PostgreSQL)에서는 순번 5 를 받은 트랜잭션이 순번 6 보다 늦게 커밋될 수 있다. 폴러가 6 을 처리해 `appliedSeq=6` 이 된 뒤 5 가 커밋되면, `since=6` 요청에는 5 가 영영 나오지 않아 옛 값이 `max-age`(60분)까지 남는다.
+
+**요구.**
+- 설정 `cactus.mdm.revision-lookback`(기본 `100`, 0 이면 끔)을 `MdmClientProperties` 에 더한다(Task 6 의 설정 클래스에 필드 하나 추가 — Task 8 에서 함께 고친다).
+- 폴러는 `changes(since = max(0, appliedSeq - lookback), limit)` 로 요청한다.
+- 폴러는 `appliedSeq - lookback` 보다 큰 순번 중 이미 처리한 순번 집합을 기억한다. 응답 항목 중 이미 처리한 순번은 건너뛰고, 처음 보는 순번(늦게 커밋된 낮은 순번 포함)만 지움·RELOAD 를 적용한다. 집합은 구간 밖으로 밀려난 순번을 버려 크기를 `lookback` 근처로 유지한다.
+- `appliedSeq` 는 지금처럼 받은 최대 순번으로 올린다. 규칙 3(truncated)·4(역행)는 그대로이고, 캐시를 비울 때 처리한 순번 집합도 비운다.
+- 규칙 3 의 truncated 판정은 되돌아보기 구간을 포함한 응답 기준이다. `limit`(기본 1000)이 `lookback` 보다 충분히 커야 하므로, 설정 검증에서 `limit <= lookback` 이면 기동 시 예외를 던진다.
+
+**시험(Task 8 에 추가).**
+- `늦게_커밋된_낮은_순번은_다음_폴링에서_지운다`: 첫 폴링에 순번 6(키 B)만 오고, 다음 폴링에 순번 5(키 A)·6(키 B)이 오면 A 는 지워지고 B 는 두 번째로 지워지지 않는다(B 를 다시 적재해 둔 뒤 남아 있는지로 확인).
+- `되돌아보기_구간_밖_순번은_기억에서_버린다`: lookback=3 에서 순번 1~10 을 처리한 뒤 기억 집합 크기가 3 근처(구간 안 순번만)다.
+- `lookback_0_이면_since_는_appliedSeq_그대로다`.
+
+**ADR(Task 13).** ADR-0006 Consequences 의 "순번 순서가 커밋 순서와 같다는 가정" 문장을 "가정하지 않는다 — 폴러가 최근 `lookback` 개 순번을 다시 훑어 늦게 커밋된 기록을 잡는다. 단 lookback 구간보다 더 늦게 커밋된 기록은 `max-age` 안전망이 잡는다"로 바꾼다.
