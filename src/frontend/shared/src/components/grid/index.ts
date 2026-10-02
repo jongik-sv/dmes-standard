@@ -1,4 +1,12 @@
-export { AgDataGrid, DataGrid, type AgDataGridProps, type GridColumn } from "./AgDataGrid";
+export {
+  AgDataGrid,
+  DataGrid,
+  MdmGridTooltip,
+  useResolvedGridColumns,
+  type AgDataGridProps,
+  type GridColumn,
+  type MdmGridTooltipParams,
+} from "./AgDataGrid";
 export {
   GridBadge,
   GridBadgeCell,

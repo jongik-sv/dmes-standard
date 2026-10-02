@@ -751,7 +751,7 @@ export default function MasterCodeMngPage() {
         // CHK / 내부 컬럼 제외 — 화면 표시 컬럼만 export (As-Is 동일)
         const out: Record<string, unknown> = {};
         for (const c of masterColumns) {
-          out[c.header.replace(/\s*\*$/, "").trim()] = (o as Record<string, unknown>)[c.key];
+          out[(c.header ?? c.key).replace(/\s*\*$/, "").trim()] = (o as Record<string, unknown>)[c.key];
         }
         return out;
       });
@@ -778,7 +778,7 @@ export default function MasterCodeMngPage() {
         const o = stripInternal(r);
         const out: Record<string, unknown> = {};
         for (const c of detailColumns) {
-          out[c.header.replace(/\s*\*$/, "").trim()] = (o as Record<string, unknown>)[c.key];
+          out[(c.header ?? c.key).replace(/\s*\*$/, "").trim()] = (o as Record<string, unknown>)[c.key];
         }
         return out;
       });

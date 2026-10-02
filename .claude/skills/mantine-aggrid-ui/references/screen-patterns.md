@@ -128,7 +128,7 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 ### 팝업·엑셀·아이콘
 
 - 팝업: `Modal`(`@dk-oasis/shared/modal`) `size="md"`, `footer` 는 `<Button onClick={onClose}>취소</Button>` 다음에 `<Button variant="primary">저장</Button>`(실행 문구는 동작 그대로). 내용은 상세 폼 표 규칙 그대로.
-- 엑셀: `exportToExcel(rows, "<화면명>_" + today() + ".xlsx", "Sheet1", COLUMNS.map(({ key, header }) => ({ key, header })))` (`@dk-oasis/shared/utils`).
+- 엑셀: `exportToExcel(rows, "<화면명>_" + today() + ".xlsx", "Sheet1", excelColumns.map(({ key, header }) => ({ key, header: header ?? key })))` (`@dk-oasis/shared/utils`). `excelColumns = useResolvedGridColumns(COLUMNS)`(`@dk-oasis/shared/grid`) — `header` 를 생략한 열도 그리드와 같은 MDM 캡션으로 나간다.
 - 아이콘: `@tabler/icons-react` 만, `size={14}`(촘촘한 곳 12), `stroke`·색은 주지 않는다. m-mpp·m-mqc·m-mls 는 이 패키지를 아직 선언하지 않아 import 하면 타입 검사가 실패한다. 아이콘이 꼭 필요하면 사용자 확인 후 모듈 `package.json` 에 추가한다([icons](components/icons.md)).
 
 ### 스타일

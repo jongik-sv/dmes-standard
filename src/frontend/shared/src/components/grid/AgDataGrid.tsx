@@ -22,8 +22,20 @@ import type {
   IRowNode,
   EditableCallbackParams,
   GridApi,
+  ITooltipParams,
 } from "ag-grid-community";
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
+import {
+  MdmMetaCard,
+  resolveCaption,
+  useMdmCaptionPriority,
+  useMdmColumns,
+  useMdmMetaScope,
+  type MdmCaptionPriority,
+  type MdmColumnInfo,
+  type MdmDomainMeta,
+  type MdmScreenColumn,
+} from "../../mdm-meta";
 import { GRID_SIZE_CHANGE_SETTLE_MS, resolveGridSizeChangeAction } from "./grid-size-change";
 
 /** `rowNumber` 로 넣는 행번호 열의 colId — 테스트·화면이 이 칸을 집을 때 쓴다. */
@@ -162,7 +174,16 @@ function isNonToggleClickTarget(target: EventTarget | null | undefined): boolean
 
 export interface GridColumn {
   key: string;
-  header: string;
+  /**
+   * 머리글. 비우면(undefined) MDM 공급자 안에서는 컬럼 사전 캡션(labelShort → labelMid → labelLong → columnName), 그 밖에는 `key`.
+   * `""` 는 일부러 비운 머리글로 그대로 둔다. 공급자가 `captionPriority="mdm"` 이면 MDM 캡션이 적은 값을 이긴다(spec B1·B2).
+   */
+  header?: string;
+  /**
+   * MDM 컬럼 사전 연결 키. 비우면 `key` 를 물리명으로 바꿔(`codeNm` → `CODE_NM`) 찾고, 물리명 문자열을 주면 그것으로, `false` 면 연결하지 않는다
+   * (spec B6). 공급자(포털 탭) 밖에서는 쓰지 않는다.
+   */
+  meta?: string | false;
   /** 커스텀 헤더 컴포넌트 (ag-grid ColDef.headerComponent 패스스루). */
   headerComponent?: ColDef["headerComponent"];
   /** 커스텀 헤더 컴포넌트 파라미터 (ag-grid ColDef.headerComponentParams 패스스루). */
@@ -414,6 +435,40 @@ export interface BuildColumnDefsOptions {
   rowDragField?: string;
   /** 행마다 드래그 가능 여부. rowDragField 와 함께 쓴다. */
   isRowDraggable?: (row: Record<string, unknown>) => boolean;
+  /**
+   * MDM 화면 메타(공급자 안에서만). 열 key → 메타. 있으면 비운 머리글을 MDM 캡션으로 채우고 머리글 툴팁을 MdmMetaCard 로 단다.
+   * 없으면(공급자 밖) 열 정의는 예전과 같다.
+   */
+  mdm?: { infoByKey: Map<string, MdmColumnInfo>; priority: MdmCaptionPriority };
+}
+
+/** 머리글 툴팁 컴포넌트에 넘기는 값(ColDef.tooltipComponentParams). */
+export interface MdmGridTooltipParams {
+  mdmColumn: MdmScreenColumn;
+  mdmDomain: MdmDomainMeta | null;
+}
+
+/**
+ * MDM 메타가 있는 열의 ag-grid 사용자 툴팁(tooltipComponent). ag-grid 는 열의 tooltipComponent 를 머리글과 셀 툴팁에 함께 쓰므로,
+ * 머리글(`location: "header"`)이면 MdmMetaCard 를, 셀이면 기본 툴팁과 같은 값 글자를 그린다.
+ */
+export function MdmGridTooltip(props: ITooltipParams & Partial<MdmGridTooltipParams>) {
+  if (props.location === "header" && props.mdmColumn) {
+    return (
+      <div className="ag-tooltip mdm-meta-tooltip">
+        <MdmMetaCard column={props.mdmColumn} domain={props.mdmDomain ?? null} />
+      </div>
+    );
+  }
+  // ag-grid 기본 TooltipComponent 와 같게 value(tooltipValueGetter 결과)만 그린다 — valueFormatted 는 쓰지 않는다.
+  const value = props.value;
+  return <div className="ag-tooltip">{value == null ? "" : String(value)}</div>;
+}
+
+/** 열 하나의 머리글 글자. MDM 이 없으면 적은 header, 그것도 없으면 key(ag-grid 가 field 로 'Code Nm' 같은 이름을 지어내지 않게). */
+function columnCaption(col: GridColumn, mdm: BuildColumnDefsOptions["mdm"]): string {
+  if (!mdm) return col.header ?? col.key;
+  return resolveCaption(mdm.infoByKey.get(col.key)?.column ?? null, "grid", col.header, mdm.priority, col.key);
 }
 
 /** 잎 열 하나 → ag-grid ColDef. */
@@ -511,9 +566,20 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
         ])
       )
     : undefined;
+  const headerName = columnCaption(col, opts.mdm);
+  // MDM 머리글 툴팁 — 메타가 있고 화면이 headerTooltip·headerComponent 를 직접 주지 않았을 때만. 그 밖에는 키를 더하지 않는다(예전 열 정의 그대로).
+  const mdmInfo = opts.mdm?.infoByKey.get(col.key);
+  const mdmTooltip =
+    mdmInfo?.column && col.headerTooltip == null && col.headerComponent == null
+      ? {
+          headerTooltip: headerName || mdmInfo.column.physName,
+          tooltipComponent: MdmGridTooltip,
+          tooltipComponentParams: { mdmColumn: mdmInfo.column, mdmDomain: mdmInfo.domain } satisfies MdmGridTooltipParams,
+        }
+      : null;
   return {
     field: col.key,
-    headerName: col.header,
+    headerName,
     headerComponent: col.headerComponent,
     headerComponentParams: col.headerComponentParams,
     hide: col.hide,
@@ -543,6 +609,7 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
     headerTooltip: col.headerTooltip,
     headerStyle: col.headerStyle,
     rowDrag,
+    ...(mdmTooltip ?? {}),
     ...(col.tooltip === false ? { tooltipValueGetter: () => "" } : {}),
     cellRenderer: col.render
       ? (params: { value: unknown; data: Record<string, unknown> }) =>
@@ -576,7 +643,7 @@ export function buildColumnDefs(columns: GridColumn[], opts: BuildColumnDefsOpti
     if (col.children && col.children.length > 0) {
       const group: ColGroupDef = {
         groupId: col.key,
-        headerName: col.header,
+        headerName: col.header ?? col.key,
         headerGroupComponent: col.headerComponent,
         headerGroupComponentParams: col.headerComponentParams,
         headerTooltip: col.headerTooltip,
@@ -588,6 +655,41 @@ export function buildColumnDefs(columns: GridColumn[], opts: BuildColumnDefsOpti
     }
     return leafColDef(col, opts);
   });
+}
+
+/** MDM 메타를 찾을 잎 열(열 그룹 안까지). 이름 = 열 key. */
+function mdmLeafEntries(columns: GridColumn[], out: Array<{ name: string; meta?: string | false }> = []) {
+  for (const c of columns) {
+    if (c.children && c.children.length > 0) mdmLeafEntries(c.children, out);
+    else out.push({ name: c.key, meta: c.meta });
+  }
+  return out;
+}
+
+/** 그리드 안에서 쓰는 MDM 옵션. 공급자 밖이면 undefined — 열 정의가 예전과 같다. */
+function useGridMdm(columns: GridColumn[]): BuildColumnDefsOptions["mdm"] {
+  const scope = useMdmMetaScope();
+  const entries = useMemo(() => (scope ? mdmLeafEntries(columns) : []), [scope, columns]);
+  const infoByKey = useMdmColumns(entries);
+  const priority = useMdmCaptionPriority();
+  return useMemo(() => (scope ? { infoByKey, priority } : undefined), [scope, infoByKey, priority]);
+}
+
+function resolveColumnHeaders(columns: GridColumn[], mdm: BuildColumnDefsOptions["mdm"]): GridColumn[] {
+  return columns.map((c) =>
+    c.children && c.children.length > 0
+      ? { ...c, header: c.header ?? c.key, children: resolveColumnHeaders(c.children, mdm) }
+      : { ...c, header: columnCaption(c, mdm) }
+  );
+}
+
+/**
+ * 그리드에 보이는 머리글로 header 를 채운 열 목록 — 화면이 엑셀 내보내기·열 선택처럼 `header` 를 직접 읽을 때 쓴다(열 그룹 안까지).
+ * 공급자 안이면 AgDataGrid 와 같은 MDM 캡션, 밖이면 적은 header(없으면 key).
+ */
+export function useResolvedGridColumns(columns: GridColumn[]): GridColumn[] {
+  const mdm = useGridMdm(columns);
+  return useMemo(() => resolveColumnHeaders(columns, mdm), [columns, mdm]);
 }
 
 /** 편집 가능한 잎 열이 하나라도 있는가(열 그룹 안까지 본다). 없으면 셀 포커스를 끈다. */
@@ -722,6 +824,8 @@ function AgDataGridComponent({
     () => (hasRowDraggable ? (row: Record<string, unknown>) => isRowDraggableRef.current?.(row) ?? true : undefined),
     [hasRowDraggable]
   );
+  // MDM 화면 메타(포털 탭 공급자 안에서만) — 비운 머리글 캡션·머리글 툴팁. 메타가 실제로 바뀔 때만 값이 바뀐다.
+  const mdm = useGridMdm(columns);
   const columnDefs = useMemo<(ColDef | ColGroupDef)[]>(() => {
     const defs = buildColumnDefs(columns, {
       sortable: effectiveSortable,
@@ -729,6 +833,7 @@ function AgDataGridComponent({
       shouldAutoSizeColumns,
       rowDragField,
       isRowDraggable: stableIsRowDraggable,
+      ...(mdm ? { mdm } : {}),
     });
     // 체크박스는 rowSelection 설정에서 자동 관리 (수동 컬럼 불필요)
     if (!rowNumber) return defs;
@@ -755,7 +860,7 @@ function AgDataGridComponent({
       tooltipValueGetter: () => "",
     };
     return [noCol, ...defs];
-  }, [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable, rowNumber]);
+  }, [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable, rowNumber, mdm]);
 
   // 셀 텍스트가 컬럼 폭 초과로 잘려서 ... 으로 표시될 때 마우스오버 시 전체 값을 tooltip 으로 표시.
   // tooltipValueGetter 는 ag-grid 의 browser-native title 속성 사용 (별도 라이브러리 불필요).
@@ -950,6 +1055,8 @@ function AgDataGridComponent({
   //   컬럼 폭 합이 그리드보다 좁아도 우측이 빈 채로 남았다(2026-08-07 CR 이력 화면에서 실측: 그리드 976px
   //   vs 컬럼합 694px). 데이터 유무와 무관하게 마운트 후 한 번은 반드시 맞춘다.
   //   deps 는 길이만 본다 — 배열을 인라인으로 만드는 페이지에서 매 렌더 재실행되는 것을 피한다.
+  //   mdm(포털 탭 MDM 메타)은 받아 온 뒤 한 번 바뀐다 — 열 정의를 다시 넣으면 ag-grid 가 colDef.width 를 다시 적용해
+  //   채워 둔 여백이 사라지고(fixed·auto), 캡션이 길어지면 내용 폭도 달라지므로 다시 맞춘다. 공급자 밖이면 늘 undefined 라 영향이 없다.
   useEffect(() => {
     if (!gridReady || userResizedRef.current) return;
     if (resolvedColumnSizing === "auto" && shouldAutoSizeColumns) {
@@ -962,6 +1069,7 @@ function AgDataGridComponent({
     gridReady,
     data.length,
     columns.length,
+    mdm,
     resolvedColumnSizing,
     shouldAutoSizeColumns,
     scheduleAutoSizeAllColumns,

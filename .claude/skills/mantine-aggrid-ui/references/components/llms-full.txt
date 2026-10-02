@@ -54,6 +54,10 @@
 
 - [위젯 (WidgetWorkspace · WidgetBoard · WidgetFrame · WidgetTabs · WidgetPicker)](widget.md): 사용자가 위젯(조각 프로그램)을 24칸 격자에서 자유롭게 옮기고 크기를 바꾸며, 탭으로 나눠 서버에 저장하게 하는 홈 화면을 만들 때 쓴다. 행 단위 대시보드가 필요하면 [dashboard](dashboard.md), 사용자가 자유 배치·탭·서버 저장을 쓰면 widget 을 고른다.
 
+## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)
+
+- [MDM 화면 메타 (MdmMetaProvider · useMdmColumn · MdmMetaCard)](mdm-meta.md): 그리드 머리글·폼 라벨의 캡션과 툴팁을 MDM 컬럼 사전에서 가져올 때 쓴다. 포털 탭이 공급자를 자동으로 씌우므로 화면은 보통 아무것도 하지 않는다.
+
 ## 탭·트리·룩업·기타
 
 - [Tabs](tabs.md): 한 영역 안에서 내용을 밑줄형 탭으로 나눠 보여 줄 때 쓴다. 탭 머리줄만 그리므로 본문 전환은 화면이 직접 한다.
@@ -93,6 +97,20 @@
 - `GridHelpButton`: GridPanel help prop 으로 쓴다
 - `GRID_TEMP_ID_FIELD`: GridPanel·useGridDataManager 내부 필드
 - `MessageProvider`: 호스트 root layout 이 감싼다
+- `MdmGridTooltip`: AgDataGrid 머리글 툴팁 내부 컴포넌트
+- `requestDomains`: useMdmColumn(s) 내부 요청(mdm-meta 문서 참고)
+- `peekColumn`: mdm-meta store 동기 조회 — 훅 내부용
+- `peekDomain`: mdm-meta store 동기 조회 — 훅 내부용
+- `isModuleDisabled`: mdm-meta store 상태 — 훅 내부용
+- `resetMdmMetaStore`: 시험용
+- `MDM_META_TTL_MS`: mdm-meta store 상수
+- `MDM_META_BATCH_MS`: mdm-meta store 상수
+- `MDM_META_CARD_MAX_CODES`: MdmMetaCard 상수
+- `mdmCaption`: resolveCaption 내부용
+- `resolveMdmPhysName`: useMdmColumn 내부용(toPhysName + meta)
+- `useMdmCaptionPriority`: AgDataGrid·FormGroup 내부용
+- `useMdmMetaScope`: AgDataGrid·FormGroup 내부용
+- `formatMdmDataType`: MdmMetaCard 내부용
 
 
 <!-- ===== page-layout.md ===== -->
@@ -1611,16 +1629,28 @@ import { Input } from "@dk-oasis/shared/form";
 
 필수 표시는 라벨 앞의 `*` 이고, 상세 표의 규칙(라벨 끝 " *")과 위치가 반대다. 새 화면으로 옮길 때 라벨 끝 " *" 로 바꾼다.
 
+### MDM 캡션·툴팁(2026-10-03)
+
+`name`(화면 필드 이름)을 주면 포털 탭 안에서 MDM 컬럼 사전 메타를 찾는다([mdm-meta](mdm-meta.md)). `label` 을 생략하면 폼 캡션(`labelMid` → `labelLong` → `labelShort` → `columnName`), `tip` 을 생략하면 `MdmMetaCard` 가 라벨 툴팁이 된다. 적은 `label`·`tip` 이 이긴다(공급자 `captionPriority="mdm"` 이면 라벨은 MDM 이 이긴다). FormGroup 은 입력값을 보지 않는다 — 값 검사는 화면이 하고 결과를 `error` 로 준다.
+
+```tsx
+<FormGroup name="title" required error={errors.title}>
+  <Input value={form.title} onChange={(v) => set("title", v)} />
+</FormGroup>
+```
+
 ## Props
 
 | Prop | 타입 | 기본값 | 설명 |
 |---|---|---|---|
-| label | `string` | 없음 | 라벨 글자. |
+| label | `string` | 없음 | 라벨 글자. 생략하고 `name` 이 있으면 MDM 폼 캡션, 그것도 없으면 `name`. |
+| name | `string` | 없음 | MDM 컬럼 사전 연결 이름(`noticeTitle` → `NOTICE_TITLE`). 포털 탭 밖에서는 쓰지 않는다. |
+| meta | `string \| false` | 없음 | 명시 물리명(`name` 보다 우선). `false` 면 MDM 연결을 끈다. |
 | required | `boolean` | `false` | 라벨 앞에 `*` 를 붙인다. |
 | children | `ReactNode` | 없음 | 입력 컴포넌트. 하나일 때 접근성 속성이 자동 연결된다. |
 | labelWidth | `number` | `120` | 라벨 고정 폭(px). |
 | error | `string` | 없음 | 오류 문구와 `aria-invalid`. |
-| tip | `string` | 없음 | 라벨에 올리거나 입력에 포커스하면 뜨는 툴팁. |
+| tip | `string \| ReactNode` | 없음 | 라벨에 올리거나 입력에 포커스하면 뜨는 툴팁. 생략하고 MDM 메타가 있으면 `MdmMetaCard`. |
 | className | `string` | `""` | 추가 클래스. |
 | style | `React.CSSProperties` | 없음 | 배치에만 쓴다. |
 
@@ -1935,6 +1965,29 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 - 열 그룹: `GridColumn.children` 이 있으면 그 항목은 열 그룹이고 잎만 데이터 열이다.
 - 행 드래그: `rowDragField`(손잡이 열 key)와 `onRowOrderChange(orderedKeys)` 를 항상 함께 준다. 켜면 정렬이 꺼진다. 순서는 호출자가 `data` 를 다시 만들어 넘겨 확정한다.
 
+### MDM 캡션·머리글 툴팁(2026-10-03)
+
+포털 탭은 본문을 `MdmMetaProvider` 로 감싼다([mdm-meta](mdm-meta.md)). 그래서 화면이 아무것도 하지 않아도 다음이 된다.
+
+- `header` 를 **비운(생략한)** 열은 MDM 컬럼 사전 캡션(`labelShort` → `labelMid` → `labelLong` → `columnName`)으로 머리글을 채운다. MDM 에 없으면 `key`.
+  열 `key` 를 물리명으로 바꿔(`noticeTitle` → `NOTICE_TITLE`, 대문자는 그대로) 찾는다. 다른 물리명이면 `meta: "TITLE"`, 끄려면 `meta: false`.
+- `header` 를 적은 열은 그대로다. 공급자가 `captionPriority="mdm"` 이면 MDM 캡션이 이긴다. `header: ""` 는 일부러 비운 머리글로 그대로 둔다.
+- MDM 메타가 있는 열은 머리글에 마우스를 올리면 `MdmMetaCard`(형식·필수·도메인·허용 코드 등) 툴팁이 뜬다. 화면이 `headerTooltip`·`headerComponent` 를 주면 그대로 둔다.
+- 포털 밖(단독 실행·시험)에서는 예전과 똑같다. 단 `header` 를 비우면 `key` 가 머리글이다.
+- 엑셀 내보내기처럼 화면이 `header` 를 직접 읽으면 `useResolvedGridColumns(columns)` 로 그리드와 같은 캡션을 받는다.
+
+```tsx
+import { AgDataGrid, useResolvedGridColumns, type GridColumn } from "@dk-oasis/shared/grid";
+
+const COLUMNS: GridColumn[] = [
+  { key: "TITLE", width: 300 },              // 머리글 = MDM "제목", 툴팁 = MdmMetaCard
+  { key: "CATEGORY", meta: "CATEGORY" },     // 명시 물리명
+  { key: "regDt", header: "등록일", meta: false }, // MDM 연결 끔
+];
+
+const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와 같은 캡션으로 채워진다
+```
+
 ## Props
 
 자주 쓰는 props. 기본값은 소스의 구조분해 기본값이다.
@@ -1988,7 +2041,8 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 | 필드 | 타입 | 기본값 | 설명 |
 |---|---|---|---|
 | key | `string` | 필수 | 행 데이터의 필드 이름 |
-| header | `string` | 필수 | 머리 글자 |
+| header | `string` | 생략 가능 | 머리 글자. 생략하면 MDM 캡션(포털 탭 안), 그 밖에는 `key`. `""` 는 빈 머리글 |
+| meta | `string \| false` | `key` 의 물리명 | MDM 컬럼 사전 연결 물리명. `false` 면 끈다 |
 | width | `number \| string` | 방식별 | fixed 는 픽셀(생략하면 120), fit 은 가중치(생략하면 1) |
 | minWidth | `number` | 50 | 최소 폭 |
 | align | `"left" \| "center" \| "right"` | `"left"` | 셀 정렬 |
@@ -2006,7 +2060,7 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 | pinned | `"left" \| "right"` | - | 틀고정 |
 | cellClass | `string \| string[] \| (row) => …` | - | 셀 상시 클래스 |
 | cellClassRules | `Record<string, (row) => boolean>` | - | 조건부 셀 클래스 |
-| rowDrag · headerTooltip | `boolean` · `string` | - | 이 열에 행 드래그 손잡이(`onRowOrderChange` 필요) · 머리 툴팁 |
+| rowDrag · headerTooltip | `boolean` · `string` | - | 이 열에 행 드래그 손잡이(`onRowOrderChange` 필요) · 머리 툴팁(주면 MDM 툴팁 대신 이것) |
 | headerStyle · headerComponent · headerComponentParams | ag-grid 패스스루 | - | 머리 인라인 스타일(색은 의미 토큰만) · 커스텀 머리 컴포넌트 |
 | children | `GridColumn[]` | - | 있으면 열 그룹. `groupId` 는 `key` |
 
@@ -2029,6 +2083,8 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
 | 추가한 행이 맨 앞에 있을 줄 안다 | `nativeeditor_status: "inserted"` 행은 항상 맨 뒤로 정렬되고, `onRowClick` 에는 그 행의 rowKey 칸이 임시 ID(`__new_N`)로 바뀌어 온다 |
 | `onRowSelect` 의 두 번째 인자를 항상 배열로 쓴다 | 1건이면 객체, 그 밖에는 배열이다 |
 | `rowClickCheck` 를 편집 열이 있는 그리드에 쓴다 | `checkRowOnEdit` 을 쓴다 |
+| MDM 캡션을 쓰려고 `header: ""` 를 준다 | `header` 를 생략한다. `""` 는 빈 머리글로 그대로 남는다 |
+| 엑셀 내보내기에서 `c.header` 를 그대로 읽는다(`header` 생략 열은 undefined) | `useResolvedGridColumns(COLUMNS)` 결과의 `header` 를 쓴다 |
 
 ## 실제 사용 예
 
@@ -3295,6 +3351,101 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 - `src/frontend/m-mcm/widgets/home/{이름}/`: `widget.meta.ts` + `widget.tsx` 로 이루어진 홈 위젯 11개.
 
 
+<!-- ===== mdm-meta.md ===== -->
+
+# MDM 화면 메타 (MdmMetaProvider · useMdmColumn · MdmMetaCard)
+
+그리드 머리글·폼 라벨의 캡션과 툴팁을 MDM 컬럼 사전에서 가져올 때 쓴다. 포털 탭이 공급자를 자동으로 씌우므로 화면은 보통 아무것도 하지 않는다.
+
+- import: `import { MdmMetaProvider, useMdmColumn, useMdmColumns, MdmMetaCard, resolveCaption, toPhysName } from "@dk-oasis/shared/mdm-meta";` (CSS import 없음)
+- 소스: `src/frontend/shared/src/mdm-meta/`(`context.tsx`·`store.ts`·`caption.ts`·`names.ts`·`MdmMetaCard.tsx`)
+- 설계: `docs/superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md` §2 B1~B8, §4
+- 받는 곳: 업무 BE `POST /api/{module}/mdmMeta/columns`(본문 `{"names":[…]}`)·`/domains`(본문 `{"domainIds":[…]}`). 한 화면에서 등록한 이름을 16ms 동안 모아 모듈마다 한 번 부르고, 받은 것은 5분 둔다. 404·401·403·연결 실패면 그 모듈은 세션 동안 메타 없이 두고 다시 부르지 않는다(401 에도 로그인 화면으로 보내지 않는다).
+
+## 언제 쓰나
+
+- 쓴다: 그리드 `header`·폼 `label` 을 표준 용어(MDM)로 맞추고 싶을 때 — 그냥 비운다. 화면이 직접 메타를 읽어 표시할 때 `useMdmColumn`. 화면 고유 위치에 MDM 정보 카드를 띄울 때 `MdmMetaCard`.
+- 쓰지 않는다: 화면 값 검증(필수·길이 등)에 이 훅을 직접 쓰지 않는다 — 검증은 `useMdmValidation`(같은 서브패스, C 단계)과 그리드 `mdmValidate` 가 맡는다.
+- [ag-data-grid](ag-data-grid.md)·[form-group](form-group.md) 은 이 공급자를 스스로 읽는다. 머리글·라벨에는 이 문서의 훅을 따로 쓰지 않는다.
+
+## 표준 사용
+
+포털 탭 안의 화면은 `header`·`label` 을 생략하는 것만으로 MDM 캡션·툴팁이 붙는다.
+
+```tsx
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+
+const COLUMNS: GridColumn[] = [
+  { key: "TITLE", width: 300 },      // 머리글 = MDM labelShort, 툴팁 = MdmMetaCard
+  { key: "regDt", header: "등록일" }, // 적은 header 가 이긴다(기본 explicit)
+];
+```
+
+화면 전체를 MDM 캡션으로 통일하려면 한 줄로 우선순위를 바꾼다.
+
+```tsx
+import { MdmMetaProvider } from "@dk-oasis/shared/mdm-meta";
+
+<MdmMetaProvider captionPriority="mdm">
+  <AgDataGrid columns={COLUMNS} data={rows} rowKey="NOTICE_ID" />
+</MdmMetaProvider>
+```
+
+## 변형
+
+### 메타를 직접 읽기
+
+```tsx
+const { column, domain, loading } = useMdmColumn("noticeTitle"); // 물리명 NOTICE_TITLE 로 찾는다
+const info = useMdmColumns([{ name: "title" }, { name: "etc", meta: false }]); // 키 = name, POST 한 번
+```
+
+공급자 밖이거나 `meta: false` 면 `{ column: null, domain: null, loading: false }` 이고 아무것도 부르지 않는다.
+
+### 캡션만 계산
+
+`resolveCaption(column, "grid" | "form", 적은값, "explicit" | "mdm", 화면키)` — 그리드는 `labelShort` → `labelMid` → `labelLong` → `columnName`, 폼은 `labelMid` → `labelLong` → `labelShort` → `columnName`.
+
+## Props
+
+### MdmMetaProvider
+
+| Prop | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| module | `string` | 바깥 공급자 → 탭 pageId 의 `:` 앞부분 | 메타를 받을 업무 모듈 |
+| captionPriority | `"explicit" \| "mdm"` | 바깥 공급자 → `"explicit"` | `mdm` 이면 MDM 캡션이 화면이 적은 캡션을 이긴다 |
+| disabled | `boolean` | 바깥 공급자 → `false` | 이 아래에서 메타를 받지 않는다 |
+| children | `ReactNode` | 필수 | |
+
+### MdmMetaCard
+
+| Prop | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| column | `MdmScreenColumn` | 필수 | 컬럼 메타 |
+| domain | `MdmDomainMeta \| null` | 없음 | 도메인 메타(단위·도메인 표준식) |
+
+순서: 제목(`labelLong`)+물리명 → 설명·사용 메모 → 형식(`STRING(20)`·`NUMBER(3,1)`)·필수·기본값 → 도메인(ID·종류)·단위 → 표준식 → 허용 코드 앞 10개("외 N개") → 서버 업무 규칙 안내. 글자색·배경은 감싸는 툴팁을 따른다.
+
+## 표준값: 모든 화면 동일
+
+- 화면은 공급자를 직접 두지 않는다(포털 탭이 둔다). 우선순위를 바꿀 때만 `MdmMetaProvider captionPriority="mdm"` 를 둔다.
+- 연결 키는 그리드 `key`·폼 `name` 을 물리명으로 바꾼 값이다. 맞지 않으면 `meta="물리명"`, 엉뚱하게 맞으면 `meta={false}`.
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| MDM 캡션을 쓰려고 `header: ""`·`label=""` 를 준다 | 생략한다. `""` 는 일부러 비운 캡션으로 그대로 남는다 |
+| 엑셀 내보내기에서 `c.header` 를 읽어 빈 머리글이 나온다 | `useResolvedGridColumns(COLUMNS)` 결과를 쓴다 |
+| 화면에서 `fetch("/api/mls/mdmMeta/columns")` 를 직접 부른다 | `useMdmColumn(s)`·`requestColumns` — 묶음 요청·보관·401 처리가 들어 있다 |
+| 다른 모듈 화면의 부품을 띄웠는데 탭 모듈(pageId)로 메타를 찾는다 | 그 부분만 `MdmMetaProvider module="mqc"` 로 감싼다 |
+
+## 실제 사용 예
+
+- `src/frontend/shared/src/portal-shell/portal-shell.tsx` `TabPageSlot`: 탭 본문을 `MdmMetaProvider` 로 감싼다.
+- 화면 파일럿: m-mls `lsh/noticeMgmt`(T6 에서 적용).
+
+
 <!-- ===== tabs.md ===== -->
 
 # Tabs
@@ -4204,7 +4355,7 @@ StackedColumnChart (`StackedColumnChartProps` 를 export 한다)
 ```tsx
 import { exportToExcel, today } from "@dk-oasis/shared/utils";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import type { GridColumn } from "@dk-oasis/shared/grid";
+import { useResolvedGridColumns, type GridColumn } from "@dk-oasis/shared/grid";
 
 const COLUMNS: GridColumn[] = [
   { key: "inspNo", header: "검사번호", width: 120, align: "left" },
@@ -4214,6 +4365,8 @@ const COLUMNS: GridColumn[] = [
 
 export function useInspExport(rows: Record<string, unknown>[]) {
   const { showMessage } = useMessage();
+  // header 를 생략한 열(MDM 캡션)도 그리드에 보이는 머리글과 같게 채운다.
+  const columns = useResolvedGridColumns(COLUMNS);
   return async () => {
     // 데이터가 0건이면 exportToExcel 은 아무 알림 없이 끝나므로 화면이 먼저 알린다.
     if (rows.length === 0) {
@@ -4221,7 +4374,7 @@ export function useInspExport(rows: Record<string, unknown>[]) {
       return;
     }
     try {
-      await exportToExcel(rows, `검사결과_${today()}.xlsx`, "Sheet1", COLUMNS.map((c) => ({ key: c.key, header: c.header })));
+      await exportToExcel(rows, `검사결과_${today()}.xlsx`, "Sheet1", columns.map((c) => ({ key: c.key, header: c.header ?? c.key })));
     } catch (e) {
       showMessage({ title: "오류", message: e instanceof Error ? e.message : String(e), alertType: "error" });
     }
@@ -4264,7 +4417,7 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
 ## 표준값: 모든 화면 동일
 
 - 파일 이름은 `<화면명>_<yyyyMMdd>.xlsx`(`today()` 가 `yyyyMMdd` 를 준다), 시트 이름은 `"Sheet1"`.
-- 열은 `COLUMNS.map((c) => ({ key: c.key, header: c.header }))` 로 목록 열 정의에서 만든다.
+- 열은 `useResolvedGridColumns(COLUMNS).map((c) => ({ key: c.key, header: c.header ?? c.key }))` 로 목록 열 정의에서 만든다(`header` 를 생략한 열은 그리드와 같은 MDM 캡션).
 - PageLayout 상단 버튼은 id `btn_export`, label "엑셀", action `export`.
 
 ## 흔한 실수

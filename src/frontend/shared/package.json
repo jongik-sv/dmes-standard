@@ -169,6 +169,10 @@
     "./lib": {
       "types": "./dist/types/lib/index.d.ts",
       "import": "./dist/lib.js"
+    },
+    "./mdm-meta": {
+      "types": "./dist/types/mdm-meta/index.d.ts",
+      "import": "./dist/mdm-meta.js"
     }
   },
   "files": [

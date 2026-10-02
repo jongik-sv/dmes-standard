@@ -100,6 +100,40 @@ export async function getJson<T>(input: RequestInfo | URL, init?: RequestInit): 
 }
 
 /**
+ * 401 에도 로그인 화면으로 보내지 않는 JSON POST — 부가 정보(MDM 화면 메타 등)처럼 실패해도 화면을 그대로 두어야 하는 호출용.
+ *
+ * - 인증은 {@link apiRequest} 와 같다: 저장된 `oasis_access_token` 을 Bearer 로 싣고, 쿠키는 fetch 기본(same-origin)을 따른다.
+ * - `!res.ok` 면 상태를 담은 {@link HttpError}(401 포함 — 리다이렉트·force-logout 없음), 연결 실패는 일반 Error(AbortError 는 보존).
+ */
+export async function postJsonNoRedirect<T>(path: string, body: unknown, init: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...((init.headers as Record<string, string>) ?? {}),
+  };
+  let token: string | null = null;
+  try {
+    token = typeof window !== "undefined" ? localStorage.getItem("oasis_access_token") : null;
+  } catch {
+    token = null;
+  }
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, method: "POST", headers, body: JSON.stringify(body ?? {}) });
+  } catch (err) {
+    throw normalizeFetchError(err);
+  }
+  if (!res.ok) {
+    throw new HttpError(res.status, res.statusText, getHttpFallbackMessage(res.status));
+  }
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
+  return (await res.json()) as T;
+}
+
+/**
  * BE 표준 에러 응답 형식.
  *
  * BE 가 두 가지 응답 포맷을 사용하므로 union 으로 모두 수용한다:
