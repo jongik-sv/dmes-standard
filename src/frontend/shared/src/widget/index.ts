@@ -33,3 +33,7 @@ export { WIDGET_CSS, WidgetStyle } from "./styles";
 export { WidgetBoard } from "./WidgetBoard";
 export type { WidgetBoardProps } from "./WidgetBoard";
 export { getDraggingWidget, setDraggingWidget } from "./widget-dnd";
+export { WidgetTabs } from "./WidgetTabs";
+export type { WidgetTabsProps } from "./WidgetTabs";
+export { WidgetPicker } from "./WidgetPicker";
+export type { WidgetPickerProps } from "./WidgetPicker";
