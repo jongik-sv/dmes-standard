@@ -27,6 +27,7 @@ export {
   type MdmMetaScope,
 } from "./context";
 export { MdmMetaCard, formatMdmDataType, MDM_META_CARD_MAX_CODES, type MdmMetaCardProps } from "./MdmMetaCard";
+export { MdmFieldLabel, type MdmFieldLabelProps } from "./MdmFieldLabel";
 export {
   validateMdmValue,
   codePointLength,
