@@ -118,6 +118,26 @@ cp .dflow.local.example .dflow.local   # pats= 에 D'Flow 웹 /account 「내 �
 
 `.dflow.local` 은 개인 토큰이 들어가므로 커밋하지 않는다(`.gitignore`). 필요한 명령: git · curl · jq · python3 · gh.
 
+### 6. (필수) Claude Code — 사용 한도 초기화 뒤 자동 계속
+
+Claude Code 세션이 claude.ai 사용 한도(5시간 슬롯)에 걸리면 작업이 멈춘다. 아래 설정을 켜 두면 한도가 초기화될 때
+멈춘 작업을 스스로 이어 간다. 밤새 돌리는 에이전트·팀 작업이 한도 때문에 아침까지 멈춰 있지 않도록 **모두 켠다.**
+
+개인 설정 파일 `~/.claude/settings.json` 에 한 줄을 넣는다(저장소에 커밋하는 설정이 아니다).
+
+```json
+{
+  "autoContinueAtUsageLimit": true
+}
+```
+
+- claude.ai 구독 계정으로 로그인한 세션에 적용된다. 확인한 버전: Claude Code 2.1.287.
+- 끄면 한도에 걸릴 때 선택 창(`What do you want to do?`)이 뜬다. 추가 지출·업그레이드 항목이 들어 있을 수 있으므로 Enter 를 무심코 누르지 않는다.
+- 다음 경우에는 자동 계속이 취소된다. 그때는 직접 프롬프트를 보내거나 `/rate-limit-options` 로 다시 건다.
+  - 기다리는 동안 Claude Code 를 다시 띄우거나 세션을 백그라운드로 보낸 경우
+  - 초기화까지 24시간 넘게 남은 경우(주간 한도)
+  - 초기화 뒤에도 한도에 거듭 걸린 경우
+
 ## 빌드·실행
 
 복제 직후 아래 한 줄이면 백엔드 7개 모듈과 프론트엔드가 전부 뜬다. Ctrl+C 한 번으로 전부 정리된다.
