@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mcm.widget.media;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.widget.media.entity.WidgetMedia;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -83,6 +85,16 @@ public class WidgetMediaController {
         return ResponseEntity.status(e.getErrorCode().getHttpStatus())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body);
+    }
+
+    /**
+     * multipart 상한(spring.servlet.multipart.max-file-size 100MB · max-request-size 101MB)을 넘은 올리기.
+     * {@code resolve-lazily: true} 라 본문 해석이 이 컨트롤러의 인자 해석 때 일어나 여기서 잡힌다(그렇지 않으면 핸들러를 찾기 전에
+     * 터져 cactus 전역 처리기가 500 「서버 내부 오류」로 바꾼다). 저장소의 크기 거절과 같은 400·E002·스펙 문구로 돌려준다.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleTooLarge(MaxUploadSizeExceededException e) {
+        return handleBusiness(new BusinessException(ErrorCode.INVALID_VALUE, WidgetMediaStorage.MSG_TOO_LARGE));
     }
 
     @ExceptionHandler(WidgetMediaNotFoundException.class)

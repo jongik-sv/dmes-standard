@@ -22,6 +22,7 @@ import com.dongkuk.dmes.mcm.widget.media.repository.WidgetMediaRepository;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,10 +31,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * {@link WidgetMediaController} — MockMvc standalone(보안 필터 없음). 저장소는 임시 폴더 + Mockito 메타 저장소.
@@ -104,6 +109,27 @@ class WidgetMediaControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.meta.code").value("E001"))
                 .andExpect(jsonPath("$.meta.message").value(WidgetMediaStorage.MSG_NO_FILE));
+    }
+
+    @Test
+    @DisplayName("multipart 상한 초과(MaxUploadSizeExceededException) → 400 + E002 + 스펙 문구(전역 500 아님)")
+    @SuppressWarnings("unchecked")
+    void tooLargeMultipartIs400WithSpecMessage() {
+        WidgetMediaController controller =
+                new WidgetMediaController(new WidgetMediaStorage(repository, tempDir.toString()));
+
+        ResponseEntity<Map<String, Object>> res =
+                controller.handleTooLarge(new MaxUploadSizeExceededException(100L * 1024 * 1024));
+
+        assertThat(res.getStatusCode().value()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(res.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+        Map<String, Object> meta = (Map<String, Object>) res.getBody().get("meta");
+        assertThat(meta)
+                .containsEntry("success", false)
+                .containsEntry("code", "E002")
+                .containsEntry("message", WidgetMediaStorage.MSG_TOO_LARGE)
+                .containsKey("txId");
+        assertThat(WidgetMediaStorage.MSG_TOO_LARGE).isEqualTo("이미지는 10MB, 동영상은 100MB 까지 올릴 수 있습니다");
     }
 
     @Test

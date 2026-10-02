@@ -35,9 +35,22 @@ const DEFAULT_TIMEOUT_MS = 2 * 60 * 1000;
 const EXPORT_TIMEOUT_MS = 5 * 60 * 1000;
 const LONG_RUNNING_TIMEOUT_MS = 30 * 60 * 1000;
 
+/** 미디어 위젯 올리기(POST) — 동영상 최대 100MB(스펙 2026-10-02-widget-admin-generic §4.3). */
+const MEDIA_UPLOAD_PATH = /\/commWidgetMng\/upload(?:\/|$)/;
+/** 미디어 위젯 파일 내려받기(GET·HEAD) — 동영상 구간 스트림. */
+const MEDIA_FILE_PATH = /\/widgetMedia\/file\//;
+
 export function backendTimeoutMs(method: string, backendPath: string): number {
   if (
     /(?:\/export(?:\/|$)|\/download(?:\/|$))/.test(backendPath)
+  ) {
+    return EXPORT_TIMEOUT_MS;
+  }
+  // 미디어 위젯 — 타이머는 본문 올리기·응답 스트림이 끝날 때까지 돈다. 느린 회선의 100MB 동영상 올리기나
+  // 긴 구간 스트림이 기본 2분에 끊기지 않게 export 와 같은 5분을 준다.
+  if (
+    (method === "POST" && MEDIA_UPLOAD_PATH.test(backendPath)) ||
+    ((method === "GET" || method === "HEAD") && MEDIA_FILE_PATH.test(backendPath))
   ) {
     return EXPORT_TIMEOUT_MS;
   }
@@ -254,7 +267,7 @@ export async function forwardToBackend(
   const body =
     req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined;
 
-  // 일반 JSON은 2분, export/download는 5분, 실제 장기 실행 mutation만 30분을 허용한다.
+  // 일반 JSON은 2분, export/download·미디어 올리기/내려받기는 5분, 실제 장기 실행 mutation만 30분을 허용한다.
   // 원 요청이 끊기면 같은 controller를 abort해 backend fetch에도 취소를 전파한다.
   const controller = new AbortController();
   const abortForClientDisconnect = () => controller.abort();

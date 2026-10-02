@@ -40,10 +40,13 @@ spring:
 
   # ── 미디어 위젯 파일 올리기 한도 (스펙 2026-10-02-widget-admin-generic §4.3) ──
   # 동영상 100MB 까지 받는다(이미지 10MB 는 WidgetMediaStorage 가 따로 거른다). 요청 한도는 파일 + multipart 머리말 여유 1MB.
+  # resolve-lazily: 본문을 컨트롤러 인자 해석 때 읽는다 — 상한을 넘으면 WidgetMediaController 의 처리기가 400 과 스펙 문구
+  # 「이미지는 10MB, 동영상은 100MB 까지 올릴 수 있습니다」를 돌려준다(아니면 핸들러를 찾기 전에 터져 전역 500 이 된다).
   servlet:
     multipart:
       max-file-size: 100MB
       max-request-size: 101MB
+      resolve-lazily: true
 
 server:
   # 로컬 bootRun/IDE 실행 포트. WAR(WildFly) 배포 시엔 무시되고 WildFly http 포트(8100)를 사용.

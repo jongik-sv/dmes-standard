@@ -21,6 +21,7 @@ vi.mock("@dk-oasis/shared/auth-rbac-policy", () => ({
 
 import { NextRequest } from "next/server";
 import {
+  backendTimeoutMs,
   forwardToBackend,
   pickRequestHeaders,
   pickResponseHeaders,
@@ -38,6 +39,32 @@ function bytes(n: number, start = 0): Uint8Array<ArrayBuffer> {
   for (let i = 0; i < n; i++) out[i] = (start + i) % 256;
   return out;
 }
+
+describe("backendTimeoutMs", () => {
+  const MIN = 60 * 1000;
+  const FILE_ID = "0123456789abcdef0123456789abcdef";
+
+  it("미디어 올리기(POST)·파일 내려받기(GET·HEAD)는 export 와 같은 5분", () => {
+    expect(backendTimeoutMs("POST", "/api/mcm/commWidgetMng/upload")).toBe(5 * MIN);
+    expect(backendTimeoutMs("GET", `/api/mcm/widgetMedia/file/${FILE_ID}`)).toBe(5 * MIN);
+    expect(backendTimeoutMs("HEAD", `/api/mcm/widgetMedia/file/${FILE_ID}`)).toBe(5 * MIN);
+  });
+
+  it("미디어 경로라도 다른 메서드·비슷한 이름은 기본 2분", () => {
+    expect(backendTimeoutMs("GET", "/api/mcm/commWidgetMng/upload")).toBe(2 * MIN);
+    expect(backendTimeoutMs("POST", `/api/mcm/widgetMedia/file/${FILE_ID}`)).toBe(2 * MIN);
+    expect(backendTimeoutMs("POST", "/api/mcm/commWidgetMng/uploadX")).toBe(2 * MIN);
+    expect(backendTimeoutMs("GET", "/api/mcm/widgetMedia/files")).toBe(2 * MIN);
+  });
+
+  it("기존 판정 그대로 — 일반 2분, export·download 5분, 장기 실행 mutation 30분", () => {
+    expect(backendTimeoutMs("GET", "/api/mcm/sample-notices")).toBe(2 * MIN);
+    expect(backendTimeoutMs("GET", "/api/mpn/plans/export")).toBe(5 * MIN);
+    expect(backendTimeoutMs("GET", "/api/mpn/files/1/download")).toBe(5 * MIN);
+    expect(backendTimeoutMs("POST", "/api/mpn/planning-runs")).toBe(30 * MIN);
+    expect(backendTimeoutMs("GET", "/api/mpn/planning-runs")).toBe(2 * MIN);
+  });
+});
 
 describe("pickRequestHeaders", () => {
   it("본문 형식·Range·If-Range 만 넘기고 쿠키·인증 헤더는 넘기지 않는다", () => {

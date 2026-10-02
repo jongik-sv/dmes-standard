@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +22,7 @@ import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.widget.media.entity.WidgetMedia;
 import com.dongkuk.dmes.mcm.widget.media.repository.WidgetMediaRepository;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -39,6 +41,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.Resource;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * {@link WidgetMediaStorage} — 스펙 §4.3: 형식(확장자 + 매직 넘버)·크기·경로 조작 검사, 디스크 저장·열기.
@@ -71,7 +74,7 @@ class WidgetMediaStorageTest {
         }
     }
 
-    private void assertRejected(MockMultipartFile f, String message) throws IOException {
+    private void assertRejected(MultipartFile f, String message) throws IOException {
         assertThatThrownBy(() -> storage.save(f))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(message)
@@ -191,6 +194,30 @@ class WidgetMediaStorageTest {
         assertThat(saved.getContentType()).isEqualTo("video/mp4");
         assertThat(MediaFormat.MP4.maxBytes()).isEqualTo(100L * 1024 * 1024);
         assertThat(MediaFormat.PNG.maxBytes()).isEqualTo(10L * 1024 * 1024);
+    }
+
+    /** 크기만 크게 보이는 mp4 — getSize() 는 size, 내용은 MP4 매직 바이트뿐(실제 100MB 배열은 만들지 않는다). */
+    private static MultipartFile bigMp4(long size) throws IOException {
+        MultipartFile f = mock(MultipartFile.class);
+        when(f.getOriginalFilename()).thenReturn("clip.mp4");
+        when(f.getSize()).thenReturn(size);
+        when(f.getInputStream()).thenAnswer(inv -> new ByteArrayInputStream(file(MP4_MAGIC, 64)));
+        return f;
+    }
+
+    @Test
+    @DisplayName("동영상 100MB 초과는 거절한다 — getSize()=100MB+1 (디스크·메타 저장 없음)")
+    void rejectsOversizedVideo() throws IOException {
+        assertRejected(bigMp4(MediaFormat.MP4.maxBytes() + 1), WidgetMediaStorage.MSG_TOO_LARGE);
+    }
+
+    @Test
+    @DisplayName("동영상 100MB 정확히는 받는다")
+    void acceptsVideoAtLimit() throws IOException {
+        saveReturnsArgument();
+        WidgetMedia saved = storage.save(bigMp4(MediaFormat.MP4.maxBytes()));
+        assertThat(saved.getContentType()).isEqualTo("video/mp4");
+        assertThat(filesInTempDir()).isEqualTo(1);
     }
 
     @Test
