@@ -189,4 +189,61 @@ describe("WidgetWorkspace", () => {
     expect(store.calls).toContain("resetHome");
     expect(host.querySelectorAll(".cm-widget").length).toBe(1);
   });
+  it("편집 중 store 가 바뀌어 다시 불러오다 실패하면 편집이 끝나고 저장이 막힌다", async () => {
+    const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }]);
+    const { confirm, notify } = await mount(store);
+    click('[data-action="start-edit"]');
+    click('.cm-widget[data-inst-id="a"] [data-action="remove"]');
+    const broken = makeStore(new Error("network"));
+    act(() => root.render(h(WidgetWorkspace, { registry: REG, homeDefault: HOME_DEFAULT, store: broken, confirm, notify, boardWidth: 1440 })));
+    await flush();
+    expect(btn('[data-action="done-edit"]')).toBeNull();
+    expect(btn('[data-action="start-edit"]').disabled).toBe(true);
+    expect(store.calls).toEqual(["load"]);
+    expect(broken.calls).toEqual(["load"]);
+  });
+
+  const twoTabs = (): WidgetTab[] => [
+    { tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] },
+    { tabId: "tab-1", name: "내 생산", seq: 1, locked: false, items: [it_("c"), it_("d", 6, 0)] },
+  ];
+  async function editBothTabs(store: WidgetStore & { calls: string[] }) {
+    const m = await mount(store);
+    click('[data-action="start-edit"]');
+    click('.cm-widget[data-inst-id="a"] [data-action="remove"]');
+    click('[data-tab-id="tab-1"]');
+    click('.cm-widget[data-inst-id="c"] [data-action="remove"]');
+    return m;
+  }
+
+  it("둘째 탭 저장이 실패한 뒤 [취소] 는 저장 안 된 탭만 되돌린다", async () => {
+    const store = makeStore(twoTabs());
+    (store.saveTab as ReturnType<typeof vi.fn>).mockImplementationOnce(async (t: WidgetTab) => {
+      store.calls.push(`saveTab:${t.tabId}`);
+    });
+    (store.saveTab as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("저장 실패"));
+    await editBothTabs(store);
+    click('[data-action="done-edit"]');
+    await flush();
+    click('[data-action="cancel-edit"]');
+    await flush();
+    expect(host.querySelectorAll(".cm-widget").length).toBe(2); // tab-1 은 편집 전으로
+    click('[data-tab-id="home"]');
+    expect(host.querySelectorAll(".cm-widget").length).toBe(1); // home 은 저장된 배치로 남는다
+  });
+
+  it("저장 실패 뒤 다시 [완료] 하면 실패했던 탭에만 saveTab 을 부른다", async () => {
+    const store = makeStore(twoTabs());
+    (store.saveTab as ReturnType<typeof vi.fn>).mockImplementationOnce(async (t: WidgetTab) => {
+      store.calls.push(`saveTab:${t.tabId}`);
+    });
+    (store.saveTab as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("저장 실패"));
+    await editBothTabs(store);
+    click('[data-action="done-edit"]');
+    await flush();
+    click('[data-action="done-edit"]');
+    await flush();
+    expect(store.calls).toEqual(["load", "saveTab:home", "saveTab:tab-1:내 생산:1"]);
+    expect(btn('[data-action="start-edit"]')).not.toBeNull();
+  });
 });

@@ -117,6 +117,10 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
   const load = useCallback(async () => {
     const seq = ++loadSeq.current;
     setStatus("loading");
+    // 다시 불러오면 편집 중이던 변경은 버려진다 — 편집 상태도 함께 정리한다.
+    setEditing(false);
+    setSnapshot(null);
+    setRenamingTabId(null);
     try {
       const loaded = await store.load();
       if (seq !== loadSeq.current) return;
@@ -172,11 +176,15 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
   };
 
   const doneEdit = async () => {
+    if (status !== "ready") return;
     setSaving(true);
     try {
       for (const t of changedTabs) {
         const seq = tabs.indexOf(t);
-        await store.saveTab({ ...t, seq });
+        const saved = { ...t, seq };
+        await store.saveTab(saved);
+        // 저장된 탭은 되돌릴 기준(snapshot)도 새 값으로 — 뒤 탭이 실패해도 [취소]가 저장된 탭을 되돌리지 않는다.
+        setSnapshot((prev) => (prev ? (prev.some((s) => s.tabId === saved.tabId) ? prev.map((s) => (s.tabId === saved.tabId ? saved : s)) : [...prev, saved]) : prev));
       }
       finishEdit();
       if (changedTabs.length > 0) tell("배치를 저장했습니다.", "success");
@@ -312,7 +320,7 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
       <button type="button" className="cm-widget-ws__btn" data-action="cancel-edit" disabled={saving} onClick={() => void cancelEdit()}>
         취소
       </button>
-      <button type="button" className="cm-widget-ws__btn cm-widget-ws__btn--primary" data-action="done-edit" disabled={saving} onClick={() => void doneEdit()}>
+      <button type="button" className="cm-widget-ws__btn cm-widget-ws__btn--primary" data-action="done-edit" disabled={saving || status !== "ready"} onClick={() => void doneEdit()}>
         {saving ? "저장 중…" : "완료"}
       </button>
     </>

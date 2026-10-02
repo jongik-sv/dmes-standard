@@ -3203,7 +3203,7 @@ export default function NoticeWidget({ refreshKey }: WidgetProps) {
 ## 편집 흐름
 
 - [배치 편집]은 24칸(≥1200px)에서만 켜진다. 좁은 화면·잠긴 탭·불러오기 실패면 비활성이고 안내 제목이 붙는다.
-- [완료]는 편집을 시작한 뒤 바뀐 탭만 `store.saveTab` 한다. 저장이 실패하면 편집 모드와 변경을 유지하고 알린다. [취소]는 바뀐 것이 있으면 확인 뒤 되돌린다. 편집 중 Escape 는 [취소]와 같다.
+- [완료]는 편집을 시작한 뒤 바뀐 탭만 `store.saveTab` 한다. 저장이 실패하면 편집 모드와 변경을 유지하고 알린다(탭 여러 개면 저장된 탭은 [취소]로 되돌리지 않고, 다시 [완료]하면 실패한 탭만 저장한다). 불러오기가 끝나지 않았거나 실패한 상태에서는 [완료]가 막힌다. [취소]는 바뀐 것이 있으면 확인 뒤 되돌린다. 편집 중 Escape 는 [취소]와 같다.
 - 보기 모드 탭 메뉴 작업(이름 바꾸기·잠금·왼쪽/오른쪽·지우기·홈 기본 배치로 되돌리기)은 바로 저장하며, 실패하면 화면을 원래대로 되돌린다.
 - (+) 새 탭은 편집 모드로 들어가고 [취소]하면 사라진다.
 
@@ -3213,9 +3213,9 @@ WidgetWorkspaceProps
 
 | Prop | 타입 | 기본값 | 설명 |
 |---|---|---|---|
-| registry | `WidgetRegistry` | 필수 | 위젯 ID → `{ meta, load }`. 코드 생성물 |
-| homeDefault | `readonly WidgetItem[]` | 필수 | 저장한 「홈」이 없을 때의 기본 배치 |
-| store | `WidgetStore` | 필수 | 서버 저장소(아래 계약) |
+| registry | `WidgetRegistry` | 필수 | 위젯 ID → `{ meta, load }`. 코드 생성물. 모듈 상수나 `useMemo` 로 안정된 참조를 넘긴다 |
+| homeDefault | `readonly WidgetItem[]` | 필수 | 저장한 「홈」이 없을 때의 기본 배치. 안정된 참조를 넘긴다 |
+| store | `WidgetStore` | 필수 | 서버 저장소(아래 계약). 안정된 참조를 넘긴다 |
 | userId | `string \| null` | - | 있으면 마지막 탭을 `localStorage` `dmes:widget:lastTab:{userId}` 에 기억 |
 | confirm | `(title, message) => Promise<boolean>` | - | 없으면 `useMessage` 확인 창 |
 | notify | `(message, kind: "success" \| "error") => void` | - | 없으면 `useMessage` 토스트 |
@@ -3259,6 +3259,7 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 
 | 실수 | 바로잡기 |
 |---|---|
+| `store`·`homeDefault`·`registry` 를 렌더마다 새로 만들어 넘긴다 | 참조가 바뀌면 작업 공간이 다시 불러오며 편집 중이던 변경이 사라지고 편집 모드가 끝난다. 모듈 상수나 `useMemo` 로 안정된 참조를 넘긴다 |
 | `onWideChange` 에 렌더마다 새 화살표 함수를 넘긴다 | 보드가 effect 의존성으로 쓴다. `useCallback` 이나 `setState` 함수를 넘긴다 |
 | 위젯 본체가 자기 제목 줄을 그린다 | 틀(`WidgetFrame`)이 그린다. 고유 버튼은 `WidgetHeaderActions`, 부제는 `WidgetTitleExtra` |
 | 위젯 `id` 를 나중에 바꾼다 | 저장 키라서 사용자 배치에서 그 위젯이 빠진다. 새 ID 로 만들고 옛 것은 한동안 둔다 |
