@@ -521,3 +521,44 @@ interface LlmClient {
 - **운영 환경 확인**: MSSQL 에서 `;` 없이 이어 쓴 여러 문장 판정, 운영 context path(`/mcm/api`)에서 BE 필터 판정, WildFly·Nginx 의 본문 101MB 허용, 챗봇 최대 응답 시간(도구 5회 × 공급자 제한 시간, 약 123초)과 앞단 시간 제한.
 - **KoreaExim**: CNH/CNY 표기 차이를 실제 키로 검증하지 않았다.
 - **shared**: `PieChart` 범례의 「건」 고정 단위와 같은 이름 항목의 key 중복(기존 컴포넌트 변경이라 승인 뒤).
+
+## 17. 메모장 위젯 `memo` (2026-10-03 추가)
+
+사용자 요청: 「메모장 위젯 — 텍스트·md·html 형태」. 결정: 공용·개인 **둘 다**(관리자가 정의에서 종류를 고른다), 형식은 **쓰는 사람이 메모마다 고른다**.
+
+### 17.1 정의 설정(`CONFIG_JSON`)
+
+`{ "scope": "shared" | "personal", "format": "text" | "md" | "html", "content": string }`
+
+- `shared`(공용 메모): 관리자가 위젯관리 유형 편집기에서 형식을 고르고 `content` 를 쓴다. 모든 사용자는 읽기만 한다. 서버 저장은 기존 정의 저장(`commWidgetMng/save`) 그대로다.
+- `personal`(개인 메모): `format` 은 새 메모의 처음 형식, `content` 는 쓰지 않는다(빈 문자열). 사용자가 홈의 위젯 안에서 쓰고 자기만 본다.
+- 검사: `scope`·`format` 은 위 값만, `content` 20,000자 이하. 기본값 `{ scope: "personal", format: "text", content: "" }`. 유형 크기 기본 8×10, 최소 4×6.
+
+### 17.2 개인 메모 저장 — `TB_MCM_SEC_USER_WIDGET_MEMO`
+
+| 컬럼 | 형식 | 설명 |
+|---|---|---|
+| `USER_ID` | varchar(50) PK | 인증 정보에서만 얻는다 |
+| `INST_ID` | varchar(40) PK | 배치 칸 ID(`WidgetProps.instanceId`) |
+| `DEF_ID` | varchar(100) | 정의 위젯 ID(`def.xxxxxxxx`) |
+| `FMT` | varchar(10) | `text`·`md`·`html` |
+| `CONTENT` | `LONG32VARCHAR`(W-D30) | 20,000자 이하 |
+| 감사 컬럼 | | 기존 엔티티 공통(`U_AT` = 마지막 저장 시각) |
+
+### 17.3 서비스 `widgetMemo` (AUTH_ONLY — 로그인만 되면 부른다)
+
+| action | params | 결과(`data.result`) |
+|---|---|---|
+| `load` | `instId` | `{ memo: { instId, defId, format, content, updatedAt } \| null }` |
+| `save` | `instId`, `defId`, `format`, `content` | `{ memo: {…같은 모양} }` |
+
+- `userId` 는 늘 `SecurityIdentity` 에서 얻고, 조회·저장은 `(userId, instId)` 로만 한다(다른 사용자 메모 접근 불가).
+- `save` 검사(E002): `instId` 1~40자 `[A-Za-z0-9_-]`, `defId` 가 **사용 중인 `memo` 유형 정의이고 `scope=personal`**, `format` 허용값, `content` 20,000자 이하, 사용자당 메모 100개 이하(새 `instId` 저장 때만 센다, 「메모는 100개까지 저장할 수 있습니다」).
+- BFF `proxy.ts` authOnly 접두 `/api/mcm/oasis/widgetMemo/`, BE `EndpointPermissionFilter` AUTH_ONLY 에 `widgetmemo/` 추가. BPMN `services/roleManagement/widgetMemo.bpmn`(`widgetChat.bpmn` 방식).
+
+### 17.4 화면
+
+- 렌더러: `text` = 줄바꿈 유지 글, `md` = 기존 글(md) 위젯과 같은 마크다운 보기, `html` = 정화 보기(script·on*·inline style·iframe 제거, 기존 html 위젯 `allowScript=false` 와 같은 경로).
+- 개인 메모: 마운트 때 `load`, 보기 모드에 [편집]. 편집 모드 = 형식 선택(텍스트·md·html) + 입력칸 + 글자 수 + [저장]·[취소]. 저장 실패는 입력칸 위 오류 문구, 쓰던 글은 남긴다. 메모가 없으면 「메모가 없습니다. [편집]을 눌러 쓰세요」. 관리 화면 미리보기(저장소 없음)에서는 `load`·`save` 를 부르지 않고 「미리보기에서는 저장하지 않습니다」.
+- 공용 메모: 보기만, 편집 버튼 없음.
+- 유형 편집기: 종류(공용·개인) 선택, 형식 선택, 공용이면 내용 입력칸(형식에 맞는 편집기). 개인이면 「사용자가 홈에서 직접 씁니다. 형식은 새 메모의 처음 형식입니다」.
