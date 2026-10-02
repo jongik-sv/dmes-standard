@@ -15,7 +15,7 @@ export const MEMO_PREVIEW_TEXT = "미리보기에서는 저장하지 않습니�
 export const MEMO_SHARED_EMPTY_TEXT = "내용이 없습니다";
 export const MEMO_LOAD_ERROR = "메모를 불러오지 못했습니다.";
 export const MEMO_SAVE_ERROR = "메모를 저장하지 못했습니다. 잠시 뒤 다시 시도하세요.";
-export const MEMO_TOO_LONG_MESSAGE = "내용은 20,000자까지 쓸 수 있습니다";
+export const MEMO_TOO_LONG_MESSAGE = "메모 내용은 20,000자까지 쓸 수 있습니다.";
 export const MEMO_PERSONAL_NOTE = "사용자가 홈에서 직접 씁니다. 형식은 새 메모의 처음 형식입니다";
 
 /** 위젯이 놓이는 포털 홈의 menuId — 다른 AUTH_ONLY 위젯 서비스(widgetChat 등)와 같다(권한 판정에 쓰이지 않는다). */
@@ -69,21 +69,35 @@ export function readMemoConfig(definition: unknown): MemoConfig {
   };
 }
 
+/** 서버 WidgetDefConfigRules(§17.1)와 같은 문구 — 화면에서 먼저 막아도 서버가 막아도 같은 말이 보이게 한다. */
+export const MEMO_SCOPE_ERROR = "메모 종류(scope)는 shared 또는 personal 이어야 합니다.";
+export const MEMO_FORMAT_ERROR = "메모 형식(format)은 text·md·html 중 하나여야 합니다.";
+export const MEMO_CONTENT_TYPE_ERROR = "메모 내용(content)은 문자열이어야 합니다.";
+
 /**
  * 편집기 검사(저장 막기용 오류 목록). 읽은 값이 아니라 받은 원본을 검사한다 — 바로잡힌 값 뒤에 틀린 값이 숨지 않게.
- * 빠진 값은 기본값으로 읽히므로 오류가 아니다.
+ * 서버가 저장을 거절하는 경우와 같다: scope·format 은 빠져도 오류이고, content 는 없거나 null 이면 괜찮다.
  */
 export function validateMemoConfig(raw: unknown): string[] {
   const r = isRecord(raw) ? raw : {};
   const errors: string[] = [];
-  if (r.scope !== undefined && !isMemoScope(r.scope)) errors.push("종류는 공용 메모·개인 메모 중에서 고르세요");
-  if (r.format !== undefined && !isMemoFormat(r.format)) errors.push("형식은 텍스트·md·html 중에서 고르세요");
-  if (r.content !== undefined && typeof r.content !== "string") {
-    errors.push("내용은 글이어야 합니다");
-  } else if (typeof r.content === "string" && r.content.length > MEMO_MAX_LENGTH) {
-    errors.push(MEMO_TOO_LONG_MESSAGE);
+  if (!isMemoScope(r.scope)) errors.push(MEMO_SCOPE_ERROR);
+  if (!isMemoFormat(r.format)) errors.push(MEMO_FORMAT_ERROR);
+  const content = r.content;
+  if (content !== undefined && content !== null) {
+    if (typeof content !== "string") errors.push(MEMO_CONTENT_TYPE_ERROR);
+    else if (content.length > MEMO_MAX_LENGTH) errors.push(MEMO_TOO_LONG_MESSAGE);
   }
   return errors;
+}
+
+/**
+ * 편집기 선택칸에 보일 값 — 원본이 허용값이 아니면(빠진 경우 포함) 빈 값(「선택하세요」)이다.
+ * 바로잡힌 값(readMemoConfig)을 그대로 보이면 사용자가 틀린 설정을 알아채지 못하고, 같은 값을 다시 골라 고칠 수도 없다.
+ */
+export function readMemoChoices(raw: unknown): { scope: MemoScope | ""; format: MemoFormat | "" } {
+  const r = isRecord(raw) ? raw : {};
+  return { scope: isMemoScope(r.scope) ? r.scope : "", format: isMemoFormat(r.format) ? r.format : "" };
 }
 
 /* ------------------------------------------------------------------ 글자 수 */

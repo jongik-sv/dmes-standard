@@ -20,6 +20,7 @@ import {
   MEMO_FORMATS,
   MEMO_PERSONAL_NOTE,
   MEMO_SCOPES,
+  readMemoChoices,
   readMemoConfig,
   validateMemoConfig,
   type MemoConfig,
@@ -30,6 +31,8 @@ const FORMAT_OPTIONS = MEMO_FORMATS.map((f) => ({ value: f.value, label: f.label
 
 export default function MemoTypeEditor({ value, onChange, onValidate }: WidgetTypeEditorProps) {
   const cfg = readMemoConfig(value);
+  /** 선택칸에 보일 원본 값 — 빠졌거나 틀렸으면 「선택하세요」(빈 값). */
+  const choice = readMemoChoices(value);
   useReportErrors(validateMemoConfig(value), onValidate);
   /** 공용 → 개인으로 바꿀 때 치워 둔 공용 내용. */
   const stashed = useRef("");
@@ -37,7 +40,7 @@ export default function MemoTypeEditor({ value, onChange, onValidate }: WidgetTy
   const emit = (next: MemoConfig) => onChange(next satisfies MemoConfig);
 
   const changeScope = (scope: string) => {
-    if (!isMemoScope(scope) || scope === cfg.scope) return;
+    if (!isMemoScope(scope) || scope === choice.scope) return;
     if (scope === "personal") {
       stashed.current = cfg.content;
       emit({ scope, format: cfg.format, content: "" });
@@ -56,10 +59,24 @@ export default function MemoTypeEditor({ value, onChange, onValidate }: WidgetTy
     <div className="mcm-wt-editor" data-testid="widget-type-editor-memo">
       <ContentStyle />
       <FormGroup label="종류" required>
-        <Select value={cfg.scope} options={SCOPE_OPTIONS} aria-label="종류" onChange={changeScope} data-testid="widget-memo-scope" />
+        <Select
+          value={choice.scope}
+          options={SCOPE_OPTIONS}
+          placeholder="선택하세요"
+          aria-label="종류"
+          onChange={changeScope}
+          data-testid="widget-memo-scope"
+        />
       </FormGroup>
       <FormGroup label="형식" required>
-        <Select value={cfg.format} options={FORMAT_OPTIONS} aria-label="형식" onChange={changeFormat} data-testid="widget-memo-format" />
+        <Select
+          value={choice.format}
+          options={FORMAT_OPTIONS}
+          placeholder="선택하세요"
+          aria-label="형식"
+          onChange={changeFormat}
+          data-testid="widget-memo-format"
+        />
       </FormGroup>
       {cfg.scope === "shared" ? (
         <FormGroup label="내용" className="mcm-fg-block">

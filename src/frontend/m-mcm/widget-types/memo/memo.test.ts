@@ -12,13 +12,17 @@ import {
   isBlankMemo,
   isLiveMemo,
   loadRequest,
+  MEMO_CONTENT_TYPE_ERROR,
   MEMO_DEFAULT_CONFIG,
+  MEMO_FORMAT_ERROR,
   MEMO_MAX_LENGTH,
   MEMO_SAVE_ERROR,
+  MEMO_SCOPE_ERROR,
   MEMO_TOO_LONG_MESSAGE,
   memoErrorMessage,
   MemoServiceError,
   parseMemo,
+  readMemoChoices,
   readMemoConfig,
   saveRequest,
   unwrapMemo,
@@ -65,36 +69,73 @@ describe("정의 설정 읽기", () => {
   });
 });
 
-describe("정의 설정 검사", () => {
-  it("정상 설정과 빠진 값은 오류가 없다", () => {
+describe("편집기 선택칸 값", () => {
+  it("허용값은 그대로, 빠졌거나 틀린 값은 빈 값(선택하세요)이다", () => {
+    expect(readMemoChoices({ scope: "shared", format: "md" })).toEqual({ scope: "shared", format: "md" });
+    expect(readMemoChoices({ scope: "team", format: "rtf" })).toEqual({ scope: "", format: "" });
+    expect(readMemoChoices({})).toEqual({ scope: "", format: "" });
+    expect(readMemoChoices(null)).toEqual({ scope: "", format: "" });
+  });
+});
+
+describe("정의 설정 검사(서버 WidgetDefConfigRules §17.1 과 같은 규칙·문구)", () => {
+  const ok = { scope: "shared", format: "text", content: "" };
+
+  it("정상 설정은 오류가 없다", () => {
     expect(validateMemoConfig({ scope: "shared", format: "html", content: "<p>안내</p>" })).toEqual([]);
     expect(validateMemoConfig({ scope: "personal", format: "text", content: "" })).toEqual([]);
-    expect(validateMemoConfig({})).toEqual([]);
-    expect(validateMemoConfig(null)).toEqual([]);
+    expect(validateMemoConfig(meta.initialConfig)).toEqual([]);
   });
 
-  it("종류는 shared·personal 만 허용한다", () => {
-    expect(validateMemoConfig({ scope: "team" })).toEqual(["종류는 공용 메모·개인 메모 중에서 고르세요"]);
-    expect(validateMemoConfig({ scope: "" })).toHaveLength(1);
+  it("서버 문구가 서버와 한 글자도 다르지 않다", () => {
+    expect(MEMO_SCOPE_ERROR).toBe("메모 종류(scope)는 shared 또는 personal 이어야 합니다.");
+    expect(MEMO_FORMAT_ERROR).toBe("메모 형식(format)은 text·md·html 중 하나여야 합니다.");
+    expect(MEMO_CONTENT_TYPE_ERROR).toBe("메모 내용(content)은 문자열이어야 합니다.");
+    expect(MEMO_TOO_LONG_MESSAGE).toBe("메모 내용은 20,000자까지 쓸 수 있습니다.");
   });
 
-  it("형식은 text·md·html 만 허용한다", () => {
-    expect(validateMemoConfig({ format: "rtf" })).toEqual(["형식은 텍스트·md·html 중에서 고르세요"]);
-    for (const format of ["text", "md", "html"]) expect(validateMemoConfig({ format })).toEqual([]);
+  it("종류는 shared·personal 만 허용하고 빠져도 오류다", () => {
+    expect(validateMemoConfig({ ...ok, scope: "team" })).toEqual([MEMO_SCOPE_ERROR]);
+    expect(validateMemoConfig({ ...ok, scope: "" })).toEqual([MEMO_SCOPE_ERROR]);
+    expect(validateMemoConfig({ ...ok, scope: null })).toEqual([MEMO_SCOPE_ERROR]);
+    expect(validateMemoConfig({ format: "text", content: "" })).toEqual([MEMO_SCOPE_ERROR]);
+  });
+
+  it("형식은 text·md·html 만 허용하고 빠져도 오류다", () => {
+    expect(validateMemoConfig({ ...ok, format: "rtf" })).toEqual([MEMO_FORMAT_ERROR]);
+    expect(validateMemoConfig({ ...ok, format: null })).toEqual([MEMO_FORMAT_ERROR]);
+    expect(validateMemoConfig({ scope: "shared", content: "" })).toEqual([MEMO_FORMAT_ERROR]);
+    for (const format of ["text", "md", "html"]) expect(validateMemoConfig({ ...ok, format })).toEqual([]);
+  });
+
+  it("값이 모두 빠졌거나 객체가 아니면 종류·형식 오류를 둘 다 알린다", () => {
+    for (const raw of [{}, null, undefined, "x", 3, []]) {
+      expect(validateMemoConfig(raw)).toEqual([MEMO_SCOPE_ERROR, MEMO_FORMAT_ERROR]);
+    }
+  });
+
+  it("내용은 없거나 null 이어도 괜찮다(서버와 같다)", () => {
+    expect(validateMemoConfig({ scope: "personal", format: "text" })).toEqual([]);
+    expect(validateMemoConfig({ scope: "personal", format: "text", content: null })).toEqual([]);
   });
 
   it("내용은 20,000자까지 — 20,000자는 통과, 20,001자는 거절", () => {
     expect(MEMO_MAX_LENGTH).toBe(20000);
-    expect(validateMemoConfig({ content: "가".repeat(20000) })).toEqual([]);
-    expect(validateMemoConfig({ content: "가".repeat(20001) })).toEqual([MEMO_TOO_LONG_MESSAGE]);
+    expect(validateMemoConfig({ ...ok, content: "가".repeat(20000) })).toEqual([]);
+    expect(validateMemoConfig({ ...ok, content: "가".repeat(20001) })).toEqual([MEMO_TOO_LONG_MESSAGE]);
   });
 
   it("내용이 글이 아니면 거절한다", () => {
-    expect(validateMemoConfig({ content: 5 })).toEqual(["내용은 글이어야 합니다"]);
+    expect(validateMemoConfig({ ...ok, content: 5 })).toEqual([MEMO_CONTENT_TYPE_ERROR]);
+    expect(validateMemoConfig({ ...ok, content: ["a"] })).toEqual([MEMO_CONTENT_TYPE_ERROR]);
   });
 
   it("틀린 값이 여럿이면 모두 알린다", () => {
-    expect(validateMemoConfig({ scope: "x", format: "y", content: "a".repeat(20001) })).toHaveLength(3);
+    expect(validateMemoConfig({ scope: "x", format: "y", content: "a".repeat(20001) })).toEqual([
+      MEMO_SCOPE_ERROR,
+      MEMO_FORMAT_ERROR,
+      MEMO_TOO_LONG_MESSAGE,
+    ]);
   });
 });
 

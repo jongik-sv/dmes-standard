@@ -140,7 +140,8 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
       setErrorText(problem);
       return;
     }
-    const gen = ++genRef.current;
+    const gen = ++genRef.current; // 진행 중이던 불러오기 응답은 버린다
+    setStatus({ kind: "ready" }); // 버린 불러오기가 남긴 「불러오는 중」 표시를 풀지 못하므로 여기서 푼다
     setSaving(true);
     setErrorText(null);
     try {
