@@ -101,7 +101,9 @@ public class SecWidgetService {
         }
         List<SecUserWidgetTab> existing = tabRepository.findByUserIdOrderByTabSeqAsc(userId);
         boolean isNew = existing.stream().noneMatch(t -> t.getTabId().equals(tabId));
-        if (isNew && existing.size() >= MAX_TABS) {
+        // 「홈」 포함 MAX_TABS 개: home 은 한도 검사에서 늘 빼고, 새 일반 탭만 home 이 아닌 기존 행 수로 센다.
+        long nonHome = existing.stream().filter(t -> !HOME_TAB_ID.equals(t.getTabId())).count();
+        if (!home && isNew && nonHome >= MAX_TABS - 1) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "탭은 " + MAX_TABS + "개까지 만들 수 있습니다.");
         }
         if (!home && existing.stream().anyMatch(t -> !t.getTabId().equals(tabId) && tabNm.equals(t.getTabNm()))) {

@@ -182,6 +182,21 @@ class SecWidgetServiceTest {
     }
 
     @Test
+    @DisplayName("home 이 없고 일반 탭이 9개여도 home 저장은 통과하고 새 일반 탭은 거절된다")
+    void homeExemptFromTabLimit() {
+        when(securityIdentity.currentUserId()).thenReturn("userA");
+        List<SecUserWidgetTab> nine = new ArrayList<>();
+        for (int i = 1; i <= 9; i++) nine.add(tab("userA", "tab-" + i, "t" + i, i));
+        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(nine);
+
+        service.saveTab(save("home", "홈"), List.of());
+        verify(writer).replaceTab(eq("userA"), any(), anyList());
+
+        assertThatThrownBy(() -> service.saveTab(save("tab-10", "새"), List.of()))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("10");
+    }
+
+    @Test
     @DisplayName("deleteTab 은 home 을 거절하고, 다른 탭은 Writer 로 지운다")
     void deleteTab() {
         when(securityIdentity.currentUserId()).thenReturn("userA");
