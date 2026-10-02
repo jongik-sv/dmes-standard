@@ -79,7 +79,7 @@ class RuleUsageServiceTest extends AbstractMdmSharedDbTest {
     }
 
     private void set(String id, String name, String ruleIds) {
-        jdbc.update("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, STATUS) VALUES (?, ?, ?, 'INUSE')", id, name, ruleIds);
+        DmeTestSupport.ruleSet(jdbc, id, name, ruleIds, "INUSE", 0);
     }
 
     private static SetInfo find(UsageInfo u, String setId) {

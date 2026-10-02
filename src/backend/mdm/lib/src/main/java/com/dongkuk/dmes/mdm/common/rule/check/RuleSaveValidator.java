@@ -69,7 +69,7 @@ public class RuleSaveValidator {
         }
         if (noErrors(issues)) {
             RuleSaveContext context = new RuleSaveContext(in.ruleId(), in.ver(), in.ruleKind(), in.hitPolicy(), in.rawVars(), in.vars(),
-                    stored(rows), analysis, target);
+                    stored(rows), analysis, target, in.referenceTime());
             checks.orderedStream().filter(c -> c.targets().contains(target)).forEach(c -> issues.addAll(c.check(context)));
         }
         return new RuleCheckReport(List.copyOf(rows), List.copyOf(issues));

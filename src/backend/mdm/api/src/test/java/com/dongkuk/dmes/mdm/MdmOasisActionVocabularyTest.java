@@ -70,13 +70,22 @@ class MdmOasisActionVocabularyTest {
         assertTrue(new java.util.HashSet<>(MdmPermissions.EDIT_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
     }
 
-    /** TSK-08-06 I17, 흐름도 2단계 P5(validate·execute). */
+    /** TSK-08-06 I17, 흐름도 2단계 P5(validate·execute), D-144 2단계(copy·lock·unlock·handover). */
     @Test
     void dme_ruleSetEdit_bpmn_의_모든_액션이_어휘와_편집_권한_세트_안에_있다() throws Exception {
         Path path = bpmnPath("dme", "ruleSetEdit.bpmn");
         assertActionsWithinVocabulary(path);
-        assertEquals(Set.of("search", "view", "save", "delete", "restore", "validate", "execute"), actionsFromGateway(path));
+        assertEquals(Set.of("search", "view", "save", "delete", "restore", "validate", "execute", "copy", "lock", "unlock", "handover"),
+                actionsFromGateway(path));
         assertTrue(new java.util.HashSet<>(MdmPermissions.EDIT_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
+    }
+
+    /** D-144 2단계 — 룰 세트 확정. confirm 은 CONFIRM 세트에만 있다(ruleConfirm 과 같다). */
+    @Test
+    void dme_ruleSetConfirm_bpmn_의_모든_액션이_어휘_안에_있다() throws Exception {
+        Path path = bpmnPath("dme", "ruleSetConfirm.bpmn");
+        assertActionsWithinVocabulary(path);
+        assertEquals(Set.of("search", "view", "validate", "confirm"), actionsFromGateway(path));
     }
 
     @Test
@@ -111,7 +120,7 @@ class MdmOasisActionVocabularyTest {
                 scanned.add(bpmn.getParent().getFileName() + "/" + bpmn.getFileName());
             }
         }
-        assertTrue(scanned.containsAll(Set.of("dme/ruleMng.bpmn", "dme/ruleEdit.bpmn", "dme/ruleSetMng.bpmn", "dme/ruleSetEdit.bpmn")),
+        assertTrue(scanned.containsAll(Set.of("dme/ruleMng.bpmn", "dme/ruleEdit.bpmn", "dme/ruleSetMng.bpmn", "dme/ruleSetEdit.bpmn", "dme/ruleSetConfirm.bpmn")),
                 "dme BPMN 이 스캔되지 않았다: " + scanned);
         Set<String> missing = new LinkedHashSet<>(bpmnActions);
         missing.removeAll(allActions);
@@ -184,7 +193,7 @@ class MdmOasisActionVocabularyTest {
                 bpmnScreens.add(name.substring(0, name.length() - ".bpmn".length()));
             }
         }
-        assertEquals(23, bpmnScreens.size(), "BPMN 화면 수가 23개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
+        assertEquals(24, bpmnScreens.size(), "BPMN 화면 수가 24개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
 
         Set<String> seeded = objectIdsFromSeedCalls(source);
         Set<String> missing = new LinkedHashSet<>(bpmnScreens);

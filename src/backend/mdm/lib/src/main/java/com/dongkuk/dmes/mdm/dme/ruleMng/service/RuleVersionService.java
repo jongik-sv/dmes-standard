@@ -14,6 +14,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.common.version.VersionRowStore;
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.common.MdmNativeAuditSupport;
 import com.dongkuk.dmes.mdm.contract.version.DraftOwnershipService;
@@ -90,7 +91,7 @@ public class RuleVersionService {
      * D-144), 소유자 = 만든 사람. {@code verKind} 가 비면 MAJOR 다(기존 화면 호환).
      */
     public RuleVersionResult newVersion(RuleVersionRequest request) {
-        VersionKind kind = parseKind(request.getVerKind());
+        VersionKind kind = VersionRules.parseKind(request.getVerKind());
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         requireMdm(rule);
         if ("DEPRECATED".equals(rule.getStatus())) {
@@ -106,16 +107,7 @@ public class RuleVersionService {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "복사할 RELEASED 버전이 없어 새 버전을 만들 수 없습니다: " + id);
         }
         BigDecimal max = VersionNumbers.maxVer(versions.stream().map(MdmRuleVer::getVer).toList());
-        if (kind == VersionKind.MINOR && max == null) {
-            throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "버전이 없으면 major 만 만들 수 있습니다", List.of());
-        }
-        if (kind == VersionKind.MINOR && !VersionNumbers.canMinor(max)) {
-            throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "minor 를 더 올릴 수 없습니다. major 를 올리십시오", List.of());
-        }
-        if (kind == VersionKind.MAJOR && !VersionNumbers.canMajor(max)) {
-            throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "major 를 더 올릴 수 없습니다", List.of());
-        }
-        BigDecimal next = VersionNumbers.next(max, kind);
+        BigDecimal next = VersionRules.nextNumber(max, kind);
         String me = support.me();
         boolean promote = RuleVersions.needsInUsePromotion(rule.getStatus(), versions, support.now());
         tx.executeWithoutResult(status -> {
@@ -134,18 +126,6 @@ public class RuleVersionService {
             }
         });
         return new RuleVersionResult(id, VersionNumbers.plain(next), kind.name(), 0L);
-    }
-
-    /** 비면 MAJOR, MAJOR·MINOR 이외는 INVALID_INPUT. */
-    private static VersionKind parseKind(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return VersionKind.MAJOR;
-        }
-        try {
-            return VersionKind.valueOf(raw.trim());
-        } catch (IllegalArgumentException e) {
-            throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "버전 종류는 MAJOR 또는 MINOR 입니다", List.of());
-        }
     }
 
     /** 변수·행 칼럼 전부 복사 — var_id·row_id·seq 유지(번호를 발급하지 않는다, 06:931). */

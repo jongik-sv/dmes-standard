@@ -148,9 +148,20 @@
       "json_columns": ["INPUT_JSON","EXPECTED_JSON"]
     },
     "TB_MDM_RULE_SET": {
-      "source_columns": ["MARU_RULE_SET_ID","MARU_RULE_SET_NAME","RULE_IDS","DESCRIPTION","STATUS","ROW_VERSION"],
-      "added_columns": [],
-      "json_columns": ["RULE_IDS"]
+      "source_columns": ["MARU_RULE_SET_ID","MARU_RULE_SET_NAME","DESCRIPTION","STATUS"],
+      "added_columns": []
+    },
+    "TB_MDM_RULE_SET_VER": {
+      "source_columns": ["MARU_RULE_SET_ID","VER","VER_KIND","STATUS","BASE_VER","OWNER_ID","APPLY_FROM","APPLY_TO","RULE_IDS","FLOW_JSON","REQUESTED_BY","REQUESTED_AT","RELEASED_AT","ROW_VERSION"],
+      "added_columns": ["AUD_VER"],
+      "uses_aud_var": true,
+      "json_columns": ["RULE_IDS","FLOW_JSON"]
+    },
+    "TB_MDM_RULE_SET_TEST_CASE": {
+      "source_columns": ["MARU_RULE_SET_ID","CASE_ID","CASE_NAME","INPUT_JSON","EVAL_TS","EXPECTED_JSON","DESCRIPTION","ROW_VERSION"],
+      "added_columns": ["AUD_VER"],
+      "uses_aud_var": true,
+      "json_columns": ["INPUT_JSON","EXPECTED_JSON"]
     },
     "TB_MDM_RULE_RECV": {
       "source_columns": ["RECV_ID","MARU_RULE_ID","SOURCE_SYSTEM","SOURCE_REF","REQ_KIND","RECEIVED_AT","BODY","RESULT","RESULT_DETAIL","VER","PROCESSED_AT"],

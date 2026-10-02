@@ -14,17 +14,18 @@ import java.util.Set;
  */
 final class MdmBusinessRuleExpectations {
 
-    /** V8 이 만드는 8테이블(+ V15 세트 테스트 케이스) — 파일 순서(§6.0 「파일 순서」, FK 참조 순서)와 같다. */
+    /** V8 이 만드는 8테이블(+ V15 세트 테스트 케이스, V18 세트 버전) — 파일 순서(§6.0 「파일 순서」, FK 참조 순서)와 같다. */
     static final List<String> TABLES = List.of(
             "TB_MDM_RULE", "TB_MDM_RULE_SYSTEM", "TB_MDM_RULE_VER", "TB_MDM_RULE_VAR",
-            "TB_MDM_RULE_ROW", "TB_MDM_RULE_TEST_CASE", "TB_MDM_RULE_SET", "TB_MDM_RULE_SET_TEST_CASE", "TB_MDM_RULE_RECV");
+            "TB_MDM_RULE_ROW", "TB_MDM_RULE_TEST_CASE", "TB_MDM_RULE_SET", "TB_MDM_RULE_SET_VER", "TB_MDM_RULE_SET_TEST_CASE",
+            "TB_MDM_RULE_RECV");
 
     /** 보류 테이블(DDL 만, 엔티티 없음 — D1, D-019). */
     static final Set<String> DEFERRED_TABLES = Set.of("TB_MDM_RULE_SYSTEM", "TB_MDM_RULE_RECV");
 
     /** 업무 칼럼 VER 와 충돌해 감사 카운터를 AUD_VER 로 두는 테이블(D-034, F6). */
     static final Set<String> AUD_VER_TABLES = Set.of(
-            "TB_MDM_RULE_VER", "TB_MDM_RULE_VAR", "TB_MDM_RULE_ROW", "TB_MDM_RULE_RECV");
+            "TB_MDM_RULE_VER", "TB_MDM_RULE_VAR", "TB_MDM_RULE_ROW", "TB_MDM_RULE_RECV", "TB_MDM_RULE_SET_VER");
 
     /** 감사 카운터 칼럼 이름. */
     static final String AUD_VER = "AUD_VER";
@@ -65,7 +66,10 @@ final class MdmBusinessRuleExpectations {
         BUSINESS_COLUMNS.put("TB_MDM_RULE_TEST_CASE", List.of(
                 "MARU_RULE_ID", "CASE_ID", "CASE_NAME", "INPUT_JSON", "EXPECTED_JSON", "DESCRIPTION", "ROW_VERSION"));
         BUSINESS_COLUMNS.put("TB_MDM_RULE_SET", List.of(
-                "MARU_RULE_SET_ID", "MARU_RULE_SET_NAME", "RULE_IDS", "FLOW_JSON", "DESCRIPTION", "STATUS", "ROW_VERSION"));
+                "MARU_RULE_SET_ID", "MARU_RULE_SET_NAME", "DESCRIPTION", "STATUS"));
+        BUSINESS_COLUMNS.put("TB_MDM_RULE_SET_VER", List.of(
+                "MARU_RULE_SET_ID", "VER", "VER_KIND", "STATUS", "BASE_VER", "OWNER_ID", "APPLY_FROM", "APPLY_TO", "RULE_IDS",
+                "FLOW_JSON", "REQUESTED_BY", "REQUESTED_AT", "RELEASED_AT", "ROW_VERSION"));
         BUSINESS_COLUMNS.put("TB_MDM_RULE_SET_TEST_CASE", List.of(
                 "MARU_RULE_SET_ID", "CASE_ID", "CASE_NAME", "INPUT_JSON", "EVAL_TS", "EXPECTED_JSON", "DESCRIPTION", "ROW_VERSION"));
         BUSINESS_COLUMNS.put("TB_MDM_RULE_RECV", List.of(
@@ -75,7 +79,7 @@ final class MdmBusinessRuleExpectations {
         JSON_COLUMNS.put("TB_MDM_RULE_VAR", List.of("VAR_AST", "PRIO_LIST", "GRP_COND_AST"));
         JSON_COLUMNS.put("TB_MDM_RULE_ROW", List.of("CELLS"));
         JSON_COLUMNS.put("TB_MDM_RULE_TEST_CASE", List.of("INPUT_JSON", "EXPECTED_JSON"));
-        JSON_COLUMNS.put("TB_MDM_RULE_SET", List.of("RULE_IDS", "FLOW_JSON"));
+        JSON_COLUMNS.put("TB_MDM_RULE_SET_VER", List.of("RULE_IDS", "FLOW_JSON"));
         JSON_COLUMNS.put("TB_MDM_RULE_SET_TEST_CASE", List.of("INPUT_JSON", "EXPECTED_JSON"));
 
         UNIQUE_INDEXES.put("UX_TB_MDM_RULE_VAR_SEQ", false);
@@ -101,8 +105,10 @@ final class MdmBusinessRuleExpectations {
         CONSTRAINTS.put("TB_MDM_RULE_TEST_CASE", List.of(
                 "PK_TB_MDM_RULE_TEST_CASE", "FK_TB_MDM_RULE_TEST_CASE_RULE", "CK_TB_MDM_RULE_TEST_CASE_INPUT_JSON",
                 "CK_TB_MDM_RULE_TEST_CASE_EXPECTED_JSON"));
-        CONSTRAINTS.put("TB_MDM_RULE_SET", List.of(
-                "PK_TB_MDM_RULE_SET", "CK_TB_MDM_RULE_SET_STATUS", "CK_TB_MDM_RULE_SET_RULE_IDS_JSON", "CK_TB_MDM_RULE_SET_FLOW_JSON"));
+        CONSTRAINTS.put("TB_MDM_RULE_SET", List.of("PK_TB_MDM_RULE_SET", "CK_TB_MDM_RULE_SET_STATUS"));
+        CONSTRAINTS.put("TB_MDM_RULE_SET_VER", List.of(
+                "PK_TB_MDM_RULE_SET_VER", "FK_TB_MDM_RULE_SET_VER_SET", "CK_TB_MDM_RULE_SET_VER_STATUS", "CK_TB_MDM_RULE_SET_VER_KIND",
+                "CK_TB_MDM_RULE_SET_VER_APPLY", "CK_TB_MDM_RULE_SET_VER_RULE_IDS_JSON", "CK_TB_MDM_RULE_SET_VER_FLOW_JSON"));
         CONSTRAINTS.put("TB_MDM_RULE_SET_TEST_CASE", List.of(
                 "PK_TB_MDM_RULE_SET_TEST_CASE", "FK_TB_MDM_RULE_SET_TEST_CASE_SET", "CK_TB_MDM_RULE_SET_TEST_CASE_INPUT_JSON",
                 "CK_TB_MDM_RULE_SET_TEST_CASE_EXPECTED_JSON"));

@@ -22,6 +22,8 @@ export interface ConfirmModalProps {
   warnings: WarningLine[];
   contractWarnings: WarningLine[];
   futureApplyFrom: boolean;
+  /** 검사 항목 제목 표. 없으면 룰 확정의 `checkTitle`(세트 화면은 자기 표를 넘긴다). */
+  titleOf?: (item: string) => string;
   busy?: boolean;
   onClose: () => void;
   onSubmit: (warningsAcknowledged: boolean) => void;
@@ -36,12 +38,12 @@ const hintStyle = { color: "var(--color-text-muted)", fontSize: "var(--font-size
 const warnStyle = { color: "var(--color-warning, #b45309)", padding: "var(--spacing-xs) 0" } as const;
 const dangerStyle = { color: "var(--color-danger, #b91c1c)", fontWeight: 600 } as const;
 
-function lineText(w: WarningLine): string {
-  return `${checkTitle(w.item)} · ${w.issue.message}${w.issue.itemKey ? ` (${w.issue.itemKey})` : ""}`;
+function lineText(w: WarningLine, titleOf: (item: string) => string): string {
+  return `${titleOf(w.item)} · ${w.issue.message}${w.issue.itemKey ? ` (${w.issue.itemKey})` : ""}`;
 }
 
 export function ConfirmModal({
-  open, target, applyFrom, warnings, contractWarnings, futureApplyFrom, busy, onClose, onSubmit,
+  open, target, applyFrom, warnings, contractWarnings, futureApplyFrom, titleOf = checkTitle, busy, onClose, onSubmit,
 }: ConfirmModalProps) {
   const [acked, setAcked] = useState(false);
   const [contractAcked, setContractAcked] = useState(false);
@@ -85,7 +87,7 @@ export function ConfirmModal({
         <div data-testid="rc-modal-contract">
           <strong style={dangerStyle}>입력 계약 변경</strong>
           <ul>
-            {contractWarnings.map((w, i) => <li key={`c-${i}`} style={dangerStyle}>{lineText(w)}</li>)}
+            {contractWarnings.map((w, i) => <li key={`c-${i}`} style={dangerStyle}>{lineText(w, titleOf)}</li>)}
           </ul>
           <span data-testid="rc-contract-ack">
             <Checkbox checked={contractAcked} label="입력 계약 변경을 확인했습니다" onChange={setContractAcked} />
@@ -96,7 +98,7 @@ export function ConfirmModal({
         <div data-testid="rc-modal-warnings">
           <strong>경고</strong>
           <ul>
-            {warnings.map((w, i) => <li key={`w-${i}`}>{lineText(w)}</li>)}
+            {warnings.map((w, i) => <li key={`w-${i}`}>{lineText(w, titleOf)}</li>)}
           </ul>
           <span data-testid="rc-ack">
             <Checkbox checked={acked} label="경고를 확인했습니다" onChange={setAcked} />

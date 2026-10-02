@@ -44,7 +44,7 @@ public class MdmEngineConfig {
         }
 
         @Override
-        public Optional<RuleSetDefinition> ruleSet(String setId) {
+        public Optional<RuleSetDefinition> ruleSet(String setId, java.time.Instant evalTs) {
             return Optional.empty();
         }
     };

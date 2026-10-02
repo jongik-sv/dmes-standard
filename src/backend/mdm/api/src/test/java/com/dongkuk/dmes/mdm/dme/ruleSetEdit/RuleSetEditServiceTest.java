@@ -29,12 +29,14 @@ import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSaveResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetStatusRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetStatusResult;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetVersionRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetViewResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.service.RuleSetEditService;
 import com.dongkuk.oasis.audit.AuditHolder;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -48,7 +50,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * TSK-08-06 design §2.2 「RuleSetEditServiceTest」 — ruleSetEdit 의 search(SET·RULE·GUIDE)·view·save·delete(폐기)·restore(되살리기).
+ * TSK-08-06 design §2.2 「RuleSetEditServiceTest」 — ruleSetEdit 의 search(SET·RULE·GUIDE)·view·save·delete(target SET = 폐기)·restore(되살리기).
  * 불변 규칙 I3(버전·룰 테이블 무관)·I12(서버 재계산·조건부 UPDATE)·I13(요청 검사)·I14(폐기)·I15(되살리기)·I19(담당자)·I23(한 행만).
  *
  * <p>룰 픽스처(모두 VER 1 RELEASED, 조건은 이름 조건 열, 결과 하나): 사전 SET_THK·SET_WID. R_GRD(SET_THK → S_GRD), R_FCT(S_GRD·SET_WID → S_FCT),
@@ -68,6 +70,9 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     JdbcTemplate jdbc;
     @Autowired
     RuleIoReader ioReader;
+
+    /** 저장 대상 세트(S_CHAIN·S_OTHER)의 kim DRAFT 버전. */
+    static final String DRAFT = "2.000";
 
     @BeforeEach
     void seed() {
@@ -96,6 +101,10 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
 
         DmeTestSupport.ruleSet(jdbc, "S_CHAIN", "사슬 세트", "[\"R_GRD\",\"R_FCT\",\"R_SPD\"]", "INUSE", 3);
         DmeTestSupport.ruleSet(jdbc, "S_OTHER", "다른 세트", "[\"R_GRD\"]", "INUSE", 0);
+        // D-144 2단계 — 저장은 내 DRAFT 에만 쓴다. 저장 대상 세트에 kim 의 DRAFT 를 1.000 과 같은 목록·행 버전으로 둔다.
+        // S_CYC 에는 두지 않는다 — 폐기 시험이 미적용 버전 없음(MDM006)을 요구한다.
+        DmeTestSupport.ruleSetDraft(jdbc, "S_CHAIN", DRAFT, "kim", "[\"R_GRD\",\"R_FCT\",\"R_SPD\"]", 3);
+        DmeTestSupport.ruleSetDraft(jdbc, "S_OTHER", DRAFT, "kim", "[\"R_GRD\"]", 0);
         DmeTestSupport.ruleSet(jdbc, "S_CYC", "순환 세트", "[\"R_CYA\",\"R_CYB\"]", "INUSE", 1);
         DmeTestSupport.ruleSet(jdbc, "S_OLD", "폐기 세트", "[\"R_GRD\"]", "DEPRECATED", 2);
         DmeTestSupport.ruleSet(jdbc, "S_BADOLD", "거부 폐기 세트", "[\"R_CYA\",\"R_CYB\"]", "DEPRECATED", 1);
@@ -124,6 +133,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     private static RuleSetSaveRequest saveReq(String setId, String name, String desc, Long rv, String... ruleIds) {
         RuleSetSaveRequest r = new RuleSetSaveRequest();
         r.setSetId(setId);
+        r.setVer(DRAFT);
         r.setSetName(name);
         r.setDescription(desc);
         r.setRowVersion(rv);
@@ -134,6 +144,14 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
             rows.add(row);
         }
         r.setRules(rows);
+        return r;
+    }
+
+    /** 폐기 = delete target SET(D-144 2단계). 행 버전을 보내지 않는다(J2). */
+    private static RuleSetVersionRequest deprecateReq(String setId) {
+        RuleSetVersionRequest r = new RuleSetVersionRequest();
+        r.setSetId(setId);
+        r.setTarget(RuleSetVersionRequest.TARGET_SET);
         return r;
     }
 
@@ -162,12 +180,39 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         return e.getErrors() == null || e.getErrors().isEmpty() ? e.getErrorCode().name() : e.getErrors().get(0).code();
     }
 
+    /**
+     * 세트 부모 행에 1.000 버전 행의 RULE_IDS·FLOW_JSON·ROW_VERSION 을 얹은 것(D-144 2단계 — 흐름·행 버전은 버전 행에 있다).
+     * 감사 칼럼(U_USR_ID·VER)은 부모의 것이다.
+     */
     private Map<String, Object> setRow(String id) {
-        return jdbc.queryForMap("SELECT * FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", id);
+        return setRow(id, "1.000");
     }
 
-    private List<Map<String, Object>> setsExcept(String id) {
-        return jdbc.queryForList("SELECT * FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID <> ? ORDER BY MARU_RULE_SET_ID", id);
+    /** 저장이 쓰는 kim DRAFT({@link #DRAFT}) 기준 {@link #setRow(String)}. */
+    private Map<String, Object> draftRow(String id) {
+        return setRow(id, DRAFT);
+    }
+
+    private Map<String, Object> setRow(String id, String ver) {
+        Map<String, Object> row = new LinkedHashMap<>(jdbc.queryForMap("SELECT * FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", id));
+        row.put("RULE_IDS", DmeTestSupport.setVerValue(jdbc, id, ver, "RULE_IDS"));
+        row.put("FLOW_JSON", DmeTestSupport.setVerValue(jdbc, id, ver, "FLOW_JSON"));
+        row.put("ROW_VERSION", Long.parseLong(DmeTestSupport.setVerValue(jdbc, id, ver, "ROW_VERSION")));
+        return row;
+    }
+
+    /** 다른 세트의 부모·버전 행 전부. */
+    private List<Object> setsExcept(String id) {
+        return List.of(
+                jdbc.queryForList("SELECT * FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID <> ? ORDER BY MARU_RULE_SET_ID", id),
+                jdbc.queryForList("SELECT * FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID <> ? ORDER BY MARU_RULE_SET_ID, VER", id));
+    }
+
+    /** 세트 부모·버전 행 전부. */
+    private List<Object> setTables() {
+        return List.of(
+                jdbc.queryForList("SELECT * FROM TB_MDM_RULE_SET ORDER BY MARU_RULE_SET_ID"),
+                jdbc.queryForList("SELECT * FROM TB_MDM_RULE_SET_VER ORDER BY MARU_RULE_SET_ID, VER"));
     }
 
     /** 룰 쪽 테이블 전부(I3·I23 — 세트 쓰기는 룰·버전·변수·행을 건드리지 않는다). */
@@ -181,10 +226,10 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
 
     /** 거부 — 예외를 돌려주고, 세트 행 전부와 룰 테이블이 그대로인지 본다. */
     private BusinessException refuse(Executable call) {
-        List<Map<String, Object>> sets = jdbc.queryForList("SELECT * FROM TB_MDM_RULE_SET ORDER BY MARU_RULE_SET_ID");
+        List<Object> sets = setTables();
         List<Object> rules = ruleTables();
         BusinessException e = assertThrows(BusinessException.class, call);
-        assertEquals(sets, jdbc.queryForList("SELECT * FROM TB_MDM_RULE_SET ORDER BY MARU_RULE_SET_ID"), "거부한 요청이 세트 행을 바꿨다");
+        assertEquals(sets, setTables(), "거부한 요청이 세트 행을 바꿨다");
         assertEquals(rules, ruleTables(), "거부한 요청이 룰 테이블을 바꿨다");
         return e;
     }
@@ -195,7 +240,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
 
     /** 쓰기 한 번 — 대상 행 밖(다른 세트·룰 테이블)이 그대로인지 본다(I3·I23). */
     private <T> T writeOnly(String setId, java.util.function.Supplier<T> call) {
-        List<Map<String, Object>> others = setsExcept(setId);
+        List<Object> others = setsExcept(setId);
         List<Object> rules = ruleTables();
         T result = call.get();
         assertEquals(others, setsExcept(setId), "다른 세트 행이 바뀌었다");
@@ -261,8 +306,10 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         assertEquals("WARN", w.severity());
         assertEquals("R_GRD와 R_DUP가 같은 결과 변수 S_GRD에 대입한다", w.message());
 
-        Map<String, Object> row = setRow("S_CHAIN");
+        Map<String, Object> row = draftRow("S_CHAIN");
         assertEquals("[\"R_GRD\",\"R_DUP\",\"R_FCT\"]", row.get("RULE_IDS"));
+        assertEquals("[\"R_GRD\",\"R_FCT\",\"R_SPD\"]", setRow("S_CHAIN").get("RULE_IDS"), "RELEASED 1.000 은 그대로다");
+        assertEquals(3L, ((Number) setRow("S_CHAIN").get("ROW_VERSION")).longValue());
         assertEquals("새 이름", row.get("MARU_RULE_SET_NAME"));
         assertEquals("설명", row.get("DESCRIPTION"));
         assertEquals("INUSE", row.get("STATUS"));
@@ -278,7 +325,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         RuleSetSaveResult r = service.save(saveReq("S_OTHER", name, " ", 0L, "R_PROG", "R_NOREL"));
         assertEquals(1L, r.getRowVersion());
         assertEquals(List.of("NO_RELEASED"), codes(r.getChecks()));
-        Map<String, Object> row = setRow("S_OTHER");
+        Map<String, Object> row = draftRow("S_OTHER");
         assertEquals(name, row.get("MARU_RULE_SET_NAME"));
         assertNull(row.get("DESCRIPTION"));
         assertEquals("[\"R_PROG\",\"R_NOREL\"]", row.get("RULE_IDS"));
@@ -319,6 +366,8 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void row_version_이_다르면_MDM001_폐기한_세트는_MDM009_없는_세트는_INVALID_VALUE_다() {
         assertEquals("MDM001", refuseCode(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 2L, "R_GRD"))));
+        // 폐기 뒤에는 화면이 새 버전을 막지만 데이터로는 DRAFT 가 있을 수 있다 — 내 DRAFT 가 있어도 폐기한 세트는 MDM009 다.
+        DmeTestSupport.ruleSetDraft(jdbc, "S_OLD", DRAFT, "kim", "[\"R_GRD\"]", 2);
         assertEquals("MDM009", refuseCode(() -> service.save(saveReq("S_OLD", "폐기 세트", null, 2L, "R_GRD"))));
         BusinessException none = refuse(() -> service.save(saveReq("S_NONE", "없음", null, 0L, "R_GRD")));
         assertEquals("INVALID_VALUE", code(none));
@@ -338,29 +387,27 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         assertEquals("REQUIRED_VALUE", refuseCode(() -> service.save(saveReq(null, "사슬 세트", null, 3L, "R_GRD"))));
     }
 
-    // ── delete(폐기) ──
+    // ── delete target SET(폐기) ──
 
     @Test
     void 폐기는_INUSE_를_DEPRECATED_로_바꾸고_검사를_돌리지_않는다() {
-        RuleSetStatusResult r = writeOnly("S_CYC", () -> service.delete(statusReq("S_CYC", 1L)));
+        RuleSetStatusResult r = writeOnly("S_CYC", () -> (RuleSetStatusResult) service.delete(deprecateReq("S_CYC")));
         assertEquals("S_CYC", r.getSetId());
         assertEquals("DEPRECATED", r.getStatus());
-        assertEquals(2L, r.getRowVersion());
+        assertNull(r.getRowVersion());
         assertEquals(List.of(), r.getChecks());
         Map<String, Object> row = setRow("S_CYC");
         assertEquals("DEPRECATED", row.get("STATUS"));
-        assertEquals(2L, ((Number) row.get("ROW_VERSION")).longValue());
+        assertEquals(1L, ((Number) row.get("ROW_VERSION")).longValue(), "폐기는 버전 행을 바꾸지 않는다(J2)");
         assertEquals("[\"R_CYA\",\"R_CYB\"]", row.get("RULE_IDS"));
         assertEquals("kim", row.get("U_USR_ID"));
         assertEquals(1L, ((Number) row.get("VER")).longValue());
     }
 
     @Test
-    void 이미_폐기한_세트는_MDM009_row_version_이_다르면_MDM001_없으면_INVALID_VALUE_다() {
-        assertEquals("MDM009", refuseCode(() -> service.delete(statusReq("S_OLD", 2L))));
-        assertEquals("MDM001", refuseCode(() -> service.delete(statusReq("S_CHAIN", 9L))));
-        assertEquals("INVALID_VALUE", refuseCode(() -> service.delete(statusReq("S_NONE", 0L))));
-        assertEquals("REQUIRED_VALUE", refuseCode(() -> service.delete(statusReq("S_CHAIN", null))));
+    void 이미_폐기한_세트는_MDM009_없으면_INVALID_VALUE_다() {
+        assertEquals("MDM009", refuseCode(() -> service.delete(deprecateReq("S_OLD"))));
+        assertEquals("INVALID_VALUE", refuseCode(() -> service.delete(deprecateReq("S_NONE"))));
     }
 
     // ── restore(되살리기) ──
@@ -369,11 +416,11 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     void 되살리기는_저장된_목록의_검사를_통과하면_INUSE_로_바꾸고_경고를_싣는다() {
         RuleSetStatusResult r = writeOnly("S_OLD", () -> service.restore(statusReq("S_OLD", 2L)));
         assertEquals("INUSE", r.getStatus());
-        assertEquals(3L, r.getRowVersion());
+        assertNull(r.getRowVersion());
         assertEquals(List.of(), r.getChecks());
         Map<String, Object> row = setRow("S_OLD");
         assertEquals("INUSE", row.get("STATUS"));
-        assertEquals(3L, ((Number) row.get("ROW_VERSION")).longValue());
+        assertEquals(2L, ((Number) row.get("ROW_VERSION")).longValue(), "되살리기는 버전 행을 바꾸지 않는다(J2)");
         assertEquals("kim", row.get("U_USR_ID"));
         assertEquals(1L, ((Number) row.get("VER")).longValue());
 
@@ -389,7 +436,6 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         assertEquals("MDM024", code(e));
         assertTrue(e.getMessage().contains("CYCLE"), e.getMessage());
         assertEquals("MDM009", refuseCode(() -> service.restore(statusReq("S_CHAIN", 3L))));
-        assertEquals("MDM001", refuseCode(() -> service.restore(statusReq("S_OLD", 1L))));
         assertEquals("INVALID_VALUE", refuseCode(() -> service.restore(statusReq("S_NONE", 0L))));
     }
 
@@ -399,7 +445,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     void 담당자가_아니면_저장_폐기_되살리기가_MDM013_이다() {
         currentUser.set("lee", STD_ADMIN);
         assertEquals("MDM013", refuseCode(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_GRD"))));
-        assertEquals("MDM013", refuseCode(() -> service.delete(statusReq("S_CHAIN", 3L))));
+        assertEquals("MDM013", refuseCode(() -> service.delete(deprecateReq("S_CHAIN"))));
         assertEquals("MDM013", refuseCode(() -> service.restore(statusReq("S_OLD", 2L))));
     }
 
@@ -413,6 +459,17 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         RuleSetPickResult.Pick p = ((RuleSetPickResult) search("SET", "S_OLD", null)).getSets().get(0);
         assertEquals("폐기 세트", p.getSetName());
         assertEquals("DEPRECATED", p.getStatus());
+        // 상태는 계산 상태(ruleSetMng·ruleSetConfirm 과 같다, Ruling P2-22 M-3) — 저장 CREATED 라도 적용된 RELEASED 가 있으면 INUSE
+        DmeTestSupport.ruleSet(jdbc, "S_PICK_APPLIED", "적용 세트", "[]", "CREATED", 0);
+        jdbc.update("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, STATUS, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, "
+                + "U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) VALUES ('S_PICK_NEW', '새 세트', 'CREATED', 'fixture', '2026-01-01 00:00:00', "
+                + "'fixture', 'fixture', 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)");
+        DmeTestSupport.ruleSetDraft(jdbc, "S_PICK_NEW", "1.000", "kim", "[]", 0);
+        List<RuleSetPickResult.Pick> picked = ((RuleSetPickResult) search("SET", "S_PICK", null)).getSets();
+        assertEquals(List.of("S_PICK_APPLIED", "S_PICK_NEW"), picked.stream().map(RuleSetPickResult.Pick::getSetId).toList());
+        assertEquals(List.of("INUSE", "CREATED"), picked.stream().map(RuleSetPickResult.Pick::getStatus).toList());
+        jdbc.update("DELETE FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID LIKE 'S_PICK%'");
+        jdbc.update("DELETE FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID LIKE 'S_PICK%'");
         for (int i = 1; i <= 21; i++) {
             DmeTestSupport.ruleSet(jdbc, String.format("S_Z%02d", i), "많은 세트", "[]", "INUSE", 0);
         }
@@ -486,7 +543,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         RuleSetSaveResult r = writeOnly("S_CHAIN", () -> service.save(flowReq("S_CHAIN", 3L, IF_FLOW)));
 
         assertEquals(4L, r.getRowVersion());
-        Map<String, Object> row = setRow("S_CHAIN");
+        Map<String, Object> row = draftRow("S_CHAIN");
         assertEquals("[\"R_GRD\",\"R_DUP\",\"R_FCT\"]", row.get("RULE_IDS"));
         assertEquals(RuleSetFlowJson.canonical(IF_FLOW), row.get("FLOW_JSON"));
         assertTrue(codes(r.getChecks()).isEmpty(), r.getChecks().toString());
@@ -496,7 +553,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     void 같은_룰이_두_갈래에_있으면_RULE_IDS_에_한_번만_쓰고_검사도_한_번이다() {
         service.save(flowReq("S_CHAIN", 3L, SAME_RULE_FLOW));
 
-        assertEquals("[\"R_GRD\",\"R_FCT\"]", setRow("S_CHAIN").get("RULE_IDS"));
+        assertEquals("[\"R_GRD\",\"R_FCT\"]", draftRow("S_CHAIN").get("RULE_IDS"));
         RuleSetViewResult v = view("S_CHAIN");
         assertEquals(List.of("R_GRD", "R_FCT"), v.getSet().getRuleIds());
         assertTrue(v.getSet().isBranched());
@@ -509,7 +566,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
 
         assertEquals("MDM024", code(e));
         assertTrue(e.getMessage().contains("IF_SIBLING"), e.getMessage());
-        Map<String, Object> row = setRow("S_CHAIN");
+        Map<String, Object> row = draftRow("S_CHAIN");
         assertNull(row.get("FLOW_JSON"));
         assertEquals("[\"R_GRD\",\"R_FCT\",\"R_SPD\"]", row.get("RULE_IDS"));
         assertEquals(3L, ((Number) row.get("ROW_VERSION")).longValue());
@@ -584,7 +641,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
 
         service.save(r);
 
-        assertEquals("[\"R_GRD\",\"R_DUP\",\"R_FCT\"]", setRow("S_CHAIN").get("RULE_IDS"));
+        assertEquals("[\"R_GRD\",\"R_DUP\",\"R_FCT\"]", draftRow("S_CHAIN").get("RULE_IDS"));
     }
 
     @Test
@@ -597,7 +654,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 분기_세트를_목록으로_저장하면_FLOW_READONLY_로_거부한다() {
-        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", IF_FLOW);
+        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", DRAFT, IF_FLOW);
 
         BusinessException e = refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_GRD", "R_FCT", "R_SPD")));
 
@@ -612,7 +669,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
             + "\"view\":{\"positions\":{\"r1\":{\"x\":5,\"y\":6}},\"notes\":[{\"id\":\"n1\",\"text\":\"메모\",\"x\":0,\"y\":0,\"w\":200,\"h\":80,\"attach\":\"r1\"}],\"groups\":[]}}";
 
     private String flowJsonOf(String setId) {
-        return (String) setRow(setId).get("FLOW_JSON");
+        return (String) draftRow(setId).get("FLOW_JSON");
     }
 
     @Test
@@ -653,7 +710,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     void 저장된_FLOW_JSON_을_코덱이_읽지_못하면_분기_문구로_거부하고_흐름을_지우지_않는다() {
         // json_valid 는 통과하지만 코덱이 거부하는 값(version 2)을 직접 넣는다
         String unreadable = "{\"version\":2,\"nodes\":[],\"edges\":[]}";
-        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", unreadable);
+        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", DRAFT, unreadable);
 
         BusinessException e = refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_GRD", "R_FCT")));
 
@@ -679,7 +736,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 조회_응답은_저장된_흐름의_IF_갈래_조건식_IO_를_싣는다() {
-        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", IF_FLOW);
+        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", DRAFT, IF_FLOW);
 
         RuleSetViewResult v = view("S_CHAIN");
 
@@ -690,8 +747,8 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 조회는_흐름과_분기_여부와_흐름_기준_검사를_싣는다() {
-        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", IF_FLOW);
-        jdbc.update("UPDATE TB_MDM_RULE_SET SET RULE_IDS = '[\"R_GRD\",\"R_DUP\",\"R_FCT\"]' WHERE MARU_RULE_SET_ID = 'S_CHAIN'");
+        DmeTestSupport.ruleSetFlow(jdbc, "S_CHAIN", DRAFT, IF_FLOW);
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET RULE_IDS = '[\"R_GRD\",\"R_DUP\",\"R_FCT\"]' WHERE MARU_RULE_SET_ID = 'S_CHAIN'");
 
         RuleSetViewResult v = view("S_CHAIN");
 
@@ -705,7 +762,7 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void 되살리기도_흐름_기준으로_검사한다() {
         DmeTestSupport.ruleSetFlow(jdbc, "S_OLD", SIBLING_FLOW);
-        jdbc.update("UPDATE TB_MDM_RULE_SET SET RULE_IDS = '[\"R_GRD\",\"R_FCT\",\"R_SPD\"]' WHERE MARU_RULE_SET_ID = 'S_OLD'");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET RULE_IDS = '[\"R_GRD\",\"R_FCT\",\"R_SPD\"]' WHERE MARU_RULE_SET_ID = 'S_OLD'");
 
         assertEquals("MDM024", refuseCode(() -> service.restore(statusReq("S_OLD", 2L))));
     }

@@ -78,7 +78,7 @@ import org.junit.jupiter.api.Test;
 class ContractStubCompileTest {
 
     private static final List<VersionConfirmCheckSpi> CONFIRM_CHECKS = List.of(
-            new MasterCodeConfirmCheckStub(), new BusinessRuleConfirmCheckStub());
+            new MasterCodeConfirmCheckStub(), new BusinessRuleConfirmCheckStub(), new RuleSetConfirmCheckStub());
 
     private static final List<MaruIdNamespace> NAMESPACES = List.of(
             new MasterCodeIdNamespaceStub(Set.of("PROC_CD", "STEEL_GRADE")),
@@ -139,7 +139,8 @@ class ContractStubCompileTest {
     @Test
     void 삭제_정리_훅_구현이_모든_버전_대상을_하나씩_덮는다() {
         // TSK-01-03 K5 — VersionDraftDeletionSpi 도 target 마다 정확히 하나(D4).
-        List<VersionDraftDeletionSpi> hooks = List.of(new MasterCodeDraftDeletionStub(), new BusinessRuleDraftDeletionStub());
+        List<VersionDraftDeletionSpi> hooks = List.of(new MasterCodeDraftDeletionStub(), new BusinessRuleDraftDeletionStub(),
+                new RuleSetDraftDeletionStub());
         Set<VersionTarget> targets = hooks.stream().map(VersionDraftDeletionSpi::target)
                 .collect(Collectors.toCollection(() -> EnumSet.noneOf(VersionTarget.class)));
         assertEquals(EnumSet.allOf(VersionTarget.class), targets);
@@ -448,7 +449,8 @@ class ContractStubCompileTest {
                 new MdmRuleRow("QLTY_GRD_JDG", new BigDecimal("1.000"), 1, "NORMAL", 1, "{}"),
                 new MdmRuleRow("QLTY_GRD_JDG", new BigDecimal("1.000"), 3, "NORMAL", 3, "{}"),
                 new MdmRuleRow("QLTY_GRD_JDG", new BigDecimal("1.000"), 2, "NORMAL", 2, "{}"));
-        MdmRuleSet set = new MdmRuleSet("LS_A3", "3CCL 라인스피드", "[\"BASE_SPD_LKP\",\"SPD_EXC\",\"SPD_JOIN\"]");
+        MdmRuleSet set = new MdmRuleSet("LS_A3", "3CCL 라인스피드");
+        set.setStatus("INUSE");
         RuleDefinitionLookupStub stub = new RuleDefinitionLookupStub(rule, ver, vars, rows, set);
         DefinitionLookup lookup = stub;
 
@@ -471,7 +473,7 @@ class ContractStubCompileTest {
         assertEquals(0, defaultRow.seq());
         assertEquals(Optional.empty(), lookup.column("TB_ANY", "COL"), "column() 은 02 계약 위임 몫");
         assertEquals(Optional.empty(), lookup.rule("OTHER", java.time.Instant.EPOCH));
-        assertEquals(DefinitionLookup.SetStatus.INUSE, lookup.ruleSet("LS_A3").orElseThrow().status());
+        assertEquals(DefinitionLookup.SetStatus.INUSE, lookup.ruleSet("LS_A3", java.time.Instant.parse("2026-09-01T00:00:00Z")).orElseThrow().status());
         assertEquals(MdmRuleDefinitionSource.STORED_VERSION, stub.source());
     }
 

@@ -46,6 +46,7 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "dme/ruleConfirm": () => import("@dk-oasis/m-mdm/pages/dme/ruleConfirm/page"),
   "dme/ruleEdit": () => import("@dk-oasis/m-mdm/pages/dme/ruleEdit/page"),
   "dme/ruleMng": () => import("@dk-oasis/m-mdm/pages/dme/ruleMng/page"),
+  "dme/ruleSetConfirm": () => import("@dk-oasis/m-mdm/pages/dme/ruleSetConfirm/page"),
   "dme/ruleSetEdit": () => import("@dk-oasis/m-mdm/pages/dme/ruleSetEdit/page"),
   "dme/ruleSetMng": () => import("@dk-oasis/m-mdm/pages/dme/ruleSetMng/page"),
   "home": () => import("@/page-components/home/page"),

@@ -10,6 +10,7 @@
  * 같은 규칙으로 곧 저장한다.
  *
  * 실패: 행 버전 충돌이면 이 화면에서 자동 저장을 끄고(보는 사람 설정은 그대로 둔다) 기존 충돌 안내·다시 불러오기에 맡긴다.
+ * 그 버전이 더 이상 내 DRAFT 가 아니면(`stale`, MDM002·MDM003 — D-144 2단계) 충돌처럼 이 화면에서 끈다. 편집 상태가 이미 읽기 전용으로 다시 불러왔다.
  * 다른 오류는 메시지 줄에 보이고, 그 내용(`contentKey`)이 바뀔 때까지 다시 시도하지 않는다. 껐다 켜도 다시 시도한다.
  * 보낸 내용과 지금 내용이 같은데도 dirty 가 남으면(기준점 계산이 어긋난 경우) 같은 내용을 다시 보내지 않는다 — 2초마다 저장하는 고리를 막는다.
  *
@@ -48,7 +49,7 @@ const clock = (d: Date) => `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.
 
 /**
  * @param state 편집 상태(`useRuleSetEdit`)
- * @param active 편집 모드이고 편집할 수 있는가(page 의 `editing` — 담당자·INUSE·저장 권한을 이미 따졌다)
+ * @param active 편집 모드이고 편집할 수 있는가(page 의 `editing` — 선택 버전이 내 DRAFT·폐기 아님·저장 권한을 이미 따졌다)
  */
 export function useAutoSave(state: RuleSetEditState, active: boolean): AutoSave {
   const [enabled, setEnabledState] = useState(() => loadFlag(storeKeys.autoSave, false));
@@ -93,7 +94,7 @@ export function useAutoSave(state: RuleSetEditState, active: boolean): AutoSave 
           setSentKey(r.key);
           setFailedKey(null);
           setSavedAt(new Date());
-        } else if (r.status === "conflict") {
+        } else if (r.status === "conflict" || r.status === "stale") {
           setFailedKey(r.key);
           setEnabledState(false);
         } else if (r.status === "error") {

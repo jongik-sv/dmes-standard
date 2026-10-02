@@ -12,7 +12,7 @@ import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
-import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSetVer;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
 import java.time.Clock;
@@ -75,15 +75,17 @@ public class RuleSetRunner {
     private final StoredRuleDefinitions stored;
     private final MdmRuleRepository rules;
     private final MdmRuleSetRepository sets;
+    private final RuleSetVersionQueries setVersions;
     private final MdmEvaluator evaluator;
     private final Clock clock;
 
     public RuleSetRunner(RuleQueries queries, StoredRuleDefinitions stored, MdmRuleRepository rules, MdmRuleSetRepository sets,
-                         MdmEvaluator evaluator, Clock clock) {
+                         RuleSetVersionQueries setVersions, MdmEvaluator evaluator, Clock clock) {
         this.queries = queries;
         this.stored = stored;
         this.rules = rules;
         this.sets = sets;
+        this.setVersions = setVersions;
         this.evaluator = evaluator;
         this.clock = clock;
     }
@@ -114,7 +116,7 @@ public class RuleSetRunner {
      * 그 시각의 RELEASED 버전을 고르므로 결과는 호출마다 새로 실행한 것과 같다. 요청을 넘겨 들고 있지 않는다(원장을 고치는 요청에서 쓰지 않는다).
      */
     public Session session() {
-        return new Session(new StoredDefinitionLookup(queries, stored, rules, sets));
+        return new Session(new StoredDefinitionLookup(queries, stored, rules, setVersions, sets));
     }
 
     /** {@link #session} 이 돌려주는 실행 묶음 — 정의 조회기·엔진과 흐름 JSON 파싱 결과를 같이 쓴다. */
@@ -146,12 +148,25 @@ public class RuleSetRunner {
                         List.of(new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, null, "흐름을 읽을 수 없다: " + e.getMessage())), echo, null);
             }
             Parsed flow = (Parsed) known;
-            if (flow.parse().tree() != null) {
+            return run(UNSAVED, flow.def(), flow.parse(), flow.ruleIds(), record, ts, edits);
+        }
+
+        /**
+         * 정의를 직접 넘기는 기록 실행(D-144 2단계) — 룰 세트 확정 검사가 DRAFT 버전 흐름으로 테스트 케이스를 돌릴 때 쓴다. 룰은 판정 시각의 RELEASED.
+         * {@code label} 은 기록의 세트 표시 이름이다.
+         */
+        public RunTrace traceDefinition(String label, FlowDefinition def, Map<String, Object> record, Instant evalTs) {
+            FlowParse parse = FlowParser.parse(def);
+            return run(label, def, parse, RuleSetFlowJson.ruleIds(def, parse), record, ts(evalTs), List.of());
+        }
+
+        private RunTrace run(String label, FlowDefinition def, FlowParse parse, List<String> ruleIds, Map<String, Object> record, Instant ts,
+                             List<RunTrace.TraceEdit> edits) {
+            if (parse.tree() != null) {
                 // 엔진은 구조가 올바른 흐름에서만 트리의 룰 정의를 차례로 묻는다 — 그 룰들을 미리 한 번에 읽어 둔다(구조 오류면 묻지 않으니 읽지 않는다).
-                lookup.prefetch(flow.parse().tree().ruleIds(), ts);
+                lookup.prefetch(parse.tree().ruleIds(), ts);
             }
-            RuleSetDefinition set = new RuleSetDefinition(UNSAVED, flow.ruleIds(), SetStatus.INUSE, flow.def());
-            return engine.traceSet(set, record, ts, edits);
+            return engine.traceSet(new RuleSetDefinition(label, ruleIds, SetStatus.INUSE, def), record, ts, edits);
         }
 
         /** 흐름의 룰 ID({@link RuleSetFlowJson#ruleIds}). 흐름을 읽지 못하면 {@link IllegalArgumentException}. */
@@ -214,8 +229,7 @@ public class RuleSetRunner {
             r = run(request.getSetId(), record, ts);
         } catch (EngineEvaluationException e) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, e.violations().stream()
-                    .map(v -> (v.ruleId() == null ? "" : "[" + v.ruleId() + "] ")
-                            + RuleErrorText.describe(v.stage().name(), v.code().name(), v.rowId(), v.name(), v.message()))
+                    .map(v -> (v.ruleId() == null ? "" : "[" + v.ruleId() + "] ") + userText(v))
                     .collect(Collectors.joining("; ")));
         } catch (StoredDefinitionException e) {
             // 저장된 행·FLOW_JSON(코덱)·AST(조립기)를 읽지 못함 — 데이터 손상(P-D9). 엔진 안의 IAE·ISE 는 여기서 잡지 않는다.
@@ -250,11 +264,12 @@ public class RuleSetRunner {
     }
 
     /**
-     * 응답 경고 — 폐기 룰 경고(세트 흐름에서 룰 ID 가 처음 나온 순서) 다음에 엔진 경고(세트 경고, 이어서 실행한 룰의 경고를 실행 순서로).
+     * 응답 경고 — 폐기 룰 경고(판정에 쓴 세트 버전 흐름에서 룰 ID 가 처음 나온 순서) 다음에 엔진 경고(세트 경고, 이어서 실행한 룰의 경고를 실행 순서로).
      * 폐기 룰이라도 판정은 막지 않는다(효력 시각이 없어 과거 시각 재판정까지 깨지므로). 룰 헤더는 한 번에 읽는다.
      */
     private List<Map<String, Object>> warnings(String setId, RuleSetResult r) {
-        List<String> ids = sets.findById(setId).map(RuleSetRunner::ruleIdsOf).orElse(List.of());
+        LocalDateTime at = LocalDateTime.ofInstant(r.evalTs(), MdmClockConfig.KST);
+        List<String> ids = RuleVersions.currentReleased(setVersions.versions(setId), at).map(RuleSetRunner::ruleIdsOf).orElse(List.of());
         List<Map<String, Object>> out = new ArrayList<>(deprecatedWarnings(ids));
         if (!out.isEmpty()) {
             log.warn("폐기된 룰이 든 세트를 판정했다 setId={} ruleIds={}", setId, out.stream().map(w -> w.get("ruleId")).toList());
@@ -265,6 +280,20 @@ public class RuleSetRunner {
             out.add(warning(w.code().name(), w.ruleId(), w.message()));
         }
         return out;
+    }
+
+    /**
+     * 위반 한 건의 사용자 문구({@link RuleErrorText}). {@code SET_NOT_FOUND} 는 세트가 아예 없는 경우와 판정 시각에 적용되는 RELEASED 버전이 없는
+     * 경우(D-144 2단계)를 세트 원장으로 가른다(스펙 §8).
+     */
+    private String userText(Violation v) {
+        if (v.code() == Code.SET_NOT_FOUND) {
+            String id = RuleErrorText.missingSetId(v.message());
+            if (id != null && !sets.existsById(id)) {
+                return RuleErrorText.setAbsent(id);
+            }
+        }
+        return RuleErrorText.describe(v.stage().name(), v.code().name(), v.rowId(), v.name(), v.message());
     }
 
     /** 룰 헤더를 한 번에 읽어 {@link #deprecatedWarnings(List, Map)} 를 만든다(저장 세트 {@link #execute}·저장 전 흐름 기록 실행이 같이 쓴다). */
@@ -298,7 +327,7 @@ public class RuleSetRunner {
         return m;
     }
 
-    private static List<String> ruleIdsOf(MdmRuleSet s) {
+    private static List<String> ruleIdsOf(MdmRuleSetVer s) {
         if (s.getFlowJson() != null) {
             return RuleSetFlowJson.ruleIds(RuleSetFlowJson.parse(s.getFlowJson()));
         }
@@ -306,7 +335,7 @@ public class RuleSetRunner {
     }
 
     private MdmRuleEngine engine() {
-        return new MdmRuleEngine(evaluator, new StoredDefinitionLookup(queries, stored, rules, sets));
+        return new MdmRuleEngine(evaluator, new StoredDefinitionLookup(queries, stored, rules, setVersions, sets));
     }
 
     private Instant ts(Instant evalTs) {

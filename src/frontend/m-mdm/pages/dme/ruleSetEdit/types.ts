@@ -8,7 +8,44 @@ import type { RuleSetFlow, RunTrace } from "@/contract/engine-contract.generated
 /** 조건 이름의 출처 — 컬럼 사전(DICT) > 룰이 도메인·데이터 타입을 선언한 프로그램 변수(PROG) > 어디에도 없음(NONE). 결과 이름은 null. */
 export type IoSource = "DICT" | "PROG" | "NONE";
 
-export type RuleSetStatus = "INUSE" | "DEPRECATED";
+/** 세트 상태(서버 계산 상태). 새로 등록한 세트는 확정 전까지 CREATED 다(D-144 2단계). */
+export type RuleSetStatus = "CREATED" | "INUSE" | "DEPRECATED";
+
+/** 세트 버전 한 행(서버 RuleSetViewResult.VersionRow, VER 내림차순, D-144 2단계). 버전은 소수 셋째 자리 문자열. */
+export interface RuleSetVersionRow {
+  ver: string;
+  verKind: "MAJOR" | "MINOR" | null;
+  verLabel: string;
+  status: string;
+  applyFrom: string | null;
+  applyTo: string | null;
+  ownerId: string | null;
+  rowVersion: number;
+  /** 아직 적용 전인 내 확정 버전이고 미적용 버전이 이것뿐(ADR-0002 D8). */
+  cancelConfirmable: boolean;
+}
+
+/** 버전 버튼 플래그(서버 RuleSetViewResult.Flags — 룰 ruleMng 과 같은 규칙). */
+export interface RuleSetVersionFlags {
+  canNewMajor: boolean;
+  canNewMinor: boolean;
+  nextMajor: string | null;
+  nextMinor: string | null;
+  unappliedCount: number;
+  currentVer: string | null;
+  /** 담당자이고 사용 중(INUSE)이며 미적용 버전이 없다(Ruling P2-17). */
+  canDeprecate: boolean;
+  /** 테스트 케이스 저장·삭제 — 담당자이고 폐기 아님. 케이스는 버전이 아니라 세트에 딸린다(Ruling P2-18). 옛 응답에는 없을 수 있다. */
+  canEditCases?: boolean;
+}
+
+/** copy·delete(VERSION·CONFIRM)·lock·unlock·handover 응답. */
+export interface RuleSetVersionResult {
+  setId: string;
+  ver: string | null;
+  verKind: "MAJOR" | "MINOR" | null;
+  rowVersion: number | null;
+}
 
 /** 선의 변수 칩 표시 — 끔 · 변수 ID · 변수 표시명(없으면 ID). 툴바 [변수 흐름] 이 off → id → name → off 로 돈다. */
 export type VarDisplay = "off" | "id" | "name";
@@ -169,6 +206,15 @@ export interface RuleSetHeader {
   flow: RuleSetFlow | null;
   /** 분기(IF·병렬)가 있는 흐름이면 true. 화면은 한 줄·분기 세트 모두 캔버스로 편집한다(P-D5). */
   branched: boolean;
+  /** D-144 2단계 — 선택 버전. 버전이 없는 세트면 null. 옛 응답·시험 리터럴에는 없을 수 있다. */
+  ver?: string | null;
+  verKind?: "MAJOR" | "MINOR" | null;
+  verLabel?: string | null;
+  verStatus?: string | null;
+  ownerId?: string | null;
+  baseVer?: string | null;
+  applyFrom?: string | null;
+  applyTo?: string | null;
 }
 
 /** view 응답(§6.5). `rules` 는 ruleIds 순·중복 없음, `checks` 는 저장된 목록 또는 흐름 기준. */
@@ -178,7 +224,7 @@ export interface RuleSetView {
   checks: RuleSetCheck[];
   /** 저장된 흐름의 IF "그 외" 가 아닌 선마다 조건식 IO(P1). 흐름이 없으면 빈 맵. */
   condIo: Record<string, CondIo>;
-  /** 담당자이고 INUSE. */
+  /** 담당자이고 선택 버전이 내 DRAFT 이며 폐기 아님(D-144 2단계). */
   editable: boolean;
   /** 담당자이고 DEPRECATED. */
   restorable: boolean;
@@ -187,6 +233,10 @@ export interface RuleSetView {
    * 서버(Task 4)가 붙기 전 응답에는 칸이 없을 수 있으니 쓰는 곳은 `view.cases ?? []` 로 읽는다.
    */
   cases: RuleSetCaseView[];
+  /** D-144 2단계 — 버전 목록(VER 내림차순)·버전 버튼 플래그·요청 사용자. 옛 응답·시험 리터럴에는 없을 수 있다. */
+  versions?: RuleSetVersionRow[];
+  flags?: RuleSetVersionFlags;
+  me?: string | null;
 }
 
 /** 룰 세트 테스트 케이스 한 건(3단계 P8, `TB_MDM_RULE_SET_TEST_CASE`). evalTs 는 KST `yyyy-MM-dd HH:mm:ss` 문자열(P-D6). */
@@ -267,11 +317,11 @@ export interface RuleSetSaveResult {
   checks: RuleSetCheck[];
 }
 
-/** delete(폐기)·restore(되살리기) 응답. */
+/** delete target SET(폐기)·restore(되살리기) 응답. rowVersion 은 D-144 2단계부터 null 이다(부모에 행 버전이 없다). */
 export interface RuleSetStatusResult {
   setId: string;
   status: RuleSetStatus;
-  rowVersion: number;
+  rowVersion: number | null;
   checks: RuleSetCheck[];
 }
 

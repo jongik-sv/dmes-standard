@@ -3,15 +3,22 @@ package com.dongkuk.dmes.mdm.common.rule.check;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
 /**
  * {@link RuleSaveValidator} 입력 — 검사할 정의와 적용 지점(TSK-08-04 design §2.2). 행 셀은 {@code RuleCellsCodec.validateShape} 를
- * 이미 통과한 모양이다. {@code ResolvedVar} 에 없는 값(식 변수 AST·열 조건 등)은 {@code rawVars} 에서 읽는다(I31).
+ * 이미 통과한 모양이다. {@code ResolvedVar} 에 없는 값(식 변수 AST·열 조건 등)은 {@code rawVars} 에서 읽는다(I31). {@code referenceTime} 은
+ * {@link RuleSaveContext#referenceTime()} 으로 넘어간다(룰 확정이면 요청한 apply_from, 저장이면 null).
  */
 public record RuleCheckInput(String ruleId, BigDecimal ver, String ruleKind, String hitPolicy, List<MdmRuleVar> rawVars, List<ResolvedVar> vars,
-                             List<DraftRow> rows, RuleSaveTarget target) {
+                             List<DraftRow> rows, RuleSaveTarget target, LocalDateTime referenceTime) {
+
+    public RuleCheckInput(String ruleId, BigDecimal ver, String ruleKind, String hitPolicy, List<MdmRuleVar> rawVars, List<ResolvedVar> vars,
+                          List<DraftRow> rows, RuleSaveTarget target) {
+        this(ruleId, ver, ruleKind, hitPolicy, rawVars, vars, rows, target, null);
+    }
 
     /**
      * 검사할 행 하나.

@@ -156,4 +156,17 @@ class RuleSetEvaluationTest {
                 () -> engine.evaluateSet("LS_A3", record, SampleRules.EVAL_TS));
         assertEquals(List.of("INPUT_CHECK/TYPE_CONVERSION/SPD_EXC/null/COIL_WID"), violations(e));
     }
+
+    @Test
+    void 세트_조회에_초_단위로_자른_판정_시각을_넘긴다() {
+        engine.evaluateSet("LS_A3", ls("1250"), SampleRules.EVAL_TS.plusMillis(700));
+        assertEquals(List.of(SampleRules.EVAL_TS), lookup.ruleSetEvalTs());
+    }
+
+    @Test
+    void 없는_세트_문구에_세트_ID_와_판정_시각이_있다() {
+        EngineEvaluationException e = assertThrows(EngineEvaluationException.class,
+                () -> engine.evaluateSet("NONE", rec(), SampleRules.EVAL_TS));
+        assertEquals("세트가 없다: NONE @ " + SampleRules.EVAL_TS, e.violations().get(0).message());
+    }
 }

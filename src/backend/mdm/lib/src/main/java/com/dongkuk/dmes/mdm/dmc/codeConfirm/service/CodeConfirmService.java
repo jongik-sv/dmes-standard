@@ -14,6 +14,7 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary.VerRow;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.security.MdmStewardGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.common.version.VersionSpiRegistry;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
@@ -385,15 +386,7 @@ public class CodeConfirmService {
         if (v == null) {
             throw invalid("버전 번호가 없습니다");
         }
-        try {
-            BigDecimal ver = new BigDecimal(v);
-            if (ver.signum() < 0 || ver.stripTrailingZeros().scale() > MasterCodeConventions.FIRST_VER.scale()) {
-                throw invalid("버전 번호 형식이 올바르지 않습니다: " + v);
-            }
-            return ver.setScale(MasterCodeConventions.FIRST_VER.scale());
-        } catch (NumberFormatException e) {
-            throw invalid("버전 번호 형식이 올바르지 않습니다: " + v);
-        }
+        return VersionRules.parseVer(v);
     }
 
     private static String verText(BigDecimal ver) {

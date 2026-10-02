@@ -33,7 +33,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * TSK-08-06 design §2.2 「RuleSetMngServiceTest」 — ruleSetMng 의 search(조건 넷·계산 칸·페이징)·register(빈 세트 등록).
- * 불변 규칙 I1(세트 ID 규칙·유일)·I2(등록 = 한 행 INUSE·{@code []}·ROW_VERSION 0, 담당자만)·I19(담당자 판단 한 곳).
+ * 불변 규칙 I1(세트 ID 규칙·유일)·I2(등록 = 부모 CREATED + 1.000 DRAFT {@code []}·ROW_VERSION 0·등록자 소유, 담당자만 — D-144 2단계 J12)·
+ * I19(담당자 판단 한 곳).
  *
  * <p>룰 픽스처(모두 VER 1 RELEASED, 조건은 이름 조건 열, 결과 하나): 사전 SET_THK·SET_WID. R_GRD(SET_THK → S_GRD), R_FCT(S_GRD·SET_WID → S_FCT),
  * R_SPD(S_FCT → S_SPD), R_DUP(SET_WID → S_GRD), R_CYA(S_CYB → S_CYA)·R_CYB(S_CYA → S_CYB), R_OLD(DEPRECATED, SET_THK → S_OLD).
@@ -128,12 +129,19 @@ class RuleSetMngServiceTest extends AbstractMdmSharedDbTest {
 
     /** 거부 — 세트·룰 테이블이 그대로인지 본다. */
     private BusinessException refuse(Executable call) {
-        List<Map<String, Object>> sets = jdbc.queryForList("SELECT * FROM TB_MDM_RULE_SET ORDER BY MARU_RULE_SET_ID");
+        List<Object> sets = setTables();
         List<Integer> rules = ruleCounts();
         BusinessException e = assertThrows(BusinessException.class, call);
-        assertEquals(sets, jdbc.queryForList("SELECT * FROM TB_MDM_RULE_SET ORDER BY MARU_RULE_SET_ID"), "거부는 세트 테이블을 바꾸지 않는다");
+        assertEquals(sets, setTables(), "거부는 세트 테이블을 바꾸지 않는다");
         assertEquals(rules, ruleCounts());
         return e;
+    }
+
+    /** 세트 부모·버전 행 전부(D-144 2단계). */
+    private List<Object> setTables() {
+        return List.of(
+                jdbc.queryForList("SELECT * FROM TB_MDM_RULE_SET ORDER BY MARU_RULE_SET_ID"),
+                jdbc.queryForList("SELECT * FROM TB_MDM_RULE_SET_VER ORDER BY MARU_RULE_SET_ID, VER"));
     }
 
     private List<Integer> ruleCounts() {
@@ -187,12 +195,28 @@ class RuleSetMngServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 상태는_계산_상태이고_멤버는_표시_버전의_것이다() {
+        // 저장 CREATED 인데 적용된 RELEASED 가 있으면 INUSE(룰 목록과 같은 계산 상태). 표시 버전은 지금 적용 중인 RELEASED 다 — DRAFT 2.000 이
+        // 더 커도 목록은 1.000 으로 계산한다.
+        jdbc.update("UPDATE TB_MDM_RULE_SET SET STATUS = 'CREATED' WHERE MARU_RULE_SET_ID = 'S_CHAIN'");
+        DmeTestSupport.ruleSetDraft(jdbc, "S_CHAIN", "2.000", "kim", "[\"R_GRD\"]", 0);
+
+        RuleSetListRow chain = row(search("S_CHAIN", null, null, null, null, null), "S_CHAIN");
+        assertEquals("INUSE", chain.getStatus());
+        assertEquals("1.000", chain.getVer());
+        assertEquals(3, chain.getRuleCount());
+        assertEquals(List.of("S_CHAIN"), ids(search("S_CHAIN", null, null, "INUSE", null, null)));
+        assertEquals(List.of(), ids(search("S_CHAIN", null, null, "CREATED", null, null)));
+    }
+
+    @Test
     void 계산_칸은_멤버_룰의_입출력과_저장_시_검사에서_온다() {
         RuleSetSearchResult all = search(null, null, null, null, null, null);
 
         RuleSetListRow chain = row(all, "S_CHAIN");
         assertEquals("사슬 세트", chain.getSetName());
         assertEquals("INUSE", chain.getStatus());
+        assertEquals("1.000", chain.getVer(), "표시 버전(J11)");
         assertEquals(3, chain.getRuleCount());
         assertEquals(List.of("S_SPD"), chain.getFinalResults());
         assertEquals(2, chain.getInputCount(), "SET_THK·SET_WID");
@@ -252,23 +276,32 @@ class RuleSetMngServiceTest extends AbstractMdmSharedDbTest {
     // ── register ──
 
     @Test
-    void 등록은_INUSE_빈_목록_ROW_VERSION_0_한_행이다() {
+    void 등록은_CREATED_부모와_빈_목록_ROW_VERSION_0_인_등록자_소유_1_000_DRAFT_버전이다() {
         List<Integer> rules = ruleCounts();
         RuleSetRegResult result = service.register(regReq("S_NEW", "새 세트", "설명 한 줄"));
 
         assertEquals("S_NEW", result.getSetId());
         assertEquals(0L, result.getRowVersion());
+        assertEquals("1.000", result.getVer());
         Map<String, Object> row = jdbc.queryForMap("SELECT * FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'S_NEW'");
         assertEquals("새 세트", row.get("MARU_RULE_SET_NAME"));
         assertEquals("설명 한 줄", row.get("DESCRIPTION"));
-        assertEquals("INUSE", row.get("STATUS"));
-        assertEquals("[]", row.get("RULE_IDS"));
-        assertEquals(0L, ((Number) row.get("ROW_VERSION")).longValue());
+        assertEquals("CREATED", row.get("STATUS"));
         assertEquals("kim", row.get("C_USR_ID"));
+        // D-144 2단계(J12) — 흐름·행 버전은 1.000 MAJOR DRAFT 버전 행에 있고 소유자는 등록자다(룰 등록의 VER 1 DRAFT 선점과 같다).
+        assertEquals("[]", DmeTestSupport.setVerValue(jdbc, "S_NEW", "1.000", "RULE_IDS"));
+        assertEquals(0L, Long.parseLong(DmeTestSupport.setVerValue(jdbc, "S_NEW", "1.000", "ROW_VERSION")));
+        assertEquals("DRAFT", DmeTestSupport.setVerValue(jdbc, "S_NEW", "1.000", "STATUS"));
+        assertEquals("kim", DmeTestSupport.setVerValue(jdbc, "S_NEW", "1.000", "OWNER_ID"));
+        assertEquals("MAJOR", DmeTestSupport.setVerValue(jdbc, "S_NEW", "1.000", "VER_KIND"));
+        assertNull(DmeTestSupport.setVerValue(jdbc, "S_NEW", "1.000", "APPLY_FROM"));
+        assertEquals(1, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID = 'S_NEW'"));
         assertEquals(7, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_SET"));
         assertEquals(rules, ruleCounts(), "룰 테이블은 쓰지 않는다");
 
         RuleSetListRow listed = row(search("S_NEW", null, null, null, null, null), "S_NEW");
+        assertEquals("CREATED", listed.getStatus());
+        assertEquals("1.000", listed.getVer());
         assertEquals(0, listed.getRuleCount());
         assertEquals(1, listed.getRejectCount(), "빈 세트는 EMPTY 거부 1");
     }

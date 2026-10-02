@@ -71,13 +71,24 @@ class DmeBpmnActionTest {
     }
 
     /**
-     * TSK-08-06 I17 — 룰 세트 편집. search 의 갈래(target SET·RULE·GUIDE)는 Java 가 가른다. delete 는 폐기, restore 는 되살리기다.
-     * 흐름도 2단계 P5 — validate 는 조건식 IO(condIo), execute 는 기록 실행(simulate). 원장에 쓰지 않지만 EDIT 권한 액션이라 readOnly 가 아니다.
+     * TSK-08-06 I17 + D-144 2단계 — 룰 세트 편집. search 의 갈래(target SET·RULE·GUIDE)는 Java 가 가른다. delete 는 target SET(폐기)·VERSION(DRAFT 삭제)·CONFIRM(확정 취소), restore 는 되살리기.
+     * copy(새 버전)·lock·unlock·handover 는 룰(ruleMng)과 같은 동사다. 흐름도 2단계 P5 — validate 는 조건식 IO(condIo), execute 는
+     * 기록 실행(simulate). 원장에 쓰지 않지만 EDIT 권한 액션이라 readOnly 가 아니다.
      */
     @Test
-    void ruleSetEdit_는_search_view_save_delete_restore_validate_execute() throws Exception {
-        Map<String, String> methods = Map.of("search", "search", "view", "view", "save", "save", "delete", "delete", "restore", "restore",
-                "validate", "condIo", "execute", "simulate");
+    void ruleSetEdit_는_search_view_save_delete_restore_validate_execute_copy_lock_unlock_handover() throws Exception {
+        Map<String, String> methods = new HashMap<>();
+        methods.put("search", "search");
+        methods.put("view", "view");
+        methods.put("save", "save");
+        methods.put("delete", "delete");
+        methods.put("restore", "restore");
+        methods.put("validate", "condIo");
+        methods.put("execute", "simulate");
+        methods.put("copy", "copy");
+        methods.put("lock", "lock");
+        methods.put("unlock", "unlock");
+        methods.put("handover", "handover");
         Map<String, Boolean> readOnly = new HashMap<>();
         methods.keySet().forEach(a -> readOnly.put(a, a.equals("search") || a.equals("view")));
         assertActions("services/dme/ruleSetEdit.bpmn", "ruleSetEdit", "ruleSetEditService", methods, readOnly);

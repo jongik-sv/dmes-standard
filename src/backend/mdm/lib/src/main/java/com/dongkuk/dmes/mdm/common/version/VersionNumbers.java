@@ -1,6 +1,6 @@
 package com.dongkuk.dmes.mdm.common.version;
 
-import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeConventions;
+import com.dongkuk.dmes.mdm.contract.version.VersionConventions;
 import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -15,7 +15,10 @@ import java.util.Collection;
 public final class VersionNumbers {
 
     public static final int SCALE = 3;
-    public static final BigDecimal FIRST = MasterCodeConventions.FIRST_VER.setScale(SCALE);
+    /** 최초 버전(04:95). 값은 계약 상수 {@link VersionConventions} 가 정본. */
+    public static final BigDecimal FIRST = VersionConventions.FIRST_VER;
+    public static final int MAX_MINOR = VersionConventions.MAX_MINOR;
+    public static final int MAX_MAJOR = VersionConventions.MAX_MAJOR;
     private static final BigDecimal MINOR_STEP = new BigDecimal("0.001");
 
     private static final java.util.regex.Pattern VER_PATTERN = java.util.regex.Pattern.compile("^\\d{1,4}(\\.\\d{1,3})?$");
@@ -43,12 +46,12 @@ public final class VersionNumbers {
     }
 
     public static boolean canMajor(BigDecimal max) {
-        return nextMajor(max).setScale(0, RoundingMode.FLOOR).intValueExact() <= MasterCodeConventions.MAX_MAJOR;
+        return nextMajor(max).setScale(0, RoundingMode.FLOOR).intValueExact() <= MAX_MAJOR;
     }
 
     /** 버전이 없으면 minor 불가(I4). 소수부 × 1000 이 999 면 불가(I2). */
     public static boolean canMinor(BigDecimal max) {
-        return max != null && minorPart(max) < MasterCodeConventions.MAX_MINOR;
+        return max != null && minorPart(max) < MAX_MINOR;
     }
 
     /** {@link #canMinor} 가 참일 때만 부른다. */

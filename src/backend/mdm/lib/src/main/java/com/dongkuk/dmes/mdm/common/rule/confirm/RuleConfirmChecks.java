@@ -27,6 +27,7 @@ import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -76,8 +77,16 @@ public class RuleConfirmChecks {
         this.clock = clock;
     }
 
-    /** 4항목 보고서. 룰·버전이 없으면 {@link IllegalStateException}(공통 서비스가 DRAFT 를 먼저 읽으므로 확정 경로에서는 나지 않는다). */
+    /** 4항목 보고서 — 세트 순서 검사는 지금 시각 기준(저장 때와 같다). */
     public Report report(VersionRef draft) {
+        return report(draft, null);
+    }
+
+    /**
+     * 4항목 보고서 — applyFrom 이 있으면 세트 순서 검사가 그 시각 이후 유효한 세트 RELEASED 버전을 본다(D-144 2단계 J10), null 이면 지금 시각. 룰·버전이
+     * 없으면 {@link IllegalStateException}(공통 서비스가 DRAFT 를 먼저 읽으므로 확정 경로에서는 나지 않는다).
+     */
+    public Report report(VersionRef draft, LocalDateTime applyFrom) {
         String id = draft.objectId();
         BigDecimal ver = VersionNumbers.scaled(draft.ver());
         MdmRule rule = rules.findById(id).orElseThrow(() -> new IllegalStateException("룰이 없습니다: " + id));
@@ -88,7 +97,7 @@ public class RuleConfirmChecks {
                 .orElseThrow(() -> new IllegalStateException("룰 " + id + " 에 버전 " + VersionNumbers.label(ver) + " 이(가) 없습니다"));
 
         List<Map<String, Object>> saveIssues = validator.validate(new RuleCheckInput(id, ver, rule.getRuleKind(), s.version().getHitPolicy(),
-                s.rawVars(), s.vars(), s.rows(), RuleSaveTarget.STORED)).issues();
+                s.rawVars(), s.vars(), s.rows(), RuleSaveTarget.STORED, applyFrom)).issues();
 
         List<Map<String, Object>> cases = List.of();
         String caseFailure = null;

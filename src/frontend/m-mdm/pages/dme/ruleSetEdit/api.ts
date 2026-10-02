@@ -3,6 +3,7 @@
  * `restore`(되살리기)·`validate`(조건식 IO)·`execute`(기록 실행).
  * 3단계(P8): 테스트 케이스 저장·삭제는 `save` 의 `part=CASE`, 일괄 실행은 `execute` 의 `runCases`, 식 파싱은 `validate` 의 `exprText` 로 한다(새 action 동사 없음).
  * 흐름은 params 의 Map 을 OASIS 가 받지 못하므로(P-D1) 정규 JSON 문자열 `flowJson` 으로 보낸다. grids 는 보내지 않는다.
+ * D-144 2단계: view·save 는 버전(ver)을 싣고, copy·delete(target)·lock·unlock·handover 로 버전을 다룬다.
  */
 import { callOasis } from "@/dme/oasis-call";
 
@@ -17,6 +18,7 @@ import type {
   RuleSetSaveResult,
   RuleSetSimulateResult,
   RuleSetStatusResult,
+  RuleSetVersionResult,
   RuleSetView,
 } from "./types";
 
@@ -43,14 +45,18 @@ export function guide(resultVar: string): Promise<GuideResult> {
   return callOasis<GuideResult>(SERVICE, "search", { target: "GUIDE", resultVar: blankToUndefined(resultVar) });
 }
 
-export function viewSet(setId: string): Promise<RuleSetView> {
-  return callOasis<RuleSetView>(SERVICE, "view", { setId });
+/** 세트 보기 — ver 가 없으면 서버가 고른다(내 DRAFT → 지금 적용 중인 RELEASED → VER 최대). */
+export function viewSet(setId: string, ver?: string | null): Promise<RuleSetView> {
+  return callOasis<RuleSetView>(SERVICE, "view", { setId, ver: ver ?? undefined });
 }
 
-/** 세트명·설명·흐름 저장. 흐름은 `flowJsonOf` 정규 JSON 문자열이다. 검사는 서버가 요청 흐름으로 다시 계산한다(I12). */
-export function saveSet(setId: string, setName: string, description: string, rowVersion: number, flowJson: string): Promise<RuleSetSaveResult> {
+/**
+ * 세트명·설명·흐름 저장 — 선택 버전(내 DRAFT)에만 쓴다. 흐름은 `flowJsonOf` 정규 JSON 문자열이다. 검사는 서버가 요청 흐름으로 다시 계산한다(I12).
+ */
+export function saveSet(setId: string, ver: string, setName: string, description: string, rowVersion: number, flowJson: string): Promise<RuleSetSaveResult> {
   return callOasis<RuleSetSaveResult>(SERVICE, "save", {
     setId,
+    ver,
     setName: setName.trim(),
     description: blankToUndefined(description),
     rowVersion,
@@ -71,14 +77,44 @@ export function simulate(flowJson: string, recordJson: string, evalTs: string | 
   return callOasis<RuleSetSimulateResult>(SERVICE, "execute", { flowJson, recordJson, evalTs: blankToUndefined(evalTs), editsJson: blankToUndefined(editsJson) });
 }
 
-/** 폐기(INUSE → DEPRECATED). */
-export function deprecateSet(setId: string, rowVersion: number): Promise<RuleSetStatusResult> {
-  return callOasis<RuleSetStatusResult>(SERVICE, "delete", { setId, rowVersion });
+/** 폐기(INUSE → DEPRECATED) — delete target SET. 행 버전을 보내지 않는다(부모에 행 버전이 없다). */
+export function deprecateSet(setId: string): Promise<RuleSetStatusResult> {
+  return callOasis<RuleSetStatusResult>(SERVICE, "delete", { setId, target: "SET" });
 }
 
-/** 되살리기(DEPRECATED → INUSE, 저장된 목록의 검사를 통과할 때만). */
-export function restoreSet(setId: string, rowVersion: number): Promise<RuleSetStatusResult> {
-  return callOasis<RuleSetStatusResult>(SERVICE, "restore", { setId, rowVersion });
+/** 되살리기(DEPRECATED → INUSE, 표시 버전의 검사를 통과할 때만). */
+export function restoreSet(setId: string): Promise<RuleSetStatusResult> {
+  return callOasis<RuleSetStatusResult>(SERVICE, "restore", { setId });
+}
+
+/** 새 버전(D-144 2단계) — 직전 RELEASED 의 흐름·목록을 복사한 DRAFT. 응답 ver 가 새 버전이다. */
+export function newSetVersion(setId: string, verKind: "MAJOR" | "MINOR"): Promise<RuleSetVersionResult> {
+  return callOasis<RuleSetVersionResult>(SERVICE, "copy", { setId, verKind });
+}
+
+/** DRAFT 삭제 — delete target VERSION. */
+export function deleteSetDraft(setId: string, ver: string, rowVersion: number): Promise<RuleSetVersionResult> {
+  return callOasis<RuleSetVersionResult>(SERVICE, "delete", { setId, target: "VERSION", ver, rowVersion });
+}
+
+/** 확정 취소(ADR-0002 D8) — 아직 적용 전인 내 확정 버전을 DRAFT 로 되돌린다. delete target CONFIRM. */
+export function cancelSetConfirm(setId: string, ver: string, rowVersion: number): Promise<RuleSetVersionResult> {
+  return callOasis<RuleSetVersionResult>(SERVICE, "delete", { setId, target: "CONFIRM", ver, rowVersion });
+}
+
+/** DRAFT 선점. */
+export function lockSetVersion(setId: string, ver: string, rowVersion: number): Promise<RuleSetVersionResult> {
+  return callOasis<RuleSetVersionResult>(SERVICE, "lock", { setId, ver, rowVersion });
+}
+
+/** DRAFT 해제(소유자만). */
+export function unlockSetVersion(setId: string, ver: string, rowVersion: number): Promise<RuleSetVersionResult> {
+  return callOasis<RuleSetVersionResult>(SERVICE, "unlock", { setId, ver, rowVersion });
+}
+
+/** DRAFT 넘기기(소유자만, 받는 사람은 담당자). */
+export function handoverSetVersion(setId: string, ver: string, rowVersion: number, newOwnerId: string): Promise<RuleSetVersionResult> {
+  return callOasis<RuleSetVersionResult>(SERVICE, "handover", { setId, ver, rowVersion, newOwnerId });
 }
 
 /** 테스트 케이스 저장(3단계 P8) — `save` 의 `part=CASE`. caseId 가 없으면 새 케이스(서버가 번호를 준다). */

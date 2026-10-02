@@ -25,8 +25,11 @@ public interface DefinitionLookup {
     /** {@code evalTs} 에 적용되는 RELEASED 버전(값 테스트 구현체는 DRAFT·요청 본문). 없으면 빈 값. */
     Optional<RuleDefinition> rule(String ruleId, Instant evalTs);
 
-    /** 룰 세트 정의(버전 없음). 없으면 빈 값. */
-    Optional<RuleSetDefinition> ruleSet(String setId);
+    /**
+     * {@code evalTs} 에 적용되는 RELEASED 세트 버전(D-144 2단계 — 룰과 같은 판정 시각 해석, K1). 없으면 빈 값.
+     * 편집 중 정의의 시험 실행은 이 조회를 쓰지 않고 {@code RuleEngine.traceSet} 에 정의를 직접 넘긴다.
+     */
+    Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs);
 
     // ------------------------------------------------------------------ 컬럼(도메인 검증)
 

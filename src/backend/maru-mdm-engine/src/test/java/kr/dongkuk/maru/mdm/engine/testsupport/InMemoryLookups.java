@@ -92,7 +92,7 @@ public final class InMemoryLookups {
             }
 
             @Override
-            public Optional<RuleSetDefinition> ruleSet(String setId) {
+            public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
                 return Optional.empty();
             }
         };

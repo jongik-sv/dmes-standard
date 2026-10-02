@@ -53,6 +53,7 @@ const MENU = {
   ruleConfirm: "버전 확정",
   ruleSetMng: "룰 세트",
   ruleSetEdit: "룰 세트 편집",
+  ruleSetConfirm: "룰 세트 확정",
 } as const;
 type ScreenId = keyof typeof MENU;
 

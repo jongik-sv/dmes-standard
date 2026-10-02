@@ -11,13 +11,14 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSummary.VerRow;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.security.MdmStewardGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeConventions;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeSourceKind;
-import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeVerKind;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
 import com.dongkuk.dmes.mdm.contract.version.DraftOwnershipService;
 import com.dongkuk.dmes.mdm.contract.version.MaruObjectStatus;
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionStatus;
@@ -220,7 +221,7 @@ public class CodeEditService {
     public CodeEditView createVersion(CodeVersionCreateRequest request) {
         MdmCode code = requireWritable(request == null ? null : request.getMaruCodeId());
         requireNotDeprecated(code);
-        MasterCodeVerKind kind = parseKind(request.getVerKind());
+        VersionKind kind = parseKind(request.getVerKind());
         Summary summary = summary(code);
         writeGuard.checkCanCreateVersion(VersionTarget.MASTER_CODE, code.getMaruCodeId()); // I5 — MDM006
         BigDecimal next = nextNumber(summary.maxVer(), kind);
@@ -233,7 +234,7 @@ public class CodeEditService {
     public CodeEditView restoreVersion(CodeVersionRestoreRequest request) {
         MdmCode code = requireWritable(request == null ? null : request.getMaruCodeId());
         requireNotDeprecated(code);
-        MasterCodeVerKind kind = parseKind(request.getVerKind());
+        VersionKind kind = parseKind(request.getVerKind());
         Summary summary = summary(code);
         writeGuard.checkCanCreateVersion(VersionTarget.MASTER_CODE, code.getMaruCodeId()); // I5
         BigDecimal next = nextNumber(summary.maxVer(), kind);
@@ -441,7 +442,7 @@ public class CodeEditService {
     }
 
     /** 새 DRAFT 행 — 소유자는 요청 사용자(I11), rv 0. 1.000 이면 같은 트랜잭션에서 BASE 를 만든다(I4). */
-    private VersionRef insertDraft(MdmCode code, BigDecimal ver, MasterCodeVerKind kind, BigDecimal restoredFrom) {
+    private VersionRef insertDraft(MdmCode code, BigDecimal ver, VersionKind kind, BigDecimal restoredFrom) {
         MdmCodeVer row = new MdmCodeVer(code.getMaruCodeId(), ver, kind.name());
         row.setOwnerId(currentUser.userId());
         row.setRestoredFrom(restoredFrom);
@@ -455,8 +456,8 @@ public class CodeEditService {
     }
 
     /** I1~I4 — max 는 모든 버전(CANCELLED·DRAFT 포함). 불가하면 MDM021. */
-    static BigDecimal nextNumber(BigDecimal max, MasterCodeVerKind kind) {
-        if (kind == MasterCodeVerKind.MAJOR) {
+    static BigDecimal nextNumber(BigDecimal max, VersionKind kind) {
+        if (kind == VersionKind.MAJOR) {
             if (!MasterCodeVersionNumbers.canMajor(max)) {
                 throw invalid("major 번호가 상한(" + MasterCodeConventions.MAX_MAJOR + ")을 넘습니다");
             }
@@ -477,9 +478,9 @@ public class CodeEditService {
         }
     }
 
-    private static MasterCodeVerKind parseKind(String value) {
+    private static VersionKind parseKind(String value) {
         String v = trimToNull(value);
-        for (MasterCodeVerKind kind : MasterCodeVerKind.values()) {
+        for (VersionKind kind : VersionKind.values()) {
             if (kind.name().equals(v)) {
                 return kind;
             }
@@ -487,22 +488,13 @@ public class CodeEditService {
         throw invalid("버전 종류는 MAJOR 또는 MINOR 여야 합니다");
     }
 
-    /** "1.001" → 1.001(scale 3). 음수·소수 넷째 자리 이상·형식 오류는 MDM021. */
+    /** "1.001" → 1.001(scale 3). 음수·소수 넷째 자리 이상·지수 표기 등 형식 오류는 MDM021(공통 {@link VersionRules#parseVer}). */
     static BigDecimal parseVer(String value) {
         String v = trimToNull(value);
         if (v == null) {
             throw invalid("버전 번호가 없습니다");
         }
-        BigDecimal ver;
-        try {
-            ver = new BigDecimal(v);
-        } catch (NumberFormatException e) {
-            throw invalid("버전 번호 형식이 올바르지 않습니다: " + v);
-        }
-        if (ver.signum() < 0 || ver.stripTrailingZeros().scale() > MasterCodeConventions.FIRST_VER.scale()) {
-            throw invalid("버전 번호 형식이 올바르지 않습니다: " + v);
-        }
-        return ver.setScale(MasterCodeConventions.FIRST_VER.scale());
+        return VersionRules.parseVer(v);
     }
 
     // ── 공통 ──
@@ -597,10 +589,11 @@ public class CodeEditService {
         boolean open = s.unapplied().isEmpty() && !deprecated && sourceMdm;
         CodeEditFlags flags = new CodeEditFlags();
         flags.setUnappliedCount(s.unapplied().size());
-        flags.setCanNewMajor(open && MasterCodeVersionNumbers.canMajor(max));
-        flags.setCanNewMinor(open && MasterCodeVersionNumbers.canMinor(max));
-        flags.setNextMajor(MasterCodeVersionNumbers.nextMajor(max).toPlainString());
-        flags.setNextMinor(MasterCodeVersionNumbers.canMinor(max) ? MasterCodeVersionNumbers.nextMinor(max).toPlainString() : null);
+        VersionRules.NewVersionFlags nv = VersionRules.newVersionFlags(max, open);
+        flags.setCanNewMajor(nv.canNewMajor());
+        flags.setCanNewMinor(nv.canNewMinor());
+        flags.setNextMajor(nv.nextMajor());
+        flags.setNextMinor(nv.nextMinor());
         flags.setMinorLimit(max != null && !MasterCodeVersionNumbers.canMinor(max));
         flags.setCanDeprecate(!deprecated && s.unapplied().isEmpty() && sourceMdm);
         flags.setEditable(sourceMdm && steward);

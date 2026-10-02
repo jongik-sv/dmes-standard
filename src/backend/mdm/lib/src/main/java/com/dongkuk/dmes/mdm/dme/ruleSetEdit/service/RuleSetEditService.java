@@ -16,13 +16,23 @@ import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetGuide;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetRunner;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetTestCaseQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.rule.RuleCaseInputs;
 import com.dongkuk.dmes.mdm.common.rule.RunTraceJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
+import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.common.version.VersionRowStore;
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
+import com.dongkuk.dmes.mdm.contract.common.MdmNativeAuditSupport;
+import com.dongkuk.dmes.mdm.contract.version.VersionRef;
+import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
+import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditService;
@@ -38,14 +48,21 @@ import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSimulateRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSimulateResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetStatusRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetStatusResult;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetVersionRequest;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetVersionResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetViewResult;
-import com.dongkuk.dmes.mdm.dme.ruleSetEdit.service.RuleSetWrites.SetState;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSetTestCase;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSetVer;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
+import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,6 +71,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
@@ -65,11 +83,15 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 룰 세트 편집({@code ruleSetEdit}) OASIS 진입 서비스 — TSK-08-06 design §6.6. BPMN {@code services/dme/ruleSetEdit.bpmn} 의
- * {@code search}·{@code view}·{@code save}·{@code delete}(폐기)·{@code restore}(되살리기)·{@code validate}({@link #condIo} 조건식 IO)·
- * {@code execute}({@link #simulate} 기록 실행 = 디버거) 일곱 분기와 1:1(흐름도 2단계 P5).
+ * {@code search}·{@code view}·{@code save}·{@code delete}(target SET 폐기·VERSION DRAFT 삭제·CONFIRM 확정 취소)·{@code restore}(되살리기)·
+ * {@code validate}({@link #condIo} 조건식 IO)·{@code execute}({@link #simulate} 기록 실행 = 디버거)·{@code copy}(새 버전)·{@code lock}·
+ * {@code unlock}·{@code handover} 열한 분기와 1:1(흐름도 2단계 P5, D-144 2단계). 버전 조작은 {@link RuleSetVersionService} 에 맡긴다.
  *
- * <p>세트에는 버전·DRAFT·선점이 없다(I3) — 공통 버전 서비스를 부르지 않고, 쓰기는 {@link RuleSetWrites} 의 {@code ROW_VERSION} 조건부
- * UPDATE 하나로 {@code TB_MDM_RULE_SET} 한 행만 바꾼다(I23, 배포하지 않는다 D11). 저장·되살리기 검사는 화면 결과를 받지 않고 서버가
+ * <p>D-144 2단계: 흐름·룰 목록·{@code ROW_VERSION} 은 세트 버전 행({@code TB_MDM_RULE_SET_VER})에 있다. view 는 요청 버전, 없으면 내 DRAFT →
+ * 지금 적용 중인 RELEASED → VER 최대를 고르고 버전 목록·새 버전 플래그를 함께 준다. 저장은 요청 사용자가 소유한 DRAFT 에만 한다 — 공통
+ * {@link VersionWriteGuard#beginDraftWrite} 가 소유자(MDM003)·row_version(MDM001)·DRAFT(MDM002)·다른 미적용 버전(MDM007)을 보고 행 버전을
+ * 올린 뒤 {@link RuleSetWrites} 가 그 DRAFT 의 흐름·목록과 부모 세트명·설명을 같은 트랜잭션에서 쓴다(J1). RELEASED 는 저장으로 바뀌지 않는다.
+ * 폐기·되살리기는 부모 상태 조건부 UPDATE 만 한다(J2, 행 버전을 보지 않는다). 저장·되살리기 검사는 화면 결과를 받지 않고 서버가
  * {@link RuleIoReader} → {@link RuleSetAnalyzer#checks} 로 다시 계산한다(I12·I15).
  *
  * <p><b>{@code @Transactional} 을 붙이지 않는다(MUST)</b> — OASIS 파라미터 이름 바인딩이 깨진다. 쓰기는 {@link TransactionTemplate}.
@@ -84,6 +106,8 @@ public class RuleSetEditService {
     static final String INUSE = "INUSE";
     static final String DEPRECATED = "DEPRECATED";
     static final String FLOW_READONLY_MESSAGE = "분기가 있는 세트는 룰 목록으로 저장할 수 없다. 흐름도 편집기에서 저장한다";
+    static final String NOT_DEPRECATED_MESSAGE = "폐기하지 않은 룰 세트는 되살릴 수 없습니다: ";
+    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     static final String FLOW_LIST_SAVE_MESSAGE = "흐름도로 저장한 세트는 룰 목록으로 저장할 수 없다. 흐름도 편집기에서 저장한다";
 
     private final MdmRuleSetRepository setRepository;
@@ -95,12 +119,28 @@ public class RuleSetEditService {
     private final RuleSetTestCaseService caseService;
     private final RuleSetTestCaseQueries caseQueries;
     private final RuleEditService ruleEditService;
+    private final RuleSetVersionQueries setVersions;
+    private final VersionWriteGuard writeGuard;
+    private final VersionRowStore versionStore;
+    private final MdmNativeAuditSupport audit;
+    private final MdmCurrentUser currentUser;
+    private final RuleSetVersionService versionService;
+    private final Clock clock;
     private final TransactionTemplate tx;
 
     public RuleSetEditService(MdmRuleSetRepository setRepository, RuleQueries queries, RuleIoReader ioReader,
                               RuleStewardCheck stewardCheck, RuleSetWrites writes, RuleSetRunner runner,
                               RuleSetTestCaseService caseService, RuleSetTestCaseQueries caseQueries, RuleEditService ruleEditService,
-                              PlatformTransactionManager transactionManager) {
+                              RuleSetVersionQueries setVersions, VersionWriteGuard writeGuard, VersionRowStore versionStore,
+                              MdmNativeAuditSupport audit, MdmCurrentUser currentUser, RuleSetVersionService versionService,
+                              Clock clock, PlatformTransactionManager transactionManager) {
+        this.currentUser = currentUser;
+        this.versionService = versionService;
+        this.setVersions = setVersions;
+        this.writeGuard = writeGuard;
+        this.versionStore = versionStore;
+        this.audit = audit;
+        this.clock = clock;
         this.caseService = caseService;
         this.caseQueries = caseQueries;
         this.ruleEditService = ruleEditService;
@@ -132,20 +172,33 @@ public class RuleSetEditService {
         throw new BusinessException(ErrorCode.INVALID_VALUE, "search target 은 SET·RULE·GUIDE 중 하나여야 합니다: " + target);
     }
 
-    /** 세트 고르기 — ID 대문자 포함 또는 세트명 포함, 세트 ID 순 20건. */
+    /**
+     * 세트 고르기 — ID 대문자 포함 또는 세트명 포함, 세트 ID 순 20건. 상태는 ruleSetMng·ruleSetConfirm 과 같은 계산 상태다(CREATED 이면서 적용된
+     * RELEASED 가 있으면 INUSE). 고른 세트의 버전만 한 번에 읽는다.
+     */
     private RuleSetPickResult searchSets(String keyword) {
         String upper = keyword == null ? null : keyword.toUpperCase(Locale.ROOT);
-        List<RuleSetPickResult.Pick> picks = new ArrayList<>();
+        List<MdmRuleSet> hits = new ArrayList<>();
         for (MdmRuleSet s : queries.allSets()) {
-            if (picks.size() >= PICK_LIMIT) {
+            if (hits.size() >= PICK_LIMIT) {
                 break;
             }
             boolean hit = keyword == null
                     || s.getMaruRuleSetId().toUpperCase(Locale.ROOT).contains(upper)
                     || (s.getMaruRuleSetName() != null && s.getMaruRuleSetName().contains(keyword));
             if (hit) {
-                picks.add(new RuleSetPickResult.Pick(s.getMaruRuleSetId(), s.getMaruRuleSetName(), s.getStatus()));
+                hits.add(s);
             }
+        }
+        if (hits.isEmpty()) {
+            return new RuleSetPickResult(List.of());
+        }
+        Map<String, List<MdmRuleSetVer>> byId = setVersions.versionsOf(hits.stream().map(MdmRuleSet::getMaruRuleSetId).toList());
+        LocalDateTime now = now();
+        List<RuleSetPickResult.Pick> picks = new ArrayList<>(hits.size());
+        for (MdmRuleSet s : hits) {
+            String status = RuleVersions.effectiveStatus(s.getStatus(), byId.getOrDefault(s.getMaruRuleSetId(), List.of()), now);
+            picks.add(new RuleSetPickResult.Pick(s.getMaruRuleSetId(), s.getMaruRuleSetName(), status));
         }
         return new RuleSetPickResult(picks);
     }
@@ -179,19 +232,107 @@ public class RuleSetEditService {
     public RuleSetViewResult view(RuleSetViewRequest request) {
         String setId = requireSetId(request == null ? null : request.getSetId());
         MdmRuleSet set = setRepository.findById(setId).orElseThrow(() -> notFound(setId));
-        List<String> ruleIds = ruleIdsOf(set.getRuleIds());
+        LocalDateTime now = now();
+        String me = currentUser.userId();
+        List<MdmRuleSetVer> versions = setVersions.versions(setId);
+        Optional<MdmRuleSetVer> selected = select(setId, versions, VersionRules.optionalVer(request.getVer()), me, now);
+        String status = RuleVersions.effectiveStatus(set.getStatus(), versions, now);
+
+        List<String> ruleIds = selected.map(v -> ruleIdsOf(v.getRuleIds())).orElse(List.of());
+        String flowJson = selected.map(MdmRuleSetVer::getFlowJson).orElse(null);
         RuleVarTypeResolver.Scope scope = ioReader.scope();
         Map<String, RuleIo> io = ioReader.read(ruleIds, scope);
-        FlowDefinition flow = storedFlow(setId, set.getFlowJson());
+        FlowDefinition flow = storedFlow(setId, flowJson);
         Map<String, CondIo> condIo = flow == null ? Map.of() : ioReader.condIo(flow, scope);
         List<RuleSetCheck> checks = flowChecks(ruleIds, io, flow, condIo);
         boolean steward = stewardCheck.isSteward();
+        boolean myDraft = selected.filter(v -> isMyDraft(v, me)).isPresent();
+
         RuleSetViewResult.Header header = new RuleSetViewResult.Header(set.getMaruRuleSetId(), set.getMaruRuleSetName(),
-                set.getDescription(), set.getStatus(), set.getRowVersion(), ruleIds,
-                flow == null ? null : RuleSetFlowJson.toMap(set.getFlowJson()), flow != null && RuleSetFlowJson.branched(flow));
-        return new RuleSetViewResult(header, List.copyOf(io.values()), checks,
-                steward && INUSE.equals(set.getStatus()), steward && DEPRECATED.equals(set.getStatus()),
-                condIo, cases(setId));
+                set.getDescription(), status, selected.map(MdmRuleSetVer::getRowVersion).orElse(0L), ruleIds,
+                flow == null ? null : RuleSetFlowJson.toMap(flowJson), flow != null && RuleSetFlowJson.branched(flow));
+        selected.ifPresent(v -> {
+            header.setVer(VersionNumbers.plain(v.getVer()));
+            header.setVerKind(v.getVerKind() == null ? null : v.getVerKind().name());
+            header.setVerLabel(VersionNumbers.label(v.getVer()));
+            header.setVerStatus(v.getStatus());
+            header.setOwnerId(v.getOwnerId());
+            header.setBaseVer(v.getBaseVer() == null ? null : VersionNumbers.plain(v.getBaseVer()));
+            header.setApplyFrom(text(v.getApplyFrom()));
+            header.setApplyTo(text(v.getApplyTo()));
+        });
+        RuleSetViewResult result = new RuleSetViewResult(header, List.copyOf(io.values()), checks,
+                steward && myDraft && !DEPRECATED.equals(status), steward && DEPRECATED.equals(status), condIo, cases(setId));
+        result.setVersions(versionRows(versions, now, me));
+        result.setFlags(flags(status, versions, now, steward));
+        result.setMe(me);
+        return result;
+    }
+
+    /** 요청 버전 → 그 버전(없으면 INVALID_VALUE). 요청이 비면 내 DRAFT → 지금 적용 중인 RELEASED → VER 최대. 버전이 없으면 빈 값. */
+    private static Optional<MdmRuleSetVer> select(String setId, List<MdmRuleSetVer> versions, BigDecimal wanted, String me, LocalDateTime now) {
+        if (wanted != null) {
+            return Optional.of(versions.stream().filter(v -> VersionNumbers.same(v.getVer(), wanted)).findFirst()
+                    .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VALUE,
+                            "버전이 없습니다: " + setId + " " + VersionNumbers.label(wanted))));
+        }
+        Optional<MdmRuleSetVer> mine = versions.stream().filter(v -> isMyDraft(v, me)).findFirst();
+        return mine.isPresent() ? mine : RuleSetVersionQueries.display(versions, now);
+    }
+
+    private static boolean isMyDraft(MdmRuleSetVer v, String me) {
+        return "DRAFT".equals(v.getStatus()) && me != null && me.equals(v.getOwnerId());
+    }
+
+    /** 버전 목록(입력 그대로 VER 내림차순). 확정 취소 가능은 룰 {@code RuleMngService.cancelConfirmable} 과 같은 판정 — 서버가 실행 때 다시 본다. */
+    private static List<RuleSetViewResult.VersionRow> versionRows(List<MdmRuleSetVer> versions, LocalDateTime now, String me) {
+        int unapplied = unappliedCount(versions, now);
+        List<RuleSetViewResult.VersionRow> rows = new ArrayList<>(versions.size());
+        for (MdmRuleSetVer v : versions) {
+            RuleSetViewResult.VersionRow row = new RuleSetViewResult.VersionRow();
+            row.setVer(VersionNumbers.plain(v.getVer()));
+            row.setVerKind(v.getVerKind() == null ? null : v.getVerKind().name());
+            row.setVerLabel(VersionNumbers.label(v.getVer()));
+            row.setStatus(v.getStatus());
+            row.setApplyFrom(text(v.getApplyFrom()));
+            row.setApplyTo(text(v.getApplyTo()));
+            row.setOwnerId(v.getOwnerId());
+            row.setRowVersion(v.getRowVersion());
+            row.setCancelConfirmable("RELEASED".equals(v.getStatus()) && unapplied == 1 && v.getApplyFrom() != null
+                    && v.getApplyFrom().isAfter(now) && me != null && me.equals(v.getOwnerId()));
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    /**
+     * 새 버전·폐기 버튼 — 룰 {@code RuleMngService.toFlags} 와 같은 규칙. 폐기했거나 미적용 버전이 있으면 새 버전 불가, 최대값은 상태로 거르지
+     * 않는다(D-144 I1). 번호 계산은 공통 {@link VersionRules#newVersionFlags}. 폐기·케이스 편집은 담당자만(Ruling P2-17·P2-18) —
+     * 실행 때 서버가 다시 본다(폐기 MDM013, 케이스 {@code RuleSetTestCaseService.save}).
+     */
+    private static RuleSetViewResult.Flags flags(String status, List<MdmRuleSetVer> versions, LocalDateTime now, boolean steward) {
+        RuleSetViewResult.Flags f = new RuleSetViewResult.Flags();
+        f.setUnappliedCount(unappliedCount(versions, now));
+        if (!DEPRECATED.equals(status) && f.getUnappliedCount() == 0) {
+            BigDecimal max = VersionNumbers.maxVer(versions.stream().map(MdmRuleSetVer::getVer).toList());
+            VersionRules.NewVersionFlags nv = VersionRules.newVersionFlags(max, true);
+            f.setCanNewMajor(nv.canNewMajor());
+            f.setCanNewMinor(nv.canNewMinor());
+            f.setNextMajor(nv.canNewMajor() ? nv.nextMajor() : null);
+            f.setNextMinor(nv.nextMinor());
+        }
+        f.setCanDeprecate(steward && INUSE.equals(status) && f.getUnappliedCount() == 0); // Ruling P2-17 — 담당자만
+        f.setCanEditCases(steward && !DEPRECATED.equals(status));                        // Ruling P2-18 — 버전과 무관
+        RuleVersions.currentReleased(versions, now).ifPresent(v -> f.setCurrentVer(VersionNumbers.plain(v.getVer())));
+        return f;
+    }
+
+    private static int unappliedCount(List<MdmRuleSetVer> versions, LocalDateTime now) {
+        return (int) versions.stream().filter(v -> RuleVersions.isUnapplied(v, now)).count();
+    }
+
+    private static String text(LocalDateTime value) {
+        return value == null ? null : value.format(TS);
     }
 
     /** 저장된 테스트 케이스 — 세트 상태와 무관하게 싣는다(폐기 세트도, P-D8). */
@@ -203,7 +344,7 @@ public class RuleSetEditService {
     }
 
     // ────────────────────────────────────────────────────────────────
-    // action: save — 요청 검사(I13) → 담당자 → 서버 재계산 검사(I12) → 조건부 UPDATE
+    // action: save — 요청 검사(I13) → 담당자 → 서버 재계산 검사(I12) → 내 DRAFT 쓰기(공통 가드 → 조건부 UPDATE)
     // ────────────────────────────────────────────────────────────────
 
     public RuleSetSaveResult save(RuleSetSaveRequest request) {
@@ -218,6 +359,7 @@ public class RuleSetEditService {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "save part 는 SET·CASE 중 하나여야 합니다: " + part);
         }
         String setId = requireSetId(request.getSetId());
+        BigDecimal ver = VersionRules.requireVer(request.getVer());
         long rv = requireRowVersion(request.getRowVersion());
         String name = validName(request.getSetName());
         List<String> ids;
@@ -234,34 +376,105 @@ public class RuleSetEditService {
         } else {
             ids = requestRuleIds(request.getRules());
             stewardCheck.requireSteward();
-            rejectListSaveOverFlow(setId);
+            rejectListSaveOverFlow(setId, ver);
             checks = RuleSetAnalyzer.checks(ids, ioReader.read(ids));
             flowJson = null;
         }
         rejectIfAny(checks);
         String description = blankToNull(request.getDescription());
-        tx.executeWithoutResult(status -> {
-            if (writes.update(setId, name, DomainJson.write(ids), flowJson, description, rv) == 0) {
-                throw writeMissed(setId, rv, INUSE);
+        String me = currentUser.userId();
+        long next = tx.execute(status -> {
+            // 부모 먼저 — 없는 세트·폐기한 세트는 버전 가드(MDM001·MDM003)보다 그 사유로 거부한다.
+            String stored = writes.status(setId).orElseThrow(() -> notFound(setId));
+            if (DEPRECATED.equals(stored)) {
+                throw deprecatedSet(setId);
             }
+            long bumped = writeGuard.beginDraftWrite(new VersionRef(VersionTarget.RULE_SET, setId, ver), rv, me); // MDM003·001·002·007
+            if (writes.updateDraft(setId, ver, DomainJson.write(ids), flowJson) == 0) {
+                throw MdmErrors.of(MdmErrorCode.NOT_DRAFT);
+            }
+            if (writes.updateHeader(setId, name, description) == 0) {
+                throw writeMissed(setId);
+            }
+            return bumped;
         });
-        return new RuleSetSaveResult(setId, rv + 1, warnings(checks));
+        return new RuleSetSaveResult(setId, next, warnings(checks));
     }
 
     // ────────────────────────────────────────────────────────────────
-    // action: delete(폐기) — INUSE → DEPRECATED. 검사를 돌리지 않는다(I14).
+    // action: delete — target SET(폐기)·VERSION(DRAFT 삭제)·CONFIRM(확정 취소, ADR-0002 D8). 빈 target 은 거부한다(J6).
     // ────────────────────────────────────────────────────────────────
 
-    public RuleSetStatusResult delete(RuleSetStatusRequest request) {
-        String setId = requireSetId(request == null ? null : request.getSetId());
-        long rv = requireRowVersion(request.getRowVersion());
+    /**
+     * 폐기·DRAFT 삭제·확정 취소. 반환은 SET 이면 {@link RuleSetStatusResult}, 나머지는 {@link RuleSetVersionResult} 다(둘 다
+     * {@code setId} 를 갖는다 — OASIS 는 맵으로 싣는다).
+     */
+    public Object delete(RuleSetVersionRequest request) {
+        if (request == null) {
+            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "삭제할 값이 없습니다.");
+        }
+        String target = blankToNull(request.getTarget());
+        if (RuleSetVersionRequest.TARGET_SET.equals(target)) {
+            return deprecate(requireSetId(request.getSetId()));
+        }
+        if (RuleSetVersionRequest.TARGET_VERSION.equals(target)) {
+            return versionService.deleteDraft(request);
+        }
+        if (RuleSetVersionRequest.TARGET_CONFIRM.equals(target)) {
+            return versionService.cancelConfirm(request);
+        }
+        throw new BusinessException(ErrorCode.INVALID_VALUE, "삭제 대상은 SET·VERSION·CONFIRM 중 하나여야 합니다: " + target);
+    }
+
+    /** 폐기 — 계산 상태 INUSE → DEPRECATED. 검사를 돌리지 않는다(I14). 행 버전을 보지 않는다(J2). */
+    private RuleSetStatusResult deprecate(String setId) {
         stewardCheck.requireSteward();
         tx.executeWithoutResult(status -> {
-            if (writes.deprecate(setId, rv) == 0) {
-                throw writeMissed(setId, rv, INUSE);
+            String stored = writes.status(setId).orElseThrow(() -> notFound(setId));
+            List<MdmRuleSetVer> versions = setVersions.versions(setId);
+            if (!INUSE.equals(RuleVersions.effectiveStatus(stored, versions, now()))) {
+                throw transition("사용 중(INUSE)인 룰 세트만 폐기할 수 있습니다: " + setId);
+            }
+            writeGuard.checkCanCreateVersion(VersionTarget.RULE_SET, setId); // 미적용 버전이 있으면 MDM006
+            if (RuleVersions.needsInUsePromotion(stored, versions, now())) {
+                versionStore.markParentInUse(VersionTarget.RULE_SET, setId, audit.currentStamp());
+            }
+            if (writes.deprecate(setId) == 0) {
+                throw transition("사용 중(INUSE)인 룰 세트만 폐기할 수 있습니다: " + setId);
             }
         });
-        return new RuleSetStatusResult(setId, DEPRECATED, rv + 1, List.of());
+        return new RuleSetStatusResult(setId, DEPRECATED, null, List.of());
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // action: copy / lock / unlock / handover — D-144 2단계, 룰(ruleMng)과 같은 동사. 공통 버전 서비스로만 한다(RuleSetVersionService).
+    // ────────────────────────────────────────────────────────────────
+
+    /** 새 버전 — {@code verKind} 가 비면 MAJOR. 직전 RELEASED 의 흐름·목록을 복사한다. */
+    public RuleSetVersionResult copy(RuleSetVersionRequest request) {
+        return versionService.newVersion(requireRequest(request));
+    }
+
+    /** DRAFT 선점 — 새 row_version. */
+    public RuleSetVersionResult lock(RuleSetVersionRequest request) {
+        return versionService.lock(requireRequest(request));
+    }
+
+    /** DRAFT 해제(소유자만) — 새 row_version. */
+    public RuleSetVersionResult unlock(RuleSetVersionRequest request) {
+        return versionService.unlock(requireRequest(request));
+    }
+
+    /** DRAFT 넘기기(소유자만, 받는 사람은 담당자) — 새 row_version. */
+    public RuleSetVersionResult handover(RuleSetVersionRequest request) {
+        return versionService.handover(requireRequest(request));
+    }
+
+    private static RuleSetVersionRequest requireRequest(RuleSetVersionRequest request) {
+        if (request == null) {
+            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "룰 세트 ID 는 필수입니다.");
+        }
+        return request;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -270,28 +483,25 @@ public class RuleSetEditService {
 
     public RuleSetStatusResult restore(RuleSetStatusRequest request) {
         String setId = requireSetId(request == null ? null : request.getSetId());
-        long rv = requireRowVersion(request.getRowVersion());
         stewardCheck.requireSteward();
         List<RuleSetCheck> warns = tx.execute(status -> {
-            SetState state = writes.state(setId).orElseThrow(() -> notFound(setId));
-            if (!DEPRECATED.equals(state.status())) {
-                throw transition("폐기하지 않은 룰 세트는 되살릴 수 없습니다: " + setId);
+            String stored = writes.status(setId).orElseThrow(() -> notFound(setId));
+            if (!DEPRECATED.equals(stored)) {
+                throw transition(NOT_DEPRECATED_MESSAGE + setId);
             }
-            if (state.rowVersion() != rv) {
-                throw MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
-            }
-            List<String> ids = ruleIdsOf(state.ruleIds());
-            FlowDefinition flow = storedFlow(setId, state.flowJson());
+            MdmRuleSetVer shown = RuleSetVersionQueries.display(setVersions.versions(setId), now()).orElse(null);
+            List<String> ids = shown == null ? List.of() : ruleIdsOf(shown.getRuleIds());
+            FlowDefinition flow = shown == null ? null : storedFlow(setId, shown.getFlowJson());
             RuleVarTypeResolver.Scope scope = ioReader.scope();
             Map<String, RuleIo> io = ioReader.read(ids, scope);
             List<RuleSetCheck> checks = flowChecks(ids, io, flow, flow == null ? Map.of() : ioReader.condIo(flow, scope));
             rejectIfAny(checks);
-            if (writes.restore(setId, rv) == 0) {
-                throw writeMissed(setId, rv, DEPRECATED);
+            if (writes.restore(setId) == 0) {
+                throw transition(NOT_DEPRECATED_MESSAGE + setId);
             }
             return warnings(checks);
         });
-        return new RuleSetStatusResult(setId, INUSE, rv + 1, warns);
+        return new RuleSetStatusResult(setId, INUSE, null, warns);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -594,10 +804,11 @@ public class RuleSetEditService {
 
     /**
      * 흐름(FLOW_JSON)이 저장된 세트를 목록으로 덮어쓰지 못하게 한다(Review Focus 1) — 한 줄이라도 배치·메모가 사라진다. 분기면 기존 문구, 한 줄이면
-     * 새 문구. 저장된 흐름을 읽지 못하면 덮어쓰지 않는 쪽(분기 문구)으로 거부한다. 없는 세트는 여기서 보지 않는다(쓰기 0행이 가른다).
+     * 새 문구. 저장된 흐름을 읽지 못하면 덮어쓰지 않는 쪽(분기 문구)으로 거부한다. 보는 흐름은 저장할 버전({@code ver})의 것이다. 없는 세트·버전은
+     * 여기서 보지 않는다(쓰기 단계가 가른다).
      */
-    private void rejectListSaveOverFlow(String setId) {
-        writes.state(setId).map(SetState::flowJson).filter(json -> json != null).ifPresent(json -> {
+    private void rejectListSaveOverFlow(String setId, BigDecimal ver) {
+        setVersions.find(setId, ver).map(MdmRuleSetVer::getFlowJson).filter(json -> json != null).ifPresent(json -> {
             boolean branched;
             try {
                 branched = RuleSetFlowJson.branched(RuleSetFlowJson.parse(json));
@@ -620,18 +831,19 @@ public class RuleSetEditService {
         return checks.stream().filter(c -> !c.rejected()).toList();
     }
 
-    /** 조건부 UPDATE 가 0행 — DB 에서 다시 읽어 없음·상태(MDM009)·row_version(MDM001) 으로 가른다(I12). */
-    private BusinessException writeMissed(String setId, long rv, String expectedStatus) {
-        SetState state = writes.state(setId).orElse(null);
-        if (state == null) {
-            return notFound(setId);
-        }
-        if (!expectedStatus.equals(state.status())) {
-            return transition(DEPRECATED.equals(state.status())
-                    ? "폐기한 룰 세트는 고칠 수 없고 되살리기만 합니다: " + setId
-                    : "폐기하지 않은 룰 세트는 되살릴 수 없습니다: " + setId);
-        }
-        return MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT);
+    /** 부모 조건부 UPDATE 가 0행 — 없음(INVALID_VALUE)·폐기(MDM009). 버전 행의 row_version 은 공통 가드가 본다. */
+    private BusinessException writeMissed(String setId) {
+        String stored = writes.status(setId).orElse(null);
+        return stored == null ? notFound(setId) : deprecatedSet(setId);
+    }
+
+    private static BusinessException deprecatedSet(String setId) {
+        return transition("폐기한 룰 세트는 고칠 수 없고 되살리기만 합니다: " + setId);
+    }
+
+    /** 판정·표시 버전 고르기 기준 시각 — 서비스 시계(KST) 초 단위. */
+    private LocalDateTime now() {
+        return LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
     }
 
     private static BusinessException transition(String detail) {

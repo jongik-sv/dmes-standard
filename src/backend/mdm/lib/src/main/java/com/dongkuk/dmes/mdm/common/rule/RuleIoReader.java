@@ -6,8 +6,10 @@ import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
+import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import kr.dongkuk.maru.mdm.engine.expr.ExpressionFailure;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
@@ -33,7 +36,8 @@ import org.springframework.stereotype.Component;
  *
  * <ul>
  *   <li>버전 — 룰마다 RELEASED 가운데 VER 최대({@link RuleQueries#latestReleasedVers}). 적용 시점은 보지 않는다. 그 버전의 적중 정책·기본 행
- *       여부(hasDefault)는 {@link RuleQueries#releasedHeads} 한 문장으로 읽는다.</li>
+ *       여부(hasDefault)는 {@link RuleQueries#releasedHeads} 한 문장으로 읽는다. 세트 확정 검사는 {@link #readAt} 으로 적용 시각의 RELEASED 를
+ *       고른다.</li>
  *   <li>results — 결과 열마다 {@code RES_GRP} 가 있으면 그 이름, 없으면 {@code VAR_NAME}(엔진 {@code RuleEvaluator.resultNames} 와 같다).</li>
  *   <li>conds — (Expression 이 아닌 조건 열: 식 변수면 {@code VAR_AST} 참조, 아니면 {@code VAR_NAME}) → (결과 열 {@code GRP_COND_AST} 참조) →
  *       (행 순서대로 DISP {@code Expression} 열의 셀 {@code ast} 참조). EvalEx 상수·자기 결과 이름·이미 나온 이름은 대소문자 무시로 버리고,
@@ -79,6 +83,28 @@ public class RuleIoReader {
      * 것과 같은 행·순서), 컬럼 사전은 모든 룰의 읽는 이름·결과 이름을 한 번에 읽어 둔다.
      */
     public Map<String, RuleIo> read(Collection<String> ruleIds, RuleVarTypeResolver.Scope scope) {
+        return read(ruleIds, scope, queries::latestReleasedVers);
+    }
+
+    /**
+     * {@code at} 에 적용되는 RELEASED 버전(APPLY_FROM <= at < APPLY_TO)으로 계산한 입출력(D-144 2단계 — 세트 확정 검사 2·3). 그 시점 RELEASED 가
+     * 없는 룰은 {@code releasedVer=null}·빈 목록이다. 버전 고르기 밖은 {@link #read(Collection, RuleVarTypeResolver.Scope)} 와 같다.
+     */
+    public Map<String, RuleIo> readAt(Collection<String> ruleIds, LocalDateTime at, RuleVarTypeResolver.Scope scope) {
+        return read(ruleIds, scope, ids -> {
+            Map<String, List<MdmRuleVer>> byRule = new HashMap<>();
+            for (MdmRuleVer v : queries.versionsOf(ids)) {
+                byRule.computeIfAbsent(v.getMaruRuleId(), k -> new ArrayList<>()).add(v);
+            }
+            Map<String, BigDecimal> out = new LinkedHashMap<>();
+            byRule.forEach((id, vs) -> RuleVersions.currentReleased(vs, at).ifPresent(v -> out.put(id, v.getVer())));
+            return out;
+        });
+    }
+
+    /** 읽기 본체 — {@code pick} 이 (있는 룰 ID 집합) → (룰 ID → 계산할 RELEASED VER) 을 고른다. 고르지 않은 룰은 RELEASED 없음으로 본다. */
+    private Map<String, RuleIo> read(Collection<String> ruleIds, RuleVarTypeResolver.Scope scope,
+                                     Function<Set<String>, Map<String, BigDecimal>> pick) {
         Set<String> ids = new LinkedHashSet<>();
         for (String id : ruleIds) {
             if (id != null) {
@@ -87,7 +113,7 @@ public class RuleIoReader {
         }
         Map<String, MdmRule> rules = new HashMap<>();
         ruleRepository.findAllById(ids).forEach(r -> rules.put(r.getMaruRuleId(), r));
-        Map<String, BigDecimal> vers = queries.latestReleasedVers(rules.keySet());
+        Map<String, BigDecimal> vers = pick.apply(rules.keySet());
         Map<String, RuleQueries.ReleasedHead> heads = new HashMap<>();
         for (RuleQueries.ReleasedHead h : queries.releasedHeads(vers.keySet())) {
             if (VersionNumbers.same(h.ver(), vers.get(h.ruleId()))) {

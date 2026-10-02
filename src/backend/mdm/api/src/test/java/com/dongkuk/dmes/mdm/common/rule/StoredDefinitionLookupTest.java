@@ -9,12 +9,14 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
+import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
@@ -28,7 +30,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * 운영 정의 조회기(spec §6.1, 계획 Task 11) — 판정 시각(KST)에 적용되는 RELEASED 버전, 세트 흐름·한 줄 흐름. 적용 기간은 시작 포함·끝 배타다.
+ * 운영 정의 조회기(spec §6.1, 계획 Task 11) — 판정 시각(KST)에 적용되는 RELEASED 버전(룰·세트, D-144 2단계), 세트 흐름·한 줄 흐름. 적용 기간은
+ * 시작 포함·끝 배타다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
@@ -45,6 +48,8 @@ class StoredDefinitionLookupTest extends AbstractMdmSharedDbTest {
     MdmRuleRepository ruleRepository;
     @Autowired
     MdmRuleSetRepository setRepository;
+    @Autowired
+    RuleSetVersionQueries setVersions;
 
     private StoredDefinitionLookup lookup;
 
@@ -60,7 +65,7 @@ class StoredDefinitionLookupTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.rule(jdbc, "R_GAP", "버전 하나", "DECISION", "INUSE");
         DmeTestSupport.released(jdbc, "R_GAP", 1, "FIRST", "2026-01-01 00:00:00", "2026-06-01 00:00:00");
         DmeTestSupport.var(jdbc, "R_GAP", 1, 1, "RESULT", "Value", "OUT_V", 1, "STRING");
-        lookup = new StoredDefinitionLookup(queries, stored, ruleRepository, setRepository);
+        lookup = new StoredDefinitionLookup(queries, stored, ruleRepository, setVersions, setRepository);
     }
 
     /** 변수 정의에 없는 var_id 9 를 조건 칸으로 가진 행 — 조립기가 CellFailure 로 보고하고 그 행을 뺀다. */
@@ -100,7 +105,7 @@ class StoredDefinitionLookupTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.ruleSet(jdbc, "S_BROKEN", "깨진 흐름", "[\"R_TS\"]", "INUSE", 0);
         DmeTestSupport.ruleSetFlow(jdbc, "S_BROKEN", "{\"version\":1}");
 
-        StoredDefinitionException e = assertThrows(StoredDefinitionException.class, () -> lookup.ruleSet("S_BROKEN"));
+        StoredDefinitionException e = assertThrows(StoredDefinitionException.class, () -> lookup.ruleSet("S_BROKEN", DmeTestSupport.NOW_INSTANT));
         assertTrue(e.getCause() instanceof IllegalArgumentException, String.valueOf(e.getCause()));
         assertEquals("흐름의 nodes 는 배열이어야 한다", e.getMessage());
     }
@@ -124,15 +129,38 @@ class StoredDefinitionLookupTest extends AbstractMdmSharedDbTest {
                 + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"R_TS\"},{\"id\":\"end\",\"kind\":\"END\"}],"
                 + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"end\"}]}");
 
-        RuleSetDefinition line = lookup.ruleSet("S_LINE").orElseThrow();
+        RuleSetDefinition line = lookup.ruleSet("S_LINE", DmeTestSupport.NOW_INSTANT).orElseThrow();
         assertEquals(List.of("R_TS"), line.ruleIds());
         assertEquals(SetStatus.INUSE, line.status());
         assertNull(line.flow());
 
-        RuleSetDefinition flow = lookup.ruleSet("S_FLOW").orElseThrow();
+        RuleSetDefinition flow = lookup.ruleSet("S_FLOW", DmeTestSupport.NOW_INSTANT).orElseThrow();
         assertEquals(SetStatus.DEPRECATED, flow.status());
         assertEquals(NodeKind.RULE, flow.flow().nodes().get(1).kind());
-        assertTrue(lookup.ruleSet("S_NONE").isEmpty());
+        assertTrue(lookup.ruleSet("S_NONE", DmeTestSupport.NOW_INSTANT).isEmpty());
         assertTrue(lookup.column("T", "C").isEmpty());
+    }
+
+    @Test
+    void 세트는_판정_시각에_적용되는_RELEASED_버전을_고르고_DRAFT_는_고르지_않는다() {
+        DmeTestSupport.ruleSet(jdbc, "S_V", "버전 세트", "[\"R_TS\"]", "INUSE", 0);           // 1.000 [2000-01-01, …)
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-05-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_V'");
+        DmeTestSupport.ruleSetVersion(jdbc, "S_V", "1.001", "MINOR", "RELEASED", "kim", "[\"R_TS\",\"R_OTHER\"]",
+                "2026-05-01 00:00:00", "9999-12-31 00:00:00", 0);
+        DmeTestSupport.ruleSetVersion(jdbc, "S_V", "2.000", "MAJOR", "DRAFT", "kim", "[\"R_DRAFT\"]", null, null, 0);
+
+        Instant before = LocalDateTime.of(2026, 4, 30, 23, 59, 59).atZone(MdmClockConfig.KST).toInstant();
+        Instant at = LocalDateTime.of(2026, 5, 1, 0, 0, 0).atZone(MdmClockConfig.KST).toInstant();
+        Instant tooEarly = LocalDateTime.of(1999, 12, 31, 23, 59, 59).atZone(MdmClockConfig.KST).toInstant();
+
+        assertEquals(List.of("R_TS"), lookup.ruleSet("S_V", before).orElseThrow().ruleIds());
+        assertEquals(List.of("R_TS", "R_OTHER"), lookup.ruleSet("S_V", at).orElseThrow().ruleIds());
+        assertTrue(lookup.ruleSet("S_V", tooEarly).isEmpty());
+    }
+
+    @Test
+    void 저장_CREATED_라도_적용된_RELEASED_가_있으면_세트_상태는_INUSE_다() {
+        DmeTestSupport.ruleSet(jdbc, "S_C", "새 세트", "[\"R_TS\"]", "CREATED", 0);
+        assertEquals(SetStatus.INUSE, lookup.ruleSet("S_C", DmeTestSupport.NOW_INSTANT).orElseThrow().status());
     }
 }

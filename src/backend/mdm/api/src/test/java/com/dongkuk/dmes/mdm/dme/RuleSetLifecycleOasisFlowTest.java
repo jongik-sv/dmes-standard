@@ -172,7 +172,8 @@ class RuleSetLifecycleOasisFlowTest {
                 json.createObjectNode().put("setId", "LS_A3").put("setName", "3CCL 라인스피드")));
         assertTrue(setReg.path("meta").path("success").asBoolean(false), setReg.toString());
 
-        ObjectNode setParams = json.createObjectNode().put("setId", "LS_A3").put("setName", "3CCL 라인스피드")
+        // D-144 2단계 — 등록이 만든 등록자 소유 1.000 DRAFT 에 저장한다.
+        ObjectNode setParams = json.createObjectNode().put("setId", "LS_A3").put("ver", "1.000").put("setName", "3CCL 라인스피드")
                 .put("rowVersion", 0);
         ObjectNode setBody = envelope("ruleSetEdit", setParams);
         ArrayNode ruleRows = setBody.putObject("grids").putObject("rules").putArray("rows");
@@ -183,14 +184,21 @@ class RuleSetLifecycleOasisFlowTest {
         assertTrue(setSave.path("meta").path("success").asBoolean(false), setSave.toString());
         assertEquals(1, setSave.path("data").path("result").path("rowVersion").asInt(), setSave.toString());
         assertEquals(List.of("BASE_SPD_LKP", "SPD_EXC", "SPD_JOIN"),
-                List.of(json.readValue(jdbc.queryForObject(
-                        "SELECT RULE_IDS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'LS_A3'", String.class), String[].class)),
+                List.of(json.readValue(DmeTestSupport.setVerValue(jdbc, "LS_A3", "1.000", "RULE_IDS"), String[].class)),
                 "구조 검사(순서·순환·미지 입력·중복 대입)를 통과해 요청 순서 그대로 저장된다");
 
         JsonNode setView = post("ruleSetEdit", "view", envelope("ruleSetEdit", json.createObjectNode().put("setId", "LS_A3")));
         assertTrue(setView.path("meta").path("success").asBoolean(false), setView.toString());
         assertEquals("BASE_SPD_LKP", setView.path("data").path("result").path("rules").path(0).path("ruleId").asText(), setView.toString());
         assertEquals("SPD_JOIN", setView.path("data").path("result").path("rules").path(2).path("ruleId").asText(), setView.toString());
+
+        // ── 6. ruleSetConfirm.confirm — 세트 DRAFT 1.000 을 지금 시각으로 확정하면 운영 판정이 그 흐름을 쓴다(D-144 2단계) ──
+        ObjectNode confirmParams = json.createObjectNode().put("setId", "LS_A3").put("ver", "1.000")
+                .put("rowVersion", setSave.at("/data/result/rowVersion").asLong()).put("applyFrom", APPLY_FROM)
+                .put("warningsAcknowledged", true);
+        JsonNode setConfirm = post("ruleSetConfirm", "confirm", envelope("ruleSetConfirm", confirmParams));
+        assertTrue(setConfirm.at("/meta/success").asBoolean(), setConfirm.toString());
+        assertEquals("1.000", setConfirm.at("/data/result/confirmed/ver").asText());
     }
 
     // ── 1. BASE_SPD_LKP 도우미 ──────────────────────────────────────────

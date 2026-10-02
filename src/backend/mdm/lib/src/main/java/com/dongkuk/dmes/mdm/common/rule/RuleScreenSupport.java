@@ -5,6 +5,7 @@ import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
@@ -16,7 +17,6 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
-import java.util.List;
 import java.util.Set;
 import org.springframework.stereotype.Component;
 
@@ -77,10 +77,7 @@ public class RuleScreenSupport {
      * 형식 오류다. 정수 문자열 {@code "1"} 은 {@code 1.000} 이다.
      */
     public static BigDecimal requireVer(String raw) {
-        if (raw == null || raw.isBlank()) {
-            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "버전은 필수입니다.");
-        }
-        return parseVer(raw);
+        return VersionRules.requireVer(raw);
     }
 
     /** 응답에 싣는 버전 문자열({@code "1.001"}). 버전이 없으면 null. */
@@ -90,15 +87,7 @@ public class RuleScreenSupport {
 
     /** 비어 있으면 null(서버가 기본 버전을 고른다). 형식 오류는 {@link #requireVer} 와 같다. */
     public static BigDecimal optionalVer(String raw) {
-        return raw == null || raw.isBlank() ? null : parseVer(raw);
-    }
-
-    private static BigDecimal parseVer(String raw) {
-        try {
-            return VersionNumbers.parse(raw);
-        } catch (IllegalArgumentException | ArithmeticException e) { // NumberFormatException 포함
-            throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "버전 형식이 올바르지 않습니다: " + raw, List.of());
-        }
+        return VersionRules.optionalVer(raw);
     }
 
     public static long requireRowVersion(Long rowVersion) {

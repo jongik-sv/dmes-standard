@@ -15,6 +15,8 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleRowId;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSetTestCase;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSetTestCaseId;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSetVer;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSetVerId;
 import com.dongkuk.dmes.mdm.entity.MdmRuleTestCase;
 import com.dongkuk.dmes.mdm.entity.MdmRuleTestCaseId;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
@@ -24,6 +26,7 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleVerId;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRowRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
+import com.dongkuk.dmes.mdm.repository.MdmRuleSetVerRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleTestCaseRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleVarRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleVerRepository;
@@ -71,6 +74,8 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     MdmRuleTestCaseRepository testCaseRepository;
     @Autowired
     MdmRuleSetRepository setRepository;
+    @Autowired
+    MdmRuleSetVerRepository setVerRepository;
     @Autowired
     EntityManager entityManager;
 
@@ -249,7 +254,7 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
 
     @Test
     void MdmRuleSetTestCase_는_IdClass_복합_PK_와_EVAL_TS_를_저장_조회_왕복한다() {
-        setRepository.save(new MdmRuleSet("RT_SET_CASE", "세트", "[]"));
+        setRepository.save(new MdmRuleSet("RT_SET_CASE", "세트"));
         MdmRuleSetTestCase c = new MdmRuleSetTestCase("RT_SET_CASE", 1, "{\"GT_THK\":\"12\"}");
         c.setCaseName("기본");
         c.setEvalTs("2026-06-01 09:00:00");
@@ -269,17 +274,31 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
 
     @Test
     void MdmRuleSet_은_지정_PK_로_저장_조회_왕복한다() {
-        MdmRuleSet set = new MdmRuleSet("RT_SET", "3CCL 라인스피드", "[\"BASE_SPD_LKP\",\"SPD_EXC\"]");
-        set.setDescription("세트");
-        setRepository.save(set);
-        entityManager.flush();
+        MdmRuleSet set = new MdmRuleSet("RT_SET", "3CCL 라인스피드");
+        set.setDescription("설명");
+        setRepository.saveAndFlush(set);
         entityManager.clear();
-
         MdmRuleSet reloaded = setRepository.findById("RT_SET").orElseThrow();
         assertEquals("3CCL 라인스피드", reloaded.getMaruRuleSetName());
-        assertEquals("[\"BASE_SPD_LKP\",\"SPD_EXC\"]", reloaded.getRuleIds());
-        assertEquals("세트", reloaded.getDescription());
-        assertEquals("INUSE", reloaded.getStatus(), "생성자 기본 상태");
+        assertEquals("설명", reloaded.getDescription());
+        assertEquals("CREATED", reloaded.getStatus(), "생성자 기본 상태");
+    }
+
+    @Test
+    void MdmRuleSetVer_는_minor_버전과_흐름을_저장_조회_왕복한다() {
+        setRepository.saveAndFlush(new MdmRuleSet("RT_SET_VER", "세트"));
+        MdmRuleSetVer v = new MdmRuleSetVer("RT_SET_VER", new BigDecimal("1.001"), VersionKind.MINOR, "kim", "[\"R1\"]");
+        v.setFlowJson("{\"version\":1,\"nodes\":[],\"edges\":[]}");
+        setVerRepository.saveAndFlush(v);
+        entityManager.clear();
+        MdmRuleSetVer reloaded = entityManager.find(MdmRuleSetVer.class, new MdmRuleSetVerId("RT_SET_VER", new BigDecimal("1.001")));
+        assertEquals(0, new BigDecimal("1.001").compareTo(reloaded.getVer()));
+        assertEquals(3, reloaded.getVer().scale());
+        assertEquals(VersionKind.MINOR, reloaded.getVerKind());
+        assertEquals("DRAFT", reloaded.getStatus());
+        assertEquals("kim", reloaded.getOwnerId());
+        assertEquals("[\"R1\"]", reloaded.getRuleIds());
+        assertEquals("{\"version\":1,\"nodes\":[],\"edges\":[]}", reloaded.getFlowJson());
         assertEquals(0L, reloaded.getRowVersion());
     }
 
@@ -342,25 +361,27 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void MdmRuleTestCase_와_MdmRuleSet_의_ROW_VERSION_은_엔티티_저장으로_되돌아가지_않는다() {
+    void MdmRuleTestCase_와_MdmRuleSetVer_의_ROW_VERSION_은_엔티티_저장으로_되돌아가지_않는다() {
         saveRule("RT_OWN_CASE");
         testCaseRepository.save(new MdmRuleTestCase("RT_OWN_CASE", 1, "{}"));
-        setRepository.save(new MdmRuleSet("RT_OWN_SET", "세트", "[]"));
+        setRepository.save(new MdmRuleSet("RT_OWN_SET", "세트"));
+        setVerRepository.save(new MdmRuleSetVer("RT_OWN_SET", new BigDecimal("1.000"), VersionKind.MAJOR, "kim", "[]"));
         entityManager.flush();
         entityManager.clear();
         MdmRuleTestCase staleCase = testCaseRepository.findById(new MdmRuleTestCaseId("RT_OWN_CASE", 1)).orElseThrow();
-        MdmRuleSet staleSet = setRepository.findById("RT_OWN_SET").orElseThrow();
+        MdmRuleSetVer staleVer = setVerRepository.findById(new MdmRuleSetVerId("RT_OWN_SET", new BigDecimal("1.000"))).orElseThrow();
 
         native_("UPDATE TB_MDM_RULE_TEST_CASE SET ROW_VERSION = 4 WHERE MARU_RULE_ID = 'RT_OWN_CASE'");
-        native_("UPDATE TB_MDM_RULE_SET SET ROW_VERSION = 9 WHERE MARU_RULE_SET_ID = 'RT_OWN_SET'");
+        native_("UPDATE TB_MDM_RULE_SET_VER SET ROW_VERSION = 9 WHERE MARU_RULE_SET_ID = 'RT_OWN_SET'");
         staleCase.setCaseName("이름만 바꿈");
-        staleSet.setDescription("설명만 바꿈");
+        staleVer.setRowVersion(0L);
+        setVerRepository.saveAndFlush(staleVer);
         entityManager.flush();
 
         assertEquals("4", single("SELECT ROW_VERSION FROM TB_MDM_RULE_TEST_CASE WHERE MARU_RULE_ID = 'RT_OWN_CASE'"));
-        assertEquals("9", single("SELECT ROW_VERSION FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'RT_OWN_SET'"));
+        assertEquals("9", single("SELECT ROW_VERSION FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID = 'RT_OWN_SET'"));
         assertEquals(0L, staleCase.getRowVersion());
-        assertEquals(0L, staleSet.getRowVersion());
+        assertEquals(0L, staleVer.getRowVersion());
     }
 
     // ── §3.4-4: SQLite 업무 일시(D5) ──
@@ -401,14 +422,14 @@ class MdmBusinessRuleEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     // ── §3.4-6: 보류 테이블 엔티티 없음(D1) ──
 
     @Test
-    void 관리_엔티티_테이블_집합에_06_활성_6테이블이_있고_보류_2테이블은_없다() {
+    void 관리_엔티티_테이블_집합에_06_활성_테이블이_있고_보류_2테이블은_없다() {
         Set<String> managedTableNames = entityManager.getMetamodel().getEntities().stream()
                 .map(e -> e.getJavaType().getAnnotation(jakarta.persistence.Table.class))
                 .filter(Objects::nonNull)
                 .map(jakarta.persistence.Table::name)
                 .collect(Collectors.toSet());
         assertTrue(managedTableNames.containsAll(Set.of("TB_MDM_RULE", "TB_MDM_RULE_VER", "TB_MDM_RULE_VAR",
-                "TB_MDM_RULE_ROW", "TB_MDM_RULE_TEST_CASE", "TB_MDM_RULE_SET")), managedTableNames.toString());
+                "TB_MDM_RULE_ROW", "TB_MDM_RULE_TEST_CASE", "TB_MDM_RULE_SET", "TB_MDM_RULE_SET_VER")), managedTableNames.toString());
         assertFalse(managedTableNames.contains("TB_MDM_RULE_SYSTEM"), "D1 — TB_MDM_RULE_SYSTEM 은 엔티티를 붙이지 않는다");
         assertFalse(managedTableNames.contains("TB_MDM_RULE_RECV"), "D1 — TB_MDM_RULE_RECV 는 엔티티를 붙이지 않는다");
     }

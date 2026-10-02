@@ -8,7 +8,8 @@
  * 본문 3단(왼쪽 | 흐름 캔버스 | 오른쪽), 아래 패널을 둔다.
  * 한 줄 세트와 분기 세트 모두 캔버스로 편집하고 흐름(`flowJson`)으로 저장한다(P-D5).
  *
- * 모드(3단계 P1) — 세트를 열면 보기 모드다. 편집 모드는 서버 판정(`editable`)·INUSE·RBAC(save)일 때만 켠다(P10). 디버그 모드는 누구나 들어간다.
+ * 모드(3단계 P1) — 세트를 열면 보기 모드다. 편집 모드는 서버 판정(`editable`)·폐기 아님·RBAC(save)일 때만 켠다(P10). 디버그 모드는 누구나 들어간다.
+ * 편집 모드는 선택 버전이 내 DRAFT 일 때만(D-144 2단계). 버전 줄(`SetVersionRow`)이 흐름 툴바 위에 있다.
  * - 왼쪽: 디버그 모드만 입력 패널(`DebugInputs`). 보기·편집 모드는 왼쪽 칸이 없고 캔버스 안 왼쪽 위에 도구 상자(`FlowToolbox`)가 뜬다(4단계 P1)
  * - 오른쪽: 보기·편집 = 머리글 + 접는 섹션(`SidePanel` — 속성·세트 섹션과 「룰 목록」/「룰 지정」 섹션), 디버그 = 변수 패널(`VariablePanel`)
  * - 아래 탭: 보기·편집 = 검사 결과 하나, 디버그 = 값 표·실행 비교·검사 결과. 디버그로 들고 날 때 그 모드의 첫 탭으로 간다
@@ -23,7 +24,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { ContentBody, ContentPanel, ErrorModal, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
-import { IdPicker, MdmPageLayout, useMdmPageParams, type IdPickRow } from "@/shell";
+import { IdPicker, MdmPageLayout, normVer, useMdmPageParams, type IdPickRow } from "@/shell";
 
 import { searchSets } from "./api";
 import { ContextMenu } from "./canvas/ContextMenu";
@@ -54,6 +55,7 @@ import { openRule } from "./links";
 import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
 import { ChecksPanel } from "./panels/ChecksPanel";
 import { useSectionMemory } from "./panels/Section";
+import { SetVersionRow } from "./panels/SetVersionRow";
 import { SidePanel } from "./panels/SidePanel";
 import { RSF_CSS, RSF_STYLE_HREF } from "./rsf-styles";
 import { useCollapse } from "./state/useCollapse";
@@ -96,11 +98,17 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   const { open, edit, view, flow } = state;
 
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
-    if (params.setId) void open(params.setId);
+    if (params.setId) void open(params.setId, normVer(params.ver));
   });
 
   const canDo = useCallback((action: string) => canDoButton(rbac, SCREEN_ID, action), [rbac]);
-  const canEdit = !!view && view.editable && view.set.status === "INUSE" && canDo("save");
+  const canEdit = !!view && view.editable && view.set.status !== "DEPRECATED" && canDo("save"); // D-144 2단계 — CREATED 세트도 편집
+  /**
+   * 테스트 케이스 쓰기(Ruling P2-18) — 케이스는 세트에 딸리므로 고른 버전과 무관하게 서버 `flags.canEditCases`(담당자 ∧ 폐기 아님)와 저장 권한을 본다.
+   * 버전 플래그가 없는 옛 응답이면 편집 판정과 같게 본다.
+   */
+  const canEditCases =
+    !!view && (view.flags?.canEditCases ?? (view.editable && view.set.status !== "DEPRECATED")) && canDo("save");
   /** 화면 모드 — 편집할 수 없는데 편집 모드로 남아 있으면 보기로 본다. */
   const mode: FlowMode = state.mode === "edit" && !canEdit ? "view" : state.mode;
   const editing = mode === "edit";
@@ -699,6 +707,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
           </>
         ) : (
           <>
+            <SetVersionRow state={state} canDo={canDo} />
             <FlowToolbar
               lead={picker}
               state={state}
@@ -722,7 +731,7 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
               <ContentBody key="main" resizable storageKey={`${STORAGE_KEY}.main`} flex="1 1 0" minSize={200}>
                 {debugging && (
                   <ContentPanel key="left" width={280} minSize={200}>
-                    <DebugInputs sim={sim} tests={tests} setId={setId} canEditCases={canEdit} canRun={canRun} onError={state.reportError} />
+                    <DebugInputs sim={sim} tests={tests} setId={setId} canEditCases={canEditCases} canRun={canRun} onError={state.reportError} />
                   </ContentPanel>
                 )}
                 <ContentPanel key="canvas" flex="1 1 0" minSize={320}>

@@ -12,10 +12,14 @@ import java.util.Map;
  * <p>{@code part=CASE} 는 테스트 케이스 저장(삭제는 {@code caseDeleted=true})이다 — 이때 {@code rowVersion}·{@code description} 은
  * <b>세트가 아니라 케이스의</b> 것이다. {@code inputJson}·{@code expectedJson} 은 JSON 문자열, {@code evalTs} 는 KST
  * {@code yyyy-MM-dd HH:mm:ss}(흐름도 3단계 P7). {@code part} 가 null·{@code SET} 이면 세트 저장이다.
+ *
+ * <p>세트 저장의 {@code ver}(예: {@code "1.001"})는 필수다 — 저장은 요청 사용자가 소유한 DRAFT 버전에만 쓰고 {@code rowVersion} 은 그 버전 행의
+ * 것이다(D-144 2단계).
  */
 public class RuleSetSaveRequest {
 
     private String setId;
+    private String ver;
     private String setName;
     private String description;
     private Long rowVersion;
@@ -51,6 +55,7 @@ public class RuleSetSaveRequest {
     public void setCaseDeleted(Boolean v) { this.caseDeleted = v; }
 
     public String getSetId() { return setId; }
+    public String getVer() { return ver; }
     public String getSetName() { return setName; }
     public String getDescription() { return description; }
     public Long getRowVersion() { return rowVersion; }
@@ -60,6 +65,7 @@ public class RuleSetSaveRequest {
     public void setFlowJson(String v) { this.flowJson = v; }
 
     public void setSetId(String v) { this.setId = v; }
+    public void setVer(String v) { this.ver = v; }
     public void setSetName(String v) { this.setName = v; }
     public void setDescription(String v) { this.description = v; }
     public void setRowVersion(Long v) { this.rowVersion = v; }

@@ -1,5 +1,10 @@
 package com.dongkuk.dmes.mdm.common.rule;
 
+import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -31,6 +36,9 @@ public final class RuleErrorText {
     private static final Pattern ARG_TYPE = Pattern.compile("^(\\w+) 는 \\w+ 인자를 받지 않는다");
     private static final Pattern HIT_ROWS = Pattern.compile("\\[([\\d, ]*)]");
     private static final Pattern RULE_MISSING = Pattern.compile("룰이 없다: (\\S+)");
+    /** 엔진 {@code SET_NOT_FOUND} 원문 {@code 세트가 없다: {setId} @ {Instant}}(판정 시각은 없을 수 있다). */
+    private static final Pattern SET_MISSING = Pattern.compile("세트가 없다: (\\S+)(?: @ (\\S+))?");
+    private static final DateTimeFormatter KST_TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Pattern COLLECT = Pattern.compile("^COLLECT (\\w+) 집계 오류");
     private static final Pattern IDENT = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final Set<String> NOT_INPUT = Set.of("TRUE", "FALSE", "NULL", "EVAL_TS", "PI", "E");
@@ -56,7 +64,7 @@ public final class RuleErrorText {
                     + " 의 값이 행마다 다릅니다. 맞는 행들이 같은 값을 내게 고치거나, 적중 방식을 바꾸세요.";
             case "RULE_NOT_FOUND" -> "판정 시각에 적용되는 룰" + ruleOf(body)
                     + " 을 찾지 못했습니다. 룰의 적용 기간(시작·종료)과 판정 시각을 확인하세요.";
-            case "SET_NOT_FOUND" -> "룰 세트를 찾지 못했습니다. 세트 이름을 확인하세요.";
+            case "SET_NOT_FOUND" -> setNotFound(body);
             case "SET_DEPRECATED" -> "폐기된 룰 세트라 판정하지 않습니다. 사용 중인 세트를 고르세요.";
             case "RESERVED_KEY" -> name != null && name.contains(",")
                     ? "대소문자만 다른 입력 이름이 둘 이상 있습니다(" + name + "). 하나만 남기세요."
@@ -212,6 +220,42 @@ public final class RuleErrorText {
     private static String hitRows(String body) {
         Matcher m = HIT_ROWS.matcher(body);
         return m.find() ? "(row_id " + m.group(1) + ")" : "";
+    }
+
+    /**
+     * 판정 시각에 적용되는 세트 버전이 없음(스펙 §8 — 대상 ID·시각). 세트 자체가 없는지는 원문만으로 알 수 없어, 세트 원장을 아는 호출자가
+     * {@link #setAbsent} 로 따로 바꾼다({@code RuleSetRunner.execute}).
+     */
+    private static String setNotFound(String body) {
+        Matcher m = SET_MISSING.matcher(body);
+        if (!m.find()) {
+            return "룰 세트를 찾지 못했습니다. 세트 ID 를 확인하세요.";
+        }
+        if (m.group(2) == null) {
+            return "룰 세트 " + m.group(1) + " 를 찾지 못했습니다. 세트 ID 를 확인하세요.";
+        }
+        return "판정 시각 " + kst(m.group(2)) + " 에 적용되는 룰 세트 " + m.group(1)
+                + " 의 버전이 없습니다. 세트 버전의 확정 여부와 적용 기간(시작·종료), 판정 시각을 확인하세요.";
+    }
+
+    /** 세트 원장에 그 ID 가 아예 없음. */
+    public static String setAbsent(String setId) {
+        return "룰 세트 " + setId + " 가 없습니다. 세트 ID 를 확인하세요.";
+    }
+
+    /** 엔진 {@code SET_NOT_FOUND} 원문의 세트 ID. 모양이 다르면 null. */
+    public static String missingSetId(String message) {
+        Matcher m = SET_MISSING.matcher(message == null ? "" : message);
+        return m.find() ? m.group(1) : null;
+    }
+
+    /** 엔진 원문의 시각(Instant ISO-8601, UTC) → KST {@code yyyy-MM-dd HH:mm:ss}. 읽지 못하면 원문 그대로. */
+    private static String kst(String instant) {
+        try {
+            return LocalDateTime.ofInstant(Instant.parse(instant), MdmClockConfig.KST).format(KST_TS);
+        } catch (DateTimeParseException e) {
+            return instant;
+        }
     }
 
     private static String ruleOf(String body) {

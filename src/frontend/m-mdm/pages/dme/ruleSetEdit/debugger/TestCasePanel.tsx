@@ -5,7 +5,7 @@
  * 고른 케이스의 [불러오기]·[디버그로 열기]·[고치기]·[삭제](두 단계, Local-Rules §9)·실패 케이스의 기대/실제 차이(`case-diff`)·케이스 팝업.
  * `DebugInputs` 가 그린다. 서버는 부르지 않고 `useTestCases`(목록·쓰기·모두 실행)와 `useSimulation`(입력·실행) 을 props 로만 쓴다.
  *
- * - 쓰기 단추는 `canEditCases`(= view.editable && INUSE && save 권한)일 때만 켜진다. [모두 실행]·[디버그로 열기]는 `execute` 권한.
+ * - 쓰기 단추는 `canEditCases`(= 서버 flags.canEditCases(담당자 ∧ 폐기 아님, 버전과 무관 — Ruling P2-18) && save 권한)일 때만 켜진다. [모두 실행]·[디버그로 열기]는 `execute` 권한.
  * - 새 케이스의 기대값은 낡지 않은 마지막 기록이 있고 그 입력이 지금 입력과 같을 때만 최종 변수로 채운다(`expectedFromFinal`, Review Focus 1).
  *   고친 값이 든 기록(4단계 E4)이면 채우지 않고 단추 title 로 이유를 보인다(스펙 §2.4 [기대값으로] 막기 — 편차 후보 1).
  * - [디버그로 열기] = 입력을 폼에 넣고 [처음부터]. 입력이 기록 입력과 다르면 훅이 새로 실행한다(P-D9).
@@ -33,7 +33,7 @@ export interface TestCasePanelProps {
   canRun: boolean;
 }
 
-const EDIT_DENIED_TITLE = "케이스는 담당자가 사용 중인 세트에서 저장할 수 있다";
+const EDIT_DENIED_TITLE = "케이스는 담당자가 폐기하지 않은 세트에서 저장할 수 있다";
 const NEEDS_CASE = "케이스를 먼저 고른다";
 /** 차이 표 실제 칸 — 결과에 그 키가 없다(값 null 과 다르다). */
 export const MISSING_TEXT = "결과에 없음";

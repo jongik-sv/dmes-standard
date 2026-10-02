@@ -81,7 +81,7 @@ public class RuleDefinitionLookupStub implements DefinitionLookup {
     }
 
     @Override
-    public Optional<RuleSetDefinition> ruleSet(String setId) {
+    public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
         if (!set.getMaruRuleSetId().equals(setId)) {
             return Optional.empty();
         }

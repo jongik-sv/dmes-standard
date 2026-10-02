@@ -33,6 +33,13 @@ export function isRowVersionConflict(e: unknown): boolean {
   return e.message.includes("MDM001") || e.message.startsWith(ROW_VERSION_CONFLICT_MESSAGE);
 }
 
+/** DRAFT 가 아니거나(MDM002) 내 DRAFT 가 아니다(MDM003) — 다른 곳에서 확정·넘기기·삭제됐다(D-144 2단계). 코드가 없는 경로는 문구로 본다. */
+export function isDraftGone(e: unknown): boolean {
+  if (!(e instanceof Error)) return false;
+  if (e instanceof OasisCallError && (e.code === "MDM002" || e.code === "MDM003")) return true;
+  return e.message.startsWith("DRAFT 상태에서만") || e.message.startsWith("DRAFT 소유자만");
+}
+
 export function omitNullish(params: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined));
 }

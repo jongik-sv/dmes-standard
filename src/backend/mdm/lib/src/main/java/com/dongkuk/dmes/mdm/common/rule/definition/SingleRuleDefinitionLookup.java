@@ -29,7 +29,7 @@ public final class SingleRuleDefinitionLookup implements DefinitionLookup {
     }
 
     @Override
-    public Optional<RuleSetDefinition> ruleSet(String setId) {
+    public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
         return Optional.empty();
     }
 }

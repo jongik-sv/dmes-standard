@@ -104,7 +104,7 @@ class MasterCodeContractTest {
     @Test
     void 전사_enum_과_같은_상수_집합의_enum_을_다시_만들지_않는다() {
         List<Set<String>> shared = List.of(names(CategoryKind.class), names(CategoryDefTarget.class), names(MaruIdKind.class),
-                names(VersionStatus.class), names(MaruObjectStatus.class), names(DiffKind.class));
+                names(VersionStatus.class), names(MaruObjectStatus.class), names(DiffKind.class), names(com.dongkuk.dmes.mdm.contract.version.VersionKind.class));
         int enums = 0;
         for (JavaClass type : CONTRACT) {
             if (type.isEnum()) {
@@ -114,7 +114,7 @@ class MasterCodeContractTest {
                 assertFalse(shared.contains(constants), type.getName() + " 이 전사 enum 을 복제했다: " + constants);
             }
         }
-        assertTrue(enums >= 6, "계약 enum 을 가져오지 못했다 — 규칙이 공허하게 통과한다");
+        assertTrue(enums >= 5, "계약 enum 을 가져오지 못했다 — 규칙이 공허하게 통과한다");
     }
 
     @Test

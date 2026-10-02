@@ -73,7 +73,7 @@ public final class MdmRuleEngine implements RuleEngine {
         Objects.requireNonNull(setId, "setId");
         Objects.requireNonNull(record, "record");
         Instant ts = truncate(evalTs);
-        Prepared p = prepare(set(setId), record, ts);
+        Prepared p = prepare(set(setId, ts), record, ts);
         FlowRun run = new FlowRun(evaluator, runner, p.tree, p.defs, p.keys, record, ts, false, List.of());
         run.run();
         return new RuleSetResult(setId, ts, List.copyOf(run.steps), Collections.unmodifiableMap(run.finalValues),
@@ -180,7 +180,7 @@ public final class MdmRuleEngine implements RuleEngine {
         Objects.requireNonNull(setId, "setId");
         Objects.requireNonNull(parts, "parts");
         Instant ts = truncate(evalTs);
-        RuleSetDefinition set = set(setId);
+        RuleSetDefinition set = set(setId, ts);
         List<RuleView> views = new ArrayList<>();
         List<Violation> violations = new ArrayList<>();
         for (String ruleId : set.ruleIds()) {
@@ -204,9 +204,9 @@ public final class MdmRuleEngine implements RuleEngine {
         return Objects.requireNonNull(evalTs, "evalTs").truncatedTo(ChronoUnit.SECONDS);
     }
 
-    private RuleSetDefinition set(String setId) {
-        return definitions.ruleSet(setId).orElseThrow(() -> new EngineEvaluationException(List.of(new Violation(
-                Stage.SET_CHECK, Code.SET_NOT_FOUND, null, null, null, "세트가 없다: " + setId))));
+    private RuleSetDefinition set(String setId, Instant ts) {
+        return definitions.ruleSet(setId, ts).orElseThrow(() -> new EngineEvaluationException(List.of(new Violation(
+                Stage.SET_CHECK, Code.SET_NOT_FOUND, null, null, null, "세트가 없다: " + setId + " @ " + ts))));
     }
 
     /** 스냅샷의 text·AST·계약을 그대로 꺼낸다. 식을 컴파일하지도 평가하지도 않는다(06:475·490-496). */

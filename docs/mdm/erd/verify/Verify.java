@@ -275,8 +275,8 @@ public class Verify {
                 rs.next();
                 n = rs.getInt(1);
             }
-            if (n == 35) pass("a", "fixture(TB_MDM_SYSTEM) + 02~06 DDL 적용 오류 0, 테이블 35개(34 Task 테이블 + fixture 1) 확인");
-            else fail("a", "테이블 수 불일치: 기대 35, 실제 " + n);
+            if (n == 37) pass("a", "fixture(TB_MDM_SYSTEM) + 02~06 DDL 적용 오류 0, 테이블 37개(36 Task 테이블 + fixture 1) 확인");
+            else fail("a", "테이블 수 불일치: 기대 37, 실제 " + n);
         } finally { closeDb(d); }
     }
 
@@ -810,7 +810,7 @@ public class Verify {
             try (Statement s = d.conn.createStatement();
                  ResultSet rs = s.executeQuery(
                      "SELECT s.maru_rule_set_id, je.key AS ord, je.value AS rule_id " +
-                     "FROM TB_MDM_RULE_SET s, json_each(s.rule_ids) je " +
+                     "FROM TB_MDM_RULE_SET_VER s, json_each(s.rule_ids) je " +
                      "WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_RULE r WHERE r.maru_rule_id = je.value)")) {
                 while (rs.next()) danglingRuleIds.add(rs.getString("maru_rule_set_id") + "/" + rs.getString("rule_id"));
             }

@@ -599,6 +599,9 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
     void 빈_단계가_있는_흐름은_저장되고_view_와_save_가_EMPTY_TASK_경고를_싣고_실행은_지나간다() throws Exception {
         RuleSetCheck warn = new RuleSetCheck(RuleSetCheck.EMPTY_TASK, RuleSetCheck.WARN, null, null, null, "빈 단계 1개 — 실행 때 그냥 지나간다");
         storedSet("GT_TASK", "INUSE", taskFlow());
+        // D-144 2단계 — 저장은 kim 의 DRAFT 에만 쓴다. view 는 기본으로 그 DRAFT 를 고르므로 흐름도 같이 둔다.
+        DmeTestSupport.ruleSetDraft(jdbc, "GT_TASK", "2.000", "kim", "[\"GT_GRADE\",\"GT_FAST\",\"GT_SLOW\"]", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "GT_TASK", "2.000", taskFlow());
         AuditHolder.setAudit(new CactusAudit("kim", "ruleSetEditMenu", "ruleSetEdit"));
         try {
             RuleSetViewRequest view = new RuleSetViewRequest();
@@ -608,13 +611,14 @@ public class RuleSetSimulateTest extends AbstractMdmSharedDbTest {
 
             RuleSetSaveRequest save = new RuleSetSaveRequest();
             save.setSetId("GT_TASK");
+            save.setVer("2.000");
             save.setSetName("빈 단계 세트");
             save.setRowVersion(0L);
             save.setFlowJson(taskFlow());
             RuleSetSaveResult saved = service.save(save);
             assertTrue(saved.getChecks().contains(warn), saved.getChecks().toString());
             assertEquals(JSON.readTree("[\"GT_GRADE\"]"),
-                    JSON.readTree(jdbc.queryForObject("SELECT RULE_IDS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'GT_TASK'", String.class)));
+                    JSON.readTree(DmeTestSupport.setVerValue(jdbc, "GT_TASK", "2.000", "RULE_IDS")));
         } finally {
             AuditHolder.remove();
         }

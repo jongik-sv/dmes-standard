@@ -208,7 +208,7 @@ describe("RuleSetEditPage", () => {
     expect(byTestId("set-card-id").textContent).toBe("E2S_CHAIN");
     expect(byTestId("set-status").textContent).toContain("INUSE");
     expect(visibleText(byTestId("flow-toolbar"))).toContain("row_version 3");
-    expect(byTestId("set-status").getAttribute("title")).toContain("버전·승인 없음");
+    expect(byTestId("set-status").getAttribute("title")).toContain("내 DRAFT 버전에 쓰고"); // D-144 2단계
     expect(byTestId<HTMLInputElement>("set-name").value).toBe("사슬");
     expect(visibleText(byTestId("set-checks"))).toContain("통과");
     expect(visibleText(byTestId("flow-tab-checks"))).toContain("검사 결과 0");
@@ -301,7 +301,8 @@ describe("RuleSetEditPage", () => {
     expect(body.grids).toBeUndefined();
     const params = body.params as Record<string, unknown>;
     expect(params).toMatchObject({ setId: "E2S_CHAIN", setName: "사슬(수정)", rowVersion: 3 });
-    expect(Object.keys(params).sort()).toEqual(["flowJson", "rowVersion", "setId", "setName"]);
+    // D-144 2단계 — 선택 버전(ver)을 싣는다. 이 view 리터럴에는 set.ver 가 없어 "" 이고 값은 단언하지 않는다(version-row.test 가 본다).
+    expect(Object.keys(params).sort()).toEqual(["flowJson", "rowVersion", "setId", "setName", "ver"]);
     expect(typeof params.flowJson).toBe("string");
     const flow = JSON.parse(params.flowJson as string) as RuleSetFlow & { view: unknown };
     const kinds = flow.nodes.map((n) => n.kind);
@@ -712,8 +713,8 @@ describe("RuleSetEditPage", () => {
     await click("set-deprecate-confirm");
     await settle();
     expect(calls("delete")).toHaveLength(1);
-    expect(calls("delete")[0].body.params).toEqual({ setId: "E2S_CHAIN", rowVersion: 3 });
-    expect(visibleText(byTestId("set-message"))).toContain("폐기 · row_version 4. 행은 남기고 되살릴 수 있다");
+    expect(calls("delete")[0].body.params).toEqual({ setId: "E2S_CHAIN", target: "SET" }); // D-144 2단계 — target SET, 행 버전 없음
+    expect(visibleText(byTestId("set-message"))).toContain("폐기. 행은 남기고 되살릴 수 있다");
     expect(byTestId("set-status").textContent).toContain("DEPRECATED");
   });
 
@@ -730,8 +731,8 @@ describe("RuleSetEditPage", () => {
     srv.views.E2S_CHAIN = chainView({}, 5);
     await click("set-restore");
     await settle();
-    expect(calls("restore")[0].body.params).toEqual({ setId: "E2S_CHAIN", rowVersion: 3 });
-    expect(visibleText(byTestId("set-message"))).toContain("되살림 · row_version 5");
+    expect(calls("restore")[0].body.params).toEqual({ setId: "E2S_CHAIN" }); // D-144 2단계 — 행 버전 없음
+    expect(visibleText(byTestId("set-message"))).toContain("되살림");
     expect(byTestId("set-status").textContent).toContain("INUSE");
   });
 

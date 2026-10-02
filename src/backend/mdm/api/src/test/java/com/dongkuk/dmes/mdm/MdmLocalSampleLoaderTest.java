@@ -49,7 +49,7 @@ class MdmLocalSampleLoaderTest {
     private Map<String, Long> counts() {
         Map<String, Long> m = new LinkedHashMap<>();
         for (String t : List.of("TB_MDM_TERM", "TB_MDM_DOMAIN", "TB_MDM_COLUMN", "TB_MDM_UNIT", "TB_MDM_LAYOUT",
-                "TB_MDM_CODE", "TB_MDM_CODE_ITEM", "TB_MDM_DATA", "TB_MDM_RULE", "TB_MDM_RULE_ROW", "TB_MDM_RULE_SET")) {
+                "TB_MDM_CODE", "TB_MDM_CODE_ITEM", "TB_MDM_DATA", "TB_MDM_RULE", "TB_MDM_RULE_ROW", "TB_MDM_RULE_SET", "TB_MDM_RULE_SET_VER")) {
             m.put(t, jdbc.queryForObject("SELECT COUNT(*) FROM " + t, Long.class));
         }
         return m;

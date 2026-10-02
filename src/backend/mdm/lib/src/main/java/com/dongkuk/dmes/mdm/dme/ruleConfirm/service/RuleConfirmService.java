@@ -158,7 +158,7 @@ public class RuleConfirmService {
         }
         LocalDateTime applyFrom = parseApplyFrom(request.getApplyFrom());
         LocalDateTime now = now();
-        Report report = checks.report(t.ref());
+        Report report = checks.report(t.ref(), applyFrom);
 
         List<Map<String, Object>> items = new ArrayList<>(report.items().size());
         List<Map<String, Object>> contractWarnings = new ArrayList<>();
@@ -438,7 +438,7 @@ public class RuleConfirmService {
     }
 
     /** {@code yyyy-MM-dd HH:mm:ss}(KST). 빈 값은 REQUIRED_VALUE, 형식 오류·열린 끝 이상은 INVALID_VALUE(field applyFrom). */
-    static LocalDateTime parseApplyFrom(String value) {
+    public static LocalDateTime parseApplyFrom(String value) {
         String v = trimToNull(value);
         if (v == null) {
             throw applyFromError(ErrorCode.REQUIRED_VALUE, "적용 시작 일시를 입력하세요");

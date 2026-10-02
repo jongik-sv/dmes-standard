@@ -52,7 +52,7 @@ moduleGroup: dme
 | 주요 API path (BFF→BE) | `POST /oasis/ruleSetEdit/{action}` | 상동 |
 | Frontend 파일 | `m-mdm/pages/dme/ruleSetEdit/` 아래 — `page.tsx`, `api.ts`, `types.ts`, `links.ts`, 순수 모듈 `set-model.ts`(목록 함수는 코퍼스 동치 테스트용, `flowIo`·`flowChecks`)·`flow-model.ts`(파싱·구조 검사)·`flow-edit.ts`(편집 연산 — 3단계에 `moveNode`·`replaceRule`·`copyFragment`·`pasteFragment`·`duplicateNode`·`changeSplitKind`·`dissolveSplit`·`reorderBranches` 추가)·`flow-layout.ts`(dagre 배치)·`flow-vars.ts`(변수 칩·검사 표시·가장 가까운 선·끌기 대상 선)·`trace-view.ts`(기록 해석·`debugOverlay`), 상태 `state/{useRuleSetEdit,edit-history,useEditActions,useDragActions,useFind,useCollapse}.ts`, 캔버스 `canvas/{FlowCanvas,FlowToolbar,ToolButton,FlowPalette,RulePanel,RuleSearchModal,ContextMenu,context-menu,shortcuts,collapse,route-path,snap,nodes,overlay,react-flow}` 와 우클릭 메뉴 제공자 `canvas/menus/{index,edit-menu,collapse-menu,debug-menu,view-menu}`, 패널 `panels/{SetPanel,PropertyPanel,ChecksPanel,BottomPanel}`, 카드 `cards/{SetIoTables,GuideCard}`, 디버거 `debugger/{DebugToolbar,DebugInputs,InputForm,VariablePanel,TestCasePanel,CaseEditModal,ValuesTab,ValueTable,RunCompare,SimWarnings,TraceDetail,useSimulation,useTestCases,useExprEval,debug-model,expr-eval,local-store}`, 스타일 `rsf-styles.ts`·`styles/{base,collapse,debug,drag,menu,props,route,space,label,snap,connect}.ts`(TS 문자열 + `<style href precedence>`, 로컬 `.css` import 없음 — Local-Rules §17). 선 경로 편집(C14)의 순수 계산(둥근 꺾은선 경로·가운데 점·점 더하기)은 `canvas/route-path.ts`, 손잡이 스타일은 `styles/route.ts` 에 있다. 끌 때 맞춤 안내선·스냅(G1)의 순수 계산(`snapMove`, 맞은 대상 ID 까지 돌려주는 `snapHitIn`)은 `canvas/snap.ts`, 안내선 스타일은 `styles/snap.ts` 에 있다. 네 변 잇기(C1)의 연결점은 `canvas/nodes.tsx`(`handlesOf`·`LinkHandles`), 잇기 규칙 `linkAllowed`·선 [+] 자리 `addSpot`(FF U1) 은 `canvas/FlowCanvas.tsx`, 모양은 `styles/connect.ts` 에 있다 | 2단계 계획 Task 5~11, 3단계 계획 Task 0~12·15. 1단계 목록 카드(`RuleSetCard`·`RuleListGrid`)는 삭제(D-113), 2단계 `SimulationPanel`·`TraceStepper`·시뮬레이션 탭은 삭제(D-118) |
 | tsup entry key | `pages/dme/ruleSetEdit/page` | `m-mdm/tsup.config.ts` |
-| action 어휘 | `search`·`view`(READ), `save`·`delete`(폐기)·`restore`(되살리기)·`validate`(조건식 IO)·`execute`(기록 실행 = 디버거)(EDIT). 서비스 메서드는 `validate`→`condIo`, `execute`→`simulate`. **3단계는 새 action 동사를 만들지 않고 칸만 더한다**(ADR-0003 D5 16단어): `save` 의 `part=CASE`(테스트 케이스 저장, 삭제는 `caseDeleted=true`), `view` 응답의 `cases`(케이스 목록), `validate` 의 `exprText`(식 파싱만 — 응답 `expr`), `execute` 의 `runCases`·`caseIds`·`setId`(저장된 케이스 일괄 실행 — 응답 `cases`, `trace` 는 null). **4단계도 칸만 더한다**: `execute` 의 `editsJson`(고친 값을 끼워 처음부터 다시 실행 — 응답 `trace.edits`, `runCases` 면 읽지 않는다) | design §6.12·I17, 2단계 P5·P-D2, D-112, 3단계 P-D1·P-D12, D-120·D-122, 4단계 spec §2.3 |
+| action 어휘 | `search`·`view`(READ), `save`·`delete`(`target` = `SET`(폐기)·`VERSION`(DRAFT 삭제)·`CONFIRM`(확정취소))·`restore`(되살리기)·`copy`(새 버전 major/minor)·`lock`·`unlock`·`handover`(D-144 2단계, 새 동사 없이 ADR-0002 권한 어휘를 쓴다)·`validate`(조건식 IO)·`execute`(기록 실행 = 디버거)(EDIT). 서비스 메서드는 `validate`→`condIo`, `execute`→`simulate`. **3단계는 새 action 동사를 만들지 않고 칸만 더한다**(ADR-0003 D5 16단어): `save` 의 `part=CASE`(테스트 케이스 저장, 삭제는 `caseDeleted=true`), `view` 응답의 `cases`(케이스 목록), `validate` 의 `exprText`(식 파싱만 — 응답 `expr`), `execute` 의 `runCases`·`caseIds`·`setId`(저장된 케이스 일괄 실행 — 응답 `cases`, `trace` 는 null). **4단계도 칸만 더한다**: `execute` 의 `editsJson`(고친 값을 끼워 처음부터 다시 실행 — 응답 `trace.edits`, `runCases` 면 읽지 않는다) | design §6.12·I17, 2단계 P5·P-D2, D-112, 3단계 P-D1·P-D12, D-120·D-122, 4단계 spec §2.3 |
 | 메뉴 계층 | 마루 MDM(`mdm`) > 업무기준(`dme`) > 룰 세트 편집(`ruleSetEdit`, seq 005, fullSeq 5050500) | `DataInitializer.seedMdmRuleSetMenus()`, design D12 |
 | 화면 간 파라미터 | `useMdmPageParams("dme/ruleSetEdit", tabId, p => open(p.setId))` | design I22 |
 
@@ -103,7 +103,8 @@ moduleGroup: dme
 | 영역ID | 영역명 | 설명 |
 |---|---|---|
 | `A-TOP` | 세트 고르기(`set-edit-topbar`, 흐름 툴바 줄 맨 앞 — 세트를 열기 전에는 이것만 있는 줄) | 세트 ID·세트명 검색(`set-pick-keyword`, 라벨 없이 placeholder) + 찾기 → 칸 아래 드롭다운 후보(`set-pick-list` 안 `set-pick-{setId}`, 룰 화면 룰 고르기와 같은 `IdPicker` — ↑↓·Enter·Esc, 20건이면 좁혀 검색 안내), 현재 세트(`set-edit-current`, `ID · 세트명` — 세트를 열면 흐름 툴바의 세트 머리가 되고 길면 말줄임, 전체는 title). 고르기 전에는 "세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다"(`set-edit-empty`) |
-| `A-TOOL` | 흐름 툴바(`flow-toolbar`) | 아이콘 단추 줄(`ToolButton` — `aria-label` 이 단추 이름, 툴팁은 감싼 `span.rsf-tip[data-tip]`, `title` 없음. 단추는 26×26 정사각형·아이콘 14px로 디버그 툴바·찾기 위젯과 같은 크기다). 세트 고르기(A-TOP) · 세트 ID(`set-card-id`, `set-edit-current` 안)·상태 배지(`set-status`, title "버전·승인 없음 — 저장하면 바로 반영된다")·`row_version N`(`set-row-version`) · [보기](`flow-mode-view`)/[편집](`flow-mode-edit`)/[디버그](`flow-mode-debug`) · [되돌리기](`flow-undo`)·[다시 하기](`flow-redo`) · [노드 찾기](`flow-find-open`, 돋보기 — 캔버스 오른쪽 위 찾기 위젯을 연다, 툴팁 "노드 찾기 (⌘F)"/"(Ctrl+F)", 위젯이 열려 있으면 `aria-expanded`)·[?] 단축키 도움말(`flow-help`→`flow-help-panel`) · [자동 정렬](`flow-auto-layout`, 편집 모드만 켜진다)·[화면 맞춤](`flow-fit`)·[표시](`flow-var-toggle`, 끔·ID·이름 세 상태 — `data-mode`, 끔이 아니면 `aria-pressed`, 상태마다 아이콘이 다르고 aria-label 이 "표시: 끔/ID/이름")·[미니맵](`flow-minimap-toggle`, `aria-pressed`) · [세트 저장](`set-save`)·[폐기](`set-deprecate`)→[폐기 확인](`set-deprecate-confirm`)/[취소](`set-deprecate-cancel`)·[되살리기](`set-restore`)·[다시 불러오기](`set-reload`, MDM001 뒤에만) · 메시지 줄(`set-message`) |
+| `A-VER` | 버전 줄(`set-ver-row`, D-144 2단계) | 버전 고르기(`set-ver-select`, `v1.000 (DRAFT)` 형식 — 기본은 내 DRAFT, 없으면 지금 적용 중인 RELEASED, 없으면 가장 큰 버전) · 상태 배지(`VersionStatusBadge`) · 소유자 배지(`DraftLockBadge`) · 읽기 전용 배지(`set-ver-readonly`, 새 버전을 만들 수 있고 내 DRAFT 가 없으면 "고치려면 새 버전을 만든다" 를 붙인다) · 공통 버전 버튼(`VersionActionBar`): 새 버전(major)(`set-ver-new-major`)·새 버전(minor)(`set-ver-new-minor`)·삭제(`set-ver-delete`)·확정(`set-ver-confirm` → `dme/ruleSetConfirm`)·확정취소(`set-ver-cancel-confirm`)·선점(`set-ver-lock`)·해제(`set-ver-unlock`)·넘기기(`set-ver-handover`, 받는 사람 입력 칸 `set-ver-handover-to` 가 비면 꺼진다). 지금 고른 버전 말고 지금 적용 중인 버전보다 뒤에 적용될 RELEASED(예약 버전)가 있으면 예약 배지(`set-ver-reserved`, 예: `예약 v1.001`)가 뜬다. 저장하지 않은 변경·자동 저장·불러오는 중에는 모두 꺼진다 |
+| `A-TOOL` | 흐름 툴바(`flow-toolbar`) | 아이콘 단추 줄(`ToolButton` — `aria-label` 이 단추 이름, 툴팁은 감싼 `span.rsf-tip[data-tip]`, `title` 없음. 단추는 26×26 정사각형·아이콘 14px로 디버그 툴바·찾기 위젯과 같은 크기다). 세트 고르기(A-TOP) · 세트 ID(`set-card-id`, `set-edit-current` 안)·세트 상태 배지(`set-status` — 부모 상태 CREATED·INUSE·DEPRECATED, 선택 버전의 상태는 A-VER 의 `VersionStatusBadge` 가 보인다. title "세트 상태 — 저장은 내 DRAFT 버전에 쓰고, 확정해야 적용된다")·선택 버전 행의 row_version(`set-row-version`) · [보기](`flow-mode-view`)/[편집](`flow-mode-edit`)/[디버그](`flow-mode-debug`) · [되돌리기](`flow-undo`)·[다시 하기](`flow-redo`) · [노드 찾기](`flow-find-open`, 돋보기 — 캔버스 오른쪽 위 찾기 위젯을 연다, 툴팁 "노드 찾기 (⌘F)"/"(Ctrl+F)", 위젯이 열려 있으면 `aria-expanded`)·[?] 단축키 도움말(`flow-help`→`flow-help-panel`) · [자동 정렬](`flow-auto-layout`, 편집 모드만 켜진다)·[화면 맞춤](`flow-fit`)·[표시](`flow-var-toggle`, 끔·ID·이름 세 상태 — `data-mode`, 끔이 아니면 `aria-pressed`, 상태마다 아이콘이 다르고 aria-label 이 "표시: 끔/ID/이름")·[미니맵](`flow-minimap-toggle`, `aria-pressed`) · [세트 저장](`set-save`)·[폐기](`set-deprecate`)→[폐기 확인](`set-deprecate-confirm`)/[취소](`set-deprecate-cancel`)·[되살리기](`set-restore`)·[다시 불러오기](`set-reload`, MDM001 뒤에만) · 메시지 줄(`set-message`) |
 | `A-DBG` | 디버그 툴바(`dbg-toolbar`, 디버그 모드만) | 아이콘 단추(이름·단축키·꺼진 이유는 툴팁) [계속](`dbg-continue`)·[한 단계](`dbg-step`)·[이전](`dbg-step-back`)·[여기까지](`dbg-run-to`)·[처음부터](`dbg-restart`)·[끝까지](`dbg-finish`)·[중지](`dbg-stop`) · 상태 문구(`dbg-status`, `data-end` = idle·running·done·error) · 낡은 기록 배지(`dbg-stale`) · 알림(`dbg-notice`, `data-kind` = notice·error) |
 | `A-LEFT` | 왼쪽 패널 | 디버그 모드만 = **입력 패널**(`dbg-inputs`, 3단계 P-D10). 보기·편집 모드는 왼쪽 칸이 없다(4단계 P1) (D-128) |
 | `A-TOOLBOX` | 도구 상자(`flow-toolbox`) | 캔버스 안 왼쪽 위(12px) 세로 막대. 도구 [손](`flow-tool-hand`)·[영역 선택](`flow-tool-select`)·[공간](`flow-space-tool`, 편집만) — 한 번에 하나, `aria-pressed`. 구분선 아래 요소(`flow-palette` — `flow-add-*`, 편집만). 아이콘만, 이름은 오른쪽 툴팁·`aria-label`. 기본 도구 = 편집 [영역 선택]·보기·디버그 [손], Esc·모드 바꾸기·다른 세트 열기로 기본 도구로 돌아간다. 저장하지 않는다 (D-128) |
@@ -116,7 +117,7 @@ moduleGroup: dme
 
 | 필드ID | DB 컬럼명 | 화면 표시명 | 입력 방식 | 필수 | 기본값 | 설명 |
 |---|---|---|---|---|---|---|
-| S-001 | `MARU_RULE_SET_ID`/`MARU_RULE_SET_NAME` | 룰 세트 | TextBox | N | (빈값) | `search{target:"SET", keyword}` — ID 대문자 포함 또는 세트명 포함, ID 순 20건. 후보는 `ID · 세트명 · 상태` |
+| S-001 | `MARU_RULE_SET_ID`/`MARU_RULE_SET_NAME` | 룰 세트 | TextBox | N | (빈값) | `search{target:"SET", keyword}` — ID 대문자 포함 또는 세트명 포함, ID 순 20건. 후보는 `ID · 세트명 · 상태`(상태는 ruleSetMng 와 같은 계산 상태) |
 
 ### 3.2 캔버스 노드 (룰 목록 그리드를 대신한다 — 1단계의 `set-rules-grid` 는 없어졌다)
 
@@ -218,11 +219,11 @@ moduleGroup: dme
 | 버튼ID | 버튼명(testid) | 위치 | To-Be action | 설명 |
 |---|---|---|---|---|
 | B-001 | 찾기 | A-TOP | `search`(SET) | 세트 후보 |
-| B-002 | 세트 저장(`set-save`) | A-TOOL | `save` | 편집 모드이고 dirty 이며 **거부(REJECT) 검사가 없고** 조건식 IO 응답을 기다리지 않을 때만 켜진다(P-D4). 꺼진 까닭은 툴팁(`data-tip`)으로 보인다 |
-| B-003 | 폐기(`set-deprecate`) → 폐기 확인(`set-deprecate-confirm`)/취소(`set-deprecate-cancel`) | A-TOOL | `delete` | INUSE·editable·`delete` 권한. 두 단계로만 폐기한다(D14, I14) |
+| B-002 | 세트 저장(`set-save`) | A-TOOL | `save` | 선택 버전이 내 DRAFT 이고(아니면 읽기 전용, D-144) 편집 모드이고 dirty 이며 **거부(REJECT) 검사가 없고** 조건식 IO 응답을 기다리지 않을 때만 켜진다(P-D4). 꺼진 까닭은 툴팁(`data-tip`)으로 보인다 |
+| B-003 | 폐기(`set-deprecate`) → 폐기 확인(`set-deprecate-confirm`)/취소(`set-deprecate-cancel`) | A-TOOL | `delete`(target `SET`) | 담당자·INUSE·미적용 버전 없음(`flags.canDeprecate`, Ruling P2-17)·`delete` 권한. 내 DRAFT 를 고른 동안에도 미적용 버전이 있으면 꺼진다. 두 단계로만 폐기한다(D14, I14) |
 | B-004 | 되살리기(`set-restore`) | A-TOOL | `restore` | DEPRECATED·restorable·`restore` 권한 |
 | B-005 | 다시 불러오기(`set-reload`) | A-TOOL | `view` | MDM001 충돌 뒤에만 보인다 |
-| B-006 | 보기(`flow-mode-view`)/편집(`flow-mode-edit`)/디버그(`flow-mode-debug`) | A-TOOL | (없음) | 세트를 열면 보기 모드다. [편집]은 `view.editable`·INUSE·`save` 권한일 때만 켜진다. [디버그]는 누구나 들어간다(실행 단추는 `execute` 권한이 따로 켠다). 편집 → 보기/디버그는 편집 내용을 버리지 않는다. 디버그 모드 입력값·중단점·조사식·기록은 모드를 오가도 유지한다 |
+| B-006 | 보기(`flow-mode-view`)/편집(`flow-mode-edit`)/디버그(`flow-mode-debug`) | A-TOOL | (없음) | 세트를 열면 보기 모드다. [편집]은 `view.editable`(담당자·고른 버전이 내 DRAFT·폐기 아님)이고 세트가 폐기되지 않았고(CREATED 세트도 편집한다) `save` 권한일 때만 켜진다. [디버그]는 누구나 들어간다(실행 단추는 `execute` 권한이 따로 켠다). 편집 → 보기/디버그는 편집 내용을 버리지 않는다. 디버그 모드 입력값·중단점·조사식·기록은 모드를 오가도 유지한다 |
 | B-007 | 자동 정렬(`flow-auto-layout`) | A-TOOL | (없음) | dagre 위→아래 배치로 모든 노드 위치를 다시 잡는다(편집 모드만 켜진다). 모든 선의 경로(`view.routes`)와 옮긴 조건 라벨·변수 칩 자리(`view.labels`, L1)도 함께 지운다(C14). 위치와 경로·이름표 지우기는 이력 한 칸이라 되돌리기 한 번으로 함께 살아난다. 공간 넓히기로 적힌 위치·옮긴 꺾는 점도 이것으로 초기화된다 |
 | B-008 | 화면 맞춤(`flow-fit`)·표시(`flow-var-toggle`)·미니맵(`flow-minimap-toggle`) | A-TOOL | (없음) | 보기 조절. 서버를 부르지 않는다. [표시](`flow-var-toggle`)는 선 변수 칩과 룰 노드 제목에 함께 적용되고, 누를 때마다 끔 → ID → 이름 → 끔으로 돌며 단추에 지금 상태("표시: 끔/ID/이름")를 보이고(툴팁: 선 변수 칩과 룰 노드 제목을 ID·이름으로 바꾼다. 끄면 변수 칩을 숨긴다) 마지막 선택을 브라우저 저장소(`rsf:varDisplay`, 이상한 값이면 끔)에 기억한다. 미니맵은 켜고 끔을 브라우저 저장소(`rsf:minimap`)에 기억한다 |
 | B-009 | 룰(`flow-add-rule`)·IF(`flow-add-if`)·병렬(`flow-add-par`)·메모(`flow-add-note`)·그룹(`flow-add-group`) | A-TOOLBOX(요소) | (없음) | 편집 모드만. [룰] 은 룰 찾기 창 없이 빈 단계를 놓고(누르기 = 고른 선, 없으면 END 앞 선 / 끌어 놓기 = 놓은 선) 그 노드를 고른 채 오른쪽 「룰 지정」 섹션을 펴 찾기 칸에 초점을 둔다. 동작은 §5.3 |
@@ -248,6 +249,13 @@ moduleGroup: dme
 | B-028 | 공간(`flow-space-tool`, `aria-pressed`) | A-TOOLBOX | (없음) | 도구 상자의 도구 하나(4단계 P1 — 툴바에서 옮김). 다시 누르면 [영역 선택] 으로 돌아간다. S1(사용자 승인 추가). 편집 모드에서만 켜진다(보기·디버그 모드는 단추가 없다). 켜고 끌 때 모두 초점을 캔버스로 옮긴다(단추에 초점이 남으면 Esc 가 캔버스 단축키에 닿지 않고, 스페이스+끌기의 스페이스가 단추를 다시 누른다). 흐름 툴바 단추는 모두 마우스로 눌러도 초점을 가져가지 않고(mousedown 기본 동작을 막는다 — 키보드 Tab·Enter 는 그대로), 팔레트 단추는 HTML5 끌기를 살리려고 누르거나 끌어 놓은 뒤 초점을 놓는다. 켜면 캔버스 빈 곳 끌기가 공간 넓히기다(§5.3, 영역 선택보다 이긴다). 한 번 쓰면(놓으면) 저절로 꺼지고, Esc(켜져 있으면 끄기만 하고 선택은 그대로)·편집 모드를 떠나기·다른 세트 열기로도 꺼진다. Alt(⌥)+끌기는 단추 없이 같은 동작이다 (D-128) |
 | B-029 | [손](`flow-tool-hand`)·[영역 선택](`flow-tool-select`) | A-TOOLBOX | (없음) | 빈 곳 끌기를 화면 이동/영역 선택으로 바꾼다. 휠·Shift+끌기 영역 선택·다중 선택 키는 모드를 따른다. 누르면 초점을 캔버스로 옮긴다 (D-128) |
 | B-030 | 섹션 머리(`flow-section-{id}-head`) | A-PROPS | (없음) | 누르면 펴고 접는다. 종류(룰 세트·룰·분기 등)마다 따로 기억하고 저장하지 않는다 (D-128) |
+| B-031 | 새 버전(major)(`set-ver-new-major`)·새 버전(minor)(`set-ver-new-minor`) | A-VER | `copy`(`verKind` = MAJOR·MINOR) | 직전(최신) RELEASED 의 흐름·룰 목록을 복사해 `BASE_VER` 를 그 버전으로 둔 DRAFT 를 만들고 그 DRAFT 로 옮긴다(번호는 세트 최대 버전에서 major 는 정수부+1, minor 는 +0.001. 버전이 하나도 없으면 1.000 과 빈 목록). 폐기 세트·미적용 버전이 이미 있음(MDM006)·번호 상한이면 꺼진다(`flags.canNewMajor`·`canNewMinor`, 폐기 세트는 둘 다 꺼진다)(D-144) |
+| B-032 | 삭제(`set-ver-delete`) | A-VER | `delete`(target `VERSION`) | 내 DRAFT 만 지운다. 하나뿐인 DRAFT 를 지우면 버전이 없는 세트가 되어 빈 흐름·읽기 전용으로 열린다 |
+| B-033 | 확정(`set-ver-confirm`) | A-VER | (화면 이동 `dme/ruleSetConfirm`) | 내 DRAFT 이고 RBAC `confirm` 이 있을 때만 켠다. 확정 화면에서 검사 4가지와 적용 시각을 거쳐 확정한다. 확정 자체의 action 은 그 화면의 `confirm` |
+| B-034 | 확정취소(`set-ver-cancel-confirm`) | A-VER | `delete`(target `CONFIRM`) | 아직 적용되지 않은 확정 버전을 DRAFT 로 되돌린다(ADR-0002 D8-10) |
+| B-035 | 선점(`set-ver-lock`) | A-VER | `lock` | 소유자 없는 DRAFT 의 소유자가 된다 |
+| B-036 | 해제(`set-ver-unlock`) | A-VER | `unlock` | 내 DRAFT 의 소유를 푼다 |
+| B-037 | 넘기기(`set-ver-handover`) | A-VER | `handover` | 내 DRAFT 의 소유자를 다른 담당자로 바꾼다 |
 
 ### 5.1-1 캔버스·표 안의 인라인 동작 (GB-NNN)
 
@@ -265,16 +273,16 @@ moduleGroup: dme
 
 | 버튼ID | 트리거 | 선행 조건 | 동작(단계별) | 호출 액션 |
 |---|---|---|---|---|
-| (세트 열기) | 후보 클릭·넘겨받은 setId | dirty 면 확인 "저장하지 않은 변경이 있습니다. 버리고 이동할까요?" | `view{setId}` → 세트·흐름·멤버 룰 입출력·검사·조건식 IO(`condIo`)·**테스트 케이스 목록(`cases`)**·`editable`·`restorable`. 흐름은 `toEditFlow` 로 편집 모델이 되고 모드는 보기다. 편집 이력은 비운다. 다른 세트로 바뀌면 선택·접힘·디버거 기록과 커서를 지우고 그 세트의 중단점·조사식·최근 입력을 브라우저 저장소에서 읽는다. 저장된 흐름을 읽을 수 없으면 MDM026 을 문장으로 보인다 | `view` |
-| B-002 | 클릭 | 위 조건 | 1) `save{setId, setName, description?, rowVersion, flowJson}` — `flowJson` 은 `flowJsonOf(flow)`(P2 정규 JSON 과 같은 키 순서). `grids` 는 보내지 않는다 2) 서버 순서: 길이(262,144자) → 형식(MDM021) → 룰 ID 규칙 → 담당자 → 세트 저장 검사(거부면 MDM024) → 정규 JSON 저장 + 펼친 `RULE_IDS` 3) 성공 "저장 · row_version N" + 경고 줄 → 서버 정규 흐름으로 다시 불러온다. **모드와 되돌리기 이력은 그대로다**(3단계 P1 — 편집 모드에서 저장하면 편집 모드에 남는다. 폐기·되살리기 뒤 편집할 수 없게 되면 보기로 내린다) 4) 거부는 서버 `meta.message`(`set-message`), 편집 중 흐름은 둔다 5) MDM001 은 "다른 창에서 바뀌었습니다. 다시 불러오세요" + 다시 불러오기 6) `flowJson` 없는 옛 목록 저장이 `FLOW_JSON` 이 있는 세트에 오면 `FLOW_READONLY` 로 거부한다(§6.2 XV-019) | `save` |
+| (세트 열기) | 후보 클릭·넘겨받은 setId | dirty 면 확인 "저장하지 않은 변경이 있습니다. 버리고 이동할까요?" | `view{setId, ver?}`(`ver` 가 비면 서버가 고른다) → 세트·흐름·멤버 룰 입출력·검사·조건식 IO(`condIo`)·**테스트 케이스 목록(`cases`)**·`editable`·`restorable`·`versions`(VER 내림차순, 행마다 `verStatus`·`cancelConfirmable`)·`flags`(`canNewMajor`·`canNewMinor`·`nextMajor`·`nextMinor`·`unappliedCount`·`currentVer`·`canDeprecate`·`canEditCases`)·`me`. 흐름은 `toEditFlow` 로 편집 모델이 되고 모드는 보기다. 편집 이력은 비운다. 다른 세트로 바뀌면 선택·접힘·디버거 기록과 커서를 지우고 그 세트의 중단점·조사식·최근 입력을 브라우저 저장소에서 읽는다. 저장된 흐름을 읽을 수 없으면 MDM026 을 문장으로 보인다 | `view` |
+| B-002 | 클릭 | 위 조건 | 1) `save{setId, ver, setName, description?, rowVersion, flowJson}`(`ver` 필수 — `rowVersion` 은 그 버전 행의 값) — `flowJson` 은 `flowJsonOf(flow)`(P2 정규 JSON 과 같은 키 순서). `grids` 는 보내지 않는다 2) 서버 순서: 길이(262,144자) → 형식(MDM021) → 룰 ID 규칙 → 담당자 → 세트 저장 검사(거부면 MDM024) → 트랜잭션: 부모 조회 → 폐기 세트면 MDM009 → 내 DRAFT 가드(`beginDraftWrite`, §아래 D-144 문단과 같은 코드) → DRAFT 행의 정규 JSON·펼친 `RULE_IDS` 갱신 → 부모의 세트명·설명 갱신 3) 성공 "저장 · row_version N" + 경고 줄 → 서버 정규 흐름으로 다시 불러온다. **모드와 되돌리기 이력은 그대로다**(3단계 P1 — 편집 모드에서 저장하면 편집 모드에 남는다. 폐기·되살리기 뒤 편집할 수 없게 되면 보기로 내린다) 4) 거부는 서버 `meta.message`(`set-message`), 편집 중 흐름은 둔다 5) MDM001 은 "다른 창에서 바뀌었습니다. 다시 불러오세요" + 다시 불러오기 6) `flowJson` 없는 옛 목록 저장이 `FLOW_JSON` 이 있는 세트에 오면 `FLOW_READONLY` 로 거부한다(§6.2 XV-019) | `save` |
 | (조건식 IO) | IF 의 "그 외"가 아닌 갈래의 `(id, cond)` 가 바뀜 | 편집 모드 | 400ms 디바운스 뒤 `validate{flowJson}` → `condIo`(선 ID → 조건식이 읽는 변수의 출처·타입). 요청 순번으로 늦게 온 응답은 버리고(Local-Rules §11), 응답을 기다리는 동안(`condIoPending`) 저장을 막는다. 실패하면 오류 창 + 기다림 해제(condIo 는 그대로) | `validate` |
-| B-003 | 폐기 → 폐기 확인 | INUSE | 1) 폐기를 누르면 경고 "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다."와 폐기 확인/취소 2) 폐기 확인 → `delete{setId, rowVersion}` 3) "폐기 · row_version N. 행은 남기고 되살릴 수 있다" | `delete` |
-| B-004 | 클릭 | DEPRECATED | `restore{setId, rowVersion}` → 저장된 흐름으로 검사를 다시 돌려 거부가 없을 때만 INUSE. "되살림 · row_version N" + 경고. 저장된 흐름이 손상됐으면 MDM026 | `restore` |
+| B-003 | 폐기 → 폐기 확인 | INUSE·미적용 버전 없음 | 1) 폐기를 누르면 경고 "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다."와 폐기 확인/취소 2) 폐기 확인 → `delete{setId, target:"SET"}` 3) "폐기. 행은 남기고 되살릴 수 있다" | `delete` |
+| B-004 | 클릭 | DEPRECATED | `restore{setId}` → 저장된 흐름으로 검사를 다시 돌려 거부가 없을 때만 INUSE. "되살림" + 경고. 저장된 흐름이 손상됐으면 MDM026 | `restore` |
 | B-010 | 클릭·Enter | 결과 변수 입력 | `search{target:"GUIDE", resultVar}` → 오류(`set-guide-error`) 또는 "제안 순서 · 1. A → 2. B …" + "고르기" 배지(한 결과 변수를 만드는 룰이 둘 이상) | `search` |
 | (디버그 실행) | [한 단계]·[계속]·[여기까지]·[처음부터]·[끝까지]·F10·F5 | `execute` 권한, 실행 중 아님, 입력 오류 없음 | 1) **새로 실행하는 경우** — 기록이 없거나, 기록이 낡았거나(흐름 구조가 실행 뒤 바뀜), 지금 입력이 기록 입력과 다르다(3단계 P-D9). 그때 `execute{flowJson, recordJson, evalTs?}` 를 **저장하지 않은 현재 흐름**으로 보낸다(폼에서 만든 레코드, `dbg-json` 이 있으면 그것, 빈 판정 시각은 보내지 않는다). 응답의 실행 기록과 **그때의 흐름 사본**을 결과에 두고, 바로 전 결과는 「이전 실행」(한 개)으로 보관한다. 실행에 성공한 입력은 최근 입력(10개)에 기억한다 2) **기록이 있는 동안은 서버를 다시 부르지 않고** 커서만 옮긴다(스펙 §4.2 — 실행이 결정적이라 미리 끝까지 돌리고 한 칸씩 보여 주는 것이 진짜 단계 실행과 결과가 같다) 3) 커서 위치: 새 실행 직후 — [한 단계]·[처음부터] 0, [계속] 중단점 노드가 처음 나오는 칸(0 포함, 없으면 끝), [여기까지] 고른 노드가 처음 나오는 칸, [끝까지] 끝. 기록이 있을 때 — [한 단계] 한 칸(끝에서 멈춤), [계속] 커서 **뒤**에서 중단점 노드가 처음 나오는 칸(없으면 끝), [여기까지] 커서 뒤에서 고른 노드가 처음 나오는 칸, [처음부터] 0, [끝까지] 끝, [이전] 한 칸 뒤로 4) [여기까지]로 고른 노드가 커서 뒤에 없으면 알림(`dbg-notice`) — 앞에 있으면 「이 노드는 이미 지났다. [처음부터] 뒤 다시 누른다」, 기록에 없으면 「이 입력으로는 이 노드를 지나지 않는다」 5) 요청을 보내지 못하면(서버 거부·입력 오류) 오류 문구만 두고 기록·커서는 그대로. 늦게 온 응답은 요청 순번·세트·흐름 버전으로 버린다. 6) **고침 대기가 있으면**(4단계 E4) [한 단계]·[계속]·[여기까지]·[끝까지]는 지금 기록의 고친 값에 대기를 합쳐(같은 지점은 값을 합치고, 뒤 지점의 고친 값은 버리며 「뒤에서 고친 값 N건을 지웠다」) `execute{flowJson, recordJson, evalTs?, editsJson}` 로 처음부터 다시 실행하고, 새 기록 위에서 커서 k 에서 그 동작을 한다. 고친 값이 든 기록도 입력이 같으면 낡지 않았다. [처음부터]는 고친 값을 모두 지운다 — 고친 값이 든 기록이면 edit 없이 다시 실행한다. 입력·흐름 구조가 바뀌거나 [이전]·커서 이동으로 자리를 옮기면 대기를 버린다(자리 옮김은 「자리를 옮겨 고침 대기 N건을 버렸다」). `editsJson` 은 `[{beforeSeq, nodeId, values:{이름: 값}}]` 이고 값은 `recordJson` 과 같은 JSON 원형(숫자는 적은 글자 그대로 — `1.10` 보존, 불린, `null`, 글자)이다 7) **[중지](`dbg-stop`, Shift+F5)** — 서버를 부르지 않는다. 기다리던 응답이 있으면 요청 순번을 올려 버리고, 기록·커서·고침 대기·알림을 비워 「실행 전」 상태로 돌린다. 입력·중단점·조사식·최근 입력·이전 실행(실행 비교)은 남는다. 기록이 있거나 실행 중일 때 켜지고 실행 중에도 누를 수 있다. `execute` 권한과 무관하다. 서버 응답: `{trace, warnings}`(§11 N-16) | `execute` |
 | (조사식) | 변수 표 핀 칸 누르기 | 디버그 모드 | 이름을 `var-watches` 에 더하거나 뺀다(대소문자 무시). 값은 커서 자리 값, 아직 없으면 「아직 없음」. 세트별 브라우저 저장소 `rsf:watch:<setId>` | (없음) |
 | (식 즉석 평가) | 식 칸 Enter | 실행 기록이 있고 `validate` 권한 | 1) `validate{exprText}` 로 **서버가 파싱만** 한다(`ast`·`refVars`·`supported`·`problems`, 3단계 P-D1) 2) 화면이 브라우저 `evalex` `evaluate` 로 커서 자리 변수(세트가 선언한 타입으로 바꿔 넣는다)에 대해 평가한다 3) 결과 `expr-result`(`data-kind`): 참·거짓·NULL·값·「오류 — …」. `supported=false` 이거나 평가기가 폴백 신호를 내는 식(평가 시각에 기대는 함수, LIST 값 변수를 읽는 식, 3단계 P-D15)이면 「화면에서 계산할 수 없는 식이다」만 보이고 서버 평가를 부르지 않는다 4) 「참고용이다. 실행 판정은 서버가 한다」를 작게 보인다. 최근 식 5개 `rsf:expr:<setId>` | `validate` |
-| (케이스 저장) | [지금 입력 저장] → 팝업 [저장] / [고치기] → [저장] | 편집할 수 있는 세트, 입력 오류 없음 | `save{part:"CASE", setId, caseId?, rowVersion?, caseName, inputJson, evalTs?, expectedJson?, description?}`. 새 케이스는 서버가 같은 세트 안 최대 번호 + 1 로 발급. 성공하면 `view` 를 다시 불러 **`cases` 만** 받는다 — 세트 흐름·모드·dirty·이력·커서는 건드리지 않는다(3단계 P-D11). 옛 결과(통과·실패)는 그 케이스에서 지운다. 저장이 MDM001(다른 창에서 바뀜/동시 저장)이면 목록을 다시 읽고 충돌 문구. 폐기된 세트는 MDM009 | `save` |
+| (케이스 저장) | [지금 입력 저장] → 팝업 [저장] / [고치기] → [저장] | 담당자·폐기 아님(`flags.canEditCases`)·`save` 권한, 입력 오류 없음 | `save{part:"CASE", setId, caseId?, rowVersion?, caseName, inputJson, evalTs?, expectedJson?, description?}`. 새 케이스는 서버가 같은 세트 안 최대 번호 + 1 로 발급. 성공하면 `view` 를 다시 불러 **`cases` 만** 받는다 — 세트 흐름·모드·dirty·이력·커서는 건드리지 않는다(3단계 P-D11). 옛 결과(통과·실패)는 그 케이스에서 지운다. 저장이 MDM001(다른 창에서 바뀜/동시 저장)이면 목록을 다시 읽고 충돌 문구. 폐기된 세트는 MDM009 | `save` |
 | (케이스 삭제) | [삭제] → [지우기] | 케이스를 고름 | 두 단계(Local-Rules §9). `save{part:"CASE", setId, caseId, rowVersion, caseDeleted:true}` 뒤 케이스 목록만 다시 읽는다 | `save` |
 | (케이스 모두 실행) | [모두 실행] | `execute` 권한, 케이스 1건 이상 | `execute{setId, flowJson(현재 흐름 — 저장 전 포함), runCases:true, caseIds(콤마로 이은 문자열)}` → `{cases:[{caseId, caseName, outcome, pass, mismatches, finalValues, errors}]}`(`trace` 는 null). 목록 「마지막 결과」 칸이 통과·실패·실행만(`pass=null`)으로 바뀌고 요약 `case-summary` 「8/10 통과」(분모는 기대값이 있는 케이스만, `pass=null` 은 「· 실행만 N건」 로 따로). 실패한 케이스를 고르면 `case-diff` — 기대·실제 표(실제가 null 이면 결과에 그 키가 있을 때 「NULL」, 키가 없으면 「결과에 없음」으로 가른다), 오류로 끝난 케이스는 오류 문장 목록(`case-diff-error-{i}`, 단계·코드는 title). 늦게 온 응답은 순번으로 버린다 | `execute` |
 | (케이스 불러오기) | [불러오기] / [디버그로 열기] | 케이스를 고름 | 입력을 폼에 채운다(값이 모두 글자·null 인 객체면 폼만, 숫자·불린 값이 있으면 뜻을 잃지 않게 보낼 원문을 JSON 칸에 둔다). [디버그로 열기]는 이어서 [처음부터] 를 누른 것과 같다 — 바뀐 입력이므로 새로 실행한다 | `execute` |
@@ -464,18 +472,18 @@ moduleGroup: dme
 
 | 상태 | 캔버스 편집(팔레트·끌기·[+]·메뉴·속성 입력)·세트명·설명·지침 적용 | 세트 저장 | 폐기 | 되살리기 | 디버그 모드 | 케이스 저장·삭제 |
 |---|---|---|---|---|---|---|
-| `INUSE` · 보기 모드(세트를 열면 기본) | 읽기 전용 — 팔레트·[자동 정렬] 없음, 룰 목록 줄 끌기 없음, 속성 패널 입력 잠김. 노드 선택·속성 보기·룰 링크·접기·[변수 흐름]·[화면 맞춤]·찾기는 동작 | 비활성(title "편집 모드에서 저장한다") | O | — | 들어갈 수 있다. 실행은 `execute` 권한이면 O | — |
-| `INUSE` · 편집 모드([편집] — editable·`save` 권한일 때만) | 편집 가능 | dirty 이고 거부 검사가 없고 조건식 IO 를 기다리지 않을 때만 | O | — | 들어갈 수 있다(편집 내용은 그대로) | — |
-| `INUSE` · 디버그 모드 | 캔버스 편집 꺼짐(끌기·연결·[+]·삭제·붙여넣기·편집 메뉴 없음), 왼쪽은 입력 패널, 오른쪽은 변수 패널 | 비활성(편집 모드만) | O | — | 실행 단추는 `execute` 권한 | 편집할 수 있는 세트(담당자·INUSE·`save` 권한)일 때만 |
+| `CREATED`·`INUSE` · 보기 모드(세트를 열면 기본. 고른 버전이 내 DRAFT 가 아니면 늘 읽기 전용) | 읽기 전용 — 팔레트·[자동 정렬] 없음, 룰 목록 줄 끌기 없음, 속성 패널 입력 잠김. 노드 선택·속성 보기·룰 링크·접기·[변수 흐름]·[화면 맞춤]·찾기는 동작 | 비활성(title "편집 모드에서 저장한다") | O | — | 들어갈 수 있다. 실행은 `execute` 권한이면 O | — |
+| `CREATED`·`INUSE` · 편집 모드([편집] — `view.editable`(담당자·내 DRAFT)·폐기 아님·`save` 권한일 때만. 첫 확정 전 CREATED 세트도 편집한다) | 편집 가능 | dirty 이고 거부 검사가 없고 조건식 IO 를 기다리지 않을 때만 | O | — | 들어갈 수 있다(편집 내용은 그대로) | — |
+| `CREATED`·`INUSE` · 디버그 모드 | 캔버스 편집 꺼짐(끌기·연결·[+]·삭제·붙여넣기·편집 메뉴 없음), 왼쪽은 입력 패널, 오른쪽은 변수 패널 | 비활성(편집 모드만) | O | — | 실행 단추는 `execute` 권한 | 담당자·폐기 아님(`flags.canEditCases`, Ruling P2-18)·`save` 권한일 때만. 고른 버전과 무관하다(테스트 케이스는 세트 단위) |
 | `DEPRECATED` | [편집]·팔레트 없음, 세트명·설명 잠김 | 비활성 | — | O | 들어갈 수 있고 케이스 목록도 보인다(읽기 전용) | 불가(MDM009) |
-| 담당자가 아님 / `save` 권한 없음 | [편집] 비활성(title "담당자이고 사용 중인 세트이며 저장 권한이 있어야 편집한다") | 비활성 | 비활성 | 비활성 | 들어갈 수 있다. `execute` 권한 없으면 실행 단추 비활성 | 불가 |
+| 담당자가 아님 / `save` 권한 없음 | [편집] 비활성(title "편집 — 담당자이고 고른 버전이 내 DRAFT 이며 저장 권한이 있어야 편집한다") | 비활성 | 비활성 | 비활성 | 들어갈 수 있다. `execute` 권한 없으면 실행 단추 비활성 | 불가 |
 
 **디버그 결과의 「지난 흐름 기준」(3단계 P-D9)**: 실행 뒤 흐름 **구조**(실행에 영향을 주는 칸 — 노드 id·kind·ruleId·splitId, 선 id·from·to·order·cond·otherwise)가 바뀌면 그 기록은 낡은 것이다. 낡은 기록은 캔버스 겹침을 그리지 않고 패널(변수·값 표·실행 비교·노드 상세)만 옛 기록으로 남기며 `dbg-stale` 배지를 보인다. 다음 [한 단계]·[계속]·[여기까지]·[처음부터]·[끝까지]는 새로 실행한다. 노드를 끌어 옮기거나 메모를 고치거나 `label` 만 바꾼 것은 구조 변경이 아니다. **지금 입력이 기록 입력과 다를 때도** 낡은 것과 같이 다음 동작에서 새로 실행한다(배지는 없다 — 흐름이 아니라 입력이 바뀐 것이다). 다른 세트를 열면 기록을 지운다.
 
 분기가 있는 세트도 1단계와 달리 **읽기 전용이 아니다**. 캔버스에서 그대로 편집·저장한다(옛 안내 `set-branched-notice` 는 없어졌다). 다만 구성 지침의 "이 순서로 한 줄 흐름 만들기"는 분기 흐름이면 꺼진다(P-D5).
 편집 → 보기/디버그 전환은 편집 내용을 버리지 않는다. **세트 저장·폐기·되살리기 뒤의 다시 불러오기는 모드와 되돌리기 이력을 그대로 둔다**(편집할 수 없게 되면 보기로 내린다). [다시 불러오기]·다른 세트 열기는 보기 모드로 돌아가고 이력을 비운다.
 
-세트에는 버전·DRAFT·선점이 없다. 저장은 `ROW_VERSION` 조건부 UPDATE 한 번이고, 동시 편집은 MDM001 로만 막는다(I3·D16). 테스트 케이스는 케이스마다 `ROW_VERSION` 을 따로 가진다.
+세트도 룰처럼 버전·DRAFT·소유자를 갖는다(2026-10-02 D-144 2단계, ADR-0006). 저장은 **선택 버전이 내 DRAFT 일 때만** 쓰고(공통 가드 `beginDraftWrite` 가 소유자 MDM003·row_version MDM001·DRAFT MDM002·다른 미적용 MDM007 을 본다), 그 밖에는 읽기 전용이다(배치·색 이동도 저장하지 않는다). 확정은 `dme/ruleSetConfirm` 이 4가지 검사(흐름 구조·참조 룰의 apply_from 시점 RELEASED·순서/순환·테스트 케이스)와 공통 "적용 순서" 항목을 보인 뒤에 한다. 예약된 미래 룰 버전이 세트를 깨뜨리면(apply_from 뒤 경계 시각마다 검사 1·3 을 다시 돌린다) 확정은 되고 WARNING 만 낸다(Ruling P2-14). 메뉴 이름은 "룰 세트 확정"(메뉴 5050600)이다. 화면 기능은 `ruleSetConfirm` 이 따로 가진다(별도 설계서는 후속). 운영 판정은 판정 시각의 RELEASED 세트 버전을 쓰고, 디버거·테스트 케이스는 화면에 열린 버전의 흐름을 직접 보낸다. 자동 저장이 MDM002·MDM003 으로 거부되면 자동 저장을 끄고 읽기 전용으로 다시 불러온다. 수동 [저장]도 같은 거부면 같은 경로로 읽기 전용으로 다시 불러온다. 세트명·설명은 부모 행에 있고 DRAFT 저장과 같은 트랜잭션에서 쓴다. 테스트 케이스는 세트 단위이고 케이스마다 `ROW_VERSION` 을 따로 가진다.
 
 
 ## 8. 권한 정의
@@ -487,7 +495,7 @@ moduleGroup: dme
 | 조건식 IO(`validate`) | O | O | X | EDIT. 편집 중에만 화면이 부른다. 서버는 읽기만 하므로 `requireSteward` 를 부르지 않고 권한 action 이 막는다 |
 | **디버그 모드 진입**(중단점·조사식·입력 폼·최근 입력·변수 패널 보기) | O | O | O | 화면 모드일 뿐 서버를 부르지 않는다. 표준 관리자도 들어가 볼 수 있다 |
 | **디버거 실행·케이스 실행**(`execute`) | O | O | **X** | EDIT (2단계 P-D2·P-D3, 3단계 P-D1). `execute` 가 EDIT 권한이라 DME 에서 READ 인 표준 관리자는 실행할 수 없다(BFF RBAC 403, 화면은 실행 단추 비활성 + title). 기록 실행·케이스 일괄 실행은 저장하지 않고 읽기만 하지만 어휘 16개를 늘리지 않으려 이렇게 정했다 — 사용자 확인 사항이다 |
-| **테스트 케이스 저장·삭제**(`save` `part=CASE`) | O | O | X | 세트 저장과 같은 EDIT + 서버 `requireSteward()`(MDM013). 편집할 수 있는 세트(INUSE)일 때만 |
+| **테스트 케이스 저장·삭제**(`save` `part=CASE`) | O | O | X | 세트 저장과 같은 EDIT + 서버 `requireSteward()`(MDM013). 담당자이고 폐기되지 않은 세트(`flags.canEditCases`, 버전 무관)일 때만 |
 | **식 즉석 평가**(`validate` `exprText`) | O | O | X | EDIT. 표준 관리자는 식 평가 칸이 꺼진다(title 로 이유). 평가 자체는 브라우저에서 하지만 파싱을 서버가 한다(3단계 P-D1) |
 | 중단점·조사식·최근 입력·미니맵 | O | O | O | 서버를 부르지 않는 개인 화면 상태 |
 
@@ -507,7 +515,7 @@ moduleGroup: dme
 
 | 열거형(DB 컬럼) | 코드값 | 화면 표시명 |
 |---|---|---|
-| LV-001 `STATUS` | `INUSE`/`DEPRECATED` | 코드 그대로(배지) |
+| LV-001 `STATUS` | `CREATED`/`INUSE`/`DEPRECATED` | 코드 그대로(배지) |
 | LV-002 출처 | `DICT`/`PROG`/`NONE` | 컬럼 사전/프로그램 변수/어디에도 없음 |
 | LV-003 심각도 | `REJECT`/`WARN` | 거부/경고 |
 | LV-004 결과 구분 | (계산) | 최종(어느 룰도 다시 읽지 않음)/중간 |
@@ -529,7 +537,7 @@ moduleGroup: dme
 | N-6 | 구성 지침 생산자 = DEPRECATED 아니고 RELEASED 있는 룰, 룰 ID 순 첫 룰, 여럿이면 "고르기". DICT·PROG 는 거슬러 찾지 않는다. 제안일 뿐 저장하지 않는다 | design D7·I16 |
 | N-7 | 저장 거부는 오류 코드 `MDM024`(400) + 상세 message. 병렬 Task 와 번호가 겹치면 머지하는 쪽이 다음 번호로 바꾼다 | design D8 |
 | N-8 | **개정(P-D4, D-113)**: 캔버스에서는 화면 즉시 검사에 거부(REJECT)가 하나라도 있으면 저장 버튼을 끈다(스펙 §7 "오류가 있으면 저장을 막는다"). 서버도 같은 검사로 다시 거부한다. 1단계의 "즉시 검사는 저장 버튼을 막지 않는다"(design D9)를 대체한다. 조건식 IO 응답을 기다리는 동안에도 저장을 막는다 | 스펙 §7, 계획 P-D4, D-113 |
-| N-9 | "저장 즉시 배포"는 보류 — 저장·폐기·되살리기는 `TB_MDM_RULE_SET` 한 행만 바꾼다 | design D11·I23, PRD FR-E5 |
+| N-9 | 저장은 DRAFT 버전 행(`TB_MDM_RULE_SET_VER`)과 부모의 세트명·설명만 바꾼다. 배포(07)는 여전히 이번 범위 밖이다(D-144 2단계) | design D11·I23, PRD FR-E5 |
 | N-10 | 폐기는 두 단계 버튼(폐기 → 폐기 확인/취소) | design D14 |
 | N-11 | 같은 룰을 두 번 담지 않는다 | design D15 |
 | N-12 | 룰 목록 그리드 폭 문제(열 잘림)는 **그리드 삭제로 해당 없음**. 캔버스는 노드 크기가 고정(`NODE_SIZE`)이고 화면 맞춤으로 전체를 보인다 | D-113 |
