@@ -5,7 +5,7 @@ import { act, createElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { JsonView, jsonText, type JsonViewProps } from "../../src/components/json-view";
-import { jsonKindOf, jsonSummary } from "../../src/components/json-view/JsonView";
+import { jsonChildPath, jsonKindOf, jsonSummary } from "../../src/components/json-view/JsonView";
 import { renderWithMantine, type Rendered } from "./mantine-test-utils";
 
 let r: Rendered | null = null;
@@ -44,6 +44,13 @@ describe("JsonView — 도우미", () => {
     expect(jsonKindOf(null)).toBe("null");
   });
 
+  it("키 경로는 객체 키를 점으로, 배열 순번을 [n] 으로 잇는다", () => {
+    expect(jsonChildPath("", "bizExpr")).toBe("bizExpr");
+    expect(jsonChildPath("bizExpr", "text")).toBe("bizExpr.text");
+    expect(jsonChildPath("bizRequiredVars", 0)).toBe("bizRequiredVars[0]");
+    expect(jsonChildPath("", 2)).toBe("[2]");
+  });
+
   it("접힌 가지 요약과 복사 글자", () => {
     expect(jsonSummary({ a: 1, b: 2 })).toBe("{…} 2개 키");
     expect(jsonSummary([1, 2, 3])).toBe("[…] 3개 항목");
@@ -74,15 +81,25 @@ describe("JsonView — 그리기", () => {
     expect(el.textContent).toContain("{}");
   });
 
-  it("가지 단추로 접고 편다", () => {
+  it("가지 단추로 접고 펴고, aria-label 에 키 경로를 담는다", () => {
     const el = render({ value: sample, defaultExpandDepth: 1 });
     expect(el.textContent).not.toContain('"value <= COIL_WID"');
-    const toggles = Array.from(el.querySelectorAll<HTMLButtonElement>("button.jv-toggle"));
-    const bizToggle = toggles.find((b) => b.parentElement?.textContent?.startsWith("bizExpr"))!;
+    expect(el.querySelector('button[aria-label="전체 접기"]')).not.toBeNull();
+    const bizToggle = el.querySelector<HTMLButtonElement>('button[aria-label="bizExpr 펼치기"]')!;
     expect(bizToggle.getAttribute("aria-expanded")).toBe("false");
     act(() => bizToggle.click());
     expect(el.textContent).toContain('"value <= COIL_WID"');
     expect(bizToggle.getAttribute("aria-expanded")).toBe("true");
+    expect(bizToggle.getAttribute("aria-label")).toBe("bizExpr 접기");
+
+    act(() => el.querySelector<HTMLButtonElement>('button[aria-label="domain 펼치기"]')!.click());
+    expect(el.querySelector('button[aria-label="domain.ref 펼치기"]')).not.toBeNull();
+  });
+
+  it("글자 값은 JSON 표기로 보여 안쪽 따옴표·역슬래시·줄바꿈이 이스케이프된다", () => {
+    const el = render({ value: { a: 'say "hi"', b: "C:\\dir", c: "줄1\n줄2" } });
+    const strings = Array.from(el.querySelectorAll(".jv-string")).map((n) => n.textContent);
+    expect(strings).toEqual(['"say \\"hi\\""', '"C:\\\\dir"', '"줄1\\n줄2"']);
   });
 
   it("모두 펼치기·모두 접기는 모든 가지에 적용한다", () => {

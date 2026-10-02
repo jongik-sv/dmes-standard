@@ -1,6 +1,6 @@
 # JsonView
 
-JSON 값(서버 설정·캐시 값·응답 본문처럼 모양이 정해지지 않은 값)을 읽기 전용 트리로 살펴볼 때 쓴다. 객체·배열은 접고 펼 수 있고, 글자·수·참거짓·null 은 종류별 색으로 보인다.
+JSON 값(서버 설정·캐시 값·응답 본문처럼 모양이 정해지지 않은 값)을 읽기 전용 트리로 살펴볼 때 쓴다. 객체·배열은 접고 펼 수 있고, 글자·수·참거짓·null 은 종류별 색으로 보인다. 글자 값은 JSON 표기(따옴표·역슬래시·줄바꿈 이스케이프)로 보인다.
 
 - import: `import { JsonView, jsonText, type JsonViewProps, type JsonKind } from "@dk-oasis/shared/json-view";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣는다)
 - 소스: `src/frontend/shared/src/components/json-view/JsonView.tsx`
@@ -12,6 +12,8 @@ JSON 값(서버 설정·캐시 값·응답 본문처럼 모양이 정해지지 �
 - 쓴다: 관리 화면에서 캐시 항목·설정·API 응답처럼 키와 모양이 그때그때 다른 값을 있는 그대로 보여 줄 때(예: m-mcm `mdmCacheMng` 항목 상세).
 - 쓰지 않는다: 업무 데이터 목록 → [AgDataGrid](ag-data-grid.md). 정해진 항목을 라벨-값으로 보일 때 → [detail-form](detail-form.md). 계층 메뉴·분류처럼 고를 수 있는 노드 트리 → [Tree](tree.md)(`Tree` 는 글자 라벨 노드를 선택·펼침하는 부품이라 값 종류별 색·요약·복사가 없다).
 - 편집은 하지 않는다. 값을 고쳐야 하면 화면이 정한 입력 칸을 쓴다.
+- 글자 값은 `JSON.stringify` 표기다(`"say \"hi\""`, `"줄1\n줄2"`). 안쪽 따옴표·줄바꿈이 값의 경계와 헷갈리지 않는다.
+- 가지 단추의 `aria-label` 은 키 경로를 담는다 — `"bizExpr 펼치기"`, `"domain.ref 접기"`, 배열 `"items[0] 펼치기"`, 뿌리 `"전체 접기"`. 화면 시험은 이 이름으로 단추를 찾는다.
 - 값은 브라우저가 받은 JSON 그대로다. 서버가 `1.000` 으로 보내도 `JSON.parse` 가 `1` 로 읽으므로 소수 끝자리 0 은 트리·복사 글자에서 사라진다. 자리수가 중요하면 서버가 글자로 보내야 한다.
 
 ## 표준 사용

@@ -5,6 +5,8 @@
  * 서버가 준 설정·캐시 값·응답 본문처럼 모양이 정해지지 않은 값을 그대로 살펴볼 때 쓴다. 업무 의미는 모른다.
  * - 도구 막대: 모두 펼치기·모두 접기·복사(들여쓴 JSON 글자, CopyTextButton 재사용).
  * - 처음에는 `defaultExpandDepth` 깊이까지 펼친다. 모두 펼치기·접기는 트리를 다시 그려 모든 가지에 적용한다.
+ * - 글자 값은 JSON 표기(`JSON.stringify`)로 보인다 — 따옴표·역슬래시·줄바꿈이 이스케이프되어 값의 끝과 안쪽 따옴표가 헷갈리지 않는다.
+ * - 가지 단추의 aria-label 은 키 경로를 담는다(예: "bizExpr 펼치기", "domain.ref 접기", 뿌리는 "전체 펼치기").
  * - `fill` 이면 부모 flex 열(ContentPanel 등)의 남은 높이를 채우고 트리 안에서만 스크롤한다.
  * 스타일은 컴포넌트가 직접 넣는다(포털이 원격 모듈의 CSS 파일을 싣지 않는다 — Part B §18-3). 색·간격은 공통 토큰만 쓴다.
  */
@@ -95,21 +97,32 @@ export function jsonText(value: unknown): string {
   }
 }
 
+/** 키 경로 — 객체 키는 `.` 로, 배열 순번은 `[n]` 으로 잇는다. 뿌리는 빈 글자. */
+export function jsonChildPath(parent: string, name: string | number): string {
+  if (typeof name === "number") return `${parent}[${name}]`;
+  return parent ? `${parent}.${name}` : name;
+}
+
 function Scalar({ value }: { value: unknown }) {
   const kind = jsonKindOf(value);
   if (kind === "null") return <span className="jv-null">null</span>;
-  if (kind === "string") return <span className="jv-string">{`"${String(value)}"`}</span>;
+  if (kind === "string") {
+    // JSON 표기 — 안쪽 따옴표·역슬래시·줄바꿈이 이스케이프되어 값의 경계가 분명하다. 글자가 아닌 값(함수 등)은 String().
+    return <span className="jv-string">{typeof value === "string" ? JSON.stringify(value) : String(value)}</span>;
+  }
   return <span className={`jv-${kind}`}>{String(value)}</span>;
 }
 
 interface NodeProps {
   name: string | number | null;
+  /** 이 노드의 키 경로(뿌리는 ""). */
+  path: string;
   value: unknown;
   depth: number;
   expandDepth: number;
 }
 
-function JsonNode({ name, value, depth, expandDepth }: NodeProps) {
+function JsonNode({ name, path, value, depth, expandDepth }: NodeProps) {
   const kind = jsonKindOf(value);
   const branch = kind === "object" || kind === "array";
   const [open, setOpen] = useState(depth < expandDepth);
@@ -151,7 +164,7 @@ function JsonNode({ name, value, depth, expandDepth }: NodeProps) {
             type="button"
             className="jv-toggle"
             aria-expanded={open}
-            aria-label={open ? "접기" : "펼치기"}
+            aria-label={`${path || "전체"} ${open ? "접기" : "펼치기"}`}
             onClick={() => setOpen((o) => !o)}
           >
             <IconChevronRight size={12} stroke={2} />
@@ -171,7 +184,7 @@ function JsonNode({ name, value, depth, expandDepth }: NodeProps) {
       {open && !empty ? (
         <div className="jv-children">
           {entries.map(([k, v]) => (
-            <JsonNode key={String(k)} name={k} value={v} depth={depth + 1} expandDepth={expandDepth} />
+            <JsonNode key={String(k)} name={k} path={jsonChildPath(path, k)} value={v} depth={depth + 1} expandDepth={expandDepth} />
           ))}
         </div>
       ) : null}
@@ -210,7 +223,7 @@ export function JsonView({
             </div>
           ) : null}
           <div className="jv-tree" data-testid={`${testId}-tree`}>
-            <JsonNode key={expand.gen} name={null} value={value} depth={0} expandDepth={expand.depth} />
+            <JsonNode key={expand.gen} name={null} path="" value={value} depth={0} expandDepth={expand.depth} />
           </div>
         </>
       )}
