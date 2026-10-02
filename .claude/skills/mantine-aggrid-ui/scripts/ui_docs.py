@@ -38,7 +38,7 @@ GROUPS: list[tuple[str, list[str]]] = [
     ("목록 (`@dk-oasis/shared/grid`)", ["ag-data-grid", "grid-panel", "use-grid-data-manager", "grid-badge", "pagination"]),
     ("팝업·메시지 (`modal`, `message-provider`, `use-api-call`)", ["modal", "message"]),
     ("대시보드 (`@dk-oasis/shared/dashboard`)", ["dashboard"]),
-    ("탭·트리·룩업·기타", ["tabs", "tree", "lookup", "markdown-editor", "notice-body-view", "matrix-table", "charts", "export-to-excel", "icons"]),
+    ("탭·트리·룩업·기타", ["tabs", "tree", "lookup", "markdown-editor", "notice-body-view", "detail-popover", "matrix-table", "charts", "export-to-excel", "icons"]),
 ]
 
 # 화면 문서에 싣지 않는 shared export 와 이유. coverage 가 이 목록을 "의도적 제외"로 본다.
@@ -75,6 +75,7 @@ EXPORT_FILES = [
     "components/lookup/index.ts",
     "components/markdown-editor/index.ts",
     "components/notice-body-view/index.ts",
+    "components/detail-popover/index.ts",
     "components/dashboard/index.ts",
     "components/matrix-table/index.ts",
     "components/charts/index.ts",

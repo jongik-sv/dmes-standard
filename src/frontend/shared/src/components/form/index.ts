@@ -18,3 +18,4 @@ export {
   type SegmentedControlOption,
 } from "./SegmentedControl";
 export { Badge, type BadgeProps, type BadgeTone, type BadgeVariant } from "./Badge";
+export { CopyTextButton, copyText, type CopyTextButtonProps } from "../copy-text-button";

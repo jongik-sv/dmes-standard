@@ -142,6 +142,10 @@
       "types": "./dist/types/components/notice-body-view/index.d.ts",
       "import": "./dist/notice-body-view.js"
     },
+    "./detail-popover": {
+      "types": "./dist/types/components/detail-popover/index.d.ts",
+      "import": "./dist/detail-popover.js"
+    },
     "./dashboard": {
       "types": "./dist/types/components/dashboard/index.d.ts",
       "import": "./dist/dashboard.js"

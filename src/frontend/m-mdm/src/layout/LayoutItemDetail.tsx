@@ -7,6 +7,7 @@
  */
 import { Input, Select } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { ColumnInfoPopover } from "@/column-info";
 import { AUTO_KINDS, FILL_KINDS, cell, clearClosedFields } from "./fill-kind";
 import { positionLabel } from "./layout-calc";
 import { encodeNumFormat, tryDecodeNumFormat } from "./num-format";
@@ -63,7 +64,14 @@ export function LayoutItemDetail({ item, units, readOnly, onChange }: LayoutItem
           <tr>
             <th style={DETAIL_LABEL_CELL}>컬럼</th>
             <td style={DETAIL_VALUE_CELL}>
-              {item.COLUMN_PHYS ? `${item.DISPLAY_NAME ?? ""} (${item.COLUMN_PHYS})` : <span style={hint}>없음</span>}
+              {item.COLUMN_PHYS ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  {`${item.DISPLAY_NAME ?? ""} (${item.COLUMN_PHYS})`}
+                  <ColumnInfoPopover physName={item.COLUMN_PHYS} testId="item-detail-column-info" />
+                </span>
+              ) : (
+                <span style={hint}>없음</span>
+              )}
             </td>
           </tr>
           <tr>
