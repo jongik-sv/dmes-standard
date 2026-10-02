@@ -129,20 +129,24 @@ export function startKindLabel(v: unknown): string {
 
 /**
  * 일별 추이 → 차트 점. 기간 안의 빈 날은 0 으로 채운다(빈 날을 건너뛴 선이 추이를 왜곡하지 않게).
- * 기간이 틀리면 받은 행을 일자 순으로만 그린다.
+ * 서버처럼 오늘(todayYmd, yyyyMMdd)까지만 채운다 — 종료일이 미래면 선 끝에 0 이 이어져 급락처럼 보인다.
+ * 기간이 틀리면 받은 행을 일자 순으로만 그린다. todayYmd 형식이 틀리면 종료일까지 채운다.
  */
 export function toDailyPoints(
   rows: readonly ScreenUsageDailyRow[],
   fromDt: string,
-  toDt: string
+  toDt: string,
+  todayYmd: string
 ): ChartPoint[] {
   const start = ymdToUtc(toYmd(fromDt));
-  const end = ymdToUtc(toYmd(toDt));
-  if (Number.isNaN(start) || Number.isNaN(end) || end < start) {
+  const toEnd = ymdToUtc(toYmd(toDt));
+  if (Number.isNaN(start) || Number.isNaN(toEnd) || toEnd < start) {
     return [...rows]
       .sort((a, b) => String(a.usageDt).localeCompare(String(b.usageDt)))
       .map((r) => ({ label: formatMonthDay(String(r.usageDt)), value: Number(r.openCnt) || 0 }));
   }
+  const todayUtc = ymdToUtc(toYmd(todayYmd));
+  const end = Number.isNaN(todayUtc) ? toEnd : Math.min(toEnd, todayUtc);
   const byDay = new Map(rows.map((r) => [String(r.usageDt), Number(r.openCnt) || 0]));
   const out: ChartPoint[] = [];
   for (let t = start; t <= end; t += DAY_MS) {

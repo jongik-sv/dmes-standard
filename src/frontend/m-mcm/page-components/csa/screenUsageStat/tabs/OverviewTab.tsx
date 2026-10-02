@@ -11,6 +11,7 @@ import {
   KpiTile,
   KpiTileGroup,
 } from "@dk-oasis/shared/dashboard";
+import { today } from "@dk-oasis/shared/utils";
 
 import { formatDuration, toDailyPoints, toTopBars } from "../format";
 import { unusedKpiCaption } from "./overview-tab";
@@ -21,7 +22,7 @@ const fmtCount = (n: number | undefined) => (n === undefined ? "-" : n.toLocaleS
 export default function OverviewTab({ data, query }: StatTabViewProps) {
   const { overview, overviewRange: range } = data;
   const points = useMemo(
-    () => (overview && range ? toDailyPoints(overview.daily, range[0], range[1]) : []),
+    () => (overview && range ? toDailyPoints(overview.daily, range[0], range[1], today()) : []),
     [overview, range]
   );
   const bars = useMemo(

@@ -163,7 +163,8 @@ describe("차트 변환", () => {
     const points = toDailyPoints(
       [daily("20261001", 3), daily("20261003", 5)],
       "2026-10-01",
-      "2026-10-03"
+      "2026-10-03",
+      "20991231"
     );
     expect(points).toEqual([
       { label: "10/01", value: 3 },
@@ -173,16 +174,39 @@ describe("차트 변환", () => {
   });
 
   it("월 경계를 넘어 이어진다", () => {
-    const points = toDailyPoints([], "2026-09-30", "2026-10-01");
+    const points = toDailyPoints([], "2026-09-30", "2026-10-01", "20991231");
     expect(points.map((p) => p.label)).toEqual(["09/30", "10/01"]);
   });
 
   it("기간이 틀리면 받은 행을 일자 순으로만 그린다", () => {
-    const points = toDailyPoints([daily("20261003", 5), daily("20261001", 3)], "", "2026-10-03");
+    const points = toDailyPoints(
+      [daily("20261003", 5), daily("20261001", 3)],
+      "",
+      "2026-10-03",
+      "20991231"
+    );
     expect(points).toEqual([
       { label: "10/01", value: 3 },
       { label: "10/03", value: 5 },
     ]);
+  });
+
+  it("종료일이 미래면 오늘까지만 채운다(서버처럼 — 선 끝에 0 꼬리가 붙어 급락처럼 보이지 않게)", () => {
+    const points = toDailyPoints([daily("20261001", 3)], "2026-09-30", "2026-10-05", "20261002");
+    expect(points).toEqual([
+      { label: "09/30", value: 0 },
+      { label: "10/01", value: 3 },
+      { label: "10/02", value: 0 },
+    ]);
+  });
+
+  it("오늘이 종료일보다 뒤면 종료일까지 그대로 채운다", () => {
+    const points = toDailyPoints([], "2026-09-30", "2026-10-01", "20261015");
+    expect(points.map((p) => p.label)).toEqual(["09/30", "10/01"]);
+  });
+
+  it("시작일도 미래면 그릴 날이 없다", () => {
+    expect(toDailyPoints([], "2026-10-05", "2026-10-07", "20261002")).toEqual([]);
   });
 
   it("메뉴 없는 화면·같은 이름 화면이 겹쳐도 막대 라벨은 유일하고 '(메뉴 없음)' 은 그대로 보인다", () => {
