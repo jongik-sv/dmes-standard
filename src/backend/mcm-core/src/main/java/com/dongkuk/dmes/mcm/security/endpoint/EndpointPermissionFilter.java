@@ -84,7 +84,8 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             "secstartpgm/toggle",       // 탭 우클릭 기본 화면 등록/해제
             "secwidget/",               // 포털 홈 위젯 탭·배치(search/saveTab/deleteTab/reorderTabs/resetHome) — 본인 데이터 (2026-10-02)
             "ntfnotification/",         // 포털 알림 (list/unreadCount/markRead/markAllRead) — 본인 데이터
-            "noticeboard/search"        // 포털 홈 공지 목록(mls) — 서비스가 현재 사용자 역할로 게시 대상을 거른다 (2026-10-02)
+            "noticeboard/search",       // 포털 홈 공지 목록(mls) — 서비스가 현재 사용자 역할로 게시 대상을 거른다 (2026-10-02)
+            "screenusage/record"        // 포털 화면 사용 구간 기록 — 로그인 사용자 전원, 사용자·부서는 서버가 인증 정보로 채운다 (2026-10-02)
     );
 
     private static boolean isAuthOnly(PermKey k) {
