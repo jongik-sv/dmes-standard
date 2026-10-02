@@ -9,6 +9,7 @@ import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.entity.RuleMaster;
 import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
+import com.dongkuk.dmes.mcm.screenusage.schema.ScreenUsageMssqlDdl;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.hibernate.Session;
@@ -188,6 +189,10 @@ public class DataInitializer implements ApplicationRunner {
         //  - TB_MCM_DEPT_INFO        (W5 owner) — selectUserList JOIN DEPT_NM (정책 #2 Q-004)
         // 본 메서드는 W5 의 owner DDL 멱등성을 신뢰 (IF NOT EXISTS 가드) — 본 worker 는 호환 가드 호출만.
         initMcmCsaCommUserRoleCopyArtifacts();
+
+        // 화면 사용 통계(2026-10-02) — TB_SEC_SCREEN_USAGE_LOG / _DAY + 인덱스 멱등 생성.
+        // 감사 계열(TB_SEC_AUDIT_LOG)처럼 schema 접두 없이 접속 계정 기본 스키마에 둔다. SQLite 는 ddl-auto 가 만든다.
+        initScreenUsageArtifacts();
         } else {
             // SQLite(local 단독) — entity 미보유 TB_MCM_SEC_MENU_FLD 만 보강 생성 (나머지 SEC 테이블은 ddl-auto).
             createSecMenuFldForSqlite();
@@ -2576,6 +2581,48 @@ public class DataInitializer implements ApplicationRunner {
                 "SELECT COUNT(*) FROM sys.objects "
                 + "WHERE object_id = OBJECT_ID(:fqn) AND type = 'U'")
                 .setParameter("fqn", schema + "." + table)
+                .getSingleResult();
+        return cnt != null && cnt.intValue() > 0;
+    }
+
+    /**
+     * 화면 사용 통계 원본·일별 집계 테이블 멱등 생성 (MSSQL 계열, 2026-10-02).
+     * <p>DDL 정본은 mcm-core {@link ScreenUsageMssqlDdl} — 운영 DBA 전달본과 같은 문장이다. 두 테이블은 schema 접두가 없어
+     * {@link #tableExists(String, String)}(schema 필수) 대신 기본 스키마로 해석하는 {@code OBJECT_ID(테이블)} 로 확인한다.
+     * local-db 는 ddl-auto=update 가 먼저 만들 수 있으므로 인덱스도 이름으로 하나씩 확인한다.
+     */
+    private void initScreenUsageArtifacts() {
+        if (!tableExistsInDefaultSchema(ScreenUsageMssqlDdl.LOG_TABLE)) {
+            nq(ScreenUsageMssqlDdl.CREATE_LOG_TABLE).executeUpdate();
+            log.info("[DataInitializer] CREATE TABLE: {}", ScreenUsageMssqlDdl.LOG_TABLE);
+        }
+        for (ScreenUsageMssqlDdl.IndexDdl index : ScreenUsageMssqlDdl.LOG_INDEXES) {
+            if (!indexExistsInDefaultSchema(ScreenUsageMssqlDdl.LOG_TABLE, index.name())) {
+                nq(index.sql()).executeUpdate();
+                log.info("[DataInitializer] CREATE INDEX: {}", index.name());
+            }
+        }
+        if (!tableExistsInDefaultSchema(ScreenUsageMssqlDdl.DAY_TABLE)) {
+            nq(ScreenUsageMssqlDdl.CREATE_DAY_TABLE).executeUpdate();
+            log.info("[DataInitializer] CREATE TABLE: {}", ScreenUsageMssqlDdl.DAY_TABLE);
+        }
+    }
+
+    /** schema 접두 없는 테이블 존재 여부 — 접속 계정 기본 스키마로 해석 (MSSQL). */
+    private boolean tableExistsInDefaultSchema(String table) {
+        Number cnt = (Number) nq(
+                "SELECT COUNT(*) FROM sys.objects WHERE object_id = OBJECT_ID(:name) AND type = 'U'")
+                .setParameter("name", table)
+                .getSingleResult();
+        return cnt != null && cnt.intValue() > 0;
+    }
+
+    /** schema 접두 없는 테이블의 인덱스 존재 여부 (MSSQL). */
+    private boolean indexExistsInDefaultSchema(String table, String indexName) {
+        Number cnt = (Number) nq(
+                "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(:name) AND name = :idx")
+                .setParameter("name", table)
+                .setParameter("idx", indexName)
                 .getSingleResult();
         return cnt != null && cnt.intValue() > 0;
     }
