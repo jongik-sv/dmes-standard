@@ -169,7 +169,8 @@ cactus:
     client-key: ${BACKEND_CLIENT_KEY:...}
     poll-interval: 10s
     max-entries: 20000            # 대상 합계 상한
-    max-age: 60m                  # 기록 누락 대비 안전망
+    max-age: 24h                  # 적재 뒤 절대 상한 — 기록 누락 대비 안전망(조회가 많아도 이 시간 뒤에는 다시 받는다)
+    max-idle: 60m                 # 마지막 조회 뒤 유휴 수명 — 조회될 때마다 연장
     connect-timeout: 2s
     read-timeout: 5s
 ```
@@ -177,6 +178,7 @@ cactus:
 - `@AutoConfiguration` + `@ConditionalOnProperty(prefix="cactus.mdm", name="enabled", havingValue="true")`. 기본이 꺼짐이라 mdm 서버(`MdmBusinessRuleMigrationTest` 의 `DefinitionLookup` 빈 0개 가드)에 영향이 없다.
 - 설정 클래스는 `MdmClientProperties`(`@ConfigurationProperties("cactus.mdm")`). 선례는 `CaravanHubClientProperties`.
 - cactus-core 에 `maru-mdm-engine` 의존을 `api` 로 더한다. 엔진은 순수 Java(EvalEx 하나)다. 각 모듈의 `settings.gradle` 이 엔진을 찾도록 하는 방법(중첩 includeBuild 전달 여부)은 구현 계획 첫 단계에서 실측해 정한다.
+- 수명(A2, 2026-10-02 사용자 결정 — "히트가 많이 되는 캐시일수록 오래 남아 있어야"): 항목은 `now >= 마지막 조회 + max-idle` 또는 `now >= 적재 + max-age` 이면 만료다. 마지막 조회 시각은 적재 직후 적재 시각이고 업무 조회(`get` 히트)마다 옮긴다. 관리 화면 읽기(`entries`·`entry`)는 옮기지 않는다. `max-age` 는 처음(60m, 적재 뒤 수명)과 뜻이 바뀌어 절대 상한이 되었고 기본값을 24h 로 올렸다 — 폴링이 오래 끊겨 지움 기록을 놓친 경우의 안전망.
 - 캐시는 Caffeine 을 쓰지 않고 자체 구현한다. cactus-core 의 Caffeine 은 `compileOnly` 이고, 업무 모듈에 Caffeine 이 들어가면 `MasterCodeCacheAutoConfiguration` 이 함께 켜져 `CacheManager`·`@EnableCaching` 이 모든 모듈에 생긴다.
 
 ### 5.2 구성 요소
@@ -184,7 +186,7 @@ cactus:
 | 클래스 | 역할 |
 |---|---|
 | `MdmMetaClient` | `RestClient` 로 `POST {base-url}/oasis/metaFeed/{action}` 호출. 인증 헤더 3종, 요청 UUID(`X-Tx-Id`) 부착. OASIS 응답 봉투를 풀어 DTO 로 돌려준다. 선례는 caravan-hub 클라이언트 |
-| `MdmMetaCache` | 대상 종류별 `ConcurrentHashMap<String, Entry>`. Entry 는 값 또는 "없음", 적재 시각, 조회 수. 합계가 `max-entries` 를 넘으면 적재가 오래된 순으로 지운다. `max-age` 가 지난 항목은 조회 때 버린다 |
+| `MdmMetaCache` | 대상 종류별 `ConcurrentHashMap<String, Entry>`. Entry 는 값 또는 "없음", 적재 시각, 마지막 조회 시각, 조회 수, 추정 크기. 수명(§5.1 — 유휴 `max-idle`·절대 상한 `max-age`)이 지난 항목은 조회 때 버린다. 합계가 `max-entries` 를 넘으면 한 번에 95% 까지 줄인다 — 만료 항목을 먼저 지우고, 그다음 오래 조회되지 않은 순(LRU, 마지막 조회 시각 스냅샷으로 정렬)으로 지운다. 추정 크기는 적재 때 값을 `MdmJson` 으로 직렬화한 UTF-8 바이트 수(잠금 밖에서 한 번 잰다, "없음" 0, 직렬화 실패 -1 — 합계에서 뺀다). JVM 실제 점유는 객체 머리·참조 때문에 이보다 크다 |
 | `MdmMetaService` | 조회 입구. `columns(names)` 처럼 여러 키를 받아 캐시에 없는 키만 모아 MDM 에 한 번 요청하고, 응답에 없는 키는 "없음"으로 캐시한다. 같은 키 동시 적재는 한 번만 한다 |
 | `MdmRevisionPoller` | `poll-interval` 마다 `changes(since=appliedSeq)`. 받은 키를 지우고, `RELOAD` 는 지운 뒤 바로 다시 적재한다. `appliedSeq`, 마지막 성공 시각, 연속 실패 수를 상태로 둔다 |
 | `MdmDefinitionLookup` | 엔진 spi `DefinitionLookup`·`CodeLookup` 구현. `rule(id, evalTs)` 는 캐시된 RELEASED 버전 중 적용 기간이 `evalTs` 를 포함하는 것을 고른다(`RuleVersions.currentReleased` 와 같은 규칙) |
@@ -214,9 +216,9 @@ cactus:
 |---|---|---|---|---|
 | `columns` | POST | `names[]`(물리명 또는 camelCase, 서버가 정규화) | `items{요청이름: 화면용 컬럼 메타}`, `missing[]`, `unavailable[]` | 로그인 사용자 |
 | `domains` | POST | `domainIds[]` | 도메인 메타 | 로그인 사용자 |
-| `status` | GET | — | 모듈, 인스턴스 ID, `appliedSeq`, MDM `latestSeq`(마지막 폴링 값), 마지막 성공 시각, 연속 실패 수, 대상별 항목 수 | SYSADMIN |
-| `entries` | GET | `type`, `q`, `page` | 항목 목록(키, 있음/없음 `absent`, 적재 시각, 조회 수, 남은 수명). 캐시 값은 싣지 않는다 | SYSADMIN |
-| `entry` | GET | `type`, `key`(컬럼은 camelCase 도 정규화) | 항목 하나 `{type, key, absent, loadedAt, hits, remainingSeconds, loadSeq, value}` — `value` 는 캐시 값 전체(§4.2 예외, `MdmJson` 설정: 소수 자리수 유지·날짜 ISO). 캐시를 읽기만 한다(조회 수·적재·지움 상태 불변, 캐시에 없거나 수명이 지났으면 MDM 에서 받지 않고 404, 본문 `code: MDM_ENTRY_NOT_CACHED` — 화면은 이 code 가 있는 404 만 "캐시에 없음"으로 본다). 잘못된 `type`·빈 `key` 400 | SYSADMIN |
+| `status` | GET | — | 모듈, 인스턴스 ID, `appliedSeq`, MDM `latestSeq`(마지막 폴링 값), 마지막 성공 시각, 연속 실패 수, 대상별 항목 수 `counts`, 대상별 추정 크기 합계 `bytes`(counts 와 같은 모양)·전체 `totalBytes`, JVM 힙 `heap{usedBytes, maxBytes}`(`totalMemory-freeMemory`, `maxMemory`), `maxEntries`, `maxAgeSeconds`(절대 상한), `maxIdleSeconds`(유휴 수명) | SYSADMIN |
+| `entries` | GET | `type`, `q`, `sort`, `page`, `size` | 항목 목록(키, 있음/없음 `absent`, 적재 시각 `loadedAt`, 마지막 조회 `lastAccessAt`, 조회 수, 남은 수명 `remainingSeconds` — 두 기한 중 이른 쪽까지, 추정 크기 `bytes`). `sort` 는 `key`(기본, 종류·키 순)·`bytes`(큰 순)·`hits`(많은 순) — 쪽을 자르기 전에 전체를 정렬하고 같은 값은 종류·키 순, 그 밖의 값은 400. 캐시 값은 싣지 않는다 | SYSADMIN |
+| `entry` | GET | `type`, `key`(컬럼은 camelCase 도 정규화) | 항목 하나 `{type, key, absent, loadedAt, lastAccessAt, hits, remainingSeconds, loadSeq, bytes, value}` — `value` 는 캐시 값 전체(§4.2 예외, `MdmJson` 설정: 소수 자리수 유지·날짜 ISO). 캐시를 읽기만 한다(조회 수·마지막 조회 시각·적재·지움 상태 불변 — 수명을 연장하지 않는다, 캐시에 없거나 수명이 지났으면 MDM 에서 받지 않고 404, 본문 `code: MDM_ENTRY_NOT_CACHED` — 화면은 이 code 가 있는 404 만 "캐시에 없음"으로 본다). 잘못된 `type`·빈 `key` 400 | SYSADMIN |
 | `load` | POST | `type`, `keys[]` | 이 인스턴스에 미리 적재한 결과 | SYSADMIN |
 
 - 이름 정규화: 소문자가 섞인 이름은 camelCase 로 보고 `UPPER_SNAKE` 로 바꾼다(`codeNm` → `CODE_NM`). 이미 대문자면 그대로 쓴다.
@@ -226,9 +228,12 @@ cactus:
 
 - 메뉴: 시스템관리 > MDM 캐시 관리. `DataInitializer` 에 OBJECT·메뉴(csa 대역 다음 번호 1020190 — dev 의 화면 사용 통계가 1020180)·SYSADMIN 매핑을 시드한다. 선례는 `commSyncMng`.
 - 모듈 목록: 새 상수 `MDM_CACHE_MODULES = ["mcm","mls","mqc","mpp","mpn"]`. 응답하지 않는 모듈은 "연결 안 됨"으로 표시한다.
-- 위쪽 그리드: 모듈별 상태(§5.5 `status`). MDM 최신 순번은 응답한 모듈들의 `latestSeq`(마지막 폴링 값) 가운데 최댓값으로 보여 주고, `appliedSeq` 가 그보다 뒤처진 모듈을 강조한다. 화면이 MDM 을 따로 호출하지 않는다.
-- 아래쪽 그리드: 선택한 모듈의 항목(`entries`), 대상 종류 필터와 키 검색.
-- 항목 상세(2026-10-02 사용자 결정): 항목 행을 누르면 오른쪽 상세 패널에 요약(대상·키·상태·적재 시각·조회 수·남은 수명·적재 순번)과 캐시 값 전체(`entry`, shared `JsonView` 트리)를 보인다. 404 는 "캐시에 없음(만료·삭제됨)"으로 보이고 로그인 화면으로 보내지 않는다. 삭제·재등록·등록·조회 뒤 열린 상세를 다시 받는다(강제 기록은 다음 확인 때 반영되므로 바로 다시 받은 값은 옛 값일 수 있다).
+- 위쪽 그리드: 모듈별 상태(§5.5 `status`). MDM 최신 순번은 응답한 모듈들의 `latestSeq`(마지막 폴링 값) 가운데 최댓값으로 보여 주고, `appliedSeq` 가 그보다 뒤처진 모듈을 강조한다. 화면이 MDM 을 따로 호출하지 않는다. "캐시 추정 크기"(`totalBytes`)·"힙 사용/최대"(`heap`) 열을 둔다(A2, 2026-10-02 사용자 요구 "모듈 상태, 캐시 항목에서 얼마나 메모리를 많이 사용하는지도 보여주면 좋겠어").
+- 아래쪽 그리드: 선택한 모듈의 항목(`entries`), 대상 종류 필터·키 검색·정렬(키·크기·조회 수 — `sort`). "마지막 조회"·"추정 크기"(우측 정렬) 열을 둔다.
+- 크기 표기: `formatBytes` — 1024 단위 B/KB/MB/GB, KB 부터 소수 1자리, 음수(-1 잴 수 없음)·null 은 "-". 크기 값은 숫자로 두고 셀 표시만 바꾼다(열 정렬이 숫자 순). 라벨은 "추정 크기"이고 머리 툴팁에 "JSON 직렬화 크기 기준, 실제 힙 점유는 이보다 큼"을 적는다. shared `formatBytes`(libFormat)는 표기("Bytes"·소수 2자리)가 달라 화면 폴더 `utils.ts` 에 둔다.
+- "남은 수명" 도움말(머리 툴팁·상세 요약 title): "마지막 조회 뒤 {max-idle}분 동안 조회 없으면 만료, 조회될 때마다 연장(적재 뒤 최대 {max-age}시간)".
+- 옛 모듈(A2 전 cactus)이 크기·힙·유휴 수명을 주지 않으면 그 칸만 비운다.
+- 항목 상세(2026-10-02 사용자 결정): 항목 행을 누르면 오른쪽 상세 패널에 요약(대상·키·상태·적재 시각·적재 순번·추정 크기·조회 수·마지막 조회·남은 수명)과 캐시 값 전체(`entry`, shared `JsonView` 트리)를 보인다. 404 는 "캐시에 없음(만료·삭제됨)"으로 보이고 로그인 화면으로 보내지 않는다. 삭제·재등록·등록·조회 뒤 열린 상세를 다시 받는다(강제 기록은 다음 확인 때 반영되므로 바로 다시 받은 값은 옛 값일 수 있다).
 - 버튼:
   - **등록**: 대상 종류와 키를 입력해 선택한 모듈 인스턴스에 미리 적재(`load`).
   - **삭제**: 선택 항목을 MDM `force(kind=EVICT)` 로 기록. 모든 모듈·인스턴스가 다음 폴링에서 지운다.
@@ -243,12 +248,13 @@ cactus:
 | MDM 기록 | 대상별 펼침(도메인 하위·참조 컬럼, 코드 → 도메인 → 컬럼, 헤더 → 전문, 물리명 변경 전후) | `MetaRevisionRecorder` 단위 테스트(SQLite) |
 | MDM 기록 지점 | 각 쓰기 action 이 기록을 남기고, 원장 롤백 때 기록도 사라지는지 | 기존 서비스 테스트에 단언 추가, 대표 action 은 BPMN 액션 테스트 |
 | MDM metaFeed | action 별 응답 모양, `truncated`, 없는 키, force 권한 | `DmaBpmnActionTest` 선례의 OASIS HTTP 테스트 |
-| cactus 캐시 | 적재·없음 캐시·상한·max-age·동시 적재 1회 | 단위 테스트(가짜 클라이언트) |
+| cactus 캐시 | 적재·없음 캐시·상한(LRU — 최근 조회 항목이 남는다)·동시 적재 1회, 수명(히트가 연장·히트 없이 max-idle 뒤 만료·히트를 계속해도 max-age 뒤 만료·peek·entries 는 연장 안 함·남은 수명은 두 기한 중 이른 쪽), 추정 크기(없음 0·직렬화 실패 -1 합계 제외) | 단위 테스트(가짜 클라이언트, 가짜 시계) |
 | cactus 폴러 | §5.3 규칙 다섯 가지, RELOAD, 장애 시 유지·건너뛰기 | 단위 테스트(가짜 클라이언트, 가짜 시계) |
 | cactus 클라이언트 | 헤더 3종, OASIS 봉투 해석, 시간 초과 | `MockRestServiceServer` |
-| cactus 자동 설정 | 기본 꺼짐, 켰을 때 빈 구성, `DefinitionLookup` 이 꺼진 상태에서 등록되지 않음 | `ApplicationContextRunner` |
+| cactus 자동 설정 | 기본 꺼짐, 켰을 때 빈 구성, `DefinitionLookup` 이 꺼진 상태에서 등록되지 않음, `max-idle`·`max-age` 바인딩과 기본값(60m·24h)이 캐시 빈에 닿음 | `ApplicationContextRunner` |
+| cactus 엔드포인트 | status 의 `bytes`·`totalBytes`·`heap`·`maxIdleSeconds`, entries `sort`(bytes·hits·잘못된 값 400, 쪽 자르기 전 정렬), entry·entries 의 `bytes`·`lastAccessAt`(읽기만 해서 옮기지 않음) | MockMvc 단위 테스트 |
 | 엔진 연동 | `MdmDefinitionLookup` 으로 `DomainValidator.validate` 가 도는지, 적용 기간 경계 | 단위 테스트 |
-| 화면 | 캐시 관리 화면 API 매핑 | Vitest, audit 2종 0건 |
+| 화면 | 캐시 관리 화면 API 매핑(크기·힙·마지막 조회·sort, 옛 모듈 응답), `formatBytes`·수명 도움말 | Vitest, audit 2종 0건 |
 | 통합 | 로컬 mdm + mls 기동, MDM 에서 컬럼 표시명 변경 → 10초 안에 mls 캐시 반영, 화면에서 재등록 | 수동 E2E(ego-browser), 끝나면 브라우저 닫기 |
 
 - 도커는 쓰지 않는다. DB 는 SQLite 만 쓴다.

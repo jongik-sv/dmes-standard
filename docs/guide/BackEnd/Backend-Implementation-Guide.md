@@ -409,11 +409,14 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
       page-limit: 1000                  # 폴 요청 한 번에 최대 응답 행 수. revision-lookback 이 0 보다 크면 page-limit 은 revision-lookback 보다 커야 한다(아니면 기동 시 예외)
       revision-lookback: 100            # 늦게 커밋된 기록 재처리 구간. 0 이면 끔(보강 안 함)
       max-entries: 20000
-      max-age: 60m
+      max-age: 24h        # 적재 뒤 절대 상한
+      max-idle: 60m       # 마지막 조회 뒤 유휴 수명(조회될 때마다 연장)
       connect-timeout: 2s
       read-timeout: 5s
   ```
 
+- 수명: 마지막 조회 뒤 `max-idle` 동안 조회가 없거나 적재 뒤 `max-age`(절대 상한)가 지나면 만료다 — 자주 조회되는 항목일수록 오래 남는다.
+  상한(`max-entries`)을 넘으면 만료 항목, 그다음 오래 조회되지 않은 순(LRU)으로 지운다. 관리 화면 읽기(`entries`·`entry`)는 수명을 연장하지 않는다.
 - 빌드: cactus-core 가 `maru-mdm-engine` 을 api 로 문다. 새 업무 모듈은 settings.gradle 에 `includeBuild('../maru-mdm-engine')` +
   `substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')` 를 둔다(기존 다섯 모듈 선례).
 - 코드에서 쓰기: `MdmDefinitionLookup`(엔진 `DefinitionLookup`·`CodeLookup` 빈)을 주입해 `DefaultDomainValidator`·룰 엔진에 넘긴다.
@@ -422,7 +425,9 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
   SYSADMIN 만(`X-Authenticated-Role`). BFF `m-mcm/proxy.ts` 는 모듈 이름과 무관한 한 규칙(`authOnlyPatterns: /^\/api\/[^/]+\/mdmMeta\//`)으로
   모든 모듈을 로그인 전용으로 연다 — 새 모듈 때 고치지 않는다. `entries` 는 캐시 값을 싣지 않는다(`bizExpr.text` 같은 서버 전용 값이 브라우저로
   나가지 않게, 있음·없음은 `absent`). 예외로 `entry?type=&key=` 는 항목 하나의 캐시 값 전체(`bizExpr.text` 포함)를 SYSADMIN 에게 준다
-  (2026-10-02 사용자 결정, 캐시 관리 화면 상세 보기). 캐시를 읽기만 하고(조회 수·적재 없음) 캐시에 없으면 404 다.
+  (2026-10-02 사용자 결정, 캐시 관리 화면 상세 보기). 캐시를 읽기만 하고(조회 수·적재 없음) 캐시에 없으면 404 다. `status` 는 대상별 추정
+  크기(`bytes`·`totalBytes` — UTF-8 JSON 직렬화 기준, 실제 힙 점유는 이보다 크다)·JVM `heap`·`maxIdleSeconds` 도 주고, `entries` 는
+  `sort=key|bytes|hits` 로 정렬한다(그 밖의 값 400).
 - 무효화: MDM 원장 쓰기 서비스는 같은 트랜잭션에서 `MetaRevisionRecorder` 를 부른다(판정 값이 바뀌는 쓰기만, 의심스러우면 건다). 새 원장
   쓰기 경로를 만들면 기록 호출을 함께 넣는다. 버전 있는 정의(룰·룰 세트)는 RELEASED 버전 목록째 캐시하고 판정 시각으로 고르므로 DRAFT 쓰기에는
   기록하지 않는다. 확정·확정 취소는 공통 `DefaultVersionStateService` 한 곳에서 기록한다(호출하는 쪽에 또 걸면 이중 기록).
