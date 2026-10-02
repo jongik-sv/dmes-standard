@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
@@ -16,6 +17,7 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -99,13 +101,13 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
             missing.forEach(id -> versions.put(id, found.getOrDefault(id, List.of())));
         }
         LocalDateTime now = LocalDateTime.ofInstant(evalTs, MdmClockConfig.KST);
-        Map<String, Integer> pairs = new LinkedHashMap<>();
+        Map<String, BigDecimal> pairs = new LinkedHashMap<>();
         for (String id : ruleIds) {
             if (headers.get(id).isEmpty() || pairs.containsKey(id)) {
                 continue;
             }
             RuleVersions.currentReleased(versions.get(id), now).map(MdmRuleVer::getVer)
-                    .filter(ver -> !definitions.containsKey(id + "@" + ver) && !prefetched.containsKey(id + "@" + ver))
+                    .filter(ver -> !definitions.containsKey(key(id, ver)) && !prefetched.containsKey(key(id, ver)))
                     .ifPresent(ver -> pairs.put(id, ver));
         }
         if (pairs.isEmpty()) {
@@ -113,7 +115,7 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
         }
         Map<String, List<MdmRuleVar>> vars = queries.varsOf(pairs);
         Map<String, List<MdmRuleRow>> rows = queries.rowsOf(pairs);
-        pairs.forEach((id, ver) -> prefetched.put(id + "@" + ver, new Raw(vars.get(id), rows.get(id))));
+        pairs.forEach((id, ver) -> prefetched.put(key(id, ver), new Raw(vars.get(id), rows.get(id))));
     }
 
     /**
@@ -159,7 +161,7 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
             return Optional.empty();
         }
         MdmRuleVer v = ver.get();
-        String key = ruleId + "@" + v.getVer();
+        String key = key(ruleId, v.getVer());
         Optional<RuleDefinition> known = definitions.get(key);
         if (known == null) {
             // 저장값 손상은 캐시하지 않는다 — 던지면 다음 호출이 다시 읽는다(예전과 같다).
@@ -169,6 +171,11 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
             definitions.put(key, known);
         }
         return known;
+    }
+
+    /** 정의 캐시 키 — 버전은 scale 3 문자열({@code R@1.001})이라 SQLite 가 돌려준 scale 과 무관하다. */
+    private static String key(String ruleId, BigDecimal ver) {
+        return ruleId + "@" + VersionNumbers.plain(ver);
     }
 
     private Optional<MdmRule> header(String ruleId) {

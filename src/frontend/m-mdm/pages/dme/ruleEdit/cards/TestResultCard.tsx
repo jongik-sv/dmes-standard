@@ -11,7 +11,7 @@
 import { useMemo } from "react";
 
 import { AgDataGrid } from "@dk-oasis/shared/grid";
-import { badgeStyle } from "@/shell";
+import { badgeStyle, sameVer } from "@/shell";
 
 import type { RuleEditCardProps } from "../cards";
 import { splitIssues } from "../decision-table/analysis";
@@ -211,7 +211,7 @@ export function TestResultCard({ view }: RuleEditCardProps) {
       </CardFrame>
     );
   }
-  const selected = view.versions.find((v) => v.ver === view.selectedVer);
+  const selected = view.versions.find((v) => sameVer(v.ver, view.selectedVer));
   const table = run.target === "BODY" && run.ver != null ? bodyTable(view, run.ver, tableDraft) : null;
   const rows = table ? table.rows : (def?.rows ?? []);
   const vars = def?.vars ?? view.vars;

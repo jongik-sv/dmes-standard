@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Ref
 
 import { AgDataGrid } from "@dk-oasis/shared/grid";
 import { Button, Select } from "@dk-oasis/shared/form";
-import { badgeStyle } from "@/shell";
+import { badgeStyle, fmtVer, sameVer } from "@/shell";
 import { isRowVersionConflict } from "@/dme/oasis-call";
 
 import { ColumnDraftSharedContext } from "../sections/column-draft-context";
@@ -78,7 +78,7 @@ function rowClassOf(row: Record<string, unknown>): string[] | undefined {
 
 /** 표 정의 서명 — 이것이 같으면 view 를 다시 불러와도(케이스 저장 등 다른 카드의 쓰기 뒤) 편집 중인 표를 지우지 않는다. */
 function tableLoadSig(view: RuleEditView): string {
-  const selected = view.versions.find((v) => v.ver === view.selectedVer);
+  const selected = view.versions.find((v) => sameVer(v.ver, view.selectedVer));
   return JSON.stringify([
     view.rule.maruRuleId,
     view.rule.ruleKind,
@@ -200,7 +200,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
     publishColDirty(colDirty);
   }, [colDirty, publishColDirty]);
 
-  const selected = view.versions.find((v) => v.ver === view.selectedVer) ?? null;
+  const selected = view.versions.find((v) => sameVer(v.ver, view.selectedVer)) ?? null;
   const decision = view.rule.ruleKind === "DECISION";
   const editable = state.editable && decision;
 
@@ -465,7 +465,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
       )}
       {shownRun && (
         <p data-testid="dt-test-shown" style={{ margin: "var(--spacing-sm) 0 0", color: "var(--color-text-secondary)" }}>
-          값 테스트 결과({shownRun.target === "BODY" ? "편집본" : `버전 ${shownRun.ver}`})를 표에 칠했습니다 — 초록 행은 적중 행, 붉은 칸은 그 행의 첫
+          값 테스트 결과({shownRun.target === "BODY" ? "편집본" : `버전 ${fmtVer(shownRun.ver)}`})를 표에 칠했습니다 — 초록 행은 적중 행, 붉은 칸은 그 행의 첫
           거짓 조건입니다.
         </p>
       )}

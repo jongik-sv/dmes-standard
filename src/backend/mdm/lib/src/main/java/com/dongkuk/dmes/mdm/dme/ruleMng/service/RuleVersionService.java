@@ -12,10 +12,12 @@ import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.common.version.VersionRowStore;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.common.MdmNativeAuditSupport;
 import com.dongkuk.dmes.mdm.contract.version.DraftOwnershipService;
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
@@ -28,6 +30,7 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRowRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleVarRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleVerRepository;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -82,8 +85,12 @@ public class RuleVersionService {
         this.tx = new TransactionTemplate(transactionManager);
     }
 
-    /** 새 버전(action copy). 번호 = 그 룰 버전 최대값 + 1(없으면 1), 소유자 = 만든 사람. */
+    /**
+     * 새 버전(action copy). 번호 = 그 룰 버전 최대값에서 {@code verKind} 로 올린 값(MAJOR: floor+1, MINOR: +0.001, 없으면 1.000,
+     * D-144), 소유자 = 만든 사람. {@code verKind} 가 비면 MAJOR 다(기존 화면 호환).
+     */
     public RuleVersionResult newVersion(RuleVersionRequest request) {
+        VersionKind kind = parseKind(request.getVerKind());
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         requireMdm(rule);
         if ("DEPRECATED".equals(rule.getStatus())) {
@@ -98,11 +105,21 @@ public class RuleVersionService {
         if (source.isEmpty() && !versions.isEmpty()) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "복사할 RELEASED 버전이 없어 새 버전을 만들 수 없습니다: " + id);
         }
-        int next = versions.stream().mapToInt(MdmRuleVer::getVer).max().orElse(0) + 1;
+        BigDecimal max = VersionNumbers.maxVer(versions.stream().map(MdmRuleVer::getVer).toList());
+        if (kind == VersionKind.MINOR && max == null) {
+            throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "버전이 없으면 major 만 만들 수 있습니다", List.of());
+        }
+        if (kind == VersionKind.MINOR && !VersionNumbers.canMinor(max)) {
+            throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "minor 를 더 올릴 수 없습니다. major 를 올리십시오", List.of());
+        }
+        if (kind == VersionKind.MAJOR && !VersionNumbers.canMajor(max)) {
+            throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "major 를 더 올릴 수 없습니다", List.of());
+        }
+        BigDecimal next = VersionNumbers.next(max, kind);
         String me = support.me();
         boolean promote = RuleVersions.needsInUsePromotion(rule.getStatus(), versions, support.now());
         tx.executeWithoutResult(status -> {
-            MdmRuleVer created = new MdmRuleVer(id, next, me);
+            MdmRuleVer created = new MdmRuleVer(id, next, kind, me);
             if (source.isPresent()) {
                 created.setBaseVer(source.get().getVer());
                 created.setHitPolicy(source.get().getHitPolicy());
@@ -116,11 +133,23 @@ public class RuleVersionService {
                 versionStore.markParentInUse(VersionTarget.BUSINESS_RULE, id, audit.currentStamp());
             }
         });
-        return new RuleVersionResult(id, next, 0L);
+        return new RuleVersionResult(id, VersionNumbers.plain(next), kind.name(), 0L);
+    }
+
+    /** 비면 MAJOR, MAJOR·MINOR 이외는 INVALID_INPUT. */
+    private static VersionKind parseKind(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return VersionKind.MAJOR;
+        }
+        try {
+            return VersionKind.valueOf(raw.trim());
+        } catch (IllegalArgumentException e) {
+            throw MdmErrors.of(MdmErrorCode.INVALID_INPUT, "버전 종류는 MAJOR 또는 MINOR 입니다", List.of());
+        }
     }
 
     /** 변수·행 칼럼 전부 복사 — var_id·row_id·seq 유지(번호를 발급하지 않는다, 06:931). */
-    private void copyDefinition(String id, int from, int to) {
+    private void copyDefinition(String id, BigDecimal from, BigDecimal to) {
         for (MdmRuleVar v : queries.vars(id, from)) {
             MdmRuleVar c = new MdmRuleVar(id, to, v.getVarId(), v.getVarKind(), v.getSeq());
             c.setDispType(v.getDispType());
@@ -150,9 +179,9 @@ public class RuleVersionService {
     public RuleVersionResult deleteDraft(RuleVersionRequest request) {
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         requireMdm(rule);
-        int ver = requireVer(request.getVer());
+        BigDecimal ver = requireVer(request.getVer());
         stateService.deleteDraft(ref(rule.getMaruRuleId(), ver), requireRowVersion(request.getRowVersion()), support.me());
-        return new RuleVersionResult(rule.getMaruRuleId(), ver, null);
+        return new RuleVersionResult(rule.getMaruRuleId(), VersionNumbers.plain(ver), null);
     }
 
     /**
@@ -162,36 +191,36 @@ public class RuleVersionService {
     public RuleVersionResult cancelConfirm(RuleVersionRequest request) {
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         requireMdm(rule);
-        int ver = requireVer(request.getVer());
+        BigDecimal ver = requireVer(request.getVer());
         stateService.cancelConfirm(ref(rule.getMaruRuleId(), ver), requireRowVersion(request.getRowVersion()), support.me());
-        return new RuleVersionResult(rule.getMaruRuleId(), ver, null);
+        return new RuleVersionResult(rule.getMaruRuleId(), VersionNumbers.plain(ver), null);
     }
 
     /** 선점 — 공통 서비스가 담당자 역할·빈 소유자를 본다. 새 row_version 을 돌려준다. */
     public RuleVersionResult lock(RuleVersionRequest request) {
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         requireMdm(rule);
-        int ver = requireVer(request.getVer());
+        BigDecimal ver = requireVer(request.getVer());
         long rv = ownership.acquire(ref(rule.getMaruRuleId(), ver), requireRowVersion(request.getRowVersion()), support.me());
-        return new RuleVersionResult(rule.getMaruRuleId(), ver, rv);
+        return new RuleVersionResult(rule.getMaruRuleId(), VersionNumbers.plain(ver), rv);
     }
 
     /** 해제 — 소유자만(MDM003). */
     public RuleVersionResult unlock(RuleVersionRequest request) {
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         requireMdm(rule);
-        int ver = requireVer(request.getVer());
+        BigDecimal ver = requireVer(request.getVer());
         long rv = ownership.release(ref(rule.getMaruRuleId(), ver), requireRowVersion(request.getRowVersion()), support.me());
-        return new RuleVersionResult(rule.getMaruRuleId(), ver, rv);
+        return new RuleVersionResult(rule.getMaruRuleId(), VersionNumbers.plain(ver), rv);
     }
 
     /** 넘기기 — 소유자만(MDM003), 받는 사람은 담당자(MDM005, MdmStewardDirectory). */
     public RuleVersionResult handover(RuleVersionRequest request) {
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         requireMdm(rule);
-        int ver = requireVer(request.getVer());
+        BigDecimal ver = requireVer(request.getVer());
         long rv = ownership.handover(ref(rule.getMaruRuleId(), ver), requireRowVersion(request.getRowVersion()), support.me(),
                 request.getNewOwnerId());
-        return new RuleVersionResult(rule.getMaruRuleId(), ver, rv);
+        return new RuleVersionResult(rule.getMaruRuleId(), VersionNumbers.plain(ver), rv);
     }
 }

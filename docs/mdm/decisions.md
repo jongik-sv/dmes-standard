@@ -1335,3 +1335,11 @@
 - **Rationale**: 이웃과 x 나 y 가 같아지면 그 사이 구간이 세로·가로 일직선이 되어 직각 꺾임을 손으로 맞출 필요가 없다. 선분 끌기와 같은 6px 범위를 써서 두 조작의 느낌을 맞춘다
 - **Reversible**: yes(`canvas/route-path.ts` 의 `snapRoutePoint`, `FlowCanvas` routeApi.startDrag. 저장 형식 변경 없음)
 - **Source**: 사용자 요청 2026-10-02. 테스트 `tests/dme/ruleSetEdit/flow-route.test.ts`(snapRoutePoint 2건, 캔버스 끌기 맞춤·Alt 1건)
+
+## D-144 (2026-10-02T10:38:06Z)
+- **Phase**: design(MDM 버전 관리 확장 — 룰 세트·레이아웃·헤더 + major/minor 통일, 1단계 룰)
+- **Decision needed**: 버전·확정 관리가 마스터코드·룰에만 있고, 룰 세트·레이아웃·헤더는 저장하면 바로 운영에 반영된다. 편집 중 운영 보호, 적용 시점 예약, 과거 판정 재현, 되돌리기를 위해 이 셋에도 버전 관리를 둘지, 번호 체계를 어떻게 맞출지
+- **Decision made**: (1) 룰 세트·레이아웃·헤더도 DRAFT·소유자·확정·확정취소를 갖는다(06:905·03:72·06:988 번복, I15·I18 폐지). 참조(세트→룰·하위 세트, 전문·EAI→헤더)는 ID 만 두고 판정·직렬화 시각의 RELEASED 버전으로 해석한다 (2) 네 대상 모두 `VER NUMERIC(7,3)` + `VER_KIND NOT NULL CHECK IN ('MAJOR','MINOR')`. major `floor(최대)+1`, minor `최대+0.001`(상한 999). 새 버전 버튼은 "새 버전(major)"·"새 버전(minor)" 두 개 (3) 3단계로 나눈다. 1단계 공통 엔진+룰 major/minor(V17 `rule_version_decimal`, 구현 완료), 2단계 룰 세트, 3단계 레이아웃·헤더 (4) 1단계 구현 확정 사항: V17 은 RENAME 대신 `_BAK` 경유 재생성(`legacy_alter_table` 설정에 따라 FK 갱신이 달라서), 룰 버전 계약은 문자열 `"1.000"`(엔진 JSON 은 number), 새 버전 가능 여부 플래그는 ruleMng view 의 `flags` 안. 감사 카운터(`VER`·`AUD_VER`·`auditVer`)는 바꾸지 않는다
+- **Rationale**: 상대 버전을 박으면 룰 하나 확정이 세트·전문 새 버전으로 연쇄되므로 판정 시각 해석이 낫다. 마스터코드가 이미 쓰는 소수 버전과 공통 확정 엔진(ADR-0002)을 재사용해 네 대상의 처리 경로를 같게 한다
+- **Reversible**: no(번호 칼럼 타입·`VER_KIND`·번복된 기존 결정. 되돌리려면 새 ADR)
+- **Source**: 사용자 결정 2026-10-02. [ADR-0006](adr/0006-object-versioning-major-minor.md), 스펙 [`2026-10-02-mdm-object-versioning-design.md`](../superpowers/specs/2026-10-02-mdm-object-versioning-design.md). 원천 설계 문서 갱신 대상: 06:905·06:927·06:971·06:988·03:72(다른 저장소)

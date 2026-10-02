@@ -5,7 +5,7 @@ import { edgeChips, edgeMarks, nearestEdge, nodeMarks } from "../../../pages/dme
 import type { RuleIo, RuleSetCheck } from "../../../pages/dme/ruleSetEdit/types";
 
 const io = (ruleId: string, results: string[]): RuleIo => ({
-  ruleId, ruleName: ruleId, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [],
+  ruleId, ruleName: ruleId, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST", conds: [],
   results: results.map((name) => ({ name, source: null, label: null, dataType: "STRING", scale: null, dateString: false, maruCodeId: null })),
 });
 const chk = (severity: "REJECT" | "WARN", nodeId: string | null, edgeId: string | null): RuleSetCheck =>

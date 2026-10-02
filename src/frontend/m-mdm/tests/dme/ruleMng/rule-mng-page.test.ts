@@ -13,7 +13,7 @@ import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, takeMdmPageParams } from "@/shell";
 
 import RuleMngPage from "../../../pages/dme/ruleMng/page";
-import type { RuleMngView } from "../../../pages/dme/ruleMng/types";
+import type { RuleMngFlags, RuleMngView } from "../../../pages/dme/ruleMng/types";
 import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, typeInto } from "../helpers/render";
 import { RULE_EDIT_TARGET_KEY } from "../../../src/dme/rule-handoff";
 
@@ -27,6 +27,26 @@ let view: RuleMngView = draftDetail();
 let actionResponses: Record<string, unknown> = {};
 const ALL_RBAC = [{ objId: "*", action: "*", endpoint: "*", httpMethod: "*" }];
 let rbacRows: Array<Record<string, string>> = ALL_RBAC;
+
+/**
+ * 서버 flags 흉내 — canNewVersion 이 false 면 종류별 가능 여부도 false·다음 번호 null 이다(서버 RuleMngService 와 같은 규칙).
+ * canNewVersion 이 true 면 기본은 최대 버전 2.000 기준 major 3.000·minor 2.001 둘 다 가능.
+ */
+function flagsOf(over: Partial<RuleMngFlags> = {}): RuleMngFlags {
+  const canNewVersion = over.canNewVersion ?? false;
+  return {
+    headerEditable: true,
+    canNewVersion,
+    canNewMajor: canNewVersion,
+    canNewMinor: canNewVersion,
+    nextMajor: canNewVersion ? "3.000" : null,
+    nextMinor: canNewVersion ? "2.001" : null,
+    canDeprecate: false,
+    unappliedCount: 0,
+    currentVer: "1.000",
+    ...over,
+  };
+}
 
 /** 기본 상세 — 버전 2 DRAFT(나 소유) + 버전 1 RELEASED. flags 는 서버 판정값을 흉내 낸다. */
 function draftDetail(overrides: Partial<RuleMngView> = {}): RuleMngView {
@@ -45,10 +65,10 @@ function draftDetail(overrides: Partial<RuleMngView> = {}): RuleMngView {
       auditVer: 4,
     },
     versions: [
-      { ver: 2, status: "DRAFT", applyFrom: null, applyTo: null, ownerId: "e2e_mdm_steward", baseVer: 1, hitPolicy: "FIRST", rowVersion: 3 },
-      { ver: 1, status: "RELEASED", applyFrom: "2026-01-01 00:00:00", applyTo: "9999-12-31 00:00:00", ownerId: null, baseVer: null, hitPolicy: "FIRST", rowVersion: 0 },
+      { ver: "2.000", status: "DRAFT", applyFrom: null, applyTo: null, ownerId: "e2e_mdm_steward", baseVer: "1.000", hitPolicy: "FIRST", rowVersion: 3 },
+      { ver: "1.000", status: "RELEASED", applyFrom: "2026-01-01 00:00:00", applyTo: "9999-12-31 00:00:00", ownerId: null, baseVer: null, hitPolicy: "FIRST", rowVersion: 0 },
     ],
-    flags: { headerEditable: true, canNewVersion: false, canDeprecate: true, unappliedCount: 1, currentVer: 1 },
+    flags: flagsOf({ canDeprecate: true, unappliedCount: 1 }),
     ...overrides,
   };
 }
@@ -61,6 +81,23 @@ async function render() {
     root!.render(createElement(DmesUiProvider, null, createElement(RuleMngPage)));
   });
   await flush();
+}
+
+/** 머리 [조회] — 첫 진입은 목록을 자동 조회하지 않으므로(cf4fbb05) 목록·상세가 필요한 시험은 먼저 누른다. */
+async function search() {
+  const btn = Array.from(container.querySelectorAll(".page-layout__header-buttons button")).find((x) => x.textContent === "조회");
+  expect(btn, "조회").toBeTruthy();
+  await act(async () => {
+    (btn as HTMLButtonElement).click();
+  });
+  await flush();
+  await flush();
+}
+
+/** 거의 모든 상세 시험이 목록의 첫 룰 상세를 필요로 하므로 render 다음에 [조회] 까지 누른다. */
+async function renderAndSearch() {
+  await render();
+  await search();
 }
 
 function byTestId<T extends Element>(id: string): T | null {
@@ -108,7 +145,7 @@ beforeEach(() => {
           },
         });
       }
-      return jsonResponse(actionResponses[m[1]] ?? { meta: { success: true }, data: { result: { maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 4 } } });
+      return jsonResponse(actionResponses[m[1]] ?? { meta: { success: true }, data: { result: { maruRuleId: "QLTY_GRD_JDG", ver: "2.000", rowVersion: 4 } } });
     }
     if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
     if (url.includes("/api/mcm/oasis/secUser/myButtonEndpoints")) {
@@ -134,31 +171,36 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
 
   it("목록이 오면 첫 룰의 상세를 연다", async () => {
     await render();
+    // 첫 진입은 목록도 상세도 부르지 않는다 — [조회] 를 눌러야 목록이 오고 첫 룰 상세가 열린다(cf4fbb05).
+    expect(requests.filter((r) => r.action === "search")).toHaveLength(0);
+    expect(params("view")).toBeUndefined();
+    await search();
+    expect(requests.filter((r) => r.action === "search")).toHaveLength(1);
     expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG" });
     expect(byTestId("rule-header-id")?.textContent).toBe("QLTY_GRD_JDG");
   });
 
   it("목록에서 다른 룰을 누르면 그 룰의 상세를 다시 불러온다", async () => {
-    await render();
+    await renderAndSearch();
     await act(async () => byTestId<HTMLButtonElement>("rule-link-COIL_WGT_CALC")!.click());
     await flush();
     expect(params("view")).toEqual({ maruRuleId: "COIL_WGT_CALC" });
   });
 
   it("[내용 편집 →] 은 내용 화면 탭을 열고 룰·버전을 넘긴다(I28)", async () => {
-    await render();
+    await renderAndSearch();
     const opened: string[] = [];
     window.addEventListener("portal-open-tab", (e) => opened.push((e as CustomEvent).detail.pageId), { once: true });
     await act(async () => findButton(container, "내용 편집 →").click());
     expect(opened).toEqual(["mdm:dme/ruleEdit"]);
     // 대상은 `openRuleEdit` handoff 모듈이다 — sessionStorage 에 룰·버전을 남기고 열 이벤트로 전한다.
-    expect(JSON.parse(window.sessionStorage.getItem(RULE_EDIT_TARGET_KEY) ?? "null")).toMatchObject({ ruleId: "QLTY_GRD_JDG", ver: 2 });
+    expect(JSON.parse(window.sessionStorage.getItem(RULE_EDIT_TARGET_KEY) ?? "null")).toMatchObject({ ruleId: "QLTY_GRD_JDG", ver: "2.000" });
   });
 
   // ── ① 헤더 (D-105 (5) — 낙관적 잠금) ──
 
   it("헤더 저장은 target HEADER·auditVer·룰명·설명·메모를 보내고 버전 칸은 싣지 않는다", async () => {
-    await render();
+    await renderAndSearch();
     await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "품질 등급 판정 E2E");
     await act(async () => findButton(container, "헤더 저장").click());
     await flush();
@@ -176,12 +218,12 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
   });
 
   it("바꿀 게 없으면 [헤더 저장] 은 꺼져 있다", async () => {
-    await render();
+    await renderAndSearch();
     expect((byTestId<HTMLButtonElement>("rule-header-save") ?? findButton(container, "헤더 저장")).disabled).toBe(true);
   });
 
   it("서버가 감사 카운터 어긋남(MDM001)으로 거부하면 이름을 바꾸지 않고 오류를 알린다", async () => {
-    await render();
+    await renderAndSearch();
     await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "새 이름");
     // save 만 거부하고 view 는 그대로 — 거부가 재조회로 값을 덮지 않는지 함께 본다.
     const realFetch = globalThis.fetch;
@@ -200,8 +242,8 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
   });
 
   it("헤더 편집이 불가하면 칸이 모두 잠긴다(D6 — 미적용 버전 소유자가 아니면)", async () => {
-    view = draftDetail({ flags: { headerEditable: false, canNewVersion: false, canDeprecate: false, unappliedCount: 1, currentVer: 1 } });
-    await render();
+    view = draftDetail({ flags: flagsOf({ headerEditable: false, unappliedCount: 1 }) });
+    await renderAndSearch();
     expect(byTestId<HTMLInputElement>("rule-header-name")?.disabled).toBe(true);
     expect(byTestId<HTMLTextAreaElement>("rule-header-description")?.disabled).toBe(true);
   });
@@ -209,16 +251,16 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
   it("외부 원천 룰은 헤더를 못 고치고 원천을 보여 준다(조회 전용, D11)", async () => {
     view = draftDetail({
       header: { ...draftDetail().header, sourceKind: "EXTERNAL", sourceSystem: "MES" },
-      flags: { headerEditable: false, canNewVersion: false, canDeprecate: false, unappliedCount: 0, currentVer: 1 },
+      flags: flagsOf({ headerEditable: false }),
     });
-    await render();
+    await renderAndSearch();
     expect(byTestId("rule-header-source")?.textContent).toContain("EXTERNAL");
     expect(byTestId("rule-header-source")?.textContent).toContain("MES");
     expect(byTestId<HTMLInputElement>("rule-header-name")?.disabled).toBe(true);
   });
 
   it("폐기는 두 번 눌러야 target RULE 을 보내고, 미적용 버전이 있으면 flags 가 꺼 둔다", async () => {
-    await render();
+    await renderAndSearch();
     const deprecate = findButton(container, "폐기");
     expect(deprecate.disabled).toBe(false);
     await act(async () => deprecate.click());
@@ -226,32 +268,92 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     await flush();
     expect(params("delete")).toEqual({ maruRuleId: "QLTY_GRD_JDG", target: "RULE" });
 
-    view = draftDetail({ flags: { headerEditable: true, canNewVersion: false, canDeprecate: false, unappliedCount: 2, currentVer: 1 } });
-    await render();
+    view = draftDetail({ flags: flagsOf({ unappliedCount: 2 }) });
+    await renderAndSearch();
     expect(findButton(container, "폐기").disabled).toBe(true);
     expect(text()).toContain("미적용 버전");
   });
 
   // ── ② 버전 ──
 
-  it("미적용 버전이 있으면 새 버전을 끄고 안내를 보인다(수용 5)", async () => {
-    await render();
-    expect(byTestId<HTMLButtonElement>("rule-new-version")!.disabled).toBe(true);
+  it("미적용 버전이 있으면 새 버전(major·minor)을 모두 끄고 안내를 보인다(수용 5)", async () => {
+    await renderAndSearch();
+    expect(byTestId<HTMLButtonElement>("rule-ver-new-major")!.disabled).toBe(true);
+    expect(byTestId<HTMLButtonElement>("rule-ver-new-minor")!.disabled).toBe(true);
     expect(byTestId("rule-unapplied-notice")?.textContent).toContain("미적용 버전");
   });
 
-  it("미적용 버전이 없으면 [새 버전] 이 copy 를 보내고 다시 불러온다", async () => {
-    view = draftDetail({ flags: { headerEditable: true, canNewVersion: true, canDeprecate: true, unappliedCount: 0, currentVer: 1 } });
-    await render();
+  it("새 버전은 major·minor 두 버튼이고 마스터코드와 같은 이름이다(D-144)", async () => {
+    view = draftDetail({ flags: flagsOf({ canNewVersion: true, canDeprecate: true }) });
+    await renderAndSearch();
+    expect(byTestId<HTMLButtonElement>("rule-ver-new-major")!.textContent).toBe("새 버전(major)");
+    expect(byTestId<HTMLButtonElement>("rule-ver-new-minor")!.textContent).toBe("새 버전(minor)");
+    expect(byTestId("rule-new-version")).toBeNull();
+    // 버튼 안내에 만들 번호를 보인다(서버 nextMajor·nextMinor).
+    expect(byTestId("rule-ver-new-major")!.parentElement!.getAttribute("title")).toBe("v3.000 을 만듭니다");
+    expect(byTestId("rule-ver-new-minor")!.parentElement!.getAttribute("title")).toBe("v2.001 을 만듭니다");
+  });
+
+  it("[새 버전(major)] 은 copy 에 verKind MAJOR 를 싣고 다시 불러온다", async () => {
+    view = draftDetail({ flags: flagsOf({ canNewVersion: true, canDeprecate: true }) });
+    await renderAndSearch();
     const before = requests.filter((r) => r.action === "view").length;
-    await act(async () => byTestId<HTMLButtonElement>("rule-new-version")!.click());
+    await act(async () => byTestId<HTMLButtonElement>("rule-ver-new-major")!.click());
     await flush();
-    expect(params("copy")).toEqual({ maruRuleId: "QLTY_GRD_JDG" });
+    expect(params("copy")).toEqual({ maruRuleId: "QLTY_GRD_JDG", verKind: "MAJOR" });
     expect(requests.filter((r) => r.action === "view").length).toBe(before + 1);
   });
 
+  it("[새 버전(minor)] 은 copy 에 verKind MINOR 를 싣는다", async () => {
+    view = draftDetail({ flags: flagsOf({ canNewVersion: true, canDeprecate: true }) });
+    await renderAndSearch();
+    await act(async () => byTestId<HTMLButtonElement>("rule-ver-new-minor")!.click());
+    await flush();
+    expect(params("copy")).toEqual({ maruRuleId: "QLTY_GRD_JDG", verKind: "MINOR" });
+  });
+
+  it("canNewMinor 가 false 면(minor 상한 999) minor 만 꺼지고 major 를 올리라고 안내한다", async () => {
+    view = draftDetail({ flags: flagsOf({ canNewVersion: true, canNewMinor: false, nextMinor: null }) });
+    await renderAndSearch();
+    expect(byTestId<HTMLButtonElement>("rule-ver-new-major")!.disabled).toBe(false);
+    expect(byTestId<HTMLButtonElement>("rule-ver-new-minor")!.disabled).toBe(true);
+    expect(byTestId("rule-ver-new-minor")!.parentElement!.getAttribute("title")).toBe("major 를 올리십시오");
+    await act(async () => byTestId<HTMLButtonElement>("rule-ver-new-minor")!.click());
+    await flush();
+    expect(params("copy")).toBeUndefined();
+  });
+
+  it("copy 권한이 없으면 서버가 가능하다고 해도 두 버튼 모두 꺼진다", async () => {
+    view = draftDetail({ flags: flagsOf({ canNewVersion: true }) });
+    rbacRows = ["search", "view"].map((action) => ({ objId: "ruleMng", action, endpoint: "*", httpMethod: "*" }));
+    await renderAndSearch();
+    expect(byTestId<HTMLButtonElement>("rule-ver-new-major")!.disabled).toBe(true);
+    expect(byTestId<HTMLButtonElement>("rule-ver-new-minor")!.disabled).toBe(true);
+  });
+
+  it("버전 목록은 v1.000 처럼 소수 셋째 자리로 보이고 minor 버전(1.001)을 골라 그 버전으로 확정 화면을 연다", async () => {
+    view = draftDetail({
+      versions: [
+        { ver: "1.001", status: "DRAFT", applyFrom: null, applyTo: null, ownerId: "e2e_mdm_steward", baseVer: "1.000", hitPolicy: "FIRST", rowVersion: 5 },
+        draftDetail().versions[1],
+      ],
+    });
+    await renderAndSearch();
+    const table = byTestId("rule-version-table")!.textContent ?? "";
+    expect(table).toContain("v1.001");
+    expect(table).toContain("v1.000");
+    await act(async () => byTestId<HTMLButtonElement>("rule-move-to-confirm")!.click());
+    expect(takeMdmPageParams("dme/ruleConfirm")).toMatchObject({ maruRuleId: "QLTY_GRD_JDG", ver: "1.001" });
+    await act(async () => byTestId<HTMLButtonElement>("rule-version-delete")!.click());
+    await flush();
+    const ok = Array.from(document.body.querySelectorAll("button")).find((b) => b.textContent === "확인");
+    await act(async () => ok!.click());
+    await flush();
+    expect(params("delete")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: "1.001", rowVersion: 5, target: "VERSION" });
+  });
+
   it("소유자면 DRAFT 삭제·해제가 켜지고, 소유자가 아니면 꺼진다(I7)", async () => {
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-version-delete")!.disabled).toBe(false);
     expect(byTestId<HTMLButtonElement>("rule-version-unlock")!.disabled).toBe(false);
 
@@ -261,30 +363,35 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
         draftDetail().versions[1],
       ],
     });
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-version-delete")!.disabled).toBe(true);
     expect(byTestId<HTMLButtonElement>("rule-version-unlock")!.disabled).toBe(true);
   });
 
   it("소유자가 없는 DRAFT 면 [선점] 이 보이고 lock 을 보낸 뒤 다시 불러온다", async () => {
     view = draftDetail({ versions: [{ ...draftDetail().versions[0], ownerId: null }, draftDetail().versions[1]] });
-    await render();
+    await renderAndSearch();
     const before = requests.filter((r) => r.action === "view").length;
     await act(async () => byTestId<HTMLButtonElement>("rule-version-lock")!.click());
     await flush();
-    expect(params("lock")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3 });
+    expect(params("lock")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: "2.000", rowVersion: 3 });
     expect(requests.filter((r) => r.action === "view").length).toBe(before + 1);
   });
 
   it("DRAFT 삭제는 target VERSION 과 row_version 을 보낸다", async () => {
-    await render();
+    await renderAndSearch();
     await act(async () => byTestId<HTMLButtonElement>("rule-version-delete")!.click());
     await flush();
-    expect(params("delete")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3, target: "VERSION" });
+    // 마스터코드와 같은 확인창 — 확인해야 지운다.
+    expect(document.body.textContent).toContain("DRAFT 를 삭제할까요?"); // 확인창은 포털(body)에 뜬다
+    const ok = Array.from(document.body.querySelectorAll("button")).find((b) => b.textContent === "확인");
+    await act(async () => ok!.click());
+    await flush();
+    expect(params("delete")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: "2.000", rowVersion: 3, target: "VERSION" });
   });
 
   it("넘기기는 준비 중이라 대상 칸·버튼이 꺼져 있고 이유를 알리며 handover 를 보내지 않는다(D2)", async () => {
-    await render();
+    await renderAndSearch();
     const wrap = byTestId("rule-handover-wrap")!;
     expect(wrap.getAttribute("title")).toBe(HANDOVER_PENDING_TEXT);
     const btn = byTestId<HTMLButtonElement>("rule-handover")!;
@@ -292,61 +399,61 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     expect(btn.disabled || !HANDOVER_AVAILABLE).toBe(true);
   });
 
-  it("확정 이동은 DRAFT 에서만 켜지고 누르면 ruleConfirm 탭을 룰·버전과 함께 연다", async () => {
-    await render();
+  it("확정은 DRAFT 에서만 켜지고 누르면 ruleConfirm 탭을 룰·버전과 함께 연다", async () => {
+    await renderAndSearch();
     const opened: string[] = [];
     window.addEventListener("portal-open-tab", (e) => opened.push((e as CustomEvent).detail.pageId), { once: true });
     await act(async () => byTestId<HTMLButtonElement>("rule-move-to-confirm")!.click());
     expect(opened).toEqual(["mdm:dme/ruleConfirm"]);
-    expect(takeMdmPageParams("dme/ruleConfirm")).toMatchObject({ maruRuleId: "QLTY_GRD_JDG", ver: "2" });
+    expect(takeMdmPageParams("dme/ruleConfirm")).toMatchObject({ maruRuleId: "QLTY_GRD_JDG", ver: "2.000" });
   });
 
-  it("RE2 선택 버전이 RELEASED 면 확정 이동이 비활성이다", async () => {
+  it("RE2 선택 버전이 RELEASED 면 확정이 비활성이다", async () => {
     // 기본 선택은 미적용(DRAFT) 버전이다. RELEASED 하나만 남기면 그게 열린다.
     view = draftDetail({
       versions: [draftDetail().versions[1]],
-      flags: { headerEditable: true, canNewVersion: true, canDeprecate: true, unappliedCount: 0, currentVer: 1 },
+      flags: flagsOf({ canNewVersion: true, canDeprecate: true }),
     });
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-move-to-confirm")!.disabled).toBe(true);
   });
 
-  it("RE2 원천이 EXTERNAL 이면 확정 이동이 비활성이다", async () => {
+  it("RE2 원천이 EXTERNAL 이면 확정이 비활성이다", async () => {
     view = draftDetail({ header: { ...draftDetail().header, sourceKind: "EXTERNAL", sourceSystem: "MES" } });
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-move-to-confirm")!.disabled).toBe(true);
   });
 
-  it("확정 취소는 서버 판정값(cancelConfirmable)이 true 일 때만 켜지고, 누르면 확인창에 06 교차 효과를 알린다", async () => {
+  it("확정취소는 서버 판정값(cancelConfirmable)이 true 일 때만 켜지고, 누르면 확인창에 06 교차 효과를 알린다", async () => {
     view = draftDetail({
       versions: [
         { ...draftDetail().versions[0], status: "RELEASED", applyFrom: "2026-12-01 00:00:00", applyTo: "9999-12-31 00:00:00", cancelConfirmable: true },
         draftDetail().versions[1],
       ],
-      flags: { headerEditable: true, canNewVersion: false, canDeprecate: false, unappliedCount: 1, currentVer: null },
+      flags: flagsOf({ unappliedCount: 1, currentVer: null }),
     });
-    await render();
+    await renderAndSearch();
     const btn = byTestId<HTMLButtonElement>("rule-cancel-confirm")!;
     expect(btn.disabled).toBe(false);
     await act(async () => btn.click());
     await flush();
     // 확인창에서 확인해야 target CONFIRM 이 간다 — 여기서는 확인창만 떴음을 본다.
-    expect(text()).toContain("확정 취소");
+    expect(text()).toContain("확정취소");
   });
 
-  it("판정값이 없으면 확정 취소는 꺼진다 — 화면이 재계산하지 않는다", async () => {
-    await render();
+  it("판정값이 없으면 확정취소는 꺼진다 — 화면이 재계산하지 않는다", async () => {
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-cancel-confirm")!.disabled).toBe(true);
   });
 
-  it("DRAFT 선택에서는 확정 취소가 꺼진다(DRAFT 전용 판정과 겹치지 않는다)", async () => {
+  it("DRAFT 선택에서는 확정취소가 꺼진다(DRAFT 전용 판정과 겹치지 않는다)", async () => {
     view = draftDetail({
       versions: [
         { ...draftDetail().versions[0], cancelConfirmable: false },
         draftDetail().versions[1],
       ],
     });
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-cancel-confirm")!.disabled).toBe(true);
   });
 
@@ -354,7 +461,7 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
 
   it("적중 정책은 버전 목록 칸에 보이기만 하고 고르는 칸·저장 버튼이 없다", async () => {
     view = draftDetail({ versions: [{ ...draftDetail().versions[0], hitPolicy: "UNIQUE" }, draftDetail().versions[1]] });
-    await render();
+    await renderAndSearch();
     expect(byTestId("rule-hit-policy")).toBeNull();
     expect(byTestId("rule-hit-policy-save")).toBeNull();
     expect(Array.from(container.querySelectorAll("button")).some((b) => b.textContent?.includes("적중 정책 저장"))).toBe(false);
@@ -370,7 +477,7 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
       header: { ...draftDetail().header, ruleKind: "DERIVE" },
       versions: draftDetail().versions.map((v) => ({ ...v, hitPolicy: null })),
     });
-    await render();
+    await renderAndSearch();
     expect(byTestId("rule-hit-policy-hint")).toBeNull();
     expect(byTestId("rule-version-table")!.textContent).toContain("-");
   });
@@ -394,7 +501,7 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     await typeInto(document.querySelector('[data-testid="rule-reg-id"]') as HTMLInputElement, "NEW_RULE_JDG");
     await typeInto(document.querySelector('[data-testid="rule-reg-name"]') as HTMLInputElement, "새 판정");
     const searches = requests.filter((r) => r.action === "search").length;
-    actionResponses.reg = { meta: { success: true }, data: { result: { maruRuleId: "NEW_RULE_JDG", ver: 1 } } };
+    actionResponses.reg = { meta: { success: true }, data: { result: { maruRuleId: "NEW_RULE_JDG", ver: "1.000" } } };
     await act(async () => (document.querySelector('[data-testid="rule-reg-submit"]') as HTMLButtonElement).click());
     await flush();
     expect(params("reg")).toMatchObject({ maruRuleId: "NEW_RULE_JDG", maruRuleName: "새 판정", ruleKind: "DECISION" });

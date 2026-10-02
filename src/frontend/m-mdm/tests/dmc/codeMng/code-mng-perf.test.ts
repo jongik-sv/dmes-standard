@@ -104,6 +104,14 @@ describe("codeMng 렌더 낭비", () => {
     });
     await tick();
     await tick();
+    // 첫 진입은 목록을 자동 조회하지 않는다 — 머리 [조회] 를 눌러야 행이 생긴다(cf4fbb05). 측정 대상은 조회 입력 때의 열 정의라 영향 없다.
+    const searchBtn = Array.from(container.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "조회");
+    expect(searchBtn, "조회").toBeTruthy();
+    await act(async () => {
+      (searchBtn as HTMLButtonElement).click();
+    });
+    await tick();
+    await tick();
     const row = Array.from(container.querySelectorAll('[data-testid="code-list"] .ag-row')).find((r) => r.textContent?.includes("PROC_CD"));
     await act(async () => {
       row!.querySelector(".ag-cell")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));

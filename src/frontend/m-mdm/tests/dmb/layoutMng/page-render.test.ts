@@ -14,6 +14,7 @@ const originalFetch = globalThis.fetch;
 let container: HTMLDivElement;
 let root: Root | null = null;
 let actions: string[] = [];
+let searchParams: Record<string, unknown>[] = [];
 
 function item(seq: number, fill: string, phys: string | null, len: number, extra: Record<string, unknown> = {}) {
   return { SEQ: seq, FILL_KIND: fill, COLUMN_PHYS: phys, DISPLAY_NAME: phys ? `${phys} 이름` : null, DOMAIN_LENGTH: fill === "FILLER" ? null : len,
@@ -44,21 +45,27 @@ function ok(result: unknown) {
   return new Response(JSON.stringify({ meta: { success: true }, data: { result } }), { status: 200 });
 }
 
-/** admin 이면 RBAC 를 SYSADMIN 으로 stub 한다(편집 가능). 아니면 권한 조회가 401 이라 화면은 읽기 전용이다. */
+/** admin 이면 RBAC 를 전권으로 stub 한다(편집 가능). 아니면 [조회] 권한만 있어 화면은 읽기 전용이다. */
 function stubFetch(admin = false) {
   actions = [];
+  searchParams = [];
   globalThis.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url);
-    if (admin && u === "/api/auth/me") return new Response(JSON.stringify({ user: { id: "u1" } }), { status: 200 });
-    if (admin && u === "/api/mcm/oasis/secUser/myButtonEndpoints") {
-      return new Response(JSON.stringify({ grids: { buttons: { rows: [{ objId: "*", action: "*" }] } } }), { status: 200 });
+    // [조회] 버튼은 RBAC 로 켜진다 — admin 이 아니면 조회 권한만 준다(편집은 읽기 전용 그대로).
+    if (u === "/api/auth/me") return new Response(JSON.stringify({ user: { id: "u1" } }), { status: 200 });
+    if (u === "/api/mcm/oasis/secUser/myButtonEndpoints") {
+      const row = admin ? { objId: "*", action: "*" } : { objId: "layoutMng", action: "search" };
+      return new Response(JSON.stringify({ grids: { buttons: { rows: [row] } } }), { status: 200 });
     }
     if (u.startsWith("/api/mdm/oasis/layoutMng/")) {
       const action = u.split("/").pop() ?? "";
       actions.push(action);
       if (action === "search") {
+        const params = JSON.parse(String(init?.body ?? "{}")).params ?? {};
+        searchParams.push(params);
         return ok({
-          layouts: [{ LAYOUT_ID: 30, LAYOUT_NAME: "출측검사 실적 수신", EAI_CODE: "GLUE", SND_SYSTEM: "L2", RCV_SYSTEM: "MES",
+          // optionsOnly 진입 호출은 서버가 목록 없이 콤보만 준다
+          layouts: params.optionsOnly ? [] : [{ LAYOUT_ID: 30, LAYOUT_NAME: "출측검사 실적 수신", EAI_CODE: "GLUE", SND_SYSTEM: "L2", RCV_SYSTEM: "MES",
             HEADER_SUMMARY: "GLUE 공통 헤더 (100) + L2 구간 헤더 (30)", ITEM_COUNT: 4, TOTAL_LENGTH: 187, LAYOUT_VERSION: 0, VER: 1 }],
           systems: [{ SYSTEM_CODE: "L2", SYSTEM_NAME: "레벨2" }, { SYSTEM_CODE: "MES", SYSTEM_NAME: "MES" }],
           eais: [{ EAI_CODE: "GLUE", EAI_NAME: "GLUE", ENCODING: "EUC-KR", HEADER_LAYOUT_ID: 10 }],
@@ -106,6 +113,17 @@ async function render() {
   await flush();
 }
 
+/** 머리 [조회] — 첫 진입은 목록을 자동 조회하지 않으므로(cf4fbb05) 목록 행이 필요한 시험은 먼저 누른다. */
+async function search() {
+  const btn = Array.from(container.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "조회");
+  expect(btn, "조회").toBeTruthy();
+  await act(async () => {
+    (btn as HTMLButtonElement).click();
+  });
+  await flush();
+  await flush();
+}
+
 async function click(el: Element | null) {
   expect(el, "클릭 대상이 없다").not.toBeNull();
   await act(async () => {
@@ -145,12 +163,19 @@ describe("layoutMng page", () => {
   it("목록을 서버 데이터로 채우고 screen-id 는 layoutMng 이다", async () => {
     await render();
     expect(container.querySelector(".page-layout__footer-screen-id")?.textContent).toBe("layoutMng");
-    expect(container.querySelector("[data-testid=layout-list]")?.textContent).toContain("출측검사 실적 수신");
+    // 첫 진입은 목록을 조회하지 않고 콤보만 받는다(optionsOnly) — 목록은 비어 있다(cf4fbb05).
     expect(actions).toEqual(["search"]);
+    expect(searchParams).toEqual([{ optionsOnly: true }]);
+    expect(container.querySelector("[data-testid=layout-list]")?.textContent ?? "").not.toContain("출측검사 실적 수신");
+    await search();
+    expect(container.querySelector("[data-testid=layout-list]")?.textContent).toContain("출측검사 실적 수신");
+    expect(actions).toEqual(["search", "search"]);
+    expect(searchParams[1]).not.toHaveProperty("optionsOnly");
   });
 
   it("M201 을 열면 총 길이 187·본문 첫 오프셋 130 을 화면에서 계산해 보인다", async () => {
     await render();
+    await search();
     await click(container.querySelector("[data-testid=layout-list] .ag-row .ag-cell"));
     expect(actions).toContain("view");
     const total = container.querySelector("[data-testid=layout-total-length]")?.textContent ?? "";
@@ -162,6 +187,7 @@ describe("layoutMng page", () => {
 
   it("상수 편집 모달에는 CONST 8행만 있고 헤더 기본값은 입력이 아니다", async () => {
     await render();
+    await search();
     await click(container.querySelector("[data-testid=layout-list] .ag-row .ag-cell"));
     await settle(); // 새로 마운트된 헤더 구성 그리드가 행을 그릴 때까지
     await click(document.querySelector("[data-testid=const-edit-open-1]"));
@@ -191,6 +217,7 @@ describe("layoutMng page", () => {
   it("편집 권한이 있으면 값 칸을 눌러 재정의하고 재정의 배지가 붙는다", async () => {
     stubFetch(true);
     await render();
+    await search();
     await click(container.querySelector("[data-testid=layout-list] .ag-row .ag-cell"));
     await settle();
     await click(document.querySelector("[data-testid=const-edit-open-1]"));

@@ -405,7 +405,12 @@ describe("초안 dirty 와 차단(불변 13)", () => {
   });
 
   it("초안 sessionStorage 키는 룰·버전별이다(시안 ST.cd 관례)", () => {
-    expect(columnDraftStorageKey("QLTY_GRD_JDG", 2)).toBe("mdm-ruleEdit-colDraft:QLTY_GRD_JDG:2");
+    expect(columnDraftStorageKey("QLTY_GRD_JDG", "2.000")).toBe("mdm-ruleEdit-colDraft:QLTY_GRD_JDG:2.000");
+    expect(columnDraftStorageKey("QLTY_GRD_JDG", "1.001")).toBe("mdm-ruleEdit-colDraft:QLTY_GRD_JDG:1.001");
+  });
+
+  it("같은 버전은 표기가 달라도 한 키다(D-144 — \"2\" 와 \"2.000\")", () => {
+    expect(columnDraftStorageKey("QLTY_GRD_JDG", "2")).toBe(columnDraftStorageKey("QLTY_GRD_JDG", "2.000"));
   });
 });
 

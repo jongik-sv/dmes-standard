@@ -3,7 +3,7 @@
  * 바꾸지 않는다.
  *
  * 호출: `POST /api/mdm/oasis/ruleConfirm/{action}` — search·view(READ), validate(EDIT), confirm(CONFIRM).
- * 룰 버전은 정수로 보낸다(I37). 그리드가 없는 액션이라 `grids` 를 보내지 않는다.
+ * 룰 버전은 소수 셋째 자리 문자열로 보낸다(`"1.001"`, D-144). 그리드가 없는 액션이라 `grids` 를 보내지 않는다.
  */
 import { apiRequest } from "@dk-oasis/shared/http";
 
@@ -48,17 +48,17 @@ export function searchDrafts(keyword = ""): Promise<SearchResult> {
 }
 
 /** ver 를 비우면 서버가 그 룰의 DRAFT 를 고른다. */
-export function viewDraft(maruRuleId: string, ver?: number | null): Promise<ViewResult> {
+export function viewDraft(maruRuleId: string, ver?: string | null): Promise<ViewResult> {
   return callOasis<ViewResult>("view", { maruRuleId, ver });
 }
 
 /** 쓰기 없는 사전 검사 — 항목 4행·적용 순서와 서버 시계 기준 `futureApplyFrom` 을 받는다. */
-export function validateDraft(maruRuleId: string, ver: number, applyFrom: string): Promise<ValidateResult> {
+export function validateDraft(maruRuleId: string, ver: string, applyFrom: string): Promise<ValidateResult> {
   return callOasis<ValidateResult>("validate", { maruRuleId, ver, applyFrom });
 }
 
 export function confirmDraft(
-  maruRuleId: string, ver: number, rowVersion: number, applyFrom: string, warningsAcknowledged: boolean,
+  maruRuleId: string, ver: string, rowVersion: number, applyFrom: string, warningsAcknowledged: boolean,
 ): Promise<ConfirmResult> {
   return callOasis<ConfirmResult>("confirm", { maruRuleId, ver, rowVersion, applyFrom, warningsAcknowledged });
 }

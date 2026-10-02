@@ -38,10 +38,10 @@ export function draftView(owner: string | null, me = "e2e_mdm_steward", override
       usageNote: "3CCL 출측 판정",
     },
     versions: [
-      { ver: 2, status: "DRAFT", applyFrom: null, applyTo: null, ownerId: owner, baseVer: 1, hitPolicy: "FIRST", rowVersion: 3 },
-      { ver: 1, status: "RELEASED", applyFrom: "2026-01-01 00:00:00", applyTo: "9999-12-31 00:00:00", ownerId: null, baseVer: null, hitPolicy: "FIRST", rowVersion: 0 },
+      { ver: "2.000", status: "DRAFT", applyFrom: null, applyTo: null, ownerId: owner, baseVer: "1.000", hitPolicy: "FIRST", rowVersion: 3 },
+      { ver: "1.000", status: "RELEASED", applyFrom: "2026-01-01 00:00:00", applyTo: "9999-12-31 00:00:00", ownerId: null, baseVer: null, hitPolicy: "FIRST", rowVersion: 0 },
     ],
-    selectedVer: 2,
+    selectedVer: "2.000",
     vars: SAMPLE_VARS,
     rows: SAMPLE_ROWS,
     baseRows: SAMPLE_ROWS,
@@ -64,10 +64,10 @@ export function cancelConfirmableView(me = "e2e_mdm_steward", overrides: Partial
     ...base,
     unappliedVersionExists: true,
     versions: [
-      { ver: 2, status: "RELEASED", applyFrom: "2026-12-01 00:00:00", applyTo: "9999-12-31 00:00:00", ownerId: me, baseVer: 1, hitPolicy: "FIRST", rowVersion: 1, cancelConfirmable: true },
+      { ver: "2.000", status: "RELEASED", applyFrom: "2026-12-01 00:00:00", applyTo: "9999-12-31 00:00:00", ownerId: me, baseVer: "1.000", hitPolicy: "FIRST", rowVersion: 1, cancelConfirmable: true },
       base.versions[1],
     ],
-    selectedVer: 2,
+    selectedVer: "2.000",
     ...overrides,
   };
 }
@@ -80,7 +80,7 @@ export function releasedView(me = "e2e_mdm_steward", overrides: Partial<RuleEdit
     editable: false,
     unappliedVersionExists: false,
     versions: [base.versions[1]],
-    selectedVer: 1,
+    selectedVer: "1.000",
     baseRows: [],
     ...overrides,
   };

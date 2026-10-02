@@ -8,11 +8,12 @@ import { useState } from "react";
 import { Button, Input } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Modal } from "@dk-oasis/shared/modal";
+import { ColumnPhysName } from "@/column-info";
 import type { ColumnInfo } from "./types";
 import { empty, hint, row } from "./styles";
 
 const COLUMNS: GridColumn[] = [
-  { key: "PHYS_NAME", header: "표준 물리명", width: 160 },
+  { key: "PHYS_NAME", header: "표준 물리명", width: 160, render: (v) => <ColumnPhysName physName={v as string | null} /> },
   { key: "DISPLAY_NAME", header: "표시명", width: 160 },
   { key: "DOMAIN_NAME", header: "도메인", width: 140 },
   {

@@ -205,7 +205,7 @@ class RuleSetFlowFuzz {
             } else {
                 r.put("exists", true);
                 r.put("status", i == deprecated ? "DEPRECATED" : "INUSE");
-                r.put("releasedVer", 1);
+                r.put("releasedVer", "1.000");
                 r.put("conds", conds);
                 r.put("results", res);
             }

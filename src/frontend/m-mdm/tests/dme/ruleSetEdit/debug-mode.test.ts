@@ -27,7 +27,7 @@ type Src = "DICT" | "PROG" | "NONE";
 const ioName = (n: string, source: Src | null, dataType: string | null = null) => ({ name: n, source, label: null, dataType, scale: null, dateString: false, maruCodeId: null });
 function io(ruleId: string, conds: Array<[string, Src, string?]>, results: string[]): RuleIo {
   return {
-    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
     conds: conds.map(([n, s, t]) => ioName(n, s, t ?? null)), results: results.map((r) => ioName(r, null, "STRING")),
   };
 }
@@ -178,7 +178,7 @@ describe("디버그 모드 — 단계 실행 툴바(E1)", () => {
     expect(status()).toBe("3/6 · if1 실행 전");
   });
 
-  it("2. r2 우클릭 [중단점 켜기] → [처음부터] → [계속] 은 r2 에서 멈춘다. [끝내기] 는 완료 문구와 안 탄 r3 흐림", async () => {
+  it("2. r2 우클릭 [중단점 켜기] → [처음부터] → [계속] 은 r2 에서 멈춘다. [끝까지] 는 완료 문구와 안 탄 r3 흐림", async () => {
     await firstStep();
     await click("flow-node-r2");
     await nodeMenu("r2");
@@ -199,6 +199,51 @@ describe("디버그 모드 — 단계 실행 툴바(E1)", () => {
     expect(status()).toBe("완료 · 6단계 · 결과 변수 2개");
     expect(nodeState("r3")).toBe("dim");
     expect(calls("execute")).toHaveLength(1);
+  });
+
+  it("2-1. [중지] 는 기록이 있을 때만 켜지고, 누르면 실행 전 문구로 돌아가 캔버스 단계 표시가 사라진다. Shift+F5 도 중지", async () => {
+    await openDebug();
+    expect(disabled("dbg-stop")).toBe(true);
+    expect(byTestId("dbg-stop").parentElement!.getAttribute("data-tip")).toBe("중지 — 디버그를 끝내고 실행 전으로 (Shift+F5)");
+    await typeInto(byTestId<HTMLInputElement>("dbg-input-GT_THK"), "12");
+    await run("dbg-step");
+    expect(disabled("dbg-stop")).toBe(false);
+    await run("dbg-finish");
+    expect(status()).toBe("완료 · 6단계 · 결과 변수 2개");
+    expect(disabled("dbg-stop")).toBe(false);
+
+    await click("dbg-stop");
+    expect(status()).toBe("아직 실행하지 않았다. [한 단계]·[계속]으로 시작한다");
+    expect(byTestId("dbg-status").getAttribute("data-end")).toBe("idle");
+    expect(nodeState("r3")).not.toBe("dim");
+    expect(disabled("dbg-stop")).toBe(true);
+    expect(byTestId<HTMLInputElement>("dbg-input-GT_THK").value).toBe("12");
+
+    await run("dbg-step");
+    expect(calls("execute")).toHaveLength(2);
+    expect(status()).toBe("1/6 · start 실행 전");
+    const f5 = await key(byTestId("flow-canvas"), { key: "F5", shiftKey: true });
+    expect(f5.defaultPrevented).toBe(true);
+    expect(byTestId("dbg-status").getAttribute("data-end")).toBe("idle");
+    expect(calls("execute")).toHaveLength(2); // Shift+F5 는 [계속] 이 아니다
+  });
+
+  it("2-2. 응답을 기다리는 동안에도 [중지] 가 켜져 있고, 누르면 실행 중 표시가 꺼진다", async () => {
+    await openDebug();
+    let release!: () => void;
+    srv.executeGate = new Promise<void>((r) => {
+      release = r;
+    });
+    await click("dbg-step");
+    expect(status()).toContain("실행 중");
+    expect(disabled("dbg-step")).toBe(true);
+    expect(disabled("dbg-stop")).toBe(false);
+    await click("dbg-stop");
+    expect(status()).toBe("아직 실행하지 않았다. [한 단계]·[계속]으로 시작한다");
+    expect(disabled("dbg-step")).toBe(false);
+    release();
+    await settle(50);
+    expect(byTestId("dbg-status").getAttribute("data-end")).toBe("idle");
   });
 
   it("3. 지나지 않는 r3 에 [여기까지 실행] 이면 알림 — 툴바 [여기까지] 도 고른 노드 기준", async () => {

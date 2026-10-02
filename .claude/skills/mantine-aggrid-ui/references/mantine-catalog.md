@@ -35,7 +35,8 @@ Mantine 문서 조회: `python3 .claude/skills/mantine-aggrid-ui/scripts/mantine
 | `Badge` (그리드 밖) | `Badge` (`form`, 자체 구현) | [badge](components/badge.md) |
 | `SegmentedControl` | `SegmentedControl` (`form`) | [segmented-control](components/segmented-control.md) |
 | `Card`·`SimpleGrid` (대시보드) | **쓰지 않는다** → `DashboardGrid`·`DashboardCard`·`KpiTile` (`dashboard`, 자체 구현) | [dashboard](components/dashboard.md) |
-| `CopyButton` | `CopyTextButton` (shared 내부, `ErrorModal` 이 사용) | — |
+| `CopyButton` | `CopyTextButton`·`copyText` (`form`, 자체 구현 — `ErrorModal`·`MessageModal` 도 사용) | [button](components/button.md) |
+| `Popover`·`HoverCard` (큰 상세 설명) | `DetailPopover` (`detail-popover`, 자체 구현 — 클릭으로 여는 큰 패널, 그리드 셀·머리 안 사용 가능) | [detail-popover](components/detail-popover.md) |
 | `@mantine/tiptap` `RichTextEditor` | **쓰지 않는다** → `MarkdownEditor`·`MarkdownView`·`MarkdownField` (`markdown-editor`, Tiptap 직접 사용) | [markdown-editor](components/markdown-editor.md) |
 
 Mantine 이 아닌 shared 공통 요소: `AgDataGrid`·`GridPanel`·`useGridDataManager`(ag-grid-community), `MatrixTable`, `charts`(자체 SVG), `exportToExcel`(xlsx).

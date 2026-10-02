@@ -78,10 +78,12 @@ public class ColumnMngService {
     private final JdbcTemplate jdbc;
     private final MdmStdAdminGuard guard;
     private final ObjectProvider<MaruIdNamespace> maruIdNamespaces;
+    private final ColumnDomainDetailReader domainDetailReader;
 
     public ColumnMngService(MdmColumnRepository columnRepository, MdmColumnSystemRepository columnSystemRepository,
                             MdmDomainRepository domainRepository, MdmTermRepository termRepository, JdbcTemplate jdbc,
-                            MdmStdAdminGuard guard, ObjectProvider<MaruIdNamespace> maruIdNamespaces) {
+                            MdmStdAdminGuard guard, ObjectProvider<MaruIdNamespace> maruIdNamespaces,
+                            ColumnDomainDetailReader domainDetailReader) {
         this.columnRepository = columnRepository;
         this.columnSystemRepository = columnSystemRepository;
         this.domainRepository = domainRepository;
@@ -89,29 +91,31 @@ public class ColumnMngService {
         this.jdbc = jdbc;
         this.guard = guard;
         this.maruIdNamespaces = maruIdNamespaces;
+        this.domainDetailReader = domainDetailReader;
     }
 
     // ── action: search ────────────────────────────────────────────────────
 
     /**
-     * 목록·도메인 콤보·시스템 목록. 방언별 LIKE·대소문자 비교 차이와 {@code _} 와일드카드를 피하려고 Java 에서 거른다(규모 수천 행).
-     * 검색어는 논리명·표준 물리명·시스템별 실제 필드명에 대소문자 무시 부분 일치한다(I30).
+     * 목록·시스템 목록(도메인은 콤보가 아니라 키워드 조건). 방언별 LIKE·대소문자 비교 차이와 {@code _} 와일드카드를 피하려고 Java 에서 거른다(규모 수천 행).
+     * 검색어는 논리명·표준 물리명·시스템별 실제 필드명에 대소문자 무시 부분 일치한다(I30). 도메인 조건({@code domainKeyword})은
+     * 도메인 ID·도메인명·표준명에 대소문자 무시 부분 일치한다 — 도메인 전체 목록을 응답에 싣지 않는다.
      */
     public Map<String, Object> search(ColumnMngSearchRequest request) {
         String keyword = request == null || request.getKeyword() == null ? "" : request.getKeyword().trim();
         String needle = keyword.toLowerCase(Locale.ROOT);
-        Long domainFilter = request == null ? null : request.getDomainId();
+        String domainNeedle = request == null || request.getDomainKeyword() == null ? ""
+                : request.getDomainKeyword().trim().toLowerCase(Locale.ROOT);
 
-        Map<Long, MdmDomain> domainById = domainRepository.findAll().stream()
-                .collect(Collectors.toMap(MdmDomain::getDomainId, Function.identity()));
         if (request != null && request.isOptionsOnly()) {
-            // 진입 때 콤보 값만 — 컬럼·용어·시스템 매핑 전체 조회를 하지 않는다.
+            // 진입 때 시스템 콤보 값만 — 도메인·컬럼·용어·시스템 매핑 전체 조회를 하지 않는다.
             Map<String, Object> options = new LinkedHashMap<>();
             options.put("list", new ArrayList<Map<String, Object>>());
-            options.put("domains", domainOptions(domainById.values()));
             options.put("systems", systems());
             return options;
         }
+        Map<Long, MdmDomain> domainById = domainRepository.findAll().stream()
+                .collect(Collectors.toMap(MdmDomain::getDomainId, Function.identity()));
         Map<Long, MdmTerm> termById = termRepository.findAll().stream()
                 .collect(Collectors.toMap(MdmTerm::getTermId, Function.identity()));
         Map<Long, List<MdmColumnSystem>> mappingsByColumn = columnSystemRepository.findAll().stream()
@@ -123,7 +127,7 @@ public class ColumnMngService {
                 .sorted(Comparator.comparing(MdmColumn::getColumnName).thenComparing(MdmColumn::getColumnId))
                 .forEach(column -> {
                     List<MdmColumnSystem> mappings = mappingsByColumn.getOrDefault(column.getColumnId(), List.of());
-                    if (domainFilter != null && !domainFilter.equals(column.getDomainId())) {
+                    if (!domainNeedle.isEmpty() && !domainMatches(column.getDomainId(), domainById, domainNeedle)) {
                         return;
                     }
                     if (!needle.isEmpty() && !matches(column, mappings, needle)) {
@@ -134,17 +138,25 @@ public class ColumnMngService {
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("list", list);
-        out.put("domains", domainOptions(domainById.values()));
         out.put("systems", systems());
         return out;
     }
 
     // ── action: view ──────────────────────────────────────────────────────
 
+    /**
+     * 컬럼 상세. {@code columnId} 또는 표준 물리명 {@code physName} 으로 찾는다(둘 다 오면 columnId). 물리명은 그대로 찾고 없으면
+     * 대문자로 한 번 더 찾는다. {@code withDomain}(비우면 물리명 조회일 때만)이면 {@code domain} 에 도메인 상세를 싣는다 —
+     * columnId 조회의 응답 모양·SQL 문 수는 그대로다({@code ColumnMngQueryCountTest}).
+     */
     public Map<String, Object> view(ColumnMngViewRequest request) {
         Long columnId = request == null ? null : request.getColumnId();
-        MdmColumn column = (columnId == null ? Optional.<MdmColumn>empty() : columnRepository.findById(columnId))
+        String physName = request == null || request.getPhysName() == null ? "" : request.getPhysName().trim();
+        MdmColumn column = (columnId != null ? columnRepository.findById(columnId) : findByPhysName(physName))
                 .orElseThrow(() -> invalid("컬럼을 찾을 수 없습니다"));
+        boolean withDomain = request != null && request.getWithDomain() != null
+                ? request.getWithDomain()
+                : columnId == null;
 
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("columnId", column.getColumnId());
@@ -196,7 +208,20 @@ public class ColumnMngService {
         out.put("column", detail);
         out.put("systems", systems);
         out.put("terms", terms);
+        if (withDomain) {
+            out.put("domain", domainDetailReader.read(column.getDomainId()));
+        }
         return out;
+    }
+
+    /** 빈 물리명은 찾지 않는다. 그대로 없으면 대문자로 한 번 더(표준 물리명은 대문자다). */
+    private Optional<MdmColumn> findByPhysName(String physName) {
+        if (physName.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<MdmColumn> exact = columnRepository.findByPhysName(physName);
+        String upper = physName.toUpperCase(Locale.ROOT);
+        return exact.isPresent() || upper.equals(physName) ? exact : columnRepository.findByPhysName(upper);
     }
 
     // ── action: compare ───────────────────────────────────────────────────
@@ -491,17 +516,15 @@ public class ColumnMngService {
                 }).toList();
     }
 
-    private static List<Map<String, Object>> domainOptions(java.util.Collection<MdmDomain> domains) {
-        return domains.stream()
-                .sorted(Comparator.comparing(MdmDomain::getDomainName).thenComparing(MdmDomain::getDomainId))
-                .map(d -> {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("domainId", d.getDomainId());
-                    row.put("domainName", d.getDomainName());
-                    row.put("stdName", d.getStdName());
-                    row.put("label", d.getDomainId() + " " + d.getDomainName() + " (" + d.getStdName() + ")");
-                    return row;
-                }).toList();
+    /** 도메인 ID(숫자 문자열)·도메인명·표준명에 needle(소문자)이 부분 일치하는지. 도메인이 없는 컬럼은 맞지 않는다. */
+    private static boolean domainMatches(Long domainId, Map<Long, MdmDomain> domainById, String needle) {
+        MdmDomain domain = domainId == null ? null : domainById.get(domainId);
+        if (domain == null) {
+            return false;
+        }
+        return String.valueOf(domain.getDomainId()).contains(needle)
+                || lower(domain.getDomainName()).contains(needle)
+                || lower(domain.getStdName()).contains(needle);
     }
 
     private static boolean matches(MdmColumn column, List<MdmColumnSystem> mappings, String needle) {

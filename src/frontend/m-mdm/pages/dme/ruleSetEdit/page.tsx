@@ -568,6 +568,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
         ...common,
         // 실행을 부르는 단축키(계속·한 단계)는 실행 권한이 있을 때만 — 없으면 손잡이가 없어 F5·F10 은 브라우저 동작 그대로다.
         continue: canRun ? () => void sim.resume() : undefined,
+        // 중지(Shift+F5)는 실행을 부르지 않으므로 권한과 무관하고 늘 받는다 — 브라우저 강력 새로 고침으로 편집 중인 흐름을 잃지 않게.
+        stop: sim.stop,
         step: canRun ? () => void sim.next() : undefined,
         stepBack: sim.prev,
         breakpoint: isFlowNode ? () => sim.toggleBreakpoint(selectedId!) : undefined,

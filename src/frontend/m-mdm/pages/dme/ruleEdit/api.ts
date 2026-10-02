@@ -32,7 +32,7 @@ export async function searchRulePrefix(keyword: string): Promise<RulePickRow[]> 
   return res.list ?? [];
 }
 
-export function viewRule(ruleId: string, ver?: number | null): Promise<RuleEditView> {
+export function viewRule(ruleId: string, ver?: string | null): Promise<RuleEditView> {
   return callOasis<RuleEditView>(SERVICE, "view", { maruRuleId: ruleId, ver: ver ?? undefined });
 }
 
@@ -51,7 +51,7 @@ export interface TableSaveRow {
  */
 export function saveTable(
   ruleId: string,
-  ver: number,
+  ver: string,
   rowVersion: number,
   rows: TableSaveRow[],
   hitPolicy?: HitPolicyCode | null,
@@ -77,7 +77,7 @@ function tableGridRows(rows: readonly TableSaveRow[]): Array<Record<string, unkn
 export interface ValueTestRequest {
   ruleId: string;
   target: ValueTestTarget;
-  ver: number;
+  ver: string;
   /** BODY 만 — 편집 중인 적중 정책. */
   hitPolicy?: HitPolicyCode | null;
   /** BODY 만 — 표 저장과 같은 모양, 새 행은 음수 임시 ID. */
@@ -180,7 +180,7 @@ export function deleteTestCase(ruleId: string, caseId: number, rowVersion: numbe
  */
 export function saveColumnDraft(
   ruleId: string,
-  ver: number,
+  ver: string,
   rowVersion: number,
   rows: Array<Record<string, unknown>>,
 ): Promise<ColumnsSaveResult> {

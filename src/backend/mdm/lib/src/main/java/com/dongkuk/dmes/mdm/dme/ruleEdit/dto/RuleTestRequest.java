@@ -16,7 +16,7 @@ public class RuleTestRequest {
     private String maruRuleId;
     /** BODY·VERSION. */
     private String target;
-    private Integer ver;
+    private String ver;
     /** BODY 만. */
     private String hitPolicy;
     /** BODY 만 — {@code {rowId(새 행은 음수), rowKind, cells(JSON 문자열), note}}. */
@@ -44,7 +44,7 @@ public class RuleTestRequest {
 
     public String getMaruRuleId() { return maruRuleId; }
     public String getTarget() { return target; }
-    public Integer getVer() { return ver; }
+    public String getVer() { return ver; }
     public String getHitPolicy() { return hitPolicy; }
     public List<Map<String, Object>> getRows() { return rows; }
     public String getInputJson() { return inputJson; }
@@ -74,7 +74,7 @@ public class RuleTestRequest {
 
     public void setMaruRuleId(String v) { this.maruRuleId = v; }
     public void setTarget(String v) { this.target = v; }
-    public void setVer(Integer v) { this.ver = v; }
+    public void setVer(String v) { this.ver = v; }
     public void setHitPolicy(String v) { this.hitPolicy = v; }
     public void setRows(List<Map<String, Object>> v) { this.rows = v; }
     public void setInputJson(String v) { this.inputJson = v; }

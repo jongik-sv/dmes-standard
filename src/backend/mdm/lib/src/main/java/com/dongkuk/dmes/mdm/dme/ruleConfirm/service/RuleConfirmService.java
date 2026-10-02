@@ -4,6 +4,7 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveIssueCode;
@@ -18,6 +19,7 @@ import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmReport.Report;
 import com.dongkuk.dmes.mdm.common.rule.confirm.RuleVersionDiffs;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleDiffConventions;
@@ -124,7 +126,7 @@ public class RuleConfirmService {
             row.put("maruRuleId", rule.getMaruRuleId());
             row.put("maruRuleName", rule.getMaruRuleName());
             row.put("ruleKind", rule.getRuleKind());
-            row.put("ver", p.version().getVer());
+            row.put("ver", VersionNumbers.plain(p.version().getVer()));
             row.put("ownerId", p.version().getOwnerId());
             row.put("ruleStatus", RuleVersions.effectiveStatus(rule.getStatus(), versions.getOrDefault(rule.getMaruRuleId(), List.of()), now));
             rows.add(row);
@@ -139,7 +141,8 @@ public class RuleConfirmService {
     // ────────────────────────────────────────────────────────────────
 
     public Map<String, Object> view(RuleConfirmViewRequest request) {
-        return buildView(target(request == null ? null : request.getMaruRuleId(), request == null ? null : request.getVer()));
+        return buildView(target(request == null ? null : request.getMaruRuleId(),
+                request == null ? null : RuleScreenSupport.optionalVer(request.getVer())));
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -147,7 +150,8 @@ public class RuleConfirmService {
     // ────────────────────────────────────────────────────────────────
 
     public Map<String, Object> validate(RuleConfirmValidateRequest request) {
-        Target t = target(request == null ? null : request.getMaruRuleId(), request == null ? null : request.getVer());
+        Target t = target(request == null ? null : request.getMaruRuleId(),
+                request == null ? null : RuleScreenSupport.optionalVer(request.getVer()));
         requireMdm(t.rule());
         if (!isDraft(t.version())) {
             throw MdmErrors.of(MdmErrorCode.NOT_DRAFT);
@@ -217,13 +221,11 @@ public class RuleConfirmService {
         stewardCheck.requireSteward(); // I25 — 입력을 보기 전에
         String id = request == null ? null : trimToNull(request.getMaruRuleId());
         requireMdm(loadRule(id));
-        if (request.getVer() == null) {
-            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "버전은 필수입니다.");
-        }
+        BigDecimal ver = RuleScreenSupport.requireVer(request.getVer());
         if (request.getRowVersion() == null) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "row_version 은 필수입니다.");
         }
-        VersionRef ref = ref(id, request.getVer());
+        VersionRef ref = ref(id, ver);
         LocalDateTime applyFrom = parseApplyFrom(request.getApplyFrom());
         boolean acknowledged = Boolean.TRUE.equals(request.getWarningsAcknowledged());
 
@@ -233,12 +235,13 @@ public class RuleConfirmService {
         // 검사 SPI 가 같은 트랜잭션에서 룰·버전을 관리 엔티티로 읽어 두었고 공통 서비스는 네이티브로 바꿨다 — 비우고 다시 읽는다(I22a).
         entityManager.clear();
 
-        Map<String, Object> result = buildView(target(id, request.getVer()));
+        Map<String, Object> result = buildView(target(id, ver));
         Map<String, Object> done = new LinkedHashMap<>();
-        done.put("ver", confirmed.confirmed().ver().intValueExact());
+        done.put("ver", VersionNumbers.plain(confirmed.confirmed().ver()));
         done.put("rowVersion", confirmed.rowVersion());
         result.put("confirmed", done);
-        result.put("closedPreviousVer", confirmed.closedPrevious() == null ? null : confirmed.closedPrevious().ver().intValueExact());
+        result.put("closedPreviousVer", confirmed.closedPrevious() == null ? null
+                : VersionNumbers.plain(confirmed.closedPrevious().ver()));
         result.put("warnings", confirmed.warnings().stream().map(w -> issueMap("WARNING", w)).toList());
         return result;
     }
@@ -253,7 +256,7 @@ public class RuleConfirmService {
     }
 
     /** ver 가 비면 DRAFT(여럿이면 가장 작은 번호). 룰·버전이 없으면 INVALID_VALUE. */
-    private Target target(String maruRuleId, Integer ver) {
+    private Target target(String maruRuleId, BigDecimal ver) {
         MdmRule rule = loadRule(trimToNull(maruRuleId));
         List<MdmRuleVer> versions = queries.versions(rule.getMaruRuleId());
         MdmRuleVer version;
@@ -261,8 +264,8 @@ public class RuleConfirmService {
             version = versions.stream().filter(RuleConfirmService::isDraft).min(Comparator.comparing(MdmRuleVer::getVer))
                     .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VALUE, "확정할 DRAFT 가 없습니다: " + rule.getMaruRuleId()));
         } else {
-            version = versions.stream().filter(v -> v.getVer().equals(ver)).findFirst()
-                    .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VALUE, "버전이 없습니다: " + rule.getMaruRuleId() + " " + ver));
+            version = versions.stream().filter(v -> VersionNumbers.same(v.getVer(), ver)).findFirst()
+                    .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VALUE, "버전이 없습니다: " + rule.getMaruRuleId() + " " + VersionNumbers.label(ver)));
         }
         return new Target(rule, versions, version, checks.previousReleased(rule.getMaruRuleId(), version.getVer()));
     }
@@ -280,12 +283,14 @@ public class RuleConfirmService {
         rule.put("sourceKind", r.getSourceKind());
 
         Map<String, Object> version = new LinkedHashMap<>();
-        version.put("ver", v.getVer());
+        version.put("ver", VersionNumbers.plain(v.getVer()));
+        version.put("verKind", v.getVerKind() == null ? null : v.getVerKind().name());
+        version.put("verLabel", VersionNumbers.label(v.getVer()));
         version.put("status", v.getStatus());
         version.put("ownerId", v.getOwnerId());
         version.put("rowVersion", v.getRowVersion());
         version.put("hitPolicy", v.getHitPolicy());
-        version.put("baseVer", v.getBaseVer());
+        version.put("baseVer", RuleScreenSupport.verText(v.getBaseVer()));
         version.put("applyFrom", text(v.getApplyFrom()));
         version.put("applyTo", text(v.getApplyTo()));
         version.put("requestedBy", v.getRequestedBy());
@@ -293,7 +298,8 @@ public class RuleConfirmService {
 
         Map<String, Object> previous = t.previous().map(p -> {
             Map<String, Object> m = new LinkedHashMap<>();
-            m.put("ver", p.getVer());
+            m.put("ver", VersionNumbers.plain(p.getVer()));
+            m.put("verLabel", VersionNumbers.label(p.getVer()));
             m.put("hitPolicy", p.getHitPolicy());
             m.put("applyFrom", text(p.getApplyFrom()));
             m.put("applyTo", text(p.getApplyTo()));
@@ -324,7 +330,7 @@ public class RuleConfirmService {
     }
 
     /** 대상 버전 ∪ 직전 버전의 변수(같은 var_id 는 대상 버전 쪽), var_id 순 — diff 의 바뀐 칸 라벨용. */
-    private List<Map<String, Object>> vars(String id, int ver, Integer previousVer) {
+    private List<Map<String, Object>> vars(String id, BigDecimal ver, BigDecimal previousVer) {
         Map<Integer, MdmRuleVar> byId = new TreeMap<>();
         if (previousVer != null) {
             queries.vars(id, previousVer).forEach(x -> byId.put(x.getVarId(), x));
@@ -423,8 +429,8 @@ public class RuleConfirmService {
         }
     }
 
-    private static VersionRef ref(String ruleId, int ver) {
-        return new VersionRef(VersionTarget.BUSINESS_RULE, ruleId, BigDecimal.valueOf(ver));
+    private static VersionRef ref(String ruleId, BigDecimal ver) {
+        return new VersionRef(VersionTarget.BUSINESS_RULE, ruleId, VersionNumbers.scaled(ver));
     }
 
     private static boolean isDraft(MdmRuleVer v) {

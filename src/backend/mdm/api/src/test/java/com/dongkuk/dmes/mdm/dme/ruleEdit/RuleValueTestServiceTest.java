@@ -72,7 +72,7 @@ class RuleValueTestServiceTest extends AbstractMdmSharedDbTest {
         RuleTestRequest r = new RuleTestRequest();
         r.setMaruRuleId(ruleId);
         r.setTarget("VERSION");
-        r.setVer(ver);
+        r.setVer(DmeTestSupport.verText(ver));
         r.setInputJson(inputJson);
         return r;
     }
@@ -81,7 +81,7 @@ class RuleValueTestServiceTest extends AbstractMdmSharedDbTest {
         RuleTestRequest r = new RuleTestRequest();
         r.setMaruRuleId("QLTY_GRD_JDG");
         r.setTarget("BODY");
-        r.setVer(2);
+        r.setVer("2.000");
         r.setHitPolicy(hitPolicy);
         r.setInputJson(inputJson);
         r.setRows(rows);
@@ -133,7 +133,7 @@ class RuleValueTestServiceTest extends AbstractMdmSharedDbTest {
 
         assertEquals("OK", r.getOutcome(), String.valueOf(r.getErrors()));
         assertEquals("VERSION", r.getTarget());
-        assertEquals(1, r.getVer());
+        assertEquals("1.000", r.getVer());
         assertEquals("2026-06-15 09:00:00", r.getEvalTs());
         assertEquals("A", r.getResults().get("QLTY_GRD"));
         assertEquals("1.05", r.getResults().get("PRC_FCT"), "숫자 결과는 toPlainString 문자열");

@@ -96,11 +96,11 @@ describe("값 테스트 카드 계약 계산 횟수", () => {
   it("저장된 버전 대상이면 표를 고쳐 올려도 계약을 다시 계산하지 않는다", async () => {
     const view = draftView("someone_else"); // 편집 불가 → 대상은 버전 2(저장된 버전)
     await render(view);
-    expect((container.querySelector('[data-testid="vt-target"]') as HTMLSelectElement).value).toBe("V:2");
+    expect((container.querySelector('[data-testid="vt-target"]') as HTMLSelectElement).value).toBe("V:2.000");
     const first = counts.contract;
     expect(first).toBeGreaterThan(0);
     for (let i = 0; i < 3; i++) {
-      await publishRows({ ruleId: view.rule.maruRuleId, ver: 2, hitPolicy: "FIRST", rows: rowsWith(view, 0, String(2000 + i)), dirty: true });
+      await publishRows({ ruleId: view.rule.maruRuleId, ver: "2.000", hitPolicy: "FIRST", rows: rowsWith(view, 0, String(2000 + i)), dirty: true });
     }
     const extra = counts.contract - first;
     console.log(`① VERSION 대상 표 올림 3회: 계약 계산 ${extra}회`);
@@ -114,14 +114,14 @@ describe("값 테스트 카드 계약 계산 횟수", () => {
     expect((container.querySelector('[data-testid="vt-target"]') as HTMLSelectElement).value).toBe("BODY");
     const base = counts.contract;
     // 다른 버전의 표 — 편집본은 view 의 저장된 행을 그대로 쓰므로 계약 원본이 같다.
-    await publishRows({ ruleId: view.rule.maruRuleId, ver: 1, hitPolicy: "FIRST", rows: rowsWith(view, 0, "3000"), dirty: true });
+    await publishRows({ ruleId: view.rule.maruRuleId, ver: "1.000", hitPolicy: "FIRST", rows: rowsWith(view, 0, "3000"), dirty: true });
     const otherVer = counts.contract - base;
     // 이 버전의 표 — 행 내용이 바뀌었으니 한 번 계산한다.
     const edited = rowsWith(view, 0, "4000");
-    await publishRows({ ruleId: view.rule.maruRuleId, ver: 2, hitPolicy: "FIRST", rows: edited, dirty: true });
+    await publishRows({ ruleId: view.rule.maruRuleId, ver: "2.000", hitPolicy: "FIRST", rows: edited, dirty: true });
     const own = counts.contract - base - otherVer;
     // 같은 행 배열로 dirty 만 바뀌어도 다시 계산하지 않는다.
-    await publishRows({ ruleId: view.rule.maruRuleId, ver: 2, hitPolicy: "FIRST", rows: edited, dirty: false });
+    await publishRows({ ruleId: view.rule.maruRuleId, ver: "2.000", hitPolicy: "FIRST", rows: edited, dirty: false });
     const dirtyOnly = counts.contract - base - otherVer - own;
     console.log(`① BODY 대상: 다른 버전 표 ${otherVer}회, 이 버전 표 ${own}회, dirty 만 ${dirtyOnly}회`);
     expect(otherVer).toBe(0);

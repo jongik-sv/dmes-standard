@@ -6,10 +6,11 @@
  *
  * 3단계(계획 P9·P-D9·P-D13·P-D14): 서버 기록 실행 한 번의 기록(`last`) 위에서 커서를 옮긴다. 커서 k 는 "노드 k 실행 전"이고 기록이 없으면 -1 이다.
  * 흐름 구조(`flowVersion`)가 실행 때와 달라지면 기록을 지우지 않고 `stale`(지난 흐름 기준)로 두며, 기록이 없거나·낡았거나·지금 입력이 기록 입력과 다르면
- * (`needsFresh`) 다음 [한 단계]·[계속]·[여기까지]·[처음부터]·[끝내기] 가 새로 실행한다. 그 밖에는 서버를 다시 부르지 않는다(스펙 §4.2).
+ * (`needsFresh`) 다음 [한 단계]·[계속]·[여기까지]·[처음부터]·[끝까지] 가 새로 실행한다. 그 밖에는 서버를 다시 부르지 않는다(스펙 §4.2).
+ * [중지](`stop`, 2026-10-02)는 서버를 부르지 않고 떠난 요청을 버린 뒤 기록·커서·대기·알림을 비운다(실행 전 상태). 입력·중단점·최근 입력은 남는다.
  * 다른 세트를 열면(`setId` 가 바뀌면) 기록·커서를 비우고 그 세트의 중단점·최근 입력을 읽는다. 늦게 온 응답은 요청 순번·세트·flowVersion 으로 버린다(Local-Rules §11).
  *
- * 4단계 E4(스펙 §2.4): 커서 자리에서 고친 값은 고침 대기(`pending`, 기록·커서와 한 묶음)로 두고, 대기가 있을 때 [한 단계]·[계속]·[여기까지]·[끝내기]는
+ * 4단계 E4(스펙 §2.4): 커서 자리에서 고친 값은 고침 대기(`pending`, 기록·커서와 한 묶음)로 두고, 대기가 있을 때 [한 단계]·[계속]·[여기까지]·[끝까지]는
  * 기록의 edit 에 합쳐(`mergeEdits`) `editsJson` 과 함께 새로 실행한 뒤 커서 k 에서 그 동작을 한다. [처음부터]·입력 변경·흐름 변경·자리 옮김은 대기를 버리고,
  * [처음부터] 는 edit 기록이면 edit 없이 다시 실행한다. edit 는 입력이 아니므로 `needsFresh` 의 입력 비교에 들지 않는다.
  *
@@ -114,7 +115,10 @@ export interface Simulation {
   /** 여기까지 실행 — 알림은 notice 로. */
   runTo(nodeId: string): Promise<void>;
   restart(): Promise<void>;
+  /** 끝까지 — 마지막 단계로(세션은 그대로). */
   finish(): Promise<void>;
+  /** 중지(Shift+F5) — 기다리던 응답을 버리고 기록·커서·고침 대기·알림을 비워 실행 전으로. 입력·중단점·최근 입력·이전 실행은 남긴다. */
+  stop(): void;
   setCursor(n: number): void;
   breakpoints: ReadonlySet<string>;
   /** RULE·TASK·IF·PARALLEL·MERGE 만, 세트별 localStorage. */
@@ -565,6 +569,15 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
     () => move((t) => at(t.nodes.length), (t) => at(t.nodes.length)),
     [move],
   );
+  /** [중지] — 요청 순번을 올려 떠난 응답(성공·실패 모두)을 버리고 곧바로 실행 전으로 돌린다. 지운 기록은 실행 비교용 previous 로 남긴다. */
+  const stop = useCallback(() => {
+    seq.current += 1;
+    setRunning(false);
+    const r = recNow();
+    writeRec(() => ({ ...emptyRec(setIdRef.current, versionRef.current), previous: r.last ?? r.previous }));
+    setError(null);
+    setNotice(null);
+  }, [recNow, writeRec, setRunning]);
 
   /** 커서를 to 로 — 실제로 옮기면 그 자리의 고침 대기를 버리고 알린다. */
   const moveCursor = useCallback(
@@ -635,6 +648,7 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
     runTo,
     restart,
     finish,
+    stop,
     setCursor,
     breakpoints,
     toggleBreakpoint,

@@ -6,9 +6,11 @@ import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput.DraftRow;
 import com.dongkuk.dmes.mdm.common.rule.definition.RuleDefinitionAssembler.Assembled;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,20 +44,20 @@ public class StoredRuleDefinitions {
         return resolver.scope();
     }
 
-    public Optional<MdmRuleVer> version(String ruleId, int ver) {
-        return queries.versions(ruleId).stream().filter(v -> v.getVer() == ver).findFirst();
+    public Optional<MdmRuleVer> version(String ruleId, BigDecimal ver) {
+        return queries.versions(ruleId).stream().filter(v -> VersionNumbers.same(v.getVer(), ver)).findFirst();
     }
 
     /** 버전이 없으면 빈 값. */
-    public Optional<Stored> read(String ruleId, int ver) {
+    public Optional<Stored> read(String ruleId, BigDecimal ver) {
         return version(ruleId, ver).map(v -> read(ruleId, v, resolver::resolve));
     }
 
     /**
-     * {@link #read(String, int)} 와 같되 타입을 해석 범위 {@code scope} 로 푼다 — 변수 이름의 컬럼 사전 행을 한 번에 읽어 둔다. 범위 안에서
+     * {@link #read(String, BigDecimal)} 와 같되 타입을 해석 범위 {@code scope} 로 푼다 — 변수 이름의 컬럼 사전 행을 한 번에 읽어 둔다. 범위 안에서
      * 원장을 고치지 않는 읽기 경로(값 테스트·확정 검사 보고서)에서만 쓴다.
      */
-    public Optional<Stored> read(String ruleId, int ver, RuleVarTypeResolver.Scope scope) {
+    public Optional<Stored> read(String ruleId, BigDecimal ver, RuleVarTypeResolver.Scope scope) {
         return version(ruleId, ver).map(v -> {
             List<MdmRuleVar> raw = queries.vars(ruleId, ver);
             List<MdmRuleRow> rows = queries.rows(ruleId, ver);
@@ -78,7 +80,7 @@ public class StoredRuleDefinitions {
     }
 
     private Stored read(String ruleId, MdmRuleVer v, Resolve resolve) {
-        int ver = v.getVer();
+        BigDecimal ver = v.getVer();
         return stored(ruleId, v, queries.vars(ruleId, ver), queries.rows(ruleId, ver), resolve);
     }
 
@@ -106,16 +108,16 @@ public class StoredRuleDefinitions {
      * 룰 밖 이름의 타입 — 컬럼 사전 또는 다른 룰의 최신 RELEASED 결과. 해석기에 이름 하나짜리 임시 변수를 물어 본다(08-03 {@code typeSourceOf}·
      * {@code RuleSaveValidator} 와 같은 방식). 모르면 null. 한 요청 안에서 캐시한다.
      */
-    public Function<String, VarType> externalTypes(String ruleId, int ver) {
+    public Function<String, VarType> externalTypes(String ruleId, BigDecimal ver) {
         return externalTypes(ruleId, ver, resolver::resolve);
     }
 
-    /** {@link #externalTypes(String, int)} 와 같되 해석 범위 {@code scope} 로 푼다(읽기 경로 전용). */
-    public Function<String, VarType> externalTypes(String ruleId, int ver, RuleVarTypeResolver.Scope scope) {
+    /** {@link #externalTypes(String, BigDecimal)} 와 같되 해석 범위 {@code scope} 로 푼다(읽기 경로 전용). */
+    public Function<String, VarType> externalTypes(String ruleId, BigDecimal ver, RuleVarTypeResolver.Scope scope) {
         return externalTypes(ruleId, ver, scope::resolve);
     }
 
-    private static Function<String, VarType> externalTypes(String ruleId, int ver, Resolve resolve) {
+    private static Function<String, VarType> externalTypes(String ruleId, BigDecimal ver, Resolve resolve) {
         Map<String, Optional<VarType>> cache = new HashMap<>();
         return name -> cache.computeIfAbsent(name, n -> {
             MdmRuleVar probe = new MdmRuleVar(ruleId, ver, 0, "COND", 1);
@@ -131,7 +133,7 @@ public class StoredRuleDefinitions {
     /** 타입 해석 한 번 — 호출마다 새로 읽는 {@link RuleVarTypeResolver#resolve} 또는 범위의 {@link RuleVarTypeResolver.Scope#resolve}. */
     @FunctionalInterface
     private interface Resolve {
-        List<ResolvedVar> resolve(String ruleId, int ver, List<MdmRuleVar> vars);
+        List<ResolvedVar> resolve(String ruleId, BigDecimal ver, List<MdmRuleVar> vars);
     }
 
     private static DraftRow draftRow(MdmRuleRow r) {

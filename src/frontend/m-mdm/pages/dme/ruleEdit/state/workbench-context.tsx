@@ -11,6 +11,8 @@
  */
 import { createContext, useCallback, useContext, useMemo, useReducer, useState, type ReactNode } from "react";
 
+import { sameVer } from "@/shell/version-format";
+
 import type { HitPolicyCode, StoredRow, ValueTestTarget } from "../types";
 import type { InputFieldInfo } from "../value-test/test-input";
 import { testRunAfterTableChange, type TestRunView } from "../value-test/test-marks";
@@ -18,7 +20,7 @@ import { testRunAfterTableChange, type TestRunView } from "../value-test/test-ma
 /** 편집 중인 표 — rows 는 저장 형태(`tableStoredRows`, 새 행은 음수 임시 ID). */
 export interface TableDraft {
   ruleId: string;
-  ver: number | null;
+  ver: string | null;
   hitPolicy: HitPolicyCode | null;
   rows: StoredRow[];
   dirty: boolean;
@@ -29,7 +31,7 @@ export interface TableDraft {
 export interface ValueTestInput {
   ruleId: string;
   target: ValueTestTarget;
-  ver: number;
+  ver: string;
   inputJson: string;
   /**
    * 지금 대상 정의의 입력 줄(계약 이름 순서). 테스트 케이스 입력 JSON 에 없는 키를
@@ -79,7 +81,7 @@ function sameFlat(a: object, b: object): boolean {
  * 표 카드는 바뀌지 않은 행에 같은 저장 행 객체를 넘기므로 행 비교는 대부분 참조 비교로 끝난다.
  */
 function sameTableContent(prev: TableDraft | null, d: Omit<TableDraft, "rev">): boolean {
-  if (!prev || prev.ruleId !== d.ruleId || prev.ver !== d.ver || prev.hitPolicy !== d.hitPolicy) return false;
+  if (!prev || prev.ruleId !== d.ruleId || !sameVer(prev.ver, d.ver) || prev.hitPolicy !== d.hitPolicy) return false;
   if (prev.rows === d.rows) return true;
   if (prev.rows.length !== d.rows.length) return false;
   for (let i = 0; i < d.rows.length; i++) if (!sameFlat(prev.rows[i], d.rows[i])) return false;
@@ -96,7 +98,7 @@ export function workbenchReducer(state: WorkbenchState, action: WorkbenchAction)
       const tableDraft: TableDraft = { ...d, rev };
       const next = testRunAfterTableChange(state.testRun, tableDraft);
       // 안내는 같은 룰·버전의 표를 계속 고치는 동안 남고, 룰·버전을 바꾸면 꺼진다.
-      const sameTable = state.tableDraft?.ruleId === d.ruleId && state.tableDraft?.ver === d.ver;
+      const sameTable = state.tableDraft?.ruleId === d.ruleId && sameVer(state.tableDraft?.ver, d.ver);
       const cleared = next.cleared || (sameTable && state.testRunCleared && next.run === null);
       return { ...state, tableDraft, testRun: next.run, testRunCleared: cleared };
     }

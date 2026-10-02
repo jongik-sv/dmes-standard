@@ -12,7 +12,7 @@ import { useCallback, useEffect } from "react";
 
 import { ErrorModal, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Select } from "@dk-oasis/shared/form";
-import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, badgeStyle } from "@/shell";
+import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, badgeStyle, fmtVer, sameVer } from "@/shell";
 import { RULE_EDIT_TARGET_EVENT, takeRuleEditTarget, type RuleEditTarget } from "@/dme/rule-handoff";
 
 import { RULE_EDIT_CARDS, cardSegments, type RuleEditCardProps } from "./cards";
@@ -42,7 +42,7 @@ export default function RuleEditPage() {
   }, [open]);
 
   const view = state.view;
-  const selected = view?.versions.find((v) => v.ver === view.selectedVer) ?? null;
+  const selected = view?.versions.find((v) => sameVer(v.ver, view.selectedVer)) ?? null;
   const canDo = useCallback((action: string) => canDoButton(rbac, SCREEN_ID, action), [rbac]);
 
   const cardProps: RuleEditCardProps | null = view
@@ -89,8 +89,8 @@ export default function RuleEditPage() {
             <Select
               data-testid="rule-ver-select"
               value={view.selectedVer ?? ""}
-              options={view.versions.map((v) => ({ value: String(v.ver), label: `${v.ver} (${v.status})` }))}
-              onChange={(v) => void state.selectVer(Number(v))}
+              options={view.versions.map((v) => ({ value: v.ver, label: `${fmtVer(v.ver)} (${v.status})` }))}
+              onChange={(v) => void state.selectVer(v)}
               style={{ width: 150 }}
             />
             {selected && <VersionStatusBadge status={selected.status} applyFrom={selected.applyFrom} />}

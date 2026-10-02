@@ -63,7 +63,7 @@ async function render(view: RuleEditView) {
 function result(over: Partial<ValueTestResult> = {}): ValueTestResult {
   return {
     target: "BODY",
-    ver: 2,
+    ver: "2.000",
     evalTs: "2026-09-26 10:00:00",
     outcome: "OK",
     results: { QLTY_GRD: "A" },
@@ -75,7 +75,7 @@ function result(over: Partial<ValueTestResult> = {}): ValueTestResult {
 }
 
 function runOf(over: Partial<TestRunView> = {}): TestRunView {
-  return { ruleId: "QLTY_GRD_JDG", target: "BODY", ver: 2, rowVersion: 3, rev: wb.tableDraft!.rev, result: result(), ...over };
+  return { ruleId: "QLTY_GRD_JDG", target: "BODY", ver: "2.000", rowVersion: 3, rev: wb.tableDraft!.rev, result: result(), ...over };
 }
 
 async function click(label: string) {
@@ -114,7 +114,7 @@ describe("DecisionTableCard × 카드 공유 상태", () => {
   it("편집 중인 표를 저장 형태로 올리고, 편집하면 rev 가 오르고 dirty 가 켜진다", async () => {
     await render(draftView("e2e_mdm_steward"));
     const first = wb.tableDraft!;
-    expect(first).toMatchObject({ ruleId: "QLTY_GRD_JDG", ver: 2, hitPolicy: "FIRST", dirty: false });
+    expect(first).toMatchObject({ ruleId: "QLTY_GRD_JDG", ver: "2.000", hitPolicy: "FIRST", dirty: false });
     expect(first.rows.map((r) => r.rowId)).toEqual([1, 2, 3, 4]);
     await click("행 추가");
     expect(wb.tableDraft!.dirty).toBe(true);
@@ -135,12 +135,12 @@ describe("DecisionTableCard × 카드 공유 상태", () => {
   it("VERSION 결과는 같은 버전·row_version 이고 변경이 없을 때만 칠하고, 표를 고쳐도 결과는 남는다", async () => {
     await render(draftView("e2e_mdm_steward"));
     await act(async () => wb.setTestRun(runOf({ target: "VERSION", rev: null })));
-    expect(visibleText(container)).toContain("값 테스트 결과(버전 2)를 표에 칠했습니다");
+    expect(visibleText(container)).toContain("값 테스트 결과(버전 v2.000)를 표에 칠했습니다");
     await click("행 추가");
     expect(container.querySelector('[data-testid="dt-test-shown"]')).toBeNull();
     expect(container.querySelector('[data-testid="dt-test-stale"]')).toBeNull();
     expect(wb.testRun?.target).toBe("VERSION");
-    await act(async () => wb.setTestRun(runOf({ target: "VERSION", ver: 1, rev: null })));
+    await act(async () => wb.setTestRun(runOf({ target: "VERSION", ver: "1.000", rev: null })));
     await click("되돌리기");
     expect(container.querySelector('[data-testid="dt-test-shown"]')).toBeNull();
   });
@@ -152,7 +152,7 @@ describe("DecisionTableCard × 카드 공유 상태", () => {
     await render({ ...view, testCases: [{ caseId: 1, caseName: "새 케이스", inputJson: "{}", rowVersion: 0 }] });
     expect(visibleText(container)).toContain("저장 안 한 변경");
     expect(wb.tableDraft!.rows.map((r) => r.rowId)).toEqual([1, 2, 3, -1, 4]);
-    await render({ ...view, versions: view.versions.map((v) => (v.ver === 2 ? { ...v, rowVersion: 4 } : v)) });
+    await render({ ...view, versions: view.versions.map((v) => (v.ver === "2.000" ? { ...v, rowVersion: 4 } : v)) });
     expect(visibleText(container)).not.toContain("저장 안 한 변경");
     expect(wb.tableDraft!.rows.map((r) => r.rowId)).toEqual([1, 2, 3, 4]);
   });

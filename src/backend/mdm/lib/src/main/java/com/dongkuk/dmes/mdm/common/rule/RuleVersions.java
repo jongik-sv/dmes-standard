@@ -9,7 +9,8 @@ import java.util.Set;
 
 /**
  * 룰 버전 목록에서 고르기(TSK-08-02 design §6.3.1·I4). 미적용 = DRAFT·REQUESTED·APPROVED·{@code APPLY_FROM > now} 인 RELEASED
- * ({@code VersionWriteGuard} 와 같은 정의), 현재 RELEASED = {@code APPLY_FROM <= now < APPLY_TO}. 버전 비교는 정수 VER 로 한다.
+ * ({@code VersionWriteGuard} 와 같은 정의), 현재 RELEASED = {@code APPLY_FROM <= now < APPLY_TO}. 버전 비교는 scale 3 VER 의
+ * {@code compareTo} 로 한다(D-144).
  */
 public final class RuleVersions {
 

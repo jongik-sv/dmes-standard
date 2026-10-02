@@ -202,7 +202,7 @@ afterEach(() => {
 
 const nm = (n: string) => ({ name: n, source: null, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const ioOf = (ruleId: string, out: string): RuleIo => ({
-  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [nm(out)],
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [nm(out)],
 });
 const RULES = { R_A: ioOf("R_A", "S_A"), R_B: ioOf("R_B", "S_B") };
 const noop = () => {};

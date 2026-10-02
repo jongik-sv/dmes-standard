@@ -120,7 +120,7 @@ class DraftOwnershipCrossModuleTest extends AbstractMdmSharedDbTest {
     private static RuleConfirmRequest ruleConfirm() {
         RuleConfirmRequest r = new RuleConfirmRequest();
         r.setMaruRuleId(RULE_ID);
-        r.setVer(1);
+        r.setVer("1.000");
         r.setRowVersion(0L);
         r.setApplyFrom("2026-07-01 00:00:00");
         r.setWarningsAcknowledged(true);
@@ -151,7 +151,7 @@ class DraftOwnershipCrossModuleTest extends AbstractMdmSharedDbTest {
         RuleEditSaveRequest r = new RuleEditSaveRequest();
         r.setPart("TABLE");
         r.setMaruRuleId(RULE_ID);
-        r.setVer(1);
+        r.setVer("1.000");
         r.setRowVersion(rowVersion);
         r.setRows(List.of());
         return r;

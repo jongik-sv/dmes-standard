@@ -78,7 +78,7 @@ class RuleDefinitionAssemblerTest {
     }
 
     private static Assembled sample(List<DraftRow> rows) {
-        return RuleDefinitionAssembler.assemble("QLTY_GRD_JDG", 1, "DECISION", "FIRST", null, null, sampleRaw(), sampleVars(), rows, name -> null);
+        return RuleDefinitionAssembler.assemble("QLTY_GRD_JDG", BigDecimal.ONE, "DECISION", "FIRST", null, null, sampleRaw(), sampleVars(), rows, name -> null);
     }
 
     @Test
@@ -142,7 +142,7 @@ class RuleDefinitionAssemblerTest {
                 null, null, "EXPRESSION", null);
         List<DraftRow> rows = List.of(row(1, 1, "NORMAL", "{\"7\":{\"op\":\"EQ\",\"left\":\"A\"},\"8\":{\"val\":\"A\"}}"));
 
-        Assembled a = RuleDefinitionAssembler.assemble("EXPR_JDG", 1, "DECISION", "FIRST", null, null,
+        Assembled a = RuleDefinitionAssembler.assemble("EXPR_JDG", BigDecimal.ONE, "DECISION", "FIRST", null, null,
                 List.of(exprRaw, raw(8, "RESULT", "Value", "QLTY_GRD", 1)),
                 List.of(exprVar, var(8, "RESULT", "Value", 1, "QLTY_GRD", "STRING", null, null)), rows, name -> null);
 
@@ -172,7 +172,7 @@ class RuleDefinitionAssemblerTest {
                         + "\\\"params\\\":[{\\\"type\\\":\\\"VARIABLE_OR_CONSTANT\\\",\\\"value\\\":\\\"BASE_SPD\\\",\\\"params\\\":[]},"
                         + "{\\\"type\\\":\\\"NUMBER_LITERAL\\\",\\\"value\\\":\\\"1\\\",\\\"params\\\":[]}]}\"}}"));
 
-        Assembled a = RuleDefinitionAssembler.assemble("DERIVE_JDG", 1, "DERIVE", null, null, null, deriveRaw(), deriveVars(), rows, name -> null);
+        Assembled a = RuleDefinitionAssembler.assemble("DERIVE_JDG", BigDecimal.ONE, "DERIVE", null, null, null, deriveRaw(), deriveVars(), rows, name -> null);
 
         assertTrue(a.failures().isEmpty(), a.failures().toString());
         RowContract rc = a.definition().contract().rows().get(0);
@@ -186,7 +186,7 @@ class RuleDefinitionAssemblerTest {
         List<DraftRow> rows = List.of(row(1, 1, "NORMAL", "{\"1\":{\"expr\":\"BASE_SPD + 1\"}}"));
 
         BusinessException e = assertThrows(BusinessException.class,
-                () -> RuleDefinitionAssembler.assemble("DERIVE_JDG", 1, "DERIVE", null, null, null, deriveRaw(), deriveVars(), rows, name -> null));
+                () -> RuleDefinitionAssembler.assemble("DERIVE_JDG", BigDecimal.ONE, "DERIVE", null, null, null, deriveRaw(), deriveVars(), rows, name -> null));
         assertTrue(e.getMessage().contains("AST 가 없"), e.getMessage());
         assertTrue(e.getMessage().contains("DERIVE_JDG"), e.getMessage());
     }
@@ -208,7 +208,7 @@ class RuleDefinitionAssemblerTest {
                 var(2, "RESULT", "Value", 1, "OUT", "STRING", null, null));
         List<DraftRow> rows = List.of(row(1, 1, "NORMAL", "{\"1\":{\"op\":\"EQ\",\"left\":\"A\"},\"2\":{\"val\":\"B\"}}"));
 
-        Assembled a = RuleDefinitionAssembler.assemble("R", 1, "DECISION", "FIRST", null, null, raws, vars, rows, name -> null);
+        Assembled a = RuleDefinitionAssembler.assemble("R", BigDecimal.ONE, "DECISION", "FIRST", null, null, raws, vars, rows, name -> null);
 
         assertTrue(a.failures().isEmpty(), a.failures().toString());
     }
@@ -266,7 +266,7 @@ class RuleDefinitionAssemblerTest {
         }
         JsonNode types = c.get("types");
 
-        Assembled a = RuleDefinitionAssembler.assemble(rule.get("ruleId").asText(), 1, rule.get("ruleKind").asText(), text(rule, "hitPolicy"),
+        Assembled a = RuleDefinitionAssembler.assemble(rule.get("ruleId").asText(), BigDecimal.ONE, rule.get("ruleKind").asText(), text(rule, "hitPolicy"),
                 null, null, raws, vars, rows, name -> {
                     JsonNode t = types.get(name.toUpperCase(java.util.Locale.ROOT));
                     return t == null ? null : new VarType(name, kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType.valueOf(
@@ -298,7 +298,7 @@ class RuleDefinitionAssemblerTest {
     // ------------------------------------------------------------------ 도우미
 
     static MdmRuleVar raw(int varId, String kind, String disp, String name, int seq) {
-        MdmRuleVar v = new MdmRuleVar("R", 1, varId, kind, seq);
+        MdmRuleVar v = new MdmRuleVar("R", BigDecimal.ONE, varId, kind, seq);
         v.setDispType(disp);
         v.setVarName(name);
         return v;

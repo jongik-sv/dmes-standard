@@ -3,6 +3,7 @@ import {
   compareName,
   saveColumn,
   searchColumns,
+  searchDomains,
   unwrap,
 } from "../../../pages/dma/columnMng/api";
 
@@ -122,5 +123,29 @@ describe("api 호출", () => {
       ),
     );
     expect(save.params).toEqual({ columnName: "코일", required: false });
+  });
+
+  it("도메인 조건은 domainKeyword 로 보낸다(앞뒤 공백 제거, 비면 뺀다)", async () => {
+    const fetchMock = stubFetch({ list: [] });
+
+    await searchColumns("코일", " thk ");
+    await searchColumns("코일", "  ");
+
+    const bodies = fetchMock.mock.calls.map(
+      (c) => JSON.parse(String((c as unknown as [string, RequestInit])[1].body)).params,
+    );
+    expect(bodies[0]).toEqual({ keyword: "코일", domainKeyword: "thk" });
+    expect(bodies[1]).toEqual({ keyword: "코일" });
+  });
+
+  it("도메인 칸 검색은 ruleEdit search target=DOMAIN 으로 보내고 rows 를 돌려준다", async () => {
+    const fetchMock = stubFetch({ rows: [{ domainId: 3, stdName: "COIL_THK", dataType: "NUMBER" }] });
+
+    const rows = await searchDomains(" 두께 ");
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/mdm/oasis/ruleEdit/search");
+    expect(JSON.parse(String(init.body)).params).toEqual({ target: "DOMAIN", keyword: "두께" });
+    expect(rows).toHaveLength(1);
   });
 });

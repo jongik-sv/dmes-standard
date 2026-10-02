@@ -1,9 +1,11 @@
 package com.dongkuk.dmes.mdm.common.rule;
 
 import com.dongkuk.dmes.mdm.common.support.MdmTemporalBinder;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.common.AuditStamp;
 import com.dongkuk.dmes.mdm.contract.common.MdmNativeAuditSupport;
 import jakarta.persistence.EntityManager;
+import java.math.BigDecimal;
 import org.hibernate.query.NativeQuery;
 import org.springframework.stereotype.Repository;
 
@@ -33,10 +35,10 @@ public class RuleNativeWrites {
     }
 
     /** 표 저장의 적중 정책(D-133 — 표 저장이 행과 같은 트랜잭션에서 쓴다. DERIVE 는 null). */
-    public int updateHitPolicy(String ruleId, int ver, String hitPolicy) {
+    public int updateHitPolicy(String ruleId, BigDecimal ver, String hitPolicy) {
         NativeQuery<?> q = audited("UPDATE TB_MDM_RULE_VER SET HIT_POLICY = :hit, " + AUDIT_SET + ", AUD_VER = COALESCE(AUD_VER, 0) + 1 "
                 + "WHERE MARU_RULE_ID = :id AND VER = :ver")
-                .setParameter("id", ruleId).setParameter("ver", ver);
+                .setParameter("id", ruleId).setParameter("ver", VersionNumbers.scaled(ver));
         q.setParameter("hit", hitPolicy, String.class);
         return q.executeUpdate();
     }
@@ -46,10 +48,10 @@ public class RuleNativeWrites {
      * 기본값이자 DB 기본값이라 비워도 뜻이 같다(엔진은 집계가 비면 LIST 로 모은다). 남겨 두면 COLLECT 가 아닌 정책에서 열 설정 검사가
      * "집계는 COLLECT 적중 정책의 결과 열에만" 으로 막는다. LIST 가 아닌 집계는 여기서 지우지 않는다(호출자가 먼저 거부한다).
      */
-    public int clearDefaultCollectAgg(String ruleId, int ver) {
+    public int clearDefaultCollectAgg(String ruleId, BigDecimal ver) {
         return audited("UPDATE TB_MDM_RULE_VAR SET COLLECT_AGG = NULL, " + AUDIT_SET + ", AUD_VER = COALESCE(AUD_VER, 0) + 1 "
                 + "WHERE MARU_RULE_ID = :id AND VER = :ver AND COLLECT_AGG = 'LIST'")
-                .setParameter("id", ruleId).setParameter("ver", ver).executeUpdate();
+                .setParameter("id", ruleId).setParameter("ver", VersionNumbers.scaled(ver)).executeUpdate();
     }
 
     private static final String AUDIT_SET = "U_USR_ID = :uUsrId, U_AT = :uAt, U_SVC_ID = :uSvcId, U_PGM_ID = :uPgmId";

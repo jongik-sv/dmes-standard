@@ -29,7 +29,7 @@ import { byTestId, canvasNodeIds, click, handoff, hoverEdge, inDoc, installServe
 
 const ioName = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const rule = (ruleId: string, cond: string, result: string, name = `${ruleId} 이름`): RuleIo => ({
-  ruleId, ruleName: name, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+  ruleId, ruleName: name, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
   conds: [ioName(cond)], results: [{ ...ioName(result), source: null }],
 });
 const RULES = [rule("E2S_GRD", "SET_THK", "S_GRD"), rule("E2S_FCT", "S_GRD", "S_FCT"), rule("E2S_SPD", "S_FCT", "S_SPD")];

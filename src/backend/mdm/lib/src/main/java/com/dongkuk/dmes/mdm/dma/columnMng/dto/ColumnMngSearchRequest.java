@@ -10,16 +10,16 @@ public class ColumnMngSearchRequest {
 
     /** 논리명·표준 물리명·시스템별 실제 필드명 부분 일치(대소문자 무시, I30). 비면 전체. */
     private String keyword;
-    /** 도메인 필터. null 이면 전체. */
-    private Long domainId;
+    /** 도메인 ID·도메인명·표준명 부분 일치(대소문자 무시). 비면 전체. 콤보에 전체 도메인을 싣지 않으려고 키워드로 받는다. */
+    private String domainKeyword;
 
     public String getKeyword() { return keyword; }
-    public Long getDomainId() { return domainId; }
+    public String getDomainKeyword() { return domainKeyword; }
 
     public void setKeyword(String v) { this.keyword = v; }
-    public void setDomainId(Long v) { this.domainId = v; }
+    public void setDomainKeyword(String v) { this.domainKeyword = v; }
 
-    /** true 면 목록은 비우고 콤보 값만 돌려준다(화면 진입 시 서버 목록 조회를 피한다). */
+    /** true 면 목록은 비우고 시스템 콤보 값만 돌려준다(화면 진입 시 서버 목록 조회를 피한다). */
     private boolean optionsOnly;
 
     public boolean isOptionsOnly() { return optionsOnly; }

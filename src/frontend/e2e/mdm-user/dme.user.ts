@@ -468,11 +468,11 @@ async function buildEqualRule(page: Page, r: EqualRule) {
   await expect(dtRows(page)).toHaveCount(r.rows.length + 1);
 }
 
-/** 룰 화면의 [확정 이동]으로 버전 확정을 열고, 과거 일시로 검사해 경고 확인란을 체크한 뒤 확정한다. */
-async function confirmFromRuleEdit(page: Page, id: string, ver: number, applyFrom: { input: string; date: string }) {
-  await cardButton(page, "rule-card-versions", "확정 이동").click();
+/** 룰 화면의 [확정]으로 버전 확정을 열고, 과거 일시로 검사해 경고 확인란을 체크한 뒤 확정한다. */
+async function confirmFromRuleEdit(page: Page, id: string, ver: string, applyFrom: { input: string; date: string }) {
+  await cardButton(page, "rule-card-versions", "확정").click();
   await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: 60_000 });
-  await expect(tid(page, "rc-target")).toContainText(`${id} 버전 ${ver}`, { timeout: 30_000 });
+  await expect(tid(page, "rc-target")).toContainText(`${id} 버전 v${ver}`, { timeout: 30_000 });
   await rcValidate(page, applyFrom.input);
   await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: 20_000 });
   await tid(page, "rc-confirm").click();
@@ -579,7 +579,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
     await expect(tid(page, "rule-edit-current")).toHaveText(RULE, { timeout: 30_000 });
     await expect(tid(page, "rule-edit-current-name")).toHaveText(NAME);
-    await expect(tid(page, "rule-ver-select")).toHaveValue("1");
+    await expect(tid(page, "rule-ver-select")).toHaveValue("1.000");
     await expect(topbar(page).locator(".mdm-status-badge")).toHaveAttribute("data-status", "DRAFT");
     await expect(topbar(page)).toContainText("편집 중(나)");
     watcher.assertClean("ruleMng→ruleEdit");
@@ -680,10 +680,10 @@ test.describe("A 룰 등록·편집·확정", () => {
     // 버전 1 DRAFT 하나 — 미적용이 있어 새 버전이 막히고 안내가 보인다. 작성 중 룰은 폐기 버튼이 없다(INUSE 만).
     await expect(tid(page, "rule-version-table").locator(".ag-center-cols-container .ag-row")).toHaveCount(1);
     await expect(tid(page, "rule-version-table")).toContainText(STW);
-    await expect(cardButton(page, "rule-card-versions", "새 버전")).toBeDisabled();
+    await expect(cardButton(page, "rule-card-versions", "새 버전(major)")).toBeDisabled();
     await expect(tid(page, "rule-unapplied-notice")).toHaveText("미적용 버전 1 이 있어 새 버전을 만들 수 없습니다(한 번에 하나).");
     await expect(cardButton(page, "rule-card-header", "폐기")).toHaveCount(0);
-    await expect(cardButton(page, "rule-card-versions", "선점")).toHaveCount(0);
+    await expect(cardButton(page, "rule-card-versions", "선점")).toBeDisabled();
     // 표·열 설정은 비어 있고, 피벗은 축이 없어 보이지 않는다.
     await expect(dtGrid(page)).toContainText("행이 없습니다.");
     await expect(colTable(page)).toContainText("열이 없습니다.");
@@ -722,9 +722,9 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tid(page, "rule-pick-list")).toHaveText("찾은 룰이 없습니다.", { timeout: 20_000 });
     await pickRule(page, RULE);
     await expect(tid(page, "rule-pick-list")).toHaveCount(0);
-    await tid(page, "rule-ver-row-1").click();
+    await tid(page, "rule-ver-row-1.000").click();
     await expect(tid(page, "rule-version-table").locator(".ag-center-cols-container .ag-row-highlighted")).toContainText("1");
-    await expect(tid(page, "rule-ver-select")).toHaveValue("1");
+    await expect(tid(page, "rule-ver-select")).toHaveValue("1.000");
     watcher.assertClean("ruleEdit");
   });
 
@@ -745,9 +745,9 @@ test.describe("A 룰 등록·편집·확정", () => {
     try {
       await openRule(p2, RULE);
       await expect(topbar(p2)).toContainText(`잠김 · ${STW} 편집 중`);
-      for (const b of ["해제", HANDOVER, "삭제", "확정 이동"]) {
+      for (const b of ["해제", HANDOVER, "삭제", "확정"]) {
         const btn = cardButton(p2, versions, b);
-        if (b === "확정 이동") await expect(btn, `${b}(stw2)`).toBeEnabled(); // 소유자 판정은 확정 화면이 한다(설계 §9)
+        if (b === "확정") await expect(btn, `${b}(stw2)`).toBeEnabled(); // 소유자 판정은 확정 화면이 한다(설계 §9)
         else await expect(btn, `${b}(stw2)`).toBeDisabled();
       }
       await expect(cardButton(p2, versions, "선점")).toHaveCount(0);
@@ -1081,10 +1081,10 @@ test.describe("A 룰 등록·편집·확정", () => {
     await snap(page, "dme-ruleEdit-VT-01-body");
 
     // 저장된 버전 1 로 돌려도 같다.
-    await tid(page, "vt-target").selectOption({ label: "버전 1 · DRAFT" });
+    await tid(page, "vt-target").selectOption({ label: "버전 v1.000 · DRAFT" });
     await expect(tid(page, "vt-mode")).toContainText("저장된 버전");
     await vtRun(page);
-    await expect(tid(page, "vt-result-target")).toContainText("버전 1");
+    await expect(tid(page, "vt-result-target")).toContainText("버전 v1.000");
     await expect(resultValue(page, GRD)).toHaveText(/^\s*"?A"?\s*$/);
 
     // 두께 키를 빼면 레코드에 키가 없어 판정 오류(MISSING_KEY).
@@ -1232,23 +1232,23 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(cardButton(page, "rule-card-versions", HANDOVER)).toBeDisabled();
     await expect(tid(page, "rule-handover-wrap")).toHaveAttribute("title", HANDOVER_PENDING);
     await expect(topbar(page)).toContainText("편집 중(나)");
-    await tid(page, "rule-ver-row-1").click();
+    await tid(page, "rule-ver-row-1.000").click();
     await layout.layout(page, "ruleEdit 편집 끝");
     await snap(page, "dme-ruleEdit-05-done");
     await assertAllButtonsPressed(page, "ruleEdit(버전 1 DRAFT)", {
-      "확정 이동": "다음 TC-DME-CNF-01 에서 누른다(누르면 버전 확정 탭으로 옮겨 간다)",
+      "확정": "다음 TC-DME-CNF-01 에서 누른다(누르면 버전 확정 탭으로 옮겨 간다)",
     });
     watcher.assertClean("ruleEdit");
   });
 
   // ─────────── ruleConfirm — 버전 확정 ───────────
 
-  test("TC-DME-CNF-01 [확정 이동]으로 버전 확정 화면이 그 DRAFT 로 열린다", async () => {
-    await cardButton(page, "rule-card-versions", "확정 이동").click();
+  test("TC-DME-CNF-01 [확정]으로 버전 확정 화면이 그 DRAFT 로 열린다", async () => {
+    await cardButton(page, "rule-card-versions", "확정").click();
     await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: 60_000 });
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 업무기준 > 버전 확정");
-    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 1 · DECISION`, { timeout: 30_000 });
+    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 v1.000 · DECISION`, { timeout: 30_000 });
     await expect(tid(page, "rc-form")).toContainText(NAME2);
     await expect(tid(page, "rc-form")).toContainText("편집 중(나)");
     await expect(tid(page, "rc-previous")).toHaveText("최초 버전 — 적용 순서 검사를 하지 않습니다");
@@ -1276,9 +1276,9 @@ test.describe("A 룰 등록·편집·확정", () => {
     await layout.layout(page, "ruleConfirm 빈 목록");
     await tid(page, "rc-keyword").fill(RULE);
     await tid(page, "rc-search").click();
-    await tid(page, `rc-row-${RULE}-1`).click();
+    await tid(page, `rc-row-${RULE}-1.000`).click();
     await expect(row).toHaveClass(/ag-row-highlighted/);
-    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 1 · DECISION`, { timeout: 20_000 });
+    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 v1.000 · DECISION`, { timeout: 20_000 });
     // 같은 행 보기 — 최초 버전은 모두 추가라 같은 행이 없다.
     await tid(page, "rc-diff-show-same").getByText("같은 행 보기").click();
     await expect(
@@ -1316,7 +1316,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, "rc-confirm").click();
     const m = modal(page);
     await expect(m).toContainText("버전 확정");
-    await expect(m).toContainText(`${RULE} 버전 1 을(를) ${CONFIRM1.date} 00:00:00 부터 적용하도록 확정합니다.`);
+    await expect(m).toContainText(`${RULE} 버전 v1.000 을(를) ${CONFIRM1.date} 00:00:00 부터 적용하도록 확정합니다.`);
     await expect(tid(page, "rc-future-warning")).toHaveCount(0);
     await expect(tid(page, "rc-modal-contract")).toHaveCount(0);
     await snapModal(page, "dme-ruleConfirm-04-modal");
@@ -1337,7 +1337,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tid(page, "rc-released")).toContainText(`확정자 ${STW}`);
     await expect(tid(page, "rc-validate")).toBeDisabled();
     await expect(tid(page, "rc-confirm")).toBeDisabled();
-    await expect(tid(page, `rc-row-${RULE}-1`)).toHaveCount(0);
+    await expect(tid(page, `rc-row-${RULE}-1.000`)).toHaveCount(0);
     await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
     await layout.layout(page, "ruleConfirm 확정 뒤");
     await snap(page, "dme-ruleConfirm-04-released");
@@ -1350,7 +1350,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await searchRule(page, RULE, { status: "INUSE" });
     await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: 20_000 });
     await expect(ruleCell(page, RULE, "status")).toHaveText("사용 중");
-    await expect(ruleCell(page, RULE, "releasedVer")).toHaveText("1");
+    await expect(ruleCell(page, RULE, "releasedVer")).toHaveText("v1.000");
     await expect(ruleCell(page, RULE, "hitPolicy")).toHaveText("UNIQUE");
     await expect(ruleCell(page, RULE, "pendingText")).toHaveText("");
     await searchRule(page, RULE, { status: "CREATED" });
@@ -1362,8 +1362,8 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tableButton(page, "행 추가")).toBeDisabled();
     await expect(tid(page, "col-readonly")).toBeVisible();
     await expect(tid(page, "pivot-badge")).toHaveText("화면 표현");
-    await expect(cardButton(page, "rule-card-versions", "새 버전")).toBeEnabled();
-    await expect(cardButton(page, "rule-card-versions", "확정 이동")).toBeDisabled();
+    await expect(cardButton(page, "rule-card-versions", "새 버전(major)")).toBeEnabled();
+    await expect(cardButton(page, "rule-card-versions", "확정")).toBeDisabled();
     await expect(cardButton(page, "rule-card-header", "폐기")).toBeEnabled();
     await expect(tid(page, "rule-unapplied-notice")).toHaveCount(0);
     await layout.layout(page, "ruleEdit 확정 뒤");
@@ -1414,28 +1414,28 @@ test.describe("B 새 버전·삭제·폐기", () => {
       ],
       fallback: "C",
     });
-    await confirmFromRuleEdit(page, RULE, 1, RELEASE1);
+    await confirmFromRuleEdit(page, RULE, "1.000", RELEASE1);
     watcher.assertClean("ruleEdit·ruleConfirm");
   });
 
   test("TC-DME-VER-01 새 버전 — 확정 버전을 복사한 버전 2 DRAFT 가 편집 중(나)로 열리고, 그 뒤 새 버전은 막힌다", async () => {
     await openRule(page, RULE);
     await resetClicks(page);
-    await expect(tid(page, "rule-ver-select")).toHaveValue("1");
+    await expect(tid(page, "rule-ver-select")).toHaveValue("1.000");
     await expect(topbar(page).locator(".mdm-status-badge")).toHaveAttribute("data-status", "RELEASED");
     v1Rows = await dtRowIds(page);
     expect(v1Rows).toHaveLength(3);
     vSurf = await varIdOf(page, "표면");
     vGrd = await varIdOf(page, "등급");
 
-    await cardButton(page, "rule-card-versions", "새 버전").click();
-    await expect(tid(page, "rule-ver-select")).toHaveValue("2", { timeout: 20_000 });
-    const v2 = tid(page, "rule-version-table").locator('.ag-center-cols-container .ag-row[row-id="2"]');
+    await cardButton(page, "rule-card-versions", "새 버전(major)").click();
+    await expect(tid(page, "rule-ver-select")).toHaveValue("2.000", { timeout: 20_000 });
+    const v2 = tid(page, "rule-version-table").locator('.ag-center-cols-container .ag-row[row-id="2.000"]');
     await expect(v2.locator('.mdm-status-badge[data-status="DRAFT"]')).toBeVisible();
     await expect(v2.locator('.ag-cell[col-id="ownerId"]')).toHaveText(STW);
-    await expect(v2.locator('.ag-cell[col-id="baseVer"]')).toHaveText("1");
+    await expect(v2.locator('.ag-cell[col-id="baseVer"]')).toHaveText("v1.000");
     await expect(topbar(page)).toContainText("편집 중(나)");
-    await expect(cardButton(page, "rule-card-versions", "새 버전")).toBeDisabled();
+    await expect(cardButton(page, "rule-card-versions", "새 버전(major)")).toBeDisabled();
     await expect(tid(page, "rule-unapplied-notice")).toContainText("미적용 버전 2");
     await expect(cardButton(page, "rule-card-header", "폐기")).toBeDisabled();
     // 행은 버전 1 을 그대로 복사한다(같은 row_id).
@@ -1458,7 +1458,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
     await expect(dtCell(page, v1Rows[1], `c${vGrd}_val`)).toHaveClass(/cell-edited/);
 
     // 값 테스트 — 버전 1 은 B, 편집본(버전 2)은 B2.
-    await tid(page, "vt-target").selectOption({ label: "버전 1 · RELEASED" });
+    await tid(page, "vt-target").selectOption({ label: "버전 v1.000 · RELEASED" });
     await vtInput(page, SURF, "B");
     await vtRun(page);
     await expect(resultValue(page, GRD)).toHaveText(/^\s*"?B"?\s*$/);
@@ -1475,10 +1475,10 @@ test.describe("B 새 버전·삭제·폐기", () => {
   });
 
   test("TC-DME-VER-03 새 버전 확정 검사 — 직전 대비 변경이 보이고, 직전보다 이른 적용 일시는 거부되어 확정이 꺼진다", async () => {
-    await cardButton(page, "rule-card-versions", "확정 이동").click();
+    await cardButton(page, "rule-card-versions", "확정").click();
     await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: 60_000 });
-    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 2 · DECISION`, { timeout: 30_000 });
-    await expect(tid(page, "rc-previous")).toHaveText(`직전 RELEASED 버전 1 · ${RELEASE1.date} 00:00:00`);
+    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 v2.000 · DECISION`, { timeout: 30_000 });
+    await expect(tid(page, "rc-previous")).toHaveText(`직전 RELEASED 버전 v1.000 · ${RELEASE1.date} 00:00:00`);
     await expect(tid(page, "rc-diff-counts")).toHaveText("추가 0 · 삭제 1 · 수정 1 · 같음 1");
     await expect(rcDiffKind(page, v1Rows[0])).toHaveText("삭제");
     await expect(rcDiffRow(page, v1Rows[1])).toContainText("등급");
@@ -1499,17 +1499,18 @@ test.describe("B 새 버전·삭제·폐기", () => {
 
   test("TC-DME-VER-04 삭제(D) — 새 버전 DRAFT 를 삭제하면 확정 버전 1 만 남고 새 버전이 다시 켜진다", async () => {
     await openRule(page, RULE);
-    await expect(tid(page, "rule-ver-select")).toHaveValue("2");
-    await tid(page, "rule-ver-row-1").click();
-    await expect(tid(page, "rule-ver-select")).toHaveValue("1", { timeout: 20_000 });
+    await expect(tid(page, "rule-ver-select")).toHaveValue("2.000");
+    await tid(page, "rule-ver-row-1.000").click();
+    await expect(tid(page, "rule-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
     await expect(cardButton(page, "rule-card-versions", "삭제")).toBeDisabled();
-    await tid(page, "rule-ver-row-2").click();
-    await expect(tid(page, "rule-ver-select")).toHaveValue("2", { timeout: 20_000 });
-    // 삭제는 확인을 묻지 않고 바로 지운다(설계 §5.2 에 확인 단계가 없다 — 보고서 관찰).
+    await tid(page, "rule-ver-row-2.000").click();
+    await expect(tid(page, "rule-ver-select")).toHaveValue("2.000", { timeout: 20_000 });
+    // 삭제는 마스터코드와 같은 확인창을 거친다(MDM 버전 버튼 규약).
     await cardButton(page, "rule-card-versions", "삭제").click();
-    await expect(tid(page, "rule-ver-row-2")).toHaveCount(0, { timeout: 20_000 });
-    await expect(tid(page, "rule-ver-select")).toHaveValue("1");
-    await expect(cardButton(page, "rule-card-versions", "새 버전")).toBeEnabled();
+    await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).last().click();
+    await expect(tid(page, "rule-ver-row-2.000")).toHaveCount(0, { timeout: 20_000 });
+    await expect(tid(page, "rule-ver-select")).toHaveValue("1.000");
+    await expect(cardButton(page, "rule-card-versions", "새 버전(major)")).toBeEnabled();
     await expect(tid(page, "rule-unapplied-notice")).toHaveCount(0);
     expect(await dtRowIds(page)).toEqual(v1Rows);
     await expect(dtCell(page, v1Rows[1], `c${vGrd}_val`)).toHaveText("B");
@@ -1529,7 +1530,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
     await cardButton(page, header, "폐기 확인").click();
     await expect(tid(page, header)).toContainText("폐기", { timeout: 20_000 });
     await expect(cardButton(page, header, "폐기")).toHaveCount(0);
-    await expect(cardButton(page, "rule-card-versions", "새 버전")).toBeDisabled();
+    await expect(cardButton(page, "rule-card-versions", "새 버전(major)")).toBeDisabled();
     await layout.layout(page, "ruleEdit 폐기 뒤");
     await snap(page, "dme-ruleEdit-VER-05-deprecated");
     await assertAllButtonsPressed(page, "ruleEdit(새 버전·삭제·폐기)", {
@@ -1547,7 +1548,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
     await searchRule(page, RULE, { status: "DEPRECATED" });
     await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: 20_000 });
     await expect(ruleCell(page, RULE, "status")).toHaveText("폐기");
-    await expect(ruleCell(page, RULE, "releasedVer")).toHaveText("1");
+    await expect(ruleCell(page, RULE, "releasedVer")).toHaveText("v1.000");
     await searchRule(page, RULE, { status: "INUSE" });
     await expect(tid(page, "rule-list-empty")).toBeVisible({ timeout: 20_000 });
     await snap(page, "dme-ruleMng-VER-06-deprecated");
@@ -1603,7 +1604,7 @@ test.describe("C 룰 세트", () => {
       ],
       fallback: "C",
     });
-    await confirmFromRuleEdit(page, SA, 1, daysAgo(10));
+    await confirmFromRuleEdit(page, SA, "1.000", daysAgo(10));
     await buildEqualRule(page, {
       id: SB,
       name: `E2E 세트 계수 ${RUN}`,
@@ -1616,7 +1617,7 @@ test.describe("C 룰 세트", () => {
       ],
       fallback: "0.8",
     });
-    await confirmFromRuleEdit(page, SB, 1, daysAgo(10));
+    await confirmFromRuleEdit(page, SB, "1.000", daysAgo(10));
     watcher.assertClean("룰 준비");
   });
 
@@ -1903,7 +1904,7 @@ test.describe("C 룰 세트", () => {
     const controls = tid(page, "flow-canvas").locator(".react-flow__controls-button");
     for (let i = 0, n = await controls.count(); i < n; i++) await controls.nth(i).click();
 
-    // 디버그 모드 — 입력을 넣고 한 단계 · 이전 · 계속 · 처음부터 · 여기까지 · 끝내기, 지금 입력을 케이스로 저장하고 모두 실행.
+    // 디버그 모드 — 입력을 넣고 한 단계 · 이전 · 계속 · 처음부터 · 여기까지 · 끝까지 · 중지, 지금 입력을 케이스로 저장하고 모두 실행.
     await tid(page, "flow-mode-debug").click();
     await expect(tid(page, "dbg-toolbar")).toBeVisible();
     await tid(page, `dbg-input-${SURF}`).fill("A");
@@ -2258,8 +2259,8 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await expect(topbar(page)).toContainText(`잠김 · ${STW} 편집 중`);
       await expect(tid(page, "rule-header-name")).toBeDisabled();
       await expect(cardButton(page, "rule-card-header", "헤더 저장")).toBeDisabled();
-      for (const b of ["새 버전", "삭제", "해제", HANDOVER]) await expect(cardButton(page, "rule-card-versions", b), `${b}(std)`).toBeDisabled();
-      await expect(cardButton(page, "rule-card-versions", "선점")).toHaveCount(0);
+      for (const b of ["새 버전(major)", "새 버전(minor)", "삭제", "해제", HANDOVER]) await expect(cardButton(page, "rule-card-versions", b), `${b}(std)`).toBeDisabled();
+      await expect(cardButton(page, "rule-card-versions", "선점")).toBeDisabled();
       await expect(tableButton(page, "행 추가")).toBeDisabled();
       await expect(tid(page, "col-readonly")).toBeVisible();
       await expect(tid(page, "col-add-cond")).toHaveCount(0);
@@ -2272,7 +2273,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await go(page, "ruleConfirm");
       await tid(page, "rc-keyword").fill(rule);
       await tid(page, "rc-search").click();
-      await tid(page, `rc-row-${rule}-1`).click();
+      await tid(page, `rc-row-${rule}-1.000`).click();
       await expect(tid(page, "rc-target")).toContainText(rule, { timeout: 20_000 });
       await expect(tid(page, "rc-validate")).toBeDisabled();
       await expect(tid(page, "rc-confirm")).toBeDisabled();

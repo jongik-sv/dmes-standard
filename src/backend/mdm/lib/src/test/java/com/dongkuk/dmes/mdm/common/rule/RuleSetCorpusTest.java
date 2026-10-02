@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.rule.RuleIo.IoName;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetAnalyzer.SetIo;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -131,7 +132,7 @@ class RuleSetCorpusTest {
         r.path("results").forEach(n -> results.add(new IoName(text(n, "name"), null, null, null, null, false, null)));
         JsonNode ver = r.path("releasedVer");
         return new RuleIo(id, null, null, text(r, "status"), r.path("exists").asBoolean(false),
-                ver.isNull() || ver.isMissingNode() ? null : ver.asInt(), text(r, "hitPolicy"), conds, results, r.path("hasDefault").asBoolean(false));
+                ver.isNull() || ver.isMissingNode() ? null : VersionNumbers.plain(VersionNumbers.parse(ver.asText())), text(r, "hitPolicy"), conds, results, r.path("hasDefault").asBoolean(false));
     }
 
     private static Map<String, Object> map(Object... kv) {

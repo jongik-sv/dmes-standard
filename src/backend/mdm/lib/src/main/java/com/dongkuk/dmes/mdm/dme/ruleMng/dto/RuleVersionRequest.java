@@ -13,7 +13,7 @@ public class RuleVersionRequest {
     public static final String TARGET_CONFIRM = "CONFIRM";
 
     private String maruRuleId;
-    private Integer ver;
+    private String ver;
     private Long rowVersion;
 
     /** handover 의 넘겨받을 사용자 ID. */
@@ -22,15 +22,20 @@ public class RuleVersionRequest {
     /** delete 의 대상 VERSION·RULE·CONFIRM. */
     private String target;
 
+    /** copy 의 새 버전 종류 MAJOR·MINOR. 비면 MAJOR(기존 화면 호환). */
+    private String verKind;
+
     public String getMaruRuleId() { return maruRuleId; }
-    public Integer getVer() { return ver; }
+    public String getVer() { return ver; }
     public Long getRowVersion() { return rowVersion; }
     public String getNewOwnerId() { return newOwnerId; }
     public String getTarget() { return target; }
+    public String getVerKind() { return verKind; }
 
     public void setMaruRuleId(String v) { this.maruRuleId = v; }
-    public void setVer(Integer v) { this.ver = v; }
+    public void setVer(String v) { this.ver = v; }
     public void setRowVersion(Long v) { this.rowVersion = v; }
     public void setNewOwnerId(String v) { this.newOwnerId = v; }
     public void setTarget(String v) { this.target = v; }
+    public void setVerKind(String v) { this.verKind = v; }
 }

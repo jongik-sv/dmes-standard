@@ -9,6 +9,8 @@ import com.dongkuk.dmes.mdm.common.rule.RuleStewardCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersionRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleListRow;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleMngSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleMngSaveResult;
@@ -24,6 +26,7 @@ import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleVerRepository;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -110,11 +113,11 @@ public class RuleMngService {
         row.setSourceKind(rule.getSourceKind());
         row.setStatus(RuleVersions.effectiveStatus(rule.getStatus(), versions, now)); // 필터와 같은 계산 상태(I19)
         RuleVersions.currentReleased(versions, now).ifPresent(v -> {
-            row.setReleasedVer(v.getVer());
+            row.setReleasedVer(VersionNumbers.plain(v.getVer()));
             row.setHitPolicy(v.getHitPolicy());
         });
         RuleVersions.unapplied(versions, now).ifPresent(v -> {
-            row.setPendingVer(v.getVer());
+            row.setPendingVer(VersionNumbers.plain(v.getVer()));
             row.setPendingStatus(v.getStatus());
             row.setPendingOwnerId(v.getOwnerId());
         });
@@ -125,7 +128,7 @@ public class RuleMngService {
     // action: reg — MDM 원천 룰 등록(I1·I2·I3)
     // ────────────────────────────────────────────────────────────────
 
-    /** TB_MDM_RULE(CREATED) + TB_MDM_RULE_VER(1, DRAFT, 소유자 = 등록자, row_version 0)를 한 트랜잭션으로 쓴다. 변수·행은 넣지 않는다. */
+    /** TB_MDM_RULE(CREATED) + TB_MDM_RULE_VER(1.000 MAJOR, DRAFT, 소유자 = 등록자, row_version 0)를 한 트랜잭션으로 쓴다. 변수·행은 넣지 않는다. */
     public RuleRegResult register(RuleRegRequest request) {
         if (request == null) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "등록할 값이 없습니다.");
@@ -161,12 +164,12 @@ public class RuleMngService {
             rule.setDescription(blankToNull(request.getDescription()));
             rule.setUsageNote(blankToNull(request.getUsageNote()));
             ruleRepository.saveAndFlush(rule);
-            MdmRuleVer ver = new MdmRuleVer(id, 1, me);
+            MdmRuleVer ver = new MdmRuleVer(id, VersionNumbers.FIRST, VersionKind.MAJOR, me);
             ver.setBaseVer(null);
             ver.setHitPolicy("DECISION".equals(kind) ? "FIRST" : null);
             verRepository.saveAndFlush(ver);
         });
-        return new RuleRegResult(id, 1, 0L);
+        return new RuleRegResult(id, VersionNumbers.plain(VersionNumbers.FIRST), 0L);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -218,8 +221,8 @@ public class RuleMngService {
         int unapplied = (int) versions.stream().filter(v -> RuleVersions.isUnapplied(v, now)).count();
         List<RuleMngViewResult.VersionRow> rows = new ArrayList<>();
         // ver 내림차순 — 원래 카드 ② 가 그랬다.
-        versions.stream().sorted((a, b) -> Integer.compare(b.getVer(), a.getVer())).forEach(v -> {
-            RuleMngViewResult.VersionRow row = new RuleMngViewResult.VersionRow(v.getVer(), v.getStatus(),
+        versions.stream().sorted((a, b) -> b.getVer().compareTo(a.getVer())).forEach(v -> {
+            RuleMngViewResult.VersionRow row = new RuleMngViewResult.VersionRow(v.getVer(), v.getVerKind(), v.getStatus(),
                     text(v.getApplyFrom()), text(v.getApplyTo()), v.getOwnerId(), v.getBaseVer(), v.getHitPolicy(), v.getRowVersion());
             row.setCancelConfirmable(cancelConfirmable(v, versions, now, me, unapplied));
             rows.add(row);
@@ -248,10 +251,18 @@ public class RuleMngService {
         f.setHeaderEditable(mdm && headerService.headerEditable(rule, versions));
         f.setUnappliedCount((int) versions.stream().filter(v -> RuleVersions.isUnapplied(v, now)).count());
         f.setCanNewVersion(mdm && !"DEPRECATED".equals(rule.getStatus()) && f.getUnappliedCount() == 0);
+        if (f.isCanNewVersion()) {
+            // 종류별 가능 여부 — 버전 최대값은 상태로 거르지 않는다(D-144 I1). 버전이 없으면 major 1.000 만 가능.
+            BigDecimal max = VersionNumbers.maxVer(versions.stream().map(MdmRuleVer::getVer).toList());
+            f.setCanNewMajor(VersionNumbers.canMajor(max));
+            f.setCanNewMinor(VersionNumbers.canMinor(max));
+            f.setNextMajor(f.isCanNewMajor() ? VersionNumbers.plain(VersionNumbers.nextMajor(max)) : null);
+            f.setNextMinor(f.isCanNewMinor() ? VersionNumbers.plain(VersionNumbers.nextMinor(max)) : null);
+        }
         // 폐기(I9) — 원천 MDM·사용 중(INUSE)·미적용 버전 없을 때.
         f.setCanDeprecate(mdm && "INUSE".equals(RuleVersions.effectiveStatus(rule.getStatus(), versions, now))
                 && f.getUnappliedCount() == 0);
-        RuleVersions.currentReleased(versions, now).ifPresent(v -> f.setCurrentVer(v.getVer()));
+        RuleVersions.currentReleased(versions, now).ifPresent(v -> f.setCurrentVer(VersionNumbers.plain(v.getVer())));
         return f;
     }
 

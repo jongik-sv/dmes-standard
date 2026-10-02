@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mdm.entity;
 
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Objects;
 
 /**
@@ -11,21 +13,21 @@ import java.util.Objects;
 public class MdmRuleVarId implements Serializable {
 
     private String maruRuleId;
-    private Integer ver;
+    private BigDecimal ver;
     private Integer varId;
 
     public MdmRuleVarId() {
         // JPA 기본 생성자
     }
 
-    public MdmRuleVarId(String maruRuleId, Integer ver, Integer varId) {
+    public MdmRuleVarId(String maruRuleId, BigDecimal ver, Integer varId) {
         this.maruRuleId = maruRuleId;
-        this.ver = ver;
+        this.ver = VersionNumbers.scaled(ver);
         this.varId = varId;
     }
 
     public String getMaruRuleId() { return maruRuleId; }
-    public Integer getVer() { return ver; }
+    public BigDecimal getVer() { return VersionNumbers.scaled(ver); }
     public Integer getVarId() { return varId; }
 
     @Override
@@ -36,12 +38,12 @@ public class MdmRuleVarId implements Serializable {
         if (!(o instanceof MdmRuleVarId other)) {
             return false;
         }
-        return Objects.equals(maruRuleId, other.maruRuleId) && Objects.equals(ver, other.ver)
+        return Objects.equals(maruRuleId, other.maruRuleId) && VersionNumbers.same(ver, other.ver)
                 && Objects.equals(varId, other.varId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maruRuleId, ver, varId);
+        return Objects.hash(maruRuleId, ver == null ? null : ver.stripTrailingZeros(), varId);
     }
 }

@@ -33,10 +33,10 @@ describe("rule-handoff", () => {
   });
 
   it("openRuleEdit 은 sessionStorage 에 대상을 쓴다", () => {
-    openRuleEdit("QLTY_GRD_JDG", 2);
+    openRuleEdit("QLTY_GRD_JDG", "2.000");
     const stored = JSON.parse(window.sessionStorage.getItem(RULE_EDIT_TARGET_KEY) ?? "null");
     expect(stored.ruleId).toBe("QLTY_GRD_JDG");
-    expect(stored.ver).toBe(2);
+    expect(stored.ver).toBe("2.000");
     expect(typeof stored.at).toBe("number");
   });
 
@@ -48,12 +48,27 @@ describe("rule-handoff", () => {
   });
 
   it("takeRuleEditTarget 은 한 번 읽고 지운다", () => {
-    openRuleEdit("E2E_NEW_JDG", 1);
+    openRuleEdit("E2E_NEW_JDG", "1.000");
     const first = takeRuleEditTarget();
     expect(first?.ruleId).toBe("E2E_NEW_JDG");
-    expect(first?.ver).toBe(1);
+    expect(first?.ver).toBe("1.000");
     expect(window.sessionStorage.getItem(RULE_EDIT_TARGET_KEY)).toBeNull();
     expect(takeRuleEditTarget()).toBeNull();
+  });
+
+  it("minor 버전(1.001)을 인계해도 소수부가 그대로다(D-144)", () => {
+    openRuleEdit("R1", "1.001");
+    expect(takeRuleEditTarget()?.ver).toBe("1.001");
+  });
+
+  it("옛 sessionStorage 의 숫자 ver 도 문자열 버전으로 읽는다", () => {
+    window.sessionStorage.setItem(RULE_EDIT_TARGET_KEY, JSON.stringify({ ruleId: "R1", ver: 2, at: 1 }));
+    expect(takeRuleEditTarget()).toEqual({ ruleId: "R1", ver: "2.000", at: 1 });
+  });
+
+  it("형식이 깨진 ver 는 버리고 룰만 연다", () => {
+    window.sessionStorage.setItem(RULE_EDIT_TARGET_KEY, JSON.stringify({ ruleId: "R1", ver: "abc", at: 1 }));
+    expect(takeRuleEditTarget()).toEqual({ ruleId: "R1", at: 1 });
   });
 
   it("ver 를 주지 않으면 ver 칸이 없다", () => {

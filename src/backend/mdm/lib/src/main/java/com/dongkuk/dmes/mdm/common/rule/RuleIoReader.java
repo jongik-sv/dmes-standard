@@ -2,10 +2,12 @@ package com.dongkuk.dmes.mdm.common.rule;
 
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleIo.IoName;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -85,21 +87,21 @@ public class RuleIoReader {
         }
         Map<String, MdmRule> rules = new HashMap<>();
         ruleRepository.findAllById(ids).forEach(r -> rules.put(r.getMaruRuleId(), r));
-        Map<String, Integer> vers = queries.latestReleasedVers(rules.keySet());
+        Map<String, BigDecimal> vers = queries.latestReleasedVers(rules.keySet());
         Map<String, RuleQueries.ReleasedHead> heads = new HashMap<>();
         for (RuleQueries.ReleasedHead h : queries.releasedHeads(vers.keySet())) {
-            if (Integer.valueOf(h.ver()).equals(vers.get(h.ruleId()))) {
+            if (VersionNumbers.same(h.ver(), vers.get(h.ruleId()))) {
                 heads.put(h.ruleId(), h);
             }
         }
-        Map<String, Integer> released = new LinkedHashMap<>();
+        Map<String, BigDecimal> released = new LinkedHashMap<>();
         for (String id : ids) {
             if (rules.containsKey(id) && vers.containsKey(id)) {
                 released.put(id, vers.get(id));
             }
         }
         Map<String, List<MdmRuleVar>> varsByRule = queries.varsOf(released);
-        Map<String, Integer> withExpressions = new LinkedHashMap<>();
+        Map<String, BigDecimal> withExpressions = new LinkedHashMap<>();
         released.forEach((id, ver) -> {
             if (varsByRule.get(id).stream().anyMatch(v -> EXPRESSION.equals(v.getDispType()))) {
                 withExpressions.put(id, ver);
@@ -119,7 +121,7 @@ public class RuleIoReader {
         Map<String, RuleIo> out = new LinkedHashMap<>();
         for (String id : ids) {
             MdmRule rule = rules.get(id);
-            Integer ver = vers.get(id);
+            BigDecimal ver = vers.get(id);
             if (rule == null) {
                 out.put(id, new RuleIo(id, null, null, null, false, null, null, List.of(), List.of()));
             } else if (ver == null) {
@@ -247,7 +249,7 @@ public class RuleIoReader {
         return new Collected(results, conds.list);
     }
 
-    private RuleIo compute(MdmRule rule, int ver, String hitPolicy, boolean hasDefault, List<MdmRuleVar> vars, Collected collected,
+    private RuleIo compute(MdmRule rule, BigDecimal ver, String hitPolicy, boolean hasDefault, List<MdmRuleVar> vars, Collected collected,
                            RuleVarTypeResolver.Scope scope) {
         String id = rule.getMaruRuleId();
         Map<String, MdmRuleVar> results = collected.results();
@@ -288,7 +290,7 @@ public class RuleIoReader {
         for (String name : results.keySet()) {
             resultOut.add(ioName(name, null, resolved.get(k++)));
         }
-        return new RuleIo(id, rule.getMaruRuleName(), rule.getRuleKind(), rule.getStatus(), true, ver, hitPolicy, List.copyOf(condOut),
+        return new RuleIo(id, rule.getMaruRuleName(), rule.getRuleKind(), rule.getStatus(), true, VersionNumbers.plain(ver), hitPolicy, List.copyOf(condOut),
                 List.copyOf(resultOut), hasDefault);
     }
 

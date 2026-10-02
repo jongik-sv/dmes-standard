@@ -18,7 +18,7 @@ function ok(r: EditResult): EditFlow {
   return r.flow;
 }
 const rio = (ruleId: string): RuleIo => ({
-  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [],
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [],
 });
 /** start → r1 → r2 → end. 선 e1 start→r1, e2 r1→r2, e3 r2→end. */
 const chain = () => toEditFlow(null, ["EL_A", "EL_B"]);

@@ -31,7 +31,7 @@ function must(r: EditResult): EditFlow {
   return r.flow;
 }
 const io = (ruleId: string, ruleName: string | null = `${ruleId} 이름`, exists = true): RuleIo => ({
-  ruleId, ruleName, ruleKind: "DECISION", status: "INUSE", exists, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [],
+  ruleId, ruleName, ruleKind: "DECISION", status: "INUSE", exists, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [],
 });
 const labelOf = (f: EditFlow, id: string) => f.nodes.find((n) => n.id === id)?.label;
 

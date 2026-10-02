@@ -34,7 +34,7 @@ const docQ = (id: string) => document.querySelector(`[data-testid="${id}"]`) as 
 const nm = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 function ioOf(ruleId: string, extra: Partial<RuleIo> = {}): RuleIo {
   return {
-    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
     conds: [nm("SET_THK")], results: [{ ...nm(`S_${ruleId}`), source: null }], ...extra,
   };
 }

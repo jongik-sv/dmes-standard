@@ -4,17 +4,18 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
-import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.RuleIssueMaps;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersionRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.support.MdmTemporalBinder;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.RowInfo;
@@ -26,6 +27,7 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -77,9 +79,11 @@ public class RuleViewService {
         List<MdmRuleVer> versions = queries.versions(id);
         LocalDateTime now = support.now();
         String me = support.me();
-        MdmRuleVer selected = request.getVer() != null
-                ? versions.stream().filter(v -> v.getVer().equals(request.getVer())).findFirst()
-                        .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VALUE, "룰 버전을 찾을 수 없습니다: " + id + " v" + request.getVer()))
+        BigDecimal requested = RuleScreenSupport.optionalVer(request.getVer());
+        MdmRuleVer selected = requested != null
+                ? versions.stream().filter(v -> VersionNumbers.same(v.getVer(), requested)).findFirst()
+                        .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_VALUE,
+                                "룰 버전을 찾을 수 없습니다: " + id + " " + VersionNumbers.label(requested)))
                 : pickDefault(versions, now).orElse(null);
 
         RuleEditViewResult out = new RuleEditViewResult();
@@ -99,9 +103,9 @@ public class RuleViewService {
             out.setIssues(List.of());
             out.setEditable(false);
         } else {
-            int ver = selected.getVer();
-            Integer baseVer = selected.getBaseVer();
-            out.setSelectedVer(ver);
+            BigDecimal ver = selected.getVer();
+            BigDecimal baseVer = selected.getBaseVer();
+            out.setSelectedVer(VersionNumbers.plain(ver));
             // 읽기 경로 — 두 버전 변수 타입을 한 해석 범위로 푼다(도메인 트리·결과 변수 한 번, 컬럼 사전은 이름을 모아 한 번). 변수는 한 번 읽어 쓴다.
             List<MdmRuleVar> rawVars = queries.vars(id, ver);
             List<MdmRuleVar> baseRawVars = baseVer == null ? List.of() : queries.vars(id, baseVer);
@@ -123,7 +127,7 @@ public class RuleViewService {
             out.setEditable(RuleScreenSupport.SOURCE_MDM.equals(rule.getSourceKind()) && "DRAFT".equals(selected.getStatus())
                     && me != null && me.equals(selected.getOwnerId()));
         }
-        out.setUsage(usageService.usage(id, out.getSelectedVer()));
+        out.setUsage(usageService.usage(id, selected == null ? null : selected.getVer()));
         // 테스트 케이스는 버전과 무관하다(06:1058) — 버전을 고르지 못해도 싣는다.
         out.setTestCases(testCaseQueries.cases(id).stream().map(c -> new RuleEditViewResult.TestCaseInfo(c.getCaseId(), c.getCaseName(),
                 c.getInputJson(), c.getExpectedJson(), c.getDescription(), c.getRowVersion())).toList());
@@ -190,7 +194,7 @@ public class RuleViewService {
 
     /** 버전 목록 한 행 — 공용 읽기 모델. 관리 플래그는 헤더·버전 화면 몫이라 여기 없다(D-105 (3)). */
     private RuleVersionRow versionInfo(MdmRuleVer v) {
-        return new RuleVersionRow(v.getVer(), v.getStatus(), text(v.getApplyFrom()), text(v.getApplyTo()), v.getOwnerId(),
+        return new RuleVersionRow(v.getVer(), v.getVerKind(), v.getStatus(), text(v.getApplyFrom()), text(v.getApplyTo()), v.getOwnerId(),
                 v.getBaseVer(), v.getHitPolicy(), v.getRowVersion());
     }
 

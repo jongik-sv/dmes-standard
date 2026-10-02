@@ -12,7 +12,7 @@ import type { RuleIo } from "../../../pages/dme/ruleSetEdit/types";
 import { installDomStorage } from "../helpers/render";
 
 function ruleIo(ruleId: string, ruleName: string | null, exists = true): RuleIo {
-  return { ruleId, ruleName, ruleKind: "DECISION", status: "INUSE", exists, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [] };
+  return { ruleId, ruleName, ruleKind: "DECISION", status: "INUSE", exists, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [] };
 }
 
 describe("룰 노드 제목 — 표시 토글", () => {

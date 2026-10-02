@@ -62,7 +62,7 @@ class SampleRuleValueTest {
         assertFalse(r.defaultApplied());
         assertEquals(List.of("1:T/T/-", "2:F/F/-", "3:F/F/-"), trace(r));
         assertEquals("QLTY_GRD_JDG", r.ruleId());
-        assertEquals(1, r.ver());
+        assertEquals(new java.math.BigDecimal("1.000"), r.ver());
         assertEquals(SampleRules.EVAL_TS, r.evalTs());
         assertEquals(List.of("QLTY_GRD", "PRC_FCT"), List.copyOf(r.results().keySet()));
         assertEquals(Map.of(), r.hits().get(0).groupChoices());

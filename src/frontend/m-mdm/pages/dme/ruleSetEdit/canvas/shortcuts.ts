@@ -7,7 +7,7 @@ import type { FlowMode } from "../state/useRuleSetEdit";
 
 export type ShortcutId =
   | "undo" | "redo" | "delete" | "escape" | "copy" | "paste" | "duplicate" | "find"
-  | "continue" | "step" | "stepBack" | "breakpoint"
+  | "continue" | "stop" | "step" | "stepBack" | "breakpoint"
   | "alignLeft" | "alignHCenter" | "alignRight" | "alignTop" | "alignVCenter" | "alignBottom" | "distributeH" | "distributeV"
   | "nudgeLeft" | "nudgeRight" | "nudgeUp" | "nudgeDown" | "nudgeLeftBig" | "nudgeRightBig" | "nudgeUpBig" | "nudgeDownBig";
 /** `code` 는 물리 키(Mac Option+글자는 e.key 가 'å' 처럼 바뀌므로 Alt 조합은 code 로 판정한다). */
@@ -72,7 +72,7 @@ export function shortcutOf(e: KeyLike, mac: boolean): ShortcutId | null {
   if (nudge) return e.shiftKey ? nudge[1] : nudge[0];
   if (key === "Delete" || key === "Backspace") return e.shiftKey ? null : "delete";
   if (key === "Escape") return "escape";
-  if (key === "F5") return e.shiftKey ? null : "continue";
+  if (key === "F5") return e.shiftKey ? "stop" : "continue";
   if (key === "F10") return e.shiftKey ? "stepBack" : "step";
   if (key === "F9") return e.shiftKey ? null : "breakpoint";
   return null;
@@ -114,6 +114,7 @@ export const SHORTCUT_HELP: readonly { id: ShortcutId | GestureId | FindKeyId; w
   { id: "findClose", win: "Esc(찾기 위젯)", mac: "Esc(찾기 위젯)", label: "찾기 위젯 닫기 — 캔버스로 돌아간다(찾을 글·옵션은 남는다)", modes: ["view", "edit", "debug"] },
   { id: "escape", win: "Esc", mac: "Esc", label: "선택 해제·메뉴 닫기(다른 도구를 골랐으면 먼저 기본 도구로 돌아간다)", modes: ["view", "edit", "debug"] },
   { id: "continue", win: "F5", mac: "fn+F5", label: "계속(다음 중단점까지)", modes: ["debug"] },
+  { id: "stop", win: "Shift+F5", mac: "fn+⇧F5", label: "중지(디버그를 끝내고 실행 전으로)", modes: ["debug"] },
   { id: "step", win: "F10", mac: "fn+F10", label: "한 단계", modes: ["debug"] },
   { id: "stepBack", win: "Shift+F10", mac: "fn+⇧F10", label: "이전 단계", modes: ["debug"] },
   { id: "breakpoint", win: "F9", mac: "fn+F9", label: "고른 노드 중단점", modes: ["debug"] },

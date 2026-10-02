@@ -17,7 +17,7 @@ export const CONFLICT_MESSAGE = "다른 창에서 바뀌었습니다. 다시 불
 const DIRTY_CONFIRM = "저장하지 않은 변경이 있습니다. 버리고 이동할까요?";
 
 /** 쓰기 뒤 다시 불러올 버전 — undefined 면 지금 선택한 버전, null 이면 서버 기본 고르기. */
-export type NextVer = number | null | undefined;
+export type NextVer = string | null | undefined;
 
 export interface RuleEditState {
   ruleId: string | null;
@@ -27,8 +27,8 @@ export interface RuleEditState {
   conflict: boolean;
   notice: RuleEditNotice | null;
   /** 룰(과 버전)을 연다. 저장 안 한 변경이 있으면 확인을 받는다. */
-  open: (ruleId: string, ver?: number | null) => Promise<void>;
-  selectVer: (ver: number) => Promise<void>;
+  open: (ruleId: string, ver?: string | null) => Promise<void>;
+  selectVer: (ver: string) => Promise<void>;
   reload: (ver?: NextVer) => Promise<void>;
   runWrite: <T>(fn: () => Promise<T>, next?: (result: T) => NextVer) => Promise<T | undefined>;
   notify: (notice: RuleEditNotice | null) => void;
@@ -57,7 +57,7 @@ export function useRuleEdit(): RuleEditState {
   }, []);
 
   const load = useCallback(
-    async (id: string, ver?: number | null) => {
+    async (id: string, ver?: string | null) => {
       setLoading(true);
       try {
         const next = await viewRule(id, ver);
@@ -82,7 +82,7 @@ export function useRuleEdit(): RuleEditState {
   }, []);
 
   const open = useCallback(
-    async (id: string, ver?: number | null) => {
+    async (id: string, ver?: string | null) => {
       if (!confirmLeave()) return;
       setNotice(null);
       await load(id, ver);
@@ -91,7 +91,7 @@ export function useRuleEdit(): RuleEditState {
   );
 
   const selectVer = useCallback(
-    async (ver: number) => {
+    async (ver: string) => {
       const id = ruleIdRef.current;
       if (!id || !confirmLeave()) return;
       await load(id, ver);

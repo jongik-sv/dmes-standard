@@ -22,7 +22,7 @@ type Src = "DICT" | "PROG" | "NONE";
 const ioName = (n: string, source: Src | null) => ({ name: n, source, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 function io(ruleId: string, conds: Array<[string, Src]>, results: string[]): RuleIo {
   return {
-    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
     conds: conds.map(([n, s]) => ioName(n, s)), results: results.map((r) => ioName(r, null)),
   };
 }
@@ -113,7 +113,7 @@ describe("useSimulation — 커서와 기록(P-D13)", () => {
     expect(h.current.valueAt("GT_F")).toBeUndefined();
   });
 
-  it("2. [이전] 은 한 칸 뒤로, [끝내기] 는 n(atEnd), [처음부터] 는 0 — 서버 호출 없음", async () => {
+  it("2. [이전] 은 한 칸 뒤로, [끝까지] 는 n(atEnd), [처음부터] 는 0 — 서버 호출 없음", async () => {
     await mount();
     await run((s) => s.next());
     await run((s) => s.next());
@@ -133,7 +133,7 @@ describe("useSimulation — 커서와 기록(P-D13)", () => {
     expect(executes()).toHaveLength(1);
   });
 
-  it("2-1. 기록이 없으면 [이전]·setCursor 는 무시, [끝내기]·[처음부터] 는 새로 실행한다", async () => {
+  it("2-1. 기록이 없으면 [이전]·setCursor 는 무시, [끝까지]·[처음부터] 는 새로 실행한다", async () => {
     await mount();
     await run((s) => s.prev());
     await run((s) => s.setCursor(3));
@@ -218,7 +218,7 @@ describe("useSimulation — 낡은 기록·이전 실행(P-D9)", () => {
     expect(h.current.stale).toBe(false);
   });
 
-  it("5-1. 낡은 기록에서 [처음부터]·[끝내기]·[계속]·[여기까지] 도 새로 실행한다", async () => {
+  it("5-1. 낡은 기록에서 [처음부터]·[끝까지]·[계속]·[여기까지] 도 새로 실행한다", async () => {
     await mount();
     await run((s) => s.next());
     for (const [i, act_] of ([
@@ -340,6 +340,74 @@ describe("useSimulation — 낡은 기록·이전 실행(P-D9)", () => {
     expect(h.current.error).toBe("서버 거부");
     expect(h.current.last).toBe(old);
     expect(h.current.cursor).toBe(1);
+    expect(h.current.running).toBe(false);
+  });
+});
+
+describe("useSimulation — 중지", () => {
+  it("S1. [중지] 는 기록·커서·고침 대기·알림을 비워 실행 전으로 돌린다. 입력·중단점·최근 입력·이전 실행은 남는다", async () => {
+    await mount();
+    await run((s) => s.setInput("GT_THK", { value: "12" }));
+    await run((s) => s.toggleBreakpoint("r2"));
+    await run((s) => s.next());
+    await run((s) => s.next());
+    await run((s) => s.next());
+    await run((s) => s.editValue("GT_G", { type: "STRING", value: "B" }));
+    await run((s) => s.runTo("r3")); // 대기를 보내며 다시 실행 — 안 탄 갈래 알림이 남는다
+    const ran = h.current.last;
+    expect(h.current.notice).not.toBeNull();
+    await run((s) => s.stop());
+    expect(h.current.last).toBeNull();
+    expect(h.current.cursor).toBe(-1);
+    expect(h.current.atEnd).toBe(false);
+    expect(h.current.pendingEdit).toBeNull();
+    expect(h.current.notice).toBeNull();
+    expect(h.current.error).toBeNull();
+    expect(h.current.variables).toEqual([]);
+    expect(h.current.previous).toBe(ran);
+    expect(h.current.fields.find((f) => f.row.key === "GT_THK")?.row.value).toBe("12");
+    expect([...h.current.breakpoints]).toEqual(["r2"]);
+    expect(h.current.recent).toHaveLength(1);
+    const calls = executes().length;
+    await run((s) => s.next()); // 다음 [한 단계] 는 새로 실행해 0 에서 시작한다
+    expect(executes()).toHaveLength(calls + 1);
+    expect(h.current.cursor).toBe(0);
+  });
+
+  it("S2. 응답을 기다리는 동안 [중지] 하면 곧바로 running=false, 늦게 온 응답은 버린다", async () => {
+    let release!: (v: RuleSetSimulateResult) => void;
+    replies = [new Promise<RuleSetSimulateResult>((r) => { release = r; })];
+    await mount();
+    let pending: Promise<void> = Promise.resolve();
+    await act(async () => {
+      pending = h.current.next();
+    });
+    expect(h.current.running).toBe(true);
+    await run((s) => s.stop());
+    expect(h.current.running).toBe(false);
+    await act(async () => {
+      release(A.response as RuleSetSimulateResult);
+      await pending;
+    });
+    expect(h.current.last).toBeNull();
+    expect(h.current.cursor).toBe(-1);
+    expect(h.current.running).toBe(false);
+  });
+
+  it("S3. 기다리던 요청이 실패해도 [중지] 뒤에는 오류 문구를 띄우지 않는다", async () => {
+    let fail!: (e: Error) => void;
+    replies = [new Promise<RuleSetSimulateResult>((_r, j) => { fail = j; })];
+    await mount();
+    let pending: Promise<void> = Promise.resolve();
+    await act(async () => {
+      pending = h.current.next();
+    });
+    await run((s) => s.stop());
+    await act(async () => {
+      fail(new Error("서버 거부"));
+      await pending;
+    });
+    expect(h.current.error).toBeNull();
     expect(h.current.running).toBe(false);
   });
 });
@@ -579,7 +647,7 @@ describe("useSimulation — 값 고쳐 이어 실행(4단계 E4)", () => {
     expect(sentEdits(1)).toBe('[{"beforeSeq":3,"nodeId":"if1","values":{"GT_G":"B"}}]');
   });
 
-  it("E8. [이전] 은 대기를 버리고 알린다. [끝내기] 는 대기를 반영해 끝으로, [여기까지] 는 커서 k 에서 찾는다", async () => {
+  it("E8. [이전] 은 대기를 버리고 알린다. [끝까지] 는 대기를 반영해 끝으로, [여기까지] 는 커서 k 에서 찾는다", async () => {
     await mount();
     await toCursor(2);
     await run((s) => s.editValue("GT_G", STR("B")));

@@ -25,7 +25,7 @@ export interface RuleEditCardProps {
   /** 표 편집 가능(서버 판정 `view.editable`, I7). */
   editable: boolean;
   reload: (ver?: NextVer) => Promise<void>;
-  selectVer: (ver: number) => Promise<void>;
+  selectVer: (ver: string) => Promise<void>;
   notify: (notice: RuleEditNotice | null) => void;
   /** 쓰기 한 번 — 성공하면 view 를 다시 불러온다(next 가 돌려준 버전, 없으면 지금 버전). */
   runWrite: <T>(fn: () => Promise<T>, next?: (result: T) => NextVer) => Promise<T | undefined>;

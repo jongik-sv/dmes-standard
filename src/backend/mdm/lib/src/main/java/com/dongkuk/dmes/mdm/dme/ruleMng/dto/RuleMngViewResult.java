@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mdm.dme.ruleMng.dto;
 
 import com.dongkuk.dmes.mdm.common.rule.RuleVersionRow;
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -68,9 +70,9 @@ public class RuleMngViewResult {
         public VersionRow() {
         }
 
-        public VersionRow(Integer ver, String status, String applyFrom, String applyTo, String ownerId, Integer baseVer,
-                          String hitPolicy, long rowVersion) {
-            super(ver, status, applyFrom, applyTo, ownerId, baseVer, hitPolicy, rowVersion);
+        public VersionRow(BigDecimal ver, VersionKind verKind, String status, String applyFrom, String applyTo, String ownerId,
+                          BigDecimal baseVer, String hitPolicy, long rowVersion) {
+            super(ver, verKind, status, applyFrom, applyTo, ownerId, baseVer, hitPolicy, rowVersion);
         }
 
         /**
@@ -89,23 +91,39 @@ public class RuleMngViewResult {
         private boolean headerEditable;
         /** 새 버전 만들기 가능 — 미적용 버전이 없을 때. 폐기한 룰은 불가. */
         private boolean canNewVersion;
+        /** 새 major 가능 — 새 버전을 만들 수 있고 major 상한 안일 때. */
+        private boolean canNewMajor;
+        /** 새 minor 가능 — 새 버전을 만들 수 있고 버전이 있으며 minor 가 999 에 닿지 않았을 때. */
+        private boolean canNewMinor;
+        /** 만들 수 있을 때 다음 major(scale 3 문자열), 아니면 null. */
+        private String nextMajor;
+        /** 만들 수 있을 때 다음 minor(scale 3 문자열), 아니면 null. */
+        private String nextMinor;
         /** 폐기 가능(I9) — 원천 MDM·사용 중(INUSE)·미적용 버전 없을 때. */
         private boolean canDeprecate;
         /** 미적용(작성 중 또는 적용 전 확정) 버전 수. */
         private int unappliedCount;
-        /** 지금 적용 중인 RELEASED 버전. 없으면 null(미확정). */
-        private Integer currentVer;
+        /** 지금 적용 중인 RELEASED 버전(scale 3 문자열, D-144). 없으면 null(미확정). */
+        private String currentVer;
 
         public boolean isHeaderEditable() { return headerEditable; }
         public boolean isCanNewVersion() { return canNewVersion; }
+        public boolean isCanNewMajor() { return canNewMajor; }
+        public boolean isCanNewMinor() { return canNewMinor; }
+        public String getNextMajor() { return nextMajor; }
+        public String getNextMinor() { return nextMinor; }
         public boolean isCanDeprecate() { return canDeprecate; }
         public int getUnappliedCount() { return unappliedCount; }
-        public Integer getCurrentVer() { return currentVer; }
+        public String getCurrentVer() { return currentVer; }
 
         public void setHeaderEditable(boolean v) { this.headerEditable = v; }
         public void setCanNewVersion(boolean v) { this.canNewVersion = v; }
+        public void setCanNewMajor(boolean v) { this.canNewMajor = v; }
+        public void setCanNewMinor(boolean v) { this.canNewMinor = v; }
+        public void setNextMajor(String v) { this.nextMajor = v; }
+        public void setNextMinor(String v) { this.nextMinor = v; }
         public void setCanDeprecate(boolean v) { this.canDeprecate = v; }
         public void setUnappliedCount(int v) { this.unappliedCount = v; }
-        public void setCurrentVer(Integer v) { this.currentVer = v; }
+        public void setCurrentVer(String v) { this.currentVer = v; }
     }
 }

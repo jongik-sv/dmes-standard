@@ -63,11 +63,12 @@ async function openRuleConfirm(page: Page) {
   await expect(tid(page, "rc-list")).toBeVisible({ timeout: 60_000 });
 }
 
-async function choose(page: Page, id: string, ver: number) {
+/** ver 는 서버 표기 `"1.000"`(D-144) — 행 키·대상 문구가 이 문자열을 쓴다. */
+async function choose(page: Page, id: string, ver: string) {
   const row = tid(page, `rc-row-${id}-${ver}`);
   await expect(row).toBeVisible({ timeout: 20_000 });
   await row.click();
-  await expect(tid(page, "rc-target")).toContainText(`${id} 버전 ${ver}`, { timeout: 20_000 });
+  await expect(tid(page, "rc-target")).toContainText(`${id} 버전 v${ver}`, { timeout: 20_000 });
 }
 
 /** datetime-local(step 1) 에 `yyyy-MM-ddTHH:mm` 로 넣고 검사한다. 초가 0 이면 Chromium 이 값을 분 단위로 정규화하므로
@@ -95,12 +96,12 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await login(page, STEWARD);
     await openRuleConfirm(page);
 
-    await expect(tid(page, "rc-row-E2E_RC_OK-1")).toBeVisible({ timeout: 20_000 });
-    await expect(tid(page, "rc-row-E2E_RC_CASEFAIL-1")).toBeVisible();
-    await expect(tid(page, "rc-row-E2E_RC_CONTRACT-2")).toBeVisible();
-    await expect(tid(page, "rc-row-E2E_RC_RACE-1")).toBeVisible();
+    await expect(tid(page, "rc-row-E2E_RC_OK-1.000")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "rc-row-E2E_RC_CASEFAIL-1.000")).toBeVisible();
+    await expect(tid(page, "rc-row-E2E_RC_CONTRACT-2.000")).toBeVisible();
+    await expect(tid(page, "rc-row-E2E_RC_RACE-1.000")).toBeVisible();
     // RELEASED v1 은 확정 대기 목록에 없다
-    await expect(tid(page, "rc-row-E2E_RC_CONTRACT-1")).toHaveCount(0);
+    await expect(tid(page, "rc-row-E2E_RC_CONTRACT-1.000")).toHaveCount(0);
     await page.screenshot({ path: screenshot("dme-ruleConfirm-list.png"), fullPage: true });
 
     await tid(page, "rc-keyword").fill("NO_SUCH");
@@ -117,12 +118,12 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await tid(page, "rule-pick-E2E_RC_CASEFAIL").click();
     await expect(tid(page, "rule-edit-current")).toHaveText("E2E_RC_CASEFAIL", { timeout: 30_000 });
 
-    const move = page.getByRole("button", { name: "확정 이동", exact: true });
+    const move = page.getByRole("button", { name: "확정", exact: true });
     await expect(move).toBeEnabled({ timeout: 20_000 });
     await move.click();
 
     // T3: 버전 확정 탭이 그 룰·버전으로 열린다
-    await expect(tid(page, "rc-target")).toContainText("E2E_RC_CASEFAIL 버전 1", { timeout: 60_000 });
+    await expect(tid(page, "rc-target")).toContainText("E2E_RC_CASEFAIL 버전 v1.000", { timeout: 60_000 });
     await expect(page.locator(".page-layout__footer-breadcrumb").filter({ hasText: BREADCRUMB })).toBeVisible();
     await expect(tid(page, "rc-previous")).toHaveText("최초 버전 — 적용 순서 검사를 하지 않습니다");
 
@@ -142,7 +143,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
   test("T5 담당자: 최초 버전을 경고 확인 뒤 확정하면 RELEASED 가 되고 목록에서 사라진다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleConfirm(page);
-    await choose(page, "E2E_RC_OK", 1);
+    await choose(page, "E2E_RC_OK", "1.000");
 
     await expect(tid(page, "rc-previous")).toHaveText("최초 버전 — 적용 순서 검사를 하지 않습니다");
     await validate(page, "2026-01-01T00:00");
@@ -165,8 +166,8 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await expect(tid(page, "rc-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: 20_000 });
     await expect(tid(page, "rc-released")).toContainText("적용 구간 2026-01-01 00:00:00 ~ 9999-12-31 00:00:00");
     await expect(tid(page, "rc-released")).toContainText(`확정자 ${STEWARD}`);
-    await expect(tid(page, "rc-row-E2E_RC_OK-1")).toHaveCount(0);
-    await expect(tid(page, "rc-row-E2E_RC_RACE-1")).toBeVisible();
+    await expect(tid(page, "rc-row-E2E_RC_OK-1.000")).toHaveCount(0);
+    await expect(tid(page, "rc-row-E2E_RC_RACE-1.000")).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 }); // 닫히는 대화상자가 스크린샷을 가리지 않게
     await page.screenshot({ path: screenshot("dme-ruleConfirm-confirmed.png"), fullPage: true });
   });
@@ -174,9 +175,9 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
   test("T6 담당자: 계약 변경은 계약 확인란을 체크해야 확정되고, 직전 버전이 닫힌다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleConfirm(page);
-    await choose(page, "E2E_RC_CONTRACT", 2);
+    await choose(page, "E2E_RC_CONTRACT", "2.000");
 
-    await expect(tid(page, "rc-previous")).toContainText("직전 RELEASED 버전 1 · 2026-01-01 00:00:00");
+    await expect(tid(page, "rc-previous")).toContainText("직전 RELEASED 버전 v1.000 · 2026-01-01 00:00:00");
     await expect(tid(page, "rc-diff-counts")).toHaveText("추가 0 · 삭제 0 · 수정 2 · 같음 0");
     // 먼 미래 일시 — 서버 시계 기준 futureApplyFrom=true 가 실행 날짜와 상관없이 늘 참이다.
     await validate(page, "2030-01-01T00:00");
@@ -201,16 +202,16 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
 
     await expect(page.getByText("확정했습니다").first()).toBeVisible({ timeout: 20_000 });
     await expect(tid(page, "rc-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: 20_000 });
-    await expect(tid(page, "rc-closed-previous")).toHaveText("직전 버전 1 의 적용을 닫았습니다");
+    await expect(tid(page, "rc-closed-previous")).toHaveText("직전 버전 v1.000 의 적용을 닫았습니다");
     await expect(tid(page, "rc-released")).toContainText("적용 구간 2030-01-01 00:00:00 ~ 9999-12-31 00:00:00");
-    await expect(tid(page, "rc-row-E2E_RC_CONTRACT-2")).toHaveCount(0);
+    await expect(tid(page, "rc-row-E2E_RC_CONTRACT-2.000")).toHaveCount(0);
     await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
   });
 
   test("T7 담당자: 다른 세션이 먼저 확정하면 화면 확정이 서버 문구로 거부된다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleConfirm(page);
-    await choose(page, "E2E_RC_RACE", 1);
+    await choose(page, "E2E_RC_RACE", "1.000");
     await validate(page, "2026-02-01T00:00");
     await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: 20_000 });
 
@@ -219,7 +220,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
       data: {
         meta: { menuId: "ruleConfirm" },
         params: {
-          maruRuleId: "E2E_RC_RACE", ver: 1, rowVersion: 0, applyFrom: "2026-02-01 00:00:00",
+          maruRuleId: "E2E_RC_RACE", ver: "1.000", rowVersion: 0, applyFrom: "2026-02-01 00:00:00",
           warningsAcknowledged: true,
         },
       },
@@ -245,7 +246,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await login(page, STD_ADMIN);
     await openRuleConfirm(page);
     await rbacLoaded;
-    await choose(page, "E2E_RC_CASEFAIL", 1);
+    await choose(page, "E2E_RC_CASEFAIL", "1.000");
 
     await expect(tid(page, "rc-apply-from")).toBeVisible();
     await expect(tid(page, "rc-validate")).toBeDisabled();

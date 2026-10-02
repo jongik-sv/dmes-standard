@@ -149,6 +149,12 @@ async function clickRow(id: string) {
   await flush();
 }
 
+/** 머리 [조회] — 첫 진입은 목록을 자동 조회하지 않으므로(cf4fbb05) 목록 행이 필요한 시험은 먼저 누른다. */
+async function search() {
+  await click(pageButton("조회"));
+  await flush();
+}
+
 const highlighted = () =>
   Array.from(document.body.querySelectorAll('[data-testid="code-list"] .ag-row-highlighted'))
     .map((r) => r.querySelector('.ag-cell[col-id="maruCodeId"]')?.textContent);
@@ -243,6 +249,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
   it("B 조회가 실패하면 오류를 닫은 뒤 선택이 비고, A 의 상세·쓰기 버튼이 남지 않는다", async () => {
     const snapshots: unknown[] = [];
     await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
+    await search();
     await clickRow("PROC_A");
     expect(headerId()).toBe("PROC_A");
 
@@ -262,6 +269,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
 
   it("A→B 를 빠르게 누르고 A 응답이 늦게 와도 상세와 쓰기는 B 로 간다", async () => {
     await render();
+    await search();
     hold("view:PROC_A");
     hold("view:PROC_B");
     await clickRow("PROC_A");
@@ -288,6 +296,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
   it("A 를 보다가 B 를 고르면 상세를 지웠다 다시 그리지 않고, B 가 올 때까지 A 를 잠근 채 둔다(깜빡임 방지)", async () => {
     const snapshots: unknown[] = [];
     await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
+    await search();
     await clickRow("PROC_A");
     const headerCell = byTestId("header-code-id");
     const versionList = byTestId("version-list");
@@ -317,6 +326,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
 
   it("A 저장 중에 B 를 눌러도 선택을 바꾸지 않고, 저장 결과는 A 위에 보인다", async () => {
     await render();
+    await search();
     await clickRow("PROC_A");
     hold("save:PROC_A");
     await click(byTestId("header-save"));
@@ -342,6 +352,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
 
   it("A 저장 중 handoff 로 B 를 고르면 늦게 온 A 저장 응답이 B 화면을 덮지 않고, 다음 쓰기는 B 로 간다", async () => {
     await render();
+    await search();
     await clickRow("PROC_A");
     hold("save:PROC_A");
     await click(byTestId("header-save"));
@@ -362,6 +373,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
   it("A 저장이 handoff 뒤에 충돌로 실패하면 오류는 보이되 닫아도 B 를 다시 부르지 않는다", async () => {
     saveFail.set("PROC_A", "다른 사용자가 수정했습니다. 다시 불러오세요");
     await render();
+    await search();
     await clickRow("PROC_A");
     hold("save:PROC_A");
     await click(byTestId("header-save"));
@@ -381,6 +393,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
   it("코드 삭제 중 handoff 로 B 를 고르면 삭제가 끝난 뒤에도 B 선택이 남는다", async () => {
     viewFlags.PROC_A = { neverReleased: true, canDeleteCode: true };
     await render();
+    await search();
     await clickRow("PROC_A");
     hold("delete:PROC_A");
     await click(byTestId("header-delete-code"));
@@ -425,6 +438,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
 
   it("액션 뒤 목록 재조회는 입력만 한 검색어가 아니라 마지막으로 조회한 조건을 쓴다", async () => {
     await render();
+    await search();
     await clickRow("PROC_A");
     await typeInto("code-search-keyword", "PROC");
     await click(pageButton("조회"));
@@ -450,6 +464,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
   it("버전 카드에서 고른 ver 를 snapshot 에 남긴다", async () => {
     const snapshots: unknown[] = [];
     await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
+    await search();
     await clickRow("PROC_A");
     expect(snapshots.at(-1)).toEqual({ maruCodeId: "PROC_A" });
     await click(versionRow("1.000")?.querySelector(".ag-cell"));
@@ -460,6 +475,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
 
   it("등록 팝업 [취소] 는 팝업만 닫고 고른 코드·버전·상세는 그대로 둔다", async () => {
     await render();
+    await search();
     await clickRow("PROC_A");
     await click(versionRow("1.000")?.querySelector(".ag-cell"));
     const viewsBefore = actions("view").length;

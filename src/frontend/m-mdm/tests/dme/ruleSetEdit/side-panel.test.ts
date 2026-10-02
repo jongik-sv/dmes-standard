@@ -25,7 +25,7 @@ function must(r: EditResult): EditFlow {
   return r.flow;
 }
 const io = (ruleId: string, extra: Partial<RuleIo> = {}): RuleIo => ({
-  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [], ...extra,
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [], ...extra,
 });
 /** start → r1 → r2 → if1{e4 갈래 1 → r3(빈 단계) / e5 그 외} → end, 메모 n1, 그룹 g1(r1). 선 e1 start→r1, e2 r1→r2, e3 r2→if1, e6 r3→end(implicit-join §8.2). */
 function richFlow(): EditFlow {

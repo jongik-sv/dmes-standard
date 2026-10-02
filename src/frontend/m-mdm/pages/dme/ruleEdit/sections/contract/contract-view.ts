@@ -8,6 +8,7 @@
  */
 import type { AstNode, InputContract, VarType } from "@/contract/engine-contract.generated";
 import { computeInputContract, type RuleDef, type RuleVarDef } from "@/evalex";
+import { sameVer } from "@/shell/version-format";
 
 import type { ExprSlot } from "../../api";
 import { parseCells, ruleDefFromStored, type CellObj } from "../../decision-table/grid-model";
@@ -231,7 +232,7 @@ export function contractWarnings(diffs: readonly ContractDiff[]): string[] {
 
 /** view 응답의 선택 버전 저장 형태. `base` 는 RELEASED(base_ver) 버전 — baseVars 가 없거나 base 가 없으면 null. */
 export function contractSourceOfView(view: RuleEditView, which: "current" | "base"): ContractSource | null {
-  const selected = view.versions.find((v) => v.ver === view.selectedVer);
+  const selected = view.versions.find((v) => sameVer(v.ver, view.selectedVer));
   if (!selected) return null;
   if (which === "base") {
     if (selected.baseVer == null || !view.baseVars || view.baseVars.length === 0) return null;

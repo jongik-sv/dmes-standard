@@ -787,9 +787,11 @@ test.describe("D 컬럼 사전", () => {
     await expect(tid(page, "form-phys-name")).toHaveValue(COL_ABBR);
 
     {
-      const domainSelect = tid(page, "form-domain");
-      const optionValue = await domainSelect.locator("option", { hasText: DOM_NAME }).first().getAttribute("value");
-      await domainSelect.selectOption(optionValue!);
+      // 도메인 칸은 검색형 입력이다 — 이름을 넣고 Enter 로 확정하면 서버가 하나로 정해 바로 적용한다.
+      const domainInput = tid(page, "form-domain");
+      await domainInput.fill(DOM_NAME);
+      await domainInput.press("Enter");
+      await expect(domainInput).toHaveValue(DOM_NAME);
     }
     await layoutD.layout(page, "columnMng 등록 입력 중");
     await snap(page, "dma-columnMng-02-applied");

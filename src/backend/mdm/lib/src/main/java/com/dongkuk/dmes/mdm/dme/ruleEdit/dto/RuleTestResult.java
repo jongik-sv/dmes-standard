@@ -17,7 +17,7 @@ import java.util.Map;
 public class RuleTestResult {
 
     private String target;
-    private Integer ver;
+    private String ver;
     private String evalTs;
     private String outcome;
     private Map<String, Object> results;
@@ -33,7 +33,7 @@ public class RuleTestResult {
     private Map<String, Object> draftCase;
 
     public String getTarget() { return target; }
-    public Integer getVer() { return ver; }
+    public String getVer() { return ver; }
     public String getEvalTs() { return evalTs; }
     public String getOutcome() { return outcome; }
     public Map<String, Object> getResults() { return results; }
@@ -49,7 +49,7 @@ public class RuleTestResult {
     public Map<String, Object> getDraftCase() { return draftCase; }
 
     public void setTarget(String v) { this.target = v; }
-    public void setVer(Integer v) { this.ver = v; }
+    public void setVer(String v) { this.ver = v; }
     public void setEvalTs(String v) { this.evalTs = v; }
     public void setOutcome(String v) { this.outcome = v; }
     public void setResults(Map<String, Object> v) { this.results = v; }

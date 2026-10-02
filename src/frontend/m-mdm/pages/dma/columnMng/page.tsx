@@ -32,9 +32,10 @@ import {
 } from "@dk-oasis/shared/grid";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { DomainField } from "@/domain";
 import { MdmPageLayout, badgeStyle } from "@/shell";
 
-import { compareName, saveColumn, searchColumns, loadColumnOptions, viewColumn } from "./api";
+import { compareName, saveColumn, searchColumns, searchDomains, loadColumnOptions, viewColumn } from "./api";
 import { formatLabels, resolveLabels } from "./labels";
 import { saveFormError, toSaveParams } from "./save-form";
 import {
@@ -50,7 +51,6 @@ import {
   type ColumnListRow,
   type CompareResult,
   type Direction,
-  type DomainOption,
   type NameToken,
   type PickedTerm,
   type SystemOption,
@@ -116,8 +116,9 @@ export default function ColumnMngPage() {
 
   const [keyword, setKeyword] = useState("");
   const [domainFilter, setDomainFilter] = useState("");
+  /** 편집 폼 도메인 칸에 보일 글자 — form.domainId 는 ID 만 갖는다. */
+  const [domainLabel, setDomainLabel] = useState("");
   const [list, setList] = useState<ColumnListRow[]>([]);
-  const [domains, setDomains] = useState<DomainOption[]>([]);
   const [systems, setSystems] = useState<SystemOption[]>([]);
   const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
 
@@ -149,13 +150,12 @@ export default function ColumnMngPage() {
 
   // ── 목록 ──────────────────────────────────────────────────────────────
   const loadList = useCallback(
-    async (kw: string, domainId: string) => {
+    async (kw: string, domainKeyword: string) => {
       setBusy(true);
       setListLoading(true);
       try {
-        const result = await searchColumns(kw, domainId);
+        const result = await searchColumns(kw, domainKeyword);
         setList(result.list ?? []);
-        setDomains(result.domains ?? []);
         setSystems(result.systems ?? []);
       } catch (e) {
         fail(e);
@@ -168,13 +168,12 @@ export default function ColumnMngPage() {
   );
 
   // 첫 진입 자동 목록 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청).
-  // 진입 때 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음). 목록(list)은 채우지 않는다.
+  // 진입 때 시스템 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음). 목록(list)은 채우지 않는다.
   useEffect(() => {
     let alive = true;
     loadColumnOptions()
       .then((result) => {
         if (!alive) return;
-        setDomains(result.domains ?? []);
         setSystems(result.systems ?? []);
       })
       .catch(fail);
@@ -202,6 +201,12 @@ export default function ColumnMngPage() {
         const result = await viewColumn(columnId);
         const c = result.column;
         setSelectedColumnId(c.columnId);
+        const listed = list.find((r) => r.columnId === c.columnId);
+        setDomainLabel(
+          c.domainId == null
+            ? ""
+            : listed?.domainName || `도메인 ${c.domainId}`,
+        );
         setForm({
           columnId: c.columnId,
           columnName: c.columnName ?? "",
@@ -238,7 +243,7 @@ export default function ColumnMngPage() {
         setBusy(false);
       }
     },
-    [fail],
+    [fail, list],
   );
 
   // ── 자동 생성 ─────────────────────────────────────────────────────────
@@ -324,6 +329,10 @@ export default function ColumnMngPage() {
     const forward = gen.direction === "FORWARD";
     const phys = forward ? composePhysName(genTokens) : gen.physName;
     const logical = forward ? composeLogicalName(genTokens) : gen.logicalName;
+    if (genDomain) {
+      const rec = gen.domains.find((d) => String(d.domainId) === genDomain);
+      setDomainLabel(rec?.domainName ?? `도메인 ${genDomain}`);
+    }
     setForm((prev) => ({
       ...prev,
       columnName: logical,
@@ -356,6 +365,7 @@ export default function ColumnMngPage() {
   const handleNew = useCallback(() => {
     setSelectedColumnId(null);
     setForm(emptyForm());
+    setDomainLabel("");
     setFormTerms([]);
     setAppliedPhys(null);
     setSystemRows([]);
@@ -559,19 +569,17 @@ export default function ColumnMngPage() {
             }}
           />
         </SearchField>
-        <SearchField
-          label="도메인"
-          type="select"
-          value={domainFilter}
-          options={[
-            { value: "", label: "전체" },
-            ...domains.map((d) => ({
-              value: String(d.domainId),
-              label: d.label,
-            })),
-          ]}
-          onChange={setDomainFilter}
-        />
+        <SearchField label="도메인">
+          <Input
+            data-testid="column-search-domain"
+            value={domainFilter}
+            placeholder="도메인 ID·도메인명·표준명"
+            onChange={setDomainFilter}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void loadList(keyword, domainFilter);
+            }}
+          />
+        </SearchField>
       </SearchArea>
 
       <ContentBody root direction="column" resizable storageKey="mdm.dma.columnMng">
@@ -832,17 +840,15 @@ export default function ColumnMngPage() {
                   <tr>
                     <th style={DETAIL_LABEL_CELL}>도메인</th>
                     <td style={DETAIL_VALUE_CELL}>
-                      <Select
-                        data-testid="form-domain"
-                        value={form.domainId}
-                        options={[
-                          { value: "", label: "선택" },
-                          ...domains.map((d) => ({
-                            value: String(d.domainId),
-                            label: d.label,
-                          })),
-                        ]}
-                        onChange={(v) => change("domainId", v)}
+                      <DomainField
+                        testId="form-domain"
+                        domainId={form.domainId === "" ? null : Number(form.domainId)}
+                        label={domainLabel}
+                        search={searchDomains}
+                        onChange={(row) => {
+                          setDomainLabel(row ? row.domainName || row.stdName : "");
+                          change("domainId", row ? String(row.domainId) : "");
+                        }}
                       />
                     </td>
                     <th style={DETAIL_LABEL_CELL}>필수</th>

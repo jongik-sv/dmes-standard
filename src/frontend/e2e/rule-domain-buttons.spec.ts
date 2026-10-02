@@ -13,7 +13,8 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 const BASE = "http://127.0.0.1:5100";
 const RULE = "PROD_WGT_CALC";
-const VER = 2;
+/** 서버 표기 룰 버전(D-144). */
+const VER = "2.000";
 
 async function login(page: Page, context: BrowserContext) {
   const r = await context.request.get(`${BASE}/api/auth/csrf`);

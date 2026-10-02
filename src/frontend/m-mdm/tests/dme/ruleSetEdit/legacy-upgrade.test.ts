@@ -109,7 +109,7 @@ interface CorpusCase {
   name: string;
   flow?: { version: number; nodes: Array<Partial<FlowNode> & { id: string; kind: FlowNode["kind"] }>; edges: Array<Partial<FlowEdge> & { id: string; from: string; to: string }> };
   condIo?: Record<string, { ok: boolean; message?: string | null; vars?: Array<{ name: string; source?: IoSource | null }> }>;
-  rules?: Record<string, { exists?: boolean; status?: string | null; releasedVer?: number | null; hitPolicy?: string | null; hasDefault?: boolean;
+  rules?: Record<string, { exists?: boolean; status?: string | null; releasedVer?: string | null; hitPolicy?: string | null; hasDefault?: boolean;
     conds?: Array<{ name: string; source?: IoSource | null }>; results?: Array<{ name: string }> }>;
 }
 

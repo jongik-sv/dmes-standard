@@ -9,8 +9,20 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button, Input } from "@dk-oasis/shared/form";
 
-import { searchDomains } from "../../api";
-import type { DomainRow } from "../../types";
+/** 도메인 검색 한 줄(서버 도메인 검색 action 의 rows). */
+export interface DomainRow {
+  domainId: number;
+  stdName: string;
+  domainName?: string | null;
+  domainKind?: string | null;
+  dataType: "BOOLEAN" | "NUMBER" | "STRING" | "DATE";
+  length?: number | null;
+  scale?: number | null;
+  stdRule?: string | null;
+}
+
+/** 서버 검색 함수 — 키워드를 받아 도메인 줄(서버가 DOMAIN_LIMIT 건까지 자른다)을 돌려준다. 화면이 자기 API 를 꽂는다. */
+export type DomainSearchFn = (keyword: string) => Promise<DomainRow[]>;
 
 export const DOMAIN_LIMIT = 8;
 
@@ -27,6 +39,8 @@ export function matchDomain(rows: readonly DomainRow[], text: string): DomainRow
 }
 
 export interface DomainSearchBoxProps {
+  /** 서버 도메인 검색 함수. */
+  search: DomainSearchFn;
   onPick: (row: DomainRow) => void;
   onClose: () => void;
   testId: string;
@@ -34,7 +48,7 @@ export interface DomainSearchBoxProps {
   initialKeyword?: string;
 }
 
-export function DomainSearchBox({ onPick, onClose, testId, initialKeyword = "" }: DomainSearchBoxProps) {
+export function DomainSearchBox({ search: searchFn, onPick, onClose, testId, initialKeyword = "" }: DomainSearchBoxProps) {
   const [keyword, setKeyword] = useState(initialKeyword);
   const [rows, setRows] = useState<DomainRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +58,7 @@ export function DomainSearchBox({ onPick, onClose, testId, initialKeyword = "" }
     setBusy(true);
     setError(null);
     try {
-      setRows(await searchDomains(text));
+      setRows(await searchFn(text));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

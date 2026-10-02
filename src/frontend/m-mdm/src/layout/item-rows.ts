@@ -2,7 +2,9 @@
  * 항목 그리드 표시 행(TSK-05-02 — 두 화면 공용). 계산 칸(항목명·도메인(파생)·설정·위치)을 행 데이터에 넣는다 — ag-grid 는 필드
  * 값이 바뀐 셀만 다시 그리므로 render 로만 그린 칸은 편집 뒤 갱신되지 않는다.
  */
+import { createElement } from "react";
 import type { GridColumn } from "@dk-oasis/shared/grid";
+import { ColumnPhysName } from "@/column-info";
 import { derivedLabel } from "./LayoutItemDetail";
 import { positionLabel } from "./layout-calc";
 import type { ColumnInfo, LayoutItemRow } from "./types";
@@ -12,7 +14,8 @@ export function baseItemColumns(readOnly: boolean): GridColumn[] {
   return [
     { key: "SEQ", header: "순서", width: 70, align: "center", rowDrag: !readOnly },
     { key: "ITEM_NAME", header: "항목명", width: 150 },
-    { key: "COLUMN_PHYS", header: "표준 물리명", width: 140 },
+    // 물리명 옆 정보 아이콘 → 컬럼 사전 상세 팝오버(아이콘 클릭은 행 선택으로 번지지 않는다).
+    { key: "COLUMN_PHYS", header: "표준 물리명", width: 140, render: (v) => createElement(ColumnPhysName, { physName: v as string | null }) },
     { key: "FILL_KIND", header: "채움", width: 80, align: "center" },
     { key: "OFFSET", header: "오프셋", width: 70, align: "right" },
     { key: "LENGTH", header: "길이", width: 60, align: "right" },

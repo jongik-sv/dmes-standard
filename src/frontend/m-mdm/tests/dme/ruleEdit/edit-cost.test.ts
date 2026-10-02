@@ -122,13 +122,13 @@ describe("룰 편집 1회 비용(결정적 수치)", () => {
     let s = initTableState(view);
     const loaded = tableStoredRows({ vars: s.vars, rows: s.loadedRows });
     const loadedJson = loadedRowsJson(s);
-    let wb = workbenchReducer(INITIAL_WORKBENCH, { type: "publishTable", draft: { ruleId: s.ruleId, ver: 2, hitPolicy: s.hitPolicy, rows: loaded, dirty: false } });
+    let wb = workbenchReducer(INITIAL_WORKBENCH, { type: "publishTable", draft: { ruleId: s.ruleId, ver: "2.000", hitPolicy: s.hitPolicy, rows: loaded, dirty: false } });
 
     s = editCell(s, 5, "77");
     const m = costOf(() => {
       const stored = tableStoredRows(s);
       const dirty = isDirty(s, { stored, loaded, loadedJson });
-      wb = workbenchReducer(wb, { type: "publishTable", draft: { ruleId: s.ruleId, ver: 2, hitPolicy: s.hitPolicy, rows: stored, dirty } });
+      wb = workbenchReducer(wb, { type: "publishTable", draft: { ruleId: s.ruleId, ver: "2.000", hitPolicy: s.hitPolicy, rows: stored, dirty } });
       return { stored, dirty };
     });
     expect(m.value.dirty).toBe(true);

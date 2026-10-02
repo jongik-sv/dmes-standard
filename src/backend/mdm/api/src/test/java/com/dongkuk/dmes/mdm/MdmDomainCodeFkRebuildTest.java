@@ -102,12 +102,14 @@ class MdmDomainCodeFkRebuildTest {
             // V13 이 표를 다시 만들기 때문에 SQLite 스키마가 표 이름을 큰따옴표로 감싼 형태로 남는다
             // (V8 이 만든 표는 `CREATE TABLE TB_MDM_RULE_VAR (`, V13 이 만든 표는 `CREATE TABLE "TB_MDM_RULE_VAR" (`).
             // 그 차이는 V9 가 아니라 V13 때문에 생겼으므로 비교 전에 정규화한다. 남은 차이가 AXIS 한 칸과 그 CHECK 뿐이어야 한다.
+            // D-144 의 V17 은 표를 다시 만들며 VER 를 NUMERIC(7,3) 으로 바꾼다. V17 은 인용 없는 표 이름으로 만들므로
+            // V8 문안과의 차이는 AXIS(V13)·VER 타입(V17) 뿐이다.
             String withoutAxis = ruleVarSqlBefore
-                    .replace("CREATE TABLE TB_MDM_RULE_VAR (", "CREATE TABLE \"TB_MDM_RULE_VAR\" (")
+                    .replace("    VER INTEGER NOT NULL,\n", "    VER NUMERIC(7,3) NOT NULL,\n")
                     .replace("    AXIS VARCHAR(20),\n", "")
                     .replace("    CONSTRAINT CK_TB_MDM_RULE_VAR_AXIS CHECK (AXIS IS NULL OR AXIS IN ('ROW','COL','NONE')),\n", "");
             assertEquals(withoutAxis, tableSql(c, "TB_MDM_RULE_VAR"),
-                    "⑤ RULE_VAR 는 V13 이 표 이름 인용·AXIS 한 칸·그 CHECK 만 달라야 한다");
+                    "⑤ RULE_VAR 는 V13 의 AXIS 한 칸·그 CHECK 와 V17 의 VER 타입만 달라야 한다");
             assertEquals(ruleVarFksBefore, ruleVarForeignKeys(c), "⑤ RULE_VAR FK 목록이 바뀌었다");
             seedRuleVer(c, "RULE_A");
             insertRuleVar(c, "RULE_A", 1, next);
