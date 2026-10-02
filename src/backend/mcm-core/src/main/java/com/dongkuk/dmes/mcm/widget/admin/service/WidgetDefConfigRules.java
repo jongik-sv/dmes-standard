@@ -4,6 +4,7 @@ import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -20,7 +21,9 @@ import java.util.regex.Pattern;
 final class WidgetDefConfigRules {
 
     static final int CONFIG_MAX_BYTES = 200 * 1024;
-    private static final ObjectMapper JSON = new ObjectMapper();
+    // JSON 값 뒤 군더더기(`{} junk`)도 거절한다 — 원문 그대로 저장되므로 파서가 끝까지 봐야 한다.
+    private static final ObjectMapper JSON =
+            new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private static final Pattern MEDIA_SRC = Pattern.compile("^media:[0-9a-f]{32}$");
 
     private WidgetDefConfigRules() {}

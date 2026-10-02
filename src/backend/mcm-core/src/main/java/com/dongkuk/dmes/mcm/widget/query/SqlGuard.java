@@ -24,6 +24,9 @@ import java.util.regex.Pattern;
  * <b>대괄호 {@code […]} 는 방언마다 뜻이 다르다</b> — SQLite·MSSQL 은 식별자, PostgreSQL·Oracle·H2 와 Spring 변수 해석은
  * 식(배열 첨자)으로 읽는다. 그래서 가린 사본을 두 벌(대괄호를 식별자로 가린 것·식으로 둔 것) 만들어 2~5단계를
  * <b>두 사본 모두</b>에 적용하고, 어느 한쪽이라도 어기면 거절한다. 실제로 바인딩할 변수는 Spring 과 같은 해석(식으로 둔 사본)에서 얻는다.
+ * 식별자 안의 {@code ]]} 는 MSSQL 만 글자 하나(이스케이프)로 읽고 SQLite 는 거기서 식별자를 닫으므로, 식별자 경계가 갈리는 표기라 받지 않는다.
+ * 줄 주석({@code --})은 {@code \n} 에서 끝나는 것으로 보고, 뒤에 {@code \n} 이 따르지 않는 {@code \r} 도 받지 않는다
+ * (DB 마다 {@code \r} 만으로 주석이 끝나는지가 다르다).
  * <p>
  * 방언마다 따옴표·주석 규칙이 달라 검사가 보는 코드와 DB 가 보는 코드가 어긋날 수 있는 표기(PostgreSQL {@code E'…'}·{@code $$…$$},
  * Oracle {@code q'…'}, SQLite 백틱 식별자, 주석 안의 {@code /*} — PostgreSQL·MSSQL 은 주석을 겹쳐 열고 Oracle·SQLite 는 아니다)는
@@ -43,6 +46,8 @@ public final class SqlGuard {
     static final String MSG_FORBIDDEN = "쓸 수 없는 낱말이 있습니다: ";
     static final String MSG_UNCLOSED = "닫히지 않은 따옴표·괄호·주석이 있습니다";
     static final String MSG_SPECIAL = "특수 문자열 표기(E'…', q'…', $$…$$, `…`)는 쓸 수 없습니다";
+    static final String MSG_BRACKET_ESCAPE = "대괄호 식별자 안에 ]] 를 쓸 수 없습니다(DB 마다 식별자가 끝나는 자리를 다르게 읽습니다)";
+    static final String MSG_LONE_CR = "줄 주석 안에 줄바꿈 없는 캐리지 리턴을 쓸 수 없습니다(DB 마다 주석이 끝나는 자리를 다르게 읽습니다)";
     static final String MSG_NESTED_COMMENT = "주석 안에 /* 를 다시 쓸 수 없습니다(DB 마다 겹친 주석을 다르게 읽습니다)";
 
     /** 식별자를 이루는 글자(Oracle 의 $·# 포함) — 낱말 경계 판단용. */
@@ -143,7 +148,11 @@ public final class SqlGuard {
             int end;
             if (c == '-' && next == '-') {
                 end = i + 2;
-                while (end < n && sql.charAt(end) != '\n' && sql.charAt(end) != '\r') end++;
+                while (end < n && sql.charAt(end) != '\n') {
+                    // \r\n 은 어느 DB 나 \n 에서 끝나지만, 따로 떨어진 \r 은 주석을 끝내는 DB 와 아닌 DB 가 갈린다.
+                    if (sql.charAt(end) == '\r' && !(end + 1 < n && sql.charAt(end + 1) == '\n')) throw invalid(MSG_LONE_CR);
+                    end++;
+                }
             } else if (c == '/' && next == '*') {
                 int close = sql.indexOf("*/", i + 2);
                 if (close < 0) throw invalid(MSG_UNCLOSED);
@@ -158,7 +167,7 @@ public final class SqlGuard {
             } else if (c == '"') {
                 end = closeQuoted(sql, i, '"');
             } else if (c == '[' && bracketIdentifiers) {
-                end = closeQuoted(sql, i, ']');
+                end = closeBracket(sql, i);
             } else {
                 if (c == '$' && (i == 0 || !isWordChar(sql.charAt(i - 1)))
                         && DOLLAR_QUOTE.matcher(sql).region(i, n).lookingAt()) {
@@ -194,6 +203,14 @@ public final class SqlGuard {
             j++;
         }
         throw invalid(MSG_UNCLOSED);
+    }
+
+    /** start 의 {@code [} 부터 첫 {@code ]} 다음 위치. {@code ]]} 는 DB 마다 읽는 방식이 달라 받지 않는다. */
+    private static int closeBracket(String sql, int start) {
+        int close = sql.indexOf(']', start + 1);
+        if (close < 0) throw invalid(MSG_UNCLOSED);
+        if (close + 1 < sql.length() && sql.charAt(close + 1) == ']') throw invalid(MSG_BRACKET_ESCAPE);
+        return close + 1;
     }
 
     /** {@code '} 바로 앞이 독립 낱말 E·Q·NQ 인가(PostgreSQL E'\'' 이스케이프 문자열, Oracle q'[…]' 대체 따옴표). */

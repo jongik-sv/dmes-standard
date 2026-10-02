@@ -51,9 +51,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>사용자는 늘 인증 컨텍스트(IDOR) — 기록은 (사용자, 인스턴스)로만 읽고 지운다.</li>
  *   <li>send: chat 유형·사용 중인 정의만. 사용자 메시지를 먼저 저장(즉시 커밋)하고, 최근 20개를 문맥으로 LLM 에 묻는다.
  *       도구는 정의 설정이 켠 것만 준다 — find_screen(pageGuide), run_widget_query(dataQueryDefIds 의 defId 만, 50행).
- *       도구 실행은 최대 4번(LLM 호출은 최대 5번). 공급자 오류·빈 답·끊긴 도구 호출·시간 초과면 assistant 를 저장하지 않고
- *       오류로 돌려준다. 시간 제한({@code timeout-sec}, 기본 60초)은 LLM 호출 한 번이 아니라 차례 전체에 건다 — 다음 호출 전에
- *       마감이 지났으면 더 부르지 않는다.</li>
+ *       도구 실행은 최대 4번(LLM 호출은 최대 5번). 공급자 오류·빈 답·글 없이 끊긴 답(도구 호출이 끊긴 경우 포함)·시간 초과면
+ *       assistant 를 저장하지 않고 오류로 돌려준다. 끊긴 답에 글이 있으면 끊김 표시({@code TRUNCATED_NOTICE})를 붙여 저장한다.
+ *       시간 제한({@code timeout-sec}, 기본 60초)은 LLM 호출 한 번이 아니라 차례 전체에 건다 — 다음 호출 전에 마감이 지났으면
+ *       더 부르지 않는다. 마감은 각 호출 앞에서만 확인하므로, 마감 직전에 시작한 호출은 HTTP 읽기 시간(기본 60초)만큼 더 걸려
+ *       한 차례가 최대 약 123초(연결 3초 포함)까지 갈 수 있다.</li>
  *   <li>모델이 SQL 을 만들어 실행하는 기능은 두지 않는다(W-D28). 키·프롬프트·메시지 본문은 로그에 남기지 않는다.</li>
  * </ul>
  * <b>트랜잭션</b>: OASIS({@code cactus.oasis.transactional: true})는 서비스 시작 때 txBiz 를 열고 예외면 통째로 롤백한다.

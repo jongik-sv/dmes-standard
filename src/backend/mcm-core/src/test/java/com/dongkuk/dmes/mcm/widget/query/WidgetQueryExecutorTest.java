@@ -241,6 +241,16 @@ class WidgetQueryExecutorTest {
     }
 
     @Test
+    @DisplayName("정의 SQL 이 바뀌면 캐시 비우기 이벤트가 없어도 새 SQL 로 조회한다 — 저장 순간 실행 중이던 호출의 옛 결과가 남지 않는다")
+    void cacheKeyIncludesSql() {
+        def("def.race", "query-number", "SELECT COUNT(*) AS CNT FROM WIDGET_T");
+        assertThat(count("def.race")).isEqualTo(600L);
+        // 저장 뒤: 이벤트로 비운 다음 옛 SQL 로 돌던 호출이 늦게 옛 결과를 넣은 상황 — 이벤트 없이 SQL 만 바꿔 흉내 낸다.
+        def("def.race", "query-number", "SELECT COUNT(*) AS CNT FROM WIDGET_T WHERE ID <= 10");
+        assertThat(count("def.race")).isEqualTo(10L);
+    }
+
+    @Test
     @DisplayName("실패한 실행은 캐시하지 않는다")
     void doesNotCacheFailures() {
         def("def.late", "query-number", "SELECT COUNT(*) AS CNT FROM LATE_T");

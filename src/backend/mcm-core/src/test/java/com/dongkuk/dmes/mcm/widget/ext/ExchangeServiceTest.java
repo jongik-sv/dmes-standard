@@ -171,6 +171,27 @@ class ExchangeServiceTest {
     }
 
     @Test
+    @DisplayName("제공자가 일부만 받고 멈추면 받은 값은 저장·합치고 stale:true, 같은 날 다시 시도하지 않는다")
+    void partialFetchIsStaleButKeepsReceivedValues() {
+        fullWeekBefore(); // 10-05(오늘)만 빠짐
+        List<ExchangeRatePoint> received = List.of(new ExchangeRatePoint(d(10, 5), "USD", new BigDecimal("1382")));
+        when(frankfurter.fetch(anyString(), anyList(), any(), any()))
+                .thenThrow(new WidgetExtPartialException("일부만 받음", received));
+
+        Map<String, Object> first = service.exchange("KRW", "USD,EUR", 7);
+        Map<String, Object> second = service.exchange("KRW", "USD,EUR", 7);
+
+        assertThat(first).containsEntry("stale", true);
+        assertThat(list(first, "history")).anySatisfy(h -> {
+            assertThat(h.get("date")).isEqualTo("2026-10-05");
+            assertThat(h.get("cur")).isEqualTo("USD");
+        });
+        assertThat(second).containsEntry("stale", true);
+        verify(frankfurter, times(1)).fetch(anyString(), anyList(), any(), any());
+        verify(writer).upsert("KRW", "frankfurter", received);
+    }
+
+    @Test
     @DisplayName("upsert 가 실패해도 받은 값은 이번 응답에 쓰고(stale 아님), 같은 날 다음 호출에서 다시 받는다")
     void writerFailureRetriesNextCall() {
         fullWeekBefore(); // 10-05(오늘)만 빠짐

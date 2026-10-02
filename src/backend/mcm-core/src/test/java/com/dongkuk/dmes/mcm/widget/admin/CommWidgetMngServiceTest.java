@@ -277,6 +277,8 @@ class CommWidgetMngServiceTest {
     void configJsonRules() {
         assertRejected(defReq("markdown", "{broken"), "JSON 객체");
         assertRejected(defReq("markdown", "[1,2]"), "JSON 객체");
+        assertRejected(defReq("markdown", "{\"markdown\":\"x\"} junk"), "JSON 객체");
+        assertRejected(defReq("markdown", "{\"markdown\":\"x\"}{}"), "JSON 객체");
         assertRejected(defReq("markdown", "{\"markdown\":\"" + "a".repeat(200 * 1024) + "\"}"), "200KB");
     }
 

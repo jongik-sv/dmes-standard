@@ -143,8 +143,17 @@ public class ExchangeService {
         }
 
         List<ExchangeRatePoint> fetched;
+        boolean partial = false;
         try {
             fetched = provider.fetch(base, syms, missFrom, missTo);
+        } catch (WidgetExtPartialException e) {
+            // 앞 날짜 값만 받았다 — 받은 값은 살리되, 정상으로 보이지 않게 stale 로 알리고 시도 기록을 실패로 남긴다.
+            log.warn("[widgetExt] 환율 제공자({}) 일부만 받음 — 받은 값만 쓰고 stale 로 알린다: {}", provider.id(), e.getMessage());
+            fetched = e.partial();
+            partial = true;
+            synchronized (lock) {
+                attempts.put(key, new Attempt(today, true));
+            }
         } catch (RuntimeException e) {
             // 원인 예외(주소·인증키가 든 메시지)는 남기지 않는다.
             log.warn("[widgetExt] 환율 제공자({}) 호출 실패 — DB 값만 돌려준다: {}", provider.id(), e.getMessage());
@@ -153,8 +162,9 @@ public class ExchangeService {
             }
             return true;
         }
-        if (fetched == null || fetched.isEmpty()) return false;
-        remember(provider.id(), syms, fetched, today);
+        if (fetched == null || fetched.isEmpty()) return partial;
+        // 일부만 받았으면 못 받은 날 값이 없을 뿐이라 미지원 통화로 판단하지 않는다.
+        if (!partial) remember(provider.id(), syms, fetched, today);
         try {
             writer.upsert(base, provider.id(), fetched);
         } catch (RuntimeException e) {
@@ -170,7 +180,7 @@ public class ExchangeService {
             if (p.date().isBefore(from) || p.date().isAfter(today)) continue;
             byDate.computeIfAbsent(p.date(), k -> new LinkedHashMap<>()).put(p.cur(), p);
         }
-        return false;
+        return partial;
     }
 
     /** provider=koreaexim 이고 키가 있을 때만 한국수출입은행, 그 밖은 Frankfurter. */

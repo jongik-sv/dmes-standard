@@ -86,7 +86,7 @@ class KoreaEximProviderTest {
     }
 
     @Test
-    @DisplayName("앞 날짜는 받고 뒤 날짜에서 실패하면 받은 값까지 돌려주고 남은 날은 부르지 않는다")
+    @DisplayName("앞 날짜는 받고 뒤 날짜에서 실패하면 받은 값을 실은 부분 실패 예외로 알리고 남은 날은 부르지 않는다")
     void laterDayFailureKeepsEarlierDays() {
         server.expect(requestTo("https://exim.test/json?authkey=SECRETKEY&searchdate=20261001&data=AP01"))
                 .andRespond(withSuccess("[{\"result\":1,\"cur_unit\":\"USD\",\"deal_bas_r\":\"1,361.2\"}]",
@@ -95,10 +95,14 @@ class KoreaEximProviderTest {
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
         // 10-05 는 부르지 않는다(기대 요청 없음)
 
-        List<ExchangeRatePoint> points = provider.fetch("KRW", List.of("USD"), d(10, 1), d(10, 5));
+        assertThatThrownBy(() -> provider.fetch("KRW", List.of("USD"), d(10, 1), d(10, 5)))
+                .isInstanceOfSatisfying(WidgetExtPartialException.class, e -> {
+                    assertThat(e.partial())
+                            .containsExactly(new ExchangeRatePoint(d(10, 1), "USD", new BigDecimal("1361.20000000")));
+                    assertThat(e.getMessage()).doesNotContain("SECRETKEY");
+                });
 
         server.verify();
-        assertThat(points).containsExactly(new ExchangeRatePoint(d(10, 1), "USD", new BigDecimal("1361.20000000")));
     }
 
     @Test

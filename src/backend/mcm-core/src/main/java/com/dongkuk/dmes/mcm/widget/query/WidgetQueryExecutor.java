@@ -110,8 +110,11 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     private final Clock clock;
     private final Map<CacheKey, CachedResult> cache = new ConcurrentHashMap<>();
 
-    /** 캐시 키. variables 는 SQL 이 쓰는 시스템 변수 이름 → 값(이름 순, null 값 허용). */
-    record CacheKey(String defId, int maxRows, Map<String, Object> variables) {}
+    /**
+     * 캐시 키. sql 은 실행한 SQL — 정의 저장 순간 실행 중이던 호출이 옛 SQL 결과를 넣어도 저장 뒤 호출은 다른 키를 써서
+     * 옛 결과를 받지 않는다. variables 는 SQL 이 쓰는 시스템 변수 이름 → 값(이름 순, null 값 허용).
+     */
+    record CacheKey(String defId, String sql, int maxRows, Map<String, Object> variables) {}
 
     private record CachedResult(WidgetQueryResult result, Instant expiresAt) {}
 
@@ -156,7 +159,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         Map<String, Object> values = systemValues(validated.variables());
 
         Instant now = clock.instant();
-        CacheKey key = new CacheKey(id, maxRows, cacheKeyValues(values, now));
+        CacheKey key = new CacheKey(id, validated.sql(), maxRows, cacheKeyValues(values, now));
         CachedResult hit = cache.get(key);
         if (hit != null && now.isBefore(hit.expiresAt())) return hit.result();
 

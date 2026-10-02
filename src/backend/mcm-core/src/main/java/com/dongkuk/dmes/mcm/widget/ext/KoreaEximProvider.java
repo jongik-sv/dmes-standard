@@ -24,7 +24,8 @@ import org.springframework.web.util.UriComponentsBuilder;
  * 한국수출입은행 매매기준율(인증키가 있을 때만) — 스펙 §8.1.
  * {@code GET {url}?authkey=KEY&searchdate=yyyyMMdd&data=AP01} → {@code [{"cur_unit":"USD","deal_bas_r":"1,380.5"}, …]}.
  * 날짜마다 하루씩 부르고(토·일은 빈 배열이라 부르지 않는다), 쉼표를 지우고 {@code JPY(100)} 같은 단위는 그 수로 나눈다.
- * 어느 날 호출이 실패하면 그 앞 날짜까지 받은 값을 돌려주고 멈춘다(받은 값이 하나도 없을 때만 예외).
+ * 어느 날 호출이 실패하면 멈춘다. 그 앞 날짜까지 받은 값이 있으면 {@link WidgetExtPartialException} 에 실어 던지고
+ * (서비스가 값은 합치되 stale 로 알린다), 하나도 없으면 원래 예외를 그대로 던진다.
  * 값은 이미 「1 외화 = n KRW」라 KRW 기준만 받는다. 인증키는 로그·예외 메시지에 넣지 않는다.
  */
 @Component
@@ -74,9 +75,10 @@ public class KoreaEximProvider implements ExchangeRateProvider {
                 out.addAll(parse(WidgetExtHttp.getJson(http, uri, "환율(한국수출입은행)"), d, wanted));
             } catch (WidgetExtException e) {
                 if (out.isEmpty()) throw e;
-                // 받은 날짜까지는 살린다. 못 받은 날은 DB 에 비어 남아 다음 날 다시 받는다(메시지에 인증키 없음).
+                // 받은 날짜까지는 살린다 — 부분 실패 예외에 받은 값을 실어, 서비스가 값은 합치되 stale 로 알리게 한다.
+                // 못 받은 날은 DB 에 비어 남아 다음 날 다시 받는다(메시지에 인증키 없음).
                 log.warn("[widgetExt] 환율(한국수출입은행) {} 부터 받지 못해 그 앞 날짜 값만 쓴다: {}", d, e.getMessage());
-                break;
+                throw new WidgetExtPartialException("환율(한국수출입은행) " + d + " 부터 받지 못했습니다: " + e.getMessage(), out);
             }
         }
         return out;

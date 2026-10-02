@@ -52,6 +52,7 @@ class SqlGuardTest {
                 // 1차 리뷰 뒤 덧붙인 사례: PostgreSQL 배열 첨자·띄어 쓴 비트 연산 &·주석 두 개·Spring 이 바인딩하는 &name
                 arguments("SELECT a[1] FROM t", "SELECT a[1] FROM t", List.of()),
                 arguments("SELECT a & b FROM t", "SELECT a & b FROM t", List.of()),
+                arguments("SELECT 1 -- x\r\nFROM t", "SELECT 1 -- x\r\nFROM t", List.of()),
                 arguments("SELECT 1 /* a */ /* b */ FROM t", "SELECT 1 /* a */ /* b */ FROM t", List.of()),
                 arguments("SELECT 1 FROM t WHERE a = &userId", "SELECT 1 FROM t WHERE a = &userId", List.of("userId")));
     }
@@ -110,6 +111,9 @@ class SqlGuardTest {
                         "알 수 없는 변수입니다: :userId.x (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
                 arguments("SELECT :{userId} FROM t",
                         "알 수 없는 변수입니다: :{userId} (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
+                // 방언마다 경계가 갈리는 표기 — 대괄호 식별자 안 ]](MSSQL 만 이스케이프)·줄 주석 안 홀로 \r
+                arguments("SELECT [a]] FROM t", SqlGuard.MSG_BRACKET_ESCAPE),
+                arguments("SELECT 1 -- x\r' \n; DELETE FROM t ; '", SqlGuard.MSG_LONE_CR),
                 // 백틱은 SQLite·Spring 만 따옴표로 읽는다 — 리터럴 경계가 갈리지 않게 받지 않는다
                 arguments("SELECT `a` FROM t", SPECIAL),
                 arguments("SELECT `'` FROM t; SELECT 2 --'", SPECIAL));
