@@ -54,7 +54,7 @@ public class SecFavoriteService {
     private final SecMenuRepository secMenuRepository;
     private final SecObjRepository secObjRepository;
 
-    /** IDOR 차단 — toggle 시 request body 의 userId 대신 인증 컨텍스트 userId 강제. */
+    /** IDOR 차단 — search·toggle·폴더 관리 모두 request body 의 userId 대신 인증 컨텍스트 userId 강제. */
     private final SecurityIdentity securityIdentity;
 
     @Autowired
@@ -73,7 +73,7 @@ public class SecFavoriteService {
     // ──────────────────────────────────────────────────────────── search
 
     public List<Map<String, Object>> searchFavorites(SecFavoriteSearchRequest request) {
-        String userId = request.getUserId();
+        String userId = resolveUserId(request.getUserId()); // IDOR — body 의 userId 로 남의 즐겨찾기를 읽지 못하게
         if (userId == null || userId.isBlank()) {
             return List.of();
         }
@@ -142,7 +142,7 @@ public class SecFavoriteService {
     // ──────────────────────────────────────────────────────────── toggle
 
     public Map<String, Object> toggleFavorite(SecFavoriteToggleRequest request) {
-        String userId = resolveUserId(request);
+        String userId = resolveUserId(request.getUserId());
         String pageId = request.getPageId();
         if (userId == null || userId.isBlank()) {
             throw new BusinessException(ErrorCode.AUTH_FAILED, "인증 정보가 없습니다.");
@@ -371,11 +371,11 @@ public class SecFavoriteService {
 
     // ──────────────────────────────────────────────────────────── helpers
 
-    private String resolveUserId(SecFavoriteToggleRequest request) {
+    private String resolveUserId(String requestUserId) {
         String authenticatedUserId = securityIdentity.currentUserId();
         return (authenticatedUserId != null && !authenticatedUserId.isBlank())
                 ? authenticatedUserId
-                : request.getUserId(); // 미인증(테스트) fallback — 운영 미발생
+                : requestUserId; // 미인증(테스트) fallback — 운영 미발생
     }
 
     private static String asString(Object o) {
