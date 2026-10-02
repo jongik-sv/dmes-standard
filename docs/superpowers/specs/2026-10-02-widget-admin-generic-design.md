@@ -329,6 +329,7 @@ mcm-core `widget.query` 패키지의 `WidgetQueryExecutor`. mcm 업무 코드에
 3. 끝의 `;` 하나는 지우고, 그 밖에 `;` 가 있으면 거절(여러 문장 금지).
 4. 낱말 단위로 `INSERT UPDATE DELETE MERGE DROP ALTER CREATE TRUNCATE GRANT REVOKE EXEC EXECUTE CALL COMMIT ROLLBACK INTO PRAGMA ATTACH DETACH` 가 있으면 거절(`SELECT … INTO` 포함).
 5. 이름 붙은 변수는 §7.2 목록만 허용. 모르는 `:name` 이 있으면 거절(시간 표기 `'10:30'` 은 리터럴이라 2단계에서 걷힌다).
+6. 읽기 전용 트랜잭션이 막지 못하는 함수는 낱말 단위로 거절한다(2026-10-03 보안 지적, 「쓸 수 없는 함수가 있습니다: …」). PostgreSQL `pg_terminate_backend` `pg_cancel_backend` `pg_advisory_*` `pg_try_advisory_*` `pg_sleep*` `set_config` `pg_notify` `pg_reload_conf` `pg_rotate_logfile` `pg_read_file` `pg_read_binary_file` `pg_ls_dir` `pg_stat_file` `lo_import` `lo_export` `dblink*` `query_to_xml*` `cursor_to_xml*`, Oracle `UTL_HTTP` `UTL_TCP` `UTL_SMTP` `UTL_FILE` `UTL_INADDR` `HTTPURITYPE` `DBMS_LOCK` `DBMS_PIPE` `DBMS_ALERT` `DBMS_SCHEDULER` `DBMS_JOB` `DBMS_SQL` `DBMS_XMLGEN` `DBMS_XMLQUERY`, SQLite `load_extension`, SQL Server `OPENROWSET` `OPENDATASOURCE` `OPENQUERY`. 따옴표·대괄호 식별자로 불러도 걸리게 이 단계는 식별자 안 글자도 보고, 이스케이프로 이름을 숨길 수 있는 PostgreSQL `U&"…"` 식별자는 받지 않는다. `DBMS_` 전체를 막지는 않는다(`DBMS_LOB.SUBSTR` 같은 CLOB 조회). 이 목록은 **보조 방어선**이고 근본 대책은 실행기에 읽기 권한만 가진 DB 계정의 DataSource 를 붙이는 것이다(§7 실행기 운영 주의 — 아직 앱 기본 DataSource 를 쓴다).
 
 ### 7.2 시스템 변수
 

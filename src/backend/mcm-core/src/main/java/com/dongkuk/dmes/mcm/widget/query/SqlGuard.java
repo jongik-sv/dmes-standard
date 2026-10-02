@@ -34,6 +34,13 @@ import java.util.regex.Pattern;
  * 닫히지 않은 따옴표·괄호·주석도 거절한다.
  * 실행할 SQL 은 가린 사본이 아니라 <b>원문</b>에서 끝 {@code ;} 만 지운 것이다(리터럴을 살려야 하므로). 감싸지 않고 그대로 실행한다.
  * 이 검사가 1차 방어선이고, 실행기의 읽기 전용·늘 롤백 트랜잭션이 2차 방어선이다(§7.3).
+ * <p>
+ * <b>함수 거절 목록</b>(§7.1 6단계, 2026-10-03 보안 지적): 읽기 전용 트랜잭션이 막지 못하는 부수효과·외부 통신·문자열 SQL 실행 함수
+ * (세션 종료·권고 잠금·대기, dblink, 서버 파일, {@code query_to_xml}·{@code DBMS_XMLGEN} 처럼 리터럴 안 SQL 을 실행하는 함수,
+ * Oracle 네트워크·잠금·작업 패키지, SQLite 확장 적재, MSSQL 외부 행 집합)를 낱말 단위로 거절한다. 따옴표 식별자로 불러도
+ * ({@code "pg_sleep"(1)}) 걸리도록 이 단계만은 따옴표·대괄호 식별자 안 글자를 드러낸 사본으로 본다. PostgreSQL 유니코드 식별자
+ * {@code U&"…"} 는 이스케이프로 이름을 숨길 수 있어 받지 않는다. 이름 목록은 <b>보조</b>일 뿐이고, 근본 대책은 실행기에 읽기 권한만 가진
+ * DB 계정의 DataSource 를 붙이는 것이다({@link WidgetQueryExecutor} 운영 주의).
  */
 public final class SqlGuard {
 
@@ -45,10 +52,11 @@ public final class SqlGuard {
     static final String MSG_MULTI = "문장은 하나만 쓸 수 있습니다";
     static final String MSG_FORBIDDEN = "쓸 수 없는 낱말이 있습니다: ";
     static final String MSG_UNCLOSED = "닫히지 않은 따옴표·괄호·주석이 있습니다";
-    static final String MSG_SPECIAL = "특수 문자열 표기(E'…', q'…', $$…$$, `…`)는 쓸 수 없습니다";
+    static final String MSG_SPECIAL = "특수 문자열 표기(E'…', q'…', $$…$$, `…`, U&\"…\")는 쓸 수 없습니다";
     static final String MSG_BRACKET_ESCAPE = "대괄호 식별자 안에 ]] 를 쓸 수 없습니다(DB 마다 식별자가 끝나는 자리를 다르게 읽습니다)";
     static final String MSG_LONE_CR = "줄 주석 안에 줄바꿈 없는 캐리지 리턴을 쓸 수 없습니다(DB 마다 주석이 끝나는 자리를 다르게 읽습니다)";
     static final String MSG_NESTED_COMMENT = "주석 안에 /* 를 다시 쓸 수 없습니다(DB 마다 겹친 주석을 다르게 읽습니다)";
+    static final String MSG_FORBIDDEN_FUNCTION = "쓸 수 없는 함수가 있습니다: ";
 
     /** 식별자를 이루는 글자(Oracle 의 $·# 포함) — 낱말 경계 판단용. */
     private static final String WORD_CHAR = "[\\p{L}\\p{N}_$#]";
@@ -59,6 +67,25 @@ public final class SqlGuard {
     private static final Pattern FORBIDDEN = Pattern.compile(
             "(?<!" + WORD_CHAR + ")(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXECUTE|EXEC|CALL"
                     + "|COMMIT|ROLLBACK|INTO|PRAGMA|ATTACH|DETACH)(?!" + WORD_CHAR + ")",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * 6단계 함수 거절 목록 — 읽기 전용 트랜잭션이 막지 못하는 부수효과·외부 통신·문자열 SQL 실행. 낱말 경계라 스키마·패키지 접두
+     * ({@code pg_catalog.pg_sleep}, {@code SYS.DBMS_LOCK.SLEEP}, {@code UTL_HTTP.REQUEST})도 걸린다. {@code DBMS_} 전체를 막지 않는 것은
+     * {@code DBMS_LOB.SUBSTR} 같은 평범한 CLOB 조회를 살리기 위해서다.
+     */
+    private static final Pattern FORBIDDEN_FUNCTION = Pattern.compile(
+            "(?<!" + WORD_CHAR + ")("
+                    // PostgreSQL — 세션 종료·권고 잠금·대기·설정 바꾸기·알림·서버 파일·외부 DB·리터럴 안 SQL 실행
+                    + "PG_TERMINATE_BACKEND|PG_CANCEL_BACKEND|PG_ADVISORY_[A-Z0-9_]*|PG_TRY_ADVISORY_[A-Z0-9_]*|PG_SLEEP(?:_[A-Z0-9_]+)?"
+                    + "|SET_CONFIG|PG_NOTIFY|PG_RELOAD_CONF|PG_ROTATE_LOGFILE|PG_READ_FILE|PG_READ_BINARY_FILE|PG_LS_DIR|PG_STAT_FILE"
+                    + "|LO_IMPORT|LO_EXPORT|DBLINK(?:_[A-Z0-9_]+)?|QUERY_TO_XML[A-Z0-9_]*|CURSOR_TO_XML[A-Z0-9_]*"
+                    // Oracle — 네트워크·파일·잠금·파이프·작업·동적 SQL·리터럴 안 SQL 실행
+                    + "|UTL_HTTP|UTL_TCP|UTL_SMTP|UTL_FILE|UTL_INADDR|HTTPURITYPE"
+                    + "|DBMS_LOCK|DBMS_PIPE|DBMS_ALERT|DBMS_SCHEDULER|DBMS_JOB|DBMS_SQL|DBMS_XMLGEN|DBMS_XMLQUERY"
+                    // SQLite 확장 적재, SQL Server 외부 행 집합
+                    + "|LOAD_EXTENSION|OPENROWSET|OPENDATASOURCE|OPENQUERY"
+                    + ")(?!" + WORD_CHAR + ")",
             Pattern.CASE_INSENSITIVE);
 
     /**
@@ -91,6 +118,10 @@ public final class SqlGuard {
         Inspection asIdentifier = inspect(mask(sql, true));
         // 두 해석이 지울 끝 ; 자리가 다르면 어느 쪽 문장인지 정할 수 없다 — 여러 문장으로 보고 거절한다.
         if (asExpression.semicolon() != asIdentifier.semicolon()) throw invalid(MSG_MULTI);
+
+        // 6. 함수 거절 목록 — 따옴표·대괄호 식별자 안 글자도 드러낸 사본(대괄호 두 해석 모두)으로 본다.
+        rejectForbiddenFunction(mask(sql, false, true));
+        rejectForbiddenFunction(mask(sql, true, true));
 
         // 가린 사본과 원문은 글자 위치가 같다 — 원문에서 그 자리의 ; 만 지운다.
         int semicolon = asExpression.semicolon();
@@ -132,13 +163,25 @@ public final class SqlGuard {
         return new Inspection(semicolon, List.copyOf(new ArrayList<>(used)));
     }
 
+    /** 6단계 — 식별자 글자를 드러낸 사본에서 거절 목록 함수 이름을 찾는다. */
+    private static void rejectForbiddenFunction(String revealed) {
+        Matcher m = FORBIDDEN_FUNCTION.matcher(revealed);
+        if (m.find()) throw invalid(MSG_FORBIDDEN_FUNCTION + m.group(1).toUpperCase(Locale.ROOT));
+    }
+
+    /** {@link #mask(String, boolean, boolean)} 의 식별자를 가리는 판(2~5단계용). */
+    static String mask(String sql, boolean bracketIdentifiers) {
+        return mask(sql, bracketIdentifiers, false);
+    }
+
     /**
      * 리터럴·따옴표 식별자·주석(bracketIdentifiers 이면 대괄호 식별자도)을 같은 길이의 공백으로 바꾼 사본(줄바꿈은 그대로 둔다).
      * 왼쪽부터 한 글자씩 읽는다 — 먼저 열린 구간이 이긴다(DB 렉서와 같은 순서).
      *
      * @param bracketIdentifiers true 면 {@code […]} 를 식별자로 가린다(SQLite·MSSQL), false 면 코드로 둔다(PostgreSQL 배열 첨자 등)
+     * @param revealIdentifiers  true 면 따옴표·대괄호 식별자는 여닫는 글자만 공백으로 바꾸고 안 글자는 그대로 둔다(6단계 함수 이름 검사용)
      */
-    static String mask(String sql, boolean bracketIdentifiers) {
+    static String mask(String sql, boolean bracketIdentifiers, boolean revealIdentifiers) {
         int n = sql.length();
         StringBuilder out = new StringBuilder(n);
         int i = 0;
@@ -165,9 +208,20 @@ public final class SqlGuard {
                 if (isSpecialStringPrefix(sql, i)) throw invalid(MSG_SPECIAL);
                 end = closeQuoted(sql, i, '\'');
             } else if (c == '"') {
+                if (isUnicodeIdentifierPrefix(sql, i)) throw invalid(MSG_SPECIAL);
                 end = closeQuoted(sql, i, '"');
+                if (revealIdentifiers) {
+                    appendRevealed(out, sql, i, end);
+                    i = end;
+                    continue;
+                }
             } else if (c == '[' && bracketIdentifiers) {
                 end = closeBracket(sql, i);
+                if (revealIdentifiers) {
+                    appendRevealed(out, sql, i, end);
+                    i = end;
+                    continue;
+                }
             } else {
                 if (c == '$' && (i == 0 || !isWordChar(sql.charAt(i - 1)))
                         && DOLLAR_QUOTE.matcher(sql).region(i, n).lookingAt()) {
@@ -186,6 +240,21 @@ public final class SqlGuard {
             i = end;
         }
         return out.toString();
+    }
+
+    /** 식별자 [start, end) — 여는 글자·닫는 글자는 공백, 안 글자는 그대로(길이는 원문과 같다). */
+    private static void appendRevealed(StringBuilder out, String sql, int start, int end) {
+        out.append(' ');
+        for (int k = start + 1; k < end - 1; k++) out.append(sql.charAt(k));
+        out.append(' ');
+    }
+
+    /** {@code "} 바로 앞이 PostgreSQL 유니코드 식별자 접두 {@code U&}(U 는 독립 낱말)인가 — 이스케이프로 함수 이름을 숨길 수 있다. */
+    private static boolean isUnicodeIdentifierPrefix(String sql, int quote) {
+        if (quote < 2 || sql.charAt(quote - 1) != '&') return false;
+        char u = sql.charAt(quote - 2);
+        if (u != 'U' && u != 'u') return false;
+        return quote < 3 || !isWordChar(sql.charAt(quote - 3));
     }
 
     /** start 의 여는 글자부터 닫는 글자 다음 위치. 닫는 글자 두 번({@code ''}·{@code ""}·{@code ]]})은 글자 하나로 본다. */

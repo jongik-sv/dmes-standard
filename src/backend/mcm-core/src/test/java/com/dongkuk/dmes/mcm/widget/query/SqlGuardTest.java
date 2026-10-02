@@ -25,7 +25,7 @@ class SqlGuardTest {
     private static final String MULTI = "문장은 하나만 쓸 수 있습니다";
     private static final String EMPTY = "SQL 을 입력해 주세요";
     private static final String UNCLOSED = "닫히지 않은 따옴표·괄호·주석이 있습니다";
-    private static final String SPECIAL = "특수 문자열 표기(E'…', q'…', $$…$$, `…`)는 쓸 수 없습니다";
+    private static final String SPECIAL = "특수 문자열 표기(E'…', q'…', $$…$$, `…`, U&\"…\")는 쓸 수 없습니다";
     private static final String NESTED = "주석 안에 /* 를 다시 쓸 수 없습니다(DB 마다 겹친 주석을 다르게 읽습니다)";
 
     /** 원문 → 실행할 SQL(끝 ; 만 지우고 앞뒤 공백 정리) → 쓰인 변수(처음 나온 순서, 중복 없음). */
@@ -127,6 +127,93 @@ class SqlGuardTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage(message)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_VALUE));
+    }
+
+    /** 6단계 — 읽기 전용 트랜잭션이 막지 못하는 함수(2026-10-03 보안 지적). 원문 → 메시지에 실릴 함수 이름. */
+    static Stream<Arguments> forbiddenFunctions() {
+        return Stream.of(
+                // PostgreSQL
+                arguments("SELECT pg_terminate_backend(123)", "PG_TERMINATE_BACKEND"),
+                arguments("SELECT pg_cancel_backend(pid) FROM pg_stat_activity", "PG_CANCEL_BACKEND"),
+                arguments("SELECT pg_catalog.pg_advisory_lock(1)", "PG_ADVISORY_LOCK"),
+                arguments("SELECT pg_try_advisory_xact_lock(1)", "PG_TRY_ADVISORY_XACT_LOCK"),
+                arguments("SELECT pg_sleep(10)", "PG_SLEEP"),
+                arguments("SELECT pg_sleep_for('5 minutes')", "PG_SLEEP_FOR"),
+                arguments("SELECT set_config('search_path', 'x', false)", "SET_CONFIG"),
+                arguments("SELECT pg_notify('ch', 'x')", "PG_NOTIFY"),
+                arguments("SELECT pg_read_file('/etc/passwd')", "PG_READ_FILE"),
+                arguments("SELECT pg_ls_dir('.')", "PG_LS_DIR"),
+                arguments("SELECT lo_import('/etc/passwd')", "LO_IMPORT"),
+                arguments("SELECT lo_export(1, '/tmp/x')", "LO_EXPORT"),
+                arguments("SELECT * FROM dblink('host=x', 'select 1') AS t(a int)", "DBLINK"),
+                arguments("SELECT dblink_exec('host=x', 'drop table t')", "DBLINK_EXEC"),
+                // 리터럴 안 SQL 은 가린 사본에서 안 보이지만 바깥 함수 이름이 걸린다
+                arguments("SELECT query_to_xml('select pg_terminate_backend(1)', true, true, '')", "QUERY_TO_XML"),
+                arguments("SELECT query_to_xml_and_xmlschema('select 1', true, true, '')", "QUERY_TO_XML_AND_XMLSCHEMA"),
+                arguments("SELECT cursor_to_xml('c', 1, true, true, '')", "CURSOR_TO_XML"),
+                // 따옴표 식별자·유니코드 아닌 대소문자 섞기로 불러도 걸린다
+                arguments("SELECT \"pg_sleep\"(10)", "PG_SLEEP"),
+                arguments("SELECT \"pg_catalog\".\"pg_terminate_backend\"(1)", "PG_TERMINATE_BACKEND"),
+                arguments("SELECT Pg_Sleep(1)", "PG_SLEEP"),
+                // Oracle
+                arguments("SELECT UTL_HTTP.REQUEST('http://x') FROM dual", "UTL_HTTP"),
+                arguments("SELECT utl_tcp.open_connection('x', 80) FROM dual", "UTL_TCP"),
+                arguments("SELECT UTL_SMTP.OPEN_CONNECTION('x') FROM dual", "UTL_SMTP"),
+                arguments("SELECT UTL_FILE.FOPEN('D', 'f', 'r') FROM dual", "UTL_FILE"),
+                arguments("SELECT UTL_INADDR.GET_HOST_ADDRESS('x') FROM dual", "UTL_INADDR"),
+                arguments("SELECT HTTPURITYPE('http://x').GETCLOB() FROM dual", "HTTPURITYPE"),
+                arguments("SELECT SYS.DBMS_LOCK.SLEEP(5) FROM dual", "DBMS_LOCK"),
+                arguments("SELECT DBMS_PIPE.RECEIVE_MESSAGE('p', 10) FROM dual", "DBMS_PIPE"),
+                arguments("SELECT DBMS_ALERT.WAITONE('a', m, s, 10) FROM dual", "DBMS_ALERT"),
+                arguments("SELECT DBMS_SCHEDULER.GENERATE_JOB_NAME FROM dual", "DBMS_SCHEDULER"),
+                arguments("SELECT DBMS_JOB.SUBMIT FROM dual", "DBMS_JOB"),
+                arguments("SELECT DBMS_SQL.OPEN_CURSOR FROM dual", "DBMS_SQL"),
+                arguments("SELECT DBMS_XMLGEN.GETXML('select 1 from dual') FROM dual", "DBMS_XMLGEN"),
+                arguments("SELECT DBMS_XMLQUERY.GETXML('select 1 from dual') FROM dual", "DBMS_XMLQUERY"),
+                arguments("SELECT \"SYS\".\"DBMS_LOCK\".\"SLEEP\"(5) FROM dual", "DBMS_LOCK"),
+                // SQLite·SQL Server(대괄호 식별자 안도 본다)
+                arguments("SELECT load_extension('x')", "LOAD_EXTENSION"),
+                arguments("SELECT * FROM OPENROWSET('SQLNCLI', 'x', 'select 1')", "OPENROWSET"),
+                arguments("SELECT * FROM OPENDATASOURCE('SQLNCLI', 'x').db.dbo.t", "OPENDATASOURCE"),
+                arguments("SELECT * FROM OPENQUERY(srv, 'select 1')", "OPENQUERY"),
+                arguments("SELECT * FROM [OPENROWSET]('SQLNCLI', 'x', 'select 1')", "OPENROWSET"));
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @MethodSource("forbiddenFunctions")
+    @DisplayName("부수효과·외부 통신·리터럴 안 SQL 실행 함수는 INVALID_VALUE 로 거절한다")
+    void rejectsForbiddenFunctions(String sql, String name) {
+        assertThatThrownBy(() -> SqlGuard.check(sql))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage(SqlGuard.MSG_FORBIDDEN_FUNCTION + name)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_VALUE));
+    }
+
+    @Test
+    @DisplayName("PostgreSQL 유니코드 식별자 U&\"…\" 는 이스케이프로 함수 이름을 숨길 수 있어 거절한다")
+    void rejectsUnicodeIdentifier() {
+        assertThatThrownBy(() -> SqlGuard.check("SELECT U&\"\\0070g_sleep\"(10)")).hasMessage(SPECIAL);
+        assertThatThrownBy(() -> SqlGuard.check("SELECT u&\"x\" FROM t")).hasMessage(SPECIAL);
+    }
+
+    static Stream<Arguments> allowedNearFunctions() {
+        return Stream.of(
+                // DBMS_ 전체를 막지 않는다 — 평범한 CLOB 조회
+                arguments("SELECT DBMS_LOB.SUBSTR(note, 100, 1) FROM t"),
+                arguments("SELECT DBMS_LOB.GETLENGTH(note) FROM t"),
+                // 이름 일부만 같은 식별자·리터럴 안 이름·비트 연산 & 뒤 따옴표 식별자는 통과
+                arguments("SELECT sleep_cnt, lock_yn, xml_data, utl_http_log FROM t"),
+                arguments("SELECT \"utl_http_log\", \"update\" FROM t"),
+                arguments("SELECT 'pg_sleep(10)', 'UTL_HTTP' FROM t"),
+                arguments("SELECT a &\"b\" FROM t"),
+                arguments("SELECT [lo_cd], [dblinkx] FROM t"));
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @MethodSource("allowedNearFunctions")
+    @DisplayName("거절 목록과 이름 일부만 같은 정상 조회는 통과한다")
+    void allowsNearFunctions(String sql) {
+        assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql);
     }
 
     @Test
