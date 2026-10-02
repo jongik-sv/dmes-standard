@@ -29,7 +29,7 @@ function textWidth(v: unknown): number {
  * shared exportToExcel 은 제목을 행 객체의 키로 쓰므로, 겹치는 제목은 뒤 컬럼에 「(2)」처럼 번호를 붙여 값이 덮이지 않게 한다.
  */
 export function toExcelColumns(
-  columns: readonly { key: string; header: string }[],
+  columns: readonly { key: string; header?: string }[],
   rows: readonly Record<string, unknown>[]
 ): ExcelColumn[] {
   const sample = rows.slice(0, 100);
