@@ -220,6 +220,20 @@ class MdmMetaControllerTest {
     }
 
     @Test
+    void entries_는_캐시_값을_싣지_않아_비즈니스식_원문이_브라우저로_나가지_않는다() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
+
+        String body = mvc.perform(get("/api/mls/mdmMeta/entries").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].key").value("COIL_THK"))
+                .andExpect(jsonPath("$.items[0].absent").value(false))
+                .andExpect(jsonPath("$.items[0].value").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        // spec §4.2 — bizExpr.text 는 서버 전용이다(화면 응답에는 존재 여부만).
+        assertThat(body).doesNotContain("bizExpr").doesNotContain("value <= COIL_WID");
+    }
+
+    @Test
     void load_는_이_인스턴스에_다시_적재하고_결과를_나눠_준다() throws Exception {
         mvc.perform(post("/api/mls/mdmMeta/load").contentType(MediaType.APPLICATION_JSON).header("X-Authenticated-Role", "SYSADMIN")
                         .content("{\"type\":\"COLUMN\",\"keys\":[\"coilThk\",\"nope\"]}"))

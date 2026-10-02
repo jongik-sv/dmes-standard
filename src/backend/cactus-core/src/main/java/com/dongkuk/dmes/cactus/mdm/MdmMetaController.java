@@ -38,7 +38,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
  * catch-all 이 경로를 그대로 넘기므로 BE 경로가 {@code /api/{module}/...} 로 시작한다. {@code {module}} 이 이 인스턴스 모듈과 다르면 404.
  *
  * <p>권한: columns·domains 는 로그인 사용자(BFF AUTH_ONLY). status·entries·load 는 SYSADMIN 만 — 보안 문맥에 인증이 있으면 그 권한으로,
- * 없으면 요청 헤더 {@code X-Authenticated-Role} 로 판정한다(Ruling R10 — mqc·mpp·mpn 에는 ClientKeyFilter·사용자 문맥이 없다). {@code DmomReceiveController} 처럼 {@code @Controller} 없이
+ * 없으면 요청 헤더 {@code X-Authenticated-Role} 로 판정한다(Ruling R10 — 처음에는 mqc·mpp·mpn 에 ClientKeyFilter 가 없었다. 2026-10-02 부터 다섯 모듈
+ * 모두 cactus 보안 체인 뒤에 있지만, 보안 설정이 빠진 새 모듈을 위해 헤더 판정을 남긴다). {@code DmomReceiveController} 처럼 {@code @Controller} 없이
  * 클래스 수준 {@code @RequestMapping} + {@code @ResponseBody} 로 두고 자동 설정이 {@code @Bean} 으로 만든다.
  */
 @ResponseBody
@@ -211,7 +212,7 @@ public class MdmMetaController {
 
     /**
      * SYSADMIN 판정(Ruling R10 + 검토 보강). 보안 문맥에 익명이 아닌 인증이 권한과 함께 있으면 그 권한으로만 판정한다(JWT·ClientKeyFilter 가
-     * 세운 인증 — 헤더를 다시 믿지 않는다). 그런 인증이 없을 때(mqc·mpp·mpn 처럼 사용자 문맥이 없는 모듈)만 {@code X-Authenticated-Role}
+     * 세운 인증 — 헤더를 다시 믿지 않는다). 그런 인증이 없을 때(cactus 보안 설정이 없어 사용자 문맥이 없는 모듈)만 {@code X-Authenticated-Role}
      * 헤더(콤마 목록)로 판정한다. 두 경우 모두 {@code ROLE_} 접두를 떼고 대소문자를 가리지 않는다.
      */
     static boolean isSysadmin(String roleHeader) {
@@ -309,12 +310,15 @@ public class MdmMetaController {
         return MdmScreenColumn.of(m, allowed);
     }
 
+    /**
+     * 항목 한 줄. 캐시 값({@code value})은 싣지 않는다 — 컬럼의 {@code bizExpr.text}·룰 정의 전체 같은 서버 전용 값이 관리 화면(브라우저)으로
+     * 나가지 않게 한다(spec §4.2). 있음·없음은 {@code absent} 로만 알린다.
+     */
     private static Map<String, Object> entryRow(MdmMetaCache.EntryView v) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("type", v.type().name());
         row.put("key", v.key());
         row.put("absent", v.absent());
-        row.put("value", MdmJson.plain(v.value()));
         row.put("loadedAt", v.loadedAt().toString());
         row.put("hits", v.hits());
         row.put("remainingSeconds", v.remainingSeconds());

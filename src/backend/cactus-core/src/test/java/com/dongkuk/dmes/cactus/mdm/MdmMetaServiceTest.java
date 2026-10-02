@@ -2,6 +2,8 @@ package com.dongkuk.dmes.cactus.mdm;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -11,6 +13,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.ExpectedCount;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
 
 /** spec §5.2·§5.4·§7 「cactus 캐시」 — 묶음 조회, 없음 캐시, 동시 적재 1회, 장애 시 유지·건너뛰기. */
 class MdmMetaServiceTest {
@@ -102,6 +108,30 @@ class MdmMetaServiceTest {
         }
         assertThat(feed.fetchCalls.get()).isEqualTo(3);
         assertThat(service.consecutiveFailures()).isZero();
+    }
+
+    @Test
+    void MDM_업무_거부와_값_하나의_변환_실패는_장애로_세지_않아_건너뛰기가_걸리지_않는다() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        MdmMetaService real = new MdmMetaService(new MdmMetaClient(builder.build(), "http://mdm.test", "mls"), cache, clock);
+        String rejected = "{\"meta\":{\"success\":false,\"code\":\"S001\",\"message\":\"키는 한 번에 500개까지 받습니다\"}}";
+        String oneBad = "{\"meta\":{\"success\":true},\"data\":{\"result\":{\"items\":[{\"key\":\"L1\",\"value\":\"문자열\"},"
+                + "{\"key\":\"L2\",\"value\":{\"layoutName\":\"전문\"}}],\"failed\":[]}}}";
+        server.expect(ExpectedCount.twice(), requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andRespond(withSuccess(rejected, MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view")).andRespond(withSuccess(oneBad, MediaType.APPLICATION_JSON));
+
+        assertThat(real.lookup(MdmTargetType.LAYOUT, List.of("L1")).unavailable()).containsExactly("L1");
+        assertThat(real.lookup(MdmTargetType.LAYOUT, List.of("L1")).unavailable()).containsExactly("L1");
+        assertThat(real.consecutiveFailures()).as("업무 거부는 장애가 아니다").isZero();
+
+        // 두 번 거부된 뒤에도 30초 건너뛰기 없이 바로 MDM 을 부른다. 값 하나가 깨져도 나머지는 받는다.
+        MdmMetaService.MdmLookup r = real.lookup(MdmTargetType.LAYOUT, List.of("L1", "L2"));
+        assertThat(r.unavailable()).containsExactly("L1");
+        assertThat(r.found()).containsOnlyKeys("L2");
+        assertThat(real.consecutiveFailures()).isZero();
+        server.verify();
     }
 
     @Test

@@ -13,6 +13,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.math.BigDecimal;
 import java.net.SocketTimeoutException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
@@ -153,12 +154,54 @@ class MdmMetaClientTest {
     }
 
     @Test
-    void meta_success_false_는_MdmUnavailableException_에_서버_메시지를_싣는다() {
-        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+    void search_의_meta_success_false_는_MdmUnavailableException_에_서버_메시지를_싣는다() {
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/search"))
                 .andRespond(withSuccess("{\"meta\":{\"success\":false,\"code\":\"E001\",\"message\":\"입력값이 올바르지 않습니다\"}}",
                         MediaType.APPLICATION_JSON));
-        assertThatThrownBy(() -> client.fetch(MdmTargetType.DOMAIN, List.of("1")))
+        assertThatThrownBy(() -> client.changes(0, 1))
                 .isInstanceOf(MdmUnavailableException.class).hasMessageContaining("입력값이 올바르지 않습니다");
+    }
+
+    @Test
+    void view_의_meta_success_false_는_장애가_아니라_그_묶음_키의_failed_다() {
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andRespond(withSuccess("{\"meta\":{\"success\":false,\"code\":\"S001\",\"message\":\"입력값이 올바르지 않습니다\"}}",
+                        MediaType.APPLICATION_JSON));
+
+        MdmFetchResult r = client.fetch(MdmTargetType.DOMAIN, List.of("1", "2"));
+
+        assertThat(r.found()).isEmpty();
+        assertThat(r.failed()).containsOnlyKeys("1", "2");
+        assertThat(r.failed().get("1")).contains("입력값이 올바르지 않습니다");
+        server.verify();
+    }
+
+    @Test
+    void fetch_는_키를_500개씩_나눠_부르고_결과를_합친다() {
+        List<String> keys = new ArrayList<>();
+        for (int i = 1; i <= 1001; i++) {
+            keys.add("K" + i);
+        }
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andExpect(jsonPath("$.grids.keys.rows.length()").value(500))
+                .andExpect(jsonPath("$.grids.keys.rows[0].key").value("K1"))
+                .andExpect(jsonPath("$.grids.keys.rows[499].key").value("K500"))
+                .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"K1\",\"value\":{\"a\":1}}],\"failed\":[]}"), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andExpect(jsonPath("$.grids.keys.rows.length()").value(500))
+                .andExpect(jsonPath("$.grids.keys.rows[0].key").value("K501"))
+                // 두 번째 묶음만 MDM 이 거부해도 다른 묶음의 결과는 남고, 거부된 묶음 키만 failed 다.
+                .andRespond(withSuccess("{\"meta\":{\"success\":false,\"message\":\"거부\"}}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andExpect(jsonPath("$.grids.keys.rows.length()").value(1))
+                .andExpect(jsonPath("$.grids.keys.rows[0].key").value("K1001"))
+                .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"K1001\",\"value\":{\"b\":2}}],\"failed\":[]}"), MediaType.APPLICATION_JSON));
+
+        MdmFetchResult r = client.fetch(MdmTargetType.LAYOUT, keys);
+
+        assertThat(r.found()).containsOnlyKeys("K1", "K1001");
+        assertThat(r.failed()).hasSize(500).containsKey("K501").containsKey("K1000");
+        server.verify();
     }
 
     @Test
@@ -176,10 +219,22 @@ class MdmMetaClientTest {
     }
 
     @Test
-    void 값을_엔진_모양으로_읽을_수_없으면_MdmUnavailableException() {
+    void 값_하나를_엔진_모양으로_읽을_수_없으면_그_키만_failed_이고_나머지는_found_다() {
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"S1\",\"value\":\"문자열\"},"
+                        + "{\"key\":\"S2\",\"value\":{\"layoutName\":\"전문\"}}],\"failed\":[]}"), MediaType.APPLICATION_JSON));
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
                 .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"S1\",\"value\":\"문자열\"}],\"failed\":[]}"), MediaType.APPLICATION_JSON));
-        assertThatThrownBy(() -> client.fetch(MdmTargetType.RULE_SET, List.of("S1"))).isInstanceOf(MdmUnavailableException.class);
+
+        MdmFetchResult layouts = client.fetch(MdmTargetType.LAYOUT, List.of("S1", "S2"));
+        assertThat(layouts.failed()).containsOnlyKeys("S1");
+        assertThat(layouts.failed().get("S1")).contains("LAYOUT");
+        assertThat(layouts.found()).containsOnlyKeys("S2");
+
+        MdmFetchResult sets = client.fetch(MdmTargetType.RULE_SET, List.of("S1"));
+        assertThat(sets.found()).isEmpty();
+        assertThat(sets.failed()).containsOnlyKeys("S1");
+        server.verify();
     }
 
     @Test
