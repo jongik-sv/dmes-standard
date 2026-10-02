@@ -675,9 +675,12 @@ test.describe("mdm dme/ruleEdit", () => {
     await caseCard(page).scrollIntoViewIfNeeded();
     await page.screenshot({ path: screenshot04("dme-ruleEdit-testcases.png"), fullPage: true });
 
-    // 새 케이스를 지운다(한 번 더 눌러 확인).
-    await added.getByRole("button", { name: "삭제", exact: true }).click();
-    await added.getByRole("button", { name: "삭제 확인", exact: true }).click();
+    // 새 케이스를 지운다 — 행 맨 앞 체크 칸으로 고르고 머리글 [삭제] → 확인창(포털) [확인].
+    await added.locator(".ag-selection-checkbox").click();
+    await expect(page.getByTestId("tc-selected-count")).toHaveText("선택 1건");
+    await page.getByTestId("tc-delete").click();
+    await expect(page.getByText("선택한 케이스 1건을 삭제하시겠습니까?")).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).last().click();
     await expect(caseRowWith(page, "E2E 중간 두께 B")).toHaveCount(0, { timeout: 30_000 });
     await expect(caseRow(page, 1)).toBeVisible();
     await expect(caseRow(page, 2)).toBeVisible();

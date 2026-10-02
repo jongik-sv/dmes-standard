@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   plan: vi.fn(),
   run: vi.fn(),
   save: vi.fn(),
+  parse: vi.fn(),
 }));
 
 vi.mock("../../../pages/dme/ruleEdit/value-test/boundary-cases", async (importOriginal) => {
@@ -31,7 +32,7 @@ vi.mock("../../../pages/dme/ruleEdit/value-test/boundary-cases", async (importOr
 
 vi.mock("../../../pages/dme/ruleEdit/api", async (importOriginal) => {
   const m = await importOriginal<typeof import("../../../pages/dme/ruleEdit/api")>();
-  return { ...m, runValueTest: mocks.run, saveTestCase: mocks.save };
+  return { ...m, runValueTest: mocks.run, saveTestCase: mocks.save, parseExpr: mocks.parse };
 });
 
 interface Deferred<T> {
@@ -177,6 +178,7 @@ describe("카드 ⑥ 경계값 생성", { timeout: 30_000 }, () => {
     mocks.plan.mockReset();
     mocks.run.mockReset();
     mocks.save.mockReset();
+    mocks.parse.mockReset();
     writes = 0;
     consoleErrors = [];
     vi.spyOn(console, "error").mockImplementation((...a: unknown[]) => {
@@ -213,9 +215,10 @@ describe("카드 ⑥ 경계값 생성", { timeout: 30_000 }, () => {
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }), { busy: true });
     expect(boundaryButton().disabled).toBe(true);
 
-    const legacy = draftView("e2e_mdm_steward", undefined, { testCases: CASES });
-    await render({ ...legacy, rule: { ...legacy.rule, sourceKind: "LEGACY" } as RuleEditView["rule"] });
-    expect(boundaryButton().disabled).toBe(true);
+    // 외부 원천 룰도 케이스는 쓴다(D-145) — 케이스가 없어도 켠다.
+    const external = draftView("e2e_mdm_steward", undefined, { testCases: [] });
+    await render({ ...external, rule: { ...external.rule, sourceKind: "EXTERNAL" } as RuleEditView["rule"] });
+    expect(boundaryButton().disabled).toBe(false);
 
     // 실행 권한이 없으면 후보는 만들지만 [선택 실행] 은 끈다.
     mocks.plan.mockReturnValue(planOf(2));
@@ -281,6 +284,98 @@ describe("카드 ⑥ 경계값 생성", { timeout: 30_000 }, () => {
     expect(q("tc-boundary-error")?.textContent).toContain("경계값 후보를 만들지 못했습니다. not implemented");
   });
 
+  it("열 조건 사유(groupNotes)를 못 만든 행 아래에 보인다", async () => {
+    mocks.plan.mockReturnValue(planOf(1, { groupNotes: ["BASE_SPD 의 AKZO 열을 고르는 입력을 찾지 못했습니다"] }));
+    await openModal();
+    expect(visibleText(q("bc-group-notes")!)).toContain("BASE_SPD 의 AKZO 열을 고르는 입력을 찾지 못했습니다");
+  });
+
+  it("결과 열 그룹에 열 조건이 없으면 서버 파싱 없이 바로 후보를 만든다(groupConds 빈 배열)", async () => {
+    mocks.plan.mockReturnValue(planOf(1));
+    await openModal();
+    expect(mocks.parse).not.toHaveBeenCalled();
+    expect(mocks.plan.mock.calls[0][0].groupConds).toEqual([]);
+  });
+
+  it("열 조건은 서로 다른 텍스트만 서버 파싱하고(준비 중엔 버튼을 끈다) 그룹·열 seq 순으로 groupConds 를 넘긴다", async () => {
+    const base = draftView("e2e_mdm_steward", undefined, { testCases: CASES });
+    const res = (varId: number, varName: string, seq: number) => ({ ...SAMPLE_VARS[3], varId, varName, seq });
+    const T2 = 'STR_STARTS_WITH(TOP_RESIN_CD, "2")';
+    const TF = 'TOP_RESIN_CD == "F"';
+    const view: RuleEditView = {
+      ...base,
+      vars: [...base.vars, res(203, "FLUORO", 11), res(201, "TEXTURE", 10), res(202, "GENERAL", 12), res(204, "PLAIN", 13), res(205, "G2COL", 14)],
+      varMeta: [
+        { varId: 201, resGrp: "BASE_SPD", grpCond: T2 },
+        { varId: 202, resGrp: "BASE_SPD", grpCond: null },
+        { varId: 203, resGrp: "BASE_SPD", grpCond: ` ${TF} ` },
+        { varId: 204, resGrp: "PLAIN", grpCond: null },
+        { varId: 205, resGrp: "G2", grpCond: TF },
+      ],
+    };
+    const ast = { type: "FUNCTION", value: "STR_STARTS_WITH", params: [{ type: "VARIABLE_OR_CONSTANT", value: "TOP_RESIN_CD" }, { type: "STRING_LITERAL", value: "2" }] };
+    const p2 = deferred<unknown>();
+    const pf = deferred<unknown>();
+    mocks.parse.mockImplementation((text: string) => (text === T2 ? p2.promise : pf.promise));
+    mocks.plan.mockReturnValue(planOf(1));
+    await render(view);
+    await clickEl(boundaryButton());
+    expect(mocks.parse.mock.calls.map((c) => c.slice(0, 2))).toEqual([
+      [T2, "RULE_GRP_COND"],
+      [TF, "RULE_GRP_COND"],
+    ]);
+    expect(boundaryButton().textContent).toBe("준비 중…");
+    expect(boundaryButton().disabled).toBe(true);
+    expect(mocks.plan).not.toHaveBeenCalled();
+    await settle(() => {
+      p2.resolve({ ast, refVars: ["TOP_RESIN_CD"], supported: true, problems: [] });
+      pf.reject(new Error("파싱 실패"));
+    });
+    expect(boundaryButton().textContent).toBe("경계값 생성");
+    expect(boundaryButton().disabled).toBe(false);
+    expect(mocks.plan).toHaveBeenCalledTimes(1);
+    expect(mocks.plan.mock.calls[0][0].groupConds).toEqual([
+      {
+        group: "BASE_SPD",
+        columns: [
+          { varId: 201, name: "TEXTURE", seq: 10, ast, supported: true },
+          { varId: 203, name: "FLUORO", seq: 11, ast: null, supported: false },
+          { varId: 202, name: "GENERAL", seq: 12, ast: null, supported: true },
+        ],
+      },
+      { group: "G2", columns: [{ varId: 205, name: "G2COL", seq: 14, ast: null, supported: false }] },
+    ]);
+    expect(q("bc-modal")).not.toBeNull();
+  });
+
+  it("서버가 supported=false·problems 로 답한 열 조건은 supported:false 로 넘긴다", async () => {
+    const base = draftView("e2e_mdm_steward", undefined, { testCases: CASES });
+    const view: RuleEditView = {
+      ...base,
+      vars: [...base.vars, { ...SAMPLE_VARS[3], varId: 301, varName: "A", seq: 5 }, { ...SAMPLE_VARS[3], varId: 302, varName: "B", seq: 6 }],
+      varMeta: [
+        { varId: 301, resGrp: "G", grpCond: "ODD(X)" },
+        { varId: 302, resGrp: "G", grpCond: "X ==" },
+      ],
+    };
+    const ast = { type: "FUNCTION", value: "ODD", params: [{ type: "VARIABLE_OR_CONSTANT", value: "X" }] };
+    mocks.parse.mockImplementation(async (text: string) =>
+      text === "ODD(X)" ? { ast, refVars: ["X"], supported: false, problems: [] } : { ast: {}, refVars: [], supported: true, problems: [{ kind: "PARSE", detail: "끝" }] },
+    );
+    mocks.plan.mockReturnValue(planOf(1));
+    await openModal(view);
+    await flush();
+    expect(mocks.plan.mock.calls[0][0].groupConds).toEqual([
+      {
+        group: "G",
+        columns: [
+          { varId: 301, name: "A", seq: 5, ast, supported: false },
+          { varId: 302, name: "B", seq: 6, ast: null, supported: false },
+        ],
+      },
+    ]);
+  });
+
   it("blocked 면 사유 문장만 보이고 실행·저장을 끈다", async () => {
     mocks.plan.mockReturnValue(planOf(0, { blocked: "저장하지 않은 행이 있어 후보를 만들 수 없습니다. 표를 먼저 저장하세요." }));
     await openModal();
@@ -295,7 +390,7 @@ describe("카드 ⑥ 경계값 생성", { timeout: 30_000 }, () => {
       planOf(2, { truncated: 7, skipped: [{ rowId: 3, seq: 3, reason: "SURF_GRD 칸이 CONTAINS 라 대표값을 정하지 못합니다" }] }),
     );
     await openModal();
-    expect(q("bc-truncated")?.textContent).toBe("상한 100건을 넘어 7건을 뺐습니다");
+    expect(q("bc-truncated")?.textContent).toBe("상한 200건을 넘어 7건을 뺐습니다");
     expect(visibleText(q("bc-skipped")!)).toContain("3행 · SURF_GRD 칸이 CONTAINS 라 대표값을 정하지 못합니다");
   });
 

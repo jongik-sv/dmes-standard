@@ -377,6 +377,21 @@ const caseRows = (page: Page) => tcCard(page).locator(".ag-center-cols-container
 /** 케이스 줄 — 이름 칸이 name 으로 시작하고 복사본("(복사)")이 아닌 줄(설명은 이름 뒤에 " · " 로 붙는다). */
 const caseRow = (page: Page, name: string) =>
   caseRows(page).filter({ has: page.locator('.ag-cell[col-id="name"]', { hasText: new RegExp(`^\\s*${escapeRe(name)}(?! \\(복사\\))`) }) });
+/** 케이스 표에서 names 줄만 체크한다(행 맨 앞 체크 칸). 카드 ⑥ 머리글 버튼은 체크한 케이스를 대상으로 한다. */
+async function pickCases(page: Page, ...names: string[]) {
+  // 체크 칸은 00-setup 선례처럼 .ag-selection-checkbox 를 누른다(상태는 그 안 input 으로 읽는다).
+  for (const box of await caseRows(page).locator(".ag-selection-checkbox").all()) {
+    if (await box.locator("input").isChecked()) await box.click();
+  }
+  for (const n of names) await caseRow(page, n).locator(".ag-selection-checkbox").click();
+  await expect(tid(page, "tc-selected-count")).toHaveText(`선택 ${names.length}건`);
+}
+/** 카드 ⑥ 머리글 [삭제] → 확인창(포털) [확인]. */
+async function deletePickedCases(page: Page, count: number) {
+  await tid(page, "tc-delete").click();
+  await expect(page.getByText(`선택한 케이스 ${count}건을 삭제하시겠습니까?`)).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).last().click();
+}
 /** 세트 입출력 표(AgDataGrid)의 한 행 — 행 키는 변수명이다. kind: inputs(입력 변수) | results(결과 변수). */
 const ioRow = (page: Page, kind: "inputs" | "results", name: string): Locator =>
   page.getByTestId(`set-io-${kind}`).locator(`.ag-center-cols-container .ag-row[row-id="${name}"]`);
@@ -1135,23 +1150,27 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tcCard(page).scrollIntoViewIfNeeded();
     await snap(page, "dme-ruleEdit-TC-01-cases");
 
-    // 한 케이스만 실행 — 그 케이스만 배지가 남는다.
-    await caseRow(page, CASE_A).locator('[data-testid^="tc-run-"]').click();
+    // 한 케이스만 실행(체크 → 머리글 [실행]) — 그 케이스만 배지가 남는다.
+    await pickCases(page, CASE_A);
+    await tid(page, "tc-run").click();
     await expect(caseRow(page, CASE_A).locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: 30_000 });
     await expect(caseRow(page, CASE_C).locator('[data-testid^="tc-badge-"]')).toHaveCount(0);
-    await caseRow(page, CASE_C).locator('[data-testid^="tc-run-"]').click();
+    await pickCases(page, CASE_C);
+    await tid(page, "tc-run").click();
     await expect(caseRow(page, CASE_C).locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: 30_000 });
     await expect(caseRow(page, CASE_A).locator('[data-testid^="tc-badge-"]')).toHaveCount(0);
 
     // 불러오기 — 케이스 입력이 값 테스트 칸에 채워진다.
     await vtInput(page, THK, "");
     await vtInput(page, SURF, "");
-    await caseRow(page, CASE_C).getByRole("button", { name: "불러오기", exact: true }).click();
+    await pickCases(page, CASE_C);
+    await tid(page, "tc-load").click();
     await expect(vtValueCell(page, SURF)).toHaveText("B");
     await expect(vtValueCell(page, THK)).toHaveText(/^5(\.0)?$/);
 
     // 수정: 팝업은 폼 탭으로 열린다. [값 테스트 입력으로 바꾸기] 후 [취소] 하면 아무것도 바뀌지 않는다.
-    await caseRow(page, CASE_A).locator('[data-testid^="tc-edit-"]').click();
+    await pickCases(page, CASE_A);
+    await tid(page, "tc-edit").click();
     await expect(tid(page, "tc-edit-modal")).toBeVisible();
     await expect(tid(page, "tc-edit-name")).toHaveValue(CASE_A);
     await tid(page, "tc-edit-use-input").click();
@@ -1162,7 +1181,8 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(caseRow(page, CASE_A)).toContainText(`"${SURF}":"A"`);
 
     // 수정: JSON 탭에서 입력 JSON 이 깨지면 팝업 안 오류로 막힌다.
-    await caseRow(page, CASE_C).locator('[data-testid^="tc-edit-"]').click();
+    await pickCases(page, CASE_C);
+    await tid(page, "tc-edit").click();
     await tid(page, "tc-edit-tab-json").click();
     await tid(page, "tc-edit-input").fill("{");
     await tid(page, "tc-edit-save").click();
@@ -1183,30 +1203,30 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(edited).toContainText(GRD);
 
     // 기대값 갱신 — 마지막 결과(C)로 기대값을 다시 쓰면 통과로 돌아온다.
-    await edited.getByRole("button", { name: "기대값 갱신", exact: true }).click();
+    // 수정 저장 뒤 다시 불러온 view 에도 같은 케이스(case_id)가 남아 체크가 유지된다.
+    await pickCases(page, `${CASE_C}(수정)`);
+    await tid(page, "tc-update-expected").click();
     await expect(edited).not.toContainText('"Z"', { timeout: 20_000 });
     await tcCard(page).getByRole("button", { name: "모두 실행", exact: true }).click();
     await expect(edited.locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: 30_000 });
 
-    // 복사(C) — 남길 두 케이스를 복사하면 "(복사)" 이름으로 같은 입력·기대값의 줄이 생긴다. 복사본은 곧 지운다.
-    for (const n of [CASE_A, `${CASE_C}(수정)`]) {
-      await caseRow(page, n).locator('[data-testid^="tc-copy-"]').click();
+    // 복사(C) — 남길 두 케이스를 함께 체크해 복사하면 "(복사)" 이름으로 같은 입력·기대값의 줄이 생긴다. 복사본은 곧 함께 지운다.
+    const copied = [CASE_A, `${CASE_C}(수정)`];
+    await pickCases(page, ...copied);
+    await tid(page, "tc-copy").click();
+    for (const n of copied) {
       await expect(caseRow(page, `${n} (복사)`)).toBeVisible({ timeout: 20_000 });
       const input = (row: Locator) => row.locator('.ag-cell[col-id="inputJson"]');
       await expect(input(caseRow(page, `${n} (복사)`))).toHaveText((await input(caseRow(page, n)).textContent())!);
     }
     await expect(caseRows(page)).toHaveCount(5);
-    for (const n of [`${CASE_A} (복사)`, `${CASE_C}(수정) (복사)`]) {
-      await caseRow(page, n).getByRole("button", { name: "삭제", exact: true }).click();
-      await caseRow(page, n).getByRole("button", { name: "삭제 확인", exact: true }).click();
-      await expect(caseRow(page, n)).toHaveCount(0, { timeout: 20_000 });
-    }
+    await pickCases(page, ...copied.map((n) => `${n} (복사)`));
+    await deletePickedCases(page, 2);
+    for (const n of copied) await expect(caseRow(page, `${n} (복사)`)).toHaveCount(0, { timeout: 20_000 });
 
-    // 삭제(D) — 한 번 더 눌러야 지운다.
-    const del = caseRow(page, CASE_DEL);
-    await del.getByRole("button", { name: "삭제", exact: true }).click();
-    await expect(del.getByRole("button", { name: "삭제 확인", exact: true })).toBeVisible();
-    await del.getByRole("button", { name: "삭제 확인", exact: true }).click();
+    // 삭제(D) — 확인창에서 확인해야 지운다.
+    await pickCases(page, CASE_DEL);
+    await deletePickedCases(page, 1);
     await expect(caseRow(page, CASE_DEL)).toHaveCount(0, { timeout: 20_000 });
     await expect(caseRows(page)).toHaveCount(2);
     watcher.assertClean("ruleEdit");
