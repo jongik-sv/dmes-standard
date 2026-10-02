@@ -389,3 +389,35 @@ void invR02_allocatedExceedsOnHandRejected() {
 - 환경 변수: `DMES_TEST_SLOTS`(슬롯 수, 기본 2, `0` 이면 끈다) · `DMES_TEST_SLOT_WAIT_MS`(기본 30분, 넘으면 경고하고 슬롯 없이 돈다). `CI` 가 있으면 끈다.
 - 슬롯은 `~/.gradle/dmes-test-slots/slot-<i>` 디렉터리다. 루트 테스트 묶음이 끝나면(실패해도) 풀리고, 소유 데몬이 죽었으면 다음 테스트가 회수한다. 손으로 지울 일은 없다.
 - 새 백엔드 모듈(includeBuild)을 추가하면 루트 build.gradle 끝에 `apply from: file('../gradle/test-slot.gradle')` 를 넣는다.
+
+## 11. 업무 모듈에서 MDM 메타 켜기
+
+MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 정의를 업무 모듈이 받아 캐시하고 엔진으로 직접 쓴다. 결정은
+[mdm ADR-0006](../../mdm/adr/0006-mdm-meta-hybrid-cache-revision.md), 설계는
+[spec](../../superpowers/specs/2026-10-02-mdm-meta-cache-design.md).
+
+- 켜기: 모듈 `api/src/main/resources/application.yml` 의 `cactus:` 아래(없으면 최상위 `cactus:` 를 만든다)에 둔다. 기본은 꺼짐이고 MDM 서버 자신은 켜지 않는다.
+
+  ```yaml
+  cactus:
+    mdm:
+      enabled: ${MDM_CACHE_ENABLED:true}
+      module: mls                       # /api/{module}/mdmMeta 의 module. 비면 cactus.oasis.service-group
+      base-url: ${MDM_WAS_URL:http://localhost:8096}
+      client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
+      poll-interval: 10s
+      max-entries: 20000
+      max-age: 60m
+      connect-timeout: 2s
+      read-timeout: 5s
+  ```
+
+- 빌드: cactus-core 가 `maru-mdm-engine` 을 api 로 문다. 새 업무 모듈은 settings.gradle 에 `includeBuild('../maru-mdm-engine')` +
+  `substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')` 를 둔다(기존 다섯 모듈 선례).
+- 코드에서 쓰기: `MdmDefinitionLookup`(엔진 `DefinitionLookup`·`CodeLookup` 빈)을 주입해 `DefaultDomainValidator`·룰 엔진에 넘긴다.
+  MDM 을 받을 수 없으면 `MdmUnavailableException` 이다. 여러 키는 `MdmMetaService.lookup(type, keys)` 로 한 번에 받는다.
+- 엔드포인트 `/api/{module}/mdmMeta/`: `columns`·`domains`(POST, 로그인 사용자 — 화면 메타·툴팁), `status`·`entries`(GET)·`load`(POST)는
+  SYSADMIN 만(`X-Authenticated-Role`). 새 모듈은 BFF `m-mcm/proxy.ts` 의 authOnlyPrefixes 에 `/api/{module}/mdmMeta/` 를 더하고,
+  포털 화면 `csa/mdmCacheMng` 의 `MDM_CACHE_MODULES` 에 모듈을 더한다.
+- 무효화: MDM 원장 쓰기 서비스는 같은 트랜잭션에서 `MetaRevisionRecorder` 를 부른다(판정 값이 바뀌는 쓰기만, 의심스러우면 건다). 새 원장
+  쓰기 경로를 만들면 기록 호출을 함께 넣는다.
