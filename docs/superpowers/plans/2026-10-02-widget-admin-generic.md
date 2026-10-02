@@ -53,6 +53,11 @@
 9. **질문 없음**: 팀장·사용자에게 물을 수 없다. 스펙·계획이 정하지 않은 것은 스펙 방향에 맞는 가장 단순한 선택을 하고 보고서 `decisions` 에 한 줄씩 적는다.
 10. **주석·문구**: 주변 코드의 관례(한국어 주석, 스펙 절 번호 인용)를 따른다. 사용자에게 보이는 문구는 스펙 문구를 그대로 쓴다.
 11. **끝내기 전 확인**: 자기 시험 전부 통과, 자기 파일 타입 오류 0, 커밋 완료, `git status --short` 에 자기 소유 파일이 남지 않음.
+12. **mcm-core 는 늘 컴파일되는 상태로 둔다(백엔드 팀원 5명이 같은 모듈을 컴파일한다).** Java TDD 의 「실패하는 시험」 단계를 컴파일 오류로 만들지 않는다: ① 먼저 **컴파일되는 뼈대**(클래스·메서드 시그니처, 본문은 `throw new UnsupportedOperationException("TODO")`)를 쓰고 ② 시험을 쓰고 ③ 돌려 **단언 실패**를 확인한 뒤 ④ 구현한다. 서로 참조하는 파일은 모두 쓴 다음에 gradle 을 돌린다. 반쯤 쓴 Java 파일을 남겨 둔 채 오래 생각하지 않는다. gradle 은 슬롯 2개로 줄을 서므로 **돌리는 횟수를 줄인다**(시험·구현을 묶어서, 실패 확인은 한 번).
+13. **gradle 동시 실행 오류**: `in use by another Gradle instance`·잠금 시간 초과·`Could not create service of type …` 는 다른 팀원 실행과 겹친 것이다. 1분 뒤 다시.
+14. **워크트리 격리 가드**: 이 세션은 git 대상 판정이 어려운 명령을 거절한다 — 변수(`$f`)·따옴표 없는 글롭(`*.java`)·`$(…)` 가 섞인 복합 명령, heredoc 안 `sed` 등. 명령은 **단순한 명령 여러 개로 나누고**, 경로는 리터럴로, 글롭에는 따옴표를 붙이고, 파일 수정은 Edit·Write 도구로 한다. 거절되면 같은 명령을 다시 보내지 말고 쪼갠다.
+15. **금지 도구**: `AskUserQuestion`, 계획 모드(EnterPlanMode·ExitPlanMode), brainstorming·writing-plans 스킬, **Agent(서브에이전트) 도구**(effort 를 지정할 수 없고 메모리를 더 쓴다). 혼자 끝까지 한다.
+16. **m-mcm tsc 기준선은 오류 0**(팀장이 형제 패키지 m-analog·mdm·mls·mpn·mpp·mqc dist 를 빌드해 두었다, 2026-10-02 23:59). 생기는 오류는 진행 중인 팀원 작업에서 온다 — 자기 경로 오류만 0 으로 만든다. 형제 패키지 `tsup`·`pnpm build` 는 다시 돌리지 않는다.
 
 ### Task 0 계약 파일 (완료 · 읽기 전용)
 
@@ -196,6 +201,7 @@ Task 3·4·5 는 Task 1 의 shared 빌드가 끝난 뒤 시작한다(새 props �
 - `widget-defs.ts`: `widgetDef/list` 호출(기존 `widget-store.ts` 의 `call`·`unwrap` 방식과 같은 envelope 규칙. 시험이 shared 런타임을 import 하지 않도록 `toWidgetDefRow` 와 같은 변환을 이 파일에서 하지 말고, **변환 함수는 순수 함수로 분리**해 `homeItemsFromRows`(posX→x 등, lockYn→locked, config null)만 시험한다. `toWidgetDefRow` 는 page.tsx 쪽에서 shared 를 써서 부른다).
 - `page.tsx`: 상태 `registryStatus`(`"loading"` → 응답 `"ready"` / 실패 `"error"`), `defs`, `homeDefault`. `registry = useMemo(() => mergeWidgetRegistry(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defs), [defs])`, `typeTitles = useMemo(...)`(유형 등록부에서), `homeDefault` 는 응답 값이 있으면 그것, 없으면 `HOME_DEFAULT_LAYOUT`. `onRetryRegistry` 는 다시 부르기. `WidgetWorkspace` 에 `registryStatus`·`onRetryRegistry`·`typeTitles` 를 넘긴다. **`homeDefault` 가 응답으로 바뀌면 WidgetWorkspace 가 「홈」 미저장 사용자의 기본 배치를 다시 계산하는지 확인**하고, 다시 계산하지 않으면 `key` 를 써서 응답 뒤 한 번 다시 마운트한다.
 - 인사말·긴급 공지 띠·공지 저장소는 그대로.
+- **확인 필수**: `WidgetWorkspace` 는 탭을 한 번 불러와 상태로 들고 있다. 등록부가 loading(코드 위젯만) → ready(정의 위젯 포함)로 바뀔 때, 이미 불러온 탭의 정의 위젯 항목이 `sanitizeLayout`·보드 필터에서 **잘려 나가 상태에서 사라지지 않는지** shared 소스(`WidgetWorkspace.tsx`·`widget-layout.ts`·`WidgetBoard.tsx`)를 읽어 확인한다. 사라질 수 있으면 `widgetDef/list` 응답(성공·실패)이 올 때까지 `WidgetWorkspace` 를 마운트하지 말고 뼈대(skeleton)를 보인다. 실패면 코드 등록부로 마운트하고 `registryStatus="error"`(편집 막힘). 판단과 근거를 보고서 `decisions` 에 적는다.
 
 **시험:** `widget-defs.test.ts` — `homeItemsFromRows`(문자열 숫자 변환, lockYn Y→true, 빈 배열), 응답 envelope 해제(실패 meta.success=false → throw, `homeDefault:null` 유지)를 `fetch` 가짜로(`tests/csa/screenUsageStat/support/fetch-mock.ts` 방식 참고).
 
