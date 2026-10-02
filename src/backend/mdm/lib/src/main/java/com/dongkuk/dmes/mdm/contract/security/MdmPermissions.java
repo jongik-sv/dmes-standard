@@ -39,10 +39,13 @@ public final class MdmPermissions {
     public static final List<String> CONFIRM_ACTIONS = List.of(SEARCH, VIEW, EXPORT, COMPARE,
             SAVE, DELETE, REG, IMPORT, VALIDATE, EXECUTE, COPY, RESTORE, LOCK, UNLOCK, HANDOVER, MdmActions.CONFIRM);
 
-    /** 그룹 × 역할 → PERM ID. SYSADMIN 은 여기 없다(기존대로 PERM_ALL). */
+    /**
+     * 그룹 × 역할 → PERM ID. SYSADMIN 은 여기 없다(기존대로 PERM_ALL).
+     * DMB 담당자 CONFIRM — 레이아웃·헤더 버전 확정(D-144 3단계). 공통 엔진이 선점·확정에 담당자 역할을 요구한다.
+     */
     public static final Map<MdmScreenGroup, Map<String, String>> MATRIX = Map.of(
             MdmScreenGroup.DMA, Map.of(MdmRoles.STD_ADMIN, EDIT, MdmRoles.STEWARD, READ),
-            MdmScreenGroup.DMB, Map.of(MdmRoles.STD_ADMIN, EDIT, MdmRoles.STEWARD, READ),
+            MdmScreenGroup.DMB, Map.of(MdmRoles.STD_ADMIN, EDIT, MdmRoles.STEWARD, CONFIRM),
             MdmScreenGroup.DMC, Map.of(MdmRoles.STD_ADMIN, READ, MdmRoles.STEWARD, CONFIRM),
             MdmScreenGroup.DMD, Map.of(MdmRoles.STD_ADMIN, READ, MdmRoles.STEWARD, EDIT),
             MdmScreenGroup.DME, Map.of(MdmRoles.STD_ADMIN, READ, MdmRoles.STEWARD, CONFIRM));

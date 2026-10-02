@@ -4,7 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.dongkuk.dmes.mdm.dmb.LayoutTestSupport;
+import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
+import com.dongkuk.dmes.mdm.dmb.LayoutServiceTestSupport;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngExecuteRequest;
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -20,7 +22,8 @@ import org.springframework.test.context.ActiveProfiles;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
-class LayoutSampleSqliteTest extends LayoutTestSupport {
+@Import(DmeTestSupport.Config.class)
+class LayoutSampleSqliteTest extends LayoutServiceTestSupport {
 
     @BeforeEach
     void setUp() {
@@ -97,6 +100,7 @@ class LayoutSampleSqliteTest extends LayoutTestSupport {
             r.setEaiName("UTF " + eai);
             r.setEncoding("UTF-8");
         }), l100Items());
+        release(l100, "1.000", HEADER_FROM);
         long l110 = saveL110();
         long msg = saveLayout(layoutReq(uniq("UTF 전문 "), eai, r -> {}), List.of(headerRow(l110)), List.of(), m201Items());
         Map<String, Object> utf = execute(new M201(eai, l100, l110, msg), "코일");
@@ -146,10 +150,10 @@ class LayoutSampleSqliteTest extends LayoutTestSupport {
         M201 m = m201();
         String counts = "SELECT (SELECT COUNT(*) FROM TB_MDM_LAYOUT) || '/' || (SELECT COUNT(*) FROM TB_MDM_LAYOUT_ITEM) || '/' "
                 + "|| (SELECT COUNT(*) FROM TB_MDM_LAYOUT_VER) || '/' || (SELECT SUM(VER) FROM TB_MDM_LAYOUT) || '/' "
-                + "|| (SELECT SUM(`VERSION`) FROM TB_MDM_LAYOUT)";
+                + "|| (SELECT SUM(ROW_VERSION) FROM TB_MDM_LAYOUT_VER)";
         String before = jdbc.queryForObject(counts, String.class);
         Map<String, Object> row = layoutRow(m.message());
-        List<Map<String, Object>> items = itemRows(m.message());
+        List<Map<String, Object>> items = itemRows(m.message(), "1");
         execute(m, "C26A0012345");
         // 저장된 전문과 다른 초안(이름 변경·여분 쪼개기)으로 렌더해도 그 초안은 쓰이지 않는다
         List<Map<String, Object>> changed = new ArrayList<>(m201Items());
@@ -160,6 +164,6 @@ class LayoutSampleSqliteTest extends LayoutTestSupport {
         assertEquals(187, out.get("totalBytes"));
         assertEquals(before, jdbc.queryForObject(counts, String.class));
         assertEquals(row, layoutRow(m.message()));
-        assertEquals(items, itemRows(m.message()));
+        assertEquals(items, itemRows(m.message(), "1"));
     }
 }

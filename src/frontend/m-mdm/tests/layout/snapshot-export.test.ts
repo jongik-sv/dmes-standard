@@ -7,8 +7,8 @@ import { SNAPSHOT_EXCEL_COLUMNS, snapshotExcelRows, snapshotFileBase, snapshotJs
 const M201 = JSON.parse(readFileSync(path.resolve(__dirname, "../fixtures/m201-snapshot.json"), "utf8")) as LayoutSnapshot;
 
 describe("snapshot-export", () => {
-  it("파일 이름은 layout-{id}-v{n}", () => {
-    expect(snapshotFileBase(12, 2)).toBe("layout-12-v2");
+  it("파일 이름은 layout-{id}-v{x.xxx}", () => {
+    expect(snapshotFileBase(12, "1.001")).toBe("layout-12-v1.001");
   });
 
   it("엑셀 행은 헤더·본문 항목을 절대 위치 순으로 편다", () => {

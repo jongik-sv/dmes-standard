@@ -10,7 +10,7 @@ import java.util.Map;
 
 /**
  * 스냅샷 JSON 정규화 직렬화(TSK-05-03 design.md §2 — 불변 I15·I22, naming-dialect-rules §3 #3·#6). 키 정렬·공백 없음·UTF-8.
- * 같은 스냅샷은 늘 같은 문자열이 되므로 버전 비교(내용이 같으면 새 버전을 만들지 않는다)에 그대로 쓴다. null 칸도 키를 남긴다 —
+ * 같은 스냅샷은 늘 같은 문자열이 된다. null 칸도 키를 남긴다 —
  * 스키마가 모든 키를 required 로 둔다(F13).
  */
 public final class LayoutSnapshotJson {
@@ -51,8 +51,12 @@ public final class LayoutSnapshotJson {
         }
     }
 
-    public static MdmLayoutSnapshot withVersion(MdmLayoutSnapshot s, long version) {
-        return new MdmLayoutSnapshot(s.layoutId(), s.layoutName(), s.eaiCode(), s.sndSystem(), s.rcvSystem(), s.encoding(), s.padRule(),
-                version, s.totalLength(), s.headers(), s.items());
+    /** 스냅샷이 아닌 값(예: {@link LayoutBodySnapshot})도 같은 정규화로 쓴다 — 키 정렬·공백 없음. */
+    public static String writeAny(Object value) {
+        try {
+            return MAPPER.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("JSON 을 쓰지 못했다", e);
+        }
     }
 }

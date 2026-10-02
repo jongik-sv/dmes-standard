@@ -29,7 +29,7 @@
 - 백엔드 시험은 SQLite 만, 도커 금지. `export JAVA_HOME=/opt/homebrew/opt/openjdk@21`. mdm 시험은 `cd <worktree>/src/backend/mdm && ../gradlew ... --offline`.
 - 프런트 시험은 `cd <worktree>/src/frontend/m-mdm && rtk proxy pnpm run test`(전체), 타입 검사 `rtk proxy pnpm run lint`.
 - Task 2 커밋부터 Task 5 커밋 전까지는 V19 와 옛 엔티티가 어긋나 mdm `:api:test` 전체가 깨진다(1단계 Task 2~5 와 같은 사정). 그 사이 Task 는 지정한 시험만 돌린다. Task 5 끝에서 `:lib:test :api:test` 전체가 녹색이어야 한다.
-- Flyway 번호는 착수 때 `flyway-migration-add` 스킬로 확인한다. 이 계획은 V19 로 적는다.
+- Flyway 번호는 착수 때 `flyway-migration-add` 스킬로 확인한다. 이 계획은 V19 로 적는다. **번호 변경(2026-10-02, dev 통합 Task 16a):** 메타 캐시 V20(`create_mdm_meta_rev`)이 dev 에 먼저 들어가 `V19__layout_version.sql` 을 `V21__layout_version.sql` 로 옮겼다(outOfOrder=false). 아래 본문의 V19 는 V21 로 읽는다(`MdmLayoutVersionV19MigrationTest` 는 클래스 이름만 그대로이고 목표 버전은 20 → 21).
 - 커밋 메시지는 Conventional Commits(`type(scope): 한국어 subject`), 끝에 빈 줄 뒤 `Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>`.
 
 ## Review Focus
@@ -385,8 +385,8 @@ class MdmLayoutVersionV19MigrationTest {
             s.execute("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, OWNER_ID, OWN_LENGTH) VALUES (201, 2.001, 'MINOR', 'DRAFT', 'kim', 20)");
             s.execute("INSERT INTO TB_MDM_LAYOUT_ITEM (LAYOUT_ID, VER, SEQ, FILL_KIND, FILLER_LENGTH, `OFFSET`, `LENGTH`) VALUES (201, 2.001, 1, 'FILLER', 20, 0, 20)");
             s.execute("INSERT INTO TB_MDM_LAYOUT (LAYOUT_KIND, LAYOUT_NAME) VALUES ('MESSAGE', 'new')");
-            assertThat(strings(s, "SELECT CAST(MAX(LAYOUT_ID) AS VARCHAR(10)) FROM TB_MDM_LAYOUT")).containsExactly("306");
-            assertThat(strings(s, "SELECT STATUS FROM TB_MDM_LAYOUT WHERE LAYOUT_ID = 306")).containsExactly("CREATED");
+            assertThat(strings(s, "SELECT CAST(MAX(LAYOUT_ID) AS VARCHAR(10)) FROM TB_MDM_LAYOUT")).containsExactly("351");
+            assertThat(strings(s, "SELECT STATUS FROM TB_MDM_LAYOUT WHERE LAYOUT_ID = 351")).containsExactly("CREATED");
             // 임시 표가 남지 않는다
             assertThat(strings(s, "SELECT name FROM sqlite_master WHERE name LIKE '%\\_BAK' ESCAPE '\\' OR name LIKE 'TB_MDM_LAYOUT_V19%'")).isEmpty();
         }
@@ -845,7 +845,7 @@ public class MdmLayoutVer extends CactusAuditEntity {
 
     /**
      * 전문 버전: 그 전문의 EAI(인코딩·패딩은 EAI 소유, D5). 헤더 버전: 이 헤더를 표준 헤더로 쓸 EAI — 헤더 확정 때
-     * {@code TB_MDM_EAI.HEADER_LAYOUT_ID} 로 옮긴다(DRAFT 저장은 공유 EAI 행을 바꾸지 않는다).
+     * {@code TB_MDM_EAI.HEADER_LAYOUT_ID} 로 옮긴다(DRAFT 저장은 공유 EAI 행을 바꾸지 않는다). (P3-15·P3-17 로 대체: EAI 표준 헤더는 시각 T 해석이고 확정은 HEADER_LAYOUT_ID 를 옮기지 않는다)
      */
     @Column(name = "EAI_CODE", length = 20)
     private String eaiCode;
@@ -1905,7 +1905,7 @@ public abstract class LayoutServiceTestSupport extends LayoutTestSupport {
                 + "REQUESTED_BY = ?, REQUESTED_AT = ?, RELEASED_AT = ? WHERE LAYOUT_ID = ? AND VER = ?",
                 applyFrom, KIM, applyFrom, applyFrom, layoutId, new BigDecimal(ver));
         jdbc.update("UPDATE TB_MDM_LAYOUT SET STATUS = 'INUSE' WHERE LAYOUT_ID = ?", layoutId);
-        // 헤더 확정과 같게 EAI 표준 헤더 연결을 옮긴다(Task 7 LayoutConfirmService.linkEai 와 같은 SQL)
+        // 헤더 확정과 같게 EAI 표준 헤더 연결을 옮긴다(Task 7 LayoutConfirmService.linkEai 와 같은 SQL) (P3-15·P3-17 로 대체: EAI 표준 헤더는 시각 T 해석이고 확정은 HEADER_LAYOUT_ID 를 옮기지 않는다)
         String eai = jdbc.queryForObject("SELECT EAI_CODE FROM TB_MDM_LAYOUT_VER v JOIN TB_MDM_LAYOUT l ON l.LAYOUT_ID = v.LAYOUT_ID "
                 + "WHERE v.LAYOUT_ID = ? AND v.VER = ? AND l.LAYOUT_KIND = 'HEADER' UNION ALL SELECT NULL LIMIT 1", String.class,
                 layoutId, new BigDecimal(ver));
@@ -2687,7 +2687,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
   - `LayoutConfirmChecks`: `LayoutConfirmReport report(VersionRef draft, LocalDateTime applyFrom)`, `LayoutChangeClassifier.Change classify(long layoutId, BigDecimal ver, LocalDateTime applyFrom)`, `String bodySnapshotJson(long layoutId, BigDecimal ver)`. 경고 코드 `SIMULTANEOUS_SWITCH`(동시 전환), 오류 코드는 `LayoutIssueCode` 이름(`L01`~`L16`)
   - `LayoutConfirmCheck implements VersionConfirmCheckSpi` — `target() == LAYOUT`
   - `LayoutDraftBuilder.buildStored(long messageId, BigDecimal ver, LocalDateTime asOf)` → `Built`(저장된 행을 요청 모양으로 바꿔 `build(..., asOf, false)` 를 탄다 — EAI 표준 헤더를 끼우지 않고 저장된 구성 그대로 검사, 재정의 물리명은 asOf 헤더 버전의 SEQ 로 바꾸고, 못 찾으면 L10)
-  - 헤더 확정은 같은 트랜잭션에서 헤더 버전 행 `EAI_CODE` 대로 `TB_MDM_EAI.HEADER_LAYOUT_ID` 를 옮긴다(`linkEai`)
+  - 헤더 확정은 같은 트랜잭션에서 헤더 버전 행 `EAI_CODE` 대로 `TB_MDM_EAI.HEADER_LAYOUT_ID` 를 옮긴다(`linkEai`) (P3-15·P3-17 로 대체: EAI 표준 헤더는 시각 T 해석이고 확정은 HEADER_LAYOUT_ID 를 옮기지 않는다)
   - `LayoutQueries.drafts()` → `List<Object[]>` `{MdmLayoutVer, MdmLayout}`(STATUS='DRAFT')
   - OASIS `layoutConfirm` action: `search {keyword}` → `{rows:[{LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, VER, VER_KIND, OWNER_ID, ROW_VERSION, BASE_VER}]}`, `view {layoutId, ver?}` → `{layout:{LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS}, version:{VER, VER_KIND, STATUS, OWNER_ID, ROW_VERSION, BASE_VER, APPLY_FROM, APPLY_TO}, previous:{VER, APPLY_FROM, APPLY_TO}|null, firstVersion}`, `validate {layoutId, ver, applyFrom}` → `{checks:[{severity, code, message, field, itemKey}], applyFromCheck:{ok, message}, change:{switchMode, kinds, summary}, simultaneous, futureApplyFrom, impact, eais}`, `confirm {layoutId, ver, rowVersion, applyFrom, warningsAcknowledged}` → `{layoutId, ver, rowVersion, closedPreviousVer, switchMode, changeKinds, changeSummary}`
 
@@ -3103,7 +3103,7 @@ public class LayoutConfirmCheck implements VersionConfirmCheckSpi {
     }
 ```
 
-헤더 확정의 EAI 연결 이동(같은 트랜잭션 — 실패하면 확정도 되돌아간다). 연결은 확정 시각에 옮기고, apply_from 이 미래여도 전문 저장의 끼움(I14)은 그 헤더에 저장 시각 RELEASED 가 생길 때부터 일어난다(Task 5 ②'):
+헤더 확정의 EAI 연결 이동(같은 트랜잭션 — 실패하면 확정도 되돌아간다). 연결은 확정 시각에 옮기고, apply_from 이 미래여도 전문 저장의 끼움(I14)은 그 헤더에 저장 시각 RELEASED 가 생길 때부터 일어난다(Task 5 ②'): (P3-15·P3-17 로 대체: EAI 표준 헤더는 시각 T 해석이고 확정은 HEADER_LAYOUT_ID 를 옮기지 않는다)
 
 ```java
     /** EAI 표준 헤더 연결 — 헤더 버전 행의 EAI_CODE 가 정본. 이 헤더를 가리키던 다른 EAI 는 끊는다(EAI 당 헤더 하나). */
@@ -4272,7 +4272,7 @@ Expected: PASS(로컬 MDM 기동이 원 작업 트리 서버와 충돌하면 e2e
   4. 이행 전 이력은 `LEGACY_SNAPSHOT_YN='Y'` 버전으로 합성 스냅샷을 그대로 쓴다.
   5. "전문 총 길이 규칙" = MSG_LENGTH(AUTO) 칸 자리수 용량(L16) + 재정의 값 길이(L12).
   6. DMB 담당자 CONFIRM, 새 버전·등록은 담당자 역할 불필요, 확정·선점은 담당자.
-  7. EAI 는 버전 대상이 아니다 — 쓰는 전문이 있으면 인코딩·패딩 변경 거부. 헤더의 EAI 연결은 헤더 버전 행 `EAI_CODE` 에 두고 헤더 확정 때 `TB_MDM_EAI.HEADER_LAYOUT_ID` 로 옮긴다. 전문 저장의 표준 헤더 끼움(I14)은 그 헤더에 저장 시각 RELEASED 가 있을 때만, 확정 검사는 끼우지 않는다.
+  7. EAI 는 버전 대상이 아니다 — 쓰는 전문이 있으면 인코딩·패딩 변경 거부. 헤더의 EAI 연결은 헤더 버전 행 `EAI_CODE` 에 두고 헤더 확정 때 `TB_MDM_EAI.HEADER_LAYOUT_ID` 로 옮긴다. 전문 저장의 표준 헤더 끼움(I14)은 그 헤더에 저장 시각 RELEASED 가 있을 때만, 확정 검사는 끼우지 않는다. (P3-15·P3-17 로 대체: EAI 표준 헤더는 시각 T 해석이고 확정은 HEADER_LAYOUT_ID 를 옮기지 않는다)
   8. 감사 카운터 `AUD_VER` 개명(레이아웃 4표), 레이아웃 계열 DTO 의 `ver` 는 업무 버전 문자열.
   `Local-Rules.md` §24 에 "레이아웃·헤더도 새 버전(major)·새 버전(minor) 두 버튼, 확정은 dmb/layoutConfirm(D-144)" 한 줄을 더한다. 원천 설계 문서(다른 저장소 `/Users/jji/project/mdm/docs/design` 03:72·06:988)는 이 계획에서 고치지 않고 보고의 남은 일로 적는다(1단계와 같은 처리).
 
@@ -4332,5 +4332,5 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 5. 이행 전 버전을 구분하는 `LEGACY_SNAPSHOT_YN` 칼럼을 더한다. 최신 이행 버전의 `SNAPSHOT_JSON` 은 NULL(항목 행이 있다).
 6. "전문 총 길이 규칙" 을 MSG_LENGTH 칸 자리수 용량(L16)과 재정의 값 길이(L12)로 해석한다(03 에 총 길이 상한 규칙이 없다).
 7. DMB 담당자 권한을 READ → CONFIRM 으로 올리고, 새 버전·등록은 담당자 역할을 요구하지 않는다(표준 관리자가 만든 DRAFT 는 넘겨서 확정).
-8. EAI 는 버전 대상이 아니다(스펙에 없는 방어): 쓰는 전문이 있으면 인코딩·패딩 변경 거부, 헤더의 EAI 연결은 버전 행 `EAI_CODE` 에 두고 헤더 확정 때 옮긴다, 전문 저장의 표준 헤더 끼움(I14)은 그 헤더가 저장 시각에 RELEASED 일 때만, 확정 검사는 저장된 구성 그대로(끼우지 않음).
+8. EAI 는 버전 대상이 아니다(스펙에 없는 방어): 쓰는 전문이 있으면 인코딩·패딩 변경 거부, 헤더의 EAI 연결은 버전 행 `EAI_CODE` 에 두고 헤더 확정 때 옮긴다, 전문 저장의 표준 헤더 끼움(I14)은 그 헤더가 저장 시각에 RELEASED 일 때만, 확정 검사는 저장된 구성 그대로(끼우지 않음). (P3-15·P3-17 로 대체: EAI 표준 헤더는 시각 T 해석이고 확정은 HEADER_LAYOUT_ID 를 옮기지 않는다)
 9. 레이아웃 4표의 감사 카운터를 `AUD_VER` 로 바꾸고(D-034 패턴), 레이아웃 계열 DTO 의 `ver` 를 업무 버전 문자열로 바꾼다(감사 카운터는 `AUD_VER`/`auditVer`).

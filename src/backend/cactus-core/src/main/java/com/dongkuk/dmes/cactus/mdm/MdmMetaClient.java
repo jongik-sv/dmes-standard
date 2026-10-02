@@ -38,7 +38,7 @@ public class MdmMetaClient implements MdmMetaFeed {
     };
     private static final TypeReference<List<RuleSetDefinition>> RULE_SET_VERSIONS = new TypeReference<>() {
     };
-    private static final TypeReference<Map<String, Object>> PLAIN_MAP = new TypeReference<>() {
+    private static final TypeReference<List<MdmLayoutVersion>> LAYOUT_VERSIONS = new TypeReference<>() {
     };
 
     private final RestClient restClient;
@@ -72,6 +72,8 @@ public class MdmMetaClient implements MdmMetaFeed {
      * view — 키를 {@value #MAX_KEYS_PER_VIEW}개씩 나눠 부르고 결과를 합친다(MDM 이 한 번에 받는 상한). MDM 의 업무 거부({@code meta.success=false})는
      * 그 묶음 키를, 값 하나를 엔진 모양으로 읽을 수 없으면 그 키만 {@code failed} 로 돌린다 — 장애로 세지 않는다(MDM 이 살아 있다). 연결·시간 초과·
      * 손상된 봉투는 {@link MdmUnavailableException} 그대로 던진다(장애).
+     *
+     * <p>값 모양: RULE·RULE_SET·LAYOUT 은 RELEASED 버전 목록이다(LAYOUT 은 {@link MdmLayoutVersion} — 버전별 합성 구간을 싣는다).
      */
     @Override
     public MdmFetchResult fetch(MdmTargetType type, Collection<String> keys) {
@@ -116,7 +118,7 @@ public class MdmMetaClient implements MdmMetaFeed {
                 case RULE -> MdmJson.MAPPER.readerFor(RULE_VERSIONS).readValue(value);
                 case RULE_SET -> MdmJson.MAPPER.readerFor(RULE_SET_VERSIONS).readValue(value);
                 case CODE -> MdmJson.MAPPER.treeToValue(value, CodeRows.class);
-                case LAYOUT -> MdmJson.MAPPER.convertValue(value, PLAIN_MAP);
+                case LAYOUT -> MdmJson.MAPPER.readerFor(LAYOUT_VERSIONS).readValue(value);
             };
         } catch (IOException | IllegalArgumentException e) {
             throw new MdmUnavailableException("MDM 응답의 " + type + " 값을 읽을 수 없습니다: " + e.getMessage(), e);

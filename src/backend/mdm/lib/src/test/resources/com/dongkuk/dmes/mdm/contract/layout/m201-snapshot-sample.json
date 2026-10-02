@@ -6,7 +6,7 @@
   "rcvSystem": "MES",
   "encoding": "EUC-KR",
   "padRule": "숫자는 왼쪽 0-채움, 문자는 오른쪽 공백-채움",
-  "layoutVersion": 2,
+  "layoutVersion": 2.000,
   "totalLength": 187,
   "headers": [
     {
@@ -29,7 +29,8 @@
         { "seq": 11, "fillKind": "CONST", "dataType": "CHAR", "columnPhys": "IF_DATA_NTR", "transUnit": null, "unitItem": null, "numFormat": null, "defaultValue": "I", "overrideValue": null, "fillerLength": null, "offset": 68, "length": 1, "unitCode": null, "scale": null },
         { "seq": 12, "fillKind": "AUTO", "dataType": "NUM", "columnPhys": "SNT_LTH", "transUnit": null, "unitItem": null, "numFormat": null, "defaultValue": "MSG_LENGTH", "overrideValue": null, "fillerLength": null, "offset": 69, "length": 6, "unitCode": null, "scale": 0 },
         { "seq": 13, "fillKind": "FILLER", "dataType": null, "columnPhys": null, "transUnit": null, "unitItem": null, "numFormat": null, "defaultValue": null, "overrideValue": null, "fillerLength": 25, "offset": 75, "length": 25, "unitCode": null, "scale": null }
-      ]
+      ],
+      "headerVersion": 1.000
     },
     {
       "seq": 2,
@@ -44,7 +45,8 @@
         { "seq": 4, "fillKind": "AUTO", "dataType": "CHAR", "columnPhys": "DATE", "transUnit": null, "unitItem": null, "numFormat": null, "defaultValue": "SEND_TIME", "overrideValue": null, "fillerLength": null, "offset": 11, "length": 8, "unitCode": null, "scale": null },
         { "seq": 5, "fillKind": "AUTO", "dataType": "CHAR", "columnPhys": "TIME", "transUnit": null, "unitItem": null, "numFormat": null, "defaultValue": "SEND_TIME", "overrideValue": null, "fillerLength": null, "offset": 19, "length": 6, "unitCode": null, "scale": null },
         { "seq": 6, "fillKind": "FILLER", "dataType": null, "columnPhys": null, "transUnit": null, "unitItem": null, "numFormat": null, "defaultValue": null, "overrideValue": null, "fillerLength": 5, "offset": 25, "length": 5, "unitCode": null, "scale": null }
-      ]
+      ],
+      "headerVersion": 1.000
     }
   ],
   "items": [

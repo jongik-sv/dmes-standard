@@ -4,7 +4,9 @@
     <bpmn:documentation>layoutMng — 전문 레이아웃 (To-Be only 신규 화면).
 정본: docs/mdm/screens/layoutMng/layoutMng_기능설계서.md, docs/mdm/tasks/TSK-05-02/design.md §6.1
 
-action=search|view|save -&gt; {action}Task (layoutMngService.{action}). 쓰기는 save 만.</bpmn:documentation>
+action=search|view|save|validate|execute|export|copy|delete|lock|unlock|handover -&gt; {action}Task (layoutMngService.{action}). 내용 쓰기는 save 만.
+버전 조작 copy(새 버전 MAJOR·MINOR)·delete(target VERSION = DRAFT 삭제, CONFIRM = 확정 취소)·lock·unlock·handover 는 공통 버전 서비스로만 한다(LayoutVersionService, DTO LayoutVersionRequest).
+저장은 내 DRAFT 에만 쓴다. 버전은 copy(새 버전)·확정(layoutConfirm)으로 바뀐다(D-144). 조회·검증·샘플·내보내기는 시각 T(asOf, 비면 지금)의 헤더 버전으로 합성한다.</bpmn:documentation>
     <bpmn:startEvent id="start" name="시작">
       <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
     </bpmn:startEvent>
@@ -21,6 +23,11 @@ action=search|view|save -&gt; {action}Task (layoutMngService.{action}). 쓰기�
       <bpmn:outgoing>flow_validate</bpmn:outgoing>
       <bpmn:outgoing>flow_execute</bpmn:outgoing>
       <bpmn:outgoing>flow_export</bpmn:outgoing>
+      <bpmn:outgoing>flow_copy</bpmn:outgoing>
+      <bpmn:outgoing>flow_delete</bpmn:outgoing>
+      <bpmn:outgoing>flow_lock</bpmn:outgoing>
+      <bpmn:outgoing>flow_unlock</bpmn:outgoing>
+      <bpmn:outgoing>flow_handover</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="searchTask" name="전문 목록 조회" camunda:class="layoutMngService">
       <bpmn:documentation>target=LAYOUT(기본) 전문 목록·시스템·EAI·헤더 / HEADER 헤더 선택 / COLUMN 컬럼 사전 검색(D8).</bpmn:documentation>
@@ -38,7 +45,7 @@ action=search|view|save -&gt; {action}Task (layoutMngService.{action}). 쓰기�
       <bpmn:incoming>flow_search_end</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:serviceTask id="viewTask" name="전문 상세" camunda:class="layoutMngService">
-      <bpmn:documentation>기본 속성·헤더 구성(헤더별 항목·재정의·실효값)·본문 항목. 응답 result.layout·headers·items·units.</bpmn:documentation>
+      <bpmn:documentation>고른 버전(ver, 없으면 내 DRAFT → 남의 DRAFT → 지금 적용 중)의 기본 속성·헤더 구성(시각 T 의 헤더 버전 항목·재정의·실효값)·본문 항목·버전 이력. 응답 result.layout·selected·editable·asOf·headers·items·units·versions.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="view" />
@@ -53,7 +60,7 @@ action=search|view|save -&gt; {action}Task (layoutMngService.{action}). 쓰기�
       <bpmn:incoming>flow_view_end</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:serviceTask id="saveTask" name="전문 저장" camunda:class="layoutMngService">
-      <bpmn:documentation>검사 L01~L11 → 전문 행 → 헤더 적층·상수 재정의 → 본문 항목(오프셋 서버 계산). grid headers·consts·items — 헤더 항목 입력 없음(I8).</bpmn:documentation>
+      <bpmn:documentation>검사 L01~L11 → 내 DRAFT 의 버전 행·헤더 적층·상수 재정의·본문 항목(본문 기준 상대 오프셋 서버 계산). 등록이면 1.000 DRAFT, 수정이면 ver·rowVersion 필수. grid headers·consts·items — 헤더 항목 입력 없음(I8).</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="save" />
@@ -105,7 +112,7 @@ action=search|view|save -&gt; {action}Task (layoutMngService.{action}). 쓰기�
       <bpmn:incoming>flow_execute_end</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:serviceTask id="exportTask" name="스냅샷 출력" camunda:class="layoutMngService">
-      <bpmn:documentation>저장된 버전의 스냅샷 JSON(TSK-05-03 §6.1). 버전 생략 시 최신. 쓰기 없음.</bpmn:documentation>
+      <bpmn:documentation>시각 T(asOf) 의 합성 스냅샷 JSON(TSK-05-03 §6.1, D-144). ver 생략 시 T 에 적용 중인 버전. 쓰기 없음.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:properties>
           <camunda:property name="method" value="export" />
@@ -125,6 +132,91 @@ action=search|view|save -&gt; {action}Task (layoutMngService.{action}). 쓰기�
     <bpmn:sequenceFlow id="flow_execute_end" sourceRef="executeTask" targetRef="end_execute" />
     <bpmn:sequenceFlow id="flow_export" name="export" sourceRef="actionGateway" targetRef="exportTask" />
     <bpmn:sequenceFlow id="flow_export_end" sourceRef="exportTask" targetRef="end_export" />
+    <bpmn:serviceTask id="copyTask" name="새 버전" camunda:class="layoutMngService">
+      <bpmn:documentation>새 버전(verKind MAJOR·MINOR, 비면 MAJOR) — 직전 RELEASED 의 항목·헤더 구성·재정의를 복사한 DRAFT(소유자 = 나). 미적용·승인 흐름 버전이 있으면 MDM006. 응답 result = LayoutVersionResult{layoutId, ver, verKind, rowVersion}.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="copy" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutVersionRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_copy</bpmn:incoming>
+      <bpmn:outgoing>flow_copy_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_copy" name="새 버전 완료">
+      <bpmn:incoming>flow_copy_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_copy" name="copy" sourceRef="actionGateway" targetRef="copyTask" />
+    <bpmn:sequenceFlow id="flow_copy_end" sourceRef="copyTask" targetRef="end_copy" />
+    <bpmn:serviceTask id="deleteTask" name="버전 삭제" camunda:class="layoutMngService">
+      <bpmn:documentation>target VERSION(기본) = DRAFT 삭제(소유자만, 그 버전 행만 지운다 — LayoutDraftDeletion), CONFIRM = 확정 취소(적용 전 RELEASED → DRAFT, ADR-0002 D8). 응답 result = LayoutVersionResult.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="delete" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutVersionRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_delete</bpmn:incoming>
+      <bpmn:outgoing>flow_delete_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_delete" name="버전 삭제 완료">
+      <bpmn:incoming>flow_delete_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_delete" name="delete" sourceRef="actionGateway" targetRef="deleteTask" />
+    <bpmn:sequenceFlow id="flow_delete_end" sourceRef="deleteTask" targetRef="end_delete" />
+    <bpmn:serviceTask id="lockTask" name="DRAFT 선점" camunda:class="layoutMngService">
+      <bpmn:documentation>빈 소유자 DRAFT 선점(담당자만, MDM013·MDM004). 응답 result.rowVersion = 새 row_version.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="lock" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutVersionRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_lock</bpmn:incoming>
+      <bpmn:outgoing>flow_lock_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_lock" name="DRAFT 선점 완료">
+      <bpmn:incoming>flow_lock_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_lock" name="lock" sourceRef="actionGateway" targetRef="lockTask" />
+    <bpmn:sequenceFlow id="flow_lock_end" sourceRef="lockTask" targetRef="end_lock" />
+    <bpmn:serviceTask id="unlockTask" name="DRAFT 해제" camunda:class="layoutMngService">
+      <bpmn:documentation>DRAFT 해제(소유자만, MDM003). 응답 result.rowVersion = 새 row_version.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="unlock" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutVersionRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_unlock</bpmn:incoming>
+      <bpmn:outgoing>flow_unlock_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_unlock" name="DRAFT 해제 완료">
+      <bpmn:incoming>flow_unlock_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_unlock" name="unlock" sourceRef="actionGateway" targetRef="unlockTask" />
+    <bpmn:sequenceFlow id="flow_unlock_end" sourceRef="unlockTask" targetRef="end_unlock" />
+    <bpmn:serviceTask id="handoverTask" name="DRAFT 넘기기" camunda:class="layoutMngService">
+      <bpmn:documentation>DRAFT 넘기기(소유자만, 받는 사람 newOwnerId 는 담당자 — MDM005). 응답 result.rowVersion = 새 row_version.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="handover" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutVersionRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_handover</bpmn:incoming>
+      <bpmn:outgoing>flow_handover_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_handover" name="DRAFT 넘기기 완료">
+      <bpmn:incoming>flow_handover_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_handover" name="handover" sourceRef="actionGateway" targetRef="handoverTask" />
+    <bpmn:sequenceFlow id="flow_handover_end" sourceRef="handoverTask" targetRef="end_handover" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="layoutMng">
@@ -244,6 +336,96 @@ action=search|view|save -&gt; {action}Task (layoutMngService.{action}). 쓰기�
       <bpmndi:BPMNEdge id="flow_export_end_di" bpmnElement="flow_export_end">
         <di:waypoint x="480" y="940" />
         <di:waypoint x="562" y="940" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="copyTask_di" bpmnElement="copyTask">
+        <dc:Bounds x="380" y="1060" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_copy_di" bpmnElement="end_copy">
+        <dc:Bounds x="562" y="1082" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_copy_di" bpmnElement="flow_copy">
+        <di:waypoint x="270" y="325" />
+        <di:waypoint x="270" y="1100" />
+        <di:waypoint x="380" y="1100" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="308" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_copy_end_di" bpmnElement="flow_copy_end">
+        <di:waypoint x="480" y="1100" />
+        <di:waypoint x="562" y="1100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="deleteTask_di" bpmnElement="deleteTask">
+        <dc:Bounds x="380" y="1220" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_delete_di" bpmnElement="end_delete">
+        <dc:Bounds x="562" y="1242" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_delete_di" bpmnElement="flow_delete">
+        <di:waypoint x="270" y="325" />
+        <di:waypoint x="270" y="1260" />
+        <di:waypoint x="380" y="1260" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="308" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_end_di" bpmnElement="flow_delete_end">
+        <di:waypoint x="480" y="1260" />
+        <di:waypoint x="562" y="1260" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="lockTask_di" bpmnElement="lockTask">
+        <dc:Bounds x="380" y="1380" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_lock_di" bpmnElement="end_lock">
+        <dc:Bounds x="562" y="1402" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_lock_di" bpmnElement="flow_lock">
+        <di:waypoint x="270" y="325" />
+        <di:waypoint x="270" y="1420" />
+        <di:waypoint x="380" y="1420" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="308" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_lock_end_di" bpmnElement="flow_lock_end">
+        <di:waypoint x="480" y="1420" />
+        <di:waypoint x="562" y="1420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="unlockTask_di" bpmnElement="unlockTask">
+        <dc:Bounds x="380" y="1540" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_unlock_di" bpmnElement="end_unlock">
+        <dc:Bounds x="562" y="1562" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_unlock_di" bpmnElement="flow_unlock">
+        <di:waypoint x="270" y="325" />
+        <di:waypoint x="270" y="1580" />
+        <di:waypoint x="380" y="1580" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="308" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_unlock_end_di" bpmnElement="flow_unlock_end">
+        <di:waypoint x="480" y="1580" />
+        <di:waypoint x="562" y="1580" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="handoverTask_di" bpmnElement="handoverTask">
+        <dc:Bounds x="380" y="1700" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_handover_di" bpmnElement="end_handover">
+        <dc:Bounds x="562" y="1722" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_handover_di" bpmnElement="flow_handover">
+        <di:waypoint x="270" y="325" />
+        <di:waypoint x="270" y="1740" />
+        <di:waypoint x="380" y="1740" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="305" y="308" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_handover_end_di" bpmnElement="flow_handover_end">
+        <di:waypoint x="480" y="1740" />
+        <di:waypoint x="562" y="1740" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

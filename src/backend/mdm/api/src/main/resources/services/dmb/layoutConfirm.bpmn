@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_layoutConfirm" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="layoutConfirm" name="레이아웃 확정" isExecutable="true">
+    <bpmn:documentation>layoutConfirm — 레이아웃 확정 (To-Be only 신규 화면, D-144 3단계). 전문·헤더 공용, apply_from 시점 헤더 버전으로 합성해 검사한다.
+정본: docs/superpowers/specs/2026-10-02-mdm-object-versioning-design.md §7
+
+action=search   -&gt; searchTask   (layoutConfirmService.search)    READ
+action=view     -&gt; viewTask     (layoutConfirmService.view)      READ
+action=validate -&gt; validateTask (layoutConfirmService.validate)  EDIT — 저장된 구성 그대로 등록 검사(L01~L15)·MSG_LENGTH 용량(L16)·변경 분류·동시 전환 경고 + 적용 순서, 쓰기 없음
+action=confirm  -&gt; confirmTask  (layoutConfirmService.confirm)   CONFIRM — DRAFT→RELEASED(공통 VersionStateService) + 같은 트랜잭션에서 전환 방식·변경 분류·본문 스냅샷 기록. EAI 표준 헤더 연결은 옮기지 않는다(시각 T 의 RELEASED 헤더 버전 EAI_CODE 로 해석, Ruling P3-15)</bpmn:documentation>
+    <bpmn:startEvent id="start" name="시작">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway" name="action 분기">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_view</bpmn:outgoing>
+      <bpmn:outgoing>flow_validate</bpmn:outgoing>
+      <bpmn:outgoing>flow_confirm</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="확정 대기 목록 조회" camunda:class="layoutConfirmService">
+      <bpmn:documentation>D-144 3단계 — 전문·헤더의 DRAFT 목록(종류·이름 순). READ.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutConfirm.dto.LayoutConfirmSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch" name="조회 완료">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="viewTask" name="확정 대상 버전 조회" camunda:class="layoutConfirmService">
+      <bpmn:documentation>D-144 3단계 — 레이아웃·대상 버전(ver 가 비면 DRAFT)·직전 RELEASED. READ.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="view" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutConfirm.dto.LayoutConfirmViewRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_view</bpmn:incoming>
+      <bpmn:outgoing>flow_view_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endView" name="조회 완료">
+      <bpmn:incoming>flow_view_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="validateTask" name="확정 검사" camunda:class="layoutConfirmService">
+      <bpmn:documentation>D-144 3단계 — 확정 검사(LayoutConfirmChecks, apply_from 시점 합성) + 적용 순서(ApplyFromOrderCheck) + 변경 분류. 쓰기 없음. EDIT.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="validate" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutConfirm.dto.LayoutConfirmValidateRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_validate</bpmn:incoming>
+      <bpmn:outgoing>flow_validate_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endValidate" name="검사 완료">
+      <bpmn:incoming>flow_validate_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="confirmTask" name="버전 확정" camunda:class="layoutConfirmService">
+      <bpmn:documentation>D-144 3단계 — VersionStateService.confirm(담당자·소유자·검사 SPI·DRAFT→RELEASED·직전 닫기·CREATED→INUSE) → 전환 방식·변경 분류·본문 스냅샷 기록 한 트랜잭션. CONFIRM.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="confirm" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dmb.layoutConfirm.dto.LayoutConfirmRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_confirm</bpmn:incoming>
+      <bpmn:outgoing>flow_confirm_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endConfirm" name="확정 완료">
+      <bpmn:incoming>flow_confirm_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_view" name="view" sourceRef="actionGateway" targetRef="viewTask" />
+    <bpmn:sequenceFlow id="flow_view_end" sourceRef="viewTask" targetRef="endView" />
+    <bpmn:sequenceFlow id="flow_validate" name="validate" sourceRef="actionGateway" targetRef="validateTask" />
+    <bpmn:sequenceFlow id="flow_validate_end" sourceRef="validateTask" targetRef="endValidate" />
+    <bpmn:sequenceFlow id="flow_confirm" name="confirm" sourceRef="actionGateway" targetRef="confirmTask" />
+    <bpmn:sequenceFlow id="flow_confirm_end" sourceRef="confirmTask" targetRef="endConfirm" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="layoutConfirm">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="277" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="270" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="380" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="560" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="viewTask_di" bpmnElement="viewTask">
+        <dc:Bounds x="380" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endView_di" bpmnElement="endView">
+        <dc:Bounds x="560" y="212" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="validateTask_di" bpmnElement="validateTask">
+        <dc:Bounds x="380" y="320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endValidate_di" bpmnElement="endValidate">
+        <dc:Bounds x="560" y="342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="confirmTask_di" bpmnElement="confirmTask">
+        <dc:Bounds x="380" y="450" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endConfirm_di" bpmnElement="endConfirm">
+        <dc:Bounds x="560" y="472" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="295" />
+        <di:waypoint x="245" y="295" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="270" />
+        <di:waypoint x="270" y="100" />
+        <di:waypoint x="380" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="480" y="100" />
+        <di:waypoint x="560" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_di" bpmnElement="flow_view">
+        <di:waypoint x="270" y="270" />
+        <di:waypoint x="270" y="230" />
+        <di:waypoint x="380" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_view_end_di" bpmnElement="flow_view_end">
+        <di:waypoint x="480" y="230" />
+        <di:waypoint x="560" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_validate_di" bpmnElement="flow_validate">
+        <di:waypoint x="270" y="320" />
+        <di:waypoint x="270" y="360" />
+        <di:waypoint x="380" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_validate_end_di" bpmnElement="flow_validate_end">
+        <di:waypoint x="480" y="360" />
+        <di:waypoint x="560" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_confirm_di" bpmnElement="flow_confirm">
+        <di:waypoint x="270" y="320" />
+        <di:waypoint x="270" y="490" />
+        <di:waypoint x="380" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_confirm_end_di" bpmnElement="flow_confirm_end">
+        <di:waypoint x="480" y="490" />
+        <di:waypoint x="560" y="490" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

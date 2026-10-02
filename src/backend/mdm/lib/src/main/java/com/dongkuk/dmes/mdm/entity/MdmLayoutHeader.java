@@ -1,11 +1,14 @@
 package com.dongkuk.dmes.mdm.entity;
 
 import com.dongkuk.dmes.cactus.audit.CactusAuditEntity;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 
 /**
  * 헤더 적층 부착 — {@code TB_MDM_LAYOUT_HEADER}(신설, D4, TSK-05-01 design.md §2·§6.0). 전문 레이아웃에
@@ -19,11 +22,16 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "TB_MDM_LAYOUT_HEADER")
 @IdClass(MdmLayoutHeaderId.class)
+@AttributeOverride(name = "version", column = @Column(name = "AUD_VER"))
 public class MdmLayoutHeader extends CactusAuditEntity {
 
     @Id
     @Column(name = "LAYOUT_ID")
     private Long layoutId;
+
+    @Id
+    @Column(name = "VER", nullable = false, precision = 7, scale = 3)
+    private BigDecimal ver;
 
     @Id
     @Column(name = "SEQ")
@@ -36,13 +44,15 @@ public class MdmLayoutHeader extends CactusAuditEntity {
         // JPA 기본 생성자
     }
 
-    public MdmLayoutHeader(Long layoutId, Integer seq, Long headerLayoutId) {
+    public MdmLayoutHeader(Long layoutId, BigDecimal ver, Integer seq, Long headerLayoutId) {
         this.layoutId = layoutId;
+        this.ver = VersionNumbers.scaled(ver);
         this.seq = seq;
         this.headerLayoutId = headerLayoutId;
     }
 
     public Long getLayoutId() { return layoutId; }
+    public BigDecimal getVer() { return VersionNumbers.scaled(ver); }
     public Integer getSeq() { return seq; }
     public Long getHeaderLayoutId() { return headerLayoutId; }
 }

@@ -1,40 +1,75 @@
-%% TSK-02-03 영역 03 (dmb) ERD — design.md §6.2. D1(헤더 적층)·D2(상수 재정의) 신설 테이블 포함.
-%% EAI↔LAYOUT 은 영역 내부 순환 FK(SQLite 인라인 가능, §6.6).
+%% 영역 03 (dmb) ERD — D-144 3단계(D-148) 이후 모양. 정본은 V21__layout_version.sql 의 ④ 새 표(03-interface-layout.sqlite.sql 과 같다).
+%% 부모 TB_MDM_LAYOUT 은 버전이 없는 칸만 두고, 형식·길이·항목·헤더 구성·상수 재정의는 버전 키 (LAYOUT_ID, VER) 아래로 들어간다.
+%% EAI_CODE 가 부모를 떠나 EAI ↔ 레이아웃 순환 FK 가 없어졌다. TB_MDM_EAI.HEADER_LAYOUT_ID 는 남아 있으나 운영이 읽지 않는다 —
+%% EAI 표준 헤더는 시각 T 에 RELEASED 인 헤더 버전 행의 EAI_CODE 로 해석한다. 버전 표 4개의 감사 카운터는 AUD_VER(업무 VER 와 구분).
 erDiagram
-    TB_MDM_EAI {
-        CD20 EAI_CODE PK
-        NM100 EAI_NAME
-        CD20 ENCODING
-        INT4 HEADER_LAYOUT_ID FK "순환, TB_MDM_LAYOUT"
-    }
     TB_MDM_LAYOUT {
         ID_AI LAYOUT_ID PK
         CD20 LAYOUT_KIND "HEADER 또는 MESSAGE"
-        NM100 LAYOUT_NAME
-        CD20 EAI_CODE FK "순환, TB_MDM_EAI"
-        CD20 SND_SYSTEM FK
-        CD20 RCV_SYSTEM FK
-        BIGI VERSION "예약어, 배포 스냅샷 번호"
+        TEXT LAYOUT_NAME "버전 없음, 저장 즉시 반영"
+        CD20 SND_SYSTEM FK "버전 없음"
+        CD20 RCV_SYSTEM FK "버전 없음"
+        CD20 STATUS "CREATED INUSE DEPRECATED"
+        BIGI VER "감사 카운터"
+    }
+    TB_MDM_EAI {
+        CD20 EAI_CODE PK
+        TEXT EAI_NAME
+        CD20 ENCODING
+        TEXT PAD_RULE
+        INT4 HEADER_LAYOUT_ID FK "운영 미사용, 이행 근거만"
+        BIGI VER "감사 카운터"
+    }
+    TB_MDM_LAYOUT_VER {
+        INT4 LAYOUT_ID PK,FK
+        NUM7_3 VER PK "업무 버전 1.000"
+        CD20 VER_KIND "MAJOR MINOR"
+        CD20 STATUS "DRAFT RELEASED 등"
+        NUM7_3 BASE_VER
+        CD50 OWNER_ID "DRAFT 소유자"
+        TEXT APPLY_FROM "구간 시작(포함)"
+        TEXT APPLY_TO "구간 끝(제외), 열린 끝 9999-12-31"
+        TEXT REQUESTED_AT
+        TEXT RELEASED_AT
+        BIGI ROW_VERSION "낙관적 잠금"
+        CD20 EAI_CODE FK "헤더면 EAI 표준 헤더 주장"
+        INT4 OWN_LENGTH "자기 항목 길이 합"
+        CD20 SWITCH_MODE "SEQUENTIAL SIMULTANEOUS"
+        CD200 CHANGE_KINDS
+        TEXT CHANGE_SUMMARY
+        JSON SNAPSHOT_JSON "확정 본문 스냅샷 또는 이행 전 스냅샷"
+        YN LEGACY_SNAPSHOT_YN "Y 면 항목 행 없이 스냅샷만"
+        BIGI AUD_VER "감사 카운터"
     }
     TB_MDM_LAYOUT_ITEM {
         INT4 LAYOUT_ID PK,FK
+        NUM7_3 VER PK,FK
         INT4 SEQ PK
         CD20 FILL_KIND "DATA CONST AUTO FILLER"
         CD50 COLUMN_PHYS FK "TB_MDM_COLUMN.PHYS_NAME(02)"
         CD20 TRANS_UNIT FK
-        INT4 OFFSET "예약어, 계산값"
-        INT4 LENGTH "예약어, 계산값"
+        CD50 UNIT_ITEM
+        CD50 NUM_FORMAT
+        CD50 DEFAULT_VALUE
+        INT4 FILLER_LENGTH
+        INT4 OFFSET "예약어, 헤더 안 또는 본문 시작 기준 상대값"
+        INT4 LENGTH "예약어"
+        BIGI AUD_VER "감사 카운터"
     }
-    TB_MDM_LAYOUT_HEADER["TB_MDM_LAYOUT_HEADER (신설, D1)"] {
+    TB_MDM_LAYOUT_HEADER {
         INT4 LAYOUT_ID PK,FK "MESSAGE 측"
+        NUM7_3 VER PK,FK
         INT4 SEQ PK "적층 순서"
-        INT4 HEADER_LAYOUT_ID PK,FK "HEADER 측"
+        INT4 HEADER_LAYOUT_ID FK "HEADER 측, 버전은 시각 T 로 해석"
+        BIGI AUD_VER "감사 카운터"
     }
-    TB_MDM_LAYOUT_CONST["TB_MDM_LAYOUT_CONST (신설, D2)"] {
+    TB_MDM_LAYOUT_CONST {
         INT4 LAYOUT_ID PK,FK
+        NUM7_3 VER PK,FK
         INT4 HEADER_LAYOUT_ID PK,FK
-        INT4 HEADER_SEQ PK,FK "TB_MDM_LAYOUT_ITEM 복합FK"
+        CD50 HEADER_COLUMN_PHYS PK "헤더 항목 물리명, 항목 FK 없음"
         CD50 CONST_VALUE "전문별 재정의 값"
+        BIGI AUD_VER "감사 카운터"
     }
     TB_MDM_SYSTEM["TB_MDM_SYSTEM (TSK-01-02 소유)"] {
         CD20 SYSTEM_CODE PK
@@ -46,14 +81,13 @@ erDiagram
         CD20 UNIT_CODE PK
     }
 
-    TB_MDM_LAYOUT ||--o{ TB_MDM_EAI : "HEADER_LAYOUT_ID (순환)"
-    TB_MDM_EAI ||--o{ TB_MDM_LAYOUT : "EAI_CODE (순환, MESSAGE 측)"
     TB_MDM_SYSTEM ||--o{ TB_MDM_LAYOUT : "SND_SYSTEM/RCV_SYSTEM"
-    TB_MDM_LAYOUT ||--o{ TB_MDM_LAYOUT_ITEM : "LAYOUT_ID"
+    TB_MDM_LAYOUT ||--o{ TB_MDM_LAYOUT_VER : "LAYOUT_ID"
+    TB_MDM_EAI ||--o{ TB_MDM_LAYOUT_VER : "EAI_CODE"
+    TB_MDM_LAYOUT |o..o{ TB_MDM_EAI : "HEADER_LAYOUT_ID (운영 미사용)"
+    TB_MDM_LAYOUT_VER ||--o{ TB_MDM_LAYOUT_ITEM : "LAYOUT_ID,VER"
     TB_MDM_COLUMN ||..o{ TB_MDM_LAYOUT_ITEM : "COLUMN_PHYS (점선, 교차영역 03→02)"
     TB_MDM_UNIT ||..o{ TB_MDM_LAYOUT_ITEM : "TRANS_UNIT (점선, 교차영역)"
-    TB_MDM_LAYOUT ||--o{ TB_MDM_LAYOUT_HEADER : "LAYOUT_ID(MESSAGE)"
-    TB_MDM_LAYOUT ||--o{ TB_MDM_LAYOUT_HEADER : "HEADER_LAYOUT_ID(HEADER)"
-    TB_MDM_LAYOUT ||--o{ TB_MDM_LAYOUT_CONST : "LAYOUT_ID"
-    TB_MDM_LAYOUT_ITEM ||--o{ TB_MDM_LAYOUT_CONST : "HEADER_LAYOUT_ID,HEADER_SEQ"
-    TB_MDM_LAYOUT_HEADER ||--o{ TB_MDM_LAYOUT_CONST : "LAYOUT_ID,HEADER_LAYOUT_ID (부착 무결성)"
+    TB_MDM_LAYOUT_VER ||--o{ TB_MDM_LAYOUT_HEADER : "LAYOUT_ID,VER (MESSAGE)"
+    TB_MDM_LAYOUT ||--o{ TB_MDM_LAYOUT_HEADER : "HEADER_LAYOUT_ID (HEADER)"
+    TB_MDM_LAYOUT_HEADER ||--o{ TB_MDM_LAYOUT_CONST : "LAYOUT_ID,VER,HEADER_LAYOUT_ID"

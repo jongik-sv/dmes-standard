@@ -263,8 +263,11 @@ public class DomainMngService {
             warnings.addAll(after);
             rerun.addAll(d.rerunIds());
         }
-        // 5 메타 캐시 무효화 — 이 도메인·하위 도메인·참조 컬럼(spec 2026-10-02 §3.2). 같은 트랜잭션이라 위에서 던지면 남지 않는다
-        recorder.domain(entity.getDomainId());
+        // 5 메타 캐시 무효화 — 이 도메인·하위 도메인·참조 컬럼(spec 2026-10-02 §3.2). 같은 트랜잭션이라 위에서 던지면 남지 않는다.
+        //   이름·정의·예시·테스트 케이스만 바뀐(COMPATIBLE) 저장이 아니면 그 컬럼을 쓰는 RELEASED 전문까지 펼친다 — 전문 합성의 타입·단위·소수가
+        //   유효 도메인에서 온다(검토 I1). 구조·부모·값 정의 변경은 판정 없이 펼친다(의심스러우면 거는 쪽)
+        recorder.domain(entity.getDomainId(),
+                !DomainChangeClassifier.COMPATIBLE.equals(check.classification().kind()));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("domainId", entity.getDomainId());
         out.put("ver", entity.getVersion());

@@ -277,6 +277,61 @@ class MdmDefinitionLookupTest {
         return new RuleSetDefinition("S", new BigDecimal(ver), from, to, ruleIds, SetStatus.INUSE, null);
     }
 
+    // ---- D-144 3단계: 전문(LAYOUT) RELEASED 버전 목록 + 판정 시각 선택 ----
+
+    private static final LocalDateTime JAN1 = LocalDateTime.of(2026, 1, 1, 0, 0);
+    private static final LocalDateTime APR1 = LocalDateTime.of(2026, 4, 1, 0, 0);
+    private static final LocalDateTime JUL1 = LocalDateTime.of(2026, 7, 1, 0, 0);
+    private static final LocalDateTime OPEN_END = LocalDateTime.of(9999, 12, 31, 0, 0);
+
+    private static MdmLayoutVersion.Segment seg(LocalDateTime from, LocalDateTime to, int totalLength) {
+        return new MdmLayoutVersion.Segment(from, to, Map.of("totalLength", totalLength));
+    }
+
+    private static Instant kst(LocalDateTime t) {
+        return t.atZone(MdmDefinitionLookup.KST).toInstant();
+    }
+
+    /**
+     * 1.000 [1/1, 7/1) 은 헤더 버전 경계 4/1 로 두 합성 구간(17·19), 2.000 [7/1, 열린 끝) 은 7/1 에 적용되는 예약 버전(21). 경계마다 앞뒤를 본다.
+     */
+    @Test
+    void layout_은_판정_시각의_RELEASED_버전과_헤더_경계_구간의_스냅샷을_고른다() {
+        feed.put(MdmTargetType.LAYOUT, "9701", List.of(
+                new MdmLayoutVersion(new BigDecimal("1.000"), JAN1, JUL1, List.of(seg(JAN1, APR1, 17), seg(APR1, JUL1, 19))),
+                new MdmLayoutVersion(new BigDecimal("2.000"), JUL1, OPEN_END, List.of(seg(JUL1, OPEN_END, 21)))));
+
+        assertThat(lookup.layout("9701", kst(JAN1.minusSeconds(1)))).isEmpty();
+        assertThat(lookup.layout("9701", kst(JAN1)).orElseThrow()).containsEntry("totalLength", 17);
+        assertThat(lookup.layout("9701", kst(APR1.minusSeconds(1))).orElseThrow()).containsEntry("totalLength", 17);
+        assertThat(lookup.layout("9701", kst(APR1)).orElseThrow()).containsEntry("totalLength", 19);
+        assertThat(lookup.layout("9701", kst(JUL1.minusSeconds(1))).orElseThrow()).containsEntry("totalLength", 19);
+        assertThat(lookup.layout("9701", kst(JUL1)).orElseThrow()).containsEntry("totalLength", 21);
+        assertThat(lookup.layout("NO", kst(JUL1))).isEmpty();
+        assertThat(feed.fetchCalls.get()).as("버전 목록을 한 번 받아 두고 시각마다 고른다").isEqualTo(2);
+    }
+
+    /** 예약 버전(미래 적용 시작)이 지금 버전과 겹치면 적용 시작 전에는 지금 버전, 시작부터 VER 가 수로 큰 예약 버전이다. */
+    @Test
+    void layout_예약_버전은_적용_시작부터_고르고_VER_는_수로_비교한다() {
+        List<MdmLayoutVersion> versions = List.of(
+                new MdmLayoutVersion(new BigDecimal("9.000"), JAN1, OPEN_END, List.of(seg(JAN1, OPEN_END, 10))),
+                new MdmLayoutVersion(new BigDecimal("10.000"), JUL1, OPEN_END, List.of(seg(JUL1, OPEN_END, 12))));
+        assertThat(MdmDefinitionLookup.selectLayout(versions, kst(JUL1.minusSeconds(1))).orElseThrow()).containsEntry("totalLength", 10);
+        assertThat(MdmDefinitionLookup.selectLayout(versions, kst(JUL1)).orElseThrow()).containsEntry("totalLength", 12);
+        // 구간이 빈 버전(합성 구간 없음)은 고르지 않는다
+        assertThat(MdmDefinitionLookup.selectLayout(List.of(new MdmLayoutVersion(new BigDecimal("1.000"), JUL1, JUL1, List.of())),
+                kst(JUL1))).isEmpty();
+    }
+
+    /** MDM 이 합성하지 못한 전문(failed, Ruling R4)은 받을 수 없음이다 — 빈 값(전문 없음)으로 바꾸지 않는다. */
+    @Test
+    void layout_깨진_버전으로_failed_인_전문은_MdmUnavailableException() {
+        feed.failedKeys.put("9703", "헤더 9791 에 시각 2026-01-01 00:00:00 에 확정된 버전이 없습니다");
+        assertThatThrownBy(() -> lookup.layout("9703", kst(JUL1))).isInstanceOf(MdmUnavailableException.class)
+                .hasMessageContaining("LAYOUT 9703");
+    }
+
     @Test
     void MDM_을_받을_수_없으면_엔진_호출이_MdmUnavailableException_을_받는다() {
         feed.fetchError = new MdmUnavailableException("꺼짐");

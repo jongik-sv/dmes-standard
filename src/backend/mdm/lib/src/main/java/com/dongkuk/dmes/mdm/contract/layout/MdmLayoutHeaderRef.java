@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.contract.layout;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -12,6 +13,8 @@ import java.util.List;
  * (html:175 "오프셋은 이 헤더 안에서 0부터 센다") — 본문 {@link MdmLayoutSnapshot#items()}의 절대 오프셋과
  * 기준이 다르므로 직렬화기·파서(TSK-05-03)는 헤더 항목을 다룰 때 반드시 {@code offset + item.offset()}으로
  * 절대 위치를 구해야 한다(계산 자체는 이 Task 밖, 불변 규칙 15).
+ *
+ * <p>{@code headerVersion} 은 합성 시각에 고른 헤더 버전. LEGACY 스냅샷은 null.
  */
 public record MdmLayoutHeaderRef(
         int seq,
@@ -19,5 +22,6 @@ public record MdmLayoutHeaderRef(
         String headerLayoutName,
         int offset,
         int totalLength,
-        List<MdmLayoutItemSnapshot> items) {
+        List<MdmLayoutItemSnapshot> items,
+        BigDecimal headerVersion) {
 }

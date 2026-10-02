@@ -78,8 +78,8 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 
 | 메서드 | 기록하는 키 |
 |---|---|
-| `column(oldPhysName, newPhysName)` | 두 물리명 모두(같으면 하나). 신규는 새 이름만 |
-| `domain(domainId)` | 그 도메인 + `DomainImpactQueries.subtree(domainId)` 의 하위 도메인 전부 + 그 도메인들을 참조하는 컬럼의 물리명 전부 |
+| `column(oldPhysName, newPhysName, layoutFeedMayChange)` | 두 물리명 모두(같으면 하나). 신규는 새 이름만. 펼침이 켜지면 두 물리명을 항목으로 쓰는 RELEASED 레이아웃 버전(지난 구간 포함, LEGACY 스냅샷 버전 제외)의 전문 ID, 헤더면 헤더 + 그 헤더를 쌓은 전문(`LayoutQueries.withStackingMessages`)을 LAYOUT 키로 더한다(D-144 3단계 최종 검토 I1 — 전문 합성의 타입·단위·소수가 그때의 사전에서 온다). 2인자 판은 펼침을 켠다 |
+| `domain(domainId, layoutFeedMayChange)` | 그 도메인 + `DomainImpactQueries.subtree(domainId)` 의 하위 도메인 전부 + 그 도메인들을 참조하는 컬럼의 물리명 전부. 펼침이 켜지면 그 컬럼들로 위와 같이 LAYOUT 키를 더한다. 1인자 판은 펼침을 켠다. `code(…)` 의 도메인 펼침은 LAYOUT 으로 펼치지 않는다(코드 변경은 타입·단위·소수를 바꾸지 않는다) |
 | `rule(ruleId)` | 그 룰 |
 | `ruleSet(setId)` | 그 룰세트(버전 구분 없이 세트 키 하나 — 클라이언트는 RELEASED 버전 목록째 다시 받는다) |
 | `code(maruCodeId)` | 그 코드 + `MARU_CODE_ID` 로 직접 참조하는 도메인 각각에 대해 `domain(…)` 펼침(상속받는 하위 도메인·컬럼까지) |
@@ -92,12 +92,12 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 
 | 대상 | 호출 지점 |
 |---|---|
-| 컬럼 | `ColumnMngService.save` — 변경 전 물리명을 저장 전에 읽어 둔다(물리명 변경 가능, :308-310) |
-| 도메인 | `DomainMngService.save` |
+| 컬럼 | `ColumnMngService.save` — 변경 전 물리명·도메인을 저장 전에 읽어 둔다(물리명 변경 가능, :308-310). 신규·물리명 변경·도메인 교체면 그 물리명을 쓰는 RELEASED 전문(헤더면 쌓은 전문까지)을 LAYOUT 키로 펼친다(`LayoutColumnUsersSpi`, 최종 검토 I1). 이름·라벨·설명만 바뀐 저장은 펼치지 않는다 |
+| 도메인 | `DomainMngService.save` — 변경 분류가 COMPATIBLE(이름·정의·예시·테스트 케이스만)이 아니면 참조 컬럼을 쓰는 RELEASED 전문까지 LAYOUT 키로 펼친다(최종 검토 I1, 의심스러우면 거는 쪽) |
 | 룰 | `DefaultVersionStateService.confirm`·`cancelConfirm`(룰·코드 공통, 대상 종류로 분기), `RuleHeaderService.saveHeader`·`deprecate`, `RuleVersionService` 의 RELEASED 에 영향을 주는 경로 |
 | 룰세트 | `DefaultVersionStateService.confirm`·`cancelConfirm`(룰과 같은 공통 확정 — 세트 확정 화면 `RuleSetConfirmService`·확정 취소 `RuleSetVersionService.cancelConfirm` 이 이 한 곳을 지난다), `RuleSetEditService.delete`(target SET 폐기)·`restore`(부모 상태가 피드의 `status` 를 바꾼다). D-144 2단계 뒤 등록(`RuleSetMngService.register`, CREATED + 1.000 DRAFT)·저장(내 DRAFT 에만)·새 버전·선점·해제·넘기기·DRAFT 삭제는 RELEASED 를 바꾸지 않아 걸지 않는다 |
 | 마스터코드 | 위 공통 확정·확정 취소, `CodeEditService.saveHeader`·`deprecate`·`deleteCode`, `CodeItemEditService.patch`(RELEASED 행 제자리 수정), `CodeCateEditService` 의 RELEASED 영향 경로 |
-| 전문 | `LayoutMngService.save`, `HeaderMngService.save`(헤더 + `recalculateUsers` 가 돌려준 MESSAGE 전문 전부) |
+| 전문 | D-144 3단계 뒤: `DefaultVersionStateService.confirm`·`cancelConfirm`(레이아웃·헤더 확정 `LayoutConfirmService`·확정 취소 `LayoutVersionService.cancelConfirm` 이 이 한 곳을 지난다 — 헤더면 그 헤더를 쌓은 MESSAGE 전문까지 `LayoutQueries.withStackingMessages` 로 펼친다), `LayoutMngService.save`·`HeaderMngService.save` 는 버전 무관 부모 칸(전문 이름·송수신 시스템, 헤더 이름 — 합성 스냅샷에 실린다)이 바뀌고 RELEASED 가 있을 때만(헤더는 쌓은 전문까지). DRAFT 저장·새 버전·선점·해제·넘기기·DRAFT 삭제는 RELEASED 를 바꾸지 않아 걸지 않는다(3단계 전에는 `LayoutMngService.save`, `HeaderMngService.save`(헤더 + `recalculateUsers` 가 돌려준 MESSAGE 전문 전부)) |
 
 - 로컬 샘플 적재(`MdmLocalSampleLoader`)는 기록하지 않는다. 클라이언트는 기동 직후 캐시가 비어 있으므로 영향이 없다.
 - 기록 누락에 대비한 안전망으로 클라이언트 캐시에 긴 최대 수명(기본 60분, §5.2)을 둔다.
@@ -114,7 +114,7 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | `rules` | `ruleIds[]` | 룰별 RELEASED 버전 **전체**의 `RuleDefinition` 목록(적용 기간 포함) |
 | `ruleSets` | `setIds[]` | 세트별 RELEASED 버전 **전체**의 `RuleSetDefinition` 목록(`ver`·적용 기간 포함, D-144 2단계) |
 | `codes` | `maruCodeIds[]` | 엔진 `CodeLookup.CodeRows`(헤더·버전·항목·카테고리·카테고리 항목, 해석 전 원본) |
-| `layouts` | `layoutIds[]` | 최신 레이아웃 스냅샷 |
+| `layouts` | `layoutIds[]` | 전문별 RELEASED 버전 **전체**(D-144 3단계) — 버전마다 `ver`(문자열 `"1.000"`)·`applyFrom`·`applyTo` 와, 그 구간을 쌓은 헤더 버전 경계로 나눈 합성 구간 `segments[{applyFrom, applyTo, snapshot}]`(`MdmLayoutSnapshot`). 헤더 레이아웃은 빠지고, 어느 구간이든 합성이 깨진 전문은 그 키만 failed(Ruling R4). 정상 운영 경로의 구간 빈틈(쌓인 헤더의 첫 버전 확정 취소 등)은 헤더 확정 취소 가드(판정 P3-22 — 쌓은 RELEASED 전문의 적용 구간이 합성되지 않게 되면 원장에서 거부)가 막으므로, failed 는 원장 손상 같은 예외 상황에서만 생긴다 |
 | `force` | `type`, `keys[]`, `kind`(`EVICT`·`RELOAD`) | 추가된 `REV_SEQ` 범위. SYSADMIN 만 |
 
 - 조립 재사용: 유효 도메인은 `DefaultMdmEffectiveDomainResolver`·`EffectiveDomainView`, 룰은 `RuleQueries.versions` + `StoredRuleDefinitions`·`RuleDefinitionAssembler`, 룰세트는 `StoredDefinitionLookup.releasedSets`(같은 클래스의 `ruleSet(setId, evalTs)` 와 같은 `toDefinition`·`RuleSetVersionQueries`), 코드는 `MdmCodeLookup.code` 와 같은 쿼리(`MasterCodeLedgerQueries`). `MdmCodeLookup`·`StoredDefinitionLookup` 을 빈으로 만들면 안 된다(D-077, ADR-0005 가드 테스트). 서비스 안에서 `new` 로 쓴다.
@@ -132,7 +132,7 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | 룰 | `MARU_RULE_ID` | RELEASED 버전 전체 | 평가 시각으로 그때그때 고른다. "현재 버전"을 캐시하지 않는다 — 적용 시작일 도래는 쓰기가 없어 기록이 남지 않기 때문이다. `ver` 는 major/minor 소수(D-144, `NUMERIC(7,3)`, JSON number `1.000`·`1.001`)이고 목록 정렬·여럿일 때 최대 고르기는 수 비교(`BigDecimal.compareTo`)다 |
 | 룰세트 | `MARU_RULE_SET_ID` | RELEASED 버전 전체 | 룰과 같다(D-144 2단계부터 세트도 버전이 있다). 엔진 `RuleSetDefinition` 에 `ver`·`applyFrom`·`applyTo` 를 더했고, 업무 모듈은 판정 시각으로 그때그때 고른다(`APPLY_FROM <= t < APPLY_TO`, 여럿이면 VER 최대). `status` 는 버전마다 부모의 계산 상태(저장 CREATED → INUSE) |
 | 마스터코드 | `MARU_CODE_ID` | `CodeRows` 원본 | 엔진 `CodeResolver` 가 기준일로 해석한다. 버전 적용 기간도 같은 이유로 원본째 둔다 |
-| 전문 | `LAYOUT_ID` | 최신 스냅샷 | 캐시만 한다. 소비 연동은 범위 밖. 레이아웃 버전 관리(3단계) 병합 시 LAYOUT 피드를 RELEASED 버전 목록 + 시각 선택으로 바꾼다 |
+| 전문 | `LAYOUT_ID`(MESSAGE) | RELEASED 버전 전체 + 버전별 합성 구간 | 룰과 같다(D-144 3단계, 2026-10-03 반영). MDM 이 전문 버전 구간을 쌓은 헤더의 RELEASED 버전 경계(적용 시작·끝)로 나눠 구간마다 미리 합성하므로 업무 모듈은 판정 시각 하나로 버전(`APPLY_FROM <= t < APPLY_TO`, 여럿이면 VER 최대)과 그 안의 구간을 고른다(`MdmDefinitionLookup.layout(id, t)`). 헤더 확정·확정 취소는 그 헤더를 쌓은 전문 키로 펼쳐 기록하므로 구간 경계가 바뀌면 무효화된다. 예약 버전의 적용 시작 도래는 목록에 이미 있어 기록이 필요 없다. 소비 연동(직렬화·파싱)은 범위 밖. **배포 순서**: 값 모양이 3단계 전(스냅샷 하나)과 호환되지 않으므로 MDM 과 cactus-core 는 같은 릴리스로 배포한다. 섞이는 동안에는 LAYOUT 키만 failed 이고 캐시 관리 화면(mdmCacheMng)에도 그렇게 보인다. 캐시는 메모리에만 있으므로 재시작하면 정리된다 |
 
 ### 4.2 컬럼 메타
 

@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.contract.layout;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -9,6 +10,8 @@ import java.util.List;
  *
  * <p>{@code headers}가 빈 리스트면 헤더 없는 전문, 원소 1개면 md 단일-헤더 동작(N=1), 2개 이상이면 D4
  * 적층이다(불변 규칙 1). {@code items}는 본문 항목이며 {@code offset}은 메시지 전체 절대값이다(F23).
+ *
+ * <p>{@code layoutVersion} 은 scale 3 소수 버전(D-144). 이행 전(LEGACY) 스냅샷은 정수로 남아 있다.
  */
 public record MdmLayoutSnapshot(
         long layoutId,
@@ -18,7 +21,7 @@ public record MdmLayoutSnapshot(
         String rcvSystem,
         String encoding,
         String padRule,
-        long layoutVersion,
+        BigDecimal layoutVersion,
         int totalLength,
         List<MdmLayoutHeaderRef> headers,
         List<MdmLayoutItemSnapshot> items) {

@@ -1,8 +1,10 @@
 "use client";
 
-/** 헤더 목록(TSK-05-02 design.md §2) — 헤더 이름·EAI·인코딩·길이·항목 수·사용 전문 수. */
+/** 헤더 목록(TSK-05-02 design.md §2, D-144 3단계) — 헤더 이름·EAI·인코딩·길이·항목 수·사용 전문 수·버전·상태. */
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { empty } from "@/layout/styles";
+import { versionStateLabel } from "@/layout/version-rows";
+import { fmtVer } from "@/shell";
 import type { HeaderRow } from "../types";
 
 const COLUMNS: GridColumn[] = [
@@ -13,6 +15,8 @@ const COLUMNS: GridColumn[] = [
   { key: "TOTAL_LENGTH", header: "길이", width: 70, align: "right" },
   { key: "ITEM_COUNT", header: "항목", width: 60, align: "right" },
   { key: "USED_BY_COUNT", header: "사용 전문", width: 80, align: "right" },
+  { key: "HEADER_VER", header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },
+  { key: "HEADER_STATE", header: "상태", width: 70, render: (v) => versionStateLabel(v as string | null) },
 ];
 
 export interface HeaderListProps {

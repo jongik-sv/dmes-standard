@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSerializeContext;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutCodecs;
-import com.dongkuk.dmes.mdm.dmb.layout.LayoutSnapshotAssembler;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutComposer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -17,6 +17,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,6 +34,8 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * TSK-05-02 design.md §3.3 — 실제 BPMN({@code services/dmb/headerMng.bpmn}·{@code layoutMng.bpmn}) + OASIS 트랜잭션을 HTTP 로
  * 태운다. BPMN 분기·DTO 평탄 바인딩·grid 이름 바인딩({@code items}·{@code headers}·{@code consts})·{@code data.result.*} 응답.
+ * D-144 3단계: 데이터는 HTTP 로만 만들고, 확정(Task 7) 대신 {@link #release} SQL 로 RELEASED 를 만든다 — 헤더는
+ * {@link LayoutServiceTestSupport#HEADER_FROM}, 전문은 {@link LayoutServiceTestSupport#MESSAGE_FROM}. 시각은 서버 시계(지금).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = "cactus.security.client-key=" + LayoutOasisFlowTest.CLIENT_KEY)
@@ -46,7 +49,10 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
     int port;
 
     @Autowired
-    private LayoutSnapshotAssembler snapshotAssembler;
+    private LayoutComposer composer;
+
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private LayoutCodecs layoutCodecs;
@@ -60,6 +66,10 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
     }
 
     private JsonNode post(String service, String action, ObjectNode params, ObjectNode grids) throws Exception {
+        return post(service, action, params, grids, "SYSADMIN");
+    }
+
+    private JsonNode post(String service, String action, ObjectNode params, ObjectNode grids, String role) throws Exception {
         ObjectNode body = json.createObjectNode();
         body.putObject("meta").put("menuId", service);
         body.set("params", params);
@@ -71,7 +81,7 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
                 .header("Content-Type", "application/json")
                 .header("X-Client-Key", key != null && !key.isBlank() ? key : CLIENT_KEY)
                 .header("X-Authenticated-User", "flow-test")
-                .header("X-Authenticated-Role", "SYSADMIN")
+                .header("X-Authenticated-Role", role)
                 .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build();
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
         return json.readTree(response.body());
@@ -126,8 +136,10 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
         String eai = uniq("H");
         long l100 = saveHeaderHttp(uniq("GLUE 공통 헤더 "), eai, l100Items());
         long l110 = saveHeaderHttp(uniq("L2 구간 헤더 "), null, l110Items());
-        assertEquals(100, ((Number) layoutRow(l100).get("TOTAL_LENGTH")).intValue());
-        assertEquals(List.of(8, 4, 3, 4, 3, 14, 14, 12, 1, 5, 1, 6, 25), column(itemRows(l100), "LENGTH"), "요청 LENGTH 999 무시(I4)");
+        release(l100, "1.000", LayoutServiceTestSupport.HEADER_FROM);
+        release(l110, "1.000", LayoutServiceTestSupport.HEADER_FROM);
+        assertEquals(100, jdbc.queryForObject("SELECT OWN_LENGTH FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ?", Integer.class, l100));
+        assertEquals(List.of(8, 4, 3, 4, 3, 14, 14, 12, 1, 5, 1, 6, 25), column(itemRows(l100, "1"), "LENGTH"), "요청 LENGTH 999 무시(I4)");
 
         ArrayNode consts = json.createArrayNode();
         consts.addObject().put("HEADER_LAYOUT_ID", l100).put("HEADER_SEQ", 2).put("CONST_VALUE", "B1");
@@ -138,8 +150,10 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
         assertEquals(187, result.path("totalLength").asInt());
         assertEquals(130, result.path("headerLength").asInt());
         long msg = result.path("layoutId").asLong();
-        assertEquals(List.of(20, 8, 4, 25), column(itemRows(msg), "LENGTH"), "요청 LENGTH 999 무시(I4)");
-        assertEquals(List.of(130, 150, 158, 162), column(itemRows(msg), "OFFSET"));
+        assertEquals("1.000", result.path("ver").asText());
+        assertEquals(0, result.path("rowVersion").asInt());
+        assertEquals(List.of(20, 8, 4, 25), column(itemRows(msg, "1"), "LENGTH"), "요청 LENGTH 999 무시(I4)");
+        assertEquals(List.of(0, 20, 28, 32), column(itemRows(msg, "1"), "OFFSET"), "본문 기준 상대값(D-144 3단계)");
 
         JsonNode view = post("layoutMng", "view", json.createObjectNode().put("layoutId", msg), null);
         assertTrue(view.path("meta").path("success").asBoolean(), view.toString());
@@ -177,8 +191,9 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
     void 전문_save_에_헤더_항목_grid_를_끼워_보내도_헤더는_바뀌지_않는다() throws Exception {
         String eai = uniq("H");
         long l100 = saveHeaderHttp(uniq("GLUE 공통 헤더 "), eai, l100Items());
+        release(l100, "1.000", LayoutServiceTestSupport.HEADER_FROM);
         Map<String, Object> before = layoutRow(l100);
-        List<Map<String, Object>> itemsBefore = itemRows(l100);
+        List<Map<String, Object>> itemsBefore = itemRows(l100, "1");
         ArrayNode headerItems = json.createArrayNode();
         headerItems.addObject().put("HEADER_LAYOUT_ID", l100).put("SEQ", 2).put("COLUMN_PHYS", "SND_FAC_TP")
                 .put("FILL_KIND", "CONST").put("DEFAULT_VALUE", "ZZ").put("LENGTH", 9);
@@ -189,9 +204,9 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
         System.out.println("[LayoutOasisFlowTest] unknown grid headerItems → meta.success=" + r.path("meta").path("success"));
         assertTrue(r.path("meta").path("success").asBoolean(), r.toString());
         assertEquals(before, layoutRow(l100));
-        assertEquals(itemsBefore, itemRows(l100));
-        assertEquals("B0", itemRows(l100).get(1).get("DEFAULT_VALUE"));
-        assertEquals(4, ((Number) itemRows(l100).get(1).get("LENGTH")).intValue());
+        assertEquals(itemsBefore, itemRows(l100, "1"));
+        assertEquals("B0", itemRows(l100, "1").get(1).get("DEFAULT_VALUE"));
+        assertEquals(4, ((Number) itemRows(l100, "1").get(1).get("LENGTH")).intValue());
     }
 
     // ── TSK-05-03 design.md §3.3 — validate·execute·export·search(IMPACT) 분기·DTO·grid 이름 바인딩 ──
@@ -203,11 +218,15 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
         String eai = uniq("H");
         long l100 = saveHeaderHttp(uniq("GLUE 공통 헤더 "), eai, l100Items());
         long l110 = saveHeaderHttp(uniq("L2 구간 헤더 "), null, l110Items());
+        release(l100, "1.000", LayoutServiceTestSupport.HEADER_FROM);
+        release(l110, "1.000", LayoutServiceTestSupport.HEADER_FROM);
         String name = uniq("흐름 ");
         JsonNode r = post("layoutMng", "save", layoutParams(name, eai),
                 grids("headers", headerRows(l110), "consts", json.createArrayNode(), "items", rows(m201Items(), false)));
         assertTrue(r.path("meta").path("success").asBoolean(), r.toString());
-        return new Http201(eai, l100, l110, r.path("data").path("result").path("layoutId").asLong(), name);
+        long msg = r.path("data").path("result").path("layoutId").asLong();
+        release(msg, "1.000", LayoutServiceTestSupport.MESSAGE_FROM);
+        return new Http201(eai, l100, l110, msg, name);
     }
 
     @Test
@@ -251,8 +270,9 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
         assertTrue(r.path("meta").path("success").asBoolean(), r.toString());
         JsonNode result = r.path("data").path("result");
         assertEquals(187, result.path("snapshot").path("totalLength").asInt(), r.toString());
-        assertEquals(1, result.path("layoutVersion").asInt());
-        assertEquals("layout-" + m.message() + "-v1", result.path("fileBase").asText());
+        assertEquals("1.000", result.path("ver").asText());
+        assertTrue(result.path("fileBase").asText().matches("layout-" + m.message() + "-v1\\.000-\\d{14}"), r.toString());
+        assertTrue(result.path("asOf").asText().matches("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"), r.toString());
     }
 
     // ── TSK-09-01 design.md §3 B2 — 등록→검증→스냅샷→왕복 단일 체인(LayoutSerializerRoundTripTest 갭: 손 조립이
@@ -272,8 +292,8 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
         assertTrue(e.path("meta").path("success").asBoolean(), e.toString());
         assertEquals(187, e.path("data").path("result").path("snapshot").path("totalLength").asInt(), e.toString());
 
-        // 손 조립이 아니라 DB 에서 실제로 저장된 스냅샷을 그대로 읽는다 — LayoutSerializerRoundTripTest 의 갭.
-        MdmLayoutSnapshot snapshot = snapshotAssembler.read(m.message());
+        // 손 조립이 아니라 DB 에 실제로 저장된 버전을 지금 시각으로 합성한다 — LayoutSerializerRoundTripTest 의 갭.
+        MdmLayoutSnapshot snapshot = composer.at(m.message(), LocalDateTime.now(clock));
         assertEquals(187, snapshot.totalLength());
 
         Map<String, Object> record = new LinkedHashMap<>();
@@ -302,6 +322,75 @@ class LayoutOasisFlowTest extends LayoutTestSupport {
             found |= m.name().equals(row.path("LAYOUT_NAME").asText()) && "L2 → MES".equals(row.path("SND_RCV").asText());
         }
         assertTrue(found, r.toString());
+    }
+
+    // ── D-144 3단계 Task 6 — 버전 액션 copy·unlock·lock 의 BPMN 분기·평탄 DTO(LayoutVersionRequest) 바인딩·data.result 응답 ──
+
+    @Test
+    void 헤더_copy_unlock_lock_은_HTTP_로_minor_버전_문자열을_왕복한다() throws Exception {
+        long header = saveHeaderHttp(uniq("버전 헤더 "), null, l110Items());
+        release(header, "1.000", LayoutServiceTestSupport.HEADER_FROM);
+
+        JsonNode copy = post("headerMng", "copy", json.createObjectNode().put("layoutId", header).put("verKind", "MINOR"), null,
+                "MDM_STEWARD");
+        assertTrue(copy.path("meta").path("success").asBoolean(), copy.toString());
+        JsonNode created = copy.path("data").path("result");
+        assertEquals("1.001", created.path("ver").asText(), copy.toString());
+        assertEquals("MINOR", created.path("verKind").asText());
+        assertEquals(0, created.path("rowVersion").asInt());
+        assertEquals(List.of(2, 4, 5, 8, 6, 5), column(itemRows(header, "1.001"), "LENGTH"), "직전 RELEASED 항목 복사");
+
+        ObjectNode draft = json.createObjectNode().put("layoutId", header).put("ver", "1.001");
+        JsonNode unlock = post("headerMng", "unlock", draft.deepCopy().put("rowVersion", 0), null, "MDM_STEWARD");
+        assertTrue(unlock.path("meta").path("success").asBoolean(), unlock.toString());
+        assertEquals(1, unlock.path("data").path("result").path("rowVersion").asInt());
+
+        JsonNode lock = post("headerMng", "lock", draft.deepCopy().put("rowVersion", 1), null, "MDM_STEWARD");
+        assertTrue(lock.path("meta").path("success").asBoolean(), lock.toString());
+        assertEquals("1.001", lock.path("data").path("result").path("ver").asText());
+        assertEquals(2, lock.path("data").path("result").path("rowVersion").asInt());
+        assertEquals("flow-test", jdbc.queryForObject("SELECT OWNER_ID FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = 1.001",
+                String.class, header));
+
+        JsonNode view = post("headerMng", "view", json.createObjectNode().put("layoutId", header), null);
+        assertFalse(view.path("data").path("result").path("canNewMajor").asBoolean(true), view.toString());
+        assertEquals("1.001", view.path("data").path("result").path("selected").path("VER").asText(), view.toString());
+    }
+
+    // ── D-144 3단계 Task 7 — layoutConfirm 의 BPMN 분기·평탄 DTO 바인딩·OASIS action 트랜잭션(확정 + 분류·스냅샷 기록) ──
+
+    @Test
+    void 전문_minor_를_HTTP_로_확정하면_전환_방식과_변경_분류를_돌려준다() throws Exception {
+        Http201 m = http201();
+        JsonNode copy = post("layoutMng", "copy", json.createObjectNode().put("layoutId", m.message()).put("verKind", "MINOR"), null,
+                "MDM_STEWARD");
+        assertTrue(copy.path("meta").path("success").asBoolean(), copy.toString());
+        assertEquals("1.001", copy.path("data").path("result").path("ver").asText(), copy.toString());
+
+        List<Map<String, Object>> items = new java.util.ArrayList<>(m201Items().subList(0, 3));
+        items.add(item("DATA", "EXTRA_3", null));
+        items.add(filler(22));
+        ObjectNode saveParams = layoutParams(m.name(), m.eai()).put("layoutId", m.message()).put("ver", "1.001").put("rowVersion", 0);
+        JsonNode saved = post("layoutMng", "save", saveParams,
+                grids("headers", headerRows(m.l110()), "consts", json.createArrayNode(), "items", rows(numbered(items), false)), "MDM_STEWARD");
+        assertTrue(saved.path("meta").path("success").asBoolean(), saved.toString());
+        long rowVersion = saved.path("data").path("result").path("rowVersion").asLong();
+
+        // 서버 실제 시계를 쓰므로 먼 미래 적용 시각
+        ObjectNode confirm = json.createObjectNode().put("layoutId", m.message()).put("ver", "1.001").put("rowVersion", rowVersion)
+                .put("applyFrom", "2099-01-01 00:00:00").put("warningsAcknowledged", true);
+        JsonNode done = post("layoutConfirm", "confirm", confirm, null, "MDM_STEWARD");
+        assertTrue(done.path("meta").path("success").asBoolean(), done.toString());
+        JsonNode result = done.path("data").path("result");
+        assertEquals("SEQUENTIAL", result.path("switchMode").asText(), done.toString());
+        assertEquals("FILLER_SPLIT", result.path("changeKinds").asText(), done.toString());
+        assertEquals("1.001", result.path("ver").asText());
+        assertEquals("1.000", result.path("closedPreviousVer").asText());
+        Map<String, Object> row = jdbc.queryForMap("SELECT STATUS, SWITCH_MODE, SNAPSHOT_JSON FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? "
+                + "AND VER = 1.001", m.message());
+        assertEquals("RELEASED", row.get("STATUS"));
+        assertEquals("SEQUENTIAL", row.get("SWITCH_MODE"), "확정과 분류 기록이 같은 action 트랜잭션에서 커밋된다");
+        assertTrue(((String) row.get("SNAPSHOT_JSON")).contains("\"headerIds\""), row.toString());
     }
 
     @Test

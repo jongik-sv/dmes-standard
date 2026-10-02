@@ -81,8 +81,64 @@ ADR-0005 의 해당 문장(:72)은 ACCEPTED 본문이라 고치지 않고, 이 A
   데이터 이행이 따라 별도 작업으로 뺐다.
 - **2단계**: 룰 세트 버전 테이블(V18), 흐름도 편집기를 내 DRAFT 에만 저장, 룰 세트 확정 화면·검사, 엔진
   `ruleSet(setId, evalTs)`. 지금까지 세트는 덮어쓰기라 이전 흐름이 없어 과거 판정 재현은 이행 시점 이후부터 보장된다.
-- **3단계**: 레이아웃·헤더 버전 테이블(V19), 저장은 내 DRAFT 에만, 헤더 연쇄 재계산 폐지, 직렬화·총 길이를 시각 T 기준
-  합성, 확정 화면. 이전 전문 버전은 스냅샷으로만 남고 항목 행 복원은 하지 않는다.
+- **3단계(레이아웃·헤더) 구현 완료(e2e 첫 실행 전 — 서버·프런트 단위 시험은 통과, 브라우저 e2e 는 격리 서버에서 아직 미실행)**(D-148). 레이아웃·헤더 버전 테이블은 V21(당초 V19 — 메타 캐시 V20 이 dev 에 먼저 들어가 Flyway
+  outOfOrder=false 라 번호를 옮겼다). 저장은 내 DRAFT 에만 쓰고, 헤더 연쇄 재계산(I18)은 없앴고, 직렬화·총 길이를 시각 T 기준으로
+  합성하고, 전문·헤더 공용 확정 화면(`dmb/layoutConfirm`)을 둔다. 이전 전문 버전은 스냅샷으로만 남고 항목 행 복원은 하지 않는다.
+  구현에서 스펙과 달라지거나 스펙이 열어 둔 점은 다음과 같다.
+  1. 직렬화기·파서는 순수 함수로 두고 시각 T 는 `MdmLayoutSnapshotResolver` 가 받는다(스펙 §7 "계약에 T" 의 구현 방식).
+  2. 버전 행 길이 `OWN_LENGTH` 는 그 버전 자신의 항목 길이 합이고, 전문 총 길이는 T 의 헤더 버전으로 합성한 값이다. 본문 항목
+     `OFFSET` 저장값은 본문 시작 기준 상대값이다(헤더 버전에 따라 절대 위치가 달라지므로).
+  3. 상수 재정의 키는 헤더 항목 물리명이라 헤더 버전이 바뀌어도 짝이 유지되고, 대상이 사라지면 헤더 확정 경고(`ORPHAN_OVERRIDE`)다.
+  4. 이행 전 이력은 `LEGACY_SNAPSHOT_YN='Y'` 버전의 합성 스냅샷 그대로(읽기 전용)다.
+  5. "전문 총 길이 규칙"은 MSG_LENGTH 칸 자리수 용량(L16)과 상수 재정의 값 길이(L12)로 해석한다.
+  6. DMB 담당자 권한은 CONFIRM 이다. 새 버전·등록은 담당자 역할이 필요 없고 확정·선점은 담당자다. 확정은 소유자만 한다.
+  7. **EAI 는 버전 대상이 아니다.** 쓰는 전문이 있으면 인코딩·패딩 변경을 거부한다. 헤더의 EAI 연결은 헤더 버전 행 `EAI_CODE` 에 두고,
+     EAI 표준 헤더는 시각 T 에 RELEASED 인 헤더 버전 중 그 EAI 를 주장하는 가장 늦게 적용 시작한 버전(같은 시각이면 헤더 ID 가 큰 쪽)으로 해석한다. 확정은
+     `TB_MDM_EAI.HEADER_LAYOUT_ID` 를 옮기지 않는다(그 칼럼은 운영이 더 읽지 않는다). 표준 헤더가 바뀌는 헤더 확정은
+     `EAI_STANDARD_HEADER_SWITCH` 경고(넘겨받기·되찾기·내려놓기)로 드러낸다. 전문 저장의 표준 헤더 끼움(I14)은 그 헤더에 저장
+     시각 RELEASED 가 있을 때만 하고 확정 검사는 저장된 구성 그대로 본다(판정 P3-15·P3-17).
+  8. 레이아웃 4표의 감사 카운터는 `AUD_VER` 로 바꿨고, 레이아웃 계열 DTO 의 `ver` 는 업무 버전 문자열이다.
+  9. **부모 칸은 버전이 없다.** 레이아웃 이름·송신·수신 시스템(헤더는 이름)은 부모 행이라 DRAFT 저장 때 바로 반영되고 확정 기록에는
+     남지 않는다(2단계 세트명과 같다). 전문 바이트에는 영향이 없다(판정 P3-8).
+  10. **메타 기록·피드**: 부모 칸 변경은 메타 변경 기록에 남는다(RELEASED 가 있을 때만, 헤더 이름은 쌓은 전문까지). 메타 피드 LAYOUT 은
+      RELEASED 버전 목록과 쌓은 헤더의 버전 경계로 나눈 합성 구간을 주고, 업무 모듈이 판정 시각으로 고른다
+      ([ADR-0007](0007-mdm-meta-hybrid-cache-revision.md), 판정 P3-14·P3-16).
+  11. **헤더 확정 취소 가드**: 그 헤더를 쌓은 RELEASED(현재·미래) 전문 버전의 적용 구간 합성을 깨는 취소는 `MDM028` 로 거부하고 사용 전문
+      목록을 오류에 담는다. 사용자는 걸린 전문의 미래 버전을 먼저 확정 취소한다. 메타 피드의 키 단위 failed(R4)를 정상 경로에서 막기 위함이다
+      (판정 P3-22, [ADR-0002](0002-version-confirm-without-approval.md) D8-16).
+  12. **헤더 확정 검사**: EAI 표준 헤더 전환 경고는 apply_from 이후 그 EAI 를 주장하는 헤더 RELEASED 경계마다 비교하고(판정 P3-24), 이미 있던
+      L12·L16 은 오류가 아니라 WARNING 으로 낮춘다(판정 P3-25).
+  13. **운영 이행 전 점검(V21, 최종 검토 M3·M4)**: V21 본문은 그대로 두고, 운영 DB 에 V21 을 적용하기 전(V20 모양) 아래 두 쿼리를 돌려
+      결과를 보고 판단한다. 로컬 mdm.db 사본(2026-10-03)에서 점검 1 은 레이아웃 100·201 부모 행 2건(첫 버전이라 APPLY_FROM 은 이행 하한이고
+      표시 시각 `RELEASED_AT` 만 9 시간 늦다), 점검 2 는 0행이었다.
+      - 점검 1 — 정수 `C_AT` 이 "KST 벽시계를 UTC epoch 로 넣은" 값으로 보이는 행. V21 은 정수 `C_AT` 을 진짜 Instant 로 보고 +9 시간 하므로
+        이런 행은 9 시간 늦게 옮겨진다. 밀리초가 000 이고 그 값을 벽시계로 읽은 시각이 문자열 `C_AT` 형제 행과 10분 안이면 의심한다. 걸린 행이
+        이력(`TB_MDM_LAYOUT_VER`)의 둘째 이후 버전이면 구간 경계가 9 시간 밀리므로, 이행 전에 그 행의 `C_AT` 을 문자열 KST 로 고쳐 둔다.
+
+        ```sql
+        WITH ROWS_AT AS (
+          SELECT 'TB_MDM_LAYOUT' AS TBL, LAYOUT_ID, NULL AS LAYOUT_VERSION, C_AT FROM TB_MDM_LAYOUT
+          UNION ALL
+          SELECT 'TB_MDM_LAYOUT_VER', LAYOUT_ID, LAYOUT_VERSION, C_AT FROM TB_MDM_LAYOUT_VER
+        )
+        SELECT r.TBL, r.LAYOUT_ID, r.LAYOUT_VERSION, r.C_AT,
+               datetime(r.C_AT / 1000, 'unixepoch')             AS READ_AS_WALLCLOCK,
+               datetime(r.C_AT / 1000, 'unixepoch', '+9 hours') AS V21_RESULT
+        FROM ROWS_AT r
+        WHERE typeof(r.C_AT) = 'integer' AND r.C_AT % 1000 = 0
+          AND EXISTS (SELECT 1 FROM ROWS_AT s
+                       WHERE typeof(s.C_AT) = 'text'
+                         AND abs(CAST(strftime('%s', substr(replace(s.C_AT, 'T', ' '), 1, 19)) AS INTEGER) - r.C_AT / 1000) <= 600)
+        ORDER BY r.TBL, r.LAYOUT_ID, r.LAYOUT_VERSION;
+        ```
+
+      - 점검 2 — 한 헤더를 표준 헤더로 가리키는 EAI 가 여럿인 경우. V21 은 코드 순 첫 EAI 만 헤더 버전 행 `EAI_CODE` 로 옮기므로 나머지 EAI 는
+        이행 뒤 표준 헤더가 "없음" 이 되어 그 EAI 전문 저장 때 헤더 자동 끼움이 멈춘다. 행이 나오면 이행 전에 EAI 마다 헤더를 따로 두도록 정리한다.
+        표준 헤더가 없는 EAI 는 빼고 센다(`IS NOT NULL` — 원안 쿼리에 더한 조건).
+
+        ```sql
+        SELECT HEADER_LAYOUT_ID, COUNT(*) FROM TB_MDM_EAI WHERE HEADER_LAYOUT_ID IS NOT NULL GROUP BY 1 HAVING COUNT(*) > 1;
+        ```
 - 세트·레이아웃 모두 확정 전에는 운영에 반영되지 않으므로, 확정을 잊으면 수정이 운영에 안 나가는 운영 부담이 생긴다.
   확정 검사(참조 룰의 `apply_from` 시점 RELEASED 존재, 테스트 케이스 통과 등)로 확정 시점에 막는다.
 - 판정 시각에 RELEASED 세트·헤더가 없으면 엔진 판정 오류다(기존 "룰 없음"과 같은 등급).
@@ -112,5 +168,5 @@ ADR-0005 의 해당 문장(:72)은 ACCEPTED 본문이라 고치지 않고, 이 A
 
 - 설계 스펙: [`docs/superpowers/specs/2026-10-02-mdm-object-versioning-design.md`](../../superpowers/specs/2026-10-02-mdm-object-versioning-design.md)
 - [ADR-0002](0002-version-confirm-without-approval.md), [ADR-0005](0005-rule-set-runs-in-engine.md)
-- [`docs/mdm/decisions.md`](../decisions.md) D-144
+- [`docs/mdm/decisions.md`](../decisions.md) D-144, D-148(3단계 구현 결정)
 - [Local-Rules §24](../../guide/FrontEnd/Local-Rules.md) MDM 버전 버튼 규약

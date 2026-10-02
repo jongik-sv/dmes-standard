@@ -45,7 +45,7 @@ class CommonContractTest {
             assertTrue(code.defaultMessage() != null && !code.defaultMessage().isBlank(), code + " 기본 메시지");
             assertTrue(Set.of(400, 403, 409, 500).contains(code.httpStatus()), code + " 의미 HTTP 상태");
         }
-        assertEquals(27, MdmErrorCode.values().length);
+        assertEquals(28, MdmErrorCode.values().length);
     }
 
     @Test
@@ -119,6 +119,13 @@ class CommonContractTest {
         // spec 2026-10-02-mdm-meta-cache-design §3.4 force — 화면 삭제·재등록 강제 기록은 SYSADMIN 만.
         assertCode(MdmErrorCode.SYSADMIN_ROLE_REQUIRED, "MDM027", 403,
                 com.dongkuk.dmes.cactus.common.ErrorCode.ACCESS_DENIED, "시스템 관리자만 할 수 있습니다");
+    }
+
+    @Test
+    void 헤더_확정_취소가_전문_합성을_깨면_거부하는_코드() {
+        // D-144 3단계 Ruling P3-22 — 헤더 확정 취소 원장 가드.
+        assertCode(MdmErrorCode.CONFIRM_CANCEL_BREAKS_LAYOUTS, "MDM028", 409,
+                com.dongkuk.dmes.cactus.common.ErrorCode.BUSINESS_ERROR, "이 헤더를 쌓은 전문 버전을 합성할 수 없게 되어 확정 취소할 수 없습니다");
     }
 
     private static void assertCode(MdmErrorCode code, String id, int status,

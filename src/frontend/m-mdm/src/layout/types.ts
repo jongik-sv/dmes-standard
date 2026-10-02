@@ -23,8 +23,8 @@ export interface LayoutItemRow {
   DOMAIN_LENGTH?: number | null;
   SCALE?: number | null;
   UNIT_CODE?: string | null;
-  /** 계산값(화면 즉시 재계산, 저장 값은 서버가 다시 계산) */
-  OFFSET?: number;
+  /** 계산값(화면 즉시 재계산, 저장 값은 서버가 다시 계산). 앞 헤더 길이를 모르면(판정 시각에 확정 헤더 없음) null. */
+  OFFSET?: number | null;
   LENGTH?: number;
   /** layoutMng 헤더 항목 전용 */
   OVERRIDE_VALUE?: string | null;
@@ -63,7 +63,32 @@ export interface HeaderStackRow {
   HEADER_LAYOUT_ID: number;
   HEADER_NAME: string;
   EAI_CODE?: string | null;
-  TOTAL_LENGTH: number;
-  OFFSET?: number;
+  /** 판정 시각 T 의 헤더 길이. 그 시각에 확정 헤더 버전이 없으면 null(HEADER_STATE = MISSING). */
+  TOTAL_LENGTH: number | null;
+  OFFSET?: number | null;
+  /** 판정 시각 T 에 고른 헤더 버전(`"1.001"`). 헤더 추가 팝업에서 막 고른 행은 없다. */
+  HEADER_VER?: string | null;
+  /** CURRENT·FUTURE·PAST·DRAFT·MISSING(확정 헤더 없음)·LEGACY(이행 전 스냅샷). */
+  HEADER_STATE?: string | null;
   items: LayoutItemRow[];
+}
+
+/** 레이아웃·헤더 버전 이력 한 행(D-144 3단계). 버전은 문자열 `"1.001"` 이다 — 숫자로 바꾸지 않는다. */
+export interface LayoutVersionRow {
+  VER: string;
+  VER_KIND: "MAJOR" | "MINOR";
+  STATUS: string;
+  STATE: "DRAFT" | "CURRENT" | "FUTURE" | "PAST";
+  BASE_VER?: string | null;
+  OWNER_ID?: string | null;
+  APPLY_FROM?: string | null;
+  APPLY_TO?: string | null;
+  ROW_VERSION: number;
+  OWN_LENGTH: number;
+  SWITCH_MODE?: string | null;
+  CHANGE_KINDS?: string | null;
+  CHANGE_SUMMARY?: string | null;
+  LEGACY: "Y" | "N";
+  REQUESTED_BY?: string | null;
+  RELEASED_AT?: string | null;
 }

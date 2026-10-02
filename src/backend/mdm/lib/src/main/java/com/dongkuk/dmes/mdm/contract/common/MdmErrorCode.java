@@ -66,7 +66,14 @@ public enum MdmErrorCode {
      * MDM 메타 캐시(spec 2026-10-02-mdm-meta-cache-design §3.4 force) — 화면 삭제·재등록은 모든 모듈·인스턴스 캐시를 지우는 강제 기록이라
      * 시스템 관리자만 한다. BFF 권한(1차)과 별도로 서비스가 요청 역할을 다시 본다.
      */
-    SYSADMIN_ROLE_REQUIRED("MDM027", 403, ErrorCode.ACCESS_DENIED, "시스템 관리자만 할 수 있습니다");
+    SYSADMIN_ROLE_REQUIRED("MDM027", 403, ErrorCode.ACCESS_DENIED, "시스템 관리자만 할 수 있습니다"),
+
+    /**
+     * D-144 3단계 Ruling P3-22 — 헤더 확정을 취소하면 그 헤더를 쌓은 RELEASED(현재·미래) 전문 버전이 적용 구간에서 합성되지 않는다(쌓은
+     * 헤더에 그 시각 RELEASED 가 없어진다). 메타 피드가 그 전문 키 전체를 failed 로 내지 않게 원장에서 막는다 — 걸리는 전문 ID·버전을
+     * 문구와 이슈 행에 싣고, 그 전문 버전의 확정을 먼저 취소하도록 안내한다.
+     */
+    CONFIRM_CANCEL_BREAKS_LAYOUTS("MDM028", 409, ErrorCode.BUSINESS_ERROR, "이 헤더를 쌓은 전문 버전을 합성할 수 없게 되어 확정 취소할 수 없습니다");
 
     private final String code;
     private final int httpStatus;

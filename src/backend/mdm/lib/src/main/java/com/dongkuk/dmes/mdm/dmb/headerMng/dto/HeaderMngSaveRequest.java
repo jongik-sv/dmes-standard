@@ -1,10 +1,16 @@
 package com.dongkuk.dmes.mdm.dmb.headerMng.dto;
 
-/** {@code headerMng} action={@code save} 요청(TSK-05-02 design.md §6.1). 항목은 grid {@code items}. 인코딩·패딩은 EAI 소유(D2). */
+/**
+ * {@code headerMng} action={@code save} 요청(TSK-05-02 design.md §6.1). 항목은 grid {@code items}. 인코딩·패딩은 EAI 소유(D2).
+ *
+ * <p>D-144 3단계: 등록이면 {@code layoutId} 가 없고, 수정이면 {@code layoutId}·{@code ver}(업무 버전 문자열)·{@code rowVersion} 이
+ * 필요하다. 저장은 내 DRAFT 에만 쓴다.
+ */
 public class HeaderMngSaveRequest {
 
     private Long layoutId;
-    private Long ver;
+    private String ver;
+    private Long rowVersion;
     private String layoutName;
     private String eaiCode;
     private String eaiName;
@@ -15,9 +21,13 @@ public class HeaderMngSaveRequest {
 
     public void setLayoutId(Long v) { this.layoutId = v; }
 
-    public Long getVer() { return ver; }
+    public String getVer() { return ver; }
 
-    public void setVer(Long v) { this.ver = v; }
+    public void setVer(String v) { this.ver = v; }
+
+    public Long getRowVersion() { return rowVersion; }
+
+    public void setRowVersion(Long v) { this.rowVersion = v; }
 
     public String getLayoutName() { return layoutName; }
 

@@ -142,7 +142,7 @@
 
 ### 데이터
 
-- 마이그레이션 `V19__layout_version.sql`
+- 마이그레이션 `V21__layout_version.sql`(당초 V19 — 메타 캐시 V20 이 dev 에 먼저 들어가 V21 로 옮겼다, Flyway outOfOrder=false)
   - `TB_MDM_LAYOUT`(부모): ID·이름·종류·송수신 시스템·`STATUS`(CREATED/INUSE/DEPRECATED). 형식 속성(구분자·총 길이 정책 등 버전마다 달라질 수 있는 칼럼)은 버전 행으로 옮긴다. 업무 칼럼 `` `VERSION` `` 은 지운다.
   - `TB_MDM_LAYOUT_VER` 재생성: 키 `(LAYOUT_ID, VER)`, §4.1 표준 칼럼, 형식 속성, `SWITCH_MODE`·`CHANGE_KINDS`·`CHANGE_SUMMARY`, `SNAPSHOT_JSON`(본문만). `LAYOUT_VERSION` → `VER`.
   - `TB_MDM_LAYOUT_ITEM`·`TB_MDM_LAYOUT_HEADER`·`TB_MDM_LAYOUT_CONST` 키에 `VER` 를 넣는다: `(LAYOUT_ID, VER, SEQ)` 등.
@@ -160,6 +160,7 @@
 - 헤더 연쇄 재계산(`HeaderMngService.recalculateUsers`, I18)을 없앤다. 헤더를 확정해도 전문 버전은 생기지 않는다.
 - 헤더 확정 화면: 이 헤더를 쓰는 전문(그리고 EAI) 목록과 `apply_from` 시점의 총 길이 변화를 영향도로 보인다. 검사: 헤더 변경 뒤 전문 총 길이 규칙을 어기는 전문이 없을 것.
 - 총 길이·내보내기·샘플 전문은 **시각 T 기준으로 합성**한다. T 시점의 전문 버전 + T 시점의 헤더 버전. 기본 T 는 현재 시각, 화면에서 바꿀 수 있다. `LayoutSerializer`/`LayoutParser` 계약에 T 를 넘긴다.
+- **헤더 확정 취소 가드(D8 확장, 판정 P3-22)**: 헤더 확정을 취소하면 그 헤더를 쌓은 RELEASED(현재·미래) 전문 버전을 적용 구간에서 합성할 수 없게 되는 경우 거부한다(`MDM028`, `CONFIRM_CANCEL_BREAKS_LAYOUTS`, 사용 전문 목록을 오류에 담는다). 사용자는 걸린 전문의 미래 버전을 먼저 확정 취소한다. 메타 피드의 키 단위 failed(R4)를 정상 경로에서 막기 위함이다(룰 확정·확정 시 apply_from 합성 검사와 같은 원리다 — 확정 때 막지 못하는 구멍을 취소 경로에서도 막는다).
 - 확정 화면 `dmb/layoutConfirm`(전문·헤더 공용).
 - 버전·영향도 탭: 이력 그리드에 상태·종류·적용 구간·소유자 열을 더한다. `VersionPanel` 의 "배포는 이번 범위 밖" 안내는 그대로(배포 보류, PRD §2 규칙 7).
 - 컬럼·도메인 영향도(`LayoutImpactFinder`)는 RELEASED(현재·미래)와 DRAFT 를 구분해 보인다.
@@ -175,6 +176,7 @@
 | 세트 확정 시 참조 룰에 `apply_from` 시점 RELEASED 없음 | 확정 검사 오류, 해당 룰 목록 표시 |
 | 판정 시각에 RELEASED 세트·헤더 없음 | 엔진 판정 오류(기존 "룰 없음"과 같은 등급), 메시지에 대상 ID·시각 |
 | 동시 저장 충돌 | `ROW_VERSION` 조건부 UPDATE 실패 → 다시 불러오기 안내 |
+| 헤더 확정 취소가 쌓은 RELEASED 전문 버전의 합성을 깨뜨림 | 거부(`MDM028`), 걸린 전문 목록을 오류에 담는다 — 그 전문의 미래 버전을 먼저 확정 취소 |
 
 ## 9. 문서
 

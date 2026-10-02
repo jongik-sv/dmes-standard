@@ -1,15 +1,17 @@
 "use client";
 
 /**
- * 버전 이력·변경 분류·스냅샷 출력(TSK-05-03 design.md §2·§6.8). 이력은 저장할 때 서버가 만든다(스냅샷이 바뀔 때만, D4). 행을 고르면 그
- * 버전의 스냅샷을 서버 export 로 받아 미리 보고 JSON·엑셀로 내려받는다.
+ * 버전 이력·변경 분류·스냅샷 출력(TSK-05-03 design.md §2·§6.8, D-144 3단계). 버전은 [새 버전]·확정으로 생긴다(저장은 버전을 만들지
+ * 않는다). 행을 고르면 그 버전·시각 T 의 스냅샷을 서버 export 로 받아 미리 보고 JSON·엑셀로 내려받는다.
  */
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { CHANGE_CLASS_TABLE, switchModeLabel } from "@/layout/change-class";
 import { snapshotJsonText } from "@/layout/snapshot-export";
+import type { LayoutVersionRow } from "@/layout/types";
+import { VersionStatusBadge, fmtVer, normVer, type MdmVersionStatus } from "@/shell";
 import { badge, empty, hint, row, sectionTitle } from "@/layout/styles";
-import type { ExportResult, VersionRow } from "../types";
+import type { ExportResult } from "../types";
 
 function modeBadge(mode: unknown) {
   const label = switchModeLabel(mode as string | null);
@@ -19,11 +21,16 @@ function modeBadge(mode: unknown) {
 }
 
 const COLUMNS: GridColumn[] = [
-  { key: "LAYOUT_VERSION", header: "버전", width: 50, align: "right" },
-  { key: "SAVED_AT", header: "저장 일시", width: 120 },
-  { key: "SAVED_BY", header: "저장자", width: 90 },
-  { key: "CHANGE_SUMMARY", header: "변경", width: 320 },
-  { key: "TOTAL_LENGTH", header: "총 길이", width: 60, align: "right" },
+  { key: "VER", header: "버전", width: 70, render: (v) => fmtVer(v as string) },
+  { key: "VER_KIND", header: "종류", width: 55, render: (v) => (v === "MINOR" ? "minor" : "major") },
+  { key: "STATUS", header: "상태", width: 90,
+    render: (v, r) => <VersionStatusBadge status={v as MdmVersionStatus} applyFrom={(r.APPLY_FROM as string) ?? null} /> },
+  { key: "APPLY_FROM", header: "적용 시작", width: 130 },
+  { key: "APPLY_TO", header: "적용 끝", width: 130 },
+  { key: "OWNER_ID", header: "소유자", width: 80 },
+  { key: "CHANGE_SUMMARY", header: "변경", width: 280,
+    render: (v, r) => (r.LEGACY === "Y" ? `(이행 전 스냅샷) ${(v as string | null) ?? ""}` : ((v as string | null) ?? "")) },
+  { key: "OWN_LENGTH", header: "자기 길이", width: 70, align: "right" },
   { key: "SWITCH_MODE", header: "전환 방식", width: 90, render: (v) => modeBadge(v) },
 ];
 
@@ -34,9 +41,9 @@ const CHANGE_CLASS_COLUMNS: GridColumn[] = [
 ];
 
 export interface VersionPanelProps {
-  versions: VersionRow[];
-  selectedVersion: number | null;
-  onSelectVersion: (version: number) => void;
+  versions: LayoutVersionRow[];
+  selectedVersion: string | null;
+  onSelectVersion: (version: string) => void;
   snapshot: ExportResult | null;
   onDownloadJson: () => void;
   onDownloadExcel: () => void;
@@ -44,6 +51,8 @@ export interface VersionPanelProps {
 }
 
 export function VersionPanel({ versions, selectedVersion, onSelectVersion, snapshot, onDownloadJson, onDownloadExcel, busy }: VersionPanelProps) {
+  // 행 키·강조·선택 값은 정규 문자열이다 — 서버가 "1.1"·"1" 처럼 보내도 "1.100"·"1.000" 으로 맞춰 비교한다.
+  const rows = versions.map((v) => ({ ...v, VER_KEY: normVer(v.VER) ?? v.VER }));
   return (
     <div>
       <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>{`버전 이력 ${versions.length}건`}</p>
@@ -54,12 +63,12 @@ export function VersionPanel({ versions, selectedVersion, onSelectVersion, snaps
           <AgDataGrid
             columnSizing="fit"
             columns={COLUMNS}
-            data={versions as unknown as Record<string, unknown>[]}
-            rowKey="LAYOUT_VERSION"
+            data={rows as unknown as Record<string, unknown>[]}
+            rowKey="VER_KEY"
             height={160}
-            highlightedRowKey={selectedVersion}
+            highlightedRowKey={normVer(selectedVersion)}
             emptyMessage="저장된 버전이 없습니다"
-            onRowClick={(r) => onSelectVersion(Number(r.LAYOUT_VERSION))}
+            onRowClick={(r) => onSelectVersion(String(r.VER_KEY))}
           />
         </div>
       )}
@@ -74,7 +83,7 @@ export function VersionPanel({ versions, selectedVersion, onSelectVersion, snaps
         />
       </div>
       <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>
-        {`레이아웃 스냅샷${snapshot?.layoutVersion != null ? ` — 버전 ${snapshot.layoutVersion}` : ""}`}
+        {`레이아웃 스냅샷${snapshot?.ver ? ` — ${fmtVer(snapshot.ver)} · 시각 ${snapshot.asOf ?? ""}` : ""}`}
       </p>
       <div style={row}>
         <Button data-testid="snapshot-download-json" size="sm" disabled={busy || !snapshot?.snapshot} onClick={onDownloadJson}>

@@ -6,7 +6,7 @@ import { createElement } from "react";
 import type { GridColumn } from "@dk-oasis/shared/grid";
 import { ColumnPhysName } from "@/column-info";
 import { derivedLabel } from "./LayoutItemDetail";
-import { positionLabel } from "./layout-calc";
+import { lengthText, positionLabel } from "./layout-calc";
 import type { ColumnInfo, LayoutItemRow } from "./types";
 
 /** 헤더 항목·본문 항목 그리드가 공통으로 쓰는 앞쪽 7개 칸(순서·항목명·표준 물리명·채움·오프셋·길이·위치). */
@@ -17,7 +17,7 @@ export function baseItemColumns(readOnly: boolean): GridColumn[] {
     // 물리명 옆 정보 아이콘 → 컬럼 사전 상세 팝오버(아이콘 클릭은 행 선택으로 번지지 않는다).
     { key: "COLUMN_PHYS", header: "표준 물리명", width: 140, render: (v) => createElement(ColumnPhysName, { physName: v as string | null }) },
     { key: "FILL_KIND", header: "채움", width: 80, align: "center" },
-    { key: "OFFSET", header: "오프셋", width: 70, align: "right" },
+    { key: "OFFSET", header: "오프셋", width: 70, align: "right", render: (v) => lengthText(v as number | null | undefined) },
     { key: "LENGTH", header: "길이", width: 60, align: "right" },
     { key: "POSITION", header: "위치", width: 90, align: "center" },
   ];
@@ -48,6 +48,6 @@ export function itemSetting(r: LayoutItemRow): string {
 export function displayRows(rows: LayoutItemRow[]): Record<string, unknown>[] {
   return rows.map((r) => ({
     ...r, ITEM_NAME: r.FILL_KIND === "FILLER" ? "FILLER" : (r.DISPLAY_NAME ?? ""), DERIVED: derivedLabel(r), SETTING: itemSetting(r),
-    POSITION: positionLabel(r.OFFSET ?? 0, r.LENGTH ?? 0),
+    POSITION: positionLabel(r.OFFSET === undefined ? 0 : r.OFFSET, r.LENGTH ?? 0),
   }));
 }

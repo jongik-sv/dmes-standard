@@ -217,9 +217,14 @@ public class VersionRowStore {
     /**
      * VER 는 문자열로 읽는다. SQLite NUMERIC 친화도는 {@code 1.000} 을 INTEGER, {@code 1.001} 을 REAL 로 저장해 행마다
      * 저장 형식이 다르고, 결과 타입을 첫 행으로 정하면 뒤 행의 소수부가 잘린다(Build 실측, 규칙표 #17).
+     *
+     * <p>객체 ID CAST 폭은 ID 상한(NamingRules.CODE_MAX = 50)보다 넓은 64 로 둔다.
+     *
+     * <p>객체 ID 도 문자열로 읽는다 — 레이아웃 ID 는 INTEGER 다. 바인딩은 문자열 그대로 둔다: SQLite 는 INTEGER 친화도
+     * 칼럼과 비교할 때 바인딩된 문자열에 수치 친화도를 적용한다(D-144 3단계 실측, {@code VersionRowStoreIntegerIdSqliteTest}).
      */
     private static String selectColumns(VersionTableSpec spec) {
-        return "SELECT " + spec.objectIdColumn() + ", CAST(" + spec.versionColumn() + " AS VARCHAR(40)), "
+        return "SELECT CAST(" + spec.objectIdColumn() + " AS VARCHAR(64)), CAST(" + spec.versionColumn() + " AS VARCHAR(40)), "
                 + STATUS + ", " + OWNER_ID + ", "
                 + APPLY_FROM + ", " + APPLY_TO + ", " + ROW_VERSION_COLUMN;
     }

@@ -61,7 +61,7 @@ final class M201Snapshots {
                 num(10, MdmFillKind.AUTO, "SNT_ORD", "SEQ", 63, 5),
                 chr(11, MdmFillKind.CONST, "IF_DATA_NTR", "I", null, 68, 1),
                 num(12, MdmFillKind.AUTO, "SNT_LTH", "MSG_LENGTH", 69, 6),
-                filler(13, 75, 25)));
+                filler(13, 75, 25)), new BigDecimal("1.000"));
     }
 
     static MdmLayoutHeaderRef l110() {
@@ -71,7 +71,7 @@ final class M201Snapshots {
                 num(3, MdmFillKind.AUTO, "LENGTH", "MSG_LENGTH", 6, 5),
                 chr(4, MdmFillKind.AUTO, "DATE", "SEND_TIME", null, 11, 8),
                 chr(5, MdmFillKind.AUTO, "TIME", "SEND_TIME", null, 19, 6),
-                filler(6, 25, 5)));
+                filler(6, 25, 5)), new BigDecimal("1.000"));
     }
 
     static List<MdmLayoutItemSnapshot> body() {
@@ -80,7 +80,7 @@ final class M201Snapshots {
     }
 
     static MdmLayoutSnapshot m201() {
-        return new MdmLayoutSnapshot(201L, "M201", "IFL2MES201", "L2", "MES", "EUC-KR", "숫자 왼쪽 0, 문자 오른쪽 공백", 1L, 187,
+        return new MdmLayoutSnapshot(201L, "M201", "IFL2MES201", "L2", "MES", "EUC-KR", "숫자 왼쪽 0, 문자 오른쪽 공백", new BigDecimal("1.000"), 187,
                 List.of(l100(), l110()), body());
     }
 

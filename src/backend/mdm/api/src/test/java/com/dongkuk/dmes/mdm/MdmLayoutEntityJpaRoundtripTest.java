@@ -1,11 +1,12 @@
 package com.dongkuk.dmes.mdm;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.entity.MdmEai;
 import com.dongkuk.dmes.mdm.entity.MdmLayout;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutConst;
@@ -14,21 +15,26 @@ import com.dongkuk.dmes.mdm.entity.MdmLayoutHeader;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutHeaderId;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutItem;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutItemId;
+import com.dongkuk.dmes.mdm.entity.MdmLayoutVer;
+import com.dongkuk.dmes.mdm.entity.MdmLayoutVerId;
 import com.dongkuk.dmes.mdm.repository.MdmEaiRepository;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutConstRepository;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutHeaderRepository;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutItemRepository;
 import com.dongkuk.dmes.mdm.repository.MdmLayoutRepository;
+import com.dongkuk.dmes.mdm.repository.MdmLayoutVerRepository;
 import jakarta.persistence.EntityManager;
+import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * TSK-05-01 design.md §3.3 — {@code ddl-auto: none} 이라 부팅이 매핑 오류를 잡지 못하므로, 5개 엔티티
+ * TSK-05-01 design.md §3.3 — {@code ddl-auto: none} 이라 부팅이 매핑 오류를 잡지 못하므로, 레이아웃 6개 엔티티(버전 표 포함)
  * 각각 최소 1건 저장→조회 왕복을 수행한다({@code MdmEntityJpaRoundtripTest} 와 같은 패턴). 복합키
  * ({@code @IdClass}) 왕복(MdmLayoutItem·MdmLayoutHeader·MdmLayoutConst)을 포함한다.
  */
@@ -42,6 +48,8 @@ class MdmLayoutEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     @Autowired
     MdmLayoutRepository layoutRepository;
     @Autowired
+    MdmLayoutVerRepository layoutVerRepository;
+    @Autowired
     MdmLayoutItemRepository layoutItemRepository;
     @Autowired
     MdmLayoutHeaderRepository layoutHeaderRepository;
@@ -49,6 +57,8 @@ class MdmLayoutEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
     MdmLayoutConstRepository layoutConstRepository;
     @Autowired
     EntityManager entityManager;
+    @Autowired
+    JdbcTemplate jdbcTemplate;
 
     @Test
     void MdmEai_는_지정_PK_로_저장_조회_왕복한다() {
@@ -65,12 +75,16 @@ class MdmLayoutEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         assertNotNull(reloaded.getCreatedAt(), "CactusAuditListener 가 C_AT 을 항상 채워야 한다(F14)");
     }
 
+    private static final BigDecimal V1 = new BigDecimal("1.000");
+
+    private void saveVer(Long layoutId, BigDecimal ver) {
+        layoutVerRepository.save(new MdmLayoutVer(layoutId, ver, VersionKind.MAJOR, "kim"));
+        entityManager.flush();
+    }
+
     @Test
-    void MdmLayout_은_IDENTITY_채번_으로_저장_조회_왕복하고_연관관계_매핑을_쓰지_않는다() {
-        MdmLayout layout = new MdmLayout("MESSAGE", "왕복레이아웃");
-        layout.setTotalLength(100);
-        layout.setLayoutVersion(3L);
-        MdmLayout saved = layoutRepository.save(layout);
+    void MdmLayout_은_IDENTITY_채번_으로_저장_조회_왕복하고_상태는_CREATED_다() {
+        MdmLayout saved = layoutRepository.save(new MdmLayout("MESSAGE", "왕복레이아웃"));
         entityManager.flush();
         entityManager.clear();
 
@@ -78,18 +92,16 @@ class MdmLayoutEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         MdmLayout reloaded = layoutRepository.findById(saved.getLayoutId()).orElseThrow();
         assertEquals("MESSAGE", reloaded.getLayoutKind());
         assertEquals("왕복레이아웃", reloaded.getLayoutName());
-        assertEquals(100, reloaded.getTotalLength());
-        assertEquals(3L, reloaded.getLayoutVersion());
-        // eaiCode 는 원시 String 필드다 — TB_MDM_EAI 를 참조하는 연관관계 매핑이 아니다(불변 규칙 9).
-        assertEquals(null, reloaded.getEaiCode());
+        assertEquals("CREATED", reloaded.getStatus());
     }
 
     @Test
     void MdmLayoutItem_은_IdClass_복합_PK_로_저장_조회_왕복한다() {
         MdmLayout layout = layoutRepository.save(new MdmLayout("MESSAGE", "항목용레이아웃"));
         entityManager.flush();
+        saveVer(layout.getLayoutId(), V1);
 
-        MdmLayoutItem item = new MdmLayoutItem(layout.getLayoutId(), 1, "DATA");
+        MdmLayoutItem item = new MdmLayoutItem(layout.getLayoutId(), V1, 1, "DATA");
         item.setOffset(10);
         item.setLength(20);
         item.setDefaultValue("기본값");
@@ -97,7 +109,7 @@ class MdmLayoutEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         entityManager.flush();
         entityManager.clear();
 
-        MdmLayoutItemId id = new MdmLayoutItemId(layout.getLayoutId(), 1);
+        MdmLayoutItemId id = new MdmLayoutItemId(layout.getLayoutId(), V1, 1);
         Optional<MdmLayoutItem> reloaded = layoutItemRepository.findById(id);
         assertTrue(reloaded.isPresent());
         assertEquals(10, reloaded.get().getOffset());
@@ -110,61 +122,81 @@ class MdmLayoutEntityJpaRoundtripTest extends AbstractMdmSharedDbTest {
         MdmLayout messageLayout = layoutRepository.save(new MdmLayout("MESSAGE", "부착용메시지"));
         MdmLayout headerLayout = layoutRepository.save(new MdmLayout("HEADER", "부착용헤더"));
         entityManager.flush();
+        saveVer(messageLayout.getLayoutId(), V1);
 
-        MdmLayoutHeader header = new MdmLayoutHeader(messageLayout.getLayoutId(), 1, headerLayout.getLayoutId());
-        layoutHeaderRepository.save(header);
+        layoutHeaderRepository.save(new MdmLayoutHeader(messageLayout.getLayoutId(), V1, 1, headerLayout.getLayoutId()));
         entityManager.flush();
         entityManager.clear();
 
-        MdmLayoutHeaderId id = new MdmLayoutHeaderId(messageLayout.getLayoutId(), 1);
-        Optional<MdmLayoutHeader> reloaded = layoutHeaderRepository.findById(id);
+        Optional<MdmLayoutHeader> reloaded = layoutHeaderRepository.findById(
+                new MdmLayoutHeaderId(messageLayout.getLayoutId(), V1, 1));
         assertTrue(reloaded.isPresent());
         assertEquals(headerLayout.getLayoutId(), reloaded.get().getHeaderLayoutId());
+        assertThat(reloaded.get().getVer()).isEqualByComparingTo("1.000");
     }
 
     @Test
-    void MdmLayoutConst_는_IdClass_복합_PK_로_저장_조회_왕복한다() {
+    void MdmLayoutConst_는_헤더_항목_물리명을_키로_저장_조회_왕복한다() {
         MdmLayout messageLayout = layoutRepository.save(new MdmLayout("MESSAGE", "상수용메시지"));
         MdmLayout headerLayout = layoutRepository.save(new MdmLayout("HEADER", "상수용헤더"));
         entityManager.flush();
-        MdmLayoutItem headerItem = new MdmLayoutItem(headerLayout.getLayoutId(), 1, "CONST");
-        layoutItemRepository.save(headerItem);
-        layoutHeaderRepository.save(new MdmLayoutHeader(messageLayout.getLayoutId(), 1, headerLayout.getLayoutId()));
+        saveVer(messageLayout.getLayoutId(), V1);
+        saveVer(headerLayout.getLayoutId(), V1);
+        layoutItemRepository.save(new MdmLayoutItem(headerLayout.getLayoutId(), V1, 1, "CONST"));
+        layoutHeaderRepository.save(new MdmLayoutHeader(messageLayout.getLayoutId(), V1, 1, headerLayout.getLayoutId()));
         entityManager.flush();
 
-        MdmLayoutConst layoutConst = new MdmLayoutConst(
-                messageLayout.getLayoutId(), headerLayout.getLayoutId(), 1, "B1");
-        layoutConstRepository.save(layoutConst);
+        layoutConstRepository.save(new MdmLayoutConst(
+                messageLayout.getLayoutId(), V1, headerLayout.getLayoutId(), "SND_FAC_TP", "B1"));
         entityManager.flush();
         entityManager.clear();
 
-        MdmLayoutConstId id = new MdmLayoutConstId(messageLayout.getLayoutId(), headerLayout.getLayoutId(), 1);
-        Optional<MdmLayoutConst> reloaded = layoutConstRepository.findById(id);
+        Optional<MdmLayoutConst> reloaded = layoutConstRepository.findById(new MdmLayoutConstId(
+                messageLayout.getLayoutId(), V1, headerLayout.getLayoutId(), "SND_FAC_TP"));
         assertTrue(reloaded.isPresent());
         assertEquals("B1", reloaded.get().getConstValue());
+        assertEquals("SND_FAC_TP", reloaded.get().getHeaderColumnPhys());
     }
 
-    /**
-     * 불변 규칙 6 가드 — {@code layoutVersion} 은 {@code @Version}(JPA 낙관적 락)이 아니다(F14·F19).
-     * 더티 업데이트 후 {@code layoutVersion} 은 그대로 남고, 감사 {@code VER}(getVersion())은 별도로
-     * 오른다(F25) — 둘이 서로 독립임을 확인한다.
-     */
     @Test
-    void layoutVersion_은_더티_업데이트_후에도_자동으로_증가하지_않고_감사_VER_과_독립이다() {
-        MdmLayout layout = new MdmLayout("MESSAGE", "버전용레이아웃");
-        layout.setLayoutVersion(5L);
-        MdmLayout saved = layoutRepository.save(layout);
-        entityManager.flush();
-        Long versionBeforeUpdate = saved.getVersion();
+    void minorLayoutVersionRoundTripsWithRowsKeyedByVersion() {
+        MdmLayout layout = layoutRepository.saveAndFlush(new MdmLayout("MESSAGE", "엔티티 왕복"));
+        assertThat(layout.getStatus()).isEqualTo("CREATED");
+        Long id = layout.getLayoutId();
+        MdmLayoutVer v = new MdmLayoutVer(id, new BigDecimal("1.001"), VersionKind.MINOR, "kim");
+        v.setBaseVer(new BigDecimal("1.000"));
+        v.setOwnLength(20);
+        layoutVerRepository.saveAndFlush(v);
+        MdmLayoutItem item = new MdmLayoutItem(id, new BigDecimal("1.001"), 1, "FILLER");
+        item.setFillerLength(20);
+        item.setLength(20);
+        layoutItemRepository.saveAndFlush(item);
+        entityManager.clear();
 
-        saved.setLayoutName("이름변경");
+        MdmLayoutVer read = layoutVerRepository.findById(new MdmLayoutVerId(id, new BigDecimal("1.001"))).orElseThrow();
+        assertThat(read.getVer()).isEqualByComparingTo("1.001");
+        assertThat(read.getVer().scale()).isEqualTo(3);
+        assertThat(read.getVerKind()).isEqualTo(VersionKind.MINOR);
+        assertThat(read.isDraft()).isTrue();
+        assertThat(read.getOwnLength()).isEqualTo(20);
+        assertThat(read.getVersion()).isEqualTo(0L); // 감사 카운터는 AUD_VER
+        assertThat(layoutItemRepository.findById(new MdmLayoutItemId(id, new BigDecimal("1.001"), 1))).isPresent();
+        assertThat(layoutItemRepository.findById(new MdmLayoutItemId(id, new BigDecimal("1.000"), 1))).isEmpty();
+    }
+
+    /** STATUS 는 updatable = false — 낡은 엔티티 저장이 공통 엔진이 올린 INUSE 를 CREATED 로 되돌리지 않는다. */
+    @Test
+    void 레이아웃_상태는_엔티티_더티_저장으로_바뀌지_않는다() {
+        MdmLayout saved = layoutRepository.saveAndFlush(new MdmLayout("MESSAGE", "상태용레이아웃"));
+        jdbcTemplate.update("UPDATE TB_MDM_LAYOUT SET STATUS = 'INUSE' WHERE LAYOUT_ID = ?", saved.getLayoutId());
+        entityManager.clear();
+
+        MdmLayout stale = layoutRepository.findById(saved.getLayoutId()).orElseThrow();
+        stale.setLayoutName("이름변경");
         entityManager.flush();
         entityManager.clear();
 
-        MdmLayout reloaded = layoutRepository.findById(saved.getLayoutId()).orElseThrow();
-        assertEquals(5L, reloaded.getLayoutVersion(), "layoutVersion 은 업무 저장 로직이 올릴 때만 바뀐다(자동 증가 아님)");
-        assertNotNull(reloaded.getVersion());
-        assertNotEquals(versionBeforeUpdate, reloaded.getVersion(),
-                "감사 VER(CactusAuditListener.onPreUpdate)은 더티 업데이트마다 조건 없이 오른다(F25)");
+        assertEquals("INUSE", layoutRepository.findById(saved.getLayoutId()).orElseThrow().getStatus());
+        assertEquals("이름변경", layoutRepository.findById(saved.getLayoutId()).orElseThrow().getLayoutName());
     }
 }

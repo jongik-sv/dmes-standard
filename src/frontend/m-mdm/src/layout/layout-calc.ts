@@ -30,15 +30,23 @@ export function placeHeader<T extends LayoutItemRow>(rows: T[]): { rows: T[]; to
   return { rows: out, total: end };
 }
 
-export function placeMessage<T extends LayoutItemRow>(headerTotals: number[], bodyRows: T[]) {
-  const headerOffsets: number[] = [];
-  let headerLength = 0;
+/**
+ * 헤더 길이 합에서 본문을 놓는다. 헤더 길이 하나라도 null(판정 시각에 확정 헤더 없음)이면 그 뒤 헤더 오프셋·헤더 길이 합·본문 오프셋·
+ * 총 길이는 null 이다 — 0 으로 바꿔 계산하지 않는다(서버 composedView 와 같은 규칙). 본문 LENGTH 는 그대로 계산한다.
+ */
+export function placeMessage<T extends LayoutItemRow>(headerTotals: Array<number | null>, bodyRows: T[]) {
+  const headerOffsets: Array<number | null> = [];
+  let headerLength: number | null = 0;
   for (const t of headerTotals) {
     headerOffsets.push(headerLength);
-    headerLength += t;
+    headerLength = headerLength == null || t == null ? null : headerLength + t;
+  }
+  if (headerLength == null) {
+    const rows = bodyRows.map((r) => ({ ...r, OFFSET: null, LENGTH: itemLength(r) }));
+    return { headerOffsets, headerLength, rows, total: null };
   }
   const { rows, end } = lay(bodyRows, headerLength);
-  return { headerOffsets, headerLength, rows, total: end };
+  return { headerOffsets, headerLength: headerLength as number | null, rows, total: end as number | null };
 }
 
 /** from 행을 to 자리로 옮기고 SEQ 를 1..n 으로 다시 매긴다. */
@@ -68,17 +76,27 @@ export function renumber<T extends LayoutItemRow>(rows: T[]): T[] {
   return rows.map((r, i) => ({ ...r, SEQ: i + 1 }));
 }
 
-/** 1부터 센 위치 — "131-150", 길이 1 이면 "63". */
-export function positionLabel(offset: number, length: number): string {
+/** 1부터 센 위치 — "131-150", 길이 1 이면 "63". 오프셋·길이를 모르면(null) "-". */
+export function positionLabel(offset: number | null | undefined, length: number | null | undefined): string {
+  if (offset == null || length == null) return "-";
   return length <= 1 ? String(offset + 1) : `${offset + 1}-${offset + length}`;
 }
 
-/** `헤더 130 (100 + 30) + 본문 57 (20 + 8 + 4 + 25) = 187 바이트`(html). */
-export function summaryText(headerTotals: number[], bodyRows: LayoutItemRow[]): string {
-  const h = headerTotals.reduce((a, b) => a + b, 0);
+/** 모르는 길이·오프셋(null)은 "-" 로 보인다. */
+export function lengthText(v: number | null | undefined): string {
+  return v == null ? "-" : String(v);
+}
+
+/**
+ * `헤더 130 (100 + 30) + 본문 57 (20 + 8 + 4 + 25) = 187 바이트`(html).
+ * 헤더 길이 하나라도 null 이면 헤더 합·총 길이는 "-" 다(`헤더 - (100 + -) + 본문 57 (…) = - 바이트`).
+ */
+export function summaryText(headerTotals: Array<number | null>, bodyRows: LayoutItemRow[]): string {
+  const unknown = headerTotals.some((t) => t == null);
+  const h = unknown ? null : headerTotals.reduce<number>((a, b) => a + (b as number), 0);
   const lengths = bodyRows.map((r) => r.LENGTH ?? itemLength(r));
   const b = lengths.reduce((a, x) => a + x, 0);
-  const hPart = headerTotals.length ? ` (${headerTotals.join(" + ")})` : "";
+  const hPart = headerTotals.length ? ` (${headerTotals.map(lengthText).join(" + ")})` : "";
   const bPart = lengths.length ? ` (${lengths.join(" + ")})` : "";
-  return `헤더 ${h}${hPart} + 본문 ${b}${bPart} = ${h + b} 바이트`;
+  return `헤더 ${lengthText(h)}${hPart} + 본문 ${b}${bPart} = ${lengthText(h == null ? null : h + b)} 바이트`;
 }

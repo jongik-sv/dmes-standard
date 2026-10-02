@@ -2,6 +2,7 @@
  * 레이아웃 스냅샷 내려받기(TSK-05-03 design.md §2·§6.8). JSON 은 서버 export 의 스냅샷 그대로, 엑셀은 그 스냅샷을 헤더·본문 항목의
  * 절대 위치 순 행으로 편다(AS-IS Export 대체, 03:106). 스냅샷 모양은 계약 MdmLayoutSnapshot(layout-snapshot.schema.json)이다.
  */
+import { normVer } from "../shell/version-format";
 import { position } from "./sample-line";
 
 export interface SnapshotNumFormat {
@@ -44,6 +45,7 @@ export interface LayoutSnapshot {
   rcvSystem: string | null;
   encoding: string | null;
   padRule: string | null;
+  /** 소수 버전(1.001). 표시는 `fmtVer(normVer(String(v)))`. */
   layoutVersion: number;
   totalLength: number;
   headers: SnapshotHeader[];
@@ -67,8 +69,9 @@ export const SNAPSHOT_EXCEL_COLUMNS: Array<{ key: string; header: string; width?
   { key: "VALUE", header: "값(상수·재정의·AUTO 종류)", width: 20 },
 ];
 
-export function snapshotFileBase(layoutId: number, version: number): string {
-  return `layout-${layoutId}-v${version}`;
+/** 서버가 fileBase 를 주면 그것을 쓴다. 직접 만들 때도 버전은 셋째 자리까지(`layout-12-v1.001`). */
+export function snapshotFileBase(layoutId: number, version: string | number): string {
+  return `layout-${layoutId}-v${normVer(String(version)) ?? String(version)}`;
 }
 
 export function snapshotJsonText(snapshot: unknown): string {

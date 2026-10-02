@@ -88,7 +88,7 @@ class SecurityScreenContractTest {
     void 그룹_역할_매트릭스_10칸이_ADR_0003_과_같다() {
         Map<MdmScreenGroup, Map<String, String>> expected = new EnumMap<>(MdmScreenGroup.class);
         expected.put(MdmScreenGroup.DMA, Map.of(MdmRoles.STD_ADMIN, "PERM_MDM_EDIT", MdmRoles.STEWARD, "PERM_MDM_READ"));
-        expected.put(MdmScreenGroup.DMB, Map.of(MdmRoles.STD_ADMIN, "PERM_MDM_EDIT", MdmRoles.STEWARD, "PERM_MDM_READ"));
+        expected.put(MdmScreenGroup.DMB, Map.of(MdmRoles.STD_ADMIN, "PERM_MDM_EDIT", MdmRoles.STEWARD, "PERM_MDM_CONFIRM"));
         expected.put(MdmScreenGroup.DMC, Map.of(MdmRoles.STD_ADMIN, "PERM_MDM_READ", MdmRoles.STEWARD, "PERM_MDM_CONFIRM"));
         expected.put(MdmScreenGroup.DMD, Map.of(MdmRoles.STD_ADMIN, "PERM_MDM_READ", MdmRoles.STEWARD, "PERM_MDM_EDIT"));
         expected.put(MdmScreenGroup.DME, Map.of(MdmRoles.STD_ADMIN, "PERM_MDM_READ", MdmRoles.STEWARD, "PERM_MDM_CONFIRM"));

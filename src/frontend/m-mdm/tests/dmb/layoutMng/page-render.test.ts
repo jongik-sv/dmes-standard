@@ -8,6 +8,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import LayoutMngPage from "../../../pages/dmb/layoutMng/page";
+import { takeMdmPageParams } from "../../../src/shell";
+import { pickDateTime } from "../../helpers/datetime-picker";
 
 const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
 const originalFetch = globalThis.fetch;
@@ -15,6 +17,17 @@ let container: HTMLDivElement;
 let root: Root | null = null;
 let actions: string[] = [];
 let searchParams: Record<string, unknown>[] = [];
+/** layoutMng 로 간 모든 호출(시험 본문에서 검사한다 — stub 안의 expect 는 화면의 try/catch 에 삼켜진다). */
+let calls: Array<{ url: string; action: string; params: Record<string, unknown> }> = [];
+/** 목록 행의 레이아웃 ID(openLayout 이 바꾼다). */
+let listId = 30;
+/** 목록 행의 총 길이(null = 쌓인 헤더에 지금 확정 버전이 없음). */
+let listTotal: number | null = 187;
+/** view 응답에 덮어쓸 버전 칸(selected·versions·editable·플래그). */
+let viewOverride: Record<string, unknown> = {};
+
+/** 내 DRAFT(편집 가능) — 기본 view 응답. 현재 사용자는 /api/auth/me 의 tester 다. */
+const MY_DRAFT = { VER: "1.000", VER_KIND: "MAJOR", STATUS: "DRAFT", STATE: "DRAFT", OWNER_ID: "tester", ROW_VERSION: 0, OWN_LENGTH: 57, LEGACY: "N" };
 
 function item(seq: number, fill: string, phys: string | null, len: number, extra: Record<string, unknown> = {}) {
   return { SEQ: seq, FILL_KIND: fill, COLUMN_PHYS: phys, DISPLAY_NAME: phys ? `${phys} 이름` : null, DOMAIN_LENGTH: fill === "FILLER" ? null : len,
@@ -49,10 +62,13 @@ function ok(result: unknown) {
 function stubFetch(admin = false) {
   actions = [];
   searchParams = [];
+  calls = [];
+  viewOverride = {};
+  listTotal = 187;
   globalThis.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url);
     // [조회] 버튼은 RBAC 로 켜진다 — admin 이 아니면 조회 권한만 준다(편집은 읽기 전용 그대로).
-    if (u === "/api/auth/me") return new Response(JSON.stringify({ user: { id: "u1" } }), { status: 200 });
+    if (u === "/api/auth/me") return new Response(JSON.stringify({ user: { id: "tester" } }), { status: 200 });
     if (u === "/api/mcm/oasis/secUser/myButtonEndpoints") {
       const row = admin ? { objId: "*", action: "*" } : { objId: "layoutMng", action: "search" };
       return new Response(JSON.stringify({ grids: { buttons: { rows: [row] } } }), { status: 200 });
@@ -60,31 +76,44 @@ function stubFetch(admin = false) {
     if (u.startsWith("/api/mdm/oasis/layoutMng/")) {
       const action = u.split("/").pop() ?? "";
       actions.push(action);
+      const params = JSON.parse(String(init?.body ?? "{}")).params ?? {};
+      calls.push({ url: u, action, params });
       if (action === "search") {
-        const params = JSON.parse(String(init?.body ?? "{}")).params ?? {};
         searchParams.push(params);
         return ok({
           // optionsOnly 진입 호출은 서버가 목록 없이 콤보만 준다
-          layouts: params.optionsOnly ? [] : [{ LAYOUT_ID: 30, LAYOUT_NAME: "출측검사 실적 수신", EAI_CODE: "GLUE", SND_SYSTEM: "L2", RCV_SYSTEM: "MES",
-            HEADER_SUMMARY: "GLUE 공통 헤더 (100) + L2 구간 헤더 (30)", ITEM_COUNT: 4, TOTAL_LENGTH: 187, LAYOUT_VERSION: 0, VER: 1 }],
+          layouts: params.optionsOnly ? [] : [{ LAYOUT_ID: listId, LAYOUT_NAME: "출측검사 실적 수신", EAI_CODE: "GLUE", SND_SYSTEM: "L2", RCV_SYSTEM: "MES",
+            HEADER_SUMMARY: "GLUE 공통 헤더 (100) + L2 구간 헤더 (30)", ITEM_COUNT: 4, TOTAL_LENGTH: listTotal, STATUS: "INUSE", AUD_VER: 1,
+            CURRENT_VER: "1.000", DRAFT_VER: "1.001", DRAFT_OWNER: "tester" }],
           systems: [{ SYSTEM_CODE: "L2", SYSTEM_NAME: "레벨2" }, { SYSTEM_CODE: "MES", SYSTEM_NAME: "MES" }],
           eais: [{ EAI_CODE: "GLUE", EAI_NAME: "GLUE", ENCODING: "EUC-KR", HEADER_LAYOUT_ID: 10 }],
           headers: [{ LAYOUT_ID: 10, LAYOUT_NAME: "GLUE 공통 헤더", TOTAL_LENGTH: 100 }, { LAYOUT_ID: 11, LAYOUT_NAME: "L2 구간 헤더", TOTAL_LENGTH: 30 }],
         });
       }
       if (action === "view") {
-        expect(JSON.parse(String(init?.body)).params).toEqual({ layoutId: 30 });
+        const selected = (viewOverride.selected as Record<string, unknown> | undefined) ?? MY_DRAFT;
         return ok({
           // 서버가 준 합계가 틀려도(999) 화면은 항목에서 다시 계산한다
-          layout: { LAYOUT_ID: 30, LAYOUT_NAME: "출측검사 실적 수신", EAI_CODE: "GLUE", SND_SYSTEM: "L2", RCV_SYSTEM: "MES",
-            TOTAL_LENGTH: 999, HEADER_LENGTH: 999, LAYOUT_VERSION: 0, VER: 1 },
+          layout: { LAYOUT_ID: params.layoutId, LAYOUT_NAME: "출측검사 실적 수신", EAI_CODE: "GLUE", SND_SYSTEM: "L2", RCV_SYSTEM: "MES",
+            TOTAL_LENGTH: 999, HEADER_LENGTH: 999, AUD_VER: 1 },
+          selected, versions: [selected], editable: true, canNewMajor: false, canNewMinor: false,
           headers: [
-            { SEQ: 1, HEADER_LAYOUT_ID: 10, HEADER_NAME: "GLUE 공통 헤더", EAI_CODE: "GLUE", TOTAL_LENGTH: 100, OFFSET: 0, items: L100 },
-            { SEQ: 2, HEADER_LAYOUT_ID: 11, HEADER_NAME: "L2 구간 헤더", TOTAL_LENGTH: 30, OFFSET: 100, items: L110 },
+            { SEQ: 1, HEADER_LAYOUT_ID: 10, HEADER_NAME: "GLUE 공통 헤더", EAI_CODE: "GLUE", TOTAL_LENGTH: 100, OFFSET: 0, items: L100,
+              HEADER_VER: "1.001", HEADER_STATE: "CURRENT" },
+            { SEQ: 2, HEADER_LAYOUT_ID: 11, HEADER_NAME: "L2 구간 헤더", TOTAL_LENGTH: 30, OFFSET: 100, items: L110,
+              HEADER_VER: "2.000", HEADER_STATE: "FUTURE" },
           ],
           items: BODY.map((b) => ({ ...b, OFFSET: 0, LENGTH: 999 })),
           units: [{ UNIT_CODE: "mm", DIMENSION: "LENGTH", BASE_UNIT: "mm" }],
+          ...viewOverride,
         });
+      }
+      if (action === "save") {
+        return ok({ layoutId: params.layoutId ?? listId, ver: params.ver ?? "1.000", rowVersion: Number(params.rowVersion ?? -1) + 1,
+          ownLength: 57, headerLength: 130, totalLength: 187, asOf: "2026-10-02 10:00:00" });
+      }
+      if (["copy", "delete", "lock", "unlock", "handover"].includes(action)) {
+        return ok({ layoutId: params.layoutId, ver: params.verKind === "MINOR" ? "1.001" : (params.ver ?? "2.000"), rowVersion: 0 });
       }
     }
     return new Response("{}", { status: 401 });
@@ -129,6 +158,48 @@ async function click(el: Element | null) {
   await act(async () => {
     (el as HTMLElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
+  await flush();
+}
+
+function byTestId(id: string): HTMLElement {
+  const el = document.querySelector(`[data-testid="${id}"]`);
+  expect(el, `testid ${id} 가 없다`).not.toBeNull();
+  return el as HTMLElement;
+}
+
+/** 머리 [저장] — PageButton 은 testid 가 없어 글자로 찾는다. */
+function saveButton(): HTMLButtonElement {
+  const btn = Array.from(container.querySelectorAll(".page-layout__header-buttons button")).find((b) => b.textContent === "저장");
+  expect(btn, "저장").toBeTruthy();
+  return btn as HTMLButtonElement;
+}
+
+/** 마지막 호출(action 을 주면 그 action 의 마지막 호출). 새 버전·저장 뒤에는 view 로 다시 읽으므로 action 으로 고른다. */
+function lastCall(action?: string) {
+  const list = action ? calls.filter((c) => c.action === action) : calls;
+  expect(list.length, `${action ?? "호출"} 이 없다`).toBeGreaterThan(0);
+  return list[list.length - 1];
+}
+
+function mockView(over: Record<string, unknown>) {
+  viewOverride = over;
+}
+
+/** 목록에 id 를 두고 [조회] → 첫 행을 눌러 연다. */
+async function openLayout(id: number) {
+  listId = id;
+  await render();
+  await search();
+  await click(container.querySelector("[data-testid=layout-list] .ag-row .ag-cell"));
+  await flush();
+}
+
+async function changeSelect(el: HTMLElement, value: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(el, value);
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await flush();
   await flush();
 }
 
@@ -178,6 +249,8 @@ describe("layoutMng page", () => {
     await search();
     await click(container.querySelector("[data-testid=layout-list] .ag-row .ag-cell"));
     expect(actions).toContain("view");
+    // 처음 열 때는 버전·시각을 보내지 않는다(서버가 내 DRAFT 우선, 없으면 지금 시점 현재 버전을 고른다)
+    expect(lastCall("view").params).toEqual({ layoutId: 30 });
     const total = container.querySelector("[data-testid=layout-total-length]")?.textContent ?? "";
     expect(total).toContain("187 바이트");
     expect(total).toBe("헤더 130 (100 + 30) + 본문 57 (20 + 8 + 4 + 25) = 187 바이트");
@@ -244,5 +317,128 @@ describe("layoutMng page", () => {
     await flush();
     expect(value().textContent).toBe("B9");
     expect(rowText()).toContain("재정의");
+  });
+
+  it("목록에 현재 버전과 DRAFT(소유자) 열이 보이고 옛 버전 칸은 없다", async () => {
+    await render();
+    await search();
+    const list = container.querySelector("[data-testid=layout-list]")?.textContent ?? "";
+    expect(list).toContain("v1.000");
+    expect(list).toContain("v1.001 (tester)");
+  });
+
+  it("released version opens read-only with major/minor buttons and confirm goes to layoutConfirm", async () => {
+    stubFetch(true);
+    mockView({ editable: false, canNewMajor: true, canNewMinor: true, nextMajor: "2.000", nextMinor: "1.001",
+      selected: { VER: "1.000", VER_KIND: "MAJOR", STATUS: "RELEASED", STATE: "CURRENT", OWNER_ID: null, ROW_VERSION: 1, OWN_LENGTH: 57, LEGACY: "N" } });
+    await openLayout(201);
+    expect(saveButton().hasAttribute("disabled")).toBe(true);
+    expect((byTestId("layout-form-name") as HTMLInputElement).disabled).toBe(true);
+    expect(byTestId("layout-ver-new-minor").hasAttribute("disabled")).toBe(false);
+    expect(byTestId("layout-ver-new-major").hasAttribute("disabled")).toBe(false);
+    expect(byTestId("layout-ver-confirm").hasAttribute("disabled")).toBe(true);
+    await click(byTestId("layout-ver-new-minor"));
+    await flush();
+    expect(lastCall("copy").url).toContain("/oasis/layoutMng/copy");
+    expect(lastCall("copy").params).toEqual({ layoutId: 201, verKind: "MINOR" });
+    // 새 버전을 만들면 그 버전으로 다시 읽는다
+    expect(lastCall().action).toBe("view");
+    expect(lastCall().params).toMatchObject({ layoutId: 201, ver: "1.001" });
+  });
+
+  it("my draft is editable, save sends ver and rowVersion, confirm hands off the minor version string", async () => {
+    stubFetch(true);
+    mockView({ editable: true, canNewMajor: false, canNewMinor: false,
+      selected: { VER: "1.001", VER_KIND: "MINOR", STATUS: "DRAFT", STATE: "DRAFT", OWNER_ID: "tester", ROW_VERSION: 3, OWN_LENGTH: 57, LEGACY: "N" } });
+    await openLayout(201);
+    expect(saveButton().hasAttribute("disabled")).toBe(false);
+    expect((byTestId("layout-form-name") as HTMLInputElement).disabled).toBe(false);
+    await click(saveButton());
+    await flush();
+    expect(lastCall("save").params).toMatchObject({ layoutId: 201, ver: "1.001", rowVersion: 3 });
+    const opened = vi.fn();
+    window.addEventListener("portal-open-tab", opened);
+    await click(byTestId("layout-ver-confirm"));
+    window.removeEventListener("portal-open-tab", opened);
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(takeMdmPageParams("dmb/layoutConfirm")).toEqual({ layoutId: "201", ver: "1.001" });
+  });
+
+  it("changing T re-reads the layout with asOf", async () => {
+    mockView({ editable: false, selected: { VER: "1.000", VER_KIND: "MAJOR", STATUS: "RELEASED", STATE: "CURRENT", ROW_VERSION: 1, OWN_LENGTH: 57, LEGACY: "N" } });
+    await openLayout(201);
+    await pickDateTime(() => byTestId("layout-asof"), "2026-07-01 00:00:00");
+    await flush();
+    expect(lastCall().url).toContain("/oasis/layoutMng/view");
+    expect(lastCall().params).toMatchObject({ layoutId: 201, asOf: "2026-07-01 00:00:00" });
+  });
+
+  it("버전을 고르면 그 버전으로 다시 읽고, 이행 전 스냅샷은 읽기 전용 안내를 보인다", async () => {
+    const legacy = { VER: "1.000", VER_KIND: "MAJOR", STATUS: "RELEASED", STATE: "PAST", OWNER_ID: null, ROW_VERSION: 1, OWN_LENGTH: 57, LEGACY: "Y" };
+    mockView({ editable: true, versions: [{ ...MY_DRAFT, VER: "1.001" }, legacy], selected: { ...MY_DRAFT, VER: "1.001" } });
+    await openLayout(201);
+    const sel = byTestId("layout-ver-select") as HTMLSelectElement;
+    expect(Array.from(sel.options).map((o) => o.textContent)).toContain("v1.000 지난 버전");
+    mockView({ editable: false, versions: [legacy], selected: legacy });
+    await changeSelect(sel, "1.000");
+    expect(lastCall().params).toMatchObject({ layoutId: 201, ver: "1.000" });
+    expect(container.textContent).toContain("이행 전 스냅샷(읽기 전용)");
+  });
+
+  it("헤더 구성 표에 판정 시각 T 의 헤더 버전·상태 열이 보인다", async () => {
+    await openLayout(201);
+    await flush();
+    const rows = Array.from(document.querySelectorAll("[data-testid=layout-header-stack] .ag-center-cols-container .ag-row"))
+      .sort((a, b) => Number(a.getAttribute("row-index")) - Number(b.getAttribute("row-index")));
+    expect(rows).toHaveLength(2);
+    expect(rows[0].querySelector("[col-id=HEADER_VER]")?.textContent).toBe("v1.001");
+    expect(rows[0].querySelector("[col-id=HEADER_STATE]")?.textContent).toBe("현재");
+    expect(rows[1].querySelector("[col-id=HEADER_VER]")?.textContent).toBe("v2.000");
+    expect(rows[1].querySelector("[col-id=HEADER_STATE]")?.textContent).toBe("적용 대기");
+    expect(document.querySelector("[data-testid=layout-header-missing]")).toBeNull();
+  });
+
+  it("판정 시각에 확정 헤더가 없으면(MISSING·길이 null) 길이·오프셋·총 길이를 - 로 보이고 안내한다", async () => {
+    mockView({
+      layout: { LAYOUT_ID: 201, LAYOUT_NAME: "출측검사 실적 수신", EAI_CODE: "GLUE", SND_SYSTEM: "L2", RCV_SYSTEM: "MES",
+        TOTAL_LENGTH: null, HEADER_LENGTH: null, AUD_VER: 1 },
+      headers: [
+        { SEQ: 1, HEADER_LAYOUT_ID: 10, HEADER_NAME: "GLUE 공통 헤더", EAI_CODE: "GLUE", TOTAL_LENGTH: 100, OFFSET: 0, items: L100,
+          HEADER_VER: "1.000", HEADER_STATE: "CURRENT" },
+        { SEQ: 2, HEADER_LAYOUT_ID: 11, HEADER_NAME: "L2 구간 헤더", TOTAL_LENGTH: null, OFFSET: 100, items: [],
+          HEADER_VER: null, HEADER_STATE: "MISSING" },
+      ],
+      items: BODY.map((b) => ({ ...b, OFFSET: null })),
+    });
+    listId = 201;
+    await render();
+    await search();
+    await click(container.querySelector("[data-testid=layout-list] .ag-row .ag-cell"));
+    await flush();
+    const text = document.body.textContent ?? "";
+    expect(text).not.toContain("NaN");
+    expect(byTestId("layout-total-length").textContent).toBe("헤더 - (100 + -) + 본문 57 (20 + 8 + 4 + 25) = - 바이트");
+    expect(byTestId("layout-body-summary").textContent).toBe("헤더 - — 본문 첫 오프셋 -");
+    expect(byTestId("layout-header-missing").textContent).toContain("판정 시각에 확정 헤더가 없어");
+    const stackRows = Array.from(document.querySelectorAll("[data-testid=layout-header-stack] .ag-center-cols-container .ag-row"))
+      .sort((a, b) => Number(a.getAttribute("row-index")) - Number(b.getAttribute("row-index")));
+    expect(stackRows[1].querySelector("[col-id=HEADER_STATE]")?.textContent).toBe("확정 헤더 없음");
+    expect(stackRows[1].querySelector("[col-id=TOTAL_LENGTH]")?.textContent).toBe("-");
+    expect(stackRows[1].querySelector("[col-id=POSITION]")?.textContent).toBe("-");
+    expect(stackRows[0].querySelector("[col-id=POSITION]")?.textContent).toBe("1-100");
+    const offsets = Array.from(document.querySelectorAll('[data-testid=layout-items] .ag-center-cols-container .ag-cell[col-id="OFFSET"]'))
+      .map((c) => c.textContent);
+    expect(offsets).toEqual(["-", "-", "-", "-"]);
+    const positions = Array.from(document.querySelectorAll('[data-testid=layout-items] .ag-center-cols-container .ag-cell[col-id="POSITION"]'))
+      .map((c) => c.textContent);
+    expect(positions).toEqual(["-", "-", "-", "-"]);
+  });
+
+  it("목록 총 길이가 null 이면 - 로 보인다", async () => {
+    listTotal = null;
+    await render();
+    await search();
+    const cell = container.querySelector('[data-testid=layout-list] .ag-center-cols-container .ag-cell[col-id="TOTAL_LENGTH"]');
+    expect(cell?.textContent).toBe("-");
   });
 });

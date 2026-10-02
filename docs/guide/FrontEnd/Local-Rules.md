@@ -271,6 +271,7 @@ shared·m-mcm 의 Prettier 는 `prettier-plugin-tailwindcss` 를 쓴다. 이 플
 - 노출: 버튼은 늘 보이고, 해당하지 않으면 비활성으로 둔다(조건부로 숨기지 않는다).
 - 확인창: `삭제`(제목 `확인`)와 `확정취소`(제목 `확정취소`)는 누르면 확인창을 거친 뒤 실행한다.
 - 룰도 마스터코드처럼 `새 버전(major)`·`새 버전(minor)` 두 버튼을 쓴다. 룰 세트·레이아웃·헤더 화면도 같은 두 버튼을 쓴다(D-144, [ADR-0006](../../mdm/adr/0006-object-versioning-major-minor.md)). minor 가 999 이면 minor 버튼만 비활성이다.
+- 레이아웃·헤더(layoutMng·headerMng): 저장은 버전을 만들지 않고 내 DRAFT 를 덮어쓰며, 확정은 [확정] 으로 `dmb/layoutConfirm`(전문·헤더 공용, D-144·D-148)에서 한다. DMB 확정은 담당자만, DRAFT 는 소유자만 확정한다.
 - 활성 조건은 서버 판정값(`cancelConfirmable` 등)을 화면에서 다시 계산하지 않는다. 권한 action 이름은 화면별로 유지한다.
 
 ## 25. 모달 안 그리드 — flex 칸만으로는 높이가 0 이 된다 (2026-10-02)

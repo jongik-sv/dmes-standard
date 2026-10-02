@@ -7,6 +7,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import LayoutMngPage from "../../../pages/dmb/layoutMng/page";
+import { VersionPanel } from "../../../pages/dmb/layoutMng/components/VersionPanel";
 
 const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
 const originalFetch = globalThis.fetch;
@@ -26,9 +27,11 @@ const BODY = [
 ];
 
 const VERSIONS = [
-  { LAYOUT_VERSION: 2, SAVED_AT: "2026-09-24 10:20", SAVED_BY: "admin", TOTAL_LENGTH: 187, SWITCH_MODE: "SEQUENTIAL",
+  { VER: "2.000", VER_KIND: "MAJOR", STATUS: "RELEASED", STATE: "CURRENT", OWNER_ID: "admin", APPLY_FROM: "2026-09-24 10:20:00",
+    APPLY_TO: null, ROW_VERSION: 1, OWN_LENGTH: 57, LEGACY: "N", SWITCH_MODE: "SEQUENTIAL",
     CHANGE_SUMMARY: "여분 29 → 코일 두께 4 + 여분 25 (여분 쪼개 쓰기)" },
-  { LAYOUT_VERSION: 1, SAVED_AT: "2026-09-24 10:00", SAVED_BY: "admin", TOTAL_LENGTH: 187, SWITCH_MODE: null, CHANGE_SUMMARY: "최초 등록" },
+  { VER: "1.000", VER_KIND: "MAJOR", STATUS: "RELEASED", STATE: "PAST", OWNER_ID: "admin", APPLY_FROM: "2026-09-24 10:00:00",
+    APPLY_TO: "2026-09-24 10:20:00", ROW_VERSION: 1, OWN_LENGTH: 57, LEGACY: "N", SWITCH_MODE: null, CHANGE_SUMMARY: "최초 등록" },
 ];
 
 function checks(failNo: number | null) {
@@ -58,11 +61,14 @@ function ok(result: unknown) {
   return new Response(JSON.stringify({ meta: { success: true }, data: { result } }), { status: 200 });
 }
 
+let exportParams: Record<string, unknown>[] = [];
+
 function stubFetch(failNo: number | null = 4) {
   actions = [];
+  exportParams = [];
   globalThis.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url);
-    if (u === "/api/auth/me") return new Response(JSON.stringify({ user: { id: "u1" } }), { status: 200 });
+    if (u === "/api/auth/me") return new Response(JSON.stringify({ user: { id: "tester" } }), { status: 200 });
     if (u === "/api/mcm/oasis/secUser/myButtonEndpoints") {
       return new Response(JSON.stringify({ grids: { buttons: { rows: [{ objId: "*", action: "*" }] } } }), { status: 200 });
     }
@@ -73,8 +79,10 @@ function stubFetch(failNo: number | null = 4) {
       if (action === "search") {
         return ok({
           layouts: [
-            { LAYOUT_ID: 30, LAYOUT_NAME: "이력 없는 전문", SND_SYSTEM: "L2", RCV_SYSTEM: "MES", ITEM_COUNT: 4, TOTAL_LENGTH: 57, LAYOUT_VERSION: 0, VER: 1 },
-            { LAYOUT_ID: 31, LAYOUT_NAME: "이력 있는 전문", SND_SYSTEM: "L2", RCV_SYSTEM: "MES", ITEM_COUNT: 4, TOTAL_LENGTH: 57, LAYOUT_VERSION: 2, VER: 5 },
+            { LAYOUT_ID: 30, LAYOUT_NAME: "이력 없는 전문", SND_SYSTEM: "L2", RCV_SYSTEM: "MES", ITEM_COUNT: 4, TOTAL_LENGTH: 57, STATUS: "INUSE",
+              AUD_VER: 1, CURRENT_VER: null, DRAFT_VER: null },
+            { LAYOUT_ID: 31, LAYOUT_NAME: "이력 있는 전문", SND_SYSTEM: "L2", RCV_SYSTEM: "MES", ITEM_COUNT: 4, TOTAL_LENGTH: 57, STATUS: "INUSE",
+              AUD_VER: 5, CURRENT_VER: "2.000", DRAFT_VER: null },
           ],
           systems: [{ SYSTEM_CODE: "L2", SYSTEM_NAME: "레벨2" }, { SYSTEM_CODE: "MES", SYSTEM_NAME: "MES" }], eais: [], headers: [],
         });
@@ -83,8 +91,9 @@ function stubFetch(failNo: number | null = 4) {
         const id = params.layoutId;
         return ok({
           layout: { LAYOUT_ID: id, LAYOUT_NAME: id === 30 ? "이력 없는 전문" : "이력 있는 전문", SND_SYSTEM: "L2", RCV_SYSTEM: "MES",
-            TOTAL_LENGTH: 57, HEADER_LENGTH: 0, LAYOUT_VERSION: id === 30 ? 0 : 2, VER: 1 },
-          headers: [], items: BODY, units: [], versions: id === 30 ? [] : VERSIONS,
+            TOTAL_LENGTH: 57, HEADER_LENGTH: 0, AUD_VER: 1 },
+          headers: [], items: BODY, units: [], versions: id === 30 ? [] : VERSIONS, selected: id === 30 ? null : VERSIONS[0],
+          editable: false, canNewMajor: id !== 30, canNewMinor: id !== 30, nextMajor: "3.000", nextMinor: "2.001",
         });
       }
       if (action === "validate") return ok({ checks: checks(failNo), otherIssues: [], passed: failNo == null });
@@ -93,7 +102,8 @@ function stubFetch(failNo: number | null = 4) {
           parsed: [{ COLUMN_PHYS: "COIL_THK", NAME: "코일 두께", VALUE: "3.5" }] });
       }
       if (action === "export") {
-        return ok({ layoutId: 31, layoutVersion: params.layoutVersion ?? 2, fileBase: "layout-31-v2", names: {},
+        exportParams.push(params);
+        return ok({ layoutId: 31, ver: params.ver ?? "2.000", asOf: "2026-10-02 10:00:00", fileBase: "layout-31-v2.000", names: {},
           snapshot: { layoutId: 31, layoutName: "이력 있는 전문", layoutVersion: 2, totalLength: 57, headers: [], items: [] } });
       }
     }
@@ -230,6 +240,74 @@ describe("layoutMng 탭", () => {
     expect(q("version-list")?.textContent).toContain("순차 전환");
     expect(q("version-list")?.textContent).toContain("여분 29 → 코일 두께 4 + 여분 25 (여분 쪼개 쓰기)");
     expect(actions).toContain("export");
+    // 버전 탭은 맨 위 이력 행(서버 순서)의 스냅샷을 버전 문자열로 받는다
+    expect(exportParams[0]).toEqual({ layoutId: 31, ver: "2.000" });
     expect(q("snapshot-preview")?.textContent).toContain("\"layoutVersion\": 2");
+    expect(q("version-list")?.querySelector(".ag-row-highlighted")?.textContent).toContain("v2.000");
+  });
+});
+
+describe("VersionPanel (minor 버전 문자열)", () => {
+  afterEach(() => {
+    act(() => root?.unmount());
+    root = null;
+    container?.remove();
+    document.body.innerHTML = "";
+  });
+
+  it("minor 버전 문자열을 지키고 상태·종류·적용 구간·소유자를 보이며 행 선택은 문자열이다", async () => {
+    const onSelect = vi.fn();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root!.render(createElement(DmesUiProvider, null, createElement(VersionPanel, {
+        versions: [
+          { VER: "1.001", VER_KIND: "MINOR", STATUS: "DRAFT", STATE: "DRAFT", OWNER_ID: "kim", ROW_VERSION: 0, OWN_LENGTH: 57, LEGACY: "N" },
+          { VER: "1.000", VER_KIND: "MAJOR", STATUS: "RELEASED", STATE: "CURRENT", APPLY_FROM: "2026-02-01 00:00:00",
+            APPLY_TO: "9999-12-31 00:00:00", ROW_VERSION: 1, OWN_LENGTH: 57, LEGACY: "N" },
+        ],
+        selectedVersion: "1.001", onSelectVersion: onSelect, snapshot: null, onDownloadJson: () => {}, onDownloadExcel: () => {}, busy: false,
+      })));
+    });
+    await flush(100);
+    const text = container.textContent ?? "";
+    expect(text).toContain("v1.001");
+    expect(text).toContain("minor");
+    expect(text).toContain("2026-02-01 00:00:00");
+    expect(text).toContain("kim");
+    const rows = container.querySelectorAll("[data-testid=version-list] .ag-center-cols-container .ag-row");
+    const second = Array.from(rows).find((r) => r.getAttribute("row-index") === "1");
+    await act(async () => {
+      second?.querySelector(".ag-cell")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+    expect(onSelect).toHaveBeenCalledWith("1.000");
+  });
+
+  it("서버가 비정규 표기(1.1·1)로 보내도 고른 버전 행을 강조하고 정규 문자열로 넘긴다", async () => {
+    const onSelect = vi.fn();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root!.render(createElement(DmesUiProvider, null, createElement(VersionPanel, {
+        versions: [
+          { VER: "1.1", VER_KIND: "MINOR", STATUS: "DRAFT", STATE: "DRAFT", OWNER_ID: "kim", ROW_VERSION: 0, OWN_LENGTH: 57, LEGACY: "N" },
+          { VER: "1", VER_KIND: "MAJOR", STATUS: "RELEASED", STATE: "CURRENT", ROW_VERSION: 1, OWN_LENGTH: 57, LEGACY: "N" },
+        ],
+        selectedVersion: "1.100", onSelectVersion: onSelect, snapshot: null, onDownloadJson: () => {}, onDownloadExcel: () => {}, busy: false,
+      })));
+    });
+    await flush(100);
+    const highlighted = container.querySelector("[data-testid=version-list] .ag-row-highlighted");
+    expect(highlighted?.textContent).toContain("v1.100");
+    const rows = container.querySelectorAll("[data-testid=version-list] .ag-center-cols-container .ag-row");
+    const second = Array.from(rows).find((r) => r.getAttribute("row-index") === "1");
+    await act(async () => {
+      second?.querySelector(".ag-cell")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+    expect(onSelect).toHaveBeenCalledWith("1.000");
   });
 });

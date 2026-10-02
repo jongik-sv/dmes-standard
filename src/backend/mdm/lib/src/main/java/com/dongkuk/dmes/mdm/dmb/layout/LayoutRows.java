@@ -1,7 +1,11 @@
 package com.dongkuk.dmes.mdm.dmb.layout;
 
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.entity.MdmEai;
+import com.dongkuk.dmes.mdm.entity.MdmLayoutVer;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutItem;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -58,13 +62,13 @@ public final class LayoutRows {
         return out;
     }
 
-    /** 저장할 항목 엔티티 — OFFSET·LENGTH 는 서버 계산값. */
-    public static List<MdmLayoutItem> entities(Long layoutId, List<LayoutItemDraft> drafts, List<Integer> lengths,
+    /** 저장할 한 버전의 항목 엔티티 — OFFSET·LENGTH 는 서버 계산값(헤더는 헤더 안, 전문 본문은 본문 기준 상대). */
+    public static List<MdmLayoutItem> entities(Long layoutId, BigDecimal ver, List<LayoutItemDraft> drafts, List<Integer> lengths,
                                                List<Integer> offsets) {
         List<MdmLayoutItem> out = new ArrayList<>(drafts.size());
         for (int i = 0; i < drafts.size(); i++) {
             LayoutItemDraft d = drafts.get(i);
-            MdmLayoutItem e = new MdmLayoutItem(layoutId, d.seq(), d.fillKind());
+            MdmLayoutItem e = new MdmLayoutItem(layoutId, ver, d.seq(), d.fillKind());
             e.setColumnPhys(d.columnPhys());
             e.setTransUnit(d.transUnit());
             e.setUnitItem(d.unitItem());
@@ -99,15 +103,48 @@ public final class LayoutRows {
         return out;
     }
 
-    /** EAI 한 행({@code EAI_CODE, EAI_NAME, ENCODING, PAD_RULE, HEADER_LAYOUT_ID}) — headerMng·layoutMng search 공용. */
-    public static Map<String, Object> eaiRow(MdmEai e) {
+    /**
+     * EAI 한 행({@code EAI_CODE, EAI_NAME, ENCODING, PAD_RULE, HEADER_LAYOUT_ID}) — headerMng·layoutMng search 공용. {@code HEADER_LAYOUT_ID}
+     * 는 호출자가 시각 T 로 해석한 표준 헤더({@link LayoutVersions#eaiHeadersAt})다 — {@code TB_MDM_EAI.HEADER_LAYOUT_ID} 칼럼이 아니다.
+     */
+    public static Map<String, Object> eaiRow(MdmEai e, Long standardHeaderId) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("EAI_CODE", e.getEaiCode());
         row.put("EAI_NAME", e.getEaiName());
         row.put("ENCODING", e.getEncoding());
         row.put("PAD_RULE", e.getPadRule());
-        row.put("HEADER_LAYOUT_ID", e.getHeaderLayoutId());
+        row.put("HEADER_LAYOUT_ID", standardHeaderId);
         return row;
+    }
+
+    /**
+     * 버전 이력 한 행(D-144 3단계 — headerMng·layoutMng 공용). {@code VER}·{@code BASE_VER} 는 업무 버전 문자열({@code "1.000"}),
+     * {@code STATE} 는 {@link LayoutVersions#state}, 일시는 KST 문자열, {@code LEGACY} 는 {@code "Y"|"N"}.
+     */
+    public static Map<String, Object> versionRow(MdmLayoutVer v, LocalDateTime now) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("VER", ver(v.getVer()));
+        row.put("VER_KIND", v.getVerKind() == null ? null : v.getVerKind().name());
+        row.put("STATUS", v.getStatus());
+        row.put("STATE", LayoutVersions.state(v, now));
+        row.put("BASE_VER", ver(v.getBaseVer()));
+        row.put("OWNER_ID", v.getOwnerId());
+        row.put("APPLY_FROM", LayoutTimes.text(v.getApplyFrom()));
+        row.put("APPLY_TO", LayoutTimes.text(v.getApplyTo()));
+        row.put("ROW_VERSION", v.getRowVersion());
+        row.put("OWN_LENGTH", v.getOwnLength());
+        row.put("SWITCH_MODE", v.getSwitchMode());
+        row.put("CHANGE_KINDS", v.getChangeKinds());
+        row.put("CHANGE_SUMMARY", v.getChangeSummary());
+        row.put("LEGACY", v.isLegacySnapshot() ? "Y" : "N");
+        row.put("REQUESTED_BY", v.getRequestedBy());
+        row.put("RELEASED_AT", LayoutTimes.text(v.getReleasedAt()));
+        return row;
+    }
+
+    /** 업무 버전 문자열({@code "1.000"}) — 없으면 null. */
+    public static String ver(BigDecimal v) {
+        return v == null ? null : VersionNumbers.plain(v);
     }
 
     /** {@code [UNIT_CODE, DIMENSION, BASE_UNIT]} → 행. */

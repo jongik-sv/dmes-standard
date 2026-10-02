@@ -3,6 +3,9 @@ package com.dongkuk.dmes.mdm.dmb.layout;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -41,5 +44,18 @@ public final class LayoutRejections {
         String prefix = "HEADER".equals(kind) ? HEADER_PREFIX : MESSAGE_PREFIX;
         return reject(prefix, LayoutIssue.of(LayoutIssueCode.L11, null, "LAYOUT_ID",
                 ("HEADER".equals(kind) ? "헤더" : "전문") + " 레이아웃이 없다: " + layoutId));
+    }
+
+    /** 판정 시각 T 에 유효한 RELEASED 버전이 없다(D-144 K1, 스펙 §8 — 헤더 길이 0 으로 합성하지 않는다). 전문 = L11, 헤더 = L09. */
+    public static BusinessException noReleased(long layoutId, String kind, LocalDateTime t) {
+        boolean header = "HEADER".equals(kind);
+        return reject(header ? HEADER_PREFIX : MESSAGE_PREFIX, LayoutIssue.of(header ? LayoutIssueCode.L09 : LayoutIssueCode.L11, null,
+                "HEADER_LAYOUT_ID", (header ? "헤더 " : "전문 ") + layoutId + " 에 시각 " + LayoutTimes.text(t) + " 에 확정된 버전이 없습니다"));
+    }
+
+    /** 지정한 버전 행이 없다(L11). */
+    public static BusinessException noVersion(long layoutId, BigDecimal ver) {
+        return reject(MESSAGE_PREFIX, LayoutIssue.of(LayoutIssueCode.L11, null, "VER",
+                "레이아웃 " + layoutId + " 에 버전 " + VersionNumbers.label(ver) + " 이 없습니다"));
     }
 }

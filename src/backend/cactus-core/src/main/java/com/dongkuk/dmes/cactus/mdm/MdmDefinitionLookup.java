@@ -7,6 +7,7 @@ import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup;
@@ -20,6 +21,9 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
  * 것, 여럿이면 VER 가 가장 큰 것을 고른다 — MDM {@code RuleVersions.currentReleased} 와 같은 규칙({@link #select(List, Function, Function,
  * Function, Instant)} 하나). "현재 버전"을 캐시하지 않는다(적용 시작일 도래는 쓰기가 없어 기록이 남지 않는다). VER 는 major/minor 소수
  * ({@code BigDecimal}, D-144 — 예 {@code 1.000}·{@code 1.001})라 크기 비교는 {@code compareTo}(수 비교)로 한다.
+ *
+ * <p>전문(LAYOUT, D-144 3단계)도 같은 규칙으로 버전을 고른 뒤, 그 버전의 합성 구간 가운데 판정 시각을 담는 것의 스냅샷을 준다
+ * ({@link #layout}). 엔진 spi 에는 전문이 없으므로 이 클래스의 공개 메서드다.
  */
 public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
 
@@ -65,6 +69,23 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
         return service.one(MdmTargetType.CODE, maruCodeId).map(CodeRows.class::cast);
     }
 
+    /**
+     * 전문의 판정 시각 스냅샷({@code MdmLayoutSnapshot} 모양의 맵) — 그 시각에 적용되는 RELEASED 버전과, 그 버전 안에서 시각을 담는 합성
+     * 구간. 전문이 없거나 그 시각에 적용되는 버전이 없으면 빈 값, 받을 수 없으면(MDM 이 합성하지 못한 전문 포함) {@link MdmUnavailableException}.
+     */
+    @SuppressWarnings("unchecked")
+    public Optional<Map<String, Object>> layout(String layoutId, Instant evalTs) {
+        return service.one(MdmTargetType.LAYOUT, layoutId).flatMap(v -> selectLayout((List<MdmLayoutVersion>) v, evalTs));
+    }
+
+    /** 전문 RELEASED 버전 목록에서 판정 시각의 스냅샷 — 버전은 룰과 같은 규칙, 구간은 같은 {@code [from, to)} 판정. */
+    public static Optional<Map<String, Object>> selectLayout(List<MdmLayoutVersion> released, Instant evalTs) {
+        LocalDateTime t = LocalDateTime.ofInstant(evalTs, KST);
+        return select(released, MdmLayoutVersion::ver, MdmLayoutVersion::applyFrom, MdmLayoutVersion::applyTo, evalTs)
+                .flatMap(v -> v.segments().stream().filter(s -> covers(s.applyFrom(), s.applyTo(), t)).findFirst())
+                .map(MdmLayoutVersion.Segment::snapshot);
+    }
+
     /** 룰 RELEASED 버전 목록에서 판정 시각에 적용되는 것. */
     public static Optional<RuleDefinition> select(List<RuleDefinition> released, Instant evalTs) {
         return select(released, RuleDefinition::ver, RuleDefinition::applyFrom, RuleDefinition::applyTo, evalTs);
@@ -82,12 +103,13 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
                                   Function<T, LocalDateTime> applyTo, Instant evalTs) {
         LocalDateTime now = LocalDateTime.ofInstant(evalTs, KST);
         return released.stream()
-                .filter(d -> {
-                    LocalDateTime from = applyFrom.apply(d);
-                    LocalDateTime to = applyTo.apply(d);
-                    return from != null && !from.isAfter(now) && (to == null || now.isBefore(to));
-                })
+                .filter(d -> covers(applyFrom.apply(d), applyTo.apply(d), now))
                 .max(Comparator.comparing(ver)); // BigDecimal compareTo — 9.000 < 10.000, 1.009 < 1.010, 1.0 == 1.000
+    }
+
+    /** {@code from <= t < to}(KST 벽시계). 시작이 없으면 담지 않고, 끝 null 은 열린 끝이다. */
+    static boolean covers(LocalDateTime from, LocalDateTime to, LocalDateTime t) {
+        return from != null && !from.isAfter(t) && (to == null || t.isBefore(to));
     }
 
     /**

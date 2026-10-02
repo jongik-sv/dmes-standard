@@ -141,8 +141,8 @@ export function LayoutItemDetail({ item, units, readOnly, onChange }: LayoutItem
           <tr>
             <th style={DETAIL_LABEL_CELL}>오프셋 / 길이</th>
             <td style={DETAIL_VALUE_CELL}>
-              {`${item.OFFSET ?? 0} / ${item.LENGTH ?? 0}`}
-              <span style={hint}>{` · 위치 ${positionLabel(item.OFFSET ?? 0, item.LENGTH ?? 0)} (계산값)`}</span>
+              {`${item.OFFSET === null ? "-" : item.OFFSET ?? 0} / ${item.LENGTH ?? 0}`}
+              <span style={hint}>{` · 위치 ${item.OFFSET === null ? "-" : positionLabel(item.OFFSET ?? 0, item.LENGTH ?? 0)} (계산값)`}</span>
             </td>
           </tr>
         </tbody>
