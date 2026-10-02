@@ -100,6 +100,17 @@ public class MdmMetaService {
     }
 
     /**
+     * 캐시만 읽는다 — MDM 을 부르지 않고 진행 중인 적재도 기다리지 않는다(하위 프로젝트 C spec §6.2-4, {@link MdmCachedDefinitions}). 캐시에
+     * 없으면(만료 포함) 빈 값, "없음"으로 캐시된 키는 {@code absent()} 인 항목이다.
+     */
+    public Optional<MdmMetaCache.Entry> cached(MdmTargetType type, String key) {
+        if (key == null || key.isBlank()) {
+            return Optional.empty();
+        }
+        return cache.get(type, key);
+    }
+
+    /**
      * 이 인스턴스 캐시에서 지우고 다시 받는다(관리 화면 load). 진행 중인 적재에 합류하지 않는다 — 지움 기록을 남겨 그 전에 시작한 적재가 옛 값을
      * 넣지 못하게 하고, 자기 적재를 진행 중 자리에 앉혀 뒤이은 조회가 새 적재를 기다리게 한다.
      */
