@@ -5,14 +5,14 @@
  *   - search  — 목록 + 차원별 확립된 기준 단위 후보(§3)
  *   - save    — 등록/수정(§4)
  *   - delete  — 삭제(불변 규칙 I5)
- *   - compare — 환산 미리보기(A-PREVIEW, 불변 규칙 I1·I2, 서버가 유일한 계산 근원)
+ *   - compare — 환산 계산기(A-PREVIEW, 불변 규칙 I1·I2, 서버가 유일한 계산 근원)
  *
  * mls `noticeMgmt/api.ts` 의 unwrap 패턴을 그대로 따른다 — OASIS 는 BusinessException 을
  * HTTP 200 + `meta.success=false` 로 돌려주므로 이 판정이 없으면 저장 실패가 조용히 성공 처리된다.
  */
 import { apiRequest } from "@dk-oasis/shared/http";
 
-import type { ConvertPreviewForm, DimensionOption, UnitForm, UnitOption, UnitRow } from "./types";
+import type { ConvertRequest, DimensionOption, UnitForm, UnitOption, UnitRow } from "./types";
 
 const OASIS_BASE = "/api/mdm/oasis/unitMng";
 
@@ -29,7 +29,7 @@ export interface UnitSearchPayload {
 }
 
 export interface ConvertPreviewPayload {
-  value?: number;
+  value?: number | null;
   fromUnitCode?: string;
   toUnitCode?: string;
   dimension?: string;
@@ -98,11 +98,11 @@ export async function deleteUnit(unitCode: string): Promise<void> {
   await callAction<Record<string, unknown>>("delete", { unitCode });
 }
 
-/** action=compare(method=convertPreview) — A-PREVIEW, 불변 규칙 I1·I2. */
-export async function convertPreview(form: ConvertPreviewForm): Promise<ConvertPreviewPayload> {
+/** action=compare(method=convertPreview) — A-PREVIEW 환산 계산기 한 칸, 불변 규칙 I1·I2. */
+export async function convertPreview(req: ConvertRequest): Promise<ConvertPreviewPayload> {
   return callAction<ConvertPreviewPayload>("compare", {
-    value: form.value,
-    fromUnitCode: form.fromUnitCode,
-    toUnitCode: form.toUnitCode,
+    value: req.value,
+    fromUnitCode: req.fromUnitCode,
+    toUnitCode: req.toUnitCode,
   });
 }

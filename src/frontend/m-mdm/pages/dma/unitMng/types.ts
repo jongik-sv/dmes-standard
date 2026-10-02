@@ -54,17 +54,14 @@ export function emptyUnitForm(): UnitForm {
   return { unitCode: "", dimension: "", baseUnit: "", factor: "" };
 }
 
-export interface ConvertPreviewForm {
+/** 서버 compare 요청 한 건(A-PREVIEW 환산 계산기). value 는 parseCalcValue 로 정리한 문자열 그대로 보낸다. */
+export interface ConvertRequest {
   value: string;
   fromUnitCode: string;
   toUnitCode: string;
 }
 
-export function emptyConvertPreviewForm(): ConvertPreviewForm {
-  return { value: "", fromUnitCode: "", toUnitCode: "" };
-}
-
-/** 환산 미리보기 콤보용 단위 선택지(서버 search 응답의 unitOptions). */
+/** 환산 계산기 입력 단위 콤보·결과 표용 단위 선택지(서버 search 응답의 unitOptions). */
 export interface UnitOption {
   unitCode: string;
   dimension: string;
@@ -80,8 +77,24 @@ export function fromUnitComboData(units: UnitOption[]): ComboItem[] {
   return units.map((u) => ({ value: u.unitCode, label: `${u.unitCode} (${dimensionLabel(u.dimension)})` }));
 }
 
-/** 표시 단위 콤보 — 입력 단위와 같은 차원만(다른 차원 간 환산은 서버가 거부한다). 입력 단위가 없으면 전체. */
-export function toUnitComboData(units: UnitOption[], fromUnitCode: string): ComboItem[] {
+/** 결과 표 단위 — 입력 단위와 같은 차원만(다른 차원 간 환산은 서버가 거부한다). 입력 단위가 없으면 빈 목록. */
+export function sameDimensionUnits(units: UnitOption[], fromUnitCode: string): UnitOption[] {
   const from = units.find((u) => u.unitCode === fromUnitCode);
-  return fromUnitComboData(from ? units.filter((u) => u.dimension === from.dimension) : units);
+  return from ? units.filter((u) => u.dimension === from.dimension) : [];
+}
+
+export type CalcValue = { kind: "empty" } | { kind: "invalid" } | { kind: "ok"; value: string };
+
+const DECIMAL = /^[+-]?(\d+\.?\d*|\.\d+)$/;
+
+/** 환산할 값 — 공백·천 단위 쉼표를 걷고 십진수만 받는다(지수 표기 X). 계산은 하지 않는다(I2). */
+export function parseCalcValue(raw: string): CalcValue {
+  const value = raw.replace(/[\s,]/g, "");
+  if (!value) return { kind: "empty" };
+  return DECIMAL.test(value) ? { kind: "ok", value } : { kind: "invalid" };
+}
+
+/** 서버 환산값 표시 — 천 단위 쉼표, 유효숫자 15자리(소수 자리를 고정 길이로 자르지 않는다). 표시 형식만 바꾼다(I2). */
+export function formatConvertedValue(value: number): string {
+  return value.toLocaleString("en-US", { maximumSignificantDigits: 15 });
 }

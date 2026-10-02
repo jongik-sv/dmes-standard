@@ -5,7 +5,7 @@
  *
  * 정본: docs/mdm/screens/unitMng/unitMng_기능설계서.md. 페이지 유형 B(조회+상세).
  * mls `noticeMgmt` 패턴(좌측 read-only 그리드 + 우측 상세 폼)을 그대로 이식하고 `MdmPageLayout`(TSK-01-03)
- * 을 얹는다. 환산 미리보기(A-PREVIEW)는 서버 응답을 그대로 표시한다(클라이언트 계산 없음, 불변 규칙 I2).
+ * 을 얹는다. 환산 계산기(A-PREVIEW)는 ConvertCalculator 가 맡는다(서버 응답 그대로 표시, 불변 규칙 I2).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -20,18 +20,15 @@ import {
   SearchField,
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
-import { Button, ComboBox, Input } from "@dk-oasis/shared/form";
+import { ComboBox, Input } from "@dk-oasis/shared/form";
 import { MdmPageLayout } from "@/shell";
 
-import { convertPreview, deleteUnit, saveUnit, searchUnits, loadUnitOptions } from "./api";
+import { deleteUnit, saveUnit, searchUnits, loadUnitOptions } from "./api";
+import { ConvertCalculator } from "./ConvertCalculator";
 import {
   dimensionLabel,
-  emptyConvertPreviewForm,
   emptyFilters,
   emptyUnitForm,
-  fromUnitComboData,
-  toUnitComboData,
-  type ConvertPreviewForm,
   type DimensionOption,
   type UnitForm,
   type UnitMngFilters,
@@ -58,9 +55,6 @@ export default function UnitMngPage() {
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const [previewForm, setPreviewForm] = useState<ConvertPreviewForm>(emptyConvertPreviewForm);
-  const [previewResult, setPreviewResult] = useState<string | null>(null);
-
   const gridRows = useMemo(
     () =>
       rows.map((r) => ({
@@ -74,25 +68,6 @@ export default function UnitMngPage() {
   const dimensionComboData = useMemo(
     () => dimensionOptions.map((o) => ({ value: o.dimension, label: `${dimensionLabel(o.dimension)} (${o.dimension})` })),
     [dimensionOptions],
-  );
-
-  const fromUnitComboItems = useMemo(() => fromUnitComboData(unitOptions), [unitOptions]);
-  const toUnitComboItems = useMemo(
-    () => toUnitComboData(unitOptions, previewForm.fromUnitCode),
-    [unitOptions, previewForm.fromUnitCode],
-  );
-
-  /** 입력 단위를 바꾸면 다른 차원이 된 표시 단위는 비운다. */
-  const handlePreviewFromChange = useCallback(
-    (value: string) => {
-      setPreviewForm((p) => {
-        const from = unitOptions.find((u) => u.unitCode === value);
-        const to = unitOptions.find((u) => u.unitCode === p.toUnitCode);
-        const keepTo = !from || !to || from.dimension === to.dimension;
-        return { ...p, fromUnitCode: value, toUnitCode: keepTo ? p.toUnitCode : "" };
-      });
-    },
-    [unitOptions],
   );
 
   const handleSearch = useCallback(async () => {
@@ -223,24 +198,6 @@ export default function UnitMngPage() {
     }
   }, [selectedUnitCode, handleSearch]);
 
-  /** B-005 환산 미리보기 — 서버 응답을 그대로 표시한다(I2, 클라이언트 재계산 없음). */
-  const handlePreview = useCallback(async () => {
-    if (!previewForm.value || !previewForm.fromUnitCode || !previewForm.toUnitCode) {
-      setErrorMessage("환산할 값과 단위 두 개를 모두 입력하세요.");
-      return;
-    }
-    setIsBusy(true);
-    try {
-      const result = await convertPreview(previewForm);
-      setPreviewResult(result.value !== undefined ? String(result.value) : null);
-    } catch (e) {
-      setPreviewResult(null);
-      setErrorMessage(e instanceof Error ? e.message : String(e));
-    } finally {
-      setIsBusy(false);
-    }
-  }, [previewForm]);
-
   return (
     <MdmPageLayout
       group="dma"
@@ -333,52 +290,7 @@ export default function UnitMngPage() {
             </p>
           )}
 
-          <p style={{ padding: "0 var(--spacing-md)", fontWeight: 600, color: "var(--color-text-secondary)" }}>
-            환산 미리보기
-          </p>
-          <table style={DETAIL_TABLE_STYLE}>
-            <tbody>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>값</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input
-                    value={previewForm.value}
-                    onChange={(v) => setPreviewForm((p) => ({ ...p, value: v }))}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>입력 단위</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <ComboBox
-                    data={fromUnitComboItems}
-                    value={previewForm.fromUnitCode}
-                    onChange={handlePreviewFromChange}
-                    placeholder="입력 단위 선택"
-                    aria-label="입력 단위"
-                  />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>표시 단위</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <ComboBox
-                    data={toUnitComboItems}
-                    value={previewForm.toUnitCode}
-                    onChange={(v) => setPreviewForm((p) => ({ ...p, toUnitCode: v }))}
-                    placeholder="표시 단위 선택"
-                    aria-label="표시 단위"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-sm)", padding: "0 var(--spacing-md) var(--spacing-md)" }}>
-            <Button size="sm" onClick={() => void handlePreview()} disabled={isBusy}>
-              계산
-            </Button>
-            {previewResult !== null && <span data-testid="convert-preview-result">{previewResult}</span>}
-          </div>
+          <ConvertCalculator unitOptions={unitOptions} selectedUnitCode={selectedUnitCode} onError={setErrorMessage} />
         </ContentPanel>
       </ContentBody>
 

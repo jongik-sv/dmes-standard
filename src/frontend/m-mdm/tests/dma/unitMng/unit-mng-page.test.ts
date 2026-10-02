@@ -121,18 +121,20 @@ describe("UnitMngPage", () => {
     expect(visibleText(document.body)).toContain("단위 코드는 영문·숫자·밑줄 20자 이내여야 합니다.");
   });
 
-  it("환산 미리보기의 입력·표시 단위가 콤보 입력으로 그려진다", async () => {
+  it("환산 계산기는 값 칸과 입력 단위 콤보만 그리고, 표시 단위 콤보·[계산] 버튼은 없다", async () => {
     await render();
     await act(async () => {
       await new Promise((r) => setTimeout(r, 20)); // loadUnitOptions 응답 반영
     });
+    expect(visibleText(container)).toContain("환산 계산기");
+    const value = container.querySelector('input[aria-label="환산할 값"]') as HTMLInputElement | null;
     const from = container.querySelector('input[aria-label="입력 단위"]') as HTMLInputElement | null;
-    const to = container.querySelector('input[aria-label="표시 단위"]') as HTMLInputElement | null;
+    expect(value).toBeTruthy();
     expect(from).toBeTruthy();
-    expect(to).toBeTruthy();
     // 글자 입력 칸이 아니라 콤보(Mantine Select) 입력이다. 드롭다운 열기는 happy-dom 에서 재현되지 않아
-    // 선택지 구성·차원 좁힘은 preview-combo.test.ts 의 순수 함수 테스트가 맡는다.
+    // 결과 표·자동 계산은 convert-calculator.test.ts 가 맡는다.
     expect(from!.getAttribute("aria-haspopup")).toBe("listbox");
-    expect(to!.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(container.querySelector('input[aria-label="표시 단위"]')).toBeNull();
+    expect(Array.from(container.querySelectorAll("button")).some((b) => b.textContent === "계산")).toBe(false);
   });
 });
