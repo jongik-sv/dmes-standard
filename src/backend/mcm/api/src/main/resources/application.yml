@@ -154,6 +154,13 @@ caravan-console:
     emf-bean: cactusEntityManagerFactoryCaravan
     tx-bean:  cactusTransactionManagerCaravan
 
+# ── 클라이언트 IP 판정 (화면 사용 기록 등) ──
+# trusted-proxies = X-Forwarded-For 를 믿을 직전 홉 IP 목록(쉼표 구분, CIDR 미지원).
+# 운영에서는 BFF 와 NGINX 의 IP 를 반드시 추가한다. 목록에 없으면 헤더를 무시하고 remoteAddr 를 쓴다.
+dmes:
+  client-ip:
+    trusted-proxies: 127.0.0.1,::1
+
 # ── 로깅 ──
 logging:
   level:

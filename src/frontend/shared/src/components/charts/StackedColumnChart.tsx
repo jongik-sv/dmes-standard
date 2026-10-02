@@ -120,8 +120,11 @@ const StackedColumnChart = memo(function StackedColumnChart({
   }, [totals, line]);
 
   if (categories.length === 0 || series.length === 0) {
+    // 측정 대상 div 는 비어 있을 때도 그린다(빈 데이터로 마운트한 뒤 데이터가 들어와도 폭을 잰다).
     return (
-      <div style={{ color: "var(--color-text-muted)", fontSize: 12, padding: 12 }}>데이터 없음</div>
+      <div ref={boxRef} style={{ minWidth: 0, width: "100%" }}>
+        <div style={{ color: "var(--color-text-muted)", fontSize: 12, padding: 12 }}>데이터 없음</div>
+      </div>
     );
   }
 
