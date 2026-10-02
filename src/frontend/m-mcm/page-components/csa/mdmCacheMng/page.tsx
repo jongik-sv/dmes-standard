@@ -348,19 +348,13 @@ export default function MdmCacheMngPage() {
           </ContentPanel>
           {detailTarget ? (
             <ContentPanel key="detail" width={460}>
+              {/* 아래 분할(기본 40%) 안이라 높이가 작다 — 요약을 2~3줄로 줄여 남은 높이를 값 트리에 준다. */}
               <table style={DETAIL_TABLE_STYLE}>
                 <tbody>
                   <tr>
-                    <th style={DETAIL_LABEL_CELL}>대상</th>
-                    <td style={DETAIL_VALUE_CELL}>{TARGET_TYPE_LABELS[detailTarget.type] ?? detailTarget.type}</td>
-                  </tr>
-                  <tr>
-                    <th style={DETAIL_LABEL_CELL}>키</th>
-                    <td style={DETAIL_VALUE_CELL}>{detailTarget.key}</td>
-                  </tr>
-                  <tr>
-                    <th style={DETAIL_LABEL_CELL}>상태</th>
+                    <th style={DETAIL_LABEL_CELL}>항목</th>
                     <td style={DETAIL_VALUE_CELL}>
+                      {TARGET_TYPE_LABELS[detailTarget.type] ?? detailTarget.type} {detailTarget.key}{" "}
                       <DetailStateBadge busy={isEntryBusy} error={detailError} lookup={detailLookup} />
                     </td>
                   </tr>
@@ -373,24 +367,12 @@ export default function MdmCacheMngPage() {
                     </tr>
                   ) : null}
                   {detailLookup?.found ? (
-                    <>
-                      <tr>
-                        <th style={DETAIL_LABEL_CELL}>적재 시각</th>
-                        <td style={DETAIL_VALUE_CELL}>{detailLookup.detail.loadedAt}</td>
-                      </tr>
-                      <tr>
-                        <th style={DETAIL_LABEL_CELL}>조회 수</th>
-                        <td style={DETAIL_VALUE_CELL}>{detailLookup.detail.hits}</td>
-                      </tr>
-                      <tr>
-                        <th style={DETAIL_LABEL_CELL}>남은 수명(초)</th>
-                        <td style={DETAIL_VALUE_CELL}>{detailLookup.detail.remainingSeconds}</td>
-                      </tr>
-                      <tr>
-                        <th style={DETAIL_LABEL_CELL}>적재 순번</th>
-                        <td style={DETAIL_VALUE_CELL}>{detailLookup.detail.loadSeq}</td>
-                      </tr>
-                    </>
+                    <tr>
+                      <th style={DETAIL_LABEL_CELL}>적재</th>
+                      <td style={DETAIL_VALUE_CELL}>
+                        {`${detailLookup.detail.loadedAt} · 순번 ${detailLookup.detail.loadSeq} · 조회 ${detailLookup.detail.hits}회 · 남은 수명 ${detailLookup.detail.remainingSeconds}초`}
+                      </td>
+                    </tr>
                   ) : null}
                 </tbody>
               </table>
