@@ -78,12 +78,14 @@ function compact(items: readonly WidgetItem[], cols: number = WIDGET_COLS): Widg
   return fromLayout(verticalCompactor.compact(toLayout(items), cols), items);
 }
 
-/** 당김 때 같은 줄(y·x 동일)에서 firstId 위젯이 먼저 자리를 잡게 한다(놓거나 옮긴 위젯이 이긴다). 반환 순서는 입력 순서. */
+/**
+ * firstId 위젯을 정렬 순서와 상관없이 제 자리에 먼저 고정해, 겹치는 이웃이 비켜나게 한다(놓거나 옮긴 위젯이 이긴다).
+ * 1단계: 그 위젯을 고정물로 보고 이웃을 밀어낸다. 2단계: 고정을 풀고 전체를 위로 당긴다. 반환 순서는 입력 순서.
+ */
 function compactPreferring(items: readonly WidgetItem[], firstId: string, cols: number = WIDGET_COLS): WidgetItem[] {
-  const first = items.filter((i) => i.instId === firstId);
-  const rest = items.filter((i) => i.instId !== firstId);
-  const done = new Map(compact([...first, ...rest], cols).map((i) => [i.instId, i]));
-  return items.map((i) => done.get(i.instId)!);
+  const pinned = toLayout(items).map((l) => (l.i === firstId ? { ...l, static: true } : l));
+  const pushed = fromLayout(verticalCompactor.compact(pinned, cols), items);
+  return compact(pushed, cols);
 }
 
 /** 서버·저장값을 화면에 쓰기 전에 정리한다 — 중복 instId 제거, 크기·좌표 자르기, 겹침을 당김으로 풀기. */
@@ -174,8 +176,12 @@ export function moveByKey(
   const sharesColumns = (o: WidgetItem) => o.instId !== instId && o.x < target.x + target.w && target.x < o.x + o.w;
   if (key === "down") {
     const below = items.filter((o) => sharesColumns(o) && o.y >= target.y + target.h).sort((a, b) => a.y - b.y)[0];
-    if (!below) return [...items];
-    ny = below.y + 1;
+    if (!below || below.locked) return [...items];
+    // 아래 위젯을 이동 위젯 자리로 올리고 이동 위젯이 비켜나게 한다(순서 교환).
+    return compactPreferring(
+      items.map((i) => (i.instId === below.instId ? { ...i, y: target.y } : i)),
+      below.instId
+    );
   }
   if (key === "up") {
     const above = items.filter((o) => sharesColumns(o) && o.y + o.h <= target.y).sort((a, b) => b.y - a.y)[0];

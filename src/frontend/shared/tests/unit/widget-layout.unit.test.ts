@@ -168,6 +168,21 @@ describe("moveByKey", () => {
     expect(moveByKey(small, "b2", "left", "resize", REG)[0].w).toBe(6);
     expect(moveByKey(small, "b2", "up", "resize", REG)[0].h).toBe(8);
   });
+  it("↑ 는 x 가 다른 위 위젯과도 순서를 바꾼다", () => {
+    const items = [it_("a", "t.a", 0, 0, 6, 6), it_("b", "t.a", 3, 6, 6, 6)];
+    const out = moveByKey(items, "b", "up", "move", REG);
+    expect(out.find((i) => i.instId === "b")!.y).toBeLessThan(out.find((i) => i.instId === "a")!.y);
+    assertNoOverlap(out);
+  });
+  it("같은 줄 이웃 쪽으로 →/← 하면 이동 위젯이 그 자리로 가고 겹치지 않는다", () => {
+    const row = [it_("a", "t.a", 0, 0, 6, 6), it_("b", "t.a", 6, 0, 6, 6)];
+    const right = moveByKey(row, "a", "right", "move", REG);
+    expect(right.find((i) => i.instId === "a")).toMatchObject({ x: 1, y: 0 });
+    assertNoOverlap(right);
+    const left = moveByKey(row, "b", "left", "move", REG);
+    expect(left.find((i) => i.instId === "b")).toMatchObject({ x: 5, y: 0 });
+    assertNoOverlap(left);
+  });
   it("잠긴 위젯은 움직이지 않는다", () => {
     const locked = [it_("l", "t.a", 0, 0, 6, 6, true)];
     expect(moveByKey(locked, "l", "right", "move", REG)).toEqual(locked);
