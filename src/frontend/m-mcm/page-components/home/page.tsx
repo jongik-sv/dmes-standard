@@ -15,6 +15,7 @@ import { mergeWidgetRegistry, toWidgetDefRow, WidgetWorkspace, type WidgetDefRow
 
 import { WIDGET_REGISTRY } from "@/lib/generated/widget-registry";
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
+import { onWidgetDefsChanged } from "@/lib/widget-defs-events";
 
 import { fetchCurrentUser, type CurrentUser } from "./api";
 import { HOME_CSS, HOME_STYLE_HREF } from "./home-styles";
@@ -59,6 +60,24 @@ export default function PortalHomePage(_props: PageProps) {
       cancelled = true;
     };
   }, [defsAttempt]);
+
+  // 위젯관리에서 정의·기본 배치를 바꾸면 다시 받는다 — 홈 탭은 포털에서 계속 마운트돼 있어 처음 한 번만 받으면 새 위젯이 서랍에 안 보인다.
+  // 조용히 받는다: 로딩 상태로 바꾸지 않고, 실패하면 지금 등록부를 그대로 둔다(편집 중이면 작업 공간이 편집이 끝난 뒤 다시 불러온다).
+  useEffect(() => {
+    let alive = true;
+    const off = onWidgetDefsChanged(() => {
+      fetchWidgetDefs().then(
+        (res) => {
+          if (alive) dispatchDefs({ type: "loaded", rawDefs: res.rawDefs, homeDefault: res.homeDefault });
+        },
+        () => {}
+      );
+    });
+    return () => {
+      alive = false;
+      off();
+    };
+  }, []);
 
   const retryDefs = useCallback(() => {
     dispatchDefs({ type: "retry" });

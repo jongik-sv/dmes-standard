@@ -25,6 +25,7 @@ import {
 
 import { WIDGET_REGISTRY } from "@/lib/generated/widget-registry";
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
+import { notifyWidgetDefsChanged } from "@/lib/widget-defs-events";
 import { HOME_DEFAULT_LAYOUT } from "@/page-components/home/home-layout";
 
 import { DeptPicker } from "./DeptPicker";
@@ -207,6 +208,7 @@ export function LayoutTab() {
   }, [loadList]);
 
   const handleBoardSaved = useCallback(() => {
+    notifyWidgetDefsChanged();
     void refreshList();
   }, [refreshList]);
 
@@ -291,6 +293,7 @@ export function LayoutTab() {
         setDeleting(true);
         try {
           await deleteLayout(key);
+          notifyWidgetDefsChanged();
           showMessage({ message: "삭제되었습니다.", alertType: "success", toast: true });
           setPending((prev) => prev.filter((p) => p.layoutKey !== key));
           // 부서 배치를 지우면 그 줄이 목록에서 사라지므로 전사로 옮기고, 보드는 새로 마운트해 지운 뒤의 배치를 다시 받는다.

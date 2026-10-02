@@ -128,6 +128,28 @@ describe("WidgetWorkspace", () => {
     expect(btn('[data-action="start-edit"]')).not.toBeNull();
   });
 
+  it("편집 중 등록부가 바뀌면(정의 새로 고침) 변경을 버리지 않고, 새 위젯은 서랍에 바로 보이며, 다시 불러오기는 편집이 끝난 뒤 한다", async () => {
+    const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }]);
+    const props = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), boardWidth: 1440 };
+    act(() => root.render(h(WidgetWorkspace, props)));
+    await flush();
+    click('[data-action="start-edit"]');
+    click('.cm-widget[data-inst-id="a"] [data-action="remove"]');
+    const REG2: WidgetRegistry = {
+      ...REG,
+      "t.n": { meta: { id: "t.n", title: "새 위젯", defaultSize: { w: 6, h: 6 } }, load: async () => ({ default: () => h("p", null, "새") }) },
+    };
+    act(() => root.render(h(WidgetWorkspace, { ...props, registry: REG2 })));
+    await flush();
+    expect(btn('[data-action="done-edit"]')).not.toBeNull();
+    expect(host.querySelectorAll(".cm-widget").length).toBe(1);
+    expect(host.querySelector('.cm-widget-picker [data-widget-id="t.n"]')).not.toBeNull();
+    expect(store.calls).toEqual(["load"]);
+    click('[data-action="done-edit"]');
+    await flush();
+    expect(store.calls).toEqual(["load", "saveTab:home:홈:1", "load"]);
+  });
+
   it("[완료] 저장이 실패하면 편집 모드와 변경을 유지하고 알린다", async () => {
     const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }]);
     (store.saveTab as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("탭 이름이 중복입니다."));
