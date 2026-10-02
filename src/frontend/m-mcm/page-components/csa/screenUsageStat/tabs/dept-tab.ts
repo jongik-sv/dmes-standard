@@ -38,3 +38,19 @@ export function nextDeptSelection(
 export function loadDeptScreens(q: StatFilters, deptCd: string): Promise<ScreenUsageScreenRow[]> {
   return fetchByScreen(q, deptCd);
 }
+
+/** 선택 부서 상세의 최소 모양(탭 화면의 DeptDetail 이 이를 만족한다). */
+export interface DeptDetailLike {
+  deptCd: string;
+}
+
+/**
+ * 선택 부서의 화면별 조회가 실패한 뒤의 상세 상태. 그 부서 선택을 풀어(null)
+ * 같은 행을 다시 눌렀을 때 nextDeptSelection 이 다시 부르게 한다.
+ */
+export function detailAfterFailure<T extends DeptDetailLike>(
+  detail: T | null,
+  failedDeptCd: string
+): T | null {
+  return detail && detail.deptCd === failedDeptCd ? null : detail;
+}

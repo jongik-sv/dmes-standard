@@ -15,7 +15,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { createTabRequestTracker } from "../api";
 import type { ScreenUsageDeptRow, ScreenUsageScreenRow } from "../types";
 import { SCREEN_COLUMNS } from "./columns";
-import { DEPT_COLUMNS, loadDeptScreens, nextDeptSelection } from "./dept-tab";
+import { DEPT_COLUMNS, detailAfterFailure, loadDeptScreens, nextDeptSelection } from "./dept-tab";
 import type { StatTabViewProps } from "./tab-contract";
 
 interface DeptDetail {
@@ -51,6 +51,8 @@ export default function DeptTab({ data, query, busy }: StatTabViewProps) {
         } catch (e) {
           if (detailTracker.isLatest("deptScreens", n)) {
             showMessage({ title: "오류", message: errorText(e), alertType: "error" });
+            // 선택을 풀어 같은 행을 다시 누르면 재시도되게 한다.
+            setDetail((prev) => detailAfterFailure(prev, deptCd));
           }
         } finally {
           setIsDetailBusy(detailTracker.finish());

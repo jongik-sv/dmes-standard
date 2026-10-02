@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   deptTab,
+  detailAfterFailure,
   loadDeptScreens,
   nextDeptSelection,
 } from "@/page-components/csa/screenUsageStat/tabs/dept-tab";
@@ -66,6 +67,21 @@ describe("부서 행 선택", () => {
     expect(nextDeptSelection(noDept as unknown as Record<string, unknown>, null)).toBe("-");
     expect(nextDeptSelection(noDept as unknown as Record<string, unknown>, "-")).toBeNull();
     expect(nextDeptSelection(noDept as unknown as Record<string, unknown>, "D100")).toBe("-");
+  });
+});
+
+describe("부서 상세 조회 실패", () => {
+  it("실패하면 그 부서 선택을 풀어 같은 행 재선택이 요청을 다시 보낸다", () => {
+    const detail = { deptCd: "D100", rows: [] };
+    expect(nextDeptSelection({ deptCd: "D100" }, detail.deptCd)).toBeNull();
+    const after = detailAfterFailure(detail, "D100");
+    expect(after).toBeNull();
+    expect(nextDeptSelection({ deptCd: "D100" }, after?.deptCd ?? null)).toBe("D100");
+  });
+
+  it("다른 부서 선택으로 넘어간 뒤 늦게 실패한 이전 부서는 현재 선택을 건드리지 않는다", () => {
+    const detail = { deptCd: "D200", rows: [] };
+    expect(detailAfterFailure(detail, "D100")).toBe(detail);
   });
 });
 
