@@ -55,7 +55,7 @@ export interface ScreenUsageScreenRow extends Record<string, unknown> {
   openCnt: number;
   userCnt: number;
   durationMs: number;
-  avgDurationMs: number;
+  avgDurationMs: number | null;
   lastUsedDt: string | null;
 }
 
