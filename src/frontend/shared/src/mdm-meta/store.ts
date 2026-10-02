@@ -5,7 +5,7 @@
  *   응답 `{items:{키:메타}, missing:[], unavailable:[]}`.
  * - 받은 것(items)과 없는 것(missing → null)은 모듈+키 단위로 5분 둔다. unavailable(업무 BE 가 MDM 에서 받지 못함)은 두지 않는다 — 다음 요청 때 다시.
  * - 같은 키의 진행 중 요청은 공유한다.
- * - 404(모듈에 엔드포인트 없음 — analog·mdm)·401·403·연결 실패면 그 모듈을 세션 동안 끄고 다시 부르지 않는다. 401 에도 로그인 화면으로 보내지
+ * - 404(모듈에 엔드포인트 없음 — analog·mdm)·401·403·연결 실패(BFF 502·503·504 포함)·메타가 아닌 응답이면 그 모듈을 세션 동안 끄고 다시 부르지 않는다. 401 에도 로그인 화면으로 보내지
  *   않는다(`apiRequest` 를 쓰지 않는다 — A 에서 401 리다이렉트가 관리자를 로그아웃시킨 일이 있었다).
  * - 모든 상태는 `globalThis.__dkOasisMdmMetaStore__` 하나에 둔다. tsup 이 진입점마다 이 파일을 따로 묶어도(splitting: false) 포털 공급자와
  *   그리드·폼이 같은 store 를 본다.
@@ -67,17 +67,31 @@ interface MetaResponse {
   unavailable?: string[];
 }
 
+/** 응답 본문 → 메타 응답. `{items,…}` 또는 `{data:{items,…}}`. items 객체가 없으면 메타 응답이 아니다(모듈을 끈다). */
 function unwrap(body: unknown): MetaResponse {
-  if (!body || typeof body !== "object") return {};
-  const b = body as MetaResponse & { data?: MetaResponse };
-  if (b.items || b.missing || b.unavailable) return b;
-  return b.data && typeof b.data === "object" ? b.data : {};
+  const isMeta = (v: unknown): v is MetaResponse =>
+    !!v && typeof v === "object" && !!(v as MetaResponse).items && typeof (v as MetaResponse).items === "object";
+  if (isMeta(body)) return body;
+  const data = body && typeof body === "object" ? (body as { data?: unknown }).data : undefined;
+  if (isMeta(data)) return data;
+  throw new NotMetaResponseError();
 }
 
-/** 그 모듈을 세션 동안 끄는 실패인가 — 404·401·403·연결 실패. 요청 취소(AbortError)와 그 밖의 HTTP 오류(5xx 등)는 끄지 않는다. */
+/**
+ * 그 모듈을 세션 동안 끄는 실패인가 — 404·401·403, 연결 실패(브라우저 fetch 실패와 BFF 가 백엔드에 닿지 못한 502·503·504),
+ * 메타 응답이 아닌 본문(JSON 이 아님·items 없음). 요청 취소(AbortError)와 그 밖의 HTTP 오류(500 등)는 끄지 않는다.
+ */
+const DISABLING_STATUS = new Set([401, 403, 404, 502, 503, 504]);
 function disablesModule(err: unknown): boolean {
-  if (err instanceof HttpError) return err.status === 404 || err.status === 401 || err.status === 403;
+  if (err instanceof HttpError) return DISABLING_STATUS.has(err.status);
   return !(err instanceof Error && err.name === "AbortError");
+}
+
+class NotMetaResponseError extends Error {
+  constructor() {
+    super("mdmMeta 응답이 아닙니다(items 없음)");
+    this.name = "NotMetaResponseError";
+  }
 }
 
 async function flush(batch: Batch): Promise<void> {

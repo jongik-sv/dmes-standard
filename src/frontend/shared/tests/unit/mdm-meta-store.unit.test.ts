@@ -140,7 +140,7 @@ describe("requestColumns", () => {
     expect(f.calls[0].headers["Content-Type"]).toBe("application/json");
   });
 
-  it.each([401, 403, 404])("%s 이면 그 모듈을 끄고 로그인 화면으로 보내지 않으며 다시 부르지 않는다", async (status) => {
+  it.each([401, 403, 404, 502, 503, 504])("%s 이면 그 모듈을 끄고 로그인 화면으로 보내지 않으며 다시 부르지 않는다", async (status) => {
     const f = fakeMetaFetch({ status });
     vi.stubGlobal("fetch", f.fn);
     const before = window.location.href;
@@ -166,6 +166,26 @@ describe("requestColumns", () => {
     const r = await requestColumns("mpn", ["TITLE"]);
     expect(r.size).toBe(0);
     expect(isModuleDisabled("mpn")).toBe(true);
+  });
+
+  it("메타 응답이 아닌 본문(items 없음·JSON 아님)이면 그 모듈을 끈다", async () => {
+    const fn = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("<html>login</html>", { status: 200 }));
+    vi.stubGlobal("fetch", fn);
+    expect((await requestColumns("m1", ["TITLE"])).size).toBe(0);
+    expect(isModuleDisabled("m1")).toBe(true);
+    expect((await requestColumns("m2", ["TITLE"])).size).toBe(0);
+    expect(isModuleDisabled("m2")).toBe(true);
+  });
+
+  it("{data:{items}} 로 감싼 응답도 읽는다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ data: { items: { TITLE }, missing: [], unavailable: [] } }), { status: 200 }))
+    );
+    expect((await requestColumns("mls", ["TITLE"])).get("TITLE")).toEqual(TITLE);
   });
 
   it("500 은 끄지 않고 보관하지도 않는다", async () => {
