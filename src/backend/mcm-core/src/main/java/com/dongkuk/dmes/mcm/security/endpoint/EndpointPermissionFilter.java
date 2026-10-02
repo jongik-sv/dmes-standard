@@ -16,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 사용자가 요청 URL 에 대한 PERM 을 가지는지 검증한다.
@@ -24,7 +25,8 @@ import java.util.Set;
  * <ul>
  *   <li>URL 이 {@link PermKey#parseUrl(String)} 으로 파싱 가능 ({@code /api/{module}/{objId}/{action}}
  *       3-segment 또는 {@code /api/{module}/{serviceId}/{objId}/{action}} 4-segment) 이면
- *       {@link UserPermCache} 에서 O(1) lookup. 매칭 시 통과, 아니면 403.</li>
+ *       {@link UserPermCache} 에서 O(1) lookup. 매칭 시 통과, 아니면 403. 3-segment(serviceId "")는 캐시가 만드는
+ *       OASIS 키 {@code (module, "oasis", objId, action)} 로도 찾는다 — BFF parseRbacKey 와 같은 키 공간(2026-10-03).</li>
  *   <li>그 외 URL (예: actuator, login, 4 segment 미달 URL) 은 통과 — RBAC 매칭 대상 ✗
  *       (transition 기간 동안 mpn/mpp/mqc legacy URL 도 UNMATCHED 통과).</li>
  * </ul>
@@ -88,8 +90,9 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             "widgetdata/run",           // 쿼리 위젯 실행 — defId 만 받는다(요청 SQL 실행 금지)
             "widgetext/",               // 환율·날씨(서버 대리 호출·캐시)
             "widgetchat/",              // AI 챗봇(history/send/reset) — 본인 대화
-            "widgetmedia/file",         // 미디어 파일 내려받기(REST GET /api/mcm/widgetMedia/file/{fileId})
-            "ntfnotification/",         // 포털 알림 (list/unreadCount/markRead/markAllRead) — 본인 데이터
+            // 미디어 파일 내려받기(REST GET /api/mcm/widgetMedia/file/{fileId})는 4-segment 라 이 목록으로 맞출 수 없다 —
+            // 메서드까지 보는 isAuthOnlyMediaFile 이 따로 판정한다.
+            "ntfnotification/",        // 포털 알림 (list/unreadCount/markRead/markAllRead) — 본인 데이터
             "noticeboard/search",       // 포털 홈 공지 목록(mls) — 서비스가 현재 사용자 역할로 게시 대상을 거른다 (2026-10-02)
             "screenusage/record",       // 포털 화면 사용 구간 기록 — 로그인 사용자 전원, 사용자·부서는 서버가 인증 정보로 채운다 (2026-10-02)
             // MDM 메타 캐시(2026-10-02, spec 2026-10-02-mdm-meta-cache-design §5.5) — cactus /api/{module}/mdmMeta/*. 3-segment 라 권한 데이터로
@@ -103,6 +106,35 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             if (oa.startsWith(prefix)) return true;
         }
         return false;
+    }
+
+    /**
+     * 미디어 위젯 파일 내려받기 REST — 로그인 사용자 누구나(스펙 2026-10-02-widget-admin-generic §5.1).
+     * GET·HEAD 이고 URI 전체가 {@code /api/mcm/widgetMedia/file/{fileId}} 일 때만. fileId 는 서버가 만든 32자 소문자
+     * 16진수({@code WidgetMediaStorage})라 그 밖 모양({@code ..}·{@code %2F}·{@code ;} 등)은 일반 RBAC 판정으로 간다.
+     * BFF {@code proxy.ts} 의 authOnlyReadPatterns 와 동기화.
+     */
+    private static final Pattern AUTH_ONLY_MEDIA_FILE_URI =
+            Pattern.compile("^/api/mcm/widgetMedia/file/[0-9a-f]{32}$");
+
+    static boolean isAuthOnlyMediaFile(String method, String uri) {
+        return ("GET".equals(method) || "HEAD".equals(method))
+                && uri != null
+                && AUTH_ONLY_MEDIA_FILE_URI.matcher(uri).matches();
+    }
+
+    /** {@link UserPermCache} 가 만드는 권한키의 serviceId. */
+    private static final String OASIS_SERVICE_ID = "oasis";
+
+    /**
+     * 3-segment 컨벤션 URL({@code /api/{module}/{objId}/{action}}, serviceId "")이 볼 권한키 — OASIS 와 같은
+     * {@code PermKey(module, "oasis", objId, action)}. {@link UserPermCache} 는 "oasis" 키만 만들고 BFF {@code parseRbacKey}
+     * 도 3-segment 를 같은 {@code module/objId/action} 키로 본다. 예: 미디어 올리기 REST
+     * {@code POST /api/mcm/commWidgetMng/upload} → 위젯관리 화면의 {@code upload} 권한키. 그 밖 키는 null.
+     */
+    static PermKey oasisKeyForConvention(PermKey k) {
+        if (!k.serviceId().isEmpty()) return null;
+        return new PermKey(k.moduleId(), OASIS_SERVICE_ID, k.objId(), k.action());
     }
 
     /**
@@ -159,6 +191,12 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
         String uri = request.getRequestURI();
         String userId = securityIdentity.currentUserId();
 
+        // AUTH_ONLY REST — 미디어 파일 내려받기(GET·HEAD + 정확한 모양만). PermKey 로는 4-segment 라 판정할 수 없다.
+        if (isAuthOnlyMediaFile(request.getMethod(), uri)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         // PermKey 추출 — FE 컨벤션(/api/{module}/{objId}/{action}) 또는
         // BFF→BE OASIS 실제 경로(/oasis/{serviceId}/{action}, /{module}/oasis/{serviceId}/{action}).
         PermKey requested = PermKey.parseUrl(uri);
@@ -178,7 +216,9 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
         }
 
         Set<PermKey> userPerms = userPermCache.getPermissions(userId);
-        if (userPerms.contains(requested)) {
+        PermKey conventionAsOasis = oasisKeyForConvention(requested);
+        if (userPerms.contains(requested)
+                || (conventionAsOasis != null && userPerms.contains(conventionAsOasis))) {
             filterChain.doFilter(request, response);
             return;
         }
