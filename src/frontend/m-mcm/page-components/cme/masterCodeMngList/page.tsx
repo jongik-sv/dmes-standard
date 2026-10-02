@@ -226,7 +226,7 @@ export default function MasterCodeMngListPage() {
     const exportRows = filteredDetailRowsRef.current.map((r) => {
       const out: Record<string, unknown> = {};
       for (const c of DETAIL_COLUMNS) {
-        out[c.header.replace(/\s*\*$/, "").trim()] = (r as Record<string, unknown>)[c.key];
+        out[(c.header ?? c.key).replace(/\s*\*$/, "").trim()] = (r as Record<string, unknown>)[c.key];
       }
       return out;
     });

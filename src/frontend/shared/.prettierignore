@@ -39,3 +39,6 @@ coverage
 
 # Misc
 *.log
+
+# 생성 파일(엔진 계약 TS 타입, m-mdm gen:contract 가 만든다)
+src/evalex/engine-contract.generated.ts

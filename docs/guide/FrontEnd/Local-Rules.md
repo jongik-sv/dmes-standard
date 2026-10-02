@@ -101,7 +101,7 @@ pnpm dev
 
 ## 7. FormGroup 도움말
 
-- `<FormGroup label="..." tip={...}>` 형식으로 라벨과 tip을 함께 제공한다.
+- `<FormGroup label="..." tip={...}>` 형식으로 라벨과 tip을 함께 제공한다. MDM 컬럼 사전에 있는 입력은 `name` 을 주고 `label`·`tip` 을 생략해 MDM 캡션·카드 툴팁을 받을 수 있다(§27).
 - tip 문자열은 inline으로 직접 쓰지 않고 모듈별 `<module>/src/_shared/field-tips.ts`의 도메인별 `{DOMAIN}_TIPS` 객체에서 참조한다.
 - 같은 도메인 필드는 같은 TIPS 키를 재사용한다.
 - 도메인 의미가 다르면 별도 TIPS 객체를 만든다. 라벨이 같아도 의미가 다른 경우 같은 키를 공유하지 않는다.
@@ -290,3 +290,29 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 - 여러 줄 내용은 FormGroup 에 높이 고정을 푸는 클래스를 주고, 그 클래스에서 `height: auto; min-height: 26px`, 라벨 `height: auto`, 칸 안 입력칸 테두리 복원을 함께 정한다. 예시: `m-mcm/widget-types/_ext/styles.ts` 의 `.mcm-fg-block`.
 - 칸 안 그리드·목록은 `flex: 1 1 auto; min-width: 0` 를 줘야 폭을 얻는다. 주지 않으면 `auto-fill` 그리드가 한 열로 접힌다.
 - 확인은 브라우저에서 한다: 값 칸의 `scrollHeight > clientHeight` 이면 넘친 것이다.
+
+## 27. MDM 캡션·툴팁·값 검증 — 컬럼 사전을 화면이 따른다 (2026-10-03)
+
+포털 탭이 `MdmMetaProvider` 를 자동으로 씌운다. 화면이 MDM 컬럼 사전(표준 용어)을 따르게 하는 방법이다. 컴포넌트 사용법·props 정본은 `mantine-aggrid-ui` 스킬의 [mdm-meta](../../../.claude/skills/mantine-aggrid-ui/references/components/mdm-meta.md), 설계 정본은 `docs/superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md` 이다.
+
+**캡션·툴팁**
+
+- 그리드 열 `key` 가 MDM 물리명과 같으면(`TITLE`, `codeNm` → `CODE_NM`) 머리글을 MDM 캡션으로 바꿀 수 있고, 마우스를 올리면 컬럼·도메인 카드(툴팁)가 뜬다. `header` 를 적으면 기본(`explicit`)에서는 적은 값이 이긴다.
+- **기존 화면을 표준 캡션으로 바꿀 때는 `header` 를 지우지 말고 `captionPriority="mdm"` 을 쓴다(대체 캡션 유지).** 화면을 `<MdmMetaProvider captionPriority="mdm">` 으로 감싸고 `module` 은 지정하지 않는다(바깥 포털 공급자를 따른다). 그러면 MDM 이 있으면 표준 캡션, 없거나 받지 못하면(장애·사전에서 지워짐·포털 밖) 적어 둔 `header` 가 보인다. `header` 를 지우면 MDM 을 받지 못할 때 열 `key`(`TITLE`)가 머리글로 보이고 상세 라벨과 어긋난다. 새 화면은 `header` 를 생략해도 된다(D-146 명시 우선 — 생략하면 MDM 캡션을 따른다).
+- 표시용 파생 열(`CATEGORY_LABEL` 등)처럼 물리명과 맞지 않는 열은 `header` 를 적고, `captionPriority="mdm"` 화면에서는 `meta: false` 로 연결을 끈다(사전에 우연히 같은 이름이 생겨도 머리글이 바뀌지 않게, 묻는 이름도 줄인다). 다른 물리명이 맞으면 `meta="물리명"`, 엉뚱하게 맞으면 `meta: false`. 엑셀 내보내기 등에서 `header` 를 읽을 때는 `useResolvedGridColumns(COLUMNS)` 결과를 쓴다.
+- `FormGroup` 을 쓰는 입력은 `name`(화면 필드 이름)을 주고 `label` 을 생략하면 MDM 폼 캡션·툴팁이 붙는다(§7 의 `tip` 은 적으면 이긴다).
+- **상세 표(`DETAIL_*` th/td)는 `FormGroup` 을 쓰지 않으므로** 훅으로 직접 잇는다: 라벨은 `useMdmColumn("TITLE")` + `resolveCaption(column, "form", undefined, useMdmCaptionPriority(), "제목")`. 이 패턴은 아직 툴팁이 없다(MDM 카드를 띄울 공통 부품은 후속).
+
+**값 검증**
+
+- 표준 문구와 판정은 서버 저장 검증(`MdmValidator`, [백엔드 가이드 §11.2](../BackEnd/Backend-Implementation-Guide.md#112-저장-검증mdmvalidator))과 같다. 화면 검사는 편의이고 서버가 기준이다. 비즈니스식은 화면에서 검사하지 않는다.
+- 상세 표·폼: `useMdmValidation().validateValue(name, value)` 결과를 `Input error` 에 준다(입력 중 즉시). 같은 컴포넌트가 `useMdmColumn(name)` 을 이미 부르면 그 `column` 으로 `validateMdmValue(column, value)` 를 불러도 같다. 저장 직전에는 `validateRow(row, names)` 로 한 번 더 막는다. 훅은 받아 둔 메타만 쓰고 요청하지 않으므로 검사할 칸은 그리드 열·`FormGroup name`·`useMdmColumn(s)` 로 등록해 둔다(렌더마다 요청하면 MDM 장애 중 글자마다 POST 가 나간다). 이 화면이 검사하는 칸은 **서버 `MdmValidator.columns(...)` 와 같은 칸**이어야 한다 — 서버는 MDM 정의가 DB 칸보다 엄격하지 않은 칸만 검사한다.
+- 편집 그리드: `mdmValidate`(편집 가능하고 MDM 에 연결된 열만, 바뀐 칸 즉시 표시), 저장 전 전체는 `validateRows`.
+- **서버 저장 오류 → 칸 오류**: OASIS 서비스는 `BusinessException` 을 HTTP 200 + `meta.success=false` 봉투로 돌려주므로 `apiRequest` 가 던지지 않는다. 화면의 봉투 해제 함수가 거부를 판정해 던지는 오류에 봉투의 `errors` 를 실어야 `toFieldErrors(e, grid)` 가 읽는다(`noticeMgmt/api.ts` 의 `NoticeApiError.errors`). 이 결과를 그리드는 `fieldErrors`, 상세 표는 칸별 `error` 로 준다.
+- `rowIndex` 는 **요청 목록의 자리**다. 바뀐 행만 보내는 화면이 그 결과를 그리드 `fieldErrors` 에 그대로 넘기면 엉뚱한 행이 표시된다 — 요청 행에 `rowKey` 를 실어 보내 그 값으로 맞추거나 data 자리로 바꿔 넘긴다. 한 행만 보내는 상세 저장은 `rowIndex` 를 보지 않고 `field` 로만 칸을 찾는다.
+- 서버 오류 칸은 그 칸을 고치거나 다른 행을 열거나 새로 쓰면 지운다(낡은 판정을 남기지 않는다).
+
+**시험**
+
+- 화면 시험(happy-dom)은 진짜 shared(dist)에 가짜 `fetch` 를 꽂는다: `/api/{module}/mdmMeta/columns`·`domains` 응답, `apiRequest` 를 쓰는 화면이면 Node 의 `localStorage` 전역(파일 미지정이라 접근 시 예외)을 스텁하고, `PageLayout` 버튼이 필요하면 `/api/auth/me`·`myButtonEndpoints`(`{objId:"*",action:"*"}`)에 답한다. 실제 MDM 정의는 입력 제한에 먼저 걸릴 수 있으니 시험용은 더 엄격한 가짜 정의(짧은 길이·필수)를 쓴다. 예: `m-mls/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`.
+- 예시 화면: `m-mls/pages/lsh/noticeMgmt/`(`notice-columns.tsx` 의 `TITLE` 열 대체 header + 파생 열 `meta: false`, `page.tsx` 의 `captionPriority="mdm"` 공급자와 저장 흐름, `NoticeTitleRow.tsx`).

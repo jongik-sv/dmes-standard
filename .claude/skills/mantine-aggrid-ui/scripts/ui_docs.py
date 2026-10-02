@@ -40,6 +40,7 @@ GROUPS: list[tuple[str, list[str]]] = [
     ("팝업·메시지 (`modal`, `message-provider`, `use-api-call`)", ["modal", "message"]),
     ("대시보드 (`@dk-oasis/shared/dashboard`)", ["dashboard"]),
     ("위젯 (`@dk-oasis/shared/widget`)", ["widget"]),
+    ("MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)", ["mdm-meta"]),
     ("탭·트리·룩업·기타", ["tabs", "tree", "lookup", "markdown-editor", "notice-body-view", "detail-popover", "json-view", "matrix-table", "charts", "export-to-excel", "icons"]),
 ]
 
@@ -68,6 +69,20 @@ EXCLUDED: dict[str, str] = {
     "GridHelpButton": "GridPanel help prop 으로 쓴다",
     "GRID_TEMP_ID_FIELD": "GridPanel·useGridDataManager 내부 필드",
     "MessageProvider": "호스트 root layout 이 감싼다",
+    "MdmGridTooltip": "AgDataGrid 머리글 툴팁 내부 컴포넌트",
+    "requestDomains": "useMdmColumn(s) 내부 요청(mdm-meta 문서 참고)",
+    "peekColumn": "mdm-meta store 동기 조회 — 훅 내부용",
+    "peekDomain": "mdm-meta store 동기 조회 — 훅 내부용",
+    "isModuleDisabled": "mdm-meta store 상태 — 훅 내부용",
+    "resetMdmMetaStore": "시험용",
+    "MDM_META_TTL_MS": "mdm-meta store 상수",
+    "MDM_META_BATCH_MS": "mdm-meta store 상수",
+    "MDM_META_CARD_MAX_CODES": "MdmMetaCard 상수",
+    "mdmCaption": "resolveCaption 내부용",
+    "resolveMdmPhysName": "useMdmColumn 내부용(toPhysName + meta)",
+    "useMdmCaptionPriority": "AgDataGrid·FormGroup 내부용",
+    "useMdmMetaScope": "AgDataGrid·FormGroup 내부용",
+    "formatMdmDataType": "MdmMetaCard 내부용",
 }
 
 # coverage 대상 shared index 파일
@@ -84,6 +99,7 @@ EXPORT_FILES = [
     "components/json-view/index.ts",
     "components/dashboard/index.ts",
     "widget/index.ts",
+    "mdm-meta/index.ts",
     "components/matrix-table/index.ts",
     "components/charts/index.ts",
     "components/modal.tsx",

@@ -4,7 +4,8 @@
  * mdmCacheMng — MDM 캐시 관리(시스템관리 > MDM 캐시 관리). 화면 유형 D(마스터-디테일) + E(등록 팝업).
  * 위: 업무 모듈별 캐시 상태, 아래: 고른 모듈의 캐시 항목. 신규 = 고른 모듈 인스턴스에 미리 적재, 삭제·재등록 = MDM 변경 기록에 강제 기록
  * (모든 모듈·인스턴스가 다음 확인 때 반영). 항목 행을 누르면 오른쪽 상세 패널에 그 항목의 캐시 값 전체를 JSON 트리로 보인다(SYSADMIN,
- * 컬럼 bizExpr.text 포함 — spec §4.2 예외, 2026-10-02 사용자 결정). spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §6,
+ * 컬럼 bizExpr.text 포함 — spec §4.2 예외, 2026-10-02 사용자 결정). 모듈 상태에 캐시 추정 크기·힙, 항목에 추정 크기·마지막 조회를 보이고
+ * 항목은 키·크기·조회 수 순으로 받을 수 있다(A2, 2026-10-02). spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §6,
  * 규칙 정본: .claude/skills/mantine-aggrid-ui/references/screen-patterns.md §D·§E, docs/guide/FrontEnd/Local-Rules.md §9(중요 액션).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -25,7 +26,9 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { describeForceFailure, fetchAllStatus, fetchEntries, fetchEntry, forceByType, groupByType } from "./api";
 import { RegisterModal } from "./RegisterModal";
+import { ESTIMATED_SIZE_HELP, describeLifetime, formatBytes } from "./utils";
 import {
+  ENTRY_SORT_OPTIONS,
   MDM_CACHE_MODULES,
   MODULE_STATE_LABELS,
   TARGET_TYPE_LABELS,
@@ -68,9 +71,29 @@ const MODULE_COLUMNS: GridColumn[] = [
   { key: "lastSuccessAt", header: "마지막 확인", width: 140, align: "center" },
   { key: "consecutiveFailures", header: "연속 실패", width: 100, align: "right", type: "number" },
   { key: "total", header: "항목 수", width: 100, align: "right", type: "number" },
+  // 크기는 숫자로 두고 render 로만 바꿔 쓴다 — 열 정렬은 숫자 값으로 한다. 상태를 받지 못한 행(null)은 다른 칸처럼 비운다.
+  {
+    key: "totalBytes",
+    header: "캐시 추정 크기",
+    width: 110,
+    align: "right",
+    type: "number",
+    headerTooltip: ESTIMATED_SIZE_HELP,
+    render: (v) => (v == null ? "" : formatBytes(v as number)),
+  },
+  {
+    key: "heapUsed",
+    header: "힙 사용/최대",
+    width: 160,
+    align: "right",
+    type: "number",
+    headerTooltip: "이 인스턴스 JVM 힙 — 사용 중 / 최대",
+    render: (v, row) => (v == null && row.heapMax == null ? "" : `${formatBytes(v as number | null)} / ${formatBytes(row.heapMax as number | null)}`),
+  },
 ];
 
-const ENTRY_COLUMNS: GridColumn[] = [
+/** 항목 열. "남은 수명" 머리 툴팁은 고른 모듈의 유휴 수명·절대 상한으로 만든다(모르면 툴팁 없음). */
+const entryColumns = (lifetimeHelp: string): GridColumn[] => [
   { key: "type", header: "대상", width: 100, align: "left", render: (v) => TARGET_TYPE_LABELS[v as MdmTargetType] ?? String(v) },
   { key: "key", header: "키", width: 180, minWidth: 180, align: "left" },
   {
@@ -82,8 +105,25 @@ const ENTRY_COLUMNS: GridColumn[] = [
       v ? <GridBadge label="없음" muted /> : <GridBadge label="있음" bg="var(--color-success-soft)" color="var(--color-success)" />,
   },
   { key: "loadedAt", header: "적재 시각", width: 140, align: "center" },
+  { key: "lastAccessAt", header: "마지막 조회", width: 140, align: "center" },
   { key: "hits", header: "조회 수", width: 100, align: "right", type: "number" },
-  { key: "remainingSeconds", header: "남은 수명(초)", width: 100, align: "right", type: "number" },
+  {
+    key: "remainingSeconds",
+    header: "남은 수명(초)",
+    width: 100,
+    align: "right",
+    type: "number",
+    headerTooltip: lifetimeHelp || undefined,
+  },
+  {
+    key: "bytes",
+    header: "추정 크기",
+    width: 100,
+    align: "right",
+    type: "number",
+    headerTooltip: ESTIMATED_SIZE_HELP,
+    render: (v) => formatBytes(v as number | null),
+  },
 ];
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -132,6 +172,17 @@ export default function MdmCacheMngPage() {
   const detailTargetRef = useRef<DetailTarget | null>(null);
 
   const selectedEntries = useMemo(() => entries.filter((e) => selectedKeys.includes(e.rowId)), [entries, selectedKeys]);
+  /** 모듈의 "남은 수명" 도움말 — 그 모듈 status 의 유휴 수명·절대 상한. */
+  const lifetimeHelpOf = useCallback(
+    (module: string | undefined) => {
+      const row = modules.find((r) => r.module === module);
+      return describeLifetime(row?.maxIdleSeconds, row?.maxAgeSeconds);
+    },
+    [modules],
+  );
+  // 도움말 문자열이 바뀔 때만 열을 다시 만든다 — 조회마다 modules 배열이 새로 생겨도 열 정의가 그대로라 사용자가 바꾼 열 폭이 유지된다.
+  const lifetimeHelp = lifetimeHelpOf(selectedModule);
+  const entryGridColumns = useMemo(() => entryColumns(lifetimeHelp), [lifetimeHelp]);
 
   /** 항목 하나의 캐시 값을 받아 상세 패널에 보인다. 서버는 캐시를 읽기만 한다(조회 수·적재 없음). */
   const openDetail = useCallback(async (target: DetailTarget) => {
@@ -317,6 +368,7 @@ export default function MdmCacheMngPage() {
       <SearchArea onSearch={() => void handleSearch()}>
         <SearchField label="대상 종류" type="select" options={TARGET_TYPE_OPTIONS} value={filters.type} onChange={(v) => setFilter("type", v)} />
         <SearchField label="키" value={filters.q} onChange={(v) => setFilter("q", v)} />
+        <SearchField label="정렬" type="select" options={ENTRY_SORT_OPTIONS} value={filters.sort} onChange={(v) => setFilter("sort", v)} />
       </SearchArea>
 
       <ContentBody root direction="column" resizable storageKey="mcm.csa.mdmCacheMng">
@@ -342,7 +394,7 @@ export default function MdmCacheMngPage() {
             >
               <AgDataGrid
                 rowKey="rowId"
-                columns={ENTRY_COLUMNS}
+                columns={entryGridColumns}
                 data={entries}
                 columnSizing="fit"
                 selectable
@@ -357,7 +409,7 @@ export default function MdmCacheMngPage() {
           </ContentPanel>
           {detailTarget ? (
             <ContentPanel key="detail" width={460}>
-              {/* 아래 분할(기본 40%) 안이라 높이가 작다 — 요약을 2~3줄로 줄여 남은 높이를 값 트리에 준다. */}
+              {/* 아래 분할(기본 40%) 안이라 높이가 작다 — 요약을 3~4줄로 줄여 남은 높이를 값 트리에 준다. 도움말은 마우스를 올리면 보인다. */}
               <table style={DETAIL_TABLE_STYLE}>
                 <tbody>
                   <tr>
@@ -376,12 +428,20 @@ export default function MdmCacheMngPage() {
                     </tr>
                   ) : null}
                   {detailLookup?.found ? (
-                    <tr>
-                      <th style={DETAIL_LABEL_CELL}>적재</th>
-                      <td style={DETAIL_VALUE_CELL}>
-                        {`${detailLookup.detail.loadedAt} · 순번 ${detailLookup.detail.loadSeq} · 조회 ${detailLookup.detail.hits}회 · 남은 수명 ${detailLookup.detail.remainingSeconds}초`}
-                      </td>
-                    </tr>
+                    <>
+                      <tr>
+                        <th style={DETAIL_LABEL_CELL}>적재</th>
+                        <td style={DETAIL_VALUE_CELL} title={`추정 크기: ${ESTIMATED_SIZE_HELP}`}>
+                          {`${detailLookup.detail.loadedAt} · 순번 ${detailLookup.detail.loadSeq} · 추정 크기 ${formatBytes(detailLookup.detail.bytes)}`}
+                        </td>
+                      </tr>
+                      <tr>
+                        <th style={DETAIL_LABEL_CELL}>조회</th>
+                        <td style={DETAIL_VALUE_CELL} title={lifetimeHelpOf(detailTarget.module) || undefined}>
+                          {`${detailLookup.detail.hits}회 · 마지막 ${detailLookup.detail.lastAccessAt || "-"} · 남은 수명 ${detailLookup.detail.remainingSeconds}초`}
+                        </td>
+                      </tr>
+                    </>
                   ) : null}
                 </tbody>
               </table>

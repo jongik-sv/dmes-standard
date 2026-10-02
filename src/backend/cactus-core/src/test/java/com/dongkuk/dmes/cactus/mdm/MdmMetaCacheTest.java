@@ -47,7 +47,7 @@ class MdmMetaCacheTest {
 
         clock.advance(Duration.ofMinutes(50));
         assertThat(cache.peek(MdmTargetType.COLUMN, "A")).isEmpty();
-        assertThat(cache.sizes().get(MdmTargetType.COLUMN)).isEqualTo(1); // 읽기만 — 만료 항목 정리는 get·상한 정리가 한다
+        assertThat(cache.storedCount(MdmTargetType.COLUMN)).isEqualTo(1); // 읽기만 — 만료 항목 정리는 get·상한 정리·폴링(markApplied)이 한다
     }
 
     @Test
@@ -57,11 +57,11 @@ class MdmMetaCacheTest {
         assertThat(cache.get(MdmTargetType.RULE, "R")).isPresent();
         clock.advance(Duration.ofMinutes(1));
         assertThat(cache.get(MdmTargetType.RULE, "R")).isEmpty();
-        assertThat(cache.sizes().get(MdmTargetType.RULE)).isZero();
+        assertThat(cache.storedCount(MdmTargetType.RULE)).isZero();
     }
 
     @Test
-    void max_entries_를_넘으면_적재가_오래된_순으로_95퍼센트까지_지운다() {
+    void max_entries_를_넘으면_오래_안_쓴_순으로_95퍼센트까지_지운다() {
         cache.put(MdmTargetType.COLUMN, "A", "a", cache.ticket());
         clock.advance(Duration.ofSeconds(1));
         cache.put(MdmTargetType.DOMAIN, "B", "b", cache.ticket());
@@ -196,5 +196,197 @@ class MdmMetaCacheTest {
         assertThat(rows.get(0).key()).isEqualTo("COIL_THK");
         assertThat(rows.get(0).remainingSeconds()).isEqualTo(50 * 60);
         assertThat(cache.entries(null, null)).hasSize(3);
+    }
+
+    // ── A2: 유휴 수명(max-idle)·절대 상한(max-age)·LRU 정리·추정 크기 ──
+
+    /** 유휴 60분·절대 상한 24시간 캐시. */
+    private MdmMetaCache idleCache(int maxEntries) {
+        MdmMetaCache c = new MdmMetaCache(maxEntries, Duration.ofHours(24), Duration.ofMinutes(60), clock);
+        c.clear(0);
+        return c;
+    }
+
+    @Test
+    void 히트가_수명을_연장한다() {
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "A", "v", c.ticket());
+        clock.advance(Duration.ofMinutes(50));
+        assertThat(c.get(MdmTargetType.COLUMN, "A")).isPresent(); // 여기서 연장 — 다음 만료는 지금부터 60분 뒤
+        clock.advance(Duration.ofMinutes(50));
+        assertThat(c.get(MdmTargetType.COLUMN, "A")).as("적재 뒤 100분이지만 마지막 조회 뒤 50분").isPresent();
+        clock.advance(Duration.ofMinutes(59));
+        assertThat(c.peek(MdmTargetType.COLUMN, "A").orElseThrow().remainingSeconds()).isEqualTo(60);
+    }
+
+    @Test
+    void 히트_없이_max_idle_이_지나면_만료된다() {
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "A", "v", c.ticket());
+        clock.advance(Duration.ofMinutes(59));
+        assertThat(c.peek(MdmTargetType.COLUMN, "A")).isPresent();
+        clock.advance(Duration.ofMinutes(1));
+        assertThat(c.get(MdmTargetType.COLUMN, "A")).isEmpty();
+        assertThat(c.storedCount(MdmTargetType.COLUMN)).isZero();
+    }
+
+    @Test
+    void 히트를_계속해도_max_age_가_지나면_만료된다() {
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "A", "v", c.ticket());
+        for (int i = 0; i < 47; i++) { // 30분마다 조회 — 23시간 30분
+            clock.advance(Duration.ofMinutes(30));
+            assertThat(c.get(MdmTargetType.COLUMN, "A")).as("%d번째 조회", i).isPresent();
+        }
+        assertThat(c.peek(MdmTargetType.COLUMN, "A").orElseThrow().remainingSeconds()).as("두 기한 중 이른 쪽 — 절대 상한").isEqualTo(30 * 60);
+        clock.advance(Duration.ofMinutes(30)); // 적재 뒤 24시간
+        assertThat(c.get(MdmTargetType.COLUMN, "A")).isEmpty();
+    }
+
+    @Test
+    void peek_과_entries_는_수명을_연장하지_않는다() {
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "A", "v", c.ticket());
+        Instant loaded = clock.instant();
+        clock.advance(Duration.ofMinutes(30));
+        c.peek(MdmTargetType.COLUMN, "A");
+        c.entries(null, null);
+        MdmMetaCache.EntryView v = c.peek(MdmTargetType.COLUMN, "A").orElseThrow();
+        assertThat(v.lastAccessAt()).isEqualTo(loaded);
+        assertThat(v.hits()).isZero();
+        clock.advance(Duration.ofMinutes(30));
+        assertThat(c.get(MdmTargetType.COLUMN, "A")).isEmpty();
+    }
+
+    @Test
+    void get_히트는_마지막_조회_시각을_옮기고_적재_시각은_두고_entries_에_싣는다() {
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "A", "v", c.ticket());
+        Instant loaded = clock.instant();
+        clock.advance(Duration.ofMinutes(10));
+        c.get(MdmTargetType.COLUMN, "A");
+        MdmMetaCache.EntryView v = c.entries(null, null).get(0);
+        assertThat(v.loadedAt()).isEqualTo(loaded);
+        assertThat(v.lastAccessAt()).isEqualTo(loaded.plus(Duration.ofMinutes(10)));
+        assertThat(v.remainingSeconds()).isEqualTo(60 * 60);
+    }
+
+    @Test
+    void remainingSeconds_는_두_기한_중_이른_쪽이다() {
+        MdmMetaCache c = new MdmMetaCache(100, Duration.ofMinutes(90), Duration.ofMinutes(60), clock);
+        c.clear(0);
+        c.put(MdmTargetType.COLUMN, "A", "v", c.ticket());
+        clock.advance(Duration.ofMinutes(10));
+        assertThat(c.peek(MdmTargetType.COLUMN, "A").orElseThrow().remainingSeconds()).as("유휴 기한이 이르다").isEqualTo(50 * 60);
+        clock.advance(Duration.ofMinutes(40));
+        c.get(MdmTargetType.COLUMN, "A"); // 유휴 기한 = 110분, 절대 기한 = 90분
+        assertThat(c.peek(MdmTargetType.COLUMN, "A").orElseThrow().remainingSeconds()).as("절대 상한이 이르다").isEqualTo(40 * 60);
+    }
+
+    @Test
+    void 상한_정리_때_최근_조회된_항목이_남고_오래_안_쓴_항목이_지워진다() {
+        MdmMetaCache c = idleCache(3); // 목표 2
+        c.put(MdmTargetType.COLUMN, "A", "a", c.ticket());
+        clock.advance(Duration.ofSeconds(1));
+        c.put(MdmTargetType.COLUMN, "B", "b", c.ticket());
+        clock.advance(Duration.ofSeconds(1));
+        c.put(MdmTargetType.COLUMN, "C", "c", c.ticket());
+        clock.advance(Duration.ofSeconds(1));
+        c.get(MdmTargetType.COLUMN, "A"); // 가장 먼저 적재했지만 방금 조회
+        clock.advance(Duration.ofSeconds(1));
+
+        c.put(MdmTargetType.COLUMN, "D", "d", c.ticket()); // 4 > 3 → 2개까지
+
+        assertThat(c.entries(null, null)).extracting(MdmMetaCache.EntryView::key).containsExactly("A", "D");
+        assertThat(c.trimPasses()).isEqualTo(1);
+    }
+
+    @Test
+    void 추정_크기는_UTF8_JSON_직렬화_크기이고_없음은_0_직렬화_실패는_마이너스1_이며_합계에서_뺀다() {
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "A", "값", c.ticket()); // "\"값\"" = 따옴표 2 + 한글 3바이트
+        c.put(MdmTargetType.COLUMN, "X", null, c.ticket());
+        c.put(MdmTargetType.DOMAIN, "BAD", new Object(), c.ticket()); // 빈 빈(bean) — Jackson 이 직렬화하지 못한다
+        Map<String, Object> batch = new java.util.LinkedHashMap<>();
+        batch.put("R1", Map.of("k", "v")); // {"k":"v"} = 9
+        batch.put("R2", null);
+        c.putAll(MdmTargetType.RULE, batch, c.ticket());
+
+        assertThat(c.peek(MdmTargetType.COLUMN, "A").orElseThrow().bytes()).isEqualTo(5);
+        assertThat(c.peek(MdmTargetType.COLUMN, "X").orElseThrow().bytes()).isZero();
+        assertThat(c.peek(MdmTargetType.DOMAIN, "BAD").orElseThrow().bytes()).isEqualTo(-1);
+        assertThat(c.peek(MdmTargetType.RULE, "R1").orElseThrow().bytes()).isEqualTo(9);
+        Map<MdmTargetType, Long> bytes = c.bytes();
+        assertThat(bytes.get(MdmTargetType.COLUMN)).isEqualTo(5);
+        assertThat(bytes.get(MdmTargetType.DOMAIN)).isZero();
+        assertThat(bytes.get(MdmTargetType.RULE)).isEqualTo(9);
+        assertThat(bytes.get(MdmTargetType.CODE)).isZero();
+    }
+
+    @Test
+    void 세_인자_생성자는_유휴_수명이_절대_상한과_같아_적재_뒤_수명만_본다() {
+        cache.put(MdmTargetType.COLUMN, "A", "v", cache.ticket());
+        assertThat(cache.maxIdle()).isEqualTo(cache.maxAge()).isEqualTo(Duration.ofMinutes(60));
+        clock.advance(Duration.ofMinutes(30));
+        cache.get(MdmTargetType.COLUMN, "A");
+        clock.advance(Duration.ofMinutes(30));
+        assertThat(cache.get(MdmTargetType.COLUMN, "A")).isEmpty();
+    }
+
+    // ── A2 보강: 만료 항목 쓸기 — 다시 조회되지 않는 항목이 맵에 남아 counts·bytes 를 부풀리지 않게 ──
+
+    @Test
+    void 폴링의_markApplied_가_만료_항목을_쓸어_내고_살아_있는_항목_지움_기록_세대는_건드리지_않는다() {
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "OLD", "o", c.ticket()); // "o" → 3바이트
+        c.put(MdmTargetType.DOMAIN, "HOT", "h", c.ticket());
+        clock.advance(Duration.ofMinutes(30));
+        c.get(MdmTargetType.DOMAIN, "HOT"); // 연장 — 다음 만료는 지금부터 60분 뒤
+        clock.advance(Duration.ofMinutes(28));
+        MdmMetaCache.Ticket before = c.ticket();
+        c.evict(MdmTargetType.RULE, "GONE", 3); // 5분이 안 된 지움 기록
+        clock.advance(Duration.ofMinutes(2)); // OLD 는 60분 동안 조회 없음 → 만료, HOT 은 30분
+        assertThat(c.storedCount(MdmTargetType.COLUMN)).as("쓸기 전에는 맵에 남아 있다").isEqualTo(1);
+
+        c.markApplied(5);
+
+        assertThat(c.storedCount(MdmTargetType.COLUMN)).as("만료 항목은 맵에서 빠진다").isZero();
+        assertThat(c.sizes().get(MdmTargetType.COLUMN)).isZero();
+        assertThat(c.bytes().get(MdmTargetType.COLUMN)).isZero();
+        assertThat(c.storedCount(MdmTargetType.DOMAIN)).as("살아 있는 항목은 남는다").isEqualTo(1);
+        assertThat(c.bytes().get(MdmTargetType.DOMAIN)).isEqualTo(3);
+        MdmMetaCache.EntryView hot = c.peek(MdmTargetType.DOMAIN, "HOT").orElseThrow();
+        assertThat(hot.hits()).as("쓸기는 조회 수·마지막 조회를 바꾸지 않는다").isEqualTo(1);
+        assertThat(hot.remainingSeconds()).isEqualTo(30 * 60);
+        assertThat(c.tombstoneCount()).as("지움 기록은 그대로").isEqualTo(1);
+        assertThat(c.put(MdmTargetType.RULE, "GONE", "옛 값", before)).as("지움 기록이 남아 옛 적재를 막는다").isFalse();
+        assertThat(c.ticket().generation()).as("세대는 그대로").isEqualTo(before.generation());
+        assertThat(c.put(MdmTargetType.CODE, "NEW", "n", before)).as("세대가 그대로라 그 전 Ticket 도 다른 키는 넣는다").isTrue();
+        assertThat(c.appliedSeq()).isEqualTo(5);
+    }
+
+    @Test
+    void markApplied_없이도_sizes_와_bytes_는_만료_항목을_세지_않고_지우지도_않는다() {
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "OLD", "값", c.ticket()); // 5바이트
+        clock.advance(Duration.ofMinutes(30));
+        c.put(MdmTargetType.COLUMN, "NEW", "o", c.ticket()); // 3바이트
+        clock.advance(Duration.ofMinutes(30)); // OLD 만료, NEW 는 30분 남음 — 폴링이 실패해 markApplied 가 없는 동안
+
+        assertThat(c.sizes().get(MdmTargetType.COLUMN)).isEqualTo(1);
+        assertThat(c.bytes().get(MdmTargetType.COLUMN)).isEqualTo(3);
+        assertThat(c.entries(null, null)).extracting(MdmMetaCache.EntryView::key).containsExactly("NEW"); // 목록과 같은 기준
+        assertThat(c.storedCount(MdmTargetType.COLUMN)).as("읽기만 — 지우지 않는다").isEqualTo(2);
+    }
+
+    @Test
+    void 적재_시각은_밀리초로_잘라_조회_전_마지막_조회_시각과_같다() {
+        clock.advance(Duration.ofNanos(123_456_789)); // 2026-10-02T00:00:00.123456789Z
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "A", "v", c.ticket());
+
+        MdmMetaCache.EntryView v = c.peek(MdmTargetType.COLUMN, "A").orElseThrow();
+        assertThat(v.loadedAt()).isEqualTo(Instant.parse("2026-10-02T00:00:00.123Z"));
+        assertThat(v.lastAccessAt()).isEqualTo(v.loadedAt());
     }
 }

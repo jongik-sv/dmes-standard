@@ -37,7 +37,7 @@ export interface StatTabViewProps {
 }
 
 export const toExportColumns = (cols: readonly GridColumn[]): ExportColumn[] =>
-  cols.map(({ key, header }) => ({ key, header }));
+  cols.map(({ key, header }) => ({ key, header: header ?? key }));
 
 export const exportFileName = (tabLabel: string, ymd: string): string =>
   `화면사용통계_${tabLabel}_${ymd}.xlsx`;

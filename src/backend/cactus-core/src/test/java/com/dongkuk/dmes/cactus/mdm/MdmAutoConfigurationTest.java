@@ -3,20 +3,28 @@ package com.dongkuk.dmes.cactus.mdm;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.sun.net.httpserver.HttpServer;
 import java.io.OutputStream;
+import java.lang.reflect.Proxy;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import kr.dongkuk.maru.mdm.engine.domain.DomainValidator;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
+import kr.dongkuk.maru.mdm.engine.rule.RuleEngine;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.DataType;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -63,10 +71,101 @@ class MdmAutoConfigurationTest {
             MdmClientProperties p = ctx.getBean(MdmClientProperties.class);
             assertThat(p.getPollInterval()).isEqualTo(Duration.ofSeconds(10));
             assertThat(p.getMaxEntries()).isEqualTo(20_000);
-            assertThat(p.getMaxAge()).isEqualTo(Duration.ofMinutes(60));
+            assertThat(p.getMaxAge()).as("적재 뒤 절대 상한").isEqualTo(Duration.ofHours(24));
+            assertThat(p.getMaxIdle()).as("마지막 조회 뒤 유휴 수명").isEqualTo(Duration.ofMinutes(60));
+            MdmMetaCache cache = ctx.getBean(MdmMetaCache.class);
+            assertThat(cache.maxAge()).isEqualTo(Duration.ofHours(24));
+            assertThat(cache.maxIdle()).isEqualTo(Duration.ofMinutes(60));
             assertThat(p.getReadTimeout()).isEqualTo(Duration.ofSeconds(5));
             assertThat(p.getConnectTimeout()).isEqualTo(Duration.ofMillis(200));
             assertThat(p.getRevisionLookback()).isEqualTo(MdmRevisionPoller.DEFAULT_LOOKBACK);
+            // 하위 프로젝트 C §6.3 — 검증기만 빈이다. 캐시 전용 엔진(평가기·도메인 검증기·룰 엔진)은 검증기 안에서 만들고 일반 엔진 타입으로 내놓지 않는다
+            // (업무 코드가 RuleEngine·DomainValidator 를 주입받아 캐시 전용 엔진을 얻거나, 모듈이 만든 엔진 빈이 검증기에 끼어들지 않게)
+            assertThat(ctx).hasSingleBean(MdmValidator.class).hasSingleBean(DefinitionLookup.class).hasSingleBean(CodeLookup.class);
+            assertThat(ctx).doesNotHaveBean(MdmEvaluator.class).doesNotHaveBean(DomainValidator.class).doesNotHaveBean(RuleEngine.class);
+            assertThat(p.getValidation().getOnUnavailable()).isEqualTo(MdmValidator.OnUnavailable.REJECT);
+            assertThat(ctx.getBean(MdmValidator.class).onUnavailable()).isEqualTo(MdmValidator.OnUnavailable.REJECT);
+        });
+    }
+
+    @Test
+    void validation_on_unavailable_PASS_설정이_검증기에_닿는다() {
+        runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.validation.on-unavailable=PASS").run(ctx -> {
+            assertThat(ctx.getBean(MdmClientProperties.class).getValidation().getOnUnavailable()).isEqualTo(MdmValidator.OnUnavailable.PASS);
+            assertThat(ctx.getBean(MdmValidator.class).onUnavailable()).isEqualTo(MdmValidator.OnUnavailable.PASS);
+        });
+    }
+
+    @Test
+    void 꺼져_있으면_검증기도_엔진_빈도_없다() {
+        runner.run(ctx -> {
+            assertThat(ctx).doesNotHaveBean(MdmValidator.class);
+            assertThat(ctx).doesNotHaveBean(MdmEvaluator.class);
+            assertThat(ctx).doesNotHaveBean(DomainValidator.class);
+            assertThat(ctx).doesNotHaveBean(RuleEngine.class);
+        });
+    }
+
+    /**
+     * 모듈이 자기 업무 룰용으로 만든 엔진 빈(예: {@code MdmDefinitionLookup} 위의 룰 엔진 — 평가 중 MDM 을 부를 수 있다)이 있어도 검증기에 닿지 않는다.
+     * 검증기는 캐시 전용 엔진을 스스로 만든다(평가 중 MDM 호출 금지 C6, 캐시 부재 = 검증 불가 C7). 덫 빈은 불리면 센다.
+     */
+    @Test
+    void 사용자_RuleEngine_DomainValidator_빈은_MdmValidator_에_닿지_않는다() {
+        AtomicInteger trapCalls = new AtomicInteger();
+        RuleEngine trapRules = trap(RuleEngine.class, trapCalls);
+        DomainValidator trapDomains = trap(DomainValidator.class, trapCalls);
+        MutableClock clock = new MutableClock(Instant.parse("2026-10-03T00:00:00Z"));
+        FakeMetaFeed feed = new FakeMetaFeed();
+        feed.put(MdmTargetType.COLUMN, "TITLE", MdmValidatorTest.str("TITLE", "제목", 3, true));
+        feed.put(MdmTargetType.RULE_SET, "S1", List.of(MdmValidatorTest.set("S1", "R1")));
+        feed.put(MdmTargetType.RULE, "R1", List.of(MdmValidatorTest.contractRule("R1", "TITLE", DataType.STRING)));
+        MdmMetaCache cache = new MdmMetaCache(100, Duration.ofMinutes(60), clock);
+        cache.clear(0);
+        MdmMetaService service = new MdmMetaService(feed, cache, clock);
+
+        runner.withPropertyValues(ON).withBean(MdmMetaService.class, () -> service).withBean(RuleEngine.class, () -> trapRules)
+                .withBean(DomainValidator.class, () -> trapDomains).run(ctx -> {
+                    assertThat(ctx).hasNotFailed();
+                    assertThat(ctx.getBean(RuleEngine.class)).isSameAs(trapRules);
+                    assertThat(ctx.getBean(DomainValidator.class)).isSameAs(trapDomains);
+                    MdmValidator validator = ctx.getBean(MdmValidator.class);
+                    MdmValidationResult r = validator.validate(MdmValidationRequest.rows("g", List.<Map<String, Object>>of(
+                            Map.of("TITLE", ""))).columns("TITLE").ruleSet("S1").evalTs(clock.instant()).build());
+
+                    assertThat(trapCalls).as("덫 엔진이 불렸다").hasValue(0);
+                    assertThat(r.errors()).containsExactly(new ErrorDetail("g", null, 0, "TITLE", "E001", "제목은(는) 필수입니다"));
+                    assertThat(r.unavailable()).isEmpty();
+                    assertThat(r.ruleSetResults().get(0)).singleElement().satisfies(s -> assertThat(s.setId()).isEqualTo("S1"));
+                    int fetches = feed.fetchCalls.get();
+                    validator.validate(MdmValidationRequest.rows("g", List.<Map<String, Object>>of(Map.of("TITLE", "ab"))).columns("TITLE")
+                            .ruleSet("S1").evalTs(clock.instant()).build());
+                    assertThat(feed.fetchCalls.get()).as("받아 둔 정의만으로 평가했다(평가 중 MDM 호출 없음)").isEqualTo(fetches);
+                });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T trap(Class<T> type, AtomicInteger calls) {
+        return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type}, (proxy, method, args) -> {
+            if (method.getDeclaringClass() == Object.class) {
+                return switch (method.getName()) {
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == args[0];
+                    default -> "trap " + type.getSimpleName();
+                };
+            }
+            calls.incrementAndGet();
+            throw new IllegalStateException("덫 " + type.getSimpleName() + "." + method.getName() + " 이 불렸다");
+        });
+    }
+
+    @Test
+    void max_idle_과_max_age_설정이_캐시에_닿는다() {
+        runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.max-idle=15m", "cactus.mdm.max-age=2h").run(ctx -> {
+            assertThat(ctx.getBean(MdmClientProperties.class).getMaxIdle()).isEqualTo(Duration.ofMinutes(15));
+            MdmMetaCache cache = ctx.getBean(MdmMetaCache.class);
+            assertThat(cache.maxIdle()).isEqualTo(Duration.ofMinutes(15));
+            assertThat(cache.maxAge()).isEqualTo(Duration.ofHours(2));
         });
     }
 

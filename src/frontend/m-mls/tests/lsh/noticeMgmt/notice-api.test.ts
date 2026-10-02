@@ -95,6 +95,42 @@ describe("noticeMgmt api", () => {
     expect(api.toUserMessage(err, "fallback")).toBe((err as Error).message);
   });
 
+  it("업무 거부 — errors 상세를 오류 객체에 실어 둔다(화면이 toFieldErrors 로 칸에 붙인다). 예외 원문 문구는 뺀다", async () => {
+    apiRequest.mockResolvedValue({
+      meta: { success: false, message: "입력값을 확인해주세요." },
+      errors: [
+        {
+          grid: "master",
+          rowIndex: 0,
+          field: "TITLE",
+          code: "INVALID_VALUE",
+          message: "제목은(는) 최대 1000자입니다",
+        },
+        { field: "CONTENT", message: "java.lang.IllegalStateException: boom" },
+        {
+          code: "MDM_UNAVAILABLE",
+          message: "MDM 정의를 받을 수 없어 검증하지 못했습니다.",
+        },
+      ],
+    });
+    const err = (await api
+      .saveNotices([])
+      .catch((e: unknown) => e)) as InstanceType<typeof api.NoticeApiError>;
+    expect(err.errors).toEqual([
+      {
+        grid: "master",
+        rowIndex: 0,
+        field: "TITLE",
+        code: "INVALID_VALUE",
+        message: "제목은(는) 최대 1000자입니다",
+      },
+      {
+        code: "MDM_UNAVAILABLE",
+        message: "MDM 정의를 받을 수 없어 검증하지 못했습니다.",
+      },
+    ]);
+  });
+
   it("업무 거부 메시지가 예외 원문이면 정해진 문장을 쓴다", async () => {
     apiRequest.mockResolvedValue({
       meta: { success: false, message: "SQLITE_CONSTRAINT: UNIQUE failed" },

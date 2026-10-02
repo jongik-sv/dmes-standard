@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -54,6 +55,8 @@ public class MdmMetaController {
     static final int MAX_PAGE_SIZE = 500;
     /** entry 404 본문의 code — 화면이 "캐시에 없음"과 다른 404(모듈 불일치·없는 경로)를 가른다. */
     static final String NOT_CACHED_CODE = "MDM_ENTRY_NOT_CACHED";
+    /** entries 정렬 — key(기본, 종류·키 순)·bytes(추정 크기 큰 순)·hits(조회 수 많은 순). 같은 값은 종류·키 순. */
+    static final List<String> ENTRY_SORTS = List.of("key", "bytes", "hits");
 
     private final String module;
     private final String instanceId;
@@ -142,6 +145,16 @@ public class MdmMetaController {
         MdmRevisionPoller.Status s = poller.status();
         Map<String, Integer> counts = new LinkedHashMap<>();
         cache.sizes().forEach((t, n) -> counts.put(t.name(), n));
+        Map<String, Long> bytes = new LinkedHashMap<>();
+        long totalBytes = 0;
+        for (Map.Entry<MdmTargetType, Long> b : cache.bytes().entrySet()) {
+            bytes.put(b.getKey().name(), b.getValue());
+            totalBytes += b.getValue();
+        }
+        Runtime rt = Runtime.getRuntime();
+        Map<String, Long> heap = new LinkedHashMap<>();
+        heap.put("usedBytes", rt.totalMemory() - rt.freeMemory());
+        heap.put("maxBytes", rt.maxMemory());
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("module", this.module);
         out.put("instanceId", instanceId);
@@ -151,8 +164,12 @@ public class MdmMetaController {
         out.put("consecutiveFailures", s.consecutiveFailures());
         out.put("lastError", s.lastError());
         out.put("counts", counts);
+        out.put("bytes", bytes); // 추정 크기(UTF-8 JSON 직렬화) — 실제 힙 점유는 이보다 크다
+        out.put("totalBytes", totalBytes);
+        out.put("heap", heap);
         out.put("maxEntries", cache.maxEntries());
-        out.put("maxAgeSeconds", cache.maxAge().getSeconds());
+        out.put("maxAgeSeconds", cache.maxAge().getSeconds()); // 적재 뒤 절대 상한
+        out.put("maxIdleSeconds", cache.maxIdle().getSeconds()); // 마지막 조회 뒤 유휴 수명
         return ResponseEntity.ok(out);
     }
 
@@ -161,6 +178,7 @@ public class MdmMetaController {
                                                        @RequestHeader(value = ROLE_HEADER, required = false) String roles,
                                                        @RequestParam(value = "type", required = false) String type,
                                                        @RequestParam(value = "q", required = false) String q,
+                                                       @RequestParam(value = "sort", required = false) String sort,
                                                        @RequestParam(value = "page", defaultValue = "0") int page,
                                                        @RequestParam(value = "size", defaultValue = "50") int size) {
         ResponseEntity<Map<String, Object>> denied = guard(module, roles);
@@ -175,9 +193,19 @@ public class MdmMetaController {
             }
             t = parsed.get();
         }
+        String sortBy = sort == null || sort.isBlank() ? "key" : sort.trim();
+        if (!ENTRY_SORTS.contains(sortBy)) {
+            return badRequest("정렬 기준이 올바르지 않습니다(key·bytes·hits): " + sort);
+        }
         int pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, size));
         int pageNo = Math.max(0, page);
-        List<MdmMetaCache.EntryView> all = cache.entries(t, q);
+        List<MdmMetaCache.EntryView> all = new ArrayList<>(cache.entries(t, q)); // 종류·키 순
+        // 페이지를 자르기 전에 전체를 정렬한다. List.sort 는 안정 정렬이라 같은 값은 종류·키 순을 지킨다.
+        switch (sortBy) {
+            case "bytes" -> all.sort(Comparator.comparingLong(MdmMetaCache.EntryView::bytes).reversed());
+            case "hits" -> all.sort(Comparator.comparingLong(MdmMetaCache.EntryView::hits).reversed());
+            default -> { }
+        }
         List<Map<String, Object>> items = all.stream().skip((long) pageNo * pageSize).limit(pageSize).map(MdmMetaController::entryRow).toList();
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("total", all.size());
@@ -190,7 +218,8 @@ public class MdmMetaController {
     /**
      * 항목 하나의 캐시 값 전체(관리 화면 항목 상세 보기). 컬럼은 {@code bizExpr.text} 까지, 룰은 정의 전체를 싣는다 — spec §4.2 "bizExpr 는 서버
      * 전용"의 예외로, SYSADMIN 상세 보기에만 사용자가 허용했다(2026-10-02). 목록({@link #entries})은 여전히 값을 싣지 않는다.
-     * 캐시를 읽기만 한다({@link MdmMetaCache#peek}) — 조회 수를 올리지 않고, 없어도 MDM 에서 받지 않는다(404). 만료 항목은 없는 것으로 본다.
+     * 캐시를 읽기만 한다({@link MdmMetaCache#peek}) — 조회 수·마지막 조회 시각을 바꾸지 않고(수명을 연장하지 않는다), 없어도 MDM 에서 받지 않는다(404).
+     * 만료 항목은 없는 것으로 본다.
      */
     @GetMapping("/entry")
     public ResponseEntity<Map<String, Object>> entry(@PathVariable("module") String module,
@@ -360,6 +389,8 @@ public class MdmMetaController {
         row.put("key", v.key());
         row.put("absent", v.absent());
         row.put("loadedAt", v.loadedAt().toString());
+        row.put("lastAccessAt", v.lastAccessAt().toString());
+        row.put("bytes", v.bytes());
         row.put("hits", v.hits());
         row.put("remainingSeconds", v.remainingSeconds());
         row.put("loadSeq", v.loadSeq());

@@ -9,9 +9,19 @@
  * 열 조건 입력은 기본 열 조합(없으면 첫 조합) 값으로 채운다. 식 텍스트는 읽지 않는다(불변 9 — AST 만 평가한다).
  */
 import type { AstNode } from "@/contract/engine-contract.generated";
-import { convertForType, evaluate, isSupported, prepare, usedVariables, type EvalValue } from "@/evalex";
-import { D, PLAIN_DECIMAL, type Dec } from "@/evalex/decimal";
-import { PatternRejected, classify } from "@/evalex/pattern";
+import {
+  D,
+  PLAIN_DECIMAL,
+  PatternRejected,
+  classify,
+  convertForType,
+  evaluate,
+  isSupported,
+  prepare,
+  usedVariables,
+  type Dec,
+  type EvalValue,
+} from "@/evalex";
 
 import { parseCells, type CellObj } from "../decision-table/grid-model";
 import type { ResolvedVar, StoredRow } from "../types";

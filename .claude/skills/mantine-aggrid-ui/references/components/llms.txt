@@ -56,6 +56,10 @@
 
 - [위젯 (WidgetWorkspace · WidgetBoard · WidgetFrame · WidgetTabs · WidgetPicker)](widget.md): 사용자가 위젯(조각 프로그램)을 24칸 격자에서 자유롭게 옮기고 크기를 바꾸며, 탭으로 나눠 서버에 저장하게 하는 홈 화면을 만들 때 쓴다(관리자 정의 위젯·사용 중지·기본 배치 편집 포함). 행 단위 대시보드가 필요하면 [dashboard](dashboard.md), 사용자가 자유 배치·탭·서버 저장을 쓰면 widget 을 고른다.
 
+## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)
+
+- [MDM 화면 메타 (MdmMetaProvider · useMdmColumn · MdmMetaCard · useMdmValidation)](mdm-meta.md): 그리드 머리글·폼 라벨의 캡션과 툴팁을 MDM 컬럼 사전에서 가져오고, 입력값을 MDM 정의(필수·형식·길이·허용 코드·표준식)로 즉시 검사할 때 쓴다. 포털 탭이 공급자를 자동으로 씌우므로 캡션·툴팁은 화면이 아무것도 하지 않아도 붙는다. 값 검사는 화면이 켠다.
+
 ## 탭·트리·룩업·기타
 
 - [Tabs](tabs.md): 한 영역 안에서 내용을 밑줄형 탭으로 나눠 보여 줄 때 쓴다. 탭 머리줄만 그리므로 본문 전환은 화면이 직접 한다.
@@ -95,3 +99,17 @@
 - `GridHelpButton`: GridPanel help prop 으로 쓴다
 - `GRID_TEMP_ID_FIELD`: GridPanel·useGridDataManager 내부 필드
 - `MessageProvider`: 호스트 root layout 이 감싼다
+- `MdmGridTooltip`: AgDataGrid 머리글 툴팁 내부 컴포넌트
+- `requestDomains`: useMdmColumn(s) 내부 요청(mdm-meta 문서 참고)
+- `peekColumn`: mdm-meta store 동기 조회 — 훅 내부용
+- `peekDomain`: mdm-meta store 동기 조회 — 훅 내부용
+- `isModuleDisabled`: mdm-meta store 상태 — 훅 내부용
+- `resetMdmMetaStore`: 시험용
+- `MDM_META_TTL_MS`: mdm-meta store 상수
+- `MDM_META_BATCH_MS`: mdm-meta store 상수
+- `MDM_META_CARD_MAX_CODES`: MdmMetaCard 상수
+- `mdmCaption`: resolveCaption 내부용
+- `resolveMdmPhysName`: useMdmColumn 내부용(toPhysName + meta)
+- `useMdmCaptionPriority`: AgDataGrid·FormGroup 내부용
+- `useMdmMetaScope`: AgDataGrid·FormGroup 내부용
+- `formatMdmDataType`: MdmMetaCard 내부용

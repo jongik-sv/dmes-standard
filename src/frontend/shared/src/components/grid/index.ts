@@ -1,4 +1,13 @@
-export { AgDataGrid, DataGrid, type AgDataGridProps, type GridColumn } from "./AgDataGrid";
+export {
+  AgDataGrid,
+  DataGrid,
+  MdmGridTooltip,
+  useResolvedGridColumns,
+  type AgDataGridProps,
+  type AgDataGridFieldError,
+  type GridColumn,
+  type MdmGridTooltipParams,
+} from "./AgDataGrid";
 export { EditableRowList, type EditableRowListProps } from "./EditableRowList";
 export { moveItem, removeAt, updateAt } from "./row-list-ops";
 export {

@@ -7,14 +7,88 @@ export class HttpError extends Error {
    * `status` 로 대략적인 분류만 가능 — 4xx/5xx).
    */
   public readonly code?: string;
+  /**
+   * BE 오류 상세(OASIS CactusResponse `errors` — cactus-core `ErrorDetail`)를 그대로 보존한다. 저장 검증(MdmValidator) 오류를 그리드·폼 칸에
+   * 표시할 때 {@link toFieldErrors} 로 읽는다. 상세가 없으면 undefined.
+   */
+  public readonly errors?: BackendErrorDetail[];
 
-  constructor(status: number, statusText: string, message?: string, code?: string) {
+  constructor(status: number, statusText: string, message?: string, code?: string, errors?: BackendErrorDetail[]) {
     super(message ?? `Request failed with ${status} ${statusText}`);
     this.name = "HttpError";
     this.status = status;
     this.statusText = statusText;
     this.code = code;
+    this.errors = errors;
   }
+}
+
+/** BE 오류 상세 한 건 — cactus-core `ErrorDetail(grid, rowKey, rowIndex, field, code, message)`. */
+export interface BackendErrorDetail {
+  grid?: string | null;
+  rowKey?: string | number | null;
+  rowIndex?: number | null;
+  field?: string | null;
+  code?: string | null;
+  message: string;
+}
+
+/** 칸 하나의 서버 오류 — `AgDataGrid fieldErrors` 와 폼 칸 표시가 읽는 모양(spec §4, C9). */
+export interface FieldErrorItem {
+  /** 요청 행의 `rowKey` 값. */
+  rowKey?: string;
+  /** 요청 목록에서의 자리. */
+  rowIndex?: number;
+  /** 요청 행의 원래 키. */
+  field: string;
+  message: string;
+}
+
+function errorDetailsOf(source: unknown): unknown[] | null {
+  if (Array.isArray(source)) return source;
+  if (source && typeof source === "object") {
+    const errors = (source as { errors?: unknown }).errors;
+    if (Array.isArray(errors)) return errors;
+  }
+  return null;
+}
+
+/**
+ * 서버 오류 → 칸 오류 목록. `field` 가 있는 상세만 남긴다(검증 불가 `MDM_UNAVAILABLE` 처럼 칸이 없는 것은 메시지로 보인다).
+ *
+ * OASIS 서비스는 `BusinessException` 을 HTTP 200 + `meta.success=false` 봉투로 돌려주므로 {@link apiRequest} 가 던지지 않는다 —
+ * 화면이 봉투를 판정해 던지는 오류에 `errors` 를 실어 두거나 봉투를 그대로 넘긴다.
+ *
+ * @param source `errors` 배열을 가진 값(OASIS 응답 봉투 `{ meta, errors }`, `errors` 를 실은 오류 객체, HTTP 4xx·5xx 에서
+ *   {@link apiRequest} 가 던진 {@link HttpError}) 또는 상세 배열
+ * @param grid 주면 그 그리드의 상세와 grid 가 없는 상세(폼 하나)만
+ */
+export function toFieldErrors(source: unknown, grid?: string): FieldErrorItem[] {
+  const details = errorDetailsOf(source);
+  if (!details) return [];
+  const out: FieldErrorItem[] = [];
+  for (const d of details) {
+    if (!d || typeof d !== "object") continue;
+    const e = d as BackendErrorDetail;
+    if (typeof e.field !== "string" || e.field.length === 0) continue;
+    if (grid != null && e.grid != null && e.grid !== "" && e.grid !== grid) continue;
+    const item: FieldErrorItem = { field: e.field, message: typeof e.message === "string" ? e.message : "" };
+    if (e.rowKey != null && e.rowKey !== "") item.rowKey = String(e.rowKey);
+    if (typeof e.rowIndex === "number" && Number.isInteger(e.rowIndex)) item.rowIndex = e.rowIndex;
+    out.push(rowKeyFirst(item));
+  }
+  return out;
+}
+
+/** 키 순서를 rowKey → rowIndex → field → message 로(로그·시험에서 읽기 쉽게). */
+function rowKeyFirst(item: FieldErrorItem): FieldErrorItem {
+  const { rowKey, rowIndex, field, message } = item;
+  return {
+    ...(rowKey !== undefined ? { rowKey } : {}),
+    ...(rowIndex !== undefined ? { rowIndex } : {}),
+    field,
+    message,
+  };
 }
 
 const NETWORK_ERROR_MESSAGE =
@@ -100,6 +174,40 @@ export async function getJson<T>(input: RequestInfo | URL, init?: RequestInit): 
 }
 
 /**
+ * 401 에도 로그인 화면으로 보내지 않는 JSON POST — 부가 정보(MDM 화면 메타 등)처럼 실패해도 화면을 그대로 두어야 하는 호출용.
+ *
+ * - 인증은 {@link apiRequest} 와 같다: 저장된 `oasis_access_token` 을 Bearer 로 싣고, 쿠키는 fetch 기본(same-origin)을 따른다.
+ * - `!res.ok` 면 상태를 담은 {@link HttpError}(401 포함 — 리다이렉트·force-logout 없음), 연결 실패는 일반 Error(AbortError 는 보존).
+ */
+export async function postJsonNoRedirect<T>(path: string, body: unknown, init: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...((init.headers as Record<string, string>) ?? {}),
+  };
+  let token: string | null = null;
+  try {
+    token = typeof window !== "undefined" ? localStorage.getItem("oasis_access_token") : null;
+  } catch {
+    token = null;
+  }
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, method: "POST", headers, body: JSON.stringify(body ?? {}) });
+  } catch (err) {
+    throw normalizeFetchError(err);
+  }
+  if (!res.ok) {
+    throw new HttpError(res.status, res.statusText, getHttpFallbackMessage(res.status));
+  }
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
+  return (await res.json()) as T;
+}
+
+/**
  * BE 표준 에러 응답 형식.
  *
  * BE 가 두 가지 응답 포맷을 사용하므로 union 으로 모두 수용한다:
@@ -124,6 +232,7 @@ interface ApiErrorBody {
   errors?: Array<{
     grid?: string;
     rowKey?: string;
+    rowIndex?: number;
     field?: string;
     code?: string;
     message: string;
@@ -258,11 +367,13 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     // BE 표준 에러 응답의 code 를 HttpError 에 보존한다. body.error.code 가 aps-core ApiResponse(현재
     // 실제 응답 형태) 의 위치이고, 나머지는 다른 백엔드 형태(§ApiErrorBody 주석) 호환.
     const code = body.error?.code ?? body.errorCode ?? body.meta?.code;
+    // OASIS 오류 상세(grid·rowKey·rowIndex·field)는 칸 표시용으로 그대로 싣는다(toFieldErrors).
+    const details = Array.isArray(body.errors) && body.errors.length > 0 ? (body.errors as BackendErrorDetail[]) : undefined;
     if (fieldErrors && fieldErrors.length > 0) {
       const detail = fieldErrors.map((fe) => `${fe.field}: ${fe.message}`).join(", ");
-      throw new HttpError(res.status, res.statusText, `${baseMsg} — ${detail}`, code);
+      throw new HttpError(res.status, res.statusText, `${baseMsg} — ${detail}`, code, details);
     }
-    throw new HttpError(res.status, res.statusText, baseMsg, code);
+    throw new HttpError(res.status, res.statusText, baseMsg, code, details);
   }
 
   // 204 No Content 등 body 가 없는 응답 처리

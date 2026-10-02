@@ -44,16 +44,37 @@ import { Input } from "@dk-oasis/shared/form";
 
 필수 표시는 라벨 앞의 `*` 이고, 상세 표의 규칙(라벨 끝 " *")과 위치가 반대다. 새 화면으로 옮길 때 라벨 끝 " *" 로 바꾼다.
 
+### MDM 캡션·툴팁(2026-10-03)
+
+`name`(화면 필드 이름)을 주면 포털 탭 안에서 MDM 컬럼 사전 메타를 찾는다([mdm-meta](mdm-meta.md)). `label` 을 생략하면 폼 캡션(`labelMid` → `labelLong` → `labelShort` → `columnName`), `tip` 을 생략하면 `MdmMetaCard` 가 라벨 툴팁이 된다. 적은 `label`·`tip` 이 이긴다(공급자 `captionPriority="mdm"` 이면 라벨은 MDM 이 이긴다). FormGroup 은 입력값을 보지 않는다 — 값 검사는 화면이 하고 결과를 `error` 로 준다.
+
+```tsx
+<FormGroup name="title" required error={errors.title}>
+  <Input value={form.title} onChange={(v) => set("title", v)} />
+</FormGroup>
+```
+
+MDM 정의로 값을 검사하려면 `useMdmValidation()`(`@dk-oasis/shared/mdm-meta`)의 결과를 `error` 로 준다. 저장 실패 오류는 `toFieldErrors(e)`(`@dk-oasis/shared/http`, `e` 는 서버 `errors` 를 실은 오류나 OASIS 봉투)에서 그 칸(`field`)의 `message` 를 `error` 로 준다.
+
+```tsx
+const { validateValue } = useMdmValidation();
+<FormGroup name="title" required error={errors.title}>
+  <Input value={form.title} onChange={(v) => { set("title", v); setError("title", validateValue("title", v)?.message); }} />
+</FormGroup>
+```
+
 ## Props
 
 | Prop | 타입 | 기본값 | 설명 |
 |---|---|---|---|
-| label | `string` | 없음 | 라벨 글자. |
+| label | `string` | 없음 | 라벨 글자. 생략하고 `name` 이 있으면 MDM 폼 캡션, 그것도 없으면 `name`. |
+| name | `string` | 없음 | MDM 컬럼 사전 연결 이름(`noticeTitle` → `NOTICE_TITLE`). 포털 탭 밖에서는 쓰지 않는다. |
+| meta | `string \| false` | 없음 | 명시 물리명(`name` 보다 우선). `false` 면 MDM 연결을 끈다. |
 | required | `boolean` | `false` | 라벨 앞에 `*` 를 붙인다. |
 | children | `ReactNode` | 없음 | 입력 컴포넌트. 하나일 때 접근성 속성이 자동 연결된다. |
 | labelWidth | `number` | `120` | 라벨 고정 폭(px). |
 | error | `string` | 없음 | 오류 문구와 `aria-invalid`. |
-| tip | `string` | 없음 | 라벨에 올리거나 입력에 포커스하면 뜨는 툴팁. |
+| tip | `string \| ReactNode` | 없음 | 라벨에 올리거나 입력에 포커스하면 뜨는 툴팁. 생략하고 MDM 메타가 있으면 `MdmMetaCard`. |
 | className | `string` | `""` | 추가 클래스. |
 | style | `React.CSSProperties` | 없음 | 배치에만 쓴다. |
 
