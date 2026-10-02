@@ -252,18 +252,39 @@ class MetaFeedOasisHttpTest {
     }
 
     @Test
-    void view_RULE_SET_은_세트_정의를_주고_흐름이_깨진_세트는_failed_다() throws Exception {
-        DmeTestSupport.ruleSet(jdbc, "FEED_SET", "피드 세트", "[\"QLTY_GRD_JDG\"]", "INUSE", 0);
+    void view_RULE_SET_은_RELEASED_세트_버전_전체를_ver_순으로_주고_DRAFT_는_빼며_흐름이_깨진_세트는_failed_다() throws Exception {
+        // D-144 2단계 — 세트도 버전이 있다. 1.000(SQLite INTEGER)·1.001(REAL) RELEASED 와 2.000 DRAFT. 부모 저장 상태 CREATED 는 버전마다 계산 상태 INUSE 로 간다
+        DmeTestSupport.ruleSet(jdbc, "FEED_SET", "피드 세트", "[\"QLTY_GRD_JDG\"]", "CREATED", 0);
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'FEED_SET' AND VER = 1");
+        DmeTestSupport.ruleSetVersion(jdbc, "FEED_SET", "1.001", "MINOR", "RELEASED", null, "[\"QLTY_GRD_JDG\",\"PROD_WGT_CALC\"]",
+                "2026-07-01 00:00:00", "9999-12-31 00:00:00", 0);
+        DmeTestSupport.ruleSetDraft(jdbc, "FEED_SET", "2.000", "kim", "[]", 0);
+        DmeTestSupport.ruleSet(jdbc, "FEED_NOREL", "확정 없음", "[]", "CREATED", 0);
+        jdbc.update("DELETE FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID = 'FEED_NOREL'");
+        DmeTestSupport.ruleSetDraft(jdbc, "FEED_NOREL", "1.000", "kim", "[]", 0);
         DmeTestSupport.ruleSet(jdbc, "FEED_BAD", "깨진 세트", "[]", "INUSE", 0);
         DmeTestSupport.ruleSetFlow(jdbc, "FEED_BAD", "{\"version\":1,\"nodes\":\"x\",\"edges\":[]}");
 
-        JsonNode r = view("RULE_SET", "FEED_SET", "FEED_BAD", "NO_SET");
+        JsonNode r = view("RULE_SET", "FEED_SET", "FEED_NOREL", "FEED_BAD", "NO_SET");
 
-        JsonNode set = item(r, "FEED_SET");
-        assertEquals("FEED_SET", set.path("setId").asText());
-        assertEquals("QLTY_GRD_JDG", set.path("ruleIds").get(0).asText());
-        assertEquals("INUSE", set.path("status").asText());
-        assertTrue(set.path("flow").isNull(), set.toString());
+        assertEquals(2, r.path("items").size(), r.toString());
+        JsonNode versions = item(r, "FEED_SET");
+        assertEquals(2, versions.size(), versions.toString());
+        List<BigDecimal> vers = new java.util.ArrayList<>();
+        versions.forEach(v -> {
+            assertTrue(v.path("ver").isBigDecimal(), "ver 는 JSON 소수: " + v.path("ver"));
+            vers.add(v.path("ver").decimalValue());
+            assertEquals("FEED_SET", v.path("setId").asText());
+            assertEquals("INUSE", v.path("status").asText(), "부모 CREATED 의 계산 상태");
+            assertTrue(v.path("flow").isNull(), v.toString());
+        });
+        assertEquals(List.of(new BigDecimal("1.000"), new BigDecimal("1.001")), vers);
+        assertEquals("2000-01-01T00:00:00", versions.get(0).path("applyFrom").asText());
+        assertEquals("2026-07-01T00:00:00", versions.get(0).path("applyTo").asText());
+        assertEquals("2026-07-01T00:00:00", versions.get(1).path("applyFrom").asText());
+        assertEquals(1, versions.get(0).path("ruleIds").size());
+        assertEquals("PROD_WGT_CALC", versions.get(1).path("ruleIds").get(1).asText());
+        assertEquals(0, item(r, "FEED_NOREL").size(), "RELEASED 가 없는 세트는 빈 배열");
         assertEquals("FEED_BAD", r.path("failed").get(0).path("key").asText(), r.toString());
     }
 

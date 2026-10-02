@@ -11,6 +11,8 @@
 **Spec:** `docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md`(커밋 e7401253, 결정 D1~D9). 이 계획은 스펙을 정본으로 따르되, 코드와 어긋나는 곳은 코드 사실을 따른다 — 문서 끝 「스펙과 다른 점」 표가 근거(파일:줄)와 처리를 적는다.
 
 > **번호 변경(2026-10-02, dev 병합):** dev 가 먼저 V17 `rule_version_decimal`·ADR-0006 `object-versioning-major-minor`(D-144)를 넣어, 이 계획의 마이그레이션 V17 `create_mdm_meta_rev` 는 **V18** 로, ADR-0006 `mdm-meta-hybrid-cache-revision` 은 **ADR-0007** 로 바뀌었다. 아래 본문의 번호도 새 번호로 고쳤다. 룰 버전도 정수에서 소수(`BigDecimal`, 예 `1.000`)로 바뀌었다(D-144).
+>
+> **번호 변경 2(2026-10-02, dev 두 번째 병합):** dev 가 V18 `rule_set_version`(D-144 2단계)을 넣고 레이아웃 버전 관리(3단계)가 V19 `layout_version` 을 잡아, 마이그레이션은 **V20** `create_mdm_meta_rev` 로 다시 바뀌었다. 아래 본문의 V18 은 V20 으로 읽는다. 룰 세트도 버전이 생겨 RULE_SET 피드는 RELEASED 버전 전체를 보낸다(엔진 `RuleSetDefinition` 에 `ver`·`applyFrom`·`applyTo` 를 더했다).
 
 **작업 위치:** 워크트리 `/Users/jji/project/dmes-standard/.claude/worktrees/mdm-meta-cache`(이하 `$W`), 브랜치 `feat/mdm-meta-cache`. 모든 명령은 `$W` 기준이다. git 은 `/usr/bin/git` 으로 부른다(셸 훅이 `git` 을 다른 도구로 바꿔 워크트리 가드에 막힌다).
 

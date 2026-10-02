@@ -14,7 +14,7 @@ vi.mock("@/shell", async (importOriginal) => ({
 }));
 
 import RuleSetMngPage from "../../../pages/dme/ruleSetMng/page";
-import { setCheckText, setIdError } from "../../../pages/dme/ruleSetMng/types";
+import { setCheckText, setIdError, type RuleSetListRow } from "../../../pages/dme/ruleSetMng/types";
 
 import {
   RBAC_STORE_KEY,
@@ -45,6 +45,7 @@ const LIST_ROWS = [
     description: "통과 사슬",
     rejectCount: 0,
     warnCount: 0,
+    ver: "1.001",
     status: "INUSE",
   },
   {
@@ -192,6 +193,15 @@ describe("RuleSetMngPage", () => {
     expect(visibleText(container)).toContain("45건");
   });
 
+  it("버전 열은 표시 버전을 v1.001 형식으로 보인다", async () => {
+    searchResult = { rows: LIST_ROWS, totalCount: 3 };
+    await render();
+    await search();
+    await settle();
+    expect(document.body.querySelector('[data-testid="rsm-ver-E2S_CHAIN"]')?.textContent).toBe("v1.001");
+    expect(visibleText(container)).toContain("버전");
+  });
+
   it("계산 칸을 보인다 — 최종 결과 변수 코드 칩, 통과·거부 N·경고 N, DEPRECATED 는 '-'", async () => {
     searchResult = { rows: LIST_ROWS, totalCount: 3 };
     await render();
@@ -206,6 +216,21 @@ describe("RuleSetMngPage", () => {
     expect(cellText("E2S_BADORD", "checkText")).toBe("거부 1 · 경고 2");
     expect(cellText("E2S_OLDSET", "checkText")).toBe("-");
     expect(cellText("E2S_OLDSET", "status")).toContain("DEPRECATED");
+  });
+
+  it("상태 조건에 CREATED 가 있고, 새로 등록한 세트(CREATED)는 상태 칸에 CREATED 로 보인다(Ruling P2-22 M-2)", async () => {
+    const created: RuleSetListRow = {
+      setId: "E2S_NEW", setName: "새 세트", ruleCount: 0, finalResults: [], inputCount: 0, rejectCount: 0, warnCount: 0, ver: "1.000", status: "CREATED",
+    };
+    searchResult = { rows: [created], totalCount: 1 };
+    await render();
+    const options = Array.from(byTestId<HTMLSelectElement>("set-search-status").options).map((o) => o.value);
+    expect(options).toEqual(["", "CREATED", "INUSE", "DEPRECATED"]);
+    await selectValue(byTestId<HTMLSelectElement>("set-search-status"), "CREATED");
+    await search();
+    await settle();
+    expect(requests.filter((r) => r.url.includes("/ruleSetMng/search")).at(-1)!.body.params).toMatchObject({ status: "CREATED" });
+    expect(cellText("E2S_NEW", "status")).toBe("CREATED");
   });
 
   it("목록이 비면 빈 상태 문구를 보인다", async () => {

@@ -14,6 +14,7 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
 import com.dongkuk.dmes.mdm.common.mastercode.MdmCodeLookup;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
 import com.dongkuk.dmes.mdm.dmc.MasterCodeSeeds;
@@ -26,6 +27,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -37,6 +39,7 @@ import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.EngineLookups;
 import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
 import kr.dongkuk.maru.mdm.engine.spi.MasterLookup;
@@ -85,6 +88,8 @@ class MdmMetaFeedContractHttpTest {
     @Autowired
     MdmRuleSetRepository ruleSetRepository;
     @Autowired
+    RuleSetVersionQueries ruleSetVersionQueries;
+    @Autowired
     MasterCodeLedgerQueries ledger;
 
     private JdbcTemplate jdbc;
@@ -126,7 +131,19 @@ class MdmMetaFeedContractHttpTest {
         DmeTestSupport.sampleDefinition(jdbc, Q, new BigDecimal("1.001"));
         DmeTestSupport.released(jdbc, Q, new BigDecimal("2.000"), "MAJOR", "FIRST", "2027-01-01 00:00:00", null);
         DmeTestSupport.sampleDefinition(jdbc, Q, new BigDecimal("2.000"));
-        DmeTestSupport.ruleSet(jdbc, "CT_SET", "계약 세트", "[\"" + Q + "\"]", "INUSE", 0);
+        // 세 버전 세트(D-144 2단계): 1.000 [2000-01-01, 2026-07-01), 1.001 MINOR [2026-07-01, 2027-01-01), 2.000 MAJOR [2027-01-01, 9999-12-31).
+        // 세트 정의에는 판정 결과가 없으므로 버전마다 ruleIds 를 달리 해 고른 버전을 내용으로도 가른다. 부모 CREATED → 계산 상태 INUSE.
+        DmeTestSupport.ruleSet(jdbc, "CT_SET", "계약 세트", "[\"" + Q + "\"]", "CREATED", 0);
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'CT_SET' AND VER = 1");
+        DmeTestSupport.ruleSetVersion(jdbc, "CT_SET", "1.001", "MINOR", "RELEASED", null, "[\"" + Q + "\",\"CT_R2\"]",
+                "2026-07-01 00:00:00", "2027-01-01 00:00:00", 0);
+        DmeTestSupport.ruleSetVersion(jdbc, "CT_SET", "2.000", "MAJOR", "RELEASED", null, "[\"CT_R3\"]", "2027-01-01 00:00:00",
+                "9999-12-31 00:00:00", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "CT_SET", "2.000",
+                "{\"version\":1,\"nodes\":[{\"id\":\"s\",\"kind\":\"START\"},{\"id\":\"r\",\"kind\":\"RULE\",\"ruleId\":\"CT_R3\"},"
+                        + "{\"id\":\"e\",\"kind\":\"END\"}],\"edges\":[{\"id\":\"e1\",\"from\":\"s\",\"to\":\"r\"},"
+                        + "{\"id\":\"e2\",\"from\":\"r\",\"to\":\"e\"}]}");
+        DmeTestSupport.ruleSetDraft(jdbc, "CT_SET", "3.000", "kim", "[\"CT_DRAFT\"]", 0);
 
         // 코드: CT_CD 1.000 RELEASED(A), CODE 도메인 + 컬럼 CT_CODE_COL
         MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
@@ -179,7 +196,7 @@ class MdmMetaFeedContractHttpTest {
 
     @Test
     void 룰은_적용_기간_경계_양쪽에서_MDM_원장과_같은_버전과_내용을_고른다() {
-        StoredDefinitionLookup stored = new StoredDefinitionLookup(ruleQueries, storedRuleDefinitions, ruleRepository, ruleSetRepository);
+        StoredDefinitionLookup stored = stored();
         // 경계마다 기대 버전을 못박는다 — 원장·HTTP 가 같은 틀린 버전을 고르는 경우도 잡는다. equals 는 자리수까지 본다(1.000 ≠ 1).
         Map<LocalDateTime, BigDecimal> expected = new java.util.LinkedHashMap<>();
         expected.put(LocalDateTime.of(2026, 6, 30, 23, 59, 59), new BigDecimal("1.000"));
@@ -202,7 +219,49 @@ class MdmMetaFeedContractHttpTest {
         Instant beforeAll = LocalDateTime.of(2025, 12, 31, 23, 59, 59).atZone(MdmDefinitionLookup.KST).toInstant();
         assertTrue(stored.rule(Q, beforeAll).isEmpty());
         assertTrue(lookup.rule(Q, beforeAll).isEmpty());
-        assertEquals(stored.ruleSet("CT_SET").orElseThrow(), lookup.ruleSet("CT_SET").orElseThrow());
+    }
+
+    /**
+     * D-144 2단계 — 세트도 RELEASED 버전 목록이 HTTP 를 지나 업무 모듈이 판정 시각으로 고른다. 경계마다 기대 버전을 못박고, 원장
+     * ({@code StoredDefinitionLookup.ruleSet(id, T)})과 HTTP 가 레코드 전체(ver 자리수·적용 구간·ruleIds·상태·흐름)까지 같은지 본다. DRAFT 3.000 은 오지 않는다.
+     */
+    @Test
+    void 룰_세트는_적용_기간_경계_양쪽에서_MDM_원장과_같은_버전과_내용을_고른다() {
+        StoredDefinitionLookup stored = stored();
+        Map<LocalDateTime, BigDecimal> expected = new java.util.LinkedHashMap<>();
+        expected.put(LocalDateTime.of(2000, 1, 1, 0, 0), new BigDecimal("1.000"));
+        expected.put(LocalDateTime.of(2026, 6, 30, 23, 59, 59), new BigDecimal("1.000"));
+        expected.put(LocalDateTime.of(2026, 7, 1, 0, 0), new BigDecimal("1.001"));
+        expected.put(LocalDateTime.of(2026, 12, 31, 23, 59, 59), new BigDecimal("1.001"));
+        expected.put(LocalDateTime.of(2027, 1, 1, 0, 0), new BigDecimal("2.000"));
+        Map<BigDecimal, List<String>> members = Map.of(new BigDecimal("1.000"), List.of(Q), new BigDecimal("1.001"), List.of(Q, "CT_R2"),
+                new BigDecimal("2.000"), List.of("CT_R3"));
+        expected.forEach((at, ver) -> {
+            Instant ts = at.atZone(MdmDefinitionLookup.KST).toInstant();
+            RuleSetDefinition viaHttp = lookup.ruleSet("CT_SET", ts).orElseThrow();
+            RuleSetDefinition direct = stored.ruleSet("CT_SET", ts).orElseThrow();
+            assertEquals(ver, direct.ver(), "원장 판정 시각 " + at);
+            assertEquals(ver, viaHttp.ver(), "HTTP 판정 시각 " + at);
+            assertEquals(3, viaHttp.ver().scale(), "HTTP 판정 시각 " + at);
+            assertEquals(members.get(ver), viaHttp.ruleIds(), "판정 시각 " + at);
+            assertEquals(direct, viaHttp, "판정 시각 " + at);                                      // 레코드 equals — 흐름·상태·구간까지
+        });
+        assertTrue(lookup.ruleSet("CT_SET", LocalDateTime.of(2027, 1, 1, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant())
+                .orElseThrow().flow() != null, "2.000 흐름이 HTTP 를 지난다");
+        // 캐시 값은 RELEASED 버전 목록(ver 오름차순, DRAFT 3.000 없음)
+        @SuppressWarnings("unchecked")
+        List<RuleSetDefinition> cached = (List<RuleSetDefinition>) service.one(MdmTargetType.RULE_SET, "CT_SET").orElseThrow();
+        assertEquals(List.of(new BigDecimal("1.000"), new BigDecimal("1.001"), new BigDecimal("2.000")),
+                cached.stream().map(RuleSetDefinition::ver).toList());
+        cached.forEach(d -> assertEquals(3, d.ver().scale(), d.toString()));
+        // 적용 시작 전은 원장·HTTP 모두 없다
+        Instant beforeAll = LocalDateTime.of(1999, 12, 31, 23, 59, 59).atZone(MdmDefinitionLookup.KST).toInstant();
+        assertTrue(stored.ruleSet("CT_SET", beforeAll).isEmpty());
+        assertTrue(lookup.ruleSet("CT_SET", beforeAll).isEmpty());
+    }
+
+    private StoredDefinitionLookup stored() {
+        return new StoredDefinitionLookup(ruleQueries, storedRuleDefinitions, ruleRepository, ruleSetVersionQueries, ruleSetRepository);
     }
 
     /** 판정에 쓰이는 칸 — ver·적용 구간·종류·적중·변수·행 셀 텍스트(키는 var_id 정수). AST Map 은 숫자 타입이 왕복에서 바뀔 수 있어 뺀다. */

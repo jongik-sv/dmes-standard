@@ -324,9 +324,10 @@ class DmeOasisHttpTest {
     }
 
     /** ruleSetEdit save 본문 — 룰 목록은 params 가 아니라 grids.rules.rows 로 보낸다(TSK-08-06 design F14). */
+    /** 세트 저장 본문 — 버전은 ruleSetMng.reg 가 만든 등록자 DRAFT {@code 1.000}(D-144 2단계). */
     private ObjectNode setSaveBody(String setId, long rowVersion, String... ruleIds) {
-        ObjectNode params = json.createObjectNode().put("setId", setId).put("setName", "HTTP 세트").put("description", "HTTP 경로")
-                .put("rowVersion", rowVersion);
+        ObjectNode params = json.createObjectNode().put("setId", setId).put("ver", "1.000").put("setName", "HTTP 세트")
+                .put("description", "HTTP 경로").put("rowVersion", rowVersion);
         ObjectNode body = envelope("ruleSetEdit", params);
         ArrayNode rows = body.putObject("grids").putObject("rules").putArray("rows");
         for (String id : ruleIds) {
@@ -336,7 +337,7 @@ class DmeOasisHttpTest {
     }
 
     private String setRuleIds(String setId) {
-        return jdbc.queryForObject("SELECT RULE_IDS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", String.class, setId);
+        return DmeTestSupport.setVerValue(jdbc, setId, "1.000", "RULE_IDS");
     }
 
     /** TSK-08-06 수용 기준 1·3 — ruleSetMng reg 로 빈 세트를 만들고 ruleSetEdit save 가 grids.rules.rows 의 순서대로 저장한다. 순환은 MDM024. */
@@ -352,6 +353,7 @@ class DmeOasisHttpTest {
         assertTrue(reg.path("meta").path("success").asBoolean(false), reg.toString());
         assertEquals("HTTP_SET", reg.path("data").path("result").path("setId").asText(), reg.toString());
         assertEquals(0, reg.path("data").path("result").path("rowVersion").asInt(-1), reg.toString());
+        assertEquals("1.000", reg.path("data").path("result").path("ver").asText(), reg.toString());
         assertEquals("[]", setRuleIds("HTTP_SET"));
 
         JsonNode save = post("ruleSetEdit", "save", "kim", setSaveBody("HTTP_SET", 0, "HTTP_GRD", "HTTP_FCT"));
@@ -366,7 +368,7 @@ class DmeOasisHttpTest {
         String message = cycle.path("meta").path("message").asText();
         assertTrue(message.startsWith(MdmErrorCode.RULE_SET_SAVE_REJECTED.defaultMessage()), message);
         assertTrue(message.contains("CYCLE") && message.contains("순환"), message);
-        assertEquals(1L, jdbc.queryForObject("SELECT ROW_VERSION FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'HTTP_SET'", Long.class));
+        assertEquals(1L, Long.parseLong(DmeTestSupport.setVerValue(jdbc, "HTTP_SET", "1.000", "ROW_VERSION")));
         assertEquals(List.of("HTTP_GRD", "HTTP_FCT"), List.of(json.readValue(setRuleIds("HTTP_SET"), String[].class)));
 
         JsonNode search = post("ruleSetMng", "search", "lee", envelope("ruleSetMng",
@@ -400,13 +402,13 @@ class DmeOasisHttpTest {
                 + "{\"id\":\"e4\",\"from\":\"if1\",\"to\":\"m1\",\"otherwise\":true},"
                 + "{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m1\"},{\"id\":\"e6\",\"from\":\"m1\",\"to\":\"end\"}],"
                 + "\"view\":{\"positions\":{\"r1\":{\"x\":10,\"y\":20}},\"notes\":[],\"groups\":[]}}";
-        ObjectNode params = json.createObjectNode().put("setId", "HTTP_SET").put("setName", "HTTP 세트").put("rowVersion", 0)
-                .put("flowJson", flow);
+        ObjectNode params = json.createObjectNode().put("setId", "HTTP_SET").put("ver", "1.000").put("setName", "HTTP 세트")
+                .put("rowVersion", 0).put("flowJson", flow);
 
         JsonNode save = post("ruleSetEdit", "save", "kim", envelope("ruleSetEdit", params));
 
         assertTrue(save.path("meta").path("success").asBoolean(false), save.toString());
-        String stored = jdbc.queryForObject("SELECT FLOW_JSON FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'HTTP_SET'", String.class);
+        String stored = DmeTestSupport.setVerValue(jdbc, "HTTP_SET", "1.000", "FLOW_JSON");
         JsonNode f = json.readTree(stored);
         assertTrue(f.path("edges").path(2).path("order").isInt(), stored);
         assertEquals(1, f.path("edges").path(2).path("order").asInt(), stored);

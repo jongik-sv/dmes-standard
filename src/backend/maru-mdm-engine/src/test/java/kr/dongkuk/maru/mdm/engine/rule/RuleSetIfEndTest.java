@@ -49,12 +49,12 @@ class RuleSetIfEndTest {
     private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private RuleSetResult run(FlowDefinition f, Map<String, Object> record) {
-        lookup.addSet(new RuleSetDefinition("S", List.of(), SetStatus.INUSE, f));
+        lookup.addSet(new RuleSetDefinition("S", null, null, null, List.of(), SetStatus.INUSE, f));
         return engine.evaluateSet("S", record, SampleRules.EVAL_TS);
     }
 
     private RunTrace trace(FlowDefinition f, Map<String, Object> record) {
-        return engine.traceSet(new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, f), record, SampleRules.EVAL_TS);
+        return engine.traceSet(new RuleSetDefinition("DRAFT", null, null, null, List.of(), SetStatus.INUSE, f), record, SampleRules.EVAL_TS);
     }
 
     private static List<String> path(RuleSetResult r) {

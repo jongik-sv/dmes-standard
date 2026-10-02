@@ -69,7 +69,7 @@
 
 ## Consequences (결과)
 
-- 룰 세트 흐름은 저장 즉시 반영된다. 흐름을 바꾸려고 앱을 다시 배포하지 않는다.
+- 룰 세트 흐름은 저장 즉시 반영된다. 흐름을 바꾸려고 앱을 다시 배포하지 않는다. **(갱신 2026-10-02, ADR-0006 2단계: 저장은 DRAFT 에만 쓰고, 확정한 버전이 apply_from 부터 반영된다. 엔진은 판정 시각의 RELEASED 세트 버전을 `DefinitionLookup.ruleSet(setId, evalTs)` 로 받는다 — 앱 재배포가 필요 없다는 결론은 그대로다.)**
 - 룰 세트 흐름 안에는 DB 저장·외부 호출·메시지 발행 노드가 없다. 그런 일이 흐름 중간에 필요하면 OASIS 흐름으로
   나누고, 판정 부분만 룰 세트로 부른다.
 - 흐름 구조 해석·검사 알고리즘이 서버(`FlowParser`·`RuleSetAnalyzer`)와 화면(`flow-model.ts`·`set-model.ts`)에

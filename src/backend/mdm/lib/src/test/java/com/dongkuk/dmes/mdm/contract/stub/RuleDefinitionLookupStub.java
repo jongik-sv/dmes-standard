@@ -81,11 +81,11 @@ public class RuleDefinitionLookupStub implements DefinitionLookup {
     }
 
     @Override
-    public Optional<RuleSetDefinition> ruleSet(String setId) {
+    public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
         if (!set.getMaruRuleSetId().equals(setId)) {
             return Optional.empty();
         }
-        return Optional.of(new RuleSetDefinition(set.getMaruRuleSetId(), List.of(), SetStatus.valueOf(set.getStatus()), null));
+        return Optional.of(new RuleSetDefinition(set.getMaruRuleSetId(), null, null, null, List.of(), SetStatus.valueOf(set.getStatus()), null));
     }
 
     /** §6.4 — VAR_AST 가 NULL 이면 VAR_NAME 은 이름, 아니면 식 텍스트(06:1012). DOMAIN_ID 는 어긋남 ①(Long → String). */

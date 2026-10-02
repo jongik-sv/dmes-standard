@@ -25,7 +25,7 @@ moduleGroup: dme
 | 화면명 | 룰 세트 |
 | 화면 식별자 | `ruleSetMng` |
 | 모듈 | `mdm`(마루 MDM) / moduleGroup `dme`(업무기준) |
-| 화면 목적 | 룰 세트(`TB_MDM_RULE_SET`) 목록을 계산 칸(룰 수·최종 결과 변수·입력 변수 수·세트 검사)과 함께 조회하고, 빈 세트를 등록한다. 등록하면 INUSE·룰 없음 한 행이 만들어지고 룰 세트 편집(`ruleSetEdit`)이 그 세트로 열린다 |
+| 화면 목적 | 룰 세트(`TB_MDM_RULE_SET`) 목록을 계산 칸(룰 수·최종 결과 변수·입력 변수 수·세트 검사)과 함께 조회하고, 빈 세트를 등록한다. 등록하면 CREATED 세트와 룰 없는 1.000 DRAFT(등록자 소유)가 만들어지고 룰 세트 편집(`ruleSetEdit`)이 그 세트로 열린다 |
 | 주요 사용자 | 담당자(`MDM_STEWARD`, 조회·등록) / 표준 관리자(`MDM_STD_ADMIN`, 조회만) |
 | 접근 경로 | 포털 → 마루 MDM > 업무기준 > 룰 세트 |
 
@@ -76,7 +76,7 @@ moduleGroup: dme
 | G-005 | (계산) | 입력 변수 수 | 세트를 부를 때 레코드에 넣어야 하는 이름 수 | Center | int |
 | G-006 | `DESCRIPTION` | 설명 | | Left | text |
 | G-007 | (계산) | 세트 검사 | DEPRECATED 면 "-", 거부가 있으면 "거부 N", 아니면 "통과". 경고가 있으면 뒤에 " · 경고 N" | Center | |
-| G-008 | `STATUS` | 상태 | 배지(`INUSE`·`DEPRECATED`) | Center | LV-001 |
+| G-008 | `STATUS` | 상태 | 배지(`CREATED`·`INUSE`·`DEPRECATED`, 계산 상태) | Center | LV-001 |
 
 > 계산 칸은 멤버 룰마다 **최신 RELEASED 버전**(VER 최대, design D3)으로 서버가 계산하고 저장하지 않는다. 룰이 폐기되거나 새 버전이 나오면
 > 저장된 세트도 거부로 바뀔 수 있다(목록 아래 설명 문장). 정렬은 서버가 세트 ID 로 한다(헤더 클릭 정렬 없음).
@@ -88,7 +88,7 @@ moduleGroup: dme
 | D-001 | `MARU_RULE_SET_ID` | 세트 ID | TextBox | Y | (빈값) | 컬럼 물리명 규칙(V-001). 어기면 입력 칸 아래(`set-reg-id-error`) 즉시 안내하고 저장 버튼을 막는다. 안내가 없을 때는 "컬럼 물리명 규칙을 따르는 전역 이름" |
 | D-002 | `MARU_RULE_SET_NAME` | 세트명 | TextBox | Y | (빈값) | 100자 이하 |
 | D-003 | `DESCRIPTION` | 설명 | Textarea | N | (빈값) | 빈 값은 null 로 저장 |
-| — | `RULE_IDS`·`STATUS`·`ROW_VERSION` | (표시 없음) | — | — | `[]`·`INUSE`·0 | 서버가 쓴다(I2). 룰은 편집 화면에서 담는다 |
+| — | `RULE_IDS`·`STATUS`·`ROW_VERSION` | (표시 없음) | — | — | `[]`·`CREATED`·0 | 서버가 쓴다(I2). 룰은 편집 화면에서 담는다 |
 
 ## 5. 버튼 및 기능 동작 정의
 
@@ -142,7 +142,7 @@ moduleGroup: dme
 
 ## 7. 상태 정의 및 상태별 제어
 
-세트 상태(`STATUS`)는 이 화면에서 바꾸지 않는다. 등록은 `INUSE` 로 쓴다. 폐기·되살리기는 룰 세트 편집(`ruleSetEdit`)이 다룬다.
+세트 상태(`STATUS`)는 이 화면에서 바꾸지 않는다. 등록은 `CREATED` 로 쓰고, 첫 확정 버전이 적용되면 `INUSE` 로 보인다(계산 상태). 폐기·되살리기는 룰 세트 편집(`ruleSetEdit`)이 다룬다.
 세트에는 버전·승인·선점이 없다(06:907·924·929, design I3).
 
 ## 8. 권한 정의
@@ -164,7 +164,7 @@ moduleGroup: dme
 
 | 열거형(DB 컬럼) | 코드값 | 화면 표시명 |
 |---|---|---|
-| LV-001 `STATUS` | `INUSE`/`DEPRECATED` | 코드 그대로(시안 선택지와 같다). 조회조건은 전체/INUSE/DEPRECATED |
+| LV-001 `STATUS` | `CREATED`/`INUSE`/`DEPRECATED` | 코드 그대로(시안 선택지와 같다). 조회조건은 전체/CREATED/INUSE/DEPRECATED. 배지는 INUSE 초록·DEPRECATED 흐림·CREATED 중립 |
 
 ## 11. 특이사항 / 설계 결정
 

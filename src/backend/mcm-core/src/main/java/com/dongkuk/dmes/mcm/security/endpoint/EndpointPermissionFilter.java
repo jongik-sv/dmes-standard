@@ -85,6 +85,7 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             "secwidget/",               // 포털 홈 위젯 탭·배치(search/saveTab/deleteTab/reorderTabs/resetHome) — 본인 데이터 (2026-10-02)
             "ntfnotification/",         // 포털 알림 (list/unreadCount/markRead/markAllRead) — 본인 데이터
             "noticeboard/search",       // 포털 홈 공지 목록(mls) — 서비스가 현재 사용자 역할로 게시 대상을 거른다 (2026-10-02)
+            "screenusage/record",       // 포털 화면 사용 구간 기록 — 로그인 사용자 전원, 사용자·부서는 서버가 인증 정보로 채운다 (2026-10-02)
             // MDM 메타 캐시(2026-10-02, spec 2026-10-02-mdm-meta-cache-design §5.5) — cactus /api/{module}/mdmMeta/*. 3-segment 라 권한 데이터로
             // 맞출 수 없다(serviceId ""). 화면 메타는 로그인 사용자, 관리 action 은 MdmMetaController 가 SYSADMIN 을 다시 본다. BFF proxy.ts 와 동기화.
             "mdmmeta/"

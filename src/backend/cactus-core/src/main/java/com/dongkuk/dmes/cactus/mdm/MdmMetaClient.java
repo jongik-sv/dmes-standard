@@ -36,6 +36,8 @@ public class MdmMetaClient implements MdmMetaFeed {
     static final int MAX_KEYS_PER_VIEW = 500;
     private static final TypeReference<List<RuleDefinition>> RULE_VERSIONS = new TypeReference<>() {
     };
+    private static final TypeReference<List<RuleSetDefinition>> RULE_SET_VERSIONS = new TypeReference<>() {
+    };
     private static final TypeReference<Map<String, Object>> PLAIN_MAP = new TypeReference<>() {
     };
 
@@ -112,7 +114,7 @@ public class MdmMetaClient implements MdmMetaFeed {
                 case COLUMN -> MdmJson.MAPPER.treeToValue(value, MdmColumnMeta.class);
                 case DOMAIN -> MdmJson.MAPPER.treeToValue(value, MdmDomainMeta.class);
                 case RULE -> MdmJson.MAPPER.readerFor(RULE_VERSIONS).readValue(value);
-                case RULE_SET -> MdmJson.MAPPER.treeToValue(value, RuleSetDefinition.class);
+                case RULE_SET -> MdmJson.MAPPER.readerFor(RULE_SET_VERSIONS).readValue(value);
                 case CODE -> MdmJson.MAPPER.treeToValue(value, CodeRows.class);
                 case LAYOUT -> MdmJson.MAPPER.convertValue(value, PLAIN_MAP);
             };

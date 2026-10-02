@@ -9,6 +9,7 @@ import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
 import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmChecks;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
@@ -79,6 +80,8 @@ class RuleVersionDecimalSqliteTest extends AbstractMdmSharedDbTest {
     MdmRuleRepository ruleRepository;
     @Autowired
     MdmRuleSetRepository setRepository;
+    @Autowired
+    RuleSetVersionQueries setVersions;
 
     @BeforeEach
     void seed() {
@@ -138,7 +141,7 @@ class RuleVersionDecimalSqliteTest extends AbstractMdmSharedDbTest {
     @Test
     void 정의_조회는_판정_시각의_minor_버전을_잘리지_않게_읽는다() {
         mixedRule("R_MIN");
-        StoredDefinitionLookup lookup = new StoredDefinitionLookup(queries, stored, ruleRepository, setRepository);
+        StoredDefinitionLookup lookup = new StoredDefinitionLookup(queries, stored, ruleRepository, setVersions, setRepository);
 
         // 2026-03-01 00:00 KST — v1.001 구간
         RuleDefinition now = lookup.rule("R_MIN", Instant.parse("2026-02-28T15:00:00Z")).orElseThrow();
@@ -151,7 +154,7 @@ class RuleVersionDecimalSqliteTest extends AbstractMdmSharedDbTest {
         assertDefinitionOf(old, "OUT_OLD", "OLD");
 
         // prefetch 경로도 같은 버전을 고른다(varsOf·rowsOf 의 (룰, 버전) 쌍 조건)
-        StoredDefinitionLookup prefetched = new StoredDefinitionLookup(queries, stored, ruleRepository, setRepository);
+        StoredDefinitionLookup prefetched = new StoredDefinitionLookup(queries, stored, ruleRepository, setVersions, setRepository);
         prefetched.prefetch(List.of("R_MIN"), Instant.parse("2026-02-28T15:00:00Z"));
         RuleDefinition viaPrefetch = prefetched.rule("R_MIN", Instant.parse("2026-02-28T15:00:00Z")).orElseThrow();
         assertThat(viaPrefetch.ver()).isEqualByComparingTo("1.001");

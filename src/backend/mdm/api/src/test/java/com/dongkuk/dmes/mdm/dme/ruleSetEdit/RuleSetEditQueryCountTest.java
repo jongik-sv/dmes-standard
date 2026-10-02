@@ -127,7 +127,7 @@ class RuleSetEditQueryCountTest extends AbstractMdmSharedDbTest {
         Files.writeString(SNAPSHOT.resolve("counts.txt"), "view=" + viewCount + "\nvalidate=" + condCount + "\nexecute=" + simCount
                 + "\nrunCases=" + casesCount + "\n", StandardCharsets.UTF_8);
         // 고치기 전(2026-10-01) view 18·validate 1·execute 29·runCases 141(케이스 5건). 룰 4개 흐름 기준 상한이다.
-        assertTrue(viewCount <= 8, "view SQL 문 " + viewCount);
+        assertTrue(viewCount <= 9, "view SQL 문 " + viewCount); // D-144 2단계 — 세트 버전 목록 1문 추가
         assertTrue(condCount <= 1, "validate SQL 문 " + condCount);
         assertTrue(simCount <= 9, "execute SQL 문 " + simCount);
         assertTrue(casesCount <= 10, "runCases SQL 문 " + casesCount);

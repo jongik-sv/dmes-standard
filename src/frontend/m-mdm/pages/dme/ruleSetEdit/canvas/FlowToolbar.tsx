@@ -4,7 +4,7 @@
  * 흐름 툴바(2단계 계획 Task 10, P10) — 세트 고르기(page 가 `lead` 로 넘긴다)·세트 머리(ID·이름·상태·row_version)·보기/편집·자동 정렬·
  * 화면 맞춤·변수 흐름·세트 저장·폐기/되살리기·다시 불러오기·메시지 줄. 1단계 룰 세트 카드의 머리·버튼·메시지를 옮겼다.
  * 한 줄 툴바(2026-10-01): 세트 고르기 줄과 툴바 줄을 한 줄로 합치고, 글자 단추를 모두 아이콘 단추(`ToolButton`)로 바꿨다.
- * 세트 이름은 길면 말줄임하고 전체는 title 로 보인다. "버전·승인 없음" 은 상태 배지 title 로 옮겼다. 좁은 창에서는 묶음 단위로 다음 줄로 넘어간다.
+ * 세트 이름은 길면 말줄임하고 전체는 title 로 보인다. 상태 배지 title 은 저장이 어디에 쓰이는지 알린다(D-144 2단계: 내 DRAFT 버전, 확정해야 적용). 좁은 창에서는 묶음 단위로 다음 줄로 넘어간다.
  *
  * 폐기는 두 단계(폐기 → 폐기 확인/취소)로만 한다(I14·D14). 저장 버튼은 편집 모드·dirty·거부 검사 없음·조건식 IO 기다리지 않음일 때만 켜진다(P-D4·P10).
  *
@@ -64,8 +64,8 @@ const VAR_DISPLAY_ICON: Record<VarDisplay, ReactNode> = {
 };
 const MAC_FN_NOTE = "F9·F10·F5 는 fn 과 함께 누른다";
 const DEPRECATE_WARNING = "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.";
-/** 상태 배지 title — 한 줄 툴바로 줄이며 "버전·승인 없음" 배지를 여기로 옮겼다. */
-export const STATUS_TITLE = "버전·승인 없음 — 저장하면 바로 반영된다";
+/** 상태 배지 title — D-144 2단계부터 세트도 버전이 있다. 저장은 내 DRAFT 버전에 쓰고, 확정해야 판정에 쓰인다. */
+export const STATUS_TITLE = "세트 상태 — 저장은 내 DRAFT 버전에 쓰고, 확정해야 적용된다";
 /** 자동 저장 상태 글 색(의미 토큰). */
 const AUTO_STATUS_COLOR: Record<"warning" | "error", string> = {
   warning: "var(--color-warning)",
@@ -115,6 +115,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
   const view = state.view!;
   const set = view.set;
   const inUse = set.status === "INUSE";
+  const deprecated = set.status === "DEPRECATED";
   const busy = state.loading;
   /** 쓰기 요청을 보낼 수 없다 — 로딩 중이거나 자동 저장이 진행 중이다. */
   const writeBusy = busy || state.autoSaving;
@@ -144,8 +145,11 @@ export function FlowToolbar(props: FlowToolbarProps) {
 
   const hasReject = state.checks.some((c) => c.severity === "REJECT");
   const canSave = editing && canEdit && state.dirty && !hasReject && !state.condIoPending && !writeBusy;
-  const canDeprecate = view.editable && inUse && canDo("delete") && !writeBusy;
-  const canRestore = view.restorable && !inUse && canDo("restore") && !writeBusy;
+  // D-144 2단계 — 폐기는 선택 버전과 무관하다(미적용 버전이 없어야 하므로 내 DRAFT 를 고른 동안은 늘 불가). 서버 판정 flags.canDeprecate 를 따르고,
+  // 버전 플래그가 없는 옛 응답이면 editable 로 본다. 담당자 여부는 서버가 다시 본다(MDM013).
+  const deprecatable = view.flags ? view.flags.canDeprecate : view.editable;
+  const canDeprecate = deprecatable && inUse && canDo("delete") && !writeBusy;
+  const canRestore = view.restorable && deprecated && canDo("restore") && !writeBusy;
   const saveTitle = !editing
     ? "편집 모드에서 저장한다"
     : hasReject
@@ -159,7 +163,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
 
   const message: RuleSetMessage | null = confirmDeprecate ? { kind: "error", text: DEPRECATE_WARNING } : state.message;
 
-  const editTip = canEdit ? "편집" : "편집 — 담당자이고 사용 중인 세트이며 저장 권한이 있어야 편집한다";
+  const editTip = canEdit ? "편집" : "편집 — 담당자이고 고른 버전이 내 DRAFT 이며 저장 권한이 있어야 편집한다";
 
   return (
     // 단추는 마우스로 눌러도 초점을 가져가지 않는다(Figma 툴바 방식, S1 리뷰 Important 2) — 초점이 단추에 남으면 스페이스+끌기(화면 이동)의
@@ -307,7 +311,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
               onClick={() => void state.reload()}
             />
           )}
-          {inUse ? (
+          {!deprecated ? ( // D-144 2단계 — CREATED 세트는 되살리기가 아니라 (꺼진) 폐기를 보인다
             confirmDeprecate ? (
               <>
                 <ToolButton

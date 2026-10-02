@@ -175,8 +175,17 @@ class MdmBusinessRuleMigrationTest {
                 rejected(c, "CK_TB_MDM_RULE_ROW_KIND",
                         "INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS) VALUES (?, 1, 1, 1, 'BAD', '{}')", r);
                 rejected(c, "CK_TB_MDM_RULE_SET_STATUS",
-                        "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, STATUS) VALUES (?, '세트', '[]', 'CREATED')",
+                        "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, STATUS) VALUES (?, '세트', 'BAD')",
                         "S" + SEQ.incrementAndGet());
+                // D-144 2단계 — 세트 버전 행의 CHECK(부모를 먼저 넣어 FK 를 맞춘다).
+                String setId = "S" + SEQ.incrementAndGet();
+                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME) VALUES (?, '세트')", setId);
+                rejected(c, "CK_TB_MDM_RULE_SET_VER_STATUS",
+                        "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, STATUS, RULE_IDS) VALUES (?, 1, 'BAD', '[]')", setId);
+                rejected(c, "CK_TB_MDM_RULE_SET_VER_KIND",
+                        "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, VER_KIND, RULE_IDS) VALUES (?, 1, 'BAD', '[]')", setId);
+                rejected(c, "CK_TB_MDM_RULE_SET_VER_APPLY",
+                        "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, STATUS, RULE_IDS) VALUES (?, 1, 'RELEASED', '[]')", setId);
 
                 String recv = "INSERT INTO TB_MDM_RULE_RECV (MARU_RULE_ID, SOURCE_SYSTEM, REQ_KIND, RECEIVED_AT, BODY, \"RESULT\") "
                         + "VALUES (?, 'MES', ?, '2026-09-09 08:00:00', '{}', ?)";
@@ -199,7 +208,7 @@ class MdmBusinessRuleMigrationTest {
             try {
                 String r = seedRuleAndVersion(c);
                 String setId = "SJ" + SEQ.incrementAndGet();
-                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS) VALUES (?, '세트', '[]')", setId);
+                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME) VALUES (?, '세트')", setId);
                 Map<String, String> inserts = new LinkedHashMap<>();
                 inserts.put("VAR_AST", "INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, VAR_NAME, VAR_AST, SEQ) "
                         + "VALUES (?, 1, ?, 'COND', 'X', ?, ?)");
@@ -217,10 +226,8 @@ class MdmBusinessRuleMigrationTest {
                         + "VALUES (?, ?, ?, ?)");
                 inserts.put("TB_MDM_RULE_SET_TEST_CASE.EXPECTED_JSON", "INSERT INTO TB_MDM_RULE_SET_TEST_CASE (MARU_RULE_SET_ID, CASE_ID, INPUT_JSON, EXPECTED_JSON) "
                         + "VALUES (?, ?, '{}', ?)");
-                inserts.put("RULE_IDS", "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, DESCRIPTION) "
-                        + "VALUES (?, ?, ?, ?)");
-                inserts.put("FLOW_JSON", "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, FLOW_JSON) "
-                        + "VALUES (?, ?, '[]', ?)");
+                inserts.put("RULE_IDS", "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS) VALUES (?, ?, ?)");
+                inserts.put("FLOW_JSON", "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS, FLOW_JSON) VALUES (?, ?, '[]', ?)");
 
                 int checked = 0;
                 for (Map.Entry<String, List<String>> e : JSON_COLUMNS.entrySet()) {
@@ -228,7 +235,7 @@ class MdmBusinessRuleMigrationTest {
                         String sql = inserts.getOrDefault(e.getKey() + "." + column, inserts.get(column));
                         String ck = jsonCheckName(e.getKey(), column);
                         int n = SEQ.incrementAndGet();
-                        String owner = "TB_MDM_RULE_SET_TEST_CASE".equals(e.getKey()) ? setId : r;
+                        String owner = "TB_MDM_RULE_SET_TEST_CASE".equals(e.getKey()) || "TB_MDM_RULE_SET_VER".equals(e.getKey()) ? setId : r;
                         Object[] bad = jsonParams(e.getKey(), column, owner, n, "{bad");
                         rejected(c, ck, sql, bad);
                         Object[] good = jsonParams(e.getKey(), column, owner, n, "{\"a\":\"1\"}");
@@ -260,8 +267,7 @@ class MdmBusinessRuleMigrationTest {
             case "VAR_AST", "PRIO_LIST", "GRP_COND_AST", "CELLS" -> new Object[] {ruleId, n, json, n};
             case "INPUT_JSON" -> new Object[] {ruleId, n, json, "케이스"};
             case "EXPECTED_JSON" -> new Object[] {ruleId, n, json};
-            case "RULE_IDS" -> new Object[] {"S" + n, "세트", json, "설명"};
-            case "FLOW_JSON" -> new Object[] {"F" + n, "흐름 세트", json};
+            case "RULE_IDS", "FLOW_JSON" -> new Object[] {ruleId, n, json};
             default -> throw new IllegalArgumentException(column);
         };
     }
@@ -316,7 +322,7 @@ class MdmBusinessRuleMigrationTest {
                 String ins = "INSERT INTO TB_MDM_RULE_SET_TEST_CASE (MARU_RULE_SET_ID, CASE_ID, INPUT_JSON) VALUES (?, 1, '{}')";
                 String set = "SF" + SEQ.incrementAndGet();
                 rejected(c, "FOREIGN KEY", ins, set);
-                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS) VALUES (?, '세트', '[]')", set);
+                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME) VALUES (?, '세트')", set);
                 exec(c, ins, set);
                 rejected(c, "FOREIGN KEY", "DELETE FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", set);
                 exec(c, "DELETE FROM TB_MDM_RULE_SET_TEST_CASE WHERE MARU_RULE_SET_ID = ?", set);
@@ -427,9 +433,11 @@ class MdmBusinessRuleMigrationTest {
                 exec(c, "INSERT INTO TB_MDM_RULE_TEST_CASE (MARU_RULE_ID, CASE_ID, INPUT_JSON) VALUES (?, 1, '{}')", r);
                 assertEquals("0", one(c, "SELECT ROW_VERSION FROM TB_MDM_RULE_TEST_CASE WHERE MARU_RULE_ID = ?", r));
                 String set = "S" + SEQ.incrementAndGet();
-                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS) VALUES (?, '세트', '[]')", set);
-                assertEquals("INUSE|0", one(c,
-                        "SELECT STATUS || '|' || ROW_VERSION FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", set));
+                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME) VALUES (?, '세트')", set);
+                assertEquals("CREATED", one(c, "SELECT STATUS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", set));
+                exec(c, "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS) VALUES (?, 1, '[]')", set);
+                assertEquals("DRAFT|0|MAJOR", one(c,
+                        "SELECT STATUS || '|' || ROW_VERSION || '|' || VER_KIND FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID = ?", set));
             } finally {
                 c.rollback();
                 c.setAutoCommit(true);
@@ -468,13 +476,14 @@ class MdmBusinessRuleMigrationTest {
                 exec(c, "INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS) VALUES (?, 1, 1, 1, 'NORMAL', ?)",
                         r, "{\"1\":{\"op\":\"GE\",\"left\":\"2.5\"},\"4\":{\"val\":\"B\"}}");
                 String set = "S" + SEQ.incrementAndGet();
-                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS) VALUES (?, '세트', ?)",
+                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME) VALUES (?, '세트')", set);
+                exec(c, "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS) VALUES (?, 1, ?)",
                         set, "[\"BASE_SPD_LKP\",\"SPD_EXC\",\"SPD_JOIN\"]");
 
                 assertEquals("text,text", one(c, "SELECT group_concat(typeof(j.key)) FROM TB_MDM_RULE_ROW r, "
                         + "json_each(r.CELLS) j WHERE r.MARU_RULE_ID = ?", r));
                 assertEquals("integer:0,integer:1,integer:2", one(c,
-                        "SELECT group_concat(typeof(j.key) || ':' || j.key) FROM TB_MDM_RULE_SET s, json_each(s.RULE_IDS) j "
+                        "SELECT group_concat(typeof(j.key) || ':' || j.key) FROM TB_MDM_RULE_SET_VER s, json_each(s.RULE_IDS) j "
                                 + "WHERE s.MARU_RULE_SET_ID = ?", set));
                 assertEquals("GE", one(c, "SELECT json_extract(CELLS, '$.\"1\".op') FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = ?", r));
             } finally {
@@ -533,8 +542,10 @@ class MdmBusinessRuleMigrationTest {
                         + "VALUES ('QLTY_GRD_JDG', 1, '1.8mm 광폭 A급', ?, ?)",
                         "{\"COIL_THK\":1.8,\"COIL_WID\":1200,\"SURF_GRD\":\"A\",\"BASE_FCT\":1.0}",
                         "{\"QLTY_GRD\":\"A\",\"PRC_FCT\":1.05,\"hit\":1}");
-                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, STATUS) "
-                        + "VALUES ('LS_A3', '3CCL 라인스피드', '[\"BASE_SPD_LKP\",\"SPD_EXC\",\"SPD_JOIN\"]', 'INUSE')");
+                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, STATUS) VALUES ('LS_A3', '3CCL 라인스피드', 'INUSE')");
+                exec(c, "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, VER_KIND, STATUS, APPLY_FROM, APPLY_TO, RULE_IDS) "
+                        + "VALUES ('LS_A3', 1, 'MAJOR', 'RELEASED', '2026-09-10 00:00:00', '9999-12-31 00:00:00', "
+                        + "'[\"BASE_SPD_LKP\",\"SPD_EXC\",\"SPD_JOIN\"]')");
 
                 // EXTERNAL 예 — QMS 는 TB_MDM_SYSTEM 시드에 없어 APS 로 바꾼다(F28).
                 exec(c, "INSERT INTO TB_MDM_RULE (MARU_RULE_ID, MARU_RULE_NAME, RULE_KIND, STATUS, SOURCE_KIND, SOURCE_SYSTEM) "

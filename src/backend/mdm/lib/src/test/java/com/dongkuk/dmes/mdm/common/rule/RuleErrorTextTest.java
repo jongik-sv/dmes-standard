@@ -252,4 +252,14 @@ class RuleErrorTextTest {
         }
         return out;
     }
+
+    @Test
+    void SET_NOT_FOUND_는_세트_ID_와_KST_판정_시각을_담는다() {
+        // 엔진 원문 모양은 MdmRuleEngine.set — "세트가 없다: {setId} @ {Instant}"(엔진 RuleSetEvaluationTest 가 고정)
+        assertEquals("판정 시각 2026-03-01 09:00:00 에 적용되는 룰 세트 RS_A 의 버전이 없습니다. 세트 버전의 확정 여부와 적용 기간(시작·종료), "
+                        + "판정 시각을 확인하세요.",
+                RuleErrorText.describe("SET_CHECK", "SET_NOT_FOUND", null, null, "세트가 없다: RS_A @ 2026-03-01T00:00:00Z"));
+        assertEquals("RS_A", RuleErrorText.missingSetId("세트가 없다: RS_A @ 2026-03-01T00:00:00Z"));
+        assertEquals("룰 세트 RS_A 가 없습니다. 세트 ID 를 확인하세요.", RuleErrorText.setAbsent("RS_A"));
+    }
 }

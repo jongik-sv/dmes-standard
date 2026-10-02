@@ -13,7 +13,7 @@ import com.dongkuk.dmes.mdm.contract.category.MaruIdRules;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeConventions;
 import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeSourceKind;
-import com.dongkuk.dmes.mdm.contract.mastercode.MasterCodeVerKind;
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.dma.naming.NamingRules;
@@ -150,7 +150,7 @@ public class CodeMngService {
         code.setLvlCnt(lvlCnt);
         entityManager.persist(code);
 
-        MdmCodeVer ver = new MdmCodeVer(id, MasterCodeConventions.FIRST_VER, MasterCodeVerKind.MAJOR.name());
+        MdmCodeVer ver = new MdmCodeVer(id, MasterCodeConventions.FIRST_VER, VersionKind.MAJOR.name());
         ver.setOwnerId(userId); // I11 — 클라이언트 값이 아니라 요청 사용자
         entityManager.persist(ver);
         entityManager.flush();

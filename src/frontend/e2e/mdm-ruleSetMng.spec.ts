@@ -77,6 +77,8 @@ test.describe("mdm dme/ruleSetMng", () => {
 
     const chain = setRow(page, "E2S_CHAIN");
     await expect(chain).toBeVisible({ timeout: 30_000 });
+    // 목록의 버전 열은 표시 버전(지금 적용 중인 RELEASED)이다 — 내 DRAFT 2.000 이 있어도 v1.000.
+    await expect(chain.locator('[col-id="ver"]')).toHaveText("v1.000");
     await expect(chain.locator('[col-id="ruleCount"]')).toHaveText("3");
     await expect(chain.locator('[col-id="finalResults"]')).toHaveText("S_SPD");
     await expect(chain.locator('[col-id="inputCount"]')).toHaveText("3");
@@ -115,6 +117,8 @@ test.describe("mdm dme/ruleSetMng", () => {
     // 룰 세트 편집 탭 — handoff 대상(setId)을 받아 새 세트를 연다.
     await expect(page.getByTestId("set-edit-current")).toContainText("E2S_NEW_SET", { timeout: 60_000 });
     await expect(page.getByTestId("set-status")).toHaveText("INUSE");
+    // 등록은 1.000 DRAFT 를 함께 만든다 — 편집 화면이 그 버전으로 열린다.
+    await expect(page.getByTestId("set-ver-select")).toContainText("v1.000 (DRAFT)", { timeout: 20_000 });
     // 빈 세트는 캔버스에 시작 → 끝만 그려진다(룰 노드 없음).
     await expect(page.getByTestId("flow-node-start")).toBeVisible();
     await expect(page.getByTestId("flow-canvas").locator('[data-kind="RULE"]')).toHaveCount(0);

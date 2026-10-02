@@ -9,7 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 /**
- * MDM 메타 변경 기록 — {@code TB_MDM_META_REV}(spec 2026-10-02-mdm-meta-cache-design §3.1, V18). 쓰기는
+ * MDM 메타 변경 기록 — {@code TB_MDM_META_REV}(spec 2026-10-02-mdm-meta-cache-design §3.1, V20). 쓰기는
  * {@code MetaRevisionRecorder} 의 네이티브 INSERT 가 하고, 이 엔티티는 읽기(metaFeed search)에만 쓴다.
  * {@code REV_SEQ} 는 IDENTITY(불변 규칙 10).
  */

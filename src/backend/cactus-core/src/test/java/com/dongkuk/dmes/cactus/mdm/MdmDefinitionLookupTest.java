@@ -249,11 +249,32 @@ class MdmDefinitionLookupTest {
         assertThat(lookup.rule("NO", atSwitch)).isEmpty();
     }
 
+    /** D-144 2단계 — 세트도 RELEASED 버전 목록을 캐시하고 룰과 같은 규칙으로 판정 시각마다 고른다. */
     @Test
-    void ruleSet_은_캐시_값을_그대로_준다() {
-        RuleSetDefinition set = new RuleSetDefinition("S", List.of("R"), SetStatus.INUSE, null);
-        feed.put(MdmTargetType.RULE_SET, "S", set);
-        assertThat(lookup.ruleSet("S")).contains(set);
+    void ruleSet_은_판정_시각이_적용_기간에_든_RELEASED_세트_버전을_고른다_경계() {
+        RuleSetDefinition v1 = set("1.000", List.of("R"), LocalDateTime.of(2026, 1, 1, 0, 0), LocalDateTime.of(2026, 7, 1, 0, 0));
+        RuleSetDefinition v2 = set("1.001", List.of("R", "R2"), LocalDateTime.of(2026, 7, 1, 0, 0), null);
+        feed.put(MdmTargetType.RULE_SET, "S", List.of(v1, v2));
+        Instant beforeSwitch = LocalDateTime.of(2026, 6, 30, 23, 59, 59).atZone(MdmDefinitionLookup.KST).toInstant();
+        Instant atSwitch = LocalDateTime.of(2026, 7, 1, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant();
+        Instant beforeAll = LocalDateTime.of(2025, 12, 31, 23, 59, 59).atZone(MdmDefinitionLookup.KST).toInstant();
+
+        assertThat(lookup.ruleSet("S", beforeSwitch)).contains(v1);
+        assertThat(lookup.ruleSet("S", atSwitch)).contains(v2);
+        assertThat(lookup.ruleSet("S", beforeAll)).isEmpty();
+        assertThat(lookup.ruleSet("NO", atSwitch)).isEmpty();
+    }
+
+    @Test
+    void 세트_버전도_겹치면_VER_가_수로_큰_것을_고른다() {
+        LocalDateTime from = LocalDateTime.of(2026, 1, 1, 0, 0);
+        Instant at = LocalDateTime.of(2026, 4, 1, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant();
+        List<RuleSetDefinition> sets = List.of(set("9.000", List.of(), from, null), set("10.000", List.of(), from, null));
+        assertThat(MdmDefinitionLookup.selectSet(sets, at).orElseThrow().ver()).isEqualTo(new BigDecimal("10.000"));
+    }
+
+    private static RuleSetDefinition set(String ver, List<String> ruleIds, LocalDateTime from, LocalDateTime to) {
+        return new RuleSetDefinition("S", new BigDecimal(ver), from, to, ruleIds, SetStatus.INUSE, null);
     }
 
     @Test

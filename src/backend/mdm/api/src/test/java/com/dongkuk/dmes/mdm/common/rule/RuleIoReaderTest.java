@@ -186,11 +186,17 @@ class RuleIoReaderTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 룰_세트_헬퍼는_CHECK_를_통과하는_한_행을_넣는다() {
+    void 룰_세트_헬퍼는_CHECK_를_통과하는_부모와_1_000_RELEASED_버전_행을_넣는다() {
         DmeTestSupport.ruleSet(jdbc, "SET_A", "세트 A", "[\"R_MAIN\",\"R_VER\"]", "DEPRECATED", 3);
 
-        assertEquals(Map.of("RULE_IDS", "[\"R_MAIN\",\"R_VER\"]", "STATUS", "DEPRECATED", "ROW_VERSION", 3L, "U_USR_ID", "fixture", "VER", 0L),
-                jdbc.queryForMap("SELECT RULE_IDS, STATUS, ROW_VERSION, U_USR_ID, VER FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'SET_A'")
+        assertEquals(Map.of("STATUS", "DEPRECATED", "U_USR_ID", "fixture", "VER", 0L),
+                jdbc.queryForMap("SELECT STATUS, U_USR_ID, VER FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'SET_A'")
+                        .entrySet().stream().collect(java.util.stream.Collectors.toMap(e -> e.getKey().toUpperCase(),
+                                e -> e.getValue() instanceof Number n ? (Object) n.longValue() : e.getValue())));
+        assertEquals(Map.of("RULE_IDS", "[\"R_MAIN\",\"R_VER\"]", "STATUS", "RELEASED", "VER_KIND", "MAJOR", "ROW_VERSION", 3L,
+                        "APPLY_FROM", "2000-01-01 00:00:00", "U_USR_ID", "fixture", "AUD_VER", 0L),
+                jdbc.queryForMap("SELECT RULE_IDS, STATUS, VER_KIND, ROW_VERSION, APPLY_FROM, U_USR_ID, AUD_VER FROM TB_MDM_RULE_SET_VER "
+                                + "WHERE MARU_RULE_SET_ID = 'SET_A' AND VER = 1")
                         .entrySet().stream().collect(java.util.stream.Collectors.toMap(e -> e.getKey().toUpperCase(),
                                 e -> e.getValue() instanceof Number n ? (Object) n.longValue() : e.getValue())));
     }

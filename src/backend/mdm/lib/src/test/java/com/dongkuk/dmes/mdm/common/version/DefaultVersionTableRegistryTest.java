@@ -28,6 +28,13 @@ class DefaultVersionTableRegistryTest {
     }
 
     @Test
+    void 룰_세트_명세() {
+        VersionTableSpec spec = registry.spec(VersionTarget.RULE_SET);
+        assertEquals(new VersionTableSpec("TB_MDM_RULE_SET_VER", "MARU_RULE_SET_ID", "VER", "TB_MDM_RULE_SET", "MARU_RULE_SET_ID",
+                "AUD_VER", "VER"), spec);
+    }
+
+    @Test
     void 감사_카운터는_버전_테이블_AUD_VER_부모_VER_이고_업무_버전_칼럼은_VER_다() {
         for (VersionTarget target : VersionTarget.values()) {
             VersionTableSpec spec = registry.spec(target);

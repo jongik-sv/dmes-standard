@@ -203,6 +203,6 @@ class RuleSetCaseServiceTest extends AbstractMdmSharedDbTest {
         RuleSetSaveRequest r = caseReq(SET, null, null, "기본", "{}", null, null);
         assertNull(r.getSetName());
         service.save(r);
-        assertEquals(5L, jdbc.queryForObject("SELECT ROW_VERSION FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", Long.class, SET));
+        assertEquals(5L, Long.parseLong(DmeTestSupport.setVerValue(jdbc, SET, "1.000", "ROW_VERSION")));
     }
 }

@@ -19,7 +19,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, Pagination, type GridColumn } from "@dk-oasis/shared/grid";
 import { Input, Select } from "@dk-oasis/shared/form";
-import { MdmPageLayout, badgeStyle, openMdmPage } from "@/shell";
+import { MdmPageLayout, badgeStyle, fmtVer, openMdmPage } from "@/shell";
 
 import { searchSets } from "./api";
 import { RuleSetRegisterForm } from "./components/RuleSetRegisterForm";
@@ -36,6 +36,7 @@ const EDIT_PAGE = "dme/ruleSetEdit";
 
 const STATUS_FILTER_OPTIONS = [
   { value: "", label: "전체" },
+  { value: "CREATED", label: "CREATED" },
   { value: "INUSE", label: "INUSE" },
   { value: "DEPRECATED", label: "DEPRECATED" },
 ];
@@ -116,13 +117,21 @@ export default function RuleSetMngPage() {
       { key: "description", header: "설명", width: 200, minWidth: 90 },
       { key: "checkText", header: "세트 검사", width: 130, minWidth: 80, align: "center" },
       {
+        key: "ver",
+        header: "버전",
+        width: 70,
+        minWidth: 50,
+        align: "center",
+        render: (value, row) => <span data-testid={`rsm-ver-${String(row.setId)}`}>{fmtVer(value as string | null)}</span>,
+      },
+      {
         key: "status",
         header: "상태",
         width: 100,
         minWidth: 70,
         align: "center",
         render: (value) => (
-          <span style={badgeStyle(value === "INUSE" ? "success" : "muted")}>{String(value ?? "")}</span>
+          <span style={badgeStyle(value === "INUSE" ? "success" : value === "DEPRECATED" ? "muted" : "neutral")}>{String(value ?? "")}</span>
         ),
       },
     ],

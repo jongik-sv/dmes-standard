@@ -5,6 +5,8 @@ import java.util.List;
 /**
  * 룰 세트 목록 한 행. {@code ruleCount} 밖의 계산 칸은 저장하지 않는 값이다 — 멤버 룰의 지금 RELEASED 입출력으로 세트 입출력 표·저장 시
  * 검사를 계산한다(design §6.7). {@code finalResults} 는 뒤 룰이 읽지 않는 결과 이름(표 순서), DEPRECATED 세트는 거부·경고 수가 0 이다.
+ * {@code status} 는 부모 계산 상태, {@code ver} 는 계산에 쓴 표시 버전({@code "1.000"} — 지금 적용 중인 RELEASED, 없으면 VER 최대, 버전이 없으면
+ * null, D-144 2단계 J11)이다.
  */
 public class RuleSetListRow {
 
@@ -17,6 +19,7 @@ public class RuleSetListRow {
     private int rejectCount;
     private int warnCount;
     private String status;
+    private String ver;
 
     public String getSetId() { return setId; }
     public String getSetName() { return setName; }
@@ -27,6 +30,7 @@ public class RuleSetListRow {
     public int getRejectCount() { return rejectCount; }
     public int getWarnCount() { return warnCount; }
     public String getStatus() { return status; }
+    public String getVer() { return ver; }
 
     public void setSetId(String v) { this.setId = v; }
     public void setSetName(String v) { this.setName = v; }
@@ -37,4 +41,5 @@ public class RuleSetListRow {
     public void setRejectCount(int v) { this.rejectCount = v; }
     public void setWarnCount(int v) { this.warnCount = v; }
     public void setStatus(String v) { this.status = v; }
+    public void setVer(String v) { this.ver = v; }
 }

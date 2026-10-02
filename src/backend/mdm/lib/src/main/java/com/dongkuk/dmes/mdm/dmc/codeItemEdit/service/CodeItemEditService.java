@@ -18,6 +18,7 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRows;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.category.CategoryConventions;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
@@ -585,11 +586,7 @@ public class CodeItemEditService {
         if (isBlank(raw)) {
             throw invalid("ver 가 필요합니다");
         }
-        try {
-            return new BigDecimal(raw.trim()).setScale(VER_SCALE);
-        } catch (NumberFormatException | ArithmeticException e) {
-            throw invalid("ver 형식이 올바르지 않습니다: " + raw);
-        }
+        return VersionRules.parseVer(raw);
     }
 
     private static String str(BigDecimal v) {

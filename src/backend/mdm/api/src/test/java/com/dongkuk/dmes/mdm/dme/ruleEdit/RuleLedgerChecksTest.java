@@ -31,8 +31,13 @@ import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveContext;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
 import com.dongkuk.dmes.mdm.common.rule.check.ledger.RuleSetOrderCheck;
 import com.dongkuk.dmes.mdm.common.rule.check.ledger.RuleSetOrderCheck.SiblingRead;
+import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmChecks;
+import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmReport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
+import com.dongkuk.dmes.mdm.contract.version.VersionRef;
+import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
@@ -46,6 +51,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -91,6 +97,8 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
     RuleSetOrderCheck orderCheck;
     @Autowired
     RuleQueries queries;
+    @Autowired
+    RuleConfirmChecks confirmChecks;
 
     @BeforeEach
     void seed() {
@@ -166,8 +174,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
     }
 
     private void ruleSet(String setId, String status, String... ruleIds) {
-        jdbc.update("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, STATUS) VALUES (?, ?, ?, ?)",
-                setId, setId, DomainJson.write(List.of(ruleIds)), status);
+        DmeTestSupport.ruleSet(jdbc, setId, setId, DomainJson.write(List.of(ruleIds)), status, 0);
     }
 
     private void codeDomainOnSurfGrd() {
@@ -326,6 +333,69 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         assertTrue(issues(r, "SET_ORDER").isEmpty(), "DEPRECATED 세트는 보지 않는다");
     }
 
+    /**
+     * Review Focus 4 — 세트 S_VER 의 지금 버전 v1.000 [2000-01-01, 2026-07-01) 과 예약된 버전 v2.000 [2026-07-01, …), DRAFT v3.000.
+     * v1·v3 은 순서가 틀린 흐름(QLTY_GRD_JDG 가 뒤의 R_WID 결과 COIL_WID 를 읽는다)이다. v2 는 {@code v2Wrong} 이면 같은 틀린 순서, 아니면 바로잡은 순서다.
+     */
+    private void versionedSets(boolean v2Wrong) {
+        otherRule("R_WID", "X_IN", "COIL_WID");
+        ruleSet("S_VER", "INUSE", "QLTY_GRD_JDG", "R_WID");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'S_VER'");
+        DmeTestSupport.ruleSetVersion(jdbc, "S_VER", "2.000", "MAJOR", "RELEASED", "kim",
+                v2Wrong ? "[\"QLTY_GRD_JDG\",\"R_WID\"]" : "[\"R_WID\",\"QLTY_GRD_JDG\"]", "2026-07-01 00:00:00", "9999-12-31 00:00:00", 0);
+        DmeTestSupport.ruleSetVersion(jdbc, "S_VER", "3.000", "MAJOR", "DRAFT", "kim", "[\"QLTY_GRD_JDG\",\"R_WID\"]", null, null, 0);
+    }
+
+    /** 이슈 문구에서 "세트 X vN.NNN: " 머리만(순서 유지). */
+    private static List<String> heads(List<Map<String, Object>> issues) {
+        return issues.stream().map(i -> String.valueOf(i.get("message"))).map(m -> m.substring(0, m.indexOf(": ") + 2)).toList();
+    }
+
+    /**
+     * 기준 시각 이후 유효한 RELEASED 버전마다(지금 것 + 예약된 것) 따로 판정하고 문구 머리에 세트 버전을 적는다. 06-20 에는 v1·v2 가 한 건씩, 07-01 에는
+     * v1 이 끝나 v2 만 남는다. DRAFT v3 은 틀린 순서여도 보지 않는다. at 에 유효한 버전 하나만 보면(currentReleased) 06-20 의 v2 건이 빠져 깨진다.
+     */
+    @Test
+    void 기준_시각_이후_유효한_세트_RELEASED_버전마다_버전_머리로_판정한다() {
+        versionedSets(true);
+        List<Map<String, Object>> early = orderCheckAt("QLTY_GRD_JDG", LocalDateTime.of(2026, 6, 20, 0, 0));
+        assertEquals(List.of("SET_ORDER", "SET_ORDER"), checkCodes(early), early.toString());
+        assertEquals(List.of("세트 S_VER v1.000: ", "세트 S_VER v2.000: "), heads(early));
+        List<Map<String, Object>> late = orderCheckAt("QLTY_GRD_JDG", LocalDateTime.of(2026, 7, 1, 0, 0));
+        assertEquals(List.of("SET_ORDER"), checkCodes(late), late.toString());
+        assertEquals(List.of("세트 S_VER v2.000: "), heads(late));
+    }
+
+    @Test
+    void 룰_확정_검사는_요청한_apply_from_으로_세트_버전을_고른다() {
+        versionedSets(false);
+        VersionRef ref = new VersionRef(VersionTarget.BUSINESS_RULE, "QLTY_GRD_JDG", DmeTestSupport.v(1));
+        List<String> early = RuleConfirmReport.flatten(confirmChecks.report(ref, LocalDateTime.of(2026, 6, 20, 0, 0))).errors()
+                .stream().map(MdmCheckIssue::code).toList();
+        List<String> late = RuleConfirmReport.flatten(confirmChecks.report(ref, LocalDateTime.of(2026, 7, 1, 0, 0))).errors()
+                .stream().map(MdmCheckIssue::code).toList();
+        assertTrue(early.contains("SET_ORDER"), early.toString());
+        assertFalse(late.contains("SET_ORDER"), late.toString());
+    }
+
+    /** 부모 조건은 "폐기 아님" — 첫 확정 뒤 저장 상태가 CREATED 로 남은 세트도 운영에 쓰이므로 본다(이전의 INUSE 조건이 아니다). */
+    @Test
+    void 저장_상태가_CREATED_인_세트의_RELEASED_버전도_순서를_검사한다() {
+        otherRule("R_WID", "X_IN", "COIL_WID");
+        ruleSet("S_NEW", "CREATED", "QLTY_GRD_JDG", "R_WID");
+
+        List<Map<String, Object>> issues = orderCheckAt("QLTY_GRD_JDG", LocalDateTime.of(2026, 6, 20, 0, 0));
+
+        assertEquals(List.of("SET_ORDER"), checkCodes(issues), issues.toString());
+        assertEquals(List.of("세트 S_NEW v1.000: "), heads(issues));
+    }
+
+    /** 확정 검사 빈을 me 의 VER 1 정의로, 기준 시각 at 으로 직접 부른다. */
+    private List<Map<String, Object>> orderCheckAt(String me, LocalDateTime at) {
+        return orderCheck.check(new RuleSaveContext(me, DmeTestSupport.v(1), "DECISION", "FIRST", queries.vars(me, DmeTestSupport.v(1)),
+                List.of(), List.of(), List.of(), RuleSaveTarget.STORED, at));
+    }
+
     /** 흐름 세트 — IF(또는 PARALLEL) 하나에 두 갈래. first 는 첫 갈래, second 는 둘째 갈래(IF 면 그 외)의 룰. */
     private void branchSet(String setId, String kind, String first, String second) {
         String secondEdge = "IF".equals(kind)
@@ -409,7 +479,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         BusinessException e = rejected(() -> save(sample()));
 
         assertEquals(List.of("SET_IF_SIBLING"), codes(e), e.getMessage());
-        assertTrue(e.getMessage().contains("세트 S_CATCH: QLTY_GRD_JDG와(과) R_WID가 같은 IF 의 다른 갈래에 있는데 한쪽이 다른 쪽 결과를 읽는다"
+        assertTrue(e.getMessage().contains("세트 S_CATCH v1.000: QLTY_GRD_JDG와(과) R_WID가 같은 IF 의 다른 갈래에 있는데 한쪽이 다른 쪽 결과를 읽는다"
                 + "(QLTY_GRD_JDG ← [COIL_WID], R_WID ← [PRC_FCT])"), e.getMessage());
     }
 
@@ -445,7 +515,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         BusinessException e = rejected(() -> save(sample()));
 
         assertEquals(List.of("SET_IF_SIBLING"), codes(e), e.getMessage());
-        assertTrue(e.getMessage().contains("세트 S_GREAD: QLTY_GRD_JDG와(과) R_G가 같은 IF 의 다른 갈래에 있는데 한쪽이 다른 쪽 결과를 읽는다"
+        assertTrue(e.getMessage().contains("세트 S_GREAD v1.000: QLTY_GRD_JDG와(과) R_G가 같은 IF 의 다른 갈래에 있는데 한쪽이 다른 쪽 결과를 읽는다"
                 + "(QLTY_GRD_JDG ← [COIL_WID], R_G ← []) — 그 갈래를 타면 값이 없다"), e.getMessage());
     }
 
@@ -481,7 +551,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         rules.put("R_P", new RuleIo("R_P", "R_P", "DECISION", "INUSE", true, "1.000", "FIRST", List.of(xIn), List.of(ioName("S_X"))));
         rules.put("R_A", new RuleIo("R_A", "R_A", "DECISION", "INUSE", true, "1.000", "FIRST", List.of(xIn), List.of(ioName("S_X"))));
         rules.put("R_B", new RuleIo("R_B", "R_B", "DECISION", "INUSE", true, "1.000", "FIRST", List.of(ioName("S_X")), List.of(ioName("S_B_OUT"))));
-        String flow = jdbc.queryForObject("SELECT FLOW_JSON FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", String.class, setId);
+        String flow = DmeTestSupport.setVerValue(jdbc, setId, "1.000", "FLOW_JSON");
         return RuleSetAnalyzer.checks(RuleSetFlowJson.parse(flow), rules, Map.of("e2", new CondIo(true, null, List.of(xIn))));
     }
 

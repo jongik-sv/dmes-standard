@@ -10,6 +10,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleVersionRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.common.version.VersionRules;
 import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleListRow;
 import com.dongkuk.dmes.mdm.dme.ruleMng.dto.RuleMngSaveRequest;
@@ -254,10 +255,11 @@ public class RuleMngService {
         if (f.isCanNewVersion()) {
             // 종류별 가능 여부 — 버전 최대값은 상태로 거르지 않는다(D-144 I1). 버전이 없으면 major 1.000 만 가능.
             BigDecimal max = VersionNumbers.maxVer(versions.stream().map(MdmRuleVer::getVer).toList());
-            f.setCanNewMajor(VersionNumbers.canMajor(max));
-            f.setCanNewMinor(VersionNumbers.canMinor(max));
-            f.setNextMajor(f.isCanNewMajor() ? VersionNumbers.plain(VersionNumbers.nextMajor(max)) : null);
-            f.setNextMinor(f.isCanNewMinor() ? VersionNumbers.plain(VersionNumbers.nextMinor(max)) : null);
+            VersionRules.NewVersionFlags nv = VersionRules.newVersionFlags(max, true);
+            f.setCanNewMajor(nv.canNewMajor());
+            f.setCanNewMinor(nv.canNewMinor());
+            f.setNextMajor(nv.canNewMajor() ? nv.nextMajor() : null);
+            f.setNextMinor(nv.nextMinor());
         }
         // 폐기(I9) — 원천 MDM·사용 중(INUSE)·미적용 버전 없을 때.
         f.setCanDeprecate(mdm && "INUSE".equals(RuleVersions.effectiveStatus(rule.getStatus(), versions, now))

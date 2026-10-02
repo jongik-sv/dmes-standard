@@ -67,9 +67,17 @@ public final class InMemoryDefinitionLookup implements DefinitionLookup {
                 .findFirst();
     }
 
+    private final List<Instant> ruleSetEvalTs = new ArrayList<>();
+
+    /** {@code ruleSet()} 에 넘어온 평가 시각(순서대로). */
+    public List<Instant> ruleSetEvalTs() {
+        return ruleSetEvalTs;
+    }
+
     @Override
-    public Optional<RuleSetDefinition> ruleSet(String setId) {
+    public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
         ruleSetCalls++;
+        ruleSetEvalTs.add(evalTs);
         return Optional.ofNullable(sets.get(setId));
     }
 }

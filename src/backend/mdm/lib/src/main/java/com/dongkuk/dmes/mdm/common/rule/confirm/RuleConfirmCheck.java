@@ -33,6 +33,6 @@ public class RuleConfirmCheck implements VersionConfirmCheckSpi {
 
     @Override
     public ConfirmCheckResult check(ConfirmCheckRequest request) {
-        return RuleConfirmReport.flatten(checks.report(request.draft()));
+        return RuleConfirmReport.flatten(checks.report(request.draft(), request.requestedApplyFrom()));
     }
 }

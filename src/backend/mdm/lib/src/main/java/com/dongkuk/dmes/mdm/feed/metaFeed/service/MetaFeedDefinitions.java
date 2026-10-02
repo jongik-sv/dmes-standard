@@ -4,6 +4,7 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
 import com.dongkuk.dmes.mdm.common.mastercode.MdmCodeLookup;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.definition.RuleDefinitionAssembler;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
@@ -29,8 +30,10 @@ import org.springframework.stereotype.Component;
  * 룰·룰세트·마스터코드·전문 정의 묶음(spec 2026-10-02-mdm-meta-cache-design §3.4). {@link StoredDefinitionLookup}·{@link MdmCodeLookup} 은
  * 빈이 아니다(D-077, ADR-0005 — {@code DefinitionLookup} 빈 0개 가드) — 호출마다 {@code new} 로 만든다.
  *
- * <p>룰은 RELEASED 버전 <b>전체</b>를 준다 — 적용 시작일 도래는 쓰기가 없어 기록이 남지 않으므로 업무 모듈이 판정 시각으로 그때그때 고른다(§4.1).
- * 목록은 {@code ver}(소수 scale 3, D-144) 오름차순 — {@code BigDecimal.compareTo} 수 비교다. JSON 은 number 로 자리수를 지킨다({@code 1.000}).
+ * <p>룰과 룰 세트는 RELEASED 버전 <b>전체</b>를 준다 — 적용 시작일 도래는 쓰기가 없어 기록이 남지 않으므로 업무 모듈이 판정 시각으로 그때그때
+ * 고른다(§4.1). 룰 세트도 D-144 2단계부터 버전이 있다({@link StoredDefinitionLookup#releasedSets}, 엔진 {@code RuleSetDefinition} 의
+ * ver·applyFrom·applyTo). 목록은 {@code ver}(소수 scale 3, D-144) 오름차순 — {@code BigDecimal.compareTo} 수 비교다. JSON 은 number 로
+ * 자리수를 지킨다({@code 1.000}). 세트가 있는데 RELEASED 가 없으면 빈 목록이다(룰과 같다).
  * 저장값이 깨져 정의를 만들 수 없는 키는 그 키만 failed 로 준다(Ruling R4).
  */
 @Component
@@ -42,15 +45,17 @@ public class MetaFeedDefinitions {
     private final StoredRuleDefinitions stored;
     private final MdmRuleRepository rules;
     private final MdmRuleSetRepository sets;
+    private final RuleSetVersionQueries setVersions;
     private final MasterCodeLedgerQueries ledger;
     private final LayoutVersionStore layoutVersions;
 
     public MetaFeedDefinitions(RuleQueries ruleQueries, StoredRuleDefinitions stored, MdmRuleRepository rules, MdmRuleSetRepository sets,
-                               MasterCodeLedgerQueries ledger, LayoutVersionStore layoutVersions) {
+                               RuleSetVersionQueries setVersions, MasterCodeLedgerQueries ledger, LayoutVersionStore layoutVersions) {
         this.ruleQueries = ruleQueries;
         this.stored = stored;
         this.rules = rules;
         this.sets = sets;
+        this.setVersions = setVersions;
         this.ledger = ledger;
         this.layoutVersions = layoutVersions;
     }
@@ -87,12 +92,12 @@ public class MetaFeedDefinitions {
     }
 
     public MetaFeedResult ruleSets(Collection<String> setIds) {
-        StoredDefinitionLookup lookup = new StoredDefinitionLookup(ruleQueries, stored, rules, sets);
+        StoredDefinitionLookup lookup = new StoredDefinitionLookup(ruleQueries, stored, rules, setVersions, sets);
         Map<String, Object> found = new LinkedHashMap<>();
         Map<String, String> failed = new LinkedHashMap<>();
         for (String id : setIds) {
             try {
-                lookup.ruleSet(id).ifPresent(d -> found.put(id, MetaFeedJson.plain(d)));
+                lookup.releasedSets(id).ifPresent(released -> found.put(id, MetaFeedJson.plain(released)));
             } catch (StoredDefinitionException e) {
                 failed.put(id, e.getMessage());
             }

@@ -41,13 +41,14 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
 - **D4 장애 시**: 캐시에 있는 항목은 계속 쓴다. 없는 키는 "받을 수 없음"이고 캐시하지 않는다. 연속 실패면 30초 동안 MDM 을 부르지 않는다.
   기록 누락에 대비해 항목 최대 수명(기본 60분)을 둔다.
 - **D5 화면 삭제·재등록**: MDM 변경 기록에 강제 기록(EVICT·RELOAD, SYSADMIN 만)을 더하는 방식이다. 모든 모듈·인스턴스가 다음 확인에서 반영한다.
+- **D6 버전 있는 정의는 RELEASED 버전 전체를 캐시한다**: 룰·룰 세트(D-144 2단계, 엔진 `RuleSetDefinition` 에 `ver`·`applyFrom`·`applyTo` 를 더했다)는 RELEASED 버전 목록을 받아 두고 판정 시각마다 `APPLY_FROM <= t < APPLY_TO`(여럿이면 VER 최대)로 고른다. "현재 버전"을 캐시하지 않으므로 예약 버전의 APPLY_FROM 도래(원장 쓰기 없음)에 무효화가 필요 없다 — 기록은 확정·확정 취소·부모 상태 변경처럼 RELEASED 목록이나 상태를 바꾸는 쓰기에만 남긴다.
 
 ## Consequences (결과)
 
 - 업무 처리는 MDM 이 멈춰도 이미 받은 정의로 계속된다. 대신 일반적으로 한 폴 주기(약 10초) 동안, 폴 실패·30초 스킵·늦게 커밋된 기록·MDM 다운 시에는 더 오래 옛 정의가 보일 수 있으며, 상한은 항목 수명(60분)이다.
 - **순번 순서 = 커밋 순서 가정**: 완화한다. 폴러가 최근 100개 순번(설정 `revision-lookback`)을 다시 훑어 늦게 커밋된 기록을 처리한다. 단 그 구간 밖으로 늦게 커밋된 기록은 `max-age` 안전망(60분)이 잡는다. 시간 스팬은 쓰기 빈도에 따라 달라진다.
 - 기록 쓰기는 여러 행 `VALUES` 네이티브 INSERT 한 문장이다(SQLite·PostgreSQL·MSSQL·Oracle 23ai). 더 옛 Oracle 로 가면 고친다.
-- 운영 DDL 은 Flyway 가 꺼진 프로필(`application-wildfly.yml`)에서 운영 DB 확정 때 수동으로 맞춘다(V18 `TB_MDM_META_REV`).
+- 운영 DDL 은 Flyway 가 꺼진 프로필(`application-wildfly.yml`)에서 운영 DB 확정 때 수동으로 맞춘다(V20 `TB_MDM_META_REV`).
 - 변경 기록 보관 정리(30일)는 아직 없다. 정리로 생긴 공백은 클라이언트가 역행·truncated 규칙으로만 다룬다.
 - 업무 모듈 다섯(mcm·mls·mqc·mpp·mpn) 모두 cactus 보안 체인과 ClientKeyFilter 뒤에 있다 — mqc·mpp·mpn 은 2026-10-02 에 `cactus.jwt`·
   `cactus.security`·`cactus.oasis.service-group` 을 더했다(없으면 Spring Security 기본 체인이 BFF 호출을 401 로 막았다). `/api/{module}/mdmMeta/*`
@@ -56,7 +57,7 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
 - **관리자 상세 보기의 원문 노출**: 사용자 결정(2026-10-02)으로 SYSADMIN 이 캐시 항목 하나를 열면(`entry`) 컬럼의 비즈니스식 원문(`bizExpr.text`)과 룰 정의 전체가 브라우저로 나간다 — 서버 전용 원칙(spec §4.2)의 예외는 이 관리자 화면 하나뿐이고, 목록·화면 메타는 원문을 싣지 않는다.
 - **다중 인스턴스**: 캐시는 JVM 별(프로세스 별) 독립이다. 각 인스턴스는 독립적으로 폴링하고 적재하므로 중복 적재가 일어난다(부하 증가). 인스턴스들이 일시적으로 다른 정의를 볼 수 있으며, 화면의 EVICT·RELOAD 강제 기록은 각 인스턴스가 자기 폴 주기에 반영한다.
 - **기록기 트랜잭션**: 호출 쪽 트랜잭션이 없으면 기록기(`MetaRevisionRecorder`)가 `TransactionTemplate(REQUIRED)`로 자기 트랜잭션을 연다.
-- **Oracle 위험**: 다중 행 `VALUES (..), (..)` INSERT 는 Oracle 19c 에서 실행되지 않고 23ai+ 에서만 가능하다. V18 마이그레이션은 SQLite 전용(`AUTOINCREMENT`)이므로 운영 DB(Oracle·PostgreSQL)로 가면 시퀀스·IDENTITY 로 바꿔야 한다. 시퀀스 CACHE 설정은 순번 순서 가정에 영향을 줄 수 있다.
+- **Oracle 위험**: 다중 행 `VALUES (..), (..)` INSERT 는 Oracle 19c 에서 실행되지 않고 23ai+ 에서만 가능하다. V20 마이그레이션은 SQLite 전용(`AUTOINCREMENT`)이므로 운영 DB(Oracle·PostgreSQL)로 가면 시퀀스·IDENTITY 로 바꿔야 한다. 시퀀스 CACHE 설정은 순번 순서 가정에 영향을 줄 수 있다.
 
 ## Alternatives Considered (대안)
 
@@ -68,9 +69,10 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
 ## Trigger (PROPOSED 인 경우만)
 
 - 업무 모듈 한 곳 이상에서 하위 프로젝트 B(캡션·툴팁) 또는 C(검증)가 이 캐시로 동작하고, 통합 확인(구현 계획 Task 14)이 통과하면 ACCEPTED 로 올린다.
+- 레이아웃 버전 관리(3단계) 병합 시 LAYOUT 피드를 RELEASED 버전 목록 + 시각 선택으로 바꾼다(D6 과 같은 방식).
 - **운영 DB 확정 시**:
-  - 다중 행 `VALUES` INSERT 를 Oracle·PostgreSQL 방언으로 바꾼다(V18 마이그레이션 포함).
-  - V18 `TB_MDM_META_REV.REV_SEQ` 를 시퀀스·IDENTITY 로 정의하고, 순번 순서 가정(CACHE 포함)을 다시 검증한다.
+  - 다중 행 `VALUES` INSERT 를 Oracle·PostgreSQL 방언으로 바꾼다(V20 마이그레이션 포함).
+  - V20 `TB_MDM_META_REV.REV_SEQ` 를 시퀀스·IDENTITY 로 정의하고, 순번 순서 가정(CACHE 포함)을 다시 검증한다.
   - 시간대 교차 트랜잭션으로 인한 순번 역전이 정말 일어나는지 부하 테스트로 확인한다.
 
 ## References

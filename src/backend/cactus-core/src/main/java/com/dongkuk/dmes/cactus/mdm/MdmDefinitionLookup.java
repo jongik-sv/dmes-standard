@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.cactus.mdm;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -7,6 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Function;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
 
@@ -14,9 +16,10 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
  * 엔진 spi 의 업무 모듈 구현(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.2) — 정의를 {@link MdmMetaService}(로컬 캐시,
  * 없으면 MDM)에서 꺼낸다. 받을 수 없으면 {@link MdmUnavailableException} 이 엔진 호출자까지 올라간다(정책은 하위 프로젝트 C).
  *
- * <p>룰은 캐시된 RELEASED 버전 가운데 판정 시각(KST 벽시계)이 {@code APPLY_FROM <= t < APPLY_TO} 인 것, 여럿이면 VER 가 가장 큰 것을 고른다
- * — MDM {@code RuleVersions.currentReleased} 와 같은 규칙. "현재 버전"을 캐시하지 않는다(적용 시작일 도래는 쓰기가 없어 기록이 남지 않는다).
- * VER 는 major/minor 소수({@code BigDecimal}, D-144 — 예 {@code 1.000}·{@code 1.001})라 크기 비교는 {@code compareTo}(수 비교)로 한다.
+ * <p>룰과 룰 세트(D-144 2단계부터 버전이 있다)는 캐시된 RELEASED 버전 가운데 판정 시각(KST 벽시계)이 {@code APPLY_FROM <= t < APPLY_TO} 인
+ * 것, 여럿이면 VER 가 가장 큰 것을 고른다 — MDM {@code RuleVersions.currentReleased} 와 같은 규칙({@link #select(List, Function, Function,
+ * Function, Instant)} 하나). "현재 버전"을 캐시하지 않는다(적용 시작일 도래는 쓰기가 없어 기록이 남지 않는다). VER 는 major/minor 소수
+ * ({@code BigDecimal}, D-144 — 예 {@code 1.000}·{@code 1.001})라 크기 비교는 {@code compareTo}(수 비교)로 한다.
  */
 public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
 
@@ -52,8 +55,9 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
     }
 
     @Override
-    public Optional<RuleSetDefinition> ruleSet(String setId) {
-        return service.one(MdmTargetType.RULE_SET, setId).map(RuleSetDefinition.class::cast);
+    @SuppressWarnings("unchecked")
+    public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
+        return service.one(MdmTargetType.RULE_SET, setId).flatMap(v -> selectSet((List<RuleSetDefinition>) v, evalTs));
     }
 
     @Override
@@ -61,12 +65,29 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
         return service.one(MdmTargetType.CODE, maruCodeId).map(CodeRows.class::cast);
     }
 
-    /** RELEASED 버전 목록에서 판정 시각에 적용되는 것. */
+    /** 룰 RELEASED 버전 목록에서 판정 시각에 적용되는 것. */
     public static Optional<RuleDefinition> select(List<RuleDefinition> released, Instant evalTs) {
+        return select(released, RuleDefinition::ver, RuleDefinition::applyFrom, RuleDefinition::applyTo, evalTs);
+    }
+
+    /** 룰 세트 RELEASED 버전 목록에서 판정 시각에 적용되는 것(룰과 같은 규칙). */
+    public static Optional<RuleSetDefinition> selectSet(List<RuleSetDefinition> released, Instant evalTs) {
+        return select(released, RuleSetDefinition::ver, RuleSetDefinition::applyFrom, RuleSetDefinition::applyTo, evalTs);
+    }
+
+    /**
+     * 판정 시각 고르기 한 곳 — {@code APPLY_FROM <= t < APPLY_TO}(KST, 끝 null 은 열린 끝), 여럿이면 VER 최대. 적용 시작이 없는 버전은 고르지 않는다.
+     */
+    static <T> Optional<T> select(List<T> released, Function<T, BigDecimal> ver, Function<T, LocalDateTime> applyFrom,
+                                  Function<T, LocalDateTime> applyTo, Instant evalTs) {
         LocalDateTime now = LocalDateTime.ofInstant(evalTs, KST);
         return released.stream()
-                .filter(d -> d.applyFrom() != null && !d.applyFrom().isAfter(now) && (d.applyTo() == null || now.isBefore(d.applyTo())))
-                .max(Comparator.comparing(RuleDefinition::ver)); // BigDecimal compareTo — 9.000 < 10.000, 1.009 < 1.010, 1.0 == 1.000
+                .filter(d -> {
+                    LocalDateTime from = applyFrom.apply(d);
+                    LocalDateTime to = applyTo.apply(d);
+                    return from != null && !from.isAfter(now) && (to == null || now.isBefore(to));
+                })
+                .max(Comparator.comparing(ver)); // BigDecimal compareTo — 9.000 < 10.000, 1.009 < 1.010, 1.0 == 1.000
     }
 
     /**

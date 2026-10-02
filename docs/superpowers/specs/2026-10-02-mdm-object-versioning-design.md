@@ -107,8 +107,9 @@
   - `TB_MDM_RULE_SET`: `FLOW_JSON`·`RULE_IDS` 를 버전 테이블로 옮기고, `STATUS` CHECK 에 `CREATED` 를 더한다. `ROW_VERSION` 은 버전 행으로 옮긴다.
   - 새 `TB_MDM_RULE_SET_VER(MARU_RULE_SET_ID, VER)` — §4.1 표준 칼럼 + `FLOW_JSON`·`RULE_IDS`.
   - `TB_MDM_RULE_SET_TEST_CASE` 는 세트 단위 그대로. V15 의 FK 때문에 세트 테이블 재생성 순서에 주의한다(V15:6-7).
-  - 기존 세트 → `1.000 MAJOR RELEASED`, `APPLY_FROM = C_AT`, `APPLY_TO = 9999-12-31`, `RELEASED_AT = U_AT`. 폐기된 세트는 부모 `DEPRECATED` 를 유지한다.
-  - 한계: 지금까지 세트는 덮어쓰기 저장이라 이전 흐름이 남아 있지 않다. 따라서 과거 판정 재현(목적 3)은 이행 시점 이후부터 보장된다. 이행 이전 시각에는 이행 시점의 흐름이 쓰인다.
+  - 기존 세트 → `1.000 MAJOR RELEASED`, `APPLY_FROM = 2000-01-01 00:00:00`(일괄), `APPLY_TO = 9999-12-31`, `RELEASED_AT = U_AT`(없으면 `C_AT`, 그것도 없으면 2000-01-01). 폐기된 세트는 부모 `DEPRECATED` 를 유지한다.
+    - `APPLY_FROM` 을 `C_AT` 로 두지 않는다. 엔진은 판정 시각으로 세트 버전을 고르므로, `C_AT` 보다 이른 판정 시각(과거 데이터 재판정, 세트 테스트 케이스의 `EVAL_TS` 등)에서 `SET_NOT_FOUND` 가 나게 된다. 이행 버전은 언제 판정해도 찾혀야 한다(아래 한계와 같은 뜻).
+  - 한계: 지금까지 세트는 덮어쓰기 저장이라 이전 흐름이 남아 있지 않다. 따라서 과거 판정 재현(목적 3)은 이행 시점 이후부터 보장된다. 이행 이전 시각(`C_AT` 보다 이른 시각 포함)에는 이행 시점의 흐름이 쓰인다.
 
 ### 동작
 
@@ -123,7 +124,7 @@
   1. 흐름 구조 검사(지금 저장 시 검사 재사용)
   2. 참조 룰마다 `apply_from` 시점에 RELEASED 가 있는지
   3. 그 룰 버전들로 순서·순환 검사
-  4. 테스트 케이스 실행 결과. 기대값이 있는 케이스가 실패하면 오류로 확정을 막는다(룰 확정 `RuleConfirmReport` 의 `CASE_FAILED`·`CASE_RUN_FAILED` 가 ERROR 인 것과 같은 등급)
+  4. 테스트 케이스 실행 결과. 기대값이 있는 케이스가 실패하면 오류로 확정을 막는다(룰 확정 `RuleConfirmReport` 의 `CASE_FAILED`·`CASE_RUN_FAILED` 가 ERROR 인 것과 같은 등급). 기대값이 없는(실행만) 케이스가 실행 오류로 끝나면 막지 않고 경고 `CASE_RUN_ERROR` 로 알리며 "기대값 있음"·"실패" 수에 넣지 않는다(Ruling P2-22)
 - 룰 확정 시 세트 순서 검사(`RuleSetOrderCheck`): 검사 대상을 "INUSE 세트 현재 행"에서 "**이 룰의 apply_from 이후 유효한 세트 RELEASED 버전들**"로 바꾼다. 세트 DRAFT 는 세트 확정 때 검사한다.
 - 룰 확정취소 교차 효과(ADR-0002 D8-10): 룰의 유일한 확정 버전을 되돌리면 그 룰을 담은 세트의 **확정**이 막힌다(지금은 저장·되살리기가 막힘).
 

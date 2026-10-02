@@ -123,8 +123,9 @@ async function move() {
   const x = moveSeq * 10;
   await run((p) => p.s.edit((f) => setPositions(f, { r1: { x, y: 0 } })));
 }
-const sentJson = (i: number) => api.saveSet.mock.calls[i][4] as string;
-const sentRowVersion = (i: number) => api.saveSet.mock.calls[i][3] as number;
+// saveSet(setId, ver, setName, description, rowVersion, flowJson) — D-144 2단계에 ver 가 둘째 인자로 들어왔다.
+const sentJson = (i: number) => api.saveSet.mock.calls[i][5] as string;
+const sentRowVersion = (i: number) => api.saveSet.mock.calls[i][4] as number;
 
 beforeEach(() => {
   installDomStorage();
@@ -166,7 +167,7 @@ describe("자동 저장 — 켜고 끄기·디바운스", () => {
     expect(api.saveSet).not.toHaveBeenCalled();
     await advance(1);
     expect(api.saveSet).toHaveBeenCalledTimes(1);
-    expect(api.saveSet.mock.calls[0].slice(0, 4)).toEqual(["E2S_CHAIN", "사슬", "", 3]);
+    expect(api.saveSet.mock.calls[0].slice(0, 5)).toEqual(["E2S_CHAIN", "", "사슬", "", 3]); // 버전 없는 옛 view 리터럴이라 ver 는 ""
     await advance(0);
     expect(h.current.s.dirty).toBe(false);
     expect(h.current.s.view!.set.rowVersion).toBe(4);
@@ -205,7 +206,7 @@ describe("자동 저장 — 켜고 끄기·디바운스", () => {
     await run((p) => p.s.setDescription("설명"));
     await advance(AUTO_SAVE_DELAY_MS);
     expect(api.saveSet).toHaveBeenCalledTimes(1);
-    expect(api.saveSet.mock.calls[0].slice(0, 4)).toEqual(["E2S_CHAIN", "사슬(고침)", "설명", 3]);
+    expect(api.saveSet.mock.calls[0].slice(0, 5)).toEqual(["E2S_CHAIN", "", "사슬(고침)", "설명", 3]);
     await advance(0);
     expect(h.current.s.dirty).toBe(false);
     expect(h.current.s.view!.set.setName).toBe("사슬(고침)");

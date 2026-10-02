@@ -49,7 +49,7 @@ SLF4J=${SLF4J_API_JAR:-/Users/jji/.gradle/wrapper/dists/gradle-8.14.3-bin/cv11ve
 
 ## 체크별 요지 (design.md §3 a~j)
 
-- **a** 전체 DDL 적용 후 `TB_MDM_%` 테이블 35개(34 Task 테이블 + `TB_MDM_SYSTEM` fixture 1) 확인.
+- **a** 전체 DDL 적용 후 `TB_MDM_%` 테이블 37개(36 Task 테이블 + `TB_MDM_SYSTEM` fixture 1) 확인(룰 세트 버전 표 `TB_MDM_RULE_SET_VER` 추가로 35→36, D-144, 세트 테스트 케이스 표 36→37).
 - **b** SQLite DDL 파일을 정규식으로 파싱해 제약·인덱스 이름이 전역에서 유일한지 확인.
 - **c** `expected-columns.json` 과 적용된 SQLite 스키마 칼럼 목록 대조(대소문자 무시).
 - **d** 모든 FK 의 부모 테이블이 `TB_MDM_%` 접두인지, 부모 칼럼이 실제 PK 이거나 비부분 UNIQUE 인덱스인지 확인.

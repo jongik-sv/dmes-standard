@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.entity;
 
 import com.dongkuk.dmes.cactus.audit.CactusAuditEntity;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.common.version.VersionedRow;
 import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
@@ -27,7 +28,7 @@ import java.time.LocalDateTime;
 @Table(name = "TB_MDM_RULE_VER")
 @IdClass(MdmRuleVerId.class)
 @AttributeOverride(name = "version", column = @Column(name = "AUD_VER"))
-public class MdmRuleVer extends CactusAuditEntity {
+public class MdmRuleVer extends CactusAuditEntity implements VersionedRow {
 
     @Id
     @Column(name = "MARU_RULE_ID", length = 50)

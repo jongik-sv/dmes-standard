@@ -351,4 +351,32 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
         assertNull(out.getEndedBy());
         assertEquals(List.of(), out.getCaught());
     }
+
+    @Test
+    void OASIS_입구는_없는_세트를_세트_ID_와_함께_알린다() {
+        RuleSetRunRequest req = req("RS_NONE", REC_JSON);
+        req.setEvalTs("2026-03-01 09:00:00");
+        BusinessException e = assertThrows(BusinessException.class, () -> runner.execute(req));
+        assertEquals("룰 세트 RS_NONE 가 없습니다. 세트 ID 를 확인하세요.", e.getMessage());
+    }
+
+    @Test
+    void OASIS_입구는_판정_시각에_적용되는_세트_버전이_없으면_세트_ID_와_KST_시각을_알린다() {
+        // DRAFT 만 있는 세트(D-144 2단계 등록 직후)
+        DmeTestSupport.ruleSet(jdbc, "RS_DRAFT", "초안만", "[\"QLTY_GRD_JDG\"]", "CREATED", 0);
+        jdbc.update("DELETE FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID = 'RS_DRAFT'");
+        DmeTestSupport.ruleSetVersion(jdbc, "RS_DRAFT", "1.000", "MAJOR", "DRAFT", "kim", "[\"QLTY_GRD_JDG\"]", null, null, 0);
+        RuleSetRunRequest draft = req("RS_DRAFT", REC_JSON);
+        draft.setEvalTs("2026-03-01 09:00:00");
+        BusinessException e = assertThrows(BusinessException.class, () -> runner.execute(draft));
+        assertEquals("판정 시각 2026-03-01 09:00:00 에 적용되는 룰 세트 RS_DRAFT 의 버전이 없습니다. "
+                + "세트 버전의 확정 여부와 적용 기간(시작·종료), 판정 시각을 확인하세요.", e.getMessage());
+
+        // 첫 APPLY_FROM(2000-01-01 00:00:00) 보다 이른 판정 시각
+        RuleSetRunRequest early = req("RS_LINE", REC_JSON);
+        early.setEvalTs("1999-12-31 23:59:59");
+        BusinessException e2 = assertThrows(BusinessException.class, () -> runner.execute(early));
+        assertEquals("판정 시각 1999-12-31 23:59:59 에 적용되는 룰 세트 RS_LINE 의 버전이 없습니다. "
+                + "세트 버전의 확정 여부와 적용 기간(시작·종료), 판정 시각을 확인하세요.", e2.getMessage());
+    }
 }

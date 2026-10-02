@@ -1,5 +1,5 @@
 /** ruleSetMng 화면 타입(TSK-08-06 design §2.1·§6.7). 서버 DTO `RuleSetListRow`·`RuleSetSearchResult`·`RuleSetRegRequest` 와 같은 칸 이름. */
-export type RuleSetStatus = "INUSE" | "DEPRECATED";
+export type RuleSetStatus = "CREATED" | "INUSE" | "DEPRECATED";
 
 export interface RuleSetListRow {
   setId: string;
@@ -12,6 +12,8 @@ export interface RuleSetListRow {
   /** 저장 시 검사의 거부·경고 수. DEPRECATED 세트는 서버가 0 으로 보낸다. */
   rejectCount: number;
   warnCount: number;
+  /** 표시 버전(지금 적용 중인 RELEASED, 없으면 가장 큰 버전) `"1.001"`. 버전이 없으면 null. */
+  ver: string | null;
   status: RuleSetStatus;
 }
 

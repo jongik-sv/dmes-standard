@@ -151,7 +151,7 @@ class MdmAutoConfigurationTest {
             }
 
             @Override
-            public Optional<RuleSetDefinition> ruleSet(String setId) {
+            public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
                 return Optional.empty();
             }
         };

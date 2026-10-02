@@ -15,7 +15,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *
  * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
  * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
- * 세트를 고치므로 같은 mdm.db 로 다시 돌릴 수 없다(새 DB 로 시작). 편집 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
+ * 세트를 고치므로 같은 mdm.db 로 다시 돌릴 수 없다(새 DB 로 시작). 편집 세트마다 담당자 소유 DRAFT 2.000 이 있고(fixtures/mdm-ruleSet-data.sql), mdm-ruleSetConfirm.spec.ts 가 E2S_CHAIN 2.000 을 확정하므로 두 spec 은 같은 DB 로 이어 돌리지 않는다. 편집 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
  * mdm-ruleSetMng.spec.ts 와 서로의 데이터에 기대지 않는다(각자 픽스처의 다른 세트를 쓴다).
  *
  * 화면 구조: 세트를 열면 보기 모드다. 고치려면 [편집](flow-mode-edit)을 누른다. 캔버스 노드는 `flow-node-{nodeId}`,
@@ -174,6 +174,9 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CHAIN");
     await expect(page.getByTestId("set-status")).toHaveText("INUSE");
+    // 기본 선택은 내 DRAFT v2.000 이다(D-144 2단계) — 버전 줄에 보인다.
+    await expect(page.getByTestId("set-ver-row")).toContainText("v2.000", { timeout: 20_000 });
+    await expect(page.getByTestId("set-ver-select")).toHaveValue("2.000");
 
     // 세트를 열면 보기 모드다 — 팔레트가 없고, 노드 5개(시작 · 룰 셋 · 끝)가 그려진다.
     await expect(page.getByTestId("flow-mode-view")).toHaveAttribute("aria-pressed", "true");
@@ -278,7 +281,10 @@ test.describe("mdm dme/ruleSetEdit", () => {
 
     // 경고만 있으면 저장된다.
     await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: 20_000 });
+    // 저장 요청은 선택한 내 DRAFT 버전(ver)을 싣는다.
+    const saveRequest = page.waitForRequest((r) => r.url().includes("/api/mdm/oasis/ruleSetEdit/save"));
     await page.getByTestId("set-save").click();
+    expect((await saveRequest).postDataJSON().params).toMatchObject({ setId: "E2S_CYCSET", ver: "2.000" });
     const message = page.getByTestId("set-message");
     await expect(message).toContainText("저장 · row_version 1", { timeout: 20_000 });
     await expect(message).toContainText(warn);
@@ -347,7 +353,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
 
     await page.getByTestId("set-restore").click();
     await expect(page.getByTestId("set-status")).toHaveText("INUSE", { timeout: 20_000 });
-    await expect(page.getByTestId("set-message")).toContainText("되살림 · row_version 1");
+    await expect(page.getByTestId("set-message")).toContainText("되살림");
 
     await page.getByTestId("set-deprecate").click();
     await expect(page.getByTestId("set-message")).toContainText("폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.");
@@ -356,7 +362,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("set-status")).toHaveText("INUSE");
     await page.getByTestId("set-deprecate-confirm").click();
     await expect(page.getByTestId("set-status")).toHaveText("DEPRECATED", { timeout: 20_000 });
-    await expect(page.getByTestId("set-message")).toContainText("폐기 · row_version 2");
+    await expect(page.getByTestId("set-message")).toContainText("폐기. 행은 남기고 되살릴 수 있다");
     await expect(page.getByTestId("set-restore")).toBeVisible();
     await page.screenshot({ path: screenshot("dme-ruleSetEdit-deprecated.png"), fullPage: true });
   });

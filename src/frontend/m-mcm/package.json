@@ -8,6 +8,7 @@
     "predev": "node scripts/generate-page-registry.mjs && node scripts/generate-widget-registry.mjs",
     "prebuild": "node scripts/generate-page-registry.mjs && node scripts/generate-widget-registry.mjs",
     "test:scripts": "node --test scripts/*.test.mjs",
+    "test:unit": "vitest run",
     "dev": "next dev --turbopack --port 5100",
     "build": "next build",
     "build:next": "next build",

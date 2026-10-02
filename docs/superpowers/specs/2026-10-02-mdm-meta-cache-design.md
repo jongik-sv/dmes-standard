@@ -67,7 +67,7 @@ A 는 B 와 C 가 공통으로 딛는 기반이다. 업무 모듈이 MDM 메타�
 | `REG_DT` | 일시 | 기록 시각 |
 | `REG_ID` | VARCHAR | 기록한 사용자 |
 
-- Flyway 는 `flyway-migration-add` 스킬로 채번한다(작성 때 SQLite 마지막 V16 → V17 예상이었으나, dev 의 V17 `rule_version_decimal`(D-144)을 합치며 **V18** `create_mdm_meta_rev` 로 바뀌었다). 인덱스는 PK 하나로 충분하다(조회는 늘 `REV_SEQ > :since`).
+- Flyway 는 `flyway-migration-add` 스킬로 채번한다(작성 때 SQLite 마지막 V16 → V17 예상이었으나, dev 의 V17 `rule_version_decimal`(D-144)·V18 `rule_set_version`(D-144 2단계)을 합치고 레이아웃 버전 관리(3단계)가 V19 를 잡아 **V20** `create_mdm_meta_rev` 로 바뀌었다). 인덱스는 PK 하나로 충분하다(조회는 늘 `REV_SEQ > :since`).
 - 보관: 30일이 지난 행은 정리할 수 있다. 정리로 생긴 공백은 클라이언트가 §5.3 규칙으로 처리한다. 정리 작업 자체는 이번 범위에 넣지 않는다.
 
 ### 3.2 기록 서비스 `MetaRevisionRecorder`
@@ -81,7 +81,7 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | `column(oldPhysName, newPhysName)` | 두 물리명 모두(같으면 하나). 신규는 새 이름만 |
 | `domain(domainId)` | 그 도메인 + `DomainImpactQueries.subtree(domainId)` 의 하위 도메인 전부 + 그 도메인들을 참조하는 컬럼의 물리명 전부 |
 | `rule(ruleId)` | 그 룰 |
-| `ruleSet(setId)` | 그 룰세트 |
+| `ruleSet(setId)` | 그 룰세트(버전 구분 없이 세트 키 하나 — 클라이언트는 RELEASED 버전 목록째 다시 받는다) |
 | `code(maruCodeId)` | 그 코드 + `MARU_CODE_ID` 로 직접 참조하는 도메인 각각에 대해 `domain(…)` 펼침(상속받는 하위 도메인·컬럼까지) |
 | `layouts(layoutIds)` | 넘겨받은 전문 전부 |
 | `force(type, keys, kind)` | 화면 요청(§3.4). 펼치지 않는다 |
@@ -95,7 +95,7 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | 컬럼 | `ColumnMngService.save` — 변경 전 물리명을 저장 전에 읽어 둔다(물리명 변경 가능, :308-310) |
 | 도메인 | `DomainMngService.save` |
 | 룰 | `DefaultVersionStateService.confirm`·`cancelConfirm`(룰·코드 공통, 대상 종류로 분기), `RuleHeaderService.saveHeader`·`deprecate`, `RuleVersionService` 의 RELEASED 에 영향을 주는 경로 |
-| 룰세트 | `RuleSetMngService.register`, `RuleSetEditService.save`·`delete`·`restore` |
+| 룰세트 | `DefaultVersionStateService.confirm`·`cancelConfirm`(룰과 같은 공통 확정 — 세트 확정 화면 `RuleSetConfirmService`·확정 취소 `RuleSetVersionService.cancelConfirm` 이 이 한 곳을 지난다), `RuleSetEditService.delete`(target SET 폐기)·`restore`(부모 상태가 피드의 `status` 를 바꾼다). D-144 2단계 뒤 등록(`RuleSetMngService.register`, CREATED + 1.000 DRAFT)·저장(내 DRAFT 에만)·새 버전·선점·해제·넘기기·DRAFT 삭제는 RELEASED 를 바꾸지 않아 걸지 않는다 |
 | 마스터코드 | 위 공통 확정·확정 취소, `CodeEditService.saveHeader`·`deprecate`·`deleteCode`, `CodeItemEditService.patch`(RELEASED 행 제자리 수정), `CodeCateEditService` 의 RELEASED 영향 경로 |
 | 전문 | `LayoutMngService.save`, `HeaderMngService.save`(헤더 + `recalculateUsers` 가 돌려준 MESSAGE 전문 전부) |
 
@@ -112,12 +112,12 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | `columns` | `physNames[]` | 찾은 컬럼의 메타 목록(§4.2). 없는 키는 응답에서 빠진다 |
 | `domains` | `domainIds[]` | 유효 도메인 메타 목록(§4.3) |
 | `rules` | `ruleIds[]` | 룰별 RELEASED 버전 **전체**의 `RuleDefinition` 목록(적용 기간 포함) |
-| `ruleSets` | `setIds[]` | `RuleSetDefinition` 목록 |
+| `ruleSets` | `setIds[]` | 세트별 RELEASED 버전 **전체**의 `RuleSetDefinition` 목록(`ver`·적용 기간 포함, D-144 2단계) |
 | `codes` | `maruCodeIds[]` | 엔진 `CodeLookup.CodeRows`(헤더·버전·항목·카테고리·카테고리 항목, 해석 전 원본) |
 | `layouts` | `layoutIds[]` | 최신 레이아웃 스냅샷 |
 | `force` | `type`, `keys[]`, `kind`(`EVICT`·`RELOAD`) | 추가된 `REV_SEQ` 범위. SYSADMIN 만 |
 
-- 조립 재사용: 유효 도메인은 `DefaultMdmEffectiveDomainResolver`·`EffectiveDomainView`, 룰은 `RuleQueries.versions` + `StoredRuleDefinitions`·`RuleDefinitionAssembler`, 룰세트는 `StoredDefinitionLookup.ruleSet` 의 `toDefinition`, 코드는 `MdmCodeLookup.code` 와 같은 쿼리(`MasterCodeLedgerQueries`). `MdmCodeLookup`·`StoredDefinitionLookup` 을 빈으로 만들면 안 된다(D-077, ADR-0005 가드 테스트). 서비스 안에서 `new` 로 쓴다.
+- 조립 재사용: 유효 도메인은 `DefaultMdmEffectiveDomainResolver`·`EffectiveDomainView`, 룰은 `RuleQueries.versions` + `StoredRuleDefinitions`·`RuleDefinitionAssembler`, 룰세트는 `StoredDefinitionLookup.releasedSets`(같은 클래스의 `ruleSet(setId, evalTs)` 와 같은 `toDefinition`·`RuleSetVersionQueries`), 코드는 `MdmCodeLookup.code` 와 같은 쿼리(`MasterCodeLedgerQueries`). `MdmCodeLookup`·`StoredDefinitionLookup` 을 빈으로 만들면 안 된다(D-077, ADR-0005 가드 테스트). 서비스 안에서 `new` 로 쓴다.
 - 컬럼 메타 조립은 새 코드다. `DomainTestCaseRunner.definition` 의 규칙(유효 표준식은 `chainStdExpr`, 비즈니스식·필수 변수·코드 참조·타입·소수 자리는 `EffectiveDomainView`)을 따르고, 테이블 칼럼 `REQUIRED`·`DEFAULT_VALUE`·`REF_KIND/TARGET/CATE_ID`·표시명·설명을 더한다. 도메인 없는 컬럼(V16 이후 nullable)은 도메인 칸을 비운다.
 - 인증: 기존 채널 그대로다. 호출자는 `X-Client-Key` + `X-Authenticated-User`(`system:{모듈}`) + `X-Authenticated-Role` 을 보낸다. `X-Authenticated-User` 가 없으면 JWT 흐름으로 빠져 401 이 나므로 클라이언트가 반드시 넣는다.
 
@@ -130,9 +130,9 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | 컬럼 | `PHYS_NAME` | §4.2 | 엔진 `ColumnDefinition` 과 화면 메타를 이 값에서 만든다 |
 | 도메인 | `DOMAIN_ID`(문자열) | §4.3 | 툴팁 도메인 정보 |
 | 룰 | `MARU_RULE_ID` | RELEASED 버전 전체 | 평가 시각으로 그때그때 고른다. "현재 버전"을 캐시하지 않는다 — 적용 시작일 도래는 쓰기가 없어 기록이 남지 않기 때문이다. `ver` 는 major/minor 소수(D-144, `NUMERIC(7,3)`, JSON number `1.000`·`1.001`)이고 목록 정렬·여럿일 때 최대 고르기는 수 비교(`BigDecimal.compareTo`)다 |
-| 룰세트 | `MARU_RULE_SET_ID` | `RuleSetDefinition` | 버전 없음 |
+| 룰세트 | `MARU_RULE_SET_ID` | RELEASED 버전 전체 | 룰과 같다(D-144 2단계부터 세트도 버전이 있다). 엔진 `RuleSetDefinition` 에 `ver`·`applyFrom`·`applyTo` 를 더했고, 업무 모듈은 판정 시각으로 그때그때 고른다(`APPLY_FROM <= t < APPLY_TO`, 여럿이면 VER 최대). `status` 는 버전마다 부모의 계산 상태(저장 CREATED → INUSE) |
 | 마스터코드 | `MARU_CODE_ID` | `CodeRows` 원본 | 엔진 `CodeResolver` 가 기준일로 해석한다. 버전 적용 기간도 같은 이유로 원본째 둔다 |
-| 전문 | `LAYOUT_ID` | 최신 스냅샷 | 캐시만 한다. 소비 연동은 범위 밖 |
+| 전문 | `LAYOUT_ID` | 최신 스냅샷 | 캐시만 한다. 소비 연동은 범위 밖. 레이아웃 버전 관리(3단계) 병합 시 LAYOUT 피드를 RELEASED 버전 목록 + 시각 선택으로 바꾼다 |
 
 ### 4.2 컬럼 메타
 
@@ -224,7 +224,7 @@ cactus:
 
 ## 6. 캐시 관리 화면 (m-mcm `page-components/csa/mdmCacheMng`)
 
-- 메뉴: 시스템관리 > MDM 캐시 관리. `DataInitializer` 에 OBJECT·메뉴(csa 대역 다음 번호, 예상 1020180)·SYSADMIN 매핑을 시드한다. 선례는 `commSyncMng`.
+- 메뉴: 시스템관리 > MDM 캐시 관리. `DataInitializer` 에 OBJECT·메뉴(csa 대역 다음 번호 1020190 — dev 의 화면 사용 통계가 1020180)·SYSADMIN 매핑을 시드한다. 선례는 `commSyncMng`.
 - 모듈 목록: 새 상수 `MDM_CACHE_MODULES = ["mcm","mls","mqc","mpp","mpn"]`. 응답하지 않는 모듈은 "연결 안 됨"으로 표시한다.
 - 위쪽 그리드: 모듈별 상태(§5.5 `status`). MDM 최신 순번은 응답한 모듈들의 `latestSeq`(마지막 폴링 값) 가운데 최댓값으로 보여 주고, `appliedSeq` 가 그보다 뒤처진 모듈을 강조한다. 화면이 MDM 을 따로 호출하지 않는다.
 - 아래쪽 그리드: 선택한 모듈의 항목(`entries`), 대상 종류 필터와 키 검색.
@@ -257,7 +257,7 @@ cactus:
 ## 8. 함께 남길 기록
 
 - **ADR**: "MDM 메타 하이브리드 배포와 리비전 무효화"를 `adr-write` 로 `docs/mdm/adr/0007-…` 에 발행한다(작성 때 0006 이었으나 dev 의 ADR-0006 `object-versioning-major-minor` 와 겹쳐 0007 로 바꿨다)(되돌리기 어려운 모듈 간 결정).
-- **Flyway**: `flyway-migration-add` 로 V18 채번(dev 병합 뒤 번호). 운영 DDL(`application-wildfly.yml` 은 Flyway 꺼짐)은 운영 DB 확정 때 수동으로 맞춘다.
+- **Flyway**: `flyway-migration-add` 로 V20 채번(dev 두 번째 병합 뒤 번호, V19 는 레이아웃 버전 3단계 예약). 운영 DDL(`application-wildfly.yml` 은 Flyway 꺼짐)은 운영 DB 확정 때 수동으로 맞춘다.
 - **가이드**: `docs/guide/BackEnd` 에 "업무 모듈에서 MDM 메타 켜기"(설정 블록, 엔드포인트) 짧은 절을 추가한다.
 
 ## 9. 범위 밖과 미결

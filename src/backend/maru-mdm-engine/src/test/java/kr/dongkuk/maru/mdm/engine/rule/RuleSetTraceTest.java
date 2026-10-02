@@ -45,7 +45,7 @@ class RuleSetTraceTest {
     private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private RunTrace trace(FlowDefinition f, Map<String, Object> record) {
-        return engine.traceSet(new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, f), record, SampleRules.EVAL_TS);
+        return engine.traceSet(new RuleSetDefinition("DRAFT", null, null, null, List.of(), SetStatus.INUSE, f), record, SampleRules.EVAL_TS);
     }
 
     private static List<String> kinds(RunTrace t) {
@@ -167,7 +167,7 @@ class RuleSetTraceTest {
                 List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 10"), other("bo", "if1", "c"),
                         e("ea", "a", "m1"), e("ec", "c", "m1"), e("em", "m1", "p1"), pe("p1b", "p1", "pb", 1), pe("p1c", "p1", "pc", 2),
                         e("eb", "pb", "pm"), e("ep", "pc", "pm"), e("ee", "pm", "end")));
-        lookup.addSet(new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, f));
+        lookup.addSet(new RuleSetDefinition("DRAFT", null, null, null, List.of(), SetStatus.INUSE, f));
         RuleSetResult r = engine.evaluateSet("DRAFT", rec("X", new BigDecimal("20")), SampleRules.EVAL_TS);
         RunTrace t = trace(f, rec("X", new BigDecimal("20")));
         assertEquals(r.path().stream().map(p -> p.nodeId() + ":" + p.kind()).toList(),
@@ -228,7 +228,7 @@ class RuleSetTraceTest {
 
     @Test
     void 고친_값이_없는_4인자_기록은_3인자와_같고_edits_는_null() {
-        RuleSetDefinition set = new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, ifFlow("X > 10"));
+        RuleSetDefinition set = new RuleSetDefinition("DRAFT", null, null, null, List.of(), SetStatus.INUSE, ifFlow("X > 10"));
         RunTrace three = engine.traceSet(set, rec("X", new BigDecimal("20")), SampleRules.EVAL_TS);
         RunTrace four = engine.traceSet(set, rec("X", new BigDecimal("20")), SampleRules.EVAL_TS, List.of());
         assertEquals(three, four);

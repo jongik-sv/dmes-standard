@@ -70,13 +70,15 @@ class VersionContractTest {
     }
 
     @Test
-    void 버전_대상은_04_마스터코드와_06_업무기준이다() {
-        assertEquals(List.of("MASTER_CODE", "BUSINESS_RULE"),
+    void 버전_대상은_04_마스터코드와_06_업무기준과_룰_세트다() {
+        assertEquals(List.of("MASTER_CODE", "BUSINESS_RULE", "RULE_SET"),
                 Arrays.stream(VersionTarget.values()).map(Enum::name).toList());
         assertEquals("TB_MDM_CODE_VER", VersionTarget.MASTER_CODE.versionTable());
         assertEquals(3, VersionTarget.MASTER_CODE.versionScale());
         assertEquals("TB_MDM_RULE_VER", VersionTarget.BUSINESS_RULE.versionTable());
         assertEquals(3, VersionTarget.BUSINESS_RULE.versionScale());
+        assertEquals("TB_MDM_RULE_SET_VER", VersionTarget.RULE_SET.versionTable());
+        assertEquals(3, VersionTarget.RULE_SET.versionScale());
     }
 
     @Test

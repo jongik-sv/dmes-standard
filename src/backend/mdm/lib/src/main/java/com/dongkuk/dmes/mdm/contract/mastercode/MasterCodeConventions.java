@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.contract.mastercode;
 
+import com.dongkuk.dmes.mdm.contract.version.VersionConventions;
 import java.math.BigDecimal;
 
 /**
@@ -9,13 +10,13 @@ import java.math.BigDecimal;
 public final class MasterCodeConventions {
 
     /** 최초 버전(04:95). */
-    public static final BigDecimal FIRST_VER = new BigDecimal("1.000");
+    public static final BigDecimal FIRST_VER = VersionConventions.FIRST_VER;
     /** 열린 행의 to_ver(04:32). 실제 버전이 아니다 — FK 를 걸지 않는다(04:958). */
     public static final BigDecimal OPEN_TO_VER = new BigDecimal("9999.000");
-    /** minor 상한(04:277). */
-    public static final int MAX_MINOR = 999;
+    /** minor 상한(04:277) — 값은 {@link VersionConventions} 가 정본. */
+    public static final int MAX_MINOR = VersionConventions.MAX_MINOR;
     /** major 상한. 9999 는 발급하지 않는다(04:278). */
-    public static final int MAX_MAJOR = 9998;
+    public static final int MAX_MAJOR = VersionConventions.MAX_MAJOR;
     /** lvl_cnt 범위와 기본값(04:106, CK_TB_MDM_CODE_LVL_CNT). */
     public static final int LVL_CNT_MIN = 0;
     public static final int LVL_CNT_MAX = 5;

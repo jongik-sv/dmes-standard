@@ -9,6 +9,7 @@ import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.entity.RuleMaster;
 import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
+import com.dongkuk.dmes.mcm.screenusage.schema.ScreenUsageMssqlDdl;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.hibernate.Session;
@@ -188,9 +189,18 @@ public class DataInitializer implements ApplicationRunner {
         //  - TB_MCM_DEPT_INFO        (W5 owner) — selectUserList JOIN DEPT_NM (정책 #2 Q-004)
         // 본 메서드는 W5 의 owner DDL 멱등성을 신뢰 (IF NOT EXISTS 가드) — 본 worker 는 호환 가드 호출만.
         initMcmCsaCommUserRoleCopyArtifacts();
+
+        // 화면 사용 통계(2026-10-02) — TB_SEC_SCREEN_USAGE_LOG / _DAY + 인덱스 멱등 생성.
+        // 감사 계열(TB_SEC_AUDIT_LOG)처럼 schema 접두 없이 접속 계정 기본 스키마에 둔다. SQLite 는 ddl-auto 가 만든다.
+        initScreenUsageArtifacts();
         } else {
             // SQLite(local 단독) — entity 미보유 TB_MCM_SEC_MENU_FLD 만 보강 생성 (나머지 SEC 테이블은 ddl-auto).
             createSecMenuFldForSqlite();
+            // ddl-auto(update) 는 SQLite 에서 @UniqueConstraint 를 ALTER 로만 시도해 실패한다(2026-10-02 기동 로그 확인).
+            // 재전송 중복 방지의 마지막 방어선이므로 고유 인덱스로 보강한다.
+            entityManager.createNativeQuery(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS UK_SEC_SCREEN_USAGE_LOG_SEG"
+                            + " ON TB_SEC_SCREEN_USAGE_LOG (USER_ID, CLIENT_SEG_ID)").executeUpdate();
         }
 
         // Phase R6 (2026-06-01) — 신규 RBAC 시드 (TB_MCM_SEC_*) 멱등 적재.
@@ -323,6 +333,9 @@ public class DataInitializer implements ApplicationRunner {
                 // 2026-10-02 — mls 공지사항 관리(services/lsh/noticeMgmt.bpmn) 게시상태 변경. 이 토큰이 없어 SYSADMIN 도
                 //   게시중지가 403 이었다. 이미 시드된 DB 는 아래 ensurePermAllActions 가 끝에 덧붙인다.
                 "changeStatus",
+                // 2026-10-02 — mcm 화면 사용 통계(services/csa/screenUsageStat.bpmn) 6개 action. 이미 시드된 DB 는
+                //   아래 ensurePermAllActions 가 덧붙인다. screenUsage/record 는 AUTH_ONLY 라 여기 넣지 않는다.
+                "overview", "byScreen", "byDept", "byUser", "unused", "history",
                 // 2026-10-02 — MDM 캐시 관리(csa/mdmCacheMng) 재등록 버튼. 이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
                 "reload"
 
@@ -429,6 +442,9 @@ public class DataInitializer implements ApplicationRunner {
 
         // 2026-10-02 — MDM 캐시 관리(csa/mdmCacheMng) 화면과 MDM 메타 제공(mdm metaFeed) 강제 기록 권한. seedMdmCacheMenus javadoc 참고.
         seedMdmCacheMenus();
+
+        // 2026-10-02 — 화면 사용 통계(csa/screenUsageStat) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 화면 사용 통계".
+        seedScreenUsageMenus();
 
         // 확장 지점 — 신규 업무 모듈을 추가할 때 여기에 seed{Module}Menus() 를 호출한다.
 
@@ -676,7 +692,7 @@ public class DataInitializer implements ApplicationRunner {
             {"commPermMng",               "1020150", "csa"},
             {"commUserRoleCopy",          "1020160", "csa"},
             {"commSyncMng",               "1020170", "csa"},
-            {"mdmCacheMng",               "1020180", "csa"},   // 2026-10-02 MDM 캐시 관리 — 빠지면 잔존 DB 의 FULL_SEQ 가 매 부팅 어긋난다
+            {"mdmCacheMng",               "1020190", "csa"},   // 2026-10-02 MDM 캐시 관리(화면 사용 통계 1020180 다음) — 빠지면 잔존 DB 의 FULL_SEQ 가 매 부팅 어긋난다
             {"masterCodeMngList",         "1030100", "cme"},
             {"masterRuleList",            "1040100", "cmb"},
             // 2026-08-14 등재 — 본 배열에 빠지면 잔존 DB 의 FULL_SEQ/PARENT_MENU_ID 가 매 부팅 어긋난 채 남는다
@@ -853,6 +869,28 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
+     * 화면 사용 통계(csa/screenUsageStat) 메뉴 시드 (2026-10-02) — OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1.
+     * 폴더는 기존 시스템관리 그룹 {@code csa} 를 쓰므로 더 만들지 않는다. componentPath={@code csa/screenUsageStat} 는
+     * m-mcm 페이지 레지스트리 키와 같다. FULL_SEQ 1020180 은 csa 기존 leaf(1020100~1020170) 다음이다.
+     * 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
+     */
+    private void seedScreenUsageMenus() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        final String objId = "screenUsageStat";
+        insertMcmSecObjIfAbsent(objId, "화면 사용 통계", "mcm");
+        insertMcmSecMenuIfAbsent(objId, "001", "1020180", "화면 사용 통계", "csa", objId);
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", objId,       "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + objId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        log.info("[DataInitializer] 화면 사용 통계 메뉴 시드 — OBJECT 1(screenUsageStat) + 메뉴 leaf 1(csa/screenUsageStat) + RBAC(SYSADMIN 1)");
+    }
+
+    /**
      * 공지사항 관리(noticeMgmt) 메뉴·OBJECT·RBAC 시드 — 2026-10-02. <b>메뉴는 공통관리(mcm) 아래, 코드는 mls</b> 다.
      *
      * <ul>
@@ -900,7 +938,7 @@ public class DataInitializer implements ApplicationRunner {
     /**
      * 2026-10-02 — MDM 캐시 관리(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.5·§6).
      *
-     * <p>mdmCacheMng — 포털(mcm) 화면 OBJECT + csa 메뉴 leaf(1020180, commSyncMng 다음) + SYSADMIN 전체 권한. 화면이 부르는 업무 모듈
+     * <p>mdmCacheMng — 포털(mcm) 화면 OBJECT + csa 메뉴 leaf(1020190, 화면 사용 통계 1020180 다음) + SYSADMIN 전체 권한. 화면이 부르는 업무 모듈
      * /api/{m}/mdmMeta/* 는 AUTH_ONLY(proxy.ts·EndpointPermissionFilter)이고 관리 action 은 각 모듈 컨트롤러가 SYSADMIN 을 다시 본다.
      *
      * <p>metaFeed — 화면의 삭제·재등록은 MDM OASIS /api/mdm/oasis/metaFeed/save 다. BFF 권한키 mdm/metafeed/save 를 위해 OBJECT(SYSTEM_CODE=mdm)와
@@ -913,7 +951,7 @@ public class DataInitializer implements ApplicationRunner {
                                 + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
 
         insertMcmSecObjIfAbsent("mdmCacheMng", "MDM 캐시 관리", "mcm");
-        insertMcmSecMenuIfAbsent("mdmCacheMng", "001", "1020180", "MDM 캐시 관리", "csa", "mdmCacheMng");
+        insertMcmSecMenuIfAbsent("mdmCacheMng", "001", "1020190", "MDM 캐시 관리", "csa", "mdmCacheMng");
         insertMcmSecObjIfAbsent("metaFeed", "MDM 메타 제공", "mdm");
         for (String objId : new String[]{"mdmCacheMng", "metaFeed"}) {
             insertIfAbsentComposite(
@@ -1059,6 +1097,7 @@ public class DataInitializer implements ApplicationRunner {
         seedMdmRuleMenus();
         seedMdmRuleConfirmMenu();
         seedMdmRuleSetMenus();
+        seedMdmRuleSetConfirmMenu();
     }
 
     /**
@@ -1240,6 +1279,27 @@ public class DataInitializer implements ApplicationRunner {
             seedMdmObjectRbac(objectId, "dme");
         }
         log.info("[DataInitializer] TSK-08-06 MDM 룰 세트 화면 시드 — OBJECT 2 + 메뉴 leaf 2(dme) + RBAC(SYSADMIN 2 + MDM 역할 4)");
+    }
+
+    /**
+     * D-144 2단계 — 룰 세트 버전 확정(dme/ruleSetConfirm). 기존 메뉴 배열은 고치지 않고 같은 dme 폴더 아래 새 leaf 로 등록한다.
+     * action(search·view·validate·confirm)은 기존 권한 세트·allActions 안에 있다(ruleConfirm 과 같다). 룰 세트 편집(ruleSetEdit)의 새 action
+     * copy·lock·unlock·handover 도 이미 PERM_MDM_EDIT·allActions 안에 있어 시드를 바꾸지 않는다. FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
+     */
+    private void seedMdmRuleSetConfirmMenu() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        insertMcmSecObjIfAbsent("ruleSetConfirm", "룰 세트 확정", "mdm");
+        insertMcmSecMenuIfAbsent("ruleSetConfirm", "006", "5050600", "룰 세트 확정", "dme", "ruleSetConfirm");
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID",      "PERMISSION_ID"},
+                new String[]{"SYSADMIN", "ruleSetConfirm", "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', 'ruleSetConfirm', 'PERM_ALL'" + AUDIT_VALS + ")");
+        seedMdmObjectRbac("ruleSetConfirm", "dme");
+        log.info("[DataInitializer] D-144 2단계 MDM 룰 세트 확정 시드 — OBJECT 1 + 메뉴 leaf 1(dme) + RBAC(SYSADMIN 1 + MDM 역할 2)");
     }
 
     /**
@@ -2611,6 +2671,48 @@ public class DataInitializer implements ApplicationRunner {
                 "SELECT COUNT(*) FROM sys.objects "
                 + "WHERE object_id = OBJECT_ID(:fqn) AND type = 'U'")
                 .setParameter("fqn", schema + "." + table)
+                .getSingleResult();
+        return cnt != null && cnt.intValue() > 0;
+    }
+
+    /**
+     * 화면 사용 통계 원본·일별 집계 테이블 멱등 생성 (MSSQL 계열, 2026-10-02).
+     * <p>DDL 정본은 mcm-core {@link ScreenUsageMssqlDdl} — 운영 DBA 전달본과 같은 문장이다. 두 테이블은 schema 접두가 없어
+     * {@link #tableExists(String, String)}(schema 필수) 대신 기본 스키마로 해석하는 {@code OBJECT_ID(테이블)} 로 확인한다.
+     * local-db 는 ddl-auto=update 가 먼저 만들 수 있으므로 인덱스도 이름으로 하나씩 확인한다.
+     */
+    private void initScreenUsageArtifacts() {
+        if (!tableExistsInDefaultSchema(ScreenUsageMssqlDdl.LOG_TABLE)) {
+            nq(ScreenUsageMssqlDdl.CREATE_LOG_TABLE).executeUpdate();
+            log.info("[DataInitializer] CREATE TABLE: {}", ScreenUsageMssqlDdl.LOG_TABLE);
+        }
+        for (ScreenUsageMssqlDdl.IndexDdl index : ScreenUsageMssqlDdl.LOG_INDEXES) {
+            if (!indexExistsInDefaultSchema(ScreenUsageMssqlDdl.LOG_TABLE, index.name())) {
+                nq(index.sql()).executeUpdate();
+                log.info("[DataInitializer] CREATE INDEX: {}", index.name());
+            }
+        }
+        if (!tableExistsInDefaultSchema(ScreenUsageMssqlDdl.DAY_TABLE)) {
+            nq(ScreenUsageMssqlDdl.CREATE_DAY_TABLE).executeUpdate();
+            log.info("[DataInitializer] CREATE TABLE: {}", ScreenUsageMssqlDdl.DAY_TABLE);
+        }
+    }
+
+    /** schema 접두 없는 테이블 존재 여부 — 접속 계정 기본 스키마로 해석 (MSSQL). */
+    private boolean tableExistsInDefaultSchema(String table) {
+        Number cnt = (Number) nq(
+                "SELECT COUNT(*) FROM sys.objects WHERE object_id = OBJECT_ID(:name) AND type = 'U'")
+                .setParameter("name", table)
+                .getSingleResult();
+        return cnt != null && cnt.intValue() > 0;
+    }
+
+    /** schema 접두 없는 테이블의 인덱스 존재 여부 (MSSQL). */
+    private boolean indexExistsInDefaultSchema(String table, String indexName) {
+        Number cnt = (Number) nq(
+                "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(:name) AND name = :idx")
+                .setParameter("name", table)
+                .setParameter("idx", indexName)
                 .getSingleResult();
         return cnt != null && cnt.intValue() > 0;
     }

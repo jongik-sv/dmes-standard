@@ -4,6 +4,7 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
@@ -13,6 +14,7 @@ import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleSet;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSetVer;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
@@ -22,6 +24,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,7 +36,8 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
 
 /**
  * 운영 정의 조회기(spec §6.1, 계획 Task 11) — MDM 앱 안에서 원장을 직접 읽는다. 룰은 판정 시각(KST 벽시계)에 적용되는 RELEASED 버전
- * ({@link RuleVersions#currentReleased}: {@code APPLY_FROM <= now < APPLY_TO}), 세트는 현재 행(FLOW_JSON 이 없으면 흐름 null = 한 줄 흐름).
+ * ({@link RuleVersions#currentReleased}: {@code APPLY_FROM <= now < APPLY_TO}), 세트는 판정 시각에 적용되는 RELEASED 버전(D-144 2단계, 룰과 같은
+ * 해석. FLOW_JSON 이 없으면 흐름 null = 한 줄 흐름)과 부모의 계산 상태({@link RuleVersions#effectiveStatus}).
  *
  * <p><b>스프링 빈이 아니다</b> — {@code MdmBusinessRuleMigrationTest} 가 {@code DefinitionLookup} 빈 0개를 요구한다. {@code RuleSetRunner} 가 호출마다
  * (테스트 케이스 일괄 실행이면 한 요청에 하나) 만든다. 한 인스턴스 안에서 룰 헤더·버전 목록·(룰, 버전) 정의·(룰, 판정 시각) 결과를 캐시하고,
@@ -50,11 +54,13 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
     private final RuleQueries queries;
     private final StoredRuleDefinitions stored;
     private final MdmRuleRepository rules;
+    private final RuleSetVersionQueries setVersions;
     private final MdmRuleSetRepository sets;
     private final Map<String, Optional<RuleDefinition>> cache = new HashMap<>();
     private final Map<String, Optional<MdmRule>> headers = new HashMap<>();
     private final Map<String, List<MdmRuleVer>> versions = new HashMap<>();
     private final Map<String, Optional<RuleDefinition>> definitions = new HashMap<>();
+    private final Map<String, Optional<RuleSetDefinition>> setCache = new HashMap<>();
     private final Map<String, Raw> prefetched = new HashMap<>();
     private RuleVarTypeResolver.Scope scope;
 
@@ -62,10 +68,12 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
     private record Raw(List<MdmRuleVar> vars, List<MdmRuleRow> rows) {
     }
 
-    public StoredDefinitionLookup(RuleQueries queries, StoredRuleDefinitions stored, MdmRuleRepository rules, MdmRuleSetRepository sets) {
+    public StoredDefinitionLookup(RuleQueries queries, StoredRuleDefinitions stored, MdmRuleRepository rules,
+                                  RuleSetVersionQueries setVersions, MdmRuleSetRepository sets) {
         this.queries = queries;
         this.stored = stored;
         this.rules = rules;
+        this.setVersions = setVersions;
         this.sets = sets;
     }
 
@@ -136,9 +144,49 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
         return out;
     }
 
+    /** 판정 시각에 적용되는 RELEASED 세트 버전({@link RuleVersions#currentReleased}). 한 인스턴스 안에서 (세트, 시각)마다 캐시한다. */
     @Override
-    public Optional<RuleSetDefinition> ruleSet(String setId) {
-        return sets.findById(setId).map(StoredDefinitionLookup::toDefinition);
+    public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
+        String key = setId + "@" + evalTs;
+        Optional<RuleSetDefinition> known = setCache.get(key);
+        if (known == null) {
+            known = loadSet(setId, evalTs);
+            setCache.put(key, known);
+        }
+        return known;
+    }
+
+    private Optional<RuleSetDefinition> loadSet(String setId, Instant evalTs) {
+        Optional<MdmRuleSet> parent = sets.findById(setId);
+        if (parent.isEmpty()) {
+            return Optional.empty();
+        }
+        LocalDateTime at = LocalDateTime.ofInstant(evalTs, MdmClockConfig.KST);
+        List<MdmRuleSetVer> versions = setVersions.versions(setId);
+        String status = RuleVersions.effectiveStatus(parent.get().getStatus(), versions, at);
+        return RuleVersions.currentReleased(versions, at).map(v -> toDefinition(setId, status, v));
+    }
+
+    /**
+     * 세트의 RELEASED 버전 전부(적용 시작이 있는 것), VER 오름차순 — MDM 메타 피드(spec 2026-10-02-mdm-meta-cache-design §4.1)가 업무 모듈 캐시에
+     * 보낸다. 받는 쪽은 {@link #ruleSet} 과 같은 규칙({@code APPLY_FROM <= t < APPLY_TO}, 여럿이면 VER 최대)으로 판정 시각마다 고른다.
+     * 상태는 버전마다 그 적용 시작 시각의 계산 상태다 — 고를 수 있는 시각 t({@code >= APPLY_FROM})의 {@link RuleVersions#effectiveStatus} 와 늘 같다
+     * (저장 CREATED 는 INUSE, 그 밖에는 저장값). 세트가 없으면 빈 값, 있는데 RELEASED 가 없으면 빈 목록이다. 정의 조립은 {@link #ruleSet} 과 같은 길이다.
+     */
+    public Optional<List<RuleSetDefinition>> releasedSets(String setId) {
+        Optional<MdmRuleSet> parent = sets.findById(setId);
+        if (parent.isEmpty()) {
+            return Optional.empty();
+        }
+        List<MdmRuleSetVer> versions = setVersions.versions(setId);
+        List<RuleSetDefinition> out = new ArrayList<>();
+        for (MdmRuleSetVer v : versions) {
+            if ("RELEASED".equals(v.getStatus()) && v.getApplyFrom() != null) {
+                out.add(toDefinition(setId, RuleVersions.effectiveStatus(parent.get().getStatus(), versions, v.getApplyFrom()), v));
+            }
+        }
+        out.sort(Comparator.comparing(RuleSetDefinition::ver)); // scale 3 BigDecimal — compareTo 수 비교
+        return Optional.of(out);
     }
 
     /** 저장값 읽기 — 저장된 값이 깨져 난 예외를 {@link StoredDefinitionException} 으로 감싼다(메시지는 원인 그대로). */
@@ -218,9 +266,9 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
         return a.definition();
     }
 
-    private static RuleSetDefinition toDefinition(MdmRuleSet s) {
-        List<String> ids = readStored(() -> DomainJson.readList(s.getRuleIds()).stream().map(String::valueOf).toList());
-        return new RuleSetDefinition(s.getMaruRuleSetId(), ids, SetStatus.valueOf(s.getStatus()),
-                s.getFlowJson() == null ? null : readStored(() -> RuleSetFlowJson.parse(s.getFlowJson())));
+    private static RuleSetDefinition toDefinition(String setId, String status, MdmRuleSetVer v) {
+        List<String> ids = readStored(() -> DomainJson.readList(v.getRuleIds()).stream().map(String::valueOf).toList());
+        return new RuleSetDefinition(setId, v.getVer(), v.getApplyFrom(), v.getApplyTo(), ids, SetStatus.valueOf(status),
+                v.getFlowJson() == null ? null : readStored(() -> RuleSetFlowJson.parse(v.getFlowJson())));
     }
 }

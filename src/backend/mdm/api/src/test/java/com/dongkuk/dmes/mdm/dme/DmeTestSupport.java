@@ -90,6 +90,7 @@ public final class DmeTestSupport {
         jdbc.update("DELETE FROM TB_MDM_RULE_VER");
         jdbc.update("DELETE FROM TB_MDM_RULE_SYSTEM");
         jdbc.update("DELETE FROM TB_MDM_RULE_RECV");
+        jdbc.update("DELETE FROM TB_MDM_RULE_SET_VER");
         jdbc.update("DELETE FROM TB_MDM_RULE_SET");
         jdbc.update("DELETE FROM TB_MDM_RULE");
     }
@@ -247,19 +248,52 @@ public final class DmeTestSupport {
     }
 
     /**
-     * 룰 세트 한 행(TSK-08-06 design §2.4). 감사 칼럼은 픽스처 값({@code U_USR_ID='fixture'}, {@code VER=0})으로 채워 쓰기 테스트가 바뀐 값을
-     * 단언할 수 있게 한다.
+     * 룰 세트 부모 + 1.000 MAJOR RELEASED(D-144 2단계). 서명은 그대로다. APPLY_FROM 은 2000-01-01 00:00:00 — 판정 시각으로 세트 버전을
+     * 고르게 된 뒤에도 이른 판정 시각을 쓰는 기존 시험이 세트를 찾게 한다(계획 J4). rowVersion 은 버전 행의 ROW_VERSION 이다.
+     * 감사 칼럼은 픽스처 값({@code U_USR_ID='fixture'}, 감사 카운터 0)으로 채워 쓰기 테스트가 바뀐 값을 단언할 수 있게 한다.
      */
     public static void ruleSet(JdbcTemplate jdbc, String id, String name, String ruleIdsJson, String status, long rowVersion) {
-        jdbc.update("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, STATUS, ROW_VERSION, "
+        jdbc.update("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, STATUS, "
                 + "C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER) "
-                + "VALUES (?, ?, ?, ?, ?, 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', "
-                + "'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)", id, name, ruleIdsJson, status, rowVersion);
+                + "VALUES (?, ?, ?, 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', "
+                + "'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)", id, name, status);
+        ruleSetVersion(jdbc, id, "1.000", "MAJOR", "RELEASED", null, ruleIdsJson, "2000-01-01 00:00:00", "9999-12-31 00:00:00", rowVersion);
     }
 
-    /** 이미 넣은 세트 행의 FLOW_JSON 을 바꾼다(흐름도 세트 픽스처, spec §3.3). RULE_IDS 는 호출자가 펼친 목록으로 맞춰 둔다. */
+    /** 세트 버전 한 행. DRAFT 면 applyFrom·applyTo 를 null 로 준다. RELEASED 면 RELEASED_AT = applyFrom. */
+    public static void ruleSetVersion(JdbcTemplate jdbc, String id, String ver, String kind, String status, String owner, String ruleIdsJson,
+                                      String applyFrom, String applyTo, long rowVersion) {
+        jdbc.update("INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, RULE_IDS, "
+                + "RELEASED_AT, ROW_VERSION, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, AUD_VER) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', "
+                + "'fixture', '2026-01-01 00:00:00', 'fixture', 'fixture', 0)",
+                id, new BigDecimal(ver).setScale(3), kind, status, owner, applyFrom, applyTo, ruleIdsJson,
+                "RELEASED".equals(status) ? applyFrom : null, rowVersion);
+    }
+
+    /** 세트 DRAFT 한 행(MAJOR, 적용 구간 없음). */
+    public static void ruleSetDraft(JdbcTemplate jdbc, String setId, String ver, String owner, String ruleIdsJson, long rowVersion) {
+        ruleSetVersion(jdbc, setId, ver, "MAJOR", "DRAFT", owner, ruleIdsJson, null, null, rowVersion);
+    }
+
+    /** 1.000 버전의 FLOW_JSON 을 바꾼다(흐름도 세트 픽스처, spec §3.3). RULE_IDS 는 호출자가 펼친 목록으로 맞춰 둔다. */
     public static void ruleSetFlow(JdbcTemplate jdbc, String setId, String flowJson) {
-        jdbc.update("UPDATE TB_MDM_RULE_SET SET FLOW_JSON = ? WHERE MARU_RULE_SET_ID = ?", flowJson, setId);
+        ruleSetFlow(jdbc, setId, "1.000", flowJson);
+    }
+
+    public static void ruleSetFlow(JdbcTemplate jdbc, String setId, String ver, String flowJson) {
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET FLOW_JSON = ? WHERE MARU_RULE_SET_ID = ? AND VER = ?",
+                flowJson, setId, new BigDecimal(ver).setScale(3));
+    }
+
+    /** 세트 버전 행의 칼럼 하나(글자). 칼럼 이름은 아래 목록만 받는다. */
+    public static String setVerValue(JdbcTemplate jdbc, String setId, String ver, String column) {
+        if (!Set.of("RULE_IDS", "FLOW_JSON", "ROW_VERSION", "STATUS", "OWNER_ID", "APPLY_FROM", "APPLY_TO", "VER_KIND", "BASE_VER")
+                .contains(column)) {
+            throw new IllegalArgumentException(column);
+        }
+        return jdbc.queryForObject("SELECT CAST(" + column + " AS TEXT) FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID = ? AND VER = ?",
+                String.class, setId, new BigDecimal(ver).setScale(3));
     }
 
     public static int count(JdbcTemplate jdbc, String sql, Object... args) {
