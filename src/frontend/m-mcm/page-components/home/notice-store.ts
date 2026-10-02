@@ -44,6 +44,11 @@ export function ensureNoticesLoaded(): void {
   if (!requested) void reloadNotices();
 }
 
+/** 홈 화면이 내려갈 때 부른다 — 다시 마운트(탭 새로고침)되면 ensureNoticesLoaded 가 새로 조회한다. */
+export function resetNoticesRequest(): void {
+  requested = false;
+}
+
 export function selectNotice(id: string | null): void {
   set({ selectedId: id });
 }

@@ -16,7 +16,7 @@ import { WIDGET_REGISTRY } from "@/lib/generated/widget-registry";
 import { fetchCurrentUser, type CurrentUser } from "./api";
 import { HOME_CSS, HOME_STYLE_HREF } from "./home-styles";
 import { HOME_DEFAULT_LAYOUT } from "./home-layout";
-import { ensureNoticesLoaded, selectNotice, useNoticeStore } from "./notice-store";
+import { ensureNoticesLoaded, resetNoticesRequest, selectNotice, useNoticeStore } from "./notice-store";
 import { PRODUCT_GROUPS, currentShiftLabel } from "./sample-data";
 import { firstUrgent, formatToday, noticeKey } from "./types";
 import { secWidgetStore } from "./widget-store";
@@ -35,6 +35,7 @@ export default function PortalHomePage(_props: PageProps) {
     });
     return () => {
       cancelled = true;
+      resetNoticesRequest();
     };
   }, []);
 

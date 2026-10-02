@@ -13,15 +13,15 @@ const at = (widgetId: string, x: number, y: number, w: number, h: number): Widge
 });
 
 export const HOME_DEFAULT_LAYOUT: WidgetItem[] = [
-  at("home.kpi", 0, 0, 24, 6),
-  at("home.notice", 0, 6, 10, 16),
-  at("home.notifications", 10, 6, 7, 16),
-  at("home.quickLinks", 17, 6, 7, 16),
-  at("home.monthly", 0, 22, 9, 13),
-  at("home.equipment", 9, 22, 6, 13),
-  at("home.process", 15, 22, 9, 13),
-  at("home.workOrders", 0, 35, 14, 14),
-  at("home.alarms", 14, 35, 10, 7),
-  at("home.defect", 14, 42, 10, 7),
-  at("home.shipments", 0, 49, 24, 10),
+  at("home.kpi", 0, 0, 24, 7),
+  at("home.notice", 0, 7, 10, 16),
+  at("home.notifications", 10, 7, 7, 16),
+  at("home.quickLinks", 17, 7, 7, 16),
+  at("home.monthly", 0, 23, 9, 13),
+  at("home.equipment", 9, 23, 6, 13),
+  at("home.process", 15, 23, 9, 13),
+  at("home.workOrders", 0, 36, 14, 14),
+  at("home.alarms", 14, 36, 10, 7),
+  at("home.defect", 14, 43, 10, 7),
+  at("home.shipments", 0, 50, 24, 10),
 ];
