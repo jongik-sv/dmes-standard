@@ -15,6 +15,9 @@ import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import kr.dongkuk.maru.mdm.engine.domain.DomainValidator;
+import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
+import kr.dongkuk.maru.mdm.engine.rule.RuleEngine;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
 import org.junit.jupiter.api.Test;
@@ -71,6 +74,29 @@ class MdmAutoConfigurationTest {
             assertThat(p.getReadTimeout()).isEqualTo(Duration.ofSeconds(5));
             assertThat(p.getConnectTimeout()).isEqualTo(Duration.ofMillis(200));
             assertThat(p.getRevisionLookback()).isEqualTo(MdmRevisionPoller.DEFAULT_LOOKBACK);
+            // 하위 프로젝트 C §6.3 — 검증기와 엔진(캐시 전용 조회기). 캐시 전용 조회기는 빈이 아니라 DefinitionLookup 은 그대로 하나다
+            assertThat(ctx).hasSingleBean(MdmValidator.class).hasSingleBean(MdmEvaluator.class).hasSingleBean(DomainValidator.class)
+                    .hasSingleBean(RuleEngine.class).hasSingleBean(DefinitionLookup.class).hasSingleBean(CodeLookup.class);
+            assertThat(p.getValidation().getOnUnavailable()).isEqualTo(MdmValidator.OnUnavailable.REJECT);
+            assertThat(ctx.getBean(MdmValidator.class).onUnavailable()).isEqualTo(MdmValidator.OnUnavailable.REJECT);
+        });
+    }
+
+    @Test
+    void validation_on_unavailable_PASS_설정이_검증기에_닿는다() {
+        runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.validation.on-unavailable=PASS").run(ctx -> {
+            assertThat(ctx.getBean(MdmClientProperties.class).getValidation().getOnUnavailable()).isEqualTo(MdmValidator.OnUnavailable.PASS);
+            assertThat(ctx.getBean(MdmValidator.class).onUnavailable()).isEqualTo(MdmValidator.OnUnavailable.PASS);
+        });
+    }
+
+    @Test
+    void 꺼져_있으면_검증기도_엔진_빈도_없다() {
+        runner.run(ctx -> {
+            assertThat(ctx).doesNotHaveBean(MdmValidator.class);
+            assertThat(ctx).doesNotHaveBean(MdmEvaluator.class);
+            assertThat(ctx).doesNotHaveBean(DomainValidator.class);
+            assertThat(ctx).doesNotHaveBean(RuleEngine.class);
         });
     }
 
