@@ -47,6 +47,7 @@ import {
   type UsageEmitReason,
   type UsageSegment,
 } from "./usage-tracker";
+import { installUsageActivity } from "./usage-activity";
 
 /** 로그아웃 때 화면 사용 구간 전송을 기다리는 최대 시간(ms). 넘기면 기다리지 않고 signOut 한다. */
 const USAGE_LOGOUT_WAIT_MS = 1500;
@@ -180,8 +181,9 @@ export interface PortalShellProps {
   /** 기본 화면 등록/해제 토글 — 탭 우클릭 메뉴와 사이드바 해제 버튼이 부른다. 미지정 시 등록 메뉴를 숨긴다. */
   onToggleStartPage?: (pageId: string) => void;
   /**
-   * 화면 사용 구간 수집 — 활성 탭(홈 제외)을 실제로 보고 있던 구간이 닫힐 때마다 호출한다.
-   * 미지정이면 추적기를 만들지 않는다. 큐·전송·재시도는 호출부(usage-sender) 몫이다.
+   * 화면 사용 구간 수집 — 탭(홈 제외)에서 첫 업무 호출이 나간 순간부터 그 탭을 실제로 보고 있던 시간을 탭 단위로
+   * 누적하고, 구간을 내보낼 때(탭 닫기·15분 경과·무입력 30분·pagehide·로그아웃)마다 호출한다.
+   * 미지정이면 추적기를 만들지 않고 fetch 도 감싸지 않는다. 큐·전송·재시도는 호출부(usage-sender) 몫이다.
    * 로그아웃 때는 열린 구간을 닫아 `reason: "logout"` 으로 넘기고, 돌려받은 Promise 를 최대 1500ms 기다린 뒤 signOut 한다.
    */
   onUsageSegments?: (
@@ -294,10 +296,12 @@ export function PortalShell({
   /** 화면 사용 추적기 — onUsageSegments 가 있을 때만 만든다. */
   const usageTrackerRef = useRef<UsageTracker | null>(null);
   /**
-   * 새로 만든 탭 ID(openPageTab·기본 화면 자동 열기) — 그 탭의 첫 활성화를 OPEN 으로 센다. 탭 ID 기준이라
-   * StrictMode 가 setTabs 업데이터를 두 번 불러도 OPEN 이 두 번 나오지 않는다(실제로 안 생긴 ID 는 effect 가 지운다).
+   * 활성화된 탭 — 첫 업무 호출이 있었던 탭 ID → 기록용 pageId. 이 탭들만 추적기에 알린다(설계 §3.1).
+   * 메모리에만 둔다: 탭을 닫거나 새로고침하면 없어지고, 그 뒤 첫 업무 호출이 다시 OPEN 으로 시작한다.
    */
-  const usageOpenTabIdsRef = useRef<Set<string>>(new Set());
+  const usageActivatedTabsRef = useRef<Map<string, string>>(new Map());
+  /** 업무 호출 감지(fetch 감싸기) 해제 — 로그아웃 때 언마운트보다 먼저 원래 fetch 로 되돌린다. */
+  const usageActivityUninstallRef = useRef<(() => void) | null>(null);
   const onUsageSegmentsRef = useRef(onUsageSegments);
   onUsageSegmentsRef.current = onUsageSegments;
   const isUsageTrackingEnabled = onUsageSegments != null;
@@ -518,8 +522,6 @@ export function PortalShell({
           return prev.map((tab) => (tab.id === existing.id ? { ...tab, title: displayText } : tab));
         }
         const tabId = createTabId(pageId);
-        // 새 탭의 첫 활성화는 OPEN — 활성 탭 effect 가 소비한다.
-        usageOpenTabIdsRef.current.add(tabId);
         setActiveTabId(tabId);
         const created: PortalShellTabState = {
           id: tabId,
@@ -584,6 +586,10 @@ export function PortalShell({
     // 불리고, 호출부가 돌려준 Promise(keepalive flush)를 최대 USAGE_LOGOUT_WAIT_MS 기다린 뒤 signOut 한다.
     const pendingUsage: Promise<void>[] = [];
     usageLogoutPendingRef.current = pendingUsage;
+    // 업무 호출 감지를 먼저 떼어 원래 fetch 로 되돌린다(로그아웃 대기 중 호출이 구간을 다시 열지 않게).
+    usageActivityUninstallRef.current?.();
+    usageActivityUninstallRef.current = null;
+    usageActivatedTabsRef.current.clear();
     try {
       usageTrackerRef.current?.end();
     } finally {
@@ -913,7 +919,6 @@ export function PortalShell({
       const firstId = created[0].id;
       setActiveTabId((prev) => {
         if (prev != null && prev !== homeTabId) return prev;
-        usageOpenTabIdsRef.current.add(firstId); // 기본 화면 자동 열기도 OPEN 으로 센다
         return firstId;
       });
     }
@@ -1038,32 +1043,59 @@ export function PortalShell({
       win: window,
     });
     usageTrackerRef.current = tracker;
-    // prop 이 나중에 생긴 경우 지금 보고 있는 탭부터 잰다(첫 마운트에는 활성 탭이 없어 아무것도 안 한다).
+    // prop 이 나중에 생긴 경우 지금 보고 있는 탭부터 잰다(활성화된 탭일 때만. 첫 마운트에는 활성 탭이 없다).
     const current = tabsRef.current.find((tab) => tab.id === activeTabIdRef.current);
-    tracker.activate(current && !current.isHome ? toUsagePageId(current.pageId) : null);
+    const currentPageId = current ? usageActivatedTabsRef.current.get(current.id) : undefined;
+    tracker.activate(current && currentPageId != null ? { key: current.id, pageId: currentPageId } : null);
+
+    // 업무 호출 감지 — 입력 뒤 5초 안에, 입력 때와 같은 활성 탭에서 나간 업무 fetch 가 그 탭의 첫 업무 호출이면
+    // 그 순간부터 OPEN 구간을 시작한다(설계 §3.1). 탭을 열기만 하거나 자동 조회만 나간 탭은 기록하지 않는다.
+    const uninstall = installUsageActivity({
+      getScope: () => {
+        const tabId = activeTabIdRef.current;
+        const tab = tabId ? tabsRef.current.find((t) => t.id === tabId) : undefined;
+        return tab && !tab.isHome ? tab.id : null;
+      },
+      onBusinessCall: (tabId) => {
+        if (loggingOutRef.current || usageTrackerRef.current !== tracker) return;
+        const activated = usageActivatedTabsRef.current;
+        if (activated.has(tabId)) return; // 이미 활성화 — 추적기가 이미 재고 있다
+        const tab = tabsRef.current.find((t) => t.id === tabId);
+        if (!tab || tab.isHome || activeTabIdRef.current !== tabId) return;
+        const pageId = toUsagePageId(tab.pageId);
+        activated.set(tabId, pageId);
+        tracker.activate({ key: tabId, pageId }, "OPEN");
+      },
+    });
+    usageActivityUninstallRef.current = uninstall;
     return () => {
+      uninstall(); // 원래 fetch 로 되돌린다(로그아웃이 먼저 했으면 아무 일 없음)
+      if (usageActivityUninstallRef.current === uninstall) usageActivityUninstallRef.current = null;
       if (usageTrackerRef.current === tracker) usageTrackerRef.current = null;
       tracker.dispose(); // 열린 구간을 넘기고 리스너·타이머를 뗀다
     };
   }, [isUsageTrackingEnabled]);
 
-  // 활성 탭이 바뀌면 이전 구간을 닫고 새 구간을 연다. 활성 탭이 바뀌는 모든 경로가 activeTabId 로 모인다.
+  // 활성 탭이 바뀌면 이전 탭 구간을 일시정지하고, 활성화된 탭이면 그 탭 구간을 이어 잰다(구간이 없으면 RESUME).
+  // 활성화되지 않은 탭·홈·탭 없음은 일시정지만 한다. 활성 탭이 바뀌는 모든 경로가 activeTabId 로 모인다.
   useEffect(() => {
-    const openIds = usageOpenTabIdsRef.current;
-    const isNewTab = activeTabId != null && openIds.delete(activeTabId);
-    // StrictMode 이중 업데이터가 남긴, 실제로 생기지 않은 탭 ID 는 지운다.
-    for (const id of openIds) {
-      if (!tabsRef.current.some((tab) => tab.id === id)) openIds.delete(id);
-    }
     const tracker = usageTrackerRef.current;
     if (!tracker) return;
-    const tab = activeTabId ? tabsRef.current.find((t) => t.id === activeTabId) : undefined;
-    if (!tab || tab.isHome) {
-      tracker.activate(null); // 홈·탭 없음 — 끝내기만
-      return;
-    }
-    tracker.activate(toUsagePageId(tab.pageId), isNewTab ? "OPEN" : "SWITCH");
+    const pageId = activeTabId ? usageActivatedTabsRef.current.get(activeTabId) : undefined;
+    tracker.activate(activeTabId && pageId != null ? { key: activeTabId, pageId } : null);
   }, [activeTabId]);
+
+  // 탭이 닫히면 활성화 상태를 지우고 그 탭 구간을 내보낸다(보이지 않던 탭을 닫아도 같다).
+  useEffect(() => {
+    const activated = usageActivatedTabsRef.current;
+    if (activated.size === 0) return;
+    const openIds = new Set(tabs.map((tab) => tab.id));
+    for (const tabId of [...activated.keys()]) {
+      if (openIds.has(tabId)) continue;
+      activated.delete(tabId);
+      usageTrackerRef.current?.release(tabId);
+    }
+  }, [tabs]);
 
   // Persist to storage
   useEffect(() => {

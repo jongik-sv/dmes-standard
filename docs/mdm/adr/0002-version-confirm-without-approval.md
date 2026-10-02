@@ -77,6 +77,7 @@
   13. 액션 — 새 액션을 만들지 않는다. **기존 `delete` 액션에 `target` 을 더해** 04 `codeEdit`·06 `ruleEdit` 의 `delete` 경로에서 분기한다(선례: 04 `target:"CODE"`, 06 `target:"VERSION"|"RULE"`). 액션 어휘 16종과 `PERMISSION_ACTION` 시드, BPMN 액션 대조 시험을 건드리지 않는다. 2항의 "`confirm` 권한"은 권한 세트 쪽 판정이며 화면 액션 키와 다르다.
   14. `VersionTransition` 에 되돌림 전이 `REVERT_CONFIRM(RELEASED, DRAFT, true)` 를 추가하고, 전이 목록과 `inScope` 집합을 정확히 고정하는 계약 시험과 그 클래스 주석을 함께 고친다.
   15. 되돌림 UPDATE 는 `STATUS='RELEASED' AND ROW_VERSION = :expected` 조건의 **별도** 조건부 UPDATE 다 — 확정이 쓰는 `STATUS='DRAFT'` 술어 조건을 재사용하지 않는다. 0행이면 `MDM001`, 1행이 아니면 롤백이다. 오류 코드 `MDM025`("이미 적용된 버전은 확정 취소할 수 없습니다")를 신설하고, `RELEASED` 가 아닌 경우의 `MDM002` 는 1항의 문구로 재사용한다.
+  16. **레이아웃 헤더의 취소 가드(D-144 3단계, 판정 P3-22)** — 레이아웃·헤더 대상에서는 확정 취소 앞에 공통 엔진이 취소 검사 SPI 를 부른다. 헤더 확정을 취소하면 그 헤더를 쌓은 RELEASED(현재·미래) 전문 버전을 적용 구간에서 합성할 수 없게 되는 경우 거부한다(`MDM028`, `CONFIRM_CANCEL_BREAKS_LAYOUTS`, 사용 전문 목록을 오류에 담는다). 사용자는 걸린 전문의 미래 버전을 먼저 확정 취소한다. 메타 피드의 키 단위 failed(R4)를 정상 경로에서 막기 위함이다. 룰·세트·마스터코드의 취소에는 영향이 없다. 오류 코드 `MDM028` 을 신설한다.
 
 ## Consequences (결과)
 

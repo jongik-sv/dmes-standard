@@ -6,7 +6,7 @@
   "rcvSystem": "MES",
   "encoding": "EUC-KR",
   "padRule": "숫자는 왼쪽 0-채움, 문자는 오른쪽 공백-채움",
-  "layoutVersion": 2,
+  "layoutVersion": 2.000,
   "totalLength": 187,
   "headers": [
     {
@@ -224,7 +224,8 @@
           "unitCode": null,
           "scale": null
         }
-      ]
+      ],
+      "headerVersion": 1.000
     },
     {
       "seq": 2,
@@ -329,7 +330,8 @@
           "unitCode": null,
           "scale": null
         }
-      ]
+      ],
+      "headerVersion": 1.000
     }
   ],
   "items": [

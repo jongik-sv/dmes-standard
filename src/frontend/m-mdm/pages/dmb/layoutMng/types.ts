@@ -1,5 +1,5 @@
 /** layoutMng 응답·초안 타입(TSK-05-02 design.md §6.1 — 행 키 UPPER_SNAKE 그대로). */
-import type { ColumnInfo, LayoutItemRow, UnitRow } from "@/layout/types";
+import type { ColumnInfo, LayoutItemRow, LayoutVersionRow, UnitRow } from "@/layout/types";
 import type { LayoutSnapshot } from "@/layout/snapshot-export";
 
 export interface LayoutRow {
@@ -10,9 +10,13 @@ export interface LayoutRow {
   RCV_SYSTEM?: string | null;
   HEADER_SUMMARY?: string;
   ITEM_COUNT: number;
-  TOTAL_LENGTH: number;
-  LAYOUT_VERSION: number;
-  VER: number;
+  /** 쌓인 헤더 하나라도 지금 확정 버전이 없으면 null(길이를 모른다). */
+  TOTAL_LENGTH: number | null;
+  CURRENT_VER?: string | null;
+  DRAFT_VER?: string | null;
+  DRAFT_OWNER?: string | null;
+  STATUS: string;
+  AUD_VER: number;
 }
 
 export interface SystemRow {
@@ -57,31 +61,44 @@ export interface ViewHeader {
   HEADER_LAYOUT_ID: number;
   HEADER_NAME: string;
   EAI_CODE?: string | null;
-  TOTAL_LENGTH: number;
-  OFFSET: number;
+  /** 판정 시각 T 에 이 헤더의 확정 버전이 없으면 null — 그 뒤 헤더 OFFSET 도 null. */
+  TOTAL_LENGTH: number | null;
+  OFFSET: number | null;
+  /** 판정 시각 T 에 고른 헤더 버전(`"1.001"`). MISSING 이면 null. */
+  HEADER_VER?: string | null;
+  /** CURRENT·FUTURE·PAST·DRAFT·MISSING(확정 헤더 없음)·LEGACY(이행 전 스냅샷). */
+  HEADER_STATE?: string | null;
   items: LayoutItemRow[];
 }
 
 export interface ViewResult {
   layout?: {
     LAYOUT_ID: number; LAYOUT_NAME: string; EAI_CODE?: string | null; SND_SYSTEM?: string | null; RCV_SYSTEM?: string | null;
-    TOTAL_LENGTH: number; HEADER_LENGTH: number; LAYOUT_VERSION: number; VER: number;
+    /** 쌓인 헤더 하나라도 판정 시각에 확정 버전이 없으면 둘 다 null. */
+    TOTAL_LENGTH: number | null; HEADER_LENGTH: number | null; AUD_VER?: number;
   };
   headers?: ViewHeader[];
   items?: LayoutItemRow[];
   units?: UnitRow[];
-  versions?: VersionRow[];
+  /** 고른 버전 행(없으면 이력이 비었다). */
+  selected?: LayoutVersionRow | null;
+  versions?: LayoutVersionRow[];
+  editable?: boolean;
+  canNewMajor?: boolean;
+  canNewMinor?: boolean;
+  nextMajor?: string | null;
+  nextMinor?: string | null;
+  asOf?: string | null;
 }
 
 export interface SaveResult {
-  layoutId?: number;
-  ver?: number;
-  totalLength?: number;
-  headerLength?: number;
-  layoutVersion?: number;
-  versionCreated?: boolean;
-  switchMode?: string | null;
-  changeSummary?: string | null;
+  layoutId: number;
+  ver: string;
+  rowVersion: number;
+  ownLength: number;
+  headerLength: number;
+  totalLength: number;
+  asOf: string;
 }
 
 // ── TSK-05-03 design.md §6.1 ──
@@ -132,19 +149,10 @@ export interface SampleResult {
   issues?: IssueRow[];
 }
 
-export interface VersionRow {
-  LAYOUT_VERSION: number;
-  SAVED_AT?: string | null;
-  SAVED_BY?: string | null;
-  TOTAL_LENGTH: number;
-  SWITCH_MODE?: string | null;
-  CHANGE_KINDS?: string | null;
-  CHANGE_SUMMARY?: string | null;
-}
-
 export interface ExportResult {
-  layoutId?: number;
-  layoutVersion?: number;
+  layoutId: number;
+  ver: string;
+  asOf: string;
   fileBase?: string;
   snapshot?: LayoutSnapshot;
   names?: Record<string, string>;
@@ -156,6 +164,8 @@ export interface ImpactRow {
   DOMAIN_NAME?: string | null;
   LAYOUT_ID?: number | null;
   LAYOUT_NAME?: string | null;
+  VER?: string | null;
+  VER_STATE?: string | null;
   LAYOUT_KIND?: string | null;
   SEQ?: number | null;
   ITEM?: string | null;
@@ -166,7 +176,9 @@ export interface ImpactRow {
 
 export interface LayoutDraft {
   layoutId: number | null;
-  ver: number | null;
+  ver: string | null;
+  rowVersion: number | null;
+  asOf: string | null;
   layoutName: string;
   eaiCode: string | null;
   sndSystem: string | null;

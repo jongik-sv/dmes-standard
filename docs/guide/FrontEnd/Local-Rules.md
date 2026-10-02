@@ -101,7 +101,7 @@ pnpm dev
 
 ## 7. FormGroup 도움말
 
-- `<FormGroup label="..." tip={...}>` 형식으로 라벨과 tip을 함께 제공한다. MDM 컬럼 사전에 있는 입력은 `name` 을 주고 `label`·`tip` 을 생략해 MDM 캡션·카드 툴팁을 받을 수 있다(§26).
+- `<FormGroup label="..." tip={...}>` 형식으로 라벨과 tip을 함께 제공한다. MDM 컬럼 사전에 있는 입력은 `name` 을 주고 `label`·`tip` 을 생략해 MDM 캡션·카드 툴팁을 받을 수 있다(§27).
 - tip 문자열은 inline으로 직접 쓰지 않고 모듈별 `<module>/src/_shared/field-tips.ts`의 도메인별 `{DOMAIN}_TIPS` 객체에서 참조한다.
 - 같은 도메인 필드는 같은 TIPS 키를 재사용한다.
 - 도메인 의미가 다르면 별도 TIPS 객체를 만든다. 라벨이 같아도 의미가 다른 경우 같은 키를 공유하지 않는다.
@@ -271,6 +271,7 @@ shared·m-mcm 의 Prettier 는 `prettier-plugin-tailwindcss` 를 쓴다. 이 플
 - 노출: 버튼은 늘 보이고, 해당하지 않으면 비활성으로 둔다(조건부로 숨기지 않는다).
 - 확인창: `삭제`(제목 `확인`)와 `확정취소`(제목 `확정취소`)는 누르면 확인창을 거친 뒤 실행한다.
 - 룰도 마스터코드처럼 `새 버전(major)`·`새 버전(minor)` 두 버튼을 쓴다. 룰 세트·레이아웃·헤더 화면도 같은 두 버튼을 쓴다(D-144, [ADR-0006](../../mdm/adr/0006-object-versioning-major-minor.md)). minor 가 999 이면 minor 버튼만 비활성이다.
+- 레이아웃·헤더(layoutMng·headerMng): 저장은 버전을 만들지 않고 내 DRAFT 를 덮어쓰며, 확정은 [확정] 으로 `dmb/layoutConfirm`(전문·헤더 공용, D-144·D-148)에서 한다. DMB 확정은 담당자만, DRAFT 는 소유자만 확정한다.
 - 활성 조건은 서버 판정값(`cancelConfirmable` 등)을 화면에서 다시 계산하지 않는다. 권한 action 이름은 화면별로 유지한다.
 
 ## 25. 모달 안 그리드 — flex 칸만으로는 높이가 0 이 된다 (2026-10-02)
@@ -282,7 +283,15 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 - 빈 곳을 없애려고 크기를 `md`(600px)로 낮추지 않는다. 다섯 열 이상의 표는 글자가 잘리고 가로 스크롤이 생긴다.
 - 예시: `m-mdm/pages/dme/ruleEdit/cards/BoundaryCaseModal.tsx` 의 `gridBox`·`gridFill`.
 
-## 26. MDM 캡션·툴팁·값 검증 — 컬럼 사전을 화면이 따른다 (2026-10-03)
+## 26. 포털 FormGroup 값 칸은 26px 고정 — 여러 줄 내용은 넘쳐서 위아래 줄을 덮는다 (2026-10-03)
+
+포털 `m-mcm/app/page-layout.css` 는 `.page-layout .form-group-field` 를 `height: 26px` 로 고정하고, 그 안의 `.form-input`·`.form-select` 테두리를 지운다(한 칸 = 입력 하나 전제). 그래서 FormGroup 안에 체크박스 목록·여러 행·textarea·편집기를 넣으면 내용이 칸 밖으로 넘쳐 **위아래 줄을 덮는다**. 단위 테스트(happy-dom)는 레이아웃을 계산하지 않아 이 문제가 보이지 않는다(위젯 편집기 환율·날씨·글·html 에서 실제로 났다).
+
+- 여러 줄 내용은 FormGroup 에 높이 고정을 푸는 클래스를 주고, 그 클래스에서 `height: auto; min-height: 26px`, 라벨 `height: auto`, 칸 안 입력칸 테두리 복원을 함께 정한다. 예시: `m-mcm/widget-types/_ext/styles.ts` 의 `.mcm-fg-block`.
+- 칸 안 그리드·목록은 `flex: 1 1 auto; min-width: 0` 를 줘야 폭을 얻는다. 주지 않으면 `auto-fill` 그리드가 한 열로 접힌다.
+- 확인은 브라우저에서 한다: 값 칸의 `scrollHeight > clientHeight` 이면 넘친 것이다.
+
+## 27. MDM 캡션·툴팁·값 검증 — 컬럼 사전을 화면이 따른다 (2026-10-03)
 
 포털 탭이 `MdmMetaProvider` 를 자동으로 씌운다. 화면이 MDM 컬럼 사전(표준 용어)을 따르게 하는 방법이다. 컴포넌트 사용법·props 정본은 `mantine-aggrid-ui` 스킬의 [mdm-meta](../../../.claude/skills/mantine-aggrid-ui/references/components/mdm-meta.md), 설계 정본은 `docs/superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md` 이다.
 

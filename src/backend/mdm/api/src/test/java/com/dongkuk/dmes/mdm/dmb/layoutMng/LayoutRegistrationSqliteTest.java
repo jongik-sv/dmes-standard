@@ -5,7 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
-import com.dongkuk.dmes.mdm.dmb.LayoutTestSupport;
+import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
+import com.dongkuk.dmes.mdm.dmb.LayoutServiceTestSupport;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
@@ -21,7 +23,8 @@ import org.springframework.test.context.ActiveProfiles;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
-class LayoutRegistrationSqliteTest extends LayoutTestSupport {
+@Import(DmeTestSupport.Config.class)
+class LayoutRegistrationSqliteTest extends LayoutServiceTestSupport {
 
     @BeforeEach
     void setUp() {
@@ -87,6 +90,7 @@ class LayoutRegistrationSqliteTest extends LayoutTestSupport {
     void 거부_2_헤더_상수_재정의_값도_유효_식으로_검사한다() {
         long h = saveHeader(headerReq(uniq("플래그 헤더 "), r -> {}), numbered(new ArrayList<>(List.of(item("CONST", "FLAG1", "1"),
                 filler(4)))));
+        release(h, "1.000", HEADER_FROM);
         List<Integer> before = counts();
         String name = uniq("재정의 ");
         BusinessException ex = rejected(() -> layoutService.save(layoutReq(name, null, r -> {}), List.of(headerRow(h)),
@@ -109,7 +113,7 @@ class LayoutRegistrationSqliteTest extends LayoutTestSupport {
     @Test
     void CONST_값이_유효하면_저장된다() {
         long id = saveLayout(layoutReq(uniq("유효 상수 "), null, r -> {}), List.of(), List.of(), with(row("CONST", "FLAG1", "1")));
-        assertEquals("1", itemRows(id).get(4).get("DEFAULT_VALUE"));
+        assertEquals("1", itemRows(id, "1").get(4).get("DEFAULT_VALUE"));
     }
 
     @Test
@@ -151,8 +155,8 @@ class LayoutRegistrationSqliteTest extends LayoutTestSupport {
     void 전송_단위가_같은_차원이면_저장된다() {
         long id = saveLayout(layoutReq(uniq("전송 단위 "), null, r -> {}), List.of(), List.of(),
                 with(row("DATA", "THK_MM", null, "TRANS_UNIT", "UM", "NUM_FORMAT", "SIGN=N;ZERO=Y;SCALE=1;WIDTH=6")));
-        assertEquals("UM", itemRows(id).get(4).get("TRANS_UNIT"));
-        assertEquals(6, ((Number) itemRows(id).get(4).get("LENGTH")).intValue());
+        assertEquals("UM", itemRows(id, "1").get(4).get("TRANS_UNIT"));
+        assertEquals(6, ((Number) itemRows(id, "1").get(4).get("LENGTH")).intValue());
     }
 
     @SuppressWarnings("unchecked")

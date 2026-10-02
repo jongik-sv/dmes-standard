@@ -317,7 +317,7 @@ class MdmRevisionPollerTest {
                 "{\"meta\":{\"success\":true},\"data\":{\"result\":{\"latestSeq\":5,\"items\":[],\"truncated\":false}}}",
                 MediaType.APPLICATION_JSON));
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view")).andRespond(withSuccess(
-                "{\"meta\":{\"success\":true},\"data\":{\"result\":{\"items\":[{\"key\":\"3\",\"value\":{\"layoutName\":\"전문\"}}],"
+                "{\"meta\":{\"success\":true},\"data\":{\"result\":{\"items\":[{\"key\":\"3\",\"value\":[]}],"
                         + "\"failed\":[]}}}",
                 MediaType.APPLICATION_JSON));
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/search")).andRespond(withSuccess(

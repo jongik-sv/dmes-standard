@@ -76,8 +76,8 @@ export async function searchColumns(keyword: string): Promise<ColumnInfo[]> {
 }
 
 /** 헤더 상세·항목·사용 전문. */
-export function viewHeader(layoutId: number): Promise<ViewResult> {
-  return callAction("view", { layoutId });
+export function viewHeader(layoutId: number, ver?: string | null): Promise<ViewResult> {
+  return callAction("view", { layoutId, ver });
 }
 
 /** 저장 — 항목은 grid items(행 순서가 SEQ). */

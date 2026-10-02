@@ -10,7 +10,8 @@ import org.springframework.stereotype.Component;
 /**
  * 03 이 구현하는 도메인 참조 SPI(TSK-05-03 design.md D12, TSK-04-01 D9). domainMng 영향도의 "레이아웃" 행({@code LAYOUT_ITEM})을
  * 코드 수정 없이 채운다 — 영향 전문 목록({@link LayoutImpactFinder})과 같은 조회다. refKey =
- * {@code "{LAYOUT_NAME}#{SEQ} {COLUMN_PHYS} ({OFFSET}/{LENGTH})"}, 헤더 항목이면 앞에 {@code "(헤더) "}.
+ * {@code "{LAYOUT_NAME}#{SEQ} {COLUMN_PHYS} ({OFFSET}/{LENGTH}) [v{VER} 현재|예정|작성 중]"}, 헤더 항목이면
+ * 앞에 {@code "(헤더) "}.
  */
 @Component
 public class LayoutItemReferenceSpi implements MdmDomainReferenceSpi {
@@ -31,7 +32,8 @@ public class LayoutItemReferenceSpi implements MdmDomainReferenceSpi {
         }
         for (LayoutImpactFinder.Usage u : finder.itemsUsing(columnPhysNames)) {
             out.add(new MdmDomainReference(REF_KIND, (u.header() ? "(헤더) " : "") + u.layout().getLayoutName() + "#" + u.item().getSeq()
-                    + " " + u.item().getColumnPhys() + " (" + u.item().getOffset() + "/" + u.item().getLength() + ")"));
+                    + " " + u.item().getColumnPhys() + " (" + u.item().getOffset() + "/" + u.item().getLength() + ") ["
+                    + u.label() + " " + u.stateText() + "]"));
         }
         return out;
     }

@@ -8,19 +8,29 @@
 import { Input, Select } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { hint } from "@/layout/styles";
+import type { LayoutVersionRow } from "@/layout/types";
+import { versionOptions } from "@/layout/version-rows";
+import { normVer } from "@/shell";
 import type { EaiRow, HeaderDraft } from "../types";
 
 const ENCODINGS = [{ value: "EUC-KR", label: "EUC-KR" }, { value: "UTF-8", label: "UTF-8" }];
 
 export interface HeaderFormProps {
   draft: HeaderDraft;
+  /** 고를 수 있는 버전(view.versions). 비면 신규 — 저장하면 v1.000 DRAFT 가 생긴다. */
+  versions: LayoutVersionRow[];
+  /** 지금 보고 있는 버전(view.selected.VER). */
+  selectedVer: string | null;
+  onSelectVersion: (ver: string) => void;
+  /** 고른 버전이 이행 전 스냅샷(LEGACY)이다. */
+  legacy: boolean;
   eais: EaiRow[];
   readOnly: boolean;
   lengthText: string;
   onChange: (patch: Partial<HeaderDraft>) => void;
 }
 
-export function HeaderForm({ draft, eais, readOnly, lengthText, onChange }: HeaderFormProps) {
+export function HeaderForm({ draft, versions, selectedVer, onSelectVersion, legacy, eais, readOnly, lengthText, onChange }: HeaderFormProps) {
   const existing = eais.find((e) => e.EAI_CODE === draft.eaiCode);
   const changeCode = (code: string) => {
     const c = code.trim().toUpperCase();
@@ -31,8 +41,20 @@ export function HeaderForm({ draft, eais, readOnly, lengthText, onChange }: Head
     <table style={DETAIL_TABLE_STYLE}>
       <tbody>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>헤더 ID</th>
-          <td style={DETAIL_VALUE_CELL}>{draft.layoutId ?? "(신규)"}</td>
+          <th style={DETAIL_LABEL_CELL}>헤더 ID / 버전</th>
+          <td style={DETAIL_VALUE_CELL}>
+            {/* 버전 선택은 보기 대상을 고르는 칸이라 읽기 전용이어도 쓸 수 있다 */}
+            <div style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center", flexWrap: "wrap" }}>
+              <span>{draft.layoutId ?? "(신규)"}</span>
+              {versions.length > 0 ? (
+                <Select data-testid="header-ver-select" aria-label="버전" value={normVer(selectedVer) ?? ""} options={versionOptions(versions)}
+                  onChange={(v) => v && onSelectVersion(v)} />
+              ) : (
+                <span style={hint}>저장하면 v1.000 DRAFT 가 생깁니다</span>
+              )}
+              {legacy && <span data-testid="header-ver-legacy" style={hint}>이행 전 스냅샷(읽기 전용)</span>}
+            </div>
+          </td>
         </tr>
         <tr>
           <th style={DETAIL_LABEL_CELL}>헤더 이름 *</th>

@@ -132,7 +132,7 @@ class MdmMetaServiceTest {
         MdmMetaService real = new MdmMetaService(new MdmMetaClient(builder.build(), "http://mdm.test", "mls"), cache, clock);
         String rejected = "{\"meta\":{\"success\":false,\"code\":\"S001\",\"message\":\"키는 한 번에 500개까지 받습니다\"}}";
         String oneBad = "{\"meta\":{\"success\":true},\"data\":{\"result\":{\"items\":[{\"key\":\"L1\",\"value\":\"문자열\"},"
-                + "{\"key\":\"L2\",\"value\":{\"layoutName\":\"전문\"}}],\"failed\":[]}}}";
+                + "{\"key\":\"L2\",\"value\":[]}],\"failed\":[]}}}";
         server.expect(ExpectedCount.twice(), requestTo("http://mdm.test/oasis/metaFeed/view"))
                 .andRespond(withSuccess(rejected, MediaType.APPLICATION_JSON));
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view")).andRespond(withSuccess(oneBad, MediaType.APPLICATION_JSON));

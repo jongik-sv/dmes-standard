@@ -39,10 +39,13 @@ public class MetaRevisionRecorder {
     private final MdmNativeAuditSupport audit;
     private final MdmTemporalBinder temporal;
     private final TransactionTemplate tx;
+    private final List<LayoutColumnUsers> layoutUsers;
 
     public MetaRevisionRecorder(EntityManager entityManager, DomainImpactQueries domainQueries, MasterCodeRemoval codeRemoval,
-                                MdmNativeAuditSupport audit, MdmTemporalBinder temporal, PlatformTransactionManager transactionManager) {
+                                MdmNativeAuditSupport audit, MdmTemporalBinder temporal, PlatformTransactionManager transactionManager,
+                                List<LayoutColumnUsers> layoutUsers) {
         this.entityManager = entityManager;
+        this.layoutUsers = List.copyOf(layoutUsers);
         this.domainQueries = domainQueries;
         this.codeRemoval = codeRemoval;
         this.audit = audit;
@@ -54,19 +57,45 @@ public class MetaRevisionRecorder {
     public record MetaRevisionRange(long fromSeq, long toSeq, int count) {
     }
 
-    /** 컬럼 저장 — 두 물리명 모두(같으면 하나). 신규는 {@code oldPhysName} 이 null. */
+    /** 컬럼 저장 — {@link #column(String, String, boolean)} 의 레이아웃 펼침을 켠 쪽(의심스러우면 거는 쪽, spec §3.3). */
     public void column(String oldPhysName, String newPhysName) {
-        Set<Key> keys = new LinkedHashSet<>();
-        add(keys, MetaTargetType.COLUMN, oldPhysName);
-        add(keys, MetaTargetType.COLUMN, newPhysName);
-        write(keys, MetaChangeKind.SAVE);
+        column(oldPhysName, newPhysName, true);
     }
 
-    /** 도메인 저장 — 그 도메인 + 하위 도메인 전부 + 그 도메인들을 참조하는 컬럼 전부. */
-    public void domain(Long domainId) {
+    /**
+     * 컬럼 저장 — 두 물리명 모두(같으면 하나). 신규는 {@code oldPhysName} 이 null. {@code layoutFeedMayChange} 면 두 물리명을 쓰는 RELEASED
+     * 전문(헤더면 쌓은 전문까지)을 LAYOUT 키로 더한다 — 전문 합성은 항목의 타입·단위·소수를 그때의 컬럼 사전에서 읽는다(검토 I1). 물리명이
+     * 바뀌면 옛 이름을 쓰는 항목이 사전을 잃으므로 옛 이름도 찾는다. 펼침 조회와 기록은 한 트랜잭션(호출자 합류)에서 한 문장으로 남긴다.
+     */
+    public void column(String oldPhysName, String newPhysName, boolean layoutFeedMayChange) {
         tx.executeWithoutResult(status -> {
             Set<Key> keys = new LinkedHashSet<>();
-            expandDomain(domainId, keys);
+            add(keys, MetaTargetType.COLUMN, oldPhysName);
+            add(keys, MetaTargetType.COLUMN, newPhysName);
+            if (layoutFeedMayChange) {
+                addLayoutsUsing(keys, physNames(oldPhysName, newPhysName));
+            }
+            insert(keys, MetaChangeKind.SAVE);
+        });
+    }
+
+    /** 도메인 저장 — {@link #domain(Long, boolean)} 의 레이아웃 펼침을 켠 쪽. */
+    public void domain(Long domainId) {
+        domain(domainId, true);
+    }
+
+    /**
+     * 도메인 저장 — 그 도메인 + 하위 도메인 전부 + 그 도메인들을 참조하는 컬럼 전부. {@code layoutFeedMayChange} 면 그 컬럼들을 쓰는 RELEASED
+     * 전문까지 LAYOUT 키로 더한다(검토 I1 — 유효 타입·단위·소수가 하위로 상속된다).
+     */
+    public void domain(Long domainId, boolean layoutFeedMayChange) {
+        tx.executeWithoutResult(status -> {
+            Set<Key> keys = new LinkedHashSet<>();
+            Set<String> phys = new LinkedHashSet<>();
+            expandDomain(domainId, keys, phys);
+            if (layoutFeedMayChange) {
+                addLayoutsUsing(keys, phys);
+            }
             insert(keys, MetaChangeKind.SAVE);
         });
     }
@@ -120,6 +149,11 @@ public class MetaRevisionRecorder {
     }
 
     private void expandDomain(Long domainId, Set<Key> keys) {
+        expandDomain(domainId, keys, new LinkedHashSet<>());
+    }
+
+    /** {@code phys} 에 참조 컬럼 물리명을 저장된 글자 그대로 모은다(COLUMN 키는 대문자로 바뀌므로 키에서 다시 뽑지 않는다). */
+    private void expandDomain(Long domainId, Set<Key> keys, Set<String> phys) {
         if (domainId == null) {
             return;
         }
@@ -127,7 +161,32 @@ public class MetaRevisionRecorder {
         for (DomainImpactQueries.SubtreeRow r : domainQueries.subtree(domainId)) {
             add(keys, MetaTargetType.DOMAIN, String.valueOf(r.domainId()));
             add(keys, MetaTargetType.COLUMN, r.physName());
+            if (r.physName() != null && !r.physName().isBlank()) {
+                phys.add(r.physName());
+            }
         }
+    }
+
+    /** 이 물리명들을 쓰는 RELEASED 전문(헤더면 쌓은 전문까지)을 LAYOUT 키로 — {@link LayoutColumnUsers}. 호출자 트랜잭션 안에서만. */
+    private void addLayoutsUsing(Set<Key> keys, Collection<String> phys) {
+        if (phys.isEmpty()) {
+            return;
+        }
+        for (LayoutColumnUsers users : layoutUsers) {
+            for (Long id : users.layoutIdsUsing(phys)) {
+                add(keys, MetaTargetType.LAYOUT, id == null ? null : String.valueOf(id));
+            }
+        }
+    }
+
+    private static Set<String> physNames(String... names) {
+        Set<String> out = new LinkedHashSet<>();
+        for (String n : names) {
+            if (n != null && !n.isBlank()) {
+                out.add(n.trim());
+            }
+        }
+        return out;
     }
 
     private static void add(Set<Key> keys, MetaTargetType type, String key) {

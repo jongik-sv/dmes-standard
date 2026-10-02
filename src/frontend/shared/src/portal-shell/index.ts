@@ -9,3 +9,4 @@ export * from "./use-user-button-rbac";
 export * from "./tab-page-context";
 export * from "./usage-tracker";
 export * from "./usage-sender";
+export * from "./usage-activity";

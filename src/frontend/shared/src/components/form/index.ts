@@ -1,6 +1,8 @@
 export { Button, type ButtonProps, type ButtonVariant } from "./Button";
 export { Input, type InputProps } from "./Input";
 export { Select, type SelectProps, type SelectOption } from "./Select";
+export { SelectOrInput, type SelectOrInputProps } from "./SelectOrInput";
+export { withCurrentOption } from "./select-or-input-options";
 export { Checkbox, type CheckboxProps } from "./Checkbox";
 export { DatePicker, type DatePickerProps } from "./DatePicker";
 export { DateTimePicker, parseDateTime, type DateTimePickerProps } from "./DateTimePicker";

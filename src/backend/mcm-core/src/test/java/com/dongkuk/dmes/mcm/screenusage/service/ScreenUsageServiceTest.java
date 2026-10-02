@@ -147,6 +147,49 @@ class ScreenUsageServiceTest {
     }
 
     @Test
+    @DisplayName("durationMs 가 있으면 1초 이상·(endedAt - startedAt) 이하일 때 그 값을 DURATION_MS 로 저장한다")
+    void savesClientDuration() {
+        Map<String, Object> paused = seg("d1", "p/a", "OPEN", -600_000, 300_000);   // 벽시계 5분 중 2분만 봄
+        paused.put("durationMs", 120_000);                                              // Integer 로 와도 읽는다
+        Map<String, Object> min = seg("d2", "p/a", "RESUME", -60_000, 10_000);
+        min.put("durationMs", 1_000L);                                                  // 정확히 1초
+        Map<String, Object> wall = seg("d3", "p/a", "OPEN", -60_000, 10_000);
+        wall.put("durationMs", 10_000L);                                                // 정확히 벽시계 길이
+        Map<String, Object> absent = seg("d4", "p/a", "OPEN", -60_000, 10_000);
+        absent.put("durationMs", null);                                                 // null — 없는 것과 같다
+
+        Map<String, Object> result = service.record(List.of(paused, min, wall, absent));
+
+        assertThat(result).containsEntry("saved", 4).containsEntry("skipped", 0);
+        verify(logRepository).saveAll(rowsCaptor.capture());
+        assertThat(rowsCaptor.getValue()).extracting(ScreenUsageLog::getDurationMs)
+                .containsExactly(120_000L, 1_000L, 10_000L, 10_000L);
+        assertThat(rowsCaptor.getValue().get(0).getEndedAt()).isEqualTo(LocalDateTime.of(2026, 10, 2, 9, 55));
+    }
+
+    @Test
+    @DisplayName("durationMs 가 1초 미만이거나 벽시계 길이를 넘거나 숫자가 아니면 그 행을 버린다")
+    void dropsInvalidClientDuration() {
+        Map<String, Object> ok = seg("e1", "p/a", "OPEN", -60_000, 10_000);
+        ok.put("durationMs", 5_000L);
+        Map<String, Object> tooShort = seg("e2", "p/a", "OPEN", -60_000, 10_000);
+        tooShort.put("durationMs", 999L);
+        Map<String, Object> overWall = seg("e3", "p/a", "OPEN", -60_000, 10_000);
+        overWall.put("durationMs", 10_001L);
+        Map<String, Object> negative = seg("e4", "p/a", "OPEN", -60_000, 10_000);
+        negative.put("durationMs", -1L);
+        Map<String, Object> text = seg("e5", "p/a", "OPEN", -60_000, 10_000);
+        text.put("durationMs", "5000");
+
+        Map<String, Object> result = service.record(List.of(ok, tooShort, overWall, negative, text));
+
+        assertThat(result).containsEntry("saved", 1).containsEntry("skipped", 4);
+        verify(logRepository).saveAll(rowsCaptor.capture());
+        assertThat(rowsCaptor.getValue()).extracting(ScreenUsageLog::getClientSegId).containsExactly("e1");
+        assertThat(rowsCaptor.getValue().get(0).getDurationMs()).isEqualTo(5_000L);
+    }
+
+    @Test
     @DisplayName("한 요청에 100건이 넘으면 앞 100건만 다루고 나머지는 건너뛴 것으로 센다")
     void capsAtHundred() {
         List<Map<String, Object>> segments = IntStream.range(0, 105)

@@ -2,9 +2,11 @@ package com.dongkuk.dmes.mdm.feed;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.mdm.MdmDefinitionLookup;
+import com.dongkuk.dmes.cactus.mdm.MdmLayoutVersion;
 import com.dongkuk.dmes.cactus.mdm.MdmMetaCache;
 import com.dongkuk.dmes.cactus.mdm.MdmMetaClient;
 import com.dongkuk.dmes.cactus.mdm.MdmMetaService;
@@ -17,6 +19,8 @@ import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
+import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutComposer;
 import com.dongkuk.dmes.mdm.dmc.MasterCodeSeeds;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
@@ -91,6 +95,8 @@ class MdmMetaFeedContractHttpTest {
     RuleSetVersionQueries ruleSetVersionQueries;
     @Autowired
     MasterCodeLedgerQueries ledger;
+    @Autowired
+    LayoutComposer composer;
 
     private JdbcTemplate jdbc;
     private MdmMetaService service;
@@ -258,6 +264,83 @@ class MdmMetaFeedContractHttpTest {
         Instant beforeAll = LocalDateTime.of(1999, 12, 31, 23, 59, 59).atZone(MdmDefinitionLookup.KST).toInstant();
         assertTrue(stored.ruleSet("CT_SET", beforeAll).isEmpty());
         assertTrue(lookup.ruleSet("CT_SET", beforeAll).isEmpty());
+    }
+
+    /**
+     * D-144 3단계 · ADR-0007 D6 — 전문도 RELEASED 버전 목록이 HTTP 를 지나 업무 모듈이 판정 시각으로 고른다. 전문 버전 경계(7/1)와 그 안의
+     * 헤더 버전 경계(4/1) 앞뒤에서 HTTP 로 고른 스냅샷이 MDM 원장의 시각 T 합성({@code LayoutComposer.at})과 같은지 본다 — 헤더 경계 때문에
+     * 같은 전문 1.000 이 4/1 앞뒤로 길이·본문 오프셋이 다르다. 숫자는 HTTP 쪽이 BigDecimal 이므로 칸별로 수 비교한다.
+     */
+    @Test
+    void 전문은_버전_경계와_헤더_버전_경계_양쪽에서_MDM_원장_합성과_같은_스냅샷을_고른다() {
+        seedLayouts();
+        Map<LocalDateTime, String[]> expected = new java.util.LinkedHashMap<>(); // 전문 버전, 헤더 버전, 총 길이
+        expected.put(LocalDateTime.of(2026, 1, 1, 0, 0), new String[] {"1.000", "1.000", "17"});
+        expected.put(LocalDateTime.of(2026, 3, 31, 23, 59, 59), new String[] {"1.000", "1.000", "17"});
+        expected.put(LocalDateTime.of(2026, 4, 1, 0, 0), new String[] {"1.000", "2.000", "19"});
+        expected.put(LocalDateTime.of(2026, 6, 30, 23, 59, 59), new String[] {"1.000", "2.000", "19"});
+        expected.put(LocalDateTime.of(2026, 7, 1, 0, 0), new String[] {"2.000", "2.000", "21"});
+        expected.forEach((at, want) -> {
+            Map<String, Object> viaHttp = lookup.layout("9801", at.atZone(MdmDefinitionLookup.KST).toInstant()).orElseThrow();
+            MdmLayoutSnapshot direct = composer.at(9801L, at);
+            assertEquals(0, new BigDecimal(want[0]).compareTo(direct.layoutVersion()), "원장 판정 시각 " + at);
+            assertEquals(new BigDecimal(want[0]), viaHttp.get("layoutVersion"), "HTTP 판정 시각 " + at + " — 자리수까지");
+            assertEquals(Integer.parseInt(want[2]), direct.totalLength(), "원장 판정 시각 " + at);
+            assertEquals(direct.totalLength(), ((Number) viaHttp.get("totalLength")).intValue(), "판정 시각 " + at);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> header = ((List<Map<String, Object>>) viaHttp.get("headers")).get(0);
+            assertEquals(0, new BigDecimal(want[1]).compareTo(direct.headers().get(0).headerVersion()), "원장 판정 시각 " + at);
+            assertEquals(new BigDecimal(want[1]), header.get("headerVersion"), "HTTP 판정 시각 " + at);
+            assertEquals(direct.headers().get(0).totalLength(), ((Number) header.get("totalLength")).intValue(), "판정 시각 " + at);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> body = ((List<Map<String, Object>>) viaHttp.get("items")).get(0);
+            assertEquals(direct.items().get(0).offset(), ((Number) body.get("offset")).intValue(), "본문 절대 오프셋, 판정 시각 " + at);
+        });
+        // 적용 시작 전은 원장·HTTP 모두 없다(원장은 오류, HTTP 는 빈 값)
+        LocalDateTime beforeAll = LocalDateTime.of(2025, 12, 31, 23, 59, 59);
+        assertTrue(lookup.layout("9801", beforeAll.atZone(MdmDefinitionLookup.KST).toInstant()).isEmpty());
+        assertThrows(com.dongkuk.dmes.cactus.common.BusinessException.class, () -> composer.at(9801L, beforeAll));
+        // 캐시 값은 RELEASED 버전 목록(ver 수 비교 오름차순, 자리수 3, DRAFT 3.000 없음), 1.000 은 헤더 경계로 두 구간
+        @SuppressWarnings("unchecked")
+        List<MdmLayoutVersion> cached = (List<MdmLayoutVersion>) service.one(MdmTargetType.LAYOUT, "9801").orElseThrow();
+        assertEquals(List.of(new BigDecimal("1.000"), new BigDecimal("2.000")), cached.stream().map(MdmLayoutVersion::ver).toList());
+        assertEquals(List.of(LocalDateTime.of(2026, 1, 1, 0, 0), LocalDateTime.of(2026, 4, 1, 0, 0)),
+                cached.get(0).segments().stream().map(MdmLayoutVersion.Segment::applyFrom).toList());
+        assertEquals(LocalDateTime.of(9999, 12, 31, 0, 0), cached.get(1).applyTo());
+    }
+
+    /** 헤더 9890: 1.000 [2000-01-01, 2026-04-01) 7자, 2.000 [2026-04-01, 열린 끝) 9자. 전문 9801: 1.000 [2026-01-01, 2026-07-01) 10자, 2.000 [2026-07-01, 열린 끝) 12자. */
+    private void seedLayouts() {
+        String ids = "(9801, 9890)";
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_CONST WHERE LAYOUT_ID IN " + ids);
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_HEADER WHERE LAYOUT_ID IN " + ids);
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_ITEM WHERE LAYOUT_ID IN " + ids);
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID IN " + ids);
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT WHERE LAYOUT_ID IN " + ids);
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER) VALUES "
+                + "(9890, 'HEADER', '계약 헤더', 'INUSE', 0), (9801, 'MESSAGE', '계약 전문', 'INUSE', 0)");
+        layoutVer(9890, "1.000", "RELEASED", "2000-01-01 00:00:00", "2026-04-01 00:00:00", 7);
+        layoutVer(9890, "2.000", "RELEASED", "2026-04-01 00:00:00", "9999-12-31 00:00:00", 9);
+        layoutVer(9801, "1.000", "RELEASED", "2026-01-01 00:00:00", "2026-07-01 00:00:00", 10);
+        layoutVer(9801, "2.000", "RELEASED", "2026-07-01 00:00:00", "9999-12-31 00:00:00", 12);
+        layoutVer(9801, "3.000", "DRAFT", null, null, 30);
+        filler(9890, "1.000", 7);
+        filler(9890, "2.000", 9);
+        for (String ver : new String[] {"1.000", "2.000", "3.000"}) {
+            filler(9801, ver, "1.000".equals(ver) ? 10 : "2.000".equals(ver) ? 12 : 30);
+            jdbc.update("INSERT INTO TB_MDM_LAYOUT_HEADER (LAYOUT_ID, VER, SEQ, HEADER_LAYOUT_ID) VALUES (9801, ?, 1, 9890)", new BigDecimal(ver));
+        }
+    }
+
+    private void layoutVer(long id, String ver, String status, String from, String to, int own) {
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, OWN_LENGTH) "
+                + "VALUES (?, ?, 'MAJOR', ?, ?, ?, ?, ?)", id, new BigDecimal(ver), status, "DRAFT".equals(status) ? "kim" : null,
+                from, to, own);
+    }
+
+    private void filler(long id, String ver, int length) {
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT_ITEM (LAYOUT_ID, VER, SEQ, FILL_KIND, FILLER_LENGTH, `OFFSET`, `LENGTH`) "
+                + "VALUES (?, ?, 1, 'FILLER', ?, 0, ?)", id, new BigDecimal(ver), length, length);
     }
 
     private StoredDefinitionLookup stored() {

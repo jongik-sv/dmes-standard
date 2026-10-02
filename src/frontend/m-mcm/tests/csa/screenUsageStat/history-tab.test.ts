@@ -53,7 +53,7 @@ describe("10,000행 안내", () => {
 });
 
 describe("이용 이력 엑셀", () => {
-  it("시작 사유는 글자로, 이용 시간은 읽는 글자로, 부서 없음·메뉴 없음은 그대로", () => {
+  it("구분은 글자로, 이용 시간은 읽는 글자로, 부서 없음·메뉴 없음은 그대로", () => {
     const row = {
       usageId: "u1",
       startedAt: "2026-10-02 09:00:05",
@@ -70,7 +70,7 @@ describe("이용 이력 엑셀", () => {
     };
     const target = historyTab.toExport(emptyData({ history: [row as never] }));
     const out = toExportRows(target.rows)[0];
-    expect(out.startKind).toBe("전환");
+    expect(out.startKind).toBe("계속");
     expect(out.durationMs).toBe("1분");
     expect(out.deptNm).toBe("(부서 없음)");
     expect(out.menuNm).toBe("(메뉴 없음)");
@@ -78,7 +78,7 @@ describe("이용 이력 엑셀", () => {
       "시작",
       "종료",
       "이용 시간",
-      "시작 사유",
+      "구분",
       "사용자 ID",
       "사용자명",
       "부서",

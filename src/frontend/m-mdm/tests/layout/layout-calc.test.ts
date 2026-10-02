@@ -81,4 +81,16 @@ describe("layout-calc", () => {
     expect(positionLabel(62, 1)).toBe("63");
     expect(positionLabel(0, 100)).toBe("1-100");
   });
+
+  it("헤더 길이 하나라도 null 이면 그 뒤 헤더 오프셋·본문 오프셋·총 길이는 null 이고 요약은 - 다(0 으로 더하지 않는다)", () => {
+    const out = placeMessage([100, null], m201Body());
+    expect(out.headerOffsets).toEqual([0, 100]);
+    expect(out.headerLength).toBeNull();
+    expect(out.total).toBeNull();
+    expect(out.rows.map((r) => r.OFFSET)).toEqual([null, null, null, null]);
+    expect(out.rows.map((r) => r.LENGTH)).toEqual([20, 8, 4, 25]);
+    expect(placeMessage([null, 30], []).headerOffsets).toEqual([0, null]);
+    expect(summaryText([100, null], out.rows)).toBe("헤더 - (100 + -) + 본문 57 (20 + 8 + 4 + 25) = - 바이트");
+    expect(positionLabel(null, 20)).toBe("-");
+  });
 });

@@ -154,6 +154,13 @@ class MdmOasisActionVocabularyTest {
         assertEquals(String.join(",", MdmPermissions.CONFIRM_ACTIONS), confirmValue);
     }
 
+    @Test
+    void layoutConfirm_메뉴가_dmb_아래_시드된다() throws Exception {
+        String seed = Files.readString(DATA_INITIALIZER);
+        assertTrue(seed.contains("insertMcmSecMenuIfAbsent(\"layoutConfirm\", \"003\", \"5020130\", \"레이아웃 확정\", \"dmb\", \"layoutConfirm\")"));
+        assertTrue(seed.contains("seedMdmObjectRbac(\"layoutConfirm\", \"dmb\")"));
+    }
+
     /**
      * design.md B1 (i)-2 — {@code seedMdmObjectRbac} 의 {@code matrix} 리터럴(그룹 × 역할 → PERM ID)을 정규식으로 파싱해
      * {@link MdmPermissions#MATRIX} 5그룹 모두와 대조한다.
@@ -187,12 +194,13 @@ class MdmOasisActionVocabularyTest {
     }
 
     /**
-     * design.md B1 (i)-3 — BPMN 23개(`find src/main/resources/services -iname "*.bpmn"`) 화면 목록과 mcm
+     * design.md B1 (i)-3 — BPMN 26개(`find src/main/resources/services -iname "*.bpmn"`, D-144 2단계 ruleSetConfirm·3단계 layoutConfirm·메타 캐시 metaFeed 포함) 중
+     * metaFeed 를 뺀 화면 목록과 mcm
      * {@code DataInitializer} 의 모든 {@code seedMdmObjectRbac(...)} 호출에서 뽑은 objectId 목록을 대조한다.
      * {@code mdmSample} 은 BPMN 없는 샘플 화면이라 예외로 둔다(원천이 원래 다르다).
      */
     @Test
-    void mcm_시드가_BPMN_23개_화면을_모두_커버한다() throws Exception {
+    void mcm_시드가_BPMN_26개_화면을_모두_커버한다() throws Exception {
         String source = Files.readString(DATA_INITIALIZER);
         Set<String> bpmnScreens = new LinkedHashSet<>();
         try (var files = Files.walk(Path.of("src/main/resources/services"))) {
@@ -201,7 +209,7 @@ class MdmOasisActionVocabularyTest {
                 bpmnScreens.add(name.substring(0, name.length() - ".bpmn".length()));
             }
         }
-        assertEquals(25, bpmnScreens.size(), "BPMN 수가 25개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
+        assertEquals(26, bpmnScreens.size(), "BPMN 수가 26개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
         // metaFeed(services/feed) 는 화면이 아니라 업무 모듈 캐시가 부르는 서비스다 — 그룹 RBAC(seedMdmObjectRbac)를 받지 않고
         // SYSADMIN 전용 OBJECT 로만 시드한다(Task 11 의 seedMdmCacheMenus). spec 2026-10-02-mdm-meta-cache-design §5.5·§9.
         bpmnScreens.remove("metaFeed");

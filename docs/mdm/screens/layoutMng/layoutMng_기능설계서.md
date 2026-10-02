@@ -169,3 +169,18 @@ headerMng.save 응답에 `versioned[{LAYOUT_ID, LAYOUT_VERSION, SWITCH_MODE, CRE
 | 버전 이력 보기·스냅샷 내려받기(export)·영향 전문(search) | O | O | O |
 
 새 권한 시드는 없다 — validate·execute 는 PERM_MDM_EDIT, export·search 는 PERM_MDM_READ 에 이미 있다.
+
+## 10. D-144 3단계 — 버전 관리 변경 (이 장이 위 §3~§9 의 버전 서술보다 우선한다)
+
+정본은 [ADR-0006](../../adr/0006-object-versioning-major-minor.md) 3단계 결과 절과 [decisions D-148](../../decisions.md)이다.
+
+- 저장은 버전을 만들지 않는다(I15 폐지). 신규 저장은 v1.000 DRAFT 를 만들고, 기존 전문은 내 DRAFT 를 `ver`·`rowVersion` 으로 덮어쓴다.
+  확정된 버전은 읽기 전용이라 [새 버전(major)]·[새 버전(minor)] 로 DRAFT 를 만든 뒤 고치고, [확정] 은 `dmb/layoutConfirm` 에서 한다.
+  DMB 확정은 담당자만, DRAFT 는 소유자만 확정한다.
+- 화면에 버전 선택(`layout-ver-select`)·시각 T(`layout-asof`)가 생겼다. 시각 T 를 바꾸면 그 시각의 헤더 버전으로 총 길이·샘플·내보내기를 합성한다.
+- **레이아웃 이름·송신·수신 시스템은 부모 행(버전 없음)이라 DRAFT 저장 때 바로 반영되고 확정 기록에 남지 않는다**(2단계 세트명과 같다).
+  전문 바이트에는 영향이 없다(판정 P3-8).
+- EAI 표준 헤더는 시각 T 에 RELEASED 인 헤더 버전 중 그 EAI 를 주장하는 가장 늦게 적용 시작한 버전으로 해석한다. 헤더 확정은
+  `TB_MDM_EAI.HEADER_LAYOUT_ID` 를 옮기지 않는다(판정 P3-15·P3-17). EAI 를 고르면 표준 헤더를 헤더 구성 1번에 넣는 것(I14)은 그 헤더에
+  저장 시각 RELEASED 가 있을 때만 한다.
+- 헤더 변경은 헤더 확정 apply_from 부터 사용 전문에 반영되고 전문 버전은 생기지 않는다(I18 폐지).

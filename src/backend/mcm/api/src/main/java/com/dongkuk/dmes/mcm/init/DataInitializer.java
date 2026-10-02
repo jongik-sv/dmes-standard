@@ -336,6 +336,9 @@ public class DataInitializer implements ApplicationRunner {
                 // 2026-10-02 — mcm 화면 사용 통계(services/csa/screenUsageStat.bpmn) 6개 action. 이미 시드된 DB 는
                 //   아래 ensurePermAllActions 가 덧붙인다. screenUsage/record 는 AUTH_ONLY 라 여기 넣지 않는다.
                 "overview", "byScreen", "byDept", "byUser", "unused", "history",
+                // 2026-10-02 — mcm 위젯관리(services/csa/commWidgetMng.bpmn) action 과 미디어 올리기(REST upload).
+                //   search·save·delete 는 위에 있다. 사용자용 widgetDef·widgetData·widgetExt·widgetChat·widgetMedia 는 AUTH_ONLY 라 넣지 않는다.
+                "previewQuery", "searchLayouts", "loadLayout", "saveLayout", "deleteLayout", "searchDepts", "upload",
                 // 2026-10-02 — MDM 캐시 관리(csa/mdmCacheMng) 재등록 버튼. 이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
                 "reload"
 
@@ -445,6 +448,9 @@ public class DataInitializer implements ApplicationRunner {
 
         // 2026-10-02 — 화면 사용 통계(csa/screenUsageStat) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 화면 사용 통계".
         seedScreenUsageMenus();
+
+        // 2026-10-02 — 위젯관리(csa/commWidgetMng) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 위젯 관리".
+        seedWidgetAdminMenus();
 
         // 확장 지점 — 신규 업무 모듈을 추가할 때 여기에 seed{Module}Menus() 를 호출한다.
 
@@ -891,6 +897,28 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
+     * 위젯관리(csa/commWidgetMng) 메뉴 시드 (2026-10-02, 스펙 2026-10-02-widget-admin-generic §5.2·W-D22) —
+     * OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1. 관리자 서비스(정의 저장·SQL 미리보기·기본 배치·미디어 올리기)는
+     * 이 OBJECT 의 메뉴 권한(RBAC)으로 보호한다. 사용자용 서비스는 AUTH_ONLY 라 여기 넣지 않는다.
+     * FULL_SEQ 1020190 은 csa 의 화면 사용 통계(1020180) 다음이다. 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
+     */
+    private void seedWidgetAdminMenus() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        final String objId = "commWidgetMng";
+        insertMcmSecObjIfAbsent(objId, "위젯 관리", "mcm");
+        insertMcmSecMenuIfAbsent(objId, "001", "1020190", "위젯 관리", "csa", objId);
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", objId,       "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + objId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        log.info("[DataInitializer] 위젯관리 메뉴 시드 — OBJECT 1(commWidgetMng) + 메뉴 leaf 1(csa/commWidgetMng) + RBAC(SYSADMIN 1)");
+    }
+
+    /**
      * 공지사항 관리(noticeMgmt) 메뉴·OBJECT·RBAC 시드 — 2026-10-02. <b>메뉴는 공통관리(mcm) 아래, 코드는 mls</b> 다.
      *
      * <ul>
@@ -1071,6 +1099,7 @@ public class DataInitializer implements ApplicationRunner {
         }
         log.info("[DataInitializer] TSK-04-04 MDM 컬럼 사전 시드 — OBJECT 2 + 메뉴 leaf 1 + RBAC(SYSADMIN 2 + MDM 역할 4)");
         seedMdmLayoutMenus();
+        seedMdmLayoutConfirmMenu();
         log.info("[DataInitializer] TSK-05-02 MDM 레이아웃 메뉴 시드 — headerMng·layoutMng");
 
         // ── TSK-06-02 — 마루 코드 조회·등록(codeMng) + 마루 코드 수정(codeEdit), 폴더 dmc. DRAFT 소유권 액션
@@ -1388,7 +1417,7 @@ public class DataInitializer implements ApplicationRunner {
                                 + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
         java.util.Map<String, java.util.Map<String, String>> matrix = java.util.Map.of(
                 "dma", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_EDIT", "MDM_STEWARD", "PERM_MDM_READ"),
-                "dmb", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_EDIT", "MDM_STEWARD", "PERM_MDM_READ"),
+                "dmb", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_EDIT", "MDM_STEWARD", "PERM_MDM_CONFIRM"),
                 "dmc", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_READ", "MDM_STEWARD", "PERM_MDM_CONFIRM"),
                 "dmd", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_READ", "MDM_STEWARD", "PERM_MDM_EDIT"),
                 "dme", java.util.Map.of("MDM_STD_ADMIN", "PERM_MDM_READ", "MDM_STEWARD", "PERM_MDM_CONFIRM"));
@@ -1555,6 +1584,37 @@ public class DataInitializer implements ApplicationRunner {
             seedMdmObjectRbac(objectId, "dmb");
         }
         log.info("[DataInitializer] TSK-05-02 MDM 레이아웃 시드 — OBJECT 2 + 메뉴 leaf 2 + RBAC(SYSADMIN 2 + MDM 역할 4)");
+    }
+
+
+    /**
+     * D-144 3단계 — 레이아웃 확정(dmb/layoutConfirm, 전문·헤더 공용). 05-02 의 seedMdmLayoutMenus() 배열은 고치지 않고 같은 dmb 폴더
+     * 아래 새 leaf 로 등록한다. action(search·view·validate·confirm)은 기존 권한 세트·allActions 안에 있다. DMB 담당자는 CONFIRM 이다
+     * (이미 있는 DB 의 옛 READ 매핑 행은 남는다 — READ ⊂ CONFIRM 이라 합집합이 CONFIRM 이다).
+     *
+     * <p>합집합 근거(검토 I2 확인, 2026-10-03) — 역할×객체 매핑 PK 가 (ROLE_ID, OBJECT_ID, PERMISSION_ID) 라 READ·CONFIRM 두 행이 함께 있고,
+     * 판정은 행마다의 액션을 모두 더한다: mcm-core {@code UserPermCache.build} 가 {@code findByRoleIdIn} 의 매핑 전부를 돌며 액션 토큰을 한
+     * {@code Set<PermKey>} 에 넣고, 서버 {@code EndpointPermissionFilter} 는 그 집합의 {@code contains}, BFF·화면은 같은 집합을 직렬화한
+     * {@code toKeyStrings} 의 {@code includes} 로 본다. 버튼 목록 {@code SecUserService.getMyButtonEndpoints} 도 매핑 행마다 액션을 낸다.
+     * 그래서 옛 READ 행을 CONFIRM 으로 바꾸는 UPDATE 는 두지 않는다(행을 지우지도 않는다).
+     */
+    private void seedMdmLayoutConfirmMenu() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        insertMcmSecObjIfAbsent("layoutConfirm", "레이아웃 확정", "mdm");
+        insertMcmSecMenuIfAbsent("layoutConfirm", "003", "5020130", "레이아웃 확정", "dmb", "layoutConfirm");
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID",     "PERMISSION_ID"},
+                new String[]{"SYSADMIN", "layoutConfirm", "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', 'layoutConfirm', 'PERM_ALL'" + AUDIT_VALS + ")");
+        seedMdmObjectRbac("layoutConfirm", "dmb");
+        // 이미 시드된 headerMng·layoutMng 에도 담당자 CONFIRM 매핑을 더한다(insert-if-absent)
+        seedMdmObjectRbac("headerMng", "dmb");
+        seedMdmObjectRbac("layoutMng", "dmb");
+        log.info("[DataInitializer] D-144 MDM 레이아웃 확정 시드 — OBJECT 1 + 메뉴 leaf 1(dmb) + RBAC, dmb 담당자 CONFIRM");
     }
 
 

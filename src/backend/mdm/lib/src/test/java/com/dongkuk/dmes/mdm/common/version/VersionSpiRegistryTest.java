@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckRequest;
 import com.dongkuk.dmes.mdm.contract.version.ConfirmCheckResult;
+import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCancelCheckSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCheckSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionDiff;
 import com.dongkuk.dmes.mdm.contract.version.VersionDraftDeletionSpi;
@@ -23,20 +24,20 @@ class VersionSpiRegistryTest {
     @Test
     void 같은_target_의_확정_검사_SPI_가_둘이면_생성이_실패한다() {
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> new VersionSpiRegistry(
-                List.of(check(VersionTarget.MASTER_CODE), check(VersionTarget.MASTER_CODE)), List.of()));
+                List.of(check(VersionTarget.MASTER_CODE), check(VersionTarget.MASTER_CODE)), List.of(), List.of()));
         assertTrue(e.getMessage().contains("MASTER_CODE"), e.getMessage());
     }
 
     @Test
     void 같은_target_의_삭제_훅이_둘이면_생성이_실패한다() {
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> new VersionSpiRegistry(
-                List.of(), List.of(deletion(VersionTarget.BUSINESS_RULE), deletion(VersionTarget.BUSINESS_RULE))));
+                List.of(), List.of(deletion(VersionTarget.BUSINESS_RULE), deletion(VersionTarget.BUSINESS_RULE)), List.of()));
         assertTrue(e.getMessage().contains("BUSINESS_RULE"), e.getMessage());
     }
 
     @Test
     void 등록되지_않은_target_의_확정_검사는_실패한다() {
-        VersionSpiRegistry registry = new VersionSpiRegistry(List.of(check(VersionTarget.MASTER_CODE)), List.of());
+        VersionSpiRegistry registry = new VersionSpiRegistry(List.of(check(VersionTarget.MASTER_CODE)), List.of(), List.of());
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> registry.confirmCheck(VersionTarget.BUSINESS_RULE));
         assertTrue(e.getMessage().contains("BUSINESS_RULE"), e.getMessage());
@@ -44,7 +45,7 @@ class VersionSpiRegistryTest {
 
     @Test
     void 등록되지_않은_target_의_삭제_훅은_실패한다() {
-        VersionSpiRegistry registry = new VersionSpiRegistry(List.of(), List.of(deletion(VersionTarget.MASTER_CODE)));
+        VersionSpiRegistry registry = new VersionSpiRegistry(List.of(), List.of(deletion(VersionTarget.MASTER_CODE)), List.of());
         IllegalStateException e = assertThrows(IllegalStateException.class,
                 () -> registry.draftDeletion(VersionTarget.BUSINESS_RULE));
         assertTrue(e.getMessage().contains("BUSINESS_RULE"), e.getMessage());
@@ -55,7 +56,7 @@ class VersionSpiRegistryTest {
         VersionConfirmCheckSpi code = check(VersionTarget.MASTER_CODE);
         VersionConfirmCheckSpi rule = check(VersionTarget.BUSINESS_RULE);
         VersionDraftDeletionSpi codeHook = deletion(VersionTarget.MASTER_CODE);
-        VersionSpiRegistry registry = new VersionSpiRegistry(List.of(code, rule), List.of(codeHook));
+        VersionSpiRegistry registry = new VersionSpiRegistry(List.of(code, rule), List.of(codeHook), List.of());
         assertSame(code, registry.confirmCheck(VersionTarget.MASTER_CODE));
         assertSame(rule, registry.confirmCheck(VersionTarget.BUSINESS_RULE));
         assertSame(codeHook, registry.draftDeletion(VersionTarget.MASTER_CODE));
@@ -64,8 +65,34 @@ class VersionSpiRegistryTest {
     @Test
     void 아무것도_없어도_생성은_된다() {
         // 운영 컨텍스트에는 아직 SPI 가 없다(TSK-06-05·08-05 전) — 기동은 되고 확정·삭제만 실패한다.
-        VersionSpiRegistry registry = new VersionSpiRegistry(List.of(), List.of());
+        VersionSpiRegistry registry = new VersionSpiRegistry(List.of(), List.of(), List.of());
         assertThrows(IllegalStateException.class, () -> registry.confirmCheck(VersionTarget.MASTER_CODE));
+    }
+
+    @Test
+    void 확정_취소_검사는_선택이다_없으면_아무것도_하지_않고_둘이면_생성이_실패한다() {
+        VersionSpiRegistry registry = new VersionSpiRegistry(List.of(), List.of(), List.of());
+        registry.confirmCancelCheck(VersionTarget.BUSINESS_RULE)
+                .afterConfirmCancel(new VersionRef(VersionTarget.BUSINESS_RULE, "1", java.math.BigDecimal.ONE));
+        VersionConfirmCancelCheckSpi layout = cancelCheck(VersionTarget.LAYOUT);
+        assertSame(layout, new VersionSpiRegistry(List.of(), List.of(), List.of(layout)).confirmCancelCheck(VersionTarget.LAYOUT));
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> new VersionSpiRegistry(List.of(), List.of(),
+                List.of(cancelCheck(VersionTarget.LAYOUT), cancelCheck(VersionTarget.LAYOUT))));
+        assertTrue(e.getMessage().contains("LAYOUT"), e.getMessage());
+    }
+
+    private static VersionConfirmCancelCheckSpi cancelCheck(VersionTarget target) {
+        return new VersionConfirmCancelCheckSpi() {
+            @Override
+            public VersionTarget target() {
+                return target;
+            }
+
+            @Override
+            public void afterConfirmCancel(VersionRef cancelled) {
+                throw new AssertionError("불리지 않아야 한다");
+            }
+        };
     }
 
     private static VersionConfirmCheckSpi check(VersionTarget target) {

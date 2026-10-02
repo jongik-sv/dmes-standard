@@ -1,0 +1,164 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  exchangeParams,
+  fetchExchange,
+  fetchWeather,
+  normalizeExchange,
+  normalizeWeather,
+  unwrapPayload,
+  weatherParams,
+} from "@/widget-types/_ext/api";
+
+const fetchMock = vi.fn();
+
+function reply(body: unknown, status = 200) {
+  fetchMock.mockResolvedValueOnce(
+    new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
+  );
+}
+
+function sent(i = 0): { url: string; method: string; body: { meta: Record<string, unknown>; params: Record<string, unknown> } } {
+  const [url, init] = fetchMock.mock.calls[i] as [string, RequestInit];
+  return { url, method: String(init.method), body: JSON.parse(String(init.body)) };
+}
+
+beforeEach(() => {
+  fetchMock.mockReset();
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+describe("unwrapPayload — OASIS 응답 봉투 해제", () => {
+  it("data.result 안의 값을 펼친다", () => {
+    expect(unwrapPayload({ meta: { success: true }, data: { result: { a: 1 } } })).toEqual({ result: { a: 1 }, a: 1 });
+  });
+
+  it("업무 거절(meta.success=false, HTTP 200)은 메시지를 담아 던진다", () => {
+    expect(() => unwrapPayload({ meta: { success: false, message: "날씨 정보를 불러오지 못했습니다" } })).toThrow(
+      "날씨 정보를 불러오지 못했습니다"
+    );
+  });
+
+  it("메시지가 없는 거절도 던진다", () => {
+    expect(() => unwrapPayload({ meta: { success: false } })).toThrow("요청이 거부되었습니다.");
+  });
+
+  it("빈 응답은 빈 객체", () => {
+    expect(unwrapPayload(null)).toEqual({});
+  });
+});
+
+describe("요청 params 모양", () => {
+  it("환율: base 는 KRW, symbols 는 쉼표 문자열, days 는 숫자", () => {
+    expect(exchangeParams(["USD", "EUR"], 30)).toEqual({ base: "KRW", symbols: "USD,EUR", days: 30 });
+  });
+
+  it("날씨: lat·lon 숫자", () => {
+    expect(weatherParams(37.5665, 126.978)).toEqual({ lat: 37.5665, lon: 126.978 });
+  });
+});
+
+describe("normalizeExchange", () => {
+  it("latest·history 를 숫자·yyyy-MM-dd 로 맞춘다(문자열 숫자·yyyyMMdd 도 받는다)", () => {
+    const r = normalizeExchange({
+      latest: [{ cur: "usd", rate: "1380.5", diff: 3.5, date: "20260930" }],
+      history: [{ date: "20260929", cur: "USD", rate: 1377 }],
+      stale: true,
+    });
+    expect(r).toEqual({
+      latest: [{ cur: "USD", rate: 1380.5, diff: 3.5, date: "2026-09-30" }],
+      history: [{ date: "2026-09-29", cur: "USD", rate: 1377 }],
+      stale: true,
+      disabled: false,
+    });
+  });
+
+  it("diff 가 없으면 null, 값이 없는 history 줄은 버린다", () => {
+    const r = normalizeExchange({
+      latest: [{ cur: "USD", rate: 1380.5, date: "2026-09-30" }, { rate: 1 }],
+      history: [{ date: "2026-09-29", cur: "USD" }, { date: "bad", cur: "USD", rate: 1 }, { date: "2026-09-30", cur: "USD", rate: 1380.5 }],
+    });
+    expect(r.latest).toEqual([{ cur: "USD", rate: 1380.5, diff: null, date: "2026-09-30" }]);
+    expect(r.history).toEqual([{ date: "2026-09-30", cur: "USD", rate: 1380.5 }]);
+    expect(r.stale).toBe(false);
+  });
+
+  it("disabled 표시를 읽고, 응답이 비어 있어도 안전하다", () => {
+    expect(normalizeExchange({ disabled: true })).toEqual({ latest: [], history: [], stale: false, disabled: true });
+    expect(normalizeExchange({})).toEqual({ latest: [], history: [], stale: false, disabled: false });
+  });
+});
+
+describe("normalizeWeather", () => {
+  it("current·daily 를 숫자로 맞춘다", () => {
+    const r = normalizeWeather({
+      current: { temp: 21.46, code: 2, wind: 10.8, humidity: 55 },
+      daily: [
+        { date: "2026-10-03", min: 12, max: 21, code: 3, pop: 10 },
+        { date: "2026-10-04", min: "13", max: "22", code: "61", pop: null },
+      ],
+      stale: true,
+    });
+    expect(r.current).toEqual({ temp: 21.46, code: 2, wind: 10.8, humidity: 55 });
+    expect(r.daily).toEqual([
+      { date: "2026-10-03", min: 12, max: 21, code: 3, pop: 10 },
+      { date: "2026-10-04", min: 13, max: 22, code: 61, pop: null },
+    ]);
+    expect(r.stale).toBe(true);
+  });
+
+  it("current 가 없으면 null(외부 연결 꺼짐 등)", () => {
+    expect(normalizeWeather({ disabled: true })).toEqual({ current: null, daily: [], stale: false, disabled: true });
+  });
+
+  it("날짜가 없는 예보 줄은 버린다", () => {
+    expect(normalizeWeather({ current: { temp: 1 }, daily: [{ min: 1 }] }).daily).toEqual([]);
+  });
+});
+
+describe("fetchExchange · fetchWeather — 호출", () => {
+  it("환율: POST /api/mcm/oasis/widgetExt/exchange 로 params 를 보내고 결과를 풀어 준다", async () => {
+    reply({
+      meta: { success: true },
+      data: {
+        result: {
+          latest: [{ cur: "USD", rate: 1380.5, diff: 3.5, date: "20260930" }],
+          history: [{ date: "20260930", cur: "USD", rate: 1380.5 }],
+        },
+      },
+    });
+    const r = await fetchExchange(["USD", "EUR"], 30);
+    const req = sent();
+    expect(req.url).toBe("/api/mcm/oasis/widgetExt/exchange");
+    expect(req.method).toBe("POST");
+    expect(req.body.params).toEqual({ base: "KRW", symbols: "USD,EUR", days: 30 });
+    expect(r.latest[0]).toEqual({ cur: "USD", rate: 1380.5, diff: 3.5, date: "2026-09-30" });
+    expect(r.history).toHaveLength(1);
+  });
+
+  it("날씨: POST /api/mcm/oasis/widgetExt/weather", async () => {
+    reply({
+      meta: { success: true },
+      data: { result: { current: { temp: 20, code: 0, wind: 7.2, humidity: 40 }, daily: [] } },
+    });
+    const r = await fetchWeather(37.5665, 126.978);
+    const req = sent();
+    expect(req.url).toBe("/api/mcm/oasis/widgetExt/weather");
+    expect(req.body.params).toEqual({ lat: 37.5665, lon: 126.978 });
+    expect(r.current?.temp).toBe(20);
+  });
+
+  it("업무 거절은 메시지와 함께 던진다", async () => {
+    reply({ meta: { success: false, message: "날씨 정보를 불러오지 못했습니다" } });
+    await expect(fetchWeather(1, 2)).rejects.toThrow("날씨 정보를 불러오지 못했습니다");
+  });
+
+  it("HTTP 오류도 던진다", async () => {
+    reply({ message: "권한이 없습니다." }, 403);
+    await expect(fetchExchange(["USD"], 7)).rejects.toThrow("권한이 없습니다.");
+  });
+});

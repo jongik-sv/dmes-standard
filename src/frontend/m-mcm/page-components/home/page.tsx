@@ -3,15 +3,19 @@
 /**
  * 포털 홈(mcm:home) — 인사말·긴급 공지 띠 + 사용자 위젯 탭(WidgetWorkspace).
  * 위젯은 widgets/home/* (등록부 코드 생성), 배치는 사용자별 서버 저장(secWidget). 스펙 2026-10-02-widget-foundation.
+ * 실행 시 등록부 = 코드 등록부 + 유형 등록부 + widgetDef/list 의 DB 정의·덮어쓰기 행(shared mergeWidgetRegistry),
+ * 「홈」 기본 배치 = 응답의 부서·전사 기본 배치, 없으면 코드 상수. 스펙 2026-10-02-widget-admin-generic §11.
  * KPI·차트·표·알림은 sample-data.ts 의 샘플이다(인사말 줄에 표시).
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import type { PageProps } from "@dk-oasis/shared/portal-shell-core";
 import { PageLayout } from "@dk-oasis/shared/layout";
 import { Badge, Button, SegmentedControl } from "@dk-oasis/shared/form";
-import { WidgetWorkspace } from "@dk-oasis/shared/widget";
+import { mergeWidgetRegistry, toWidgetDefRow, WidgetWorkspace, type WidgetDefRow } from "@dk-oasis/shared/widget";
 
 import { WIDGET_REGISTRY } from "@/lib/generated/widget-registry";
+import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
+import { onWidgetDefsChanged } from "@/lib/widget-defs-events";
 
 import { fetchCurrentUser, type CurrentUser } from "./api";
 import { HOME_CSS, HOME_STYLE_HREF } from "./home-styles";
@@ -19,13 +23,73 @@ import { HOME_DEFAULT_LAYOUT } from "./home-layout";
 import { ensureNoticesLoaded, resetNoticesRequest, selectNotice, useNoticeStore } from "./notice-store";
 import { PRODUCT_GROUPS, currentShiftLabel } from "./sample-data";
 import { firstUrgent, formatToday, noticeKey } from "./types";
+import {
+  INITIAL_DEFS_STATE,
+  defsReducer,
+  fetchWidgetDefs,
+  pickHomeDefault,
+  typeTitlesOf,
+} from "./widget-defs";
 import { secWidgetStore } from "./widget-store";
+
+/** 유형 ID → 이름. 유형 등록부는 생성물(모듈 상수)이라 한 번만 만든다. */
+const TYPE_TITLES = typeTitlesOf(WIDGET_TYPE_REGISTRY);
 
 export default function PortalHomePage(_props: PageProps) {
   const [now] = useState(() => new Date());
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [productGroup, setProductGroup] = useState(PRODUCT_GROUPS[0]);
   const { notices } = useNoticeStore();
+
+  // 위젯 정의 조회 — 응답 전·실패 동안은 코드 등록부만으로 보이고 [배치 편집]이 막힌다(정의 위젯이 사용자 배치에서 지워지지 않게).
+  // 등록부·기본 배치가 응답으로 바뀌면 WidgetWorkspace 가 탭을 다시 불러오므로(load 가 registry·homeDefault 에 의존) 따로 다시 마운트하지 않는다.
+  const [defsState, dispatchDefs] = useReducer(defsReducer, INITIAL_DEFS_STATE);
+  const [defsAttempt, setDefsAttempt] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchWidgetDefs().then(
+      (res) => {
+        if (!cancelled) dispatchDefs({ type: "loaded", rawDefs: res.rawDefs, homeDefault: res.homeDefault });
+      },
+      () => {
+        if (!cancelled) dispatchDefs({ type: "failed" });
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [defsAttempt]);
+
+  // 위젯관리에서 정의·기본 배치를 바꾸면 다시 받는다 — 홈 탭은 포털에서 계속 마운트돼 있어 처음 한 번만 받으면 새 위젯이 서랍에 안 보인다.
+  // 조용히 받는다: 로딩 상태로 바꾸지 않고, 실패하면 지금 등록부를 그대로 둔다(편집 중이면 작업 공간이 편집이 끝난 뒤 다시 불러온다).
+  useEffect(() => {
+    let alive = true;
+    const off = onWidgetDefsChanged(() => {
+      fetchWidgetDefs().then(
+        (res) => {
+          if (alive) dispatchDefs({ type: "loaded", rawDefs: res.rawDefs, homeDefault: res.homeDefault });
+        },
+        () => {}
+      );
+    });
+    return () => {
+      alive = false;
+      off();
+    };
+  }, []);
+
+  const retryDefs = useCallback(() => {
+    dispatchDefs({ type: "retry" });
+    setDefsAttempt((n) => n + 1);
+  }, []);
+
+  const defRows = useMemo(
+    () => defsState.rawDefs.map((raw) => toWidgetDefRow(raw)).filter((row): row is WidgetDefRow => row !== null),
+    [defsState.rawDefs]
+  );
+  const registry = useMemo(() => mergeWidgetRegistry(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defRows), [defRows]);
+  const homeDefault = useMemo(() => pickHomeDefault(defsState.homeDefault, HOME_DEFAULT_LAYOUT), [defsState.homeDefault]);
 
   useEffect(() => {
     ensureNoticesLoaded();
@@ -86,11 +150,14 @@ export default function PortalHomePage(_props: PageProps) {
         )}
 
         <WidgetWorkspace
-          registry={WIDGET_REGISTRY}
-          homeDefault={HOME_DEFAULT_LAYOUT}
+          registry={registry}
+          homeDefault={homeDefault}
           store={secWidgetStore}
           userId={user?.id ?? null}
           testId="home-widgets"
+          registryStatus={defsState.status}
+          onRetryRegistry={retryDefs}
+          typeTitles={TYPE_TITLES}
         />
       </div>
     </PageLayout>

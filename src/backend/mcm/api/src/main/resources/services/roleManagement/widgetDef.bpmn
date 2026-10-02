@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_widgetDef" targetNamespace="http://dongkuk.com/dmes/mcm" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="widgetDef" name="위젯 정의 조회 서비스" isExecutable="true">
+    <bpmn:documentation>사용자용 위젯 정의·덮어쓰기 목록과 부서 기준 「홈」 기본 배치 — 스펙 2026-10-02-widget-admin-generic §5.1. 로그인 사용자 누구나(AUTH_ONLY). 정의 설정의 서버 전용 키(쿼리 SQL·챗봇 시스템 프롬프트)는 지워서 돌려준다.</bpmn:documentation>
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_list</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="listTask" name="위젯 정의·기본 배치 조회" camunda:class="widgetDefService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="list" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.def.dto.WidgetDefListRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_list</bpmn:incoming>
+      <bpmn:outgoing>flow_list_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endList">
+      <bpmn:incoming>flow_list_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_list" name="list" sourceRef="actionGateway" targetRef="listTask" />
+    <bpmn:sequenceFlow id="flow_list_end" sourceRef="listTask" targetRef="endList" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="widgetDef">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="listTask_di" bpmnElement="listTask">
+        <dc:Bounds x="360" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endList_di" bpmnElement="endList">
+        <dc:Bounds x="522" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="200" />
+        <di:waypoint x="245" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_list_di" bpmnElement="flow_list">
+        <di:waypoint x="295" y="200" />
+        <di:waypoint x="360" y="200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="307.5" y="183" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_list_end_di" bpmnElement="flow_list_end">
+        <di:waypoint x="460" y="200" />
+        <di:waypoint x="522" y="200" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

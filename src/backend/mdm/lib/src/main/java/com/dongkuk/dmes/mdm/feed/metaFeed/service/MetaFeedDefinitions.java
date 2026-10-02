@@ -10,10 +10,11 @@ import com.dongkuk.dmes.mdm.common.rule.definition.RuleDefinitionAssembler;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
-import com.dongkuk.dmes.mdm.dmb.layout.LayoutSnapshotJson;
-import com.dongkuk.dmes.mdm.dmb.layout.LayoutVersionStore;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutReleaseTimeline;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
+import com.dongkuk.dmes.mdm.repository.MdmLayoutRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ import org.springframework.stereotype.Component;
 public class MetaFeedDefinitions {
 
     private static final String RELEASED = "RELEASED";
+    private static final String MESSAGE = "MESSAGE";
 
     private final RuleQueries ruleQueries;
     private final StoredRuleDefinitions stored;
@@ -47,17 +49,20 @@ public class MetaFeedDefinitions {
     private final MdmRuleSetRepository sets;
     private final RuleSetVersionQueries setVersions;
     private final MasterCodeLedgerQueries ledger;
-    private final LayoutVersionStore layoutVersions;
+    private final MdmLayoutRepository layouts;
+    private final LayoutReleaseTimeline timeline;
 
     public MetaFeedDefinitions(RuleQueries ruleQueries, StoredRuleDefinitions stored, MdmRuleRepository rules, MdmRuleSetRepository sets,
-                               RuleSetVersionQueries setVersions, MasterCodeLedgerQueries ledger, LayoutVersionStore layoutVersions) {
+                               RuleSetVersionQueries setVersions, MasterCodeLedgerQueries ledger, MdmLayoutRepository layouts,
+                               LayoutReleaseTimeline timeline) {
         this.ruleQueries = ruleQueries;
         this.stored = stored;
         this.rules = rules;
         this.sets = sets;
         this.setVersions = setVersions;
         this.ledger = ledger;
-        this.layoutVersions = layoutVersions;
+        this.layouts = layouts;
+        this.timeline = timeline;
     }
 
     public MetaFeedResult rules(Collection<String> ruleIds) {
@@ -114,7 +119,13 @@ public class MetaFeedDefinitions {
         return new MetaFeedResult(found, Map.of());
     }
 
-    /** 최신 TB_MDM_LAYOUT_VER 스냅샷. 버전이 없는 ID(헤더 레이아웃·숫자가 아닌 키)는 빠진다(Ruling R9). */
+    /**
+     * 전문별 RELEASED 버전 목록(D-144 3단계, ADR-0007 D6) — 룰·룰 세트처럼 업무 모듈이 판정 시각으로 고른다. 버전마다 {@code ver}(문자열
+     * {@code "1.000"} — 자리수를 지킨다)·{@code applyFrom}·{@code applyTo} 와, 그 구간을 쌓은 헤더 버전 경계로 나눈 합성 구간
+     * {@code segments[{applyFrom, applyTo, snapshot}]} 를 싣는다({@link LayoutReleaseTimeline}). 목록은 VER 수 비교 오름차순이다.
+     * 헤더 레이아웃·없는 ID·숫자가 아닌 키는 빠지고(Ruling R9), RELEASED 가 없는 전문은 빈 목록이다(룰·룰 세트와 같다). 어느 구간이든
+     * 합성이 깨진 전문(쌓은 헤더에 그 시각 RELEASED 가 없음 등)은 그 키만 failed 다(Ruling R4).
+     */
     public MetaFeedResult layouts(Collection<String> layoutIds) {
         Map<String, Object> found = new LinkedHashMap<>();
         Map<String, String> failed = new LinkedHashMap<>();
@@ -125,13 +136,37 @@ public class MetaFeedDefinitions {
             } catch (NumberFormatException e) {
                 continue;
             }
+            boolean message = layouts.findById(id).map(l -> MESSAGE.equals(l.getLayoutKind())).orElse(false);
+            if (!message) {
+                continue;
+            }
             try {
-                layoutVersions.latest(id).ifPresent(v ->
-                        found.put(key, MetaFeedJson.plain(LayoutSnapshotJson.toMap(LayoutSnapshotJson.read(v.getSnapshotJson())))));
-            } catch (IllegalArgumentException | IllegalStateException e) {
+                found.put(key, layoutVersions(timeline.released(id)));
+            } catch (BusinessException | IllegalArgumentException | IllegalStateException e) {
                 failed.put(key, e.getMessage());
             }
         }
         return new MetaFeedResult(found, failed);
+    }
+
+    private static List<Object> layoutVersions(List<LayoutReleaseTimeline.ReleasedVersion> released) {
+        List<Object> out = new ArrayList<>();
+        for (LayoutReleaseTimeline.ReleasedVersion v : released) {
+            List<Object> segments = new ArrayList<>();
+            for (LayoutReleaseTimeline.Segment s : v.segments()) {
+                Map<String, Object> seg = new LinkedHashMap<>();
+                seg.put("applyFrom", MetaFeedJson.plain(s.applyFrom()));
+                seg.put("applyTo", MetaFeedJson.plain(s.applyTo()));
+                seg.put("snapshot", MetaFeedJson.plain(s.snapshot()));
+                segments.add(seg);
+            }
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("ver", VersionNumbers.plain(v.ver()));
+            row.put("applyFrom", MetaFeedJson.plain(v.applyFrom()));
+            row.put("applyTo", MetaFeedJson.plain(v.applyTo()));
+            row.put("segments", segments);
+            out.add(row);
+        }
+        return out;
     }
 }

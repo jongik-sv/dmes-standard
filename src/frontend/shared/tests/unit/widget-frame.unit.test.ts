@@ -3,7 +3,7 @@ import { act, createElement as h, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WidgetFrame, WidgetHeaderActions, useWidgetStatus } from "../../src/widget";
+import { WidgetFrame, WidgetHeaderActions, useWidgetBodySize, useWidgetStatus } from "../../src/widget";
 import type { WidgetItem, WidgetRegistryEntry } from "../../src/widget";
 
 let host: HTMLDivElement;
@@ -150,5 +150,110 @@ describe("WidgetFrame", () => {
       ["i1", "right", "move"],
       ["i1", "down", "resize"],
     ]);
+  });
+
+  /* ── 사용 중지 칸(스펙 widget-admin-generic §1.1·§12, W-D20) ── */
+  const disabledEntry = (extra: Partial<WidgetRegistryEntry["meta"]> = {}) => {
+    const load = vi.fn(async () => ({ default: () => h("p", { "data-testid": "body" }, "본문") }));
+    const e: WidgetRegistryEntry = {
+      meta: { id: "t.a", title: "샘플 위젯", subtitle: "전일 기준", defaultSize: { w: 6, h: 6 }, disabled: true, refreshSec: 30, linkPageId: "mls:lsh/noticeMgmt", ...extra },
+      load,
+    };
+    return { entry: e, load };
+  };
+
+  it("사용 중지 위젯은 본체를 불러오지 않고 「사용 중지된 위젯입니다」 칸을 보인다", async () => {
+    const { entry: e, load } = disabledEntry();
+    act(() => root.render(h(WidgetFrame, { item: item(), entry: e, editing: false, onToggleLock: noop, onRemove: noop })));
+    await flush();
+    expect(load).not.toHaveBeenCalled();
+    expect(host.querySelector('[data-testid="body"]')).toBeNull();
+    const cell = host.querySelector('[data-widget-disabled="true"]');
+    expect(cell).not.toBeNull();
+    expect(cell!.textContent).toContain("사용 중지된 위젯입니다");
+    // 자리를 지킨다 — 보기 모드에서도 틀과 제목이 남는다.
+    expect(host.querySelector(".cm-widget")!.getAttribute("data-inst-id")).toBe("i1");
+    expect(host.querySelector(".cm-widget__title")!.textContent).toBe("샘플 위젯");
+  });
+
+  it("사용 중지 위젯의 제목 줄에는 새로 고침·화면 열기가 없다", async () => {
+    const { entry: e } = disabledEntry();
+    act(() => root.render(h(WidgetFrame, { item: item(), entry: e, editing: false, onToggleLock: noop, onRemove: noop })));
+    await flush();
+    expect(host.querySelector('[data-action="refresh"]')).toBeNull();
+    expect(host.querySelector('[data-action="open"]')).toBeNull();
+    // 제목 줄에는 제목만 — 부제도 보이지 않는다.
+    expect(host.querySelector(".cm-widget__head")!.textContent).toBe("샘플 위젯");
+  });
+
+  it("사용 중지 위젯은 자동 새로 고침 타이머를 걸지 않는다", async () => {
+    const spy = vi.spyOn(window, "setInterval");
+    try {
+      const { entry: e } = disabledEntry({ refreshSec: 60 });
+      act(() => root.render(h(WidgetFrame, { item: item(), entry: e, editing: false, onToggleLock: noop, onRemove: noop })));
+      await flush();
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("사용 중지 위젯도 편집 모드에서 잠금·✕ 가 평소와 같고 ✕ 는 onRemove(instId) 를 부른다", async () => {
+    const onRemove = vi.fn();
+    const onToggleLock = vi.fn();
+    const { entry: e, load } = disabledEntry();
+    act(() => root.render(h(WidgetFrame, { item: item(), entry: e, editing: true, onToggleLock, onRemove })));
+    await flush();
+    expect(load).not.toHaveBeenCalled();
+    expect(host.querySelector('[data-widget-disabled="true"]')).not.toBeNull();
+    act(() => (host.querySelector('[data-action="lock"]') as HTMLButtonElement).click());
+    expect(onToggleLock).toHaveBeenCalledWith("i1");
+    act(() => (host.querySelector('[data-action="remove"]') as HTMLButtonElement).click());
+    expect(onRemove).toHaveBeenCalledWith("i1");
+  });
+
+  it("잠긴 사용 중지 위젯은 평소처럼 ✕ 가 비활성이다", async () => {
+    const { entry: e } = disabledEntry();
+    act(() => root.render(h(WidgetFrame, { item: item({ locked: true }), entry: e, editing: true, onToggleLock: noop, onRemove: noop })));
+    await flush();
+    expect((host.querySelector('[data-action="remove"]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("같은 틀이 사용 중지 entry 에서 사용 entry 로 바뀌면 본문 크기 관찰을 붙여 useWidgetBodySize 가 잰 크기를 준다", async () => {
+    // happy-dom 의 ResizeObserver 는 알리지 않으므로 observe 대상과 콜백을 잡는 가짜로 바꾼다.
+    const observers: FakeResizeObserver[] = [];
+    class FakeResizeObserver {
+      targets: Element[] = [];
+      constructor(readonly cb: ResizeObserverCallback) {
+        observers.push(this);
+      }
+      observe(el: Element) {
+        this.targets.push(el);
+      }
+      unobserve() {}
+      disconnect() {
+        this.targets = [];
+      }
+    }
+    vi.stubGlobal("ResizeObserver", FakeResizeObserver);
+    try {
+      const Body = () => {
+        const { width } = useWidgetBodySize();
+        return h("p", { "data-testid": "body" }, `폭 ${width}`);
+      };
+      const { entry: off } = disabledEntry();
+      act(() => root.render(h(WidgetFrame, { item: item(), entry: off, editing: false, onToggleLock: noop, onRemove: noop })));
+      await flush();
+      act(() => root.render(h(WidgetFrame, { item: item(), entry: entry(Body), editing: false, onToggleLock: noop, onRemove: noop })));
+      await flush();
+      const body = host.querySelector(".cm-widget__body")!;
+      const ro = observers.find((o) => o.targets.includes(body));
+      expect(ro).toBeDefined();
+      act(() => ro!.cb([{ contentRect: { width: 320, height: 180 } } as unknown as ResizeObserverEntry], ro as unknown as ResizeObserver));
+      await flush();
+      expect(host.querySelector('[data-testid="body"]')!.textContent).toBe("폭 320");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -67,6 +67,14 @@ describe("WidgetTabs", () => {
     expect((host.querySelector('[data-action="add-tab"]') as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("addDisabled 면 (+) 만 막고 ⋯ 메뉴는 그대로이며 addTitle 을 title 로 쓴다", () => {
+    renderTabs({ addDisabled: true, addTitle: "위젯 목록을 불러오는 중입니다" });
+    const add = host.querySelector('[data-action="add-tab"]') as HTMLButtonElement;
+    expect(add.disabled).toBe(true);
+    expect(add.title).toBe("위젯 목록을 불러오는 중입니다");
+    expect(host.querySelector("[data-tab-menu]")).not.toBeNull();
+  });
+
   it("이름 바꾸기 입력은 Enter 로 확정하고 오류 문구를 보이면 칸을 유지한다", () => {
     const onRenameCommit = vi.fn(() => "같은 이름의 탭이 있습니다.");
     renderTabs({ renamingTabId: "tab-2", onRenameCommit });

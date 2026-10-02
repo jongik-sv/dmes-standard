@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { collectWidgets, keyToId, renderRegistry } from "./widget-registry-lib.mjs";
+import { collectWidgetTypes, collectWidgets, keyToId, renderRegistry, renderTypeRegistry } from "./widget-registry-lib.mjs";
 
 async function makeWidget(root, group, name, { id = `${group}.${name}`, body = true } = {}) {
   const dir = path.join(root, group, name);
@@ -59,4 +59,59 @@ test("renderRegistry 는 같은 id 가 두 번이면 오류", () => {
       ]),
     /중복/
   );
+});
+
+// ── 위젯 유형 등록부(스펙 2026-10-02-widget-admin-generic §3) ──────────────────────────────
+
+async function makeType(root, name, { id = name, files = ["type.meta.ts", "renderer.tsx", "editor.tsx"] } = {}) {
+  const dir = path.join(root, name);
+  await mkdir(dir, { recursive: true });
+  for (const f of files) {
+    const body =
+      f === "type.meta.ts"
+        ? `export const meta = { id: "${id}", title: "t", defaultSize: { w: 6, h: 6 }, initialConfig: {} };\n`
+        : "export default function X() { return null; }\n";
+    await writeFile(path.join(dir, f), body);
+  }
+}
+
+test("collectWidgetTypes 는 세 파일이 다 있는 유형 폴더만 이름순으로 모으고 _ 폴더는 건너뛴다", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "wtype-"));
+  await makeType(root, "query-table");
+  await makeType(root, "markdown");
+  await mkdir(path.join(root, "_shared"), { recursive: true });
+  const result = await collectWidgetTypes(root);
+  assert.deepEqual(result.map((t) => t.id), ["markdown", "query-table"]);
+});
+
+test("collectWidgetTypes 는 폴더가 없으면 빈 목록", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "wtype-"));
+  assert.deepEqual(await collectWidgetTypes(path.join(root, "none")), []);
+});
+
+test("유형 파일이 빠지면 오류", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "wtype-"));
+  await makeType(root, "markdown", { files: ["type.meta.ts", "renderer.tsx"] });
+  await assert.rejects(() => collectWidgetTypes(root), /editor\.tsx/);
+});
+
+test("type.meta 의 id 가 폴더와 다르면 오류", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "wtype-"));
+  await makeType(root, "markdown", { id: "md" });
+  await assert.rejects(() => collectWidgetTypes(root), /"markdown"/);
+});
+
+test("유형 폴더 이름이 규칙(소문자·숫자·하이픈)을 어기면 오류", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "wtype-"));
+  await makeType(root, "QueryTable");
+  await assert.rejects(() => collectWidgetTypes(root), /소문자/);
+});
+
+test("renderTypeRegistry 는 meta 정적 import 와 렌더러·편집기 지연 import 리터럴을 쓴다", () => {
+  const out = renderTypeRegistry([{ id: "markdown" }, { id: "query-table" }]);
+  assert.match(out, /import \{ meta as t1 \} from "@\/widget-types\/query-table\/type\.meta";/);
+  assert.match(out, /loadRenderer: \(\) => import\("@\/widget-types\/markdown\/renderer"\)/);
+  assert.match(out, /loadEditor: \(\) => import\("@\/widget-types\/query-table\/editor"\)/);
+  assert.match(out, /export const WIDGET_TYPE_REGISTRY: WidgetTypeRegistry = \{/);
+  assert.throws(() => renderTypeRegistry([{ id: "a" }, { id: "a" }]), /중복/);
 });

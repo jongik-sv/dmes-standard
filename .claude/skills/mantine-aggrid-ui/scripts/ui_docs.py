@@ -34,8 +34,9 @@ GROUPS: list[tuple[str, list[str]]] = [
     ("입력 (`@dk-oasis/shared/form`)", [
         "button", "input", "select", "combo-box", "multi-select-combo-box", "date-picker",
         "date-time-picker", "checkbox", "radio", "segmented-control", "textarea", "form-group", "loading", "badge",
+        "select-or-input",
     ]),
-    ("목록 (`@dk-oasis/shared/grid`)", ["ag-data-grid", "grid-panel", "use-grid-data-manager", "grid-badge", "pagination"]),
+    ("목록 (`@dk-oasis/shared/grid`)", ["ag-data-grid", "grid-panel", "use-grid-data-manager", "grid-badge", "pagination", "editable-row-list"]),
     ("팝업·메시지 (`modal`, `message-provider`, `use-api-call`)", ["modal", "message"]),
     ("대시보드 (`@dk-oasis/shared/dashboard`)", ["dashboard"]),
     ("위젯 (`@dk-oasis/shared/widget`)", ["widget"]),

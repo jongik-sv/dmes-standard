@@ -1,20 +1,23 @@
 package com.dongkuk.dmes.mdm.dmb.layout;
 
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.entity.MdmEai;
 import com.dongkuk.dmes.mdm.entity.MdmLayout;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutConst;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutHeader;
 import com.dongkuk.dmes.mdm.entity.MdmLayoutItem;
-import com.dongkuk.dmes.mdm.entity.MdmLayoutVer;
 import jakarta.persistence.EntityManager;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
@@ -56,37 +59,49 @@ public class LayoutQueries {
         this.em = em;
     }
 
-    // ── JPQL(엔티티 경유) ──
+    // ── JPQL(엔티티 경유) — 버전 키(D-144 3단계). 버전 바인딩은 VersionNumbers.scaled, 버전 비교·정렬은 Java ──
 
-    public List<MdmLayoutItem> itemsOf(Long layoutId) {
-        return em.createQuery("SELECT i FROM MdmLayoutItem i WHERE i.layoutId = :id ORDER BY i.seq", MdmLayoutItem.class)
-                .setParameter("id", layoutId).getResultList();
+    public List<MdmLayoutItem> itemsOf(Long layoutId, BigDecimal ver) {
+        return em.createQuery("SELECT i FROM MdmLayoutItem i WHERE i.layoutId = :id AND i.ver = :ver ORDER BY i.seq",
+                        MdmLayoutItem.class)
+                .setParameter("id", layoutId).setParameter("ver", VersionNumbers.scaled(ver)).getResultList();
     }
 
-    public List<MdmLayoutHeader> headersOf(Long messageId) {
-        return em.createQuery("SELECT h FROM MdmLayoutHeader h WHERE h.layoutId = :id ORDER BY h.seq", MdmLayoutHeader.class)
-                .setParameter("id", messageId).getResultList();
+    public List<MdmLayoutHeader> headersOf(Long messageId, BigDecimal ver) {
+        return em.createQuery("SELECT h FROM MdmLayoutHeader h WHERE h.layoutId = :id AND h.ver = :ver ORDER BY h.seq",
+                        MdmLayoutHeader.class)
+                .setParameter("id", messageId).setParameter("ver", VersionNumbers.scaled(ver)).getResultList();
     }
 
-    public List<MdmLayoutConst> constsOf(Long messageId) {
-        return em.createQuery("SELECT c FROM MdmLayoutConst c WHERE c.layoutId = :id ORDER BY c.headerLayoutId, c.headerSeq",
-                MdmLayoutConst.class).setParameter("id", messageId).getResultList();
+    public List<MdmLayoutConst> constsOf(Long messageId, BigDecimal ver) {
+        return em.createQuery("SELECT c FROM MdmLayoutConst c WHERE c.layoutId = :id AND c.ver = :ver "
+                        + "ORDER BY c.headerLayoutId, c.headerColumnPhys", MdmLayoutConst.class)
+                .setParameter("id", messageId).setParameter("ver", VersionNumbers.scaled(ver)).getResultList();
     }
 
-    /** 이 헤더의 항목을 재정의한 모든 전문의 행. */
-    public List<MdmLayoutConst> constsOfHeader(Long headerLayoutId) {
-        return em.createQuery("SELECT c FROM MdmLayoutConst c WHERE c.headerLayoutId = :id ORDER BY c.layoutId, c.headerSeq",
-                MdmLayoutConst.class).setParameter("id", headerLayoutId).getResultList();
-    }
-
-    /** 이 헤더를 쌓은 전문의 적층 행. */
+    /** 이 헤더를 쌓은 전문의 적층 행 — 모든 버전(호출자가 버전 상태로 거른다). */
     public List<MdmLayoutHeader> stacksUsing(Long headerLayoutId) {
         return em.createQuery("SELECT h FROM MdmLayoutHeader h WHERE h.headerLayoutId = :id ORDER BY h.layoutId",
                 MdmLayoutHeader.class).setParameter("id", headerLayoutId).getResultList();
     }
 
-    public List<MdmLayoutHeader> allStacks() {
-        return em.createQuery("SELECT h FROM MdmLayoutHeader h ORDER BY h.layoutId, h.seq", MdmLayoutHeader.class).getResultList();
+    /**
+     * 메타 변경 기록 키(spec 2026-10-02-mdm-meta-cache-design §3.3) — 이 레이아웃 + 이 레이아웃을 헤더로 쌓은 전문 전부(버전 무관, 중복 없음).
+     * 헤더가 바뀌면 그 헤더를 쌓은 전문의 시각 T 합성(오프셋·길이·헤더 이름)도 바뀐다. 전문이면 쌓은 행이 없어 자기 하나다.
+     */
+    public List<Long> withStackingMessages(Long layoutId) {
+        Set<Long> ids = new LinkedHashSet<>();
+        ids.add(layoutId);
+        for (MdmLayoutHeader stack : stacksUsing(layoutId)) {
+            ids.add(stack.getLayoutId());
+        }
+        return List.copyOf(ids);
+    }
+
+    /** 확정 대기 — 모든 레이아웃(전문·헤더)의 DRAFT 버전 행과 부모 {@code [MdmLayoutVer, MdmLayout]}. 종류·이름 순(버전 정렬은 SQL 에서 하지 않는다). */
+    public List<Object[]> drafts() {
+        return em.createQuery("SELECT v, l FROM MdmLayoutVer v, MdmLayout l WHERE l.layoutId = v.layoutId AND v.status = 'DRAFT' "
+                + "ORDER BY l.layoutKind, l.layoutName, l.layoutId", Object[].class).getResultList();
     }
 
     public List<MdmLayout> layoutsOfKind(String kind) {
@@ -94,70 +109,54 @@ public class LayoutQueries {
                 .setParameter("kind", kind).getResultList();
     }
 
-    /** 레이아웃별 항목 수 — {@code [layoutId, count]}. */
-    public List<Object[]> itemCounts() {
-        return em.createQuery("SELECT i.layoutId, COUNT(i) FROM MdmLayoutItem i GROUP BY i.layoutId", Object[].class)
-                .getResultList();
-    }
-
-    /** 이 컬럼들을 쓰는 항목과 그 레이아웃 — {@code [MdmLayoutItem, MdmLayout]}(TSK-05-03 영향 목록). 빈 목록이면 부르지 않는다. */
+    /**
+     * 이 컬럼들을 쓰는 항목과 그 레이아웃·버전 행 — {@code [MdmLayoutItem, MdmLayout, MdmLayoutVer]}(TSK-05-03 영향 목록, D-144 3단계
+     * 버전 상태 구분). 빈 목록이면 부르지 않는다.
+     */
     public List<Object[]> itemsUsingColumns(Collection<String> physNames) {
         if (physNames.isEmpty()) {
             return List.of();
         }
-        return em.createQuery("SELECT i, l FROM MdmLayoutItem i, MdmLayout l WHERE l.layoutId = i.layoutId AND i.columnPhys IN :phys "
-                + "ORDER BY l.layoutName, i.seq", Object[].class).setParameter("phys", physNames).getResultList();
-    }
-
-    /** 이 헤더를 쌓은 전문 수. */
-    public long messagesStacking(Long headerLayoutId) {
-        return em.createQuery("SELECT COUNT(h) FROM MdmLayoutHeader h WHERE h.headerLayoutId = :id", Long.class)
-                .setParameter("id", headerLayoutId).getSingleResult();
-    }
-
-    public List<MdmEai> eaiOfHeader(Long headerLayoutId) {
-        return em.createQuery("SELECT e FROM MdmEai e WHERE e.headerLayoutId = :id ORDER BY e.eaiCode", MdmEai.class)
-                .setParameter("id", headerLayoutId).getResultList();
+        return em.createQuery("SELECT i, l, v FROM MdmLayoutItem i, MdmLayout l, MdmLayoutVer v WHERE l.layoutId = i.layoutId "
+                        + "AND v.layoutId = i.layoutId AND v.ver = i.ver AND i.columnPhys IN :phys ORDER BY l.layoutName, i.layoutId, i.seq",
+                Object[].class).setParameter("phys", physNames).getResultList();
     }
 
     public List<MdmEai> allEais() {
         return em.createQuery("SELECT e FROM MdmEai e ORDER BY e.eaiCode", MdmEai.class).getResultList();
     }
 
-    // ── 여러 레이아웃을 한 번에(IN, {@value #IN_CHUNK}개씩) — 레이아웃별로 묶은 값은 위 단건 조회와 같은 순서다 ──
+    // ── 여러 (레이아웃, 버전)을 한 번에 — 레이아웃 ID IN({@value #IN_CHUNK}개씩)으로 모든 버전 행을 읽고 Java 에서 키로 거른다
+    //    (버전 IN 바인딩을 피한다). 키별 값은 위 단건 조회와 같은 순서다 ──
 
-    /** 레이아웃 ID → 항목({@link #itemsOf} 순서). 항목이 없는 레이아웃은 맵에 없다. */
-    public Map<Long, List<MdmLayoutItem>> itemsOf(Collection<Long> layoutIds) {
-        return grouped(layoutIds, ids -> em.createQuery("SELECT i FROM MdmLayoutItem i WHERE i.layoutId IN :ids ORDER BY i.layoutId, i.seq",
-                MdmLayoutItem.class).setParameter("ids", ids).getResultList(), MdmLayoutItem::getLayoutId);
+    /** (레이아웃, 버전) → 항목({@link #itemsOf(Long, BigDecimal)} 순서). 항목이 없는 키는 맵에 없다. */
+    public Map<LayoutKey, List<MdmLayoutItem>> itemsOf(Collection<LayoutKey> keys) {
+        Set<LayoutKey> wanted = new HashSet<>(keys);
+        Map<LayoutKey, List<MdmLayoutItem>> out = new LinkedHashMap<>();
+        for (List<Long> chunk : chunks(keys.stream().map(LayoutKey::layoutId).distinct().toList())) {
+            for (MdmLayoutItem i : em.createQuery("SELECT i FROM MdmLayoutItem i WHERE i.layoutId IN :ids ORDER BY i.layoutId, i.seq",
+                    MdmLayoutItem.class).setParameter("ids", chunk).getResultList()) {
+                LayoutKey k = new LayoutKey(i.getLayoutId(), i.getVer());
+                if (wanted.contains(k)) {
+                    out.computeIfAbsent(k, x -> new ArrayList<>()).add(i);
+                }
+            }
+        }
+        return out;
     }
 
-    /** 전문 ID → 헤더 적층({@link #headersOf} 순서). */
-    public Map<Long, List<MdmLayoutHeader>> headersOf(Collection<Long> messageIds) {
-        return grouped(messageIds, ids -> em.createQuery("SELECT h FROM MdmLayoutHeader h WHERE h.layoutId IN :ids ORDER BY h.layoutId, h.seq",
-                MdmLayoutHeader.class).setParameter("ids", ids).getResultList(), MdmLayoutHeader::getLayoutId);
-    }
-
-    /** 전문 ID → 재정의({@link #constsOf} 순서). */
-    public Map<Long, List<MdmLayoutConst>> constsOf(Collection<Long> messageIds) {
-        return grouped(messageIds, ids -> em.createQuery("SELECT c FROM MdmLayoutConst c WHERE c.layoutId IN :ids "
-                + "ORDER BY c.layoutId, c.headerLayoutId, c.headerSeq", MdmLayoutConst.class).setParameter("ids", ids).getResultList(),
-                MdmLayoutConst::getLayoutId);
-    }
-
-    /** 헤더 ID → 그 헤더를 가리키는 EAI({@link #eaiOfHeader} 순서 — EAI 코드 순). */
-    public Map<Long, List<MdmEai>> eaisOfHeaders(Collection<Long> headerLayoutIds) {
-        return grouped(headerLayoutIds, ids -> em.createQuery("SELECT e FROM MdmEai e WHERE e.headerLayoutId IN :ids ORDER BY e.eaiCode",
-                MdmEai.class).setParameter("ids", ids).getResultList(), MdmEai::getHeaderLayoutId);
-    }
-
-    /** 레이아웃 ID → 그 레이아웃의 최신 버전 이력 한 행. 이력이 없는 레이아웃은 맵에 없다. */
-    public Map<Long, MdmLayoutVer> latestVersions(Collection<Long> layoutIds) {
-        Map<Long, MdmLayoutVer> out = new HashMap<>();
-        for (List<Long> ids : chunks(layoutIds)) {
-            em.createQuery("SELECT v FROM MdmLayoutVer v WHERE v.layoutId IN :ids AND v.layoutVersion = "
-                    + "(SELECT MAX(w.layoutVersion) FROM MdmLayoutVer w WHERE w.layoutId = v.layoutId)", MdmLayoutVer.class)
-                    .setParameter("ids", ids).getResultList().forEach(v -> out.put(v.getLayoutId(), v));
+    /** (전문, 버전) → 헤더 적층({@link #headersOf(Long, BigDecimal)} 순서). 적층이 없는 키는 맵에 없다. */
+    public Map<LayoutKey, List<MdmLayoutHeader>> headersOf(Collection<LayoutKey> keys) {
+        Set<LayoutKey> wanted = new HashSet<>(keys);
+        Map<LayoutKey, List<MdmLayoutHeader>> out = new LinkedHashMap<>();
+        for (List<Long> chunk : chunks(keys.stream().map(LayoutKey::layoutId).distinct().toList())) {
+            for (MdmLayoutHeader h : em.createQuery("SELECT h FROM MdmLayoutHeader h WHERE h.layoutId IN :ids ORDER BY h.layoutId, h.seq",
+                    MdmLayoutHeader.class).setParameter("ids", chunk).getResultList()) {
+                LayoutKey k = new LayoutKey(h.getLayoutId(), h.getVer());
+                if (wanted.contains(k)) {
+                    out.computeIfAbsent(k, x -> new ArrayList<>()).add(h);
+                }
+            }
         }
         return out;
     }
@@ -169,16 +168,6 @@ public class LayoutQueries {
         List<List<T>> out = new ArrayList<>();
         for (int from = 0; from < all.size(); from += IN_CHUNK) {
             out.add(all.subList(from, Math.min(all.size(), from + IN_CHUNK)));
-        }
-        return out;
-    }
-
-    private static <T> Map<Long, List<T>> grouped(Collection<Long> keys, Function<List<Long>, List<T>> read, Function<T, Long> key) {
-        Map<Long, List<T>> out = new HashMap<>();
-        for (List<Long> ids : chunks(keys)) {
-            for (T row : read.apply(ids)) {
-                out.computeIfAbsent(key.apply(row), k -> new ArrayList<>()).add(row);
-            }
         }
         return out;
     }

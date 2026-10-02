@@ -81,8 +81,9 @@ export async function searchColumns(keyword: string): Promise<ColumnInfo[]> {
   return out.columns ?? [];
 }
 
-export function viewLayout(layoutId: number): Promise<ViewResult> {
-  return callAction("view", { layoutId });
+/** ver 를 빼면 서버가 고른다(내 DRAFT 우선, 없으면 T 시점 현재). asOf 는 `yyyy-MM-dd HH:mm:ss`. */
+export function viewLayout(layoutId: number, ver?: string | null, asOf?: string | null): Promise<ViewResult> {
+  return callAction("view", { layoutId, ver, asOf });
 }
 
 /** 편집 상태 → grid 셋(헤더 구성 행 순서가 쌓는 순서, 본문 행 순서가 SEQ). save·validate·execute 가 같은 모양을 보낸다. */
@@ -115,9 +116,9 @@ export function renderSample(draft: LayoutDraft, headers: Array<{ HEADER_LAYOUT_
   });
 }
 
-/** 저장된 버전의 스냅샷(버전을 빼면 최신). */
-export function exportSnapshot(layoutId: number, layoutVersion?: number | null): Promise<ExportResult> {
-  return callAction("export", { layoutId, layoutVersion });
+/** 고른 버전·시각 T 의 스냅샷(빼면 서버가 현재로 푼다). */
+export function exportSnapshot(layoutId: number, ver?: string | null, asOf?: string | null): Promise<ExportResult> {
+  return callAction("export", { layoutId, ver, asOf });
 }
 
 /** 컬럼·도메인 변경 영향 전문(search target=IMPACT). */

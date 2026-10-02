@@ -330,11 +330,13 @@ public class ColumnMngService {
         // 7. 컬럼 저장
         MdmColumn column;
         String oldPhysName = null;
+        Long oldDomainId = null;
         if (selfId == null) {
             column = new MdmColumn(columnName, physName, req.getDomainId());
         } else {
             column = columnRepository.findById(selfId).orElseThrow(() -> invalid("컬럼을 찾을 수 없습니다"));
             oldPhysName = column.getPhysName(); // 메타 캐시 무효화 — 물리명 변경 전 이름(spec 2026-10-02 §3.3)
+            oldDomainId = column.getDomainId();
             column.setColumnName(columnName);
             column.setPhysName(physName);
             column.setDomainId(req.getDomainId());
@@ -352,7 +354,11 @@ public class ColumnMngService {
         column.setUsageNote(blankToNull(req.getUsageNote()));
         column = columnRepository.save(column);
         Long columnId = column.getColumnId();
-        recorder.column(oldPhysName, physName);
+        // 전문 합성은 항목의 타입·단위·소수를 컬럼 → 도메인에서 읽는다 — 신규·물리명 변경·도메인 교체면 그 물리명을 쓰는 RELEASED 전문까지
+        // LAYOUT 키로 펼친다(검토 I1). 이름·라벨·설명만 바뀐 저장은 전문 피드 값과 무관하다
+        boolean layoutFeedMayChange = selfId == null || !Objects.equals(oldPhysName, physName)
+                || !Objects.equals(oldDomainId, req.getDomainId());
+        recorder.column(oldPhysName, physName, layoutFeedMayChange);
 
         // 8. 매핑 차분 — 같은 키는 UPDATE, 새 키는 INSERT, 빠진 키는 DELETE(같은 키를 지웠다 다시 넣지 않는다)
         Map<String, MdmColumnSystem> existing = new LinkedHashMap<>();

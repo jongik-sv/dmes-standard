@@ -41,17 +41,17 @@ describe("headerMng api", () => {
   });
 
   it("save 는 items grid 를 빈 배열이라도 보내고 null 파라미터·화면 전용 칸을 뺀다", async () => {
-    await saveHeader({ layoutId: null, ver: null, layoutName: "헤더", eaiCode: "", eaiName: null, encoding: "UTF-8", padRule: "" }, []);
+    await saveHeader({ layoutId: null, ver: null, rowVersion: null, layoutName: "헤더", eaiCode: "", eaiName: null, encoding: "UTF-8", padRule: "" }, []);
     expect(calls[0].url).toBe("/api/mdm/oasis/headerMng/save");
     expect(calls[0].body.params).toEqual({ layoutName: "헤더", encoding: "UTF-8" });
     expect(calls[0].body.grids).toEqual({ items: { rows: [] } });
 
-    await saveHeader({ layoutId: 3, ver: 0, layoutName: "헤더", eaiCode: "G", eaiName: "GLUE", encoding: "EUC-KR", padRule: null }, [
+    await saveHeader({ layoutId: 3, ver: "1.001", rowVersion: 0, layoutName: "헤더", eaiCode: "G", eaiName: "GLUE", encoding: "EUC-KR", padRule: null }, [
       { KEY: "k1", SEQ: 1, FILL_KIND: "CONST", COLUMN_PHYS: "SND_FAC_TP", DEFAULT_VALUE: "B0", DISPLAY_NAME: "송신", OFFSET: 0, LENGTH: 4,
         DOMAIN_LENGTH: 4, TRANS_UNIT: null },
       { KEY: "k2", SEQ: 2, FILL_KIND: "FILLER", FILLER_LENGTH: 10, COLUMN_PHYS: null },
     ]);
-    expect(calls[1].body.params).toEqual({ layoutId: 3, ver: 0, layoutName: "헤더", eaiCode: "G", eaiName: "GLUE", encoding: "EUC-KR" });
+    expect(calls[1].body.params).toEqual({ layoutId: 3, ver: "1.001", rowVersion: 0, layoutName: "헤더", eaiCode: "G", eaiName: "GLUE", encoding: "EUC-KR" });
     expect(calls[1].body.grids).toEqual({ items: { rows: [
       { SEQ: 1, FILL_KIND: "CONST", COLUMN_PHYS: "SND_FAC_TP", DEFAULT_VALUE: "B0" },
       { SEQ: 2, FILL_KIND: "FILLER", FILLER_LENGTH: 10 },

@@ -18,6 +18,10 @@ public final class VersionFixtureTables {
     public static final VersionTableSpec RULE_SPEC = new VersionTableSpec(
             "TB_MDM_TC_RULE_VER", "MARU_RULE_ID", "VER", "TB_MDM_TC_RULE", "MARU_RULE_ID", "AUD_VER", "VER");
 
+    /** 3단계 — 객체 ID 가 INTEGER 인 대상(레이아웃)의 친화도 확인용. */
+    public static final VersionTableSpec LAYOUT_SPEC = new VersionTableSpec(
+            "TB_MDM_TC_LAYOUT_VER", "LAYOUT_ID", "VER", "TB_MDM_TC_LAYOUT", "LAYOUT_ID", "AUD_VER", "VER");
+
     private VersionFixtureTables() {
     }
 
@@ -36,6 +40,18 @@ public final class VersionFixtureTables {
                 "CREATE TRIGGER IF NOT EXISTS TR_TB_MDM_TC_CODE_VER_ATOMIC BEFORE UPDATE OF APPLY_TO ON TB_MDM_TC_CODE_VER "
                         + "WHEN OLD.MARU_CODE_ID = 'ATOMIC_FAIL' AND OLD.STATUS = 'RELEASED' "
                         + "BEGIN SELECT RAISE(ABORT, 'TSK-01-03 S14 atomic failure'); END");
+    }
+
+    /** INTEGER 객체 ID 픽스처 두 표(SQLite). {@link #sqliteDdl()} 과 따로 둔다 — 기존 키트 상속 시험의 스키마를 바꾸지 않는다. */
+    public static List<String> integerIdSqliteDdl() {
+        return List.of(
+                parent("TB_MDM_TC_LAYOUT", "LAYOUT_ID", "INTEGER", "TEXT"),
+                version("TB_MDM_TC_LAYOUT_VER", "LAYOUT_ID", "INTEGER", "NUMERIC(7,3)", "TEXT"));
+    }
+
+    public static void clearIntegerId(JdbcTemplate jdbc) {
+        jdbc.update("DELETE FROM TB_MDM_TC_LAYOUT_VER");
+        jdbc.update("DELETE FROM TB_MDM_TC_LAYOUT");
     }
 
     public static void clear(JdbcTemplate jdbc) {

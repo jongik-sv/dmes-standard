@@ -7,7 +7,9 @@ package com.dongkuk.dmes.mdm.dmb.layoutMng.dto;
 public class LayoutMngExecuteRequest {
 
     private Long layoutId;
-    private Long ver;
+    private String ver;
+    /** 쌓은 헤더 버전을 고를 판정 시각(KST {@code yyyy-MM-dd HH:mm:ss}). 없으면 서버 시계. */
+    private String asOf;
     private String layoutName;
     private String eaiCode;
     private String sndSystem;
@@ -21,9 +23,13 @@ public class LayoutMngExecuteRequest {
 
     public void setLayoutId(Long v) { this.layoutId = v; }
 
-    public Long getVer() { return ver; }
+    public String getVer() { return ver; }
 
-    public void setVer(Long v) { this.ver = v; }
+    public void setVer(String v) { this.ver = v; }
+
+    public String getAsOf() { return asOf; }
+
+    public void setAsOf(String v) { this.asOf = v; }
 
     public String getLayoutName() { return layoutName; }
 
@@ -54,6 +60,7 @@ public class LayoutMngExecuteRequest {
         LayoutMngSaveRequest r = new LayoutMngSaveRequest();
         r.setLayoutId(layoutId);
         r.setVer(ver);
+        r.setAsOf(asOf);
         r.setLayoutName(layoutName);
         r.setEaiCode(eaiCode);
         r.setSndSystem(sndSystem);

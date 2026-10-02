@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dmb.layout;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -66,11 +67,13 @@ class LayoutSnapshotJsonTest {
     }
 
     @Test
-    void 버전_번호만_바꾼_사본을_만든다() throws IOException {
-        MdmLayoutSnapshot s = sample();
-        MdmLayoutSnapshot v7 = LayoutSnapshotJson.withVersion(s, 7L);
-        assertEquals(7L, v7.layoutVersion());
-        assertEquals(s, LayoutSnapshotJson.withVersion(v7, s.layoutVersion()));
+    void legacyJsonWithIntegerVersionAndNoHeaderVersionStillReads() {
+        String legacy = "{\"eaiCode\":\"G1\",\"encoding\":\"EUC-KR\",\"headers\":[{\"headerLayoutId\":100,\"headerLayoutName\":\"H\","
+                + "\"items\":[],\"offset\":0,\"seq\":1,\"totalLength\":10}],\"items\":[],\"layoutId\":201,\"layoutName\":\"M\","
+                + "\"layoutVersion\":2,\"padRule\":null,\"rcvSystem\":null,\"sndSystem\":null,\"totalLength\":30}";
+        MdmLayoutSnapshot s = LayoutSnapshotJson.read(legacy);
+        assertThat(s.layoutVersion()).isEqualByComparingTo("2");
+        assertThat(s.headers().get(0).headerVersion()).isNull();
     }
 
     @Test

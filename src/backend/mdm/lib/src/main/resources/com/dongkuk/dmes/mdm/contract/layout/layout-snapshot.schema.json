@@ -12,7 +12,7 @@
     "rcvSystem": { "type": ["string", "null"] },
     "encoding": { "type": ["string", "null"] },
     "padRule": { "type": ["string", "null"] },
-    "layoutVersion": { "type": "integer" },
+    "layoutVersion": { "type": "number" },
     "totalLength": { "type": "integer" },
     "headers": {
       "type": "array",
@@ -28,7 +28,7 @@
   "$defs": {
     "MdmLayoutHeaderRef": {
       "title": "MdmLayoutHeaderRef",
-      "description": "적층 헤더 한 겹의 스냅샷(D4). offset은 메시지 전체 절대 위치, items[*].offset은 이 헤더 내부 상대 위치다(F23).",
+      "description": "적층 헤더 한 겹의 스냅샷(D4). offset은 메시지 전체 절대 위치, items[*].offset은 이 헤더 내부 상대 위치다(F23). headerVersion은 합성 시각에 고른 헤더 버전(D-144 K1), LEGACY 스냅샷은 null.",
       "type": "object",
       "properties": {
         "seq": { "type": "integer" },
@@ -39,9 +39,10 @@
         "items": {
           "type": "array",
           "items": { "$ref": "#/$defs/MdmLayoutItemSnapshot" }
-        }
+        },
+        "headerVersion": { "type": ["number", "null"] }
       },
-      "required": ["seq", "headerLayoutId", "headerLayoutName", "offset", "totalLength", "items"],
+      "required": ["seq", "headerLayoutId", "headerLayoutName", "offset", "totalLength", "items", "headerVersion"],
       "additionalProperties": false
     },
     "MdmLayoutItemSnapshot": {

@@ -1,15 +1,18 @@
 package com.dongkuk.dmes.mdm.entity;
 
 import com.dongkuk.dmes.cactus.audit.CactusAuditEntity;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 
 /**
  * 전문/헤더 항목 — {@code TB_MDM_LAYOUT_ITEM}(TSK-05-01 design.md §2·§6.0, ERD {@code
- * 03-interface-layout.sql}). 복합 PK 는 {@link MdmLayoutItemId} 로 표현한다.
+ * 03-interface-layout.sql}). 복합 PK(레이아웃·버전·순번)는 {@link MdmLayoutItemId} 로 표현한다. 항목은 레이아웃 버전에 속한다(D-144 3단계).
  *
  * <p>{@code COLUMN_PHYS}({@code TB_MDM_COLUMN})·{@code TRANS_UNIT}({@code TB_MDM_UNIT}) 모두 FK 이지만
  * 연관관계 매핑을 쓰지 않는다(불변 규칙 9) — 원시 필드로만 둔다. 예약어 칼럼 {@code OFFSET}·{@code
@@ -18,11 +21,16 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "TB_MDM_LAYOUT_ITEM")
 @IdClass(MdmLayoutItemId.class)
+@AttributeOverride(name = "version", column = @Column(name = "AUD_VER"))
 public class MdmLayoutItem extends CactusAuditEntity {
 
     @Id
     @Column(name = "LAYOUT_ID")
     private Long layoutId;
+
+    @Id
+    @Column(name = "VER", nullable = false, precision = 7, scale = 3)
+    private BigDecimal ver;
 
     @Id
     @Column(name = "SEQ")
@@ -63,13 +71,15 @@ public class MdmLayoutItem extends CactusAuditEntity {
         // JPA 기본 생성자
     }
 
-    public MdmLayoutItem(Long layoutId, Integer seq, String fillKind) {
+    public MdmLayoutItem(Long layoutId, BigDecimal ver, Integer seq, String fillKind) {
         this.layoutId = layoutId;
+        this.ver = VersionNumbers.scaled(ver);
         this.seq = seq;
         this.fillKind = fillKind;
     }
 
     public Long getLayoutId() { return layoutId; }
+    public BigDecimal getVer() { return VersionNumbers.scaled(ver); }
     public Integer getSeq() { return seq; }
     public String getFillKind() { return fillKind; }
     public String getColumnPhys() { return columnPhys; }

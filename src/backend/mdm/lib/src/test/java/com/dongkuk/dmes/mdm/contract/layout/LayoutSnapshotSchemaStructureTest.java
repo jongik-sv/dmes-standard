@@ -146,6 +146,28 @@ class LayoutSnapshotSchemaStructureTest {
         }
     }
 
+    /**
+     * D-144 3단계 — {@code layoutVersion} 은 scale 3 소수 버전(LEGACY 정수도 number 로 받는다), 헤더 겹마다 합성 시각에 고른
+     * {@code headerVersion}(LEGACY 는 null)을 담는다.
+     */
+    @Test
+    void 레이아웃_버전은_소수이고_헤더마다_헤더_버전을_담는다() throws IOException {
+        JsonNode schema = readSchema();
+        assertEquals("number", schema.path("properties").path("layoutVersion").path("type").asText());
+        JsonNode headerDef = schema.path("$defs").path("MdmLayoutHeaderRef");
+        JsonNode headerVersionType = headerDef.path("properties").path("headerVersion").path("type");
+        assertEquals(List.of("number", "null"), List.of(headerVersionType.get(0).asText(), headerVersionType.get(1).asText()));
+        Set<String> headerRequired = new LinkedHashSet<>();
+        headerDef.path("required").forEach(n -> headerRequired.add(n.asText()));
+        assertTrue(headerRequired.contains("headerVersion"), "헤더 required 에 headerVersion 이 없다: " + headerRequired);
+
+        JsonNode sample = readSample();
+        assertTrue(sample.path("layoutVersion").isNumber(), "샘플 layoutVersion 이 숫자가 아니다");
+        for (JsonNode header : sample.path("headers")) {
+            assertTrue(header.path("headerVersion").isNumber(), "샘플 헤더에 headerVersion 숫자가 없다: " + header.path("seq"));
+        }
+    }
+
     // ── 지원 메서드 ──
 
     private static void assertKeySetsMatch(String nodeName, Set<String> schemaKeys,

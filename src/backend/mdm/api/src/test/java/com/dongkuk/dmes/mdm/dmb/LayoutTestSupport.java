@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngSaveRequest;
 import com.dongkuk.dmes.mdm.dmb.headerMng.service.HeaderMngService;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.service.LayoutMngService;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,6 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * TSK-05-02 design.md §3.2 — api 통합 테스트 공용. 도메인·컬럼은 네이티브 SQL({@code INSERT … WHERE NOT EXISTS}·{@code OR
  * IGNORE}), **헤더 L100·L110 은 반드시 {@link HeaderMngService#save} 로 만든다**(SQL 로 넣으면 헤더 오프셋·총 길이 계산을 아무도
  * 거치지 않는다). 서비스는 트랜잭션 없이 부른다. 한 클래스가 DB 하나를 쓰므로 EAI 코드·레이아웃 이름은 호출마다 새로 만든다.
+ * 행·요청 도우미만 둔다(HTTP 시험도 쓴다) — 서비스로 저장하는 도우미는 {@link LayoutServiceTestSupport}(D-144 3단계).
  */
 public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
 
@@ -91,7 +93,7 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
     /** 단위 원장 한 행(몇 번 불러도 같다). 계수 = 차원 기준 단위로의 배수. */
     protected void unit(String code, String dimension, String base, String factor) {
         jdbc.update("INSERT OR IGNORE INTO TB_MDM_UNIT (UNIT_CODE, DIMENSION, BASE_UNIT, FACTOR, CHG_SEQ) VALUES (?, ?, ?, ?, 0)",
-                code, dimension, base, new java.math.BigDecimal(factor));
+                code, dimension, base, new BigDecimal(factor));
     }
 
     /** 기준 단위가 있는 도메인 — 단위는 먼저 {@link #unit} 으로 넣는다. */
@@ -108,10 +110,6 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
                 + "SELECT ?, ?, 'QTY', ?, ?, ?, ?, 0, 0 WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_DOMAIN WHERE STD_NAME = ?)",
                 "도메인 " + std, std, type, length, scale, stdRule, std);
         return jdbc.queryForObject("SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = ?", Long.class, std);
-    }
-
-    protected List<Map<String, Object>> versionRows(long layoutId) {
-        return jdbc.queryForList("SELECT * FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? ORDER BY LAYOUT_VERSION", layoutId);
     }
 
     /** 샘플 렌더 예시 값 한 행(grid {@code samples}). */
@@ -187,31 +185,31 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
         return m;
     }
 
-    // ------------------------------------------------------------------ 저장 도우미
+    // ------------------------------------------------------------------ 확정(시험 준비 — D-144 3단계)
+
+    /** 시험 준비용 확정자. */
+    protected static final String RELEASED_BY = "kim";
+
+    /**
+     * DRAFT → RELEASED(구간 [applyFrom, 9999)), 직전 열린 RELEASED 를 applyFrom 에서 닫고 부모를 INUSE 로. EAI 표준 헤더 연결
+     * ({@code TB_MDM_EAI.HEADER_LAYOUT_ID})은 건드리지 않는다 — 운영 확정과 같다(표준 헤더는 시각 T 해석, Ruling P3-15·P3-18).
+     */
+    protected void release(long layoutId, String ver, String applyFrom) {
+        jdbc.update("UPDATE TB_MDM_LAYOUT_VER SET APPLY_TO = ? WHERE LAYOUT_ID = ? AND STATUS = 'RELEASED' "
+                + "AND APPLY_TO = '9999-12-31 00:00:00'", applyFrom, layoutId);
+        jdbc.update("UPDATE TB_MDM_LAYOUT_VER SET STATUS = 'RELEASED', APPLY_FROM = ?, APPLY_TO = '9999-12-31 00:00:00', "
+                + "REQUESTED_BY = ?, REQUESTED_AT = ?, RELEASED_AT = ? WHERE LAYOUT_ID = ? AND VER = ?",
+                applyFrom, RELEASED_BY, applyFrom, applyFrom, layoutId, new BigDecimal(ver));
+        jdbc.update("UPDATE TB_MDM_LAYOUT SET STATUS = 'INUSE' WHERE LAYOUT_ID = ?", layoutId);
+    }
+
+    // ------------------------------------------------------------------ 요청 도우미(저장 도우미는 LayoutServiceTestSupport)
 
     protected static HeaderMngSaveRequest headerReq(String name, Consumer<HeaderMngSaveRequest> edit) {
         HeaderMngSaveRequest r = new HeaderMngSaveRequest();
         r.setLayoutName(name);
         edit.accept(r);
         return r;
-    }
-
-    protected long saveHeader(HeaderMngSaveRequest r, List<Map<String, Object>> items) {
-        return ((Number) headerService.save(r, items).get("layoutId")).longValue();
-    }
-
-    /** EAI 를 함께 만든 L100(EUC-KR). */
-    protected long saveL100(String eai) {
-        return saveHeader(headerReq(uniq("GLUE 공통 헤더 "), r -> {
-            r.setEaiCode(eai);
-            r.setEaiName("GLUE " + eai);
-            r.setEncoding("EUC-KR");
-            r.setPadRule("숫자 왼쪽 0, 문자 오른쪽 공백");
-        }), l100Items());
-    }
-
-    protected long saveL110() {
-        return saveHeader(headerReq(uniq("L2 구간 헤더 "), r -> {}), l110Items());
     }
 
     protected static LayoutMngSaveRequest layoutReq(String name, String eai, Consumer<LayoutMngSaveRequest> edit) {
@@ -224,31 +222,6 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
         return r;
     }
 
-    protected long saveLayout(LayoutMngSaveRequest r, List<Map<String, Object>> headers, List<Map<String, Object>> consts,
-                              List<Map<String, Object>> items) {
-        return ((Number) layoutService.save(r, headers, consts, items).get("layoutId")).longValue();
-    }
-
-    /** M201 한 벌: L100(새 EAI)·L110 을 헤더 저장으로 만들고, 전문은 헤더 grid 에 L110 만 준다(L100 은 EAI 자동 삽입). */
-    protected M201 m201(List<Map<String, Object>> consts) {
-        dictionary();
-        String eai = uniq("G");
-        long l100 = saveL100(eai);
-        long l110 = saveL110();
-        List<Map<String, Object>> c = new ArrayList<>();
-        for (Map<String, Object> row : consts) {
-            Map<String, Object> m = new LinkedHashMap<>(row);
-            m.putIfAbsent("HEADER_LAYOUT_ID", l100);
-            c.add(m);
-        }
-        long msg = saveLayout(layoutReq(uniq("출측검사 실적 수신 "), eai, r -> {}), List.of(headerRow(l110)), c, m201Items());
-        return new M201(eai, l100, l110, msg);
-    }
-
-    protected M201 m201() {
-        return m201(List.of());
-    }
-
     /** 재정의 한 행 — HEADER_LAYOUT_ID 는 m201() 이 L100 으로 채운다. */
     protected static Map<String, Object> l100Const(int headerSeq, String value) {
         Map<String, Object> m = new LinkedHashMap<>();
@@ -257,17 +230,16 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
         return m;
     }
 
-    public record M201(String eai, long l100, long l110, long message) {
-    }
-
     // ------------------------------------------------------------------ 조회
 
     protected Map<String, Object> layoutRow(long id) {
         return jdbc.queryForMap("SELECT * FROM TB_MDM_LAYOUT WHERE LAYOUT_ID = ?", id);
     }
 
-    protected List<Map<String, Object>> itemRows(long id) {
-        return jdbc.queryForList("SELECT * FROM TB_MDM_LAYOUT_ITEM WHERE LAYOUT_ID = ? ORDER BY SEQ", id);
+    /** 한 버전의 항목 행(SEQ 순). 버전은 {@code "1"}·{@code "1.000"} 처럼 — 바인딩은 {@code new BigDecimal(ver)}. */
+    protected List<Map<String, Object>> itemRows(long id, String ver) {
+        return jdbc.queryForList("SELECT * FROM TB_MDM_LAYOUT_ITEM WHERE LAYOUT_ID = ? AND VER = ? ORDER BY SEQ", id,
+                new BigDecimal(ver));
     }
 
     protected List<Integer> column(List<Map<String, Object>> rows, String key) {
@@ -275,7 +247,7 @@ public abstract class LayoutTestSupport extends AbstractMdmSharedDbTest {
     }
 
     protected List<Map<String, Object>> constRows(long messageId) {
-        return jdbc.queryForList("SELECT * FROM TB_MDM_LAYOUT_CONST WHERE LAYOUT_ID = ? ORDER BY HEADER_LAYOUT_ID, HEADER_SEQ",
+        return jdbc.queryForList("SELECT * FROM TB_MDM_LAYOUT_CONST WHERE LAYOUT_ID = ? ORDER BY HEADER_LAYOUT_ID, HEADER_COLUMN_PHYS",
                 messageId);
     }
 

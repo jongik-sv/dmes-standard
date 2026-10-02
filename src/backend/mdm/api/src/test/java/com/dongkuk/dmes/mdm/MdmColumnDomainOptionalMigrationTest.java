@@ -78,7 +78,8 @@ class MdmColumnDomainOptionalMigrationTest {
             childRowsBefore.addAll(rows(c, "SELECT LAYOUT_ID, SEQ, COLUMN_PHYS FROM TB_MDM_LAYOUT_ITEM"));
         }
 
-        migrateTo(url, null);
+        // V16 만 본다 — 뒤 마이그레이션(V21 레이아웃 재생성 등)이 표 모양을 바꾸면 이 시험의 전후 비교가 V16 밖의 변화를 잡는다
+        migrateTo(url, V16);
 
         try (Connection c = DriverManager.getConnection(url)) {
             assertEquals(rowsBefore, rows(c, "SELECT * FROM TB_MDM_COLUMN ORDER BY COLUMN_ID"), "① 행의 모든 칼럼 값이 그대로여야 한다");

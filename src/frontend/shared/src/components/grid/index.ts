@@ -8,6 +8,8 @@ export {
   type GridColumn,
   type MdmGridTooltipParams,
 } from "./AgDataGrid";
+export { EditableRowList, type EditableRowListProps } from "./EditableRowList";
+export { moveItem, removeAt, updateAt } from "./row-list-ops";
 export {
   GridBadge,
   GridBadgeCell,

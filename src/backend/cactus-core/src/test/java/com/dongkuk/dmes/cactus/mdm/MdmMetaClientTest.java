@@ -197,7 +197,7 @@ class MdmMetaClientTest {
                 .andExpect(jsonPath("$.grids.keys.rows[0].key").value("K1001"))
                 .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"K1001\",\"value\":{\"b\":2}}],\"failed\":[]}"), MediaType.APPLICATION_JSON));
 
-        MdmFetchResult r = client.fetch(MdmTargetType.LAYOUT, keys);
+        MdmFetchResult r = client.fetch(MdmTargetType.DOMAIN, keys);
 
         assertThat(r.found()).containsOnlyKeys("K1", "K1001");
         assertThat(r.failed()).hasSize(500).containsKey("K501").containsKey("K1000");
@@ -222,12 +222,14 @@ class MdmMetaClientTest {
     void 값_하나를_엔진_모양으로_읽을_수_없으면_그_키만_failed_이고_나머지는_found_다() {
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
                 .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"S1\",\"value\":\"문자열\"},"
-                        + "{\"key\":\"S2\",\"value\":{\"layoutName\":\"전문\"}}],\"failed\":[]}"), MediaType.APPLICATION_JSON));
+                        + "{\"key\":\"S2\",\"value\":[]},"
+                        // 3단계 전 모양(스냅샷 하나)은 이제 읽을 수 없다 — 그 키만 failed
+                        + "{\"key\":\"S3\",\"value\":{\"layoutName\":\"전문\"}}],\"failed\":[]}"), MediaType.APPLICATION_JSON));
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
                 .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"S1\",\"value\":\"문자열\"}],\"failed\":[]}"), MediaType.APPLICATION_JSON));
 
-        MdmFetchResult layouts = client.fetch(MdmTargetType.LAYOUT, List.of("S1", "S2"));
-        assertThat(layouts.failed()).containsOnlyKeys("S1");
+        MdmFetchResult layouts = client.fetch(MdmTargetType.LAYOUT, List.of("S1", "S2", "S3"));
+        assertThat(layouts.failed()).containsOnlyKeys("S1", "S3");
         assertThat(layouts.failed().get("S1")).contains("LAYOUT");
         assertThat(layouts.found()).containsOnlyKeys("S2");
 
@@ -254,7 +256,7 @@ class MdmMetaClientTest {
     @Test
     void fetch_는_value_가_없거나_null_인_항목을_found_에_넣지_않고_failed_로_돌린다() {
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
-                .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"1\",\"value\":{\"layoutName\":\"전문\"}},{\"key\":\"2\",\"value\":null},"
+                .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"1\",\"value\":[]},{\"key\":\"2\",\"value\":null},"
                         + "{\"key\":\"3\"}],\"failed\":[]}"), MediaType.APPLICATION_JSON));
 
         MdmFetchResult r = client.fetch(MdmTargetType.LAYOUT, List.of("1", "2", "3"));
@@ -285,13 +287,28 @@ class MdmMetaClientTest {
         server.verify();
     }
 
+    /**
+     * D-144 3단계 — LAYOUT 값은 RELEASED 버전 목록이다. ver 는 문자열 "1.000" 으로 와서 자리수 그대로 BigDecimal, 적용 구간은 ISO 일시,
+     * 버전마다 합성 구간과 스냅샷 맵을 싣는다.
+     */
     @Test
-    void LAYOUT_값은_맵_그대로다() {
+    void LAYOUT_값은_버전_목록이고_ver_자리수와_합성_구간을_지킨다() {
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
-                .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"3\",\"value\":{\"layoutName\":\"전문\",\"totalLength\":10}}],\"failed\":[]}"),
-                        MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"3\",\"value\":[{\"ver\":\"1.010\","
+                        + "\"applyFrom\":\"2026-01-01T00:00:00\",\"applyTo\":\"9999-12-31T00:00:00\",\"segments\":["
+                        + "{\"applyFrom\":\"2026-01-01T00:00:00\",\"applyTo\":\"2026-04-01T00:00:00\",\"snapshot\":{\"totalLength\":17}},"
+                        + "{\"applyFrom\":\"2026-04-01T00:00:00\",\"applyTo\":\"9999-12-31T00:00:00\",\"snapshot\":{\"totalLength\":19}}]}]}],"
+                        + "\"failed\":[]}"), MediaType.APPLICATION_JSON));
         @SuppressWarnings("unchecked")
-        Map<String, Object> layout = (Map<String, Object>) client.fetch(MdmTargetType.LAYOUT, List.of("3")).found().get("3");
-        assertThat(layout).containsEntry("layoutName", "전문");
+        List<MdmLayoutVersion> versions = (List<MdmLayoutVersion>) client.fetch(MdmTargetType.LAYOUT, List.of("3")).found().get("3");
+        assertThat(versions).hasSize(1);
+        MdmLayoutVersion v = versions.get(0);
+        assertThat(v.ver()).isEqualTo(new BigDecimal("1.010"));
+        assertThat(v.ver().scale()).isEqualTo(3);
+        assertThat(v.applyFrom()).isEqualTo(LocalDateTime.of(2026, 1, 1, 0, 0));
+        assertThat(v.applyTo()).isEqualTo(LocalDateTime.of(9999, 12, 31, 0, 0));
+        assertThat(v.segments()).extracting(MdmLayoutVersion.Segment::applyTo)
+                .containsExactly(LocalDateTime.of(2026, 4, 1, 0, 0), LocalDateTime.of(9999, 12, 31, 0, 0));
+        assertThat(v.segments().get(1).snapshot()).containsEntry("totalLength", 19);
     }
 }

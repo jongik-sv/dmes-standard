@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
-import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
-import com.dongkuk.dmes.mdm.dmb.LayoutTestSupport;
+import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
+import com.dongkuk.dmes.mdm.dmb.LayoutServiceTestSupport;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSearchRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngViewRequest;
@@ -17,15 +17,18 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
  * TSK-05-02 design.md §3.2 — 전문 저장: M201 재현(수용 기준 6), 헤더 잠김·상수 재정의(수용 기준 3), EAI 자동 부착, 거부 L01·L02·
- * L09·L10·L11(불변 I1·I3·I4·I5·I8·I9·I10·I14·I16·I17).
+ * L09·L10·L11(불변 I1·I3·I4·I5·I8·I9·I10·I14·I16·I17). D-144 3단계: 저장은 내 DRAFT 에만 — 확정본을 고치는 시험은 새 DRAFT 를
+ * 만든 뒤 저장한다({@link #resave}). 본문 오프셋은 본문 기준 상대값으로 저장하고 view 는 절대값으로 준다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
-class LayoutMngServiceSqliteTest extends LayoutTestSupport {
+@Import(DmeTestSupport.Config.class)
+class LayoutMngServiceSqliteTest extends LayoutServiceTestSupport {
 
     @BeforeEach
     void setUp() {
@@ -38,12 +41,29 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         return r;
     }
 
+    /** 내 DRAFT 를 다시 저장하는 요청 — DRAFT 가 없으면(확정본) 2.000 DRAFT 를 만든다. */
     private LayoutMngSaveRequest resave(long id) {
-        Map<String, Object> row = layoutRow(id);
-        return layoutReq((String) row.get("LAYOUT_NAME"), (String) row.get("EAI_CODE"), r -> {
+        String ver = draftVer(id);
+        if (ver == null) {
+            ver = "2.000";
+            newDraft(id, "1.000", ver);
+        }
+        String draft = ver;
+        String eai = jdbc.queryForObject("SELECT EAI_CODE FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ? AND VER = ?", String.class, id,
+                new java.math.BigDecimal(draft));
+        return layoutReq((String) layoutRow(id).get("LAYOUT_NAME"), eai, r -> {
             r.setLayoutId(id);
-            r.setVer(ver(row));
+            r.setVer(draft);
+            r.setRowVersion(rowVersion(id, draft));
         });
+    }
+
+    private static int total(Map<String, Object> saved) {
+        return ((Number) saved.get("totalLength")).intValue();
+    }
+
+    private static long id(Map<String, Object> saved) {
+        return ((Number) saved.get("layoutId")).longValue();
     }
 
     private List<Map<String, Object>> stackRows(long messageId) {
@@ -77,10 +97,9 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         M201 m = m201();
         Map<String, Object> msg = layoutRow(m.message());
         assertEquals("MESSAGE", msg.get("LAYOUT_KIND"));
-        assertEquals(187, ((Number) msg.get("TOTAL_LENGTH")).intValue());
-        List<Map<String, Object>> body = itemRows(m.message());
-        assertEquals(130, ((Number) body.get(0).get("OFFSET")).intValue());
-        assertEquals(List.of(130, 150, 158, 162), column(body, "OFFSET"));
+        assertEquals(57, ((Number) versionRows(m.message()).get(0).get("OWN_LENGTH")).intValue(), "버전 행은 본문 길이만");
+        List<Map<String, Object>> body = itemRows(m.message(), "1");
+        assertEquals(List.of(0, 20, 28, 32), column(body, "OFFSET"), "저장은 본문 기준 상대값(D-144 3단계)");
         assertEquals(List.of(20, 8, 4, 25), column(body, "LENGTH"));
         List<Map<String, Object>> stack = stackRows(m.message());
         assertEquals(2, stack.size());
@@ -103,11 +122,12 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         String eai = uniq("G");
         long l100 = saveL100(eai);
         long l110 = saveL110();
-        long only = saveLayout(layoutReq(uniq("EAI 만 "), eai, r -> {}), List.of(), List.of(), m201Items());
+        Map<String, Object> onlyOut = layoutService.save(layoutReq(uniq("EAI 만 "), eai, r -> {}), List.of(), List.of(), m201Items());
+        long only = id(onlyOut);
         List<Map<String, Object>> stack = stackRows(only);
         assertEquals(1, stack.size());
         assertEquals(l100, ((Number) stack.get(0).get("HEADER_LAYOUT_ID")).longValue());
-        assertEquals(157, ((Number) layoutRow(only).get("TOTAL_LENGTH")).intValue(), "03 원문 샘플(L110 제외) 157");
+        assertEquals(157, total(onlyOut), "03 원문 샘플(L110 제외) 157");
         // 이미 있으면 중복으로 넣지 않는다 — 순서도 그대로
         long both = saveLayout(layoutReq(uniq("EAI+L110 "), eai, r -> {}), List.of(headerRow(l100), headerRow(l110)), List.of(),
                 m201Items());
@@ -117,26 +137,29 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         List<Map<String, Object>> rs = stackRows(reversed);
         assertEquals(List.of(l110, l100), rs.stream().map(r -> ((Number) r.get("HEADER_LAYOUT_ID")).longValue()).toList());
         // EAI 가 없으면 끼우지 않는다
-        long none = saveLayout(layoutReq(uniq("EAI 없음 "), null, r -> {}), List.of(headerRow(l110)), List.of(), m201Items());
-        assertEquals(1, stackRows(none).size());
-        assertEquals(30 + 57, ((Number) layoutRow(none).get("TOTAL_LENGTH")).intValue());
+        Map<String, Object> noneOut = layoutService.save(layoutReq(uniq("EAI 없음 "), null, r -> {}), List.of(headerRow(l110)), List.of(),
+                m201Items());
+        assertEquals(1, stackRows(id(noneOut)).size());
+        assertEquals(30 + 57, total(noneOut));
     }
 
     @Test
     void 전문_저장은_헤더_행을_바꾸지_않는다() {
         M201 m = m201();
         Map<String, Object> l100Before = layoutRow(m.l100());
-        List<Map<String, Object>> l100ItemsBefore = itemRows(m.l100());
+        List<Map<String, Object>> l100ItemsBefore = itemRows(m.l100(), "1");
         Map<String, Object> l110Before = layoutRow(m.l110());
-        List<Map<String, Object>> l110ItemsBefore = itemRows(m.l110());
+        List<Map<String, Object>> l110ItemsBefore = itemRows(m.l110(), "1");
         List<Map<String, Object>> items = m201Items();
         items.remove(3);
-        saveLayout(resave(m.message()), List.of(headerRow(m.l110())), List.of(constRowFor(m.l100(), 2, "B1")), items);
+        Map<String, Object> out = layoutService.save(resave(m.message()), List.of(headerRow(m.l110())),
+                List.of(constRowFor(m.l100(), 2, "B1")), items);
         assertEquals(l100Before, layoutRow(m.l100()));
-        assertEquals(l100ItemsBefore, itemRows(m.l100()));
+        assertEquals(l100ItemsBefore, itemRows(m.l100(), "1"));
         assertEquals(l110Before, layoutRow(m.l110()));
-        assertEquals(l110ItemsBefore, itemRows(m.l110()));
-        assertEquals(162, ((Number) layoutRow(m.message()).get("TOTAL_LENGTH")).intValue());
+        assertEquals(l110ItemsBefore, itemRows(m.l110(), "1"));
+        assertEquals(162, total(out));
+        assertEquals(4, itemRows(m.message(), "1").size(), "확정본 행은 그대로 — 저장은 새 DRAFT 에만");
     }
 
     private static Map<String, Object> constRowFor(long header, int seq, String value) {
@@ -158,7 +181,7 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         assertEquals("B0", sndB.get("EFFECTIVE_VALUE"));
         assertNull(sndB.get("OVERRIDE_VALUE"));
 
-        assertEquals("B0", itemRows(a.l100()).get(1).get("DEFAULT_VALUE"), "헤더 항목 기본값은 그대로(I8)");
+        assertEquals("B0", itemRows(a.l100(), "1").get(1).get("DEFAULT_VALUE"), "헤더 항목 기본값은 그대로(I8)");
         assertTrue(constRows(b).isEmpty());
         // 빈 재정의는 "재정의 없음" — 행을 남기지 않는다(I10)
         saveLayout(resave(b), List.of(headerRow(a.l110())), List.of(constRow(a.l100(), 2, "")), m201Items());
@@ -185,6 +208,7 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         List<Map<String, Object>> withData = new ArrayList<>(l110Items());
         withData.add(item("DATA", "EXTRA_3", null));
         long h = saveHeader(headerReq(uniq("DATA 헤더 "), r -> {}), numbered(withData));
+        release(h, "1.000", HEADER_FROM);
         String data = rejectMessage(() -> layoutService.save(layoutReq(uniq("D "), null, r -> {}), List.of(headerRow(h)),
                 List.of(constRow(h, 7, "X")), m201Items()));
         assertTrue(data.startsWith("전문 저장 거부: L10"), data);
@@ -293,7 +317,8 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         long l110 = saveL110();
         LayoutMngSaveRequest onHeader = layoutReq("헤더를 전문으로", null, r -> {
             r.setLayoutId(l110);
-            r.setVer(ver(layoutRow(l110)));
+            r.setVer("1.000");
+            r.setRowVersion(0L);
         });
         String kind = rejectMessage(() -> layoutService.save(onHeader, List.of(), List.of(), m201Items()));
         assertTrue(kind.startsWith("전문 저장 거부: L11"), kind);
@@ -305,10 +330,10 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         long child = domain(uniq("C_THK_"), "QTY", "NUMBER", null, null, parent);
         String phys = uniq("CHILD_THK_");
         column(phys, "상속 두께 " + phys, null, child);
-        long id = saveLayout(layoutReq(uniq("상속 "), null, r -> {}), List.of(), List.of(),
+        Map<String, Object> out = layoutService.save(layoutReq(uniq("상속 "), null, r -> {}), List.of(), List.of(),
                 numbered(new ArrayList<>(List.of(item("DATA", phys, null)))));
-        assertEquals(List.of(3), column(itemRows(id), "LENGTH"));
-        assertEquals(3, ((Number) layoutRow(id).get("TOTAL_LENGTH")).intValue());
+        assertEquals(List.of(3), column(itemRows(id(out), "1"), "LENGTH"));
+        assertEquals(3, total(out));
     }
 
     @Test
@@ -319,18 +344,20 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
             m.put("LENGTH", 999);
         }
         long id = saveLayout(layoutReq(uniq("길이 "), null, r -> {}), List.of(), List.of(), items);
-        assertEquals(List.of(20, 8, 4, 25), column(itemRows(id), "LENGTH"));
-        assertEquals(List.of(0, 20, 28, 32), column(itemRows(id), "OFFSET"));
+        assertEquals(List.of(20, 8, 4, 25), column(itemRows(id, "1"), "LENGTH"));
+        assertEquals(List.of(0, 20, 28, 32), column(itemRows(id, "1"), "OFFSET"));
     }
 
     @Test
-    void 같은_내용을_두_번_저장해도_버전은_1이다() {
-        // TSK-05-03 D4 — 05-02 의 "버전을 올리지 않는다"(I17)를 "스냅샷이 바뀔 때만 버전을 만든다"(05-03 I15)로 대체한다
+    void 같은_DRAFT_를_두_번_저장해도_버전_행은_하나다() {
+        // D-144 3단계 — 저장은 버전을 만들지 않는다(TSK-05-03 I15 폐지). 버전은 새 버전·확정으로만 바뀐다
         M201 m = m201();
-        saveLayout(resave(m.message()), List.of(headerRow(m.l110())), List.of(), m201Items());
-        saveLayout(resave(m.message()), List.of(headerRow(m.l110())), List.of(), m201Items());
-        assertEquals(1L, ((Number) layoutRow(m.message()).get("VERSION")).longValue());
-        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID = ?", Integer.class, m.message()));
+        long id = saveLayout(layoutReq(uniq("두 번 "), m.eai(), r -> {}), List.of(headerRow(m.l110())), List.of(), m201Items());
+        saveLayout(resave(id), List.of(headerRow(m.l110())), List.of(), m201Items());
+        saveLayout(resave(id), List.of(headerRow(m.l110())), List.of(), m201Items());
+        assertEquals(1, versionRows(id).size());
+        assertEquals("DRAFT", versionRows(id).get(0).get("STATUS"));
+        assertEquals(2L, rowVersion(id, "1.000"));
     }
 
     @Test
@@ -371,7 +398,9 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         assertEquals(l100Name + " (100) + " + l110Name + " (30)", row.get("HEADER_SUMMARY"));
         assertEquals(187, row.get("TOTAL_LENGTH"));
         assertEquals(4, ((Number) row.get("ITEM_COUNT")).intValue());
-        assertEquals(1L, ((Number) row.get("LAYOUT_VERSION")).longValue(), "저장 즉시 버전 1(TSK-05-03 D4)");
+        assertEquals("1.000", row.get("CURRENT_VER"), "지금 적용 중인 버전(D-144 3단계)");
+        assertNull(row.get("DRAFT_VER"));
+        assertEquals("INUSE", row.get("STATUS"));
         assertTrue(((List<Map<String, Object>>) out.get("systems")).stream().anyMatch(s -> "L2".equals(s.get("SYSTEM_CODE"))));
         assertTrue(((List<Map<String, Object>>) out.get("headers")).stream()
                 .anyMatch(h -> ((Number) h.get("LAYOUT_ID")).longValue() == m.l110()));
@@ -401,18 +430,46 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
     }
 
     @Test
-    void 요청_ver_가_DB_VER_와_다르면_MDM001_로_거부한다() {
+    void 요청_rowVersion_이_DB_와_다르면_MDM001_로_거부한다() {
         M201 m = m201();
         LayoutMngSaveRequest r = resave(m.message());
-        r.setVer(r.getVer() - 1);
+        r.setRowVersion(r.getRowVersion() + 5);
         String msg = rejectMessage(() -> layoutService.save(r, List.of(headerRow(m.l110())), List.of(), m201Items()));
         assertTrue(msg.contains("다른 사용자가 수정했습니다"), msg);
     }
 
+    // ── Task 5 검토 Minor-1 — 쌓인 헤더에 판정 시각의 확정 버전이 없으면 길이를 0 으로 합성하지 않고 null 로 준다(headerMng usedBy 와 같다) ──
+
     @Test
-    void META_전문_저장은_그_전문을_기록한다() {
-        MetaRevTestSupport.clear(jdbc);
+    @SuppressWarnings("unchecked")
+    void 쌓인_헤더에_판정_시각의_확정_버전이_없으면_목록과_view_의_길이와_본문_OFFSET_이_null_이다() {
         M201 m = m201();
-        assertTrue(MetaRevTestSupport.keys(jdbc, "LAYOUT").contains(String.valueOf(m.message())), MetaRevTestSupport.rows(jdbc).toString());
+        // L110 의 확정을 미래로 옮긴다 — 지금(2026-06-15)과 asOf 이전 시각에는 L110 확정 버전이 없다
+        jdbc.update("UPDATE TB_MDM_LAYOUT_VER SET APPLY_FROM = '2026-12-01 00:00:00' WHERE LAYOUT_ID = ?", m.l110());
+
+        LayoutMngSearchRequest search = new LayoutMngSearchRequest();
+        Map<String, Object> row = ((List<Map<String, Object>>) layoutService.search(search).get("layouts")).stream()
+                .filter(r -> ((Number) r.get("LAYOUT_ID")).longValue() == m.message()).findFirst().orElseThrow();
+        assertNull(row.get("TOTAL_LENGTH"), row.toString());
+        assertTrue(((String) row.get("HEADER_SUMMARY")).contains("(-)"), row.toString());
+
+        LayoutMngViewRequest v = new LayoutMngViewRequest();
+        v.setLayoutId(m.message());
+        Map<String, Object> view = layoutService.view(v);
+        Map<String, Object> layout = (Map<String, Object>) view.get("layout");
+        assertNull(layout.get("TOTAL_LENGTH"));
+        assertNull(layout.get("HEADER_LENGTH"));
+        assertEquals(57, layout.get("OWN_LENGTH"), "본문 길이는 판정 시각과 무관하다");
+        List<Map<String, Object>> headers = (List<Map<String, Object>>) view.get("headers");
+        assertEquals(100, headers.get(0).get("TOTAL_LENGTH"), "L100 은 확정 버전이 있다");
+        assertEquals("MISSING", headers.get(1).get("HEADER_STATE"));
+        assertNull(headers.get(1).get("TOTAL_LENGTH"));
+        assertTrue(((List<Map<String, Object>>) view.get("items")).stream().allMatch(i -> i.get("OFFSET") == null), view.toString());
+
+        // 판정 시각이 확정 뒤면 다시 합성된다
+        v.setAsOf("2026-12-01 00:00:00");
+        Map<String, Object> later = (Map<String, Object>) layoutService.view(v).get("layout");
+        assertEquals(187, later.get("TOTAL_LENGTH"));
+        assertEquals(130, later.get("HEADER_LENGTH"));
     }
 }

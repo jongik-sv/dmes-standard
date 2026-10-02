@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
-import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
-import com.dongkuk.dmes.mdm.dmb.layout.LayoutSnapshotJson;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.dmc.MasterCodeSeeds;
@@ -308,18 +306,92 @@ class MetaFeedOasisHttpTest {
         assertEquals("BASE", code.path("categories").get(0).path("cateId").asText());
     }
 
+    /**
+     * D-144 3단계 · ADR-0007 D6 — LAYOUT 은 전문의 RELEASED 버전 목록(VER 수 비교 순, ver 는 문자열 "1.000")이다. 버전마다 적용 구간과,
+     * 그 구간을 쌓은 헤더의 버전 경계로 나눈 합성 구간 목록을 준다. 헤더·없는 ID·숫자 아닌 키는 빠지고, RELEASED 가 없는 전문은 빈 목록,
+     * 어느 구간이든 합성이 깨진 전문(쌓은 헤더에 RELEASED 가 없음)은 그 키만 failed 다(Ruling R4).
+     */
     @Test
-    void view_LAYOUT_은_최신_버전_스냅샷을_주고_버전이_없는_ID_는_뺀다() throws Exception {
-        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_KIND, LAYOUT_NAME, TOTAL_LENGTH) VALUES ('MESSAGE', '피드 전문', 10)");
-        long id = jdbc.queryForObject("SELECT LAYOUT_ID FROM TB_MDM_LAYOUT WHERE LAYOUT_NAME = '피드 전문'", Long.class);
-        String snapshot = LayoutSnapshotJson.write(new MdmLayoutSnapshot(id, "피드 전문", null, null, null, null, null, 1L, 10,
-                List.of(), List.of()));
-        jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, LAYOUT_VERSION, TOTAL_LENGTH, SNAPSHOT_JSON) VALUES (?, 1, 10, ?)", id, snapshot);
+    void view_LAYOUT_은_RELEASED_버전_목록과_헤더_경계로_나눈_합성_구간을_준다() throws Exception {
+        clearLayouts();
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER) VALUES "
+                + "(9790, 'HEADER', '피드 헤더', 'INUSE', 0), (9791, 'HEADER', '초안 헤더', 'CREATED', 0), "
+                + "(9701, 'MESSAGE', '피드 전문', 'INUSE', 0), (9702, 'MESSAGE', '피드 초안 전문', 'CREATED', 0), "
+                + "(9703, 'MESSAGE', '깨진 전문', 'INUSE', 0), (9704, 'MESSAGE', '헤더 없는 전문', 'INUSE', 0)");
+        layoutVer(9790, "1.000", "RELEASED", "2000-01-01 00:00:00", "2026-04-01 00:00:00", 7);
+        layoutVer(9790, "2.000", "RELEASED", "2026-04-01 00:00:00", "9999-12-31 00:00:00", 9);
+        layoutVer(9791, "1.000", "DRAFT", null, null, 3);
+        layoutVer(9701, "1.000", "RELEASED", "2000-01-01 00:00:00", "2026-07-01 00:00:00", 10);
+        layoutVer(9701, "2.000", "RELEASED", "2026-07-01 00:00:00", "9999-12-31 00:00:00", 12);
+        layoutVer(9701, "3.000", "DRAFT", null, null, 99);
+        layoutVer(9702, "1.000", "DRAFT", null, null, 5);
+        layoutVer(9703, "1.000", "RELEASED", "2000-01-01 00:00:00", "9999-12-31 00:00:00", 4);
+        layoutVer(9704, "1.000", "RELEASED", "2000-01-01 00:00:00", "9999-12-31 00:00:00", 5);
+        stack(9701, "1.000", 9790);
+        stack(9701, "2.000", 9790);
+        stack(9703, "1.000", 9791);
 
-        JsonNode r = view("LAYOUT", String.valueOf(id), "999999", "abc");
+        JsonNode r = view("LAYOUT", "9701", "9702", "9790", "9703", "9704", "999999", "abc");
 
-        assertEquals(1, r.path("items").size(), r.toString());
-        assertEquals("피드 전문", item(r, String.valueOf(id)).path("layoutName").asText());
+        assertEquals(3, r.path("items").size(), r.toString());
+        assertEquals(1, r.path("failed").size(), r.toString());
+        assertEquals("9703", r.path("failed").get(0).path("key").asText(), r.toString());
+        assertTrue(r.path("failed").get(0).path("message").asText().contains("9791"), r.toString());
+        assertEquals(0, item(r, "9702").size(), "RELEASED 가 없는 전문은 빈 목록");
+        // 헤더를 쌓지 않은 전문 — 나눌 경계가 없어 버전 하나, 구간 하나
+        JsonNode plain = item(r, "9704");
+        assertEquals(1, plain.size(), plain.toString());
+        assertEquals(1, plain.get(0).path("segments").size(), plain.toString());
+        JsonNode plainSnap = plain.get(0).path("segments").get(0).path("snapshot");
+        assertEquals(5, plainSnap.path("totalLength").asInt(), plain.toString());
+        assertEquals(0, plainSnap.path("headers").size(), plain.toString());
+
+        JsonNode versions = item(r, "9701");
+        assertEquals(2, versions.size(), versions.toString());                       // DRAFT 3.000 은 오지 않는다
+        JsonNode v1 = versions.get(0);
+        assertEquals("1.000", v1.path("ver").asText());
+        assertTrue(v1.path("ver").isTextual(), v1.toString());
+        assertEquals("2000-01-01T00:00:00", v1.path("applyFrom").asText());
+        assertEquals("2026-07-01T00:00:00", v1.path("applyTo").asText());
+        // 헤더 2.000 이 2026-04-01 에 시작하므로 전문 1.000 은 두 합성 구간이다
+        JsonNode segs = v1.path("segments");
+        assertEquals(2, segs.size(), segs.toString());
+        assertEquals("2000-01-01T00:00:00", segs.get(0).path("applyFrom").asText());
+        assertEquals("2026-04-01T00:00:00", segs.get(0).path("applyTo").asText());
+        assertEquals(17, segs.get(0).path("snapshot").path("totalLength").asInt(), segs.toString());
+        assertEquals(0, segs.get(0).path("snapshot").path("headers").get(0).path("headerVersion").decimalValue()
+                .compareTo(new BigDecimal("1.000")));
+        assertEquals("2026-04-01T00:00:00", segs.get(1).path("applyFrom").asText());
+        assertEquals("2026-07-01T00:00:00", segs.get(1).path("applyTo").asText());
+        assertEquals(19, segs.get(1).path("snapshot").path("totalLength").asInt(), segs.toString());
+        assertEquals("피드 전문", segs.get(1).path("snapshot").path("layoutName").asText());
+        JsonNode v2 = versions.get(1);
+        assertEquals("2.000", v2.path("ver").asText());
+        assertEquals("9999-12-31T00:00:00", v2.path("applyTo").asText());
+        assertEquals(1, v2.path("segments").size(), v2.toString());
+        assertEquals(21, v2.path("segments").get(0).path("snapshot").path("totalLength").asInt(), v2.toString());
+        assertEquals(new BigDecimal("2.000"), v2.path("segments").get(0).path("snapshot").path("layoutVersion").decimalValue(),
+                "스냅샷 안 버전도 자리수(scale 3)를 지킨다");
+    }
+
+    private void clearLayouts() {
+        String ids = "(9701, 9702, 9703, 9704, 9790, 9791)";
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_CONST WHERE LAYOUT_ID IN " + ids);
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_HEADER WHERE LAYOUT_ID IN " + ids);
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_ITEM WHERE LAYOUT_ID IN " + ids);
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID IN " + ids);
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT WHERE LAYOUT_ID IN " + ids);
+    }
+
+    private void layoutVer(long id, String ver, String status, String from, String to, int own) {
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, OWN_LENGTH) "
+                + "VALUES (?, ?, 'MAJOR', ?, ?, ?, ?, ?)", id, new BigDecimal(ver), status, "DRAFT".equals(status) ? "kim" : null,
+                from, to, own);
+    }
+
+    private void stack(long messageId, String ver, long headerId) {
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT_HEADER (LAYOUT_ID, VER, SEQ, HEADER_LAYOUT_ID) VALUES (?, ?, 1, ?)",
+                messageId, new BigDecimal(ver), headerId);
     }
 
     // ------------------------------------------------------------------ Ruling R3 순환·깨진 도메인 체인

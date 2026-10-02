@@ -9,8 +9,12 @@
  *
  * TSK-05-03: 오른쪽 패널 위에 탭 셋 — `편집`(05-02 화면 그대로, 기본) · `등록 검증·샘플 전문`(validate·execute, 현재 편집 상태로) ·
  * `버전·영향도`(view 가 준 이력, 행을 고르면 export 스냅샷, 영향 전문 search target=IMPACT). 목록 선택은 요청을 늘리지 않는다.
+ *
+ * D-144 3단계: 버전 선택·시각 T·버전 버튼(VersionActionBar). 편집은 내 DRAFT 만 — 저장은 버전을 만들지 않고 고른 DRAFT 를
+ * `ver`·`rowVersion` 으로 덮어쓴다. 신규 저장은 v1.000 DRAFT 를 만든다. T 를 바꾸면 그 시각의 헤더 버전으로 다시 읽는다.
+ * 버전은 문자열(`"1.001"`)로만 다루고 비교·키는 `normVer` 로 맞춘다.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@dk-oasis/shared/form";
 import {
   ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField, canDoButton, useUserButtonRbac,
@@ -23,11 +27,17 @@ import { LayoutItemDetail } from "@/layout/LayoutItemDetail";
 import { precheck } from "@/layout/fill-kind";
 import { downloadText } from "@/layout/download";
 import { newColumnRow, newFillerRow } from "@/layout/item-rows";
-import { placeHeader, placeMessage, reorder, renumber, summaryText } from "@/layout/layout-calc";
+import { placeMessage, reorder, renumber, summaryText } from "@/layout/layout-calc";
 import { SNAPSHOT_EXCEL_COLUMNS, snapshotExcelRows, snapshotJsonText } from "@/layout/snapshot-export";
 import { hint, sectionBody, sectionTitle } from "@/layout/styles";
-import type { ColumnInfo, HeaderStackRow, LayoutItemRow, UnitRow } from "@/layout/types";
-import { MdmPageLayout } from "@/shell";
+import type { ColumnInfo, HeaderStackRow, LayoutItemRow, LayoutVersionRow, UnitRow } from "@/layout/types";
+import {
+  cancelLayoutConfirm, deleteLayoutDraft, handoverLayoutDraft, lockLayoutDraft, newLayoutVersion, unlockLayoutDraft, type LayoutVersionResult,
+} from "@/layout/version-api";
+import { versionActionState } from "@/layout/version-rows";
+import {
+  DraftLockBadge, HANDOVER_AVAILABLE, MdmPageLayout, VersionActionBar, VersionStatusBadge, fmtVer, normVer, openMdmPage, type MdmVersionStatus,
+} from "@/shell";
 import {
   exportSnapshot, renderSample, saveLayout, searchColumns, searchHeaders, searchImpact, searchLayouts, loadLayoutOptions, validateLayout, viewLayout,
 } from "./api";
@@ -42,11 +52,12 @@ import { LayoutList } from "./components/LayoutList";
 import { SampleMessagePanel } from "./components/SampleMessagePanel";
 import { VersionPanel } from "./components/VersionPanel";
 import type {
-  CheckResult, ConstRow, EaiRow, ExportResult, HeaderOption, ImpactRow, LayoutDraft, LayoutRow, SampleResult, SearchFilters, SystemRow,
-  VersionRow,
+  CheckResult, ConstRow, EaiRow, ExportResult, HeaderOption, ImpactRow, LayoutDraft, LayoutRow, SampleResult, SearchFilters, SystemRow, ViewHeader,
+  ViewResult,
 } from "./types";
 
 const SCREEN_ID = "layoutMng";
+const CONFIRM_PAGE = "dmb/layoutConfirm";
 
 type Mode = "none" | "edit" | "new";
 type Tab = "edit" | "check" | "version";
@@ -57,19 +68,21 @@ const TAB_ITEMS = [
   { key: "version", label: <span data-testid="layout-tab-version">버전·영향도</span> },
 ];
 
-const EMPTY_DRAFT: LayoutDraft = { layoutId: null, ver: null, layoutName: "", eaiCode: null, sndSystem: null, rcvSystem: null };
+const EMPTY_DRAFT: LayoutDraft = {
+  layoutId: null, ver: null, rowVersion: null, asOf: null, layoutName: "", eaiCode: null, sndSystem: null, rcvSystem: null,
+};
 const EMPTY_FILTERS: SearchFilters = { keyword: "", headerLayoutId: "", sndSystem: "", rcvSystem: "" };
 
 let keySeq = 0;
 const newKey = (prefix: string) => `${prefix}${++keySeq}`;
 
-function stackRow(h: HeaderOption | { HEADER_LAYOUT_ID: number; HEADER_NAME: string; EAI_CODE?: string | null; TOTAL_LENGTH: number; items: LayoutItemRow[] }): HeaderStackRow {
+function stackRow(h: HeaderOption | ViewHeader): HeaderStackRow {
   if ("LAYOUT_ID" in h) {
     return { KEY: newKey("h"), SEQ: 0, HEADER_LAYOUT_ID: h.LAYOUT_ID, HEADER_NAME: h.LAYOUT_NAME, EAI_CODE: h.EAI_CODE ?? null,
       TOTAL_LENGTH: h.TOTAL_LENGTH, items: (h.items ?? []).map((i) => ({ ...i, OVERRIDE_VALUE: null })) };
   }
   return { KEY: newKey("h"), SEQ: 0, HEADER_LAYOUT_ID: h.HEADER_LAYOUT_ID, HEADER_NAME: h.HEADER_NAME, EAI_CODE: h.EAI_CODE ?? null,
-    TOTAL_LENGTH: h.TOTAL_LENGTH, items: h.items };
+    TOTAL_LENGTH: h.TOTAL_LENGTH ?? null, HEADER_VER: h.HEADER_VER ?? null, HEADER_STATE: h.HEADER_STATE ?? null, items: h.items ?? [] };
 }
 
 function withSeq(stack: HeaderStackRow[]): HeaderStackRow[] {
@@ -81,6 +94,7 @@ export default function LayoutMngPage() {
   const canEdit = canDoButton(rbac, SCREEN_ID, "save");
   const canValidate = canDoButton(rbac, SCREEN_ID, "validate");
   const canExecute = canDoButton(rbac, SCREEN_ID, "execute");
+  const me = rbac.userId;
   const { showMessage } = useMessage();
 
   const [filters, setFilters] = useState<SearchFilters>(EMPTY_FILTERS);
@@ -93,7 +107,15 @@ export default function LayoutMngPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [mode, setMode] = useState<Mode>("none");
   const [draft, setDraft] = useState<LayoutDraft>(EMPTY_DRAFT);
-  const [layoutVersion, setLayoutVersion] = useState<number | null>(null);
+  // ── D-144 3단계 버전 ──
+  const [view, setView] = useState<ViewResult | null>(null);
+  /** 시각 T(null = 지금). 다른 전문을 열어도 유지한다. */
+  const [asOf, setAsOf] = useState<string | null>(null);
+  /** 사용자가 고른 편집 대상 버전(null = 서버가 고른다 — 내 DRAFT 우선, 없으면 T 시점 현재). */
+  const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
+  const [handoverTo, setHandoverTo] = useState("");
+  /** view 요청 순번 — T 를 연달아 바꾸면 늦게 온 옛 응답을 버린다. */
+  const viewSeq = useRef(0);
   const [stack, setStack] = useState<HeaderStackRow[]>([]);
   const [body, setBody] = useState<LayoutItemRow[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -107,21 +129,26 @@ export default function LayoutMngPage() {
   const [check, setCheck] = useState<CheckResult | null>(null);
   const [samples, setSamples] = useState<Record<string, string>>({});
   const [sample, setSample] = useState<SampleResult | null>(null);
-  const [versions, setVersions] = useState<VersionRow[]>([]);
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const [versions, setVersions] = useState<LayoutVersionRow[]>([]);
+  /** 버전·영향도 탭에서 고른 스냅샷 버전(편집 대상 버전과 따로 둔다). */
+  const [snapshotVersion, setSnapshotVersion] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<ExportResult | null>(null);
   const [impacts, setImpacts] = useState<ImpactRow[] | null>(null);
   const [impactLoading, setImpactLoading] = useState(false);
 
-  const readOnly = mode === "none" || !canEdit || busy;
+  const selected = view?.selected ?? null;
+  // 신규(mode === "new")는 저장하면 v1.000 DRAFT 가 생긴다. 기존 전문은 서버가 편집 가능(내 DRAFT)이라고 한 버전만 고친다.
+  const readOnly = mode === "none" || !canEdit || busy || (mode === "edit" && !view?.editable);
+  const versionActions = versionActionState(view ?? {}, me, (a) => canDoButton(rbac, SCREEN_ID, a));
+  const mine = selected?.STATUS === "DRAFT" && !!me && selected.OWNER_ID === me;
+  /** 버전 액션·확정 인계에 보내는 고른 버전 — 정규 문자열(`"1.1"` 로 와도 `"1.100"`). */
+  const selVer = selected ? normVer(selected.VER) ?? selected.VER : "";
 
-  // ── 즉시 재계산(I11) — 헤더 길이는 헤더 정의의 TOTAL_LENGTH, 본문은 항목에서 ──
+  // ── 즉시 재계산(I11) — 헤더 길이는 판정 시각 T 의 헤더 TOTAL_LENGTH, 본문은 항목에서 ──
+  // 헤더 길이가 null(그 시각에 확정 헤더 없음)이면 그 뒤 오프셋·합계는 null 이다 — 0 으로 바꿔 더하지 않는다.
   const headerTotals = useMemo(() => stack.map((h) => h.TOTAL_LENGTH), [stack]);
-  const placedStack = useMemo(() => {
-    const offsets = placeHeader(stack.map((h): LayoutItemRow => ({ SEQ: h.SEQ, FILL_KIND: "FILLER", FILLER_LENGTH: h.TOTAL_LENGTH })));
-    return stack.map((h, i) => ({ ...h, OFFSET: offsets.rows[i].OFFSET }));
-  }, [stack]);
   const placed = useMemo(() => placeMessage(headerTotals, body), [headerTotals, body]);
+  const placedStack = useMemo(() => stack.map((h, i) => ({ ...h, OFFSET: placed.headerOffsets[i] })), [stack, placed]);
   const totalText = summaryText(headerTotals, placed.rows);
   const selectedItem = placed.rows.find((r) => r.KEY === selectedKey) ?? null;
 
@@ -167,43 +194,48 @@ export default function LayoutMngPage() {
     return list;
   }, [catalog]);
 
-  // ── 행 선택 → view ──
-  const openLayout = useCallback(async (id: number) => {
+  // ── 행 선택·버전 선택·T 변경 → view(ver 를 빼면 서버가 고른다) ──
+  const openLayout = useCallback(async (id: number, ver: string | null, at: string | null) => {
+    const seq = ++viewSeq.current;
     setBusy(true);
     try {
-      const out = await viewLayout(id);
+      const out = await viewLayout(id, ver, at);
+      if (seq !== viewSeq.current) return;
       const l = out.layout;
       if (!l) return;
+      const sel = out.selected ?? null;
       setSelectedId(l.LAYOUT_ID);
-      setDraft({ layoutId: l.LAYOUT_ID, ver: l.VER, layoutName: l.LAYOUT_NAME, eaiCode: l.EAI_CODE ?? null,
-        sndSystem: l.SND_SYSTEM ?? null, rcvSystem: l.RCV_SYSTEM ?? null });
-      setLayoutVersion(l.LAYOUT_VERSION);
+      setView(out);
+      setSelectedVersion(ver);
+      setDraft({ layoutId: l.LAYOUT_ID, ver: sel ? normVer(sel.VER) ?? sel.VER : null, rowVersion: sel?.ROW_VERSION ?? null, asOf: at,
+        layoutName: l.LAYOUT_NAME, eaiCode: l.EAI_CODE ?? null, sndSystem: l.SND_SYSTEM ?? null, rcvSystem: l.RCV_SYSTEM ?? null });
       setStack(withSeq((out.headers ?? []).map((h) => stackRow(h))));
       setBody(renumber((out.items ?? []).map((i) => ({ ...i, KEY: newKey("b") }))));
       setUnits(out.units ?? []);
       setSelectedKey(null);
       setVersions(out.versions ?? []);
-      setSelectedVersion(null);
+      setSnapshotVersion(null);
       setSnapshot(null);
       setCheck(null);
       setSample(null);
       setMode("edit");
     } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : String(e));
+      if (seq === viewSeq.current) setErrorMessage(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      if (seq === viewSeq.current) setBusy(false);
     }
   }, []);
 
   const startNew = () => {
     setSelectedId(null);
-    setDraft({ ...EMPTY_DRAFT });
-    setLayoutVersion(null);
+    setDraft({ ...EMPTY_DRAFT, asOf });
+    setView(null);
+    setSelectedVersion(null);
     setStack([]);
     setBody([]);
     setSelectedKey(null);
     setVersions([]);
-    setSelectedVersion(null);
+    setSnapshotVersion(null);
     setSnapshot(null);
     setCheck(null);
     setSample(null);
@@ -263,10 +295,14 @@ export default function LayoutMngPage() {
     const consts = overrideRows();
     setBusy(true);
     try {
-      const out = await saveLayout(draft, stack, consts, placed.rows);
+      // 저장은 버전을 만들지 않는다 — 고른 DRAFT(ver)를 rowVersion 으로 덮어쓴다. 신규는 응답이 v1.000·rowVersion 0 이다.
+      const out = await saveLayout({ ...draft, ver: draft.ver, rowVersion: draft.rowVersion, asOf }, stack, consts, placed.rows);
+      const savedVer = out.ver ?? draft.ver;
+      setDraft((d) => ({ ...d, layoutId: out.layoutId ?? d.layoutId, ver: savedVer, rowVersion: out.rowVersion ?? d.rowVersion }));
+      setMode("edit");
       showMessage({ message: "저장했습니다.", alertType: "info", toast: true });
       await runSearch(filters);
-      if (out.layoutId) await openLayout(out.layoutId);
+      if (out.layoutId) await openLayout(out.layoutId, savedVer, asOf);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     } finally {
@@ -278,7 +314,7 @@ export default function LayoutMngPage() {
   const runValidate = async () => {
     setBusy(true);
     try {
-      setCheck(await validateLayout(draft, stack, overrideRows(), placed.rows));
+      setCheck(await validateLayout({ ...draft, asOf }, stack, overrideRows(), placed.rows));
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     } finally {
@@ -289,7 +325,7 @@ export default function LayoutMngPage() {
   const runRender = async () => {
     setBusy(true);
     try {
-      setSample(await renderSample(draft, stack, overrideRows(), placed.rows, samples));
+      setSample(await renderSample({ ...draft, asOf }, stack, overrideRows(), placed.rows, samples));
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     } finally {
@@ -298,20 +334,20 @@ export default function LayoutMngPage() {
   };
 
   // ── 버전·영향도(TSK-05-03) — export 는 버전 탭에서만 부른다 ──
-  const loadSnapshot = useCallback(async (layoutId: number, version: number) => {
-    setSelectedVersion(version);
+  const loadSnapshot = useCallback(async (layoutId: number, version: string, at: string | null) => {
+    setSnapshotVersion(version);
     try {
-      setSnapshot(await exportSnapshot(layoutId, version));
+      setSnapshot(await exportSnapshot(layoutId, version, at));
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     }
   }, []);
 
   useEffect(() => {
-    if (tab === "version" && selectedId != null && versions.length > 0 && selectedVersion == null) {
-      void loadSnapshot(selectedId, versions[0].LAYOUT_VERSION);
+    if (tab === "version" && selectedId != null && versions.length > 0 && snapshotVersion == null) {
+      void loadSnapshot(selectedId, normVer(versions[0].VER) ?? versions[0].VER, asOf);
     }
-  }, [tab, selectedId, versions, selectedVersion, loadSnapshot]);
+  }, [tab, selectedId, versions, snapshotVersion, asOf, loadSnapshot]);
 
   const downloadJson = () => {
     if (!snapshot?.snapshot || !snapshot.fileBase) return;
@@ -339,6 +375,34 @@ export default function LayoutMngPage() {
     }
   };
 
+  // ── 시각 T·버전 선택 ──
+  const changeAsOf = (at: string | null) => {
+    setAsOf(at);
+    setDraft((d) => ({ ...d, asOf: at }));
+    if (mode === "edit" && selectedId != null) void openLayout(selectedId, selectedVersion, at);
+  };
+
+  const selectVersion = (ver: string) => {
+    if (selectedId != null) void openLayout(selectedId, ver, asOf);
+  };
+
+  // ── 버전 버튼 — 성공하면 결과 버전(삭제는 서버가 고르는 버전)으로 다시 읽는다 ──
+  const runVersionAction = async (call: () => Promise<LayoutVersionResult>, rereadVer: (r: LayoutVersionResult) => string | null) => {
+    if (selectedId == null) return;
+    const id = selectedId;
+    setBusy(true);
+    try {
+      const r = await call();
+      await runSearch(filters);
+      await openLayout(id, rereadVer(r), asOf);
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const sameOrResult = (r: LayoutVersionResult) => normVer(r.ver) ?? (selVer || null);
+
   const constHeader = placedStack.find((h) => h.KEY === constKey) ?? null;
   const systemOptions = [{ value: "", label: "전체" }, ...systems.map((s) => ({ value: s.SYSTEM_CODE, label: s.SYSTEM_NAME }))];
   const headerOptions = [{ value: "", label: "전체" }, ...headerFilter.map((h) => ({ value: String(h.LAYOUT_ID), label: h.LAYOUT_NAME }))];
@@ -352,8 +416,7 @@ export default function LayoutMngPage() {
         { id: "btn_search", label: "조회", type: "primary", action: "search", onClick: () => void runSearch(filters) },
         ...(canEdit ? [
           { id: "btn_new", label: "신규", action: "save", disabled: busy, onClick: startNew },
-          { id: "btn_save", label: "저장", type: "save" as const, action: "save", disabled: busy || mode === "none",
-            onClick: () => void handleSave() },
+          { id: "btn_save", label: "저장", type: "save" as const, action: "save", disabled: readOnly, onClick: () => void handleSave() },
         ] : []),
       ]}
     >
@@ -375,7 +438,7 @@ export default function LayoutMngPage() {
 
       <ContentBody root resizable storageKey="mdm.dmb.layoutMng">
         <ContentPanel width="40%">
-          <LayoutList rows={rows} selectedId={selectedId} loading={loading} onSelect={(r) => void openLayout(r.LAYOUT_ID)} />
+          <LayoutList rows={rows} selectedId={selectedId} loading={loading} onSelect={(r) => void openLayout(r.LAYOUT_ID, null, asOf)} />
         </ContentPanel>
         <ContentPanel>
           <div style={{ overflowY: "auto", height: "100%" }}>
@@ -400,8 +463,8 @@ export default function LayoutMngPage() {
                 {mode === "none" ? (
                   <p style={hint}>전문을 고르면 버전 이력이 보입니다.</p>
                 ) : (
-                  <VersionPanel versions={versions} selectedVersion={selectedVersion} snapshot={snapshot} busy={busy}
-                    onSelectVersion={(v) => selectedId != null && void loadSnapshot(selectedId, v)}
+                  <VersionPanel versions={versions} selectedVersion={snapshotVersion} snapshot={snapshot} busy={busy}
+                    onSelectVersion={(v) => selectedId != null && void loadSnapshot(selectedId, v, asOf)}
                     onDownloadJson={downloadJson} onDownloadExcel={() => void downloadExcel()} />
                 )}
                 <ImpactPanel rows={impacts} loading={impactLoading} onSearch={(k) => void runImpact(k)} />
@@ -411,9 +474,55 @@ export default function LayoutMngPage() {
               <p style={{ ...hint, padding: "var(--spacing-md)" }}>목록에서 전문을 선택하거나 [신규] 를 누르세요.</p>
             ) : (
               <>
+                {mode === "edit" && selectedId != null && (
+                  <div style={sectionBody}>
+                    <VersionActionBar
+                      ids={{
+                        newMajor: "layout-ver-new-major", newMinor: "layout-ver-new-minor", delete: "layout-ver-delete", confirm: "layout-ver-confirm",
+                        cancelConfirm: "layout-ver-cancel-confirm", lock: "layout-ver-lock", unlock: "layout-ver-unlock", handover: "layout-ver-handover",
+                      }}
+                      newVersionMode="majorMinor"
+                      {...versionActions}
+                      onNewMajor={() => void runVersionAction(() => newLayoutVersion(SCREEN_ID, selectedId, "MAJOR"), (r) => normVer(r.ver))}
+                      onNewMinor={() => void runVersionAction(() => newLayoutVersion(SCREEN_ID, selectedId, "MINOR"), (r) => normVer(r.ver))}
+                      onDelete={() => selected && void runVersionAction(
+                        () => deleteLayoutDraft(SCREEN_ID, selectedId, selVer, selected.ROW_VERSION), () => null)}
+                      onConfirm={() => selected && openMdmPage(CONFIRM_PAGE, { layoutId: String(selectedId), ver: selVer })}
+                      onCancelConfirm={() => selected && void runVersionAction(
+                        () => cancelLayoutConfirm(SCREEN_ID, selectedId, selVer, selected.ROW_VERSION), sameOrResult)}
+                      onLock={() => selected && void runVersionAction(
+                        () => lockLayoutDraft(SCREEN_ID, selectedId, selVer, selected.ROW_VERSION), sameOrResult)}
+                      onUnlock={() => selected && void runVersionAction(
+                        () => unlockLayoutDraft(SCREEN_ID, selectedId, selVer, selected.ROW_VERSION), sameOrResult)}
+                      onHandover={() => {
+                        if (!selected) return;
+                        const target = handoverTo.trim();
+                        if (!target) {
+                          setErrorMessage("넘겨받을 사용자 ID 를 적으세요.");
+                          return;
+                        }
+                        void runVersionAction(() => handoverLayoutDraft(SCREEN_ID, selectedId, selVer, selected.ROW_VERSION, target),
+                          sameOrResult).then(() => setHandoverTo(""));
+                      }}
+                      deleteMessage={`${fmtVer(selected?.VER)} DRAFT 를 삭제할까요?`}
+                      cancelConfirmMessage={`${fmtVer(selected?.VER)} 의 확정을 취소하고 작성 중인 상태로 되돌릴까요? 적용 시각이 오기 전에만 취소할 수 있습니다.`}
+                      beforeHandover={(
+                        <Input data-testid="layout-ver-handover-target" value={handoverTo} placeholder="넘겨받을 사용자 ID"
+                          disabled={!HANDOVER_AVAILABLE || !mine || busy} onChange={setHandoverTo} style={{ width: 150 }} />
+                      )}
+                      trailing={selected ? (
+                        <>
+                          <VersionStatusBadge status={selected.STATUS as MdmVersionStatus} applyFrom={selected.APPLY_FROM ?? null} />
+                          <DraftLockBadge status={selected.STATUS as MdmVersionStatus} ownerId={selected.OWNER_ID} currentUserId={me} />
+                        </>
+                      ) : null}
+                    />
+                  </div>
+                )}
                 <p style={sectionTitle}>기본 속성{mode === "new" ? " — 신규" : ""}</p>
                 <div style={sectionBody}>
-                  <LayoutBasicForm draft={draft} layoutVersion={layoutVersion} systems={systems} eais={eais} readOnly={readOnly}
+                  <LayoutBasicForm draft={draft} versions={versions} selectedVer={selected?.VER ?? null} onSelectVersion={selectVersion}
+                    asOf={asOf} onAsOfChange={changeAsOf} legacy={selected?.LEGACY === "Y"} systems={systems} eais={eais} readOnly={readOnly}
                     totalText={totalText} onChange={(p) => setDraft((d) => ({ ...d, ...p }))}
                     onEaiChange={(code) => void changeEai(code)} />
                 </div>

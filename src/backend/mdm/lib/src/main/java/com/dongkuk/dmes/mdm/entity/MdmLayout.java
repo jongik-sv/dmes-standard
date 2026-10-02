@@ -13,14 +13,10 @@ import jakarta.persistence.Table;
  * 03-interface-layout.sql}). {@code LAYOUT_KIND}(HEADER/MESSAGE)로 헤더 레이아웃과 전문 레이아웃을
  * 같은 테이블에 둔다(D4 적층 모델).
  *
- * <p>{@code TB_MDM_LAYOUT.VERSION}(업무 칼럼, 스냅샷 배포 번호)은 감사 {@code VER}(변경 카운터,
- * {@code CactusAuditEntity.version})과 다른 칼럼이다 — 상위 클래스가 이미 {@code version}
- * 프로퍼티·{@code getVersion()}을 갖고 있어 이름이 겹치므로 엔티티 필드명은 {@code layoutVersion}으로
- * 짓는다(F14·F19, 불변 규칙 6). {@code @Version}(JPA 낙관적 락)으로 매핑하지 않는다 — 증가는 저장 로직
- * (TSK-05-03)의 몫이다(불변 규칙 6). 예약어 칼럼 {@code VERSION}은 방언-중립 백틱 인용으로 매핑한다(D1,
- * 불변 규칙 7) — Hibernate 가 방언별 인용(SQLite {@code "VERSION"})으로 자동 변환한다.
+ * <p>업무 버전은 {@code TB_MDM_LAYOUT_VER}(D-144 3단계). 형식 속성(EAI·길이)도 버전 행에 있다. 감사 {@code VER} 는
+ * 상위 클래스 {@code version} 이다.
  *
- * <p>{@code EAI_CODE}·{@code SND_SYSTEM}·{@code RCV_SYSTEM}은 모두 FK 이지만 연관관계 매핑을 쓰지
+ * <p>{@code SND_SYSTEM}·{@code RCV_SYSTEM}은 FK 이지만 연관관계 매핑을 쓰지
  * 않는다(불변 규칙 9) — 원시 필드로만 둔다. ID 채번은 {@link GenerationType#IDENTITY}로 고정한다(불변
  * 규칙 10).
  */
@@ -39,22 +35,15 @@ public class MdmLayout extends CactusAuditEntity {
     @Column(name = "LAYOUT_NAME", nullable = false)
     private String layoutName;
 
-    /** {@code TB_MDM_EAI.EAI_CODE} 를 가리키는 순환 FK. 원시 필드로만 둔다(불변 규칙 9). */
-    @Column(name = "EAI_CODE", length = 20)
-    private String eaiCode;
-
     @Column(name = "SND_SYSTEM", length = 20)
     private String sndSystem;
 
     @Column(name = "RCV_SYSTEM", length = 20)
     private String rcvSystem;
 
-    @Column(name = "TOTAL_LENGTH", nullable = false)
-    private int totalLength;
-
-    /** 업무 버전 칼럼(예약어 백틱 인용, D1). 감사 {@code VER}과 독립이며 {@code @Version} 이 아니다(F14·F19). */
-    @Column(name = "`VERSION`", nullable = false)
-    private long layoutVersion;
+    /** CREATED → INUSE(첫 확정, 공통 엔진) → DEPRECATED. 엔티티 저장으로 바꾸지 않는다. */
+    @Column(name = "STATUS", length = 20, nullable = false, updatable = false)
+    private String status = "CREATED";
 
     protected MdmLayout() {
         // JPA 기본 생성자
@@ -68,17 +57,12 @@ public class MdmLayout extends CactusAuditEntity {
     public Long getLayoutId() { return layoutId; }
     public String getLayoutKind() { return layoutKind; }
     public String getLayoutName() { return layoutName; }
-    public String getEaiCode() { return eaiCode; }
     public String getSndSystem() { return sndSystem; }
     public String getRcvSystem() { return rcvSystem; }
-    public int getTotalLength() { return totalLength; }
-    public long getLayoutVersion() { return layoutVersion; }
+    public String getStatus() { return status; }
 
     public void setLayoutKind(String v) { this.layoutKind = v; }
     public void setLayoutName(String v) { this.layoutName = v; }
-    public void setEaiCode(String v) { this.eaiCode = v; }
     public void setSndSystem(String v) { this.sndSystem = v; }
     public void setRcvSystem(String v) { this.rcvSystem = v; }
-    public void setTotalLength(int v) { this.totalLength = v; }
-    public void setLayoutVersion(long v) { this.layoutVersion = v; }
 }

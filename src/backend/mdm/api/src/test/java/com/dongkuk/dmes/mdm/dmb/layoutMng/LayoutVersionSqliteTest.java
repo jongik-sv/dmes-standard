@@ -5,16 +5,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
-import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutItemSnapshot;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSerializeContext;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
-import com.dongkuk.dmes.mdm.dmb.LayoutTestSupport;
-import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngSaveRequest;
+import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
+import com.dongkuk.dmes.mdm.dmb.LayoutServiceTestSupport;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutCodecs;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutComposer;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutDraftBuilder;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutSnapshotAssembler;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutSnapshotJson;
-import com.dongkuk.dmes.mdm.dmb.layout.LayoutVersionStore;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngExportRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngViewRequest;
@@ -33,24 +32,27 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * TSK-05-03 design.md §3.2 — 저장 즉시 스냅샷 버전(불변 I15·I16·I18·I19), 여분 쪼개 쓰기는 순차 전환(수용 기준 6), 옛 버전 스냅샷으로
- * 직렬화·파싱 왕복(수용 기준 2), 이력 조회·스냅샷 출력.
+ * TSK-05-03 design.md §3.2 — 옛 버전 스냅샷으로 직렬화·파싱 왕복(수용 기준 2), 스냅샷 키 = 스키마, 초안 스냅샷 = 저장 뒤 스냅샷(I19),
+ * 버전 이력 조회·스냅샷 출력. D-144 3단계: 저장은 버전을 만들지 않는다(I15·I18 폐지 — 변경 분류는 확정 시험 {@code LayoutConfirmSqliteTest}
+ * 로 옮겼다). 저장 응답의 {@code rowVersion} 으로 다시 저장할 수 있다. 스냅샷은 시각 T 합성({@link LayoutComposer})으로 읽는다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
-class LayoutVersionSqliteTest extends LayoutTestSupport {
+@Import(DmeTestSupport.Config.class)
+class LayoutVersionSqliteTest extends LayoutServiceTestSupport {
 
-    @Autowired
-    LayoutVersionStore store;
     @Autowired
     LayoutCodecs codecs;
     @Autowired
     LayoutSnapshotAssembler assembler;
     @Autowired
     LayoutDraftBuilder draftBuilder;
+    @Autowired
+    LayoutComposer composer;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -59,7 +61,7 @@ class LayoutVersionSqliteTest extends LayoutTestSupport {
         dictionary();
     }
 
-    /** M201 헤더 한 벌(L100 은 EAI 표준 헤더). */
+    /** M201 헤더 한 벌(L100 은 EAI 표준 헤더). 둘 다 HEADER_FROM 에 확정. */
     private record Headers(String eai, long l100, long l110) {
     }
 
@@ -82,16 +84,21 @@ class LayoutVersionSqliteTest extends LayoutTestSupport {
         return layoutService.save(r, List.of(headerRow(h.l110())), List.of(), items);
     }
 
-    private LayoutMngSaveRequest again(long id, long ver) {
-        Map<String, Object> row = layoutRow(id);
-        return layoutReq((String) row.get("LAYOUT_NAME"), (String) row.get("EAI_CODE"), r -> {
+    private LayoutMngSaveRequest again(long id, String ver, long rowVersion, Headers h) {
+        return layoutReq((String) layoutRow(id).get("LAYOUT_NAME"), h.eai(), r -> {
             r.setLayoutId(id);
             r.setVer(ver);
+            r.setRowVersion(rowVersion);
         });
     }
 
-    private LayoutMngSaveRequest again(long id) {
-        return again(id, ver(layoutRow(id)));
+    /** v1(v1Items) 을 MESSAGE_FROM 에 확정하고 v2 DRAFT 에 v2Items 를 저장한다. */
+    private long v1ReleasedV2Draft(Headers h) {
+        long id = id(save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, v1Items()));
+        release(id, "1.000", MESSAGE_FROM);
+        newDraft(id, "1.000", "2.000");
+        save(again(id, "2.000", rowVersion(id, "2.000"), h), h, v2Items());
+        return id;
     }
 
     private static long id(Map<String, Object> out) {
@@ -102,140 +109,35 @@ class LayoutVersionSqliteTest extends LayoutTestSupport {
         return ((Number) o).longValue();
     }
 
-    private long businessVersion(long id) {
-        return num(layoutRow(id).get("VERSION"));
-    }
-
-    @Test
-    void 처음_저장하면_버전_1_최초_등록_스냅샷이_생긴다() {
-        Headers h = headers();
-        Map<String, Object> out = save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, m201Items());
-        long id = id(out);
-        assertEquals(1L, num(out.get("layoutVersion")));
-        assertEquals(true, out.get("versionCreated"));
-        assertNull(out.get("switchMode"));
-        assertEquals("최초 등록", out.get("changeSummary"));
-        assertEquals(1L, businessVersion(id));
-        List<Map<String, Object>> rows = versionRows(id);
-        assertEquals(1, rows.size());
-        assertEquals(1L, num(rows.get(0).get("LAYOUT_VERSION")));
-        assertEquals(187, ((Number) rows.get(0).get("TOTAL_LENGTH")).intValue());
-        assertNull(rows.get(0).get("SWITCH_MODE"));
-        assertEquals("최초 등록", rows.get(0).get("CHANGE_SUMMARY"));
-        assertEquals("INITIAL", rows.get(0).get("CHANGE_KINDS"));
-        MdmLayoutSnapshot s = LayoutSnapshotJson.read((String) rows.get(0).get("SNAPSHOT_JSON"));
-        assertEquals(1L, s.layoutVersion());
-        assertEquals(187, s.totalLength());
-        assertEquals(id, s.layoutId());
-        assertEquals("EUC-KR", s.encoding());
-        assertEquals(List.of(130, 150, 158, 162), s.items().stream().map(MdmLayoutItemSnapshot::offset).toList());
-        assertEquals(List.of(0, 100), s.headers().stream().map(x -> x.offset()).toList());
-    }
-
-    @Test
-    void 같은_내용으로_다시_저장하면_버전을_만들지_않는다() {
-        Headers h = headers();
-        long id = id(save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, m201Items()));
-        Map<String, Object> again = save(again(id), h, m201Items());
-        assertEquals(false, again.get("versionCreated"));
-        assertEquals(1L, num(again.get("layoutVersion")));
-        assertEquals(1, versionRows(id).size());
-        assertEquals(1L, businessVersion(id));
-    }
-
-    @Test
-    void 여분을_쪼개_항목을_추가하면_버전_2_순차_전환이다() {
-        Headers h = headers();
-        long id = id(save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, v1Items()));
-        assertEquals(187, ((Number) layoutRow(id).get("TOTAL_LENGTH")).intValue());
-        Map<String, Object> out = save(again(id), h, v2Items());
-        assertEquals(2L, num(out.get("layoutVersion")));
-        assertEquals("SEQUENTIAL", out.get("switchMode"));
-        assertEquals(2L, businessVersion(id));
-        Map<String, Object> v2 = versionRows(id).get(1);
-        assertEquals("SEQUENTIAL", v2.get("SWITCH_MODE"));
-        assertEquals(187, ((Number) v2.get("TOTAL_LENGTH")).intValue());
-        assertEquals("여분 29 → 코일 두께 4 + 여분 25 (여분 쪼개 쓰기)", v2.get("CHANGE_SUMMARY"));
-        assertEquals("FILLER_SPLIT", v2.get("CHANGE_KINDS"));
-    }
-
-    @Test
-    void 항목_길이를_바꾸면_동시_전환이다() {
-        Headers h = headers();
-        long id = id(save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, v2Items()));
-        List<Map<String, Object>> items = v2Items();
-        items.get(2).put("NUM_FORMAT", "SIGN=N;ZERO=Y;SCALE=1;WIDTH=5");
-        items.get(3).put("FILLER_LENGTH", 24);
-        Map<String, Object> out = save(again(id), h, items);
-        assertEquals("SIMULTANEOUS", out.get("switchMode"));
-        Map<String, Object> v = versionRows(id).get(1);
-        assertEquals("SIMULTANEOUS", v.get("SWITCH_MODE"));
-        assertEquals("ITEM_LENGTH", v.get("CHANGE_KINDS"));
-    }
-
-    private HeaderMngSaveRequest headerAgain(long headerId, String eai) {
-        Map<String, Object> row = layoutRow(headerId);
-        return headerReq((String) row.get("LAYOUT_NAME"), r -> {
-            r.setLayoutId(headerId);
-            r.setVer(ver(row));
-            r.setEaiCode(eai);
-        });
-    }
-
     @Test
     @SuppressWarnings("unchecked")
-    void 헤더를_바꾸면_그_헤더를_쓰는_전문에_새_버전이_생긴다() {
-        Headers h = headers();
-        long id = id(save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, m201Items()));
-        List<Map<String, Object>> items = l110Items();
-        items.add(item("DATA", "EXTRA_3", null));
-        Map<String, Object> out = headerService.save(headerAgain(h.l110(), null), numbered(items));
-        assertEquals(2L, businessVersion(id));
-        Map<String, Object> v2 = versionRows(id).get(1);
-        assertEquals("SIMULTANEOUS", v2.get("SWITCH_MODE"));
-        assertEquals(190, ((Number) v2.get("TOTAL_LENGTH")).intValue());
-        List<Map<String, Object>> versioned = (List<Map<String, Object>>) out.get("versioned");
-        assertEquals(1, versioned.size());
-        assertEquals(id, num(versioned.get(0).get("LAYOUT_ID")));
-        assertEquals(2L, num(versioned.get(0).get("LAYOUT_VERSION")));
-        assertEquals("SIMULTANEOUS", versioned.get(0).get("SWITCH_MODE"));
-        assertEquals(true, versioned.get(0).get("CREATED"));
-    }
-
-    @Test
-    void 헤더_상수_기본값만_바꾸면_사용_전문은_순차_전환이다() {
-        Headers h = headers();
-        long id = id(save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, m201Items()));
-        List<Map<String, Object>> items = l100Items();
-        items.get(2).put("DEFAULT_VALUE", "L3");
-        headerService.save(headerAgain(h.l100(), h.eai()), items);
-        assertEquals(2L, businessVersion(id));
-        Map<String, Object> v2 = versionRows(id).get(1);
-        assertEquals("SEQUENTIAL", v2.get("SWITCH_MODE"));
-        assertEquals("CONST_VALUE", v2.get("CHANGE_KINDS"));
-        assertEquals("상수 송신공정구분 L2 → L3", v2.get("CHANGE_SUMMARY"));
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    void 저장_응답의_ver_로_다시_저장하면_MDM001_이_나지_않는다() {
+    void 저장_응답의_rowVersion_으로_다시_저장하면_MDM001_이_나지_않는다() {
         Headers h = headers();
         Map<String, Object> first = save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, v1Items());
         long id = id(first);
-        assertEquals(ver(layoutRow(id)), num(first.get("ver")), "응답 ver = 버전 기록 뒤 감사 VER(I16)");
-        Map<String, Object> second = save(again(id, num(first.get("ver"))), h, v2Items());
-        assertEquals(2L, num(second.get("layoutVersion")));
-        assertEquals(ver(layoutRow(id)), num(second.get("ver")));
-        save(again(id, num(second.get("ver"))), h, v2Items());
-        // 헤더 저장 뒤에는 view 의 ver 로 다시 저장한다
+        assertEquals("1.000", first.get("ver"));
+        assertEquals(0L, num(first.get("rowVersion")));
+        Map<String, Object> second = save(again(id, (String) first.get("ver"), num(first.get("rowVersion")), h), h, v2Items());
+        assertEquals("1.000", second.get("ver"), "저장은 버전을 만들지 않는다(I15 폐지)");
+        assertEquals(1L, num(second.get("rowVersion")));
+        Map<String, Object> third = save(again(id, (String) second.get("ver"), num(second.get("rowVersion")), h), h, v2Items());
+        assertEquals(2L, num(third.get("rowVersion")));
+        // 헤더 저장은 전문 row_version 을 바꾸지 않는다(I18 폐지) — view 의 선택 버전 ROW_VERSION 으로 다시 저장한다
+        newDraft(h.l110(), "1.000", "2.000");
         List<Map<String, Object>> l110 = l110Items();
         l110.add(item("DATA", "EXTRA_3", null));
-        headerService.save(headerAgain(h.l110(), null), numbered(l110));
+        headerService.save(headerReq((String) layoutRow(h.l110()).get("LAYOUT_NAME"), r -> {
+            r.setLayoutId(h.l110());
+            r.setVer("2.000");
+            r.setRowVersion(rowVersion(h.l110(), "2.000"));
+        }), numbered(l110));
         LayoutMngViewRequest v = new LayoutMngViewRequest();
         v.setLayoutId(id);
-        long viewVer = num(((Map<String, Object>) layoutService.view(v).get("layout")).get("VER"));
-        Map<String, Object> third = save(again(id, viewVer), h, v2Items());
-        assertEquals(id, id(third));
+        Map<String, Object> selected = (Map<String, Object>) layoutService.view(v).get("selected");
+        assertEquals(2L, num(selected.get("ROW_VERSION")));
+        Map<String, Object> fourth = save(again(id, (String) selected.get("VER"), num(selected.get("ROW_VERSION")), h), h, v2Items());
+        assertEquals(id, id(fourth));
+        assertEquals(1, versionRows(id).size());
     }
 
     private static Map<String, Object> record(String coilId, String prodDt, Object thk) {
@@ -249,12 +151,12 @@ class LayoutVersionSqliteTest extends LayoutTestSupport {
     @Test
     void 옛_버전_스냅샷으로_직렬화하고_파싱하면_레이아웃을_바꾼_뒤에도_일치한다() {
         Headers h = headers();
-        long id = id(save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, v1Items()));
-        save(again(id), h, v2Items());
-        MdmLayoutSnapshot v1 = LayoutSnapshotJson.read(store.find(id, 1L).orElseThrow().getSnapshotJson());
-        MdmLayoutSnapshot v2 = LayoutSnapshotJson.read(store.find(id, 2L).orElseThrow().getSnapshotJson());
-        assertEquals(1L, v1.layoutVersion());
-        assertEquals(3, v1.items().size(), "v1 스냅샷은 레이아웃을 바꾼 뒤에도 v1 모양이다");
+        long id = v1ReleasedV2Draft(h);
+        LocalDateTime now = DmeTestSupport.NOW;
+        MdmLayoutSnapshot v1 = composer.compose(id, new BigDecimal("1.000"), now);
+        MdmLayoutSnapshot v2 = composer.compose(id, new BigDecimal("2.000"), now);
+        assertEquals(0, new BigDecimal("1.000").compareTo(v1.layoutVersion()));
+        assertEquals(3, v1.items().size(), "v1 은 새 DRAFT 를 고친 뒤에도 v1 모양이다");
         MdmLayoutSerializeContext ctx = new MdmLayoutSerializeContext(LocalDateTime.of(2026, 9, 22, 14, 30, 15), 1L);
         byte[] m1 = codecs.serializer().serialize(v1, record("C26A0012345", "20260922", null), ctx);
         Map<String, Object> p1 = codecs.parser().parse(v1, m1);
@@ -285,14 +187,14 @@ class LayoutVersionSqliteTest extends LayoutTestSupport {
     }
 
     @Test
-    void 저장된_스냅샷_JSON_의_키는_스키마와_같다() throws Exception {
+    void 합성_스냅샷_JSON_의_키는_스키마와_같다() throws Exception {
         Headers h = headers();
         long id = id(save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, m201Items()));
         JsonNode schema;
         try (InputStream in = getClass().getResourceAsStream("/com/dongkuk/dmes/mdm/contract/layout/layout-snapshot.schema.json")) {
             schema = mapper.readTree(in);
         }
-        String json = (String) versionRows(id).get(0).get("SNAPSHOT_JSON");
+        String json = LayoutSnapshotJson.write(composer.compose(id, new BigDecimal("1.000"), DmeTestSupport.NOW));
         assertTrue(json.startsWith("{\"eaiCode\":"), "정규화(키 정렬): " + json.substring(0, 30));
         JsonNode tree = mapper.readTree(json);
         assertKeys(schema.get("properties"), tree);
@@ -308,13 +210,13 @@ class LayoutVersionSqliteTest extends LayoutTestSupport {
         Headers h = headers();
         List<Map<String, Object>> consts = List.of(constRow(h.l100(), 2, "B1"));
         LayoutMngSaveRequest r = layoutReq(uniq("초안 "), h.eai(), x -> {});
-        LayoutDraftBuilder.Built built = draftBuilder.build(r, List.of(headerRow(h.l110())), consts, m201Items(), false);
+        LayoutDraftBuilder.Built built = draftBuilder.build(r, List.of(headerRow(h.l110())), consts, m201Items(), DmeTestSupport.NOW, true);
         assertTrue(built.issues().isEmpty(), built.issues().toString());
-        MdmLayoutSnapshot draft = assembler.fromDraft(built.draft());
+        MdmLayoutSnapshot draft = assembler.fromDraft(built.draft(), null, built.draft().headers());
         long id = saveLayout(r, List.of(headerRow(h.l110())), consts, m201Items());
-        MdmLayoutSnapshot saved = assembler.read(id);
+        MdmLayoutSnapshot saved = composer.compose(id, new BigDecimal("1.000"), DmeTestSupport.NOW);
         MdmLayoutSnapshot aligned = new MdmLayoutSnapshot(id, draft.layoutName(), draft.eaiCode(), draft.sndSystem(), draft.rcvSystem(),
-                draft.encoding(), draft.padRule(), saved.layoutVersion(), draft.totalLength(), draft.headers(), draft.items());
+                draft.encoding(), draft.padRule(), draft.layoutVersion(), draft.totalLength(), draft.headers(), draft.items());
         assertEquals(saved, aligned);
         assertEquals("B1", saved.headers().get(0).items().get(1).overrideValue());
         assertEquals(1, saved.items().get(2).scale());
@@ -324,50 +226,58 @@ class LayoutVersionSqliteTest extends LayoutTestSupport {
     @SuppressWarnings("unchecked")
     void view_는_버전_이력을_최신부터_돌려준다() {
         Headers h = headers();
-        long id = id(save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, v1Items()));
-        save(again(id), h, v2Items());
+        long id = v1ReleasedV2Draft(h);
         LayoutMngViewRequest v = new LayoutMngViewRequest();
         v.setLayoutId(id);
-        List<Map<String, Object>> versions = (List<Map<String, Object>>) layoutService.view(v).get("versions");
+        Map<String, Object> view = layoutService.view(v);
+        List<Map<String, Object>> versions = (List<Map<String, Object>>) view.get("versions");
         assertEquals(2, versions.size());
-        assertEquals(2L, num(versions.get(0).get("LAYOUT_VERSION")));
-        assertEquals("SEQUENTIAL", versions.get(0).get("SWITCH_MODE"));
-        assertEquals(187, ((Number) versions.get(0).get("TOTAL_LENGTH")).intValue());
-        assertEquals("최초 등록", versions.get(1).get("CHANGE_SUMMARY"));
-        assertTrue(String.valueOf(versions.get(1).get("SAVED_AT")).matches("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}"),
-                String.valueOf(versions.get(1).get("SAVED_AT")));
+        assertEquals("2.000", versions.get(0).get("VER"));
+        assertEquals("DRAFT", versions.get(0).get("STATE"));
+        assertEquals(57, versions.get(0).get("OWN_LENGTH"));
+        assertEquals("1.000", versions.get(1).get("VER"));
+        assertEquals("CURRENT", versions.get(1).get("STATE"));
+        assertEquals(MESSAGE_FROM, versions.get(1).get("APPLY_FROM"));
+        assertEquals("N", versions.get(1).get("LEGACY"));
+        // 내 DRAFT 를 고른다
+        assertEquals("2.000", ((Map<String, Object>) view.get("selected")).get("VER"));
+        assertEquals(true, view.get("editable"));
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    void export_는_지정한_버전의_스냅샷을_돌려준다() {
+    void export_는_지정한_버전과_시각의_합성_스냅샷을_돌려준다() {
         Headers h = headers();
-        long id = id(save(layoutReq(uniq("버전 "), h.eai(), r -> {}), h, v1Items()));
-        save(again(id), h, v2Items());
+        long id = v1ReleasedV2Draft(h);
         LayoutMngExportRequest r = new LayoutMngExportRequest();
         r.setLayoutId(id);
-        r.setLayoutVersion(1L);
+        r.setVer("1.000");
         Map<String, Object> out = layoutService.export(r);
         Map<String, Object> snapshot = (Map<String, Object>) out.get("snapshot");
-        assertEquals(1L, num(snapshot.get("layoutVersion")));
-        assertEquals(1L, num(out.get("layoutVersion")));
-        assertEquals("layout-" + id + "-v1", out.get("fileBase"));
+        assertEquals(0, new BigDecimal("1.000").compareTo(new BigDecimal(String.valueOf(snapshot.get("layoutVersion")))));
+        assertEquals("1.000", out.get("ver"));
+        assertEquals("2026-06-15 09:00:00", out.get("asOf"));
+        assertEquals("layout-" + id + "-v1.000-20260615090000", out.get("fileBase"));
         assertEquals("코일 ID", ((Map<String, Object>) out.get("names")).get("COIL_ID"));
-        r.setLayoutVersion(null);
+        // ver 가 없으면 시각 T 에 적용 중인 버전 — v2 를 6월 1일에 확정하면 지금은 v2, 5월 1일은 v1
+        release(id, "2.000", "2026-06-01 00:00:00");
+        r.setVer(null);
         Map<String, Object> latest = layoutService.export(r);
-        assertEquals(2L, num(latest.get("layoutVersion")));
-        assertEquals("layout-" + id + "-v2", latest.get("fileBase"));
+        assertEquals("2.000", latest.get("ver"));
         assertEquals(4, ((List<?>) ((Map<String, Object>) latest.get("snapshot")).get("items")).size());
+        r.setAsOf("2026-05-01 00:00:00");
+        Map<String, Object> may = layoutService.export(r);
+        assertEquals("1.000", may.get("ver"));
+        assertEquals("layout-" + id + "-v1.000-20260501000000", may.get("fileBase"));
     }
 
     @Test
-    void export_는_버전이_없으면_거부한다() {
-        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_KIND, LAYOUT_NAME, TOTAL_LENGTH, VERSION, VER) VALUES ('MESSAGE', ?, 0, 0, 0)",
-                uniq("이력 없음 "));
+    void export_는_시각_T_에_확정된_버전이_없으면_거부한다() {
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_KIND, LAYOUT_NAME, VER) VALUES ('MESSAGE', ?, 0)", uniq("이력 없음 "));
         Long id = jdbc.queryForObject("SELECT MAX(LAYOUT_ID) FROM TB_MDM_LAYOUT", Long.class);
         LayoutMngExportRequest r = new LayoutMngExportRequest();
         r.setLayoutId(id);
         BusinessException ex = rejected(() -> layoutService.export(r));
-        assertTrue(ex.getMessage().contains("저장된 버전이 없습니다"), ex.getMessage());
+        assertTrue(ex.getMessage().contains("확정된 버전이 없습니다"), ex.getMessage());
     }
 }

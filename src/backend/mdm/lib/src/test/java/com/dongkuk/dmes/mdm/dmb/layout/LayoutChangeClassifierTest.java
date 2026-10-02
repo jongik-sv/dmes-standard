@@ -12,6 +12,7 @@ import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutNumFormat;
 import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutChangeClassifier.Change;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutChangeClassifier.Kind;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -46,16 +47,16 @@ class LayoutChangeClassifierTest {
         return new MdmLayoutHeaderRef(1, 100L, "L100", 0, 100, List.of(
                 chr(1, MdmFillKind.CONST, "SND_FAC_TP", "B0", sndFacOverride, 0, 4),
                 chr(2, MdmFillKind.CONST, "SND_PROC_TP", sndProcDefault, null, 4, 3),
-                filler(3, 7, 93)));
+                filler(3, 7, 93)), new BigDecimal("1.000"));
     }
 
     private static MdmLayoutHeaderRef l110() {
-        return new MdmLayoutHeaderRef(2, 110L, "L110", 100, 30, List.of(filler(1, 0, 30)));
+        return new MdmLayoutHeaderRef(2, 110L, "L110", 100, 30, List.of(filler(1, 0, 30)), new BigDecimal("1.000"));
     }
 
     private static MdmLayoutSnapshot snap(String name, String encoding, List<MdmLayoutHeaderRef> headers, List<MdmLayoutItemSnapshot> body) {
         int total = headers.stream().mapToInt(MdmLayoutHeaderRef::totalLength).sum() + body.stream().mapToInt(MdmLayoutItemSnapshot::length).sum();
-        return new MdmLayoutSnapshot(201L, name, "GLUE", "L2", "MES", encoding, null, 0L, total, headers, body);
+        return new MdmLayoutSnapshot(201L, name, "GLUE", "L2", "MES", encoding, null, new BigDecimal("1.000"), total, headers, body);
     }
 
     private static List<MdmLayoutHeaderRef> headers() {
@@ -134,7 +135,7 @@ class LayoutChangeClassifierTest {
     @Test
     void 헤더_항목_구조가_바뀌면_동시_전환이다() {
         MdmLayoutHeaderRef longer = new MdmLayoutHeaderRef(2, 110L, "L110", 100, 30, List.of(filler(1, 0, 27),
-                chr(2, MdmFillKind.CONST, "EXTRA", "X", null, 27, 3)));
+                chr(2, MdmFillKind.CONST, "EXTRA", "X", null, 27, 3)), new BigDecimal("1.000"));
         MdmLayoutSnapshot b = snap("M201", "EUC-KR", List.of(l100("B1", "L2"), longer), v2().items());
         Change c = LayoutChangeClassifier.classify(v2(), b, NAME);
         assertEquals("SIMULTANEOUS", c.switchMode());

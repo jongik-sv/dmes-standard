@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_commWidgetMng" targetNamespace="http://dongkuk.com/dmes/mcm" exporter="bpmn-tool" exporterVersion="1.3.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="commWidgetMng" name="위젯관리 서비스" isExecutable="true">
+    <bpmn:documentation>위젯관리 화면(csa/commWidgetMng) — 위젯 정의·덮어쓰기와 전사·부서별 「홈」 기본 배치. 스펙 2026-10-02-widget-admin-generic §5.2. 메뉴 권한(RBAC)으로 보호된다. 정의 action 은 commWidgetMngService, 기본 배치 action 은 commWidgetLayoutService.</bpmn:documentation>
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_save</bpmn:outgoing>
+      <bpmn:outgoing>flow_delete</bpmn:outgoing>
+      <bpmn:outgoing>flow_previewQuery</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchLayouts</bpmn:outgoing>
+      <bpmn:outgoing>flow_loadLayout</bpmn:outgoing>
+      <bpmn:outgoing>flow_saveLayout</bpmn:outgoing>
+      <bpmn:outgoing>flow_deleteLayout</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchDepts</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="위젯 정의 목록·사용자 수" camunda:class="commWidgetMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.admin.dto.CommWidgetMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="saveTask" name="위젯 정의 저장" camunda:class="commWidgetMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="save" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.admin.dto.WidgetDefSaveRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_save</bpmn:incoming>
+      <bpmn:outgoing>flow_save_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSave">
+      <bpmn:incoming>flow_save_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="deleteTask" name="위젯 정의 삭제·코드 값으로 되돌리기" camunda:class="commWidgetMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="delete" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.admin.dto.CommWidgetMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_delete</bpmn:incoming>
+      <bpmn:outgoing>flow_delete_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endDelete">
+      <bpmn:incoming>flow_delete_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="previewQueryTask" name="쿼리 시험 실행" camunda:class="commWidgetMngService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="previewQuery" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.admin.dto.CommWidgetMngRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_previewQuery</bpmn:incoming>
+      <bpmn:outgoing>flow_previewQuery_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endPreviewQuery">
+      <bpmn:incoming>flow_previewQuery_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="searchLayoutsTask" name="기본 배치 목록" camunda:class="commWidgetLayoutService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchLayouts" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetLayoutRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchLayouts</bpmn:incoming>
+      <bpmn:outgoing>flow_searchLayouts_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearchLayouts">
+      <bpmn:incoming>flow_searchLayouts_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="loadLayoutTask" name="기본 배치 불러오기" camunda:class="commWidgetLayoutService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="loadLayout" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetLayoutRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_loadLayout</bpmn:incoming>
+      <bpmn:outgoing>flow_loadLayout_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endLoadLayout">
+      <bpmn:incoming>flow_loadLayout_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="saveLayoutTask" name="기본 배치 저장(통째로 교체)" camunda:class="commWidgetLayoutService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="saveLayout" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetLayoutRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_saveLayout</bpmn:incoming>
+      <bpmn:outgoing>flow_saveLayout_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSaveLayout">
+      <bpmn:incoming>flow_saveLayout_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="deleteLayoutTask" name="기본 배치 지우기" camunda:class="commWidgetLayoutService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="deleteLayout" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetLayoutRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_deleteLayout</bpmn:incoming>
+      <bpmn:outgoing>flow_deleteLayout_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endDeleteLayout">
+      <bpmn:incoming>flow_deleteLayout_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="searchDeptsTask" name="부서 고르기" camunda:class="commWidgetLayoutService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchDepts" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetLayoutRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_searchDepts</bpmn:incoming>
+      <bpmn:outgoing>flow_searchDepts_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearchDepts">
+      <bpmn:incoming>flow_searchDepts_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_save" name="save" sourceRef="actionGateway" targetRef="saveTask" />
+    <bpmn:sequenceFlow id="flow_save_end" sourceRef="saveTask" targetRef="endSave" />
+    <bpmn:sequenceFlow id="flow_delete" name="delete" sourceRef="actionGateway" targetRef="deleteTask" />
+    <bpmn:sequenceFlow id="flow_delete_end" sourceRef="deleteTask" targetRef="endDelete" />
+    <bpmn:sequenceFlow id="flow_previewQuery" name="previewQuery" sourceRef="actionGateway" targetRef="previewQueryTask" />
+    <bpmn:sequenceFlow id="flow_previewQuery_end" sourceRef="previewQueryTask" targetRef="endPreviewQuery" />
+    <bpmn:sequenceFlow id="flow_searchLayouts" name="searchLayouts" sourceRef="actionGateway" targetRef="searchLayoutsTask" />
+    <bpmn:sequenceFlow id="flow_searchLayouts_end" sourceRef="searchLayoutsTask" targetRef="endSearchLayouts" />
+    <bpmn:sequenceFlow id="flow_loadLayout" name="loadLayout" sourceRef="actionGateway" targetRef="loadLayoutTask" />
+    <bpmn:sequenceFlow id="flow_loadLayout_end" sourceRef="loadLayoutTask" targetRef="endLoadLayout" />
+    <bpmn:sequenceFlow id="flow_saveLayout" name="saveLayout" sourceRef="actionGateway" targetRef="saveLayoutTask" />
+    <bpmn:sequenceFlow id="flow_saveLayout_end" sourceRef="saveLayoutTask" targetRef="endSaveLayout" />
+    <bpmn:sequenceFlow id="flow_deleteLayout" name="deleteLayout" sourceRef="actionGateway" targetRef="deleteLayoutTask" />
+    <bpmn:sequenceFlow id="flow_deleteLayout_end" sourceRef="deleteLayoutTask" targetRef="endDeleteLayout" />
+    <bpmn:sequenceFlow id="flow_searchDepts" name="searchDepts" sourceRef="actionGateway" targetRef="searchDeptsTask" />
+    <bpmn:sequenceFlow id="flow_searchDepts_end" sourceRef="searchDeptsTask" targetRef="endSearchDepts" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="commWidgetMng">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="642" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="635" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="400" y="60" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="582" y="82" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveTask_di" bpmnElement="saveTask">
+        <dc:Bounds x="400" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSave_di" bpmnElement="endSave">
+        <dc:Bounds x="582" y="222" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="deleteTask_di" bpmnElement="deleteTask">
+        <dc:Bounds x="400" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endDelete_di" bpmnElement="endDelete">
+        <dc:Bounds x="582" y="362" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="previewQueryTask_di" bpmnElement="previewQueryTask">
+        <dc:Bounds x="400" y="480" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endPreviewQuery_di" bpmnElement="endPreviewQuery">
+        <dc:Bounds x="582" y="502" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchLayoutsTask_di" bpmnElement="searchLayoutsTask">
+        <dc:Bounds x="400" y="620" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchLayouts_di" bpmnElement="endSearchLayouts">
+        <dc:Bounds x="582" y="642" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="loadLayoutTask_di" bpmnElement="loadLayoutTask">
+        <dc:Bounds x="400" y="760" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endLoadLayout_di" bpmnElement="endLoadLayout">
+        <dc:Bounds x="582" y="782" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveLayoutTask_di" bpmnElement="saveLayoutTask">
+        <dc:Bounds x="400" y="900" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSaveLayout_di" bpmnElement="endSaveLayout">
+        <dc:Bounds x="582" y="922" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="deleteLayoutTask_di" bpmnElement="deleteLayoutTask">
+        <dc:Bounds x="400" y="1040" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endDeleteLayout_di" bpmnElement="endDeleteLayout">
+        <dc:Bounds x="582" y="1062" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchDeptsTask_di" bpmnElement="searchDeptsTask">
+        <dc:Bounds x="400" y="1180" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearchDepts_di" bpmnElement="endSearchDepts">
+        <dc:Bounds x="582" y="1202" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="660" />
+        <di:waypoint x="245" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="635" />
+        <di:waypoint x="270" y="100" />
+        <di:waypoint x="400" y="100" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="83" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="500" y="100" />
+        <di:waypoint x="582" y="100" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_di" bpmnElement="flow_save">
+        <di:waypoint x="270" y="635" />
+        <di:waypoint x="270" y="240" />
+        <di:waypoint x="400" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="223" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_save_end_di" bpmnElement="flow_save_end">
+        <di:waypoint x="500" y="240" />
+        <di:waypoint x="582" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_di" bpmnElement="flow_delete">
+        <di:waypoint x="270" y="635" />
+        <di:waypoint x="270" y="380" />
+        <di:waypoint x="400" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="363" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_delete_end_di" bpmnElement="flow_delete_end">
+        <di:waypoint x="500" y="380" />
+        <di:waypoint x="582" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_previewQuery_di" bpmnElement="flow_previewQuery">
+        <di:waypoint x="270" y="635" />
+        <di:waypoint x="270" y="520" />
+        <di:waypoint x="400" y="520" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="503" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_previewQuery_end_di" bpmnElement="flow_previewQuery_end">
+        <di:waypoint x="500" y="520" />
+        <di:waypoint x="582" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchLayouts_di" bpmnElement="flow_searchLayouts">
+        <di:waypoint x="295" y="660" />
+        <di:waypoint x="400" y="660" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="643" width="104" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchLayouts_end_di" bpmnElement="flow_searchLayouts_end">
+        <di:waypoint x="500" y="660" />
+        <di:waypoint x="582" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_loadLayout_di" bpmnElement="flow_loadLayout">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="800" />
+        <di:waypoint x="400" y="800" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="668" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_loadLayout_end_di" bpmnElement="flow_loadLayout_end">
+        <di:waypoint x="500" y="800" />
+        <di:waypoint x="582" y="800" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveLayout_di" bpmnElement="flow_saveLayout">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="940" />
+        <di:waypoint x="400" y="940" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="668" width="80" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveLayout_end_di" bpmnElement="flow_saveLayout_end">
+        <di:waypoint x="500" y="940" />
+        <di:waypoint x="582" y="940" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_deleteLayout_di" bpmnElement="flow_deleteLayout">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="1080" />
+        <di:waypoint x="400" y="1080" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="668" width="96" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_deleteLayout_end_di" bpmnElement="flow_deleteLayout_end">
+        <di:waypoint x="500" y="1080" />
+        <di:waypoint x="582" y="1080" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchDepts_di" bpmnElement="flow_searchDepts">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="1220" />
+        <di:waypoint x="400" y="1220" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="315" y="668" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_searchDepts_end_di" bpmnElement="flow_searchDepts_end">
+        <di:waypoint x="500" y="1220" />
+        <di:waypoint x="582" y="1220" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

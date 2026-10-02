@@ -78,7 +78,8 @@ import org.junit.jupiter.api.Test;
 class ContractStubCompileTest {
 
     private static final List<VersionConfirmCheckSpi> CONFIRM_CHECKS = List.of(
-            new MasterCodeConfirmCheckStub(), new BusinessRuleConfirmCheckStub(), new RuleSetConfirmCheckStub());
+            new MasterCodeConfirmCheckStub(), new BusinessRuleConfirmCheckStub(), new RuleSetConfirmCheckStub(),
+            new LayoutConfirmCheckStub());
 
     private static final List<MaruIdNamespace> NAMESPACES = List.of(
             new MasterCodeIdNamespaceStub(Set.of("PROC_CD", "STEEL_GRADE")),
@@ -140,7 +141,7 @@ class ContractStubCompileTest {
     void 삭제_정리_훅_구현이_모든_버전_대상을_하나씩_덮는다() {
         // TSK-01-03 K5 — VersionDraftDeletionSpi 도 target 마다 정확히 하나(D4).
         List<VersionDraftDeletionSpi> hooks = List.of(new MasterCodeDraftDeletionStub(), new BusinessRuleDraftDeletionStub(),
-                new RuleSetDraftDeletionStub());
+                new RuleSetDraftDeletionStub(), new LayoutDraftDeletionStub());
         Set<VersionTarget> targets = hooks.stream().map(VersionDraftDeletionSpi::target)
                 .collect(Collectors.toCollection(() -> EnumSet.noneOf(VersionTarget.class)));
         assertEquals(EnumSet.allOf(VersionTarget.class), targets);
@@ -237,7 +238,7 @@ class ContractStubCompileTest {
                 null, null, null, 0, 20, null, null);
         MdmLayoutSnapshot snapshot = new MdmLayoutSnapshot(
                 201L, "M201", "IFL2MES201", "L2", "MES", "EUC-KR", "패딩 규칙",
-                2L, 20, List.of(), List.of(bodyItem));
+                new BigDecimal("2.000"), 20, List.of(), List.of(bodyItem));
         LayoutSerializerConsumerStub stub = new LayoutSerializerConsumerStub();
 
         MdmLayoutSerializeContext context = new MdmLayoutSerializeContext(
@@ -250,7 +251,7 @@ class ContractStubCompileTest {
     void 레이아웃_파서_스텁이_컴파일_동작한다() {
         MdmLayoutSnapshot snapshot = new MdmLayoutSnapshot(
                 201L, "M201", "IFL2MES201", "L2", "MES", "EUC-KR", "패딩 규칙",
-                2L, 20, List.of(), List.of());
+                new BigDecimal("2.000"), 20, List.of(), List.of());
         LayoutParserConsumerStub stub = new LayoutParserConsumerStub();
 
         java.util.Map<String, Object> parsed = stub.parse(snapshot, new byte[20]);
@@ -263,15 +264,15 @@ class ContractStubCompileTest {
         MdmLayoutItemSnapshot headerItem = new MdmLayoutItemSnapshot(
                 2, MdmFillKind.CONST, MdmLayoutItemType.CHAR, "SND_FAC_TP", null, null, null,
                 "B0", "B1", null, 8, 4, null, null);
-        MdmLayoutHeaderRef h100 = new MdmLayoutHeaderRef(1, 100L, "L100 GLUE 공통 헤더", 0, 100, List.of(headerItem));
-        MdmLayoutHeaderRef h110 = new MdmLayoutHeaderRef(2, 110L, "L110 L2 구간 헤더", 100, 30, List.of());
+        MdmLayoutHeaderRef h100 = new MdmLayoutHeaderRef(1, 100L, "L100 GLUE 공통 헤더", 0, 100, List.of(headerItem), new BigDecimal("1.000"));
+        MdmLayoutHeaderRef h110 = new MdmLayoutHeaderRef(2, 110L, "L110 L2 구간 헤더", 100, 30, List.of(), new BigDecimal("1.000"));
 
         MdmLayoutSnapshot noHeader = new MdmLayoutSnapshot(
-                1L, "무헤더", null, null, null, null, null, 1L, 10, List.of(), List.of());
+                1L, "무헤더", null, null, null, null, null, new BigDecimal("1.000"), 10, List.of(), List.of());
         MdmLayoutSnapshot oneHeader = new MdmLayoutSnapshot(
-                2L, "단일헤더", null, null, null, null, null, 1L, 110, List.of(h100), List.of());
+                2L, "단일헤더", null, null, null, null, null, new BigDecimal("1.000"), 110, List.of(h100), List.of());
         MdmLayoutSnapshot stacked = new MdmLayoutSnapshot(
-                201L, "M201", "IFL2MES201", "L2", "MES", "EUC-KR", null, 2L, 187, List.of(h100, h110), List.of());
+                201L, "M201", "IFL2MES201", "L2", "MES", "EUC-KR", null, new BigDecimal("2.000"), 187, List.of(h100, h110), List.of());
 
         assertEquals(0, noHeader.headers().size());
         assertEquals(1, oneHeader.headers().size());

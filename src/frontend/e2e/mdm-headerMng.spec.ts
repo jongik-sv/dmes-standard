@@ -8,10 +8,12 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *
  *   H1 메뉴 이동·목록(서버 데이터)·빈 상태(스모크 1·2)   H2 화면 조작만으로 헤더 등록 — 저장 전 즉시 재계산(스모크 3)
  *   H3 사전에 없는 항목은 만들 경로가 없고 API 도 L01(수용 기준 1)   H4 fill_kind 닫힌 칸(수용 기준 5 화면 쪽)
- *   H5 헤더 변경 영향도 — 사용 전문                        H6 서버 오류 표시(동시 수정 MDM001, 스모크 4)
+ *   H5 헤더 변경 영향도 — 사용 전문(버전·상태 열)          H6 서버 오류 표시(동시 수정 MDM001, 스모크 4)
+ *   H7 D-144 3단계 — 확정된 헤더는 읽기 전용이고 새 버전(minor)으로만 고친다(저장은 버전을 만들지 않는다)
  *
  * 전제: 격리 DB 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고 e2e/fixtures/mdm-rbac-users.sql 을 넣는다(design.md §3.7).
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
+ * mdm-headerMng·mdm-layoutConfirm·mdm-layoutMng 세 스펙은 새 mdm.db 로 한 벌씩만 돈다(같은 DB 로 다시 돌리면 L110 의 1.001·M201 의 1.001 DRAFT 가 남아 새 버전 단언이 어긋난다).
  * beforeAll 이 SMOKE_MDM_DB(워크트리 mdm.db)에 e2e/fixtures/mdm-layout-m201.sql 을 넣는다 — 컬럼 사전 스펙 뒤에 들어가야 한다.
  */
 
@@ -103,6 +105,9 @@ test.describe("mdm 전문 헤더 정의", () => {
     await expect(glue).toBeVisible({ timeout: 30_000 });
     await expect(glue.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("100");
     await expect(glue.locator('.ag-cell[col-id="ITEM_COUNT"]')).toHaveText("13");
+    // 픽스처 헤더는 1.000 RELEASED(2000-01-01 부터) — 지금 적용 중이다
+    await expect(glue.locator('.ag-cell[col-id="HEADER_VER"]')).toHaveText("v1.000");
+    await expect(glue.locator('.ag-cell[col-id="HEADER_STATE"]')).toHaveText("현재");
     const l2 = listRow(layout, "L2 구간 헤더(E2E)");
     await expect(l2.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("30");
     await expect(l2.locator('.ag-cell[col-id="ITEM_COUNT"]')).toHaveText("6");
@@ -141,6 +146,9 @@ test.describe("mdm 전문 헤더 정의", () => {
     await expect(created.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("22", { timeout: 30_000 });
     await expect(created.locator('.ag-cell[col-id="ITEM_COUNT"]')).toHaveText("3");
     await expect(created.locator('.ag-cell[col-id="EAI_CODE"]')).toHaveText(NEW_EAI);
+    // 저장은 v1.000 DRAFT 를 만든다 — 확정 전이라 상태는 작성 중이다
+    await expect(created.locator('.ag-cell[col-id="HEADER_VER"]')).toHaveText("v1.000");
+    await expect(created.locator('.ag-cell[col-id="HEADER_STATE"]')).toHaveText("작성 중");
     await page.screenshot({ path: screenshot("dmb-headerMng-register.png"), fullPage: true });
 
     // ── H3 사전에 없는 항목 — 팝업에 만들 경로가 없고, API 로 보내도 L01 ──
@@ -181,6 +189,9 @@ test.describe("mdm 전문 헤더 정의", () => {
     const usage = layout.getByTestId("header-usage");
     await expect(usage).toContainText("출측검사 실적 수신(E2E)", { timeout: 30_000 });
     await expect(usage).toContainText("187");
+    // 사용 전문 표에 버전·상태 열 — 픽스처 전문은 1.000 이 지금 적용 중이다
+    await expect(usage).toContainText("v1.000");
+    await expect(usage).toContainText("현재");
     await usage.scrollIntoViewIfNeeded();
     await page.screenshot({ path: screenshot("dmb-headerMng-impact.png"), fullPage: true });
 
@@ -192,11 +203,13 @@ test.describe("mdm 전문 헤더 정의", () => {
       data: { meta: { menuId: "headerMng" }, params: { layoutId: headerId } },
     })).json()).data.result;
     const h = view.header;
+    // 저장은 고른 DRAFT(selected)를 ver·rowVersion 으로 덮어쓴다 — 헤더 부모 행이 아니라 selected 에서 읽는다
+    const sel = view.selected;
     const other = await page.request.post(`${BASE_URL}${API}/save`, {
       data: {
         meta: { menuId: "headerMng" },
-        params: stripNulls({ layoutId: h.LAYOUT_ID, ver: h.VER, layoutName: `${h.LAYOUT_NAME} 다른이`, eaiCode: h.EAI_CODE,
-          eaiName: h.EAI_NAME, encoding: h.ENCODING, padRule: h.PAD_RULE }),
+        params: stripNulls({ layoutId: h.LAYOUT_ID, ver: sel.VER, rowVersion: sel.ROW_VERSION, layoutName: `${h.LAYOUT_NAME} 다른이`,
+          eaiCode: h.EAI_CODE, eaiName: h.EAI_NAME, encoding: h.ENCODING, padRule: h.PAD_RULE }),
         grids: { items: { rows: view.items.map(itemRequestRow) } },
       },
     });
@@ -208,6 +221,22 @@ test.describe("mdm 전문 헤더 정의", () => {
     await expect(modal).toContainText("다른 사용자가 수정");
     await page.screenshot({ path: screenshot("dmb-headerMng-error.png"), fullPage: true });
     await page.getByRole("button", { name: "확인" }).click();
+  });
+  test("H7 확정된 헤더는 읽기 전용 — 새 버전(minor)을 만들어야 고칠 수 있다", async ({ page }) => {
+    await login(page);
+    const layout = await openScreen(page);
+    await search(layout, "(E2E)");
+    await selectHeader(layout, "L2 구간 헤더(E2E)");
+    // 1.000 RELEASED 는 고를 수 있는 유일한 버전이고, 입력은 모두 잠긴다
+    await expect(layout.getByTestId("header-ver-select")).toHaveValue("1.000", { timeout: 30_000 });
+    await expect(layout.getByTestId("header-form-name")).toBeDisabled();
+    await expect(layout.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
+    await expect(layout.getByTestId("header-item-add-column")).toHaveCount(0);
+    // 표준 관리자는 확정 권한이 없어 [확정] 은 늘 꺼져 있다. 새 버전 버튼은 둘 다 쓸 수 있다
+    await expect(layout.getByTestId("header-ver-confirm")).toBeDisabled();
+    await expect(layout.getByTestId("header-ver-new-major")).toBeEnabled();
+    await expect(layout.getByTestId("header-ver-new-minor")).toBeEnabled();
+    await page.screenshot({ path: screenshot("dmb-headerMng-readonly.png"), fullPage: true });
   });
 });
 

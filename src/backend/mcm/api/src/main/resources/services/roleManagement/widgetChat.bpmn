@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="widgetChatDefinitions" targetNamespace="http://dongkuk.com/dmes/mcm" exporter="bpmn-tool" exporterVersion="1.2.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="widgetChat" name="AI 챗봇 위젯 서비스" isExecutable="true">
+    <bpmn:documentation>포털 홈 AI 챗봇 위젯 — 스펙 2026-10-02-widget-admin-generic §5.1·§9. 본인 대화 기록이라 AUTH_ONLY(widgetChat/*). action: history(기록) · send(질문 → 답) · reset(새 대화).</bpmn:documentation>
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_history</bpmn:outgoing>
+      <bpmn:outgoing>flow_send</bpmn:outgoing>
+      <bpmn:outgoing>flow_reset</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="historyTask" name="대화 기록 조회" camunda:class="widgetChatService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="history" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.chat.dto.WidgetChatRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_history</bpmn:incoming>
+      <bpmn:outgoing>flow_history_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="sendTask" name="질문 보내고 답 받기" camunda:class="widgetChatService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="send" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.chat.dto.WidgetChatRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_send</bpmn:incoming>
+      <bpmn:outgoing>flow_send_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="resetTask" name="새 대화(기록 지우기)" camunda:class="widgetChatService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="reset" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.chat.dto.WidgetChatRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_reset</bpmn:incoming>
+      <bpmn:outgoing>flow_reset_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endHistory">
+      <bpmn:incoming>flow_history_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endSend">
+      <bpmn:incoming>flow_send_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="endReset">
+      <bpmn:incoming>flow_reset_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_history" name="history" sourceRef="actionGateway" targetRef="historyTask" />
+    <bpmn:sequenceFlow id="flow_send" name="send" sourceRef="actionGateway" targetRef="sendTask" />
+    <bpmn:sequenceFlow id="flow_reset" name="reset" sourceRef="actionGateway" targetRef="resetTask" />
+    <bpmn:sequenceFlow id="flow_history_end" sourceRef="historyTask" targetRef="endHistory" />
+    <bpmn:sequenceFlow id="flow_send_end" sourceRef="sendTask" targetRef="endSend" />
+    <bpmn:sequenceFlow id="flow_reset_end" sourceRef="resetTask" targetRef="endReset" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="widgetChat">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="180" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="270" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="historyTask_di" bpmnElement="historyTask">
+        <dc:Bounds x="400" y="50" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="sendTask_di" bpmnElement="sendTask">
+        <dc:Bounds x="400" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="resetTask_di" bpmnElement="resetTask">
+        <dc:Bounds x="400" y="270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endHistory_di" bpmnElement="endHistory">
+        <dc:Bounds x="580" y="72" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSend_di" bpmnElement="endSend">
+        <dc:Bounds x="580" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endReset_di" bpmnElement="endReset">
+        <dc:Bounds x="580" y="292" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="216" y="200" />
+        <di:waypoint x="270" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_history_di" bpmnElement="flow_history">
+        <di:waypoint x="295" y="175" />
+        <di:waypoint x="295" y="90" />
+        <di:waypoint x="400" y="90" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="73" width="56" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_send_di" bpmnElement="flow_send">
+        <di:waypoint x="320" y="200" />
+        <di:waypoint x="400" y="200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="340" y="183" width="32" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_reset_di" bpmnElement="flow_reset">
+        <di:waypoint x="295" y="225" />
+        <di:waypoint x="295" y="310" />
+        <di:waypoint x="400" y="310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="327.5" y="208" width="40" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_history_end_di" bpmnElement="flow_history_end">
+        <di:waypoint x="500" y="90" />
+        <di:waypoint x="580" y="90" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_send_end_di" bpmnElement="flow_send_end">
+        <di:waypoint x="500" y="200" />
+        <di:waypoint x="580" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_reset_end_di" bpmnElement="flow_reset_end">
+        <di:waypoint x="500" y="310" />
+        <di:waypoint x="580" y="310" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+
