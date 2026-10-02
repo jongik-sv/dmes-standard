@@ -49,8 +49,10 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
 - 기록 쓰기는 여러 행 `VALUES` 네이티브 INSERT 한 문장이다(SQLite·PostgreSQL·MSSQL·Oracle 23ai). 더 옛 Oracle 로 가면 고친다.
 - 운영 DDL 은 Flyway 가 꺼진 프로필(`application-wildfly.yml`)에서 운영 DB 확정 때 수동으로 맞춘다(V18 `TB_MDM_META_REV`).
 - 변경 기록 보관 정리(30일)는 아직 없다. 정리로 생긴 공백은 클라이언트가 역행·truncated 규칙으로만 다룬다.
-- 업무 모듈 mqc·mpp·mpn 에는 ClientKeyFilter 가 없어 관리 엔드포인트의 SYSADMIN 확인을 BFF 가 넘긴 `X-Authenticated-Role` 헤더로 한다.
-  이 모듈들의 다른 엔드포인트와 같은 신뢰 수준이고, BE 포트는 BFF 외부로 노출되지 않는다는 가정 위에 있다.
+- 업무 모듈 다섯(mcm·mls·mqc·mpp·mpn) 모두 cactus 보안 체인과 ClientKeyFilter 뒤에 있다 — mqc·mpp·mpn 은 2026-10-02 에 `cactus.jwt`·
+  `cactus.security`·`cactus.oasis.service-group` 을 더했다(없으면 Spring Security 기본 체인이 BFF 호출을 401 로 막았다). `/api/{module}/mdmMeta/*`
+  요청은 BFF 의 `X-Client-Key` 를 먼저 통과해야 하고, 관리 엔드포인트의 SYSADMIN 확인은 ClientKeyFilter 가 세운 인증의 권한(그것이 없을 때만
+  BFF 가 넘긴 `X-Authenticated-Role` 헤더)으로 한다. 새 업무 모듈도 같은 설정을 갖춰야 한다(Backend-Implementation-Guide §11.1).
 - **다중 인스턴스**: 캐시는 JVM 별(프로세스 별) 독립이다. 각 인스턴스는 독립적으로 폴링하고 적재하므로 중복 적재가 일어난다(부하 증가). 인스턴스들이 일시적으로 다른 정의를 볼 수 있으며, 화면의 EVICT·RELOAD 강제 기록은 각 인스턴스가 자기 폴 주기에 반영한다.
 - **기록기 트랜잭션**: 호출 쪽 트랜잭션이 없으면 기록기(`MetaRevisionRecorder`)가 `TransactionTemplate(REQUIRED)`로 자기 트랜잭션을 연다.
 - **Oracle 위험**: 다중 행 `VALUES (..), (..)` INSERT 는 Oracle 19c 에서 실행되지 않고 23ai+ 에서만 가능하다. V18 마이그레이션은 SQLite 전용(`AUTOINCREMENT`)이므로 운영 DB(Oracle·PostgreSQL)로 가면 시퀀스·IDENTITY 로 바꿔야 한다. 시퀀스 CACHE 설정은 순번 순서 가정에 영향을 줄 수 있다.
@@ -67,7 +69,7 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
 - 업무 모듈 한 곳 이상에서 하위 프로젝트 B(캡션·툴팁) 또는 C(검증)가 이 캐시로 동작하고, 통합 확인(구현 계획 Task 14)이 통과하면 ACCEPTED 로 올린다.
 - **운영 DB 확정 시**:
   - 다중 행 `VALUES` INSERT 를 Oracle·PostgreSQL 방언으로 바꾼다(V18 마이그레이션 포함).
-  - V18 `TB_MDM_META_REV.SEQ` 를 시퀀스·IDENTITY 로 정의하고, 순번 순서 가정(CACHE 포함)을 다시 검증한다.
+  - V18 `TB_MDM_META_REV.REV_SEQ` 를 시퀀스·IDENTITY 로 정의하고, 순번 순서 가정(CACHE 포함)을 다시 검증한다.
   - 시간대 교차 트랜잭션으로 인한 순번 역전이 정말 일어나는지 부하 테스트로 확인한다.
 
 ## References

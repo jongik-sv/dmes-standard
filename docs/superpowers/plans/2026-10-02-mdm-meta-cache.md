@@ -7160,6 +7160,12 @@ EOF
 
 ### Task 14: 통합 수동 검증 — 로컬 mdm + mls(+ mqc·mcm·포털)에서 10초 안 반영과 화면 재등록
 
+> **⚠️ 실행 기록 주석(2026-10-02, 최종 수정 물결 — 아래 본문은 기록이라 고치지 않는다):**
+> - 아래 Step 의 8xxx 포트 kill 명령(`lsof -t -nP -iTCP:80xx -sTCP:LISTEN | xargs -r kill` 등)은 **사용자 서버(5100·8100·8092·8096)가 떠 있을 때 쓰지 않는다** — 사용자 서버를 죽인다.
+>   검증 서버는 18xxx·15100 처럼 겹치지 않는 포트로 띄우고, 정리는 직접 띄운 PID 만 TERM 한다(`gradlew --stop` 금지). 근거: `.superpowers/sdd/mdm-meta-cache/task-14-report.md` B1.
+> - Step 4 의 `columnMng/save` 페이로드에 **null 값을 넣지 않는다** — OASIS `TypedObject` 가 null 을 받지 못해 `S999 ... object is null` 로 실패한다.
+>   view 결과를 그대로 쓰면 `{k: v for k, v in ... if v is not None}` 로 null 칸을 뺀다. 같은 Step 의 `entries?q=` 는 부분 일치라 개수 비교는 키 정확 일치로 센다.
+
 **Files:** 없음(코드 변경 없음). 로그는 `$W/logs/`.
 
 **Interfaces:**
