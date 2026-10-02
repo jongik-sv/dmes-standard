@@ -101,7 +101,7 @@ pnpm dev
 
 ## 7. FormGroup 도움말
 
-- `<FormGroup label="..." tip={...}>` 형식으로 라벨과 tip을 함께 제공한다.
+- `<FormGroup label="..." tip={...}>` 형식으로 라벨과 tip을 함께 제공한다. MDM 컬럼 사전에 있는 입력은 `name` 을 주고 `label`·`tip` 을 생략해 MDM 캡션·카드 툴팁을 받을 수 있다(§26).
 - tip 문자열은 inline으로 직접 쓰지 않고 모듈별 `<module>/src/_shared/field-tips.ts`의 도메인별 `{DOMAIN}_TIPS` 객체에서 참조한다.
 - 같은 도메인 필드는 같은 TIPS 키를 재사용한다.
 - 도메인 의미가 다르면 별도 TIPS 객체를 만든다. 라벨이 같아도 의미가 다른 경우 같은 키를 공유하지 않는다.
@@ -281,3 +281,28 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 - 모달 본문 div 는 `flex: 1; min-height: 0; display: flex; flex-direction: column` 이고, 위아래 안내 줄은 `flex: none` 이다.
 - 빈 곳을 없애려고 크기를 `md`(600px)로 낮추지 않는다. 다섯 열 이상의 표는 글자가 잘리고 가로 스크롤이 생긴다.
 - 예시: `m-mdm/pages/dme/ruleEdit/cards/BoundaryCaseModal.tsx` 의 `gridBox`·`gridFill`.
+
+## 26. MDM 캡션·툴팁·값 검증 — 컬럼 사전을 화면이 따른다 (2026-10-03)
+
+포털 탭이 `MdmMetaProvider` 를 자동으로 씌운다. 화면이 MDM 컬럼 사전(표준 용어)을 따르게 하는 방법이다. 컴포넌트 사용법·props 정본은 `mantine-aggrid-ui` 스킬의 [mdm-meta](../../../.claude/skills/mantine-aggrid-ui/references/components/mdm-meta.md), 설계 정본은 `docs/superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md` 이다.
+
+**캡션·툴팁**
+
+- 그리드 열 `key` 가 MDM 물리명과 같으면(`TITLE`, `codeNm` → `CODE_NM`) `header` 를 **적지 않는다**. 머리글이 MDM 캡션이 되고, 마우스를 올리면 컬럼·도메인 카드(툴팁)가 뜬다. `header` 를 적으면 적은 값이 이긴다 — 지금 화면 캡션을 바꾸고 싶지 않으면 그대로 둔다.
+- 표시용 파생 열(`CATEGORY_LABEL` 등)처럼 물리명과 맞지 않는 열은 `header` 를 적는다. 다른 물리명이 맞으면 `meta="물리명"`, 엉뚱하게 맞으면 `meta: false`. 엑셀 내보내기 등에서 `header` 를 읽을 때는 `useResolvedGridColumns(COLUMNS)` 결과를 쓴다.
+- `FormGroup` 을 쓰는 입력은 `name`(화면 필드 이름)을 주고 `label` 을 생략하면 MDM 폼 캡션·툴팁이 붙는다(§7 의 `tip` 은 적으면 이긴다).
+- **상세 표(`DETAIL_*` th/td)는 `FormGroup` 을 쓰지 않으므로** 훅으로 직접 잇는다: 라벨은 `useMdmColumn("TITLE")` + `resolveCaption(column, "form", undefined, useMdmCaptionPriority(), "제목")`. 이 패턴은 아직 툴팁이 없다(MDM 카드를 띄울 공통 부품은 후속).
+
+**값 검증**
+
+- 표준 문구와 판정은 서버 저장 검증(`MdmValidator`, [백엔드 가이드 §11.2](../BackEnd/Backend-Implementation-Guide.md#112-저장-검증mdmvalidator))과 같다. 화면 검사는 편의이고 서버가 기준이다. 비즈니스식은 화면에서 검사하지 않는다.
+- 상세 표·폼: `useMdmValidation().validateValue(name, value)` 결과를 `Input error` 에 준다(입력 중 즉시). 저장 직전에는 `validateRow(row, names)` 로 한 번 더 막는다. 이 화면이 검사하는 칸은 **서버 `MdmValidator.columns(...)` 와 같은 칸**이어야 한다 — 서버는 MDM 정의가 DB 칸보다 엄격하지 않은 칸만 검사한다.
+- 편집 그리드: `mdmValidate`(편집 가능하고 MDM 에 연결된 열만, 바뀐 칸 즉시 표시), 저장 전 전체는 `validateRows`.
+- **서버 저장 오류 → 칸 오류**: OASIS 서비스는 `BusinessException` 을 HTTP 200 + `meta.success=false` 봉투로 돌려주므로 `apiRequest` 가 던지지 않는다. 화면의 봉투 해제 함수가 거부를 판정해 던지는 오류에 봉투의 `errors` 를 실어야 `toFieldErrors(e, grid)` 가 읽는다(`noticeMgmt/api.ts` 의 `NoticeApiError.errors`). 이 결과를 그리드는 `fieldErrors`, 상세 표는 칸별 `error` 로 준다.
+- `rowIndex` 는 **요청 목록의 자리**다. 바뀐 행만 보내는 화면이 그 결과를 그리드 `fieldErrors` 에 그대로 넘기면 엉뚱한 행이 표시된다 — 요청 행에 `rowKey` 를 실어 보내 그 값으로 맞추거나 data 자리로 바꿔 넘긴다. 한 행만 보내는 상세 저장은 `rowIndex` 를 보지 않고 `field` 로만 칸을 찾는다.
+- 서버 오류 칸은 그 칸을 고치거나 다른 행을 열거나 새로 쓰면 지운다(낡은 판정을 남기지 않는다).
+
+**시험**
+
+- 화면 시험(happy-dom)은 진짜 shared(dist)에 가짜 `fetch` 를 꽂는다: `/api/{module}/mdmMeta/columns`·`domains` 응답, `apiRequest` 를 쓰는 화면이면 Node 의 `localStorage` 전역(파일 미지정이라 접근 시 예외)을 스텁하고, `PageLayout` 버튼이 필요하면 `/api/auth/me`·`myButtonEndpoints`(`{objId:"*",action:"*"}`)에 답한다. 실제 MDM 정의는 입력 제한에 먼저 걸릴 수 있으니 시험용은 더 엄격한 가짜 정의(짧은 길이·필수)를 쓴다. 예: `m-mls/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`.
+- 예시 화면: `m-mls/pages/lsh/noticeMgmt/`(`notice-columns.tsx` 의 `TITLE` 열 header 생략, `NoticeTitleRow.tsx`, `page.tsx` 의 저장 흐름).
