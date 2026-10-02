@@ -216,7 +216,7 @@ cactus:
 | `domains` | POST | `domainIds[]` | 도메인 메타 | 로그인 사용자 |
 | `status` | GET | — | 모듈, 인스턴스 ID, `appliedSeq`, MDM `latestSeq`(마지막 폴링 값), 마지막 성공 시각, 연속 실패 수, 대상별 항목 수 | SYSADMIN |
 | `entries` | GET | `type`, `q`, `page` | 항목 목록(키, 있음/없음 `absent`, 적재 시각, 조회 수, 남은 수명). 캐시 값은 싣지 않는다 | SYSADMIN |
-| `entry` | GET | `type`, `key`(컬럼은 camelCase 도 정규화) | 항목 하나 `{type, key, absent, loadedAt, hits, remainingSeconds, loadSeq, value}` — `value` 는 캐시 값 전체(§4.2 예외, `MdmJson` 설정: 소수 자리수 유지·날짜 ISO). 캐시를 읽기만 한다(조회 수·적재·지움 상태 불변, 캐시에 없거나 수명이 지났으면 MDM 에서 받지 않고 404). 잘못된 `type`·빈 `key` 400 | SYSADMIN |
+| `entry` | GET | `type`, `key`(컬럼은 camelCase 도 정규화) | 항목 하나 `{type, key, absent, loadedAt, hits, remainingSeconds, loadSeq, value}` — `value` 는 캐시 값 전체(§4.2 예외, `MdmJson` 설정: 소수 자리수 유지·날짜 ISO). 캐시를 읽기만 한다(조회 수·적재·지움 상태 불변, 캐시에 없거나 수명이 지났으면 MDM 에서 받지 않고 404, 본문 `code: MDM_ENTRY_NOT_CACHED` — 화면은 이 code 가 있는 404 만 "캐시에 없음"으로 본다). 잘못된 `type`·빈 `key` 400 | SYSADMIN |
 | `load` | POST | `type`, `keys[]` | 이 인스턴스에 미리 적재한 결과 | SYSADMIN |
 
 - 이름 정규화: 소문자가 섞인 이름은 camelCase 로 보고 `UPPER_SNAKE` 로 바꾼다(`codeNm` → `CODE_NM`). 이미 대문자면 그대로 쓴다.

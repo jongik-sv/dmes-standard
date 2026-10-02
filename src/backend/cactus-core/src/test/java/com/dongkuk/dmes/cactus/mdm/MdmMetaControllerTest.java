@@ -11,6 +11,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.dongkuk.dmes.cactus.security.filter.ClientKeyFilter;
 import com.dongkuk.dmes.cactus.web.inbound.CactusRequestMappingHandlerMapping;
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -40,6 +41,7 @@ class MdmMetaControllerTest {
 
     private FakeMetaFeed feed;
     private MutableClock clock;
+    private MdmMetaController controller;
     private MockMvc mvc;
     private final Logger controllerLog = (Logger) LoggerFactory.getLogger(MdmMetaController.class);
     private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
@@ -61,7 +63,7 @@ class MdmMetaControllerTest {
         cache.clear(0);
         MdmMetaService service = new MdmMetaService(feed, cache, clock);
         MdmRevisionPoller poller = new MdmRevisionPoller(feed, cache, service, clock, Duration.ofSeconds(10), 1000);
-        MdmMetaController controller = new MdmMetaController("mls", "123@host", service, cache, poller, clock);
+        controller = new MdmMetaController("mls", "123@host", service, cache, poller, clock);
         mvc = MockMvcBuilders.standaloneSetup(controller).setCustomHandlerMapping(CactusRequestMappingHandlerMapping::new).build();
 
         feed.put(MdmTargetType.COLUMN, "COIL_THK", new MdmColumnMeta("COIL_THK", "코일 두께", null, "두께", null, "설명", null, "NUMBER", 10, 2,
@@ -274,6 +276,64 @@ class MdmMetaControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /** 수정 1차(보안 보강) — 인증된 사용자는 그 권한으로만 판정한다. 위조한 SYSADMIN 헤더로 원문을 받을 수 없다. */
+    @Test
+    void entry_는_인증된_사용자가_SYSADMIN_이_아니면_위조_헤더가_있어도_403() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
+
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("u1", null, AuthorityUtils.createAuthorityList("ROLE_MCM_VIEWER")));
+        String body = mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK")
+                        .header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isForbidden())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("value <= COIL_WID");
+    }
+
+    @Test
+    void entry_는_권한이_빈_인증이면_헤더로_넘어가지_않고_403() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
+
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("u1", null, List.of()));
+        mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isForbidden());
+
+        UsernamePasswordAuthenticationToken unauthenticated = UsernamePasswordAuthenticationToken.unauthenticated("u2", null);
+        SecurityContextHolder.getContext().setAuthentication(unauthenticated);
+        mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * BFF 경로 — ClientKeyFilter 가 X-Client-Key 를 확인하고 X-Authenticated-User·Role 로 ROLE_ 권한을 가진 인증을 세운다. 그 인증의 권한으로
+     * 판정하므로 SYSADMIN 이면 200, 아니면 403 이다.
+     */
+    @Test
+    void entry_는_ClientKeyFilter_가_세운_BFF_인증의_권한으로_판정한다() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
+        MockMvc bff = MockMvcBuilders.standaloneSetup(controller).setCustomHandlerMapping(CactusRequestMappingHandlerMapping::new)
+                .addFilters(new ClientKeyFilter("secret-key", null)).build();
+
+        bff.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK")
+                        .header("X-Client-Key", "secret-key").header("X-Authenticated-User", "admin")
+                        .header("X-Authenticated-Role", "SYSADMIN,MCM_VIEWER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.value.bizExpr.text").value("value <= COIL_WID"));
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
+                .extracting(Object::toString).contains("ROLE_SYSADMIN");
+
+        SecurityContextHolder.clearContext();
+        bff.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK")
+                        .header("X-Client-Key", "secret-key").header("X-Authenticated-User", "viewer")
+                        .header("X-Authenticated-Role", "MCM_VIEWER"))
+                .andExpect(status().isForbidden());
+
+        SecurityContextHolder.clearContext();
+        bff.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK")
+                        .header("X-Client-Key", "wrong").header("X-Authenticated-User", "admin").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isUnauthorized());
+    }
+
     @Test
     void entry_는_캐시를_읽기만_해서_조회_수도_MDM_호출도_바뀌지_않는다() throws Exception {
         mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
@@ -295,6 +355,7 @@ class MdmMetaControllerTest {
         int calls = feed.fetchCalls.get();
         mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK").header("X-Authenticated-Role", "SYSADMIN"))
                 .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("MDM_ENTRY_NOT_CACHED"))
                 .andExpect(jsonPath("$.message").value("캐시에 없습니다(만료·삭제됨): COLUMN COIL_THK"));
         assertThat(feed.fetchCalls.get()).isEqualTo(calls);
 

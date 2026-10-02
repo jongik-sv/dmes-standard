@@ -52,6 +52,8 @@ public class MdmMetaController {
     static final String ROLE_HEADER = "X-Authenticated-Role";
     static final String SYSADMIN = "SYSADMIN";
     static final int MAX_PAGE_SIZE = 500;
+    /** entry 404 본문의 code — 화면이 "캐시에 없음"과 다른 404(모듈 불일치·없는 경로)를 가른다. */
+    static final String NOT_CACHED_CODE = "MDM_ENTRY_NOT_CACHED";
 
     private final String module;
     private final String instanceId;
@@ -210,6 +212,7 @@ public class MdmMetaController {
         Optional<MdmMetaCache.EntryView> found = cache.peek(t.get(), k);
         if (found.isEmpty()) {
             Map<String, Object> body = new LinkedHashMap<>();
+            body.put("code", NOT_CACHED_CODE);
             body.put("message", "캐시에 없습니다(만료·삭제됨): " + t.get().name() + " " + k);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
         }
@@ -244,9 +247,10 @@ public class MdmMetaController {
     }
 
     /**
-     * SYSADMIN 판정(Ruling R10 + 검토 보강). 보안 문맥에 익명이 아닌 인증이 권한과 함께 있으면 그 권한으로만 판정한다(JWT·ClientKeyFilter 가
-     * 세운 인증 — 헤더를 다시 믿지 않는다). 그런 인증이 없을 때(cactus 보안 설정이 없어 사용자 문맥이 없는 모듈)만 {@code X-Authenticated-Role}
-     * 헤더(콤마 목록)로 판정한다. 두 경우 모두 {@code ROLE_} 접두를 떼고 대소문자를 가리지 않는다.
+     * SYSADMIN 판정(Ruling R10 + 검토 보강). 보안 문맥에 익명이 아닌 인증이 있으면 그 권한으로만 판정한다(JWT·ClientKeyFilter 가 세운 인증 —
+     * 헤더를 다시 믿지 않는다). 권한 목록이 비었거나 인증되지 않은 토큰이면 SYSADMIN 이 아니다(헤더로 넘어가지 않는다 — entry 가 비즈니스식
+     * 원문을 싣게 되어 2026-10-02 보강). 인증이 아예 없거나 익명일 때(cactus 보안 설정이 없어 사용자 문맥이 없는 모듈)만
+     * {@code X-Authenticated-Role} 헤더(콤마 목록)로 판정한다. 두 경우 모두 {@code ROLE_} 접두를 떼고 대소문자를 가리지 않는다.
      */
     static boolean isSysadmin(String roleHeader) {
         Optional<List<String>> authorities = SECURITY_PRESENT ? SecurityAuthorities.current() : Optional.empty();
@@ -275,11 +279,14 @@ public class MdmMetaController {
     /** spring-security 가 있을 때만 읽힌다(cactus-core 는 compileOnly — 이 클래스를 건드리지 않으면 로드되지 않는다). */
     private static final class SecurityAuthorities {
 
+        /** 인증이 없거나 익명이면 빈 값(헤더 판정). 그 밖의 인증은 그 권한 — 인증되지 않았거나 권한이 없으면 빈 목록(거부). */
         static Optional<List<String>> current() {
             Authentication a = SecurityContextHolder.getContext().getAuthentication();
-            if (a == null || !a.isAuthenticated() || a instanceof AnonymousAuthenticationToken || a.getAuthorities() == null
-                    || a.getAuthorities().isEmpty()) {
+            if (a == null || a instanceof AnonymousAuthenticationToken) {
                 return Optional.empty();
+            }
+            if (!a.isAuthenticated() || a.getAuthorities() == null) {
+                return Optional.of(List.of());
             }
             return Optional.of(a.getAuthorities().stream().map(GrantedAuthority::getAuthority).toList());
         }
