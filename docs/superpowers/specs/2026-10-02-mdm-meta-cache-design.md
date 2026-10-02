@@ -186,7 +186,7 @@ cactus:
 | 클래스 | 역할 |
 |---|---|
 | `MdmMetaClient` | `RestClient` 로 `POST {base-url}/oasis/metaFeed/{action}` 호출. 인증 헤더 3종, 요청 UUID(`X-Tx-Id`) 부착. OASIS 응답 봉투를 풀어 DTO 로 돌려준다. 선례는 caravan-hub 클라이언트 |
-| `MdmMetaCache` | 대상 종류별 `ConcurrentHashMap<String, Entry>`. Entry 는 값 또는 "없음", 적재 시각, 마지막 조회 시각, 조회 수, 추정 크기. 수명(§5.1 — 유휴 `max-idle`·절대 상한 `max-age`)이 지난 항목은 조회 때 버린다. 합계가 `max-entries` 를 넘으면 한 번에 95% 까지 줄인다 — 만료 항목을 먼저 지우고, 그다음 오래 조회되지 않은 순(LRU, 마지막 조회 시각 스냅샷으로 정렬)으로 지운다. 추정 크기는 적재 때 값을 `MdmJson` 으로 직렬화한 UTF-8 바이트 수(잠금 밖에서 한 번 잰다, "없음" 0, 직렬화 실패 -1 — 합계에서 뺀다). JVM 실제 점유는 객체 머리·참조 때문에 이보다 크다 |
+| `MdmMetaCache` | 대상 종류별 `ConcurrentHashMap<String, Entry>`. Entry 는 값 또는 "없음", 적재 시각, 마지막 조회 시각, 조회 수, 추정 크기. 수명(§5.1 — 유휴 `max-idle`·절대 상한 `max-age`)이 지난 항목은 조회 때 버리고, 다시 조회되지 않는 항목도 남지 않게 폴링마다(`markApplied`, 약 10초) 쓸어 낸다(`remove(key, entry)` — 살아 있는 항목·지움 기록·세대는 그대로). 폴링이 실패해 쓸지 못하는 동안에도 상태의 항목 수·추정 크기(`sizes`·`bytes`)는 만료 항목을 세지 않는다(목록 `entries` 와 같은 기준). 합계가 `max-entries` 를 넘으면 한 번에 95% 까지 줄인다 — 만료 항목을 먼저 지우고, 그다음 오래 조회되지 않은 순(LRU, 마지막 조회 시각 스냅샷으로 정렬)으로 지운다. 추정 크기는 적재 때 값을 `MdmJson` 으로 직렬화한 UTF-8 바이트 수(잠금 밖에서 한 번 잰다, "없음" 0, 직렬화 실패 -1 — 합계에서 뺀다). JVM 실제 점유는 객체 머리·참조 때문에 이보다 크다 |
 | `MdmMetaService` | 조회 입구. `columns(names)` 처럼 여러 키를 받아 캐시에 없는 키만 모아 MDM 에 한 번 요청하고, 응답에 없는 키는 "없음"으로 캐시한다. 같은 키 동시 적재는 한 번만 한다 |
 | `MdmRevisionPoller` | `poll-interval` 마다 `changes(since=appliedSeq)`. 받은 키를 지우고, `RELOAD` 는 지운 뒤 바로 다시 적재한다. `appliedSeq`, 마지막 성공 시각, 연속 실패 수를 상태로 둔다 |
 | `MdmDefinitionLookup` | 엔진 spi `DefinitionLookup`·`CodeLookup` 구현. `rule(id, evalTs)` 는 캐시된 RELEASED 버전 중 적용 기간이 `evalTs` 를 포함하는 것을 고른다(`RuleVersions.currentReleased` 와 같은 규칙) |
@@ -216,7 +216,7 @@ cactus:
 |---|---|---|---|---|
 | `columns` | POST | `names[]`(물리명 또는 camelCase, 서버가 정규화) | `items{요청이름: 화면용 컬럼 메타}`, `missing[]`, `unavailable[]` | 로그인 사용자 |
 | `domains` | POST | `domainIds[]` | 도메인 메타 | 로그인 사용자 |
-| `status` | GET | — | 모듈, 인스턴스 ID, `appliedSeq`, MDM `latestSeq`(마지막 폴링 값), 마지막 성공 시각, 연속 실패 수, 대상별 항목 수 `counts`, 대상별 추정 크기 합계 `bytes`(counts 와 같은 모양)·전체 `totalBytes`, JVM 힙 `heap{usedBytes, maxBytes}`(`totalMemory-freeMemory`, `maxMemory`), `maxEntries`, `maxAgeSeconds`(절대 상한), `maxIdleSeconds`(유휴 수명) | SYSADMIN |
+| `status` | GET | — | 모듈, 인스턴스 ID, `appliedSeq`, MDM `latestSeq`(마지막 폴링 값), 마지막 성공 시각, 연속 실패 수, 대상별 항목 수 `counts`(만료 항목 제외), 대상별 추정 크기 합계 `bytes`(counts 와 같은 모양·같은 항목)·전체 `totalBytes`, JVM 힙 `heap{usedBytes, maxBytes}`(`totalMemory-freeMemory`, `maxMemory`), `maxEntries`, `maxAgeSeconds`(절대 상한), `maxIdleSeconds`(유휴 수명) | SYSADMIN |
 | `entries` | GET | `type`, `q`, `sort`, `page`, `size` | 항목 목록(키, 있음/없음 `absent`, 적재 시각 `loadedAt`, 마지막 조회 `lastAccessAt`, 조회 수, 남은 수명 `remainingSeconds` — 두 기한 중 이른 쪽까지, 추정 크기 `bytes`). `sort` 는 `key`(기본, 종류·키 순)·`bytes`(큰 순)·`hits`(많은 순) — 쪽을 자르기 전에 전체를 정렬하고 같은 값은 종류·키 순, 그 밖의 값은 400. 캐시 값은 싣지 않는다 | SYSADMIN |
 | `entry` | GET | `type`, `key`(컬럼은 camelCase 도 정규화) | 항목 하나 `{type, key, absent, loadedAt, lastAccessAt, hits, remainingSeconds, loadSeq, bytes, value}` — `value` 는 캐시 값 전체(§4.2 예외, `MdmJson` 설정: 소수 자리수 유지·날짜 ISO). 캐시를 읽기만 한다(조회 수·마지막 조회 시각·적재·지움 상태 불변 — 수명을 연장하지 않는다, 캐시에 없거나 수명이 지났으면 MDM 에서 받지 않고 404, 본문 `code: MDM_ENTRY_NOT_CACHED` — 화면은 이 code 가 있는 404 만 "캐시에 없음"으로 본다). 잘못된 `type`·빈 `key` 400 | SYSADMIN |
 | `load` | POST | `type`, `keys[]` | 이 인스턴스에 미리 적재한 결과 | SYSADMIN |
@@ -248,11 +248,11 @@ cactus:
 | MDM 기록 | 대상별 펼침(도메인 하위·참조 컬럼, 코드 → 도메인 → 컬럼, 헤더 → 전문, 물리명 변경 전후) | `MetaRevisionRecorder` 단위 테스트(SQLite) |
 | MDM 기록 지점 | 각 쓰기 action 이 기록을 남기고, 원장 롤백 때 기록도 사라지는지 | 기존 서비스 테스트에 단언 추가, 대표 action 은 BPMN 액션 테스트 |
 | MDM metaFeed | action 별 응답 모양, `truncated`, 없는 키, force 권한 | `DmaBpmnActionTest` 선례의 OASIS HTTP 테스트 |
-| cactus 캐시 | 적재·없음 캐시·상한(LRU — 최근 조회 항목이 남는다)·동시 적재 1회, 수명(히트가 연장·히트 없이 max-idle 뒤 만료·히트를 계속해도 max-age 뒤 만료·peek·entries 는 연장 안 함·남은 수명은 두 기한 중 이른 쪽), 추정 크기(없음 0·직렬화 실패 -1 합계 제외) | 단위 테스트(가짜 클라이언트, 가짜 시계) |
+| cactus 캐시 | 적재·없음 캐시·상한(LRU — 최근 조회 항목이 남는다)·동시 적재 1회, 수명(히트가 연장·히트 없이 max-idle 뒤 만료·히트를 계속해도 max-age 뒤 만료·peek·entries 는 연장 안 함·남은 수명은 두 기한 중 이른 쪽), 추정 크기(없음 0·직렬화 실패 -1 합계 제외), 만료 항목 쓸기(`markApplied` 뒤 맵·합계에서 빠짐, 살아 있는 항목·지움 기록·세대 불변, 쓸기 전에도 `sizes`·`bytes` 는 만료 제외) | 단위 테스트(가짜 클라이언트, 가짜 시계) |
 | cactus 폴러 | §5.3 규칙 다섯 가지, RELOAD, 장애 시 유지·건너뛰기 | 단위 테스트(가짜 클라이언트, 가짜 시계) |
 | cactus 클라이언트 | 헤더 3종, OASIS 봉투 해석, 시간 초과 | `MockRestServiceServer` |
 | cactus 자동 설정 | 기본 꺼짐, 켰을 때 빈 구성, `DefinitionLookup` 이 꺼진 상태에서 등록되지 않음, `max-idle`·`max-age` 바인딩과 기본값(60m·24h)이 캐시 빈에 닿음 | `ApplicationContextRunner` |
-| cactus 엔드포인트 | status 의 `bytes`·`totalBytes`·`heap`·`maxIdleSeconds`, entries `sort`(bytes·hits·잘못된 값 400, 쪽 자르기 전 정렬), entry·entries 의 `bytes`·`lastAccessAt`(읽기만 해서 옮기지 않음) | MockMvc 단위 테스트 |
+| cactus 엔드포인트 | status 의 `bytes`·`totalBytes`·`heap`·`maxIdleSeconds`(만료 항목은 counts·bytes 에서 빠짐), entries `sort`(bytes·hits·잘못된 값 400, 쪽 자르기 전 정렬), entry·entries 의 `bytes`·`lastAccessAt`(읽기만 해서 옮기지 않음) | MockMvc 단위 테스트 |
 | 엔진 연동 | `MdmDefinitionLookup` 으로 `DomainValidator.validate` 가 도는지, 적용 기간 경계 | 단위 테스트 |
 | 화면 | 캐시 관리 화면 API 매핑(크기·힙·마지막 조회·sort, 옛 모듈 응답), `formatBytes`·수명 도움말 | Vitest, audit 2종 0건 |
 | 통합 | 로컬 mdm + mls 기동, MDM 에서 컬럼 표시명 변경 → 10초 안에 mls 캐시 반영, 화면에서 재등록 | 수동 E2E(ego-browser), 끝나면 브라우저 닫기 |
