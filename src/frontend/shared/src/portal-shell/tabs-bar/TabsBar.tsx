@@ -31,13 +31,13 @@ import "./TabsBar.css";
 
 const VIEWPORT_RESIZE_SETTLE_MS = 120;
 
-/** 밝은 탭 바(--shell-tabs-bg) 위의 아이콘 버튼 — 26px 정사각·옅은 테두리. 크기·반경은 TabsBar.css 가 확정한다. */
+/** 어두운 탭 바(--shell-tabs-bg) 위의 아이콘 버튼 — 26px 정사각·어두운 테두리. 크기·반경은 TabsBar.css 가 확정한다. */
 const CONTROL_ICON_VARS = {
   "--ai-color": "var(--shell-tab-fg)",
   "--ai-bg": "transparent",
   "--ai-hover": "var(--shell-tab-hover-bg)",
-  "--ai-hover-color": "var(--shell-tab-active-fg)",
-  "--ai-bd": "1px solid var(--color-border)",
+  "--ai-hover-color": "var(--shell-tab-hover-fg)",
+  "--ai-bd": "1px solid var(--shell-tab-control-border)",
 } as React.CSSProperties;
 
 interface TabState {

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@mantine/core";
 import { signOut } from "next-auth/react";
 import { readSecureJson, writeSecureJson } from "../secure-storage";
@@ -170,6 +170,59 @@ export interface PortalShellProps {
   /** 기본 화면 등록/해제 토글 — 탭 우클릭 메뉴와 사이드바 해제 버튼이 부른다. 미지정 시 등록 메뉴를 숨긴다. */
   onToggleStartPage?: (pageId: string) => void;
 }
+
+/**
+ * 탭 화면 한 칸. 탭 전환은 activeTabId 만 바꾸므로 memo 로 감싸 숨은 탭이 다시 그려지지 않게 한다
+ * (2026-10-02 열린 탭 수만큼 전환이 느려지던 문제). props 는 모두 참조가 유지되는 값만 받는다.
+ */
+const TabPageSlot = memo(function TabPageSlot({
+  tab,
+  isActive,
+  serviceId,
+  onTabSnapshotChange,
+}: {
+  tab: PortalShellTabState;
+  isActive: boolean;
+  serviceId: string;
+  onTabSnapshotChange: (tabId: string, nextSnapshot: unknown) => void;
+}) {
+  const tabId = tab.id;
+  const contextValue = useMemo(
+    () => ({ pageId: tab.pageId, serviceId }),
+    [tab.pageId, serviceId]
+  );
+  const handleSnapshotChange = useCallback(
+    (nextSnapshot: unknown) => onTabSnapshotChange(tabId, nextSnapshot),
+    [onTabSnapshotChange, tabId]
+  );
+  const { component: TabComponent, isLoading, errorMessage, snapshot } = tab;
+
+  // 본문은 isActive 와 무관하게 고정한다 — 보이기/숨기기(display)만으로 화면을 다시 그리지 않는다.
+  const body = useMemo((): ReactNode => {
+    if (isLoading) {
+      return (
+        <div className="portal-shell__loading">
+          <div className="portal-shell__loading-spinner" />
+          로딩 중...
+        </div>
+      );
+    }
+    if (errorMessage) return <div className="portal-shell__error">{errorMessage}</div>;
+    if (!TabComponent) return <div className="portal-shell__error">화면을 로드할 수 없습니다.</div>;
+    // 탭마다 경계를 둔다. 한 화면의 렌더 오류가 포털 전체(다른 탭·사이드바)를 내리지 않게 한다.
+    return (
+      <ErrorBoundary>
+        <TabComponent tabId={tabId} snapshot={snapshot} onSnapshotChange={handleSnapshotChange} />
+      </ErrorBoundary>
+    );
+  }, [TabComponent, isLoading, errorMessage, snapshot, tabId, handleSnapshotChange]);
+
+  return (
+    <div className="portal-shell__tab-page" style={{ display: isActive ? "flex" : "none" }}>
+      <TabPageContext.Provider value={contextValue}>{body}</TabPageContext.Provider>
+    </div>
+  );
+});
 
 export function PortalShell({
   appName,
@@ -906,44 +959,6 @@ export function PortalShell({
     writeSecureJson(storageKey, stored);
   }, [tabs, activeTabId, isStorageHydrated, storageKey]);
 
-  // Render tab body
-  const renderTabBody = useCallback(
-    (tab: PortalShellTabState): ReactNode => {
-      const TabComponent = tab.component;
-
-      if (tab.isLoading) {
-        return (
-          <div className="portal-shell__loading">
-            <div className="portal-shell__loading-spinner" />
-            로딩 중...
-          </div>
-        );
-      }
-
-      if (tab.errorMessage) {
-        return <div className="portal-shell__error">{tab.errorMessage}</div>;
-      }
-
-      if (!TabComponent) {
-        return <div className="portal-shell__error">화면을 로드할 수 없습니다.</div>;
-      }
-
-      // 탭마다 경계를 둔다. 한 화면의 렌더 오류가 포털 전체(다른 탭·사이드바)를 내리지 않게 한다.
-      return (
-        <ErrorBoundary>
-          <TabComponent
-            tabId={tab.id}
-            snapshot={tab.snapshot}
-            onSnapshotChange={(nextSnapshot) => {
-              onTabSnapshotChange(tab.id, nextSnapshot);
-            }}
-          />
-        </ErrorBoundary>
-      );
-    },
-    [onTabSnapshotChange]
-  );
-
   return (
     <AppShell
       className={isTabFullscreen ? "portal-shell portal-shell--tab-fullscreen" : "portal-shell"}
@@ -1014,20 +1029,13 @@ export function PortalShell({
                   <Dashboard />
                 ) : (
                   tabs.map((tab) => (
-                    <div
+                    <TabPageSlot
                       key={tab.id}
-                      className="portal-shell__tab-page"
-                      style={{ display: tab.id === activeTabId ? "flex" : "none" }}
-                    >
-                      <TabPageContext.Provider
-                        value={{
-                          pageId: tab.pageId,
-                          serviceId: serviceIdByPageId.get(tab.pageId) ?? "",
-                        }}
-                      >
-                        {renderTabBody(tab)}
-                      </TabPageContext.Provider>
-                    </div>
+                      tab={tab}
+                      isActive={tab.id === activeTabId}
+                      serviceId={serviceIdByPageId.get(tab.pageId) ?? ""}
+                      onTabSnapshotChange={onTabSnapshotChange}
+                    />
                   ))
                 )}
               </div>

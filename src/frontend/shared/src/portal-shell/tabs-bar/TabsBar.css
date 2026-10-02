@@ -6,14 +6,13 @@
   height: var(--tab-height);
 }
 
-/* 아래 1px 선은 inset 그림자로 그려서 활성 탭(흰 배경)이 선을 덮고 본문과 이어지게 한다. */
+/* 어두운 탭바(사이드바 색) 아래로 활성 탭만 본문 바탕색으로 튀어나와 화면과 이어진다 — 아래 경계선은 두지 않는다. */
 .tabs-bar {
   display: flex;
   align-items: center;
   padding: 0 8px;
   height: var(--tab-height);
   gap: 2px;
-  box-shadow: inset 0 -1px 0 var(--color-border);
 }
 
 .tabs-scroll-area {
@@ -55,7 +54,7 @@
   margin-left: 4px;
 }
 
-/* Tab items — 비활성은 바탕에 녹아든 글자, 활성은 흰 배경 + 굵은 글자 */
+/* Tab items — 비활성은 어두운 바탕 위 밝은 글자, 활성은 본문 바탕색 + 굵은 글자 */
 .tab-item {
   --tab-close-fade-color: var(--shell-tabs-bg);
   display: flex;
@@ -66,14 +65,12 @@
   background-color: transparent;
   border: 1px solid transparent;
   border-bottom: none;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   cursor: pointer;
   font-size: var(--font-size-md);
   white-space: nowrap;
   color: var(--shell-tab-fg);
-  transition:
-    background-color var(--transition-fast),
-    color var(--transition-fast);
+  /* 색 전환 애니메이션은 두지 않는다 — 어두운 바탕에서 활성 탭이 밝아지는 과정이 굼뜨게 보인다(2026-10-02). */
   flex-shrink: 0;
   user-select: none;
   position: relative;
@@ -87,7 +84,7 @@
   right: 0;
   bottom: 0;
   width: 48px;
-  border-radius: 0 var(--radius-sm) 0 0;
+  border-radius: 0 var(--radius-md) 0 0;
   background: linear-gradient(
     90deg,
     transparent 0%,
@@ -103,7 +100,7 @@
 .tab-item:focus-within {
   --tab-close-fade-color: var(--shell-tab-hover-bg);
   background-color: var(--shell-tab-hover-bg);
-  color: var(--shell-tab-active-fg);
+  color: var(--shell-tab-hover-fg);
 }
 
 .tab-item:hover::after,
@@ -114,9 +111,28 @@
 .tab-item.active {
   --tab-close-fade-color: var(--shell-tab-active-bg);
   background-color: var(--shell-tab-active-bg);
-  border-color: var(--color-border);
   color: var(--shell-tab-active-fg);
   font-weight: 600;
+}
+
+/* 탭 사이 세로 구분선 — 활성·hover 탭과 그 바로 오른쪽 탭에는 그리지 않는다.
+   ::before 는 드래그 표시, ::after 는 닫기 버튼 페이드가 쓰므로 배경 그라데이션으로 그린다. */
+.tabs-scroll-area > .tab-item + .tab-item,
+.home-tab + .tabs-scroll-area > .tab-item:first-child {
+  background-image: linear-gradient(var(--shell-tab-divider), var(--shell-tab-divider));
+  background-position: left center;
+  background-size: 1px 14px;
+  background-repeat: no-repeat;
+}
+
+.tabs-scroll-area > .tab-item.active,
+.tabs-scroll-area > .tab-item:hover,
+.tabs-scroll-area > .tab-item:focus-within,
+.tabs-scroll-area > .tab-item.active + .tab-item,
+.tabs-scroll-area > .tab-item:hover + .tab-item,
+.home-tab.active + .tabs-scroll-area > .tab-item:first-child,
+.home-tab:hover + .tabs-scroll-area > .tab-item:first-child {
+  background-image: none;
 }
 
 .tab-item.dragging {
@@ -149,13 +165,12 @@
 }
 
 .home-tab:hover {
-  color: var(--shell-tab-active-fg);
+  color: var(--shell-tab-hover-fg);
 }
 
 .home-tab.active {
   color: var(--shell-tab-active-fg);
   background-color: var(--shell-tab-active-bg);
-  border-color: var(--color-border);
 }
 
 .home-tab {
@@ -166,6 +181,11 @@
   display: block;
 }
 
+/* 홈 탭은 닫기 버튼이 없다. 누른 뒤 남는 포커스로 페이드 덮개가 켜져 '홈화면' 글자를 가리지 않게 끈다. */
+.home-tab::after {
+  display: none;
+}
+
 /* 탭 제목 앞 표시 — 기본 화면(집)·즐겨찾기(별). 제목보다 작고, 색으로 구분한다. */
 .tab-mark {
   flex-shrink: 0;
@@ -173,6 +193,11 @@
 }
 
 .tab-mark--start {
+  color: var(--c-blue-300, #7aabee);
+}
+
+/* 활성 탭은 밝은 바탕이라 기본 파랑으로 돌린다. */
+.tab-item.active .tab-mark--start {
   color: var(--color-primary);
 }
 
@@ -201,7 +226,7 @@
   background-color: transparent;
   border: none;
   border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
+  color: var(--shell-sidebar-muted);
   font-size: var(--font-size-lg);
   cursor: pointer;
   padding: 0;
@@ -223,7 +248,12 @@
   transform: translateY(-50%) scale(1);
 }
 
-.tab-close:hover {
+.tab-item.active .tab-close {
+  color: var(--color-text-muted);
+}
+
+.tab-close:hover,
+.tab-item.active .tab-close:hover {
   color: var(--color-danger);
   background-color: var(--color-danger-soft);
 }
@@ -233,7 +263,7 @@
   outline-offset: 1px;
 }
 
-/* Controls — 새로고침·캡처·즐겨찾기·목록·헤더접기 모두 26px 정사각·반경 3px·옅은 테두리 */
+/* Controls — 목록·전체 화면·헤더접기 모두 26px 정사각·반경 3px·어두운 바탕용 테두리 */
 .tabs-controls {
   margin-left: auto;
   display: flex;
@@ -257,7 +287,7 @@
   box-sizing: border-box;
   justify-content: center;
   background-color: transparent;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--shell-tab-control-border);
   padding: 0 5px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -271,7 +301,7 @@
 
 .control-btn:hover:not(:disabled) {
   background-color: var(--shell-tab-hover-bg);
-  color: var(--shell-tab-active-fg);
+  color: var(--shell-tab-hover-fg);
 }
 
 .control-btn:disabled {

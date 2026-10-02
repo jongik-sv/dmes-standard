@@ -136,18 +136,23 @@
   --shell-header-control-border: var(--c-slate-750);
 
   --shell-sidebar-bg: var(--c-slate-850);
-  --shell-sidebar-fg: #c4ccd6;
-  --shell-sidebar-muted: #8a97a8;
-  --shell-sidebar-hover-bg: var(--c-slate-800);
+  /* 어두운 바탕 글자는 흐려 보인다는 지적(2026-10-02)으로 한 단계 밝힌다. */
+  --shell-sidebar-fg: #e8edf3;
+  --shell-sidebar-muted: #aab5c3;
+  --shell-sidebar-hover-bg: var(--c-slate-750);
   --shell-sidebar-active-bg: var(--c-blue-600);
   --shell-sidebar-active-fg: #fff;
   --shell-sidebar-border: var(--c-slate-750);
   --shell-sidebar-input-bg: var(--c-slate-900);
 
-  --shell-tabs-bg: var(--c-slate-250);
-  --shell-tab-fg: var(--c-slate-700);
-  --shell-tab-hover-bg: var(--c-slate-200);
-  --shell-tab-active-bg: #fff;
+  /* 탭바는 사이드바 색을 이어 쓰고, 활성 탭만 본문 바탕색으로 튀어나와 아래 화면과 붙는다(2026-10-02). */
+  --shell-tabs-bg: var(--c-slate-850);
+  --shell-tab-fg: #e3e8ee;
+  --shell-tab-hover-bg: var(--c-slate-750);
+  --shell-tab-hover-fg: #fff;
+  --shell-tab-divider: #4a5664;
+  --shell-tab-control-border: #4a5664;
+  --shell-tab-active-bg: var(--color-bg-app);
   --shell-tab-active-fg: var(--c-slate-950);
 
   /* ============================================================
