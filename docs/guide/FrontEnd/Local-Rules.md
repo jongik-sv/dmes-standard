@@ -224,6 +224,7 @@ shared `Modal`(Mantine)은 열린 창마다 window 의 Escape 를 받는다. 등
 - **초점을 가진 요소를 지우면 초점이 body 로 빠져 캔버스 단축키가 끊긴다**(선 Delete 뒤 Ctrl+Z 무반응). 단축키 디스패처가 처리한 뒤 `document.activeElement` 가 body 면 캔버스 host 로 돌린다.
 - 예시: `canvas/FlowCanvas.tsx`, `canvas/FlowToolbar.tsx`, `styles/collapse.ts`(칩)·`styles/space.ts`(선택 상자), `page.tsx` 의 `onCanvasKeyDown`.
 - **룰 세트 IF 의 끝내는 갈래(D-136, implicit-join spec J-D19)** — 흐름을 이어 갈 갈래는 「그 외」로 두고, 끝낼 갈래는 조건 갈래로 두어 끝 노드로 잇는다. 모든 갈래가 따로 END 로 가면 실행 순서 마지막 갈래(END 직행 제외)가 이어지는 갈래로 정해지므로, 안쪽 IF 에서 반대로 그리면(조건 갈래가 바깥 모이는 자리로, 「그 외」 에 몸을 두고 END 로) 구조 오류(S5·S6)로 거부된다. 화면은 IF 패널 갈래 목록 아래 안내(`flow-prop-if-ending-help`)로 같은 규칙을 보인다.
+- **디버그·실행 도구 막대에서 ■(정지, `IconPlayerStop`) 아이콘은 세션을 끝내는 [중지]에만 쓴다.** 「마지막으로 이동」 같은 동작에는 쓰지 않는다(건너뛰기 ⏭ `IconPlayerSkipForward` 를 쓴다). 2026-10-02 룰 세트 편집에서 ■ 가 [끝내기](마지막 단계로 이동)에 붙어 사용자가 중지로 오인했다 — 지금은 [중지](`dbg-stop`)가 ■, [끝까지](`dbg-finish`)가 ⏭ 이다.
 
 ## 20. AgDataGrid 화면 — 입력 한 글자·셀 편집 한 번이 그리드 전체를 다시 그리지 않게 (2026-10-01)
 

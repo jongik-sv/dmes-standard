@@ -1904,7 +1904,7 @@ test.describe("C 룰 세트", () => {
     const controls = tid(page, "flow-canvas").locator(".react-flow__controls-button");
     for (let i = 0, n = await controls.count(); i < n; i++) await controls.nth(i).click();
 
-    // 디버그 모드 — 입력을 넣고 한 단계 · 이전 · 계속 · 처음부터 · 여기까지 · 끝내기, 지금 입력을 케이스로 저장하고 모두 실행.
+    // 디버그 모드 — 입력을 넣고 한 단계 · 이전 · 계속 · 처음부터 · 여기까지 · 끝까지 · 중지, 지금 입력을 케이스로 저장하고 모두 실행.
     await tid(page, "flow-mode-debug").click();
     await expect(tid(page, "dbg-toolbar")).toBeVisible();
     await tid(page, `dbg-input-${SURF}`).fill("A");
