@@ -173,6 +173,10 @@
     "./mdm-meta": {
       "types": "./dist/types/mdm-meta/index.d.ts",
       "import": "./dist/mdm-meta.js"
+    },
+    "./evalex": {
+      "types": "./dist/types/evalex/index.d.ts",
+      "import": "./dist/evalex.js"
     }
   },
   "files": [
@@ -197,6 +201,7 @@
     "@tiptap/pm": "^3.31.4",
     "@tiptap/react": "^3.31.4",
     "@tiptap/starter-kit": "^3.31.4",
+    "decimal.js": "^10.6.0",
     "dompurify": "^3.2.7",
     "html-to-image": "^1.11.13",
     "marked": "^17.0.6",

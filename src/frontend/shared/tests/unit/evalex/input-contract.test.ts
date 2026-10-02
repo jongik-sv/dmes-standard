@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { computeInputContract, nullSafety, type RuleDef } from "../src/evalex";
-import { E, PROD_WGT_CALC, PROD_WGT_CALC_PV2, cond, resolveType, result, row } from "./fixtures/evalex-rules";
+import { computeInputContract, nullSafety, type RuleDef } from "../../../src/evalex";
+import { E, PROD_WGT_CALC, PROD_WGT_CALC_PV2, cond, resolveType, result, row } from "./helpers/evalex-rules";
 import { ast } from "./helpers/parse-expr";
 
 /** TSK-03-04 design.md §3.2 「evalex-input-contract.test.ts (14)」·§6.7. 기대값은 06:226-229 와 시안 PV2. */

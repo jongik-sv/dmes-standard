@@ -1,4 +1,4 @@
-import type { CellJson, InputContract, RowContract, VarType } from "../contract/engine-contract.generated";
+import type { CellJson, InputContract, RowContract, VarType } from "./engine-contract.generated";
 import { usedVariables } from "./interpreter";
 import { nullSafety } from "./null-safety";
 import { condVars, defaultRow, isExpressionColumn, isExprVar, normalRows, resultVars, varKey, type RuleDef, type RuleVarDef } from "./rule-model";

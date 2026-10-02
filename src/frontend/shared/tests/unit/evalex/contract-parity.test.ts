@@ -2,17 +2,22 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
-import { D } from "../src/evalex";
 import {
   BASE_FUNCTIONS,
+  D,
   EVAL_TS,
   EXPR_VAR_PREFIX,
+  FUNCTIONS,
   MDM_ARITY,
   RESERVED_CONSTANTS,
   RESERVED_PREFIX,
-} from "../src/evalex/contract-constants";
-import { FUNCTIONS } from "../src/evalex/functions";
-import { JAVA_EXPR_DIR } from "./helpers/engine-paths";
+} from "../../../src/evalex";
+
+/** Java 엔진 expr 소스 폴더. 이 파일(shared/tests/unit/evalex)에서 `../` 다섯 번이 `src/` 다. */
+const JAVA_EXPR_DIR = path.resolve(
+  __dirname,
+  "../../../../../backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/expr",
+);
 
 /**
  * TSK-03-04 design.md §3.2 「evalex-contract-parity.test.ts (5)」 — 화면 상수가 Java 계약 소스와 같다(I22).

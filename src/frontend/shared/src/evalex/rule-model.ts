@@ -1,4 +1,4 @@
-import type { AstNode, CellJson, DataType } from "../contract/engine-contract.generated";
+import type { AstNode, CellJson, DataType } from "./engine-contract.generated";
 import { EXPR_VAR_PREFIX } from "./contract-constants";
 
 /**

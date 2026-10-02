@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluateCell, type CellVariable } from "../src/evalex";
+import { evaluateCell, type CellVariable } from "../../../src/evalex";
 
 /** TSK-03-04 design.md §3.2 「evalex-cell-compare.test.ts (3)」·§6.5. */
 const STL: CellVariable = { name: "STL_GRD", dataType: "STRING" };

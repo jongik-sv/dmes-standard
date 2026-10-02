@@ -1,4 +1,4 @@
-import type { CellJson, CodeSets, ErrorCode } from "../contract/engine-contract.generated";
+import type { CellJson, CodeSets, ErrorCode } from "./engine-contract.generated";
 import { PLAIN_DECIMAL, decimalWithText, isDec, type Dec } from "./decimal";
 import { EvalexError, FallbackSignal } from "./errors";
 import { compileJavaRegex, indexCodeSets, str } from "./functions";

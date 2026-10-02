@@ -1,4 +1,4 @@
-import type { CodeSets } from "../contract/engine-contract.generated";
+import type { CodeSets } from "./engine-contract.generated";
 import { BASE_FUNCTIONS, MDM_ARITY } from "./contract-constants";
 import { D, DHigh, NUMBER_TEXT, integerDecimal, isDec, type Dec } from "./decimal";
 import { EvalexError, FallbackSignal } from "./errors";

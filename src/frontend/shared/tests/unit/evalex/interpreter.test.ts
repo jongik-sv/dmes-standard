@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AstNode } from "../src/contract/engine-contract.generated";
+import type { AstNode } from "../../../src/evalex";
 import {
   EvalexError,
   compile,
@@ -10,7 +10,7 @@ import {
   toTypedValue,
   usedVariables,
   validate,
-} from "../src/evalex";
+} from "../../../src/evalex";
 import { ast } from "./helpers/parse-expr";
 
 /** TSK-03-04 design.md §3.2 「evalex-interpreter.test.ts (16)」·§6.3·§6.4. */
