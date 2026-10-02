@@ -1,36 +1,41 @@
 import { parsePageId } from "./module";
 
 /**
- * 화면 사용 구간 추적기 — 사용자가 한 화면을 실제로 보고 있던 연속 시간(구간)을 만든다.
+ * 화면 사용 구간 추적기 — 활성화된 탭마다 열린 구간 하나를 두고 그 탭을 실제로 보고 있던 시간을 누적한다.
+ * 다른 탭으로 가거나 브라우저 탭이 가려지면 구간을 닫지 않고 일시정지했다가, 다시 보면 같은 구간에 이어 누적한다.
  * 설계: docs/superpowers/specs/2026-10-02-screen-usage-stats-design.md §3.1.
  * React 에 의존하지 않는다. 시계(now)와 이벤트 대상(document·window)을 주입받는다.
  */
 
-/** 구간 시작 사유(공유 계약 C1). 열람 횟수 = OPEN 구간 수, 이용 시간 = 모든 구간 길이 합. */
-export type UsageStartKind = "OPEN" | "SWITCH" | "RESUME";
+/**
+ * 구간 시작 사유(공유 계약 C1). OPEN = 탭의 첫 업무 호출, RESUME = 15분 경과·무입력·pagehide 로 잘린 뒤 다시 보기 시작.
+ * 열람 횟수 = OPEN 구간 수, 이용 시간 = 모든 구간 durationMs 합. (서버는 옛 행 호환으로 SWITCH 도 받는다.)
+ */
+export type UsageStartKind = "OPEN" | "RESUME";
 
 /** 공유 계약 C1 — 서버 원본 1행. */
 export interface UsageSegment {
   clientSegId: string; // crypto.randomUUID()
   pageId: string; // `${PARENT_MENU_ID}/${OBJECT_ID}`
   startKind: UsageStartKind;
-  startedAt: number; // epoch ms
-  endedAt: number; // epoch ms
+  startedAt: number; // epoch ms — 첫 업무 호출(또는 RESUME 시작) 시각
+  endedAt: number; // epoch ms — 마지막으로 보고 있던 시각
+  durationMs: number; // 실제로 보고 있던 시간의 합(일시정지 제외). endedAt - startedAt 이하
 }
 
 /** PortalShell `onUsageSegments` 가 구간을 넘기는 사유. 로그아웃이면 호출부가 바로 보내고 끝나기를 알려야 한다. */
 export type UsageEmitReason = "normal" | "logout";
 
-/** 활성 화면을 알릴 때 쓰는 시작 사유. RESUME 은 추적기가 스스로 붙인다. */
-export type UsageActivateKind = "OPEN" | "SWITCH";
+/** 추적 대상 — key 는 구간을 묶는 단위(포털에서는 탭 ID), pageId 는 기록용 화면 ID. 문자열이면 둘이 같다. */
+export type UsageTarget = string | { key: string; pageId: string };
 
-/** 이 시간 동안 입력이 없으면 구간을 마지막 입력 시각에서 끝낸다. */
+/** 이 시간 동안 입력이 없으면 보고 있던 구간을 마지막 입력 시각에서 끝낸다. */
 export const USAGE_IDLE_MS = 30 * 60 * 1000;
-/** 구간이 이 길이에 이르면 자르고 RESUME 으로 잇는다(창이 비정상 종료돼도 잃는 시간을 묶는다). */
+/** 구간 시작 뒤 이 시간이 지나면(일시정지 중이어도) 내보낸다. 창이 비정상 종료돼도 잃는 시간을 묶는다. */
 export const USAGE_MAX_SEGMENT_MS = 15 * 60 * 1000;
-/** 이보다 짧은 구간은 버린다. */
+/** 이용 시간(durationMs)이 이보다 짧은 구간은 버린다. */
 export const USAGE_MIN_SEGMENT_MS = 1000;
-/** 무입력·자르기 판정 주기. */
+/** 무입력·15분 판정 주기. */
 export const USAGE_TICK_MS = 60 * 1000;
 
 export interface UsageEventTarget {
@@ -51,7 +56,7 @@ export interface UsageDocumentLike extends UsageEventTarget {
 }
 
 export interface UsageTrackerOptions {
-  /** 닫힌 구간(1초 이상)을 한 번에 넘긴다. 던져도 추적은 계속한다. */
+  /** 내보낼 구간(이용 시간 1초 이상)을 한 번에 넘긴다. 던져도 추적은 계속한다. */
   onSegments: (segments: UsageSegment[]) => void;
   now?: () => number;
   /** visibilitychange·입력(pointerdown·keydown·wheel) 대상. 없으면 늘 보이는 것으로 본다. */
@@ -70,6 +75,12 @@ interface OpenSegment {
   pageId: string;
   startKind: UsageStartKind;
   startedAt: number;
+  /** 일시정지 전까지 누적한 이용 시간. 보고 있는 동안의 몫은 runningSince 부터 더한다. */
+  accumulatedMs: number;
+  /** 지금 보고 있으면 그 시작 시각, 일시정지 중이면 null. */
+  runningSince: number | null;
+  /** 마지막으로 보고 있던 시각 = 내보낼 때의 endedAt. */
+  lastActiveAt: number;
 }
 
 const INPUT_EVENTS = ["pointerdown", "keydown", "wheel"] as const;
@@ -109,13 +120,15 @@ export class UsageTracker {
   private readonly maxSegmentMs: number;
   private readonly minSegmentMs: number;
   private readonly timer: ReturnType<typeof setInterval>;
-  /** 지금 보고 있다고 보는 화면. 홈·탭 없음·로그아웃이면 null. */
-  private pageId: string | null = null;
-  /** 다음에 여는 구간의 시작 사유. 한 번 열면 RESUME 으로 돌아간다. */
+  /** 지금 보고 있는 추적 대상(key). 홈·활성화 안 된 탭·탭 없음·로그아웃이면 null. */
+  private currentKey: string | null = null;
+  private currentPageId: string | null = null;
+  /** 지금 대상에 구간이 없어 새로 열 때의 시작 사유. 한 번 열면 RESUME 으로 돌아간다. */
   private nextKind: UsageStartKind = "RESUME";
-  private open: OpenSegment | null = null;
+  /** key → 열린 구간(보고 있거나 일시정지 중). 보고 있는 것은 currentKey 의 구간 하나뿐이다. */
+  private readonly segments = new Map<string, OpenSegment>();
   private lastInputAt = 0;
-  /** 시계가 뒤로 가도 구간이 겹치지 않게 지금까지 본 가장 늦은 시각. */
+  /** 시계가 뒤로 가도 이용 시간이 음수가 되지 않게 지금까지 본 가장 늦은 시각. */
   private lastTime = Number.NEGATIVE_INFINITY;
   private disposed = false;
 
@@ -124,16 +137,16 @@ export class UsageTracker {
     const t = this.time();
     this.closeIfIdle(t);
     if (this.isHidden()) {
-      this.close(t);
+      this.pauseRunning(t);
       return;
     }
     this.lastInputAt = t;
-    this.openIfVisible(t);
+    this.resumeIfVisible(t);
   };
 
   private readonly handlePageHide = (): void => {
     if (this.disposed) return;
-    this.closeNow(this.time());
+    this.closeAll(this.time());
   };
 
   private readonly handleInput = (): void => {
@@ -141,7 +154,7 @@ export class UsageTracker {
     const t = this.time();
     this.closeIfIdle(t); // 판정 타이머가 멈춰 있던 무입력 30분 — 공백을 이용 시간으로 넣지 않는다
     this.lastInputAt = t;
-    if (!this.open) this.openIfVisible(t); // 무입력·pagehide 뒤 돌아온 입력 → RESUME
+    if (!this.running()) this.resumeIfVisible(t); // 무입력·pagehide 뒤 돌아온 입력 → RESUME
   };
 
   constructor(options: UsageTrackerOptions) {
@@ -162,36 +175,57 @@ export class UsageTracker {
     this.timer = setInterval(() => this.tick(), options.tickMs ?? USAGE_TICK_MS);
   }
 
-  /** 활성 화면이 바뀌었다. 이전 구간을 지금 닫고, pageId 가 있으면 새 구간을 연다(가려져 있으면 보일 때 연다). */
-  activate(pageId: string | null, startKind: UsageActivateKind = "SWITCH"): void {
+  /**
+   * 보고 있는 대상이 바뀌었다. 이전 대상의 구간은 닫지 않고 일시정지한다. 새 대상에 구간이 있으면 이어 누적하고,
+   * 없으면 startKind 로 새 구간을 연다(가려져 있으면 보일 때 연다). null 이면 일시정지만 한다.
+   */
+  activate(target: UsageTarget | null, startKind: UsageStartKind = "RESUME"): void {
     if (this.disposed) return;
-    if (pageId != null && pageId === this.pageId) {
-      // 같은 화면 재활성화 — 구간을 쪼개거나 시작 사유·마지막 입력 시각을 덮어쓰지 않는다.
-      // 아직 열리지 않은 구간(가려진 채 연 탭 등)이 OPEN 을 요청받은 경우에만 OPEN 으로 올린다.
-      if (!this.open && startKind === "OPEN") this.nextKind = "OPEN";
+    const key = target == null ? null : typeof target === "string" ? target : target.key;
+    const pageId = target == null ? null : typeof target === "string" ? target : target.pageId;
+    if (key != null && key === this.currentKey) {
+      // 같은 대상 재활성화 — 구간이나 마지막 입력 시각을 덮어쓰지 않는다.
+      // 아직 열리지 않은 구간(가려진 채 시작 등)이 OPEN 을 요청받은 경우에만 OPEN 으로 올린다.
+      if (!this.segments.has(key) && startKind === "OPEN") this.nextKind = "OPEN";
       return;
     }
     const t = this.time();
-    this.closeNow(t);
-    this.pageId = pageId;
+    if (!this.closeIfIdle(t)) this.pauseRunning(t);
+    this.currentKey = key;
+    this.currentPageId = pageId;
     this.nextKind = startKind;
     this.lastInputAt = t;
-    this.openIfVisible(t);
+    this.resumeIfVisible(t);
   }
 
-  /** 로그아웃 — 열린 구간을 닫고, 다시 activate 될 때까지 열지 않는다. */
+  /** 탭 닫기 — 그 대상의 구간을 지금 내보내고 잊는다. 보고 있던 대상이면 일시정지 상태(null)로 둔다. */
+  release(key: string): void {
+    if (this.disposed) return;
+    const t = this.time();
+    if (key === this.currentKey) {
+      if (!this.closeIfIdle(t)) this.pauseRunning(t);
+      this.currentKey = null;
+      this.currentPageId = null;
+      this.nextKind = "RESUME";
+    }
+    const seg = this.segments.get(key);
+    if (seg) this.emit([this.finish(key, seg)]);
+  }
+
+  /** 로그아웃 — 일시정지 중인 것까지 모든 구간을 내보내고, 다시 activate 될 때까지 열지 않는다. */
   end(): void {
     if (this.disposed) return;
-    this.closeNow(this.time());
-    this.pageId = null;
+    this.closeAll(this.time());
+    this.currentKey = null;
+    this.currentPageId = null;
   }
 
-  /** 60초 판정. 무입력 30분이면 마지막 입력 시각에서 끝내고, 아니면 15분 넘은 구간을 자른다. */
+  /** 60초 판정. 보고 있는 구간의 무입력 30분을 먼저 보고, 시작 뒤 15분이 지난 구간을 내보낸다. */
   tick(): void {
-    if (this.disposed || !this.open) return;
+    if (this.disposed || this.segments.size === 0) return;
     const t = this.time();
-    if (this.closeIfIdle(t)) return; // 다음 입력 때 RESUME 으로 다시 연다
-    this.emit(this.cutAtLastInput(t));
+    this.closeIfIdle(t);
+    this.expire(t);
   }
 
   dispose(): void {
@@ -216,92 +250,110 @@ export class UsageTracker {
     return this.doc?.visibilityState === "hidden";
   }
 
-  private openIfVisible(t: number): void {
-    if (this.open || this.pageId == null || this.isHidden()) return;
-    this.open = { id: this.createId(), pageId: this.pageId, startKind: this.nextKind, startedAt: t };
+  /** 지금 보고 있는(누적 중인) 구간. */
+  private running(): OpenSegment | null {
+    if (this.currentKey == null) return null;
+    const seg = this.segments.get(this.currentKey);
+    return seg && seg.runningSince != null ? seg : null;
+  }
+
+  /** 지금 대상이 보이면 구간을 이어 누적하고, 구간이 없으면 nextKind 로 새로 연다. */
+  private resumeIfVisible(t: number): void {
+    if (this.currentKey == null || this.currentPageId == null || this.isHidden()) return;
+    const seg = this.segments.get(this.currentKey);
+    if (seg) {
+      if (seg.runningSince == null) seg.runningSince = t;
+      return;
+    }
+    this.segments.set(this.currentKey, {
+      id: this.createId(),
+      pageId: this.currentPageId,
+      startKind: this.nextKind,
+      startedAt: t,
+      accumulatedMs: 0,
+      runningSince: t,
+      lastActiveAt: t,
+    });
     this.nextKind = "RESUME";
   }
 
+  /** 보고 있는 구간을 at 까지 누적하고 일시정지한다. */
+  private pauseRunning(at: number): void {
+    const seg = this.running();
+    if (!seg || seg.runningSince == null) return;
+    const until = Math.max(at, seg.runningSince);
+    seg.accumulatedMs += until - seg.runningSince;
+    seg.lastActiveAt = Math.max(seg.lastActiveAt, until);
+    seg.runningSince = null;
+  }
+
   /**
-   * 무입력 규칙(설계 §3.1) — 마지막 입력 뒤 30분 이상 지났으면 열린 구간을 마지막 입력 시각에서 닫는다.
+   * 무입력 규칙(설계 §3.1) — 마지막 입력 뒤 30분 이상 지났으면 보고 있던 구간을 마지막 입력 시각까지 누적해 내보낸다.
    * 60초 판정만 믿지 않는다: 절전·백그라운드 제한으로 타이머가 멈췄다가 판정보다 입력·전환·가림이 먼저 와도
-   * 공백이 이용 시간으로 잡히지 않게, 구간을 건드리는 모든 경로가 먼저 부른다. 닫았으면 true.
+   * 공백이 이용 시간으로 잡히지 않게, 구간을 건드리는 모든 경로가 먼저 부른다. 내보냈으면 true.
    */
   private closeIfIdle(t: number): boolean {
-    if (!this.open || t - this.lastInputAt < this.idleMs) return false;
-    this.close(Math.max(this.open.startedAt, this.lastInputAt));
+    const seg = this.running();
+    if (!seg || this.currentKey == null || t - this.lastInputAt < this.idleMs) return false;
+    this.pauseRunning(this.lastInputAt);
+    this.emit([this.finish(this.currentKey, seg)]);
     return true;
   }
 
-  /** 지금(t) 구간을 닫는다. 무입력 30분이 지났으면 마지막 입력 시각에서 닫는다. */
-  private closeNow(t: number): void {
-    if (!this.closeIfIdle(t)) this.close(t);
-  }
-
-  /** 열린 구간을 at 에서 닫는다. 15분이 넘으면 15분 조각으로 나눠 함께 넘긴다. */
-  private close(at: number): void {
-    if (!this.open) return;
-    const pieces = this.cutLongPieces(at);
-    const last = this.open;
-    this.open = null;
-    if (last) pieces.push(this.toSegment(last, Math.max(at, last.startedAt)));
-    this.emit(pieces);
+  /** pagehide·로그아웃 — 보고 있던 구간을 t 까지 누적하고(무입력이면 마지막 입력까지) 모든 구간을 내보낸다. */
+  private closeAll(t: number): void {
+    if (!this.closeIfIdle(t)) this.pauseRunning(t);
+    const out: UsageSegment[] = [];
+    for (const [key, seg] of [...this.segments]) out.push(this.finish(key, seg));
+    this.nextKind = "RESUME";
+    this.emit(out);
   }
 
   /**
-   * 닫을 때의 15분 자르기 — 타이머가 멈춰 있던(절전·백그라운드 제한) 구간도 15분 넘게 내지 않도록
-   * 15분째마다 무조건 자르고 같은 화면의 RESUME 구간으로 잇는다. 잘린 조각을 돌려준다.
+   * 15분 경과 — 시작 뒤 15분이 지난 구간을 내보낸다. 일시정지 중이면 그대로 내보내고(다시 보면 RESUME),
+   * 보고 있는 구간은 마지막 입력 시각에서 잘라 그 시각부터 RESUME 으로 잇는다(무입력 판정과 어긋나지 않게).
+   * 시작 뒤 입력이 없었으면 자르지 않고 둔다(무입력 30분이 닫는다).
    */
-  private cutLongPieces(at: number): UsageSegment[] {
-    const pieces: UsageSegment[] = [];
-    while (this.open && at - this.open.startedAt >= this.maxSegmentMs) {
-      const cutAt = this.open.startedAt + this.maxSegmentMs;
-      pieces.push(this.toSegment(this.open, cutAt));
-      this.open = {
+  private expire(t: number): void {
+    const out: UsageSegment[] = [];
+    for (const [key, seg] of [...this.segments]) {
+      if (t - seg.startedAt < this.maxSegmentMs) continue;
+      if (seg.runningSince == null) {
+        out.push(this.finish(key, seg));
+        continue;
+      }
+      const cutAt = Math.min(Math.max(seg.runningSince, this.lastInputAt), t);
+      if (cutAt <= seg.startedAt) continue;
+      this.pauseRunning(cutAt);
+      out.push(this.finish(key, seg));
+      this.segments.set(key, {
         id: this.createId(),
-        pageId: this.open.pageId,
+        pageId: seg.pageId,
         startKind: "RESUME",
         startedAt: cutAt,
-      };
+        accumulatedMs: 0,
+        runningSince: cutAt,
+        lastActiveAt: cutAt,
+      });
     }
-    return pieces;
+    this.emit(out);
   }
 
-  /**
-   * 60초 판정의 15분 자르기. 열린 구간이 at 까지 15분 이상이면 마지막 입력 시각(최대 시작+15분)에서 자르고
-   * 그 시각에서 같은 화면의 RESUME 구간을 잇는다. 끝이 시작 이하(입력이 없었음)면 내보내지 않고 그대로 둔다.
-   */
-  private cutAtLastInput(at: number): UsageSegment[] {
-    const pieces: UsageSegment[] = [];
-    while (this.open && at - this.open.startedAt >= this.maxSegmentMs) {
-      const cutAt = Math.min(
-        Math.max(this.open.startedAt, this.lastInputAt),
-        this.open.startedAt + this.maxSegmentMs
-      );
-      if (cutAt <= this.open.startedAt) break;
-      pieces.push(this.toSegment(this.open, cutAt));
-      this.open = {
-        id: this.createId(),
-        pageId: this.open.pageId,
-        startKind: "RESUME",
-        startedAt: cutAt,
-      };
-    }
-    return pieces;
-  }
-
-  private toSegment(open: OpenSegment, endedAt: number): UsageSegment {
+  /** 일시정지된 구간을 목록에서 빼고 내보낼 행으로 바꾼다. */
+  private finish(key: string, seg: OpenSegment): UsageSegment {
+    this.segments.delete(key);
     return {
-      clientSegId: open.id,
-      pageId: open.pageId,
-      startKind: open.startKind,
-      startedAt: open.startedAt,
-      endedAt,
+      clientSegId: seg.id,
+      pageId: seg.pageId,
+      startKind: seg.startKind,
+      startedAt: seg.startedAt,
+      endedAt: seg.lastActiveAt,
+      durationMs: seg.accumulatedMs,
     };
   }
 
   private emit(pieces: UsageSegment[]): void {
-    const kept = pieces.filter((s) => s.endedAt - s.startedAt >= this.minSegmentMs);
+    const kept = pieces.filter((s) => s.durationMs >= this.minSegmentMs);
     if (kept.length === 0) return;
     try {
       this.onSegments(kept);
