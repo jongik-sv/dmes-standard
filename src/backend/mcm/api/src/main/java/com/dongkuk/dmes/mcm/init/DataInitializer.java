@@ -196,6 +196,11 @@ public class DataInitializer implements ApplicationRunner {
         } else {
             // SQLite(local 단독) — entity 미보유 TB_MCM_SEC_MENU_FLD 만 보강 생성 (나머지 SEC 테이블은 ddl-auto).
             createSecMenuFldForSqlite();
+            // ddl-auto(update) 는 SQLite 에서 @UniqueConstraint 를 ALTER 로만 시도해 실패한다(2026-10-02 기동 로그 확인).
+            // 재전송 중복 방지의 마지막 방어선이므로 고유 인덱스로 보강한다.
+            entityManager.createNativeQuery(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS UK_SEC_SCREEN_USAGE_LOG_SEG"
+                            + " ON TB_SEC_SCREEN_USAGE_LOG (USER_ID, CLIENT_SEG_ID)").executeUpdate();
         }
 
         // Phase R6 (2026-06-01) — 신규 RBAC 시드 (TB_MCM_SEC_*) 멱등 적재.
