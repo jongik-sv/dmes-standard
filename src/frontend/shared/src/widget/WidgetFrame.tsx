@@ -212,7 +212,16 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
           </>
         )}
       </div>
-      <div ref={bodyRef} className={`cm-widget__body${padded ? " cm-widget__body--padded" : ""}`}>
+      {status.kind === "loading" && (
+        <div className="cm-widget__loading" role="status">
+          불러오는 중…
+        </div>
+      )}
+      <div
+        ref={bodyRef}
+        className={`cm-widget__body${padded ? " cm-widget__body--padded" : ""}`}
+        aria-busy={status.kind === "loading" ? "true" : undefined}
+      >
         <WidgetFrameContext.Provider value={api}>
           <WidgetErrorBoundary key={attempt} onRetry={retryLoad}>
             <Suspense fallback={<div className="cm-widget__skeleton"><i style={{ width: "60%" }} /><i /><i style={{ width: "80%" }} /></div>}>

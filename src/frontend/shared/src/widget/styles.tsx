@@ -52,6 +52,7 @@ export const WIDGET_CSS = `
 .cm-widget__state--error { color: var(--color-danger); }
 .cm-widget__text-btn { height: 26px; padding: 0 10px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text); font-size: var(--font-size-sm); cursor: pointer; }
 .cm-widget__text-btn:hover { background: var(--color-bg-hover); }
+.cm-widget__loading { position: absolute; top: 40px; right: var(--spacing-md); z-index: 5; padding: 2px var(--spacing-sm); border: 1px solid var(--color-border-light); border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text-muted); font-size: var(--font-size-xs); pointer-events: none; }
 .cm-widget__size { position: absolute; right: 8px; bottom: 8px; z-index: 5; padding: 2px 7px; border-radius: var(--radius-sm); background: var(--shell-header-bg); color: var(--shell-header-fg); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; pointer-events: none; }
 .cm-widget--missing { background: var(--color-bg-light); border-style: dashed; border-color: var(--color-border); }
 .cm-widget--missing .cm-widget__title { color: var(--color-text-muted); }

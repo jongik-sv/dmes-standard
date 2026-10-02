@@ -70,6 +70,25 @@ describe("WidgetFrame", () => {
     expect(retry).toHaveBeenCalledTimes(1);
   });
 
+  it("useWidgetStatus 의 loading 은 틀이 로딩 표시와 aria-busy 로 보이고 ready 로 바뀌면 사라지며 본체는 유지된다", async () => {
+    let setter: ((s: { kind: "ready" } | { kind: "loading" }) => void) | null = null;
+    const Body = () => {
+      setter = useWidgetStatus();
+      return h("p", { "data-testid": "body" }, "본문");
+    };
+    act(() => root.render(h(WidgetFrame, { item: item(), entry: entry(Body), editing: false, onToggleLock: noop, onRemove: noop })));
+    await flush();
+    const bodyEl = host.querySelector('[data-testid="body"]');
+    expect(host.querySelector(".cm-widget__loading")).toBeNull();
+    act(() => setter!({ kind: "loading" }));
+    expect(host.querySelector(".cm-widget__loading")!.textContent).toContain("불러오는 중");
+    expect(host.querySelector(".cm-widget__body")!.getAttribute("aria-busy")).toBe("true");
+    act(() => setter!({ kind: "ready" }));
+    expect(host.querySelector(".cm-widget__loading")).toBeNull();
+    expect(host.querySelector(".cm-widget__body")!.getAttribute("aria-busy")).toBeNull();
+    expect(host.querySelector('[data-testid="body"]')).toBe(bodyEl);
+  });
+
   it("WidgetHeaderActions 내용은 제목 줄로 옮겨진다", async () => {
     const Body = () => h(WidgetHeaderActions, null, h("span", { "data-testid": "act" }, "배지"));
     act(() => root.render(h(WidgetFrame, { item: item(), entry: entry(Body), editing: false, onToggleLock: noop, onRemove: noop })));
