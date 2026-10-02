@@ -34,6 +34,11 @@ export interface RbacPolicyConfig {
   publicPrefixes: readonly string[];
   /** 인증만 필요 (RBAC skip). 예: 내 메뉴/즐겨찾기. */
   authOnlyPrefixes: readonly string[];
+  /**
+   * 인증만 필요한 경로 패턴 (선택, RBAC skip). 모듈 이름처럼 접두로 적을 수 없는 자리가 있을 때 쓴다.
+   * 예: `/^\/api\/[^/]+\/mdmMeta\//` — 모든 업무 모듈의 MDM 메타 캐시 엔드포인트(2026-10-02).
+   */
+  authOnlyPatterns?: readonly RegExp[];
   /** LoV 경로 (인증만). 예: `/^\/api\/[^/]+\/lov\//`. */
   lovPattern: RegExp;
   /** 미매칭(2패턴 외) 경로 차단 여부. 지금 false(통과) / 추후 true(전면차단). */
@@ -122,6 +127,7 @@ export async function evaluateApiPolicy(
   if (!token || typeof token.sub !== "string" || token.sub.length === 0) return "unauthorized";
 
   if (config.authOnlyPrefixes.some((p) => path.startsWith(p))) return "pass";
+  if (config.authOnlyPatterns?.some((re) => re.test(path))) return "pass";
   if (config.lovPattern.test(path)) return "pass";
 
   const rbacKey = parseRbacKey(path, config.reservedSecondSeg);

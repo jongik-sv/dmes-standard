@@ -52,17 +52,14 @@ const RBAC_POLICY: RbacPolicyConfig = {
     // 포털 홈 공지 목록(mls noticeBoard) — 로그인한 모든 사용자. 서비스가 현재 사용자 역할로 게시 대상을 거른다
     // (본인 기준 데이터). 조회 action 하나만 연다 — noticeBoard 에는 쓰기 action 이 없다. BE EndpointPermissionFilter 와 동기화.
     "/api/mls/oasis/noticeBoard/search",
-    // MDM 메타 캐시(2026-10-02) — 업무 모듈 cactus 엔드포인트 /api/{module}/mdmMeta/*. 화면 메타(columns·domains)는 로그인한 모든 사용자,
-    // 관리(status·entries·load)는 각 모듈 MdmMetaController 가 X-Authenticated-Role 로 SYSADMIN 을 다시 본다. BE EndpointPermissionFilter 와 동기화.
-    "/api/mcm/mdmMeta/",
-    "/api/mls/mdmMeta/",
-    "/api/mqc/mdmMeta/",
-    "/api/mpp/mdmMeta/",
-    "/api/mpn/mdmMeta/",
     // 포털 알림(STOMP push) 스택 도입 시 아래 2건을 추가한다 — BE 의 AUTH_ONLY 접두 목록과 동기화할 것.
     //   "/api/mcm/oasis/ntfNotification/"  알림 조회/읽음 처리
     //   "/api/mcm/notify/ws-ticket"        WS 단명 티켓 발급 (본인 티켓)
   ],
+  // MDM 메타 캐시(2026-10-02) — 모든 업무 모듈의 cactus 엔드포인트 /api/{module}/mdmMeta/*. 모듈 이름과 무관한 한 규칙이라 새 모듈이
+  // 캐시를 켜도 여기를 고치지 않는다. 화면 메타(columns·domains)는 로그인한 모든 사용자, 관리(status·entries·load)는 각 모듈
+  // MdmMetaController 가 SYSADMIN 을 다시 본다. mcm BE EndpointPermissionFilter 의 AUTH_ONLY(/api/mcm/mdmMeta/)와 동기화.
+  authOnlyPatterns: [/^\/api\/[^/]+\/mdmMeta\//],
   lovPattern: /^\/api\/[^/]+\/lov\//,
   unmatchedDeny: process.env.RBAC_DEFAULT_DENY === "true",
 };

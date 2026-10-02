@@ -15,8 +15,9 @@ const CFG: RbacPolicyConfig = {
     "/api/mcm/oasis/secFavorite/search",
     "/api/mls/oasis/noticeBoard/search", // m-mcm proxy.ts 와 같은 값 — 포털 홈 공지 목록(2026-10-02)
     "/api/mcm/oasis/secWidget/", // m-mcm proxy.ts 와 같은 값 — 사용자 위젯 탭·배치(본인 데이터, 2026-10-02)
-    "/api/mls/mdmMeta/", // m-mcm proxy.ts 와 같은 값 — MDM 메타 캐시(2026-10-02)
   ],
+  // m-mcm proxy.ts 와 같은 값 — MDM 메타 캐시(2026-10-02). 모듈 이름과 무관한 한 규칙이다.
+  authOnlyPatterns: [/^\/api\/[^/]+\/mdmMeta\//],
   lovPattern: /^\/api\/[^/]+\/lov\//,
   unmatchedDeny: false,
 };
@@ -155,6 +156,17 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
     expect(await evaluateApiPolicy("/api/mls/mdmMeta/columns", viewer, CFG, loadThrow)).toBe("pass");
     expect(await evaluateApiPolicy("/api/mls/mdmMeta/entries?type=COLUMN", viewer, CFG, loadThrow)).toBe("pass");
     expect(await evaluateApiPolicy("/api/mls/mdmMeta/status", null, CFG, loadThrow)).toBe("unauthorized");
+  });
+  it("T12 mdmMeta 규칙은 모듈 이름과 무관 — 아직 없는 모듈(mmm)도 proxy 수정 없이 AUTH_ONLY pass", async () => {
+    expect(await evaluateApiPolicy("/api/mmm/mdmMeta/columns", viewer, CFG, loadThrow)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mmm/mdmMeta/status", viewer, CFG, loadThrow)).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mmm/mdmMeta/columns", null, CFG, loadThrow)).toBe("unauthorized");
+    // 패턴은 두 번째 세그먼트가 정확히 mdmMeta 일 때만 — 비슷한 이름·더 깊은 위치는 RBAC 로 간다.
+    expect(await evaluateApiPolicy("/api/mmm/mdmMetaX/columns", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    expect(await evaluateApiPolicy("/api/mmm/oasis/mdmMeta/columns", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    // 패턴을 두지 않은 설정(다른 포털)은 예전처럼 RBAC 판정이다.
+    const { authOnlyPatterns: _omit, ...noPatterns } = CFG;
+    expect(await evaluateApiPolicy("/api/mmm/mdmMeta/columns", viewer, noPatterns, loadEmpty)).toBe("forbidden-perm");
   });
   it("AUTH_ONLY 라도 미로그인이면 unauthorized", async () => {
     expect(await evaluateApiPolicy("/api/mcm/oasis/secUser/myMenus", null, CFG, loadThrow)).toBe("unauthorized");
