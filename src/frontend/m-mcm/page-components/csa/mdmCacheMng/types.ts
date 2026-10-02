@@ -96,6 +96,12 @@ export type CacheEntryLookup = { found: true; detail: CacheEntryDetail } | { fou
 
 export const ENTRY_NOT_CACHED_MESSAGE = "캐시에 없음(만료·삭제됨)";
 
+/** 서버(MdmMetaController.entry)가 "캐시에 없음" 404 본문에 싣는 code. 다른 404(모듈 불일치·없는 경로)와 가른다. */
+export const ENTRY_NOT_CACHED_CODE = "MDM_ENTRY_NOT_CACHED";
+
+/** "캐시에 없음"이 아닌 404 — 모듈 이름이 다르거나 경로가 없다(모듈이 entry 를 모르는 옛 버전 등). */
+export const ENTRY_NOT_FOUND_MESSAGE = "조회할 수 없음(404)";
+
 export interface CacheEntryPage {
   total: number;
   page: number;

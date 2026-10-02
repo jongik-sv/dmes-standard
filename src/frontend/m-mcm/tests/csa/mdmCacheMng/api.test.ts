@@ -110,6 +110,22 @@ describe("mdmCacheMng api", () => {
   });
 
   describe("항목 상세(entry)", () => {
+    const fetchMock = vi.fn();
+    /** fetch 응답 흉내 — status 와 JSON 본문(null 이면 JSON 아님). */
+    const reply = (status: number, body: unknown) => ({
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => {
+        if (body === null) throw new SyntaxError("not json");
+        return body;
+      },
+    });
+
+    beforeEach(() => {
+      fetchMock.mockReset();
+      vi.stubGlobal("fetch", fetchMock);
+    });
+
     afterEach(() => {
       vi.unstubAllGlobals();
     });
@@ -127,21 +143,22 @@ describe("mdmCacheMng api", () => {
 
     it("type·key 를 인코딩해 GET 하고 토큰 헤더를 붙이며 로그인으로 보내는 apiRequest 를 쓰지 않는다", async () => {
       vi.stubGlobal("window", { localStorage: { getItem: (k: string) => (k === "oasis_access_token" ? "tok" : null) } });
-      getJson.mockResolvedValue({ ...detail, type: "RULE", key: "R 1/가&b" });
+      fetchMock.mockResolvedValue(reply(200, { ...detail, type: "RULE", key: "R 1/가&b" }));
 
       const r = await api.fetchEntry("mls", "RULE", "R 1/가&b");
 
-      expect(getJson).toHaveBeenCalledTimes(1);
-      const [url, init] = getJson.mock.calls[0] as [string, { method: string; headers: Record<string, string> }];
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as [string, { method: string; headers: Record<string, string> }];
       expect(url).toBe(`/api/mls/mdmMeta/entry?type=RULE&key=${encodeURIComponent("R 1/가&b").replace(/%20/g, "+")}`);
       expect(new URL(url, "http://x").searchParams.get("key")).toBe("R 1/가&b");
-      expect(init).toEqual({ method: "GET", headers: { Authorization: "Bearer tok" } });
+      expect(init).toEqual({ method: "GET", headers: { "Content-Type": "application/json", Authorization: "Bearer tok" } });
       expect(apiRequest).not.toHaveBeenCalled();
+      expect(getJson).not.toHaveBeenCalled();
       expect(r.found).toBe(true);
     });
 
     it("값 전체(bizExpr.text 포함)와 요약을 돌려주고 적재 시각은 로컬 시각 문자열이다", async () => {
-      getJson.mockResolvedValue(detail);
+      fetchMock.mockResolvedValue(reply(200, detail));
 
       const r = await api.fetchEntry("mcm", "COLUMN", "COIL_THK");
 
@@ -153,24 +170,35 @@ describe("mdmCacheMng api", () => {
     });
 
     it("없음 항목은 absent 와 null 값이다", async () => {
-      getJson.mockResolvedValue({ ...detail, absent: true, value: null });
+      fetchMock.mockResolvedValue(reply(200, { ...detail, absent: true, value: null }));
       const r = await api.fetchEntry("mcm", "COLUMN", "NOPE");
       expect(r).toMatchObject({ found: true, detail: { absent: true, value: null } });
     });
 
-    it("404 는 캐시에 없음(만료·삭제됨)으로 돌려주고 throw 하지 않는다", async () => {
-      getJson.mockRejectedValue(httpError(404));
+    it("캐시에 없음 본문(code MDM_ENTRY_NOT_CACHED)의 404 만 캐시에 없음(만료·삭제됨)으로 돌려주고 throw 하지 않는다", async () => {
+      fetchMock.mockResolvedValue(reply(404, { code: "MDM_ENTRY_NOT_CACHED", message: "캐시에 없습니다(만료·삭제됨): COLUMN COIL_THK" }));
       await expect(api.fetchEntry("mls", "COLUMN", "COIL_THK")).resolves.toEqual({ found: false, message: "캐시에 없음(만료·삭제됨)" });
       expect(apiRequest).not.toHaveBeenCalled();
     });
 
-    it("401·403·네트워크 실패는 이유 문구를 붙여 throw 한다", async () => {
-      getJson.mockRejectedValueOnce(httpError(401));
-      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("인증 실패");
-      getJson.mockRejectedValueOnce(httpError(403));
-      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("권한 없음");
-      getJson.mockRejectedValueOnce(new Error("서버와 연결할 수 없습니다."));
-      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("연결 안 됨: 서버와 연결할 수 없습니다.");
+    it("다른 404(모듈 불일치 빈 본문·없는 경로)는 조회할 수 없음(404)으로 throw 한다", async () => {
+      fetchMock.mockResolvedValueOnce(reply(404, null));
+      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("조회할 수 없음(404)");
+      fetchMock.mockResolvedValueOnce(reply(404, { status: 404, error: "Not Found", path: "/api/mqc/mdmMeta/entry" }));
+      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("조회할 수 없음(404)");
+      fetchMock.mockResolvedValueOnce(reply(404, { message: "캐시에 없습니다(만료·삭제됨)" })); // code 없이 문구만 같으면 믿지 않는다
+      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("조회할 수 없음(404)");
+    });
+
+    it("401·403·5xx·네트워크 실패는 이유 문구를 붙여 throw 한다", async () => {
+      fetchMock.mockResolvedValueOnce(reply(401, null));
+      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("인증 실패: HTTP 401");
+      fetchMock.mockResolvedValueOnce(reply(403, { message: "시스템 관리자만 할 수 있습니다" }));
+      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("권한 없음: 시스템 관리자만 할 수 있습니다");
+      fetchMock.mockResolvedValueOnce(reply(502, null));
+      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("연결 안 됨: HTTP 502");
+      fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      await expect(api.fetchEntry("mqc", "COLUMN", "A")).rejects.toThrow("연결 안 됨: Failed to fetch");
       expect(apiRequest).not.toHaveBeenCalled();
     });
   });

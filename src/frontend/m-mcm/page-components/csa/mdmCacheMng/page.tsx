@@ -125,12 +125,18 @@ export default function MdmCacheMngPage() {
   const [isEntryBusy, setIsEntryBusy] = useState(false);
   /** 상세 요청 순번 — 늦게 도착한 앞 요청의 결과가 뒤 요청의 결과를 덮지 않게 한다. */
   const detailSeq = useRef(0);
+  /**
+   * 지금 열린 상세 항목. 다시 받기(refreshDetail)는 이 값을 읽는다 — 삭제·조회 중 await 사이에 사용자가 다른 항목을 열어도, 그 전에 만든
+   * 콜백이 쥔 옛 detailTarget 으로 패널을 되돌리지 않게 한다.
+   */
+  const detailTargetRef = useRef<DetailTarget | null>(null);
 
   const selectedEntries = useMemo(() => entries.filter((e) => selectedKeys.includes(e.rowId)), [entries, selectedKeys]);
 
   /** 항목 하나의 캐시 값을 받아 상세 패널에 보인다. 서버는 캐시를 읽기만 한다(조회 수·적재 없음). */
   const openDetail = useCallback(async (target: DetailTarget) => {
     const seq = ++detailSeq.current;
+    detailTargetRef.current = target;
     setDetailTarget(target);
     setDetailError("");
     setIsEntryBusy(true);
@@ -149,23 +155,25 @@ export default function MdmCacheMngPage() {
 
   const closeDetail = useCallback(() => {
     detailSeq.current++;
+    detailTargetRef.current = null;
     setDetailTarget(null);
     setDetailLookup(null);
     setDetailError("");
     setIsEntryBusy(false);
   }, []);
 
-  /** 열린 상세를 다시 받는다(삭제·재등록·등록·조회 뒤). 다른 모듈의 상세였으면 닫는다. */
+  /** 지금 열린 상세를 다시 받는다(삭제·재등록·등록·조회 뒤). 다른 모듈의 상세였으면 닫는다. */
   const refreshDetail = useCallback(
     (module: string) => {
-      if (!detailTarget) return;
-      if (detailTarget.module !== module) {
+      const current = detailTargetRef.current;
+      if (!current) return;
+      if (current.module !== module) {
         closeDetail();
         return;
       }
-      void openDetail(detailTarget);
+      void openDetail(current);
     },
-    [closeDetail, detailTarget, openDetail],
+    [closeDetail, openDetail],
   );
 
   const loadEntries = useCallback(
@@ -214,20 +222,21 @@ export default function MdmCacheMngPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** 위 행을 누르면 그 모듈의 항목을 조회한다. 상태를 받지 못한 모듈(인증 실패·권한 없음·연결 안 됨)은 항목을 비운다. */
+  /** 위 행을 누르면 그 모듈의 항목을 조회한다. 상태를 받지 못한 모듈(인증 실패·권한 없음·연결 안 됨)은 항목과 상세를 비운다. */
   const handleModuleClick = useCallback(
     async (row: Record<string, unknown>) => {
       const moduleId = String(row.module ?? "");
       setSelectedModule(moduleId);
-      if (moduleId !== detailTarget?.module) closeDetail();
       if (!isReachable(row.state as ModuleState)) {
         setEntries([]);
         setSelectedKeys([]);
+        closeDetail();
         return;
       }
+      if (moduleId !== detailTargetRef.current?.module) closeDetail();
       await loadEntries(moduleId, filters);
     },
-    [closeDetail, detailTarget, filters, loadEntries],
+    [closeDetail, filters, loadEntries],
   );
 
   /** 항목 행을 누르면 그 항목의 상세(캐시 값 전체)를 연다. 같은 행을 다시 누르면 다시 받는다. */

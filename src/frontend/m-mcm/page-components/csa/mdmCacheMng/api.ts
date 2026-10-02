@@ -7,7 +7,13 @@
  */
 import { apiRequest, getJson } from "@dk-oasis/shared/http";
 
-import { ENTRY_NOT_CACHED_MESSAGE, TARGET_TYPE_LABELS, MODULE_STATE_LABELS } from "./types";
+import {
+  ENTRY_NOT_CACHED_CODE,
+  ENTRY_NOT_CACHED_MESSAGE,
+  ENTRY_NOT_FOUND_MESSAGE,
+  TARGET_TYPE_LABELS,
+  MODULE_STATE_LABELS,
+} from "./types";
 import type {
   CacheEntryDetail,
   CacheEntryLookup,
@@ -142,21 +148,44 @@ export async function fetchEntries(module: string, filters: EntryFilters, page =
   return { total: res.total, page: res.page, size: res.size, items };
 }
 
+/** 본문을 JSON 으로 읽는다. 비었거나 JSON 이 아니면 null. */
+async function readBody(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /**
- * 항목 하나의 캐시 값 전체(SYSADMIN 상세 보기). 서버는 캐시를 읽기만 한다(조회 수·적재 없음). 404 는 캐시에 없음(만료·삭제됨)으로
- * 돌려주고, 그 밖의 실패는 status 와 같은 이유 문구(인증 실패·권한 없음·연결 안 됨)를 붙여 던진다. 로그인 화면으로 보내지 않는다.
+ * 항목 하나의 캐시 값 전체(SYSADMIN 상세 보기). 서버는 캐시를 읽기만 한다(조회 수·적재 없음). 로그인 화면으로 보내지 않는다.
+ * - 404 + 본문 code `MDM_ENTRY_NOT_CACHED` → 캐시에 없음(만료·삭제됨)으로 돌려준다.
+ * - 그 밖의 404(모듈 불일치·없는 경로) → "조회할 수 없음(404)" 으로 던진다.
+ * - 그 밖의 실패 → status 와 같은 이유 문구(인증 실패·권한 없음·연결 안 됨)를 붙여 던진다.
+ * getJson 은 실패 본문을 버리므로 404 본문을 보려고 fetch 를 직접 부른다(헤더는 getJson 과 같다).
  */
 export async function fetchEntry(module: string, type: MdmTargetType, key: string): Promise<CacheEntryLookup> {
   const q = new URLSearchParams({ type, key });
-  let res: CacheEntryDetail; // loadedAt 은 ISO — 아래에서 로컬 시각으로 바꾼다
+  let response: Response;
   try {
-    res = await getWithoutRedirect<CacheEntryDetail>(`${metaBase(module)}/entry?${q.toString()}`);
+    response = await fetch(`${metaBase(module)}/entry?${q.toString()}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+    });
   } catch (e) {
-    const status = typeof e === "object" && e !== null && "status" in e ? Number((e as { status: unknown }).status) : NaN;
-    if (status === 404) return { found: false, message: ENTRY_NOT_CACHED_MESSAGE };
-    const label = MODULE_STATE_LABELS[failureState(e)];
-    throw new Error(`${label}: ${e instanceof Error ? e.message : String(e)}`);
+    throw new Error(`${MODULE_STATE_LABELS.DOWN}: ${e instanceof Error ? e.message : String(e)}`);
   }
+  const body = await readBody(response);
+  if (!response.ok) {
+    const b = (typeof body === "object" && body !== null ? body : {}) as { code?: unknown; message?: unknown };
+    if (response.status === 404) {
+      if (b.code === ENTRY_NOT_CACHED_CODE) return { found: false, message: ENTRY_NOT_CACHED_MESSAGE };
+      throw new Error(ENTRY_NOT_FOUND_MESSAGE);
+    }
+    const label = MODULE_STATE_LABELS[failureState(response)];
+    throw new Error(`${label}: ${typeof b.message === "string" && b.message ? b.message : `HTTP ${response.status}`}`);
+  }
+  const res = body as CacheEntryDetail; // loadedAt 은 ISO — 아래에서 로컬 시각으로 바꾼다
   return {
     found: true,
     detail: {
