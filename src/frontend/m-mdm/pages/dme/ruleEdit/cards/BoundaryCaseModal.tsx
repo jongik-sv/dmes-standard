@@ -352,6 +352,16 @@ export function BoundaryCaseModal({ session, busy, canExecute, commit, onClose }
                 </ul>
               </div>
             )}
+            {plan.groupNotes && plan.groupNotes.length > 0 && (
+              <div data-testid="bc-group-notes" style={note}>
+                열 조건을 반영하지 못한 열
+                <ul style={{ margin: "2px 0 0", paddingLeft: "var(--spacing-lg)" }}>
+                  {plan.groupNotes.map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <p style={note}>실행 결과로 기대값을 채워 새 케이스로 저장합니다. 판정 오류인 후보는 기대값 없이(실행만) 저장합니다.</p>
           </>
         )}
