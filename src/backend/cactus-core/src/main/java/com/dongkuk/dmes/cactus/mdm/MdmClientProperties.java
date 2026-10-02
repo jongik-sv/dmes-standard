@@ -33,6 +33,21 @@ public class MdmClientProperties {
      * 순번을 잡는다. 0 이면 끈다. 켰으면 {@code page-limit} 이 이 값보다 커야 한다(아니면 기동 때 예외).
      */
     private int revisionLookback = MdmRevisionPoller.DEFAULT_LOOKBACK;
+    /** 저장 검증({@link MdmValidator}) 설정 {@code cactus.mdm.validation.*}(하위 프로젝트 C spec §6.3). */
+    private final Validation validation = new Validation();
+
+    /** {@code cactus.mdm.validation.*}. */
+    public static class Validation {
+
+        /** 검사에 필요한 MDM 정의를 받을 수 없을 때 — REJECT(기본, 저장 거부) | PASS(WARN 을 남기고 그 항목만 건너뜀). spec C7. */
+        private MdmValidator.OnUnavailable onUnavailable = MdmValidator.OnUnavailable.REJECT;
+
+        public MdmValidator.OnUnavailable getOnUnavailable() { return onUnavailable; }
+
+        public void setOnUnavailable(MdmValidator.OnUnavailable v) { this.onUnavailable = v; }
+    }
+
+    public Validation getValidation() { return validation; }
 
     public boolean isEnabled() { return enabled; }
     public String getModule() { return module; }
