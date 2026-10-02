@@ -17,7 +17,7 @@ export default function HtmlTypeEditor({ value, onChange, onValidate }: WidgetTy
   return (
     <div className="mcm-wt-editor" data-testid="widget-type-editor-html">
       <ContentStyle />
-      <FormGroup label="html" required>
+      <FormGroup label="html" required className="mcm-fg-block">
         <Textarea
           value={cfg.html}
           onChange={(html) => set({ html })}
