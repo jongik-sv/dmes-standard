@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="widgetDataDefinitions" targetNamespace="http://dongkuk.com/dmes/mcm" exporter="bpmn-tool" exporterVersion="1.2.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="widgetData" name="쿼리 위젯 데이터 서비스" isExecutable="true">
+    <bpmn:documentation>쿼리 위젯 실행(포털 홈) — 스펙 2026-10-02-widget-admin-generic §5.1·§7. defId 만 받고 요청 본문의 SQL 은 실행하지 않는다. 로그인만 되면 부를 수 있다(AUTH_ONLY).</bpmn:documentation>
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_run</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="runTask" name="쿼리 위젯 실행" camunda:class="widgetDataService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="run" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.data.WidgetDataRunRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_run</bpmn:incoming>
+      <bpmn:outgoing>flow_run_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endRun">
+      <bpmn:incoming>flow_run_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_run" name="run" sourceRef="actionGateway" targetRef="runTask" />
+    <bpmn:sequenceFlow id="flow_run_end" sourceRef="runTask" targetRef="endRun" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="widgetData">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="180" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="266" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="runTask_di" bpmnElement="runTask">
+        <dc:Bounds x="366" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endRun_di" bpmnElement="endRun">
+        <dc:Bounds x="516" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="216" y="200" />
+        <di:waypoint x="266" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_run_di" bpmnElement="flow_run">
+        <di:waypoint x="316" y="200" />
+        <di:waypoint x="366" y="200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="321" y="183" width="24" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_run_end_di" bpmnElement="flow_run_end">
+        <di:waypoint x="466" y="200" />
+        <di:waypoint x="516" y="200" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+
