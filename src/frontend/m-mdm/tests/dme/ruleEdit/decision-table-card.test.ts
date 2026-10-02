@@ -569,7 +569,7 @@ describe("DecisionTableCard 렌더", () => {
     await flush();
     expect(saveBodies).toHaveLength(1);
     const body = saveBodies[0] as { params: Record<string, unknown>; grids: { rows: { rows: Array<Record<string, unknown>> } } };
-    expect(body.params).toEqual({ part: "TABLE", maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3, hitPolicy: "FIRST" });
+    expect(body.params).toEqual({ part: "TABLE", maruRuleId: "QLTY_GRD_JDG", ver: "2.000", rowVersion: 3, hitPolicy: "FIRST" });
     expect(body.grids.rows.rows.map((r) => r.rowId)).toEqual([1, 2, 3, -1, 4]);
     expect(body.grids.rows.rows[3]).toEqual({ rowId: -1, rowKind: "NORMAL", cells: '{"1":{"op":"NA"},"2":{"op":"NA"},"3":{"op":"NA"}}' });
     expect(typeof body.grids.rows.rows[0].cells).toBe("string");
@@ -609,7 +609,7 @@ describe("DecisionTableCard 렌더", () => {
     const base = draftView("e2e_mdm_steward");
     await renderCard({
       ...base,
-      versions: base.versions.map((v) => (v.ver === 2 ? { ...v, hitPolicy: "COLLECT" } : v)),
+      versions: base.versions.map((v) => (v.ver === "2.000" ? { ...v, hitPolicy: "COLLECT" } : v)),
       varMeta: [{ varId: 4, collectAgg: "SUM" }],
     });
     expect(container.querySelector("[data-testid='dt-hit-policy-conflicts']")).toBeNull();

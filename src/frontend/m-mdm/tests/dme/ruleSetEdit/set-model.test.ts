@@ -24,7 +24,7 @@ function rule(ruleId: string, conds: IoName[], results: IoName[], over: Partial<
     ruleKind: "DERIVE",
     status: "INUSE",
     exists: true,
-    releasedVer: 1,
+    releasedVer: "1.000",
     hitPolicy: null,
     conds,
     results,

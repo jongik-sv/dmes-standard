@@ -53,7 +53,7 @@ describe("evalExpr", () => {
 
 describe("declaredTypes", () => {
   const io = (ruleId: string, cond: string, dt: string | null, res: string): RuleIo => ({
-    ruleId, ruleName: ruleId, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+    ruleId, ruleName: ruleId, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
     conds: [{ name: cond, source: null, label: null, dataType: dt, scale: null, dateString: false, maruCodeId: null }],
     results: [{ name: res, source: null, label: null, dataType: "STRING", scale: null, dateString: false, maruCodeId: null }],
   }) as RuleIo;
@@ -71,7 +71,7 @@ describe("declaredTypes", () => {
 
 describe("declaredTypes 순서", () => {
   const mk = (ruleId: string, name: string, dt: string | null): RuleIo => ({
-    ruleId, ruleName: ruleId, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+    ruleId, ruleName: ruleId, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
     conds: [{ name, source: null, label: null, dataType: dt, scale: null, dateString: false, maruCodeId: null }], results: [],
   }) as RuleIo;
   const flow = toEditFlow(null, ["R_A", "R_B"]);

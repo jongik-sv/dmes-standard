@@ -24,7 +24,7 @@ public class RuleEditSaveRequest {
     /** TABLE·COLUMNS·CASE. */
     private String part;
     private String maruRuleId;
-    private Integer ver;
+    private String ver;
     private Long rowVersion;
     private String maruRuleName;
     private String description;
@@ -40,7 +40,7 @@ public class RuleEditSaveRequest {
 
     public String getPart() { return part; }
     public String getMaruRuleId() { return maruRuleId; }
-    public Integer getVer() { return ver; }
+    public String getVer() { return ver; }
     public Long getRowVersion() { return rowVersion; }
     public String getMaruRuleName() { return maruRuleName; }
     public String getDescription() { return description; }
@@ -55,7 +55,7 @@ public class RuleEditSaveRequest {
 
     public void setPart(String v) { this.part = v; }
     public void setMaruRuleId(String v) { this.maruRuleId = v; }
-    public void setVer(Integer v) { this.ver = v; }
+    public void setVer(String v) { this.ver = v; }
     public void setRowVersion(Long v) { this.rowVersion = v; }
     public void setMaruRuleName(String v) { this.maruRuleName = v; }
     public void setDescription(String v) { this.description = v; }

@@ -212,7 +212,7 @@ class RuleEffectiveStatusTest extends AbstractMdmSharedDbTest {
         clock.setLocal(APPLY_FROM.plusDays(1));
         RuleVersionRequest r = new RuleVersionRequest();
         r.setMaruRuleId(ID);
-        assertEquals(2, versionService.newVersion(r).getVer());
+        assertEquals("2.000", versionService.newVersion(r).getVer());
         assertEquals("INUSE", stored());
     }
 

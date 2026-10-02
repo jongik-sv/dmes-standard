@@ -28,7 +28,7 @@ import {
 import { AgDataGrid, GridPanel, Pagination, type GridColumn } from "@dk-oasis/shared/grid";
 import { Input } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
-import { MdmPageLayout, badgeStyle } from "@/shell";
+import { MdmPageLayout, badgeStyle, fmtVer } from "@/shell";
 import { openRuleEdit } from "@/dme/rule-handoff";
 
 import { searchRules, viewRule } from "./api";
@@ -62,7 +62,7 @@ const STATUS_FILTER_OPTIONS = [
 function pendingText(row: RuleListRow): string {
   if (row.pendingVer == null) return "";
   const owner = row.pendingOwnerId ? ` · ${row.pendingOwnerId}` : "";
-  return `${row.pendingVer} ${row.pendingStatus ?? ""}${owner}`.trim();
+  return `${fmtVer(row.pendingVer)} ${row.pendingStatus ?? ""}${owner}`.trim();
 }
 
 export default function RuleMngPage() {
@@ -173,7 +173,14 @@ export default function RuleMngPage() {
           </span>
         ),
       },
-      { key: "releasedVer", header: "적용 버전", width: 80, minWidth: 60, align: "center" },
+      {
+        key: "releasedVer",
+        header: "적용 버전",
+        width: 80,
+        minWidth: 60,
+        align: "center",
+        render: (value) => fmtVer(value as string | null),
+      },
       { key: "hitPolicy", header: "적중 정책", width: 90, minWidth: 70, align: "center" },
       { key: "pendingText", header: "미적용 버전", width: 180, minWidth: 90 },
     ],

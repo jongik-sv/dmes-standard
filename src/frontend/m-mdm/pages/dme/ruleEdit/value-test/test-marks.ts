@@ -5,6 +5,8 @@
  * 표에 올리는 것은 이 표가 보이는 정의의 결과일 때뿐이다: BODY 는 돌릴 때의 표 rev 와 지금 rev 가 같을 때, VERSION 은 보이는 버전과
  * 같은 버전·같은 row_version 이고 저장 안 한 변경이 없을 때. BODY 결과 뒤 표가 바뀌면 결과를 지우고 안내한다.
  */
+import { sameVer } from "@/shell/version-format";
+
 import type { ResolvedVar, ValueTestResult, ValueTestTarget, VarMeta } from "../types";
 
 /** 표에 칠할 값 테스트 표시. chosen·dimmed 는 적중 행마다(COLLECT 는 행마다 고른 열이 다르다). */
@@ -20,7 +22,7 @@ export interface TableTestMarks {
 export interface TestRunView {
   ruleId: string;
   target: ValueTestTarget;
-  ver: number | null;
+  ver: string | null;
   rowVersion: number | null;
   rev: number | null;
   result: ValueTestResult;
@@ -34,7 +36,7 @@ export interface TestRunView {
 /** 지금 표가 보이는 것. */
 export interface TableShown {
   ruleId: string;
-  ver: number | null;
+  ver: string | null;
   rowVersion: number | null;
   rev: number | null;
   dirty: boolean;
@@ -82,7 +84,7 @@ export function testMarksOf(
 
 /** 이 결과를 지금 표에 칠하는가(I33). */
 export function runShownOnTable(run: TestRunView | null, table: TableShown): boolean {
-  if (!run || run.casesOnly || run.ruleId !== table.ruleId || run.ver !== table.ver) return false;
+  if (!run || run.casesOnly || run.ruleId !== table.ruleId || !sameVer(run.ver, table.ver)) return false;
   if (run.target === "BODY") return run.rev != null && run.rev === table.rev;
   return !table.dirty && run.rowVersion === table.rowVersion;
 }
@@ -93,12 +95,12 @@ export function runShownOnTable(run: TestRunView | null, table: TableShown): boo
  */
 export function testRunAfterTableChange(
   run: TestRunView | null,
-  draft: { ruleId: string; ver: number | null; rev: number },
+  draft: { ruleId: string; ver: string | null; rev: number },
 ): { run: TestRunView | null; cleared: boolean } {
   if (!run) return { run: null, cleared: false };
   if (run.ruleId !== draft.ruleId) return { run: null, cleared: false };
   if (run.target !== "BODY") return { run, cleared: false };
-  if (run.ver !== draft.ver) return { run: null, cleared: false };
+  if (!sameVer(run.ver, draft.ver)) return { run: null, cleared: false };
   if (run.rev !== draft.rev) return { run: null, cleared: true };
   return { run, cleared: false };
 }

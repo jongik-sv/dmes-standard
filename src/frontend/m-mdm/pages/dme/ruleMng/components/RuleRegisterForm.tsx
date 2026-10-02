@@ -42,7 +42,7 @@ export function RuleRegisterForm({ canRegister, onRegistered, onCancel, onError 
       const result = await registerRule(form);
       const ruleId = result.maruRuleId ?? form.maruRuleId.trim();
       onRegistered(ruleId);
-      openRuleEdit(ruleId, result.ver ?? 1);
+      openRuleEdit(ruleId, result.ver ?? "1.000");
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e));
     } finally {

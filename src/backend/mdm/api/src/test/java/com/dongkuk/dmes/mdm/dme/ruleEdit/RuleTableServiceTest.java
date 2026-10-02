@@ -100,7 +100,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         RuleEditSaveRequest r = new RuleEditSaveRequest();
         r.setPart("TABLE");
         r.setMaruRuleId("QLTY_GRD_JDG");
-        r.setVer(2);
+        r.setVer("2.000");
         r.setRowVersion(rowVersion);
         r.setRows(rows);
         return r;
@@ -140,7 +140,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         RuleEditSaveRequest req = new RuleEditSaveRequest();
         req.setPart("TABLE");
         req.setMaruRuleId("WGT_CALC2");
-        req.setVer(1);
+        req.setVer("1.000");
         req.setRowVersion(0L);
         req.setRows(List.of(row(1, "NORMAL", legacyCells, null)));
         RuleEditSaveResult r = service.save(req);
@@ -227,7 +227,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         RuleEditSaveRequest r = table(0, List.of(row(-1, "NORMAL", "{\"1\":{\"op\":\"GE\",\"left\":\"1\"},\"2\":{\"val\":\"2\"}}", null),
                 row(-2, "DEFAULT", "{\"2\":{\"val\":\"0\"}}", null)));
         r.setMaruRuleId("CALC");
-        r.setVer(1);
+        r.setVer("1.000");
         assertEquals("INVALID_VALUE", mdm(() -> service.save(r)));
         r.setRows(List.of(row(-1, "NORMAL", "{\"1\":{\"op\":\"GE\",\"left\":\"1\"},\"2\":{\"val\":\"2\"}}", null)));
         // 산출 룰에는 적중 정책이 없다 — 값을 실으면 거부한다(D-133, 원래 표 저장 규칙 그대로).
@@ -329,7 +329,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         RuleEditSaveRequest r = new RuleEditSaveRequest();
         r.setPart("COLUMNS");
         r.setMaruRuleId("QLTY_GRD_JDG");
-        r.setVer(2);
+        r.setVer("2.000");
         r.setRowVersion(0L);
         r.setRows(List.of());
         r.setHitPolicy("UNIQUE");
@@ -395,7 +395,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
     @Test
     void RELEASED_버전은_저장하지_않는다() {
         RuleEditSaveRequest r = table(0, sample());
-        r.setVer(1);
+        r.setVer("1.000");
         assertTrue(List.of("MDM002", "MDM003").contains(mdm(() -> service.save(r))));
     }
 
@@ -405,7 +405,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.pending(jdbc, "EXT_JDG", 1, "DRAFT", "kim", "FIRST", null);
         RuleEditSaveRequest r = table(0, List.of());
         r.setMaruRuleId("EXT_JDG");
-        r.setVer(1);
+        r.setVer("1.000");
         assertEquals("BUSINESS_ERROR", mdm(() -> service.save(r)));
         assertEquals(0L, rowVersion(jdbc, "EXT_JDG", 1));
     }
@@ -419,12 +419,12 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
 
         assertEquals(4, count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2"));
         List<MdmRuleVar> vars = varRepository.findAll().stream()
-                .filter(v -> v.getMaruRuleId().equals("QLTY_GRD_JDG") && v.getVer() == 2)
+                .filter(v -> v.getMaruRuleId().equals("QLTY_GRD_JDG") && v.getVer().compareTo(DmeTestSupport.v(2)) == 0)
                 .sorted(Comparator.comparing(MdmRuleVar::getVarKind).thenComparing(MdmRuleVar::getSeq)).toList();
         List<StoredRow> storedRows = stored().stream().map(m -> new StoredRow(((Number) m.get("ROW_ID")).intValue(),
                 ((Number) m.get("SEQ")).intValue(), (String) m.get("ROW_KIND"), (String) m.get("CELLS"))).toList();
         List<RuleIssue> expected = RuleAnalyzer.analyze(RuleAnalysisInputMapper.toAnalysisRule("QLTY_GRD_JDG", "DECISION", "FIRST",
-                resolver.resolve("QLTY_GRD_JDG", 2, vars), storedRows));
+                resolver.resolve("QLTY_GRD_JDG", DmeTestSupport.v(2), vars), storedRows));
         List<Map<String, Object>> expectedMaps = expected.stream().map(RuleTableServiceTest::issueMap).toList();
         assertEquals(expectedMaps, r.getIssues());
         assertTrue(r.getIssues().stream().anyMatch(i -> "OVERLAP".equals(i.get("code")) && "WARNING".equals(i.get("severity"))
@@ -493,7 +493,7 @@ class RuleTableServiceTest extends AbstractMdmSharedDbTest {
         RuleTestRequest r = new RuleTestRequest();
         r.setMaruRuleId("QLTY_GRD_JDG");
         r.setTarget("VERSION");
-        r.setVer(ver);
+        r.setVer(DmeTestSupport.verText(ver));
         r.setInputJson(inputJson);
         return r;
     }

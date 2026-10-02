@@ -84,7 +84,7 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
         RuleEditSaveRequest r = new RuleEditSaveRequest();
         r.setPart("COLUMNS");
         r.setMaruRuleId("QLTY_GRD_JDG");
-        r.setVer(2);
+        r.setVer("2.000");
         r.setRowVersion(rowVersion);
         r.setRows(cols);
         return r;
@@ -388,7 +388,7 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
     private RuleEditSaveRequest deriveColumns(long rowVersion, List<Map<String, Object>> cols) {
         RuleEditSaveRequest r = columns(rowVersion, cols);
         r.setMaruRuleId("WGT_CALC");
-        r.setVer(1);
+        r.setVer("1.000");
         return r;
     }
 
@@ -513,7 +513,7 @@ class RuleColumnsServiceTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.pending(jdbc, "EXT_JDG", 1, "DRAFT", "kim", "FIRST", null);
         RuleEditSaveRequest ext = columns(0, qCols());
         ext.setMaruRuleId("EXT_JDG");
-        ext.setVer(1);
+        ext.setVer("1.000");
         assertEquals("BUSINESS_ERROR", mdm(() -> service.save(ext)));
 
         currentUser.set("lee", STEWARD);

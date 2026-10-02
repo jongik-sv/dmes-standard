@@ -238,7 +238,7 @@ afterEach(() => {
 
 const nm = (n: string) => ({ name: n, source: null, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const ioOf = (ruleId: string): RuleIo => ({
-  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [nm("S_A")],
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [nm("S_A")],
 });
 const noop = () => {};
 function props(over: Partial<FlowCanvasProps> = {}): FlowCanvasProps {

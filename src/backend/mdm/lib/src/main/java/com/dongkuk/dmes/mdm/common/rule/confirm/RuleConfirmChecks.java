@@ -13,6 +13,7 @@ import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmReport.Report;
 import com.dongkuk.dmes.mdm.common.rule.definition.SingleRuleDefinitionLookup;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions.Stored;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.version.VersionDiff;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
@@ -78,13 +79,13 @@ public class RuleConfirmChecks {
     /** 4항목 보고서. 룰·버전이 없으면 {@link IllegalStateException}(공통 서비스가 DRAFT 를 먼저 읽으므로 확정 경로에서는 나지 않는다). */
     public Report report(VersionRef draft) {
         String id = draft.objectId();
-        int ver = draft.ver().intValueExact();
+        BigDecimal ver = VersionNumbers.scaled(draft.ver());
         MdmRule rule = rules.findById(id).orElseThrow(() -> new IllegalStateException("룰이 없습니다: " + id));
         // 보고서는 쓰지 않는다(I14) — 저장된 변수·케이스 정의·결과 변수 참조의 타입을 한 해석 범위로 푼다(도메인 트리·결과 변수 한 번, 컬럼
         // 사전은 이름을 모아 한 번). 저장 검사(validator)는 저장 경로와 같게 호출마다 읽는다.
         RuleVarTypeResolver.Scope scope = resolver.scope();
         Stored s = stored.read(id, ver, scope)
-                .orElseThrow(() -> new IllegalStateException("룰 " + id + " 에 버전 " + ver + " 이(가) 없습니다"));
+                .orElseThrow(() -> new IllegalStateException("룰 " + id + " 에 버전 " + VersionNumbers.label(ver) + " 이(가) 없습니다"));
 
         List<Map<String, Object>> saveIssues = validator.validate(new RuleCheckInput(id, ver, rule.getRuleKind(), s.version().getHitPolicy(),
                 s.rawVars(), s.vars(), s.rows(), RuleSaveTarget.STORED)).issues();
@@ -109,18 +110,19 @@ public class RuleConfirmChecks {
     /** row_id diff — base 는 {@link #previousReleased}(없으면 null, 최초 버전). */
     public VersionDiff diff(VersionRef draft) {
         String id = draft.objectId();
-        int ver = draft.ver().intValueExact();
+        BigDecimal ver = VersionNumbers.scaled(draft.ver());
         Optional<MdmRuleVer> previous = previousReleased(id, ver);
         List<RuleVersionDiffs.Row> base = previous.map(p -> rows(id, p.getVer())).orElse(List.of());
-        VersionRef baseRef = previous.map(p -> new VersionRef(VersionTarget.BUSINESS_RULE, id, BigDecimal.valueOf(p.getVer()))).orElse(null);
+        VersionRef baseRef = previous.map(p -> new VersionRef(VersionTarget.BUSINESS_RULE, id, VersionNumbers.scaled(p.getVer()))).orElse(null);
         return new VersionDiff(baseRef, draft, RuleVersionDiffs.diff(base, rows(id, ver)));
     }
 
     /** 직전 RELEASED = 같은 룰에서 STATUS RELEASED 이고 ver &lt; V 인 것 중 가장 큰 ver(I12). 공통 서비스의 판정과 같다. */
-    public Optional<MdmRuleVer> previousReleased(String ruleId, int ver) {
+    public Optional<MdmRuleVer> previousReleased(String ruleId, BigDecimal ver) {
         MdmRuleVer best = null;
         for (MdmRuleVer v : queries.versions(ruleId)) {
-            if (VersionStatus.RELEASED.name().equals(v.getStatus()) && v.getVer() < ver && (best == null || v.getVer() > best.getVer())) {
+            if (VersionStatus.RELEASED.name().equals(v.getStatus()) && v.getVer().compareTo(ver) < 0
+                    && (best == null || v.getVer().compareTo(best.getVer()) > 0)) {
                 best = v;
             }
         }
@@ -140,7 +142,7 @@ public class RuleConfirmChecks {
         return cases.stream().map(c -> RuleCaseJudge.runCase(engine, id, c, ts, defaultRowId)).toList();
     }
 
-    private List<MdmCheckIssue> resultVarIssues(String id, int ver, Stored s, RuleVarTypeResolver.Scope scope) {
+    private List<MdmCheckIssue> resultVarIssues(String id, BigDecimal ver, Stored s, RuleVarTypeResolver.Scope scope) {
         RuleDefinitionReads.Names names = RuleDefinitionReads.of(s.rawVars(), s.rows().stream().map(DraftRow::cells).toList());
         Set<String> candidates = new LinkedHashSet<>(names.reads());
         candidates.removeAll(names.produces());
@@ -154,7 +156,7 @@ public class RuleConfirmChecks {
     }
 
     /** 컬럼 사전 이름인가 — 해석기에 이름 하나짜리 COND 탐침을 물어 typeSource 가 COLUMN 인지 본다(한 호출 안에서 캐시). */
-    private Predicate<String> columnNames(String id, int ver, RuleVarTypeResolver.Scope scope) {
+    private Predicate<String> columnNames(String id, BigDecimal ver, RuleVarTypeResolver.Scope scope) {
         Map<String, Boolean> cache = new HashMap<>();
         return name -> cache.computeIfAbsent(name, n -> {
             MdmRuleVar probe = new MdmRuleVar(id, ver, 0, "COND", 1);
@@ -165,7 +167,7 @@ public class RuleConfirmChecks {
         });
     }
 
-    private List<RuleVersionDiffs.Row> rows(String id, int ver) {
+    private List<RuleVersionDiffs.Row> rows(String id, BigDecimal ver) {
         return queries.rows(id, ver).stream().map(r -> new RuleVersionDiffs.Row(r.getRowId(), r.getSeq(), r.getCells())).toList();
     }
 }

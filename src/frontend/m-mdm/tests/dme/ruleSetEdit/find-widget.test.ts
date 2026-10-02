@@ -20,7 +20,7 @@ import { byTestId, click, installServer, openSet, q, settle, uninstallServer } f
 
 const ioName = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const rule = (ruleId: string, cond: string, result: string, name: string): RuleIo => ({
-  ruleId, ruleName: name, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+  ruleId, ruleName: name, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
   conds: [ioName(cond)], results: [{ ...ioName(result), source: null }],
 });
 // r1 E2S_GRD(등급 판정) → r2 E2S_FCT(Factor 계산) → r3 E2S_GRD2(등급 재판정)

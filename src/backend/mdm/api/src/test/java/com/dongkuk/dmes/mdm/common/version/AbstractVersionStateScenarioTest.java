@@ -399,18 +399,22 @@ public abstract class AbstractVersionStateScenarioTest {
 
     // ── S15~S16 ───────────────────────────────────────────────────────────────────────────
 
+    /**
+     * 룰 버전도 마스터 코드와 같은 scale 3 소수(D-144)로 같은 경로로 확정한다. 1.000(SQLite INTEGER) 다음 minor 1.001(REAL)을 확정해
+     * 직전 RELEASED 가 잘리지 않고 1.000 으로 닫히는지 본다.
+     */
     @Test
-    void S15_06_정수_버전도_같은_경로로_확정한다() {
+    void S15_06_룰_버전도_scale_3_소수로_같은_경로로_확정한다() {
         seedObject(VersionTarget.BUSINESS_RULE, "RULE-1", "INUSE");
-        VersionRef v1 = rule("RULE-1", "1");
-        VersionRef v2 = rule("RULE-1", "2");
+        VersionRef v1 = rule("RULE-1", "1.000");
+        VersionRef v2 = rule("RULE-1", "1.001");
         seedVersion(v1, "RELEASED", KIM, "2026-01-01 00:00:00", OPEN_END, 1);
         seedVersion(v2, "DRAFT", KIM, null, null, 0);
 
         ConfirmResult result = confirm(v2, 0, "2026-07-01 00:00:00");
 
-        assertEquals(0, result.confirmed().ver().scale());
-        assertEquals(new BigDecimal("2"), result.confirmed().ver());
+        assertEquals(3, result.confirmed().ver().scale());
+        assertEquals(new BigDecimal("1.001"), result.confirmed().ver());
         assertEquals(v1, result.closedPrevious());
         assertEquals("2026-07-01 00:00:00", text(readVersion(v1).get("APPLY_TO")));
         assertEquals("RELEASED", readVersion(v2).get("STATUS"));

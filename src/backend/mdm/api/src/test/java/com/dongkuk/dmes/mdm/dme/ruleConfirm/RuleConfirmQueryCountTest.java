@@ -76,7 +76,7 @@ class RuleConfirmQueryCountTest extends AbstractMdmSharedDbTest {
             RulePerfFixture.seed(jdbc, n);
             RuleConfirmValidateRequest v = new RuleConfirmValidateRequest();
             v.setMaruRuleId(RulePerfFixture.ID);
-            v.setVer(2);
+            v.setVer("2.000");
             v.setApplyFrom("2026-07-01 00:00:00");
             counts.put("validate" + n, probe.inTx("validate-n" + n, () -> service.validate(v)));
         }

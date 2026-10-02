@@ -1,12 +1,14 @@
 package com.dongkuk.dmes.mdm.entity;
 
 import com.dongkuk.dmes.cactus.audit.CactusAuditEntity;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 
 /**
  * 룰 행 — {@code TB_MDM_RULE_ROW}(TSK-08-01 design.md §6.0 ⑤·§6.2). 복합 PK 는 {@link MdmRuleRowId}.
@@ -25,8 +27,8 @@ public class MdmRuleRow extends CactusAuditEntity {
     private String maruRuleId;
 
     @Id
-    @Column(name = "VER")
-    private Integer ver;
+    @Column(name = "VER", nullable = false, precision = 7, scale = 3)
+    private BigDecimal ver;
 
     @Id
     @Column(name = "ROW_ID")
@@ -51,9 +53,9 @@ public class MdmRuleRow extends CactusAuditEntity {
         // JPA 기본 생성자
     }
 
-    public MdmRuleRow(String maruRuleId, Integer ver, Integer rowId, String rowKind, int seq, String cells) {
+    public MdmRuleRow(String maruRuleId, BigDecimal ver, Integer rowId, String rowKind, int seq, String cells) {
         this.maruRuleId = maruRuleId;
-        this.ver = ver;
+        this.ver = VersionNumbers.scaled(ver);
         this.rowId = rowId;
         this.rowKind = rowKind;
         this.seq = seq;
@@ -61,7 +63,7 @@ public class MdmRuleRow extends CactusAuditEntity {
     }
 
     public String getMaruRuleId() { return maruRuleId; }
-    public Integer getVer() { return ver; }
+    public BigDecimal getVer() { return VersionNumbers.scaled(ver); }
     public Integer getRowId() { return rowId; }
     public int getSeq() { return seq; }
     public String getRowKind() { return rowKind; }

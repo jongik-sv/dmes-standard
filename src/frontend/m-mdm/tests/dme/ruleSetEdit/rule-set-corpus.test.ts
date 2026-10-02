@@ -28,7 +28,7 @@ type Nullable<T> = { [K in keyof T]?: T[K] | null };
 interface CorpusRule {
   exists?: boolean;
   status?: string | null;
-  releasedVer?: number | null;
+  releasedVer?: string | null;
   hitPolicy?: string | null;
   hasDefault?: boolean;
   conds?: Array<{ name: string; source?: IoSource | null }>;

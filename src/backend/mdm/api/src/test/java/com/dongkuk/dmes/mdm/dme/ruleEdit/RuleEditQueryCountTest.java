@@ -81,19 +81,19 @@ class RuleEditQueryCountTest extends AbstractMdmSharedDbTest {
             counts.put("view" + n, probe.inTx("view-n" + n, () -> service.view(view)));
             RuleEditViewRequest v1 = new RuleEditViewRequest();
             v1.setMaruRuleId(RulePerfFixture.ID);
-            v1.setVer(1);
+            v1.setVer("1.000");
             counts.put("viewV1_" + n, probe.inTx("view-v1-n" + n, () -> service.view(v1)));
 
             RuleTestRequest run = new RuleTestRequest();
             run.setMaruRuleId(RulePerfFixture.ID);
             run.setTarget("VERSION");
-            run.setVer(2);
+            run.setVer("2.000");
             run.setInputJson(RulePerfFixture.inputJson(n));
             counts.put("execute" + n, probe.inTx("execute-n" + n, () -> service.runTest(run)));
             RuleTestRequest cases = new RuleTestRequest();
             cases.setMaruRuleId(RulePerfFixture.ID);
             cases.setTarget("VERSION");
-            cases.setVer(2);
+            cases.setVer("2.000");
             cases.setInputJson(RulePerfFixture.inputJson(n));
             cases.setRunCases(true);
             counts.put("executeCases" + n, probe.inTx("execute-cases-n" + n, () -> service.runTest(cases)));

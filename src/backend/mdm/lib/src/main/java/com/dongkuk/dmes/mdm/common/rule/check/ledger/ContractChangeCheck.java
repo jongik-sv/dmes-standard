@@ -9,6 +9,8 @@ import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
 import com.dongkuk.dmes.mdm.common.rule.definition.RuleDefinitionAssembler;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredRuleDefinitions.Stored;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
@@ -46,8 +48,8 @@ public class ContractChangeCheck implements RuleSaveCheck {
 
     @Override
     public List<Map<String, Object>> check(RuleSaveContext ctx) {
-        Integer releasedVer = queries.latestReleasedVers(List.of(ctx.ruleId())).get(ctx.ruleId());
-        if (releasedVer == null || releasedVer == ctx.ver()) {
+        BigDecimal releasedVer = queries.latestReleasedVers(List.of(ctx.ruleId())).get(ctx.ruleId());
+        if (releasedVer == null || VersionNumbers.same(releasedVer, ctx.ver())) {
             return List.of();
         }
         Optional<Stored> released = stored.read(ctx.ruleId(), releasedVer);
@@ -62,13 +64,13 @@ public class ContractChangeCheck implements RuleSaveCheck {
         Set<String> added = new LinkedHashSet<>(needed(after));
         added.removeAll(needed(before));
         if (!added.isEmpty()) {
-            out.add(warning("입력 계약 변경: 지금 RELEASED 버전 " + releasedVer + " 에 없던 입력 변수 " + added + " 이(가) 필요해진다"));
+            out.add(warning("입력 계약 변경: 지금 RELEASED 버전 " + VersionNumbers.label(releasedVer) + " 에 없던 입력 변수 " + added + " 이(가) 필요해진다"));
         }
         Set<String> promoted = new LinkedHashSet<>(needed(before));
         promoted.removeAll(required(before));
         promoted.retainAll(required(after));
         if (!promoted.isEmpty()) {
-            out.add(warning("입력 계약 변경: 지금 RELEASED 버전 " + releasedVer + " 에서 선택이던 입력 변수 " + promoted + " 이(가) 필수가 된다"));
+            out.add(warning("입력 계약 변경: 지금 RELEASED 버전 " + VersionNumbers.label(releasedVer) + " 에서 선택이던 입력 변수 " + promoted + " 이(가) 필수가 된다"));
         }
         return out;
     }

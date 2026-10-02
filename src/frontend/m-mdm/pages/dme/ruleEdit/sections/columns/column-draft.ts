@@ -6,6 +6,7 @@
  * 식이 참조하는 변수는 서버 `parseExpr` 응답(`ColumnDraftContext.parsed`)만 읽고, 응답이 아직 없으면 판정을 미룬다(저장 때 서버 기준).
  */
 import { EVAL_TS, RESERVED_CONSTANTS, RESERVED_PREFIX } from "@/evalex/contract-constants";
+import { normVer } from "@/shell/version-format";
 
 import type { ExprSlot } from "../../api";
 import type { HitPolicyCode, ResolvedVar, RuleEditView, StoredDispType, StoredRow, VarCandidate } from "../../types";
@@ -112,8 +113,9 @@ export function parsedKey(slot: ExprSlot, text: string): string {
   return `${slot}:${text}`;
 }
 
-export function columnDraftStorageKey(ruleId: string, ver: number): string {
-  return `mdm-ruleEdit-colDraft:${ruleId}:${ver}`;
+/** 버전은 `normVer` 로 맞춘다 — 같은 버전이 `"1"`·`"1.000"` 두 키로 갈리지 않게(D-144). */
+export function columnDraftStorageKey(ruleId: string, ver: string): string {
+  return `mdm-ruleEdit-colDraft:${ruleId}:${normVer(ver) ?? ver}`;
 }
 
 // ── 초안 모델 ──

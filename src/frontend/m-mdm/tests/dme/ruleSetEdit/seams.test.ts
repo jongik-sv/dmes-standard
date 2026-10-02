@@ -39,7 +39,7 @@ type Src = "DICT" | "PROG" | "NONE";
 const ioName = (n: string, source: Src | null) => ({ name: n, source, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 function io(ruleId: string, conds: Array<[string, Src]>, results: string[]): RuleIo {
   return {
-    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
     conds: conds.map(([n, s]) => ioName(n, s)), results: results.map((r) => ioName(r, null)),
   };
 }

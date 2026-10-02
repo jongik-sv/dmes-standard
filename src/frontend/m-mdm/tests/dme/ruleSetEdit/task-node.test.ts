@@ -27,7 +27,7 @@ function valid(f: EditFlow) {
 const base = () => toEditFlow(null, ["R_A", "R_B"]);
 const nm = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const io = (ruleId: string, cond: string, result: string): RuleIo => ({
-  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
   conds: [nm(cond)], results: [{ ...nm(result), source: null }],
 });
 

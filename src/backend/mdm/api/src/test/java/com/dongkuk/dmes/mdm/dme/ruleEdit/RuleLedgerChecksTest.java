@@ -32,6 +32,7 @@ import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
 import com.dongkuk.dmes.mdm.common.rule.check.ledger.RuleSetOrderCheck;
 import com.dongkuk.dmes.mdm.common.rule.check.ledger.RuleSetOrderCheck.SiblingRead;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveRequest;
@@ -43,6 +44,7 @@ import com.ezylang.evalex.parser.ParseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -476,9 +478,9 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
     private List<RuleSetCheck> analyzerChecks(String setId) {
         IoName xIn = new IoName("X_IN", RuleIo.NONE, null, null, null, false, null);
         Map<String, RuleIo> rules = new LinkedHashMap<>();
-        rules.put("R_P", new RuleIo("R_P", "R_P", "DECISION", "INUSE", true, 1, "FIRST", List.of(xIn), List.of(ioName("S_X"))));
-        rules.put("R_A", new RuleIo("R_A", "R_A", "DECISION", "INUSE", true, 1, "FIRST", List.of(xIn), List.of(ioName("S_X"))));
-        rules.put("R_B", new RuleIo("R_B", "R_B", "DECISION", "INUSE", true, 1, "FIRST", List.of(ioName("S_X")), List.of(ioName("S_B_OUT"))));
+        rules.put("R_P", new RuleIo("R_P", "R_P", "DECISION", "INUSE", true, "1.000", "FIRST", List.of(xIn), List.of(ioName("S_X"))));
+        rules.put("R_A", new RuleIo("R_A", "R_A", "DECISION", "INUSE", true, "1.000", "FIRST", List.of(xIn), List.of(ioName("S_X"))));
+        rules.put("R_B", new RuleIo("R_B", "R_B", "DECISION", "INUSE", true, "1.000", "FIRST", List.of(ioName("S_X")), List.of(ioName("S_B_OUT"))));
         String flow = jdbc.queryForObject("SELECT FLOW_JSON FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", String.class, setId);
         return RuleSetAnalyzer.checks(RuleSetFlowJson.parse(flow), rules, Map.of("e2", new CondIo(true, null, List.of(xIn))));
     }
@@ -489,7 +491,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
 
     /** 확정 검사 빈을 me 의 VER 1 정의(저장하려는 정의 자리)로 직접 부른다. */
     private List<Map<String, Object>> orderCheck(String me) {
-        return orderCheck.check(new RuleSaveContext(me, 1, "DECISION", "FIRST", queries.vars(me, 1), List.of(), List.of(), List.of(), RuleSaveTarget.TABLE));
+        return orderCheck.check(new RuleSaveContext(me, DmeTestSupport.v(1), "DECISION", "FIRST", queries.vars(me, DmeTestSupport.v(1)), List.of(), List.of(), List.of(), RuleSaveTarget.TABLE));
     }
 
     private static List<Object> checkCodes(List<Map<String, Object>> issues) {
@@ -537,8 +539,8 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.ruleSetFlow(jdbc, "S_IFREAD", flow);
         IoName xIn = new IoName("X_IN", RuleIo.NONE, null, null, null, false, null);
         Map<String, RuleIo> rules = new LinkedHashMap<>();
-        rules.put("R_M", new RuleIo("R_M", "R_M", "DECISION", "INUSE", true, 1, "FIRST", List.of(xIn), List.of(ioName("S_Y"))));
-        rules.put("R_O", new RuleIo("R_O", "R_O", "DECISION", "INUSE", true, 1, "FIRST", List.of(ioName("S_Y")), List.of(ioName("S_O_OUT"))));
+        rules.put("R_M", new RuleIo("R_M", "R_M", "DECISION", "INUSE", true, "1.000", "FIRST", List.of(xIn), List.of(ioName("S_Y"))));
+        rules.put("R_O", new RuleIo("R_O", "R_O", "DECISION", "INUSE", true, "1.000", "FIRST", List.of(ioName("S_Y")), List.of(ioName("S_O_OUT"))));
         List<RuleSetCheck> set = RuleSetAnalyzer.checks(RuleSetFlowJson.parse(flow), rules, Map.of("e2", new CondIo(true, null, List.of(xIn))));
         assertTrue(set.stream().anyMatch(c -> RuleSetCheck.IF_SIBLING.equals(c.code()) && "R_O".equals(c.ruleId()) && "rO1".equals(c.nodeId())
                 && "S_Y".equals(c.varName()) && "R_M".equals(c.otherRuleId())), set.toString());
@@ -568,8 +570,8 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.ruleSetFlow(jdbc, "S_IFREAD2", flow);
         IoName xIn = new IoName("X_IN", RuleIo.NONE, null, null, null, false, null);
         Map<String, RuleIo> rules = new LinkedHashMap<>();
-        rules.put("R_O", new RuleIo("R_O", "R_O", "DECISION", "INUSE", true, 1, "FIRST", List.of(xIn), List.of(ioName("S_Y"))));
-        rules.put("R_M", new RuleIo("R_M", "R_M", "DECISION", "INUSE", true, 1, "FIRST", List.of(ioName("S_Y")), List.of(ioName("S_M_OUT"))));
+        rules.put("R_O", new RuleIo("R_O", "R_O", "DECISION", "INUSE", true, "1.000", "FIRST", List.of(xIn), List.of(ioName("S_Y"))));
+        rules.put("R_M", new RuleIo("R_M", "R_M", "DECISION", "INUSE", true, "1.000", "FIRST", List.of(ioName("S_Y")), List.of(ioName("S_M_OUT"))));
         List<RuleSetCheck> set = RuleSetAnalyzer.checks(RuleSetFlowJson.parse(flow), rules, Map.of("e2", new CondIo(true, null, List.of(xIn))));
         assertTrue(set.stream().anyMatch(c -> RuleSetCheck.IF_SIBLING.equals(c.code()) && "R_M".equals(c.ruleId()) && "rM1".equals(c.nodeId())
                 && "S_Y".equals(c.varName()) && "R_O".equals(c.otherRuleId())), set.toString());
@@ -648,7 +650,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
             Map<String, List<SiblingRead>> pairs = new LinkedHashMap<>();
             Map<String, List<Map<String, Object>>> issues = new LinkedHashMap<>();
             for (String me : parse.tree().ruleIds()) {
-                RuleSaveContext ctx = new RuleSaveContext(me, 1, "DECISION", "FIRST", rawVars(me, rules.get(me)), List.of(), List.of(), List.of(),
+                RuleSaveContext ctx = new RuleSaveContext(me, DmeTestSupport.v(1), "DECISION", "FIRST", rawVars(me, rules.get(me)), List.of(), List.of(), List.of(),
                         RuleSaveTarget.TABLE);
                 pairs.put(me, orderCheck.siblingReads(ctx));
                 issues.put(me, orderCheck.check(ctx));
@@ -679,18 +681,18 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
             if (r.releasedVer() == null) {
                 return;
             }
-            DmeTestSupport.released(jdbc, id, r.releasedVer(), "FIRST", "2026-01-01 00:00:00", null);
+            DmeTestSupport.released(jdbc, id, new BigDecimal(r.releasedVer()), "MAJOR", "FIRST", "2026-01-01 00:00:00", null);
             int varId = 0;
             for (IoName x : r.conds()) {
                 varId++;
-                DmeTestSupport.var(jdbc, id, r.releasedVer(), varId, "COND", "1", x.name(), varId, null);
+                DmeTestSupport.var(jdbc, id, new BigDecimal(r.releasedVer()), varId, "COND", "1", x.name(), varId, null);
                 if (RuleIo.DICT.equals(x.source())) {
                     dict.add(x.name());
                 }
             }
             for (IoName x : r.results()) {
                 varId++;
-                DmeTestSupport.var(jdbc, id, r.releasedVer(), varId, "RESULT", "Value", x.name(), varId, "STRING");
+                DmeTestSupport.var(jdbc, id, new BigDecimal(r.releasedVer()), varId, "RESULT", "Value", x.name(), varId, "STRING");
             }
         });
         condIo.values().forEach(io -> io.vars().stream().filter(x -> RuleIo.DICT.equals(x.source())).forEach(x -> dict.add(x.name())));
@@ -711,12 +713,12 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         }
         int varId = 0;
         for (IoName x : r.conds()) {
-            MdmRuleVar v = new MdmRuleVar(me, 1, ++varId, "COND", varId);
+            MdmRuleVar v = new MdmRuleVar(me, DmeTestSupport.v(1), ++varId, "COND", varId);
             v.setVarName(x.name());
             out.add(v);
         }
         for (IoName x : r.results()) {
-            MdmRuleVar v = new MdmRuleVar(me, 1, ++varId, "RESULT", varId);
+            MdmRuleVar v = new MdmRuleVar(me, DmeTestSupport.v(1), ++varId, "RESULT", varId);
             v.setVarName(x.name());
             out.add(v);
         }
@@ -803,7 +805,7 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         r.path("results").forEach(n -> results.add(new IoName(text(n, "name"), null, null, null, null, false, null)));
         JsonNode ver = r.path("releasedVer");
         return new RuleIo(id, null, null, text(r, "status"), r.path("exists").asBoolean(false),
-                ver.isNull() || ver.isMissingNode() ? null : ver.asInt(), null, conds, results);
+                ver.isNull() || ver.isMissingNode() ? null : VersionNumbers.plain(VersionNumbers.parse(ver.asText())), null, conds, results);
     }
 
     /** RuleSetCorpusTest 의 condIo 읽기 그대로. */

@@ -14,7 +14,7 @@ import { AgDataGrid } from "@dk-oasis/shared/grid";
 import { Button, Input } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 import { DomainSearchBox, matchDomain } from "@/domain";
-import { badgeStyle } from "@/shell";
+import { badgeStyle, sameVer } from "@/shell";
 
 import { saveColumnDraft, searchDomains, type ExprSlot } from "../../api";
 import type { RuleEditCardProps } from "../../cards";
@@ -99,7 +99,7 @@ function ExprProbe(p: { text: string; slot: ExprSlot; enabled: boolean; candidat
 
 export function ColumnSettingsSection({ view, editable, runWrite, notify, setDirty, canDo, busy }: RuleEditCardProps) {
   const shared = useColumnDraftShared();
-  const selected = view.versions.find((v) => v.ver === view.selectedVer) ?? null;
+  const selected = view.versions.find((v) => sameVer(v.ver, view.selectedVer)) ?? null;
   const external = view.rule.sourceKind !== "MDM";
   const canEdit = editable && !external && selected != null;
   const candidates = view.varCandidates ?? NO_CANDIDATES;

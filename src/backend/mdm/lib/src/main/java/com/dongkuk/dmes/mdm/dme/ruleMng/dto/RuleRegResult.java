@@ -4,23 +4,23 @@ package com.dongkuk.dmes.mdm.dme.ruleMng.dto;
 public class RuleRegResult {
 
     private String maruRuleId;
-    private int ver;
+    private String ver;
     private long rowVersion;
 
     public RuleRegResult() {
     }
 
-    public RuleRegResult(String maruRuleId, int ver, long rowVersion) {
+    public RuleRegResult(String maruRuleId, String ver, long rowVersion) {
         this.maruRuleId = maruRuleId;
         this.ver = ver;
         this.rowVersion = rowVersion;
     }
 
     public String getMaruRuleId() { return maruRuleId; }
-    public int getVer() { return ver; }
+    public String getVer() { return ver; }
     public long getRowVersion() { return rowVersion; }
 
     public void setMaruRuleId(String v) { this.maruRuleId = v; }
-    public void setVer(int v) { this.ver = v; }
+    public void setVer(String v) { this.ver = v; }
     public void setRowVersion(long v) { this.rowVersion = v; }
 }

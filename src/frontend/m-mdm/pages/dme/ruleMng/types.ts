@@ -1,4 +1,9 @@
-/** ruleMng 화면 타입(TSK-08-02 design §2.1-FM). 서버 DTO `RuleListRow`·`RuleSearchResult`·`RuleRegRequest` 와 같은 칸 이름. */
+/**
+ * ruleMng 화면 타입(TSK-08-02 design §2.1-FM). 서버 DTO `RuleListRow`·`RuleSearchResult`·`RuleRegRequest` 와 같은 칸 이름.
+ *
+ * 룰 버전은 소수 셋째 자리 문자열이다(`"1.000"` major, `"1.001"` minor — D-144). 비교는 `sameVer`, 표시는 `fmtVer`(`@/shell`).
+ * 감사 카운터 `auditVer` 는 업무 버전이 아니라 숫자 그대로다.
+ */
 export type RuleKind = "DECISION" | "DERIVE";
 export type RuleStatus = "CREATED" | "INUSE" | "DEPRECATED";
 
@@ -9,10 +14,10 @@ export interface RuleListRow {
   sourceKind: string;
   status: RuleStatus;
   /** 지금 적용 중인 RELEASED 버전. */
-  releasedVer?: number | null;
+  releasedVer?: string | null;
   hitPolicy?: string | null;
   /** 미적용 버전(DRAFT·REQUESTED·APPROVED·적용 전 RELEASED) 중 VER 최대. */
-  pendingVer?: number | null;
+  pendingVer?: string | null;
   pendingStatus?: string | null;
   pendingOwnerId?: string | null;
 }
@@ -50,7 +55,7 @@ export const emptyRegForm = (): RuleRegForm => ({
 
 export interface RuleRegResult {
   maruRuleId?: string;
-  ver?: number;
+  ver?: string;
   rowVersion?: number;
 }
 
@@ -64,16 +69,23 @@ export type HitPolicyCode = "FIRST" | "UNIQUE" | "PRIORITY" | "COLLECT" | "ANY";
 /** 버전 상태 — 서버 `VersionStatus`. REQUESTED·APPROVED·CANCELLED 는 상수로만 있어 실제로 나오지 않는다(PRD §2 규칙 7). */
 export type VersionStatus = "DRAFT" | "REQUESTED" | "APPROVED" | "RELEASED" | "CANCELLED";
 
+/** 버전 종류(D-144) — major `"2.000"`, minor `"1.001"`. */
+export type VerKind = "MAJOR" | "MINOR";
+
 /** ② 버전 한 행. 서버 공용 읽기 모델 `RuleVersionRow` + 확정 취소 가능 여부. */
 export interface RuleVersionInfo {
-  ver: number;
+  ver: string;
+  /** 서버가 만들 때 정한 종류 — 바뀌지 않는다. */
+  verKind?: VerKind;
+  /** 표시용 `"v1.001"`. */
+  verLabel?: string;
   status: VersionStatus;
   /** 적용 구간 시작(KST). DRAFT 는 null. */
   applyFrom: string | null;
   applyTo: string | null;
   ownerId: string | null;
   /** 새 버전을 만들 때 복사한 원본 버전. */
-  baseVer: number | null;
+  baseVer: string | null;
   hitPolicy: string | null;
   rowVersion: number;
   /** 확정 취소 가능(ADR-0002 D8) — 서버 판정값이다. 화면에서 다시 계산하지 않는다(서버와 어긋나면 안 되므로). */
@@ -97,9 +109,15 @@ export interface RuleHeader {
 export interface RuleMngFlags {
   headerEditable: boolean;
   canNewVersion: boolean;
+  /** 종류별 새 버전 가능 여부(D-144). 버전이 없으면 major 만, minor 상한(999)이면 minor 만 꺼진다. */
+  canNewMajor: boolean;
+  canNewMinor: boolean;
+  /** 만들 다음 번호(`"2.000"`·`"1.002"`). canNewVersion 이 false 이거나 해당 종류가 불가하면 null. */
+  nextMajor: string | null;
+  nextMinor: string | null;
   canDeprecate: boolean;
   unappliedCount: number;
-  currentVer: number | null;
+  currentVer: string | null;
 }
 
 export interface RuleMngView {
@@ -121,7 +139,8 @@ export interface RuleMngSaveResult {
 /** 버전 조작 응답 — 새 버전 번호(copy)·새 row_version(lock·unlock·handover). 해당 없는 칸은 undefined. */
 export interface RuleVersionResult {
   maruRuleId?: string;
-  ver?: number | null;
+  ver?: string | null;
+  verKind?: VerKind | null;
   rowVersion?: number | null;
 }
 

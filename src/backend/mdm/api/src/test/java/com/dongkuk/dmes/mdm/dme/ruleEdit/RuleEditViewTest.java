@@ -64,7 +64,7 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
     private RuleEditViewResult view(String id, Integer ver) {
         RuleEditViewRequest r = new RuleEditViewRequest();
         r.setMaruRuleId(id);
-        r.setVer(ver);
+        r.setVer(DmeTestSupport.verText(ver));
         return service.view(r);
     }
 
@@ -72,7 +72,7 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
     void RELEASED_만_있으면_현재_RELEASED_를_열고_편집할_수_없다() {
         RuleEditViewResult v = view("QLTY_GRD_JDG", null);
         assertEquals("kim", v.getMe());
-        assertEquals(1, v.getSelectedVer());
+        assertEquals("1.000", v.getSelectedVer());
         assertFalse(v.isEditable());
         assertFalse(v.isUnappliedVersionExists());
         assertTrue(v.isConfirmScreenReady(), "확정 화면이 있다(TSK-08-05 I21)");
@@ -114,12 +114,12 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 2, "DRAFT", "kim", "UNIQUE", 1);
         DmeTestSupport.sampleDefinition(jdbc, "QLTY_GRD_JDG", 2);
         RuleEditViewResult mine = view("QLTY_GRD_JDG", null);
-        assertEquals(2, mine.getSelectedVer());
+        assertEquals("2.000", mine.getSelectedVer());
         assertTrue(mine.isEditable());
         assertTrue(mine.isUnappliedVersionExists());
         assertEquals(List.of(1, 2, 3, 4), mine.getBaseRows().stream().map(RuleEditViewResult.RowInfo::getRowId).toList());
-        assertEquals(List.of(2, 1), mine.getVersions().stream().map(RuleVersionRow::getVer).toList(), "ver 내림차순");
-        assertEquals(1, mine.getVersions().get(0).getBaseVer());
+        assertEquals(List.of("2.000", "1.000"), mine.getVersions().stream().map(RuleVersionRow::getVer).toList(), "ver 내림차순");
+        assertEquals("1.000", mine.getVersions().get(0).getBaseVer());
 
         currentUser.set("lee", STEWARD);
         RuleEditViewResult other = view("QLTY_GRD_JDG", null);
@@ -132,7 +132,7 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
     void 버전을_고르면_그_버전을_연다() {
         DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 2, "DRAFT", "kim", "UNIQUE", 1);
         RuleEditViewResult v = view("QLTY_GRD_JDG", 1);
-        assertEquals(1, v.getSelectedVer());
+        assertEquals("1.000", v.getSelectedVer());
         assertFalse(v.isEditable());
         assertEquals(ErrorCode.INVALID_VALUE, assertThrows(BusinessException.class, () -> view("QLTY_GRD_JDG", 9)).getErrorCode());
     }
@@ -140,14 +140,14 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
     @Test
     void 결재_중_버전이_현재_RELEASED_보다_먼저다() {
         DmeTestSupport.pending(jdbc, "QLTY_GRD_JDG", 2, "REQUESTED", null, "FIRST", 1);
-        assertEquals(2, view("QLTY_GRD_JDG", null).getSelectedVer());
+        assertEquals("2.000", view("QLTY_GRD_JDG", null).getSelectedVer());
     }
 
     @Test
     void 현재_RELEASED_가_없으면_가장_큰_버전을_연다() {
         jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-02-01 00:00:00' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG'");
         DmeTestSupport.released(jdbc, "QLTY_GRD_JDG", 3, "FIRST", "2026-07-01 00:00:00", null);
-        assertEquals(3, view("QLTY_GRD_JDG", null).getSelectedVer());
+        assertEquals("3.000", view("QLTY_GRD_JDG", null).getSelectedVer());
     }
 
     /**
@@ -165,9 +165,9 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
         jdbc.update("UPDATE TB_MDM_RULE_VER SET OWNER_ID = 'kim' WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 2");
 
         RuleEditViewResult v = view("QLTY_GRD_JDG", null);
-        assertEquals(2, v.getSelectedVer(), "적용 시각이 오지 않은 확정 버전이 먼저 열린다");
+        assertEquals("2.000", v.getSelectedVer(), "적용 시각이 오지 않은 확정 버전이 먼저 열린다");
         assertEquals("2026-12-31 00:00:00",
-                v.getVersions().stream().filter(x -> x.getVer() == 2).findFirst().orElseThrow().getApplyFrom());
+                v.getVersions().stream().filter(x -> "2.000".equals(x.getVer())).findFirst().orElseThrow().getApplyFrom());
     }
 
     @Test
@@ -252,7 +252,7 @@ class RuleEditViewTest extends AbstractMdmSharedDbTest {
             RuleEditSaveRequest known = new RuleEditSaveRequest();
             known.setPart(part);
             known.setMaruRuleId("QLTY_GRD_JDG");
-            known.setVer(2);
+            known.setVer("2.000");
             known.setRowVersion(0L);
             // 쓰는 빈 정의라 실제 저장은 되지만(part 별 요구 모양이 다를 수 있어) 분류만 확인한다 — 아래 HEADER 가 핵심이다.
             assertNotNull(part);

@@ -231,6 +231,36 @@ class DmeOasisHttpTest {
         assertTrue(copy.path("meta").path("message").asText().startsWith(MdmErrorCode.UNAPPLIED_VERSION_EXISTS.defaultMessage()), copy.toString());
     }
 
+    /** 새 버전의 verKind 가 BPMN dto 바인딩을 거쳐 서비스까지 닿는다(바인딩이 빠지면 minor 가 조용히 major 가 된다). */
+    @Test
+    void 새_버전은_verKind_MINOR_를_받아_minor_번호로_만든다() throws Exception {
+        registerByKim();
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET STATUS = 'RELEASED', APPLY_FROM = '2026-01-01 00:00:00', APPLY_TO = '9999-12-31 00:00:00' "
+                + "WHERE MARU_RULE_ID = 'HTTP_JDG' AND VER = 1");
+        ObjectNode body = versionBody(0);
+        ((ObjectNode) body.path("params")).put("verKind", "MINOR");
+
+        JsonNode copy = post("ruleMng", "copy", "lee", body);
+
+        assertTrue(copy.path("meta").path("success").asBoolean(false), copy.toString());
+        JsonNode result = copy.path("data").path("result");
+        assertEquals("1.001", result.path("ver").asText(), copy.toString());
+        assertEquals("MINOR", result.path("verKind").asText(), copy.toString());
+    }
+
+    /** requireVer 경로 — 지수 표기 버전은 MDM021(INVALID_INPUT) 로 거부된다. */
+    @Test
+    void 지수_표기_버전은_MDM021_로_거부된다() throws Exception {
+        registerByKim();
+        ObjectNode body = versionBody(0);
+        ((ObjectNode) body.path("params")).put("ver", "1e999999999");
+
+        JsonNode unlock = post("ruleMng", "unlock", "kim", body);
+
+        assertFalse(unlock.path("meta").path("success").asBoolean(true), unlock.toString());
+        assertTrue(unlock.path("meta").path("message").asText().startsWith(MdmErrorCode.INVALID_INPUT.defaultMessage()), unlock.toString());
+    }
+
     /** TSK-08-03 — COLUMNS 저장의 배열(prioList)·boolean(deleted) 이 grids.rows.rows 안에서 바인딩되는지(B4 류 오류를 E2E 전에 잡는다). */
     @Test
     void 열_설정_COLUMNS_저장은_grids_rows_로_바인딩되어_반영된다() throws Exception {
@@ -404,7 +434,7 @@ class DmeOasisHttpTest {
         trace.path("nodes").forEach(n -> nodeIds.add(n.path("nodeId").asText()));
         assertEquals(List.of("start", "r1", "if1", "r2", "m1", "end"), nodeIds, trace.toString());
         assertEquals(java.util.Set.of(), RuleSetSimulateTest.RUN_TRACE_SCHEMA.validate(trace), trace.toString());
-        assertEquals(golden.path("response").path("trace"), trace);
+        RuleSetSimulateTest.assertSameJson(golden.path("response").path("trace"), trace, "trace");
         assertEquals(golden.path("response").path("warnings"), exec.path("data").path("result").path("warnings"));
 
         JsonNode validate = post("ruleSetEdit", "validate", "kim", envelope("ruleSetEdit",

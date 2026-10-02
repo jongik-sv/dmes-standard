@@ -1,5 +1,6 @@
 package kr.dongkuk.maru.mdm.engine.rule;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +18,7 @@ import kr.dongkuk.maru.mdm.engine.spi.Nullable;
  */
 public record RuleResult(
         String ruleId,
-        int ver,
+        BigDecimal ver,
         Instant evalTs,
         List<Hit> hits,
         boolean defaultApplied,

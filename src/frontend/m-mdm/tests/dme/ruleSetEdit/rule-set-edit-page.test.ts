@@ -73,7 +73,7 @@ function io(ruleId: string, conds: Array<[string, Src]>, results: string[], extr
     ruleKind: "DECISION",
     status: "INUSE",
     exists: true,
-    releasedVer: 1,
+    releasedVer: "1.000",
     hitPolicy: "FIRST",
     conds: conds.map(([n, s]) => ioName(n, s)),
     results: results.map((r) => ioName(r, null)),

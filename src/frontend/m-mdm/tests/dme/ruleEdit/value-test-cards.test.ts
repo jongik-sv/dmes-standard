@@ -41,7 +41,7 @@ function ok(result: unknown) {
 function okResult(over: Partial<ValueTestResult> = {}): ValueTestResult {
   return {
     target: "BODY",
-    ver: 2,
+    ver: "2.000",
     evalTs: "2026-09-26 10:00:00",
     outcome: "OK",
     results: { QLTY_GRD: "A", PRC_FCT: "1.05" },
@@ -166,7 +166,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     responses = {};
     writes = 0;
     errors = [];
-    versionView = { ...draftView(null), editable: false, headerEditable: false, selectedVer: 1, rows: draftView(null).rows.slice(0, 2).concat(draftView(null).rows[3]) };
+    versionView = { ...draftView(null), editable: false, headerEditable: false, selectedVer: "1.000", rows: draftView(null).rows.slice(0, 2).concat(draftView(null).rows[3]) };
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const body = init?.body ? JSON.parse(String(init.body)) : {};
@@ -216,19 +216,19 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
   it("편집본 대상은 editable 이고 DRAFT 일 때만 맨 앞 기본값이고, 아니면 버전만 고른다(I34)", async () => {
     await render(draftView("e2e_mdm_steward"));
     const sel = byTestId<HTMLSelectElement>("vt-target")!;
-    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["편집본 · 버전 2 저장 전", "버전 2 · DRAFT", "버전 1 · RELEASED"]);
+    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["편집본 · 버전 v2.000 저장 전", "버전 v2.000 · DRAFT", "버전 v1.000 · RELEASED"]);
     expect(sel.value).toBe("BODY");
     expect(byTestId("vt-mode")?.textContent).toContain("본문 정의");
 
     await render(draftView("someone_else"));
     const other = byTestId<HTMLSelectElement>("vt-target")!;
-    expect(Array.from(other.options).map((o) => o.textContent)).toEqual(["버전 2 · DRAFT", "버전 1 · RELEASED"]);
-    expect(other.value).toBe("V:2");
+    expect(Array.from(other.options).map((o) => o.textContent)).toEqual(["버전 v2.000 · DRAFT", "버전 v1.000 · RELEASED"]);
+    expect(other.value).toBe("V:2.000");
     expect(byTestId("vt-mode")?.textContent).toContain("저장된 버전");
 
     // 선택 버전이 DRAFT 가 아니면 editable 이어도 편집본이 없다.
     await render(releasedView("e2e_mdm_steward", { editable: true }));
-    expect(Array.from(byTestId<HTMLSelectElement>("vt-target")!.options).map((o) => o.textContent)).toEqual(["버전 1 · RELEASED"]);
+    expect(Array.from(byTestId<HTMLSelectElement>("vt-target")!.options).map((o) => o.textContent)).toEqual(["버전 v1.000 · RELEASED"]);
   });
 
   it("열 조건 식 파싱을 기다리는 동안 표가 바뀌어도 응답을 버리지 않아 조건 식이 읽는 변수의 입력 칸이 생긴다", async () => {
@@ -271,7 +271,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     await click(byTestId("rule-card-value-test")!, "실행");
 
     const req = last("execute")!;
-    expect(req.params).toMatchObject({ maruRuleId: "QLTY_GRD_JDG", target: "BODY", ver: 2, hitPolicy: "FIRST" });
+    expect(req.params).toMatchObject({ maruRuleId: "QLTY_GRD_JDG", target: "BODY", ver: "2.000", hitPolicy: "FIRST" });
     expect(JSON.parse(String(req.params.inputJson))).toEqual({ COIL_THK: "2.0", SURF_GRD: "A" });
     expect(req.grids!.rows.rows.map((r) => r.rowId)).toEqual([1, 2, 3, -1, 4]);
 
@@ -305,7 +305,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
 
     responses.execute = ok({
       target: "BODY",
-      ver: 2,
+      ver: "2.000",
       evalTs: "2026-09-26 10:00:00",
       outcome: "ERROR",
       errors: [
@@ -339,15 +339,15 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
   });
 
   it("다른 버전을 대상으로 돌리면 그 버전 정의를 받아 입력 줄을 만들고, 결과 카드에 그 버전 표를 따로 그린다", async () => {
-    responses.execute = ok(okResult({ target: "VERSION", ver: 1 }));
+    responses.execute = ok(okResult({ target: "VERSION", ver: "1.000" }));
     await render(draftView("e2e_mdm_steward"));
-    await selectValue(byTestId<HTMLSelectElement>("vt-target")!, "V:1");
+    await selectValue(byTestId<HTMLSelectElement>("vt-target")!, "V:1.000");
     await flush();
-    expect(last("view")?.params).toMatchObject({ maruRuleId: "QLTY_GRD_JDG", ver: 1 });
+    expect(last("view")?.params).toMatchObject({ maruRuleId: "QLTY_GRD_JDG", ver: "1.000" });
     await click(byTestId("rule-card-value-test")!, "실행");
-    expect(last("execute")!.params).toMatchObject({ target: "VERSION", ver: 1 });
+    expect(last("execute")!.params).toMatchObject({ target: "VERSION", ver: "1.000" });
     expect(last("execute")!.grids).toBeUndefined();
-    expect(byTestId("vt-result-target")?.textContent).toContain("버전 1");
+    expect(byTestId("vt-result-target")?.textContent).toContain("버전 v1.000");
     expect(byTestId("vt-result-table")).not.toBeNull();
     expect(byTestId("vt-result-on-table")).toBeNull();
     expect(byTestId("dt-test-shown")).toBeNull();
@@ -411,7 +411,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     await setVtValue("COIL_THK", "3.0");
     await click(byTestId("rule-card-test-cases")!, "모두 실행");
     const req = last("execute")!;
-    expect(req.params).toMatchObject({ target: "BODY", ver: 2, runCases: true });
+    expect(req.params).toMatchObject({ target: "BODY", ver: "2.000", runCases: true });
     expect(JSON.parse(String(req.params.inputJson))).toMatchObject({ COIL_THK: "3.0" });
     expect(byTestId("tc-badge-1")?.textContent).toBe("통과");
     expect(byTestId("tc-badge-2")?.textContent).toBe("실행만");
@@ -659,7 +659,7 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(byTestId("vt-col-draft")).toBeNull();
     await render(draftView("e2e_mdm_steward"), {}, false, true);
     expect(visibleText(byTestId("rule-card-value-test")!)).toContain("열 설정 초안은 반영하지 않습니다");
-    await selectValue(byTestId<HTMLSelectElement>("vt-target")!, "V:2");
+    await selectValue(byTestId<HTMLSelectElement>("vt-target")!, "V:2.000");
     expect(byTestId("vt-col-draft")).toBeNull();
   });
 });

@@ -16,7 +16,7 @@ import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-o
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, useMdmPageParams } from "@/shell";
+import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, fmtVer, normVer, useMdmPageParams } from "@/shell";
 
 import { confirmDraft, searchDrafts, validateDraft, viewDraft } from "./api";
 import {
@@ -55,7 +55,7 @@ const DRAFT_COLUMNS: GridColumn[] = [
   },
   { key: "maruRuleName", header: "이름", width: 130, minWidth: 60 },
   { key: "ruleKind", header: "종류", width: 90, minWidth: 50 },
-  { key: "ver", header: "버전", width: 60, minWidth: 40 },
+  { key: "ver", header: "버전", width: 60, minWidth: 40, render: (v) => fmtVer(v as string | null) },
   { key: "ownerId", header: "소유자", width: 90, minWidth: 50, render: (v) => (v as string | null | undefined) ?? "—" },
 ];
 
@@ -123,14 +123,13 @@ const CONTRACT_NOTICE = "적용 시점부터 이 키를 보내지 않거나 NULL
 
 interface Target {
   maruRuleId: string;
-  ver: number | null;
+  /** `"1.001"` 형식(D-144). null 이면 서버가 그 룰의 DRAFT 를 고른다. */
+  ver: string | null;
 }
 
-/** handoff 는 문자열, snapshot 은 숫자로 온다. 정수로 읽을 수 없으면 null(서버가 DRAFT 를 고른다). */
-function toVer(value: unknown): number | null {
-  if (typeof value === "number") return Number.isInteger(value) ? value : null;
-  if (typeof value !== "string" || !/^\d+$/.test(value.trim())) return null;
-  return Number.parseInt(value.trim(), 10);
+/** handoff·snapshot 의 버전을 `"1.001"` 로 맞춘다(옛 snapshot 의 숫자도 받는다). 읽을 수 없으면 null(서버가 DRAFT 를 고른다). */
+function toVer(value: unknown): string | null {
+  return typeof value === "string" || typeof value === "number" ? normVer(value) : null;
 }
 
 function snapshotTarget(snapshot: unknown): Target | null {
@@ -161,7 +160,7 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
   const [applyInput, setApplyInput] = useState("");
   const [checked, setChecked] = useState<Checked | null>(null);
   const [checkedApplyFrom, setCheckedApplyFrom] = useState<string | null>(null);
-  const [closedPreviousVer, setClosedPreviousVer] = useState<number | null>(null);
+  const [closedPreviousVer, setClosedPreviousVer] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -205,7 +204,7 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
     void load(t);
   }, [load, onSnapshotChange]);
 
-  // 진입 값: handoff(한 번만) > snapshot. handoff 의 ver 문자열은 정수로 바꾼다(I37).
+  // 진입 값: handoff(한 번만) > snapshot. handoff 의 ver 문자열은 `normVer` 로 맞춘다(소수부를 버리지 않는다, D-144).
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruRuleId) {
       handedOff.current = true;
@@ -308,14 +307,14 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
                 <div data-testid="rc-form">
                   <div style={cardTitle}>확정 폼</div>
                   <div style={{ ...section, ...rowFlex }}>
-                    <strong data-testid="rc-target">{`${view.rule.maruRuleId} 버전 ${version.ver} · ${view.rule.ruleKind}`}</strong>
+                    <strong data-testid="rc-target">{`${view.rule.maruRuleId} 버전 ${fmtVer(version.ver)} · ${view.rule.ruleKind}`}</strong>
                     <span style={mutedText}>{view.rule.maruRuleName}</span>
                     <VersionStatusBadge status={version.status} applyFrom={version.applyFrom} />
                     <DraftLockBadge status={version.status} ownerId={version.ownerId} currentUserId={rbac.userId} />
                   </div>
                   <div style={section} data-testid="rc-previous">
                     {view.previous
-                      ? `직전 RELEASED 버전 ${view.previous.ver} · ${view.previous.applyFrom ?? ""}`
+                      ? `직전 RELEASED 버전 ${fmtVer(view.previous.ver)} · ${view.previous.applyFrom ?? ""}`
                       : "최초 버전 — 적용 순서 검사를 하지 않습니다"}
                   </div>
                   {isDraft ? (
@@ -341,7 +340,7 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
                       <span>{`확정자 ${version.requestedBy ?? "—"}`}</span>
                       <span>{`확정 일시 ${version.releasedAt ?? "—"}`}</span>
                       {closedPreviousVer !== null && (
-                        <span data-testid="rc-closed-previous">{`직전 버전 ${closedPreviousVer} 의 적용을 닫았습니다`}</span>
+                        <span data-testid="rc-closed-previous">{`직전 버전 ${fmtVer(closedPreviousVer)} 의 적용을 닫았습니다`}</span>
                       )}
                       <Button data-testid="rc-validate" disabled>검사</Button>
                       <Button data-testid="rc-confirm" variant="primary" disabled>확정</Button>
@@ -362,7 +361,7 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
 
       <ConfirmModal
         open={modalOpen}
-        target={view && version ? `${view.rule.maruRuleId} 버전 ${version.ver}` : ""}
+        target={view && version ? `${view.rule.maruRuleId} 버전 ${fmtVer(version.ver)}` : ""}
         applyFrom={checkedApplyFrom ?? ""}
         warnings={warnings.general}
         contractWarnings={warnings.contract}
@@ -373,6 +372,11 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
       />
     </MdmPageLayout>
   );
+}
+
+/** 목록 행 키 — 버전을 정규화해 `"1"`·`"1.000"` 이 다른 행으로 갈리지 않게 한다. */
+function draftKey(maruRuleId: string, ver: string | null): string {
+  return `${maruRuleId}-${normVer(ver) ?? ""}`;
 }
 
 interface DraftListProps {
@@ -386,7 +390,7 @@ interface DraftListProps {
 
 function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }: DraftListProps) {
   const draftRows = useMemo(
-    () => (drafts ?? []).map((d) => ({ ...d, rowId: `${d.maruRuleId}-${d.ver}` }) as unknown as Record<string, unknown>),
+    () => (drafts ?? []).map((d) => ({ ...d, rowId: draftKey(d.maruRuleId, d.ver) }) as unknown as Record<string, unknown>),
     [drafts],
   );
   return (
@@ -405,7 +409,7 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
             columns={DRAFT_COLUMNS}
             data={draftRows}
             rowKey="rowId"
-            highlightedRowKey={selected ? `${selected.maruRuleId}-${selected.ver}` : null}
+            highlightedRowKey={selected ? draftKey(selected.maruRuleId, selected.ver) : null}
             onRowClick={(r) => onSelect(r as unknown as PendingDraft)}
             ariaLabel="확정 대기 목록"
           />

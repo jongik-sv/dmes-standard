@@ -35,7 +35,7 @@
         "E2S_GRD": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_THK",
@@ -55,7 +55,7 @@
         "E2S_FCT": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_GRD",
@@ -75,7 +75,7 @@
         "E2S_SPD": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_FCT",
@@ -164,7 +164,7 @@
         "E2S_GRD": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_THK",
@@ -184,7 +184,7 @@
         "E2S_FCT": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_GRD",
@@ -279,7 +279,7 @@
         "E2S_CYA": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_CYB",
@@ -295,7 +295,7 @@
         "E2S_CYB": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_CYA",
@@ -370,7 +370,7 @@
         "E2S_RA": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_RC",
@@ -386,7 +386,7 @@
         "E2S_RB": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_RA",
@@ -402,7 +402,7 @@
         "E2S_RC": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_RB",
@@ -488,7 +488,7 @@
         "E2S_OA": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_OB",
@@ -504,7 +504,7 @@
         "E2S_OB": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_OA",
@@ -577,7 +577,7 @@
         "E2S_GRD": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_THK",
@@ -660,7 +660,7 @@
         "E2S_OLD": {
           "exists": true,
           "status": "DEPRECATED",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_Q",
@@ -728,7 +728,7 @@
         "E2S_GRD": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_THK",
@@ -806,7 +806,7 @@
         "E2S_FCT": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_GRD",
@@ -876,7 +876,7 @@
         "E2S_PRG": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "P_LINE",
@@ -938,7 +938,7 @@
         "E2S_PRG": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "P_LINE",
@@ -958,7 +958,7 @@
         "E2S_MKL": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_WID",
@@ -1042,7 +1042,7 @@
         "E2S_GRD": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_THK",
@@ -1062,7 +1062,7 @@
         "E2S_DUP": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_WID",
@@ -1140,7 +1140,7 @@
         "E2S_DA": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [],
           "results": [
             {
@@ -1151,7 +1151,7 @@
         "E2S_DB": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [],
           "results": [
             {
@@ -1162,7 +1162,7 @@
         "E2S_DR": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_X",
@@ -1178,7 +1178,7 @@
         "E2S_DC": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [],
           "results": [
             {
@@ -1251,7 +1251,7 @@
         "E2S_GRP": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_THK",
@@ -1267,7 +1267,7 @@
         "E2S_USE": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "G_SPEC",
@@ -1330,7 +1330,7 @@
         "E2S_MKT": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [],
           "results": [
             {
@@ -1341,7 +1341,7 @@
         "E2S_GRD": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_THK",
@@ -1407,7 +1407,7 @@
         "E2S_RD": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_X",
@@ -1423,7 +1423,7 @@
         "E2S_P1": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [],
           "results": [
             {
@@ -1434,7 +1434,7 @@
         "E2S_P2": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [],
           "results": [
             {
@@ -1519,7 +1519,7 @@
         "E2S_FCT": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_GRD",
@@ -1539,7 +1539,7 @@
         "E2S_GRD": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_THK",
@@ -1770,7 +1770,7 @@
         "D1": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "DESIGN_NEED",
@@ -1786,7 +1786,7 @@
         "D2": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "REPEAT_YN",
@@ -1802,7 +1802,7 @@
         "D3": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "ORDER_TYPE",
@@ -1818,7 +1818,7 @@
         "FIN": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "PLAN",
@@ -1969,7 +1969,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -1985,7 +1985,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "Y",
@@ -2123,7 +2123,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2139,7 +2139,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2266,7 +2266,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2282,7 +2282,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2469,7 +2469,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2485,7 +2485,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2501,7 +2501,7 @@
         "C": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2517,7 +2517,7 @@
         "D": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2657,7 +2657,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2673,7 +2673,7 @@
         "E": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "RF",
@@ -2689,7 +2689,7 @@
         "F": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "RE",
@@ -2814,7 +2814,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2830,7 +2830,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2982,7 +2982,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -2998,7 +2998,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -3014,7 +3014,7 @@
         "C": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "RA",
@@ -3224,7 +3224,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -3240,7 +3240,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -3256,7 +3256,7 @@
         "C2": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -3415,7 +3415,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -3431,7 +3431,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "RA",
@@ -3571,7 +3571,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -3587,7 +3587,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "RA",
@@ -3727,7 +3727,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -3743,7 +3743,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "Y",
@@ -3891,7 +3891,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -3907,7 +3907,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -3923,7 +3923,7 @@
         "C": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "RA",
@@ -4129,7 +4129,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -4145,7 +4145,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -4161,7 +4161,7 @@
         "C": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "RA",
@@ -4181,7 +4181,7 @@
         "D": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -4348,7 +4348,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -4364,7 +4364,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "RA",
@@ -4634,7 +4634,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -4650,7 +4650,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -4666,7 +4666,7 @@
         "C": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -4806,7 +4806,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "RB",
@@ -4822,7 +4822,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5003,7 +5003,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5019,7 +5019,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5035,7 +5035,7 @@
         "C": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5199,7 +5199,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5215,7 +5215,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5431,7 +5431,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5447,7 +5447,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5463,7 +5463,7 @@
         "C": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5697,7 +5697,7 @@
         "A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5713,7 +5713,7 @@
         "B": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5729,7 +5729,7 @@
         "D": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5745,7 +5745,7 @@
         "E": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -5902,7 +5902,7 @@
         "R_A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_THK",
@@ -6032,7 +6032,7 @@
         "R_A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "SET_THK",
@@ -6162,7 +6162,7 @@
         "R_CA": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -6182,7 +6182,7 @@
         "R_CB": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -6349,7 +6349,7 @@
         "R_A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -6365,7 +6365,7 @@
         "R_OLD": {
           "exists": true,
           "status": "DEPRECATED",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -6505,7 +6505,7 @@
         "R_A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -6684,7 +6684,7 @@
         "R_X": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -6700,7 +6700,7 @@
         "R_USE": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_X",
@@ -6825,7 +6825,7 @@
         "R_FRONT": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -6845,7 +6845,7 @@
         "R_L1": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -6861,7 +6861,7 @@
         "R_L2": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -7062,7 +7062,7 @@
         "R_Y1": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -7078,7 +7078,7 @@
         "R_Y2": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -7094,7 +7094,7 @@
         "R_READ": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "S_Y",
@@ -7206,7 +7206,7 @@
         "R_A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -7362,7 +7362,7 @@
         "R_A": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -7521,7 +7521,7 @@
         "R_Z0": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -7537,7 +7537,7 @@
         "R_Z1": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -7553,7 +7553,7 @@
         "R_Z2": {
           "exists": true,
           "status": "INUSE",
-          "releasedVer": 1,
+          "releasedVer": "1.000",
           "conds": [
             {
               "name": "X",
@@ -7649,8 +7649,8 @@
       "condIo": {"e4": {"ok": true, "message": null, "vars": [{"name": "PLAN", "source": "NONE"}]}},
       "ids": ["D1", "D2"],
       "rules": {
-        "D1": {"exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{"name": "DESIGN_NEED", "source": "DICT"}], "results": [{"name": "PLAN"}]},
-        "D2": {"exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{"name": "PLAN", "source": "NONE"}], "results": [{"name": "CONFIRMED"}]}
+        "D1": {"exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{"name": "DESIGN_NEED", "source": "DICT"}], "results": [{"name": "PLAN"}]},
+        "D2": {"exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{"name": "PLAN", "source": "NONE"}], "results": [{"name": "CONFIRMED"}]}
       },
       "expect": {
         "io": {
@@ -7697,7 +7697,7 @@
         ]
       },
       "ids": ["C1"],
-      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": 1 } },
+      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": "1.000" } },
       "expect": {
         "io": { "inputs": [], "results": [] },
         "deps": { "C1": [] },
@@ -7727,7 +7727,7 @@
         ]
       },
       "ids": ["C1"],
-      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": 1 } },
+      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": "1.000" } },
       "expect": {
         "io": { "inputs": [], "results": [] },
         "deps": { "C1": [] },
@@ -7787,7 +7787,7 @@
         ]
       },
       "ids": ["C1"],
-      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": 1 } },
+      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": "1.000" } },
       "expect": {
         "io": { "inputs": [], "results": [] },
         "deps": { "C1": [] },
@@ -7821,7 +7821,7 @@
         ]
       },
       "ids": ["C1"],
-      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": 1 } },
+      "rules": { "C1": { "exists": true, "status": "INUSE", "releasedVer": "1.000" } },
       "expect": {
         "io": { "inputs": [], "results": [] },
         "deps": { "C1": [] },
@@ -7854,9 +7854,9 @@
       },
       "ids": ["D1", "D9", "D2"],
       "rules": {
-        "D1": { "exists": true, "status": "INUSE", "releasedVer": 1, "hitPolicy": "FIRST", "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
-        "D9": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [], "results": [{ "name": "P" }] },
-        "D2": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "P", "source": "NONE" }], "results": [{ "name": "Q" }] }
+        "D1": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "hitPolicy": "FIRST", "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
+        "D9": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [], "results": [{ "name": "P" }] },
+        "D2": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "P", "source": "NONE" }], "results": [{ "name": "Q" }] }
       },
       "expect": {
         "io": {
@@ -7891,8 +7891,8 @@
       },
       "ids": ["D1", "D2"],
       "rules": {
-        "D1": { "exists": true, "status": "INUSE", "releasedVer": 1, "hitPolicy": "FIRST", "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
-        "D2": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "P", "source": "NONE" }], "results": [{ "name": "Q" }] }
+        "D1": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "hitPolicy": "FIRST", "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
+        "D2": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "P", "source": "NONE" }], "results": [{ "name": "Q" }] }
       },
       "expect": {
         "io": {
@@ -7923,7 +7923,7 @@
       },
       "ids": ["D1"],
       "rules": {
-        "D1": { "exists": true, "status": "INUSE", "releasedVer": 1, "hitPolicy": "FIRST", "hasDefault": true, "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] }
+        "D1": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "hitPolicy": "FIRST", "hasDefault": true, "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "A", "source": "DICT", "users": ["D1"] }], "results": [{ "name": "P", "by": ["D1"], "readers": [] }] },
@@ -7964,9 +7964,9 @@
       "condIo": { "b1": { "ok": true, "message": null, "vars": [{ "name": "CATCH_KIND", "source": "NONE" }] } },
       "ids": ["D1", "D9", "D3"],
       "rules": {
-        "D1": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
-        "D9": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "CATCH_CODE", "source": "PROG" }], "results": [{ "name": "P" }] },
-        "D3": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "CATCH_MSG", "source": "NONE" }], "results": [{ "name": "Q" }] }
+        "D1": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
+        "D9": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "CATCH_CODE", "source": "PROG" }], "results": [{ "name": "P" }] },
+        "D3": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "CATCH_MSG", "source": "NONE" }], "results": [{ "name": "Q" }] }
       },
       "expect": {
         "io": {
@@ -8012,10 +8012,10 @@
       },
       "ids": ["D1", "D2", "D9", "D8"],
       "rules": {
-        "D1": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
-        "D2": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "P", "source": "NONE" }], "results": [{ "name": "Q" }] },
-        "D9": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [], "results": [{ "name": "P" }] },
-        "D8": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [], "results": [{ "name": "P" }] }
+        "D1": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "A", "source": "DICT" }], "results": [{ "name": "P" }] },
+        "D2": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "P", "source": "NONE" }], "results": [{ "name": "Q" }] },
+        "D9": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [], "results": [{ "name": "P" }] },
+        "D8": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [], "results": [{ "name": "P" }] }
       },
       "expect": {
         "io": {
@@ -8033,7 +8033,7 @@
         "edges": [{ "id": "e1", "from": "start", "to": "if1" }, { "id": "e2", "from": "if1", "to": "a", "order": 1, "cond": "X > 0" },
           { "id": "e3", "from": "if1", "to": "a", "otherwise": true }, { "id": "e4", "from": "a", "to": "end" }] },
       "ids": ["A"],
-      "rules": { "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] } },
+      "rules": { "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] } },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A"] }], "results": [{ "name": "RA", "by": ["A"], "readers": [] }] },
         "deps": { "A": [] },
@@ -8051,9 +8051,9 @@
       "condIo": { "e3": { "ok": true, "message": null, "vars": [{ "name": "PRICE", "source": "NONE" }] } },
       "ids": ["P", "L", "M"],
       "rules": {
-        "P": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "PRICE" }] },
-        "L": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "LOG" }] },
-        "M": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "PRICE", "source": "NONE" }], "results": [{ "name": "AMOUNT" }] }
+        "P": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "PRICE" }] },
+        "L": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "LOG" }] },
+        "M": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "PRICE", "source": "NONE" }], "results": [{ "name": "AMOUNT" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["P", "L"] }],
@@ -8073,11 +8073,11 @@
           { "id": "ez", "from": "z", "to": "end" }] },
       "ids": ["A", "B", "C", "D", "E"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
-        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
-        "D": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] },
-        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
+        "D": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] },
+        "E": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C", "D", "E"] }],
@@ -8097,9 +8097,9 @@
           { "id": "ea", "from": "a", "to": "pm" }, { "id": "eb", "from": "b", "to": "pm" }, { "id": "ec", "from": "c", "to": "pm" }, { "id": "ep", "from": "pm", "to": "end" }] },
       "ids": ["A", "B", "C"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
-        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C"] }],
@@ -8117,8 +8117,8 @@
           { "id": "bo", "from": "if1", "to": "end", "otherwise": true }, { "id": "ea", "from": "a", "to": "r1" }] },
       "ids": ["A", "B"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B"] }], "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RB", "by": ["B"], "readers": [] }] },
@@ -8136,10 +8136,10 @@
           { "id": "e5", "from": "c1", "to": "h1" }, { "id": "e6", "from": "h1", "to": "x" }, { "id": "e7", "from": "c2", "to": "y" }] },
       "ids": ["A", "B", "C", "D"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
-        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
-        "D": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
+        "D": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C", "D"] }],
@@ -8159,8 +8159,8 @@
           { "id": "e5", "from": "c2", "to": "end" }, { "id": "e6", "from": "n", "to": "end" }] },
       "ids": ["H", "F"],
       "rules": {
-        "H": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
+        "H": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["H"] }], "results": [{ "name": "V", "by": ["H"], "readers": ["F"] }, { "name": "W", "by": ["F"], "readers": [] }] },
@@ -8184,11 +8184,11 @@
           { "id": "ex", "from": "x", "to": "end" }, { "id": "ec", "from": "c1", "to": "h" }, { "id": "eh", "from": "h", "to": "pm" }] },
       "ids": ["A", "B", "C", "D", "E"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
-        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
-        "D": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] },
-        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
+        "D": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] },
+        "E": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C", "D", "E"] }],
@@ -8205,8 +8205,8 @@
         "edges": [{ "id": "e1", "from": "start", "to": "r1" }, { "id": "e2", "from": "r1", "to": "end" }, { "id": "e3", "from": "r2", "to": "end" }] },
       "ids": ["A", "B"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B"] }], "results": [{ "name": "RA", "by": ["A"], "readers": [] }, { "name": "RB", "by": ["B"], "readers": [] }] },
@@ -8225,9 +8225,9 @@
           { "id": "ee", "from": "m2", "to": "end" }] },
       "ids": ["A", "B", "C"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
-        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C"] }],
@@ -8244,7 +8244,7 @@
           { "id": "bo", "from": "if1", "to": "end", "otherwise": true }, { "id": "ea", "from": "a", "to": "end" }] },
       "condIo": { "b1": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] } },
       "ids": ["A"],
-      "rules": { "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] } },
+      "rules": { "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] } },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A"] }], "results": [{ "name": "RA", "by": ["A"], "readers": [] }] },
         "deps": { "A": [] },
@@ -8261,9 +8261,9 @@
           { "id": "ea", "from": "a", "to": "pm" }, { "id": "ee", "from": "e", "to": "end" }, { "id": "ek", "from": "k", "to": "pm" }, { "id": "ep", "from": "pm", "to": "end" }] },
       "ids": ["A", "E", "K"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
-        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] },
-        "K": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RK" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "E": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] },
+        "K": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RK" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "E", "K"] }],
@@ -8284,10 +8284,10 @@
           { "id": "ea", "from": "a", "to": "pm3" }, { "id": "ep", "from": "pm3", "to": "j" }, { "id": "ej", "from": "j", "to": "end" }] },
       "ids": ["A", "B", "C", "D"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
-        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
-        "D": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RB" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
+        "D": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RD" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C", "D"] }],
@@ -8308,10 +8308,10 @@
           { "id": "ec", "from": "c", "to": "x" }, { "id": "ex", "from": "x", "to": "end" }] },
       "ids": ["A", "E", "C", "F"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
-        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] },
-        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
-        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RF" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "E": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RE" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RC" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RF" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "E", "C", "F"] }],
@@ -8333,10 +8333,10 @@
         "e3": { "ok": true, "message": null, "vars": [{ "name": "REPEAT_YN", "source": "DICT" }] } },
       "ids": ["D1", "D2", "D3", "FIN"],
       "rules": {
-        "D1": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "DESIGN_NEED", "source": "DICT" }], "results": [{ "name": "PLAN" }] },
-        "D2": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "REPEAT_YN", "source": "DICT" }], "results": [{ "name": "PLAN" }] },
-        "D3": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "ORDER_TYPE", "source": "DICT" }], "results": [{ "name": "PLAN" }] },
-        "FIN": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "PLAN", "source": "NONE" }], "results": [{ "name": "CONFIRMED" }] }
+        "D1": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "DESIGN_NEED", "source": "DICT" }], "results": [{ "name": "PLAN" }] },
+        "D2": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "REPEAT_YN", "source": "DICT" }], "results": [{ "name": "PLAN" }] },
+        "D3": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "ORDER_TYPE", "source": "DICT" }], "results": [{ "name": "PLAN" }] },
+        "FIN": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "PLAN", "source": "NONE" }], "results": [{ "name": "CONFIRMED" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "DESIGN_NEED", "source": "DICT", "users": ["D1"] }, { "name": "REPEAT_YN", "source": "DICT", "users": ["D2"] },
@@ -8358,10 +8358,10 @@
       "condIo": { "b1": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] }, "d1": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] } },
       "ids": ["A", "B", "C", "Z"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "R1" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "R1" }] },
-        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "R2" }] },
-        "Z": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "R1", "source": "NONE" }], "results": [{ "name": "ZZ" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "R1" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "R1" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "R2" }] },
+        "Z": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "R1", "source": "NONE" }], "results": [{ "name": "ZZ" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C"] }],
@@ -8379,9 +8379,9 @@
           { "id": "e5", "from": "n", "to": "end" }] },
       "ids": ["G", "H", "F"],
       "rules": {
-        "G": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "H": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
+        "G": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "H": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["G", "H"] }], "results": [{ "name": "V", "by": ["G", "H"], "readers": ["F"] }, { "name": "W", "by": ["F"], "readers": [] }] },
@@ -8399,10 +8399,10 @@
           { "id": "e5", "from": "h", "to": "n2" }, { "id": "e6", "from": "n2", "to": "end" }] },
       "ids": ["G", "K", "H", "F"],
       "rules": {
-        "G": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "K": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "U" }] },
-        "H": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "V", "source": "NONE" }, { "name": "U", "source": "NONE" }], "results": [{ "name": "W" }] }
+        "G": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "K": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "U" }] },
+        "H": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "V", "source": "NONE" }, { "name": "U", "source": "NONE" }], "results": [{ "name": "W" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["G", "K", "H"] }],
@@ -8423,10 +8423,10 @@
       "condIo": { "b1": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] } },
       "ids": ["G", "E", "H", "F"],
       "rules": {
-        "G": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "Q" }] },
-        "H": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
+        "G": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "E": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "Q" }] },
+        "H": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["G", "E", "H"] }],
@@ -8447,10 +8447,10 @@
       "condIo": { "b1": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] } },
       "ids": ["G", "E", "H", "F"],
       "rules": {
-        "G": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "EE" }] },
-        "H": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "HH" }] },
-        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
+        "G": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "E": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "EE" }] },
+        "H": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "HH" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["G", "E", "H"] }],
@@ -8472,10 +8472,10 @@
       "condIo": { "b1": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] } },
       "ids": ["G", "H", "K", "F"],
       "rules": {
-        "G": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "H": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "K": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
+        "G": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "H": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "K": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["G", "H", "K"] }], "results": [{ "name": "V", "by": ["G", "H", "K"], "readers": ["F"] }, { "name": "W", "by": ["F"], "readers": [] }] },
@@ -8494,10 +8494,10 @@
           { "id": "ep", "from": "pm", "to": "z" }, { "id": "ez", "from": "z", "to": "end" }] },
       "ids": ["G", "H", "K", "F"],
       "rules": {
-        "G": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "H": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "K": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "U" }] },
-        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "V", "source": "NONE" }, { "name": "U", "source": "NONE" }], "results": [{ "name": "W" }] }
+        "G": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "H": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "K": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "U" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "V", "source": "NONE" }, { "name": "U", "source": "NONE" }], "results": [{ "name": "W" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["G", "H", "K"] }],
@@ -8518,11 +8518,11 @@
       "condIo": { "b1": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] }, "b2": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] } },
       "ids": ["E", "A", "B", "F", "G"],
       "rules": {
-        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "Q" }] },
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "Q", "source": "NONE" }, { "name": "V", "source": "NONE" }], "results": [{ "name": "FF" }] },
-        "G": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "Q", "source": "PROG" }], "results": [{ "name": "GG" }] }
+        "E": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "Q" }] },
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "Q", "source": "NONE" }, { "name": "V", "source": "NONE" }], "results": [{ "name": "FF" }] },
+        "G": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "Q", "source": "PROG" }], "results": [{ "name": "GG" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["E", "A", "B"] }],
@@ -8543,9 +8543,9 @@
       "condIo": { "b1": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] } },
       "ids": ["E", "A", "Z"],
       "rules": {
-        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
-        "Z": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] }
+        "E": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "Z": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["E", "A", "Z"] }], "results": [{ "name": "V", "by": ["E", "Z"], "readers": [] }, { "name": "RA", "by": ["A"], "readers": [] }] },
@@ -8566,10 +8566,10 @@
       "condIo": { "d1": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] } },
       "ids": ["E", "A", "B", "F"],
       "rules": {
-        "E": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "Q" }] },
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "U" }] },
-        "F": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "V", "source": "NONE" }, { "name": "Q", "source": "NONE" }], "results": [{ "name": "W" }] }
+        "E": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "Q" }] },
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "U" }] },
+        "F": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "V", "source": "NONE" }, { "name": "Q", "source": "NONE" }], "results": [{ "name": "W" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["E", "A", "B"] }],
@@ -8590,10 +8590,10 @@
       "condIo": { "b1": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] }, "b2": { "ok": true, "message": null, "vars": [{ "name": "X", "source": "DICT" }] } },
       "ids": ["A", "B", "C", "S"],
       "rules": {
-        "A": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "B": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "C": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
-        "S": { "exists": true, "status": "INUSE", "releasedVer": 1, "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
+        "A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "C": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "V" }] },
+        "S": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "V", "source": "NONE" }], "results": [{ "name": "W" }] }
       },
       "expect": {
         "io": { "inputs": [{ "name": "X", "source": "DICT", "users": ["A", "B", "C"] }], "results": [{ "name": "V", "by": ["A", "B", "C"], "readers": ["S"] }, { "name": "W", "by": ["S"], "readers": [] }] },

@@ -28,7 +28,7 @@ function ifFlow(): EditFlow {
 function ioOf(ruleId: string, extra: Partial<RuleIo> = {}): RuleIo {
   const nm = (n: string) => ({ name: n, source: null, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
   return {
-    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST",
+    ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST",
     conds: [], results: ruleId === "R_A" ? [nm("S_A")] : [], ...extra,
   };
 }

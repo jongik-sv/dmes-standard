@@ -72,7 +72,8 @@ async function openDetail(page: Page, ruleId: string) {
 }
 
 /** 버전 표에서 한 줄을 고른다. */
-function versionRow(page: Page, ver: number) {
+/** ver 는 서버 표기 `"1.000"`(D-144) — 버전 목록의 행 키(row-id)가 이 문자열이다. */
+function versionRow(page: Page, ver: string) {
   return page.getByTestId("rule-version-table").locator(`.ag-center-cols-container .ag-row[row-id="${ver}"]`);
 }
 
@@ -94,7 +95,7 @@ test.describe("mdm dme/ruleMng", () => {
     await page.getByRole("button", { name: "조회", exact: true }).click();
     const qlty = page.locator(".ag-row", { has: page.getByTestId("rule-link-QLTY_GRD_JDG") });
     await expect(qlty).toBeVisible({ timeout: 30_000 });
-    await expect(qlty.locator('[col-id="releasedVer"]')).toHaveText("1");
+    await expect(qlty.locator('[col-id="releasedVer"]')).toHaveText("v1.000");
     await expect(qlty.locator('[col-id="hitPolicy"]')).toHaveText("FIRST");
     await expect(page.getByTestId("rule-link-E2E_LOCK_JDG")).toBeVisible();
     await page.screenshot({ path: screenshot("dme-ruleMng-list.png"), fullPage: true });
@@ -121,7 +122,7 @@ test.describe("mdm dme/ruleMng", () => {
     // D-105 — 고르면 같은 화면의 상세(① 헤더·② 버전)가 열린다(자동 선점된 버전 1 DRAFT).
     await openDetail(page, "E2E_NEW_JDG");
     await expect(page.getByTestId("rule-header-name")).toHaveValue("E2E 신규 판정");
-    await expect(versionRow(page, 1).locator('[data-status="DRAFT"]')).toBeVisible();
+    await expect(versionRow(page, "1.000").locator('[data-status="DRAFT"]')).toBeVisible();
     await expect(page.getByTestId("rule-version-table").getByText("편집 중(나)")).toBeVisible();
   });
 
@@ -193,11 +194,11 @@ test.describe("mdm dme/ruleMng", () => {
     await login(page, STEWARD);
     await openRuleMng(page);
     await openDetail(page, "QLTY_GRD_JDG");
-    await page.getByRole("button", { name: "새 버전", exact: true }).click();
-    await expect(versionRow(page, 2).locator('[data-status="DRAFT"]')).toBeVisible({ timeout: 20_000 });
-    await expect(versionRow(page, 2).locator('.ag-cell[col-id="baseVer"]')).toHaveText("1");
+    await page.getByRole("button", { name: "새 버전(major)", exact: true }).click();
+    await expect(versionRow(page, "2.000").locator('[data-status="DRAFT"]')).toBeVisible({ timeout: 20_000 });
+    await expect(versionRow(page, "2.000").locator('.ag-cell[col-id="baseVer"]')).toHaveText("v1.000");
     await expect(page.getByTestId("rule-version-table").getByText("편집 중(나)")).toBeVisible();
-    await expect(page.getByRole("button", { name: "새 버전", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "새 버전(major)", exact: true })).toBeDisabled();
     await expect(page.getByTestId("rule-unapplied-notice")).toContainText("미적용 버전");
   });
 
@@ -205,7 +206,7 @@ test.describe("mdm dme/ruleMng", () => {
     await login(page, STEWARD);
     await openRuleMng(page);
     await openDetail(page, "QLTY_GRD_JDG");
-    await expect(versionRow(page, 1).locator('.ag-cell[col-id="hitPolicy"]')).toHaveText("FIRST");
+    await expect(versionRow(page, "1.000").locator('.ag-cell[col-id="hitPolicy"]')).toHaveText("FIRST");
     await expect(page.getByTestId("rule-hit-policy")).toHaveCount(0);
     await expect(page.getByTestId("rule-hit-policy-save")).toHaveCount(0);
     await expect(page.getByTestId("rule-hit-policy-hint")).toContainText("의사결정표");
@@ -264,8 +265,8 @@ test.describe("mdm dme/ruleMng", () => {
     await openDetail(page, "QLTY_GRD_JDG");
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).last().click();
-    await expect(versionRow(page, 2)).toHaveCount(0, { timeout: 20_000 });
-    await expect(page.getByRole("button", { name: "새 버전", exact: true })).toBeEnabled();
+    await expect(versionRow(page, "2.000")).toHaveCount(0, { timeout: 20_000 });
+    await expect(page.getByRole("button", { name: "새 버전(major)", exact: true })).toBeEnabled();
   });
 
   test("H8 내용 편집 이동: [내용 편집 →] 은 내용 화면을 그 룰·버전으로 연다(I28)", async ({ page }) => {
@@ -274,6 +275,6 @@ test.describe("mdm dme/ruleMng", () => {
     await openDetail(page, "QLTY_GRD_JDG");
     await page.getByRole("button", { name: "내용 편집 →" }).click();
     await expect(page.getByTestId("rule-edit-current")).toHaveText("QLTY_GRD_JDG", { timeout: 60_000 });
-    await expect(page.getByTestId("rule-ver-select")).toHaveValue("1");
+    await expect(page.getByTestId("rule-ver-select")).toHaveValue("1.000");
   });
 });

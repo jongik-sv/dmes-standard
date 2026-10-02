@@ -7,14 +7,14 @@ package com.dongkuk.dmes.mdm.dme.ruleConfirm.dto;
 public class RuleConfirmValidateRequest {
 
     private String maruRuleId;
-    private Integer ver;
+    private String ver;
     private String applyFrom;
 
     public String getMaruRuleId() { return maruRuleId; }
-    public Integer getVer() { return ver; }
+    public String getVer() { return ver; }
     public String getApplyFrom() { return applyFrom; }
 
     public void setMaruRuleId(String v) { this.maruRuleId = v; }
-    public void setVer(Integer v) { this.ver = v; }
+    public void setVer(String v) { this.ver = v; }
     public void setApplyFrom(String v) { this.applyFrom = v; }
 }

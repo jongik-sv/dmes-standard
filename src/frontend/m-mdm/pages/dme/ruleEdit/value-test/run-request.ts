@@ -7,6 +7,8 @@
  */
 import { useEffect, useState } from "react";
 
+import { fmtVer, sameVer } from "@/shell/version-format";
+
 import { viewRule, type TableSaveRow, type ValueTestRequest } from "../api";
 import type { TableDraft } from "../state/workbench-context";
 import type { RuleEditView, StoredRow, ValueTestTarget } from "../types";
@@ -14,7 +16,7 @@ import type { TestRunView } from "./test-marks";
 
 export interface TestTargetChoice {
   target: ValueTestTarget;
-  ver: number;
+  ver: string;
 }
 
 export interface TargetOption {
@@ -28,18 +30,18 @@ export function targetKey(c: TestTargetChoice): string {
 }
 
 /** 결과·케이스 표에 적는 대상 이름. */
-export function targetLabel(c: { target: ValueTestTarget; ver: number | null }): string {
-  return c.target === "BODY" ? "편집본" : `버전 ${c.ver}`;
+export function targetLabel(c: { target: ValueTestTarget; ver: string | null }): string {
+  return c.target === "BODY" ? "편집본" : `버전 ${fmtVer(c.ver)}`;
 }
 
 /** 대상 선택지 — 편집본(editable 이고 선택 버전이 DRAFT)이 맨 앞, 그 뒤 버전 전부. */
 export function targetOptions(view: RuleEditView, editable: boolean): TargetOption[] {
-  const selected = view.versions.find((v) => v.ver === view.selectedVer);
+  const selected = view.versions.find((v) => sameVer(v.ver, view.selectedVer));
   const out: TargetOption[] = [];
   if (editable && selected?.status === "DRAFT") {
-    out.push({ key: "BODY", label: `편집본 · 버전 ${selected.ver} 저장 전`, choice: { target: "BODY", ver: selected.ver } });
+    out.push({ key: "BODY", label: `편집본 · 버전 ${fmtVer(selected.ver)} 저장 전`, choice: { target: "BODY", ver: selected.ver } });
   }
-  for (const v of view.versions) out.push({ key: `V:${v.ver}`, label: `버전 ${v.ver} · ${v.status}`, choice: { target: "VERSION", ver: v.ver } });
+  for (const v of view.versions) out.push({ key: `V:${v.ver}`, label: `버전 ${fmtVer(v.ver)} · ${v.status}`, choice: { target: "VERSION", ver: v.ver } });
   return out;
 }
 
@@ -48,16 +50,16 @@ export function resolveTarget(options: readonly TargetOption[], key: string | nu
   return (
     options.find((o) => o.key === key) ??
     options.find((o) => o.key === "BODY") ??
-    options.find((o) => o.choice.ver === view.selectedVer) ??
+    options.find((o) => sameVer(o.choice.ver, view.selectedVer)) ??
     options[0] ??
     null
   );
 }
 
 /** 편집본이 쓸 표 — 표 카드가 올린 이 룰·버전의 표, 없으면 view 의 저장된 행. */
-export function bodyTable(view: RuleEditView, ver: number, draft: TableDraft | null): { rows: StoredRow[]; hitPolicy: TableDraft["hitPolicy"]; rev: number | null } {
-  if (draft && draft.ruleId === view.rule.maruRuleId && draft.ver === ver) return { rows: draft.rows, hitPolicy: draft.hitPolicy, rev: draft.rev };
-  const selected = view.versions.find((v) => v.ver === ver);
+export function bodyTable(view: RuleEditView, ver: string, draft: TableDraft | null): { rows: StoredRow[]; hitPolicy: TableDraft["hitPolicy"]; rev: number | null } {
+  if (draft && draft.ruleId === view.rule.maruRuleId && sameVer(draft.ver, ver)) return { rows: draft.rows, hitPolicy: draft.hitPolicy, rev: draft.rev };
+  const selected = view.versions.find((v) => sameVer(v.ver, ver));
   return { rows: view.rows, hitPolicy: selected?.hitPolicy ?? null, rev: null };
 }
 
@@ -76,7 +78,7 @@ export function prepareRun(
   caseIds?: number[],
 ): PreparedRun {
   const ruleId = view.rule.maruRuleId;
-  const version = view.versions.find((v) => v.ver === choice.ver);
+  const version = view.versions.find((v) => sameVer(v.ver, choice.ver));
   if (choice.target === "BODY") {
     const table = bodyTable(view, choice.ver, draft);
     const rows: TableSaveRow[] = table.rows.map((r) => ({ rowId: r.rowId, rowKind: r.rowKind, cells: r.cells, note: r.note ?? null }));
@@ -111,11 +113,11 @@ export function clearVersionViewCache(): void {
  * 대상 정의의 view. 편집본·보이는 버전이면 지금 view(편집본의 변수는 그 DRAFT 의 저장된 열, D4), 다른 버전이면 `viewRule(ruleId, ver)` 로
  * 받아 둔 것. 받는 중이면 null.
  */
-export function useTargetView(view: RuleEditView, choice: { target: ValueTestTarget; ver: number | null } | null): { def: RuleEditView | null; error: string | null } {
+export function useTargetView(view: RuleEditView, choice: { target: ValueTestTarget; ver: string | null } | null): { def: RuleEditView | null; error: string | null } {
   const ruleId = view.rule.maruRuleId;
-  const local = !choice || choice.target === "BODY" || choice.ver === view.selectedVer;
+  const local = !choice || choice.target === "BODY" || sameVer(choice.ver, view.selectedVer);
   const ver = choice?.ver ?? null;
-  const rowVersion = view.versions.find((v) => v.ver === ver)?.rowVersion ?? null;
+  const rowVersion = view.versions.find((v) => sameVer(v.ver, ver))?.rowVersion ?? null;
   const cacheKey = local ? null : `${ruleId}:${ver}:${rowVersion}`;
   const [loaded, setLoaded] = useState<{ key: string; def: RuleEditView | null; error: string | null } | null>(null);
 

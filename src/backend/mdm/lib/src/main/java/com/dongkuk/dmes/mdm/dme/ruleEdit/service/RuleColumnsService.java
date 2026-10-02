@@ -9,9 +9,9 @@ import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
-import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
+import com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput.DraftRow;
@@ -19,6 +19,7 @@ import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckReport;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveRejections;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveValidator;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdIssuer;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdKind;
 import com.dongkuk.dmes.mdm.contract.rule.MdmRuleIdRange;
@@ -33,6 +34,7 @@ import com.dongkuk.dmes.mdm.repository.MdmRuleRowRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleVarRepository;
 import com.ezylang.evalex.parser.ParseException;
 import jakarta.persistence.EntityManager;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -134,7 +136,7 @@ public class RuleColumnsService implements RuleEditSavePart {
         MdmRule rule = support.loadRule(request.getMaruRuleId());
         requireMdm(rule);
         String id = rule.getMaruRuleId();
-        int ver = requireVer(request.getVer());
+        BigDecimal ver = requireVer(request.getVer());
         long expected = requireRowVersion(request.getRowVersion());
         List<Map<String, Object>> requested = request.getRows() == null ? List.of() : request.getRows();
         boolean derive = "DERIVE".equals(rule.getRuleKind());
@@ -176,16 +178,16 @@ public class RuleColumnsService implements RuleEditSavePart {
      * 여기는 저장된 값을 읽어 검사 입력으로만 쓴다(표의 저장 안 한 정책 변경은 열 설정 검사에 쓰지 않는다 — 열 설정 초안이 있으면
      * 표 저장이 막히므로 둘이 섞여 저장되지 않는다).
      */
-    private String currentHitPolicy(String id, int ver) {
+    private String currentHitPolicy(String id, BigDecimal ver) {
         List<String> hits = entityManager
                 .createQuery("SELECT v.hitPolicy FROM MdmRuleVer v WHERE v.maruRuleId = :id AND v.ver = :ver", String.class)
-                .setParameter("id", id).setParameter("ver", ver).getResultList();
+                .setParameter("id", id).setParameter("ver", VersionNumbers.scaled(ver)).getResultList();
         return hits.isEmpty() ? null : hits.get(0);
     }
 
     // ── 검사 — 거부가 하나라도 있으면 예외로 전체를 되돌린다(불변 2). ──
 
-    private void check(String id, int ver, boolean derive, String hit, List<Line> lines, List<MdmRuleVar> before,
+    private void check(String id, BigDecimal ver, boolean derive, String hit, List<Line> lines, List<MdmRuleVar> before,
                        List<Map<String, Object>> issues) {
         Map<Integer, MdmRuleVar> current = new HashMap<>();
         for (MdmRuleVar v : before) {
@@ -258,7 +260,7 @@ public class RuleColumnsService implements RuleEditSavePart {
     }
 
     /** 식 파싱(불변 9)·타입 해석 — Line.resolved 를 채운다. 타입 판정은 RuleVarTypeResolver 를 그대로(I16). */
-    private void resolveTypes(String id, int ver, List<Line> kept) {
+    private void resolveTypes(String id, BigDecimal ver, List<Line> kept) {
         List<MdmRuleVar> tmp = new ArrayList<>(kept.size());
         for (Line line : kept) {
             RuleColumnsSaveRequest req = line.req;
@@ -299,7 +301,7 @@ public class RuleColumnsService implements RuleEditSavePart {
     }
 
     /** 결과 열 그룹(불변 5)·그룹 열 조건(grp_cond) 검사. */
-    private void checkGroups(String id, int ver, String hit, List<Line> kept) {
+    private void checkGroups(String id, BigDecimal ver, String hit, List<Line> kept) {
         boolean grouped = kept.stream().anyMatch(l -> l.req.resGrp() != null);
         if (grouped && !"FIRST".equals(hit) && !"UNIQUE".equals(hit)) {
             throw reject("결과 열 그룹은 FIRST·UNIQUE 적중 정책에서만 둘 수 있습니다: " + hit);
@@ -367,7 +369,7 @@ public class RuleColumnsService implements RuleEditSavePart {
     }
 
     /** 산출 룰 결과 식(불변 4) — 앞 seq 결과 참조만 허용. */
-    private void checkDeriveExprs(String id, int ver, boolean derive, List<Line> kept) {
+    private void checkDeriveExprs(String id, BigDecimal ver, boolean derive, List<Line> kept) {
         if (!derive) {
             return;
         }
@@ -399,7 +401,7 @@ public class RuleColumnsService implements RuleEditSavePart {
      * 적용 뒤 정의로 저장 시 검사(TSK-08-04 design §6.1 COLUMNS 열) — 커밋 전이라 ERROR 면 거부해 적용 전체를 되돌린다. COLUMNS 는 셀·미완성·
      * 생성·분석을 돌리지 않으므로(I18, 열 추가가 가능해야 한다) 세트 순서·MDM 참조가 거부하고 계약 변경·케이스 결과 타입이 경고한다.
      */
-    private List<Map<String, Object>> saveChecks(String id, int ver, String ruleKind, String hit) {
+    private List<Map<String, Object>> saveChecks(String id, BigDecimal ver, String ruleKind, String hit) {
         List<MdmRuleVar> rawVars = queries.vars(id, ver);
         List<DraftRow> rows = queries.rows(id, ver).stream()
                 .map(r -> new DraftRow(r.getRowId(), r.getSeq(), r.getRowKind(), RuleCellsCodec.parse(r.getCells()))).toList();
@@ -413,7 +415,7 @@ public class RuleColumnsService implements RuleEditSavePart {
 
     // ── 적용 — 전체 DELETE → 재 INSERT + 셀 비움·삭제·산출 식 반영. ──
 
-    private Map<String, Integer> apply(String id, int ver, String hit, List<Line> lines, List<MdmRuleVar> before, boolean derive) {
+    private Map<String, Integer> apply(String id, BigDecimal ver, String hit, List<Line> lines, List<MdmRuleVar> before, boolean derive) {
         Map<Integer, MdmRuleVar> current = new HashMap<>();
         for (MdmRuleVar v : before) {
             current.put(v.getVarId(), v);
@@ -462,7 +464,7 @@ public class RuleColumnsService implements RuleEditSavePart {
         }
 
         entityManager.createQuery("DELETE FROM MdmRuleVar v WHERE v.maruRuleId = :id AND v.ver = :ver")
-                .setParameter("id", id).setParameter("ver", ver).executeUpdate();
+                .setParameter("id", id).setParameter("ver", VersionNumbers.scaled(ver)).executeUpdate();
         // 검사에서 로드한 기존 줄 엔티티가 영속 컨텍스트에 남아 있으면 재 INSERT 가 merge → UPDATE(0행) 로 간다 — 표 파트가
         // before 를 로드하지 않아 이 문제를 모르는 것과 같은 효과를 낸다. bulk DELETE 는 컨텍스트를 못 치우므로 여기서 치운다.
         entityManager.clear();
@@ -475,7 +477,7 @@ public class RuleColumnsService implements RuleEditSavePart {
      * 표시 타입·조건 변수 변경 열의 셀 비움(불변 8)·삭제 열 제거·산출 식 셀 반영. 새로 생기거나 셀을 비운 Expression 조건 열은 NORMAL 행을
      * 무관({@code {"op":"NA"}})으로 채운다(2026-09-28) — 표 저장은 모든 조건 칸을 요구하므로, 식을 적은 행만 조건이 걸리게 한다.
      */
-    private void updateCells(String id, int ver, List<Line> lines, List<Line> kept, Map<Line, Integer> finalIds,
+    private void updateCells(String id, BigDecimal ver, List<Line> lines, List<Line> kept, Map<Line, Integer> finalIds,
                              Map<Integer, MdmRuleVar> current, boolean derive) {
         Set<Integer> clear = new HashSet<>();
         for (Line line : lines) {
@@ -561,7 +563,7 @@ public class RuleColumnsService implements RuleEditSavePart {
     }
 
     /** 이름 하나의 타입 소스 — RuleVarTypeResolver 의 판정을 그대로(컬럼 사전·앞 룰 결과인지). */
-    private String typeSourceOf(String id, int ver, String name) {
+    private String typeSourceOf(String id, BigDecimal ver, String name) {
         MdmRuleVar tmp = new MdmRuleVar(id, ver, 0, "COND", 1);
         tmp.setDispType("Equal");
         tmp.setVarName(name);

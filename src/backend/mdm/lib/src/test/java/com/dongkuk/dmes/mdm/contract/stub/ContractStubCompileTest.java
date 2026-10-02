@@ -48,6 +48,7 @@ import com.dongkuk.dmes.mdm.contract.version.VersionConfirmCheckSpi;
 import com.dongkuk.dmes.mdm.contract.version.VersionDiff;
 import com.dongkuk.dmes.mdm.contract.version.VersionDiffEntry;
 import com.dongkuk.dmes.mdm.contract.version.VersionDraftDeletionSpi;
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
@@ -57,10 +58,9 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -112,7 +112,7 @@ class ContractStubCompileTest {
         VersionConfirmCheckSpi masterCode = byTarget(VersionTarget.MASTER_CODE);
         VersionConfirmCheckSpi businessRule = byTarget(VersionTarget.BUSINESS_RULE);
         VersionRef codeDraft = new VersionRef(VersionTarget.MASTER_CODE, "PROC_CD", new BigDecimal("1.000"));
-        VersionRef ruleDraft = new VersionRef(VersionTarget.BUSINESS_RULE, "RULE-1", new BigDecimal("3"));
+        VersionRef ruleDraft = new VersionRef(VersionTarget.BUSINESS_RULE, "RULE-1", new BigDecimal("3.000"));
 
         VersionDiff codeDiff = masterCode.diff(codeDraft);
         assertNull(codeDiff.base(), "최초 버전 diff 는 base 가 null");
@@ -120,7 +120,7 @@ class ContractStubCompileTest {
         assertNull(codeDiff.entries().get(0).oldValues(), "ADDED 는 oldValues 가 null");
 
         VersionDiff ruleDiff = businessRule.diff(ruleDraft);
-        assertEquals(new BigDecimal("2"), ruleDiff.base().ver());
+        assertEquals(new BigDecimal("2.000"), ruleDiff.base().ver());
         assertEquals(DiffKind.CHANGED, ruleDiff.entries().get(0).kind());
 
         LocalDateTime now = LocalDateTime.of(2026, 9, 24, 10, 0, 0);
@@ -432,7 +432,7 @@ class ContractStubCompileTest {
     @Test
     void DefinitionLookup_구현_대상_스텁이_06_샘플을_엔진_정의로_옮긴다() {
         MdmRule rule = new MdmRule("QLTY_GRD_JDG", "품질 등급 판정", "DECISION", "MDM");
-        MdmRuleVer ver = new MdmRuleVer("QLTY_GRD_JDG", 1, null);
+        MdmRuleVer ver = new MdmRuleVer("QLTY_GRD_JDG", new BigDecimal("1.000"), VersionKind.MAJOR, null);
         ver.setStatus("RELEASED");
         ver.setHitPolicy("FIRST");
         ver.setApplyFrom(LocalDateTime.of(2026, 9, 1, 0, 0));
@@ -444,16 +444,16 @@ class ContractStubCompileTest {
                 sampleVar(2, "COND", "1", "COIL_WID", null, 2),
                 sampleVar(3, "COND", "1", "SURF_GRD", null, 3));
         List<MdmRuleRow> rows = List.of(
-                new MdmRuleRow("QLTY_GRD_JDG", 1, 4, "DEFAULT", 0, "{\"4\":{\"val\":\"C\"}}"),
-                new MdmRuleRow("QLTY_GRD_JDG", 1, 1, "NORMAL", 1, "{}"),
-                new MdmRuleRow("QLTY_GRD_JDG", 1, 3, "NORMAL", 3, "{}"),
-                new MdmRuleRow("QLTY_GRD_JDG", 1, 2, "NORMAL", 2, "{}"));
+                new MdmRuleRow("QLTY_GRD_JDG", new BigDecimal("1.000"), 4, "DEFAULT", 0, "{\"4\":{\"val\":\"C\"}}"),
+                new MdmRuleRow("QLTY_GRD_JDG", new BigDecimal("1.000"), 1, "NORMAL", 1, "{}"),
+                new MdmRuleRow("QLTY_GRD_JDG", new BigDecimal("1.000"), 3, "NORMAL", 3, "{}"),
+                new MdmRuleRow("QLTY_GRD_JDG", new BigDecimal("1.000"), 2, "NORMAL", 2, "{}"));
         MdmRuleSet set = new MdmRuleSet("LS_A3", "3CCL 라인스피드", "[\"BASE_SPD_LKP\",\"SPD_EXC\",\"SPD_JOIN\"]");
         RuleDefinitionLookupStub stub = new RuleDefinitionLookupStub(rule, ver, vars, rows, set);
         DefinitionLookup lookup = stub;
 
         DefinitionLookup.RuleDefinition definition = lookup.rule("QLTY_GRD_JDG", java.time.Instant.EPOCH).orElseThrow();
-        assertEquals(1, definition.ver());
+        assertEquals(new BigDecimal("1.000"), definition.ver());
         assertEquals(DefinitionLookup.RuleKind.DECISION, definition.ruleKind());
         assertEquals(DefinitionLookup.HitPolicy.FIRST, definition.hitPolicy());
         assertEquals(5, definition.vars().size());
@@ -478,7 +478,7 @@ class ContractStubCompileTest {
     @Test
     void 확정_검사_06_스텁이_row_id_키와_SEQ_CELLS_값_맵_관례를_따른다() {
         VersionConfirmCheckSpi businessRule = byTarget(VersionTarget.BUSINESS_RULE);
-        VersionDiff diff = businessRule.diff(new VersionRef(VersionTarget.BUSINESS_RULE, "QLTY_GRD_JDG", new BigDecimal("2")));
+        VersionDiff diff = businessRule.diff(new VersionRef(VersionTarget.BUSINESS_RULE, "QLTY_GRD_JDG", new BigDecimal("2.000")));
         var entry = diff.entries().get(0);
         Integer.parseInt(entry.key()); // row_id 10진 문자열이 아니면 NumberFormatException
         assertEquals(Set.of(MdmRuleDiffConventions.SEQ, MdmRuleDiffConventions.CELLS), entry.oldValues().keySet());
@@ -496,7 +496,7 @@ class ContractStubCompileTest {
     }
 
     private static MdmRuleVar sampleVar(int varId, String kind, String disp, String name, Long domainId, int seq) {
-        MdmRuleVar v = new MdmRuleVar("QLTY_GRD_JDG", 1, varId, kind, seq);
+        MdmRuleVar v = new MdmRuleVar("QLTY_GRD_JDG", new BigDecimal("1.000"), varId, kind, seq);
         v.setDispType(disp);
         v.setVarName(name);
         v.setDomainId(domainId);

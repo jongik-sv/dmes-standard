@@ -91,7 +91,7 @@ class RuleViewTest {
             }
         }
         assertEquals("QLTY_GRD_JDG", v.ruleId());
-        assertEquals(1, v.ver());
+        assertEquals(new java.math.BigDecimal("1.000"), v.ver());
         assertEquals(qlty.ruleKind(), v.ruleKind());
         assertEquals(HitPolicy.FIRST, v.hitPolicy());
         assertEquals(qlty.applyFrom(), v.applyFrom());
@@ -155,7 +155,7 @@ class RuleViewTest {
         assertEquals("STR_LEFT(SPEC_NM, 1)", ta.columns().get(0).exprText());
         assertNotNull(ta.columns().get(0).exprAst());
         assertNull(ta.contract());
-        assertEquals(2, ta.ver());
+        assertEquals(new java.math.BigDecimal("2.000"), ta.ver());
     }
 
     @Test
@@ -235,5 +235,24 @@ class RuleViewTest {
         assertEquals("GENERAL", names.get(9));
         List<RuleRow> rows = SampleRules.baseSpdLkp().rows();
         assertEquals(rows.size(), b.rows().size());
+    }
+
+    @Test
+    void minorVersionIsKeptOnView() {
+        RuleDefinition def = RuleFixtures.decision("R_MINOR", new java.math.BigDecimal("1.001"), HitPolicy.FIRST,
+                java.time.LocalDateTime.of(2026, 1, 1, 0, 0),
+                List.of(RuleFixtures.resultVar(2, DispType.VALUE, "R", DataType.STRING, 2),
+                        RuleFixtures.condVar(1, DispType.ONE, "A", DataType.STRING, 1)),
+                RuleFixtures.contract(List.of()));
+        RuleView view = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()),
+                new InMemoryDefinitionLookup().add(def)).text("R_MINOR", TS);
+        assertEquals(new java.math.BigDecimal("1.001"), view.ver());
+    }
+
+    /** 기본 Jackson 은 BigDecimal 을 scale 그대로 JSON 숫자로 쓴다(1.000 → 1.000, 1 이 아니다). */
+    @Test
+    void versionSerializesAsJsonNumberKeepingScale() throws Exception {
+        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(java.util.Map.of("ver", engine.text("QLTY_GRD_JDG", TS).ver()));
+        assertEquals("{\"ver\":1.000}", json);
     }
 }

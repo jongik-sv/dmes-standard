@@ -172,7 +172,7 @@ describe("캔버스 메모 — MarkdownEditor 붙이기", () => {
 // ─────────────────────────────── 오른쪽 패널 「메모」 칸 ───────────────────────────────
 
 const io = (ruleId: string): RuleIo => ({
-  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [],
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [],
 });
 function viewOf(setId: string, flow: EditFlow): RuleSetView {
   return {

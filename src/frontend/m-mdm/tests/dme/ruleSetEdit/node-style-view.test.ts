@@ -20,7 +20,7 @@ function ok(r: EditResult): EditFlow {
   return r.flow;
 }
 const io = (ruleId: string): RuleIo => ({
-  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [],
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [],
 });
 const RULES = { NV_A: io("NV_A"), NV_B: io("NV_B") };
 const base = () => toEditFlow(null, ["NV_A", "NV_B"]);

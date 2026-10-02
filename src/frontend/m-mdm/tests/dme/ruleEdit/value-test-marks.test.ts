@@ -22,7 +22,7 @@ import { SAMPLE_ROWS, SAMPLE_VARS } from "./fixtures";
 function result(over: Partial<ValueTestResult> = {}): ValueTestResult {
   return {
     target: "BODY",
-    ver: 2,
+    ver: "2.000",
     evalTs: "2026-09-26 10:00:00",
     outcome: "OK",
     results: { QLTY_GRD: "B", PRC_FCT: "1.00" },
@@ -38,7 +38,7 @@ function result(over: Partial<ValueTestResult> = {}): ValueTestResult {
 }
 
 function run(over: Partial<TestRunView> = {}): TestRunView {
-  return { ruleId: "QLTY_GRD_JDG", target: "BODY", ver: 2, rowVersion: 3, rev: 1, result: result(), ...over };
+  return { ruleId: "QLTY_GRD_JDG", target: "BODY", ver: "2.000", rowVersion: 3, rev: 1, result: result(), ...over };
 }
 
 describe("testMarksOf", () => {
@@ -129,14 +129,14 @@ describe("testMarksOf", () => {
 });
 
 describe("runShownOnTable (I33)", () => {
-  const table = { ruleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3, rev: 1, dirty: true };
+  const table = { ruleId: "QLTY_GRD_JDG", ver: "2.000", rowVersion: 3, rev: 1, dirty: true };
 
   it("BODY 결과는 같은 룰·버전·rev 일 때만 표에 칠한다", () => {
     expect(runShownOnTable(run(), table)).toBe(true);
     expect(runShownOnTable(run({ rev: 0 }), table)).toBe(false);
     expect(runShownOnTable(run({ rev: null }), table)).toBe(false);
     expect(runShownOnTable(run({ ruleId: "OTHER" }), table)).toBe(false);
-    expect(runShownOnTable(run({ ver: 1 }), table)).toBe(false);
+    expect(runShownOnTable(run({ ver: "1.000" }), table)).toBe(false);
     expect(runShownOnTable(null, table)).toBe(false);
   });
 
@@ -144,14 +144,14 @@ describe("runShownOnTable (I33)", () => {
     const v = run({ target: "VERSION", rev: null });
     expect(runShownOnTable(v, { ...table, dirty: false })).toBe(true);
     expect(runShownOnTable(v, { ...table, dirty: true })).toBe(false);
-    expect(runShownOnTable(run({ target: "VERSION", ver: 1, rev: null }), { ...table, dirty: false })).toBe(false);
+    expect(runShownOnTable(run({ target: "VERSION", ver: "1.000", rev: null }), { ...table, dirty: false })).toBe(false);
     expect(runShownOnTable(v, { ...table, dirty: false, rowVersion: 4 })).toBe(false);
     expect(runShownOnTable(v, { ...table, dirty: false, ruleId: "OTHER" })).toBe(false);
   });
 });
 
 describe("testRunAfterTableChange", () => {
-  const draft = { ruleId: "QLTY_GRD_JDG", ver: 2, rev: 2 };
+  const draft = { ruleId: "QLTY_GRD_JDG", ver: "2.000", rev: 2 };
 
   it("BODY 결과 뒤 표가 바뀌면(rev 다름) 결과를 지우고 안내한다", () => {
     expect(testRunAfterTableChange(run(), draft)).toEqual({ run: null, cleared: true });
@@ -165,14 +165,14 @@ describe("testRunAfterTableChange", () => {
 
   it("룰이 바뀌면 조용히 지우고, BODY 결과는 버전이 바뀌어도 조용히 지운다", () => {
     expect(testRunAfterTableChange(run({ target: "VERSION", rev: null }), { ...draft, ruleId: "OTHER" })).toEqual({ run: null, cleared: false });
-    expect(testRunAfterTableChange(run(), { ...draft, ver: 1 })).toEqual({ run: null, cleared: false });
+    expect(testRunAfterTableChange(run(), { ...draft, ver: "1.000" })).toEqual({ run: null, cleared: false });
     expect(testRunAfterTableChange(null, draft)).toEqual({ run: null, cleared: false });
   });
 });
 
 describe("workbenchReducer", () => {
   const rows = SAMPLE_ROWS;
-  const draft: Omit<TableDraft, "rev"> = { ruleId: "QLTY_GRD_JDG", ver: 2, hitPolicy: "FIRST", rows, dirty: false };
+  const draft: Omit<TableDraft, "rev"> = { ruleId: "QLTY_GRD_JDG", ver: "2.000", hitPolicy: "FIRST", rows, dirty: false };
 
   it("같은 내용을 다시 올리면 상태를 그대로 돌려주고, 내용이 바뀌면 rev 를 올린다", () => {
     const s1 = workbenchReducer(INITIAL_WORKBENCH, { type: "publishTable", draft });

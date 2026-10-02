@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
-import { DraftLockBadge, HANDOVER_AVAILABLE, VersionActionBar, VersionStatusBadge, openMdmPage } from "@/shell";
+import { DraftLockBadge, HANDOVER_AVAILABLE, VersionActionBar, VersionStatusBadge, fmtVer, openMdmPage, sameVer } from "@/shell";
 
 import {
   cancelConfirm,
@@ -48,6 +48,14 @@ export const CANCEL_CONFIRM_EFFECT =
 
 const KIND_LABEL: Record<string, string> = { DECISION: "판정(DECISION)", DERIVE: "산출(DERIVE)" };
 
+/** minor 상한(999)에 닿아 minor 만 꺼질 때의 안내 — 마스터코드(codeMng `MINOR_LIMIT_HINT`)와 같은 문구. */
+const MINOR_LIMIT_HINT = "major 를 올리십시오";
+
+/** 새 버전 버튼 안내 — 만들 번호를 보인다. 번호가 없으면(불가) 안내 없음. */
+function newVersionTitle(next: string | null | undefined): string | undefined {
+  return next ? `${fmtVer(next)} 을 만듭니다` : undefined;
+}
+
 /** 서버 `RuleVersions.isUnapplied` 와 같은 뜻 — DRAFT·REQUESTED·APPROVED·적용 전 RELEASED. 안내 문구용. */
 function isUnapplied(v: RuleVersionInfo, now: Date): boolean {
   if (v.status === "DRAFT" || v.status === "REQUESTED" || v.status === "APPROVED") return true;
@@ -62,7 +70,7 @@ function applyRange(v: RuleVersionInfo): string {
 }
 
 const versionColumns: GridColumn[] = [
-  { key: "ver", header: "버전", width: 70, tooltip: false, render: (value) => String(value ?? "") },
+  { key: "ver", header: "버전", width: 70, tooltip: false, render: (value) => fmtVer(value as string | null) },
   {
     key: "status",
     header: "상태",
@@ -72,7 +80,7 @@ const versionColumns: GridColumn[] = [
   },
   { key: "range", header: "적용 구간", width: 190 },
   { key: "ownerId", header: "소유자", width: 110 },
-  { key: "baseVer", header: "base", width: 70 },
+  { key: "baseVer", header: "base", width: 70, render: (value) => fmtVer(value as string | null) },
   // 버전마다 다를 수 있어 목록에 보인다(읽기 전용). 고치는 곳은 룰 편집 화면의 의사결정표(D-133).
   { key: "hitPolicy", header: "적중 정책", width: 90 },
 ];
@@ -84,7 +92,7 @@ export interface RuleDetailPanelProps {
   canDo: (action: string) => boolean;
   busy: boolean;
   onError: (message: string) => void;
-  onContentEdit: (ruleId: string, ver?: number) => void;
+  onContentEdit: (ruleId: string, ver?: string) => void;
 }
 
 export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentEdit }: RuleDetailPanelProps) {
@@ -107,16 +115,16 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
   }, [initial]);
 
   // ② 버전 — 선택은 이 화면이 갖고 있다(내용 화면은 읽기 전용 목록만 본다).
-  const [selectedVer, setSelectedVer] = useState<number | null>(null);
+  const [selectedVer, setSelectedVer] = useState<string | null>(null);
   useEffect(() => {
-    if (view.versions.some((v) => v.ver === selectedVer)) return;
+    if (view.versions.some((v) => sameVer(v.ver, selectedVer))) return;
     // 기본은 미적용 버전 → 현재 적용 버전 → 최대 버전 — 내용 화면과 같은 고르기 순서.
     const now = new Date();
     const unapplied = view.versions.find((v) => isUnapplied(v, now));
     const applied = view.versions.find((v) => v.status === "RELEASED" && !isUnapplied(v, now));
     setSelectedVer((unapplied ?? applied ?? view.versions[0])?.ver ?? null);
   }, [view.versions, selectedVer]);
-  const selected = view.versions.find((v) => v.ver === selectedVer) ?? null;
+  const selected = view.versions.find((v) => sameVer(v.ver, selectedVer)) ?? null;
 
   const [handoverTo, setHandoverTo] = useState("");
 
@@ -128,7 +136,11 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
   // 버전 관리 판정 — flags(서버 계산) + 소유자(D6) 를 함께 쓴다. 실제 거부는 서버가 다시 검사한다.
   const draft = selected?.status === "DRAFT";
   const mine = !!draft && !!selected?.ownerId && selected.ownerId === me;
-  const canCopy = !external && flags.canNewVersion && canDo("copy") && !busy;
+  // 새 버전은 종류별(D-144) — 서버 canNewMajor·canNewMinor 를 믿는다(canNewVersion 이 false 면 둘 다 false).
+  const copyable = !external && canDo("copy") && !busy;
+  const canNewMajor = copyable && flags.canNewMajor;
+  const canNewMinor = copyable && flags.canNewMinor;
+  const minorLimited = flags.canNewVersion && !flags.canNewMinor && view.versions.length > 0;
   const canDeleteDraft = !external && mine && canDo("delete") && !busy;
   const canUnlock = !external && mine && canDo("unlock") && !busy;
   const canCancelConfirm = !external && !!selected?.cancelConfirmable && canDo("delete") && !busy;
@@ -147,7 +159,7 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
         applyFrom: v.applyFrom,
         range: applyRange(v),
         ownerId: v.ownerId ?? "",
-        baseVer: v.baseVer ?? "",
+        baseVer: v.baseVer ?? null,
         hitPolicy: derive ? "-" : (v.hitPolicy ?? ""),
       })),
     [view.versions, derive],
@@ -276,7 +288,7 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
             columnSizing="fit"
             sortable={false}
             highlightedRowKey={selectedVer ?? undefined}
-            onRowClick={(row) => setSelectedVer(row.ver as number)}
+            onRowClick={(row) => setSelectedVer(row.ver as string)}
             emptyMessage="버전이 없습니다."
             ariaLabel="룰 버전 목록"
           />
@@ -297,12 +309,13 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
 
         <VersionActionBar
           ids={{
-            newVersion: "rule-new-version", delete: "rule-version-delete", confirm: "rule-move-to-confirm",
+            newMajor: "rule-ver-new-major", newMinor: "rule-ver-new-minor", delete: "rule-version-delete", confirm: "rule-move-to-confirm",
             cancelConfirm: "rule-cancel-confirm", cancelConfirmWrap: "rule-cancel-confirm-wrap", lock: "rule-version-lock",
             unlock: "rule-version-unlock", handover: "rule-handover", handoverWrap: "rule-handover-wrap",
           }}
-          newVersionMode="single"
-          newVersion={{ enabled: canCopy }}
+          newVersionMode="majorMinor"
+          newMajor={{ enabled: canNewMajor, title: newVersionTitle(flags.nextMajor) }}
+          newMinor={{ enabled: canNewMinor, title: minorLimited ? MINOR_LIMIT_HINT : newVersionTitle(flags.nextMinor) }}
           delete={{ enabled: canDeleteDraft }}
           confirm={{ enabled: canMoveToConfirm, title: canMoveToConfirm ? "" : "DRAFT 버전만 확정할 수 있습니다" }}
           cancelConfirm={{
@@ -312,9 +325,10 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
           lock={{ enabled: showLock && canDo("lock") && !busy }}
           unlock={{ enabled: canUnlock }}
           handover={{ enabled: canHandover }}
-          onNewVersion={() => void runWrite(() => newVersion(id))}
+          onNewMajor={() => void runWrite(() => newVersion(id, "MAJOR"))}
+          onNewMinor={() => void runWrite(() => newVersion(id, "MINOR"))}
           onDelete={() => selected && void runWrite(() => deleteDraft(id, selected.ver, selected.rowVersion))}
-          onConfirm={() => selected && openMdmPage("dme/ruleConfirm", { maruRuleId: id, ver: String(selected.ver) })}
+          onConfirm={() => selected && openMdmPage("dme/ruleConfirm", { maruRuleId: id, ver: selected.ver })}
           // D8 확정 취소 — 확인창에 06 교차 효과(룰 세트·다른 룰의 확정이 잠시 막힘)를 알린다.
           onCancelConfirm={() => selected && void runWrite(() => cancelConfirm(id, selected.ver, selected.rowVersion))}
           onLock={() => selected && void runWrite(() => lockVersion(id, selected.ver, selected.rowVersion))}
@@ -328,8 +342,8 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
             const target = handoverTo.trim();
             void runWrite(() => handoverVersion(id, selected.ver, selected.rowVersion, target)).then(() => setHandoverTo(""));
           }}
-          deleteMessage={`${selected?.ver ?? ""} DRAFT 를 삭제할까요?`}
-          cancelConfirmMessage={`${selected?.ver ?? ""} 의 확정을 취소하고 작성 중인 상태로 되돌릴까요?\n${CANCEL_CONFIRM_EFFECT}`}
+          deleteMessage={`${fmtVer(selected?.ver)} DRAFT 를 삭제할까요?`}
+          cancelConfirmMessage={`${fmtVer(selected?.ver)} 의 확정을 취소하고 작성 중인 상태로 되돌릴까요?\n${CANCEL_CONFIRM_EFFECT}`}
           beforeHandover={(
             <Input
               data-testid="rule-handover-target"

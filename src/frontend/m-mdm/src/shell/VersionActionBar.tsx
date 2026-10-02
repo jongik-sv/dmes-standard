@@ -36,7 +36,7 @@ export interface VersionActionIds {
 
 export interface VersionActionBarProps {
   ids: VersionActionIds;
-  /** 마스터코드는 major·minor 두 버튼, 룰은 단일 "새 버전" 이다. */
+  /** 마스터코드·룰은 major·minor 두 버튼(룰은 D-144 부터)이다. "single" 은 지금 쓰는 화면이 없다. */
   newVersionMode: "majorMinor" | "single";
   newMajor?: VersionAction;
   newMinor?: VersionAction;

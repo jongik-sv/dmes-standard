@@ -13,6 +13,7 @@ import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
@@ -78,7 +79,7 @@ class StoredDefinitionLookupTest extends AbstractMdmSharedDbTest {
     void 뒤_버전이_없으면_APPLY_TO_시각에는_적용_버전이_없다() {
         // R_GAP v1 = 2026-01-01 ~ 2026-06-01(KST). 2026-06-01 00:00:00 KST = 2026-05-31T15:00:00Z — 끝은 배타다
         assertTrue(lookup.rule("R_GAP", Instant.parse("2026-05-31T15:00:00Z")).isEmpty());
-        assertEquals(1, lookup.rule("R_GAP", Instant.parse("2026-05-31T14:59:59Z")).orElseThrow().ver());
+        assertEquals(new BigDecimal("1.000"), lookup.rule("R_GAP", Instant.parse("2026-05-31T14:59:59Z")).orElseThrow().ver());
     }
 
     @Test
@@ -107,10 +108,10 @@ class StoredDefinitionLookupTest extends AbstractMdmSharedDbTest {
     @Test
     void 판정_시각이_APPLY_FROM_과_같으면_그_버전이고_APPLY_TO_와_같으면_아니다() {
         // 2026-06-01 00:00:00 KST = 2026-05-31T15:00:00Z — v1 의 끝(배타) = v2 의 시작(포함)
-        assertEquals(2, lookup.rule("R_TS", Instant.parse("2026-05-31T15:00:00Z")).orElseThrow().ver());
-        assertEquals(1, lookup.rule("R_TS", Instant.parse("2026-05-31T14:59:59Z")).orElseThrow().ver());
+        assertEquals(new BigDecimal("2.000"), lookup.rule("R_TS", Instant.parse("2026-05-31T15:00:00Z")).orElseThrow().ver());
+        assertEquals(new BigDecimal("1.000"), lookup.rule("R_TS", Instant.parse("2026-05-31T14:59:59Z")).orElseThrow().ver());
         // 2026-01-01 00:00:00 KST = 2025-12-31T15:00:00Z — v1 시작(포함), 1초 전은 없음
-        assertEquals(1, lookup.rule("R_TS", Instant.parse("2025-12-31T15:00:00Z")).orElseThrow().ver());
+        assertEquals(new BigDecimal("1.000"), lookup.rule("R_TS", Instant.parse("2025-12-31T15:00:00Z")).orElseThrow().ver());
         assertTrue(lookup.rule("R_TS", Instant.parse("2025-12-31T14:59:59Z")).isEmpty());
         assertTrue(lookup.rule("NO_SUCH", Instant.parse("2026-05-31T15:00:00Z")).isEmpty());
     }

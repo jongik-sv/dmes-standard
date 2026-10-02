@@ -4,23 +4,32 @@ package com.dongkuk.dmes.mdm.dme.ruleMng.dto;
 public class RuleVersionResult {
 
     private String maruRuleId;
-    private Integer ver;
+    private String ver;
     private Long rowVersion;
+    /** 새 버전(copy)일 때만 채운다: MAJOR 또는 MINOR. */
+    private String verKind;
 
     public RuleVersionResult() {
     }
 
-    public RuleVersionResult(String maruRuleId, Integer ver, Long rowVersion) {
+    public RuleVersionResult(String maruRuleId, String ver, Long rowVersion) {
         this.maruRuleId = maruRuleId;
         this.ver = ver;
         this.rowVersion = rowVersion;
     }
 
+    public RuleVersionResult(String maruRuleId, String ver, String verKind, Long rowVersion) {
+        this(maruRuleId, ver, rowVersion);
+        this.verKind = verKind;
+    }
+
     public String getMaruRuleId() { return maruRuleId; }
-    public Integer getVer() { return ver; }
+    public String getVer() { return ver; }
     public Long getRowVersion() { return rowVersion; }
+    public String getVerKind() { return verKind; }
 
     public void setMaruRuleId(String v) { this.maruRuleId = v; }
-    public void setVer(Integer v) { this.ver = v; }
+    public void setVer(String v) { this.ver = v; }
     public void setRowVersion(Long v) { this.rowVersion = v; }
+    public void setVerKind(String v) { this.verKind = v; }
 }

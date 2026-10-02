@@ -29,7 +29,7 @@ class RuleSetAnalyzerTest {
     }
 
     static RuleIo rule(String id, String status, Integer ver, List<IoName> conds, String... results) {
-        return new RuleIo(id, id + " 이름", "DT", status, true, ver, "FIRST", conds,
+        return new RuleIo(id, id + " 이름", "DT", status, true, ver == null ? null : ver + ".000", "FIRST", conds,
                 Arrays.stream(results).map(r -> new IoName(r, null, null, null, null, false, null)).toList());
     }
 
@@ -86,10 +86,10 @@ class RuleSetAnalyzerTest {
 
     @Test
     void 입력_행은_처음_읽은_룰의_타입과_표시명을_싣고_결과_행은_처음_만든_룰의_타입을_싣는다() {
-        RuleIo a = new RuleIo("A", "A", "DT", "INUSE", true, 1, "FIRST",
+        RuleIo a = new RuleIo("A", "A", "DT", "INUSE", true, "1.000", "FIRST",
                 List.of(new IoName("SET_THK", DICT, "세트 두께", "NUMBER", 2, false, null)),
                 List.of(new IoName("X", null, null, "STRING", null, false, "CD1")));
-        RuleIo b = new RuleIo("B", "B", "DT", "INUSE", true, 1, "FIRST",
+        RuleIo b = new RuleIo("B", "B", "DT", "INUSE", true, "1.000", "FIRST",
                 List.of(new IoName("SET_THK", DICT, "다른 표시명", "STRING", null, false, null)),
                 List.of(new IoName("X", null, null, "NUMBER", 0, false, null)));
 

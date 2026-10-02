@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.dongkuk.dmes.mdm.common.support.MdmClockConfig;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
@@ -13,6 +14,7 @@ import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVerId;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleVerRepository;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -104,22 +106,22 @@ class BusinessRuleVersionScenarioSqliteTest extends AbstractVersionStateScenario
     void R1_JPA_로_저장한_룰_버전을_공통_서비스가_확정하고_엔티티로_다시_읽는다() {
         at("2026-06-20 09:08:07");
         ruleRepository.save(new MdmRule("QLTY_GRD_JDG", "품질 등급 판정", "DECISION", "MDM"));
-        MdmRuleVer v1Entity = new MdmRuleVer("QLTY_GRD_JDG", 1, KIM);
+        MdmRuleVer v1Entity = new MdmRuleVer("QLTY_GRD_JDG", new BigDecimal("1.000"), VersionKind.MAJOR, KIM);
         v1Entity.setStatus("RELEASED");
         v1Entity.setHitPolicy("FIRST");
         v1Entity.setApplyFrom(LocalDateTime.of(2026, 1, 1, 0, 0, 0));
         v1Entity.setApplyTo(LocalDateTime.of(9999, 12, 31, 0, 0, 0));
         verRepository.save(v1Entity);
-        MdmRuleVer v2Entity = new MdmRuleVer("QLTY_GRD_JDG", 2, KIM);
-        v2Entity.setBaseVer(1);
+        MdmRuleVer v2Entity = new MdmRuleVer("QLTY_GRD_JDG", new BigDecimal("2.000"), VersionKind.MAJOR, KIM);
+        v2Entity.setBaseVer(new BigDecimal("1.000"));
         v2Entity.setHitPolicy("FIRST");
         verRepository.save(v2Entity);
 
         // apply_from 은 v1 보다 뒤이고 시계(now) 이하여야 부모가 INUSE 로 바뀐다(S22).
-        confirm(rule("QLTY_GRD_JDG", "2"), 0, "2026-06-01 00:00:00");
+        confirm(rule("QLTY_GRD_JDG", "2.000"), 0, "2026-06-01 00:00:00");
 
-        MdmRuleVer v1 = verRepository.findById(new MdmRuleVerId("QLTY_GRD_JDG", 1)).orElseThrow();
-        MdmRuleVer v2 = verRepository.findById(new MdmRuleVerId("QLTY_GRD_JDG", 2)).orElseThrow();
+        MdmRuleVer v1 = verRepository.findById(new MdmRuleVerId("QLTY_GRD_JDG", new BigDecimal("1.000"))).orElseThrow();
+        MdmRuleVer v2 = verRepository.findById(new MdmRuleVerId("QLTY_GRD_JDG", new BigDecimal("2.000"))).orElseThrow();
         assertEquals(LocalDateTime.of(2026, 6, 1, 0, 0, 0), v1.getApplyTo(), "직전 RELEASED 의 적용 구간이 확정 apply_from 에서 닫힌다");
         assertEquals("RELEASED", v2.getStatus());
         assertEquals(1L, v2.getRowVersion());
@@ -146,7 +148,7 @@ class BusinessRuleVersionScenarioSqliteTest extends AbstractVersionStateScenario
     @Test
     void R2_DRAFT_삭제는_그_버전의_변수와_행을_CASCADE_로_지운다() {
         seedObject(VersionTarget.BUSINESS_RULE, "CASCADE_RULE", "CREATED");
-        VersionRef v1 = rule("CASCADE_RULE", "1");
+        VersionRef v1 = rule("CASCADE_RULE", "1.000");
         seedVersion(v1, "DRAFT", KIM, null, null, 0);
         jdbc.update("INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, VAR_NAME, SEQ) VALUES ('CASCADE_RULE', 1, 1, 'COND', 'A', 1)");
         jdbc.update("INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, VAR_NAME, SEQ) VALUES ('CASCADE_RULE', 1, 2, 'RESULT', 'B', 1)");
@@ -169,7 +171,7 @@ class BusinessRuleVersionScenarioSqliteTest extends AbstractVersionStateScenario
     void R3_실제_TB_MDM_RULE_VER_에_네이티브_확정이_KST_초_단위_TEXT_로_쓴다() {
         at("2026-06-20 09:08:07");
         seedObject(VersionTarget.BUSINESS_RULE, "TEXT_RULE", "INUSE");
-        VersionRef v1 = rule("TEXT_RULE", "1");
+        VersionRef v1 = rule("TEXT_RULE", "1.000");
         seedVersion(v1, "DRAFT", KIM, null, null, 0);
 
         confirm(v1, 0, "2026-07-01 00:00:00");
@@ -186,7 +188,7 @@ class BusinessRuleVersionScenarioSqliteTest extends AbstractVersionStateScenario
     @Test
     void R4_해제와_선점이_실제_테이블의_OWNER_ID_ROW_VERSION_AUD_VER_를_바꾼다() {
         seedObject(VersionTarget.BUSINESS_RULE, "OWN_RULE", "CREATED");
-        VersionRef v1 = rule("OWN_RULE", "1");
+        VersionRef v1 = rule("OWN_RULE", "1.000");
         seedVersion(v1, "DRAFT", KIM, null, null, 0);
 
         assertEquals(1, ownershipService.release(v1, 0, KIM));

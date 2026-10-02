@@ -81,7 +81,7 @@ describe("RuleEditPage", () => {
             data: { result: { list: [{ maruRuleId: "QLTY_GRD_JDG", maruRuleName: "품질 등급 판정", ruleKind: "DECISION", status: "INUSE", sourceKind: "MDM" }] } },
           });
         }
-        return jsonResponse(actionResponses[m[1]] ?? { meta: { success: true }, data: { result: { maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 4 } } });
+        return jsonResponse(actionResponses[m[1]] ?? { meta: { success: true }, data: { result: { maruRuleId: "QLTY_GRD_JDG", ver: "2.000", rowVersion: 4 } } });
       }
       if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
       if (url.includes("/api/mcm/oasis/secUser/myButtonEndpoints")) {
@@ -150,9 +150,9 @@ describe("RuleEditPage", () => {
   });
 
   it("handoff 대상이 있으면 그 룰을 열고 대상을 지운다(I28)", async () => {
-    window.sessionStorage.setItem(RULE_EDIT_TARGET_KEY, JSON.stringify({ ruleId: "QLTY_GRD_JDG", ver: 1, at: Date.now() }));
+    window.sessionStorage.setItem(RULE_EDIT_TARGET_KEY, JSON.stringify({ ruleId: "QLTY_GRD_JDG", ver: "1.000", at: Date.now() }));
     await render();
-    expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: 1 });
+    expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: "1.000" });
     expect(window.sessionStorage.getItem(RULE_EDIT_TARGET_KEY)).toBeNull();
     // 링크로 열려도 룰 고르기 칸에 연 룰 ID 가 들어 있다.
     expect((document.querySelector('[data-testid="rule-pick-keyword"]') as HTMLInputElement).value).toBe("QLTY_GRD_JDG");
@@ -200,13 +200,34 @@ describe("RuleEditPage", () => {
   it("상단 버전 고르기로 다른 버전을 열면 그 버전으로 다시 불러온다", async () => {
     await openByHandoff();
     const sel = byTestId<HTMLSelectElement>("rule-ver-select")!;
-    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["2 (DRAFT)", "1 (RELEASED)"]);
+    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["v2.000 (DRAFT)", "v1.000 (RELEASED)"]);
     await act(async () => {
-      sel.value = "1";
+      sel.value = "1.000";
       sel.dispatchEvent(new Event("change", { bubbles: true }));
     });
     await flush();
-    expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: 1 });
+    expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: "1.000" });
+  });
+
+  it("minor 버전(1.001)을 handoff 로 받고 고르면 소수부를 잃지 않는다(D-144)", async () => {
+    const base = draftView("e2e_mdm_steward");
+    view = {
+      ...base,
+      versions: [{ ...base.versions[0], ver: "1.001", baseVer: "1.000" }, base.versions[1]],
+      selectedVer: "1.001",
+    };
+    window.sessionStorage.setItem(RULE_EDIT_TARGET_KEY, JSON.stringify({ ruleId: "QLTY_GRD_JDG", ver: "1.001", at: Date.now() }));
+    await render();
+    expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: "1.001" });
+    const sel = byTestId<HTMLSelectElement>("rule-ver-select")!;
+    expect(sel.value).toBe("1.001");
+    expect(Array.from(sel.options).map((o) => o.textContent)).toEqual(["v1.001 (DRAFT)", "v1.000 (RELEASED)"]);
+    await act(async () => {
+      sel.value = "1.000";
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await flush();
+    expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: "1.000" });
   });
 
   it("활용처 카드는 담은 세트와 의존 룰을 보인다", async () => {

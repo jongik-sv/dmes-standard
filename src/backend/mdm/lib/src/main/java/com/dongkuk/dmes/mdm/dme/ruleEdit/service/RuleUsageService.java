@@ -5,6 +5,7 @@ import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.SetInfo;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditViewResult.UsageInfo;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
+import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -21,7 +22,7 @@ public class RuleUsageService {
     }
 
     /** @param selectedVer view 의 선택 버전 — 이 룰에 RELEASED 가 없을 때만 쓴다 */
-    public UsageInfo usage(String ruleId, Integer selectedVer) {
+    public UsageInfo usage(String ruleId, BigDecimal selectedVer) {
         String note = ruleRepository.findById(ruleId).map(MdmRule::getUsageNote).orElse(null);
         List<SetInfo> sets = finder.find(ruleId, selectedVer).stream()
                 .map(s -> new SetInfo(s.setId(), s.setName(), s.status(), s.dependsOn(), s.dependedBy()))

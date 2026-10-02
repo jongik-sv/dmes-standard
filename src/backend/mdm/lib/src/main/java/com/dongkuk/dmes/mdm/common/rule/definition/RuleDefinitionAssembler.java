@@ -6,10 +6,12 @@ import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput.DraftRow;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleExpressionChecks;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -81,7 +83,7 @@ public final class RuleDefinitionAssembler {
      * @param rows         행(셀은 파싱한 맵). 새 행이면 임시 번호 그대로 싣는다
      * @param externalType 룰 밖 이름 → 타입. 모르면 null
      */
-    public static Assembled assemble(String ruleId, int ver, String ruleKind, String hitPolicy, LocalDateTime applyFrom, LocalDateTime applyTo,
+    public static Assembled assemble(String ruleId, BigDecimal ver, String ruleKind, String hitPolicy, LocalDateTime applyFrom, LocalDateTime applyTo,
                                      List<MdmRuleVar> rawVars, List<ResolvedVar> vars, List<DraftRow> rows,
                                      Function<String, VarType> externalType) {
         Map<Integer, MdmRuleVar> rawById = new HashMap<>();
@@ -132,7 +134,7 @@ public final class RuleDefinitionAssembler {
 
         RuleKind kind = RuleKind.valueOf(ruleKind);
         Function<String, VarType> types = typeResolver(vars, externalType);
-        RuleDefinition def = new RuleDefinition(ruleId, ver, kind, hitPolicy == null || hitPolicy.isBlank() ? null : HitPolicy.valueOf(hitPolicy.trim()),
+        RuleDefinition def = new RuleDefinition(ruleId, VersionNumbers.scaled(ver), kind, hitPolicy == null || hitPolicy.isBlank() ? null : HitPolicy.valueOf(hitPolicy.trim()),
                 applyFrom, applyTo, null, List.copyOf(engineVars),
                 InputContracts.compute(engineVars, engineRows, kind, types, labels), List.copyOf(engineRows));
         return new Assembled(def, List.copyOf(failures), Collections.unmodifiableSet(skipped));
@@ -162,11 +164,11 @@ public final class RuleDefinitionAssembler {
                 v.domainId() == null ? null : String.valueOf(v.domainId()), agg, prio, resGrp, grpCond, grpCondAst, v.seq());
     }
 
-    private static RuleCell cell(String ruleId, int ver, int rowId, RuleVar var, ResolvedVar resolved, Map<String, Object> c) {
+    private static RuleCell cell(String ruleId, BigDecimal ver, int rowId, RuleVar var, ResolvedVar resolved, Map<String, Object> c) {
         Map<String, Object> ast = RuleCellsCodec.ast(c.get("ast"));
         if (RuleExpressionChecks.exprCell(resolved.varKind(), resolved.dispType(), c) && ast == null) {
             throw new BusinessException(ErrorCode.INVALID_VALUE,
-                    ruleId + " 버전 " + ver + " row " + rowId + " var_id " + var.varId() + ": 식 셀에 AST 가 없습니다 — 열 설정 또는 표를 다시 저장하세요");
+                    ruleId + " 버전 " + VersionNumbers.label(ver) + " row " + rowId + " var_id " + var.varId() + ": 식 셀에 AST 가 없습니다 — 열 설정 또는 표를 다시 저장하세요");
         }
         RuleCell bare = new RuleCell(str(c.get("op")), str(c.get("left")), str(c.get("right")), strings(c.get("list")), str(c.get("expr")),
                 ast, str(c.get("val")), null);

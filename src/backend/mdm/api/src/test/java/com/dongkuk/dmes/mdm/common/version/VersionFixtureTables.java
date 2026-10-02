@@ -25,13 +25,13 @@ public final class VersionFixtureTables {
         return target == VersionTarget.MASTER_CODE ? CODE_SPEC : RULE_SPEC;
     }
 
-    /** SQLite 문안. 업무 일시는 TEXT(규칙표 #16), 04 VER 는 NUMERIC(7,3), 06 VER 는 INTEGER. */
+    /** SQLite 문안. 업무 일시는 TEXT(규칙표 #16), 04 VER 는 NUMERIC(7,3), 06 VER 도 NUMERIC(7,3)(V17). */
     public static List<String> sqliteDdl() {
         return List.of(
                 parent("TB_MDM_TC_CODE", "MARU_CODE_ID", "VARCHAR(50)", "TEXT"),
                 version("TB_MDM_TC_CODE_VER", "MARU_CODE_ID", "VARCHAR(50)", "NUMERIC(7,3)", "TEXT"),
                 parent("TB_MDM_TC_RULE", "MARU_RULE_ID", "VARCHAR(50)", "TEXT"),
-                version("TB_MDM_TC_RULE_VER", "MARU_RULE_ID", "VARCHAR(50)", "INTEGER", "TEXT"),
+                version("TB_MDM_TC_RULE_VER", "MARU_RULE_ID", "VARCHAR(50)", "NUMERIC(7,3)", "TEXT"),
                 // S14 원자성: ATOMIC_FAIL 의 RELEASED 행 APPLY_TO 변경을 막아 확정 7단계를 실패시킨다.
                 "CREATE TRIGGER IF NOT EXISTS TR_TB_MDM_TC_CODE_VER_ATOMIC BEFORE UPDATE OF APPLY_TO ON TB_MDM_TC_CODE_VER "
                         + "WHEN OLD.MARU_CODE_ID = 'ATOMIC_FAIL' AND OLD.STATUS = 'RELEASED' "

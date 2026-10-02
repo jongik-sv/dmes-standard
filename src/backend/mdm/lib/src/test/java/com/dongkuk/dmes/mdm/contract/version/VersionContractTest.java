@@ -76,7 +76,7 @@ class VersionContractTest {
         assertEquals("TB_MDM_CODE_VER", VersionTarget.MASTER_CODE.versionTable());
         assertEquals(3, VersionTarget.MASTER_CODE.versionScale());
         assertEquals("TB_MDM_RULE_VER", VersionTarget.BUSINESS_RULE.versionTable());
-        assertEquals(0, VersionTarget.BUSINESS_RULE.versionScale());
+        assertEquals(3, VersionTarget.BUSINESS_RULE.versionScale());
     }
 
     @Test

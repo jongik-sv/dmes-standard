@@ -32,8 +32,8 @@ export interface RuleIo {
   status: string | null;
   /** 없는 룰이면 false 이고 나머지는 null·빈 목록. */
   exists: boolean;
-  /** RELEASED 가 없으면 null 이고 conds·results 는 비어 있다. */
-  releasedVer: number | null;
+  /** 최신 RELEASED 버전(`"1.001"`, D-144). RELEASED 가 없으면 null 이고 conds·results 는 비어 있다. */
+  releasedVer: string | null;
   hitPolicy: string | null;
   conds: IoName[] | null;
   results: IoName[] | null;

@@ -136,24 +136,24 @@ class RuleMngServiceTest extends AbstractMdmSharedDbTest {
         Map<String, RuleListRow> rows = new java.util.HashMap<>();
         search(null, null, null, null, null).getList().forEach(r -> rows.put(r.getMaruRuleId(), r));
         RuleListRow qlty = rows.get("QLTY_GRD_JDG");
-        assertEquals(1, qlty.getReleasedVer());
+        assertEquals("1.000", qlty.getReleasedVer());
         assertEquals("FIRST", qlty.getHitPolicy());
-        assertEquals(2, qlty.getPendingVer());
+        assertEquals("2.000", qlty.getPendingVer());
         assertEquals("DRAFT", qlty.getPendingStatus());
         assertEquals("kim", qlty.getPendingOwnerId());
         RuleListRow base = rows.get("BASE_SPD_LKP");
-        assertEquals(2, base.getReleasedVer());
+        assertEquals("2.000", base.getReleasedVer());
         assertEquals("UNIQUE", base.getHitPolicy());
         assertNull(base.getPendingVer());
         RuleListRow future = rows.get("FUTURE_JDG");
-        assertEquals(1, future.getReleasedVer());
+        assertEquals("1.000", future.getReleasedVer());
         assertEquals("FIRST", future.getHitPolicy());
-        assertEquals(2, future.getPendingVer());
+        assertEquals("2.000", future.getPendingVer());
         assertEquals("RELEASED", future.getPendingStatus());
         RuleListRow prod = rows.get("PROD_WGT_CALC");
         assertNull(prod.getReleasedVer());
         assertNull(prod.getHitPolicy());
-        assertEquals(1, prod.getPendingVer());
+        assertEquals("1.000", prod.getPendingVer());
         assertEquals("lee", prod.getPendingOwnerId());
         assertEquals("DERIVE", prod.getRuleKind());
         assertEquals("CREATED", prod.getStatus());
@@ -178,7 +178,7 @@ class RuleMngServiceTest extends AbstractMdmSharedDbTest {
     void 등록은_CREATED_룰과_나의_VER_1_DRAFT_를_함께_쓴다() {
         RuleRegResult result = service.register(reg("NEW_JDG", "신규 판정", "DECISION"));
         assertEquals("NEW_JDG", result.getMaruRuleId());
-        assertEquals(1, result.getVer());
+        assertEquals("1.000", result.getVer());
         assertEquals(0L, result.getRowVersion());
 
         Map<String, Object> rule = jdbc.queryForMap("SELECT * FROM TB_MDM_RULE WHERE MARU_RULE_ID = 'NEW_JDG'");
@@ -279,7 +279,7 @@ class RuleMngServiceTest extends AbstractMdmSharedDbTest {
     void 등록한_룰은_목록에_미적용_DRAFT_로_보인다() {
         service.register(reg("NEW_JDG", "신규 판정", "DECISION"));
         RuleListRow row = search("NEW_JDG", null, null, null, null).getList().get(0);
-        assertEquals(1, row.getPendingVer());
+        assertEquals("1.000", row.getPendingVer());
         assertEquals("kim", row.getPendingOwnerId());
         assertTrue(row.getReleasedVer() == null);
     }

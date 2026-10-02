@@ -16,7 +16,7 @@ import static com.dongkuk.dmes.mdm.common.rule.check.CheckFixtures.val;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -28,6 +28,7 @@ import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckInput.DraftRow;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVar;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -48,7 +49,7 @@ class RuleSaveValidatorTest {
     /** 이름 하나를 해석할 때 EXT_COL 만 컬럼 사전에 있다고 답한다. */
     private static RuleVarTypeResolver resolver() {
         RuleVarTypeResolver resolver = mock(RuleVarTypeResolver.class);
-        when(resolver.resolve(anyString(), anyInt(), anyList())).thenAnswer(inv -> {
+        when(resolver.resolve(anyString(), any(BigDecimal.class), anyList())).thenAnswer(inv -> {
             List<MdmRuleVar> vars = inv.getArgument(2);
             String name = vars.get(0).getVarName();
             String source = "EXT_COL".equals(name) ? "COLUMN" : "UNRESOLVED";
@@ -88,7 +89,7 @@ class RuleSaveValidatorTest {
     }
 
     private static RuleCheckInput input(String hit, RuleSaveTarget target, DraftRow... rows) {
-        return new RuleCheckInput("R1", 2, "DECISION", hit, List.of(), VARS, List.of(rows), target);
+        return new RuleCheckInput("R1", new BigDecimal("2.000"), "DECISION", hit, List.of(), VARS, List.of(rows), target);
     }
 
     private static DraftRow good(int rowId, int seq, String lower, String upper) {
@@ -192,7 +193,7 @@ class RuleSaveValidatorTest {
 
     @Test
     void 분석기가_예외를_던지면_ANALYSIS_FAILED_로_막는다() {
-        RuleCheckInput bad = new RuleCheckInput("R1", 2, "DECISION", "NOPE", List.of(), VARS, List.of(good(1, 1, "1", "2")), RuleSaveTarget.TABLE);
+        RuleCheckInput bad = new RuleCheckInput("R1", new BigDecimal("2.000"), "DECISION", "NOPE", List.of(), VARS, List.of(good(1, 1, "1", "2")), RuleSaveTarget.TABLE);
         RuleCheckReport report = validator().validate(bad);
         assertEquals(List.of("ANALYSIS_FAILED"), issueCodes(report.errors()));
     }

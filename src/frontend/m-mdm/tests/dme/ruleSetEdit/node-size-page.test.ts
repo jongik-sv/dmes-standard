@@ -20,7 +20,7 @@ import { flush, installDomStorage } from "../helpers/render";
 import { byTestId, calls, click, installServer, openSet, uninstallServer } from "../helpers/rule-set-page";
 
 const io = (ruleId: string): RuleIo => ({
-  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [],
+  ruleId, ruleName: `${ruleId} 이름`, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [],
 });
 const flow = (): EditFlow => setPositions(toEditFlow(null, ["NS_A", "NS_B"]), { r1: { x: 0, y: 100 }, r2: { x: 0, y: 300 } });
 function viewOf(setId: string): RuleSetView {

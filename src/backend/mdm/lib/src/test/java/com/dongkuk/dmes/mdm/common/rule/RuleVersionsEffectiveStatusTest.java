@@ -2,7 +2,9 @@ package com.dongkuk.dmes.mdm.common.rule;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -16,7 +18,7 @@ class RuleVersionsEffectiveStatusTest {
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 6, 15, 9, 0, 0);
 
     private static MdmRuleVer ver(int ver, String status, LocalDateTime applyFrom) {
-        MdmRuleVer v = new MdmRuleVer("R", ver, null);
+        MdmRuleVer v = new MdmRuleVer("R", BigDecimal.valueOf(ver).setScale(3), VersionKind.MAJOR, null);
         v.setStatus(status);
         v.setApplyFrom(applyFrom);
         return v;

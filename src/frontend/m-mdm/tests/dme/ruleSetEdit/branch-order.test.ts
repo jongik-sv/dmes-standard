@@ -26,7 +26,7 @@ const rule = (id: string, res: string): RuleIo => ({
   ruleKind: "DECISION",
   status: "INUSE",
   exists: true,
-  releasedVer: 1,
+  releasedVer: "1.000",
   hitPolicy: "FIRST",
   conds: [],
   results: [nm(res)],

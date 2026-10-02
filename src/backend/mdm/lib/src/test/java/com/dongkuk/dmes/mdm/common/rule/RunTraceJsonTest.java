@@ -59,7 +59,7 @@ class RunTraceJsonTest {
     @Test
     @SuppressWarnings("unchecked")
     void CATCH_노드_기록은_violations_뒤에_catchKind_code_message_를_싣고_다른_노드는_싣지_않는다() {
-        RunTrace.NodeTrace caught = new RunTrace.NodeTrace(2, "r1", NodeKind.RULE, RunTrace.NodeStatus.CAUGHT, "R1", 1, Map.of(), null,
+        RunTrace.NodeTrace caught = new RunTrace.NodeTrace(2, "r1", NodeKind.RULE, RunTrace.NodeStatus.CAUGHT, "R1", new BigDecimal("1.000"), Map.of(), null,
                 null, null, null, null, null, List.of(), null, null, null);
         RunTrace.NodeTrace c = new RunTrace.NodeTrace(3, "c1", NodeKind.CATCH, RunTrace.NodeStatus.OK, "R1", null, null, null,
                 null, null, null, null, null, null, CatchKind.NO_RESULT, "NO_RESULT", "맞는 행과 기본 행이 없다");

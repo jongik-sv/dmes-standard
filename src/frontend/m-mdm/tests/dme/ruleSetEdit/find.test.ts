@@ -7,7 +7,7 @@ import { INVALID_FIND, compileFind, findNodes } from "../../../pages/dme/ruleSet
 import type { RuleIo } from "../../../pages/dme/ruleSetEdit/types";
 
 const io = (ruleId: string, ruleName: string): RuleIo => ({
-  ruleId, ruleName, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: 1, hitPolicy: "FIRST", conds: [], results: [],
+  ruleId, ruleName, ruleKind: "DECISION", status: "INUSE", exists: true, releasedVer: "1.000", hitPolicy: "FIRST", conds: [], results: [],
 });
 const rules = { E2S_GRD: io("E2S_GRD", "등급 판정"), E2S_FCT: io("E2S_FCT", "Factor 계산"), E2S_GRD2: io("E2S_GRD2", "등급 재판정") };
 

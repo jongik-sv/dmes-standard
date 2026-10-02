@@ -20,7 +20,7 @@ public class RuleEditViewResult {
     private boolean confirmScreenReady;
     private RuleInfo rule;
     private List<RuleVersionRow> versions;
-    private Integer selectedVer;
+    private String selectedVer;
     private List<ResolvedVar> vars;
     private List<RowInfo> rows;
     private List<RowInfo> baseRows;
@@ -38,7 +38,7 @@ public class RuleEditViewResult {
     public boolean isConfirmScreenReady() { return confirmScreenReady; }
     public RuleInfo getRule() { return rule; }
     public List<RuleVersionRow> getVersions() { return versions; }
-    public Integer getSelectedVer() { return selectedVer; }
+    public String getSelectedVer() { return selectedVer; }
     public List<ResolvedVar> getVars() { return vars; }
     public List<RowInfo> getRows() { return rows; }
     public List<RowInfo> getBaseRows() { return baseRows; }
@@ -56,7 +56,7 @@ public class RuleEditViewResult {
     public void setConfirmScreenReady(boolean v) { this.confirmScreenReady = v; }
     public void setRule(RuleInfo v) { this.rule = v; }
     public void setVersions(List<RuleVersionRow> v) { this.versions = v; }
-    public void setSelectedVer(Integer v) { this.selectedVer = v; }
+    public void setSelectedVer(String v) { this.selectedVer = v; }
     public void setVars(List<ResolvedVar> v) { this.vars = v; }
     public void setRows(List<RowInfo> v) { this.rows = v; }
     public void setBaseRows(List<RowInfo> v) { this.baseRows = v; }

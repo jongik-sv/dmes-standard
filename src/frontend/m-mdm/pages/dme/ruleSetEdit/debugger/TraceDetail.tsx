@@ -16,7 +16,7 @@ import { IconExternalLink } from "@tabler/icons-react";
 import type { BranchOutcome, CatchKind, NodeTrace, RuleSetFlow, TypedValue, Violation } from "@/contract/engine-contract.generated";
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
-import { badgeStyle } from "@/shell";
+import { badgeStyle, fmtVer, normVer } from "@/shell";
 
 import { CATCH_KIND_LABEL, NO_RESULT_MESSAGE } from "../catch-text";
 import { REJECT_BADGE } from "../panels/ChecksPanel";
@@ -175,7 +175,7 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
         <>
           <p className="rsf-panel-note">
             <code>{node.ruleId}</code>
-            {node.ver != null ? ` · 버전 ${node.ver}` : ""}
+            {node.ver != null ? ` · 버전 ${fmtVer(normVer(node.ver))}` : ""}
           </p>
           {node.ruleId && (
             <Button size="sm" data-testid="sim-detail-open-rule" onClick={() => onOpenRule(node.ruleId!)}>
