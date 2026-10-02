@@ -13,6 +13,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -20,7 +21,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,8 +33,13 @@ import org.springframework.stereotype.Service;
  * <ul>
  *   <li>같은 날 같은 통화 묶음(기준·통화·기간)은 하루 한 번만 시도한다(휴일처럼 늘 비는 날 때문에 매번 부르지 않게).</li>
  *   <li>제공자 실패면 DB 값만 + {@code stale: true}. 같은 날 다시 불러도 시도하지 않고 stale 을 유지한다.</li>
+ *   <li>받기는 했는데 저장(upsert)이 실패하면 받은 값은 이번 응답에만 쓰고, 시도 기록을 지워 다음 호출이 다시 받게 한다.</li>
+ *   <li>제공자가 내주지 않는 통화(다른 통화 값은 왔는데 그 통화만 한 번도 없음 — 예: Frankfurter 의 VND)는
+ *       {@value #UNSUPPORTED_DAYS}일 동안 빈 날 판정에서 뺀다. 그 통화 때문에 날마다 기간 전체를 다시 받지 않게.</li>
  *   <li>{@code dmes.widget.ext.enabled=false} 면 외부 호출 없이 DB 값만(없으면 빈 결과 + {@code disabled: true}).</li>
  * </ul>
+ * 시도 기록·미지원 통화 기록은 각각 {@value #MAX_ATTEMPTS}개까지(가장 오래 안 쓴 것부터 버린다) — 아무 통화·기간 조합으로
+ * 메모리를 채우지 못하게. 두 기록은 한 잠금으로만 만진다(접근 순서 맵은 get 도 구조를 바꾼다).
  * 날짜는 응답에서 {@code yyyy-MM-dd}, 값은 JSON 숫자(double)로 준다.
  */
 @Service("widgetExchangeService")
@@ -45,6 +50,8 @@ public class ExchangeService {
     static final int DEFAULT_DAYS = 30;
     static final int MAX_DAYS = 90;
     static final int MAX_SYMBOLS = 10;
+    static final int MAX_ATTEMPTS = 1000;
+    static final int UNSUPPORTED_DAYS = 7;
 
     private static final Logger log = LoggerFactory.getLogger(ExchangeService.class);
     private static final Pattern CUR = Pattern.compile("^[A-Z]{3}$");
@@ -59,7 +66,11 @@ public class ExchangeService {
     private final ExchangeRateProvider frankfurter;
     private final ExchangeRateProvider koreaExim;
     private final Clock clock;
-    private final Map<String, Attempt> attempts = new ConcurrentHashMap<>();
+    private final Object lock = new Object();
+    /** 통화 묶음 키(기준|통화|기간) → 오늘 시도. */
+    private final Map<String, Attempt> attempts = lru(MAX_ATTEMPTS);
+    /** 제공자|통화 → 그 제공자가 이 통화를 내주지 않는다고 마지막으로 확인한 날. */
+    private final Map<String, LocalDate> unsupported = lru(MAX_ATTEMPTS);
 
     @Autowired
     public ExchangeService(WidgetExtProperties properties, ExchangeRateRepository repository, ExchangeRateWriter writer,
@@ -103,9 +114,10 @@ public class ExchangeService {
 
         boolean stale = false;
         if (properties.isEnabled()) {
-            List<LocalDate> missing = missingBusinessDays(from, today, syms, byDate);
+            ExchangeRateProvider provider = provider();
+            List<LocalDate> missing = missingBusinessDays(from, today, checkable(provider.id(), syms, today), byDate);
             if (!missing.isEmpty()) {
-                stale = fill(b, syms, d, today, missing.get(0), missing.get(missing.size() - 1), from, byDate);
+                stale = fill(provider, b, syms, d, today, missing.get(0), missing.get(missing.size() - 1), from, byDate);
             }
         }
 
@@ -116,31 +128,41 @@ public class ExchangeService {
     }
 
     /** 오늘 처음이면 제공자에 묻고 upsert·합치기. 돌려주는 값 = stale 여부. */
-    private boolean fill(String base, List<String> syms, int days, LocalDate today, LocalDate missFrom, LocalDate missTo,
-                         LocalDate from, Map<LocalDate, Map<String, ExchangeRatePoint>> byDate) {
+    private boolean fill(ExchangeRateProvider provider, String base, List<String> syms, int days, LocalDate today,
+                         LocalDate missFrom, LocalDate missTo, LocalDate from,
+                         Map<LocalDate, Map<String, ExchangeRatePoint>> byDate) {
         String key = base + "|" + String.join(",", syms.stream().sorted().toList()) + "|" + days;
         Attempt mine = new Attempt(today, false);
-        Attempt owner = attempts.compute(key, (k, old) -> old != null && old.date().equals(today) ? old : mine);
-        if (owner != mine) {
-            return owner.failed(); // 오늘 이미 시도했다
+        synchronized (lock) {
+            Attempt old = attempts.get(key);
+            if (old != null && old.date().equals(today)) {
+                return old.failed(); // 오늘 이미 시도했다
+            }
+            attempts.values().removeIf(a -> !a.date().equals(today));
+            attempts.put(key, mine);
         }
-        attempts.values().removeIf(a -> !a.date().equals(today));
 
-        ExchangeRateProvider provider = provider();
         List<ExchangeRatePoint> fetched;
         try {
             fetched = provider.fetch(base, syms, missFrom, missTo);
         } catch (RuntimeException e) {
             // 원인 예외(주소·인증키가 든 메시지)는 남기지 않는다.
             log.warn("[widgetExt] 환율 제공자({}) 호출 실패 — DB 값만 돌려준다: {}", provider.id(), e.getMessage());
-            attempts.put(key, new Attempt(today, true));
+            synchronized (lock) {
+                attempts.put(key, new Attempt(today, true));
+            }
             return true;
         }
         if (fetched == null || fetched.isEmpty()) return false;
+        remember(provider.id(), syms, fetched, today);
         try {
             writer.upsert(base, provider.id(), fetched);
         } catch (RuntimeException e) {
-            log.warn("[widgetExt] 환율 저장 실패 — 받은 값은 이번 응답에만 쓴다: {}", e.getMessage());
+            // 예: 다른 묶음이 같은 행을 동시에 넣어 PK 충돌. 다음 호출이 다시 받아 저장하게 시도 기록을 지운다.
+            log.warn("[widgetExt] 환율 저장 실패 — 받은 값은 이번 응답에만 쓰고 다음 호출에서 다시 받는다: {}", e.getMessage());
+            synchronized (lock) {
+                attempts.remove(key, mine);
+            }
         }
         Set<String> wanted = Set.copyOf(syms);
         for (ExchangeRatePoint p : fetched) {
@@ -159,10 +181,51 @@ public class ExchangeService {
         return koreaEximWanted && hasKey ? koreaExim : frankfurter;
     }
 
-    /** [from, today] 의 월~금 중 묻는 통화 하나라도 값이 없는 날. */
+    /**
+     * 받은 값에 한 번도 나오지 않은 통화를 이 제공자의 미지원 통화로 적고, 나온 통화는 지운다.
+     * 묻은 통화 중 하나라도 값이 왔을 때만 판단한다(아무것도 안 왔으면 아직 고시 전·휴일일 수 있다).
+     */
+    private void remember(String providerId, List<String> syms, List<ExchangeRatePoint> fetched, LocalDate today) {
+        Set<String> seen = new HashSet<>();
+        for (ExchangeRatePoint p : fetched) {
+            if (p != null && p.rate() != null && syms.contains(p.cur())) seen.add(p.cur());
+        }
+        if (seen.isEmpty()) return;
+        synchronized (lock) {
+            for (String s : syms) {
+                if (seen.contains(s)) unsupported.remove(providerId + "|" + s);
+                else unsupported.put(providerId + "|" + s, today);
+            }
+        }
+    }
+
+    /** 빈 날 판정에 쓸 통화 — 최근 {@value #UNSUPPORTED_DAYS}일 안에 이 제공자의 미지원으로 확인된 통화는 뺀다. */
+    private List<String> checkable(String providerId, List<String> syms, LocalDate today) {
+        List<String> out = new ArrayList<>();
+        synchronized (lock) {
+            for (String s : syms) {
+                LocalDate marked = unsupported.get(providerId + "|" + s);
+                if (marked == null || !marked.plusDays(UNSUPPORTED_DAYS).isAfter(today)) out.add(s);
+            }
+        }
+        return out;
+    }
+
+    /** 가장 오래 안 쓴 항목부터 버리는 맵(접근 순서). 늘 {@link #lock} 안에서만 만진다. */
+    private static <V> Map<String, V> lru(int max) {
+        return new LinkedHashMap<>(64, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, V> eldest) {
+                return size() > max;
+            }
+        };
+    }
+
+    /** [from, today] 의 월~금 중 묻는 통화 하나라도 값이 없는 날. 볼 통화가 없으면 빈 날도 없다. */
     private static List<LocalDate> missingBusinessDays(LocalDate from, LocalDate today, List<String> syms,
                                                        Map<LocalDate, Map<String, ExchangeRatePoint>> byDate) {
         List<LocalDate> out = new ArrayList<>();
+        if (syms.isEmpty()) return out;
         for (LocalDate day = from; !day.isAfter(today); day = day.plusDays(1)) {
             if (day.getDayOfWeek() == DayOfWeek.SATURDAY || day.getDayOfWeek() == DayOfWeek.SUNDAY) continue;
             Map<String, ExchangeRatePoint> have = byDate.get(day);
@@ -246,6 +309,13 @@ public class ExchangeService {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "대상 통화는 " + MAX_SYMBOLS + "개까지 고를 수 있습니다.");
         }
         return List.copyOf(out);
+    }
+
+    /** 시험용 — 지금 남아 있는 시도 기록 수. */
+    int attemptsSize() {
+        synchronized (lock) {
+            return attempts.size();
+        }
     }
 
     private static LocalDate parseYmd(String ymd) {

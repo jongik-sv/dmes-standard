@@ -171,6 +171,54 @@ class ExchangeServiceTest {
     }
 
     @Test
+    @DisplayName("upsert 가 실패해도 받은 값은 이번 응답에 쓰고(stale 아님), 같은 날 다음 호출에서 다시 받는다")
+    void writerFailureRetriesNextCall() {
+        fullWeekBefore(); // 10-05(오늘)만 빠짐
+        List<ExchangeRatePoint> fetched = List.of(
+                new ExchangeRatePoint(d(10, 5), "USD", new BigDecimal("1382")),
+                new ExchangeRatePoint(d(10, 5), "EUR", new BigDecimal("1602")));
+        when(frankfurter.fetch("KRW", List.of("USD", "EUR"), d(10, 5), d(10, 5))).thenReturn(fetched);
+        when(writer.upsert(anyString(), anyString(), anyList())).thenThrow(new IllegalStateException("PK 충돌"));
+
+        Map<String, Object> first = service.exchange("KRW", "USD,EUR", 7);
+        service.exchange("KRW", "USD,EUR", 7);
+
+        assertThat(first).doesNotContainKey("stale");
+        assertThat(list(first, "latest")).extracting(m -> m.get("date")).containsOnly("2026-10-05");
+        verify(frankfurter, times(2)).fetch("KRW", List.of("USD", "EUR"), d(10, 5), d(10, 5));
+    }
+
+    @Test
+    @DisplayName("제공자가 내주지 않는 통화(받은 값에 한 번도 없음)는 빈 날 판정에서 빼 — 날마다 기간 전체를 다시 받지 않는다")
+    void unsupportedCurrencyIsNotCountedAsMissing() {
+        for (String day : List.of("20260928", "20260929", "20260930", "20261001", "20261002")) {
+            db(day, "USD", "1380");
+        }
+        when(frankfurter.fetch(anyString(), anyList(), any(), any())).thenAnswer(inv -> {
+            LocalDate to = inv.getArgument(3);
+            return List.of(new ExchangeRatePoint(to, "USD", new BigDecimal("1382"))); // VND 는 늘 빠진다(ECB 목록 밖)
+        });
+
+        Map<String, Object> first = service.exchange("KRW", "USD,VND", 7); // 10-05: VND 가 모든 날 비어 기간 전체
+        verify(frankfurter).fetch("KRW", List.of("USD", "VND"), d(9, 28), d(10, 5));
+        assertThat(list(first, "latest")).extracting(m -> m.get("cur")).containsExactly("USD");
+
+        clock.now = ZonedDateTime.of(2026, 10, 6, 10, 0, 0, 0, SEOUL).toInstant();
+        service.exchange("KRW", "USD,VND", 7); // VND 는 빼고 판정 → USD 가 빈 10-05·10-06 만
+        verify(frankfurter).fetch("KRW", List.of("USD", "VND"), d(10, 5), d(10, 6));
+    }
+
+    @Test
+    @DisplayName("시도 기록은 묶음 1000개까지만 둔다 — 아무 통화·기간 조합으로 메모리를 채우지 못하게")
+    void attemptsAreCapped() {
+        for (int i = 0; i < ExchangeService.MAX_ATTEMPTS + 5; i++) { // 빈 DB → 묶음마다 한 번 시도
+            String cur = "" + (char) ('A' + i / 676 % 26) + (char) ('A' + i / 26 % 26) + (char) ('A' + i % 26);
+            service.exchange("KRW", cur, 1 + i % 90);
+        }
+        assertThat(service.attemptsSize()).isEqualTo(ExchangeService.MAX_ATTEMPTS);
+    }
+
+    @Test
     @DisplayName("latest = 통화별 가장 최근 값, diff = 그 전 값과의 차(전 값이 없으면 null), history 는 날짜 오름차순")
     void latestAndDiff() {
         props.setEnabled(false); // 외부 호출 없이 DB 값만으로 계산을 본다

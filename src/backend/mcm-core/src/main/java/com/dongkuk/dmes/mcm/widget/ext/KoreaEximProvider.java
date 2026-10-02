@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -22,6 +24,7 @@ import org.springframework.web.util.UriComponentsBuilder;
  * 한국수출입은행 매매기준율(인증키가 있을 때만) — 스펙 §8.1.
  * {@code GET {url}?authkey=KEY&searchdate=yyyyMMdd&data=AP01} → {@code [{"cur_unit":"USD","deal_bas_r":"1,380.5"}, …]}.
  * 날짜마다 하루씩 부르고(토·일은 빈 배열이라 부르지 않는다), 쉼표를 지우고 {@code JPY(100)} 같은 단위는 그 수로 나눈다.
+ * 어느 날 호출이 실패하면 그 앞 날짜까지 받은 값을 돌려주고 멈춘다(받은 값이 하나도 없을 때만 예외).
  * 값은 이미 「1 외화 = n KRW」라 KRW 기준만 받는다. 인증키는 로그·예외 메시지에 넣지 않는다.
  */
 @Component
@@ -29,6 +32,7 @@ public class KoreaEximProvider implements ExchangeRateProvider {
 
     public static final String ID = "koreaexim";
 
+    private static final Logger log = LoggerFactory.getLogger(KoreaEximProvider.class);
     private static final DateTimeFormatter YMD = DateTimeFormatter.BASIC_ISO_DATE;
     private static final Pattern CUR_UNIT = Pattern.compile("^([A-Z]{3})(?:\\((\\d+)\\))?$");
 
@@ -66,7 +70,14 @@ public class KoreaEximProvider implements ExchangeRateProvider {
                     .queryParam("searchdate", d.format(YMD))
                     .queryParam("data", "AP01")
                     .build().encode().toUri();
-            out.addAll(parse(WidgetExtHttp.getJson(http, uri, "환율(한국수출입은행)"), d, wanted));
+            try {
+                out.addAll(parse(WidgetExtHttp.getJson(http, uri, "환율(한국수출입은행)"), d, wanted));
+            } catch (WidgetExtException e) {
+                if (out.isEmpty()) throw e;
+                // 받은 날짜까지는 살린다. 못 받은 날은 DB 에 비어 남아 다음 날 다시 받는다(메시지에 인증키 없음).
+                log.warn("[widgetExt] 환율(한국수출입은행) {} 부터 받지 못해 그 앞 날짜 값만 쓴다: {}", d, e.getMessage());
+                break;
+            }
         }
         return out;
     }

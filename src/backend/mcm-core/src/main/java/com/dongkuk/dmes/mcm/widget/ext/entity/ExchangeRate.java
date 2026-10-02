@@ -10,7 +10,8 @@ import java.math.BigDecimal;
 
 /**
  * 일자별 환율 — 스펙 2026-10-02-widget-admin-generic §4.4.
- * RATE 는 대상 통화 1단위의 기준 통화 값(1 USD = 1,380.12 KRW). 제공자가 「1 KRW = n 외화」로 주면 역수로 바꿔 넣는다.
+ * RATE 는 대상 통화 1단위의 기준 통화 값(1 USD = 1,380.12 KRW). Frankfurter 는 EUR 기준 값을 「KRW ÷ 외화」로 교차 계산해 넣는다.
+ * SOURCE 는 값을 준 제공자(frankfurter·koreaexim, ERD 와 같이 NOT NULL).
  * CHAR 칸(RATE_DATE·BASE_CUR·QUOTE_CUR)은 다른 위젯 표의 CHAR(1) 처럼 길이만 고정한다(값이 늘 꽉 차 방언 차이가 없다).
  */
 @Entity
@@ -33,7 +34,7 @@ public class ExchangeRate extends McmAuditEntity {
     @Column(name = "RATE", precision = 20, scale = 8, nullable = false)
     private BigDecimal rate;
 
-    @Column(name = "SOURCE", length = 20)
+    @Column(name = "SOURCE", length = 20, nullable = false)
     private String source;
 
     public ExchangeRate() {}
