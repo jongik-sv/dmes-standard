@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -18,6 +19,7 @@ import com.dongkuk.dmes.mcm.widget.chat.WidgetChatJpaTestConfig;
 import com.dongkuk.dmes.mcm.widget.chat.dto.WidgetChatRequest;
 import com.dongkuk.dmes.mcm.widget.chat.entity.WidgetChatMessage;
 import com.dongkuk.dmes.mcm.widget.chat.llm.FakeLlmClient;
+import com.dongkuk.dmes.mcm.widget.chat.llm.LlmClient;
 import com.dongkuk.dmes.mcm.widget.chat.llm.LlmException;
 import com.dongkuk.dmes.mcm.widget.chat.llm.LlmMessage;
 import com.dongkuk.dmes.mcm.widget.chat.llm.LlmReply;
@@ -35,6 +37,7 @@ import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -47,6 +50,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * {@link WidgetChatService} — 각본 가짜 LLM + H2 기록(실제 Writer·저장소) + mock(정의·쿼리 실행기·사용자·화면 찾기).
@@ -60,8 +67,13 @@ class WidgetChatServiceTest {
     private static final String CONFIG_GUIDE = "{\"systemPrompt\":\"생산 관련 질문에 답한다.\",\"welcome\":\"무엇을 도와드릴까요?\","
             + "\"pageGuide\":true,\"dataQueryDefIds\":[]}";
 
+    private static final Instant NOW = Instant.parse("2026-10-01T16:30:00Z"); // 서울 10-02 01:30
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final String FAILED = "답을 받지 못했습니다. 잠시 뒤 다시 시도하세요.";
+
     @Autowired WidgetChatWriter writer;
     @Autowired WidgetChatMessageRepository repository;
+    @Autowired PlatformTransactionManager transactionManager;
 
     private WidgetDefRepository defRepository;
     private WidgetQueryRunner queryRunner;
@@ -83,10 +95,13 @@ class WidgetChatServiceTest {
         when(userContextResolver.current())
                 .thenReturn(new WidgetUserContext("userA", "홍길동", "D100", "생산팀", List.of("D100")));
         llm = FakeLlmClient.scripted();
-        Clock clock = Clock.fixed(Instant.parse("2026-10-01T16:30:00Z"), ZoneId.of("Asia/Seoul")); // 서울 10-02 01:30
-        service = new WidgetChatService(repository, writer, defRepository, queryRunner, userContextResolver, screenFinder,
-                llm, securityIdentity, clock);
+        service = newService(llm, Clock.fixed(NOW, SEOUL));
         chatDef(CONFIG_GUIDE);
+    }
+
+    private WidgetChatService newService(LlmClient client, Clock clock) {
+        return new WidgetChatService(repository, writer, defRepository, queryRunner, userContextResolver, screenFinder,
+                client, securityIdentity, transactionManager, Duration.ofSeconds(60), clock);
     }
 
     // ── helpers ─────────────────────────────────────────────────────────
@@ -394,6 +409,109 @@ class WidgetChatServiceTest {
         assertThat(stored("userA", "i1")).hasSize(1);
     }
 
+    @Test
+    @DisplayName("OASIS 처럼 바깥 트랜잭션(REQUIRED) 안에서 불러도 사용자 메시지는 따로 커밋돼 바깥 롤백 뒤에도 남는다. "
+            + "LLM 호출·도구 실행 동안에는 트랜잭션을 잡지 않는다")
+    void userMessageSurvivesOuterRollback() {
+        List<Boolean> txActiveDuringLlm = new ArrayList<>();
+        List<Integer> committedDuringLlm = new ArrayList<>();
+        List<Boolean> txActiveDuringTool = new ArrayList<>();
+        TransactionTemplate fresh = new TransactionTemplate(transactionManager);
+        fresh.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        LlmClient probe = (system, messages, tools) -> {
+            txActiveDuringLlm.add(TransactionSynchronizationManager.isActualTransactionActive());
+            committedDuringLlm.add(fresh.execute(st -> stored("userA", "i1").size()));
+            return llm.chat(system, messages, tools);
+        };
+        when(screenFinder.find(eq("위젯"), anyInt())).thenAnswer(inv -> {
+            txActiveDuringTool.add(TransactionSynchronizationManager.isActualTransactionActive());
+            return List.of();
+        });
+        llm.then(callTool("t1", "find_screen", Map.of("keyword", "위젯")))
+                .thenThrow(new LlmException("anthropic HTTP 529"));
+        WidgetChatService svc = newService(probe, Clock.fixed(NOW, SEOUL));
+        TransactionTemplate oasis = new TransactionTemplate(transactionManager); // txBiz(REQUIRED) 흉내 — 예외면 롤백
+
+        assertThatThrownBy(() -> oasis.executeWithoutResult(st -> svc.send(req("i1", DEF_ID, "안녕"))))
+                .isInstanceOf(BusinessException.class).hasMessage(FAILED);
+
+        assertThat(stored("userA", "i1")).singleElement().satisfies(m -> {
+            assertThat(m.getRoleTp()).isEqualTo("user");
+            assertThat(m.getContent()).isEqualTo("안녕");
+        });
+        assertThat(txActiveDuringLlm).as("LLM 호출 동안 트랜잭션 없음").containsExactly(false, false);
+        assertThat(committedDuringLlm).as("LLM 을 부를 때 질문은 이미 커밋돼 있다").containsExactly(1, 1);
+        assertThat(txActiveDuringTool).as("도구 실행 동안 트랜잭션 없음").containsExactly(false);
+    }
+
+    @Test
+    @DisplayName("한 차례 시간 제한(60초)은 차례 전체에 걸린다 — 다음 LLM 호출 전에 넘었으면 더 부르지 않고 「답을 받지 못했습니다」")
+    void turnDeadlineStopsBeforeNextCall() {
+        MovableClock clock = new MovableClock(NOW, SEOUL);
+        when(screenFinder.find(anyString(), anyInt())).thenReturn(List.of());
+        List<Integer> calls = new ArrayList<>();
+        LlmClient slow = (system, messages, tools) -> {
+            calls.add(calls.size() + 1);
+            clock.advance(Duration.ofSeconds(61));
+            return callTool("t" + calls.size(), "find_screen", Map.of("keyword", "위젯"));
+        };
+
+        assertThatThrownBy(() -> newService(slow, clock).send(req("i1", DEF_ID, "찾아줘")))
+                .isInstanceOf(BusinessException.class).hasMessage(FAILED);
+
+        assertThat(calls).as("두 번째 호출 전에 멈춘다").containsExactly(1);
+        assertThat(stored("userA", "i1")).extracting(WidgetChatMessage::getRoleTp).containsExactly("user");
+    }
+
+    @Test
+    @DisplayName("시간 안이면 도구 반복을 이어 간다(59초 지난 뒤 두 번째 호출)")
+    void turnDeadlineAllowsCallsWithinLimit() {
+        MovableClock clock = new MovableClock(NOW, SEOUL);
+        when(screenFinder.find(anyString(), anyInt())).thenReturn(List.of());
+        llm.then(callTool("t1", "find_screen", Map.of("keyword", "위젯"))).then(LlmReply.ofText("없습니다."));
+        LlmClient timed = (system, messages, tools) -> {
+            LlmReply r = llm.chat(system, messages, tools);
+            clock.advance(Duration.ofSeconds(59));
+            return r;
+        };
+
+        Map<String, Object> reply = reply(newService(timed, clock).send(req("i1", DEF_ID, "찾아줘")));
+
+        assertThat(reply.get("content")).isEqualTo("없습니다.");
+        assertThat(llm.calls()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("답 최대 토큰에 걸려 잘린 도구 호출(stop=max_tokens)은 실행하지 않는다 — 글이 없으면 「답을 받지 못했습니다」")
+    void truncatedToolCallIsNotRun() {
+        chatDef("{\"pageGuide\":true,\"dataQueryDefIds\":[\"def.q1aaaaaa\"]}");
+        when(defRepository.findAllById(anyIterable())).thenReturn(List.of());
+        llm.then(new LlmReply("", List.of(new LlmToolCall("t1", "run_widget_query", Map.of("defId", "def.q1aaaaaa")),
+                new LlmToolCall("t2", "find_screen", Map.of("keyword", "위"))), "max_tokens", null));
+
+        assertThatThrownBy(() -> service.send(req("i1", DEF_ID, "라인별 생산량?")))
+                .isInstanceOf(BusinessException.class).hasMessage(FAILED);
+
+        verify(queryRunner, never()).runDefinition(anyString(), anyInt());
+        verify(screenFinder, never()).find(anyString(), anyInt());
+        assertThat(llm.calls()).hasSize(1);
+        assertThat(stored("userA", "i1")).extracting(WidgetChatMessage::getRoleTp).containsExactly("user");
+    }
+
+    @Test
+    @DisplayName("잘린 답(OpenAI stop=length)에 글이 있으면 도구는 건너뛰고 그 글에 끊겼다는 표시를 붙여 저장한다")
+    void truncatedTextIsSavedWithNotice() {
+        llm.then(new LlmReply("1라인은 120 입니다. 2라인은", List.of(new LlmToolCall("t1", "find_screen", Map.of("keyword", "생산"))),
+                "length", null));
+
+        Map<String, Object> reply = reply(service.send(req("i1", DEF_ID, "생산량?")));
+
+        assertThat(reply.get("content")).isEqualTo("1라인은 120 입니다. 2라인은\n\n" + WidgetChatService.TRUNCATED_NOTICE);
+        verify(screenFinder, never()).find(anyString(), anyInt());
+        assertThat(llm.calls()).hasSize(1);
+        assertThat(stored("userA", "i1")).extracting(WidgetChatMessage::getContent).last().isEqualTo(reply.get("content"));
+    }
+
     // ── 기록 ────────────────────────────────────────────────────────────
 
     @Test
@@ -461,6 +579,37 @@ class WidgetChatServiceTest {
                     .extracting(e -> ((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.AUTH_FAILED);
         }
         assertThat(llm.calls()).isEmpty();
+    }
+
+    /** 시험이 앞으로 돌리는 시계(한 차례 시간 제한 확인용). */
+    private static final class MovableClock extends Clock {
+
+        private Instant now;
+        private final ZoneId zone;
+
+        MovableClock(Instant start, ZoneId zone) {
+            this.now = start;
+            this.zone = zone;
+        }
+
+        void advance(Duration d) {
+            now = now.plus(d);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId z) {
+            return new MovableClock(now, z);
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
     }
 
     private static Map<String, Object> row(String k1, Object v1, String k2, Object v2) {

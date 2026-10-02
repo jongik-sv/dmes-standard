@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.widget.chat.service;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
+import com.dongkuk.dmes.mcm.widget.chat.WidgetLlmProperties;
 import com.dongkuk.dmes.mcm.widget.chat.dto.WidgetChatRequest;
 import com.dongkuk.dmes.mcm.widget.chat.entity.WidgetChatMessage;
 import com.dongkuk.dmes.mcm.widget.chat.llm.LlmClient;
@@ -24,6 +25,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -38,17 +41,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * AI 챗봇 위젯 — OASIS {@code widgetChat}(스펙 2026-10-02-widget-admin-generic §5.1·§9). action history·send·reset.
  * <ul>
  *   <li>사용자는 늘 인증 컨텍스트(IDOR) — 기록은 (사용자, 인스턴스)로만 읽고 지운다.</li>
- *   <li>send: chat 유형·사용 중인 정의만. 사용자 메시지를 먼저 저장(따로 커밋)하고, 최근 20개를 문맥으로 LLM 에 묻는다.
+ *   <li>send: chat 유형·사용 중인 정의만. 사용자 메시지를 먼저 저장(즉시 커밋)하고, 최근 20개를 문맥으로 LLM 에 묻는다.
  *       도구는 정의 설정이 켠 것만 준다 — find_screen(pageGuide), run_widget_query(dataQueryDefIds 의 defId 만, 50행).
- *       도구 실행은 최대 4번(LLM 호출은 최대 5번). 공급자 오류·빈 답이면 assistant 를 저장하지 않고 오류로 돌려준다.</li>
+ *       도구 실행은 최대 4번(LLM 호출은 최대 5번). 공급자 오류·빈 답·끊긴 도구 호출·시간 초과면 assistant 를 저장하지 않고
+ *       오류로 돌려준다. 시간 제한({@code timeout-sec}, 기본 60초)은 LLM 호출 한 번이 아니라 차례 전체에 건다 — 다음 호출 전에
+ *       마감이 지났으면 더 부르지 않는다.</li>
  *   <li>모델이 SQL 을 만들어 실행하는 기능은 두지 않는다(W-D28). 키·프롬프트·메시지 본문은 로그에 남기지 않는다.</li>
  * </ul>
- * 쓰기 원자성은 {@link WidgetChatWriter} 가 맡는다 — 이 클래스에는 {@code @Transactional} 을 붙이지 않는다(BackEnd 표준 §6-B-1).
+ * <b>트랜잭션</b>: OASIS({@code cactus.oasis.transactional: true})는 서비스 시작 때 txBiz 를 열고 예외면 통째로 롤백한다.
+ * send·reset 은 그 바깥 트랜잭션을 {@code NOT_SUPPORTED} 로 잠시 내려놓고 돈다 — 그래서 ① 공급자가 실패해 바깥이 롤백돼도
+ * 사용자 메시지는 남고(스펙 §9.2), ② LLM 을 기다리는 동안 DB 트랜잭션·잠금을 잡지 않는다(로컬 SQLite 는 바깥이 한 번 읽기만 해도
+ * 다른 연결의 커밋이 SQLITE_BUSY 로 막힌다). 쓰기는 {@link WidgetChatWriter} 가 한 건씩 자기 트랜잭션으로 커밋한다.
+ * 이 클래스에는 {@code @Transactional} 을 붙이지 않는다(BackEnd 표준 §6-B-1) — 경계는 프로그램으로({@link TransactionTemplate}) 잡는다.
  */
 @Service("widgetChatService")
 public class WidgetChatService {
@@ -72,6 +84,12 @@ public class WidgetChatService {
 
     static final String FAILED_MESSAGE = "답을 받지 못했습니다. 잠시 뒤 다시 시도하세요.";
     static final String TOOL_LIMIT_MESSAGE = "도구를 여러 번 써도 답을 마치지 못했습니다. 질문을 좁혀 다시 물어 주세요.";
+    /** 답 최대 토큰에 걸려 글이 끊겼을 때 답 끝에 붙이는 표시. */
+    static final String TRUNCATED_NOTICE = "(답이 길어 중간에 끊겼습니다.)";
+    /** 한 차례(질문 하나 → 답 하나, 도구 반복 포함) 시간 제한 기본값(스펙 §9.2 「시간 초과 60초」). */
+    static final int DEFAULT_TIMEOUT_SEC = 60;
+    /** 답 최대 토큰에 걸려 끊긴 답의 끝난 이유 — Anthropic {@code max_tokens}, OpenAI 호환 {@code length}. */
+    static final Set<String> TRUNCATED_STOPS = Set.of("max_tokens", "length");
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final TypeReference<List<Map<String, Object>>> LIST_OF_MAPS = new TypeReference<>() {};
@@ -93,6 +111,8 @@ public class WidgetChatService {
     private final ChatScreenFinder screenFinder;
     private final LlmClient llmClient;
     private final SecurityIdentity securityIdentity;
+    private final Duration turnTimeout;
+    private final TransactionTemplate outsideTx;
     private final Clock clock;
 
     @Autowired
@@ -103,9 +123,11 @@ public class WidgetChatService {
                              WidgetUserContextResolver userContextResolver,
                              ChatScreenFinder screenFinder,
                              LlmClient llmClient,
-                             SecurityIdentity securityIdentity) {
+                             SecurityIdentity securityIdentity,
+                             PlatformTransactionManager transactionManager,
+                             WidgetLlmProperties llmProperties) {
         this(messageRepository, writer, defRepository, queryRunner, userContextResolver, screenFinder, llmClient,
-                securityIdentity, Clock.system(ZoneId.of("Asia/Seoul")));
+                securityIdentity, transactionManager, turnTimeout(llmProperties), Clock.system(ZoneId.of("Asia/Seoul")));
     }
 
     WidgetChatService(WidgetChatMessageRepository messageRepository,
@@ -116,6 +138,8 @@ public class WidgetChatService {
                       ChatScreenFinder screenFinder,
                       LlmClient llmClient,
                       SecurityIdentity securityIdentity,
+                      PlatformTransactionManager transactionManager,
+                      Duration turnTimeout,
                       Clock clock) {
         this.messageRepository = messageRepository;
         this.writer = writer;
@@ -125,7 +149,18 @@ public class WidgetChatService {
         this.screenFinder = screenFinder;
         this.llmClient = llmClient;
         this.securityIdentity = securityIdentity;
+        this.turnTimeout = turnTimeout;
         this.clock = clock;
+        TransactionTemplate outside = new TransactionTemplate(transactionManager);
+        outside.setName("widgetChat");
+        outside.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
+        this.outsideTx = outside;
+    }
+
+    /** 한 차례 시간 제한 — {@code dmes.widget.llm.timeout-sec}(기본 60초, 0 이하면 60초). */
+    static Duration turnTimeout(WidgetLlmProperties props) {
+        int sec = props == null ? 0 : props.getTimeoutSec();
+        return Duration.ofSeconds(sec > 0 ? sec : DEFAULT_TIMEOUT_SEC);
     }
 
     /** 그 인스턴스 기록 전부(오래된 순) — {@code { messages: [{seq, role, content, links}] }}. */
@@ -141,8 +176,13 @@ public class WidgetChatService {
         return result;
     }
 
-    /** 질문 하나 → 답 하나 — {@code { reply: {seq, role, content, links} }}. */
+    /** 질문 하나 → 답 하나 — {@code { reply: {seq, role, content, links} }}. 바깥(OASIS) 트랜잭션 밖에서 돈다(클래스 설명). */
     public Map<String, Object> send(WidgetChatRequest request) {
+        Instant deadline = clock.instant().plus(turnTimeout);
+        return outsideTx.execute(status -> sendOutsideTx(request, deadline));
+    }
+
+    private Map<String, Object> sendOutsideTx(WidgetChatRequest request, Instant deadline) {
         String userId = requireUser();
         String instId = requireInstId(request);
         String message = requireMessage(request == null ? null : request.getMessage());
@@ -150,13 +190,13 @@ public class WidgetChatService {
         ChatConfig config = ChatConfig.parse(def.getConfigJson(), def.getWidgetId());
         WidgetUserContext user = userContextResolver.current();
 
-        // 사용자 메시지는 먼저 저장(따로 커밋) — 공급자가 실패해도 보낸 질문은 남는다(스펙 §9.2).
+        // 사용자 메시지는 먼저 저장 — Writer 가 바로 커밋하므로 공급자가 실패해도 보낸 질문은 남는다(스펙 §9.2).
         writer.append(userId, instId, WidgetChatMessage.ROLE_USER, message, null);
 
         ToolBox toolBox = new ToolBox(config);
         String answer;
         try {
-            answer = converse(systemPrompt(user, config.systemPrompt()), context(userId, instId), toolBox);
+            answer = converse(systemPrompt(user, config.systemPrompt()), context(userId, instId), toolBox, deadline);
         } catch (RuntimeException e) {
             log.warn("[widgetChat] 답을 받지 못함 defId={} instId={} cause={}", def.getWidgetId(), instId,
                     e instanceof LlmException ? e.getMessage() : e.getClass().getSimpleName());
@@ -170,24 +210,35 @@ public class WidgetChatService {
         return result;
     }
 
-    /** [새 대화] — 그 인스턴스 기록 전부 지움. {@code { deleted: n }}. */
+    /** [새 대화] — 그 인스턴스 기록 전부 지움. {@code { deleted: n }}. send 와 같이 바깥 트랜잭션 밖에서 지우고 바로 커밋한다. */
     public Map<String, Object> reset(WidgetChatRequest request) {
-        String userId = requireUser();
-        String instId = requireInstId(request);
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("deleted", writer.reset(userId, instId));
-        return result;
+        return outsideTx.execute(status -> {
+            String userId = requireUser();
+            String instId = requireInstId(request);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("deleted", writer.reset(userId, instId));
+            return result;
+        });
     }
 
     // ── 대화 ────────────────────────────────────────────────────────────
 
-    /** 도구 반복. 도구를 4번 실행한 뒤에도 모델이 도구를 원하면 멈추고 그때까지의 답(이번 차례에서 마지막으로 받은 글)을 쓴다. */
-    private String converse(String system, List<LlmMessage> context, ToolBox toolBox) {
+    /**
+     * 도구 반복. 도구를 4번 실행한 뒤에도 모델이 도구를 원하면 멈추고 그때까지의 답(이번 차례에서 마지막으로 받은 글)을 쓴다.
+     * 호출마다 앞서 차례 마감을 확인한다. 답 최대 토큰에 걸려 끊긴 답은 도구를 실행하지 않는다 — 도구 입력이 덜 왔을 수 있다.
+     * 글이 있으면 끊겼다는 표시를 붙여 답으로 쓰고, 없으면 실패로 본다.
+     */
+    private String converse(String system, List<LlmMessage> context, ToolBox toolBox, Instant deadline) {
         List<LlmMessage> messages = new ArrayList<>(context);
         List<LlmTool> tools = toolBox.tools();
         String lastText = "";
         for (int round = 0; ; round++) {
+            requireTimeLeft(deadline);
             LlmReply reply = llmClient.chat(system, messages, tools);
+            if (reply.stopReason() != null && TRUNCATED_STOPS.contains(reply.stopReason())) { // Set.of 는 null 을 못 받는다
+                if (reply.text().isBlank()) throw new LlmException("답이 끊김(stop=" + reply.stopReason() + ")");
+                return reply.text().stripTrailing() + "\n\n" + TRUNCATED_NOTICE;
+            }
             if (!reply.text().isBlank()) lastText = reply.text();
             if (!reply.hasToolCalls()) {
                 if (reply.text().isBlank()) throw new LlmException("빈 답(stop=" + reply.stopReason() + ")");
@@ -200,6 +251,13 @@ public class WidgetChatService {
             List<LlmToolResult> results = new ArrayList<>();
             for (LlmToolCall call : reply.toolCalls()) results.add(toolBox.run(call));
             messages.add(LlmMessage.toolResults(results));
+        }
+    }
+
+    /** 차례 마감(send 시작 + timeout-sec)이 지났으면 더 묻지 않는다 → 「답을 받지 못했습니다」. */
+    private void requireTimeLeft(Instant deadline) {
+        if (!clock.instant().isBefore(deadline)) {
+            throw new LlmException("한 차례 시간 제한(" + turnTimeout.toSeconds() + "초)을 넘음");
         }
     }
 

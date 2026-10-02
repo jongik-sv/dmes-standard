@@ -11,13 +11,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
-/** {@link WidgetChatWriter} — MSG_SEQ 채번·인스턴스당 100개 유지·reset(사용자·인스턴스 격리), H2. */
+/** {@link WidgetChatWriter} — MSG_SEQ 채번·인스턴스당 100개 유지·reset(사용자·인스턴스 격리)·바깥 트랜잭션과 따로 커밋, H2. */
 @SpringJUnitConfig(WidgetChatJpaTestConfig.class)
 class WidgetChatWriterJpaTest {
 
     @Autowired WidgetChatWriter writer;
     @Autowired WidgetChatMessageRepository repository;
+    @Autowired PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void clean() {
@@ -72,5 +75,22 @@ class WidgetChatWriterJpaTest {
         assertThat(repository.findByUserIdAndInstIdOrderByMsgSeqAsc("userA", "i2")).hasSize(1);
         assertThat(repository.findByUserIdAndInstIdOrderByMsgSeqAsc("userB", "i1")).hasSize(1);
         assertThat(writer.append("userA", "i1", "user", "again", null).getMsgSeq()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("쓰기는 바깥 트랜잭션에 합류하지 않는다(REQUIRES_NEW) — 바깥이 롤백돼도 append·reset 결과는 남는다")
+    void writesCommitIndependentlyOfOuterTransaction() {
+        writer.append("userA", "i2", "user", "old", null);
+        TransactionTemplate outer = new TransactionTemplate(transactionManager);
+
+        outer.executeWithoutResult(st -> {
+            writer.append("userA", "i1", "user", "q", null);
+            writer.reset("userA", "i2");
+            st.setRollbackOnly();
+        });
+
+        assertThat(repository.findByUserIdAndInstIdOrderByMsgSeqAsc("userA", "i1")).extracting(WidgetChatMessage::getContent)
+                .containsExactly("q");
+        assertThat(repository.findByUserIdAndInstIdOrderByMsgSeqAsc("userA", "i2")).isEmpty();
     }
 }

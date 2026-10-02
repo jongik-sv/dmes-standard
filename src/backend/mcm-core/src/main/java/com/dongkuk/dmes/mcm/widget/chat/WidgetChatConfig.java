@@ -18,7 +18,7 @@ import org.springframework.web.client.RestClient;
 /**
  * 챗봇 LLM 공급자 빈(스펙 §9.1, W-D27). {@code dmes.widget.llm.provider} 로 하나를 고른다 — 빈 값·모르는 값·필수 설정 누락은
  * 부팅을 막지 않고 {@link FakeLlmClient}(「AI 연결이 설정되지 않았습니다」)로 둔다.
- * HTTP 는 연결 3초·읽기 {@code timeout-sec}(기본 60초). 이름이 {@code *AutoConfiguration} 이 아니어야 mcm api 컴포넌트 스캔에 잡힌다.
+ * HTTP 는 연결 3초·읽기 {@code timeout-sec}(기본 60초, 호출 하나 기준 — 차례 전체 마감은 {@code WidgetChatService}). 이름이 {@code *AutoConfiguration} 이 아니어야 mcm api 컴포넌트 스캔에 잡힌다.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(WidgetLlmProperties.class)
