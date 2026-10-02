@@ -48,13 +48,21 @@ export default function OverviewTab({ data, query }: StatTabViewProps) {
         </KpiTileGroup>
       </DashboardCell>
       <DashboardCard span={7} title="일별 열람 추이" subtitle="열람 횟수">
-        <LineChart
-          data={points}
-          height={260}
-          color="var(--color-primary)"
-          avgColor="var(--color-success)"
-          avgLabel="평균"
-        />
+        {/* shared LineChart 는 빈 데이터로 처음 그려지면 크기 측정(ResizeObserver)을 걸지 않아
+            이후 데이터가 와도 그리지 않는다. 데이터가 생긴 뒤에만 마운트한다. */}
+        {points.length > 0 ? (
+          <LineChart
+            data={points}
+            height={260}
+            color="var(--color-primary)"
+            avgColor="var(--color-success)"
+            avgLabel="평균"
+          />
+        ) : (
+          <div style={{ color: "var(--color-text-muted)", fontSize: 12, padding: 12 }}>
+            [조회] 후 표시됩니다.
+          </div>
+        )}
       </DashboardCard>
       <DashboardCard span={5} title="많이 연 화면" subtitle="상위 10개 · 열람 횟수">
         {/* HBarChart 는 고정 폭 SVG 이고 카드가 overflow:hidden 이라 가로 스크롤을 부모가 맡는다(Local-Rules §17). */}
