@@ -40,7 +40,7 @@ UI(폼·모달·메시지·탭·트리·레이아웃·portal-shell·로그인 �
 | `@dk-oasis/shared/dashboard`                  | SHOULD                 | 대시보드 격자·카드·KPI 타일·추이 선  | §18              |
 | `@dk-oasis/shared/tabs`                       | SHOULD                 | 영역 안 밑줄형 탭 머리줄(본문 전환은 화면) | —                |
 | `@dk-oasis/shared/widget`                     | SHOULD                 | 위젯 자유 배치(탭·보드·틀·서랍·작업 공간) | §18              |
-| `@dk-oasis/shared/mdm-meta`                   | MAY                    | MDM 컬럼 사전 캡션·툴팁 메타(포털 탭이 공급자를 자동으로 씌운다) | §18              |
+| `@dk-oasis/shared/mdm-meta`                   | MAY                    | MDM 컬럼 사전 캡션·툴팁 메타(포털 탭이 공급자를 자동으로 씌운다), 화면 값 검증 `useMdmValidation`·`validateMdmValue` | §18              |
 | `@dk-oasis/shared/modal`                      | MUST (모달 페이지)     | Modal 시스템                         | §11 E            |
 | `@dk-oasis/shared/message-provider`           | MUST                   | 사용자 메시지                        | §8               |
 | `@dk-oasis/shared/use-api-call`               | SHOULD                 | API 호출 + 메시지                    | §8               |
@@ -235,6 +235,7 @@ import "@dk-oasis/shared/grid.css";
 - 열 그룹(여러 줄 머리): `GridColumn.children?: GridColumn[]` 이 있으면 그 항목은 열 그룹(ag-grid `ColGroupDef`, `groupId` = `key`)이 되고 잎만 데이터 열이다. 그룹 항목의 `headerComponent`·`headerComponentParams` 는 그룹 머리 컴포넌트로 쓴다. `GridColumn.headerTooltip?: string` 은 잎·그룹 머리 툴팁이다(mdm TSK-08-02 D8).
 - 행 드래그(managed): `AgDataGrid` 의 `rowDragField?: string`(그 열에 드래그 손잡이), `isRowDraggable?: (row) => boolean`, `onRowOrderChange?: (orderedKeys) => void`(놓은 뒤 화면 순서의 `rowKey` 목록). `rowDragField` 를 주면 정렬이 꺼진다(ag-grid managed drag 는 정렬 중 동작하지 않는다). 순서는 호출자가 `data` 를 다시 넘겨 확정한다(mdm TSK-08-02 D8).
 - 셀 상태 클래스(`@dk-oasis/shared/grid.css`): `cell-light-pink`(오류·비정상), `cell-warning`(경고), `cell-edited`(바뀐 칸), `cell-emphasis`(안쪽 테두리 강조). `GridColumn.cellClassRules` 로 준다. 화면 CSS 에 색 값을 두지 않는다(mdm TSK-08-02).
+- MDM 칸 검증 표시(2026-10-03): `AgDataGrid` 의 `mdmValidate?: boolean`(편집 가능 + MDM 연결 열의 바뀐 값을 검사), `fieldErrors?: Array<{ rowKey?; rowIndex?; field; message }>`(서버 오류 — `@dk-oasis/shared/http` 의 `toFieldErrors(error, grid)` 결과). 오류 칸은 `cell-mdm-invalid` 클래스와 셀 툴팁(문구), 같은 칸이면 서버 문구가 이긴다. `HttpError` 에 선택 칸 `errors`(서버 `ErrorDetail` 목록)가 생겼다.
 
 ---
 
