@@ -165,6 +165,47 @@ describe("WidgetWorkspace", () => {
     expect(tabNames()).toEqual(["홈"]);
   });
 
+  it("저장 중에는 (+) 가 비활성이고 눌러도 탭이 늘지 않는다", async () => {
+    const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }]);
+    let release!: () => void;
+    (store.saveTab as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise<void>((r) => (release = r)));
+    await mount(store);
+    click('[data-action="start-edit"]');
+    click('.cm-widget[data-inst-id="a"] [data-action="remove"]');
+    click('[data-action="done-edit"]');
+    await flush();
+    expect(btn('[data-action="add-tab"]').disabled).toBe(true);
+    click('[data-action="add-tab"]');
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(1);
+    await act(async () => release());
+    await flush();
+    expect(btn('[data-action="add-tab"]').disabled).toBe(false);
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(1);
+  });
+
+  it("저장 중에는 열려 있던 이름 입력이 확정되지 않고 탭 메뉴도 숨는다", async () => {
+    const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }]);
+    let release!: () => void;
+    (store.saveTab as ReturnType<typeof vi.fn>).mockImplementationOnce(() => new Promise<void>((r) => (release = r)));
+    await mount(store);
+    click('[data-action="add-tab"]'); // 새 탭 + 이름 입력 칸이 열린다
+    const input = host.querySelector(".cm-widget-tab__name") as HTMLInputElement;
+    expect(input).not.toBeNull();
+    click('[data-action="done-edit"]');
+    await flush();
+    expect(host.querySelector("[data-tab-menu]")).toBeNull();
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    act(() => {
+      setter.call(input, "바뀐 이름");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    await act(async () => release());
+    await flush();
+    expect(tabNames()).toEqual(["홈", "새 탭"]);
+    expect((store.saveTab as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({ tabId: "tab-1", name: "새 탭" });
+  });
+
   it("보기 모드 탭 지우기는 확인 후 바로 저장소에 지운다", async () => {
     const store = makeStore([
       { tabId: "home", name: "홈", seq: 0, locked: false, items: [] },

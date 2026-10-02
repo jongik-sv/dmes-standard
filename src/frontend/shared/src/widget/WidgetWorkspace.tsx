@@ -227,7 +227,7 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
 
   /* ── 탭 작업 ── */
   const addTab = () => {
-    if (tabs.length >= MAX_TABS) return;
+    if (saving || tabs.length >= MAX_TABS) return;
     const tabId = nextTabId(tabs);
     let name = "새 탭";
     for (let n = 2; tabs.some((t) => t.name === name); n += 1) name = `새 탭 ${n}`;
@@ -250,6 +250,7 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
   };
 
   const renameCommit = (tabId: string, name: string): string | null => {
+    if (saving) return null; // 저장 중 바뀐 이름은 저장 대상에서 빠지므로 반영하지 않는다.
     const error = validateTabName(name, tabs, tabId);
     if (error) return error;
     const value = name.trim();
@@ -382,7 +383,7 @@ export function WidgetWorkspace({ registry, homeDefault, store, userId, confirm,
         tabs={tabs}
         activeTabId={active.tabId}
         editing={editing}
-        menuDisabled={status === "error"}
+        menuDisabled={status === "error" || saving}
         renamingTabId={renamingTabId}
         onSelect={selectTab}
         onAdd={addTab}
