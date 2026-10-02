@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.security.context.UserContextHolder;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdKind;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
@@ -538,6 +539,38 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         save(req, List.of(), List.of());
 
         assertEquals(1, count("TB_MDM_COLUMN"));
+    }
+
+    // ── 메타 변경 기록(spec 2026-10-02-mdm-meta-cache-design §3.3) ──────────
+
+    @Test
+    void META_신규_저장은_새_물리명을_기록한다() {
+        MetaRevTestSupport.clear(jdbc);
+        save(valid(), List.of(), List.of());
+        assertEquals(List.of("COLUMN:RMTL_COIL_THK:SAVE"), MetaRevTestSupport.rows(jdbc));
+    }
+
+    @Test
+    void META_물리명을_바꾸면_옛_이름과_새_이름을_모두_기록한다() {
+        Long id = save(other("코일 두께", "COIL_THK"), List.of(), List.of());
+        MetaRevTestSupport.clear(jdbc);
+        ColumnMngSaveRequest renamed = other("원재료 코일 두께", "RMTL_COIL_THK");
+        renamed.setColumnId(id);
+
+        save(renamed, List.of(), List.of());
+
+        assertEquals(List.of("COLUMN:COIL_THK:SAVE", "COLUMN:RMTL_COIL_THK:SAVE"), MetaRevTestSupport.rows(jdbc));
+    }
+
+    @Test
+    void META_원장이_롤백되면_기록도_남지_않는다() {
+        MetaRevTestSupport.clear(jdbc);
+        tx.executeWithoutResult(s -> {
+            service.save(valid(), List.of(), List.of());
+            s.setRollbackOnly();
+        });
+        assertEquals(0, count("TB_MDM_COLUMN"));
+        assertEquals(List.of(), MetaRevTestSupport.rows(jdbc));
     }
 
     // ── compare ───────────────────────────────────────────────────────────

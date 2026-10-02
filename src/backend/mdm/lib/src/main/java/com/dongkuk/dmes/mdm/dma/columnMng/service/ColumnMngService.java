@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dma.columnMng.service;
 
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmStdAdminGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdKind;
@@ -78,10 +79,12 @@ public class ColumnMngService {
     private final JdbcTemplate jdbc;
     private final MdmStdAdminGuard guard;
     private final ObjectProvider<MaruIdNamespace> maruIdNamespaces;
+    private final MetaRevisionRecorder recorder;
 
     public ColumnMngService(MdmColumnRepository columnRepository, MdmColumnSystemRepository columnSystemRepository,
                             MdmDomainRepository domainRepository, MdmTermRepository termRepository, JdbcTemplate jdbc,
-                            MdmStdAdminGuard guard, ObjectProvider<MaruIdNamespace> maruIdNamespaces) {
+                            MdmStdAdminGuard guard, ObjectProvider<MaruIdNamespace> maruIdNamespaces,
+                            MetaRevisionRecorder recorder) {
         this.columnRepository = columnRepository;
         this.columnSystemRepository = columnSystemRepository;
         this.domainRepository = domainRepository;
@@ -89,6 +92,7 @@ public class ColumnMngService {
         this.jdbc = jdbc;
         this.guard = guard;
         this.maruIdNamespaces = maruIdNamespaces;
+        this.recorder = recorder;
     }
 
     // ── action: search ────────────────────────────────────────────────────
@@ -301,10 +305,12 @@ public class ColumnMngService {
 
         // 7. 컬럼 저장
         MdmColumn column;
+        String oldPhysName = null;
         if (selfId == null) {
             column = new MdmColumn(columnName, physName, req.getDomainId());
         } else {
             column = columnRepository.findById(selfId).orElseThrow(() -> invalid("컬럼을 찾을 수 없습니다"));
+            oldPhysName = column.getPhysName(); // 메타 캐시 무효화 — 물리명 변경 전 이름(spec 2026-10-02 §3.3)
             column.setColumnName(columnName);
             column.setPhysName(physName);
             column.setDomainId(req.getDomainId());
@@ -322,6 +328,7 @@ public class ColumnMngService {
         column.setUsageNote(blankToNull(req.getUsageNote()));
         column = columnRepository.save(column);
         Long columnId = column.getColumnId();
+        recorder.column(oldPhysName, physName);
 
         // 8. 매핑 차분 — 같은 키는 UPDATE, 새 키는 INSERT, 빠진 키는 DELETE(같은 키를 지웠다 다시 넣지 않는다)
         Map<String, MdmColumnSystem> existing = new LinkedHashMap<>();
