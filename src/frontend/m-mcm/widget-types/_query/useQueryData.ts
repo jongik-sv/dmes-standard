@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useWidgetStatus } from "@dk-oasis/shared/widget";
 
 import { runWidgetQuery } from "./api";
-import { previewOf, QUERY_LOAD_ERROR, type QueryResult } from "./format";
+import { previewOf, QUERY_LOAD_ERROR, shouldRunQuery, type QueryResult } from "./format";
 
 /**
  * 쿼리 위젯 데이터(스펙 2026-10-02-widget-admin-generic §6·§10.1).
@@ -16,12 +16,13 @@ import { previewOf, QUERY_LOAD_ERROR, type QueryResult } from "./format";
 export function useQueryData(definition: unknown, widgetId: string, refreshKey: number): QueryResult | null {
   const setStatus = useWidgetStatus();
   const preview = useMemo(() => previewOf(definition), [definition]);
+  const runnable = useMemo(() => shouldRunQuery(definition, widgetId), [definition, widgetId]);
   const [fetched, setFetched] = useState<QueryResult | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    // 미리보기 결과가 있거나 아직 저장되지 않은 정의(ID 없음)면 서버를 부르지 않는다.
-    if (preview || !widgetId) {
+    // 미리보기 결과가 있거나 아직 저장되지 않은 정의(ID 없음·자리 표시 ID def.preview)면 서버를 부르지 않는다.
+    if (!runnable) {
       setStatus({ kind: "ready" });
       return;
     }
@@ -42,7 +43,7 @@ export function useQueryData(definition: unknown, widgetId: string, refreshKey: 
     return () => {
       alive = false;
     };
-  }, [preview, widgetId, refreshKey, attempt, setStatus]);
+  }, [runnable, widgetId, refreshKey, attempt, setStatus]);
 
   return preview ?? fetched;
 }

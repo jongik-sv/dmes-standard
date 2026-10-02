@@ -27,7 +27,7 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
                 sql={cfg.sql}
                 preview={preview}
                 onSqlChange={(sql) => patch({ sql })}
-                onPreview={(result) => patch({ __preview: result })}
+                onPreview={(result) => patch({ __preview: result ?? undefined })}
               />
               <span className="wq-hint">결과 행마다 타일 하나를 그립니다(최대 {MAX_NUMBER_TILES}개).</span>
             </td>

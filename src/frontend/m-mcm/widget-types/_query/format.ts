@@ -117,14 +117,38 @@ function pick<T extends string>(v: unknown, allowed: readonly T[]): T | undefine
 
 /* ── 값 서식 ── */
 
-/** 숫자·숫자 문자열(천 단위 쉼표 허용)만 숫자로. 그 밖은 null. */
+const THOUSANDS_RE = /^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/;
+const PLAIN_NUMBER_RE = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+
+/**
+ * 숫자·숫자 문자열만 숫자로. 그 밖은 null.
+ * 쉼표는 천 단위 자리 규칙(1,234 · 1,234.5)일 때만 지운다(「1,2,3」은 숫자가 아니다). 16진(0x10)은 받지 않는다. 지수 표기(1e3)는 받는다.
+ */
 export function toNumber(v: unknown): number | null {
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
   if (typeof v !== "string") return null;
-  const s = v.replace(/,/g, "").trim();
-  if (s === "") return null;
+  const t = v.trim();
+  if (t === "") return null;
+  let s: string;
+  if (THOUSANDS_RE.test(t)) s = t.replace(/,/g, "");
+  else if (PLAIN_NUMBER_RE.test(t)) s = t;
+  else return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
+}
+
+/** 서버 호출 여부(관리 화면 저장 전 미리보기 자리 표시 ID). */
+const PREVIEW_WIDGET_ID = "def.preview";
+
+/**
+ * 쿼리 위젯이 서버(widgetData/run)를 불러야 하는지.
+ * `__preview` 결과가 있거나, widgetId 가 비었거나, 저장 전 미리보기 자리 표시 ID(def.preview)면 부르지 않는다.
+ */
+export function shouldRunQuery(definition: unknown, widgetId: string): boolean {
+  if (previewOf(definition)) return false;
+  if (!widgetId || widgetId.trim() === "") return false;
+  if (widgetId === PREVIEW_WIDGET_ID) return false;
+  return true;
 }
 
 function plain(v: unknown): string {
@@ -149,12 +173,19 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 /** yyyy-MM-dd. ISO·yyyyMMdd(HHmmss)·yyyy/M/d·yyyy.MM.dd 문자열과 epoch 밀리초를 받는다. 그 밖은 글자 그대로. */
 export function formatDate(v: unknown): string {
   if (v === null || v === undefined) return "";
+  let s: string;
   if (typeof v === "number") {
     if (!Number.isFinite(v)) return String(v);
-    const d = new Date(v);
-    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    // 8자리 정수(19000101~29991231)는 yyyyMMdd 로 본다 — 나머지 숫자만 epoch 밀리초.
+    if (Number.isInteger(v) && v >= 19000101 && v <= 29991231) {
+      s = String(v);
+    } else {
+      const d = new Date(v);
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    }
+  } else {
+    s = String(v).trim();
   }
-  const s = String(v).trim();
   const compact = /^(\d{4})(\d{2})(\d{2})(\d{6})?$/.exec(s);
   if (compact) return `${compact[1]}-${compact[2]}-${compact[3]}`;
   const sep = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(s);
@@ -364,6 +395,11 @@ export function toPieSlices(data: ChartData): { label: string; value: number; co
 
 /** 범례 줄 높이(StackedColumnChart 는 범례를 그림 높이 밖에 그린다). */
 const LEGEND_HEIGHT = 26;
+
+/** 원 차트에 그릴 값이 있는지 — 양수 합이 0 이하면 false(shared PieChart 의 「데이터 없음」 대신 QueryEmpty 를 보인다). */
+export function hasPieData(slices: readonly { value: number }[]): boolean {
+  return slices.reduce((sum, s) => sum + (s.value > 0 ? s.value : 0), 0) > 0;
+}
 
 /** 막대 차트 그림 높이 — 본문 높이에서 범례 줄을 뺀 값(최소 120), 높이를 모르면 230. */
 export function barChartHeight(bodyHeight: number | null): number {

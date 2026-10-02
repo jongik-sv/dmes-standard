@@ -10,6 +10,7 @@ import {
   formatDate,
   formatNumber,
   formatPercent,
+  hasPieData,
   lineChartHeight,
   MAX_NUMBER_TILES,
   moveItem,
@@ -20,6 +21,7 @@ import {
   previewOf,
   QUERY_EMPTY,
   QUERY_LOAD_ERROR,
+  shouldRunQuery,
   removeAt,
   summarizeResult,
   SYSTEM_VARIABLES,
@@ -69,6 +71,18 @@ describe("toNumber", () => {
     expect(toNumber(" 3.5 ")).toBe(3.5);
     expect(toNumber("-7")).toBe(-7);
     expect(toNumber("1,234")).toBe(1234);
+    expect(toNumber("1,234,567.89")).toBe(1234567.89);
+    expect(toNumber("-1,000")).toBe(-1000);
+    expect(toNumber("1e3")).toBe(1000);
+  });
+
+  it("16진·잘못된 쉼표 글자는 숫자로 바꾸지 않는다", () => {
+    expect(toNumber("0x10")).toBeNull();
+    expect(toNumber("1,2,3")).toBeNull();
+    expect(toNumber("12,34")).toBeNull();
+    expect(toNumber("1,2345")).toBeNull();
+    expect(toNumber(",123")).toBeNull();
+    expect(toNumber("Infinity")).toBeNull();
   });
 
   it("빈 값·글자·불리언·무한대는 null", () => {
@@ -120,6 +134,12 @@ describe("formatDate", () => {
     expect(formatDate("20261002093000")).toBe("2026-10-02");
     expect(formatDate("2026/1/5")).toBe("2026-01-05");
     expect(formatDate("2026.10.02 12:00")).toBe("2026-10-02");
+  });
+
+  it("8자리 정수(19000101~29991231)는 yyyyMMdd 로 본다", () => {
+    expect(formatDate(20261002)).toBe("2026-10-02");
+    expect(formatDate(19000101)).toBe("1900-01-01");
+    expect(formatDate(29991231)).toBe("2999-12-31");
   });
 
   it("숫자는 epoch 밀리초로 보고 그 지역 날짜를 쓴다", () => {
@@ -493,5 +513,37 @@ describe("편집기 도우미", () => {
     const next = updateAt(list, 1, { f: "z" });
     expect(next).toEqual([{ f: "a" }, { f: "z" }]);
     expect(list[1]).toEqual({ f: "b" });
+  });
+});
+
+describe("shouldRunQuery", () => {
+  it("__preview 가 있으면 서버를 부르지 않는다", () => {
+    expect(shouldRunQuery({ sql: "x", __preview: { columns: [], rows: [] } }, "w1")).toBe(false);
+  });
+
+  it("widgetId 가 비면 부르지 않는다", () => {
+    expect(shouldRunQuery({ sql: "x" }, "")).toBe(false);
+  });
+
+  it("관리 화면 저장 전 자리 표시 ID(def.preview)면 부르지 않는다", () => {
+    expect(shouldRunQuery({ sql: "x" }, "def.preview")).toBe(false);
+  });
+
+  it("그 밖에는 부른다", () => {
+    expect(shouldRunQuery({ sql: "x" }, "w1")).toBe(true);
+    expect(shouldRunQuery(undefined, "inst-9")).toBe(true);
+  });
+});
+
+describe("hasPieData", () => {
+  it("양수 합이 0 이하면 false", () => {
+    expect(hasPieData([])).toBe(false);
+    expect(hasPieData([{ value: 0 }, { value: 0 }])).toBe(false);
+    expect(hasPieData([{ value: -3 }, { value: 0 }])).toBe(false);
+  });
+
+  it("양수가 하나라도 있으면 true", () => {
+    expect(hasPieData([{ value: 0 }, { value: 2 }])).toBe(true);
+    expect(hasPieData([{ value: -1 }, { value: 5 }])).toBe(true);
   });
 });

@@ -11,8 +11,8 @@ export interface SqlEditorProps {
   /** 마지막 [쿼리 시험] 결과(정의 설정의 `__preview`). */
   preview: QueryResult | null;
   onSqlChange: (sql: string) => void;
-  /** [쿼리 시험] 성공 — 편집기가 `__preview` 로 value 에 얹는다(관리 화면 미리보기가 이 결과로 그린다). */
-  onPreview: (result: QueryResult) => void;
+  /** [쿼리 시험] 성공 — 편집기가 `__preview` 로 value 에 얹는다(관리 화면 미리보기가 이 결과로 그린다). 실패하면 null — 이전 결과를 지운다. */
+  onPreview: (result: QueryResult | null) => void;
 }
 
 /**
@@ -33,6 +33,8 @@ export function SqlEditor({ sql, preview, onSqlChange, onPreview }: SqlEditorPro
     try {
       onPreview(await previewWidgetQuery("mcm", sql));
     } catch (e) {
+      // 이전 시험 결과가 남으면 미리보기·필드 고르기가 지금 SQL 과 어긋난다.
+      onPreview(null);
       setError(e instanceof Error && e.message ? e.message : "쿼리를 시험하지 못했습니다");
     } finally {
       setBusy(false);

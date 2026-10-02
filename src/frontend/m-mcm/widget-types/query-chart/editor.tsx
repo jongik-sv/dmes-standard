@@ -49,7 +49,7 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
                 sql={cfg.sql}
                 preview={preview}
                 onSqlChange={(sql) => patch({ sql })}
-                onPreview={(result) => patch({ __preview: result })}
+                onPreview={(result) => patch({ __preview: result ?? undefined })}
               />
             </td>
           </tr>
