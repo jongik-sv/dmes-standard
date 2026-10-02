@@ -16,14 +16,14 @@ import { Tabs } from "@dk-oasis/shared/tabs";
 import { exportToExcel, today } from "@dk-oasis/shared/utils";
 
 import { createTabRequestTracker, statQueryKey } from "./api";
-import { DEFAULT_UNUSED_DAYS, checkFilters, toExportRows } from "./format";
+import { DEFAULT_UNUSED_DAYS, toExportRows } from "./format";
 import DeptTab from "./tabs/DeptTab";
 import HistoryTab from "./tabs/HistoryTab";
 import OverviewTab from "./tabs/OverviewTab";
 import ScreenTab from "./tabs/ScreenTab";
 import UnusedTab from "./tabs/UnusedTab";
 import UserTab from "./tabs/UserTab";
-import { exportFileName, type StatTabViewProps } from "./tabs/tab-contract";
+import { checkSearch, exportFileName, type StatTabViewProps } from "./tabs/tab-contract";
 import { TAB_MODULES } from "./tabs/tab-modules";
 import {
   TAB_ITEMS,
@@ -80,7 +80,7 @@ export default function ScreenUsageStatPage() {
   );
 
   const handleSearch = useCallback(() => {
-    const msg = checkFilters(filters);
+    const msg = checkSearch(tab, filters);
     if (msg) {
       showMessage({ message: msg, alertType: "warning" });
       return;
@@ -88,6 +88,8 @@ export default function ScreenUsageStatPage() {
     const q = { ...filters };
     setSubmitted(q);
     tracker.reset();
+    // 새 조건의 조회이므로 이전 결과를 비운다(검사에서 막히거나 실패해도 옛 결과가 남지 않게).
+    setData(emptyStatData());
     void loadTab(tab, q);
   }, [filters, tab, tracker, loadTab, showMessage]);
 

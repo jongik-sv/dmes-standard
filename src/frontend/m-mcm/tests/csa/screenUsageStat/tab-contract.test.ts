@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  checkSearch,
   exportFileName,
   toExportColumns,
 } from "@/page-components/csa/screenUsageStat/tabs/tab-contract";
 import { TAB_MODULES } from "@/page-components/csa/screenUsageStat/tabs/tab-modules";
 
-import { emptyData } from "./support/query";
+import { emptyData, query } from "./support/query";
 
 describe("탭 등록표 (슬라이스 병합 뒤에도 성립)", () => {
   it("탭 6개가 모두 load·toExport 를 가진다", () => {
@@ -47,5 +48,25 @@ describe("엑셀 보조", () => {
 
   it("파일 이름은 화면사용통계_탭이름_일자.xlsx", () => {
     expect(exportFileName("화면별", "20261002")).toBe("화면사용통계_화면별_20261002.xlsx");
+  });
+});
+
+describe("조회 전 검사 (탭별 미사용 기준 일수)", () => {
+  const bad = query({ unusedDays: "abc" });
+  const msg = "미사용 기준 일수는 1~3650 사이의 정수여야 합니다.";
+
+  it("화면별 탭에서는 잘못된 unusedDays 도 통과", () => {
+    for (const t of ["screen", "dept", "user", "history"] as const) {
+      expect(checkSearch(t, bad)).toBeNull();
+    }
+  });
+
+  it("개요·미사용 탭에서는 경고", () => {
+    expect(checkSearch("overview", bad)).toBe(msg);
+    expect(checkSearch("unused", bad)).toBe(msg);
+  });
+
+  it("기간 검사는 모든 탭에서 한다", () => {
+    expect(checkSearch("screen", query({ fromDt: "" }))).toBe("조회 시작일을 입력하세요.");
   });
 });

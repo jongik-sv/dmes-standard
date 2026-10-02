@@ -5,7 +5,8 @@
  */
 import type { GridColumn } from "@dk-oasis/shared/grid";
 
-import type { StatData, StatFilters } from "../types";
+import { checkFilters } from "../format";
+import type { StatData, StatFilters, StatTab } from "../types";
 
 /** exportToExcel 의 columns 인자(shared ExcelColumn)와 같은 모양. */
 export interface ExportColumn {
@@ -40,3 +41,10 @@ export const toExportColumns = (cols: readonly GridColumn[]): ExportColumn[] =>
 
 export const exportFileName = (tabLabel: string, ymd: string): string =>
   `화면사용통계_${tabLabel}_${ymd}.xlsx`;
+
+/**
+ * [조회] 전 검사. 미사용 기준 일수 칸은 개요·미사용 화면 탭에서만 보이므로
+ * 그 밖의 탭에서는 (숨겨진) 값을 검사하지 않는다.
+ */
+export const checkSearch = (tab: StatTab, f: StatFilters): string | null =>
+  checkFilters(tab === "overview" || tab === "unused" ? f : { ...f, unusedDays: "" });
