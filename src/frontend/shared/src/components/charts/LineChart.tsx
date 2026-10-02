@@ -92,7 +92,14 @@ const LineChart = memo(function LineChart({
     return { maxVal: actualYMax, avgVal: avg, points: pts, yTicks: ticks };
   }, [data, chartW, chartH]);
 
-  if (data.length === 0) return <div style={{ color: "#999", fontSize: 12, padding: 12 }}>데이터 없음</div>;
+  // 측정 대상 div 는 비어 있을 때도 그린다. 빈 데이터로 처음 마운트해도 ResizeObserver 가 걸려야 이후 데이터가 그려진다.
+  if (data.length === 0) {
+    return (
+      <div ref={containerRef} style={{ width: "100%", height: autoHeight ? "100%" : undefined }}>
+        <div style={{ color: "#999", fontSize: 12, padding: 12 }}>데이터 없음</div>
+      </div>
+    );
+  }
 
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
   const avgY = maxVal > 0 ? PADDING.top + chartH - (avgVal / maxVal) * chartH : PADDING.top + chartH;
