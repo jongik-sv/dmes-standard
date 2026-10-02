@@ -50,8 +50,8 @@ class RuleViewTest {
             .add(qlty, SampleRules.prodWgtCalc(), SampleRules.baseSpdLkp(), SampleRules.spdExc(), SampleRules.spdJoin(),
                     exprVarRule(), strayCellRule())
             .addSet(SampleRules.lsA3(),
-                    new RuleSetDefinition("OLD", List.of("QLTY_GRD_JDG", "PROD_WGT_CALC"), SetStatus.DEPRECATED, null),
-                    new RuleSetDefinition("MISSING", List.of("QLTY_GRD_JDG", "NOPE1", "NOPE2"), SetStatus.INUSE, null));
+                    new RuleSetDefinition("OLD", null, null, null, List.of("QLTY_GRD_JDG", "PROD_WGT_CALC"), SetStatus.DEPRECATED, null),
+                    new RuleSetDefinition("MISSING", null, null, null, List.of("QLTY_GRD_JDG", "NOPE1", "NOPE2"), SetStatus.INUSE, null));
     private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private static RuleDefinition exprVarRule() {

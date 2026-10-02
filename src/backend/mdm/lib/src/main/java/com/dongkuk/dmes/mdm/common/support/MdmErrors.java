@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mdm.common.support;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.cactus.common.ResponseCodeAware;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
@@ -28,6 +30,32 @@ public final class MdmErrors {
 
     public static BusinessException of(MdmErrorCode code, List<MdmCheckIssue> issues) {
         return of(code, null, issues);
+    }
+
+    /**
+     * {@link #of(MdmErrorCode)} 와 같되, BPMN 안에서 던져도 OASIS {@code meta.code} 에 {@code MDMnnn} 을 싣는다(cactus {@link ResponseCodeAware}).
+     * 다른 MDM 오류는 BPMN 경로의 기본 {@code S001} + 문구 관례(TSK-04-04 F12)를 그대로 두고, 계약이 코드를 약속한 경로만 이것을 쓴다 —
+     * 지금은 {@code metaFeed/save} 권한 거부(MDM027, 계획 Ruling R10) 하나다.
+     */
+    public static BusinessException coded(MdmErrorCode code) {
+        return new Coded(code.transport(), code.defaultMessage(), List.of(ErrorDetail.of(code.code(), code.defaultMessage())), code.code());
+    }
+
+    /** meta.code 를 스스로 정하는 MDM 오류. 나머지는 {@link BusinessException} 그대로다. */
+    static final class Coded extends BusinessException implements ResponseCodeAware {
+
+        private static final long serialVersionUID = 1L;
+        private final String responseCode;
+
+        Coded(ErrorCode transport, String message, List<ErrorDetail> details, String responseCode) {
+            super(transport, message, details);
+            this.responseCode = responseCode;
+        }
+
+        @Override
+        public String responseCode() {
+            return responseCode;
+        }
     }
 
     /** message = 기본 문구 + {@code ": "} + detail(detail 이 비면 기본 문구만). detail 목록은 기존과 같다. */

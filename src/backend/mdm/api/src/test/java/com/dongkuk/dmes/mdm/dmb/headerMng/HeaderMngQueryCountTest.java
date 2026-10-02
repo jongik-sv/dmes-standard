@@ -118,7 +118,8 @@ class HeaderMngQueryCountTest extends LayoutTestSupport {
         assertEquals(4 * 11, counts.get("phys6") - counts.get("phys2"), counts::toString);
         // 스냅샷이 같으면(I18) 새 버전·오프셋 쓰기가 없고 재정의 다시 넣기 3문만 남는다
         assertEquals(4 * 3, counts.get("same6") - counts.get("same2"), counts::toString);
-        assertTrue(counts.get("len2") <= 63 && counts.get("phys2") <= 64 && counts.get("same2") <= 46, counts::toString);
+        // 2026-10-02 메타 변경 기록 INSERT 1문(헤더 + 사용 전문, 키 수와 무관 — MetaRevisionRecorder Ruling R1)
+        assertTrue(counts.get("len2") <= 64 && counts.get("phys2") <= 65 && counts.get("same2") <= 47, counts::toString);
     }
 
     @Test

@@ -5,6 +5,7 @@
  */
 package com.dongkuk.dmes.mdm.dmb.headerMng.service;
 
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.layout.MdmFillKind;
@@ -68,10 +69,12 @@ public class HeaderMngService {
     private final LayoutConstJudge constJudge;
     private final LayoutCodecs codecs;
     private final LayoutVersioner versioner;
+    private final MetaRevisionRecorder recorder;
 
     public HeaderMngService(LayoutQueries queries, LayoutDictionary dictionary, LayoutWriter writer,
                             MdmLayoutRepository layoutRepository, MdmEaiRepository eaiRepository, LayoutConstJudge constJudge,
-                            LayoutCodecs codecs, LayoutVersioner versioner) {
+                            LayoutCodecs codecs, LayoutVersioner versioner,
+                            MetaRevisionRecorder recorder) {
         this.queries = queries;
         this.dictionary = dictionary;
         this.writer = writer;
@@ -80,6 +83,7 @@ public class HeaderMngService {
         this.constJudge = constJudge;
         this.codecs = codecs;
         this.versioner = versioner;
+        this.recorder = recorder;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -282,6 +286,11 @@ public class HeaderMngService {
         // ⑪ 사용 전문마다 스냅샷 버전(TSK-05-03 I18) — 스냅샷이 바뀐 전문만 새 버전이 생긴다. 원장은 재계산 쓰기(flush) 뒤에 한 번에 읽는다
         List<LayoutVersioner.Outcome> outcomes = versioner.recordAll(
                 recalculated.stream().map(r -> ((Number) r.get("LAYOUT_ID")).longValue()).toList(), cache);
+        // 메타 캐시 무효화 — 헤더 자신과 recalculateUsers 가 돌려준 사용 전문 전부(spec 2026-10-02 §3.3)
+        List<Long> touched = new ArrayList<>();
+        touched.add(headerId);
+        recalculated.forEach(r -> touched.add(((Number) r.get("LAYOUT_ID")).longValue()));
+        recorder.layouts(touched);
         List<Map<String, Object>> versioned = new ArrayList<>();
         for (int i = 0; i < recalculated.size(); i++) {
             Map<String, Object> r = recalculated.get(i);

@@ -166,7 +166,7 @@ public class RuleSetRunner {
                 // 엔진은 구조가 올바른 흐름에서만 트리의 룰 정의를 차례로 묻는다 — 그 룰들을 미리 한 번에 읽어 둔다(구조 오류면 묻지 않으니 읽지 않는다).
                 lookup.prefetch(parse.tree().ruleIds(), ts);
             }
-            return engine.traceSet(new RuleSetDefinition(label, ruleIds, SetStatus.INUSE, def), record, ts, edits);
+            return engine.traceSet(new RuleSetDefinition(label, null, null, null, ruleIds, SetStatus.INUSE, def), record, ts, edits);
         }
 
         /** 흐름의 룰 ID({@link RuleSetFlowJson#ruleIds}). 흐름을 읽지 못하면 {@link IllegalArgumentException}. */

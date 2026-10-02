@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeFixtures;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeTestConfig;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
@@ -459,5 +460,13 @@ class CodeItemEditServiceSqliteTest extends AbstractMdmSharedDbTest {
         return jdbc.queryForObject("SELECT CODE || '|' || FROM_VER || '|' || TO_VER || '|' || IFNULL(LVL1,'') || '|' "
                 + "|| IFNULL(LVL2,'') || '|' || IFNULL(ATTR01,'') FROM TB_MDM_CODE_ITEM WHERE MARU_CODE_ID = 'M' AND CODE = ?",
                 String.class, code);
+    }
+
+    @Test
+    void META_경미_수정은_코드를_기록한다() {
+        seedM();
+        MetaRevTestSupport.clear(jdbc);
+        service.patch(patch("M", "A", "1.000", "고친 에이", "약칭", 11, "설명"));
+        assertEquals(List.of("CODE:M:SAVE"), MetaRevTestSupport.rows(jdbc));
     }
 }

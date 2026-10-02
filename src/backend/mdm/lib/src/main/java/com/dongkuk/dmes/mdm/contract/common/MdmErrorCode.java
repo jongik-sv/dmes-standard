@@ -60,7 +60,13 @@ public enum MdmErrorCode {
      * 룰 세트 흐름도 2단계 P-D9(spec §9.1-9) — 원장에 저장된 룰 정의(행 셀·AST·FLOW_JSON)를 읽을 수 없다. 입력 오류(MDM021)가 아니라 저장 데이터
      * 손상이라 의미 상태는 500 이다. {@code StoredDefinitionException} 만 이 코드로 바꾼다.
      */
-    STORED_DEFINITION_CORRUPT("MDM026", 500, ErrorCode.BUSINESS_ERROR, "저장된 룰 정의를 읽을 수 없습니다");
+    STORED_DEFINITION_CORRUPT("MDM026", 500, ErrorCode.BUSINESS_ERROR, "저장된 룰 정의를 읽을 수 없습니다"),
+
+    /**
+     * MDM 메타 캐시(spec 2026-10-02-mdm-meta-cache-design §3.4 force) — 화면 삭제·재등록은 모든 모듈·인스턴스 캐시를 지우는 강제 기록이라
+     * 시스템 관리자만 한다. BFF 권한(1차)과 별도로 서비스가 요청 역할을 다시 본다.
+     */
+    SYSADMIN_ROLE_REQUIRED("MDM027", 403, ErrorCode.ACCESS_DENIED, "시스템 관리자만 할 수 있습니다");
 
     private final String code;
     private final int httpStatus;

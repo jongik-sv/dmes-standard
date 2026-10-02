@@ -36,6 +36,7 @@ UI(폼·모달·메시지·탭·트리·레이아웃·portal-shell·로그인 �
 | `@dk-oasis/shared/markdown-editor`            | SHOULD                 | 마크다운 메모·설명 편집과 표시       | §18              |
 | `@dk-oasis/shared/notice-body-view`           | SHOULD                 | 공지 본문(TEXT·MD·HTML) 읽기 표시    | §18              |
 | `@dk-oasis/shared/detail-popover`             | SHOULD                 | 클릭으로 여는 큰 상세 팝오버         | §18              |
+| `@dk-oasis/shared/json-view`                  | SHOULD                 | JSON 값 읽기 전용 트리(접기·복사)    | §18              |
 | `@dk-oasis/shared/dashboard`                  | SHOULD                 | 대시보드 격자·카드·KPI 타일·추이 선  | §18              |
 | `@dk-oasis/shared/tabs`                       | SHOULD                 | 영역 안 밑줄형 탭 머리줄(본문 전환은 화면) | —                |
 | `@dk-oasis/shared/widget`                     | SHOULD                 | 위젯 자유 배치(탭·보드·틀·서랍·작업 공간) | §18              |

@@ -25,3 +25,38 @@ spring:
 
 # 실 프로젝트의 데이터소스(JNDI·다중 DB)·보안 설정은 docs/framework/, docs/cactus/ 의
 # 패턴을 따른다. 위 설정은 bootRun 으로 골격을 띄우기 위한 최소 구성이다.
+
+# ---------------------------------------------------------------------------
+# Cactus 보안·OASIS — MDM 메타 캐시 엔드포인트(/api/mqc/mdmMeta/*)를 BFF 로 부를 수 있게 신설 (2026-10-02)
+# ---------------------------------------------------------------------------
+# mls(src/backend/mls/api/src/main/resources/application.yml) 선례 그대로다. 이 블록이 없으면:
+#   cactus.jwt.secret 이 없어 CactusWebSecurityAutoConfiguration 이 꺼지고 Spring Security 기본 체인(Basic, 전 요청 인증)이 걸려
+#   BFF 호출이 모두 401 이 된다. 포털 apiRequest 는 401 이면 로그인으로 보내므로 MDM 캐시 관리 화면을 열면 관리자가 로그아웃됐다
+#   (Task 14 결함 D2). 이 모듈은 로그인을 호스팅하지 않는다 — 토큰 발급 주체는 mcm 이고 cactus.auth.enabled 는 켜지 않는다.
+#   cactus.security     — BFF(be-proxy) 가 붙이는 X-Client-Key 를 검증한다. ClientKeyFilter 가 X-Authenticated-User / X-Authenticated-Role
+#                         헤더로 SecurityContext 를 사전 인증 set 한다. 키가 틀리거나 없으면 401 A001.
+#   cactus.oasis        — service-group 은 /api/{module}/mdmMeta 의 module 이기도 하다(cactus.mdm.module 이 비면 이 값).
+# ── MDM 메타 캐시(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.1) ──
+#  MDM(8096)에서 컬럼·도메인·룰·룰세트·코드·전문 정의를 받아 이 인스턴스에 캐시하고 10초마다 변경 기록을 확인한다.
+#  끄려면 MDM_CACHE_ENABLED=false. client-key 는 MDM 이 받는 BACKEND_CLIENT_KEY 와 같아야 한다.
+cactus:
+  jwt:
+    secret: ${CACTUS_JWT_SECRET:Y2FjdHVzLXNhbXBsZS1zZWNyZXQta2V5LWZvci10ZXN0aW5nLW9ubHktMjAyNg==}
+    issuer: mqc
+  security:
+    client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
+    # ⚠️ override 시 default 3종이 통째로 대체되므로 전부 나열한다 (ClientKeyFilter.java:85-87).
+    # @Value 플레이스홀더 바인딩이라 YAML 리스트 불가 — 콤마 문자열로 기재.
+    client-key-skip-paths: /auth/,/api/auth/,/actuator/
+  oasis:
+    service-group: mqc
+  mdm:
+    enabled: ${MDM_CACHE_ENABLED:true}
+    module: mqc
+    base-url: ${MDM_WAS_URL:http://localhost:8096}
+    client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
+    poll-interval: 10s
+    max-entries: 20000
+    max-age: 60m
+    connect-timeout: 2s
+    read-timeout: 5s

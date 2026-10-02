@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.dmb.LayoutTestSupport;
 import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngSaveRequest;
 import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngSearchRequest;
@@ -13,6 +14,7 @@ import com.dongkuk.dmes.mdm.dmb.headerMng.dto.HeaderMngViewRequest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -310,5 +312,15 @@ class HeaderMngServiceSqliteTest extends LayoutTestSupport {
         r.setVer(r.getVer() + 5);
         BusinessException ex = rejected(() -> headerService.save(r, l110Items()));
         assertTrue(ex.getMessage().contains("다른 사용자가 수정했습니다"), ex.getMessage());
+    }
+
+    @Test
+    void META_헤더_저장은_헤더와_그_헤더를_쌓은_전문을_모두_기록한다() {
+        M201 m = m201();
+        MetaRevTestSupport.clear(jdbc);
+
+        headerService.save(resave(m.l110()), l110Items());
+
+        assertEquals(Set.of(String.valueOf(m.l110()), String.valueOf(m.message())), MetaRevTestSupport.keys(jdbc, "LAYOUT"));
     }
 }

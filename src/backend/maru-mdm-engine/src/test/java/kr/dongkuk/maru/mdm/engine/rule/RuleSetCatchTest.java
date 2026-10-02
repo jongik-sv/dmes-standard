@@ -88,12 +88,12 @@ class RuleSetCatchTest {
     private final MdmRuleEngine engine = new MdmRuleEngine(MdmEvaluatorFixtures.of(TestExpressionConfig.create()), lookup);
 
     private RuleSetResult run(FlowDefinition f, Map<String, Object> record) {
-        lookup.addSet(new RuleSetDefinition("S", List.of(), SetStatus.INUSE, f));
+        lookup.addSet(new RuleSetDefinition("S", null, null, null, List.of(), SetStatus.INUSE, f));
         return engine.evaluateSet("S", record, SampleRules.EVAL_TS);
     }
 
     private RunTrace trace(FlowDefinition f, Map<String, Object> record) {
-        return engine.traceSet(new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, f), record, SampleRules.EVAL_TS);
+        return engine.traceSet(new RuleSetDefinition("DRAFT", null, null, null, List.of(), SetStatus.INUSE, f), record, SampleRules.EVAL_TS);
     }
 
     private static List<String> path(RuleSetResult r) {
@@ -313,7 +313,7 @@ class RuleSetCatchTest {
     @Test
     void 고친_값은_CATCH_노드_직전에도_넣을_수_있고_처리_갈래가_그_값을_읽는다() {
         // 고친 값 X=100 을 CATCH 노드(seq 3) 직전에 넣으면 처리 갈래 R_A 가 A=101 을 만든다.
-        RunTrace t = engine.traceSet(new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, returning("R_G", "R_A", "NO_RESULT")),
+        RunTrace t = engine.traceSet(new RuleSetDefinition("DRAFT", null, null, null, List.of(), SetStatus.INUSE, returning("R_G", "R_A", "NO_RESULT")),
                 rec("X", new BigDecimal("5")), SampleRules.EVAL_TS, List.of(new TraceEdit(3, "c1", Map.of("X", new BigDecimal("100")))));
         assertNull(t.violations());
         assertNum("101", t.finalValues().get("A"));
@@ -363,7 +363,7 @@ class RuleSetCatchTest {
     @Test
     void 돌아오는_자리에_건_고친_값은_CATCH_를_되돌린_뒤에_들어간다() {
         // 순번 1 start, 2 r1(CAUGHT), 3 c1, 4 h1(CAUGHT), 5 c9, 6 f, 7 k, 8 after, 9 end. k 직전 고친 값이 안쪽 블록 되돌림에 지워지지 않는다(R3).
-        RunTrace t = engine.traceSet(new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, nestedReturn()), rec("X", new BigDecimal("5")),
+        RunTrace t = engine.traceSet(new RuleSetDefinition("DRAFT", null, null, null, List.of(), SetStatus.INUSE, nestedReturn()), rec("X", new BigDecimal("5")),
                 SampleRules.EVAL_TS, List.of(new TraceEdit(7, "k", Map.of("CATCH_CODE", "EDITED"))));
         assertNull(t.violations());
         assertEquals("EDITED", t.finalValues().get("CODE"));
@@ -414,7 +414,7 @@ class RuleSetCatchTest {
         assertEquals("EVALUATION_ERROR", r.finalValues().get("CODE"));
         assertEquals("c0", r.endedBy());
         // (2) 순서: 1 start, 2 r0(CAUGHT), 3 c0, 4 if1, 5 r1(CAUGHT), 6 c1, 7 h, 8 j, 9 end — j 직전 고친 값은 되돌림에 지워지지 않는다.
-        RunTrace t = engine.traceSet(new RuleSetDefinition("DRAFT", List.of(), SetStatus.INUSE, ifJoinReturn()), rec("X", new BigDecimal("5")),
+        RunTrace t = engine.traceSet(new RuleSetDefinition("DRAFT", null, null, null, List.of(), SetStatus.INUSE, ifJoinReturn()), rec("X", new BigDecimal("5")),
                 SampleRules.EVAL_TS, List.of(new TraceEdit(8, "j", Map.of("CATCH_CODE", "EDITED"))));
         assertNull(t.violations());
         assertEquals("EDITED", t.finalValues().get("CODE"));

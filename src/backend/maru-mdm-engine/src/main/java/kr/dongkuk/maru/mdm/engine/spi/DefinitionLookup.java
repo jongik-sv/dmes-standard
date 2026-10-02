@@ -149,8 +149,19 @@ public interface DefinitionLookup {
     /**
      * 세트 스냅샷(06:1165) + 흐름(spec §3.3). {@code flow} 가 null 이면 {@code ruleIds} 순서의 한 줄 흐름이다.
      * {@code ruleIds} 는 흐름을 펼친 룰 목록(깊이 우선, 중복 없음)이고 조회·목록 화면이 쓴다.
+     *
+     * <p>{@code ver}·{@code applyFrom}·{@code applyTo} 는 저장된 RELEASED 세트 버전(D-144 2단계)의 번호(scale 3)와 적용 구간
+     * ({@code APPLY_FROM <= t < APPLY_TO}, KST)이다 — {@link RuleDefinition} 과 같은 뜻이다. 원격 캐시(MDM 메타 캐시)가 RELEASED 버전 목록에서
+     * 판정 시각으로 고를 때 쓴다. 엔진은 읽지 않는다. 편집 중 정의({@code traceSet} 에 직접 넘기는 DRAFT·저장 전 흐름)는 셋 다 null 이다.
      */
-    record RuleSetDefinition(String setId, List<String> ruleIds, SetStatus status, @Nullable FlowDefinition flow) {}
+    record RuleSetDefinition(
+            String setId,
+            @Nullable BigDecimal ver,
+            @Nullable LocalDateTime applyFrom,
+            @Nullable LocalDateTime applyTo,
+            List<String> ruleIds,
+            SetStatus status,
+            @Nullable FlowDefinition flow) {}
 
     enum SetStatus { CREATED, INUSE, DEPRECATED }
 

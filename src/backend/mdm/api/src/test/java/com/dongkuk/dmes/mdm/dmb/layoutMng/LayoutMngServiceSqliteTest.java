@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevTestSupport;
 import com.dongkuk.dmes.mdm.dmb.LayoutTestSupport;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSearchRequest;
@@ -406,5 +407,12 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
         r.setVer(r.getVer() - 1);
         String msg = rejectMessage(() -> layoutService.save(r, List.of(headerRow(m.l110())), List.of(), m201Items()));
         assertTrue(msg.contains("다른 사용자가 수정했습니다"), msg);
+    }
+
+    @Test
+    void META_전문_저장은_그_전문을_기록한다() {
+        MetaRevTestSupport.clear(jdbc);
+        M201 m = m201();
+        assertTrue(MetaRevTestSupport.keys(jdbc, "LAYOUT").contains(String.valueOf(m.message())), MetaRevTestSupport.rows(jdbc).toString());
     }
 }

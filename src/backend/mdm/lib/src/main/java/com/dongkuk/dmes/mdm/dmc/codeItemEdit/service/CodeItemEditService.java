@@ -15,6 +15,7 @@ import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeItemProjection.Change;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeItemSegmentOps;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRejections;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRows;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.common.version.VersionRules;
@@ -97,10 +98,12 @@ public class CodeItemEditService {
     private final MdmCurrentUser currentUser;
     private final MdmCodeItemRepository itemRepository;
     private final Clock clock;
+    private final MetaRevisionRecorder recorder;
 
     public CodeItemEditService(MasterCodeRows rows, MasterCodeSegmentService segments, MasterCodeItemSegmentOps itemOps,
                                VersionWriteGuard versionWriteGuard, MdmCurrentUser currentUser,
-                               MdmCodeItemRepository itemRepository, Clock clock) {
+                               MdmCodeItemRepository itemRepository, Clock clock,
+                               MetaRevisionRecorder recorder) {
         this.rows = rows;
         this.segments = segments;
         this.itemOps = itemOps;
@@ -108,6 +111,7 @@ public class CodeItemEditService {
         this.currentUser = currentUser;
         this.itemRepository = itemRepository;
         this.clock = clock;
+        this.recorder = recorder;
     }
 
     // ── action: search ────────────────────────────────────────────────────
@@ -406,6 +410,7 @@ public class CodeItemEditService {
         target.setSeq(request.getSeq());
         target.setDescription(text(request.getDescription()));
         MdmCodeItem saved = itemRepository.saveAndFlush(target);
+        recorder.code(id); // RELEASED 행 제자리 수정 — 메타 캐시 무효화(spec 2026-10-02 §3.3)
         return Map.of("row", rowMap(MasterCodeItemSegmentOps.row(saved)));
     }
 

@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dme.ruleSetEdit.service;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
+import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.rule.CondIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge;
 import com.dongkuk.dmes.mdm.common.rule.RuleIdRules;
@@ -126,6 +127,7 @@ public class RuleSetEditService {
     private final MdmCurrentUser currentUser;
     private final RuleSetVersionService versionService;
     private final Clock clock;
+    private final MetaRevisionRecorder recorder;
     private final TransactionTemplate tx;
 
     public RuleSetEditService(MdmRuleSetRepository setRepository, RuleQueries queries, RuleIoReader ioReader,
@@ -133,7 +135,8 @@ public class RuleSetEditService {
                               RuleSetTestCaseService caseService, RuleSetTestCaseQueries caseQueries, RuleEditService ruleEditService,
                               RuleSetVersionQueries setVersions, VersionWriteGuard writeGuard, VersionRowStore versionStore,
                               MdmNativeAuditSupport audit, MdmCurrentUser currentUser, RuleSetVersionService versionService,
-                              Clock clock, PlatformTransactionManager transactionManager) {
+                              Clock clock, PlatformTransactionManager transactionManager,
+                              MetaRevisionRecorder recorder) {
         this.currentUser = currentUser;
         this.versionService = versionService;
         this.setVersions = setVersions;
@@ -150,6 +153,7 @@ public class RuleSetEditService {
         this.stewardCheck = stewardCheck;
         this.writes = writes;
         this.runner = runner;
+        this.recorder = recorder;
         this.tx = new TransactionTemplate(transactionManager);
     }
 
@@ -442,6 +446,7 @@ public class RuleSetEditService {
             if (writes.deprecate(setId) == 0) {
                 throw transition("사용 중(INUSE)인 룰 세트만 폐기할 수 있습니다: " + setId);
             }
+            recorder.ruleSet(setId); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
         });
         return new RuleSetStatusResult(setId, DEPRECATED, null, List.of());
     }
@@ -499,6 +504,7 @@ public class RuleSetEditService {
             if (writes.restore(setId) == 0) {
                 throw transition(NOT_DEPRECATED_MESSAGE + setId);
             }
+            recorder.ruleSet(setId); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
             return warnings(checks);
         });
         return new RuleSetStatusResult(setId, INUSE, null, warns);

@@ -389,3 +389,85 @@ void invR02_allocatedExceedsOnHandRejected() {
 - 환경 변수: `DMES_TEST_SLOTS`(슬롯 수, 기본 2, `0` 이면 끈다) · `DMES_TEST_SLOT_WAIT_MS`(기본 30분, 넘으면 경고하고 슬롯 없이 돈다). `CI` 가 있으면 끈다.
 - 슬롯은 `~/.gradle/dmes-test-slots/slot-<i>` 디렉터리다. 루트 테스트 묶음이 끝나면(실패해도) 풀리고, 소유 데몬이 죽었으면 다음 테스트가 회수한다. 손으로 지울 일은 없다.
 - 새 백엔드 모듈(includeBuild)을 추가하면 루트 build.gradle 끝에 `apply from: file('../gradle/test-slot.gradle')` 를 넣는다.
+
+## 11. 업무 모듈에서 MDM 메타 켜기
+
+MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 정의를 업무 모듈이 받아 캐시하고 엔진으로 직접 쓴다. 결정은
+[mdm ADR-0007](../../mdm/adr/0007-mdm-meta-hybrid-cache-revision.md), 설계는
+[spec](../../superpowers/specs/2026-10-02-mdm-meta-cache-design.md).
+
+- 켜기: 모듈 `api/src/main/resources/application.yml` 의 `cactus:` 아래(없으면 최상위 `cactus:` 를 만든다)에 둔다. 기본은 꺼짐이고 MDM 서버 자신은 켜지 않는다.
+
+  ```yaml
+  cactus:
+    mdm:
+      enabled: ${MDM_CACHE_ENABLED:true}
+      module: mls                       # /api/{module}/mdmMeta 의 module. 비면 cactus.oasis.service-group
+      base-url: ${MDM_WAS_URL:http://localhost:8096}
+      client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}   # MDM 이 받는 키와 같아야 한다. 기본값은 로컬 개발용
+      poll-interval: 10s
+      page-limit: 1000                  # 폴 요청 한 번에 최대 응답 행 수. revision-lookback 이 0 보다 크면 page-limit 은 revision-lookback 보다 커야 한다(아니면 기동 시 예외)
+      revision-lookback: 100            # 늦게 커밋된 기록 재처리 구간. 0 이면 끔(보강 안 함)
+      max-entries: 20000
+      max-age: 60m
+      connect-timeout: 2s
+      read-timeout: 5s
+  ```
+
+- 빌드: cactus-core 가 `maru-mdm-engine` 을 api 로 문다. 새 업무 모듈은 settings.gradle 에 `includeBuild('../maru-mdm-engine')` +
+  `substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')` 를 둔다(기존 다섯 모듈 선례).
+- 코드에서 쓰기: `MdmDefinitionLookup`(엔진 `DefinitionLookup`·`CodeLookup` 빈)을 주입해 `DefaultDomainValidator`·룰 엔진에 넘긴다.
+  MDM 을 받을 수 없으면 `MdmUnavailableException` 이다. 여러 키는 `MdmMetaService.lookup(type, keys)` 로 한 번에 받는다.
+- 엔드포인트 `/api/{module}/mdmMeta/`: `columns`·`domains`(POST, 로그인 사용자 — 화면 메타·툴팁), `status`·`entries`·`entry`(GET)·`load`(POST)는
+  SYSADMIN 만(`X-Authenticated-Role`). BFF `m-mcm/proxy.ts` 는 모듈 이름과 무관한 한 규칙(`authOnlyPatterns: /^\/api\/[^/]+\/mdmMeta\//`)으로
+  모든 모듈을 로그인 전용으로 연다 — 새 모듈 때 고치지 않는다. `entries` 는 캐시 값을 싣지 않는다(`bizExpr.text` 같은 서버 전용 값이 브라우저로
+  나가지 않게, 있음·없음은 `absent`). 예외로 `entry?type=&key=` 는 항목 하나의 캐시 값 전체(`bizExpr.text` 포함)를 SYSADMIN 에게 준다
+  (2026-10-02 사용자 결정, 캐시 관리 화면 상세 보기). 캐시를 읽기만 하고(조회 수·적재 없음) 캐시에 없으면 404 다.
+- 무효화: MDM 원장 쓰기 서비스는 같은 트랜잭션에서 `MetaRevisionRecorder` 를 부른다(판정 값이 바뀌는 쓰기만, 의심스러우면 건다). 새 원장
+  쓰기 경로를 만들면 기록 호출을 함께 넣는다. 버전 있는 정의(룰·룰 세트)는 RELEASED 버전 목록째 캐시하고 판정 시각으로 고르므로 DRAFT 쓰기에는
+  기록하지 않는다. 확정·확정 취소는 공통 `DefaultVersionStateService` 한 곳에서 기록한다(호출하는 쪽에 또 걸면 이중 기록).
+
+### 11.1 새 업무 모듈에서 MDM 메타 켜기 — 점검표
+
+새 모듈 `{m}`(예: `mmm`)에서 캐시를 켤 때 아래를 모두 한다. 하나라도 빠지면 기동은 되지만 캐시 관리 화면·화면 메타가 동작하지 않는다.
+
+1. **빌드** — `src/backend/{m}/settings.gradle` 에 엔진 includeBuild 를 둔다(cactus-core 가 `maru-mdm-engine` 을 api 로 문다. 기존 다섯 모듈 선례).
+
+   ```groovy
+   includeBuild('../maru-mdm-engine') {
+       dependencySubstitution {
+           substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')
+       }
+   }
+   ```
+
+2. **보안·OASIS(yml)** — `api/src/main/resources/application.yml` 의 `cactus:` 에 `jwt`·`security`·`oasis.service-group` 을 둔다(mls 선례).
+
+   ```yaml
+   cactus:
+     jwt:
+       secret: ${CACTUS_JWT_SECRET:Y2FjdHVzLXNhbXBsZS1zZWNyZXQta2V5LWZvci10ZXN0aW5nLW9ubHktMjAyNg==}
+       issuer: {m}
+     security:
+       client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
+       client-key-skip-paths: /auth/,/api/auth/,/actuator/   # override 시 기본 3종이 통째로 대체되므로 전부 나열
+     oasis:
+       service-group: {m}
+   ```
+
+   > ⚠️ 이것이 없으면 `cactus.jwt.secret` 조건이 꺼져 Spring Security 기본 체인(Basic)이 모든 요청을 **401** 로 막는다. 포털 `apiRequest` 는
+   > 401 이면 로그인 화면으로 보내므로, 예전에는 캐시 관리 화면을 여는 순간 **관리자가 로그아웃**됐다(2026-10-02 mqc·mpp·mpn 에서 실측).
+   > 지금 화면은 모듈 상태를 로그인 이동 없이 「인증 실패」 로 보여 주지만, 그 모듈은 여전히 쓸 수 없다.
+
+3. **MDM 캐시(yml)** — 위 절의 `cactus.mdm` 블록(`enabled`·`module: {m}`·`base-url`·`client-key` 등)을 같은 `cactus:` 아래에 둔다.
+4. **포털 `.env`** — `src/frontend/m-mcm/.env` 에 `{M}_WAS_URL`(대문자 모듈 이름, 예 `MMM_WAS_URL=http://localhost:80xx`)을 둔다. BFF 가 이 값으로
+   `/api/{m}/...` 를 넘긴다. `proxy.ts` 는 고치지 않는다(mdmMeta 규칙이 모듈 이름과 무관하다).
+5. **화면 목록** — `src/frontend/m-mcm/page-components/csa/mdmCacheMng/types.ts` 의 `MDM_CACHE_MODULES` 에 `{m}` 을 더한다.
+6. **확인** — 모듈을 띄우고 SYSADMIN 헤더로 status 를 부른다. **200** 이어야 한다(MDM 이 꺼져 있어도 status 는 답한다).
+
+   ```bash
+   curl -i -H 'X-Client-Key: dmes-bff-local-client-key-2026' -H 'X-Authenticated-User: admin' \
+        -H 'X-Authenticated-Role: SYSADMIN' http://localhost:{port}/api/{m}/mdmMeta/status
+   ```
+
+   `401` + `WWW-Authenticate: Basic` 이면 2번이 빠진 것이고, `401 A001` 이면 클라이언트 키가 다르다. 비관리자 역할이면 403 이 맞다.
