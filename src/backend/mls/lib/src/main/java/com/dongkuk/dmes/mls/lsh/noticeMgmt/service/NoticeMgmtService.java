@@ -4,11 +4,14 @@
  * 내용: noticeMgmt (공지사항 관리) OASIS 서비스 — search / save / changeStatus 3 action
  * 수정: 2026-10-02 — 본문 형식(CONTENT_FORMAT)·공지 분류(NOTICE_CATEGORY)·상단 고정(PIN_YN) 추가, HTML 소독, 본문 상한 4000자 → 20만 자
  * 수정: 2026-10-02 — 게시 대상(TARGET_SCOPE ALL/ROLE + TB_MLS_NOTICE_TARGET 역할 목록) 추가
+ * 수정: 2026-10-03 — save 에 MDM 저장 검증(MdmValidator.check, TITLE) 연결 — 컬럼 사전 정의로 값을 한 번 더 본다
  */
 package com.dongkuk.dmes.mls.lsh.noticeMgmt.service;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.cactus.mdm.MdmValidationRequest;
+import com.dongkuk.dmes.cactus.mdm.MdmValidator;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.dongkuk.dmes.mls.entity.Notice;
 import com.dongkuk.dmes.mls.entity.NoticeTarget;
@@ -20,6 +23,7 @@ import com.dongkuk.dmes.mls.repository.NoticeRepository;
 import com.dongkuk.dmes.mls.repository.NoticeTargetRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -82,12 +86,28 @@ public class NoticeMgmtService {
     /** 대상 역할 ID 형식 — mcm TB_MCM_SEC_ROLE.ROLE_ID 관례(영문 대문자·숫자·밑줄). 존재 여부는 다른 DB 라 확인할 수 없다. */
     private static final Pattern ROLE_ID_PATTERN = Pattern.compile("^[A-Z0-9_]{1,100}$");
 
+    /**
+     * MDM 컬럼 사전으로 검사할 컬럼 — DB 칸(TB_MLS_NOTICE)과 MDM 정의를 견주어 <b>MDM 이 DB 보다 엄격하지 않은 칸만</b> 넣는다
+     * (spec 2026-10-03-mdm-screen-meta-validation §7). MDM 이 더 엄격하면 DB 가 받는 값을 저장 단계에서 막게 된다.
+     * <ul>
+     *   <li>{@code TITLE} — MDM STRING(1000)·선택, DB VARCHAR(200)·NOT NULL. MDM 이 느슨하다 → 넣는다.
+     *       (200자·필수는 {@link #validateRow} 가 계속 본다.)</li>
+     *   <li>{@code NOTICE_CATEGORY} 등 나머지 — 컬럼 사전에 같은 물리명이 없다({@code CATEGORY} 는 다른 이름이라 맞지 않는다,
+     *       별칭 매칭은 후속). 코드 값은 {@link #validateRow} 가 본다.</li>
+     * </ul>
+     */
+    private static final String[] MDM_COLUMNS = {"TITLE"};
+
     private final NoticeRepository noticeRepository;
     private final NoticeTargetRepository noticeTargetRepository;
+    /** {@code cactus.mdm.enabled=false} 면 빈이 없다 — 그때는 MDM 검증 없이 저장한다. */
+    private final ObjectProvider<MdmValidator> mdmValidator;
 
-    public NoticeMgmtService(NoticeRepository noticeRepository, NoticeTargetRepository noticeTargetRepository) {
+    public NoticeMgmtService(NoticeRepository noticeRepository, NoticeTargetRepository noticeTargetRepository,
+                             ObjectProvider<MdmValidator> mdmValidator) {
         this.noticeRepository = noticeRepository;
         this.noticeTargetRepository = noticeTargetRepository;
+        this.mdmValidator = mdmValidator;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -148,7 +168,10 @@ public class NoticeMgmtService {
         int cntInsert = 0;
         int cntUpdate = 0;
         int cntDelete = 0;
-        List<ErrorDetail> errors = new ArrayList<>();
+        // MDM 저장 검증 — 쓰기 전에 먼저 본다. 값 오류가 있으면 errors 에 미리 담겨 아래 반복이 아무것도 쓰지 않고(errors 가 비어야
+        // 쓴다) 수작업 검증 오류와 한 응답으로 내려간다. 검증 불가(MDM_UNAVAILABLE)는 여기서 그대로 던진다.
+        List<ErrorDetail> mdmErrors = mdmValueErrors(master);
+        List<ErrorDetail> errors = new ArrayList<>(mdmErrors);
         List<String> savedIds = new ArrayList<>();
 
         if (master != null) {
@@ -197,7 +220,7 @@ public class NoticeMgmtService {
 
         if (!errors.isEmpty()) {
             // 한 건이라도 실패하면 전체 롤백한다 (BPMN process 단위 트랜잭션).
-            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "입력값을 확인해주세요.", errors);
+            throw new BusinessException(ErrorCode.REQUIRED_VALUE, "입력값을 확인해주세요.", withoutShadowedMdmErrors(errors, mdmErrors.size()));
         }
 
         int cnt = cntInsert + cntUpdate + cntDelete;
@@ -207,6 +230,70 @@ public class NoticeMgmtService {
         out.put("cntMerge", cnt);
         out.put("savedIds", savedIds);
         out.put("list", toRows(noticeRepository.searchAll()));
+        return out;
+    }
+
+    /**
+     * 저장할 행(C·U)을 MDM 컬럼 사전({@link #MDM_COLUMNS})으로 검사한다 — {@link MdmValidator#check}.
+     *
+     * <p>검증기는 {@code rowIndex} 를 요청 목록의 자리로 센다. 오류가 화면의 그 행에 붙도록 목록 길이·자리는 {@code master} 와 같게 두고,
+     * 저장하지 않을 행(삭제·미변경·null)은 {@code rowStatus=D} 만 담은 자리 채움 행으로 바꿔 검증기가 건너뛰게 한다(미변경 행의 옛 값이
+     * 지금 저장과 무관하게 막으면 안 된다).
+     *
+     * @return MDM 값 오류. 검증기가 없거나 저장할 행이 없으면 빈 목록. 검증 불가(BUSINESS_ERROR)는 던진다
+     */
+    private List<ErrorDetail> mdmValueErrors(List<Map<String, Object>> master) {
+        MdmValidator validator = mdmValidator.getIfAvailable();
+        if (validator == null || master == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> rows = new ArrayList<>(master.size());
+        boolean any = false;
+        for (Map<String, Object> row : master) {
+            String status = row == null ? "" : normalizeRowStatus(str(row.get("rowStatus")));
+            if ("C".equals(status) || "U".equals(status)) {
+                rows.add(row);
+                any = true;
+            } else {
+                rows.add(Map.of("rowStatus", "D"));
+            }
+        }
+        if (!any) {
+            return List.of();
+        }
+        try {
+            validator.check(MdmValidationRequest.rows(GRID_MASTER, rows).columns(MDM_COLUMNS).build());
+            return List.of();
+        } catch (BusinessException e) {
+            if (e.getErrorCode() == ErrorCode.INVALID_VALUE && e.getErrors() != null) {
+                return e.getErrors(); // 값 오류 — 수작업 검증 오류와 합쳐 한 번에 내려보낸다
+            }
+            throw e; // MDM_UNAVAILABLE 등 — 그대로
+        }
+    }
+
+    /**
+     * 같은 칸(rowIndex+field)에 수작업 검증 오류가 이미 있으면 앞쪽(MDM) 오류를 뺀다. 한 칸에 오류가 둘이면 화면이 어느 것을 보이느냐에 따라
+     * 서로 어긋난 문구가 보인다 — 예: 제목 1001자는 MDM "최대 1000자" 와 DB 한도 "200자" 가 겹치는데, 1000자로 줄여도 200자 오류가 남는다.
+     * 수작업(DB 한도·업무 코드)이 더 엄격하므로 그쪽을 남긴다.
+     *
+     * @param mdmCount {@code errors} 앞쪽 MDM 오류 개수
+     */
+    private static List<ErrorDetail> withoutShadowedMdmErrors(List<ErrorDetail> errors, int mdmCount) {
+        if (mdmCount == 0 || mdmCount == errors.size()) {
+            return errors;
+        }
+        Set<String> manualCells = new LinkedHashSet<>();
+        for (ErrorDetail e : errors.subList(mdmCount, errors.size())) {
+            manualCells.add(e.rowIndex() + "|" + e.field());
+        }
+        List<ErrorDetail> out = new ArrayList<>(errors.size());
+        for (int i = 0; i < errors.size(); i++) {
+            ErrorDetail e = errors.get(i);
+            if (i >= mdmCount || !manualCells.contains(e.rowIndex() + "|" + e.field())) {
+                out.add(e);
+            }
+        }
         return out;
     }
 
