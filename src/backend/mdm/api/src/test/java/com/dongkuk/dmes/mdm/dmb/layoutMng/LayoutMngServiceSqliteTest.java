@@ -238,6 +238,37 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void D141_도메인_없는_컬럼도_컬럼_검색에_나오고_파생값은_비어_있다() {
+        // 도메인은 컬럼 사전의 필수가 아니다(D-141). 사전에 있는 컬럼이므로 L01(사전 밖)로 빠지면 안 된다.
+        jdbc.update("INSERT OR IGNORE INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, REQUIRED, CHG_SEQ, VER) "
+                + "VALUES ('도메인 없는 칸', 'NO_DOMAIN_FLD', 0, 0, 0)");
+        LayoutMngSearchRequest cols = new LayoutMngSearchRequest();
+        cols.setTarget("COLUMN");
+        cols.setKeyword("NO_DOMAIN_FLD");
+
+        List<Map<String, Object>> found = (List<Map<String, Object>>) layoutService.search(cols).get("columns");
+
+        assertEquals(1, found.size());
+        Map<String, Object> row = found.get(0);
+        assertEquals("NO_DOMAIN_FLD", row.get("PHYS_NAME"));
+        assertEquals("도메인 없는 칸", row.get("DISPLAY_NAME"));
+        assertNull(row.get("DOMAIN_ID"));
+        assertNull(row.get("DOMAIN_NAME"));
+        assertNull(row.get("DATA_TYPE"));
+        assertNull(row.get("LENGTH"));
+
+        // 저장 때는 사전 밖(L01)이 아니라 길이 없음(L07)으로 거부한다.
+        long l110 = saveL110();
+        List<Map<String, Object>> items = m201Items();
+        items.add(item("DATA", "NO_DOMAIN_FLD", null));
+        String msg = rejectMessage(() -> layoutService.save(layoutReq(uniq("도메인 없음 "), null, r -> {}),
+                List.of(headerRow(l110)), List.of(), items));
+        assertTrue(msg.startsWith("전문 저장 거부: L07[5]"), msg);
+        assertTrue(msg.contains("NO_DOMAIN_FLD"), msg);
+    }
+
+    @Test
     void L02_FILLER_에_컬럼을_넣으면_거부한다() {
         List<Map<String, Object>> items = m201Items();
         items.get(3).put("COLUMN_PHYS", "COIL_ID");

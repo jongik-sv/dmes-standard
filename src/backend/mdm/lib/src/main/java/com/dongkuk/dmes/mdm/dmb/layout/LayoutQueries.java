@@ -33,7 +33,8 @@ public class LayoutQueries {
     public static final int IN_CHUNK = 500;
 
     private static final String COLUMN_SELECT = "SELECT c.PHYS_NAME, c.COLUMN_NAME, c.LABEL_LONG, c.DOMAIN_ID, d.DOMAIN_NAME "
-            + "FROM TB_MDM_COLUMN c JOIN TB_MDM_DOMAIN d ON d.DOMAIN_ID = c.DOMAIN_ID ";
+            // 도메인 없는 컬럼(D-141)도 사전에 있는 컬럼이다 — LEFT JOIN 이라야 L01(사전 밖)로 빠지지 않는다. 파생값은 비고 L07 이 잡는다.
+            + "FROM TB_MDM_COLUMN c LEFT JOIN TB_MDM_DOMAIN d ON d.DOMAIN_ID = c.DOMAIN_ID ";
 
     /** 컬럼 사전 검색 — {@code :kw} 는 늘 문자열({@code %KW%}, 키워드가 없으면 {@code %}). */
     public static final String COLUMN_SEARCH_SQL = COLUMN_SELECT

@@ -36,6 +36,7 @@ import { MdmPageLayout, badgeStyle } from "@/shell";
 
 import { compareName, saveColumn, searchColumns, loadColumnOptions, viewColumn } from "./api";
 import { formatLabels, resolveLabels } from "./labels";
+import { saveFormError, toSaveParams } from "./save-form";
 import {
   PLACEHOLDER,
   composeLogicalName,
@@ -57,7 +58,6 @@ import {
 import { TermRegPopModal } from "../termRegPop";
 
 const SCREEN_ID = "columnMng";
-const PLACEHOLDER_ERROR = "미등록 용어(***)가 남아 있어 저장할 수 없습니다";
 const ROW_KEY = "__rowId";
 
 const LIST_COLUMNS: GridColumn[] = [
@@ -368,38 +368,15 @@ export default function ColumnMngPage() {
   }, []);
 
   const handleSave = useCallback(async () => {
-    // 서버와 같은 문구로 선검사한다(I12). 서버도 다시 막는다. `***` 가 남았으면 도메인 누락보다 먼저 알린다 —
-    // 미등록 꼬리는 추천 도메인도 없으므로(D4) 필수 누락 문구가 원인을 가린다.
-    if (
-      form.physName.includes("*") ||
-      form.columnName.includes("*") ||
-      formTerms.some((t) => t == null)
-    ) {
-      setErrorMessage(PLACEHOLDER_ERROR);
-      return;
-    }
-    if (!form.columnName.trim() || !form.physName.trim() || !form.domainId) {
-      setErrorMessage("논리명·표준 물리명·도메인은 필수입니다");
+    // 서버와 같은 문구로 선검사한다(I12). 서버도 다시 막는다. 도메인은 필수가 아니다(D-141).
+    const blocked = saveFormError(form, formTerms);
+    if (blocked) {
+      setErrorMessage(blocked);
       return;
     }
     setBusy(true);
     try {
-      const params = {
-        columnId: form.columnId,
-        columnName: form.columnName,
-        physName: form.physName,
-        labelLong: form.labelLong,
-        labelMid: form.labelMid,
-        labelShort: form.labelShort,
-        description: form.description,
-        domainId: Number(form.domainId),
-        required: form.required === "Y",
-        defaultValue: form.defaultValue,
-        refKind: form.refKind,
-        refTarget: form.refTarget,
-        refCateId: form.refCateId,
-        usageNote: form.usageNote,
-      };
+      const params = toSaveParams(form);
       const systemsPayload = systemRows.map((r) => ({
         systemCode: String(r.systemCode ?? ""),
         physName: String(r.physName ?? ""),
@@ -853,7 +830,7 @@ export default function ColumnMngPage() {
                     </td>
                   </tr>
                   <tr>
-                    <th style={DETAIL_LABEL_CELL}>도메인 *</th>
+                    <th style={DETAIL_LABEL_CELL}>도메인</th>
                     <td style={DETAIL_VALUE_CELL}>
                       <Select
                         data-testid="form-domain"

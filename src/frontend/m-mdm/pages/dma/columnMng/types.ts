@@ -53,7 +53,7 @@ export interface DuplicateRow {
   columnName: string;
   physName: string;
   usageNote: string | null;
-  domainId: number;
+  domainId: number | null;
   domainName: string | null;
   matchedBy: "COLUMN_NAME" | "PHYS_NAME" | "SYSTEM_FIELD";
   systemCode: string | null;
@@ -79,7 +79,7 @@ export interface ColumnListRow {
   labelLong: string | null;
   labelMid: string | null;
   labelShort: string | null;
-  domainId: number;
+  domainId: number | null;
   domainName: string | null;
   domainStdName: string | null;
   required: "Y" | "N";
@@ -114,7 +114,7 @@ export interface ColumnDetail {
   labelMid: string | null;
   labelShort: string | null;
   description: string | null;
-  domainId: number;
+  domainId: number | null;
   required: boolean;
   defaultValue: string | null;
   refKind: string | null;

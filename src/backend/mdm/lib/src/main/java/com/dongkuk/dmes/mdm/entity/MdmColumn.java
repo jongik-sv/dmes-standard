@@ -44,8 +44,8 @@ public class MdmColumn extends CactusAuditEntity {
     @Column(name = "DESCRIPTION")
     private String description;
 
-    /** {@code TB_MDM_DOMAIN.DOMAIN_ID} 를 가리키는 원시 FK 필드(불변 규칙 9). */
-    @Column(name = "DOMAIN_ID", nullable = false)
+    /** {@code TB_MDM_DOMAIN.DOMAIN_ID} 를 가리키는 원시 FK 필드(불변 규칙 9). 필수가 아니다 — 비면 NULL(D-141, V16). */
+    @Column(name = "DOMAIN_ID")
     private Long domainId;
 
     @Column(name = "REQUIRED", nullable = false)

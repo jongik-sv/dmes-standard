@@ -265,11 +265,11 @@ public class ColumnMngService {
         guard.requireStdAdmin();
         ColumnMngSaveRequest req = request == null ? new ColumnMngSaveRequest() : request;
 
-        // 2. 필수
+        // 2. 필수 — 도메인은 필수가 아니다(D-141). 비우면 DOMAIN_ID 는 NULL 이다.
         String columnName = NamingRules.normalizeLogicalName(req.getColumnName());
         String physName = req.getPhysName() == null ? "" : req.getPhysName().trim();
-        if (columnName.isEmpty() || physName.isEmpty() || req.getDomainId() == null) {
-            throw invalid("논리명·표준 물리명·도메인은 필수입니다");
+        if (columnName.isEmpty() || physName.isEmpty()) {
+            throw invalid("논리명·표준 물리명은 필수입니다");
         }
 
         // 3. 자리 표시자(I12) — 형식·길이 검사보다 먼저
@@ -384,7 +384,7 @@ public class ColumnMngService {
         maxLength(blankToNull(req.getDefaultValue()), NamingRules.CODE_MAX, "기본값");
         maxLength(blankToNull(req.getRefTarget()), NamingRules.CODE_MAX, "참조 대상");
         maxLength(blankToNull(req.getRefCateId()), NamingRules.CODE_MAX, "참조 카테고리");
-        if (!domainRepository.existsById(req.getDomainId())) {
+        if (req.getDomainId() != null && !domainRepository.existsById(req.getDomainId())) {
             throw invalid("도메인을 찾을 수 없습니다");
         }
         String refKind = blankToNull(req.getRefKind());

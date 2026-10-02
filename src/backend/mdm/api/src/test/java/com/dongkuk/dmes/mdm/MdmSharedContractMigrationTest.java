@@ -77,8 +77,9 @@ class MdmSharedContractMigrationTest {
         // TSK-04-02 — V11(약어 인덱스 비유일화, D1. 당초 V4→V5→V10, 2026-09-24 팀장 정정으로 머지 뒤 최대 버전+1 재채번) 추가 반영.
         // TSK-05-03 — V12(레이아웃 스냅샷 버전 이력, D2. push 직전 origin/dev 최대 버전+1) 추가 반영.
         // D-103 — V13(TB_MDM_RULE_VAR.AXIS 제거, 피벗 표현 대체) 추가 반영. V14(RULE_SET.FLOW_JSON, 룰 세트 흐름도) 추가 반영. V15(룰 세트 테스트 케이스, 흐름도 3단계) 추가 반영.
+        // D-141 — V16(TB_MDM_COLUMN.DOMAIN_ID NOT NULL 해제) 추가 반영.
         // 모두 완화가 아니라 새 버전 반영이다.
-        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10", "11", "12", "13", "14", "15"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10", "11", "12", "13", "14", "15", "16"), versions);
     }
 
     @Test

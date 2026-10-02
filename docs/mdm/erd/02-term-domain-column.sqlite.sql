@@ -2,6 +2,7 @@
 -- 근거: docs/mdm/tasks/TSK-02-03/design.md §6.1, 타입 토큰은 §6.0
 -- 전제: TB_MDM_SYSTEM(TSK-01-02 소유)이 먼저 존재해야 한다(F2). 검증 fixtures/00-system.sql 참조.
 -- 감사 9칼럼(+AUDIT9)은 `TB_MDM_DICT_SEQ` 를 제외한 모든 테이블에 둔다(naming-dialect-rules.md §2).
+-- D-141(2026-10-02, 마이그레이션 V16): TB_MDM_COLUMN.DOMAIN_ID 는 NULL 허용이다(도메인 필수 조건 폐지). FK_TB_MDM_COLUMN_DOMAIN 은 그대로다.
 
 CREATE TABLE TB_MDM_UNIT (
     UNIT_CODE VARCHAR(20) NOT NULL,
@@ -97,7 +98,7 @@ CREATE TABLE TB_MDM_COLUMN (
     LABEL_SHORT TEXT,
     PHYS_NAME VARCHAR(50) NOT NULL,
     DESCRIPTION TEXT,
-    DOMAIN_ID INTEGER NOT NULL,
+    DOMAIN_ID INTEGER,
     REQUIRED INTEGER NOT NULL DEFAULT 0,
     DEFAULT_VALUE VARCHAR(50),
     REF_KIND VARCHAR(20),

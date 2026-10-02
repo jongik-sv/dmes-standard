@@ -423,9 +423,50 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void C17_도메인이_없거나_존재하지_않으면_MDM021() {
-        assertInvalid(r -> r.setDomainId(null), null);
+    void C17_존재하지_않는_도메인은_MDM021() {
+        // D-141 — 도메인은 필수가 아니다. 비우면 저장되고(아래 시험), 값을 주면 있는 도메인이어야 한다.
         assertInvalid(r -> r.setDomainId(987654L), "도메인");
+    }
+
+    @Test
+    void D141_도메인_없이_저장하면_검색_상세_중복_목록이_도메인_없이_동작한다() {
+        ColumnMngSaveRequest req = valid();
+        req.setDomainId(null);
+
+        Long columnId = save(req, List.of(sys("ERP", "ZZ_RMTL_COIL_THK", null, null)), List.of());
+
+        assertNull(jdbc.queryForObject("SELECT DOMAIN_ID FROM TB_MDM_COLUMN WHERE COLUMN_ID = ?", Long.class, columnId));
+        Map<String, Object> detail = map(service.view(view(columnId)).get("column"));
+        assertNull(detail.get("domainId"));
+        assertEquals("원재료 코일 두께", detail.get("columnName"));
+
+        DmaTestSupport.column(columns, "코일 두께", "COIL_THK", coilThk.getDomainId());
+        List<Map<String, Object>> all = maps(service.search(search("두께", null)).get("list"));
+        assertEquals(List.of("원재료 코일 두께", "코일 두께"), all.stream().map(m -> m.get("columnName")).toList());
+        assertNull(all.get(0).get("domainId"));
+        assertNull(all.get(0).get("domainName"));
+        assertNull(all.get(0).get("domainStdName"));
+        List<Map<String, Object>> filtered = maps(service.search(search("", coilThk.getDomainId())).get("list"));
+        assertEquals(List.of("코일 두께"), filtered.stream().map(m -> m.get("columnName")).toList(), "도메인 필터는 도메인 없는 컬럼을 뺀다");
+
+        List<Map<String, Object>> dups = maps(service.compare(compare("FORWARD", "원재료 코일두께")).get("duplicates"));
+        assertEquals(List.of("COLUMN_NAME", "PHYS_NAME"), dups.stream().map(m -> m.get("matchedBy")).toList());
+        assertNull(dups.get(0).get("domainId"));
+        assertNull(dups.get(0).get("domainName"));
+        List<Map<String, Object>> reverse = maps(service.compare(compare("REVERSE", "ZZ_RMTL_COIL_THK")).get("duplicates"));
+        assertEquals(List.of("SYSTEM_FIELD"), reverse.stream().map(m -> m.get("matchedBy")).toList());
+
+        // 도메인을 붙였다가 다시 비우는 수정도 된다.
+        ColumnMngSaveRequest withDomain = valid();
+        withDomain.setColumnId(columnId);
+        save(withDomain, List.of(), List.of());
+        assertEquals(rmtlCoilThk.getDomainId(),
+                jdbc.queryForObject("SELECT DOMAIN_ID FROM TB_MDM_COLUMN WHERE COLUMN_ID = ?", Long.class, columnId));
+        ColumnMngSaveRequest cleared = valid();
+        cleared.setColumnId(columnId);
+        cleared.setDomainId(null);
+        save(cleared, List.of(), List.of());
+        assertNull(jdbc.queryForObject("SELECT DOMAIN_ID FROM TB_MDM_COLUMN WHERE COLUMN_ID = ?", Long.class, columnId));
     }
 
     @Test
