@@ -1,0 +1,477 @@
+package com.dongkuk.dmes.mcm.widget.admin;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
+import com.dongkuk.dmes.mcm.widget.admin.dto.CommWidgetMngRequest;
+import com.dongkuk.dmes.mcm.widget.admin.dto.WidgetDefSaveRequest;
+import com.dongkuk.dmes.mcm.widget.admin.repository.WidgetUsageRepository;
+import com.dongkuk.dmes.mcm.widget.admin.service.CommWidgetMngService;
+import com.dongkuk.dmes.mcm.widget.def.WidgetDefSavedEvent;
+import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
+import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
+import com.dongkuk.dmes.mcm.widget.query.WidgetQueryResult;
+import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+
+/** {@link CommWidgetMngService} — 정의 저장 검사(§5.3)·ID 생성·삭제 거절·이벤트·미리보기 위임. */
+@ExtendWith(MockitoExtension.class)
+class CommWidgetMngServiceTest {
+
+    @Mock WidgetDefRepository defRepository;
+    @Mock WidgetUsageRepository usageRepository;
+    @Mock WidgetQueryRunner queryRunner;
+    @Mock ApplicationEventPublisher eventPublisher;
+
+    @InjectMocks CommWidgetMngService service;
+
+    private static WidgetDefSaveRequest defReq(String typeId, String configJson) {
+        WidgetDefSaveRequest r = new WidgetDefSaveRequest();
+        r.setSrcTp("D");
+        r.setTypeId(typeId);
+        r.setTitle("새 위젯");
+        r.setDefW(8);
+        r.setDefH(6);
+        r.setUseYn("Y");
+        r.setConfigJson(configJson);
+        return r;
+    }
+
+    private static WidgetDefSaveRequest codeReq(String widgetId) {
+        WidgetDefSaveRequest r = new WidgetDefSaveRequest();
+        r.setSrcTp("C");
+        r.setWidgetId(widgetId);
+        return r;
+    }
+
+    private static WidgetDef row(String widgetId, String srcTp) {
+        WidgetDef d = new WidgetDef();
+        d.setWidgetId(widgetId);
+        d.setSrcTp(srcTp);
+        d.setTitle("기존");
+        d.setUseYn("Y");
+        return d;
+    }
+
+    private static CommWidgetMngRequest idReq(String widgetId) {
+        CommWidgetMngRequest r = new CommWidgetMngRequest();
+        r.setWidgetId(widgetId);
+        return r;
+    }
+
+    private WidgetDef savedRow() {
+        ArgumentCaptor<WidgetDef> captor = ArgumentCaptor.forClass(WidgetDef.class);
+        verify(defRepository).save(captor.capture());
+        return captor.getValue();
+    }
+
+    private void assertRejected(WidgetDefSaveRequest request, String messagePart) {
+        assertThatThrownBy(() -> service.save(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining(messagePart);
+        verify(defRepository, never()).save(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    // ── save: ID·구분 ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("신규 정의 위젯은 def.{소문자1+소문자·숫자7} ID 를 만들고, 이미 있는 ID 면 다시 만든다")
+    void newDefinitionIdRetriesOnDuplicate() {
+        when(defRepository.existsById(anyString())).thenReturn(true, false);
+
+        Map<String, Object> result = service.save(defReq("markdown", "{\"markdown\":\"# 안녕\"}"));
+
+        verify(defRepository, times(2)).existsById(anyString());
+        WidgetDef saved = savedRow();
+        assertThat(saved.getWidgetId()).matches("^def\\.[a-z][a-z0-9]{7}$");
+        assertThat(saved.getSrcTp()).isEqualTo("D");
+        assertThat(saved.getTypeId()).isEqualTo("markdown");
+        assertThat(saved.getConfigJson()).isEqualTo("{\"markdown\":\"# 안녕\"}");
+        assertThat(saved.getDataSrc()).isNull();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> def = (Map<String, Object>) result.get("def");
+        assertThat(def).containsEntry("widgetId", saved.getWidgetId()).containsEntry("configJson", "{\"markdown\":\"# 안녕\"}");
+        verify(eventPublisher).publishEvent(new WidgetDefSavedEvent(saved.getWidgetId()));
+    }
+
+    @Test
+    @DisplayName("ID 를 10번 만들어도 모두 겹치면 DUPLICATE_DATA")
+    void idGenerationGivesUp() {
+        when(defRepository.existsById(anyString())).thenReturn(true);
+
+        assertThatThrownBy(() -> service.save(defReq("markdown", "{}")))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.DUPLICATE_DATA));
+        verify(defRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("기존 정의 위젯 수정은 같은 ID 로 저장하고 ID 를 새로 만들지 않는다")
+    void updateDefinitionKeepsId() {
+        WidgetDef existing = row("def.k3x9q2ab", "D");
+        when(defRepository.findById("def.k3x9q2ab")).thenReturn(Optional.of(existing));
+        WidgetDefSaveRequest r = defReq("markdown", "{\"markdown\":\"바뀜\"}");
+        r.setWidgetId("def.k3x9q2ab");
+        r.setUseYn("N");
+
+        service.save(r);
+
+        verify(defRepository, never()).existsById(anyString());
+        WidgetDef saved = savedRow();
+        assertThat(saved).isSameAs(existing);
+        assertThat(saved.getConfigJson()).isEqualTo("{\"markdown\":\"바뀜\"}");
+        assertThat(saved.getUseYn()).isEqualTo("N");
+        verify(eventPublisher).publishEvent(new WidgetDefSavedEvent("def.k3x9q2ab"));
+    }
+
+    @Test
+    @DisplayName("코드 위젯 덮어쓰기는 typeId·dataSrc·configJson 을 줘도 NULL 로 저장하고, 빈 칸은 NULL·사용 여부 NULL 은 Y")
+    void codeOverrideNullsDefinitionFields() {
+        when(defRepository.findById("home.notice")).thenReturn(Optional.empty());
+        WidgetDefSaveRequest r = codeReq("home.notice");
+        r.setTypeId("markdown");
+        r.setDataSrc("mcm");
+        r.setConfigJson("{\"markdown\":\"x\"}");
+        r.setTitle("사내 공지");
+        r.setSubtitle("");
+        r.setDefW(10);
+
+        service.save(r);
+
+        WidgetDef saved = savedRow();
+        assertThat(saved.getWidgetId()).isEqualTo("home.notice");
+        assertThat(saved.getSrcTp()).isEqualTo("C");
+        assertThat(saved.getTypeId()).isNull();
+        assertThat(saved.getDataSrc()).isNull();
+        assertThat(saved.getConfigJson()).isNull();
+        assertThat(saved.getTitle()).isEqualTo("사내 공지");
+        assertThat(saved.getSubtitle()).isNull();
+        assertThat(saved.getDefW()).isEqualTo(10);
+        assertThat(saved.getUseYn()).isEqualTo("Y");
+        verify(eventPublisher).publishEvent(new WidgetDefSavedEvent("home.notice"));
+    }
+
+    @Test
+    @DisplayName("코드 위젯 덮어쓰기의 빈 이름은 NULL(코드 값 사용)로 저장한다")
+    void codeOverrideBlankTitleIsNull() {
+        when(defRepository.findById("home.notice")).thenReturn(Optional.of(row("home.notice", "C")));
+        WidgetDefSaveRequest r = codeReq("home.notice");
+        r.setTitle("  ");
+        r.setUseYn("N");
+
+        service.save(r);
+
+        WidgetDef saved = savedRow();
+        assertThat(saved.getTitle()).isNull();
+        assertThat(saved.getUseYn()).isEqualTo("N");
+    }
+
+    @Test
+    @DisplayName("코드 위젯 ID 형식이 아니거나 def. 로 시작하면 거절")
+    void codeIdFormat() {
+        assertRejected(codeReq("def.k3x9q2ab"), "코드 위젯 ID");
+        assertRejected(codeReq("Home Notice"), "코드 위젯 ID");
+        assertRejected(codeReq(null), "코드 위젯 ID");
+    }
+
+    @Test
+    @DisplayName("코드 위젯 행을 정의 위젯으로 바꾸는 저장은 거절")
+    void codeToDefinitionRejected() {
+        when(defRepository.findById("home.notice")).thenReturn(Optional.of(row("home.notice", "C")));
+        WidgetDefSaveRequest r = defReq("markdown", "{}");
+        r.setWidgetId("home.notice");
+
+        assertRejected(r, "정의 위젯으로 바꿀 수 없습니다");
+    }
+
+    @Test
+    @DisplayName("없는 정의 위젯 ID 로 수정하면 거절")
+    void updateMissingDefinitionRejected() {
+        when(defRepository.findById("def.zzzzzzzz")).thenReturn(Optional.empty());
+        WidgetDefSaveRequest r = defReq("markdown", "{}");
+        r.setWidgetId("def.zzzzzzzz");
+
+        assertRejected(r, "위젯 정의를 찾을 수 없습니다");
+    }
+
+    @Test
+    @DisplayName("구분은 C·D 만, 정의 위젯 이름은 필수·50자 이하, 유형 ID 형식")
+    void commonFieldRules() {
+        WidgetDefSaveRequest badSrc = defReq("markdown", "{}");
+        badSrc.setSrcTp("X");
+        assertRejected(badSrc, "구분");
+        WidgetDefSaveRequest noTitle = defReq("markdown", "{}");
+        noTitle.setTitle(" ");
+        assertRejected(noTitle, "이름");
+        WidgetDefSaveRequest longTitle = defReq("markdown", "{}");
+        longTitle.setTitle("가".repeat(51));
+        assertRejected(longTitle, "이름");
+        assertRejected(defReq("Query_Table", "{}"), "유형");
+        assertRejected(defReq(null, "{}"), "유형");
+        WidgetDefSaveRequest badYn = defReq("markdown", "{}");
+        badYn.setMultipleYn("X");
+        assertRejected(badYn, "Y 또는 N");
+        WidgetDefSaveRequest longDesc = defReq("markdown", "{}");
+        longDesc.setDescription("가".repeat(401));
+        assertRejected(longDesc, "설명");
+    }
+
+    // ── save: 크기·새로 고침 ─────────────────────────────────────────
+
+    @Test
+    @DisplayName("크기는 1 이상, 같은 축 MIN ≤ DEF ≤ MAX, DEF_W ≤ 24")
+    void sizeRules() {
+        WidgetDefSaveRequest minOverDef = defReq("markdown", "{}");
+        minOverDef.setMinW(10);
+        minOverDef.setDefW(6);
+        assertRejected(minOverDef, "폭");
+        WidgetDefSaveRequest defOverMax = defReq("markdown", "{}");
+        defOverMax.setDefH(10);
+        defOverMax.setMaxH(8);
+        assertRejected(defOverMax, "높이");
+        WidgetDefSaveRequest wide = defReq("markdown", "{}");
+        wide.setDefW(25);
+        assertRejected(wide, "24");
+        WidgetDefSaveRequest zero = defReq("markdown", "{}");
+        zero.setMinH(0);
+        assertRejected(zero, "1 이상");
+    }
+
+    @Test
+    @DisplayName("새로 고침 주기는 NULL 또는 30~86400초 — 10초는 거절")
+    void refreshSecRule() {
+        WidgetDefSaveRequest r = defReq("markdown", "{}");
+        r.setRefreshSec(10);
+        assertRejected(r, "새로 고침");
+        WidgetDefSaveRequest tooLong = defReq("markdown", "{}");
+        tooLong.setRefreshSec(86401);
+        assertRejected(tooLong, "새로 고침");
+    }
+
+    // ── save: 정의 설정·유형별 ────────────────────────────────────────
+
+    @Test
+    @DisplayName("정의 설정은 JSON 객체이고 200KB 이하")
+    void configJsonRules() {
+        assertRejected(defReq("markdown", "{broken"), "JSON 객체");
+        assertRejected(defReq("markdown", "[1,2]"), "JSON 객체");
+        assertRejected(defReq("markdown", "{\"markdown\":\"" + "a".repeat(200 * 1024) + "\"}"), "200KB");
+    }
+
+    @Test
+    @DisplayName("쿼리 유형의 dataSrc 가 mcm 이 아니면(mls) 「아직 지원하지 않는 모듈입니다」, SQL 검사도 하지 않는다")
+    void queryDataSrcOnlyMcm() {
+        WidgetDefSaveRequest r = defReq("query-table", "{\"sql\":\"select 1\"}");
+        r.setDataSrc("mls");
+
+        assertRejected(r, "아직 지원하지 않는 모듈입니다");
+        verify(queryRunner, never()).validateSql(anyString());
+    }
+
+    @Test
+    @DisplayName("쿼리 유형 저장은 config.sql 을 queryRunner.validateSql 로 검사하고 dataSrc 를 저장한다")
+    void querySaveValidatesSql() {
+        when(defRepository.existsById(anyString())).thenReturn(false);
+        WidgetDefSaveRequest r = defReq("query-chart", "{\"sql\":\"select a, b from t where u = :userId\",\"chartType\":\"bar\"}");
+        r.setDataSrc("mcm");
+
+        service.save(r);
+
+        verify(queryRunner).validateSql("select a, b from t where u = :userId");
+        assertThat(savedRow().getDataSrc()).isEqualTo("mcm");
+    }
+
+    @Test
+    @DisplayName("SQL 검사가 던지면 저장하지 않고 이벤트도 내지 않는다")
+    void querySqlRejectedNotSaved() {
+        doThrow(new BusinessException(ErrorCode.INVALID_VALUE, "쓸 수 없는 낱말이 있습니다: UPDATE"))
+                .when(queryRunner).validateSql(anyString());
+        WidgetDefSaveRequest r = defReq("query-table", "{\"sql\":\"update t set a = 1\"}");
+        r.setDataSrc("mcm");
+
+        assertRejected(r, "쓸 수 없는 낱말이 있습니다: UPDATE");
+    }
+
+    @Test
+    @DisplayName("쿼리 유형에 SQL 이 없으면 거절")
+    void querySqlRequired() {
+        WidgetDefSaveRequest r = defReq("query-number", "{\"valueField\":\"V\"}");
+        r.setDataSrc("mcm");
+        assertRejected(r, "SQL");
+    }
+
+    @Test
+    @DisplayName("웹 주소 유형은 http(s) 절대 주소만 — javascript: 는 거절")
+    void webUrlRule() {
+        assertRejected(defReq("web", "{\"url\":\"javascript:alert(1)\"}"), "웹 주소");
+        assertRejected(defReq("web", "{\"url\":\"/csa/commUserMng\"}"), "웹 주소");
+        assertRejected(defReq("web", "{}"), "웹 주소");
+    }
+
+    @Test
+    @DisplayName("웹 주소 유형의 https 주소는 저장한다")
+    void webUrlAccepted() {
+        when(defRepository.existsById(anyString())).thenReturn(false);
+        service.save(defReq("web", "{\"url\":\"https://www.example.com/path?q=1\"}"));
+        assertThat(savedRow().getTypeId()).isEqualTo("web");
+    }
+
+    @Test
+    @DisplayName("링크 모음: url 은 http(s), page 는 pageId 필수, 그 밖 종류는 거절")
+    void linksRule() {
+        assertRejected(defReq("links", "{\"items\":[{\"label\":\"a\",\"kind\":\"url\",\"url\":\"javascript:x\"}]}"), "링크 주소");
+        assertRejected(defReq("links", "{\"items\":[{\"label\":\"a\",\"kind\":\"page\"}]}"), "pageId");
+        assertRejected(defReq("links", "{\"items\":[{\"label\":\"a\",\"kind\":\"file\"}]}"), "종류");
+        assertRejected(defReq("links", "{\"items\":{}}"), "items");
+    }
+
+    @Test
+    @DisplayName("미디어: src 는 media:{32자 16진수} 또는 http(s) — media:../../etc 는 거절")
+    void mediaRule() {
+        assertRejected(defReq("media", "{\"items\":[{\"kind\":\"image\",\"src\":\"media:../../etc\"}]}"), "미디어");
+        assertRejected(defReq("media", "{\"items\":[{\"kind\":\"image\",\"src\":\"file:///etc/passwd\"}]}"), "미디어");
+    }
+
+    @Test
+    @DisplayName("미디어: 업로드 파일 ID·https 주소는 저장한다")
+    void mediaAccepted() {
+        when(defRepository.existsById(anyString())).thenReturn(false);
+        service.save(defReq("media", "{\"items\":[{\"kind\":\"image\",\"src\":\"media:0123456789abcdef0123456789abcdef\"},"
+                + "{\"kind\":\"youtube\",\"src\":\"https://www.youtube.com/watch?v=abc\"}],\"fit\":\"contain\"}"));
+        assertThat(savedRow().getTypeId()).isEqualTo("media");
+    }
+
+    @Test
+    @DisplayName("html 의 allowScript 는 불리언만(없으면 false 로 본다)")
+    void htmlAllowScriptRule() {
+        assertRejected(defReq("html", "{\"html\":\"<b>x</b>\",\"allowScript\":\"yes\"}"), "allowScript");
+    }
+
+    // ── delete ──────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("사용자가 놓은 정의 위젯은 지우지 않는다 — 「사용 중인 위젯은 지울 수 없습니다. 사용 중지하세요」")
+    void deleteInUseDefinitionRejected() {
+        when(defRepository.findById("def.k3x9q2ab")).thenReturn(Optional.of(row("def.k3x9q2ab", "D")));
+        when(usageRepository.countUsers("def.k3x9q2ab")).thenReturn(3L);
+
+        assertThatThrownBy(() -> service.delete(idReq("def.k3x9q2ab")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("사용 중인 위젯은 지울 수 없습니다. 사용 중지하세요");
+        verify(defRepository, never()).delete(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    @DisplayName("사용자가 없는 정의 위젯은 지우고 이벤트를 낸다")
+    void deleteUnusedDefinition() {
+        WidgetDef existing = row("def.k3x9q2ab", "D");
+        when(defRepository.findById("def.k3x9q2ab")).thenReturn(Optional.of(existing));
+        when(usageRepository.countUsers("def.k3x9q2ab")).thenReturn(0L);
+
+        Map<String, Object> result = service.delete(idReq("def.k3x9q2ab"));
+
+        verify(defRepository).delete(existing);
+        verify(eventPublisher).publishEvent(new WidgetDefSavedEvent("def.k3x9q2ab"));
+        assertThat(result).containsEntry("deleted", "def.k3x9q2ab");
+    }
+
+    @Test
+    @DisplayName("코드 위젯 삭제 = 덮어쓰기 행 삭제(사용자 수와 무관)")
+    void deleteCodeOverrideRow() {
+        WidgetDef existing = row("home.notice", "C");
+        when(defRepository.findById("home.notice")).thenReturn(Optional.of(existing));
+
+        service.delete(idReq("home.notice"));
+
+        verify(defRepository).delete(existing);
+        verify(usageRepository, never()).countUsers(anyString());
+        verify(eventPublisher).publishEvent(new WidgetDefSavedEvent("home.notice"));
+    }
+
+    @Test
+    @DisplayName("없는 ID 삭제는 「위젯 정의를 찾을 수 없습니다」")
+    void deleteMissing() {
+        when(defRepository.findById("def.none0000")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.delete(idReq("def.none0000")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("위젯 정의를 찾을 수 없습니다");
+        verifyNoInteractions(eventPublisher);
+    }
+
+    // ── search·previewQuery ─────────────────────────────────────────
+
+    @Test
+    @DisplayName("search 는 정의 행 전체(configJson 그대로)+userCount 와, 행 없는 코드 위젯까지 담은 usage 를 돌려준다")
+    void searchWithUsage() {
+        WidgetDef query = row("def.q1", "D");
+        query.setTypeId("query-table");
+        query.setConfigJson("{\"sql\":\"select 1\"}");
+        when(defRepository.findAllByOrderByWidgetIdAsc()).thenReturn(List.of(query, row("home.notice", "C")));
+        List<Object[]> usageRows = new ArrayList<>();
+        usageRows.add(new Object[] {"home.notice", 4L});
+        usageRows.add(new Object[] {"home.todo", 2L});
+        when(usageRepository.countUsersByWidget()).thenReturn(usageRows);
+
+        Map<String, Object> result = service.search(new CommWidgetMngRequest());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> defs = (List<Map<String, Object>>) result.get("defs");
+        assertThat(defs).hasSize(2);
+        assertThat(defs.get(0)).containsEntry("widgetId", "def.q1").containsEntry("userCount", 0L)
+                .containsEntry("configJson", "{\"sql\":\"select 1\"}");
+        assertThat(defs.get(1)).containsEntry("widgetId", "home.notice").containsEntry("userCount", 4L);
+        assertThat(result.get("usage")).isEqualTo(Map.of("home.notice", 4L, "home.todo", 2L));
+    }
+
+    @Test
+    @DisplayName("previewQuery 는 queryRunner.preview(dataSrc, sql, 50) 결과를 columns·rows·truncated 로 돌려준다")
+    void previewDelegates() {
+        WidgetQueryResult qr = new WidgetQueryResult(List.of("A"), List.of(Map.of("A", 1)), true);
+        when(queryRunner.preview("mcm", "select 1 a", 50)).thenReturn(qr);
+        CommWidgetMngRequest r = new CommWidgetMngRequest();
+        r.setDataSrc("mcm");
+        r.setSql("select 1 a");
+
+        Map<String, Object> result = service.previewQuery(r);
+
+        assertThat(result).containsEntry("columns", List.of("A")).containsEntry("rows", List.of(Map.of("A", 1)))
+                .containsEntry("truncated", true);
+    }
+
+    @Test
+    @DisplayName("previewQuery 도 mcm 밖 모듈은 거절한다")
+    void previewOtherModuleRejected() {
+        CommWidgetMngRequest r = new CommWidgetMngRequest();
+        r.setDataSrc("mls");
+        r.setSql("select 1");
+
+        assertThatThrownBy(() -> service.previewQuery(r))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("아직 지원하지 않는 모듈입니다");
+        verifyNoInteractions(queryRunner);
+    }
+}
