@@ -31,19 +31,88 @@ export interface WidgetMeta {
   multiple?: boolean;
   /** 본문 안쪽 여백(기본 true). 그리드처럼 칸을 채우는 위젯은 false. */
   bodyPadding?: boolean;
+  /** 관리자가 사용 중지(스펙 2026-10-02-widget-admin-generic §1.1). 서랍에 안 보이고, 놓인 자리는 빈 칸으로 그린다. */
+  disabled?: boolean;
+  /** "code"(코드 위젯) | "def"(관리자 정의 위젯). 없으면 "code". */
+  kind?: "code" | "def";
+  /** 정의 위젯의 유형 ID(예: "query-table"). 코드 위젯은 없음. */
+  typeId?: string;
 }
 
 export interface WidgetProps {
   /** 보드 안 고유 ID — 같은 위젯을 두 번 놓아도 구분한다. */
   instanceId: string;
   size: WidgetSize;
-  /** 인스턴스 설정. A 에서는 늘 null(설정 편집은 C). */
+  /** 인스턴스 설정. 사용자는 놓기만 하므로 지금은 늘 null. */
   config: unknown;
   /** 새로 고침 신호. 값이 바뀌면 위젯이 다시 조회한다. */
   refreshKey: number;
+  /** 정의 위젯의 정의 설정(TB_MCM_WIDGET_DEF.CONFIG_JSON 파싱값). 코드 위젯은 null. */
+  definition: unknown | null;
+  /** 위젯 ID — 정의 위젯이 자기 defId 로 서버를 부를 때 쓴다. */
+  widgetId: string;
 }
 
 export type WidgetComponent = (props: WidgetProps) => ReactNode;
+
+/** 위젯 유형 — 정의 위젯의 본체. m-mcm widget-types/{typeId}/ 폴더 하나(type.meta.ts·renderer.tsx·editor.tsx). */
+export interface WidgetTypeMeta {
+  /** "query-table" — 폴더 이름과 같다. 소문자·숫자·하이픈. */
+  id: string;
+  /** "쿼리 표" */
+  title: string;
+  description?: string;
+  defaultSize: WidgetSize;
+  minSize?: WidgetSize;
+  maxSize?: WidgetSize;
+  /** 본문 안쪽 여백(기본 true). */
+  bodyPadding?: boolean;
+  /** 새 정의를 만들 때 넣는 초기 정의 설정. */
+  initialConfig: unknown;
+}
+
+/** 관리 화면이 유형 편집기(editor.tsx default export)에 넘기는 props. */
+export interface WidgetTypeEditorProps<C = unknown> {
+  value: C;
+  onChange: (next: C) => void;
+  /** 편집기가 검사한 오류(저장 막기용). 빈 배열이면 저장 가능. */
+  onValidate?: (errors: string[]) => void;
+}
+
+export type WidgetTypeEditorComponent = (props: WidgetTypeEditorProps) => ReactNode;
+
+export interface WidgetTypeRegistryEntry {
+  meta: WidgetTypeMeta;
+  /** default export 가 WidgetComponent — props.definition 으로 정의 설정을 받는다. */
+  loadRenderer: () => Promise<{ default: unknown }>;
+  /** default export 가 WidgetTypeEditorComponent. */
+  loadEditor: () => Promise<{ default: unknown }>;
+}
+
+export type WidgetTypeRegistry = Readonly<Record<string, WidgetTypeRegistryEntry>>;
+
+/** widgetDef/list·commWidgetMng/search 응답 한 줄(서버 DTO 그대로, config 는 화면이 CONFIG_JSON 을 파싱한 값). */
+export interface WidgetDefRow {
+  widgetId: string;
+  /** C=코드 위젯 덮어쓰기, D=정의 위젯 */
+  srcTp: "C" | "D";
+  typeId: string | null;
+  title: string | null;
+  subtitle: string | null;
+  description: string | null;
+  defW: number | null;
+  defH: number | null;
+  minW: number | null;
+  minH: number | null;
+  maxW: number | null;
+  maxH: number | null;
+  refreshSec: number | null;
+  linkPageId: string | null;
+  multipleYn: "Y" | "N" | null;
+  useYn: "Y" | "N";
+  dataSrc: string | null;
+  config: unknown | null;
+}
 
 export interface WidgetRegistryEntry {
   meta: WidgetMeta;

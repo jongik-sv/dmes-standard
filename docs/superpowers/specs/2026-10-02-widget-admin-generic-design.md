@@ -198,7 +198,7 @@ A 와 같은 방식: 로컬은 `ddl-auto: update`, 개발계·운영계는 `docs
 | `DATA_SRC` | VARCHAR(20) | 쿼리 유형의 실행 모듈(`mcm`). 그 밖 유형은 NULL |
 | `CONFIG_JSON` | LONG32VARCHAR | 정의 설정(유형별 §6). `C` 는 NULL |
 
-- `def.{key}` 의 key 는 서버가 만든다(소문자+숫자 8자, 중복이면 다시).
+- `def.{key}` 의 key 는 서버가 만든다(소문자+숫자 8자, **첫 글자는 소문자** — shared `validateWidgetMeta` 의 ID 정규식 `^[a-z][a-zA-Z0-9]*\.[a-zA-Z][a-zA-Z0-9]*$` 를 통과해야 한다. 중복이면 다시).
 - `DATA_SRC` 를 `CONFIG_JSON` 밖에 두는 이유: 실행 모듈별 조회·검사를 SQL 로 하려고.
 
 ### 4.2 `TB_MCM_WIDGET_DEFAULT_LAYOUT` — 「홈」 기본 배치 (B)
@@ -267,7 +267,7 @@ BE `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` 와 FE `m-mcm/proxy.
 | `widgetChat/history` | `instId` | `{ messages: [{seq, role, content, links}] }` | D |
 | `widgetChat/send` | `instId`, `defId`, `message`(1~2000자) | `{ reply: {seq, role, content, links} }` | D |
 | `widgetChat/reset` | `instId` | — | D |
-| 미디어 파일 | `GET /api/mcm/rest/widgetMedia/file/{fileId}` | 바이너리(`nosniff`, `inline`, Range 지원) | D |
+| 미디어 파일 | FE `GET /api/mcm/rest/widgetMedia/file/api/mcm/widgetMedia/file/{fileId}` → BE `GET /api/mcm/widgetMedia/file/{fileId}`(REST 신경로 규약: `/api/{module}/rest/{objId}/{action}/{backendPath}`) | 바이너리(`nosniff`, `inline`, Range 지원) | D |
 
 - `widgetData/run` 은 **defId 만 받는다. 요청 본문의 SQL 은 어떤 경우에도 실행하지 않는다.** 정의가 `USE_YN='Y'` 이고 유형이 `query-*` 일 때만 실행한다.
 - `widgetChat/send` 는 `defId` 정의가 `chat` 유형이고 사용 중일 때만 동작한다.
@@ -280,14 +280,16 @@ BE `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` 와 FE `m-mcm/proxy.
 |---|---|---|
 | `search` | — | 정의·덮어쓰기 행 전체 + 위젯별 사용자 수(`TB_MCM_SEC_USER_WIDGET` 에서 `WIDGET_ID` 별 DISTINCT `USER_ID` 수) |
 | `save` | 정의 행 1개 | `D` 신규면 ID 생성 후 insert, 그 밖 upsert. 검사 §5.3 |
-| `remove` | `widgetId` | `D` 는 사용자 수 0 일 때만 지운다(그 밖 거절: 「사용 중인 위젯은 지울 수 없습니다. 사용 중지하세요」). `C` 는 덮어쓰기 행을 지운다(= 코드 값으로 되돌리기) |
+| `delete` | `widgetId` | `D` 는 사용자 수 0 일 때만 지운다(그 밖 거절: 「사용 중인 위젯은 지울 수 없습니다. 사용 중지하세요」). `C` 는 덮어쓰기 행을 지운다(= 코드 값으로 되돌리기). action 이름은 PERM_ALL 의 기존 토큰 `delete` 를 쓴다 |
 | `previewQuery` | `dataSrc`, `sql` | 저장 전 SQL 시험 실행. 관리자 본인 시스템 변수로, 행 상한 50 |
 | `searchLayouts` | — | 기본 배치가 있는 키 목록 `[{layoutKey, deptNm, count}]` |
 | `loadLayout` | `layoutKey` | 그 키의 배치 |
 | `saveLayout` | `layoutKey` + 위젯 목록 | 그 키를 통째로 바꾼다(지우고 다시 넣기, 한 트랜잭션). 좌표 검사는 A 와 같음 |
 | `deleteLayout` | `layoutKey` | 그 키의 배치를 지운다 |
 | `searchDepts` | `keyword` | 부서 고르기(`TB_MCM_DEPT_INFO` `USE_TP='Y'`) — 기존 부서 조회가 재사용 가능하면 그것을 쓴다 |
-| 미디어 올리기 | `POST /api/mcm/rest/commWidgetMng/upload`(multipart) | `{ fileId, origNm, contentType, size }` |
+| 미디어 올리기 | FE `POST /api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload`(multipart, 필드 `file`) → BE `POST /api/mcm/commWidgetMng/upload` | `{ fileId, origNm, contentType, size }` |
+
+- PERM_ALL 토큰: `search`·`save`·`delete` 는 기존 값, `previewQuery`·`searchLayouts`·`loadLayout`·`saveLayout`·`deleteLayout`·`searchDepts`·`upload` 는 Task 0 에서 `DataInitializer` 에 더했다(여기 없는 action 은 SYSADMIN 도 403).
 
 ### 5.3 서버 검사
 
@@ -416,7 +418,7 @@ interface LlmClient {
 ```
 
 - 목록 = 코드 등록부 + 유형 등록부 + `commWidgetMng/search` 를 `mergeWidgetRegistry` 와 같은 규칙으로 합친 것(사용 중지 포함). 코드 위젯은 덮어쓴 칸이 있으면 「덮어씀」 표시.
-- 코드 위젯 상세: 공통 칸의 자리 표시(placeholder)에 코드 값을 보인다. 비우면 코드 값. [코드 값으로 되돌리기] = `remove`.
+- 코드 위젯 상세: 공통 칸의 자리 표시(placeholder)에 코드 값을 보인다. 비우면 코드 값. [코드 값으로 되돌리기] = `delete`.
 - 정의 위젯 상세: 공통 칸 + 유형 편집기. [삭제]는 사용자 수 0 일 때만 활성.
 - 미리보기: 저장 전 값으로 그린다. 쿼리 유형은 `previewQuery` 결과로 그린다(아직 저장 전이라 `widgetData/run` 을 못 부른다 — 렌더러에 미리보기 데이터 주입 경로를 둔다: `WidgetProps.definition` 에 `__preview: { columns, rows }` 를 얹어 넘기면 렌더러가 서버를 부르지 않는다).
 - 바뀐 값이 있는데 다른 행을 고르면 「저장하지 않은 변경을 버릴까요?」.

@@ -15,6 +15,12 @@ const CFG: RbacPolicyConfig = {
     "/api/mcm/oasis/secFavorite/search",
     "/api/mls/oasis/noticeBoard/search", // m-mcm proxy.ts 와 같은 값 — 포털 홈 공지 목록(2026-10-02)
     "/api/mcm/oasis/secWidget/", // m-mcm proxy.ts 와 같은 값 — 사용자 위젯 탭·배치(본인 데이터, 2026-10-02)
+    // m-mcm proxy.ts 와 같은 값 — 위젯 B·C·D 사용자용(스펙 2026-10-02-widget-admin-generic §5.1)
+    "/api/mcm/oasis/widgetDef/list",
+    "/api/mcm/oasis/widgetData/run",
+    "/api/mcm/oasis/widgetExt/",
+    "/api/mcm/oasis/widgetChat/",
+    "/api/mcm/rest/widgetMedia/file/",
   ],
   lovPattern: /^\/api\/[^/]+\/lov\//,
   unmatchedDeny: false,
@@ -149,6 +155,33 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
     }
     expect(await evaluateApiPolicy("/api/mcm/oasis/secWidget/search", null, CFG, loadThrow)).toBe("unauthorized");
     expect(await evaluateApiPolicy("/api/mcm/oasis/secWidgetAdmin/search", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+  });
+  it("AUTH_ONLY(위젯 B·C·D 사용자용) — 열린 action 만 pass, 관리자용·다른 action 은 권한키 필요", async () => {
+    for (const url of [
+      "/api/mcm/oasis/widgetDef/list",
+      "/api/mcm/oasis/widgetData/run",
+      "/api/mcm/oasis/widgetExt/exchange",
+      "/api/mcm/oasis/widgetExt/weather",
+      "/api/mcm/oasis/widgetChat/history",
+      "/api/mcm/oasis/widgetChat/send",
+      "/api/mcm/oasis/widgetChat/reset",
+      "/api/mcm/rest/widgetMedia/file/api/mcm/widgetMedia/file/0123456789abcdef0123456789abcdef",
+    ]) {
+      expect(await evaluateApiPolicy(url, viewer, CFG, loadThrow)).toBe("pass");
+    }
+    expect(await evaluateApiPolicy("/api/mcm/oasis/widgetDef/list", null, CFG, loadThrow)).toBe("unauthorized");
+    // 정의 저장·SQL 미리보기·기본 배치·미디어 올리기는 위젯관리 화면 RBAC(W-D22)
+    expect(await evaluateApiPolicy("/api/mcm/oasis/widgetDef/save", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    expect(await evaluateApiPolicy("/api/mcm/oasis/commWidgetMng/previewQuery", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    expect(await evaluateApiPolicy("/api/mcm/oasis/commWidgetMng/saveLayout", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    expect(
+      await evaluateApiPolicy("/api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload", viewer, CFG, loadEmpty)
+    ).toBe("forbidden-perm");
+    const loadAdmin: PermsLoader = () => ["mcm/commwidgetmng/previewquery", "mcm/commwidgetmng/upload"];
+    expect(await evaluateApiPolicy("/api/mcm/oasis/commWidgetMng/previewQuery", viewer, CFG, loadAdmin)).toBe("pass");
+    expect(
+      await evaluateApiPolicy("/api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload", viewer, CFG, loadAdmin)
+    ).toBe("pass");
   });
   it("AUTH_ONLY 라도 미로그인이면 unauthorized", async () => {
     expect(await evaluateApiPolicy("/api/mcm/oasis/secUser/myMenus", null, CFG, loadThrow)).toBe("unauthorized");

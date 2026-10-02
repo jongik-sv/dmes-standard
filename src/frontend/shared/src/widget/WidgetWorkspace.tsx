@@ -43,6 +43,15 @@ export interface WidgetWorkspaceProps {
   /** 시험용 고정 폭 — 서랍 자리까지 포함한 바깥 폭. 칸 수·편집 가능 판정에 쓴다(없으면 boardWidth, 그것도 없으면 잰 폭). */
   workspaceWidth?: number;
   testId?: string;
+  /**
+   * 정의 위젯 목록(widgetDef/list)을 아직 못 불렀거나 실패했다 — true 면 [배치 편집]을 막고 띠를 보인다.
+   * 정의 위젯이 「없는 위젯」으로 보이는 상태에서 저장하면 사용자 배치에서 지워지기 때문이다(스펙 widget-admin-generic §1.1·W-D19).
+   */
+  registryDegraded?: boolean;
+  /** registryDegraded 띠의 [다시 시도]. 없으면 버튼을 그리지 않는다. */
+  onRetryRegistry?: () => void;
+  /** 탭 줄을 숨기고 「홈」 탭 하나만 다룬다 — 관리자 기본 배치 편집용. title 은 보드 위 제목. */
+  singleTab?: { title: string };
 }
 
 type LoadStatus = "loading" | "ready" | "error";

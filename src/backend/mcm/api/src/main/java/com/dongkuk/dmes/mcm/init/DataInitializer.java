@@ -330,7 +330,10 @@ public class DataInitializer implements ApplicationRunner {
                 "changeStatus",
                 // 2026-10-02 — mcm 화면 사용 통계(services/csa/screenUsageStat.bpmn) 6개 action. 이미 시드된 DB 는
                 //   아래 ensurePermAllActions 가 덧붙인다. screenUsage/record 는 AUTH_ONLY 라 여기 넣지 않는다.
-                "overview", "byScreen", "byDept", "byUser", "unused", "history"
+                "overview", "byScreen", "byDept", "byUser", "unused", "history",
+                // 2026-10-02 — mcm 위젯관리(services/csa/commWidgetMng.bpmn) action 과 미디어 올리기(REST upload).
+                //   search·save·delete 는 위에 있다. 사용자용 widgetDef·widgetData·widgetExt·widgetChat·widgetMedia 는 AUTH_ONLY 라 넣지 않는다.
+                "previewQuery", "searchLayouts", "loadLayout", "saveLayout", "deleteLayout", "searchDepts", "upload"
 
                 // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
                 // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey
@@ -435,6 +438,9 @@ public class DataInitializer implements ApplicationRunner {
 
         // 2026-10-02 — 화면 사용 통계(csa/screenUsageStat) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 화면 사용 통계".
         seedScreenUsageMenus();
+
+        // 2026-10-02 — 위젯관리(csa/commWidgetMng) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 위젯 관리".
+        seedWidgetAdminMenus();
 
         // 확장 지점 — 신규 업무 모듈을 추가할 때 여기에 seed{Module}Menus() 를 호출한다.
 
@@ -877,6 +883,28 @@ public class DataInitializer implements ApplicationRunner {
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
                 "VALUES ('SYSADMIN', '" + objId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
         log.info("[DataInitializer] 화면 사용 통계 메뉴 시드 — OBJECT 1(screenUsageStat) + 메뉴 leaf 1(csa/screenUsageStat) + RBAC(SYSADMIN 1)");
+    }
+
+    /**
+     * 위젯관리(csa/commWidgetMng) 메뉴 시드 (2026-10-02, 스펙 2026-10-02-widget-admin-generic §5.2·W-D22) —
+     * OBJECT 1 + 메뉴 leaf 1 + SYSADMIN × PERM_ALL 1. 관리자 서비스(정의 저장·SQL 미리보기·기본 배치·미디어 올리기)는
+     * 이 OBJECT 의 메뉴 권한(RBAC)으로 보호한다. 사용자용 서비스는 AUTH_ONLY 라 여기 넣지 않는다.
+     * FULL_SEQ 1020190 은 csa 의 화면 사용 통계(1020180) 다음이다. 모두 insert-if-absent 라 재기동해도 중복 행이 생기지 않는다.
+     */
+    private void seedWidgetAdminMenus() {
+        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
+        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
+                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
+        final String objId = "commWidgetMng";
+        insertMcmSecObjIfAbsent(objId, "위젯 관리", "mcm");
+        insertMcmSecMenuIfAbsent(objId, "001", "1020190", "위젯 관리", "csa", objId);
+        insertIfAbsentComposite(
+                "TB_MCM_SEC_ROLE_MAPPING",
+                new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
+                new String[]{"SYSADMIN", objId,       "PERM_ALL"},
+                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
+                "VALUES ('SYSADMIN', '" + objId + "', 'PERM_ALL'" + AUDIT_VALS + ")");
+        log.info("[DataInitializer] 위젯관리 메뉴 시드 — OBJECT 1(commWidgetMng) + 메뉴 leaf 1(csa/commWidgetMng) + RBAC(SYSADMIN 1)");
     }
 
     /**
