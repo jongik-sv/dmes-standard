@@ -42,6 +42,7 @@ export default defineConfig((options) => ({
     oasis: "src/oasis/index.ts",
     "oasis-proxy": "src/oasis-proxy/index.ts",
     lib: "src/lib/index.ts",
+    evalex: "src/evalex/index.ts",
   },
   format: ["esm"],
   target: "es2022",

@@ -169,6 +169,10 @@
     "./lib": {
       "types": "./dist/types/lib/index.d.ts",
       "import": "./dist/lib.js"
+    },
+    "./evalex": {
+      "types": "./dist/types/evalex/index.d.ts",
+      "import": "./dist/evalex.js"
     }
   },
   "files": [
@@ -187,6 +191,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "decimal.js": "^10.6.0",
     "@tiptap/extension-hard-break": "^3.31.4",
     "@tiptap/extension-list": "^3.31.4",
     "@tiptap/markdown": "^3.31.4",
