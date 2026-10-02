@@ -15,6 +15,8 @@ export const FIELD_INPUT_PLACEHOLDER = "컬럼 이름([쿼리 시험] 뒤에는 
 export const QUERY_CSS = `
 .wq-fill { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .wq-fill__grow { flex: 1 1 0; min-height: 0; }
+.wq-foot { flex: none; display: flex; align-items: center; gap: var(--spacing-sm); padding: 2px 6px 2px 8px; border-top: 1px solid var(--color-border-light); font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.wq-foot__note { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wq-note { flex: none; padding: 3px 8px; font-size: var(--font-size-xs); color: var(--color-text-muted); border-top: 1px solid var(--color-border-light); }
 .wq-empty { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 48px; box-sizing: border-box; padding: var(--spacing-md); font-size: var(--font-size-sm); color: var(--color-text-muted); text-align: center; }
 .wq-center { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 0; }
