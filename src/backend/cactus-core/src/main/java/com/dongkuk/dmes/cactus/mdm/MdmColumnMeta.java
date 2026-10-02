@@ -36,7 +36,7 @@ public record MdmColumnMeta(
     public record Expr(String text, Map<String, Object> ast) {
     }
 
-    /** 서버 전용 유효 비즈니스식 — 화면 응답에는 싣지 않는다. */
+    /** 서버 전용 유효 비즈니스식 — 화면 응답에는 싣지 않는다(예외: SYSADMIN 캐시 항목 상세 {@code mdmMeta/entry}, 2026-10-02 사용자 결정). */
     public record BizExpr(String text) {
     }
 

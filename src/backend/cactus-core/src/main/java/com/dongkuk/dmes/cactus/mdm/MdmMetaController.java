@@ -37,7 +37,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
  * 업무 모듈 MDM 메타 엔드포인트 {@code /api/{module}/mdmMeta/*}(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.5). 포털 BFF
  * catch-all 이 경로를 그대로 넘기므로 BE 경로가 {@code /api/{module}/...} 로 시작한다. {@code {module}} 이 이 인스턴스 모듈과 다르면 404.
  *
- * <p>권한: columns·domains 는 로그인 사용자(BFF AUTH_ONLY). status·entries·load 는 SYSADMIN 만 — 보안 문맥에 인증이 있으면 그 권한으로,
+ * <p>권한: columns·domains 는 로그인 사용자(BFF AUTH_ONLY). status·entries·entry·load 는 SYSADMIN 만 — 보안 문맥에 인증이 있으면 그 권한으로,
  * 없으면 요청 헤더 {@code X-Authenticated-Role} 로 판정한다(Ruling R10 — 처음에는 mqc·mpp·mpn 에 ClientKeyFilter 가 없었다. 2026-10-02 부터 다섯 모듈
  * 모두 cactus 보안 체인 뒤에 있지만, 보안 설정이 빠진 새 모듈을 위해 헤더 판정을 남긴다). {@code DmomReceiveController} 처럼 {@code @Controller} 없이
  * 클래스 수준 {@code @RequestMapping} + {@code @ResponseBody} 로 두고 자동 설정이 {@code @Bean} 으로 만든다.
@@ -185,6 +185,39 @@ public class MdmMetaController {
         return ResponseEntity.ok(out);
     }
 
+    /**
+     * 항목 하나의 캐시 값 전체(관리 화면 항목 상세 보기). 컬럼은 {@code bizExpr.text} 까지, 룰은 정의 전체를 싣는다 — spec §4.2 "bizExpr 는 서버
+     * 전용"의 예외로, SYSADMIN 상세 보기에만 사용자가 허용했다(2026-10-02). 목록({@link #entries})은 여전히 값을 싣지 않는다.
+     * 캐시를 읽기만 한다({@link MdmMetaCache#peek}) — 조회 수를 올리지 않고, 없어도 MDM 에서 받지 않는다(404). 만료 항목은 없는 것으로 본다.
+     */
+    @GetMapping("/entry")
+    public ResponseEntity<Map<String, Object>> entry(@PathVariable("module") String module,
+                                                     @RequestHeader(value = ROLE_HEADER, required = false) String roles,
+                                                     @RequestParam(value = "type", required = false) String type,
+                                                     @RequestParam(value = "key", required = false) String key) {
+        ResponseEntity<Map<String, Object>> denied = guard(module, roles);
+        if (denied != null) {
+            return denied;
+        }
+        Optional<MdmTargetType> t = MdmTargetType.parse(type);
+        if (t.isEmpty()) {
+            return badRequest("대상 종류가 올바르지 않습니다: " + type);
+        }
+        if (key == null || key.isBlank()) {
+            return badRequest("키가 비었습니다");
+        }
+        String k = t.get() == MdmTargetType.COLUMN ? MdmNames.toPhysName(key) : key.trim();
+        Optional<MdmMetaCache.EntryView> found = cache.peek(t.get(), k);
+        if (found.isEmpty()) {
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("message", "캐시에 없습니다(만료·삭제됨): " + t.get().name() + " " + k);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+        }
+        Map<String, Object> out = entryRow(found.get());
+        out.put("value", found.get().absent() ? null : MdmJson.plain(found.get().value()));
+        return ResponseEntity.ok(out);
+    }
+
     /** 이 인스턴스에 미리 적재(관리 화면 신규). 이미 있으면 지우고 다시 받는다. */
     @PostMapping("/load")
     public ResponseEntity<Map<String, Object>> load(@PathVariable("module") String module,
@@ -312,7 +345,7 @@ public class MdmMetaController {
 
     /**
      * 항목 한 줄. 캐시 값({@code value})은 싣지 않는다 — 컬럼의 {@code bizExpr.text}·룰 정의 전체 같은 서버 전용 값이 관리 화면(브라우저)으로
-     * 나가지 않게 한다(spec §4.2). 있음·없음은 {@code absent} 로만 알린다.
+     * 나가지 않게 한다(spec §4.2). 있음·없음은 {@code absent} 로만 알린다. 값은 SYSADMIN 이 항목 하나를 여는 {@link #entry} 만 싣는다.
      */
     private static Map<String, Object> entryRow(MdmMetaCache.EntryView v) {
         Map<String, Object> row = new LinkedHashMap<>();

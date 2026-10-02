@@ -39,6 +39,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class MdmMetaControllerTest {
 
     private FakeMetaFeed feed;
+    private MutableClock clock;
     private MockMvc mvc;
     private final Logger controllerLog = (Logger) LoggerFactory.getLogger(MdmMetaController.class);
     private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
@@ -54,7 +55,7 @@ class MdmMetaControllerTest {
         logs.start();
         controllerLog.addAppender(logs);
         SecurityContextHolder.clearContext();
-        MutableClock clock = new MutableClock(Instant.parse("2026-10-02T00:00:00Z"));
+        clock = new MutableClock(Instant.parse("2026-10-02T00:00:00Z"));
         feed = new FakeMetaFeed();
         MdmMetaCache cache = new MdmMetaCache(100, Duration.ofMinutes(60), clock);
         cache.clear(0);
@@ -231,6 +232,107 @@ class MdmMetaControllerTest {
                 .andReturn().getResponse().getContentAsString();
         // spec §4.2 — bizExpr.text 는 서버 전용이다(화면 응답에는 존재 여부만).
         assertThat(body).doesNotContain("bizExpr").doesNotContain("value <= COIL_WID");
+    }
+
+    /** 2026-10-02 사용자 결정 — SYSADMIN 항목 상세 보기는 spec §4.2 의 예외로 비즈니스식 원문까지 캐시 값 전체를 싣는다. */
+    @Test
+    void entry_는_SYSADMIN_에게_비즈니스식_원문까지_캐시_값_전체를_준다() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
+
+        mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "column").param("key", "coilThk").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("COLUMN"))
+                .andExpect(jsonPath("$.key").value("COIL_THK"))
+                .andExpect(jsonPath("$.absent").value(false))
+                .andExpect(jsonPath("$.loadedAt").value("2026-10-02T00:00:00Z"))
+                .andExpect(jsonPath("$.hits").value(0))
+                .andExpect(jsonPath("$.remainingSeconds").value(3600))
+                .andExpect(jsonPath("$.loadSeq").value(0))
+                .andExpect(jsonPath("$.value.physName").value("COIL_THK"))
+                .andExpect(jsonPath("$.value.bizExpr.text").value("value <= COIL_WID"))
+                .andExpect(jsonPath("$.value.bizRequiredVars[0]").value("COIL_WID"))
+                .andExpect(jsonPath("$.value.stdExpr.text").value("value >= 0"));
+    }
+
+    @Test
+    void entry_는_SYSADMIN_이_아니면_403_다른_모듈은_404_잘못된_종류나_빈_키는_400() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
+
+        mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK")).andExpect(status().isForbidden());
+        String denied = mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK")
+                        .header("X-Authenticated-Role", "MCM_VIEWER"))
+                .andExpect(status().isForbidden())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(denied).doesNotContain("value <= COIL_WID");
+        mvc.perform(get("/api/mqc/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "TABLE").param("key", "COIL_THK").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/mls/mdmMeta/entry").param("key", "COIL_THK").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", " ").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void entry_는_캐시를_읽기만_해서_조회_수도_MDM_호출도_바뀌지_않는다() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
+        int calls = feed.fetchCalls.get();
+
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK").header("X-Authenticated-Role", "SYSADMIN"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.hits").value(0));
+        }
+        mvc.perform(get("/api/mls/mdmMeta/entries").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(jsonPath("$.items[0].key").value("COIL_THK"))
+                .andExpect(jsonPath("$.items[0].hits").value(0));
+        assertThat(feed.fetchCalls.get()).isEqualTo(calls);
+    }
+
+    @Test
+    void entry_는_캐시에_없으면_MDM_에서_받지_않고_404() throws Exception {
+        int calls = feed.fetchCalls.get();
+        mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("캐시에 없습니다(만료·삭제됨): COLUMN COIL_THK"));
+        assertThat(feed.fetchCalls.get()).isEqualTo(calls);
+
+        mvc.perform(get("/api/mls/mdmMeta/entries").header("X-Authenticated-Role", "SYSADMIN")).andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
+    void entry_는_max_age_가_지난_항목을_없는_것으로_본다() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
+        clock.advance(Duration.ofMinutes(60));
+
+        mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "COIL_THK").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void entry_는_없음_항목을_absent_와_빈_값으로_준다() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"NOPE\"]}"));
+
+        mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "COLUMN").param("key", "NOPE").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.absent").value(true))
+                .andExpect(jsonPath("$.value").value(nullValue()));
+    }
+
+    /** 값은 MdmJson 설정으로 바꾼다 — 소수 자리수(1.000)를 지키고 날짜는 ISO 문자열이다. JsonPath 는 1.000 을 1.0 으로 읽으므로 본문 글자로 본다. */
+    @Test
+    void entry_는_소수_자리수와_ISO_날짜를_지킨다() throws Exception {
+        feed.put(MdmTargetType.CODE, "PROC_CD", procCodeRows());
+        mvc.perform(post("/api/mls/mdmMeta/load").contentType(MediaType.APPLICATION_JSON).header("X-Authenticated-Role", "SYSADMIN")
+                        .content("{\"type\":\"CODE\",\"keys\":[\"PROC_CD\"]}"))
+                .andExpect(jsonPath("$.loaded[0]").value("PROC_CD"));
+
+        String body = mvc.perform(get("/api/mls/mdmMeta/entry").param("type", "CODE").param("key", "PROC_CD")
+                        .header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).contains("1.000").contains("9999.000").contains("\"2026-01-01T00:00:00\"");
     }
 
     @Test

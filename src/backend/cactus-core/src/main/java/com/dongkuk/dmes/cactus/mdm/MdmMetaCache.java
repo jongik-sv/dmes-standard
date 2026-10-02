@@ -192,6 +192,22 @@ public final class MdmMetaCache {
         return out;
     }
 
+    /**
+     * 항목 하나를 읽기만 한다(관리 화면 항목 상세 보기). {@link #get} 과 달리 조회 수를 올리지 않고, 만료 항목도 지우지 않은 채 "없음"(빈 값)으로
+     * 답한다 — 캐시 상태(조회 수·지움 기록·세대)를 하나도 바꾸지 않는다. MDM 적재도 하지 않는다.
+     */
+    public Optional<EntryView> peek(MdmTargetType type, String key) {
+        if (type == null || key == null) {
+            return Optional.empty();
+        }
+        Entry e = maps.get(type).get(key);
+        Instant now = clock.instant();
+        if (e == null || expired(e, now)) {
+            return Optional.empty();
+        }
+        return Optional.of(view(type, key, e, now));
+    }
+
     /** 대상 종류(null 이면 전체)·키 부분 일치(대소문자 무시)로 거른 항목. 종류·키 순. */
     public List<EntryView> entries(MdmTargetType type, String q) {
         Instant now = clock.instant();
@@ -205,12 +221,16 @@ public final class MdmMetaCache {
                 if (expired(e, now) || (needle != null && !k.toUpperCase(Locale.ROOT).contains(needle))) {
                     return;
                 }
-                long remaining = Math.max(0L, Duration.between(now, e.loadedAt().plus(maxAge)).getSeconds());
-                out.add(new EntryView(t, k, e.absent(), e.value(), e.loadedAt(), e.hits(), remaining, e.loadSeq()));
+                out.add(view(t, k, e, now));
             });
         }
         out.sort(Comparator.comparing((EntryView v) -> v.type().ordinal()).thenComparing(EntryView::key));
         return out;
+    }
+
+    private EntryView view(MdmTargetType type, String key, Entry e, Instant now) {
+        long remaining = Math.max(0L, Duration.between(now, e.loadedAt().plus(maxAge)).getSeconds());
+        return new EntryView(type, key, e.absent(), e.value(), e.loadedAt(), e.hits(), remaining, e.loadSeq());
     }
 
     int tombstoneCount() {

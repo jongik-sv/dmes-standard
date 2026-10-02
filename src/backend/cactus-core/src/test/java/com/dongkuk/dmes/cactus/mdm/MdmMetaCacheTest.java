@@ -34,6 +34,23 @@ class MdmMetaCacheTest {
     }
 
     @Test
+    void peek_은_조회_수를_올리지_않고_만료_항목은_지우지_않은_채_없는_것으로_본다() {
+        cache.put(MdmTargetType.COLUMN, "A", "값", cache.ticket());
+        clock.advance(Duration.ofMinutes(10));
+
+        MdmMetaCache.EntryView v = cache.peek(MdmTargetType.COLUMN, "A").orElseThrow();
+        assertThat(v.value()).isEqualTo("값");
+        assertThat(v.remainingSeconds()).isEqualTo(50 * 60);
+        cache.peek(MdmTargetType.COLUMN, "A");
+        assertThat(cache.peek(MdmTargetType.COLUMN, "A").orElseThrow().hits()).isZero();
+        assertThat(cache.peek(MdmTargetType.DOMAIN, "A")).isEmpty();
+
+        clock.advance(Duration.ofMinutes(50));
+        assertThat(cache.peek(MdmTargetType.COLUMN, "A")).isEmpty();
+        assertThat(cache.sizes().get(MdmTargetType.COLUMN)).isEqualTo(1); // 읽기만 — 만료 항목 정리는 get·상한 정리가 한다
+    }
+
+    @Test
     void max_age_가_지난_항목은_조회_때_버린다() {
         cache.put(MdmTargetType.RULE, "R", "v", cache.ticket());
         clock.advance(Duration.ofMinutes(59));
