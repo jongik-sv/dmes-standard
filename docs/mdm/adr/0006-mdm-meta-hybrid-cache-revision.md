@@ -33,7 +33,9 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
   엔진 jar 로 직접 검증한다. MDM 서버에는 캐시를 두지 않는다 — 늘 DB 최신 값을 준다.
 - **D2 리비전 무효화**: MDM 원장 쓰기 서비스는 같은 트랜잭션에서 `TB_MDM_META_REV`(증가 순번·대상 종류·키·변경 종류)에 기록을
   남긴다(`MetaRevisionRecorder`, 키 펼침 — 도메인 → 하위 도메인·참조 컬럼, 코드 → 참조 도메인 펼침, 헤더 → 사용 전문, 물리명 변경 → 두 이름).
-  업무 모듈은 `poll-interval`(기본 10초)마다 `search(since=appliedSeq)` 로 받은 키만 지운다. 규칙 다섯 가지(기동·정상·truncated·역행·경합)를 둔다.
+  업무 모듈은 `poll-interval`(기본 10초)마다 `search(since = max(0, appliedSeq - revision-lookback), pageLimit)` 로 요청해 받은 키 중 처리하지 않은 순번만 지운다
+  (이미 처리한 순번은 건너뜀). 설정 `revision-lookback`(기본 100) 기간 안에 늦게 커밋된 기록을 다시 처리하고, 그 바깥의 늦은 커밋은 `max-age` 안전망이 잡는다.
+  규칙 다섯 가지(기동·정상·truncated·역행·경합)를 둔다.
 - **D3 클라이언트 위치**: cactus-core `com.dongkuk.dmes.cactus.mdm`(자동 설정, 기본 꺼짐). 업무 모듈은 `cactus.mdm.enabled: true`
   와 `cactus.mdm.module` 로 켠다. 엔드포인트 `/api/{module}/mdmMeta/{columns,domains,status,entries,load}`.
 - **D4 장애 시**: 캐시에 있는 항목은 계속 쓴다. 없는 키는 "받을 수 없음"이고 캐시하지 않는다. 연속 실패면 30초 동안 MDM 을 부르지 않는다.
@@ -42,13 +44,16 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
 
 ## Consequences (결과)
 
-- 업무 처리는 MDM 이 멈춰도 이미 받은 정의로 계속된다. 대신 최대 10초(확인 주기) 동안 옛 정의가 보일 수 있다.
-- **순번 순서 = 커밋 순서 가정**: 가정하지 않는다 — 폴러가 최근 `lookback` 개 순번을 다시 훑어 늦게 커밋된 기록을 잡는다. 단 lookback 구간보다 더 늦게 커밋된 기록은 `max-age` 안전망이 잡는다.
+- 업무 처리는 MDM 이 멈춰도 이미 받은 정의로 계속된다. 대신 일반적으로 한 폴 주기(약 10초) 동안, 폴 실패·30초 스킵·늦게 커밋된 기록·MDM 다운 시에는 더 오래 옛 정의가 보일 수 있으며, 상한은 항목 수명(60분)이다.
+- **순번 순서 = 커밋 순서 가정**: 완화한다. 폴러가 최근 100개 순번(설정 `revision-lookback`)을 다시 훑어 늦게 커밋된 기록을 처리한다. 단 그 구간 밖으로 늦게 커밋된 기록은 `max-age` 안전망(60분)이 잡는다. 시간 스팬은 쓰기 빈도에 따라 달라진다.
 - 기록 쓰기는 여러 행 `VALUES` 네이티브 INSERT 한 문장이다(SQLite·PostgreSQL·MSSQL·Oracle 23ai). 더 옛 Oracle 로 가면 고친다.
 - 운영 DDL 은 Flyway 가 꺼진 프로필(`application-wildfly.yml`)에서 운영 DB 확정 때 수동으로 맞춘다(V17 `TB_MDM_META_REV`).
 - 변경 기록 보관 정리(30일)는 아직 없다. 정리로 생긴 공백은 클라이언트가 역행·truncated 규칙으로만 다룬다.
-- 업무 모듈 mqc·mpp·mpn 에는 ClientKeyFilter 가 없어 관리 엔드포인트의 SYSADMIN 확인을 BFF 가 넘긴 `X-Authenticated-Role` 헤더로 한다.
-  이 모듈들의 다른 엔드포인트와 같은 신뢰 수준이다.
+- 업무 모�ul mqc·mpp·mpn 에는 ClientKeyFilter 가 없어 관리 엔드포인트의 SYSADMIN 확인을 BFF 가 넘긴 `X-Authenticated-Role` 헤더로 한다.
+  이 모듈들의 다른 엔드포인트와 같은 신뢰 수준이고, BE 포트는 BFF 외부로 노출되지 않는다는 가정 위에 있다.
+- **다중 인스턴스**: 캐시는 JVM 별(프로세스 별) 독립이다. 각 인스턴스는 독립적으로 폴링하고 적재하므로 중복 적재가 일어난다(부하 증가). 인스턴스들이 일시적으로 다른 정의를 볼 수 있으며, 화면의 EVICT·RELOAD 강제 기록은 각 인스턴스가 자기 폴 주기에 반영한다.
+- **기록기 트랜잭션**: 호출 쪽 트랜잭션이 없으면 기록기(`MetaRevisionRecorder`)가 `TransactionTemplate(REQUIRED)`로 자기 트랜잭션을 연다.
+- **Oracle 위험**: 다중 행 `VALUES (..), (..)` INSERT 는 Oracle 19c 에서 실행되지 않고 23ai+ 에서만 가능하다. V17 마이그레이션은 SQLite 전용(`AUTOINCREMENT`)이므로 운영 DB(Oracle·PostgreSQL)로 가면 시퀀스·IDENTITY 로 바꿔야 한다. 시퀀스 CACHE 설정은 순번 순서 가정에 영향을 줄 수 있다.
 
 ## Alternatives Considered (대안)
 
@@ -60,7 +65,10 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
 ## Trigger (PROPOSED 인 경우만)
 
 - 업무 모듈 한 곳 이상에서 하위 프로젝트 B(캡션·툴팁) 또는 C(검증)가 이 캐시로 동작하고, 통합 확인(구현 계획 Task 14)이 통과하면 ACCEPTED 로 올린다.
-- 운영 DB 가 정해지면(ADR-0004) 「Consequences」 의 순번 순서 가정을 다시 본다.
+- **운영 DB 확정 시**:
+  - 다중 행 `VALUES` INSERT 를 Oracle·PostgreSQL 방언으로 바꾼다(V17 마이그레이션 포함).
+  - V17 `TB_MDM_META_REV.SEQ` 를 시퀀스·IDENTITY 로 정의하고, 순번 순서 가정(CACHE 포함)을 다시 검증한다.
+  - 시간대 교차 트랜잭션으로 인한 순번 역전이 정말 일어나는지 부하 테스트로 확인한다.
 
 ## References
 

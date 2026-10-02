@@ -404,8 +404,10 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
       enabled: ${MDM_CACHE_ENABLED:true}
       module: mls                       # /api/{module}/mdmMeta 의 module. 비면 cactus.oasis.service-group
       base-url: ${MDM_WAS_URL:http://localhost:8096}
-      client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
+      client-key: ${BACKEND_CLIENT_KEY}
       poll-interval: 10s
+      page-limit: 1000                  # 폴 요청 한 번에 최대 응답 행 수. revision-lookback 보다 충분히 커야 함(기동 검증)
+      revision-lookback: 100            # 늦게 커밋된 기록 재처리 구간. 0 이면 끔(보강 안 함)
       max-entries: 20000
       max-age: 60m
       connect-timeout: 2s
