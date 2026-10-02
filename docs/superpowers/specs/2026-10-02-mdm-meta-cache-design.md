@@ -151,6 +151,7 @@ codeRef: { maruCodeId, cateId } | null
 
 - 엔진용 `ColumnDefinition` 은 이 값에서 변환한다(테이블 인자는 무시한다. 컬럼사전은 테이블과 무관한 표준 컬럼이다).
 - 화면용 응답(§5.5)은 이 값에서 `bizExpr.text` 를 빼고 `bizRuleOnServer: true/false` 만 싣는다. 코드 참조가 있으면 `allowedCodes[{code, name}]` 를 클라이언트가 `CodeResolver.codeList(id, cate, now)` 로 풀어서 더한다.
+- **예외(2026-10-02 사용자 결정)**: 캐시 관리 화면의 항목 상세 보기(§5.5 `entry`, SYSADMIN 만)는 항목 하나의 캐시 값 전체를 싣는다 — 컬럼은 `bizExpr.text` 까지, 룰은 정의 전체. 관리자가 캐시에 무엇이 들어 있는지 확인하려면 원문이 필요하기 때문이다. 목록(`entries`)과 화면 메타(`columns`)는 여전히 값·원문을 싣지 않는다.
 
 ### 4.3 도메인 메타
 
@@ -214,7 +215,8 @@ cactus:
 | `columns` | POST | `names[]`(물리명 또는 camelCase, 서버가 정규화) | `items{요청이름: 화면용 컬럼 메타}`, `missing[]`, `unavailable[]` | 로그인 사용자 |
 | `domains` | POST | `domainIds[]` | 도메인 메타 | 로그인 사용자 |
 | `status` | GET | — | 모듈, 인스턴스 ID, `appliedSeq`, MDM `latestSeq`(마지막 폴링 값), 마지막 성공 시각, 연속 실패 수, 대상별 항목 수 | SYSADMIN |
-| `entries` | GET | `type`, `q`, `page` | 항목 목록(키, 값/없음, 적재 시각, 조회 수, 남은 수명) | SYSADMIN |
+| `entries` | GET | `type`, `q`, `page` | 항목 목록(키, 있음/없음 `absent`, 적재 시각, 조회 수, 남은 수명). 캐시 값은 싣지 않는다 | SYSADMIN |
+| `entry` | GET | `type`, `key`(컬럼은 camelCase 도 정규화) | 항목 하나 `{type, key, absent, loadedAt, hits, remainingSeconds, loadSeq, value}` — `value` 는 캐시 값 전체(§4.2 예외, `MdmJson` 설정: 소수 자리수 유지·날짜 ISO). 캐시를 읽기만 한다(조회 수·적재·지움 상태 불변, 캐시에 없거나 수명이 지났으면 MDM 에서 받지 않고 404). 잘못된 `type`·빈 `key` 400 | SYSADMIN |
 | `load` | POST | `type`, `keys[]` | 이 인스턴스에 미리 적재한 결과 | SYSADMIN |
 
 - 이름 정규화: 소문자가 섞인 이름은 camelCase 로 보고 `UPPER_SNAKE` 로 바꾼다(`codeNm` → `CODE_NM`). 이미 대문자면 그대로 쓴다.
@@ -226,6 +228,7 @@ cactus:
 - 모듈 목록: 새 상수 `MDM_CACHE_MODULES = ["mcm","mls","mqc","mpp","mpn"]`. 응답하지 않는 모듈은 "연결 안 됨"으로 표시한다.
 - 위쪽 그리드: 모듈별 상태(§5.5 `status`). MDM 최신 순번은 응답한 모듈들의 `latestSeq`(마지막 폴링 값) 가운데 최댓값으로 보여 주고, `appliedSeq` 가 그보다 뒤처진 모듈을 강조한다. 화면이 MDM 을 따로 호출하지 않는다.
 - 아래쪽 그리드: 선택한 모듈의 항목(`entries`), 대상 종류 필터와 키 검색.
+- 항목 상세(2026-10-02 사용자 결정): 항목 행을 누르면 오른쪽 상세 패널에 요약(대상·키·상태·적재 시각·조회 수·남은 수명·적재 순번)과 캐시 값 전체(`entry`, shared `JsonView` 트리)를 보인다. 404 는 "캐시에 없음(만료·삭제됨)"으로 보이고 로그인 화면으로 보내지 않는다. 삭제·재등록·등록·조회 뒤 열린 상세를 다시 받는다(강제 기록은 다음 확인 때 반영되므로 바로 다시 받은 값은 옛 값일 수 있다).
 - 버튼:
   - **등록**: 대상 종류와 키를 입력해 선택한 모듈 인스턴스에 미리 적재(`load`).
   - **삭제**: 선택 항목을 MDM `force(kind=EVICT)` 로 기록. 모든 모듈·인스턴스가 다음 폴링에서 지운다.

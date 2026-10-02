@@ -418,10 +418,11 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
   `substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')` 를 둔다(기존 다섯 모듈 선례).
 - 코드에서 쓰기: `MdmDefinitionLookup`(엔진 `DefinitionLookup`·`CodeLookup` 빈)을 주입해 `DefaultDomainValidator`·룰 엔진에 넘긴다.
   MDM 을 받을 수 없으면 `MdmUnavailableException` 이다. 여러 키는 `MdmMetaService.lookup(type, keys)` 로 한 번에 받는다.
-- 엔드포인트 `/api/{module}/mdmMeta/`: `columns`·`domains`(POST, 로그인 사용자 — 화면 메타·툴팁), `status`·`entries`(GET)·`load`(POST)는
+- 엔드포인트 `/api/{module}/mdmMeta/`: `columns`·`domains`(POST, 로그인 사용자 — 화면 메타·툴팁), `status`·`entries`·`entry`(GET)·`load`(POST)는
   SYSADMIN 만(`X-Authenticated-Role`). BFF `m-mcm/proxy.ts` 는 모듈 이름과 무관한 한 규칙(`authOnlyPatterns: /^\/api\/[^/]+\/mdmMeta\//`)으로
   모든 모듈을 로그인 전용으로 연다 — 새 모듈 때 고치지 않는다. `entries` 는 캐시 값을 싣지 않는다(`bizExpr.text` 같은 서버 전용 값이 브라우저로
-  나가지 않게, 있음·없음은 `absent`).
+  나가지 않게, 있음·없음은 `absent`). 예외로 `entry?type=&key=` 는 항목 하나의 캐시 값 전체(`bizExpr.text` 포함)를 SYSADMIN 에게 준다
+  (2026-10-02 사용자 결정, 캐시 관리 화면 상세 보기). 캐시를 읽기만 하고(조회 수·적재 없음) 캐시에 없으면 404 다.
 - 무효화: MDM 원장 쓰기 서비스는 같은 트랜잭션에서 `MetaRevisionRecorder` 를 부른다(판정 값이 바뀌는 쓰기만, 의심스러우면 건다). 새 원장
   쓰기 경로를 만들면 기록 호출을 함께 넣는다.
 

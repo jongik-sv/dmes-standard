@@ -37,7 +37,7 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
   (이미 처리한 순번은 건너뜀). 설정 `revision-lookback`(기본 100) 기간 안에 늦게 커밋된 기록을 다시 처리하고, 그 바깥의 늦은 커밋은 `max-age` 안전망이 잡는다.
   규칙 다섯 가지(기동·정상·truncated·역행·경합)를 둔다.
 - **D3 클라이언트 위치**: cactus-core `com.dongkuk.dmes.cactus.mdm`(자동 설정, 기본 꺼짐). 업무 모듈은 `cactus.mdm.enabled: true`
-  와 `cactus.mdm.module` 로 켠다. 엔드포인트 `/api/{module}/mdmMeta/{columns,domains,status,entries,load}`.
+  와 `cactus.mdm.module` 로 켠다. 엔드포인트 `/api/{module}/mdmMeta/{columns,domains,status,entries,entry,load}`.
 - **D4 장애 시**: 캐시에 있는 항목은 계속 쓴다. 없는 키는 "받을 수 없음"이고 캐시하지 않는다. 연속 실패면 30초 동안 MDM 을 부르지 않는다.
   기록 누락에 대비해 항목 최대 수명(기본 60분)을 둔다.
 - **D5 화면 삭제·재등록**: MDM 변경 기록에 강제 기록(EVICT·RELOAD, SYSADMIN 만)을 더하는 방식이다. 모든 모듈·인스턴스가 다음 확인에서 반영한다.
@@ -53,6 +53,7 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
   `cactus.security`·`cactus.oasis.service-group` 을 더했다(없으면 Spring Security 기본 체인이 BFF 호출을 401 로 막았다). `/api/{module}/mdmMeta/*`
   요청은 BFF 의 `X-Client-Key` 를 먼저 통과해야 하고, 관리 엔드포인트의 SYSADMIN 확인은 ClientKeyFilter 가 세운 인증의 권한(그것이 없을 때만
   BFF 가 넘긴 `X-Authenticated-Role` 헤더)으로 한다. 새 업무 모듈도 같은 설정을 갖춰야 한다(Backend-Implementation-Guide §11.1).
+- **관리자 상세 보기의 원문 노출**: 사용자 결정(2026-10-02)으로 SYSADMIN 이 캐시 항목 하나를 열면(`entry`) 컬럼의 비즈니스식 원문(`bizExpr.text`)과 룰 정의 전체가 브라우저로 나간다 — 서버 전용 원칙(spec §4.2)의 예외는 이 관리자 화면 하나뿐이고, 목록·화면 메타는 원문을 싣지 않는다.
 - **다중 인스턴스**: 캐시는 JVM 별(프로세스 별) 독립이다. 각 인스턴스는 독립적으로 폴링하고 적재하므로 중복 적재가 일어난다(부하 증가). 인스턴스들이 일시적으로 다른 정의를 볼 수 있으며, 화면의 EVICT·RELOAD 강제 기록은 각 인스턴스가 자기 폴 주기에 반영한다.
 - **기록기 트랜잭션**: 호출 쪽 트랜잭션이 없으면 기록기(`MetaRevisionRecorder`)가 `TransactionTemplate(REQUIRED)`로 자기 트랜잭션을 연다.
 - **Oracle 위험**: 다중 행 `VALUES (..), (..)` INSERT 는 Oracle 19c 에서 실행되지 않고 23ai+ 에서만 가능하다. V18 마이그레이션은 SQLite 전용(`AUTOINCREMENT`)이므로 운영 DB(Oracle·PostgreSQL)로 가면 시퀀스·IDENTITY 로 바꿔야 한다. 시퀀스 CACHE 설정은 순번 순서 가정에 영향을 줄 수 있다.
