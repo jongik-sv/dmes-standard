@@ -15,7 +15,10 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { Input } from "@mantine/core";
-import { MdmMetaCard, resolveCaption, useMdmCaptionPriority, useMdmColumn } from "../../mdm-meta";
+// 배럴(../../mdm-meta)을 거치지 않는다 — 배럴의 화면 값 검증(validate.ts)이 식 평가기(evalex·decimal.js)를 form 묶음에 끌어들인다.
+import { MdmMetaCard } from "../../mdm-meta/MdmMetaCard";
+import { resolveCaption } from "../../mdm-meta/caption";
+import { useMdmCaptionPriority, useMdmColumn } from "../../mdm-meta/context";
 
 export interface FormGroupProps {
   /**
