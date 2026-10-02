@@ -30,6 +30,7 @@ export const PAGE_REGISTRY: Record<string, () => Promise<{ default: unknown }>> 
   "csa/commSyncMng": () => import("@/page-components/csa/commSyncMng/page"),
   "csa/commUserMng": () => import("@/page-components/csa/commUserMng/page"),
   "csa/commUserRoleCopy": () => import("@/page-components/csa/commUserRoleCopy/page"),
+  "csa/screenUsageStat": () => import("@/page-components/csa/screenUsageStat/page"),
   "dashboard-overview": () => import("@/page-components/dashboard-overview/page"),
   "dma/columnMng": () => import("@dk-oasis/m-mdm/pages/dma/columnMng/page"),
   "dma/domainMng": () => import("@dk-oasis/m-mdm/pages/dma/domainMng/page"),
