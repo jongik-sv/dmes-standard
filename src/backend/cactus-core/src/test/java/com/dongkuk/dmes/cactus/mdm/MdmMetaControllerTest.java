@@ -435,6 +435,19 @@ class MdmMetaControllerTest {
     }
 
     @Test
+    void status_의_counts_와_bytes_는_만료된_항목을_세지_않는다() throws Exception {
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"COIL_THK\"]}"));
+        clock.advance(Duration.ofMinutes(60)); // 조회 없이 유휴 수명이 지났다 — 아직 쓸리지 않아 맵에는 남아 있다
+
+        mvc.perform(get("/api/mls/mdmMeta/status").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.counts.COLUMN").value(0))
+                .andExpect(jsonPath("$.bytes.COLUMN").value(0))
+                .andExpect(jsonPath("$.totalBytes").value(0));
+        mvc.perform(get("/api/mls/mdmMeta/entries").header("X-Authenticated-Role", "SYSADMIN")).andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
     void entries_는_sort_로_크기_순_조회_수_순으로_정렬하고_잘못된_값은_400() throws Exception {
         mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"names\":[\"ZZZ\",\"COIL_THK\",\"AAA\"]}"));

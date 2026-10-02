@@ -3,6 +3,7 @@ package com.dongkuk.dmes.cactus.mdm;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -22,7 +23,10 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>수명(A2, 2026-10-02): 마지막 조회({@link #get} 히트 — 적재 직후에는 적재 시각) 뒤 {@code max-idle} 동안 다시 조회되지 않거나, 적재 뒤
  * {@code max-age}(절대 상한 — 폴링이 오래 끊겨 지움 기록을 놓친 경우의 안전망)가 지나면 만료다. 즉 자주 조회되는 항목일수록 오래 남되
- * {@code max-age} 를 넘지는 않는다. 만료 항목은 조회 때 버린다. {@link #peek}·{@link #entries}(관리 화면)는 마지막 조회 시각·조회 수를 바꾸지 않는다.
+ * {@code max-age} 를 넘지는 않는다. 만료 항목은 조회 때 버리고, 다시 조회되지 않는 항목도 남지 않게 폴링마다({@link #markApplied}, 약 10초)
+ * 쓸어 낸다. 폴링이 실패해 쓸지 못하는 동안에도 {@link #sizes}·{@link #bytes}(관리 화면 상태)는 만료 항목을 세지 않는다 — {@link #entries} 와
+ * 같은 기준. {@link #peek}·{@link #entries}(관리 화면)는 마지막 조회 시각·조회 수를 바꾸지 않는다. 적재 시각은 밀리초로 자른다(마지막 조회
+ * 시각과 같은 정밀도 — 조회 전에는 둘이 같다).
  *
  * <p>상한: 합계가 {@code max-entries} 를 넘으면 한 번에 {@code max-entries × 0.95} 까지 줄인다 — 만료 항목을 먼저 모두 지우고, 그래도 넘으면
  * 오래 조회되지 않은 순(LRU, 마지막 조회 시각 기준)으로 지운다. 묶음 적재({@link #putAll})는 다 넣은 뒤 한 번만 줄인다(잠금을 쥔 채 정렬을 키
@@ -97,10 +101,10 @@ public final class MdmMetaCache {
 
         Entry(Object value, Instant loadedAt, long loadSeq, long bytes) {
             this.value = value;
-            this.loadedAt = loadedAt;
+            this.loadedAt = loadedAt.truncatedTo(ChronoUnit.MILLIS);
             this.loadSeq = loadSeq;
             this.bytes = bytes;
-            this.lastAccessMillis = loadedAt.toEpochMilli();
+            this.lastAccessMillis = this.loadedAt.toEpochMilli();
         }
 
         public Object value() { return value; }
@@ -227,25 +231,49 @@ public final class MdmMetaCache {
         appliedSeq = newAppliedSeq;
     }
 
+    /**
+     * 폴링이 순번을 반영한 뒤 부른다(약 10초마다). 5분 지난 지움 기록을 정리하고, 만료 항목을 쓸어 낸다 — 한 번 적재되고 다시 조회되지 않는
+     * 항목이 {@link #get}·상한 정리 때까지 맵에 남지 않게. 쓸기는 만료 항목만 지운다({@code remove(key, entry)} — 그사이 새로 넣은 값은 남는다).
+     * 살아 있는 항목·조회 수·마지막 조회 시각·지움 기록(5분 규칙 밖)·세대는 건드리지 않는다.
+     */
     public synchronized void markApplied(long seq) {
         appliedSeq = seq;
-        Instant limit = clock.instant().minus(TOMBSTONE_TTL);
+        Instant now = clock.instant();
+        Instant limit = now.minus(TOMBSTONE_TTL);
         tombstones.values().removeIf(t -> t.at().isBefore(limit));
+        for (ConcurrentHashMap<String, Entry> m : maps.values()) {
+            m.forEach((k, e) -> {
+                if (expired(e, now)) {
+                    m.remove(k, e);
+                }
+            });
+        }
     }
 
+    /** 종류별 살아 있는 항목 수. 아직 쓸리지 않은 만료 항목은 세지 않는다(읽기만 — 지우지 않는다). */
     public Map<MdmTargetType, Integer> sizes() {
+        Instant now = clock.instant();
         Map<MdmTargetType, Integer> out = new EnumMap<>(MdmTargetType.class);
-        maps.forEach((t, m) -> out.put(t, m.size()));
+        maps.forEach((t, m) -> {
+            int n = 0;
+            for (Entry e : m.values()) {
+                if (!expired(e, now)) {
+                    n++;
+                }
+            }
+            out.put(t, n);
+        });
         return out;
     }
 
-    /** 종류별 추정 크기 합계(바이트). {@link #sizes} 와 같은 항목을 센다. 잴 수 없는 항목(-1)은 뺀다. */
+    /** 종류별 추정 크기 합계(바이트). {@link #sizes} 와 같은 항목(만료 제외)을 센다. 잴 수 없는 항목(-1)은 뺀다. 읽기만 한다. */
     public Map<MdmTargetType, Long> bytes() {
+        Instant now = clock.instant();
         Map<MdmTargetType, Long> out = new EnumMap<>(MdmTargetType.class);
         maps.forEach((t, m) -> {
             long sum = 0;
             for (Entry e : m.values()) {
-                if (e.bytes() > 0) {
+                if (e.bytes() > 0 && !expired(e, now)) {
                     sum += e.bytes();
                 }
             }
@@ -299,6 +327,11 @@ public final class MdmMetaCache {
 
     int tombstoneCount() {
         return tombstones.size();
+    }
+
+    /** 시험용 — 맵에 실제로 남은 칸 수(아직 쓸리지 않은 만료 항목 포함). {@link #sizes} 는 만료 항목을 세지 않는다. */
+    int storedCount(MdmTargetType type) {
+        return maps.get(type).size();
     }
 
     /** 시험용 — 상한 정리를 실제로 한 횟수. */

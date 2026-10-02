@@ -47,7 +47,7 @@ class MdmMetaCacheTest {
 
         clock.advance(Duration.ofMinutes(50));
         assertThat(cache.peek(MdmTargetType.COLUMN, "A")).isEmpty();
-        assertThat(cache.sizes().get(MdmTargetType.COLUMN)).isEqualTo(1); // 읽기만 — 만료 항목 정리는 get·상한 정리가 한다
+        assertThat(cache.storedCount(MdmTargetType.COLUMN)).isEqualTo(1); // 읽기만 — 만료 항목 정리는 get·상한 정리·폴링(markApplied)이 한다
     }
 
     @Test
@@ -57,7 +57,7 @@ class MdmMetaCacheTest {
         assertThat(cache.get(MdmTargetType.RULE, "R")).isPresent();
         clock.advance(Duration.ofMinutes(1));
         assertThat(cache.get(MdmTargetType.RULE, "R")).isEmpty();
-        assertThat(cache.sizes().get(MdmTargetType.RULE)).isZero();
+        assertThat(cache.storedCount(MdmTargetType.RULE)).isZero();
     }
 
     @Test
@@ -227,7 +227,7 @@ class MdmMetaCacheTest {
         assertThat(c.peek(MdmTargetType.COLUMN, "A")).isPresent();
         clock.advance(Duration.ofMinutes(1));
         assertThat(c.get(MdmTargetType.COLUMN, "A")).isEmpty();
-        assertThat(c.sizes().get(MdmTargetType.COLUMN)).isZero();
+        assertThat(c.storedCount(MdmTargetType.COLUMN)).isZero();
     }
 
     @Test
@@ -331,5 +331,62 @@ class MdmMetaCacheTest {
         cache.get(MdmTargetType.COLUMN, "A");
         clock.advance(Duration.ofMinutes(30));
         assertThat(cache.get(MdmTargetType.COLUMN, "A")).isEmpty();
+    }
+
+    // ── A2 보강: 만료 항목 쓸기 — 다시 조회되지 않는 항목이 맵에 남아 counts·bytes 를 부풀리지 않게 ──
+
+    @Test
+    void 폴링의_markApplied_가_만료_항목을_쓸어_내고_살아_있는_항목_지움_기록_세대는_건드리지_않는다() {
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "OLD", "o", c.ticket()); // "o" → 3바이트
+        c.put(MdmTargetType.DOMAIN, "HOT", "h", c.ticket());
+        clock.advance(Duration.ofMinutes(30));
+        c.get(MdmTargetType.DOMAIN, "HOT"); // 연장 — 다음 만료는 지금부터 60분 뒤
+        clock.advance(Duration.ofMinutes(28));
+        MdmMetaCache.Ticket before = c.ticket();
+        c.evict(MdmTargetType.RULE, "GONE", 3); // 5분이 안 된 지움 기록
+        clock.advance(Duration.ofMinutes(2)); // OLD 는 60분 동안 조회 없음 → 만료, HOT 은 30분
+        assertThat(c.storedCount(MdmTargetType.COLUMN)).as("쓸기 전에는 맵에 남아 있다").isEqualTo(1);
+
+        c.markApplied(5);
+
+        assertThat(c.storedCount(MdmTargetType.COLUMN)).as("만료 항목은 맵에서 빠진다").isZero();
+        assertThat(c.sizes().get(MdmTargetType.COLUMN)).isZero();
+        assertThat(c.bytes().get(MdmTargetType.COLUMN)).isZero();
+        assertThat(c.storedCount(MdmTargetType.DOMAIN)).as("살아 있는 항목은 남는다").isEqualTo(1);
+        assertThat(c.bytes().get(MdmTargetType.DOMAIN)).isEqualTo(3);
+        MdmMetaCache.EntryView hot = c.peek(MdmTargetType.DOMAIN, "HOT").orElseThrow();
+        assertThat(hot.hits()).as("쓸기는 조회 수·마지막 조회를 바꾸지 않는다").isEqualTo(1);
+        assertThat(hot.remainingSeconds()).isEqualTo(30 * 60);
+        assertThat(c.tombstoneCount()).as("지움 기록은 그대로").isEqualTo(1);
+        assertThat(c.put(MdmTargetType.RULE, "GONE", "옛 값", before)).as("지움 기록이 남아 옛 적재를 막는다").isFalse();
+        assertThat(c.ticket().generation()).as("세대는 그대로").isEqualTo(before.generation());
+        assertThat(c.put(MdmTargetType.CODE, "NEW", "n", before)).as("세대가 그대로라 그 전 Ticket 도 다른 키는 넣는다").isTrue();
+        assertThat(c.appliedSeq()).isEqualTo(5);
+    }
+
+    @Test
+    void markApplied_없이도_sizes_와_bytes_는_만료_항목을_세지_않고_지우지도_않는다() {
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "OLD", "값", c.ticket()); // 5바이트
+        clock.advance(Duration.ofMinutes(30));
+        c.put(MdmTargetType.COLUMN, "NEW", "o", c.ticket()); // 3바이트
+        clock.advance(Duration.ofMinutes(30)); // OLD 만료, NEW 는 30분 남음 — 폴링이 실패해 markApplied 가 없는 동안
+
+        assertThat(c.sizes().get(MdmTargetType.COLUMN)).isEqualTo(1);
+        assertThat(c.bytes().get(MdmTargetType.COLUMN)).isEqualTo(3);
+        assertThat(c.entries(null, null)).extracting(MdmMetaCache.EntryView::key).containsExactly("NEW"); // 목록과 같은 기준
+        assertThat(c.storedCount(MdmTargetType.COLUMN)).as("읽기만 — 지우지 않는다").isEqualTo(2);
+    }
+
+    @Test
+    void 적재_시각은_밀리초로_잘라_조회_전_마지막_조회_시각과_같다() {
+        clock.advance(Duration.ofNanos(123_456_789)); // 2026-10-02T00:00:00.123456789Z
+        MdmMetaCache c = idleCache(100);
+        c.put(MdmTargetType.COLUMN, "A", "v", c.ticket());
+
+        MdmMetaCache.EntryView v = c.peek(MdmTargetType.COLUMN, "A").orElseThrow();
+        assertThat(v.loadedAt()).isEqualTo(Instant.parse("2026-10-02T00:00:00.123Z"));
+        assertThat(v.lastAccessAt()).isEqualTo(v.loadedAt());
     }
 }
