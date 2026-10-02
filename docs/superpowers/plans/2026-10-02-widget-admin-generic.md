@@ -67,7 +67,7 @@
 | `src/frontend/shared/src/widget/widget-registry.ts` | `mergeWidgetRegistry`, `toWidgetDefRow`, `applyWidgetOverride`, `defWidgetMeta`, `defWidgetLoader` |
 | `src/frontend/shared/src/widget/WidgetWorkspace.tsx` 의 `WidgetWorkspaceProps` | `registryStatus?`, `onRetryRegistry?`, `typeTitles?`, `singleTab?` (선언만 — 동작은 Task 1) |
 | `src/frontend/m-mcm/scripts/*widget-registry*` | `widget-types/{id}/type.meta.ts·renderer.tsx·editor.tsx` → `lib/generated/widget-type-registry.ts`(`WIDGET_TYPE_REGISTRY`). `_` 로 시작하는 폴더는 건너뛴다 |
-| `src/frontend/m-mcm/proxy.ts`, `mcm-core …/security/endpoint/EndpointPermissionFilter.java` | AUTH_ONLY: `widgetDef/list`, `widgetData/run`, `widgetExt/*`, `widgetChat/*`, `rest/widgetMedia/file/*` |
+| `src/frontend/m-mcm/proxy.ts`, `mcm-core …/security/endpoint/EndpointPermissionFilter.java` | AUTH_ONLY: `widgetDef/list`, `widgetData/run`, `widgetExt/*`, `widgetChat/*`, 미디어 내려받기는 GET·HEAD + 정확한 경로 `rest/widgetMedia/file/api/mcm/widgetMedia/file/{32자}` 만(스펙 §16.2) |
 | `src/backend/mcm/api/…/init/DataInitializer.java` | 위젯관리 메뉴(`csa/commWidgetMng`) 시드, PERM_ALL 토큰 `previewQuery·searchLayouts·loadLayout·saveLayout·deleteLayout·searchDepts·upload` |
 | `mcm-core …/widget/def/entity/WidgetDef.java`, `…/def/repository/WidgetDefRepository.java`, `…/def/WidgetDefSavedEvent.java` | `TB_MCM_WIDGET_DEF` 엔티티(필드 = 스펙 §4.1)·저장소(`findAllByOrderByWidgetIdAsc`, `findBySrcTpOrderByWidgetIdAsc`)·저장 이벤트 `record WidgetDefSavedEvent(String widgetId)` |
 | `mcm-core …/widget/query/WidgetQueryRunner.java`, `WidgetQueryResult.java` | `runDefinition(defId, maxRows)`, `preview(dataSrc, sql, maxRows)`, `validateSql(sql)` / `record WidgetQueryResult(List<String> columns, List<Map<String,Object>> rows, boolean truncated)` |
