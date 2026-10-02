@@ -48,6 +48,8 @@ erDiagram
     TB_MCM_SEC_MENU              ||--o{ TB_MCM_SEC_USER_FAVORITE : "MENU_ID"
     TB_MCM_SEC_USER_FAVORITE_FOLD ||--o{ TB_MCM_SEC_USER_FAVORITE : "FVT_FOLD_ID"
     TB_MCM_SEC_USER              ||--o{ TB_MCM_SEC_USER_FAVORITE_FOLD : "USER_ID"
+    TB_MCM_SEC_USER              ||--o{ TB_MCM_SEC_USER_START_PGM : "USER_ID"
+    TB_MCM_SEC_MENU              ||--o{ TB_MCM_SEC_USER_START_PGM : "MENU_ID"
 
     TB_MCM_SEC_MENU_FLD {
         varchar30 MENU_ID PK "폴더 ID (모듈 루트 또는 그룹)"
@@ -170,6 +172,14 @@ erDiagram
         varchar30 USER_ID PK "복합 PK 2 → SEC_USER"
         varchar30 FVT_FOLD_NM "폴더명"
         integer FVT_FOLD_SEQ "정렬"
+    }
+
+    TB_MCM_SEC_USER_START_PGM {
+        varchar30 USER_ID PK "복합 PK 1 → SEC_USER"
+        varchar200 FULL_ID PK "복합 PK 2 componentPath"
+        varchar30 MENU_ID PK "복합 PK 3 → SEC_MENU"
+        integer MENU_SEQ PK "복합 PK 4"
+        integer START_SEQ "여는 순서(기본 화면)"
     }
 ```
 

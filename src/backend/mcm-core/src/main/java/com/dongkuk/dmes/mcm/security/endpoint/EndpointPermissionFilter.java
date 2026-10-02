@@ -68,7 +68,7 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
     }
 
     /**
-     * AUTH_ONLY OASIS 서비스 — 본인 데이터(메뉴/권한/즐겨찾기)라 RBAC 면제(인증만).
+     * AUTH_ONLY OASIS 서비스 — 본인 데이터(메뉴/권한/즐겨찾기/기본 화면)라 RBAC 면제(인증만).
      * BFF {@code proxy.ts} 의 AUTH_ONLY_API_PREFIXES 와 동기화 (objId/action 소문자 prefix).
      * 미면제 시 비-SYSADMIN 의 메뉴/버튼 로딩이 403 으로 깨진다(secUser/secFavorite 는 grant 대상 아님).
      */
@@ -80,6 +80,8 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             "secfavorite/toggle",
             "secfavorite/addfolder",    // 사이드바 즐겨찾기 그룹 추가
             "secfavorite/deletefolder", // 사이드바 즐겨찾기 그룹 삭제
+            "secstartpgm/search",       // 포털 기본 화면 조회
+            "secstartpgm/toggle",       // 탭 우클릭 기본 화면 등록/해제
             "ntfnotification/"          // 포털 알림 (list/unreadCount/markRead/markAllRead) — 본인 데이터
     );
 

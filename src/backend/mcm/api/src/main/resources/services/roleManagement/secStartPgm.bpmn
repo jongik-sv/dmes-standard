@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:modeler="http://camunda.org/schema/modeler/1.0" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_secStartPgm" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-tool" exporterVersion="1.2.0" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="secStartPgm" name="기본 화면 서비스" isExecutable="true">
+    <bpmn:documentation>포털 기본 화면(처음 시작할 때 자동으로 여는 화면) 조회·토글. userId 는 서비스가 인증 컨텍스트로 강제한다.</bpmn:documentation>
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_to_gw</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="actionGateway">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="input" value="action" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
+      <bpmn:outgoing>flow_toggle</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="searchTask" name="기본 화면 조회" camunda:class="secStartPgmService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="searchStartPgms" />
+          <camunda:property name="output" value="startPages" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.startpgm.dto.SecStartPgmSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSearch">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="toggleTask" name="기본 화면 토글" camunda:class="secStartPgmService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="toggleStartPgm" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.startpgm.dto.SecStartPgmToggleRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_toggle</bpmn:incoming>
+      <bpmn:outgoing>flow_toggle_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endToggle">
+      <bpmn:incoming>flow_toggle_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
+    <bpmn:sequenceFlow id="flow_toggle" name="toggle" sourceRef="actionGateway" targetRef="toggleTask" />
+    <bpmn:sequenceFlow id="flow_toggle_end" sourceRef="toggleTask" targetRef="endToggle" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="secStartPgm">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="152" y="192" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="actionGateway_di" bpmnElement="actionGateway" isMarkerVisible="true">
+        <dc:Bounds x="245" y="185" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="370" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="542" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="toggleTask_di" bpmnElement="toggleTask">
+        <dc:Bounds x="370" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endToggle_di" bpmnElement="endToggle">
+        <dc:Bounds x="542" y="282" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_to_gw_di" bpmnElement="flow_to_gw">
+        <di:waypoint x="188" y="210" />
+        <di:waypoint x="245" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="270" y="185" />
+        <di:waypoint x="270" y="120" />
+        <di:waypoint x="370" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="103" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="470" y="120" />
+        <di:waypoint x="542" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_toggle_di" bpmnElement="flow_toggle">
+        <di:waypoint x="270" y="235" />
+        <di:waypoint x="270" y="300" />
+        <di:waypoint x="370" y="300" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="300" y="218" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_toggle_end_di" bpmnElement="flow_toggle_end">
+        <di:waypoint x="470" y="300" />
+        <di:waypoint x="542" y="300" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
+

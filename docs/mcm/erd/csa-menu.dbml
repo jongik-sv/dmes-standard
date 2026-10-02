@@ -256,6 +256,24 @@ Table TB_MCM_SEC_USER_FAVORITE_FOLD {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// 기본 화면 (메뉴 참조) — 포털을 처음 시작할 때 자동으로 여는 화면. 2026-10-02 신설
+// ────────────────────────────────────────────────────────────────────────────
+
+Table TB_MCM_SEC_USER_START_PGM {
+  USER_ID   varchar(30)  [note: '→ TB_MCM_SEC_USER']
+  FULL_ID   varchar(200) [note: 'componentPath (PARENT_MENU_ID/OBJECT_ID)']
+  MENU_ID   varchar(30)  [note: '→ TB_MCM_SEC_MENU']
+  MENU_SEQ  integer      [note: '메뉴 순번']
+  START_SEQ integer      [not null, note: '여는 순서(등록 순)']
+
+  indexes {
+    (USER_ID, FULL_ID, MENU_ID, MENU_SEQ) [pk]
+  }
+
+  Note: '즐겨찾기와 같은 방식, 폴더 없음. Flyway 없음 — local 은 ddl-auto update, wildfly 는 DDL 사전 생성 필요.'
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // 이력 (메뉴와 직접 관계 없음 — 참고용)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -322,6 +340,10 @@ Ref: TB_MCM_SEC_USER_FAVORITE.MENU_ID      > TB_MCM_SEC_MENU.MENU_ID
 Ref: TB_MCM_SEC_USER_FAVORITE.FVT_FOLD_ID  > TB_MCM_SEC_USER_FAVORITE_FOLD.FVT_FOLD_ID
 Ref: TB_MCM_SEC_USER_FAVORITE_FOLD.USER_ID > TB_MCM_SEC_USER.USER_ID
 
+// 기본 화면
+Ref: TB_MCM_SEC_USER_START_PGM.USER_ID     > TB_MCM_SEC_USER.USER_ID
+Ref: TB_MCM_SEC_USER_START_PGM.MENU_ID     > TB_MCM_SEC_MENU.MENU_ID
+
 // 이력
 Ref: TB_MCM_SEC_USER_HIS.USER_ID            > TB_MCM_SEC_USER.USER_ID
 Ref: TB_MCM_SEC_USER_ROLL_HIS.USER_ID       > TB_MCM_SEC_USER.USER_ID
@@ -354,6 +376,7 @@ TableGroup "사용자" {
 TableGroup "즐겨찾기_이력" {
   TB_MCM_SEC_USER_FAVORITE
   TB_MCM_SEC_USER_FAVORITE_FOLD
+  TB_MCM_SEC_USER_START_PGM
   TB_MCM_SEC_USER_HIS
   TB_MCM_SEC_USER_ROLL_HIS
 }

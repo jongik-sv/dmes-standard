@@ -55,6 +55,7 @@ public class McmSecurityDefaults {
                              "secUser/myMenusTree",
                              "secUser/myPermissions")).authenticated();
         auth.requestMatchers(oasisPaths("secFavorite/**")).authenticated();
+        auth.requestMatchers(oasisPaths("secStartPgm/**")).authenticated(); // 포털 기본 화면(본인 데이터)
         auth.requestMatchers(oasisPaths("secMenu/recordAccess")).authenticated();
     }
 

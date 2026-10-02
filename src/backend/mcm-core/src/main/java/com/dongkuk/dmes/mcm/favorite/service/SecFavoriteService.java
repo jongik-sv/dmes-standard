@@ -199,33 +199,10 @@ public class SecFavoriteService {
         return result;
     }
 
-    /** sysCd + componentPath({@code parentMenuId/objectId}) 로 활성 메뉴 매칭. */
+    /** sysCd + componentPath({@code parentMenuId/objectId}) 로 활성 메뉴 매칭 — 기본 화면과 같은 {@link PortalPageMenuMatcher} 규칙. */
     private SecMenu findMenuByComponentPath(String targetSysCd, String targetComponentPath) {
-        Map<String, SecObj> objById = new HashMap<>();
-        for (SecObj o : secObjRepository.findAll()) {
-            objById.put(o.getObjectId(), o);
-        }
-        List<SecMenu> activeMenus = secMenuRepository.findAll().stream()
-                .filter(m -> "Y".equals(m.getUseTp()))
-                .sorted(Comparator.comparing(SecMenu::getFullSeq,
-                        Comparator.nullsLast(Comparator.naturalOrder())))
-                .toList();
-        for (SecMenu m : activeMenus) {
-            String objectId = m.getObjectId();
-            String parentMenuId = m.getParentMenuId();
-            if (objectId == null || objectId.isBlank()
-                    || parentMenuId == null || parentMenuId.isBlank()) {
-                continue;
-            }
-            SecObj obj = objById.get(objectId);
-            if (obj == null || !targetSysCd.equals(obj.getSystemCode())) {
-                continue;
-            }
-            if ((parentMenuId + "/" + objectId).equals(targetComponentPath)) {
-                return m;
-            }
-        }
-        return null;
+        return PortalPageMenuMatcher.findMenuByComponentPath(
+                secMenuRepository.findAll(), secObjRepository.findAll(), targetSysCd, targetComponentPath);
     }
 
     /** 추가 대상 폴더: 선택(fvtFoldId) → 신규(fvtFoldNm) → 기본("즐겨찾기"). 신규/기본은 폴더 행 생성. */

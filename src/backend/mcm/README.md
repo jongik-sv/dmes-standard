@@ -43,7 +43,7 @@ OASIS BPMN 서비스로 노출한다. Spring Boot **`lib` + `api` 2 서브프로
 화면 진입점은 `api/src/main/resources/services/{그룹}/{화면}.bpmn` 이다. `camunda:class` 가 `mcm-core` 의
 서비스 빈을 호출한다. 이관돼 있는 것:
 
-`cma` 4 · `cmb` 7 · `cme` 1 · `csa` 8 · `code` 2 · `security`(secUser — 내 메뉴/권한) · `roleManagement`(secFavorite — 즐겨찾기) · `audit`(감사 로그)
+`cma` 4 · `cmb` 7 · `cme` 1 · `csa` 8 · `code` 2 · `security`(secUser — 내 메뉴/권한) · `roleManagement`(secFavorite — 즐겨찾기 · secStartPgm — 포털 기본 화면) · `audit`(감사 로그)
 
 BPMN 을 추가·수정한 뒤에는 커밋 전에 `oasis-contract-check` 스킬을 돌린다.
 

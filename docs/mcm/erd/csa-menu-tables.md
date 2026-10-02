@@ -23,6 +23,7 @@
 | `TB_MCM_SEC_USER_PWD` | 비밀번호 (본체와 분리) | 1행 | 사용자 관리 |
 | `TB_MCM_SEC_USER_FAVORITE` | 개인 즐겨찾기 | 0행 | 포털 사이드바 |
 | `TB_MCM_SEC_USER_FAVORITE_FOLD` | 즐겨찾기 폴더 | 0행 | 포털 사이드바 |
+| `TB_MCM_SEC_USER_START_PGM` | 개인 기본 화면(처음 시작할 때 여는 화면) | 신설 | 포털 탭 우클릭·사이드바 |
 | `TB_MCM_SEC_USER_HIS` | 사용자 변경 이력 | 0행 | (배치·인터페이스) |
 | `TB_MCM_SEC_USER_ROLL_HIS` | 역할 부여 이력 | 0행 | (배치·인터페이스) |
 
@@ -175,6 +176,13 @@
 - FAVORITE 은 `SEC_MENU`(화면)를 가리킨다. 폴더가 아니라 화면만 즐겨찾기할 수 있다.
 - PK 가 5중 복합(`FULL_ID` + `FVT_FOLD_ID` + `MENU_ID` + `MENU_SEQ` + `USER_ID`)이라 무거운 편이다.
   As-Is 에서 넘어온 구조로 보인다.
+
+### 기본 화면 — `TB_MCM_SEC_USER_START_PGM` (2026-10-02 신설)
+
+- 포털을 처음 시작할 때 자동으로 여는 개인 화면 목록이다. 탭을 우클릭해 '기본 화면 등록'으로 넣고,
+  사이드바 '기본 화면' 목록에서 열거나 해제한다. 관리 방식은 즐겨찾기와 같고 폴더만 없다.
+- PK = (`USER_ID`, `FULL_ID`, `MENU_ID`, `MENU_SEQ`), `START_SEQ` 가 여는 순서다. `FULL_ID` 는 즐겨찾기처럼 componentPath 다.
+- 서비스는 `secStartPgm`(search·toggle, `SecStartPgmService`)이다. Flyway 파일이 없으므로 wildfly(`ddl-auto: none`) 환경은 DDL 을 미리 만들어야 한다.
 
 ---
 
