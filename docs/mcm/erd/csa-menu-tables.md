@@ -26,6 +26,11 @@
 | `TB_MCM_SEC_USER_WIDGET_TAB` | 개인 위젯 탭 | 신규(2026-10-02) | 포털 홈 위젯 |
 | `TB_MCM_SEC_USER_WIDGET` | 개인 위젯 배치 | 신규(2026-10-02) | 포털 홈 위젯 |
 | `TB_MCM_SEC_USER_START_PGM` | 개인 기본 화면(처음 시작할 때 여는 화면) | 신설 | 포털 탭 우클릭·사이드바 |
+| `TB_MCM_WIDGET_DEF` | 위젯 정의·코드 위젯 덮어쓰기 | 신규(2026-10-02) | 위젯 관리 |
+| `TB_MCM_WIDGET_DEFAULT_LAYOUT` | 「홈」 기본 배치(전사·부서) | 신규(2026-10-02) | 위젯 관리 → 기본 배치 |
+| `TB_MCM_WIDGET_MEDIA` | 미디어 위젯 업로드 파일 메타 | 신규(2026-10-02) | 위젯 관리(미디어 위젯) |
+| `TB_MCM_EXCHANGE_RATE` | 일자별 환율 | 신규(2026-10-02) | 환율 위젯(자동 적재) |
+| `TB_MCM_SEC_USER_WIDGET_CHAT` | 개인 AI 챗봇 대화 기록 | 신규(2026-10-02) | 포털 홈 챗봇 위젯 |
 | `TB_MCM_SEC_USER_HIS` | 사용자 변경 이력 | 0행 | (배치·인터페이스) |
 | `TB_MCM_SEC_USER_ROLL_HIS` | 역할 부여 이력 | 0행 | (배치·인터페이스) |
 
@@ -185,6 +190,15 @@
   사이드바 '기본 화면' 목록에서 열거나 해제한다. 관리 방식은 즐겨찾기와 같고 폴더만 없다.
 - PK = (`USER_ID`, `FULL_ID`, `MENU_ID`, `MENU_SEQ`), `START_SEQ` 가 여는 순서다. `FULL_ID` 는 즐겨찾기처럼 componentPath 다.
 - 서비스는 `secStartPgm`(search·toggle, `SecStartPgmService`)이다. Flyway 파일이 없으므로 wildfly(`ddl-auto: none`) 환경은 DDL 을 미리 만들어야 한다.
+
+### 위젯 B·C·D — 테이블 5개 (2026-10-02 신설, 스펙 `docs/superpowers/specs/2026-10-02-widget-admin-generic-design.md` §4)
+
+- **`TB_MCM_WIDGET_DEF`**: 위젯 정의. `SRC_TP='C'` 는 코드 위젯 메타 덮어쓰기(행은 관리자가 덮어쓸 때만 생긴다 — 없으면 코드 값 그대로·사용 중), `SRC_TP='D'` 는 관리자가 코드 없이 만든 위젯(`WIDGET_ID = def.{key}`, 본체는 `TYPE_ID` 유형). `USE_YN='N'` 이면 사용자 탭에서 자리는 지키고 「사용 중지된 위젯입니다」 빈 칸으로 보인다. 쿼리 유형의 SQL·챗봇 시스템 프롬프트는 `CONFIG_JSON` 에 있고, 일반 사용자용 목록(`widgetDef/list`)에서는 빠진다.
+- **`TB_MCM_WIDGET_DEFAULT_LAYOUT`**: 「홈」 기본 배치. `LAYOUT_KEY` 는 `*`(전사) 또는 `DEPT_CD`. 적용 순서는 사용자 부서 → 상위 부서(`TB_MCM_DEPT_INFO.UPPER_DEPT_CD`) → 전사 → 화면 코드 상수이고, 자기 「홈」을 저장한 사용자에게는 영향이 없다.
+- **`TB_MCM_WIDGET_MEDIA`**: 미디어 위젯 파일 메타. 본체는 DB 가 아니라 `dmes.widget.media-dir/{FILE_ID}` 디스크 파일이다(운영 배포 시 이 폴더를 보존·백업 대상에 넣는다).
+- **`TB_MCM_EXCHANGE_RATE`**: 일자별 환율. 환율 위젯이 조회할 때 빠진 날짜를 제공자(기본 Frankfurter, 키가 있으면 한국수출입은행)에서 받아 쌓는다. `RATE` = 대상 통화 1단위의 원화 값.
+- **`TB_MCM_SEC_USER_WIDGET_CHAT`**: AI 챗봇 위젯 대화 기록(사용자·인스턴스별 최근 100개).
+- 서비스: 사용자용 `widgetDef/list`·`widgetData/run`·`widgetExt/*`·`widgetChat/*`·미디어 내려받기는 AUTH_ONLY, 관리자용 `commWidgetMng/*`(정의 저장·SQL 미리보기·기본 배치·미디어 올리기)는 위젯 관리 메뉴 권한(RBAC). 다섯 테이블 모두 Flyway 없이 로컬 `ddl-auto: update` 로 생기므로 개발계·운영계는 DDL 을 미리 만든다(`csa-menu.dbml` 참고, 긴 문자열은 Oracle CLOB·PostgreSQL TEXT).
 
 ---
 
