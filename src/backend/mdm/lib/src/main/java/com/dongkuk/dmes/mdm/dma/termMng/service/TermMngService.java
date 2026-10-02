@@ -54,6 +54,11 @@ public class TermMngService {
     /** 동의어 표기의 "명칭(시스템)" 접미사를 잘라내는 패턴(I18). */
     private static final Pattern TRAILING_PAREN = Pattern.compile("\\s*\\([^)]*\\)\\s*$");
     private static final double MIN_STAGE1_SCORE = 0.5d;
+    /** 부분 일치 가점·편집 거리 점수는 짧은 쪽이 이 길이 이상일 때만 준다 — 한 글자 용어("명"·"량")는 정확 일치만 후보다. */
+    private static final int MIN_CONTAIN_LENGTH = 2;
+    /** 부분 일치 점수 = CONTAIN_BASE + CONTAIN_SPAN × 짧은쪽 길이 ÷ 긴쪽 길이 (0.7 초과 ~ 0.9 미만). */
+    private static final double CONTAIN_BASE = 0.7d;
+    private static final double CONTAIN_SPAN = 0.2d;
     private static final int TOP_N = 5;
     private static final int DEFAULT_CHUNK_SIZE = 500;
 
@@ -294,7 +299,14 @@ public class TermMngService {
             return 1.0d;
         }
         if (candidateUpper.contains(queryUpper) || queryUpper.contains(candidateUpper)) {
-            return 0.9d;
+            int shorter = Math.min(candidateUpper.length(), queryUpper.length());
+            int longer = Math.max(candidateUpper.length(), queryUpper.length());
+            if (shorter >= MIN_CONTAIN_LENGTH) {
+                return CONTAIN_BASE + CONTAIN_SPAN * shorter / longer;
+            }
+        }
+        if (Math.min(candidateUpper.length(), queryUpper.length()) < MIN_CONTAIN_LENGTH) {
+            return -1d; // 한 글자 쪽은 정확 일치만 인정한다(편집 거리 0.5 로 컷오프에 걸리는 것을 막는다)
         }
         int distance = levenshtein(query, candidateText);
         int maxLen = Math.max(query.length(), candidateText.length());

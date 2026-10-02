@@ -107,13 +107,14 @@ test.describe("mdm dma/termMng smoke", () => {
     await recommendResponse;
 
     // 1차 추천 후보로 방금 등록한 용어가 뜬다.
-    await expect(page.getByTestId("reco-stage1").getByText(TERM1_NAME, { exact: false })).toBeVisible({
+    const recoGrid = page.getByLabel("유사어 추천");
+    await expect(recoGrid.locator('[data-testid^="reco-candidate-1-"]', { hasText: TERM1_NAME })).toBeVisible({
       timeout: 20_000,
     });
 
-    // 동의어로 확정 — 후보 행마다 고유 testid(reco-candidate-1-{termId})를 부여해 선택을 명확히 한다.
-    await page
-      .locator('[data-testid^="reco-candidate-1-"]', { hasText: TERM1_NAME })
+    // 동의어로 확정 — 추천 그리드 행의 표기 칸에 reco-candidate-{stage}-{termId} testid 가 있다. 그 행의 확정 버튼을 누른다.
+    await recoGrid
+      .locator(".ag-row", { has: page.locator('[data-testid^="reco-candidate-1-"]', { hasText: TERM1_NAME }) })
       .getByRole("button", { name: "동의어로 확정" })
       .click();
     await expect(detailRow(page, "동의어").locator("input")).toHaveValue(new RegExp(TERM1_NAME));

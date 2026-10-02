@@ -36,11 +36,20 @@ import {
 
 const TERM_COLUMNS: GridColumn[] = [
   { key: "termName", header: "표기", width: 140, align: "left" },
-  { key: "senseNo", header: "의미", width: 70, align: "center" },
+  { key: "engName", header: "영문명", width: 180, align: "left" },
   { key: "engAbbr", header: "영문 약어", width: 100, align: "left" },
   { key: "context", header: "맥락", width: 120, align: "left" },
   { key: "systemsText", header: "사용 시스템", width: 140, align: "left" },
   { key: "synonymsText", header: "동의어", width: 220, align: "left" },
+];
+
+/** A-RECO 유사어 추천 그리드 열. 행 키는 `{stage}-{termId}`(같은 용어가 1차·2차에 함께 나올 수 있다). */
+const RECO_COLUMNS_BASE: GridColumn[] = [
+  { key: "stageText", header: "구분", width: 70, align: "center" },
+  { key: "termName", header: "표기", width: 120, align: "left" },
+  { key: "engName", header: "영문명", width: 150, align: "left" },
+  { key: "systemsText", header: "사용 시스템", width: 110, align: "left" },
+  { key: "scoreText", header: "유사도", width: 70, align: "right" },
 ];
 
 /** D-002(표기)가 2자 이상이어야 1차 추천을 실행한다(I18). */
@@ -223,8 +232,47 @@ export default function TermMngPage() {
     }
   }, []);
 
-  const stage1Candidates = candidates.filter((c) => c.stage === "1");
-  const stage2Candidates = candidates.filter((c) => c.stage === "2");
+  const recoRows = useMemo(
+    () =>
+      candidates
+        .filter((c) => c.stage === "1" || stage2Enabled)
+        .map((c) => ({
+          ...c,
+          recoKey: `${c.stage}-${c.termId}`,
+          stageText: c.stage === "1" ? "1차 이름" : "2차 의미",
+          systemsText: (c.systems ?? []).join(", "),
+          scoreText: c.score.toFixed(2),
+        })),
+    [candidates, stage2Enabled],
+  );
+  const recoColumns = useMemo<GridColumn[]>(
+    () => [
+      ...RECO_COLUMNS_BASE.map((col) =>
+        col.key === "termName"
+          ? {
+              ...col,
+              render: (v: unknown, r: Record<string, unknown>) => (
+                <span data-testid={`reco-candidate-${String(r.recoKey)}`}>{String(v ?? "")}</span>
+              ),
+            }
+          : col,
+      ),
+      {
+        key: "confirm",
+        header: "",
+        width: 110,
+        align: "center",
+        sortable: false,
+        tooltip: false,
+        render: (_v: unknown, r: Record<string, unknown>) => (
+          <Button size="mini" data-testid={`reco-confirm-${String(r.recoKey)}`} disabled={!form} onClick={() => handleConfirmSynonym(r as unknown as RecommendCandidate)}>
+            동의어로 확정
+          </Button>
+        ),
+      },
+    ],
+    [form, handleConfirmSynonym],
+  );
 
   return (
     <MdmPageLayout
@@ -269,7 +317,8 @@ export default function TermMngPage() {
           </GridPanel>
         </ContentPanel>
 
-        <ContentPanel width={460}>
+        <ContentBody direction="column" width={560} resizable storageKey="mdm.dma.termMng.detail">
+        <ContentPanel>
           <table style={DETAIL_TABLE_STYLE}>
             <tbody>
               <tr>
@@ -339,29 +388,21 @@ export default function TermMngPage() {
               목록에서 행을 선택하거나 [등록] 을 눌러 작성하세요.
             </p>
           )}
-
-          <p style={{ padding: "0 var(--spacing-md)", fontWeight: 600, color: "var(--color-text-secondary)" }}>
-            유사어 추천{!stage2Enabled && " (1차 문자열만 — 임베딩 인코더 비활성)"}
-          </p>
-          <div data-testid="reco-stage1">
-            {stage1Candidates.map((c) => (
-              <div key={`s1-${c.termId}`} data-testid={`reco-candidate-1-${c.termId}`} style={{ display: "flex", justifyContent: "space-between", padding: "4px var(--spacing-md)" }}>
-                <span>{c.termName} ({c.score.toFixed(2)})</span>
-                <Button size="sm" onClick={() => handleConfirmSynonym(c)}>동의어로 확정</Button>
-              </div>
-            ))}
-          </div>
-          {stage2Enabled && (
-            <div data-testid="reco-stage2">
-              {stage2Candidates.map((c) => (
-                <div key={`s2-${c.termId}`} data-testid={`reco-candidate-2-${c.termId}`} style={{ display: "flex", justifyContent: "space-between", padding: "4px var(--spacing-md)" }}>
-                  <span>{c.termName} ({c.score.toFixed(2)})</span>
-                  <Button size="sm" onClick={() => handleConfirmSynonym(c)}>동의어로 확정</Button>
-                </div>
-              ))}
-            </div>
-          )}
         </ContentPanel>
+
+        <ContentPanel height={300}>
+          <GridPanel title={`유사어 추천${stage2Enabled ? "" : " (1차 이름 비교만, 임베딩 인코더 꺼짐)"}`} count={recoRows.length}>
+            <AgDataGrid
+              ariaLabel="유사어 추천"
+              columnSizing="fit"
+              columns={recoColumns}
+              data={recoRows}
+              rowKey="recoKey"
+              emptyMessage="표기를 2자 이상 입력하면 비슷한 용어를 보여 줍니다."
+            />
+          </GridPanel>
+        </ContentPanel>
+        </ContentBody>
       </ContentBody>
 
       {warningMessage && (

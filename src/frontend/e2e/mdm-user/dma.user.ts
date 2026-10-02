@@ -482,7 +482,10 @@ test.describe("B 용어 관리", () => {
   test("TC-DMA-TRM-06 유사어 추천 — 표기가 겹치는 새 용어를 적으면 1차 추천이 뜨고 동의어로 확정할 수 있다", async () => {
     await button(page, "등록").click();
     await field(page, "표기 *").fill(TERM_B_NAME);
-    const candidate = page.locator('[data-testid^="reco-candidate-1-"]').first();
+    const candidate = page
+      .getByLabel("유사어 추천")
+      .locator(".ag-row", { has: page.locator('[data-testid^="reco-candidate-1-"]') })
+      .first();
     await expect(candidate).toBeVisible({ timeout: 10_000 });
     await expect(candidate).toContainText(TERM_A_NAME);
     await snap(page, "dma-termMng-06-recommend");

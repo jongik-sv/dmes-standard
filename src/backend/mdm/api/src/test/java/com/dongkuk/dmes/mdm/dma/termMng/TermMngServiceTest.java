@@ -230,6 +230,53 @@ class TermMngServiceTest extends AbstractMdmSharedDbTest {
         assertTrue(candidates.stream().noneMatch(c -> "AXYZ".equals(c.getTermName())), candidates.toString());
     }
 
+    @Test
+    void I18_한_글자_비교대상은_포함_가점을_받지_않는다() {
+        // "명령문" 질의 — "명"(1자)은 질의에 포함되지만 포함 가점 없이 편집 거리 점수(1 − 2/3 = 0.33)라 빠진다.
+        // "명령문서" 는 질의를 포함하므로 0.7 + 0.2 × 3/4 = 0.85 로 남는다.
+        service.save(req("명", 1, "이름"));
+        service.save(req("명령문서", 1, "명령을 적은 문서"));
+
+        List<com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate> candidates = stage1("명령문");
+
+        assertTrue(candidates.stream().noneMatch(c -> "명".equals(c.getTermName())), candidates.toString());
+        assertTrue(candidates.stream().anyMatch(c -> "명령문서".equals(c.getTermName())), candidates.toString());
+    }
+
+    @Test
+    void I18_한_글자_비교대상은_정확히_같을_때만_후보다() {
+        // "명령" ↔ "명": 편집 거리로는 1 − 1/2 = 0.5 라 컷오프에 걸리지만, 한 글자 쪽은 정확 일치만 인정한다.
+        service.save(req("명", 1, "이름"));
+
+        assertTrue(stage1("명령").stream().noneMatch(c -> "명".equals(c.getTermName())));
+    }
+
+    @Test
+    void I18_포함_점수는_길이가_비슷할수록_높다() {
+        // 0.7 + 0.2 × 짧은쪽/긴쪽 — "코일센터"(2/4 → 0.8), "코일번호이력"(2/6 → 0.7667)
+        service.save(req("코일센터", 1, "코일 보관 센터"));
+        service.save(req("코일번호이력", 1, "코일 번호 이력"));
+
+        List<com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate> candidates = stage1("코일");
+
+        assertEquals(0.8d, score(candidates, "코일센터"), 1e-9, candidates.toString());
+        assertEquals(0.7d + 0.2d * 2 / 6, score(candidates, "코일번호이력"), 1e-9, candidates.toString());
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate> stage1(String termName) {
+        RecommendRequest req = new RecommendRequest();
+        req.setTermName(termName);
+        Map<String, Object> result = service.recommend(req);
+        return ((List<com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate>) (List<?>) result.get("candidates"))
+                .stream().filter(c -> "1".equals(c.getStage())).toList();
+    }
+
+    private static double score(List<com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate> candidates, String name) {
+        return candidates.stream().filter(c -> name.equals(c.getTermName())).findFirst()
+                .orElseThrow(() -> new AssertionError(name + " 없음: " + candidates)).getScore();
+    }
+
     // ── I19 ──
 
     @Test

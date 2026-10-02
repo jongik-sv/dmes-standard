@@ -1295,3 +1295,11 @@
 - **Rationale**: 사용자 요청. 노드와 같은 조작·같은 색이라 새로 배울 것이 없고, 선택적 키라 기존 세트의 저장 글자가 바뀌지 않는다. 서버는 view 를 받은 그대로 저장하고(`RuleSetFlowJson.canonical`) `view.groups` 를 검사하지 않아 백엔드 변경이 없다
 - **Reversible**: yes(view 의 선택적 키 하나. 되돌리면 색 키가 있는 세트를 열 때 정규화가 버린다)
 - **Source**: 사용자 요청 2026-10-02. 스펙 `docs/superpowers/specs/2026-10-01-rule-set-flow-node-style-design.md` S-D13. 영향: `flow-edit.ts`(FlowGroup.color·setGroupsColor·setGroupPad), `node-style.ts`(paintedColor), `canvas/menus/edit-menu.ts`·`context-menu.ts`·`FlowCanvas.tsx`·`nodes.tsx`, `styles/base.ts`, `page.tsx`, 시험 `group-color.test.ts`
+
+## D-139 (2026-10-02T02:40:00Z)
+- **Phase**: fix(용어관리 유사어 1차 추천 — 부분 일치 점수)
+- **Decision needed**: 1차(문자열) 추천의 양방향 부분 일치 점수가 고정 `0.9` 라, 한 글자 용어("명"·"량"·"시")가 그 글자를 담은 모든 질의에 0.90 으로 올라온다(사용자 지적, "명령" 질의에 "명" 0.90). 어떻게 고칠지
+- **Decision made**: 부분 일치 가점은 짧은 쪽이 2자 이상일 때만 주고, 점수는 `0.7 + 0.2 × 짧은 쪽 길이 ÷ 긴 쪽 길이` 다. 질의어나 비교 대상 중 한 글자인 쪽은 정확 일치일 때만 후보다(편집 거리로는 "명령"↔"명" 이 1 − 1/2 = 0.5 라 컷오프에 걸리기 때문). 정확 일치 1.0·0.5 컷오프(I18)·상위 5건은 그대로 둔다
+- **Rationale**: 0.5 컷오프는 I18 불변 규칙이라 건드리지 않고 문제를 만든 부분 일치 가점만 고친다. 길이 비율을 넣으면 "명령"→"명령문"(0.83)이 "전부명령"(0.80)보다 위에 오듯 질의와 길이가 비슷한 후보가 앞선다
+- **Reversible**: yes(`TermMngService` 상수 3개)
+- **Source**: `TermMngService.scoreText`, `TermMngServiceTest`(I18_한_글자_비교대상은_포함_가점을_받지_않는다·I18_한_글자_비교대상은_정확히_같을_때만_후보다·I18_포함_점수는_길이가_비슷할수록_높다), TSK-04-02 design.md I18 문구 갱신
