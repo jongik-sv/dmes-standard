@@ -12,6 +12,6 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["tests/**/*.test.ts", "page-components/**/*.test.ts"],
+    include: ["tests/**/*.test.ts", "page-components/**/*.test.ts", "widget-types/**/*.test.ts"],
   },
 });

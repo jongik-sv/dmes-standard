@@ -386,4 +386,216 @@ describe("WidgetWorkspace", () => {
     dlg.remove();
     expect(confirm).not.toHaveBeenCalled();
   });
+
+  /* ── 정의 목록 상태(registryStatus) — 스펙 widget-admin-generic §1.1·W-D19 ── */
+  it('registryStatus="loading" 이면 [배치 편집]이 비활성이고 안내 제목을 달며 띠는 없다', async () => {
+    await mount(makeStore([]), { registryStatus: "loading", testId: "ws" });
+    expect(btn('[data-action="start-edit"]').disabled).toBe(true);
+    expect(btn('[data-action="start-edit"]').title).toBe("위젯 목록을 불러오는 중입니다");
+    expect(host.querySelector('[data-testid="ws-registry-error"]')).toBeNull();
+    expect(host.textContent).not.toContain("위젯 정의를 불러오지 못했습니다");
+  });
+
+  it('registryStatus="error" 면 [배치 편집] 비활성 + 띠 + [다시 시도] 가 onRetryRegistry 를 한 번 부른다', async () => {
+    const onRetryRegistry = vi.fn();
+    await mount(makeStore([]), { registryStatus: "error", onRetryRegistry, testId: "ws" });
+    expect(btn('[data-action="start-edit"]').disabled).toBe(true);
+    expect(btn('[data-action="start-edit"]').title).toBe("위젯 정의를 불러오지 못했습니다");
+    const banner = host.querySelector('[data-testid="ws-registry-error"]');
+    expect(banner).not.toBeNull();
+    expect(banner!.textContent).toContain("위젯 정의를 불러오지 못했습니다");
+    // 띠는 탭 줄 위에 있다.
+    const tabs = host.querySelector('[role="tablist"]')!;
+    expect(banner!.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    click('[data-action="retry-registry"]');
+    expect(onRetryRegistry).toHaveBeenCalledTimes(1);
+  });
+
+  it('registryStatus="error" 인데 onRetryRegistry 가 없으면 [다시 시도] 를 그리지 않는다', async () => {
+    await mount(makeStore([]), { registryStatus: "error", testId: "ws" });
+    expect(host.querySelector('[data-testid="ws-registry-error"]')).not.toBeNull();
+    expect(host.querySelector('[data-action="retry-registry"]')).toBeNull();
+  });
+
+  it('registryStatus="loading"·"error" 에서 (+) 새 탭만 막히고 ⋯ 탭 메뉴는 보인다', async () => {
+    await mount(makeStore([]), { registryStatus: "loading" });
+    expect(btn('[data-action="add-tab"]').disabled).toBe(true);
+    expect(btn('[data-action="add-tab"]').title).toBe("위젯 목록을 불러오는 중입니다");
+    expect(host.querySelector('[data-tab-menu="home"]')).not.toBeNull();
+    click('[data-action="add-tab"]');
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(1);
+    act(() => root.unmount());
+    root = createRoot(host);
+    await mount(makeStore([]), { registryStatus: "error" });
+    expect(btn('[data-action="add-tab"]').disabled).toBe(true);
+    expect(btn('[data-action="add-tab"]').title).toBe("위젯 정의를 불러오지 못했습니다");
+    expect(host.querySelector('[data-tab-menu="home"]')).not.toBeNull();
+  });
+
+  it("registryStatus 가 ready 로 바뀌면 띠가 사라지고 [배치 편집]이 켜진다", async () => {
+    const store = makeStore([]);
+    const base = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), boardWidth: 1440, testId: "ws" };
+    act(() => root.render(h(WidgetWorkspace, { ...base, registryStatus: "error" })));
+    await flush();
+    expect(btn('[data-action="start-edit"]').disabled).toBe(true);
+    act(() => root.render(h(WidgetWorkspace, { ...base, registryStatus: "ready" })));
+    await flush();
+    expect(host.querySelector('[data-testid="ws-registry-error"]')).toBeNull();
+    expect(btn('[data-action="start-edit"]').disabled).toBe(false);
+    // 상태만 바뀐 것이라 저장소를 다시 부르지 않는다.
+    expect(store.calls).toEqual(["load"]);
+  });
+
+  it('편집 중 registryStatus 가 "error" 로 바뀌면 [완료]가 막힌다', async () => {
+    const store = makeStore([{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }]);
+    const base = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), boardWidth: 1440 };
+    act(() => root.render(h(WidgetWorkspace, { ...base, registryStatus: "ready" })));
+    await flush();
+    click('[data-action="start-edit"]');
+    click('.cm-widget[data-inst-id="a"] [data-action="remove"]');
+    act(() => root.render(h(WidgetWorkspace, { ...base, registryStatus: "error" })));
+    await flush();
+    expect(btn('[data-action="done-edit"]').disabled).toBe(true);
+    click('[data-action="done-edit"]');
+    await flush();
+    expect(store.calls).toEqual(["load"]);
+  });
+
+  it("typeTitles 를 서랍으로 넘겨 정의 위젯 아래 유형 이름을 보인다", async () => {
+    const reg: WidgetRegistry = {
+      ...REG,
+      "def.k3x9q2ab": {
+        meta: { id: "def.k3x9q2ab", title: "생산 실적표", kind: "def", typeId: "query-table", defaultSize: { w: 6, h: 6 } },
+        load: async () => ({ default: () => h("p", null, "표") }),
+      },
+    };
+    await mount(makeStore([]), { registry: reg, typeTitles: { "query-table": "쿼리 표" } });
+    click('[data-action="start-edit"]');
+    const type = host.querySelector('.cm-widget-picker [data-widget-id="def.k3x9q2ab"] .cm-widget-picker__type');
+    expect(type!.textContent).toBe("쿼리 표");
+  });
+
+  /* ── 관리자 단일 탭(singleTab) — 스펙 §10.2 ── */
+  it("singleTab 이면 탭 줄 없이 제목을 보이고 「홈」만 다룬다", async () => {
+    const store = makeStore([
+      { tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a")] },
+      { tabId: "tab-1", name: "내 생산", seq: 1, locked: false, items: [it_("c"), it_("d", 6, 0)] },
+    ]);
+    await mount(store, { singleTab: { title: "전사 기본 배치" } });
+    expect(host.querySelector('[role="tablist"]')).toBeNull();
+    expect(host.querySelector('[data-action="add-tab"]')).toBeNull();
+    expect(host.querySelector("[data-tab-menu]")).toBeNull();
+    const title = host.querySelector(".cm-widget-ws__title");
+    expect(title!.textContent).toBe("전사 기본 배치");
+    expect(host.querySelectorAll(".cm-widget").length).toBe(1);
+    expect(host.querySelector('.cm-widget[data-inst-id="a"]')).not.toBeNull();
+  });
+
+  it("singleTab 에 저장한 홈이 없으면 homeDefault 를 보인다", async () => {
+    await mount(makeStore([]), { singleTab: { title: "생산팀 기본 배치" } });
+    expect(host.querySelectorAll(".cm-widget").length).toBe(1);
+    expect(host.querySelector('.cm-widget[data-inst-id="d1"]')).not.toBeNull();
+  });
+
+  it("singleTab 편집 → 위젯 추가 → [완료] 는 saveTab(tabId:home) 을 한 번 부른다", async () => {
+    const store = makeStore([]);
+    await mount(store, { singleTab: { title: "전사 기본 배치" }, registry: REG2 });
+    click('[data-action="start-edit"]');
+    click('.cm-widget-picker [data-widget-id="t.b"]');
+    click('[data-action="done-edit"]');
+    await flush();
+    expect(store.saveTab).toHaveBeenCalledTimes(1);
+    expect((store.saveTab as ReturnType<typeof vi.fn>).mock.calls[0][0]).toMatchObject({ tabId: "home", seq: 0 });
+    expect((store.saveTab as ReturnType<typeof vi.fn>).mock.calls[0][0].items).toHaveLength(2);
+    expect(btn('[data-action="start-edit"]')).not.toBeNull();
+  });
+
+  it("singleTab [취소] 는 바뀐 것을 확인 후 되돌린다", async () => {
+    const store = makeStore([]);
+    const { confirm } = await mount(store, { singleTab: { title: "전사 기본 배치" }, registry: REG2 });
+    click('[data-action="start-edit"]');
+    click('.cm-widget-picker [data-widget-id="t.b"]');
+    click('[data-action="cancel-edit"]');
+    await flush();
+    expect(confirm).toHaveBeenCalled();
+    expect(host.querySelectorAll(".cm-widget").length).toBe(1);
+    expect(store.saveTab).not.toHaveBeenCalled();
+  });
+
+  it("singleTab 은 마지막 탭을 기억하지 않는다(localStorage 를 읽지도 쓰지도 않는다)", async () => {
+    // happy-dom 이 localStorage 를 노출하지 않을 수 있어 스텁을 window 에 잠깐 둔다(content-body-resizable 시험 방식).
+    const getItem = vi.fn((_k: string) => "tab-1");
+    const setItem = vi.fn((_k: string, _v: string) => {});
+    const prev = Object.getOwnPropertyDescriptor(window, "localStorage");
+    Object.defineProperty(window, "localStorage", { value: { getItem, setItem }, configurable: true });
+    const lastTabCalls = (fn: ReturnType<typeof vi.fn>) => fn.mock.calls.filter(([k]) => String(k).startsWith("dmes:widget:lastTab"));
+    const twoTabStore = () =>
+      makeStore([
+        { tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a")] },
+        { tabId: "tab-1", name: "내 생산", seq: 1, locked: false, items: [it_("c"), it_("d", 6, 0)] },
+      ]);
+    try {
+      // 대조: 일반 모드는 마지막 탭(tab-1)을 읽어 연다.
+      await mount(twoTabStore(), { userId: "u1" });
+      expect(lastTabCalls(getItem)).toHaveLength(1);
+      expect(host.querySelectorAll(".cm-widget").length).toBe(2);
+      act(() => root.unmount());
+      root = createRoot(host);
+      getItem.mockClear();
+      await mount(twoTabStore(), { singleTab: { title: "전사 기본 배치" }, userId: "u1" });
+      expect(lastTabCalls(getItem)).toHaveLength(0);
+      expect(lastTabCalls(setItem)).toHaveLength(0);
+      expect(host.querySelectorAll(".cm-widget").length).toBe(1);
+    } finally {
+      if (prev) Object.defineProperty(window, "localStorage", prev);
+      else delete (window as unknown as { localStorage?: unknown }).localStorage;
+    }
+  });
+
+  it("singleTab 객체가 렌더마다 새로 만들어져도 저장소를 다시 부르지 않고 편집이 이어진다", async () => {
+    const store = makeStore([]);
+    const base = { registry: REG2, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), boardWidth: 1440 };
+    act(() => root.render(h(WidgetWorkspace, { ...base, singleTab: { title: "전사 기본 배치" } })));
+    await flush();
+    click('[data-action="start-edit"]');
+    act(() => root.render(h(WidgetWorkspace, { ...base, singleTab: { title: "전사 기본 배치" } })));
+    await flush();
+    expect(store.calls).toEqual(["load"]);
+    expect(btn('[data-action="done-edit"]')).not.toBeNull();
+  });
+
+  it('singleTab + registryStatus="error" 면 띠가 제목 위에 보이고 [배치 편집]이 막힌다', async () => {
+    await mount(makeStore([]), { singleTab: { title: "전사 기본 배치" }, registryStatus: "error", testId: "ws", onRetryRegistry: vi.fn() });
+    const banner = host.querySelector('[data-testid="ws-registry-error"]');
+    const title = host.querySelector(".cm-widget-ws__title")!;
+    expect(banner!.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(btn('[data-action="start-edit"]').disabled).toBe(true);
+  });
+
+  /* ── (+) 새 탭도 편집 진입로다 — 정의 목록이 준비되지 않았으면 함께 막는다(Review Focus #1) ── */
+  for (const registryStatus of ["loading", "error"] as const) {
+    it(`registryStatus="${registryStatus}" 면 (+) 가 비활성이고 눌러도 편집 모드로 들어가지 않으며 탭이 늘지 않는다`, async () => {
+      await mount(makeStore([]), { registryStatus, onRetryRegistry: vi.fn() });
+      expect(btn('[data-action="add-tab"]').disabled).toBe(true);
+      click('[data-action="add-tab"]');
+      await flush();
+      expect(host.querySelector('[data-action="done-edit"]')).toBeNull();
+      expect(host.querySelectorAll('[role="tab"]')).toHaveLength(1);
+      expect(host.querySelector(".cm-widget-tab__name")).toBeNull();
+    });
+  }
+
+  it("registryStatus 가 loading 에서 ready 로 바뀌면 (+) 가 다시 켜지고 새 탭을 만들 수 있다", async () => {
+    const store = makeStore([]);
+    const base = { registry: REG, homeDefault: HOME_DEFAULT, store, confirm: vi.fn(async () => true), notify: vi.fn(), boardWidth: 1440 };
+    act(() => root.render(h(WidgetWorkspace, { ...base, registryStatus: "loading" })));
+    await flush();
+    expect(btn('[data-action="add-tab"]').disabled).toBe(true);
+    act(() => root.render(h(WidgetWorkspace, { ...base, registryStatus: "ready" })));
+    await flush();
+    expect(btn('[data-action="add-tab"]').disabled).toBe(false);
+    click('[data-action="add-tab"]');
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2);
+    expect(btn('[data-action="done-edit"]')).not.toBeNull();
+  });
 });

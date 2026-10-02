@@ -19,6 +19,13 @@ export {
   validateTabName,
   validateWidgetMeta,
 } from "./widget-layout";
+export {
+  applyWidgetOverride,
+  defWidgetLoader,
+  defWidgetMeta,
+  mergeWidgetRegistry,
+  toWidgetDefRow,
+} from "./widget-registry";
 export { WidgetFrame } from "./WidgetFrame";
 export type { WidgetFrameProps } from "./WidgetFrame";
 export {

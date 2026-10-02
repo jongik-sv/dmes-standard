@@ -121,7 +121,9 @@ export function reflowLayout(items: readonly WidgetItem[], cols: number): Widget
   return compact(scaled, cols);
 }
 
+/** 사용 중지 위젯(스펙 widget-admin-generic §1.1)·탭 한도·이미 놓인 multiple:false 위젯은 새로 놓을 수 없다. */
 export function canAddWidget(items: readonly WidgetItem[], meta: WidgetMeta): boolean {
+  if (meta.disabled) return false;
   if (items.length >= MAX_WIDGETS_PER_TAB) return false;
   if (meta.multiple === false && items.some((i) => i.widgetId === meta.id)) return false;
   return true;

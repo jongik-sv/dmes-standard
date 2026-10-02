@@ -39,6 +39,14 @@ export interface RbacPolicyConfig {
    * 예: `/^\/api\/[^/]+\/mdmMeta\//` — 모든 업무 모듈의 MDM 메타 캐시 엔드포인트(2026-10-02).
    */
   authOnlyPatterns?: readonly RegExp[];
+  /**
+   * 인증만 필요한 **읽기 전용** 경로 (선택, RBAC skip). GET·HEAD 요청이고 쿼리 문자열을 뗀 경로가 패턴에 맞을 때만 pass,
+   * 그 밖 메서드(또는 메서드를 모를 때)는 일반 RBAC 판정으로 넘어간다.
+   * REST 신경로처럼 접두 뒤에 임의 backendPath 를 붙일 수 있는 경로에 쓴다 — 접두가 아니라 경로 전체를 `^…$` 로
+   * 고정해야 `..`·`%2e%2e`·`%2f`·`//`·다른 backendPath 로 다른 BE 엔드포인트에 빠지지 않는다.
+   * 예: `/^\/api\/mcm\/rest\/widgetMedia\/file\/api\/mcm\/widgetMedia\/file\/[0-9a-f]{32}$/` — 미디어 위젯 파일 내려받기(2026-10-03).
+   */
+  authOnlyReadPatterns?: readonly RegExp[];
   /** LoV 경로 (인증만). 예: `/^\/api\/[^/]+\/lov\//`. */
   lovPattern: RegExp;
   /** 미매칭(2패턴 외) 경로 차단 여부. 지금 false(통과) / 추후 true(전면차단). */
@@ -108,19 +116,25 @@ export function parseRbacKey(
  */
 export type PermsLoader = (userId: string) => Promise<readonly string[]> | readonly string[];
 
+/** {@link RbacPolicyConfig.authOnlyReadPatterns} 가 여는 메서드. */
+const READ_METHODS: ReadonlySet<string> = new Set(["GET", "HEAD"]);
+
 /**
  * `/api/*` 경로 RBAC 판정. (self-fetch 헤더 처리는 호출측 미들웨어에서 선행.)
  *
- * 평가 순서: PUBLIC → 세션(401) → AUTH_ONLY → LoV → RBAC 3패턴 → 미매칭(토글).
+ * 평가 순서: PUBLIC → 세션(401) → AUTH_ONLY(접두·패턴·읽기 전용 패턴) → LoV → RBAC 3패턴 → 미매칭(토글).
  * RBAC 단계에서만 {@link PermsLoader} 로 사용자 권한키를 lazy load 하여 멤버십 검사.
  * SYSADMIN 프리패스 제거 (2026-07-30) — 롤 무관 멤버십 판정. BE 브레이크글라스
  * (mcm.security.sysadmin-freepass=true) 시 로더가 ["*"] 를 반환해 전면 통과로 복원된다.
+ *
+ * @param method HTTP 메서드. {@link RbacPolicyConfig.authOnlyReadPatterns} 판정에만 쓴다 — 없으면 읽기로 보지 않는다(fail-closed).
  */
 export async function evaluateApiPolicy(
   path: string,
   token: PolicyToken | null | undefined,
   config: RbacPolicyConfig,
   loadPerms: PermsLoader,
+  method?: string,
 ): Promise<RbacVerdict> {
   if (config.publicPrefixes.some((p) => path.startsWith(p))) return "pass";
 
@@ -128,6 +142,10 @@ export async function evaluateApiPolicy(
 
   if (config.authOnlyPrefixes.some((p) => path.startsWith(p))) return "pass";
   if (config.authOnlyPatterns?.some((re) => re.test(path))) return "pass";
+  if (config.authOnlyReadPatterns && method && READ_METHODS.has(method.toUpperCase())) {
+    const pathOnly = path.split("?")[0];
+    if (config.authOnlyReadPatterns.some((re) => re.test(pathOnly))) return "pass";
+  }
   if (config.lovPattern.test(path)) return "pass";
 
   const rbacKey = parseRbacKey(path, config.reservedSecondSeg);

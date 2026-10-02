@@ -52,6 +52,13 @@ const RBAC_POLICY: RbacPolicyConfig = {
     // BE EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES 의 "screenusage/record" 와 동기화.
     "/api/mcm/oasis/screenUsage/record",
     "/api/mcm/oasis/secWidget/", // 포털 홈 위젯 탭·배치(본인 데이터, 5 action 전부) — BE EndpointPermissionFilter 와 동기화
+    // 위젯 B·C·D 사용자용(스펙 2026-10-02-widget-admin-generic §5.1) — BE EndpointPermissionFilter 와 동기화.
+    // 관리자용 commWidgetMng(정의 저장·SQL 미리보기·기본 배치·미디어 올리기)은 메뉴 RBAC 이라 여기 넣지 않는다.
+    "/api/mcm/oasis/widgetDef/list", // 위젯 정의 목록 + 부서 기준 「홈」 기본 배치
+    "/api/mcm/oasis/widgetData/run", // 쿼리 위젯 실행 — defId 만 받는다
+    "/api/mcm/oasis/widgetExt/", // 환율·날씨
+    "/api/mcm/oasis/widgetChat/", // AI 챗봇(본인 대화)
+    // 미디어 파일 내려받기는 접두가 아니라 아래 authOnlyReadPatterns 로 연다(REST 신경로라 접두 뒤에 임의 BE 경로를 붙일 수 있다).
     // 포털 홈 공지 목록(mls noticeBoard) — 로그인한 모든 사용자. 서비스가 현재 사용자 역할로 게시 대상을 거른다
     // (본인 기준 데이터). 조회 action 하나만 연다 — noticeBoard 에는 쓰기 action 이 없다. BE EndpointPermissionFilter 와 동기화.
     "/api/mls/oasis/noticeBoard/search",
@@ -63,6 +70,11 @@ const RBAC_POLICY: RbacPolicyConfig = {
   // 캐시를 켜도 여기를 고치지 않는다. 화면 메타(columns·domains)는 로그인한 모든 사용자, 관리(status·entries·entry·load)는 각 모듈
   // MdmMetaController 가 SYSADMIN 을 다시 본다. mcm BE EndpointPermissionFilter 의 AUTH_ONLY(/api/mcm/mdmMeta/)와 동기화.
   authOnlyPatterns: [/^\/api\/[^/]+\/mdmMeta\//],
+  // 미디어 위젯 파일 내려받기(스펙 2026-10-02-widget-admin-generic §5.1) → BE GET /api/mcm/widgetMedia/file/{fileId}.
+  // GET·HEAD 이고 경로 전체가 이 모양일 때만 인증만 본다(fileId = 서버가 만든 32자 소문자 16진수, widget-types/media/media.ts).
+  // 접두로 열면 로그인만 한 사용자가 `…/widgetMedia/file/<다른 BE 경로>` 로 메뉴 RBAC 를 건너뛴다(2026-10-03 보안 지적).
+  // 그 밖 메서드·모양은 RBAC(권한키 mcm/widgetmedia/file — 아무에게도 없다)로 403. BE EndpointPermissionFilter 와 동기화.
+  authOnlyReadPatterns: [/^\/api\/mcm\/rest\/widgetMedia\/file\/api\/mcm\/widgetMedia\/file\/[0-9a-f]{32}$/],
   lovPattern: /^\/api\/[^/]+\/lov\//,
   unmatchedDeny: process.env.RBAC_DEFAULT_DENY === "true",
 };
@@ -106,10 +118,16 @@ export async function proxy(req: NextRequest) {
     : await getToken({ req, secret: AUTH_SECRET, cookieName: SESSION_COOKIE_NAME });
 
   // 방식 C — RBAC 멤버십 단계에서만 BFF 서버 캐시(getUserPerms)로 사용자 권한키를 lazy load.
-  const verdict = await evaluateApiPolicy(path, token, RBAC_POLICY, (uid) =>
-    getUserPerms(uid, {
-      roles: Array.isArray(token?.roles) ? (token.roles as string[]) : [],
-    }),
+  // req.method 는 authOnlyReadPatterns(읽기 전용 AUTH_ONLY) 판정에 쓴다 — 빠뜨리면 그 경로가 RBAC 403 이 된다.
+  const verdict = await evaluateApiPolicy(
+    path,
+    token,
+    RBAC_POLICY,
+    (uid) =>
+      getUserPerms(uid, {
+        roles: Array.isArray(token?.roles) ? (token.roles as string[]) : [],
+      }),
+    req.method,
   );
   const userId = typeof token?.sub === "string" ? token.sub : "anonymous";
   switch (verdict) {

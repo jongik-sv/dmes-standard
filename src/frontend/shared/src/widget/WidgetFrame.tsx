@@ -4,6 +4,7 @@
  * 위젯 공통 틀 — 제목 줄(제목·부제·위젯 고유 자리·새로 고침·화면 열기 / 편집: 잠금·빼기)과 본문.
  * 본체는 등록부 load() 로 지연 로딩하고, 위젯마다 오류 경계를 둬 한 위젯이 죽어도 다른 위젯·보드는 그대로다(스펙 §6).
  * 제목 줄(.cm-widget__head)이 끌기 손잡이이고, 버튼(.cm-widget__btn)에서는 끌기가 시작되지 않는다(WidgetBoard dragConfig).
+ * 관리자가 사용 중지한 위젯(meta.disabled)은 본체를 불러오지 않고 자리를 지키는 빈 칸을 그린다(스펙 widget-admin-generic §1.1·§12, W-D20).
  */
 import {
   Component,
@@ -86,6 +87,8 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
   const [bodySize, setBodySize] = useState<{ width: number; height: number | null }>({ width: 0, height: null });
   const bodyRef = useRef<HTMLDivElement>(null);
   const meta = entry?.meta;
+  // 본문(bodyRef)은 「없는 위젯」·사용 중지 칸에는 없다 — 같은 틀이 그 칸에서 본문 있는 칸으로 바뀌면 관찰을 다시 붙인다.
+  const hasBody = !!entry && !entry.meta.disabled;
 
   useEffect(() => {
     const el = bodyRef.current;
@@ -96,10 +99,10 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [hasBody]);
 
-  // 자동 새로 고침 — 보기 모드에서만, 최소 30초.
-  const refreshSec = meta?.refreshSec;
+  // 자동 새로 고침 — 보기 모드에서만, 최소 30초. 사용 중지 위젯은 본체가 없으므로 타이머도 걸지 않는다.
+  const refreshSec = meta?.disabled ? undefined : meta?.refreshSec;
   useEffect(() => {
     if (editing || !refreshSec) return;
     const t = window.setInterval(() => setRefreshKey((k) => k + 1), Math.max(MIN_REFRESH_SEC, refreshSec) * 1000);
@@ -152,8 +155,69 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
     );
   }
 
+  const editButtons = editing ? (
+    <>
+      <button
+        type="button"
+        className="cm-widget__btn"
+        data-action="lock"
+        aria-pressed={item.locked}
+        title={item.locked ? "잠금 풀기" : "잠그기"}
+        aria-label={item.locked ? "잠금 풀기" : "잠그기"}
+        onClick={() => onToggleLock(item.instId)}
+      >
+        {item.locked ? "🔒" : "🔓"}
+      </button>
+      <button
+        type="button"
+        className="cm-widget__btn"
+        data-action="remove"
+        title="빼기"
+        aria-label="빼기"
+        disabled={item.locked}
+        onClick={() => onRemove(item.instId)}
+      >
+        ✕
+      </button>
+    </>
+  ) : null;
+
+  // 사용 중지 — 본체(load)를 부르지 않고 제목만 남긴 빈 칸. 보기 모드에서도 자리를 지키고, 편집 모드의 잠금·빼기는 평소와 같다.
+  if (entry.meta.disabled) {
+    return (
+      <section
+        className="cm-widget cm-widget--disabled"
+        data-widget-id={entry.meta.id}
+        data-inst-id={item.instId}
+        data-editing={editing ? "true" : undefined}
+        data-locked={item.locked ? "true" : undefined}
+        aria-label={entry.meta.title}
+      >
+        <WidgetStyle />
+        <div className="cm-widget__head" tabIndex={editing ? 0 : -1} onKeyDown={onHeadKeyDown}>
+          <h3 className="cm-widget__title">{entry.meta.title}</h3>
+          <span className="cm-widget__spacer" />
+          {!editing && item.locked && <span className="cm-widget__sub" title="잠김">🔒</span>}
+          {editButtons}
+        </div>
+        <div className="cm-widget__disabled" data-widget-disabled="true">
+          사용 중지된 위젯입니다
+        </div>
+        {sizeLabel && <span className="cm-widget__size">{sizeLabel}</span>}
+      </section>
+    );
+  }
+
   const Body = lazyBody(entry);
-  const props: WidgetProps = { instanceId: item.instId, size: { w: item.w, h: item.h }, config: item.config, refreshKey };
+  const props: WidgetProps = {
+    instanceId: item.instId,
+    size: { w: item.w, h: item.h },
+    config: item.config,
+    refreshKey,
+    // 정의 위젯은 mergeWidgetRegistry 가 감싼 본체가 definition 을 덮어 넘긴다. 코드 위젯은 null.
+    definition: null,
+    widgetId: item.widgetId,
+  };
   const padded = meta?.bodyPadding !== false;
 
   return (
@@ -185,32 +249,7 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
             )}
           </>
         )}
-        {editing && (
-          <>
-            <button
-              type="button"
-              className="cm-widget__btn"
-              data-action="lock"
-              aria-pressed={item.locked}
-              title={item.locked ? "잠금 풀기" : "잠그기"}
-              aria-label={item.locked ? "잠금 풀기" : "잠그기"}
-              onClick={() => onToggleLock(item.instId)}
-            >
-              {item.locked ? "🔒" : "🔓"}
-            </button>
-            <button
-              type="button"
-              className="cm-widget__btn"
-              data-action="remove"
-              title="빼기"
-              aria-label="빼기"
-              disabled={item.locked}
-              onClick={() => onRemove(item.instId)}
-            >
-              ✕
-            </button>
-          </>
-        )}
+        {editButtons}
       </div>
       {status.kind === "loading" && (
         <div className="cm-widget__loading" role="status">

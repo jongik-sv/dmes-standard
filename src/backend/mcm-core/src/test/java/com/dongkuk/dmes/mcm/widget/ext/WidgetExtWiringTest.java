@@ -1,0 +1,116 @@
+package com.dongkuk.dmes.mcm.widget.ext;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.dongkuk.dmes.mcm.widget.ext.dto.WidgetExtExchangeRequest;
+import com.dongkuk.dmes.mcm.widget.ext.dto.WidgetExtWeatherRequest;
+import com.dongkuk.dmes.mcm.widget.ext.repository.ExchangeRateRepository;
+import jakarta.persistence.EntityManagerFactory;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import javax.sql.DataSource;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.FilterType;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.orm.jpa.JpaTransactionManager;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+
+/**
+ * 빈 연결 확인 — mcm 런처처럼 {@code widget.ext} 패키지를 스캔해 설정 바인딩(dmes.widget.ext.*)·생성자 선택·저장소가
+ * 함께 뜨는지, OASIS 진입점이 실제 DB(H2)로 끝까지 도는지 본다. 외부 호출은 enabled=false 로 막는다(실제 네트워크 금지).
+ */
+@SpringJUnitConfig(WidgetExtWiringTest.Config.class)
+@TestPropertySource(properties = {
+        "dmes.widget.ext.enabled=false",
+        "dmes.widget.ext.exchange.provider=koreaexim",
+        "dmes.widget.ext.exchange.koreaexim-key=K",
+        "dmes.widget.ext.weather.base-url=https://wx.test/forecast"
+})
+class WidgetExtWiringTest {
+
+    @Configuration
+    @EnableTransactionManagement
+    @EnableJpaRepositories(basePackageClasses = ExchangeRateRepository.class)
+    @ComponentScan(basePackageClasses = WidgetExtService.class,
+            excludeFilters = @ComponentScan.Filter(type = FilterType.REGEX, pattern = ".*Test.*"))
+    static class Config {
+
+        @Bean
+        DataSource dataSource() {
+            DriverManagerDataSource ds = new DriverManagerDataSource();
+            ds.setDriverClassName("org.h2.Driver"); // testRuntimeOnly — 클래스 직접 참조 금지
+            ds.setUrl("jdbc:h2:mem:widgetextwiring;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS MCMAPUSER");
+            ds.setUsername("sa");
+            ds.setPassword("");
+            return ds;
+        }
+
+        @Bean
+        LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
+            LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
+            em.setDataSource(dataSource);
+            em.setPackagesToScan("com.dongkuk.dmes.mcm.widget.ext.entity");
+            em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
+            Properties props = new Properties();
+            props.put("hibernate.hbm2ddl.auto", "create-drop");
+            em.setJpaProperties(props);
+            return em;
+        }
+
+        @Bean
+        PlatformTransactionManager transactionManager(EntityManagerFactory entityManagerFactory) {
+            return new JpaTransactionManager(entityManagerFactory);
+        }
+    }
+
+    @Autowired WidgetExtProperties properties;
+    @Autowired WidgetExtService service;
+    @Autowired ExchangeRateWriter writer;
+
+    @Test
+    @DisplayName("dmes.widget.ext.* 가 바인딩되고 widgetExtService 가 DB 값만으로 환율·날씨를 돌려준다")
+    void wiresAndServesFromDbWhenDisabled() {
+        assertThat(properties.isEnabled()).isFalse();
+        assertThat(properties.getExchange().getProvider()).isEqualTo("koreaexim");
+        assertThat(properties.getExchange().getKoreaeximKey()).isEqualTo("K");
+        assertThat(properties.getExchange().getFrankfurterBaseUrl()).isEqualTo("https://api.frankfurter.dev/v1");
+        assertThat(properties.getWeather().getBaseUrl()).isEqualTo("https://wx.test/forecast");
+
+        WidgetExtExchangeRequest req = new WidgetExtExchangeRequest();
+        req.setSymbols("USD");
+        req.setDays(7);
+        assertThat(service.exchange(req)).containsEntry("disabled", true);
+
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        writer.upsert("KRW", "frankfurter", List.of(
+                new ExchangeRatePoint(today.minusDays(1), "USD", new BigDecimal("1380")),
+                new ExchangeRatePoint(today, "USD", new BigDecimal("1382.5"))));
+        Map<String, Object> filled = service.exchange(req);
+        assertThat(filled).doesNotContainKey("disabled");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> latest = (List<Map<String, Object>>) filled.get("latest");
+        assertThat(latest).singleElement().satisfies(l -> {
+            assertThat(l).containsEntry("cur", "USD").containsEntry("rate", 1382.5).containsEntry("diff", 2.5);
+        });
+
+        WidgetExtWeatherRequest w = new WidgetExtWeatherRequest();
+        w.setLat(new BigDecimal("37.5665"));
+        w.setLon(new BigDecimal("126.978"));
+        assertThat(service.weather(w)).containsEntry("disabled", true);
+    }
+}

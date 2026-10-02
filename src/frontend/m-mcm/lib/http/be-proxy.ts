@@ -35,9 +35,22 @@ const DEFAULT_TIMEOUT_MS = 2 * 60 * 1000;
 const EXPORT_TIMEOUT_MS = 5 * 60 * 1000;
 const LONG_RUNNING_TIMEOUT_MS = 30 * 60 * 1000;
 
+/** 미디어 위젯 올리기(POST) — 동영상 최대 100MB(스펙 2026-10-02-widget-admin-generic §4.3). */
+const MEDIA_UPLOAD_PATH = /\/commWidgetMng\/upload(?:\/|$)/;
+/** 미디어 위젯 파일 내려받기(GET·HEAD) — 동영상 구간 스트림. */
+const MEDIA_FILE_PATH = /\/widgetMedia\/file\//;
+
 export function backendTimeoutMs(method: string, backendPath: string): number {
   if (
     /(?:\/export(?:\/|$)|\/download(?:\/|$))/.test(backendPath)
+  ) {
+    return EXPORT_TIMEOUT_MS;
+  }
+  // 미디어 위젯 — 타이머는 본문 올리기·응답 스트림이 끝날 때까지 돈다. 느린 회선의 100MB 동영상 올리기나
+  // 긴 구간 스트림이 기본 2분에 끊기지 않게 export 와 같은 5분을 준다.
+  if (
+    (method === "POST" && MEDIA_UPLOAD_PATH.test(backendPath)) ||
+    ((method === "GET" || method === "HEAD") && MEDIA_FILE_PATH.test(backendPath))
   ) {
     return EXPORT_TIMEOUT_MS;
   }
@@ -55,6 +68,53 @@ export function backendTimeoutMs(method: string, backendPath: string): number {
 export interface BackendBase {
   baseUrl: string;
   modulePathPrefix: string;
+}
+
+/**
+ * 원 요청에서 BE 로 그대로 넘기는 헤더(소문자).
+ *  - content-type: 본문 형식. multipart 는 경계 문자열(boundary)이 여기 들어 있어 빠지면 본문을 못 읽는다.
+ *  - range·if-range: 미디어 위젯 동영상·이미지의 구간 요청(스펙 2026-10-02-widget-admin-generic §5.1).
+ * 쿠키·Authorization 은 넘기지 않는다 — 사용자 컨텍스트는 X-Authenticated-* 헤더로만 간다.
+ */
+const FORWARDED_REQUEST_HEADERS = ["content-type", "range", "if-range"] as const;
+
+/**
+ * BE 응답에서 브라우저로 돌려주는 헤더(소문자). 구간 응답(206)의 content-range·accept-ranges 와
+ * 형식 추측 금지(x-content-type-options)는 미디어 위젯 내려받기(§5.1)에 필요하다.
+ */
+const PASSED_RESPONSE_HEADERS = [
+  "content-type",
+  "content-disposition",
+  "cache-control",
+  "etag",
+  "last-modified",
+  "content-language",
+  "content-range",
+  "accept-ranges",
+  "x-content-type-options",
+] as const;
+
+/** 원 요청 헤더 중 BE 로 넘길 것만 고른다(값이 있는 것만). */
+export function pickRequestHeaders(source: Headers): Record<string, string> {
+  const picked: Record<string, string> = {};
+  for (const name of FORWARDED_REQUEST_HEADERS) {
+    const value = source.get(name);
+    if (value) picked[name] = value;
+  }
+  return picked;
+}
+
+/** BE 응답 헤더 중 브라우저로 돌려줄 것만 고른다. Content-Type 이 없으면 JSON 으로 둔다. */
+export function pickResponseHeaders(source: Headers): Headers {
+  const picked = new Headers();
+  for (const name of PASSED_RESPONSE_HEADERS) {
+    const value = source.get(name);
+    if (value) picked.set(name, value);
+  }
+  if (!picked.has("content-type")) {
+    picked.set("content-type", "application/json; charset=utf-8");
+  }
+  return picked;
 }
 
 /**
@@ -193,23 +253,21 @@ export async function forwardToBackend(
       : "";
   const roleHeader = roles.length > 0 ? roles.join(",") : fallbackRole;
   const headers: Record<string, string> = {
+    ...pickRequestHeaders(req.headers),
     "X-Client-Key": BACKEND_CLIENT_KEY,
     "X-Authenticated-User": (token.sub as string) ?? "",
     "X-Authenticated-Role": roleHeader,
   };
+  // Content-Type 은 pickRequestHeaders 가 이미 넘긴다(대소문자가 다른 키를 또 넣으면 값이 겹친다).
   const forwardedFor = forwardedForHeader(req.headers);
   if (forwardedFor) {
     headers["X-Forwarded-For"] = forwardedFor;
-  }
-  const contentType = req.headers.get("content-type");
-  if (contentType) {
-    headers["Content-Type"] = contentType;
   }
 
   const body =
     req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined;
 
-  // 일반 JSON은 2분, export/download는 5분, 실제 장기 실행 mutation만 30분을 허용한다.
+  // 일반 JSON은 2분, export/download·미디어 올리기/내려받기는 5분, 실제 장기 실행 mutation만 30분을 허용한다.
   // 원 요청이 끊기면 같은 controller를 abort해 backend fetch에도 취소를 전파한다.
   const controller = new AbortController();
   const abortForClientDisconnect = () => controller.abort();
@@ -246,24 +304,7 @@ export async function forwardToBackend(
       return new NextResponse(null, { status: 204 });
     }
 
-    const responseHeaders = new Headers();
-    for (const name of [
-      "content-type",
-      "content-disposition",
-      "cache-control",
-      "etag",
-      "last-modified",
-      "content-language",
-    ]) {
-      const value = res.headers.get(name);
-      if (value) responseHeaders.set(name, value);
-    }
-    if (!responseHeaders.has("content-type")) {
-      responseHeaders.set(
-        "content-type",
-        "application/json; charset=utf-8",
-      );
-    }
+    const responseHeaders = pickResponseHeaders(res.headers);
 
     const responseBody = res.body
       ? streamBackendResponse(res.body, controller, cleanup)

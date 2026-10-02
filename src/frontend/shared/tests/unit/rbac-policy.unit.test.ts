@@ -15,9 +15,16 @@ const CFG: RbacPolicyConfig = {
     "/api/mcm/oasis/secFavorite/search",
     "/api/mls/oasis/noticeBoard/search", // m-mcm proxy.ts 와 같은 값 — 포털 홈 공지 목록(2026-10-02)
     "/api/mcm/oasis/secWidget/", // m-mcm proxy.ts 와 같은 값 — 사용자 위젯 탭·배치(본인 데이터, 2026-10-02)
+    // m-mcm proxy.ts 와 같은 값 — 위젯 B·C·D 사용자용(스펙 2026-10-02-widget-admin-generic §5.1)
+    "/api/mcm/oasis/widgetDef/list",
+    "/api/mcm/oasis/widgetData/run",
+    "/api/mcm/oasis/widgetExt/",
+    "/api/mcm/oasis/widgetChat/",
   ],
   // m-mcm proxy.ts 와 같은 값 — MDM 메타 캐시(2026-10-02). 모듈 이름과 무관한 한 규칙이다.
   authOnlyPatterns: [/^\/api\/[^/]+\/mdmMeta\//],
+  // m-mcm proxy.ts 와 같은 값 — 미디어 위젯 파일 내려받기(2026-10-03). GET·HEAD 이고 경로 전체가 맞을 때만.
+  authOnlyReadPatterns: [/^\/api\/mcm\/rest\/widgetMedia\/file\/api\/mcm\/widgetMedia\/file\/[0-9a-f]{32}$/],
   lovPattern: /^\/api\/[^/]+\/lov\//,
   unmatchedDeny: false,
 };
@@ -30,6 +37,10 @@ const loadEmpty: PermsLoader = () => [];
 const loadThrow: PermsLoader = () => {
   throw new Error("loadPerms 가 호출되면 안 되는 경로(lazy 위반)");
 };
+
+/** 미디어 위젯 내려받기 — m-mcm widget-types/media/media.ts 의 MEDIA_FILE_URL_PREFIX 와 같은 값. */
+const MEDIA_FILE = "/api/mcm/rest/widgetMedia/file/api/mcm/widgetMedia/file/";
+const FILE_ID = "0123456789abcdef0123456789abcdef";
 
 const viewer = { sub: "test3", roles: ["MCM_VIEWER"] };
 const sysadmin = { sub: "admin", roles: ["SYSADMIN"] };
@@ -151,6 +162,88 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
     }
     expect(await evaluateApiPolicy("/api/mcm/oasis/secWidget/search", null, CFG, loadThrow)).toBe("unauthorized");
     expect(await evaluateApiPolicy("/api/mcm/oasis/secWidgetAdmin/search", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+  });
+  it("AUTH_ONLY(위젯 B·C·D 사용자용) — 열린 action 만 pass, 관리자용·다른 action 은 권한키 필요", async () => {
+    for (const url of [
+      "/api/mcm/oasis/widgetDef/list",
+      "/api/mcm/oasis/widgetData/run",
+      "/api/mcm/oasis/widgetExt/exchange",
+      "/api/mcm/oasis/widgetExt/weather",
+      "/api/mcm/oasis/widgetChat/history",
+      "/api/mcm/oasis/widgetChat/send",
+      "/api/mcm/oasis/widgetChat/reset",
+    ]) {
+      expect(await evaluateApiPolicy(url, viewer, CFG, loadThrow)).toBe("pass");
+    }
+    expect(await evaluateApiPolicy(`${MEDIA_FILE}${FILE_ID}`, viewer, CFG, loadThrow, "GET")).toBe("pass");
+    expect(await evaluateApiPolicy("/api/mcm/oasis/widgetDef/list", null, CFG, loadThrow)).toBe("unauthorized");
+    // 정의 저장·SQL 미리보기·기본 배치·미디어 올리기는 위젯관리 화면 RBAC(W-D22)
+    expect(await evaluateApiPolicy("/api/mcm/oasis/widgetDef/save", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    expect(await evaluateApiPolicy("/api/mcm/oasis/commWidgetMng/previewQuery", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    expect(await evaluateApiPolicy("/api/mcm/oasis/commWidgetMng/saveLayout", viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    expect(
+      await evaluateApiPolicy("/api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload", viewer, CFG, loadEmpty)
+    ).toBe("forbidden-perm");
+    const loadAdmin: PermsLoader = () => ["mcm/commwidgetmng/previewquery", "mcm/commwidgetmng/upload"];
+    expect(await evaluateApiPolicy("/api/mcm/oasis/commWidgetMng/previewQuery", viewer, CFG, loadAdmin)).toBe("pass");
+    expect(
+      await evaluateApiPolicy("/api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload", viewer, CFG, loadAdmin)
+    ).toBe("pass");
+  });
+  describe("미디어 파일 내려받기 — 읽기 전용 AUTH_ONLY 는 GET·HEAD + 경로 전체 일치만 (2026-10-03)", () => {
+    const url = `${MEDIA_FILE}${FILE_ID}`;
+
+    it("GET·HEAD(대소문자 무관)·쿼리 문자열 → pass, loader 미호출", async () => {
+      for (const method of ["GET", "HEAD", "get"]) {
+        expect(await evaluateApiPolicy(url, viewer, CFG, loadThrow, method)).toBe("pass");
+      }
+      expect(await evaluateApiPolicy(`${url}?v=1`, viewer, CFG, loadThrow, "GET")).toBe("pass");
+      expect(await evaluateApiPolicy(url, null, CFG, loadThrow, "GET")).toBe("unauthorized");
+    });
+
+    it("쓰기 메서드·메서드 모름은 RBAC 로 넘어가 forbidden-perm (mcm/widgetmedia/file 권한키는 누구에게도 없다)", async () => {
+      for (const method of ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) {
+        expect(await evaluateApiPolicy(url, viewer, CFG, loadEmpty, method)).toBe("forbidden-perm");
+      }
+      expect(await evaluateApiPolicy(url, viewer, CFG, loadEmpty)).toBe("forbidden-perm");
+    });
+
+    it("접두만 같고 backendPath 가 다른 BE 엔드포인트 → forbidden-perm (GET 이어도)", async () => {
+      for (const other of [
+        "/api/mcm/rest/widgetMedia/file/api/mcm/sample-notices",
+        "/api/mcm/rest/widgetMedia/file/api/mcm/master-codes/groups/B029/items",
+        "/api/mcm/rest/widgetMedia/file/api/mcm/commWidgetMng/upload",
+        `/api/mcm/rest/widgetMedia/file/api/mcm/widgetMedia/file/${FILE_ID}/extra`,
+        "/api/mcm/rest/widgetMedia/file/api/mcm/widgetMedia/file/",
+        "/api/mcm/rest/widgetMedia/x/api/mcm/widgetMedia/file/" + FILE_ID,
+        "/api/mpn/rest/widgetMedia/file/api/mcm/widgetMedia/file/" + FILE_ID,
+      ]) {
+        expect(await evaluateApiPolicy(other, viewer, CFG, loadEmpty, "GET")).toBe("forbidden-perm");
+        expect(await evaluateApiPolicy(other, viewer, CFG, loadEmpty, "POST")).toBe("forbidden-perm");
+      }
+    });
+
+    it("경로 조작(.. · %2e%2e · %2f · // · 대문자·길이 다른 fileId)으로 접두를 맞춰도 forbidden-perm", async () => {
+      for (const tricked of [
+        `${MEDIA_FILE}../../sample-notices`,
+        `${MEDIA_FILE}${FILE_ID}/../../../sample-notices`,
+        `${MEDIA_FILE}%2e%2e/%2e%2e/sample-notices`,
+        `${MEDIA_FILE}%2E%2E%2F%2E%2E%2Fsample-notices`,
+        `${MEDIA_FILE}..%2f..%2fsample-notices`,
+        `${MEDIA_FILE}${FILE_ID}%2f..%2f..%2fsample-notices`,
+        `${MEDIA_FILE}/${FILE_ID}`,
+        `/api/mcm/rest/widgetMedia/file//api/mcm/widgetMedia/file/${FILE_ID}`,
+        `${MEDIA_FILE}${FILE_ID.toUpperCase()}`,
+        `${MEDIA_FILE}${FILE_ID.slice(1)}`,
+        `${MEDIA_FILE}${FILE_ID}0`,
+      ]) {
+        expect(await evaluateApiPolicy(tricked, viewer, CFG, loadEmpty, "GET"), tricked).toBe("forbidden-perm");
+      }
+    });
+
+    it("브레이크글라스(*)는 예전처럼 RBAC 단계에서 통과한다", async () => {
+      expect(await evaluateApiPolicy(url, sysadmin, CFG, () => ["*"], "POST")).toBe("pass");
+    });
   });
   it("T12 업무 모듈 mdmMeta(MDM 메타 캐시) → AUTH_ONLY pass, loader 미호출 (2026-10-02)", async () => {
     expect(await evaluateApiPolicy("/api/mls/mdmMeta/columns", viewer, CFG, loadThrow)).toBe("pass");
