@@ -34,6 +34,7 @@ MES 공통(마스터데이터·공통 서비스) 도메인을 담는 **공유 �
 | `security` | 권한키(PermKey) 산출, 사용자 권한 캐시, 메뉴 트리 조립 |
 | `code` | 코드그룹·코드값 서비스 |
 | `favorite` | 포털 즐겨찾기 |
+| `screenusage` | 포털 화면 사용 구간 기록(`screenUsage/record`, AUTH_ONLY) · 02:00 일별 집계·1년 보관(`ScreenUsageRollup`) · 통계 6종(`screenUsageStat` — 퍼사드 `ScreenUsageStatService` 가 탭별 `ScreenUsage*Query` 로 넘기고 공통 합산은 `ScreenUsageStatSupport`) |
 | `audit` · `common.audit` | 감사 로그 + native SQL 에 audit 9 컬럼을 주입하는 Hibernate StatementInspector |
 | `common` | 예외·이벤트·SQLite temporal 컨버터 등 공통 유틸 |
 | `config` | `McmCoreAutoConfiguration` · `McmSecurityDefaults` (호스트가 쓰는 기본 URL 매처) |
@@ -64,6 +65,9 @@ mcm 의 스키마는 **Flyway 가 아니라** hibernate `ddl-auto`(local) 와 `m
 **이력 참고용**이며 런타임 적용 대상이 아니다. 신규 프로젝트에서 mcm 도 Flyway 로 관리하기로 하면
 `enabled=true` 로 바꾸고 번호를 재채번한다 — 버전 채번은 방언 간 드리프트를 막기 위해
 `/flyway-migration-add` 스킬을 쓴다.
+
+화면 사용 통계 테이블(`TB_SEC_SCREEN_USAGE_LOG`·`TB_SEC_SCREEN_USAGE_DAY`)은 감사 계열처럼 schema 접두가 없다.
+MSSQL DDL 정본은 `screenusage/schema/ScreenUsageMssqlDdl` 이며 `DataInitializer` 와 운영 DBA 전달본이 같은 문장을 쓴다.
 
 ## 새 도메인을 추가할 때
 
