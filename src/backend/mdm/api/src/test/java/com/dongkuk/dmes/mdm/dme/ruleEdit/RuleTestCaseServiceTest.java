@@ -305,14 +305,16 @@ class RuleTestCaseServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 외부_원천_룰과_폐기한_룰에는_케이스를_쓰지_않는다() {
+    void 외부_원천_룰에는_케이스를_쓰고_폐기한_룰에는_쓰지_않는다() {
+        // D-145 — 외부 원천 룰도 케이스(버전과 무관한 검증 자료)는 쓴다. 표 정의 저장은 여전히 막힌다(RuleTableService).
         DmeTestSupport.externalRule(jdbc, "EXT_JDG", "외부 룰");
         RuleEditSaveRequest external = newCase("외부", INPUT, null);
         external.setMaruRuleId("EXT_JDG");
-        assertEquals("BUSINESS_ERROR", code(() -> service.save(external)));
+        service.save(external);
+        assertEquals(1, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_TEST_CASE WHERE MARU_RULE_ID = 'EXT_JDG'"));
 
         jdbc.update("UPDATE TB_MDM_RULE SET STATUS = 'DEPRECATED' WHERE MARU_RULE_ID = ?", RULE);
         assertEquals("MDM009", code(() -> service.save(newCase("폐기", INPUT, null))));
-        assertEquals(0, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_TEST_CASE"));
+        assertEquals(0, DmeTestSupport.count(jdbc, "SELECT COUNT(*) FROM TB_MDM_RULE_TEST_CASE WHERE MARU_RULE_ID = ?", RULE));
     }
 }

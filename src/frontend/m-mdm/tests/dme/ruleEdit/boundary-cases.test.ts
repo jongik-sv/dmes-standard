@@ -1,6 +1,8 @@
 // 경계값 테스트 케이스 후보 생성(카드 ⑥ [경계값 생성]) — 순수 생성기.
 import { describe, expect, it } from "vitest";
 
+import { evaluate } from "@/evalex";
+
 import {
   BOUNDARY_CASE_DESCRIPTION,
   BOUNDARY_CASE_LIMIT,
@@ -9,6 +11,7 @@ import {
   type BoundaryPlanInput,
 } from "../../../pages/dme/ruleEdit/value-test/boundary-cases";
 import type { ResolvedVar, StoredRow } from "../../../pages/dme/ruleEdit/types";
+import type { AstNode } from "../../../src/contract/engine-contract.generated";
 import { SAMPLE_ROWS, SAMPLE_VARS } from "./fixtures";
 
 const M = "−";
@@ -496,7 +499,7 @@ describe("중복 제거", () => {
 
 describe("상한", () => {
   const v = cond(1, "X", "NUMBER", { scale: 0 });
-  const rows = Array.from({ length: 30 }, (_, i) => row(i + 1, i + 1, { 1: { op: "<= 변수 <=", left: String(i * 100), right: String(i * 100 + 50) } }));
+  const rows = Array.from({ length: 40 }, (_, i) => row(i + 1, i + 1, { 1: { op: "<= 변수 <=", left: String(i * 100), right: String(i * 100 + 50) } }));
 
   it("limit 을 넘는 후보는 잘라 내고 수를 truncated 에 넣는다", () => {
     const all = plan({ vars: [v], rows, limit: 10_000 });
@@ -652,5 +655,207 @@ describe("리뷰 반영 — 식 변수·이름 없는 조건 열", () => {
     expect(p.skipped[0].reason).toContain("조건 열 7");
     expect(p.skipped[1].reason).toContain("조건 열 8");
     expect([...new Set(p.candidates.map((c) => c.rowId))]).toEqual([3]);
+  });
+});
+
+// ------------------------------------------------------------------ 결과 열 그룹의 열 조건(varMeta.grpCond)
+
+type GroupConds = NonNullable<BoundaryPlanInput["groupConds"]>;
+
+const V = (name: string): AstNode => ({ type: "VARIABLE_OR_CONSTANT", value: name });
+const S = (value: string): AstNode => ({ type: "STRING_LITERAL", value });
+const N = (value: string): AstNode => ({ type: "NUMBER_LITERAL", value });
+const op = (value: "==" | "!=" | "<" | ">" | "&&", a: AstNode, b: AstNode): AstNode => ({ type: "INFIX_OPERATOR", value, params: [a, b] });
+const fn = (value: string, ...params: AstNode[]): AstNode => ({ type: "FUNCTION", value, params: params as [AstNode, ...AstNode[]] });
+const starts = (p: string) => fn("STR_STARTS_WITH", V("TOP_RESIN_CD"), S(p));
+const side = (x: string) => op("==", V("COAT_SIDE"), S(x));
+
+/** BASE_SPD_LKP 의 결과 그룹 BASE_SPD — 열 조건 7개 + 빈 열 조건(기본 열) GENERAL. */
+const SPD: Array<[string, AstNode | null]> = [
+  ["TEXTURE", starts("2")],
+  ["AKZO", starts("6")],
+  ["FLUORO", op("==", V("TOP_RESIN_CD"), S("F"))],
+  ["WXL1", op("&&", starts("W"), side("1"))],
+  ["WXL2", op("&&", starts("W"), side("2"))],
+  ["BACK1", op("&&", starts("B"), side("1"))],
+  ["BACK2", op("&&", starts("B"), side("2"))],
+  ["GENERAL", null],
+];
+
+function group(name: string, cols: Array<[string, AstNode | null, boolean?]>): GroupConds[number] {
+  return { group: name, columns: cols.map(([n, ast, supported], j) => ({ varId: j + 2, name: n, seq: j + 1, ast, supported: supported ?? true })) };
+}
+
+/** 엔진 `chooseGroups` 와 같은 규칙으로 고른 열 — 테스트 쪽 독립 구현(후보 입력이 정말 그 열을 고르는지 확인). */
+function chosen(cols: GroupConds[number]["columns"], input: Record<string, unknown>): string | null {
+  for (const c of [...cols].sort((a, b) => a.seq - b.seq)) {
+    if (c.ast === null) return c.name;
+    const out = evaluate(c.ast, input as Record<string, string | null>);
+    if (out.kind !== "value") return `오류:${c.name}`;
+    if (out.value === true) return c.name;
+  }
+  return null;
+}
+
+describe("열 조건 — 결과 열 그룹 BASE_SPD", () => {
+  const thk = cond(1, "COIL_THK", "NUMBER", { scale: 2 });
+  const rows = [row(1, 1, { 1: { op: "< 변수 <=", left: "0", right: "0.5" } }), row(2, 2, { 1: { op: "<= 변수 <", left: "0.6", right: "0.7" } })];
+  const spd = group("BASE_SPD", SPD);
+  const p = plan({ vars: [thk], rows, groupConds: [spd] });
+
+  it("8열 전부 고르는 입력을 찾는다 — 기본 열이 아닌 7열은 행마다 열 후보, 기본 열은 채운 대표 후보가 고른다", () => {
+    expect(p.blocked).toBeNull();
+    expect(p.groupNotes).toBeUndefined();
+    for (const seq of [1, 2]) {
+      const cols = p.candidates.filter((c) => c.seq === seq && c.point.startsWith("열:"));
+      expect(cols.map((c) => c.caseName)).toEqual(SPD.slice(0, 7).map(([n]) => `${seq}행 BASE_SPD→${n}`));
+      for (const c of cols) {
+        const name = c.point.slice(2);
+        expect(c.varId).toBe(spd.columns.find((x) => x.name === name)!.varId);
+        expect(c.key).toBe(`${c.rowId}:열:BASE_SPD:${c.varId}`);
+        expect(chosen(spd.columns, JSON.parse(c.inputJson))).toBe(name);
+      }
+      const rep = p.candidates.find((c) => c.seq === seq && c.point === "대표")!;
+      expect(chosen(spd.columns, JSON.parse(rep.inputJson))).toBe("GENERAL");
+    }
+  });
+
+  it("열 후보는 대표 입력에 그 열 조합만 덮어쓴다(관계없는 입력은 어느 상수에도 걸리지 않는 값)", () => {
+    const of = (name: string) => JSON.parse(p.candidates.find((c) => c.caseName === `1행 BASE_SPD→${name}`)!.inputJson);
+    expect(of("TEXTURE")).toEqual({ COIL_THK: "0.5", TOP_RESIN_CD: "2", COAT_SIDE: "X" });
+    expect(of("FLUORO")).toEqual({ COIL_THK: "0.5", TOP_RESIN_CD: "F", COAT_SIDE: "X" });
+    expect(of("WXL2")).toEqual({ COIL_THK: "0.5", TOP_RESIN_CD: "W", COAT_SIDE: "2" });
+    expect(of("BACK1")).toEqual({ COIL_THK: "0.5", TOP_RESIN_CD: "B", COAT_SIDE: "1" });
+  });
+
+  it("행 경계 후보도 열 조건 입력을 기본 열 조합 값으로 채운다", () => {
+    for (const c of p.candidates.filter((x) => !x.point.startsWith("열:"))) {
+      const o = JSON.parse(c.inputJson);
+      expect([o.TOP_RESIN_CD, o.COAT_SIDE]).toEqual(["X", "X"]);
+    }
+  });
+
+  it("groupConds 가 없으면 열 조건을 반영하지 않는다(지금 동작 그대로)", () => {
+    const q = plan({ vars: [thk], rows });
+    expect(q.candidates.every((c) => !c.point.startsWith("열:"))).toBe(true);
+    expect(Object.keys(JSON.parse(q.candidates[0].inputJson))).toEqual(["COIL_THK"]);
+    expect("groupNotes" in q).toBe(false);
+  });
+
+  it("상한 200건", () => {
+    expect(BOUNDARY_CASE_LIMIT).toBe(200);
+  });
+});
+
+describe("열 조건 — 기본 열·골리지 않는 열·평가 불가", () => {
+  const x = cond(1, "X", "NUMBER", { scale: 0 });
+  const rows = [row(1, 1, { 1: { op: "EQ", left: "1" } })];
+
+  it("기본 열 뒤의 열과 앞 열에 가려진 열은 고르는 입력이 없다고 알린다", () => {
+    const g = group("GRP", [
+      ["A", starts("2")],
+      ["A2", starts("2")],
+      ["DEF", null],
+      ["LATE", op("==", V("TOP_RESIN_CD"), S("F"))],
+    ]);
+    const p = plan({ vars: [x], rows, groupConds: [g] });
+    expect(p.groupNotes).toEqual(["GRP 의 A2 열을 고르는 입력을 찾지 못했습니다", "GRP 의 LATE 열을 고르는 입력을 찾지 못했습니다"]);
+    expect(p.candidates.filter((c) => c.point.startsWith("열:")).map((c) => c.point)).toEqual(["열:A"]);
+  });
+
+  it("기본 열이 없으면 아무 열도 안 고르는 조합을 한 후보로 남기고, 채우기는 첫 조합 값으로 한다", () => {
+    const g = group("GRP", [
+      ["F", op("==", V("TOP_RESIN_CD"), S("F"))],
+      ["G", op("==", V("TOP_RESIN_CD"), S("G"))],
+    ]);
+    const p = plan({ vars: [x], rows, groupConds: [g] });
+    expect(p.groupNotes).toBeUndefined();
+    // 값 후보 순서: 어느 상수에도 안 걸리는 값 → 상수(식 순서). 첫 조합 = 안 걸리는 값 = 열 없음.
+    const rep = p.candidates.find((c) => c.point === "대표")!;
+    expect(JSON.parse(rep.inputJson)).toEqual({ X: "1", TOP_RESIN_CD: "X" });
+    expect(p.candidates.filter((c) => c.point.startsWith("열:")).map((c) => [c.caseName, c.point, c.varId])).toEqual([
+      ["1행 GRP→F", "열:F", 2],
+      ["1행 GRP→G", "열:G", 3],
+      // 열 없음 후보는 대표 후보와 입력이 같아 빠진다.
+    ]);
+  });
+
+  it("baseInput 에 열 조건 입력 값이 있으면 열 없음 후보가 따로 남는다", () => {
+    const g = group("GRP", [["F", op("==", V("TOP_RESIN_CD"), S("F"))]]);
+    const p = plan({ vars: [x], rows, groupConds: [g], baseInput: { TOP_RESIN_CD: "F" } });
+    const none = p.candidates.find((c) => c.point === "열:없음")!;
+    expect(none).toMatchObject({ caseName: "1행 GRP→열 없음", varId: null, key: "1:열:GRP:-" });
+    expect(JSON.parse(none.inputJson)).toEqual({ X: "1", TOP_RESIN_CD: "X" });
+    // 대표 후보는 baseInput 값 그대로(채우지 않는다) — F 를 고른다. F 열 후보는 대표와 같아 빠진다.
+    expect(JSON.parse(p.candidates[0].inputJson)).toEqual({ X: "1", TOP_RESIN_CD: "F" });
+    expect(p.candidates.some((c) => c.point === "열:F")).toBe(false);
+  });
+
+  it("supported=false 인 열 조건은 화면에서 평가할 수 없다고 알리고, 나머지 열은 그 열을 거짓으로 보고 찾는다", () => {
+    const g = group("GRP", [
+      ["ODD", fn("SOME_DB_FUNC", V("TOP_RESIN_CD")), false],
+      ["BROKEN", null, false],
+      ["F", op("==", V("TOP_RESIN_CD"), S("F"))],
+      ["DEF", null],
+    ]);
+    const p = plan({ vars: [x], rows, groupConds: [g] });
+    expect(p.groupNotes).toEqual([
+      "GRP 의 ODD 열 조건은 화면에서 평가할 수 없어 고르는 입력을 찾지 못했습니다",
+      "GRP 의 BROKEN 열 조건은 화면에서 평가할 수 없어 고르는 입력을 찾지 못했습니다",
+    ]);
+    expect(p.candidates.filter((c) => c.point.startsWith("열:")).map((c) => c.point)).toEqual(["열:F"]);
+  });
+
+  it("숫자 상수는 그 값과 ±1 칸을 값 후보로 써 경계 양쪽 열을 고른다", () => {
+    const n = (o: "<" | ">", v: string) => op(o, V("WID"), N(v));
+    const g = group("W", [
+      ["NARROW", n("<", "900")],
+      ["WIDE", n(">", "1500.5")],
+      ["MID", null],
+    ]);
+    const p = plan({ vars: [x], rows, groupConds: [g] });
+    const of = (name: string) => JSON.parse(p.candidates.find((c) => c.point === `열:${name}`)!.inputJson).WID;
+    expect(of("NARROW")).toBe("899");
+    expect(of("WIDE")).toBe("1500.6");
+    // 숫자는 상수·−1·+1 칸만 값 후보다(식 순서). 기본 열 조합 = 처음 기본 열에 닿는 값 900.
+    expect(JSON.parse(p.candidates[0].inputJson).WID).toBe("900");
+  });
+
+  it("조합이 2000개를 넘으면 그 그룹은 반영하지 않고 사유를 알린다", () => {
+    // E 는 상수(자연로그 밑)라 입력 이름으로 쓰지 않는다.
+    const vars7 = ["V1", "V2", "V3", "V4", "V5", "V6", "V7"];
+    const big = op("&&", op("==", V("V1"), S("1")), op("==", V("V1"), S("2")));
+    const ast = vars7.slice(1).reduce<AstNode>((acc, v) => op("&&", acc, op("&&", op("==", V(v), S("1")), op("==", V(v), S("2")))), big);
+    const p = plan({ vars: [x], rows, groupConds: [group("BIG", [["ONE", ast], ["DEF", null]])] });
+    expect(p.groupNotes).toEqual(["BIG 의 열 조건 입력 조합이 2187개로 상한 2000개를 넘어 열 조건을 반영하지 않았습니다"]);
+    expect(Object.keys(JSON.parse(p.candidates[0].inputJson))).toEqual(["X"]);
+  });
+});
+
+describe("열 조건 — 입력 채우기", () => {
+  const spd = group("BASE_SPD", SPD);
+
+  it("baseInput 에 없거나 null·빈 글자인 열 조건 입력만 채우고, 대소문자만 다른 키는 그 키 값을 바꾼다", () => {
+    const x = cond(1, "X", "NUMBER", { scale: 0 });
+    const p = plan({ vars: [x], rows: [row(1, 1, { 1: { op: "EQ", left: "1" } })], groupConds: [spd], baseInput: { top_resin_cd: "", COAT_SIDE: "2", K: null } });
+    const rep = JSON.parse(p.candidates[0].inputJson);
+    expect(rep).toEqual({ X: "1", top_resin_cd: "X", COAT_SIDE: "2", K: null });
+    const wxl1 = JSON.parse(p.candidates.find((c) => c.point === "열:WXL1")!.inputJson);
+    expect(wxl1).toEqual({ X: "1", top_resin_cd: "W", COAT_SIDE: "1", K: null });
+  });
+
+  it("조건 열과 이름이 겹치면 조건 열 값이 우선한다 — 채우지도 덮어쓰지도 않고, 열 후보는 그 행 값으로 고를 수 있는 열만 낸다", () => {
+    const coat = cond(1, "COAT_SIDE", "STRING");
+    const p = plan({ vars: [coat], rows: [row(1, 1, { 1: { op: "EQ", left: "1" } })], groupConds: [spd] });
+    expect(p.groupNotes).toBeUndefined();
+    const cols = p.candidates.filter((c) => c.point.startsWith("열:")).map((c) => c.point);
+    expect(cols).toEqual(["열:TEXTURE", "열:AKZO", "열:FLUORO", "열:WXL1", "열:BACK1"]);
+    for (const c of p.candidates) {
+      const o = JSON.parse(c.inputJson);
+      if (c.point === "NULL") expect(o.COAT_SIDE).toBeNull();
+      else expect(o.COAT_SIDE).toBe(c.point === "대표" || c.point.startsWith("열:") ? "1" : o.COAT_SIDE);
+      expect(Object.keys(o).filter((k) => k.toUpperCase() === "COAT_SIDE")).toEqual(["COAT_SIDE"]);
+    }
+    expect(JSON.parse(p.candidates.find((c) => c.point === "열:WXL1")!.inputJson)).toEqual({ COAT_SIDE: "1", TOP_RESIN_CD: "W" });
   });
 });

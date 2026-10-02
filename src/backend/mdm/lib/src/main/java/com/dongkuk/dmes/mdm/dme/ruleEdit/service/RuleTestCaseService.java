@@ -1,7 +1,6 @@
 package com.dongkuk.dmes.mdm.dme.ruleEdit.service;
 
 import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.blankToNull;
-import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireMdm;
 import static com.dongkuk.dmes.mdm.common.rule.RuleScreenSupport.requireRowVersion;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
@@ -62,7 +61,7 @@ public class RuleTestCaseService implements RuleEditSavePart {
     @Override
     public RuleEditSaveResult save(RuleEditSaveRequest request) {
         MdmRule rule = support.loadRule(request.getMaruRuleId());
-        requireMdm(rule);
+        // 외부 원천(EXTERNAL) 룰도 케이스는 쓴다(D-145) — 케이스는 버전과 무관한 검증 자료이고 표 정의는 바꾸지 않는다.
         if ("DEPRECATED".equals(rule.getStatus())) {
             throw MdmErrors.of(MdmErrorCode.TRANSITION_NOT_ALLOWED, "폐기한 룰에는 테스트 케이스를 쓸 수 없습니다", List.of());
         }

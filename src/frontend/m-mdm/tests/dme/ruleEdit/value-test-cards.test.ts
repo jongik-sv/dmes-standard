@@ -24,6 +24,7 @@ let container: HTMLDivElement;
 let root: Root | null = null;
 const originalFetch = globalThis.fetch;
 let requests: Array<{ action: string; body: Record<string, unknown> }> = [];
+/** 동작별 응답 — 함수면 요청 본문을 받아 그때그때 응답을 만든다(일부 실패 시험). */
 let responses: Record<string, unknown> = {};
 let versionView: RuleEditView;
 let writes = 0;
@@ -91,7 +92,7 @@ function ColDirtyProbe(): ReactNode {
   return null;
 }
 
-async function render(view: RuleEditView, over: Partial<RuleEditCardProps> = {}, withTable = true, colDirty = false) {
+function cardsTree(view: RuleEditView, over: Partial<RuleEditCardProps> = {}, withTable = true, colDirty = false) {
   const props = propsOf(view, over);
   const cards = [
     ...(colDirty ? [createElement(ColDirtyProbe, { key: "p" })] : []),
@@ -100,8 +101,12 @@ async function render(view: RuleEditView, over: Partial<RuleEditCardProps> = {},
     createElement(TestResultCard, { key: "r", ...props }),
     createElement(TestCaseCard, { key: "c", ...props }),
   ];
+  return createElement(DmesUiProvider, null, createElement(RuleWorkbenchProvider, null, ...cards));
+}
+
+async function render(view: RuleEditView, over: Partial<RuleEditCardProps> = {}, withTable = true, colDirty = false) {
   await act(async () => {
-    root!.render(createElement(DmesUiProvider, null, createElement(RuleWorkbenchProvider, null, ...cards)));
+    root!.render(cardsTree(view, over, withTable, colDirty));
   });
   await flush();
 }
@@ -113,6 +118,51 @@ function byTestId<T extends Element>(id: string): T | null {
 /** 테스트 케이스 표(AgDataGrid)의 행을 row-id(case_id)로 찾는다. */
 function caseRow(caseId: number): HTMLElement | null {
   return container.querySelector(`[data-testid="rule-card-test-cases"] .ag-center-cols-container .ag-row[row-id="${caseId}"]`);
+}
+
+/** 케이스 표 행의 선택 체크 칸(AgDataGrid `selectable`). */
+function caseBox(caseId: number): HTMLInputElement {
+  return container.querySelector(`[data-testid="rule-card-test-cases"] .ag-row[row-id="${caseId}"] .ag-selection-checkbox input`) as HTMLInputElement;
+}
+
+/** 케이스 표에서 정확히 ids 만 체크된 상태로 만든다(체크 칸을 눌러 맞춘다). */
+async function checkOnly(...ids: number[]) {
+  const rowIds = Array.from(container.querySelectorAll('[data-testid="rule-card-test-cases"] .ag-center-cols-container .ag-row')).map((r) =>
+    Number(r.getAttribute("row-id")),
+  );
+  // 누를 때마다 그리드가 다시 그려 칸이 바뀔 수 있으므로 매번 다시 찾는다.
+  for (const id of rowIds) {
+    if (caseBox(id).checked !== ids.includes(id)) {
+      await act(async () => caseBox(id).click());
+      await settleGrid();
+    }
+  }
+}
+
+/**
+ * ag-grid 는 행 클릭·선택 변경 콜백을 setTimeout(0) 으로 미뤄 부른다(행 클릭 안에서 고른 선택 변경은 한 번 더 미룬다).
+ * flush 한 번으로는 화면 상태에 닿지 않을 수 있어 몇 번 더 돌린다.
+ */
+async function settleGrid() {
+  for (let i = 0; i < 3; i++) await flush();
+}
+
+/** 카드 ⑥ 머리글 버튼(data-testid). */
+function tcButton(id: string): HTMLButtonElement {
+  return byTestId<HTMLButtonElement>(id)!;
+}
+
+/** 확인창(포털, body)의 [확인] 을 누른다. */
+async function confirmDialog() {
+  const okBtn = Array.from(document.body.querySelectorAll("button")).find((b) => b.textContent === "확인");
+  expect(okBtn).toBeDefined();
+  await act(async () => okBtn!.click());
+  await flush();
+  await flush();
+}
+
+function saves() {
+  return requests.filter((r) => r.action === "save").map((r) => (r.body as { params: Record<string, unknown> }).params);
 }
 
 function last(action: string) {
@@ -174,7 +224,8 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
       if (m) {
         requests.push({ action: m[1], body });
         if (m[1] === "view") return jsonResponse(ok(versionView));
-        return jsonResponse(responses[m[1]] ?? ok({}));
+        const r = responses[m[1]];
+        return jsonResponse((typeof r === "function" ? (r as (b: Record<string, unknown>) => unknown)(body) : r) ?? ok({}));
       }
       if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
       return jsonResponse({}, 404);
@@ -444,7 +495,8 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
   it("불러오기는 케이스 입력을 값 테스트 칸에 채우고, 케이스에 없는 키는 키 보냄을 끈다", async () => {
     responses.execute = ok(okResult());
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
-    await click(caseRow(2)!, "불러오기");
+    await checkOnly(2);
+    await click(byTestId("rule-card-test-cases")!, "불러오기");
     expect(vtValueCell("COIL_THK").textContent).toBe("2.0");
     expect(vtValueCell("SURF_GRD").textContent).toBe("NULL");
     expect((byTestId("vt-key-COIL_WID")!.querySelector("input") as HTMLInputElement).checked).toBe(false);
@@ -452,16 +504,16 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(JSON.parse(String(last("execute")!.params.inputJson))).toEqual({ COIL_THK: "2.0", SURF_GRD: null });
   });
 
-  it("기대값 갱신은 마지막 케이스 결과로 기대 JSON 을 고치고(rowVersion 조건), 삭제는 두 번 눌러야 보낸다", async () => {
+  it("기대값 갱신은 마지막 케이스 결과로 기대 JSON 을 고치고(rowVersion 조건), 삭제는 확인창을 거쳐 보낸다", async () => {
     responses.execute = ok(
       okResult({ cases: [{ caseId: 2, caseName: "폭 없음", outcome: "OK", pass: null, mismatches: [], results: { QLTY_GRD: "C", PRC_FCT: "0.90" }, hit: 4 }] }),
     );
     responses.save = ok({ part: "CASE", rowVersion: 4, caseId: 2 });
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
-    const row2 = () => caseRow(2)!;
-    expect(findButton(row2(), "기대값 갱신").disabled).toBe(true);
+    await checkOnly(2);
+    expect(tcButton("tc-update-expected").disabled).toBe(true);
     await click(byTestId("rule-card-test-cases")!, "모두 실행");
-    await click(row2(), "기대값 갱신");
+    await click(byTestId("rule-card-test-cases")!, "기대값 갱신");
     expect(last("save")!.params).toMatchObject({
       part: "CASE",
       caseId: 2,
@@ -471,9 +523,11 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
       expectedJson: '{"QLTY_GRD":"C","PRC_FCT":0.90,"hit":4}',
     });
 
-    await click(row2(), "삭제");
-    expect(requests.filter((r) => r.action === "save")).toHaveLength(1);
-    await click(row2(), "삭제 확인");
+    await click(byTestId("rule-card-test-cases")!, "삭제");
+    // 확인창(포털)에서 확인해야 보낸다 — 행 안의 "삭제 확인" 두 번 누르기는 없다.
+    expect(document.body.textContent).toContain("선택한 케이스 1건을 삭제하시겠습니까?");
+    expect(saves()).toHaveLength(1);
+    await confirmDialog();
     expect(last("save")!.params).toEqual({ part: "CASE", maruRuleId: "QLTY_GRD_JDG", caseId: 2, rowVersion: 3, caseDeleted: true });
   });
 
@@ -485,8 +539,10 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     await act(async () => el.click());
     await flush();
   };
+  /** 그 케이스만 체크하고 머리글 [수정] 으로 팝업을 연다. */
   const openEdit = async (caseId: number) => {
-    await clickIn(byTestId<HTMLButtonElement>(`tc-edit-${caseId}`)!);
+    await checkOnly(caseId);
+    await clickIn(tcButton("tc-edit"));
   };
 
   it("수정 팝업은 폼 탭으로 열고, 입력 값·키 보냄·기대 값·비교·적중 행을 폼으로 고쳐 JSON 으로 저장한다", async () => {
@@ -645,13 +701,158 @@ describe("값 테스트·테스트 결과·테스트 케이스 카드", { timeou
     expect(document.querySelector('[data-testid="tc-edit-modal"]')).toBeNull();
   });
 
+  const caseResults = () =>
+    ok(
+      okResult({
+        cases: [
+          { caseId: 1, caseName: "A급 광폭", outcome: "OK", pass: true, mismatches: [], results: { QLTY_GRD: "A", PRC_FCT: "1.05" }, hit: 1 },
+          {
+            caseId: 2, caseName: "폭 없음", outcome: "ERROR", pass: null, mismatches: [],
+            errors: [{ stage: "INPUT_CHECK", code: "MISSING_KEY", message: "입력에 COIL_WID 값이 없습니다." }],
+          },
+        ],
+      }),
+    );
+  const headerState = () =>
+    Object.fromEntries(["tc-load", "tc-run", "tc-copy", "tc-edit", "tc-update-expected", "tc-delete"].map((id) => [id, !tcButton(id).disabled]));
+
+  it("머리글 버튼은 체크한 케이스 수와 마지막 결과로 켜지고, 머리글에 선택 건수를 보인다", async () => {
+    responses.execute = caseResults();
+    responses.save = ok({ part: "CASE", rowVersion: 1, caseId: 1 });
+    await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
+    const card = byTestId("rule-card-test-cases")!;
+    // 행 안 동작 버튼은 없다.
+    expect(caseRow(1)!.querySelector("button")).toBeNull();
+    expect(byTestId("tc-selected-count")?.textContent).toBe("선택 0건");
+    expect(headerState()).toEqual({ "tc-load": false, "tc-run": false, "tc-copy": false, "tc-edit": false, "tc-update-expected": false, "tc-delete": false });
+
+    await checkOnly(1);
+    expect(byTestId("tc-selected-count")?.textContent).toBe("선택 1건");
+    // 결과가 없으면 기대값 갱신은 꺼진다.
+    expect(headerState()).toEqual({ "tc-load": true, "tc-run": true, "tc-copy": true, "tc-edit": true, "tc-update-expected": false, "tc-delete": true });
+
+    await checkOnly(1, 2);
+    expect(byTestId("tc-selected-count")?.textContent).toBe("선택 2건");
+    // 불러오기·수정은 정확히 1건일 때만.
+    expect(headerState()).toEqual({ "tc-load": false, "tc-run": true, "tc-copy": true, "tc-edit": false, "tc-update-expected": false, "tc-delete": true });
+
+    // 마지막 결과가 OK 인 케이스가 하나라도 있으면 켜지고, 그 케이스만 보낸다(2 는 판정 오류).
+    await click(card, "모두 실행");
+    expect(headerState()["tc-update-expected"]).toBe(true);
+    await click(card, "기대값 갱신");
+    expect(saves().map((p) => p.caseId)).toEqual([1]);
+    expect(writes).toBe(1);
+    await checkOnly(2);
+    expect(headerState()["tc-update-expected"]).toBe(false);
+
+    // 행을 눌러도 체크가 토글된다(rowClickCheck).
+    const nameCell = card.querySelector('.ag-center-cols-container .ag-row[row-id="1"] [col-id="name"]') as HTMLElement;
+    await act(async () => nameCell.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await settleGrid();
+    expect(byTestId("tc-selected-count")?.textContent).toBe("선택 2건");
+  });
+
+  it("체크한 여러 케이스의 실행은 caseIds 를 실은 요청 한 번이고, ⑤ 에는 케이스 요약만 보인다", async () => {
+    responses.execute = caseResults();
+    await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
+    await checkOnly(1, 2);
+    await click(byTestId("rule-card-test-cases")!, "실행");
+    const runs = requests.filter((r) => r.action === "execute");
+    expect(runs).toHaveLength(1);
+    const p = last("execute")!.params;
+    expect(p).toMatchObject({ target: "BODY", runCases: true, caseIds: "1,2" });
+    expect(JSON.parse(String(p.inputJson))).toEqual(JSON.parse(CASES[0].inputJson));
+    expect(byTestId("tc-badge-1")?.textContent).toBe("통과");
+    expect(byTestId("tc-badge-2")?.textContent).toBe("실행만");
+    expect(byTestId("vt-result-cases")?.textContent).toContain("테스트 케이스 2건을 실행했습니다");
+    expect(byTestId("vt-result-hits")).toBeNull();
+  });
+
+  it("체크한 케이스 일괄 삭제는 확인창 뒤 한 건씩 보내고, 실패한 건의 사유를 모아 보이며, 다시 불러오기는 한 번이다", async () => {
+    responses.save = (b: Record<string, unknown>) =>
+      (b.params as { caseId?: number }).caseId === 1
+        ? { meta: { success: false, code: "MDM001", message: "다른 사용자가 수정했습니다" } }
+        : ok({ part: "CASE", rowVersion: 4, caseId: 2 });
+    await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
+    await checkOnly(1, 2);
+    await click(byTestId("rule-card-test-cases")!, "삭제");
+    expect(document.body.textContent).toContain("선택한 케이스 2건을 삭제하시겠습니까?");
+    expect(saves()).toHaveLength(0);
+    await confirmDialog();
+    // 표 순서대로 차례로 — 1 이 실패해도 2 를 보낸다.
+    expect(saves().map((p) => [p.caseId, p.rowVersion, p.caseDeleted])).toEqual([
+      [1, 0, true],
+      [2, 3, true],
+    ]);
+    expect(writes).toBe(1);
+    expect(errors).toEqual([]);
+    const msg = byTestId("tc-write-error")!.textContent!;
+    expect(msg).toContain("케이스 1건의 삭제에 실패했습니다.");
+    expect(msg).toContain("A급 광폭(case_id 1)");
+    expect(msg).toContain("다른 사용자가 수정했습니다");
+    expect(msg).not.toContain("case_id 2");
+  });
+
+  it("체크한 케이스 복사는 한 건씩 차례로 보내고 다시 불러오기는 한 번이다", async () => {
+    responses.save = ok({ part: "CASE", rowVersion: 0, caseId: 9 });
+    await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }));
+    await checkOnly(1, 2);
+    await click(byTestId("rule-card-test-cases")!, "복사");
+    const sent = saves();
+    expect(sent).toHaveLength(2);
+    expect(sent.map((p) => p.caseId)).toEqual([undefined, undefined]);
+    expect(sent.map((p) => JSON.parse(String(p.inputJson)).COIL_THK)).toEqual(["2.0", "2.0"]);
+    expect(String(sent[0].caseName)).toContain("A급 광폭");
+    expect(String(sent[1].caseName)).toContain("폭 없음");
+    expect(writes).toBe(1);
+    expect(byTestId("tc-write-error")).toBeNull();
+  });
+
+  it("체크는 caseId 로 유지하고, view 에서 사라진 케이스는 빼며, 룰이 바뀌면 비운다", async () => {
+    const view = draftView("e2e_mdm_steward", undefined, { testCases: CASES });
+    await render(view);
+    await checkOnly(1, 2);
+    // ④ 대상을 바꿔 결과 열 머리(열 정의)가 바뀌어도 체크는 남는다.
+    await selectValue(byTestId<HTMLSelectElement>("vt-target")!, "V:2.000");
+    expect(byTestId("rule-card-test-cases")!.textContent).toContain("결과(버전 ");
+    expect(byTestId("tc-selected-count")?.textContent).toBe("선택 2건");
+    expect([caseBox(1).checked, caseBox(2).checked]).toEqual([true, true]);
+
+    // 다시 불러온 view 에서 1 이 사라지면 뺀다 — 1 이 다시 와도 저절로 체크되지 않는다.
+    await render({ ...view, testCases: [CASES[1]] });
+    expect(byTestId("tc-selected-count")?.textContent).toBe("선택 1건");
+    await render(view);
+    expect(byTestId("tc-selected-count")?.textContent).toBe("선택 1건");
+    expect([caseBox(1).checked, caseBox(2).checked]).toEqual([false, true]);
+
+    // 룰이 바뀌면 같은 번호의 케이스가 있어도 비운다.
+    await render({ ...view, rule: { ...view.rule, maruRuleId: "OTHER_JDG" } });
+    expect(byTestId("tc-selected-count")?.textContent).toBe("선택 0건");
+    expect([caseBox(1).checked, caseBox(2).checked]).toEqual([false, false]);
+  });
+
+  it("체크한 직후 선택 알림(ag-grid 가 setTimeout 으로 미룬다)이 오기 전에 관련 없는 이유로 다시 그려져도 체크가 남는다", async () => {
+    const view = draftView("e2e_mdm_steward", undefined, { testCases: CASES });
+    await render(view);
+    // 같은 view 로 다시 그리기(부모 상태 변화 등)를 체크와 같은 차례에 넣는다 — 미룬 선택 알림보다 먼저 effect 가 돈다.
+    await act(async () => {
+      caseBox(1).click();
+      root!.render(cardsTree(view));
+    });
+    await settleGrid();
+    expect(caseBox(1).checked).toBe(true);
+    expect(byTestId("tc-selected-count")?.textContent).toBe("선택 1건");
+  });
+
   it("권한이 없으면 버튼을 숨기지 않고 끈다(§6.7.0)", async () => {
     await render(draftView("e2e_mdm_steward", undefined, { testCases: CASES }), { canDo: () => false });
     expect(findButton(byTestId("rule-card-value-test")!, "실행").disabled).toBe(true);
     expect(findButton(byTestId("rule-card-test-cases")!, "모두 실행").disabled).toBe(true);
-    expect(findButton(caseRow(1)!, "삭제").disabled).toBe(true);
-    expect(findButton(caseRow(1)!, "수정").disabled).toBe(true);
-    expect(findButton(caseRow(1)!, "불러오기").disabled).toBe(false);
+    // 한 건을 체크해야 선택 수가 아니라 권한 때문에 꺼졌는지 본다.
+    await checkOnly(1);
+    expect(byTestId("tc-selected-count")?.textContent).toBe("선택 1건");
+    for (const id of ["tc-run", "tc-copy", "tc-edit", "tc-delete"]) expect(tcButton(id).disabled, id).toBe(true);
+    expect(tcButton("tc-load").disabled).toBe(false);
   });
 
   it("열 설정 초안이 dirty 면 편집본 대상 옆에 반영하지 않는다고 알린다(D4)", async () => {
