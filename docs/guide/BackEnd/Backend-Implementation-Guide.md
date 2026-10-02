@@ -505,7 +505,8 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
   없는 컬럼을 적으면 `IllegalArgumentException`(프로그램 결함 — 개발 중에 바로 드러난다).
 - 기존 수작업 검증(`validateRow` 등)은 지우지 않는다. 겹쳐도 되고, 수작업은 DB 한도·업무 코드 값처럼 MDM 에 없는 것을 본다. 오류를 한 응답으로 모으는
   서비스(noticeMgmt)는 `check()` 가 던진 `INVALID_VALUE` 의 `getErrors()` 를 자기 `errors` 에 합쳐서, **쓰기 전에** 먼저 보고 오류가 있으면 아무것도 쓰지
-  않는다. 검증 불가(`BUSINESS_ERROR`·`MDM_UNAVAILABLE`)는 합치지 말고 그대로 던진다.
+  않는다. 한 칸(행+필드)에 두 오류가 겹치면 수작업(더 엄격한 DB 한도) 쪽만 남긴다 — 둘 다 내리면 화면이 어느 것을 보이느냐에 따라 "1000자로 줄여도
+  200자 오류" 같은 어긋난 안내가 된다. 검증 불가(`BUSINESS_ERROR`·`MDM_UNAVAILABLE`)는 합치지 말고 그대로 던진다.
 - 오류 모양: `ErrorDetail(grid, rowKey, rowIndex, field, code, message)`, `field` 는 요청 행의 원래 키, 코드는 필수 `E001`·그 밖 `E002`·검증 불가
   `MDM_UNAVAILABLE`. 서비스가 가진 기존 `ErrorDetail` 의 `rowKey`(예: 공지번호)와 다를 수 있다 — MDM 쪽 `rowKey` 는 행의 `rowKey` 키 값이다.
 - MDM 장애(캐시에 정의가 없고 MDM 도 받을 수 없음): 기본은 저장 거부(`cactus.mdm.validation.on-unavailable: REJECT`), `PASS` 면 WARN 만 남기고 통과.
@@ -520,4 +521,11 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
 |---|---|---|---|---|
 | `TITLE` | VARCHAR(200) NOT NULL | `TITLE` STRING(1000), 선택, 도메인 `DESC`(183) | 길이 1000 ≥ 200, 필수 아님 — MDM 이 느슨 | `columns("TITLE")` 에 넣음 (200자·필수는 `validateRow` 가 계속 본다) |
 | `NOTICE_CATEGORY` | VARCHAR(10) NOT NULL | 같은 물리명 없음 (`CATEGORY` STRING(240) 은 다른 이름) | — | 뺌 (별칭 매칭은 후속, 코드 값은 `validateRow`) |
-| `CONTENT`·`NOTICE_STATUS`·`CONTENT_FORMAT`·`PIN_YN`·`TARGET_SCOPE`·`POST_START_DT`·`POST_END_DT`·`NOTICE_ID` | — | 같은 물리명 없음 | — | 뺌 |
+| `CONTENT` | VARCHAR(4000)·선택 (서버 상한 20만 자, 본문 소독) | 같은 물리명 없음 | — | 뺌 |
+| `NOTICE_STATUS` | VARCHAR(10) NOT NULL | 같은 물리명 없음 | — | 뺌 (코드 값은 `validateRow`) |
+| `CONTENT_FORMAT` | VARCHAR(10) NOT NULL | 같은 물리명 없음 | — | 뺌 |
+| `PIN_YN` | CHAR(1) NOT NULL | 같은 물리명 없음 (`USE_YN` STRING(1) 필수 는 다른 이름) | — | 뺌 |
+| `TARGET_SCOPE`·`NOTICE_ID`·`POST_START_DT`·`POST_END_DT` | VARCHAR(10)·VARCHAR(30)·DATE·DATE | 같은 물리명 없음 | — | 뺌 |
+
+spec §7 이 말한 `CATEGORY`·`USE_YN`·`SORT_SEQ` 는 `TB_MLS_NOTICE` 의 칸이 아니다(공지의 분류 칸은 `NOTICE_CATEGORY`). 그래서 화면 파일럿은 MDM 과 이름이
+맞는 칸이 `TITLE` 하나뿐이다.
