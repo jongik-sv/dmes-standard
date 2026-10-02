@@ -8,7 +8,7 @@ import { expect, test, type Page } from "@playwright/test";
  * 고유: T5 수용 1(ID 물리명 규칙 — 즉시 안내 + 서버 거부), T6 수용 2(원천 선택 칸 없음), T7 권한(READ 는 [룰 등록] 버튼이 비활성).
  *
  * D-105 — 이 화면이 ① 헤더·② 버전(목록 + 상세)까지 맡는다. H 계열은 옮겨 온 시험이다:
- * 헤더 저장(낙관적 잠금 auditVer)·폐기·적중 정책 표시(D-133 — 고치는 곳은 ruleEdit)·새 버전·DRAFT 삭제·선점·해제·넘기기·확정 취소·확정 이동.
+ * 헤더 저장(낙관적 잠금 auditVer)·폐기·적중 정책 표시(D-133 — 고치는 곳은 ruleEdit)·새 버전·DRAFT 삭제·선점·해제·넘기기·확정취소·확정.
  *
  * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
  * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql·mdm-ruleEdit-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-ruleEdit-data.sql 을 넣는다.
@@ -216,10 +216,9 @@ test.describe("mdm dme/ruleMng", () => {
     await openRuleMng(page);
     await openDetail(page, "E2E_LOCK_JDG");
     await expect(page.getByTestId("rule-version-table").getByText(`잠김 · ${STEWARD2} 편집 중`)).toBeVisible();
-    for (const name of ["삭제", "해제", "넘기기(준비 중)"]) {
+    for (const name of ["삭제", "선점", "해제", "넘기기(준비 중)"]) {
       await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
     }
-    await expect(page.getByRole("button", { name: "선점", exact: true })).toHaveCount(0);
     await expect(page.getByTestId("rule-header-name")).toBeDisabled();
   });
 
@@ -264,6 +263,7 @@ test.describe("mdm dme/ruleMng", () => {
     await openRuleMng(page);
     await openDetail(page, "QLTY_GRD_JDG");
     await page.getByRole("button", { name: "삭제", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).last().click();
     await expect(versionRow(page, 2)).toHaveCount(0, { timeout: 20_000 });
     await expect(page.getByRole("button", { name: "새 버전", exact: true })).toBeEnabled();
   });

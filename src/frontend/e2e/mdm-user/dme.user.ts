@@ -468,9 +468,9 @@ async function buildEqualRule(page: Page, r: EqualRule) {
   await expect(dtRows(page)).toHaveCount(r.rows.length + 1);
 }
 
-/** 룰 화면의 [확정 이동]으로 버전 확정을 열고, 과거 일시로 검사해 경고 확인란을 체크한 뒤 확정한다. */
+/** 룰 화면의 [확정]으로 버전 확정을 열고, 과거 일시로 검사해 경고 확인란을 체크한 뒤 확정한다. */
 async function confirmFromRuleEdit(page: Page, id: string, ver: number, applyFrom: { input: string; date: string }) {
-  await cardButton(page, "rule-card-versions", "확정 이동").click();
+  await cardButton(page, "rule-card-versions", "확정").click();
   await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: 60_000 });
   await expect(tid(page, "rc-target")).toContainText(`${id} 버전 ${ver}`, { timeout: 30_000 });
   await rcValidate(page, applyFrom.input);
@@ -683,7 +683,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(cardButton(page, "rule-card-versions", "새 버전")).toBeDisabled();
     await expect(tid(page, "rule-unapplied-notice")).toHaveText("미적용 버전 1 이 있어 새 버전을 만들 수 없습니다(한 번에 하나).");
     await expect(cardButton(page, "rule-card-header", "폐기")).toHaveCount(0);
-    await expect(cardButton(page, "rule-card-versions", "선점")).toHaveCount(0);
+    await expect(cardButton(page, "rule-card-versions", "선점")).toBeDisabled();
     // 표·열 설정은 비어 있고, 피벗은 축이 없어 보이지 않는다.
     await expect(dtGrid(page)).toContainText("행이 없습니다.");
     await expect(colTable(page)).toContainText("열이 없습니다.");
@@ -745,9 +745,9 @@ test.describe("A 룰 등록·편집·확정", () => {
     try {
       await openRule(p2, RULE);
       await expect(topbar(p2)).toContainText(`잠김 · ${STW} 편집 중`);
-      for (const b of ["해제", HANDOVER, "삭제", "확정 이동"]) {
+      for (const b of ["해제", HANDOVER, "삭제", "확정"]) {
         const btn = cardButton(p2, versions, b);
-        if (b === "확정 이동") await expect(btn, `${b}(stw2)`).toBeEnabled(); // 소유자 판정은 확정 화면이 한다(설계 §9)
+        if (b === "확정") await expect(btn, `${b}(stw2)`).toBeEnabled(); // 소유자 판정은 확정 화면이 한다(설계 §9)
         else await expect(btn, `${b}(stw2)`).toBeDisabled();
       }
       await expect(cardButton(p2, versions, "선점")).toHaveCount(0);
@@ -1236,15 +1236,15 @@ test.describe("A 룰 등록·편집·확정", () => {
     await layout.layout(page, "ruleEdit 편집 끝");
     await snap(page, "dme-ruleEdit-05-done");
     await assertAllButtonsPressed(page, "ruleEdit(버전 1 DRAFT)", {
-      "확정 이동": "다음 TC-DME-CNF-01 에서 누른다(누르면 버전 확정 탭으로 옮겨 간다)",
+      "확정": "다음 TC-DME-CNF-01 에서 누른다(누르면 버전 확정 탭으로 옮겨 간다)",
     });
     watcher.assertClean("ruleEdit");
   });
 
   // ─────────── ruleConfirm — 버전 확정 ───────────
 
-  test("TC-DME-CNF-01 [확정 이동]으로 버전 확정 화면이 그 DRAFT 로 열린다", async () => {
-    await cardButton(page, "rule-card-versions", "확정 이동").click();
+  test("TC-DME-CNF-01 [확정]으로 버전 확정 화면이 그 DRAFT 로 열린다", async () => {
+    await cardButton(page, "rule-card-versions", "확정").click();
     await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: 60_000 });
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 업무기준 > 버전 확정");
@@ -1363,7 +1363,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tid(page, "col-readonly")).toBeVisible();
     await expect(tid(page, "pivot-badge")).toHaveText("화면 표현");
     await expect(cardButton(page, "rule-card-versions", "새 버전")).toBeEnabled();
-    await expect(cardButton(page, "rule-card-versions", "확정 이동")).toBeDisabled();
+    await expect(cardButton(page, "rule-card-versions", "확정")).toBeDisabled();
     await expect(cardButton(page, "rule-card-header", "폐기")).toBeEnabled();
     await expect(tid(page, "rule-unapplied-notice")).toHaveCount(0);
     await layout.layout(page, "ruleEdit 확정 뒤");
@@ -1475,7 +1475,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
   });
 
   test("TC-DME-VER-03 새 버전 확정 검사 — 직전 대비 변경이 보이고, 직전보다 이른 적용 일시는 거부되어 확정이 꺼진다", async () => {
-    await cardButton(page, "rule-card-versions", "확정 이동").click();
+    await cardButton(page, "rule-card-versions", "확정").click();
     await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: 60_000 });
     await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 2 · DECISION`, { timeout: 30_000 });
     await expect(tid(page, "rc-previous")).toHaveText(`직전 RELEASED 버전 1 · ${RELEASE1.date} 00:00:00`);
@@ -1505,8 +1505,9 @@ test.describe("B 새 버전·삭제·폐기", () => {
     await expect(cardButton(page, "rule-card-versions", "삭제")).toBeDisabled();
     await tid(page, "rule-ver-row-2").click();
     await expect(tid(page, "rule-ver-select")).toHaveValue("2", { timeout: 20_000 });
-    // 삭제는 확인을 묻지 않고 바로 지운다(설계 §5.2 에 확인 단계가 없다 — 보고서 관찰).
+    // 삭제는 마스터코드와 같은 확인창을 거친다(MDM 버전 버튼 규약).
     await cardButton(page, "rule-card-versions", "삭제").click();
+    await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).last().click();
     await expect(tid(page, "rule-ver-row-2")).toHaveCount(0, { timeout: 20_000 });
     await expect(tid(page, "rule-ver-select")).toHaveValue("1");
     await expect(cardButton(page, "rule-card-versions", "새 버전")).toBeEnabled();
@@ -2259,7 +2260,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await expect(tid(page, "rule-header-name")).toBeDisabled();
       await expect(cardButton(page, "rule-card-header", "헤더 저장")).toBeDisabled();
       for (const b of ["새 버전", "삭제", "해제", HANDOVER]) await expect(cardButton(page, "rule-card-versions", b), `${b}(std)`).toBeDisabled();
-      await expect(cardButton(page, "rule-card-versions", "선점")).toHaveCount(0);
+      await expect(cardButton(page, "rule-card-versions", "선점")).toBeDisabled();
       await expect(tableButton(page, "행 추가")).toBeDisabled();
       await expect(tid(page, "col-readonly")).toBeVisible();
       await expect(tid(page, "col-add-cond")).toHaveCount(0);

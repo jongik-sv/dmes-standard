@@ -117,7 +117,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await tid(page, "rule-pick-E2E_RC_CASEFAIL").click();
     await expect(tid(page, "rule-edit-current")).toHaveText("E2E_RC_CASEFAIL", { timeout: 30_000 });
 
-    const move = page.getByRole("button", { name: "확정 이동", exact: true });
+    const move = page.getByRole("button", { name: "확정", exact: true });
     await expect(move).toBeEnabled({ timeout: 20_000 });
     await move.click();
 

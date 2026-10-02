@@ -7,3 +7,4 @@ export { IdPicker, filterIdPicks, type IdPickRow, type IdPickerProps } from "./I
 export { DraftLockBadge, type DraftLockBadgeProps } from "./DraftLockBadge";
 export { openMdmPage, takeMdmPageParams, useMdmPageParams, type MdmPageParams } from "./page-handoff";
 export { HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT } from "./handover";
+export { VersionActionBar, type VersionActionBarProps, type VersionAction, type VersionActionIds } from "./VersionActionBar";

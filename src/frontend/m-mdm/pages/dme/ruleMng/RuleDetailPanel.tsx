@@ -19,8 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
-import { useMessage } from "@dk-oasis/shared/message-provider";
-import { DraftLockBadge, HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, VersionStatusBadge, openMdmPage } from "@/shell";
+import { DraftLockBadge, HANDOVER_AVAILABLE, VersionActionBar, VersionStatusBadge, openMdmPage } from "@/shell";
 
 import {
   cancelConfirm,
@@ -89,7 +88,6 @@ export interface RuleDetailPanelProps {
 }
 
 export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentEdit }: RuleDetailPanelProps) {
-  const { showMessage } = useMessage();
   const header: RuleHeader = view.header;
   const me = view.me ?? "";
   const flags = view.flags;
@@ -297,95 +295,53 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
           </p>
         )}
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--spacing-xs)", alignItems: "center" }}>
-          <Button data-testid="rule-new-version" disabled={!canCopy} onClick={() => void runWrite(() => newVersion(id))}>
-            새 버전
-          </Button>
-          <span title={canMoveToConfirm ? "" : "DRAFT 버전만 확정할 수 있습니다"}>
-            <Button
-              data-testid="rule-move-to-confirm"
-              disabled={!canMoveToConfirm}
-              onClick={() => selected && openMdmPage("dme/ruleConfirm", { maruRuleId: id, ver: String(selected.ver) })}
-            >
-              확정 이동
-            </Button>
-          </span>
-          {selected && (
-            <>
-              <Button
-                data-testid="rule-version-delete"
-                disabled={!canDeleteDraft}
-                onClick={() => void runWrite(() => deleteDraft(id, selected.ver, selected.rowVersion))}
-              >
-                삭제
-              </Button>
-              {/* D8 확정 취소 — 확인창에 06 교차 효과(룰 세트·다른 룰의 확정이 잠시 막힘)를 알린다. */}
-              <span
-                data-testid="rule-cancel-confirm-wrap"
-                title={canCancelConfirm ? "" : "아직 적용 시각이 오지 않은 확정 버전만 취소할 수 있습니다"}
-              >
-                <Button
-                  data-testid="rule-cancel-confirm"
-                  disabled={!canCancelConfirm}
-                  onClick={() => {
-                    if (!selected) return;
-                    showMessage({
-                      title: "확정 취소",
-                      message: `${selected.ver} 의 확정을 취소하고 작성 중인 상태로 되돌릴까요?\n${CANCEL_CONFIRM_EFFECT}`,
-                      alertType: "confirm",
-                      onConfirm: () => void runWrite(() => cancelConfirm(id, selected.ver, selected.rowVersion)),
-                    });
-                  }}
-                >
-                  확정 취소
-                </Button>
-              </span>
-              {showLock && (
-                <Button
-                  data-testid="rule-version-lock"
-                  disabled={!canDo("lock") || busy}
-                  onClick={() => void runWrite(() => lockVersion(id, selected.ver, selected.rowVersion))}
-                >
-                  선점
-                </Button>
-              )}
-              <Button
-                data-testid="rule-version-unlock"
-                disabled={!canUnlock}
-                onClick={() => void runWrite(() => unlockVersion(id, selected.ver, selected.rowVersion))}
-              >
-                해제
-              </Button>
-              <Input
-                data-testid="rule-handover-target"
-                value={handoverTo}
-                placeholder="넘겨받을 사용자 ID"
-                disabled={!HANDOVER_AVAILABLE || !mine || busy}
-                onChange={setHandoverTo}
-                style={{ width: 150 }}
-              />
-              <span data-testid="rule-handover-wrap" title={HANDOVER_AVAILABLE ? "" : HANDOVER_PENDING_TEXT}>
-                <Button
-                  data-testid="rule-handover"
-                  disabled={!canHandover}
-                  onClick={() => {
-                    if (!handoverTo.trim()) {
-                      onError("넘겨받을 사용자 ID 를 적으세요.");
-                      return;
-                    }
-                    const target = handoverTo.trim();
-                    void runWrite(() => handoverVersion(id, selected.ver, selected.rowVersion, target)).then(() =>
-                      setHandoverTo(""),
-                    );
-                  }}
-                >
-                  {HANDOVER_AVAILABLE ? "넘기기" : "넘기기(준비 중)"}
-                </Button>
-              </span>
-              <DraftLockBadge status={selected.status} ownerId={selected.ownerId} currentUserId={me} />
-            </>
+        <VersionActionBar
+          ids={{
+            newVersion: "rule-new-version", delete: "rule-version-delete", confirm: "rule-move-to-confirm",
+            cancelConfirm: "rule-cancel-confirm", cancelConfirmWrap: "rule-cancel-confirm-wrap", lock: "rule-version-lock",
+            unlock: "rule-version-unlock", handover: "rule-handover", handoverWrap: "rule-handover-wrap",
+          }}
+          newVersionMode="single"
+          newVersion={{ enabled: canCopy }}
+          delete={{ enabled: canDeleteDraft }}
+          confirm={{ enabled: canMoveToConfirm, title: canMoveToConfirm ? "" : "DRAFT 버전만 확정할 수 있습니다" }}
+          cancelConfirm={{
+            enabled: canCancelConfirm,
+            title: canCancelConfirm ? "" : "아직 적용 시각이 오지 않은 확정 버전만 취소할 수 있습니다",
+          }}
+          lock={{ enabled: showLock && canDo("lock") && !busy }}
+          unlock={{ enabled: canUnlock }}
+          handover={{ enabled: canHandover }}
+          onNewVersion={() => void runWrite(() => newVersion(id))}
+          onDelete={() => selected && void runWrite(() => deleteDraft(id, selected.ver, selected.rowVersion))}
+          onConfirm={() => selected && openMdmPage("dme/ruleConfirm", { maruRuleId: id, ver: String(selected.ver) })}
+          // D8 확정 취소 — 확인창에 06 교차 효과(룰 세트·다른 룰의 확정이 잠시 막힘)를 알린다.
+          onCancelConfirm={() => selected && void runWrite(() => cancelConfirm(id, selected.ver, selected.rowVersion))}
+          onLock={() => selected && void runWrite(() => lockVersion(id, selected.ver, selected.rowVersion))}
+          onUnlock={() => selected && void runWrite(() => unlockVersion(id, selected.ver, selected.rowVersion))}
+          onHandover={() => {
+            if (!selected) return;
+            if (!handoverTo.trim()) {
+              onError("넘겨받을 사용자 ID 를 적으세요.");
+              return;
+            }
+            const target = handoverTo.trim();
+            void runWrite(() => handoverVersion(id, selected.ver, selected.rowVersion, target)).then(() => setHandoverTo(""));
+          }}
+          deleteMessage={`${selected?.ver ?? ""} DRAFT 를 삭제할까요?`}
+          cancelConfirmMessage={`${selected?.ver ?? ""} 의 확정을 취소하고 작성 중인 상태로 되돌릴까요?\n${CANCEL_CONFIRM_EFFECT}`}
+          beforeHandover={(
+            <Input
+              data-testid="rule-handover-target"
+              value={handoverTo}
+              placeholder="넘겨받을 사용자 ID"
+              disabled={!HANDOVER_AVAILABLE || !mine || busy}
+              onChange={setHandoverTo}
+              style={{ width: 150 }}
+            />
           )}
-        </div>
+          trailing={selected ? <DraftLockBadge status={selected.status} ownerId={selected.ownerId} currentUserId={me} /> : null}
+        />
       </section>
     </div>
   );

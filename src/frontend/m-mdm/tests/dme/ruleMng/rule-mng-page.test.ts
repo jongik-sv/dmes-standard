@@ -63,6 +63,23 @@ async function render() {
   await flush();
 }
 
+/** 머리 [조회] — 첫 진입은 목록을 자동 조회하지 않으므로(cf4fbb05) 목록·상세가 필요한 시험은 먼저 누른다. */
+async function search() {
+  const btn = Array.from(container.querySelectorAll(".page-layout__header-buttons button")).find((x) => x.textContent === "조회");
+  expect(btn, "조회").toBeTruthy();
+  await act(async () => {
+    (btn as HTMLButtonElement).click();
+  });
+  await flush();
+  await flush();
+}
+
+/** 거의 모든 상세 시험이 목록의 첫 룰 상세를 필요로 하므로 render 다음에 [조회] 까지 누른다. */
+async function renderAndSearch() {
+  await render();
+  await search();
+}
+
 function byTestId<T extends Element>(id: string): T | null {
   return container.querySelector(`[data-testid="${id}"]`) as T | null;
 }
@@ -134,19 +151,24 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
 
   it("목록이 오면 첫 룰의 상세를 연다", async () => {
     await render();
+    // 첫 진입은 목록도 상세도 부르지 않는다 — [조회] 를 눌러야 목록이 오고 첫 룰 상세가 열린다(cf4fbb05).
+    expect(requests.filter((r) => r.action === "search")).toHaveLength(0);
+    expect(params("view")).toBeUndefined();
+    await search();
+    expect(requests.filter((r) => r.action === "search")).toHaveLength(1);
     expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG" });
     expect(byTestId("rule-header-id")?.textContent).toBe("QLTY_GRD_JDG");
   });
 
   it("목록에서 다른 룰을 누르면 그 룰의 상세를 다시 불러온다", async () => {
-    await render();
+    await renderAndSearch();
     await act(async () => byTestId<HTMLButtonElement>("rule-link-COIL_WGT_CALC")!.click());
     await flush();
     expect(params("view")).toEqual({ maruRuleId: "COIL_WGT_CALC" });
   });
 
   it("[내용 편집 →] 은 내용 화면 탭을 열고 룰·버전을 넘긴다(I28)", async () => {
-    await render();
+    await renderAndSearch();
     const opened: string[] = [];
     window.addEventListener("portal-open-tab", (e) => opened.push((e as CustomEvent).detail.pageId), { once: true });
     await act(async () => findButton(container, "내용 편집 →").click());
@@ -158,7 +180,7 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
   // ── ① 헤더 (D-105 (5) — 낙관적 잠금) ──
 
   it("헤더 저장은 target HEADER·auditVer·룰명·설명·메모를 보내고 버전 칸은 싣지 않는다", async () => {
-    await render();
+    await renderAndSearch();
     await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "품질 등급 판정 E2E");
     await act(async () => findButton(container, "헤더 저장").click());
     await flush();
@@ -176,12 +198,12 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
   });
 
   it("바꿀 게 없으면 [헤더 저장] 은 꺼져 있다", async () => {
-    await render();
+    await renderAndSearch();
     expect((byTestId<HTMLButtonElement>("rule-header-save") ?? findButton(container, "헤더 저장")).disabled).toBe(true);
   });
 
   it("서버가 감사 카운터 어긋남(MDM001)으로 거부하면 이름을 바꾸지 않고 오류를 알린다", async () => {
-    await render();
+    await renderAndSearch();
     await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "새 이름");
     // save 만 거부하고 view 는 그대로 — 거부가 재조회로 값을 덮지 않는지 함께 본다.
     const realFetch = globalThis.fetch;
@@ -201,7 +223,7 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
 
   it("헤더 편집이 불가하면 칸이 모두 잠긴다(D6 — 미적용 버전 소유자가 아니면)", async () => {
     view = draftDetail({ flags: { headerEditable: false, canNewVersion: false, canDeprecate: false, unappliedCount: 1, currentVer: 1 } });
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLInputElement>("rule-header-name")?.disabled).toBe(true);
     expect(byTestId<HTMLTextAreaElement>("rule-header-description")?.disabled).toBe(true);
   });
@@ -211,14 +233,14 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
       header: { ...draftDetail().header, sourceKind: "EXTERNAL", sourceSystem: "MES" },
       flags: { headerEditable: false, canNewVersion: false, canDeprecate: false, unappliedCount: 0, currentVer: 1 },
     });
-    await render();
+    await renderAndSearch();
     expect(byTestId("rule-header-source")?.textContent).toContain("EXTERNAL");
     expect(byTestId("rule-header-source")?.textContent).toContain("MES");
     expect(byTestId<HTMLInputElement>("rule-header-name")?.disabled).toBe(true);
   });
 
   it("폐기는 두 번 눌러야 target RULE 을 보내고, 미적용 버전이 있으면 flags 가 꺼 둔다", async () => {
-    await render();
+    await renderAndSearch();
     const deprecate = findButton(container, "폐기");
     expect(deprecate.disabled).toBe(false);
     await act(async () => deprecate.click());
@@ -227,7 +249,7 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     expect(params("delete")).toEqual({ maruRuleId: "QLTY_GRD_JDG", target: "RULE" });
 
     view = draftDetail({ flags: { headerEditable: true, canNewVersion: false, canDeprecate: false, unappliedCount: 2, currentVer: 1 } });
-    await render();
+    await renderAndSearch();
     expect(findButton(container, "폐기").disabled).toBe(true);
     expect(text()).toContain("미적용 버전");
   });
@@ -235,14 +257,14 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
   // ── ② 버전 ──
 
   it("미적용 버전이 있으면 새 버전을 끄고 안내를 보인다(수용 5)", async () => {
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-new-version")!.disabled).toBe(true);
     expect(byTestId("rule-unapplied-notice")?.textContent).toContain("미적용 버전");
   });
 
   it("미적용 버전이 없으면 [새 버전] 이 copy 를 보내고 다시 불러온다", async () => {
     view = draftDetail({ flags: { headerEditable: true, canNewVersion: true, canDeprecate: true, unappliedCount: 0, currentVer: 1 } });
-    await render();
+    await renderAndSearch();
     const before = requests.filter((r) => r.action === "view").length;
     await act(async () => byTestId<HTMLButtonElement>("rule-new-version")!.click());
     await flush();
@@ -251,7 +273,7 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
   });
 
   it("소유자면 DRAFT 삭제·해제가 켜지고, 소유자가 아니면 꺼진다(I7)", async () => {
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-version-delete")!.disabled).toBe(false);
     expect(byTestId<HTMLButtonElement>("rule-version-unlock")!.disabled).toBe(false);
 
@@ -261,14 +283,14 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
         draftDetail().versions[1],
       ],
     });
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-version-delete")!.disabled).toBe(true);
     expect(byTestId<HTMLButtonElement>("rule-version-unlock")!.disabled).toBe(true);
   });
 
   it("소유자가 없는 DRAFT 면 [선점] 이 보이고 lock 을 보낸 뒤 다시 불러온다", async () => {
     view = draftDetail({ versions: [{ ...draftDetail().versions[0], ownerId: null }, draftDetail().versions[1]] });
-    await render();
+    await renderAndSearch();
     const before = requests.filter((r) => r.action === "view").length;
     await act(async () => byTestId<HTMLButtonElement>("rule-version-lock")!.click());
     await flush();
@@ -277,14 +299,19 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
   });
 
   it("DRAFT 삭제는 target VERSION 과 row_version 을 보낸다", async () => {
-    await render();
+    await renderAndSearch();
     await act(async () => byTestId<HTMLButtonElement>("rule-version-delete")!.click());
+    await flush();
+    // 마스터코드와 같은 확인창 — 확인해야 지운다.
+    expect(document.body.textContent).toContain("DRAFT 를 삭제할까요?"); // 확인창은 포털(body)에 뜬다
+    const ok = Array.from(document.body.querySelectorAll("button")).find((b) => b.textContent === "확인");
+    await act(async () => ok!.click());
     await flush();
     expect(params("delete")).toEqual({ maruRuleId: "QLTY_GRD_JDG", ver: 2, rowVersion: 3, target: "VERSION" });
   });
 
   it("넘기기는 준비 중이라 대상 칸·버튼이 꺼져 있고 이유를 알리며 handover 를 보내지 않는다(D2)", async () => {
-    await render();
+    await renderAndSearch();
     const wrap = byTestId("rule-handover-wrap")!;
     expect(wrap.getAttribute("title")).toBe(HANDOVER_PENDING_TEXT);
     const btn = byTestId<HTMLButtonElement>("rule-handover")!;
@@ -292,8 +319,8 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     expect(btn.disabled || !HANDOVER_AVAILABLE).toBe(true);
   });
 
-  it("확정 이동은 DRAFT 에서만 켜지고 누르면 ruleConfirm 탭을 룰·버전과 함께 연다", async () => {
-    await render();
+  it("확정은 DRAFT 에서만 켜지고 누르면 ruleConfirm 탭을 룰·버전과 함께 연다", async () => {
+    await renderAndSearch();
     const opened: string[] = [];
     window.addEventListener("portal-open-tab", (e) => opened.push((e as CustomEvent).detail.pageId), { once: true });
     await act(async () => byTestId<HTMLButtonElement>("rule-move-to-confirm")!.click());
@@ -301,23 +328,23 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     expect(takeMdmPageParams("dme/ruleConfirm")).toMatchObject({ maruRuleId: "QLTY_GRD_JDG", ver: "2" });
   });
 
-  it("RE2 선택 버전이 RELEASED 면 확정 이동이 비활성이다", async () => {
+  it("RE2 선택 버전이 RELEASED 면 확정이 비활성이다", async () => {
     // 기본 선택은 미적용(DRAFT) 버전이다. RELEASED 하나만 남기면 그게 열린다.
     view = draftDetail({
       versions: [draftDetail().versions[1]],
       flags: { headerEditable: true, canNewVersion: true, canDeprecate: true, unappliedCount: 0, currentVer: 1 },
     });
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-move-to-confirm")!.disabled).toBe(true);
   });
 
-  it("RE2 원천이 EXTERNAL 이면 확정 이동이 비활성이다", async () => {
+  it("RE2 원천이 EXTERNAL 이면 확정이 비활성이다", async () => {
     view = draftDetail({ header: { ...draftDetail().header, sourceKind: "EXTERNAL", sourceSystem: "MES" } });
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-move-to-confirm")!.disabled).toBe(true);
   });
 
-  it("확정 취소는 서버 판정값(cancelConfirmable)이 true 일 때만 켜지고, 누르면 확인창에 06 교차 효과를 알린다", async () => {
+  it("확정취소는 서버 판정값(cancelConfirmable)이 true 일 때만 켜지고, 누르면 확인창에 06 교차 효과를 알린다", async () => {
     view = draftDetail({
       versions: [
         { ...draftDetail().versions[0], status: "RELEASED", applyFrom: "2026-12-01 00:00:00", applyTo: "9999-12-31 00:00:00", cancelConfirmable: true },
@@ -325,28 +352,28 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
       ],
       flags: { headerEditable: true, canNewVersion: false, canDeprecate: false, unappliedCount: 1, currentVer: null },
     });
-    await render();
+    await renderAndSearch();
     const btn = byTestId<HTMLButtonElement>("rule-cancel-confirm")!;
     expect(btn.disabled).toBe(false);
     await act(async () => btn.click());
     await flush();
     // 확인창에서 확인해야 target CONFIRM 이 간다 — 여기서는 확인창만 떴음을 본다.
-    expect(text()).toContain("확정 취소");
+    expect(text()).toContain("확정취소");
   });
 
-  it("판정값이 없으면 확정 취소는 꺼진다 — 화면이 재계산하지 않는다", async () => {
-    await render();
+  it("판정값이 없으면 확정취소는 꺼진다 — 화면이 재계산하지 않는다", async () => {
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-cancel-confirm")!.disabled).toBe(true);
   });
 
-  it("DRAFT 선택에서는 확정 취소가 꺼진다(DRAFT 전용 판정과 겹치지 않는다)", async () => {
+  it("DRAFT 선택에서는 확정취소가 꺼진다(DRAFT 전용 판정과 겹치지 않는다)", async () => {
     view = draftDetail({
       versions: [
         { ...draftDetail().versions[0], cancelConfirmable: false },
         draftDetail().versions[1],
       ],
     });
-    await render();
+    await renderAndSearch();
     expect(byTestId<HTMLButtonElement>("rule-cancel-confirm")!.disabled).toBe(true);
   });
 
@@ -354,7 +381,7 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
 
   it("적중 정책은 버전 목록 칸에 보이기만 하고 고르는 칸·저장 버튼이 없다", async () => {
     view = draftDetail({ versions: [{ ...draftDetail().versions[0], hitPolicy: "UNIQUE" }, draftDetail().versions[1]] });
-    await render();
+    await renderAndSearch();
     expect(byTestId("rule-hit-policy")).toBeNull();
     expect(byTestId("rule-hit-policy-save")).toBeNull();
     expect(Array.from(container.querySelectorAll("button")).some((b) => b.textContent?.includes("적중 정책 저장"))).toBe(false);
@@ -370,7 +397,7 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
       header: { ...draftDetail().header, ruleKind: "DERIVE" },
       versions: draftDetail().versions.map((v) => ({ ...v, hitPolicy: null })),
     });
-    await render();
+    await renderAndSearch();
     expect(byTestId("rule-hit-policy-hint")).toBeNull();
     expect(byTestId("rule-version-table")!.textContent).toContain("-");
   });

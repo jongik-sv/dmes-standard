@@ -259,3 +259,14 @@ shared·m-mcm 의 Prettier 는 `prettier-plugin-tailwindcss` 를 쓴다. 이 플
 - `Textarea`(shared)는 `.mantine-Textarea-root`·`.mantine-Input-wrapper` 를 `flex: 1 1 0`, `textarea` 를 `height: 100%; resize: none` 으로 둔다.
 - 미리보기는 편집기 옆에 칸으로 두지 말고, 필요하면 버튼으로 여는 팝업에 둔다(편집 폭을 줄이지 않는다).
 - 예시: `m-mls/pages/lsh/noticeMgmt/notice-styles.ts` 의 `.nm-detail`·`.nm-body*`·`.nm-editor*`.
+
+## 24. MDM 버전 버튼 규약 — 코드·룰 화면이 같은 이름·순서·모양을 쓴다 (2026-10-02)
+
+마스터코드(codeMng)와 룰(ruleMng)의 버전 상태 전이 버튼은 `m-mdm/src/shell` 의 `VersionActionBar` 로 그린다. 화면은 활성 조건만 계산해 넘기고, 라벨·순서·모양·확인창은 이 컴포넌트가 정한다.
+
+- 라벨: `새 버전(major)`·`새 버전(minor)`(룰은 정수 버전이라 단일 `새 버전`)·`삭제`·`확정`·`확정취소`·`선점`·`해제`·`넘기기`. `확정` 은 확정 화면으로 이동하고, `확정취소` 는 붙여 쓴다.
+- 순서: 새 버전 → 삭제 → 확정 → 확정취소 → 선점 → 해제 → 넘기기. 화면 고유 버튼(`코드 편집` 등)은 맨 뒤에 둔다.
+- 모양: `확정` 은 primary, `삭제`·`확정취소` 는 danger, 나머지는 default.
+- 노출: 버튼은 늘 보이고, 해당하지 않으면 비활성으로 둔다(조건부로 숨기지 않는다).
+- 확인창: `삭제`(제목 `확인`)와 `확정취소`(제목 `확정취소`)는 누르면 확인창을 거친 뒤 실행한다.
+- 활성 조건은 서버 판정값(`cancelConfirmable` 등)을 화면에서 다시 계산하지 않는다. 권한 action 이름은 화면별로 유지한다.
