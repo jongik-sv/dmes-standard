@@ -79,6 +79,14 @@ class MdmOasisActionVocabularyTest {
         assertTrue(new java.util.HashSet<>(MdmPermissions.EDIT_ACTIONS).containsAll(actionsFromGateway(path)), actionsFromGateway(path).toString());
     }
 
+    /** spec 2026-10-02-mdm-meta-cache-design §3.4 — 메타 제공은 화면이 아니라 업무 모듈 캐시가 부르는 서비스다. action 은 기존 어휘(search·view)를 쓴다. */
+    @Test
+    void feed_metaFeed_bpmn_의_액션은_어휘_안의_search_view_다() throws Exception {
+        Path path = bpmnPath("feed", "metaFeed.bpmn");
+        assertActionsWithinVocabulary(path);
+        assertEquals(Set.of("search", "view"), actionsFromGateway(path));
+    }
+
     @Test
     void unitMng_는_search_save_delete_compare_4개_액션을_쓴다() throws Exception {
         Set<String> actions = actionsFromGateway(bpmnPath("unitMng.bpmn"));
@@ -184,7 +192,10 @@ class MdmOasisActionVocabularyTest {
                 bpmnScreens.add(name.substring(0, name.length() - ".bpmn".length()));
             }
         }
-        assertEquals(23, bpmnScreens.size(), "BPMN 화면 수가 23개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
+        assertEquals(24, bpmnScreens.size(), "BPMN 수가 24개가 아니다(늘거나 줄었으면 이 상수를 갱신한다): " + bpmnScreens);
+        // metaFeed(services/feed) 는 화면이 아니라 업무 모듈 캐시가 부르는 서비스다 — 그룹 RBAC(seedMdmObjectRbac)를 받지 않고
+        // SYSADMIN 전용 OBJECT 로만 시드한다(Task 11 의 seedMdmCacheMenus). spec 2026-10-02-mdm-meta-cache-design §5.5·§9.
+        bpmnScreens.remove("metaFeed");
 
         Set<String> seeded = objectIdsFromSeedCalls(source);
         Set<String> missing = new LinkedHashSet<>(bpmnScreens);
