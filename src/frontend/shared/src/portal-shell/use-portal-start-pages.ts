@@ -26,7 +26,7 @@ export interface PortalStartPagesEndpoint {
  *  - POST {endpoint} body: {meta:{userId, menuId:"HOME"}, params:{userId}} — BE 가 userId 를 인증 사용자로 강제한다.
  *  - 응답: {grids:{startPages:{rows:[...]}}} (BPMN `secStartPgm` search 의 output = startPages)
  *
- * usePortalFavorites 와 달리 refetch 때 로딩 상태로 돌아가지 않는다. 호출자가 로딩 상태로 포털을
+ * usePortalFavorites 와 같이 refetch 때 로딩 상태로 돌아가지 않는다. 호출자가 로딩 상태로 포털을
  * 가리면 PortalShell 이 다시 마운트되어 탭 화면 상태를 잃기 때문이다.
  */
 export function usePortalStartPages(config: PortalStartPagesEndpoint): PortalStartPagesState {

@@ -6,6 +6,7 @@ import type { PortalFavoriteMenuRecord } from "../portal-menu";
 
 export interface PortalFavoritePagesState {
   favorites: PortalFavoriteMenuRecord[];
+  /** 첫 조회 중인지. refetch 중에는 true 로 돌아가지 않는다(이전 목록 유지). */
   isLoading: boolean;
   errorMessage: string | null;
   /** 즐겨찾기 토글 후 목록 강제 재조회. 호출자가 await 한다. */
@@ -29,7 +30,8 @@ export function usePortalFavorites(config: PortalFavoritesEndpoint): PortalFavor
     let cancelled = false;
 
     const loadFavoritePages = async () => {
-      setIsLoading(true);
+      // 로딩 상태는 첫 조회(초기값 true)만이다. refetch 때 다시 true 로 올리면 포털 페이지가 로딩 화면으로 바뀌며
+      // PortalShell 이 언마운트되어 열린 탭 화면 내용이 모두 사라진다 — 재조회 중에는 이전 목록을 그대로 둔다.
       setErrorMessage(null);
 
       try {

@@ -224,7 +224,7 @@ export default function PortalPage() {
   } = usePortalFavorites(FAVORITES_ENDPOINT);
 
   // 기본 화면 목록은 포털을 가리지 않는다(로딩 화면 조건에 넣지 않음) — 조회가 끝나면 PortalShell 이 한 번 자동으로 연다.
-  // 여기(최상위)에 두어 즐겨찾기 재조회로 PortalShell 이 다시 마운트돼도 목록·조회 상태를 잃지 않는다.
+  // 여기(최상위)에 두어 PortalShell 이 다시 마운트돼도(메뉴·즐겨찾기 첫 로딩 등) 목록·조회 상태를 잃지 않는다.
   const {
     startPages,
     isLoaded: isStartPagesLoaded,
