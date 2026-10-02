@@ -351,6 +351,7 @@ export default function RuleSetConfirmPage({ tabId, snapshot, onSnapshotChange }
         contractWarnings={[]}
         futureApplyFrom={checked?.futureApplyFrom === true}
         titleOf={setCheckTitle}
+        subject="set"
         busy={busy}
         onClose={() => setModalOpen(false)}
         onSubmit={(ack) => void handleConfirm(ack)}

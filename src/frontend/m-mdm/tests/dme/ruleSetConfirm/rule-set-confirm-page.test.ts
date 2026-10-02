@@ -194,4 +194,12 @@ describe("RuleSetConfirmPage", () => {
     await click(byTestId("rsc-confirm"));
     expect(visibleText(byTestId("rc-modal-warnings")!)).toContain("순서·순환 · 경고 한 건");
   });
+
+  it("6. 미래 적용 경고는 세트 문구이고 룰 전용 확정 취소 안내(D8-10)는 보이지 않는다", async () => {
+    nextValidate = () => ({ ...validateResult(items()), futureApplyFrom: true });
+    await openAndValidate();
+    await click(byTestId("rsc-confirm"));
+    expect(byTestId("rc-future-warning")?.textContent).toContain("이 세트의 새 버전");
+    expect(document.body.textContent ?? "").not.toContain("이 룰을 멤버로 가진 룰 세트");
+  });
 });
