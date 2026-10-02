@@ -18,4 +18,11 @@ public class ColumnMngSearchRequest {
 
     public void setKeyword(String v) { this.keyword = v; }
     public void setDomainId(Long v) { this.domainId = v; }
+
+    /** true 면 목록은 비우고 콤보 값만 돌려준다(화면 진입 시 서버 목록 조회를 피한다). */
+    private boolean optionsOnly;
+
+    public boolean isOptionsOnly() { return optionsOnly; }
+
+    public void setOptionsOnly(boolean v) { this.optionsOnly = v; }
 }

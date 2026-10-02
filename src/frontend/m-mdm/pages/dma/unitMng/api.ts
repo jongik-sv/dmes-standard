@@ -77,6 +77,11 @@ export async function searchUnits(unitCode: string, dimension: string): Promise<
   return callAction<UnitSearchPayload>("search", { unitCode, dimension });
 }
 
+/** action=search + optionsOnly — 진입 때 차원 콤보 값만 받는다(서버 목록 조회 없음, list 는 빈 배열). */
+export async function loadUnitOptions(): Promise<UnitSearchPayload> {
+  return callAction<UnitSearchPayload>("search", { optionsOnly: true });
+}
+
 /** action=save — §4 D-001~D-004 등록/수정. */
 export async function saveUnit(form: UnitForm): Promise<UnitRow> {
   return callAction<UnitRow>("save", {

@@ -76,6 +76,11 @@ export function searchColumns(
   });
 }
 
+/** 진입 때 도메인·시스템 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음, list 는 빈 배열). */
+export function loadColumnOptions(): Promise<SearchResult> {
+  return callOasis<SearchResult>("columnMng", "search", { optionsOnly: true });
+}
+
 export function viewColumn(columnId: number): Promise<ViewResult> {
   return callOasis<ViewResult>("columnMng", "view", { columnId });
 }

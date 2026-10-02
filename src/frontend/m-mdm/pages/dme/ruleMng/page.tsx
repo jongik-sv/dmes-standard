@@ -111,9 +111,7 @@ export default function RuleMngPage() {
     }
   }, []);
 
-  useEffect(() => {
-    void load(emptyFilters(), 0);
-  }, [load]);
+  // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청)
 
   // 첫 목록이 오면 그 첫 줄을 연다 — 상세가 빈 화면으로 남지 않게(dmc codeMng 과 같은 접합).
   useEffect(() => {

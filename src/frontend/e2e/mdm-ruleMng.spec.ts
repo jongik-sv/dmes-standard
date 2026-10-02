@@ -65,6 +65,8 @@ async function search(page: Page, keyword: string) {
 
 /** 목록에서 룰을 골라 ① 헤더·② 버전 상세를 연다(D-105). */
 async function openDetail(page: Page, ruleId: string) {
+  // 화면을 열어도 목록은 자동 조회되지 않는다 — [조회] 를 눌러 그 룰을 목록에 올린 뒤 고른다.
+  await search(page, ruleId);
   await page.getByTestId(`rule-link-${ruleId}`).click();
   await expect(page.getByTestId("rule-header-id")).toHaveText(ruleId, { timeout: 30_000 });
 }
@@ -88,6 +90,8 @@ test.describe("mdm dme/ruleMng", () => {
   test("T2 목록·빈 상태: 픽스처 룰이 서버 데이터로 보이고 없는 키워드면 빈 상태다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleMng(page);
+    // 화면을 열어도 목록은 자동 조회되지 않는다 — [조회] 를 눌러야 픽스처 룰이 보인다.
+    await page.getByRole("button", { name: "조회", exact: true }).click();
     const qlty = page.locator(".ag-row", { has: page.getByTestId("rule-link-QLTY_GRD_JDG") });
     await expect(qlty).toBeVisible({ timeout: 30_000 });
     await expect(qlty.locator('[col-id="releasedVer"]')).toHaveText("1");
@@ -166,6 +170,7 @@ test.describe("mdm dme/ruleMng", () => {
   test("T7 권한: 표준 관리자(READ)는 목록은 보고 등록 버튼은 비활성이다", async ({ page }) => {
     await login(page, STDADMIN);
     await openRuleMng(page);
+    await page.getByRole("button", { name: "조회", exact: true }).click();
     await expect(page.getByTestId("rule-link-QLTY_GRD_JDG")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator("#btn_rule_reg")).toBeDisabled();
   });

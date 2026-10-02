@@ -121,6 +121,19 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void optionsOnly_는_목록을_비우고_도메인_시스템_콤보만_돌려준다() {
+        DmaTestSupport.column(columns, "코일 아이디", "COIL_ID", coilThk.getDomainId());
+        ColumnMngSearchRequest q = new ColumnMngSearchRequest();
+        q.setOptionsOnly(true);
+
+        Map<String, Object> result = service.search(q);
+
+        assertEquals(List.of(), result.get("list"));
+        assertEquals(2, maps(result.get("domains")).size());
+        assertEquals(5, maps(result.get("systems")).size());
+    }
+
+    @Test
     void C21_검색어는_시스템별_실제_필드명에도_대소문자_무시로_걸린다() {
         MdmColumn a = DmaTestSupport.column(columns, "코일 아이디", "COIL_ID", coilThk.getDomainId());
         DmaTestSupport.column(columns, "원재료 코일 두께", "RMTL_COIL_THK", coilThk.getDomainId());

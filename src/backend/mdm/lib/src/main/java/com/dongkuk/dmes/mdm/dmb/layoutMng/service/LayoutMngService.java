@@ -141,41 +141,43 @@ public class LayoutMngService {
             out.put("headers", rows);
             return out;
         }
-        Map<Long, MdmLayout> headersById = new HashMap<>();
-        for (MdmLayout h : headerLayouts) {
-            headersById.put(h.getLayoutId(), h);
-        }
-        Map<Long, List<Long>> stacks = new HashMap<>();
-        for (MdmLayoutHeader h : queries.allStacks()) {
-            stacks.computeIfAbsent(h.getLayoutId(), k -> new ArrayList<>()).add(h.getHeaderLayoutId());
-        }
-        Map<Long, Long> itemCounts = new HashMap<>();
-        for (Object[] r : queries.itemCounts()) {
-            itemCounts.put(((Number) r[0]).longValue(), ((Number) r[1]).longValue());
-        }
-        String snd = LayoutRows.text(request.getSndSystem());
-        String rcv = LayoutRows.text(request.getRcvSystem());
         List<Map<String, Object>> layouts = new ArrayList<>();
-        for (MdmLayout l : queries.layoutsOfKind(MESSAGE)) {
-            List<Long> stack = stacks.getOrDefault(l.getLayoutId(), List.of());
-            if (!LayoutRows.matches(l.getLayoutName(), request.getKeyword())
-                    || (request.getHeaderLayoutId() != null && !stack.contains(request.getHeaderLayoutId()))
-                    || (snd != null && !snd.equals(l.getSndSystem())) || (rcv != null && !rcv.equals(l.getRcvSystem()))) {
-                continue;
+        if (!request.isOptionsOnly()) { // 진입 때 콤보 값만 — 전문 목록·헤더 스택·항목 수 집계를 하지 않는다.
+            Map<Long, MdmLayout> headersById = new HashMap<>();
+            for (MdmLayout h : headerLayouts) {
+                headersById.put(h.getLayoutId(), h);
             }
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("LAYOUT_ID", l.getLayoutId());
-            row.put("LAYOUT_NAME", l.getLayoutName());
-            row.put("EAI_CODE", l.getEaiCode());
-            row.put("SND_SYSTEM", l.getSndSystem());
-            row.put("RCV_SYSTEM", l.getRcvSystem());
-            row.put("HEADER_SUMMARY", stack.stream().map(headersById::get).filter(Objects::nonNull)
-                    .map(h -> h.getLayoutName() + " (" + h.getTotalLength() + ")").collect(Collectors.joining(" + ")));
-            row.put("ITEM_COUNT", itemCounts.getOrDefault(l.getLayoutId(), 0L));
-            row.put("TOTAL_LENGTH", l.getTotalLength());
-            row.put("LAYOUT_VERSION", l.getLayoutVersion());
-            row.put("VER", l.getVersion());
-            layouts.add(row);
+            Map<Long, List<Long>> stacks = new HashMap<>();
+            for (MdmLayoutHeader h : queries.allStacks()) {
+                stacks.computeIfAbsent(h.getLayoutId(), k -> new ArrayList<>()).add(h.getHeaderLayoutId());
+            }
+            Map<Long, Long> itemCounts = new HashMap<>();
+            for (Object[] r : queries.itemCounts()) {
+                itemCounts.put(((Number) r[0]).longValue(), ((Number) r[1]).longValue());
+            }
+            String snd = LayoutRows.text(request.getSndSystem());
+            String rcv = LayoutRows.text(request.getRcvSystem());
+            for (MdmLayout l : queries.layoutsOfKind(MESSAGE)) {
+                List<Long> stack = stacks.getOrDefault(l.getLayoutId(), List.of());
+                if (!LayoutRows.matches(l.getLayoutName(), request.getKeyword())
+                        || (request.getHeaderLayoutId() != null && !stack.contains(request.getHeaderLayoutId()))
+                        || (snd != null && !snd.equals(l.getSndSystem())) || (rcv != null && !rcv.equals(l.getRcvSystem()))) {
+                    continue;
+                }
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("LAYOUT_ID", l.getLayoutId());
+                row.put("LAYOUT_NAME", l.getLayoutName());
+                row.put("EAI_CODE", l.getEaiCode());
+                row.put("SND_SYSTEM", l.getSndSystem());
+                row.put("RCV_SYSTEM", l.getRcvSystem());
+                row.put("HEADER_SUMMARY", stack.stream().map(headersById::get).filter(Objects::nonNull)
+                        .map(h -> h.getLayoutName() + " (" + h.getTotalLength() + ")").collect(Collectors.joining(" + ")));
+                row.put("ITEM_COUNT", itemCounts.getOrDefault(l.getLayoutId(), 0L));
+                row.put("TOTAL_LENGTH", l.getTotalLength());
+                row.put("LAYOUT_VERSION", l.getLayoutVersion());
+                row.put("VER", l.getVersion());
+                layouts.add(row);
+            }
         }
         out.put("layouts", layouts);
         List<Map<String, Object>> systems = new ArrayList<>();

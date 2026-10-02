@@ -23,7 +23,7 @@ import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, ComboBox, Input } from "@dk-oasis/shared/form";
 import { MdmPageLayout } from "@/shell";
 
-import { convertPreview, deleteUnit, saveUnit, searchUnits } from "./api";
+import { convertPreview, deleteUnit, saveUnit, searchUnits, loadUnitOptions } from "./api";
 import {
   dimensionLabel,
   emptyConvertPreviewForm,
@@ -87,9 +87,20 @@ export default function UnitMngPage() {
     }
   }, [filters]);
 
+  // 첫 진입 자동 목록 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청).
+  // 진입 때 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음). 목록(rows)은 채우지 않는다.
   useEffect(() => {
-    void handleSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let alive = true;
+    loadUnitOptions()
+      .then((payload) => {
+        if (alive) setDimensionOptions(payload.dimensionOptions ?? []);
+      })
+      .catch((e) => {
+        if (alive) setErrorMessage(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const handleFilterChange = useCallback((key: keyof UnitMngFilters, value: string) => {

@@ -104,6 +104,14 @@ public class ColumnMngService {
 
         Map<Long, MdmDomain> domainById = domainRepository.findAll().stream()
                 .collect(Collectors.toMap(MdmDomain::getDomainId, Function.identity()));
+        if (request != null && request.isOptionsOnly()) {
+            // 진입 때 콤보 값만 — 컬럼·용어·시스템 매핑 전체 조회를 하지 않는다.
+            Map<String, Object> options = new LinkedHashMap<>();
+            options.put("list", new ArrayList<Map<String, Object>>());
+            options.put("domains", domainOptions(domainById.values()));
+            options.put("systems", systems());
+            return options;
+        }
         Map<Long, MdmTerm> termById = termRepository.findAll().stream()
                 .collect(Collectors.toMap(MdmTerm::getTermId, Function.identity()));
         Map<Long, List<MdmColumnSystem>> mappingsByColumn = columnSystemRepository.findAll().stream()

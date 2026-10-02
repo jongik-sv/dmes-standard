@@ -107,9 +107,7 @@ export default function DomainMngPage() {
     }
   }, []);
 
-  useEffect(() => {
-    void runSearch({ keyword: "", domainKind: "" });
-  }, [runSearch]);
+  // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청)
 
   const resetResults = () => {
     setValidation(null);

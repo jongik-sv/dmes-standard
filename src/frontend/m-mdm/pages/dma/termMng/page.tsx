@@ -6,7 +6,7 @@
  * 정본: docs/mdm/screens/termMng/termMng_기능설계서.md. mls `noticeMgmt` 패턴 + 새 유사어 추천 패널
  * (A-RECO, 리포에 선례가 없어 새로 만든다 — 순수 `setTimeout`+`AbortController`).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import {
   ContentBody,
@@ -86,10 +86,7 @@ export default function TermMngPage() {
     }
   }, [filters]);
 
-  useEffect(() => {
-    void handleSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청)
 
   const handleFilterChange = useCallback((key: keyof TermMngFilters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));

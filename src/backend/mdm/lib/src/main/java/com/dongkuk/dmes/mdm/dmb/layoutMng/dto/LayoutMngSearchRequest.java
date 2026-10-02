@@ -28,4 +28,11 @@ public class LayoutMngSearchRequest {
     public String getRcvSystem() { return rcvSystem; }
 
     public void setRcvSystem(String v) { this.rcvSystem = v; }
+
+    /** true 면 목록은 비우고 콤보 값만 돌려준다(화면 진입 시 서버 목록 조회를 피한다). */
+    private boolean optionsOnly;
+
+    public boolean isOptionsOnly() { return optionsOnly; }
+
+    public void setOptionsOnly(boolean v) { this.optionsOnly = v; }
 }

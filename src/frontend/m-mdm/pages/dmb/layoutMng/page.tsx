@@ -29,7 +29,7 @@ import { hint, sectionBody, sectionTitle } from "@/layout/styles";
 import type { ColumnInfo, HeaderStackRow, LayoutItemRow, UnitRow } from "@/layout/types";
 import { MdmPageLayout } from "@/shell";
 import {
-  exportSnapshot, renderSample, saveLayout, searchColumns, searchHeaders, searchImpact, searchLayouts, validateLayout, viewLayout,
+  exportSnapshot, renderSample, saveLayout, searchColumns, searchHeaders, searchImpact, searchLayouts, loadLayoutOptions, validateLayout, viewLayout,
 } from "./api";
 import { BodyItemGrid } from "./components/BodyItemGrid";
 import { ConstEditModal } from "./components/ConstEditModal";
@@ -141,9 +141,24 @@ export default function LayoutMngPage() {
     }
   }, []);
 
+  // 첫 진입 자동 목록 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청).
+  // 진입 때 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음). 목록(rows)은 채우지 않는다.
   useEffect(() => {
-    void runSearch(EMPTY_FILTERS);
-  }, [runSearch]);
+    let alive = true;
+    loadLayoutOptions()
+      .then((out) => {
+        if (!alive) return;
+        setSystems(out.systems ?? []);
+        setEais(out.eais ?? []);
+        setHeaderFilter(out.headers ?? []);
+      })
+      .catch((e) => {
+        if (alive) setErrorMessage(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const ensureCatalog = useCallback(async (): Promise<HeaderOption[]> => {
     if (catalog) return catalog;

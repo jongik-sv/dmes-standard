@@ -64,6 +64,11 @@ export function searchHeaders(keyword: string): Promise<SearchResult> {
   return callAction("search", { keyword });
 }
 
+/** 진입 때 EAI 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음, headers 는 빈 배열). */
+export function loadHeaderOptions(): Promise<SearchResult> {
+  return callAction("search", { optionsOnly: true });
+}
+
 /** 컬럼 사전 검색(D8 — search target=COLUMN). */
 export async function searchColumns(keyword: string): Promise<ColumnInfo[]> {
   const out = await callAction<SearchResult>("search", { target: "COLUMN", keyword });

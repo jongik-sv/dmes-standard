@@ -62,7 +62,8 @@ public class UnitMngService {
         String dimensionFilter = request != null ? trimToNull(request.getDimension()) : null;
 
         List<MdmUnit> all = unitRepository.findAll();
-        List<UnitRow> rows = all.stream()
+        boolean optionsOnly = request != null && request.isOptionsOnly();
+        List<UnitRow> rows = optionsOnly ? List.<UnitRow>of() : all.stream()
                 .filter(u -> unitCodeFilter == null
                         || u.getUnitCode().toUpperCase(Locale.ROOT).contains(unitCodeFilter.toUpperCase(Locale.ROOT)))
                 .filter(u -> dimensionFilter == null || dimensionFilter.equalsIgnoreCase(u.getDimension()))

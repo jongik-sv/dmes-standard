@@ -97,6 +97,8 @@ test.describe("mdm 전문 헤더 정의", () => {
     const layout = await openScreen(page);
     await expect(layout.locator(".page-layout__footer-breadcrumb")).toHaveText("마루 MDM > 레이아웃 > 전문 헤더 정의");
     await expect(layout.locator(".page-layout__footer-screen-id")).toHaveText("headerMng");
+    // 화면을 열어도 목록은 자동 조회되지 않는다 — [조회] 를 눌러야 픽스처 헤더가 보인다.
+    await layout.getByRole("button", { name: "조회", exact: true }).click();
     const glue = listRow(layout, "GLUE 공통 헤더(E2E)");
     await expect(glue).toBeVisible({ timeout: 30_000 });
     await expect(glue.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("100");

@@ -168,6 +168,8 @@ test.describe("mdm columnMng — 컬럼 사전", () => {
   test("E5 표준 관리자: 같은 시스템 필드명의 두 번째 등록은 서버가 거부한다", async ({ page }) => {
     await login(page, STDADMIN);
     await openColumnMng(page);
+    // 화면을 열어도 목록은 자동 조회되지 않는다 — [조회] 를 눌러야 앞 시나리오가 저장한 컬럼이 보인다.
+    await page.getByRole("button", { name: "조회", exact: true }).click();
     await expect(listRow(page, "원재료 코일 두께 편차")).toHaveCount(1, { timeout: 20_000 });
 
     await page.getByRole("button", { name: "신규", exact: true }).click();

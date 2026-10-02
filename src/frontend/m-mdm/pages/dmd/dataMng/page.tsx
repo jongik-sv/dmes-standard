@@ -233,8 +233,7 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
       select(fromSnapshot, "detail");
       void loadDetail(fromSnapshot);
     }
-    // handoff 콜백(위, 같은 커밋에서 먼저 실행)이 이미 목록을 조회했으면 다시 조회하지 않는다.
-    if (!handedOff.current) void loadList("", "", "");
+    // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청). snapshot 복원은 상세만 불러 목록에 기대지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

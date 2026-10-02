@@ -92,6 +92,13 @@ public class HeaderMngService {
             out.put("columns", dictionary.search(request.getKeyword()).stream().map(LayoutColumnInfo::toRow).toList());
             return out;
         }
+        List<MdmEai> eais = queries.allEais();
+        if (request.isOptionsOnly()) {
+            // 진입 때 콤보 값만 — 헤더 목록·항목 수·사용 전문 집계를 하지 않는다.
+            out.put("headers", new ArrayList<Map<String, Object>>());
+            out.put("eais", eais.stream().map(LayoutRows::eaiRow).toList());
+            return out;
+        }
         Map<Long, Long> itemCounts = new HashMap<>();
         for (Object[] r : queries.itemCounts()) {
             itemCounts.put(((Number) r[0]).longValue(), ((Number) r[1]).longValue());
@@ -100,7 +107,6 @@ public class HeaderMngService {
         for (MdmLayoutHeader h : queries.allStacks()) {
             usedBy.merge(h.getHeaderLayoutId(), 1, Integer::sum);
         }
-        List<MdmEai> eais = queries.allEais();
         List<Map<String, Object>> headers = new ArrayList<>();
         for (MdmLayout l : queries.layoutsOfKind(HEADER)) {
             if (!LayoutRows.matches(l.getLayoutName(), request.getKeyword())) {

@@ -55,6 +55,22 @@ class LayoutMngServiceSqliteTest extends LayoutTestSupport {
     }
 
     @Test
+    void optionsOnly_는_전문_목록을_비우고_시스템_EAI_헤더_콤보만_돌려준다() {
+        M201 m = m201();
+        LayoutMngSearchRequest normal = new LayoutMngSearchRequest();
+        assertFalse(((List<?>) layoutService.search(normal).get("layouts")).isEmpty());
+
+        LayoutMngSearchRequest q = new LayoutMngSearchRequest();
+        q.setOptionsOnly(true);
+        Map<String, Object> out = layoutService.search(q);
+
+        assertEquals(List.of(), out.get("layouts"));
+        assertFalse(((List<?>) out.get("headers")).isEmpty());
+        assertFalse(((List<?>) out.get("eais")).isEmpty());
+        assertTrue(out.containsKey("systems"));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void M201_총_길이_187_본문_첫_오프셋_130_을_재현한다() {
         M201 m = m201();

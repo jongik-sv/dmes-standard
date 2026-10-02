@@ -54,6 +54,20 @@ class HeaderMngServiceSqliteTest extends LayoutTestSupport {
     }
 
     @Test
+    void optionsOnly_는_헤더_목록을_비우고_EAI_콤보만_돌려준다() {
+        String eai = uniq("G");
+        saveL100(eai);
+        HeaderMngSearchRequest q = new HeaderMngSearchRequest();
+        q.setOptionsOnly(true);
+
+        Map<String, Object> out = headerService.search(q);
+
+        assertEquals(List.of(), out.get("headers"));
+        assertTrue(((List<?>) out.get("eais")).stream().anyMatch(e -> eai.equals(((Map<?, ?>) e).get("EAI_CODE"))
+                || eai.equals(((Map<?, ?>) e).get("eaiCode"))));
+    }
+
+    @Test
     void L100_을_저장하면_총_길이_100과_헤더_내부_오프셋을_저장한다() {
         long l100 = saveL100(uniq("G"));
         Map<String, Object> row = layoutRow(l100);

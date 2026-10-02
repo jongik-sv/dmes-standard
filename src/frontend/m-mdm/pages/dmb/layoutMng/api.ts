@@ -64,6 +64,11 @@ export function searchLayouts(f: SearchFilters): Promise<SearchResult> {
   });
 }
 
+/** 진입 때 시스템·EAI·헤더 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음, layouts 는 빈 배열). */
+export function loadLayoutOptions(): Promise<SearchResult> {
+  return callAction("search", { optionsOnly: true });
+}
+
 /** 헤더 추가 팝업(D8 — search target=HEADER). 헤더 항목을 함께 받는다. */
 export async function searchHeaders(keyword: string): Promise<HeaderOption[]> {
   const out = await callAction<SearchResult>("search", { target: "HEADER", keyword });

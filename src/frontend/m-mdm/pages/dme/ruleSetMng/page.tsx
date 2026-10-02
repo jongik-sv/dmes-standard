@@ -6,7 +6,7 @@
  * 목록은 서버 페이징(page 0 부터·size 20)이고 최종 결과 변수·입력 변수 수·세트 검사는 서버가 조회 때 계산한 값이다(저장하지 않는다).
  * 세트 ID 를 누르거나 등록에 성공하면 룰 세트 편집 탭을 그 세트로 연다(`openMdmPage("dme/ruleSetEdit", {setId})`, I22).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import {
   ContentBody,
@@ -65,9 +65,7 @@ export default function RuleSetMngPage() {
     }
   }, []);
 
-  useEffect(() => {
-    void load(emptyFilters(), 0);
-  }, [load]);
+  // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청)
 
   const handleSearch = useCallback(() => void load(filters, 0), [filters, load]);
 

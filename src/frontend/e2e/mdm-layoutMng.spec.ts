@@ -125,6 +125,8 @@ test.describe("mdm 전문 레이아웃", () => {
     const layout = await openScreen(page);
     await expect(layout.locator(".page-layout__footer-breadcrumb")).toHaveText("마루 MDM > 레이아웃 > 전문 레이아웃");
     await expect(layout.locator(".page-layout__footer-screen-id")).toHaveText("layoutMng");
+    // 화면을 열어도 목록은 자동 조회되지 않는다 — [조회] 를 눌러야 픽스처 전문이 보인다.
+    await layout.getByRole("button", { name: "조회", exact: true }).click();
     const row = listRow(layout, FIXTURE_LAYOUT);
     await expect(row).toBeVisible({ timeout: 30_000 });
     await expect(row.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("187");

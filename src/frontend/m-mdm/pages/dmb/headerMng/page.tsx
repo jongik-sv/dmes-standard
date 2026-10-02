@@ -21,7 +21,7 @@ import { placeHeader, reorder, renumber } from "@/layout/layout-calc";
 import { hint, sectionBody, sectionTitle } from "@/layout/styles";
 import type { ColumnInfo, LayoutItemRow, UnitRow } from "@/layout/types";
 import { MdmPageLayout } from "@/shell";
-import { saveHeader, searchColumns, searchHeaders, viewHeader } from "./api";
+import { saveHeader, searchColumns, searchHeaders, loadHeaderOptions, viewHeader } from "./api";
 import { HeaderForm } from "./components/HeaderForm";
 import { HeaderItemGrid } from "./components/HeaderItemGrid";
 import { HeaderList } from "./components/HeaderList";
@@ -78,9 +78,21 @@ export default function HeaderMngPage() {
     }
   }, []);
 
+  // 첫 진입 자동 목록 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청).
+  // 진입 때 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음). 목록(rows)은 채우지 않는다.
   useEffect(() => {
-    void runSearch("");
-  }, [runSearch]);
+    let alive = true;
+    loadHeaderOptions()
+      .then((out) => {
+        if (alive) setEais(out.eais ?? []);
+      })
+      .catch((e) => {
+        if (alive) setErrorMessage(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // ── 행 선택 → view ──
   const openHeader = useCallback(async (id: number) => {

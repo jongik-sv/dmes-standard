@@ -34,7 +34,7 @@ import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { MdmPageLayout, badgeStyle } from "@/shell";
 
-import { compareName, saveColumn, searchColumns, viewColumn } from "./api";
+import { compareName, saveColumn, searchColumns, loadColumnOptions, viewColumn } from "./api";
 import { formatLabels, resolveLabels } from "./labels";
 import {
   PLACEHOLDER,
@@ -167,11 +167,21 @@ export default function ColumnMngPage() {
     [fail],
   );
 
+  // 첫 진입 자동 목록 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청).
+  // 진입 때 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음). 목록(list)은 채우지 않는다.
   useEffect(() => {
-    void loadList("", "");
-    // 진입 시 1회만 자동 조회 — 이후 조회는 [조회] 버튼이 한다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    let alive = true;
+    loadColumnOptions()
+      .then((result) => {
+        if (!alive) return;
+        setDomains(result.domains ?? []);
+        setSystems(result.systems ?? []);
+      })
+      .catch(fail);
+    return () => {
+      alive = false;
+    };
+  }, [fail]);
 
   const listRows = useMemo(
     () =>

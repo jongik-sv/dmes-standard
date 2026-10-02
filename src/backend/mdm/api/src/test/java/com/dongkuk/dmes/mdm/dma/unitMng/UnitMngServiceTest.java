@@ -44,6 +44,19 @@ class UnitMngServiceTest extends AbstractMdmSharedDbTest {
         return r;
     }
 
+    @Test
+    void optionsOnly_는_목록을_비우고_차원_콤보만_돌려준다() {
+        service.save(req("KGO", "MASSO", "KGO", "1"));
+        var normal = service.search(new com.dongkuk.dmes.mdm.dma.unitMng.dto.UnitSearchRequest());
+        assertTrue(normal.getList().stream().anyMatch(r -> "KGO".equals(r.getUnitCode())));
+
+        var q = new com.dongkuk.dmes.mdm.dma.unitMng.dto.UnitSearchRequest();
+        q.setOptionsOnly(true);
+        var out = service.search(q);
+        assertTrue(out.getList().isEmpty());
+        assertTrue(out.getDimensionOptions().stream().anyMatch(o -> "MASSO".equals(o.getDimension())));
+    }
+
     // ── I3 ──
 
     @Test
