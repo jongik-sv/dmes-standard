@@ -327,7 +327,10 @@ public class DataInitializer implements ApplicationRunner {
                 "lock", "unlock", "handover",
                 // 2026-10-02 — mls 공지사항 관리(services/lsh/noticeMgmt.bpmn) 게시상태 변경. 이 토큰이 없어 SYSADMIN 도
                 //   게시중지가 403 이었다. 이미 시드된 DB 는 아래 ensurePermAllActions 가 끝에 덧붙인다.
-                "changeStatus"
+                "changeStatus",
+                // 2026-10-02 — mcm 화면 사용 통계(services/csa/screenUsageStat.bpmn) 6개 action. 이미 시드된 DB 는
+                //   아래 ensurePermAllActions 가 덧붙인다. screenUsage/record 는 AUTH_ONLY 라 여기 넣지 않는다.
+                "overview", "byScreen", "byDept", "byUser", "unused", "history"
 
                 // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
                 // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey

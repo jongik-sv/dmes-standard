@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.mcm.screenusage;
 
+import com.dongkuk.dmes.mcm.screenusage.dto.ScreenUsageStatRequest;
 import com.dongkuk.dmes.mcm.screenusage.service.ScreenUsageService;
+import com.dongkuk.dmes.mcm.screenusage.service.ScreenUsageStatService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.stereotype.Service;
@@ -11,11 +13,16 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -47,6 +54,51 @@ class ScreenUsageOasisContractTest {
         assertThat(record.getParameters()[0].getName()).isEqualTo("segments"); // grids.segments
         assertThat(ScreenUsageService.class.getAnnotation(Service.class).value()).isEqualTo("screenUsageService");
         assertThat(ScreenUsageService.class.isAnnotationPresent(Transactional.class)).isFalse();
+    }
+
+    @Test
+    @DisplayName("screenUsageStat.bpmn 은 6개 action 을 C4 output 과 ScreenUsageStatRequest dto 로 보낸다")
+    void statBpmn() throws Exception {
+        Document doc = parse(SERVICES.resolve("csa/screenUsageStat.bpmn"));
+        assertThat(processId(doc)).isEqualTo("screenUsageStat");
+
+        Map<String, String> expectedOutput = new LinkedHashMap<>();
+        expectedOutput.put("overview", "result");
+        expectedOutput.put("byScreen", "screens");
+        expectedOutput.put("byDept", "depts");
+        expectedOutput.put("byUser", "users");
+        expectedOutput.put("unused", "unused");
+        expectedOutput.put("history", "history");
+
+        Map<String, Element> tasks = tasksByAction(doc);
+        assertThat(tasks.keySet()).containsExactlyInAnyOrderElementsOf(expectedOutput.keySet());
+        for (Map.Entry<String, String> e : expectedOutput.entrySet()) {
+            Element task = tasks.get(e.getKey());
+            assertThat(task.getAttribute("camunda:class")).as(e.getKey()).isEqualTo("screenUsageStatService");
+            assertThat(property(task, "method")).as(e.getKey()).isEqualTo(e.getKey());
+            assertThat(property(task, "output")).as(e.getKey()).isEqualTo(e.getValue());
+            assertThat(property(task, "dto")).as(e.getKey()).isEqualTo(ScreenUsageStatRequest.class.getName());
+            assertThat(property(task, "grid")).as(e.getKey()).isNull();
+            ScreenUsageStatService.class.getMethod(e.getKey(), ScreenUsageStatRequest.class);
+        }
+        assertThat(ScreenUsageStatService.class.getAnnotation(Service.class).value()).isEqualTo("screenUsageStatService");
+        assertThat(ScreenUsageStatService.class.isAnnotationPresent(Transactional.class)).isFalse();
+    }
+
+    @Test
+    @DisplayName("PERM_ALL allActions 에 통계 6개 action 이 있다 (없으면 SYSADMIN 도 403)")
+    void permAllContainsStatActions() throws Exception {
+        String source = Files.readString(DATA_INITIALIZER);
+        int from = source.indexOf("String allActions = String.join(\",\",");
+        assertThat(from).as("allActions 선언").isNotNegative();
+        String block = source.substring(from, source.indexOf(");", from));
+        Set<String> actions = new LinkedHashSet<>();
+        Matcher m = Pattern.compile("\"([^\"]+)\"").matcher(block);
+        while (m.find()) {
+            actions.add(m.group(1));
+        }
+
+        assertThat(actions).contains("overview", "byScreen", "byDept", "byUser", "unused", "history");
     }
 
     static Document parse(Path path) throws Exception {
