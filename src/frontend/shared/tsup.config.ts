@@ -37,6 +37,7 @@ export default defineConfig((options) => ({
     "notice-body-view": "src/components/notice-body-view/index.ts",
     "detail-popover": "src/components/detail-popover/index.ts",
     dashboard: "src/components/dashboard/index.ts",
+    widget: "src/widget/index.ts",
     oasis: "src/oasis/index.ts",
     "oasis-proxy": "src/oasis-proxy/index.ts",
     lib: "src/lib/index.ts",

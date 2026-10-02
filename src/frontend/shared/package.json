@@ -150,6 +150,10 @@
       "types": "./dist/types/components/dashboard/index.d.ts",
       "import": "./dist/dashboard.js"
     },
+    "./widget": {
+      "types": "./dist/types/widget/index.d.ts",
+      "import": "./dist/widget.js"
+    },
     "./oasis": {
       "types": "./dist/types/oasis/index.d.ts",
       "import": "./dist/oasis.js"
@@ -189,7 +193,8 @@
     "html-to-image": "^1.11.13",
     "marked": "^17.0.6",
     "next": "16.1.6",
-    "next-auth": "^4.24.13"
+    "next-auth": "^4.24.13",
+    "react-grid-layout": "2.2.4"
   },
   "peerDependencies": {
     "@mantine/core": "^9.6.0",

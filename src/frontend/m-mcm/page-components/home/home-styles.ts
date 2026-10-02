@@ -64,4 +64,9 @@ export const HOME_CSS = `
 .mcm-home-quick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--spacing-sm); }
 .mcm-home-quick__btn { width: 100%; }
 .mcm-home-quick__mod { margin-left: 6px; font-size: var(--font-size-xs); font-weight: 400; color: var(--color-text-muted); }
+
+.mcm-home-toolbar { padding: 6px 10px; border-bottom: 1px solid var(--color-border-light); }
+.mcm-home-sub { font-size: var(--font-size-xs); color: var(--color-text-muted); white-space: nowrap; }
+
+.mcm-home { display: flex; flex-direction: column; gap: var(--spacing-sm); padding-bottom: var(--spacing-xl); min-width: 0; }
 `;

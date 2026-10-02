@@ -50,6 +50,10 @@
 
 - [대시보드 (DashboardGrid · DashboardRow · DashboardCell · DashboardCard · KpiTile · Sparkline · DashboardBoard)](dashboard.md): 홈·현황 화면을 12열 카드 격자로 배치하고, 높이 고정 카드·KPI 타일·작은 추이 선을 같은 모습으로 보이며, 사용자가 카드를 접고 폭·높이를 바꿔 저장하게 할 때 쓴다. 사용자가 카드를 위젯처럼 끌어 옮기고 숨기거나 다시 놓게 하려면 보드(`useDashboardBoard` + `DashboardBoard`)를 쓴다.
 
+## 위젯 (`@dk-oasis/shared/widget`)
+
+- [위젯 (WidgetWorkspace · WidgetBoard · WidgetFrame · WidgetTabs · WidgetPicker)](widget.md): 사용자가 위젯(조각 프로그램)을 24칸 격자에서 자유롭게 옮기고 크기를 바꾸며, 탭으로 나눠 서버에 저장하게 하는 홈 화면을 만들 때 쓴다. 행 단위 대시보드가 필요하면 [dashboard](dashboard.md), 사용자가 자유 배치·탭·서버 저장을 쓰면 widget 을 고른다.
+
 ## 탭·트리·룩업·기타
 
 - [Tabs](tabs.md): 한 영역 안에서 내용을 밑줄형 탭으로 나눠 보여 줄 때 쓴다. 탭 머리줄만 그리므로 본문 전환은 화면이 직접 한다.
@@ -65,6 +69,9 @@
 
 ## 화면 문서에 싣지 않는 shared export
 
+- `WIDGET_CSS`: WidgetStyle 내부용 CSS 문자열
+- `getDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수
+- `setDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수
 - `DataGrid`: AgDataGrid 의 별칭. 새 코드는 AgDataGrid
 - `useRowStateManager`: 옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager
 - `ResizableFormPanel`: Part B §4-3 이 새 화면 사용 금지. ContentBody resizable

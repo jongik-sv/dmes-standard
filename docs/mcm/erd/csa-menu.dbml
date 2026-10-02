@@ -255,6 +255,39 @@ Table TB_MCM_SEC_USER_FAVORITE_FOLD {
   Note: '실측 0행.'
 }
 
+Table TB_MCM_SEC_USER_WIDGET_TAB {
+  USER_ID varchar(30) [note: '→ TB_MCM_SEC_USER']
+  TAB_ID  varchar(30) [note: 'home 또는 tab-{n}']
+  TAB_NM  varchar(60) [not null, note: '탭 이름(home 은 「홈」 고정 표시)']
+  TAB_SEQ integer     [not null, note: '탭 순서(home=0)']
+  LOCK_YN char(1)     [not null, note: '탭 잠금 Y/N']
+
+  indexes {
+    (USER_ID, TAB_ID) [pk]
+  }
+
+  Note: '포털 홈 사용자 위젯 탭(2026-10-02, 스펙 widget-foundation §4.1). 사용자당 최대 10개. 감사 컬럼 9개(McmAuditEntity).'
+}
+
+Table TB_MCM_SEC_USER_WIDGET {
+  USER_ID     varchar(30)   [note: '→ TB_MCM_SEC_USER']
+  TAB_ID      varchar(30)   [note: '→ TB_MCM_SEC_USER_WIDGET_TAB']
+  INST_ID     varchar(40)   [note: '위젯 인스턴스 ID(탭 안 고유)']
+  WIDGET_ID   varchar(100)  [not null, note: '위젯 ID({모듈}.{이름}) — 프런트 등록부 키']
+  POS_X       integer       [not null, note: '넓은 화면 24칸 격자 x']
+  POS_Y       integer       [not null, note: '격자 y(한 칸 20px)']
+  SIZE_W      integer       [not null, note: '폭(칸)']
+  SIZE_H      integer       [not null, note: '높이(칸)']
+  LOCK_YN     char(1)       [not null, note: '위젯 잠금 Y/N']
+  CONFIG_JSON varchar(4000) [note: '인스턴스 설정(C 단계에서 사용, A 는 NULL)']
+
+  indexes {
+    (USER_ID, TAB_ID, INST_ID) [pk]
+  }
+
+  Note: '탭에 놓인 위젯. 탭당 최대 30개. 감사 컬럼 9개(McmAuditEntity).'
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // 기본 화면 (메뉴 참조) — 포털을 처음 시작할 때 자동으로 여는 화면. 2026-10-02 신설
 // ────────────────────────────────────────────────────────────────────────────
@@ -339,6 +372,8 @@ Ref: TB_MCM_SEC_USER_FAVORITE.USER_ID      > TB_MCM_SEC_USER.USER_ID
 Ref: TB_MCM_SEC_USER_FAVORITE.MENU_ID      > TB_MCM_SEC_MENU.MENU_ID
 Ref: TB_MCM_SEC_USER_FAVORITE.FVT_FOLD_ID  > TB_MCM_SEC_USER_FAVORITE_FOLD.FVT_FOLD_ID
 Ref: TB_MCM_SEC_USER_FAVORITE_FOLD.USER_ID > TB_MCM_SEC_USER.USER_ID
+Ref: TB_MCM_SEC_USER_WIDGET_TAB.USER_ID > TB_MCM_SEC_USER.USER_ID
+Ref: TB_MCM_SEC_USER_WIDGET.(USER_ID, TAB_ID) > TB_MCM_SEC_USER_WIDGET_TAB.(USER_ID, TAB_ID)
 
 // 기본 화면
 Ref: TB_MCM_SEC_USER_START_PGM.USER_ID     > TB_MCM_SEC_USER.USER_ID
@@ -376,6 +411,8 @@ TableGroup "사용자" {
 TableGroup "즐겨찾기_이력" {
   TB_MCM_SEC_USER_FAVORITE
   TB_MCM_SEC_USER_FAVORITE_FOLD
+  TB_MCM_SEC_USER_WIDGET_TAB
+  TB_MCM_SEC_USER_WIDGET
   TB_MCM_SEC_USER_START_PGM
   TB_MCM_SEC_USER_HIS
   TB_MCM_SEC_USER_ROLL_HIS
