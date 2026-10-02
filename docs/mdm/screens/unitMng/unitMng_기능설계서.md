@@ -94,7 +94,7 @@ design.md I3(차원별 기준 단위 공유).
 
 | DB 컬럼 | 코드 마스터 | 변환 예 |
 |---|---|---|
-| `DIMENSION` | 코드 마스터 아님 — FE 상수 맵 `DIMENSION_LABELS`(TSK-04-02 design.md I21, D11) | `MASS`→질량, `LENGTH`→길이, `TIME`→시간, `COUNT`→개수. 맵에 없는 코드는 코드 문자열 그대로 표시 |
+| `DIMENSION` | 코드 마스터 아님 — FE 상수 맵 `DIMENSION_LABELS`(TSK-04-02 design.md I21, D11) | `MASS`→질량, `LENGTH`→길이, `SPECIFIC_GRAVITY`→비중, `ENERGY`→에너지 등 등록된 차원 전체(2026-10-02 확장). 맵에 없는 코드는 코드 문자열 그대로 표시 |
 
 ## 4. 상세 영역 필드 정의 (영역: A-DETAIL)
 
