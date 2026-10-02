@@ -181,6 +181,9 @@ class MdmMetaFeedContractHttpTest {
             RuleDefinition viaHttp = lookup.rule(Q, ts).orElseThrow();
             RuleDefinition direct = stored.rule(Q, ts).orElseThrow();
             assertEquals(fingerprint(direct), fingerprint(viaHttp), "판정 시각 " + at);
+            // fingerprint 는 키를 문자열로 이어 붙여 Integer 1 과 "1" 을 가르지 못한다 — 행(셀 맵 키 타입·op·left·right·list·val 포함)을 그대로 비교한다
+            assertEquals(direct.rows(), viaHttp.rows(), "판정 시각 " + at);
+            viaHttp.rows().forEach(r -> r.cells().keySet().forEach(k -> assertEquals(Integer.class, ((Object) k).getClass())));
         }
         assertEquals(stored.ruleSet("CT_SET").orElseThrow(), lookup.ruleSet("CT_SET").orElseThrow());
     }

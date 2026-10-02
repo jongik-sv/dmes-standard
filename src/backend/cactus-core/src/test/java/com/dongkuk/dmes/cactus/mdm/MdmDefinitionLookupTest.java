@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import kr.dongkuk.maru.mdm.engine.domain.DefaultDomainValidator;
 import kr.dongkuk.maru.mdm.engine.domain.DomainValidator;
 import kr.dongkuk.maru.mdm.engine.domain.DomainValidator.Step;
@@ -42,6 +43,7 @@ class MdmDefinitionLookupTest {
     private static final Instant NOW = Instant.parse("2026-10-02T00:00:00Z");
 
     private FakeMetaFeed feed;
+    private MdmMetaService service;
     private MdmDefinitionLookup lookup;
     private DomainValidator validator;
 
@@ -51,7 +53,8 @@ class MdmDefinitionLookupTest {
         feed = new FakeMetaFeed();
         MdmMetaCache cache = new MdmMetaCache(100, Duration.ofMinutes(60), clock);
         cache.clear(0);
-        lookup = new MdmDefinitionLookup(new MdmMetaService(feed, cache, clock));
+        service = new MdmMetaService(feed, cache, clock);
+        lookup = new MdmDefinitionLookup(service);
         MdmEvaluator evaluator = new MdmEvaluator(new EngineLookups(lookup, lookup, CodeEffLookup.NONE, MasterLookup.NONE, FunctionProvider.NONE));
         validator = new DefaultDomainValidator(lookup, evaluator);
     }
@@ -146,6 +149,58 @@ class MdmDefinitionLookupTest {
 
         assertThat(validator.validate("T", "SCALE_COL", Map.of("SCALE_COL", "A"), NOW).valid()).isTrue();
         assertThat(validator.validate("T", "SCALE_COL", Map.of("SCALE_COL", "Z"), NOW).valid()).isFalse();
+    }
+
+    static CodeRows procRows() {
+        return new CodeRows(new CodeHeader("PROC_CD", "INUSE"),
+                List.of(new CodeVersionRow(new BigDecimal("1.000"), "RELEASED", LocalDateTime.of(2026, 1, 1, 0, 0),
+                        LocalDateTime.of(9999, 12, 31, 0, 0))),
+                List.of(new CodeItemRow("A", new BigDecimal("1.000"), new BigDecimal("9999.000"), "에이", null, 1,
+                        Arrays.asList(new String[5]), Arrays.asList(new String[10]))),
+                List.of(new CodeCateRow("BASE", new BigDecimal("1.000"), new BigDecimal("9999.000"), "REGEX", ".*", "CODE")),
+                List.of());
+    }
+
+    static MdmColumnMeta procCol() {
+        return new MdmColumnMeta("PROC_COL", "공정", null, null, null, null, null, "STRING", 10, null, false, null, null, null, null,
+                new MdmColumnMeta.DomainRef("8", "공정", "CODE"), null, null, List.of(), new MdmColumnMeta.CodeRefMeta("PROC_CD", "BASE"));
+    }
+
+    /**
+     * 코드 참조 컬럼은 정의를 줄 때 코드 원본도 호출자 스레드에서 받아 둔다. 그러지 않으면 코드 적재가 MASTER 식 평가 안(엔진 평가 스레드,
+     * {@code MdmEvaluator.DEFAULT_TIMEOUT} 1초)에서 일어나 받을 수 없음이 평가 오류로 감싸여 {@link MdmUnavailableException} 이 올라오지 않는다.
+     */
+    @Test
+    void 코드_참조_컬럼의_코드를_받을_수_없으면_검증이_MdmUnavailableException_을_받는다() {
+        feed.put(MdmTargetType.COLUMN, "PROC_COL", procCol());
+        feed.failedKeys.put("PROC_CD", "정의 손상");
+
+        assertThatThrownBy(() -> validator.validate("T", "PROC_COL", Map.of("PROC_COL", "A"), NOW))
+                .isInstanceOf(MdmUnavailableException.class);
+    }
+
+    @Test
+    void 코드_적재가_식_평가_시간_한도보다_느려도_MASTER_판정은_시간_초과가_아니다() throws Exception {
+        feed.put(MdmTargetType.CODE, "PROC_CD", procRows());
+        feed.put(MdmTargetType.COLUMN, "PROC_COL", procCol());
+        MdmEvaluator tight = new MdmEvaluator(new EngineLookups(lookup, lookup, CodeEffLookup.NONE, MasterLookup.NONE, FunctionProvider.NONE),
+                Duration.ofMillis(100));
+        DomainValidator tightValidator = new DefaultDomainValidator(lookup, tight);
+        service.one(MdmTargetType.COLUMN, "PROC_COL"); // 컬럼만 캐시에 두고, 코드는 느리게 받게 한다
+        CountDownLatch gate = new CountDownLatch(1);
+        feed.fetchGate = gate;
+        Thread opener = new Thread(() -> {
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            gate.countDown();
+        });
+        opener.start();
+
+        assertThat(tightValidator.validate("T", "PROC_COL", Map.of("PROC_COL", "A"), NOW).valid()).isTrue();
+        opener.join();
     }
 
     @Test

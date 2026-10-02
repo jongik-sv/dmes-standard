@@ -27,13 +27,21 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
         this.service = service;
     }
 
+    /**
+     * 코드 참조가 있는 컬럼은 코드 원본도 여기서(호출자 스레드) 받아 둔다. 검증기의 자동 MASTER 식은 엔진 평가 스레드에서 {@link #code} 를 부르는데,
+     * 그 평가는 시간 한도({@code MdmEvaluator.DEFAULT_TIMEOUT} 1초)가 있고 예외를 평가 오류로 감싼다 — 캐시에 없는 코드를 거기서 MDM 에 받으면
+     * 느린 MDM 이 시간 초과로, 받을 수 없음이 평가 오류로 바뀐다. 미리 받아 두면 받을 수 없음은 {@link MdmUnavailableException} 그대로 올라간다.
+     */
     @Override
     public Optional<ColumnDefinition> column(String table, String column) {
         String phys = MdmNames.toPhysName(column);
         if (phys == null) {
             return Optional.empty();
         }
-        return service.one(MdmTargetType.COLUMN, phys).map(v -> toColumnDefinition((MdmColumnMeta) v, table));
+        Optional<MdmColumnMeta> meta = service.one(MdmTargetType.COLUMN, phys).map(MdmColumnMeta.class::cast);
+        meta.map(MdmColumnMeta::codeRef).map(MdmColumnMeta.CodeRefMeta::maruCodeId).filter(id -> !id.isBlank())
+                .ifPresent(id -> service.one(MdmTargetType.CODE, id));
+        return meta.map(m -> toColumnDefinition(m, table));
     }
 
     @Override
