@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mcm.widget.admin.service;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
+import com.dongkuk.dmes.mcm.widget.memo.service.WidgetMemoService;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -86,6 +87,23 @@ final class WidgetDefConfigRules {
                 JsonNode allowScript = config.get("allowScript");
                 if (allowScript != null && !allowScript.isNull() && !allowScript.isBoolean()) {
                     throw invalid("스크립트 허용(allowScript)은 true 또는 false 여야 합니다.");
+                }
+            }
+            case WidgetMemoService.TYPE_MEMO -> { // §17.1
+                String scope = textOf(config, "scope");
+                if (!WidgetMemoService.SCOPE_SHARED.equals(scope) && !WidgetMemoService.SCOPE_PERSONAL.equals(scope)) {
+                    throw invalid("메모 종류(scope)는 shared 또는 personal 이어야 합니다.");
+                }
+                String format = textOf(config, "format");
+                if (format == null || !WidgetMemoService.FORMATS.contains(format)) { // Set.of 는 null 을 못 받는다
+                    throw invalid("메모 형식(format)은 text·md·html 중 하나여야 합니다.");
+                }
+                JsonNode content = config.get("content");
+                if (content != null && !content.isNull()) {
+                    if (!content.isTextual()) throw invalid("메모 내용(content)은 문자열이어야 합니다.");
+                    if (content.asText().length() > WidgetMemoService.CONTENT_MAX) {
+                        throw invalid("메모 내용은 20,000자까지 쓸 수 있습니다.");
+                    }
                 }
             }
             default -> {

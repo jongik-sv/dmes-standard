@@ -9,11 +9,12 @@ import { meta as t2 } from "@/widget-types/html/type.meta";
 import { meta as t3 } from "@/widget-types/links/type.meta";
 import { meta as t4 } from "@/widget-types/markdown/type.meta";
 import { meta as t5 } from "@/widget-types/media/type.meta";
-import { meta as t6 } from "@/widget-types/query-chart/type.meta";
-import { meta as t7 } from "@/widget-types/query-number/type.meta";
-import { meta as t8 } from "@/widget-types/query-table/type.meta";
-import { meta as t9 } from "@/widget-types/weather/type.meta";
-import { meta as t10 } from "@/widget-types/web/type.meta";
+import { meta as t6 } from "@/widget-types/memo/type.meta";
+import { meta as t7 } from "@/widget-types/query-chart/type.meta";
+import { meta as t8 } from "@/widget-types/query-number/type.meta";
+import { meta as t9 } from "@/widget-types/query-table/type.meta";
+import { meta as t10 } from "@/widget-types/weather/type.meta";
+import { meta as t11 } from "@/widget-types/web/type.meta";
 
 export const WIDGET_TYPE_REGISTRY: WidgetTypeRegistry = {
   "chat": {
@@ -46,28 +47,33 @@ export const WIDGET_TYPE_REGISTRY: WidgetTypeRegistry = {
     loadRenderer: () => import("@/widget-types/media/renderer"),
     loadEditor: () => import("@/widget-types/media/editor"),
   },
-  "query-chart": {
+  "memo": {
     meta: t6,
+    loadRenderer: () => import("@/widget-types/memo/renderer"),
+    loadEditor: () => import("@/widget-types/memo/editor"),
+  },
+  "query-chart": {
+    meta: t7,
     loadRenderer: () => import("@/widget-types/query-chart/renderer"),
     loadEditor: () => import("@/widget-types/query-chart/editor"),
   },
   "query-number": {
-    meta: t7,
+    meta: t8,
     loadRenderer: () => import("@/widget-types/query-number/renderer"),
     loadEditor: () => import("@/widget-types/query-number/editor"),
   },
   "query-table": {
-    meta: t8,
+    meta: t9,
     loadRenderer: () => import("@/widget-types/query-table/renderer"),
     loadEditor: () => import("@/widget-types/query-table/editor"),
   },
   "weather": {
-    meta: t9,
+    meta: t10,
     loadRenderer: () => import("@/widget-types/weather/renderer"),
     loadEditor: () => import("@/widget-types/weather/editor"),
   },
   "web": {
-    meta: t10,
+    meta: t11,
     loadRenderer: () => import("@/widget-types/web/renderer"),
     loadEditor: () => import("@/widget-types/web/editor"),
   },

@@ -51,6 +51,8 @@ export interface WidgetProps {
   definition: unknown | null;
   /** 위젯 ID — 정의 위젯이 자기 defId 로 서버를 부를 때 쓴다. */
   widgetId: string;
+  /** 틀 제목(등록부 meta.title — 덮어쓰기·정의 이름 반영). 내려받기 파일 이름 등에 쓴다. */
+  title?: string;
 }
 
 export type WidgetComponent = (props: WidgetProps) => ReactNode;

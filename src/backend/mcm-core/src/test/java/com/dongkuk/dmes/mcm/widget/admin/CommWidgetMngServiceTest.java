@@ -371,6 +371,27 @@ class CommWidgetMngServiceTest {
         assertRejected(defReq("html", "{\"html\":\"<b>x</b>\",\"allowScript\":\"yes\"}"), "allowScript");
     }
 
+    @Test
+    @DisplayName("메모(§17.1): scope 는 shared·personal, format 은 text·md·html, content 는 문자열 20,000자 이하")
+    void memoConfigRules() {
+        assertRejected(defReq("memo", "{\"scope\":\"team\",\"format\":\"text\",\"content\":\"\"}"), "scope");
+        assertRejected(defReq("memo", "{\"format\":\"text\",\"content\":\"\"}"), "scope");
+        assertRejected(defReq("memo", "{\"scope\":\"shared\",\"format\":\"markdown\",\"content\":\"\"}"), "format");
+        assertRejected(defReq("memo", "{\"scope\":\"shared\"}"), "format");
+        assertRejected(defReq("memo", "{\"scope\":\"shared\",\"format\":\"md\",\"content\":3}"), "content");
+        assertRejected(defReq("memo", "{\"scope\":\"shared\",\"format\":\"md\",\"content\":\"" + "가".repeat(20_001) + "\"}"),
+                "20,000자");
+    }
+
+    @Test
+    @DisplayName("메모: 공용 20,000자·개인 빈 내용은 저장한다")
+    void memoConfigAccepted() {
+        when(defRepository.existsById(anyString())).thenReturn(false);
+        service.save(defReq("memo", "{\"scope\":\"shared\",\"format\":\"html\",\"content\":\"" + "가".repeat(20_000) + "\"}"));
+        service.save(defReq("memo", "{\"scope\":\"personal\",\"format\":\"text\",\"content\":\"\"}"));
+        verify(defRepository, times(2)).save(any());
+    }
+
     // ── delete ──────────────────────────────────────────────────────
 
     @Test

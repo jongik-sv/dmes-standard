@@ -87,6 +87,25 @@ class OasisPathActionBpmnTest {
                 converter.convert(request(new HashMap<>(), null), "myMenus").get("action").getObject())));
     }
 
+    @Test
+    void widgetMemo_load_경로로_본문_action_save_를_실행할_수_없다() throws Exception {
+        Document doc = parse("services/roleManagement/widgetMemo.bpmn");
+        assertEquals("action", gatewayInput(doc), "게이트웨이 분기 키");
+        Map<String, Element> byAction = tasksByAction(doc);
+        assertTrue(byAction.containsKey("load") && byAction.containsKey("save"));
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("action", "save");
+        params.put("instId", "w-abc");
+        params.put("defId", "def.memo1234");
+        params.put("format", "text");
+        params.put("content", "x");
+        assertRejected(request(params, null), "load");
+
+        assertEquals("load", routedMethod(byAction, converter.convert(request(new HashMap<>(Map.of("instId", "w-abc")), null), "load")));
+        assertEquals("save", routedMethod(byAction, converter.convert(request(new HashMap<>(Map.of("instId", "w-abc")), null), "save")));
+    }
+
     private void assertRejected(CactusRequest request, String pathAction) {
         BusinessException e = assertThrows(BusinessException.class, () -> converter.convert(request, pathAction),
                 "본문 action 은 URL action(" + pathAction + ")을 바꾸지 못하고 거절돼야 한다");

@@ -20,6 +20,7 @@ const CFG: RbacPolicyConfig = {
     "/api/mcm/oasis/widgetData/run",
     "/api/mcm/oasis/widgetExt/",
     "/api/mcm/oasis/widgetChat/",
+    "/api/mcm/oasis/widgetMemo/",
   ],
   // m-mcm proxy.ts 와 같은 값 — MDM 메타 캐시(2026-10-02). 모듈 이름과 무관한 한 규칙이다.
   authOnlyPatterns: [/^\/api\/[^/]+\/mdmMeta\//],
@@ -172,6 +173,8 @@ describe("evaluateApiPolicy 매트릭스 (방식 C — perms 는 로더로 lazy 
       "/api/mcm/oasis/widgetChat/history",
       "/api/mcm/oasis/widgetChat/send",
       "/api/mcm/oasis/widgetChat/reset",
+      "/api/mcm/oasis/widgetMemo/load",
+      "/api/mcm/oasis/widgetMemo/save",
     ]) {
       expect(await evaluateApiPolicy(url, viewer, CFG, loadThrow)).toBe("pass");
     }

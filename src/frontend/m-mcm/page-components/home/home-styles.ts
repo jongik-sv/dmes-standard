@@ -68,5 +68,8 @@ export const HOME_CSS = `
 .mcm-home-toolbar { padding: 6px 10px; border-bottom: 1px solid var(--color-border-light); }
 .mcm-home-sub { font-size: var(--font-size-xs); color: var(--color-text-muted); white-space: nowrap; }
 
-.mcm-home { display: flex; flex-direction: column; gap: var(--spacing-sm); padding-bottom: var(--spacing-xl); min-width: 0; }
+/* 포털 .page-layout 은 overflow:hidden·높이 고정이라, 홈 내용(인사말·위젯 보드)이 화면보다 길면 이 칸이 남은 높이를 차지하고 스스로 스크롤한다.
+   위젯 서랍(.cm-widget-picker, position: sticky)은 이 스크롤 칸 기준으로 위에 붙는다. 편집 중 보드가 길어져 스크롤바가 생겨도
+   보드 폭이 바뀌어 배치가 다시 계산되지 않게 scrollbar-gutter: stable 로 자리를 미리 잡는다. */
+.mcm-home { display: flex; flex-direction: column; gap: var(--spacing-sm); padding-bottom: var(--spacing-xl); min-width: 0; flex: 1 1 auto; min-height: 0; overflow: auto; scrollbar-gutter: stable; }
 `;

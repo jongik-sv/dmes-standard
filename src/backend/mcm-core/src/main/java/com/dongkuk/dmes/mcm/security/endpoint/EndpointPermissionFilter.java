@@ -90,6 +90,7 @@ public class EndpointPermissionFilter extends OncePerRequestFilter {
             "widgetdata/run",           // 쿼리 위젯 실행 — defId 만 받는다(요청 SQL 실행 금지)
             "widgetext/",               // 환율·날씨(서버 대리 호출·캐시)
             "widgetchat/",              // AI 챗봇(history/send/reset) — 본인 대화
+            "widgetmemo/",              // 메모장 위젯 개인 메모(load/save) — 본인 메모 (스펙 §17.3, 2026-10-03)
             // 미디어 파일 내려받기(REST GET /api/mcm/widgetMedia/file/{fileId})는 4-segment 라 이 목록으로 맞출 수 없다 —
             // 메서드까지 보는 isAuthOnlyMediaFile 이 따로 판정한다.
             "ntfnotification/",        // 포털 알림 (list/unreadCount/markRead/markAllRead) — 본인 데이터

@@ -217,6 +217,7 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
     // 정의 위젯은 mergeWidgetRegistry 가 감싼 본체가 definition 을 덮어 넘긴다. 코드 위젯은 null.
     definition: null,
     widgetId: item.widgetId,
+    title: entry.meta.title,
   };
   const padded = meta?.bodyPadding !== false;
 
