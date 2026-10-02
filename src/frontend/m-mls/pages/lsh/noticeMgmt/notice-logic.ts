@@ -187,6 +187,39 @@ export function validateNotice(form: NoticeForm): ValidationIssue | null {
   return null;
 }
 
+// ── MDM 컬럼 사전 연결(spec 2026-10-03-mdm-screen-meta-validation §7) ─────
+
+/**
+ * 상세 폼에서 MDM 컬럼 사전의 값 검사를 켜는 칸(폼 필드 키 = MDM 물리명).
+ * 서버 `NoticeMgmtService.MDM_COLUMNS` 와 같은 칸이다 — MDM 이 DB 보다 엄격하지 않은 칸만 넣는다.
+ * (`NOTICE_CATEGORY` 등은 컬럼 사전에 같은 물리명이 없다. 코드 값은 {@link validateNotice} 가 본다.)
+ */
+export const NOTICE_MDM_FIELDS = ["TITLE"] as const;
+
+/** 폼 칸 이름 → 오류 문구. */
+export type NoticeFieldErrors = Partial<Record<NoticeField, string>>;
+
+const NOTICE_FORM_FIELDS: ReadonlySet<string> = new Set(
+  Object.keys(emptyNoticeForm()),
+);
+
+/**
+ * 서버 칸 오류(`toFieldErrors` 결과) → 상세 폼 칸별 문구. 저장은 한 번에 한 행(`rowIndex` 0)이라 행 자리는 보지 않는다.
+ * 폼에 없는 칸(`rowStatus` 등)은 버리고, 같은 칸은 첫 문구만 남긴다. `field` 는 대문자로 맞춰 찾는다(`title` → `TITLE`).
+ */
+export function toFormFieldErrors(
+  errors: ReadonlyArray<{ field: string; message: string }>,
+): NoticeFieldErrors {
+  const out: NoticeFieldErrors = {};
+  for (const e of errors) {
+    const key = e.field.toUpperCase();
+    if (!NOTICE_FORM_FIELDS.has(key)) continue;
+    const field = key as NoticeField;
+    if (out[field] === undefined) out[field] = e.message;
+  }
+  return out;
+}
+
 // ── 표시 문자열 ─────────────────────────────────────────────────
 
 const pad = (n: number) => String(n).padStart(2, "0");

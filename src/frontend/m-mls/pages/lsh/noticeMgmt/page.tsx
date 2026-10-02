@@ -8,13 +8,7 @@
  * 좌우 경계는 끌어서 크기를 바꾸고 사용자별로 기억한다(ContentBody resizable, SPLIT_STORAGE_KEY).
  * SIDEBAR / HEADER / TabsBar 는 포털 PortalShell 이 그린다. 이 화면은 PageLayout 안쪽만 맡는다.
  */
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ContentBody,
@@ -36,7 +30,9 @@ import {
   SegmentedControl,
   Select,
 } from "@dk-oasis/shared/form";
+import { toFieldErrors } from "@dk-oasis/shared/http";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useMdmValidation } from "@dk-oasis/shared/mdm-meta";
 
 import {
   changeNoticeStatus,
@@ -49,7 +45,9 @@ import {
 import { NOTICE_COLUMNS } from "./notice-columns";
 import { NoticeBodyEditor } from "./NoticeBodyEditor";
 import { NoticeHomePreview } from "./NoticeHomePreview";
+import { NoticeTitleRow } from "./NoticeTitleRow";
 import {
+  NOTICE_MDM_FIELDS,
   emptyNoticeForm,
   findSavedId,
   formToSaveRow,
@@ -60,8 +58,10 @@ import {
   targetLabel,
   toCategory,
   toContentFormat,
+  toFormFieldErrors,
   toLocalDateTime,
   validateNotice,
+  type NoticeFieldErrors,
 } from "./notice-logic";
 import { NOTICE_MGMT_CSS, NOTICE_MGMT_STYLE_HREF } from "./notice-styles";
 import {
@@ -78,7 +78,6 @@ import {
   SCREEN_ID,
   SPLIT_STORAGE_KEY,
   TARGET_SCOPE_RADIO,
-  TITLE_MAX,
   emptyFilters,
   type ContentFormat,
   type NoticeForm,
@@ -108,6 +107,12 @@ export default function NoticeMgmtPage() {
   const [rolesFailed, setRolesFailed] = useState(false);
   /** 늦게 도착한 이전 조회 응답을 버리기 위한 요청 순번(Local-Rules §11). */
   const searchSeq = useRef(0);
+  /**
+   * 저장 때 서버·저장 전 MDM 검사가 상세 폼 칸에 준 오류. 그 칸을 고치거나 다른 공지를 열거나 새로 쓰면 지운다.
+   * 입력 중 즉시 검사(화면 문구)는 NoticeTitleRow 가 따로 보인다.
+   */
+  const [fieldErrors, setFieldErrors] = useState<NoticeFieldErrors>({});
+  const { validateRow } = useMdmValidation();
 
   const selectedId = selectedRow?.NOTICE_ID ?? "";
   const isDirty = !!form && !!baseline && !sameForm(form, baseline);
@@ -154,6 +159,7 @@ export default function NoticeMgmtPage() {
     const next = row ? rowToForm(row) : null;
     setForm(next);
     setBaseline(next);
+    setFieldErrors({});
   }, []);
 
   /**
@@ -246,6 +252,7 @@ export default function NoticeMgmtPage() {
       setSelectedRow(null);
       setForm(next);
       setBaseline(next);
+      setFieldErrors({});
       setNewSeq((n) => n + 1);
     });
   }, [confirmDiscard]);
@@ -253,6 +260,12 @@ export default function NoticeMgmtPage() {
   const setField = useCallback(
     <K extends keyof NoticeForm>(key: K, value: NoticeForm[K]) => {
       setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
+      // 서버·저장 전 검사 오류는 그 칸을 고치면 낡은 판정이다.
+      setFieldErrors((prev) => {
+        if (prev[key] === undefined) return prev;
+        const { [key]: _gone, ...rest } = prev;
+        return rest;
+      });
     },
     [],
   );
@@ -263,6 +276,20 @@ export default function NoticeMgmtPage() {
     const issue = validateNotice(form);
     if (issue) {
       showMessage({ message: issue.message, alertType: "warning" });
+      return;
+    }
+    // MDM 컬럼 사전 검사(화면) — 서버 MdmValidator 와 같은 판정·문구. 걸리면 서버를 부르지 않고 그 칸에 보인다.
+    const mdmIssues = validateRow({ TITLE: form.TITLE.trim() }, [
+      ...NOTICE_MDM_FIELDS,
+    ]);
+    const mdmFirst = Object.entries(mdmIssues)[0];
+    if (mdmFirst) {
+      setFieldErrors(
+        Object.fromEntries(
+          Object.entries(mdmIssues).map(([k, v]) => [k, v.message]),
+        ),
+      );
+      showMessage({ message: mdmFirst[1].message, alertType: "warning" });
       return;
     }
     const isNew = !form.NOTICE_ID;
@@ -286,6 +313,8 @@ export default function NoticeMgmtPage() {
           : undefined,
       );
     } catch (e) {
+      // 서버 저장 검증 오류(errors 상세)를 입력 칸에 붙인다. 저장은 한 행이라 "master" 그리드의 오류가 이 폼 것이다.
+      setFieldErrors(toFormFieldErrors(toFieldErrors(e, "master")));
       showMessage({
         title: "오류",
         message: toUserMessage(
@@ -297,7 +326,7 @@ export default function NoticeMgmtPage() {
     } finally {
       setIsBusy(false);
     }
-  }, [form, rows, filters, runSearch, showMessage]);
+  }, [form, rows, filters, runSearch, showMessage, validateRow]);
 
   /** B-004 삭제 — 확인 후 서버에서 바로 지우고 다시 조회한다. 게시중 건은 버튼이 비활성이다(§7.4). */
   const handleDelete = useCallback(() => {
@@ -485,6 +514,8 @@ export default function NoticeMgmtPage() {
             <AgDataGrid
               rowKey="NOTICE_ID"
               columns={NOTICE_COLUMNS}
+              // 목록은 읽기 전용이라 지금은 켜 둔 것만으로 검사할 칸이 없다 — 편집 열을 더하면 MDM 연결 칸이 바로 검사된다.
+              mdmValidate
               data={gridRows}
               columnSizing="fit"
               sortable
@@ -531,19 +562,13 @@ export default function NoticeMgmtPage() {
                     />
                   </td>
                 </tr>
-                <tr>
-                  <th style={DETAIL_LABEL_CELL}>제목 *</th>
-                  <td style={DETAIL_VALUE_CELL}>
-                    <Input
-                      value={form?.TITLE ?? ""}
-                      maxLength={TITLE_MAX}
-                      placeholder="홈 화면 목록에 보이는 제목"
-                      disabled={formDisabled}
-                      aria-label="제목"
-                      onChange={(v) => setField("TITLE", v)}
-                    />
-                  </td>
-                </tr>
+                <NoticeTitleRow
+                  key={editorKey}
+                  value={form?.TITLE ?? ""}
+                  disabled={formDisabled}
+                  error={fieldErrors.TITLE}
+                  onChange={(v) => setField("TITLE", v)}
+                />
                 <tr>
                   <th style={DETAIL_LABEL_CELL}>분류</th>
                   <td style={DETAIL_VALUE_CELL}>
@@ -664,7 +689,6 @@ export default function NoticeMgmtPage() {
               onPreview={() => setPreviewOpen(true)}
               onChange={(v) => setField("CONTENT", v)}
             />
-
           </div>
           <NoticeHomePreview
             open={previewOpen}

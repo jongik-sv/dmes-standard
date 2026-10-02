@@ -59,7 +59,8 @@ export const NOTICE_COLUMNS: GridColumn[] = [
     minWidth: 52,
     align: "center",
   },
-  { key: "TITLE", header: "제목", width: 100, minWidth: 180, align: "left" },
+  // header 를 적지 않는다 — MDM 컬럼 사전 TITLE 의 캡션(labelShort "제목")과 머리글 툴팁이 자동으로 붙는다. 이 칸만 MDM 물리명과 같다.
+  { key: "TITLE", width: 100, minWidth: 180, align: "left" },
   {
     key: "STATUS_LABEL",
     header: "게시상태",

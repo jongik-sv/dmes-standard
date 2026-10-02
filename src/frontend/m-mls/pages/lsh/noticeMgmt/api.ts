@@ -37,11 +37,20 @@ interface CactusEnvelope {
   grids?: Record<string, { rows?: unknown[] }>;
   errors?: Array<{
     grid?: string;
-    rowKey?: string;
+    rowKey?: string | number;
+    rowIndex?: number;
     field?: string;
+    code?: string;
     message?: string;
   }>;
 }
+
+/** 서버 오류 상세 한 건 — `toFieldErrors`(@dk-oasis/shared/http)가 읽는 cactus `ErrorDetail` 모양. */
+export type NoticeErrorDetail = NonNullable<
+  CactusEnvelope["errors"]
+>[number] & {
+  message: string;
+};
 
 export interface NoticeMgmtPayload {
   list?: NoticeRow[];
@@ -79,11 +88,21 @@ function isUserSentence(text: string | undefined): text is string {
  */
 export class NoticeApiError extends Error {
   readonly field?: string;
+  /**
+   * 서버가 준 칸·행 오류 상세(사용자 문장인 것만). 화면이 `toFieldErrors(e, "master")` 로 입력 칸 오류로 바꿔 보인다.
+   * `message` 는 이 상세를 항목명과 함께 한 문장으로 이은 것이라 칸 표시와 겹쳐도 된다.
+   */
+  readonly errors: NoticeErrorDetail[];
 
-  constructor(message: string, field?: string) {
+  constructor(
+    message: string,
+    field?: string,
+    errors: NoticeErrorDetail[] = [],
+  ) {
     super(message);
     this.name = "NoticeApiError";
     this.field = field;
+    this.errors = errors;
   }
 }
 
@@ -112,7 +131,14 @@ function unwrap(res: unknown): Record<string, unknown> {
       });
     const message =
       details.length > 0 ? `${base}\n- ${details.join("\n- ")}` : base;
-    throw new NoticeApiError(message, errs.find((e) => e.field)?.field);
+    const userErrors = errs.filter((e): e is NoticeErrorDetail =>
+      isUserSentence(e.message),
+    );
+    throw new NoticeApiError(
+      message,
+      errs.find((e) => e.field)?.field,
+      userErrors,
+    );
   }
 
   const out: Record<string, unknown> = {};
