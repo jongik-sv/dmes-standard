@@ -333,6 +333,12 @@
   font-weight: 600;
 }
 
+/* MDM 값 검증·서버 저장 검증 오류 칸 — AgDataGrid mdmValidate·fieldErrors 가 단다(문구는 셀 툴팁). 의미 토큰만 쓴다. */
+.cm-data-grid .ag-cell.cell-mdm-invalid {
+  background-color: var(--color-danger-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+}
+
 /* 업무 오류 행(검사 거부·NG 등) — getRowClassExtra 로 "ag-row-error" 를 준다. 의미 토큰만 쓴다. */
 .cm-data-grid .ag-row-error {
   background-color: var(--color-danger-soft);

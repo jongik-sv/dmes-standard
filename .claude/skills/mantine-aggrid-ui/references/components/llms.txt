@@ -56,7 +56,7 @@
 
 ## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)
 
-- [MDM 화면 메타 (MdmMetaProvider · useMdmColumn · MdmMetaCard)](mdm-meta.md): 그리드 머리글·폼 라벨의 캡션과 툴팁을 MDM 컬럼 사전에서 가져올 때 쓴다. 포털 탭이 공급자를 자동으로 씌우므로 화면은 보통 아무것도 하지 않는다.
+- [MDM 화면 메타 (MdmMetaProvider · useMdmColumn · MdmMetaCard · useMdmValidation)](mdm-meta.md): 그리드 머리글·폼 라벨의 캡션과 툴팁을 MDM 컬럼 사전에서 가져오고, 입력값을 MDM 정의(필수·형식·길이·허용 코드·표준식)로 즉시 검사할 때 쓴다. 포털 탭이 공급자를 자동으로 씌우므로 캡션·툴팁은 화면이 아무것도 하지 않아도 붙는다. 값 검사는 화면이 켠다.
 
 ## 탭·트리·룩업·기타
 

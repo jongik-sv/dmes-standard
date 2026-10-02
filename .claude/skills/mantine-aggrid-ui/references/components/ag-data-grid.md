@@ -119,6 +119,17 @@ const COLUMNS: GridColumn[] = [
 const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와 같은 캡션으로 채워진다
 ```
 
+### 칸 검증 표시: mdmValidate·fieldErrors(2026-10-03)
+
+- `mdmValidate`: 포털 탭 공급자 안에서, 편집 가능하고 MDM 에 연결된 열의 값이 바뀌면 그 칸을 MDM 정의로 검사한다([mdm-meta](mdm-meta.md) §화면 값 검증). 기본 꺼짐 — 컬럼 사전은 테이블 구분 없는 전역 물리명이라 화면이 고른다.
+- `fieldErrors`: 서버 저장 검증 오류(`toFieldErrors(error, grid)` 결과)나 저장 전 `validateRows` 결과를 칸에 표시한다. 공급자 밖에서도 동작한다. 행은 `rowKey`(그리드 `rowKey` 칸·행의 `rowKey` 값·임시 ID)로 먼저, 없으면 `rowIndex` 를 `data` 의 자리로 찾는다. `field` 는 열 `key` 와 같거나 물리명이 같은 잎 열(`title` ↔ `TITLE`).
+- 오류 칸에는 `cell-mdm-invalid` 클래스(옅은 위험 배경 + 안쪽 테두리)와 셀 툴팁(오류 문구)이 붙는다. 같은 칸이면 서버 문구가 이긴다. 사용자가 서버 오류 칸을 다시 고치면 서버 표시를 내리고 화면 검사로 돌아간다(새 `fieldErrors` 배열을 받으면 다시 처음부터).
+- 두 prop 이 없으면 열 정의·렌더는 예전과 같다.
+
+```tsx
+<AgDataGrid columns={COLUMNS} data={rows} rowKey="NOTICE_ID" mdmValidate fieldErrors={fieldErrors} />
+```
+
 ## Props
 
 자주 쓰는 props. 기본값은 소스의 구조분해 기본값이다.
@@ -149,6 +160,8 @@ const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와
 | rowDragField | `string` | - | 행 드래그 손잡이를 둘 열 key. 정렬이 꺼진다 |
 | isRowDraggable | `(row) => boolean` | - | 행별 드래그 허용 |
 | onRowOrderChange | `(orderedKeys) => void` | - | 드래그 후 새 순서의 행 키 목록. 이 prop 이 있어야 드래그가 동작한다 |
+| mdmValidate | `boolean` | `false` | 편집 가능 + MDM 연결 열의 바뀐 값을 MDM 정의로 검사해 `cell-mdm-invalid`·셀 툴팁을 단다(포털 탭 안에서만) |
+| fieldErrors | `Array<{ rowKey?; rowIndex?; field; message }>` | - | 서버 오류 칸 표시(`toFieldErrors` 결과). rowKey → rowIndex(data 자리) 순으로 행을 찾는다 |
 
 나머지 props.
 
@@ -216,6 +229,8 @@ const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와
 | `rowClickCheck` 를 편집 열이 있는 그리드에 쓴다 | `checkRowOnEdit` 을 쓴다 |
 | MDM 캡션을 쓰려고 `header: ""` 를 준다 | `header` 를 생략한다. `""` 는 빈 머리글로 그대로 남는다 |
 | 엑셀 내보내기에서 `c.header` 를 그대로 읽는다(`header` 생략 열은 undefined) | `useResolvedGridColumns(COLUMNS)` 결과의 `header` 를 쓴다 |
+| 오류 칸을 칠하려고 `cellClassRules` 에 직접 검사를 넣는다 | `mdmValidate`·`fieldErrors` 를 쓴다. 클래스·툴팁·서버 우선 규칙이 들어 있다 |
+| 저장 실패 오류의 `rowIndex`(요청 목록 자리)를 바뀐 행만 보낸 화면에서 그대로 넘긴다 | 그리드는 `data` 자리로 본다. `rowKey` 를 쓰거나 자리를 바꿔 넘긴다 |
 
 ## 실제 사용 예
 

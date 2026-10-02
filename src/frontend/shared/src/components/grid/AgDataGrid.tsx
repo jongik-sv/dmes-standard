@@ -27,10 +27,13 @@ import type {
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
 import {
   MdmMetaCard,
+  mdmCaption,
   resolveCaption,
+  toPhysName,
   useMdmCaptionPriority,
   useMdmColumns,
   useMdmMetaScope,
+  validateMdmValue,
   type MdmCaptionPriority,
   type MdmColumnInfo,
   type MdmDomainMeta,
@@ -411,6 +414,110 @@ export interface AgDataGridProps {
    * 순서 상태의 주인은 호출자다 — 콜백에서 data 를 새 순서로 바꿔 넘긴다.
    */
   onRowOrderChange?: (orderedKeys: (string | number)[]) => void;
+  /**
+   * MDM 화면 값 검증(spec C2) — 켜면 편집 가능하고 MDM 컬럼 사전에 연결된 칸(포털 탭 공급자 안에서만)의 값이 바뀔 때 그 칸을 검사해
+   * 오류 칸에 `cell-mdm-invalid` 클래스와 셀 툴팁(문구)을 단다. 기본 꺼짐. 저장 전 전체 검사는 화면이 `useMdmValidation().validateRows` 로 한다.
+   */
+  mdmValidate?: boolean;
+  /**
+   * 서버 오류 칸 표시(spec C9) — `toFieldErrors(error, grid)` 결과를 넘긴다. 공급자 밖에서도 동작한다.
+   * 행은 `rowKey`(그리드 `rowKey` 칸·행의 `rowKey` 값·임시 ID)로 먼저 찾고, 없으면 `rowIndex` 를 `data` 의 자리로 본다 — 바뀐 행만 보낸 화면은
+   * 서버 rowIndex 를 data 자리로 바꿔 넘긴다. `field` 는 열 key 와 같거나 물리명(`codeNm` ↔ `CODE_NM`)이 같은 잎 열에 붙는다.
+   * 같은 칸에 화면 검사 오류가 있어도 서버 문구를 보인다. 사용자가 그 칸을 다시 고치면 서버 표시는 내리고 화면 검사로 돌아간다
+   * (새 fieldErrors 를 받으면 다시 처음부터).
+   */
+  fieldErrors?: Array<{ rowKey?: string; rowIndex?: number; field: string; message: string }>;
+}
+
+/** 칸 검증 표시 한 건 — `AgDataGridProps.fieldErrors` 의 항목. */
+export type AgDataGridFieldError = NonNullable<AgDataGridProps["fieldErrors"]>[number];
+
+/** 그리드 행 ID — ag-grid getRowId 와 같은 규칙(임시 ID → rowKey 칸 → id → _rowIndex → "0"). */
+export function gridRowIdOf(row: Record<string, unknown>, rowKey: string): string {
+  const tempId = row[GRID_TEMP_ID_FIELD];
+  if (typeof tempId === "string" && tempId) return tempId;
+  return String(row[rowKey] || row.id || row._rowIndex || "0");
+}
+
+function leafColumnKeys(columns: GridColumn[], out: string[] = []): string[] {
+  for (const c of columns) {
+    if (c.children && c.children.length > 0) leafColumnKeys(c.children, out);
+    else out.push(c.key);
+  }
+  return out;
+}
+
+/**
+ * 서버 오류 목록 → 행 ID → 열 key → 문구. 행을 찾지 못하거나 맞는 잎 열이 없는 오류는 버린다. 같은 칸이면 첫 문구.
+ * 순수 함수라 단위 테스트가 ag-grid 렌더 없이 확인한다.
+ */
+export function indexFieldErrors(
+  fieldErrors: AgDataGridFieldError[],
+  data: Record<string, unknown>[],
+  rowKey: string,
+  columns: GridColumn[]
+): Map<string, Map<string, string>> {
+  const out = new Map<string, Map<string, string>>();
+  if (fieldErrors.length === 0) return out;
+  const keys = leafColumnKeys(columns);
+  const byPhys = new Map<string, string>();
+  for (const k of keys) {
+    const p = toPhysName(k);
+    if (p && !byPhys.has(p)) byPhys.set(p, k);
+  }
+  const byRowKey = new Map<string, Record<string, unknown>>();
+  for (const row of data) {
+    if (!row) continue;
+    for (const v of [row[GRID_TEMP_ID_FIELD], row.rowKey, row[rowKey]]) {
+      if (v == null || v === "") continue;
+      const k = String(v);
+      if (!byRowKey.has(k)) byRowKey.set(k, row);
+    }
+  }
+  for (const fe of fieldErrors) {
+    if (!fe || typeof fe.field !== "string") continue;
+    const colKey = keys.includes(fe.field) ? fe.field : byPhys.get(toPhysName(fe.field) ?? "");
+    if (!colKey) continue;
+    const row =
+      fe.rowKey != null && fe.rowKey !== ""
+        ? byRowKey.get(String(fe.rowKey))
+        : typeof fe.rowIndex === "number"
+          ? data[fe.rowIndex]
+          : undefined;
+    if (!row) continue;
+    const id = gridRowIdOf(row, rowKey);
+    let cells = out.get(id);
+    if (!cells) out.set(id, (cells = new Map()));
+    if (!cells.has(colKey)) cells.set(colKey, fe.message);
+  }
+  return out;
+}
+
+/** 화면 검사 결과 한 칸 — 검사한 값과 문구. */
+export interface MdmCellCheck {
+  value: unknown;
+  message: string;
+}
+
+function sameCellValue(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (a == null || b == null) return a == null && b == null;
+  return String(a) === String(b);
+}
+
+/**
+ * 칸 하나에 보일 오류 문구. 서버 오류가 있고 그 뒤 사용자가 고치지 않았으면(dismissed 아님) 서버 문구,
+ * 아니면 화면 검사 문구(검사한 값이 지금 값과 같을 때만 — 값이 바뀌었으면 낡은 판정이다). 없으면 null.
+ */
+export function pickCellIssue(
+  server: string | undefined,
+  serverDismissed: boolean,
+  client: MdmCellCheck | undefined,
+  value: unknown
+): string | null {
+  if (server != null && !serverDismissed) return server;
+  if (client && sameCellValue(client.value, value)) return client.message;
+  return null;
 }
 
 /**
@@ -440,7 +547,15 @@ export interface BuildColumnDefsOptions {
    * 없으면(공급자 밖) 열 정의는 예전과 같다.
    */
   mdm?: { infoByKey: Map<string, MdmColumnInfo>; priority: MdmCaptionPriority };
+  /**
+   * 칸 검증 표시(mdmValidate·fieldErrors 를 쓸 때만). (행 ID, 열 key, 지금 값) → 오류 문구 또는 null.
+   * 있으면 잎 열마다 `cell-mdm-invalid` 규칙과 오류 문구를 먼저 보이는 셀 툴팁을 단다. 없으면 열 정의는 예전과 같다.
+   */
+  cellIssue?: (rowId: string, colKey: string, value: unknown) => string | null;
 }
+
+/** 칸 검증 오류 칸에 다는 클래스. */
+export const MDM_INVALID_CELL_CLASS = "cell-mdm-invalid";
 
 /** 머리글 툴팁 컴포넌트에 넘기는 값(ColDef.tooltipComponentParams). */
 export interface MdmGridTooltipParams {
@@ -566,6 +681,23 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
         ])
       )
     : undefined;
+  // 칸 검증 표시 — cellIssue 가 있을 때만 규칙·툴팁을 더한다(없으면 예전 열 정의 그대로).
+  const cellIssue = opts.cellIssue;
+  const issueOf = cellIssue
+    ? (params: { node?: { id?: string | null } | null; value?: unknown }) => {
+        const id = params.node?.id;
+        return id == null ? null : cellIssue(id, col.key, params.value);
+      }
+    : null;
+  const issueClassRules: ColDef["cellClassRules"] | undefined = issueOf
+    ? { ...(cellClassRulesProp ?? {}), [MDM_INVALID_CELL_CLASS]: (params) => !!issueOf(params) }
+    : cellClassRulesProp;
+  const issueTooltip = issueOf
+    ? {
+        tooltipValueGetter: (params: { node?: { id?: string | null } | null; value?: unknown }) =>
+          issueOf(params) ?? (col.tooltip === false || params.value == null ? "" : String(params.value)),
+      }
+    : null;
   const headerName = columnCaption(col, opts.mdm);
   // MDM 머리글 툴팁 — 메타가 있고 화면이 headerTooltip·headerComponent 를 직접 주지 않았을 때만. 그 밖에는 키를 더하지 않는다(예전 열 정의 그대로).
   const mdmInfo = opts.mdm?.infoByKey.get(col.key);
@@ -604,13 +736,14 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
     refData: col.cellEditorValueLabels,
     cellStyle: { textAlign: col.align || "left" },
     cellClass: cellClassProp,
-    cellClassRules: cellClassRulesProp,
+    cellClassRules: issueClassRules,
     headerClass: col.headerAlign ? `header-${col.headerAlign}` : "header-center",
     headerTooltip: col.headerTooltip,
     headerStyle: col.headerStyle,
     rowDrag,
     ...(mdmTooltip ?? {}),
     ...(col.tooltip === false ? { tooltipValueGetter: () => "" } : {}),
+    ...(issueTooltip ?? {}),
     cellRenderer: col.render
       ? (params: { value: unknown; data: Record<string, unknown> }) =>
           col.render!(params.value, params.data)
@@ -796,6 +929,8 @@ function AgDataGridComponent({
   rowDragField,
   isRowDraggable,
   onRowOrderChange,
+  mdmValidate = false,
+  fieldErrors,
 }: AgDataGridProps) {
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -826,6 +961,36 @@ function AgDataGridComponent({
   );
   // MDM 화면 메타(포털 탭 공급자 안에서만) — 비운 머리글 캡션·머리글 툴팁. 메타가 실제로 바뀔 때만 값이 바뀐다.
   const mdm = useGridMdm(columns);
+
+  // 칸 검증 표시(mdmValidate·fieldErrors) — 상태는 ref 에 두고 열 정의에는 고정 함수만 넘긴다. 상태가 바뀔 때 열 정의를 다시 만들면
+  // ag-grid 가 머리 그룹 셀을 다시 붙인다(아래 isRowDraggable 주석). 바뀐 칸만 refreshCells 로 다시 그린다.
+  const issuesEnabled = mdmValidate || fieldErrors !== undefined;
+  /** 서버 오류: 행 ID → 열 key → 문구. */
+  const serverIssuesRef = useRef<Map<string, Map<string, string>>>(new Map());
+  /** 서버 오류를 받은 뒤 사용자가 고친 칸(`행ID\u0000열key`) — 그 칸은 서버 표시를 내린다. */
+  const serverDismissedRef = useRef<Set<string>>(new Set());
+  /** 화면 검사 결과: `행ID\u0000열key` → 검사한 값·문구. */
+  const clientIssuesRef = useRef<Map<string, MdmCellCheck>>(new Map());
+  const cellIssue = useCallback((rowId: string, colKey: string, value: unknown): string | null => {
+    const k = `${rowId}\u0000${colKey}`;
+    return pickCellIssue(
+      serverIssuesRef.current.get(rowId)?.get(colKey),
+      serverDismissedRef.current.has(k),
+      clientIssuesRef.current.get(k),
+      value
+    );
+  }, []);
+  const leafByKey = useMemo(() => {
+    const m = new Map<string, GridColumn>();
+    const walk = (cols: GridColumn[]) => {
+      for (const c of cols) {
+        if (c.children && c.children.length > 0) walk(c.children);
+        else if (!m.has(c.key)) m.set(c.key, c);
+      }
+    };
+    walk(columns);
+    return m;
+  }, [columns]);
   const columnDefs = useMemo<(ColDef | ColGroupDef)[]>(() => {
     const defs = buildColumnDefs(columns, {
       sortable: effectiveSortable,
@@ -834,6 +999,7 @@ function AgDataGridComponent({
       rowDragField,
       isRowDraggable: stableIsRowDraggable,
       ...(mdm ? { mdm } : {}),
+      ...(issuesEnabled ? { cellIssue } : {}),
     });
     // 체크박스는 rowSelection 설정에서 자동 관리 (수동 컬럼 불필요)
     if (!rowNumber) return defs;
@@ -860,7 +1026,7 @@ function AgDataGridComponent({
       tooltipValueGetter: () => "",
     };
     return [noCol, ...defs];
-  }, [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable, rowNumber, mdm]);
+  }, [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable, rowNumber, mdm, issuesEnabled, cellIssue]);
 
   // 셀 텍스트가 컬럼 폭 초과로 잘려서 ... 으로 표시될 때 마우스오버 시 전체 값을 tooltip 으로 표시.
   // tooltipValueGetter 는 ag-grid 의 browser-native title 속성 사용 (별도 라이브러리 불필요).
@@ -887,6 +1053,26 @@ function AgDataGridComponent({
       const rk =
         typeof tempId === "string" && tempId ? tempId : ((data[rowKey] as string | number) ?? "");
       selectEditedRow(checkRowOnEdit, selectable, event.node);
+      if (issuesEnabled && event.node.id != null) {
+        const rowId = event.node.id;
+        const k = `${rowId}\u0000${field}`;
+        let refresh = false;
+        // 서버 오류가 있던 칸을 고쳤다 — 서버 표시를 내리고 화면 검사로 돌아간다.
+        if (serverIssuesRef.current.get(rowId)?.has(field) && !serverDismissedRef.current.has(k)) {
+          serverDismissedRef.current.add(k);
+          refresh = true;
+        }
+        // 화면 검사 — 공급자 안 + 편집 가능 + MDM 연결 칸만(spec C2). 문구 캡션은 서버와 같은 폼 캡션, 없으면 열 key.
+        const col = leafByKey.get(field);
+        const meta = mdmValidate && col?.editable ? mdm?.infoByKey.get(field)?.column : null;
+        if (meta) {
+          const found = validateMdmValue(meta, event.newValue, data, mdmCaption(meta, "form") ?? field);
+          if (found) clientIssuesRef.current.set(k, { value: event.newValue, message: found.message });
+          else clientIssuesRef.current.delete(k);
+          refresh = true;
+        }
+        if (refresh) event.api.refreshCells({ rowNodes: [event.node], columns: [event.column], force: true });
+      }
       onCellValueChanged?.({
         rowKey: rk,
         field,
@@ -895,17 +1081,32 @@ function AgDataGridComponent({
         row: data,
       });
     },
-    [checkRowOnEdit, onCellValueChanged, rowKey, selectable]
+    [checkRowOnEdit, onCellValueChanged, rowKey, selectable, issuesEnabled, leafByKey, mdmValidate, mdm]
   );
 
   const getRowId = useCallback(
-    (params: GetRowIdParams) => {
-      const tempId = params.data[GRID_TEMP_ID_FIELD];
-      if (typeof tempId === "string" && tempId) return tempId;
-      return String(params.data[rowKey] || params.data.id || params.data._rowIndex || "0");
-    },
+    (params: GetRowIdParams) => gridRowIdOf(params.data as Record<string, unknown>, rowKey),
     [rowKey]
   );
+
+  // 서버 오류 칸 — fieldErrors·data 가 바뀌면 다시 찾아 두고, 표시가 달라졌으면 칸을 다시 그린다. 새 fieldErrors 면 "고친 칸" 기록을 지운다.
+  const prevFieldErrorsRef = useRef(fieldErrors);
+  const serverIssueSigRef = useRef("");
+  useEffect(() => {
+    if (!issuesEnabled) return;
+    let undismissed = false;
+    if (prevFieldErrorsRef.current !== fieldErrors) {
+      prevFieldErrorsRef.current = fieldErrors;
+      undismissed = serverDismissedRef.current.size > 0;
+      serverDismissedRef.current = new Set();
+    }
+    const next = indexFieldErrors(fieldErrors ?? [], data, rowKey, columns);
+    serverIssuesRef.current = next;
+    const sig = JSON.stringify([...next].map(([id, cells]) => [id, [...cells]]));
+    if (sig === serverIssueSigRef.current && !undismissed) return;
+    serverIssueSigRef.current = sig;
+    if (gridReady) gridRef.current?.api?.refreshCells({ force: true });
+  }, [issuesEnabled, fieldErrors, data, rowKey, columns, gridReady]);
 
   // ★행 커서 — 화면이 `highlightedRowKey` 를 넘기면 그 값이 곧 커서(controlled), 안 넘기면 아래가 소유한다.
   const [ownCursorKey, setOwnCursorKey] = useState<string | null>(null);
