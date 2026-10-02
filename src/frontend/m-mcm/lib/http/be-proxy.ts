@@ -18,6 +18,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 import { hasAnyRole } from "@dk-oasis/shared/auth-rbac-policy";
+import { forwardedForHeader } from "./forwarded-for";
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL ?? "http://localhost:8080";
 const BACKEND_CLIENT_KEY = process.env.BACKEND_CLIENT_KEY;
@@ -196,6 +197,10 @@ export async function forwardToBackend(
     "X-Authenticated-User": (token.sub as string) ?? "",
     "X-Authenticated-Role": roleHeader,
   };
+  const forwardedFor = forwardedForHeader(req.headers);
+  if (forwardedFor) {
+    headers["X-Forwarded-For"] = forwardedFor;
+  }
   const contentType = req.headers.get("content-type");
   if (contentType) {
     headers["Content-Type"] = contentType;
