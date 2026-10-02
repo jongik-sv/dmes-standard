@@ -34,15 +34,18 @@ export default defineConfig((options) => ({
     "matrix-table": "src/components/matrix-table/index.ts",
     lookup: "src/components/lookup/index.ts",
     "markdown-editor": "src/components/markdown-editor/index.ts",
+    "notice-body-view": "src/components/notice-body-view/index.ts",
+    dashboard: "src/components/dashboard/index.ts",
     oasis: "src/oasis/index.ts",
     "oasis-proxy": "src/oasis-proxy/index.ts",
     lib: "src/lib/index.ts",
   },
   format: ["esm"],
   target: "es2022",
-  // .d.ts 생성(가장 오래 걸리는 단계)은 기본으로 켠다. 소비 패키지의 tsc(lint)를 돌리지 않는 단위 테스트 게이트만
-  // TSUP_DTS=0 으로 끈다(next dev·vitest 는 .d.ts 를 쓰지 않는다. perf-audit (B) 표).
-  dts: process.env.TSUP_DTS !== "0",
+  // .d.ts 는 tsup 이 만들지 않는다. scripts/lib-dev.mjs 가 tsup 뒤에 `tsc -p tsconfig.build.json` 으로 dist/types/ 에
+  // 파일별로 만든다(package.json exports 의 types). tsup 의 dts(rollup-plugin-dts)는 진입점마다 타입을 묶느라
+  // RSS 3GB 넘게 쓰고 4GB 힙에서 OOM 이 났다(2026-10-02). TSUP_DTS=0 은 이제 lib-dev 의 tsc 단계를 끈다.
+  dts: false,
   sourcemap: true,
   // scripts/lib-dev.mjs 가 dev 중에 tsup 을 한 번씩 돌릴 때는 TSUP_NO_CLEAN=1 — 포털(next dev)이 dist 를 보고 있어 비우면 안 된다.
   clean: !options.watch && process.env.TSUP_NO_CLEAN !== "1",

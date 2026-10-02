@@ -1,0 +1,15 @@
+// .d.ts 전용 설정. scripts/lib-dev.mjs 가 tsup(JS) 뒤에 `tsc -p tsconfig.build.json` 으로 돌린다.
+// 출력은 dist/types/<src 기준 경로>.d.ts — package.json exports 의 types 가 여기를 가리킨다
+// (tests/unit/package-exports.unit.test.ts 가 tsup 진입점과 맞는지 검사한다).
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "rootDir": "src",
+    "outDir": "dist/types"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

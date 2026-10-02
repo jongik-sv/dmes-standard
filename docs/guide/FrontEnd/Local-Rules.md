@@ -28,14 +28,15 @@
 - **새 Task 부터 적용한다.** 이미 기준선을 잰 Task 는 게이트 명령을 도중에 바꾸지 않는다. 기준선 캐시 키(기점 sha + 명령 문자열)와 총수 규칙이 어긋난다.
 - 근거: `build:libs` 는 m-mdm 이 쓰지 않는 라이브러리(m-mpn·m-mpp·m-mqc·m-mls·m-analog)와 m-mdm 자신까지 빌드한다(docs/dflow-team/perf-audit-report.md P4). 2026-09-26 실측: `m-mdm^...` 빌드 37.8초·CPU 61초, `build:libs` 44.1초·CPU 87초(동시 부하 18~28, 잡음 있음).
 - 게이트가 **lint 를 돌리지 않으면** 의존 패키지 빌드에서 `.d.ts` 생성을 끌 수 있다: `TSUP_DTS=0 pnpm --filter "<패키지>^..." build`. vitest·next dev 는 `.d.ts` 를 쓰지 않는다.
-  lint(`tsc --noEmit`)는 의존 패키지(shared)의 `dist/*.d.ts` 로 타입을 읽으므로, **lint 가 들어간 게이트에서는 `TSUP_DTS=0` 을 쓰지 않는다.** 기본값(환경 변수 없음)은 지금처럼 `.d.ts` 를 만든다.
+  lint(`tsc --noEmit`)는 의존 패키지의 `.d.ts`(shared 는 `dist/types/**/*.d.ts`, m-* 는 `dist/*.d.ts`)로 타입을 읽으므로, **lint 가 들어간 게이트에서는 `TSUP_DTS=0` 을 쓰지 않는다.** 기본값(환경 변수 없음)은 지금처럼 `.d.ts` 를 만든다.
+- shared 의 `.d.ts` 는 tsup 이 아니라 tsc 가 만든다(2026-10-02): tsup 은 JS 만 묶고(`dts: false`), `scripts/lib-dev.mjs` 가 뒤이어 `tsc -p tsconfig.build.json` 으로 `dist/types/` 에 파일별 선언을 만든다. package.json exports 의 `types` 가 그쪽을 가리키며, 진입점을 추가하면 exports 의 `types` 를 `./dist/types/<src 기준 경로>.d.ts` 로 적는다(`tests/unit/package-exports.unit.test.ts` 가 tsup 진입점과 대조한다). 실측: tsup 의 dts(rollup-plugin-dts)는 RSS 3.1GB·13.5초에 4GB 힙에서 OOM, tsc 는 RSS 약 0.6GB·1.9초(dev incremental 0.9초).
 - vitest 워커는 m-mdm·shared 모두 기본 4개다. 동시에 도는 게이트가 많으면 `VITEST_MAX_WORKERS=<수>` 로 더 줄인다(테스트 총수는 변하지 않는다).
 - 포털 전체 기동·빌드(`fe-run.sh`, m-mcm)는 모든 모듈의 dist 가 필요하므로 지금처럼 `build:libs` 를 쓴다.
 - m-mdm 의 `test` 스크립트(`scripts/test.mjs`)는 일반 스위트(병렬)와 부하 민감 성능 스위트(`vitest.perf.config.ts`, 한 fork)를 차례로 모두 돌린다. vitest 요약이 두 번 찍히므로, **게이트 총수는 마지막 `[m-mdm test 합계]` 줄의 값을 쓴다.**
 
 ### 2-2. dev 가 켜진 작업 트리에서는 라이브러리를 따로 빌드하지 않는다 (2026-09-30)
 
-- `pnpm dev` 가 돌고 있는 작업 트리에서는 watch(`scripts/lib-dev.mjs`)가 저장 즉시 그 패키지의 JS 를 다시 빌드한다. `.d.ts` 는 저장이 20초 멈춘 뒤 한 번 만든다(`LIB_DEV_DTS_DELAY_MS`).
+- `pnpm dev` 가 돌고 있는 작업 트리에서는 watch(`scripts/lib-dev.mjs`)가 저장 즉시 그 패키지의 JS 를 다시 빌드한다. `.d.ts` 는 저장이 20초 멈춘 뒤 한 번 만든다(`LIB_DEV_DTS_DELAY_MS`. shared 는 tsc incremental, m-* 는 `tsup --dts-only`).
 - 같은 패키지를 `pnpm build`·`pnpm --filter … build` 로 또 빌드하지 않는다. 두 tsup 이 같은 dist 에 동시에 쓰고 CPU 를 두 배로 쓴다(2026-09-30 실측: watch 289% + 수동 build 107%, 부하 평균 24). shared 는 build 가 dist 를 비워(clean) 떠 있는 포털까지 흔든다.
   - 라이브러리의 `build` 스크립트(`lib-dev.mjs pkg-build`)가 이를 막는다: watch 가 감시 중인 패키지면 tsup 을 돌리지 않고 watch 에 `.d.ts` 까지 바로 만들게 한 뒤 그 결과(성공·타입 오류)로 끝난다. 게이트 명령은 그대로 두면 된다. 꼭 직접 빌드해야 하면 `LIB_DEV_FORCE_BUILD=1`.
   - watch 가 도는지 확인: `for p in $(pgrep -f "lib-dev.mjs watch"); do lsof -a -d cwd -p $p -Fn | grep '^n'; done` — 감시 중인 패키지 폴더가 나온다.

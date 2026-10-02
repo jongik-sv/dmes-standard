@@ -4,99 +4,99 @@
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/types/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./dist/types/index.d.ts",
       "import": "./dist/index.js"
     },
     "./http": {
-      "types": "./dist/http.d.ts",
+      "types": "./dist/types/http/index.d.ts",
       "import": "./dist/http.js"
     },
     "./secure-storage": {
-      "types": "./dist/secure-storage.d.ts",
+      "types": "./dist/types/secure-storage/index.d.ts",
       "import": "./dist/secure-storage.js"
     },
     "./snapshot": {
-      "types": "./dist/snapshot.d.ts",
+      "types": "./dist/types/snapshot/index.d.ts",
       "import": "./dist/snapshot.js"
     },
     "./portal-shell-core": {
-      "types": "./dist/portal-shell-core.d.ts",
+      "types": "./dist/types/portal-shell/core.d.ts",
       "import": "./dist/portal-shell-core.js"
     },
     "./portal-shell": {
-      "types": "./dist/portal-shell.d.ts",
+      "types": "./dist/types/portal-shell/index.d.ts",
       "import": "./dist/portal-shell.js"
     },
     "./portal-menu": {
-      "types": "./dist/portal-menu.d.ts",
+      "types": "./dist/types/portal-menu/index.d.ts",
       "import": "./dist/portal-menu.js"
     },
     "./auth-cookies": {
-      "types": "./dist/auth-cookies.d.ts",
+      "types": "./dist/types/auth/cookies.d.ts",
       "import": "./dist/auth-cookies.js"
     },
     "./auth-proxy": {
-      "types": "./dist/auth-proxy.d.ts",
+      "types": "./dist/types/auth/proxy.d.ts",
       "import": "./dist/auth-proxy.js"
     },
     "./auth-server": {
-      "types": "./dist/auth-server.d.ts",
+      "types": "./dist/types/auth/server.d.ts",
       "import": "./dist/auth-server.js"
     },
     "./auth-routes": {
-      "types": "./dist/auth-routes.d.ts",
+      "types": "./dist/types/auth/routes.d.ts",
       "import": "./dist/auth-routes.js"
     },
     "./auth-rbac-policy": {
-      "types": "./dist/auth-rbac-policy.d.ts",
+      "types": "./dist/types/auth/rbac-policy.d.ts",
       "import": "./dist/auth-rbac-policy.js"
     },
     "./auth-login-form": {
-      "types": "./dist/auth-login-form.d.ts",
+      "types": "./dist/types/auth/login-form.d.ts",
       "import": "./dist/auth-login-form.js"
     },
     "./auth-login-page": {
-      "types": "./dist/auth-login-page.d.ts",
+      "types": "./dist/types/auth/login-page.d.ts",
       "import": "./dist/auth-login-page.js"
     },
     "./layout": {
-      "types": "./dist/layout.d.ts",
+      "types": "./dist/types/layout/index.d.ts",
       "import": "./dist/layout.js"
     },
     "./layout.css": "./dist/layout.css",
     "./pages/home-page": {
-      "types": "./dist/pages/home-page.d.ts",
+      "types": "./dist/types/pages/home-page.d.ts",
       "import": "./dist/pages/home-page.js"
     },
     "./utils": {
-      "types": "./dist/utils.d.ts",
+      "types": "./dist/types/utils/index.d.ts",
       "import": "./dist/utils.js"
     },
     "./error-boundary": {
-      "types": "./dist/error-boundary.d.ts",
+      "types": "./dist/types/components/error-boundary.d.ts",
       "import": "./dist/error-boundary.js"
     },
     "./use-form-validation": {
-      "types": "./dist/use-form-validation.d.ts",
+      "types": "./dist/types/hooks/use-form-validation.d.ts",
       "import": "./dist/use-form-validation.js"
     },
     "./use-api-call": {
-      "types": "./dist/use-api-call.d.ts",
+      "types": "./dist/types/hooks/use-api-call.d.ts",
       "import": "./dist/use-api-call.js"
     },
     "./modal": {
-      "types": "./dist/modal.d.ts",
+      "types": "./dist/types/components/modal.d.ts",
       "import": "./dist/modal.js"
     },
     "./message-provider": {
-      "types": "./dist/message-provider.d.ts",
+      "types": "./dist/types/components/message-provider.d.ts",
       "import": "./dist/message-provider.js"
     },
     "./ui-provider": {
-      "types": "./dist/ui-provider.d.ts",
+      "types": "./dist/types/ui-provider/index.d.ts",
       "import": "./dist/ui-provider.js"
     },
     "./variables.css": "./dist/variables.css",
@@ -104,50 +104,58 @@
     "./auth-login-form.css": "./dist/auth-login-form.css",
     "./modal.css": "./dist/modal.css",
     "./form": {
-      "types": "./dist/form.d.ts",
+      "types": "./dist/types/components/form/index.d.ts",
       "import": "./dist/form.js"
     },
     "./form.css": "./dist/form.css",
     "./grid": {
-      "types": "./dist/grid.d.ts",
+      "types": "./dist/types/components/grid/index.d.ts",
       "import": "./dist/grid.js"
     },
     "./grid.css": "./dist/grid.css",
     "./tree": {
-      "types": "./dist/tree.d.ts",
+      "types": "./dist/types/components/tree/index.d.ts",
       "import": "./dist/tree.js"
     },
     "./tree.css": "./dist/tree.css",
     "./tabs": {
-      "types": "./dist/tabs.d.ts",
+      "types": "./dist/types/components/tabs/index.d.ts",
       "import": "./dist/tabs.js"
     },
     "./charts": {
-      "types": "./dist/charts.d.ts",
+      "types": "./dist/types/components/charts/index.d.ts",
       "import": "./dist/charts.js"
     },
     "./matrix-table": {
-      "types": "./dist/matrix-table.d.ts",
+      "types": "./dist/types/components/matrix-table/index.d.ts",
       "import": "./dist/matrix-table.js"
     },
     "./lookup": {
-      "types": "./dist/lookup.d.ts",
+      "types": "./dist/types/components/lookup/index.d.ts",
       "import": "./dist/lookup.js"
     },
     "./markdown-editor": {
-      "types": "./dist/markdown-editor.d.ts",
+      "types": "./dist/types/components/markdown-editor/index.d.ts",
       "import": "./dist/markdown-editor.js"
     },
+    "./notice-body-view": {
+      "types": "./dist/types/components/notice-body-view/index.d.ts",
+      "import": "./dist/notice-body-view.js"
+    },
+    "./dashboard": {
+      "types": "./dist/types/components/dashboard/index.d.ts",
+      "import": "./dist/dashboard.js"
+    },
     "./oasis": {
-      "types": "./dist/oasis.d.ts",
+      "types": "./dist/types/oasis/index.d.ts",
       "import": "./dist/oasis.js"
     },
     "./oasis-proxy": {
-      "types": "./dist/oasis-proxy.d.ts",
+      "types": "./dist/types/oasis-proxy/index.d.ts",
       "import": "./dist/oasis-proxy.js"
     },
     "./lib": {
-      "types": "./dist/lib.d.ts",
+      "types": "./dist/types/lib/index.d.ts",
       "import": "./dist/lib.js"
     }
   },
@@ -173,6 +181,7 @@
     "@tiptap/pm": "^3.31.4",
     "@tiptap/react": "^3.31.4",
     "@tiptap/starter-kit": "^3.31.4",
+    "dompurify": "^3.2.7",
     "html-to-image": "^1.11.13",
     "marked": "^17.0.6",
     "next": "16.1.6",
@@ -190,13 +199,17 @@
     "clsx": ">=2",
     "dayjs": ">=1.11",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "xlsx": ">=0.18.5"
   },
   "peerDependenciesMeta": {
     "ag-grid-community": {
       "optional": true
     },
     "ag-grid-react": {
+      "optional": true
+    },
+    "xlsx": {
       "optional": true
     }
   },
@@ -207,7 +220,6 @@
     "@mantine/modals": "^9.6.0",
     "@mantine/notifications": "^9.6.0",
     "@tabler/icons-react": "^3.46.0",
-    "@types/file-saver": "^2.0.7",
     "@types/node": "^20.19.37",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -217,7 +229,6 @@
     "dayjs": "^1.11.23",
     "happy-dom": "^20.10.6",
     "prettier": "^3.8.1",
-    "prettier-plugin-tailwindcss": "^0.6.14",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4",
