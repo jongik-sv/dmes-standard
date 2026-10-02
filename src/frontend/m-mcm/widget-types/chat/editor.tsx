@@ -14,6 +14,7 @@ import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 import { searchQueryWidgetDefs } from "./api";
 import {
   buildQueryWidgetOptions,
+  CHAT_SYSTEM_PROMPT_NOTE,
   normalizeChatConfig,
   queryWidgetIds,
   validateChatConfig,
@@ -77,7 +78,7 @@ export default function ChatEditor({ value, onChange, onValidate }: WidgetTypeEd
                 aria-label="시스템 프롬프트"
                 onChange={(v) => patch({ systemPrompt: v })}
               />
-              <p style={NOTE}>도우미의 역할·말투·지켜야 할 규칙. 사용자에게는 보이지 않습니다.</p>
+              <p style={NOTE}>{CHAT_SYSTEM_PROMPT_NOTE}</p>
             </td>
           </tr>
           <tr>

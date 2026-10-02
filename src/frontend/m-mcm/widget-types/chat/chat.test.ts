@@ -2,6 +2,9 @@
  * AI 챗봇 유형 순수 로직·호출 시험(스펙 2026-10-02-widget-admin-generic §6·§9, 계획 Task 14).
  * @dk-oasis/shared 런타임을 import 하지 않는다 — 타입 import 만(m-mcm vitest 는 node 환경, 렌더 시험 없음).
  */
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchChatHistory, resetChat, searchQueryWidgetDefs, sendChatMessage } from "./api";
@@ -12,6 +15,7 @@ import {
   CHAT_DEFAULT_WELCOME,
   CHAT_MAX_LENGTH,
   CHAT_MAX_LINKS,
+  CHAT_SYSTEM_PROMPT_NOTE,
   canSend,
   restoreDraft,
   chatErrorMessage,
@@ -48,6 +52,21 @@ const msg = (seq: number, role: "user" | "assistant", content: string, extra: Pa
   content,
   links: [],
   ...extra,
+});
+
+describe("시스템 프롬프트 안내(2026-10-03 보안 지적 — 비밀 보장 아님)", () => {
+  it("화면 목록에서만 숨긴다는 사실과 비밀을 넣지 말라는 경고를 담는다", () => {
+    expect(CHAT_SYSTEM_PROMPT_NOTE).toContain("대화 중에 사용자에게 드러날 수 있으니");
+    expect(CHAT_SYSTEM_PROMPT_NOTE).toContain("비밀");
+    expect(CHAT_SYSTEM_PROMPT_NOTE).toContain("넣지 마세요");
+    expect(CHAT_SYSTEM_PROMPT_NOTE).not.toContain("보이지 않습니다");
+  });
+
+  it("편집기는 이 안내를 시스템 프롬프트 칸 아래에 보이고 「사용자에게는 보이지 않습니다」 문구를 쓰지 않는다", () => {
+    const src = readFileSync(path.join(__dirname, "editor.tsx"), "utf-8");
+    expect(src).toContain("{CHAT_SYSTEM_PROMPT_NOTE}");
+    expect(src).not.toContain("사용자에게는 보이지 않습니다");
+  });
 });
 
 describe("유형 메타", () => {

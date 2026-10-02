@@ -260,7 +260,7 @@ BE `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` 와 FE `m-mcm/proxy.
 
 | 서비스/action | 입력 | 출력 | 과제 |
 |---|---|---|---|
-| `widgetDef/list` | — | `{ defs: WidgetDefRow[], homeDefault: WidgetItem[] \| null, homeDefaultKey: string \| null }` — 사용자 부서 기준 기본 배치(§4.2 순서), 없으면 null. **모든 사용자가 부르므로 `configJson` 에서 서버 전용 키를 지우고 돌려준다**(`query-*`: `sql`, `chat`: `systemPrompt`·`dataQueryDefIds`). 관리자 `commWidgetMng/search` 는 전부 돌려준다 | B |
+| `widgetDef/list` | — | `{ defs: WidgetDefRow[], homeDefault: WidgetItem[] \| null, homeDefaultKey: string \| null }` — 사용자 부서 기준 기본 배치(§4.2 순서), 없으면 null. **모든 사용자가 부르므로 `configJson` 에서 서버 전용 키를 지우고 돌려준다**(`query-*`: `sql`, `chat`: `systemPrompt`·`dataQueryDefIds`). 관리자 `commWidgetMng/search` 는 전부 돌려준다. **화면 목록에서 숨길 뿐 비밀 보장은 아니다** — `chat` 의 `systemPrompt` 와 고른 쿼리 위젯의 ID·제목·설명은 매 요청 LLM 지시문·도구 설명으로 들어가 대화로 드러날 수 있다(2026-10-03 보안 지적, §6 `chat` 편집기 안내) | B |
 | `widgetData/run` | `defId` | `{ columns: string[], rows: [...], truncated: boolean }` | C |
 | `widgetExt/exchange` | `base`(KRW), `symbols`(목록), `days`(1~90) | `{ latest: [{cur, rate, diff, date}], history: [{date, cur, rate}] }` | D |
 | `widgetExt/weather` | `lat`, `lon` | `{ current: {temp, code, wind, humidity}, daily: [{date, min, max, code, pop}] }` | D |
@@ -314,7 +314,7 @@ BE `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` 와 FE `m-mcm/proxy.
 | `exchange` | `{ base: "KRW", currencies: string[], days: number }` | 최신 환율 표(전일 대비 ▲▼) + `days` 일 추이 작은 선 차트(`Sparkline`) |
 | `weather` | `{ locations: [{name, lat, lon}] }` | 지점별 현재 기온·날씨 아이콘·바람·습도 + 3일 예보. 지점이 둘 이상이면 위쪽 탭 |
 | `media` | `{ items: [{kind: "image"\|"video"\|"youtube", src, caption?}], intervalSec?: number, fit: "contain"\|"cover" }` | `src` 는 `media:{fileId}`(업로드) 또는 http(s) 주소. 여러 개면 `intervalSec`(기본 8초) 슬라이드 + 좌우 버튼. YouTube 는 `https://www.youtube-nocookie.com/embed/{id}` iframe |
-| `chat` | `{ systemPrompt, welcome?, pageGuide: boolean, dataQueryDefIds: string[] }` | 대화 목록 + 입력 칸 + [새 대화]. 답의 `links` 는 [열기] 버튼(`openPortalPage`) |
+| `chat` | `{ systemPrompt, welcome?, pageGuide: boolean, dataQueryDefIds: string[] }` | 대화 목록 + 입력 칸 + [새 대화]. 답의 `links` 는 [열기] 버튼(`openPortalPage`). 편집기의 시스템 프롬프트 칸 아래 안내 문구: 「도우미의 역할·말투·지켜야 할 규칙. 화면 목록에서는 숨기지만 대화 중에 사용자에게 드러날 수 있으니 비밀(내부 주소·인증키·공개하지 않는 정책 문구 등)은 넣지 마세요.」 |
 
 - 편집기(`editor.tsx`)는 관리 화면 오른쪽 상세 영역에 들어간다. 쿼리 유형 편집기는 SQL 입력 칸(고정폭 글꼴 textarea) + [쿼리 시험] 버튼(`previewQuery`) + 결과 컬럼으로 필드 고르기를 둔다. 시스템 변수 목록을 편집기 안에 안내한다.
 

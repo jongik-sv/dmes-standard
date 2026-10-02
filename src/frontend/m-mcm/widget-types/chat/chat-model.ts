@@ -19,6 +19,12 @@ export const CHAT_DEFAULT_ERROR = "답을 받지 못했습니다. 잠시 뒤 다
 export const CHAT_MENU_ID = "HOME";
 /** 편집기가 쿼리 위젯 목록을 읽는 위젯관리 화면 objId. */
 export const ADMIN_MENU_ID = "commWidgetMng";
+/**
+ * 편집기 시스템 프롬프트 칸 안내(스펙 §5.1 widgetDef/list·§6 chat). widgetDef/list 가 systemPrompt 를 지워 화면 목록에서는
+ * 숨기지만, 매 요청 LLM 지시문으로 들어가므로 사용자가 대화로 요구하면 드러날 수 있다 — 비밀 보장이 아니다(2026-10-03 보안 지적).
+ */
+export const CHAT_SYSTEM_PROMPT_NOTE =
+  "도우미의 역할·말투·지켜야 할 규칙. 화면 목록에서는 숨기지만 대화 중에 사용자에게 드러날 수 있으니 비밀(내부 주소·인증키·공개하지 않는 정책 문구 등)은 넣지 마세요.";
 
 const CHAT_BASE = "/api/mcm/oasis/widgetChat";
 const ADMIN_SEARCH_URL = "/api/mcm/oasis/commWidgetMng/search";
