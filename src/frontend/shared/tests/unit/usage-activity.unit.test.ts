@@ -58,6 +58,15 @@ describe("isUsageBusinessRequest — 업무 호출 분류", () => {
     ).toBe(false);
   });
 
+  it("앞에 / 가 없는 상대 경로는 문서 주소 기준으로 푼다", () => {
+    const doc = `${ORIGIN}/api/mcm/page`;
+    expect(isUsageBusinessRequest("oasis/a/search", `${ORIGIN}/api/mcm/`)).toBe(true); // /api/mcm/oasis/a/search
+    expect(isUsageBusinessRequest("oasis/a/search", doc)).toBe(true);
+    expect(isUsageBusinessRequest("api/mcm/oasis/a/search", `${ORIGIN}/portal`)).toBe(true);
+    expect(isUsageBusinessRequest("api/mcm/oasis/a/search", `${ORIGIN}/portal/x/`)).toBe(false); // /portal/x/api/...
+    expect(isUsageBusinessRequest("/api/mcm/oasis/a/search", `${ORIGIN}/portal/x/`)).toBe(true);
+  });
+
   it("해석할 수 없는 입력은 false", () => {
     expect(isUsageBusinessRequest("http://[bad", ORIGIN)).toBe(false);
     expect(isUsageBusinessRequest({} as unknown as string, ORIGIN)).toBe(false);
@@ -88,7 +97,7 @@ describe("installUsageActivity — fetch 감싸기", () => {
     installUsageActivity({
       target,
       doc,
-      origin: ORIGIN,
+      baseUrl: ORIGIN,
       now: () => now,
       getScope: () => scope,
       onBusinessCall: (s) => {
@@ -158,7 +167,7 @@ describe("installUsageActivity — fetch 감싸기", () => {
     const uninstall = installUsageActivity({
       target,
       doc,
-      origin: ORIGIN,
+      baseUrl: ORIGIN,
       now: () => now,
       getScope: () => scope,
       onBusinessCall: () => {
@@ -168,6 +177,33 @@ describe("installUsageActivity — fetch 감싸기", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     input();
     await expect(target.fetch("/api/mcm/oasis/a/search")).resolves.toBe(response);
+    uninstall();
+  });
+
+  it("원래 fetch 가 거부하면 그 거부를 그대로 전달한다(업무 호출 알림은 보낸 시점에 이미 끝났다)", async () => {
+    const failure = new TypeError("Failed to fetch");
+    original.mockRejectedValueOnce(failure);
+    const uninstall = install();
+    input();
+    await expect(target.fetch("/api/mcm/oasis/a/search")).rejects.toBe(failure);
+    expect(calls).toEqual(["tab-1"]);
+    uninstall();
+  });
+
+  it("baseUrl 을 주면 상대 경로를 그 문서 주소 기준으로 푼다", async () => {
+    const uninstall = installUsageActivity({
+      target,
+      doc,
+      baseUrl: `${ORIGIN}/api/mcm/page`,
+      now: () => now,
+      getScope: () => scope,
+      onBusinessCall: (s) => {
+        calls.push(s);
+      },
+    });
+    input();
+    await target.fetch("oasis/a/search");
+    expect(calls).toEqual(["tab-1"]);
     uninstall();
   });
 

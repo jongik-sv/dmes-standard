@@ -330,7 +330,7 @@ describe("PortalShell 화면 사용 구간(onUsageSegments)", () => {
     ]);
   });
 
-  it("로그아웃은 signOut 보다 먼저 열린 구간을 닫아 넘기고, fetch 를 원래대로 되돌린다", async () => {
+  it("로그아웃은 signOut 보다 먼저 일시정지 중인 탭까지 모든 구간을 넘기고, fetch 를 원래대로 되돌린다", async () => {
     const order: string[] = [];
     vi.mocked(signOut).mockImplementationOnce(async () => {
       order.push("signOut");
@@ -348,8 +348,11 @@ describe("PortalShell 화면 사용 구간(onUsageSegments)", () => {
       )
     );
     await flush();
-    await openTab("t:a");
-    await work();
+    await openTab("t:b");
+    await work(); // b OPEN 0초
+    at(1_000);
+    await openTab("t:a"); // b 는 일시정지(1초) 상태로 남는다
+    await work(); // a OPEN 1초
     at(4_000);
 
     act(() => document.querySelector<HTMLElement>(".portal-header__user-button")!.click());
@@ -360,7 +363,12 @@ describe("PortalShell 화면 사용 구간(onUsageSegments)", () => {
     await act(async () => logout!.click());
 
     expect(order).toEqual(["usage", "signOut"]);
-    expect(rows()).toEqual([[["a", "OPEN", 0, 4_000, 4_000]]]);
+    expect(rows()).toEqual([
+      [
+        ["b", "OPEN", 0, 1_000, 1_000], // 일시정지 중인 탭도 함께 넘긴다
+        ["a", "OPEN", 1_000, 4_000, 3_000],
+      ],
+    ]);
     expect(globalThis.fetch).toBe(stubFetch);
     unmount();
     expect(batches).toHaveLength(1); // 로그아웃으로 이미 닫았다

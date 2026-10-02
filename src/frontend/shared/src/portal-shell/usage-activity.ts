@@ -44,14 +44,17 @@ function toRequestUrl(input: unknown): string | null {
   return typeof url === "string" ? url : null;
 }
 
-/** 요청이 업무 호출인지 — 같은 출처(origin)의 업무 경로이고 제외 목록에 없다. 해석할 수 없으면 false. */
-export function isUsageBusinessRequest(input: RequestInfo | URL, origin: string): boolean {
+/**
+ * 요청이 업무 호출인지 — 같은 출처의 업무 경로이고 제외 목록에 없다. 해석할 수 없으면 false.
+ * baseUrl 은 문서 주소(location.href)다. 상대 경로는 fetch 처럼 그 주소 기준으로 풀고, 출처는 그 주소의 출처로 본다.
+ */
+export function isUsageBusinessRequest(input: RequestInfo | URL, baseUrl: string): boolean {
   const raw = toRequestUrl(input);
   if (raw == null) return false;
   let url: URL;
   let base: URL;
   try {
-    base = new URL(origin);
+    base = new URL(baseUrl);
     url = new URL(raw, base);
   } catch {
     return false;
@@ -106,8 +109,8 @@ export interface UsageActivityOptions {
   target?: UsageFetchTarget;
   /** 입력(pointerdown·keydown) 대상. 기본 document. 없으면 입력이 없는 것으로 본다. */
   doc?: UsageActivityEventTarget | null;
-  /** 상대 경로를 풀고 같은 출처를 가릴 출처. 기본 location.origin. */
-  origin?: string;
+  /** 상대 경로를 풀고 같은 출처를 가릴 문서 주소. 기본은 요청 때의 location.href. */
+  baseUrl?: string;
   now?: () => number;
   inputWindowMs?: number;
 }
@@ -125,9 +128,8 @@ export function installUsageActivity(options: UsageActivityOptions): () => void 
       : typeof document !== "undefined"
         ? document
         : null;
-  const origin =
-    options.origin ??
-    (typeof location !== "undefined" ? location.origin : "http://localhost");
+  const baseUrl = (): string =>
+    options.baseUrl ?? (typeof location !== "undefined" ? location.href : "http://localhost/");
   const now = options.now ?? (() => Date.now());
   const windowMs = options.inputWindowMs ?? USAGE_INPUT_WINDOW_MS;
   const original = target.fetch;
@@ -144,7 +146,7 @@ export function installUsageActivity(options: UsageActivityOptions): () => void 
     const scope = options.getScope();
     if (scope == null || scope !== lastInput.scope) return;
     if (!isWithinUsageInputWindow(now(), lastInput.at, windowMs)) return;
-    if (!isUsageBusinessRequest(input, origin)) return;
+    if (!isUsageBusinessRequest(input, baseUrl())) return;
     options.onBusinessCall(scope);
   };
 
