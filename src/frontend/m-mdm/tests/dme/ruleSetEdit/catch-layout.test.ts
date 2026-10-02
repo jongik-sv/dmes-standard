@@ -86,6 +86,7 @@ describe("받는 노드 배치(받는 노드 spec §8, Ruling R15)", () => {
     expect(Object.keys(autoLayout(plain))).toEqual(["start", "r1", "end"]);
     expect(catchSlots(plain).size).toBe(0);
     // 갈래 있는 흐름의 자리 — 받는 노드 처리를 넣기 전(6c433334) 값에서 합류 막대 크기(200×14)만 바뀐다.
+    // 2026-10-02: 짧은 갈래(a2)는 합류 쪽으로 처지지 않고 분기 바로 아래 층에 붙는다(BRANCH_HEAD_WEIGHT, y 400 → 286).
     const ifFlow: RuleSetFlow = {
       version: 1,
       nodes: [nd("start", "START"), nd("r1", "RULE", { ruleId: "R1" }), nd("if1", "IF"), nd("a1", "RULE", { ruleId: "A1" }),
@@ -95,8 +96,54 @@ describe("받는 노드 배치(받는 노드 spec §8, Ruling R15)", () => {
     };
     expect(autoLayout(ifFlow)).toEqual({
       start: { x: 192, y: 0 }, r1: { x: 136, y: 82 }, if1: { x: 164, y: 196 }, a1: { x: 0, y: 286 },
-      a2: { x: 272, y: 400 }, a3: { x: 0, y: 400 }, m1: { x: 152, y: 514 }, end: { x: 192, y: 574 },
+      a2: { x: 272, y: 286 }, a3: { x: 0, y: 400 }, m1: { x: 152, y: 514 }, end: { x: 192, y: 574 },
     });
+  });
+});
+
+describe("끝내는 처리 갈래 뒤 줄기 정렬(2026-10-02 DESIGN_KEY 자동 정렬)", () => {
+  /** start → r1(c1 → h1 → end) → p1 → {b1 | b2 → b3} → m1 → r4 → end — 처리 갈래가 끝내고 정상 갈래가 비어 뒤 줄기가 바깥 몸에 있다. */
+  const flow = (): RuleSetFlow => ({
+    version: 1,
+    nodes: [
+      nd("start", "START"), nd("r1", "RULE", { ruleId: "R1" }), nd("p1", "PARALLEL"), nd("b1", "TASK"), nd("b2", "TASK"), nd("b3", "TASK"),
+      nd("m1", "MERGE", { splitId: "p1" }), nd("c1", "CATCH", { attachTo: "r1", catches: ["NO_RESULT"] }), nd("h1", "TASK"), nd("r4", "TASK"), nd("end", "END"),
+    ],
+    edges: [ed("e1", "start", "r1"), ed("e2", "r1", "p1"), ed("e3", "p1", "b1", { order: 1 }), ed("e4", "b1", "m1"), ed("e5", "p1", "b2", { order: 2 }),
+      ed("e6", "b2", "b3"), ed("e7", "b3", "m1"), ed("e8", "m1", "r4"), ed("e9", "r4", "end"), ed("e10", "c1", "h1"), ed("e11", "h1", "end")],
+  });
+
+  it("끝내는 몸이 뒤 줄기보다 길어도 END 는 모든 노드 아래에 선다(처리 갈래·끝내는 IF 갈래)", () => {
+    const sizeOf = (f: RuleSetFlow, id: string) => NODE_SIZE[f.nodes!.find((n) => n.id === id)!.kind];
+    const below = (f: RuleSetFlow) => {
+      const pos = autoLayout(f);
+      const bottom = Math.max(...f.nodes!.filter((n) => n.kind !== "END" && n.kind !== "CATCH").map((n) => pos[n.id].y + sizeOf(f, n.id).h));
+      expect(pos.end.y, JSON.stringify(pos)).toBeGreaterThan(bottom);
+      expect(overlapsOf(f, pos)).toEqual([]);
+    };
+    below({
+      version: 1,
+      nodes: [nd("start", "START"), nd("r1", "RULE", { ruleId: "R1" }), nd("c1", "CATCH", { attachTo: "r1", catches: ["NO_RESULT"] }),
+        nd("h1", "TASK"), nd("h2", "TASK"), nd("h3", "TASK"), nd("end", "END")],
+      edges: [ed("e1", "start", "r1"), ed("e2", "r1", "end"), ed("e3", "c1", "h1"), ed("e4", "h1", "h2"), ed("e5", "h2", "h3"), ed("e6", "h3", "end")],
+    });
+    below({
+      version: 1,
+      nodes: [nd("start", "START"), nd("if1", "IF"), nd("a1", "TASK"), nd("a2", "TASK"), nd("a3", "TASK"), nd("b1", "TASK"), nd("end", "END")],
+      edges: [ed("e1", "start", "if1"), ed("e2", "if1", "a1", { order: 1, cond: "x > 1" }), ed("e3", "a1", "a2"), ed("e4", "a2", "a3"), ed("e5", "a3", "end"),
+        ed("e6", "if1", "b1", { otherwise: true }), ed("e7", "b1", "end")],
+    });
+  });
+
+  it("룰 앞뒤 줄기가 한 세로줄에 서고, 처리 갈래는 오른쪽에 비켜 서며, 짧은 갈래는 분기 바로 아래에 붙는다", () => {
+    const f = flow();
+    const pos = autoLayout(f);
+    const w = (id: string) => NODE_SIZE[f.nodes!.find((n) => n.id === id)!.kind].w;
+    const mid = cx(pos.r1, w("r1"));
+    for (const id of ["start", "p1", "m1", "r4", "end"]) expect(cx(pos[id], w(id)), id).toBe(mid);
+    expect(pos.b1.y).toBe(pos.b2.y);
+    expect(pos.h1.x).toBeGreaterThan(Math.max(pos.b2.x, pos.b3.x) + w("b2"));
+    expect(overlapsOf(f, pos)).toEqual([]);
   });
 });
 

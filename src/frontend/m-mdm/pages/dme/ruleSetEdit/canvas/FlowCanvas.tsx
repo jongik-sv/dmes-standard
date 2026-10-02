@@ -76,7 +76,7 @@ import { IconPlus } from "@tabler/icons-react";
 import type { RuleSetFlow, TypedValue } from "@/contract/engine-contract.generated";
 
 import { MAX_LABEL_OFFSET, blockMembers, normalizePad, type GroupPad, type FlowNote, type FlowPos, type EditFlow, type LabelOffset, type LabelPart } from "../flow-edit";
-import { beyondLine, catchSlots, catchSpot, drawnPositions, endingRoutes, foldOffsetX, nodeSizeOf, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
+import { beyondLine, catchSlots, catchSpot, drawnPositions, endingRoutes, foldOffsetX, groupBox, nodeSizeOf, spaceMinDelta, type SpaceAxis, type SpaceBlocks } from "../flow-layout";
 import { CATCHABLE } from "../flow-model";
 import { STYLED_KINDS, type NodeSize } from "../node-style";
 import { typedText } from "../trace-view";
@@ -191,7 +191,6 @@ export function clampSegmentDelta(full: readonly FlowPos[], seg: number, delta: 
   }
   return out;
 }
-const GROUP_MARGIN = 16;
 const FLASH_MS = 1200;
 /** 화면 맞춤 여백·확대 한계. 최소 배율 0.1 — 노드 24~27개(높이 약 2050px) 흐름이 400px 대 캔버스에 들어가려면 약 0.17 이 필요하다. */
 const FIT_OPTIONS = { padding: 0.15 };
@@ -1088,28 +1087,6 @@ function blockInfo(flow: EditFlow, block: { count: number; members: string[] }, 
 /** 캐시한 잰 크기가 새 크기와 다른가 — getNodeDimensions 는 measured 를 width 보다 먼저 보므로 옛 값을 넘기면 옛 크기로 그린다(계획 Ruling 9). */
 const staleMeasure = (m: Measured | undefined, s: NodeSize) => !!m && (m.width !== s.w || m.height !== s.h);
 
-/** 그룹 틀 — 멤버의 그린 상자(노드별 크기, 접힌 분기는 룰 크기)의 바깥 상자 + 여백 + 더한 여백(pad, G2). 멤버가 하나도 없으면 null. */
-function groupBox(nodeIds: readonly string[], pos: Record<string, FlowPos>, sizes: ReadonlyMap<string, NodeSize>, pad: GroupPad | null | undefined) {
-  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
-  for (const id of nodeIds) {
-    const p = pos[id];
-    const s = sizes.get(id);
-    if (!p || !s) continue;
-    x1 = Math.min(x1, p.x);
-    y1 = Math.min(y1, p.y);
-    x2 = Math.max(x2, p.x + s.w);
-    y2 = Math.max(y2, p.y + s.h);
-  }
-  if (!Number.isFinite(x1)) return null;
-  const d = pad ?? ZERO_PAD;
-  return {
-    x: x1 - GROUP_MARGIN - d.l,
-    y: y1 - GROUP_MARGIN - d.t,
-    w: x2 - x1 + GROUP_MARGIN * 2 + d.l + d.r,
-    h: y2 - y1 + GROUP_MARGIN * 2 + d.t + d.b,
-  };
-}
-
 function Inner(props: FlowCanvasProps) {
   const {
     flow, rules, checks, mode, varDisplay, varLabels, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
@@ -1253,14 +1230,14 @@ function Inner(props: FlowCanvasProps) {
     const single = rfSel.size <= 1;
     for (const g of flow.view.groups) {
       const pad = groupDrag?.groupId === g.id ? groupDrag.pad : g.pad; // 끄는 중이면 그 값(G2)
-      const b = groupBox(g.nodeIds, pos, sizes, pad);
+      const b = groupBox(g.nodeIds, pos, (id) => sizes.get(id), pad);
       if (!b) continue;
       const data: GroupNodeData = { id: g.id, title: g.title, color: g.color ?? null, selected: selectedId === g.id, resizable: editable && selectedId === g.id };
       out.push({
         id: g.id, type: "rsfGroup", position: { x: b.x, y: b.y }, width: b.w, height: b.h, measured: measured[g.id], data, selected: rfSel.has(g.id),
-        // 제목만 끌기 손잡이 — 틀 몸통은 누름을 받지 않아 그룹 안 빈 곳에서 영역 선택·화면 이동이 그대로 된다.
+        // 제목·테두리 띠만 끌기 손잡이 — 틀 몸통은 누름을 받지 않아 그룹 안 빈 곳에서 영역 선택·화면 이동이 그대로 된다.
         // React Flow 는 고른 노드를 1000 올려 그린다(elevateNodesOnSelect) — 고른 그룹 틀이 소속 노드를 가리지 않게 그만큼 내려 둔다.
-        draggable: editable, dragHandle: ".rsf-group-title", connectable: false, zIndex: rfSel.has(g.id) ? -1 - SELECT_ELEVATION : -1,
+        draggable: editable, dragHandle: ".rsf-group-handle", connectable: false, zIndex: rfSel.has(g.id) ? -1 - SELECT_ELEVATION : -1,
         style: { pointerEvents: "none" },
       });
     }
@@ -2381,6 +2358,22 @@ function Inner(props: FlowCanvasProps) {
   const onEdgeClick = useCallback((_e: ReactMouseEvent, ed: Edge) => {
     if (!ed.id.startsWith(FOLD_EDGE_PREFIX)) onSelectEdge(ed.id);
   }, [onSelectEdge]);
+  /**
+   * 그룹 틀 안 빈 곳 누르기(2026-10-02) — 틀 몸통은 누름을 받지 않으므로(그 안에서 영역 선택·화면 이동이 되게) 누른 자리가 든 틀을 찾아 그 그룹을 고른다.
+   * 틀이 겹치면 가장 작은 틀이다. 없으면 null(빈 곳 — 고르기를 푼다).
+   */
+  const groupAt = (clientX: number, clientY: number): string | null => {
+    const p = flowAt(clientX, clientY);
+    let best: string | null = null;
+    let bestArea = Infinity;
+    for (const n of rawNodes) {
+      if (n.type !== "rsfGroup" || n.width == null || n.height == null) continue;
+      const { x, y } = n.position;
+      if (p.x < x || p.x > x + n.width || p.y < y || p.y > y + n.height) continue;
+      if (n.width * n.height < bestArea) [best, bestArea] = [n.id, n.width * n.height];
+    }
+    return best;
+  };
   const onPaneContextMenu = (e: ReactMouseEvent | MouseEvent) => openMenu(e, { kind: "pane", at: flowAt(e.clientX, e.clientY) });
 
   // [+] 단추 — 선 이름표 층의 단추를 틀에서 위임으로 받는다(단추 아래 왼쪽에 메뉴를 연다).
@@ -2482,8 +2475,10 @@ function Inner(props: FlowCanvasProps) {
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onEdgeDoubleClick={editable ? onEdgeDoubleClick : undefined}
-        onPaneClick={() => {
-          onSelect(null);
+        onPaneClick={(e) => {
+          const groupId = groupAt(e.clientX, e.clientY);
+          if (groupId) canvasPickRef.current = groupId;
+          onSelect(groupId);
           onSelectEdge(null);
         }}
         // 영역 선택을 시작하면 단일 선택(속성 패널·Delete·복사 대상)을 푼다 — 상자 선택이 옛 노드를 가리킨 채 남지 않게(리뷰 Minor 1).

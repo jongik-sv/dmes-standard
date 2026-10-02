@@ -603,11 +603,18 @@ const GRIP_LABEL: Record<GroupGrip, string> = {
   nw: "왼쪽 위 모서리", n: "위 변", ne: "오른쪽 위 모서리", e: "오른쪽 변", se: "오른쪽 아래 모서리", s: "아래 변", sw: "왼쪽 아래 모서리", w: "왼쪽 변",
 };
 
+/** 그룹 틀 테두리 띠(위·오른쪽·아래·왼쪽). */
+const GROUP_EDGES = ["t", "r", "b", "l"] as const;
+
 export function GroupNodeView({ data }: NodeProps<GroupRfNode>) {
   const size = useContext(GroupSizeContext);
   return (
     <div className="rsf-group" data-testid={`flow-group-${data.id}`} data-selected={data.selected ? "true" : "false"} data-color={data.color ?? undefined}>
-      <span className="rsf-group-title">{data.title}</span>
+      <span className="rsf-group-title rsf-group-handle">{data.title}</span>
+      {/* 테두리 띠 — 제목 글자만으로는 누를 자리가 작아 네 변도 고르기·끌기 손잡이로 쓴다. 몸통 안쪽은 그대로 누름을 받지 않는다. */}
+      {GROUP_EDGES.map((e) => (
+        <span key={e} className="rsf-group-edge rsf-group-handle" data-edge={e} aria-hidden="true" />
+      ))}
       {data.resizable &&
         size &&
         GROUP_GRIPS.map((g) => (

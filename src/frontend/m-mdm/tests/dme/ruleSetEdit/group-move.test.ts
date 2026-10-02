@@ -183,6 +183,41 @@ describe("FlowCanvas 그룹 통째로 옮기기", () => {
     expect(z("g1")).toBeLessThan(0);
   });
 
+  it("틀 테두리 띠(네 변)를 눌러도 그룹이 골라지고, 끌면 제목처럼 통째로 옮겨진다(2026-10-02 \"그룹 선택이 잘 안된다\")", async () => {
+    const onSelect = vi.fn();
+    const onMove = vi.fn();
+    await draw(props({ onSelect, onMove }));
+    const edges = [...nodeEl("g1").querySelectorAll<HTMLElement>(".rsf-group-edge")].map((e) => e.getAttribute("data-edge"));
+    expect(edges).toEqual(["t", "r", "b", "l"]);
+    const edge = nodeEl("g1").querySelector('.rsf-group-edge[data-edge="r"]') as HTMLElement;
+    await fire(edge, "click", screenOf(titleAt("g1")));
+    await flush();
+    expect(onSelect).toHaveBeenLastCalledWith("g1");
+    const g0 = at("g1");
+    await dragFrom(edge, titleAt("g1"), 98, 40);
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(Math.abs(at("g1").x - g0.x - 100) <= 6).toBe(true);
+  });
+
+  it("그룹 틀 안 빈 곳을 눌러도 그 그룹이 골라지고, 틀 밖 빈 곳은 고르기를 푼다(2026-10-02)", async () => {
+    const onSelect = vi.fn();
+    await draw(props({ onSelect }));
+    // 편집 모드는 빈 곳 끌기가 영역 선택이라 React Flow 가 빈 곳 누르기를 pointerdown→pointerup 으로 받는다.
+    const pressPane = async (p: FlowPos) => {
+      const pane = document.querySelector(".react-flow__pane")!;
+      for (const type of ["pointerdown", "pointerup"]) {
+        await act(async () => {
+          pane.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, button: 0, isPrimary: true, pointerId: 1, ...screenOf(p) }));
+        });
+      }
+      await flush();
+    };
+    await pressPane(P(116, 260)); // r1(150~218)·r2(300~) 사이 빈 곳
+    expect(onSelect).toHaveBeenLastCalledWith("g1");
+    await pressPane(P(400, 200));
+    expect(onSelect).toHaveBeenLastCalledWith(null);
+  });
+
   it("보기 모드에서는 제목을 끌어도 옮겨지지 않는다", async () => {
     const onMove = vi.fn();
     await draw(props({ mode: "view", onMove }));

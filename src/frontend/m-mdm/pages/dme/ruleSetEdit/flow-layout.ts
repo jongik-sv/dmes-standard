@@ -7,7 +7,7 @@ import dagre from "@dagrejs/dagre";
 
 import type { FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
-import { clearLabels, clearRoutes, setNodeStyle, setPositions, type EditFlow, type EditResult, type FlowPos } from "./flow-edit";
+import { clearLabels, clearRoutes, setNodeStyle, setPositions, type EditFlow, type EditResult, type FlowPos, type GroupPad } from "./flow-edit";
 import { CATCHABLE, isBlankJava, parseFlow, type Guarded, type Seq, type Split } from "./flow-model";
 import { STYLED_KINDS, type NodeSize, type NodeStyle, type NodeStylePatch } from "./node-style";
 
@@ -42,6 +42,8 @@ export function nodeSizeOf(f: StyledFlow, n: { id: string; kind: FlowNodeKind },
 
 /** dagre 같은 층 노드 사이 가로 간격 — 갈래를 다시 벌릴 때(spreadLanes)도 같은 값을 쓴다. */
 const NODESEP = 40;
+/** dagre 층 사이 세로 간격. */
+const RANKSEP = 46;
 
 /** 받는 노드 가로 자리(Ruling R15) — 룰 왼쪽 테두리에서 처음 16, 받는 노드마다 36씩 오른쪽. */
 export const CATCH_LEFT = 16;
@@ -133,10 +135,13 @@ function layoutKey(f: RuleSetFlow, size: ReadonlyMap<string, NodeSize>): string 
 
 /** 룰 → 처리 갈래 몸 첫 노드 가상 선의 무게 — 끝내는 처리 갈래 몸이 END 쪽으로 늘어지지 않고 룰 바로 아래 층에 붙게 한다. */
 const CATCH_HEAD_WEIGHT = 2;
+/** 분기 → 갈래 첫 노드 선의 무게 — 짧은 갈래가 합류 쪽으로 처지지 않고 분기 바로 아래 층에 붙게 한다(2026-10-02 DESIGN_KEY 자동 정렬). */
+const BRANCH_HEAD_WEIGHT = 2;
+const SPLIT_KINDS: ReadonlySet<FlowNodeKind> = new Set(["IF", "PARALLEL"]);
 
 function runLayout(f: RuleSetFlow, nodes: NonNullable<RuleSetFlow["nodes"]>, size: ReadonlyMap<string, NodeSize>): Record<string, FlowPos> {
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: "TB", nodesep: NODESEP, ranksep: 46 });
+  g.setGraph({ rankdir: "TB", nodesep: NODESEP, ranksep: RANKSEP });
   g.setDefaultEdgeLabel(() => ({}));
   // 붙은 받는 노드는 dagre 에 넣지 않는다 — 자리는 placeCatches 가 룰 테두리로 다시 정한다. 넣으면 룰과 처리 갈래 사이에 받는 노드 층이 하나 비어
   // 생긴다(browser-check 추가 1 (a)). 대신 처리 갈래 몸이 있으면 룰 → 몸 첫 노드 가상 선을 넣어 몸이 룰 바로 아래 층에 오게 한다(스펙 §8).
@@ -152,10 +157,17 @@ function runLayout(f: RuleSetFlow, nodes: NonNullable<RuleSetFlow["nodes"]>, siz
     const s = size.get(n.id)!;
     g.setNode(n.id, { width: s.w, height: s.h });
   }
+  // 끝내는 몸(끝내는 처리 갈래·끝내는 IF 갈래)의 끝 → END 선도 dagre 에 넣지 않는다 — 몸 끝에서 END 까지 층마다 가상 점이 생겨 그 옆 정상 줄기를
+  // 오른쪽으로 민다(2026-10-02 DESIGN_KEY 자동 정렬). 몸은 pushRight 가 오른쪽으로 비켜 놓고, END 로 가는 선은 endingRoutes 가 그린다.
+  // END 로 들어가는 선이 이것뿐이면 END 가 떠 버리므로 그때는 그대로 넣는다.
+  const endTails = tree ? endingTails(tree.root) : new Set<string>();
+  const endId = nodes.find((n) => n.kind === "END")?.id;
+  const skipEnd = (e: { from: string; to: string }) => e.to === endId && endTails.has(e.from);
+  const keepEnd = (f.edges ?? []).some((e) => e.to === endId && !skipEnd(e) && !slots.has(e.from));
   for (const e of f.edges ?? []) {
     const s = slots.get(e.from);
     if (!s) {
-      if (!slots.has(e.to)) g.setEdge(e.from, e.to);
+      if (!slots.has(e.to) && !(keepEnd && skipEnd(e))) g.setEdge(e.from, e.to, SPLIT_KINDS.has(kindOf.get(e.from)!) ? { weight: BRANCH_HEAD_WEIGHT } : {});
       continue;
     }
     const to = nodes.find((n) => n.id === e.to);
@@ -163,6 +175,16 @@ function runLayout(f: RuleSetFlow, nodes: NonNullable<RuleSetFlow["nodes"]>, siz
     if (!empty && to.id !== s.attachTo && !slots.has(to.id) && kindOf.has(to.id)) g.setEdge(s.attachTo, to.id, { weight: CATCH_HEAD_WEIGHT });
   }
   dagre.layout(g);
+  // 끝내는 몸 → END 선을 뺐으므로 dagre 는 END 를 남은 정상 줄기 아래에만 놓는다 — 끝내는 몸이 더 길면 END 가 그 몸보다 위에 선다.
+  // END 를 가장 낮은 노드 아래 + 층 간격으로 내린다. END 는 마지막 노드라 옮겨도 다른 노드와 겹치지 않는다(갈래 정리가 이 y 를 읽으므로 그 전에 한다).
+  if (endId && keepEnd && endTails.size > 0) {
+    const endNode = g.node(endId) as { y: number; height: number };
+    const bottom = Math.max(...g.nodes().filter((id) => id !== endId).map((id) => {
+      const n = g.node(id) as { y: number; height: number };
+      return n.y + n.height / 2;
+    }));
+    endNode.y = Math.max(endNode.y, bottom + RANKSEP + endNode.height / 2);
+  }
   const cx = new Map<string, number>();
   for (const n of nodes) if (!slots.has(n.id)) cx.set(n.id, g.node(n.id).x);
   orderBranches(f, g, cx, (id) => size.get(id)!);
@@ -278,7 +300,22 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
     }
   };
   /** 받는 룰 블록이 든 몸 — 안쪽을 먼저 다 놓은 뒤 이 층의 분기·받는 룰 블록이 갈래 폭을 잰다. */
-  const insideOut = (seq: Seq) => {
+  /**
+   * 정상 갈래가 비고 돌아오는 자리도 없는 받는 룰(처리 갈래가 모두 끝낸다) 뒤 줄기를 룰 가운데 아래로 옮긴다(2026-10-02 DESIGN_KEY 자동 정렬).
+   * dagre 는 룰을 뒤 줄기 첫 노드와 처리 갈래 몸(가상 선) 사이 가운데에 놓아, 처리 갈래를 오른쪽으로 비킨 뒤에도 룰·그 앞 노드와 뒤 줄기가 어긋난다.
+   * 뒤 줄기는 같은 몸의 뒤 블록 전부(맨 바깥 몸이면 END 까지)를 통째로 옮긴다. 처리 갈래 몸은 뒤에 pushRight 가 다시 비켜 놓는다.
+   */
+  const alignAfterGuarded = (seq: Seq, tail: readonly string[]) => {
+    seq.items.forEach((b, i) => {
+      if (b.type !== "GUARDED" || b.mergeId || b.normal.items.length > 0) return;
+      const rest = seq.items.slice(i + 1);
+      const head = firstNode({ type: "SEQ", items: rest }) ?? (rest.length === 0 ? tail[0] : null);
+      if (!head || !cx.has(head)) return;
+      const ids = [...bodyIds({ type: "SEQ", items: rest }), ...tail].filter((id) => cx.has(id));
+      shift(ids, cx.get(b.step.nodeId)! - cx.get(head)!);
+    });
+  };
+  const insideOut = (seq: Seq, tail: readonly string[] = []) => {
     if (!hasSideBody(seq)) return outsideIn(seq);
     for (const b of seq.items) {
       if (b.type === "SEQ") insideOut(b);
@@ -291,8 +328,9 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
         placeGuarded(b);
       }
     }
+    alignAfterGuarded(seq, tail);
   };
-  insideOut(tree.root);
+  insideOut(tree.root, [tree.endId]);
   if (!hasSideBody(tree.root)) return;
   /**
    * 끝내는 처리 갈래(END 로 가는, Task 7 고침 2회차) — dagre 가 END 바로 위까지 층을 늘리므로 받는 룰 뒤 블록(같은 몸·바깥 몸)과 같은 높이를 차지한다.
@@ -314,7 +352,8 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
       let need = prevRight + NODESEP - x1;
       if (ends[k]) {
         const y1 = Math.min(...boxes.map((x) => x.y1));
-        const y2 = Math.max(...boxes.map((x) => x.y2));
+        // 몸 끝 → END 선을 dagre 에서 뺐으므로(endingTails) 몸이 END 까지 늘어나지 않는다 — 그 선이 내려갈 END 위까지를 몸 세로 범위로 본다.
+        const y2 = Math.max(...boxes.map((x) => x.y2), cx.has(tree.endId) ? boxOf(tree.endId).y1 : -Infinity);
         const skip = new Set([...ids, ...bodies.slice(k + 1).flat()]);
         for (const id of others) {
           if (skip.has(id)) continue;
@@ -347,6 +386,26 @@ function orderBranches(f: RuleSetFlow, g: InstanceType<typeof dagre.graphlib.Gra
     }
   };
   walk(tree.root);
+}
+
+/** 끝내는 몸(끝내는 처리 갈래·끝내는 IF 갈래, 중첩 포함)에서 END 로 가는 노드 — 몸의 마지막 출구. 빈 끝내는 IF 갈래는 IF 자신, 빈 처리 갈래는 받는 노드(어차피 dagre 밖이다). */
+function endingTails(seq: Seq, out = new Set<string>()): Set<string> {
+  for (const b of seq.items) {
+    if (b.type === "SEQ") endingTails(b, out);
+    else if (b.type === "SPLIT") {
+      for (const br of b.branches) {
+        endingTails(br.body, out);
+        if (br.ends) out.add(lastExit(br.body) ?? b.nodeId);
+      }
+    } else if (b.type === "GUARDED") {
+      endingTails(b.normal, out);
+      for (const h of b.handlers) {
+        endingTails(h.body, out);
+        if (h.ends) out.add(lastExit(h.body) ?? h.catchNodeId);
+      }
+    }
+  }
+  return out;
 }
 
 /** 몸이 빈 처리 갈래의 받는 노드 ID(중첩 포함). */
@@ -632,9 +691,62 @@ export function drawnPositions(f: EditFlow, blocks: Readonly<Record<string, unkn
   return placeCatches(f, resolveOverlaps(boxes, positionsOf(f, blocks), pinned), blocks);
 }
 
-/** [자동 정렬] — 모든 노드 위치를 자동 배치로 덮고 선 경로(C14)·이름표 오프셋(L1)을 함께 지운다. 한 번의 편집(이력 한 칸)이다. */
+/** [자동 정렬] — 모든 노드 위치를 자동 배치로 덮고 선 경로(C14)·이름표 오프셋(L1)을 함께 지운다. 그룹 틀과 겹친 메모는 비킨다. 한 번의 편집(이력 한 칸)이다. */
 export function autoArrange(f: EditFlow): EditFlow {
-  return clearLabels(clearRoutes(setPositions(f, autoLayout(f))));
+  return clearNotesFromGroups(clearLabels(clearRoutes(setPositions(f, autoLayout(f)))));
+}
+
+/** 그룹 틀 바깥 여백 — 멤버 바깥 상자에서 이만큼 띄운다. */
+export const GROUP_MARGIN = 16;
+/** 그룹 틀 — 멤버의 그린 상자(노드별 크기, 접힌 분기는 룰 크기)의 바깥 상자 + 여백 + 더한 여백(pad, G2). 멤버가 하나도 없으면 null. */
+export function groupBox(
+  nodeIds: readonly string[], pos: Readonly<Record<string, FlowPos>>, sizeOf: (id: string) => NodeSize | undefined, pad: GroupPad | null | undefined,
+): { x: number; y: number; w: number; h: number } | null {
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  for (const id of nodeIds) {
+    const p = pos[id];
+    const s = sizeOf(id);
+    if (!p || !s) continue;
+    x1 = Math.min(x1, p.x);
+    y1 = Math.min(y1, p.y);
+    x2 = Math.max(x2, p.x + s.w);
+    y2 = Math.max(y2, p.y + s.h);
+  }
+  if (!Number.isFinite(x1)) return null;
+  const d = pad ?? { l: 0, t: 0, r: 0, b: 0 };
+  return {
+    x: x1 - GROUP_MARGIN - d.l,
+    y: y1 - GROUP_MARGIN - d.t,
+    w: x2 - x1 + GROUP_MARGIN * 2 + d.l + d.r,
+    h: y2 - y1 + GROUP_MARGIN * 2 + d.t + d.b,
+  };
+}
+
+/**
+ * 자동 정렬 뒤 그룹 틀과 겹친 메모를 틀 밖으로 비킨다(2026-10-02 사용자 요청 "메모는 같이 안 들어가도록"). 메모는 자동 배치를 받지 않아 제자리에 남는데,
+ * 멤버 노드가 새 자리로 가며 틀이 넓어지면 메모가 틀 안에 든다. 겹친 메모만 높이(y)는 그대로 두고, 그 높이에 걸치는 틀·노드·다른 메모의
+ * 오른쪽 끝 + 간격으로 옮긴다. 겹치지 않는 메모는 그대로이고 먼저 장애물로 둔다. 붙은 메모(attach)도 같다 — 붙임은 자리를 묶지 않는다.
+ */
+function clearNotesFromGroups(f: EditFlow): EditFlow {
+  if (f.view.notes.length === 0 || f.view.groups.length === 0) return f;
+  type Rect = { x: number; y: number; w: number; h: number };
+  const hit = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const byId = new Map((f.nodes ?? []).map((n) => [n.id, n] as const));
+  const sizeOf = (id: string) => (byId.has(id) ? nodeSizeOf(f, byId.get(id)!) : undefined);
+  const pos = placeCatches(f, f.view.positions);
+  const groups = f.view.groups.map((g) => groupBox(g.nodeIds, pos, sizeOf, g.pad)).filter((b): b is Rect => !!b);
+  const inGroup = (n: Rect) => groups.some((g) => hit(n, g));
+  if (!f.view.notes.some(inGroup)) return f;
+  const nodes = (f.nodes ?? []).filter((n) => pos[n.id]).map((n) => ({ ...pos[n.id], ...nodeSizeOf(f, n) }));
+  const placed: Rect[] = [...groups, ...nodes, ...f.view.notes.filter((n) => !inGroup(n))];
+  const notes = f.view.notes.map((n) => {
+    if (!inGroup(n)) return n;
+    const x = Math.max(n.x, ...placed.filter((o) => o.y < n.y + n.h && n.y < o.y + o.h).map((o) => o.x + o.w + NODESEP));
+    const moved = { ...n, x: Math.round(x) };
+    placed.push(moved);
+    return moved;
+  });
+  return { ...f, view: { ...f.view, notes } };
 }
 
 // ───────────────────────── 공간 넓히기(S1) ─────────────────────────

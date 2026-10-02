@@ -134,8 +134,14 @@ ${GROUP_COLOR_RULES}
   font-size: var(--font-size-xs); font-weight: 700; color: var(--color-text-secondary); white-space: nowrap;
 }
 .rsf-group-title:hover { background: var(--color-bg-hover); }
-/* 편집 모드 — 제목이 그룹 통째로 옮기기 손잡이다(React Flow 가 끌 수 있는 노드에 draggable 을 붙인다). */
-.react-flow__node.draggable .rsf-group-title { cursor: move; }
+/* 테두리 띠 — 테두리를 가운데로 안팎 5px. 제목처럼 누르면 고르고, 편집 모드에서는 끌어 옮긴다. */
+.rsf-group-edge { position: absolute; pointer-events: auto; cursor: pointer; }
+.rsf-group-edge[data-edge="t"] { left: -5px; right: -5px; top: -5px; height: 10px; }
+.rsf-group-edge[data-edge="b"] { left: -5px; right: -5px; bottom: -5px; height: 10px; }
+.rsf-group-edge[data-edge="l"] { top: -5px; bottom: -5px; left: -5px; width: 10px; }
+.rsf-group-edge[data-edge="r"] { top: -5px; bottom: -5px; right: -5px; width: 10px; }
+/* 편집 모드 — 제목·테두리 띠가 그룹 통째로 옮기기 손잡이다(React Flow 가 끌 수 있는 노드에 draggable 을 붙인다). */
+.react-flow__node.draggable .rsf-group-handle { cursor: move; }
 /* 그룹 크기 손잡이(G2, 4단계) — 편집 모드에서 고른 그룹의 네 모서리·네 변. 틀은 누름을 받지 않으므로 손잡이만 다시 켠다. */
 .rsf-group-grip {
   position: absolute; box-sizing: border-box; width: 10px; height: 10px; pointer-events: auto; touch-action: none;
