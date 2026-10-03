@@ -13,7 +13,7 @@
  *   3) (--zip) standalone 폴더 전체를 zip 으로 압축 (Windows: PowerShell Compress-Archive)
  *
  * 산출물 실행 (Windows Server):
- *   node .next/standalone/m-mcm/server.js   (env: PORT, BACKEND_API_URL, AUTH_SECRET, NEXTAUTH_URL, BACKEND_CLIENT_KEY)
+ *   node .next/standalone/m-mcm/server.js   (env: PORT, BACKEND_API_URL, AUTH_SECRET, NEXTAUTH_URL, BACKEND_CLIENT_KEY, BFF_INTERNAL_SECRET, TRUSTED_PROXY_HOPS)
  *
  * 옵션:
  *   --zip   조립 후 .next/m-mcm-standalone.zip 생성
@@ -220,7 +220,7 @@ async function main() {
   log("완료. 배포 후 실행:");
   console.log(
     `\n  cd <standalone>\n  node ${runJs.split(path.sep).join("/")}\n` +
-      `  (env: PORT, BACKEND_API_URL, AUTH_SECRET, NEXTAUTH_URL, BACKEND_CLIENT_KEY)\n`
+      `  (env: PORT, BACKEND_API_URL, AUTH_SECRET, NEXTAUTH_URL, BACKEND_CLIENT_KEY, BFF_INTERNAL_SECRET, TRUSTED_PROXY_HOPS)\n`
   );
 }
 

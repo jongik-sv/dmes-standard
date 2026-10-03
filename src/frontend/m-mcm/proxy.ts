@@ -6,6 +6,7 @@
  * 권한키는 토큰이 아니라 BFF 서버 캐시(`getUserPerms`, BE `/api/sec/perm-keys` lazy load)에서 가져온다.
  *
  * 경로 분류 (평가순서):
+ *   0) /api/* 경로 모양 → 인코딩된 `/`·`\`·`.`·`;`·점 조각이면 400 (lib/http/path-guard.ts, 아래 판정보다 먼저)
  *   1) /portal/*        → 인증 보호 (미인증 시 /login)
  *   2) PUBLIC           → 완전 공개 (로그인 등)
  *   3) 세션 없음        → 401
@@ -14,6 +15,14 @@
  *   6) RBAC 3패턴       → 서버캐시 권한키 멤버십 검증 (미보유 403) — SYSADMIN 프리패스 제거
  *                         (2026-07-30, 롤 무관 멤버십. BE 브레이크글라스 시 perm-keys=["*"] 로 전면 통과)
  *   7) 미매칭           → RBAC_DEFAULT_DENY=true 면 403, 아니면 통과 (aps/mpn/kmc rest 등)
+ *   (예외) /api/mcm/internal/cache/invalidate-role → 서버 간 호출 전용. 세션·RBAC 대신 BE → BFF 전용 비밀(X-Bff-Internal-Secret =
+ *         BFF_INTERNAL_SECRET)만 본다(lib/http/internal-call.ts). BFF → BE 마스터 비밀(BACKEND_CLIENT_KEY·X-Client-Key)은 여기서 받지
+ *         않는다. /api/mcm/internal/ 아래 다른 경로는 404.
+ *   그 밖 경로는 어떤 요청 헤더로도 위 검사를 건너뛰지 않는다 — 옛 `x-internal-bff-call: 1` 통과는 브라우저도 붙일 수 있어 없앴다
+ *   (2026-10-03 보안 지적: 세션 없이 그 헤더와 X-Authenticated-* 를 붙이면 /api/{module}/oasis/* 를 아무 사용자로 BE 에 보낼 수 있었다).
+ *
+ * 본문 상한(lib/http/body-limit.ts): 이 proxy 가 도는 요청은 Next 가 본문을 proxyClientMaxBodySize(10MB)까지 메모리에
+ * 복제한다. 미디어 올리기(100MB) 한 경로만 matcher 에서 빼고, 그 전용 라우트가 {@link guardApiRequest} 로 같은 검사를 한다.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
@@ -24,10 +33,16 @@ import {
   type RbacPolicyConfig,
 } from "@dk-oasis/shared/auth-rbac-policy";
 import { getUserPerms } from "@/lib/auth/api-permission-cache";
+import { authCookiePrefix, sessionCookieName } from "@/lib/auth/session-cookie";
+import { API_BODY_MAX_BYTES, declaredBodyExceeds } from "@/lib/http/body-limit";
+import {
+  INTERNAL_API_PREFIX,
+  INTERNAL_INVALIDATE_ROLE_PATH,
+  isTrustedInternalCall,
+} from "@/lib/http/internal-call";
+import { isUnsafeApiPath } from "@/lib/http/path-guard";
 
 const AUTH_SECRET = process.env.AUTH_SECRET;
-const AUTH_COOKIE_PREFIX = process.env.AUTH_COOKIE_PREFIX ?? "oasis-mcm-auth";
-const SESSION_COOKIE_NAME = `${AUTH_COOKIE_PREFIX}.session-token`;
 
 /**
  * mcm BFF RBAC 정책.
@@ -82,7 +97,7 @@ const RBAC_POLICY: RbacPolicyConfig = {
 
 // 포탈 페이지 인증 보호 (shared 제공)
 const portalAuthProxy = createPortalAuthProxy({
-  authCookiePrefix: AUTH_COOKIE_PREFIX,
+  authCookiePrefix: authCookiePrefix(),
   authSecret: process.env.AUTH_SECRET,
   nextAuthUrl: process.env.NEXTAUTH_URL,
 });
@@ -106,17 +121,49 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2-0) BFF 자기참조(oasis-client.ts → BFF) 무한루프 방지.
-  //       서버 내부 self-fetch 만 X-Internal-Bff-Call 헤더를 부착하므로 안전.
-  if (req.headers.get("x-internal-bff-call") === "1") {
-    return NextResponse.next();
+  // 2-0) 경로 모양 — 인코딩된 `/`·`\`·`.`·`;`(이중 인코딩 포함)·날 `\`·`;`·점 조각은 권한 판정보다 먼저 400.
+  //      아래 판정은 원래 경로의 접두를 보는데 라우트는 디코드한 조각으로 BE URL 을 만들어, 섞이면 둘이 보는 경로가 갈라진다
+  //      (`…/noticeBoard/search%2F..%2F..%2FnoticeMgmt%2Fsave` → BE /oasis/noticeMgmt/save, 2026-10-03 보안 지적. lib/http/path-guard.ts).
+  if (isUnsafeApiPath(path)) {
+    return jsonError("BAD_REQUEST", "허용되지 않는 경로 형식입니다.", 400);
   }
 
+  // 2-1) 본문 상한 — Next 는 상한을 넘는 본문을 잘라서 라우트로 넘기므로(body-streams.js), Content-Length 로 미리 413 을 준다.
+  //       메모리 상한은 이 검사가 아니라 next.config 의 proxyClientMaxBodySize 가 지킨다(복제는 proxy 실행 전에 시작된다).
+  if (declaredBodyExceeds(req.headers, API_BODY_MAX_BYTES)) {
+    return jsonError("PAYLOAD_TOO_LARGE", "요청 본문이 너무 큽니다(최대 10MB).", 413);
+  }
+
+  // 2-2) 서버 간 내부 경로(BE RoleChangedEventListener → 권한 캐시 무효화) — 세션 없는 서버 호출이라 사용자 RBAC 대신
+  //       BE → BFF 전용 비밀(X-Bff-Internal-Secret = BFF_INTERNAL_SECRET)을 본다. 틀리거나 없으면 로그인한 사용자여도 403.
+  //       마스터 비밀 X-Client-Key 로는 열리지 않는다. 라우트가 한 번 더 본다.
+  //       여는 경로는 무효화 정확 경로 하나뿐 — internal 아래 다른 경로는 비밀이 맞아도 404(catch-all 로 BE 까지 가지 않게).
+  if (path.startsWith(INTERNAL_API_PREFIX)) {
+    if (path !== INTERNAL_INVALIDATE_ROLE_PATH) {
+      return jsonError("NOT_FOUND", "없는 경로입니다.", 404);
+    }
+    return isTrustedInternalCall(req.headers)
+      ? NextResponse.next()
+      : jsonError("FORBIDDEN", "내부 호출 전용 경로입니다.", 403);
+  }
+
+  return (await guardApiRequest(req)) ?? NextResponse.next();
+}
+
+/**
+ * /api/* 인증·권한 판정(위 2~7단계). 막을 때는 401·403 응답, 통과면 null.
+ * proxy 와 matcher 에서 뺀 미디어 올리기 라우트가 함께 쓴다 — 정책이 한 곳에만 있게 한다.
+ * 내부 경로(/api/mcm/internal/*) 판정은 proxy 에만 있다. 요청 헤더로 이 검사를 건너뛰는 길은 없다.
+ */
+export async function guardApiRequest(req: NextRequest): Promise<NextResponse | null> {
+  const path = req.nextUrl.pathname;
+
   // PUBLIC 은 세션 조회 없이 통과 (login 등). 그 외엔 세션 토큰 필요.
+  // 쿠키 이름은 NextAuth 와 같은 함수로 정한다 — https 면 `__Secure-` 쿠키만 읽는다(lib/auth/session-cookie.ts).
   const isPublic = RBAC_POLICY.publicPrefixes.some((p) => path.startsWith(p));
   const token = isPublic
     ? null
-    : await getToken({ req, secret: AUTH_SECRET, cookieName: SESSION_COOKIE_NAME });
+    : await getToken({ req, secret: AUTH_SECRET, cookieName: sessionCookieName() });
 
   // 방식 C — RBAC 멤버십 단계에서만 BFF 서버 캐시(getUserPerms)로 사용자 권한키를 lazy load.
   // req.method 는 authOnlyReadPatterns(읽기 전용 AUTH_ONLY) 판정에 쓴다 — 빠뜨리면 그 경로가 RBAC 403 이 된다.
@@ -147,10 +194,21 @@ export async function proxy(req: NextRequest) {
       return jsonError("FORBIDDEN", "등록되지 않은 경로입니다.", 403);
     case "pass":
     default:
-      return NextResponse.next();
+      return null;
   }
 }
 
+/**
+ * /api/* 중 미디어 올리기 한 경로(widget-types/media/upload.ts MEDIA_UPLOAD_URL)만 뺀다 — 그 경로는 본문을 복제·절단하지 않고
+ * 전용 라우트(app/api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload/route.ts)가 guardApiRequest 뒤 BE 로 흘려보낸다.
+ * 반드시 경로 전체를 `$` 로 고정한다 — 접두만 빼면 `…/upload/api/<다른 BE 경로>` 가 일반 rest 라우트로 가서 RBAC 를 건너뛴다.
+ * Next 는 원 경로·디코드한 경로 중 하나라도 맞으면 proxy 를 돌리고 대소문자를 가린다(resolve-routes.js, middleware-route-matcher.js)
+ * — 빠지는 것은 이 문자열과 글자까지 같은 경로 하나뿐이다. tests/http/proxy-body-limit.test.ts 가 Next 의 matcher 해석기로 확인한다.
+ */
 export const config = {
-  matcher: ["/portal/:path*", "/login", "/api/:path*"],
+  matcher: [
+    "/portal/:path*",
+    "/login",
+    "/api/((?!mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload$).*)",
+  ],
 };

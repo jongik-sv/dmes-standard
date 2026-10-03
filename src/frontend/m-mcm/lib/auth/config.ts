@@ -1,4 +1,5 @@
 import { createPortalAppBindings } from "@dk-oasis/shared/auth-routes";
+import { authCookiePrefix } from "./session-cookie";
 
 /**
  * auth(`/api/auth/login`) 호출용 BE base URL.
@@ -18,8 +19,9 @@ function resolveAuthBackendApiUrl(): string {
   return `${backendApiUrl.replace(/\/+$/, "")}/mcm`;
 }
 
+// 쿠키 접두는 proxy·BFF 세션 읽기와 같은 출처(AUTH_COOKIE_PREFIX, 기본 oasis-mcm-auth)에서 — lib/auth/session-cookie.ts.
 const portalBindings = createPortalAppBindings({
-  authCookiePrefix: "oasis-mcm-auth",
+  authCookiePrefix: authCookiePrefix(),
   oidcAudience: "oasis-mcm",
   backendApiUrl: resolveAuthBackendApiUrl(),
 });
