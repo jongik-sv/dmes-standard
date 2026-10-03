@@ -98,3 +98,8 @@
   - 단계: ① 같은 복사본 13개 위임 → ② export 형 3개 → ③ 채팅·메모·캐시 관리 → ④ HTTP 계층 통일(json-api-client → shared apiRequest, 별도 결정).
   - 선행 조건: 이번 리팩토링(c3 레인)의 m-mdm·m-mls 공통 계층과 a8 레인의 서버 errors[] 보강이 dev 에 들어온 뒤 진행한다.
   - 결정 대기: 진행 시점, HTTP 계층 통일 여부, ObjectPickerModal 오류 노출, `userId:"admin"` 하드코딩, 가이드·예제 갱신.
+- caravanhub 연동 클라이언트 복제 7파일 통합 — 2026-10-04 a8 조사, 사용자 결정으로 이번 리팩토링에서는 보류
+  - 현황: `caravan-console/.../console/caravanhub` 7파일(270줄)과 `cactus-core/.../integration/caravanhub` 7파일(약 400줄)이 이름만 다른 복제본이다. 로직은 같고 설정 prefix(`caravan-console.caravanhub` / `cactus.caravan-hub`)·빈 이름·패키지·로그 문구만 다르다. mcm 은 같은 환경변수를 yml 두 블록에 적고, 컨텍스트에 RestClient·hub 클라이언트가 2벌씩 뜬다.
+  - caravan-console 은 멈춘 모듈이 아니다(mcm 이 엔티티·서비스·대시보드를 씀). 합칠 대상은 hub 클라이언트 7파일뿐이고, console 쪽 클라이언트 사용처는 ConsoleTopicService 전송 1곳이다.
+  - 권장안 A: cactus 쪽을 정본으로 둔다(테스트 있음, dmom 이 의존). console 이 cactus-core 를 compileOnly 로 의존하고 ConsoleTopicService 가 CaravanHubIntegrationClient 를 주입받게 바꾼 뒤, 7파일은 archive 로 옮긴다(caravanhubconfig 엔티티 패키지는 유지).
+  - 보류 이유: console 의 "cactus 의존 0" 설계를 되돌리고, 켜고 끄는 키가 `cactus.caravan-hub.enabled` 로 바뀐다. 운영·개발계 외부 설정에서 두 prefix 의 값이 다른지 확인한 뒤 다시 다룬다(실서버 설정을 볼 수 있을 때).
