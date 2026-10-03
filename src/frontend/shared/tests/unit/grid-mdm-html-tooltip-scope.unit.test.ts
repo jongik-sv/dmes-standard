@@ -1,22 +1,15 @@
 /** @vitest-environment happy-dom */
 /**
- * HTML 설명 열이 있는 그리드(tooltipInteraction 켬)에서도 상호작용은 MDM HTML 머리글 카드 상자에만 둔다(2026-10-03 조정 결정).
- * ag-grid 는 tooltipInteraction 을 그리드 단위로 켜 모든 툴팁(셀 기본 툴팁·검증 오류 툴팁·MDM 셀 툴팁·글자 MDM 머리글 카드)에
- * 마우스가 들어가게 한다. 그 툴팁들은 커서 18px 아래에 떠 다음 행을 덮으므로, 상자가 마우스를 받지 않게(pointer-events:none) 하고
- * 마우스를 누르면 닫는 예전 동작을 유지한다. 그 밖의 그리드는 상자 DOM 이 예전 그대로다.
+ * HTML 설명 열이 있는 그리드의 다른 툴팁은 dev 와 같다(2026-10-03 조정 결정 → 리뷰 반영 I1 ③).
+ * HTML 카드는 머리글 라벨(MdmHeaderLabel)이 포털로 띄우고 그리드 tooltipInteraction 은 쓰지 않는다. 그래서 같은 그리드의 기본 셀 툴팁·
+ * 검증 오류 툴팁·MDM 셀 툴팁·글자 MDM 머리글 카드는 ag-grid 비상호작용 툴팁 그대로다(마우스가 들어가지 못하고 다음 행을 가리지 않는다).
+ * 글자 MDM 열의 열 정의(키 순서)도 dev 와 같다.
  */
-import { act, createElement, type ReactNode } from "react";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  AgDataGrid,
-  MdmGridInteractiveContext,
-  MdmGridTooltip,
-  buildColumnDefs,
-  withPassThroughTooltips,
-  type GridColumn,
-} from "../../src/components/grid/AgDataGrid";
-import type { ColDef, ColGroupDef } from "ag-grid-community";
+import type { ColDef } from "ag-grid-community";
+import { AgDataGrid, buildColumnDefs, type GridColumn } from "../../src/components/grid/AgDataGrid";
 import { MdmMetaProvider, resetMdmMetaStore, type MdmColumnInfo } from "../../src/mdm-meta";
 import { TITLE, column, fakeMetaFetch, settle } from "./mdm-meta-fixtures";
 
@@ -29,131 +22,63 @@ const BODY = column("NOTICE_BODY", {
   descriptionHtml: "<p><b>굵은</b> 설명</p>",
 });
 
-describe("MdmGridTooltip — 상호작용 그리드 안의 상자", () => {
-  let host: HTMLDivElement;
-  let root: Root | null = null;
-  afterEach(() => {
-    act(() => root?.unmount());
-    root = null;
-    host?.remove();
-  });
-  function render(el: ReactNode, interactiveGrid: boolean) {
-    host = document.createElement("div");
-    document.body.appendChild(host);
-    root = createRoot(host);
-    act(() =>
-      root!.render(
-        interactiveGrid
-          ? createElement(MdmGridInteractiveContext.Provider, { value: true }, el)
-          : el
-      )
-    );
-  }
-  const box = () => host.querySelector<HTMLElement>(".ag-tooltip")!;
-  const mousedown = () =>
-    act(() => void document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
-  const tip = (props: Record<string, unknown>) => createElement(MdmGridTooltip, props as never);
-
-  it("셀 툴팁·글자 MDM 머리글 카드 상자는 pointer-events:none, HTML 머리글 카드만 auto", () => {
-    render(tip({ location: "cell", value: "값" }), true);
-    expect(box().style.pointerEvents).toBe("none");
-    act(() =>
-      root!.render(
-        createElement(
-          MdmGridInteractiveContext.Provider,
-          { value: true },
-          tip({ location: "cell", value: "값", mdmColumn: BODY })
-        )
-      )
-    );
-    expect(box().style.pointerEvents).toBe("none");
-    act(() =>
-      root!.render(
-        createElement(
-          MdmGridInteractiveContext.Provider,
-          { value: true },
-          tip({ location: "header", value: "제목", mdmColumn: TITLE })
-        )
-      )
-    );
-    expect(box().style.pointerEvents).toBe("none");
-    act(() =>
-      root!.render(
-        createElement(
-          MdmGridInteractiveContext.Provider,
-          { value: true },
-          tip({ location: "header", value: "본문", mdmColumn: BODY })
-        )
-      )
-    );
-    expect(box().style.pointerEvents).toBe("auto");
-  });
-
-  it("HTML 카드가 아닌 툴팁은 마우스를 누르면 닫힌다(ag-grid 상호작용 모드가 끈 예전 동작) — HTML 카드는 누름으로 닫지 않는다", () => {
-    const hide = vi.fn();
-    render(tip({ location: "cell", value: "값", hideTooltipCallback: hide }), true);
-    mousedown();
-    expect(hide).toHaveBeenCalledTimes(1);
-    act(() => root?.unmount());
-    host.remove();
-    const htmlHide = vi.fn();
-    render(
-      tip({ location: "header", value: "본문", mdmColumn: BODY, hideTooltipCallback: htmlHide }),
-      true
-    );
-    mousedown();
-    expect(htmlHide).not.toHaveBeenCalled();
-  });
-
-  it("상호작용 그리드 밖에서는 상자 DOM·동작이 예전 그대로(style 문자열 동일, 누름을 듣지 않음)", () => {
-    const hide = vi.fn();
-    render(tip({ location: "cell", value: "값", hideTooltipCallback: hide }), false);
-    expect(box().getAttribute("style")).toBe("width: max-content; max-width: 380px;");
-    mousedown();
-    expect(hide).not.toHaveBeenCalled();
-  });
-});
-
-describe("withPassThroughTooltips — 열 정의", () => {
-  const OPTS = { sortable: true, columnSizing: "fixed" as const, shouldAutoSizeColumns: false };
+describe("글자 MDM 열의 열 정의는 dev 와 같다", () => {
+  // dev(4fdeafe2) leafColDef 의 키 순서 — MDM 메타가 있는 글자 열은 headerTooltip 자리를 덮고 tooltipComponent·Params 를 rowDrag 뒤에 더한다.
+  const DEV_TEXT_MDM_KEYS = [
+    "field",
+    "headerName",
+    "headerComponent",
+    "headerComponentParams",
+    "hide",
+    "pinned",
+    "width",
+    "flex",
+    "minWidth",
+    "sortable",
+    "resizable",
+    "editable",
+    "cellEditor",
+    "cellEditorParams",
+    "cellDataType",
+    "refData",
+    "cellStyle",
+    "cellClass",
+    "cellClassRules",
+    "headerClass",
+    "headerTooltip",
+    "headerStyle",
+    "rowDrag",
+    "tooltipComponent",
+    "tooltipComponentParams",
+    "cellRenderer",
+    "valueFormatter",
+  ];
   const info = (c: MdmColumnInfo["column"]): MdmColumnInfo => ({
     column: c,
     domain: null,
     loading: false,
   });
-  const cols: GridColumn[] = [
-    { key: "noticeBody" },
-    {
-      key: "grp",
-      header: "묶음",
-      headerTooltip: "묶음 설명",
-      children: [{ key: "etc", header: "기타" }],
-    },
-  ];
 
-  it("HTML 카드 열이 있으면 툴팁 컴포넌트가 없는 잎 열과 headerTooltip 을 가진 열 그룹에 MdmGridTooltip 을 단다", () => {
-    const defs = withPassThroughTooltips(
-      buildColumnDefs(cols, {
-        ...OPTS,
-        mdm: { priority: "explicit", infoByKey: new Map([["noticeBody", info(BODY)]]) },
-      })
-    );
-    const group = defs[1] as ColGroupDef;
-    expect(group.tooltipComponent).toBe(MdmGridTooltip);
-    expect((group.children[0] as ColDef).tooltipComponent).toBe(MdmGridTooltip);
-    expect((defs[0] as ColDef).tooltipComponentParams.mdmColumn).toBe(BODY); // MDM 열은 그대로
-  });
-
-  it("HTML 카드 열이 없으면 받은 배열을 그대로 돌려준다", () => {
-    const built = buildColumnDefs(cols, {
-      ...OPTS,
-      mdm: { priority: "explicit", infoByKey: new Map([["noticeBody", info(TITLE)]]) },
-    });
-    expect(withPassThroughTooltips(built)).toBe(built);
+  it("HTML 열이 같은 그리드에 있어도 글자 MDM 열의 키·값은 dev 그대로(headerComponentParams 없음)", () => {
+    const defs = buildColumnDefs([{ key: "title" }, { key: "noticeBody" }], {
+      sortable: true,
+      columnSizing: "fixed",
+      shouldAutoSizeColumns: false,
+      mdm: {
+        priority: "explicit",
+        infoByKey: new Map([
+          ["title", info(TITLE)],
+          ["noticeBody", info(BODY)],
+        ]),
+      },
+    }) as ColDef[];
+    expect(Object.keys(defs[0])).toEqual(DEV_TEXT_MDM_KEYS);
+    expect(defs[0].headerComponentParams).toBeUndefined();
+    expect(defs[0].headerTooltip).toBe("제목");
   });
 });
 
-describe("AgDataGrid — HTML 열이 있는 그리드의 셀·머리글 툴팁 상자", () => {
+describe("AgDataGrid — HTML 열이 있는 그리드의 셀·머리글 툴팁은 dev 처럼 비상호작용", () => {
   let container: HTMLDivElement;
   let root: Root | null = null;
   beforeEach(() => {
@@ -188,9 +113,9 @@ describe("AgDataGrid — HTML 열이 있는 그리드의 셀·머리글 툴팁 �
         )
       )
     );
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       await act(async () => {
-        await settle(80);
+        await settle(60);
       });
     }
   }
@@ -215,33 +140,34 @@ describe("AgDataGrid — HTML 열이 있는 그리드의 셀·머리글 툴팁 �
     return box!;
   }
 
-  /** 상자가 마우스를 받지 않는다 — 인라인 pointer-events:none 이고, 상자 자신에 ag-grid 상호작용 클래스가 없다. */
-  function expectNoPointer(box: HTMLElement) {
-    expect(box.style.pointerEvents).toBe("none");
-    expect(box.classList.contains("ag-tooltip-interactive")).toBe(false);
+  /** dev 와 같은 비상호작용 툴팁 — 문서 어디에도 ag-grid 상호작용 클래스가 없고 상자에 pointer-events 를 따로 두지 않는다(ag-grid CSS 의 none). */
+  function expectDevTooltip(box: HTMLElement) {
+    expect(document.querySelector(".ag-tooltip-interactive")).toBeNull();
+    expect(box.style.pointerEvents).toBe("");
   }
 
-  it("MDM 이 아닌 열의 기본 셀 툴팁 상자는 마우스를 받지 않는다", async () => {
+  it("MDM 이 아닌 열의 기본 셀 툴팁", async () => {
     await show();
-    expectNoPointer(await hover('.ag-row[row-index="0"] .ag-cell[col-id="etc"]', "E1"));
+    expectDevTooltip(await hover('.ag-row[row-index="0"] .ag-cell[col-id="etc"]', "E1"));
   }, 15000);
 
-  it("검증 오류 셀 툴팁(fieldErrors) 상자는 마우스를 받지 않는다", async () => {
+  it("검증 오류 셀 툴팁(fieldErrors)", async () => {
     await show({ fieldErrors: [{ rowIndex: 0, field: "etc", message: "서버: 기타 오류" }] });
-    expectNoPointer(
+    expectDevTooltip(
       await hover('.ag-row[row-index="0"] .ag-cell[col-id="etc"]', "서버: 기타 오류")
     );
   }, 15000);
 
-  it("HTML 열의 셀 툴팁(MDM 셀 툴팁) 상자는 마우스를 받지 않는다", async () => {
+  it("HTML 열의 셀 툴팁(MDM 셀 툴팁)", async () => {
     await show();
-    expectNoPointer(await hover('.ag-row[row-index="0"] .ag-cell[col-id="noticeBody"]', "B1"));
+    expectDevTooltip(await hover('.ag-row[row-index="0"] .ag-cell[col-id="noticeBody"]', "B1"));
   }, 15000);
 
-  it("글자 MDM 머리글 카드 상자는 마우스를 받지 않는다", async () => {
+  it("글자 MDM 머리글 카드", async () => {
     await show();
     const box = await hover('.ag-header-cell[col-id="title"]', "공지 제목");
     expect(box.classList.contains("mdm-meta-tooltip")).toBe(true);
-    expectNoPointer(box);
+    expect(box.getAttribute("style")).toBe("width: max-content; max-width: 380px;");
+    expectDevTooltip(box);
   }, 15000);
 });

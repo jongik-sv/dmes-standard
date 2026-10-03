@@ -123,6 +123,12 @@
   justify-content: flex-end;
 }
 
+/* MDM HTML 설명 머리글 라벨(MdmHeaderLabel) — ag-grid React 가 안쪽 머리글 컴포넌트를 div.ag-react-container 로 감싼다.
+   그 감싸개를 없는 셈 쳐서 라벨 글자가 .ag-header-cell-text 의 말줄임·줄바꿈을 dev 와 똑같이 받게 한다. */
+.ag-header-cell-text > .mdm-header-label-host {
+  display: contents;
+}
+
 /* Cell */
 .cm-data-grid .ag-cell {
   padding: 0 8px;
