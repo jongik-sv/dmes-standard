@@ -1311,7 +1311,7 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
-     * D-144 2단계 — 룰 세트 버전 확정(dme/ruleSetConfirm). 기존 메뉴 배열은 고치지 않고 같은 dme 폴더 아래 새 leaf 로 등록한다.
+     * D-144 2단계 — 룰 세트 확정(dme/ruleSetConfirm). 기존 메뉴 배열은 고치지 않고 같은 dme 폴더 아래 새 leaf 로 등록한다.
      * action(search·view·validate·confirm)은 기존 권한 세트·allActions 안에 있다(ruleConfirm 과 같다). 룰 세트 편집(ruleSetEdit)의 새 action
      * copy·lock·unlock·handover 도 이미 PERM_MDM_EDIT·allActions 안에 있어 시드를 바꾸지 않는다. FULL_SEQ 는 부팅 끝 recomputeMenuFullSeq() 가 다시 매긴다.
      */

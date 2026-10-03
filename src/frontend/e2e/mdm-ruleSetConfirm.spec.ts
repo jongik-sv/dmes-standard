@@ -19,9 +19,7 @@ const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
 const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
-// 메뉴 이름은 시드의 "룰 세트 확정"(mcm DataInitializer)이고, breadcrumb 은 MdmPageLayout 이 화면 title("룰 세트 버전 확정")로 만든다.
-// 두 문구가 다르다 — 다른 확정 화면(버전 확정·레이아웃 확정)은 같다. 문구 통일 여부는 제품 쪽 결정이라 스펙은 지금 보이는 대로 확인한다.
-const BREADCRUMB = "마루 MDM > 업무기준 > 룰 세트 버전 확정";
+const BREADCRUMB = "마루 MDM > 업무기준 > 룰 세트 확정";
 const CHECK_ITEMS = ["FLOW_STRUCTURE", "RULES_RELEASED", "ORDER", "TEST_CASES"] as const;
 
 function tid(page: Page, id: string): Locator {

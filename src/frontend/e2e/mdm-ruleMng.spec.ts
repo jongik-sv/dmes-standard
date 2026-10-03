@@ -282,7 +282,6 @@ test.describe("mdm dme/ruleMng", () => {
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("1.000");
   });
 
-  // H6 은 제품 결함(ruleMng 헤더 저장에 MDM001 충돌 안내가 없다)으로 실패한다. serial 묶음에서 H7·H8 이 미실행이 되지 않도록 맨 끝에 둔다.
   // H1 이 룰 이름을 바꾸므로 헤더 이름은 화면이 읽은 값에서 파생해 쓴다. 화면이 읽어 둔 auditVer 를 다른 요청이 먼저 올려 충돌을 만든다.
   test("H6 서버 오류: 헤더 저장이 MDM001 로 거부되면 다시 불러오기가 보인다", async ({ page }) => {
     await login(page, STEWARD);
@@ -302,5 +301,15 @@ test.describe("mdm dme/ruleMng", () => {
     await page.getByRole("button", { name: "헤더 저장", exact: true }).click();
     // 설계(TSK-08-02 design.md:444, D-105 (5)): MDM001 이면 '다른 창에서 바뀌었습니다. 다시 불러오세요' 를 보인다.
     await expect(page.getByRole("dialog").getByText("다른 창에서 바뀌었습니다. 다시 불러오세요")).toBeVisible({ timeout: 20_000 });
+    // 오류 창을 닫아도 거부는 상세를 다시 부르지 않으므로 입력이 남고, 상세 맨 위에 [다시 불러오기] 가 남는다(ruleMng 기능설계서 N-6).
+    await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByTestId("rule-header-name")).toHaveValue(`${view.header.maruRuleName} 수정2`);
+    const reload = page.getByTestId("rule-conflict-reload");
+    await expect(reload).toBeVisible();
+    // [다시 불러오기] 는 서버 값(다른 요청이 저장한 이름)으로 돌아가고 안내를 끈다.
+    await reload.click();
+    await expect(page.getByTestId("rule-header-name")).toHaveValue(`${view.header.maruRuleName} 다른이`, { timeout: 20_000 });
+    await expect(reload).toHaveCount(0);
   });
 });

@@ -699,8 +699,6 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("dt-dirty")).toHaveCount(0);
   });
 
-  // S7 은 제품 결함 후보(선택 행 조건 칸 강조 cell-emphasis 가 f7d9c47a 에서 빠졌다 — ruleEdit 기능설계서 「강조」 와 다름)로 실패하므로
-  // serial 묶음에서 뒤 시나리오(C·V)를 가리지 않게 맨 끝에 둔다. 단언은 그대로다. QLTY_GRD_JDG 는 C·V 가 고치지 않는다.
   test("S7 적중 조건 강조: 행 번호를 누르면 그 행의 - 가 아닌 조건 칸만 강조된다", async ({ page }) => {
     await openRule(page, STEWARD, "QLTY_GRD_JDG");
     await page.getByTestId("dt-row-3").click();

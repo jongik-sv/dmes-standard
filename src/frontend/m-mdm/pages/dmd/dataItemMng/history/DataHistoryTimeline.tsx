@@ -6,8 +6,12 @@
  * 서버가 준 행을 valid_from 순서 그대로 그리고, `gapFrom` 이 있는 행 앞에 "닫혀 있던 구간" 줄을 서버 값 그대로 끼운다.
  * 사건·상태를 다시 계산하지 않는다(H2 — 계산은 서버 한 곳).
  *
- * 두 패널 모두 화면 오른쪽 열(약 34%, 1280 폭에서 330px 안팎)에 놓이므로, 판단에 필요한 열이 가로 스크롤 없이 보이게
+ * 두 패널 모두 화면 오른쪽 열(약 34%, 1280 폭에서 이력 칸 실측 약 325px)에 놓이므로, 판단에 필요한 열이 가로 스크롤 없이 보이게
  * 칸 안에 여러 줄로 쌓는다(D-104 회귀 — 넓은 열을 늘어놓으면 열 가상화로 뒤 열이 DOM 에도 없다).
+ *  - 열 폭: fit 그리드는 칸이 좁으면 각 열이 minWidth 까지 줄고, 그 합이 칸보다 넓으면 가로로 넘친다. 카테고리·소속 이력은 최소 폭 합을
+ *    325px 에서 세로 스크롤바(Windows 고정 약 17px) 몫을 뺀 308px 이하로 둔다 — 사건·시작·끝(70+88+88)은 배지·날짜가 잘리지 않는
+ *    폭이라 그대로 두고, 말줄임·제목(title)이 있는 넷째 칸이 56px 까지 줄어든다(e2e dataItemMng S10, 2026-10-03). 그 칸의 머리글은
+ *    말줄임될 수 있어 머리 툴팁(headerTooltip)에 전체를 둔다.
  *  - 사건 칸: 사건 배지 위, 행 상태 배지 아래.
  *  - 시작·끝 칸: 날짜 위, 시각 아래(두 칸은 따로 둔다 — 앞 행의 끝과 다음 행의 시작이 같은 글자로 이어진다).
  *  - 대상별 칸: 항목은 이름(아래 약칭), 카테고리는 이름·종류·대상·정규식을 세 줄로, 소속은 항목 키.
@@ -78,6 +82,94 @@ function dateTime(value: unknown) {
 
 const text = (v: unknown) => (v === null || v === undefined ? "" : String(v));
 
+/**
+ * 대상별 타임라인 열. `columnSizing="fit"` 이라 `width` 는 비율이고, 칸이 좁으면 `minWidth` 까지 줄어든 뒤 가로로 넘친다.
+ */
+export function timelineColumns(target: HistoryTarget, header: DataHistoryResult["header"] | null, key: string | null | undefined): GridColumn[] {
+  const cols: GridColumn[] = [
+    {
+      key: "eventLabel",
+      header: "사건",
+      width: 74,
+      minWidth: 70,
+      align: "center",
+      tooltip: false,
+      render: (value, row) => {
+        if (row.gap) {
+          // 빈 구간 줄은 배지 하나 — 좁은 칸에서는 두 줄로 접힌다.
+          return lines([
+            <span key="g" style={{ ...badgeStyle("warning"), height: "auto", whiteSpace: "normal", lineHeight: "16px",
+              padding: "1px 6px", textAlign: "center" }}>{String(value)}</span>,
+          ], { align: "center" });
+        }
+        const tone = ROW_TONE[(row.rowState as HistoryRowState) ?? "PAST"] ?? "neutral";
+        return lines([badge(String(value), "info"), badge(String(row.rowStateLabel ?? ""), tone)], { align: "center" });
+      },
+    },
+    { key: "validFrom", header: "시작", width: 92, minWidth: 88, align: "center", tooltip: false, render: dateTime },
+    { key: "validTo", header: "끝", width: 92, minWidth: 88, align: "center", tooltip: false, render: dateTime },
+  ];
+  if (target === "ITEM") {
+    cols.push({
+      key: "name",
+      header: "이름",
+      width: 140,
+      minWidth: 80,
+      tooltip: false,
+      render: (value, row) => {
+        const alter = text(row.alterName);
+        return lines(alter ? [text(value), <span key="a" style={muted}>{alter}</span>] : [text(value)], {
+          title: alter ? `${text(value)} (약칭 ${alter})` : text(value),
+        });
+      },
+    });
+    // 덜 중요한 칸은 뒤에 둔다 — 좁은 패널에서는 가로로 밀어 본다.
+    cols.push({ key: "seq", header: "순서", width: 60, align: "right" });
+    const lvlCnt = Math.max(0, Math.min(5, header?.lvlCnt ?? 0));
+    for (let i = 1; i <= lvlCnt; i++) {
+      cols.push({ key: `lvl${i}`, header: `${i}차`, width: 80, align: "left" });
+    }
+    for (const label of header?.attrLabels ?? []) {
+      cols.push({ key: label.field, header: label.label, width: 100, align: "left" });
+    }
+    cols.push({ key: "rowVersion", header: "행 버전", width: 70, align: "right" });
+  } else if (target === "CATE") {
+    cols.push({
+      key: "cateName",
+      header: "카테고리 정의",
+      headerTooltip: "카테고리 정의",
+      width: 160,
+      minWidth: 56,
+      tooltip: false,
+      render: (value, row) => {
+        if (row.gap) return "";
+        const kindTarget = [text(row.defKind), text(row.defTarget)].filter(Boolean).join(" · ");
+        const expr = text(row.defExpr);
+        return lines([text(value), <span key="k" style={muted}>{kindTarget}</span>, expr], {
+          title: [
+            `이름 ${text(value)}`,
+            `종류 ${text(row.defKind)}`,
+            row.defTarget ? `대상 ${text(row.defTarget)}` : "",
+            expr ? `정규식 ${expr}` : "",
+          ].filter(Boolean).join(" · "),
+        });
+      },
+    });
+  } else {
+    // 소속 — 행마다 같은 항목 키지만, 좁은 패널에서 무엇의 선분인지 줄마다 보이게 둔다.
+    cols.push({
+      key: "memberKey",
+      header: "항목 키",
+      headerTooltip: "항목 키",
+      width: 120,
+      minWidth: 56,
+      tooltip: false,
+      render: (_v, row) => (row.gap ? "" : lines([text(key)], { title: text(key) })),
+    });
+  }
+  return cols;
+}
+
 export function DataHistoryTimeline({ result }: DataHistoryTimelineProps) {
   const target: HistoryTarget = result?.target ?? "ITEM";
   const header = result?.header ?? null;
@@ -100,88 +192,7 @@ export function DataHistoryTimeline({ result }: DataHistoryTimelineProps) {
     return out;
   }, [result]);
 
-  const columns = useMemo<GridColumn[]>(() => {
-    const cols: GridColumn[] = [
-      {
-        key: "eventLabel",
-        header: "사건",
-        width: 74,
-        minWidth: 70,
-        align: "center",
-        tooltip: false,
-        render: (value, row) => {
-          if (row.gap) {
-            // 빈 구간 줄은 배지 하나 — 좁은 칸에서는 두 줄로 접힌다.
-            return lines([
-              <span key="g" style={{ ...badgeStyle("warning"), height: "auto", whiteSpace: "normal", lineHeight: "16px",
-                padding: "1px 6px", textAlign: "center" }}>{String(value)}</span>,
-            ], { align: "center" });
-          }
-          const tone = ROW_TONE[(row.rowState as HistoryRowState) ?? "PAST"] ?? "neutral";
-          return lines([badge(String(value), "info"), badge(String(row.rowStateLabel ?? ""), tone)], { align: "center" });
-        },
-      },
-      { key: "validFrom", header: "시작", width: 92, minWidth: 88, align: "center", tooltip: false, render: dateTime },
-      { key: "validTo", header: "끝", width: 92, minWidth: 88, align: "center", tooltip: false, render: dateTime },
-    ];
-    if (target === "ITEM") {
-      cols.push({
-        key: "name",
-        header: "이름",
-        width: 140,
-        minWidth: 80,
-        tooltip: false,
-        render: (value, row) => {
-          const alter = text(row.alterName);
-          return lines(alter ? [text(value), <span key="a" style={muted}>{alter}</span>] : [text(value)], {
-            title: alter ? `${text(value)} (약칭 ${alter})` : text(value),
-          });
-        },
-      });
-      // 덜 중요한 칸은 뒤에 둔다 — 좁은 패널에서는 가로로 밀어 본다.
-      cols.push({ key: "seq", header: "순서", width: 60, align: "right" });
-      const lvlCnt = Math.max(0, Math.min(5, header?.lvlCnt ?? 0));
-      for (let i = 1; i <= lvlCnt; i++) {
-        cols.push({ key: `lvl${i}`, header: `${i}차`, width: 80, align: "left" });
-      }
-      for (const label of header?.attrLabels ?? []) {
-        cols.push({ key: label.field, header: label.label, width: 100, align: "left" });
-      }
-      cols.push({ key: "rowVersion", header: "행 버전", width: 70, align: "right" });
-    } else if (target === "CATE") {
-      cols.push({
-        key: "cateName",
-        header: "카테고리 정의",
-        width: 160,
-        minWidth: 80,
-        tooltip: false,
-        render: (value, row) => {
-          if (row.gap) return "";
-          const kindTarget = [text(row.defKind), text(row.defTarget)].filter(Boolean).join(" · ");
-          const expr = text(row.defExpr);
-          return lines([text(value), <span key="k" style={muted}>{kindTarget}</span>, expr], {
-            title: [
-              `이름 ${text(value)}`,
-              `종류 ${text(row.defKind)}`,
-              row.defTarget ? `대상 ${text(row.defTarget)}` : "",
-              expr ? `정규식 ${expr}` : "",
-            ].filter(Boolean).join(" · "),
-          });
-        },
-      });
-    } else {
-      // 소속 — 행마다 같은 항목 키지만, 좁은 패널에서 무엇의 선분인지 줄마다 보이게 둔다.
-      cols.push({
-        key: "memberKey",
-        header: "항목 키",
-        width: 120,
-        minWidth: 72,
-        tooltip: false,
-        render: (_v, row) => (row.gap ? "" : lines([text(result?.key)], { title: text(result?.key) })),
-      });
-    }
-    return cols;
-  }, [target, header, result?.key]);
+  const columns = useMemo(() => timelineColumns(target, header, result?.key), [target, header, result?.key]);
 
   const rows = result?.rows ?? [];
   const state = result?.state ?? "NONE";

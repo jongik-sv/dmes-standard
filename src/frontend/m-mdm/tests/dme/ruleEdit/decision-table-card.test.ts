@@ -659,6 +659,43 @@ describe("DecisionTableCard 렌더", () => {
     expect(findButton(container, "표 저장").disabled).toBe(true);
   });
 
+  // 기능설계서 「강조」 — 선택 행의 `-` 가 아닌 조건 칸(테두리, cell-emphasis). f7d9c47a 가 고른 행을 표시 행에서 빼며 규칙까지 지웠다.
+  // 고른 행은 여전히 표시 행·토큰에 싣지 않는다(Local-Rules §16) — highlightedRowKey 가 이전·새 행 둘만 다시 그릴 때 규칙이 다시 판정한다.
+  it("행을 고르면 그 행의 - 가 아닌 조건 칸만 강조하고, 다른 행을 고르면 옮겨 가며 나머지 행은 다시 그리지 않는다", async () => {
+    await renderCard(draftView("e2e_mdm_steward"));
+    const cell = (rowId: number, colId: string) =>
+      container.querySelector<HTMLElement>(`.ag-center-cols-container .ag-row[row-id='${rowId}'] [col-id='${colId}']`);
+    const emphasized = (rowId: number, colId: string) => {
+      const c = cell(rowId, colId);
+      expect(c, `행 ${rowId} ${colId} 칸`).toBeTruthy();
+      return c!.classList.contains("cell-emphasis");
+    };
+    const rowEl = (rowId: number) => container.querySelector(`.ag-center-cols-container .ag-row[row-id='${rowId}']`);
+    expect(emphasized(3, "c1_op")).toBe(false);
+    const untouched = rowEl(2);
+    expect(untouched).toBeTruthy();
+
+    await act(async () => (container.querySelector("[data-testid='dt-row-3']") as HTMLButtonElement).click());
+    await flush();
+    // 행 3: 두께 GE·표면등급 NOT_IN 은 강조, 폭은 NA 라 강조하지 않는다. 고르지 않은 행 1 은 그대로.
+    expect(emphasized(3, "c1_op")).toBe(true);
+    expect(emphasized(3, "c1_left")).toBe(true);
+    expect(emphasized(3, "c3_op")).toBe(true);
+    expect(emphasized(3, "c2_op")).toBe(false);
+    expect(emphasized(1, "c1_op")).toBe(false);
+    // 결과 열은 조건이 아니다.
+    expect(emphasized(3, "c4_val")).toBe(false);
+
+    await act(async () => (container.querySelector("[data-testid='dt-row-1']") as HTMLButtonElement).click());
+    await flush();
+    expect(emphasized(1, "c1_op")).toBe(true);
+    expect(emphasized(1, "c2_op")).toBe(true);
+    expect(emphasized(3, "c1_op")).toBe(false);
+    expect(emphasized(3, "c3_op")).toBe(false);
+    // 고르기에 끼지 않은 행 2 는 DOM 이 그대로다 — 고를 때마다 표 전체를 다시 그리지 않는다(§16 성능 목표).
+    expect(rowEl(2)).toBe(untouched);
+  });
+
   it("산출 룰은 행 추가 버튼 없이 안내를 보인다", async () => {
     await renderCard(draftView("e2e_mdm_steward", "e2e_mdm_steward", { rule: { ...draftView(null).rule, ruleKind: "DERIVE" } }));
     expect(() => findButton(container, "행 추가")).toThrow();

@@ -190,6 +190,7 @@ LoV service가 아직 없을 때는 화면에서 임의 Phase 7 LoV 라우트를
 - 무거운 계산(검사·직렬화·dirty 비교)은 그 계산이 실제로 읽는 필드(행·변수·적중 정책 등)만 의존성으로 둔다. `state` 통째로 두지 않는다.
 - 결과를 보이지 않는 상태(예: 변경이 없어 서버 검사를 보일 때)에는 계산하지 않는다. 불러온 배열과 같으면(`rows === loadedRows`) 직렬화 비교를 건너뛴다.
 - 고른 행은 표시 행(data)·다시 그리기 토큰(`rowClassRefreshToken`)에 싣지 않는다. `highlightedRowKey` 가 이전 행과 새 행만 다시 그린다(편집 중인 행은 편집이 끝난 뒤). 이렇게 바꾼 뒤 417행 표에서 행 고르기가 1.3초에서 약 25ms 가 됐다.
+  - 고른 행에 따라 칸 모양이 바뀌면(선택 행 조건 칸 테두리 `cell-emphasis` 등) 그 판정도 표시 행에서 빼되 지우지는 않는다. 열 정의에 `isSelectedRow` 같은 함수를 넘기고, 함수는 **렌더 중에** 대입한 ref 를 읽게 한다. 그리드가 이전·새 행을 다시 그릴 때 `cellClassRules` 가 새 값으로 다시 판정한다. 부모 `useEffect` 에서 ref 를 고치면 자식 그리드의 다시 그리기가 먼저 돌아 옛 값을 읽는다. 2026-09-30 성능 수정 때 이 규칙을 통째로 지워 선택 행 강조가 사라졌다(e2e ruleEdit S7, 2026-10-03 복구).
 - 행 고르기는 행 번호만이 아니라 어느 칸을 눌러도, ↑/↓ 로 포커스를 옮겨도 되게 한다(`onRowClick` + `onFocusedRowChange`). 편집 표는 `editArrowNavigation` 으로 편집 중 ↑/↓ 가 같은 열 윗행·아랫행 편집으로 이어진다.
 - 편집마다 도는 무거운 검사는 Worker 로 보낸다. 편집이 멈추고 잠깐(300ms) 뒤에 보내고, Worker 가 일하는 동안 들어온 입력은 가장 최근 것 하나만 남긴다. 늦게 온 옛 결과는 버리고, 기다리는 동안 앞 결과와 "검사 중" 을 보인다. 417행 표에서 메인 스레드 멈춤이 225ms 에서 0 이 됐다.
   - Worker 는 `inline-worker:./x.worker.ts` 로 가져와 Blob URL 로 띄운다(`m-mdm/scripts/inline-worker.ts`). dist 를 포털 번들러가 다시 묶는 구조라 `new Worker(new URL(…, import.meta.url))` 경로는 청크 위치에 따라 깨질 수 있다.
@@ -336,3 +337,12 @@ happy-dom 20.11 의 `NodeIterator` 는 지금 노드를 지우면 그 뒤 노드
 
 - 소독 시험은 지워질 요소(`script`·`iframe` 등)를 검사할 내용 **뒤**에 두거나, 지울 요소와 검사할 속성을 다른 시험으로 나눈다. 예: `shared/tests/unit/html-editor.unit.test.ts` 의 미리보기 시험.
 - 지울 요소 뒤의 속성이 남았다고 소독 코드를 고치지 않는다. 먼저 순서를 바꿔 다시 돌려 본다.
+
+## 30. 좁은 칸의 fit 그리드 — 열 최소 폭 합을 칸 폭보다 작게 둔다 (2026-10-03)
+
+`AgDataGrid columnSizing="fit"` 은 `width` 를 비율로 나누지만, 칸이 좁으면 각 열이 `minWidth`(없으면 `width`)까지만 줄고 그 합이 칸보다 넓으면 가로 스크롤이 생긴다. 항목 편집의 카테고리 이력(오른쪽 열 34%)은 1280 폭에서 칸이 약 325px 인데 최소 폭 합이 326px 이라 1px 가로 스크롤이 났다. 단위 테스트(happy-dom)는 레이아웃을 계산하지 않아 이 문제가 보이지 않는다.
+
+- 가로 스크롤 없이 보여야 하는 좁은 칸의 그리드는 최소 폭 합을 **1280 폭에서 잰 칸 폭 − 세로 스크롤바 몫(Windows 고정 약 17px)** 이하로 둔다. 행이 늘어 세로 스크롤바가 생기면 그만큼 다시 좁아진다. 열 가중치·`minWidth` 정하는 법은 `mantine-aggrid-ui` 스킬 `references/screen-patterns.md` 의 fit 열 폭 규칙을 따르고, 이 절은 스크롤바 몫과 시험 방법만 더한다.
+- 줄일 열은 말줄임과 제목(title)으로 값을 다 볼 수 있는 열이다. 날짜·배지처럼 잘리면 뜻이 바뀌는 열은 줄이지 않는다.
+- 열 정의를 순수 함수로 두고 최소 폭 합을 시험으로 고정한다. 실제 폭은 e2e 가 `scrollWidth - clientWidth` 로 본다.
+- 예시: `m-mdm/pages/dmd/dataItemMng/history/DataHistoryTimeline.tsx` 의 `timelineColumns` 와 `tests/dmd/dataItemMng/history/data-history-timeline.test.ts`.

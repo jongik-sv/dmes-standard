@@ -33,6 +33,18 @@ export function isRowVersionConflict(e: unknown): boolean {
   return e.message.includes("MDM001") || e.message.startsWith(ROW_VERSION_CONFLICT_MESSAGE);
 }
 
+/**
+ * row_version 충돌(MDM001) 안내 — 룰 화면(ruleEdit)·룰 상세(ruleMng)·룰 세트 편집(ruleSetEdit)이 같은 문구를 쓴다(ruleEdit 기능설계서 §6.2).
+ * 서버 문구("다른 사용자가 수정했습니다")를 그대로 보이지 않고, 화면은 이 문구와 함께 [다시 불러오기] 를 준다.
+ */
+export const CONFLICT_MESSAGE = "다른 창에서 바뀌었습니다. 다시 불러오세요";
+
+/** 쓰기 실패를 화면 안내로 바꾼다 — 충돌(MDM001)이면 `CONFLICT_MESSAGE` 와 `conflict: true`, 그 밖은 서버 문구 그대로. */
+export function writeFailure(e: unknown): { conflict: boolean; message: string } {
+  if (isRowVersionConflict(e)) return { conflict: true, message: CONFLICT_MESSAGE };
+  return { conflict: false, message: e instanceof Error ? e.message : String(e) };
+}
+
 /** DRAFT 가 아니거나(MDM002) 내 DRAFT 가 아니다(MDM003) — 다른 곳에서 확정·넘기기·삭제됐다(D-144 2단계). 코드가 없는 경로는 문구로 본다. */
 export function isDraftGone(e: unknown): boolean {
   if (!(e instanceof Error)) return false;

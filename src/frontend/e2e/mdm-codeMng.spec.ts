@@ -84,9 +84,20 @@ async function register(page: Page, id: string, name: string, lvl: string) {
 /**
  * 행을 누르고 **그 코드의** 상세가 뜰 때까지 기다린다. 이미 다른 코드를 보고 있으면 `header-name` 은 클릭 전부터 보이므로
  * 그것만 기다리면 이전 코드 위에서 다음 단계가 돈다(M6 간헐 실패 — CODE_B 대신 CODE_ID 를 지울 수 있었다).
+ * 이미 **같은** 코드를 보고 있으면 `header-code-id` 도 클릭 전부터 맞다. 행 클릭은 늘 상세(codeEdit/view)를 다시 부르는데
+ * ag-grid 의 행 클릭 콜백은 비동기라, 다음 단계의 입력이 다시 불러오기보다 먼저 들어가면 늦은 응답이 폼을 서버 값으로 덮는다
+ * (M5 간헐 실패 — 이름은 옛 값, 라벨만 저장됐다). 그래서 그 코드의 view 응답까지 기다린다.
  */
 async function selectCode(page: Page, id: string) {
+  const viewed = page.waitForResponse(
+    (r) =>
+      r.url().includes("/api/mdm/oasis/codeEdit/view") &&
+      r.status() === 200 &&
+      (r.request().postData() ?? "").includes(`"${id}"`),
+    { timeout: 30_000 },
+  );
   await listRow(page, id).click();
+  await viewed;
   await expect(tid(page, "header-code-id")).toHaveText(id, { timeout: 30_000 });
   await expect(tid(page, "header-name")).toBeVisible();
 }

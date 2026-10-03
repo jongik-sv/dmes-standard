@@ -568,8 +568,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await page.screenshot({ path: screenshot("dmd-dataItemMng-cate-invalid-regex.png"), fullPage: true });
     await closeErrorModal(page);
 
-    // 기본 폭(1280)에서도 카테고리 이력 그리드에 가로 스크롤이 없다. 제품 결함 후보(이력 열 최소 폭 합 326px > 칸 폭 약 325px —
-    // 66f40e88 배치 뒤 1px 넘친다)로 실패하므로 이 시나리오의 맨 끝에 둔다(앞의 확인을 가리지 않게). 단언은 그대로다.
+    // 기본 폭(1280)에서도 카테고리 이력 그리드에 가로 스크롤이 없다.
     const overflow = await cateHistory.locator(".ag-center-cols-viewport").evaluate((el) => el.scrollWidth - el.clientWidth);
     expect(overflow, "카테고리 이력 그리드에 가로 스크롤이 없다").toBeLessThanOrEqual(0);
   });

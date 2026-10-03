@@ -8,12 +8,11 @@
  */
 import { useCallback, useRef, useState } from "react";
 
-import { isRowVersionConflict } from "@/dme/oasis-call";
+import { writeFailure } from "@/dme/oasis-call";
 
 import { viewRule } from "../api";
 import type { RuleEditNotice, RuleEditView } from "../types";
 
-export const CONFLICT_MESSAGE = "다른 창에서 바뀌었습니다. 다시 불러오세요";
 const DIRTY_CONFIRM = "저장하지 않은 변경이 있습니다. 버리고 이동할까요?";
 
 /** 쓰기 뒤 다시 불러올 버전 — undefined 면 지금 선택한 버전, null 이면 서버 기본 고르기. */
@@ -47,13 +46,11 @@ export function useRuleEdit(): RuleEditState {
   const ruleIdRef = useRef<string | null>(null);
   const viewRef = useRef<RuleEditView | null>(null);
 
+  // 충돌 판정·문구는 룰 상세(ruleMng RuleDetailPanel)와 같은 함수를 쓴다(@/dme/oasis-call writeFailure).
   const fail = useCallback((e: unknown) => {
-    if (isRowVersionConflict(e)) {
-      setConflict(true);
-      setError(CONFLICT_MESSAGE);
-      return;
-    }
-    setError(e instanceof Error ? e.message : String(e));
+    const f = writeFailure(e);
+    if (f.conflict) setConflict(true);
+    setError(f.message);
   }, []);
 
   const load = useCallback(

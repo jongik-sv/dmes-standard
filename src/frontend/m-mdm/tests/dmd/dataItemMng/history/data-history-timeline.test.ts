@@ -8,7 +8,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
-import { DataHistoryTimeline } from "../../../../pages/dmd/dataItemMng/history/DataHistoryTimeline";
+import { DataHistoryTimeline, timelineColumns } from "../../../../pages/dmd/dataItemMng/history/DataHistoryTimeline";
 import type { DataHistoryResult } from "../../../../pages/dmd/dataItemMng/history/types";
 
 let container: HTMLDivElement;
@@ -129,6 +129,25 @@ describe("DataHistoryTimeline", () => {
     expect(cellOf("r0", "validTo")?.textContent).toBe("2026-08-20 09:05:00");
     expect(cellOf("r1", "validFrom")?.textContent).toBe(cellOf("r0", "validTo")?.textContent);
     expect(cellOf("r1", "validTo")?.textContent).toBe("열림");
+  });
+
+  // e2e dataItemMng S10 — 1280 기본 폭에서 카테고리 이력 칸은 약 325px(실측 clientWidth 325, 66f40e88 배치)인데 열 최소 폭 합이
+  // 326px 이라 1px 가로 스크롤이 생겼다. fit 그리드는 칸이 좁으면 minWidth 까지 줄고 그 합이 칸보다 넓으면 넘친다. 행이 많아 세로 스크롤바가
+  // 생기면(Windows 고정 스크롤바 약 17px) 그만큼 더 좁아지므로 예산은 325 - 17 = 308px 이다. 레이아웃은 happy-dom 이 계산하지 않아
+  // 열 정의의 최소 폭 합으로 고정하고, 실제 폭은 e2e S10 이 본다. 항목 이력(ITEM)은 덜 중요한 칸을 가로로 밀어 보는 설계라 대상이 아니다.
+  it("카테고리·소속 이력은 열 최소 폭 합이 1280 폭의 이력 칸(세로 스크롤바 몫 제외 308px) 안에 들어 가로 스크롤이 없다", () => {
+    const minSum = (target: "CATE" | "CATE_ITEM") =>
+      timelineColumns(target, header, "K").reduce((sum, c) => sum + (c.minWidth ?? c.width ?? 50), 0);
+    expect(minSum("CATE")).toBeLessThanOrEqual(308);
+    expect(minSum("CATE_ITEM")).toBeLessThanOrEqual(308);
+  });
+
+  // 넷째 칸은 56px 까지 줄어 머리글(「카테고리 정의」·「항목 키」)이 말줄임될 수 있다. 셀 값은 제목(title)으로 보이지만 머리글은
+  // 다른 방법이 없으므로, 머리 툴팁에 머리글 전체를 둔다.
+  it("좁아지는 넷째 칸은 머리 툴팁에 머리글 전체를 둔다", () => {
+    const fourth = (target: "CATE" | "CATE_ITEM") => timelineColumns(target, header, "K")[3];
+    expect(fourth("CATE")).toMatchObject({ header: "카테고리 정의", headerTooltip: "카테고리 정의" });
+    expect(fourth("CATE_ITEM")).toMatchObject({ header: "항목 키", headerTooltip: "항목 키" });
   });
 
   it("소속 이력은 항목 키 칸을, 항목 이력은 이름 칸을 네 번째에 두고 덜 중요한 칸은 뒤로 보낸다", async () => {

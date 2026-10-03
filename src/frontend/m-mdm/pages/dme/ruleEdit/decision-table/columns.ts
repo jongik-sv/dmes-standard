@@ -2,7 +2,8 @@
  * 의사결정표 열(TSK-08-02 design §6.7.4) — 3줄 머리(조건/결과 묶음 → 변수 → 칸) `GridColumn` 트리, 칸 편집 가능 여부, 그리드 표시 행.
  *
  * 행 데이터 필드는 `c{varId}_{k}`(k ∈ op,left,right,na,expr,val). 강조는 표시 행의 표시(`__mk`)를 `cellClassRules` 가 읽는다 —
- * 색은 shared 그리드 토큰 클래스(`cell-light-pink`·`cell-warning`·`cell-edited`, 행 `ag-row-inserted`)만 쓴다.
+ * 색은 shared 그리드 토큰 클래스(`cell-light-pink`·`cell-warning`·`cell-edited`·`cell-emphasis`, 행 `ag-row-inserted`)만 쓴다.
+ * 선택 행의 조건 칸 강조(`cell-emphasis`)만은 표시 행에 싣지 않고 `isSelectedRow` 로 판정한다(고른 행이 바뀔 때 표시 행을 다시 만들지 않게).
  * 값 테스트 표시(TSK-08-04)는 `cell-test-hit`·`cell-test-false`·`cell-test-chosen`·`cell-test-dim`, 적중 행 `ag-row-test-hit`.
  */
 import { createElement, type CSSProperties, type ReactNode } from "react";
@@ -145,8 +146,8 @@ export function typeBadge(v: ResolvedVar): string {
 }
 
 /**
- * 칸 강조 표시 — e 오류, w 경고, c base 대비 바뀐 칸, h 선택 행의 적중 조건 칸, t 값 테스트(hit 적중 행 칸, false 첫 거짓 칸,
- * chosen 그룹에서 고른 열, dim 같은 그룹 나머지 열).
+ * 칸 강조 표시 — e 오류, w 경고, c base 대비 바뀐 칸, t 값 테스트(hit 적중 행 칸, false 첫 거짓 칸,
+ * chosen 그룹에서 고른 열, dim 같은 그룹 나머지 열). 선택 행의 조건 칸 강조는 여기 없다(`TableColumnContext.isSelectedRow`).
  */
 interface CellMark {
   e?: boolean;
@@ -170,6 +171,12 @@ export interface TableColumnContext {
   onDeleteRow: (rowId: number) => void;
   /** 열 머리 클릭(열 설정 표의 대응 줄 하이라이트). */
   onSelectVar?: (varId: number) => void;
+  /**
+   * 지금 고른 행인가 — 주면 그 행의 `-` 가 아닌 조건 칸에 `cell-emphasis` 를 붙인다(기능설계서 「강조」). 고른 행은 표시 행·열 정의에
+   * 싣지 않으므로 이 함수는 렌더 중에 고쳐 둔 ref 를 읽어야 한다 — 고른 행이 바뀌면 그리드(`highlightedRowKey`)가 이전·새 행 둘만
+   * 다시 그리고, 그때 규칙이 새 값으로 다시 판정한다.
+   */
+  isSelectedRow?: (rowId: number) => boolean;
 }
 
 export interface TableMarks {
@@ -313,8 +320,17 @@ export function markTokenOf(data: readonly Record<string, unknown>[]): string {
   return `[${parts.join(",")}]`;
 }
 
-function cellRules(varId: number): GridColumn["cellClassRules"] {
-  return {
+/** 고른 행의 `-`(무관)가 아닌 조건 칸인가 — 고른 행인지를 먼저 본다(나머지 행은 셀을 읽지 않는다). */
+function selectedCondCell(row: Record<string, unknown>, varId: number, isSelectedRow: (rowId: number) => boolean): boolean {
+  const src = sourceRow(row);
+  if (!src || !isSelectedRow(src.rowId)) return false;
+  const cell = src.cells[varId];
+  return !!cell && cell.op !== "NA" && cell.op !== undefined;
+}
+
+function cellRules(v: ResolvedVar, isSelectedRow?: (rowId: number) => boolean): GridColumn["cellClassRules"] {
+  const varId = v.varId;
+  const rules: NonNullable<GridColumn["cellClassRules"]> = {
     "cell-light-pink": (row) => !!markOf(row, varId).e,
     "cell-warning": (row) => !!markOf(row, varId).w && !markOf(row, varId).e,
     "cell-edited": (row) => !!markOf(row, varId).c && !markOf(row, varId).e && !markOf(row, varId).w,
@@ -323,6 +339,8 @@ function cellRules(varId: number): GridColumn["cellClassRules"] {
     "cell-test-chosen": (row) => markOf(row, varId).t === "chosen",
     "cell-test-dim": (row) => markOf(row, varId).t === "dim",
   };
+  if (v.varKind === "COND" && isSelectedRow) rules["cell-emphasis"] = (row) => selectedCondCell(row, varId, isSelectedRow);
+  return rules;
 }
 
 function naCheckbox(ctx: TableColumnContext, v: ResolvedVar) {
@@ -368,7 +386,7 @@ function varGroup(ctx: TableColumnContext, v: ResolvedVar, meta?: VarMeta): Grid
         // Number 변수의 값 칸(값·하한·상한·결과값)은 오른쪽 정렬 — OP·식 칸은 글이라 왼쪽.
         align: key === "na" ? "center" : v.dataType === "NUMBER" && (key === "left" || key === "right" || key === "val") ? "right" : "left",
         editable: key === "na" ? false : (row) => cellEditable(v, key, sourceRow(row), ctx.editable),
-        cellClassRules: cellRules(v.varId),
+        cellClassRules: cellRules(v, ctx.isSelectedRow),
         headerStyle: v.varKind === "RESULT" ? RESULT_VAR_HEAD : undefined,
       };
       if (key === "op") {

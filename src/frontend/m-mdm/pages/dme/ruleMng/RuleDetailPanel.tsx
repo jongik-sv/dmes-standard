@@ -13,6 +13,9 @@
  * <p>버전 관리는 여기서 끝난다 — 확정 이동(`openMdmPage("dme/ruleConfirm")`)만 남긴다. 적중 정책(HIT_POLICY)은 ② 버전 목록의
  * 「적중 정책」 칸에 <b>보이기만</b> 한다. 고치는 곳은 룰 편집 화면(`ruleEdit`) 의사결정표이고, 표 저장과 함께 저장된다
  * (D-133 — D-105 (4) 번복: 정책은 판정표의 해석 규칙이라 표와 한 묶음으로 고친다).
+ *
+ * <p>쓰기가 MDM001(row_version·auditVer 충돌)로 거부되면 룰 화면(`ruleEdit` useRuleEdit)과 같은 문구("다른 창에서 바뀌었습니다.
+ * 다시 불러오세요")와 [다시 불러오기] 를 준다(판정·문구는 `@/dme/oasis-call` `writeFailure` 공용). 거부는 다시 불러오지 않아 입력이 남는다.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -20,6 +23,7 @@ import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oa
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { DraftLockBadge, HANDOVER_AVAILABLE, VersionActionBar, VersionStatusBadge, fmtVer, openMdmPage, sameVer } from "@/shell";
+import { CONFLICT_MESSAGE, writeFailure } from "@/dme/oasis-call";
 
 import {
   cancelConfirm,
@@ -165,14 +169,22 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
     [view.versions, derive],
   );
 
-  /** 쓰기 한 번 — 성공하면 상세 를 다시 불러 row_version·auditVer 을 맞춘다. */
+  // 충돌(MDM001)로 거부된 뒤 [다시 불러오기] 를 보인다. 새 상세가 오면(다시 불러오기·다른 룰 고르기) 끈다.
+  const [conflict, setConflict] = useState(false);
+  useEffect(() => {
+    setConflict(false);
+  }, [view]);
+
+  /** 쓰기 한 번 — 성공하면 상세 를 다시 불러 row_version·auditVer 을 맞춘다. 실패는 다시 불러오지 않는다(입력이 남는다). */
   const runWrite = useCallback(
     async (fn: () => Promise<unknown>) => {
       try {
         await fn();
         await reload();
       } catch (e) {
-        onError(e instanceof Error ? e.message : String(e));
+        const f = writeFailure(e);
+        if (f.conflict) setConflict(true);
+        onError(f.message);
       }
     },
     [reload, onError],
@@ -182,6 +194,18 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-sm)", minHeight: 0, overflow: "auto" }}>
+      {conflict && (
+        <div
+          data-testid="rule-conflict"
+          role="alert"
+          style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", padding: "var(--spacing-sm) var(--spacing-sm) 0" }}
+        >
+          <span style={{ flex: "1 1 auto", color: "var(--color-danger)" }}>{CONFLICT_MESSAGE}</span>
+          <Button data-testid="rule-conflict-reload" disabled={busy} onClick={() => void reload()}>
+            다시 불러오기
+          </Button>
+        </div>
+      )}
       {/* ── ① 헤더 ── */}
       <section data-testid="rule-card-header" style={{ padding: "var(--spacing-sm)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", paddingBottom: "var(--spacing-xs)" }}>

@@ -28,7 +28,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { isDraftGone, isRowVersionConflict } from "@/dme/oasis-call";
+import { CONFLICT_MESSAGE, isDraftGone, isRowVersionConflict } from "@/dme/oasis-call";
 import { fmtVer, sameVer } from "@/shell";
 
 import { deprecateSet, restoreSet, saveSet, validateFlow, viewSet } from "../api";
@@ -38,7 +38,8 @@ import { linearFlow } from "../flow-model";
 import { flowChecks } from "../set-model";
 import type { CondIo, RuleIo, RuleSetCheck, RuleSetSaveResult, RuleSetView } from "../types";
 
-export const CONFLICT_MESSAGE = "다른 창에서 바뀌었습니다. 다시 불러오세요";
+// 충돌 문구는 룰 화면·룰 상세와 같은 것을 쓴다 — 이 모듈에서 가져가던 곳(useTestCases·시험)을 위해 다시 내보낸다.
+export { CONFLICT_MESSAGE };
 const DIRTY_CONFIRM = "저장하지 않은 변경이 있습니다. 버리고 이동할까요?";
 const NO_FLOW = "세트를 먼저 연다";
 /** 조건식을 고친 뒤 validate 를 부르기까지 기다리는 시간(ms). */

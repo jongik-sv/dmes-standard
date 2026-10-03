@@ -222,23 +222,56 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     expect((byTestId<HTMLButtonElement>("rule-header-save") ?? findButton(container, "헤더 저장")).disabled).toBe(true);
   });
 
-  it("서버가 감사 카운터 어긋남(MDM001)으로 거부하면 이름을 바꾸지 않고 오류를 알린다", async () => {
+  // D-105 로 헤더 저장이 룰 화면(ruleEdit)에서 옮겨 왔다 — 충돌 안내도 룰 화면(useRuleEdit)과 같은 문구·동작이다(ruleEdit 기능설계서 §6.2).
+  // 거부는 다시 불러오지 않아 입력값이 남고, [다시 불러오기] 를 눌러야 서버 값으로 맞춘다.
+  it("서버가 감사 카운터 어긋남(MDM001)으로 거부하면 입력을 그대로 두고 '다른 창에서 바뀌었습니다' 와 [다시 불러오기] 를 준다", async () => {
     await renderAndSearch();
     await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "새 이름");
-    // save 만 거부하고 view 는 그대로 — 거부가 재조회로 값을 덮지 않는지 함께 본다.
+    // save 만 거부하고 view 는 그대로 — OASIS 는 거부를 HTTP 200 + meta.success=false(코드 MDM001)로 돌려준다.
     const realFetch = globalThis.fetch;
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).includes("/oasis/ruleMng/save")) {
-        return jsonResponse({ meta: { success: false, message: "다른 사용자가 수정했습니다. 다시 불러오세요", code: "MDM001" } }, 400);
+        requests.push({ action: "save", body: JSON.parse(String(init?.body)) });
+        return jsonResponse({ meta: { success: false, message: "다른 사용자가 수정했습니다. 다시 불러오세요", code: "MDM001" } });
       }
       return realFetch(input, init);
     }) as typeof fetch;
+    const viewsBefore = requests.filter((r) => r.action === "view").length;
+    expect(byTestId("rule-conflict-reload")).toBeNull();
     await act(async () => findButton(container, "헤더 저장").click());
     await flush();
-    // 거부는 onError 로 올라가고 상세 재조회는 하지 않는다 — 입력값이 그대로 남아 편집이 끊기지 않아야 한다.
+    expect(requests.filter((r) => r.action === "save")).toHaveLength(1);
+    // 거부는 상세를 다시 부르지 않는다 — 입력값이 그대로 남아 편집이 끊기지 않는다.
+    expect(requests.filter((r) => r.action === "view")).toHaveLength(viewsBefore);
     expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("새 이름");
-    const views = requests.filter((r) => r.action === "view").length;
-    expect(views).toBe(views);
+    // 오류 창(포털 dialog)은 룰 화면과 같은 문구다. 서버 문구를 그대로 보이지 않는다. 배너에도 같은 글자가 있으므로 dialog 로 범위를 좁힌다.
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.textContent).toContain("다른 창에서 바뀌었습니다. 다시 불러오세요");
+    expect(document.body.textContent).not.toContain("다른 사용자가 수정했습니다");
+    // 상세 맨 위 배너는 따로 — 같은 문구와 [다시 불러오기] 를 알림(role=alert)으로 둔다.
+    const banner = byTestId("rule-conflict");
+    expect(banner?.getAttribute("role")).toBe("alert");
+    expect(banner?.textContent).toContain("다른 창에서 바뀌었습니다. 다시 불러오세요");
+    const reloadBtn = byTestId<HTMLButtonElement>("rule-conflict-reload");
+    expect(reloadBtn?.textContent).toBe("다시 불러오기");
+
+    await act(async () => reloadBtn!.click());
+    await flush();
+    expect(requests.filter((r) => r.action === "view")).toHaveLength(viewsBefore + 1);
+    expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG" });
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("품질 등급 판정");
+    expect(byTestId("rule-conflict-reload")).toBeNull();
+  });
+
+  it("MDM001 이 아닌 거부는 서버 문구를 그대로 보이고 [다시 불러오기] 를 두지 않는다", async () => {
+    actionResponses.save = { meta: { success: false, message: "룰명은 100자 이하여야 합니다", code: "MDM010" } };
+    await renderAndSearch();
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "새 이름");
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    expect(document.body.textContent).toContain("룰명은 100자 이하여야 합니다");
+    expect(document.body.textContent).not.toContain("다른 창에서 바뀌었습니다");
+    expect(byTestId("rule-conflict-reload")).toBeNull();
   });
 
   it("헤더 편집이 불가하면 칸이 모두 잠긴다(D6 — 미적용 버전 소유자가 아니면)", async () => {

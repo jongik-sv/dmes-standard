@@ -179,3 +179,4 @@ moduleGroup: dme
 | N-3 | 빈 상태 문구를 그리드 오버레이가 아니라 목록 아래 글자로 보인다 | shared `AgDataGrid` 는 조회가 끝나 `loading` 이 풀릴 때 `hideOverlay()` 로 빈 행 오버레이까지 지운다(e2e 실측) |
 | N-4 | 목록 칸은 `columnSizing="fit"` + `minWidth` 로 줄어들게 한다 | 등록 폼과 나란히 두면 1280 폭에서 칸이 가상화되어 적중 정책 칸이 그려지지 않았다(e2e 실측). 등록 폼을 팝업으로 옮긴 뒤에도 상세와 나란히 서므로 유지한다 |
 | N-5 | 적중 정책은 목록(G-007)과 ② 버전 목록에 보이기만 한다. 편집 칸·[적중 정책 저장]·`save target VERSION` 은 없앴고, `save` 는 target HEADER 만 받는다(VERSION 이 오면 거부) | decisions.md D-133(D-105 (4) 번복 — 정책은 판정표의 해석 규칙이라 `ruleEdit` 표 저장과 함께 저장한다) |
+| N-6 | 상세(A-DETAIL)의 쓰기(헤더 저장·폐기·새 버전·삭제·선점·해제·넘기기·확정 취소)가 MDM001(auditVer·row_version 충돌)로 거부되면 `ruleEdit` 와 같이 "다른 창에서 바뀌었습니다. 다시 불러오세요" 를 오류 창과 상세 맨 위에 보이고 [다시 불러오기](`rule-conflict-reload`)를 준다. 거부는 상세를 다시 부르지 않아 입력이 남고, [다시 불러오기] 를 누르면 서버 값으로 맞춘다. 다른 거부는 서버 문구 그대로다. 판정·문구는 `@/dme/oasis-call` `writeFailure`·`CONFLICT_MESSAGE` 를 `ruleEdit` 와 함께 쓴다 | D-105 로 헤더 저장이 `ruleEdit` 에서 옮겨 올 때 빠졌던 안내(e2e ruleMng H6, 2026-10-03). `ruleEdit` 기능설계서 §6.2 |

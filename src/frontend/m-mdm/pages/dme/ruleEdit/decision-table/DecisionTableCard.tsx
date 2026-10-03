@@ -234,6 +234,10 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
 
   const ctxRef = useRef({ edit, vars: state.vars });
   ctxRef.current = { edit, vars: state.vars };
+  // 고른 행은 열 정의·표시 행에 싣지 않고 ref 로만 읽는다(칸 강조 cell-emphasis). 렌더 중에 고쳐 둬야 한다 — 고른 행이 바뀌면 자식
+  // 그리드의 effect 가 이전·새 행을 다시 그리는데, 부모 effect 는 그보다 늦게 돌아 옛 값을 읽힌다.
+  const selectedRowRef = useRef(state.selectedRowId);
+  selectedRowRef.current = state.selectedRowId;
   // ag-grid 는 열 그룹 정의가 바뀌면 머리 그룹 컴포넌트를 다시 붙이다 죽는다(실측: getProvidedColumnGroup of null). 그래서 열은
   // 변수 구조가 같으면 다시 만들지 않고(저장 뒤 새로 불러와도 같은 정의), 구조·편집 여부·버전이 바뀌면 그리드를 새로 마운트한다(gridKey).
   // 결과 열 그룹 머리는 varMeta(그룹·열 조건)로 만든다 — 그룹 구조가 바뀌어도 그리드를 새로 마운트한다.
@@ -249,6 +253,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
         onSelectRow: (rowId) => dispatch({ type: "selectRow", rowId }),
         onDeleteRow: (rowId) => ctxRef.current.edit({ type: "deleteRow", rowId }),
         onSelectVar: setHighlightVarId,
+        isSelectedRow: (rowId) => selectedRowRef.current === rowId,
       }),
     [varsSig, editable],
   );
@@ -260,6 +265,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
     [state.rows, state.vars, diff, split, dirty, testMarks, displayCache],
   );
   // 행 고르기는 표시 행(data)에 싣지 않는다 — 고른 행은 highlightedRowKey 가 이전·새 행만 다시 그린다(고를 때마다 표 전체를 그리면 느리다).
+  // 그 두 행을 다시 그릴 때 조건 칸 강조(cell-emphasis)도 selectedRowRef 로 다시 판정된다.
   // 토큰은 행별 조각을 표시 행 객체마다 기억해 이어 붙인다(바뀐 행만 직렬화, 글자는 표 전체 직렬화와 같다).
   const markToken = useMemo(() => markTokenOf(data), [data]);
   // 어느 칸을 눌러도, ↑/↓ 로 포커스 칸을 옮겨도 그 행을 고른다(읽기 전용 표는 그리드 컨테이너 ↑/↓ 가 onRowClick 을 부른다).

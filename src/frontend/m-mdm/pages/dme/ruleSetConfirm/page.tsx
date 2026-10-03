@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ruleSetConfirm — 룰 세트 버전 확정(D-144 2단계). 구조는 ruleConfirm 과 같다: 왼쪽 DRAFT 목록, 오른쪽 확정 폼·검사 결과 표(4항목 + 적용 순서)·흐름 diff.
+ * ruleSetConfirm — 룰 세트 확정(D-144 2단계, 화면 제목은 메뉴 이름과 같다). 구조는 ruleConfirm 과 같다: 왼쪽 DRAFT 목록, 오른쪽 확정 폼·검사 결과 표(4항목 + 적용 순서)·흐름 diff.
  * 입력 계약 변경 카드는 없다. 진입 세트·버전은 handoff(openMdmPage) > snapshot 순서로 정하고 받은 값은 snapshot 에 남긴다.
  * 검사(`validate`)는 쓰기가 없고, 확정 버튼은 검사한 apply_from 이 지금 입력값과 같을 때만 켜진다. 경고 확인과 미래 적용 경고는
  * 대화상자(ruleConfirm 의 ConfirmModal)에서 한다. 서버 거부 message 는 오류 영역에 그대로 보인다. OBJECT_ID = screenId = 'ruleSetConfirm'.
@@ -266,7 +266,7 @@ export default function RuleSetConfirmPage({ tabId, snapshot, onSnapshotChange }
   };
 
   return (
-    <MdmPageLayout group="dme" screenId={SCREEN_ID} title="룰 세트 버전 확정">
+    <MdmPageLayout group="dme" screenId={SCREEN_ID} title="룰 세트 확정">
       <ContentBody root resizable storageKey="mdm.dme.ruleSetConfirm">
         <ContentPanel width="30%">
           <DraftList

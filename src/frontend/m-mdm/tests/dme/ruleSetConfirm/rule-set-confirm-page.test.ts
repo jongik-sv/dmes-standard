@@ -141,6 +141,13 @@ describe("RuleSetConfirmPage", () => {
     document.body.innerHTML = "";
   });
 
+  // 메뉴 시드 이름(mcm DataInitializer "룰 세트 확정")과 화면 제목·breadcrumb 이 같아야 한다 — 다른 확정 화면(버전 확정·레이아웃 확정)처럼.
+  it("0. 화면 제목·breadcrumb 은 메뉴 이름 「룰 세트 확정」 이다", async () => {
+    await render();
+    expect(container.querySelector(".page-layout__footer-breadcrumb")?.textContent).toBe("마루 MDM > 업무기준 > 룰 세트 확정");
+    expect(container.textContent).not.toContain("룰 세트 버전 확정");
+  });
+
   it("1. handoff {setId, ver: \"2\"} 로 열면 ver 를 \"2.000\" 으로 맞춰 부르고 대상·직전 버전·diff 건수를 보인다", async () => {
     openMdmPage("dme/ruleSetConfirm", { setId: "S_C", ver: "2" });
     await render();
