@@ -241,7 +241,7 @@ test.describe("mdm 도메인 관리", () => {
     const layout = await openDomainMng(page);
     await search(layout, STAMP);
     await selectRow(layout, CHILD_NAME);
-    await expect(layout.locator('select[aria-label="부모 도메인"]')).toBeDisabled(); // 수정 폼에서는 고정
+    await expect(layout.getByTestId("domain-parent")).toBeDisabled(); // 수정 폼에서는 고정
 
     // ── 교체 — 부모가 있으니 [부모 연결] 은 교체다. 고르면 검증하고 영향 경고(W04)·diff 를 보인다 ──
     await layout.getByRole("button", { name: "부모 연결", exact: true }).click();
@@ -249,7 +249,10 @@ test.describe("mdm 도메인 관리", () => {
     const dialogButton = (name: string) => page.locator(".cm-modal").getByRole("button", { name, exact: true });
     await expect(page.locator(".cm-modal-title")).toHaveText("부모 교체");
     const validated = page.waitForResponse((r) => r.url().includes(`${API}/validate`), { timeout: 30_000 });
-    await dialog.locator('select[aria-label="부모 도메인"]').selectOption({ label: `${OTHER_NAME} (${OTHER_STD})` });
+    // 검색형 칸 — 이름을 넣고 Enter 로 확정하면 서버 검색이 하나로 정해 바로 검사한다.
+    const parentField = dialog.getByTestId("domain-parent-link-field");
+    await parentField.fill(OTHER_NAME);
+    await parentField.press("Enter");
     await validated;
     await expect(dialog.locator(".domain-mng__check-summary")).toContainText("검사 통과", { timeout: 30_000 });
     await expect(dialog.locator(".domain-mng__checks")).toContainText("W04");

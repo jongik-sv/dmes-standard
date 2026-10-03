@@ -40,7 +40,7 @@ public class MdmAutoConfiguration {
         if (props.getClientKey() != null && !props.getClientKey().isBlank()) {
             builder.defaultHeader("X-Client-Key", props.getClientKey());
         }
-        return new MdmMetaClient(builder.build(), props.getBaseUrl(), module(props, env));
+        return new MdmMetaClient(builder.build(), props.getBaseUrl(), module(props, env), props.getSystemCode());
     }
 
     @Bean

@@ -16,6 +16,8 @@ import {
   numberConfigOf,
   patchConfig,
   pieChartSize,
+  PIE_UNIT_MAX,
+  pieUnitOf,
   previewOf,
   QUERY_EMPTY,
   QUERY_LOAD_ERROR,
@@ -261,6 +263,16 @@ describe("설정 읽기", () => {
     expect(chartConfigOf({ chartType: "radar" }).chartType).toBe("bar");
   });
 
+  it("차트 설정 — unit 은 앞뒤 공백을 지우고 10자까지만, 비었거나 글자가 아니면 키를 뺀다", () => {
+    expect(chartConfigOf({ unit: " 분 " }).unit).toBe("분");
+    expect(chartConfigOf({ unit: "가나다라마바사아자차카타" }).unit).toBe("가나다라마바사아자차");
+    expect(chartConfigOf({ unit: "1234567 9 12" }).unit).toBe("1234567 9");
+    expect(chartConfigOf({ unit: "   " })).not.toHaveProperty("unit");
+    expect(chartConfigOf({ unit: "" })).not.toHaveProperty("unit");
+    expect(chartConfigOf({ unit: 3 })).not.toHaveProperty("unit");
+    expect(chartConfigOf({})).not.toHaveProperty("unit");
+  });
+
   it("숫자 설정 — 형식은 number·percent, 빈 단위는 빼고 둔다", () => {
     expect(numberConfigOf({})).toEqual({ sql: "", labelField: "", valueField: "", format: "number" });
     expect(
@@ -384,6 +396,84 @@ describe("차트 변환", () => {
     expect(toPieSlices({ categories: [], series: [] })).toEqual([]);
   });
 
+  it("pieUnitOf — 첫 계열 이름 끝의 짧은 괄호가 범례 단위", () => {
+    const unitOf = (label: string) => pieUnitOf({ categories: ["a"], series: [{ key: "V", label, values: [1] }] });
+    expect(unitOf("사용 시간(분)")).toBe("분");
+    expect(unitOf("금액 (원)")).toBe("원");
+    expect(unitOf("금액 ( 원 ) ")).toBe("원");
+    expect(unitOf("수량(1234567890)")).toBe("1234567890");
+  });
+
+  it("pieUnitOf — 괄호 안 앞뒤 공백은 빼고 센다(「수량( 분 )」→「분」, 공백 포함 12자여도 trim 뒤 10자면 통과)", () => {
+    const unitOf = (label: string) => pieUnitOf({ categories: ["a"], series: [{ key: "V", label, values: [1] }] });
+    expect(unitOf("수량( 분 )")).toBe("분");
+    expect(unitOf("수량(  분  )")).toBe("분");
+    expect(unitOf("수량( 1234567890 )")).toBe("1234567890");
+    expect(unitOf("수량(\u3000분\u3000)")).toBe("분");
+  });
+
+  it("pieUnitOf — 전각 괄호 「（분）」도 단위로 읽는다(반각과 같은 규칙)", () => {
+    const unitOf = (label: string) => pieUnitOf({ categories: ["a"], series: [{ key: "V", label, values: [1] }] });
+    expect(unitOf("사용 시간（분）")).toBe("분");
+    expect(unitOf("금액 （ 원 ） ")).toBe("원");
+    expect(unitOf("수량（1234567890）")).toBe("1234567890");
+    expect(unitOf("수량（12345678901）")).toBe("");
+    expect(unitOf("수량（）")).toBe("");
+    expect(unitOf("사용（총（분））")).toBe("");
+  });
+
+  it("pieUnitOf — 괄호가 없거나 비었거나 길거나 끝이 아니면 빈 글자(안 넘기면 shared 기본 「건」이 붙는다)", () => {
+    const unitOf = (label: string) => pieUnitOf({ categories: ["a"], series: [{ key: "V", label, values: [1] }] });
+    expect(unitOf("사용 시간")).toBe("");
+    expect(unitOf("사용 시간()")).toBe("");
+    expect(unitOf("사용 시간( )")).toBe("");
+    expect(unitOf("수량(12345678901)")).toBe("");
+    expect(unitOf("수량( 12345678901 )")).toBe("");
+    expect(unitOf("(분) 사용 시간")).toBe("");
+    expect(unitOf("사용(총(분))")).toBe("");
+    expect(unitOf("사용(총（분）)")).toBe("");
+    expect(pieUnitOf({ categories: [], series: [] })).toBe("");
+  });
+
+  it("pieUnitOf — 괄호 짝이 맞지 않으면(반각 열고 전각 닫기) 단위로 보지 않는다", () => {
+    const unitOf = (label: string) => pieUnitOf({ categories: ["a"], series: [{ key: "V", label, values: [1] }] });
+    expect(unitOf("사용 시간(분）")).toBe("");
+    expect(unitOf("사용 시간（분)")).toBe("");
+  });
+
+  it("pieUnitOf — 설정 단위(둘째 인자)가 공백이 아니면 계열 이름 괄호보다 먼저", () => {
+    const data = (label: string) => ({ categories: ["a"], series: [{ key: "V", label, values: [1] }] });
+    expect(pieUnitOf(data("사용 시간(분)"), "건")).toBe("건");
+    expect(pieUnitOf(data("수량"), "건")).toBe("건");
+    expect(pieUnitOf(data("수량"), " 개 ")).toBe("개");
+    // 설정 단위가 계열이 없는 데이터에서도 쓰인다.
+    expect(pieUnitOf({ categories: [], series: [] }, "건")).toBe("건");
+  });
+
+  it("pieUnitOf — 설정 단위가 없거나 공백뿐이면 괄호 단위, 그것도 없으면 빈 글자", () => {
+    const data = (label: string) => ({ categories: ["a"], series: [{ key: "V", label, values: [1] }] });
+    expect(pieUnitOf(data("사용 시간(분)"), undefined)).toBe("분");
+    expect(pieUnitOf(data("사용 시간(분)"), "")).toBe("분");
+    expect(pieUnitOf(data("사용 시간(분)"), "   ")).toBe("분");
+    expect(pieUnitOf(data("수량"), "   ")).toBe("");
+  });
+
+  it("pieUnitOf — 설정 단위는 10자까지만 쓴다(괄호 단위 11자 거절과 같은 상한)", () => {
+    expect(PIE_UNIT_MAX).toBe(10);
+    const data = { categories: ["a"], series: [{ key: "V", label: "수량", values: [1] }] };
+    expect(pieUnitOf(data, "1234567890")).toBe("1234567890");
+    expect(pieUnitOf(data, "12345678901")).toBe("1234567890");
+  });
+
+  it("pieUnitOf — 원 차트가 그리는 첫 계열 이름만 본다", () => {
+    const data = toChartData(rows, "MON", [{ field: "QTY", label: "수량" }, { field: "AMT", label: "금액(원)" }]);
+    expect(pieUnitOf(data)).toBe("");
+    const swapped = toChartData(rows, "MON", [{ field: "AMT", label: "금액(원)" }, { field: "QTY", label: "수량" }]);
+    expect(pieUnitOf(swapped)).toBe("원");
+    // 라벨을 안 정하면 필드 이름이 계열 이름이다.
+    expect(pieUnitOf(toChartData(rows, "MON", [{ field: "QTY" }]))).toBe("");
+  });
+
   it("크기 — 본문 높이에 맞추고, 높이를 모르면 기본값", () => {
     expect(barChartHeight(null)).toBe(230);
     expect(barChartHeight(300)).toBe(274);
@@ -450,6 +540,21 @@ describe("validateQueryConfig", () => {
     expect(
       validateQueryConfig("query-chart", { sql: "S", chartType: "pie", xField: "X", series: [{ field: "V" }] })
     ).toEqual([]);
+  });
+
+  it("차트 — 단위(unit)는 비어도 되고, 앞뒤 공백을 뺀 10자까지, 11자부터 거절", () => {
+    const base = { sql: "S", chartType: "pie", xField: "X", series: [{ field: "V" }] };
+    expect(validateQueryConfig("query-chart", { ...base })).toEqual([]);
+    expect(validateQueryConfig("query-chart", { ...base, unit: "" })).toEqual([]);
+    expect(validateQueryConfig("query-chart", { ...base, unit: " 건 " })).toEqual([]);
+    expect(validateQueryConfig("query-chart", { ...base, unit: " 1234567890 " })).toEqual([]);
+    expect(validateQueryConfig("query-chart", { ...base, unit: "12345678901" })).toEqual(["단위는 10자 이하로 입력하세요"]);
+    // 다른 오류와 함께 나온다(읽기 함수는 잘라 읽으므로 검사는 원래 값으로 한다).
+    expect(validateQueryConfig("query-chart", { sql: "S", chartType: "pie", xField: "", series: [], unit: "12345678901" })).toEqual([
+      "가로축 필드를 고르세요",
+      "값 계열을 하나 이상 넣으세요",
+      "단위는 10자 이하로 입력하세요",
+    ]);
   });
 
   it("숫자 — 라벨 필드·값 필드", () => {

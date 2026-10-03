@@ -316,3 +316,14 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 
 - 화면 시험(happy-dom)은 진짜 shared(dist)에 가짜 `fetch` 를 꽂는다: `/api/{module}/mdmMeta/columns`·`domains` 응답, `apiRequest` 를 쓰는 화면이면 Node 의 `localStorage` 전역(파일 미지정이라 접근 시 예외)을 스텁하고, `PageLayout` 버튼이 필요하면 `/api/auth/me`·`myButtonEndpoints`(`{objId:"*",action:"*"}`)에 답한다. 실제 MDM 정의는 입력 제한에 먼저 걸릴 수 있으니 시험용은 더 엄격한 가짜 정의(짧은 길이·필수)를 쓴다. 예: `m-mls/tests/lsh/noticeMgmt/notice-page-mdm.test.ts`.
 - 예시 화면: `m-mls/pages/lsh/noticeMgmt/`(`notice-columns.tsx` 의 `TITLE` 열 대체 header + 파생 열 `meta: false`, `page.tsx` 의 `captionPriority="mdm"` 공급자와 저장 흐름, `NoticeTitleRow.tsx`).
+
+## 28. 계속 늘어나는 마스터 고르기 — 콤보 대신 검색형 선택 (2026-10-03)
+
+도메인처럼 종류와 개수가 늘어나는 마스터는 입력 칸에서 전체 목록을 콤보(`Select`)로 보이지 않는다. 목록을 한꺼번에 받아야 하고, 많아지면 고르기도 어렵다.
+
+- m-mdm 의 `src/domain`(`@/domain`, m-mdm 안에서만 쓰는 별칭)에 있는 `DomainField` 가 검색형 칸이다. 칸에 이름을 넣고 Enter 를 누르거나 칸을 벗어나면(blur) 서버 검색으로 하나를 정하고, 정하지 못하면 그 글자로 찾기 팝업을 연다. 칸을 비우면 해제한다.
+- 화면을 열 때 전체 목록을 조회하지 않는다. 검색할 때만 서버를 부른다. 화면마다 자기 엔드포인트 권한이 다르므로 검색 함수는 그 화면 자기 `search` 를 꽂는다.
+- 고를 수 없는 후보(자기·하위 등)를 뺄 때는 이름이 같은 다른 후보가 저절로 적용되지 않도록 `autoPick={matchExactDomain}` 을 준다(기본 `matchDomain` 은 결과가 한 건이면 그것을 적용한다).
+- 후보 규칙이 부모 연결을 따라 하위를 찾으면, 규칙을 `MATCHED` 로 줄이기 전 검색 결과 전체에 적용한다. 이 순서는 domainMng `search` 가 일치 행과 그 조상 체인을 함께 준다는 계약을 전제로 한다.
+- 화면 목록에 없는 도메인도 검색으로 고를 수 있으므로, 고른 도메인의 원본 행을 화면이 보관해 이름·안내에 쓴다.
+- 예시: `m-mdm/pages/dma/domainMng/parent-search.ts` 와 `DomainBasicForm`·`ParentLinkModal`.

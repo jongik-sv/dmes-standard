@@ -177,6 +177,28 @@ class MetaFeedOasisHttpTest {
         assertFalse(d.has("bizExpr"), "도메인 메타는 비즈니스식 원문을 싣지 않는다");
     }
 
+    /** spec 2026-10-03-mdm-column-system-alias-design §3 — params.systemCode 가 BPMN·DTO 바인딩을 지나 별칭 매칭을 켠다. */
+    @Test
+    void view_COLUMN_은_params_systemCode_의_시스템_별칭으로도_찾고_별칭_칸을_싣는다() throws Exception {
+        jdbc.update("INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, PHYS_NAME, DOMAIN_ID) VALUES ('흡수 약품 보충 금액', 'ABS_CHM_RPLN_AMT', NULL)");
+        long id = jdbc.queryForObject("SELECT COLUMN_ID FROM TB_MDM_COLUMN WHERE PHYS_NAME = 'ABS_CHM_RPLN_AMT'", Long.class);
+        jdbc.update("INSERT INTO TB_MDM_COLUMN_SYSTEM (COLUMN_ID, SYSTEM_CODE, PHYS_NAME, VER) VALUES (?, 'MES', 'Abs_Chm_Slp_Amt', 0)", id);
+
+        JsonNode withSystem = result(post("view", "SYSTEM",
+                body(json.createObjectNode().put("type", "COLUMN").put("systemCode", "MES"), "ABS_CHM_SLP_AMT", "ABS_CHM_RPLN_AMT")));
+
+        JsonNode alias = item(withSystem, "ABS_CHM_SLP_AMT");
+        assertEquals("ABS_CHM_RPLN_AMT", alias.path("physName").asText(), alias.toString());
+        assertEquals("MES", alias.path("matchedSystem").asText(), alias.toString());
+        assertEquals("Abs_Chm_Slp_Amt", alias.path("systemPhysName").asText(), alias.toString());
+        JsonNode standard = item(withSystem, "ABS_CHM_RPLN_AMT");
+        assertTrue(standard.has("matchedSystem") && standard.path("matchedSystem").isNull(), standard.toString());
+        assertTrue(standard.has("systemPhysName") && standard.path("systemPhysName").isNull(), standard.toString());
+
+        JsonNode without = view("COLUMN", "ABS_CHM_SLP_AMT");
+        assertEquals(0, without.path("items").size(), "systemCode 가 없으면 별칭을 보지 않는다: " + without);
+    }
+
     @Test
     void view_는_대상_종류가_없거나_틀리면_MDM021_이다() throws Exception {
         JsonNode r = post("view", "SYSTEM", body(json.createObjectNode().put("type", "TABLE"), "X"));

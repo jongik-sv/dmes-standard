@@ -3,8 +3,8 @@
 /** A-DETAIL 기본 속성(기능설계서 §4 D-001~D-012). 고정·좁히기·대체 표시는 §7.3 편집 가능 표를 따른다. */
 import { Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { DomainField, matchExactDomain, type DomainSearchFn } from "@/domain";
 import type { DomainDraft, DomainRow } from "../types";
-import { ParentDomainSelect } from "./ParentDomainSelect";
 import { hint, row as rowStyle } from "./styles";
 
 export const KIND_OPTIONS = [
@@ -23,7 +23,8 @@ export interface DomainBasicFormProps {
   structureLocked: boolean;
   parentLocked: boolean;
   readOnly: boolean;
-  parentOptions: DomainRow[];
+  /** 부모 후보 검색 — 자기·하위를 뺀 결과를 준다(`makeParentSearch`). */
+  parentSearch: DomainSearchFn;
   parentRow: DomainRow | null;
   examplesText: string;
   onChange: (patch: Partial<DomainDraft>) => void;
@@ -37,7 +38,7 @@ function num(v: string): number | null {
 }
 
 export function DomainBasicForm(props: DomainBasicFormProps) {
-  const { draft, structureLocked, parentLocked, readOnly, parentOptions, parentRow, onChange } = props;
+  const { draft, structureLocked, parentLocked, readOnly, parentSearch, parentRow, onChange } = props;
   const isCode = draft.domainKind === "CODE";
   const fixed = <span style={hint}>고정</span>;
   const lenHint = parentRow?.EFF_LENGTH != null ? `부모 ${parentRow.EFF_LENGTH} 이하` : "";
@@ -63,8 +64,10 @@ export function DomainBasicForm(props: DomainBasicFormProps) {
           <th style={DETAIL_LABEL_CELL}>부모 도메인</th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={rowStyle}>
-              <ParentDomainSelect value={draft.parentDomainId} options={parentOptions} placeholder="(없음 — 최상위)"
-                disabled={readOnly || parentLocked} onChange={(parentDomainId) => onChange({ parentDomainId })} />
+              <DomainField testId="domain-parent" ariaLabel="부모 도메인" autoPick={matchExactDomain} domainId={draft.parentDomainId}
+                label={parentRow ? parentRow.DOMAIN_NAME : draft.parentDomainId === null ? "" : String(draft.parentDomainId)}
+                search={parentSearch} disabled={readOnly || parentLocked}
+                onChange={(r) => onChange({ parentDomainId: r ? r.domainId : null })} />
               {parentLocked && fixed}
             </div>
           </td>

@@ -91,6 +91,43 @@ class MetaRevisionRecorderTest extends AbstractMdmSharedDbTest {
         assertEquals(Set.of("MR_COL_K2"), MetaRevTestSupport.keys(jdbc, "COLUMN"));
     }
 
+    /** spec 2026-10-03-mdm-column-system-alias-design L6 — 별칭 키로 캐시된 항목·"없음" 항목이 바뀐 정의를 놓치지 않게. */
+    @Test
+    void 컬럼_기록은_받은_시스템_별칭을_대문자_COLUMN_키로_더한다() {
+        recorder.column("COIL_THK", "COIL_THK", false, List.of("Coil_T", "COIL_T", "thk_mes", " "));
+        assertEquals(List.of("COLUMN:COIL_THK:SAVE", "COLUMN:COIL_T:SAVE", "COLUMN:THK_MES:SAVE"), MetaRevTestSupport.rows(jdbc));
+    }
+
+    @Test
+    void 도메인_펼침은_참조_컬럼의_모든_시스템_별칭도_COLUMN_키로_더한다() {
+        long p = MetaRevTestSupport.domain(jdbc, "MR_AP", "QTY", null, null);
+        long c = MetaRevTestSupport.domain(jdbc, "MR_AC", "QTY", p, null);
+        long u = MetaRevTestSupport.domain(jdbc, "MR_AU", "QTY", null, null);
+        MetaRevTestSupport.column(jdbc, "MR_ACOL_P", p);
+        MetaRevTestSupport.column(jdbc, "MR_ACOL_C", c);
+        MetaRevTestSupport.column(jdbc, "MR_ACOL_U", u);
+        alias("MR_ACOL_P", "MES", "Mes_P");
+        alias("MR_ACOL_C", "APS", "aps_c");
+        alias("MR_ACOL_C", "MES", "MES_C");
+        alias("MR_ACOL_U", "MES", "MES_U");
+
+        recorder.domain(p);
+
+        assertEquals(Set.of("MR_ACOL_P", "MR_ACOL_C", "MES_P", "APS_C", "MES_C"), MetaRevTestSupport.keys(jdbc, "COLUMN"));
+    }
+
+    @Test
+    void 코드_펼침도_참조_컬럼의_시스템_별칭을_더한다() {
+        new MasterCodeSeeds(jdbc).seedCode("MR_ACD", "INUSE", "MDM");
+        long k = MetaRevTestSupport.domain(jdbc, "MR_AK", "CODE", null, "MR_ACD");
+        MetaRevTestSupport.column(jdbc, "MR_ACOL_K", k);
+        alias("MR_ACOL_K", "MES", "mes_k");
+
+        recorder.code("MR_ACD");
+
+        assertEquals(Set.of("MR_ACOL_K", "MES_K"), MetaRevTestSupport.keys(jdbc, "COLUMN"));
+    }
+
     @Test
     void 룰_룰세트_전문은_받은_키만_중복_없이_기록한다() {
         recorder.rule("R1");
@@ -133,5 +170,10 @@ class MetaRevisionRecorderTest extends AbstractMdmSharedDbTest {
 
         assertEquals(List.of("B", "C"), after.stream().map(MdmMetaRev::getTargetKey).toList());
         assertEquals(List.of("RULE", "RULE"), after.stream().map(MdmMetaRev::getTargetType).toList());
+    }
+
+    private void alias(String columnPhys, String system, String phys) {
+        jdbc.update("INSERT INTO TB_MDM_COLUMN_SYSTEM (COLUMN_ID, SYSTEM_CODE, PHYS_NAME, VER) "
+                + "SELECT COLUMN_ID, ?, ?, 0 FROM TB_MDM_COLUMN WHERE PHYS_NAME = ?", system, phys, columnPhys);
     }
 }

@@ -92,6 +92,76 @@ class MdmMetaClientTest {
         assertThat(r.failed()).isEmpty();
     }
 
+    /** 별칭 매칭 spec §3 — systemCode 는 COLUMN view 요청에만 싣고, 비면 싣지 않는다. */
+    private MdmMetaClient clientWith(String systemCode) {
+        RestClient.Builder builder = RestClient.builder().defaultHeader("X-Client-Key", "k");
+        server = MockRestServiceServer.bindTo(builder).build();
+        return new MdmMetaClient(builder.build(), "http://mdm.test/", "mls", systemCode);
+    }
+
+    @Test
+    void COLUMN_요청에만_params_systemCode_를_싣는다() {
+        MdmMetaClient aliasClient = clientWith("MES");
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andExpect(jsonPath("$.params.type").value("COLUMN"))
+                .andExpect(jsonPath("$.params.systemCode").value("MES"))
+                .andRespond(withSuccess(ok("{\"items\":[],\"failed\":[]}"), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andExpect(jsonPath("$.params.type").value("DOMAIN"))
+                .andExpect(jsonPath("$.params.systemCode").doesNotExist())
+                .andRespond(withSuccess(ok("{\"items\":[],\"failed\":[]}"), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/search"))
+                .andExpect(jsonPath("$.params.systemCode").doesNotExist())
+                .andRespond(withSuccess(ok("{\"latestSeq\":1,\"items\":[],\"truncated\":false}"), MediaType.APPLICATION_JSON));
+
+        aliasClient.fetch(MdmTargetType.COLUMN, List.of("ABS_CHM_SLP_AMT"));
+        aliasClient.fetch(MdmTargetType.DOMAIN, List.of("7"));
+        aliasClient.changes(0, 10);
+
+        server.verify();
+    }
+
+    @Test
+    void systemCode_가_null_이거나_비면_COLUMN_요청에도_싣지_않는다() {
+        for (String blank : new String[] {null, "", "  "}) {
+            MdmMetaClient c = clientWith(blank);
+            server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                    .andExpect(jsonPath("$.params.type").value("COLUMN"))
+                    .andExpect(jsonPath("$.params.systemCode").doesNotExist())
+                    .andRespond(withSuccess(ok("{\"items\":[],\"failed\":[]}"), MediaType.APPLICATION_JSON));
+
+            c.fetch(MdmTargetType.COLUMN, List.of("COIL_THK"));
+
+            server.verify();
+        }
+    }
+
+    @Test
+    void 별칭으로_맞은_COLUMN_값의_matchedSystem_과_systemPhysName_을_읽고_없으면_null_이다() {
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andRespond(withSuccess(ok("""
+                        {"items":[
+                         {"key":"ABS_CHM_SLP_AMT","value":{"physName":"ABS_CHM_RPLN_AMT","columnName":"금액","dataType":"NUMBER",
+                          "required":false,"matchedSystem":"MES","systemPhysName":"Abs_Chm_Slp_Amt"}},
+                         {"key":"COIL_THK","value":{"physName":"COIL_THK","columnName":"코일 두께","dataType":"NUMBER","required":false,
+                          "matchedSystem":null,"systemPhysName":null}},
+                         {"key":"OLD","value":{"physName":"OLD","columnName":"옛 응답","dataType":"STRING","required":false}}],
+                         "failed":[]}"""), MediaType.APPLICATION_JSON));
+
+        MdmFetchResult r = client.fetch(MdmTargetType.COLUMN, List.of("ABS_CHM_SLP_AMT", "COIL_THK", "OLD"));
+
+        MdmColumnMeta alias = (MdmColumnMeta) r.found().get("ABS_CHM_SLP_AMT");
+        assertThat(alias.physName()).isEqualTo("ABS_CHM_RPLN_AMT");
+        assertThat(alias.matchedSystem()).isEqualTo("MES");
+        assertThat(alias.systemPhysName()).isEqualTo("Abs_Chm_Slp_Amt");
+        MdmColumnMeta std = (MdmColumnMeta) r.found().get("COIL_THK");
+        assertThat(std.matchedSystem()).isNull();
+        assertThat(std.systemPhysName()).isNull();
+        MdmColumnMeta old = (MdmColumnMeta) r.found().get("OLD");
+        assertThat(old.matchedSystem()).isNull();
+        assertThat(old.systemPhysName()).isNull();
+    }
+
     @Test
     void fetch_RULE_은_LocalDateTime_과_정수_셀_키를_엔진_레코드로_되읽고_failed_를_돌려준다() {
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))

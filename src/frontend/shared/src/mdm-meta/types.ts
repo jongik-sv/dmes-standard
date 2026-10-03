@@ -47,6 +47,12 @@ export interface MdmScreenColumn {
   codeRef: MdmCodeRef | null;
   /** 코드 참조가 없거나 허용 코드를 풀 수 없으면 null. 빈 목록은 "풀었는데 허용 코드가 없다". */
   allowedCodes: MdmAllowedCode[] | null;
+  /**
+   * 시스템 별칭으로 맞은 컬럼의 시스템 코드(MES 등)와 그 시스템에 저장된 별칭 원문 — `physName` 은 늘 표준 물리명이다.
+   * 표준 이름으로 맞았으면 null. 별칭 매칭 이전 모듈의 응답에는 칸 자체가 없으므로 선택 칸이다.
+   */
+  matchedSystem?: string | null;
+  systemPhysName?: string | null;
 }
 
 export interface MdmDomainMeta {

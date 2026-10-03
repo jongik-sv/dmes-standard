@@ -18,6 +18,9 @@ export const MEMO_SAVE_ERROR = "메모를 저장하지 못했습니다. 잠시 �
 export const MEMO_TOO_LONG_MESSAGE = "메모 내용은 20,000자까지 쓸 수 있습니다.";
 export const MEMO_PERSONAL_NOTE = "사용자가 홈에서 직접 씁니다. 형식은 새 메모의 처음 형식입니다";
 
+/** 개인 메모 md 편집기(shared MarkdownField)의 편집 방식(서식·MD) 기억 키 — 메모장끼리만 같이 바뀐다(공지·기본 키와 따로). */
+export const MEMO_MD_MODE_STORAGE_KEY = "mcm-memo:mdMode";
+
 /** 위젯이 놓이는 포털 홈의 menuId — 다른 AUTH_ONLY 위젯 서비스(widgetChat 등)와 같다(권한 판정에 쓰이지 않는다). */
 export const MEMO_MENU_ID = "HOME";
 const MEMO_BASE = "/api/mcm/oasis/widgetMemo";

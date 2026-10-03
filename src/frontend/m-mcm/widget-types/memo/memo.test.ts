@@ -30,6 +30,7 @@ import {
   validateMemoConfig,
   viewFormat,
 } from "./memo-model";
+import { MEMO_CSS } from "./memo-styles";
 import { meta } from "./type.meta";
 
 describe("유형 메타", () => {
@@ -339,5 +340,13 @@ describe("api 호출(fetch 대역)", () => {
     expect(err).toBeInstanceOf(Error);
     expect(err).not.toBeInstanceOf(MemoServiceError);
     expect(memoErrorMessage(err, MEMO_SAVE_ERROR)).toBe(MEMO_SAVE_ERROR);
+  });
+});
+
+describe("md 편집기 높이 규칙", () => {
+  it("기본 최소 높이는 두 줄 도구 막대 기준 190px, 편집 영역이 420px 이상이면 한 줄 기준 164px 다", () => {
+    expect(MEMO_CSS).toMatch(/\.mcm-memo__md \{[^}]*min-height: 190px/);
+    expect(MEMO_CSS).toMatch(/\.mcm-memo__edit \{[^}]*container-type: inline-size/);
+    expect(MEMO_CSS).toMatch(/@container \(min-width: 420px\) \{ \.mcm-memo__md \{ min-height: 164px; \} \}/);
   });
 });

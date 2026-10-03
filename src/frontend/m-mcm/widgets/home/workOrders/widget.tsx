@@ -1,12 +1,16 @@
 "use client";
 
-import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { useCallback } from "react";
+import { AgDataGrid, GridExcelFoot, type GridColumn } from "@dk-oasis/shared/grid";
 import { ProgressBar } from "@dk-oasis/shared/form";
-import { WidgetTitleExtra } from "@dk-oasis/shared/widget";
+import { exportToExcel, today } from "@dk-oasis/shared/utils";
+import { WidgetTitleExtra, type WidgetProps } from "@dk-oasis/shared/widget";
 
 import { SAMPLE_WORK_ORDERS, WORK_ORDER_STATUS_TONE, WORK_ORDER_SUMMARY } from "@/page-components/home/sample-data";
+import { excelFileName, toExcelColumns } from "@/widget-types/_query/excel";
 
 import { toneBadge } from "../_shared/grid-badge";
+import { HomeGridFill } from "../_shared/grid-fill";
 
 const WORK_ORDER_COLUMNS: GridColumn[] = [
   { key: "woNo", header: "작업지시번호", width: 130 },
@@ -34,19 +38,44 @@ const WORK_ORDER_COLUMNS: GridColumn[] = [
 
 const WORK_ORDER_DATA = SAMPLE_WORK_ORDERS as unknown as Record<string, unknown>[];
 
-export default function WorkOrdersWidget() {
+/** 제목이 없을 때 엑셀 파일 이름 — 「작업지시_{yyyyMMdd}.xlsx」. */
+const EXCEL_FALLBACK_NAME = "작업지시";
+
+export default function WorkOrdersWidget({ title }: WidgetProps) {
+  // 보이는 행·컬럼 그대로 「{위젯 제목}_{yyyyMMdd}.xlsx」 — 진행률·상태처럼 render 로 그리는 컬럼도 원래 값(숫자·글)이 들어간다.
+  const handleExcel = useCallback(() => {
+    if (WORK_ORDER_DATA.length === 0) return;
+    void exportToExcel(
+      WORK_ORDER_DATA,
+      excelFileName(title, today(), EXCEL_FALLBACK_NAME),
+      "Sheet1",
+      toExcelColumns(WORK_ORDER_COLUMNS, WORK_ORDER_DATA)
+    );
+  }, [title]);
+
   return (
     <>
       <WidgetTitleExtra>
         <span className="mcm-home-sub">{WORK_ORDER_SUMMARY}</span>
       </WidgetTitleExtra>
-      <AgDataGrid
-        rowKey="woNo"
-        columns={WORK_ORDER_COLUMNS}
-        data={WORK_ORDER_DATA}
-        columnSizing="fit"
-        height="auto"
-      />
+      <HomeGridFill
+        foot={
+          <GridExcelFoot
+            note={`${WORK_ORDER_DATA.length.toLocaleString()}건`}
+            onExcel={handleExcel}
+            disabled={WORK_ORDER_DATA.length === 0}
+            testId="wq-excel"
+          />
+        }
+      >
+        <AgDataGrid
+          rowKey="woNo"
+          columns={WORK_ORDER_COLUMNS}
+          data={WORK_ORDER_DATA}
+          columnSizing="fit"
+          height="100%"
+        />
+      </HomeGridFill>
     </>
   );
 }

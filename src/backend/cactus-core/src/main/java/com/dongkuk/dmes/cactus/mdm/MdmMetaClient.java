@@ -44,8 +44,15 @@ public class MdmMetaClient implements MdmMetaFeed {
     private final RestClient restClient;
     private final String baseUrl;
     private final String module;
+    /** 별칭 매칭에 쓰는 시스템 코드 — null·빈 값이면 COLUMN 요청에도 싣지 않는다. */
+    private final String systemCode;
 
     public MdmMetaClient(RestClient restClient, String baseUrl, String module) {
+        this(restClient, baseUrl, module, null);
+    }
+
+    public MdmMetaClient(RestClient restClient, String baseUrl, String module, String systemCode) {
+        this.systemCode = systemCode == null || systemCode.isBlank() ? null : systemCode.trim();
         this.restClient = restClient;
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.module = module;
@@ -84,7 +91,11 @@ public class MdmMetaClient implements MdmMetaFeed {
             List<String> chunk = all.subList(from, Math.min(all.size(), from + MAX_KEYS_PER_VIEW));
             JsonNode result;
             try {
-                result = call("view", MdmJson.MAPPER.createObjectNode().put("type", type.name()), chunk);
+                ObjectNode params = MdmJson.MAPPER.createObjectNode().put("type", type.name());
+                if (type == MdmTargetType.COLUMN && systemCode != null) {
+                    params.put("systemCode", systemCode); // 별칭 매칭 — COLUMN 에만(다른 종류에는 영향 없음)
+                }
+                result = call("view", params, chunk);
             } catch (MdmRejectedException e) {
                 chunk.forEach(k -> failed.put(k, e.getMessage()));
                 continue;

@@ -18,7 +18,7 @@
     "pack": "node scripts/pack-standalone.mjs",
     "pack:zip": "node scripts/pack-standalone.mjs --zip",
     "lint": "eslint",
-    "test": "vitest run tests"
+    "test": "vitest run"
   },
   "dependencies": {
     "@dk-oasis/m-analog": "workspace:*",
