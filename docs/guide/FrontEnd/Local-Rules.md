@@ -366,3 +366,11 @@ ruleMng 는 상세를 `useEffect([selectedId])` 로만 읽어, 같은 행을 다
 - 다른 행으로 옮길 때 입력을 버리는 동작은 모든 화면이 같고 확인 창을 두지 않는다(2026-10-03 결정).
 - 팝업이 서버 등록을 부르면 `onAdd`·`onSubmit` 은 성공 여부(`boolean`)를 돌려주고, 팝업은 성공일 때만 칸을 비우고 닫는다. 로컬 diff 에만 얹는 팝업은 이미 있는 ID(서버 행·로컬 새 행)를 팝업 안에서 막고 서버와 같은 문구를 보인다(예: dmc `codeItemEdit` `CategoryAddModal` 의 `existingIds`). 팝업 컴포넌트가 닫혔을 때 `return null` 하려면 훅을 모두 부른 뒤에 하고, 다시 열 때 칸을 비우는 일은 열리는 렌더에서 상태를 맞춰 한다(`wasOpen`). 거부는 오류창으로 알리고 입력을 남긴다. 오류창이 떠 있는 동안 팝업 닫기를 무시하는 것은 §18 을 따른다. 예: `dmd/dataItemMng/cate/components/CategoryAddModal.tsx`, `useDataCategories.ts` 의 `write`.
 - 시험은 같은 행 다시 누르기·[조회]·늦게 온 옛 응답·미저장 입력, 그리고 등록 거부 뒤 오류창을 닫거나 Escape 를 눌러도 입력이 남는지를 본다. 예: `tests/dme/ruleMng/rule-mng-page.test.ts`, `tests/dmd/dataItemMng/data-item-page.test.ts`.
+
+## 33. React Flow 화면 맞춤 — `rf.fitView` 는 다음 노드 갱신까지 미뤄진다 (2026-10-03)
+
+React Flow 12 의 `useReactFlow().fitView()` 는 곧바로 화면을 옮기지 않는다. 저장소에 `fitViewQueued` 를 세우고 다음 `setNodes`(노드가 다 잰 상태) 때 실행한다. 제어형 캔버스(`nodes` prop 을 화면이 만든다)에서 키·단추 처리기가 상태를 바꾸지 않고 `fitView` 만 부르면 다시 그리기가 없어 대부분 아무 일도 없고, 나중에 다른 일로 노드가 갱신될 때 엉뚱하게 실행된다. 룰 세트 편집 캔버스의 Shift+2(고른 것으로 이동)·[흐름도로 돌아가기] 에서 실측했다. happy-dom 시험은 다른 갱신이 끼어 통과해 버리므로 브라우저로 확인한다.
+
+- 곧바로 옮겨야 하는 동작은 경계 상자로 화면을 계산해 넣는다: `getViewportForBounds(rf.getNodesBounds(ids), width, height, minZoom, maxZoom, padding)` → `rf.setViewport(vp, { duration })`. `width`·`height`·`minZoom`·`maxZoom` 은 `useStoreApi().getState()` 에서 읽는다. 예: `m-mdm/pages/dme/ruleSetEdit/canvas/FlowCanvas.tsx` 의 `fitNodes`.
+- 상태를 바꿔 다시 그리는 경로(툴바 [화면 맞춤] 의 신호 값, 세트를 바꿀 때)는 `rf.fitView` 를 써도 된다. 새 노드를 다 잴 때까지 기다렸다 맞추는 성질이 오히려 필요하다.
+- `translateExtent` 같은 이동 한계는 휠·끌기·`scaleBy`·`setViewportConstrained` 에만 걸리고 `fitView`·`setCenter`·`setViewport` 는 거치지 않는다. 한계를 바꿔도 지금 화면을 다시 맞추지 않으므로, 한계가 줄 수 있으면 움직임이 멈춘 뒤 `panZoom.setViewportConstrained` 로 한 번 맞춘다(같은 캔버스의 `ViewportGuard`).

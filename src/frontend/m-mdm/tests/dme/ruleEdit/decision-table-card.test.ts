@@ -36,7 +36,7 @@ import { mapRowIds, runAnalysis, sameIssues, splitIssues } from "../../../pages/
 import { buildTableColumns, cellEditable } from "../../../pages/dme/ruleEdit/decision-table/columns";
 import type { RuleEditCardProps } from "../../../pages/dme/ruleEdit/cards";
 import type { RuleEditView, RuleIssueView } from "../../../pages/dme/ruleEdit/types";
-import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, selectValue, visibleText } from "../helpers/render";
+import { RBAC_STORE_KEY, findButton, flush, installDomStorage, jsonResponse, selectValue, settleGrid, visibleText } from "../helpers/render";
 import { SAMPLE_ROWS, SAMPLE_VARS, draftView } from "./fixtures";
 
 function codes(state: TableState): string[] {
@@ -458,7 +458,8 @@ async function renderCard(view: RuleEditView, writes: { reloads: number } = { re
   await act(async () => {
     root!.render(createElement(DmesUiProvider, null, createElement(DecisionTableCard, props)));
   });
-  await flush();
+  // 그리드 준비(비동기 onGridReady)와 그때의 행 다시 그리기까지 끝난 뒤에 시험을 시작한다.
+  await settleGrid(container);
 }
 
 describe("DecisionTableCard 렌더", () => {
@@ -672,12 +673,37 @@ describe("DecisionTableCard 렌더", () => {
       return c!.classList.contains("cell-emphasis");
     };
     const rowEl = (rowId: number) => container.querySelector(`.ag-center-cols-container .ag-row[row-id='${rowId}']`);
+    /** `pick` 동안 DOM 이 바뀐 행 ID — 행 요소가 붙거나 떨어진 행(redrawRows), 행 안 칸 내용이 바뀐 행(렌더러 다시 만들기 등). 고정 열 쪽 행도 센다. */
+    const redrawnRows = async (pick: () => Promise<void>): Promise<string[]> => {
+      const ids = new Set<string>();
+      const rowIdOf = (n: Node) => (n instanceof Element ? n : n.parentElement)?.closest(".ag-row")?.getAttribute("row-id");
+      const collect = (records: MutationRecord[]) => {
+        for (const r of records) {
+          const inside = rowIdOf(r.target);
+          if (inside) ids.add(inside);
+          for (const n of [...r.addedNodes, ...r.removedNodes]) {
+            const id = n instanceof Element && n.matches(".ag-row") ? n.getAttribute("row-id") : null;
+            if (id) ids.add(id);
+          }
+        }
+      };
+      const mo = new MutationObserver(collect);
+      mo.observe(container.querySelector(".ag-root-wrapper")!, { childList: true, subtree: true, characterData: true });
+      await pick();
+      collect(mo.takeRecords());
+      mo.disconnect();
+      return [...ids].sort();
+    };
     expect(emphasized(3, "c1_op")).toBe(false);
     const untouched = rowEl(2);
     expect(untouched).toBeTruthy();
 
-    await act(async () => (container.querySelector("[data-testid='dt-row-3']") as HTMLButtonElement).click());
-    await flush();
+    // 행 3 을 고르면 행 3 만 다시 그린다(앞서 고른 행 없음).
+    const first = await redrawnRows(async () => {
+      await act(async () => (container.querySelector("[data-testid='dt-row-3']") as HTMLButtonElement).click());
+      await flush();
+    });
+    expect(first).toEqual(["3"]);
     // 행 3: 두께 GE·표면등급 NOT_IN 은 강조, 폭은 NA 라 강조하지 않는다. 고르지 않은 행 1 은 그대로.
     expect(emphasized(3, "c1_op")).toBe(true);
     expect(emphasized(3, "c1_left")).toBe(true);
@@ -687,8 +713,12 @@ describe("DecisionTableCard 렌더", () => {
     // 결과 열은 조건이 아니다.
     expect(emphasized(3, "c4_val")).toBe(false);
 
-    await act(async () => (container.querySelector("[data-testid='dt-row-1']") as HTMLButtonElement).click());
-    await flush();
+    // 행 1 로 옮기면 이전·새 행(3·1)만 다시 그린다. 고르기에 끼지 않은 행 2·기본 행 4 는 DOM 이 그대로다.
+    const second = await redrawnRows(async () => {
+      await act(async () => (container.querySelector("[data-testid='dt-row-1']") as HTMLButtonElement).click());
+      await flush();
+    });
+    expect(second).toEqual(["1", "3"]);
     expect(emphasized(1, "c1_op")).toBe(true);
     expect(emphasized(1, "c2_op")).toBe(true);
     expect(emphasized(3, "c1_op")).toBe(false);
