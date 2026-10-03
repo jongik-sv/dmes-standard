@@ -92,8 +92,8 @@ class CactusSpringTransactionHandlerTest {
         assertThat(thrown)
                 .isInstanceOf(TransactionException.class)
                 .hasCauseInstanceOf(UnexpectedRollbackException.class)
-                .hasMessageContaining("[txA]");
-        assertThat(thrown.getMessage()).doesNotContain("커밋된 트랜잭션");
+                .hasMessage(CactusSpringTransactionHandler.CLIENT_MESSAGE);
+        assertThat(thrown.getMessage()).doesNotContain("txA");
         assertThat(txA.events).containsExactly("begin", "rollback");
         assertThreadStateCleared();
     }
@@ -118,9 +118,9 @@ class CactusSpringTransactionHandlerTest {
     }
 
     @Test
-    @DisplayName("커밋 중 일반 예외가 나도 남은 트랜잭션을 커밋하고 스레드 상태를 정리한 뒤 일부만 반영됐다고 던진다")
-    void cactusHandler_commitsRemainingAndCleansUp() throws Exception {
-        txB.commitFailure = new IllegalStateException("flush 실패");
+    @DisplayName("역순 첫 커밋이 실패하면 아직 커밋하지 않은 나머지는 롤백하고 스레드 상태를 정리한 뒤 일반 문구로 던진다")
+    void cactusHandler_rollsBackRemainingAfterFirstCommitFailure() throws Exception {
+        txB.commitFailure = new IllegalStateException("flush 실패 UNIQUE constraint UK_CODE");
 
         Throwable thrown = catchThrowable(() ->
                 cactusHandler().execute(() -> { }, new String[]{"txA", "txB"}, null));
@@ -128,21 +128,38 @@ class CactusSpringTransactionHandlerTest {
         assertThat(thrown)
                 .isInstanceOf(TransactionException.class)
                 .hasCause(txB.commitFailure)
-                .hasMessageContaining("트랜잭션 커밋 실패 [txB]")
-                .hasMessageContaining("커밋된 트랜잭션 [txA]")
-                .hasMessageEndingWith("flush 실패");
+                .hasMessage(CactusSpringTransactionHandler.CLIENT_MESSAGE);
+        assertThat(thrown.getMessage()).doesNotContain("txA").doesNotContain("txB").doesNotContain("UNIQUE");
         assertThat(thrown.getSuppressed()).isEmpty();
         assertThat(txB.events).containsExactly("begin", "commit", "rollback");
-        assertThat(txA.events).containsExactly("begin", "commit");
+        // 결정 2: 첫 실패 뒤 남은 txA 는 커밋하지 않고 롤백한다.
+        assertThat(txA.events).containsExactly("begin", "rollback");
         assertThat(txA.current.get()).isNull();
         assertThreadStateCleared();
     }
 
     @Test
-    @DisplayName("여러 트랜잭션이 커밋에 실패하면 첫 실패가 원인이고 나머지는 suppressed 다")
-    void cactusHandler_collectsEveryFailure() throws Exception {
+    @DisplayName("이미 커밋된 트랜잭션은 그대로 두고 실패 뒤의 것만 롤백한다")
+    void cactusHandler_keepsAlreadyCommittedAndRollsBackRest() throws Exception {
+        registerTxC();
         txB.commitFailure = new IllegalStateException("B 실패");
-        txA.commitFailure = new TransactionSystemException("A 실패");
+
+        Throwable thrown = catchThrowable(() ->
+                cactusHandler3().execute(() -> { }, new String[]{"txA", "txB", "txC"}, null));
+
+        assertThat(thrown).isInstanceOf(TransactionException.class).hasCause(txB.commitFailure);
+        // 역순: txC 커밋(되돌릴 수 없음) → txB 실패 → txA 롤백.
+        assertThat(txC.events).containsExactly("begin", "commit");
+        assertThat(txA.events).containsExactly("begin", "rollback");
+        assertThreadStateCleared();
+        txC.current.remove();
+    }
+
+    @Test
+    @DisplayName("남은 트랜잭션 롤백도 실패하면 그 실패는 suppressed 로 붙고 스레드 상태는 정리된다")
+    void cactusHandler_collectsRollbackFailureAsSuppressed() throws Exception {
+        txB.commitFailure = new IllegalStateException("B 실패");
+        txA.rollbackFailure = new TransactionSystemException("A 롤백 실패");
 
         Throwable thrown = catchThrowable(() ->
                 cactusHandler().execute(() -> { }, new String[]{"txA", "txB"}, null));
@@ -150,9 +167,94 @@ class CactusSpringTransactionHandlerTest {
         assertThat(thrown)
                 .isInstanceOf(TransactionException.class)
                 .hasCause(txB.commitFailure)
-                .hasMessageContaining("[txB, txA]");
-        assertThat(thrown.getMessage()).doesNotContain("커밋된 트랜잭션");
-        assertThat(thrown.getSuppressed()).containsExactly(txA.commitFailure);
+                .hasMessage(CactusSpringTransactionHandler.CLIENT_MESSAGE);
+        assertThat(thrown.getSuppressed()).containsExactly(txA.rollbackFailure);
+        assertThat(txA.events).containsExactly("begin", "rollback");
+        assertThreadStateCleared();
+    }
+
+    @Test
+    @DisplayName("항상 커밋 트랜잭션은 다른 커밋이 실패해도 롤백하지 않고 커밋한다")
+    void cactusHandler_alwaysCommitStillCommitsAfterFailure() throws Exception {
+        txB.commitFailure = new IllegalStateException("B 실패");
+
+        Throwable thrown = catchThrowable(() ->
+                cactusHandler().execute(() -> { }, new String[]{"txA", "txB"}, new String[]{"txA"}));
+
+        assertThat(thrown).isInstanceOf(TransactionException.class).hasCause(txB.commitFailure);
+        assertThat(txA.events).containsExactly("begin", "commit");
+        assertThreadStateCleared();
+    }
+
+    @Test
+    @DisplayName("항상 커밋 트랜잭션의 커밋 실패는 지금처럼 삼키고 나머지는 커밋한다")
+    void cactusHandler_alwaysCommitFailureIsSwallowed() throws Exception {
+        txB.commitFailure = new TransactionSystemException("항상 커밋 실패");
+
+        cactusHandler().execute(() -> { }, new String[]{"txA", "txB"}, new String[]{"txB"});
+
+        assertThat(txB.events).containsExactly("begin", "commit");
+        assertThat(txA.events).containsExactly("begin", "commit");
+        assertThreadStateCleared();
+    }
+
+    // ── 2-1. 두 번째 트랜잭션 매니저 시작 실패 → 먼저 시작된 트랜잭션 누수 ────────────────────
+
+    @Test
+    @DisplayName("[현재 동작 고정] oasis 핸들러는 두 번째 시작이 실패하면 첫 트랜잭션을 묶어 두고 다음 요청이 거기 합류한다")
+    void oasisHandler_leaksFirstTransactionOnStartFailure() throws Exception {
+        txB.beginFailure = new IllegalStateException("연결 실패");
+        List<String> ran = new ArrayList<>();
+
+        assertThatThrownBy(() -> oasisHandler().execute(() -> ran.add("process"), new String[]{"txA", "txB"}, null))
+                .isSameAs(txB.beginFailure);
+
+        assertThat(ran).isEmpty();
+        assertThat(txA.events).containsExactly("begin");
+        assertThat(txA.current.get()).as("txA 가 스레드에 묶여 있다").isNotNull();
+        assertThat(holder("getWarehouse")).isNotNull();
+        assertThat(holder("canStart")).isEqualTo(true);
+
+        // 같은 스레드의 다음 요청은 txA 를 새로 시작하지 않고 묵은 트랜잭션에 합류한다.
+        txB.beginFailure = null;
+        oasisHandler().execute(() -> { }, new String[]{"txA", "txB"}, null);
+        assertThat(txA.events).containsExactly("begin", "commit");
+    }
+
+    @Test
+    @DisplayName("두 번째 시작이 실패하면 먼저 시작된 트랜잭션을 롤백·정리하고, 다음 요청은 새 트랜잭션으로 시작한다")
+    void cactusHandler_rollsBackStartedTransactionsOnStartFailure() throws Exception {
+        txB.beginFailure = new IllegalStateException("연결 실패");
+        List<String> ran = new ArrayList<>();
+
+        assertThatThrownBy(() -> cactusHandler().execute(() -> ran.add("process"), new String[]{"txA", "txB"}, null))
+                .isSameAs(txB.beginFailure);
+
+        assertThat(ran).isEmpty();
+        assertThat(txA.events).containsExactly("begin", "rollback");
+        assertThat(txA.current.get()).as("txA 연결이 풀렸다").isNull();
+        assertThat(txB.events).isEmpty();
+        assertThreadStateCleared();
+
+        txB.beginFailure = null;
+        cactusHandler().execute(() -> ran.add("process"), new String[]{"txA", "txB"}, null);
+        assertThat(ran).containsExactly("process");
+        assertThat(txA.events).containsExactly("begin", "rollback", "begin", "commit");
+        assertThat(txB.events).containsExactly("begin", "commit");
+        assertThreadStateCleared();
+    }
+
+    @Test
+    @DisplayName("시작 실패 정리에서 롤백이 실패해도 suppressed 로 붙이고 스레드 상태는 정리한다")
+    void cactusHandler_startFailureRollbackFailureIsSuppressed() throws Exception {
+        txB.beginFailure = new IllegalStateException("연결 실패");
+        txA.rollbackFailure = new TransactionSystemException("A 롤백 실패");
+
+        Throwable thrown = catchThrowable(() ->
+                cactusHandler().execute(() -> { }, new String[]{"txA", "txB"}, null));
+
+        assertThat(thrown).isSameAs(txB.beginFailure);
+        assertThat(thrown.getSuppressed()).containsExactly(txA.rollbackFailure);
         assertThreadStateCleared();
     }
 
@@ -242,12 +344,29 @@ class CactusSpringTransactionHandlerTest {
         return new CactusSpringTransactionHandler(new SpringApplicationContext(ctx), new String[]{"txA", "txB"});
     }
 
+    private FakeTxManager txC;
+
+    private FakeTxManager registerTxC() {
+        txC = new FakeTxManager();
+        ctx.close();
+        ctx = new GenericApplicationContext();
+        ctx.registerBean("txA", PlatformTransactionManager.class, () -> txA);
+        ctx.registerBean("txB", PlatformTransactionManager.class, () -> txB);
+        ctx.registerBean("txC", PlatformTransactionManager.class, () -> txC);
+        ctx.refresh();
+        return txC;
+    }
+
+    private CactusSpringTransactionHandler cactusHandler3() {
+        return new CactusSpringTransactionHandler(new SpringApplicationContext(ctx), new String[]{"txA", "txB", "txC"});
+    }
+
     /** oasis 스레드 보관소가 비었고(end() 가 돌았고) Spring 동기화·cactus 실패 목록도 남지 않았다. */
     private static void assertThreadStateCleared() throws Exception {
         assertThat(holder("getWarehouse")).isNull();
         assertThat(holder("canStart")).isEqualTo(false);
         assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
-        ThreadLocal<?> pending = (ThreadLocal<?>) getField(CactusSpringTransactionHandler.class, "PENDING_FAILURES");
+        ThreadLocal<?> pending = (ThreadLocal<?>) getField(CactusSpringTransactionHandler.class, "CURRENT");
         assertThat(pending.get()).isNull();
     }
 
@@ -261,11 +380,14 @@ class CactusSpringTransactionHandlerTest {
     /**
      * DB 없이 Spring 트랜잭션 규칙(참여·rollback-only·커밋 실패 시 롤백)을 그대로 타는 트랜잭션 매니저.
      * {@link #commitFailure} 를 주면 커밋 순간 그 예외를 던진다(커밋 시점 flush 실패 흉내).
+     * {@link #beginFailure} 는 시작 순간(연결 획득 실패 흉내), {@link #rollbackFailure} 는 롤백 순간 던진다.
      */
     static final class FakeTxManager extends AbstractPlatformTransactionManager {
         final List<String> events = new ArrayList<>();
         final ThreadLocal<FakeTx> current = new ThreadLocal<>();
         RuntimeException commitFailure;
+        RuntimeException beginFailure;
+        RuntimeException rollbackFailure;
 
         static final class FakeTx {
             boolean rollbackOnly;
@@ -298,6 +420,9 @@ class CactusSpringTransactionHandlerTest {
 
         @Override
         protected void doBegin(Object transaction, TransactionDefinition definition) {
+            if (beginFailure != null) {
+                throw beginFailure;
+            }
             FakeTx tx = new FakeTx();
             ((TxObject) transaction).tx = tx;
             current.set(tx);
@@ -315,6 +440,9 @@ class CactusSpringTransactionHandlerTest {
         @Override
         protected void doRollback(DefaultTransactionStatus status) {
             events.add("rollback");
+            if (rollbackFailure != null) {
+                throw rollbackFailure;
+            }
         }
 
         @Override
