@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 /**
  * 쿼리 표 렌더러 동작 시험 — 아래 줄(행 수·잘림 안내)과 [엑셀] 내려받기.
- * useQueryData(서버 호출)·shared 의 그리드·폼 부품·엑셀 쓰기는 대역으로 바꾼다. 엑셀 파일 이름·컬럼 계산(_query/excel.ts)과
+ * useQueryData(서버 호출)·shared 의 그리드·아래 줄(GridExcelFoot)·엑셀 쓰기는 대역으로 바꾼다(shared 는 dist 를 쓰는데 시험은 소스만 본다). 엑셀 파일 이름·컬럼 계산(_query/excel.ts)과
  * 행 수 문구(_query/format.ts)는 실물이다. JSX 없이 createElement 로 쓴다(vitest include 가 *.test.ts 만 잡는다).
  */
 import { act, createElement } from "react";
@@ -31,18 +31,16 @@ vi.mock("@dk-oasis/shared/grid", async () => {
       h.grid.current = { columns: p.columns, data: p.data };
       return el("div", { "data-testid": "grid", "data-rows": String(p.data.length) });
     },
+    // shared GridExcelFoot 와 같은 계약(안내 글 + testId 기본 wq-excel 의 [엑셀] 단추)만 흉내 낸다. 모습·동작은 shared 시험이 본다.
+    GridExcelFoot: (p: { note: string; onExcel: () => void; disabled?: boolean; testId?: string }) =>
+      el(
+        "div",
+        { "data-testid": "grid-foot" },
+        el("span", { "data-testid": "grid-foot-note" }, p.note),
+        el("button", { type: "button", onClick: p.onExcel, disabled: p.disabled, "data-testid": p.testId ?? "wq-excel" }, "엑셀")
+      ),
   };
 });
-
-vi.mock("@dk-oasis/shared/form", async () => {
-  const { createElement: el } = await import("react");
-  return {
-    Button: (p: { children?: unknown; onClick?: () => void; "data-testid"?: string; title?: string }) =>
-      el("button", { type: "button", onClick: p.onClick, "data-testid": p["data-testid"], title: p.title }, p.children as never),
-  };
-});
-
-vi.mock("@tabler/icons-react", () => ({ IconDownload: () => null }));
 
 const { default: QueryTableRenderer } = await import("./renderer");
 
@@ -141,7 +139,7 @@ describe("쿼리 표 — 0행", () => {
 describe("쿼리 표 — 아래 줄의 행 수·잘림 안내", () => {
   it("잘리지 않았으면 「N행」(천 단위 쉼표)", async () => {
     await renderTable(result(sample()));
-    expect(must("wq-table").querySelector(".wq-foot__note")?.textContent).toBe("3행");
+    expect(must("wq-table").querySelector('[data-testid="grid-foot-note"]')?.textContent).toBe("3행");
     expect(must("grid").getAttribute("data-rows")).toBe("3");
     expect(q("wq-excel")).not.toBeNull();
   });
@@ -149,13 +147,13 @@ describe("쿼리 표 — 아래 줄의 행 수·잘림 안내", () => {
   it("행이 많으면 천 단위 쉼표가 붙는다", async () => {
     const rows = Array.from({ length: 1234 }, (_, i) => ({ SCREEN_NM: `화면${i}`, SEC: i }));
     await renderTable(result(rows));
-    expect(must("wq-table").querySelector(".wq-foot__note")?.textContent).toBe("1,234행");
+    expect(must("wq-table").querySelector('[data-testid="grid-foot-note"]')?.textContent).toBe("1,234행");
   });
 
   it("잘렸으면 「상위 500행만 표시합니다」", async () => {
     const rows = Array.from({ length: 500 }, (_, i) => ({ SCREEN_NM: `화면${i}`, SEC: i }));
     await renderTable(result(rows, { truncated: true }));
-    expect(must("wq-table").querySelector(".wq-foot__note")?.textContent).toBe("상위 500행만 표시합니다");
+    expect(must("wq-table").querySelector('[data-testid="grid-foot-note"]')?.textContent).toBe("상위 500행만 표시합니다");
     expect(q("wq-excel")).not.toBeNull();
   });
 });

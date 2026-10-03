@@ -17,6 +17,12 @@ describe("excelFileName", () => {
     expect(excelFileName("   ", "20261003")).toBe("쿼리표_20261003.xlsx");
   });
 
+  it("기본 이름 인자를 주면 제목이 없을 때 그 이름을 쓰고, 제목이 있으면 제목이 먼저다", () => {
+    expect(excelFileName(undefined, "20261003", "작업지시")).toBe("작업지시_20261003.xlsx");
+    expect(excelFileName("   ", "20261003", "출하")).toBe("출하_20261003.xlsx");
+    expect(excelFileName("금일 작업지시 현황", "20261003", "작업지시")).toBe("금일 작업지시 현황_20261003.xlsx");
+  });
+
   it("80자로 자른다", () => {
     expect(excelFileName("가".repeat(100), "20261003")).toBe(`${"가".repeat(80)}_20261003.xlsx`);
   });

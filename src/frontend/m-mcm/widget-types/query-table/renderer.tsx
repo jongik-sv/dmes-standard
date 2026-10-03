@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { AgDataGrid } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GridExcelFoot } from "@dk-oasis/shared/grid";
 import { exportToExcel, today } from "@dk-oasis/shared/utils";
 import type { WidgetProps } from "@dk-oasis/shared/widget";
 
 import { excelFileName, toExcelColumns } from "../_query/excel";
-import { ExcelFoot } from "../_query/excel-foot";
 import { TABLE_ROW_KEY, tableConfigOf, toColumnDefs, toGridRows, truncatedNote } from "../_query/format";
 import { QueryEmpty, QueryStyle } from "../_query/parts";
 import { useQueryData } from "../_query/useQueryData";
@@ -45,7 +44,7 @@ export default function QueryTableRenderer({ definition, widgetId, refreshKey, t
                 ariaLabel="쿼리 결과"
               />
             </div>
-            <ExcelFoot
+            <GridExcelFoot
               note={data.truncated ? truncatedNote(data.rows.length) : `${data.rows.length.toLocaleString()}행`}
               onExcel={handleExcel}
             />
