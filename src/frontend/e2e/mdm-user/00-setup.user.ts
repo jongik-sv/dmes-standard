@@ -101,10 +101,15 @@ test("SETUP-01~04 시험 사용자 등록·역할 부여·비밀번호 초기화
       await page.waitForLoadState("networkidle").catch(() => undefined);
       if ((await gridRow(owned, u.roleGroup).count()) === 0) {
         const avail = panel(page, "추가 가능 역할그룹");
+        // [역할조회] 응답이 오면 두 역할 그리드를 갈아 끼우며 고른 행을 비운다(commUserMng loadRoleGrids) — 응답 뒤에 고른다.
+        const reloaded = page.waitForResponse((r) => r.url().includes("/oasis/commUserMng/searchRoleGrp") && r.request().method() === "POST");
         await avail.getByRole("button", { name: "역할조회" }).click();
+        expect((await reloaded).ok()).toBe(true);
+        await page.waitForLoadState("networkidle").catch(() => undefined);
         const row = gridRow(avail, u.roleGroup);
         await expect(row).toHaveCount(1);
         await row.locator(".ag-selection-checkbox").click();
+        await expect(row).toHaveClass(/ag-row-selected/);
         await avail.getByRole("button", { name: "역할추가" }).click();
         await expect(gridRow(owned, u.roleGroup)).toHaveCount(1);
         await owned.getByRole("button", { name: "역할저장" }).click();
