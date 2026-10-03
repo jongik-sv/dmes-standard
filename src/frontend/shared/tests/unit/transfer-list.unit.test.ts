@@ -184,6 +184,21 @@ describe("TransferList", () => {
     expect(listed("transfer-list", "member")).toEqual(["A1"]);
   });
 
+  it("행 안 체크박스를 직접 눌러도 행 클릭과 같다 — 한 번만 토글되고 Shift 는 범위", () => {
+    r = renderWithMantine(createElement(Harness, { items: ITEMS, initial: [] }));
+    const box = (code: string) =>
+      q(`transfer-list-item-available-${code}`)!.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+    act(() => box("A1").click());
+    expect(box("A1").checked).toBe(true);
+    expect(btn("transfer-list-move-right").disabled).toBe(false);
+    act(() => box("A1").click());
+    expect(box("A1").checked).toBe(false);
+    expect(btn("transfer-list-move-right").disabled).toBe(true);
+    act(() => box("A1").click());
+    click(box("A3"), { shiftKey: true });
+    expect(["A1", "A2", "A3", "X9"].map((c) => box(c).checked)).toEqual([true, true, true, false]);
+  });
+
   it("editable=false 면 이동·선택이 꺼지고 검색은 된다", () => {
     const spy = vi.fn();
     r = renderWithMantine(createElement(Harness, { items: ITEMS, initial: ["A1"], editable: false, spy }));

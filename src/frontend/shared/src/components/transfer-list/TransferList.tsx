@@ -5,6 +5,7 @@
  * - 소속 집합은 부모가 쥔다(`value`·`onChange`). 이 부품은 `value` 를 복사해 두지 않고, 검색어·분류 필터·좌우 선택·
  *   Shift 기준점만 로컬로 둔다. 이동(`>`·`>>`·`<`·`<<`)은 그 자리에서 `onChange(next)` 를 부른다.
  * - 선택: 행 클릭은 토글, Shift 클릭은 마지막으로 누른 행부터 범위, 열 머리 체크박스는 보이는 목록 전체.
+ *   행 안 체크박스를 눌러도 같다(토글은 행 onClick 한 곳에서만 한다).
  * - `>`·`<` 는 그쪽 선택이 있어야, `>>`·`<<` 는 그쪽 보이는 목록이 있어야 켜진다. `>`·`<` 는 옮긴 뒤 선택을 비운다.
  * - 분류 필터는 `getGroup` 이 낸 값이 하나라도 있을 때만 그린다. 배지·가능 쪽 숨김 규칙·문구·testId 는 props 로 받는다.
  * - testId 는 접두어 하나로 조립한다: 뿌리 `{testId}`, 검색 `-search`, 분류 `-{groupTestIdSuffix}`, 열 `-available`·
@@ -190,8 +191,8 @@ export function TransferList<T extends TransferListItem>(props: TransferListProp
           return (
             <div key={it.code} data-testid={`${testId}-item-${side}-${it.code}`} style={rowStyle}
               onClick={(e: MouseEvent) => editable && clickItem(side, it.code, e.shiftKey)}>
-              <Checkbox checked={selected.has(it.code)} disabled={!editable}
-                onChange={() => editable && clickItem(side, it.code, false)} />
+              {/* 토글은 행 onClick 한 곳에서만 한다 — 체크박스 클릭도 행으로 올라오므로 여기서 또 토글하면 서로 지운다. */}
+              <Checkbox checked={selected.has(it.code)} disabled={!editable} />
               <span style={codeStyle}>{it.code}</span>
               <span style={{ ...hint, ...nameStyle }}>{it.name ?? ""}</span>
               {badge && (
