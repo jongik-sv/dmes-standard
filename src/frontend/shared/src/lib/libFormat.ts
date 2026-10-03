@@ -39,7 +39,7 @@ import { gfn_isNull } from './libUtil';
  * gfn_setComma(1234567)    // "1,234,567"
  * gfn_setComma("1234567")  // "1,234,567"
  * gfn_setComma(-1234567)   // "-1,234,567"
- * @deprecated @dk-oasis/shared/utils 의 gfn_setComma 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatComma` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_setComma(val: number | string | null | undefined): string {
   if (gfn_isNull(val)) return "";
@@ -91,7 +91,7 @@ export function gfn_setComma(val: number | string | null | undefined): string {
  *
  * @example
  * gfn_removeComma("1,234,567")  // "1234567"
- * @deprecated @dk-oasis/shared/utils 의 gfn_removeComma 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `removeComma` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_removeComma(val: string | number | null | undefined): string {
   if (gfn_isNull(val)) return "";
@@ -110,7 +110,7 @@ export function gfn_removeComma(val: string | number | null | undefined): string
  * @example
  * gfn_formatNumber(1234.5678, 2)        // "1,234.57"
  * gfn_formatNumber(1234.5678, 2, false) // "1234.57"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatNumber 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatNumber` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatNumber(val: number | string | null | undefined, decimals: number = 0, useComma: boolean = true): string {
   if (gfn_isNull(val)) return "";
@@ -141,7 +141,7 @@ export function gfn_formatNumber(val: number | string | null | undefined, decima
  * @example
  * gfn_formatCurrency(1234567)           // "₩1,234,567"
  * gfn_formatCurrency(1234.56, "$", 2)   // "$1,234.56"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatCurrency 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatCurrency` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatCurrency(val: number | string | null | undefined, currency: string = "₩", decimals: number = 0): string {
   if (gfn_isNull(val)) return "";
@@ -164,7 +164,7 @@ export function gfn_formatCurrency(val: number | string | null | undefined, curr
  * @example
  * gfn_formatPercent(0.1234)           // "12.3%"
  * gfn_formatPercent(12.34, 1, false)  // "12.3%"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatPercent 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatPercent` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatPercent(val: number | string | null | undefined, decimals: number = 1, multiply: boolean = true): string {
   if (gfn_isNull(val)) return "";
@@ -194,7 +194,7 @@ export function gfn_formatPercent(val: number | string | null | undefined, decim
  * gfn_formatPhone("0212345678")    // "02-1234-5678"
  * gfn_formatPhone("0311234567")    // "031-123-4567"
  * gfn_formatPhone("03112345678")   // "031-1234-5678"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatPhone 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatPhone` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatPhone(phone: string | null | undefined): string {
   if (gfn_isNull(phone)) return "";
@@ -225,7 +225,7 @@ export function gfn_formatPhone(phone: string | null | undefined): string {
 }
 
 // Nexacro 호환
-/** @deprecated @dk-oasis/shared/utils 의 gfn_formatPhoneNum 를 쓴다. */
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatPhone` 도 사용처가 없어 함께 옮긴다. */
 export const gfn_formatPhoneNum = gfn_formatPhone;
 
 /**
@@ -238,7 +238,7 @@ export const gfn_formatPhoneNum = gfn_formatPhone;
  * @example
  * gfn_formatCellPhone("01012345678")  // "010-1234-5678"
  * gfn_formatCellPhone("0101234567")   // "010-123-4567"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatCellPhone 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatCellPhone` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatCellPhone(phone: string | null | undefined): string {
   if (gfn_isNull(phone)) return "";
@@ -255,7 +255,7 @@ export function gfn_formatCellPhone(phone: string | null | undefined): string {
 }
 
 // Nexacro 호환
-/** @deprecated @dk-oasis/shared/utils 의 gfn_formatCellNum 를 쓴다. */
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatCellPhone` 도 사용처가 없어 함께 옮긴다. */
 export const gfn_formatCellNum = gfn_formatCellPhone;
 
 // ============================================================
@@ -271,7 +271,7 @@ export const gfn_formatCellNum = gfn_formatCellPhone;
  *
  * @example
  * gfn_formatBizNo("1234567890")  // "123-45-67890"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatBizNo 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatBizNo` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatBizNo(bizNo: string | null | undefined): string {
   if (gfn_isNull(bizNo)) return "";
@@ -294,7 +294,7 @@ export function gfn_formatBizNo(bizNo: string | null | undefined): string {
  *
  * @example
  * gfn_formatCorpNo("1101111234567")  // "110111-1234567"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatCorpNo 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatCorpNo` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatCorpNo(corpNo: string | null | undefined): string {
   if (gfn_isNull(corpNo)) return "";
@@ -323,7 +323,7 @@ export function gfn_formatCorpNo(corpNo: string | null | undefined): string {
  * @example
  * gfn_formatRsrNo("8001011234567")       // "800101-1******"
  * gfn_formatRsrNo("8001011234567", false) // "800101-1234567"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatRsrNo 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatRsrNo` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatRsrNo(rsrNo: string | null | undefined, mask: boolean = true): string {
   if (gfn_isNull(rsrNo)) return "";
@@ -350,7 +350,7 @@ export function gfn_formatRsrNo(rsrNo: string | null | undefined, mask: boolean 
  * @example
  * gfn_formatCardNo("1234567890123456")       // "1234-****-****-3456"
  * gfn_formatCardNo("1234567890123456", false) // "1234-5678-9012-3456"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatCardNo 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatCardNo` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatCardNo(cardNo: string | null | undefined, mask: boolean = true): string {
   if (gfn_isNull(cardNo)) return "";
@@ -376,7 +376,7 @@ export function gfn_formatCardNo(cardNo: string | null | undefined, mask: boolea
  *
  * @example
  * gfn_formatAccountNo("12345678901234")  // "123-456-789012-34"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatAccountNo 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatAccountNo` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatAccountNo(accountNo: string | null | undefined, mask: boolean = false): string {
   if (gfn_isNull(accountNo)) return "";
@@ -407,7 +407,7 @@ export function gfn_formatAccountNo(accountNo: string | null | undefined, mask: 
  * @example
  * gfn_maskString("홍길동", 1, 1)      // "홍*동"
  * gfn_maskString("email@test.com", 2, 3) // "em***@test.com"
- * @deprecated @dk-oasis/shared/utils 의 gfn_maskString 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `maskString` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_maskString(str: string | null | undefined, start: number, length: number, maskChar: string = "*"): string {
   if (gfn_isNull(str)) return "";
@@ -440,7 +440,7 @@ export function gfn_maskString(str: string | null | undefined, start: number, le
  * gfn_formatDate("20240115")       // "2024-01-15"
  * gfn_formatDate("20240115", "/")  // "2024/01/15"
  * gfn_formatDate("20240115", ".")  // "2024.01.15"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatDate 를 쓴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `formatDateStr` 를 쓴다.
  */
 export function gfn_formatDate(date: string | null | undefined, separator: string = "-"): string {
   if (gfn_isNull(date)) return "";
@@ -463,7 +463,7 @@ export function gfn_formatDate(date: string | null | undefined, separator: strin
  * @example
  * gfn_formatTime("143025")  // "14:30:25"
  * gfn_formatTime("1430")    // "14:30"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatTime 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatTime` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatTime(time: string | null | undefined, separator: string = ":"): string {
   if (gfn_isNull(time)) return "";
@@ -482,7 +482,7 @@ export function gfn_formatTime(time: string | null | undefined, separator: strin
 /**
  * @interface FormatDateTimeOptions
  * @description gfn_formatDateTime 옵션
- * @deprecated @dk-oasis/shared/utils 의 DateTimeFormatOptions 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `DateTimeFormatOptions` 도 사용처가 없어 함께 옮긴다.
  */
 export interface FormatDateTimeOptions {
   dateSeparator?: string;
@@ -500,7 +500,7 @@ export interface FormatDateTimeOptions {
  *
  * @example
  * gfn_formatDateTime("20240115143025")  // "2024-01-15 14:30:25"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatDateTime 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatDateTime` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatDateTime(datetime: string | null | undefined, options: FormatDateTimeOptions = {}): string {
   const {
@@ -537,7 +537,7 @@ export function gfn_formatDateTime(datetime: string | null | undefined, options:
  * @example
  * gfn_formatUpdatedAt("2026-03-17T09:48:40.261Z")  // "2026. 3. 17. 09:48:40"
  * gfn_formatUpdatedAt("")  // ""
- * @deprecated 저장소 안 사용처 없음. 필요하면 @dk-oasis/shared/utils 의 formatDateTime 으로 대신한다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 에는 같은 함수가 없고, 비슷한 `formatDateTime` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatUpdatedAt(value: string | null | undefined): string {
   if (gfn_isNull(value)) return "";
@@ -562,7 +562,7 @@ export function gfn_formatUpdatedAt(value: string | null | undefined): string {
  * gfn_formatBytes(1024)        // "1 KB"
  * gfn_formatBytes(1234567)     // "1.18 MB"
  * gfn_formatBytes(1234567890)  // "1.15 GB"
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatBytes 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatBytes` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatBytes(bytes: number | null | undefined, decimals: number = 2): string {
   if (bytes === 0) return '0 Bytes';
@@ -590,7 +590,7 @@ export function gfn_formatBytes(bytes: number | null | undefined, decimals: numb
  * @example
  * gfn_formatPostcode("12345")  // "12345"
  * gfn_formatPostcode("123456") // "123-456" (구 우편번호)
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatPostcode 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatPostcode` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatPostcode(postcode: string | null | undefined): string {
   if (gfn_isNull(postcode)) return "";
@@ -619,7 +619,7 @@ export function gfn_formatPostcode(postcode: string | null | undefined): string 
  * @example
  * gfn_removeFormat("123-456-7890")  // "1234567890"
  * gfn_removeFormat("₩1,234,567")    // "1234567"
- * @deprecated @dk-oasis/shared/utils 의 gfn_removeFormat 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `removeFormat` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_removeFormat(str: string | null | undefined): string {
   if (gfn_isNull(str)) return "";
@@ -637,7 +637,7 @@ export function gfn_removeFormat(str: string | null | undefined): string {
  *
  * @example
  * gfn_formatText("안녕하세요 반갑습니다", 7)  // "안녕하세요 ..."
- * @deprecated @dk-oasis/shared/utils 의 gfn_formatText 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatText` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_formatText(text: string | null | undefined, maxLength: number, suffix: string = "..."): string {
   if (gfn_isNull(text)) return "";

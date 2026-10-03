@@ -30,7 +30,7 @@
  * gfn_isNull(0)             // false (0은 유효한 값)
  * gfn_isNull("hello")       // false
  * gfn_isNull({ a: 1 })      // false
- * @deprecated @dk-oasis/shared/utils 의 gfn_isNull 를 쓴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `isNullOrEmpty` 를 쓴다.
  */
 export function gfn_isNull(sValue: unknown): boolean {
   // null 또는 undefined 체크
@@ -69,7 +69,7 @@ export function gfn_isNull(sValue: unknown): boolean {
  * gfn_isNvl("", "없음")         // "없음"
  * gfn_isNvl("홍길동", "없음")    // "홍길동"
  * gfn_isNvl(0, 100)            // 0 (0은 null이 아님)
- * @deprecated @dk-oasis/shared/utils 의 gfn_isNvl 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `nvl` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_isNvl<T>(inVal: T | null | undefined, emptyVal: T): T {
   if (gfn_isNull(inVal)) {

@@ -75,7 +75,6 @@ export function isValidCorpNo(corpNo: string): boolean {
   return checkDigit === parseInt(corpRegNo.charAt(12), 10);
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidEmail(email: string): boolean {
   if (isNullOrEmpty(email)) return false;
   const emailRegex =
@@ -83,14 +82,12 @@ export function isValidEmail(email: string): boolean {
   return emailRegex.test(String(email).trim());
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidCellPhone(phone: string): boolean {
   if (isNullOrEmpty(phone)) return false;
   const phoneNum = String(phone).replace(/[^0-9]/g, "");
   return /^01[016789][0-9]{7,8}$/.test(phoneNum);
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidPhone(phone: string): boolean {
   if (isNullOrEmpty(phone)) return false;
   const phoneNum = String(phone).replace(/[^0-9]/g, "");
@@ -122,18 +119,15 @@ export function isValidIPAddress(ip: string): boolean {
   );
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isRequired(value: unknown): boolean {
   return !isNullOrEmpty(value);
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isMinLength(value: unknown, minLen: number): boolean {
   if (isNullOrEmpty(value)) return minLen <= 0;
   return String(value).length >= minLen;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isMaxLength(value: unknown, maxLen: number): boolean {
   if (isNullOrEmpty(value)) return true;
   return String(value).length <= maxLen;
@@ -144,7 +138,6 @@ export function isLengthRange(value: unknown, minLen: number, maxLen: number): b
   return isMinLength(value, minLen) && isMaxLength(value, maxLen);
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isRange(value: unknown, min: number, max: number): boolean {
   const num = parseFloat(String(value));
   if (isNaN(num)) return false;
@@ -256,7 +249,6 @@ export function isAlphaNumeric(str: string): boolean {
   return /^[a-zA-Z0-9]+$/.test(String(str));
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export type ValidationType =
   | "required"
   | "email"
@@ -278,7 +270,6 @@ export interface ValidationRule {
   validator?: (value: unknown) => boolean;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface ValidationResult {
   valid: boolean;
   errors: string[];

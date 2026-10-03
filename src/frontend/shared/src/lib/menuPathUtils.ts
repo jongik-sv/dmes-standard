@@ -6,9 +6,9 @@
  * import { getMenuPath } from '@dk-oasis/shared/lib';
  * const path = getMenuPath(menuList, 'menu-001', '사용자 관리');
  * // "공통관리 > 권한관리 > 사용자 관리"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다.
  */
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface MenuPathItem {
   MENU_ID: string;
   MENU_NM: string;

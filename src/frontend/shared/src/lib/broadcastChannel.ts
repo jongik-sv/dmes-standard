@@ -18,9 +18,9 @@
  * // cleanup: unsubscribe();
  *
  * sendMessage("SEC_OBJ_CHANGED", { objId: "..." });
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다.
  */
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface BroadcastMessage {
   type: string;
   payload: unknown;

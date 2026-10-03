@@ -61,7 +61,7 @@ function isNum(sValue: unknown): boolean {
  * gfn_isDate("20240115103000")  // true
  * gfn_isDate("20241315")        // false (월이 13)
  * gfn_isDate("20240230")        // false (2월 30일 없음)
- * @deprecated @dk-oasis/shared/utils 의 gfn_isDate 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `isDate` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_isDate(sDate: string | null | undefined): boolean {
   if (gfn_isNull(sDate)) return false;
@@ -104,7 +104,7 @@ export function gfn_isDate(sDate: string | null | undefined): boolean {
  * @example
  * gfn_isLeapYear("20240101")  // true (2024년은 윤년)
  * gfn_isLeapYear("20230101")  // false
- * @deprecated @dk-oasis/shared/utils 의 gfn_isLeapYear 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `isLeapYear` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_isLeapYear(sDate: string | null | undefined): boolean {
   if (gfn_isNull(sDate)) return false;
@@ -132,7 +132,7 @@ export function gfn_isLeapYear(sDate: string | null | undefined): boolean {
  * gfn_isTime("120000")  // true
  * gfn_isTime("250000")  // false (시간이 25)
  * gfn_isTime("126000")  // false (분이 60)
- * @deprecated @dk-oasis/shared/utils 의 gfn_isTime 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `isTime` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_isTime(sTime: string | null | undefined): boolean {
   if (gfn_isNull(sTime)) return false;
@@ -164,7 +164,7 @@ export function gfn_isTime(sTime: string | null | undefined): boolean {
  *
  * @example
  * gfn_strToDate("20240115")  // Date 객체 (2024-01-15)
- * @deprecated @dk-oasis/shared/utils 의 gfn_strToDate 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `strToDate` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_strToDate(sDate: string | Date): Date {
   if (typeof sDate === 'string') {
@@ -186,7 +186,7 @@ export function gfn_strToDate(sDate: string | Date): Date {
  *
  * @example
  * gfn_dateToStr(new Date(2024, 0, 15))  // "20240115"
- * @deprecated @dk-oasis/shared/utils 의 gfn_dateToStr 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `dateToStr` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_dateToStr(dDate: Date): string {
   const date = new Date(dDate);
@@ -202,7 +202,7 @@ export function gfn_dateToStr(dDate: Date): string {
  *
  * @param dateStr - 변환할 날짜 문자열
  * @returns 'YYYY-MM-DD' 형식의 날짜 문자열
- * @deprecated @dk-oasis/shared/utils 의 formatDate 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `formatDate` 도 사용처가 없어 함께 옮긴다.
  */
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
@@ -223,7 +223,7 @@ export function formatDate(dateStr: string | null | undefined): string {
  *
  * @example
  * gfn_today()  // "20240115"
- * @deprecated @dk-oasis/shared/utils 의 gfn_today 를 쓴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `today` 를 쓴다.
  */
 export function gfn_today(): string {
   const objDate = new Date();
@@ -241,7 +241,7 @@ export function gfn_today(): string {
  *
  * @example
  * gfn_getCurrentYear()  // "2024"
- * @deprecated @dk-oasis/shared/utils 의 gfn_getCurrentYear 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getCurrentYear` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_getCurrentYear(): string {
   return gfn_today().substring(0, 4);
@@ -255,7 +255,7 @@ export function gfn_getCurrentYear(): string {
  *
  * @example
  * gfn_getCurrentTime()  // "143025"
- * @deprecated @dk-oasis/shared/utils 의 gfn_getCurrentTime 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getCurrentTime` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_getCurrentTime(): string {
   const objDate = new Date();
@@ -273,7 +273,7 @@ export function gfn_getCurrentTime(): string {
  *
  * @example
  * gfn_getDateTime()  // "20240115143025"
- * @deprecated @dk-oasis/shared/utils 의 gfn_getDateTime 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getDateTime` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_getDateTime(): string {
   return gfn_today() + gfn_getCurrentTime();
@@ -282,7 +282,7 @@ export function gfn_getDateTime(): string {
 /**
  * @function gfn_getSysDate
  * @description 시스템 날짜시간 반환 (gfn_getDateTime 별칭)
- * @deprecated @dk-oasis/shared/utils 의 gfn_getSysDate 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getSysDate` 도 사용처가 없어 함께 옮긴다.
  */
 export const gfn_getSysDate = gfn_getDateTime;
 
@@ -301,7 +301,7 @@ export const gfn_getSysDate = gfn_getDateTime;
  * @example
  * gfn_getDay("20240115", 7)   // "20240122"
  * gfn_getDay("20240115", -7)  // "20240108"
- * @deprecated @dk-oasis/shared/utils 의 gfn_getDay 를 쓴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `addDays` 를 쓴다.
  */
 export function gfn_getDay(strDate: string | number, nDay: string | number): string {
   const dateStr = String(strDate);
@@ -336,7 +336,7 @@ export function gfn_getDay(strDate: string | number, nDay: string | number): str
  * @example
  * gfn_getMonth("20240115", 1)   // "20240215"
  * gfn_getMonth("20240131", 1)   // "20240229" (말일 처리)
- * @deprecated @dk-oasis/shared/utils 의 gfn_getMonth 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `addMonths` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_getMonth(strDate: string | number, nMon: string | number): string {
   const dateStr = String(strDate);
@@ -373,7 +373,7 @@ export function gfn_getMonth(strDate: string | number, nMon: string | number): s
  * @example
  * gfn_getYear("20240115", 1)   // "20250115"
  * gfn_getYear("20240229", 1)   // "20250301" (윤년 처리)
- * @deprecated @dk-oasis/shared/utils 의 gfn_getYear 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `addYears` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_getYear(strDate: string | number, nYear: string | number): string {
   const dateStr = String(strDate);
@@ -411,7 +411,7 @@ export function gfn_getYear(strDate: string | number, nYear: string | number): s
  * @example
  * gfn_getFastDate("20240115")  // "20240101"
  * gfn_getFastDate("202401")    // "20240101"
- * @deprecated @dk-oasis/shared/utils 의 gfn_getFastDate 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getFirstDayOfMonth` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_getFastDate(sDate: string | null | undefined): string {
   if (gfn_isNull(sDate)) return "";
@@ -428,7 +428,7 @@ export function gfn_getFastDate(sDate: string | null | undefined): string {
  * @example
  * gfn_getLastDate("20240115")  // 31
  * gfn_getLastDate("20240215")  // 29 (윤년)
- * @deprecated @dk-oasis/shared/utils 의 gfn_getLastDate 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getLastDate` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_getLastDate(sDate: string | null | undefined): number {
   return gfn_lastDateNum(sDate);
@@ -445,7 +445,7 @@ export function gfn_getLastDate(sDate: string | null | undefined): number {
  * gfn_lastDateNum("20240115")  // 31
  * gfn_lastDateNum("20240215")  // 29 (윤년)
  * gfn_lastDateNum("20230215")  // 28 (평년)
- * @deprecated @dk-oasis/shared/utils 의 gfn_lastDateNum 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `lastDateNum` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_lastDateNum(sDate: string | null | undefined): number {
   if (gfn_isNull(sDate)) return -1;
@@ -476,7 +476,7 @@ export function gfn_lastDateNum(sDate: string | null | undefined): number {
  *
  * @example
  * gfn_getLastDateStr("20240115")  // "20240131"
- * @deprecated @dk-oasis/shared/utils 의 gfn_getLastDateStr 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getLastDayOfMonth` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_getLastDateStr(sDate: string | null | undefined): string {
   if (gfn_isNull(sDate)) return "";
@@ -497,7 +497,7 @@ export function gfn_getLastDateStr(sDate: string | null | undefined): string {
  *
  * @example
  * gfn_getYoil("20240115")  // 1 (월요일)
- * @deprecated @dk-oasis/shared/utils 의 gfn_getYoil 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getDayOfWeek` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_getYoil(sDate: string): number {
   const objDate = gfn_strToDate(sDate);
@@ -513,7 +513,7 @@ export function gfn_getYoil(sDate: string): number {
  *
  * @example
  * gfn_getYoilName("20240115")  // "월요일"
- * @deprecated @dk-oasis/shared/utils 의 gfn_getYoilName 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getDayOfWeekName` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_getYoilName(sDate: string): string {
   const dayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
@@ -521,7 +521,7 @@ export function gfn_getYoilName(sDate: string): string {
 }
 
 // gfn_getYoilame - 별칭 (원본 오타 유지)
-/** @deprecated 오타 별칭이다. @dk-oasis/shared/utils 의 gfn_getYoilName 을 쓴다. */
+/** @deprecated 오타 별칭이다. 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getDayOfWeekName` 도 사용처가 없어 함께 옮긴다. */
 export const gfn_getYoilame = gfn_getYoilName;
 
 // ============================================================
@@ -539,7 +539,7 @@ export const gfn_getYoilame = gfn_getYoilName;
  * @example
  * gfn_diffDate("20240101", "20240115")  // 14
  * gfn_diffDate("20240115", "20240101")  // -14
- * @deprecated @dk-oasis/shared/utils 의 gfn_diffDate 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `diffDays` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_diffDate(sStartDate: string | number | null | undefined, sEndDate: string | number | null | undefined): number {
   if (gfn_isNull(sStartDate) || gfn_isNull(sEndDate)) {
@@ -574,7 +574,7 @@ export function gfn_diffDate(sStartDate: string | number | null | undefined, sEn
  *
  * @example
  * gfn_diffHour("20240115090000", "20240115120000")  // "030000"
- * @deprecated @dk-oasis/shared/utils 의 gfn_diffHour 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `diffHour` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_diffHour(sSDate: string, sEDate: string): string {
   const fromDate = new Date(
@@ -610,7 +610,7 @@ export function gfn_diffHour(sSDate: string, sEDate: string): string {
  * @param sSDate - 시작일시 (YYYYMMDDHHmmss)
  * @param sEDate - 종료일시 (YYYYMMDDHHmmss)
  * @returns 차이 일수
- * @deprecated @dk-oasis/shared/utils 의 gfn_diffDay 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `diffDay` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_diffDay(sSDate: string, sEDate: string): number {
   const fromDate = new Date(
@@ -638,7 +638,7 @@ export function gfn_diffDay(sSDate: string, sEDate: string): number {
 /**
  * @interface CalculateTimeResult
  * @description gfn_calculateTime 반환 타입
- * @deprecated @dk-oasis/shared/utils 의 TimeDiff 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `TimeDiff` 도 사용처가 없어 함께 옮긴다.
  */
 export interface CalculateTimeResult {
   days: number;
@@ -660,7 +660,7 @@ export interface CalculateTimeResult {
  * @example
  * gfn_calculateTime("20240101120000", "20240102120130")
  * // { days: 1, hours: 0, minutes: 1, seconds: 30, totalSeconds: 86490, text: "1day 0hour 1minute 30second" }
- * @deprecated @dk-oasis/shared/utils 의 gfn_calculateTime 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `calculateTime` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_calculateTime(sSDate: string, sEDate: string): CalculateTimeResult {
   const fromDate = new Date(
@@ -710,7 +710,7 @@ export function gfn_calculateTime(sSDate: string, sEDate: string): CalculateTime
  *
  * @example
  * gfn_total_week("20240115")  // 3 (2024년 3주차)
- * @deprecated @dk-oasis/shared/utils 의 gfn_total_week 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `totalWeek` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_total_week(date: string): number {
   const objDate = gfn_strToDate(date);
@@ -746,7 +746,7 @@ export function gfn_total_week(date: string): number {
  * @example
  * gfn_chkDataRange("20240101", "20240228", 2)  // true
  * gfn_chkDataRange("20240101", "20240401", 2)  // false (3개월 초과)
- * @deprecated @dk-oasis/shared/utils 의 gfn_chkDataRange 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `chkDataRange` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_chkDataRange(sFromDt: string | null | undefined, sToDt: string | null | undefined, iMonthVal: number = 2): boolean {
   if (gfn_isNull(sFromDt) || gfn_isNull(sToDt)) {
@@ -770,7 +770,7 @@ export function gfn_chkDataRange(sFromDt: string | null | undefined, sToDt: stri
  *
  * @param sDate - 날짜 (YYYYMMDD)
  * @returns 변환된 날짜 (YYYY-MM-DD)
- * @deprecated @dk-oasis/shared/utils 의 gfn_addHyphenDate 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `toHyphenDate` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_addHyphenDate(sDate: string | null | undefined): string {
   if (gfn_isNull(sDate) || String(sDate).length < 8) return String(sDate ?? '');
@@ -784,7 +784,7 @@ export function gfn_addHyphenDate(sDate: string | null | undefined): string {
  *
  * @param sDate - 날짜 (YYYY-MM-DD)
  * @returns 변환된 날짜 (YYYYMMDD)
- * @deprecated @dk-oasis/shared/utils 의 gfn_removeHyphenDate 를 쓴다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `toCompactDate` 도 사용처가 없어 함께 옮긴다.
  */
 export function gfn_removeHyphenDate(sDate: string | null | undefined): string {
   if (gfn_isNull(sDate)) return "";
