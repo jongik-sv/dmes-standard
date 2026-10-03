@@ -360,4 +360,57 @@ class MdmMetaServiceVersionedTest {
     private static CodeItemRow item(String code, BigDecimal from, BigDecimal to) {
         return new CodeItemRow(code, from, to, code + " 이름", null, 1, Arrays.asList(new String[5]), Arrays.asList(new String[10]));
     }
+
+    // ---- fu3: 폴러 RELOAD 전용 입구 ----
+
+    @Test
+    void refreshAfterEvict_는_진행_중_목차_적재에_합류하지_않고_자리를_빼앗는다() throws Exception {
+        CountDownLatch oldGate = new CountDownLatch(1);
+        CountDownLatch newGate = new CountDownLatch(1);
+        try {
+            feed.fetchGate = oldGate;
+            CompletableFuture<MdmMetaService.MdmAtLookup> old = CompletableFuture.supplyAsync(
+                    () -> service.lookupAt(MdmTargetType.RULE, List.of("R"), T0));
+            assertThat(feed.fetchEntered.await(5, TimeUnit.SECONDS)).isTrue(); // 지움 전 Ticket 으로 옛 목차(1.000·2.000)를 읽고 멈췄다
+            feed.put(MdmTargetType.RULE, "R", List.of(
+                    rule("1.000", LocalDateTime.parse("2026-01-01T00:00:00"), KST0.minusHours(1)),
+                    rule("3.000", KST0.minusHours(1), null)));
+            cache.evict(MdmTargetType.RULE, "R", 1); // 폴러 지움
+            cache.markApplied(1);
+            int tombstones = cache.tombstoneCount();
+
+            feed.fetchGate = newGate;
+            CompletableFuture<Void> refresh = CompletableFuture.runAsync(() -> service.refreshAfterEvict(MdmTargetType.RULE, List.of("R"), T0));
+            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (feed.tocCalls.get() < 2 && System.nanoTime() < until) {
+                Thread.onSpinWait();
+            }
+            assertThat(feed.tocCalls.get()).as("옛 적재에 합류하지 않고 자기 목차 요청").isEqualTo(2);
+            CompletableFuture<MdmMetaService.MdmAtLookup> later = CompletableFuture.supplyAsync(
+                    () -> service.lookupAt(MdmTargetType.RULE, List.of("R"), T0)); // refresh 시작 뒤 들어온 조회
+            Thread.sleep(100);
+
+            newGate.countDown();
+            refresh.get(5, TimeUnit.SECONDS);
+            assertThat(later.get(5, TimeUnit.SECONDS).found().get("R").ver()).isEqualTo("3.000");
+            assertThat(feed.tocCalls.get()).as("뒤이은 조회는 새 적재에 합류").isEqualTo(2);
+            assertThat(feed.bodyCalls.get()).as("최종 본문은 목차 응답의 current").isZero();
+            MdmMetaCache.Entry head = cache.get(MdmTargetType.RULE, "R").orElseThrow();
+            MdmMetaCache.Entry body = cache.getBody(MdmTargetType.RULE, "R", "3.000").orElseThrow();
+            assertThat(((MdmToc) head.value()).version("3.000")).isPresent();
+            assertThat(body.loadSeq()).as("목차와 본문이 같은 Ticket").isEqualTo(head.loadSeq()).isEqualTo(1);
+            assertThat(cache.peek(MdmTargetType.RULE, "R@3.000").orElseThrow().current()).isTrue();
+            assertThat(cache.tombstoneCount()).as("지움 기록을 더하지 않는다").isEqualTo(tombstones);
+
+            oldGate.countDown();
+            assertThat(old.get(5, TimeUnit.SECONDS).found().get("R").ver()).isEqualTo("1.000");
+            assertThat(cache.get(MdmTargetType.RULE, "R").orElseThrow().value()).as("옛 적재는 넣지 못한다").isSameAs(head.value());
+            assertThat(cache.getBody(MdmTargetType.RULE, "R", "1.000")).isEmpty();
+            service.lookupAt(MdmTargetType.RULE, List.of("R"), T0);
+            assertThat(feed.tocCalls.get()).as("옛 적재가 새 자리를 지우지 않아 캐시에서 답한다").isEqualTo(2);
+        } finally {
+            oldGate.countDown();
+            newGate.countDown();
+        }
+    }
 }

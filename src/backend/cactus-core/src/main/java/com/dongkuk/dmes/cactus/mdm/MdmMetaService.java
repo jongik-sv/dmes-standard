@@ -174,16 +174,38 @@ public class MdmMetaService {
      */
     public MdmLookup reload(MdmTargetType type, Collection<String> keys) {
         guardValue(type);
-        return reloadValue(type, keys);
+        return reloadValue(type, keys, true);
     }
 
-    private MdmLookup reloadValue(MdmTargetType type, Collection<String> keys) {
+    /**
+     * 폴러 RELOAD 전용(스펙 §5.6 RELOAD) — 폴러가 이미 지운({@code evict}·{@code markApplied} 뒤) 키를 다시 받는다. 진행 중 적재에 합류하지 않는다(관리
+     * 화면 reload 와 같은 자리 빼앗기). 합류하면 지움 전 Ticket 적재의 결과는 캐시에 들어가지 못하고, 그 적재를 최대 {@link #WAIT_LIMIT} 까지
+     * 기다린다. 자기 적재의 Ticket 은 지움 뒤에 받으므로 들어간다. 버전 대상(versioned)은 목차와 {@code t} 시각 최종 본문을 한 Ticket 으로 함께
+     * 넣는다. 값 대상과 versioned-feed off 의 버전 대상은 값 적재다. 지움 기록은 더하지 않는다(폴러가 남겼다). 결과는 버린다 — 받을 수 없는 키는
+     * 캐시에 남지 않는다.
+     */
+    void refreshAfterEvict(MdmTargetType type, Collection<String> keys, Instant t) {
+        List<String> wanted = distinct(keys);
+        if (wanted.isEmpty()) {
+            return;
+        }
+        if (versioned && MdmVersions.isVersioned(type)) {
+            lookupAtVersioned(type, wanted, kst(t), true, false);
+        } else {
+            reloadValue(type, wanted, false);
+        }
+    }
+
+    /** @param evictFirst 참이면 이 인스턴스에서 먼저 지운다(관리 화면 reload). 폴러 RELOAD 는 이미 지웠으므로 거짓 */
+    private MdmLookup reloadValue(MdmTargetType type, Collection<String> keys, boolean evictFirst) {
         Map<String, CompletableFuture<Optional<Object>>> mine = new LinkedHashMap<>();
         for (String key : new LinkedHashSet<>(keys)) {
             if (key == null || key.isBlank()) {
                 continue;
             }
-            cache.evictLocal(type, key);
+            if (evictFirst) {
+                cache.evictLocal(type, key);
+            }
             CompletableFuture<Optional<Object>> f = new CompletableFuture<>();
             inflight.put(id(type, key), f); // 앞선 적재의 자리를 빼앗는다. 앞선 적재는 자기 것만 지우므로 이 자리를 건드리지 않는다
             mine.put(key, f);
@@ -394,7 +416,7 @@ public class MdmMetaService {
             // 결과는 요청한 논리 키로 — 버전 분기와 같게 정의 키 먼저, 그다음 본문 키. 값 해석 실패는 그 키만 받을 수 없음(loadTocs 와 같다).
             Set<String> all = new LinkedHashSet<>(defKeys);
             bodyKeys.values().forEach(lk -> all.add(lk.key()));
-            MdmLookup r = reloadValue(type, all);
+            MdmLookup r = reloadValue(type, all, true);
             for (String k : defKeys) {
                 if (r.unavailable().contains(k)) {
                     unavailable.add(k);

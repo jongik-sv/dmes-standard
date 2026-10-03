@@ -325,4 +325,36 @@ class MdmMetaServiceTest {
             return delegate.instant();
         }
     }
+
+    // ---- fu3: 폴러 RELOAD 전용 입구 ----
+
+    @Test
+    void refreshAfterEvict_값_경로는_evictLocal_없이_자리를_빼앗는다() throws Exception {
+        CountDownLatch oldGate = new CountDownLatch(1);
+        try {
+            feed.fetchGate = oldGate;
+            CompletableFuture<MdmMetaService.MdmLookup> old = CompletableFuture.supplyAsync(() -> service.lookup(MdmTargetType.COLUMN, List.of("A")));
+            assertThat(feed.fetchEntered.await(5, TimeUnit.SECONDS)).isTrue(); // 옛 적재가 "a" 를 읽고 멈췄다
+            feed.fetchGate = null;
+            feed.put(MdmTargetType.COLUMN, "A", "a2");
+            cache.evict(MdmTargetType.COLUMN, "A", 1); // 폴러 지움
+            cache.markApplied(1);
+            int tombstones = cache.tombstoneCount();
+
+            CompletableFuture.runAsync(() -> service.refreshAfterEvict(MdmTargetType.COLUMN, List.of("A"), clock.instant()))
+                    .get(3, TimeUnit.SECONDS); // 옛 적재를 기다리지 않는다
+
+            assertThat(cache.tombstoneCount()).as("지움 기록을 더하지 않는다").isEqualTo(tombstones);
+            assertThat(cache.get(MdmTargetType.COLUMN, "A").orElseThrow().value()).isEqualTo("a2");
+            assertThat(feed.fetchCalls.get()).isEqualTo(2);
+
+            oldGate.countDown();
+            assertThat(old.get(5, TimeUnit.SECONDS).found()).containsEntry("A", "a");
+            assertThat(cache.get(MdmTargetType.COLUMN, "A").orElseThrow().value()).as("옛 적재 값은 캐시에 남지 않는다").isEqualTo("a2");
+            assertThat(service.lookup(MdmTargetType.COLUMN, List.of("A")).found()).containsEntry("A", "a2");
+            assertThat(feed.fetchCalls.get()).as("옛 적재가 새 자리를 지우지 않았다").isEqualTo(2);
+        } finally {
+            oldGate.countDown();
+        }
+    }
 }

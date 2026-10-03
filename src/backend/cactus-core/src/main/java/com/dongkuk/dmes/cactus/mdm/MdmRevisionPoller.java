@@ -23,7 +23,8 @@ import org.slf4j.LoggerFactory;
  * {@code changes(since)} 를 받아 키를 지운다. 규칙: ① 기동 — 첫 성공에서 latestSeq 를 appliedSeq 로 삼고 그 전 항목을 비운다
  * (첫 폴링이 실패하면 처음 성공할 때 같은 규칙) ② 정상 — 받은 키를 지우고 appliedSeq = 마지막 seq ③ truncated — 전부 비우고 appliedSeq = latestSeq
  * ④ 역행(latestSeq < appliedSeq) — 전부 비우고 appliedSeq = latestSeq ⑤ 경합 — {@link MdmMetaCache} 의 Ticket 이 막는다. RELOAD 는 지운 뒤
- * 바로 다시 적재한다. 폴링이 계속 실패해도 캐시를 비우지 않는다(§5.4).
+ * 바로 다시 적재한다. 진행 중 적재에 합류하지 않는다(관리 화면 reload 와 같은 자리 빼앗기, {@link MdmMetaService#refreshAfterEvict}).
+ * 폴링이 계속 실패해도 캐시를 비우지 않는다(§5.4).
  *
  * <p>순번 역전 대비 되돌아보기(계획 검토 A1): 운영 DB 에서는 낮은 순번이 높은 순번보다 늦게 커밋될 수 있다. 그래서
  * {@code since = max(0, appliedSeq - lookback)} 로 최근 {@code lookback} 개 순번을 다시 받고, 이미 처리한 순번은 건너뛰며 처음 보는
@@ -152,14 +153,9 @@ public class MdmRevisionPoller implements AutoCloseable {
                 processed.headSet(last - lookback, true).clear(); // 구간 밖으로 밀려난 순번은 다시 오지 않는다
             }
             succeeded();
-            // 받을 수 없는 키는 unavailable 로 돌아오고 캐시에 남지 않는다. 버전 대상은 목차 + 지금 시각 최종 본문만 다시 받는다(D-154, 스펙 §5.6 RELOAD)
-            reload.forEach((type, keys) -> {
-                if (MdmVersions.isVersioned(type)) {
-                    service.lookupAt(type, keys, clock.instant());
-                } else {
-                    service.lookup(type, keys);
-                }
-            });
+            // 받을 수 없는 키는 캐시에 남지 않는다. 버전 대상은 목차 + 지금 시각 최종 본문만 다시 받는다(D-154, 스펙 §5.6 RELOAD). 진행 중 적재에
+            // 합류하지 않는다 — 지움 전 Ticket 적재에 합류하면 그 결과는 캐시에 들어가지 못하고 이 잠금을 쥔 채 그 적재를 기다린다(fu3).
+            reload.forEach((type, keys) -> service.refreshAfterEvict(type, keys, clock.instant()));
         } catch (RuntimeException e) {
             lastError = e.getMessage();
             if (consecutiveFailures.incrementAndGet() == 1) {
