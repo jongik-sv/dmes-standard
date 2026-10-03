@@ -69,7 +69,7 @@ class MdmMetaControllerTest {
 
         coilThk = new MdmColumnMeta("COIL_THK", "코일 두께", null, "두께", null, "설명", null, "NUMBER", 10, 2,
                 true, null, null, null, null, new MdmColumnMeta.DomainRef("7", "두께", "QTY"),
-                new MdmColumnMeta.Expr("value >= 0", null), new MdmColumnMeta.BizExpr("value <= COIL_WID"), List.of("COIL_WID"), null, null, null);
+                new MdmColumnMeta.Expr("value >= 0", null), new MdmColumnMeta.BizExpr("value <= COIL_WID"), List.of("COIL_WID"), null, null, null, null);
         feed.put(MdmTargetType.COLUMN, "COIL_THK", coilThk);
     }
 
@@ -99,6 +99,23 @@ class MdmMetaControllerTest {
                 .andExpect(jsonPath("$.items.absChmSlpAmt.systemPhysName").value("Abs_Chm_Slp_Amt"))
                 .andExpect(jsonPath("$.items.coilThk.matchedSystem").value(nullValue()))
                 .andExpect(jsonPath("$.items.coilThk.systemPhysName").value(nullValue()));
+    }
+
+    /** 컬럼 설명 HTML(2026-10-03 계약) — 컬럼 메타의 descriptionHtml 을 화면 메타에 그대로 싣고, 일반 글 설명이면 null 이다. */
+    @Test
+    void columns_는_컬럼_설명_HTML_을_descriptionHtml_로_싣고_일반_글이면_null_이다() throws Exception {
+        feed.put(MdmTargetType.COLUMN, "NOTICE_BODY", new MdmColumnMeta("NOTICE_BODY", "본문", null, "본문", null, "굵은 설명",
+                "메모는 글자", "STRING", 4000, null, false, null, null, null, null, null, null, null, List.of(), null, null, null,
+                "<p><b>굵은</b> 설명</p>"));
+
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"names\":[\"noticeBody\",\"coilThk\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.noticeBody.descriptionHtml").value("<p><b>굵은</b> 설명</p>"))
+                .andExpect(jsonPath("$.items.noticeBody.description").value("굵은 설명"))
+                .andExpect(jsonPath("$.items.noticeBody.usageNote").value("메모는 글자"))
+                .andExpect(jsonPath("$.items.coilThk.descriptionHtml").value(nullValue()))
+                .andExpect(jsonPath("$.items.coilThk.description").value("설명"));
     }
 
     @Test
@@ -532,7 +549,7 @@ class MdmMetaControllerTest {
 
     private static MdmColumnMeta aliasColumn() {
         return new MdmColumnMeta("ABS_CHM_RPLN_AMT", "금액", null, "금액", null, null, null, "NUMBER", 10, 2,
-                false, null, null, null, null, null, null, null, List.of(), null, "MES", "Abs_Chm_Slp_Amt");
+                false, null, null, null, null, null, null, null, List.of(), null, "MES", "Abs_Chm_Slp_Amt", null);
     }
 
     private static MdmColumnMeta procColumn() {
@@ -542,6 +559,6 @@ class MdmMetaControllerTest {
     private static MdmColumnMeta codeColumn(String physName, String codeId) {
         return new MdmColumnMeta(physName, "공정", null, null, null, null, null, "STRING", 10, null,
                 false, null, null, null, null, new MdmColumnMeta.DomainRef("8", "공정", "CODE"), null, null, List.of(),
-                new MdmColumnMeta.CodeRefMeta(codeId, "BASE"), null, null);
+                new MdmColumnMeta.CodeRefMeta(codeId, "BASE"), null, null, null);
     }
 }

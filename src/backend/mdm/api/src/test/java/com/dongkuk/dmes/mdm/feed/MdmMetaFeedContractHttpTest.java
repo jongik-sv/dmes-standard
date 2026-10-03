@@ -262,7 +262,7 @@ class MdmMetaFeedContractHttpTest {
                 viaAlias.labelShort(), viaAlias.description(), viaAlias.usageNote(), viaAlias.dataType(), viaAlias.length(),
                 viaAlias.scale(), viaAlias.required(), viaAlias.defaultValue(), viaAlias.refKind(), viaAlias.refTarget(),
                 viaAlias.refCateId(), viaAlias.domain(), viaAlias.stdExpr(), viaAlias.bizExpr(), viaAlias.bizRequiredVars(),
-                viaAlias.codeRef(), null, null), "별칭 칸을 뺀 정의는 표준 매칭과 같다");
+                viaAlias.codeRef(), null, null, viaAlias.descriptionHtml()), "별칭 칸을 뺀 정의는 표준 매칭과 같다");
 
         MdmColumnMeta overlap = (MdmColumnMeta) result.found().get("CT_CODE_COL");
         assertEquals("CT_CODE_COL", overlap.physName(), "겹치는 이름은 표준 컬럼(별칭 대상 COIL_THK 가 아니다)");
