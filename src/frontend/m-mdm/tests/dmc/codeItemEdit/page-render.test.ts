@@ -70,6 +70,9 @@ interface StubOptions {
   rbacRows?: { objId: string; action: string }[];
 }
 
+/** codeCateEdit compare 가 정규식 문법 오류(invalidExpression)를 돌려주게 한다 — 시험 안에서 켜고 끈다. */
+let compareInvalid = false;
+
 let calls: Call[] = [];
 const callsTo = (part: string) => calls.filter((c) => c.url.includes(part));
 
@@ -97,7 +100,10 @@ function stubFetch(view: unknown, opts: StubOptions = {}) {
     if (u.includes("/oasis/codeItemEdit/restore")) return ok({ rowVersion: 5 });
     if (u.includes("/oasis/codeCateEdit/view")) return ok(cateView);
     if (u.includes("/oasis/codeCateEdit/compare")) {
-      return ok({ cateId: "R1", ver: "1.000", hitCount: 1, total: 2, rows: [], warnings: [] });
+      return ok({
+        cateId: "R1", ver: "1.000", hitCount: compareInvalid ? 0 : 1, total: 2, rows: [], warnings: [],
+        ...(compareInvalid ? { invalidExpression: true } : {}),
+      });
     }
     if (u.includes("/api/auth/me")) return new Response(JSON.stringify({ user: { id: "tester" } }), { status: 200 });
     if (u.includes("/api/mcm/oasis/secUser/myButtonEndpoints")) {
@@ -390,6 +396,33 @@ describe("codeItemEdit page", () => {
     expect(gridCell("R1", "defExpr")).toBe("8[0-9]");
     // 미리보기(compare) 는 [코드 테스트] 탭이 맡는다.
     expect(testId("code-preview")).toBeNull();
+  });
+
+  it("⑪-2 REGEX 정규식 문법 오류는 저장 전에 소속 제목 자리에 알린다", async () => {
+    stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9")]), {
+      cateView: cateViewOf("DRAFT", true, [BASE, TABLE1, REGEX1]),
+    });
+    compareInvalid = true;
+    await render(createElement(CodeItemEditPage));
+    await chooseCode("STEEL");
+    await openCateTab();
+    await click(testId("cate-row-R1"));
+    await settle();
+    expect(testId("cate-preview-invalid")?.textContent).toBe("정규식 문법 오류로 해석하지 못했습니다");
+    compareInvalid = false;
+  });
+
+  it("⑪-3 REGEX 정규식이 맞으면 문법 오류 안내가 없다", async () => {
+    stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9")]), {
+      cateView: cateViewOf("DRAFT", true, [BASE, TABLE1, REGEX1]),
+    });
+    compareInvalid = false;
+    await render(createElement(CodeItemEditPage));
+    await chooseCode("STEEL");
+    await openCateTab();
+    await click(testId("cate-row-R1"));
+    await settle();
+    expect(testId("cate-preview-invalid")).toBeNull();
   });
 
   it("⑫ 코드·트리 탭의 오른쪽은 코드 편집 미리보기다", async () => {
