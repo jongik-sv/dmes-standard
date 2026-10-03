@@ -572,5 +572,5 @@ interface LlmClient {
 - **남은 일**
   - 위젯을 빼거나 기본 배치가 바뀌어 칸 ID 가 사라져도 그 칸의 개인 메모 행은 남고 100개 상한에 포함된다. 자동 정리는 「홈」을 저장하지 않은 사용자의 기본 배치 칸 메모를 잘못 지울 수 있어 넣지 않았다.
   - 개인 메모를 쓰다가 저장하지 않고 탭을 옮기거나 화면을 떠나면 쓰던 글은 사라진다(임시 저장 없음).
-  - 위젯관리 [기본 배치] 보드의 개인 메모 칸은 실제 칸이라, 관리자가 거기서 저장하면 관리자 본인 메모가 된다.
+  - ~~위젯관리 [기본 배치] 보드의 개인 메모 칸은 실제 칸이라, 관리자가 거기서 저장하면 관리자 본인 메모가 된다.~~ 해결: m-mcm `lib/widget-board-mode.ts` 의 `WidgetBoardModeContext`(기본 `live`)를 두고 LayoutTab 이 보드를 `preview` 값으로 감싼다. 개인 메모는 이 값이 `preview` 면 `load`·`save` 를 부르지 않고 「기본 배치 화면에서는 개인 메모를 쓰지 않습니다(사용자가 홈에서 씁니다)」만 보인다. 홈(provider 밖)은 그대로 실제 메모다(위젯 본체는 shared WidgetFrame 이 같은 React 트리에서 그리므로 맥락이 닿는다).
   - widgetMemo AUTH_ONLY 는 기존 widgetChat 처럼 서비스 접두로 연다. BPMN action 을 더하면 `WidgetMemoBpmnActionTest` 가 실패하므로 그때 AUTH_ONLY 범위를 다시 검토한다.

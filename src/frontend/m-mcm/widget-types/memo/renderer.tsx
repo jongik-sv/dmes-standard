@@ -16,6 +16,8 @@
  *   [배치 편집] 중 md 편집 칸(contenteditable)에서 누른 Esc 는 배치 편집 취소(shared WidgetWorkspace 의 document keydown, 입력칸·메뉴·
  *   대화상자만 거른다)로 새지 않게 감싸개에서 끊는다.
  * - 관리 화면 미리보기(저장소 없음)는 load·save 를 부르지 않고 「미리보기에서는 저장하지 않습니다」만 보인다.
+ * - 위젯관리 [기본 배치] 보드(WidgetBoardModeContext 값이 "preview")도 미리보기와 같은 경로다 — 실제 칸이라 저장하면 관리자 본인 메모가 되므로
+ *   load·save 를 부르지 않고 「기본 배치 화면에서는 개인 메모를 쓰지 않습니다(사용자가 홈에서 씁니다)」만 보인다. 홈(provider 밖)은 그대로 실제 메모다.
  * 형식별 보기는 shared NoticeBodyView 한 곳이 맡는다: TEXT = 줄바꿈 유지 글, MD = 글(md) 위젯과 같은 MarkdownView,
  * HTML = html 위젯(allowScript=false)과 같은 DOMPurify 정화(script·on*·style·iframe 제거).
  * 기록을 처음 불러오는 일만 틀 상태(useWidgetStatus)로 알린다. 저장 오류를 틀의 error 로 알리면 틀이 본문을 숨겨
@@ -27,6 +29,8 @@ import { MarkdownField } from "@dk-oasis/shared/markdown-editor";
 import { NoticeBodyView } from "@dk-oasis/shared/notice-body-view";
 import { useWidgetStatus, type WidgetProps } from "@dk-oasis/shared/widget";
 
+import { useWidgetBoardMode } from "@/lib/widget-board-mode";
+
 import { ContentStyle } from "../_content/styles";
 import { fetchMemo, saveMemo } from "./api";
 import {
@@ -35,6 +39,7 @@ import {
   isBlankMemo,
   isLiveMemo,
   isMemoFormat,
+  MEMO_BOARD_PREVIEW_TEXT,
   MEMO_EMPTY_VIEW_TEXT,
   MEMO_FORMATS,
   MEMO_LOAD_ERROR,
@@ -91,7 +96,9 @@ function stopEscape(e: KeyboardEvent<HTMLElement>) {
 
 function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetProps) {
   const setStatus = useWidgetStatus();
-  const live = isLiveMemo(widgetId, instanceId);
+  const boardMode = useWidgetBoardMode();
+  /** 서버와 실제로 주고받는 칸 — 관리 화면 미리보기·기본 배치 보드(boardMode="preview")는 아니다. */
+  const live = boardMode === "live" && isLiveMemo(widgetId, instanceId);
   const initialFormat = readMemoConfig(definition).format;
 
   const [memo, setMemo] = useState<MemoRecord | null>(null);
@@ -200,7 +207,7 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
           <div className="mcm-memo__view" data-testid="memo-view">
             {!live ? (
               <div className="mcm-wt-state" data-testid="memo-preview-hint">
-                {MEMO_PREVIEW_TEXT}
+                {boardMode === "preview" ? MEMO_BOARD_PREVIEW_TEXT : MEMO_PREVIEW_TEXT}
               </div>
             ) : !loaded ? null : shown === null ? (
               <div className="mcm-wt-state" data-testid="memo-empty">

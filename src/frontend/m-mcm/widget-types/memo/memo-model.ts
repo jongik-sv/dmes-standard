@@ -12,6 +12,8 @@ export const MEMO_MAX_LENGTH = 20000;
 
 export const MEMO_EMPTY_VIEW_TEXT = "메모가 없습니다. [편집]을 눌러 쓰세요";
 export const MEMO_PREVIEW_TEXT = "미리보기에서는 저장하지 않습니다";
+/** 위젯관리 [기본 배치] 보드 안의 개인 메모 칸 — 실제 칸이지만 관리자 본인 메모가 되지 않게 미리보기처럼 다룬다(§17.5). */
+export const MEMO_BOARD_PREVIEW_TEXT = "기본 배치 화면에서는 개인 메모를 쓰지 않습니다(사용자가 홈에서 씁니다)";
 export const MEMO_SHARED_EMPTY_TEXT = "내용이 없습니다";
 export const MEMO_LOAD_ERROR = "메모를 불러오지 못했습니다.";
 export const MEMO_SAVE_ERROR = "메모를 저장하지 못했습니다. 잠시 뒤 다시 시도하세요.";

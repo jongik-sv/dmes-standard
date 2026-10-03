@@ -11,6 +11,8 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { WidgetBoardModeContext, type WidgetBoardMode } from "@/lib/widget-board-mode";
+
 import { MEMO_MD_MODE_STORAGE_KEY, MemoServiceError, type MemoRecord } from "./memo-model";
 
 const h = vi.hoisted(() => ({
@@ -190,6 +192,8 @@ interface RenderProps {
   widgetId?: string;
   instanceId?: string;
   refreshKey?: number;
+  /** 보드 성격 맥락 — 주면 그 값의 provider 안에서 그린다(위젯관리 [기본 배치] 보드는 "preview"). 안 주면 provider 밖(홈)이다. */
+  boardMode?: WidgetBoardMode;
 }
 
 async function renderWidget(p: RenderProps = {}) {
@@ -201,8 +205,9 @@ async function renderWidget(p: RenderProps = {}) {
     size: { w: 8, h: 10 },
     config: null,
   };
+  const widget = createElement(MemoRenderer, props as never);
   await act(async () => {
-    root.render(createElement(MemoRenderer, props as never));
+    root.render(p.boardMode ? createElement(WidgetBoardModeContext.Provider, { value: p.boardMode }, widget) : widget);
   });
   await flush();
   return props;
@@ -777,6 +782,54 @@ describe("개인 메모 — 관리 화면 미리보기", () => {
     await click("memo-edit");
     expect(q("memo-input")).toBeNull();
     expect(h.setStatus).toHaveBeenLastCalledWith({ kind: "ready" });
+  });
+});
+
+describe("개인 메모 — 위젯관리 [기본 배치] 보드(스펙 §17.5)", () => {
+  it("보드 맥락(preview) 안에서는 실제 칸이어도 load·save 를 부르지 않고 안내만 보이며 [편집]은 막힌다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ content: "관리자 본인 메모" }));
+    await renderWidget({ boardMode: "preview" }); // 저장된 정의(def.abc12345)·실제 칸 ID(inst-1) — 미리보기 판정으로는 실제 메모다
+    expect(h.fetchMemo).not.toHaveBeenCalled();
+    expect(h.saveMemo).not.toHaveBeenCalled();
+    expect(must("memo-preview-hint").textContent).toBe("기본 배치 화면에서는 개인 메모를 쓰지 않습니다(사용자가 홈에서 씁니다)");
+    expect(container.textContent).not.toContain("관리자 본인 메모");
+    expect(must("memo-edit").hasAttribute("disabled")).toBe(true);
+    await click("memo-edit");
+    expect(q("memo-input")).toBeNull();
+    expect(q("memo-input-md")).toBeNull();
+    expect(h.fetchMemo).not.toHaveBeenCalled();
+    expect(h.saveMemo).not.toHaveBeenCalled();
+    expect(h.setStatus).toHaveBeenLastCalledWith({ kind: "ready" });
+  });
+
+  it("새로 고침 신호가 와도 보드 맥락에서는 서버를 부르지 않는다", async () => {
+    await renderWidget({ boardMode: "preview", refreshKey: 0 });
+    await renderWidget({ boardMode: "preview", refreshKey: 1 });
+    expect(h.fetchMemo).not.toHaveBeenCalled();
+  });
+
+  it("맥락 값이 live 이거나 provider 밖(홈)이면 같은 칸이 그대로 실제 메모다 — 불러오고 [편집]이 열린다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ content: "내 메모" }));
+    await renderWidget(); // provider 밖
+    expect(h.fetchMemo).toHaveBeenCalledWith("inst-1");
+    expect(must("widget-memo-body").textContent).toContain("내 메모");
+    expect(q("memo-preview-hint")).toBeNull();
+    expect(must("memo-edit").hasAttribute("disabled")).toBe(false);
+
+    h.fetchMemo.mockClear();
+    await renderWidget({ boardMode: "live" });
+    expect(h.fetchMemo).toHaveBeenCalledTimes(1);
+    expect(q("memo-preview-hint")).toBeNull();
+  });
+
+  it("보드 맥락에서도 관리 화면 미리보기 안내 문구(「미리보기에서는…」)를 쓰지 않는다 — 두 곳의 문구가 다르다", async () => {
+    await renderWidget({ boardMode: "preview" });
+    expect(must("memo-preview-hint").textContent).not.toContain("미리보기에서는");
+  });
+
+  it("공용 메모는 보드 맥락과 상관없이 그대로 보인다", async () => {
+    await renderWidget({ boardMode: "preview", definition: { scope: "shared", format: "text", content: "공지 내용" } });
+    expect(must("widget-memo-shared").textContent).toBe("공지 내용");
   });
 });
 
