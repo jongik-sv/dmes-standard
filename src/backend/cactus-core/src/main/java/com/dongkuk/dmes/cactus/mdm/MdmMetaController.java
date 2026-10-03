@@ -15,7 +15,6 @@ import java.util.Optional;
 import java.util.Set;
 import kr.dongkuk.maru.mdm.engine.code.CodeResolver;
 import kr.dongkuk.maru.mdm.engine.code.DefaultCodeResolver;
-import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -74,7 +73,8 @@ public class MdmMetaController {
         this.cache = cache;
         this.poller = poller;
         this.clock = clock;
-        this.codes = new DefaultCodeResolver(new MdmDefinitionLookup(service), CodeEffLookup.NONE);
+        MdmDefinitionLookup lookup = new MdmDefinitionLookup(service);
+        this.codes = new DefaultCodeResolver(lookup, lookup); // 소속은 본문 색인(D-154), off 면 전 이력으로 계산
     }
 
     public record NamesRequest(List<String> names) {
@@ -349,7 +349,7 @@ public class MdmMetaController {
         if (ids.isEmpty()) {
             return Set.of();
         }
-        return new HashSet<>(service.lookup(MdmTargetType.CODE, ids).unavailable());
+        return new HashSet<>(service.lookupAt(MdmTargetType.CODE, ids, clock.instant()).unavailable());
     }
 
     /**

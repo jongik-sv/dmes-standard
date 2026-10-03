@@ -183,6 +183,25 @@ class MdmMetaControllerTest {
     }
 
     @Test
+    void 버전_경로에서도_허용_코드를_지금_시각_본문으로_풀고_목차_한_번에_받는다() throws Exception {
+        FakeMetaFeed vfeed = new FakeMetaFeed().versioned();
+        vfeed.put(MdmTargetType.COLUMN, "PROC_COL", MdmValidatorTest.codeCol("PROC_COL", "공정", "PROC_CD"));
+        vfeed.put(MdmTargetType.CODE, "PROC_CD", MdmValidatorTest.codeRows("PROC_CD"));
+        MdmMetaCache vcache = new MdmMetaCache(100, Duration.ofHours(24), Duration.ofMinutes(60), Duration.ofMinutes(10), clock);
+        vcache.clear(0);
+        MdmMetaService vservice = new MdmMetaService(vfeed, vcache, clock, true);
+        MdmRevisionPoller vpoller = new MdmRevisionPoller(vfeed, vcache, vservice, clock, Duration.ofSeconds(10), 1000);
+        MockMvc vmvc = MockMvcBuilders.standaloneSetup(new MdmMetaController("mls", "123@host", vservice, vcache, vpoller, clock))
+                .setCustomHandlerMapping(CactusRequestMappingHandlerMapping::new).build();
+
+        vmvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"procCol\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.procCol.allowedCodes[0].code").value("A"));
+        assertThat(vfeed.tocCalls.get()).isEqualTo(1);
+        assertThat(vfeed.bodyCalls.get()).isZero();
+    }
+
+    @Test
     void MDM_을_받을_수_없는_이름은_unavailable_이다() throws Exception {
         feed.fetchError = new MdmUnavailableException("꺼짐");
         mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON).content("{\"names\":[\"coilThk\"]}"))

@@ -1,6 +1,8 @@
 package com.dongkuk.dmes.cactus.mdm;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -8,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
 
@@ -27,10 +30,14 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
  * 마루 데이터로 보고 {@code MasterLookup.NONE} 의 거짓을 내 "허용되지 않은 코드"라는 틀린 오류가 된다. 컬럼·룰·룰 세트의 부재는 빈 값이다(엔진이
  * NOT_DEFINED·RULE_NOT_FOUND·SET_NOT_FOUND 로 바꾸고, 검증기는 기록을 보고 검증 불가로 돌린다).
  *
+ * <p>D-154 — 버전 대상은 캐시에 있는 목차로 판정 시각의 버전을 고르고 그 본문을 읽는다. 목차가 없으면 {@code 종류:키}, 본문이 없으면
+ * {@code 종류:키@ver} 로 부재를 기록한다. 코드는 목차·본문 어느 쪽이 없어도 던진다 — {@code CodeEffLookup} 에 빈 값을 주면 해석기가 본문 행으로
+ * 계산하는데, 그 행마저 없으면 TABLE 소속이 조용히 false 가 되기 때문이다(스펙 §5.4 불변식).
+ *
  * <p>상태가 없다(기록기는 스레드 상속 값). 검증기가 자기 엔진을 만들 때만 쓴다 — {@code DefinitionLookup} 빈으로도, 이것으로 만든 엔진을
  * 일반 엔진 빈({@code MdmEvaluator}·{@code DomainValidator}·{@code RuleEngine})으로도 등록하지 않는다(그 자리는 {@link MdmDefinitionLookup}).
  */
-public final class MdmCachedDefinitions implements DefinitionLookup, CodeLookup {
+public final class MdmCachedDefinitions implements DefinitionLookup, CodeLookup, CodeEffLookup {
 
     private static final InheritableThreadLocal<MissLog> CURRENT = new InheritableThreadLocal<>();
 
@@ -88,10 +95,7 @@ public final class MdmCachedDefinitions implements DefinitionLookup, CodeLookup 
     private Read read(MdmTargetType type, String key) {
         Optional<MdmMetaCache.Entry> hit = service.cached(type, key);
         if (hit.isEmpty()) {
-            MissLog log = CURRENT.get();
-            if (log != null && key != null) {
-                log.add(type, key);
-            }
+            miss(type, key);
             return new Read(false, null);
         }
         return new Read(true, hit.get().value());
@@ -107,23 +111,81 @@ public final class MdmCachedDefinitions implements DefinitionLookup, CodeLookup 
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Optional<RuleDefinition> rule(String ruleId, Instant evalTs) {
-        return read(MdmTargetType.RULE, ruleId).map(list -> MdmDefinitionLookup.select((List<RuleDefinition>) list, evalTs));
+        return at(MdmTargetType.RULE, ruleId, evalTs).map(RuleDefinition.class::cast);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
-        return read(MdmTargetType.RULE_SET, setId).map(list -> MdmDefinitionLookup.selectSet((List<RuleSetDefinition>) list, evalTs));
+        return at(MdmTargetType.RULE_SET, setId, evalTs).map(RuleSetDefinition.class::cast);
     }
 
     @Override
     public Optional<CodeRows> code(String maruCodeId) {
-        Read r = read(MdmTargetType.CODE, maruCodeId);
-        if (!r.cached()) {
+        if (!service.versioned()) {
+            // off: 캐시의 전 이력 값을 그대로 준다(지금 동작). 부재 기록 `CODE:id`·예외 규칙도 그대로 — 아래 목차 경로와 같은 기록 키다.
+            Read r = read(MdmTargetType.CODE, maruCodeId);
+            if (!r.cached()) {
+                throw new MdmUnavailableException("캐시에 없는 마루 코드입니다(평가 중에는 MDM 을 부르지 않습니다): " + maruCodeId);
+            }
+            return r.map(rows -> Optional.of((CodeRows) rows));
+        }
+        MdmMetaService.CachedRead toc = service.cachedToc(MdmTargetType.CODE, maruCodeId);
+        if (!toc.cached()) {
+            miss(MdmTargetType.CODE, maruCodeId);
             throw new MdmUnavailableException("캐시에 없는 마루 코드입니다(평가 중에는 MDM 을 부르지 않습니다): " + maruCodeId);
         }
-        return r.map(rows -> Optional.of((CodeRows) rows));
+        return Optional.ofNullable((MdmToc) toc.value()).map(MdmToc::codeRows);
+    }
+
+    @Override
+    public Optional<CodeRows> codeAt(String maruCodeId, BigDecimal ver) {
+        return Optional.of(cachedCode(maruCodeId, ver).rows());
+    }
+
+    @Override
+    public Optional<Set<String>> codes(String maruCodeId, BigDecimal ver, String cateId) {
+        return cachedCode(maruCodeId, ver).members(cateId);
+    }
+
+    /** 코드 버전 본문 — 캐시에 없으면 부재 기록 후 던진다(빈 값을 주지 않는다, 스펙 §5.4 불변식). */
+    private MdmCodeVersion cachedCode(String maruCodeId, BigDecimal ver) {
+        String v = MdmVersions.key(ver);
+        MdmMetaService.CachedRead body = service.cachedBody(MdmTargetType.CODE, maruCodeId, v);
+        if (!body.cached() || body.value() == null) {
+            miss(MdmTargetType.CODE, MdmVersions.logical(maruCodeId, v));
+            throw new MdmUnavailableException("캐시에 없는 코드 버전 본문입니다(평가 중에는 MDM 을 부르지 않습니다): "
+                    + MdmVersions.logical(maruCodeId, v));
+        }
+        return (MdmCodeVersion) body.value();
+    }
+
+    /** 룰·세트 — 캐시의 목차로 판정 시각의 버전을 고르고 그 본문. 목차·본문이 캐시에 없으면 부재 기록 후 빈 값, 적용 버전이 없어도 빈 값. */
+    private Optional<Object> at(MdmTargetType type, String key, Instant evalTs) {
+        MdmMetaService.CachedRead toc = service.cachedToc(type, key);
+        if (!toc.cached()) {
+            miss(type, key);
+            return Optional.empty();
+        }
+        if (toc.value() == null) {
+            return Optional.empty();
+        }
+        Optional<String> ver = MdmVersionSelector.select(type, (MdmToc) toc.value(), LocalDateTime.ofInstant(evalTs, MdmDefinitionLookup.KST));
+        if (ver.isEmpty()) {
+            return Optional.empty();
+        }
+        MdmMetaService.CachedRead body = service.cachedBody(type, key, ver.get());
+        if (!body.cached()) {
+            miss(type, MdmVersions.logical(key, ver.get()));
+            return Optional.empty();
+        }
+        return Optional.ofNullable(body.value());
+    }
+
+    private static void miss(MdmTargetType type, String key) {
+        MissLog log = CURRENT.get();
+        if (log != null && key != null) {
+            log.add(type, key);
+        }
     }
 }

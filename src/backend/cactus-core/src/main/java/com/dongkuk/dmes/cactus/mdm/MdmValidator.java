@@ -29,7 +29,6 @@ import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
 import kr.dongkuk.maru.mdm.engine.rule.RuleEngine;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
-import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.EngineLookups;
 import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
@@ -111,7 +110,7 @@ public class MdmValidator {
 
     private static MdmEvaluator cacheOnlyEvaluator(MdmMetaService service, FunctionProvider functions) {
         MdmCachedDefinitions cached = new MdmCachedDefinitions(Objects.requireNonNull(service, "service"));
-        return new MdmEvaluator(new EngineLookups(cached, cached, CodeEffLookup.NONE, MasterLookup.NONE,
+        return new MdmEvaluator(new EngineLookups(cached, cached, cached, MasterLookup.NONE,
                 functions == null ? FunctionProvider.NONE : functions));
     }
 
