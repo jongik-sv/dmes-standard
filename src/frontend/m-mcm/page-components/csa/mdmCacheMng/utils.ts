@@ -6,7 +6,7 @@
  */
 
 import { VERSIONED_TARGET_TYPES } from "./types";
-import type { EntryPart, MdmTargetType } from "./types";
+import type { CacheEntryRow, EntryPart, MdmTargetType } from "./types";
 
 const UNITS = ["KB", "MB", "GB"] as const;
 
@@ -60,6 +60,14 @@ export function entryKindLabel(part: EntryPart | null, current: boolean | null):
   if (part === "TOC") return "목차";
   if (part === "BODY") return current ? "본문(최종)" : "본문(옛)";
   return "";
+}
+
+/**
+ * 그리드 행에 "구분" 문구(`kind`)를 미리 담는다. 그리드는 행 키가 같으면 그 칸의 필드 값이 바뀐 셀만 다시 그리므로, `part` 칸이 `current`
+ * 를 함께 읽어 그리면 적용 시작이 지나 `current` 만 바뀐 행이 [조회] 뒤에도 옛 문구로 남는다.
+ */
+export function withEntryKind(rows: CacheEntryRow[]): (CacheEntryRow & { kind: string })[] {
+  return rows.map((r) => ({ ...r, kind: entryKindLabel(r.part, r.current) }));
 }
 
 /** 추정 크기 열·요약의 도움말. */
