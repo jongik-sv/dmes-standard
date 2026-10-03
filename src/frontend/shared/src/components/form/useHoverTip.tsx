@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * 포털 툴팁 공용 부품(내부용) — `FormGroup` 라벨 툴팁과 `MdmFieldLabel`(th 안 라벨의 MDM 카드 툴팁)이 함께 쓴다.
- * `@dk-oasis/shared/form` 으로 내보내지 않는다. 화면은 두 부품을 쓰고 이 훅을 직접 쓰지 않는다.
+ * 포털 툴팁 공용 부품(내부용) — `FormGroup` 라벨 툴팁, `MdmFieldLabel`(th 안 라벨의 MDM 카드 툴팁), 그리드 머리글 라벨
+ * `MdmHeaderLabel`(HTML 설명 머리글 카드)이 함께 쓴다. `@dk-oasis/shared/form` 으로 내보내지 않는다. 화면은 세 부품을 쓰고 이 훅을 직접 쓰지 않는다.
  *
  * 툴팁을 document.body 로 portal + position:fixed 로 렌더 → 스크롤/overflow 컨테이너에 잘리거나 다른 패널에 가려지지 않고
  * 항상 최상단에 표시된다. 모양은 form.css 의 `.form-tip-text`·`.form-tip-text--portal` 이 정한다(호스트 앱이 form.css 를 싣는다).
@@ -34,6 +34,9 @@ export interface HoverTipPos {
   maxHeight?: number;
 }
 
+/** Mantine Modal 이 Escape 로 닫지 않는 대상 표지(ModalBase/use-modal). */
+const STOP_PROPAGATION_ATTR = "data-mantine-stop-propagation";
+
 /** 상호작용 툴팁 유예(ms) — 트리거나 상자를 떠난 뒤 이만큼 기다렸다 닫는다. 그 사이 상자·트리거로 들어가면 유지한다. */
 export const HOVER_TIP_GRACE_MS = 150;
 
@@ -44,6 +47,11 @@ export interface HoverTipOptions {
   maxWidth?: number;
   /** 상자 예상 높이(px) — 위쪽 공간 판정에만 쓴다. 함수면 열 때 부른다. 비우면 글자 72 / 노드 200. */
   estHeight?: number | (() => number);
+  /**
+   * hover 로 열 때의 표시 지연(ms). 기본 0(바로 연다 — FormGroup·MdmFieldLabel). 그 사이 트리거를 떠나면(hideTip)·closeTip 이면 열지 않는다.
+   * focus 로 여는 것은 지연하지 않는다. 그리드 머리글 라벨이 ag-grid 머리글 툴팁과 같은 지연을 주려고 쓴다.
+   */
+  showDelayMs?: number;
 }
 
 /** 상호작용 툴팁 상자에 붙이는 값(`HoverTipPortal` 의 `box`). */
@@ -74,6 +82,8 @@ export interface HoverTip<T extends HTMLElement> {
    * 닫는다. 상호작용 모드면 유예 뒤에 닫고, 마우스가 상자 안에 있으면 닫지 않는다. focus 로만 연 카드의 blur 는 바로 닫는다.
    */
   hideTip: (e?: TipEvent) => void;
+  /** 표시 대기를 취소하고 열린 툴팁을 바로 닫는다(유예 없음) — 그리드 머리글 라벨의 누름(정렬·끌기 시작)에 쓴다. */
+  closeTip: () => void;
   /** 상호작용 모드면 상자에 붙일 값(`HoverTipPortal` 에 그대로 준다), 아니면 null. */
   box: HoverTipBox | null;
 }
@@ -89,6 +99,7 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
   const interactive = !!options?.interactive;
   const maxWidth = options?.maxWidth;
   const estHeight = options?.estHeight;
+  const showDelayMs = options?.showDelayMs ?? 0;
   const anchorRef = useRef<T>(null);
   const [tipPos, setTipPos] = useState<HoverTipPos | null>(null);
   const tipPosRef = useRef<HoverTipPos | null>(null);
@@ -111,8 +122,16 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
       graceRef.current = null;
     }
   }, []);
+  /** 표시 지연 타이머(showDelayMs). */
+  const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearShow = useCallback(() => {
+    if (showTimerRef.current != null) {
+      clearTimeout(showTimerRef.current);
+      showTimerRef.current = null;
+    }
+  }, []);
 
-  const showTip = useCallback((e?: TipEvent) => {
+  const openNow = useCallback((e?: TipEvent) => {
     clearGrace();
     const el = anchorRef.current;
     if (!el || typeof window === "undefined") return;
@@ -136,6 +155,24 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
     });
   }, [tipIsText, maxWidth, estHeight, interactive, clearGrace, setPointerBoth]);
 
+  const showTip = useCallback(
+    (e?: TipEvent) => {
+      clearGrace();
+      clearShow();
+      // hover 표시 지연 — 이미 열려 있거나 focus 로 열면 바로 연다.
+      if (showDelayMs > 0 && !isFocusEvent(e) && tipPosRef.current == null) {
+        const type = e?.type;
+        showTimerRef.current = setTimeout(() => {
+          showTimerRef.current = null;
+          openNow({ type });
+        }, showDelayMs);
+        return;
+      }
+      openNow(e);
+    },
+    [showDelayMs, clearGrace, clearShow, openNow]
+  );
+
   const close = useCallback(() => {
     clearGrace();
     insideBoxRef.current = false;
@@ -145,6 +182,7 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
 
   const hideTip = useCallback(
     (e?: TipEvent) => {
+      clearShow();
       if (!interactive) {
         setTipPos(null);
         return;
@@ -158,8 +196,13 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
       clearGrace();
       graceRef.current = setTimeout(close, HOVER_TIP_GRACE_MS);
     },
-    [interactive, clearGrace, close]
+    [interactive, clearGrace, clearShow, close]
   );
+
+  const closeTip = useCallback(() => {
+    clearShow();
+    close();
+  }, [clearShow, close]);
 
   const onBoxEnter = useCallback(() => {
     insideBoxRef.current = true;
@@ -171,25 +214,42 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
   }, [hideTip]);
 
   // Escape 로 닫기 — 상호작용 툴팁이 열려 있을 때만 문서 keydown 을 듣는다.
+  // 모달 안에서는 그 Escape 가 카드만 닫고 모달까지 닫지 않게 한다: Mantine Modal 은 window 캡처 단계에서 Escape 를 받아 닫되, 대상 요소에
+  // `data-mantine-stop-propagation="true"` 가 있으면 건너뛴다(ModalBase/use-modal — Mantine 드롭다운이 열려 있을 때 쓰는 표지). 카드가 열려 있는
+  // 동안 focus 를 가진 요소(키 입력의 대상)에 그 표지를 달고, 닫히면 우리가 단 것만 걷는다. 카드가 닫혀 있으면 Escape 는 예전 그대로다.
   const open = tipPos !== null;
   useEffect(() => {
     if (!interactive || !open) return;
+    const marked: Element[] = [];
+    const mark = (el: Element | null) => {
+      if (!el || el.hasAttribute(STOP_PROPAGATION_ATTR)) return;
+      el.setAttribute(STOP_PROPAGATION_ATTR, "true");
+      marked.push(el);
+    };
+    mark(document.activeElement ?? document.body);
+    const onFocusIn = (e: FocusEvent) => mark(e.target as Element | null);
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
+    document.addEventListener("focusin", onFocusIn);
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("keydown", onKeyDown);
+      for (const el of marked) if (el.getAttribute(STOP_PROPAGATION_ATTR) === "true") el.removeAttribute(STOP_PROPAGATION_ATTR);
+    };
   }, [interactive, open, close]);
 
-  // 언마운트 때 유예 타이머를 지운다.
+  // 언마운트 때 유예·표시 타이머를 지운다.
   useEffect(() => clearGrace, [clearGrace]);
+  useEffect(() => clearShow, [clearShow]);
 
   const box = useMemo<HoverTipBox | null>(
     () => (interactive ? { maxWidth, pointer, onMouseEnter: onBoxEnter, onMouseLeave: onBoxLeave } : null),
     [interactive, maxWidth, pointer, onBoxEnter, onBoxLeave]
   );
 
-  return { anchorRef, tipPos, showTip, hideTip, box };
+  return { anchorRef, tipPos, showTip, hideTip, closeTip, box };
 }
 
 /**
