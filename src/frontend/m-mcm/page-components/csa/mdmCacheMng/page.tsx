@@ -26,18 +26,20 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { describeForceFailure, fetchAllStatus, fetchEntries, fetchEntry, forceByType, groupByType } from "./api";
 import { RegisterModal } from "./RegisterModal";
-import { ESTIMATED_SIZE_HELP, describeLifetime, formatBytes } from "./utils";
+import { ESTIMATED_SIZE_HELP, describeLifetime, entryKindLabel, formatBytes } from "./utils";
 import {
   ENTRY_SORT_OPTIONS,
   MDM_CACHE_MODULES,
   MODULE_STATE_LABELS,
   TARGET_TYPE_LABELS,
   TARGET_TYPE_OPTIONS,
+  VERSIONED_TARGET_TYPES,
   emptyFilters,
   isReachable,
   type CacheEntryLookup,
   type CacheEntryRow,
   type EntryFilters,
+  type EntryPart,
   type ForceKind,
   type MdmTargetType,
   type ModuleState,
@@ -70,7 +72,7 @@ const MODULE_COLUMNS: GridColumn[] = [
   { key: "latestSeq", header: "MDM 순번", width: 100, align: "right", type: "number" },
   { key: "lastSuccessAt", header: "마지막 확인", width: 140, align: "center" },
   { key: "consecutiveFailures", header: "연속 실패", width: 100, align: "right", type: "number" },
-  { key: "total", header: "항목 수", width: 100, align: "right", type: "number" },
+  { key: "total", header: "항목 수", width: 100, align: "right", type: "number", headerTooltip: "목차 + 본문 합계" },
   // 크기는 숫자로 두고 render 로만 바꿔 쓴다 — 열 정렬은 숫자 값으로 한다. 상태를 받지 못한 행(null)은 다른 칸처럼 비운다.
   {
     key: "totalBytes",
@@ -96,6 +98,14 @@ const MODULE_COLUMNS: GridColumn[] = [
 const entryColumns = (lifetimeHelp: string): GridColumn[] => [
   { key: "type", header: "대상", width: 100, align: "left", render: (v) => TARGET_TYPE_LABELS[v as MdmTargetType] ?? String(v) },
   { key: "key", header: "키", width: 180, minWidth: 180, align: "left" },
+  {
+    key: "part",
+    header: "구분",
+    width: 90,
+    align: "center",
+    headerTooltip: "목차 = 버전 목록, 본문(최종) = 지금 적용 중인 버전, 본문(옛) = 지난·예약 버전",
+    render: (v, row) => entryKindLabel(v as EntryPart | null, row.current as boolean | null),
+  },
   {
     key: "absent",
     header: "값",
@@ -176,7 +186,7 @@ export default function MdmCacheMngPage() {
   const lifetimeHelpOf = useCallback(
     (module: string | undefined) => {
       const row = modules.find((r) => r.module === module);
-      return describeLifetime(row?.maxIdleSeconds, row?.maxAgeSeconds);
+      return describeLifetime(row?.maxIdleSeconds, row?.maxAgeSeconds, row?.oldVersionMaxIdleSeconds);
     },
     [modules],
   );
@@ -339,16 +349,19 @@ export default function MdmCacheMngPage() {
   );
 
   /** 중요 액션(Local-Rules §9) — 영향 범위(모든 모듈·인스턴스, 다음 확인 약 10초)를 보여 주고 확인을 받는다. */
-  const confirmForce = (kind: ForceKind) =>
+  const confirmForce = (kind: ForceKind) => {
+    const versioned = selectedEntries.some((r) => VERSIONED_TARGET_TYPES.includes(r.type));
+    const scope = versioned ? " 룰·룰 세트·코드·전문은 이 정의의 목차와 모든 버전 본문이 함께 처리됩니다." : "";
     showMessage({
       title: "확인",
       message:
         kind === "EVICT"
-          ? `선택한 ${selectedEntries.length}건을 모든 모듈 캐시에서 삭제하시겠습니까? 각 모듈이 다음 확인(약 10초) 때 지웁니다.`
-          : `선택한 ${selectedEntries.length}건을 모든 모듈에서 다시 적재하시겠습니까? 각 모듈이 다음 확인(약 10초) 때 지우고 다시 받습니다.`,
+          ? `선택한 ${selectedEntries.length}건을 모든 모듈 캐시에서 삭제하시겠습니까? 각 모듈이 다음 확인(약 10초) 때 지웁니다.${scope}`
+          : `선택한 ${selectedEntries.length}건을 모든 모듈에서 다시 적재하시겠습니까? 각 모듈이 다음 확인(약 10초) 때 지우고 다시 받습니다.${scope}`,
       alertType: "confirm",
       onConfirm: () => void runForce(kind),
     });
+  };
 
   const setFilter = (key: keyof EntryFilters, value: string) => setFilters((prev) => ({ ...prev, [key]: value }));
 
@@ -429,6 +442,12 @@ export default function MdmCacheMngPage() {
                   ) : null}
                   {detailLookup?.found ? (
                     <>
+                      {entryKindLabel(detailLookup.detail.part, detailLookup.detail.current) ? (
+                        <tr>
+                          <th style={DETAIL_LABEL_CELL}>구분</th>
+                          <td style={DETAIL_VALUE_CELL}>{entryKindLabel(detailLookup.detail.part, detailLookup.detail.current)}</td>
+                        </tr>
+                      ) : null}
                       <tr>
                         <th style={DETAIL_LABEL_CELL}>적재</th>
                         <td style={DETAIL_VALUE_CELL} title={`추정 크기: ${ESTIMATED_SIZE_HELP}`}>
