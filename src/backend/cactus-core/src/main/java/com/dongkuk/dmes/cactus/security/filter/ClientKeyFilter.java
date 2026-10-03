@@ -14,6 +14,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -117,7 +119,7 @@ public class ClientKeyFilter extends OncePerRequestFilter {
         }
 
         String headerValue = request.getHeader(HEADER_CLIENT_KEY);
-        if (!expectedClientKey.equals(headerValue)) {
+        if (!matchesClientKey(headerValue)) {
             log.warn("[ClientKey] 클라이언트 키 불일치: path={}", path);
             sendError(response);
             return;
@@ -160,6 +162,19 @@ public class ClientKeyFilter extends OncePerRequestFilter {
             result.add(new SimpleGrantedAuthority(normalized));
         }
         return result;
+    }
+
+    /**
+     * X-Client-Key 비교 — {@link MessageDigest#isEqual} 바이트(UTF-8) 비교라 걸리는 시간이 헤더 내용·일치 길이에 따라 달라지지 않는다
+     * ({@code String.equals} 는 첫 다른 글자에서 멈춰 타이밍으로 키를 한 글자씩 맞혀 볼 수 있다). 기대 키를 앞에 두어 비교 시간이
+     * 기대 키 길이로만 정해지게 한다. 헤더가 없으면(null) 불일치, 빈 헤더도 불일치(기대 키가 비어 있으면 앞에서 검증을 건너뛴다).
+     */
+    private boolean matchesClientKey(String headerValue) {
+        if (headerValue == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(expectedClientKey.getBytes(StandardCharsets.UTF_8),
+                headerValue.getBytes(StandardCharsets.UTF_8));
     }
 
     /** 스킵 대상 경로인지 확인한다(prefix 매칭). */

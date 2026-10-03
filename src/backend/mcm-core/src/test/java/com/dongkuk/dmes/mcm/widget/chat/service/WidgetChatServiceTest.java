@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mcm.widget.chat.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -45,6 +46,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -100,8 +107,12 @@ class WidgetChatServiceTest {
     }
 
     private WidgetChatService newService(LlmClient client, Clock clock) {
+        return newService(client, clock, WidgetChatService.DEFAULT_DAILY_CALL_LIMIT);
+    }
+
+    private WidgetChatService newService(LlmClient client, Clock clock, int dailyCallLimit) {
         return new WidgetChatService(repository, writer, defRepository, queryRunner, userContextResolver, screenFinder,
-                client, securityIdentity, transactionManager, Duration.ofSeconds(60), clock);
+                client, securityIdentity, transactionManager, Duration.ofSeconds(60), clock, dailyCallLimit);
     }
 
     // ── helpers ─────────────────────────────────────────────────────────
@@ -617,5 +628,100 @@ class WidgetChatServiceTest {
         m.put(k1, v1);
         m.put(k2, v2);
         return m;
+    }
+
+    // ── 남용 막기(사용자별 하루 LLM 호출 상한) ───────────────────────────────
+
+    @Test
+    @DisplayName("하루 LLM 호출 상한을 넘으면 질문을 저장하지 않고 거절한다 — instId 를 바꿔도 사용자 단위로 세고, 다른 사용자는 그대로")
+    void dailyLimitIsPerUserAcrossInstances() {
+        WidgetChatService limited = newService(llm, Clock.fixed(NOW, SEOUL), 2);
+        llm.then(LlmReply.ofText("a1")).then(LlmReply.ofText("a2")).then(LlmReply.ofText("a3"));
+
+        limited.send(req("i1", DEF_ID, "q1"));
+        limited.send(req("i2", DEF_ID, "q2")); // 다른 인스턴스도 같은 사용자 몫
+        assertThatThrownBy(() -> limited.send(req("i3", DEF_ID, "q3")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("오늘 AI 챗봇 사용 한도(2회)를 모두 썼습니다. 내일 다시 이용하세요.");
+        assertThat(stored("userA", "i3")).isEmpty(); // 거절한 질문은 저장하지 않는다
+        assertThat(llm.calls()).hasSize(2);
+
+        when(securityIdentity.currentUserId()).thenReturn("userB");
+        assertThat(reply(limited.send(req("i3", DEF_ID, "q3"))).get("content")).isEqualTo("a3");
+    }
+
+    @Test
+    @DisplayName("서울 날짜가 바뀌면 하루 상한이 0 부터 다시 — 23:59:59 까지는 거절, 00:00 부터 허용")
+    void dailyLimitResetsOnNextDay() {
+        MovableClock clock = new MovableClock(NOW, SEOUL); // 서울 10-02 01:30
+        WidgetChatService limited = newService(llm, clock, 1);
+        llm.then(LlmReply.ofText("a1")).then(LlmReply.ofText("a2"));
+
+        limited.send(req("i1", DEF_ID, "q1"));
+        assertThatThrownBy(() -> limited.send(req("i1", DEF_ID, "q2"))).isInstanceOf(BusinessException.class);
+        clock.advance(Duration.between(NOW, Instant.parse("2026-10-02T14:59:59Z"))); // 서울 10-02 23:59:59
+        assertThatThrownBy(() -> limited.send(req("i1", DEF_ID, "q2"))).isInstanceOf(BusinessException.class);
+        clock.advance(Duration.ofSeconds(1)); // 서울 10-03 00:00
+        assertThat(reply(limited.send(req("i1", DEF_ID, "q2"))).get("content")).isEqualTo("a2");
+        assertThat(stored("userA", "i1")).extracting(WidgetChatMessage::getContent).containsExactly("q1", "a1", "q2", "a2");
+    }
+
+    @Test
+    @DisplayName("상한은 LLM 호출마다 센다 — 도구 반복 중 닿으면 더 부르지 않고 그때까지 받은 글로 답한다(글이 없으면 한도 안내)")
+    void dailyLimitMidTurnAnswersWithTextSoFar() {
+        when(screenFinder.find(anyString(), anyInt())).thenReturn(List.of());
+        WidgetChatService limited = newService(llm, Clock.fixed(NOW, SEOUL), 1);
+        llm.then(LlmReply.ofToolCalls("찾아보는 중입니다.", List.of(new LlmToolCall("t1", "find_screen", Map.of("keyword", "위젯")))))
+                .then(LlmReply.ofText("부르면 안 되는 답"));
+
+        assertThat(reply(limited.send(req("i1", DEF_ID, "위젯 어디?"))).get("content")).isEqualTo("찾아보는 중입니다.");
+        assertThat(llm.calls()).hasSize(1);
+        assertThatThrownBy(() -> limited.send(req("i1", DEF_ID, "또"))).isInstanceOf(BusinessException.class);
+
+        FakeLlmClient silent = FakeLlmClient.scripted()
+                .then(callTool("t2", "find_screen", Map.of("keyword", "공지")))
+                .then(LlmReply.ofText("부르면 안 되는 답"));
+        when(securityIdentity.currentUserId()).thenReturn("userB");
+        assertThat(reply(newService(silent, Clock.fixed(NOW, SEOUL), 1).send(req("i1", DEF_ID, "공지 어디?"))).get("content"))
+                .isEqualTo(WidgetChatService.DAILY_LIMIT_PARTIAL_MESSAGE);
+        assertThat(silent.calls()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("하루 상한 경계의 동시 요청 2건 — 먼저 자리를 잡은 쪽만 질문을 저장하고 LLM 을 부른다, 다른 쪽은 저장 없이 거절")
+    void dailyLimitBoundaryConcurrentSendsSaveOnlyOne() throws Exception {
+        WidgetChatService limited = newService(llm, Clock.fixed(NOW, SEOUL), 1);
+        llm.then(LlmReply.ofText("a1")).then(LlmReply.ofText("a2"));
+        WidgetUserContext ctx = new WidgetUserContext("userA", "홍길동", "D100", "생산팀", List.of("D100"));
+        CountDownLatch aInside = new CountDownLatch(1);
+        CountDownLatch releaseA = new CountDownLatch(1);
+        AtomicInteger resolverCalls = new AtomicInteger();
+        // 요청 A 는 상한 확인을 지난 뒤(사용자 정보 읽기) 질문 저장 직전에 멈춘다 — 그 사이 요청 B 가 끝까지 돈다.
+        when(userContextResolver.current()).thenAnswer(inv -> {
+            if (resolverCalls.getAndIncrement() == 0) {
+                aInside.countDown();
+                if (!releaseA.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("시험 대기 시간 초과");
+            }
+            return ctx;
+        });
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        Throwable bError;
+        Map<String, Object> aResult;
+        try {
+            Future<Map<String, Object>> a = pool.submit(() -> limited.send(req("i1", DEF_ID, "qA")));
+            assertThat(aInside.await(10, TimeUnit.SECONDS)).isTrue();
+            bError = catchThrowable(() -> limited.send(req("i2", DEF_ID, "qB")));
+            releaseA.countDown();
+            aResult = a.get(10, TimeUnit.SECONDS);
+        } finally {
+            releaseA.countDown();
+            pool.shutdownNow();
+        }
+        assertThat(bError).isInstanceOf(BusinessException.class)
+                .hasMessage("오늘 AI 챗봇 사용 한도(1회)를 모두 썼습니다. 내일 다시 이용하세요.");
+        assertThat(stored("userA", "i2")).isEmpty(); // 거절된 쪽은 질문도 남기지 않는다
+        assertThat(reply(aResult).get("content")).isEqualTo("a1");
+        assertThat(stored("userA", "i1")).extracting(WidgetChatMessage::getContent).containsExactly("qA", "a1");
+        assertThat(llm.calls()).hasSize(1);
     }
 }

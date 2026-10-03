@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * {@link SqlGuard} — 스펙 2026-10-02-widget-admin-generic §7.1 사례 표(Review Focus 2: 주석·문자열 안 ;, SELECT … INTO,
@@ -70,8 +71,8 @@ class SqlGuardTest {
         return Stream.of(
                 arguments("UPDATE t SET a=1", NOT_SELECT),
                 arguments("SELECT 1; SELECT 2", MULTI),
-                arguments("select * into x from t", "쓸 수 없는 낱말이 있습니다: INTO"),
-                arguments("SELECT * FROM t FOR UPDATE", "쓸 수 없는 낱말이 있습니다: UPDATE"),
+                arguments("select * into x from t", SqlGuard.forbiddenWord("INTO")),
+                arguments("SELECT * FROM t FOR UPDATE", SqlGuard.forbiddenWord("UPDATE")),
                 arguments("DeLeTe FROM t", NOT_SELECT),
                 arguments("SELECT 1; DROP TABLE t", MULTI),
                 arguments("PRAGMA x", NOT_SELECT),
@@ -82,8 +83,8 @@ class SqlGuardTest {
                 arguments("   ", EMPTY),
                 arguments("SELECT 1;;", MULTI),
                 // 덧붙인 사례: 쓰기 CTE·대소문자 섞인 금지어·닫히지 않은 따옴표·특수 문자열로 검사 우회
-                arguments("WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d", "쓸 수 없는 낱말이 있습니다: DELETE"),
-                arguments("SELECT a FROM t WHERE b IN (SELECT c FROM u) uNiOn SELECT 1 FROM t fOr UpDaTe", "쓸 수 없는 낱말이 있습니다: UPDATE"),
+                arguments("WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d", SqlGuard.forbiddenWord("DELETE")),
+                arguments("SELECT a FROM t WHERE b IN (SELECT c FROM u) uNiOn SELECT 1 FROM t fOr UpDaTe", SqlGuard.forbiddenWord("UPDATE")),
                 arguments("SELECT 1 FROM t; dRoP TABLE t", MULTI),
                 arguments("SELECT 'abc FROM t", UNCLOSED),
                 arguments("SELECT /* 1", UNCLOSED),
@@ -101,7 +102,7 @@ class SqlGuardTest {
                 arguments("SELECT 1 /* x /*/ FROM t", NESTED),
                 // 대괄호는 PostgreSQL 에서 식이다 — 그 안의 ;·금지 낱말·변수도 본다
                 arguments("SELECT [a;b] FROM t", MULTI),
-                arguments("SELECT [update] FROM t", "쓸 수 없는 낱말이 있습니다: UPDATE"),
+                arguments("SELECT [update] FROM t", SqlGuard.forbiddenWord("UPDATE")),
                 arguments("SELECT a[:foo] FROM t",
                         "알 수 없는 변수입니다: :foo (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
                 // Spring 이 변수로 바꾸는 &name·점 붙은 이름도 같은 규칙(검사는 통과하고 실행 때 늘 실패하는 SQL 을 막는다)
@@ -116,7 +117,37 @@ class SqlGuardTest {
                 arguments("SELECT 1 -- x\r' \n; DELETE FROM t ; '", SqlGuard.MSG_LONE_CR),
                 // 백틱은 SQLite·Spring 만 따옴표로 읽는다 — 리터럴 경계가 갈리지 않게 받지 않는다
                 arguments("SELECT `a` FROM t", SPECIAL),
-                arguments("SELECT `'` FROM t; SELECT 2 --'", SPECIAL));
+                arguments("SELECT `'` FROM t; SELECT 2 --'", SPECIAL),
+                // SQL Server 는 ; 없이 문장을 이어 쓴다 — 읽기 전용 강제가 없는 그 DB 에서 서버 자원을 붙잡거나 바꾸는 문장(2026-10-03)
+                arguments("SELECT 1 WAITFOR DELAY '00:00:10'", SqlGuard.forbiddenWord("WAITFOR")),
+                arguments("SELECT 1 kill 52", SqlGuard.forbiddenWord("KILL")),
+                arguments("SELECT 1 SHUTDOWN WITH NOWAIT", SqlGuard.forbiddenWord("SHUTDOWN")),
+                arguments("SELECT 1 DBCC SHRINKDATABASE(0)", SqlGuard.forbiddenWord("DBCC")),
+                arguments("SELECT 1 RECONFIGURE", SqlGuard.forbiddenWord("RECONFIGURE")),
+                arguments("SELECT 1 BACKUP DATABASE d TO DISK = 'x'", SqlGuard.forbiddenWord("BACKUP")),
+                arguments("SELECT 1 RESTORE DATABASE d FROM DISK = 'x'", SqlGuard.forbiddenWord("RESTORE")),
+                arguments("SELECT 1 DENY SELECT ON t TO public", SqlGuard.forbiddenWord("DENY")),
+                // 대문자로 바꾸면 I 가 되는 ı(U+0131)를 끼워도 걸린다(UNICODE_CASE)
+                arguments("SELECT 1 K\u0131LL 52", SqlGuard.forbiddenWord("KILL")),
+                // 금지 낱말과 같은 이름의 열도 막는다 — 문구가 큰따옴표로 감싸는 길을 알려 준다(감싸면 통과: allowsQuotedForbiddenWordAsName)
+                arguments("SELECT SHUTDOWN FROM TB_EQP",
+                        "쓸 수 없는 낱말이 있습니다: SHUTDOWN — 열·표 이름이면 큰따옴표로 감싸세요(예: \"SHUTDOWN\", 따옴표 안은 대소문자를 구분합니다)"),
+                arguments("SELECT backup FROM TB_EQP", SqlGuard.forbiddenWord("BACKUP")),
+                // 3차 보안 리뷰 — ; 없이 이어 쓰는 T-SQL 흐름·세션 문장(DB 바꾸기는 풀에 돌려준 연결에 남고, 반복은 잠금을 붙잡는다)
+                arguments("SELECT 1 USE master", SqlGuard.forbiddenWord("USE")),
+                arguments("SELECT 1 DECLARE @x INT", SqlGuard.forbiddenWord("DECLARE")),
+                arguments("SELECT 1 WHILE 1=1 BEGIN SELECT 1 END", SqlGuard.forbiddenWord("WHILE")),
+                arguments("SELECT 1 BEGIN TRAN", SqlGuard.forbiddenWord("BEGIN")),
+                arguments("SELECT 1 lbl: SELECT 2 GOTO lbl", SqlGuard.forbiddenWord("GOTO")),
+                arguments("SELECT 1 WRITETEXT t.c @p 'x'", SqlGuard.forbiddenWord("WRITETEXT")),
+                arguments("SELECT 1 UPDATETEXT t.c @p 0 NULL 'x'", SqlGuard.forbiddenWord("UPDATETEXT")),
+                arguments("SELECT 1 READTEXT t.c @p 0 10", SqlGuard.forbiddenWord("READTEXT")),
+                arguments("SELECT 1 CHECKPOINT", SqlGuard.forbiddenWord("CHECKPOINT")),
+                arguments("SELECT 1 SETUSER 'dbo'", SqlGuard.forbiddenWord("SETUSER")),
+                arguments("SELECT 1 RAISERROR('x', 10, 1) WITH LOG", SqlGuard.forbiddenWord("RAISERROR")),
+                arguments("SELECT 1 REVERT", SqlGuard.forbiddenWord("REVERT")),
+                // Oracle 12c 인라인 PL/SQL(WITH FUNCTION)은 본문에 ; 가 있어야 해서 여러 문장으로 거절된다
+                arguments("WITH FUNCTION f RETURN NUMBER IS BEGIN DBMS_SESSION.SLEEP(5); RETURN 1; END; SELECT f FROM dual", MULTI));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -151,6 +182,53 @@ class SqlGuardTest {
                 arguments("SELECT query_to_xml('select pg_terminate_backend(1)', true, true, '')", "QUERY_TO_XML"),
                 arguments("SELECT query_to_xml_and_xmlschema('select 1', true, true, '')", "QUERY_TO_XML_AND_XMLSCHEMA"),
                 arguments("SELECT cursor_to_xml('c', 1, true, true, '')", "CURSOR_TO_XML"),
+                // 2차 보안 지적(실 PostgreSQL 재현) — 문자열 SQL 을 실행하는 ts_stat·ts_rewrite, 스키마 접두·따옴표·대소문자·주석 변형
+                arguments("SELECT * FROM ts_stat('select to_tsvector(pg_terminate_backend(pid)::text) from pg_stat_activity')",
+                        "TS_STAT"),
+                arguments("SELECT * FROM pg_catalog.ts_stat('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM \"ts_stat\"('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM \"pg_catalog\".\"ts_stat\"('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM Ts_Stat('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat/**/('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM pg_catalog . ts_stat -- x\n('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM [ts_stat]('select 1')", "TS_STAT"),
+                arguments("SELECT ts_rewrite('a & b'::tsquery, 'select t, s from aliases')", "TS_REWRITE"),
+                arguments("SELECT pg_catalog.TS_REWRITE(q, 'select 1') FROM t", "TS_REWRITE"),
+                // 서버 자원 붙잡기 — generate_series 로 권고 잠금을 대량으로 잡으면 공유 메모리 잠금 표가 고갈된다
+                arguments("SELECT count(pg_advisory_lock(g)) FROM generate_series(1, 200000) g", "PG_ADVISORY_LOCK"),
+                arguments("SELECT pg_advisory_xact_lock_shared(1)", "PG_ADVISORY_XACT_LOCK_SHARED"),
+                arguments("SELECT pg_try_advisory_lock(1)", "PG_TRY_ADVISORY_LOCK"),
+                arguments("SELECT pg_logical_emit_message(false, 'p', 'x')", "PG_LOGICAL_EMIT_MESSAGE"),
+                // 문자열 SQL·XML 질의를 실행하거나 표·스키마·DB 전체를 읽는 함수
+                arguments("SELECT table_to_xml('t', true, true, '')", "TABLE_TO_XML"),
+                arguments("SELECT schema_to_xml('public', true, true, '')", "SCHEMA_TO_XML"),
+                arguments("SELECT database_to_xml_and_xmlschema(true, true, '')", "DATABASE_TO_XML_AND_XMLSCHEMA"),
+                arguments("SELECT * FROM xpath_table('id', 'x', 't', '/a', 'true') AS t(id int, a text)", "XPATH_TABLE"),
+                arguments("SELECT * FROM crosstab('select 1, 2, 3') AS ct(a int, b int)", "CROSSTAB"),
+                arguments("SELECT * FROM public.crosstab3('select 1')", "CROSSTAB3"),
+                arguments("SELECT * FROM connectby('t', 'id', 'pid', '1', 0) AS c(id text, pid text, lv int)", "CONNECTBY"),
+                arguments("SELECT * FROM pg_background_launch('delete from t')", "PG_BACKGROUND_LAUNCH"),
+                // 서버 파일·큰 객체(lo_* 는 열 이름과 겹치지 않게 하나씩 적는다)
+                arguments("SELECT pg_read_binary_file('/etc/passwd')", "PG_READ_BINARY_FILE"),
+                arguments("SELECT * FROM pg_ls_waldir()", "PG_LS_WALDIR"),
+                arguments("SELECT * FROM pg_ls_logdir()", "PG_LS_LOGDIR"),
+                arguments("SELECT pg_file_write('x', 'y', false)", "PG_FILE_WRITE"),
+                arguments("SELECT lo_create(0)", "LO_CREATE"),
+                arguments("SELECT lo_unlink(1)", "LO_UNLINK"),
+                arguments("SELECT lo_put(1, 0, 'x')", "LO_PUT"),
+                arguments("SELECT lo_from_bytea(0, 'x')", "LO_FROM_BYTEA"),
+                arguments("SELECT lowrite(0, 'x')", "LOWRITE"),
+                // 3차 보안 리뷰(실 PostgreSQL 18.6 재현) — 복제 슬롯·통계 초기화는 읽기 전용·롤백을 벗어난다
+                arguments("SELECT pg_drop_replication_slot('s')", "PG_DROP_REPLICATION_SLOT"),
+                arguments("SELECT * FROM pg_create_logical_replication_slot('s', 'test_decoding')", "PG_CREATE_LOGICAL_REPLICATION_SLOT"),
+                arguments("SELECT pg_create_physical_replication_slot('s', true)", "PG_CREATE_PHYSICAL_REPLICATION_SLOT"),
+                arguments("SELECT pg_copy_logical_replication_slot('a', 'b')", "PG_COPY_LOGICAL_REPLICATION_SLOT"),
+                arguments("SELECT * FROM pg_logical_slot_get_changes('s', NULL, NULL)", "PG_LOGICAL_SLOT_GET_CHANGES"),
+                arguments("SELECT * FROM pg_logical_slot_peek_binary_changes('s', NULL, NULL)", "PG_LOGICAL_SLOT_PEEK_BINARY_CHANGES"),
+                arguments("SELECT pg_replication_slot_advance('s', '0/0')", "PG_REPLICATION_SLOT_ADVANCE"),
+                arguments("SELECT pg_stat_reset()", "PG_STAT_RESET"),
+                arguments("SELECT pg_catalog.pg_stat_reset_shared('bgwriter')", "PG_STAT_RESET_SHARED"),
+                arguments("SELECT pg_stat_reset_single_table_counters(16384)", "PG_STAT_RESET_SINGLE_TABLE_COUNTERS"),
                 // 따옴표 식별자·유니코드 아닌 대소문자 섞기로 불러도 걸린다
                 arguments("SELECT \"pg_sleep\"(10)", "PG_SLEEP"),
                 arguments("SELECT \"pg_catalog\".\"pg_terminate_backend\"(1)", "PG_TERMINATE_BACKEND"),
@@ -176,7 +254,61 @@ class SqlGuardTest {
                 arguments("SELECT * FROM OPENROWSET('SQLNCLI', 'x', 'select 1')", "OPENROWSET"),
                 arguments("SELECT * FROM OPENDATASOURCE('SQLNCLI', 'x').db.dbo.t", "OPENDATASOURCE"),
                 arguments("SELECT * FROM OPENQUERY(srv, 'select 1')", "OPENQUERY"),
-                arguments("SELECT * FROM [OPENROWSET]('SQLNCLI', 'x', 'select 1')", "OPENROWSET"));
+                arguments("SELECT * FROM [OPENROWSET]('SQLNCLI', 'x', 'select 1')", "OPENROWSET"),
+                // Oracle — URI 원격 읽기·XMLTYPE 외부 엔터티·서버 파일·대기·동적 SQL·LDAP·자바·큐
+                arguments("SELECT EXTRACTVALUE(XMLTYPE('<!DOCTYPE r [<!ENTITY % x SYSTEM \"http://h/\">%x;]><r/>'), '/r') FROM dual",
+                        "XMLTYPE"),
+                arguments("SELECT sys.xmltype.createxml('<a/>') FROM dual", "XMLTYPE"),
+                arguments("SELECT DBURITYPE('/SCOTT/EMP').GETXML() FROM dual", "DBURITYPE"),
+                arguments("SELECT XDBURITYPE('/public/x').GETCLOB() FROM dual", "XDBURITYPE"),
+                arguments("SELECT URIFACTORY.GETURI('http://h').GETCLOB() FROM dual", "URIFACTORY"),
+                arguments("SELECT BFILENAME('DIR', 'f') FROM dual", "BFILENAME"),
+                arguments("SELECT UTL_MAIL.SEND FROM dual", "UTL_MAIL"),
+                arguments("SELECT DBMS_SESSION.SLEEP(5) FROM dual", "DBMS_SESSION"),
+                arguments("SELECT SYS.DBMS_SYS_SQL.OPEN_CURSOR FROM dual", "DBMS_SYS_SQL"),
+                arguments("SELECT DBMS_XMLSTORE.NEWCONTEXT('T') FROM dual", "DBMS_XMLSTORE"),
+                arguments("SELECT DBMS_LDAP.INIT('h', 389) FROM dual", "DBMS_LDAP"),
+                arguments("SELECT DBMS_JAVA.RUNJAVA('x') FROM dual", "DBMS_JAVA"),
+                arguments("SELECT DBMS_AQADM.START_QUEUE FROM dual", "DBMS_AQADM"),
+                // 3차 보안 리뷰 — 자바 무리 접두(DBMS_JAVA_TEST)·리터럴 안 SQL 실행·외부 HTTP·OLAP 명령
+                arguments("SELECT DBMS_JAVA_TEST.FUNCALL('oracle/aurora/util/Wrapper', 'main', 'c:/x') FROM dual", "DBMS_JAVA_TEST"),
+                arguments("SELECT SYS.DBMS_SQLHASH.GETHASH('select 1 from dual', 2) FROM dual", "DBMS_SQLHASH"),
+                arguments("SELECT APEX_WEB_SERVICE.MAKE_REST_REQUEST('http://h/', 'GET') FROM dual", "APEX_WEB_SERVICE"),
+                arguments("SELECT DBMS_CLOUD.SEND_REQUEST(c, 'http://h/', 'GET') FROM dual", "DBMS_CLOUD"),
+                arguments("SELECT DBMS_CLOUD_AI.GENERATE('x') FROM dual", "DBMS_CLOUD_AI"),
+                arguments("SELECT DBMS_AW.INTERP('aw attach x') FROM dual", "DBMS_AW"),
+                // SQLite — 토크나이저 포인터
+                arguments("SELECT fts3_tokenizer('simple')", "FTS3_TOKENIZER"),
+                // SQL Server — 확장 프로시저(접두)·서버 파일 읽기 함수·알려진 위험 저장 프로시저(대괄호 식별자 안도 본다)
+                arguments("SELECT * FROM t WHERE 1 = 0 UNION SELECT xp_cmdshell('dir')", "XP_CMDSHELL"),
+                arguments("SELECT master..xp_dirtree('\\\\h\\s')", "XP_DIRTREE"),
+                arguments("SELECT [master].[dbo].[xp_fileexist]('c:/x')", "XP_FILEEXIST"),
+                arguments("SELECT * FROM sys.fn_xe_file_target_read_file('c:/x*.xel', NULL, NULL, NULL)", "FN_XE_FILE_TARGET_READ_FILE"),
+                arguments("SELECT * FROM sys.fn_get_audit_file('c:/x*', DEFAULT, DEFAULT)", "FN_GET_AUDIT_FILE"),
+                arguments("SELECT * FROM fn_trace_gettable('c:/x.trc', DEFAULT)", "FN_TRACE_GETTABLE"),
+                arguments("SELECT * FROM fn_dblog(NULL, NULL)", "FN_DBLOG"),
+                // 저장 프로시저는 괄호 없이 부르므로 부르는 모양을 따지지 않고 낱말만으로 거절한다
+                arguments("SELECT 1 sp_executesql N'select 1'", "SP_EXECUTESQL"),
+                arguments("SELECT 1 FROM t WHERE x = [sp_oacreate]", "SP_OACREATE"),
+                // 3차 보안 리뷰(2026-10-03) — 이름 뒤에 ( · . · @ 가 오면 부르는 것이다. 공백·주석·유니코드 공백·서식 글자를 끼워도 걸린다
+                arguments("SELECT (ts_stat('select 1')).*", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat\u00A0('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat\u3000('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat\u200B('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat\t\r\n('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat /* a */ -- b\n /* c */ ('select 1')", "TS_STAT"),
+                arguments("SELECT DBMS_LOCK . SLEEP(5) FROM dual", "DBMS_LOCK"),
+                arguments("SELECT DBMS_SESSION.UNIQUE_SESSION_ID FROM dual", "DBMS_SESSION"),
+                arguments("SELECT BFILENAME@remote_link('D', 'f') FROM dual", "BFILENAME"),
+                arguments("SELECT BFILENAME @ \"REMOTE\"('D', 'f') FROM dual", "BFILENAME"),
+                arguments("SELECT xp_cmdshell ('dir')", "XP_CMDSHELL"),
+                arguments("SELECT XMLTYPE.CREATEXML('<a/>') FROM dual", "XMLTYPE"),
+                // 같은 SQL 에 열 이름으로 먼저 나오고 뒤에서 부르면 뒤의 호출이 걸린다
+                arguments("SELECT xmltype, XMLTYPE('<a/>') FROM t", "XMLTYPE"),
+                // 대문자로 바꾸면 I·S 가 되는 유니코드 글자(ı U+0131, ſ U+017F)를 끼워도 걸린다(UNICODE_CASE)
+                arguments("SELECT DBMS_P\u0131PE.RECEIVE_MESSAGE('p', 10) FROM dual", "DBMS_PIPE"),
+                arguments("SELECT DBM\u017F_XMLGEN.GETXML('select 1 from dual') FROM dual", "DBMS_XMLGEN"),
+                arguments("SELECT 1 \u017Fp_executesql N'select 1'", "SP_EXECUTESQL"));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -206,13 +338,171 @@ class SqlGuardTest {
                 arguments("SELECT \"utl_http_log\", \"update\" FROM t"),
                 arguments("SELECT 'pg_sleep(10)', 'UTL_HTTP' FROM t"),
                 arguments("SELECT a &\"b\" FROM t"),
-                arguments("SELECT [lo_cd], [dblinkx] FROM t"));
+                arguments("SELECT [lo_cd], [dblinkx] FROM t"),
+                // 2차 목록과 이름 일부만 같은 열·리터럴 안 이름(lo_·sp_ 는 접두로 막지 않는다)
+                arguments("SELECT lo_cd, sp_cd, ts_stat_cd, ts_stat_yn, xml_type, crosstab_yn, kill_cnt, backup_yn FROM t"),
+                arguments("SELECT 'ts_stat(''select 1'')', 'xp_cmdshell' FROM t"),
+                arguments("SELECT current_setting('TimeZone')"),
+                // 3차 보안 리뷰(2026-10-03) — 거절 목록과 같은 이름이어도 부르지 않는 열·표·별칭은 통과한다
+                arguments("SELECT XMLTYPE FROM T"),
+                arguments("SELECT XP_CNT, xp_yn FROM TB_EQP"),
+                arguments("SELECT CNT FROM XP_HIST"),
+                arguments("SELECT h.XP_CNT FROM XP_HIST h WHERE h.XP_CNT > 0"),
+                arguments("SELECT 1 AS \"xmltype\", 2 AS \"ts_stat\" FROM T"),
+                arguments("SELECT dblink, ts_stat, crosstab, bfilename FROM t ORDER BY dblink"),
+                arguments("SELECT t.ts_stat FROM t"),
+                // 이름 뒤 @ 가 DB 링크가 아니라 PostgreSQL 연산자(@>·@@·@ 절댓값)면 부르는 것이 아니다
+                arguments("SELECT id FROM t WHERE xp_flags @> ARRAY[1] OR ts_stat @@ q OR xp_cnt + @ -5 > 0"),
+                // 복제 슬롯 함수 접두와 이름이 겹치는 읽기 전용 카탈로그 뷰·통계 열은 부르지 않으므로 통과한다
+                arguments("SELECT slot_name, active FROM pg_replication_slots"),
+                arguments("SELECT s.slot_name FROM pg_catalog.pg_replication_slots s"),
+                arguments("SELECT datname, stats_reset FROM pg_stat_database"));
+    }
+
+    /**
+     * 함수 거절 목록이 평범한 집계를 막지 않는지 — 로컬 DB 에 저장된 화면 사용 통계 위젯 SQL 과 그 모양의 방언별 SQL.
+     * 방언별 집계·서식·널 처리 함수(COUNT·SUM·ROUND·TO_CHAR·COALESCE·NVL·DECODE·CASE·창 함수·문자열 집계·DBMS_LOB)를 섞는다.
+     */
+    static Stream<Arguments> realWidgetQueries() {
+        return Stream.of(
+                // 로컬 DB(TB_MCM_WIDGET_DEF)에 저장된 쿼리 위젯 정의 5개 그대로(2026-10-03) — 저장된 정의는 실행 때마다 다시 검사한다
+                // def.lo41tduo
+                arguments("SELECT COALESCE(o.OBJECT_NM, l.PAGE_ID) AS SCREEN_NM,\n"
+                        + "       ROUND(SUM(l.DURATION_MS) / 60000.0, 1) AS USE_MIN,\n"
+                        + "       COUNT(*) AS OPEN_CNT\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG l\n"
+                        + "  LEFT JOIN TB_MCM_SEC_OBJ o\n"
+                        + "    ON o.OBJECT_ID = SUBSTR(l.PAGE_ID, INSTR(l.PAGE_ID, '/') + 1)\n"
+                        + " WHERE l.STARTED_AT >= DATE('now', 'localtime', '-6 day')\n"
+                        + " GROUP BY COALESCE(o.OBJECT_NM, l.PAGE_ID)\n"
+                        + " ORDER BY USE_MIN DESC\n"
+                        + " LIMIT 10"),
+                // def.fpkt65d4
+                arguments("SELECT '사용 시간' AS LABEL, ROUND(COALESCE(SUM(DURATION_MS), 0) / 60000.0, 1) AS VAL, '분' AS UNIT\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG WHERE STARTED_AT >= DATE('now', 'localtime')\n"
+                        + "UNION ALL\n"
+                        + "SELECT '사용자', COUNT(DISTINCT USER_ID), '명'\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG WHERE STARTED_AT >= DATE('now', 'localtime')\n"
+                        + "UNION ALL\n"
+                        + "SELECT '연 화면', COUNT(DISTINCT PAGE_ID), '개'\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG WHERE STARTED_AT >= DATE('now', 'localtime')\n"
+                        + "UNION ALL\n"
+                        + "SELECT '열람 횟수', COUNT(*), '회'\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG WHERE STARTED_AT >= DATE('now', 'localtime')"),
+                // def.ldj2hpgw
+                arguments("SELECT SUBSTR(l.STARTED_AT, 1, 16) AS STARTED,\n"
+                        + "       COALESCE(o.OBJECT_NM, l.PAGE_ID) AS SCREEN_NM,\n"
+                        + "       ROUND(l.DURATION_MS / 1000.0) AS SEC\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG l\n"
+                        + "  LEFT JOIN TB_MCM_SEC_OBJ o\n"
+                        + "    ON o.OBJECT_ID = SUBSTR(l.PAGE_ID, INSTR(l.PAGE_ID, '/') + 1)\n"
+                        + " WHERE l.USER_ID = :userId\n"
+                        + " ORDER BY l.STARTED_AT DESC\n"
+                        + " LIMIT 20"),
+                // def.ubb8dih0
+                arguments("SELECT SUBSTR(STARTED_AT, 6, 5) AS DAY,\n"
+                        + "       ROUND(SUM(DURATION_MS) / 60000.0, 1) AS USE_MIN\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG\n"
+                        + " WHERE STARTED_AT >= DATE('now', 'localtime', '-13 day')\n"
+                        + " GROUP BY SUBSTR(STARTED_AT, 1, 10)\n"
+                        + " ORDER BY SUBSTR(STARTED_AT, 1, 10)"),
+                // def.spzufhgo
+                arguments("SELECT CASE o.SYSTEM_CODE WHEN 'mcm' THEN '공통관리' WHEN 'mdm' THEN '마루 MDM' ELSE COALESCE(o.SYSTEM_CODE, '기타') END AS AREA,\n"
+                        + "       ROUND(SUM(l.DURATION_MS) / 60000.0, 1) AS USE_MIN\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG l\n"
+                        + "  LEFT JOIN TB_MCM_SEC_OBJ o\n"
+                        + "    ON o.OBJECT_ID = SUBSTR(l.PAGE_ID, INSTR(l.PAGE_ID, '/') + 1)\n"
+                        + " WHERE l.STARTED_AT >= DATE('now', 'localtime', '-29 day')\n"
+                        + " GROUP BY 1\n"
+                        + " ORDER BY 2 DESC"),
+                // 방언별 집계·서식 함수를 섞은 사례
+                arguments("SELECT PAGE_ID, COUNT(DISTINCT USER_ID) AS USER_CNT, SUM(OPEN_CNT) AS OPEN_CNT,\n"
+                        + "       ROUND(SUM(DURATION_MS) / 60000.0, 1) AS \"사용 시간(분)\"\n"
+                        + "  FROM MCMAPUSER.TB_SEC_SCREEN_USAGE_DAY\n"
+                        + " WHERE USAGE_DT >= :monthStart AND USAGE_DT <= :today\n"
+                        + " GROUP BY PAGE_ID\n"
+                        + " ORDER BY OPEN_CNT DESC"),
+                arguments("WITH d AS (\n"
+                        + "  SELECT USAGE_DT, COALESCE(NULLIF(DEPT_CD, ''), '-') AS DEPT_CD, SUM(SEG_CNT) AS SEG_CNT, SUM(DURATION_MS) AS MS\n"
+                        + "    FROM TB_SEC_SCREEN_USAGE_DAY WHERE USAGE_DT BETWEEN :monthStart AND :yesterday GROUP BY USAGE_DT, DEPT_CD)\n"
+                        + "SELECT TO_CHAR(TO_DATE(USAGE_DT, 'YYYYMMDD'), 'MM-DD') AS \"일자\", DEPT_CD,\n"
+                        + "       CASE WHEN SEG_CNT = 0 THEN 0 ELSE ROUND(MS / SEG_CNT / 1000.0, 1) END AS AVG_SEC,\n"
+                        + "       ROW_NUMBER() OVER (PARTITION BY USAGE_DT ORDER BY MS DESC) AS RN,\n"
+                        + "       CAST(SUM(MS) OVER () AS NUMERIC(18, 0)) AS TOTAL_MS\n"
+                        + "  FROM d ORDER BY USAGE_DT;"),
+                arguments("SELECT NVL(DEPT_CD, '-') DEPT_CD, DECODE(SIGN(SUM(OPEN_CNT) - 10), 1, 'HIGH', 'LOW') LV,\n"
+                        + "       LISTAGG(PAGE_ID, ',') WITHIN GROUP (ORDER BY PAGE_ID) PAGES, TRUNC(SYSDATE) - 1 BASE_DT,\n"
+                        + "       RTRIM(XMLAGG(XMLELEMENT(E, USER_ID || ',')).EXTRACT('//text()'), ',') USERS,\n"
+                        + "       DBMS_LOB.SUBSTR(MAX(NOTE), 100, 1) NOTE\n"
+                        + "  FROM MCMAPUSER.TB_SEC_SCREEN_USAGE_DAY WHERE USER_ID = :userId AND DEPT_CD = :deptCd\n"
+                        + " GROUP BY DEPT_CD"),
+                arguments("SELECT STRING_AGG(PAGE_ID, ',' ORDER BY PAGE_ID) AS PAGES, EXTRACT(DOW FROM CURRENT_DATE) AS DOW,\n"
+                        + "       DATE_TRUNC('day', :now) AS BASE_TS, SUBSTR(MAX(USAGE_DT), 1, 6) AS YM, COUNT(*) FILTER (WHERE OPEN_CNT > 0) AS N\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_DAY"));
+    }
+
+    @ParameterizedTest(name = "[{index}]")
+    @MethodSource("realWidgetQueries")
+    @DisplayName("화면 사용 통계 같은 실제 집계 SQL 은 함수 거절 목록에 걸리지 않는다")
+    void allowsRealWidgetQueries(String sql) {
+        assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql.strip().replaceAll(";$", ""));
+    }
+
+    /** SQL Server 에서만 막는 SET·IF — 같은 SQL 이 다른 갈래에서는 통과한다(Oracle SET()·SQLite if() 함수와 겹친다). */
+    static Stream<Arguments> sqlServerOnlyWords() {
+        return Stream.of(
+                arguments("SELECT 1 SET IMPLICIT_TRANSACTIONS OFF", "SET"),
+                arguments("SELECT 1 FROM t set language us_english", "SET"),
+                arguments("SELECT a FROM t SET ANSI_WARNINGS OFF", "SET"),
+                arguments("SELECT 1 IF 1=1 SELECT 2", "IF"),
+                arguments("SELECT SET(tags) FROM t", "SET"),
+                arguments("SELECT if(a > 0, 'Y', 'N') FROM t", "IF"));
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @MethodSource("sqlServerOnlyWords")
+    @DisplayName("SET·IF 는 실행 DB 가 SQL Server 일 때만 거절하고, 다른 갈래·갈래 모름에서는 통과한다")
+    void rejectsSetAndIfOnlyOnSqlServer(String sql, String word) {
+        assertThatThrownBy(() -> SqlGuard.check(sql, WidgetReadOnlyJdbc.Dialect.SQLSERVER))
+                .isInstanceOf(BusinessException.class).hasMessage(SqlGuard.forbiddenWord(word));
+        for (WidgetReadOnlyJdbc.Dialect d : WidgetReadOnlyJdbc.Dialect.values()) {
+            if (d == WidgetReadOnlyJdbc.Dialect.SQLSERVER) continue;
+            assertThat(SqlGuard.check(sql, d).sql()).as(d.name()).isEqualTo(sql);
+        }
+        assertThat(SqlGuard.check(sql, null).sql()).isEqualTo(sql);
+        assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql);
+    }
+
+    @Test
+    @DisplayName("SQL Server 는 대괄호를 식별자로 읽는다 — [SET]·\"IF\" 열과 SET_CD·IF_YN 같은 열은 통과한다")
+    void allowsSetAndIfAsQuotedNamesOnSqlServer() {
+        String sql = "SELECT [SET], \"IF\", SET_CD, IF_YN, IIF(a > 0, 1, 0) AS F FROM t";
+        assertThat(SqlGuard.check(sql, WidgetReadOnlyJdbc.Dialect.SQLSERVER).sql()).isEqualTo(sql);
+    }
+
+    @ParameterizedTest(name = "[{index}]")
+    @MethodSource("realWidgetQueries")
+    @DisplayName("화면 사용 통계 같은 실제 집계 SQL 은 어느 실행 DB 갈래에서도 통과한다(SQL Server 의 SET·IF 포함)")
+    void allowsRealWidgetQueriesOnEveryDialect(String sql) {
+        for (WidgetReadOnlyJdbc.Dialect d : WidgetReadOnlyJdbc.Dialect.values()) {
+            assertThat(SqlGuard.check(sql, d).sql()).as(d.name()).isEqualTo(sql.strip().replaceAll(";$", ""));
+        }
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
     @MethodSource("allowedNearFunctions")
     @DisplayName("거절 목록과 이름 일부만 같은 정상 조회는 통과한다")
     void allowsNearFunctions(String sql) {
+        assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql);
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = {
+            "SELECT \"SHUTDOWN\" FROM TB_EQP",
+            "SELECT e.\"BACKUP\", e.\"kill\", \"RESTORE\" AS \"DENY\" FROM TB_EQP e",
+            "SELECT \"USE\", \"CHECKPOINT\", \"BEGIN\" FROM TB_EQP"})
+    @DisplayName("금지 낱말과 같은 이름의 열·표는 큰따옴표로 감싸면 통과한다(거절 문구의 안내대로)")
+    void allowsQuotedForbiddenWordAsName(String sql) {
         assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql);
     }
 

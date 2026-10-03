@@ -53,6 +53,10 @@ public class KoreaEximProvider implements ExchangeRateProvider {
     @Override
     public String id() { return ID; }
 
+    /** 날짜마다 한 번 부른다 — 서비스가 빈 날 구간만 나눠 넘긴다. */
+    @Override
+    public boolean callsPerDay() { return true; }
+
     @Override
     public List<ExchangeRatePoint> fetch(String base, List<String> symbols, LocalDate from, LocalDate to) {
         if (!"KRW".equals(base)) {
