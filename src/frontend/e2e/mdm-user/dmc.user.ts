@@ -738,7 +738,12 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     // 여기부터 카테고리 탭(TC-DMC-CAT-05)까지 한 화면이라 버튼 커버리지를 한 번에 센다.
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 코드 편집");
-    // 사용자가 고른다(화면 인계는 TC-DMC-LNK-01 에서 따로 본다). 여기서는 칸에 넣고 [찾기] 로 찾는다 — Enter 로 찾는 길은 pickCode 가 쓴다.
+    // [코드 편집]은 마루 코드·버전을 넘겨 이 화면이 그 코드를 연다(화면 인계는 TC-DMC-LNK-01 에서 따로 본다). 인계가 끝나 위 칸이
+    // 그 코드를 보인 뒤 사용자가 [찾기]로 다시 고른다 — 인계가 [찾기] 응답보다 늦게 오면 IdPicker 가 진행 중인 찾기 결과를 버린다
+    // (findSeq, 보고서 관찰). 여기서는 칸에 넣고 [찾기] 로 찾는다 — Enter 로 찾는 길은 pickCode 가 쓴다.
+    await expect(tid(page, "code-current")).toContainText(CODE, { timeout: 20_000 });
+    await expect(tid(page, "code-pick-keyword")).toHaveValue(CODE);
+    await waitIdle(page);
     await tid(page, "code-pick-keyword").fill(CODE);
     await screen(page).getByRole("button", { name: "찾기", exact: true }).click();
     await tid(page, `code-pick-${CODE}`).click({ timeout: 20_000 });
