@@ -36,7 +36,7 @@ class ScreenUsageOasisContractTest {
     /** mcm 시드 소스 폴더. 시험이 읽는 파일은 아래 상수에 이름으로 적는다(폴더 전체를 훑지 않는다). */
     static final Path MCM_INIT = Path.of("../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init");
     /** PERM_ALL 의 {@code String allActions = String.join(",", ...)} 선언이 있는 파일. */
-    static final Path ALL_ACTIONS_SOURCE = MCM_INIT.resolve("DataInitializer.java");
+    static final Path ALL_ACTIONS_SOURCE = MCM_INIT.resolve("seed/CoreRbacSeeder.java");
 
     @Test
     @DisplayName("screenUsage.bpmn 은 record 하나를 screenUsageService.record 로 보내고 output 은 result 다")
