@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.toIntOrNull;
 
 /**
  * 카테고리 관리 — masterCategoryMng OASIS 서비스 (Spring bean = {@code masterCategoryMngService}).
@@ -177,7 +178,7 @@ public class MasterCategoryMngService {
                 MasterCodeCategory entity = new MasterCodeCategory();
                 entity.setId(id);
                 entity.setCategoryNm(strOf(row.get("categoryNm")));
-                entity.setSortSeq(toInt(row.get("sortSeq")));
+                entity.setSortSeq(toIntOrNull(row.get("sortSeq")));
                 try {
                     categoryRepository.save(entity);
                     cnt++;
@@ -193,7 +194,7 @@ public class MasterCategoryMngService {
                     throw new RuntimeException("MasterCategoryMngMapper.UpdateTbMcmCodeCategory 에러발생");
                 }
                 entity.setCategoryNm(strOf(row.get("categoryNm")));
-                entity.setSortSeq(toInt(row.get("sortSeq")));
+                entity.setSortSeq(toIntOrNull(row.get("sortSeq")));
                 categoryRepository.save(entity);
                 cnt++;
             } else if ("D".equals(rowStatus)) {
@@ -234,11 +235,4 @@ public class MasterCategoryMngService {
         return s == null ? "" : s.trim();
     }
 
-    private static Integer toInt(Object o) {
-        if (o == null) return null;
-        if (o instanceof Number n) return n.intValue();
-        String s = o.toString().trim();
-        if (s.isEmpty()) return null;
-        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return null; }
-    }
 }
