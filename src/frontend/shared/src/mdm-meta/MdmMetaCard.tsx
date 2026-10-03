@@ -50,7 +50,8 @@ const text = (v: string | null | undefined): string | null => (typeof v === "str
 
 /** 소독 결과 캐시 — 원문 HTML → 보이는 내용이 있는 소독 HTML(없으면 null). 소독할 수 없는 곳(서버)의 결과는 넣지 않는다. */
 const safeHtmlCache = new Map<string, string | null>();
-const SAFE_HTML_CACHE_MAX = 500;
+/** 소독 결과 캐시 상한 — 다 차면 비운다. */
+export const MDM_CARD_SAFE_HTML_CACHE_MAX = 500;
 
 /** 소독한 HTML 에 보이는 내용(글자 또는 그림)이 있는가 — `<p></p>`·`<p><br></p>` 처럼 빈 HTML 은 글자 설명으로 대신한다. */
 function hasVisibleContent(html: string): boolean {
@@ -71,7 +72,7 @@ export function mdmCardSafeHtml(column: Pick<MdmScreenColumn, "descriptionHtml">
   const safe = sanitizeNoticeHtml(raw);
   if (safe == null) return null;
   const result = hasVisibleContent(safe) ? safe : null;
-  if (safeHtmlCache.size >= SAFE_HTML_CACHE_MAX) safeHtmlCache.clear();
+  if (safeHtmlCache.size >= MDM_CARD_SAFE_HTML_CACHE_MAX) safeHtmlCache.clear();
   safeHtmlCache.set(raw, result);
   return result;
 }
