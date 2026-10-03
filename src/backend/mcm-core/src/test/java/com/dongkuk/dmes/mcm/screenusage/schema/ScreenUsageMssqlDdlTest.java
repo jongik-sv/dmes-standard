@@ -139,18 +139,28 @@ class ScreenUsageMssqlDdlTest {
         }
     }
 
+    /** mcm 시드 소스 폴더. 시험이 읽는 파일은 아래 상수에 이름으로 적는다(폴더 전체를 훑지 않는다). */
+    private static final Path MCM_INIT = Path.of("../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init");
+    /** ScreenUsageSchemaArtifacts(이 DDL 을 실행하는 단계)가 있는 파일 — DDL 참조 세 개를 여기서 찾는다. */
+    private static final Path SCREEN_USAGE_ARTIFACTS_SOURCE = MCM_INIT.resolve("DataInitializer.java");
+    /** run() 이 단계 호출 순서를 정하는 파일 — 두 호출과 그 순서를 이 파일 하나 안에서 본다. */
+    private static final Path RUN_ORDER_SOURCE = MCM_INIT.resolve("DataInitializer.java");
+
     @Test
     @DisplayName("DataInitializer 가 MSSQL 분기에서 이 DDL 로 두 테이블과 인덱스를 멱등 생성한다")
     void dataInitializerUsesDdl() throws Exception {
-        String source = Files.readString(
-                Path.of("../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java"));
-
-        assertThat(source).contains("initScreenUsageArtifacts();")
+        String artifacts = Files.readString(SCREEN_USAGE_ARTIFACTS_SOURCE);
+        assertThat(artifacts).as(SCREEN_USAGE_ARTIFACTS_SOURCE.getFileName().toString())
                 .contains("ScreenUsageMssqlDdl.CREATE_LOG_TABLE")
                 .contains("ScreenUsageMssqlDdl.CREATE_DAY_TABLE")
                 .contains("ScreenUsageMssqlDdl.LOG_INDEXES");
-        int call = source.indexOf("initScreenUsageArtifacts();");
-        int sqliteElse = source.indexOf("createSecMenuFldForSqlite();");
-        assertThat(call).isLessThan(sqliteElse); // if (!sqliteDialect) 블록 안
+
+        // 순서는 여러 파일을 이어 붙이지 않고 run() 이 있는 파일 하나 안에서 본다.
+        String runOrder = Files.readString(RUN_ORDER_SOURCE);
+        int call = runOrder.indexOf("initScreenUsageArtifacts();");
+        int sqliteElse = runOrder.indexOf("createSecMenuFldForSqlite();");
+        assertThat(call).as("initScreenUsageArtifacts(); 호출 (" + RUN_ORDER_SOURCE.getFileName() + ")").isNotNegative();
+        assertThat(sqliteElse).as("createSecMenuFldForSqlite(); 호출 (" + RUN_ORDER_SOURCE.getFileName() + ")").isNotNegative();
+        assertThat(call).as("MSSQL 분기 호출이 SQLite else 보다 앞").isLessThan(sqliteElse); // if (!sqliteDialect) 블록 안
     }
 }
