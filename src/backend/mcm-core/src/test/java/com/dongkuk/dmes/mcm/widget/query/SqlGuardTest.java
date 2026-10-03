@@ -133,6 +133,19 @@ class SqlGuardTest {
                 arguments("SELECT SHUTDOWN FROM TB_EQP",
                         "쓸 수 없는 낱말이 있습니다: SHUTDOWN — 열·표 이름이면 큰따옴표로 감싸세요(예: \"SHUTDOWN\", 따옴표 안은 대소문자를 구분합니다)"),
                 arguments("SELECT backup FROM TB_EQP", SqlGuard.forbiddenWord("BACKUP")),
+                // 3차 보안 리뷰 — ; 없이 이어 쓰는 T-SQL 흐름·세션 문장(DB 바꾸기는 풀에 돌려준 연결에 남고, 반복은 잠금을 붙잡는다)
+                arguments("SELECT 1 USE master", SqlGuard.forbiddenWord("USE")),
+                arguments("SELECT 1 DECLARE @x INT", SqlGuard.forbiddenWord("DECLARE")),
+                arguments("SELECT 1 WHILE 1=1 BEGIN SELECT 1 END", SqlGuard.forbiddenWord("WHILE")),
+                arguments("SELECT 1 BEGIN TRAN", SqlGuard.forbiddenWord("BEGIN")),
+                arguments("SELECT 1 lbl: SELECT 2 GOTO lbl", SqlGuard.forbiddenWord("GOTO")),
+                arguments("SELECT 1 WRITETEXT t.c @p 'x'", SqlGuard.forbiddenWord("WRITETEXT")),
+                arguments("SELECT 1 UPDATETEXT t.c @p 0 NULL 'x'", SqlGuard.forbiddenWord("UPDATETEXT")),
+                arguments("SELECT 1 READTEXT t.c @p 0 10", SqlGuard.forbiddenWord("READTEXT")),
+                arguments("SELECT 1 CHECKPOINT", SqlGuard.forbiddenWord("CHECKPOINT")),
+                arguments("SELECT 1 SETUSER 'dbo'", SqlGuard.forbiddenWord("SETUSER")),
+                arguments("SELECT 1 RAISERROR('x', 10, 1) WITH LOG", SqlGuard.forbiddenWord("RAISERROR")),
+                arguments("SELECT 1 REVERT", SqlGuard.forbiddenWord("REVERT")),
                 // Oracle 12c 인라인 PL/SQL(WITH FUNCTION)은 본문에 ; 가 있어야 해서 여러 문장으로 거절된다
                 arguments("WITH FUNCTION f RETURN NUMBER IS BEGIN DBMS_SESSION.SLEEP(5); RETURN 1; END; SELECT f FROM dual", MULTI));
     }
@@ -430,6 +443,47 @@ class SqlGuardTest {
     @DisplayName("화면 사용 통계 같은 실제 집계 SQL 은 함수 거절 목록에 걸리지 않는다")
     void allowsRealWidgetQueries(String sql) {
         assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql.strip().replaceAll(";$", ""));
+    }
+
+    /** SQL Server 에서만 막는 SET·IF — 같은 SQL 이 다른 갈래에서는 통과한다(Oracle SET()·SQLite if() 함수와 겹친다). */
+    static Stream<Arguments> sqlServerOnlyWords() {
+        return Stream.of(
+                arguments("SELECT 1 SET IMPLICIT_TRANSACTIONS OFF", "SET"),
+                arguments("SELECT 1 FROM t set language us_english", "SET"),
+                arguments("SELECT a FROM t SET ANSI_WARNINGS OFF", "SET"),
+                arguments("SELECT 1 IF 1=1 SELECT 2", "IF"),
+                arguments("SELECT SET(tags) FROM t", "SET"),
+                arguments("SELECT if(a > 0, 'Y', 'N') FROM t", "IF"));
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @MethodSource("sqlServerOnlyWords")
+    @DisplayName("SET·IF 는 실행 DB 가 SQL Server 일 때만 거절하고, 다른 갈래·갈래 모름에서는 통과한다")
+    void rejectsSetAndIfOnlyOnSqlServer(String sql, String word) {
+        assertThatThrownBy(() -> SqlGuard.check(sql, WidgetReadOnlyJdbc.Dialect.SQLSERVER))
+                .isInstanceOf(BusinessException.class).hasMessage(SqlGuard.forbiddenWord(word));
+        for (WidgetReadOnlyJdbc.Dialect d : WidgetReadOnlyJdbc.Dialect.values()) {
+            if (d == WidgetReadOnlyJdbc.Dialect.SQLSERVER) continue;
+            assertThat(SqlGuard.check(sql, d).sql()).as(d.name()).isEqualTo(sql);
+        }
+        assertThat(SqlGuard.check(sql, null).sql()).isEqualTo(sql);
+        assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql);
+    }
+
+    @Test
+    @DisplayName("SQL Server 는 대괄호를 식별자로 읽는다 — [SET]·\"IF\" 열과 SET_CD·IF_YN 같은 열은 통과한다")
+    void allowsSetAndIfAsQuotedNamesOnSqlServer() {
+        String sql = "SELECT [SET], \"IF\", SET_CD, IF_YN, IIF(a > 0, 1, 0) AS F FROM t";
+        assertThat(SqlGuard.check(sql, WidgetReadOnlyJdbc.Dialect.SQLSERVER).sql()).isEqualTo(sql);
+    }
+
+    @ParameterizedTest(name = "[{index}]")
+    @MethodSource("realWidgetQueries")
+    @DisplayName("화면 사용 통계 같은 실제 집계 SQL 은 어느 실행 DB 갈래에서도 통과한다(SQL Server 의 SET·IF 포함)")
+    void allowsRealWidgetQueriesOnEveryDialect(String sql) {
+        for (WidgetReadOnlyJdbc.Dialect d : WidgetReadOnlyJdbc.Dialect.values()) {
+            assertThat(SqlGuard.check(sql, d).sql()).as(d.name()).isEqualTo(sql.strip().replaceAll(";$", ""));
+        }
     }
 
     @ParameterizedTest(name = "[{index}] {0}")

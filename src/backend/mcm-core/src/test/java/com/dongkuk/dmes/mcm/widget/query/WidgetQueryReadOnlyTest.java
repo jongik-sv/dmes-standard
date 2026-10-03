@@ -76,7 +76,7 @@ class WidgetQueryReadOnlyTest {
         pool = hikari(url, 1);
         defRepository = mock(WidgetDefRepository.class);
         resolver = mock(WidgetUserContextResolver.class);
-        executor = new WidgetQueryExecutor(defRepository, resolver, pool, Clock.systemUTC());
+        executor = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(pool), Clock.systemUTC());
     }
 
     @AfterEach
@@ -152,7 +152,7 @@ class WidgetQueryReadOnlyTest {
     @DisplayName("바깥 업무 트랜잭션(같은 DataSource) 안에서 불러도 그 연결을 쓰지 않고, 바깥 연결은 계속 쓸 수 있다")
     void doesNotUseOrLockOuterBusinessTransaction() {
         HikariDataSource pool2 = hikari(url, 2);
-        WidgetQueryExecutor ex2 = new WidgetQueryExecutor(defRepository, resolver, pool2, Clock.systemUTC());
+        WidgetQueryExecutor ex2 = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(pool2), Clock.systemUTC());
         def("def.count", "SELECT COUNT(*) AS CNT FROM T");
         JdbcTemplate biz = new JdbcTemplate(pool2);
 

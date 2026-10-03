@@ -70,8 +70,10 @@ import org.springframework.stereotype.Component;
  *   <li>DB 오류: 사용자에게는 고정 문구, 서버 로그에는 defId·원인. 관리자 미리보기만 DB 메시지를 보여 준다.</li>
  * </ul>
  * <b>운영 주의</b>: SQL Server 에는 읽기 전용 트랜잭션이 없고({@code readOnly} 는 힌트일 뿐), {@code ;} 없이도 한 배치에 문장을
- * 이어 쓸 수 있다. Oracle 은 자율 트랜잭션 함수·DDL 의 암묵 커밋이 읽기 전용 트랜잭션과 롤백을 벗어난다. 그래서 운영 DB 에서는
- * {@code dmes.widget.query.datasource.*} 로 <b>읽기 권한만 가진 DB 계정의 DataSource</b> 를 붙이는 것이 근본 대책이다.
+ * 이어 쓸 수 있다({@code SET IMPLICIT_TRANSACTIONS OFF} 뒤 쓰기는 자동 커밋되어 늘 롤백도 벗어난다). 그래서 읽기 전용 트랜잭션을 걸 수 없는
+ * DB(SQL Server·방언을 모르는 DB)에서는 전용 DataSource({@code dmes.widget.query.datasource.*})가 없으면 <b>실행·미리보기·저장 검사를
+ * 모두 거절한다</b>(실패 닫힘, {@link #validate}). Oracle 은 자율 트랜잭션 함수·DDL 의 암묵 커밋이 읽기 전용 트랜잭션과 롤백을 벗어난다.
+ * 그래서 운영 DB 에서는 어느 DB 든 <b>읽기 권한만 가진 DB 계정의 DataSource</b> 를 붙이는 것이 근본 대책이다.
  */
 @Component
 public class WidgetQueryExecutor implements WidgetQueryRunner {
@@ -96,6 +98,11 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     static final String MSG_NO_SQL = "위젯 정의에 SQL 이 없습니다";
     static final String MSG_LOAD_FAILED = "위젯 데이터를 불러오지 못했습니다";
     static final String MSG_PREVIEW_PREFIX = "쿼리 오류: ";
+    static final String MSG_SQLSERVER_NEEDS_DEDICATED =
+            "SQL Server 에서는 읽기 전용 계정의 전용 연결(dmes.widget.query.datasource)을 설정해야 쿼리 위젯을 실행할 수 있습니다";
+    static final String MSG_OTHER_NEEDS_DEDICATED =
+            "읽기 전용 트랜잭션을 걸 수 없는 DB 에서는 읽기 전용 계정의 전용 연결(dmes.widget.query.datasource)을 설정해야 쿼리 위젯을 실행할 수 있습니다";
+    static final String MSG_DB_UNAVAILABLE = "쿼리 위젯 DB 에 연결하지 못했습니다";
 
     private static final DateTimeFormatter YMD = DateTimeFormatter.ofPattern("yyyyMMdd");
     /** 로컬 SQLite 실행 때 지우는 스키마 접두(대소문자 무시, 식별자 중간은 제외). */
@@ -105,6 +112,8 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     private final WidgetDefRepository defRepository;
     private final WidgetUserContextResolver userContextResolver;
     private final WidgetReadOnlyJdbc readOnlyJdbc;
+    /** 전용 DataSource(dmes.widget.query.datasource.*)인가 — 읽기 전용 트랜잭션이 없는 DB 에서 실행을 허락할지 정한다. */
+    private final boolean dedicated;
     private final LimitedJdbcTemplate jdbc;
     private final Clock clock;
     private final Map<CacheKey, CachedResult> cache = new ConcurrentHashMap<>();
@@ -121,16 +130,18 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     public WidgetQueryExecutor(WidgetDefRepository defRepository,
                                WidgetUserContextResolver userContextResolver,
                                WidgetQueryDataSource queryDataSource) {
-        this(defRepository, userContextResolver, queryDataSource.dataSource(), Clock.system(ZONE));
+        this(defRepository, userContextResolver, queryDataSource, Clock.system(ZONE));
     }
 
     WidgetQueryExecutor(WidgetDefRepository defRepository,
                         WidgetUserContextResolver userContextResolver,
-                        DataSource dataSource,
+                        WidgetQueryDataSource queryDataSource,
                         Clock clock) {
+        DataSource dataSource = queryDataSource.dataSource();
         this.defRepository = defRepository;
         this.userContextResolver = userContextResolver;
         this.readOnlyJdbc = new WidgetReadOnlyJdbc(dataSource);
+        this.dedicated = queryDataSource.dedicated();
         this.jdbc = new LimitedJdbcTemplate(dataSource);
         this.clock = clock;
     }
@@ -147,7 +158,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
             throw new BusinessException(ErrorCode.INVALID_VALUE, MSG_NOT_QUERY);
         }
         requireSupportedSource(def.getDataSrc());
-        SqlGuard.Validated validated = SqlGuard.check(sqlOf(def));
+        SqlGuard.Validated validated = validate(sqlOf(def));
         Map<String, Object> values = systemValues(validated.variables());
 
         Instant now = clock.instant();
@@ -173,7 +184,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     public WidgetQueryResult preview(String dataSrc, String sql, int maxRows) {
         requireMaxRows(maxRows);
         requireSupportedSource(dataSrc);
-        SqlGuard.Validated validated = SqlGuard.check(sql);
+        SqlGuard.Validated validated = validate(sql);
         Map<String, Object> values = systemValues(validated.variables());
         try {
             return execute(validated.sql(), values, maxRows);
@@ -185,7 +196,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
 
     @Override
     public void validateSql(String sql) {
-        SqlGuard.check(sql);
+        validate(sql);
     }
 
     /** 정의를 저장·삭제하면 그 정의의 캐시 항목(모든 사용자·행 상한)을 비운다. */
@@ -344,6 +355,38 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     }
 
     // ── 검사 도우미 ──────────────────────────────────────────────────────
+
+    /**
+     * 실행·미리보기·저장 검사가 함께 쓰는 판정(§7.1 + 실패 닫힘). 순서:
+     * <ol>
+     *   <li>어느 DB 에나 적용하는 검사 — 여기서 걸리면 연결을 빌리지 않는다.</li>
+     *   <li>실행 DB 갈래 판정(처음 한 번 연결을 빌려 메타데이터만 읽는다). 읽기 전용 트랜잭션을 걸 수 없는 갈래(SQL Server·방언을 모르는 DB)인데
+     *       전용 DataSource 가 없으면 거절한다 — {@code ;} 없이 이어 쓴 T-SQL({@code SET IMPLICIT_TRANSACTIONS OFF}·{@code USE}·{@code WHILE})을
+     *       낱말 목록이 다 막는다고 기대할 수 없고, 앱 기본 DataSource 는 쓰기 계정이다.</li>
+     *   <li>갈래별 검사(SQL Server 의 {@code SET}·{@code IF}).</li>
+     * </ol>
+     * 거절은 {@code BusinessException} 이고 미리보기·실행의 DB 오류 감싸기(쿼리 오류·고정 문구) 밖에서 던진다 — 설정 안내가 그대로 보인다.
+     */
+    private SqlGuard.Validated validate(String sql) {
+        SqlGuard.check(sql);
+        WidgetReadOnlyJdbc.Dialect dialect = requireRunnableDialect();
+        return SqlGuard.check(sql, dialect);
+    }
+
+    private WidgetReadOnlyJdbc.Dialect requireRunnableDialect() {
+        WidgetReadOnlyJdbc.Dialect dialect;
+        try {
+            dialect = readOnlyJdbc.resolveDialect();
+        } catch (SQLException | RuntimeException e) {
+            log.warn("위젯 쿼리 DB 갈래 판정 실패 원인={}", rootMessage(e));
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, MSG_DB_UNAVAILABLE);
+        }
+        if (!dedicated && !WidgetReadOnlyJdbc.enforcesReadOnly(dialect)) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, dialect == WidgetReadOnlyJdbc.Dialect.SQLSERVER
+                    ? MSG_SQLSERVER_NEEDS_DEDICATED : MSG_OTHER_NEEDS_DEDICATED);
+        }
+        return dialect;
+    }
 
     /** 지금은 mcm 만 실행한다. 비어 있으면 mcm 으로 본다(유일한 모듈). */
     private static void requireSupportedSource(String dataSrc) {

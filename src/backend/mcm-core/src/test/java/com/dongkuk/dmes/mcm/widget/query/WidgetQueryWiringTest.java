@@ -1,8 +1,10 @@
 package com.dongkuk.dmes.mcm.widget.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
+import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 import javax.sql.DataSource;
@@ -22,6 +24,7 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 /**
  * 빈 연결 확인 — mcm 런처처럼 {@code widget.query} 패키지를 스캔해 실행기·{@link WidgetQueryConfig}·설정 바인딩이 함께 뜨는지,
  * 전용 설정이 없으면 앱 기본(@Primary) DataSource, 있으면 전용 풀을 쓰는지 본다. 전용 DataSource 는 DataSource 형 빈이 아니다.
+ * H2 는 읽기 전용 트랜잭션을 걸 수 없는 갈래(OTHER)라 전용 설정이 없으면 실패 닫힘으로 거절되고, 전용 설정이 있으면 실행한다.
  */
 class WidgetQueryWiringTest {
 
@@ -65,11 +68,14 @@ class WidgetQueryWiringTest {
         @Autowired WidgetQueryRunner runner;
 
         @Test
-        @DisplayName("전용 설정이 없으면 앱 기본(@Primary) DataSource 로 실행한다")
-        void usesPrimaryDataSource() {
+        @DisplayName("전용 설정이 없으면 앱 기본(@Primary) DataSource 를 쓰고, 읽기 전용 트랜잭션을 걸 수 없는 DB(H2)는 실행·저장 검사를 거절한다")
+        void usesPrimaryDataSourceAndFailsClosedWithoutReadOnlyTransaction() {
             assertThat(queryDataSource.dedicated()).isFalse();
             assertThat(queryDataSource.dataSource()).isSameAs(primary);
-            assertThat(runner.preview("mcm", "SELECT 1 AS A", 50).rows()).hasSize(1);
+            assertThatThrownBy(() -> runner.preview("mcm", "SELECT 1 AS A", 50))
+                    .isInstanceOf(BusinessException.class).hasMessage(WidgetQueryExecutor.MSG_OTHER_NEEDS_DEDICATED);
+            assertThatThrownBy(() -> runner.validateSql("SELECT 1 AS A"))
+                    .isInstanceOf(BusinessException.class).hasMessage(WidgetQueryExecutor.MSG_OTHER_NEEDS_DEDICATED);
         }
     }
 

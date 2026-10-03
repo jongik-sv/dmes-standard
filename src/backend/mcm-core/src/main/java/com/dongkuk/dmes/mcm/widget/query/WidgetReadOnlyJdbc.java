@@ -32,7 +32,8 @@ import org.slf4j.LoggerFactory;
  *   <li>PostgreSQL·Oracle — {@code SET TRANSACTION READ ONLY}(Spring {@code DataSourceTransactionManager#setEnforceReadOnly} 와 같은 문장).
  *       PostgreSQL 은 {@code SHOW transaction_read_only} 가 {@code on} 인지 확인한다. Oracle 은 문장이 성공하면 걸린 것으로 본다.</li>
  *   <li>SQL Server·그 밖 — 읽기 전용 트랜잭션이 없다. {@code setReadOnly} 힌트와 늘 롤백뿐이라 읽기 계정 전용 DataSource 가 필요하다
- *       (처음 실행 때 한 번 경고 로그).</li>
+ *       (처음 실행 때 한 번 경고 로그). 그래서 {@link WidgetQueryExecutor} 는 이 갈래({@link #enforcesReadOnly} 가 false)에서 전용
+ *       DataSource 가 없으면 실행·미리보기·저장 검사를 거절한다(실패 닫힘). 이 클래스 자체는 갈래를 판정해 알려 줄 뿐 거절하지 않는다.</li>
  * </ul>
  * 이 클래스는 Spring 에 기대지 않는다(로그만) — 다른 모듈이 자기 DataSource 로 그대로 쓸 수 있다.
  */
@@ -75,6 +76,23 @@ public final class WidgetReadOnlyJdbc {
     }
 
     /**
+     * 실행 DB 갈래. 아직 모르면 연결을 하나 빌려 메타데이터(제품 이름)만 읽고 바로 돌려준다(상태를 바꾸지 않는다) — 실행 전에 갈래별 검사·
+     * 실패 닫힘을 판단하려고 쓴다(저장 검사처럼 SQL 을 실행하지 않는 경로 포함). 한 번 알면 다시 빌리지 않는다.
+     */
+    public Dialect resolveDialect() throws SQLException {
+        Dialect d = dialect;
+        if (d != null) return d;
+        try (Connection con = dataSource.getConnection()) {
+            return dialect(con);
+        }
+    }
+
+    /** 이 갈래에서 읽기 전용 트랜잭션(또는 SQLite query_only)을 걸 수 있는가. false 면 늘 롤백·readOnly 힌트뿐이다. */
+    public static boolean enforcesReadOnly(Dialect d) {
+        return d == Dialect.SQLITE || d == Dialect.POSTGRESQL || d == Dialect.ORACLE;
+    }
+
+    /**
      * 읽기 전용 트랜잭션에서 {@code work} 를 실행하고 늘 롤백한다. {@code work} 의 예외는 그대로 던진다. 읽기 전용을 걸지 못하면
      * {@code work} 를 부르지 않고 예외를 던진다.
      */
@@ -114,7 +132,7 @@ public final class WidgetReadOnlyJdbc {
             d = dialectOf(con.getMetaData().getDatabaseProductName());
             dialect = d;
         }
-        if ((d == Dialect.SQLSERVER || d == Dialect.OTHER) && warned.compareAndSet(false, true)) {
+        if (!enforcesReadOnly(d) && warned.compareAndSet(false, true)) {
             log.warn("[widgetQuery] {} 는 읽기 전용 트랜잭션을 걸 수 없어 롤백·readOnly 힌트만 씁니다 — 읽기 권한만 가진 계정의 전용 DataSource"
                     + "(dmes.widget.query.datasource.*)를 붙이세요", con.getMetaData().getDatabaseProductName());
         }

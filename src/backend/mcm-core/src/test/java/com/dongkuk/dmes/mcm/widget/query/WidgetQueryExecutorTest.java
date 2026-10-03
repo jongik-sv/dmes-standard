@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContext;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.def.WidgetDefSavedEvent;
@@ -19,6 +20,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Clock;
@@ -72,7 +74,8 @@ class WidgetQueryExecutorTest {
         defRepository = mock(WidgetDefRepository.class);
         resolver = mock(WidgetUserContextResolver.class);
         clock = new MutableClock(T0);
-        executor = new WidgetQueryExecutor(defRepository, resolver, recording, clock);
+        // H2 는 읽기 전용 트랜잭션을 걸 수 없는 갈래(OTHER)라 전용 DataSource 가 아니면 실패 닫힘으로 거절된다 — 읽기 계정 전용 연결로 붙인다.
+        executor = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.dedicated(recording, null), clock);
     }
 
     @AfterEach
@@ -366,7 +369,8 @@ class WidgetQueryExecutorTest {
         def("def.count", "query-number", "SELECT COUNT(*) AS CNT FROM WIDGET_T");
         count("def.count");
         executor.preview("mcm", "SELECT 1 AS A FROM WIDGET_T WHERE ID = 1", 50);
-        assertThat(recording.connections).isEqualTo(2);
+        assertThat(recording.connections).isEqualTo(3); // 처음 한 번 DB 갈래 판정(메타데이터만) + 실행 2
+
         assertThat(recording.readOnlyOn).isEqualTo(2);
         assertThat(recording.autoCommitOff).isEqualTo(2);
         assertThat(recording.rollbacks).isEqualTo(2);
@@ -395,7 +399,114 @@ class WidgetQueryExecutorTest {
         assertThat(recording.dirtyCloses).isZero();
     }
 
+    // ── 읽기 전용 트랜잭션이 없는 DB — 전용 연결 없으면 실패 닫힘 ─────────────────
+
+    @Test
+    @DisplayName("SQL Server 는 전용 연결이 없으면 미리보기·저장 검사·실행을 모두 거절한다 — SQL 은 DB 에 닿지 않는다(갈래 판정만)")
+    void sqlServerWithoutDedicatedDataSourceFailsClosed() {
+        RecordingDataSource sqlServer = new RecordingDataSource(productAs("Microsoft SQL Server", dataSource));
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(sqlServer), clock);
+        def("def.count", "query-number", "SELECT COUNT(*) AS CNT FROM WIDGET_T");
+
+        assertThatThrownBy(() -> ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM WIDGET_T", 50))
+                .isInstanceOf(BusinessException.class).hasMessage(WidgetQueryExecutor.MSG_SQLSERVER_NEEDS_DEDICATED)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR));
+        assertMessage(() -> ex.validateSql("SELECT COUNT(*) AS CNT FROM WIDGET_T"), WidgetQueryExecutor.MSG_SQLSERVER_NEEDS_DEDICATED);
+        assertMessage(() -> ex.runDefinition("def.count", 500), WidgetQueryExecutor.MSG_SQLSERVER_NEEDS_DEDICATED);
+
+        assertThat(ex.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.SQLSERVER);
+        assertThat(sqlServer.connections).isEqualTo(1); // 갈래 판정 한 번뿐 — 실행 연결은 빌리지 않는다
+        assertThat(sqlServer.autoCommitOff).isZero();
+        assertThat(sqlServer.rollbacks).isZero();
+
+        // 어느 DB 에나 적용하는 검사에서 걸리는 SQL 은 갈래 판정 전에 그 문구로 거절된다
+        assertMessage(() -> ex.validateSql("UPDATE WIDGET_T SET NM = 'x'"), "SELECT 또는 WITH 로 시작하는 조회문만 쓸 수 있습니다");
+    }
+
+    @Test
+    @DisplayName("방언을 모르는 DB(H2)도 전용 연결이 없으면 거절한다 — 읽기 전용 트랜잭션을 걸 수 없는 갈래")
+    void unknownDialectWithoutDedicatedDataSourceFailsClosed() {
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(recording), clock);
+        assertMessage(() -> ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM WIDGET_T", 50), WidgetQueryExecutor.MSG_OTHER_NEEDS_DEDICATED);
+        assertMessage(() -> ex.validateSql("SELECT 1 AS A FROM WIDGET_T"), WidgetQueryExecutor.MSG_OTHER_NEEDS_DEDICATED);
+        assertThat(ex.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
+        assertThat(recording.rollbacks).isZero();
+    }
+
+    @Test
+    @DisplayName("SQL Server 전용 연결이면 실행하되, ; 없이 이어 쓴 SET·USE·WHILE·IF 같은 T-SQL 은 거절한다")
+    void sqlServerWithDedicatedDataSourceRunsButRejectsTsql() {
+        RecordingDataSource sqlServer = new RecordingDataSource(productAs("Microsoft SQL Server", dataSource));
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.dedicated(sqlServer, null), clock);
+
+        assertThat(ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM WIDGET_T", 50).rows().get(0).get("CNT")).isEqualTo(600L);
+        ex.validateSql("SELECT ID, \"SET\", [IF] FROM WIDGET_T"); // 같은 이름의 열은 감싸면 통과
+
+        String base = "SELECT COUNT(*) AS CNT FROM WIDGET_T ";
+        assertMessage(() -> ex.preview("mcm", base + "SET IMPLICIT_TRANSACTIONS OFF", 50), SqlGuard.forbiddenWord("SET"));
+        assertMessage(() -> ex.validateSql(base + "set language us_english"), SqlGuard.forbiddenWord("SET"));
+        assertMessage(() -> ex.validateSql(base + "SET ANSI_WARNINGS OFF"), SqlGuard.forbiddenWord("SET"));
+        assertMessage(() -> ex.validateSql(base + "USE master"), SqlGuard.forbiddenWord("USE"));
+        assertMessage(() -> ex.validateSql(base + "WHILE 1=1 BEGIN SELECT 1 END"), SqlGuard.forbiddenWord("WHILE"));
+        assertMessage(() -> ex.validateSql(base + "IF 1=1 SELECT 1"), SqlGuard.forbiddenWord("IF"));
+        def("def.tsql", "query-number", base + "SET IMPLICIT_TRANSACTIONS OFF");
+        assertMessage(() -> ex.runDefinition("def.tsql", 500), SqlGuard.forbiddenWord("SET"));
+        assertThat(sqlServer.commits).isZero();
+    }
+
+    @Test
+    @DisplayName("SET·IF 는 SQL Server 갈래에서만 막는다 — PostgreSQL 연결(전용 아님)은 같은 SQL 을 갈래 검사에서 거절하지 않는다")
+    void setAndIfAreSqlServerOnly() {
+        WidgetQueryExecutor pg = new WidgetQueryExecutor(defRepository, resolver,
+                WidgetQueryDataSource.shared(productAs("PostgreSQL", dataSource)), clock);
+        // 실제로는 H2 연결이라 실행 결과는 보지 않는다 — 저장 검사(갈래 판정·실패 닫힘·갈래별 검사)를 지나는지만 본다
+        pg.validateSql("SELECT SET(TAGS) AS S, IF(AMT > 0, 1, 0) AS F FROM WIDGET_T");
+        assertThat(pg.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.POSTGRESQL);
+    }
+
+    @Test
+    @DisplayName("DB 갈래를 판정하지 못하면(연결 실패) 실행·저장 검사를 거절한다 — DB 메시지는 보내지 않는다")
+    void failsClosedWhenDialectCannotBeResolved() {
+        DataSource down = new DelegatingDataSource(dataSource) {
+            @Override
+            public Connection getConnection() throws SQLException {
+                throw new SQLException("Connection refused: db-host:1433");
+            }
+        };
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.dedicated(down, null), clock);
+        assertMessage(() -> ex.validateSql("SELECT 1 AS A FROM WIDGET_T"), WidgetQueryExecutor.MSG_DB_UNAVAILABLE);
+        assertMessage(() -> ex.preview("mcm", "SELECT 1 AS A FROM WIDGET_T", 50), WidgetQueryExecutor.MSG_DB_UNAVAILABLE);
+    }
+
     // ── helpers ─────────────────────────────────────────────────────
+
+    /** 실제 연결(H2)로 실행하되 메타데이터의 제품 이름만 바꿔 다른 DB 갈래로 보이게 한다. */
+    private static DataSource productAs(String productName, DataSource target) {
+        return new DelegatingDataSource(target) {
+            @Override
+            public Connection getConnection() throws SQLException {
+                Connection real = super.getConnection();
+                return (Connection) Proxy.newProxyInstance(WidgetQueryExecutorTest.class.getClassLoader(), new Class<?>[] {Connection.class},
+                        (proxy, method, args) -> {
+                            if ("getMetaData".equals(method.getName())) {
+                                DatabaseMetaData md = real.getMetaData();
+                                return Proxy.newProxyInstance(WidgetQueryExecutorTest.class.getClassLoader(),
+                                        new Class<?>[] {DatabaseMetaData.class}, (p, m, a) -> "getDatabaseProductName".equals(m.getName())
+                                                ? productName : invokeOn(m, md, a));
+                            }
+                            return invokeOn(method, real, args);
+                        });
+            }
+        };
+    }
+
+    private static Object invokeOn(java.lang.reflect.Method method, Object target, Object[] args) throws Throwable {
+        try {
+            return method.invoke(target, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
+        }
+    }
 
     private WidgetDef def(String id, String typeId, String sql) {
         WidgetDef d = new WidgetDef();
