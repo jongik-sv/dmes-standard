@@ -126,6 +126,10 @@ function maruOptions() {
 
 /** 설정하면 이 카테고리의 dataCateEdit/view 응답을 이 약속이 풀릴 때까지 붙잡는다. */
 let holdCateView: { cateId: string; until: Promise<void> } | null = null;
+/** dataCateEdit/view 가 주는 TABLE 후보 — KRPUS 는 소속, KRINC 는 가능 쪽에 남는다. */
+const cateItems = [{ code: "KRPUS", name: "부산", lvl1: "KR" }, { code: "KRINC", name: "인천", lvl1: "KR" }];
+/** dataCateEdit/save 호출마다 받은 grids(소속 diff). */
+let saveGrids: unknown[] = [];
 /** true 면 compare 가 정규식 문법 오류(invalid)를 돌려준다 — 미완성 괄호 같은 경우. */
 let holdCompareInvalid = false;
 /** 설정하면 dataCateEdit/reg 를 이 문구로 거부한다(OASIS 거부 = HTTP 200 + meta.success=false). */
@@ -150,6 +154,13 @@ async function type(el: Element | null, value: string) {
   await flush();
 }
 
+/** 전송 목록 행의 체크박스 — 선택 여부를 본다. */
+function rowCheckbox(side: "available" | "member", code: string): HTMLInputElement {
+  const box = testId(`transfer-item-${side}-${code}`)?.querySelector<HTMLInputElement>('input[type="checkbox"]');
+  expect(box, `${side}-${code}`).toBeTruthy();
+  return box!;
+}
+
 function button(text: string): HTMLButtonElement | undefined {
   return Array.from(document.querySelectorAll("button")).find((b) => b.textContent?.trim() === text) as
     | HTMLButtonElement
@@ -162,6 +173,7 @@ describe("DataItemMngPage", () => {
     otherCalls = [];
     holdPortSearch = null;
     holdCateView = null;
+    saveGrids = [];
     holdCompareInvalid = false;
     rejectCateReg = null;
     withNewOption = false;
@@ -204,6 +216,7 @@ describe("DataItemMngPage", () => {
       if (other) {
         const params = (JSON.parse(String(init?.body ?? "{}")).params ?? {}) as Record<string, unknown>;
         otherCalls.push({ path: `${other[1]}/${other[2]}`, params });
+        if (other[2] === "save") saveGrids.push(JSON.parse(String(init?.body ?? "{}")).grids ?? null);
         if (other[1] === "dataHistory") {
           return ok({ target: params.target, key: params.key, state: "OPEN", rows: [] });
         }
@@ -211,7 +224,7 @@ describe("DataItemMngPage", () => {
         if (other[2] === "view") {
           if (holdCateView && holdCateView.cateId === params.cateId) await holdCateView.until;
           const cate = cateList.find((c) => c.cateId === params.cateId);
-          return ok({ cate, items: [{ code: "KRPUS", name: "부산", lvl1: "KR" }], memberCodes: ["KRPUS"] });
+          return ok({ cate, items: cateItems, memberCodes: ["KRPUS"] });
         }
         if (other[2] === "reg" && rejectCateReg) {
           return jsonResponse({ data: {}, meta: { success: false, message: rejectCateReg } });
@@ -547,14 +560,51 @@ describe("DataItemMngPage", () => {
     holdCateView = { cateId: "CN", until: new Promise<void>((resolve) => (release = resolve)) };
     await click(testId("cate-row-CN"));
     // KR 의 소속이 아직 보이지만 적용·이동은 막힌다 — 이 사이 [적용] 하면 KR 소속 diff 가 CN 에 저장된다.
-    expect(testId("transfer-member-KRPUS")).not.toBeNull();
+    expect(testId("transfer-item-member-KRPUS")).not.toBeNull();
     expect((testId("transfer-apply") as HTMLButtonElement).disabled).toBe(true);
+    // 이동도 잠긴다 — 가능 쪽 항목(KRINC)을 골라 둬도 > 는 꺼져 있고, 행을 눌러도 골라지지 않는다.
+    await click(testId("transfer-item-available-KRINC"));
+    expect(rowCheckbox("available", "KRINC").checked).toBe(false);
+    expect((testId("transfer-move-right") as HTMLButtonElement).disabled).toBe(true);
 
     await act(async () => {
       release();
     });
     await flush();
     expect((testId("transfer-apply") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("소속 이동은 화면 상태만 바꾸고, 서버 저장은 [적용] 을 눌렀을 때 diff 로 한 번 간다", async () => {
+    await render();
+    await click(testId("cate-row-KR"));
+    await click(testId("cate-edit-KR"));
+    expect(testId("transfer-list-panel")).not.toBeNull();
+    // 선택이 없으면 > 는 꺼져 있다.
+    expect((testId("transfer-move-right") as HTMLButtonElement).disabled).toBe(true);
+
+    await click(testId("transfer-item-available-KRINC"));
+    expect(rowCheckbox("available", "KRINC").checked).toBe(true);
+    expect((testId("transfer-move-right") as HTMLButtonElement).disabled).toBe(false);
+    await click(testId("transfer-move-right"));
+    // 이동 즉시 소속 쪽에 보이지만 서버(save)는 부르지 않는다.
+    expect(testId("transfer-item-member-KRINC")).not.toBeNull();
+    expect(testId("transfer-item-available-KRINC")).toBeNull();
+    expect(otherCalls.filter((c) => c.path === "dataCateEdit/save")).toHaveLength(0);
+
+    // 소속 KRPUS 를 빼도 마찬가지다.
+    await click(testId("transfer-item-member-KRPUS"));
+    await click(testId("transfer-move-left"));
+    expect(testId("transfer-item-available-KRPUS")).not.toBeNull();
+    expect(otherCalls.filter((c) => c.path === "dataCateEdit/save")).toHaveLength(0);
+
+    await click(testId("transfer-apply"));
+    const saves = otherCalls.filter((c) => c.path === "dataCateEdit/save");
+    expect(saves).toHaveLength(1);
+    expect(saves[0].params).toEqual({ maruDataId: "PORT", cateId: "KR" });
+    expect(saveGrids.at(-1)).toEqual({
+      addCodes: { rows: [{ code: "KRINC" }] },
+      removeCodes: { rows: [{ code: "KRPUS" }] },
+    });
   });
 
   // ── 리뷰 결함 수정 ──
