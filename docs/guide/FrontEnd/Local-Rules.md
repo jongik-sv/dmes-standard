@@ -360,12 +360,17 @@ ag-grid 33 은 열 정의를 다시 받으면 머리 그룹 칸 ctrl 을 새로 
 ruleMng 는 상세를 `useEffect([selectedId])` 로만 읽어, 같은 행을 다시 누르거나 [조회] 해도 상세를 다시 읽지 않았다. 그래서 다른 창에서 바뀐 상태(선점 해제·확정)가 보이지 않았다. 카테고리 추가 팝업(dmd dataItemMng)은 `onAdd` 의 결과와 상관없이 닫혀, 서버가 거부하면 입력이 사라졌다. mdm-user 여정 e2e 에서 찾았다.
 
 - 목록+상세 화면의 상세는 고르는 곳(행 클릭·첫 줄 자동 선택·등록 뒤·[조회])에서 **직접** 부른다. 같은 행이어도 다시 읽는다. 선택 상태 effect 에 맡기면 값이 같을 때 돌지 않는다.
+  - [조회] 때 고른 상세까지 다시 읽는 화면은 지금 ruleMng 뿐이다. dmc `codeMng`·dmd `dataMng` 의 [조회]는 목록만 다시 읽는다(후속).
+  - ruleMng 의 [조회] 결과에 고른 룰이 없으면 새 목록 첫 줄을 고르고, 목록이 비면 선택과 상세를 비운다. 쪽 넘기기는 선택을 그대로 둔다.
+  - 쓰기 뒤 다시 읽기는 누른 시점이 아니라 **지금 선택**(ref)을 본다. 쓰기를 기다리는 사이 다른 행을 골랐으면 옛 대상을 다시 읽지 않는다. 예: ruleMng `reload`.
 - 상세 응답은 요청 순번으로 가드한다. 순번이 지금 것과 다르면 성공·실패 모두 버리고, busy 도 지금 요청이 끝날 때만 푼다. 예: `m-mdm/pages/dme/ruleMng/page.tsx` 의 `detailSeq`, dmc `codeMng`.
 - 다시 읽어도 저장하지 않은 입력은 말없이 지우지 않는다. 같은 대상이고 입력이 이전 서버 값·새 서버 값과 모두 다르면 입력을 남기고, 저장에는 입력을 시작할 때의 낙관적 잠금 값을 보낸다. 입력을 버리는 길은 [다시 불러오기]·충돌 오류창 닫기처럼 사용자가 누르는 것만 둔다. 예: `RuleDetailPanel` 의 `formAuditVer`, dmc `codeMng`·dmd `dataMng` 의 `apply`(`serverForm`·`formAuditVer`, 충돌 뒤 다시 읽기는 `discard`).
+  - 서버는 저장할 때 값을 trim·정규화한다. 그래서 헤더 저장에 성공한 다시 읽기는 유지 판정을 거치지 않는다. 보낸 폼을 기억해 두고, 입력이 보낸 그대로면 서버 값·새 잠금 값으로 맞춘다. 저장하는 사이 또 고친 입력만 남긴다(`savedForm`·`sent`).
+  - 입력을 남기더라도 새 서버 헤더 값이 입력을 시작할 때의 값(`formBase`)과 칸마다 같으면, 다른 창이 고치지 않고 VER 만 오른 것이다. 이때는 잠금 값을 새 값으로 올린다. 헤더 칸이 바뀐 진짜 충돌만 옛 잠금 값으로 드러난다.
 - 상세를 서버에서 다시 읽지 않고 목록 행 값으로 채우는 화면은 같은 행을 다시 누를 때 폼을 다시 채우지 않는다. 목록을 새로 받을 때 선택도 비우므로 다시 채우면 입력만 사라진다. 예: dma `termMng`·`unitMng` 의 `handleRowClick`.
 - 다른 행으로 옮길 때 입력을 버리는 동작은 모든 화면이 같고 확인 창을 두지 않는다(2026-10-03 결정).
-- 팝업이 서버 등록을 부르면 `onAdd`·`onSubmit` 은 성공 여부(`boolean`)를 돌려주고, 팝업은 성공일 때만 칸을 비우고 닫는다. 로컬 diff 에만 얹는 팝업은 이미 있는 ID(서버 행·로컬 새 행)를 팝업 안에서 막고 서버와 같은 문구를 보인다(예: dmc `codeItemEdit` `CategoryAddModal` 의 `existingIds`). 팝업 컴포넌트가 닫혔을 때 `return null` 하려면 훅을 모두 부른 뒤에 하고, 다시 열 때 칸을 비우는 일은 열리는 렌더에서 상태를 맞춰 한다(`wasOpen`). 거부는 오류창으로 알리고 입력을 남긴다. 오류창이 떠 있는 동안 팝업 닫기를 무시하는 것은 §18 을 따른다. 예: `dmd/dataItemMng/cate/components/CategoryAddModal.tsx`, `useDataCategories.ts` 의 `write`.
-- 시험은 같은 행 다시 누르기·[조회]·늦게 온 옛 응답·미저장 입력, 그리고 등록 거부 뒤 오류창을 닫거나 Escape 를 눌러도 입력이 남는지를 본다. 예: `tests/dme/ruleMng/rule-mng-page.test.ts`, `tests/dmd/dataItemMng/data-item-page.test.ts`.
+- 팝업이 서버 등록을 부르면 `onAdd`·`onSubmit` 은 성공 여부(`boolean`)를 돌려주고, 팝업은 성공일 때만 칸을 비우고 닫는다. 로컬 diff 에만 얹는 팝업은 이미 있는 ID(서버 행·로컬 새 행)를 팝업 안에서 막고 서버와 같은 문구를 보인다(예: dmc `codeItemEdit` `CategoryAddModal` 의 `existingIds`). 닫기 표시한 행의 ID 도 막는다. 서버는 같은 저장에서 닫기를 먼저 적용하므로 받아들일 수 있지만, 로컬 행은 ID 를 키로 쓰기 때문이다. 대신 그 행의 [취소]로 닫기를 풀어 쓰라고 안내한다(`closedIds`). 팝업 컴포넌트가 닫혔을 때 `return null` 하려면 훅을 모두 부른 뒤에 하고, 다시 열 때 칸을 비우는 일은 열리는 렌더에서 상태를 맞춰 한다(`wasOpen`). 거부는 오류창으로 알리고 입력을 남긴다. 오류창이 떠 있는 동안 팝업 닫기를 무시하는 것은 §18 을 따른다. 예: `dmd/dataItemMng/cate/components/CategoryAddModal.tsx`, `useDataCategories.ts` 의 `write`.
+- 시험은 같은 행 다시 누르기·[조회]·늦게 온 옛 응답·미저장 입력·끝 공백 저장 뒤 trim 응답·VER 만 오른 다시 읽기·쓰기 중 다른 행 클릭, 그리고 등록 거부 뒤 오류창을 닫거나 Escape 를 눌러도 입력이 남는지를 본다. 성공 토스트는 Mantine 전역 저장소(limit 3)에 쌓여 뒤 시험의 알림을 밀어내므로, 시험 뒤 `tests/helpers/toasts.ts` 의 `clearToasts` 로 비운다. 예: `tests/dme/ruleMng/rule-mng-page.test.ts`, `tests/dmd/dataItemMng/data-item-page.test.ts`.
 
 ## 33. React Flow 화면 맞춤 — `rf.fitView` 는 다음 노드 갱신까지 미뤄진다 (2026-10-03)
 
