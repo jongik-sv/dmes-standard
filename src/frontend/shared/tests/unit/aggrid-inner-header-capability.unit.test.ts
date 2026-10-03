@@ -56,6 +56,16 @@ async function render(columnDefs: ColDef[], rowData: unknown[] = [{ a: 2 }, { a:
   }
 }
 
+/** 조건이 참이 될 때까지(최대 1초) 기다린다 — 부하가 걸리면 ag-grid React 의 사용자 컴포넌트 마운트가 고정 대기보다 늦을 수 있다. */
+async function until(pred: () => boolean, ms = 1000) {
+  const end = Date.now() + ms;
+  while (!pred() && Date.now() < end) {
+    await act(async () => {
+      await settle(20);
+    });
+  }
+}
+
 const cell = (colId: string) =>
   container.querySelector<HTMLElement>(`.ag-header-cell[col-id="${colId}"]`)!;
 const inner = (colId: string) => cell(colId)?.querySelector<HTMLElement>(".probe-inner") ?? null;
@@ -102,15 +112,11 @@ describe("ag-grid innerHeaderComponent 가능성(0단계)", () => {
     ]);
     expect(inner("a"), "colDef 갱신만으로는 생기지 않는다").toBeNull();
     await act(async () => api!.refreshHeader());
-    await act(async () => {
-      await settle(40);
-    });
+    await until(() => inner("a") != null);
     expect(inner("a")?.textContent).toBe("에이");
     await render([{ field: "a", headerName: "에이" }]);
     await act(async () => api!.refreshHeader());
-    await act(async () => {
-      await settle(40);
-    });
+    await until(() => inner("a") == null);
     expect(inner("a")).toBeNull();
     expect(cell("a").querySelector(".ag-header-cell-text")?.textContent).toBe("에이");
   });
