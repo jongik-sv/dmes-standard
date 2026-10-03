@@ -45,8 +45,7 @@ final class FunctionDictionaries {
      */
     static FunctionDictionaryIfc engine(EngineLookups lookups) {
         Map<String, FunctionIfc> functions = baseFunctions();
-        MasterQuery query = new MasterQuery(lookups.codes(),
-                new DefaultCodeResolver(lookups.codes(), lookups.codeEff()), lookups.masters());
+        MasterQuery query = new MasterQuery(new DefaultCodeResolver(lookups.codes(), lookups.codeEff()), lookups.masters());
         functions.put("INSTR", new InstrFunction());
         functions.put("MASTER", new MasterFunction(query));
         functions.put("MASTER_AT", new MasterAtFunction(query));

@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
@@ -32,6 +33,7 @@ public final class InMemoryLookups {
     private final List<BusinessFunction> functions = new ArrayList<>();
     private CodeEffLookup codeEff = CodeEffLookup.NONE;
     private MasterLookup masters = MasterLookup.NONE;
+    private UnaryOperator<CodeLookup> codeWrapper = UnaryOperator.identity();
 
     private InMemoryLookups() {}
 
@@ -46,6 +48,12 @@ public final class InMemoryLookups {
 
     public InMemoryLookups codeEff(CodeEffLookup lookup) {
         this.codeEff = lookup;
+        return this;
+    }
+
+    /** 만든 {@link CodeLookup} 을 감싼다(호출 수 세기 등). */
+    public InMemoryLookups wrapCodes(UnaryOperator<CodeLookup> wrapper) {
+        this.codeWrapper = wrapper;
         return this;
     }
 
@@ -68,7 +76,8 @@ public final class InMemoryLookups {
         Map<String, CodeRows> codeCopy = Map.copyOf(codes);
         Map<String, ColumnDefinition> columnCopy = Map.copyOf(columns);
         List<BusinessFunction> functionCopy = List.copyOf(functions);
-        return new EngineLookups(definitions(columnCopy), id -> Optional.ofNullable(codeCopy.get(id)), codeEff, masters,
+        CodeLookup codeLookup = id -> Optional.ofNullable(codeCopy.get(id));
+        return new EngineLookups(definitions(columnCopy), codeWrapper.apply(codeLookup), codeEff, masters,
                 () -> functionCopy);
     }
 

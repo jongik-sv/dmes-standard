@@ -7,12 +7,11 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import kr.dongkuk.maru.mdm.engine.code.CodeResolver;
-import kr.dongkuk.maru.mdm.engine.spi.CodeLookup;
 import kr.dongkuk.maru.mdm.engine.spi.MasterLookup;
 
 /**
  * {@code MASTER}·{@code MASTER_AT} 이 공유하는 조회 코드 하나(06:444, 05:363-400, engine-contract §7).
- * 첫 인자 ID 가 {@link CodeLookup#code} 에 있으면 마루 코드 대상({@link CodeResolver}), 없으면 마루 데이터 대상
+ * 첫 인자 ID 가 마루 코드 목차에 있으면 마루 코드 대상({@link CodeResolver#match}), 없으면 마루 데이터 대상
  * ({@link MasterLookup})이다. 두 원장은 한 이름 공간이다(05:409).
  */
 final class MasterQuery {
@@ -20,12 +19,10 @@ final class MasterQuery {
     private static final String BASE = "BASE";
     private static final Pattern ATTR = Pattern.compile("attr(0[1-9]|10)");
 
-    private final CodeLookup codes;
     private final CodeResolver resolver;
     private final MasterLookup masters;
 
-    MasterQuery(CodeLookup codes, CodeResolver resolver, MasterLookup masters) {
-        this.codes = codes;
+    MasterQuery(CodeResolver resolver, MasterLookup masters) {
         this.resolver = resolver;
         this.masters = masters;
     }
@@ -46,14 +43,15 @@ final class MasterQuery {
         if (keyText == null || baseDt == null) {
             return attrNo == null ? EvaluationValue.booleanValue(false) : EvaluationValue.NULL_VALUE;
         }
-        boolean isCode = codes.code(maruId).isPresent();
+        // 목차를 한 번만 읽어 마루 코드인지 가리고 소속·속성까지 함께 받는다. 마루 코드가 아니면 마루 데이터로 넘긴다.
+        Optional<CodeResolver.CodeMatch> hit = resolver.match(maruId, cateId, keyText, baseDt, attrNo);
         if (attrNo == null) {
-            return EvaluationValue.booleanValue(isCode
-                    ? resolver.isMember(maruId, cateId, keyText, baseDt)
+            return EvaluationValue.booleanValue(hit.isPresent()
+                    ? hit.get().member()
                     : masters.isValid(maruId, cateId, keyText, baseDt));
         }
-        Optional<String> value = isCode
-                ? resolver.attr(maruId, cateId, keyText, baseDt, attrNo)
+        Optional<String> value = hit.isPresent()
+                ? Optional.ofNullable(hit.get().attr())
                 : masters.attr(maruId, cateId, keyText, baseDt, attrNo);
         return value.map(EvaluationValue::stringValue).orElse(EvaluationValue.NULL_VALUE);
     }
