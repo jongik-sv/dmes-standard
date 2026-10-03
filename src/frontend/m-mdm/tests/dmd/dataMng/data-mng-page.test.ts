@@ -475,6 +475,23 @@ describe("DataMngPage(dataEdit 통합)", () => {
     expect(actions("dataEdit", "save")[0].params).toMatchObject({ maruDataName: "새 이름", auditVer: 1 });
   });
 
+  // 검토 I1 — 서버는 저장 때 값을 trim 한다. 끝 공백을 남긴 채 저장에 성공하면 응답 값이 보낸 값과 달라도
+  // 고친 입력으로 보지 않고 서버 값·새 auditVer 로 맞춰야 한다(아니면 다음 저장이 옛 auditVer 로 거짓 충돌).
+  it("끝 공백을 넣어 헤더 저장에 성공하면 서버가 trim 한 값과 새 auditVer 로 맞추고, 다음 저장은 새 auditVer 를 보낸다", async () => {
+    await render({ snapshot: { maruDataId: "PORT" } });
+    await search();
+    await typeInto("data-edit-name", "새 이름 ");
+    saveResponse = { meta: { success: true }, data: { result: viewResult({ maruDataName: "새 이름", auditVer: 1 }) } };
+    nextView = (id) => viewResult({ maruDataId: id, maruDataName: "새 이름", auditVer: 1 });
+    await click(byTestId("data-edit-save"));
+    await flush();
+    expect(actions("dataEdit", "save")[0].params).toMatchObject({ maruDataName: "새 이름 ", auditVer: 0 });
+    expect(nameValue()).toBe("새 이름");
+    await typeInto("data-edit-name", "또 이름");
+    await click(byTestId("data-edit-save"));
+    expect(actions("dataEdit", "save")[1].params).toMatchObject({ maruDataName: "또 이름", auditVer: 1 });
+  });
+
   it("다른 데이터로 옮길 때는 응답이 폼을 새 값으로 바꾼다(이전 입력 폐기)", async () => {
     await render({ snapshot: { maruDataId: "PORT" } });
     await search();

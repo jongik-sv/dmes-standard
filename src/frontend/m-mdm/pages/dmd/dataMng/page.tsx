@@ -175,13 +175,15 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
   }, []);
 
   // 같은 데이터를 다시 읽었는데 사용자가 고친 칸이 있으면(이전 서버 값과도 새 서버 값과도 다르면) 보이는 상세(항목 수·카테고리)만
-  // 새 값으로 바꾸고 폼과 그 폼이 기대는 auditVer 는 그대로 둔다. 헤더 저장 성공 뒤에는 폼이 새 서버 값과 같아 새 값으로 맞춰진다.
-  // discard 면(충돌 뒤 다시 불러오기) 입력을 버린다.
-  const apply = useCallback((next: DataEditView, discard = false) => {
+  // 새 값으로 바꾸고 폼과 그 폼이 기대는 auditVer 는 그대로 둔다. discard 면(충돌 뒤 다시 불러오기) 입력을 버린다.
+  // sent 는 헤더 저장에 성공했을 때 보낸 폼이다 — 입력이 보낸 그대로면 서버가 trim 해 돌려준 값이 달라 보여도 고친 입력이
+  // 아니므로 서버 값·새 auditVer 로 맞춘다(검토 I1). 저장하는 사이 또 고쳤으면 위 규칙대로 남긴다.
+  const apply = useCallback((next: DataEditView, discard = false, sent?: HeaderForm) => {
     const nextForm = headerFormOf(next);
     const cur = formRef.current;
     const base = serverForm.current;
     const keepForm = !discard && shownId.current === next.maruDataId && !!cur && !!base
+      && !(sent && sameHeaderForm(cur, sent))
       && !sameHeaderForm(cur, base) && !sameHeaderForm(cur, nextForm);
     shownId.current = next.maruDataId;
     serverForm.current = nextForm;
@@ -259,13 +261,13 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
   // 상세를 바꾸는 액션(저장·폐기) 뒤에는 목록의 이름·상태도 다시 조회한다. 응답이 올 때 이미 다른 데이터를 골랐으면
   // (handoff) 그 view 는 버린다 — 쓰기 자체는 끝났으므로 토스트·목록 재조회는 한다.
   const run = useCallback(
-    async (task: () => Promise<DataEditView>, done?: string) => {
+    async (task: () => Promise<DataEditView>, done?: string, sent?: HeaderForm) => {
       const seq = ++detailSeq.current;
       writing.current += 1;
       begin();
       try {
         const next = await task();
-        if (seq === detailSeq.current) apply(next);
+        if (seq === detailSeq.current) apply(next, false, sent);
         if (done) showMessage({ message: done, toast: true });
         void reloadList();
       } catch (e) {
@@ -292,7 +294,7 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
       setError({ message: "이름·키 패턴을 입력하세요.", reload: false });
       return;
     }
-    void run(() => saveHeader(view.maruDataId, formAuditVer, form), "저장했습니다");
+    void run(() => saveHeader(view.maruDataId, formAuditVer, form), "저장했습니다", form);
   }, [view, form, formAuditVer, run]);
 
   const handleDeprecate = useCallback(() => {

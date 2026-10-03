@@ -20,7 +20,8 @@
  * <p>같은 룰을 다시 읽어도(행 다시 누르기·[조회]·버전 쓰기 뒤) 저장하지 않은 헤더 입력은 말없이 지우지 않는다(2026-10-03).
  * 입력은 남기고 저장에는 입력을 시작할 때의 auditVer 를 보낸다 — 그사이 다른 창에서 헤더가 바뀌었으면 서버가 MDM001 로
  * 거부해 위 [다시 불러오기] 로 이어진다(버전 쓰기는 룰 헤더 VER 을 올리지 않아 자기 쓰기로 거짓 충돌이 나지 않는다).
- * 입력을 버리는 길은 [다시 불러오기] 하나다.
+ * 입력을 버리는 길은 [다시 불러오기] 하나다. 헤더 저장에 성공한 뒤에는 입력이 보낸 그대로면 서버 값(trim 된 값)·새 auditVer 로
+ * 맞춘다(검토 I1).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -127,14 +128,20 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
   const formRef = useRef(form);
   formRef.current = form;
   const shown = useRef({ id, initial });
+  // 헤더 저장에 성공했을 때 보낸 폼 — 다음 다시 읽기에서 한 번 쓰고 비운다.
+  const savedForm = useRef<HeaderForm | null>(null);
   useEffect(() => {
     const prev = shown.current;
     shown.current = { id, initial };
+    const saved = savedForm.current;
+    savedForm.current = null;
     setConfirmDeprecate(false);
-    // 같은 룰을 다시 읽었는데 사용자가 고친 칸이 있으면(이전 서버 값과도 새 서버 값과도 다르면) 입력을 남긴다.
-    // 헤더 저장 성공 뒤에는 입력이 새 서버 값과 같아 그대로 새 값·새 auditVer 로 맞춰진다.
     const cur = formRef.current;
-    if (prev.id === id && !sameForm(cur, prev.initial) && !sameForm(cur, initial)) return;
+    // 헤더 저장에 성공한 뒤 입력이 보낸 그대로면 서버 값·새 auditVer 로 맞춘다 — 서버가 값을 trim 해 돌려주면 입력이
+    // 새 서버 값과 달라 보여도 고친 입력이 아니다(검토 I1). 저장하는 사이 또 고쳤으면 아래 규칙대로 남긴다.
+    const savedAsIs = prev.id === id && !!saved && sameForm(cur, saved);
+    // 같은 룰을 다시 읽었는데 사용자가 고친 칸이 있으면(이전 서버 값과도 새 서버 값과도 다르면) 입력을 남긴다.
+    if (!savedAsIs && prev.id === id && !sameForm(cur, prev.initial) && !sameForm(cur, initial)) return;
     setForm(initial);
     setFormAuditVer(header.auditVer);
   }, [id, initial, header.auditVer]);
@@ -198,9 +205,10 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
 
   /** 쓰기 한 번 — 성공하면 상세 를 다시 불러 row_version·auditVer 을 맞춘다. 실패는 다시 불러오지 않는다(입력이 남는다). */
   const runWrite = useCallback(
-    async (fn: () => Promise<unknown>) => {
+    async (fn: () => Promise<unknown>, sentForm?: HeaderForm) => {
       try {
         await fn();
+        if (sentForm) savedForm.current = sentForm;
         await reload();
       } catch (e) {
         const f = writeFailure(e);
@@ -317,7 +325,7 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
             variant="primary"
             data-testid="rule-header-save"
             disabled={!canSaveHeader || !changed}
-            onClick={() => void runWrite(() => saveHeader(id, form, formAuditVer))}
+            onClick={() => void runWrite(() => saveHeader(id, form, formAuditVer), form)}
           >
             헤더 저장
           </Button>

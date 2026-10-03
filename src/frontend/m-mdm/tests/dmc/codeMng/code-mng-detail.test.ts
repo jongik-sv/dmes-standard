@@ -240,6 +240,24 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     expect(actions("save")[0].params).toMatchObject({ maruCodeName: "새 이름", auditVer: 1 });
   });
 
+  // 검토 I1 — 서버는 저장 때 값을 trim 한다. 끝 공백을 남긴 채 저장에 성공하면 응답 값이 보낸 값과 달라도
+  // 고친 입력으로 보지 않고 서버 값·새 auditVer 로 맞춰야 한다(아니면 다음 저장이 옛 auditVer 로 거짓 충돌).
+  it("끝 공백을 넣어 헤더 저장에 성공하면 서버가 trim 한 값과 새 auditVer 로 맞추고, 다음 저장은 새 auditVer 를 보낸다", async () => {
+    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await search();
+    await typeInto("header-name", "새 이름 ");
+    const trimmed = viewResult({ header: { ...viewResult().header, maruCodeName: "새 이름", auditVer: 1 } });
+    saveResponse = { meta: { success: true }, data: { result: trimmed } };
+    nextView = () => trimmed;
+    await click(byTestId("header-save"));
+    await flush();
+    expect(actions("save")[0].params).toMatchObject({ maruCodeName: "새 이름 ", auditVer: 0 });
+    expect((byTestId("header-name") as HTMLInputElement).value).toBe("새 이름");
+    await typeInto("header-name", "또 이름");
+    await click(byTestId("header-save"));
+    expect(actions("save")[1].params).toMatchObject({ maruCodeName: "또 이름", auditVer: 1 });
+  });
+
   it("코드를 고르기 전에는 안내만 보인다", async () => {
     await render();
     // 첫 진입은 목록을 자동 조회하지 않는다 — [조회] 를 눌러야 불러온다(cf4fbb05).

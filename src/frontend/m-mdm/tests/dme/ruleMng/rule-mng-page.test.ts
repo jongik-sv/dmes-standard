@@ -285,6 +285,23 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     expect(params("save")).toMatchObject({ maruRuleName: "고치는 중", auditVer: 4 });
   });
 
+  // 검토 I1 — 서버는 저장 때 값을 trim 한다. 끝 공백을 남긴 채 저장에 성공하면 다시 읽은 값이 보낸 값과 달라도
+  // 고친 입력으로 보지 않고 서버 값·새 auditVer 로 맞춰야 한다(아니면 다음 저장이 옛 auditVer 로 거짓 충돌).
+  it("끝 공백을 넣어 헤더 저장에 성공하면 서버가 trim 한 값과 새 auditVer 로 맞추고, 다음 저장은 새 auditVer 를 보낸다", async () => {
+    await renderAndSearch();
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "새 이름 ");
+    view = draftDetail({ header: { ...draftDetail().header, maruRuleName: "새 이름", auditVer: 5 } });
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    await flush();
+    expect(params("save")).toMatchObject({ maruRuleName: "새 이름 ", auditVer: 4 });
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("새 이름");
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "또 이름");
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    expect(params("save")).toMatchObject({ maruRuleName: "또 이름", auditVer: 5 });
+  });
+
   it("고친 칸이 없으면 다시 읽은 서버 값과 auditVer 로 바뀐다", async () => {
     await renderAndSearch();
     view = draftDetail({ header: { ...draftDetail().header, maruRuleName: "다른 창 이름", auditVer: 5 } });

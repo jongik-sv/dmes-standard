@@ -206,13 +206,15 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
   // 상세 view 를 화면 상태로 반영. ver 를 주면(목록 선택·handoff) 그 버전을 고르고, 안 주면(액션 뒤 새로고침) 이전 선택을
   // 버전이 아직 있으면 유지한다.
   // 같은 코드를 다시 읽었는데 사용자가 고친 칸이 있으면(이전 서버 값과도 새 서버 값과도 다르면) 서버 값(버전 목록 등)만
-  // 새로 바꾸고 헤더·라벨 폼과 그 폼이 기대는 auditVer 는 그대로 둔다. 헤더 저장 성공 뒤에는 폼이 새 서버 값과 같아 새 값으로
-  // 맞춰진다. discard 면(MDM001 뒤 다시 불러오기) 입력을 버린다.
-  const apply = useCallback((next: CodeEditView, ver?: string | null, discard = false) => {
+  // 새로 바꾸고 헤더·라벨 폼과 그 폼이 기대는 auditVer 는 그대로 둔다. discard 면(MDM001 뒤 다시 불러오기) 입력을 버린다.
+  // sent 는 헤더 저장에 성공했을 때 보낸 폼이다 — 입력이 보낸 그대로면 서버가 trim 해 돌려준 값이 달라 보여도 고친 입력이
+  // 아니므로 서버 값·새 auditVer 로 맞춘다(검토 I1). 저장하는 사이 또 고쳤으면 위 규칙대로 남긴다.
+  const apply = useCallback((next: CodeEditView, ver?: string | null, discard = false, sent?: HeaderForm) => {
     const nextForm = headerFormOf(next.header);
     const cur = formRef.current;
     const base = serverForm.current;
     const keepForm = !discard && shownId.current === next.header.maruCodeId && !!cur && !!base
+      && !(sent && sameHeaderForm(cur, sent))
       && !sameHeaderForm(cur, base) && !sameHeaderForm(cur, nextForm);
     shownId.current = next.header.maruCodeId;
     serverForm.current = nextForm;
@@ -293,13 +295,13 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
   // 상세를 바꾸는 액션(저장·폐기·새 버전·DRAFT 삭제·선점·해제·넘기기) 뒤에는 목록의 상태·현재·미적용 칸도 다시 조회한다.
   // 응답이 올 때 이미 다른 코드를 골랐으면(handoff) 그 view 는 버린다 — 쓰기 자체는 끝났으므로 토스트·목록 재조회는 한다.
   const run = useCallback(
-    async (task: () => Promise<CodeEditView>, done?: string) => {
+    async (task: () => Promise<CodeEditView>, done?: string, sent?: HeaderForm) => {
       const seq = ++detailSeq.current;
       writing.current += 1;
       begin();
       try {
         const next = await task();
-        if (seq === detailSeq.current) apply(next);
+        if (seq === detailSeq.current) apply(next, undefined, false, sent);
         if (done) showMessage({ message: done, toast: true });
         void reloadList();
       } catch (e) {
@@ -320,7 +322,7 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
 
   const handleSaveHeader = useCallback(() => {
     if (!header || !form) return;
-    void run(() => saveHeader(header.maruCodeId, formAuditVer, form), "저장했습니다");
+    void run(() => saveHeader(header.maruCodeId, formAuditVer, form), "저장했습니다", form);
   }, [header, form, formAuditVer, run]);
 
   const handleDeprecate = useCallback(() => {
