@@ -170,6 +170,14 @@ class MdmAutoConfigurationTest {
     }
 
     @Test
+    void old_version_max_idle_기본은_10분이고_설정이_캐시에_닿는다() {
+        runner.withPropertyValues(ON).run(ctx ->
+                assertThat(ctx.getBean(MdmMetaCache.class).oldVersionMaxIdle()).isEqualTo(Duration.ofMinutes(10)));
+        runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.old-version-max-idle=3m").run(ctx ->
+                assertThat(ctx.getBean(MdmMetaCache.class).oldVersionMaxIdle()).isEqualTo(Duration.ofMinutes(3)));
+    }
+
+    @Test
     void system_code_기본은_없고_설정하면_속성에_닿는다() {
         runner.withPropertyValues(ON).run(ctx -> assertThat(ctx.getBean(MdmClientProperties.class).getSystemCode()).isNull());
         runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.system-code=MES")

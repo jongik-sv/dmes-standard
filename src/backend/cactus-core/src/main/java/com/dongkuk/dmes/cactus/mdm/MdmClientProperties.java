@@ -29,6 +29,8 @@ public class MdmClientProperties {
     private Duration maxAge = Duration.ofHours(24);
     /** 유휴 수명 — 마지막 조회 뒤 이 시간 동안 다시 조회되지 않으면 만료. 조회될 때마다 연장된다. */
     private Duration maxIdle = Duration.ofMinutes(60);
+    /** 옛 버전·예약 버전 본문의 유휴 수명(D-154 결정 P6·P9). 목차·최종 본문은 {@code max-idle}. */
+    private Duration oldVersionMaxIdle = Duration.ofMinutes(10);
     private Duration connectTimeout = Duration.ofSeconds(2);
     private Duration readTimeout = Duration.ofSeconds(5);
     /** 한 번 폴링에서 받는 변경 수 상한. 넘으면(truncated) 캐시를 비운다(§5.3-3). */
@@ -63,6 +65,7 @@ public class MdmClientProperties {
     public int getMaxEntries() { return maxEntries; }
     public Duration getMaxAge() { return maxAge; }
     public Duration getMaxIdle() { return maxIdle; }
+    public Duration getOldVersionMaxIdle() { return oldVersionMaxIdle; }
     public Duration getConnectTimeout() { return connectTimeout; }
     public Duration getReadTimeout() { return readTimeout; }
     public int getPageLimit() { return pageLimit; }
@@ -77,6 +80,7 @@ public class MdmClientProperties {
     public void setMaxEntries(int v) { this.maxEntries = v; }
     public void setMaxAge(Duration v) { this.maxAge = v; }
     public void setMaxIdle(Duration v) { this.maxIdle = v; }
+    public void setOldVersionMaxIdle(Duration v) { this.oldVersionMaxIdle = v; }
     public void setConnectTimeout(Duration v) { this.connectTimeout = v; }
     public void setReadTimeout(Duration v) { this.readTimeout = v; }
     public void setPageLimit(int v) { this.pageLimit = v; }
