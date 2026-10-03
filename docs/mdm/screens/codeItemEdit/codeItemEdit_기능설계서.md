@@ -166,7 +166,7 @@ moduleGroup: dmc
 | 탭 | 내용 | 근거 |
 |---|---|---|
 | [코드]·[트리] (`code-preview`) | 카테고리 선택(`code-preview-cate`), 콤보(계층 단계 Select, 시뮬레이터 `combo()` 규칙)·목록·근거 모드, `CODE_LIST(...)` 제목, 경고. 저장된 정의 기준이다(codeItemEdit `compare`) | §6.8, D11 |
-| [카테고리] (`cate-preview`) | 고른 카테고리가 REGEX 면 후보 defExpr·defTarget 의 서버 재해석(codeCateEdit `compare`) — 해당 건수(`cate-preview-summary`), 정규식 오류(`cate-preview-invalid`), 행 목록(코드·이름·대상 값·해당). TABLE 이면 `TABLE 카테고리는 소속 목록이 곧 결과입니다` 안내 | 06-04 §1, 04:183 |
+| [카테고리] (`cate-preview`) | 고른 카테고리가 REGEX 면 후보 defExpr·defTarget 의 서버 재해석(codeCateEdit `compare`) — 해당 건수(`cate-preview-summary`), 정규식 오류(`cate-preview-invalid`), 행 목록(코드·이름·대상 값·해당). TABLE 이면 `TABLE 카테고리는 소속 목록이 곧 결과입니다` 안내. 별도 미리보기 영역은 ade3851f 로 없어졌고, 정규식 오류 안내(`cate-preview-invalid`, `정규식 문법 오류로 해석하지 못했습니다`)만 카테고리 탭 소속 목록 제목 옆에 남는다 | 06-04 §1, 04:183 |
 
 ## 5. 버튼 및 기능 동작 정의
 

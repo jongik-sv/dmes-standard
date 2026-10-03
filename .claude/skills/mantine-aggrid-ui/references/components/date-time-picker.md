@@ -81,6 +81,7 @@ if (normalized === null) {
 - 값 형식은 항상 `yyyy-MM-dd HH:mm:ss` 다(초 필수, 24시간제).
 - 날짜만 다루는 필드는 DatePicker 를 쓰고 이 컴포넌트에 `00:00:00` 을 붙여 쓰지 않는다.
 - `size`·`radius`·색 prop 을 주지 않는다.
+- 칸 높이는 화면 표준 `xs`(26px)로 고정돼 있어 `TextInput` 등 옆 칸과 같은 높이로 맞는다.
 
 ## 흔한 실수
 
