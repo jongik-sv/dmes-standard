@@ -193,7 +193,6 @@ public class MdmValidator {
                         Set<String> missing) {
     }
 
-    @SuppressWarnings("unchecked")
     private Plan prefetch(MdmValidationRequest request, Instant ts) {
         Map<String, String> columns = new LinkedHashMap<>();
         Set<String> physSeen = new LinkedHashSet<>();
@@ -228,10 +227,10 @@ public class MdmValidator {
             });
         }
 
-        // 룰 세트와 그 룰
+        // 룰 세트와 그 룰 — 판정 시각 ts 의 버전(목차로 고른다, D-154 스펙 §7.2)
         Set<String> setIds = new LinkedHashSet<>(request.ruleSets());
         if (!setIds.isEmpty()) {
-            MdmMetaService.MdmLookup sets = service.lookup(MdmTargetType.RULE_SET, setIds);
+            MdmMetaService.MdmAtLookup sets = service.lookupAt(MdmTargetType.RULE_SET, setIds, ts);
             for (String setId : sets.missing()) {
                 skipMissing(item(MdmTargetType.RULE_SET, setId), skipped, missing);
             }
@@ -239,31 +238,32 @@ public class MdmValidator {
                 skip(item(MdmTargetType.RULE_SET, setId), item(MdmTargetType.RULE_SET, setId), skipped, unavailable);
             }
             Map<String, Set<String>> rulesBySet = new LinkedHashMap<>();
-            sets.found().forEach((setId, v) -> MdmDefinitionLookup.selectSet((List<RuleSetDefinition>) v, ts).ifPresent(set -> {
-                rulesBySet.put(setId, MdmExprRefs.ruleIds(set));
-                codesByItem.put(item(MdmTargetType.RULE_SET, setId), new LinkedHashSet<>(refs.flowCodes(set)));
-            })); // 판정 시각에 적용되는 버전이 없으면 엔진이 SET_NOT_FOUND 로 행 오류를 낸다
+            sets.found().forEach((setId, at) -> {
+                if (at.body() instanceof RuleSetDefinition set) { // 적용 버전이 없으면 엔진이 SET_NOT_FOUND 로 행 오류를 낸다
+                    rulesBySet.put(setId, MdmExprRefs.ruleIds(set));
+                    codesByItem.put(item(MdmTargetType.RULE_SET, setId), new LinkedHashSet<>(refs.flowCodes(set)));
+                }
+            });
             Set<String> ruleIds = new LinkedHashSet<>();
             rulesBySet.values().forEach(ruleIds::addAll);
             if (!ruleIds.isEmpty()) {
-                MdmMetaService.MdmLookup ruleDefs = service.lookup(MdmTargetType.RULE, ruleIds);
+                MdmMetaService.MdmAtLookup ruleDefs = service.lookupAt(MdmTargetType.RULE, ruleIds, ts);
                 rulesBySet.forEach((setId, ids) -> {
                     String setItem = item(MdmTargetType.RULE_SET, setId);
                     for (String ruleId : ids) {
                         if (ruleDefs.unavailable().contains(ruleId)) {
                             skip(setItem, item(MdmTargetType.RULE, ruleId), skipped, unavailable);
                         }
-                        Object def = ruleDefs.found().get(ruleId); // MDM 에 없는 룰은 엔진이 RULE_NOT_FOUND 로 행 오류를 낸다
-                        if (def != null) {
-                            MdmDefinitionLookup.select((List<RuleDefinition>) def, ts)
-                                    .ifPresent(rule -> codesByItem.get(setItem).addAll(refs.ruleCodes(rule)));
+                        MdmMetaService.MdmAt at = ruleDefs.found().get(ruleId); // MDM 에 없는 룰은 엔진이 RULE_NOT_FOUND 로 행 오류를 낸다
+                        if (at != null && at.body() instanceof RuleDefinition rule) {
+                            codesByItem.get(setItem).addAll(refs.ruleCodes(rule));
                         }
                     }
                 });
             }
         }
 
-        // 식이 참조하는 마루 코드
+        // 식이 참조하는 마루 코드 — 목차 + 판정 시각 본문
         Set<String> codeIds = new LinkedHashSet<>();
         codesByItem.forEach((itemKey, ids) -> {
             if (!skipped.contains(itemKey)) {
@@ -271,7 +271,7 @@ public class MdmValidator {
             }
         });
         if (!codeIds.isEmpty()) {
-            MdmMetaService.MdmLookup codes = service.lookup(MdmTargetType.CODE, codeIds);
+            MdmMetaService.MdmAtLookup codes = service.lookupAt(MdmTargetType.CODE, codeIds, ts);
             codesByItem.forEach((itemKey, ids) -> {
                 for (String id : ids) {
                     if (codes.unavailable().contains(id)) {
