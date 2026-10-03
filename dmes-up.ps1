@@ -14,17 +14,18 @@ Steps:
   2. seed gradle-wrapper.jar where missing (.gitignore excludes *.jar, so a
      fresh clone has none: "Unable to access jarfile")
   3. free the dev ports
-  4. serial gradle warm-up when needed - otherwise the six modules build the
-     shared included builds (oasis / cactus-core / mcm-core) concurrently and
-     delete each other's build\classes
-  5. run backend + frontend (foreground, or detached with -Detach)
+  4. run backend + frontend (foreground, or detached with -Detach)
+     be-run.ps1 first prebuilds the selected modules with ONE Gradle run from
+     the src\backend composite, so the modules no longer build the shared
+     included builds (cactus-core / mcm-core / ...) concurrently and delete
+     each other's build\classes. This replaces the old serial warm-up here.
 
 Usage:
   .\dmes-up.cmd            # normal - Ctrl+C in this window stops everything
   .\dmes-up.cmd -Detach    # background; stop with .\dmes-down.cmd
-  .\dmes-up.cmd -Warmup    # force the serial warm-up
+  .\dmes-up.cmd -Warmup    # kept for compatibility - no-op (be-run.ps1 prebuilds every run)
   .\dmes-up.cmd -Full      # frontend re-runs pnpm install + build:libs
-  .\dmes-up.cmd -Clean     # both of the above
+  .\dmes-up.cmd -Clean     # same as -Full (-Warmup part is a no-op)
   .\dmes-up.cmd -Detach -Be   # backend only     (-Fe for frontend only)
 
 Ports: portal 5100 | mls 8092 | mqc 8093 | mpp 8094 | mpn 8095 | mcm 8100 | analog 8191
@@ -37,7 +38,6 @@ $ErrorActionPreference = 'Stop'
 $RootDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDir = Join-Path $RootDir 'src\backend'
 $LogDir     = Join-Path $RootDir 'logs'
-$Modules    = @('mcm', 'mls', 'mqc', 'mpp', 'mpn', 'analog')
 $BePorts    = [ordered]@{ mls = 8092; mqc = 8093; mpp = 8094; mpn = 8095; mcm = 8100; analog = 8191 }
 $FePort     = 5000
 if ($Clean) { $Warmup = $true; $Full = $true }
@@ -83,7 +83,7 @@ if ($Be) {
         Copy-Item $srcJar $target
         $seeded++
     }
-    if ($seeded) { Say "seeded gradle-wrapper.jar into $seeded wrapper dir(s)" 'Yellow'; $Warmup = $true }
+    if ($seeded) { Say "seeded gradle-wrapper.jar into $seeded wrapper dir(s)" 'Yellow' }
 }
 
 # 3. stop whatever this repo already has running ------------------------------
@@ -127,32 +127,11 @@ foreach ($port in $wanted) {
 }
 if ($held.Count) { Say "reclaimed ports: $($held -join ' ')" 'Yellow'; Start-Sleep -Seconds 2 }
 
-# 4. serial warm-up ----------------------------------------------------------
-if ($Be) {
-    if (-not $Warmup) {
-        foreach ($m in $Modules) {
-            if (-not (Test-Path (Join-Path $BackendDir "$m\api\build\classes\java\main"))) {
-                Say "$m not built yet - warm-up required" 'Yellow'
-                $Warmup = $true
-                break
-            }
-        }
-    }
-    if ($Warmup) {
-        Say 'serial gradle warm-up (first run takes a few minutes)'
-        foreach ($m in $Modules) {
-            Write-Host "      warmup $m ..." -ForegroundColor DarkGray
-            Push-Location (Join-Path $BackendDir $m)
-            & (Join-Path $BackendDir 'gradlew.bat') ':api:classes' '--console=plain' | Out-Null
-            $rc = $LASTEXITCODE
-            Pop-Location
-            if ($rc -ne 0) { Say "warm-up FAILED: $m (rerun with -Clean)" 'Red'; exit $rc }
-        }
-        Say 'warm-up done - all 6 modules compiled'
-    } else {
-        Say 'warm-up skipped (all modules already built)'
-    }
-}
+# 4. prebuild ---------------------------------------------------------------
+# The old serial warm-up (one Gradle run per module) lived here. be-run.ps1 now
+# prebuilds all selected modules with a single Gradle run from the src\backend
+# composite before starting them, which covers the fresh-clone case as well.
+if ($Be -and $PSBoundParameters.ContainsKey('Warmup')) { Say '-Warmup is no longer needed - be-run.ps1 prebuilds on every run' 'Yellow' }
 
 # 5. run ---------------------------------------------------------------------
 $feArgs = if ($Full) { @('--all') } else { @('--all', '-q') }
