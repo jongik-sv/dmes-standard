@@ -45,7 +45,7 @@ $RootDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDir = Join-Path $RootDir 'src\backend'
 $LogDir     = Join-Path $RootDir 'logs'
 $BePorts    = [ordered]@{ mls = 8092; mqc = 8093; mpp = 8094; mpn = 8095; mcm = 8100; analog = 8191 }
-$FePort     = 5000
+$FePort     = 5100
 if ($Clean) { $Full = $true }   # -Clean used to force -Warmup too; that part is now a no-op
 if (-not $Be -and -not $Fe) { $Be = $true; $Fe = $true }
 
