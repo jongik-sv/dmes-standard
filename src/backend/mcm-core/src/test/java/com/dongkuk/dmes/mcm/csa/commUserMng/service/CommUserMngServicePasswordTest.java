@@ -27,10 +27,10 @@ class CommUserMngServicePasswordTest extends CommUserMngJpaTestBase {
     }
 
     @Test
-    @DisplayName("기존 비밀번호 행 — ENC 는 초기 비밀번호, SSO 는 USER_ID+사번으로 다시 만든다. 응답은 cnt_save·INIT_PWD·INIT_PWD_USER_ID 순")
+    @DisplayName("기존 비밀번호 행 — ENC 는 초기 비밀번호, SSO 는 USER_ID+사번으로 다시 만들고 나머지 네 컬럼은 그대로. 응답은 cnt_save·INIT_PWD·INIT_PWD_USER_ID 순")
     void resetsExistingRow() {
         fx.user("p1", null, LocalDateTime.of(2026, 1, 1, 0, 0));
-        fx.pwd("p1", "oldEnc", "oldSso");
+        pwdWithOtherColumns("p1", "oldEnc", "oldSso");
 
         Map<String, Object> out = inTx(() -> service.pwdinit(req("p1", "123", null), null));
 
@@ -40,6 +40,8 @@ class CommUserMngServicePasswordTest extends CommUserMngJpaTestBase {
         assertThat(BCRYPT.matches(DEFAULT_PASSWORD, p.getUserEncPwd())).isTrue();
         assertThat(BCRYPT.matches("p1123", p.getUserSsoPwd())).isTrue();
         assertThat(secUserPwdRepository.count()).isEqualTo(1);
+        // 두 해시만 바꾼다 — 마지막 변경일(만료 판정 기준)·SALT·임시 비밀번호·임시 만료일은 그대로 둔다.
+        assertOtherPwdColumnsKept("p1");
     }
 
     @Test

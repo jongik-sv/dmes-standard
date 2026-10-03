@@ -137,6 +137,21 @@ public class CommUserMngFixtures {
         return secUserPwdRepository.save(p);
     }
 
+    /** 비밀번호 두 컬럼 밖의 네 컬럼(SALT·마지막 변경일·임시 비밀번호·임시 만료일)까지 채운 행. 초 단위 시각만 쓴다. */
+    public SecUserPwd pwd(String userId, String encPwd, String ssoPwd,
+                          String salt, LocalDateTime lastPwdChngDate,
+                          String encTempPwd, LocalDateTime tempPwdExpirationDate) {
+        SecUserPwd p = new SecUserPwd();
+        p.setUserId(userId);
+        p.setUserEncPwd(encPwd);
+        p.setUserSsoPwd(ssoPwd);
+        p.setSalt(salt);
+        p.setLastPwdChngDate(lastPwdChngDate);
+        p.setUserEncTempPwd(encTempPwd);
+        p.setTempPwdExpirationDate(tempPwdExpirationDate);
+        return secUserPwdRepository.save(p);
+    }
+
     /** 사용자에게 남은 역할그룹 ID (정렬). */
     public List<String> roleGroupIdsOf(String userId) {
         return secUserMappingRepository.findAll().stream()

@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.csa.commUserMng.service;
 import com.dongkuk.dmes.mcm.csa.commUserMng.support.CommUserMngFixtures;
 import com.dongkuk.dmes.mcm.csa.commUserMng.support.CommUserMngJpaTestConfig;
 import com.dongkuk.dmes.mcm.csa.commUserMng.support.RoleChangedEventCollector;
+import com.dongkuk.dmes.mcm.entity.SecUserPwd;
 import com.dongkuk.dmes.mcm.repository.SecUserHisRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecUserPwdRepository;
@@ -15,6 +16,7 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -81,5 +83,23 @@ abstract class CommUserMngJpaTestBase {
 
     static String yyyymmdd(LocalDate d) {
         return d.format(YYYYMMDD);
+    }
+
+    /** 비밀번호 초기화가 건드리지 않아야 하는 컬럼의 기대값. LAST_PWD_CHNG_DATE 는 만료 판정(PasswordPolicyEvaluator#isExpired)의 기준이다. */
+    static final LocalDateTime KEPT_LAST_PWD_CHNG = LocalDateTime.of(2026, 3, 1, 10, 20, 30);
+    static final LocalDateTime KEPT_TEMP_PWD_EXP = LocalDateTime.of(2026, 4, 1, 8, 0, 0);
+
+    /** SALT·LAST_PWD_CHNG_DATE·USER_ENC_TEMP_PWD·TEMP_PWD_EXPIRATION_DATE 까지 채운 비밀번호 행. */
+    SecUserPwd pwdWithOtherColumns(String userId, String encPwd, String ssoPwd) {
+        return fx.pwd(userId, encPwd, ssoPwd, "salt-" + userId, KEPT_LAST_PWD_CHNG, "tmp-" + userId, KEPT_TEMP_PWD_EXP);
+    }
+
+    /** {@link #pwdWithOtherColumns} 로 넣은 네 컬럼이 그대로인지 — DB 에서 다시 읽어 확인한다. */
+    void assertOtherPwdColumnsKept(String userId) {
+        SecUserPwd p = secUserPwdRepository.findById(userId).orElseThrow();
+        assertThat(p.getSalt()).isEqualTo("salt-" + userId);
+        assertThat(p.getLastPwdChngDate()).isEqualTo(KEPT_LAST_PWD_CHNG);
+        assertThat(p.getUserEncTempPwd()).isEqualTo("tmp-" + userId);
+        assertThat(p.getTempPwdExpirationDate()).isEqualTo(KEPT_TEMP_PWD_EXP);
     }
 }

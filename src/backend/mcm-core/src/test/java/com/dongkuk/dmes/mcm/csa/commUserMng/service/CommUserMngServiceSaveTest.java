@@ -385,7 +385,7 @@ class CommUserMngServiceSaveTest extends CommUserMngJpaTestBase {
             SecUser other = fx.user("other", "D01", LocalDateTime.of(2025, 1, 1, 0, 0));
             other.setUseTp("N");
             fx.user(other);
-            fx.pwd("rr", "oldEnc", "oldSso");
+            pwdWithOtherColumns("rr", "oldEnc", "oldSso");
 
             LocalDate before = LocalDate.now();
             Map<String, Object> out = inTx(() -> service.reRegCmUser(List.of(
@@ -405,6 +405,8 @@ class CommUserMngServiceSaveTest extends CommUserMngJpaTestBase {
             SecUserPwd p = secUserPwdRepository.findById("rr").orElseThrow();
             assertThat(BCRYPT.matches(DEFAULT_PASSWORD, p.getUserEncPwd())).isTrue();
             assertThat(BCRYPT.matches("rr777", p.getUserSsoPwd())).isTrue();
+            // 두 해시만 바꾼다 — 마지막 변경일(만료 판정 기준)·SALT·임시 비밀번호·임시 만료일은 그대로.
+            assertOtherPwdColumnsKept("rr");
 
             List<SecUserHis> his = hisOf("rr");
             assertThat(his).hasSize(1);
