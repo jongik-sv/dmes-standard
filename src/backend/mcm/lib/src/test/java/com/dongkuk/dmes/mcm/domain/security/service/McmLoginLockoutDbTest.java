@@ -174,12 +174,13 @@ class McmLoginLockoutDbTest {
     }
 
     @Test
-    @DisplayName("잠긴 계정을 계정 재생성(updateReRegUser)으로 풀면 맞는 비밀번호로 다시 로그인된다")
-    void reRegisterUnlocksLockedAccount() {
+    @DisplayName("잠긴 계정(PWD_FAIL_COUNT=5)을 계정 재생성하면 다시 잠기지 않고 맞는 비밀번호로 로그인된다")
+    void reRegisteredLockedAccountIsNotRelocked() {
         seed("u_rereg", 0, "Y");
         for (int i = 0; i < MAX; i++) {
             assertLoginFails("u_rereg", "bad" + i, ErrorCode.AUTH_FAILED);
         }
+        assertThat(failCount("u_rereg")).isEqualTo(MAX);
         assertThat(useTp("u_rereg")).isEqualTo("N");
 
         // commUserMng 의 reRegCmUser 와 같은 호출(비밀번호 재설정은 시험 비밀번호를 그대로 둔다).
@@ -190,6 +191,7 @@ class McmLoginLockoutDbTest {
 
         assertThat(failCount("u_rereg")).isZero();
         assertThat(authService.login(new LoginRequest("u_rereg", RAW_PWD))).containsKey("accessToken");
+        assertThat(useTp("u_rereg")).isEqualTo("Y");
     }
 
     // ─────────────────────────────────────────────────────────────────────
