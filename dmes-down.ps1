@@ -27,7 +27,9 @@ if ($victims.Count -eq 0) {
     foreach ($p in $victims) { & taskkill.exe /PID $p /T /F 2>&1 | Out-Null }
 }
 
-$ports = 5100,8092,8093,8094,8095,8100,8191
+# portal + backend ports from scripts\lib\modules.conf (rows whose platforms include ps1)
+. (Join-Path $RootDir 'scripts\lib\modules.ps1')
+$ports = @($DmesPortalPort) + @($DmesBeModules.Values)
 $still = @($ports | Where-Object {
     Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue })
 if ($still.Count -eq 0) { Write-Host '[down] all ports free' -ForegroundColor Green }

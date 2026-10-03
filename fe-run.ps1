@@ -25,7 +25,8 @@ $RootDir     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $FrontendDir = Join-Path $RootDir 'src\frontend'
 $McmDir      = Join-Path $FrontendDir 'm-mcm'
 $RunEnvFile  = Join-Path $RootDir '.run.env'
-$PortalPort  = 5100
+. (Join-Path $RootDir 'scripts\lib\modules.ps1')   # 모듈·포트 카탈로그(scripts\lib\modules.conf)
+$PortalPort  = $DmesPortalPort
 
 function Write-DevLog  { param([string] $Message) Write-Host '[fe] ' -ForegroundColor Cyan -NoNewline; Write-Host $Message }
 function Write-DevError { param([string] $Message) Write-Host '[error] ' -ForegroundColor Red -NoNewline; Write-Host $Message }

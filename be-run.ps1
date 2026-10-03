@@ -43,24 +43,12 @@ $BackendDir = Join-Path $RootDir 'src\backend'
 $RunEnvFile = Join-Path $RootDir '.run.env'
 
 # ── 모듈 카탈로그 ────────────────────────────────────────────
-# 신규 모듈을 추가하면 아래 2곳만 손보면 된다. (1) $BeModules  (2) $TagColors
-$BeModules = [ordered]@{
-    mls    = 8092
-    mqc    = 8093
-    mpp    = 8094
-    mpn    = 8095
-    mcm    = 8100
-    analog = 8191
-}
-$TagColors = @{
-    'be'        = 'Green'
-    'be-mcm'    = 'Blue'
-    'be-mpn'    = 'Magenta'
-    'be-mls'    = 'Cyan'
-    'be-mqc'    = 'Yellow'
-    'be-mpp'    = 'Green'
-    'be-analog' = 'DarkGray'
-}
+# 모듈·포트·로그 색은 scripts\lib\modules.conf 한 곳에 있다(be-run.sh 도 같은 파일을 읽는다). platforms 에 ps1 이
+# 있는 줄만 쓴다 — mdm 은 아직 sh 전용이라 여기 --all 에 들지 않는다. 신규 모듈은 modules.conf 에 한 줄 더하면
+# --<모듈> 플래그까지 따라온다(머리말과 "실행 대상을 선택하세요" 안내문은 따로 고친다).
+. (Join-Path $RootDir 'scripts\lib\modules.ps1')
+$BeModules = $DmesBeModules
+$TagColors = @{ 'be' = 'Green' } + $DmesBeTagColors
 
 # ── 로그 ─────────────────────────────────────────────────────
 function Write-DevLog {
@@ -152,7 +140,8 @@ foreach ($arg in $ScriptArgs) {
         '^--(all|full)$'   { foreach ($m in $BeModules.Keys) { if (-not $Selected.Contains($m)) { $Selected.Add($m) } } }
         '^--keep-port$'    { $KeepPort = $true }
         '^--dry-run$'      { $DryRun = $true }
-        '^--(mpn|mcm|mls|mqc|mpp|analog)$' {
+        # 모듈 플래그(--<모듈>)는 카탈로그에 있는 이름만 받는다. 위 패턴들과 겹치지 않는다(--all·--full 은 모듈 이름이 아니다).
+        { $_ -like '--*' -and $BeModules.Contains($_.Substring(2)) } {
             $m = $arg.Substring(2)
             if (-not $Selected.Contains($m)) { $Selected.Add($m) }
         }

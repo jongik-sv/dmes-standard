@@ -44,8 +44,10 @@ $ErrorActionPreference = 'Stop'
 $RootDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDir = Join-Path $RootDir 'src\backend'
 $LogDir     = Join-Path $RootDir 'logs'
-$BePorts    = [ordered]@{ mls = 8092; mqc = 8093; mpp = 8094; mpn = 8095; mcm = 8100; analog = 8191 }
-$FePort     = 5100
+# Module/port catalog: scripts\lib\modules.conf (rows whose platforms include ps1)
+. (Join-Path $RootDir 'scripts\lib\modules.ps1')
+$BePorts    = $DmesBeModules
+$FePort     = $DmesPortalPort
 if ($Clean) { $Full = $true }   # -Clean used to force -Warmup too; that part is now a no-op
 if (-not $Be -and -not $Fe) { $Be = $true; $Fe = $true }
 
@@ -144,8 +146,8 @@ $feArgs = if ($Full) { @('--all') } else { @('--all', '-q') }
 
 if (-not $Detach) {
     Write-Host ''
-    Say 'portal  http://localhost:5100    login  admin / admin123'
-    Say 'mls 8092 | mqc 8093 | mpp 8094 | mpn 8095 | mcm 8100 | analog 8191'
+    Say "portal  http://localhost:$FePort    login  admin / admin123"
+    Say (($BePorts.Keys | ForEach-Object { "$_ $($BePorts[$_])" }) -join ' | ')
     Say 'Ctrl+C stops backend and frontend together'
     Write-Host ''
     if ($Be -and $Fe) { & (Join-Path $RootDir 'local-run.ps1') @feArgs }
@@ -226,7 +228,7 @@ while ((Get-Date) -lt $deadline -and $up.Count -lt $pending.Count) {
 Write-Host ''
 if ($up.Count -eq $pending.Count) {
     Say 'all services up'
-    Say 'portal  http://localhost:5100    login  admin / admin123'
+    Say "portal  http://localhost:$FePort    login  admin / admin123"
     Say 'stop with .\dmes-down.cmd'
 } else {
     $missing = @($pending | Where-Object { -not $up.ContainsKey($_[0]) } | ForEach-Object { "$($_[0]):$($_[1])" })
