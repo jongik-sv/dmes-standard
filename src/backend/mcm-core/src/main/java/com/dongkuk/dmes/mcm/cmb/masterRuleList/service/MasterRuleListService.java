@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNullTrim;
 
 /**
  * 업무기준 목록조회 — cmb/masterRuleList OASIS 서비스 (Spring bean = {@code masterRuleListService}).
@@ -61,8 +62,8 @@ public class MasterRuleListService {
      */
     public Map<String, Object> search(MasterRuleListSearchRequest request) {
         if (request == null) request = new MasterRuleListSearchRequest();
-        String pRuleId = blankToNull(request.getPRuleId());
-        String pRuleNm = blankToNull(request.getPRuleNm());
+        String pRuleId = blankToNullTrim(request.getPRuleId());
+        String pRuleNm = blankToNullTrim(request.getPRuleNm());
 
         List<Object[]> raw = repository.searchRuleMasterList(pRuleId, pRuleNm);
 
@@ -166,10 +167,6 @@ public class MasterRuleListService {
 
     private static boolean isBlank(String s) {
         return s == null || s.isBlank();
-    }
-
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s.trim();
     }
 
     /** RULE_VER 기본값 — 공란/비숫자 시 1 (As-Is rowAdd xfdl:231). NUMBER(8,2) → BigDecimal. */

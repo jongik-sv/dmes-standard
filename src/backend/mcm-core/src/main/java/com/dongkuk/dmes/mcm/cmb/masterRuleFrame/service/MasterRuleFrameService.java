@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNullTrim;
 
 /**
  * 업무기준 구조관리 — cmb/masterRuleFrame OASIS 서비스 (Spring bean = {@code masterRuleFrameService}).
@@ -62,7 +63,7 @@ public class MasterRuleFrameService {
      * (As-Is resultKey 보존 — BPMN설계서 §2.2. cnt = IN 건수, MSG-010 As-Is xfdl:382).
      */
     public Map<String, Object> search(MasterRuleFrameSearchRequest request) {
-        String pRuleId = request == null ? null : blankToNull(request.getPRuleId());
+        String pRuleId = request == null ? null : blankToNullTrim(request.getPRuleId());
 
         List<Map<String, Object>> inList = toRows(repository.searchRuleColList(pRuleId, IO_IN));
         List<Map<String, Object>> outList = toRows(repository.searchRuleColList(pRuleId, IO_OUT));
@@ -103,7 +104,7 @@ public class MasterRuleFrameService {
         if (outList == null) outList = List.of();
 
         // 1. ruleId 확정 (BR-012) — pRuleId 우선, 없으면 첫 행 RULE_ID (As-Is java:33)
-        String ruleId = request == null ? null : blankToNull(request.getPRuleId());
+        String ruleId = request == null ? null : blankToNullTrim(request.getPRuleId());
         if (ruleId == null) ruleId = firstRuleId(inList, outList);
         if (ruleId == null) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "업무기준 선택 후 진행해주세요.");
@@ -206,16 +207,12 @@ public class MasterRuleFrameService {
         return s == null || s.isBlank();
     }
 
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s.trim();
-    }
-
     /** IN 우선 첫 행 ruleId (As-Is ds_grdIn[0].RULE_ID — java:33. IN 공백이면 OUT 첫 행). */
     private static String firstRuleId(List<Map<String, Object>> inList, List<Map<String, Object>> outList) {
         for (List<Map<String, Object>> rows : List.of(inList, outList)) {
             for (Map<String, Object> row : rows) {
                 if (row == null) continue;
-                String v = blankToNull(strOfTrim(row.get("ruleId")));
+                String v = blankToNullTrim(strOfTrim(row.get("ruleId")));
                 if (v != null) return v;
             }
         }

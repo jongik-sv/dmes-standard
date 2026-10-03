@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNullTrim;
 
 /**
  * 업무기준 컬럼 리스트 등록 팝업 — cmb/masterRuleFrameColListPopup OASIS 서비스
@@ -58,8 +59,8 @@ public class MasterRuleFrameColListPopupService {
      */
     public Map<String, Object> search(MasterRuleFrameColListPopupSearchRequest request) {
         if (request == null) request = new MasterRuleFrameColListPopupSearchRequest();
-        String pRuleId = blankToNull(request.getPRuleId());
-        String pTable = blankToNull(request.getPTable());
+        String pRuleId = blankToNullTrim(request.getPRuleId());
+        String pTable = blankToNullTrim(request.getPTable());
         if (pRuleId == null || pTable == null) {
             // As-Is 는 부모 가드(BR-013)로 ruleId 보장 — 서버 방어 (직접 호출 대비)
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "업무기준 선택 후 진행해주세요.");
@@ -103,7 +104,7 @@ public class MasterRuleFrameColListPopupService {
     public Map<String, Object> save(MasterRuleFrameColListPopupSearchRequest request,
                                     List<Map<String, Object>> rows) {
         if (rows == null) rows = List.of();
-        String ruleId = request == null ? null : blankToNull(request.getPRuleId());
+        String ruleId = request == null ? null : blankToNullTrim(request.getPRuleId());
         if (ruleId == null) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "업무기준 선택 후 진행해주세요.");
         }
@@ -164,10 +165,6 @@ public class MasterRuleFrameColListPopupService {
 
     private static boolean isBlank(String s) {
         return s == null || s.isBlank();
-    }
-
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s.trim();
     }
 
     /** 정수 변환 — 공란 → null (colPrecLen 등 선택 입력). As-Is mask ##,##9 콤마 허용. */
