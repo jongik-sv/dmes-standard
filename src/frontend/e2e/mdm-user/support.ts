@@ -104,15 +104,15 @@ const menuNode = (scope: Locator, text: string) =>
     .first();
 
 /**
- * 포털 탭 줄에서 제목이 title 인 화면 탭을 닫는다(없으면 그냥 지나간다). 닫은 화면은 다음에 메뉴로 열 때 새로 그려 서버 값을 읽는다 —
+ * 포털 탭 줄에서 제목이 title 인 화면 탭을 닫는다(그 탭이 열려 있지 않으면 실패한다). 닫은 화면은 다음에 메뉴로 열 때 새로 그려 서버 값을 읽는다 —
  * 저장하지 않은 입력을 남기는 화면(같은 행을 다시 골라도 입력 유지)에서 "저장되지 않았다" 를 볼 때 쓴다.
  */
 export async function closeScreenTab(page: Page, title: string) {
   const exact = new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
   const tab = page.locator(".tabs-bar .tab-item").filter({ has: page.locator(".tab-title", { hasText: exact }) });
-  if (!(await tab.count())) return;
-  await tab.first().hover();
-  await tab.first().locator(".tab-close").click();
+  await expect(tab, `닫을 "${title}" 탭이 열려 있어야 한다`).toHaveCount(1);
+  await tab.hover();
+  await tab.locator(".tab-close").click();
   await expect(tab).toHaveCount(0);
 }
 

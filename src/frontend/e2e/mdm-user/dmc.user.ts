@@ -1753,8 +1753,8 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
 
   test("TC-DMC-CAT-07 정규식 문법 오류는 저장 전에 [카테고리 편집] 탭에서 바로 알린다 — 기능설계서 §4.4 cate-preview-invalid", async ({ browser }, testInfo) => {
     // 옛 TC-DMC-CAT-04 앞부분의 단언을 그대로 옮겼다. ade3851f 가 카테고리 미리보기 영역(cate-preview)을 없애면서 이 안내도
-    // 화면에서 빠졌지만 기능설계서(codeItemEdit §4.4 :169·:201)는 그대로다 — 제품 결함 후보라 단언을 고치지 않고 실패로 남기되,
-    // 여정 장(serial)의 뒤 단계를 가리지 않게 독립 시험으로 둔다. 같은 일을 하는 dmd 카테고리 탭은 cate-regex-invalid 로 알린다.
+    // 화면에서 빠졌다가, 기능설계서(codeItemEdit §4.4 :169·:201)대로 4be86b2a 가 [카테고리 편집] 탭에 되살렸다(지금은 통과).
+    // 여정 장(serial)의 뒤 단계와 엮이지 않게 독립 시험으로 둔다. 같은 일을 하는 dmd 카테고리 탭은 cate-regex-invalid 로 알린다.
     const { page, watcher } = await openAs(browser, "stw", testInfo);
     try {
       const id = uid("RGXINV");
