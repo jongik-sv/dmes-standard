@@ -15,7 +15,12 @@ import com.dongkuk.dmes.mcm.widget.def.WidgetDefSavedEvent;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,15 +36,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.DelegatingDataSource;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.DefaultTransactionStatus;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * {@link WidgetQueryExecutor} — H2 메모리 DB 에 600행 표를 만들어 실제 JDBC 로 확인한다(스펙 2026-10-02-widget-admin-generic §7).
  * 행 상한·잘림, 컬럼 순서, 시스템 변수 바인딩(Asia/Seoul), 30초 캐시·이벤트 비우기, 거절 메시지, DB 오류 메시지, 늘 롤백.
+ * 연결 단위 확인(커밋 0·롤백·readOnly 걸기·닫을 때 상태)은 {@link RecordingDataSource} 로 센다. SQLite 의 쓰기 거절·풀 연결 복원은
+ * {@link WidgetQueryReadOnlyTest}.
  */
 class WidgetQueryExecutorTest {
 
@@ -49,7 +53,7 @@ class WidgetQueryExecutorTest {
 
     private DriverManagerDataSource dataSource;
     private JdbcTemplate jdbc;
-    private RecordingTransactionManager transactionManager;
+    private RecordingDataSource recording;
     private WidgetDefRepository defRepository;
     private WidgetUserContextResolver resolver;
     private MutableClock clock;
@@ -64,11 +68,11 @@ class WidgetQueryExecutorTest {
         jdbc.execute("INSERT INTO WIDGET_T (ID, NM, AMT, OWNER_ID, DEPT_CD)"
                 + " SELECT X, CONCAT('N', X), X * 1.5, CASE WHEN X <= 100 THEN 'userA' ELSE 'userB' END, 'D100'"
                 + " FROM SYSTEM_RANGE(1, 600)");
-        transactionManager = new RecordingTransactionManager(dataSource);
+        recording = new RecordingDataSource(dataSource);
         defRepository = mock(WidgetDefRepository.class);
         resolver = mock(WidgetUserContextResolver.class);
         clock = new MutableClock(T0);
-        executor = new WidgetQueryExecutor(defRepository, resolver, dataSource, transactionManager, clock);
+        executor = new WidgetQueryExecutor(defRepository, resolver, recording, clock);
     }
 
     @AfterEach
@@ -287,7 +291,7 @@ class WidgetQueryExecutorTest {
         noSql.setConfigJson("{\"columns\":[]}");
         assertMessage(() -> executor.runDefinition("def.nosql", 500), "위젯 정의에 SQL 이 없습니다");
 
-        assertThat(transactionManager.commits + transactionManager.rollbacks).isZero();
+        assertThat(recording.connections).isZero(); // 검사에서 걸리면 연결을 빌리지도 않는다
     }
 
     @Test
@@ -296,7 +300,7 @@ class WidgetQueryExecutorTest {
         def("def.bad", "query-table", "UPDATE WIDGET_T SET NM = 'x'");
         assertMessage(() -> executor.runDefinition("def.bad", 500), "SELECT 또는 WITH 로 시작하는 조회문만 쓸 수 있습니다");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM WIDGET_T WHERE NM = 'x'", Long.class)).isZero();
-        assertThat(transactionManager.commits + transactionManager.rollbacks).isZero();
+        assertThat(recording.connections).isZero();
 
         assertThatThrownBy(() -> executor.validateSql("SELECT 1; DELETE FROM WIDGET_T"))
                 .isInstanceOf(BusinessException.class).hasMessage("문장은 하나만 쓸 수 있습니다");
@@ -357,24 +361,38 @@ class WidgetQueryExecutorTest {
     // ── 트랜잭션 ─────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("실행은 별도(REQUIRES_NEW)·읽기 전용 트랜잭션에서 하고 늘 롤백한다")
-    void alwaysRollsBackInReadOnlyNewTransaction() {
-        TransactionTemplate tx = executor.transactionTemplate();
-        assertThat(tx.isReadOnly()).isTrue();
-        assertThat(tx.getPropagationBehavior()).isEqualTo(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        assertThat(tx.getTransactionManager()).isSameAs(transactionManager);
-
+    @DisplayName("실행마다 따로 빌린 연결을 readOnly·자동 커밋 끔으로 걸고 늘 롤백한다 — 커밋 0, 돌려줄 때는 빌릴 때 상태")
+    void alwaysRollsBackOnReadOnlyConnection() {
         def("def.count", "query-number", "SELECT COUNT(*) AS CNT FROM WIDGET_T");
         count("def.count");
         executor.preview("mcm", "SELECT 1 AS A FROM WIDGET_T WHERE ID = 1", 50);
-        assertThat(transactionManager.rollbacks).isEqualTo(2);
-        assertThat(transactionManager.commits).isZero();
-        assertThat(transactionManager.readOnlyBegins).isEqualTo(2);
+        assertThat(recording.connections).isEqualTo(2);
+        assertThat(recording.readOnlyOn).isEqualTo(2);
+        assertThat(recording.autoCommitOff).isEqualTo(2);
+        assertThat(recording.rollbacks).isEqualTo(2);
+        assertThat(recording.commits).isZero();
+        assertThat(recording.dirtyCloses).isZero();
+        assertThat(executor.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER); // H2
 
         def("def.broken", "query-table", "SELECT * FROM NO_SUCH_TABLE");
         assertThatThrownBy(() -> executor.runDefinition("def.broken", 500)).isInstanceOf(BusinessException.class);
-        assertThat(transactionManager.rollbacks).isEqualTo(3);
-        assertThat(transactionManager.commits).isZero();
+        assertThat(recording.rollbacks).isEqualTo(3);
+        assertThat(recording.commits).isZero();
+        assertThat(recording.dirtyCloses).isZero();
+    }
+
+    @Test
+    @DisplayName("readOnly 가 힌트뿐인 DB(H2·SQL Server)에서도 검사를 거치지 않은 쓰기는 롤백되어 남지 않는다")
+    void writesBelowGuardAreRolledBackWhereReadOnlyIsAHint() throws Exception {
+        int changed = executor.readOnlyJdbc().execute(con -> {
+            try (Statement st = con.createStatement()) {
+                return st.executeUpdate("UPDATE WIDGET_T SET NM = 'x' WHERE ID <= 10");
+            }
+        });
+        assertThat(changed).isEqualTo(10); // H2 는 readOnly 를 강제하지 않는다 — 그래서 늘 롤백이 막는다
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM WIDGET_T WHERE NM = 'x'", Long.class)).isZero();
+        assertThat(recording.commits).isZero();
+        assertThat(recording.dirtyCloses).isZero();
     }
 
     // ── helpers ─────────────────────────────────────────────────────
@@ -411,32 +429,52 @@ class WidgetQueryExecutorTest {
         assertThatThrownBy(call).isInstanceOf(BusinessException.class).hasMessage(message);
     }
 
-    /** commit·rollback 이 실제로 어느 쪽으로 끝났는지 센다(rollback-only 면 commit() 호출 안에서 doRollback 이 불린다). */
-    static final class RecordingTransactionManager extends DataSourceTransactionManager {
+    /**
+     * 빌린 연결의 commit·rollback·setReadOnly(true)·setAutoCommit(false) 를 세고, 닫을 때 autoCommit=false 또는 readOnly=true 로
+     * 남았으면 dirtyCloses 를 센다(풀에 그대로 돌아갔다면 업무 코드에 넘어갈 상태).
+     */
+    static final class RecordingDataSource extends DelegatingDataSource {
+        int connections;
         int commits;
         int rollbacks;
-        int readOnlyBegins;
+        int readOnlyOn;
+        int autoCommitOff;
+        int dirtyCloses;
 
-        RecordingTransactionManager(DataSource dataSource) {
-            super(dataSource);
+        RecordingDataSource(DataSource target) {
+            super(target);
         }
 
         @Override
-        protected void doBegin(Object transaction, TransactionDefinition definition) {
-            if (definition.isReadOnly()) readOnlyBegins++;
-            super.doBegin(transaction, definition);
-        }
-
-        @Override
-        protected void doCommit(DefaultTransactionStatus status) {
-            commits++;
-            super.doCommit(status);
-        }
-
-        @Override
-        protected void doRollback(DefaultTransactionStatus status) {
-            rollbacks++;
-            super.doRollback(status);
+        public Connection getConnection() throws SQLException {
+            connections++;
+            Connection real = super.getConnection();
+            return (Connection) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[] {Connection.class},
+                    (proxy, method, args) -> {
+                        switch (method.getName()) {
+                            case "commit" -> commits++;
+                            case "rollback" -> {
+                                if (args == null) rollbacks++;
+                            }
+                            case "setReadOnly" -> {
+                                if (Boolean.TRUE.equals(args[0])) readOnlyOn++;
+                            }
+                            case "setAutoCommit" -> {
+                                if (Boolean.FALSE.equals(args[0])) autoCommitOff++;
+                            }
+                            case "close" -> {
+                                if (!real.isClosed() && (!real.getAutoCommit() || real.isReadOnly())) dirtyCloses++;
+                            }
+                            default -> {
+                                // 그대로 넘긴다
+                            }
+                        }
+                        try {
+                            return method.invoke(real, args);
+                        } catch (InvocationTargetException e) {
+                            throw e.getCause();
+                        }
+                    });
         }
     }
 
