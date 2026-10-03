@@ -5,6 +5,10 @@
  * - 공용 메모(scope=shared): 정의의 content 를 형식대로 보이기만 한다. 편집 버튼 없음.
  * - 개인 메모(scope=personal): 마운트 때 load → 보기 모드(+[편집]). 편집 모드는 형식 선택·입력칸·글자 수·[저장]·[취소].
  *   저장이 실패하면 입력칸 위에 오류 문구를 보이고 쓰던 글은 그대로 둔다.
+ * - 입력칸은 공지 작성 화면(m-mls NoticeBodyEditor)과 같다: md = shared MarkdownField(서식·MD 두 방식, 도구 막대 inline),
+ *   text·html = shared Textarea(html 은 고정폭). 형식을 바꿔도 쓰던 글은 그대로다(편집기만 바뀐다).
+ *   MarkdownField 는 편집마다·인스턴스마다 key 로 새로 그린다(되돌리기 기록이 다른 글로 넘어가지 않게). 저장 중에는 editable 을
+ *   끄지 않고(편집기가 내려가 되돌리기 기록이 사라진다) 감싸개를 잠그고(aria-busy·inert — Tab 으로도 못 들어간다) 그동안 들어온 변경은 버린다.
  * - 관리 화면 미리보기(저장소 없음)는 load·save 를 부르지 않고 「미리보기에서는 저장하지 않습니다」만 보인다.
  * 형식별 보기는 shared NoticeBodyView 한 곳이 맡는다: TEXT = 줄바꿈 유지 글, MD = 글(md) 위젯과 같은 MarkdownView,
  * HTML = html 위젯(allowScript=false)과 같은 DOMPurify 정화(script·on*·style·iframe 제거).
@@ -13,6 +17,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Select, Textarea } from "@dk-oasis/shared/form";
+import { MarkdownField } from "@dk-oasis/shared/markdown-editor";
 import { NoticeBodyView } from "@dk-oasis/shared/notice-body-view";
 import { useWidgetStatus, type WidgetProps } from "@dk-oasis/shared/widget";
 
@@ -27,6 +32,7 @@ import {
   MEMO_EMPTY_VIEW_TEXT,
   MEMO_FORMATS,
   MEMO_LOAD_ERROR,
+  MEMO_MD_MODE_STORAGE_KEY,
   MEMO_PREVIEW_TEXT,
   MEMO_SAVE_ERROR,
   MEMO_SHARED_EMPTY_TEXT,
@@ -78,6 +84,8 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
   const [draftContent, setDraftContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  /** 편집 차례 — [편집]마다 올린다. md 편집기 key 에 넣어 새 편집은 새 편집기(빈 되돌리기 기록)로 시작한다. */
+  const [editSeq, setEditSeq] = useState(0);
 
   /** 요청 세대 — 불러오기·저장이 시작될 때 올리고, 늦게 온 이전 응답은 버린다. 인스턴스가 바뀌거나 사라질 때도 올린다. */
   const genRef = useRef(0);
@@ -123,6 +131,7 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
     setDraftFormat(memo?.format ?? initialFormat);
     setDraftContent(memo?.content ?? "");
     setErrorText(null);
+    setEditSeq((n) => n + 1);
     setMode("edit");
   };
 
@@ -156,6 +165,12 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
     } finally {
       setSaving(false);
     }
+  };
+
+  /** 입력칸 변경 — 저장 중에 들어온 변경은 버린다(md 편집기는 잠가도 키 입력이 들어올 수 있다). */
+  const changeDraft = (next: string) => {
+    if (saving) return;
+    setDraftContent(next);
   };
 
   const over = validateDraft(draftContent) !== null;
@@ -210,17 +225,36 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
               {errorText}
             </div>
           )}
-          <div className={draftFormat === "text" ? "mcm-memo__field" : "mcm-memo__field mcm-memo__field--code"}>
-            <Textarea
-              value={draftContent}
-              rows={6}
-              aria-label="메모 내용"
-              readOnly={saving}
-              spellCheck={draftFormat === "text"}
-              onChange={setDraftContent}
-              data-testid="memo-input"
-            />
-          </div>
+          {draftFormat === "md" ? (
+            <div
+              className={saving ? "mcm-memo__md mcm-memo__md--locked" : "mcm-memo__md"}
+              aria-busy={saving || undefined}
+              inert={saving || undefined}
+            >
+              <MarkdownField
+                key={`${instanceId}:${editSeq}`}
+                value={draftContent}
+                editable
+                fill
+                ariaLabel="메모 내용"
+                modeStorageKey={MEMO_MD_MODE_STORAGE_KEY}
+                testId="memo-input-md"
+                onChange={changeDraft}
+              />
+            </div>
+          ) : (
+            <div className={draftFormat === "text" ? "mcm-memo__field" : "mcm-memo__field mcm-memo__field--code"}>
+              <Textarea
+                value={draftContent}
+                rows={6}
+                aria-label="메모 내용"
+                readOnly={saving}
+                spellCheck={draftFormat === "text"}
+                onChange={changeDraft}
+                data-testid="memo-input"
+              />
+            </div>
+          )}
           <div className="mcm-memo__bar mcm-memo__bar--end">
             <div className="mcm-memo__actions">
               <Button variant="primary" onClick={() => void save()} disabled={!canSave(draftContent, saving)} data-testid="memo-save">
