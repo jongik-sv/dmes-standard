@@ -352,6 +352,42 @@ export async function checkLayout(page: Page, label: string, opts: LayoutOptions
   expect(violations, `${label}: 화면 배치 위반`).toEqual([]);
 }
 
+/**
+ * 지금 화면에 보이지 않는 컨트롤 — 안쪽 스크롤 영역(룰 화면·세트 편집의 본문, 확정 폼)에서 가운데가 그 영역 밖으로 밀려난 것.
+ * checkLayout 은 창 밖만 건너뛰므로, 스크롤로 머리·꼬리 뒤에 숨은 컨트롤을 "가려진 버튼(L7)"·"겹침(L3)" 으로 센다.
+ * 사용자에게 보이지 않는 상태라 그 순간의 배치 검사에서 뺀다(측정만 하는 evaluate — DOM 은 바꾸지 않는다).
+ */
+export async function scrolledOut(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const root = [...document.querySelectorAll<HTMLElement>(".portal-shell__tab-page")].find((el) => getComputedStyle(el).display !== "none");
+    if (!root) return [];
+    const path = (el: Element): string => {
+      const parts: string[] = [];
+      for (let e: Element | null = el; e && e.parentElement && e !== document.body; e = e.parentElement) {
+        parts.unshift(`${e.tagName.toLowerCase()}:nth-child(${[...e.parentElement.children].indexOf(e) + 1})`);
+      }
+      return `body > ${parts.join(" > ")}`;
+    };
+    const out: string[] = [];
+    for (const el of root.querySelectorAll("button, input, select, textarea")) {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height || el.closest(".ag-root-wrapper")) continue;
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      for (let a = el.parentElement; a && a !== root.parentElement; a = a.parentElement) {
+        const cs = getComputedStyle(a);
+        if (!/(auto|scroll)/.test(`${cs.overflowX} ${cs.overflowY}`)) continue;
+        const ar = a.getBoundingClientRect();
+        if (cx < ar.left || cx > ar.right || cy < ar.top || cy > ar.bottom) {
+          out.push(path(el));
+          break;
+        }
+      }
+    }
+    return out;
+  });
+}
+
 // ─────────────────────────── 버튼 커버리지 ───────────────────────────
 
 /** 브라우저에 설치 — 캡처 단계에서 누른 버튼 키를 window.__mdmClicked 에 모은다. */

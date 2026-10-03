@@ -16,11 +16,13 @@ import {
   openMenu,
   resetClicks,
   screen,
+  scrolledOut,
   snap,
   tid,
   uid,
   waitIdle,
 } from "./support";
+import { revealGridColumn } from "../support/mdm-e2e";
 
 /**
  * 마루 MDM > 용어·도메인(dma) 사용자 여정 E2E.
@@ -86,7 +88,8 @@ class Findings {
   readonly items: string[] = [];
   async layout(page: Page, label: string, opts?: Parameters<typeof checkLayout>[2]) {
     try {
-      await checkLayout(page, label, opts);
+      // 안쪽 스크롤로 보이지 않는 컨트롤(도메인 상세 패널이 검사 결과 쪽으로 내려가 위로 잘린 칸 등)은 그 순간 검사에서 뺀다(dme 와 같은 공용 scrolledOut).
+      await checkLayout(page, label, { ...opts, exclude: [...(opts?.exclude ?? []), ...(await scrolledOut(page))] });
     } catch (e) {
       this.items.push(`${label}\n${(e as Error).message.split("\n").slice(0, 30).join("\n")}`);
       await snap(page, `dma-layout-${label.replace(/[^\w가-힣-]+/g, "_")}`);
@@ -128,6 +131,35 @@ function field(page: Page, label: string): Locator {
     .first();
 }
 
+// ── unitMng 환산 계산기(ConvertCalculator, 01304edc) — 값 칸·입력 단위 콤보·결과 표(단위·환산값) ──
+
+const calcValue = (page: Page): Locator => screen(page).getByLabel("환산할 값", { exact: true });
+/** 입력 단위 콤보 입력칸 — 같은 aria-label 을 펼침 목록(listbox)도 가지므로 역할로 고른다. */
+const calcUnit = (page: Page): Locator => screen(page).getByRole("combobox", { name: "입력 단위", exact: true });
+const calcGrid = (page: Page): Locator =>
+  screen(page).locator(".ag-root-wrapper").filter({ has: page.locator(".ag-header-cell-text", { hasText: /^환산값$/ }) });
+const calcRows = (page: Page): Locator => calcGrid(page).locator(".ag-center-cols-container .ag-row");
+/** 결과 표 행 — 행 키(row-id)는 단위 코드다(rowKey="unitCode"). */
+const calcRow = (page: Page, unitCode: string): Locator =>
+  calcGrid(page).locator(`.ag-center-cols-container .ag-row[row-id="${unitCode}"]`);
+const calcCell = (page: Page, unitCode: string): Locator => calcRow(page, unitCode).locator('.ag-cell[col-id="display"]');
+
+/** 입력 단위 콤보에서 단위를 고른다 — 칸에 코드를 쳐서 좁히고 "코드 (차원)" 항목을 누른다. */
+async function chooseCalcUnit(page: Page, unitCode: string) {
+  const combo = calcUnit(page);
+  await combo.click();
+  await combo.fill(unitCode);
+  await screen(page).getByRole("option", { name: new RegExp(`^${escapeRe(unitCode)} \\(`) }).click();
+  await expect(combo).toHaveValue(new RegExp(`^${escapeRe(unitCode)} `));
+}
+
+/**
+ * 컬럼명 자동 생성의 토큰 표 한 줄 — 9146703e 로 토큰 목록이 AgDataGrid 가 되어 `token-row-{n}` 은 순서 칸의 표지이고,
+ * 처리 결과(등록됨·용어 등록 버튼)는 같은 행의 처리 칸에 있다. 그래서 그 표지를 가진 행 전체로 본다.
+ */
+const tokenRow = (page: Page, n: number): Locator =>
+  screen(page).locator(".ag-center-cols-container .ag-row").filter({ has: page.locator(`[data-testid="token-row-${n}"]`) });
+
 /** SearchArea 안 SearchField(label) — <table> 이 아니라 .search-field div 구조라 field() 와 다른 셀렉터를 쓴다. */
 function searchField(page: Page, label: string): Locator {
   return screen(page)
@@ -145,9 +177,21 @@ function panelByTitle(page: Page, title: string): Locator {
 }
 
 /**
+ * 도메인 목록(DomainTreeGrid)의 행 — 이름 칸 키는 `_NAME` 이다(abe1ad9f: 표시 문자열을 칸 값으로 미리 만든다). 하위 도메인은
+ * 깊이만큼 전각 공백 + "└ " 가 앞에 붙고, 검색에 맞지 않은 조상 행은 끝에 폭 없는 표지(U+200B)가 붙는다(domain-tree.ts).
+ * 그 꾸밈만 허용하고 이름은 정확히 같아야 한다.
+ */
+function domainRow(page: Page, name: string): Locator {
+  const grid = panelByTitle(page, "도메인 목록");
+  return grid
+    .locator(".ag-center-cols-container .ag-row")
+    .filter({ has: page.locator('.ag-cell[col-id="_NAME"]', { hasText: new RegExp(`^[\\s\\u3000]*(└ )?${escapeRe(name)}\\u200B?\\s*$`) }) });
+}
+
+/**
  * ag-grid 가로 스크롤을 맨 왼쪽으로 되돌린다(dmc codeItemEdit 선례). domainMng 의 도메인 목록은 칸이 8개로
  * 넓어서, 행 전체(.ag-row)를 클릭하면 Playwright 가 그 행의 가운데를 보이려고 그리드를 오른쪽으로 스크롤할
- * 때가 있다 — 그러면 맨 왼쪽 DOMAIN_NAME 칸이 가상화로 DOM 에서 빠져 다음 gridRow() 조회가 0건이 된다.
+ * 때가 있다 — 그러면 맨 왼쪽 이름(_NAME) 칸이 가상화로 DOM 에서 빠져 다음 gridRow() 조회가 0건이 된다.
  */
 async function scrollGridLeft(grid: Locator) {
   const hscroll = grid.locator(".ag-body-horizontal-scroll-viewport");
@@ -156,7 +200,7 @@ async function scrollGridLeft(grid: Locator) {
 
 /**
  * 검색어로 이미 좁힌 목록에 행이 있는지 확인한다. domainMng 목록처럼 칸이 8개로 넓으면 scrollLeft 를
- * 되돌려도(scrollGridLeft) 다시 그려질 때 오른쪽으로 밀리는 경우가 실측에서 있어, 특정 칸(DOMAIN_NAME)
+ * 되돌려도(scrollGridLeft) 다시 그려질 때 오른쪽으로 밀리는 경우가 실측에서 있어, 특정 칸(_NAME)
  * 텍스트 대신 행 수만 본다 — 검색으로 이미 그 키워드로만 걸렀으니 "1건 이상" = 그 값이 있다는 뜻이다.
  */
 async function expectSearchedRowExists(grid: Locator) {
@@ -221,7 +265,7 @@ async function registerTextDomain(page: Page, domainName: string, stdName: strin
   await expect(screen(page).getByText(/검사 통과/)).toBeVisible({ timeout: 20_000 });
   await screen(page).getByRole("button", { name: "저장", exact: true }).click();
   await expectToast(page, "저장했습니다");
-  await verifyListedAfterSearch(page, "도메인 목록", domainName, "DOMAIN_NAME");
+  await verifyListedAfterSearch(page, "도메인 목록", domainName, "_NAME");
 }
 
 /** domainMng — 최상위 QTY(NUMBER) 도메인을 등록하고 주어진 단위를 참조시킨다(부모 없음 → W01 없음). */
@@ -237,7 +281,7 @@ async function registerQtyDomain(page: Page, domainName: string, stdName: string
   await expect(screen(page).getByText(/검사 통과|검사 실패/)).toBeVisible({ timeout: 20_000 });
   await screen(page).getByRole("button", { name: "저장", exact: true }).click();
   await expectToast(page, "저장했습니다");
-  await verifyListedAfterSearch(page, "도메인 목록", domainName, "DOMAIN_NAME");
+  await verifyListedAfterSearch(page, "도메인 목록", domainName, "_NAME");
 }
 
 // ─────────── A. unitMng — 단위 마스터 ───────────
@@ -360,17 +404,34 @@ test.describe("A 단위 마스터", () => {
     watcher.assertClean("unitMng");
   });
 
-  test("TC-DMA-UNT-07 환산 미리보기 — 값·단위 두 개를 넣고 계산하면 서버 응답을 그대로 보인다", async () => {
-    await screen(page).getByRole("button", { name: "계산" }).click();
-    await expectErrorModal(page, "환산할 값과 단위 두 개를 모두 입력하세요", "dma-unitMng-07-required");
+  test("TC-DMA-UNT-07 환산 계산기 — 값과 입력 단위를 넣으면 같은 차원 단위마다 서버 환산값이 바로 보인다", async () => {
+    // 01304edc(10-02): [계산] 버튼·표시 단위 칸이 없어지고, 값·입력 단위가 바뀌면 같은 차원의 모든 단위로 자동 계산한다
+    // (unitMng 기능설계서 A-PREVIEW·B-005). 숫자가 아니면 팝업 대신 값 칸 아래에 안내한다(서버 호출 없음).
+    const value = calcValue(page);
+    await value.fill("abc");
+    await expect(screen(page).getByText("숫자만 입력할 수 있습니다.")).toBeVisible();
+    await snap(page, "dma-unitMng-07-invalid");
 
-    await field(page, "값").fill("2");
-    await field(page, "입력 단위").fill(U1);
-    await field(page, "표시 단위").fill(U2);
-    await screen(page).getByRole("button", { name: "계산" }).click();
-    await expect(tid(page, "convert-preview-result")).toBeVisible({ timeout: 20_000 });
-    await layoutA.layout(page, "unitMng 환산 미리보기");
+    // 천 단위 쉼표를 받는다. U2 는 UNT-06 에서 계수 2000(1 U2 = 2000 U1)이 됐다 — 2,000 U1 = 1 U2.
+    await value.fill("2,000");
+    await chooseCalcUnit(page, U1);
+    await expect(calcCell(page, U1)).toHaveText("2,000", { timeout: 20_000 });
+    await expect(calcCell(page, U2)).toHaveText("1");
+    await layoutA.layout(page, "unitMng 환산 계산기");
     await snap(page, "dma-unitMng-07-preview");
+
+    // 결과 행을 누르면 그 단위·환산값이 새 입력이 되어 그 기준으로 다시 계산한다. 환산은 왕복해도 값이 같으므로
+    // 칸 값만으로는 다시 계산했는지 알 수 없다 — U2 기준 compare 응답이 오는 것까지 본다.
+    const recalculated = page.waitForResponse(
+      (r) => r.url().includes("/oasis/unitMng/compare") && (r.request().postData() ?? "").includes(`"fromUnitCode":"${U2}"`),
+      { timeout: 20_000 },
+    );
+    await calcRow(page, U2).click();
+    await recalculated;
+    await expect(value).toHaveValue("1");
+    await expect(calcUnit(page)).toHaveValue(new RegExp(`^${escapeRe(U2)} `));
+    await expect(calcCell(page, U1)).toHaveText("2,000", { timeout: 20_000 });
+    await expect(calcCell(page, U2)).toHaveText("1");
     watcher.assertClean("unitMng");
   });
 
@@ -386,11 +447,15 @@ test.describe("A 단위 마스터", () => {
     await button(page, "조회").click();
     await expect(gridRow(panelByTitle(page, "단위 목록"), U3, "unitCode")).toHaveCount(1, { timeout: 20_000 });
 
-    await field(page, "값").fill("1");
-    await field(page, "입력 단위").fill(U1);
-    await field(page, "표시 단위").fill(U3);
-    await screen(page).getByRole("button", { name: "계산" }).click();
-    await expectErrorModal(page, "서로 다른 차원끼리는 변환할 수 없습니다", "dma-unitMng-08-dimension-mismatch");
+    // 환산 계산기는 입력 단위와 같은 차원의 단위만 결과로 늘어놓는다(01304edc, A-PREVIEW) — 다른 차원(DIM1)의
+    // U1·U2 는 U3 기준 결과에 나오지 않는다.
+    await calcValue(page).fill("1");
+    await chooseCalcUnit(page, U3);
+    await expect(calcCell(page, U3)).toHaveText("1", { timeout: 20_000 });
+    await expect(calcRows(page)).toHaveCount(1);
+    await expect(calcRow(page, U1)).toHaveCount(0);
+    await expect(calcRow(page, U2)).toHaveCount(0);
+    await snap(page, "dma-unitMng-08-dimension-only");
     await assertAllButtonsPressed(page, "unitMng");
     watcher.assertClean("unitMng");
   });
@@ -605,7 +670,7 @@ test.describe("C 도메인 관리", () => {
     await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
     await expectToast(page, "저장했습니다");
-    await verifyListedAfterSearch(page, "도메인 목록", DOM1_NAME, "DOMAIN_NAME");
+    await verifyListedAfterSearch(page, "도메인 목록", DOM1_NAME, "_NAME");
 
     // 저장 뒤 값을 고치면(재검증 전) 저장이 다시 잠긴다 — dmc CNF-03 과 같은 게이팅.
     await screen(page).getByLabel("정의", { exact: true }).fill("E2E 표준관리자 여정 — 최상위 TEXT 도메인(수정)");
@@ -618,7 +683,7 @@ test.describe("C 도메인 관리", () => {
     // 토스트만으로는 "직전 저장이 아직 안 사라진 토스트"와 구분이 안 된다 — 다시 조회해 실제로
     // 두 번째 저장(정의 "수정")이 반영됐는지 확인한다.
     await button(page, "조회").click();
-    await gridRow(panelByTitle(page, "도메인 목록"), DOM1_NAME, "DOMAIN_NAME").click();
+    await domainRow(page, DOM1_NAME).click();
     await scrollGridLeft(panelByTitle(page, "도메인 목록"));
     await expect(screen(page).getByLabel("정의", { exact: true }))
       .toHaveValue("E2E 표준관리자 여정 — 최상위 TEXT 도메인(수정)", { timeout: 20_000 });
@@ -632,7 +697,7 @@ test.describe("C 도메인 관리", () => {
     await expectSearchedRowExists(tree);
     await searchField(page, "종류").selectOption("QTY");
     await button(page, "조회").click();
-    await expect(gridRow(tree, DOM1_NAME, "DOMAIN_NAME")).toHaveCount(0, { timeout: 20_000 });
+    await expect(domainRow(page, DOM1_NAME)).toHaveCount(0, { timeout: 20_000 });
     await searchField(page, "종류").selectOption("");
     await searchField(page, "검색어").fill("");
     await button(page, "조회").click();
@@ -640,7 +705,7 @@ test.describe("C 도메인 관리", () => {
   });
 
   test("TC-DMA-DOM-05 하위 도메인 등록 — 부모와 정의가 같으면 경고 확인이 뜨고, [취소]는 아무것도 바꾸지 않는다", async () => {
-    await gridRow(panelByTitle(page, "도메인 목록"), DOM1_NAME, "DOMAIN_NAME").click();
+    await domainRow(page, DOM1_NAME).click();
     await scrollGridLeft(panelByTitle(page, "도메인 목록"));
     await expect(screen(page).getByLabel("도메인명", { exact: true })).toHaveValue(DOM1_NAME, { timeout: 20_000 });
     await screen(page).getByRole("button", { name: "하위 도메인 등록" }).click();
@@ -661,13 +726,13 @@ test.describe("C 도메인 관리", () => {
     await snapModal(page, "dma-domainMng-05-w01-confirm");
     await m.getByRole("button", { name: "취소", exact: true }).click();
     await expect(m).toBeHidden();
-    await expect(gridRow(panelByTitle(page, "도메인 목록"), DOM2_NAME, "DOMAIN_NAME")).toHaveCount(0);
+    await expect(domainRow(page, DOM2_NAME)).toHaveCount(0);
 
     await saveBtn.click();
     await expect(modal(page)).toContainText("부모와 정의가 같습니다");
     await modal(page).getByRole("button", { name: "확인", exact: true }).click();
     await expectToast(page, "저장했습니다");
-    await verifyListedAfterSearch(page, "도메인 목록", DOM2_NAME, "DOMAIN_NAME");
+    await verifyListedAfterSearch(page, "도메인 목록", DOM2_NAME, "_NAME");
     await layoutC.layout(page, "domainMng 하위 도메인");
     await snap(page, "dma-domainMng-05-child");
     watcher.assertClean("domainMng");
@@ -698,10 +763,24 @@ test.describe("C 도메인 관리", () => {
     // 최상위(부모 없음) 도메인이라 W01 경고 없이 곧바로 저장된다.
     await screen(page).getByRole("button", { name: "저장", exact: true }).click();
     await expectToast(page, "저장했습니다");
-    await verifyListedAfterSearch(page, "도메인 목록", DOM3_NAME, "DOMAIN_NAME");
+    await verifyListedAfterSearch(page, "도메인 목록", DOM3_NAME, "_NAME");
 
     // 영향도 패널 — 지금까지는 참조가 없어 표가 비어 있어도 렌더는 된다.
     await expect(screen(page).locator(".domain-mng__impact")).toBeVisible();
+
+    // [부모 연결] 은 저장된 도메인에 부모를 다는 대화상자를 연다(53465b16, D-132). [취소] 하면 아무것도 바뀌지 않는다.
+    await button(page, "부모 연결").click();
+    const link = page.locator('[data-testid="domain-parent-link-modal"]');
+    await expect(link).toBeVisible();
+    await expect(link).toContainText(`${DOM3_NAME} (${DOM3_STD})`);
+    await snapModal(page, "dma-domainMng-06-parent-link");
+    await modal(page).getByRole("button", { name: "취소", exact: true }).click();
+    await expect(link).toHaveCount(0);
+    // 부모가 생기지 않았다 — 목록 이름 칸이 └ 없이 그대로다. 넓은 목록은 가로로 밀려 이름 칸이 가상화로 빠질 수 있어
+    // 이름 열을 드러낸 뒤 본다(공용 revealGridColumn — 가운데 칸 뷰포트를 굴린다).
+    const list = panelByTitle(page, "도메인 목록");
+    await revealGridColumn(list, "_NAME");
+    await expect(gridRow(list, DOM3_NAME, "_NAME")).toHaveCount(1);
     await assertAllButtonsPressed(page, "domainMng", { 삭제: "테스트 케이스 행 삭제는 이 여정에서 다루지 않는다" });
     watcher.assertClean("domainMng");
   });
@@ -781,7 +860,7 @@ test.describe("D 컬럼 사전", () => {
     await tid(page, "term-pop-reg").click();
     await expect(tid(page, "term-pop")).toHaveCount(0, { timeout: 20_000 });
 
-    await expect(tid(page, "token-row-1")).toContainText("등록됨", { timeout: 20_000 });
+    await expect(tokenRow(page, 1)).toContainText("등록됨", { timeout: 20_000 });
     await tid(page, "gen-apply").click();
     await expect(tid(page, "form-column-name")).not.toHaveValue("");
     await expect(tid(page, "form-phys-name")).toHaveValue(COL_ABBR);
@@ -791,6 +870,14 @@ test.describe("D 컬럼 사전", () => {
       const domainInput = tid(page, "form-domain");
       await domainInput.fill(DOM_NAME);
       await domainInput.press("Enter");
+      await expect(domainInput).toHaveValue(DOM_NAME);
+      // [찾기] 는 빈 검색어로 도메인 찾기 팝업을 연다 — 검색해 고르면 칸에 그 도메인이 들어간다(DomainField).
+      await tid(page, "form-domain-find").click();
+      await expect(tid(page, "form-domain-box")).toBeVisible();
+      await tid(page, "form-domain-box-keyword").fill(DOM_NAME);
+      await tid(page, "form-domain-box-search").click();
+      await tid(page, `form-domain-box-pick-COLDOM${RUN}`).click();
+      await expect(page.locator('[data-testid="form-domain-box"]')).toHaveCount(0);
       await expect(domainInput).toHaveValue(DOM_NAME);
     }
     await layoutD.layout(page, "columnMng 등록 입력 중");
@@ -831,7 +918,7 @@ test.describe("D 컬럼 사전", () => {
     await tid(page, "gen-direction").selectOption("REVERSE");
     await tid(page, "gen-input").fill(COL_ABBR);
     await tid(page, "gen-decompose").click();
-    await expect(tid(page, "token-row-1")).toContainText("등록됨", { timeout: 20_000 });
+    await expect(tokenRow(page, 1)).toContainText("등록됨", { timeout: 20_000 });
     await expect(tid(page, "gen-preview")).toContainText(COL_INPUT);
     await layoutD.layout(page, "columnMng 역분해");
     await snap(page, "dma-columnMng-04-reverse");
@@ -941,8 +1028,12 @@ test.describe("dma 화면 연결·권한", () => {
       await gridRow(panelByTitle(page, "단위 목록"), roUnit, "unitCode").click();
       await expect(button(page, "저장")).toBeDisabled();
       await expect(button(page, "삭제")).toBeDisabled();
-      // 환산 미리보기(compare)는 READ 등급에 포함돼 있어 담당자도 쓸 수 있다(설계, 결함 아님).
-      await expect(screen(page).getByRole("button", { name: "계산" })).toBeEnabled();
+      // 환산 계산기(compare)는 READ 등급에 포함돼 있어 담당자도 쓸 수 있다(설계, 결함 아님). [계산] 버튼은 01304edc 로 없어지고
+      // 값·입력 단위를 넣으면 바로 계산한다 — 서버 환산값이 보이는 것까지 본다.
+      // 목록에서 단위를 고르면 그 단위가 입력 단위로 채워진다(A-PREVIEW·B-005) — 콤보를 다시 고르지 않는다(같은 항목을 누르면 풀린다).
+      await expect(calcUnit(page)).toHaveValue(new RegExp(`^${escapeRe(roUnit)} `));
+      await calcValue(page).fill("1");
+      await expect(calcCell(page, roUnit)).toHaveText("1", { timeout: 20_000 });
       await snap(page, "dma-ro-unitMng");
 
       // termMng — 조회는 되고 등록·저장·삭제·재인코딩 배치는 막힌다.
@@ -960,18 +1051,20 @@ test.describe("dma 화면 연결·권한", () => {
       await openMenu(page, TRAIL(MENU.domainMng), "domainMng");
       await searchField(page, "검색어").fill(roDomain);
       await button(page, "조회").click();
-      await expect(gridRow(panelByTitle(page, "도메인 목록"), roDomain, "DOMAIN_NAME")).toHaveCount(1, { timeout: 20_000 });
+      await expect(domainRow(page, roDomain)).toHaveCount(1, { timeout: 20_000 });
       await expect(screen(page).getByRole("button", { name: "도메인 등록", exact: true })).toBeDisabled();
-      await gridRow(panelByTitle(page, "도메인 목록"), roDomain, "DOMAIN_NAME").click();
+      await domainRow(page, roDomain).click();
       await expect(screen(page).getByLabel("도메인명", { exact: true })).toHaveValue(roDomain, { timeout: 20_000 });
       await expect(screen(page).getByLabel("도메인명", { exact: true })).toBeDisabled();
       await expect(screen(page).getByRole("button", { name: "도메인검증" })).toHaveCount(0);
       await expect(screen(page).getByRole("button", { name: "저장", exact: true })).toHaveCount(0);
       await snap(page, "dma-ro-domainMng");
 
-      // columnMng — 목록이 늘 채워져 있으니 검색 없이 첫 행으로 조회 확인하고, 신규·저장이 막혀 있는지 본다
-      // (분해는 READ 등급이라 켜져 있다 — 설계).
+      // columnMng — 첫 진입은 조회하지 않는다(cf4fbb05). [조회]로 목록을 받아 첫 행으로 조회를 확인하고,
+      // 신규·저장이 막혀 있는지 본다(분해는 READ 등급이라 켜져 있다 — 설계).
       await openMenu(page, TRAIL(MENU.columnMng), "columnMng");
+      await expect(tid(page, "column-list").locator(".ag-center-cols-container .ag-row")).toHaveCount(0);
+      await button(page, "조회").click();
       await expect(tid(page, "column-list").locator(".ag-center-cols-container .ag-row").first()).toBeVisible({ timeout: 20_000 });
       await expect(button(page, "신규")).toBeDisabled();
       await expect(button(page, "저장")).toBeDisabled();
