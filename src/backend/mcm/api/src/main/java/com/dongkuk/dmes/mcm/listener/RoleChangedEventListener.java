@@ -23,6 +23,11 @@ import java.time.Duration;
  * <p>BFF 라우트는 강경민 매니저 영역. 본 listener 는 BE → BFF 호출 책임만.
  *
  * <p>호출 실패는 swallow (로그만). 실패해도 5분 TTL 만료 후 자동 재조회로 자연 복구.
+ *
+ * <p>BFF 는 이 경로({@code /api/mcm/internal/*})를 세션 대신 {@code X-Client-Key} 로만 연다 — BFF→BE 와 같은 합의 비밀
+ * ({@code BACKEND_CLIENT_KEY}, 없으면 {@code cactus.security.client-key}. ClientKeyFilter 와 같은 우선순위)을 싣는다.
+ * 옛 {@code X-Internal-Bff-Call: 1} 표식은 브라우저도 붙일 수 있어 BFF 가 더는 받지 않는다(2026-10-03 보안 지적).
+ * 비밀이 비어 있으면 헤더 없이 보내고 BFF 가 403 으로 거절한다(TTL 로 복구).
  */
 @Component
 public class RoleChangedEventListener {
@@ -34,13 +39,14 @@ public class RoleChangedEventListener {
             .build();
 
     private final String bffInvalidateUrl;
-    private final String bffInternalKey;
+    /** BFF↔BE 합의 비밀 — BFF 가 {@code X-Client-Key} 로 내부 호출을 확인한다. 로그에 남기지 않는다. */
+    private final String clientKey;
 
     public RoleChangedEventListener(
             @Value("${mcm.bff.invalidate-role-url:http://localhost:3000/api/mcm/internal/cache/invalidate-role}") String bffInvalidateUrl,
-            @Value("${mcm.bff.internal-call-header:X-Internal-Bff-Call: 1}") String bffInternalKey) {
+            @Value("${BACKEND_CLIENT_KEY:${cactus.security.client-key:}}") String clientKey) {
         this.bffInvalidateUrl = bffInvalidateUrl;
-        this.bffInternalKey = bffInternalKey;
+        this.clientKey = clientKey == null ? "" : clientKey;
     }
 
     @EventListener
@@ -55,11 +61,14 @@ public class RoleChangedEventListener {
     private void invalidate(String roleId) {
         try {
             String body = "{\"roleId\":\"" + escape(roleId) + "\"}";
-            HttpRequest request = HttpRequest.newBuilder()
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(bffInvalidateUrl))
                     .timeout(Duration.ofSeconds(2))
-                    .header("Content-Type", "application/json")
-                    .header("X-Internal-Bff-Call", "1")
+                    .header("Content-Type", "application/json");
+            if (!clientKey.isBlank()) {
+                builder.header("X-Client-Key", clientKey);
+            }
+            HttpRequest request = builder
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());

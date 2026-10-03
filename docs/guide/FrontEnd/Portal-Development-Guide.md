@@ -23,9 +23,11 @@ BFF 는 NextAuth 세션을 검증한 뒤 BE 로 forward 할 때 다음 3종 헤�
 
 시나리오 확정 REST POST는 BFF에서도 원본 역할 기준 `ADMIN|PLANNER`를 요구해 VIEWER를 403으로 선차단한다. 이 검사는 UX·방어 계층이며 최종 경계는 BE 서비스 method guard다.
 
-### 1-3. 포털 자기참조 호출
+### 1-3. 서버 코드의 OASIS 호출·내부 호출
 
-포털이 자체 OASIS 자원(메뉴·즐겨찾기 등)을 호출할 때는 BE 를 직접 부르지 않고 자기 BFF 를 재호출한다(`m-mcm/lib/http/oasis-client.ts`). middleware 무한 루프를 막기 위해 내부 호출에는 `X-Internal-Bff-Call: 1` 헤더를 부착하고, middleware 는 이 헤더가 있을 때 인증/리다이렉트를 bypass 한다. 외부(브라우저) 호출에는 부착하지 않으며 부착돼 들어와도 거부한다. 권한관리 repository 도 모두 이 자기 BFF 패턴을 쓰고 BE 직접 호출은 금지한다.
+- 서버 코드(Route Handler·server component·server action)가 사용자 대신 OASIS 를 부를 때는 자기 BFF 를 다시 부르지 않고 BE 를 바로 부른다(`m-mcm/lib/http/oasis-client.ts` — X-Client-Key + 세션에서 확인한 사용자로 `X-Authenticated-*`). 2026-10-03 까지는 자기 BFF 를 `X-Internal-Bff-Call: 1` + `X-Authenticated-*` 로 다시 불렀는데, BFF 가 그 헤더를 믿으면 브라우저가 붙인 같은 헤더도 믿게 되어 로그인하지 않은 사용자도 아무 사용자로 BE 를 부를 수 있었다.
+- BFF 는 요청 헤더로 인증·권한 검사를 건너뛰지 않고, 요청 헤더의 사용자 정보(`X-Authenticated-*`)를 믿지 않는다(`lib/http/bff-auth.ts` 는 세션 쿠키만 본다). BE 로 넘기는 신뢰 헤더는 BFF 가 새로 만든다.
+- 서버 간 호출이 BFF 로 들어오는 곳은 `/api/mcm/internal/*`(BE `RoleChangedEventListener` → 권한 캐시 무효화) 하나다. proxy 와 라우트가 `X-Client-Key` 를 BFF↔BE 합의 비밀 `BACKEND_CLIENT_KEY` 와 시간 상수로 비교해 연다(`lib/http/internal-call.ts`). 이 비밀로 열리는 것은 캐시 비우기뿐이다.
 
 ### 1-4. middleware 인증 전용 prefix
 

@@ -14,6 +14,9 @@
  *   6) RBAC 3패턴       → 서버캐시 권한키 멤버십 검증 (미보유 403) — SYSADMIN 프리패스 제거
  *                         (2026-07-30, 롤 무관 멤버십. BE 브레이크글라스 시 perm-keys=["*"] 로 전면 통과)
  *   7) 미매칭           → RBAC_DEFAULT_DENY=true 면 403, 아니면 통과 (aps/mpn/kmc rest 등)
+ *   (예외) /api/mcm/internal/* → 서버 간 호출 전용. 세션·RBAC 대신 BFF↔BE 합의 비밀(X-Client-Key)만 본다(lib/http/internal-call.ts).
+ *   그 밖 경로는 어떤 요청 헤더로도 위 검사를 건너뛰지 않는다 — 옛 `x-internal-bff-call: 1` 통과는 브라우저도 붙일 수 있어 없앴다
+ *   (2026-10-03 보안 지적: 세션 없이 그 헤더와 X-Authenticated-* 를 붙이면 /api/{module}/oasis/* 를 아무 사용자로 BE 에 보낼 수 있었다).
  *
  * 본문 상한(lib/http/body-limit.ts): 이 proxy 가 도는 요청은 Next 가 본문을 proxyClientMaxBodySize(10MB)까지 메모리에
  * 복제한다. 미디어 올리기(100MB) 한 경로만 matcher 에서 빼고, 그 전용 라우트가 {@link guardApiRequest} 로 같은 검사를 한다.
@@ -28,6 +31,7 @@ import {
 } from "@dk-oasis/shared/auth-rbac-policy";
 import { getUserPerms } from "@/lib/auth/api-permission-cache";
 import { API_BODY_MAX_BYTES, declaredBodyExceeds } from "@/lib/http/body-limit";
+import { INTERNAL_API_PREFIX, isTrustedInternalCall } from "@/lib/http/internal-call";
 
 const AUTH_SECRET = process.env.AUTH_SECRET;
 const AUTH_COOKIE_PREFIX = process.env.AUTH_COOKIE_PREFIX ?? "oasis-mcm-auth";
@@ -116,10 +120,12 @@ export async function proxy(req: NextRequest) {
     return jsonError("PAYLOAD_TOO_LARGE", "요청 본문이 너무 큽니다(최대 10MB).", 413);
   }
 
-  // 2-1) BFF 자기참조(oasis-client.ts → BFF) 무한루프 방지.
-  //       서버 내부 self-fetch 만 X-Internal-Bff-Call 헤더를 부착하므로 안전.
-  if (req.headers.get("x-internal-bff-call") === "1") {
-    return NextResponse.next();
+  // 2-1) 서버 간 내부 경로(BE RoleChangedEventListener → 권한 캐시 무효화) — 세션 없는 서버 호출이라 사용자 RBAC 대신
+  //       BFF↔BE 합의 비밀(X-Client-Key = BACKEND_CLIENT_KEY)을 본다. 틀리거나 없으면 로그인한 사용자여도 403. 라우트가 한 번 더 본다.
+  if (path.startsWith(INTERNAL_API_PREFIX)) {
+    return isTrustedInternalCall(req.headers)
+      ? NextResponse.next()
+      : jsonError("FORBIDDEN", "내부 호출 전용 경로입니다.", 403);
   }
 
   return (await guardApiRequest(req)) ?? NextResponse.next();
@@ -128,7 +134,7 @@ export async function proxy(req: NextRequest) {
 /**
  * /api/* 인증·권한 판정(위 2~7단계). 막을 때는 401·403 응답, 통과면 null.
  * proxy 와 matcher 에서 뺀 미디어 올리기 라우트가 함께 쓴다 — 정책이 한 곳에만 있게 한다.
- * 자기참조 헤더(x-internal-bff-call) 통과는 proxy 에만 있다(올리기 라우트는 그 헤더를 믿지 않는다).
+ * 내부 경로(/api/mcm/internal/*) 판정은 proxy 에만 있다. 요청 헤더로 이 검사를 건너뛰는 길은 없다.
  */
 export async function guardApiRequest(req: NextRequest): Promise<NextResponse | null> {
   const path = req.nextUrl.pathname;

@@ -7,7 +7,9 @@
  *
  * <p>인증 정책:
  * <ul>
- *   <li>{@code X-Internal-Bff-Call: 1} 헤더 필수 — 외부 호출 차단</li>
+ *   <li>{@code X-Client-Key} 헤더가 BFF↔BE 합의 비밀 {@code BACKEND_CLIENT_KEY} 와 같아야 한다(시간 상수 비교,
+ *       lib/http/internal-call.ts). proxy 가 먼저 보고 여기서 한 번 더 본다. 서버에 비밀이 없으면 언제나 403.</li>
+ *   <li>옛 {@code X-Internal-Bff-Call: 1} 표식은 브라우저도 붙일 수 있어 더는 받지 않는다(2026-10-03 보안 지적).</li>
  *   <li>본 엔드포인트는 NextAuth 세션 검증을 거치지 않음 (BE → BFF 서버 간 호출)</li>
  * </ul>
  *
@@ -18,10 +20,11 @@ import {
   invalidateRole,
   invalidateAll,
 } from "@/lib/auth/api-permission-cache";
+import { isTrustedInternalCall } from "@/lib/http/internal-call";
 
 export async function POST(req: NextRequest) {
-  // 내부 호출 헤더 가드 — 외부에서 임의 호출 차단
-  if (req.headers.get("x-internal-bff-call") !== "1") {
+  // 내부 호출 비밀 가드 — 외부에서 임의 호출 차단
+  if (!isTrustedInternalCall(req.headers)) {
     return NextResponse.json(
       { ok: false, message: "internal call only" },
       { status: 403 }

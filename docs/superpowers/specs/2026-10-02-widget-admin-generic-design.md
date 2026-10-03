@@ -512,7 +512,7 @@ interface LlmClient {
 | 위젯관리 저장 | cactus 요청 변환기가 params 의 null 값을 받으면 요청 전체가 실패하므로, 화면이 null·undefined 키를 빼고 보낸다(`dropNullParams`) |
 | OASIS 본문 `action` | 본문 params·grids 의 `action` 키가 경로 action 을 덮어써 URL 로 판정한 권한과 BPMN 분기가 어긋날 수 있었다. 이제 E002 로 거절하고, 경로 action 을 마지막에 넣는다(cactus-core, 전 모듈 공통) |
 | 미디어 내려받기 AUTH_ONLY | 접두 대신 GET·HEAD 와 정확한 경로(`…/widgetMedia/file/{32자}`)만 인증만 본다. 올리기는 위젯관리 권한키로 판정한다 |
-| 미디어 올리기 상한 | BFF 본문 상한 101MB, be-proxy 미디어 경로 시간 제한 5분, multipart 상한 초과는 400(E002) |
+| 미디어 올리기 상한 | BFF 본문 상한은 일반 API 10MB, 미디어 올리기 전용 라우트(proxy matcher 밖)만 101MB(§16.3). be-proxy 미디어 경로 시간 제한 5분, multipart 상한 초과는 400(E002) |
 
 ### 16.3 남은 일
 
@@ -523,6 +523,7 @@ interface LlmClient {
 - **운영 환경 확인**: MSSQL 에서 `;` 없이 이어 쓴 여러 문장 판정, 운영 context path(`/mcm/api`)에서 BE 필터 판정, WildFly·Nginx 의 본문 101MB 허용, 챗봇 최대 응답 시간(도구 5회 × 공급자 제한 시간, 약 123초)과 앞단 시간 제한.
 - **KoreaExim**: CNH/CNY 표기 차이를 실제 키로 검증하지 않았다.
 - **shared**: ~~`PieChart` 범례의 「건」 고정 단위~~ — 해결됨(2026-10-03): `PieChart` 에 `unit` 속성(기본 「건」, `""` 이면 단위 없음)을 더하고, 쿼리 차트 원 차트는 첫 계열 이름 끝 괄호(「사용 시간(분)」→분)를 단위로 넘긴다(`pieUnitOf`). 남은 일: 같은 이름 항목의 key 중복(기존 컴포넌트 변경이라 승인 뒤).
+- **BFF 내부 호출 헤더 우회** — 해결: proxy 가 `x-internal-bff-call: 1` 이면 검사 없이 통과시키고 bff-auth 가 같은 헤더의 `X-Authenticated-*` 를 사용자로 믿어, 로그인하지 않은 브라우저도 세 헤더만 붙이면 `/api/{module}/oasis/*` 를 아무 사용자·역할로 BE 에 보낼 수 있었다. 이제 헤더 통과와 사용자 헤더 fallback 을 없애고(bff-auth 는 세션 쿠키만), 서버 코드의 OASIS 호출(`oasis-client`)은 BE 를 바로 부르며, 서버 간 경로 `/api/mcm/internal/*`(BE → 권한 캐시 무효화)만 `X-Client-Key` = `BACKEND_CLIENT_KEY` 시간 상수 비교로 연다(`lib/http/internal-call.ts`, BE `RoleChangedEventListener` 가 그 헤더를 싣는다).
 
 ## 17. 메모장 위젯 `memo` (2026-10-03 추가)
 
