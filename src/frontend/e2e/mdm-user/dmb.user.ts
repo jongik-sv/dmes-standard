@@ -139,7 +139,7 @@ async function newMinorThenDelete(page: Page, prefix: "header" | "layout") {
   await expect(sel).toHaveValue("1.000", { timeout: 20_000 });
   await tid(page, `${prefix}-ver-new-minor`).click();
   await expect(sel).toHaveValue("1.001", { timeout: 20_000 });
-  await expect(sel.locator('option[value="1.001"]')).toContainText("DRAFT");
+  await expect(sel.locator('option[value="1.001"]')).toHaveText("v1.001 작성 중"); // DRAFT 표기(versionOptions)
   await tid(page, `${prefix}-ver-delete`).click();
   const confirm = page.getByRole("dialog").filter({ hasText: "v1.001 DRAFT 를 삭제할까요?" });
   await expect(confirm).toBeVisible();
@@ -147,6 +147,12 @@ async function newMinorThenDelete(page: Page, prefix: "header" | "layout") {
   await expect(sel.locator('option[value="1.001"]')).toHaveCount(0, { timeout: 20_000 });
   await expect(sel).toHaveValue("1.000");
 }
+
+/**
+ * 화면 머리 [조회]. 레이아웃 [버전·영향도] 탭이 열려 있으면 영향 전문 찾기의 [조회](impact-search)도 보여 이름이 겹친다.
+ */
+const headerSearch = (page: Page) =>
+  screen(page).locator(".page-layout__header-buttons").getByRole("button", { name: "조회", exact: true });
 
 /** 검색 결과 그리드에서 표준 물리명이 정확히 phys 인 행 — 접두어가 겹치는 컬럼(PROD_DT/PLAN_PROD_DT 등)을 가려낸다. */
 function columnPickRow(page: Page, phys: string): Locator {
@@ -690,7 +696,8 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     const row = tid(page, "impact-list").locator(".ag-center-cols-container .ag-row").filter({ hasText: LAYOUT_NAME }).first();
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(row).toContainText("MES → ERP");
-    await expect(row).toContainText("91 / 4");
+    // 3단계(D-148, 1d23688e)부터 본문 항목 offset 은 본문 기준 상대값이다(LayoutImpactFinder) — 전문 전체 기준 91 에서 헤더 38바이트를 뺀 53.
+    await expect(row).toContainText("(본문 53 / 4)");
     await snap(page, "dmb-layoutMng-08-impact");
 
     await tid(page, "impact-keyword").fill(`없음-${RUN}`);
@@ -721,7 +728,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     // std — 내 DRAFT 를 해제한다([확정] 은 권한이 없어 꺼져 있다)
     await go(page, "layoutMng");
     await tid(page, "layout-search-keyword").fill(RUN);
-    await button(page, "조회").click();
+    await headerSearch(page).click();
     await gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME").click();
     await expect(tid(page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: 20_000 });
     await tid(page, "layout-tab-edit").click();
@@ -749,7 +756,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     }
 
     // std — 다시 조회하면 현재 버전이 v1.000 이고 DRAFT 는 없다
-    await button(page, "조회").click();
+    await headerSearch(page).click();
     const row = gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME");
     // 목록 오른쪽 열(현재·DRAFT 버전)은 가로 가상화로 그려지지 않을 수 있다 — 굴려 드러낸 뒤 본다(공용 expectRowCell).
     await expectRowCell(row, "CURRENT_VER", "v1.000", { timeout: 20_000 });
