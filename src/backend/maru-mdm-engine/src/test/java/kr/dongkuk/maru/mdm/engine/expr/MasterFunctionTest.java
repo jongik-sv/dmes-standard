@@ -13,8 +13,12 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
+import kr.dongkuk.maru.mdm.engine.spi.CodeLookup;
+import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
 import kr.dongkuk.maru.mdm.engine.testsupport.CodeFixtures;
 import kr.dongkuk.maru.mdm.engine.testsupport.InMemoryLookups;
 import kr.dongkuk.maru.mdm.engine.testsupport.InMemoryLookups.RecordingMasterLookup;
@@ -57,6 +61,53 @@ class MasterFunctionTest {
         Map<String, Object> m = new HashMap<>();
         m.put(name, value);
         return m;
+    }
+
+    /** 식 하나가 마루 코드 목차({@code code(id)})를 몇 번 읽는지 센다. 고치기 전에는 MasterQuery 의 코드 여부 확인과 해석기의 버전 선택이 한 번씩, 2회였다. */
+    private static final class TocCounter implements CodeLookup {
+        private final CodeLookup delegate;
+        final AtomicInteger tocCalls = new AtomicInteger();
+
+        TocCounter(CodeLookup delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Optional<CodeRows> code(String id) {
+            tocCalls.incrementAndGet();
+            return delegate.code(id);
+        }
+
+        /** 본문 조회는 세지 않는다(기본 구현은 {@code code(id)} 를 부르므로 위임 쪽 것을 직접 부른다). */
+        @Override
+        public Optional<CodeRows> codeAt(String id, BigDecimal ver) {
+            return delegate.codeAt(id, ver);
+        }
+    }
+
+    private TocCounter countingEvaluator() {
+        TocCounter[] holder = new TocCounter[1];
+        evaluator = new MdmEvaluator(InMemoryLookups.create()
+                .code(CodeFixtures.procCd())
+                .code(CodeFixtures.steel())
+                .masters(masters)
+                .wrapCodes(c -> holder[0] = new TocCounter(c))
+                .build());
+        return holder[0];
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @CsvSource(delimiter = '|', value = {
+            "MASTER(\"PROC_CD\", \"COATING\", \"82\")|true",
+            "MASTER(\"STEEL\", \"BASE\", \"82\", \"attr01\")|KR",
+            "MASTER_AT(\"STEEL\", \"BASE\", \"82\", \"20260801\", \"attr01\")|KR",
+            "MASTER(\"PORT\", \"BASE\", \"KRPUS\")|true"})
+    void MASTER_식_하나는_코드_목차를_한_번만_읽는다(String text, String expected) {
+        TocCounter counter = countingEvaluator();
+        EvaluationValue r = eval(text, Map.of(), SEP10_KST);
+        assertAll(
+                () -> assertEquals(expected, r.getStringValue()),
+                () -> assertEquals(1, counter.tocCalls.get(), "code(id) 호출 수"));
     }
 
     @Test

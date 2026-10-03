@@ -32,6 +32,8 @@ public final class DefaultCodeResolver implements CodeResolver {
     private static final String REGEX = "REGEX";
     private static final String TABLE = "TABLE";
 
+    private static final CodeMatch NOT_MEMBER = new CodeMatch(false, List.of());
+
     private final CodeLookup codes;
     private final CodeEffLookup codeEff;
     private final Map<String, Pattern> patterns = new ConcurrentHashMap<>();
@@ -49,35 +51,51 @@ public final class DefaultCodeResolver implements CodeResolver {
     @Override
     public boolean isMember(String maruCodeId, String cateId, String code, LocalDateTime baseDt) {
         if (code == null) {
-            return false;
+            return false; // 목차도 읽지 않는다
         }
-        Optional<BigDecimal> ver = selectVersion(maruCodeId, baseDt);
-        return ver.isPresent() && resolve(maruCodeId, cate(cateId), ver.get()).contains(code);
+        return match(maruCodeId, cateId, code, baseDt, false).map(CodeMatch::member).orElse(false);
     }
 
-    /**
-     * 버전을 한 번만 고르고({@code selectVersion} 1회), 소속 계산에 읽은 본문 행을 속성 조회에 다시 쓴다.
-     * 색인으로 소속을 알았을 때만 {@code codeAt} 을 한 번 더 부른다. 결과 의미는 {@link #isMember} 뒤 항목 조회와 같다.
-     */
     @Override
     public Optional<String> attr(String maruCodeId, String cateId, String code, LocalDateTime baseDt, int attrNo) {
         if (code == null) {
+            return Optional.empty(); // 목차도 읽지 않는다
+        }
+        return match(maruCodeId, cateId, code, baseDt, true).flatMap(m -> m.attr(attrNo));
+    }
+
+    /**
+     * 목차를 한 번 읽어({@code code()} 1회) 버전을 한 번만 고르고, 소속 계산에 읽은 본문 행을 속성 조회에 다시 쓴다.
+     * 색인으로 소속을 알았을 때만 속성을 위해 {@code codeAt} 을 한 번 더 부른다.
+     */
+    @Override
+    public Optional<CodeMatch> match(String maruCodeId, String cateId, String code, LocalDateTime baseDt, boolean withAttrs) {
+        Optional<CodeRows> toc = codes.code(maruCodeId);
+        if (toc.isEmpty()) {
             return Optional.empty();
         }
-        Optional<BigDecimal> ver = selectVersion(maruCodeId, baseDt);
+        if (code == null) {
+            return Optional.of(NOT_MEMBER);
+        }
+        Optional<BigDecimal> ver = CodeVersions.select(toc.get().versions(), baseDt);
         if (ver.isEmpty()) {
-            return Optional.empty();
+            return Optional.of(NOT_MEMBER);
         }
         Resolved resolved = resolveWithRows(maruCodeId, cate(cateId), ver.get());
         if (!resolved.members().contains(code)) {
-            return Optional.empty();
+            return Optional.of(NOT_MEMBER);
+        }
+        if (!withAttrs) {
+            return Optional.of(new CodeMatch(true, List.of()));
         }
         Optional<CodeRows> rows = resolved.rows().isPresent() ? resolved.rows() : codes.codeAt(maruCodeId, ver.get());
-        return rows.stream()
+        List<String> attrs = rows.stream()
                 .flatMap(r -> validItems(r, ver.get()).stream())
                 .filter(i -> i.code().equals(code))
                 .findFirst()
-                .map(i -> i.attrs().get(attrNo - 1));
+                .map(CodeItemRow::attrs)
+                .orElse(List.of());
+        return Optional.of(new CodeMatch(true, attrs));
     }
 
     @Override

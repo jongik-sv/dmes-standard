@@ -4,6 +4,7 @@ import static kr.dongkuk.maru.mdm.engine.testsupport.CodeFixtures.PROC_CD;
 import static kr.dongkuk.maru.mdm.engine.testsupport.CodeFixtures.V1_000;
 import static kr.dongkuk.maru.mdm.engine.testsupport.CodeFixtures.V1_001;
 import static kr.dongkuk.maru.mdm.engine.testsupport.CodeFixtures.dt;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -109,6 +110,40 @@ class DefaultCodeResolverCodeAtTest {
         new DefaultCodeResolver(member, CodeEffLookup.NONE).isMember(PROC_CD, "BASE", "84", AUG);
         assertEquals(member.codeCalls, lookup.codeCalls, "isMember 와 같은 조회 수");
         assertEquals(member.atCalls.size(), lookup.atCalls.size());
+    }
+
+    @Test
+    void match_는_마루_코드가_아니면_빈_값이고_본문을_읽지_않는다() {
+        Counting lookup = new Counting(CodeFixtures.steel());
+        DefaultCodeResolver r = new DefaultCodeResolver(lookup, CodeEffLookup.NONE);
+        assertEquals(Optional.empty(), r.match("PORT", "BASE", "KRPUS", AUG, true));
+        assertEquals(1, lookup.codeCalls);
+        assertEquals(List.of(), lookup.atCalls);
+    }
+
+    @Test
+    void match_는_코드면_소속과_속성을_함께_준다() {
+        Counting lookup = new Counting(CodeFixtures.steel());
+        DefaultCodeResolver r = new DefaultCodeResolver(lookup, CodeEffLookup.NONE);
+        CodeResolver.CodeMatch hit = r.match(CodeFixtures.STEEL, "BASE", "82", AUG, true).orElseThrow();
+        CodeResolver.CodeMatch miss = r.match(CodeFixtures.STEEL, "BASE", "NOPE", AUG, true).orElseThrow();
+        CodeResolver.CodeMatch nullCode = r.match(CodeFixtures.STEEL, "BASE", null, AUG, true).orElseThrow();
+        assertAll(
+                () -> assertTrue(hit.member()),
+                () -> assertEquals(Optional.of("KR"), hit.attr(1)),
+                () -> assertFalse(miss.member()),
+                () -> assertEquals(Optional.empty(), miss.attr(1)),
+                () -> assertFalse(nullCode.member()));
+    }
+
+    @Test
+    void match_는_속성이_필요_없고_색인이_답하면_본문을_읽지_않는다() {
+        Counting lookup = new Counting(CodeFixtures.steel());
+        CodeEffLookup eff = (id, ver, cate) -> Optional.of(Set.of("82"));
+        DefaultCodeResolver r = new DefaultCodeResolver(lookup, eff);
+        assertTrue(r.match(CodeFixtures.STEEL, "BASE", "82", AUG, false).orElseThrow().member());
+        assertEquals(1, lookup.codeCalls);
+        assertEquals(List.of(), lookup.atCalls);
     }
 
     @Test
