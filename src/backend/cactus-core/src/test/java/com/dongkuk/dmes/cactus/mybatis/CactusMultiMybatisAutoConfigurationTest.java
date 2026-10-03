@@ -205,8 +205,8 @@ class CactusMultiMybatisAutoConfigurationTest {
 
     @Test
     void 단일_MyBatis_자동설정과_같이_올리면_DefaultDataSourceResolver가_dataSource를_돌려준다() {
-        // CactusMybatisAutoConfiguration 은 after 선언 없이 SqlSessionFactory 빈 조건을 본다 —
-        // 현재는 자동설정 정렬(이름순 Multi < Mybatis)로 Multi 가 먼저 처리돼 통과한다.
+        // CactusMybatisAutoConfiguration 은 SqlSessionFactory 빈 조건을 보므로 after = CactusMultiMybatisAutoConfiguration
+        // 으로 순서를 선언한다 (이름순 정렬에 기대지 않는다).
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
                         CactusMybatisAutoConfiguration.class, CactusMultiMybatisAutoConfiguration.class))

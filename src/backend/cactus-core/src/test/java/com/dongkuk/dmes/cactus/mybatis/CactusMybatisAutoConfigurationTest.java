@@ -3,10 +3,13 @@ package com.dongkuk.dmes.cactus.mybatis;
 import com.dongkuk.oasis.jdbc.DefaultDataSourceResolver;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.jupiter.api.Test;
+import org.mybatis.spring.boot.autoconfigure.MybatisAutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.context.annotation.Configurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import javax.sql.DataSource;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -57,6 +60,23 @@ class CactusMybatisAutoConfigurationTest {
                     assertThat(ctx).hasSingleBean(DefaultDataSourceResolver.class);
                     assertThat(ctx.getBean(DefaultDataSourceResolver.class)).isSameAs(own);
                 });
+    }
+
+    /**
+     * 결함 수정 — SqlSessionFactory 빈 조건을 보므로, 그 빈을 만드는 자동설정(cactus 다중 MyBatis·mybatis-spring-boot)
+     * 보다 뒤에 처리되도록 순서를 선언한다. 이름순 정렬(com.* &lt; org.*)에 기대지 않는다.
+     */
+    @Test
+    void SqlSessionFactory를_만드는_자동설정들보다_뒤에_정렬된다() {
+        // 입력 순서를 뒤집어 넣어도 정렬 결과가 같아야 한다
+        List<Class<?>> order = List.of(Configurations.getClasses(AutoConfigurations.of(
+                CactusMybatisAutoConfiguration.class,
+                CactusMultiMybatisAutoConfiguration.class,
+                MybatisAutoConfiguration.class)));
+
+        int self = order.indexOf(CactusMybatisAutoConfiguration.class);
+        assertThat(self).isGreaterThan(order.indexOf(CactusMultiMybatisAutoConfiguration.class));
+        assertThat(self).isGreaterThan(order.indexOf(MybatisAutoConfiguration.class));
     }
 
     @Test
