@@ -48,7 +48,7 @@ class MdmCodeVersionTest {
     @Test
     void 색인은_소속_집합을_주고_all_은_한_벌을_공유하며_없는_cateId_는_빈_집합이다() {
         MdmCodeVersion c = sliced();
-        assertThat(c.isSliced()).isTrue();
+        assertThat(c.json()).isInstanceOf(CodeVersionSlice.class);
         assertThat(c.members("TB")).contains(Set.of("B"));
         assertThat(c.members("BASE")).contains(Set.of("A", "B"));
         assertThat(c.members("BASE").get()).isSameAs(c.members("ALL2").get());
@@ -66,7 +66,7 @@ class MdmCodeVersionTest {
     void full_은_전체_행을_그대로_주고_소속은_계산하지_않았다는_빈_값이다() {
         CodeRows rows = rows();
         MdmCodeVersion f = MdmCodeVersion.full(rows);
-        assertThat(f.isSliced()).isFalse();
+        assertThat(f.json()).isSameAs(rows);
         assertThat(f.rows()).isSameAs(rows);
         assertThat(f.members("TB")).isEmpty();
     }

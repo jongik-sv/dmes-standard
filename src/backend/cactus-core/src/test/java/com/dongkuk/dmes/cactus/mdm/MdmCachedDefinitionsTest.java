@@ -55,6 +55,16 @@ class MdmCachedDefinitionsTest {
     }
 
     @Test
+    void 목차에_없는_버전의_소속도_빈_값_대신_부재_기록과_예외다() {
+        service.lookupAt(MdmTargetType.CODE, List.of("C"), T0);
+        MdmCachedDefinitions.MissLog log = new MdmCachedDefinitions.MissLog();
+
+        assertThatThrownBy(() -> MdmCachedDefinitions.recording(log, () -> cached.codes("C", new BigDecimal("2.001"), "TB")))
+                .as("DRAFT 2.001 은 목차에 없다 — MdmDefinitionLookup.codes 와 같게 던진다").isInstanceOf(MdmUnavailableException.class);
+        assertThat(log.since(0)).containsExactly("CODE:C@2.001");
+    }
+
+    @Test
     void 목차가_없으면_코드_부재_기록과_예외다() {
         MdmCachedDefinitions.MissLog log = new MdmCachedDefinitions.MissLog();
         assertThatThrownBy(() -> MdmCachedDefinitions.recording(log, () -> cached.code("C"))).isInstanceOf(MdmUnavailableException.class);

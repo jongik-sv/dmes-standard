@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import kr.dongkuk.maru.mdm.engine.code.CodeVersionSlice;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeCateItemRow;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeCateRow;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeHeader;
@@ -175,7 +176,7 @@ class MdmMetaServiceVersionedTest {
 
         assertThat(at.ver()).isEqualTo("2.000");
         MdmCodeVersion body = (MdmCodeVersion) at.body();
-        assertThat(body.isSliced()).isTrue();
+        assertThat(body.json()).isInstanceOf(CodeVersionSlice.class);
         assertThat(body.members("TB")).contains(java.util.Set.of("B"));
         assertThat(cache.get(MdmTargetType.CODE, "C").orElseThrow().part()).isEqualTo(MdmMetaCache.Part.TOC);
         assertThat(cache.getBody(MdmTargetType.CODE, "C", "2.000")).isPresent();
@@ -195,7 +196,7 @@ class MdmMetaServiceVersionedTest {
 
         assertThat(at.ver()).isEqualTo("1.000");
         assertThat(old.fetchCalls.get()).as("목차 한 번 + 본문 한 번(둘 다 옛 view)").isEqualTo(2);
-        assertThat(((MdmCodeVersion) at.body()).isSliced()).isTrue();
+        assertThat(((MdmCodeVersion) at.body()).json()).isInstanceOf(CodeVersionSlice.class);
         assertThat(((MdmCodeVersion) at.body()).members("TB")).as("TB 는 2.000 부터").contains(java.util.Set.of());
         assertThat(cache.getBody(MdmTargetType.CODE, "C", "1.000")).isPresent();
         assertThat(cache.getBody(MdmTargetType.CODE, "C", "2.000")).isPresent();
@@ -228,7 +229,7 @@ class MdmMetaServiceVersionedTest {
         MdmMetaService.MdmAt ruleAt = off.oneAt(MdmTargetType.RULE, "R", T0).orElseThrow();
 
         assertThat(off.versioned()).isFalse();
-        assertThat(((MdmCodeVersion) code.body()).isSliced()).isFalse();
+        assertThat(((MdmCodeVersion) code.body()).json()).isInstanceOf(CodeRows.class);
         assertThat(((MdmCodeVersion) code.body()).members("TB")).isEmpty();
         assertThat(ruleAt.ver()).isEqualTo("1.000");
         assertThat(cache.get(MdmTargetType.CODE, "C").orElseThrow().part()).isEqualTo(MdmMetaCache.Part.VALUE);
@@ -322,6 +323,23 @@ class MdmMetaServiceVersionedTest {
 
         assertThatThrownBy(() -> off.toc(MdmTargetType.RULE_SET, "NULL_VER")).isInstanceOf(MdmUnavailableException.class);
         assertThatThrownBy(() -> off.oneAt(MdmTargetType.RULE, "FOUR", T0)).isInstanceOf(MdmUnavailableException.class);
+
+        // 캐시만 읽는 본문(평가 중)도 같다 — 캐시에 있는 손상 값을 IllegalArgumentException 이 아니라 받을 수 없음으로 알린다
+        assertThat(cache.get(MdmTargetType.RULE, "FOUR")).as("손상 값이 캐시에 있다").isPresent();
+        assertThatThrownBy(() -> off.cachedBody(MdmTargetType.RULE, "FOUR", "1.000")).isInstanceOf(MdmUnavailableException.class);
+
+        // 엔진이 넘긴 ver 가 소수 넷째 자리면(원장 DECIMAL(7,3) 이라 드물다) 조회기도 받을 수 없음이다 — 캐시만 읽는 쪽은 부재 기록도 남긴다
+        old.put(MdmTargetType.CODE, "C", codeRows());
+        off.one(MdmTargetType.CODE, "C");
+        MdmDefinitionLookup lookup = new MdmDefinitionLookup(off);
+        BigDecimal four = new BigDecimal("1.0001");
+        assertThatThrownBy(() -> lookup.codeAt("C", four)).isInstanceOf(MdmUnavailableException.class);
+        assertThatThrownBy(() -> lookup.codes("C", four, "TB")).isInstanceOf(MdmUnavailableException.class);
+        MdmCachedDefinitions cachedDefs = new MdmCachedDefinitions(off);
+        MdmCachedDefinitions.MissLog log = new MdmCachedDefinitions.MissLog();
+        assertThatThrownBy(() -> MdmCachedDefinitions.recording(log, () -> cachedDefs.codes("C", four, "TB")))
+                .isInstanceOf(MdmUnavailableException.class);
+        assertThat(log.since(0)).containsExactly("CODE:C@1.0001");
     }
 
     /** RELEASED 1.000 [2026-01-01, 2026-07-01)·2.000 [2026-07-01, 열린 끝), DRAFT 2.001(초안 사본 C). TABLE TB(2.000~): B. */

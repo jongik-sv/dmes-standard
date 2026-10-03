@@ -154,6 +154,24 @@ class MdmMetaClientVersionedTest {
     }
 
     @Test
+    void current_를_해석하지_못하면_current_만_빼고_목차는_담는다() {
+        String toc = "{\"header\":null,\"versions\":[{\"ver\":1.000,\"status\":\"RELEASED\",\"applyFrom\":\"2026-01-01T00:00:00\",\"applyTo\":null}]}";
+        server.expect(requestTo(URL)).andRespond(withSuccess(ok("{\"part\":\"TOC\",\"items\":["
+                + "{\"key\":\"EMPTY_VER\",\"value\":" + toc + ",\"current\":{\"ver\":\"\",\"value\":" + RULE_1000 + "}},"
+                + "{\"key\":\"BAD_VER\",\"value\":" + toc + ",\"current\":{\"ver\":\"x\",\"value\":" + RULE_1000 + "}},"
+                + "{\"key\":\"BAD_VALUE\",\"value\":" + toc + ",\"current\":{\"ver\":\"1.000\",\"value\":{\"ver\":\"not-a-number\"}}},"
+                + "{\"key\":\"R\",\"value\":" + toc + ",\"current\":{\"ver\":\"1.000\",\"value\":" + RULE_1000 + "}}],\"failed\":[]}"),
+                MediaType.APPLICATION_JSON));
+
+        MdmTocResult r = client.fetchToc(MdmTargetType.RULE, List.of("EMPTY_VER", "BAD_VER", "BAD_VALUE", "R"), LocalDateTime.of(2026, 10, 3, 0, 0));
+
+        assertThat(r.tocs()).as("current 는 덤 — 해석 실패가 목차까지 버리지 않는다").containsOnlyKeys("EMPTY_VER", "BAD_VER", "BAD_VALUE", "R");
+        assertThat(r.current()).containsOnlyKeys("R");
+        assertThat(r.failed()).isEmpty();
+        server.verify();
+    }
+
+    @Test
     void 목차_value_가_null_이거나_없으면_없음이_아니라_failed_이고_current_value_가_null_이면_current_만_뺀다() {
         server.expect(requestTo(URL)).andRespond(withSuccess(ok("{\"part\":\"TOC\",\"items\":["
                 + "{\"key\":\"NULL\",\"value\":null},"

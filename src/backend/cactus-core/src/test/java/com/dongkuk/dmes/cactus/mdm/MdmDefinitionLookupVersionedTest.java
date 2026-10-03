@@ -15,6 +15,7 @@ import kr.dongkuk.maru.mdm.engine.domain.DomainValidator;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
+import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeVersionRow;
 import kr.dongkuk.maru.mdm.engine.spi.EngineLookups;
 import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
 import kr.dongkuk.maru.mdm.engine.spi.MasterLookup;
@@ -68,6 +69,32 @@ class MdmDefinitionLookupVersionedTest {
         assertThat(lookup.codes("C", new BigDecimal("2.000"), "TB")).contains(Set.of("B"));
         assertThat(lookup.codes("C", new BigDecimal("2.000"), "NO_SUCH")).contains(Set.of());
         assertThat(lookup.code("NO_CD")).isEmpty();
+    }
+
+    @Test
+    void 목차에_없는_버전의_본문_행과_소속은_빈_값이_아니라_받을_수_없음이다() {
+        lookup.code("C");
+
+        assertThatThrownBy(() -> lookup.codeAt("C", new BigDecimal("2.001"))).as("DRAFT 2.001 은 목차에 없다")
+                .isInstanceOf(MdmUnavailableException.class);
+        assertThatThrownBy(() -> lookup.codes("C", new BigDecimal("2.001"), "TB")).isInstanceOf(MdmUnavailableException.class);
+    }
+
+    @Test
+    void 엔진이_옛_목차로_고른_버전이_그새_확정_취소되면_소속은_빈_값이_아니라_받을_수_없음이다() {
+        lookup.code("C"); // 목차(1.000·2.000) + current 2.000 본문 — 1.000 본문은 없다
+        feed.put(MdmTargetType.CODE, "C", withStatus(MdmMetaServiceVersionedTest.codeRows(), "1.000", "CANCELLED"));
+
+        assertThatThrownBy(() -> lookup.codes("C", new BigDecimal("1.000"), "BASE")).isInstanceOf(MdmUnavailableException.class);
+        assertThat(feed.bodyCalls.get()).as("본문 NOT_RELEASED → 목차 다시 받기 → 그 버전 없음").isEqualTo(1);
+        assertThat(feed.tocCalls.get()).isEqualTo(2);
+    }
+
+    private static CodeRows withStatus(CodeRows rows, String ver, String status) {
+        return new CodeRows(rows.header(), rows.versions().stream()
+                .map(v -> v.ver().compareTo(new BigDecimal(ver)) == 0
+                        ? new CodeVersionRow(v.ver(), status, v.applyFrom(), v.applyTo()) : v)
+                .toList(), rows.items(), rows.categories(), rows.cateItems());
     }
 
     @Test
