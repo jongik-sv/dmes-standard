@@ -35,6 +35,7 @@ export default defineConfig((options) => ({
     lookup: "src/components/lookup/index.ts",
     "markdown-editor": "src/components/markdown-editor/index.ts",
     "notice-body-view": "src/components/notice-body-view/index.ts",
+    "html-editor": "src/components/html-editor/index.ts",
     "detail-popover": "src/components/detail-popover/index.ts",
     "json-view": "src/components/json-view/index.ts",
     dashboard: "src/components/dashboard/index.ts",

@@ -48,6 +48,10 @@ dependencies {
     // 과 동일(실측 확인).
     api 'com.microsoft.onnxruntime:onnxruntime:1.30.0'
     api 'ai.djl.huggingface:tokenizers:0.38.0'
+
+    // 컬럼 설명·활용처 메모 HTML 소독(D-150, ColumnDescriptionSanitizer). Spring Boot BOM 밖이라 버전을 적는다 —
+    // mls/lib/build.gradle 의 공지 소독(NoticeHtmlSanitizer)과 같은 버전을 쓴다(한쪽을 올리면 함께 올린다).
+    implementation 'org.jsoup:jsoup:1.23.2'
 }
 
 // TSK-04-05 — SAP 데이터 엘리먼트 후보 추출 배치(design.md D1). Spring 없이 main 으로 돌고 후보 CSV 만 쓴다(DB 쓰기 없음).

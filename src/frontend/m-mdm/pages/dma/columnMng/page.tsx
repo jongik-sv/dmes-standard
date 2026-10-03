@@ -30,12 +30,13 @@ import {
   getRowIdentifier,
   type GridColumn,
 } from "@dk-oasis/shared/grid";
-import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
+import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { DomainField } from "@/domain";
 import { MdmPageLayout, badgeStyle } from "@/shell";
 
 import { compareName, saveColumn, searchColumns, searchDomains, loadColumnOptions, viewColumn } from "./api";
+import { DescriptionField } from "./DescriptionField";
 import { formatLabels, resolveLabels } from "./labels";
 import { saveFormError, toSaveParams } from "./save-form";
 import {
@@ -131,6 +132,8 @@ export default function ColumnMngPage() {
   const [popToken, setPopToken] = useState<NameToken | null>(null);
 
   const [form, setForm] = useState<ColumnForm>(emptyForm);
+  /** 폼을 새로 채운 횟수 — 설명·활용처 메모 칸을 새로 그려 형식([글 | HTML])을 다시 판별한다(행 열기·다시 읽기·신규). */
+  const [formSeq, setFormSeq] = useState(0);
   const [formTerms, setFormTerms] = useState<(number | null)[]>([]);
   const [appliedPhys, setAppliedPhys] = useState<string | null>(null);
   const [systemRows, setSystemRows] = useState<SystemGridRow[]>([]);
@@ -146,6 +149,20 @@ export default function ColumnMngPage() {
   const fail = useCallback(
     (e: unknown) => setErrorMessage(e instanceof Error ? e.message : String(e)),
     [],
+  );
+  /** 설명 칸의 형식 바꾸기 확인(공용 확인창). */
+  const askConfirm = useCallback(
+    (message: string) =>
+      new Promise<boolean>((resolve) =>
+        showMessage({
+          title: "확인",
+          message,
+          alertType: "confirm",
+          onConfirm: () => resolve(true),
+          onCancel: () => resolve(false),
+        }),
+      ),
+    [showMessage],
   );
 
   // ── 목록 ──────────────────────────────────────────────────────────────
@@ -223,6 +240,7 @@ export default function ColumnMngPage() {
           refCateId: c.refCateId ?? "",
           usageNote: c.usageNote ?? "",
         });
+        setFormSeq((n) => n + 1);
         setFormTerms(
           (result.terms ?? []).map((t) => (t.missing ? null : t.termId)),
         );
@@ -365,6 +383,7 @@ export default function ColumnMngPage() {
   const handleNew = useCallback(() => {
     setSelectedColumnId(null);
     setForm(emptyForm());
+    setFormSeq((n) => n + 1);
     setDomainLabel("");
     setFormTerms([]);
     setAppliedPhys(null);
@@ -903,9 +922,12 @@ export default function ColumnMngPage() {
                   <tr>
                     <th style={DETAIL_LABEL_CELL}>설명</th>
                     <td style={DETAIL_VALUE_CELL} colSpan={3}>
-                      <Textarea
+                      <DescriptionField
+                        key={`description-${formSeq}`}
                         value={form.description}
-                        rows={2}
+                        testId="form-description"
+                        ariaLabel="설명"
+                        confirm={askConfirm}
                         onChange={(v) => change("description", v)}
                       />
                     </td>
@@ -913,9 +935,12 @@ export default function ColumnMngPage() {
                   <tr>
                     <th style={DETAIL_LABEL_CELL}>활용처 메모</th>
                     <td style={DETAIL_VALUE_CELL} colSpan={3}>
-                      <Textarea
+                      <DescriptionField
+                        key={`usage-note-${formSeq}`}
                         value={form.usageNote}
-                        rows={2}
+                        testId="form-usage-note"
+                        ariaLabel="활용처 메모"
+                        confirm={askConfirm}
                         onChange={(v) => change("usageNote", v)}
                       />
                     </td>

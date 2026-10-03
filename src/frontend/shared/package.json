@@ -142,6 +142,10 @@
       "types": "./dist/types/components/notice-body-view/index.d.ts",
       "import": "./dist/notice-body-view.js"
     },
+    "./html-editor": {
+      "types": "./dist/types/components/html-editor/index.d.ts",
+      "import": "./dist/html-editor.js"
+    },
     "./detail-popover": {
       "types": "./dist/types/components/detail-popover/index.d.ts",
       "import": "./dist/detail-popover.js"

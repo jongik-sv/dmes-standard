@@ -124,6 +124,19 @@ class RuleVarTypeResolverTest extends AbstractMdmSharedDbTest {
                 "코일 두께 설명"), one(cond(1, "2", "COIL_THK")));
     }
 
+    /** D-150 — 컬럼 설명이 HTML 이면 룰 변수 설명에는 글자만 쓴다. 글자가 없으면(태그만) 변수 자신의 설명으로 돌아간다. */
+    @Test
+    void 컬럼_설명이_HTML_이면_변수_설명에는_글자만_쓰고_글자가_없으면_변수_설명을_쓴다() {
+        jdbc.update("UPDATE TB_MDM_COLUMN SET DESCRIPTION = ? WHERE PHYS_NAME = 'COIL_THK'",
+                "<p onclick=\"x()\">코일 두께 &lt; 10</p><ul><li>mm 단위</li></ul>");
+        assertEquals("코일 두께 < 10\nmm 단위", one(cond(1, "2", "COIL_THK")).description());
+
+        jdbc.update("UPDATE TB_MDM_COLUMN SET DESCRIPTION = '<hr>' WHERE PHYS_NAME = 'COIL_THK'");
+        MdmRuleVar v = cond(1, "2", "COIL_THK");
+        v.setDescription("변수 설명");
+        assertEquals("변수 설명", one(v).description());
+    }
+
     @Test
     void 코드_도메인은_maruCodeId_를_싣고_라벨은_중간명이_없으면_긴_이름이다() {
         assertEquals(new ResolvedVar(2, "COND", "1", 2, "SURF_GRD", false, "표면 등급", "STRING", null, false, "SURF_GRD_CD", code,

@@ -418,6 +418,30 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
   ```
 
 - 별칭 매칭: `system-code` 가 있으면 COLUMN 조회(`metaFeed/view`)에만 `params.systemCode` 를 실어, 키가 표준 물리명과 맞지 않을 때 그 시스템의 별칭으로 컬럼을 찾는다(표준 우선·대소문자 무시·모호하면 없음). 별칭으로 맞은 컬럼은 `matchedSystem`·`systemPhysName` 을 함께 받고 `physName` 은 표준 이름이다. 설계는 [spec](../../superpowers/specs/2026-10-03-mdm-column-system-alias-design.md).
+- 컬럼 설명 HTML([mdm D-150](../../mdm/decisions.md)): 컬럼 값 맨 끝 칸 `descriptionHtml` 은 설명이 HTML 일 때만 있는 MDM 소독본이고, 그때 `description` 은 그 글자만(엔티티를 풀고 블록·`br` 경계에서 줄을 바꾼 글)이다. 일반 글 설명이면 `descriptionHtml` 은 null 이고 `description` 은 저장된 그대로다. 글자만 그리는 곳은 `description` 을, HTML 을 그리는 곳은 `descriptionHtml` 이 있을 때 그것을 쓴다. `usageNote` 도 HTML 이면 같은 방식으로 글자만 오고, 그 HTML 칸(`usageNoteHtml`)은 없다.
+  - 글자 칸: `description`·`usageNote`(피드, columnMng 목록·중복 행, 룰 변수 설명)는 늘 글자로 그리고 형식 판별에 넣지 않는다. 글자만 뽑은 결과가 HTML 꼴일 수 있기 때문이다(예: 설명 `<p>&lt;img src=x onerror=…&gt;</p>` 의 글자는 `<img src=x onerror=…>`). 카드는 `descriptionHtml ?? description` 에 판별을 걸지 말고, `descriptionHtml` 이 있을 때만 HTML 로 그린다.
+  - 담당: 위는 MDM 피드(`metaFeed/view`) 계약이다. cactus 전달(`MdmColumnMeta`·`MdmScreenColumn`·`mdmMeta/columns`)과 화면 카드는 메타 캐시 세션 담당이다. cactus 가 칸을 더하기 전까지 업무 모듈은 모르는 칸을 무시하고 글자만 설명을 받는다.
+  - 판별: 알려진 태그(`p div br span b strong i em u s ul ol li a table thead tbody tr th td h1~h6 code pre blockquote img hr`)가 `</?태그` 꼴(대소문자 무시, ASCII 만 접는다)로 글 어디에든 있고, 이름 바로 뒤 글자가 `A-Za-z0-9_` 가 아니며(글 끝이어도 된다) 그 뒤 어딘가에 `>` 가 있으면 HTML 이다. MDM `ColumnDescriptionFormat` 과 m-mdm `descriptionFormat` 이 같은 꼴(`(?![A-Za-z0-9_])` lookahead + 첫 일치 뒤 `>` 확인)을 쓰고, 아래 사례 표를 양쪽 시험이 함께 쓴다. 정규식 `\b` 는 쓰지 않는다: 자바 `\b` 는 단어 글자 뒤의 결합 문자(U+0307 등)를 단어의 일부로 봐 JS 와 판별이 어긋난다. `[^>]*>` 도 쓰지 않는다: 닫는 `>` 가 없는 긴 입력에서 되추적이 O(n²)다.
+  - 소독(컬럼 저장 때, 컬럼 상세(columnMng `view`)·피드 만들 때 한 번 더 — 옛 데이터 방어): jsoup `Safelist.relaxed()` + `hr s del ins mark`. 링크·이미지 주소는 http·https 만 남긴다(mls 공지와 달리 mailto 도 뺀다). `on*`·`style` 속성과 `script`·`iframe`·`svg` 같은 허용 목록 밖 태그는 빠진다. 소독은 결과가 바뀌지 않을 때까지(최대 3회) 돌려 멱등이다. jsoup 은 `<pre>` 바로 뒤 줄바꿈을 직렬화할 때 되살리지 않아 소독마다 줄바꿈이 줄므로, 첫 글이 줄바꿈으로 시작하는 `pre` 에 하나를 앞에 붙여 낸다. 소독 뒤 알려진 태그가 남지 않으면(표 밖의 `<td>` 처럼 파서가 버린 경우) 소독본을 `<p>` 로 감싸 HTML 로 저장한다. 엔티티는 풀지 않으므로 화면에는 글자로 보이고, 글자가 없으면 null 이다(엔티티를 풀면 `<td>&lt;img …&gt;</td>` 가 소독되지 않은 `<img …>` 가 된다). 그래서 저장값이 HTML 이면 늘 소독본이다. 일반 글은 소독하지 않는다(`<`·`&` 가 바뀌지 않게).
+  - 상한: 설명·활용처 메모 각 20,000자(소독 전 원문, 코드 포인트). 넘으면 `MDM021` "설명은(는) 20000자 이하여야 합니다" 꼴이다.
+
+  | 일반 글(TEXT)로 보는 입력 | HTML 로 보는 입력 |
+  |---|---|
+  | `a < b` | `<p>x</p>` |
+  | `Map<String>` | `<BR/>` (대소문자 무시) |
+  | `List<Map<String, Object>>` | `<br>` |
+  | `<custom>` (모르는 태그) | `</div>` (닫는 태그만) |
+  | `<script>alert(1)</script>` (`s` 뒤가 단어 글자) | `<pre>코드</pre>` |
+  | `<brx>` | `<h3>제목</h3>` |
+  | `<h7>` | `<a href="https://example.com">링크</a>` |
+  | `<abbr>` | `<P CLASS="x">` |
+  | `<sub>2</sub>` (소독 허용이지만 판별 목록 밖) | `<p⏎ class="x">본문</p>` (속성 앞 줄바꿈) |
+  | `< p>` | `앞 글 <img src="https://example.com/a.png"> 뒤 글` |
+  | `<p` (닫는 `>` 없음) | `<b한>` (이름 뒤가 `A-Za-z0-9_` 가 아님) |
+  | `>` + `<p` × 10,000 (`>` 가 이름 앞에만, 선형 시간) | `<i̇>` (`i` + 결합 문자 U+0307) |
+  | 빈 글·공백·null | `<hr>` · `<s>취소</s>` · `<td>칸</td>` |
+  | | `List<A>` (알려진 한계 — 태그 a 와 같은 꼴) |
+
 - 수명: 마지막 조회 뒤 `max-idle` 동안 조회가 없거나 적재 뒤 `max-age`(절대 상한)가 지나면 만료다 — 자주 조회되는 항목일수록 오래 남는다.
   만료 항목은 폴링마다(약 10초) 쓸어 내고, 상한(`max-entries`)을 넘으면 만료 항목, 그다음 오래 조회되지 않은 순(LRU)으로 지운다.
   관리 화면 읽기(`entries`·`entry`)는 수명을 연장하지 않는다.

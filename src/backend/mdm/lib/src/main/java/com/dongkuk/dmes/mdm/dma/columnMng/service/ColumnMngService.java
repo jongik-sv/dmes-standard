@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dma.columnMng.service;
 
+import com.dongkuk.dmes.mdm.common.dictionary.ColumnDescriptionSanitizer;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmStdAdminGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
@@ -168,14 +169,15 @@ public class ColumnMngService {
         detail.put("labelLong", column.getLabelLong());
         detail.put("labelMid", column.getLabelMid());
         detail.put("labelShort", column.getLabelShort());
-        detail.put("description", column.getDescription());
+        // 설명·활용처 메모(D-150): 저장값을 다시 정규화한다 — 소독 없이 들어간 옛 HTML 도 소독본으로 준다(새 저장값은 그대로). 일반 글은 그대로다
+        detail.put("description", ColumnDescriptionSanitizer.normalize(column.getDescription()));
         detail.put("domainId", column.getDomainId());
         detail.put("required", column.isRequired());
         detail.put("defaultValue", column.getDefaultValue());
         detail.put("refKind", column.getRefKind());
         detail.put("refTarget", column.getRefTarget());
         detail.put("refCateId", column.getRefCateId());
-        detail.put("usageNote", column.getUsageNote());
+        detail.put("usageNote", ColumnDescriptionSanitizer.normalize(column.getUsageNote()));
 
         List<Map<String, Object>> systems = new ArrayList<>();
         columnSystemRepository.findByColumnId(column.getColumnId()).stream().sorted(MAPPING_ORDER).forEach(m -> {
@@ -344,14 +346,14 @@ public class ColumnMngService {
         column.setLabelLong(blankToNull(req.getLabelLong()));
         column.setLabelMid(blankToNull(req.getLabelMid()));
         column.setLabelShort(blankToNull(req.getLabelShort()));
-        column.setDescription(blankToNull(req.getDescription()));
+        column.setDescription(richText(req.getDescription()));
         column.setRequired(Boolean.TRUE.equals(req.getRequired()));
         column.setDefaultValue(blankToNull(req.getDefaultValue()));
         column.setRefKind(blankToNull(req.getRefKind()));
         column.setRefTarget(blankToNull(req.getRefTarget()));
         column.setRefCateId(blankToNull(req.getRefCateId()));
         column.setTermIds(termIds.stream().map(String::valueOf).collect(Collectors.joining(",", "[", "]")));
-        column.setUsageNote(blankToNull(req.getUsageNote()));
+        column.setUsageNote(richText(req.getUsageNote()));
         column = columnRepository.save(column);
         Long columnId = column.getColumnId();
         // 바뀌기 전 시스템 매핑 — 신규면 없다. 메타 기록(별칭 전·후)과 8 의 차분이 함께 쓴다
@@ -427,6 +429,8 @@ public class ColumnMngService {
         maxLength(blankToNull(req.getDefaultValue()), NamingRules.CODE_MAX, "기본값");
         maxLength(blankToNull(req.getRefTarget()), NamingRules.CODE_MAX, "참조 대상");
         maxLength(blankToNull(req.getRefCateId()), NamingRules.CODE_MAX, "참조 카테고리");
+        maxLength(blankToNull(req.getDescription()), NamingRules.DESCRIPTION_MAX, "설명");
+        maxLength(blankToNull(req.getUsageNote()), NamingRules.DESCRIPTION_MAX, "활용처 메모");
         if (req.getDomainId() != null && !domainRepository.existsById(req.getDomainId())) {
             throw invalid("도메인을 찾을 수 없습니다");
         }
@@ -587,7 +591,7 @@ public class ColumnMngService {
                 .collect(Collectors.joining(" + ")));
         row.put("systemFields", mappings.stream().map(m -> m.getSystemCode() + ":" + m.getPhysName())
                 .collect(Collectors.joining(", ")));
-        row.put("usageNote", column.getUsageNote());
+        row.put("usageNote", ColumnDescriptionSanitizer.plainText(column.getUsageNote())); // 목록 칸은 글자만(D-150) — 원문은 view
         return row;
     }
 
@@ -619,7 +623,7 @@ public class ColumnMngService {
         row.put("columnId", column.getColumnId());
         row.put("columnName", column.getColumnName());
         row.put("physName", column.getPhysName());
-        row.put("usageNote", column.getUsageNote());
+        row.put("usageNote", ColumnDescriptionSanitizer.plainText(column.getUsageNote())); // 중복 행도 글자만(D-150)
         row.put("domainId", column.getDomainId());
         row.put("domainName", domain == null ? null : domain.getDomainName());
         row.put("matchedBy", matchedBy);
@@ -708,6 +712,14 @@ public class ColumnMngService {
 
     private static String trimToEmpty(Object value) {
         return value == null ? "" : value.toString().trim();
+    }
+
+    /**
+     * 설명·활용처 메모(D-150) — 알려진 HTML 태그가 있으면 소독한 HTML, 일반 글이면 그대로 둔다({@link ColumnDescriptionSanitizer#normalize}).
+     * 소독으로 바뀌었는지는 따로 알리지 않는다(view 가 저장된 값을 다시 정규화해 돌려준다 — 새 저장값은 그대로다).
+     */
+    private static String richText(String value) {
+        return blankToNull(ColumnDescriptionSanitizer.normalize(blankToNull(value)));
     }
 
     private static String blankToNull(String value) {

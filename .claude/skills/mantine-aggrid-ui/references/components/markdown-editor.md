@@ -10,7 +10,7 @@
 ## 언제 쓰나
 
 - 쓴다: 서식이 필요한 메모·설명·안내 글. 폼·패널 칸은 `MarkdownField`(고칠 수 있으면 처음부터 도구 막대 + 편집 칸), 여닫기를 화면이 정하는 편집기(캔버스 노드 등)는 `MarkdownEditor`, 읽기만 하면 `MarkdownView`.
-- 쓰지 않는다: 서식 없는 여러 줄 입력(비고·사유·검증식) → [Textarea](textarea.md). 한 줄 입력 → [Input](input.md).
+- 쓰지 않는다: 서식 없는 여러 줄 입력(비고·사유·검증식) → [Textarea](textarea.md). 한 줄 입력 → [Input](input.md). 저장 형식이 HTML 인 글 → [HtmlEditor](html-editor.md).
 - 저장 형식: **마크다운 문자열**이다. HTML 은 받지 않는다(`<b>` 같은 태그는 글자 그대로 보인다). 표·그림·HTML 문법은 글자로 남는다. 링크는 `http://`·`https://` 만 링크가 된다(`javascript:` 등은 글자). 열기만 해서는 `onChange` 가 불리지 않는다.
 - 번들 크기: Tiptap·ProseMirror·marked 가 약 1MB 다. 이 서브패스를 import 한 화면 모듈만 그 크기를 진다(다른 shared 서브패스와 섞지 않는다). 글자 몇 줄이면 Textarea 로 충분하다.
 
