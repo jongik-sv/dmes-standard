@@ -13,14 +13,17 @@ import {
   draftDiffers,
   dropNullParams,
   formatDraftTime,
+  isDraftExpired,
   isDraftWritable,
   isBlankMemo,
   isLiveMemo,
+  isStaleDraftEntry,
   loadRequest,
   MEMO_CONTENT_TYPE_ERROR,
   MEMO_DEFAULT_CONFIG,
   MEMO_DRAFT_DELAY_MS,
   MEMO_DRAFT_KEY_PREFIX,
+  MEMO_DRAFT_TTL_MS,
   MEMO_FORMAT_ERROR,
   MEMO_MAX_LENGTH,
   MEMO_SAVE_ERROR,
@@ -29,9 +32,11 @@ import {
   memoBaseHash,
   memoDraftKey,
   memoDraftNoticeText,
+  memoDraftUserPrefix,
   memoEditBase,
   memoErrorMessage,
   MemoServiceError,
+  memoUserStatus,
   parseDraft,
   parseMemo,
   readMemoChoices,
@@ -376,12 +381,55 @@ describe("임시 저장(쓰다 만 글) 순수 로직", () => {
     ...over,
   });
 
-  it("키는 dmes:widget:memo-draft:{userId}:{instanceId} 이고, 사용자·칸 중 하나라도 모르면 null", () => {
+  it("키는 dmes:widget:memo-draft:v1:{userId}:{instanceId}(각각 URI 인코딩)이고, 사용자·칸 중 하나라도 모르면 null", () => {
     expect(MEMO_DRAFT_KEY_PREFIX).toBe("dmes:widget:memo-draft:");
-    expect(memoDraftKey("u1", "inst-1")).toBe("dmes:widget:memo-draft:u1:inst-1");
+    expect(memoDraftKey("u1", "inst-1")).toBe("dmes:widget:memo-draft:v1:u1:inst-1");
+    expect(memoDraftUserPrefix("u1")).toBe("dmes:widget:memo-draft:v1:u1:");
     expect(memoDraftKey("", "inst-1")).toBeNull();
     expect(memoDraftKey("u1", "")).toBeNull();
+    expect(memoDraftUserPrefix("")).toBeNull();
     expect(MEMO_DRAFT_DELAY_MS).toBe(300);
+  });
+
+  it("ID 에 구분자(:)가 들어 있어도 (사용자, 칸) 쌍마다 키가 다르다 — 한 사용자의 접두가 다른 사용자의 키와 겹치지도 않는다", () => {
+    expect(memoDraftKey("a:b", "c")).not.toBe(memoDraftKey("a", "b:c"));
+    expect(memoDraftKey("a:b", "c")).toBe("dmes:widget:memo-draft:v1:a%3Ab:c");
+    expect(memoDraftKey("a", "b:c")).toBe("dmes:widget:memo-draft:v1:a:b%3Ac");
+    // 사용자 a 의 접두로 시작하는 키는 사용자 a 의 것뿐이다(a:b 의 키가 a 의 것으로 읽히지 않는다).
+    expect(memoDraftKey("a:b", "c")!.startsWith(memoDraftUserPrefix("a")!)).toBe(false);
+    // 짝 없는 서로게이트처럼 인코딩이 던지는 ID 는 키 없음(임시 저장 안 함)으로 본다 — 렌더가 던지지 않는다.
+    expect(memoDraftKey("\uD800", "inst-1")).toBeNull();
+    expect(memoDraftKey("u1", "\uD800")).toBeNull();
+    expect(memoDraftUserPrefix("\uD800")).toBeNull();
+  });
+
+  it("임시본은 savedAt 으로부터 7일까지 살아 있고 1밀리초라도 넘으면 만료다", () => {
+    expect(MEMO_DRAFT_TTL_MS).toBe(7 * 24 * 60 * 60 * 1000);
+    const now = 1_790_000_000_000;
+    expect(isDraftExpired({ savedAt: now }, now)).toBe(false);
+    expect(isDraftExpired({ savedAt: now - MEMO_DRAFT_TTL_MS }, now)).toBe(false);
+    expect(isDraftExpired({ savedAt: now - MEMO_DRAFT_TTL_MS - 1 }, now)).toBe(true);
+  });
+
+  it("훑기 판정 — 이 기능의 키가 아니면 건드리지 않고, 다른 사용자·옛 모양 키는 지우고, 이 사용자의 것은 깨졌거나 만료됐을 때만 지운다", () => {
+    const now = 1_790_000_000_000;
+    const own = memoDraftUserPrefix("u1")!;
+    const fresh = serializeDraft(draft({ savedAt: now - 1000 }));
+    const old = serializeDraft(draft({ savedAt: now - MEMO_DRAFT_TTL_MS - 1 }));
+    expect(isStaleDraftEntry("other-app:key", old, own, now)).toBe(false);
+    expect(isStaleDraftEntry(`${own}inst-1`, fresh, own, now)).toBe(false);
+    expect(isStaleDraftEntry(`${own}inst-1`, old, own, now)).toBe(true);
+    expect(isStaleDraftEntry(`${own}inst-1`, "{깨짐", own, now)).toBe(true);
+    expect(isStaleDraftEntry(`${own}inst-1`, null, own, now)).toBe(true);
+    expect(isStaleDraftEntry(`${MEMO_DRAFT_KEY_PREFIX}v1:u2:inst-1`, fresh, own, now)).toBe(true); // 다른 사용자(유효해도)
+    expect(isStaleDraftEntry(`${MEMO_DRAFT_KEY_PREFIX}u1:inst-1`, fresh, own, now)).toBe(true); // 옛 모양 키
+    expect(isStaleDraftEntry(`${memoDraftUserPrefix("u10")}inst-1`, fresh, own, now)).toBe(true); // u1 의 접두가 u10 의 키를 먹지 않는다
+  });
+
+  it("사용자 확인 상태 — 확인 중이면 pending, 끝났고 ID 가 있으면 confirmed(RBAC 조회만 실패해도), 끝났는데 ID 가 없으면 failed", () => {
+    expect(memoUserStatus({ isLoading: true, userId: "" })).toBe("pending");
+    expect(memoUserStatus({ isLoading: false, userId: "u1" })).toBe("confirmed");
+    expect(memoUserStatus({ isLoading: false, userId: "" })).toBe("failed");
   });
 
   it("내용 해시는 형식·내용이 같으면 같고 하나라도 다르면 다르다 — 메모가 없으면 none", () => {

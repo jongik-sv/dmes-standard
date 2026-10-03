@@ -9,6 +9,10 @@ import { createContext, useContext } from "react";
 
 export type WidgetBoardMode = "live" | "preview";
 
+/**
+ * 기본값이 "live" 인 것에 주의 — provider 를 빠뜨리면 조용히 실제 메모(관리자 본인 메모)가 된다.
+ * 관리자용 보드를 새로 만들면(위젯관리 [기본 배치] 보드 같은 곳) 반드시 value="preview" 인 provider 로 감싸야 한다.
+ */
 export const WidgetBoardModeContext = createContext<WidgetBoardMode>("live");
 
 export function useWidgetBoardMode(): WidgetBoardMode {

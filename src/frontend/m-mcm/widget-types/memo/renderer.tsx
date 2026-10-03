@@ -16,13 +16,18 @@
  *   [배치 편집] 중 md 편집 칸(contenteditable)에서 누른 Esc 는 배치 편집 취소(shared WidgetWorkspace 의 document keydown, 입력칸·메뉴·
  *   대화상자만 거른다)로 새지 않게 감싸개에서 끊는다.
  * - 관리 화면 미리보기(저장소 없음)는 load·save 를 부르지 않고 「미리보기에서는 저장하지 않습니다」만 보인다.
- * - 임시 저장(쓰다 만 글): 편집 중 글·형식이 바뀌면 300ms 디바운스로 이 브라우저(localStorage `dmes:widget:memo-draft:{userId}:{instanceId}`)에
- *   { format, content, baseHash(불러온 메모의 내용 해시), savedAt } 를 쓴다. 위젯이 사라질 때 못 쓴 값은 바로 쓰고, 저장 성공·[취소]·[버리기]에 지운다.
+ * - 임시 저장(쓰다 만 글): 편집 중 글·형식이 바뀌면 300ms 디바운스로 이 브라우저(localStorage
+ *   `dmes:widget:memo-draft:v1:{encodeURIComponent(userId)}:{encodeURIComponent(instanceId)}`)에 { format, content, baseHash(불러온 메모의 내용 해시),
+ *   savedAt } 를 쓴다. 위젯이 사라질 때와 페이지가 사라지거나 가려질 때(pagehide·visibilitychange hidden) 못 쓴 값은 바로 쓰고, 저장 성공·[취소]·[버리기]에 지운다.
+ *   [이어 쓰기] 뒤의 [취소]도 확인 없이 임시본을 지운다(스펙 §17.5). 임시본은 savedAt 으로부터 7일만 둔다(읽을 때 지난 것은 지우고, 사용자가 확인되면
+ *   한 번 훑어 7일 지난 것과 다른 사용자의 것을 지운다 — 공용 PC 에서 앞 사용자의 평문이 남지 않게).
  *   [편집]을 누를 때 서버 메모와 다른 임시본이 있으면 편집 영역 위에 「저장하지 않은 글이 있습니다(시각)」와 [이어 쓰기]·[버리기]를 보이고(그 뒤 서버 메모가
  *   바뀌었으면 한 문장 더), 보기 모드에서는 [편집] 옆에 「쓰다 만 글 있음」을 보인다. 안내에서 고르기 전에는 새로 쓰는 글이 옛 임시본을 덮지 않도록 쓰지 않고,
  *   그동안의 [취소]도 옛 임시본을 지우지 않는다. 고르기 전에는 입력칸·형식 선택·[저장]을 잠근다(쓴 글이 임시 저장되지 않아 탭 전환에 사라지지 않게, 고르기 없이 저장해 옛 임시본이
- *   지워지지 않게) — [취소]·[이어 쓰기]·[버리기]만 열려 있다. 사용자를 모르거나(확인 전·실패) 미리보기·기본 배치 보드(live=false)에서는 읽지도 쓰지도 않는다.
- *   사용자 ID 는 shared 포털 셸의 확인된 사용자(memo-user.ts)만 쓴다.
+ *   지워지지 않게) — [취소]·[이어 쓰기]·[버리기]만 열려 있다. 미리보기·기본 배치 보드(live=false)에서는 읽지도 쓰지도 않는다.
+ *   사용자 ID 는 shared 포털 셸의 확인된 사용자(memo-user.ts)만 쓴다. 확인이 끝나기 전(pending)에는 [편집]을 막는다 — 편집 도중 사용자가 늦게 확인돼
+ *   옛 임시본 안내가 뜨며 입력이 잠기는 일을 없앤다. 확인이 실패로 끝나면(failed) 임시 저장 없이 편집을 허용한다. 편집은 시작할 때 정한 키(editKey)만
+ *   끝까지 쓴다 — 편집 도중 사용자 ID 가 바뀌거나 사라져도 그 편집의 임시 저장·삭제는 같은 키로 이어진다.
  * - 위젯관리 [기본 배치] 보드(WidgetBoardModeContext 값이 "preview")도 미리보기와 같은 경로다 — 실제 칸이라 저장하면 관리자 본인 메모가 되므로
  *   load·save 를 부르지 않고 「기본 배치 화면에서는 개인 메모를 쓰지 않습니다(사용자가 홈에서 씁니다)」만 보인다. 홈(provider 밖)은 그대로 실제 메모다.
  * 형식별 보기는 shared NoticeBodyView 한 곳이 맡는다: TEXT = 줄바꿈 유지 글, MD = 글(md) 위젯과 같은 MarkdownView,
@@ -40,7 +45,7 @@ import { useWidgetBoardMode } from "@/lib/widget-board-mode";
 
 import { ContentStyle } from "../_content/styles";
 import { fetchMemo, saveMemo } from "./api";
-import { readDraft, removeDraft } from "./memo-draft-storage";
+import { readDraft, removeDraft, sweepDrafts } from "./memo-draft-storage";
 import {
   canSave,
   classifyDraft,
@@ -73,7 +78,7 @@ import {
   type RestorableDraft,
 } from "./memo-model";
 import { MEMO_CSS, MEMO_STYLE_HREF } from "./memo-styles";
-import { useConfirmedUserId } from "./memo-user";
+import { useConfirmedUser } from "./memo-user";
 import { useMemoDraftWriter } from "./use-memo-draft";
 
 function MemoStyle() {
@@ -130,19 +135,23 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
-  // 임시 저장(쓰다 만 글) — 사용자를 확인하기 전(""·확인 실패)이나 live 가 아니면 키가 null 이라 읽지도 쓰지도 않는다.
-  const userId = useConfirmedUserId(live);
+  // 임시 저장(쓰다 만 글) — 사용자를 모르거나(확인 전·확인 실패) live 가 아니면 키가 null 이라 읽지도 쓰지도 않는다.
+  const { userId, status: userStatus } = useConfirmedUser(live);
   const draftKey = live ? memoDraftKey(userId, instanceId) : null;
+  /** [편집]을 열 수 있는가 — 실제 칸이고 불러왔고 사용자 확인이 끝났다(성공이든 실패든. 확인 중에 열면 도중에 키가 생겨 입력이 잠긴다). */
+  const canEdit = live && loaded && userStatus !== "pending";
   const writer = useMemoDraftWriter();
   /** 편집을 시작할 때의 서버 메모 기준(형식·내용·해시). */
   const [base, setBase] = useState<MemoEditBase | null>(null);
-  /** 이 편집에서 임시본을 이미 찾아 본 키 — 편집 시작 때 사용자를 아직 몰랐으면 사용자가 확인된 뒤에 한 번 찾는다. */
-  const [checkedKey, setCheckedKey] = useState<string | null>(null);
+  /**
+   * 이 편집이 임시본을 읽고 쓰고 지우는 키 — [편집]을 누를 때 한 번 정한다(사용자를 몰랐으면 null = 임시 저장 없이 편집).
+   * 지금의 draftKey 를 따라가지 않는다: 편집 도중 사용자 확인 결과가 바뀌어도(늦은 확인·ID 사라짐) 입력이 잠기거나 임시 저장이 끊기지 않는다.
+   */
+  const [editKey, setEditKey] = useState<string | null>(null);
   /** 안내에서 고르기를 기다리는 임시본 — 있는 동안 새 임시 저장은 쉰다. */
   const [restore, setRestore] = useState<RestorableDraft | null>(null);
   /** 사용자가 글·형식을 바꿨다 — 편집을 열어 서버 메모를 넣은 것만으로는 임시본을 쓰지 않는다. */
   const [touched, setTouched] = useState(false);
-  const keyRef = useRef(draftKey);
 
   /** 요청 세대 — 불러오기·저장이 시작될 때 올리고, 늦게 온 이전 응답은 버린다. 인스턴스가 바뀌거나 사라질 때도 올린다. */
   const genRef = useRef(0);
@@ -182,15 +191,10 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
     void load();
   }, [load, refreshKey, attempt]);
 
-  // 편집 중 이 키로 임시본을 아직 찾아 보지 않았으면 한 번 찾는다(렌더 중 상태 맞춤 — 효과에서 setState 하지 않는다).
-  if (mode === "edit" && base && draftKey && checkedKey !== draftKey) {
-    setCheckedKey(draftKey);
-    setRestore(restorableDraft(readDraft(draftKey), base));
-  }
-
+  // 사용자가 확인되면 한 번 임시본 키를 훑어 7일 지난 것과 다른 사용자의 것을 지운다(로그아웃해도 평문이 남는 것을 줄인다).
   useEffect(() => {
-    keyRef.current = draftKey;
-  });
+    if (live && userId) sweepDrafts(userId);
+  }, [live, userId]);
 
   /** 보기 모드의 임시본 — pending 이면 「쓰다 만 글 있음」, 서버 메모와 같아진(stale) 것은 아래 효과가 지운다. */
   const viewDraft = useMemo(
@@ -206,23 +210,24 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
 
   // 편집 중 글·형식이 바뀌면 디바운스로 임시 저장한다. 서버 메모와 같아지면 임시본을 지운다. 20,000자를 넘는 글은 쓰지 않는다.
   useEffect(() => {
-    if (mode !== "edit" || !touched || restore !== null || !base || !draftKey || checkedKey !== draftKey) return;
+    if (mode !== "edit" || !touched || restore !== null || !base || !editKey) return;
     if (!isDraftWritable(draftContent)) return;
     writer.schedule(
-      draftKey,
+      editKey,
       draftDiffers({ format: draftFormat, content: draftContent }, base)
         ? { format: draftFormat, content: draftContent, baseHash: base.hash, savedAt: Date.now() }
         : null
     );
-  }, [mode, touched, restore, base, draftKey, checkedKey, draftFormat, draftContent, writer]);
+  }, [mode, touched, restore, base, editKey, draftFormat, draftContent, writer]);
 
   const startEdit = () => {
-    if (!live || !loaded) return;
+    if (!canEdit) return;
     const nextBase = memoEditBase(memo, initialFormat);
     lockRef.current = true;
     setBase(nextBase);
-    setCheckedKey(null);
-    setRestore(null);
+    // 이 편집의 임시본 키를 정하고 그 키의 임시본을 지금 한 번 찾는다 — 첫 편집 화면부터 안내(잠금)가 맞게 나온다.
+    setEditKey(draftKey);
+    setRestore(restorableDraft(readDraft(draftKey), nextBase));
     setTouched(false);
     setDraftFormat(nextBase.format);
     setDraftContent(nextBase.content);
@@ -253,7 +258,7 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
   const discardDraft = () => {
     if (!restore || saving) return;
     writer.drop();
-    removeDraft(draftKey);
+    removeDraft(editKey);
     setRestore(null);
   };
 
@@ -261,7 +266,7 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
     if (saving) return;
     writer.drop();
     // 안내에서 아직 고르지 않았다면 옛 임시본은 사용자가 정할 때까지 남긴다(보기 모드의 「쓰다 만 글 있음」).
-    if (restore === null) removeDraft(draftKey);
+    if (restore === null) removeDraft(editKey);
     lockRef.current = false;
     setRestore(null);
     setErrorText(null);
@@ -284,7 +289,7 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
       if (gen !== genRef.current) return;
       setMemo(saved);
       writer.drop();
-      removeDraft(keyRef.current);
+      removeDraft(editKey);
       lockRef.current = false;
       setRestore(null);
       setMode("view");
@@ -318,7 +323,7 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
                 {MEMO_DRAFT_FLAG_TEXT}
               </span>
             )}
-            <Button size="mini" onClick={startEdit} disabled={!live || !loaded} data-testid="memo-edit">
+            <Button size="mini" onClick={startEdit} disabled={!canEdit} data-testid="memo-edit">
               편집
             </Button>
           </div>

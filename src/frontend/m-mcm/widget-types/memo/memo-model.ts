@@ -152,15 +152,49 @@ export function isBlankMemo(memo: MemoRecord | null): boolean {
 
 /* ------------------------------------------------------------------ 임시 저장(쓰다 만 글) */
 
-/** 임시 저장 키 접두 — `dmes:widget:memo-draft:{userId}:{instanceId}`. 이 브라우저를 쓰는 사람 전용 편의 기능이다(localStorage). */
+/**
+ * 임시 저장 키 접두(훑기 대상) — 이 접두의 키는 모두 이 기능이 쓴다. 이 브라우저를 쓰는 사람 전용 편의 기능이다(localStorage).
+ * 실제 키는 `dmes:widget:memo-draft:v1:{encodeURIComponent(userId)}:{encodeURIComponent(instanceId)}` — `:` 가 ID 에 들어 있어도
+ * (사용자 a:b + 칸 c) 와 (사용자 a + 칸 b:c) 가 같은 키가 되지 않는다.
+ */
 export const MEMO_DRAFT_KEY_PREFIX = "dmes:widget:memo-draft:";
+const MEMO_DRAFT_KEY_VERSION = "v1";
 /** 글·형식이 바뀐 뒤 임시 저장에 쓰기까지 기다리는 시간(밀리초). */
 export const MEMO_DRAFT_DELAY_MS = 300;
+/** 임시본 보관 기간 — 마지막으로 글이 바뀐 시각(savedAt)부터 7일. 로그아웃해도 이 브라우저에 평문으로 남으므로 오래 두지 않는다. */
+export const MEMO_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const MEMO_DRAFT_FLAG_TEXT = "쓰다 만 글 있음";
+
+/** 한 사용자의 임시본 키가 모두 가지는 접두 — 사용자를 모르면 null. encodeURIComponent 가 던지는 ID(짝 없는 서로게이트)도 null. */
+export function memoDraftUserPrefix(userId: string): string | null {
+  if (!userId) return null;
+  try {
+    return `${MEMO_DRAFT_KEY_PREFIX}${MEMO_DRAFT_KEY_VERSION}:${encodeURIComponent(userId)}:`;
+  } catch {
+    return null;
+  }
+}
 
 /** 사용자·칸 중 하나라도 모르면 null — 임시 저장하지 않는다(읽지도 쓰지도 않는다). */
 export function memoDraftKey(userId: string, instanceId: string): string | null {
-  return userId && instanceId ? `${MEMO_DRAFT_KEY_PREFIX}${userId}:${instanceId}` : null;
+  const prefix = memoDraftUserPrefix(userId);
+  if (!prefix || !instanceId) return null;
+  try {
+    return `${prefix}${encodeURIComponent(instanceId)}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 현재 사용자 확인 상태 — pending: 아직 확인 중, confirmed: 사용자 ID 를 알았다, failed: 확인이 끝났는데 ID 가 없다(조회 실패).
+ * shared 의 RBAC 상태는 isLoading 으로 끝났는지를, userId 로 알았는지를 말한다(RBAC 조회만 실패해도 userId 는 있다 — confirmed).
+ */
+export type MemoUserStatus = "pending" | "confirmed" | "failed";
+
+export function memoUserStatus(state: { isLoading: boolean; userId: string }): MemoUserStatus {
+  if (state.isLoading) return "pending";
+  return state.userId ? "confirmed" : "failed";
 }
 
 /** 임시 저장본 — base 는 이 글을 쓰기 시작할 때 불러온 서버 메모의 내용 해시(memoBaseHash)다. */
@@ -215,6 +249,22 @@ export function parseDraft(raw: string | null): MemoDraft | null {
   if (!isMemoFormat(format) || typeof content !== "string" || !isDraftWritable(content)) return null;
   if (typeof baseHash !== "string" || typeof savedAt !== "number" || !Number.isFinite(savedAt)) return null;
   return { format, content, baseHash, savedAt };
+}
+
+/** 임시본이 보관 기간(7일)을 넘겼는가 — savedAt 으로부터 정확히 7일까지는 살아 있다. */
+export function isDraftExpired(draft: Pick<MemoDraft, "savedAt">, now: number): boolean {
+  return now - draft.savedAt > MEMO_DRAFT_TTL_MS;
+}
+
+/**
+ * 저장소 항목 하나를 훑을 때 지워야 하는가 — 이 기능의 키(접두)가 아니면 건드리지 않는다. 접두는 같지만 이 사용자의 키(ownPrefix)가 아니면
+ * (다른 사용자·옛 모양 키) 지운다. 이 사용자의 것은 쓸 수 없는 값(깨짐·20,000자 초과)이거나 만료됐을 때만 지운다.
+ */
+export function isStaleDraftEntry(key: string, raw: string | null, ownPrefix: string, now: number): boolean {
+  if (!key.startsWith(MEMO_DRAFT_KEY_PREFIX)) return false;
+  if (!key.startsWith(ownPrefix)) return true;
+  const draft = parseDraft(raw);
+  return draft === null || isDraftExpired(draft, now);
 }
 
 /** 임시본이 비교 대상(서버 메모, 메모가 없으면 처음 형식·빈 글)과 다른 글인가 — 형식만 다르고 글이 비었으면 쓰다 만 글이 아니다. */
