@@ -7,6 +7,7 @@ import com.dongkuk.dmes.mdm.common.dictionary.ColumnDescriptionSanitizer;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmStdAdminGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.support.MdmJsonLists;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdKind;
 import com.dongkuk.dmes.mdm.contract.category.MaruIdNamespace;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
@@ -36,8 +37,6 @@ import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
 import com.dongkuk.dmes.mdm.repository.MdmColumnSystemRepository;
 import com.dongkuk.dmes.mdm.repository.MdmDomainRepository;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -71,7 +70,6 @@ import org.springframework.stereotype.Service;
 @Service("columnMngService")
 public class ColumnMngService {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
     private static final String REF_KIND_MASTER = "MASTER";
     /** IN 목록 한 번에 넣는 최대 수. */
     private static final int TERM_IN_CHUNK = 500;
@@ -674,25 +672,7 @@ public class ColumnMngService {
 
     /** TERM_IDS JSON 숫자 배열 → ID 목록. JSON {@code null} 은 매칭 안 된 자리({@code ***})라 null 로 남긴다. 그 밖의 잘못된 값은 건너뛴다. */
     static List<Long> parseTermIds(String json) {
-        List<Long> ids = new ArrayList<>();
-        if (json == null || json.isBlank()) {
-            return ids;
-        }
-        try {
-            JsonNode root = JSON.readTree(json);
-            if (root != null && root.isArray()) {
-                for (JsonNode node : root) {
-                    if (node.isNull()) {
-                        ids.add(null);
-                    } else if (node.canConvertToLong()) {
-                        ids.add(node.asLong());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            return ids;
-        }
-        return ids;
+        return MdmJsonLists.readLongs(json);
     }
 
     private static void maxLength(String value, int max, String label) {
