@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +30,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * {@code findAll()} 하던 것을 이 빈 하나로 모았다. 사용자별 권한 필터는 호출부가 요청마다 그대로 한다 —
  * 여기 담기는 것은 사용자와 무관한 전수 목록뿐이다. 메뉴 폴더({@code TB_MCM_SEC_MENU_FLD})는 담지 않는다.
  *
- * <p><b>캐시</b> — 의존 추가 없이 {@code volatile} 불변 스냅샷 + TTL({@value #TTL_MINUTES}분)
+ * <p><b>캐시</b> — 의존 추가 없이 {@code volatile} 불변 스냅샷(List.copyOf·수정 불가 맵) + TTL({@value #TTL_MINUTES}분)
  * ({@code widget.ext.ExchangeAllowList} 관례). 만료·무효화 뒤 첫 호출이 두 테이블을 한 번씩 읽어 다시 채운다.
  * 동시에 여러 요청이 들어와도 다시 읽기는 한 번만 한다(잠금). 읽는 도중 무효화가 오면 읽은 결과를 그 호출에만
  * 돌려주고 저장하지 않는다(세대 번호) — 무효화가 묻히지 않게 하기 위해서다.
@@ -76,7 +77,11 @@ public class MenuCatalog {
                            Map<String, SecMenu> menusById,
                            Map<String, SecObj> objectsById) {
 
-        /** 두 목록으로 불변 스냅샷을 만든다. ID 가 null 인 행은 맵에서 뺀다(목록에는 남긴다). */
+        /**
+         * 두 목록으로 불변 스냅샷을 만든다. ID 가 null 인 행은 맵에서 뺀다(목록에는 남긴다).
+         * 맵은 {@link Map#copyOf} 대신 수정 불가 뷰로 감싼다 — 호출부가 {@code get(null)} 을 부를 수 있어
+         * (이전 {@code HashMap} 과 같이) null 을 돌려줘야 하기 때문이다. 원본 맵은 여기서만 만들고 밖에 내보내지 않는다.
+         */
         public static Snapshot of(Collection<SecMenu> menus, Collection<SecObj> objects) {
             Map<String, SecMenu> menuById = new HashMap<>();
             for (SecMenu m : menus) {
@@ -86,7 +91,8 @@ public class MenuCatalog {
             for (SecObj o : objects) {
                 if (o.getObjectId() != null) objById.put(o.getObjectId(), o);
             }
-            return new Snapshot(List.copyOf(menus), List.copyOf(objects), Map.copyOf(menuById), Map.copyOf(objById));
+            return new Snapshot(List.copyOf(menus), List.copyOf(objects),
+                    Collections.unmodifiableMap(menuById), Collections.unmodifiableMap(objById));
         }
     }
 

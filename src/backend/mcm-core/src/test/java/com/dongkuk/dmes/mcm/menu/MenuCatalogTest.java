@@ -195,6 +195,9 @@ class MenuCatalogTest {
         assertThatThrownBy(() -> s.menusById().put("X", new SecMenu())).isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(() -> s.objectsById().remove("commMenuMng")).isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(() -> catalog.menus().remove(0)).isInstanceOf(UnsupportedOperationException.class);
+        // 이전 HashMap 처럼 get(null) 은 null — 호출부(즐겨찾기·기본 화면)가 null 키로 찾을 수 있다.
+        assertThat(s.menusById().get(null)).isNull();
+        assertThat(s.objectsById().get(null)).isNull();
     }
 
     @Test

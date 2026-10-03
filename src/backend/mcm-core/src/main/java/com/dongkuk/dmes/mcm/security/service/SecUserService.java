@@ -10,9 +10,8 @@ import com.dongkuk.dmes.mcm.entity.SecObj;
 import com.dongkuk.dmes.mcm.entity.SecPerm;
 import com.dongkuk.dmes.mcm.entity.SecRoleMapping;
 import com.dongkuk.dmes.mcm.entity.SecUserMapping;
-import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
+import com.dongkuk.dmes.mcm.menu.MenuCatalog;
 import com.dongkuk.dmes.mcm.repository.SecMenuFldLovRepository;
-import com.dongkuk.dmes.mcm.repository.SecObjRepository;
 import com.dongkuk.dmes.mcm.repository.SecPermRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleMappingRepository;
@@ -91,9 +90,9 @@ public class SecUserService {
     private final SecRoleGroupMappingRepository secRoleGroupMappingRepository;
     private final SecRoleMappingRepository secRoleMappingRepository;
     private final SecPermRepository secPermRepository;
-    private final SecMenuRepository secMenuRepository;
+    /** SEC_MENU·SEC_OBJ 전수 목록 캐시 — 사용자별 권한 필터는 요청마다 여기서 한다. */
+    private final MenuCatalog menuCatalog;
     private final SecMenuFldLovRepository secMenuFldLovRepository;
-    private final SecObjRepository secObjRepository;
     private final PasswordHasher passwordHasher;
     private final SecurityIdentity securityIdentity;
     private final AuditLogger auditLogger;
@@ -106,9 +105,8 @@ public class SecUserService {
                           SecRoleGroupMappingRepository secRoleGroupMappingRepository,
                           SecRoleMappingRepository secRoleMappingRepository,
                           SecPermRepository secPermRepository,
-                          SecMenuRepository secMenuRepository,
+                          MenuCatalog menuCatalog,
                           SecMenuFldLovRepository secMenuFldLovRepository,
-                          SecObjRepository secObjRepository,
                           PasswordHasher passwordHasher,
                           SecurityIdentity securityIdentity,
                           AuditLogger auditLogger,
@@ -119,9 +117,8 @@ public class SecUserService {
         this.secRoleGroupMappingRepository = secRoleGroupMappingRepository;
         this.secRoleMappingRepository = secRoleMappingRepository;
         this.secPermRepository = secPermRepository;
-        this.secMenuRepository = secMenuRepository;
+        this.menuCatalog = menuCatalog;
         this.secMenuFldLovRepository = secMenuFldLovRepository;
-        this.secObjRepository = secObjRepository;
         this.passwordHasher = passwordHasher;
         this.securityIdentity = securityIdentity;
         this.auditLogger = auditLogger;
@@ -314,18 +311,17 @@ public class SecUserService {
      */
     public List<Map<String, Object>> getMyMenus(MyMenusRequest request /* userId 무시 */) {
         String userId = securityIdentity.requireUserId();
+        // 메뉴·OBJECT 전수 목록은 카탈로그 캐시(사용자 무관) — 같은 스냅샷 하나에서 둘 다 읽는다.
+        MenuCatalog.Snapshot catalog = menuCatalog.snapshot();
         // useTp='Y' 만 보존, FULL_SEQ 정렬
-        List<SecMenu> allMenus = secMenuRepository.findAll().stream()
+        List<SecMenu> allMenus = catalog.menus().stream()
                 .filter(m -> "Y".equals(m.getUseTp()))
                 .sorted(Comparator.comparing(SecMenu::getFullSeq,
                         Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
         List<SecMenu> menus = filterMenusByRole(allMenus, userId);
 
-        Map<String, SecObj> objById = new HashMap<>();
-        for (SecObj obj : secObjRepository.findAll()) {
-            objById.put(obj.getObjectId(), obj);
-        }
+        Map<String, SecObj> objById = catalog.objectsById();
 
         // Round 3: SEC_MENU 가 leaf 화면만 보관하도록 분리됨에 따라 SEC_MENU_FLD 의 폴더 row
         // (모듈 + 그룹) 도 myMenus 응답에 포함 — portal 사이드바 트리 계층 정합.
