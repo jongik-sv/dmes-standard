@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.common.rule.definition;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.str;
+
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
@@ -229,9 +231,5 @@ public final class RuleDefinitionAssembler {
 
     private static List<String> strings(Object list) {
         return list instanceof List<?> l ? l.stream().map(x -> x == null ? null : x.toString()).toList() : null;
-    }
-
-    private static String str(Object value) {
-        return value == null ? null : value.toString();
     }
 }
