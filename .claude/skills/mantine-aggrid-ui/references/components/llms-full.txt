@@ -4994,6 +4994,11 @@ testId 조립(`{p}` = `testId`):
 | 기존 화면의 testId 가 바뀜 | `testId` 접두어와 `groupTestIdSuffix` 로 옛 이름을 그대로 만든다 |
 | `diffSets` 결과를 정렬된 것으로 믿음 | 순회 순서 그대로다. 필요한 정렬(`.sort()`·`localeCompare`)을 화면이 건다 |
 
+## 실제 사용 예
+
+- `src/frontend/m-mdm/pages/dmc/codeItemEdit/cate/components/TransferListPanel.tsx`: 코드 편집 카테고리 탭. 소속 집합은 `CategoryTab` 이 쥐고 `TransferList` 는 제어형으로 쓴다.
+- `src/frontend/m-mdm/pages/dmd/dataItemMng/cate/CategoryTab.tsx`: 데이터 항목 카테고리 소속 편집. [적용] 단추는 `TransferList` 밖(패널 아래)에 두고, 눌렀을 때 `diffSets` 로 추가·제거 목록을 만들어 서비스를 부른다.
+
 
 <!-- ===== matrix-table.md ===== -->
 
