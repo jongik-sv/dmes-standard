@@ -55,14 +55,26 @@ public final class DefaultCodeResolver implements CodeResolver {
         return ver.isPresent() && resolve(maruCodeId, cate(cateId), ver.get()).contains(code);
     }
 
+    /**
+     * 버전을 한 번만 고르고({@code selectVersion} 1회), 소속 계산에 읽은 본문 행을 속성 조회에 다시 쓴다.
+     * 색인으로 소속을 알았을 때만 {@code codeAt} 을 한 번 더 부른다. 결과 의미는 {@link #isMember} 뒤 항목 조회와 같다.
+     */
     @Override
     public Optional<String> attr(String maruCodeId, String cateId, String code, LocalDateTime baseDt, int attrNo) {
-        if (!isMember(maruCodeId, cateId, code, baseDt)) {
+        if (code == null) {
             return Optional.empty();
         }
-        BigDecimal ver = selectVersion(maruCodeId, baseDt).orElseThrow();
-        return codes.codeAt(maruCodeId, ver).stream()
-                .flatMap(rows -> validItems(rows, ver).stream())
+        Optional<BigDecimal> ver = selectVersion(maruCodeId, baseDt);
+        if (ver.isEmpty()) {
+            return Optional.empty();
+        }
+        Resolved resolved = resolveWithRows(maruCodeId, cate(cateId), ver.get());
+        if (!resolved.members().contains(code)) {
+            return Optional.empty();
+        }
+        Optional<CodeRows> rows = resolved.rows().isPresent() ? resolved.rows() : codes.codeAt(maruCodeId, ver.get());
+        return rows.stream()
+                .flatMap(r -> validItems(r, ver.get()).stream())
                 .filter(i -> i.code().equals(code))
                 .findFirst()
                 .map(i -> i.attrs().get(attrNo - 1));
@@ -95,8 +107,21 @@ public final class DefaultCodeResolver implements CodeResolver {
 
     /** ① 사본·캐시의 미리 계산한 집합(빈 집합 = 소속 없음) ② 없으면 {@code codeAt(id, ver)} 행으로 계산. */
     private Set<String> resolve(String maruCodeId, String cateId, BigDecimal ver) {
-        return codeEff.codes(maruCodeId, ver, cateId)
-                .orElseGet(() -> codes.codeAt(maruCodeId, ver).map(rows -> compute(rows, cateId, ver)).orElse(Set.of()));
+        return resolveWithRows(maruCodeId, cateId, ver).members();
+    }
+
+    /** {@link #resolve} 와 같되, 계산하느라 읽은 본문 행이 있으면 함께 돌려준다(색인 적중이면 행이 없다). */
+    private Resolved resolveWithRows(String maruCodeId, String cateId, BigDecimal ver) {
+        Optional<Set<String>> pre = codeEff.codes(maruCodeId, ver, cateId);
+        if (pre.isPresent()) {
+            return new Resolved(pre.get(), Optional.empty());
+        }
+        Optional<CodeRows> rows = codes.codeAt(maruCodeId, ver);
+        return new Resolved(rows.map(r -> compute(r, cateId, ver)).orElse(Set.of()), rows);
+    }
+
+    /** 소속 집합과, 그 계산에 쓴 본문 행(없으면 비어 있다). */
+    private record Resolved(Set<String> members, Optional<CodeRows> rows) {
     }
 
     /** 04 SQL 2-4단계. 결과는 V 에 유효한 코드의 부분집합이다. */

@@ -296,7 +296,7 @@ cactus:
   - (나) 처음 적재는 `TOC + current` 를 한 읽기 트랜잭션에서 받으므로 어긋나지 않는다(§4.1).
   - (다) 그 밖의 어긋남(같은 ver 인데 내용이 제자리 수정됨)은 지금도 있는 "폴링 간격만큼 늦음"과 같은 범위다. 다음 폴링이 묶음을 지운다.
     엔진이 한 해석기 호출 안에서 옛 목차로 고른 ver 가 그새 확정 취소되면, 본문 `NOT_RELEASED` → 목차 다시 받기 → 그 ver 없음이다. 이때 `codeAt`·`codes` 는 빈 값이 아니라 **받을 수 없음**(`MdmUnavailableException`)을 던져 §5.4 의 빈 값 금지 불변식을 지킨다(빈 값이면 해석기가 소속을 빈 집합으로 내려 옛 판정도 새 판정도 아닌 값이 된다). 캐시만 읽는 조회기는 그 본문이 캐시에 없으므로 부재 기록 후 던진다.
-- **RELOAD**: 지운 뒤 목차와 지금 시각의 최종 본문을 다시 받는다(`MdmRevisionPoller.java:146-155` 의 `service::lookup` 을 `lookupAt(…, now)` 로). 지우기 전에 있던 옛 본문은 다시 받지 않는다. 필요해지면 미스 때 받는다.
+- **RELOAD**: 지운 뒤 목차와 지금 시각의 최종 본문을 다시 받는다(`MdmRevisionPoller.java:146-155`  에서 `refreshAfterEvict(…, now)` 로). 지우기 전에 있던 옛 본문은 다시 받지 않는다. 필요해지면 미스 때 받는다. 진행 중 적재에 합류하지 않는다(관리 화면 reload 와 같은 자리 빼앗기, `MdmMetaService.refreshAfterEvict`). 지움 전 Ticket 으로 시작한 적재에 합류하면 그 결과는 지움 기록에 막혀 캐시에 들어가지 못하고, 목차 없이 본문만 따로 들어가 옛 수명으로 강등되며, 폴러가 잠금을 쥔 채 그 적재를 기다린다(fu3). 다시 받는 적재의 Ticket 은 지움·`markApplied` 뒤에 받으므로 캐시에 들어간다. 최종 본문이 목차 응답의 current 로 오면 목차와 한 Ticket 으로 함께 들어가고, 목차가 이미 캐시에 있으면 본문만 따로 적재한다. 값 대상과 versioned-feed off 경로도 같은 규칙이다.
 - **통째 비우기**(기동·truncated·역행, `MdmRevisionPoller.java:113-128`)는 지금 그대로다. 세대가 올라가 목차·본문이 함께 버려진다(`MdmMetaCache.java:227-232`).
 
 ### 5.7 노드 간 일관성
@@ -384,6 +384,8 @@ cactus:
 
 - **화면 허용 코드**(`allowedCodes`): 지금 시각 `codeList` 다(`cactus/MdmMetaController.java:361-375`). 최종 본문과 색인을 쓰므로 빨라진다. 바뀌는 동작은 없다.
 - **`MdmDefinitionLookup.column`** 은 코드 참조가 있으면 코드를 미리 받는다(`cactus/MdmDefinitionLookup.java:43-53`). 이것을 "목차 + 지금 시각 본문"으로 바꾼다.
+- **일반 엔진 경로의 기준 시각 미리 받기**: `column` 에는 시각 인자가 없어 늘 지금 시각 본문만 미리 받는다. 일반 엔진(`DefaultDomainValidator`·`MdmEvaluator` 를 `MdmDefinitionLookup` 위에 만든 경우)을 과거 `evalTs` 로 쓰는 호출자는 평가 전에 `MdmDefinitionLookup.prefetchColumns(columnNames, evalTs)`(codeRef 코드까지) 또는 `prefetchCodes(maruCodeIds, evalTs)`(코드 목차 + 그 시각 본문, 목차 한 번 + 본문 한 번으로 묶음)를 불러야 한다. 부르지 않으면 그 시각 본문을 평가 스레드(시간 한도 1초)에서 받게 되어 느린 MDM 은 TIMEOUT, 받을 수 없음은 EVALUATION_ERROR 로 분류된다(§5.4 불변식·결정 P9 가 일반 경로의 캐시 부재 적재를 허용하므로 결함이 아니라 분류·지연 위험이다). 이 API 는 호출자 스레드에서 받을 수 없음을 `MdmUnavailableException` 으로 올리고, MDM 에 없는 코드·컬럼은 조용히 넘기며, `versioned-feed: off` 에서는 전 이력 한 키(목차·본문 요청 없음)로 받는다. `column` 은 `prefetchCodes(…, now())` 위임이라 동작이 같다. 호출처가 아직 없어 자동 보호(장식자)는 두지 않았다.
+  - **남는 빈틈(별도 후속)**: 표준식·비즈니스식이 참조하는 코드, 일반 `RuleEngine` 룰 식이 참조하는 코드(`MASTER`·`MASTER_AT`·`CODE`)는 이 API 가 컬럼 이름만으로 찾지 못해 여전히 미리 받지 않는다(호출자가 `prefetchCodes` 로 직접 넘겨야 한다). 저장 검증기(`MdmValidator`, §7.2)는 `MdmExprRefs` 로 이를 받는다. 일반 경로에도 같은 수집을 공개하려면 검증기 prefetch 를 공용으로 떼어내는 별도 작업이 필요하다.
 - **강제 기록(`force`)·변경 기록 표·Flyway**: 바꾸지 않는다(§4.3).
 - **도메인·컬럼 캐시**: 바꾸지 않는다.
 

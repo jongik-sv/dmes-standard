@@ -350,7 +350,39 @@ describe("mdmCacheMng api", () => {
       ],
       "RELOAD",
     );
-    expect(r).toEqual({ applied: ["COLUMN", "RULE"], failedType: null, pending: [], error: null });
+    expect(r).toEqual({ applied: ["COLUMN", "RULE"], failedType: null, pending: [], error: null, toSeq: 1 });
+  });
+
+  it("여러 종류 강제 기록 — 반영한 종류들의 toSeq 중 최댓값을 싣는다", async () => {
+    apiRequest
+      .mockResolvedValueOnce({ meta: { success: true }, data: { result: { fromSeq: 4, toSeq: 7, count: 1 } } })
+      .mockResolvedValueOnce({ meta: { success: true }, data: { result: { fromSeq: 7, toSeq: 9, count: 1 } } })
+      .mockResolvedValueOnce({ meta: { success: true }, data: { result: { fromSeq: 9, toSeq: 8, count: 1 } } });
+    const r = await api.forceByType(
+      [
+        ["COLUMN", ["A"]],
+        ["RULE", ["R"]],
+        ["CODE", ["C"]],
+      ],
+      "RELOAD",
+    );
+    expect(r.toSeq).toBe(9);
+  });
+
+  it("여러 종류 강제 기록 — 반영한 종류가 없으면 toSeq 는 없다(null)", async () => {
+    apiRequest.mockResolvedValueOnce({ meta: { success: false, message: "거부" } });
+    const r = await api.forceByType([["COLUMN", ["A"]]], "EVICT");
+    expect(r.applied).toEqual([]);
+    expect(r.toSeq).toBeNull();
+    expect((await api.forceByType([], "EVICT")).toSeq).toBeNull();
+  });
+
+  it("한 모듈 적용 순번 읽기 — 그 모듈 status 한 번만 부르고 appliedSeq 를 돌려준다", async () => {
+    getJson.mockResolvedValueOnce(status("mpp", 12, 15));
+    await expect(api.fetchAppliedSeq("mpp")).resolves.toBe(12);
+    expect(getJson).toHaveBeenCalledTimes(1);
+    expect(getJson.mock.calls[0][0]).toBe("/api/mpp/mdmMeta/status");
+    expect(apiRequest).not.toHaveBeenCalled();
   });
 
   it("등록 결과 문구 — 빈 목록이면 괄호를 붙이지 않는다", () => {

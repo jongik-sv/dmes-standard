@@ -66,13 +66,15 @@ final class MasterQuery {
         if (value.isNullValue()) {
             return null;
         }
-        if (value.isStringValue() && MasterBaseDt.isShape(value.getStringValue())) {
+        if (value.isStringValue()) {
             String s = value.getStringValue();
             Optional<LocalDateTime> dt = MasterBaseDt.parse(s);
-            if (dt.isEmpty()) {
+            if (dt.isPresent()) {
+                return dt.get();
+            }
+            if (MasterBaseDt.isShape(s)) {
                 throw new EvaluationException(token, "MASTER_AT base_dt '" + s + "' 는 달력에 없는 일시다");
             }
-            return dt.get();
         }
         throw new EvaluationException(token,
                 "MASTER_AT base_dt 는 YYYYMMDD·YYYYMMDDHHMMSS 문자열이어야 한다: " + value.getValue());

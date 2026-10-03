@@ -337,4 +337,30 @@ class MdmDefinitionLookupTest {
         feed.fetchError = new MdmUnavailableException("꺼짐");
         assertThatThrownBy(() -> lookup.column("T", "COIL_THK")).isInstanceOf(MdmUnavailableException.class);
     }
+
+    @Test
+    void prefetchCodes_는_off_에서_전_이력_한_키를_받고_목차_본문_요청을_하지_않는다() {
+        feed.put(MdmTargetType.CODE, "C", MdmMetaServiceVersionedTest.codeRows());
+
+        lookup.prefetchCodes(List.of("C", "NOPE"), Instant.parse("2026-03-01T00:00:00Z"));
+        lookup.prefetchCodes(List.of("C"), NOW);
+
+        assertThat(feed.fetchCalls.get()).as("C·NOPE 묶어 한 번, 두 번째는 캐시").isEqualTo(1);
+        assertThat(feed.tocCalls.get()).isZero();
+        assertThat(feed.bodyCalls.get()).isZero();
+    }
+
+    @Test
+    void prefetchColumns_는_off_에서도_컬럼과_코드_참조_코드를_받는다() {
+        feed.put(MdmTargetType.CODE, "C", MdmMetaServiceVersionedTest.codeRows());
+        feed.put(MdmTargetType.COLUMN, "TB_COL", new MdmColumnMeta("TB_COL", "TB_COL 컬럼", null, "TB_COL", null, null, null, "STRING", 10, null,
+                false, null, null, null, null, new MdmColumnMeta.DomainRef("8", "코드", "CODE"), null, null, List.of(),
+                new MdmColumnMeta.CodeRefMeta("C", "TB"), null, null, null));
+
+        lookup.prefetchColumns(List.of("tbCol"), NOW);
+
+        assertThat(feed.fetchedKeys).contains(List.of("TB_COL"), List.of("C"));
+        assertThat(feed.tocCalls.get()).isZero();
+        assertThat(feed.bodyCalls.get()).isZero();
+    }
 }

@@ -104,6 +104,11 @@ export async function fetchStatus(module: string): Promise<ModuleStatus> {
   return getWithoutRedirect<ModuleStatus>(`${metaBase(module)}/status`);
 }
 
+/** 한 모듈의 적용 순번(appliedSeq) — 강제 기록이 그 모듈에 반영됐는지 기다릴 때 쓴다. 실패는 그대로 던진다. */
+export async function fetchAppliedSeq(module: string): Promise<number> {
+  return (await fetchStatus(module)).appliedSeq;
+}
+
 function stateOf(s: ModuleStatus, latestSeq: number): ModuleState {
   if (s.consecutiveFailures > 0) return "FAILING";
   if (s.appliedSeq < latestSeq) return "LAGGING";
@@ -276,26 +281,31 @@ export interface ForceOutcome {
   /** 반영하지 못한 종류(실패한 종류 포함). */
   pending: MdmTargetType[];
   error: string | null;
+  /** 반영한 종류들의 변경 기록 순번(toSeq) 중 최댓값. 반영한 종류가 없으면 null. 모듈의 appliedSeq 가 이 값 이상이면 모듈이 강제 기록을 반영한 것이다. */
+  toSeq: number | null;
 }
 
 /** 대상 종류마다 차례로 강제 기록한다. 하나가 실패하면 멈추고 어디까지 반영했는지 돌려준다. */
 export async function forceByType(groups: Array<[MdmTargetType, string[]]>, kind: ForceKind): Promise<ForceOutcome> {
   const applied: MdmTargetType[] = [];
+  let toSeq: number | null = null;
   for (let i = 0; i < groups.length; i++) {
     const [type, keys] = groups[i];
     try {
-      await forceKeys(type, keys, kind);
+      const result = await forceKeys(type, keys, kind);
       applied.push(type);
+      if (Number.isFinite(result.toSeq)) toSeq = toSeq === null ? result.toSeq : Math.max(toSeq, result.toSeq);
     } catch (e) {
       return {
         applied,
         failedType: type,
         pending: groups.slice(i).map(([t]) => t),
         error: e instanceof Error ? e.message : String(e),
+        toSeq,
       };
     }
   }
-  return { applied, failedType: null, pending: [], error: null };
+  return { applied, failedType: null, pending: [], error: null, toSeq };
 }
 
 /** 부분 실패 문구 — 반영한 종류와 반영하지 못한 종류를 함께 알린다. */

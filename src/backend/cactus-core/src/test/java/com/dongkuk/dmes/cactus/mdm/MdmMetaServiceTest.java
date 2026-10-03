@@ -325,4 +325,50 @@ class MdmMetaServiceTest {
             return delegate.instant();
         }
     }
+
+    // ---- fu3: 폴러 RELOAD 전용 입구 ----
+
+    @Test
+    void refreshAfterEvict_값_경로는_evictLocal_없이_자리를_빼앗는다() throws Exception {
+        CountDownLatch oldGate = new CountDownLatch(1);
+        CountDownLatch newGate = new CountDownLatch(1);
+        try {
+            feed.fetchGate = oldGate;
+            CompletableFuture<MdmMetaService.MdmLookup> old = CompletableFuture.supplyAsync(() -> service.lookup(MdmTargetType.COLUMN, List.of("A")));
+            assertThat(feed.fetchEntered.await(5, TimeUnit.SECONDS)).isTrue(); // 옛 적재가 "a" 를 읽고 멈췄다
+            feed.put(MdmTargetType.COLUMN, "A", "a2");
+            cache.evict(MdmTargetType.COLUMN, "A", 1); // 폴러 지움
+            cache.markApplied(1);
+            int tombstones = cache.tombstoneCount();
+
+            feed.fetchGate = newGate;
+            CompletableFuture<Void> refresh = CompletableFuture.runAsync(
+                    () -> service.refreshAfterEvict(MdmTargetType.COLUMN, List.of("A"), clock.instant()));
+            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (feed.fetchCalls.get() < 2 && System.nanoTime() < until) {
+                Thread.onSpinWait();
+            }
+            assertThat(feed.fetchCalls.get()).as("옛 적재에 합류하지 않고 자기 요청").isEqualTo(2);
+
+            // 새 적재를 문에 붙잡아 둔 채 옛 적재를 먼저 끝낸다 — 옛 적재의 finally 가 inflight.remove(id, f) 를 지난다
+            oldGate.countDown();
+            assertThat(old.get(5, TimeUnit.SECONDS).found()).containsEntry("A", "a");
+            assertThat(cache.get(MdmTargetType.COLUMN, "A")).as("옛 적재 값은 캐시에 들어가지 않는다").isEmpty();
+
+            CompletableFuture<MdmMetaService.MdmLookup> later = CompletableFuture.supplyAsync(
+                    () -> service.lookup(MdmTargetType.COLUMN, List.of("A"))); // 옛 적재가 끝난 뒤, 새 적재가 끝나기 전에 들어온 조회
+            Thread.sleep(100);
+            assertThat(later.isDone()).as("새 적재가 끝나기 전에는 답하지 않는다").isFalse();
+
+            newGate.countDown();
+            refresh.get(5, TimeUnit.SECONDS);
+            assertThat(later.get(5, TimeUnit.SECONDS).found()).containsEntry("A", "a2");
+            assertThat(feed.fetchCalls.get()).as("옛 적재의 finally 가 새 자리를 지우지 않아 뒤이은 조회가 새 적재에 합류했다").isEqualTo(2);
+            assertThat(cache.tombstoneCount()).as("지움 기록을 더하지 않는다").isEqualTo(tombstones);
+            assertThat(cache.get(MdmTargetType.COLUMN, "A").orElseThrow().value()).isEqualTo("a2");
+        } finally {
+            oldGate.countDown();
+            newGate.countDown();
+        }
+    }
 }
