@@ -268,7 +268,13 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
           </GridPanel>
         </ContentPanel>
       </ContentBody>
-      <CategoryAddModal open={addOpen} onClose={() => setAddOpen(false)} onAdd={cate.add} />
+      <CategoryAddModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onAdd={cate.add}
+        existingIds={cate.rows.map((r) => r.cateId)}
+        closedIds={cate.rows.filter((r) => r.__local === "deleted").map((r) => r.cateId)}
+      />
 
       <Modal open={transferOpen} onClose={() => setTransferOpen(false)} title={`소속 편집 — ${selectedRow?.cateId ?? ""}`}>
         {selectedRow && (

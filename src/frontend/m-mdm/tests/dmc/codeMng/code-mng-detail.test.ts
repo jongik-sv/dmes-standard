@@ -7,6 +7,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearToasts } from "../../helpers/toasts";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { openMdmPage, takeMdmPageParams } from "@/shell";
 import CodeMngPage from "../../../pages/dmc/codeMng/page";
@@ -181,6 +182,8 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     vi.unstubAllGlobals();
     delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
     document.body.innerHTML = "";
+    // 성공 알림이 전역 알림 저장소(limit 3)에 쌓여 뒤 시험의 알림을 밀어내지 않게 한다.
+    clearToasts();
   });
 
   it("같은 코드를 다시 불러오는 사이 고친 헤더 폼은 늦게 온 view 응답이 덮지 않는다", async () => {
@@ -205,6 +208,69 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
 
     expect((byTestId("header-name") as HTMLInputElement).value).toBe("고친 이름");
     expect(actions("view")).toHaveLength(2);
+  });
+
+  // 2026-10-03 팀장 결정 — ruleMng 과 같은 규칙: 같은 행을 다시 눌러 다시 읽어도 저장하지 않은 입력은 남기고, 저장은 입력을
+  // 시작할 때의 auditVer 로 보낸다(다른 창 변경은 MDM001 로 드러난다). 고친 칸이 없으면 서버 값으로 바꾼다.
+  it("누르기 전에 고친 헤더 입력은 같은 행을 다시 눌러 다시 읽어도 남고, 저장은 입력을 시작할 때의 auditVer 로 보낸다", async () => {
+    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await search();
+    await typeInto("header-name", "고치는 중");
+    // 다른 창에서 헤더가 바뀌었다(auditVer 0→1).
+    nextView = () => viewResult({ header: { ...viewResult().header, maruCodeName: "다른 창 이름", auditVer: 1 } });
+    const row = Array.from(document.body.querySelectorAll('[data-testid="code-list"] .ag-row')).find((r) => r.textContent?.includes("PROC_CD"));
+    await click(row!.querySelector(".ag-cell"));
+    await flush();
+    expect(actions("view")).toHaveLength(2);
+    expect((byTestId("header-name") as HTMLInputElement).value).toBe("고치는 중");
+    await click(byTestId("header-save"));
+    expect(actions("save")[0].params).toMatchObject({ maruCodeName: "고치는 중", auditVer: 0 });
+  });
+
+  it("고친 칸이 없으면 같은 행을 다시 눌러 다시 읽은 서버 값과 auditVer 로 바뀐다", async () => {
+    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await search();
+    nextView = () => viewResult({ header: { ...viewResult().header, maruCodeName: "다른 창 이름", auditVer: 1 } });
+    const row = Array.from(document.body.querySelectorAll('[data-testid="code-list"] .ag-row')).find((r) => r.textContent?.includes("PROC_CD"));
+    await click(row!.querySelector(".ag-cell"));
+    await flush();
+    expect((byTestId("header-name") as HTMLInputElement).value).toBe("다른 창 이름");
+    await typeInto("header-name", "새 이름");
+    await click(byTestId("header-save"));
+    expect(actions("save")[0].params).toMatchObject({ maruCodeName: "새 이름", auditVer: 1 });
+  });
+
+  // 검토 I1 — 서버는 저장 때 값을 trim 한다. 끝 공백을 남긴 채 저장에 성공하면 응답 값이 보낸 값과 달라도
+  // 고친 입력으로 보지 않고 서버 값·새 auditVer 로 맞춰야 한다(아니면 다음 저장이 옛 auditVer 로 거짓 충돌).
+  it("끝 공백을 넣어 헤더 저장에 성공하면 서버가 trim 한 값과 새 auditVer 로 맞추고, 다음 저장은 새 auditVer 를 보낸다", async () => {
+    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await search();
+    await typeInto("header-name", "새 이름 ");
+    const trimmed = viewResult({ header: { ...viewResult().header, maruCodeName: "새 이름", auditVer: 1 } });
+    saveResponse = { meta: { success: true }, data: { result: trimmed } };
+    nextView = () => trimmed;
+    await click(byTestId("header-save"));
+    await flush();
+    expect(actions("save")[0].params).toMatchObject({ maruCodeName: "새 이름 ", auditVer: 0 });
+    expect((byTestId("header-name") as HTMLInputElement).value).toBe("새 이름");
+    await typeInto("header-name", "또 이름");
+    await click(byTestId("header-save"));
+    expect(actions("save")[1].params).toMatchObject({ maruCodeName: "또 이름", auditVer: 1 });
+  });
+
+  // 검토 M1 — 입력을 남기더라도 다시 읽은 헤더 값이 입력을 시작할 때와 칸마다 같으면(VER 만 오른 자기 쓰기 등) 다른 창이 헤더를
+  // 고치지 않은 것이므로 저장할 auditVer 를 새 값으로 올린다. 헤더 칸이 바뀐 진짜 충돌은 여전히 옛 auditVer 로 드러난다.
+  it("입력을 남긴 채 다시 읽었는데 헤더 값은 그대로이고 auditVer 만 올랐으면 저장은 새 auditVer 를 보낸다", async () => {
+    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await search();
+    await typeInto("header-name", "고치는 중");
+    nextView = () => viewResult({ header: { ...viewResult().header, auditVer: 1 } });
+    const row = Array.from(document.body.querySelectorAll('[data-testid="code-list"] .ag-row')).find((r) => r.textContent?.includes("PROC_CD"));
+    await click(row!.querySelector(".ag-cell"));
+    await flush();
+    expect((byTestId("header-name") as HTMLInputElement).value).toBe("고치는 중");
+    await click(byTestId("header-save"));
+    expect(actions("save")[0].params).toMatchObject({ maruCodeName: "고치는 중", auditVer: 1 });
   });
 
   it("코드를 고르기 전에는 안내만 보인다", async () => {

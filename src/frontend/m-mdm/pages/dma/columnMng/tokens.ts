@@ -50,3 +50,18 @@ export function replaceToken(
     };
   });
 }
+
+/**
+ * 분해 토큰 표의 열 폭(`columnSizing="fit"` — `width` 는 비율, 칸이 좁으면 `minWidth`(없으면 `width`)까지 줄고 그 합이
+ * 표 폭보다 넓으면 가로 스크롤이 생긴다. Local-Rules §30).
+ */
+export const TOKEN_COLUMN_SIZES = {
+  // 최소 폭 합 518px — 1280 폭에서 이 표가 받는 565px(e2e 실측)에서 세로 스크롤바 몫 17px 을 뺀 548px 안에 든다.
+  seq: { width: 50, minWidth: 44 },
+  // 토큰·매칭·약어는 말줄임돼도 셀 툴팁(값)으로 다 볼 수 있어 줄인다.
+  surface: { width: 120, minWidth: 90 },
+  MATCH_TEXT: { width: 140, minWidth: 100 },
+  ABBR_TEXT: { width: 90, minWidth: 64 },
+  // 처리 칸은 버튼·긴 안내 문구(「약어 없음 — 용어 관리에서 약어 등록」)를 그리고 툴팁이 없어(tooltip:false) 덜 줄인다.
+  ACTION: { width: 240, minWidth: 220 },
+} as const satisfies Record<string, { width: number; minWidth?: number }>;

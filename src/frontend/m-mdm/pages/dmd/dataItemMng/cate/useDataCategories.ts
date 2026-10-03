@@ -54,9 +54,10 @@ export interface DataCategoriesState {
   reload: () => Promise<void>;
   invalidate: () => void;
   select: (cateId: string) => void;
-  add: (cateId: string, cateName: string, defKind: "REGEX" | "TABLE") => Promise<void>;
-  close: (cateId: string) => Promise<void>;
-  reopen: (cateId: string) => Promise<void>;
+  /** 성공하면 true — 거부되면 오류를 알리고 false 를 돌려줘 추가 팝업이 입력을 남긴 채 열려 있게 한다. */
+  add: (cateId: string, cateName: string, defKind: "REGEX" | "TABLE") => Promise<boolean>;
+  close: (cateId: string) => Promise<boolean>;
+  reopen: (cateId: string) => Promise<boolean>;
   saveRegex: (cateName: string, defExpr: string, defTarget: string, description: string) => Promise<void>;
   /** REGEX 후보 정의로 미리보기(compare)를 다시 부른다 — 편집 칸이 바뀐 뒤 입력이 멈추면(디바운스). */
   previewCandidate: (defExpr: string, defTarget: string) => Promise<void>;
@@ -214,8 +215,8 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
     void loadDetail(current.current, cateId);
   }, [loadDetail]);
 
-  /** 쓰기 한 건 — 성공하면 알리고 목록·상세를 다시 읽는다. */
-  const write = useCallback(async (task: () => Promise<unknown>, done: string, cateId: string) => {
+  /** 쓰기 한 건 — 성공하면 알리고 목록·상세를 다시 읽는다. 쓰기가 성공했는지 돌려준다(거부는 오류로 알리고 false). */
+  const write = useCallback(async (task: () => Promise<unknown>, done: string, cateId: string): Promise<boolean> => {
     const md = current.current;
     setBusy(true);
     try {
@@ -224,8 +225,10 @@ export function useDataCategories({ maruDataId, active, onError, onChanged }: Da
       setWriteCount((n) => n + 1);
       changedRef.current?.();
       if (md === current.current) await loadList(md, cateId);
+      return true;
     } catch (e) {
       fail(e);
+      return false;
     } finally {
       setBusy(false);
     }

@@ -13,8 +13,13 @@
  * Part B §4-3 MUST: 분할 골격(`ContentBody`/`ContentPanel`)은 `page.tsx` 의 **직접 자식**이어야 drag bar 가 붙는다
  * (shared `ContentBody.tsx` 의 `isLayoutItem` 은 `React.Children` 로 받은 직접 자식의 type 만 본다). 그래서 상세는
  * `RuleDetailPanel` 이 내용만 돌려주고 골격은 여기서 그린다(dmc `codeMng` 선례).
+ *
+ * 상세 다시 읽기(2026-10-03): 행을 누르면 같은 행이어도, [조회]로 목록을 다시 받으면 고른 룰의 상세를 다시 읽는다 —
+ * 다른 창에서 바뀐 상태(선점 해제·확정 등)가 보이게 하려는 것이다(dmc codeMng·dmd dataMng 과 같은 규칙). 그래서 상세는
+ * `selectedId` effect 가 아니라 고르는 곳에서 직접 부른다. 응답은 요청 순번(`detailSeq`)이 지금 것과 다르면 버린다 —
+ * 늦게 온 A 응답이 B 상세를 덮지 않는다. 저장하지 않은 헤더 입력은 `RuleDetailPanel` 이 같은 룰을 다시 읽어도 남긴다.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
   ContentBody,
@@ -79,51 +84,77 @@ export default function RuleMngPage() {
   const [detail, setDetail] = useState<RuleMngView | null>(null);
   const [isDetailBusy, setIsDetailBusy] = useState(false);
   const [isRegOpen, setIsRegOpen] = useState(false);
+  // 응답 가드용 — 지금 고른 룰과 상세 요청 순번. 상세 요청을 낼 때마다 순번을 올린다.
+  const selectedIdRef = useRef<string | null>(null);
+  const detailSeq = useRef(0);
+  // 진행 중인 상세 쓰기 수 — 0 이 아니면 목록 행 클릭을 받지 않는다. 쓰기 결과를 그 룰 위에서 보게 하려는 것이다(dmc codeMng 과
+  // 같다, 재검토 I3). [조회]로 선택이 바뀌는 경우는 아래 reload 가드가 막는다.
+  const writing = useRef(0);
 
   const loadDetail = useCallback(async (ruleId: string | null) => {
+    const seq = ++detailSeq.current;
     if (!ruleId) {
       setDetail(null);
+      setIsDetailBusy(false);
       return;
     }
     setIsDetailBusy(true);
     try {
-      setDetail(await viewRule(ruleId));
+      const next = await viewRule(ruleId);
+      if (seq !== detailSeq.current) return; // 그사이 다른 룰을 골랐거나 더 새 요청이 나갔다
+      setDetail(next);
     } catch (e) {
+      if (seq !== detailSeq.current) return;
       setErrorMessage(e instanceof Error ? e.message : String(e));
       setDetail(null);
     } finally {
-      setIsDetailBusy(false);
+      // 겹친 요청 중 옛 것이 먼저 끝나도 새 요청이 진행 중이면 busy 를 풀지 않는다.
+      if (seq === detailSeq.current) setIsDetailBusy(false);
     }
   }, []);
 
-  const load = useCallback(async (f: RuleSearchFilters, pageNo: number) => {
-    setIsBusy(true);
-    try {
-      const result = await searchRules(f, pageNo, RULE_PAGE_SIZE);
-      setRows(result.list ?? []);
-      setTotalCount(result.totalCount ?? 0);
-      setPage(result.page ?? pageNo);
-      setApplied(f);
-    } catch (e) {
-      setErrorMessage(e instanceof Error ? e.message : String(e));
-    } finally {
-      setIsBusy(false);
-    }
-  }, []);
+  /** 룰을 고르고 그 상세를 읽는다 — 같은 룰이어도 다시 읽는다. */
+  const choose = useCallback(
+    (ruleId: string | null) => {
+      selectedIdRef.current = ruleId;
+      setSelectedId(ruleId);
+      return loadDetail(ruleId);
+    },
+    [loadDetail],
+  );
+
+  // refreshDetail 이면([조회]) 목록이 온 뒤 고른 룰의 상세도 다시 읽는다. 고른 룰이 없으면 첫 줄을 연다 — 상세가
+  // 빈 화면으로 남지 않게(dmc codeMng 과 같은 접합). [조회] 결과에 고른 룰이 없으면 강조 없는 옛 상세를 남기지 않고 새 목록
+  // 첫 줄을 고르며, 목록이 비면 선택과 상세를 비운다(검토 M3). 쪽 넘기기는 선택을 그대로 둔다.
+  const load = useCallback(
+    async (f: RuleSearchFilters, pageNo: number, refreshDetail = false) => {
+      setIsBusy(true);
+      try {
+        const result = await searchRules(f, pageNo, RULE_PAGE_SIZE);
+        const list = result.list ?? [];
+        setRows(list);
+        setTotalCount(result.totalCount ?? 0);
+        setPage(result.page ?? pageNo);
+        setApplied(f);
+        const current = selectedIdRef.current;
+        if (!current) {
+          if (list.length > 0) void choose(list[0].maruRuleId);
+        } else if (refreshDetail) {
+          if (list.some((r) => r.maruRuleId === current)) void loadDetail(current);
+          else void choose(list[0]?.maruRuleId ?? null);
+        }
+      } catch (e) {
+        setErrorMessage(e instanceof Error ? e.message : String(e));
+      } finally {
+        setIsBusy(false);
+      }
+    },
+    [choose, loadDetail],
+  );
 
   // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청)
 
-  // 첫 목록이 오면 그 첫 줄을 연다 — 상세가 빈 화면으로 남지 않게(dmc codeMng 과 같은 접합).
-  useEffect(() => {
-    if (selectedId || rows.length === 0) return;
-    setSelectedId(rows[0].maruRuleId);
-  }, [rows, selectedId]);
-
-  useEffect(() => {
-    void loadDetail(selectedId);
-  }, [selectedId, loadDetail]);
-
-  const handleSearch = useCallback(() => void load(filters, 0), [filters, load]);
+  const handleSearch = useCallback(() => void load(filters, 0, true), [filters, load]);
 
   const columns = useMemo<GridColumn[]>(
     () => [
@@ -253,7 +284,10 @@ export default function RuleMngPage() {
               emptyMessage="조회된 룰이 없습니다."
               emptyTestId="rule-list-empty"
               highlightedRowKey={selectedId ?? undefined}
-              onRowClick={(row) => setSelectedId(row.maruRuleId as string)}
+              onRowClick={(row) => {
+                if (writing.current > 0) return;
+                void choose(row.maruRuleId as string);
+              }}
             />
           </GridPanel>
           <Pagination
@@ -270,7 +304,16 @@ export default function RuleMngPage() {
           {detail ? (
             <RuleDetailPanel
               view={detail}
-              reload={() => loadDetail(selectedId)}
+              // 쓰기 뒤 다시 읽기는 지금 선택을 본다 — 쓰기를 기다리는 사이 다른 룰을 골랐으면 옛 룰을 더 새 순번으로 읽어
+              // 강조와 상세가 어긋나지 않게 읽지 않는다(검토 I2).
+              reload={() =>
+                selectedIdRef.current === detail.header.maruRuleId
+                  ? loadDetail(selectedIdRef.current).then(() => true)
+                  : Promise.resolve(false)
+              }
+              onWriting={(delta) => {
+                writing.current += delta;
+              }}
               canDo={(action) => canDoButton(rbac, SCREEN_ID, action)}
               busy={isBusy || isDetailBusy}
               onError={setErrorMessage}
@@ -303,7 +346,7 @@ export default function RuleMngPage() {
             canRegister={canDoButton(rbac, SCREEN_ID, "reg")}
             onRegistered={(ruleId) => {
               setIsRegOpen(false);
-              setSelectedId(ruleId);
+              void choose(ruleId);
               void load(applied, 0);
             }}
             onCancel={() => setIsRegOpen(false)}
