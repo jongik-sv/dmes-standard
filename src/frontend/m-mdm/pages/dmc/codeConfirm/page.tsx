@@ -20,7 +20,7 @@ import {
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, DateTimePicker, Input } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, useMdmPageParams } from "@/shell";
+import { DraftLockBadge, MdmPageLayout, VEIL_FRESH, VEIL_STALE, VersionStatusBadge, useMdmPageParams } from "@/shell";
 
 import { confirmDraft, searchDrafts, validateDraft, viewDraft } from "./api";
 import { canConfirm, checkStatusLabel, checkTitle, toServerDateTime, warningLines } from "./checks";
@@ -41,9 +41,7 @@ const section = { padding: "0 var(--spacing-md) var(--spacing-sm)" } as const;
 const rowFlex = { display: "flex", alignItems: "center", gap: "var(--spacing-sm)", flexWrap: "wrap" as const };
 const strongWarn = { color: "var(--color-danger, #b91c1c)", fontWeight: 600 } as const;
 
-// 이전 DRAFT 상세를 잠근 채 두는 동안의 모습. 흐림은 늦게 걸어 짧은 조회(대부분)에서는 보이지 않게 한다.
-const VEIL_FRESH = { transition: "opacity 120ms ease" } as const;
-const VEIL_STALE = { ...VEIL_FRESH, opacity: 0.5, pointerEvents: "none", transitionDelay: "300ms" } as const;
+// 이전 DRAFT 상세를 잠근 채 두는 동안의 모습은 `@/shell` 의 VEIL_FRESH·VEIL_STALE(흐림은 늦게 건다).
 
 const DIFF_KIND_LABELS: Record<string, string> = { ADDED: "추가", REMOVED: "삭제", CHANGED: "수정" };
 
