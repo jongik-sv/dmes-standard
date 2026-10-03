@@ -529,6 +529,26 @@ describe("codeItemEdit page", () => {
     expect(testId("cate-list")?.querySelectorAll('[data-testid="cate-row-T2"]')).toHaveLength(1);
   });
 
+  // 검토 M4 — 닫기 표시한 행의 ID 도 막는다. 서버는 같은 저장에서 닫기(DELETED)를 먼저 적용해 같은 ID 추가를 받을 수 있지만,
+  // 화면의 로컬 행은 cateId 를 키로 써(그리드 rowKey·[취소]·[닫기]) 같은 ID 행이 둘이 되면 로컬 상태가 깨진다. 대신 [취소] 로
+  // 닫기를 풀어 쓰라고 안내한다.
+  it("⑳ 닫기 표시한 카테고리 ID 는 추가하지 않고 [취소] 로 닫기를 풀어 쓰라고 안내한다", async () => {
+    stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9")]),
+      { cateView: cateViewOf("DRAFT", true, [BASE, TABLE1]) });
+    await render(createElement(CodeItemEditPage));
+    await chooseCode("STEEL");
+    await openCateTab();
+    await click(testId("cate-close-T1"));
+    await click(testId("cate-add"));
+    await typeInto("cate-add-id", "T1");
+    await typeInto("cate-add-name", "표1 새로");
+    await click(testId("cate-add-submit"));
+    expect(testId("cate-add-submit")).not.toBeNull();
+    expect(document.body.textContent).toContain("닫기 표시한 카테고리다. 그 행의 [취소] 로 닫기를 풀어 쓴다");
+    expect((testId("cate-add-id") as HTMLInputElement).value).toBe("T1");
+    expect(testId("cate-list")?.querySelectorAll('[data-testid="cate-row-T1"]')).toHaveLength(1);
+  });
+
   // 훅 규칙(2026-10-03): 팝업은 훅을 모두 부른 뒤 닫혔으면 그리지 않고, 열릴 때 칸을 비운다.
   it("⑲ 추가 팝업을 [취소] 로 닫았다가 다시 열면 칸·중복 오류가 비어 있다", async () => {
     stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9")]),
