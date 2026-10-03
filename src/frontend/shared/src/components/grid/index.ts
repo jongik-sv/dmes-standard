@@ -48,3 +48,4 @@ export {
   type RowStateManager,
 } from "./useRowStateManager";
 export { Pagination, type PaginationProps } from "./Pagination";
+export { GridExcelFoot, type GridExcelFootProps } from "./GridExcelFoot";

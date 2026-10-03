@@ -6,14 +6,17 @@ import type { ExcelColumn } from "@dk-oasis/shared/utils";
 
 import { TABLE_ROW_KEY } from "./format";
 
-/** 제목이 없을 때 파일 이름. */
+/** 제목이 없을 때 파일 이름(쿼리 표 기본). 홈 기본 표 위젯은 자기 이름(작업지시·출하)을 fallback 으로 넘긴다. */
 export const EXCEL_DEFAULT_NAME = "쿼리표";
 
-/** 「{위젯 제목}_{yyyyMMdd}.xlsx」 — 파일 이름에 못 쓰는 글자는 _ 로 바꾸고 80자로 자른다. */
-export function excelFileName(title: string | undefined, ymd: string): string {
+/**
+ * 「{위젯 제목}_{yyyyMMdd}.xlsx」 — 파일 이름에 못 쓰는 글자는 _ 로 바꾸고 80자로 자른다.
+ * 제목이 없거나 공백뿐이면 fallback(기본 「쿼리표」)을 쓴다.
+ */
+export function excelFileName(title: string | undefined, ymd: string, fallback: string = EXCEL_DEFAULT_NAME): string {
   // eslint-disable-next-line no-control-regex
   const base = (title ?? "").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim().slice(0, 80);
-  return `${base || EXCEL_DEFAULT_NAME}_${ymd}.xlsx`;
+  return `${base || fallback}_${ymd}.xlsx`;
 }
 
 /** 한글 등 넓은 글자는 2칸으로 센다. */

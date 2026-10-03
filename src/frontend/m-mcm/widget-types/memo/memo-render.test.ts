@@ -3,18 +3,22 @@
  * 메모장 렌더러·편집기 동작 시험(스펙 2026-10-02-widget-admin-generic §17.4).
  * - 서버 호출(./api)과 shared 의 폼 부품·위젯 틀 훅은 대역으로 바꾼다. 형식별 보기(NoticeBodyView)는 실물을 쓴다 —
  *   html 정화(script·onclick·style 제거)와 text 줄바꿈을 실제 DOM 으로 확인한다(shared dist 가 필요하다).
+ * - md 편집기(shared MarkdownField)도 대역(textarea)이다 — Tiptap·서식/MD 전환은 shared markdown-editor 시험이 맡고, 여기서는
+ *   렌더러가 넘기는 값(editable·fill·modeStorageKey)·key 로 새로 그리는지(마운트 번호)·잠금·저장 흐름만 본다.
  * - JSX 없이 createElement 로 쓴다(vitest include 가 *.test.ts 만 잡는다).
  */
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MemoServiceError, type MemoRecord } from "./memo-model";
+import { MEMO_MD_MODE_STORAGE_KEY, MemoServiceError, type MemoRecord } from "./memo-model";
 
 const h = vi.hoisted(() => ({
   fetchMemo: vi.fn(),
   saveMemo: vi.fn(),
   setStatus: vi.fn(),
+  /** MarkdownField 대역이 마운트될 때마다 올리는 번호 — key 로 새로 그렸는지 본다. */
+  mdMounts: 0,
 }));
 
 vi.mock("./api", () => ({ fetchMemo: h.fetchMemo, saveMemo: h.saveMemo }));
@@ -67,10 +71,29 @@ vi.mock("@dk-oasis/shared/form", async () => {
 });
 
 vi.mock("@dk-oasis/shared/markdown-editor", async () => {
-  const { createElement: el } = await import("react");
+  const { createElement: el, useState } = await import("react");
   return {
-    MarkdownField: (p: { value?: string; onChange?: (v: string) => void; testId?: string }) =>
-      el("textarea", { value: p.value, "data-testid": p.testId, onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value) }),
+    MarkdownField: function MarkdownFieldDouble(p: {
+      value?: string;
+      onChange?: (v: string) => void;
+      testId?: string;
+      editable?: boolean;
+      fill?: boolean;
+      modeStorageKey?: string;
+      ariaLabel?: string;
+    }) {
+      const [mount] = useState(() => ++h.mdMounts);
+      return el("textarea", {
+        value: p.value,
+        "data-testid": p.testId,
+        "data-editable": String(!!p.editable),
+        "data-fill": String(!!p.fill),
+        "data-mode-key": p.modeStorageKey ?? "",
+        "data-mount": String(mount),
+        "aria-label": p.ariaLabel,
+        onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value),
+      });
+    },
   };
 });
 
@@ -267,21 +290,23 @@ describe("개인 메모 — load → 보기 → 편집 → 저장", () => {
     await renderWidget();
 
     await click("memo-edit");
-    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("처음 글");
+    expect((must("memo-input-md") as HTMLTextAreaElement).value).toBe("처음 글"); // md 는 마크다운 편집기
     expect((must("memo-format") as HTMLSelectElement).value).toBe("md");
     expect(must("memo-count").textContent).toBe("4 / 20,000자");
     expect(must("memo-save")).toBeTruthy();
     expect(must("memo-cancel")).toBeTruthy();
     expect(q("memo-edit")).toBeNull();
 
-    await typeInto("memo-input", "<p>새 글</p>");
+    await typeInto("memo-input-md", "<p>새 글</p>");
     expect(must("memo-count").textContent).toBe("10 / 20,000자");
     await choose("memo-format", "html");
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("<p>새 글</p>"); // html 은 입력칸, 쓰던 글 그대로
     await click("memo-save");
 
     expect(h.saveMemo).toHaveBeenCalledTimes(1);
     expect(h.saveMemo).toHaveBeenCalledWith({ instId: "inst-1", defId: "def.abc12345", format: "html", content: "<p>새 글</p>" });
     expect(q("memo-input")).toBeNull(); // 보기로 돌아왔다
+    expect(q("memo-input-md")).toBeNull();
     expect(must("widget-memo-body").getAttribute("data-format")).toBe("HTML");
     expect(must("widget-memo-body").textContent).toBe("새 글");
     expect(h.fetchMemo).toHaveBeenCalledTimes(1); // 저장 뒤 다시 읽지 않는다(서버가 돌려준 값을 쓴다)
@@ -292,7 +317,7 @@ describe("개인 메모 — load → 보기 → 편집 → 저장", () => {
     await renderWidget({ definition: { scope: "personal", format: "md", content: "" } });
     await click("memo-edit");
     expect((must("memo-format") as HTMLSelectElement).value).toBe("md");
-    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("");
+    expect((must("memo-input-md") as HTMLTextAreaElement).value).toBe("");
   });
 
   it("[취소] 는 쓰던 글을 버리고 저장하지 않은 채 보기로 돌아온다", async () => {
@@ -309,7 +334,7 @@ describe("개인 메모 — load → 보기 → 편집 → 저장", () => {
     expect((must("memo-input") as HTMLTextAreaElement).value).toBe("원래 글");
   });
 
-  it("저장이 실패하면 입력칸 위에 서버 문구를 보이고 쓰던 글·형식은 그대로 둔다", async () => {
+  it("저장이 실패하면 아래 [저장]·[취소] 줄의 왼쪽에 서버 문구를 보이고 쓰던 글·형식은 그대로 둔다", async () => {
     h.fetchMemo.mockResolvedValue(record());
     h.saveMemo.mockRejectedValue(new MemoServiceError("메모는 100개까지 저장할 수 있습니다"));
     await renderWidget();
@@ -320,12 +345,14 @@ describe("개인 메모 — load → 보기 → 편집 → 저장", () => {
 
     expect(must("memo-error").textContent).toBe("메모는 100개까지 저장할 수 있습니다");
     expect(must("memo-error").getAttribute("role")).toBe("alert");
-    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("꼭 지켜야 할 글");
+    expect((must("memo-input-md") as HTMLTextAreaElement).value).toBe("꼭 지켜야 할 글"); // md 로 바꿨으니 마크다운 편집기
     expect((must("memo-format") as HTMLSelectElement).value).toBe("md");
     expect(must("memo-save").hasAttribute("disabled")).toBe(false); // 다시 시도할 수 있다
-    // 오류 문구는 입력칸 위에 있다
-    const order = must("memo-error").compareDocumentPosition(must("memo-input"));
-    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 오류 문구는 입력칸 아래, [저장]·[취소] 줄 안에서 단추보다 앞(왼쪽)에 있다 — 입력칸 위에 두면 md 편집기가 줄지 못해 [저장] 줄이 밀려난다
+    expect(must("memo-input-md").compareDocumentPosition(must("memo-error")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(must("memo-error").compareDocumentPosition(must("memo-save")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(must("memo-error").compareDocumentPosition(must("memo-cancel")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(must("memo-error").closest(".mcm-memo__bar")).toBe(must("memo-save").closest(".mcm-memo__bar"));
     // 틀의 error 로 알리지 않는다(틀이 본문을 숨겨 쓰던 글이 사라진다)
     expect(h.setStatus).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "error" }));
   });
@@ -480,6 +507,205 @@ describe("개인 메모 — load → 보기 → 편집 → 저장", () => {
       expect(h.fetchMemo).toHaveBeenCalledTimes(1);
       expect(consoleError).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("개인 메모 — md 형식은 공용 마크다운 편집기(공지 작성과 같다)", () => {
+  /** md 편집기를 담은 감싸개(잠금·aria-busy 가 붙는 곳). */
+  const mdBox = () => must("memo-input-md").closest<HTMLElement>(".mcm-memo__md");
+  const mount = () => must("memo-input-md").getAttribute("data-mount");
+
+  it("md 편집 때 memo-input-md 편집기(editable·fill·메모장 전용 모드 키)가 보이고 memo-input 입력칸은 없다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ format: "md", content: "# 제목" }));
+    await renderWidget();
+    await click("memo-edit");
+    const md = must("memo-input-md");
+    expect(q("memo-input")).toBeNull();
+    expect((md as HTMLTextAreaElement).value).toBe("# 제목");
+    expect(md.getAttribute("data-editable")).toBe("true");
+    expect(md.getAttribute("data-fill")).toBe("true");
+    expect(md.getAttribute("data-mode-key")).toBe(MEMO_MD_MODE_STORAGE_KEY);
+    expect(MEMO_MD_MODE_STORAGE_KEY).toBe("mcm-memo:mdMode");
+    expect(md.getAttribute("aria-label")).toBe("메모 내용");
+    // 편집기는 .mcm-memo__field(후손 div 규칙) 밖의 감싸개에 있다 — 그 규칙이 편집기 안 div 에 걸리지 않게
+    expect(mdBox()).not.toBeNull();
+    expect(md.closest(".mcm-memo__field")).toBeNull();
+    expect(mdBox()!.hasAttribute("aria-busy")).toBe(false);
+    expect(mdBox()!.hasAttribute("inert")).toBe(false);
+    expect(mdBox()!.className).toBe("mcm-memo__md");
+  });
+
+  it("md 에서 고친 글이 저장 요청에 그대로 들어간다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ format: "md", content: "처음" }));
+    h.saveMemo.mockResolvedValue(record({ format: "md", content: "# 새 제목\n\n- 항목 **굵게**" }));
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input-md", "# 새 제목\n\n- 항목 **굵게**");
+    expect(must("memo-count").textContent).toBe("19 / 20,000자");
+    await click("memo-save");
+    expect(h.saveMemo).toHaveBeenCalledWith({
+      instId: "inst-1",
+      defId: "def.abc12345",
+      format: "md",
+      content: "# 새 제목\n\n- 항목 **굵게**",
+    });
+    expect(q("memo-input-md")).toBeNull(); // 보기로 돌아왔다
+    expect(must("widget-memo-body").querySelector("h1")?.textContent).toBe("새 제목");
+  });
+
+  it("저장 중에는 감싸개가 잠긴다 — aria-busy·잠금 클래스·inert, 편집기는 editable·마운트를 그대로 둔다", async () => {
+    const pending = deferred<MemoRecord>();
+    h.fetchMemo.mockResolvedValue(record({ format: "md", content: "처음" }));
+    h.saveMemo.mockReturnValueOnce(pending.promise);
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input-md", "저장할 글");
+    const before = mount();
+    await click("memo-save"); // 응답을 기다리는 중
+
+    expect(mdBox()!.getAttribute("aria-busy")).toBe("true");
+    expect(mdBox()!.className).toBe("mcm-memo__md mcm-memo__md--locked");
+    expect(mdBox()!.hasAttribute("inert")).toBe(true); // Tab 으로 들어가 쓴 글이 저장에서 빠지지 않게
+    expect(must("memo-input-md").getAttribute("data-editable")).toBe("true"); // editable 을 끄지 않는다
+    expect(mount()).toBe(before); // 편집기를 내렸다 다시 그리지 않는다(되돌리기 기록 유지)
+    expect((must("memo-format") as HTMLSelectElement).disabled).toBe(true);
+
+    await act(async () => {
+      pending.reject(new Error("Failed to fetch"));
+    });
+    await flush();
+    // 실패 뒤에는 잠금이 풀리고 같은 편집기·쓰던 글이 남는다
+    expect(must("memo-error").textContent).toBe("메모를 저장하지 못했습니다. 잠시 뒤 다시 시도하세요.");
+    expect(mdBox()!.hasAttribute("aria-busy")).toBe(false);
+    expect(mdBox()!.hasAttribute("inert")).toBe(false);
+    expect(mdBox()!.className).toBe("mcm-memo__md");
+    expect(mount()).toBe(before);
+    expect((must("memo-input-md") as HTMLTextAreaElement).value).toBe("저장할 글");
+    expect(h.saveMemo).toHaveBeenLastCalledWith(expect.objectContaining({ format: "md", content: "저장할 글" }));
+  });
+
+  it("저장 중 입력이 들어오면(IME 확정처럼 inert 를 뚫고 온 경우) draft 도 같은 값이 된다 — 편집기와 어긋나지 않는다", async () => {
+    const pending = deferred<MemoRecord>();
+    h.fetchMemo.mockResolvedValue(record({ format: "md", content: "처음" }));
+    h.saveMemo.mockReturnValueOnce(pending.promise);
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input-md", "저장할 글");
+    await click("memo-save"); // 응답을 기다리는 중
+    expect(mdBox()!.hasAttribute("inert")).toBe(true);
+
+    await typeInto("memo-input-md", "저장 중에 친 글");
+    expect(must("memo-count").textContent).toBe("9 / 20,000자"); // draft 가 편집기 값을 따라간다
+    expect((must("memo-input-md") as HTMLTextAreaElement).value).toBe("저장 중에 친 글");
+    expect(h.saveMemo).toHaveBeenCalledTimes(1);
+    expect(h.saveMemo).toHaveBeenLastCalledWith(expect.objectContaining({ content: "저장할 글" })); // 이미 보낸 요청은 그대로
+
+    await act(async () => {
+      pending.reject(new Error("Failed to fetch"));
+    });
+    await flush();
+    // 실패 뒤 다시 저장하면 편집기에 보이는 글이 그대로 나간다(편집기에는 있고 draft 에는 없는 글이 없다)
+    expect((must("memo-input-md") as HTMLTextAreaElement).value).toBe("저장 중에 친 글");
+    h.saveMemo.mockResolvedValueOnce(record({ format: "md", content: "저장 중에 친 글" }));
+    await click("memo-save");
+    expect(h.saveMemo).toHaveBeenLastCalledWith(expect.objectContaining({ format: "md", content: "저장 중에 친 글" }));
+  });
+
+  describe("Esc — [배치 편집]의 취소(shared WidgetWorkspace 의 document keydown)로 새지 않는다", () => {
+    const keydown = (target: Element, key: string) => {
+      const ev = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+      act(() => {
+        target.dispatchEvent(ev);
+      });
+      return ev;
+    };
+    /** document 의 bubble 단계 keydown 리스너 — WidgetWorkspace 가 쓰는 방식 그대로(capture 아님). 뿌리(container)보다 뒤에 등록한다. */
+    let onDocument: ReturnType<typeof vi.fn>;
+    /** 뿌리(container) 자신에 뒤늦게 건 bubble 리스너 — 포털(Next 앱 라우터)은 React 뿌리가 document 라 WidgetWorkspace 리스너가
+     *  React 리스너와 같은 노드에 뒤에 걸린다. 같은 노드의 뒤 리스너는 stopPropagation 으로는 못 막고 stopImmediatePropagation 만 막는다. */
+    let onRoot: ReturnType<typeof vi.fn>;
+    beforeEach(() => {
+      onDocument = vi.fn();
+      onRoot = vi.fn();
+      document.addEventListener("keydown", onDocument);
+      container.addEventListener("keydown", onRoot);
+    });
+    afterEach(() => {
+      document.removeEventListener("keydown", onDocument);
+      container.removeEventListener("keydown", onRoot);
+    });
+
+    it("md 편집 영역에서 Esc 를 누르면 document 의 bubble keydown 리스너에 닿지 않고, preventDefault 도 하지 않는다", async () => {
+      h.fetchMemo.mockResolvedValue(record({ format: "md", content: "처음" }));
+      await renderWidget();
+      await click("memo-edit");
+
+      const ev = keydown(must("memo-input-md"), "Escape");
+      expect(onDocument).not.toHaveBeenCalled();
+      expect(onRoot).not.toHaveBeenCalled(); // 같은 뿌리 노드의 뒤 리스너도(document 가 뿌리인 실제 포털과 같은 조건)
+      expect(ev.defaultPrevented).toBe(false);
+      expect(mdBox()).not.toBeNull(); // 편집은 그대로
+    });
+
+    it("Esc 가 아닌 키는 막지 않는다", async () => {
+      h.fetchMemo.mockResolvedValue(record({ format: "md", content: "처음" }));
+      await renderWidget();
+      await click("memo-edit");
+
+      keydown(must("memo-input-md"), "a");
+      expect(onDocument).toHaveBeenCalledTimes(1);
+      expect(onRoot).toHaveBeenCalledTimes(1);
+    });
+
+    it("md 편집 영역 밖(보기 모드 등)에서 누른 Esc 는 막지 않는다", async () => {
+      h.fetchMemo.mockResolvedValue(record({ format: "md", content: "처음" }));
+      await renderWidget();
+      keydown(must("memo-view"), "Escape");
+      expect(onDocument).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("text 로 바꾸면 Textarea 가 다시 나오고 쓰던 글이 남아 있다 — html 은 고정폭 칸, 다시 md 로 와도 글은 그대로", async () => {
+    h.fetchMemo.mockResolvedValue(record({ format: "md", content: "처음" }));
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input-md", "## 쓰던 글");
+
+    await choose("memo-format", "text");
+    expect(q("memo-input-md")).toBeNull();
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("## 쓰던 글");
+    expect(must("memo-input").closest(".mcm-memo__field")?.className).toBe("mcm-memo__field");
+
+    await choose("memo-format", "html");
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("## 쓰던 글");
+    expect(must("memo-input").closest(".mcm-memo__field")?.className).toBe("mcm-memo__field mcm-memo__field--code");
+
+    await choose("memo-format", "md");
+    expect(q("memo-input")).toBeNull();
+    expect((must("memo-input-md") as HTMLTextAreaElement).value).toBe("## 쓰던 글");
+    expect(must("memo-count").textContent).toBe("7 / 20,000자");
+    expect(h.saveMemo).not.toHaveBeenCalled();
+  });
+
+  it("[편집]마다 편집기가 새로 마운트되고(보기·편집이 다른 가지), 인스턴스가 바뀌면 key(instanceId)로 새로 그린다(되돌리기 기록이 다른 글로 넘어가지 않게)", async () => {
+    h.fetchMemo.mockResolvedValue(record({ format: "md", content: "처음" }));
+    const props = await renderWidget();
+    await click("memo-edit");
+    const first = mount();
+    await typeInto("memo-input-md", "고치다 만 글");
+    expect(mount()).toBe(first); // 입력으로는 새로 그리지 않는다
+
+    await click("memo-cancel");
+    await click("memo-edit");
+    const second = mount();
+    expect(second).not.toBe(first);
+    expect((must("memo-input-md") as HTMLTextAreaElement).value).toBe("처음");
+
+    await act(async () => {
+      root.render(createElement(MemoRenderer, { ...props, instanceId: "inst-2" } as never));
+    });
+    await flush();
+    expect(mount()).not.toBe(second);
   });
 });
 
