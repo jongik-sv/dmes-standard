@@ -4,6 +4,7 @@ package com.dongkuk.dmes.cactus.common;
  * 에러 코드 체계.
  * <ul>
  *   <li>E0xx — 비즈니스 에러 (400)</li>
+ *   <li>E4xx — 요청 경로·방식 에러 (프레임워크가 정한 4xx 상태)</li>
  *   <li>A0xx — 인증/권한 에러 (401/403)</li>
  *   <li>S0xx — 시스템 에러 (500)</li>
  * </ul>
@@ -15,6 +16,9 @@ public enum ErrorCode {
     INVALID_VALUE("E002", 400, "유효하지 않은 값입니다"),
     DUPLICATE_DATA("E003", 400, "중복 데이터가 존재합니다"),
     BUSINESS_ERROR("E010", 400, "비즈니스 규칙 위반입니다"),
+
+    // ── 요청 경로·방식 에러 (E4xx) ──
+    NOT_FOUND("E404", 404, "요청한 경로를 찾을 수 없습니다"),
 
     // ── 인증/권한 (A0xx) ──
     AUTH_FAILED("A004", 401, "사용자 ID 또는 비밀번호가 일치하지 않습니다"),
