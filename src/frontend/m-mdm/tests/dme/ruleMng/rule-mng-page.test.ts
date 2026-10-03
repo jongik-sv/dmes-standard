@@ -29,6 +29,8 @@ let actionResponses: Record<string, unknown> = {};
 let viewsById: Record<string, RuleMngView> = {};
 /** 설정하면 이 룰의 view 응답을 이 약속이 풀릴 때까지 붙잡는다(응답 순서 경쟁 시험). */
 let holdViews: Record<string, Promise<void>> = {};
+/** 설정하면 이 액션(save·lock 등) 응답을 이 약속이 풀릴 때까지 붙잡는다. */
+let holdActions: Record<string, Promise<void>> = {};
 const ALL_RBAC = [{ objId: "*", action: "*", endpoint: "*", httpMethod: "*" }];
 let rbacRows: Array<Record<string, string>> = ALL_RBAC;
 
@@ -153,6 +155,7 @@ beforeEach(() => {
   actionResponses = {};
   viewsById = {};
   holdViews = {};
+  holdActions = {};
   rbacRows = ALL_RBAC;
   globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -182,6 +185,7 @@ beforeEach(() => {
           },
         });
       }
+      if (holdActions[m[1]]) await holdActions[m[1]];
       return jsonResponse(actionResponses[m[1]] ?? { meta: { success: true }, data: { result: { maruRuleId: "QLTY_GRD_JDG", ver: "2.000", rowVersion: 4 } } });
     }
     if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
@@ -268,6 +272,27 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     await flush();
     expect(byTestId("rule-header-id")?.textContent).toBe("QLTY_GRD_JDG");
     expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("품질 등급 판정");
+  });
+
+  // 검토 I2 — 쓰기 뒤 다시 읽기가 누른 시점의 룰을 붙잡고 있으면, 쓰기 중에 고른 B 대신 A 를 더 새 순번으로 읽어 강조(B)와
+  // 상세(A)가 어긋났다. 다시 읽기는 지금 선택을 보고, 선택이 바뀌었으면 옛 룰을 읽지 않는다.
+  it("헤더 저장 응답을 기다리는 사이 다른 행을 누르면 저장이 끝나도 상세는 새로 고른 룰로 남는다", async () => {
+    await renderAndSearch();
+    viewsById.COIL_WGT_CALC = draftDetail({
+      header: { ...draftDetail().header, maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE" },
+    });
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "고친 이름");
+    const slowSave = gate();
+    holdActions.save = slowSave.until;
+    await act(async () => findButton(container, "헤더 저장").click());
+    await clickRow("COIL_WGT_CALC");
+    expect(byTestId("rule-header-id")?.textContent).toBe("COIL_WGT_CALC");
+    const viewsBefore = viewCount();
+    await act(async () => slowSave.release());
+    await flush();
+    await flush();
+    expect(viewCount()).toBe(viewsBefore);
+    expect(byTestId("rule-header-id")?.textContent).toBe("COIL_WGT_CALC");
   });
 
   it("저장하지 않은 헤더 입력은 같은 행을 다시 눌러 다시 읽어도 남고, 저장은 입력을 시작할 때의 auditVer 로 보낸다", async () => {

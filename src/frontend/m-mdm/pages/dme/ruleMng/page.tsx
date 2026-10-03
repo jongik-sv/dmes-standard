@@ -296,7 +296,11 @@ export default function RuleMngPage() {
           {detail ? (
             <RuleDetailPanel
               view={detail}
-              reload={() => loadDetail(selectedId)}
+              // 쓰기 뒤 다시 읽기는 지금 선택을 본다 — 쓰기를 기다리는 사이 다른 룰을 골랐으면 옛 룰을 더 새 순번으로 읽어
+              // 강조와 상세가 어긋나지 않게 읽지 않는다(검토 I2).
+              reload={() =>
+                selectedIdRef.current === detail.header.maruRuleId ? loadDetail(selectedIdRef.current) : Promise.resolve()
+              }
               canDo={(action) => canDoButton(rbac, SCREEN_ID, action)}
               busy={isBusy || isDetailBusy}
               onError={setErrorMessage}
