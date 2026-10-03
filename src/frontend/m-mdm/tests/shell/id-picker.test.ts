@@ -169,6 +169,20 @@ describe("IdPicker", () => {
     expect(search).toHaveBeenCalledWith("PO");
   });
 
+  it("인계 때 이미 열려 있던 목록은 닫는다 — 칸에 보이는 새 ID 로 Enter 가 다시 찾게(옛 목록에서 고르지 않게)", async () => {
+    const search = vi.fn(async () => ROWS);
+    const { onPick } = await render({ search });
+    await type("PO");
+    await key("Enter");
+    expect(list()).not.toBeNull();
+    await rerenderWith(search, "OTHER");
+    expect(list()).toBeNull();
+    expect(input().value).toBe("OTHER");
+    await key("Enter");
+    expect(search).toHaveBeenLastCalledWith("OTHER");
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
   it("[찾기] 뒤 응답 전에 바깥을 누르면(사용자가 다른 일로 옮김) 늦게 온 결과가 목록을 열지 않는다", async () => {
     let release!: (rows: IdPickRow[]) => void;
     const search = vi.fn(() => new Promise<IdPickRow[]>((r) => (release = r)));

@@ -114,14 +114,18 @@ export function IdPicker({ label, placeholder, noun, testId, search, limit, onPi
   const close = () => setPicks(null);
 
   // 연 ID 가 바뀌면(링크로 열림·목록에서 고름·다른 세트 열기) 칸을 그 ID 로 맞춘다. 첫 그리기는 useState 초기값이 맡는다.
-  // 진행 중이거나 열린 찾기는 무르지 않는다 — 찾기는 늘 사용자가 시작한 것이고 목록은 고르기 전까지 어느 대상에도 쓰이지 않는다.
+  // 아직 오지 않은 찾기는 무르지 않는다 — 찾기는 늘 사용자가 시작한 것이고 목록은 고르기 전까지 어느 대상에도 쓰이지 않는다.
   // 화면 인계가 [찾기] 응답보다 늦게 와도 찾기 결과를 버리지 않게(2026-10-03, e2e TC-DMC-ITM-01).
+  // 이미 열린 목록은 닫는다 — 칸에 새 ID 가 보이는데 Enter 가 옛 검색어의 목록에서 고르지 않게.
   const shownId = useRef(currentId ?? null);
   useEffect(() => {
     const id = currentId ?? null;
     if (id === shownId.current) return;
     shownId.current = id;
-    if (id) setKeyword(id);
+    if (id) {
+      setKeyword(id);
+      setPicks(null);
+    }
   }, [currentId]);
 
   const find = async () => {
