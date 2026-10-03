@@ -57,12 +57,12 @@ describe("callOasis(공통본) — OASIS 호출 특성", () => {
     expect(await callOasis("ruleEdit", "view", {})).toEqual({ result: [1] });
   });
 
-  it("거부는 OasisCallError — errors[] 를 붙이되 base 와 같은 문구는 거르고, field 만 있으면 'F2: undefined' 가 남는다", async () => {
+  it("거부는 OasisCallError — errors[] 를 붙이되 base 와 같은 문구와 message 없는 항목(field 만 있음)은 거른다", async () => {
     stubOasis(REJECT_ENVELOPE);
     const e = await rejectionOf(callOasis("ruleEdit", "save", {}));
     expect(e).toBeInstanceOf(OasisCallError);
     expect(e.name).toBe("OasisCallError");
-    expect(e.message).toBe("거부 문구\n- F1: 칸 오류\n- F2: undefined\n- java.lang.NullPointerException: boom");
+    expect(e.message).toBe("거부 문구\n- F1: 칸 오류\n- java.lang.NullPointerException: boom");
     expect((e as OasisCallError).code).toBe("MDM001");
   });
 

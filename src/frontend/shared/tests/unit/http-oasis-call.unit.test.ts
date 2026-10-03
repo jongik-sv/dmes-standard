@@ -3,7 +3,7 @@
  *
  * 기본값은 m-mdm 공통본(src/dme/oasis-call.ts) 동작이고, 옵션 조합으로 m-mdm 화면 api.ts 15개·m-mls noticeMgmt 의 지금
  * 동작을 그대로 재현해야 한다(각 화면의 특성 시험: m-mdm tests/helpers/oasis-envelope.ts, m-mls notice-api.test.ts).
- * 결함(field 만 있고 message 가 없을 때 "F2: undefined")도 지금은 그대로 재현한다.
+ * 다만 message 가 없거나 빈·공백인 errors 항목은 field 가 있어도 문구에 붙이지 않는다(예전에는 "F2: undefined" 가 됐다).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -206,12 +206,12 @@ describe("unwrapOasis — 성공 펼치기", () => {
 });
 
 describe("unwrapOasis — 거부(meta.success=false)", () => {
-  it("기본(append-dedup)은 OasisCallError — base 와 같은 문구를 거르고 field 만 있으면 'F2: undefined' 가 남는다(지금 동작)", () => {
+  it("기본(append-dedup)은 OasisCallError — base 와 같은 문구와 message 없는 항목(field 만 있음)을 거른다", () => {
     const e = thrownBy(() => unwrapOasis(REJECT)) as OasisCallError;
     expect(e).toBeInstanceOf(OasisCallError);
     expect(e).toBeInstanceOf(Error);
     expect(e.name).toBe("OasisCallError");
-    expect(e.message).toBe("거부 문구\n- F1: 칸 오류\n- F2: undefined\n- java.lang.NullPointerException: boom");
+    expect(e.message).toBe("거부 문구\n- F1: 칸 오류\n- java.lang.NullPointerException: boom");
     expect(e.code).toBe("MDM001");
     expect(e.field).toBe("F1");
     expect(e.errors).toEqual(REJECT.errors);
@@ -219,7 +219,7 @@ describe("unwrapOasis — 거부(meta.success=false)", () => {
 
   it("append 는 base 와 같은 문구도 남긴다(unitMng·termMng)", () => {
     expect(thrownBy(() => unwrapOasis(REJECT, { details: "append" })).message).toBe(
-      "거부 문구\n- F1: 칸 오류\n- 거부 문구\n- F2: undefined\n- java.lang.NullPointerException: boom",
+      "거부 문구\n- F1: 칸 오류\n- 거부 문구\n- java.lang.NullPointerException: boom",
     );
   });
 
@@ -231,6 +231,34 @@ describe("unwrapOasis — 거부(meta.success=false)", () => {
     const env = { meta: { success: false, message: "m" }, errors: [{}, { message: "" }, { message: "x" }] };
     expect(thrownBy(() => unwrapOasis(env)).message).toBe("m\n- x");
     expect(thrownBy(() => unwrapOasis(env, { details: "append" })).message).toBe("m\n- x");
+  });
+
+  it("message 가 없거나 빈·공백인 항목은 field 가 있어도 문구에 붙이지 않는다(어느 방식·항목명 사전이든). errors·field 는 그대로 싣는다", () => {
+    const errors: CactusErrorDetail[] = [
+      { field: "F1", message: "칸 오류" },
+      { field: "F2" },
+      { field: "F3", message: "" },
+      { field: "TITLE", message: "   " },
+      { message: "  " },
+      { field: "TITLE" },
+      { message: " 앞뒤 공백 글 " },
+    ];
+    const env = { meta: { success: false, message: "확인" }, errors };
+    const dedup = thrownBy(() => unwrapOasis(env)) as OasisCallError;
+    expect(dedup.message).toBe("확인\n- F1: 칸 오류\n-  앞뒤 공백 글 ");
+    expect(dedup.errors).toEqual(errors);
+    expect(dedup.field).toBe("F1");
+    expect(thrownBy(() => unwrapOasis(env, { details: "append" })).message).toBe("확인\n- F1: 칸 오류\n-  앞뒤 공백 글 ");
+    expect(
+      thrownBy(() => unwrapOasis(env, { details: "append", fieldLabel: (f) => FIELD_LABEL[f.toUpperCase()] })).message,
+    ).toBe("확인\n- 칸 오류\n-  앞뒤 공백 글 ");
+
+    const onlyEmpty = { meta: { success: false, message: "확인" }, errors: [{ field: "F2" }, { field: "TITLE", message: " " }] };
+    expect(thrownBy(() => unwrapOasis(onlyEmpty)).message).toBe("확인");
+    expect(thrownBy(() => unwrapOasis(onlyEmpty, { details: "append" })).message).toBe("확인");
+    const onlyEmptyErr = thrownBy(() => unwrapOasis(onlyEmpty, { fieldLabel: (f) => FIELD_LABEL[f.toUpperCase()] })) as OasisCallError;
+    expect(onlyEmptyErr.message).toBe("확인");
+    expect(onlyEmptyErr.field).toBe("F2");
   });
 
   it("거부 문구가 없거나 공백이면 기본 문구(또는 defaultMessage)다", () => {
@@ -295,7 +323,7 @@ describe("옵션 조합으로 지금 화면 동작을 재현한다", () => {
   it("unitMng·termMng(중복 거르지 않음, Error) — details:append + Error 팩토리", () => {
     const e = thrownBy(() => unwrapOasis(REJECT, { details: "append", errorFactory: (m) => new Error(m) }));
     expect(Object.getPrototypeOf(e)).toBe(Error.prototype);
-    expect(e.message).toBe("거부 문구\n- F1: 칸 오류\n- 거부 문구\n- F2: undefined\n- java.lang.NullPointerException: boom");
+    expect(e.message).toBe("거부 문구\n- F1: 칸 오류\n- 거부 문구\n- java.lang.NullPointerException: boom");
   });
 
   it("noticeMgmt — 사용자 문장만·항목명 치환·base 중복 유지·field/errors 보존·응답 grids 펼침", () => {

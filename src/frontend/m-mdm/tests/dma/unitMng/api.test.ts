@@ -31,4 +31,12 @@ describe("unitMng — 화면별 차이", () => {
     stubOasis({ meta: { success: false, message: "단위가 존재합니다" }, errors: [{ message: "" }, {}, { message: "단위가 존재합니다" }] });
     expect((await rejectionOf(searchUnits("KG", ""))).message).toBe("단위가 존재합니다\n- 단위가 존재합니다");
   });
+
+  it("errors[] 에 field 만 있고 message 가 없거나 빈·공백이면 'field: undefined' 를 만들지 않고 뺀다", async () => {
+    stubOasis({
+      meta: { success: false, message: "확인" },
+      errors: [{ field: "UNIT_CODE" }, { field: "FACTOR", message: "" }, { field: "DIMENSION", message: "  " }, { message: " " }, { field: "F1", message: "칸 오류" }],
+    });
+    expect((await rejectionOf(searchUnits("KG", ""))).message).toBe("확인\n- F1: 칸 오류");
+  });
 });

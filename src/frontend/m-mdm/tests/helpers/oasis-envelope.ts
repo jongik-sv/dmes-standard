@@ -3,8 +3,8 @@
  *
  * 화면마다 따로 쓴 봉투 해제·params 거르기·오류 문구 조립을 `@dk-oasis/shared/http` 의 공통 계약으로 옮기기 전에, 옮긴 뒤에도
  * 같은 시험이 그대로 통과해야 한다. 그래서 `fetch` 만 바꿔 끼우고(진짜 `apiRequest` 를 거친다) 요청 URL·본문·응답 펼침·
- * 거부 오류(클래스 이름·message·code 유무)를 문자 그대로 비교한다. 결함(field 만 있고 message 가 없을 때 "F2: undefined")도
- * 지금 동작이라 그대로 고정한다.
+ * 거부 오류(클래스 이름·message·code 유무)를 문자 그대로 비교한다. message 가 없는 errors 항목(field 만 있음)은 문구에
+ * 붙지 않는다(예전 결함 "F2: undefined" 를 고쳤다).
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -97,8 +97,8 @@ export const REJECT_ENVELOPE = {
 export const REJECT_MESSAGE = {
   /** meta.message(trim) 만 — errors[] 는 보지 않는다. */
   "meta-only": "거부 문구",
-  /** errors[] 를 `field: message` 로 붙인다. base 와 같은 문구도 걸러지지 않고, message 없는 field 는 "F2: undefined" 가 된다. */
-  append: "거부 문구\n- F1: 칸 오류\n- 거부 문구\n- F2: undefined\n- java.lang.NullPointerException: boom",
+  /** errors[] 를 `field: message` 로 붙인다. base 와 같은 문구도 걸러지지 않고, message 가 없는 항목(field 만 있음)은 빠진다. */
+  append: "거부 문구\n- F1: 칸 오류\n- 거부 문구\n- java.lang.NullPointerException: boom",
 } as const;
 
 export type RejectMode = keyof typeof REJECT_MESSAGE;

@@ -107,7 +107,8 @@ export interface OasisUnwrapOptions {
   /** 응답 `grids.<이름>.rows` 를 결과의 `<이름>` 으로 올린다(rows 가 없으면 빈 배열). 기본 false. */
   includeGrids?: boolean;
   /**
-   * 거부 문구에 errors[] 를 붙이는 방식. 붙이면 `base\n- 항목\n- 항목` 이다.
+   * 거부 문구에 errors[] 를 붙이는 방식. 붙이면 `base\n- 항목\n- 항목` 이다. message 가 없거나 빈·공백인 항목은 field 가
+   * 있어도 어느 방식이든 붙이지 않는다(오류의 `errors`·`field` 에는 그대로 남는다).
    * - `append-dedup`(기본): 빈 항목과 base 와 같은 항목은 뺀다
    * - `append`: 빈 항목만 뺀다(base 와 같아도 남는다)
    * - `none`: 붙이지 않는다(`meta.message` 만)
@@ -190,8 +191,9 @@ function rejectionOf(env: CactusEnvelope, options: OasisUnwrapOptions): Error {
   return factory(message, code, kept, field);
 }
 
-/** 상세 한 건의 문구. message 가 없으면 field 가 있어도 `field: undefined` 가 된다(지금 화면들의 동작 그대로). */
+/** 상세 한 건의 문구. message 가 없거나 빈·공백이면 field 가 있어도 붙이지 않는다(`field: undefined` 방지). 글은 다듬지 않는다. */
 function detailText(e: CactusErrorDetail, fieldLabel: OasisUnwrapOptions["fieldLabel"]): string | undefined {
+  if (e.message == null || String(e.message).trim() === "") return undefined;
   if (fieldLabel) {
     const label = e.field ? fieldLabel(e.field) : undefined;
     return label ? `${label}: ${e.message}` : e.message;
