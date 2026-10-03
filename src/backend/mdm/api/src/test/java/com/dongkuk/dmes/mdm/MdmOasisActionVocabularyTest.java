@@ -308,7 +308,7 @@ class MdmOasisActionVocabularyTest {
     private static final Path MCM_INIT = Path.of("../../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init");
 
     /** PERM_ALL 의 {@code String allActions = String.join(",", ...)} 선언이 있는 파일. */
-    private static final Path ALL_ACTIONS_SOURCE = MCM_INIT.resolve("DataInitializer.java");
+    private static final Path ALL_ACTIONS_SOURCE = MCM_INIT.resolve("seed/CoreRbacSeeder.java");
 
     /**
      * MdmMenuSeeder 가 있는 파일 — {@code readActions}·{@code editActions}·{@code confirmActions}·{@code matrix} 선언,
