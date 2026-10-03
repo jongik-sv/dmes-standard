@@ -252,6 +252,54 @@ describe("모달 안 HTML 카드와 Escape", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("이미 표지가 달린 요소(DetailPopover 처럼 고정)의 표지는 Escape 뒤에도 그대로 둔다", async () => {
+    const onClose = vi.fn();
+    await openModal(
+      onClose,
+      createElement(
+        "div",
+        null,
+        createElement(FormGroup, { name: "noticeBody" }, input()),
+        createElement("button", { type: "button", "data-testid": "fixed", [STOP]: "true" }, "고정")
+      )
+    );
+    hover(triggers()[0]);
+    const fixed = document.querySelector<HTMLButtonElement>('[data-testid="fixed"]')!;
+    act(() => fixed.focus());
+    escape();
+    expect(portal()).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    await act(async () => {
+      await settle(10);
+    });
+    expect(fixed.getAttribute(STOP)).toBe("true");
+  });
+
+  it("누가 전파를 멈춰 bubble 걷기가 돌지 않아도 타이머(setTimeout 0)로 표지를 걷는다", async () => {
+    const onClose = vi.fn();
+    await openModal(
+      onClose,
+      createElement(
+        "div",
+        null,
+        createElement(FormGroup, { name: "noticeBody" }, input()),
+        createElement("button", { type: "button", "data-testid": "stopper" }, "멈춤")
+      )
+    );
+    const stopper = document.querySelector<HTMLButtonElement>('[data-testid="stopper"]')!;
+    stopper.addEventListener("keydown", (e) => e.stopPropagation());
+    hover(triggers()[0]);
+    act(() => stopper.focus());
+    escape();
+    expect(onClose).not.toHaveBeenCalled();
+    // 전파가 멈춰 window bubble 걷기가 돌지 않았다 — 표지가 아직 있다.
+    expect(stopper.getAttribute(STOP)).toBe("true");
+    await act(async () => {
+      await settle(10);
+    });
+    expect(stopper.hasAttribute(STOP)).toBe(false);
+  });
+
   it("카드가 없으면 Escape 는 모달을 닫는다(예전 동작)", async () => {
     const onClose = vi.fn();
     await openModal(onClose, createElement(FormGroup, { name: "noticeBody" }, input()));

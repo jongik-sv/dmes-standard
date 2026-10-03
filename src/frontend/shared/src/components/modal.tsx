@@ -11,7 +11,13 @@ import {
 } from "@tabler/icons-react";
 import clsx from "clsx";
 import { CopyTextButton } from "./copy-text-button";
+import { installHoverTipEscapeGuard } from "./hover-tip-escape-guard";
 import "./modal.css";
+
+// 모달 안 상호작용 카드(MDM HTML 설명)의 Escape 보호 가드를 이 모듈을 읽을 때 설치한다 — 가드의 window 캡처 리스너가 Mantine 모달 리스너보다
+// 먼저 등록돼야 하고, 루트 레이아웃의 모달(ModalsProvider·MessageModal)은 화면 청크보다 먼저 마운트되기 때문이다(hover-tip-escape-guard.ts).
+// 카드가 없으면 리스너는 아무것도 하지 않는다 — Modal 의 동작은 바뀌지 않는다.
+installHoverTipEscapeGuard();
 
 const SIZE = { sm: "sm", md: "md", lg: "lg", xl: "xl" } as const;
 
