@@ -6,15 +6,20 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.cactus.mdm.MdmBodyKey;
+import com.dongkuk.dmes.cactus.mdm.MdmBodyResult;
+import com.dongkuk.dmes.cactus.mdm.MdmChanges;
 import com.dongkuk.dmes.cactus.mdm.MdmColumnMeta;
 import com.dongkuk.dmes.cactus.mdm.MdmDefinitionLookup;
 import com.dongkuk.dmes.cactus.mdm.MdmFetchResult;
 import com.dongkuk.dmes.cactus.mdm.MdmJson;
 import com.dongkuk.dmes.cactus.mdm.MdmLayoutVersion;
 import com.dongkuk.dmes.cactus.mdm.MdmMetaCache;
+import com.dongkuk.dmes.cactus.mdm.MdmMetaFeed;
 import com.dongkuk.dmes.cactus.mdm.MdmMetaClient;
 import com.dongkuk.dmes.cactus.mdm.MdmMetaService;
 import com.dongkuk.dmes.cactus.mdm.MdmTargetType;
+import com.dongkuk.dmes.cactus.mdm.MdmTocResult;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainJson;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
 import com.dongkuk.dmes.mdm.common.mastercode.MdmCodeLookup;
@@ -44,6 +49,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -117,6 +123,7 @@ class MdmMetaFeedContractHttpTest {
     LayoutComposer composer;
 
     private JdbcTemplate jdbc;
+    private MdmMetaClient client;
     private MdmMetaService service;
     private MdmDefinitionLookup lookup;
     private DomainValidator validator;
@@ -136,7 +143,7 @@ class MdmMetaFeedContractHttpTest {
         new MasterCodeSeeds(jdbc).clear();
 
         RestClient restClient = RestClient.builder().defaultHeader("X-Client-Key", effectiveClientKey()).build();
-        MdmMetaClient client = new MdmMetaClient(restClient, "http://127.0.0.1:" + port, "mls");
+        client = new MdmMetaClient(restClient, "http://127.0.0.1:" + port, "mls");
         MdmMetaCache cache = new MdmMetaCache(1000, Duration.ofMinutes(60), Clock.systemUTC());
         cache.clear(0);
         service = new MdmMetaService(client, cache, Clock.systemUTC());
@@ -546,6 +553,148 @@ class MdmMetaFeedContractHttpTest {
         assertEquals(List.of(LocalDateTime.of(2026, 1, 1, 0, 0), LocalDateTime.of(2026, 4, 1, 0, 0)),
                 cached.get(0).segments().stream().map(MdmLayoutVersion.Segment::applyFrom).toList());
         assertEquals(LocalDateTime.of(9999, 12, 31, 0, 0), cached.get(1).applyTo());
+    }
+
+    /** 실제 클라이언트에 맡기고 목차·본문 HTTP 호출 수를 센다. */
+    private static final class CountingFeed implements MdmMetaFeed {
+        final MdmMetaClient delegate;
+        final java.util.concurrent.atomic.AtomicInteger toc = new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicInteger body = new java.util.concurrent.atomic.AtomicInteger();
+
+        CountingFeed(MdmMetaClient delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public MdmChanges changes(long since, int limit) {
+            return delegate.changes(since, limit);
+        }
+
+        @Override
+        public MdmFetchResult fetch(MdmTargetType type, java.util.Collection<String> keys) {
+            return delegate.fetch(type, keys);
+        }
+
+        @Override
+        public MdmTocResult fetchToc(MdmTargetType type, java.util.Collection<String> keys, LocalDateTime at) {
+            toc.incrementAndGet();
+            return delegate.fetchToc(type, keys, at);
+        }
+
+        @Override
+        public MdmBodyResult fetchBodies(MdmTargetType type, java.util.Collection<MdmBodyKey> keys) {
+            body.incrementAndGet();
+            return delegate.fetchBodies(type, keys);
+        }
+    }
+
+    /**
+     * 세 시험이 공유하는 고정 시계 — 2026-10-02T15:00:00Z = KST 2026-10-03 00:00 이라 MDM 이 목차에 싣는 current 는 CT2 의 1.001 이다.
+     * 실제 시계를 쓰면 2027-01-01(2.000 적용 시작) 이후에는 current 가 2.000 으로 바뀌어 아래 단언(키 목록, 목차 재수신 횟수)이 날짜에 따라 깨진다.
+     * 고정 시계에서는 두 단언이 실행 날짜와 무관하게 성립한다.
+     */
+    private static Clock fixedClock() {
+        return Clock.fixed(Instant.parse("2026-10-02T15:00:00Z"), ZoneOffset.UTC);
+    }
+
+    /** 버전 경로 캐시(10분 옛 버전 수명)를 만들어 비운 채로 돌려준다. 시험이 서비스에 넣는 시계와 같은 시계를 받는다. */
+    private static MdmMetaCache newVersionCache(Clock clock) {
+        MdmMetaCache cache = new MdmMetaCache(1000, Duration.ofHours(24), Duration.ofMinutes(60), Duration.ofMinutes(10), clock);
+        cache.clear(0);
+        return cache;
+    }
+
+    /** CT2: RELEASED 1.000 [2026-01-01, 2026-07-01)·1.001 [2026-07-01, 2027-01-01)·2.000 [2027-01-01, 열린 끝). items A(1.000~), B(1.001~), C(2.000~). TABLE TB(1.001~): B·C. */
+    private void seedMixedScaleCode() {
+        MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
+        seeds.seedCode("CT2", "INUSE", "MDM");
+        seeds.released("CT2", "1.000", "2026-01-01 00:00:00", "2026-07-01 00:00:00");
+        seeds.released("CT2", "1.001", "2026-07-01 00:00:00", "2027-01-01 00:00:00");
+        seeds.released("CT2", "2.000", "2027-01-01 00:00:00", MasterCodeSeeds.OPEN_END);
+        seeds.seedItem("CT2", "A", "1.000", MasterCodeSeeds.OPEN, "에이", 1);
+        seeds.seedItem("CT2", "B", "1.001", MasterCodeSeeds.OPEN, "비", 2);
+        seeds.seedItem("CT2", "C", "2.000", MasterCodeSeeds.OPEN, "씨", 3);
+        seeds.seedBase("CT2");
+        seeds.seedCate("CT2", "TB", "1.001", MasterCodeSeeds.OPEN, "TABLE", null, null, "표");
+        seeds.seedCateItem("CT2", "TB", "B", "1.001", MasterCodeSeeds.OPEN);
+        seeds.seedCateItem("CT2", "TB", "C", "2.000", MasterCodeSeeds.OPEN);
+    }
+
+    @Test
+    void 버전_경로_코드_판정은_자리수가_섞인_원장과_같고_본문_키는_한_벌이며_두_번째는_HTTP_를_부르지_않는다() {
+        seedMixedScaleCode();
+        CountingFeed feed = new CountingFeed(client);
+        Clock clock = fixedClock();
+        MdmMetaCache vcache = newVersionCache(clock);
+        MdmMetaService vservice = new MdmMetaService(feed, vcache, clock, true);
+        MdmDefinitionLookup vlookup = new MdmDefinitionLookup(vservice);
+        DefaultCodeResolver viaHttp = new DefaultCodeResolver(vlookup, vlookup);
+        DefaultCodeResolver ledgerResolver = new DefaultCodeResolver(
+                id -> new MdmCodeLookup(ledger).code(id).map(CodeRowsProjection::releasedOnly), CodeEffLookup.NONE);
+        List<LocalDateTime> times = List.of(LocalDateTime.of(2025, 6, 1, 0, 0), LocalDateTime.of(2026, 3, 1, 0, 0),
+                LocalDateTime.of(2026, 8, 1, 0, 0), LocalDateTime.of(2027, 2, 1, 0, 0));
+        for (int round = 0; round < 2; round++) {
+            for (LocalDateTime t : times) {
+                for (String cate : List.of("BASE", "TB")) {
+                    assertEquals(ledgerResolver.codeList("CT2", cate, t), viaHttp.codeList("CT2", cate, t), cate + " " + t);
+                    for (String code : List.of("A", "B", "C", "Z")) {
+                        assertEquals(ledgerResolver.isMember("CT2", cate, code, t), viaHttp.isMember("CT2", cate, code, t), cate + "/" + code + " " + t);
+                    }
+                }
+            }
+            if (round == 0) {
+                assertTrue(feed.toc.get() >= 1);
+            }
+        }
+        int calls = feed.toc.get() + feed.body.get();
+        for (LocalDateTime t : times) {
+            viaHttp.isMember("CT2", "TB", "B", t);
+        }
+        assertEquals(calls, feed.toc.get() + feed.body.get(), "본문 키가 자리수로 갈리면 판정마다 다시 받는다");
+        assertEquals(List.of("CT2", "CT2@1.000", "CT2@1.001", "CT2@2.000"),
+                vcache.entries(MdmTargetType.CODE, "CT2").stream().map(MdmMetaCache.EntryView::key).toList());
+    }
+
+    @Test
+    void 버전_경로_목차가_낡으면_NOT_RELEASED_로_목차를_다시_받아_새_원장을_따른다() {
+        seedMixedScaleCode();
+        CountingFeed feed = new CountingFeed(client);
+        Clock clock = fixedClock();
+        MdmMetaCache vcache = newVersionCache(clock);
+        MdmMetaService vservice = new MdmMetaService(feed, vcache, clock, true);
+        Instant at2027 = LocalDateTime.of(2027, 2, 1, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant();
+        vservice.lookupAt(MdmTargetType.CODE, List.of("CT2"), LocalDateTime.of(2026, 8, 1, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant());
+        jdbc.update("UPDATE TB_MDM_CODE_VER SET STATUS = 'CANCELLED' WHERE MARU_CODE_ID = 'CT2' AND VER = 2"); // 캐시의 목차에는 2.000 이 남아 있다
+        int tocs = feed.toc.get();
+
+        MdmMetaService.MdmAt r = vservice.oneAt(MdmTargetType.CODE, "CT2", at2027).orElseThrow();
+
+        assertEquals("1.000", r.ver(), "2.000 이 취소돼 2027-02 는 최초 버전으로 소급한다(엔진 규칙)");
+        assertEquals(tocs + 1, feed.toc.get(), "NOT_RELEASED → 묶음을 지우고 목차를 한 번 다시 받는다");
+    }
+
+    @Test
+    void 버전_경로_룰_세트_전문_선택은_원장과_같다() {
+        seedLayouts();
+        CountingFeed feed = new CountingFeed(client);
+        Clock clock = fixedClock();
+        MdmDefinitionLookup vlookup = new MdmDefinitionLookup(new MdmMetaService(feed, newVersionCache(clock), clock, true));
+        StoredDefinitionLookup stored = stored();
+        for (LocalDateTime at : List.of(LocalDateTime.of(2026, 6, 30, 23, 59, 59), LocalDateTime.of(2026, 7, 1, 0, 0),
+                LocalDateTime.of(2026, 12, 31, 23, 59, 59), LocalDateTime.of(2027, 1, 1, 0, 0))) {
+            Instant ts = at.atZone(MdmDefinitionLookup.KST).toInstant();
+            RuleDefinition rule = vlookup.rule(Q, ts).orElseThrow();
+            assertEquals(stored.rule(Q, ts).orElseThrow().ver(), rule.ver(), "룰 " + at);
+            assertEquals(3, rule.ver().scale(), "룰 ver 자리수 " + at);
+            assertEquals(fingerprint(stored.rule(Q, ts).orElseThrow()), fingerprint(rule), "룰 " + at);
+            assertEquals(stored.ruleSet("CT_SET", ts).orElseThrow(), vlookup.ruleSet("CT_SET", ts).orElseThrow(), "세트 " + at);
+        }
+        for (LocalDateTime at : List.of(LocalDateTime.of(2026, 3, 31, 23, 59, 59), LocalDateTime.of(2026, 4, 1, 0, 0),
+                LocalDateTime.of(2026, 7, 1, 0, 0))) {
+            Map<String, Object> snap = vlookup.layout("9801", at.atZone(MdmDefinitionLookup.KST).toInstant()).orElseThrow();
+            assertEquals(composer.at(9801L, at).totalLength(), ((Number) snap.get("totalLength")).intValue(), "전문 " + at);
+        }
+        assertTrue(vlookup.rule(Q, LocalDateTime.of(2025, 12, 31, 23, 59, 59).atZone(MdmDefinitionLookup.KST).toInstant()).isEmpty());
     }
 
     /** 헤더 9890: 1.000 [2000-01-01, 2026-04-01) 7자, 2.000 [2026-04-01, 열린 끝) 9자. 전문 9801: 1.000 [2026-01-01, 2026-07-01) 10자, 2.000 [2026-07-01, 열린 끝) 12자. */
