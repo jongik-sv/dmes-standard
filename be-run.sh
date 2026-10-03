@@ -11,17 +11,24 @@
 #   ./be-run.sh --mcm        # mcm 만
 #   ./be-run.sh --mcm --mpn  # 여러 모듈 조합
 #   ./be-run.sh --all --dry-run  # 아무것도 끄거나 띄우지 않고, 실행할 명령만 출력
+#   ./be-run.sh --dry-run        # 모듈 플래그가 없으면 BE_RUN_ARGS(없으면 --all) 대상으로
 #
 # 모듈 플래그: --mpn --mcm --mls --mqc --mpp --mdm --analog
 # --all 은 7개 JVM 을 동시에 띄운다. 메모리가 빠듯하면 필요한 모듈만 골라 쓴다.
+# 옵션(--dry-run·--keep-port)만 주고 모듈 플래그가 없으면 BE_RUN_ARGS(없으면 --all)의 모듈을 쓴다.
 #
 # 모듈을 2개 이상 띄우면 기동 전에 src/backend 루트 composite 에서 Gradle 한 번으로 선빌드한다
 # (공유 includeBuild 를 여러 bootRun 이 동시에 빌드하지 않게). 건너뛰려면 BE_PREBUILD=0.
+# 선빌드(또는 그 계획 gradlew -m)가 실패하면 아무 모듈도 띄우지 않고 exit 1 로 끝난다.
+#   BE_PREBUILD=0 ./be-run.sh --all           # 선빌드 없이 종전처럼 모듈별 bootRun 이 각자 빌드
+#   BE_PREBUILD_CONTINUE=1 ./be-run.sh --all  # 선빌드가 실패해도 기동 (모듈 하나의 오류가 나머지를 막지 않게)
+# 선빌드 계획(gradlew -m, 몇 초) 도중 받은 TERM 은 계획 프로세스까지 정리하지 못한다.
 #
 # 대상 포트를 이미 물고 있는 프로세스가 있으면 정리하고 시작한다.
 #   ./be-run.sh --keep-port  # 회수하지 않고 "점유 중" 으로 중단 (종전 동작)
 #
 # 종료: Ctrl+C 로 자식 프로세스 및 gradle daemon 일괄 정리.
+# ── 머리말 끝 (--help 는 여기까지 출력) ──
 
 set -u
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -160,15 +167,28 @@ load_default_args() {
   [ "${#ENV_ARGS[@]}" -gt 0 ]
 }
 
-if [ "$#" -eq 0 ]; then
+# 인자가 없거나 옵션(--dry-run·--keep-port)뿐인지. 그러면 모듈 대상은 기본값(BE_RUN_ARGS, 없으면 --all)에서
+# 가져온다. 모듈 플래그·--help·모르는 인자가 하나라도 있으면 기본값을 붙이지 않는다.
+be_args_options_only() {
+  local a
+  for a in "$@"; do
+    case "$a" in
+      --dry-run|--keep-port) ;;
+      *) return 1 ;;
+    esac
+  done
+  return 0
+}
+
+if be_args_options_only "$@"; then
   if load_default_args BE_RUN_ARGS; then
-    set -- "${ENV_ARGS[@]}"
+    set -- "$@" "${ENV_ARGS[@]}"
     dev_log_print "be" ".run.env 기본 옵션 사용: BE_RUN_ARGS=${BE_RUN_ARGS}"
   else
     # .run.env 는 개인 설정이라 git 에 없다(.gitignore). 새로 clone 한 저장소에서도
     # 인자 없이 바로 뜨도록 --all 로 폴백한다. 값을 바꾸려면 .run.env.example 을
     # .run.env 로 복사해 편집한다.
-    set -- --all
+    set -- "$@" --all
     dev_log_print "be" ".run.env 없음 — 기본값 --all 로 진행 (.run.env.example 복사해 조정)"
   fi
 fi
@@ -235,7 +255,7 @@ for arg in "$@"; do
       for m in "${BE_ALL_MODULES[@]}"; do be_select_module "$m"; done ;;
     --mpn|--mcm|--mls|--mqc|--mpp|--mdm|--analog)
       be_select_module "${arg#--}" ;;
-    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,/^# ── 머리말 끝/p' "$0" | sed '$d'; exit 0 ;;
     *) dev_log_error "알 수 없는 옵션: $arg"; exit 2 ;;
   esac
 done
@@ -254,7 +274,9 @@ fi
 #
 # 선빌드할 태스크는 손으로 적지 않고 Gradle 에 묻는다 — 선택 모듈의 bootRun 을 -m(실행 없이 계획만)으로
 # 돌려 나온 태스크 중 bootRun 만 뺀다. 의존이 바뀌어도 목록이 따라간다.
-# 계획이나 선빌드가 실패해도 기동은 종전처럼 진행한다(모듈 하나의 컴파일 오류가 나머지를 막지 않게).
+# 계획이나 선빌드가 실패하면 기동하지 않고 exit 1 로 끝난다 — 실패한 채 bootRun 을 띄우면 그 7개가 공유
+# includeBuild 를 다시 동시에 빌드해 이 단계가 없애려던 경합이 되살아난다. 종전처럼 실패해도 띄우려면
+# BE_PREBUILD_CONTINUE=1(모듈 하나의 컴파일 오류가 나머지를 막지 않게), 선빌드 자체를 끄려면 BE_PREBUILD=0.
 BE_PREBUILD_TASKS=()
 BE_PREBUILD_PLAN_OUTPUT=""
 
@@ -299,9 +321,44 @@ be_prebuild_plan() {
   [ "${#BE_PREBUILD_TASKS[@]}" -gt 0 ]
 }
 
+be_prebuild_continue() {
+  [ "${BE_PREBUILD_CONTINUE:-0}" = "1" ]
+}
+
 be_prebuild_print_plan_failure() {
-  dev_log_error "선빌드 계획(gradlew -m) 실패 — 선빌드 없이 종전처럼 모듈별 bootRun 으로 기동한다."
+  dev_log_error "선빌드 계획(gradlew -m) 실패 — 아래 출력에서 원인을 확인하세요."
   printf '%s\n' "$BE_PREBUILD_PLAN_OUTPUT" | tail -n 15 | dev_log_prefix_stream "be-build" >&2
+}
+
+# 선빌드가 실패했을 때: 기본은 아무것도 띄우지 않고 exit 1. BE_PREBUILD_CONTINUE=1 이면 종전처럼 기동을 이어 간다.
+be_prebuild_fail() {
+  if be_prebuild_continue; then
+    dev_log_error "BE_PREBUILD_CONTINUE=1 — 선빌드 실패에도 모듈별 bootRun 으로 기동한다. 실패한 모듈은 자기 로그에 같은 오류를 다시 낸다."
+    return 0
+  fi
+  dev_log_error "선빌드가 실패해 백엔드 모듈을 띄우지 않고 종료한다 (exit 1)."
+  dev_log_error "  선빌드 없이 종전처럼 모듈별 bootRun 으로 띄우려면: BE_PREBUILD=0 $0 ${SELECTED_MODULES[*]/#/--}"
+  dev_log_error "  선빌드 실패에도 기동을 이어 가려면: BE_PREBUILD_CONTINUE=1 (.run.env 에 둬도 된다)"
+  exit 1
+}
+
+BE_PREBUILD_BG_PID=""
+
+# 선빌드 도중 TERM·INT 를 받으면 선빌드 트리(서브셸·gradlew 가 exec 한 java 클라이언트·awk)를 함께 끝낸다.
+# 선빌드는 종료 트랩보다 앞에서 돌기 때문에, 이 임시 트랩이 없으면 bash 만 죽고 빌드가 고아로 남는다.
+# (백그라운드 잡은 비대화형 셸에서 SIGINT 를 무시하므로 Ctrl+C 도 여기서 대신 전한다.)
+be_prebuild_abort() {
+  local reason="$1"
+  trap - INT TERM
+  dev_log_error "선빌드 중 종료 신호($reason) 수신 — 선빌드 프로세스 정리 후 종료한다."
+  if [ -n "$BE_PREBUILD_BG_PID" ]; then
+    terminate_pid_tree TERM "$BE_PREBUILD_BG_PID"
+    wait_for_exit "$BE_PREBUILD_BG_PID" || terminate_pid_tree KILL "$BE_PREBUILD_BG_PID"
+  fi
+  case "$reason" in
+    INT) exit 130 ;;
+    *) exit 143 ;;
+  esac
 }
 
 be_run_prebuild() {
@@ -309,6 +366,7 @@ be_run_prebuild() {
 
   if ! be_prebuild_plan; then
     be_prebuild_print_plan_failure
+    be_prebuild_fail
     return 0
   fi
 
@@ -316,18 +374,30 @@ be_run_prebuild() {
   # src/backend/gradlew 는 bootRun 이 아닌 실행을 PC 전역 무거운 명령 슬롯(heavy.sh)에 줄 세운다. 선빌드는
   # 종전에 bootRun 7개가 슬롯 없이 하던 컴파일을 한 번으로 모은 것이라, 슬롯을 기다리게 하면 다른 세션의
   # 테스트가 많을 때 서버 기동이 수십 분 밀린다(종전엔 없던 대기). 그래서 종전처럼 슬롯 없이 돈다.
+  # 백그라운드로 띄우고 wait 한다 — 그래야 아래 임시 트랩이 신호를 받는 즉시 트리를 정리할 수 있다.
+  # 바깥 서브셸은 gradlew 의 종료 코드(PIPESTATUS[0])로 끝나므로 wait 가 그 값을 돌려준다.
   (
-    cd "$BACKEND_DIR" || exit 1
-    export DFLOW_GRADLEW_NO_HEAVY=1
-    dev_log_run "$BACKEND_DIR/gradlew" "${BE_PREBUILD_TASKS[@]}" --continue --console=plain 2>&1
-  ) | dev_log_prefix_stream "be-build"
-  rc="${PIPESTATUS[0]}"
+    (
+      cd "$BACKEND_DIR" || exit 1
+      export DFLOW_GRADLEW_NO_HEAVY=1
+      dev_log_run "$BACKEND_DIR/gradlew" "${BE_PREBUILD_TASKS[@]}" --continue --console=plain 2>&1
+    ) | dev_log_prefix_stream "be-build"
+    exit "${PIPESTATUS[0]}"
+  ) &
+  BE_PREBUILD_BG_PID="$!"
+  trap 'be_prebuild_abort INT' INT
+  trap 'be_prebuild_abort TERM' TERM
+  wait "$BE_PREBUILD_BG_PID"
+  rc=$?
+  trap - INT TERM
+  BE_PREBUILD_BG_PID=""
 
   if [ "$rc" = "0" ]; then
     dev_log_print "be" "선빌드 완료 — 이어서 모듈별 bootRun 은 컴파일 없이 기동한다."
-  else
-    dev_log_error "선빌드 실패 (exit=$rc) — 그래도 모듈별 bootRun 으로 기동한다. 실패한 모듈은 자기 로그에 같은 오류를 다시 낸다."
+    return 0
   fi
+  dev_log_error "선빌드 실패 (exit=$rc) — 위 [be-build] 로그에서 원인을 확인하세요."
+  be_prebuild_fail
   return 0
 }
 
@@ -351,6 +421,11 @@ if [ "$DRY_RUN" = "1" ]; then
       done
     else
       be_prebuild_print_plan_failure
+    fi
+    if be_prebuild_continue; then
+      dev_log_print "be" "[dry-run]    계획·선빌드가 실패해도 기동을 이어 간다 (BE_PREBUILD_CONTINUE=1)."
+    else
+      dev_log_print "be" "[dry-run]    계획·선빌드가 실패하면 아무 모듈도 띄우지 않고 exit 1 (우회: BE_PREBUILD=0 또는 BE_PREBUILD_CONTINUE=1)."
     fi
   else
     dev_log_print "be" "[dry-run] 선빌드 생략 (모듈 1개 또는 BE_PREBUILD=0) — 종전처럼 bootRun 이 직접 빌드한다."
@@ -566,7 +641,8 @@ for m in "${SELECTED_MODULES[@]}"; do
   reclaim_backend_port "$(be_module_port "$m")" "be-$m" || exit 1
 done
 
-# 종료 트랩보다 앞에서 돈다 — 선빌드 중 Ctrl+C 는 빌드만 멈추고 끝난다(띄운 모듈이 아직 없다).
+# 종료 트랩보다 앞에서 돈다 — 띄운 모듈이 아직 없으므로 선빌드 중 Ctrl+C·TERM 은 be_run_prebuild 의
+# 임시 트랩이 선빌드 트리만 정리하고 끝낸다. 선빌드가 실패하면 여기서 exit 1(BE_PREBUILD_CONTINUE=1 이면 계속).
 if be_prebuild_enabled; then
   be_run_prebuild
 fi

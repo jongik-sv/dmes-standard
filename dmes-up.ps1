@@ -19,6 +19,12 @@ Steps:
      the src\backend composite, so the modules no longer build the shared
      included builds (cactus-core / mcm-core / ...) concurrently and delete
      each other's build\classes. This replaces the old serial warm-up here.
+     If that prebuild fails, be-run.ps1 starts no module and exits non-zero:
+     in the foreground local-run.ps1 then stops the frontend too, and with
+     -Detach this script stops waiting and exits 1 (see logs\be.log).
+     Workarounds: BE_PREBUILD=0 (no prebuild, modules build themselves as
+     before) or BE_PREBUILD_CONTINUE=1 (start anyway), as environment
+     variables or in .run.env.
 
 Usage:
   .\dmes-up.cmd            # normal - Ctrl+C in this window stops everything
@@ -40,7 +46,7 @@ $BackendDir = Join-Path $RootDir 'src\backend'
 $LogDir     = Join-Path $RootDir 'logs'
 $BePorts    = [ordered]@{ mls = 8092; mqc = 8093; mpp = 8094; mpn = 8095; mcm = 8100; analog = 8191 }
 $FePort     = 5000
-if ($Clean) { $Warmup = $true; $Full = $true }
+if ($Clean) { $Full = $true }   # -Clean used to force -Warmup too; that part is now a no-op
 if (-not $Be -and -not $Fe) { $Be = $true; $Fe = $true }
 
 function Say { param([string] $Message, [string] $Color = 'Green') Write-Host '[up] ' -ForegroundColor $Color -NoNewline; Write-Host $Message }
@@ -127,13 +133,13 @@ foreach ($port in $wanted) {
 }
 if ($held.Count) { Say "reclaimed ports: $($held -join ' ')" 'Yellow'; Start-Sleep -Seconds 2 }
 
-# 4. prebuild ---------------------------------------------------------------
-# The old serial warm-up (one Gradle run per module) lived here. be-run.ps1 now
-# prebuilds all selected modules with a single Gradle run from the src\backend
-# composite before starting them, which covers the fresh-clone case as well.
+# 4. run ---------------------------------------------------------------------
+# The old serial warm-up (one Gradle run per module) used to sit before this
+# step. be-run.ps1 now prebuilds all selected modules with a single Gradle run
+# from the src\backend composite before starting them, which covers the
+# fresh-clone case as well, and stops before starting anything if it fails.
 if ($Be -and $PSBoundParameters.ContainsKey('Warmup')) { Say '-Warmup is no longer needed - be-run.ps1 prebuilds on every run' 'Yellow' }
 
-# 5. run ---------------------------------------------------------------------
 $feArgs = if ($Full) { @('--all') } else { @('--all', '-q') }
 
 if (-not $Detach) {
@@ -188,7 +194,10 @@ if ($Fe) {
 }
 
 # wait for readiness ---------------------------------------------------------
-Say 'waiting for ports (up to 8 minutes on a cold build) ...'
+# The 8 minutes include be-run.ps1's prebuild (one Gradle run for all modules).
+# If the backend launcher exits before its ports come up (prebuild failed, port
+# could not be freed, ...), stop waiting and fail right away.
+Say 'waiting for ports (up to 8 minutes, including the backend prebuild on a cold build) ...'
 $pending = @()
 if ($Be) { foreach ($k in $BePorts.Keys) { $pending += , @($k, $BePorts[$k]) } }
 if ($Fe) { $pending += , @('portal', $FePort) }
@@ -196,6 +205,15 @@ if ($Fe) { $pending += , @('portal', $FePort) }
 $deadline = (Get-Date).AddMinutes(8)
 $up       = @{}
 while ((Get-Date) -lt $deadline -and $up.Count -lt $pending.Count) {
+    if ($Be -and -not (Get-Process -Id $bePid -ErrorAction SilentlyContinue)) {
+        $beDown = @($BePorts.Keys | Where-Object { -not $up.ContainsKey($_) })
+        if ($beDown.Count) {
+            Write-Host ''
+            Say "backend exited before coming up (not up: $($beDown -join ' ')) - check logs\be.log" 'Red'
+            Say 'prebuild failed? fix the error, or rerun with BE_PREBUILD=0 / BE_PREBUILD_CONTINUE=1' 'Red'
+            exit 1
+        }
+    }
     foreach ($entry in $pending) {
         if (-not $up.ContainsKey($entry[0]) -and (Test-Listening $entry[1])) {
             $up[$entry[0]] = $true

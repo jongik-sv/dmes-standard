@@ -12,12 +12,18 @@ be-run.ps1 — 백엔드 모듈(local 프로파일) 실행 스크립트 (Windows
   .\be-run.ps1 --mcm        # mcm 만
   .\be-run.ps1 --mcm --mpn  # 여러 모듈 조합
   .\be-run.ps1 --all --dry-run  # 아무것도 끄거나 띄우지 않고, 실행할 명령만 출력
+  .\be-run.ps1 --dry-run        # 모듈 플래그가 없으면 BE_RUN_ARGS(없으면 --all) 대상으로
 
 모듈 플래그: --mpn --mcm --mls --mqc --mpp --analog
 --all 은 6개 JVM 을 동시에 띄운다. 메모리가 빠듯하면 필요한 모듈만 골라 쓴다.
+옵션(--dry-run·--keep-port)만 주고 모듈 플래그가 없으면 BE_RUN_ARGS(없으면 --all)의 모듈을 쓴다.
 
 모듈을 2개 이상 띄우면 기동 전에 src\backend 루트 composite 에서 Gradle 한 번으로 선빌드한다
 (공유 includeBuild 를 여러 bootRun 이 동시에 빌드하지 않게). 건너뛰려면 BE_PREBUILD=0.
+선빌드(또는 그 계획 gradlew -m)가 실패하면 아무 모듈도 띄우지 않고 0 이 아닌 코드로 끝난다.
+  $env:BE_PREBUILD = '0'           # 선빌드 없이 종전처럼 모듈별 bootRun 이 각자 빌드
+  $env:BE_PREBUILD_CONTINUE = '1'  # 선빌드가 실패해도 기동 (모듈 하나의 오류가 나머지를 막지 않게)
+  (둘 다 .run.env 에 BE_PREBUILD=0 / BE_PREBUILD_CONTINUE=1 로 둬도 된다)
 
 대상 포트를 이미 물고 있는 프로세스가 있으면 정리하고 시작한다.
   .\be-run.ps1 --keep-port  # 회수하지 않고 "점유 중" 으로 중단
@@ -119,15 +125,19 @@ function Wait-ProcessExit {
 }
 
 # ── 인자 파싱 ────────────────────────────────────────────────
-if (-not $ScriptArgs -or $ScriptArgs.Count -eq 0) {
+# 인자가 없거나 옵션(--dry-run·--keep-port)뿐이면 모듈 대상은 기본값(BE_RUN_ARGS, 없으면 --all)에서 가져온다.
+# 모듈 플래그·--help·모르는 인자가 하나라도 있으면 기본값을 붙이지 않는다.
+$GivenArgs   = @($ScriptArgs | Where-Object { $_ })
+$OptionsOnly = @($GivenArgs | Where-Object { $_ -notmatch '^--(dry-run|keep-port)$' }).Count -eq 0
+if ($OptionsOnly) {
     $defaults = Read-RunEnvValue 'BE_RUN_ARGS'
     if ($defaults) {
-        $ScriptArgs = $defaults -split '\s+' | Where-Object { $_ }
+        $ScriptArgs = $GivenArgs + @($defaults -split '\s+' | Where-Object { $_ })
         Write-DevLog 'be' ".run.env 기본 옵션 사용: BE_RUN_ARGS=$defaults"
     } else {
         # .run.env 는 개인 설정이라 git 에 없다(.gitignore). 새로 clone 한 저장소에서도
         # 인자 없이 바로 뜨도록 --all 로 폴백한다. .run.env.example 을 복사해 조정한다.
-        $ScriptArgs = @('--all')
+        $ScriptArgs = $GivenArgs + @('--all')
         Write-DevLog 'be' '.run.env 없음 — 기본값 --all 로 진행 (.run.env.example 복사해 조정)'
     }
 }
@@ -168,7 +178,9 @@ function Get-ModuleGradlew {
 # includeBuild 의 실행 기록은 각 빌드 폴더의 .gradle 에 남으므로, 이어서 모듈 폴더에서 도는 bootRun 은
 # 컴파일·jar 가 모두 UP-TO-DATE 라 기동만 한다(기동 방식·프로파일·로그는 종전 그대로).
 # 선빌드할 태스크는 손으로 적지 않고, 선택 모듈의 bootRun 을 -m(실행 없이 계획만)으로 돌려 나온 태스크에서
-# bootRun 만 뺀다. 계획이나 선빌드가 실패해도 기동은 종전처럼 진행한다.
+# bootRun 만 뺀다. 계획이나 선빌드가 실패하면 기동하지 않고 끝난다(계획 실패 exit 1, 빌드 실패 exit <gradle 코드>) —
+# 실패한 채 bootRun 을 띄우면 그 모듈들이 공유 includeBuild 를 다시 동시에 빌드해 이 단계가 없애려던 경합이 되살아난다.
+# 종전처럼 실패해도 띄우려면 BE_PREBUILD_CONTINUE=1, 선빌드 자체를 끄려면 BE_PREBUILD=0.
 # (dmes-up.ps1 의 직렬 warm-up 을 이 단계가 대신한다.)
 $BackendGradlew = Join-Path $BackendDir 'gradlew.bat'
 $script:PrebuildPlanOutput = @()
@@ -177,6 +189,12 @@ function Test-PrebuildEnabled {
     $flag = $env:BE_PREBUILD
     if (-not $flag) { $flag = Read-RunEnvValue 'BE_PREBUILD' }
     return ($flag -ne '0' -and $Selected.Count -ge 2)
+}
+
+function Test-PrebuildContinue {
+    $flag = $env:BE_PREBUILD_CONTINUE
+    if (-not $flag) { $flag = Read-RunEnvValue 'BE_PREBUILD_CONTINUE' }
+    return ($flag -eq '1')
 }
 
 function Get-PrebuildPlanArgs {
@@ -208,13 +226,27 @@ function Get-PrebuildTasks {
 }
 
 function Write-PrebuildPlanFailure {
-    Write-DevError '선빌드 계획(gradlew -m) 실패 — 선빌드 없이 종전처럼 모듈별 bootRun 으로 기동한다.'
+    Write-DevError '선빌드 계획(gradlew -m) 실패 — 아래 출력에서 원인을 확인하세요.'
     $script:PrebuildPlanOutput | Select-Object -Last 15 | ForEach-Object { Write-DevLog 'be-build' $_ }
+}
+
+# 선빌드가 실패했을 때: 기본은 아무것도 띄우지 않고 $ExitCode 로 끝낸다. BE_PREBUILD_CONTINUE=1 이면 기동을 이어 간다.
+function Stop-OnPrebuildFailure {
+    param([int] $ExitCode)
+    if ($ExitCode -eq 0) { $ExitCode = 1 }
+    if (Test-PrebuildContinue) {
+        Write-DevError 'BE_PREBUILD_CONTINUE=1 — 선빌드 실패에도 모듈별 bootRun 으로 기동한다. 실패한 모듈은 자기 로그에 같은 오류를 다시 낸다.'
+        return
+    }
+    Write-DevError "선빌드가 실패해 백엔드 모듈을 띄우지 않고 종료한다 (exit $ExitCode)."
+    Write-DevError "  선빌드 없이 종전처럼 모듈별 bootRun 으로 띄우려면: `$env:BE_PREBUILD='0'; .\be-run.ps1 $(($Selected | ForEach-Object { '--' + $_ }) -join ' ')"
+    Write-DevError '  선빌드 실패에도 기동을 이어 가려면: BE_PREBUILD_CONTINUE=1 (환경 변수 또는 .run.env)'
+    exit $ExitCode
 }
 
 function Invoke-Prebuild {
     $tasks = @(Get-PrebuildTasks)
-    if ($tasks.Count -eq 0) { Write-PrebuildPlanFailure; return }
+    if ($tasks.Count -eq 0) { Write-PrebuildPlanFailure; Stop-OnPrebuildFailure -ExitCode 1; return }
 
     Write-DevLog 'be' "선빌드 시작 (태스크 $($tasks.Count)개, Gradle 1회) — cwd=$BackendDir"
     & {
@@ -226,9 +258,10 @@ function Invoke-Prebuild {
     $rc = $LASTEXITCODE
     if ($rc -eq 0) {
         Write-DevLog 'be' '선빌드 완료 — 이어서 모듈별 bootRun 은 컴파일 없이 기동한다.'
-    } else {
-        Write-DevError "선빌드 실패 (exit=$rc) — 그래도 모듈별 bootRun 으로 기동한다. 실패한 모듈은 자기 로그에 같은 오류를 다시 낸다."
+        return
     }
+    Write-DevError "선빌드 실패 (exit=$rc) — 위 [be-build] 로그에서 원인을 확인하세요."
+    Stop-OnPrebuildFailure -ExitCode $rc
 }
 
 # ── 드라이런 ─────────────────────────────────────────────────
@@ -248,6 +281,11 @@ if ($DryRun) {
             foreach ($t in $tasks) { Write-DevLog 'be' "[dry-run]      $t" }
         } else {
             Write-PrebuildPlanFailure
+        }
+        if (Test-PrebuildContinue) {
+            Write-DevLog 'be' '[dry-run]    계획·선빌드가 실패해도 기동을 이어 간다 (BE_PREBUILD_CONTINUE=1).'
+        } else {
+            Write-DevLog 'be' '[dry-run]    계획·선빌드가 실패하면 아무 모듈도 띄우지 않고 종료 (우회: BE_PREBUILD=0 또는 BE_PREBUILD_CONTINUE=1).'
         }
     } else {
         Write-DevLog 'be' '[dry-run] 선빌드 생략 (모듈 1개 또는 BE_PREBUILD=0) — 종전처럼 bootRun 이 직접 빌드한다.'
@@ -327,6 +365,7 @@ foreach ($m in $Selected) {
 }
 
 # 포트 회수 뒤에 돈다 — Windows 는 실행 중인 JVM 이 쥔 jar 를 덮어쓰지 못한다.
+# 선빌드가 실패하면 여기서 끝난다(BE_PREBUILD_CONTINUE=1 이면 계속). 아직 띄운 모듈이 없어 정리할 것도 없다.
 if (Test-PrebuildEnabled) { Invoke-Prebuild }
 
 # ── 실행 ─────────────────────────────────────────────────────
