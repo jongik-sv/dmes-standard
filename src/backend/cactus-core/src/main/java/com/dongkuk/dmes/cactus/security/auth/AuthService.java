@@ -48,8 +48,13 @@ public class AuthService {
 
     /**
      * 로그인 처리.
+     *
+     * <p>실패 기록(시도 횟수 증가·잠금)은 {@link BusinessException} 을 던지기 직전에 같은 트랜잭션에서 쓴다.
+     * 업무 예외로 롤백하면 이 쓰기가 사라져 잠금 정책이 작동하지 않으므로 {@code noRollbackFor} 로 커밋한다.
+     * 그 밖의 예외(DB BUSY 등 RuntimeException)는 그대로 롤백된다. 실패 기록을 REQUIRES_NEW 로 떼지 않는 이유:
+     * SQLite 에서 같은 DB 를 두 연결이 쓰며 스스로 막히고, 로그인 통째 재시도와 겹치면 횟수가 재시도마다 따로 커밋된다.
      */
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public Map<String, Object> login(LoginRequest request) {
         // 1. 사용자 조회
         SecUser user = secUserRepository.findById(request.userId())
