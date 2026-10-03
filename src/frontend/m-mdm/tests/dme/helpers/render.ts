@@ -83,6 +83,31 @@ export async function flush(): Promise<void> {
   });
 }
 
+/**
+ * AgDataGrid 가 준비를 마칠 때까지 기다린다 — 행(또는 빈 표 안내)이 보인 뒤, flush 한 번 동안 그리드 DOM 이 바뀌지 않을 때까지.
+ *
+ * ag-grid 는 행을 그린 뒤 `onGridReady` 를 비동기 이벤트 큐(`setTimeout 0`)로 보내고, AgDataGrid 는 그때 켜지는 효과에서 보이는 행을 한 번
+ * 다시 그린다(행 클래스 토큰·행 상태 따라잡기). `flush()` 한 번은 그 타이머보다 먼저 끝날 수 있어, 그 뒤에 잰 행 DOM 이 준비 시점 다시 그리기로
+ * 바뀐다. 행이 보이면 그 타이머는 이미 걸려 있으므로, 다음 flush 의 타이머는 그 뒤에 돈다 — 조용한 차례가 나오면 준비가 끝난 것이다.
+ * 상한을 넘으면 던진다(조용히 넘어가면 흔들림이 다시 숨는다).
+ */
+export async function settleGrid(root: Element, maxRounds = 20): Promise<void> {
+  let started = false;
+  for (let round = 0; round < maxRounds; round++) {
+    let changed = false;
+    const mo = new MutationObserver(() => {
+      changed = true;
+    });
+    mo.observe(root, { childList: true, subtree: true, characterData: true });
+    await flush();
+    if (mo.takeRecords().length > 0) changed = true;
+    mo.disconnect();
+    if (started && !changed) return;
+    started = root.querySelector(".ag-row, .ag-overlay-no-rows-wrapper") != null;
+  }
+  throw new Error(`그리드가 ${maxRounds}번 flush 안에 조용해지지 않았다`);
+}
+
 export function findButton(root: ParentNode, label: string): HTMLButtonElement {
   const b = Array.from(root.querySelectorAll("button")).find((x) => x.textContent?.trim() === label);
   if (!b) throw new Error(`버튼 ${label} 없음`);
