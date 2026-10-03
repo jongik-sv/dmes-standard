@@ -199,6 +199,13 @@ export async function postJsonNoRedirect<T>(path: string, body: unknown, init: R
     throw normalizeFetchError(err);
   }
   if (!res.ok) {
+    // 실패 본문은 쓰지 않지만 버려야 한다 — 읽지도 취소하지도 않으면 브라우저가 요청을 끝난 것으로 치지 않아 연결을 잡고
+    // 페이지의 networkidle 이 오지 않는다(엔드포인트 없는 모듈의 404 를 받는 MDM 화면 메타 공급자).
+    try {
+      await res.body?.cancel();
+    } catch {
+      // 이미 잠긴·닫힌 본문 — 던질 오류는 아래 HttpError 하나다.
+    }
     throw new HttpError(res.status, res.statusText, getHttpFallbackMessage(res.status));
   }
   if (res.status === 204 || res.headers.get("content-length") === "0") {
