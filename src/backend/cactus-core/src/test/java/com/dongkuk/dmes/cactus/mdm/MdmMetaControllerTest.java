@@ -141,18 +141,40 @@ class MdmMetaControllerTest {
         Versioned v = versioned();
         v.service().lookupAt(MdmTargetType.RULE, List.of("R"), clock.instant());
         int tocs = v.feed().tocCalls.get();
+        int bodies = v.feed().bodyCalls.get();
 
         v.mvc().perform(post("/api/mls/mdmMeta/load").contentType(MediaType.APPLICATION_JSON).header("X-Authenticated-Role", "SYSADMIN")
                         .content("{\"type\":\"RULE\",\"keys\":[\"R@1.000\"]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loaded[0]").value("R@1.000"));
         assertThat(v.feed().tocCalls.get()).isEqualTo(tocs);
+        assertThat(v.feed().bodyCalls.get()).as("그 본문만 다시 받는다").isEqualTo(bodies + 1);
+        assertThat(v.feed().bodyKeys.get(v.feed().bodyKeys.size() - 1)).containsExactly(new MdmBodyKey("R", "1.000"));
+        assertThat(v.service().cachedBody(MdmTargetType.RULE, "R", "2.000").cached()).as("다른 버전 본문은 그대로").isTrue();
+        assertThat(v.service().cachedBody(MdmTargetType.RULE, "R", "1.000").cached()).isTrue();
 
         v.mvc().perform(post("/api/mls/mdmMeta/load").contentType(MediaType.APPLICATION_JSON).header("X-Authenticated-Role", "SYSADMIN")
                         .content("{\"type\":\"RULE\",\"keys\":[\"R\"]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.loaded[0]").value("R"));
         assertThat(v.feed().tocCalls.get()).isEqualTo(tocs + 1);
+    }
+
+    @Test
+    void off_경로_load_도_버전_대상은_요청한_논리_키로_답하고_목차에_없는_버전은_없음이다() throws Exception {
+        feed.put(MdmTargetType.RULE, "R", List.of(
+                MdmDefinitionLookupTest.rule("1.000", LocalDateTime.parse("2026-01-01T00:00:00"), LocalDateTime.parse("2026-06-01T00:00:00")),
+                MdmDefinitionLookupTest.rule("2.000", LocalDateTime.parse("2026-06-01T00:00:00"), null)));
+
+        mvc.perform(post("/api/mls/mdmMeta/load").contentType(MediaType.APPLICATION_JSON).header("X-Authenticated-Role", "SYSADMIN")
+                        .content("{\"type\":\"RULE\",\"keys\":[\"R@1.000\",\"R@9.000\",\"R\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loaded.length()").value(2))
+                .andExpect(jsonPath("$.loaded[0]").value("R"))
+                .andExpect(jsonPath("$.loaded[1]").value("R@1.000"))
+                .andExpect(jsonPath("$.missing.length()").value(1))
+                .andExpect(jsonPath("$.missing[0]").value("R@9.000"))
+                .andExpect(jsonPath("$.unavailable.length()").value(0));
     }
 
     @Test
