@@ -60,4 +60,24 @@ public interface SecUserMappingRepository extends JpaRepository<SecUserMapping, 
      */
     @Query("SELECT DISTINCT m.userId FROM SecUserMapping m WHERE m.roleGroupId IN :roleGroupIds")
     List<String> findUserIdsByRoleGroupIdIn(@Param("roleGroupIds") Collection<String> roleGroupIds);
+
+    /**
+     * 한 사용자의 역할그룹 매핑 전체를 DELETE 한 번으로 지운다 — 사용자 삭제(SecUserService 'D' 분기) 용.
+     *
+     * <p>JPQL 벌크 DELETE 라 엔티티를 읽지 않고 영속성 컨텍스트·엔티티 콜백을 거치지 않는다.
+     * {@link SecUserMapping} 에는 {@code @PreRemove}·cascade·연관이 없고 감사 리스너는 PrePersist·PreUpdate 만 다루므로
+     * 건별 {@code deleteById} 와 DB 결과가 같다. (파생 {@code deleteBy…} 는 행마다 읽고 지우므로 쓰지 않는다.)
+     *
+     * <ul>
+     *   <li>{@code flushAutomatically = true} — 같은 트랜잭션에서 앞서 저장·변경한 행을 먼저 flush 해 실행 순서를 지킨다.</li>
+     *   <li>{@code clearAutomatically} 는 쓰지 않는다 — 호출하는 {@code saveUsers}(secUser.bpmn saveTask) 는 이 삭제 뒤
+     *       같은 트랜잭션에서 매핑을 다시 읽지 않고, 비우면 같은 영속성 단위의 다른 관리 엔티티(사이트 어댑터의 사용자 등)까지
+     *       분리돼 버린다. 이 메서드를 새로 쓰는 곳이 삭제 뒤 매핑 엔티티를 다시 읽는다면 그쪽에서 판단한다.</li>
+     * </ul>
+     *
+     * @return 지운 행 수
+     */
+    @Modifying(flushAutomatically = true)
+    @Query("DELETE FROM SecUserMapping m WHERE m.userId = :userId")
+    int bulkDeleteByUserId(@Param("userId") String userId);
 }
