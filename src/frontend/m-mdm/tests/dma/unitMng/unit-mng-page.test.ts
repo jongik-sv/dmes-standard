@@ -8,12 +8,41 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import UnitMngPage from "../../../pages/dma/unitMng/page";
+import { findButton, flush, installDomStorage, typeInto } from "../../dme/helpers/render";
 
 const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
 
 let container: HTMLDivElement;
 let root: Root | null = null;
 const originalFetch = globalThis.fetch;
+let unitList: unknown[] = [];
+
+/** 상세 표에서 머리글이 `label` 로 시작하는 줄의 입력 칸. */
+function detailInput(label: string): HTMLInputElement {
+  const th = Array.from(container.querySelectorAll("th")).find((x) => x.textContent?.trim().startsWith(label));
+  const input = th?.closest("tr")?.querySelector("input");
+  expect(input, `입력 ${label}`).toBeTruthy();
+  return input as HTMLInputElement;
+}
+
+async function clickListCell(text: string) {
+  const cell = Array.from(container.querySelectorAll(".ag-row .ag-cell")).find((c) => c.textContent === text);
+  expect(cell, `행 ${text}`).toBeTruthy();
+  await act(async () => {
+    cell!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await flush();
+}
+
+/** 머리 [조회] — 조회 영역에도 같은 이름 버튼이 있을 수 있어 머리 버튼 줄에서 찾는다. */
+async function pressSearch() {
+  // 버튼 권한(RBAC) 응답이 온 뒤에 누른다 — 그 전에는 머리 버튼이 동작하지 않는다.
+  await flush();
+  await flush();
+  await act(async () => findButton(container.querySelector(".page-layout__header-buttons")!, "조회").click());
+  await flush();
+  await flush();
+}
 
 async function render() {
   container = document.createElement("div");
@@ -45,13 +74,15 @@ function visibleText(el: Element): string {
 
 describe("UnitMngPage", () => {
   beforeEach(() => {
+    installDomStorage();
+    unitList = [];
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/oasis/unitMng/search")) {
         return jsonResponse({
           data: {
             result: {
-              list: [],
+              list: unitList,
               dimensionOptions: [],
               unitOptions: [
                 { unitCode: "KG", dimension: "MASS" },
@@ -86,6 +117,18 @@ describe("UnitMngPage", () => {
     container?.remove();
     globalThis.fetch = originalFetch;
     delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
+  });
+
+  // 2026-10-03 — 상세는 목록 행 값으로 채운다. 같은 행을 다시 누르면 고친 입력이 말없이 목록 값으로 돌아갔다.
+  it("고친 입력은 같은 행을 다시 눌러도 목록 값으로 되돌아가지 않는다", async () => {
+    unitList = [{ unitCode: "G", dimension: "MASS", baseUnit: "KG", factor: 0.001 }];
+    await render();
+    await pressSearch();
+    await clickListCell("G");
+    expect(detailInput("환산 계수").value).toBe("0.001");
+    await typeInto(detailInput("환산 계수"), "0.002");
+    await clickListCell("G");
+    expect(detailInput("환산 계수").value).toBe("0.002");
   });
 
   it("제목과 빈 상태(0건)를 그린다", async () => {
