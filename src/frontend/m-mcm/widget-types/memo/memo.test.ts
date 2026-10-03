@@ -5,30 +5,46 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fetchMemo, saveMemo } from "./api";
+import { readDraft, removeDraft, writeDraft } from "./memo-draft-storage";
 import {
   canSave,
+  classifyDraft,
   countLabel,
+  draftDiffers,
   dropNullParams,
+  formatDraftTime,
+  isDraftWritable,
   isBlankMemo,
   isLiveMemo,
   loadRequest,
   MEMO_CONTENT_TYPE_ERROR,
   MEMO_DEFAULT_CONFIG,
+  MEMO_DRAFT_DELAY_MS,
+  MEMO_DRAFT_KEY_PREFIX,
   MEMO_FORMAT_ERROR,
   MEMO_MAX_LENGTH,
   MEMO_SAVE_ERROR,
   MEMO_SCOPE_ERROR,
   MEMO_TOO_LONG_MESSAGE,
+  memoBaseHash,
+  memoDraftKey,
+  memoDraftNoticeText,
+  memoEditBase,
   memoErrorMessage,
   MemoServiceError,
+  parseDraft,
   parseMemo,
   readMemoChoices,
   readMemoConfig,
+  restorableDraft,
   saveRequest,
+  serializeDraft,
   unwrapMemo,
   validateDraft,
   validateMemoConfig,
   viewFormat,
+  type MemoDraft,
+  type MemoRecord,
 } from "./memo-model";
 import { MEMO_CSS } from "./memo-styles";
 import { meta } from "./type.meta";
@@ -340,6 +356,128 @@ describe("api 호출(fetch 대역)", () => {
     expect(err).toBeInstanceOf(Error);
     expect(err).not.toBeInstanceOf(MemoServiceError);
     expect(memoErrorMessage(err, MEMO_SAVE_ERROR)).toBe(MEMO_SAVE_ERROR);
+  });
+});
+
+describe("임시 저장(쓰다 만 글) 순수 로직", () => {
+  const rec = (over: Partial<MemoRecord> = {}): MemoRecord => ({
+    instId: "i",
+    defId: "def.x",
+    format: "text",
+    content: "서버 글",
+    updatedAt: null,
+    ...over,
+  });
+  const draft = (over: Partial<MemoDraft> = {}): MemoDraft => ({
+    format: "text",
+    content: "쓰던 글",
+    baseHash: memoBaseHash(rec()),
+    savedAt: 1,
+    ...over,
+  });
+
+  it("키는 dmes:widget:memo-draft:{userId}:{instanceId} 이고, 사용자·칸 중 하나라도 모르면 null", () => {
+    expect(MEMO_DRAFT_KEY_PREFIX).toBe("dmes:widget:memo-draft:");
+    expect(memoDraftKey("u1", "inst-1")).toBe("dmes:widget:memo-draft:u1:inst-1");
+    expect(memoDraftKey("", "inst-1")).toBeNull();
+    expect(memoDraftKey("u1", "")).toBeNull();
+    expect(MEMO_DRAFT_DELAY_MS).toBe(300);
+  });
+
+  it("내용 해시는 형식·내용이 같으면 같고 하나라도 다르면 다르다 — 메모가 없으면 none", () => {
+    expect(memoBaseHash(null)).toBe("none");
+    expect(memoBaseHash(rec())).toBe(memoBaseHash(rec({ instId: "다른 칸", updatedAt: "2026-10-03T10:00:00" })));
+    expect(memoBaseHash(rec())).not.toBe(memoBaseHash(rec({ content: "서버 글!" })));
+    expect(memoBaseHash(rec())).not.toBe(memoBaseHash(rec({ format: "md" })));
+    expect(memoBaseHash(rec({ content: "" }))).not.toBe("none");
+  });
+
+  it("직렬화한 임시본을 그대로 읽는다", () => {
+    expect(parseDraft(serializeDraft(draft({ format: "html", content: "<p>글</p>", savedAt: 1790000000000 })))).toEqual({
+      format: "html",
+      content: "<p>글</p>",
+      baseHash: memoBaseHash(rec()),
+      savedAt: 1790000000000,
+    });
+  });
+
+  it.each([
+    ["빈 값", null],
+    ["빈 문자열", ""],
+    ["JSON 이 아님", "{깨짐"],
+    ["객체가 아님", "[1]"],
+    ["형식이 허용값이 아님", JSON.stringify({ ...draft(), format: "pdf" })],
+    ["글이 문자열이 아님", JSON.stringify({ ...draft(), content: 3 })],
+    ["기준 해시가 없음", JSON.stringify({ format: "text", content: "x", savedAt: 1 })],
+    ["시각이 숫자가 아님", JSON.stringify({ ...draft(), savedAt: "어제" })],
+    ["시각이 유한하지 않음", '{"format":"text","content":"x","baseHash":"a","savedAt":1e999}'],
+    ["20,000자 초과", JSON.stringify({ ...draft(), content: "가".repeat(MEMO_MAX_LENGTH + 1) })],
+  ])("깨진 저장값(%s)은 없는 것으로 읽는다", (_name, raw) => {
+    expect(parseDraft(raw)).toBeNull();
+  });
+
+  it("20,000자까지만 쓸 수 있다", () => {
+    expect(isDraftWritable("가".repeat(MEMO_MAX_LENGTH))).toBe(true);
+    expect(isDraftWritable("가".repeat(MEMO_MAX_LENGTH + 1))).toBe(false);
+    expect(parseDraft(serializeDraft(draft({ content: "가".repeat(MEMO_MAX_LENGTH) })))).not.toBeNull();
+  });
+
+  it("글이 다르면 쓰다 만 글이고, 같으면 아니다 — 글이 빈 채 형식만 다른 것은 쓰다 만 글이 아니다", () => {
+    const base = { format: "text" as const, content: "서버 글" };
+    expect(draftDiffers({ format: "text", content: "다른 글" }, base)).toBe(true);
+    expect(draftDiffers({ format: "text", content: "서버 글" }, base)).toBe(false);
+    expect(draftDiffers({ format: "html", content: "서버 글" }, base)).toBe(true); // 글이 있고 형식만 바뀜
+    expect(draftDiffers({ format: "html", content: "" }, { format: "text", content: "" })).toBe(false);
+    expect(draftDiffers({ format: "html", content: "  " }, { format: "text", content: "  " })).toBe(false);
+    expect(draftDiffers({ format: "text", content: "" }, base)).toBe(true); // 메모를 비우려던 글
+  });
+
+  it("편집 기준은 서버 메모의 형식·내용·해시, 메모가 없으면 처음 형식·빈 글·none", () => {
+    expect(memoEditBase(rec({ format: "md", content: "글" }), "text")).toEqual({
+      format: "md",
+      content: "글",
+      hash: memoBaseHash(rec({ format: "md", content: "글" })),
+    });
+    expect(memoEditBase(null, "html")).toEqual({ format: "html", content: "", hash: "none" });
+  });
+
+  it("되살릴 임시본 — 기준과 다른 글만, 서버 메모가 그 뒤 바뀌었는지(changedElsewhere)도 알린다", () => {
+    const base = memoEditBase(rec(), "text");
+    expect(restorableDraft(null, base)).toBeNull();
+    expect(restorableDraft(draft({ content: "서버 글" }), base)).toBeNull(); // 서버와 같다
+    expect(restorableDraft(draft(), base)).toEqual({ draft: draft(), changedElsewhere: false });
+    expect(restorableDraft(draft({ baseHash: memoBaseHash(rec({ content: "예전 글" })) }), base)?.changedElsewhere).toBe(true);
+    // 메모가 없던 때의 임시본인데 그 사이 메모가 생겼다.
+    expect(restorableDraft(draft({ baseHash: "none" }), base)?.changedElsewhere).toBe(true);
+    // 메모가 아직 없으면 none 끼리라 바뀌지 않았다.
+    expect(restorableDraft(draft({ baseHash: "none" }), memoEditBase(null, "text"))).toEqual({
+      draft: draft({ baseHash: "none" }),
+      changedElsewhere: false,
+    });
+  });
+
+  it("보기 모드 분류 — 다른 글은 pending, 서버와 같아진 것은 stale, 없으면 둘 다 아님", () => {
+    expect(classifyDraft(null, rec(), "text")).toEqual({ pending: null, stale: false });
+    expect(classifyDraft(draft(), rec(), "text")).toEqual({ pending: draft(), stale: false });
+    expect(classifyDraft(draft({ content: "서버 글" }), rec(), "text")).toEqual({ pending: null, stale: true });
+    expect(classifyDraft(draft({ content: "" }), null, "text")).toEqual({ pending: null, stale: true }); // 빈 글 = 메모 없음
+    expect(classifyDraft(draft({ content: "첫 글" }), null, "text").pending?.content).toBe("첫 글");
+  });
+
+  it("시각은 지역 시각 「yyyy-MM-dd HH:mm」, 안내 문구는 서버 메모가 바뀌었으면 한 문장 더 붙는다", () => {
+    const at = new Date(2026, 9, 3, 4, 5).getTime();
+    expect(formatDraftTime(at)).toBe("2026-10-03 04:05");
+    expect(memoDraftNoticeText(at, false)).toBe("저장하지 않은 글이 있습니다(2026-10-03 04:05)");
+    expect(memoDraftNoticeText(at, true)).toBe("저장하지 않은 글이 있습니다(2026-10-03 04:05). 그 뒤 다른 곳에서 메모가 바뀌었습니다.");
+  });
+
+  it("저장소 감싸개는 window·localStorage 가 없는 환경(서버 렌더)에서도 던지지 않는다", () => {
+    expect(typeof window).toBe("undefined");
+    expect(readDraft("k")).toBeNull();
+    expect(() => writeDraft("k", draft())).not.toThrow();
+    expect(() => removeDraft("k")).not.toThrow();
+    expect(readDraft(null)).toBeNull();
+    expect(() => writeDraft(null, draft())).not.toThrow();
   });
 });
 
