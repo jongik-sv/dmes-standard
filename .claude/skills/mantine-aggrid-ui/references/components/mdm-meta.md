@@ -86,12 +86,12 @@ MDM 이 컬럼 설명을 HTML 로 저장하면 화면 메타(`MdmScreenColumn`)�
 
 - 카드(`MdmMetaCard`)는 HTML 을 우선한다. 브라우저에서 `sanitizeNoticeHtml`(notice-body-view 의 DOMPurify 소독)로 **한 번 더** 소독한 결과만 넣는다. script·style·on* 속성·인라인 style·http/https 가 아닌 링크는 빠지고, 링크는 새 탭(`target="_blank" rel="noopener noreferrer"`)이다.
 - 설명 칸은 `data-mdm-section="description"` 그대로이고, HTML 을 그리면 `data-mdm-html="true"` 가 붙는다. 사용 메모는 HTML 아래 글자로 둔다.
-- 소독할 수 없거나(서버 렌더 — 하이드레이션 뒤 HTML 로 바뀐다) 소독 뒤 남는 게 없으면 `description` 글자를 그린다.
+- HTML 카드인지는 **소독 결과에 보이는 내용(글자·그림)이 있는가**로 정한다(`mdmCardHasHtml`·`mdmCardSafeHtml`, 문자열별 캐시). 소독할 수 없거나(서버 렌더 — 하이드레이션 뒤 HTML 로 바뀐다) 소독 뒤 보이는 게 없으면(`<script>` 만, `<p><br></p>`) 모양·동작까지 글자 카드이고 `description` 글자를 그린다. 이 대체 글자는 서버가 블록 경계에 넣은 줄바꿈을 살린다(`white-space: pre-line`).
 - 모양: HTML 카드만 최대 폭 640px(`MDM_META_CARD_HTML_MAX_WIDTH`), 설명 칸은 최대 높이 60vh(`MDM_META_CARD_HTML_MAX_HEIGHT`)에 세로 스크롤. 문단·목록·표·그림 서식은 카드가 `<style href precedence>` 로 문서 머리에 한 번 싣는다(색은 툴팁 글자색을 따른다). **일반 글 카드는 모양·크기·동작이 예전 그대로다.**
 - 상호작용 툴팁: HTML 카드를 띄울 때만 마우스가 툴팁 안으로 들어갈 수 있다(링크 누르기·스크롤).
-  - `FormGroup`·`MdmFieldLabel`(내부 `useHoverTip` interactive): 상자 `pointer-events:auto`(`data-tip-interactive="true"`)·최대 폭 640px. 트리거를 떠나도 150ms(`HOVER_TIP_GRACE_MS`) 유예하고 그 사이 상자에 들어가면 유지, 상자를 나가면 유예 뒤 닫힌다. Escape 로 닫힌다. 화면 안에 들도록 상자 높이를 줄이고 넘치면 상자 안에서 스크롤한다. 위쪽 공간 판정은 큰 카드(60vh+120px)로 한다. 화면이 `FormGroup tip` 을 주면 HTML 메타가 있어도 예전 툴팁이다.
+  - `FormGroup`·`MdmFieldLabel`(내부 `useHoverTip` interactive): 상자 `data-tip-interactive="true"`·최대 폭 640px. **hover 로 열었을 때만** `pointer-events:auto` 이고, 키보드 focus 로만 열면 none(가려진 이웃 입력을 그대로 누를 수 있다 — 이어 마우스가 트리거에 들어오면 auto). 트리거를 떠나도 150ms(`HOVER_TIP_GRACE_MS`) 유예하고 그 사이 상자에 들어가면 유지, 상자를 나가면 유예 뒤 닫힌다(카드 안 링크에 focus 가 있어도 같다). focus 로만 연 카드는 blur 즉시, 마우스가 상자 안이면 blur 해도 유지. Escape 로 닫힌다. 화면 안에 들도록 상자 높이를 줄이고 넘치면 상자 안에서 스크롤한다. 위쪽 공간 판정은 큰 카드(60vh+120px)로 한다. 화면이 `FormGroup tip` 을 주면 HTML 메타가 있어도 예전 툴팁이다.
   - 스크린리더 사본(`.form-sr-only`, `aria-describedby`)은 HTML 이 아니라 `description` 글자다(`MdmMetaCard textOnly`) — 보이지 않는 링크가 Tab 순서에 들지 않게.
-  - `AgDataGrid`: 머리글 툴팁이 HTML 카드인 열이 하나라도 있는 그리드만 ag-grid `tooltipInteraction` 을 켠다(그 밖의 그리드는 속성 자체를 넘기지 않는다). 상자는 최대 폭 640px·`pointer-events:auto`(ag-grid 는 감싸개에만 interactive 클래스를 달아 상자에는 직접 둔다). 유예는 ag-grid 고정값 100ms 다. Escape 로 닫힌다(툴팁 밖 keydown 은 ag-grid 가, 툴팁 안 focus 때는 카드가 `hideTooltipCallback` 으로 닫는다). `tooltipInteraction` 은 그리드 단위지만 상호작용은 HTML 머리글 카드 상자에만 둔다 — 그 그리드의 다른 툴팁(기본 셀 툴팁·검증 오류 툴팁·MDM 셀 툴팁·글자 머리글 카드·열 그룹 툴팁)은 `MdmGridTooltip` 상자가 `pointer-events:none` 이라 마우스가 들어가지 못하고(다음 행을 덮지 않는다), 마우스를 누르면 닫힌다(`withPassThroughTooltips`). ag-grid 초기 속성이라 메타가 그리드를 만든 뒤 오면 머리글을 한 번 다시 만든다(`refreshHeader`).
+  - `AgDataGrid`: HTML 카드 열은 ag-grid 머리글 툴팁 대신 **기본 머리글의 안쪽 라벨**(`innerHeaderComponent` = 내부 `MdmHeaderLabel`)이 캡션을 그리고, 그 라벨에 마우스를 올리면 폼과 같은 포털 상호작용 카드(위 규칙 그대로 — 화면 안 위치·높이 상한·150ms 유예·Escape)가 뜬다. 정렬·필터 아이콘·누름 정렬·열 끌기는 ag-grid 기본 머리글 그대로다. **그리드 `tooltipInteraction` 은 쓰지 않는다** — 같은 그리드의 셀 툴팁·검증 오류 툴팁·글자 머리글 카드는 dev 와 같은 비상호작용 툴팁이다. 카드가 뜨는 영역은 머리글 칸 전체가 아니라 **캡션 글자(라벨)** 로 좁다(글자 MDM 카드는 예전처럼 칸 전체·2초 지연). 화면이 `headerComponentParams` 를 주면 `innerHeaderComponent` 만 더하고, 화면이 `innerHeaderComponent` 를 이미 줬으면 손대지 않고 글자 머리글 툴팁(`MdmGridTooltip`, 늘 `textOnly`)으로 둔다. 메타가 그리드를 만든 뒤 와서 라벨이 생기거나 빠지면 머리글을 한 번 다시 만든다(`refreshHeader` — HTML 열이 생기는 그리드에서만, 그때 화면의 상태 있는 머리글 컴포넌트도 한 번 다시 마운트된다). 카드 안 ↑↓ 는 그리드 행 커서를 옮기지 않는다. 스크린리더 설명은 라벨의 `aria-describedby`(글자 사본)다.
 - 화면이 카드를 직접 쓸 때 HTML 카드 여부는 `mdmCardHasHtml(column)`.
 
 ### 화면 값 검증(C, 2026-10-03)
@@ -198,7 +198,7 @@ th 안이나 아무 라벨 자리에 넣는 인라인 라벨(`FormGroup` 을 쓰
 | 화면 검사를 통과했으니 서버 오류는 없다고 본다 | 비즈니스식·룰 세트·화면이 못 하는 표준식은 서버만 본다. 저장 실패는 늘 `toFieldErrors` 로 칸에 보인다 |
 | 다른 모듈 화면의 부품을 띄웠는데 탭 모듈(pageId)로 메타를 찾는다 | 그 부분만 `MdmMetaProvider module="mqc"` 로 감싼다 |
 | `column.descriptionHtml` 을 화면에서 `dangerouslySetInnerHTML` 로 직접 그린다 | `MdmMetaCard` 를 쓴다 — 브라우저 소독·폭·스크롤·글자 대체가 들어 있다. HTML 이 따로 필요하면 `sanitizeNoticeHtml` 을 거친다 |
-| HTML 설명 툴팁이 안 닫힌다고 상자를 `pointer-events: none` 으로 덮는다 | 마우스가 들어가는 게 의도다. 나가면 150ms(그리드 100ms) 뒤, 또는 Escape 로 닫힌다 |
+| HTML 설명 툴팁이 안 닫힌다고 상자를 `pointer-events: none` 으로 덮는다 | 마우스가 들어가는 게 의도다. 나가면 150ms 뒤, 또는 Escape 로 닫힌다(그리드도 같은 포털 카드) |
 
 ## 실제 사용 예
 
