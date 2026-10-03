@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNullTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.toIntStrict;
 
 /**
  * 업무기준 구조관리 — cmb/masterRuleFrame OASIS 서비스 (Spring bean = {@code masterRuleFrameService}).
@@ -196,8 +197,8 @@ public class MasterRuleFrameService {
         e.setOldColId(strOfTrim(row.get("oldColId")));
         e.setIoFlag(ioFlag);
         e.setColType(strOfTrim(row.get("colType")));
-        e.setColLen(toInt(row.get("colLen"), "총길이"));
-        e.setColPrecLen(toInt(row.get("colPrecLen"), "소수점길이"));
+        e.setColLen(toIntStrict(row.get("colLen"), "총길이"));
+        e.setColPrecLen(toIntStrict(row.get("colPrecLen"), "소수점길이"));
         e.setMesColId(strOfTrim(row.get("mesColId")));
         e.setMasterCodeDiv(strOfTrim(row.get("masterCodeDiv")));
         return e;
@@ -230,14 +231,4 @@ public class MasterRuleFrameService {
         }
     }
 
-    /** 정수 변환 (BR-009 — mask integer). 공란 → null (colPrecLen 선택 입력 BR-007). */
-    private static Integer toInt(Object v, String label) {
-        String s = strOfTrim(v);
-        if (isBlank(s)) return null;
-        try {
-            return Integer.valueOf(s.replace(",", ""));       // As-Is mask ##,##9 콤마 허용
-        } catch (NumberFormatException e) {
-            throw new BusinessException(ErrorCode.INVALID_VALUE, label + "은(는) 정수만 입력 가능합니다.");
-        }
-    }
 }

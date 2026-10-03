@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNullTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.toIntStrict;
 
 /**
  * 업무기준 컬럼 리스트 등록 팝업 — cmb/masterRuleFrameColListPopup OASIS 서비스
@@ -123,8 +124,8 @@ public class MasterRuleFrameColListPopupService {
             e.setColNm(strOfTrim(row.get("colNm")));
             e.setIoFlag(strOfTrim(row.get("ioFlag")));
             e.setColType(strOfTrim(row.get("colType")));
-            e.setColLen(toInt(row.get("colLen"), "총길이"));
-            e.setColPrecLen(toInt(row.get("colPrecLen"), "소수점길이"));
+            e.setColLen(toIntStrict(row.get("colLen"), "총길이"));
+            e.setColPrecLen(toIntStrict(row.get("colPrecLen"), "소수점길이"));
             e.setMasterCodeDiv(strOfTrim(row.get("masterCodeDiv")));
             // OLD_COL_ID / MES_COL_ID — As-Is 주석(INSERT 비포함, Java:46/51) 보존 → 미설정(null)
             entities.add(e);
@@ -167,14 +168,4 @@ public class MasterRuleFrameColListPopupService {
         return s == null || s.isBlank();
     }
 
-    /** 정수 변환 — 공란 → null (colPrecLen 등 선택 입력). As-Is mask ##,##9 콤마 허용. */
-    private static Integer toInt(Object v, String label) {
-        String s = strOfTrim(v);
-        if (isBlank(s)) return null;
-        try {
-            return Integer.valueOf(s.replace(",", ""));
-        } catch (NumberFormatException e) {
-            throw new BusinessException(ErrorCode.INVALID_VALUE, label + "은(는) 정수만 입력 가능합니다.");
-        }
-    }
 }
