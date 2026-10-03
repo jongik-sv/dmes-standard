@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.dma.unitMng.service;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.mdm.contract.dictionary.MdmUnitReferenceSpi;
 import com.dongkuk.dmes.mdm.dma.unitMng.UnitForbiddenCodes;
 import com.dongkuk.dmes.mdm.dma.unitMng.dto.ConvertPreviewRequest;
 import com.dongkuk.dmes.mdm.dma.unitMng.dto.ConvertPreviewResult;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 /**
@@ -47,10 +49,13 @@ public class UnitMngService {
 
     private final MdmUnitRepository unitRepository;
     private final MdmDomainRepository domainRepository;
+    private final ObjectProvider<MdmUnitReferenceSpi> unitReferences;
 
-    public UnitMngService(MdmUnitRepository unitRepository, MdmDomainRepository domainRepository) {
+    public UnitMngService(MdmUnitRepository unitRepository, MdmDomainRepository domainRepository,
+                          ObjectProvider<MdmUnitReferenceSpi> unitReferences) {
         this.unitRepository = unitRepository;
         this.domainRepository = domainRepository;
+        this.unitReferences = unitReferences;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -164,6 +169,14 @@ public class UnitMngService {
         if (domainRepository.existsByUnitCode(unitCode)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR,
                     "다른 데이터(도메인)가 이 단위를 참조하고 있어 삭제할 수 없습니다.");
+        }
+        // I5(a) 확장(D-151 검토) — 다른 영역의 단위 FK 참조(레이아웃 항목의 확정 고정값 UNIT_CODE·전송 단위 TRANS_UNIT 등)도 같은 꼴로
+        // 거부한다. 02 는 그 표를 직접 읽지 않고 영역이 구현한 SPI 로 묻는다(MdmDomainReferenceSpi 와 같은 구조).
+        for (MdmUnitReferenceSpi spi : unitReferences.orderedStream().toList()) {
+            if (spi.references(unitCode)) {
+                throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                        "다른 데이터(" + spi.label() + ")가 이 단위를 참조하고 있어 삭제할 수 없습니다.");
+            }
         }
         // I5(b) — 자기 차원의 기준 단위이면서 같은 차원에 다른 단위가 남아 있으면 거부.
         boolean isBaseUnit = entity.getUnitCode().equals(entity.getBaseUnit());

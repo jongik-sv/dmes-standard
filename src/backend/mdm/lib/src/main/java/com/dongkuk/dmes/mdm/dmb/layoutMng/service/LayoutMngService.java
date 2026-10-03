@@ -559,19 +559,31 @@ public class LayoutMngService {
     // action: execute — 예시 값 → 인코딩 바이트 기준 한 줄(TSK-05-03 D13). 판정 시각 T 의 헤더 버전. 쓰지 않는다
     // ────────────────────────────────────────────────────────────────
 
+    /**
+     * 확정 이후 버전(저장된 버전이 DRAFT 가 아님 — 고정 표시 판정과 같은 기준, D-151)은 화면 행을 쓰지 않고 저장 행을 시각 T 로 합성해
+     * 렌더한다({@link LayoutComposer#compose} — 그리드·피드·내보내기와 같은 값, LEGACY 는 저장 스냅샷). 확정 버전 화면은 읽기 전용이라
+     * 화면 행과 저장 행이 같다. 새 전문·버전 없는 요청·DRAFT 는 화면 행을 지금 사전으로 검사해 초안을 렌더한다.
+     */
     public Map<String, Object> execute(LayoutMngExecuteRequest request, List<Map<String, Object>> headers,
                                        List<Map<String, Object>> consts, List<Map<String, Object>> items,
                                        List<Map<String, Object>> samples) {
         LocalDateTime asOf = LayoutTimes.asOf(request.getAsOf(), clock);
-        LayoutDraftBuilder.Built built = draftBuilder.build(request.toSaveRequest(), headers, consts, items, asOf, true);
-        if (!built.issues().isEmpty()) {
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("issues", issueRows(built.issues()));
-            return out;
+        Optional<MdmLayoutVer> stored = request.getLayoutId() == null || request.getVer() == null || request.getVer().isBlank()
+                ? Optional.empty() : versionStore.find(request.getLayoutId(), LayoutVersions.requireVer(request.getVer()));
+        MdmLayoutSnapshot snapshot;
+        if (stored.isPresent() && !stored.get().isDraft()) {
+            snapshot = composer.compose(request.getLayoutId(), stored.get().getVer(), asOf);
+        } else {
+            LayoutDraftBuilder.Built built = draftBuilder.build(request.toSaveRequest(), headers, consts, items, asOf, true);
+            if (!built.issues().isEmpty()) {
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("issues", issueRows(built.issues()));
+                return out;
+            }
+            BigDecimal ver = request.getVer() == null || request.getVer().isBlank() ? VersionNumbers.FIRST
+                    : LayoutVersions.requireVer(request.getVer());
+            snapshot = assembler.fromDraft(built.draft(), ver, built.draft().headers());
         }
-        BigDecimal ver = request.getVer() == null || request.getVer().isBlank() ? VersionNumbers.FIRST
-                : LayoutVersions.requireVer(request.getVer());
-        MdmLayoutSnapshot snapshot = assembler.fromDraft(built.draft(), ver, built.draft().headers());
         Map<String, String> values = new LinkedHashMap<>();
         for (Map<String, Object> row : samples == null ? List.<Map<String, Object>>of() : samples) {
             Object phys = row.get("COLUMN_PHYS");

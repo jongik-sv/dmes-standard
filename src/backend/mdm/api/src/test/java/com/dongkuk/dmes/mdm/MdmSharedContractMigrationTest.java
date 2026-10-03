@@ -61,7 +61,7 @@ class MdmSharedContractMigrationTest {
     }
 
     @Test
-    void flyway_가_V1_V2_V3_V4_V8_V9_V10_V11_V12_V13_V14_V15_V16_V17_V18_V20_V21_를_적용했다() throws SQLException {
+    void flyway_가_V1_V2_V3_V4_V8_V9_V10_V11_V12_V13_V14_V15_V16_V17_V18_V20_V21_V22_를_적용했다() throws SQLException {
         Set<String> versions = new HashSet<>();
         try (Connection c = dataSource.getConnection();
              Statement s = c.createStatement();
@@ -82,8 +82,9 @@ class MdmSharedContractMigrationTest {
         // D-144 2단계 — V18(룰 세트 버전 표) 추가 반영.
         // MDM 메타 캐시 — V20(TB_MDM_META_REV 변경 기록 표) 추가 반영(dev 의 V18 뒤. 채번 당시 레이아웃 버전 3단계가 V19 를 잡고 있어 V20 — 3단계는 뒤에 V21 로 옮겼다).
         // D-144 3단계 — V21(레이아웃 버전) 추가 반영(당초 V19, 메타 캐시 V20 이 dev 에 먼저 들어가 outOfOrder=false 로 V21 로 옮김).
+        // D-151 — V22(레이아웃 항목 확정 고정값 DATA_TYPE·UNIT_CODE·SCALE) 추가 반영.
         // 모두 완화가 아니라 새 버전 반영이다.
-        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "20", "21"), versions);
+        assertEquals(Set.of("1", "2", "3", "4", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "20", "21", "22"), versions);
     }
 
     @Test

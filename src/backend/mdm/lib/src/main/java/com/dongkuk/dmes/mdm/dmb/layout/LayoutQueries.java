@@ -67,6 +67,19 @@ public class LayoutQueries {
                 .setParameter("id", layoutId).setParameter("ver", VersionNumbers.scaled(ver)).getResultList();
     }
 
+    /** 이 버전 항목의 물리명(중복 없음, 물리명 없는 항목은 뺀다) — 엔티티를 읽지 않는다(확정 고정 D-151, {@link LayoutColumnPins}). */
+    public List<String> columnPhysOf(Long layoutId, BigDecimal ver) {
+        return em.createQuery("SELECT DISTINCT i.columnPhys FROM MdmLayoutItem i WHERE i.layoutId = :id AND i.ver = :ver "
+                        + "AND i.columnPhys IS NOT NULL", String.class)
+                .setParameter("id", layoutId).setParameter("ver", VersionNumbers.scaled(ver)).getResultList();
+    }
+
+    /** 이 버전 항목 행 수(물리명 없는 행 포함) — 엔티티를 읽지 않는다(확정 고정 표시 행 수 확인 D-151, {@link LayoutColumnPins}). */
+    public long itemCountOf(Long layoutId, BigDecimal ver) {
+        return em.createQuery("SELECT COUNT(i) FROM MdmLayoutItem i WHERE i.layoutId = :id AND i.ver = :ver", Long.class)
+                .setParameter("id", layoutId).setParameter("ver", VersionNumbers.scaled(ver)).getSingleResult();
+    }
+
     public List<MdmLayoutHeader> headersOf(Long messageId, BigDecimal ver) {
         return em.createQuery("SELECT h FROM MdmLayoutHeader h WHERE h.layoutId = :id AND h.ver = :ver ORDER BY h.seq",
                         MdmLayoutHeader.class)

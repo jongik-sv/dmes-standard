@@ -20,18 +20,24 @@ public final class LayoutRows {
     private LayoutRows() {
     }
 
-    /** 항목 한 행 + 사전 파생값({@code DISPLAY_NAME·DOMAIN_NAME·DATA_TYPE·DOMAIN_LENGTH·SCALE·UNIT_CODE}). */
+    /**
+     * 항목 한 행 + 사전 파생값({@code DISPLAY_NAME·DOMAIN_NAME·DATA_TYPE·DOMAIN_LENGTH·SCALE·UNIT_CODE}). {@code DATA_TYPE·SCALE·UNIT_CODE}
+     * 는 합성과 같은 선택이다 — 고정 표시 행이면 NULL 까지 고정값, 아니면 지금 사전 값(D-151, {@link LayoutSnapshotAssembler#columnAttrs}). 그래서
+     * 확정 버전 화면은 직렬화가 쓰는 값을, DRAFT 화면은 지금 사전 값을 보인다. 이름·도메인·도메인 길이는 늘 지금 사전 값이다.
+     */
     public static Map<String, Object> item(MdmLayoutItem i, LayoutColumnInfo c) {
+        LayoutSnapshotAssembler.ColumnAttrs a = i.getColumnPhys() == null ? new LayoutSnapshotAssembler.ColumnAttrs(null, null, null)
+                : LayoutSnapshotAssembler.columnAttrs(i.isPinned(), i.getDataType(), i.getUnitCode(), i.getScale(), c);
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("SEQ", i.getSeq());
         row.put("FILL_KIND", i.getFillKind());
         row.put("COLUMN_PHYS", i.getColumnPhys());
         row.put("DISPLAY_NAME", c == null ? null : c.displayName());
         row.put("DOMAIN_NAME", c == null ? null : c.domainName());
-        row.put("DATA_TYPE", c == null ? null : c.dataType());
+        row.put("DATA_TYPE", a.dataType());
         row.put("DOMAIN_LENGTH", c == null ? null : c.length());
-        row.put("SCALE", c == null ? null : c.scale());
-        row.put("UNIT_CODE", c == null ? null : c.unitCode());
+        row.put("SCALE", a.scale());
+        row.put("UNIT_CODE", a.unitCode());
         row.put("TRANS_UNIT", i.getTransUnit());
         row.put("UNIT_ITEM", i.getUnitItem());
         row.put("NUM_FORMAT", i.getNumFormat());

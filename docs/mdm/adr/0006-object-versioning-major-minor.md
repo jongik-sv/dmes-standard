@@ -139,6 +139,10 @@ ADR-0005 의 해당 문장(:72)은 ACCEPTED 본문이라 고치지 않고, 이 A
         ```sql
         SELECT HEADER_LAYOUT_ID, COUNT(*) FROM TB_MDM_EAI WHERE HEADER_LAYOUT_ID IS NOT NULL GROUP BY 1 HAVING COUNT(*) > 1;
         ```
+  14. **확정 때 컬럼 속성 고정**(D-151): 확정이 항목 행 전부를 고정 표시(`PINNED_YN`)하고 `DATA_TYPE`·`UNIT_CODE`·`SCALE`(V22)에 확정 시점
+      사전 유효값(없으면 NULL)을 쓰며, 확정 취소가 비운다. 고정 표시 행은 NULL 까지 그 값으로 합성하므로 확정 뒤 사전 변경이 RELEASED 합성·메타
+      피드·과거 재현을 바꾸지 않는다. 운영에서는 DRAFT 만 지금 사전을 읽는다. 기존 확정 버전은 V22 가 이행 시점 값으로 채웠다(3단계 최종 검토 I1
+      장기 대책, 판정 P3-28).
 - 세트·레이아웃 모두 확정 전에는 운영에 반영되지 않으므로, 확정을 잊으면 수정이 운영에 안 나가는 운영 부담이 생긴다.
   확정 검사(참조 룰의 `apply_from` 시점 RELEASED 존재, 테스트 케이스 통과 등)로 확정 시점에 막는다.
 - 판정 시각에 RELEASED 세트·헤더가 없으면 엔진 판정 오류다(기존 "룰 없음"과 같은 등급).
@@ -168,5 +172,5 @@ ADR-0005 의 해당 문장(:72)은 ACCEPTED 본문이라 고치지 않고, 이 A
 
 - 설계 스펙: [`docs/superpowers/specs/2026-10-02-mdm-object-versioning-design.md`](../../superpowers/specs/2026-10-02-mdm-object-versioning-design.md)
 - [ADR-0002](0002-version-confirm-without-approval.md), [ADR-0005](0005-rule-set-runs-in-engine.md)
-- [`docs/mdm/decisions.md`](../decisions.md) D-144, D-148(3단계 구현 결정)
+- [`docs/mdm/decisions.md`](../decisions.md) D-144, D-148(3단계 구현 결정), D-151(확정 때 컬럼 속성 고정)
 - [Local-Rules §24](../../guide/FrontEnd/Local-Rules.md) MDM 버전 버튼 규약

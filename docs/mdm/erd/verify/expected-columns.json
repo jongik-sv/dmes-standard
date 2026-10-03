@@ -47,7 +47,7 @@
     },
     "TB_MDM_LAYOUT_ITEM": {
       "source_columns": ["LAYOUT_ID","SEQ","FILL_KIND","COLUMN_PHYS","TRANS_UNIT","UNIT_ITEM","NUM_FORMAT","DEFAULT_VALUE","FILLER_LENGTH","OFFSET","LENGTH"],
-      "added_columns": []
+      "added_columns": ["DATA_TYPE","UNIT_CODE","SCALE","PINNED_YN"]
     },
     "TB_MDM_LAYOUT_HEADER": {
       "source_columns": [],

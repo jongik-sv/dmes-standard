@@ -67,6 +67,31 @@ public class MdmLayoutItem extends CactusAuditEntity {
     @Column(name = "`LENGTH`", nullable = false)
     private int length;
 
+    /*
+     * 확정 고정값(D-151, V22) — 확정이 그 버전 항목 행 전부를 고정 표시(PINNED_YN 'Y')하고 확정 시점 사전 유효값(도메인 최상위 타입·
+     * 소수·단위, 없으면 NULL)을 쓰며, 확정 취소가 표시와 값을 비운다. DRAFT 는 'N'·NULL 이다. 고정 표시 행은 NULL 까지 이 값으로 합성하고,
+     * 아닌 행은 지금 사전을 읽는다. 쓰기는 네이티브 UPDATE({@code LayoutVersionStore#markPinned}·{@code pinColumnAttrs}·
+     * {@code clearColumnAttrs})만 한다 — insertable·updatable 을 끈다: 다른 칸이 바뀐 엔티티를 flush 하면 Hibernate 가 행 전체를
+     * UPDATE 해 네이티브로 쓴 고정값을 옛 값으로 덮는다({@code MdmLayoutVer} 확정 기록 칸과 같은 선례). 새 항목은 늘 'N'·NULL 로
+     * 들어간다(새 버전 복사도 옮기지 않는다).
+     */
+
+    /** 확정 고정 타입 — {@code TB_MDM_DOMAIN.DATA_TYPE}(최상위 조상) 값. */
+    @Column(name = "DATA_TYPE", length = 20, insertable = false, updatable = false)
+    private String dataType;
+
+    /** 확정 고정 단위 — {@code TB_MDM_UNIT.UNIT_CODE} FK. */
+    @Column(name = "UNIT_CODE", length = 20, insertable = false, updatable = false)
+    private String unitCode;
+
+    /** 확정 고정 소수 자릿수. */
+    @Column(name = "SCALE", insertable = false, updatable = false)
+    private Integer scale;
+
+    /** 고정 표시 Y·N(DB 기본 'N') — 세 값이 실제로 NULL 일 수 있어 값만으로는 "NULL 로 고정" 과 "고정한 적 없음" 을 가를 수 없다. */
+    @Column(name = "PINNED_YN", length = 1, insertable = false, updatable = false)
+    private String pinnedYn;
+
     protected MdmLayoutItem() {
         // JPA 기본 생성자
     }
@@ -90,6 +115,10 @@ public class MdmLayoutItem extends CactusAuditEntity {
     public Integer getFillerLength() { return fillerLength; }
     public int getOffset() { return offset; }
     public int getLength() { return length; }
+    public String getDataType() { return dataType; }
+    public String getUnitCode() { return unitCode; }
+    public Integer getScale() { return scale; }
+    public boolean isPinned() { return "Y".equals(pinnedYn); }
 
     public void setFillKind(String v) { this.fillKind = v; }
     public void setColumnPhys(String v) { this.columnPhys = v; }

@@ -15,6 +15,7 @@ import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionStateService;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutChangeClassifier;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutColumnPins;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutQueries;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutRejections;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutRows;
@@ -53,7 +54,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * <p>BPMN {@code services/dmb/layoutConfirm.bpmn} 의 {@code actionGateway} 분기(search·view·validate·confirm)와 1:1 이다.
  * {@code @Transactional}·{@code TransactionTemplate} 을 쓰지 않는다(F11·I19) — 트랜잭션은 OASIS action 한 건이다. 확정은 공통
  * {@link VersionStateService#confirm}(소유자·담당자·미적용 하나·apply_from 순서·확정 검사 SPI·CAS·직전 닫기·부모 INUSE)으로만 하고, 같은
- * 트랜잭션에서 변경 분류·전환 방식·본문 스냅샷을 기록한다 — 하나라도 실패하면 확정도 되돌아간다.
+ * 트랜잭션에서 항목 컬럼 속성 고정(D-151 — {@link LayoutColumnPins})·변경 분류·전환 방식·본문 스냅샷을 기록한다 — 하나라도 실패하면
+ * 확정도 되돌아간다. 고정이 분류보다 먼저다: 분류의 기준 버전(직전 RELEASED)도 자기 확정 때 고정한 값으로 합성되므로, 확정 사이의 사전
+ * 변경이 이번 확정의 변경 분류에 잡힌다(의도된 동작).
  *
  * <p>헤더 확정은 EAI 표준 헤더 연결({@code TB_MDM_EAI.HEADER_LAYOUT_ID})을 옮기지 않는다(Ruling P3-15). EAI 의 표준 헤더는 시각 T 에
  * RELEASED 인 헤더 버전의 {@code EAI_CODE} 로 해석한다({@code LayoutVersions.eaiHeadersAt}) — 미래 apply_from 확정은 그 시각부터, 확정
@@ -66,6 +69,7 @@ public class LayoutConfirmService {
 
 
     private final LayoutConfirmChecks checks;
+    private final LayoutColumnPins columnPins;
     private final LayoutVersionStore store;
     private final LayoutQueries queries;
     private final MdmLayoutRepository layoutRepository;
@@ -76,12 +80,13 @@ public class LayoutConfirmService {
     private final Clock clock;
     private final EntityManager entityManager;
 
-    public LayoutConfirmService(LayoutConfirmChecks checks, LayoutVersionStore store, LayoutQueries queries,
+    public LayoutConfirmService(LayoutConfirmChecks checks, LayoutColumnPins columnPins, LayoutVersionStore store, LayoutQueries queries,
                                 MdmLayoutRepository layoutRepository, VersionStateService stateService,
                                 ApplyFromOrderCheck applyFromOrderCheck, MdmNativeAuditSupport audit, MdmCurrentUser currentUser,
                                 Clock clock, EntityManager entityManager) {
         this.entityManager = entityManager;
         this.checks = checks;
+        this.columnPins = columnPins;
         this.store = store;
         this.queries = queries;
         this.layoutRepository = layoutRepository;
@@ -227,7 +232,9 @@ public class LayoutConfirmService {
         // 지금 분류·스냅샷은 상태·구간을 쓰지 않아 결과가 같지만, 그것을 보는 코드가 붙어도 조용히 틀리지 않게 한다
         entityManager.flush();
         entityManager.clear();
-        // 같은 트랜잭션 — 아래가 실패하면 확정도 되돌아간다
+        // 같은 트랜잭션 — 아래가 실패하면 확정도 되돌아간다. 고정(D-151)은 항목 엔티티를 읽지 않고 네이티브로 쓰므로 바로 앞 clear 뒤에
+        // 둔다 — 아래 분류·본문 스냅샷이 고정값이 든 항목 행을 새로 읽는다
+        columnPins.pin(id, ver);
         LayoutChangeClassifier.Change change = checks.classify(id, ver, applyFrom);
         String kinds = change.kinds().stream().map(Enum::name).collect(Collectors.joining(","));
         int n = store.recordConfirm(id, ver, change.switchMode(), kinds, change.summary(), checks.bodySnapshotJson(id, ver),
