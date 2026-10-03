@@ -54,17 +54,35 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup, CodeEf
         }
         Optional<MdmColumnMeta> meta = service.one(MdmTargetType.COLUMN, phys).map(MdmColumnMeta.class::cast);
         meta.map(MdmColumnMeta::codeRef).map(MdmColumnMeta.CodeRefMeta::maruCodeId).filter(id -> !id.isBlank())
-                .ifPresent(id -> service.oneAt(MdmTargetType.CODE, id, service.now())); // 목차 + 지금 시각 본문(스펙 §7.4)
+                .ifPresent(this::prefetchCode);
         return meta.map(m -> toColumnDefinition(m, table));
     }
 
+    /** 버전 경로는 목차 + 지금 시각 본문(스펙 §7.4), off 는 전 이력 한 키(지금 동작 — 목차를 만들지 않는다). */
+    private void prefetchCode(String maruCodeId) {
+        if (service.versioned()) {
+            service.oneAt(MdmTargetType.CODE, maruCodeId, service.now());
+        } else {
+            service.one(MdmTargetType.CODE, maruCodeId);
+        }
+    }
+
+    /** off 는 전 이력 목록에서 바로 고른다(지금 동작) — 조회마다 목차를 다시 만들지 않는다. 결과는 버전 경로와 같다({@code MdmVersionedEquivalenceTest}). */
     @Override
+    @SuppressWarnings("unchecked")
     public Optional<RuleDefinition> rule(String ruleId, Instant evalTs) {
+        if (!service.versioned()) {
+            return service.one(MdmTargetType.RULE, ruleId).flatMap(v -> select((List<RuleDefinition>) v, evalTs));
+        }
         return service.oneAt(MdmTargetType.RULE, ruleId, evalTs).map(MdmMetaService.MdmAt::body).map(RuleDefinition.class::cast);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
+        if (!service.versioned()) {
+            return service.one(MdmTargetType.RULE_SET, setId).flatMap(v -> selectSet((List<RuleSetDefinition>) v, evalTs));
+        }
         return service.oneAt(MdmTargetType.RULE_SET, setId, evalTs).map(MdmMetaService.MdmAt::body).map(RuleSetDefinition.class::cast);
     }
 
@@ -96,7 +114,11 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup, CodeEf
      * 전문의 판정 시각 스냅샷({@code MdmLayoutSnapshot} 모양의 맵) — 그 시각에 적용되는 RELEASED 버전과, 그 버전 안에서 시각을 담는 합성
      * 구간. 전문이 없거나 그 시각에 적용되는 버전이 없으면 빈 값, 받을 수 없으면(MDM 이 합성하지 못한 전문 포함) {@link MdmUnavailableException}.
      */
+    @SuppressWarnings("unchecked")
     public Optional<Map<String, Object>> layout(String layoutId, Instant evalTs) {
+        if (!service.versioned()) {
+            return service.one(MdmTargetType.LAYOUT, layoutId).flatMap(v -> selectLayout((List<MdmLayoutVersion>) v, evalTs));
+        }
         return service.oneAt(MdmTargetType.LAYOUT, layoutId, evalTs).map(MdmMetaService.MdmAt::body).map(MdmLayoutVersion.class::cast)
                 .flatMap(v -> segmentAt(v, LocalDateTime.ofInstant(evalTs, KST)));
     }

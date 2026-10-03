@@ -111,12 +111,21 @@ public final class MdmCachedDefinitions implements DefinitionLookup, CodeLookup,
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Optional<RuleDefinition> rule(String ruleId, Instant evalTs) {
+        if (!service.versioned()) {
+            // off: 캐시의 전 이력 목록에서 바로 고른다(지금 동작) — 평가 중 행·룰마다 불리므로 목차를 다시 만들지 않는다
+            return read(MdmTargetType.RULE, ruleId).map(list -> MdmDefinitionLookup.select((List<RuleDefinition>) list, evalTs));
+        }
         return at(MdmTargetType.RULE, ruleId, evalTs).map(RuleDefinition.class::cast);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
+        if (!service.versioned()) {
+            return read(MdmTargetType.RULE_SET, setId).map(list -> MdmDefinitionLookup.selectSet((List<RuleSetDefinition>) list, evalTs));
+        }
         return at(MdmTargetType.RULE_SET, setId, evalTs).map(RuleSetDefinition.class::cast);
     }
 
@@ -160,7 +169,7 @@ public final class MdmCachedDefinitions implements DefinitionLookup, CodeLookup,
         return (MdmCodeVersion) body.value();
     }
 
-    /** 룰·세트 — 캐시의 목차로 판정 시각의 버전을 고르고 그 본문. 목차·본문이 캐시에 없으면 부재 기록 후 빈 값, 적용 버전이 없어도 빈 값. */
+    /** 룰·세트(버전 경로) — 캐시의 목차로 판정 시각의 버전을 고르고 그 본문. 목차·본문이 캐시에 없으면 부재 기록 후 빈 값, 적용 버전이 없어도 빈 값. */
     private Optional<Object> at(MdmTargetType type, String key, Instant evalTs) {
         MdmMetaService.CachedRead toc = service.cachedToc(type, key);
         if (!toc.cached()) {
