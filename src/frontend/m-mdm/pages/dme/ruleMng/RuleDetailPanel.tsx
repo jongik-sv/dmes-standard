@@ -16,8 +16,13 @@
  *
  * <p>쓰기가 MDM001(row_version·auditVer 충돌)로 거부되면 룰 화면(`ruleEdit` useRuleEdit)과 같은 문구("다른 창에서 바뀌었습니다.
  * 다시 불러오세요")와 [다시 불러오기] 를 준다(판정·문구는 `@/dme/oasis-call` `writeFailure` 공용). 거부는 다시 불러오지 않아 입력이 남는다.
+ *
+ * <p>같은 룰을 다시 읽어도(행 다시 누르기·[조회]·버전 쓰기 뒤) 저장하지 않은 헤더 입력은 말없이 지우지 않는다(2026-10-03).
+ * 입력은 남기고 저장에는 입력을 시작할 때의 auditVer 를 보낸다 — 그사이 다른 창에서 헤더가 바뀌었으면 서버가 MDM001 로
+ * 거부해 위 [다시 불러오기] 로 이어진다(버전 쓰기는 룰 헤더 VER 을 올리지 않아 자기 쓰기로 거짓 충돌이 나지 않는다).
+ * 입력을 버리는 길은 [다시 불러오기] 하나다.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
@@ -89,6 +94,10 @@ const versionColumns: GridColumn[] = [
   { key: "hitPolicy", header: "적중 정책", width: 90 },
 ];
 
+function sameForm(a: HeaderForm, b: HeaderForm): boolean {
+  return a.maruRuleName === b.maruRuleName && a.description === b.description && a.usageNote === b.usageNote;
+}
+
 export interface RuleDetailPanelProps {
   view: RuleMngView;
   /** 상세 재조회 — 쓰기 뒤 row_version·auditVer 을 맞춰야 한다. */
@@ -112,11 +121,23 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
     [header],
   );
   const [form, setForm] = useState<HeaderForm>(initial);
+  // 폼이 기대는 서버 헤더의 auditVer — 입력을 남긴 채 다시 읽으면 옛 값을 그대로 둔다.
+  const [formAuditVer, setFormAuditVer] = useState(header.auditVer);
   const [confirmDeprecate, setConfirmDeprecate] = useState(false);
+  const formRef = useRef(form);
+  formRef.current = form;
+  const shown = useRef({ id, initial });
   useEffect(() => {
-    setForm(initial);
+    const prev = shown.current;
+    shown.current = { id, initial };
     setConfirmDeprecate(false);
-  }, [initial]);
+    // 같은 룰을 다시 읽었는데 사용자가 고친 칸이 있으면(이전 서버 값과도 새 서버 값과도 다르면) 입력을 남긴다.
+    // 헤더 저장 성공 뒤에는 입력이 새 서버 값과 같아 그대로 새 값·새 auditVer 로 맞춰진다.
+    const cur = formRef.current;
+    if (prev.id === id && !sameForm(cur, prev.initial) && !sameForm(cur, initial)) return;
+    setForm(initial);
+    setFormAuditVer(header.auditVer);
+  }, [id, initial, header.auditVer]);
 
   // ② 버전 — 선택은 이 화면이 갖고 있다(내용 화면은 읽기 전용 목록만 본다).
   const [selectedVer, setSelectedVer] = useState<string | null>(null);
@@ -132,7 +153,7 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
 
   const [handoverTo, setHandoverTo] = useState("");
 
-  const changed = form.maruRuleName !== initial.maruRuleName || form.description !== initial.description || form.usageNote !== initial.usageNote;
+  const changed = !sameForm(form, initial);
   const editable = flags.headerEditable && !external;
   const canSaveHeader = editable && !!form.maruRuleName.trim() && canDo("save") && !busy;
   const canDeprecate = editable && flags.canDeprecate && canDo("delete") && !busy;
@@ -201,7 +222,15 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
           style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", padding: "var(--spacing-sm) var(--spacing-sm) 0" }}
         >
           <span style={{ flex: "1 1 auto", color: "var(--color-danger)" }}>{CONFLICT_MESSAGE}</span>
-          <Button data-testid="rule-conflict-reload" disabled={busy} onClick={() => void reload()}>
+          <Button
+            data-testid="rule-conflict-reload"
+            disabled={busy}
+            onClick={() => {
+              // 입력을 먼저 지금 서버 값으로 되돌려야 다시 읽은 값으로 바뀐다(고친 칸이 있으면 남기는 규칙 때문).
+              setForm(initial);
+              void reload();
+            }}
+          >
             다시 불러오기
           </Button>
         </div>
@@ -288,7 +317,7 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
             variant="primary"
             data-testid="rule-header-save"
             disabled={!canSaveHeader || !changed}
-            onClick={() => void runWrite(() => saveHeader(id, form, header.auditVer))}
+            onClick={() => void runWrite(() => saveHeader(id, form, formAuditVer))}
           >
             헤더 저장
           </Button>
