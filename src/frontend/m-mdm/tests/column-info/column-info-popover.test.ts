@@ -181,6 +181,59 @@ describe("표시 도우미", () => {
     expect(descriptionFormat(null)).toBe("TEXT");
   });
 
+  // 백엔드 ColumnDescriptionFormatTest(D-150) 와 같은 판별 사례 표 — 한쪽 규칙만 바뀌면 이 표가 어긋난다. 표를 고치면 자바 시험도 함께 고친다.
+  it.each([
+    // 일반 글 — 아무 <…> 가 아니라 알려진 태그만 본다
+    ["a < b", "TEXT"],
+    ["Map<String>", "TEXT"],
+    ["List<Map<String, Object>>", "TEXT"],
+    ["<custom>", "TEXT"],
+    ["<custom>x</custom>", "TEXT"],
+    ["<script>alert(1)</script>", "TEXT"], // s 뒤에 c(단어 글자)가 와서 단어 경계가 아니다
+    ["<brx>", "TEXT"],
+    ["<h7>", "TEXT"],
+    ["<abbr>", "TEXT"],
+    ["<sub>2</sub>", "TEXT"], // 소독 허용 목록에는 있지만 판별 목록에는 없다
+    ["< p>", "TEXT"], // < 바로 뒤가 태그 이름이 아니다
+    ["<p", "TEXT"], // 닫는 > 가 없다
+    ["", "TEXT"],
+    ["   ", "TEXT"],
+    // HTML
+    ["<p>x</p>", "HTML"],
+    ["<BR/>", "HTML"], // 대소문자 무시, / 앞이 단어 경계
+    ["<br>", "HTML"],
+    ["</div>", "HTML"], // 닫는 태그만 있어도
+    ["<pre>코드</pre>", "HTML"], // p 가 실패하면 pre 로 다시 맞춘다
+    ["<h3>제목</h3>", "HTML"],
+    ['<a href="https://example.com">링크</a>', "HTML"],
+    ['<P CLASS="x">', "HTML"],
+    ['<p\n class="x">본문</p>', "HTML"], // 속성 사이 줄바꿈
+    ['앞 글 <img src="https://example.com/a.png"> 뒤 글', "HTML"], // 글 중간에서도 찾는다
+    ["<b한>", "HTML"], // 이름 뒤 글자가 A-Za-z0-9_ 가 아니면 경계다 — 한글은 경계
+    ["<i\u0307>", "HTML"], // 결합 문자 U+0307 도 A-Za-z0-9_ 가 아니라 경계다(자바 \b 는 결합 문자를 단어의 일부로 봐 어긋났다)
+    ["<hr>", "HTML"],
+    ["<s>취소</s>", "HTML"],
+    ["<td>칸</td>", "HTML"],
+    ["List<A>", "HTML"], // 알려진 한계 — 알려진 태그 a 와 같은 모양이면 HTML 이다
+  ])("descriptionFormat(%j) = %s — 백엔드와 같은 표", (text, format) => {
+    expect(descriptionFormat(text)).toBe(format);
+  });
+
+  // 사례 표의 한 줄(TEXT, 시간 상한) — > 가 태그 이름보다 앞에만 있는 상한(20,000자) 안의 긴 입력도 판별이 선형이다.
+  // 이름 뒤 [^>]*> 되추적은 O(n²)라 이 입력 하나에 60ms 남짓 걸렸고, 편집 칸은 입력할 때마다 판별한다.
+  it("descriptionFormat — 닫는 꺾쇠가 없는 긴 입력도 판별이 빠르다", () => {
+    const text = ">" + "<p".repeat(50_000);
+    const started = performance.now();
+    expect(descriptionFormat(text)).toBe("TEXT");
+    // 옛 꼴은 이 입력에 약 7.9초, 새 꼴은 0.15ms 이하 — 문턱은 부하가 큰 개발 PC 의 흔들림을 넉넉히 견디게 둔다.
+    expect(performance.now() - started).toBeLessThan(200);
+  });
+
+  it("descriptionFormat — null·undefined 는 일반 글이다", () => {
+    expect(descriptionFormat(null)).toBe("TEXT");
+    expect(descriptionFormat(undefined)).toBe("TEXT");
+  });
+
   it("domainTypeLabel·termsLabel", () => {
     expect(domainTypeLabel({ dataType: "VARCHAR", length: 20, scale: null })).toBe("VARCHAR(20)");
     expect(domainTypeLabel({ dataType: "NUMBER", length: null, scale: null })).toBe("NUMBER");

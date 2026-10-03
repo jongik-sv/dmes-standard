@@ -1,3 +1,5 @@
+/** @vitest-environment happy-dom */
+
 import { describe, expect, it } from "vitest";
 import {
   PLACEHOLDER_ERROR,
@@ -47,5 +49,19 @@ describe("toSaveParams", () => {
     expect(params.domainId).toBe(12);
     expect(params.required).toBe(true);
     expect(params.columnName).toBe("원재료 코일 두께");
+  });
+
+  it.each(["<p><br></p>", "<p> </p>\n<p><br></p>", "<p>&nbsp;</p>", "<h2></h2>"])(
+    "원문 모드에서 글자 없는 HTML %j 은 빈 값으로 보낸다",
+    (html) => {
+      const params = toSaveParams(form({ description: html, usageNote: html }));
+      expect(params.description).toBe("");
+      expect(params.usageNote).toBe("");
+    }
+  );
+
+  it("그림·구분선만 있는 HTML 이나 글자 있는 HTML·일반 글은 그대로 보낸다", () => {
+    const keep = ['<p><img src="https://a.com/x.png"></p>', "<hr>", "<p>글</p>", "일반 글", ""];
+    for (const v of keep) expect(toSaveParams(form({ description: v })).description).toBe(v);
   });
 });

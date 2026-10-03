@@ -63,7 +63,8 @@ export const NOTICE_BODY_VIEW_CSS = `
 
 const noopSubscribe = () => () => {};
 
-function NoticeBodyViewStyle() {
+/** 문서 서식 스타일(`.nbv`·`.nbv-doc`) — html-editor 서식 편집 칸이 읽기 모습과 같은 글 모양을 쓰려고 함께 넣는다. */
+export function NoticeBodyViewStyle() {
   return (
     <style href={STYLE_HREF} precedence="default">
       {NOTICE_BODY_VIEW_CSS}

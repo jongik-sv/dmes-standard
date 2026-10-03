@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.feed.metaFeed.service;
 
+import com.dongkuk.dmes.mdm.common.dictionary.ColumnDescriptionFormat;
+import com.dongkuk.dmes.mdm.common.dictionary.ColumnDescriptionSanitizer;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainChainAssembler;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainNode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeReader;
@@ -173,16 +175,24 @@ public class MetaFeedDictionary {
         }
     }
 
+    /**
+     * 컬럼 값 하나. 설명이 HTML 이면 저장된 값을 한 번 더 소독해 {@code descriptionHtml} 에, 그 글자만 {@code description} 에 싣는다(옛 데이터
+     * 방어, D-150). 소독은 한 번만 하고 두 칸을 같은 정규화 값에서 만든다. 활용처 메모도 HTML 이면 글자만 싣는다({@code usageNoteHtml} 칸은
+     * 없다). 소독 뒤 알려진 태그가 남지 않는 옛 데이터는 {@code <p>} 로 감싼 HTML 로 싣는다({@link ColumnDescriptionSanitizer#normalize}).
+     * {@code description}·{@code usageNote} 는 늘 글자로 그리는 칸이다 — 소비자가 형식을 다시 판별하지 않는다(백엔드 가이드 §11).
+     */
     static ColumnMeta columnMeta(MdmColumn c, Chain chain, String matchedSystem, String systemPhysName) {
         EffectiveDomainView v = chain == null ? null : chain.view();
+        String normalized = ColumnDescriptionSanitizer.normalize(c.getDescription());
+        String descriptionHtml = ColumnDescriptionFormat.isHtml(normalized) ? normalized : null;
         return new ColumnMeta(
                 c.getPhysName().toUpperCase(Locale.ROOT),
                 c.getColumnName(),
                 c.getLabelLong(),
                 c.getLabelMid(),
                 c.getLabelShort(),
-                c.getDescription(),
-                c.getUsageNote(),
+                ColumnDescriptionSanitizer.plainTextOfNormalized(normalized),
+                ColumnDescriptionSanitizer.plainText(c.getUsageNote()),
                 v == null ? null : v.dataType(),
                 v == null ? null : v.length(),
                 v == null ? null : v.scale(),
@@ -197,7 +207,8 @@ public class MetaFeedDictionary {
                 v == null || v.bizRequiredVars() == null ? List.of() : v.bizRequiredVars(),
                 v == null || v.codeRef() == null ? null : new CodeRefMeta(v.codeRef().maruCodeId(), v.codeRef().cateId()),
                 matchedSystem,
-                systemPhysName);
+                systemPhysName,
+                descriptionHtml);
     }
 
     static DomainMeta domainMeta(Chain chain) {
