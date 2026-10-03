@@ -11,9 +11,13 @@ be-run.ps1 — 백엔드 모듈(local 프로파일) 실행 스크립트 (Windows
   .\be-run.ps1 --all        # 전체 모듈
   .\be-run.ps1 --mcm        # mcm 만
   .\be-run.ps1 --mcm --mpn  # 여러 모듈 조합
+  .\be-run.ps1 --all --dry-run  # 아무것도 끄거나 띄우지 않고, 실행할 명령만 출력
 
 모듈 플래그: --mpn --mcm --mls --mqc --mpp --analog
 --all 은 6개 JVM 을 동시에 띄운다. 메모리가 빠듯하면 필요한 모듈만 골라 쓴다.
+
+모듈을 2개 이상 띄우면 기동 전에 src\backend 루트 composite 에서 Gradle 한 번으로 선빌드한다
+(공유 includeBuild 를 여러 bootRun 이 동시에 빌드하지 않게). 건너뛰려면 BE_PREBUILD=0.
 
 대상 포트를 이미 물고 있는 프로세스가 있으면 정리하고 시작한다.
   .\be-run.ps1 --keep-port  # 회수하지 않고 "점유 중" 으로 중단
@@ -130,10 +134,12 @@ if (-not $ScriptArgs -or $ScriptArgs.Count -eq 0) {
 
 $Selected = New-Object System.Collections.Generic.List[string]
 $KeepPort = $false
+$DryRun   = $false
 foreach ($arg in $ScriptArgs) {
     switch -Regex ($arg) {
         '^--(all|full)$'   { foreach ($m in $BeModules.Keys) { if (-not $Selected.Contains($m)) { $Selected.Add($m) } } }
         '^--keep-port$'    { $KeepPort = $true }
+        '^--dry-run$'      { $DryRun = $true }
         '^--(mpn|mcm|mls|mqc|mpp|analog)$' {
             $m = $arg.Substring(2)
             if (-not $Selected.Contains($m)) { $Selected.Add($m) }
@@ -147,6 +153,114 @@ if ($Selected.Count -eq 0) {
     exit 2
 }
 
+# 모듈 전용 wrapper 가 있으면 그것을, 없으면 src\backend 공용 wrapper 를 쓴다.
+function Get-ModuleGradlew {
+    param([string] $Module)
+    $local = Join-Path (Join-Path $BackendDir $Module) 'gradlew.bat'
+    if (Test-Path $local) { return $local }
+    return (Join-Path $BackendDir 'gradlew.bat')
+}
+
+# ── 선빌드 ───────────────────────────────────────────────────
+# 모듈마다 따로 bootRun 을 띄우면 Gradle 프로세스 여러 개가 공유 includeBuild(cactus-core·mcm-core·
+# maru-mdm-engine 등)를 동시에 빌드하며 서로의 build\classes·jar 를 덮어쓴다. 그래서 모듈이 2개 이상이면
+# 기동 전에 src\backend 루트 composite 에서 Gradle 한 번으로 bootRun 이 쓰는 산출물(classes·jar)을 먼저 만든다.
+# includeBuild 의 실행 기록은 각 빌드 폴더의 .gradle 에 남으므로, 이어서 모듈 폴더에서 도는 bootRun 은
+# 컴파일·jar 가 모두 UP-TO-DATE 라 기동만 한다(기동 방식·프로파일·로그는 종전 그대로).
+# 선빌드할 태스크는 손으로 적지 않고, 선택 모듈의 bootRun 을 -m(실행 없이 계획만)으로 돌려 나온 태스크에서
+# bootRun 만 뺀다. 계획이나 선빌드가 실패해도 기동은 종전처럼 진행한다.
+# (dmes-up.ps1 의 직렬 warm-up 을 이 단계가 대신한다.)
+$BackendGradlew = Join-Path $BackendDir 'gradlew.bat'
+$script:PrebuildPlanOutput = @()
+
+function Test-PrebuildEnabled {
+    $flag = $env:BE_PREBUILD
+    if (-not $flag) { $flag = Read-RunEnvValue 'BE_PREBUILD' }
+    return ($flag -ne '0' -and $Selected.Count -ge 2)
+}
+
+function Get-PrebuildPlanArgs {
+    return @($Selected | ForEach-Object { ':{0}:api:bootRun' -f $_ })
+}
+
+# 선빌드할 태스크 목록. 계획 실패·빈 목록이면 빈 배열.
+function Get-PrebuildTasks {
+    $planArgs = Get-PrebuildPlanArgs
+    # Gradle 은 경고를 stderr 로 쓴다. 'Stop' 아래에서 2>&1 로 받으면 NativeCommandError 로 스크립트가 멈추므로
+    # 이 블록 안에서만 'Continue' 로 둔다.
+    $script:PrebuildPlanOutput = @(& {
+        $ErrorActionPreference = 'Continue'
+        Push-Location $BackendDir
+        try { & $BackendGradlew @planArgs '-m' '-q' '--console=plain' 2>&1 | ForEach-Object { "$_" } }
+        finally { Pop-Location }
+    })
+    if ($LASTEXITCODE -ne 0) { return @() }
+
+    $tasks = New-Object System.Collections.Generic.List[string]
+    foreach ($line in $script:PrebuildPlanOutput) {
+        $l = $line.TrimEnd("`r")
+        if ($l -match '^(:\S+) SKIPPED$') {
+            $task = $Matches[1]
+            if ($task -notmatch ':bootRun$') { $tasks.Add($task) }
+        }
+    }
+    return $tasks.ToArray()
+}
+
+function Write-PrebuildPlanFailure {
+    Write-DevError '선빌드 계획(gradlew -m) 실패 — 선빌드 없이 종전처럼 모듈별 bootRun 으로 기동한다.'
+    $script:PrebuildPlanOutput | Select-Object -Last 15 | ForEach-Object { Write-DevLog 'be-build' $_ }
+}
+
+function Invoke-Prebuild {
+    $tasks = @(Get-PrebuildTasks)
+    if ($tasks.Count -eq 0) { Write-PrebuildPlanFailure; return }
+
+    Write-DevLog 'be' "선빌드 시작 (태스크 $($tasks.Count)개, Gradle 1회) — cwd=$BackendDir"
+    & {
+        $ErrorActionPreference = 'Continue'
+        Push-Location $BackendDir
+        try { & $BackendGradlew @tasks '--continue' '--console=plain' 2>&1 | ForEach-Object { Write-DevLog 'be-build' "$_" } }
+        finally { Pop-Location }
+    }
+    $rc = $LASTEXITCODE
+    if ($rc -eq 0) {
+        Write-DevLog 'be' '선빌드 완료 — 이어서 모듈별 bootRun 은 컴파일 없이 기동한다.'
+    } else {
+        Write-DevError "선빌드 실패 (exit=$rc) — 그래도 모듈별 bootRun 으로 기동한다. 실패한 모듈은 자기 로그에 같은 오류를 다시 낸다."
+    }
+}
+
+# ── 드라이런 ─────────────────────────────────────────────────
+# 이전 인스턴스 종료·포트 회수보다 앞에서 끝낸다 — 아무 프로세스도 끄거나 띄우지 않는다.
+# 선빌드 태스크 목록을 보이려고 gradlew -m(계획만, 태스크 실행 없음)만 한 번 부른다.
+if ($DryRun) {
+    Write-DevLog 'be' "[dry-run] 기동 대상: $($Selected -join ' ')"
+    $ports = ($Selected | ForEach-Object { $BeModules[$_] }) -join ' '
+    if ($KeepPort) { Write-DevLog 'be' "[dry-run] 포트 점유 시 중단(--keep-port): $ports" }
+    else           { Write-DevLog 'be' "[dry-run] 이전 be-run 인스턴스 종료 뒤 포트 회수: $ports" }
+
+    if (Test-PrebuildEnabled) {
+        Write-DevLog 'be' "[dry-run] 1) 선빌드 계획: (cd $BackendDir) $BackendGradlew $((Get-PrebuildPlanArgs) -join ' ') -m -q --console=plain"
+        $tasks = @(Get-PrebuildTasks)
+        if ($tasks.Count -gt 0) {
+            Write-DevLog 'be' "[dry-run] 2) 선빌드 (Gradle 1회, 태스크 $($tasks.Count)개): (cd $BackendDir) $BackendGradlew <아래 태스크> --continue --console=plain"
+            foreach ($t in $tasks) { Write-DevLog 'be' "[dry-run]      $t" }
+        } else {
+            Write-PrebuildPlanFailure
+        }
+    } else {
+        Write-DevLog 'be' '[dry-run] 선빌드 생략 (모듈 1개 또는 BE_PREBUILD=0) — 종전처럼 bootRun 이 직접 빌드한다.'
+    }
+
+    Write-DevLog 'be' '[dry-run] 기동 순서 (각자 백그라운드, 로그 접두어 [be-<모듈>]):'
+    foreach ($m in $Selected) {
+        $gw = Get-ModuleGradlew -Module $m
+        Write-DevLog 'be' "[dry-run]   be-$m :$($BeModules[$m]) — (cd $(Join-Path $BackendDir $m)) cmd /c `"`"$gw`" :api:bootRun --args=--spring.profiles.active=local --console=plain`""
+    }
+    exit 0
+}
+
 # ── 사전 점검 ────────────────────────────────────────────────
 foreach ($m in $Selected) {
     $dir = Join-Path $BackendDir $m
@@ -155,13 +269,6 @@ foreach ($m in $Selected) {
 # local 프로파일 SQLite 경로 — 모든 모듈 application.yml 이 ../data/{모듈}.db 를 가리킨다.
 $null = New-Item -ItemType Directory -Force -Path (Join-Path $BackendDir 'data')
 
-# 모듈 전용 wrapper 가 있으면 그것을, 없으면 src\backend 공용 wrapper 를 쓴다.
-function Get-ModuleGradlew {
-    param([string] $Module)
-    $local = Join-Path (Join-Path $BackendDir $Module) 'gradlew.bat'
-    if (Test-Path $local) { return $local }
-    return (Join-Path $BackendDir 'gradlew.bat')
-}
 
 # ── 이전 실행 인스턴스 종료 ──────────────────────────────────
 # 포트만 뺏으면 이전 be-run 이 "내 모듈이 다 죽었다" 고 판단해 뒤늦게 cleanup 을 돌린다.
@@ -218,6 +325,9 @@ function Clear-PortListener {
 foreach ($m in $Selected) {
     if (-not (Clear-PortListener -Port $BeModules[$m] -Tag "be-$m")) { exit 1 }
 }
+
+# 포트 회수 뒤에 돈다 — Windows 는 실행 중인 JVM 이 쥔 jar 를 덮어쓰지 못한다.
+if (Test-PrebuildEnabled) { Invoke-Prebuild }
 
 # ── 실행 ─────────────────────────────────────────────────────
 # gradlew.bat 은 배치 파일이라 CreateProcess 로 직접 띄울 수 없다 — 반드시 cmd.exe /c 로 감싼다.
