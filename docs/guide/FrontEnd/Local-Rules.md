@@ -302,6 +302,7 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 - 표시용 파생 열(`CATEGORY_LABEL` 등)처럼 물리명과 맞지 않는 열은 `header` 를 적고, `captionPriority="mdm"` 화면에서는 `meta: false` 로 연결을 끈다(사전에 우연히 같은 이름이 생겨도 머리글이 바뀌지 않게, 묻는 이름도 줄인다). 다른 물리명이 맞으면 `meta="물리명"`, 엉뚱하게 맞으면 `meta: false`. 엑셀 내보내기 등에서 `header` 를 읽을 때는 `useResolvedGridColumns(COLUMNS)` 결과를 쓴다.
 - `FormGroup` 을 쓰는 입력은 `name`(화면 필드 이름)을 주고 `label` 을 생략하면 MDM 폼 캡션·툴팁이 붙는다(§7 의 `tip` 은 적으면 이긴다).
 - **th/td 상세 표 라벨은 `MdmFieldLabel`**: 상세 표(`DETAIL_*`)는 `FormGroup` 을 쓰지 않으므로 th 안에 `<MdmFieldLabel name="TITLE" label="제목" required />` 을 둔다(캡션 우선순위는 `FormGroup` 과 같고, 사전에 있으면 라벨에 올릴 때 MDM 컬럼·도메인 카드 툴팁이 뜬다. 사전에 없거나 포털 밖이면 `label` 글자 그대로). th 에 `{caption} *` 를 손으로 그리거나 `resolveCaption` 으로 라벨만 만들지 않는다.
+- **컬럼 설명이 HTML(`descriptionHtml`)이면 화면이 직접 그리지 않는다** — 카드(`MdmMetaCard`)가 브라우저에서 한 번 더 소독해 그리고, 그 카드만 마우스가 들어갈 수 있는 넓은 툴팁(640px·설명 60vh 스크롤·Escape 닫기)이 된다. 그리드 `tooltipInteraction` 도 shared 가 HTML 열이 있는 그리드에서만 켠다(화면이 켜지 않는다). 상세: [mdm-meta](../../../.claude/skills/mantine-aggrid-ui/references/components/mdm-meta.md) §HTML 설명·상호작용 툴팁.
 
 **값 검증**
 

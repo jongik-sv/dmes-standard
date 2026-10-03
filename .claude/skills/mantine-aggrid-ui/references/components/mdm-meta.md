@@ -2,7 +2,7 @@
 
 그리드 머리글·폼 라벨·상세 표(th) 라벨의 캡션과 툴팁을 MDM 컬럼 사전에서 가져오고, 입력값을 MDM 정의(필수·형식·길이·허용 코드·표준식)로 즉시 검사할 때 쓴다. 포털 탭이 공급자를 자동으로 씌우므로 캡션·툴팁은 화면이 아무것도 하지 않아도 붙는다. 값 검사는 화면이 켠다.
 
-- import: `import { MdmMetaProvider, useMdmColumn, useMdmColumns, MdmMetaCard, MdmFieldLabel, resolveCaption, toPhysName, useMdmValidation, validateMdmValue, codePointLength } from "@dk-oasis/shared/mdm-meta";` (CSS import 없음. 툴팁 모양은 호스트가 싣는 `@dk-oasis/shared/form.css` 의 `.form-tip-text` 를 쓴다)
+- import: `import { MdmMetaProvider, useMdmColumn, useMdmColumns, MdmMetaCard, MdmFieldLabel, mdmCardHasHtml, resolveCaption, toPhysName, useMdmValidation, validateMdmValue, codePointLength } from "@dk-oasis/shared/mdm-meta";` (CSS import 없음. 툴팁 모양은 호스트가 싣는 `@dk-oasis/shared/form.css` 의 `.form-tip-text` 를 쓴다)
 - 서버 오류 → 칸 오류: `import { toFieldErrors } from "@dk-oasis/shared/http";`
 - 소스: `src/frontend/shared/src/mdm-meta/`(`context.tsx`·`store.ts`·`caption.ts`·`names.ts`·`MdmMetaCard.tsx`·`MdmFieldLabel.tsx`·`validate.ts`), `src/frontend/shared/src/components/form/useHoverTip.tsx`(FormGroup 과 MdmFieldLabel 이 함께 쓰는 내부 포털 툴팁 — 화면은 직접 쓰지 않는다), `src/frontend/shared/src/http/index.ts`(`toFieldErrors`)
 - 설계: `docs/superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md` §2 B1~B8·C1·C2·C5·C9, §4, §5
@@ -80,6 +80,20 @@ const issue = column ? validateMdmValue(column, v) : null;   // 같은 column �
 - 빈 칸은 입력 중에는 검사하지 않는다(필수는 저장 때). 예: `m-mls/pages/lsh/noticeMgmt/NoticeTitleRow.tsx`.
 - 라벨 글자가 툴팁 트리거지만 Tab 순서에는 들지 않는다(`tabIndex` -1). 입력 화면에서 Tab 이 라벨마다 멈추지 않게 하려는 것이다. 툴팁은 마우스 hover 로 연다.
 
+### HTML 설명·상호작용 툴팁(2026-10-03)
+
+MDM 이 컬럼 설명을 HTML 로 저장하면 화면 메타(`MdmScreenColumn`)에 `descriptionHtml` 이 실린다. 값은 MDM 서버가 소독한 HTML 이고, 그때 `description` 은 거기서 뽑은 글자다. 일반 글 설명이거나 옛 모듈 응답이면 `null`(또는 칸 없음)이다. `usageNote` 는 늘 글자다. 화면은 할 일이 없다 — 카드와 툴팁이 알아서 바뀐다.
+
+- 카드(`MdmMetaCard`)는 HTML 을 우선한다. 브라우저에서 `sanitizeNoticeHtml`(notice-body-view 의 DOMPurify 소독)로 **한 번 더** 소독한 결과만 넣는다. script·style·on* 속성·인라인 style·http/https 가 아닌 링크는 빠지고, 링크는 새 탭(`target="_blank" rel="noopener noreferrer"`)이다.
+- 설명 칸은 `data-mdm-section="description"` 그대로이고, HTML 을 그리면 `data-mdm-html="true"` 가 붙는다. 사용 메모는 HTML 아래 글자로 둔다.
+- 소독할 수 없거나(서버 렌더 — 하이드레이션 뒤 HTML 로 바뀐다) 소독 뒤 남는 게 없으면 `description` 글자를 그린다.
+- 모양: HTML 카드만 최대 폭 640px(`MDM_META_CARD_HTML_MAX_WIDTH`), 설명 칸은 최대 높이 60vh(`MDM_META_CARD_HTML_MAX_HEIGHT`)에 세로 스크롤. 문단·목록·표·그림 서식은 카드가 `<style href precedence>` 로 문서 머리에 한 번 싣는다(색은 툴팁 글자색을 따른다). **일반 글 카드는 모양·크기·동작이 예전 그대로다.**
+- 상호작용 툴팁: HTML 카드를 띄울 때만 마우스가 툴팁 안으로 들어갈 수 있다(링크 누르기·스크롤).
+  - `FormGroup`·`MdmFieldLabel`(내부 `useHoverTip` interactive): 상자 `pointer-events:auto`(`data-tip-interactive="true"`)·최대 폭 640px. 트리거를 떠나도 150ms(`HOVER_TIP_GRACE_MS`) 유예하고 그 사이 상자에 들어가면 유지, 상자를 나가면 유예 뒤 닫힌다. Escape 로 닫힌다. 화면 안에 들도록 상자 높이를 줄이고 넘치면 상자 안에서 스크롤한다. 위쪽 공간 판정은 큰 카드(60vh+120px)로 한다. 화면이 `FormGroup tip` 을 주면 HTML 메타가 있어도 예전 툴팁이다.
+  - 스크린리더 사본(`.form-sr-only`, `aria-describedby`)은 HTML 이 아니라 `description` 글자다(`MdmMetaCard textOnly`) — 보이지 않는 링크가 Tab 순서에 들지 않게.
+  - `AgDataGrid`: 머리글 툴팁이 HTML 카드인 열이 하나라도 있는 그리드만 ag-grid `tooltipInteraction` 을 켠다(그 밖의 그리드는 속성 자체를 넘기지 않는다). 상자는 최대 폭 640px·`pointer-events:auto`(ag-grid 는 감싸개에만 interactive 클래스를 달아 상자에는 직접 둔다). 유예는 ag-grid 고정값 100ms 다. Escape 로 닫힌다(툴팁 밖 keydown 은 ag-grid 가, 툴팁 안 focus 때는 카드가 `hideTooltipCallback` 으로 닫는다). `tooltipInteraction` 은 그리드 단위라 그 그리드의 셀 툴팁도 마우스가 들어갈 수 있다. ag-grid 초기 속성이라 메타가 그리드를 만든 뒤 오면 머리글을 한 번 다시 만든다(`refreshHeader`).
+- 화면이 카드를 직접 쓸 때 HTML 카드 여부는 `mdmCardHasHtml(column)`.
+
 ### 화면 값 검증(C, 2026-10-03)
 
 판정과 문구는 서버 저장 검증(cactus-core `MdmValidator`)과 같다. 순서: 빈 값(공백만 포함) → 필수 → 타입 → 길이·소수 자리 → 허용 코드 → 도메인 표준식, 첫 실패에서 멈춘다.
@@ -145,8 +159,9 @@ async function save() {
 |---|---|---|---|
 | column | `MdmScreenColumn` | 필수 | 컬럼 메타 |
 | domain | `MdmDomainMeta \| null` | 없음 | 도메인 메타(단위·도메인 표준식) |
+| textOnly | `boolean` | `false` | 설명을 HTML 대신 `description` 글자로 그린다 — 스크린리더용 숨은 사본에 쓴다. 일반 글 카드에는 영향 없음 |
 
-순서: 제목(`labelLong`)+물리명 → 설명·사용 메모 → 형식(`STRING(20)`·`NUMBER(3,1)`)·필수·기본값 → 도메인(ID·종류)·단위 → 표준식 → 허용 코드 앞 10개("외 N개") → 서버 업무 규칙 안내. 글자색·배경은 감싸는 툴팁을 따른다. 컬럼이 시스템 별칭으로 맞았으면(`MdmScreenColumn.matchedSystem`·`systemPhysName` 이 둘 다 있으면) 제목 바로 아래에 "MES 이름 {별칭} · 표준 {physName}" 한 줄(`data-mdm-section="alias"`)이 더해진다 — 표준 이름으로 맞았거나 옛 모듈 응답(두 칸 없음)이면 그 줄이 없다.
+순서: 제목(`labelLong`)+물리명 → 설명·사용 메모 → 형식(`STRING(20)`·`NUMBER(3,1)`)·필수·기본값 → 도메인(ID·종류)·단위 → 표준식 → 허용 코드 앞 10개("외 N개") → 서버 업무 규칙 안내. 글자색·배경은 감싸는 툴팁을 따른다. 컬럼이 시스템 별칭으로 맞았으면(`MdmScreenColumn.matchedSystem`·`systemPhysName` 이 둘 다 있으면) 제목 바로 아래에 "MES 이름 {별칭} · 표준 {physName}" 한 줄(`data-mdm-section="alias"`)이 더해진다 — 표준 이름으로 맞았거나 옛 모듈 응답(두 칸 없음)이면 그 줄이 없다. 설명이 HTML(`descriptionHtml`)이면 위 §HTML 설명·상호작용 툴팁.
 
 ### MdmFieldLabel
 
@@ -162,7 +177,7 @@ th 안이나 아무 라벨 자리에 넣는 인라인 라벨(`FormGroup` 을 쓰
 | className | `string` | 없음 | 라벨 글자 span 에 붙는다. 메타가 없을 때도 값이 있으면 span 으로 감싼다 |
 | style | `CSSProperties` | 없음 | 위와 같다 |
 
-툴팁(메타가 있을 때): 글자 `span.form-tip-trigger` 에 마우스를 올리거나 포커스가 들어오면 `document.body` 에 `.form-tip-text.form-tip-text--portal`(position: fixed, 최상단)로 `MdmMetaCard` 가 뜬다. 위치·위/아래 판정·가장자리 보정은 `FormGroup` 과 같고, 앵커는 라벨 글자다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두어 th 글자와 접근 이름을 늘리지 않는다. 상자 폭은 form.css 의 `.form-tip-text`(최소 220px·최대 320px, 위치는 오른쪽 가장자리에서 안쪽으로 당겨 최대 폭을 확보)가 정한다.
+툴팁(메타가 있을 때): 글자 `span.form-tip-trigger` 에 마우스를 올리거나 포커스가 들어오면 `document.body` 에 `.form-tip-text.form-tip-text--portal`(position: fixed, 최상단)로 `MdmMetaCard` 가 뜬다. 위치·위/아래 판정·가장자리 보정은 `FormGroup` 과 같고, 앵커는 라벨 글자다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두어 th 글자와 접근 이름을 늘리지 않는다. 상자 폭은 form.css 의 `.form-tip-text`(최소 220px·최대 320px, 위치는 오른쪽 가장자리에서 안쪽으로 당겨 최대 폭을 확보)가 정한다. HTML 설명 카드만 예외로 최대 폭 640px 의 상호작용 툴팁이다(§HTML 설명·상호작용 툴팁).
 
 ## 표준값: 모든 화면 동일
 
@@ -182,6 +197,8 @@ th 안이나 아무 라벨 자리에 넣는 인라인 라벨(`FormGroup` 을 쓰
 | 서버가 rowIndex 를 준 오류를 바뀐 행만 보낸 화면에서 그대로 `fieldErrors` 로 넘긴다 | 그리드는 rowIndex 를 `data` 의 자리로 본다. 행에 `rowKey` 를 실어 보내거나 rowIndex 를 data 자리로 바꿔 넘긴다 |
 | 화면 검사를 통과했으니 서버 오류는 없다고 본다 | 비즈니스식·룰 세트·화면이 못 하는 표준식은 서버만 본다. 저장 실패는 늘 `toFieldErrors` 로 칸에 보인다 |
 | 다른 모듈 화면의 부품을 띄웠는데 탭 모듈(pageId)로 메타를 찾는다 | 그 부분만 `MdmMetaProvider module="mqc"` 로 감싼다 |
+| `column.descriptionHtml` 을 화면에서 `dangerouslySetInnerHTML` 로 직접 그린다 | `MdmMetaCard` 를 쓴다 — 브라우저 소독·폭·스크롤·글자 대체가 들어 있다. HTML 이 따로 필요하면 `sanitizeNoticeHtml` 을 거친다 |
+| HTML 설명 툴팁이 안 닫힌다고 상자를 `pointer-events: none` 으로 덮는다 | 마우스가 들어가는 게 의도다. 나가면 150ms(그리드 100ms) 뒤, 또는 Escape 로 닫힌다 |
 
 ## 실제 사용 예
 
