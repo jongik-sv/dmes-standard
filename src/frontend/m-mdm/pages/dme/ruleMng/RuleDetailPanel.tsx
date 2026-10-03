@@ -102,15 +102,25 @@ function sameForm(a: HeaderForm, b: HeaderForm): boolean {
 
 export interface RuleDetailPanelProps {
   view: RuleMngView;
-  /** 상세 재조회 — 쓰기 뒤 row_version·auditVer 을 맞춰야 한다. */
-  reload: () => Promise<void>;
+  /**
+   * 상세 재조회 — 쓰기 뒤 row_version·auditVer 을 맞춰야 한다. 실제로 다시 읽었으면 true, 그사이 선택이 바뀌어 건너뛰었으면
+   * false 를 돌려준다.
+   */
+  reload: () => Promise<boolean>;
   canDo: (action: string) => boolean;
   busy: boolean;
+  /** 쓰기가 시작(+1)·끝(-1)날 때 — 쓰기 동안 목록 행 클릭을 받지 않게 페이지가 센다(codeMng 의 writing 과 같다). */
+  onWriting?: (delta: 1 | -1) => void;
   onError: (message: string) => void;
   onContentEdit: (ruleId: string, ver?: string) => void;
 }
 
-export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentEdit }: RuleDetailPanelProps) {
+export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, onContentEdit, onWriting }: RuleDetailPanelProps) {
+  // 진행 중인 쓰기 수 — 쓰기 동안 헤더 입력과 쓰기 단추를 잠근다. 저장 중에 또 고친 입력이 옛 auditVer 로 남거나 [헤더 저장]이
+  // 두 번 나가 거짓 MDM001 이 나지 않게 한다(재검토 I3). ref 는 같은 틱의 두 번째 누름까지 막는다.
+  const [writing, setWriting] = useState(0);
+  const writingRef = useRef(0);
+  const busy = pageBusy || writing > 0;
   const header: RuleHeader = view.header;
   const me = view.me ?? "";
   const flags = view.flags;
@@ -215,6 +225,10 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
   /** 쓰기 한 번 — 성공하면 상세 를 다시 불러 row_version·auditVer 을 맞춘다. 실패는 다시 불러오지 않는다(입력이 남는다). */
   const runWrite = useCallback(
     async (fn: () => Promise<unknown>, sentForm?: HeaderForm) => {
+      if (writingRef.current > 0) return;
+      writingRef.current += 1;
+      setWriting((n) => n + 1);
+      onWriting?.(1);
       try {
         await fn();
         if (sentForm) savedForm.current = sentForm;
@@ -223,9 +237,13 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
         const f = writeFailure(e);
         if (f.conflict) setConflict(true);
         onError(f.message);
+      } finally {
+        writingRef.current -= 1;
+        setWriting((n) => n - 1);
+        onWriting?.(-1);
       }
     },
-    [reload, onError],
+    [reload, onError, onWriting],
   );
 
   const set = (key: keyof HeaderForm, value: string) => setForm((p) => ({ ...p, [key]: value }));

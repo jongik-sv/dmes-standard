@@ -298,9 +298,10 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("품질 등급 판정");
   });
 
-  // 검토 I2 — 쓰기 뒤 다시 읽기가 누른 시점의 룰을 붙잡고 있으면, 쓰기 중에 고른 B 대신 A 를 더 새 순번으로 읽어 강조(B)와
-  // 상세(A)가 어긋났다. 다시 읽기는 지금 선택을 보고, 선택이 바뀌었으면 옛 룰을 읽지 않는다.
-  it("헤더 저장 응답을 기다리는 사이 다른 행을 누르면 저장이 끝나도 상세는 새로 고른 룰로 남는다", async () => {
+  // 검토 I2 — 쓰기 뒤 다시 읽기가 누른 시점의 룰을 붙잡고 있으면, 쓰기 중에 선택이 바뀌었을 때 옛 룰을 더 새 순번으로 읽어
+  // 강조와 상세가 어긋났다. 다시 읽기는 지금 선택을 보고, 선택이 바뀌었으면 옛 룰을 읽지 않는다. 쓰기 중 행 클릭은 막히므로(I3)
+  // 쓰기 중에도 선택을 바꿀 수 있는 [조회](고른 룰이 새 목록에 없으면 첫 줄, M3) 경로로 본다.
+  it("헤더 저장 응답을 기다리는 사이 [조회] 로 선택이 바뀌면 저장이 끝나도 상세는 새로 고른 룰로 남는다", async () => {
     await renderAndSearch();
     viewsById.COIL_WGT_CALC = draftDetail({
       header: { ...draftDetail().header, maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE" },
@@ -309,7 +310,8 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     const slowSave = gate();
     holdActions.save = slowSave.until;
     await act(async () => findButton(container, "헤더 저장").click());
-    await clickRow("COIL_WGT_CALC");
+    searchList = [{ maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE", status: "INUSE", sourceKind: "MDM" }];
+    await search();
     expect(byTestId("rule-header-id")?.textContent).toBe("COIL_WGT_CALC");
     const viewsBefore = viewCount();
     await act(async () => slowSave.release());
@@ -317,6 +319,60 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     await flush();
     expect(viewCount()).toBe(viewsBefore);
     expect(byTestId("rule-header-id")?.textContent).toBe("COIL_WGT_CALC");
+  });
+
+  // 재검토 I3 — 쓰기 동안 헤더 입력과 쓰기 단추가 잠기지 않아, 저장 중에 또 고친 입력이 옛 auditVer 로 남거나 [헤더 저장]이 두 번
+  // 나가 거짓 MDM001 이 났다. 쓰기 동안에는 입력·단추를 잠그고, codeMng 처럼 목록 행 클릭도 받지 않는다.
+  it("헤더 저장 응답을 기다리는 동안 헤더 입력과 [헤더 저장]이 잠기고, 끝나면 풀려 다음 저장은 새 auditVer 를 보낸다", async () => {
+    await renderAndSearch();
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "X");
+    view = draftDetail({ header: { ...draftDetail().header, maruRuleName: "X", auditVer: 5 } });
+    const slowSave = gate();
+    holdActions.save = slowSave.until;
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.disabled).toBe(true);
+    expect(findButton(container, "헤더 저장").disabled).toBe(true);
+    await act(async () => slowSave.release());
+    await flush();
+    await flush();
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.disabled).toBe(false);
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("X");
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "XY");
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    expect(params("save")).toMatchObject({ maruRuleName: "XY", auditVer: 5 });
+  });
+
+  it("[헤더 저장]을 응답 전에 두 번 눌러도 저장은 한 번만 나간다", async () => {
+    await renderAndSearch();
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "X");
+    const slowSave = gate();
+    holdActions.save = slowSave.until;
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    await act(async () => findButton(container, "헤더 저장").click());
+    await act(async () => slowSave.release());
+    await flush();
+    await flush();
+    expect(requests.filter((r) => r.action === "save")).toHaveLength(1);
+  });
+
+  it("쓰기 응답을 기다리는 동안에는 목록 행을 눌러도 선택을 바꾸지 않는다(codeMng 과 같다)", async () => {
+    await renderAndSearch();
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "X");
+    const slowSave = gate();
+    holdActions.save = slowSave.until;
+    await act(async () => findButton(container, "헤더 저장").click());
+    await clickRow("COIL_WGT_CALC");
+    expect(requests.filter((r) => r.action === "view").map((r) => (r.body.params as Record<string, unknown>).maruRuleId)).not.toContain(
+      "COIL_WGT_CALC",
+    );
+    expect(byTestId("rule-header-id")?.textContent).toBe("QLTY_GRD_JDG");
+    await act(async () => slowSave.release());
+    await flush();
+    await flush();
+    expect(byTestId("rule-header-id")?.textContent).toBe("QLTY_GRD_JDG");
   });
 
   it("저장하지 않은 헤더 입력은 같은 행을 다시 눌러 다시 읽어도 남고, 저장은 입력을 시작할 때의 auditVer 로 보낸다", async () => {

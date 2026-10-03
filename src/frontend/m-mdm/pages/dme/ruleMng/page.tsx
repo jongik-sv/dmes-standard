@@ -87,6 +87,9 @@ export default function RuleMngPage() {
   // 응답 가드용 — 지금 고른 룰과 상세 요청 순번. 상세 요청을 낼 때마다 순번을 올린다.
   const selectedIdRef = useRef<string | null>(null);
   const detailSeq = useRef(0);
+  // 진행 중인 상세 쓰기 수 — 0 이 아니면 목록 행 클릭을 받지 않는다. 쓰기 결과를 그 룰 위에서 보게 하려는 것이다(dmc codeMng 과
+  // 같다, 재검토 I3). [조회]로 선택이 바뀌는 경우는 아래 reload 가드가 막는다.
+  const writing = useRef(0);
 
   const loadDetail = useCallback(async (ruleId: string | null) => {
     const seq = ++detailSeq.current;
@@ -281,7 +284,10 @@ export default function RuleMngPage() {
               emptyMessage="조회된 룰이 없습니다."
               emptyTestId="rule-list-empty"
               highlightedRowKey={selectedId ?? undefined}
-              onRowClick={(row) => void choose(row.maruRuleId as string)}
+              onRowClick={(row) => {
+                if (writing.current > 0) return;
+                void choose(row.maruRuleId as string);
+              }}
             />
           </GridPanel>
           <Pagination
@@ -301,8 +307,13 @@ export default function RuleMngPage() {
               // 쓰기 뒤 다시 읽기는 지금 선택을 본다 — 쓰기를 기다리는 사이 다른 룰을 골랐으면 옛 룰을 더 새 순번으로 읽어
               // 강조와 상세가 어긋나지 않게 읽지 않는다(검토 I2).
               reload={() =>
-                selectedIdRef.current === detail.header.maruRuleId ? loadDetail(selectedIdRef.current) : Promise.resolve()
+                selectedIdRef.current === detail.header.maruRuleId
+                  ? loadDetail(selectedIdRef.current).then(() => true)
+                  : Promise.resolve(false)
               }
+              onWriting={(delta) => {
+                writing.current += delta;
+              }}
               canDo={(action) => canDoButton(rbac, SCREEN_ID, action)}
               busy={isBusy || isDetailBusy}
               onError={setErrorMessage}
