@@ -104,6 +104,19 @@ const menuNode = (scope: Locator, text: string) =>
     .first();
 
 /**
+ * 포털 탭 줄에서 제목이 title 인 화면 탭을 닫는다(그 탭이 열려 있지 않으면 실패한다). 닫은 화면은 다음에 메뉴로 열 때 새로 그려 서버 값을 읽는다 —
+ * 저장하지 않은 입력을 남기는 화면(같은 행을 다시 골라도 입력 유지)에서 "저장되지 않았다" 를 볼 때 쓴다.
+ */
+export async function closeScreenTab(page: Page, title: string) {
+  const exact = new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+  const tab = page.locator(".tabs-bar .tab-item").filter({ has: page.locator(".tab-title", { hasText: exact }) });
+  await expect(tab, `닫을 "${title}" 탭이 열려 있어야 한다`).toHaveCount(1);
+  await tab.hover();
+  await tab.locator(".tab-close").click();
+  await expect(tab).toHaveCount(0);
+}
+
+/**
  * 사이드바 트리를 사용자처럼 클릭해 화면을 연다.
  * 예: openMenu(page, ["마루 MDM", "마스터코드", "마루 코드"], "codeMng").
  * 폴더명(2026-09-28): 용어·도메인(dma) · 레이아웃(dmb) · 마스터코드(dmc) · 마스터데이터(dmd) · 업무기준(dme).
@@ -300,6 +313,12 @@ export async function checkLayout(page: Page, label: string, opts: LayoutOptions
         for (let j = i + 1; j < ctrls.length; j++) {
           const a = ctrls[i], b = ctrls[j];
           if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+          // 입력 칸 안 오른쪽 구역에 붙은 그 입력 자신의 단추([지우기] 등 Mantine Input section)는 그 입력의 일부다 — 서로 다른 컨트롤의 겹침이 아니다.
+          const ownSection = (x: Element, y: Element) => {
+            const wrap = x.closest('[class*="Input-section"]')?.closest('[class*="Input-wrapper"]');
+            return !!wrap && wrap === y.closest('[class*="Input-wrapper"]');
+          };
+          if (ownSection(a.el, b.el) || ownSection(b.el, a.el)) continue;
           const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
           const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
           if (w > 2 && h > 2) out.push(`L3 겹침: "${name(a.el)}" ↔ "${name(b.el)}"`);
@@ -350,6 +369,53 @@ export async function checkLayout(page: Page, label: string, opts: LayoutOptions
   );
   if (shared.length) test.info().annotations.push({ type: "shared-layout", description: `${label}: ${shared.join(" / ")}` });
   expect(violations, `${label}: 화면 배치 위반`).toEqual([]);
+}
+
+/**
+ * 지금 화면에 보이지 않는 컨트롤 — 안쪽 스크롤 영역(룰 화면·세트 편집의 본문, 확정 폼)에서 가운데가 그 영역 밖으로 밀려난 것.
+ * checkLayout 은 창 밖만 건너뛰므로, 스크롤로 머리·꼬리 뒤에 숨은 컨트롤을 "가려진 버튼(L7)"·"겹침(L3)" 으로 센다.
+ * 사용자에게 보이지 않는 상태라 그 순간의 배치 검사에서 뺀다(측정만 하는 evaluate — DOM 은 바꾸지 않는다).
+ */
+export async function scrolledOut(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const root = [...document.querySelectorAll<HTMLElement>(".portal-shell__tab-page")].find((el) => getComputedStyle(el).display !== "none");
+    if (!root) return [];
+    const path = (el: Element): string => {
+      const parts: string[] = [];
+      for (let e: Element | null = el; e && e.parentElement && e !== document.body; e = e.parentElement) {
+        parts.unshift(`${e.tagName.toLowerCase()}:nth-child(${[...e.parentElement.children].indexOf(e) + 1})`);
+      }
+      return `body > ${parts.join(" > ")}`;
+    };
+    const out: string[] = [];
+    for (const el of root.querySelectorAll("button, input, select, textarea")) {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height || el.closest(".ag-root-wrapper")) continue;
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      for (let a = el.parentElement; a && a !== root.parentElement; a = a.parentElement) {
+        const cs = getComputedStyle(a);
+        if (!/(auto|scroll)/.test(`${cs.overflowX} ${cs.overflowY}`)) continue;
+        const ar = a.getBoundingClientRect();
+        if (cx < ar.left || cx > ar.right || cy < ar.top || cy > ar.bottom) {
+          out.push(path(el));
+          break;
+        }
+      }
+    }
+    return out;
+  });
+}
+
+/**
+ * ag-grid 가 가로로 넘치는 표를 처음 그리거나 굴릴 때, 스크롤 막대를 겹쳐 그리는 환경(macOS — ag-apple-scrollbar)은 숨은 가로 막대를
+ * 0.5초쯤 드러내(ag-scrollbar-scrolling) 맨 아래 행 위를 덮는다. 그동안 그 행·버튼을 누르면 막대가 가로챈다(Playwright 는 다시 굴리며
+ * 재시도해 막대가 또 드러난다). 사람처럼 막대가 다시 숨은 뒤 누른다. inner 는 그 표 안의 요소다.
+ */
+export async function waitGridScrollbarSettled(inner: Locator) {
+  const hscroll = inner.locator("xpath=ancestor-or-self::div[contains(concat(' ', normalize-space(@class), ' '), ' ag-root-wrapper ')][1]").locator(".ag-body-horizontal-scroll");
+  await expect(hscroll).toHaveCount(1);
+  await expect(hscroll).not.toHaveClass(/ag-scrollbar-(scrolling|active)/);
 }
 
 // ─────────────────────────── 버튼 커버리지 ───────────────────────────
