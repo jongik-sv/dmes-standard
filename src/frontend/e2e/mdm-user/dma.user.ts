@@ -20,7 +20,6 @@ import {
   snap,
   tid,
   uid,
-  waitGridScrollbarSettled,
   waitIdle,
 } from "./support";
 import { revealGridColumn } from "../support/mdm-e2e";
@@ -227,13 +226,24 @@ async function verifyListedAfterSearch(page: Page, panelTitle: string, keyword: 
   await expectSearchedRowExists(panelByTitle(page, panelTitle));
 }
 
+/**
+ * 단위 상세의 차원 콤보를 열고, 진입 때 받는 차원 목록이 뜬 것을 본 뒤 돌려준다. 공용 ComboBox 는 목록(options)이 새로 오면
+ * 검색어를 선택값 라벨로 되돌려(ComboBox.tsx 동기화 효과 [value, options]), 목록이 오기 전에 친 새 차원 글자가 지워진다
+ * (최종 실행 4회차 — 새로 띄운 mdm 의 첫 조회가 5초 걸렸다, 보고서 결함 후보). 사람처럼 목록이 뜬 뒤에 친다.
+ */
+async function openDimensionCombo(page: Page): Promise<Locator> {
+  const dim = field(page, "차원 *");
+  await dim.click();
+  await expect(dim.locator("xpath=ancestor::td[1]").getByRole("option").first()).toBeVisible({ timeout: 20_000 });
+  return dim;
+}
+
 /** unitMng — 새 차원의 첫 단위 하나를 등록한다(기준 단위=자기 자신, 계수=1). */
 async function registerNewDimensionUnit(page: Page, unitCode: string, dimension: string) {
   await go(page, "unitMng");
   await button(page, "단위 등록").click();
   await field(page, "단위 코드 *").fill(unitCode);
-  const dim = field(page, "차원 *");
-  await dim.click();
+  const dim = await openDimensionCombo(page);
   await dim.fill(dimension);
   await screen(page).locator(".form-combobox-create").click();
   await button(page, "저장").click();
@@ -333,8 +343,7 @@ test.describe("A 단위 마스터", () => {
 
   test("TC-DMA-UNT-03 등록(C) — 새 차원의 첫 단위는 스스로 기준 단위(계수 1)가 된다", async () => {
     await field(page, "단위 코드 *").fill(U1);
-    const dim = field(page, "차원 *");
-    await dim.click();
+    const dim = await openDimensionCombo(page);
     await dim.fill(DIM1);
     await screen(page).locator(".form-combobox-create").click();
     await expect(field(page, "기준 단위")).toHaveValue(U1);
@@ -355,8 +364,7 @@ test.describe("A 단위 마스터", () => {
   test("TC-DMA-UNT-04 등록(C) — 같은 차원을 고르면 기준 단위가 자동으로 채워지고 계수만 입력한다", async () => {
     await button(page, "단위 등록").click();
     await field(page, "단위 코드 *").fill(U2);
-    const dim = field(page, "차원 *");
-    await dim.click();
+    const dim = await openDimensionCombo(page);
     await dim.fill(DIM1);
     // 콤보박스 드롭다운은 이 칸(<td>) 안에서 연다(withinPortal:false) — 검색조건의 같은 이름 native <select><option>
     // 과 섞이지 않게 그 <td> 범위 안에서만 옵션을 찾는다.
@@ -439,8 +447,7 @@ test.describe("A 단위 마스터", () => {
   test("TC-DMA-UNT-08 독립 차원 단위(U3) — 다른 차원끼리는 변환할 수 없다", async () => {
     await button(page, "단위 등록").click();
     await field(page, "단위 코드 *").fill(U3);
-    const dim = field(page, "차원 *");
-    await dim.click();
+    const dim = await openDimensionCombo(page);
     await dim.fill(DIM3);
     await screen(page).locator(".form-combobox-create").click();
     await button(page, "저장").click();
@@ -844,9 +851,10 @@ test.describe("D 컬럼 사전", () => {
     await expect(tid(page, "token-placeholder-1")).toContainText("용어 등록");
     await snap(page, "dma-columnMng-02-unknown-token");
 
-    // 토큰 표는 열 폭 합(640px)이 표 폭(565px)보다 넓어 가로로 넘친다 — 처음 그릴 때 드러나는 가로 막대가 이 버튼 가운데를 덮는다
-    // (탐침: 막대 509~525px, 버튼 501~527px, 보고서 관찰). 막대가 숨은 뒤 누른다.
-    await waitGridScrollbarSettled(tid(page, "token-placeholder-1"));
+    // 토큰 표는 열 최소 폭 합이 표 폭 안에 들어 가로로 넘치지 않는다(15864467, Local-Rules §30) — 가로 스크롤 막대가 마지막 행
+    // [용어 등록] 버튼을 덮지 않는다.
+    const tokenViewport = tokenRow(page, 1).locator("xpath=ancestor::div[contains(@class,'ag-center-cols-viewport')][1]");
+    await expect.poll(() => tokenViewport.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
     await tid(page, "token-placeholder-1").click(); // "*** 용어 등록"
     await expect(tid(page, "term-pop")).toBeVisible({ timeout: 20_000 });
     await expect(tid(page, "term-pop-term-name")).toHaveValue(COL_INPUT);
@@ -873,13 +881,9 @@ test.describe("D 컬럼 사전", () => {
       // 도메인 칸은 검색형 입력이다 — 이름을 넣고 Enter 로 확정하면 서버가 하나로 정해 바로 적용한다.
       const domainInput = tid(page, "form-domain");
       await domainInput.fill(DOM_NAME);
-      // Enter 확정은 서버 도메인 검색(ruleEdit/search, target DOMAIN) 응답에서 하나를 골라 적용한다 — 사람처럼 그 결과가 온 뒤 다음을 누른다.
-      // 응답 전에 [찾기]를 누르면 칸을 떠나며(blur) 확정 검색이 다시 돌고, 그 결과가 막 연 찾기 팝업을 닫는다(DomainField pick — 보고서 관찰).
-      const enterSearch = page.waitForResponse((r) => r.url().includes("/oasis/ruleEdit/search") && r.request().method() === "POST");
       await domainInput.press("Enter");
-      expect((await enterSearch).ok()).toBe(true);
-      await waitIdle(page);
       await expect(domainInput).toHaveValue(DOM_NAME);
+      // 확정 검색이 끝나기 전에 [찾기]를 눌러도 칸을 떠나며 시작된 확정 검색은 물러져 찾기 팝업이 닫히지 않는다(20bbb905).
       // [찾기] 는 빈 검색어로 도메인 찾기 팝업을 연다 — 검색해 고르면 칸에 그 도메인이 들어간다(DomainField).
       await tid(page, "form-domain-find").click();
       await expect(tid(page, "form-domain-box")).toBeVisible();
