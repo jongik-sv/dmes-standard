@@ -346,3 +346,11 @@ happy-dom 20.11 의 `NodeIterator` 는 지금 노드를 지우면 그 뒤 노드
 - 줄일 열은 말줄임과 제목(title)으로 값을 다 볼 수 있는 열이다. 날짜·배지처럼 잘리면 뜻이 바뀌는 열은 줄이지 않는다.
 - 열 정의를 순수 함수로 두고 최소 폭 합을 시험으로 고정한다. 실제 폭은 e2e 가 `scrollWidth - clientWidth` 로 본다.
 - 예시: `m-mdm/pages/dmd/dataItemMng/history/DataHistoryTimeline.tsx` 의 `timelineColumns` 와 `tests/dmd/dataItemMng/history/data-history-timeline.test.ts`.
+
+## 31. 열 그룹 그리드 — 내용이 같은 열 정의를 다시 넣지 않는다 (2026-10-03)
+
+ag-grid 33 은 열 정의를 다시 받으면 머리 그룹 칸 ctrl 을 새로 만들고 옛 ctrl 을 파기한다(`column = null`). 머리 그룹 칸이 처음 붙는 커밋과 열 정의 교체가 겹치면, React 개발 모드(StrictMode)가 그 칸의 ref 를 다시 붙일 때 파기된 ctrl 을 불러 `Cannot read properties of null (reading 'getProvidedColumnGroup')` 로 탭 화면 전체가 오류 화면이 된다. 운영 빌드에서는 나지 않지만 dev 서버(로컬·e2e)는 막힌다. ruleEdit 에서 열 없는 룰에 첫 열을 적용할 때 실측했다.
+
+- `AgDataGrid` 의 열 정의는 **그리는 값이 바뀔 때만** 새로 만든다. 그리드 안 MDM 옵션(`useGridMdm`)은 칸 메타의 `loading` 만 바뀐 경우(404·꺼진 모듈·사전에 없는 칸)에는 앞 값을 그대로 둔다. 화면 쪽 규칙은 §20(`columns` 를 `useMemo` 로 만들고 deps 를 좁힌다)과 같다.
+- 그룹 구조(묶음·변수 수)가 바뀌면 화면이 그리드를 `key` 로 새로 마운트한다(`DecisionTableCard` 의 `gridKey`). 마운트된 그룹 그리드에 다른 그룹 구조를 그대로 넘기지 않는다.
+- 시험은 StrictMode·`MdmMetaProvider`(fetch 404) 아래에서 그룹 머리까지 그린다. 공급자가 없으면 이 경로가 돌지 않아 시험이 통과해 버린다. 예: `shared/tests/unit/grid-mdm-group-strict.unit.test.ts`, `m-mdm/tests/dme/ruleEdit/decision-table-card.test.ts` 의 「포털 탭」 묶음.

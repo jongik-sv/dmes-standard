@@ -2,10 +2,11 @@
 
 // TSK-08-02 design §3.2 — 의사결정표 카드 ③. 편집 상태는 순수 reducer(table-state)로 보고, 그리드 즉시 검사가 편집 한 번마다
 // evalex `analyzeRule` 을 다시 부르는지(I13)는 그 함수를 감싼 spy 로 확인한다. 렌더 부분은 그리드 밖(버튼·검사 요약·요청 본문)만 본다.
-import { createElement, act } from "react";
+import { StrictMode, createElement, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
+import { MdmMetaProvider, resetMdmMetaStore } from "@dk-oasis/shared/mdm-meta";
 
 const analyzeSpy = vi.hoisted(() => ({ calls: 0 }));
 vi.mock("@/evalex", async (importOriginal) => {
@@ -700,5 +701,120 @@ describe("DecisionTableCard 렌더", () => {
     await renderCard(draftView("e2e_mdm_steward", "e2e_mdm_steward", { rule: { ...draftView(null).rule, ruleKind: "DERIVE" } }));
     expect(() => findButton(container, "행 추가")).toThrow();
     expect(visibleText(container)).toContain("산출 룰은 열 설정");
+  });
+});
+
+// 포털 탭은 화면을 React StrictMode(개발 모드)와 MDM 메타 공급자(MdmMetaProvider) 아래에 그린다. mdm 모듈은 mdmMeta 가 404 라 모듈이 꺼지지만
+// 새 열 목록마다 칸 메타가 loading → 없음으로 한 번 바뀐다 — 그때 그리드가 같은 열 정의를 다시 넣어, 머리 그룹 칸이 처음 붙는 커밋에서
+// `getProvidedColumnGroup of null` 로 화면이 깨졌다(2026-10-03, 열 없는 룰에 첫 열 적용). 그리드 열(그룹 머리·변수 머리·칸)까지 그린다.
+describe("DecisionTableCard — 포털 탭(StrictMode·MDM 메타 공급자)에서 열 구조 바꾸기", () => {
+  const me = "e2e_mdm_steward";
+  let errors: string[] = [];
+
+  function cardProps(view: RuleEditView): RuleEditCardProps {
+    return {
+      view,
+      me: view.me,
+      editable: view.editable,
+      reload: async () => {},
+      selectVer: async () => {},
+      notify: () => {},
+      runWrite: async (fn) => fn(),
+      setDirty: () => {},
+      canDo: () => true,
+      busy: false,
+    };
+  }
+  /** 열 구조만 바꾼 DRAFT view(행 없음) — 저장·다시 불러오기 뒤 view 와 같은 모양. */
+  function structureView(varIds: number[]): RuleEditView {
+    return draftView(me, me, {
+      vars: SAMPLE_VARS.filter((v) => varIds.includes(v.varId)),
+      rows: [],
+      baseRows: [],
+      varMeta: varIds.map((varId) => ({ varId, resGrp: null, grpCond: null })),
+    });
+  }
+  /** 그리고 메타 묶음 요청(16ms)·404 응답·loading → 없음 전환까지 기다린다. act 가 모은 예외도 errors 로 모은다. */
+  async function show(view: RuleEditView) {
+    try {
+      await act(async () => {
+        root!.render(
+          createElement(
+            StrictMode,
+            null,
+            createElement(DmesUiProvider, null, createElement(MdmMetaProvider, { module: "mdm" }, createElement(DecisionTableCard, cardProps(view))))
+          )
+        );
+      });
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 60));
+      });
+    } catch (e) {
+      for (const x of e instanceof AggregateError ? e.errors : [e]) errors.push(String((x as Error)?.message ?? x));
+    }
+  }
+  const varHeads = () => [...container.querySelectorAll("[data-testid^='dt-var-header-']")].map((el) => el.getAttribute("data-testid"));
+  const groupText = () => [...container.querySelectorAll(".ag-header-group-cell")].map((el) => visibleText(el)).join(" ");
+
+  beforeEach(() => {
+    installDomStorage();
+    resetMdmMetaStore();
+    errors = [];
+    globalThis.fetch = vi.fn(async () => jsonResponse({}, 404)) as typeof fetch;
+    delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container, { onUncaughtError: (e) => errors.push(String((e as Error)?.message ?? e)) });
+  });
+  afterEach(() => {
+    act(() => {
+      root?.unmount();
+    });
+    root = null;
+    container?.remove();
+    globalThis.fetch = originalFetch;
+  });
+
+  it("열이 없던 룰에 조건·결과 열을 처음 적용해도 화면이 깨지지 않고 두 묶음·변수 머리가 보인다", async () => {
+    await show(structureView([]));
+    expect(varHeads()).toEqual([]);
+    await show(structureView([1, 4]));
+    expect(errors).toEqual([]);
+    expect(varHeads()).toEqual(["dt-var-header-1", "dt-var-header-4"]);
+    expect(groupText()).toContain("조건");
+    expect(groupText()).toContain("결과");
+  });
+
+  it("결과 묶음을 더하고 조건 묶음을 지워도(열 구조 바꾸기) 화면이 깨지지 않는다", async () => {
+    await show(structureView([1]));
+    expect(groupText()).not.toContain("결과");
+    await show(structureView([1, 4, 5]));
+    expect(varHeads()).toEqual(["dt-var-header-1", "dt-var-header-4", "dt-var-header-5"]);
+    await show(structureView([4, 5]));
+    expect(varHeads()).toEqual(["dt-var-header-4", "dt-var-header-5"]);
+    expect(groupText()).not.toContain("조건");
+    expect(errors).toEqual([]);
+  });
+
+  it("고른 행의 조건 칸 강조(cell-emphasis)는 메타 응답 뒤에도 남고 다른 행으로 옮겨 간다", async () => {
+    await show(draftView(me));
+    const emphasized = (rowId: number, colId: string) => {
+      const c = container.querySelector<HTMLElement>(`.ag-center-cols-container .ag-row[row-id='${rowId}'] [col-id='${colId}']`);
+      expect(c, `행 ${rowId} ${colId} 칸`).toBeTruthy();
+      return c!.classList.contains("cell-emphasis");
+    };
+    await act(async () => (container.querySelector("[data-testid='dt-row-3']") as HTMLButtonElement).click());
+    await flush();
+    expect(emphasized(3, "c1_op")).toBe(true);
+    expect(emphasized(3, "c2_op")).toBe(false);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
+    expect(emphasized(3, "c1_op")).toBe(true);
+    await act(async () => (container.querySelector("[data-testid='dt-row-1']") as HTMLButtonElement).click());
+    await flush();
+    expect(emphasized(1, "c1_op")).toBe(true);
+    expect(emphasized(3, "c1_op")).toBe(false);
+    expect(errors).toEqual([]);
   });
 });
