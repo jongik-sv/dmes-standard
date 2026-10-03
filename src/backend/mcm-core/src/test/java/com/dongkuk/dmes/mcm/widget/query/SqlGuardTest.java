@@ -288,11 +288,62 @@ class SqlGuardTest {
     }
 
     /**
-     * 함수 거절 목록이 평범한 집계를 막지 않는지 — 화면 사용 통계(TB_SEC_SCREEN_USAGE_DAY) 위젯처럼 실제로 쓰는 모양의 SQL.
+     * 함수 거절 목록이 평범한 집계를 막지 않는지 — 로컬 DB 에 저장된 화면 사용 통계 위젯 SQL 과 그 모양의 방언별 SQL.
      * 방언별 집계·서식·널 처리 함수(COUNT·SUM·ROUND·TO_CHAR·COALESCE·NVL·DECODE·CASE·창 함수·문자열 집계·DBMS_LOB)를 섞는다.
      */
     static Stream<Arguments> realWidgetQueries() {
         return Stream.of(
+                // 로컬 DB(TB_MCM_WIDGET_DEF)에 저장된 쿼리 위젯 정의 5개 그대로(2026-10-03) — 저장된 정의는 실행 때마다 다시 검사한다
+                // def.lo41tduo
+                arguments("SELECT COALESCE(o.OBJECT_NM, l.PAGE_ID) AS SCREEN_NM,\n"
+                        + "       ROUND(SUM(l.DURATION_MS) / 60000.0, 1) AS USE_MIN,\n"
+                        + "       COUNT(*) AS OPEN_CNT\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG l\n"
+                        + "  LEFT JOIN TB_MCM_SEC_OBJ o\n"
+                        + "    ON o.OBJECT_ID = SUBSTR(l.PAGE_ID, INSTR(l.PAGE_ID, '/') + 1)\n"
+                        + " WHERE l.STARTED_AT >= DATE('now', 'localtime', '-6 day')\n"
+                        + " GROUP BY COALESCE(o.OBJECT_NM, l.PAGE_ID)\n"
+                        + " ORDER BY USE_MIN DESC\n"
+                        + " LIMIT 10"),
+                // def.fpkt65d4
+                arguments("SELECT '사용 시간' AS LABEL, ROUND(COALESCE(SUM(DURATION_MS), 0) / 60000.0, 1) AS VAL, '분' AS UNIT\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG WHERE STARTED_AT >= DATE('now', 'localtime')\n"
+                        + "UNION ALL\n"
+                        + "SELECT '사용자', COUNT(DISTINCT USER_ID), '명'\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG WHERE STARTED_AT >= DATE('now', 'localtime')\n"
+                        + "UNION ALL\n"
+                        + "SELECT '연 화면', COUNT(DISTINCT PAGE_ID), '개'\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG WHERE STARTED_AT >= DATE('now', 'localtime')\n"
+                        + "UNION ALL\n"
+                        + "SELECT '열람 횟수', COUNT(*), '회'\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG WHERE STARTED_AT >= DATE('now', 'localtime')"),
+                // def.ldj2hpgw
+                arguments("SELECT SUBSTR(l.STARTED_AT, 1, 16) AS STARTED,\n"
+                        + "       COALESCE(o.OBJECT_NM, l.PAGE_ID) AS SCREEN_NM,\n"
+                        + "       ROUND(l.DURATION_MS / 1000.0) AS SEC\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG l\n"
+                        + "  LEFT JOIN TB_MCM_SEC_OBJ o\n"
+                        + "    ON o.OBJECT_ID = SUBSTR(l.PAGE_ID, INSTR(l.PAGE_ID, '/') + 1)\n"
+                        + " WHERE l.USER_ID = :userId\n"
+                        + " ORDER BY l.STARTED_AT DESC\n"
+                        + " LIMIT 20"),
+                // def.ubb8dih0
+                arguments("SELECT SUBSTR(STARTED_AT, 6, 5) AS DAY,\n"
+                        + "       ROUND(SUM(DURATION_MS) / 60000.0, 1) AS USE_MIN\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG\n"
+                        + " WHERE STARTED_AT >= DATE('now', 'localtime', '-13 day')\n"
+                        + " GROUP BY SUBSTR(STARTED_AT, 1, 10)\n"
+                        + " ORDER BY SUBSTR(STARTED_AT, 1, 10)"),
+                // def.spzufhgo
+                arguments("SELECT CASE o.SYSTEM_CODE WHEN 'mcm' THEN '공통관리' WHEN 'mdm' THEN '마루 MDM' ELSE COALESCE(o.SYSTEM_CODE, '기타') END AS AREA,\n"
+                        + "       ROUND(SUM(l.DURATION_MS) / 60000.0, 1) AS USE_MIN\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_LOG l\n"
+                        + "  LEFT JOIN TB_MCM_SEC_OBJ o\n"
+                        + "    ON o.OBJECT_ID = SUBSTR(l.PAGE_ID, INSTR(l.PAGE_ID, '/') + 1)\n"
+                        + " WHERE l.STARTED_AT >= DATE('now', 'localtime', '-29 day')\n"
+                        + " GROUP BY 1\n"
+                        + " ORDER BY 2 DESC"),
+                // 방언별 집계·서식 함수를 섞은 사례
                 arguments("SELECT PAGE_ID, COUNT(DISTINCT USER_ID) AS USER_CNT, SUM(OPEN_CNT) AS OPEN_CNT,\n"
                         + "       ROUND(SUM(DURATION_MS) / 60000.0, 1) AS \"사용 시간(분)\"\n"
                         + "  FROM MCMAPUSER.TB_SEC_SCREEN_USAGE_DAY\n"
