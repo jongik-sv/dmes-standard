@@ -9,7 +9,7 @@ import { MessageProvider, useMessage, type ShowMessageParams } from "../../src/c
 import { renderWithMantine } from "./mantine-test-utils";
 
 describe("MessageProvider context 값", () => {
-  it("모달을 열고 닫아도 memo 소비자는 다시 그려지지 않고 showMessage 는 같은 함수다", () => {
+  it("모달 상태가 두 번 바뀌어도 memo 소비자는 다시 그려지지 않고 context 값은 같은 객체다", () => {
     let renders = 0;
     let show: ((p: ShowMessageParams) => void) | null = null;
     const seen = new Set<unknown>();
@@ -21,7 +21,7 @@ describe("MessageProvider context 값", () => {
       return null;
     });
 
-    renderWithMantine(createElement(MessageProvider, null, createElement(Consumer)));
+    const { unmount } = renderWithMantine(createElement(MessageProvider, null, createElement(Consumer)));
     expect(renders).toBe(1);
 
     act(() => show!({ message: "첫 메시지" }));
@@ -29,5 +29,7 @@ describe("MessageProvider context 값", () => {
 
     expect(renders).toBe(1);
     expect(seen.size).toBe(1);
+
+    unmount();
   });
 });
