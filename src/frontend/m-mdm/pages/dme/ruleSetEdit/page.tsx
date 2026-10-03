@@ -403,6 +403,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
   }, []);
   /** 캔버스가 채우는 "React Flow 로 고른 것(흐름 노드·메모·그룹)" — Delete 가 여럿 지우기에 쓴다(M2). */
   const canvasSelectionRef = useRef<(() => string[]) | null>(null);
+  /** 캔버스가 채우는 "고른 것으로 이동(Shift+2)" — 고른 것이 없으면 false. */
+  const canvasFitSelectionRef = useRef<(() => boolean) | null>(null);
   const onContextMenu = useCallback(
     (target: MenuTarget, at: { x: number; y: number }) => setMenu({ target, at, selection: alignSourceRef.current?.().ids ?? [] }),
     [],
@@ -538,7 +540,13 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
     if (!menuWasOpen) clearCanvasSelectionRef.current?.();
   };
   const onCanvasKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const common: ShortcutHandlers = { escape: onEscape, find: openFind };
+    const common: ShortcutHandlers = {
+      escape: onEscape,
+      find: openFind,
+      fitView: fit,
+      // 고른 것이 없으면 키를 쓰지 않는다(브라우저 기본 동작 그대로).
+      fitSelection: () => (canvasFitSelectionRef.current?.() ? undefined : UNHANDLED),
+    };
     let handlers: ShortcutHandlers = common;
     if (editing) {
       handlers = {
@@ -773,6 +781,8 @@ export default function RuleSetEditPage({ tabId }: { tabId?: string }) {
                         clearSelectionRef={clearCanvasSelectionRef}
                         alignSourceRef={alignSourceRef}
                         selectionRef={canvasSelectionRef}
+                        fitSelectionRef={canvasFitSelectionRef}
+                        fitKeyLabel={mac ? "⇧1" : "Shift+1"}
                         onMoveNode={onMoveNode}
                         onConnect={onConnect}
                         onAddCatch={onAddCatch}

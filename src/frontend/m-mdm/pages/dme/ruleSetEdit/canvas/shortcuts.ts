@@ -6,7 +6,7 @@
 import type { FlowMode } from "../state/useRuleSetEdit";
 
 export type ShortcutId =
-  | "undo" | "redo" | "delete" | "escape" | "copy" | "paste" | "duplicate" | "find"
+  | "undo" | "redo" | "delete" | "escape" | "copy" | "paste" | "duplicate" | "find" | "fitView" | "fitSelection"
   | "continue" | "stop" | "step" | "stepBack" | "breakpoint"
   | "alignLeft" | "alignHCenter" | "alignRight" | "alignTop" | "alignVCenter" | "alignBottom" | "distributeH" | "distributeV"
   | "nudgeLeft" | "nudgeRight" | "nudgeUp" | "nudgeDown" | "nudgeLeftBig" | "nudgeRightBig" | "nudgeUpBig" | "nudgeDownBig";
@@ -68,6 +68,9 @@ export function shortcutOf(e: KeyLike, mac: boolean): ShortcutId | null {
     return null;
   }
   if (anyMod) return null;
+  // 화면 맞춤·고른 것으로 이동(Figma 와 같다) — Shift+숫자는 e.key 가 자판마다 다르므로('!'·'@') 물리 키로 본다.
+  if (e.shiftKey && e.code === "Digit1") return "fitView";
+  if (e.shiftKey && e.code === "Digit2") return "fitSelection";
   const nudge = NUDGE_KEYS[key];
   if (nudge) return e.shiftKey ? nudge[1] : nudge[0];
   if (key === "Delete" || key === "Backspace") return e.shiftKey ? null : "delete";
@@ -112,6 +115,8 @@ export const SHORTCUT_HELP: readonly { id: ShortcutId | GestureId | FindKeyId; w
   { id: "find", win: "Ctrl+F", mac: "⌘F", label: "노드 찾기 — 캔버스 오른쪽 위 찾기 위젯을 연다(열려 있으면 찾을 글을 전체 선택)", modes: ["view", "edit", "debug"] },
   { id: "findNext", win: "Enter · Shift+Enter", mac: "Enter · ⇧Enter", label: "찾기 위젯에서 다음 · 이전 결과", modes: ["view", "edit", "debug"] },
   { id: "findClose", win: "Esc(찾기 위젯)", mac: "Esc(찾기 위젯)", label: "찾기 위젯 닫기 — 캔버스로 돌아간다(찾을 글·옵션은 남는다)", modes: ["view", "edit", "debug"] },
+  { id: "fitView", win: "Shift+1", mac: "⇧1", label: "화면 맞춤 — 흐름도 전체를 화면에 맞춘다", modes: ["view", "edit", "debug"] },
+  { id: "fitSelection", win: "Shift+2", mac: "⇧2", label: "고른 것으로 이동 — 고른 노드·메모·그룹(선이면 양 끝 노드)을 화면 가운데에 크게 보인다", modes: ["view", "edit", "debug"] },
   { id: "escape", win: "Esc", mac: "Esc", label: "선택 해제·메뉴 닫기(다른 도구를 골랐으면 먼저 기본 도구로 돌아간다)", modes: ["view", "edit", "debug"] },
   { id: "continue", win: "F5", mac: "fn+F5", label: "계속(다음 중단점까지)", modes: ["debug"] },
   { id: "stop", win: "Shift+F5", mac: "fn+⇧F5", label: "중지(디버그를 끝내고 실행 전으로)", modes: ["debug"] },
