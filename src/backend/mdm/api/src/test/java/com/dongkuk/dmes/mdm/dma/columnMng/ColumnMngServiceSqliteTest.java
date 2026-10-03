@@ -581,6 +581,54 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals(List.of("COLUMN:COIL_THK:SAVE", "COLUMN:RMTL_COIL_THK:SAVE"), MetaRevTestSupport.rows(jdbc));
     }
 
+    /** spec 2026-10-03-mdm-column-system-alias-design L6 — 별칭 행의 전·후를 모두 COLUMN 키(대문자)로 남긴다. */
+    @Test
+    void META_신규_저장은_새_시스템_별칭도_기록한다() {
+        MetaRevTestSupport.clear(jdbc);
+        save(valid(), List.of(sys("MES", "Rmtl_T", null, null), sys("APS", "aps_t", null, null)), List.of());
+        assertEquals(Set.of("RMTL_COIL_THK", "RMTL_T", "APS_T"), MetaRevTestSupport.keys(jdbc, "COLUMN"));
+    }
+
+    @Test
+    void META_별칭_행을_바꾸면_바뀌기_전과_뒤_별칭을_모두_기록한다() {
+        Long id = save(valid(), List.of(sys("MES", "OLD_T", null, null), sys("MES", "KEEP_T", null, null)), List.of());
+        MetaRevTestSupport.clear(jdbc);
+        ColumnMngSaveRequest again = valid();
+        again.setColumnId(id);
+
+        save(again, List.of(sys("MES", "KEEP_T", null, null), sys("APS", "new_t", null, null)), List.of());
+
+        assertEquals(Set.of("RMTL_COIL_THK", "OLD_T", "KEEP_T", "NEW_T"), MetaRevTestSupport.keys(jdbc, "COLUMN"));
+        assertEquals(List.of("APS·new_t", "MES·KEEP_T"), mappings.findByColumnId(id).stream()
+                .map(m -> m.getSystemCode() + "·" + m.getPhysName()).sorted().toList());
+    }
+
+    @Test
+    void META_별칭이_그대로여도_컬럼_저장은_그_별칭을_기록한다() {
+        Long id = save(valid(), List.of(sys("MES", "Rmtl_T", null, null)), List.of());
+        MetaRevTestSupport.clear(jdbc);
+        ColumnMngSaveRequest described = valid();
+        described.setColumnId(id);
+        described.setDescription("설명만 바꾼다");
+
+        save(described, List.of(sys("MES", "Rmtl_T", null, null)), List.of());
+
+        assertEquals(Set.of("RMTL_COIL_THK", "RMTL_T"), MetaRevTestSupport.keys(jdbc, "COLUMN"));
+    }
+
+    @Test
+    void META_별칭을_모두_지우면_지운_별칭을_기록한다() {
+        Long id = save(valid(), List.of(sys("MES", "GONE_T", null, null)), List.of());
+        MetaRevTestSupport.clear(jdbc);
+        ColumnMngSaveRequest again = valid();
+        again.setColumnId(id);
+
+        save(again, List.of(), List.of());
+
+        assertEquals(Set.of("RMTL_COIL_THK", "GONE_T"), MetaRevTestSupport.keys(jdbc, "COLUMN"));
+        assertEquals(List.of(), mappings.findByColumnId(id));
+    }
+
     @Test
     void META_원장이_롤백되면_기록도_남지_않는다() {
         MetaRevTestSupport.clear(jdbc);
