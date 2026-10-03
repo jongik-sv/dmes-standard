@@ -146,6 +146,13 @@ mcm:
     min-length: 0           # 길이 검증 끔
     complexity-pattern: ""  # 복잡도 검증 끔
     legacy-grace-days: -1
+  # ── BE → BFF 권한 캐시 무효화(RoleChangedEventListener, 2026-10-03 보안 지적) ──
+  #  두 값이 다 있어야 부른다. 하나라도 비면 부르지 않고 BFF 캐시 TTL(5분)로 반영된다. 코드 기본값은 없다(옛 http://localhost:3000 제거).
+  #  internal-secret 은 BFF 의 BFF_INTERNAL_SECRET 과 같은 값 — X-Bff-Internal-Secret 헤더로 싣는다.
+  #  마스터 비밀(BACKEND_CLIENT_KEY)과 다른 값이어야 한다(같으면 BFF 가 거절한다). 로컬 값은 application-local.yml.
+  bff:
+    invalidate-role-url: ${BFF_INVALIDATE_ROLE_URL:}
+    internal-secret: ${BFF_INTERNAL_SECRET:}
 
 # ── dmes 자체 설정 (최상위 dmes 키는 여기 하나만 둔다 — 같은 최상위 키가 둘이면 기동이 실패한다) ──
 dmes:

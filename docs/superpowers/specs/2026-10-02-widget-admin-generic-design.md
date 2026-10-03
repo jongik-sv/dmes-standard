@@ -512,17 +512,19 @@ interface LlmClient {
 | 위젯관리 저장 | cactus 요청 변환기가 params 의 null 값을 받으면 요청 전체가 실패하므로, 화면이 null·undefined 키를 빼고 보낸다(`dropNullParams`) |
 | OASIS 본문 `action` | 본문 params·grids 의 `action` 키가 경로 action 을 덮어써 URL 로 판정한 권한과 BPMN 분기가 어긋날 수 있었다. 이제 E002 로 거절하고, 경로 action 을 마지막에 넣는다(cactus-core, 전 모듈 공통) |
 | 미디어 내려받기 AUTH_ONLY | 접두 대신 GET·HEAD 와 정확한 경로(`…/widgetMedia/file/{32자}`)만 인증만 본다. 올리기는 위젯관리 권한키로 판정한다 |
-| 미디어 올리기 상한 | BFF 본문 상한 101MB, be-proxy 미디어 경로 시간 제한 5분, multipart 상한 초과는 400(E002) |
+| 미디어 올리기 상한 | BFF 본문 상한은 일반 API 10MB, 미디어 올리기 전용 라우트(proxy matcher 밖)만 101MB(§16.3). be-proxy 미디어 경로 시간 제한 5분, multipart 상한 초과는 400(E002) |
 
 ### 16.3 남은 일
 
 - **쿼리 실행기 전용 DataSource**: 읽기 권한만 가진 DB 계정으로 실행기를 분리한다. 지금은 앱 기본 DataSource 를 쓰고, 함수 거절 목록은 보조 방어선이다(§7.1-6).
-- **BFF 본문 상한 전역 확대**: `proxyClientMaxBodySize=101mb` 가 `/api/*` 전체에 적용된다. 업로드 경로만 미들웨어를 거치지 않게 하거나 앞단 Nginx 에서 경로별로 상한을 준다.
+- **BFF 본문 상한 전역 확대** — 해결: `proxyClientMaxBodySize` 는 전역 값 하나뿐이고, proxy matcher 에 걸린 요청(과 외부 rewrite)의 본문을 그 크기까지 메모리에 복제한 뒤 넘는 부분을 잘라 라우트로 넘긴다(Next 16.1.6 `server/body-streams.js`·`next-server.js` runMiddleware·`lib/router-server.js`). 그래서 상한을 Next 기본 10MB 로 되돌리고(`lib/http/body-limit.ts`), 미디어 올리기 한 경로(`/api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload`)만 matcher 에서 `$` 로 고정해 뺐다. 그 경로의 전용 라우트가 proxy 와 같은 `guardApiRequest`(401·403) 뒤 본문을 복제 없이 BE 로 흘려보내고, 101MB(Content-Length·실제 바이트)를 넘으면 413 을 준다. 일반 API 는 Content-Length 가 10MB 를 넘으면 proxy 가 413 을 준다(Content-Length 없는 chunked 본문은 여전히 10MB 에서 잘린다). 앞단 Nginx 는 기본 `client_max_body_size 10m;` 에 `location = /api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload { client_max_body_size 101m; … }` 한 곳만 101MB 로 연다(포털 앞에 경로 접두가 붙으면 그 접두를 포함한다).
 - **환율 호출 남용**: 통화 조합·기간을 바꿔 가며 부르면 매번 외부를 호출한다. 정의에 든 통화로 허용 목록 제한, 통화 단위 시도 기록, 속도 제한, KoreaExim 일 1회 적재가 필요하다.
 - **챗봇 남용**: `instId` 를 바꾸면 인스턴스당 100개 상한이 의미가 없고 LLM 비용이 늘어난다. 사용자별 호출·기록 상한이 필요하다(배치 행 존재 검사는 부서·코드 기본 배치 사용자를 막으므로 쓰지 않는다).
 - **운영 환경 확인**: MSSQL 에서 `;` 없이 이어 쓴 여러 문장 판정, 운영 context path(`/mcm/api`)에서 BE 필터 판정, WildFly·Nginx 의 본문 101MB 허용, 챗봇 최대 응답 시간(도구 5회 × 공급자 제한 시간, 약 123초)과 앞단 시간 제한.
 - **KoreaExim**: CNH/CNY 표기 차이를 실제 키로 검증하지 않았다.
 - **shared**: ~~`PieChart` 범례의 「건」 고정 단위~~ — 해결됨(2026-10-03): `PieChart` 에 `unit` 속성(기본 「건」, `""` 이면 단위 없음)을 더하고, 쿼리 차트 원 차트는 첫 계열 이름 끝 괄호(「사용 시간(분)」→분)를 단위로 넘긴다(`pieUnitOf`). ~~남은 일: 같은 이름 항목의 key 중복(기존 컴포넌트 변경이라 승인 뒤).~~ 해결: 조각·범례의 React key 를 순번 기반(`${i}:${label}`)으로 바꿔 같은 이름이 둘 이상이어도 모두 그려지고 key 경고가 없다(2026-10-03, props·모습·동작은 그대로).
+- **BFF 내부 호출 헤더 우회** — 해결: proxy 가 `x-internal-bff-call: 1` 이면 검사 없이 통과시키고 bff-auth 가 같은 헤더의 `X-Authenticated-*` 를 사용자로 믿어, 로그인하지 않은 브라우저도 세 헤더만 붙이면 `/api/{module}/oasis/*` 를 아무 사용자·역할로 BE 에 보낼 수 있었다. 이제 헤더 통과와 사용자 헤더 fallback 을 없애고(bff-auth 는 세션 쿠키만), 서버 코드의 OASIS 호출(`oasis-client`)은 BE 를 바로 부른다. 서버 간 경로는 권한 캐시 무효화 정확 경로 `/api/mcm/internal/cache/invalidate-role` 하나만 열고(internal 아래 다른 경로는 404), BE → BFF 전용 비밀 `BFF_INTERNAL_SECRET` 을 `X-Bff-Internal-Secret` 헤더로 받아 시간 상수 비교한다(`lib/http/internal-call.ts`). 처음에는 마스터 비밀(`X-Client-Key` = `BACKEND_CLIENT_KEY`)로 열었으나, BE 기본 주소가 평문 `http://localhost:3000` 이라 운영 호스트의 그 포트에 있는 아무 프로세스가 마스터 비밀을 받을 수 있어 나눴다(보안 재검토). BE `RoleChangedEventListener` 는 `mcm.bff.invalidate-role-url`(← `BFF_INVALIDATE_ROLE_URL`)·`mcm.bff.internal-secret`(← `BFF_INTERNAL_SECRET`) 둘 다 있을 때만 부르고(코드 기본값 없음, 없으면 TTL 5분), 로컬 값은 `application-local.yml`·`.env.example` 에 같은 값으로 둔다. 운영 BFF(`NODE_ENV=production`)는 그 로컬 값이나 `BACKEND_CLIENT_KEY` 와 같은 값이면 거절한다.
+- **BFF 경로 이동·세션 쿠키·XFF** — 해결(2026-10-03 보안 재검토): ① proxy 는 원래 경로 접두로 권한을 보는데 OASIS 라우트가 디코드한 `serviceId`·`action` 을 그대로 BE URL 에 붙여, `/api/mls/oasis/noticeBoard/search%2F..%2F..%2FnoticeMgmt%2Fsave` 가 BE `/oasis/noticeMgmt/save` 를 불렀다(`%5C`·`..;` 도 같은 부류). shared oasis-proxy 는 module·serviceId·action 을 `^[A-Za-z0-9_]+$` 로 검사하고(아니면 400) 인코딩해 붙이며, proxy 는 `/api/` 경로의 인코딩된 `/`·`\`·`.`·`;`(이중 인코딩 포함)·날 `\`·`;`·점 조각을 권한 판정 전에 400 으로 거절한다(`lib/http/path-guard.ts`, `forwardToBackend` 도 BE 경로를 한 번 더 본다). ② 세션 쿠키 이름은 NextAuth 와 같은 함수(`lib/auth/session-cookie.ts`)로 정해 https 면 `__Secure-` 쿠키만 읽는다. ③ BE 로 넘기는 `X-Forwarded-For` 는 `TRUSTED_PROXY_HOPS`(기본 0 = 넘기지 않음)만큼 오른쪽에서 고른 주소 하나만. 남은 일: mls 등 BE 모듈은 경로 권한 필터가 없어 BFF 판정이 유일한 권한 경계다 — BFF 에 새 경로 혼동이 생기거나 마스터 비밀로 BE 를 바로 부르면 그대로 실행된다. BE 쪽 경로 권한 필터는 이번 범위 밖이다.
 
 ## 17. 메모장 위젯 `memo` (2026-10-03 추가)
 
