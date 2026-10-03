@@ -314,7 +314,7 @@ class MdmOasisActionVocabularyTest {
      * MdmMenuSeeder 가 있는 파일 — {@code readActions}·{@code editActions}·{@code confirmActions}·{@code matrix} 선언,
      * 세 모양의 {@code seedMdmObjectRbac(...)} 호출, metaFeed OBJECT·layoutConfirm 메뉴 시드를 여기서 찾는다.
      */
-    private static final Path MDM_MENU_SEEDER_SOURCE = MCM_INIT.resolve("DataInitializer.java");
+    private static final Path MDM_MENU_SEEDER_SOURCE = MCM_INIT.resolve("seed/MdmMenuSeeder.java");
 
     private static Set<String> quoted(String text) {
         Set<String> out = new LinkedHashSet<>();
