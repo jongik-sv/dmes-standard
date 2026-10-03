@@ -50,6 +50,7 @@ export default function ShipmentsWidget({ title }: WidgetProps) {
           note={`${SHIPMENT_DATA.length.toLocaleString()}건`}
           onExcel={handleExcel}
           disabled={SHIPMENT_DATA.length === 0}
+          testId="wq-excel"
         />
       }
     >

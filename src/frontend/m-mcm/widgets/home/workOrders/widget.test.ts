@@ -41,13 +41,13 @@ vi.mock("@dk-oasis/shared/grid", async () => {
       return el("div", { "data-testid": "grid", "data-rows": String(p.data.length) });
     },
     GridBadge: () => null,
-    // shared GridExcelFoot 와 같은 계약(안내 글 + testId 기본 wq-excel 의 [엑셀] 단추)만 흉내 낸다. 모습·동작은 shared 시험이 본다.
+    // shared GridExcelFoot 와 같은 계약(안내 글 + testId 기본 grid-excel 의 [엑셀] 단추)만 흉내 낸다. 모습·동작은 shared 시험이 본다.
     GridExcelFoot: (p: { note: string; onExcel: () => void; disabled?: boolean; testId?: string }) =>
       el(
         "div",
         { "data-testid": "grid-foot" },
         el("span", { "data-testid": "grid-foot-note" }, p.note),
-        el("button", { type: "button", onClick: p.onExcel, disabled: p.disabled, "data-testid": p.testId ?? "wq-excel" }, "엑셀")
+        el("button", { type: "button", onClick: p.onExcel, disabled: p.disabled, "data-testid": p.testId ?? "grid-excel" }, "엑셀")
       ),
   };
 });

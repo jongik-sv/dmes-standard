@@ -57,7 +57,7 @@ export function OrderTable({ rows }: { rows: Record<string, unknown>[] }) {
 
 ### 안내 글과 단추 data-testid
 
-`note` 는 문자열이다. 길면 말줄임(`…`)으로 줄어들고 단추는 밀리지 않는다. 단추의 `data-testid` 기본값은 `wq-excel` 이고 `testId` 로 바꾼다. 줄 전체는 `grid-foot`, 안내 글은 `grid-foot-note` 로 고정이다.
+`note` 는 문자열이다. 길면 말줄임(`…`)으로 줄어들고 단추는 밀리지 않는다. 단추의 `data-testid` 기본값은 `grid-excel` 이고 `testId` 로 바꾼다. 줄 전체는 `grid-foot`, 안내 글은 `grid-foot-note` 로 고정이다.
 
 ```tsx
 <GridExcelFoot note="상위 500행만 표시합니다" onExcel={handleExcel} testId="order-excel" />
@@ -74,7 +74,7 @@ export function OrderTable({ rows }: { rows: Record<string, unknown>[] }) {
 | note | `string` | 필수 | 왼쪽 안내 글(「3행」「N건」). 길면 말줄임 |
 | onExcel | `() => void` | 필수 | [엑셀] 을 눌렀을 때. 파일 만들기는 호출한 쪽이 한다 |
 | disabled | `boolean` | `false` | 단추 비활성(내려받을 행 없음) |
-| testId | `string` | `"wq-excel"` | [엑셀] 단추의 `data-testid` |
+| testId | `string` | `"grid-excel"` | [엑셀] 단추의 `data-testid` |
 
 ## 표준값: 모든 화면 동일
 

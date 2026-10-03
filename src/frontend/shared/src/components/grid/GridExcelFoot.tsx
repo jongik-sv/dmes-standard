@@ -18,7 +18,7 @@ export interface GridExcelFootProps {
   onExcel: () => void;
   /** 내려받을 행이 없을 때 단추를 비활성으로 둔다. */
   disabled?: boolean;
-  /** [엑셀] 단추의 data-testid. 기본 `wq-excel`. */
+  /** [엑셀] 단추의 data-testid. 기본 `grid-excel`. */
   testId?: string;
 }
 
@@ -38,7 +38,7 @@ function GridExcelFootStyle() {
   );
 }
 
-export function GridExcelFoot({ note, onExcel, disabled, testId = "wq-excel" }: GridExcelFootProps) {
+export function GridExcelFoot({ note, onExcel, disabled, testId = "grid-excel" }: GridExcelFootProps) {
   return (
     <>
       <GridExcelFootStyle />

@@ -64,6 +64,7 @@ export default function WorkOrdersWidget({ title }: WidgetProps) {
             note={`${WORK_ORDER_DATA.length.toLocaleString()}건`}
             onExcel={handleExcel}
             disabled={WORK_ORDER_DATA.length === 0}
+            testId="wq-excel"
           />
         }
       >

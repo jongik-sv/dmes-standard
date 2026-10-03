@@ -47,6 +47,7 @@ export default function QueryTableRenderer({ definition, widgetId, refreshKey, t
             <GridExcelFoot
               note={data.truncated ? truncatedNote(data.rows.length) : `${data.rows.length.toLocaleString()}행`}
               onExcel={handleExcel}
+              testId="wq-excel"
             />
           </div>
         ))}

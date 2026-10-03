@@ -21,7 +21,7 @@ function render(props: GridExcelFootProps) {
   return {
     foot: host.querySelector<HTMLElement>('[data-testid="grid-foot"]')!,
     note: host.querySelector<HTMLElement>('[data-testid="grid-foot-note"]')!,
-    button: (testId = "wq-excel") => host.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`),
+    button: (testId = "grid-excel") => host.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`),
     host,
   };
 }
@@ -83,7 +83,7 @@ describe("GridExcelFoot — 동작", () => {
 });
 
 describe("GridExcelFoot — testId", () => {
-  it("단추의 data-testid 기본값은 wq-excel", () => {
+  it("단추의 data-testid 기본값은 grid-excel", () => {
     const { button } = render({ note: "1건", onExcel: vi.fn() });
     expect(button()).not.toBeNull();
   });
