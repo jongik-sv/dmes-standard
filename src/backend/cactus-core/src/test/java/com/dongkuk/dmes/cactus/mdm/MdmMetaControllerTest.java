@@ -69,7 +69,7 @@ class MdmMetaControllerTest {
 
         coilThk = new MdmColumnMeta("COIL_THK", "코일 두께", null, "두께", null, "설명", null, "NUMBER", 10, 2,
                 true, null, null, null, null, new MdmColumnMeta.DomainRef("7", "두께", "QTY"),
-                new MdmColumnMeta.Expr("value >= 0", null), new MdmColumnMeta.BizExpr("value <= COIL_WID"), List.of("COIL_WID"), null);
+                new MdmColumnMeta.Expr("value >= 0", null), new MdmColumnMeta.BizExpr("value <= COIL_WID"), List.of("COIL_WID"), null, null, null);
         feed.put(MdmTargetType.COLUMN, "COIL_THK", coilThk);
     }
 
@@ -85,6 +85,20 @@ class MdmMetaControllerTest {
                 .andExpect(jsonPath("$.items.coilThk.bizExpr").doesNotExist())
                 .andExpect(jsonPath("$.missing[0]").value("NO_SUCH"))
                 .andExpect(jsonPath("$.unavailable").isEmpty());
+    }
+
+    @Test
+    void 별칭으로_맞은_컬럼은_표준_physName_과_matchedSystem_systemPhysName_을_싣고_표준_매칭은_null_이다() throws Exception {
+        feed.put(MdmTargetType.COLUMN, "ABS_CHM_SLP_AMT", aliasColumn());
+
+        mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"names\":[\"absChmSlpAmt\",\"coilThk\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.absChmSlpAmt.physName").value("ABS_CHM_RPLN_AMT"))
+                .andExpect(jsonPath("$.items.absChmSlpAmt.matchedSystem").value("MES"))
+                .andExpect(jsonPath("$.items.absChmSlpAmt.systemPhysName").value("Abs_Chm_Slp_Amt"))
+                .andExpect(jsonPath("$.items.coilThk.matchedSystem").value(nullValue()))
+                .andExpect(jsonPath("$.items.coilThk.systemPhysName").value(nullValue()));
     }
 
     @Test
@@ -516,6 +530,11 @@ class MdmMetaControllerTest {
                 List.of());
     }
 
+    private static MdmColumnMeta aliasColumn() {
+        return new MdmColumnMeta("ABS_CHM_RPLN_AMT", "금액", null, "금액", null, null, null, "NUMBER", 10, 2,
+                false, null, null, null, null, null, null, null, List.of(), null, "MES", "Abs_Chm_Slp_Amt");
+    }
+
     private static MdmColumnMeta procColumn() {
         return codeColumn("PROC_COL", "PROC_CD");
     }
@@ -523,6 +542,6 @@ class MdmMetaControllerTest {
     private static MdmColumnMeta codeColumn(String physName, String codeId) {
         return new MdmColumnMeta(physName, "공정", null, null, null, null, null, "STRING", 10, null,
                 false, null, null, null, null, new MdmColumnMeta.DomainRef("8", "공정", "CODE"), null, null, List.of(),
-                new MdmColumnMeta.CodeRefMeta(codeId, "BASE"));
+                new MdmColumnMeta.CodeRefMeta(codeId, "BASE"), null, null);
     }
 }

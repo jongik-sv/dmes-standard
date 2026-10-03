@@ -451,7 +451,9 @@ public class MdmValidator {
 
     private void checkColumn(RowView row, String requestName, MdmColumnMeta meta, Instant ts, MdmCachedDefinitions.MissLog misses,
                              List<ErrorDetail> errors, Set<String> unavailable) {
-        String phys = meta.physName() != null ? MdmNames.toPhysName(meta.physName()) : MdmNames.toPhysName(requestName);
+        // 행·캐시·엔진에서 이 컬럼을 부르는 이름은 요청 이름이다. 시스템 별칭으로 맞았으면 meta.physName 은 표준 이름이라 행의 별칭 키 칸을 못 찾는다
+        // (별칭 매칭 spec L4 — 엔진 정의는 표준 그대로, 이름은 요청 이름).
+        String phys = MdmNames.toPhysName(requestName);
         Cell cell = row.cell(requestName, phys);
         String field = cell.field();
         String caption = MdmValueChecks.caption(meta, field);

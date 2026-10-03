@@ -80,24 +80,24 @@ class MdmValidatorTest {
 
     static MdmColumnMeta str(String phys, String labelMid, Integer length, boolean required) {
         return new MdmColumnMeta(phys, phys + " 컬럼", "긴 " + labelMid, labelMid, "짧은", null, null, "STRING", length, null, required, null,
-                null, null, null, new MdmColumnMeta.DomainRef("1", "이름", "TEXT"), null, null, List.of(), null);
+                null, null, null, new MdmColumnMeta.DomainRef("1", "이름", "TEXT"), null, null, List.of(), null, null, null);
     }
 
     static MdmColumnMeta num(String phys, String labelMid, Integer precision, Integer scale, String stdExpr) {
         return new MdmColumnMeta(phys, phys + " 컬럼", null, labelMid, null, null, null, "NUMBER", precision, scale, false, null, null, null,
                 null, new MdmColumnMeta.DomainRef("2", "수량", "QTY"), stdExpr == null ? null : new MdmColumnMeta.Expr(stdExpr, null), null,
-                List.of(), null);
+                List.of(), null, null, null);
     }
 
     static MdmColumnMeta withBiz(MdmColumnMeta m, String bizExpr, List<String> requiredVars) {
         return new MdmColumnMeta(m.physName(), m.columnName(), m.labelLong(), m.labelMid(), m.labelShort(), m.description(), m.usageNote(),
                 m.dataType(), m.length(), m.scale(), m.required(), m.defaultValue(), m.refKind(), m.refTarget(), m.refCateId(), m.domain(),
-                m.stdExpr(), new MdmColumnMeta.BizExpr(bizExpr), requiredVars, m.codeRef());
+                m.stdExpr(), new MdmColumnMeta.BizExpr(bizExpr), requiredVars, m.codeRef(), m.matchedSystem(), m.systemPhysName());
     }
 
     static MdmColumnMeta codeCol(String phys, String labelMid, String maruCodeId) {
         return new MdmColumnMeta(phys, phys + " 컬럼", null, labelMid, null, null, null, "STRING", 10, null, false, null, null, null, null,
-                new MdmColumnMeta.DomainRef("8", "공정", "CODE"), null, null, List.of(), new MdmColumnMeta.CodeRefMeta(maruCodeId, "BASE"));
+                new MdmColumnMeta.DomainRef("8", "공정", "CODE"), null, null, List.of(), new MdmColumnMeta.CodeRefMeta(maruCodeId, "BASE"), null, null);
     }
 
     /** 코드 A·B 가 있는 마루 코드. */
@@ -151,6 +151,34 @@ class MdmValidatorTest {
 
         assertThat(r.ok()).isFalse();
         assertThat(r.errors()).containsExactly(new ErrorDetail(null, null, 0, "title", "E001", "제목은(는) 필수입니다"));
+    }
+
+    // ------------------------------------------------------------------ 별칭 매칭 (spec 2026-10-03-mdm-column-system-alias-design)
+
+    /** 별칭 키로 맞은 컬럼(메타의 physName 은 표준 이름)도 행의 별칭 키 칸을 읽어 같은 규칙으로 검사한다. */
+    private static MdmColumnMeta aliasStr(String stdPhys, String alias, boolean required) {
+        MdmColumnMeta m = str(stdPhys, "제목", 5, required);
+        return new MdmColumnMeta(m.physName(), m.columnName(), m.labelLong(), m.labelMid(), m.labelShort(), m.description(), m.usageNote(),
+                m.dataType(), m.length(), m.scale(), m.required(), m.defaultValue(), m.refKind(), m.refTarget(), m.refCateId(), m.domain(),
+                m.stdExpr(), m.bizExpr(), m.bizRequiredVars(), m.codeRef(), "MES", alias);
+    }
+
+    @Test
+    void 별칭으로_맞은_컬럼도_행의_별칭_키_칸으로_검사한다() {
+        feed.put(MdmTargetType.COLUMN, "OLD_TTL", aliasStr("TITLE", "Old_Ttl", true));
+
+        MdmValidationResult blank = validateRows(List.of(row("oldTtl", "")), "oldTtl");
+        MdmValidationResult tooLong = validateRows(List.of(row("oldTtl", "abcdef")), "oldTtl");
+        MdmValidationResult ok = validateRows(List.of(row("oldTtl", "abc")), "oldTtl");
+
+        assertThat(blank.errors()).singleElement().satisfies(e -> {
+            assertThat(e.field()).isEqualTo("oldTtl");
+            assertThat(e.code()).isEqualTo("E001");
+        });
+        assertThat(tooLong.errors()).singleElement().satisfies(e -> assertThat(e.field()).isEqualTo("oldTtl"));
+        assertThat(ok.errors()).isEmpty();
+        assertThat(ok.unavailable()).isEmpty();
+        assertThat(ok.ok()).isTrue();
     }
 
     // ------------------------------------------------------------------ 키 정규화·행 거르기
@@ -306,7 +334,7 @@ class MdmValidatorTest {
     void 숫자가_아니면_타입_오류이고_날짜_컬럼은_날짜_형식을_본다() {
         feed.put(MdmTargetType.COLUMN, "QTY", num("QTY", "수량", 10, 0, null));
         feed.put(MdmTargetType.COLUMN, "WORK_DT", new MdmColumnMeta("WORK_DT", "작업일 컬럼", null, "작업일", null, null, null, "DATE", null,
-                null, false, null, null, null, null, new MdmColumnMeta.DomainRef("9", "일자", "DATE"), null, null, List.of(), null));
+                null, false, null, null, null, null, new MdmColumnMeta.DomainRef("9", "일자", "DATE"), null, null, List.of(), null, null, null));
 
         MdmValidationResult r = validateRows(List.of(
                 row("QTY", "abc", "WORK_DT", "2026-10-03"),
@@ -335,13 +363,13 @@ class MdmValidatorTest {
     @Test
     void 캡션은_labelMid_labelLong_labelShort_columnName_원래_키_순이다() {
         feed.put(MdmTargetType.COLUMN, "A1", new MdmColumnMeta("A1", "컬럼명", "긴", null, "짧은", null, null, "STRING", 1, null, true, null,
-                null, null, null, null, null, null, List.of(), null));
+                null, null, null, null, null, null, List.of(), null, null, null));
         feed.put(MdmTargetType.COLUMN, "A2", new MdmColumnMeta("A2", "컬럼명", null, null, "짧은", null, null, "STRING", 1, null, true, null,
-                null, null, null, null, null, null, List.of(), null));
+                null, null, null, null, null, null, List.of(), null, null, null));
         feed.put(MdmTargetType.COLUMN, "A3", new MdmColumnMeta("A3", "컬럼명", null, null, null, null, null, "STRING", 1, null, true, null,
-                null, null, null, null, null, null, List.of(), null));
+                null, null, null, null, null, null, List.of(), null, null, null));
         feed.put(MdmTargetType.COLUMN, "A4", new MdmColumnMeta("A4", null, null, null, null, null, null, "STRING", 1, null, true, null,
-                null, null, null, null, null, null, List.of(), null));
+                null, null, null, null, null, null, List.of(), null, null, null));
 
         MdmValidationResult r = validateRows(List.of(row()), "a1", "a2", "a3", "a4");
 
@@ -490,7 +518,7 @@ class MdmValidatorTest {
                 null, null, null, null, new MdmColumnMeta.DomainRef("3", "라인", "ID"),
                 new MdmColumnMeta.Expr("MASTER(\"LINE_CD\", \"BASE\", value)", Map.of("type", "FUNCTION", "value", "MASTER", "params", List.of(
                         Map.of("type", "STRING_LITERAL", "value", "LINE_CD"), Map.of("type", "STRING_LITERAL", "value", "BASE"),
-                        Map.of("type", "VARIABLE_OR_CONSTANT", "value", "value")))), null, List.of(), null));
+                        Map.of("type", "VARIABLE_OR_CONSTANT", "value", "value")))), null, List.of(), null, null, null));
         feed.put(MdmTargetType.CODE, "PROC_CD", codeRows("PROC_CD"));
         feed.put(MdmTargetType.CODE, "LINE_CD", codeRows("LINE_CD"));
         List<Map<String, Object>> rows = List.of(row("PROC", "A", "TITLE", "t", "LINE", "B"), row("PROC", "Z", "TITLE", "t", "LINE", "A"));
@@ -564,7 +592,7 @@ class MdmValidatorTest {
     void 코드가_아닌_MASTER_첫_인자_상수는_마루_데이터라_검증_불가다() {
         feed.put(MdmTargetType.COLUMN, "EQP", new MdmColumnMeta("EQP", "설비 컬럼", null, "설비", null, null, null, "STRING", 10, null, false,
                 null, null, null, null, new MdmColumnMeta.DomainRef("4", "설비", "ID"),
-                new MdmColumnMeta.Expr("MASTER(\"EQP_DATA\", \"BASE\", value)", null), null, List.of(), null));
+                new MdmColumnMeta.Expr("MASTER(\"EQP_DATA\", \"BASE\", value)", null), null, List.of(), null, null, null));
 
         MdmValidationResult r = validateRows(List.of(row("EQP", "X1")), "EQP");
 
