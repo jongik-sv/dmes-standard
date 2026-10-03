@@ -31,7 +31,7 @@ import { AgDataGrid, GridPanel } from "@dk-oasis/shared/grid";
 import { Input, Select } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { MdmPageLayout, openMdmPage, useMdmPageParams } from "@/shell";
+import { MdmPageLayout, VEIL_FRESH, VEIL_STALE, openMdmPage, useMdmPageParams } from "@/shell";
 
 import { registerDataMng, searchDataMng } from "./api";
 import { buildDataMngColumns } from "./columns";
@@ -50,13 +50,14 @@ export interface DataMngPageProps {
 
 const COMPONENT_PATH = "dmd/dataMng";
 
-// 이전 데이터 상세를 잠근 채 두는 동안의 모습. 흐림은 늦게 걸어 짧은 조회(대부분)에서는 보이지 않게 한다.
-const VEIL_FRESH = { display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0, transition: "opacity 120ms ease" } as const;
-const VEIL_STALE = { ...VEIL_FRESH, opacity: 0.5, pointerEvents: "none", transitionDelay: "300ms" } as const;
+// 이전 데이터 상세를 잠근 채 두는 동안의 모습(흐림 시점은 `@/shell` stale-veil).
+const VEIL_BOX = { display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 } as const;
+const DETAIL_FRESH = { ...VEIL_BOX, ...VEIL_FRESH } as const;
+const DETAIL_STALE = { ...VEIL_BOX, ...VEIL_STALE } as const;
 
 function DetailVeil({ stale, children }: { stale: boolean; children: ReactNode }) {
   return (
-    <div data-testid={stale ? "detail-stale" : undefined} aria-busy={stale || undefined} style={stale ? VEIL_STALE : VEIL_FRESH}>
+    <div data-testid={stale ? "detail-stale" : undefined} aria-busy={stale || undefined} style={stale ? DETAIL_STALE : DETAIL_FRESH}>
       {children}
     </div>
   );
