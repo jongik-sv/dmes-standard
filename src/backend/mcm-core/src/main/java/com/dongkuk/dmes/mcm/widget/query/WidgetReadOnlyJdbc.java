@@ -16,9 +16,15 @@ import org.slf4j.LoggerFactory;
  *   <li>연결은 {@link DataSource#getConnection()} 으로 따로 빌린다 — 스레드에 묶인 업무 트랜잭션(OASIS txBiz) 연결을 쓰지 않는다.</li>
  *   <li>{@code setReadOnly(true)} → {@code setAutoCommit(false)} → 방언별 보강(아래). 보강이 실패하면 SQL 을 실행하지 않는다(실패 닫힘).</li>
  *   <li>끝나면 성공·실패와 관계없이 <b>롤백</b>한다. 커밋은 하지 않는다.</li>
- *   <li>풀에 돌려주기 전에 빌릴 때 상태(autoCommit·readOnly·SQLite {@code query_only})로 되돌리고, 되돌리지 못하면 그 연결을 풀에서 뺀다
- *       (Hikari 는 {@code evictConnection}, 그 밖은 {@code abort}) — 읽기 전용으로 남은 연결이 업무 쓰기를 막지 않게.</li>
+ *   <li>풀에 돌려주기 전에 빌릴 때 상태로 되돌린다. 순서는 <b>롤백 → autoCommit → SQLite {@code query_only} → readOnly</b> —
+ *       autoCommit 을 먼저 켜 트랜잭션 밖에서 나머지를 바꾼다(JDBC 규약·pgjdbc: 트랜잭션 중 {@code setReadOnly} 는 예외, 트랜잭션 중
+ *       autoCommit 을 켜면 커밋). 롤백이 실패하면 autoCommit 을 켜지 않는다(열린 트랜잭션이 커밋되지 않게).</li>
+ *   <li>롤백·되돌리기에 실패한 연결은 풀에서 빼고(Hikari {@code evictConnection}) 바로 끊는다({@code abort}) — 읽기 전용으로 남은 연결이
+ *       업무 쓰기를 막지 않게, 그리고 풀이 반납 처리에서 autoCommit 을 되돌리며 커밋하지 못하게.</li>
  * </ol>
+ * 실 PostgreSQL 18 + pgjdbc 42.7.8 + Hikari 7 실측(2026-10-03): 서버 로그가 {@code BEGIN READ ONLY → SET TRANSACTION READ ONLY →
+ * SHOW transaction_read_only → SELECT → ROLLBACK} 이고 {@code COMMIT} 은 없다. 풀(1개)의 같은 물리 연결(백엔드 PID 동일)이 다음 실행과
+ * 업무 쓰기에 다시 쓰인다(pgjdbc {@code readOnlyMode} transaction·always·ignore 모두).
  * 방언별 보강(방언은 연결 메타데이터의 제품 이름으로 판정한다):
  * <ul>
  *   <li>SQLite — {@code setReadOnly} 는 연결 뒤 바꿀 수 없어 드라이버가 거절한다. 대신 {@code PRAGMA query_only = 1} 을 걸고 다시 읽어
@@ -148,15 +154,28 @@ public final class WidgetReadOnlyJdbc {
 
     // ── 되돌리기 ────────────────────────────────────────────────────────
 
-    /** 롤백하고 빌릴 때 상태로 되돌린다. 하나라도 실패하면 false(그 연결은 풀에 돌려보내지 않는다). */
+    /**
+     * 롤백하고 빌릴 때 상태로 되돌린다. 하나라도 실패하면 false(그 연결은 풀에 돌려보내지 않는다).
+     * 순서: 롤백 → autoCommit → SQLite query_only → readOnly(클래스 설명). 롤백이 실패하면 나머지를 하지 않는다 —
+     * autoCommit 을 켜면 드라이버가 열린 트랜잭션을 커밋한다(JDBC {@code setAutoCommit} 규약).
+     */
     private static boolean restore(Connection con, Dialect d, boolean origAutoCommit, boolean autoCommitChanged,
                                    boolean origReadOnly, boolean readOnlyChanged, Boolean origQueryOnly) {
-        boolean ok = true;
         try {
             if (!con.getAutoCommit()) con.rollback();
         } catch (SQLException | RuntimeException e) {
-            ok = false;
-            log.warn("[widgetQuery] 롤백 실패: {}", e.getMessage());
+            log.warn("[widgetQuery] 롤백 실패 — 되돌리지 않고 연결을 버립니다: {}", e.getMessage());
+            return false;
+        }
+        boolean ok = true;
+        if (autoCommitChanged) {
+            // 롤백 뒤라 열린 트랜잭션이 없다 — autoCommit 을 켜도 커밋할 것이 없다(pgjdbc 는 COMMIT 을 보내지 않는다).
+            try {
+                con.setAutoCommit(origAutoCommit);
+            } catch (SQLException | RuntimeException e) {
+                ok = false;
+                log.warn("[widgetQuery] autoCommit 되돌리기 실패: {}", e.getMessage());
+            }
         }
         if (d == Dialect.SQLITE && origQueryOnly != null) {
             try {
@@ -171,20 +190,12 @@ public final class WidgetReadOnlyJdbc {
             }
         }
         if (readOnlyChanged) {
+            // autoCommit 을 먼저 되돌려 트랜잭션 밖에서 바꾼다 — 트랜잭션 중 setReadOnly 는 pgjdbc 가 거절한다.
             try {
                 con.setReadOnly(origReadOnly);
             } catch (SQLException | RuntimeException e) {
                 ok = false;
                 log.warn("[widgetQuery] readOnly 되돌리기 실패: {}", e.getMessage());
-            }
-        }
-        if (autoCommitChanged) {
-            // 롤백 뒤라 이 사이 트랜잭션에는 아무 쓰기도 없다(SQLite 는 query_only 되돌리기만) — autoCommit 전환이 커밋할 것이 없다.
-            try {
-                con.setAutoCommit(origAutoCommit);
-            } catch (SQLException | RuntimeException e) {
-                ok = false;
-                log.warn("[widgetQuery] autoCommit 되돌리기 실패: {}", e.getMessage());
             }
         }
         return ok;
@@ -200,12 +211,16 @@ public final class WidgetReadOnlyJdbc {
         }
     }
 
+    /**
+     * 풀에서 빼고(Hikari) 바로 끊는다. 빼기만 하면 Hikari 가 반납({@code close}) 처리에서 롤백·autoCommit 되돌리기를 다시 시도해
+     * 롤백하지 못한 트랜잭션을 커밋할 수 있다 — 끊어 두면 서버가 그 트랜잭션을 버린다.
+     */
     private void discard(Connection con) {
-        log.error("[widgetQuery] 연결을 빌릴 때 상태로 되돌리지 못해 풀에서 뺍니다(읽기 전용 상태로 업무 코드에 넘어가지 않게)");
+        log.error("[widgetQuery] 연결을 빌릴 때 상태로 되돌리지 못해 풀에서 빼고 끊습니다(읽기 전용 상태로 업무 코드에 넘어가지 않게)");
         try {
-            if (HIKARI_PRESENT && Hikari.evict(dataSource, con)) return;
+            if (HIKARI_PRESENT) Hikari.evict(dataSource, con);
         } catch (SQLException | RuntimeException | LinkageError e) {
-            log.warn("[widgetQuery] 풀에서 빼기 실패 — 연결을 끊습니다: {}", e.getMessage());
+            log.warn("[widgetQuery] 풀에서 빼기 실패: {}", e.getMessage());
         }
         try {
             con.abort(Runnable::run);
@@ -249,8 +264,8 @@ public final class WidgetReadOnlyJdbc {
     /** Hikari 가 있을 때만 읽히는 클래스(없으면 로드하지 않는다). */
     private static final class Hikari {
         /**
-         * Hikari 풀이 직접 내준 연결만 뺀다. {@code evictConnection} 은 Hikari 연결이 아니면(다른 프록시로 감싼 연결) 조용히 아무것도
-         * 하지 않으므로, 그때는 false 를 돌려 abort 로 끊게 한다.
+         * Hikari 풀이 직접 내준 연결만 뺀다({@code evictConnection} 은 Hikari 연결이 아니면 조용히 아무것도 하지 않는다 —
+         * 그때도 뒤이은 abort 가 끊는다). 뺐으면 true.
          */
         static boolean evict(DataSource ds, Connection con) throws SQLException {
             if (!con.getClass().getName().startsWith("com.zaxxer.hikari.")) return false;

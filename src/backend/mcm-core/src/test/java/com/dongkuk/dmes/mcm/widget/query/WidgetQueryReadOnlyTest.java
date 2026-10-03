@@ -46,7 +46,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>실행 뒤 같은 풀의 <b>같은 물리 연결</b>이 query_only·readOnly·autoCommit 이 되돌려진 채 업무 쓰기를 한다(성공·실패 모두).</li>
  *   <li>바깥 업무 트랜잭션(같은 DataSource)의 연결을 쓰지도, 읽기 전용으로 만들지도 않는다.</li>
  *   <li>되돌리지 못한 연결은 풀에서 빠진다. 전용 DataSource 설정이 있으면 그것을 쓴다.</li>
- *   <li>PostgreSQL·Oracle 은 실제 DB 없이 문장 순서만 대본 연결로 확인한다(읽기 전용을 걸지 못하면 SQL 을 실행하지 않는다).</li>
+ *   <li>PostgreSQL·Oracle 은 실제 DB 없이 대본 연결로 확인한다(읽기 전용을 걸지 못하면 SQL 을 실행하지 않는다). 대본 연결은 JDBC 규약과
+ *       pgjdbc 실제 제약을 흉내 낸다 — 트랜잭션 중 {@code setReadOnly} 는 예외, 트랜잭션 중 autoCommit 을 켜면 커밋(기록에 {@code commit}),
+ *       autoCommit 에서 롤백은 예외. 실 PostgreSQL 확인은 스펙 §7.3(2026-10-03 실측).</li>
  * </ul>
  */
 class WidgetQueryReadOnlyTest {
@@ -261,8 +263,36 @@ class WidgetQueryReadOnlyTest {
         assertThat(one).isEqualTo(1);
         assertThat(script.calls).containsSubsequence("setReadOnly(true)", "setAutoCommit(false)",
                 "execute:SET TRANSACTION READ ONLY", "query:SHOW transaction_read_only", "WORK", "rollback",
-                "setReadOnly(false)", "setAutoCommit(true)", "close");
+                "setAutoCommit(true)", "setReadOnly(false)", "close");
         assertThat(script.calls).doesNotContain("commit", "abort");
+        assertThat(script.autoCommit).isTrue();
+        assertThat(script.readOnly).isFalse();
+    }
+
+    @Test
+    @DisplayName("PostgreSQL — 실행 중 실패해도 롤백 뒤 autoCommit·readOnly 를 되돌려 돌려준다(커밋·끊기 없음)")
+    void postgresqlRestoresAfterWorkFailure() {
+        Script script = new Script("PostgreSQL");
+        assertThatThrownBy(() -> new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> {
+            try (Statement st = con.createStatement()) {
+                st.execute("SELECT broken");
+            }
+            throw new SQLException("relation does not exist");
+        })).isInstanceOf(SQLException.class).hasMessageContaining("relation");
+        assertThat(script.calls).containsSubsequence("execute:SELECT broken", "rollback", "setAutoCommit(true)", "setReadOnly(false)", "close");
+        assertThat(script.calls).doesNotContain("commit", "abort");
+    }
+
+    @Test
+    @DisplayName("롤백이 실패하면 autoCommit 을 켜지 않고(열린 트랜잭션 커밋 방지) readOnly 도 그대로 둔 채 연결을 끊는다")
+    void rollbackFailureDiscardsWithoutCommit() throws Exception {
+        Script script = new Script("PostgreSQL");
+        script.failOn = "rollback";
+        Integer one = new WidgetReadOnlyJdbc(script.dataSource()).execute(con -> 1);
+        assertThat(one).isEqualTo(1);
+        assertThat(script.calls).contains("rollback", "abort", "close")
+                .doesNotContain("setAutoCommit(true)", "setReadOnly(false)", "commit");
+        assertThat(script.calls.indexOf("abort")).isLessThan(script.calls.indexOf("close")); // 반납 처리 전에 끊는다
     }
 
     @Test
@@ -274,7 +304,8 @@ class WidgetQueryReadOnlyTest {
             script.calls.add("WORK");
             return 1;
         })).isInstanceOf(SQLException.class).hasMessageContaining("읽기 전용");
-        assertThat(script.calls).doesNotContain("WORK", "commit", "abort").contains("rollback", "setAutoCommit(true)", "close");
+        assertThat(script.calls).doesNotContain("WORK", "commit", "abort")
+                .containsSubsequence("rollback", "setAutoCommit(true)", "setReadOnly(false)", "close");
     }
 
     @Test
@@ -286,7 +317,8 @@ class WidgetQueryReadOnlyTest {
             return 1;
         });
         assertThat(ok.calls).containsSubsequence("setReadOnly(true)", "setAutoCommit(false)",
-                "execute:SET TRANSACTION READ ONLY", "WORK", "rollback", "setReadOnly(false)", "setAutoCommit(true)");
+                "execute:SET TRANSACTION READ ONLY", "WORK", "rollback", "setAutoCommit(true)", "setReadOnly(false)", "close");
+        assertThat(ok.calls).doesNotContain("commit", "abort");
 
         Script bad = new Script("Oracle");
         bad.failOn = "execute:SET TRANSACTION READ ONLY";
@@ -294,7 +326,8 @@ class WidgetQueryReadOnlyTest {
             bad.calls.add("WORK");
             return 1;
         })).isInstanceOf(SQLException.class);
-        assertThat(bad.calls).doesNotContain("WORK", "commit");
+        assertThat(bad.calls).doesNotContain("WORK", "commit", "abort")
+                .containsSubsequence("rollback", "setAutoCommit(true)", "setReadOnly(false)", "close");
     }
 
     @Test
@@ -406,7 +439,12 @@ class WidgetQueryReadOnlyTest {
         }
     }
 
-    /** 실제 DB 없이 연결 호출 순서를 적는 대본 연결. SHOW transaction_read_only 는 showReadOnly 를 돌려준다. */
+    /**
+     * 실제 DB 없이 연결 호출 순서를 적는 대본 연결. SHOW transaction_read_only 는 showReadOnly 를 돌려준다.
+     * 트랜잭션 규칙은 JDBC 규약과 pgjdbc 42.7.8 실제 동작을 흉내 낸다 — autoCommit 이 꺼진 채 문장을 실행하면 트랜잭션이 열리고,
+     * 열린 트랜잭션에서 {@code setReadOnly} 는 예외("Cannot change transaction read-only property in the middle of a transaction."),
+     * autoCommit 을 켜면 커밋(기록 {@code commit}), autoCommit 에서 {@code rollback} 은 예외. 롤백·커밋은 트랜잭션을 닫는다.
+     */
     private static final class Script {
         final String product;
         final List<String> calls = new ArrayList<>();
@@ -414,6 +452,7 @@ class WidgetQueryReadOnlyTest {
         String failOn;
         boolean autoCommit = true;
         boolean readOnly;
+        boolean txOpen;
 
         Script(String product) {
             this.product = product;
@@ -457,10 +496,36 @@ class WidgetQueryReadOnlyTest {
                         }
                         calls.add(call);
                         if (call.equals(failOn)) throw new SQLException("대본 실패: " + call);
-                        if ("setAutoCommit".equals(m.getName())) autoCommit = (Boolean) a[0];
-                        if ("setReadOnly".equals(m.getName())) readOnly = (Boolean) a[0];
+                        switch (m.getName()) {
+                            case "setAutoCommit" -> {
+                                boolean on = (Boolean) a[0];
+                                if (on && !autoCommit && txOpen) {
+                                    calls.add("commit"); // JDBC 규약: 트랜잭션 중 autoCommit 을 바꾸면 커밋한다
+                                    txOpen = false;
+                                }
+                                autoCommit = on;
+                            }
+                            case "setReadOnly" -> {
+                                if (txOpen) {
+                                    throw new SQLException("Cannot change transaction read-only property in the middle of a transaction.");
+                                }
+                                readOnly = (Boolean) a[0];
+                            }
+                            case "rollback", "commit" -> {
+                                if (autoCommit) throw new SQLException("Cannot " + m.getName() + " when autoCommit is enabled.");
+                                txOpen = false;
+                            }
+                            default -> {
+                                // close·abort 등은 기록만
+                            }
+                        }
                         return null;
                     });
+        }
+
+        /** autoCommit 이 꺼진 채 문장을 실행하면 트랜잭션이 열린다(pgjdbc 는 첫 문장 앞에 BEGIN 을 보낸다). */
+        private void statementRan() {
+            if (!autoCommit) txOpen = true;
         }
 
         private DatabaseMetaData metaData() {
@@ -477,11 +542,13 @@ class WidgetQueryReadOnlyTest {
                         case "execute" -> {
                             String call = "execute:" + a[0];
                             calls.add(call);
+                            statementRan();
                             if (call.equals(failOn)) throw new SQLException("대본 실패: " + call);
                             yield false;
                         }
                         case "executeQuery" -> {
                             calls.add("query:" + a[0]);
+                            statementRan();
                             yield resultSet(showReadOnly);
                         }
                         case "close" -> null;
