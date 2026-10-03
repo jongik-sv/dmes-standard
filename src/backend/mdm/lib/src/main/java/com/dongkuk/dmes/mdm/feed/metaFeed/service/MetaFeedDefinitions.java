@@ -78,24 +78,41 @@ public class MetaFeedDefinitions {
             }
             try {
                 List<RuleDefinition> released = new ArrayList<>();
-                for (MdmRuleVer v : ruleQueries.versions(id)) {
-                    if (!RELEASED.equals(v.getStatus()) || v.getApplyFrom() == null) {
-                        continue;
-                    }
-                    StoredRuleDefinitions.Stored s = stored.read(id, v, scope);
-                    RuleDefinitionAssembler.Assembled a = stored.assemble(id, rule.get().getRuleKind(), s, scope);
-                    if (!a.failures().isEmpty() || !a.skippedRows().isEmpty()) {
-                        throw new IllegalStateException("룰 " + id + " 버전 " + v.getVer() + " 의 저장된 행을 조립할 수 없습니다");
-                    }
-                    released.add(a.definition());
+                for (MdmRuleVer v : releasedRuleVersions(id)) {
+                    released.add(assembleRule(id, rule.get(), v, scope));
                 }
-                released.sort(Comparator.comparing(RuleDefinition::ver)); // ver 는 BigDecimal(D-144) — compareTo 수 비교, 문자열 정렬 아님
                 found.put(id, MetaFeedJson.plain(released));
             } catch (BusinessException | IllegalArgumentException | IllegalStateException e) {
                 failed.put(id, e.getMessage());
             }
         }
         return new MetaFeedResult(found, failed);
+    }
+
+    /** RELEASED 룰 버전 하나의 정의(D-154 — 피드 전 이력·목차 current·본문이 같은 조립을 쓴다). 저장값이 깨지면 IllegalStateException. */
+    RuleDefinition assembleRule(String id, MdmRule rule, MdmRuleVer v, RuleVarTypeResolver.Scope scope) {
+        StoredRuleDefinitions.Stored s = stored.read(id, v, scope);
+        RuleDefinitionAssembler.Assembled a = stored.assemble(id, rule.getRuleKind(), s, scope);
+        if (!a.failures().isEmpty() || !a.skippedRows().isEmpty()) {
+            throw new IllegalStateException("룰 " + id + " 버전 " + v.getVer() + " 의 저장된 행을 조립할 수 없습니다");
+        }
+        return a.definition();
+    }
+
+    /** RELEASED·적용 시작 있는 룰 버전, ver 오름차순. */
+    List<MdmRuleVer> releasedRuleVersions(String id) {
+        return ruleQueries.versions(id).stream()
+                .filter(v -> RELEASED.equals(v.getStatus()) && v.getApplyFrom() != null)
+                .sorted(Comparator.comparing(MdmRuleVer::getVer))
+                .toList();
+    }
+
+    RuleVarTypeResolver.Scope ruleScope() {
+        return stored.scope();
+    }
+
+    Optional<MdmRule> rule(String id) {
+        return rules.findById(id);
     }
 
     public MetaFeedResult ruleSets(Collection<String> setIds) {
