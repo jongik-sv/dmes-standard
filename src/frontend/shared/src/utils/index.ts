@@ -5,6 +5,7 @@ export * from "./libFormat";
 export * from "./libValidation";
 export * from "./libDataset";
 export * from "./libExcel";
+export * from "./libPrint";
 export { postJson, gfn_postJson, type PostJsonOptions, type PostJsonResult } from "./libTran";
 export * from "./libChart";
 export * from "./libReg";
