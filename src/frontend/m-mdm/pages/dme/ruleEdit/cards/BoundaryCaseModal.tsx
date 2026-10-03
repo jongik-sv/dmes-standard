@@ -10,6 +10,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { MutedText } from "@dk-oasis/shared/card";
 import { Button, Checkbox } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Modal } from "@dk-oasis/shared/modal";
@@ -18,7 +19,6 @@ import { runValueTest, saveTestCase, type ValueTestRequest } from "../api";
 import type { ResolvedVar } from "../types";
 import { BOUNDARY_CASE_LIMIT, type BoundaryCandidate, type BoundaryPlan } from "../value-test/boundary-cases";
 import { BOUNDARY_RUN_CONCURRENCY, errorMessage, runOutcome, runPool, saveSequential } from "../value-test/boundary-run";
-import { MutedText } from "./CardFrame";
 
 /** 카드가 [경계값 생성] 을 누른 순간 고정한 후보와 실행 조건 — 저장 뒤 view 가 다시 와도 팝업의 후보·상태가 바뀌지 않게 한다. */
 export interface BoundarySession {
