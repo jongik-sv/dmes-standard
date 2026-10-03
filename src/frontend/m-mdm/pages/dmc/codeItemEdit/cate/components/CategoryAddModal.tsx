@@ -20,13 +20,21 @@ export interface CategoryAddModalProps {
   onClose: () => void;
   /** 로컬 diff 에 새 카테고리를 얹는다 — 저장은 상단 [저장]이 한다. */
   onAdd: (def: CategoryDef) => void;
+  /**
+   * 이 버전에 이미 있는 카테고리 ID(서버 행·로컬 새 행·닫기 표시 행). 겹치면 추가하지 않고 ID 칸에 서버와 같은 문구를 보인다 —
+   * 로컬 diff 라 추가 때 서버가 거부하지 않고 [저장] 때에야 거부되기 때문이다(2026-10-03).
+   */
+  existingIds?: readonly string[];
 }
+
+/** 서버 `MasterCodeCateSegmentOps` 의 CATE_ID_OVERLAP 문구와 같다. */
+export const CATE_ID_OVERLAP_TEXT = "이 버전에 이미 있는 카테고리다";
 
 /** 라벨은 shared `Input`/`Select` 래퍼에 `label` prop 이 없어(래퍼가 정한 모양) 폼 라벨로 따로 둔다. */
 const field = { display: "flex", flexDirection: "column", gap: 4 } as const;
 const fieldLabel = { fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)", fontWeight: 500 } as const;
 
-export function CategoryAddModal({ open, onClose, onAdd }: CategoryAddModalProps) {
+export function CategoryAddModal({ open, onClose, onAdd, existingIds = [] }: CategoryAddModalProps) {
   // shared `Modal` 은 닫힌 첫 렌더에도 content 를 마운트한다(Transition 초기 상태). 목록에 인라인 폼을 두지 않기로
   // 한 이상, 닫혀 있는데 폼 칸이 DOM 에 남아 있으면 그게 계약 위반이다 — 닫혔으면 아예 그리지 않는다.
   if (!open) return null;
@@ -35,11 +43,16 @@ export function CategoryAddModal({ open, onClose, onAdd }: CategoryAddModalProps
   const [defKind, setDefKind] = useState<"REGEX" | "TABLE">("TABLE");
   // 빈 칸으로 [추가]를 누르면 칸 아래에 무엇이 빠졌는지 알린다(아무 반응이 없으면 버튼이 고장 난 것처럼 보인다).
   const [missing, setMissing] = useState<{ id: boolean; name: boolean }>({ id: false, name: false });
+  const [duplicate, setDuplicate] = useState(false);
 
   const submit = () => {
     const next = { id: !cateId.trim(), name: !cateName.trim() };
     setMissing(next);
     if (next.id || next.name) return;
+    if (existingIds.includes(cateId.trim())) {
+      setDuplicate(true);
+      return;
+    }
     onAdd({
       cateId: cateId.trim(),
       cateName: cateName.trim(),
@@ -65,8 +78,8 @@ export function CategoryAddModal({ open, onClose, onAdd }: CategoryAddModalProps
             data-testid="cate-add-id"
             value={cateId}
             placeholder="cate_id"
-            error={missing.id ? "카테고리 ID를 입력하세요" : undefined}
-            onChange={(v) => { setCateId(v); setMissing((m) => ({ ...m, id: false })); }}
+            error={missing.id ? "카테고리 ID를 입력하세요" : duplicate ? CATE_ID_OVERLAP_TEXT : undefined}
+            onChange={(v) => { setCateId(v); setMissing((m) => ({ ...m, id: false })); setDuplicate(false); }}
           />
         </div>
         <div style={field}>

@@ -492,6 +492,43 @@ describe("codeItemEdit page", () => {
     expect(testId("cate-transfer-item-available-A")).toBeNull();
   });
 
+  // 2026-10-03 — 추가 팝업은 로컬 diff 에만 얹어 같은 ID 를 두 번 넣어도 막지 않았다(중복은 [저장] 때 서버가 거부).
+  // 서버 행·로컬 새 행 모두와 겹치면 팝업 안에 서버와 같은 문구를 보이고 입력을 남긴다.
+  it("⑱ 추가 팝업은 이미 있는 카테고리 ID(서버 행·로컬 새 행)를 받지 않고 팝업 안에 오류를 보이며 입력을 남긴다", async () => {
+    stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9")]),
+      { cateView: cateViewOf("DRAFT", true, [BASE, TABLE1]) });
+    await render(createElement(CodeItemEditPage));
+    await chooseCode("STEEL");
+    await openCateTab();
+
+    // 서버 행 T1 과 겹친다.
+    await click(testId("cate-add"));
+    await typeInto("cate-add-id", "T1");
+    await typeInto("cate-add-name", "표1 또");
+    await click(testId("cate-add-submit"));
+    expect(testId("cate-add-submit")).not.toBeNull();
+    expect(document.body.textContent).toContain("이 버전에 이미 있는 카테고리다");
+    expect((testId("cate-add-id") as HTMLInputElement).value).toBe("T1");
+    expect((testId("cate-add-name") as HTMLInputElement).value).toBe("표1 또");
+    expect(testId("cate-list")?.querySelectorAll('[data-testid="cate-row-T1"]')).toHaveLength(1);
+
+    // ID 를 고치면 오류가 사라지고 추가된다.
+    await typeInto("cate-add-id", "T2");
+    expect(document.body.textContent).not.toContain("이 버전에 이미 있는 카테고리다");
+    await click(testId("cate-add-submit"));
+    expect(testId("cate-add-submit")).toBeNull();
+    expect(testId("cate-row-T2")).not.toBeNull();
+
+    // 방금 추가한 로컬 새 행 T2 와도 겹친다.
+    await click(testId("cate-add"));
+    await typeInto("cate-add-id", "T2");
+    await typeInto("cate-add-name", "표2 또");
+    await click(testId("cate-add-submit"));
+    expect(testId("cate-add-submit")).not.toBeNull();
+    expect(document.body.textContent).toContain("이 버전에 이미 있는 카테고리다");
+    expect(testId("cate-list")?.querySelectorAll('[data-testid="cate-row-T2"]')).toHaveLength(1);
+  });
+
   it("⑰ 추가 뒤 취소한 새 카테고리의 소속 행은 저장 요청에 실리지 않는다(§ 결함 1)", async () => {
     stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9")]), {
       cateView: cateViewOf("DRAFT", true, [BASE, TABLE1],
