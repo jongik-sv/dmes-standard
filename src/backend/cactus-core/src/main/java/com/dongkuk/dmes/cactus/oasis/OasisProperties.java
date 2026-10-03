@@ -92,7 +92,7 @@ public class OasisProperties {
      */
     public static class Cache {
         /**
-         * Cache 크기 (default 100, 1 이상 — 0 이하이면 기동 때 IllegalArgumentException). 모듈의 BPMN 개수 기준 조절.
+         * Cache 크기 (default 100, 1 이상 — transactional 모드에서 0 이하이면 기동 때 IllegalArgumentException). 모듈의 BPMN 개수 기준 조절.
          * mcm 35개·mdm 52개 BPMN 기준 100 충분. 넘치면 가장 먼저 넣은 BPMN 부터 내보낸다
          * ({@code CactusConcurrentCacheService}).
          */
