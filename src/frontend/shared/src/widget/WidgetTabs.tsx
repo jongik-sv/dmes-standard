@@ -4,6 +4,8 @@
  * 위젯 탭 줄(스펙 §3.5). 「홈」은 늘 첫 자리이고 지우기·이름 바꾸기 불가.
  * 탭 메뉴(⋯): 이름 바꾸기·잠금·왼쪽/오른쪽·지우기, 「홈」은 잠금·기본 배치로 되돌리기만. 편집 모드에서는 이름 바꾸기만.
  * 메뉴는 Mantine 없이 그린다(바깥 누름·Escape 로 닫힘).
+ * 탭 메뉴·⋯ 단추·(+) 는 data-print-hide 를 달아 화면 PDF(printElementAsPage)에 찍히지 않게 한다. 메뉴를 연 채 [PDF] 를 눌러도
+ * (PDF 단추의 클릭이 메뉴를 닫기 전에 인쇄가 시작된다) 메뉴가 찍히지 않는다.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -122,6 +124,7 @@ export function WidgetTabs(props: WidgetTabsProps) {
             <button
               type="button"
               className="cm-widget-tab__more"
+              data-print-hide=""
               data-tab-menu={t.tabId}
               aria-label={`${t.name} 탭 메뉴`}
               aria-haspopup="menu"
@@ -140,6 +143,7 @@ export function WidgetTabs(props: WidgetTabsProps) {
         type="button"
         className="cm-widget-tabs__add"
         data-action="add-tab"
+        data-print-hide=""
         title={props.addTitle ?? `새 탭 (최대 ${MAX_TABS}개)`}
         aria-label="새 탭"
         disabled={menuDisabled || props.addDisabled || tabs.length >= MAX_TABS}
@@ -149,7 +153,7 @@ export function WidgetTabs(props: WidgetTabsProps) {
       </button>
       <div className="cm-widget-tabs__trailing">{trailing}</div>
       {menu && menuTab && (
-        <div className="cm-widget-menu" role="menu" style={{ position: "fixed", left: menu.left, top: menu.top }} onClick={(e) => e.stopPropagation()}>
+        <div className="cm-widget-menu" role="menu" data-print-hide="" style={{ position: "fixed", left: menu.left, top: menu.top }} onClick={(e) => e.stopPropagation()}>
           {menuTab.tabId === HOME_TAB_ID ? (
             <>
               <button type="button" role="menuitem" disabled={editing} onClick={run(() => props.onToggleLock(menuTab.tabId))}>

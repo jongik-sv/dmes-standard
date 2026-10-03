@@ -27,6 +27,11 @@ public final class NamingRules {
     public static final int TERM_NAME_MAX = 100;
     public static final int CONTEXT_MAX = 100;
     public static final int ENG_NAME_MAX = 100;
+    /**
+     * 컬럼 설명·활용처 메모(D-150). 메모 위젯 {@code WidgetMemoService.CONTENT_MAX} 와 같은 값이다. 다른 칸처럼 {@link #length}(코드 포인트)로
+     * 소독 전 원문을 센다 — 큰 입력은 소독기에 닿기 전에 거른다. 소독 결과는 엔티티 때문에 조금 길어질 수 있다(칸은 TEXT 라 문제없다).
+     */
+    public static final int DESCRIPTION_MAX = 20_000;
 
     private NamingRules() {
     }

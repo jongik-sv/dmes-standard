@@ -453,6 +453,106 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         save(ok, List.of(), List.of());
     }
 
+    // ── 설명·활용처 메모 HTML(D-150) ─────────────────────────────────────
+
+    @Test
+    void HTML_설명과_활용처_메모는_소독본으로_저장되고_상세가_소독본을_돌려준다() {
+        ColumnMngSaveRequest req = valid();
+        req.setDescription("<p onclick=\"x()\">설명 <b>굵게</b></p><script>alert(1)</script>");
+        req.setUsageNote("<a href=\"mailto:a@example.com\">메일</a> <a href=\"https://example.com\">링크</a>");
+
+        Long columnId = save(req, List.of(), List.of());
+
+        assertEquals("<p>설명 <b>굵게</b></p>", jdbc.queryForObject("SELECT DESCRIPTION FROM TB_MDM_COLUMN", String.class));
+        assertEquals("<a>메일</a> <a href=\"https://example.com\">링크</a>",
+                jdbc.queryForObject("SELECT USAGE_NOTE FROM TB_MDM_COLUMN", String.class));
+        Map<String, Object> column = map(service.view(view(columnId)).get("column"));
+        assertEquals("<p>설명 <b>굵게</b></p>", column.get("description"));
+        assertEquals("<a>메일</a> <a href=\"https://example.com\">링크</a>", column.get("usageNote"));
+    }
+
+    @Test
+    void 일반_글_설명과_활용처_메모는_꺾쇠와_앰퍼샌드를_그대로_저장한다() {
+        ColumnMngSaveRequest req = valid();
+        req.setDescription("  a < b & Map<String> <script>x</script>\n둘째 줄  ");
+        req.setUsageNote("x < y && z > 0");
+
+        save(req, List.of(), List.of());
+
+        assertEquals("a < b & Map<String> <script>x</script>\n둘째 줄",
+                jdbc.queryForObject("SELECT DESCRIPTION FROM TB_MDM_COLUMN", String.class), "일반 글은 소독하지 않는다(앞뒤 공백만 걷는다)");
+        assertEquals("x < y && z > 0", jdbc.queryForObject("SELECT USAGE_NOTE FROM TB_MDM_COLUMN", String.class));
+    }
+
+    @Test
+    void 소독_뒤_알려진_태그가_남지_않으면_p_로_감싼_HTML_로_저장한다() {
+        ColumnMngSaveRequest req = valid();
+        req.setDescription("<td>a < b & c</td>"); // 표 밖의 td 는 파서가 버린다 — 소독본은 "a &lt; b &amp; c"(태그 없음)
+        req.setUsageNote("<td></td>");
+
+        save(req, List.of(), List.of());
+
+        assertEquals("<p>a &lt; b &amp; c</p>", jdbc.queryForObject("SELECT DESCRIPTION FROM TB_MDM_COLUMN", String.class));
+        assertNull(jdbc.queryForObject("SELECT USAGE_NOTE FROM TB_MDM_COLUMN", String.class), "글자가 없으면 null");
+    }
+
+    /** 검토 C1 — 엔티티를 풀어 저장하면 소독되지 않은 HTML 이 원장에 들어가 view 로 나갔다. 엔티티 그대로 <p> 로 감싸 저장한다. */
+    @Test
+    void 엔티티로만_쓴_태그는_풀리지_않고_소독본으로_저장되고_상세도_같다() {
+        ColumnMngSaveRequest req = valid();
+        req.setDescription("<td>&lt;img src=x onerror=alert(1)&gt;</td>");
+        req.setUsageNote("<title><img src=x onerror=alert(1)></title>");
+
+        Long columnId = save(req, List.of(), List.of());
+
+        String expected = "<p>&lt;img src=x onerror=alert(1)&gt;</p>";
+        assertEquals(expected, jdbc.queryForObject("SELECT DESCRIPTION FROM TB_MDM_COLUMN", String.class));
+        assertEquals(expected, jdbc.queryForObject("SELECT USAGE_NOTE FROM TB_MDM_COLUMN", String.class));
+        Map<String, Object> column = map(service.view(view(columnId)).get("column"));
+        assertEquals(expected, column.get("description"));
+        assertEquals(expected, column.get("usageNote"));
+    }
+
+    /** 검토 M5 — D-150 이전에 소독 없이 들어간 HTML 도 상세(view)는 소독본으로 준다. 일반 글은 그대로다. */
+    @Test
+    void 상세는_소독_없이_저장된_옛_HTML_도_소독본으로_주고_일반_글은_그대로_준다() {
+        Long columnId = save(valid(), List.of(), List.of());
+        jdbc.update("UPDATE TB_MDM_COLUMN SET DESCRIPTION = ?, USAGE_NOTE = ?",
+                "<p onclick=\"x()\">옛 설명</p><img src=x onerror=alert(1)><script>alert(1)</script>",
+                "a < b & Map<String>");
+
+        Map<String, Object> column = map(service.view(view(columnId)).get("column"));
+
+        assertEquals("<p>옛 설명</p><img>", column.get("description"));
+        assertEquals("a < b & Map<String>", column.get("usageNote"));
+    }
+
+    @Test
+    void 목록과_중복_행의_HTML_활용처_메모는_글자만_싣고_상세는_소독본을_그대로_준다() {
+        ColumnMngSaveRequest req = valid();
+        req.setUsageNote("<p>화면 A &amp; B</p><ul><li>배치 C</li></ul>");
+        Long columnId = save(req, List.of(), List.of());
+
+        Map<String, Object> listRow = maps(service.search(search("RMTL_COIL_THK", null)).get("list")).get(0);
+        assertEquals("화면 A & B\n배치 C", listRow.get("usageNote"), "목록 행은 글자만");
+        Map<String, Object> dup = maps(service.compare(compare("FORWARD", "원재료 코일 두께")).get("duplicates")).get(0);
+        assertEquals(columnId, ((Number) dup.get("columnId")).longValue());
+        assertEquals("화면 A & B\n배치 C", dup.get("usageNote"), "중복 행도 글자만");
+        assertEquals("<p>화면 A &amp; B</p><ul><li>배치 C</li></ul>", map(service.view(view(columnId)).get("column")).get("usageNote"),
+                "편집 폼이 쓰는 상세는 저장된 소독본 그대로");
+    }
+
+    @Test
+    void 설명과_활용처_메모는_20000자까지() {
+        assertInvalid(r -> r.setDescription("가".repeat(20_001)), "설명");
+        assertInvalid(r -> r.setUsageNote("가".repeat(20_001)), "활용처 메모");
+        ColumnMngSaveRequest ok = valid();
+        ok.setDescription("가".repeat(20_000));
+        ok.setUsageNote("가".repeat(20_000));
+        save(ok, List.of(), List.of());
+        assertEquals(20_000, jdbc.queryForObject("SELECT LENGTH(DESCRIPTION) FROM TB_MDM_COLUMN", Integer.class));
+    }
+
     @Test
     void 코드_칸_길이는_50자까지() {
         assertInvalid(r -> r.setDefaultValue("x".repeat(51)), "기본값");

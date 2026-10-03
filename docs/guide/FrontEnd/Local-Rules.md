@@ -204,6 +204,7 @@ m-* 모듈 페이지의 로컬 `.css` import 는 tsup 이 dist 의 `pages/<영�
 - 화면 스타일은 인라인 `style`·shared 토큰·제공 클래스로 둔다. 화면 전용 규칙이 많으면 TS 문자열로 두고 페이지 루트에서 React 19 `<style href="…" precedence="default">` 로 한 번만 넣는다.
 - 외부 패키지 CSS(`@xyflow/react/dist/style.css` 등)는 호스트가 번들하므로 import 해도 된다.
 - 예시: `m-mdm/pages/dme/ruleSetEdit/rsf-styles.ts`·`page.tsx` 와 테스트(`rule-set-edit-page` 의 style 한 번 주입).
+- 개발 서버(next dev)에서 이 TS 문자열을 고치면, 이미 열린 탭은 같은 href 의 `<style>` 을 처음 넣은 내용 그대로 둔다(React 가 href 로 한 번만 넣는다). 새 규칙이 안 먹은 것처럼 보이면 코드를 고치기 전에 화면을 새로 고쳐 본다(2026-10-03, 홈 [PDF] 단추가 옛 스타일로 두 줄이 됨).
 
 ## 18. 팝업 위에 뜬 오류창 — Escape 한 번에 아래 팝업까지 닫힌다 (2026-09-30)
 
@@ -328,3 +329,10 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 - 후보 규칙이 부모 연결을 따라 하위를 찾으면, 규칙을 `MATCHED` 로 줄이기 전 검색 결과 전체에 적용한다. 이 순서는 domainMng `search` 가 일치 행과 그 조상 체인을 함께 준다는 계약을 전제로 한다.
 - 화면 목록에 없는 도메인도 검색으로 고를 수 있으므로, 고른 도메인의 원본 행을 화면이 보관해 이름·안내에 쓴다.
 - 예시: `m-mdm/pages/dma/domainMng/parent-search.ts` 와 `DomainBasicForm`·`ParentLinkModal`.
+
+## 29. HTML 소독 시험(happy-dom) — 지운 요소 뒤는 소독되지 않는다 (2026-10-03)
+
+happy-dom 20.11 의 `NodeIterator` 는 지금 노드를 지우면 그 뒤 노드를 하나도 돌지 않는다(DOM 표준은 이어서 돈다). DOMPurify 가 이 반복자로 노드를 지우므로, 시험에서 `sanitizeNoticeHtml('<script>…</script><a href="javascript:x">')` 는 `<script>` 만 지우고 뒤 링크의 `javascript:` 주소를 그대로 남긴다. 브라우저에서는 생기지 않는 일이라 시험만 틀린 결과를 낸다.
+
+- 소독 시험은 지워질 요소(`script`·`iframe` 등)를 검사할 내용 **뒤**에 두거나, 지울 요소와 검사할 속성을 다른 시험으로 나눈다. 예: `shared/tests/unit/html-editor.unit.test.ts` 의 미리보기 시험.
+- 지울 요소 뒤의 속성이 남았다고 소독 코드를 고치지 않는다. 먼저 순서를 바꿔 다시 돌려 본다.

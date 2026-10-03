@@ -27,12 +27,14 @@ import com.dongkuk.dmes.mdm.contract.layout.MdmLayoutSnapshot;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutComposer;
 import com.dongkuk.dmes.mdm.dmc.MasterCodeSeeds;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
+import com.dongkuk.dmes.mdm.feed.metaFeed.service.MetaFeedPayloads;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
+import java.lang.reflect.RecordComponent;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -42,6 +44,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -276,6 +279,42 @@ class MdmMetaFeedContractHttpTest {
         assertTrue(plain.failed().isEmpty(), plain.failed().toString());
     }
 
+    /**
+     * D-150 — HTML 설명이 MDM 피드에서 {@code descriptionHtml} = 소독본, {@code description} = 글자만으로 나간다. 원장에는 소독하지 않은 옛
+     * 데이터를 직접 넣어 피드의 재소독도 본다. 일반 글 설명은 그대로이고 {@code descriptionHtml} 은 null 이다. HTML 활용처 메모는 글자만 싣는다. cactus 는 아직 이 칸을 모르지만
+     * (cactus 전달·화면 카드는 메타 캐시 세션 담당) 모르는 칸을 무시하므로 HTTP 로 받은 {@link MdmColumnMeta} 가 깨지지 않고 글자만 설명을 읽는다.
+     */
+    @Test
+    void HTML_설명은_소독본_descriptionHtml_과_글자만_description_으로_나가고_cactus_는_글자_설명을_읽는다() throws Exception {
+        String sanitized = "<p>두께 &lt; 10</p><ul><li>하나</li><li>둘</li></ul>";
+        jdbc.update("UPDATE TB_MDM_COLUMN SET DESCRIPTION = ? WHERE PHYS_NAME = 'COIL_THK'",
+                "<p onclick=\"x()\">두께 &lt; 10</p><ul><li>하나</li><li>둘</li></ul><script>alert(1)</script>");
+        jdbc.update("UPDATE TB_MDM_COLUMN SET DESCRIPTION = 'a < b & Map<String>' WHERE PHYS_NAME = 'CT_CODE_COL'");
+        jdbc.update("UPDATE TB_MDM_COLUMN SET USAGE_NOTE = ? WHERE PHYS_NAME = 'COIL_THK'", "<p>화면 A<br>화면 B</p>");
+
+        JsonNode result = viewRaw("COLUMN", "MES", "COIL_THK", "CT_CODE_COL"); // 표준 이름이 먼저 맞는다
+
+        JsonNode html = valueOf(result, "COIL_THK");
+        assertEquals(sanitized, html.path("descriptionHtml").asText(), html.toString());
+        assertEquals("두께 < 10\n하나\n둘", html.path("description").asText(), html.toString());
+        assertEquals("화면 A\n화면 B", html.path("usageNote").asText(), "HTML 활용처 메모는 글자만: " + html);
+        assertFalse(html.has("usageNoteHtml"), "활용처 메모의 HTML 칸은 두지 않는다: " + html);
+        JsonNode plain = valueOf(result, "CT_CODE_COL");
+        assertTrue(plain.has("descriptionHtml") && plain.path("descriptionHtml").isNull(), plain.toString());
+        assertEquals("a < b & Map<String>", plain.path("description").asText(), plain.toString());
+        // 새 칸은 컬럼 값의 맨 끝이다 — 레코드 구성요소 순서와 HTTP 원시 JSON 의 마지막 칸 이름(검토 M4)
+        RecordComponent[] components = MetaFeedPayloads.ColumnMeta.class.getRecordComponents();
+        assertEquals("descriptionHtml", components[components.length - 1].getName());
+        assertEquals("descriptionHtml", lastFieldName(html), html.toString());
+        assertEquals("descriptionHtml", lastFieldName(plain), plain.toString());
+
+        MdmColumnMeta meta = (MdmColumnMeta) service.one(MdmTargetType.COLUMN, "COIL_THK").orElseThrow();
+        assertEquals("두께 < 10\n하나\n둘", meta.description(), "옛 cactus 는 태그 대신 글자를 본다");
+        assertTrue(meta.required(), "새 칸이 있어도 나머지 칸은 그대로 읽힌다");
+        MdmColumnMeta plainMeta = (MdmColumnMeta) service.one(MdmTargetType.COLUMN, "CT_CODE_COL").orElseThrow();
+        assertEquals("a < b & Map<String>", plainMeta.description());
+    }
+
     /** 컬럼 값 사본에서 별칭 칸(matchedSystem·systemPhysName)을 뺀 정의만 남긴다. */
     private static ObjectNode withoutAliasFields(JsonNode columnValue) {
         ObjectNode copy = columnValue.deepCopy();
@@ -304,6 +343,14 @@ class MdmMetaFeedContractHttpTest {
         JsonNode root = MdmJson.MAPPER.readTree(response.body());
         assertTrue(root.path("meta").path("success").asBoolean(false), root.toString());
         return root.path("data").path("result");
+    }
+
+    private static String lastFieldName(JsonNode node) {
+        String last = null;
+        for (Iterator<String> names = node.fieldNames(); names.hasNext(); ) {
+            last = names.next();
+        }
+        return last;
     }
 
     private static JsonNode valueOf(JsonNode result, String key) {

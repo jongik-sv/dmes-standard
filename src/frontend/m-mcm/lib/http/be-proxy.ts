@@ -18,14 +18,14 @@
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 import { hasAnyRole } from "@dk-oasis/shared/auth-rbac-policy";
+import { sessionCookieName } from "@/lib/auth/session-cookie";
 import { forwardedForHeader } from "./forwarded-for";
+import { isUnsafeApiPath } from "./path-guard";
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL ?? "http://localhost:8080";
 const BACKEND_CLIENT_KEY = process.env.BACKEND_CLIENT_KEY;
 
 const AUTH_SECRET = process.env.AUTH_SECRET;
-const AUTH_COOKIE_PREFIX = process.env.AUTH_COOKIE_PREFIX ?? "oasis-mcm-auth";
-const SESSION_COOKIE_NAME = `${AUTH_COOKIE_PREFIX}.session-token`;
 
 const BACKEND_UNAVAILABLE_MESSAGE =
   "백엔드 서버와 연결할 수 없습니다. 서버 실행 상태 또는 네트워크를 확인한 뒤 다시 시도해 주세요.";
@@ -202,11 +202,13 @@ export function streamBackendResponse(
  * @param moduleId  URL path 의 `{module}` 부분
  * @param backendPath  BE 엔드포인트 path (선행 `/` 포함). 예: `/query/{queryId}`,
  *                     `/lov/master/{code}/{group}`
+ * @param options.body 원 요청 본문 대신 보낼 스트림 — 미디어 올리기 라우트가 바이트를 세는 스트림으로 감싸 넘긴다.
  */
 export async function forwardToBackend(
   req: NextRequest,
   moduleId: string,
-  backendPath: string
+  backendPath: string,
+  options: { body?: ReadableStream<Uint8Array> | null } = {},
 ): Promise<NextResponse> {
   if (!BACKEND_CLIENT_KEY) {
     console.error("[BFF] BACKEND_CLIENT_KEY 환경변수가 설정되지 않았습니다.");
@@ -216,7 +218,17 @@ export async function forwardToBackend(
     );
   }
 
-  const token = await getToken({ req, secret: AUTH_SECRET, cookieName: SESSION_COOKIE_NAME });
+  // BE 경로 모양 — 라우트 매처는 Next 가 정리하기 전 경로로 조각을 나눠, proxy 가 못 본 날 `..`·`.` 조각이 params 로 올 수 있다.
+  // encodeURIComponent 는 `.` 를 인코딩하지 않아 그대로 붙이면 fetch 가 정리해 다른 BE 경로가 된다(lib/http/path-guard.ts).
+  if (isUnsafeApiPath(backendPath)) {
+    return NextResponse.json(
+      { success: false, error: { code: "BAD_REQUEST", message: "허용되지 않는 경로 형식입니다." } },
+      { status: 400 }
+    );
+  }
+
+  // 쿠키 이름은 NextAuth 와 같은 함수로 정한다 — https 면 `__Secure-` 쿠키만 읽는다(lib/auth/session-cookie.ts).
+  const token = await getToken({ req, secret: AUTH_SECRET, cookieName: sessionCookieName() });
   if (!token) {
     return NextResponse.json(
       { success: false, error: { code: "UNAUTHORIZED", message: "인증이 필요합니다." } },
@@ -259,13 +271,14 @@ export async function forwardToBackend(
     "X-Authenticated-Role": roleHeader,
   };
   // Content-Type 은 pickRequestHeaders 가 이미 넘긴다(대소문자가 다른 키를 또 넣으면 값이 겹친다).
+  // XFF 는 TRUSTED_PROXY_HOPS 만큼 오른쪽에서 고른 주소 하나만(기본 0 = 넘기지 않음) — 클라이언트가 보낸 값으로 IP 를 위조하지 못하게.
   const forwardedFor = forwardedForHeader(req.headers);
   if (forwardedFor) {
     headers["X-Forwarded-For"] = forwardedFor;
   }
 
   const body =
-    req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined;
+    req.method !== "GET" && req.method !== "HEAD" ? (options.body ?? req.body) : undefined;
 
   // 일반 JSON은 2분, export/download·미디어 올리기/내려받기는 5분, 실제 장기 실행 mutation만 30분을 허용한다.
   // 원 요청이 끊기면 같은 controller를 abort해 backend fetch에도 취소를 전파한다.

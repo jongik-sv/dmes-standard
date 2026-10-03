@@ -1,5 +1,7 @@
 # BFF RBAC 권한 검증 설계 (v2 — MVP 2패턴 스코프)
 
+> **2026-10-03 부터 `x-internal-bff-call`·`X-Authenticated-*` 헤더 신뢰는 없어졌다(fix/bff-auth-header)** — BFF 는 들어온 요청의 이 헤더로 검사를 건너뛰거나 사용자를 정하지 않는다. 현행은 [Portal-Development-Guide §1-3](../guide/FrontEnd/Portal-Development-Guide.md#1-3-서버-코드의-oasis-호출내부-호출).
+
 > ⚠ **설계 이력 (구현 완료)**: 구현이 완료된 BFF-RBAC 설계·계획 문서다. 현행 정본은 [docs/guide/Security/](../guide/Security/README.md)(Security-Guide·RBAC-PATH-CONVENTION). 본 문서는 설계 배경 참고용.
 
 > 최초: 2026-06-09 · 개정: 2026-06-10 (v2)

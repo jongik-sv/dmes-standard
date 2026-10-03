@@ -61,9 +61,11 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 입력·선택·날짜·버튼 | `form`: `Button`, `Input`, `Select`, `ComboBox`, `DatePicker`, `Textarea`, `Checkbox`, `Radio` … |
 | 데이터 그리드(모든 데이터 목록) | `grid`: **`AgDataGrid` 하나만**. 제목·건수·버튼 툴바가 필요하면 `<GridPanel>` 안에 넣는다. 저장형은 `useGridDataManager`. 열은 `GridColumn`, ag-grid `ColDef` 아님 |
 | 엑셀 내보내기 | `utils`: `exportToExcel` (xlsx 기반 — ag-grid Excel Export(Enterprise)가 필요 없다) |
+| 화면 한 영역을 잘림 없는 PDF 한 장으로(iframe 포함) | `utils`: `printElementAsPage`(브라우저 인쇄 — 인쇄 창에서 「PDF로 저장」, [문서](references/components/print-element-as-page.md)). 홈 위젯 화면은 `WidgetWorkspace` 의 `pdfTarget` |
 | 메시지·토스트 | `message-provider` (Part B §9, UI-Visual-Standard §8) |
 | 모달·트리·탭·룩업 | `modal`, `tree`, `tabs`, `lookup` |
 | 모양이 정해지지 않은 JSON 값 보기(캐시 값·설정·응답 본문) | `json-view`: `JsonView`(읽기 전용 접는 트리, `fill` 로 패널 남은 높이 채움) |
+| 서식 있는 설명(HTML) 편집 | `html-editor`: `HtmlEditor`(서식 모드 ↔ [HTML] 원문 모드, 스키마 밖 태그가 있으면 원문으로 열고 서식 손실은 확인, `maxLength` 는 경고만). 글 ↔ HTML 변환 `textToHtml`·`htmlToText`. 읽기만 하면 `notice-body-view` |
 | 서식 있는 메모·설명(마크다운) 편집·표시 | `markdown-editor`: `MarkdownEditor`(편집기 — `editable` 로 읽기·편집 전환, 여닫기는 화면이 정함), `MarkdownField`(폼·패널 칸 — 고칠 수 있으면 처음부터 편집기, `fill` 로 남은 높이 채움), `MarkdownView`(읽기 전용). 서식 없는 여러 줄 입력은 `form` 의 `Textarea` |
 | 머리글·라벨 캡션과 툴팁을 MDM 컬럼 사전에서 | `mdm-meta`: 포털 탭이 `MdmMetaProvider` 를 자동으로 씌운다 — 그리드 `header`·폼 `label` 을 **생략**하면 MDM 캡션, 메타 툴팁(`MdmMetaCard`)은 자동. 다른 물리명은 `meta`, 끄기는 `meta: false`. `FormGroup` 을 쓰지 않는 th/td 상세 표 라벨은 `MdmFieldLabel`([mdm-meta](references/components/mdm-meta.md)) |
 | 입력값을 MDM 정의(필수·형식·길이·허용 코드·표준식)로 검사·서버 저장 오류를 칸에 표시 | 그리드 `mdmValidate` + `fieldErrors={toFieldErrors(e, grid)}`, 폼 `useMdmValidation()` 결과를 `FormGroup error` 로, 저장 전 `validateRows`. 오류 칸 클래스 `cell-mdm-invalid`([mdm-meta](references/components/mdm-meta.md) §화면 값 검증) |

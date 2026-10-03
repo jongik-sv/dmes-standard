@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.rule;
 
+import com.dongkuk.dmes.mdm.common.dictionary.ColumnDescriptionSanitizer;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainChainAssembler;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainNode;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeReader;
@@ -101,7 +102,9 @@ public class RuleVarTypeResolver {
             if (column.isPresent() && column.get().getDomainId() != null) {
                 MdmColumn c = column.get();
                 String label = notBlank(v.getLabel()) ? v.getLabel() : notBlank(c.getLabelMid()) ? c.getLabelMid() : c.getLabelLong();
-                String description = notBlank(c.getDescription()) ? c.getDescription() : v.getDescription();
+                // 컬럼 설명이 HTML 이면 글자만 쓴다(D-150). 태그만 있어 글자가 없으면 변수 자신의 설명으로 돌아간다
+                String columnText = ColumnDescriptionSanitizer.plainText(c.getDescription());
+                String description = notBlank(columnText) ? columnText : v.getDescription();
                 Optional<ResolvedVar> byColumn = fromDomain(v, false, c.getDomainId(), COLUMN, label, description, lazy);
                 if (byColumn.isPresent()) {
                     return byColumn.get();

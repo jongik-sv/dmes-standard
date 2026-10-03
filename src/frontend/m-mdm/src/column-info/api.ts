@@ -91,12 +91,18 @@ export function clearColumnInfoCache(physName?: string): void {
   else cache.delete(keyOf(physName));
 }
 
-const HTML_TAG = /<\/?(p|div|br|span|b|strong|i|em|u|s|ul|ol|li|a|table|thead|tbody|tr|th|td|h[1-6]|code|pre|blockquote|img|hr)\b[^>]*>/i;
+const HTML_TAG_OPEN = /<\/?(p|div|br|span|b|strong|i|em|u|s|ul|ol|li|a|table|thead|tbody|tr|th|td|h[1-6]|code|pre|blockquote|img|hr)(?![A-Za-z0-9_])/i;
 
 /**
  * 설명 글의 형식. 알려진 HTML 태그가 있으면 HTML, 아니면 일반 글(TEXT — 줄바꿈 보존, `<`·`>` 가 글자로 남는다).
  * `Map<String>`·`a < b` 같은 사전 설명이 HTML 소독으로 사라지지 않게 아무 `<…>` 가 아니라 알려진 태그만 본다.
+ *
+ * 규칙(D-150, 백엔드 `ColumnDescriptionFormat` 과 같은 꼴): `</?태그` 바로 뒤 글자가 `A-Za-z0-9_` 가 아니고 그 뒤 어딘가에 `>` 가 있으면 HTML.
+ * `\b` 대신 명시한 lookahead 를 쓴다 — 자바 `\b` 는 결합 문자를 단어의 일부로 봐 판별이 어긋났다. `>` 는 정규식으로 찾지 않고
+ * 첫 일치 뒤에 있는지만 본다(원래 꼴 `[^>]*>` 의 되추적은 닫는 `>` 가 없는 긴 입력에서 O(n²)였다 — 편집 칸은 입력마다 판별한다).
  */
 export function descriptionFormat(text: string | null | undefined): "HTML" | "TEXT" {
-  return text && HTML_TAG.test(text) ? "HTML" : "TEXT";
+  if (!text) return "TEXT";
+  const m = HTML_TAG_OPEN.exec(text);
+  return m && text.lastIndexOf(">") >= m.index + m[0].length ? "HTML" : "TEXT";
 }

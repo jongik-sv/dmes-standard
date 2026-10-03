@@ -31,4 +31,8 @@ export const MEMO_CSS = `
    [저장] 줄이 칸 아래로 밀려 스크롤해야 보인다(2026-10-03 화면 확인). 폭 기준은 .mcm-memo__edit 의 container-type 이다. */
 @container (min-width: 420px) { .mcm-memo__md { min-height: 164px; } }
 .mcm-memo__md--locked { pointer-events: none; opacity: 0.7; }
+/* 임시 저장(쓰다 만 글): 보기 모드 [편집] 옆 작은 표시, 편집 영역 위 안내(이어 쓰기·버리기). 안내는 좁은 칸에서 단추가 아래 줄로 내려간다. */
+.mcm-memo__draft-flag { flex: 0 1 auto; min-width: 0; padding: 0 var(--spacing-xs); border-radius: var(--radius-sm); background: var(--color-warning-soft); font-size: var(--font-size-xs); color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcm-memo__draft-notice { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--spacing-xs) var(--spacing-sm); padding: var(--spacing-xs) var(--spacing-sm); border: 1px solid var(--color-warning); border-radius: var(--radius-sm); background: var(--color-warning-soft); font-size: var(--font-size-sm); color: var(--color-text); }
+.mcm-memo__draft-text { flex: 1 1 12em; min-width: 0; overflow-wrap: anywhere; }
 `;

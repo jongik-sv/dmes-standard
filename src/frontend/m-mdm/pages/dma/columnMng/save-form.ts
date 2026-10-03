@@ -3,6 +3,8 @@
  *
  * D-141 — 도메인은 필수가 아니다. 비워 두면 domainId 를 보내지 않고 서버가 DOMAIN_ID 를 NULL 로 저장한다.
  */
+import { htmlToText } from "@dk-oasis/shared/html-editor";
+import { descriptionFormat } from "@/column-info";
 import type { ColumnForm } from "./types";
 
 export const PLACEHOLDER_ERROR = "미등록 용어(***)가 남아 있어 저장할 수 없습니다";
@@ -29,6 +31,16 @@ export function saveFormError(
   return null;
 }
 
+/**
+ * 보이는 글자도 그림·구분선도 없는 HTML(`<p><br></p>` 등)은 빈 값으로 바꾼다 — 서식 모드의 빈 편집기와 같게.
+ * 그대로 저장하면 서버가 HTML 로 판정해 피드에 빈 큰 설명이 실린다. 그림·구분선만 있는 설명은 정당한 값이라 둔다.
+ */
+export function blankHtmlToEmpty(value: string): string {
+  if (!value || descriptionFormat(value) !== "HTML") return value;
+  if (/<(img|hr)[\s/>]/i.test(value)) return value;
+  return htmlToText(value).trim() === "" ? "" : value;
+}
+
 /** 저장 요청 params. 빈 도메인은 undefined — 호출부(callOasis)가 null·undefined 칸을 빼고 보낸다. */
 export function toSaveParams(form: ColumnForm): Record<string, unknown> {
   return {
@@ -38,13 +50,13 @@ export function toSaveParams(form: ColumnForm): Record<string, unknown> {
     labelLong: form.labelLong,
     labelMid: form.labelMid,
     labelShort: form.labelShort,
-    description: form.description,
+    description: blankHtmlToEmpty(form.description),
     domainId: form.domainId ? Number(form.domainId) : undefined,
     required: form.required === "Y",
     defaultValue: form.defaultValue,
     refKind: form.refKind,
     refTarget: form.refTarget,
     refCateId: form.refCateId,
-    usageNote: form.usageNote,
+    usageNote: blankHtmlToEmpty(form.usageNote),
   };
 }

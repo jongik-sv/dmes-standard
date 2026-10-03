@@ -10,6 +10,7 @@
  *  - 의존(인증 컨텍스트, 권한 캐시 무효화)은 factory 로 주입 → portal/aps/mes 앱이 동일 코드 재사용
  *  - Backend 응답 성공 시 권한 변경 자동 무효화 (P-A 훅)
  *  - 인증 헤더 3 종 전달: `X-Client-Key`, `X-Authenticated-User`, `X-Authenticated-Role`
+ *  - module·serviceId·action 은 {@link OASIS_NAME_PATTERN}(영문·숫자·밑줄) 밖이면 400 — BE URL 경로 이동 차단(2026-10-03)
  *
  * <p><b>BFF↔BE 신뢰 채널 모델</b> — 사용자 JWT(Authorization Bearer)는 더 이상 forward 하지 않는다.
  * X-Client-Key 가 shared secret 으로 BFF 신뢰를 증명하고, 사용자 컨텍스트는 헤더 2종으로
@@ -100,6 +101,19 @@ export function createOasisProxyHandler<TReq extends Request = Request>(
       params: Promise<{ module: string; serviceId: string; action: string }>;
     }
   ): Promise<Response> {
+    const params = await context.params;
+    const moduleId = params.module;
+    const { serviceId, action } = params;
+    // 경로 조각 검사 — 라우트 매처가 넘기는 값은 디코드된 값이라 `search%2F..%2F..%2FnoticeMgmt%2Fsave` 가
+    // action=`search/../../noticeMgmt/save` 로 들어온다. 그대로 BE URL 에 붙이면 fetch 가 `..` 를 정리해 proxy 의 권한 판정
+    // (원래 경로 접두)과 다른 BE 서비스(`/oasis/noticeMgmt/save`)를 부른다(2026-10-03 보안 지적). 이름 규칙 밖이면 BE 를 부르지 않는다.
+    if (!isOasisName(moduleId) || !isOasisName(serviceId) || !isOasisName(action)) {
+      return NextResponse.json(
+        { success: false, error: { code: "BAD_REQUEST", message: "잘못된 OASIS 경로입니다." } },
+        { status: 400 }
+      );
+    }
+
     const auth = await deps.getAuthContext(req);
     if (!auth) {
       return NextResponse.json(
@@ -108,9 +122,6 @@ export function createOasisProxyHandler<TReq extends Request = Request>(
       );
     }
 
-    const params = await context.params;
-    const moduleId = params.module;
-    const { serviceId, action } = params;
     const body = await req.text();
 
     // 모듈별 URL 결정:
@@ -122,10 +133,17 @@ export function createOasisProxyHandler<TReq extends Request = Request>(
     //    (예: BACKEND_API_URL=http://internal-nginx →
     //         http://internal-nginx/mpn/oasis/{serviceId}/{action})
     // BFF→BE: oasis segment 는 그대로 유지 (PR 2 big-bang 전환 컨벤션)
-    const explicitWasUrl = deps.backendApiUrlByModule?.[moduleId];
+    // 매핑은 자기 키만 본다 — `constructor` 같은 이름이 Object 원형의 값을 집지 않게 한다.
+    // 이름은 위에서 검사했지만 붙일 때도 인코딩한다(검사 규칙이 넓어져도 경로 구분자가 새지 않게).
+    const byModule = deps.backendApiUrlByModule;
+    const explicitWasUrl =
+      byModule && Object.prototype.hasOwnProperty.call(byModule, moduleId)
+        ? byModule[moduleId]
+        : undefined;
+    const servicePath = `oasis/${encodeURIComponent(serviceId)}/${encodeURIComponent(action)}`;
     const url = explicitWasUrl
-      ? `${explicitWasUrl}/oasis/${serviceId}/${action}`
-      : `${deps.backendApiUrl}/${moduleId}/oasis/${serviceId}/${action}`;
+      ? `${explicitWasUrl}/${servicePath}`
+      : `${deps.backendApiUrl}/${encodeURIComponent(moduleId)}/${servicePath}`;
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -175,6 +193,17 @@ export function createOasisProxyHandler<TReq extends Request = Request>(
       },
     });
   };
+}
+
+/**
+ * OASIS 경로 조각(module·serviceId·action) 이름 규칙 — 영문·숫자·밑줄만.
+ * BE 서비스 이름(BPMN process id)·action·모듈 이름이 모두 이 규칙 안이다(2026-10-03 전수 확인).
+ * `/`·`\`·`.`·`%`·`;` 가 들어갈 길이 없어 BE URL 에서 경로가 바뀌지 않는다.
+ */
+export const OASIS_NAME_PATTERN = /^[A-Za-z0-9_]+$/;
+
+function isOasisName(value: unknown): value is string {
+  return typeof value === "string" && OASIS_NAME_PATTERN.test(value);
 }
 
 /**
