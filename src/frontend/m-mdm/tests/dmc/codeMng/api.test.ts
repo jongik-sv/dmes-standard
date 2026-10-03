@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { callMdmOasis, registerCode, searchCodes, unwrap } from "../../../pages/dmc/codeMng/api";
 import {
-  REJECT_ENVELOPE, SUCCESS_ENVELOPE, SUCCESS_OUT, describeOasisEnvelope, rejectionOf, stubOasis,
+  REJECT_ENVELOPE, REJECT_MESSAGE, SUCCESS_ENVELOPE, SUCCESS_OUT, describeOasisEnvelope, rejectionOf, stubOasis,
 } from "../../helpers/oasis-envelope";
 
 describeOasisEnvelope("codeMng", {
@@ -12,7 +12,7 @@ describeOasisEnvelope("codeMng", {
   url: "/api/mdm/oasis/codeMng/search",
   menuId: "codeMng",
   merge: "data+result",
-  reject: "meta-only",
+  reject: "unified",
   noGrids: true,
   noisy: { call: (p) => callMdmOasis("codeMng", "search", p), omit: "nullish" },
 });
@@ -38,15 +38,15 @@ describe("codeMng — 화면별 차이", () => {
     expect(calls[1].body.params).toEqual({ maruCodeId: "C1", maruCodeName: "이름", lvlCnt: 2 });
   });
 
-  it("충돌 문구는 거부 문구 그대로라 접두 판정이 된다", async () => {
+  it("충돌 문구는 기본 문구가 맨 앞이라(상세는 뒤에 붙는다) 접두 판정이 된다", async () => {
     stubOasis({ meta: { success: false, message: "다른 사용자가 수정했습니다. 다시 불러오세요" }, errors: [{ message: "x" }] });
     const e = await rejectionOf(searchCodes("k", ""));
     expect(e.message.startsWith("다른 사용자가 수정했습니다")).toBe(true);
-    expect(e.message).toBe("다른 사용자가 수정했습니다. 다시 불러오세요");
+    expect(e.message).toBe("다른 사용자가 수정했습니다. 다시 불러오세요\n- x");
   });
 
   it("export 한 unwrap 도 같은 방식이다", () => {
     expect(unwrap(SUCCESS_ENVELOPE)).toEqual(SUCCESS_OUT["data+result"]);
-    expect(() => unwrap(REJECT_ENVELOPE)).toThrow(new Error("거부 문구"));
+    expect(() => unwrap(REJECT_ENVELOPE)).toThrow(new Error(REJECT_MESSAGE.unified));
   });
 });

@@ -8,7 +8,7 @@
  */
 import { callOasisAt, type OasisCallOptions } from "@dk-oasis/shared/http";
 
-import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
+import { MDM_OASIS_BASE, mdmFieldLabel, plainError } from "@/oasis-screen";
 
 import type { RecommendCandidate, TermForm, TermRow } from "./types";
 
@@ -37,10 +37,10 @@ export interface ReencodeBatchPayload {
 }
 
 /**
- * 지금 동작 그대로 — 성공은 data 전체 위에 `data.result` 를 덮고, 거부는 일반 Error 다. 거부 문구는 meta.message 뒤에
- * errors[] 를 `field: message` 로 붙인다(base 와 같은 문구도 거르지 않는다).
+ * 성공은 data 전체 위에 `data.result` 를 덮고, 거부는 일반 Error 다. 거부 문구는 meta.message 뒤에 errors[] 를
+ * `- 항목명: 메시지`(항목명을 모르면 메시지만, 서버 field 코드는 안 보임)로 붙이고, 기본 문구에 든 메시지는 뺀다.
  */
-const OASIS: OasisCallOptions = { merge: "data+result", details: "append", errorFactory: plainError };
+const OASIS: OasisCallOptions = { merge: "data+result", fieldLabel: mdmFieldLabel(), errorFactory: plainError };
 
 /**
  * OASIS `CactusRequestConverter` 는 `params` 의 각 값을 `TypedObject`(타입 힌트 없음)로 감싸는데,

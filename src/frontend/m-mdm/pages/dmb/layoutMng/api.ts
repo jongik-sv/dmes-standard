@@ -8,7 +8,9 @@
  */
 import { callOasisAt, omitParams, type OasisCallOptions } from "@dk-oasis/shared/http";
 
-import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
+import { MDM_OASIS_BASE, mdmFieldLabel, plainError } from "@/oasis-screen";
+
+import { LAYOUT_MNG_FIELD_LABELS } from "./fieldLabels";
 
 import type { ColumnInfo, LayoutItemRow } from "@/layout/types";
 import type {
@@ -20,8 +22,8 @@ const ITEM_KEYS = ["SEQ", "FILL_KIND", "COLUMN_PHYS", "TRANS_UNIT", "UNIT_ITEM",
 
 type Grids = Record<string, { rows: Array<Record<string, unknown>> }>;
 
-/** 지금 동작 그대로 — params 는 null·undefined·공백만 있는 문자열을 빼고, 성공은 data 전체 위에 `data.result` 를 덮고, 거부는 meta.message 만 담은 일반 Error. */
-const OASIS: OasisCallOptions = { omit: "nullish+blank", merge: "data+result", details: "none", errorFactory: plainError };
+/** params 는 null·undefined·공백만 있는 문자열을 빼고, 성공은 data 전체 위에 `data.result` 를 덮고, 거부는 일반 Error 이고 문구는 `기본 문구 + "\n- 항목명: 메시지"`(서버 field 코드는 안 보임, 기본 문구에 든 메시지는 뺌). */
+const OASIS: OasisCallOptions = { omit: "nullish+blank", merge: "data+result", fieldLabel: mdmFieldLabel(LAYOUT_MNG_FIELD_LABELS), errorFactory: plainError };
 
 /** null·undefined·빈 문자열 값을 뺀다(B0 e). 숫자 0 과 false 는 남긴다. */
 export function cleanParams(params: object): Record<string, unknown> {

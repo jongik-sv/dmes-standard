@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { patchRow, saveAll, searchCodes, unwrap, viewCode } from "../../../pages/dmc/codeItemEdit/api";
 import type { PatchParams } from "../../../pages/dmc/codeItemEdit/types";
 import {
-  REJECT_ENVELOPE, SUCCESS_ENVELOPE, SUCCESS_OUT, describeOasisEnvelope, stubOasis,
+  REJECT_ENVELOPE, REJECT_MESSAGE, SUCCESS_ENVELOPE, SUCCESS_OUT, describeOasisEnvelope, stubOasis,
 } from "../../helpers/oasis-envelope";
 
 describeOasisEnvelope("codeItemEdit", {
@@ -12,7 +12,8 @@ describeOasisEnvelope("codeItemEdit", {
   url: "/api/mdm/oasis/codeItemEdit/search",
   menuId: "codeItemEdit",
   merge: "result",
-  reject: "meta-only",
+  reject: "unified",
+  labelled: { field: "lvl2", label: "2차" },
   noGrids: true,
   noisy: { call: (p) => patchRow(p as unknown as PatchParams), omit: "nullish" },
 });
@@ -40,6 +41,6 @@ describe("codeItemEdit — 화면별 차이", () => {
 
   it("export 한 unwrap 도 같은 방식이다", () => {
     expect(unwrap(SUCCESS_ENVELOPE)).toEqual(SUCCESS_OUT.result);
-    expect(() => unwrap(REJECT_ENVELOPE)).toThrow(new Error("거부 문구"));
+    expect(() => unwrap(REJECT_ENVELOPE)).toThrow(new Error(REJECT_MESSAGE.unified));
   });
 });

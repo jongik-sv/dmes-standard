@@ -67,7 +67,8 @@ describeOasisEnvelope("domainMng", {
   url: "/api/mdm/oasis/domainMng/view",
   menuId: "domainMng",
   merge: "data+result",
-  reject: "meta-only",
+  reject: "unified",
+  labelled: { field: "DOMAIN_NAME", label: "도메인명" },
   noGrids: true,
   noisy: { call: (p) => saveDomain(p as unknown as DomainDraft, [], []), omit: "nullish+blank" },
 });

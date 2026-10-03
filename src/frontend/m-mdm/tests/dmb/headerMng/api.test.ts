@@ -76,7 +76,8 @@ describeOasisEnvelope("headerMng", {
   url: "/api/mdm/oasis/headerMng/view",
   menuId: "headerMng",
   merge: "data+result",
-  reject: "meta-only",
+  reject: "unified",
+  labelled: { field: "LAYOUT_NAME", label: "헤더 이름" },
   noGrids: true,
   noisy: { call: (p) => saveHeader(p as unknown as HeaderDraft, []), omit: "nullish+blank" },
 });

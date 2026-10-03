@@ -158,7 +158,8 @@ describeOasisEnvelope("columnMng", {
   url: "/api/mdm/oasis/columnMng/view",
   menuId: "columnMng",
   merge: "result",
-  reject: "meta-only",
+  reject: "unified",
+  labelled: { field: "physName", label: "실제 필드명" },
   noGrids: true,
   noisy: { call: (p) => callOasis("columnMng", "search", p), omit: "nullish" },
 });

@@ -5,6 +5,9 @@
  * 같은 시험이 그대로 통과해야 한다. 그래서 `fetch` 만 바꿔 끼우고(진짜 `apiRequest` 를 거친다) 요청 URL·본문·응답 펼침·
  * 거부 오류(클래스 이름·message·code 유무)를 문자 그대로 비교한다. message 가 없는 errors 항목(field 만 있음)은 문구에
  * 붙지 않는다(예전 결함 "F2: undefined" 를 고쳤다).
+ *
+ * 거부 문구는 MDM 화면 모두 `기본 문구 + "\n- 항목명: 메시지"` 로 통일했다 — 서버 field 코드는 문구에 없고(화면 맵에 항목명이
+ * 있으면 `항목명: 메시지`, 없으면 메시지만), 기본 문구에 이미 들어 있는 메시지는 뺀다.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -95,10 +98,11 @@ export const REJECT_ENVELOPE = {
 
 /** 문구 조립 방식별 message. */
 export const REJECT_MESSAGE = {
-  /** meta.message(trim) 만 — errors[] 는 보지 않는다. */
-  "meta-only": "거부 문구",
-  /** errors[] 를 `field: message` 로 붙인다. base 와 같은 문구도 걸러지지 않고, message 가 없는 항목(field 만 있음)은 빠진다. */
-  append: "거부 문구\n- F1: 칸 오류\n- 거부 문구\n- java.lang.NullPointerException: boom",
+  /**
+   * 통일 형식 — meta.message(trim) 뒤에 errors[] 를 `- 메시지` 로 붙인다(F1 은 화면 맵에 없어 코드 없이 메시지만).
+   * base 에 이미 든 문구("거부 문구")와 message 가 없는 항목(field 만 있음)은 빠진다. 예외 원문은 거르지 않는다(m-mdm 정책).
+   */
+  unified: "거부 문구\n- 칸 오류\n- java.lang.NullPointerException: boom",
 } as const;
 
 export type RejectMode = keyof typeof REJECT_MESSAGE;
@@ -116,6 +120,11 @@ export interface OasisEnvelopeSpec {
   noisy?: { call: (params: Record<string, unknown>) => Promise<unknown>; omit: OmitMode };
   /** 대표 호출이 grids 를 보내지 않으면 true — 본문에 grids 키가 없어야 한다. */
   noGrids?: boolean;
+  /**
+   * 이 화면 맵에 있는 서버 field 하나와 그 항목명(없으면 공통 맵의 `applyFrom`). 오류 상세가 `항목명: 메시지` 로 보이는지,
+   * 즉 화면이 fieldLabel 을 실제로 넘기는지 본다.
+   */
+  labelled?: { field: string; label: string };
 }
 
 /**
@@ -182,9 +191,30 @@ export function describeOasisEnvelope(name: string, spec: OasisEnvelopeSpec): vo
 
     it("기본 문구 + errors[] 일 때의 문구", async () => {
       stubOasis({ meta: { success: false, message: null }, errors: [{ field: "F1", message: "칸 오류" }] });
+      expect((await rejectionOf(spec.call())).message).toBe(`${DEFAULT_REJECT_MESSAGE}\n- 칸 오류`);
+    });
+
+    const labelled = spec.labelled ?? { field: "applyFrom", label: "희망 적용 시작 일시" };
+    it(`서버 field ${labelled.field} 는 코드 대신 항목명 '${labelled.label}' 으로 보인다`, async () => {
+      stubOasis({
+        meta: { success: false, message: "입력값이 올바르지 않습니다" },
+        errors: [{ field: labelled.field, message: "칸 오류" }, { field: "var:12", message: "변수 오류" }],
+      });
       expect((await rejectionOf(spec.call())).message).toBe(
-        spec.reject === "append" ? `${DEFAULT_REJECT_MESSAGE}\n- F1: 칸 오류` : DEFAULT_REJECT_MESSAGE,
+        `입력값이 올바르지 않습니다\n- ${labelled.label}: 칸 오류\n- 변수 오류`,
       );
+    });
+
+    it("기본 문구에 이미 들어 있는 상세 메시지는 다시 붙이지 않는다(MdmErrors 모양)", async () => {
+      stubOasis({
+        meta: { success: false, message: "저장 검사를 통과하지 못했습니다: 칸 오류; 다른 오류" },
+        errors: [
+          { code: "MDM022", message: "저장 검사를 통과하지 못했습니다" },
+          { field: labelled.field, code: "C1", message: "칸 오류" },
+          { code: "C2", message: " 다른 오류 " },
+        ],
+      });
+      expect((await rejectionOf(spec.call())).message).toBe("저장 검사를 통과하지 못했습니다: 칸 오류; 다른 오류");
     });
   });
 }

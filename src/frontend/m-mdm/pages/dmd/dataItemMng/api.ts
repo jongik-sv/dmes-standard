@@ -6,16 +6,18 @@
  */
 import { callOasisAt, omitParams, type OasisCallOptions } from "@dk-oasis/shared/http";
 
-import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
+import { MDM_OASIS_BASE, mdmFieldLabel, plainError } from "@/oasis-screen";
+
+import { DATA_ITEM_FIELD_LABELS } from "./fieldLabels";
 
 import type { DataItemFilters, DataItemSaveResult, DataItemSearchResult, DataItemViewResult } from "./types";
 
 /**
- * 지금 동작 그대로 — params 는 null·undefined·빈 문자열("")을 빼고, 성공은 `data.result` 만 편다. 거부는 meta.message 만 담은
- * 일반 Error 다 — BPMN 안에서 던진 업무 오류는 `meta.message` 만 오고 `errors[]` 는 비어 있다(F12). 그래서 message 를 그대로
- * 화면 오류 문구로 쓴다(충돌·닫힌 키 판정도 이 글자로 한다).
+ * params 는 null·undefined·빈 문자열("")을 빼고, 성공은 `data.result` 만 편다. 거부는 일반 Error 이고 문구는
+ * `기본 문구 + "\n- 항목명: 메시지"`(서버 field 코드는 안 보임, 기본 문구에 든 메시지는 뺌)다 — BPMN 안에서 던진 업무 오류는
+ * 지금 `meta.message` 만 오고 `errors[]` 는 비어 있다(F12). 기본 문구가 맨 앞이라 충돌·닫힌 키 판정(startsWith·includes)은 그대로다.
  */
-const OASIS: OasisCallOptions = { omit: "nullish+empty", merge: "result", details: "none", errorFactory: plainError };
+const OASIS: OasisCallOptions = { omit: "nullish+empty", merge: "result", fieldLabel: mdmFieldLabel(DATA_ITEM_FIELD_LABELS), errorFactory: plainError };
 
 /** params 의 null·undefined·빈 문자열은 뺀다(A4 — OASIS 가 null 값의 타입을 정하지 못해 요청 전체가 실패한다, F14). */
 export function omitNullish(params: Record<string, unknown>): Record<string, unknown> {

@@ -136,7 +136,8 @@ describeOasisEnvelope("layoutMng", {
   url: "/api/mdm/oasis/layoutMng/view",
   menuId: "layoutMng",
   merge: "data+result",
-  reject: "meta-only",
+  reject: "unified",
+  labelled: { field: "LAYOUT_NAME", label: "전문 이름" },
   noGrids: true,
   noisy: { call: (p) => saveLayout(p as unknown as LayoutDraft, [], [], []), omit: "nullish+blank" },
 });

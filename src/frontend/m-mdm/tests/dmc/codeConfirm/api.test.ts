@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { searchDrafts, unwrap, validateDraft, viewDraft } from "../../../pages/dmc/codeConfirm/api";
 import {
-  REJECT_ENVELOPE, SUCCESS_ENVELOPE, SUCCESS_OUT, describeOasisEnvelope, stubOasis,
+  REJECT_ENVELOPE, REJECT_MESSAGE, SUCCESS_ENVELOPE, SUCCESS_OUT, describeOasisEnvelope, stubOasis,
 } from "../../helpers/oasis-envelope";
 
 describeOasisEnvelope("codeConfirm", {
@@ -11,7 +11,8 @@ describeOasisEnvelope("codeConfirm", {
   url: "/api/mdm/oasis/codeConfirm/search",
   menuId: "codeConfirm",
   merge: "result",
-  reject: "meta-only",
+  reject: "unified",
+  labelled: { field: "code", label: "코드" },
   noGrids: true,
 });
 
@@ -34,6 +35,6 @@ describe("codeConfirm — 화면별 차이", () => {
 
   it("export 한 unwrap 도 같은 방식이다", () => {
     expect(unwrap(SUCCESS_ENVELOPE)).toEqual(SUCCESS_OUT.result);
-    expect(() => unwrap(REJECT_ENVELOPE)).toThrow(new Error("거부 문구"));
+    expect(() => unwrap(REJECT_ENVELOPE)).toThrow(new Error(REJECT_MESSAGE.unified));
   });
 });

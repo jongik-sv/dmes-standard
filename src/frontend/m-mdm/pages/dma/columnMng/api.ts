@@ -6,7 +6,9 @@
  */
 import { callOasisAt, unwrapOasis, type OasisCallOptions } from "@dk-oasis/shared/http";
 
-import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
+import { MDM_OASIS_BASE, mdmFieldLabel, plainError } from "@/oasis-screen";
+
+import { COLUMN_MNG_FIELD_LABELS } from "./fieldLabels";
 
 import type { DomainRow } from "@/domain";
 
@@ -20,11 +22,12 @@ import type {
 type Rows = Record<string, unknown>[];
 
 /**
- * 지금 동작 그대로 — `apiRequest` 는 non-2xx 만 throw 하므로 `meta.success === false` 는 공통 계약이 본다.
- * BPMN 안에서 던진 업무 오류는 `meta.message`(= 서버 예외 message)만 오고 `errors[]` 는 비어 있다(design.md F12).
- * 그래서 message 만 담은 일반 Error 를 던진다. 성공이면 `data.result` 만 펼친다(output="result").
+ * `apiRequest` 는 non-2xx 만 throw 하므로 `meta.success === false` 는 공통 계약이 본다. BPMN 안에서 던진 업무 오류는
+ * 지금 `meta.message`(= 서버 예외 message)만 오고 `errors[]` 는 비어 있다(design.md F12). 거부는 일반 Error 이고 문구는
+ * `기본 문구 + "\n- 항목명: 메시지"`(서버 field 코드는 안 보임, 기본 문구에 든 메시지는 뺌)라 errors[] 가 없으면 기본 문구뿐이다.
+ * 성공이면 `data.result` 만 펼친다(output="result").
  */
-const OASIS: OasisCallOptions = { merge: "result", details: "none", errorFactory: plainError };
+const OASIS: OasisCallOptions = { merge: "result", fieldLabel: mdmFieldLabel(COLUMN_MNG_FIELD_LABELS), errorFactory: plainError };
 
 /** 응답 봉투 해제 + 업무 거부 판정 — 위 옵션 그대로. */
 export function unwrap<T = Record<string, unknown>>(res: unknown): T {

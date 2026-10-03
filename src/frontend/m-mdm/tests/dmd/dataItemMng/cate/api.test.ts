@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { registerCategory, saveMembers, searchCategories, unwrap } from "../../../../pages/dmd/dataItemMng/cate/api";
 import {
-  REJECT_ENVELOPE, SUCCESS_ENVELOPE, SUCCESS_OUT, describeOasisEnvelope, stubOasis,
+  REJECT_ENVELOPE, REJECT_MESSAGE, SUCCESS_ENVELOPE, SUCCESS_OUT, describeOasisEnvelope, stubOasis,
 } from "../../../helpers/oasis-envelope";
 
 describeOasisEnvelope("dataItemMng/cate", {
@@ -11,7 +11,8 @@ describeOasisEnvelope("dataItemMng/cate", {
   url: "/api/mdm/oasis/dataCateEdit/search",
   menuId: "dataCateEdit",
   merge: "result",
-  reject: "meta-only",
+  reject: "unified",
+  labelled: { field: "cateId", label: "ID" },
   noGrids: true,
 });
 
@@ -39,6 +40,6 @@ describe("dataItemMng/cate — 화면별 차이", () => {
 
   it("export 한 unwrap 도 같은 방식이다", () => {
     expect(unwrap(SUCCESS_ENVELOPE)).toEqual(SUCCESS_OUT.result);
-    expect(() => unwrap(REJECT_ENVELOPE)).toThrow(new Error("거부 문구"));
+    expect(() => unwrap(REJECT_ENVELOPE)).toThrow(new Error(REJECT_MESSAGE.unified));
   });
 });

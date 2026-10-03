@@ -56,7 +56,8 @@ describeOasisEnvelope("dataItemMng", {
   url: "/api/mdm/oasis/dataItemMng/view",
   menuId: "dataItemMng",
   merge: "result",
-  reject: "meta-only",
+  reject: "unified",
+  labelled: { field: "code", label: "키" },
   noGrids: true,
   noisy: { call: (p) => callOasis("dataItemMng", "view", p), omit: "nullish+empty" },
 });

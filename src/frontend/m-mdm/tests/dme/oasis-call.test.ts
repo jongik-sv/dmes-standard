@@ -57,13 +57,23 @@ describe("callOasis(공통본) — OASIS 호출 특성", () => {
     expect(await callOasis("ruleEdit", "view", {})).toEqual({ result: [1] });
   });
 
-  it("거부는 OasisCallError — errors[] 를 붙이되 base 와 같은 문구와 message 없는 항목(field 만 있음)은 거른다", async () => {
+  it("거부는 OasisCallError — errors[] 를 붙이되 base 에 든 문구와 message 없는 항목(field 만 있음)은 거르고 field 코드는 쓰지 않는다", async () => {
     stubOasis(REJECT_ENVELOPE);
     const e = await rejectionOf(callOasis("ruleEdit", "save", {}));
     expect(e).toBeInstanceOf(OasisCallError);
     expect(e.name).toBe("OasisCallError");
-    expect(e.message).toBe("거부 문구\n- F1: 칸 오류\n- java.lang.NullPointerException: boom");
+    expect(e.message).toBe("거부 문구\n- 칸 오류\n- java.lang.NullPointerException: boom");
     expect((e as OasisCallError).code).toBe("MDM001");
+  });
+
+  it("항목명은 MDM 공통 맵만 쓴다 — applyFrom 은 항목명, 합성 field(var:<id>·검사 항목 이름)는 메시지만", async () => {
+    stubOasis({
+      meta: { success: false, message: "룰 저장 거부" },
+      errors: [{ field: "applyFrom", message: "적용 시작 일시를 입력하세요" }, { field: "var:3", message: "변수 없음" }, { field: "HAS_CHANGES", message: "변경 없음" }],
+    });
+    expect((await rejectionOf(callOasis("s", "a", {}))).message).toBe(
+      "룰 저장 거부\n- 희망 적용 시작 일시: 적용 시작 일시를 입력하세요\n- 변수 없음\n- 변경 없음",
+    );
   });
 
   it("code 는 meta.code, 없으면 errors[] 의 첫 code, 둘 다 없으면 null 이다", async () => {

@@ -7,18 +7,18 @@
  */
 import { callOasisAt, unwrapOasis, type OasisCallOptions } from "@dk-oasis/shared/http";
 
-import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
+import { MDM_OASIS_BASE, mdmFieldLabel, plainError } from "@/oasis-screen";
 
 import type { ConfirmResult, SearchResult, ValidateResult, ViewResult } from "./types";
 
 const SERVICE = "ruleConfirm";
 
-/** 지금 동작 그대로 — params 는 null·undefined 만 빼고, 성공은 `data.result` 만 펴고, 거부는 meta.message 만 담은 일반 Error. */
-const OASIS: OasisCallOptions = { merge: "result", details: "none", errorFactory: plainError };
+/** params 는 null·undefined 만 빼고, 성공은 `data.result` 만 펴고, 거부는 일반 Error 이고 문구는 `기본 문구 + "\n- 항목명: 메시지"`(서버 field 코드는 안 보임, 기본 문구에 든 메시지는 뺌). */
+const OASIS: OasisCallOptions = { merge: "result", fieldLabel: mdmFieldLabel(), errorFactory: plainError };
 
 /**
- * 봉투 해제 + 업무 거부 판정. BPMN 안에서 던진 업무 오류는 `meta.message`(서버 예외 message)만 오고 `errors[]` 는
- * 비어 있다(06-04 F11). 그래서 message 를 그대로 화면 오류 문구로 쓴다(I39). 성공이면 `data.result` 를 펼친다.
+ * 봉투 해제 + 업무 거부 판정. BPMN 안에서 던진 업무 오류는 지금 `meta.message`(서버 예외 message)만 오고 `errors[]` 는
+ * 비어 있다(06-04 F11). 그래서 message 가 화면 오류 문구의 기본 문구다(errors[] 가 오면 항목별 상세가 뒤에 붙는다)(I39). 성공이면 `data.result` 를 펼친다.
  */
 export function unwrap<T = Record<string, unknown>>(res: unknown): T {
   return unwrapOasis<T>(res, OASIS);

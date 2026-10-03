@@ -8,7 +8,9 @@
  */
 import { callOasisAt, type OasisCallOptions } from "@dk-oasis/shared/http";
 
-import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
+import { MDM_OASIS_BASE, mdmFieldLabel, plainError } from "@/oasis-screen";
+
+import { DOMAIN_MNG_FIELD_LABELS } from "./fieldLabels";
 
 import type {
   DomainDraft, ExecuteResult, PreviewRequest, SaveResult, SearchFilters, SearchResult, TestCaseRow,
@@ -19,8 +21,8 @@ const SERVICE = "domainMng";
 
 type Grids = Record<string, { rows: Array<Record<string, unknown>> }>;
 
-/** 지금 동작 그대로 — params 는 null·undefined·공백만 있는 문자열을 빼고, 성공은 data 전체 위에 `data.result` 를 덮고, 거부는 meta.message 만 담은 일반 Error. */
-const OASIS: OasisCallOptions = { omit: "nullish+blank", merge: "data+result", details: "none", errorFactory: plainError };
+/** params 는 null·undefined·공백만 있는 문자열을 빼고, 성공은 data 전체 위에 `data.result` 를 덮고, 거부는 일반 Error 이고 문구는 `기본 문구 + "\n- 항목명: 메시지"`(서버 field 코드는 안 보임, 기본 문구에 든 메시지는 뺌). */
+const OASIS: OasisCallOptions = { omit: "nullish+blank", merge: "data+result", fieldLabel: mdmFieldLabel(DOMAIN_MNG_FIELD_LABELS), errorFactory: plainError };
 
 function callAction<T>(action: string, params: object, grids?: Grids): Promise<T> {
   return callOasisAt<T>(MDM_OASIS_BASE, SERVICE, action, params, grids, OASIS);

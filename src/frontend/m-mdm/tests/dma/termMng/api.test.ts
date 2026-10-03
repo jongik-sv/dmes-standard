@@ -1,5 +1,5 @@
 // termMng api.ts 의 OASIS 호출 특성(현재 동작 고정) — 공통 계약으로 옮겨도 그대로 통과해야 한다.
-// unitMng 와 같이 errors[] 를 거르지 않고 붙이며, 유사어 추천은 AbortSignal 을 그대로 fetch 에 넘긴다.
+// 거부 문구는 다른 MDM 화면과 같은 통일 형식이며, 유사어 추천은 AbortSignal 을 그대로 fetch 에 넘긴다.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { recommend, saveTerm, searchTerms } from "../../../pages/dma/termMng/api";
@@ -11,7 +11,7 @@ describeOasisEnvelope("termMng", {
   url: "/api/mdm/oasis/termMng/search",
   menuId: "termMng",
   merge: "data+result",
-  reject: "append",
+  reject: "unified",
   noGrids: true,
 });
 
