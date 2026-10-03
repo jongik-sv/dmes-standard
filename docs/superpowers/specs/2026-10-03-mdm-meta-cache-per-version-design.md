@@ -296,7 +296,7 @@ cactus:
   - (나) 처음 적재는 `TOC + current` 를 한 읽기 트랜잭션에서 받으므로 어긋나지 않는다(§4.1).
   - (다) 그 밖의 어긋남(같은 ver 인데 내용이 제자리 수정됨)은 지금도 있는 "폴링 간격만큼 늦음"과 같은 범위다. 다음 폴링이 묶음을 지운다.
     엔진이 한 해석기 호출 안에서 옛 목차로 고른 ver 가 그새 확정 취소되면, 본문 `NOT_RELEASED` → 목차 다시 받기 → 그 ver 없음이다. 이때 `codeAt`·`codes` 는 빈 값이 아니라 **받을 수 없음**(`MdmUnavailableException`)을 던져 §5.4 의 빈 값 금지 불변식을 지킨다(빈 값이면 해석기가 소속을 빈 집합으로 내려 옛 판정도 새 판정도 아닌 값이 된다). 캐시만 읽는 조회기는 그 본문이 캐시에 없으므로 부재 기록 후 던진다.
-- **RELOAD**: 지운 뒤 목차와 지금 시각의 최종 본문을 다시 받는다(`MdmRevisionPoller.java:146-155` 의 `service::lookup` 을 `lookupAt(…, now)` 로). 지우기 전에 있던 옛 본문은 다시 받지 않는다. 필요해지면 미스 때 받는다. 진행 중 적재에 합류하지 않는다(관리 화면 reload 와 같은 자리 빼앗기, `MdmMetaService.refreshAfterEvict`). 지움 전 Ticket 으로 시작한 적재에 합류하면 그 결과는 지움 기록에 막혀 캐시에 들어가지 못하고, 목차 없이 본문만 따로 들어가 옛 수명으로 강등되며, 폴러가 잠금을 쥔 채 그 적재를 기다린다(fu3). 다시 받는 적재의 Ticket 은 지움·`markApplied` 뒤에 받으므로 목차와 최종 본문이 한 Ticket 으로 함께 들어간다. 값 대상과 versioned-feed off 경로도 같은 규칙이다.
+- **RELOAD**: 지운 뒤 목차와 지금 시각의 최종 본문을 다시 받는다(`MdmRevisionPoller.java:146-155`  에서 `refreshAfterEvict(…, now)` 로). 지우기 전에 있던 옛 본문은 다시 받지 않는다. 필요해지면 미스 때 받는다. 진행 중 적재에 합류하지 않는다(관리 화면 reload 와 같은 자리 빼앗기, `MdmMetaService.refreshAfterEvict`). 지움 전 Ticket 으로 시작한 적재에 합류하면 그 결과는 지움 기록에 막혀 캐시에 들어가지 못하고, 목차 없이 본문만 따로 들어가 옛 수명으로 강등되며, 폴러가 잠금을 쥔 채 그 적재를 기다린다(fu3). 다시 받는 적재의 Ticket 은 지움·`markApplied` 뒤에 받으므로 캐시에 들어간다. 최종 본문이 목차 응답의 current 로 오면 목차와 한 Ticket 으로 함께 들어가고, 목차가 이미 캐시에 있으면 본문만 따로 적재한다. 값 대상과 versioned-feed off 경로도 같은 규칙이다.
 - **통째 비우기**(기동·truncated·역행, `MdmRevisionPoller.java:113-128`)는 지금 그대로다. 세대가 올라가 목차·본문이 함께 버려진다(`MdmMetaCache.java:227-232`).
 
 ### 5.7 노드 간 일관성
