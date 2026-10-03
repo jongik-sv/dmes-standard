@@ -15,6 +15,9 @@
  *   전에 자기 값(lastSynced)을 먼저 갱신하므로, 부모가 값을 버리면 편집기에는 글이 남고 draft 에는 없어 어긋난다.
  *   [배치 편집] 중 md 편집 칸(contenteditable)에서 누른 Esc 는 배치 편집 취소(shared WidgetWorkspace 의 document keydown, 입력칸·메뉴·
  *   대화상자만 거른다)로 새지 않게 감싸개에서 끊는다.
+ * - 메모장 제목(2026-10-03): 편집 화면 맨 위에 「제목」 입력칸(최대 40자, 코드 포인트 기준)을 두고 [저장] 때 내용과 함께 보낸다. 비우면 위젯 정의 이름으로
+ *   돌아간다(placeholder 가 그 이름을 알린다). 틀 제목은 **저장된 제목**으로만 바꾼다(useWidgetTitle) — 편집 중 입력은 미리 보이지 않고, 공용 메모·미리보기·
+ *   기본 배치 보드(live=false)에서는 바꾸지 않는다. 임시본에도 제목을 담아 편집 중 제목이 복원된다.
  * - 관리 화면 미리보기(저장소 없음)는 load·save 를 부르지 않고 「미리보기에서는 저장하지 않습니다」만 보인다.
  * - 임시 저장(쓰다 만 글): 편집 중 글·형식이 바뀌면 300ms 디바운스로 이 브라우저(localStorage
  *   `dmes:widget:memo-draft:v1:{encodeURIComponent(userId)}:{encodeURIComponent(instanceId)}`)에 { format, content, baseHash(불러온 메모의 내용 해시),
@@ -36,10 +39,10 @@
  * 쓰던 글이 안 보이므로 저장 오류는 이 화면 안에서 보인다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { Button, Select, Textarea } from "@dk-oasis/shared/form";
+import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { MarkdownField } from "@dk-oasis/shared/markdown-editor";
 import { NoticeBodyView } from "@dk-oasis/shared/notice-body-view";
-import { useWidgetStatus, type WidgetProps } from "@dk-oasis/shared/widget";
+import { useWidgetStatus, useWidgetTitle, type WidgetProps } from "@dk-oasis/shared/widget";
 
 import { useWidgetBoardMode } from "@/lib/widget-board-mode";
 
@@ -48,6 +51,7 @@ import { fetchMemo, saveMemo } from "./api";
 import { readDraft, removeDraft, sweepDrafts } from "./memo-draft-storage";
 import {
   canSave,
+  clampTitle,
   classifyDraft,
   countLabel,
   draftDiffers,
@@ -68,9 +72,11 @@ import {
   memoDraftNoticeText,
   memoEditBase,
   memoErrorMessage,
+  normalizeTitle,
   readMemoConfig,
   restorableDraft,
   validateDraft,
+  validateTitle,
   viewFormat,
   type MemoEditBase,
   type MemoFormat,
@@ -119,7 +125,7 @@ function stopEscape(e: KeyboardEvent<HTMLElement>) {
   e.nativeEvent.stopImmediatePropagation();
 }
 
-function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetProps) {
+function PersonalMemo({ instanceId, widgetId, definition, refreshKey, title: defTitle }: WidgetProps) {
   const setStatus = useWidgetStatus();
   const boardMode = useWidgetBoardMode();
   /** 서버와 실제로 주고받는 칸 — 관리 화면 미리보기·기본 배치 보드(boardMode="preview")는 아니다. */
@@ -132,6 +138,7 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
   const [mode, setMode] = useState<Mode>("view");
   const [draftFormat, setDraftFormat] = useState<MemoFormat>(initialFormat);
   const [draftContent, setDraftContent] = useState("");
+  const [draftTitle, setDraftTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
@@ -141,6 +148,8 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
   /** [편집]을 열 수 있는가 — 실제 칸이고 불러왔고 사용자 확인이 끝났다(성공이든 실패든. 확인 중에 열면 도중에 키가 생겨 입력이 잠긴다). */
   const canEdit = live && loaded && userStatus !== "pending";
   const writer = useMemoDraftWriter();
+  // 틀 제목 — 저장된 제목이 있을 때만 정의 이름 대신 쓴다(실제 칸이 아니면 늘 정의 이름). 값이 바뀌거나 위젯이 사라지면 틀이 되돌린다.
+  useWidgetTitle(live ? (memo?.title ?? null) : null);
   /** 편집을 시작할 때의 서버 메모 기준(형식·내용·해시). */
   const [base, setBase] = useState<MemoEditBase | null>(null);
   /**
@@ -214,11 +223,11 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
     if (!isDraftWritable(draftContent)) return;
     writer.schedule(
       editKey,
-      draftDiffers({ format: draftFormat, content: draftContent }, base)
-        ? { format: draftFormat, content: draftContent, baseHash: base.hash, savedAt: Date.now() }
+      draftDiffers({ format: draftFormat, content: draftContent, title: draftTitle }, base)
+        ? { format: draftFormat, content: draftContent, title: draftTitle, baseHash: base.hash, savedAt: Date.now() }
         : null
     );
-  }, [mode, touched, restore, base, editKey, draftFormat, draftContent, writer]);
+  }, [mode, touched, restore, base, editKey, draftFormat, draftContent, draftTitle, writer]);
 
   const startEdit = () => {
     if (!canEdit) return;
@@ -231,6 +240,7 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
     setTouched(false);
     setDraftFormat(nextBase.format);
     setDraftContent(nextBase.content);
+    setDraftTitle(nextBase.title);
     setErrorText(null);
     setMode("edit");
   };
@@ -245,11 +255,18 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
     setTouched(true);
   };
 
-  /** 안내의 [이어 쓰기] — 임시본의 형식·글을 편집기에 넣는다(저장된 임시본은 그대로 둔다). */
+  /** 제목은 40자(코드 포인트)를 넘겨 쓰지 못하게 자른다 — 서버·검사와 같은 기준이라 HTML maxLength(UTF-16 단위)는 쓰지 않는다. */
+  const changeTitle = (next: string) => {
+    setDraftTitle(clampTitle(next));
+    setTouched(true);
+  };
+
+  /** 안내의 [이어 쓰기] — 임시본의 형식·글·제목을 편집기에 넣는다(저장된 임시본은 그대로 둔다). 제목이 없는 옛 임시본은 저장된 제목을 그대로 쓴다. */
   const resumeDraft = () => {
     if (!restore || saving) return;
     setDraftFormat(restore.draft.format);
     setDraftContent(restore.draft.content);
+    setDraftTitle(clampTitle(restore.draft.title ?? base?.title ?? ""));
     setTouched(false);
     setRestore(null);
   };
@@ -274,8 +291,8 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
   };
 
   const save = async () => {
-    if (!live || restore !== null || !canSave(draftContent, saving)) return;
-    const problem = validateDraft(draftContent);
+    if (!live || restore !== null || !canSave(draftContent, saving, draftTitle)) return;
+    const problem = validateDraft(draftContent) ?? validateTitle(draftTitle);
     if (problem) {
       setErrorText(problem);
       return;
@@ -285,7 +302,13 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
     setSaving(true);
     setErrorText(null);
     try {
-      const saved = await saveMemo({ instId: instanceId, defId: widgetId, format: draftFormat, content: draftContent });
+      const saved = await saveMemo({
+        instId: instanceId,
+        defId: widgetId,
+        format: draftFormat,
+        content: draftContent,
+        title: normalizeTitle(draftTitle) || null,
+      });
       if (gen !== genRef.current) return;
       setMemo(saved);
       writer.drop();
@@ -302,6 +325,8 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
   };
 
   const over = validateDraft(draftContent) !== null;
+  /** 제목 오류 — clampTitle 이 입력을 정리하므로 보통 null 이다(남는 경우의 안전망). 있으면 [저장]도 막힌다(canSave). */
+  const titleError = validateTitle(draftTitle);
   /**
    * 입력 잠금 — 저장 중이거나, 안내(restore)에서 이어 쓰기·버리기를 아직 고르지 않았을 때. 고르기 전에 쓴 글은 옛 임시본을 덮지 않으려 임시 저장되지 않으므로
    * (그러면 쓴 글이 탭 전환에 사라진다) 입력을 막고, [저장]도 막는다(서버 글을 그대로 다시 저장해 옛 임시본이 고르기 없이 지워지지 않게). [취소]는 열어 둔다.
@@ -358,7 +383,19 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
               </span>
             </div>
           )}
-          <div className="mcm-memo__bar">
+          <div className="mcm-memo__bar mcm-memo__bar--head">
+            <div className="mcm-memo__title">
+              <Input
+                value={draftTitle}
+                aria-label="메모 제목"
+                placeholder="제목"
+                title={defTitle ? `비우면 위젯 이름 「${defTitle}」으로 돌아갑니다` : "비우면 위젯 이름으로 돌아갑니다"}
+                error={titleError ?? undefined}
+                readOnly={inputLocked}
+                onChange={changeTitle}
+                data-testid="memo-title-input"
+              />
+            </div>
             <Select
               style={{ width: 110 }}
               aria-label="형식"
@@ -370,9 +407,6 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
               }}
               data-testid="memo-format"
             />
-            <span className={over ? "mcm-memo__count mcm-memo__count--over" : "mcm-memo__count"} data-testid="memo-count">
-              {countLabel(draftContent)}
-            </span>
           </div>
           {draftFormat === "md" ? (
             <div
@@ -405,14 +439,17 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
               />
             </div>
           )}
-          <div className="mcm-memo__bar mcm-memo__bar--end">
+          <div className="mcm-memo__bar mcm-memo__bar--end mcm-memo__bar--foot">
             {errorText && (
               <div className="mcm-memo__error" role="alert" data-testid="memo-error">
                 {errorText}
               </div>
             )}
+            <span className={over ? "mcm-memo__count mcm-memo__count--over" : "mcm-memo__count"} data-testid="memo-count">
+              {countLabel(draftContent)}
+            </span>
             <div className="mcm-memo__actions">
-              <Button variant="primary" onClick={() => void save()} disabled={!canSave(draftContent, saving) || choosing} data-testid="memo-save">
+              <Button variant="primary" onClick={() => void save()} disabled={!canSave(draftContent, saving, draftTitle) || choosing} data-testid="memo-save">
                 저장
               </Button>
               <Button onClick={cancel} disabled={saving} data-testid="memo-cancel">

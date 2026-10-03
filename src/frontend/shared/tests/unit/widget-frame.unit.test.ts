@@ -1,9 +1,9 @@
 /** @vitest-environment happy-dom */
-import { act, createElement as h, useEffect } from "react";
+import { act, createElement as h, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WidgetFrame, WidgetHeaderActions, useWidgetBodySize, useWidgetStatus } from "../../src/widget";
+import { WidgetFrame, WidgetHeaderActions, useWidgetBodySize, useWidgetStatus, useWidgetTitle } from "../../src/widget";
 import type { WidgetItem, WidgetRegistryEntry } from "../../src/widget";
 
 let host: HTMLDivElement;
@@ -255,5 +255,137 @@ describe("WidgetFrame", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+  describe("useWidgetTitle", () => {
+    const titleOf = () => host.querySelector(".cm-widget__title")!.textContent;
+    const labelOf = () => host.querySelector(".cm-widget")!.getAttribute("aria-label");
+    const frame = (Body: () => unknown, it_ = item(), ent = entry(Body)) =>
+      h(WidgetFrame, { item: it_, entry: ent, editing: false, onToggleLock: noop, onRemove: noop });
+
+    it("본체가 정한 제목이 제목 줄 h3 와 aria-label 에 보이고, 본체에 넘기는 props.title 은 등록부 이름 그대로다", async () => {
+      let seenTitle: string | undefined;
+      const Body = (p: { title?: string }) => {
+        seenTitle = p.title;
+        useWidgetTitle("나의 할 일");
+        return h("p", null, "본문");
+      };
+      act(() => root.render(frame(Body as never)));
+      await flush();
+      expect(titleOf()).toBe("나의 할 일");
+      expect(labelOf()).toBe("나의 할 일");
+      expect(seenTitle).toBe("샘플 위젯");
+    });
+
+    it("null·undefined·공백뿐인 값이면 등록부 제목을 그대로 쓴다", async () => {
+      let setValue!: (v: string | null | undefined) => void;
+      const Body = () => {
+        const [value, set] = useState<string | null | undefined>("바뀐 제목");
+        setValue = set;
+        useWidgetTitle(value);
+        return h("p", null, "본문");
+      };
+      act(() => root.render(frame(Body)));
+      await flush();
+      expect(titleOf()).toBe("바뀐 제목");
+      for (const blank of [null, undefined, "", "   "]) {
+        act(() => setValue(blank));
+        expect(titleOf()).toBe("샘플 위젯");
+        expect(labelOf()).toBe("샘플 위젯");
+        act(() => setValue("다시 정함"));
+        expect(titleOf()).toBe("다시 정함");
+      }
+    });
+
+    it("값이 바뀌면 새 제목으로, 본체가 사라지면 등록부 이름으로 돌아온다(틀은 그대로 둔 채)", async () => {
+      let setTitle!: (v: string) => void;
+      let setShown!: (v: boolean) => void;
+      const Inner = ({ title }: { title: string }) => {
+        useWidgetTitle(title);
+        return h("i", { "data-testid": "inner" }, "안쪽");
+      };
+      const Body = () => {
+        const [title, st] = useState("첫 제목");
+        const [shown, ss] = useState(true);
+        setTitle = st;
+        setShown = ss;
+        return h("div", null, shown ? h(Inner, { title }) : null);
+      };
+      act(() => root.render(frame(Body)));
+      await flush();
+      expect(titleOf()).toBe("첫 제목");
+
+      act(() => setTitle("둘째 제목"));
+      expect(titleOf()).toBe("둘째 제목");
+      expect(labelOf()).toBe("둘째 제목");
+
+      act(() => setShown(false));
+      expect(host.querySelector('[data-testid="inner"]')).toBeNull();
+      expect(titleOf()).toBe("샘플 위젯");
+      expect(labelOf()).toBe("샘플 위젯");
+    });
+
+    it("훅을 쓰지 않는 위젯은 제목 줄·aria-label 이 지금과 같다", async () => {
+      const Body = () => h("p", null, "본문");
+      act(() => root.render(frame(Body)));
+      await flush();
+      expect(titleOf()).toBe("샘플 위젯");
+      expect(labelOf()).toBe("샘플 위젯");
+      expect(host.querySelectorAll(".cm-widget__title").length).toBe(1);
+    });
+
+    it("틀 밖에서 훅을 써도 던지지 않는다(NOOP)", () => {
+      const Lone = () => {
+        useWidgetTitle("틀 없음");
+        return h("p", { "data-testid": "lone" }, "혼자");
+      };
+      act(() => root.render(h(Lone)));
+      expect(host.querySelector('[data-testid="lone"]')!.textContent).toBe("혼자");
+    });
+
+    it("위젯 ID 가 바뀌면 덮어쓰기는 풀린다 — 이미 불러온(캐시된) 본체가 같은 렌더에 올라와도 새 본체가 정한 제목은 지워지지 않는다", async () => {
+      const A = () => {
+        useWidgetTitle("A 의 제목");
+        return h("p", null, "A");
+      };
+      const B = () => h("p", null, "B");
+      const C = () => {
+        useWidgetTitle("C 의 제목");
+        return h("p", null, "C");
+      };
+      const entA = { meta: { id: "t.a", title: "A 위젯", defaultSize: { w: 6, h: 6 } }, load: async () => ({ default: A }) } as WidgetRegistryEntry;
+      const entB = { meta: { id: "t.b", title: "B 위젯", defaultSize: { w: 6, h: 6 } }, load: async () => ({ default: B }) } as WidgetRegistryEntry;
+      const entC = { meta: { id: "t.c", title: "C 위젯", defaultSize: { w: 6, h: 6 } }, load: async () => ({ default: C }) } as WidgetRegistryEntry;
+      const at = (ent: WidgetRegistryEntry) => h(WidgetFrame, { item: item({ widgetId: ent.meta.id }), entry: ent, editing: false, onToggleLock: noop, onRemove: noop });
+
+      act(() => root.render(at(entA)));
+      await flush();
+      expect(titleOf()).toBe("A 의 제목");
+
+      // 같은 칸에 제목을 쓰지 않는 다른 위젯이 오면 A 의 덮어쓰기는 남지 않는다.
+      act(() => root.render(at(entB)));
+      await flush();
+      expect(titleOf()).toBe("B 위젯");
+      expect(labelOf()).toBe("B 위젯");
+
+      // C 를 한 번 불러 캐시한 뒤(위 흐름과 따로 새 칸이 아닌 같은 틀), 다시 C 로 오면 동기로 그려져도 C 가 정한 제목이 보인다.
+      act(() => root.render(at(entC)));
+      await flush();
+      expect(titleOf()).toBe("C 의 제목");
+      act(() => root.render(at(entB)));
+      await flush();
+      expect(titleOf()).toBe("B 위젯");
+      act(() => root.render(at(entC)));
+      await flush();
+      expect(titleOf()).toBe("C 의 제목");
+      expect(labelOf()).toBe("C 의 제목");
+    });
+
+    it("사용 중지 칸과 없는 위젯 칸은 등록부 제목·「없는 위젯」 그대로다", () => {
+      const { entry: off } = disabledEntry();
+      act(() => root.render(h(WidgetFrame, { item: item(), entry: off, editing: false, onToggleLock: noop, onRemove: noop })));
+      expect(titleOf()).toBe(off.meta.title);
+      act(() => root.render(h(WidgetFrame, { item: item({ widgetId: "gone.x" }), entry: undefined, editing: false, onToggleLock: noop, onRemove: noop })));
+      expect(titleOf()).toBe("없는 위젯");
+    });
   });
 });

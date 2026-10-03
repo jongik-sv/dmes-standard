@@ -26,6 +26,8 @@ import org.springframework.stereotype.Service;
  *   <li>save 검사는 모두 E002: instId 1~40자 {@code [A-Za-z0-9_-]}, defId 는 사용 중인 memo 유형 정의이고 scope=personal,
  *       format 은 text·md·html, content 20,000자 이하(UTF-16 단위 — JS {@code length} 와 같은 기준, 원문 그대로 저장),
  *       사용자당 100개(새 instId 일 때만 센다 — {@link WidgetMemoWriter}).</li>
+ *   <li>title(메모장 제목, 2026-10-03): 앞뒤 공백을 자른 뒤 40자(코드 포인트 기준)까지, 제어 문자(줄바꿈 포함)는 E002 거절. 빈 값은 null 로 저장해
+ *       위젯 정의 이름으로 돌아간다. 요청에 title 이 없으면(null) 기존 제목을 그대로 둔다 — 지우려면 빈 문자열을 보낸다({@link WidgetMemoRequest}).</li>
  *   <li>load 는 defId 를 보지 않는다 — 정의가 사용 중지돼도 자기 메모는 읽는다.</li>
  * </ul>
  * 이 클래스에는 {@code @Transactional} 을 붙이지 않는다(BackEnd 표준 §6-B-1) — 쓰기 원자성은 {@link WidgetMemoWriter}.
@@ -38,6 +40,8 @@ public class WidgetMemoService {
     public static final String SCOPE_PERSONAL = "personal";
     public static final Set<String> FORMATS = Set.of("text", "md", "html");
     public static final int CONTENT_MAX = 20_000;
+    /** 메모장 제목 상한 — 코드 포인트 수(화면 입력칸과 같은 기준, DB 칸은 100). */
+    public static final int TITLE_MAX = 40;
     static final int DEF_ID_MAX = 100;
     private static final Pattern INST_ID = Pattern.compile("^[A-Za-z0-9_-]{1,40}$");
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -58,7 +62,7 @@ public class WidgetMemoService {
         this.securityIdentity = securityIdentity;
     }
 
-    /** 그 칸의 내 메모 — {@code { memo: {instId, defId, format, content, updatedAt} | null }}. */
+    /** 그 칸의 내 메모 — {@code { memo: {instId, defId, format, content, title, updatedAt} | null }}. */
     public Map<String, Object> load(WidgetMemoRequest request) {
         String userId = requireUser();
         String instId = requireInstId(request);
@@ -75,7 +79,10 @@ public class WidgetMemoService {
         String format = requireFormat(request.getFormat());
         String content = requireContent(request.getContent());
         String defId = requirePersonalMemoDef(request.getDefId());
-        WidgetMemo saved = writer.save(userId, instId, defId, format, content);
+        // 검사는 모두 쓰기 전에 끝낸다 — 잘못된 제목이면 본문도 저장하지 않는다.
+        WidgetMemo saved = request.getTitle() == null
+                ? writer.save(userId, instId, defId, format, content)
+                : writer.save(userId, instId, defId, format, content, normalizeTitle(request.getTitle()));
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("memo", view(saved));
         return result;
@@ -111,6 +118,34 @@ public class WidgetMemoService {
         return text;
     }
 
+    /**
+     * 앞뒤 공백을 자른다. 빈 값은 null(정의 이름으로 돌아감), 40자(코드 포인트)를 넘거나 제어 문자가 있으면 E002.
+     * 화면(JS {@code trim()})과 같은 범위를 자른다 — Java {@code strip()} 은 NBSP(U+00A0)·U+2007·U+202F 를 자르지 않고 U+FEFF 도 자르지 않으므로
+     * {@link #trimTitle} 이 {@code \p{Z}}·U+FEFF 를 함께 자른다(NBSP 만 보낸 제목은 지움이다).
+     */
+    static String normalizeTitle(String title) {
+        String text = trimTitle(title);
+        if (text.isEmpty()) return null;
+        if (text.codePointCount(0, text.length()) > TITLE_MAX) throw invalid("메모 제목은 40자까지 쓸 수 있습니다.");
+        if (text.codePoints().anyMatch(Character::isISOControl)) throw invalid("메모 제목에 줄바꿈 같은 제어 문자는 쓸 수 없습니다.");
+        return text;
+    }
+
+    /** 앞뒤의 공백(Character.isWhitespace)·유니코드 구분 문자(\p{Z} — NBSP 등)·U+FEFF 를 자른다. */
+    private static String trimTitle(String title) {
+        int start = 0;
+        int end = title.length();
+        while (start < end && isTitleBlank(title.charAt(start))) start++;
+        while (end > start && isTitleBlank(title.charAt(end - 1))) end--;
+        return title.substring(start, end);
+    }
+
+    private static boolean isTitleBlank(char c) {
+        if (Character.isWhitespace(c) || c == '\uFEFF') return true;
+        int type = Character.getType(c);
+        return type == Character.SPACE_SEPARATOR || type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR;
+    }
+
     /** 사용 중인 memo 유형 정의(SRC_TP='D')이고 CONFIG_JSON.scope 가 personal 인 것만. */
     private String requirePersonalMemoDef(String defId) {
         if (defId == null || defId.isBlank() || defId.length() > DEF_ID_MAX) throw invalid("사용할 수 없는 메모 위젯입니다.");
@@ -137,6 +172,7 @@ public class WidgetMemoService {
         m.put("defId", memo.getDefId());
         m.put("format", memo.getFmt());
         m.put("content", memo.getContent() == null ? "" : memo.getContent());
+        m.put("title", memo.getTitle());
         m.put("updatedAt", memo.getUpdatedAt() == null ? null : memo.getUpdatedAt().toString());
         return m;
     }

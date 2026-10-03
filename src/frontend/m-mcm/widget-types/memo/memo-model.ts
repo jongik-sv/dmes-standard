@@ -9,6 +9,8 @@
 
 /** 메모 길이 상한(서버 §17.3: 20,000자). 서버 `String.length()` 와 같게 UTF-16 코드 단위로 센다. */
 export const MEMO_MAX_LENGTH = 20000;
+/** 메모장 제목 상한(서버 §17.3: 40자). 서버 `codePointCount` 와 같게 코드 포인트로 센다(이모지 하나가 1자). */
+export const MEMO_TITLE_MAX = 40;
 
 export const MEMO_EMPTY_VIEW_TEXT = "메모가 없습니다. [편집]을 눌러 쓰세요";
 export const MEMO_PREVIEW_TEXT = "미리보기에서는 저장하지 않습니다";
@@ -18,6 +20,8 @@ export const MEMO_SHARED_EMPTY_TEXT = "내용이 없습니다";
 export const MEMO_LOAD_ERROR = "메모를 불러오지 못했습니다.";
 export const MEMO_SAVE_ERROR = "메모를 저장하지 못했습니다. 잠시 뒤 다시 시도하세요.";
 export const MEMO_TOO_LONG_MESSAGE = "메모 내용은 20,000자까지 쓸 수 있습니다.";
+export const MEMO_TITLE_TOO_LONG_MESSAGE = "메모 제목은 40자까지 쓸 수 있습니다.";
+export const MEMO_TITLE_CONTROL_MESSAGE = "메모 제목에 줄바꿈 같은 제어 문자는 쓸 수 없습니다.";
 export const MEMO_PERSONAL_NOTE = "사용자가 홈에서 직접 씁니다. 형식은 새 메모의 처음 형식입니다";
 
 /** 개인 메모 md 편집기(shared MarkdownField)의 편집 방식(서식·MD) 기억 키 — 메모장끼리만 같이 바뀐다(공지·기본 키와 따로). */
@@ -117,8 +121,41 @@ export function countLabel(content: string): string {
   return `${content.length.toLocaleString("ko-KR")} / ${MEMO_MAX_LENGTH.toLocaleString("ko-KR")}자`;
 }
 
-export function canSave(content: string, busy: boolean): boolean {
-  return !busy && validateDraft(content) === null;
+/** 제목 코드 포인트 수 — 서버 검사(`codePointCount`)와 같은 기준. */
+export const titleLength = (title: string): number => Array.from(title).length;
+
+/** 입력칸에 쓴 제목 → 저장·비교에 쓰는 값(앞뒤 공백 제거). 서버도 같게 자르고, 빈 값은 「제목 없음」(정의 이름)이다. */
+export const normalizeTitle = (raw: string): string => raw.trim();
+
+/** C0 제어 문자(줄바꿈·탭 포함)와 DEL·C1 — 서버 `Character.isISOControl` 과 같은 범위. 검사용(test)과 바꾸기용(replace, g)을 따로 둔다(g 정규식의 test 는 상태를 가진다). */
+const TITLE_CONTROL = /[\u0000-\u001F\u007F-\u009F]/;
+const TITLE_CONTROL_ALL = /[\u0000-\u001F\u007F-\u009F]/g;
+
+/**
+ * 입력칸에 담을 제목 정리 — 입력·붙여넣기·임시본 복원이 모두 이 함수를 거친다.
+ * ① 제어 문자(탭 같은 것, 한 줄 입력칸은 줄바꿈을 스스로 지운다)는 공백으로 바꿔 화면 경로에서는 거절이 생기지 않게 한다.
+ * ② 앞 공백은 저장 때 잘리므로 세지 않고, 앞 공백을 뺀 40 코드 포인트까지만 담는다(공백이 앞에 붙은 제목이 38자만 남지 않게).
+ *    서로게이트 쌍 가운데서 자르지 않는다. 뒤 공백은 40자를 넘는 만큼 잘린다(저장 때 어차피 잘리는 부분이다).
+ * 서버·validateTitle 과 같은 기준이라 이 함수의 결과는 늘 validateTitle 을 통과한다.
+ */
+export function clampTitle(raw: string): string {
+  const cleaned = raw.replace(TITLE_CONTROL_ALL, " ");
+  const lead = cleaned.length - cleaned.trimStart().length; // 앞 공백은 모두 BMP 글자라 UTF-16 단위 수 = 코드 포인트 수
+  const points = Array.from(cleaned);
+  const limit = lead + MEMO_TITLE_MAX;
+  return points.length > limit ? points.slice(0, limit).join("") : cleaned;
+}
+
+/** 제목 검사 — 통과면 null, 아니면 서버와 같은 문구. 앞뒤 공백을 자른 값을 검사한다(빈 제목은 통과 = 제목 없음). 서버와 같은 순서(길이 → 제어 문자). */
+export function validateTitle(raw: string): string | null {
+  const title = normalizeTitle(raw);
+  if (titleLength(title) > MEMO_TITLE_MAX) return MEMO_TITLE_TOO_LONG_MESSAGE;
+  if (TITLE_CONTROL.test(title)) return MEMO_TITLE_CONTROL_MESSAGE;
+  return null;
+}
+
+export function canSave(content: string, busy: boolean, title: string = ""): boolean {
+  return !busy && validateDraft(content) === null && validateTitle(title) === null;
 }
 
 /* ------------------------------------------------------------------ 개인 메모 레코드 */
@@ -128,6 +165,8 @@ export interface MemoRecord {
   defId: string;
   format: MemoFormat;
   content: string;
+  /** 사용자가 붙인 메모장 제목(서버 `TITLE`). 없으면 null — 틀은 위젯 정의 이름을 쓴다. */
+  title: string | null;
   /** 마지막 저장 시각(서버 `U_AT`). 없으면 null. */
   updatedAt: string | null;
 }
@@ -141,6 +180,7 @@ export function parseMemo(raw: unknown): MemoRecord | null {
     defId: str(raw.defId),
     format: isMemoFormat(raw.format) ? raw.format : "text",
     content: str(raw.content),
+    title: typeof raw.title === "string" && raw.title.trim() ? raw.title : null,
     updatedAt: typeof raw.updatedAt === "string" && raw.updatedAt ? raw.updatedAt : null,
   };
 }
@@ -201,6 +241,8 @@ export function memoUserStatus(state: { isLoading: boolean; userId: string }): M
 export interface MemoDraft {
   format: MemoFormat;
   content: string;
+  /** 편집 중이던 제목. 제목 칸이 생기기 전에 쓴 옛 임시본에는 없다 — 없으면 「저장된 제목 그대로」로 본다(키 v1 유지). */
+  title?: string;
   baseHash: string;
   /** 마지막으로 글이 바뀐 시각(epoch 밀리초). */
   savedAt: number;
@@ -229,8 +271,11 @@ function hashText(text: string): string {
  * 서버 메모 한 벌을 가리키는 값(형식·내용 해시) — 메모가 아직 없으면 "none". updatedAt 이 아니라 내용으로 본다:
  * 저장 응답과 불러오기 응답의 시각 모양이 달라도 「다른 곳에서 바뀜」으로 잘못 보지 않는다.
  */
-export function memoBaseHash(memo: Pick<MemoRecord, "format" | "content"> | null): string {
-  return memo ? `${memo.format}:${memo.content.length}:${hashText(memo.content)}` : "none";
+export function memoBaseHash(memo: (Pick<MemoRecord, "format" | "content"> & { title?: string | null }) | null): string {
+  if (!memo) return "none";
+  // 제목은 있을 때만 해시에 보탠다 — 제목이 없는 메모는 제목 칸이 생기기 전과 같은 값이라 옛 임시본이 「다른 곳에서 바뀜」으로 잘못 보이지 않는다.
+  const title = memo.title && memo.title.trim() ? `:t${hashText(memo.title)}` : "";
+  return `${memo.format}:${memo.content.length}:${hashText(memo.content)}${title}`;
 }
 
 export const serializeDraft = (draft: MemoDraft): string => JSON.stringify(draft);
@@ -245,10 +290,11 @@ export function parseDraft(raw: string | null): MemoDraft | null {
     return null;
   }
   if (!isRecord(value)) return null;
-  const { format, content, baseHash, savedAt } = value;
+  const { format, content, baseHash, savedAt, title } = value;
   if (!isMemoFormat(format) || typeof content !== "string" || !isDraftWritable(content)) return null;
   if (typeof baseHash !== "string" || typeof savedAt !== "number" || !Number.isFinite(savedAt)) return null;
-  return { format, content, baseHash, savedAt };
+  // 제목은 선택 — 옛 임시본(없음)과 문자열이 아닌 값은 「제목 없음 = 저장된 제목 사용」으로 본다.
+  return { format, content, ...(typeof title === "string" ? { title } : {}), baseHash, savedAt };
 }
 
 /** 임시본이 보관 기간(7일)을 넘겼는가 — savedAt 으로부터 정확히 7일까지는 살아 있다. */
@@ -267,8 +313,15 @@ export function isStaleDraftEntry(key: string, raw: string | null, ownPrefix: st
   return draft === null || isDraftExpired(draft, now);
 }
 
-/** 임시본이 비교 대상(서버 메모, 메모가 없으면 처음 형식·빈 글)과 다른 글인가 — 형식만 다르고 글이 비었으면 쓰다 만 글이 아니다. */
-export function draftDiffers(draft: Pick<MemoDraft, "format" | "content">, base: Pick<MemoDraft, "format" | "content">): boolean {
+/**
+ * 임시본이 비교 대상(서버 메모, 메모가 없으면 처음 형식·빈 글·제목 없음)과 다른 글인가 — 형식만 다르고 글이 비었으면 쓰다 만 글이 아니다.
+ * 제목은 앞뒤 공백을 자른 값으로 비교하고, 임시본에 제목이 없으면(옛 임시본) 같다고 본다. 제목만 달라도 쓰다 만 글이다.
+ */
+export function draftDiffers(
+  draft: Pick<MemoDraft, "format" | "content" | "title">,
+  base: Pick<MemoDraft, "format" | "content" | "title">
+): boolean {
+  if (draft.title !== undefined && normalizeTitle(draft.title) !== normalizeTitle(base.title ?? "")) return true;
   if (draft.content !== base.content) return true;
   return draft.format !== base.format && draft.content.trim() !== "";
 }
@@ -277,11 +330,13 @@ export function draftDiffers(draft: Pick<MemoDraft, "format" | "content">, base:
 export interface MemoEditBase {
   format: MemoFormat;
   content: string;
+  /** 저장된 제목(없으면 ""). */
+  title: string;
   hash: string;
 }
 
 export function memoEditBase(memo: MemoRecord | null, initialFormat: MemoFormat): MemoEditBase {
-  return { format: memo?.format ?? initialFormat, content: memo?.content ?? "", hash: memoBaseHash(memo) };
+  return { format: memo?.format ?? initialFormat, content: memo?.content ?? "", title: memo?.title ?? "", hash: memoBaseHash(memo) };
 }
 
 /** 편집을 시작할 때 되살릴 임시본 — 기준과 다른 글일 때만. changedElsewhere: 임시본을 만든 뒤 서버 메모가 바뀌었다. */
@@ -373,10 +428,22 @@ export interface SaveInput {
   defId: string;
   format: MemoFormat;
   content: string;
+  /** 메모장 제목 — null·공백뿐이면 제목을 지운다(정의 이름으로 돌아감). */
+  title: string | null;
 }
 
+/**
+ * 제목은 늘 문자열로 보낸다 — 비운 제목은 `""`. `null` 을 보내면 dropNullParams 가 키를 빼고, 서버는 「title 키 없음 = 기존 제목 유지」라
+ * 지웠는데도 옛 제목이 남는다(서버 WidgetMemoRequest).
+ */
 export const saveRequest = (input: SaveInput): MemoRequest =>
-  memoRequest("save", { instId: input.instId, defId: input.defId, format: input.format, content: input.content });
+  memoRequest("save", {
+    instId: input.instId,
+    defId: input.defId,
+    format: input.format,
+    content: input.content,
+    title: normalizeTitle(input.title ?? ""),
+  });
 
 /** 서버가 업무 규칙으로 거절한 오류(HTTP 200 + meta.success=false). 메시지는 서버가 쓴 한국어 문장이다. */
 export class MemoServiceError extends Error {
