@@ -18,6 +18,15 @@ public interface CodeLookup {
     /** 마루 코드가 없으면 빈 값. 있으면 {@code MASTER} 는 마루 코드 대상으로 판정한다(05:363 — 첫 인자로 가른다). */
     Optional<CodeRows> code(String maruCodeId);
 
+    /**
+     * 버전 {@code ver} 판정에 필요한 행(D-154, 결정 P7). 기본은 {@link #code} 의 전체 행 — 원장·옛 구현은 바꿀 것이 없다. 업무 모듈 캐시는 버전 본문
+     * 하나(그 버전 1행·유효 items·고른 카테고리 정의)를 준다. {@code engine.code} 는 버전 선택·DEPRECATED 판단에만 {@link #code} 를 쓰고 items·카테고리
+     * 계산에는 이것을 쓴다.
+     */
+    default Optional<CodeRows> codeAt(String maruCodeId, BigDecimal ver) {
+        return code(maruCodeId);
+    }
+
     /** 04:969-1040 의 다섯 테이블 행(배포 대상·수신 로그 표는 싣지 않는다). */
     record CodeRows(
             CodeHeader header,

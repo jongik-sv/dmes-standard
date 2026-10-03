@@ -1,0 +1,15 @@
+{
+  "items" : [ {
+    "key" : "GOLD_SET",
+    "value" : [ {
+      "setId" : "GOLD_SET",
+      "ver" : 1.000,
+      "applyFrom" : "2000-01-01T00:00:00",
+      "applyTo" : "9999-12-31T00:00:00",
+      "ruleIds" : [ "QLTY_GRD_JDG" ],
+      "status" : "INUSE",
+      "flow" : null
+    } ]
+  } ],
+  "failed" : [ ]
+}

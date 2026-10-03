@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.cactus.mdm;
 
 import com.ezylang.evalex.config.ExpressionConfiguration;
+import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -8,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
+import kr.dongkuk.maru.mdm.engine.expr.MasterBaseDt;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowEdge;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowNode;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RowContract;
@@ -26,6 +28,8 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleVar;
  * <p>엔진은 식 <b>텍스트</b>를 평가한다(룰 op-code 셀도 생성된 텍스트 — {@code CODE_IN} 은 {@code MASTER(…)} 텍스트다). 그래서 AST 가 있으면 AST
  * 를, 텍스트가 있으면 텍스트를 엔진 설정으로 풀어 함께 훑는다(AST 가 비었거나 자리표시인 정의도 놓치지 않게). 텍스트 풀이 결과는 텍스트를 키로
  * 캐시한다(상한 {@value #MAX_CACHED}, 차면 비운다). 풀리지 않는 식은 건너뛴다 — 엔진이 판정 오류로 알린다.
+ *
+ * <p>D-154 — {@code MASTER_AT} 의 넷째 인자(문자열 상수는 {@link MasterBaseDt} 로 푼 시각, 변수는 이름)도 모은다(스펙 §7.3).
  */
 final class MdmExprRefs {
 
@@ -33,7 +37,15 @@ final class MdmExprRefs {
     private static final Set<String> CODE_FUNCTIONS = Set.of("CODE", "MASTER", "MASTER_AT");
 
     private final ExpressionConfiguration configuration;
-    private final Map<String, Set<String>> byText = new ConcurrentHashMap<>();
+    private final Map<String, Refs> byText = new ConcurrentHashMap<>();
+
+    /** {@code MASTER_AT} 의 미리 받을 수 있는 기준 시각 — 문자열 상수({@code at})이거나 변수 이름({@code var}, 행 칸으로 푼다). */
+    record MasterAtRef(String codeId, LocalDateTime at, String var) {
+    }
+
+    /** 식 하나에서 찾은 코드 ID 와 MASTER_AT 기준 시각. */
+    private record Refs(Set<String> codeIds, Set<MasterAtRef> masterAt) {
+    }
 
     MdmExprRefs(ExpressionConfiguration configuration) {
         this.configuration = configuration;
@@ -42,39 +54,73 @@ final class MdmExprRefs {
     /** 컬럼 — 코드 참조(CODE 도메인 자동 MASTER), 표준식 AST·텍스트, 비즈니스식 텍스트. */
     Set<String> columnCodes(MdmColumnMeta m) {
         Set<String> out = new LinkedHashSet<>();
+        column(m, out, new LinkedHashSet<>());
+        return out;
+    }
+
+    /** 컬럼 식의 {@code MASTER_AT} 기준 시각. */
+    Set<MasterAtRef> columnMasterAt(MdmColumnMeta m) {
+        Set<MasterAtRef> at = new LinkedHashSet<>();
+        column(m, new LinkedHashSet<>(), at);
+        return at;
+    }
+
+    private void column(MdmColumnMeta m, Set<String> out, Set<MasterAtRef> at) {
         if (m.codeRef() != null && m.codeRef().maruCodeId() != null && !m.codeRef().maruCodeId().isBlank()) {
             out.add(m.codeRef().maruCodeId());
         }
         if (m.stdExpr() != null) {
-            scan(m.stdExpr().ast(), out);
-            text(m.stdExpr().text(), out);
+            scan(m.stdExpr().ast(), out, at);
+            text(m.stdExpr().text(), out, at);
         }
         if (m.bizExpr() != null) {
-            text(m.bizExpr().text(), out);
+            text(m.bizExpr().text(), out, at);
         }
-        return out;
     }
 
     /** 룰 세트 흐름 — IF·PARALLEL 선의 조건식. */
     Set<String> flowCodes(RuleSetDefinition set) {
         Set<String> out = new LinkedHashSet<>();
+        flow(set, out, new LinkedHashSet<>());
+        return out;
+    }
+
+    /** 룰 세트 흐름 조건식의 {@code MASTER_AT} 기준 시각. */
+    Set<MasterAtRef> flowMasterAt(RuleSetDefinition set) {
+        Set<MasterAtRef> at = new LinkedHashSet<>();
+        flow(set, new LinkedHashSet<>(), at);
+        return at;
+    }
+
+    private void flow(RuleSetDefinition set, Set<String> out, Set<MasterAtRef> at) {
         if (set.flow() != null && set.flow().edges() != null) {
             for (FlowEdge e : set.flow().edges()) {
-                text(e.cond(), out);
+                text(e.cond(), out, at);
             }
         }
-        return out;
     }
 
     /** 룰 — 식 변수, 결과 열 그룹 조건, 셀(AST·식·생성 텍스트), 행 입력 계약 조건. */
     Set<String> ruleCodes(RuleDefinition rule) {
         Set<String> out = new LinkedHashSet<>();
+        rule(rule, out, new LinkedHashSet<>());
+        return out;
+    }
+
+    /** 룰 식의 {@code MASTER_AT} 기준 시각. */
+    Set<MasterAtRef> ruleMasterAt(RuleDefinition rule) {
+        Set<MasterAtRef> at = new LinkedHashSet<>();
+        rule(rule, new LinkedHashSet<>(), at);
+        return at;
+    }
+
+    private void rule(RuleDefinition rule, Set<String> out, Set<MasterAtRef> at) {
         if (rule.vars() != null) {
             for (RuleVar v : rule.vars()) {
-                scan(v.exprAst(), out);
-                text(v.exprText(), out);
-                scan(v.grpCondAst(), out);
-                text(v.grpCond(), out);
+                scan(v.exprAst(), out, at);
+                text(v.exprText(), out, at);
+                scan(v.grpCondAst(), out, at);
+                text(v.grpCond(), out, at);
             }
         }
         if (rule.rows() != null) {
@@ -83,18 +129,17 @@ final class MdmExprRefs {
                     continue;
                 }
                 for (RuleCell c : r.cells().values()) {
-                    scan(c.ast(), out);
-                    text(c.expr(), out);
-                    text(c.text(), out);
+                    scan(c.ast(), out, at);
+                    text(c.expr(), out, at);
+                    text(c.text(), out, at);
                 }
             }
         }
         if (rule.contract() != null && rule.contract().rows() != null) {
             for (RowContract rc : rule.contract().rows()) {
-                text(rc.cond(), out);
+                text(rc.cond(), out, at);
             }
         }
-        return out;
     }
 
     /** 세트가 실행할 수 있는 룰 — {@code ruleIds}(흐름을 펼친 목록)와 흐름 RULE 노드. */
@@ -113,29 +158,35 @@ final class MdmExprRefs {
         return out;
     }
 
-    private void text(String text, Set<String> out) {
+    private void text(String text, Set<String> out, Set<MasterAtRef> at) {
         if (text == null || text.isBlank()) {
             return;
         }
-        Set<String> hit = byText.get(text);
+        Refs hit = byText.get(text);
         if (hit == null) {
             Set<String> found = new LinkedHashSet<>();
+            Set<MasterAtRef> foundAt = new LinkedHashSet<>();
             try {
-                scan(AstExporter.export(text, configuration), found);
+                scan(AstExporter.export(text, configuration), found, foundAt);
             } catch (Exception e) {
                 // 풀리지 않는 식 — 엔진이 판정 오류로 알린다
             }
-            hit = Set.copyOf(found);
+            hit = new Refs(Set.copyOf(found), Set.copyOf(foundAt));
             if (byText.size() >= MAX_CACHED) {
                 byText.clear();
             }
             byText.put(text, hit);
         }
-        out.addAll(hit);
+        out.addAll(hit.codeIds());
+        at.addAll(hit.masterAt());
     }
 
     /** AST(Map) 를 재귀로 훑는다. 모양이 다른 노드는 건너뛴다. */
     static void scan(Object node, Set<String> out) {
+        scan(node, out, new LinkedHashSet<>());
+    }
+
+    static void scan(Object node, Set<String> out, Set<MasterAtRef> at) {
         if (!(node instanceof Map<?, ?> m)) {
             return;
         }
@@ -145,10 +196,17 @@ final class MdmExprRefs {
                 && args.get(0) instanceof Map<?, ?> first && "STRING_LITERAL".equals(first.get("type"))
                 && first.get("value") instanceof String id && !id.isBlank()) {
             out.add(id);
+            if ("MASTER_AT".equals(fn.toUpperCase(Locale.ROOT)) && args.size() >= 4 && args.get(3) instanceof Map<?, ?> fourth) {
+                if ("STRING_LITERAL".equals(fourth.get("type")) && fourth.get("value") instanceof String s) {
+                    MasterBaseDt.parse(s).ifPresent(dt -> at.add(new MasterAtRef(id, dt, null)));
+                } else if ("VARIABLE_OR_CONSTANT".equals(fourth.get("type")) && fourth.get("value") instanceof String v) {
+                    at.add(new MasterAtRef(id, null, v));
+                }
+            }
         }
         if (params instanceof List<?> children) {
             for (Object child : children) {
-                scan(child, out);
+                scan(child, out, at);
             }
         }
     }

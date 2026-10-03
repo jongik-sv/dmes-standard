@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { describeLifetime, formatBytes } from "../../../page-components/csa/mdmCacheMng/utils";
+import { definitionKey, describeLifetime, entryKindLabel, formatBytes, withEntryKind } from "../../../page-components/csa/mdmCacheMng/utils";
 
 describe("mdmCacheMng utils", () => {
   it("formatBytes — 1024 단위 B/KB/MB/GB, KB 부터 소수 1자리", () => {
@@ -30,5 +30,39 @@ describe("mdmCacheMng utils", () => {
     expect(describeLifetime(90, 5400)).toBe("마지막 조회 뒤 1.5분 동안 조회 없으면 만료, 조회될 때마다 연장(적재 뒤 최대 1.5시간)");
     expect(describeLifetime(null, 86400)).toBe("");
     expect(describeLifetime(3600, undefined)).toBe("");
+  });
+
+  it("definitionKey — 버전 대상의 본문 키는 마지막 @ + 소수 셋째 자리 숫자 앞이 정의 키다(서버와 같은 규칙)", () => {
+    expect(definitionKey("CODE", "PROC_CD@1.000")).toBe("PROC_CD");
+    expect(definitionKey("RULE", "A@B@2.010")).toBe("A@B");
+    expect(definitionKey("LAYOUT", "42@1.000")).toBe("42");
+    expect(definitionKey("CODE", "PROC_CD")).toBe("PROC_CD");
+    expect(definitionKey("CODE", "X@1")).toBe("X@1");
+    expect(definitionKey("COLUMN", "X@1.000")).toBe("X@1.000");
+  });
+
+  it("entryKindLabel — 값·목차·본문(최종)·본문(옛), 옛 모듈(구분 없음)은 빈 문자열", () => {
+    expect(entryKindLabel("VALUE", null)).toBe("값");
+    expect(entryKindLabel("TOC", null)).toBe("목차");
+    expect(entryKindLabel("BODY", true)).toBe("본문(최종)");
+    expect(entryKindLabel("BODY", false)).toBe("본문(옛)");
+    expect(entryKindLabel(null, null)).toBe("");
+  });
+
+  it("withEntryKind — current 만 바뀐 같은 행 키에도 새 구분 문구가 칸 값으로 실린다(그리드 셀 갱신)", () => {
+    const base = { rowId: "CODE:X@1.000", type: "CODE" as const, key: "X@1.000", absent: false, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 1, part: "BODY" as const, ver: "1.000" };
+    const before = withEntryKind([{ ...base, current: true }]);
+    const after = withEntryKind([{ ...base, current: false }]);
+    expect(before[0].kind).toBe("본문(최종)");
+    expect(after[0].kind).toBe("본문(옛)");
+    expect(after[0].rowId).toBe(before[0].rowId);
+    expect(withEntryKind([{ ...base, part: "TOC", ver: null, current: null }])[0].kind).toBe("목차");
+  });
+
+  it("describeLifetime — 옛 버전 본문 수명을 알면 덧붙인다", () => {
+    expect(describeLifetime(3600, 86400, 600)).toBe(
+      "마지막 조회 뒤 60분 동안 조회 없으면 만료, 조회될 때마다 연장(적재 뒤 최대 24시간). 옛 버전 본문은 10분",
+    );
+    expect(describeLifetime(3600, 86400, null)).toBe("마지막 조회 뒤 60분 동안 조회 없으면 만료, 조회될 때마다 연장(적재 뒤 최대 24시간)");
   });
 });

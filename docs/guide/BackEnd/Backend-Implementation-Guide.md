@@ -413,6 +413,8 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
       max-entries: 20000
       max-age: 24h        # 적재 뒤 절대 상한
       max-idle: 60m       # 마지막 조회 뒤 유휴 수명(조회될 때마다 연장)
+      old-version-max-idle: 10m  # 옛·예약 버전 본문 유휴 수명(D-154). 목차·최종 본문은 max-idle
+      versioned-feed: auto       # auto(기본) | off — off 면 전 이력 한 키(배포 중 되돌리기, 재기동해 반영)
       connect-timeout: 2s
       read-timeout: 5s
   ```
@@ -445,6 +447,7 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
 - 수명: 마지막 조회 뒤 `max-idle` 동안 조회가 없거나 적재 뒤 `max-age`(절대 상한)가 지나면 만료다 — 자주 조회되는 항목일수록 오래 남는다.
   만료 항목은 폴링마다(약 10초) 쓸어 내고, 상한(`max-entries`)을 넘으면 만료 항목, 그다음 오래 조회되지 않은 순(LRU)으로 지운다.
   관리 화면 읽기(`entries`·`entry`)는 수명을 연장하지 않는다.
+- 버전 대상(룰·룰 세트·코드·전문)은 목차(`X`)와 버전 본문(`X@1.000`)으로 캐시한다. 지금 적용 중인 버전 본문은 `max-idle`, 지난·예약 버전 본문은 `old-version-max-idle` 이다. 캐시 관리 화면의 '구분' 열로 본다(D-154).
 - 빌드: cactus-core 가 `maru-mdm-engine` 을 api 로 문다. 새 업무 모듈은 settings.gradle 에 `includeBuild('../maru-mdm-engine')` +
   `substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')` 를 둔다(기존 다섯 모듈 선례).
 - 코드에서 쓰기(업무 서비스가 자기 업무 룰을 돌릴 때): `MdmDefinitionLookup`(엔진 `DefinitionLookup`·`CodeLookup` 빈)을 주입해

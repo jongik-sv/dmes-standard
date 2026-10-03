@@ -152,7 +152,14 @@ public class MdmRevisionPoller implements AutoCloseable {
                 processed.headSet(last - lookback, true).clear(); // 구간 밖으로 밀려난 순번은 다시 오지 않는다
             }
             succeeded();
-            reload.forEach(service::lookup); // 받을 수 없는 키는 unavailable 로 돌아오고 캐시에 남지 않는다
+            // 받을 수 없는 키는 unavailable 로 돌아오고 캐시에 남지 않는다. 버전 대상은 목차 + 지금 시각 최종 본문만 다시 받는다(D-154, 스펙 §5.6 RELOAD)
+            reload.forEach((type, keys) -> {
+                if (MdmVersions.isVersioned(type)) {
+                    service.lookupAt(type, keys, clock.instant());
+                } else {
+                    service.lookup(type, keys);
+                }
+            });
         } catch (RuntimeException e) {
             lastError = e.getMessage();
             if (consecutiveFailures.incrementAndGet() == 1) {
