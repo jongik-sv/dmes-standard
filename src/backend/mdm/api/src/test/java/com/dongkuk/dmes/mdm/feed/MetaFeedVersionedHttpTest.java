@@ -118,6 +118,16 @@ class MetaFeedVersionedHttpTest {
     }
 
     @Test
+    void RULE_current_는_적용_시작_경계에서_바뀌고_마지막_버전의_적용_종료_이후에는_없다() throws Exception {
+        seedRule(); // 1.000 [2026-01-01, 2026-07-01), 1.001 [2026-07-01, 2027-01-01)
+        assertEquals("1.001", currentVer(toc("RULE", "2026-07-01T00:00:00", Q)), "applyFrom 은 포함");
+        assertEquals("1.000", currentVer(toc("RULE", "2026-06-30T23:59:59", Q)), "직전 1초는 이전 버전");
+        assertEquals("1.001", currentVer(toc("RULE", "2026-12-31T23:59:59", Q)), "applyTo 직전은 마지막 버전");
+        assertTrue(toc("RULE", "2027-01-01T00:00:00", Q).path("items").get(0).path("current").isNull(), "applyTo 는 제외(열린 구간 아님)");
+        assertTrue(toc("RULE", "2030-01-01T00:00:00", Q).path("items").get(0).path("current").isNull(), "마지막 RELEASED 의 applyTo 이후는 current 없음");
+    }
+
+    @Test
     void RULE_본문은_키_ver_쌍마다_주고_ver_는_scale_3_으로_되돌린다() throws Exception {
         seedRule();
         JsonNode legacy = item(view("RULE", Q), Q);
@@ -176,6 +186,44 @@ class MetaFeedVersionedHttpTest {
         assertEquals("NOT_RELEASED", failed(b, "VS_SET", "2.000").path("message").asText());
     }
 
+    @Test
+    void RULE_SET_current_는_시각에_따라_바뀌고_versions_항목은_ver_status_applyFrom_applyTo_를_싣는다() throws Exception {
+        seedSet(); // 1.000 [2000-01-01, 2026-07-01), 1.001 [2026-07-01, 9999-12-31)
+        JsonNode early = toc("RULE_SET", "2026-06-01T00:00:00", "VS_SET").path("items").get(0);
+        assertEquals("1.000", early.path("current").path("ver").asText());
+        assertEquals(1, early.path("current").path("value").path("ruleIds").size(), "1.000 의 ruleIds: " + early.path("current"));
+        JsonNode late = toc("RULE_SET", "2026-07-01T00:00:00", "VS_SET").path("items").get(0);
+        assertEquals("1.001", late.path("current").path("ver").asText(), "applyFrom 은 포함");
+        assertEquals(2, late.path("current").path("value").path("ruleIds").size());
+
+        JsonNode versions = late.path("value").path("versions");
+        assertEquals("1.000", versions.get(0).path("ver").decimalValue().toPlainString());
+        assertEquals("RELEASED", versions.get(0).path("status").asText());
+        assertEquals("2000-01-01T00:00:00", versions.get(0).path("applyFrom").asText());
+        assertEquals("2026-07-01T00:00:00", versions.get(0).path("applyTo").asText());
+        assertEquals("1.001", versions.get(1).path("ver").decimalValue().toPlainString());
+        assertEquals("RELEASED", versions.get(1).path("status").asText());
+        assertEquals("2026-07-01T00:00:00", versions.get(1).path("applyFrom").asText());
+        assertEquals("9999-12-31T00:00:00", versions.get(1).path("applyTo").asText());
+    }
+
+    @Test
+    void RULE_SET_저장값이_깨진_세트는_본문에서_그_키의_모든_쌍이_같은_메시지로_failed_다() throws Exception {
+        seedSet();
+        DmeTestSupport.ruleSet(jdbc, "BAD_SET", "깨진 세트", "[]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "BAD_SET", "{\"version\":1,\"nodes\":\"x\",\"edges\":[]}");
+
+        JsonNode t = toc("RULE_SET", "2026-08-01T00:00:00", "VS_SET", "BAD_SET");
+        assertEquals("BAD_SET", t.path("failed").get(0).path("key").asText(), t.toString());
+
+        JsonNode b = bodies("RULE_SET", "BAD_SET", "1.000", "BAD_SET", "1.001", "VS_SET", "1.000", "BAD_SET", "x.y");
+        assertEquals(1, b.path("items").size(), "깨지지 않은 세트는 정상: " + b);
+        String message = failed(b, "BAD_SET", "1.000").path("message").asText();
+        assertFalse(message.isBlank(), b.toString());
+        assertEquals(message, failed(b, "BAD_SET", "1.001").path("message").asText(), "RELEASED 에 없는 ver 도 적재 실패가 먼저다");
+        assertEquals("INVALID_VER", failed(b, "BAD_SET", "x.y").path("message").asText(), "형식 오류는 적재 전에 가린다");
+    }
+
     // ------------------------------------------------------------------ LAYOUT
 
     private void seedLayouts() {
@@ -214,6 +262,19 @@ class MetaFeedVersionedHttpTest {
         assertEquals(legacy.get(0), b.path("items").get(0).path("value"));
         assertEquals("NOT_RELEASED", failed(b, "abc", "1.000").path("message").asText());
         assertEquals("NOT_RELEASED", failed(b, "9601", "3.000").path("message").asText());
+    }
+
+    @Test
+    void LAYOUT_합성이_깨진_전문은_본문에서_그_키의_모든_쌍이_같은_메시지로_failed_다() throws Exception {
+        seedLayouts();
+
+        JsonNode b = bodies("LAYOUT", "9603", "1.000", "9603", "2.000", "9601", "1.000", "9603", "x.y");
+
+        assertEquals(1, b.path("items").size(), "깨지지 않은 전문은 정상: " + b);
+        String message = failed(b, "9603", "1.000").path("message").asText();
+        assertFalse(message.isBlank(), b.toString());
+        assertEquals(message, failed(b, "9603", "2.000").path("message").asText(), "RELEASED 에 없는 ver 도 적재 실패가 먼저다");
+        assertEquals("INVALID_VER", failed(b, "9603", "x.y").path("message").asText());
     }
 
     private void layoutVer(long id, String ver, String status, String from, String to, int own) {
@@ -283,6 +344,10 @@ class MetaFeedVersionedHttpTest {
             rows.addObject().put("key", keyVers[i]).put("ver", keyVers[i + 1]);
         }
         return result(post(body));
+    }
+
+    static String currentVer(JsonNode toc) {
+        return toc.path("items").get(0).path("current").path("ver").asText();
     }
 
     JsonNode view(String type, String... keys) throws IOException, InterruptedException {
