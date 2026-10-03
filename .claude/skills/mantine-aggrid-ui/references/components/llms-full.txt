@@ -72,6 +72,7 @@
 - [MatrixTable](matrix-table.md): "첫 열(라벨) + 동적으로 늘어나는 열 + 셀마다 직접 그린 값" 구조의 비교 매트릭스(피벗) 표를 보일 때 쓴다.
 - [차트 (DonutChart · PieChart · HBarChart · LineChart · StackedBarChart · StackedColumnChart)](charts.md): 현황 대시보드에서 비율(도넛·파이), 항목별 크기(가로 막대), 추이(선), 구성 비율(누적 막대), 기간별 누적 실적과 계획선(세로 누적 막대)을 간단한 SVG 차트로 보일 때 쓴다.
 - [exportToExcel](export-to-excel.md): 화면의 목록 데이터를 엑셀(.xlsx) 파일로 내려받게 할 때 쓴다. ag-grid 의 Excel Export 는 Enterprise 기능이라 쓰지 않는다.
+- [printElementAsPage](print-element-as-page.md): 화면의 한 영역(요소 하나)을 그 크기의 한 장짜리 페이지로 인쇄할 때 쓴다. 인쇄 창에서 「PDF로 저장」을 고르면 잘림 없는 PDF 한 장이 된다. 다른 출처 iframe(외부 웹 주소, sandbox srcdoc)도 찍힌다.
 - [아이콘 (@tabler/icons-react)](icons.md): 버튼·툴바·셀 안에 작은 그림 아이콘을 넣을 때 쓴다. 화면의 아이콘은 `@tabler/icons-react` 만 쓴다.
 
 ## 화면 문서에 싣지 않는 shared export
@@ -3553,6 +3554,7 @@ function Home({ store, rawDefs, status, retry }: Props) {
 - [완료]는 편집을 시작한 뒤 바뀐 탭만 `store.saveTab` 한다. 저장이 실패하면 편집 모드와 변경을 유지하고 알린다(탭 여러 개면 저장된 탭은 [취소]로 되돌리지 않고, 다시 [완료]하면 실패한 탭만 저장한다). 불러오기가 끝나지 않았거나 실패한 상태에서는 [완료]가 막힌다. [취소]는 바뀐 것이 있으면 확인 뒤 되돌린다. 편집 중 Escape 는 [취소]와 같다. 저장하는 동안에는 보드 편집·서랍·[취소]·Escape·(+) 새 탭·탭 메뉴(이름 바꾸기)가 멈춘다(입력 칸·메뉴·확인 창 안의 Escape 는 각자 처리한다). 서랍에서 눌러 추가한 위젯으로는 스크롤한다.
 - 보기 모드 탭 메뉴 작업(이름 바꾸기·잠금·왼쪽/오른쪽·지우기·홈 기본 배치로 되돌리기)은 바로 저장하며, 실패하면 화면을 원래대로 되돌린다.
 - (+) 새 탭은 편집 모드로 들어가고 [취소]하면 사라진다. 그래서 [배치 편집]처럼 저장 중·불러오기 실패·정의 목록 불러오는 중·실패면 막힌다.
+- [PDF](`pdfTarget` 을 줄 때)는 편집 중에 자리를 지킨 채 비활성이다. 인쇄 창에서 대상을 「PDF로 저장」으로 골라야 한 장으로 나온다(프린터는 A4 로 자른다). 보드는 한 장에 다 나오지만 그리드·메모처럼 위젯 안쪽에 스크롤이 있는 부분은 지금 보이는 만큼만 찍힌다. 외부 웹 주소 위젯은 그 사이트의 인쇄 스타일을 따른다.
 
 ## Props
 
@@ -3573,6 +3575,7 @@ WidgetWorkspaceProps
 | onRetryRegistry | `() => void` | - | 띠의 [다시 시도](`data-action="retry-registry"`). 없으면 버튼을 그리지 않는다 |
 | typeTitles | `Readonly<Record<string, string>>` | - | 유형 ID → 이름. 서랍이 정의 위젯 제목 아래에 유형 이름을 보인다(서랍 검색도 유형 이름으로 찾는다) |
 | singleTab | `{ title: string }` | - | 탭 줄을 숨기고 「홈」 하나만 다룬다(관리자 기본 배치 편집). 인라인 객체로 넘겨도 다시 불러오지 않는다 |
+| pdfTarget | `RefObject<HTMLElement \| null>` | - | 주면 도구 줄의 [배치 편집] 앞에 [PDF] 단추(`data-action="print-pdf"`)를 그린다. 누르면 대상 요소(ref 가 비면 작업 공간)를 [printElementAsPage](print-element-as-page.md) 로 한 장짜리 페이지로 인쇄하고, 기본 파일 이름은 「{지금 탭 이름}_{yyyyMMdd}」(못 쓰는 글자는 `_`)다. 편집 중에는 비활성. 없으면 단추가 없다 |
 
 WidgetBoardProps: `items`·`registry`·`editing`·`tabLocked`(필수), `onChange(items)`(필수), `onWideChange?(wide)`(안정된 함수를 넘긴다 — effect 의존성에 들어간다), `cols?: 24 | 12 | 1`(칸 수를 바깥에서 정함, 없으면 보드 자기 폭으로 판정), `width?`(고정 폭), `testId?`.
 
@@ -3629,7 +3632,7 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 
 ## 실제 사용 예
 
-- `src/frontend/m-mcm/page-components/home/`: `WidgetWorkspace` 에 `WIDGET_REGISTRY`(`lib/generated/widget-registry.ts`)·`HOME_DEFAULT_LAYOUT`(`home-layout.ts`)·`secWidget` 저장소(`widget-store.ts`)를 넘기는 포털 홈.
+- `src/frontend/m-mcm/page-components/home/`: `WidgetWorkspace` 에 `WIDGET_REGISTRY`(`lib/generated/widget-registry.ts`)·`HOME_DEFAULT_LAYOUT`(`home-layout.ts`)·`secWidget` 저장소(`widget-store.ts`)를 넘기는 포털 홈. `pdfTarget` 으로 홈 뿌리 `.mcm-home`(인사말·공지 띠·탭 줄·보드)을 넘겨 [PDF] 를 켠다.
 - `src/frontend/m-mcm/widgets/home/{이름}/`: `widget.meta.ts` + `widget.tsx` 로 이루어진 홈 위젯 11개.
 - `src/frontend/m-mcm/widget-types/{typeId}/`: 정의 위젯 유형(`type.meta.ts` + `renderer.tsx` + `editor.tsx`), 생성물 `lib/generated/widget-type-registry.ts`.
 - `src/frontend/m-mcm/page-components/csa/commWidgetMng/`: 위젯관리 화면 — 미리보기는 `WidgetFrame` 단독, 기본 배치 탭은 `WidgetWorkspace singleTab` + 관리자 어댑터 저장소.
@@ -4821,6 +4824,86 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
 
 - `src/frontend/m-mdm/pages/dmb/layoutMng/page.tsx:306-314`: `exportToExcel(rows, 파일명, 시트명, 열)` + `try/catch` 로 오류 표시. 단, 시트 이름이 "snapshot"이고 열 정의에 `width` 를 주는 점, 오류를 `ErrorModal` 용 상태로 보내는 점은 표준과 다름.
 - MES 모듈(m-mpp·m-mqc·m-mls·m-mcm)의 화면에서는 아직 사용처 없음.
+
+
+<!-- ===== print-element-as-page.md ===== -->
+
+# printElementAsPage
+
+화면의 한 영역(요소 하나)을 그 크기의 한 장짜리 페이지로 인쇄할 때 쓴다. 인쇄 창에서 「PDF로 저장」을 고르면 잘림 없는 PDF 한 장이 된다. 다른 출처 iframe(외부 웹 주소, sandbox srcdoc)도 찍힌다.
+
+- import: `import { printElementAsPage, PRINT_PAGE_MAX_PX, type PrintElementOptions } from "@dk-oasis/shared/utils";`
+- 소스: `src/frontend/shared/src/utils/libPrint.ts`
+- 내부 구현: 그림 캡처(html-to-image 등)는 다른 출처 iframe 의 내용을 읽지 못해 쓰지 않고 브라우저 인쇄(`window.print()`)를 쓴다. 인쇄하는 동안 head 에 `@page { size: W×H; margin: 0 }` 와 `@media print` 스타일을 넣고 대상에 `data-print-target` 을 단다. 대상 밖은 `visibility: hidden`, 대상은 화면 왼쪽 위에 `position: fixed` 로 전체 높이를 펼친다. 대상과 후손에 `print-color-adjust: exact` 를 걸어 배경·그라데이션을 화면 그대로 찍는다. 정리(스타일·속성 제거, 제목·스크롤 복원)는 `afterprint` 와 `print()` 가 돌아온 뒤 두 번 부르며, 두 번째는 아무 일도 하지 않는다
+- 확인한 브라우저는 Chrome(인쇄 창이 닫힐 때까지 `print()` 가 돌아오지 않는다)뿐이다.
+
+## 언제 쓰나
+
+- 쓴다: 홈 위젯 화면처럼 여러 부품·iframe 이 섞인 영역을 보이는 모습 그대로 PDF 한 장으로 남길 때.
+- 쓰지 않는다: 목록 데이터를 파일로 내려받기 → [exportToExcel](export-to-excel.md). 양식이 정해진 장표(A4 여러 쪽)는 서버 보고서로 만든다.
+
+## 표준 사용
+
+```tsx
+import { useRef } from "react";
+import { printElementAsPage, today } from "@dk-oasis/shared/utils";
+import { Button } from "@dk-oasis/shared/form";
+
+export function BoardWithPdf() {
+  const ref = useRef<HTMLDivElement>(null);
+  const savePdf = () => {
+    if (ref.current) printElementAsPage(ref.current, { title: `현황판_${today()}` });
+  };
+  return (
+    <div ref={ref}>
+      <Button data-print-hide="" onClick={savePdf}>PDF</Button>
+      {/* 찍을 내용 */}
+    </div>
+  );
+}
+```
+
+홈 위젯 화면은 직접 부르지 않는다. `WidgetWorkspace` 의 `pdfTarget` 을 주면 도구 줄에 [PDF] 단추가 생긴다([widget](widget.md)).
+
+## 변형
+
+### 찍지 않을 부품
+
+대상 안에서 `data-print-hide` 를 단 요소(와 그 후손)는 PDF 에 나오지 않는다. 자리는 그대로 남는다(visibility). 도구 줄 단추에 단다.
+
+### iframe 안 문서의 색
+
+iframe 안 문서는 부모 스타일을 물려받지 않는다. 직접 만드는 srcdoc 이면 문서 안에 `<style>@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}</style>` 를 넣어야 배경이 빠지지 않는다(m-mcm `widget-types/_content/html-frame.ts` 참고). 외부 사이트 iframe 은 그 사이트의 인쇄 스타일을 따른다.
+
+## Props
+
+`printElementAsPage(el, opts?): void`
+
+| 인자 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| el | `HTMLElement` | 필수 | 찍을 요소. 용지 크기는 `scrollWidth × scrollHeight`(스크롤해 둔 상태여도 처음부터 찍고 끝나면 스크롤을 되돌린다) |
+| opts.title | `string` | - | 인쇄하는 동안의 `document.title`. Chrome 「PDF로 저장」의 기본 파일 이름이 된다. 끝나면 원래 제목으로 돌린다 |
+
+`PRINT_PAGE_MAX_PX`(= 19200): Chrome PDF 한 장의 최대 변 길이(약 200인치). 대상이 이보다 크면 CSS `zoom` 으로 줄여 한 장에 넣고 용지도 줄인 크기로 잡는다.
+
+## 표준값: 모든 화면 동일
+
+- 파일 이름(`title`)은 `<화면·탭 이름>_<yyyyMMdd>`(`today()`), 파일 이름에 못 쓰는 글자(`\ / : * ? " < > |`)는 `_`.
+- 인쇄 단추에는 `data-print-hide` 를 단다. title 은 「… PDF 로 저장(인쇄 창에서 'PDF로 저장' 선택)」.
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| 인쇄 창의 대상을 프린터로 둔 채 인쇄한다 | 프린터는 `@page` 크기를 무시하고 A4 로 자른다. 대상을 「PDF로 저장」으로 고르도록 단추 title 에 적는다 |
+| 그리드·메모처럼 안쪽에 스크롤이 있는 부품이 다 찍힐 줄 안다 | 대상 자신의 스크롤만 펼친다. 부품 안쪽 스크롤 영역은 지금 보이는 부분만 찍힌다 |
+| html-to-image 같은 캡처로 바꾼다 | 다른 출처 iframe 이 빈칸으로 나온다 |
+| 정리 전에 다시 부를까 걱정해 상태를 따로 둔다 | 다시 부르면 앞의 것을 먼저 정리한다 |
+
+## 실제 사용 예
+
+- `src/frontend/shared/src/widget/WidgetWorkspace.tsx`: `pdfTarget` 이 있으면 [PDF] 단추가 대상(없으면 작업 공간)을 「{탭 이름}_{yyyyMMdd}」로 찍는다.
+- `src/frontend/m-mcm/page-components/home/page.tsx`: 홈 뿌리 `.mcm-home` 을 `pdfTarget` 으로 넘긴다.
 
 
 <!-- ===== icons.md ===== -->
