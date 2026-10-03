@@ -142,7 +142,7 @@ class ScreenUsageMssqlDdlTest {
     /** mcm 시드 소스 폴더. 시험이 읽는 파일은 아래 상수에 이름으로 적는다(폴더 전체를 훑지 않는다). */
     private static final Path MCM_INIT = Path.of("../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init");
     /** ScreenUsageSchemaArtifacts(이 DDL 을 실행하는 단계)가 있는 파일 — DDL 참조 세 개를 여기서 찾는다. */
-    private static final Path SCREEN_USAGE_ARTIFACTS_SOURCE = MCM_INIT.resolve("DataInitializer.java");
+    private static final Path SCREEN_USAGE_ARTIFACTS_SOURCE = MCM_INIT.resolve("seed/ScreenUsageSchemaArtifacts.java");
     /** run() 이 단계 호출 순서를 정하는 파일 — 두 호출과 그 순서를 이 파일 하나 안에서 본다. */
     private static final Path RUN_ORDER_SOURCE = MCM_INIT.resolve("DataInitializer.java");
 
