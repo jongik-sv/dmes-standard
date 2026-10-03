@@ -86,3 +86,9 @@
 - [`docs/mdm/naming-dialect-rules.md`](../naming-dialect-rules.md) — 방언 규칙 정본(SQLite)
 - [TRD](../TRD.md) §2·§4, [PRD](../PRD.md)
 - 브랜치 `chore/mdm-drop-mssql` 커밋(MSSQL 마이그레이션·테스트·의존성 삭제, 방언 이음매 정리)
+
+## 보완 (2026-10-03)
+
+- 사용자가 운영 DB 후보를 **Oracle 또는 PostgreSQL(현장마다 하나)** 로 좁혔다. 사용자 말은 「MSSQL 은 거의 쓸 일이 없을 것 같다. 로컬 테스트는 SQLite, 실제 운영은 Oracle·PostgreSQL 을 쓸 것 같다.」 였다. 따라서 위 제목과 D1 의 「운영 DB 미정」은 「운영 DB 는 Oracle 또는 PostgreSQL 로 좁혀졌고 방언은 아직 더하지 않았다(로컬·테스트는 SQLite)」로 읽는다. MSSQL 가정 삭제와 SQLite 단일 방언 유지라는 결정 자체는 바뀌지 않는다.
+- Context 30줄의 「MES 모듈(mcm·mls 등)과 레거시(SampleErp) 분석 체계는 MSSQL 을 실제로 쓰므로 이 결정의 범위가 아니다」는 이 보완으로 대체한다. MES 모듈의 운영 대상도 Oracle·PostgreSQL 이고 MSSQL 은 거의 쓰지 않는다. 다만 MCM·caravan-hub 의 WildFly 프로필처럼 SQL Server 방언과 `java:/jdbc/mssql/...` JNDI 를 쓰는 설정이 아직 남아 있어 운영 전에 Oracle·PostgreSQL 로 바꿔야 한다. SampleErp 레거시 분석의 MSSQL 원천은 레거시 원천 DBMS 의 사실이므로 그대로다.
+- MDM 의 wildfly(dev·prod) 프로필은 여전히 Oracle 또는 PostgreSQL 방언을 `MdmDialect` 에 더해야 기동된다(위 Consequences 첫 항목). 방언 값·판정·문안·마이그레이션 폴더·검증 테스트는 운영 방언을 정하는 새 ADR 과 함께 더한다.

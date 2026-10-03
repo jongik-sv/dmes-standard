@@ -3,7 +3,7 @@
 > 작성: 2026-09-24 (mdm/TSK-02-01 전사 아키텍처·버전 확정 규칙 설계)
 > 목적: 모든 mdm DB 설계·마이그레이션 Task 가 인용하는 정본이다. 테이블·칼럼·제약 이름, 공통 관리 속성(감사 칼럼), 방언 규칙(현재 SQLite), 영속성 수단, Flyway 규칙을 한곳에 둔다.
 > 결정 근거: [ADR-0001 MDM 물리 명명·공통 관리 속성·방언 규칙](adr/0001-physical-naming-audit-dialect.md), `docs/mdm/decisions.md` D-012~D-014.
-> 운영 DB: **미정**이다(2026-09-26 사용자 결정, [ADR-0004](adr/0004-drop-mssql-production-assumption.md)). 로컬·테스트 DB 는 SQLite 다. 방언 이음매(`MdmDialect`·방언 판정 빈)는 SQLite 값만 남겨 두고, 운영 DB 가 정해지면 그 방언 값·문안·마이그레이션 폴더를 더한다. §3 방언 표도 그때 열을 더한다.
+> 운영 DB: **Oracle 또는 PostgreSQL 로 좁혀졌고**(2026-10-03 사용자 결정, 현장마다 하나) 방언은 아직 더하지 않았다. MSSQL 전제는 2026-09-26 [ADR-0004](adr/0004-drop-mssql-production-assumption.md) 가 걷어 냈고, 같은 ADR 의 2026-10-03 보완이 후보를 좁혔다. 로컬·테스트 DB 는 SQLite 다. 방언 이음매(`MdmDialect`·방언 판정 빈)는 SQLite 값만 남겨 두고, 운영 방언을 더할 때 그 방언 값·문안·마이그레이션 폴더를 더한다. §3 방언 표도 그때 열을 더한다.
 > 우선순위: 이 문서가 [TRD](TRD.md) §4.2 요약보다 우선한다. 둘이 충돌하면 이 문서를 따르고 TRD 를 고친다.
 > 원천 설계(`/Users/jji/project/mdm/docs/design/basic/`)는 PostgreSQL 문법으로 쓰였다. 아래 행 번호 인용(`02:227` 등)은 그 원천 문서의 행이다.
 

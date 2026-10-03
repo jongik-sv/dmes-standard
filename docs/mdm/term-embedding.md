@@ -6,7 +6,7 @@
 
 ## 1. 결정 요약
 
-용어 벡터는 원장 `TB_MDM_TERM` 의 칼럼 `EMBEDDING`(SQLite `BLOB`)에 L2 정규화한 float32 little-endian 1024개(4,096바이트)로 두고, 비교는 서버 메모리에서 전수 내적으로 한다(선택안 ①). 원천 02:533 이 정한 "`TB_MDM_TERM.embedding` 칼럼 하나"를 그대로 따르고, DB 벡터 기능에 기대지 않아 운영 DB(미정)가 정해져도 같은 코드 경로를 쓴다. 모델은 KURE-v1 INT8 이고 풀링은 **CLS + L2** 다(INT8 변환본 README 가 적은 masked mean 이 아니다). 벡터를 만든 모델을 적는 `EMBEDDING_MODEL` 값은 `KURE-v1/int8-{model.onnx sha256 앞 8자}/cls-l2/in{입력 형식 버전}` 이고, PoC 파일 기준으로 `KURE-v1/int8-1808718e/cls-l2/in1` 이다. 1만 건 기준 질의 p95 가 22 ms 로 500 ms 기준을 크게 밑돌아 ANN 인덱스나 DB 네이티브 벡터는 필요하지 않다. 현재 모델 벡터가 100,000 건에 이르거나 운영 추천 응답 p95 가 250 ms 에 이르면 방식을 다시 검토한다.
+용어 벡터는 원장 `TB_MDM_TERM` 의 칼럼 `EMBEDDING`(SQLite `BLOB`)에 L2 정규화한 float32 little-endian 1024개(4,096바이트)로 두고, 비교는 서버 메모리에서 전수 내적으로 한다(선택안 ①). 원천 02:533 이 정한 "`TB_MDM_TERM.embedding` 칼럼 하나"를 그대로 따르고, DB 벡터 기능에 기대지 않아 운영 DB(Oracle 또는 PostgreSQL, 방언은 아직 더하지 않음)가 어느 쪽이어도 같은 코드 경로를 쓴다. 모델은 KURE-v1 INT8 이고 풀링은 **CLS + L2** 다(INT8 변환본 README 가 적은 masked mean 이 아니다). 벡터를 만든 모델을 적는 `EMBEDDING_MODEL` 값은 `KURE-v1/int8-{model.onnx sha256 앞 8자}/cls-l2/in{입력 형식 버전}` 이고, PoC 파일 기준으로 `KURE-v1/int8-1808718e/cls-l2/in1` 이다. 1만 건 기준 질의 p95 가 22 ms 로 500 ms 기준을 크게 밑돌아 ANN 인덱스나 DB 네이티브 벡터는 필요하지 않다. 현재 모델 벡터가 100,000 건에 이르거나 운영 추천 응답 p95 가 250 ms 에 이르면 방식을 다시 검토한다.
 
 ## 2. 모델·런타임·입력 형식
 
@@ -61,19 +61,19 @@ PoC 는 [`poc/mdm-embedding-bench`](../../poc/mdm-embedding-bench/) 에 있다. 
 
 ## 4. 저장 방식 비교
 
-원천은 PostgreSQL pgvector 를 전제로 `TB_MDM_TERM.embedding` 칼럼 하나를 두었다(02:533). 이 저장소의 로컬·테스트 DB 는 SQLite 이고 운영 DB 는 미정이다(NFR-6, [ADR-0004](adr/0004-drop-mssql-production-assumption.md)). 측정 결과 속도는 어느 안이든 충분하므로, 선택은 방언 이식성과 원천 DDL 불변으로 갈랐다.
+원천은 PostgreSQL pgvector 를 전제로 `TB_MDM_TERM.embedding` 칼럼 하나를 두었다(02:533). 이 저장소의 로컬·테스트 DB 는 SQLite 이고 운영 DB 는 Oracle 또는 PostgreSQL 로 좁혀졌으나(2026-10-03) 방언은 아직 더하지 않았다(NFR-6, [ADR-0004](adr/0004-drop-mssql-production-assumption.md)). 측정 결과 속도는 어느 안이든 충분하므로, 선택은 방언 이식성과 원천 DDL 불변으로 갈랐다.
 
 | 후보 | 방언 | 속도(1만 건) | 판단 |
 |---|---|---|---|
 | ① `TB_MDM_TERM` 칼럼 `EMBEDDING`(BLOB, float32 LE) + 서버 메모리 전수 비교 | 이진 칼럼만 있으면 어느 DB 든 같은 방식 | 질의 p95 22 ms | **선택**. 원천 02:533 "칼럼 하나"와 원천 DDL 불변에 맞고, 방언과 무관한 코드 경로다 |
 | ② 별도 테이블(`TB_MDM_TERM_EMB` 등) + 메모리 비교 | 같음 | 같음 | 감사 칼럼·그리드 조회 부담을 떼어 내는 장점이 있으나 원천 DDL 을 바꾼다. ①에 엔티티 미매핑 규칙(§6 규칙 1)을 두면 같은 이점을 얻는다 |
 | ③ 파일 인덱스(HNSW 등 ANN) | DB 밖 | 필요 없음 | 원장과 동기화·백업하는 경로가 하나 더 생기고 라이브러리 의존이 늘어난다. 전수 비교가 10만 건에서도 51 ms 라 이득이 없다 |
-| ④ DB 네이티브 벡터 타입·거리 함수 | 특정 DBMS·버전 전용, SQLite 대응 없음 | 재지 않음 | 운영 DB 가 미정이고, 방언이 갈라져 NFR-6 에 어긋난다 |
+| ④ DB 네이티브 벡터 타입·거리 함수 | 특정 DBMS·버전 전용, SQLite 대응 없음 | 재지 않음 | 운영 DB 가 Oracle 또는 PostgreSQL 로 현장마다 갈리고, 방언이 갈라져 NFR-6 에 어긋난다 |
 | ⑤ sqlite-vec | SQLite 로컬 전용 확장 | 재지 않음 | 확장을 적재해야 하고 다른 DB 대응이 없다. NFR-6 에 어긋난다 |
 
 ## 5. 선택안 DDL
 
-TSK-02-03 ERD 와 TSK-04-01 Flyway 가 이 DDL 을 옮긴다. 운영 DB 가 정해지면 그 DB 의 이진 타입(4,096바이트)으로 같은 두 칼럼을 둔다. 칼럼 이름은 원천 그대로 대문자로 쓴다(D-012).
+TSK-02-03 ERD 와 TSK-04-01 Flyway 가 이 DDL 을 옮긴다. 운영 방언을 더할 때 그 DB 의 이진 타입(4,096바이트)으로 같은 두 칼럼을 둔다. 칼럼 이름은 원천 그대로 대문자로 쓴다(D-012).
 
 ```sql
 -- SQLite (TB_MDM_TERM 의 다른 칼럼은 02 원문대로)

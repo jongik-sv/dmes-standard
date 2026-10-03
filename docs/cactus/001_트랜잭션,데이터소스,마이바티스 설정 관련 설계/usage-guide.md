@@ -3,6 +3,8 @@
 dmes-aps 의 호스트 모듈에서 cactus-core 의 데이터 액세스 / 마스터코드 / Oasis 통합 / **multi-tx +
 multi-DS + multi-DS mybatis** 기능을 사용하기 위한 yml + 코드 가이드.
 
+> **DB 전제 안내 (2026-10-03)**: 이 문서의 「운영 = MSSQL」(`mssql-jdbc`, `SQLServerDialect`, `application-mssql.yml` 등)은 dmes-ksm(MSSQL) 이관 시절 전제다. 운영 DB 는 Oracle 또는 PostgreSQL 이고 MSSQL 은 거의 쓰지 않는다. 지금 cactus-core 의 `DialectDetector`·`OasisAutoConfiguration` 은 mssql·sqlite 만 지원하므로 Oracle·PostgreSQL 지원은 별도 작업이다. 새 SQL 은 [`dialect-neutral-sql.md`](../../guide/Database/dialect-neutral-sql.md) 를 따른다.
+
 > **갱신 이력**:
 > - **2026-05-20**: cactus 1.0.22-SNAPSHOT 의 audit/mastercode 핵심 fix 반영 (ι + κ + μ):
 >   - **R-cactus-audit-1 (ι)** — `OasisServiceExecutor.sc.setAudit(audit)` 추가 → OASIS 경유 모든 INSERT/UPDATE 의 `C_USR_ID/C_SVC_ID/C_PGM_ID/U_*` 자동 채움.

@@ -1,18 +1,18 @@
 # 방언 중립 SQL 작성 규칙
 
-로컬 개발과 자동 테스트는 SQLite 로, 운영은 고객사가 확정하는 운영 방언(Oracle · PostgreSQL · MSSQL 등)으로 돈다. 같은 SQL 이 두 DB 에서 같은 결과를 내도록 쓰는 규칙을 모은다. 방언별 용어 대조는 [`DBMS-용어-비교.md`](DBMS-용어-비교.md), 운영 방언이 MSSQL 일 때의 전환 상세는 [`oracle-to-mssql-practical-guide.md`](oracle-to-mssql-practical-guide.md) 를 본다.
+로컬 개발과 자동 테스트는 SQLite 로 돌고, 운영은 Oracle 또는 PostgreSQL(현장마다 하나)로 돈다. MSSQL 은 거의 쓰지 않는다(2026-10-03 결정). 같은 SQL 이 두 DB 에서 같은 결과를 내도록 쓰는 규칙을 모은다. 방언별 용어 대조는 [`DBMS-용어-비교.md`](DBMS-용어-비교.md) 를 보고, MSSQL 현장을 맡을 때의 전환 자료(보관)는 [`oracle-to-mssql-practical-guide.md`](oracle-to-mssql-practical-guide.md) 를 본다.
 
 ## 1. 원칙
 
-- **ANSI 우선**: 표준 SQL 로 쓸 수 있으면 표준으로 쓴다. 벤더 함수(`NVL`·`ISNULL`·`IFNULL` 등)는 표준 대체(`COALESCE`)가 있으면 쓰지 않는다. 예외는 재귀 CTE 다(§3, `RECURSIVE` 없이 쓴다).
+- **ANSI 우선**: 표준 SQL 로 쓸 수 있으면 표준으로 쓴다. 벤더 함수(`NVL`·`ISNULL`·`IFNULL` 등)는 표준 대체(`COALESCE`)가 있으면 쓰지 않는다. 예외는 재귀 CTE 다(§3, 방언 판정 한 곳에서 문안을 고른다).
 - **방언 판정은 한 곳**: JPA/Hibernate 를 쓰는 모듈에서 방언마다 갈리는 네이티브 쿼리·SQL 문안은 방언 판정 한 곳을 거쳐 고른다. 분기는 `switch` 로 써서 방언 값을 더하면 컴파일러가 빠진 분기를 알리게 한다(선례: MDM 의 `MdmDialect`·`MdmDialectResolver`, [ADR-0004](../../mdm/adr/0004-drop-mssql-production-assumption.md) D3 방언 이음매).
 - **JPQL·Criteria 우선**: 페이징·현재 시각·identity 처럼 Hibernate 가 방언별로 바꿔 주는 것은 네이티브 SQL 로 직접 쓰지 않는다.
 - **값은 애플리케이션에서 바인딩**: 현재 시각·채번·빈 값 처리처럼 방언마다 결과가 다른 것은 DB 함수보다 애플리케이션에서 만든 값을 바인딩한다.
-- **SQLite 통과 ≠ 운영 통과**: SQLite 는 선언 타입·길이를 강제하지 않는다. 운영 방언이 확정되면 그 방언 DB 에서 따로 검증한다.
+- **SQLite 통과 ≠ 운영 통과**: SQLite 는 선언 타입·길이를 강제하지 않는다. 운영 DB(Oracle 또는 PostgreSQL)에서 따로 검증한다.
 
 ## 2. 방언별로 갈리는 구문
 
-| 항목 | ANSI 권장 | Oracle | PostgreSQL | SQLite | MSSQL |
+| 항목 | ANSI 권장 | Oracle | PostgreSQL | SQLite | MSSQL(참고) |
 |---|---|---|---|---|---|
 | 페이징 | `OFFSET n ROWS FETCH NEXT m ROWS ONLY` | 같음(12c 이상), 이전은 `ROWNUM` | 같음, 또는 `LIMIT m OFFSET n` | `LIMIT m OFFSET n` 만 | 같음(2012 이상, `ORDER BY` 필수) |
 | 문자열 연결 | `a \|\| b` | `\|\|`(NULL 을 빈 문자열처럼 이음) | `\|\|`(NULL 이 섞이면 NULL), `concat()` | `\|\|`(NULL 이 섞이면 NULL) | `CONCAT(a, b)` 또는 `+` |
@@ -20,7 +20,7 @@
 | 현재 시각 | `CURRENT_TIMESTAMP` | `CURRENT_TIMESTAMP`, `SYSTIMESTAMP`, `SYSDATE` | `CURRENT_TIMESTAMP`, `now()`(트랜잭션 시작 시각) | `CURRENT_TIMESTAMP`(UTC 문자열) | `CURRENT_TIMESTAMP`, `SYSDATETIME()` |
 | 시퀀스·identity | `GENERATED ... AS IDENTITY` | identity(12c 이상), `seq.NEXTVAL` | identity, `nextval('seq')` | `INTEGER PRIMARY KEY`(rowid), 시퀀스 없음 | `IDENTITY(1,1)`, `NEXT VALUE FOR seq` |
 | upsert | `MERGE` | `MERGE INTO` | `INSERT ... ON CONFLICT ... DO UPDATE`(15 이상은 `MERGE` 도) | `INSERT ... ON CONFLICT ... DO UPDATE` | `MERGE` |
-| 재귀 CTE | 표준은 `WITH RECURSIVE`, 이 리포 기본형은 `RECURSIVE` 없이(§3) | `WITH t(col, ...) AS (...)`(칼럼 목록 필요), 또는 `CONNECT BY` | `WITH RECURSIVE` 필수 | `WITH` · `WITH RECURSIVE` 모두 됨 | `WITH` 만(`RECURSIVE` 쓰면 오류) |
+| 재귀 CTE | 표준은 `WITH RECURSIVE`, 이 리포는 방언 판정 한 곳에서 문안을 고름(§3) | `WITH t(col, ...) AS (...)`(칼럼 목록 필요, `RECURSIVE` 는 받지 않음), 또는 `CONNECT BY` | `WITH RECURSIVE` 필수 | `WITH` · `WITH RECURSIVE` 모두 됨 | `WITH` 만(`RECURSIVE` 쓰면 오류) |
 | 식별자 대소문자·따옴표 | 따옴표 없는 식별자 | 따옴표 없으면 대문자로 바뀜, `"Name"` 은 그대로 | 따옴표 없으면 소문자로 바뀜 | 대소문자 무시 | `[Name]` 또는 `"Name"`, 구분 여부는 collation |
 | 빈 문자열과 NULL | `''` 와 NULL 을 구분 | `''` 를 NULL 로 취급 | 구분 | 구분 | 구분 |
 | 건수 제한 DML | 없음(WHERE 로 범위 지정) | `WHERE ROWNUM <= n` | 지원 안 함(서브쿼리로 키 선택) | 컴파일 옵션이 켜진 빌드에서만 `LIMIT` | `DELETE TOP (n)` |
@@ -54,8 +54,8 @@
 
 ### 재귀 CTE
 
-- `RECURSIVE` 키워드 유무가 PostgreSQL(필수)과 MSSQL(불가) 사이에서 정반대라 하나의 문안으로 둘을 만족시킬 수 없다. 재귀 CTE 는 방언 판정 한 곳에서 문안을 고르는 대상이다.
-- 기본형은 `RECURSIVE` 없이 칼럼 목록을 붙인 `WITH t(col, ...) AS (...)` 다. Oracle·MSSQL·SQLite 가 모두 받는다(ADR-0004 가 유지한 MDM 관례). 운영 방언이 PostgreSQL 이면 방언 이음매에서 `RECURSIVE` 를 붙인 문안을 고른다.
+- `RECURSIVE` 낱말을 받는 방식이 운영 후보 사이에서 갈린다. Oracle 은 `RECURSIVE` 낱말을 받지 않고(MSSQL 도 같은 쪽이다), PostgreSQL 은 재귀 CTE 에 `RECURSIVE` 가 필수이며, SQLite 는 둘 다 받는다. 그래서 하나의 문안으로 Oracle 과 PostgreSQL 을 함께 만족시킬 수 없고, 재귀 CTE 는 방언 판정 한 곳에서 문안을 고르는 대상이다.
+- Oracle 문안은 `RECURSIVE` 없이 칼럼 목록을 붙인 `WITH t(col, ...) AS (...)` 이고, PostgreSQL 문안은 같은 형태 앞에 `RECURSIVE` 를 붙인 `WITH RECURSIVE t(col, ...) AS (...)` 다. 지금 MDM 의 기본형은 `RECURSIVE` 없는 문안이며(ADR-0004 가 유지한 관례), SQLite 가 이를 받으므로 로컬·테스트에서 그대로 돈다. PostgreSQL 방언을 더하는 모듈은 방언 이음매에서 `RECURSIVE` 를 붙인 문안을 고른다.
 
 ### 식별자
 
@@ -73,4 +73,4 @@
 
 ### LIKE 특수문자
 
-- 사용자 입력으로 LIKE 를 만들 때는 `ESCAPE` 를 명시하고 `%`·`_` 를 이스케이프한다. MSSQL 은 `[` 도 패턴 문자로 해석하므로 함께 이스케이프한다(MDM 관례).
+- 사용자 입력으로 LIKE 를 만들 때는 `ESCAPE` 를 명시하고 `%`·`_` 를 이스케이프한다. MSSQL 을 쓸 때만 `[` 도 패턴 문자로 해석하므로 함께 이스케이프한다(MDM 관례).

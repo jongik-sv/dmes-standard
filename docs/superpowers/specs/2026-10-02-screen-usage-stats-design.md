@@ -164,7 +164,7 @@
 ### 4.6 스키마 반영
 
 - 로컬 SQLite: `@Entity`(+ `@Table(uniqueConstraints, indexes)`) 와 `ddl-auto=update`.
-- MSSQL 계열(local-db·wildfly): `DataInitializer` 의 기존 멱등 `CREATE TABLE` 패턴으로 두 테이블과 인덱스를 만든다.
+- MSSQL 계열(local-db·wildfly): `DataInitializer` 의 기존 멱등 `CREATE TABLE` 패턴으로 두 테이블과 인덱스를 만든다(Oracle·PostgreSQL DDL 은 아직 없음, 2026-10-03).
 - 이력용 `mcm-core/.../db/migration/sqlite/V*.sql` 은 런타임 미적용이므로 추가하지 않는다(mcm 은 Flyway 비활성).
 
 ## 5. 통계 화면 (m-mcm `page-components/csa/screenUsageStat/`)

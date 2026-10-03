@@ -259,20 +259,20 @@ HTTP 상태:
 
 ## 8. DB 마이그레이션과 Seed
 
-DB 전제: 로컬 개발과 자동 테스트는 **SQLite** 로 고정한다. 운영 DB 는 **고객사가 확정하는 운영 방언**(Oracle · PostgreSQL · MSSQL 등)이며, 확정 전에는 특정 제품을 가정하지 않는다(MDM 선례: [ADR-0004](../../mdm/adr/0004-drop-mssql-production-assumption.md)). 방언 중립 SQL 작성 규칙은 [`../Database/dialect-neutral-sql.md`](../Database/dialect-neutral-sql.md) 를 따른다.
+DB 전제: 로컬 개발과 자동 테스트는 **SQLite** 로 고정한다. 운영 DB 는 **Oracle 또는 PostgreSQL**(현장마다 하나)이며, 현장에서 어느 쪽인지 확정하기 전에는 한쪽만 가정하지 않는다. MSSQL 은 거의 쓰지 않으며 쓰게 되면 그 현장에서 방언을 더한다(MDM 선례: [ADR-0004](../../mdm/adr/0004-drop-mssql-production-assumption.md)). 방언 중립 SQL 작성 규칙은 [`../Database/dialect-neutral-sql.md`](../Database/dialect-neutral-sql.md) 를 따른다.
 
 마이그레이션 원칙:
 
 - schema 변경은 마이그레이션 파일로 관리한다.
 - 운영 방언이 확정된 모듈은 SQLite(로컬·테스트) 폴더와 운영 방언 폴더를 함께 작성하고 두 폴더의 버전 번호 집합을 같게 유지한다. 운영 방언이 미정이면 SQLite 폴더만 둔다.
-- 방언 폴더 이름은 `oracle/` · `postgresql/` · `sqlite/` · `mssql/` 로 쓴다(`db/migration/{모듈}/sqlite/` 또는 모듈 단 없이 `db/migration/sqlite/`). Spring Boot Flyway 의 `{vendor}` 자리표시자로 폴더를 고르면 MSSQL 폴더 이름은 `sqlserver` 가 된다.
+- 방언 폴더 이름은 `oracle/` · `postgresql/` · `sqlite/` 로 쓰고(`db/migration/{모듈}/sqlite/` 또는 모듈 단 없이 `db/migration/sqlite/`), 드물게 MSSQL 현장이 생기면 `mssql/` (드묾)을 더한다. Spring Boot Flyway 의 `{vendor}` 자리표시자로 폴더를 고르면 MSSQL 폴더 이름은 `sqlserver` 가 된다.
 - 이미 공유된 migration 은 수정하지 않고 후속 migration 을 추가한다.
 - seed / 운영 데이터 INSERT 는 schema migration 과 분리한다.
 - 스키마 변경 시 seed, test fixture, local SQLite template 갱신 여부를 함께 확인한다.
 
 타입 차이 예:
 
-| 용도 | SQLite | Oracle | PostgreSQL | MSSQL |
+| 용도 | SQLite | Oracle | PostgreSQL | MSSQL(드묾) |
 |---|---|---|---|---|
 | 날짜 | `DATE` | `DATE`(시각까지 저장됨 — 날짜만 쓰면 0시) | `DATE` | `DATE` |
 | 날짜+시간 | `TIMESTAMP` | `TIMESTAMP` | `TIMESTAMP` | `DATETIME2` |
@@ -289,7 +289,7 @@ SQLite 의 선언 타입은 친화도만 정하고 강제하지 않는다. 날�
 
 {CLIENT} ERP 의 원본 데이터를 DMES 도메인 모델로 변환해 적재할 때는 원본·매핑 룰·변환 prompt 세 가지가 코드 자산으로 관리되어야 다음 batch(재변환, 운영 마이그레이션)에서 일관성을 회복할 수 있다.
 
-아래 경로는 **고객사 착수 시 신설**하는 자리표시자다. 템플릿 리포에는 이관 스크립트의 표준 형태 예시인 [`src/backend/data-migration/sample-migration/`](../../../src/backend/data-migration/sample-migration/README.md) 만 있다. `{client}` 는 고객사 약어, `{운영방언}` 은 `oracle`·`postgresql`·`mssql` 같은 운영 방언 폴더 이름이다.
+아래 경로는 **고객사 착수 시 신설**하는 자리표시자다. 템플릿 리포에는 이관 스크립트의 표준 형태 예시인 [`src/backend/data-migration/sample-migration/`](../../../src/backend/data-migration/sample-migration/README.md) 만 있다. `{client}` 는 고객사 약어, `{운영방언}` 은 `oracle`·`postgresql` 같은 운영 방언 폴더 이름이다(MSSQL 현장이면 `mssql`, 드묾).
 
 정본 위치:
 
@@ -311,8 +311,8 @@ SQLite 의 선언 타입은 친화도만 정하고 강제하지 않는다. 날�
   |---|---|
   | Oracle | `MERGE INTO ... WHEN NOT MATCHED THEN INSERT`, 또는 `DUP_VAL_ON_INDEX` 예외를 무시하는 PL/SQL 블록 |
   | PostgreSQL | `INSERT ... ON CONFLICT DO NOTHING` |
-  | MSSQL | `IF NOT EXISTS (...) INSERT ...`, 배치 구분은 `GO` |
   | SQLite | `INSERT OR IGNORE` |
+  | MSSQL(드묾) | `IF NOT EXISTS (...) INSERT ...`, 배치 구분은 `GO` |
 
 - {CLIENT} 원본 데이터 재변환 시 `prompt-templates/` 의 도메인별 템플릿을 사용하고, 새 룰은 먼저 `mapping-rules.md` 에 문서화한다.
 - 새 batch 는 `data-migration/{client}-baseline-v{N}/` 디렉토리를 새로 만들고 README 에 v1 과의 차이점을 명시한다.

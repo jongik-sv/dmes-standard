@@ -29,7 +29,7 @@ OASIS BPMN 서비스로 노출한다. Spring Boot **`lib` + `api` 2 서브프로
 
 부팅 때마다 **존재하면 skip** 하는 멱등 적재다. 새 프로젝트는 빈 DB 로 시작해도 관리자 계정과 메뉴가 선다.
 
-- SEC_* 테이블 DDL (MSSQL 계열 한정 — SQLite 는 `ddl-auto=update` 가 담당)
+- SEC_* 테이블 DDL (MSSQL 계열 한정 — SQLite 는 `ddl-auto=update` 가 담당). 이 MSSQL 경로는 dmes-ksm 이관 시절 것이고, 운영 대상인 Oracle·PostgreSQL 용 DDL 은 아직 없다.
 - RBAC 시드: `admin` 사용자 / `ROLE_GROUP_SYSADMIN` / `SYSADMIN` 역할 / `PERM_ALL`
 - 메뉴 트리: 공통관리(mcm) 루트 + `cma`(마스터관리 원장) · `csa`(시스템관리) · `cme`(마스터관리 가동) ·
   `cmb`(업무기준관리 원장) · `cmz`(팝업 전용, 사이드바 숨김), 그리고 로그 분석(analog) 루트 + `anl` 그룹
@@ -60,8 +60,10 @@ BPMN 을 추가·수정한 뒤에는 커밋 전에 `oasis-contract-check` 스킬
 | 프로파일 | 용도 |
 | --- | --- |
 | `local` (기본) | SQLite 직결. 프로파일 미지정 기동 시 폴백 |
-| `local-db` | 외부 RDB(SQL Server) 직결. 접속 정보는 **전부 환경변수** 주입 — 기본값 없음 |
+| `local-db` | 외부 RDB(SQL Server) 직결(이관 시절 프로파일이며 운영 대상인 Oracle·PostgreSQL 용 프로파일은 아직 없다). 접속 정보는 **전부 환경변수** 주입 — 기본값 없음 |
 | `dev` / `prod` | WildFly WAR 배포. datasource 는 `wildfly` 프로파일의 JNDI 논리명이 담당 |
+
+`wildfly` 프로파일(`application-wildfly.yml`)도 지금은 SQL Server 방언(`SQLServerDialect`)과 `java:/jdbc/mssql/mcm/...` JNDI 이름을 쓴다. 이관 시절 설정이므로 운영 대상인 Oracle·PostgreSQL 로 바꿔야 한다.
 
 `dev`/`prod` 는 `dmes.init.enabled=false` 로 `DataInitializer` 를 끈다 — 운영 계정에 DDL/시드가 도는 사고를 막기
 위해서다. 개발계에 시드가 필요하면 `-Ddmes.init.enabled=true` 로 한 번 띄우고 원복한다.
