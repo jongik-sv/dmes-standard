@@ -29,11 +29,33 @@ describe("htmlFrameProps — 스크립트 허용 html 의 격리 iframe 속성(�
     expect(HTML_FRAME_PRINT_STYLE).toMatch(/^<style>[^<]*<\/style>$/);
   });
 
-  it("doctype 이 있으면 doctype 을 맨 앞에 둔 채 그 뒤에 넣는다(quirks 모드로 바뀌지 않게)", () => {
+  it("style 은 늘 문서 맨 앞에 붙는다 — doctype 이 있어도 그 앞에(srcdoc 문서는 늘 표준 모드라 모드가 바뀌지 않는다)", () => {
     const html = '<!DOCTYPE html>\n<html lang="ko"><head><title>t</title></head><body style="background:linear-gradient(red,blue)">a</body></html>';
-    expect(htmlFrameProps(html).srcDoc).toBe('<!DOCTYPE html>' + HTML_FRAME_PRINT_STYLE + '\n<html lang="ko"><head><title>t</title></head><body style="background:linear-gradient(red,blue)">a</body></html>');
+    expect(htmlFrameProps(html).srcDoc).toBe(HTML_FRAME_PRINT_STYLE + html);
     const lead = "  <!-- 안내 -->\n<!doctype html><p>b</p>";
-    expect(htmlFrameProps(lead).srcDoc).toBe("  <!-- 안내 -->\n<!doctype html>" + HTML_FRAME_PRINT_STYLE + "<p>b</p>");
+    expect(htmlFrameProps(lead).srcDoc).toBe(HTML_FRAME_PRINT_STYLE + lead);
+  });
+
+  it("<html> 로 시작해도, 앞에 doctype 이 없어도 맨 앞에 붙는다", () => {
+    const html = '<html lang="ko"><body>a</body></html>';
+    expect(htmlFrameProps(html).srcDoc).toBe(HTML_FRAME_PRINT_STYLE + html);
+    expect(htmlFrameProps("<p>x").srcDoc.startsWith(HTML_FRAME_PRINT_STYLE)).toBe(true);
+  });
+
+  it("문서 중간의 <!doctype 은 무시한다 — style 이 script 문자열·textarea 안으로 들어가지 않는다", () => {
+    const html = "<!-- a --><textarea>--><!doctype html></textarea>";
+    expect(htmlFrameProps(html).srcDoc).toBe(HTML_FRAME_PRINT_STYLE + html);
+    const inScript = '<script>var s = "<!-- "; </script><!doctype html><p>x</p>';
+    expect(htmlFrameProps(inScript).srcDoc).toBe(HTML_FRAME_PRINT_STYLE + inScript);
+  });
+
+  it("연속 주석 5000개(뒤에 doctype 도 없음)도 바로 처리한다 — 정규식 역추적(ReDoS)이 없다", () => {
+    const html = " <!---->".repeat(5000) + "<p>x";
+    const t0 = performance.now();
+    const { srcDoc } = htmlFrameProps(html);
+    const elapsed = performance.now() - t0;
+    expect(srcDoc).toBe(HTML_FRAME_PRINT_STYLE + html);
+    expect(elapsed).toBeLessThan(50);
   });
 
   it("referrerPolicy 는 no-referrer, 속성은 세 개뿐이다", () => {
