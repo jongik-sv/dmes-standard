@@ -15,10 +15,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Set;
 import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup;
+import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeItemRow;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeVersionRow;
 import kr.dongkuk.maru.mdm.engine.testsupport.CodeFixtures;
@@ -148,9 +148,16 @@ class DefaultCodeResolverCodeAtTest {
 
     /** {@code code(id)} 가 부를 때마다 다른 버전 목차를 준다 — 두 번째 선택을 하면 1.001 이 새어 나온다. */
     private static final class Drifting implements CodeLookup {
-        final CodeRows full = CodeFixtures.procCd();
+        final CodeRows full = withAttrOnlyInV1000(CodeFixtures.procCd());
         int codeCalls;
         final List<BigDecimal> atCalls = new ArrayList<>();
+
+        /** 82 의 attr01 {@code KR} 은 1.000 에서만 유효하다(toVer=1.001) — 1.001 로 계산하면 값이 사라진다. */
+        private static CodeRows withAttrOnlyInV1000(CodeRows rows) {
+            List<CodeItemRow> items = new ArrayList<>(rows.items().stream().filter(i -> !i.code().equals("82")).toList());
+            items.add(new CodeItemRow("82", V1_000, V1_001, "2CGL", null, null, CodeFixtures.lvl(), CodeFixtures.attrs("KR")));
+            return new CodeRows(rows.header(), rows.versions(), items, rows.categories(), rows.cateItems());
+        }
 
         @Override
         public Optional<CodeRows> code(String id) {
@@ -178,8 +185,8 @@ class DefaultCodeResolverCodeAtTest {
             return Optional.empty();
         };
         DefaultCodeResolver r = new DefaultCodeResolver(lookup, eff);
-        // 1.000 기준: 82 는 소속, 84(v1.001 부터) 는 소속 아님. 두 번째 선택이 있었다면 1.001 로 계산돼 달라진다.
-        assertEquals(Optional.empty(), r.attr(PROC_CD, "BASE", "82", AUG, 1));
+        // 1.000 기준: 82 는 attr01 KR(1.000 에서만 유효). 두 번째 선택이 있었다면 1.001 로 계산돼 값이 사라진다.
+        assertEquals(Optional.of("KR"), r.attr(PROC_CD, "BASE", "82", AUG, 1));
         assertEquals(1, lookup.codeCalls);
         assertEquals(List.of(V1_000), effVers);
         assertEquals(List.of(V1_000), lookup.atCalls);

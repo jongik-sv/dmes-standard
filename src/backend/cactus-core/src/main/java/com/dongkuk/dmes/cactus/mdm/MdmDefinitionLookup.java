@@ -103,7 +103,10 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup, CodeEf
             return;
         }
         if (!service.versioned()) {
-            ids.forEach(id -> service.one(MdmTargetType.CODE, id));
+            MdmMetaService.MdmLookup r = service.lookup(MdmTargetType.CODE, ids);
+            if (!r.unavailable().isEmpty()) {
+                throw new MdmUnavailableException("MDM 코드 정의를 받을 수 없습니다: " + MdmTargetType.CODE + " " + r.unavailable());
+            }
             return;
         }
         MdmMetaService.MdmAtLookup r = service.lookupAt(MdmTargetType.CODE, ids, evalTs);

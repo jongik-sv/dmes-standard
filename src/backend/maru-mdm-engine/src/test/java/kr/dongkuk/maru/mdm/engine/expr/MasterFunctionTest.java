@@ -2,6 +2,7 @@ package kr.dongkuk.maru.mdm.engine.expr;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -137,7 +138,7 @@ class MasterFunctionTest {
         ExpressionFailure f = assertThrows(ExpressionFailure.class, () -> eval(text, vars("D", baseDt), SEP10_KST));
         assertTrue(f.getMessage().contains(expectedPart), f.getMessage());
         String other = expectedPart.equals("달력에 없는 일시") ? "문자열이어야" : "달력에 없는 일시";
-        assertTrue(!f.getMessage().contains(other), f.getMessage());
+        assertFalse(f.getMessage().contains(other), "다른 종류의 오류 문구가 섞이면 안 된다: " + f.getMessage());
     }
 
     @Test

@@ -345,7 +345,7 @@ class MdmDefinitionLookupTest {
         lookup.prefetchCodes(List.of("C", "NOPE"), Instant.parse("2026-03-01T00:00:00Z"));
         lookup.prefetchCodes(List.of("C"), NOW);
 
-        assertThat(feed.fetchCalls.get()).as("C·NOPE 한 번, 두 번째는 캐시").isEqualTo(2);
+        assertThat(feed.fetchCalls.get()).as("C·NOPE 묶어 한 번, 두 번째는 캐시").isEqualTo(1);
         assertThat(feed.tocCalls.get()).isZero();
         assertThat(feed.bodyCalls.get()).isZero();
     }

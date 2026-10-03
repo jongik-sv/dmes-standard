@@ -159,7 +159,7 @@ class MdmDefinitionLookupVersionedTest {
         int toc = feed.tocCalls.get();
         int body = feed.bodyCalls.get();
 
-        v.validate("T", "BASE_COL", Map.of("BASE_COL", "A"), PAST);
+        assertThat(v.validate("T", "BASE_COL", Map.of("BASE_COL", "A"), PAST).valid()).as("평가가 코드 도메인(1.000 의 A)까지 갔다").isTrue();
 
         assertThat(feed.tocCalls.get()).isEqualTo(toc);
         assertThat(feed.bodyCalls.get()).isEqualTo(body);
