@@ -236,6 +236,14 @@ describe("AgDataGrid — tooltipInteraction 은 HTML 열이 있는 그리드에�
       [...container.querySelectorAll(".ag-header-cell-text")].map((el) => el.textContent)
     ).toEqual(["제목", "본문"]);
     await expectInteractiveHeaderTip("noticeBody");
+    // 툴팁 안(링크 등에 focus)에서 누른 Escape — ag-grid 는 툴팁 밖 keydown 에만 닫으므로 카드의 문서 keydown 이 닫는다.
+    const inside = document.querySelector<HTMLElement>('.mdm-meta-tooltip [data-mdm-html="true"]')!;
+    await act(async () => {
+      inside.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(
+      document.querySelector(".ag-tooltip-interactive")?.classList.contains("ag-tooltip-hiding")
+    ).toBe(true);
   }, 15000);
 
   // StrictMode + 열 그룹 + MDM 공급자 조합은 이 변경 전 dev 에서도 happy-dom 에서 ag-grid 가 죽는다(getProvidedColumnGroup null) — 따로 본다.
