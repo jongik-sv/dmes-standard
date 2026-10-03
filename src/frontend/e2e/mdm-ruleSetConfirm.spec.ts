@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { BASE_URL, T, login, openRuleMenu, type LoginOptions } from "./support/common";
+import { T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
 
 /**

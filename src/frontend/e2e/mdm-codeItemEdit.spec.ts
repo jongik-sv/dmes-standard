@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { BASE_URL, T, clickMenuPath, login } from "./support/common";
+import { T, clickMenuPath, login } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
 import { gridRowByIndex, gridRows } from "./support/grid";
 

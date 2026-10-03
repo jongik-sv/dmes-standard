@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
-import { BASE_URL, T, login, walkMenuPath, type LoginOptions } from "./support/common";
+import { T, login, walkMenuPath, type LoginOptions } from "./support/common";
 
 /**
  * mdm dma/termMng(용어 관리) smoke — TSK-04-02 design.md §3.1.

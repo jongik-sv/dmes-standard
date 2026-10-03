@@ -51,7 +51,7 @@ test.describe("I/F Format Layout 관리 (interfaceFormatLayout) Smoke", () => {
 
     // FORMAT 선택 팝업 열기
     await page.getByRole("button", { name: "FORMAT 선택" }).click();
-    // 팝업이 뜨길 기다린다(상한: 설정 expect 기본 10초)
-    await expect(page.getByText("FORMAT 명", { exact: false }).first()).toBeVisible();
+    // 팝업이 뜨길 기다린다(상한: 지운 1초 쉼 + 기본 10초와 같은 11초)
+    await expect(page.getByText("FORMAT 명", { exact: false }).first()).toBeVisible({ timeout: 11_000 });
   });
 });
