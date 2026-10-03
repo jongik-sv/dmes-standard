@@ -169,7 +169,7 @@ export function DateTimePicker({
   }, []);
 
   return (
-    <Input.Wrapper id={inputId} size="sm" error={errorNode}>
+    <Input.Wrapper id={inputId} size="xs" error={errorNode}>
       <Popover
         opened={opened}
         onChange={(next) => setOpened(next)}
@@ -179,6 +179,7 @@ export function DateTimePicker({
       >
         <Popover.Target>
           <Input
+            size="xs"
             data-dates-input
             data-read-only={readOnly || undefined}
             autoComplete="off"
