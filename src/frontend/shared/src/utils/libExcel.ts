@@ -105,4 +105,5 @@ export function toExcelColumns(
     });
 }
 
+/** @deprecated 같은 모듈의 `exportToExcel` 을 쓴다. */
 export const gfn_exportToExcel = exportToExcel;
