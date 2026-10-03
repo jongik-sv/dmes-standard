@@ -48,6 +48,11 @@ public class TxProbeTask {
         repository.save(new TxProbeRow("C2", "CODE_FLUSH"));
     }
 
+    /** 보조 DB 에만 한 행을 쓴다 — 시작 실패 시험(실행되지 않아야 함)과 그 뒤 다음 요청 대조군. */
+    public void saveAux() {
+        aux.update("INSERT INTO TB_TEST_TX_AUX (ID) VALUES ('AUX_OK')");
+    }
+
     RuntimeException swallowed() {
         return swallowed;
     }

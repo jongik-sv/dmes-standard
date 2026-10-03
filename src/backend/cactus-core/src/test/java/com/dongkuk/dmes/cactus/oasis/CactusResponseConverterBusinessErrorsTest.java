@@ -14,6 +14,7 @@ import com.dongkuk.dmes.cactus.web.response.CactusResponse;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.dongkuk.oasis.service.ServiceResultCode;
 import com.dongkuk.oasis.service.ServiceStarter;
+import com.dongkuk.oasis.transaction.TransactionException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.springframework.context.support.GenericApplicationContext;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
@@ -138,6 +140,32 @@ class CactusResponseConverterBusinessErrorsTest {
 
         assertThat(r.getErrors()).isNull();
         assertThat(r.getMeta().code()).isEqualTo("S001");
+    }
+
+    @Test
+    void 원인_사슬의_DataAccessException_메시지는_errors_에_싣지_않는다() {
+        DataIntegrityViolationException dae = new DataIntegrityViolationException(
+                "could not execute statement [UNIQUE constraint failed: TB_TEST_TX_PROBE.CODE] [insert into TB_TEST_TX_PROBE]");
+
+        CactusResponse r = converter.convert(failed(ServiceResultCode.SYSTEM_ERROR,
+                new TransactionException(CactusSpringTransactionHandler.CLIENT_MESSAGE, dae)), "tx");
+
+        assertThat(r.getErrors()).isNull();
+        assertThat(r.getMeta().code()).isEqualTo("S001");
+        assertThat(r.getMeta().message()).isEqualTo(CactusSpringTransactionHandler.CLIENT_MESSAGE)
+                .doesNotContain("UNIQUE").doesNotContain("TB_TEST_TX_PROBE");
+    }
+
+    @Test
+    void 원인_사슬에_업무_예외와_DataAccessException_이_섞여도_errors_는_업무_예외_상세뿐이다() {
+        DataIntegrityViolationException dae = new DataIntegrityViolationException(
+                "UNIQUE constraint failed: TB_X.CODE", new BusinessException(ErrorCode.INVALID_VALUE, "검증 실패", DETAILS));
+
+        CactusResponse r = converter.convert(failed(ServiceResultCode.SYSTEM_ERROR,
+                new TransactionException(CactusSpringTransactionHandler.CLIENT_MESSAGE, dae)), "tx");
+
+        assertThat(r.getErrors()).containsExactlyElementsOf(DETAILS);
+        assertThat(r.getErrors()).extracting(ErrorDetail::message).noneMatch(m -> m.contains("UNIQUE"));
     }
 
     // ── 실제 BPMN 경로(OasisServiceExecutor → CoreServiceStarter → serviceTask) ─────────

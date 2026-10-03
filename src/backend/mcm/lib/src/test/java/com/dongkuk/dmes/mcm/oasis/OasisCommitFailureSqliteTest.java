@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.dongkuk.dmes.cactus.oasis.CactusRequestConverter;
 import com.dongkuk.dmes.cactus.oasis.CactusResponseConverter;
 import com.dongkuk.dmes.cactus.oasis.CactusServiceStarterFactory;
+import com.dongkuk.dmes.cactus.oasis.CactusSpringTransactionHandler;
 import com.dongkuk.dmes.cactus.oasis.CactusUnwrappingApplicationContext;
 import com.dongkuk.dmes.cactus.oasis.OasisAutoConfiguration;
 import com.dongkuk.dmes.cactus.oasis.OasisProperties;
@@ -31,6 +32,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,6 +55,7 @@ import org.springframework.context.annotation.FilterType;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.AbstractDataSource;
 import org.springframework.jdbc.datasource.ConnectionHolder;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.orm.jpa.EntityManagerHolder;
@@ -78,14 +81,19 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  *       {@code TransactionException} 이 아니라서 commitAll 밖으로 새고, oasis {@code execute()} finally 의
  *       {@code ThreadLocalTransactionWarehouseHolder.end()} 를 건너뛴다. 두 트랜잭션이면 남은 트랜잭션이 커밋도 롤백도
  *       안 된 채 스레드에 묶인다.</li>
+ *   <li><b>시작 실패 누수</b> — 두 번째 트랜잭션 매니저({@code txBroken}, 연결을 줄 수 없음) 시작이 실패하면 oasis
+ *       {@code execute()} 의 {@code try} 밖이라 먼저 시작된 {@code txAux} 가 스레드에 묶인 채 {@code end()} 가 돌지 않는다
+ *       (refactor/framework-txfix, 2026-10-04).</li>
  * </ol>
+ * cactus 조립의 커밋 정책(framework-txfix 결정 2·3) — 역순 첫 커밋 실패 뒤 아직 커밋하지 않은 트랜잭션은 롤백하고,
+ * 응답 {@code meta.message} 는 S001 일반 문구만 싣는다(별칭·SQL 은 ERROR 로그에만).
  * 각 결함마다 oasis 핸들러를 그대로 쓴 조립(현재 동작 고정 — oasis 소스는 고치지 않으므로 계속 통과)과
  * cactus 자동 설정 조립(올바른 기대)을 나란히 둔다.
  *
  * <p>cactus-core 시험 경로에는 JDBC 드라이버가 하나도 없어(h2 는 oasis-core 의 testImplementation, sqlite-jdbc 는
  * mcm/lib 의 api 에만 있다 — 빌드 파일 수정 금지) 드라이버·JPA 가 있는 mcm/lib 에 둔다. 핸들러 자체의 DB 없는 단위 시험은
  * cactus-core {@code CactusSpringTransactionHandlerTest} 다.
- * BPMN 은 {@code oasis-commit-failure/} 아래 3개 — 다른 서비스와 섞이지 않게 별도 경로를 쓴다.
+ * BPMN 은 {@code oasis-commit-failure/} 아래 5개 — 다른 서비스와 섞이지 않게 별도 경로를 쓴다.
  *
  * <p>SQLite 방언은 유일 제약 위반을 {@code DataIntegrityViolationException} 이 아니라 {@code JpaSystemException}
  * 으로 바꾼다 — 그래서 리포지토리 안 예외는 상위형 {@link DataAccessException} 으로만 단언한다.
@@ -174,7 +182,10 @@ class OasisCommitFailureSqliteTest {
         assertThat(task.swallowed()).isInstanceOf(DataAccessException.class);
         assertThat(res.getMeta().success()).isFalse();
         assertThat(res.getMeta().code()).isEqualTo("S001");
-        assertThat(res.getMeta().message()).contains("txProbe");
+        // 결정 3: 화면으로 나가는 문구는 일반 문구뿐 — 트랜잭션 별칭·원인 메시지는 ERROR 로그에만 남긴다.
+        assertThat(res.getMeta().message()).isEqualTo(CactusSpringTransactionHandler.CLIENT_MESSAGE)
+                .doesNotContain("txProbe");
+        assertThat(res.getErrors()).isNull();
         assertThat(count(probeDb, "TB_TEST_TX_PROBE")).isZero();
     }
 
@@ -206,20 +217,62 @@ class OasisCommitFailureSqliteTest {
     }
 
     @Test
-    @DisplayName("cactus 조립은 flush 실패 뒤에도 남은 트랜잭션 커밋을 마치고 스레드 상태를 정리하며 일부만 커밋됐다고 알린다")
-    void cactusStarter_cleansThreadStateAndReportsPartialCommit() throws Exception {
+    @DisplayName("cactus 조립은 역순 첫 커밋(txProbe)이 실패하면 나머지(txAux)를 롤백해 행이 0건이고 스레드 상태를 정리한다")
+    void cactusStarter_rollsBackRemainingAfterFirstCommitFailure() throws Exception {
         CactusResponse res = executor(cactusStarter()).execute("txProbeCommitFlush", "save", request());
 
+        // 결정 2: 역순 첫 커밋(txProbe) 실패 뒤 아직 커밋하지 않은 txAux 는 롤백 — 두 DB 모두 0건.
+        assertThat(count(auxDb, "TB_TEST_TX_AUX")).isZero();
+        assertThat(count(probeDb, "TB_TEST_TX_PROBE")).isZero();
         assertThat(res.getMeta().success()).isFalse();
         assertThat(res.getMeta().code()).isEqualTo("S001");
-        assertThat(res.getMeta().message()).contains("txProbe").contains("txAux");
+        // 결정 3: 별칭·SQL·제약 이름은 응답에 나가지 않는다. errors[] 도 없다(원인 사슬의 DataAccessException 은 싣지 않는다).
+        assertThat(res.getMeta().message()).isEqualTo(CactusSpringTransactionHandler.CLIENT_MESSAGE)
+                .doesNotContain("txProbe").doesNotContain("txAux")
+                .doesNotContain("UNIQUE").doesNotContain("TB_TEST_TX_PROBE");
+        assertThat(res.getErrors()).isNull();
         assertThat(holder("getWarehouse")).isNull();
         assertThat(holder("canStart")).isEqualTo(false);
         assertThat(TransactionSynchronizationManager.getResourceMap()).isEmpty();
         assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
-        // 남은 txAux 는 끝까지 커밋했다(일부만 반영) — txProbe 는 롤백.
+    }
+
+    // ── 2-1. 두 번째 트랜잭션 매니저 시작 실패 → 먼저 시작된 트랜잭션 누수 ─────────────────────
+
+    @Test
+    @DisplayName("[현재 동작 고정] oasis 핸들러 그대로면 두 번째 시작 실패 뒤 첫 트랜잭션(txAux) 연결이 스레드에 묶인다")
+    void oasisHandler_leaksFirstTransactionOnStartFailure() throws Exception {
+        CactusResponse res = executor(oasisHandlerStarter()).execute("txProbeStartFailure", "save", request());
+
+        assertThat(res.getMeta().success()).isFalse();
+        assertThat(holder("getWarehouse")).isNotNull();
+        assertThat(holder("canStart")).isEqualTo(true);
+        assertThat(TransactionSynchronizationManager.getResourceMap()).isNotEmpty();
+        assertThat(activeConnections("auxDataSource")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("cactus 조립은 두 번째 시작 실패 때 첫 트랜잭션을 롤백·정리하고, 같은 스레드의 다음 요청은 새 트랜잭션으로 저장한다")
+    void cactusStarter_rollsBackStartedTransactionOnStartFailure() throws Exception {
+        CactusResponse res = executor(cactusStarter()).execute("txProbeStartFailure", "save", request());
+
+        assertThat(res.getMeta().success()).isFalse();
+        assertThat(res.getMeta().code()).isEqualTo("S001");
+        // (1) 첫 트랜잭션 롤백·정리 — 연결 반납, 동기화 해제, 보관소 비움.
+        assertThat(activeConnections("auxDataSource")).isZero();
+        assertThat(TransactionSynchronizationManager.getResourceMap()).isEmpty();
+        assertThat(TransactionSynchronizationManager.isSynchronizationActive()).isFalse();
+        assertThat(holder("getWarehouse")).isNull();
+        assertThat(holder("canStart")).isEqualTo(false);
+        assertThat(count(auxDb, "TB_TEST_TX_AUX")).isZero();
+
+        // (2) 같은 스레드의 다음 요청은 묵은 트랜잭션에 합류하지 않고 새로 시작해 커밋한다.
+        CactusResponse next = executor(cactusStarter()).execute("txAuxOk", "save", request());
+        assertThat(next.getMeta().success()).isTrue();
         assertThat(count(auxDb, "TB_TEST_TX_AUX")).isEqualTo(1);
-        assertThat(count(probeDb, "TB_TEST_TX_PROBE")).isZero();
+        assertThat(activeConnections("auxDataSource")).isZero();
+        assertThat(holder("getWarehouse")).isNull();
+        assertThat(TransactionSynchronizationManager.getResourceMap()).isEmpty();
     }
 
     // ── 3. 대조군 ──────────────────────────────────────────────────────────────────
@@ -265,6 +318,7 @@ class OasisCommitFailureSqliteTest {
         CactusTxProperties tx = new CactusTxProperties();
         tx.getManagers().put("txProbe", new CactusTxProperties.TxMgrConfig());
         tx.getManagers().put("txAux", new CactusTxProperties.TxMgrConfig());
+        tx.getManagers().put("txBroken", new CactusTxProperties.TxMgrConfig());
         tx.setDefaultManager("txProbe");
         return tx;
     }
@@ -286,6 +340,11 @@ class OasisCommitFailureSqliteTest {
         Method m = Class.forName(HOLDER).getDeclaredMethod(method);
         m.setAccessible(true);
         return m.invoke(null);
+    }
+
+    /** 커넥션 풀에서 빌려 가 아직 돌려주지 않은 연결 수. */
+    private static int activeConnections(String dataSourceBean) {
+        return ctx.getBean(dataSourceBean, HikariDataSource.class).getHikariPoolMXBean().getActiveConnections();
     }
 
     /** 스레드에 묶인 연결을 피하려고 DataSource 를 거치지 않고 파일에 직접 붙어 센다. */
@@ -354,6 +413,22 @@ class OasisCommitFailureSqliteTest {
         @Bean
         PlatformTransactionManager txAux() {
             return new DataSourceTransactionManager(auxDataSource());
+        }
+
+        /** 세 번째 트랜잭션 매니저 — 연결을 줄 수 없어 시작이 늘 실패한다(두 번째 시작 실패 재현용). */
+        @Bean
+        PlatformTransactionManager txBroken() {
+            return new DataSourceTransactionManager(new AbstractDataSource() {
+                @Override
+                public Connection getConnection() throws SQLException {
+                    throw new SQLException("연결 실패(시험)");
+                }
+
+                @Override
+                public Connection getConnection(String username, String password) throws SQLException {
+                    throw new SQLException("연결 실패(시험)");
+                }
+            });
         }
 
         @Bean

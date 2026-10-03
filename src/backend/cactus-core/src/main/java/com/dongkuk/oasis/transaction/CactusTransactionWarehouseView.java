@@ -15,8 +15,17 @@ import org.springframework.transaction.TransactionStatus;
  * 리플렉션 대신 이 방식을 쓰는 까닭은 oasis 가 이름을 바꾸면 실행 중이 아니라 컴파일에서 깨지게 하려는 것이다.
  * 같은 패키지 접근은 같은 클래스 로더일 때만 되며, 실행 jar(BOOT-INF/lib)·WAR(WEB-INF/lib) 모두 그렇다.
  *
- * <p>보관소를 바꾸지 않는다 — 시작·종료({@code begin}/{@code end})와 등록은 oasis 가 한다.
+ * <p><b>읽기 전용이다</b> — 보관소를 바꾸는 경로가 없다(2026-10-04 확인: {@code getWarehouse()} 와
+ * {@code transactionManagerAndStatusList()}(사본) 만 부르고 {@link Entry} 는 값 묶음이다). 시작·종료
+ * ({@code begin}/{@code end})와 등록은 oasis 가 한다. 시작 실패 정리에 필요한 {@code end()} 한 가지는 쓰기라서
+ * 이 클래스가 아니라 {@link CactusTransactionWarehouseCleaner} 에 따로 둔다.
  * 쓰는 곳은 {@code com.dongkuk.dmes.cactus.oasis.CactusSpringTransactionHandler} 하나다.
+ *
+ * <p><b>oasis 내부 패키지(package-private 클래스)에 기댄다 — oasis 버전을 올릴 때 반드시 확인한다.</b>
+ * 기대는 것: {@code ThreadLocalTransactionWarehouseHolder.getWarehouse()},
+ * {@code TransactionManagerWarehouse.transactionManagerAndStatusList()} 가 시작 순서대로 사본을 돌려준다는 것,
+ * {@code TransactionManagerAndStatus} 의 이름·매니저·상태 접근자. 이름이 바뀌면 컴파일에서 깨지지만,
+ * 순서·사본 같은 동작이 바뀌면 컴파일은 되므로 cactus-core {@code CactusSpringTransactionHandlerTest} 로 확인한다.
  */
 public final class CactusTransactionWarehouseView {
 
