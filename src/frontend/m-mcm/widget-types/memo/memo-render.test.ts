@@ -97,18 +97,26 @@ vi.mock("@dk-oasis/shared/form", async () => {
       onChange?: (v: string) => void;
       readOnly?: boolean;
       placeholder?: string;
+      title?: string;
+      error?: string;
       "data-testid"?: string;
       "aria-label"?: string;
     }) =>
-      el("input", {
-        type: "text",
-        value: p.value,
-        readOnly: p.readOnly,
-        placeholder: p.placeholder,
-        "data-testid": p["data-testid"],
-        "aria-label": p["aria-label"],
-        onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value),
-      }),
+      el(
+        "span",
+        null,
+        el("input", {
+          type: "text",
+          value: p.value,
+          readOnly: p.readOnly,
+          placeholder: p.placeholder,
+          title: p.title,
+          "data-testid": p["data-testid"],
+          "aria-label": p["aria-label"],
+          onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value),
+        }),
+        p.error ? el("span", { role: "alert", "data-testid": "memo-title-error" }, p.error) : null
+      ),
     Textarea: (p: {
       value?: string;
       onChange?: (v: string) => void;
@@ -1745,13 +1753,14 @@ describe("개인 메모 — 메모장 제목(2026-10-03)", () => {
     expect(h.frameTitle).toBeNull();
   });
 
-  it("[편집] 입력칸은 저장된 제목으로 시작하고, 비었으면 placeholder 가 정의 이름으로 돌아간다고 알린다", async () => {
+  it("[편집] 입력칸은 저장된 제목으로 시작하고, placeholder 는 짧게 「제목」이며 비우면 정의 이름으로 돌아간다는 안내는 툴팁(title 속성)이다", async () => {
     h.fetchMemo.mockResolvedValue(record({ title: null }));
     await renderWidget({ title: "메모장" });
     await click("memo-edit");
     const input = must("memo-title-input") as HTMLInputElement;
     expect(input.value).toBe("");
-    expect(input.placeholder).toBe("제목(비우면 「메모장」)");
+    expect(input.placeholder).toBe("제목");
+    expect(input.title).toBe("비우면 위젯 이름 「메모장」으로 돌아갑니다");
     expect(input.getAttribute("aria-label")).toBe("메모 제목");
     // 맨 위 줄 — 형식 선택과 같은 줄이고 입력칸이 먼저다
     const bar = input.closest(".mcm-memo__bar")!;
@@ -1804,16 +1813,32 @@ describe("개인 메모 — 메모장 제목(2026-10-03)", () => {
     expect(must("memo-save").hasAttribute("disabled")).toBe(false);
   });
 
-  it("제목에 탭 같은 제어 문자가 들어 있으면 [저장]을 막는다 — 지우면 다시 열린다(한 줄 입력칸은 줄바꿈을 스스로 지운다)", async () => {
+  it("제목에 탭 같은 제어 문자를 붙여 넣으면 공백으로 바뀌어 거절 없이 저장된다 — [저장]이 말없이 막히지 않는다", async () => {
     h.fetchMemo.mockResolvedValue(record({ title: null }));
+    h.saveMemo.mockResolvedValue(record({ title: "가 나" }));
     await renderWidget();
     await click("memo-edit");
     await typeTitle("가\t나");
-    expect(must("memo-save").hasAttribute("disabled")).toBe(true);
-    await click("memo-save");
-    expect(h.saveMemo).not.toHaveBeenCalled();
-    await typeTitle("가나");
+    expect((must("memo-title-input") as HTMLInputElement).value).toBe("가 나");
+    expect(q("memo-title-error")).toBeNull();
     expect(must("memo-save").hasAttribute("disabled")).toBe(false);
+    await click("memo-save");
+    expect(h.saveMemo).toHaveBeenCalledWith(expect.objectContaining({ title: "가 나" }));
+    // C1(U+0085)·DEL·NUL 도 같다
+    await click("memo-edit");
+    await typeTitle("a\u0085b\u007fc\u0000d");
+    expect((must("memo-title-input") as HTMLInputElement).value).toBe("a b c d");
+  });
+
+  it("앞 공백이 붙은 제목도 40자가 온전히 남는다 — 앞 공백은 저장 때 잘리므로 세지 않는다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ title: null }));
+    h.saveMemo.mockResolvedValue(record({ title: "가".repeat(40) }));
+    await renderWidget();
+    await click("memo-edit");
+    await typeTitle("  " + "가".repeat(50));
+    expect((must("memo-title-input") as HTMLInputElement).value).toBe("  " + "가".repeat(40));
+    await click("memo-save");
+    expect(h.saveMemo).toHaveBeenCalledWith(expect.objectContaining({ title: "가".repeat(40) }));
   });
 
   it("서버가 제목을 거절하면 서버 문구를 아래 줄에 보이고 쓰던 제목·글은 그대로 둔다", async () => {
@@ -1844,6 +1869,39 @@ describe("개인 메모 — 메모장 제목(2026-10-03)", () => {
     });
     await flush();
     expect(h.frameTitle).toBe("제목");
+  });
+
+  it("첫 불러오기가 실패하면 정의 이름 그대로이고, 새로 고침이 실패하면 마지막으로 불러온 제목을 유지한다", async () => {
+    // 첫 불러오기 실패 — 아직 제목을 모른다
+    h.fetchMemo.mockRejectedValueOnce(new Error("boom"));
+    await renderWidget();
+    expect(h.setStatus.mock.calls.map((c) => c[0]).some((st) => st.kind === "error")).toBe(true);
+    expect(h.frameTitle).toBeNull();
+
+    // 성공 뒤 새로 고침(↻) 실패 — 마지막 제목을 유지한다(틀은 오류 띠만 알리고 본체는 그대로 둔다)
+    act(() => root.unmount());
+    root = createRoot(container);
+    h.fetchMemo.mockReset();
+    h.setStatus.mockReset();
+    h.fetchMemo.mockResolvedValueOnce(SAVED).mockRejectedValueOnce(new Error("boom"));
+    const props = await renderWidget();
+    expect(h.frameTitle).toBe("저장된 제목");
+    await act(async () => {
+      root.render(createElement(MemoRenderer, { ...props, refreshKey: 1 } as never));
+    });
+    await flush();
+    expect(h.fetchMemo).toHaveBeenCalledTimes(2);
+    expect(h.setStatus.mock.calls.map((c) => c[0]).some((st) => st.kind === "error")).toBe(true);
+    expect(h.frameTitle).toBe("저장된 제목");
+  });
+
+  it("사용자 확인이 끝나기 전(pending)에도 저장된 제목은 틀에 보인다 — [편집]만 막힌다(설계상 허용)", async () => {
+    h.userId = "";
+    h.userStatus = "pending";
+    h.fetchMemo.mockResolvedValue(SAVED);
+    await renderWidget();
+    expect(h.frameTitle).toBe("저장된 제목");
+    expect(must("memo-edit").hasAttribute("disabled")).toBe(true);
   });
 
   it("공용 메모는 제목 입력칸도 틀 제목 바꾸기도 없다", async () => {

@@ -281,7 +281,7 @@ class WidgetMemoServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", " ", "   ", "\u3000"})
+    @ValueSource(strings = {"", " ", "   ", "\u3000", "\u00A0", "\u2007", "\u202F", "\uFEFF", "\u00A0\uFEFF \u3000"})
     @DisplayName("빈 제목(공백뿐 포함)은 null 로 저장해 기존 제목을 지운다 — 정의 이름으로 돌아간다")
     void blankTitleClearsExisting(String blank) {
         service.save(req("i1", "본문", "제목"));
@@ -328,6 +328,14 @@ class WidgetMemoServiceTest {
     void titleControlCharactersRejected(String bad) {
         assertInvalid(req("i1", "x", bad), "메모 제목에 줄바꿈 같은 제어 문자는 쓸 수 없습니다.");
         assertThat(repository.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("제목 바깥의 NBSP·BOM 도 화면(JS trim)처럼 잘라 받는다 — Java strip() 만으로는 남는 글자")
+    void titleOuterNbspAndBomTrimmed() {
+        assertThat(memo(service.save(req("i1", "x", "\u00A0\uFEFF제목\u202F\u2007")))).containsEntry("title", "제목");
+        // 안쪽 NBSP 는 글자로 둔다.
+        assertThat(memo(service.save(req("i2", "x", "내\u00A0제목")))).containsEntry("title", "내\u00A0제목");
     }
 
     @Test

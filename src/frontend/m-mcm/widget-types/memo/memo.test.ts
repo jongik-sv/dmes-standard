@@ -560,6 +560,22 @@ describe("임시 저장(쓰다 만 글) 순수 로직", () => {
   });
 });
 
+describe("편집 화면 줄 배치(제목 줄·아래 줄)", () => {
+  it("아래 줄은 접히고, 오류 문구는 자기 줄을 다 쓰며(없으면 줄이 늘지 않는다), 글자 수는 접히지 않는다 — 보기 모드의 --end 는 그대로", () => {
+    expect(MEMO_CSS).toMatch(/\.mcm-memo__bar--foot \{[^}]*flex-wrap: wrap/);
+    expect(MEMO_CSS).toMatch(/\.mcm-memo__bar--foot \.mcm-memo__error \{[^}]*flex: 1 1 100%/);
+    expect(MEMO_CSS).toMatch(/\.mcm-memo__bar--foot \.mcm-memo__count \{[^}]*flex: 0 0 auto;[^}]*white-space: nowrap/);
+    expect(MEMO_CSS).toMatch(/\.mcm-memo__bar--end \{ justify-content: flex-end; \}/);
+    expect(MEMO_CSS).not.toMatch(/\.mcm-memo__bar--end \{[^}]*flex-wrap/);
+  });
+
+  it("맨 위 줄은 [제목 | 형식 선택]이고, 편집 영역이 220px 미만이면 제목 칸이 자기 줄을 다 쓴다(같은 container-type 기준)", () => {
+    expect(MEMO_CSS).toMatch(/\.mcm-memo__title \{[^}]*flex: 1 1 0;[^}]*min-width: 0/);
+    expect(MEMO_CSS).toMatch(/@container \(max-width: 219px\) \{[^}]*\.mcm-memo__bar--head \{[^}]*flex-wrap: wrap[^}]*\}[^}]*\.mcm-memo__bar--head \.mcm-memo__title \{[^}]*flex: 1 1 100%/);
+    expect(MEMO_CSS).toMatch(/\.mcm-memo__edit \{[^}]*container-type: inline-size/);
+  });
+});
+
 describe("md 편집기 높이 규칙", () => {
   it("기본 최소 높이는 두 줄 도구 막대 기준 190px, 편집 영역이 420px 이상이면 한 줄 기준 164px 다", () => {
     expect(MEMO_CSS).toMatch(/\.mcm-memo__md \{[^}]*min-height: 190px/);
@@ -618,6 +634,27 @@ describe("메모장 제목(2026-10-03)", () => {
     expect(clampTitle("가".repeat(50))).toBe("가".repeat(40));
     expect(clampTitle("😀".repeat(50))).toBe("😀".repeat(40));
     expect(clampTitle("a" + "😀".repeat(50))).toBe("a" + "😀".repeat(39));
+  });
+
+  it("clampTitle — 앞 공백은 세지 않는다: 앞 공백 뒤로 40자가 온전히 남는다(저장 때 앞 공백이 잘려도 38자가 되지 않는다)", () => {
+    expect(clampTitle("  " + "가".repeat(50))).toBe("  " + "가".repeat(40));
+    expect(normalizeTitle(clampTitle("  " + "가".repeat(50)))).toBe("가".repeat(40));
+    expect(clampTitle("\u00A0 " + "😀".repeat(45))).toBe("\u00A0 " + "😀".repeat(40));
+    expect(clampTitle("   ")).toBe("   "); // 공백만 쓰는 중에는 그대로(저장 때 지움으로 처리)
+    // 뒤 공백은 40자를 넘는 만큼 잘린다
+    expect(clampTitle("가".repeat(40) + "   ")).toBe("가".repeat(40));
+    expect(clampTitle("가".repeat(39) + " 나")).toBe("가".repeat(39) + " ");
+  });
+
+  it("clampTitle — C0·DEL·C1 제어 문자는 공백으로 바꾼다(탭·NUL·U+0085 …). 결과는 늘 validateTitle 을 통과한다", () => {
+    expect(clampTitle("가\t나")).toBe("가 나");
+    expect(clampTitle("a\u0000b\u001fc\u007fd\u0085e\u009ff")).toBe("a b c d e f");
+    expect(clampTitle("\n\r\n제목")).toBe("   제목");
+    const samples = [
+      "가\t나", "\u0000", "x\u0085", "\u009f".repeat(60), "😀\n".repeat(30), "  \t  " + "가".repeat(60), "a\u0085".repeat(45),
+      "가".repeat(41), "😀".repeat(41), "", " ", "\u00A0\uFEFF" + "나".repeat(44),
+    ];
+    for (const raw of samples) expect(validateTitle(clampTitle(raw))).toBeNull();
   });
 
   it("normalizeTitle — 앞뒤 공백만 자른다", () => {

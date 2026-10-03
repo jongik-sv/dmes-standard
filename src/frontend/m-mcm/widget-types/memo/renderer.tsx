@@ -325,6 +325,8 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey, title: def
   };
 
   const over = validateDraft(draftContent) !== null;
+  /** 제목 오류 — clampTitle 이 입력을 정리하므로 보통 null 이다(남는 경우의 안전망). 있으면 [저장]도 막힌다(canSave). */
+  const titleError = validateTitle(draftTitle);
   /**
    * 입력 잠금 — 저장 중이거나, 안내(restore)에서 이어 쓰기·버리기를 아직 고르지 않았을 때. 고르기 전에 쓴 글은 옛 임시본을 덮지 않으려 임시 저장되지 않으므로
    * (그러면 쓴 글이 탭 전환에 사라진다) 입력을 막고, [저장]도 막는다(서버 글을 그대로 다시 저장해 옛 임시본이 고르기 없이 지워지지 않게). [취소]는 열어 둔다.
@@ -381,12 +383,14 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey, title: def
               </span>
             </div>
           )}
-          <div className="mcm-memo__bar">
+          <div className="mcm-memo__bar mcm-memo__bar--head">
             <div className="mcm-memo__title">
               <Input
                 value={draftTitle}
                 aria-label="메모 제목"
-                placeholder={defTitle ? `제목(비우면 「${defTitle}」)` : "제목"}
+                placeholder="제목"
+                title={defTitle ? `비우면 위젯 이름 「${defTitle}」으로 돌아갑니다` : "비우면 위젯 이름으로 돌아갑니다"}
+                error={titleError ?? undefined}
                 readOnly={inputLocked}
                 onChange={changeTitle}
                 data-testid="memo-title-input"
@@ -435,7 +439,7 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey, title: def
               />
             </div>
           )}
-          <div className="mcm-memo__bar mcm-memo__bar--end">
+          <div className="mcm-memo__bar mcm-memo__bar--end mcm-memo__bar--foot">
             {errorText && (
               <div className="mcm-memo__error" role="alert" data-testid="memo-error">
                 {errorText}

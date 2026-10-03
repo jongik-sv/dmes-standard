@@ -127,14 +127,24 @@ export const titleLength = (title: string): number => Array.from(title).length;
 /** 입력칸에 쓴 제목 → 저장·비교에 쓰는 값(앞뒤 공백 제거). 서버도 같게 자르고, 빈 값은 「제목 없음」(정의 이름)이다. */
 export const normalizeTitle = (raw: string): string => raw.trim();
 
-/** 입력칸에 담을 수 있는 만큼으로 자른다(40 코드 포인트). 붙여넣은 긴 글이 서로게이트 쌍 가운데서 잘리지 않는다. */
-export function clampTitle(raw: string): string {
-  const points = Array.from(raw);
-  return points.length > MEMO_TITLE_MAX ? points.slice(0, MEMO_TITLE_MAX).join("") : raw;
-}
-
-/** C0 제어 문자(줄바꿈·탭 포함)와 DEL·C1 — 서버 `Character.isISOControl` 과 같은 범위. */
+/** C0 제어 문자(줄바꿈·탭 포함)와 DEL·C1 — 서버 `Character.isISOControl` 과 같은 범위. 검사용(test)과 바꾸기용(replace, g)을 따로 둔다(g 정규식의 test 는 상태를 가진다). */
 const TITLE_CONTROL = /[\u0000-\u001F\u007F-\u009F]/;
+const TITLE_CONTROL_ALL = /[\u0000-\u001F\u007F-\u009F]/g;
+
+/**
+ * 입력칸에 담을 제목 정리 — 입력·붙여넣기·임시본 복원이 모두 이 함수를 거친다.
+ * ① 제어 문자(탭 같은 것, 한 줄 입력칸은 줄바꿈을 스스로 지운다)는 공백으로 바꿔 화면 경로에서는 거절이 생기지 않게 한다.
+ * ② 앞 공백은 저장 때 잘리므로 세지 않고, 앞 공백을 뺀 40 코드 포인트까지만 담는다(공백이 앞에 붙은 제목이 38자만 남지 않게).
+ *    서로게이트 쌍 가운데서 자르지 않는다. 뒤 공백은 40자를 넘는 만큼 잘린다(저장 때 어차피 잘리는 부분이다).
+ * 서버·validateTitle 과 같은 기준이라 이 함수의 결과는 늘 validateTitle 을 통과한다.
+ */
+export function clampTitle(raw: string): string {
+  const cleaned = raw.replace(TITLE_CONTROL_ALL, " ");
+  const lead = cleaned.length - cleaned.trimStart().length; // 앞 공백은 모두 BMP 글자라 UTF-16 단위 수 = 코드 포인트 수
+  const points = Array.from(cleaned);
+  const limit = lead + MEMO_TITLE_MAX;
+  return points.length > limit ? points.slice(0, limit).join("") : cleaned;
+}
 
 /** 제목 검사 — 통과면 null, 아니면 서버와 같은 문구. 앞뒤 공백을 자른 값을 검사한다(빈 제목은 통과 = 제목 없음). 서버와 같은 순서(길이 → 제어 문자). */
 export function validateTitle(raw: string): string | null {

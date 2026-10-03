@@ -118,13 +118,32 @@ public class WidgetMemoService {
         return text;
     }
 
-    /** 앞뒤 공백을 자른다. 빈 값은 null(정의 이름으로 돌아감), 40자(코드 포인트)를 넘거나 제어 문자가 있으면 E002. */
+    /**
+     * 앞뒤 공백을 자른다. 빈 값은 null(정의 이름으로 돌아감), 40자(코드 포인트)를 넘거나 제어 문자가 있으면 E002.
+     * 화면(JS {@code trim()})과 같은 범위를 자른다 — Java {@code strip()} 은 NBSP(U+00A0)·U+2007·U+202F 를 자르지 않고 U+FEFF 도 자르지 않으므로
+     * {@link #trimTitle} 이 {@code \p{Z}}·U+FEFF 를 함께 자른다(NBSP 만 보낸 제목은 지움이다).
+     */
     static String normalizeTitle(String title) {
-        String text = title.strip();
+        String text = trimTitle(title);
         if (text.isEmpty()) return null;
         if (text.codePointCount(0, text.length()) > TITLE_MAX) throw invalid("메모 제목은 40자까지 쓸 수 있습니다.");
         if (text.codePoints().anyMatch(Character::isISOControl)) throw invalid("메모 제목에 줄바꿈 같은 제어 문자는 쓸 수 없습니다.");
         return text;
+    }
+
+    /** 앞뒤의 공백(Character.isWhitespace)·유니코드 구분 문자(\p{Z} — NBSP 등)·U+FEFF 를 자른다. */
+    private static String trimTitle(String title) {
+        int start = 0;
+        int end = title.length();
+        while (start < end && isTitleBlank(title.charAt(start))) start++;
+        while (end > start && isTitleBlank(title.charAt(end - 1))) end--;
+        return title.substring(start, end);
+    }
+
+    private static boolean isTitleBlank(char c) {
+        if (Character.isWhitespace(c) || c == '\uFEFF') return true;
+        int type = Character.getType(c);
+        return type == Character.SPACE_SEPARATOR || type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR;
     }
 
     /** 사용 중인 memo 유형 정의(SRC_TP='D')이고 CONFIG_JSON.scope 가 personal 인 것만. */
