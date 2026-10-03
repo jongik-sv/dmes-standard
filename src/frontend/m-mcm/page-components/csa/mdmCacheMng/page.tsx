@@ -393,15 +393,17 @@ export default function MdmCacheMngPage() {
                 fetchEntries: async () => (await fetchEntries(targetModule, filters)).items,
                 applyEntries: (items) => {
                   setEntries(items);
-                  setSelectedKeys([]);
+                  // 기다리는 동안 사용자가 고른 행은 새 행 집합에 아직 있는 것만 남긴다.
+                  setSelectedKeys((prev) => prev.filter((id) => items.some((r) => r.rowId === id)));
                 },
                 onRefetchError: (e) => showMessage({ title: "오류", message: errorText(e), alertType: "error" }),
                 isCancelled: () => run !== forceWaitRun.current,
               }).then((result) => {
                 if (result === "CANCELLED") return;
                 setWaitingModule("");
-                if (result === "DONE") refreshDetail(targetModule);
-                else showMessage({ message: result === "TIMEOUT_KEYS" ? FORCE_WAIT_KEYS_NOTICE : FORCE_WAIT_TIMEOUT_NOTICE, alertType: "warning", toast: true });
+                // 표는 이미 다시 조회했으므로 반영 전(TIMEOUT)만 빼고 상세도 다시 읽는다.
+                if (result !== "TIMEOUT") refreshDetail(targetModule);
+                if (result !== "DONE") showMessage({ message: result === "TIMEOUT_KEYS" ? FORCE_WAIT_KEYS_NOTICE : FORCE_WAIT_TIMEOUT_NOTICE, alertType: "warning", toast: true });
               });
             }
           }

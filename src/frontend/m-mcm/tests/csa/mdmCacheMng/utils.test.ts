@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { definitionKey, describeLifetime, entryKindLabel, formatBytes, withEntryKind } from "../../../page-components/csa/mdmCacheMng/utils";
+import { definitionKey, describeLifetime, entryKindLabel, formatBytes, shouldWaitAfterForce, withEntryKind } from "../../../page-components/csa/mdmCacheMng/utils";
 
 describe("mdmCacheMng utils", () => {
   it("formatBytes — 1024 단위 B/KB/MB/GB, KB 부터 소수 1자리", () => {
@@ -64,5 +64,14 @@ describe("mdmCacheMng utils", () => {
       "마지막 조회 뒤 60분 동안 조회 없으면 만료, 조회될 때마다 연장(적재 뒤 최대 24시간). 옛 버전 본문은 10분",
     );
     expect(describeLifetime(3600, 86400, null)).toBe("마지막 조회 뒤 60분 동안 조회 없으면 만료, 조회될 때마다 연장(적재 뒤 최대 24시간)");
+  });
+
+  it("shouldWaitAfterForce — 실패·반영 유형 없음·순번 없음이면 기다리지 않는다", () => {
+    expect(shouldWaitAfterForce({ applied: ["RULE"], failedType: null, toSeq: 7 })).toBe(7);
+    expect(shouldWaitAfterForce({ applied: ["RULE"], failedType: "CODE", toSeq: 7 })).toBeNull();
+    expect(shouldWaitAfterForce({ applied: [], failedType: null, toSeq: 7 })).toBeNull();
+    expect(shouldWaitAfterForce({ applied: [], failedType: "RULE", toSeq: null })).toBeNull();
+    expect(shouldWaitAfterForce({ applied: ["RULE"], failedType: null, toSeq: null })).toBeNull();
+    expect(shouldWaitAfterForce({ applied: ["RULE"], failedType: null, toSeq: 0 })).toBeNull();
   });
 });

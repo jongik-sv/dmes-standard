@@ -8,7 +8,6 @@ import {
   FORCE_WAIT_TIMEOUT_NOTICE,
   decideForceWait,
   entryKeySet,
-  shouldWaitAfterForce,
 } from "../../../page-components/csa/mdmCacheMng/utils";
 import type { CacheEntryRow } from "../../../page-components/csa/mdmCacheMng/types";
 
@@ -58,15 +57,6 @@ describe("decideForceWait — 기다리기 판단", () => {
     expect(decideForceWait({ ...base, kind: "RELOAD", appliedSeq: 10, tableKeys: null, elapsedMs: 30_000 })).toBe("REFETCH");
     // 한 번 다시 조회한 뒤(tableKeys 가 집합)에는 한도가 지나면 더 조회하지 않는다
     expect(decideForceWait({ ...base, kind: "EVICT", appliedSeq: 10, tableKeys: keys(), elapsedMs: 30_000 })).toBe("DONE");
-  });
-
-  it("shouldWaitAfterForce — 실패·반영 유형 없음·순번 없음이면 기다리지 않는다", () => {
-    expect(shouldWaitAfterForce({ applied: ["RULE"], failedType: null, toSeq: 7 })).toBe(7);
-    expect(shouldWaitAfterForce({ applied: ["RULE"], failedType: "CODE", toSeq: 7 })).toBeNull();
-    expect(shouldWaitAfterForce({ applied: [], failedType: null, toSeq: 7 })).toBeNull();
-    expect(shouldWaitAfterForce({ applied: [], failedType: "RULE", toSeq: null })).toBeNull();
-    expect(shouldWaitAfterForce({ applied: ["RULE"], failedType: null, toSeq: null })).toBeNull();
-    expect(shouldWaitAfterForce({ applied: ["RULE"], failedType: null, toSeq: 0 })).toBeNull();
   });
 
   it("한도 25초·간격 2~3초·안내 문구", () => {
