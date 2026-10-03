@@ -22,7 +22,9 @@ set -u
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$ROOT_DIR/src/frontend"
 RUN_ENV_FILE="$ROOT_DIR/.run.env"
-PORTAL_PORT=5100
+SCRIPT_LIB_DIR="$ROOT_DIR/scripts/lib"
+# 포털 포트(PORTAL_PORT)는 모듈 카탈로그 scripts/lib/modules.conf 에서 읽는다. 종전처럼 .run.env 가 덮어쓸 수 있게 그보다 먼저 읽는다.
+. "$SCRIPT_LIB_DIR/modules.sh"
 
 [ -f "$RUN_ENV_FILE" ] && . "$RUN_ENV_FILE"
 
@@ -30,7 +32,6 @@ PORTAL_PORT=5100
 # 로그(dev_log_*)·프로세스(terminate_pid_tree·wait_for_exit·terminate_cmdline_stragglers)·인자
 # (load_default_args·has_scope_arg) 함수는 be-run.sh·local-run.sh 와 함께 scripts/lib/ 에 둔다.
 # 경로는 현재 디렉터리가 아니라 이 스크립트 위치 기준이다. log.sh 는 .run.env 를 읽은 뒤에 source 한다.
-SCRIPT_LIB_DIR="$ROOT_DIR/scripts/lib"
 . "$SCRIPT_LIB_DIR/log.sh"
 . "$SCRIPT_LIB_DIR/proc.sh"
 . "$SCRIPT_LIB_DIR/args.sh"

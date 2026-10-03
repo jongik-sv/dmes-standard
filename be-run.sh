@@ -47,20 +47,7 @@ SCRIPT_LIB_DIR="$ROOT_DIR/scripts/lib"
 . "$SCRIPT_LIB_DIR/log.sh"
 . "$SCRIPT_LIB_DIR/proc.sh"
 . "$SCRIPT_LIB_DIR/args.sh"
-
-# be-<모듈> 로그 태그 색 (log.sh 의 dev_log_tag_color 가 부른다). 모르는 모듈은 빈 값 → 청록.
-be_module_color() {
-  case "$1" in
-    mcm) printf 'blue' ;;
-    mpn) printf 'magenta' ;;
-    mls) printf 'cyan' ;;
-    mqc) printf 'yellow' ;;
-    mpp) printf 'green' ;;
-    mdm) printf 'red' ;;
-    analog) printf 'dim' ;;
-    *) printf '' ;;
-  esac
-}
+. "$SCRIPT_LIB_DIR/modules.sh"
 
 # 인자가 없거나 옵션(--dry-run·--keep-port)뿐인지. 그러면 모듈 대상은 기본값(BE_RUN_ARGS, 없으면 --all)에서
 # 가져온다. 모듈 플래그·--help·모르는 인자가 하나라도 있으면 기본값을 붙이지 않는다.
@@ -89,22 +76,10 @@ if be_args_options_only "$@"; then
 fi
 
 # ── 모듈 카탈로그 ────────────────────────────────────────────
-# 실행 가능한 Spring Boot 모듈. 신규 모듈을 추가하면 아래 3곳만 손보면 된다.
-#   (1) BE_ALL_MODULES  (2) be_module_port  (3) be_module_color 의 로그 색상
-BE_ALL_MODULES=(mls mqc mpp mpn mdm mcm analog)
-
-be_module_port() {
-  case "$1" in
-    mls) printf '8092' ;;
-    mqc) printf '8093' ;;
-    mpp) printf '8094' ;;
-    mpn) printf '8095' ;;
-    mdm) printf '8096' ;;
-    mcm) printf '8100' ;;
-    analog) printf '8191' ;;
-    *) printf '' ;;
-  esac
-}
+# 실행 가능한 Spring Boot 모듈·포트·로그 색은 scripts/lib/modules.conf 한 곳에 있다(ps1 도 같은 파일을 읽는다).
+# modules.sh 가 BE_ALL_MODULES(--all 순서)·be_module_port·be_module_color 를 채운다. 신규 모듈은 modules.conf 에
+# 한 줄 더하면 --<모듈> 플래그까지 따라온다. 이 파일 머리말과 아래 "실행 대상을 선택하세요" 안내문은 사람이 읽는
+# 글이라 따로 고친다.
 
 # 모듈 전용 wrapper 가 있으면 그것을, 없으면 src/backend 공용 wrapper 를 쓴다.
 # (표준 템플릿은 wrapper 를 src/backend 한 벌만 두고 모듈별 중복 사본을 두지 않는다.)
@@ -148,9 +123,14 @@ for arg in "$@"; do
     --dry-run) DRY_RUN=1 ;;
     --all|--full)
       for m in "${BE_ALL_MODULES[@]}"; do be_select_module "$m"; done ;;
-    --mpn|--mcm|--mls|--mqc|--mpp|--mdm|--analog)
-      be_select_module "${arg#--}" ;;
     -h|--help) sed -n '2,/^# ── 머리말 끝/p' "$0" | sed '$d'; exit 0 ;;
+    --*)
+      # 모듈 플래그(--<모듈>)는 카탈로그에 있는 이름만 받는다.
+      if [ -n "$(be_module_port "${arg#--}")" ]; then
+        be_select_module "${arg#--}"
+      else
+        dev_log_error "알 수 없는 옵션: $arg"; exit 2
+      fi ;;
     *) dev_log_error "알 수 없는 옵션: $arg"; exit 2 ;;
   esac
 done
