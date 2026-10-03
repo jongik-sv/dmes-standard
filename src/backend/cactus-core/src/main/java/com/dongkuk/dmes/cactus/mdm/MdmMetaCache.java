@@ -222,6 +222,10 @@ public final class MdmMetaCache {
         return Optional.of(e);
     }
 
+    /**
+     * 적재 결과를 넣는다. 넣지 않았으면 false(경합 — 호출자는 값을 돌려주되 캐시하지 않은 것이다). 추정 크기는 잠금 밖에서 잰다(잠금은
+     * {@link #ticket}·{@link #evict}·{@link #clear} 와 같은 {@code this}).
+     */
     public boolean put(MdmTargetType type, String key, Object value, Ticket ticket) {
         long bytes = sizeOf(value);
         synchronized (this) {
@@ -231,11 +235,16 @@ public final class MdmMetaCache {
         }
     }
 
+    /**
+     * 같은 Ticket 으로 받은 묶음을 넣고 상한 정리는 한 번만 한다. 값이 null 이면 "없음"이다(맵은 null 값을 받아야 한다).
+     *
+     * @return 실제로 넣은 키(경합으로 거른 키는 빠진다)
+     */
     public Set<String> putAll(MdmTargetType type, Map<String, Object> values, Ticket ticket) {
         return putHeads(type, values, Part.VALUE, ticket);
     }
 
-    /** 목차 묶음(D-154). 값이 null 이면 "MDM 에 없음". 목차를 바꾸면 그 묶음의 최종 버전을 다시 고른다. */
+    /** 목차 묶음(D-154). 값이 null 이면 "MDM 에 없음". 목차를 바꾸면 그 묶음의 최종 버전을 다시 고른다. @return 실제로 넣은 키(경합으로 거른 키는 빠진다) */
     public Set<String> putTocs(MdmTargetType type, Map<String, MdmToc> tocs, Ticket ticket) {
         return putHeads(type, new LinkedHashMap<>(tocs), Part.TOC, ticket);
     }
@@ -324,7 +333,12 @@ public final class MdmMetaCache {
         appliedSeq = newAppliedSeq;
     }
 
-    /** 폴링이 순번을 반영한 뒤 부른다. 5분 지난 지움 기록을 정리하고 만료된 머리·본문과 빈 묶음을 쓸어 낸다(본문을 먼저 본다 — 최종 판정에 목차를 쓴다). */
+    /**
+     * 폴링이 순번을 반영한 뒤 부른다(약 10초마다). 5분 지난 지움 기록을 정리하고, 만료된 머리·본문과 빈 묶음을 쓸어 낸다 — 한 번 적재되고 다시
+     * 조회되지 않는 항목이 {@link #get}·상한 정리 때까지 맵에 남지 않게. 본문을 먼저 본다(최종 판정에 목차를 쓴다). 쓸기는 만료 항목만 지운다
+     * ({@code remove(ver, entry)}·{@code compareAndSet(entry, null)}·{@code remove(key, group)} — 그사이 새로 넣은 값은 남는다). 살아 있는 항목·조회 수·
+     * 마지막 조회 시각·지움 기록(5분 규칙 밖)·세대는 건드리지 않는다.
+     */
     public synchronized void markApplied(long seq) {
         appliedSeq = seq;
         Instant now = clock.instant();
@@ -404,7 +418,11 @@ public final class MdmMetaCache {
         return out;
     }
 
-    /** 항목 하나를 읽기만 한다. 버전 대상이면 {@code key} 는 논리 키({@code X} 또는 {@code X@1.000})다. */
+    /**
+     * 항목 하나를 읽기만 한다(관리 화면 항목 상세 보기). 버전 대상이면 {@code key} 는 논리 키({@code X} 또는 {@code X@1.000})다. {@link #get} 과 달리
+     * 조회 수·마지막 조회 시각을 바꾸지 않고, 만료 항목도 지우지 않은 채 "없음"(빈 값)으로 답한다 — 조회 수·지움 기록·세대를 바꾸지 않는다(본문의 최종
+     * 여부를 판정하며 묶음의 최종 버전 기억만 고칠 수 있다). MDM 적재도 하지 않는다.
+     */
     public Optional<EntryView> peek(MdmTargetType type, String key) {
         if (type == null || key == null) {
             return Optional.empty();
@@ -463,7 +481,7 @@ public final class MdmMetaCache {
         return tombstones.size();
     }
 
-    /** 시험용 — 맵에 실제로 남은 칸 수(머리 + 본문, 아직 쓸리지 않은 만료 항목 포함). */
+    /** 시험용 — 맵에 실제로 남은 칸 수(머리 + 본문, 아직 쓸리지 않은 만료 항목 포함). {@link #sizes} 는 만료 항목을 세지 않는다. */
     int storedCount(MdmTargetType type) {
         int n = 0;
         for (Group g : maps.get(type).values()) {
@@ -472,6 +490,7 @@ public final class MdmMetaCache {
         return n;
     }
 
+    /** 시험용 — 상한 정리를 실제로 한 횟수. */
     long trimPasses() {
         return trimPasses;
     }
@@ -532,6 +551,7 @@ public final class MdmMetaCache {
         }
         trimPasses++;
         Instant now = clock.instant();
+        // 마지막 조회 시각은 정렬 중에도 get·getBody 가 옮길 수 있다 — 스냅샷으로 정렬해 Comparator 계약을 지킨다.
         record Slot(Group group, String ver, Entry entry, long lastAccess) {
         }
         List<Slot> live = new ArrayList<>();
@@ -609,6 +629,7 @@ public final class MdmMetaCache {
         return ver.equals(c.ver());
     }
 
+    /** 추정 크기 — UTF-8 JSON 직렬화 바이트 수. "없음"은 0, 직렬화 실패는 조용히 -1(화면은 "-"). */
     static long sizeOf(Object value) {
         if (value == null) {
             return 0L;

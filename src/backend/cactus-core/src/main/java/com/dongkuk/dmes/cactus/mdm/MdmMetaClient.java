@@ -41,6 +41,8 @@ public class MdmMetaClient implements MdmMetaFeed {
     static final String SYSTEM_ROLE = "SYSTEM";
     /** MDM {@code metaFeed/view} 가 한 번에 받는 키 수 상한({@code MetaFeedService.MAX_KEYS}). */
     static final int MAX_KEYS_PER_VIEW = 500;
+    /** 목차 요청 {@code params.at} 형식 — 초까지(KST 벽시계). */
+    static final DateTimeFormatter AT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
     private static final TypeReference<List<RuleDefinition>> RULE_VERSIONS = new TypeReference<>() {
     };
     private static final TypeReference<List<RuleSetDefinition>> RULE_SET_VERSIONS = new TypeReference<>() {
@@ -82,8 +84,6 @@ public class MdmMetaClient implements MdmMetaFeed {
         return new MdmChanges(latestSeq.asLong(), items, result.path("truncated").asBoolean(false));
     }
 
-    static final DateTimeFormatter AT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-
     /**
      * view — 키를 {@value #MAX_KEYS_PER_VIEW}개씩 나눠 부르고 결과를 합친다(MDM 이 한 번에 받는 상한). MDM 의 업무 거부({@code meta.success=false})는
      * 그 묶음 키를, 값 하나를 엔진 모양으로 읽을 수 없으면 그 키만 {@code failed} 로 돌린다 — 장애로 세지 않는다(MDM 이 살아 있다). 연결·시간 초과·
@@ -108,7 +108,7 @@ public class MdmMetaClient implements MdmMetaFeed {
         try {
             ObjectNode params = MdmJson.MAPPER.createObjectNode().put("type", type.name());
             if (type == MdmTargetType.COLUMN && systemCode != null) {
-                params.put("systemCode", systemCode);
+                params.put("systemCode", systemCode); // 별칭 매칭 — COLUMN 에만(다른 종류에는 영향 없음)
             }
             result = call("view", params, keyRows(chunk));
         } catch (MdmRejectedException e) {
@@ -123,6 +123,7 @@ public class MdmMetaClient implements MdmMetaFeed {
             String key = n.path("key").asText();
             JsonNode value = n.path("value");
             if (absent(value)) {
+                // 건너뛰면 그 키가 "없음"으로 60분 캐시된다 — 받을 수 없는 키(failed)로 돌린다.
                 failed.put(key, "value 없음");
                 continue;
             }
@@ -281,6 +282,7 @@ public class MdmMetaClient implements MdmMetaFeed {
         keys.forEach(k -> rows.addObject().put("key", k));
         return rows;
     }
+
     static Object convert(MdmTargetType type, JsonNode value) {
         try {
             return switch (type) {
