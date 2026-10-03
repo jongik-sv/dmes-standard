@@ -106,9 +106,9 @@
 - `record MdmBodyKey(String key, String ver)`.
 - `record MdmCurrent(String ver, Object body)`.
 - `record MdmTocResult(Map<String, MdmToc> tocs, Map<String, MdmCurrent> current, Map<String, Object> legacy, Map<String, String> failed)` — `static MdmTocResult legacy(MdmFetchResult)`.
-- `record MdmBodyResult(Map<MdmBodyKey, Object> found, Map<MdmBodyKey, String> failed, Map<String, Object> legacy, Map<String, String> legacyFailed)` — `static MdmBodyResult legacy(MdmFetchResult)`.
+- `record MdmBodyResult(Map<MdmBodyKey, Object> found, Map<MdmBodyKey, String> failed, Map<String, Object> legacy, Map<String, String> legacyFailed, Set<String> legacyAsked)` — `static MdmBodyResult legacy(MdmFetchResult r, Set<String> asked)`. `legacyAsked` 안에 있는데 `legacy`·`legacyFailed` 에 없으면 MDM 에 없는 정의다.
 - `MdmMetaFeed` 의 default 메서드 `fetchToc(MdmTargetType, Collection<String>, LocalDateTime at) : MdmTocResult`, `fetchBodies(MdmTargetType, Collection<MdmBodyKey>) : MdmBodyResult`.
-- `MdmLegacyValues.toc(MdmTargetType, Object full) : MdmToc`, `MdmLegacyValues.body(MdmTargetType, Object full, String ver) : Optional<Object>`.
+- `MdmLegacyValues.toc(MdmTargetType, Object full) : MdmToc`, `MdmLegacyValues.rawBody(MdmTargetType, Object full, String ver) : Optional<Object>`(CODE 는 `CodeVersionSlice`, 나머지는 목록 원소), `MdmLegacyValues.body(MdmTargetType, Object full, String ver) : Optional<Object>`(CODE 는 `MdmCodeVersion.sliced`).
 - `MdmMetaCache.Part { VALUE, TOC, BODY }`, 5인자 생성자 `(int maxEntries, Duration maxAge, Duration maxIdle, Duration oldVersionMaxIdle, Clock clock)`, `putTocs`, `getBody`, `putBodies`, `evictLocalBody`, `bodySizes`, `oldVersionMaxIdle`, `EntryView` 끝에 `Part part, String ver, Boolean current`.
 - `MdmMetaService` 4인자 생성자 `(MdmMetaFeed, MdmMetaCache, Clock, boolean versioned)`, `record MdmAt(MdmToc toc, String ver, Object body)`, `record MdmAtLookup(Map<String, MdmAt> found, List<String> missing, List<String> unavailable)`, `record CachedRead(boolean cached, Object value)`, `lookupAt`, `oneAt`, `toc`, `body`, `cachedToc`, `cachedBody`, `reloadAt`, `versioned()`, `now()`.
 - `MdmClientProperties.oldVersionMaxIdle`(기본 10m), `MdmClientProperties.versionedFeed`(`AUTO` 기본 | `OFF`).
@@ -364,7 +364,7 @@ Expected: FAIL "골든 파일을 새로 만들었다". 여섯 파일을 열어 �
 
 - [ ] **Step 5: 결정적인지 두 번 돌려 확인한다**
 
-같은 명령을 두 번 더 돌린다.
+`cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:cleanTest :api:test --tests 'com.dongkuk.dmes.mdm.feed.MetaFeedLegacyGoldenTest'` 를 두 번 돌린다(`cleanTest` 가 없으면 Gradle 이 UP-TO-DATE 로 건너뛰어 아무것도 확인하지 않는다).
 Expected: 두 번 모두 PASS. 한 번이라도 실패하면 다른 값(자동 증가 ID·시각)을 찾아 시드에서 명시하고 Step 4 부터 다시 한다.
 
 - [ ] **Step 6: 피드 시험 전체를 돌린다**
@@ -2542,6 +2542,26 @@ Expected: PASS(골든 포함)
         assertEquals(b.path("items").get(0).path("value"), t.path("items").get(0).path("current").path("value"));
     }
 
+    @Test
+    void CODE_저장값이_깨진_코드는_그_키만_failed_이고_묶음은_거부하지_않는다() throws Exception {
+        seedCode();
+        MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
+        seeds.seedCode("BAD_CD", "INUSE", "MDM");
+        seeds.released("BAD_CD", "1.000", "2026-01-01 00:00:00", MasterCodeSeeds.OPEN_END);
+        seeds.seedItem("BAD_CD", "A", "1.000", MasterCodeSeeds.OPEN, "에이", 1);
+        seeds.seedBase("BAD_CD");
+        seeds.seedCate("BAD_CD", "BROKEN", "1.000", MasterCodeSeeds.OPEN, "REGEX", "[", "CODE", "깨진 정규식"); // SQL 로 넣어 저장 검사를 우회한다
+
+        JsonNode t = toc("CODE", "2026-08-01T00:00:00", "VS_CD", "BAD_CD");
+        assertEquals(1, t.path("items").size(), t.toString());
+        assertEquals("VS_CD", t.path("items").get(0).path("key").asText());
+        assertEquals("BAD_CD", t.path("failed").get(0).path("key").asText(), t.toString());
+
+        JsonNode b = bodies("CODE", "VS_CD", "2.000", "BAD_CD", "1.000");
+        assertEquals(1, b.path("items").size(), b.toString());
+        assertEquals("BAD_CD", b.path("failed").get(0).path("key").asText(), b.toString());
+    }
+
     static JsonNode category(JsonNode body, String cateId) {
         for (JsonNode c : body.path("categories")) {
             if (cateId.equals(c.path("cateId").asText())) {
@@ -2555,7 +2575,7 @@ Expected: PASS(골든 포함)
 - [ ] **Step 2: 실패를 확인한다**
 
 Run: `cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:test --tests 'com.dongkuk.dmes.mdm.feed.MetaFeedVersionedHttpTest'`
-Expected: CODE 시험 셋이 FAIL(MDM021 "아직 받지 않는 대상").
+Expected: CODE 시험 넷이 FAIL(MDM021 "아직 받지 않는 대상").
 
 - [ ] **Step 3: 구현한다**
 
@@ -2574,14 +2594,18 @@ Expected: CODE 시험 셋이 FAIL(MDM021 "아직 받지 않는 대상").
                     .map(v -> new CodeVersionRow(VersionNumbers.scaled(v.ver()), v.status(), v.applyFrom(), v.applyTo()))
                     .sorted(Comparator.comparing(CodeVersionRow::ver))
                     .toList();
-            Map<String, Object> current = at == null ? null : CodeVersions.select(released, at)
-                    .map(ver -> MetaFeedVersionedResult.current(ver, MetaFeedJson.plain(CodeVersionSlicer.slice(projected(id), ver))))
-                    .orElse(null);
-            Map<String, Object> head = new LinkedHashMap<>();
-            head.put("maruCodeId", header.get().maruCodeId());
-            head.put("status", header.get().status());
-            b.toc(id, MetaFeedVersionedResult.toc(head, released.stream()
-                    .map(v -> MetaFeedVersionedResult.tocVersion(v.ver(), v.status(), v.applyFrom(), v.applyTo())).toList()), current);
+            try { // 코드 하나의 저장값이 깨져도(잘못된 REGEX·모르는 defTarget) 그 키만 failed — 묶음 거부는 옛 MDM 신호(나)로 읽힌다
+                Map<String, Object> current = at == null ? null : CodeVersions.select(released, at)
+                        .map(ver -> MetaFeedVersionedResult.current(ver, MetaFeedJson.plain(CodeVersionSlicer.slice(projected(id), ver))))
+                        .orElse(null);
+                Map<String, Object> head = new LinkedHashMap<>();
+                head.put("maruCodeId", header.get().maruCodeId());
+                head.put("status", header.get().status());
+                b.toc(id, MetaFeedVersionedResult.toc(head, released.stream()
+                        .map(v -> MetaFeedVersionedResult.tocVersion(v.ver(), v.status(), v.applyFrom(), v.applyTo())).toList()), current);
+            } catch (RuntimeException e) {
+                b.tocFailed(id, e.getMessage() == null ? e.toString() : e.getMessage());
+            }
         }
     }
 
@@ -2600,7 +2624,11 @@ Expected: CODE 시험 셋이 FAIL(MDM021 "아직 받지 않는 대상").
                 b.bodyFailed(k, NOT_RELEASED);
                 continue;
             }
-            b.body(k, MetaFeedJson.plain(CodeVersionSlicer.slice(projected.get(), k.ver())));
+            try { // 저장값이 깨진 코드는 그 쌍만 failed
+                b.body(k, MetaFeedJson.plain(CodeVersionSlicer.slice(projected.get(), k.ver())));
+            } catch (RuntimeException e) {
+                b.bodyFailed(k, e.getMessage() == null ? e.toString() : e.getMessage());
+            }
         }
     }
 
@@ -2933,7 +2961,10 @@ package com.dongkuk.dmes.cactus.mdm;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeHeader;
@@ -2950,6 +2981,8 @@ public final class MdmToc {
     private final CodeHeader header;
     private final List<MdmTocVersion> versions;
     private final CodeRows codeRows;
+    /** ver 키(scale 3) → 버전 — {@link #version} 이 판정마다 버전 전체를 훑으며 문자열을 만들지 않게 한 번 만든다. */
+    private final Map<String, MdmTocVersion> byKey;
 
     @JsonCreator
     public MdmToc(@JsonProperty("header") CodeHeader header, @JsonProperty("versions") List<MdmTocVersion> versions) {
@@ -2957,6 +2990,9 @@ public final class MdmToc {
         this.versions = versions == null ? List.of() : List.copyOf(versions);
         this.codeRows = new CodeRows(header, this.versions.stream()
                 .map(v -> new CodeVersionRow(v.ver(), v.status(), v.applyFrom(), v.applyTo())).toList(), List.of(), List.of(), List.of());
+        Map<String, MdmTocVersion> index = new HashMap<>();
+        this.versions.forEach(v -> index.putIfAbsent(MdmVersions.key(v.ver()), v));
+        this.byKey = Collections.unmodifiableMap(index);
     }
 
     @JsonProperty("header")
@@ -2975,7 +3011,7 @@ public final class MdmToc {
 
     /** ver 키(scale 3)가 같은 버전. */
     public Optional<MdmTocVersion> version(String verKey) {
-        return versions.stream().filter(v -> MdmVersions.key(v.ver()).equals(verKey)).findFirst();
+        return Optional.ofNullable(byKey.get(verKey));
     }
 
     @Override
