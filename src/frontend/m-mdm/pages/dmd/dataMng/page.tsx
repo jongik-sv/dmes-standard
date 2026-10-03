@@ -13,6 +13,9 @@
  * 선택과 응답의 정합(codeMng 와 같음): 목록 강조(`selectedId`)와 상세(view·form)는 늘 같은 데이터를 가리켜야 하므로
  * 선택을 바꾸는 길은 `select` 하나로 모은다. 데이터에서 데이터로 옮길 때는 이전 상세를 새 상세가 올 때까지 잠근 채
  * (`stale`) 두었다가 같은 DOM 위에 바꿔 그린다. 상세 응답은 요청 순번(`detailSeq`)이 지금 것과 다르면 버린다.
+ * 같은 데이터를 다시 읽어도(행 다시 누르기·쓰기 뒤) 저장하지 않은 헤더 입력은 말없이 지우지 않는다(2026-10-03, ruleMng·codeMng 과
+ * 같은 규칙) — 입력이 이전 서버 값·새 서버 값과 모두 다르면 남기고, 헤더 저장에는 입력을 시작할 때의 auditVer(`formAuditVer`)를
+ * 보내 다른 창 변경은 충돌 알림으로 드러나게 한다. 충돌 오류창을 닫을 때의 다시 읽기만 입력을 버린다.
  * 쓰기(저장·폐기·등록)가 진행 중이면 목록 행 클릭을 받지 않는다 — 결과(토스트, 충돌 모달과 다시 불러오기)를 그
  * 데이터 위에서 보게 하려는 것이다. handoff 는 쓰기 중에도 받으므로 응답 가드는 그대로 둔다.
  */
@@ -38,7 +41,7 @@ import { buildDataMngColumns } from "./columns";
 import { DataRegisterForm } from "./components/DataRegisterForm";
 import { DataCategoryCard, DataHeaderCard, DataLabelsCard, mutedText, type Allowed } from "./DataDetail";
 import { deprecateData, saveHeader, viewDataEdit } from "./edit-api";
-import { headerFormOf, type DataEditView, type HeaderForm } from "./edit-types";
+import { headerFormOf, sameHeaderForm, type DataEditView, type HeaderForm } from "./edit-types";
 import { ROW_VERSION_CONFLICT_PREFIX } from "./messages";
 import { STATUS_OPTIONS, errorMessage, type DataMngRegForm, type DataMngRow } from "./types";
 
@@ -102,9 +105,12 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
   const [pending, setPending] = useState(0);
   const [error, setError] = useState<{ message: string; reload: boolean } | null>(null);
   const handedOff = useRef(false);
-  // 사용자가 상세 폼을 고친 횟수와 지금 보이는 상세의 데이터 ID — 조회 응답이 사용자가 방금 고친 폼을 덮지 않게 하는 데 쓴다.
-  const editSeq = useRef(0);
+  // 지금 보이는 상세의 데이터 ID·서버 헤더 폼 값과 폼이 기대는 auditVer — 다시 읽은 응답이 사용자가 고친 폼을 덮지 않게 하는 데 쓴다.
   const shownId = useRef<string | null>(null);
+  const serverForm = useRef<HeaderForm | null>(null);
+  const formRef = useRef(form);
+  formRef.current = form;
+  const [formAuditVer, setFormAuditVer] = useState(0);
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
 
@@ -162,29 +168,39 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
     setMode(nextMode);
     if (!keepDetail) {
       shownId.current = null;
+      serverForm.current = null;
       setView(null);
       setForm(null);
     }
   }, []);
 
-  // keepForm 이면 보이는 상세(auditVer·항목 수·카테고리)만 새 값으로 바꾸고 사용자가 고친 폼은 그대로 둔다.
-  const apply = useCallback((next: DataEditView, keepForm = false) => {
+  // 같은 데이터를 다시 읽었는데 사용자가 고친 칸이 있으면(이전 서버 값과도 새 서버 값과도 다르면) 보이는 상세(항목 수·카테고리)만
+  // 새 값으로 바꾸고 폼과 그 폼이 기대는 auditVer 는 그대로 둔다. 헤더 저장 성공 뒤에는 폼이 새 서버 값과 같아 새 값으로 맞춰진다.
+  // discard 면(충돌 뒤 다시 불러오기) 입력을 버린다.
+  const apply = useCallback((next: DataEditView, discard = false) => {
+    const nextForm = headerFormOf(next);
+    const cur = formRef.current;
+    const base = serverForm.current;
+    const keepForm = !discard && shownId.current === next.maruDataId && !!cur && !!base
+      && !sameHeaderForm(cur, base) && !sameHeaderForm(cur, nextForm);
     shownId.current = next.maruDataId;
+    serverForm.current = nextForm;
     setView(next);
-    if (!keepForm) setForm(headerFormOf(next));
+    if (!keepForm) {
+      setForm(nextForm);
+      setFormAuditVer(next.auditVer);
+    }
   }, []);
 
   const loadDetail = useCallback(
-    async (target: string) => {
+    async (target: string, discard = false) => {
       if (!target) return;
       const seq = ++detailSeq.current;
-      const editsAtStart = editSeq.current;
       begin();
       try {
         const next = await viewDataEdit(target);
         if (seq !== detailSeq.current) return; // 그사이 다른 데이터를 골랐거나 더 새 요청이 나갔다
-        // 같은 데이터를 다시 불러오는 사이 사용자가 폼을 고쳤으면 그 입력을 늦게 온 응답으로 덮지 않는다.
-        apply(next, editSeq.current !== editsAtStart && shownId.current === next.maruDataId);
+        apply(next, discard);
       } catch (e) {
         if (seq !== detailSeq.current) return;
         // 강조만 남고 상세가 이전 데이터로 남지 않게 선택을 비운다. snapshot 도 바로 지워 다시 열 때 같은 오류를 또 띄우지 않는다.
@@ -267,7 +283,6 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
   const busy = pending > 0 || stale;
 
   const setField = useCallback((key: keyof HeaderForm, value: string) => {
-    editSeq.current += 1;
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   }, []);
 
@@ -277,8 +292,8 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
       setError({ message: "이름·키 패턴을 입력하세요.", reload: false });
       return;
     }
-    void run(() => saveHeader(view.maruDataId, view.auditVer, form), "저장했습니다");
-  }, [view, form, run]);
+    void run(() => saveHeader(view.maruDataId, formAuditVer, form), "저장했습니다");
+  }, [view, form, formAuditVer, run]);
 
   const handleDeprecate = useCallback(() => {
     if (!view) return;
@@ -468,7 +483,7 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
             const reload = error.reload;
             setError(null);
             // 렌더 때 값이 아니라 지금 선택을 본다 — 모달이 떠 있는 사이 선택이 바뀌었을 수 있다.
-            if (reload && selectedIdRef.current) void loadDetail(selectedIdRef.current);
+            if (reload && selectedIdRef.current) void loadDetail(selectedIdRef.current, true);
           }}
         />
       )}

@@ -445,6 +445,36 @@ describe("DataMngPage(dataEdit 통합)", () => {
     expect(actions("dataEdit", "view")).toHaveLength(2);
   });
 
+  // 2026-10-03 팀장 결정 — ruleMng 과 같은 규칙: 같은 행을 다시 눌러 다시 읽어도 저장하지 않은 입력은 남기고, 저장은 입력을
+  // 시작할 때의 auditVer 로 보낸다(다른 창 변경은 충돌 알림으로 드러난다). 고친 칸이 없으면 서버 값으로 바꾼다.
+  // 보낸 값만 보므로 저장은 거부로 둔다 — 성공 알림(토스트)이 쌓여 뒤 시험의 알림을 밀어내지 않게.
+  it("누르기 전에 고친 입력은 같은 행을 다시 눌러 다시 읽어도 남고, 저장은 입력을 시작할 때의 auditVer 로 보낸다", async () => {
+    saveResponse = { meta: { success: false, message: "시험용 거부" } };
+    await render({ snapshot: { maruDataId: "PORT" } });
+    await search();
+    await typeInto("data-edit-name", "고치는 중");
+    nextView = (id) => viewResult({ maruDataId: id, maruDataName: "다른 창 이름", auditVer: 1 });
+    await clickListRow("PORT");
+    await flush();
+    expect(actions("dataEdit", "view")).toHaveLength(2);
+    expect(nameValue()).toBe("고치는 중");
+    await click(byTestId("data-edit-save"));
+    expect(actions("dataEdit", "save")[0].params).toMatchObject({ maruDataName: "고치는 중", auditVer: 0 });
+  });
+
+  it("고친 칸이 없으면 같은 행을 다시 눌러 다시 읽은 서버 값과 auditVer 로 바뀐다", async () => {
+    saveResponse = { meta: { success: false, message: "시험용 거부" } };
+    await render({ snapshot: { maruDataId: "PORT" } });
+    await search();
+    nextView = (id) => viewResult({ maruDataId: id, maruDataName: "다른 창 이름", auditVer: 1 });
+    await clickListRow("PORT");
+    await flush();
+    expect(nameValue()).toBe("다른 창 이름");
+    await typeInto("data-edit-name", "새 이름");
+    await click(byTestId("data-edit-save"));
+    expect(actions("dataEdit", "save")[0].params).toMatchObject({ maruDataName: "새 이름", auditVer: 1 });
+  });
+
   it("다른 데이터로 옮길 때는 응답이 폼을 새 값으로 바꾼다(이전 입력 폐기)", async () => {
     await render({ snapshot: { maruDataId: "PORT" } });
     await search();
