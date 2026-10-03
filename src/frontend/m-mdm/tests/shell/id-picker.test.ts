@@ -138,6 +138,44 @@ describe("IdPicker", () => {
     expect(list()).toBeNull();
   });
 
+  it("[찾기] 뒤에 화면 인계로 연 ID 가 바뀌어도(사용자 조작 없음) 늦게 온 찾기 결과를 보인다", async () => {
+    let release!: (rows: IdPickRow[]) => void;
+    const search = vi.fn(() => new Promise<IdPickRow[]>((r) => (release = r)));
+    await render({ search });
+    await type("PORT");
+    await key("Enter");
+    await act(async () => {
+      root!.render(
+        createElement(
+          DmesUiProvider,
+          null,
+          createElement(IdPicker, { placeholder: "ID·이름", noun: "세트", testId: "t-pick", limit: 2, onPick: vi.fn(), onError: vi.fn(), search, currentId: "PORT" }),
+        ),
+      );
+    });
+    await flush();
+    await act(async () => {
+      release(ROWS);
+    });
+    await flush();
+    expect(list()?.textContent ?? "").toContain("PORT");
+  });
+
+  it("[찾기] 뒤 응답 전에 바깥을 누르면(사용자가 다른 일로 옮김) 늦게 온 결과가 목록을 열지 않는다", async () => {
+    let release!: (rows: IdPickRow[]) => void;
+    const search = vi.fn(() => new Promise<IdPickRow[]>((r) => (release = r)));
+    await render({ search });
+    await key("Enter");
+    await act(async () => {
+      document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    });
+    await act(async () => {
+      release(ROWS);
+    });
+    await flush();
+    expect(list()).toBeNull();
+  });
+
   it("검색 실패는 onError 로 문구를 넘긴다", async () => {
     const { onError } = await render({
       search: async () => {
