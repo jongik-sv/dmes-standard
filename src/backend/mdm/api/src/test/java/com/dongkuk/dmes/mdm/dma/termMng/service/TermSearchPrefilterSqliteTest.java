@@ -92,4 +92,22 @@ class TermSearchPrefilterSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals(List.of(hot), candidates(null, "열연", false));
         assertEquals(List.of(hot, nullSystems), candidates(null, "열연", true));
     }
+
+    @Test
+    void 상황_조건은_키워드_조건이_있을_때만_null_동의어_별칭_행을_남긴다() {
+        Long hot = seed("코일", t -> t.setContext("열연"));
+        Long nullSynonyms = seed("가", t -> {
+            t.setContext("냉연");
+            t.setSynonyms("null");
+        });
+        Long nullAliases = seed("나", t -> {
+            t.setContext("냉연");
+            t.setAliases("null");
+        });
+        seed("다", t -> t.setContext("냉연"));
+
+        assertEquals(List.of(hot), candidates(null, "열연", false));
+        assertEquals(List.of(hot, nullSynonyms, nullAliases), candidates("코일", "열연", false));
+        assertEquals(List.of(hot, nullSynonyms, nullAliases), candidates("ss", "열연", false), "바늘 없는 키워드도 같다");
+    }
 }

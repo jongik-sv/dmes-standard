@@ -27,7 +27,8 @@ import org.springframework.data.jpa.domain.Specification;
  *   <li>{@code %}·{@code _} 는 글자 그대로 비교해야 하므로 {@code ESCAPE '!'} 로 이스케이프한다. 역슬래시를 이스케이프 문자로 쓰지 않는
  *       것은 방언마다 문자열 리터럴의 역슬래시 해석이 달라서다. 함수는 Oracle·PostgreSQL·SQLite 공통인 {@code UPPER}·{@code LIKE} 만 쓴다.</li>
  *   <li>기존 결함 보존: JSON {@code null} 리터럴 칸은 Java 비교에서 NPE 를 낸다(특성 시험이 고정). DB 에서 그 행을 빼면 예외가 사라져
- *       동작이 바뀌므로 원문에 {@code null} 이 든 행은 남긴다. 결함을 고치는 커밋에서 이 조건도 함께 뺀다.</li>
+ *       동작이 바뀌므로 원문에 {@code null} 이 든 행은 남긴다. Java 는 키워드 → 시스템 → 상황 순서로 보므로, 뒤 단계인 상황 조건도
+ *       앞 단계(키워드의 동의어·별칭, 시스템)에서 NPE 가 날 행을 빼지 않는다. 결함을 고치는 커밋에서 이 조건들도 함께 뺀다.</li>
  * </ul>
  */
 final class TermSearchPrefilter {
@@ -43,13 +44,15 @@ final class TermSearchPrefilter {
     }
 
     /**
-     * @param keywordUpper    {@code toUpperCase(Locale.ROOT)} 한 키워드, 조건이 없으면 null
+     * @param keywordUpper    {@code toUpperCase(Locale.ROOT)} 한 키워드, 조건이 없으면 null. 바늘이 없어 DB 에서 거르지 않을 때도
+     *                        키워드 조건이 있다는 사실은 상황 조건의 NPE 보존에 쓴다
      * @param contextUpper    {@code toUpperCase(Locale.ROOT)} 한 상황 조건, 조건이 없으면 null
      * @param systemsFiltered 시스템 조건이 있는지 — 상황 조건이 시스템 조건의 NPE 를 가리지 않게 하는 데 쓴다
      */
     static Specification<MdmTerm> of(String keywordUpper, String contextUpper, boolean systemsFiltered) {
         String keywordPattern = containsPattern(safeNeedle(keywordUpper));
         String contextPattern = containsPattern(safeNeedle(contextUpper));
+        boolean keywordFiltered = keywordUpper != null;
         return (root, query, cb) -> {
             List<Predicate> and = new ArrayList<>(2);
             if (keywordPattern != null) {
@@ -60,10 +63,18 @@ final class TermSearchPrefilter {
                         jsonListMayContain(cb, root, "aliases", keywordPattern)));
             }
             if (contextPattern != null) {
-                Predicate context = likeUpper(cb, root.get("context"), contextPattern);
-                // Java 는 시스템 조건을 상황 조건보다 먼저 본다. 시스템 칸이 null 리터럴·null 원소인 행은 거기서 NPE 가 나므로
-                // 상황 조건으로 미리 빼지 않는다(기존 결함 보존).
-                and.add(systemsFiltered ? cb.or(context, like(cb, root.get("systems"), CONTAINS_NULL_LITERAL)) : context);
+                // Java 는 키워드·시스템 조건을 상황 조건보다 먼저 본다. 앞 단계에서 NPE 가 날 행(동의어·별칭이 null 리터럴, 시스템이
+                // null 리터럴·null 원소)은 상황 조건으로 미리 빼지 않는다(기존 결함 보존).
+                List<Predicate> or = new ArrayList<>(4);
+                or.add(likeUpper(cb, root.get("context"), contextPattern));
+                if (keywordFiltered) {
+                    or.add(like(cb, root.get("synonyms"), CONTAINS_NULL_LITERAL));
+                    or.add(like(cb, root.get("aliases"), CONTAINS_NULL_LITERAL));
+                }
+                if (systemsFiltered) {
+                    or.add(like(cb, root.get("systems"), CONTAINS_NULL_LITERAL));
+                }
+                and.add(or.size() == 1 ? or.get(0) : cb.or(or.toArray(Predicate[]::new)));
             }
             return cb.and(and.toArray(Predicate[]::new));
         };
