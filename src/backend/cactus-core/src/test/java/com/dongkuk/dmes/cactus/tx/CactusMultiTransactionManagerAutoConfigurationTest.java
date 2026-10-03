@@ -194,17 +194,34 @@ class CactusMultiTransactionManagerAutoConfigurationTest {
     }
 
     /**
-     * 현재 동작 고정 (결함 후보) — 존재 검사는 {@code registry.isAlias(...)} 를 받아 주지만, default 의 @Primary 지정은
-     * {@code registry.getBeanDefinition(targetBeanName)} 로 alias 를 풀지 않아 부팅이 실패한다.
+     * 존재 검사가 {@code registry.isAlias(...)} 를 인정하듯, default 의 @Primary 지정도 alias 를 실제 빈 이름으로 풀어
+     * 부팅이 성공한다 (예전에는 {@code getBeanDefinition(alias)} 로 NoSuchBeanDefinitionException).
      */
     @Test
-    void 대상이_alias이고_default면_Primary_지정에서_부팅이_실패한다() {
+    void 대상이_alias이고_default여도_부팅되고_alias_사슬이_유지된다() {
         aliasOnlyHostRunner().withPropertyValues("cactus.tx.default-manager=txBiz").run(ctx -> {
-            assertThat(ctx).hasFailed();
-            assertThat(NestedExceptionUtils.getMostSpecificCause(ctx.getStartupFailure()))
-                    .isInstanceOf(org.springframework.beans.factory.NoSuchBeanDefinitionException.class)
-                    .hasMessageContaining("transactionManager");
+            assertThat(ctx).hasNotFailed();
+            assertThat(ctx.getBeanFactory().getAliases("jpaTx")).containsExactlyInAnyOrder("transactionManager", "txBiz");
+            assertThat(ctx.getBean("transactionManager")).isSameAs(hostTxMgr);
+            assertThat(ctx.getBean(PlatformTransactionManager.class)).isSameAs(hostTxMgr);
         });
+    }
+
+    /** 결함 수정 — default 대상이 alias 면 실제(canonical) 빈 정의에 @Primary 를 붙인다. */
+    @Test
+    void 대상이_alias이고_default면_실제_빈에_Primary를_붙인다() {
+        PlatformTransactionManager otherTx = mock(PlatformTransactionManager.class);
+        aliasOnlyHostRunner()
+                .withBean("otherTx", PlatformTransactionManager.class, () -> otherTx)
+                .withPropertyValues("cactus.tx.default-manager=txBiz")
+                .run(ctx -> {
+                    assertThat(ctx).hasNotFailed();
+                    assertThat(ctx.getBeanFactory().getBeanDefinition("jpaTx").isPrimary()).isTrue();
+                    assertThat(ctx.getBeanFactory().getBeanDefinition("otherTx").isPrimary()).isFalse();
+                    assertThat(ctx.getBean("txBiz")).isSameAs(hostTxMgr);
+                    // 같은 타입 후보가 둘이어도 @Primary 로 host TxMgr 가 골라진다
+                    assertThat(ctx.getBean(PlatformTransactionManager.class)).isSameAs(hostTxMgr);
+                });
     }
 
     @Test
