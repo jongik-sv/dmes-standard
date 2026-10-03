@@ -234,6 +234,59 @@ class MdmMetaServiceVersionedTest {
         assertThat(cache.getBody(MdmTargetType.RULE, "R", "2.000")).as("옛 본문은 다시 받지 않는다").isEmpty();
     }
 
+    @Test
+    void off_reloadAt_은_요청한_논리_키로_답하고_목차에_없는_버전_본문_키는_없음이다() {
+        FakeMetaFeed old = new FakeMetaFeed();
+        old.put(MdmTargetType.RULE, "R", feed.values.get(MdmTargetType.RULE).get("R"));
+        old.failedKeys.put("F", "깨진 정의");
+        MdmMetaService off = new MdmMetaService(old, cache, clock);
+
+        MdmMetaService.MdmAtLookup r = off.reloadAt(MdmTargetType.RULE,
+                List.of("R@1.000", "R@9.000", "NO@1.000", "NO", "F@1.000", "R"), T0);
+
+        assertThat(r.found()).containsOnlyKeys("R", "R@1.000");
+        assertThat(r.found().get("R@1.000").ver()).isEqualTo("1.000");
+        assertThat(verOf(r.found().get("R@1.000"))).isEqualByComparingTo("1.000");
+        assertThat(r.missing()).as("버전 경로와 같게 정의 키 먼저, 그다음 본문 키 — 요청한 논리 키 그대로").containsExactly("NO", "R@9.000", "NO@1.000");
+        assertThat(r.unavailable()).containsExactly("F@1.000");
+    }
+
+    @Test
+    void off_reloadAt_코드도_목차에_없는_버전_본문_키는_없음이다() {
+        FakeMetaFeed old = new FakeMetaFeed();
+        old.put(MdmTargetType.CODE, "C", codeRows());
+        MdmMetaService off = new MdmMetaService(old, cache, clock);
+
+        MdmMetaService.MdmAtLookup r = off.reloadAt(MdmTargetType.CODE, List.of("C@1.000", "C@2.001", "C@5.000"), T0);
+
+        assertThat(r.found()).containsOnlyKeys("C@1.000");
+        assertThat(r.missing()).as("DRAFT 2.001 은 목차에 없다").containsExactly("C@2.001", "C@5.000");
+    }
+
+    @Test
+    void off_경로는_값_하나를_해석할_수_없으면_그_키만_받을_수_없음이다() {
+        FakeMetaFeed old = new FakeMetaFeed();
+        old.put(MdmTargetType.RULE_SET, "S", List.of(MdmValidatorTest.set("S", "R1")));
+        old.put(MdmTargetType.RULE_SET, "NULL_VER", List.of(new kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition(
+                "NULL_VER", null, LocalDateTime.parse("2026-01-01T00:00:00"), null, List.of("R1"),
+                kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.SetStatus.INUSE, null)));
+        old.put(MdmTargetType.RULE, "R", feed.values.get(MdmTargetType.RULE).get("R"));
+        old.put(MdmTargetType.RULE, "FOUR", List.of(rule("1.0001", LocalDateTime.parse("2026-01-01T00:00:00"), null)));
+        MdmMetaService off = new MdmMetaService(old, cache, clock);
+
+        MdmMetaService.MdmAtLookup sets = off.lookupAt(MdmTargetType.RULE_SET, List.of("NULL_VER", "S", "NO"), T0);
+        assertThat(sets.found()).containsOnlyKeys("S");
+        assertThat(sets.unavailable()).containsExactly("NULL_VER");
+        assertThat(sets.missing()).containsExactly("NO");
+
+        MdmMetaService.MdmAtLookup rules = off.reloadAt(MdmTargetType.RULE, List.of("FOUR", "R", "FOUR@1.000"), T0);
+        assertThat(rules.found()).containsOnlyKeys("R");
+        assertThat(rules.unavailable()).containsExactly("FOUR", "FOUR@1.000");
+
+        assertThatThrownBy(() -> off.toc(MdmTargetType.RULE_SET, "NULL_VER")).isInstanceOf(MdmUnavailableException.class);
+        assertThatThrownBy(() -> off.oneAt(MdmTargetType.RULE, "FOUR", T0)).isInstanceOf(MdmUnavailableException.class);
+    }
+
     /** RELEASED 1.000 [2026-01-01, 2026-07-01)·2.000 [2026-07-01, 열린 끝), DRAFT 2.001(초안 사본 C). TABLE TB(2.000~): B. */
     static CodeRows codeRows() {
         BigDecimal v1 = new BigDecimal("1.000");
