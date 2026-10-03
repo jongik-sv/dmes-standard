@@ -37,6 +37,53 @@ export interface HoverTipPos {
 /** Mantine Modal 이 Escape 로 닫지 않는 대상 표지(ModalBase/use-modal). */
 const STOP_PROPAGATION_ATTR = "data-mantine-stop-propagation";
 
+/** 열린 상호작용 카드 수와 Escape 표지 리스너 — 페이지에 하나(globalThis). */
+interface HoverTipEscapeGuard {
+  open: number;
+}
+/** globalThis 키 — 원격 모듈이 shared 를 따로 묶어 같은 페이지에 여러 벌 실려도 리스너·카드 수는 하나다(mdm-meta store 와 같은 관례). */
+const ESCAPE_GUARD_KEY = "__dkOasisHoverTipEscapeGuard";
+
+/**
+ * 모달 안 상호작용 카드의 Escape 보호 — 카드가 열려 있을 때 누른 Escape 는 카드만 닫고 모달은 닫지 않는다.
+ *
+ * Mantine Modal 은 window **캡처** 단계 keydown 에서 Escape 로 닫되, 대상 요소에 `data-mantine-stop-propagation="true"` 가 있으면 건너뛴다
+ * (ModalBase/use-modal — Mantine 드롭다운이 쓰는 표지). 이 리스너는 같은 window 캡처 단계에 **모듈을 읽을 때** 등록되므로 모달 효과
+ * (useWindowEvent, 모달이 마운트될 때 등록)보다 먼저 돈다 — 같은 대상·단계의 리스너는 등록 순서대로 돈다.
+ * 열린 카드가 있을 때 누른 Escape 의 그 순간 대상(focus 가 body 로 빠졌어도 body)에, 표지가 없을 때만 표지를 달고 이 이벤트가 끝나면
+ * 자기가 단 것만 걷는다(bubble 단계 window 리스너, 누가 전파를 멈추면 setTimeout 0). 미리 달아 두지 않으므로 React 가 관리하는 Combobox 표지와
+ * 부딪치지 않고(지우지도, 지워지지도 않는다), 카드가 여럿이어도 카드 수로 맞다. 한글 조합 중 Escape(isComposing)는 건드리지 않는다.
+ */
+function hoverTipEscapeGuard(): HoverTipEscapeGuard | null {
+  if (typeof window === "undefined") return null;
+  const g = globalThis as Record<string, unknown>;
+  const existing = g[ESCAPE_GUARD_KEY] as HoverTipEscapeGuard | undefined;
+  if (existing) return existing;
+  const guard: HoverTipEscapeGuard = { open: 0 };
+  g[ESCAPE_GUARD_KEY] = guard;
+  window.addEventListener(
+    "keydown",
+    (event: KeyboardEvent) => {
+      if (guard.open <= 0 || event.key !== "Escape" || event.isComposing) return;
+      const target = event.target;
+      if (!(target instanceof Element) || target.hasAttribute(STOP_PROPAGATION_ATTR)) return;
+      target.setAttribute(STOP_PROPAGATION_ATTR, "true");
+      let done = false;
+      const unmark = () => {
+        if (done) return;
+        done = true;
+        window.removeEventListener("keydown", unmark);
+        if (target.getAttribute(STOP_PROPAGATION_ATTR) === "true") target.removeAttribute(STOP_PROPAGATION_ATTR);
+      };
+      window.addEventListener("keydown", unmark, { once: true });
+      setTimeout(unmark, 0);
+    },
+    true
+  );
+  return guard;
+}
+hoverTipEscapeGuard();
+
 /** 상호작용 툴팁 유예(ms) — 트리거나 상자를 떠난 뒤 이만큼 기다렸다 닫는다. 그 사이 상자·트리거로 들어가면 유지한다. */
 export const HOVER_TIP_GRACE_MS = 150;
 
@@ -213,30 +260,20 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
     hideTip();
   }, [hideTip]);
 
-  // Escape 로 닫기 — 상호작용 툴팁이 열려 있을 때만 문서 keydown 을 듣는다.
-  // 모달 안에서는 그 Escape 가 카드만 닫고 모달까지 닫지 않게 한다: Mantine Modal 은 window 캡처 단계에서 Escape 를 받아 닫되, 대상 요소에
-  // `data-mantine-stop-propagation="true"` 가 있으면 건너뛴다(ModalBase/use-modal — Mantine 드롭다운이 열려 있을 때 쓰는 표지). 카드가 열려 있는
-  // 동안 focus 를 가진 요소(키 입력의 대상)에 그 표지를 달고, 닫히면 우리가 단 것만 걷는다. 카드가 닫혀 있으면 Escape 는 예전 그대로다.
+  // Escape 로 닫기 — 상호작용 툴팁이 열려 있을 때만 문서 keydown 을 듣는다. 열려 있는 동안 페이지의 열린 카드 수를 1 올려
+  // 모달 안 Escape 보호(hoverTipEscapeGuard)를 켠다 — 효과 정리가 짝을 맞추므로 닫히거나 언마운트되면 정확히 1 내린다.
   const open = tipPos !== null;
   useEffect(() => {
     if (!interactive || !open) return;
-    const marked: Element[] = [];
-    const mark = (el: Element | null) => {
-      if (!el || el.hasAttribute(STOP_PROPAGATION_ATTR)) return;
-      el.setAttribute(STOP_PROPAGATION_ATTR, "true");
-      marked.push(el);
-    };
-    mark(document.activeElement ?? document.body);
-    const onFocusIn = (e: FocusEvent) => mark(e.target as Element | null);
+    const guard = hoverTipEscapeGuard();
+    if (guard) guard.open += 1;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
-    document.addEventListener("focusin", onFocusIn);
     document.addEventListener("keydown", onKeyDown);
     return () => {
-      document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("keydown", onKeyDown);
-      for (const el of marked) if (el.getAttribute(STOP_PROPAGATION_ATTR) === "true") el.removeAttribute(STOP_PROPAGATION_ATTR);
+      if (guard) guard.open = Math.max(0, guard.open - 1);
     };
   }, [interactive, open, close]);
 
