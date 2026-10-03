@@ -26,6 +26,8 @@ export interface AgDataGridExcelExport {
   sheetName?: string;
   /** [엑셀] 단추의 `data-testid`. 기본 `grid-excel`. */
   testId?: string;
+  /** 내보내기에서 뺄 열 key. 단추·링크처럼 `render` 로만 그리는 열에 쓴다. 보이는 열이어도 엑셀에는 나가지 않는다. */
+  excludeKeys?: readonly string[];
 }
 
 interface ExcelColumnSource {
@@ -85,8 +87,10 @@ interface AgDataGridExcelFrameProps {
   options: AgDataGridExcelExport;
   /** 그리드에 넘긴 columns(그리드 API 가 없을 때만 쓴다). */
   columns: readonly GridColumn[];
-  /** 그리드에 넘긴 data — 행 수·API 가 없을 때의 내보낼 행. */
+  /** 그리드에 넘긴 data — 「{n}행」과 단추 비활성 판정에 쓴다. */
   data: readonly Record<string, unknown>[];
+  /** 그리드가 화면에 쓰는 행(정렬이 반영된 `sortedData`) — API 가 없을 때 내보낼 행. 화면 순서와 맞춘다. */
+  fallbackRows: readonly Record<string, unknown>[];
   /** 바깥 상자 높이(AgDataGrid `height`). 그리드는 이 상자의 남은 높이를 채운다. `"auto"` 는 행 수만큼 늘어난다. */
   height?: string | number;
   /** 지금의 ag-grid API(없으면 null). */
@@ -95,17 +99,30 @@ interface AgDataGridExcelFrameProps {
 }
 
 /** 바깥을 세로 flex 로 감싸 그리드가 남은 높이를 채우고, 아래 줄(GridExcelFoot)이 바닥에 붙게 한다. */
-export function AgDataGridExcelFrame({ options, columns, data, height, getApi, children }: AgDataGridExcelFrameProps) {
-  const { title, fallbackName, note, sheetName, testId } = options;
+export function AgDataGridExcelFrame({
+  options,
+  columns,
+  data,
+  fallbackRows,
+  height,
+  getApi,
+  children,
+}: AgDataGridExcelFrameProps) {
+  const { title, fallbackName, note, sheetName, testId, excludeKeys } = options;
   const isAuto = height === "auto";
 
   const handleExcel = useCallback(() => {
     const api = getApi();
-    const rows = displayedExcelRows(api, data);
+    const rows = displayedExcelRows(api, fallbackRows);
     if (rows.length === 0) return;
     const cols = api && !api.isDestroyed() ? displayedExcelColumns(api) : propsExcelColumns(columns);
-    void exportToExcel(rows, excelFileName(title, today(), fallbackName), sheetName, toExcelColumns(cols, rows));
-  }, [getApi, data, columns, title, fallbackName, sheetName]);
+    void exportToExcel(
+      rows,
+      excelFileName(title, today(), fallbackName),
+      sheetName,
+      toExcelColumns(cols, rows, excludeKeys),
+    );
+  }, [getApi, fallbackRows, columns, title, fallbackName, sheetName, excludeKeys]);
 
   return (
     <>

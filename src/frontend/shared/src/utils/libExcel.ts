@@ -45,7 +45,9 @@ export async function exportToExcel(
     sheetData = data;
   }
 
-  const worksheet = XLSX.utils.json_to_sheet(sheetData);
+  // 컬럼 정의가 있으면 열 순서를 header 로 못박는다. 행을 제목을 키로 한 객체로 만들기 때문에, 「2026」「1」처럼 정수 모양인 제목은
+  // 객체 키 순서 규칙상 맨 앞으로 와서 엑셀 열 순서가 컬럼 정의(그리드)와 달라진다.
+  const worksheet = XLSX.utils.json_to_sheet(sheetData, columns ? { header: columns.map((c) => c.header) } : undefined);
 
   if (columns) {
     worksheet["!cols"] = columns.map((col) => ({ wch: col.width || 15 }));

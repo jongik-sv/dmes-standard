@@ -1,7 +1,16 @@
-// libExcel 순수 함수 — 파일 이름(excelFileName)과 엑셀 컬럼(toExcelColumns). 실제 쓰기(exportToExcel)는 xlsx 가 한다.
-import { describe, expect, it } from "vitest";
+// libExcel — 파일 이름(excelFileName)·엑셀 컬럼(toExcelColumns) 순수 함수와, exportToExcel 이 만드는 시트의 열 순서.
+// exportToExcel 은 실제 xlsx 로 시트를 만들되, 파일로 쓰는 writeFile 만 대역으로 바꿔 만들어진 통합 문서를 받아 본다.
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as XLSX from "xlsx";
 
-import { EXCEL_DEFAULT_NAME, excelFileName, toExcelColumns } from "../../src/utils/libExcel";
+const h = vi.hoisted(() => ({ writeFile: vi.fn() }));
+
+vi.mock("xlsx", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("xlsx")>();
+  return { ...actual, writeFile: h.writeFile };
+});
+
+import { EXCEL_DEFAULT_NAME, excelFileName, exportToExcel, toExcelColumns } from "../../src/utils/libExcel";
 
 describe("excelFileName", () => {
   it("제목과 날짜로 만든다", () => {
@@ -85,5 +94,46 @@ describe("toExcelColumns", () => {
 
   it("제목이 비면 키를 제목으로 쓴다", () => {
     expect(toExcelColumns([{ key: "VAL", header: "" }], [])[0].header).toBe("VAL");
+  });
+});
+
+describe("exportToExcel — 시트의 열 순서", () => {
+  beforeEach(() => h.writeFile.mockReset());
+
+  /** writeFile 대역이 받은 통합 문서의 첫 시트를 줄 단위 배열(첫 줄 = 제목)로 읽는다. */
+  function writtenRows(): unknown[][] {
+    expect(h.writeFile).toHaveBeenCalledTimes(1);
+    const [workbook] = h.writeFile.mock.calls[0] as [XLSX.WorkBook];
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    return XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
+  }
+
+  it("columns 가 있으면 제목이 정수 모양(「2026」「1」)이어도 컬럼 정의 순서 그대로 첫 줄에 나온다", async () => {
+    const columns = toExcelColumns(
+      [
+        { key: "item", header: "품목" },
+        { key: "y2026", header: "2026" },
+        { key: "m1", header: "1" },
+      ],
+      []
+    );
+    await exportToExcel([{ item: "철근", y2026: 10, m1: 3 }], "a.xlsx", "Sheet1", columns);
+    expect(writtenRows()).toEqual([
+      ["품목", "2026", "1"],
+      ["철근", 10, 3],
+    ]);
+  });
+
+  it("columns 가 없으면 행 객체 그대로(필드 이름이 제목, 객체 키 순서)", async () => {
+    await exportToExcel([{ a: 1, b: 2 }], "a.xlsx");
+    expect(writtenRows()).toEqual([
+      ["a", "b"],
+      [1, 2],
+    ]);
+  });
+
+  it("행이 없으면 파일을 만들지 않는다", async () => {
+    await exportToExcel([], "a.xlsx", "Sheet1", [{ key: "a", header: "A" }]);
+    expect(h.writeFile).not.toHaveBeenCalled();
   });
 });

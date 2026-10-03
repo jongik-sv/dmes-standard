@@ -18,8 +18,14 @@ vi.mock("../../src/utils/libDate", async (importOriginal) => ({
 }));
 
 import { AgDataGrid, type GridColumn } from "../../src/components/grid/AgDataGrid";
-import { displayedExcelColumns, displayedExcelRows } from "../../src/components/grid/AgDataGridExcel";
+import {
+  AgDataGridExcelFrame,
+  displayedExcelColumns,
+  displayedExcelRows,
+} from "../../src/components/grid/AgDataGridExcel";
+import { MdmMetaProvider, resetMdmMetaStore } from "../../src/mdm-meta";
 import { renderWithMantine, rerender, type Rendered } from "./mantine-test-utils";
+import { TITLE, fakeMetaFetch, settle as settleMs } from "./mdm-meta-fixtures";
 
 const columns: GridColumn[] = [
   { key: "woNo", header: "작업지시번호" },
@@ -239,6 +245,142 @@ describe("AgDataGrid excelExport — [엑셀] 내려받기", () => {
     });
     await clickExcel();
     expect((h.exportToExcel.mock.calls[0][3] as { header: string }[]).map((c) => c.header)).toEqual(["값", "값(2)"]);
+  });
+});
+
+describe("AgDataGrid excelExport — 실제 그리드의 화면 상태를 따른다", () => {
+  const rowIds = () =>
+    [...container.querySelectorAll(".ag-center-cols-container .ag-row")]
+      .sort((a, b) => Number(a.getAttribute("row-index")) - Number(b.getAttribute("row-index")))
+      .map((el) => el.getAttribute("row-id"));
+  const exportedRowKeys = () => (h.exportToExcel.mock.calls[0][0] as { woNo: string }[]).map((r) => r.woNo);
+
+  async function clickHeader(colId: string) {
+    const label = container.querySelector(`.ag-header-cell[col-id="${colId}"] .ag-header-cell-label`)!;
+    await act(async () => {
+      label.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await settle();
+  }
+
+  it("머리글을 눌러 정렬하면 내려받는 행도 화면 순서를 따른다(data 순서와 다르다)", async () => {
+    await render({ excelExport: {} });
+    expect(rowIds()).toEqual(["W-2", "W-1", "W-3"]); // 정렬 전: data 순서
+    await clickHeader("woNo");
+    expect(rowIds()).toEqual(["W-1", "W-2", "W-3"]); // 오름차순
+    await clickExcel();
+    expect(exportedRowKeys()).toEqual(["W-1", "W-2", "W-3"]);
+    expect(exportedRowKeys()).not.toEqual(data.map((r) => r.woNo));
+
+    // 한 번 더 누르면 내림차순
+    h.exportToExcel.mockClear();
+    await clickHeader("woNo");
+    expect(rowIds()).toEqual(["W-3", "W-2", "W-1"]);
+    await clickExcel();
+    expect(exportedRowKeys()).toEqual(["W-3", "W-2", "W-1"]);
+  });
+
+  it("pinned 열은 화면 순서(왼쪽 고정이 맨 앞, 오른쪽 고정이 맨 뒤)를 따른다", async () => {
+    await render({
+      excelExport: {},
+      columns: [
+        { key: "woNo", header: "작업지시번호" },
+        { key: "qty", header: "수량(t)", pinned: "right" },
+        { key: "status", header: "상태", pinned: "left" },
+        { key: "etc", header: "비고" },
+      ],
+      data: [{ woNo: "W-1", qty: 1, status: "run", etc: "e" }],
+    });
+    await clickExcel();
+    expect((h.exportToExcel.mock.calls[0][3] as { key: string }[]).map((c) => c.key)).toEqual([
+      "status",
+      "woNo",
+      "etc",
+      "qty",
+    ]);
+  });
+
+  it("excludeKeys 에 든 열은 화면에 보여도 엑셀에서 뺀다", async () => {
+    await render({
+      excelExport: { excludeKeys: ["action", "status"] },
+      columns: [
+        { key: "woNo", header: "작업지시번호" },
+        { key: "action", header: "", render: () => createElement("button", null, "상세") },
+        { key: "qty", header: "수량(t)" },
+        { key: "status", header: "상태" },
+      ],
+      data: [{ woNo: "W-1", qty: 1, status: "run", action: null }],
+    });
+    expect(container.querySelector('.ag-header-cell[col-id="action"]')).not.toBeNull();
+    await clickExcel();
+    expect((h.exportToExcel.mock.calls[0][3] as { key: string }[]).map((c) => c.key)).toEqual(["woNo", "qty"]);
+  });
+
+  it("MDM 공급자 안에서 header 를 비운 열은 MDM 캡션이 엑셀 제목이 된다", async () => {
+    resetMdmMetaStore();
+    const f = fakeMetaFetch({ columns: { TITLE } });
+    vi.stubGlobal("fetch", f.fn);
+    try {
+      // MDM 공급자(포털 탭이 본문을 감싸는 것과 같다) 안에서 그린다
+      const element = createElement(
+        MdmMetaProvider,
+        { module: "mls" },
+        createElement(AgDataGrid, {
+          columns: [{ key: "title" }, { key: "category", header: "분류(화면)" }],
+          rowKey: "title",
+          data: [{ title: "가", category: "A" }],
+          excelExport: {},
+        } as never)
+      );
+      r = renderWithMantine(element);
+      container = r.host;
+      await settle();
+      await act(async () => {
+        await settleMs(80);
+      });
+      await clickExcel();
+      expect((h.exportToExcel.mock.calls[0][3] as { key: string; header: string }[]).map((c) => [c.key, c.header])).toEqual([
+        ["title", "제목"],
+        ["category", "분류(화면)"],
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe("AgDataGridExcelFrame — 그리드 API 가 없을 때의 대체 경로", () => {
+  it("화면 순서의 대체 행(fallbackRows)과 props 열(숨긴 열 제외, 열 그룹 잎)을 내보내고, 행 수·비활성은 data 로 정한다", async () => {
+    const sortedRows = [{ woNo: "W-1", qty: 1 }, { woNo: "W-2", qty: 2 }];
+    r = renderWithMantine(
+      createElement(
+        AgDataGridExcelFrame,
+        {
+          options: { title: "대체", excludeKeys: ["skip"] },
+          columns: [
+            { key: "woNo", header: "번호" },
+            { key: "hidden", header: "숨김", hide: true },
+            { key: "skip", header: "뺌" },
+            { key: "grp", header: "수량", children: [{ key: "qty" }] },
+          ] as GridColumn[],
+          data: [{ woNo: "W-2", qty: 2 }, { woNo: "W-1", qty: 1 }, { woNo: "W-3", qty: 3 }],
+          fallbackRows: sortedRows,
+          getApi: () => null,
+        },
+        createElement("div", { "data-testid": "child" })
+      )
+    );
+    container = r.host;
+    expect(q("grid-foot-note")!.textContent).toBe("3행"); // 전체 data 수
+    expect(button()!.disabled).toBe(false);
+    await clickExcel();
+    const [rows, fileName, , cols] = h.exportToExcel.mock.calls[0] as [unknown[], string, unknown, { key: string; header: string }[]];
+    expect(rows).toEqual(sortedRows);
+    expect(fileName).toBe("대체_20261003.xlsx");
+    expect(cols.map((c) => [c.key, c.header])).toEqual([
+      ["woNo", "번호"],
+      ["qty", "qty"],
+    ]);
   });
 });
 
