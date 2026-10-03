@@ -5,8 +5,10 @@
  *  `x-authenticated-user`·`x-authenticated-role` 을 사용자로 믿었다. 그래서 로그인하지 않은 브라우저도 세 헤더만 붙이면
  *  /api/{module}/oasis/* 를 아무 사용자(역할)로 BE 에 보낼 수 있었다(BE 는 X-Client-Key 를 보고 그 사용자를 믿는다).
  *  지금 동작:
- *   1) 내부 호출로 인정하는 곳은 /api/mcm/internal/*(BE → BFF 권한 캐시 무효화) 한 갈래뿐이고, 증명은 BFF↔BE 합의 비밀
- *      BACKEND_CLIENT_KEY 를 X-Client-Key 에 싣는 것이다. 그 밖 경로는 어떤 헤더로도 검사를 건너뛰지 않는다.
+ *   1) 내부 호출로 인정하는 곳은 /api/mcm/internal/*(BE → BFF 권한 캐시 무효화) 한 갈래뿐이고, 증명은 BE → BFF 전용 비밀
+ *      BFF_INTERNAL_SECRET 을 X-Bff-Internal-Secret 에 싣는 것이다. BFF → BE 마스터 비밀(BACKEND_CLIENT_KEY·X-Client-Key)로는
+ *      열리지 않는다(BE 가 마스터 비밀을 BFF 쪽으로 보내지 않게 나눴다). 운영에서 저장소 로컬 값·마스터 비밀과 같은 값이면 거절한다.
+ *      그 밖 경로는 어떤 헤더로도 검사를 건너뛰지 않는다.
  *   2) bff-auth 는 세션 쿠키만 본다 — 요청 헤더의 사용자 정보는 믿지 않는다.
  *   3) BE 로 넘기는 헤더는 BFF 가 새로 만든다 — 클라이언트가 보낸 X-Client-Key·X-Authenticated-*·x-internal-bff-call 은 가지 않는다.
  *   4) 서버 코드의 OASIS 호출(oasis-client)은 BFF 를 다시 부르지 않고 BE 를 바로 부른다.
@@ -16,6 +18,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.hoisted(() => {
   process.env.BACKEND_CLIENT_KEY = "test-client-key";
+  process.env.BFF_INTERNAL_SECRET = "test-internal-secret";
   process.env.MCM_WAS_URL = "http://be.test";
 });
 
@@ -41,7 +44,11 @@ import { POST as oasisPost } from "@/app/api/[module]/oasis/[serviceId]/[action]
 import { POST as invalidateRolePost } from "@/app/api/mcm/internal/cache/invalidate-role/route";
 
 const BFF = "http://bff.test";
+/** BFF → BE 마스터 비밀(BACKEND_CLIENT_KEY). 내부 경로는 이 값으로 열리지 않는다. */
 const KEY = "test-client-key";
+/** BE → BFF 내부 호출 비밀(BFF_INTERNAL_SECRET). */
+const SECRET = "test-internal-secret";
+const LOCAL_DEFAULT = "dmes-bff-internal-local-2026";
 const INVALIDATE = "/api/mcm/internal/cache/invalidate-role";
 /** 옛 우회에 쓰이던 헤더 묶음 — 내부 표식 + 사칭할 사용자·역할. */
 const SPOOF = {
@@ -57,6 +64,8 @@ const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 // 403 마다 남기는 [RBAC] 경고와 bff-auth 의 인증 실패 기록은 시험 출력에서 숨긴다.
 vi.spyOn(console, "warn").mockImplementation(() => {});
+// 운영 설정 오류 알림(console.error)도 숨긴다 — 값은 남기지 않는다.
+const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -93,22 +102,25 @@ function sentHeaders(call = 0): Record<string, string[]> {
   return out;
 }
 
-describe("isTrustedInternalCall — X-Client-Key 가 BACKEND_CLIENT_KEY 와 같을 때만 참", () => {
+describe("isTrustedInternalCall — X-Bff-Internal-Secret 이 BFF_INTERNAL_SECRET 과 같을 때만 참", () => {
   const h = (headers: Record<string, string>) => new Headers(headers);
 
-  it("맞는 비밀이면 참", () => {
-    expect(isTrustedInternalCall(h({ "x-client-key": KEY }))).toBe(true);
+  it("맞는 내부 비밀이면 참", () => {
+    expect(isTrustedInternalCall(h({ "x-bff-internal-secret": SECRET }))).toBe(true);
   });
 
-  it("옛 표식(x-internal-bff-call: 1)·틀린 비밀·길이가 다른 비밀·빈 값·없음은 거짓", () => {
+  it("마스터 비밀(X-Client-Key)만·옛 표식·틀린 비밀·길이가 다른 비밀·빈 값·없음은 거짓", () => {
     for (const headers of <Headerset[]>[
+      { "x-client-key": KEY },
+      { "x-client-key": SECRET },
+      { "x-bff-internal-secret": KEY },
       { "x-internal-bff-call": "1" },
-      { "x-internal-bff-call": KEY },
-      { "x-client-key": "1" },
-      { "x-client-key": "test-client-kez" },
-      { "x-client-key": `${KEY}x` },
-      { "x-client-key": KEY.slice(0, -1) },
-      { "x-client-key": "" },
+      { "x-internal-bff-call": SECRET },
+      { "x-bff-internal-secret": "1" },
+      { "x-bff-internal-secret": "test-internal-secreu" },
+      { "x-bff-internal-secret": `${SECRET}x` },
+      { "x-bff-internal-secret": SECRET.slice(0, -1) },
+      { "x-bff-internal-secret": "" },
       {},
     ]) {
       expect(isTrustedInternalCall(h(headers)), JSON.stringify(headers)).toBe(false);
@@ -117,14 +129,38 @@ describe("isTrustedInternalCall — X-Client-Key 가 BACKEND_CLIENT_KEY 와 같�
 
   it("서버에 비밀이 없거나(빈 값·공백) 비어 있으면 무엇을 보내도 거짓 — 빈 값끼리 같다고 통과하지 않는다", () => {
     for (const value of [undefined, "", "   "]) {
-      vi.stubEnv("BACKEND_CLIENT_KEY", value);
-      for (const presented of ["", "   ", KEY, "1"]) {
+      vi.stubEnv("BFF_INTERNAL_SECRET", value);
+      for (const presented of ["", "   ", SECRET, KEY, "1"]) {
         expect(
-          isTrustedInternalCall(h({ "x-client-key": presented })),
+          isTrustedInternalCall(h({ "x-bff-internal-secret": presented, "x-client-key": presented })),
           `${value}/${presented}`
         ).toBe(false);
       }
     }
+  });
+
+  it("운영(NODE_ENV=production)에서 저장소 로컬 값이면 맞게 보내도 거짓 — 개발에서는 참", () => {
+    vi.stubEnv("BFF_INTERNAL_SECRET", LOCAL_DEFAULT);
+    const local = h({ "x-bff-internal-secret": LOCAL_DEFAULT });
+    vi.stubEnv("NODE_ENV", "development");
+    expect(isTrustedInternalCall(local)).toBe(true);
+    vi.stubEnv("NODE_ENV", "production");
+    expect(isTrustedInternalCall(local)).toBe(false);
+    vi.stubEnv("BFF_INTERNAL_SECRET", ` ${LOCAL_DEFAULT} `);
+    expect(isTrustedInternalCall(h({ "x-bff-internal-secret": ` ${LOCAL_DEFAULT} ` }))).toBe(false);
+    // 운영이어도 별도 비밀이면 참
+    vi.stubEnv("BFF_INTERNAL_SECRET", "prod-internal-secret");
+    expect(isTrustedInternalCall(h({ "x-bff-internal-secret": "prod-internal-secret" }))).toBe(true);
+    // 알림에 비밀 값을 남기지 않는다
+    for (const call of errorSpy.mock.calls) {
+      expect(String(call.join(" "))).not.toContain(LOCAL_DEFAULT);
+    }
+  });
+
+  it("내부 비밀이 BACKEND_CLIENT_KEY 와 같으면 거짓 — 같으면 BE 가 마스터 비밀을 보내는 것과 다르지 않다", () => {
+    vi.stubEnv("BFF_INTERNAL_SECRET", KEY);
+    expect(isTrustedInternalCall(h({ "x-bff-internal-secret": KEY }))).toBe(false);
+    expect(isTrustedInternalCall(h({ "x-client-key": KEY }))).toBe(false);
   });
 });
 
@@ -147,17 +183,12 @@ describe("proxy — 업무 경로는 어떤 헤더로도 검사를 건너뛰지 
     expect(getUserPerms).toHaveBeenCalledWith("user1", { roles: ["USER"] });
   });
 
-  it("맞는 X-Client-Key 를 붙여도 내부 경로가 아니면 일반 검사 그대로(로그인 없으면 401, 권한 없으면 403)", async () => {
+  it("맞는 X-Client-Key·내부 비밀을 붙여도 내부 경로가 아니면 일반 검사 그대로(로그인 없으면 401, 권한 없으면 403)", async () => {
+    const both = { ...SPOOF, "x-client-key": KEY, "x-bff-internal-secret": SECRET };
     getToken.mockResolvedValue(null);
-    expect(await callProxy(RBAC_PATH, { ...SPOOF, "x-client-key": KEY })).toEqual({
-      status: 401,
-      passed: false,
-    });
+    expect(await callProxy(RBAC_PATH, both)).toEqual({ status: 401, passed: false });
     getToken.mockResolvedValue({ sub: "user1", roles: ["USER"] });
-    expect(await callProxy(RBAC_PATH, { ...SPOOF, "x-client-key": KEY })).toEqual({
-      status: 403,
-      passed: false,
-    });
+    expect(await callProxy(RBAC_PATH, both)).toEqual({ status: 403, passed: false });
   });
 
   it("권한키가 있으면 통과 — 정상 경로는 그대로", async () => {
@@ -166,10 +197,10 @@ describe("proxy — 업무 경로는 어떤 헤더로도 검사를 건너뛰지 
   });
 });
 
-describe("proxy — 내부 경로(/api/mcm/internal/*)는 BACKEND_CLIENT_KEY 로만 연다", () => {
-  it("맞는 X-Client-Key 면 세션 없이 통과하고 세션·권한 캐시를 보지 않는다", async () => {
+describe("proxy — 내부 경로(/api/mcm/internal/*)는 BFF_INTERNAL_SECRET 으로만 연다", () => {
+  it("맞는 내부 비밀이면 세션 없이 통과하고 세션·권한 캐시를 보지 않는다", async () => {
     getToken.mockResolvedValue(null);
-    expect(await callProxy(INVALIDATE, { "x-client-key": KEY })).toEqual({
+    expect(await callProxy(INVALIDATE, { "x-bff-internal-secret": SECRET })).toEqual({
       status: 200,
       passed: true,
     });
@@ -177,10 +208,13 @@ describe("proxy — 내부 경로(/api/mcm/internal/*)는 BACKEND_CLIENT_KEY 로
     expect(getUserPerms).not.toHaveBeenCalled();
   });
 
-  it("옛 표식(x-internal-bff-call: 1)만 있거나 비밀이 틀리면 로그인한 사용자여도 403", async () => {
+  it("마스터 비밀(X-Client-Key)만·옛 표식만·틀린 비밀·없음은 로그인한 사용자여도 403", async () => {
     for (const headers of <Headerset[]>[
+      { "x-client-key": KEY },
+      { "x-bff-internal-secret": KEY },
       { "x-internal-bff-call": "1" },
-      { "x-client-key": "wrong" },
+      { "x-bff-internal-secret": "wrong" },
+      { "x-bff-internal-secret": "" },
       {},
     ]) {
       expect(await callProxy(INVALIDATE, headers), JSON.stringify(headers)).toEqual({
@@ -190,18 +224,30 @@ describe("proxy — 내부 경로(/api/mcm/internal/*)는 BACKEND_CLIENT_KEY 로
     }
   });
 
-  it("서버에 비밀이 없으면 무엇을 보내도 403", async () => {
-    vi.stubEnv("BACKEND_CLIENT_KEY", "");
-    for (const headers of <Headerset[]>[
-      { "x-client-key": "" },
-      { "x-client-key": KEY },
-      { "x-internal-bff-call": "1" },
-    ]) {
-      expect(await callProxy(INVALIDATE, headers), JSON.stringify(headers)).toEqual({
-        status: 403,
-        passed: false,
-      });
+  it("서버에 비밀이 없거나 비면 무엇을 보내도 403", async () => {
+    for (const value of ["", "   "]) {
+      vi.stubEnv("BFF_INTERNAL_SECRET", value);
+      for (const headers of <Headerset[]>[
+        { "x-bff-internal-secret": value },
+        { "x-bff-internal-secret": SECRET },
+        { "x-client-key": KEY },
+        { "x-internal-bff-call": "1" },
+      ]) {
+        expect(await callProxy(INVALIDATE, headers), `${value}/${JSON.stringify(headers)}`).toEqual({
+          status: 403,
+          passed: false,
+        });
+      }
     }
+  });
+
+  it("운영에서 저장소 로컬 값이면 403", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("BFF_INTERNAL_SECRET", LOCAL_DEFAULT);
+    expect(await callProxy(INVALIDATE, { "x-bff-internal-secret": LOCAL_DEFAULT })).toEqual({
+      status: 403,
+      passed: false,
+    });
   });
 });
 
@@ -247,22 +293,26 @@ describe("권한 캐시 무효화 라우트 — 라우트도 비밀을 한 번 �
       })
     );
 
-  it("맞는 X-Client-Key 면 무효화한다", async () => {
-    const res = await invalidate({ "x-client-key": KEY });
+  it("맞는 내부 비밀이면 무효화한다", async () => {
+    const res = await invalidate({ "x-bff-internal-secret": SECRET });
     expect(res.status).toBe(200);
     expect(invalidateRole).toHaveBeenCalledWith("SYSADMIN");
   });
 
-  it("옛 표식만·틀린 비밀·비밀 없음은 403 — 캐시를 건드리지 않는다", async () => {
+  it("마스터 비밀만·옛 표식만·틀린 비밀·비밀 없음·운영 로컬 값은 403 — 캐시를 건드리지 않는다", async () => {
     for (const headers of <Headerset[]>[
+      { "x-client-key": KEY },
       { "x-internal-bff-call": "1" },
-      { "x-client-key": "wrong" },
+      { "x-bff-internal-secret": "wrong" },
       {},
     ]) {
       expect((await invalidate(headers, {} as never)).status, JSON.stringify(headers)).toBe(403);
     }
-    vi.stubEnv("BACKEND_CLIENT_KEY", "");
-    expect((await invalidate({ "x-client-key": "" }, {} as never)).status).toBe(403);
+    vi.stubEnv("BFF_INTERNAL_SECRET", "");
+    expect((await invalidate({ "x-bff-internal-secret": "" }, {} as never)).status).toBe(403);
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("BFF_INTERNAL_SECRET", LOCAL_DEFAULT);
+    expect((await invalidate({ "x-bff-internal-secret": LOCAL_DEFAULT }, {} as never)).status).toBe(403);
     expect(invalidateRole).not.toHaveBeenCalled();
     expect(invalidateAll).not.toHaveBeenCalled();
   });

@@ -56,12 +56,15 @@ cactus:
             hibernate.physical_naming_strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
 
 # ── 권한 캐시 즉시 무효화 (RoleChangedEventListener → BFF) ──
-# 2026-09-04 — 코드 기본값이 3000 인데 본 저장소의 포털(m-mcm)은 5100 이라 매 권한 변경마다
+# 2026-09-04 — 옛 코드 기본값이 3000 인데 본 저장소의 포털(m-mcm)은 5100 이라 매 권한 변경마다
 # "BFF invalidate-role 호출 실패 (swallow)" WARN 만 남고 BFF 라우트 핸들러 캐시가 안 비워졌다.
 # (BE UserPermCache 는 이벤트로 즉시 비워지므로 회수는 원래 즉시 차단됐다 — 이건 부여 반영 지연 쪽.)
+# 2026-10-03 — 코드 기본값을 없앴다. 주소·비밀 중 하나라도 없으면 부르지 않는다(application.yml mcm.bff 주석).
 mcm:
   bff:
     invalidate-role-url: http://localhost:5100/api/mcm/internal/cache/invalidate-role
+    # BE → BFF 내부 호출 비밀 — 로컬 전용 값(m-mcm .env.example 의 BFF_INTERNAL_SECRET 과 같다). 운영 BFF 는 이 값을 거절한다.
+    internal-secret: ${BFF_INTERNAL_SECRET:dmes-bff-internal-local-2026}
 
 # ── 포털알림 발행 클라이언트 (설계 §9 — pilotCaravanSend sendNotify 파일럿 루프백, local-ph 와 동일) ──
 cactus.notify:

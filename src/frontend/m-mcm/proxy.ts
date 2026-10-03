@@ -15,7 +15,8 @@
  *   6) RBAC 3패턴       → 서버캐시 권한키 멤버십 검증 (미보유 403) — SYSADMIN 프리패스 제거
  *                         (2026-07-30, 롤 무관 멤버십. BE 브레이크글라스 시 perm-keys=["*"] 로 전면 통과)
  *   7) 미매칭           → RBAC_DEFAULT_DENY=true 면 403, 아니면 통과 (aps/mpn/kmc rest 등)
- *   (예외) /api/mcm/internal/* → 서버 간 호출 전용. 세션·RBAC 대신 BFF↔BE 합의 비밀(X-Client-Key)만 본다(lib/http/internal-call.ts).
+ *   (예외) /api/mcm/internal/* → 서버 간 호출 전용. 세션·RBAC 대신 BE → BFF 전용 비밀(X-Bff-Internal-Secret = BFF_INTERNAL_SECRET)만
+ *         본다(lib/http/internal-call.ts). BFF → BE 마스터 비밀(BACKEND_CLIENT_KEY·X-Client-Key)은 여기서 받지 않는다.
  *   그 밖 경로는 어떤 요청 헤더로도 위 검사를 건너뛰지 않는다 — 옛 `x-internal-bff-call: 1` 통과는 브라우저도 붙일 수 있어 없앴다
  *   (2026-10-03 보안 지적: 세션 없이 그 헤더와 X-Authenticated-* 를 붙이면 /api/{module}/oasis/* 를 아무 사용자로 BE 에 보낼 수 있었다).
  *
@@ -130,7 +131,8 @@ export async function proxy(req: NextRequest) {
   }
 
   // 2-2) 서버 간 내부 경로(BE RoleChangedEventListener → 권한 캐시 무효화) — 세션 없는 서버 호출이라 사용자 RBAC 대신
-  //       BFF↔BE 합의 비밀(X-Client-Key = BACKEND_CLIENT_KEY)을 본다. 틀리거나 없으면 로그인한 사용자여도 403. 라우트가 한 번 더 본다.
+  //       BE → BFF 전용 비밀(X-Bff-Internal-Secret = BFF_INTERNAL_SECRET)을 본다. 틀리거나 없으면 로그인한 사용자여도 403.
+  //       마스터 비밀 X-Client-Key 로는 열리지 않는다. 라우트가 한 번 더 본다.
   if (path.startsWith(INTERNAL_API_PREFIX)) {
     return isTrustedInternalCall(req.headers)
       ? NextResponse.next()
