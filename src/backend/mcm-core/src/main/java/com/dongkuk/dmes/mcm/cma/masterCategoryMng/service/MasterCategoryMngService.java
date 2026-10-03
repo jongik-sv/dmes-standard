@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
 
 /**
  * 카테고리 관리 — masterCategoryMng OASIS 서비스 (Spring bean = {@code masterCategoryMngService}).
@@ -231,10 +232,6 @@ public class MasterCategoryMngService {
 
     private static String nz(String s) {
         return s == null ? "" : s.trim();
-    }
-
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s;
     }
 
     private static Integer toInt(Object o) {

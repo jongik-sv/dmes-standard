@@ -21,6 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
 
 /**
  * 일반 업무기준 등록(Excel Upload) — cmb/masterRuleDataUploadFilePopup OASIS 서비스
@@ -275,10 +276,6 @@ public class MasterRuleDataUploadFilePopupService {
     private static String currentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return auth == null || auth.getName() == null ? "system" : auth.getName();
-    }
-
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s;
     }
 
     private static String nvl(String s) {

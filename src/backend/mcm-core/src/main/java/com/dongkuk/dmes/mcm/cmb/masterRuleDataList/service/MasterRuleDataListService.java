@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
 
 /**
  * 업무기준 상세조회 — cmb/masterRuleDataList OASIS 서비스 (Spring bean = {@code masterRuleDataListService}).
@@ -237,10 +238,6 @@ public class MasterRuleDataListService {
             list.add(row);
         }
         return list;
-    }
-
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s;
     }
 
     private static String nvl(String s) {

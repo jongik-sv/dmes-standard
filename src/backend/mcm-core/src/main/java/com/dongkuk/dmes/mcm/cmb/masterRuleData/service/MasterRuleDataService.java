@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
 
 /**
  * 업무기준 Data관리 — cmb/masterRuleData OASIS 서비스 (Spring bean = {@code masterRuleDataService}).
@@ -381,10 +382,6 @@ public class MasterRuleDataService {
     private static String currentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return auth == null || auth.getName() == null ? "system" : auth.getName();
-    }
-
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s;
     }
 
     private static String nvl(String s) {
