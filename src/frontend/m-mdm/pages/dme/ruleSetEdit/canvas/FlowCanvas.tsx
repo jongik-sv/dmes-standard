@@ -118,8 +118,10 @@ import {
   SelectionMode,
   ViewportPortal,
   getSmoothStepPath,
+  getViewportForBounds,
   useReactFlow,
   useStore,
+  useStoreApi,
   type Connection,
   type Edge,
   type EdgeProps,
@@ -1756,8 +1758,28 @@ function Inner(props: FlowCanvasProps) {
     lastFit.current = { signal: fitSignal, key: fitKey };
     void rf.fitView({ ...FIT_OPTIONS, duration: last.key === fitKey ? 200 : 0 });
   }, [fitSignal, fitKey, rf]);
-  /** 화면 밖 안내의 [흐름도로 돌아가기] — [화면 맞춤] 과 같다. */
-  const fitAll = useCallback(() => void rf.fitView({ ...FIT_OPTIONS, duration: 200 }), [rf]);
+  /**
+   * 노드들(null 이면 보이는 노드 전부)에 화면을 곧바로 맞춘다 — 고른 것으로 이동(Shift+2)·화면 밖 안내 [흐름도로 돌아가기].
+   * rf.fitView 는 React Flow 12 에서 대기열에 올렸다가 다음 노드 갱신(setNodes) 때 실행하므로, 캔버스를 다시 그리지 않는
+   * 키·단추에서 부르면 다른 일로 다시 그릴 때까지 미뤄진다(브라우저 확인). 그래서 경계 상자로 화면을 계산해 setViewport 로 넣는다.
+   * [화면 맞춤](fitSignal)은 page 상태가 바뀌어 다시 그리므로 rf.fitView 그대로다.
+   */
+  const storeApi = useStoreApi();
+  const fitNodes = useCallback(
+    (ids: readonly string[] | null, padding: number, maxZoom?: number): boolean => {
+      const { width, height, minZoom, maxZoom: max } = storeApi.getState();
+      const targets = ids ?? rf.getNodes().filter((n) => !n.hidden).map((n) => n.id);
+      if (targets.length === 0 || !(width > 0) || !(height > 0)) return false;
+      const vp = getViewportForBounds(rf.getNodesBounds([...targets]), width, height, minZoom, maxZoom ?? max, padding);
+      void rf.setViewport(vp, { duration: 200 });
+      return true;
+    },
+    [rf, storeApi],
+  );
+  /** 화면 밖 안내의 [흐름도로 돌아가기] — [화면 맞춤] 과 같은 여백. */
+  const fitAll = useCallback(() => void fitNodes(null, FIT_OPTIONS.padding), [fitNodes]);
+  const fitNodesRef = useRef(fitNodes);
+  fitNodesRef.current = fitNodes;
 
   /** 화면 좌표 → 흐름 좌표(정수). */
   const flowAt = (clientX: number, clientY: number): FlowPos => {
@@ -2097,8 +2119,7 @@ function Inner(props: FlowCanvasProps) {
       const targets = [...new Set(ids.map(drawn))].filter((id) => rf.getNode(id));
       if (targets.length === 0) return false;
       // 노드 하나도 너무 크게 키우지 않는다 — 지금 배율보다 줄이거나 1 배까지만 키운다.
-      void rf.fitView({ nodes: targets.map((id) => ({ id })), padding: 0.3, maxZoom: Math.max(rf.getZoom(), 1), duration: 200 });
-      return true;
+      return fitNodesRef.current(targets, 0.3, Math.max(rf.getZoom(), 1));
     };
     return () => {
       fitSelectionRef.current = null;
