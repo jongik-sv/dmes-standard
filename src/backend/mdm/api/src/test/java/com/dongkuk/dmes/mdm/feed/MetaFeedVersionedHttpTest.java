@@ -357,6 +357,46 @@ class MetaFeedVersionedHttpTest {
     }
 
     @Test
+    void CODE_current_는_마지막_적용_종료_이후와_빈틈에서도_소급으로_있고_at_이_없으면_null_이며_RELEASED_가_없으면_versions_가_비고_current_는_null_이다() throws Exception {
+        seedCode();
+        MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
+        seeds.seedCode("CL_CD", "INUSE", "MDM"); // 닫힌 끝 — 마지막 버전의 적용 종료가 지난 뒤
+        seeds.released("CL_CD", "1.000", "2026-01-01 00:00:00", "2026-04-01 00:00:00");
+        seeds.released("CL_CD", "2.000", "2026-04-01 00:00:00", "2026-07-01 00:00:00");
+        seeds.seedCode("GAP_CD", "INUSE", "MDM"); // 두 버전 사이에 빈틈
+        seeds.released("GAP_CD", "1.000", "2026-01-01 00:00:00", "2026-03-01 00:00:00");
+        seeds.released("GAP_CD", "2.000", "2026-05-01 00:00:00", MasterCodeSeeds.OPEN_END);
+        seeds.seedCode("DR_CD", "INUSE", "MDM"); // RELEASED 가 없다
+        seeds.draft("DR_CD", "1.000", "kim");
+
+        JsonNode after = toc("CODE", "2027-01-01T00:00:00", "VS_CD", "CL_CD");
+        assertEquals("2.000", tocItem(after, "VS_CD").path("current").path("ver").asText(), "열린 끝 마지막 버전");
+        assertEquals("1.000", tocItem(after, "CL_CD").path("current").path("ver").asText(), "마지막 버전의 적용 종료 이후는 ver 가 가장 작은 RELEASED 로 소급(엔진 CodeVersions.select)");
+        assertFalse(tocItem(after, "CL_CD").path("current").isNull(), "RULE 과 달리 적용 종료 이후에도 current 가 있다");
+        JsonNode gap = toc("CODE", "2026-04-01T00:00:00", "GAP_CD");
+        assertEquals("1.000", tocItem(gap, "GAP_CD").path("current").path("ver").asText(), "빈틈은 ver 가 가장 작은 RELEASED 로 소급");
+        assertFalse(tocItem(gap, "GAP_CD").path("current").isNull(), "RULE 과 달리 빈틈에서도 current 가 있다");
+
+        JsonNode noAt = toc("CODE", null, "VS_CD", "GAP_CD");
+        assertTrue(tocItem(noAt, "VS_CD").path("current").isNull(), "at 이 없으면 current 는 null");
+        assertTrue(tocItem(noAt, "GAP_CD").path("current").isNull());
+        assertEquals(3, tocItem(noAt, "VS_CD").path("value").path("versions").size(), "versions 는 at 과 무관하게 싣는다");
+
+        JsonNode none = toc("CODE", "2026-08-01T00:00:00", "DR_CD");
+        assertEquals(0, tocItem(none, "DR_CD").path("value").path("versions").size(), none.toString());
+        assertTrue(tocItem(none, "DR_CD").path("current").isNull(), none.toString());
+    }
+
+    private static JsonNode tocItem(JsonNode toc, String key) {
+        for (JsonNode i : toc.path("items")) {
+            if (key.equals(i.path("key").asText())) {
+                return i;
+            }
+        }
+        throw new AssertionError("items 에 없다: " + key + " in " + toc);
+    }
+
+    @Test
     void CODE_저장값이_깨진_코드는_그_키만_failed_이고_묶음은_거부하지_않는다() throws Exception {
         seedCode();
         MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
@@ -370,10 +410,12 @@ class MetaFeedVersionedHttpTest {
         assertEquals(1, t.path("items").size(), t.toString());
         assertEquals("VS_CD", t.path("items").get(0).path("key").asText());
         assertEquals("BAD_CD", t.path("failed").get(0).path("key").asText(), t.toString());
+        assertFalse(t.path("failed").get(0).path("message").asText().isBlank(), t.toString());
 
         JsonNode b = bodies("CODE", "VS_CD", "2.000", "BAD_CD", "1.000");
         assertEquals(1, b.path("items").size(), b.toString());
         assertEquals("BAD_CD", b.path("failed").get(0).path("key").asText(), b.toString());
+        assertFalse(failed(b, "BAD_CD", "1.000").path("message").asText().isBlank(), b.toString());
     }
 
     static JsonNode category(JsonNode body, String cateId) {

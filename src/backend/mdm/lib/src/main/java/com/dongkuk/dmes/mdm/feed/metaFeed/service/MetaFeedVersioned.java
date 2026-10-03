@@ -182,16 +182,16 @@ public class MetaFeedVersioned {
     private void codesToc(List<String> ids, LocalDateTime at, MetaFeedVersionedResult.Builder b) {
         MasterCodeLedgerQueries ledger = definitions.ledger();
         for (String id : ids) {
-            Optional<MasterCodeLedgerQueries.Header> header = ledger.header(id);
-            if (header.isEmpty()) {
-                continue;
-            }
-            List<CodeVersionRow> released = ledger.versions(id).stream()
-                    .filter(v -> RELEASED.equals(v.status()))
-                    .map(v -> new CodeVersionRow(VersionNumbers.scaled(v.ver()), v.status(), v.applyFrom(), v.applyTo()))
-                    .sorted(Comparator.comparing(CodeVersionRow::ver))
-                    .toList();
-            try { // 코드 하나의 저장값이 깨져도(잘못된 REGEX·모르는 defTarget) 그 키만 failed — 묶음 거부는 옛 MDM 신호(나)로 읽힌다
+            try { // 코드 하나의 원장 읽기·저장값이 깨져도(잘못된 REGEX·모르는 defTarget) 그 키만 failed — 묶음 거부는 옛 MDM 신호(나)로 읽힌다
+                Optional<MasterCodeLedgerQueries.Header> header = ledger.header(id);
+                if (header.isEmpty()) {
+                    continue;
+                }
+                List<CodeVersionRow> released = ledger.versions(id).stream()
+                        .filter(v -> RELEASED.equals(v.status()))
+                        .map(v -> new CodeVersionRow(VersionNumbers.scaled(v.ver()), v.status(), v.applyFrom(), v.applyTo()))
+                        .sorted(Comparator.comparing(CodeVersionRow::ver))
+                        .toList();
                 Map<String, Object> current = at == null ? null : CodeVersions.select(released, at)
                         .map(ver -> MetaFeedVersionedResult.current(ver, MetaFeedJson.plain(CodeVersionSlicer.slice(projected(id), ver))))
                         .orElse(null);
@@ -213,9 +213,15 @@ public class MetaFeedVersioned {
     /** 본문 루프는 T5 의 {@code renderBodies} 가 한 번만 쓴다 — 여기는 적재(원장 → 투영)와 렌더(자르기) 두 식이다. 저장값이 깨진 코드는 그 쌍만 failed(렌더 예외). */
     private void codeBodies(List<MetaFeedService.BodyKey> keys, MetaFeedVersionedResult.Builder b) {
         this.<CodeVer>renderBodies(keys, b,
-                id -> new MdmCodeLookup(definitions.ledger()).code(id).map(CodeRowsProjection::releasedOnly)
-                        .map(rows -> Loaded.of(rows.versions().stream().map(v -> new CodeVer(rows, v)).toList()))
-                        .orElse(Loaded.of(List.of())),
+                id -> {
+                    try {
+                        return new MdmCodeLookup(definitions.ledger()).code(id).map(CodeRowsProjection::releasedOnly)
+                                .map(rows -> Loaded.of(rows.versions().stream().map(v -> new CodeVer(rows, v)).toList()))
+                                .orElse(Loaded.of(List.of()));
+                    } catch (RuntimeException e) {
+                        return Loaded.failed(e);
+                    }
+                },
                 c -> c.row().ver(),
                 (k, c) -> MetaFeedJson.plain(CodeVersionSlicer.slice(c.rows(), k.ver())));
     }
