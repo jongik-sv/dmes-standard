@@ -99,7 +99,8 @@ function actionCell(seq: number): Element {
   holder.innerHTML = html;
   // 공급자(Mantine)가 넣는 <style> 은 칸 내용이 아니다.
   holder.querySelectorAll("style").forEach((x) => x.remove());
-  const el = holder.querySelector("[title]") ?? holder.firstElementChild;
+  // 맨 바깥 요소의 title 을 본다 — 안쪽 요소에만 title 이 있으면 말줄임되는 바깥 칸에서 보이지 않을 수 있다(검토 N2).
+  const el = holder.firstElementChild;
   expect(el, `처리 칸 ${seq}`).toBeTruthy();
   return el!;
 }
