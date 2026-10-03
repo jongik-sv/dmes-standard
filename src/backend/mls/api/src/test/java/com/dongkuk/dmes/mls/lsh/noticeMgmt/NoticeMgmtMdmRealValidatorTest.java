@@ -49,7 +49,7 @@ class NoticeMgmtMdmRealValidatorTest extends MlsTestDb {
 
     private static MdmColumnMeta title(int length, boolean required) {
         return new MdmColumnMeta("TITLE", "제목", "제목", "제목", "제목", null, null, "STRING", length, null,
-                required, null, null, null, null, new MdmColumnMeta.DomainRef("183", "설명", "TEXT"), null, null, List.of(), null);
+                required, null, null, null, null, new MdmColumnMeta.DomainRef("183", "설명", "TEXT"), null, null, List.of(), null, null, null);
     }
 
     /** 피드가 TITLE 만 안다({@code knowsTitle} 이 거짓이면 TITLE 도 모른다 — 관리자가 컬럼을 지운 상태). {@code down} 이면 MDM 을 받을 수 없다. */

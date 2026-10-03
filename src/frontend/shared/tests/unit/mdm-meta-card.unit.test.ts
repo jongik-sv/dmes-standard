@@ -80,6 +80,35 @@ describe("MdmMetaCard", () => {
     expect(section("format")).toContain("선택");
   });
 
+  it("별칭으로 맞았으면 제목 아래에 \"{시스템} 이름 {별칭} · 표준 {물리명}\" 한 줄이 보인다", () => {
+    render(
+      createElement(MdmMetaCard, {
+        column: column("ABS_CHM_RPLN_AMT", {
+          columnName: "금액",
+          matchedSystem: "MES",
+          systemPhysName: "ABS_CHM_SLP_AMT",
+        }),
+      })
+    );
+
+    expect(sections()).toEqual(["title", "alias", "format"]);
+    expect(section("alias")).toBe("MES 이름 ABS_CHM_SLP_AMT · 표준 ABS_CHM_RPLN_AMT");
+  });
+
+  it("표준 이름으로 맞았거나(null) 옛 모듈 응답(칸 없음)이면 별칭 줄이 없다", () => {
+    render(createElement(MdmMetaCard, { column: column("USE_YN", { matchedSystem: null, systemPhysName: null }) }));
+    expect(sections()).not.toContain("alias");
+    act(() => root?.unmount());
+    host.remove();
+    render(createElement(MdmMetaCard, { column: column("USE_YN") }));
+    expect(sections()).not.toContain("alias");
+  });
+
+  it("한 칸만 있으면(시스템 또는 별칭 없음) 별칭 줄을 그리지 않는다", () => {
+    render(createElement(MdmMetaCard, { column: column("USE_YN", { matchedSystem: "MES", systemPhysName: null }) }));
+    expect(sections()).not.toContain("alias");
+  });
+
   it("표준식은 컬럼에 없으면 도메인 것을 쓴다", () => {
     render(
       createElement(MdmMetaCard, {

@@ -3,7 +3,7 @@
 /**
  * MdmMetaCard — MDM 컬럼·도메인 정보를 보여 주는 툴팁 본문(spec B3). 업무와 무관한 표시 부품이다.
  *
- * 순서: ① 제목(labelLong → columnName → 물리명) + 물리명 ② 설명·사용 메모 ③ 형식(`STRING(20)`·`NUMBER(3,1)`)·필수·기본값
+ * 순서: ① 제목(labelLong → columnName → 물리명) + 물리명 (①-b 시스템 별칭으로 맞았으면 "{시스템} 이름 {별칭} · 표준 {물리명}" 한 줄, `alias`) ② 설명·사용 메모 ③ 형식(`STRING(20)`·`NUMBER(3,1)`)·필수·기본값
  * ④ 도메인 이름(ID·종류)·단위 ⑤ 표준식 원문 ⑥ 허용 코드 앞 10개(`코드 이름`, 나머지는 "외 N개") ⑦ 서버 업무 규칙 안내(원문은 싣지 않는다).
  * 값이 없는 칸은 그리지 않는다. 각 칸은 `data-mdm-section` 으로 집을 수 있다.
  *
@@ -71,6 +71,8 @@ export function MdmMetaCard({ column, domain }: MdmMetaCardProps) {
   const restCodes = codes.length - shownCodes.length;
   const bizRule = column.bizRuleOnServer || !!domain?.bizRuleOnServer;
   const domainMeta = [domainId, domainKind].filter(Boolean).join(" · ");
+  const aliasSystem = text(column.matchedSystem);
+  const aliasName = text(column.systemPhysName);
 
   return (
     <span className="mdm-meta-card" style={cardStyle}>
@@ -78,6 +80,11 @@ export function MdmMetaCard({ column, domain }: MdmMetaCardProps) {
         <span style={titleStyle}>{title}</span>
         <span style={physStyle}>{column.physName}</span>
       </Row>
+      {aliasSystem && aliasName ? (
+        <Row section="alias">
+          {aliasSystem} 이름 <span style={monoStyle}>{aliasName}</span> · 표준 <span style={monoStyle}>{column.physName}</span>
+        </Row>
+      ) : null}
       {description || usageNote ? (
         <Row section="description">
           {description ? <span style={{ display: "block" }}>{description}</span> : null}

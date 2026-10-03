@@ -170,6 +170,13 @@ class MdmAutoConfigurationTest {
     }
 
     @Test
+    void system_code_기본은_없고_설정하면_속성에_닿는다() {
+        runner.withPropertyValues(ON).run(ctx -> assertThat(ctx.getBean(MdmClientProperties.class).getSystemCode()).isNull());
+        runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.system-code=MES")
+                .run(ctx -> assertThat(ctx.getBean(MdmClientProperties.class).getSystemCode()).isEqualTo("MES"));
+    }
+
+    @Test
     void module_설정이_없으면_service_group_을_쓰고_그것도_없으면_app_이다() {
         runner.withPropertyValues(ON).withPropertyValues("cactus.oasis.service-group=mqc")
                 .run(ctx -> assertThat(ctx.getBean(MdmMetaController.class).module()).isEqualTo("mqc"));

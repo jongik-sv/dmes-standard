@@ -70,6 +70,7 @@ cactus:
   mdm:
     enabled: ${MDM_CACHE_ENABLED:true}
     module: mls
+    system-code: MES      # 컬럼 별칭 매칭에 쓰는 MDM 시스템 코드(표준 물리명으로 못 찾으면 이 시스템의 별칭으로 찾는다)
     base-url: ${MDM_WAS_URL:http://localhost:8096}
     client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}
     poll-interval: 10s
