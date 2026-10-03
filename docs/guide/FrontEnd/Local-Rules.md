@@ -361,6 +361,8 @@ ruleMng 는 상세를 `useEffect([selectedId])` 로만 읽어, 같은 행을 다
 
 - 목록+상세 화면의 상세는 고르는 곳(행 클릭·첫 줄 자동 선택·등록 뒤·[조회])에서 **직접** 부른다. 같은 행이어도 다시 읽는다. 선택 상태 effect 에 맡기면 값이 같을 때 돌지 않는다.
 - 상세 응답은 요청 순번으로 가드한다. 순번이 지금 것과 다르면 성공·실패 모두 버리고, busy 도 지금 요청이 끝날 때만 푼다. 예: `m-mdm/pages/dme/ruleMng/page.tsx` 의 `detailSeq`, dmc `codeMng`.
-- 다시 읽어도 저장하지 않은 입력은 말없이 지우지 않는다. 같은 대상이고 입력이 이전 서버 값·새 서버 값과 모두 다르면 입력을 남기고, 저장에는 입력을 시작할 때의 낙관적 잠금 값을 보낸다. 입력을 버리는 길은 [다시 불러오기] 처럼 사용자가 누르는 것만 둔다. 예: `RuleDetailPanel` 의 `formAuditVer`.
-- 팝업이 서버 등록을 부르면 `onAdd`·`onSubmit` 은 성공 여부(`boolean`)를 돌려주고, 팝업은 성공일 때만 칸을 비우고 닫는다. 거부는 오류창으로 알리고 입력을 남긴다. 오류창이 떠 있는 동안 팝업 닫기를 무시하는 것은 §18 을 따른다. 예: `dmd/dataItemMng/cate/components/CategoryAddModal.tsx`, `useDataCategories.ts` 의 `write`.
+- 다시 읽어도 저장하지 않은 입력은 말없이 지우지 않는다. 같은 대상이고 입력이 이전 서버 값·새 서버 값과 모두 다르면 입력을 남기고, 저장에는 입력을 시작할 때의 낙관적 잠금 값을 보낸다. 입력을 버리는 길은 [다시 불러오기]·충돌 오류창 닫기처럼 사용자가 누르는 것만 둔다. 예: `RuleDetailPanel` 의 `formAuditVer`, dmc `codeMng`·dmd `dataMng` 의 `apply`(`serverForm`·`formAuditVer`, 충돌 뒤 다시 읽기는 `discard`).
+- 상세를 서버에서 다시 읽지 않고 목록 행 값으로 채우는 화면은 같은 행을 다시 누를 때 폼을 다시 채우지 않는다. 목록을 새로 받을 때 선택도 비우므로 다시 채우면 입력만 사라진다. 예: dma `termMng`·`unitMng` 의 `handleRowClick`.
+- 다른 행으로 옮길 때 입력을 버리는 동작은 모든 화면이 같고 확인 창을 두지 않는다(2026-10-03 결정).
+- 팝업이 서버 등록을 부르면 `onAdd`·`onSubmit` 은 성공 여부(`boolean`)를 돌려주고, 팝업은 성공일 때만 칸을 비우고 닫는다. 로컬 diff 에만 얹는 팝업은 이미 있는 ID(서버 행·로컬 새 행)를 팝업 안에서 막고 서버와 같은 문구를 보인다(예: dmc `codeItemEdit` `CategoryAddModal` 의 `existingIds`). 팝업 컴포넌트가 닫혔을 때 `return null` 하려면 훅을 모두 부른 뒤에 하고, 다시 열 때 칸을 비우는 일은 열리는 렌더에서 상태를 맞춰 한다(`wasOpen`). 거부는 오류창으로 알리고 입력을 남긴다. 오류창이 떠 있는 동안 팝업 닫기를 무시하는 것은 §18 을 따른다. 예: `dmd/dataItemMng/cate/components/CategoryAddModal.tsx`, `useDataCategories.ts` 의 `write`.
 - 시험은 같은 행 다시 누르기·[조회]·늦게 온 옛 응답·미저장 입력, 그리고 등록 거부 뒤 오류창을 닫거나 Escape 를 눌러도 입력이 남는지를 본다. 예: `tests/dme/ruleMng/rule-mng-page.test.ts`, `tests/dmd/dataItemMng/data-item-page.test.ts`.
