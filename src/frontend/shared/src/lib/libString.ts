@@ -46,7 +46,7 @@ import { gfn_isNull } from './libUtil';
  * gfn_blankStr(undefined)  // ""
  * gfn_blankStr(null)       // ""
  * gfn_blankStr("  hello  ") // "hello"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `blankStr` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `blankStr` 를 쓴다.
  */
 export function gfn_blankStr(oParam: unknown): string {
   const strParam = String(oParam);
@@ -67,7 +67,7 @@ export function gfn_blankStr(oParam: unknown): string {
  * gfn_toString(123)     // "123"
  * gfn_toString(null)    // ""
  * gfn_toString(undefined) // ""
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `toString` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `toString` 를 쓴다.
  */
 export function gfn_toString(val: unknown): string {
   if (gfn_isNull(val)) {
@@ -87,7 +87,7 @@ export function gfn_toString(val: unknown): string {
  * @example
  * gfn_nullToEmpty(null, "없음")  // "없음"
  * gfn_nullToEmpty("값", "없음")  // "값"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `nullToEmpty` 도 사용처가 없어 함께 옮긴다. 반환 타입·동작 다름(lib 는 값의 타입을 그대로 돌려주고 utils 는 문자열로 바꾼다).
+ * @deprecated `@dk-oasis/shared/utils` 의 `nullToEmpty` 를 쓴다. 반환 타입·동작이 다르다(lib 는 값의 타입을 그대로 돌려주고 utils 는 문자열로 바꾼다).
  */
 export function gfn_nullToEmpty<T>(sValue: T | null | undefined, sEmptyVal: T | string = ""): T | string {
   if (gfn_isNull(sValue)) {
@@ -111,7 +111,7 @@ export function gfn_nullToEmpty<T>(sValue: T | null | undefined, sEmptyVal: T | 
  * gfn_getLength("hello")  // 5
  * gfn_getLength(12345)    // 5
  * gfn_getLength(null)     // 0
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getLength` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `getLength` 를 쓴다.
  */
 export function gfn_getLength(val: unknown): number {
   if (gfn_isNull(val)) {
@@ -123,7 +123,7 @@ export function gfn_getLength(val: unknown): number {
 /**
  * @function gfn_length
  * @description gfn_getLength의 별칭
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `length` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `length` 를 쓴다.
  */
 export const gfn_length = gfn_getLength;
 
@@ -138,7 +138,7 @@ export const gfn_length = gfn_getLength;
  * gfn_getLengthB("hello")   // 5
  * gfn_getLengthB("안녕")    // 4 (한글 2byte)
  * gfn_getLengthB("hello안녕") // 9
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getByteLength` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `getByteLength` 를 쓴다.
  */
 export function gfn_getLengthB(sValue: string | null | undefined): number {
   if (gfn_isNull(sValue)) {
@@ -193,7 +193,7 @@ export function gfn_isMaxLength(val: unknown, nLimit: number): boolean {
  * @example
  * gfn_left("hello world", 5)  // "hello"
  * gfn_left("hello", 10)       // "hello"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `left` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `left` 를 쓴다.
  */
 export function gfn_left(sText: string | number, nSize: number | null | undefined): string {
   const str = String(sText);
@@ -214,7 +214,7 @@ export function gfn_left(sText: string | number, nSize: number | null | undefine
  * @example
  * gfn_right("hello world", 5)  // "world"
  * gfn_right("hello", 10)       // "hello"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `right` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `right` 를 쓴다.
  */
 export function gfn_right(sText: string | number, nSize: number): string {
   const str = String(sText);
@@ -241,7 +241,7 @@ export function gfn_right(sText: string | number, nSize: number): string {
  * @example
  * gfn_mid("hello[world]end", "[", "]")  // "world"
  * gfn_mid("aaBBbbccdd", "bb", "dd")     // "cc"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `mid` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `mid` 를 쓴다.
  */
 export function gfn_mid(sOrg: string | null | undefined, sStart: string = "", sEnd: string = "", nStart: number = 0): string {
   if (gfn_isNull(sOrg)) {
@@ -289,7 +289,7 @@ export function gfn_mid(sOrg: string | null | undefined, sStart: string = "", sE
  * @example
  * gfn_indexOf("hello world", "world")  // 6
  * gfn_indexOf("hello world", "x")      // -1
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `indexOf` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `indexOf` 를 쓴다.
  */
 export function gfn_indexOf(val: unknown, strOld: string, index: number = 0): number {
   return gfn_toString(val).indexOf(strOld, index);
@@ -307,7 +307,7 @@ export function gfn_indexOf(val: unknown, strOld: string, index: number = 0): nu
  * @example
  * gfn_pos("aaBBbbcc", "bb")  // 4
  * gfn_pos("aaBBbbcc", "BB")  // 2
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `pos` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `pos` 를 쓴다.
  */
 export function gfn_pos(sOrg: string | null | undefined, sFind: string | null | undefined, nStart: number = 0): number {
   if (gfn_isNull(sOrg) || gfn_isNull(sFind)) {
@@ -331,7 +331,7 @@ export function gfn_pos(sOrg: string | null | undefined, sFind: string | null | 
  * @example
  * gfn_split("a,b,c", ",")  // ["a", "b", "c"]
  * gfn_split("hello", "")   // ["hello"]
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `split` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `split` 를 쓴다.
  */
 export function gfn_split(strString: string | null | undefined, strChar: string | null | undefined): string[] {
   if (gfn_isNull(strString)) {
@@ -356,7 +356,7 @@ export function gfn_split(strString: string | null | undefined, strChar: string 
  *
  * @example
  * gfn_replace("hello world world", "world", "react")  // "hello react world"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `replace` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `replace` 를 쓴다.
  */
 export function gfn_replace(val: unknown, strOld: string, strNew: string): string {
   if (gfn_isNull(val)) {
@@ -376,7 +376,7 @@ export function gfn_replace(val: unknown, strOld: string, strNew: string): strin
  *
  * @example
  * gfn_replaceAll("hello world world", "world", "react")  // "hello react react"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `replaceAll` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `replaceAll` 를 쓴다.
  */
 export function gfn_replaceAll(val: unknown, strOld: string, strNew: string): string {
   if (gfn_isNull(val)) {
@@ -400,7 +400,7 @@ export function gfn_replaceAll(val: unknown, strOld: string, strNew: string): st
  * @example
  * gfn_lTrim("   hello")      // "hello"
  * gfn_lTrim("000123", "0")   // "123"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `lTrim` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `lTrim` 를 쓴다.
  */
 export function gfn_lTrim(sOrg: unknown, sTrim: string = " "): string {
   if (gfn_isNull(sOrg)) {
@@ -430,7 +430,7 @@ export function gfn_lTrim(sOrg: unknown, sTrim: string = " "): string {
  * @example
  * gfn_rTrim("hello   ")      // "hello"
  * gfn_rTrim("12300", "0")    // "123"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `rTrim` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `rTrim` 를 쓴다.
  */
 export function gfn_rTrim(sOrg: unknown, sTrim: string = " "): string {
   if (gfn_isNull(sOrg)) {
@@ -460,7 +460,7 @@ export function gfn_rTrim(sOrg: unknown, sTrim: string = " "): string {
  * @example
  * gfn_trim("  hello  ")      // "hello"
  * gfn_trim("00012300", "0")  // "123"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `trim` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `trim` 를 쓴다.
  */
 export function gfn_trim(sOrg: unknown, sTrim: string = " "): string {
   let result = gfn_rTrim(sOrg, sTrim);
@@ -484,7 +484,7 @@ export function gfn_trim(sOrg: unknown, sTrim: string = " "): string {
  * @example
  * gfn_lpad("5", "0", 3)    // "005"
  * gfn_lpad("123", "0", 5)  // "00123"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `lpad` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `lpad` 를 쓴다.
  */
 export function gfn_lpad(sOrg: string | number, sPad: string = " ", nCnt?: number | null): string {
   let orgStr = typeof sOrg !== "string" ? String(sOrg) : sOrg;
@@ -518,7 +518,7 @@ export function gfn_lpad(sOrg: string | number, sPad: string = " ", nCnt?: numbe
  * @example
  * gfn_rpad("5", "0", 3)    // "500"
  * gfn_rpad("123", "0", 5)  // "12300"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `rpad` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `rpad` 를 쓴다.
  */
 export function gfn_rpad(sOrg: string | number, sPad: string = " ", nCnt?: number | null): string {
   let orgStr = typeof sOrg !== "string" ? String(sOrg) : sOrg;
@@ -547,7 +547,7 @@ export function gfn_rpad(sOrg: string | number, sPad: string = " ", nCnt?: numbe
  * @param sPad - 채울 문자 (default: " ")
  * @param nCnt - 전체 길이
  * @returns 패딩된 문자열
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `fullLpad` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `fullLpad` 를 쓴다.
  */
 export function gfn_full_lpad(sOrg: string | number, sPad: string = " ", nCnt?: number | null): string {
   let orgStr = typeof sOrg !== "string" ? String(sOrg) : sOrg;
@@ -577,7 +577,7 @@ export function gfn_full_lpad(sOrg: string | number, sPad: string = " ", nCnt?: 
  * @param sPad - 채울 문자 (default: " ")
  * @param nCnt - 전체 길이 (byte 기준)
  * @returns 패딩된 문자열
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `fullRpad` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `fullRpad` 를 쓴다.
  */
 export function gfn_full_rpad(sOrg: string | number, sPad: string = " ", nCnt?: number | null): string {
   let orgStr = typeof sOrg !== "string" ? String(sOrg) : sOrg;
@@ -611,7 +611,7 @@ export function gfn_full_rpad(sOrg: string | number, sPad: string = " ", nCnt?: 
  *
  * @example
  * gfn_quote("hello")  // "'hello'"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `quote` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `quote` 를 쓴다.
  */
 export function gfn_quote(sReturn: string): string {
   return "'" + sReturn + "'";
@@ -628,7 +628,7 @@ export function gfn_quote(sReturn: string): string {
  * gfn_getNum("123")   // 123
  * gfn_getNum("abc")   // 0
  * gfn_getNum("12.5")  // 12
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getNum` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `getNum` 를 쓴다.
  */
 export function gfn_getNum(sNum: string | number | null | undefined): number {
   if (gfn_isNum(sNum)) {
@@ -648,7 +648,7 @@ export function gfn_getNum(sNum: string | number | null | undefined): number {
  * gfn_isAlpha("hello")   // true
  * gfn_isAlpha("hello1")  // false
  * gfn_isAlpha("한글")    // false
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `isAlpha` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `isAlpha` 를 쓴다.
  */
 export function gfn_isAlpha(sValue: string | null | undefined): boolean {
   if (gfn_isNull(sValue)) {
@@ -668,7 +668,7 @@ export function gfn_isAlpha(sValue: string | null | undefined): boolean {
  * gfn_isNum("12345")  // true
  * gfn_isNum("123.45") // false
  * gfn_isNum("abc")    // false
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `isNum` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `isNum` 를 쓴다.
  */
 export function gfn_isNum(sValue: unknown): boolean {
   if (gfn_isNull(sValue)) {
@@ -689,7 +689,7 @@ export function gfn_isNum(sValue: unknown): boolean {
  * gfn_isNumeric("-123")   // true
  * gfn_isNumeric("12.34")  // true
  * gfn_isNumeric("abc")    // false
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `isNumeric` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `isNumeric` 를 쓴다.
  */
 export function gfn_isNumeric(sValue: unknown): boolean {
   if (gfn_isNull(sValue)) {
@@ -708,7 +708,7 @@ export function gfn_isNumeric(sValue: unknown): boolean {
  *
  * @example
  * gfn_returnSplit("a,b,c", ",")  // "'a','b','c'"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `returnSplit` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `returnSplit` 를 쓴다.
  */
 export function gfn_returnSplit(strString: string, strChar: string): string {
   const arr = String(strString).split(strChar);
@@ -725,7 +725,7 @@ export function gfn_returnSplit(strString: string, strChar: string): string {
  * @example
  * gfn_camelize("hello_world")  // "helloWorld"
  * gfn_camelize("hello-world")  // "helloWorld"
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `camelize` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `camelize` 를 쓴다.
  */
 export function gfn_camelize(str: string | null | undefined): string {
   if (gfn_isNull(str)) {

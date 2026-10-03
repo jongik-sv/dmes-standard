@@ -20,7 +20,7 @@
  * sendMessage("SEC_OBJ_CHANGED", { objId: "..." });
  */
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 대체 없음. 저장소 안 사용처 없음. */
 export interface BroadcastMessage {
   type: string;
   payload: unknown;
@@ -66,13 +66,13 @@ function dispatchToListeners(msg: BroadcastMessage): void {
   }
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 대체 없음. 저장소 안 사용처 없음. */
 export function initBroadcastChannel(): BroadcastChannel | null {
   ensureChannel();
   return channel;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 대체 없음. 저장소 안 사용처 없음. */
 export function sendMessage(type: string, payload?: unknown): void {
   ensureChannel();
   const msg: BroadcastMessage = { type, payload, timestamp: Date.now() };
@@ -89,7 +89,7 @@ export function sendMessage(type: string, payload?: unknown): void {
  *
  * 이전 버전은 `channel.onmessage = ...` 로 단일 리스너만 지원했다. 이제는 Set 기반으로
  * 다중 리스너를 지원하며 BroadcastChannel + window CustomEvent 모두를 listen 한다.
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다.
+ * @deprecated 대체 없음. 저장소 안 사용처 없음.
  */
 export function onMessage(callback: Listener): () => void {
   ensureChannel();
@@ -99,12 +99,12 @@ export function onMessage(callback: Listener): () => void {
   };
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 대체 없음. 저장소 안 사용처 없음. */
 export function notifyDataUpdate(dataType: string, data?: unknown): void {
   sendMessage(MESSAGE_TYPES.DATA_UPDATE, { dataType, data });
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 대체 없음. 저장소 안 사용처 없음. */
 export function closeChannel(): void {
   if (channel) {
     channel.close();
@@ -114,7 +114,7 @@ export function closeChannel(): void {
   initialized = false;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 대체 없음. 저장소 안 사용처 없음. */
 export const MESSAGE_TYPES = {
   DATA_UPDATE: "DATA_UPDATE",
   MENU_RELOAD: "MENU_RELOAD",

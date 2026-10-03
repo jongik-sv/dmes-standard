@@ -105,5 +105,5 @@ export function toExcelColumns(
     });
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `exportToExcel` 을 쓴다. */
 export const gfn_exportToExcel = exportToExcel;

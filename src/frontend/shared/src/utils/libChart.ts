@@ -9,7 +9,7 @@ interface RMateWorkbook {
 
 /**
  * RMate Chart H5 라이센스 정보 조회
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다.
+ * @deprecated 저장소 안 사용처 없음.
  */
 export function getRMateChartH5License(wb: RMateWorkbook): string {
   return wb.rMateChartH5License;

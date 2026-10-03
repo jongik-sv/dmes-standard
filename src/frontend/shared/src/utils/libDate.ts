@@ -11,7 +11,6 @@ function isNumStr(sValue: unknown): boolean {
   return /^[0-9]+$/.test(String(sValue));
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isDate(sDate: string): boolean {
   if (isNullOrEmpty(sDate)) return false;
   if (sDate.length !== 8 && sDate.length !== 14) return false;
@@ -23,7 +22,6 @@ export function isDate(sDate: string): boolean {
   return true;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isLeapYear(sDate: string): boolean {
   if (isNullOrEmpty(sDate)) return false;
   const nY = parseInt(String(sDate).substring(0, 4), 10);
@@ -33,7 +31,6 @@ export function isLeapYear(sDate: string): boolean {
   return false;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isTime(sTime: string): boolean {
   if (isNullOrEmpty(sTime)) return false;
   if (sTime.length !== 6) return false;
@@ -47,7 +44,6 @@ export function isTime(sTime: string): boolean {
   return true;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function strToDate(sDate: string): Date {
   if (typeof sDate === "string") {
     return new Date(
@@ -59,7 +55,6 @@ export function strToDate(sDate: string): Date {
   return sDate as unknown as Date;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function dateToStr(dDate: Date): string {
   const date = new Date(dDate);
   const year = date.getFullYear();
@@ -68,7 +63,6 @@ export function dateToStr(dDate: Date): string {
   return `${year}${month}${day}`;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatDate(dateStr: string): string {
   if (!dateStr) return "";
   const date = new Date(dateStr);
@@ -84,12 +78,10 @@ export function today(): string {
   return `${year}${month}${day}`;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function getCurrentYear(): string {
   return today().substring(0, 4);
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function getCurrentTime(): string {
   const d = new Date();
   const h = String(d.getHours()).padStart(2, "0");
@@ -98,12 +90,10 @@ export function getCurrentTime(): string {
   return `${h}${m}${s}`;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function getDateTime(): string {
   return today() + getCurrentTime();
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const getSysDate = getDateTime;
 
 export function addDays(strDate: string | number, nDay: number): string {
@@ -118,7 +108,6 @@ export function addDays(strDate: string | number, nDay: number): string {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function addMonths(strDate: string | number, nMon: number): string {
   const s = String(strDate);
   const n = Number(nMon);
@@ -133,7 +122,6 @@ export function addMonths(strDate: string | number, nMon: number): string {
   return `${targetDate.getFullYear()}${String(targetDate.getMonth() + 1).padStart(2, "0")}${String(finalDay).padStart(2, "0")}`;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function addYears(strDate: string | number, nYear: number): string {
   const s = String(strDate);
   const n = Number(nYear);
@@ -146,13 +134,11 @@ export function addYears(strDate: string | number, nYear: number): string {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function getFirstDayOfMonth(sDate: string): string {
   if (isNullOrEmpty(sDate)) return "";
   return sDate.substring(0, 6) + "01";
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function lastDateNum(sDate: string): number {
   if (isNullOrEmpty(sDate)) return -1;
   const nMonth = parseInt(String(sDate).substring(4, 6), 10);
@@ -161,30 +147,25 @@ export function lastDateNum(sDate: string): number {
   return 30;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function getLastDate(sDate: string): number {
   return lastDateNum(sDate);
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function getLastDayOfMonth(sDate: string): string {
   if (isNullOrEmpty(sDate)) return "";
   const lastDay = lastDateNum(sDate);
   return sDate.substring(0, 6) + String(lastDay).padStart(2, "0");
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function getDayOfWeek(sDate: string): number {
   return strToDate(sDate).getDay();
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function getDayOfWeekName(sDate: string): string {
   const dayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
   return dayNames[getDayOfWeek(sDate)];
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function diffDays(sStartDate: string, sEndDate: string): number {
   if (isNullOrEmpty(sStartDate) || isNullOrEmpty(sEndDate)) return NaN;
   const s = String(sStartDate);
@@ -202,7 +183,6 @@ export function diffDays(sStartDate: string, sEndDate: string): number {
   return Math.floor((fromDate.getTime() - toDate.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function diffHour(sSDate: string, sEDate: string): string {
   const fromDate = new Date(
     parseInt(sEDate.substring(0, 4), 10),
@@ -227,7 +207,6 @@ export function diffHour(sSDate: string, sEDate: string): string {
   return sHours + sMinutes + sSeconds;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function diffDay(sSDate: string, sEDate: string): number {
   const fromDate = new Date(
     parseInt(sEDate.substring(0, 4), 10),
@@ -249,7 +228,6 @@ export function diffDay(sSDate: string, sEDate: string): number {
   return Math.floor(nMillis / 1000 / (60 * 60 * 24));
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface TimeDiff {
   days: number;
   hours: number;
@@ -259,7 +237,6 @@ export interface TimeDiff {
   text: string;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function calculateTime(sSDate: string, sEDate: string): TimeDiff {
   const fromDate = new Date(
     parseInt(sEDate.substring(0, 4), 10),
@@ -292,7 +269,6 @@ export function calculateTime(sSDate: string, sEDate: string): TimeDiff {
   };
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function totalWeek(date: string): number {
   const objDate = strToDate(date);
   const tdt = new Date(objDate.valueOf());
@@ -306,7 +282,6 @@ export function totalWeek(date: string): number {
   return 1 + Math.ceil((firstThursday - tdt.valueOf()) / 604800000);
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function chkDataRange(sFromDt: string, sToDt: string, iMonthVal: number = 2): boolean {
   if (isNullOrEmpty(sFromDt) || isNullOrEmpty(sToDt)) return false;
   const diff = diffDays(String(sFromDt), String(sToDt));
@@ -314,70 +289,68 @@ export function chkDataRange(sFromDt: string, sToDt: string, iMonthVal: number =
   return true;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function toHyphenDate(sDate: string): string {
   if (isNullOrEmpty(sDate) || sDate.length < 8) return sDate;
   return `${sDate.substring(0, 4)}-${sDate.substring(4, 6)}-${sDate.substring(6, 8)}`;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function toCompactDate(sDate: string): string {
   if (isNullOrEmpty(sDate)) return "";
   return String(sDate).replace(/-/g, "");
 }
 
 // gfn_ 호환 별칭
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `isDate` 을 쓴다. */
 export const gfn_isDate = isDate;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `isLeapYear` 을 쓴다. */
 export const gfn_isLeapYear = isLeapYear;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `isTime` 을 쓴다. */
 export const gfn_isTime = isTime;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `strToDate` 을 쓴다. */
 export const gfn_strToDate = strToDate;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `dateToStr` 을 쓴다. */
 export const gfn_dateToStr = dateToStr;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `today` 을 쓴다. */
 export const gfn_today = today;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `getCurrentYear` 을 쓴다. */
 export const gfn_getCurrentYear = getCurrentYear;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `getCurrentTime` 을 쓴다. */
 export const gfn_getCurrentTime = getCurrentTime;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `getDateTime` 을 쓴다. */
 export const gfn_getDateTime = getDateTime;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `getSysDate` 을 쓴다. */
 export const gfn_getSysDate = getSysDate;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `addDays` 을 쓴다. */
 export const gfn_getDay = addDays;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `addMonths` 을 쓴다. */
 export const gfn_getMonth = addMonths;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `addYears` 을 쓴다. */
 export const gfn_getYear = addYears;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `getFirstDayOfMonth` 을 쓴다. */
 export const gfn_getFastDate = getFirstDayOfMonth;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `getLastDate` 을 쓴다. */
 export const gfn_getLastDate = getLastDate;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `lastDateNum` 을 쓴다. */
 export const gfn_lastDateNum = lastDateNum;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `getLastDayOfMonth` 을 쓴다. */
 export const gfn_getLastDateStr = getLastDayOfMonth;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `getDayOfWeek` 을 쓴다. */
 export const gfn_getYoil = getDayOfWeek;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `getDayOfWeekName` 을 쓴다. */
 export const gfn_getYoilName = getDayOfWeekName;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `diffDays` 을 쓴다. */
 export const gfn_diffDate = diffDays;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `diffHour` 을 쓴다. */
 export const gfn_diffHour = diffHour;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `diffDay` 을 쓴다. */
 export const gfn_diffDay = diffDay;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `calculateTime` 을 쓴다. */
 export const gfn_calculateTime = calculateTime;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `totalWeek` 을 쓴다. */
 export const gfn_total_week = totalWeek;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `chkDataRange` 을 쓴다. */
 export const gfn_chkDataRange = chkDataRange;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `toHyphenDate` 을 쓴다. */
 export const gfn_addHyphenDate = toHyphenDate;
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 같은 모듈의 `toCompactDate` 을 쓴다. */
 export const gfn_removeHyphenDate = toCompactDate;

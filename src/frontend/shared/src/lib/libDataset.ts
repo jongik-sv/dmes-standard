@@ -32,7 +32,7 @@
 // ============================================================
 
 /** 데이터 행 타입
- * @deprecated `@dk-oasis/shared/utils` 에는 같은 타입이 비공개다. Record<string, unknown> 을 직접 쓴다.
+ * @deprecated 대체 없음. 저장소 안 사용처 없음.
  */
 export type DataRow = Record<string, unknown>;
 
@@ -53,7 +53,7 @@ export type DataRow = Record<string, unknown>;
  * const data = [{id: 1, name: '홍길동'}, {id: 2, name: '김철수'}];
  * gfn_findFirstRow(data, 'id', 2)  // 1
  * gfn_findFirstRow(data, 'id', 5)  // -1
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `findFirstRow` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `findFirstRow` 를 쓴다.
  */
 export function gfn_findFirstRow(dataArray: DataRow[], col: string, val: unknown): number {
   if (!Array.isArray(dataArray)) return -1;
@@ -79,7 +79,7 @@ export function gfn_findFirstRow(dataArray: DataRow[], col: string, val: unknown
  * @example
  * const data = [{type: 'A'}, {type: 'B'}, {type: 'A'}];
  * gfn_findRows(data, 'type', 'A')  // [0, 2]
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `findRows` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `findRows` 를 쓴다.
  */
 export function gfn_findRows(dataArray: DataRow[], col: string, val: unknown): number[] {
   const result: number[] = [];
@@ -105,7 +105,7 @@ export function gfn_findRows(dataArray: DataRow[], col: string, val: unknown): n
  * @example
  * const data = [{type: 'A', status: 1}, {type: 'A', status: 2}];
  * gfn_findRowsByMultiCol(data, {type: 'A', status: 1})  // [0]
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `findRowsByMultiCol` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `findRowsByMultiCol` 를 쓴다.
  */
 export function gfn_findRowsByMultiCol(dataArray: DataRow[], conditions: Record<string, unknown>): number[] {
   const result: number[] = [];
@@ -139,7 +139,7 @@ export function gfn_findRowsByMultiCol(dataArray: DataRow[], conditions: Record<
  * @param col2 - 두번째 컬럼명
  * @param val2 - 두번째 값
  * @returns 찾은 행 인덱스 배열
- * @deprecated 오타 이름이다. 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `findRowsByMultiCol`(조건 객체 방식으로 시그니처가 다르다)도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `findRowsByMultiCol` 를 쓴다. 오타 이름이고, 조건 객체 방식이라 시그니처가 다르다.
  */
 export function gfn_findMutiColRows(dataArray: DataRow[], col1: string, val1: unknown, col2: string, val2: unknown): number[] {
   return gfn_findRowsByMultiCol(dataArray, { [col1]: val1, [col2]: val2 });
@@ -161,7 +161,7 @@ export function gfn_findMutiColRows(dataArray: DataRow[], col1: string, val1: un
  * @example
  * const data = [{type: 'A'}, {type: 'B'}, {type: 'A'}];
  * gfn_deleteRows(data, 'type', 'A')  // [{type: 'B'}]
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `deleteRows` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `deleteRows` 를 쓴다.
  */
 export function gfn_deleteRows(dataArray: DataRow[], col: string, val: unknown): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
@@ -179,7 +179,7 @@ export function gfn_deleteRows(dataArray: DataRow[], col: string, val: unknown):
  * @param col2 - 두번째 컬럼명
  * @param val2 - 두번째 값
  * @returns 삭제 후 새 배열
- * @deprecated 오타 이름이다. 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 에서 같은 일을 하는 `deleteRows`·`findRowsByMultiCol` 조합도 사용처가 없어 함께 옮긴다.
+ * @deprecated 대체 없음. 저장소 안 사용처 없음.
  */
 export function gfn_deleteMutiColRows(dataArray: DataRow[], col1: string, val1: unknown, col2: string, val2: unknown): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
@@ -198,7 +198,7 @@ export function gfn_deleteMutiColRows(dataArray: DataRow[], col1: string, val1: 
  * @example
  * const data = [{id: 1}, {id: 2}, {id: 3}];
  * gfn_deleteMultiRows(data, [0, 2])  // [{id: 2}]
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `deleteMultiRows` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `deleteMultiRows` 를 쓴다.
  */
 export function gfn_deleteMultiRows(dataArray: DataRow[], indices: number[]): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
@@ -225,7 +225,7 @@ export function gfn_deleteMultiRows(dataArray: DataRow[], indices: number[]): Da
  * const data = [{code: 'A', type: 1}, {code: 'A', type: 1}, {code: 'B', type: 1}];
  * gfn_isDuplicationCheck(data, ['code', 'type'])  // true
  * gfn_isDuplicationCheck(data, 'code')  // true
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `isDuplicationCheck` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `isDuplicationCheck` 를 쓴다.
  */
 export function gfn_isDuplicationCheck(dataArray: DataRow[], columnIds: string[] | string, currentRow: number | null = null): boolean {
   if (!Array.isArray(dataArray) || dataArray.length === 0) return false;
@@ -268,7 +268,7 @@ export function gfn_isDuplicationCheck(dataArray: DataRow[], columnIds: string[]
  * @example
  * const data = [{code: 'A'}, {code: 'B'}, {code: 'A'}];
  * gfn_dsDupDel(data, 'code')  // [{code: 'A'}, {code: 'B'}]
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `removeDuplicates` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `removeDuplicates` 를 쓴다.
  */
 export function gfn_dsDupDel(dataArray: DataRow[], columnIds: string[] | string): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
@@ -296,7 +296,7 @@ export function gfn_dsDupDel(dataArray: DataRow[], columnIds: string[] | string)
 /**
  * @constant ROW_TYPE
  * @description 행 상태 타입 (Nexacro 호환 - 숫자)
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `ROW_TYPE` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `ROW_TYPE` 를 쓴다.
  */
 export const ROW_TYPE = {
   NORMAL: 1,      // 변경 없음
@@ -313,7 +313,7 @@ export const ROW_TYPE = {
  * @example
  * import { ROW_STATUS } from '@/lib';
  * newRow.nativeeditor_status = ROW_STATUS.INSERTED;
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `ROW_STATUS` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `ROW_STATUS` 를 쓴다.
  */
 export const ROW_STATUS = {
   INSERTED: 'inserted',
@@ -324,7 +324,7 @@ export const ROW_STATUS = {
 /**
  * @interface ChangedRows
  * @description gfn_getChangedRows 반환 타입
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `ChangedRows` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `ChangedRows` 를 쓴다.
  */
 export interface ChangedRows {
   inserted: DataRow[];
@@ -344,7 +344,7 @@ export interface ChangedRows {
  * const original = [{id: 1, name: '홍길동'}];
  * const current = [{id: 1, name: '김철수'}];
  * gfn_isDatasetChanged(current, original)  // true
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `isDatasetChanged` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `isDatasetChanged` 를 쓴다.
  */
 export function gfn_isDatasetChanged(dataArray: unknown, originalArray: unknown): boolean {
   if (!Array.isArray(dataArray) || !Array.isArray(originalArray)) {
@@ -375,7 +375,7 @@ export function gfn_isDatasetChanged(dataArray: unknown, originalArray: unknown)
  * ];
  * gfn_getChangedRows(data)
  * // { inserted: [{...}], updated: [{...}], deleted: [] }
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getChangedRows` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `getChangedRows` 를 쓴다.
  */
 export function gfn_getChangedRows(dataArray: DataRow[]): ChangedRows {
   const result: ChangedRows = {
@@ -419,7 +419,7 @@ export function gfn_getChangedRows(dataArray: DataRow[]): ChangedRows {
  * @param subCol - 서브 키 컬럼명 (옵션)
  * @param subVal - 서브 키 값 (옵션)
  * @returns 행 인덱스 (없으면 -1)
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `findData` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `findData` 를 쓴다.
  */
 export function gfn_findData(dataArray: DataRow[], idCol: string, idVal: unknown, subCol: string | null = null, subVal: unknown = null): number {
   if (!Array.isArray(dataArray)) return -1;
@@ -455,7 +455,7 @@ export function gfn_findData(dataArray: DataRow[], idCol: string, idVal: unknown
  * const data = [{id: 1, name: '홍길동'}];
  * gfn_editData(data, 'id', 1, 'name', '김철수')
  * // [{id: 1, name: '김철수'}]
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `editData` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `editData` 를 쓴다.
  */
 export function gfn_editData(dataArray: DataRow[], idCol: string, idVal: unknown, valCol: string, newVal: unknown, subCol: string | null = null, subVal: unknown = null): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
@@ -480,7 +480,7 @@ export function gfn_editData(dataArray: DataRow[], idCol: string, idVal: unknown
  * @param subCol - 서브 키 컬럼명 (옵션)
  * @param subVal - 서브 키 값 (옵션)
  * @returns 삭제 후 새 배열
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `deleteData` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `deleteData` 를 쓴다.
  */
 export function gfn_deleteData(dataArray: DataRow[], idCol: string, idVal: unknown, subCol: string | null = null, subVal: unknown = null): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
@@ -511,7 +511,7 @@ export function gfn_deleteData(dataArray: DataRow[], idCol: string, idVal: unkno
  * const data = [{code: 'A', name: '옵션1'}];
  * gfn_setFirstRow(data, '', '선택', 'code', 'name')
  * // [{code: '', name: '선택'}, {code: 'A', name: '옵션1'}]
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `setFirstRow` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `setFirstRow` 를 쓴다.
  */
 export function gfn_setFirstRow(dataArray: DataRow[], codeValue: unknown, dataValue: unknown, codeColumn: string = 'code', dataColumn: string = 'name'): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
@@ -527,7 +527,7 @@ export function gfn_setFirstRow(dataArray: DataRow[], codeValue: unknown, dataVa
 /**
  * @interface RowCopyResult
  * @description gfn_rowcopyData 반환 타입
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `RowCopyResult` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `RowCopyResult` 를 쓴다.
  */
 export interface RowCopyResult {
   data: DataRow[];
@@ -549,7 +549,7 @@ export interface RowCopyResult {
  * const data = [{id: 1, name: '홍길동'}];
  * gfn_rowcopyData(data, 0)
  * // { data: [{id: 1, name: '홍길동'}, {id: 1, name: '홍길동'}], newRowIndex: 1 }
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `rowcopyData` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `rowcopyData` 를 쓴다.
  */
 export function gfn_rowcopyData(dataArray: DataRow[], sourceRow: number, columns: string[] | null = null, insertType: 'A' | 'I' = 'A', currentRow: number | null = null): RowCopyResult {
   if (!Array.isArray(dataArray)) return { data: [], newRowIndex: -1 };
@@ -595,7 +595,7 @@ export function gfn_rowcopyData(dataArray: DataRow[], sourceRow: number, columns
  * @param rowData - 추가할 행 데이터 (옵션)
  * @param position - 삽입 위치 (-1이면 마지막에 추가)
  * @returns 추가된 새 배열
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `addRow` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `addRow` 를 쓴다.
  */
 export function gfn_addRow(dataArray: DataRow[], rowData: DataRow = {}, position: number = -1): DataRow[] {
   if (!Array.isArray(dataArray)) return [rowData];
@@ -627,7 +627,7 @@ export function gfn_addRow(dataArray: DataRow[], rowData: DataRow = {}, position
  * @example
  * const data = [{id: 1, name: '홍길동'}, {id: 2, name: '김철수'}];
  * gfn_getColumnValues(data, 'name')  // ['홍길동', '김철수']
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `getColumnValues` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `getColumnValues` 를 쓴다.
  */
 export function gfn_getColumnValues(dataArray: DataRow[], column: string): unknown[] {
   if (!Array.isArray(dataArray)) return [];
@@ -645,7 +645,7 @@ export function gfn_getColumnValues(dataArray: DataRow[], column: string): unkno
  * @example
  * const data = [{amount: 100}, {amount: 200}, {amount: 300}];
  * gfn_sumColumn(data, 'amount')  // 600
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `sumColumn` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `sumColumn` 를 쓴다.
  */
 export function gfn_sumColumn(dataArray: DataRow[], column: string): number {
   if (!Array.isArray(dataArray)) return 0;
@@ -662,7 +662,7 @@ export function gfn_sumColumn(dataArray: DataRow[], column: string): number {
  * @param dataArray - 데이터 배열
  * @param column - 컬럼명
  * @returns 평균
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `avgColumn` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `avgColumn` 를 쓴다.
  */
 export function gfn_avgColumn(dataArray: DataRow[], column: string): number {
   if (!Array.isArray(dataArray) || dataArray.length === 0) return 0;
@@ -676,7 +676,7 @@ export function gfn_avgColumn(dataArray: DataRow[], column: string): number {
  * @param dataArray - 데이터 배열
  * @param column - 컬럼명
  * @returns 최대값
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `maxColumn` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `maxColumn` 를 쓴다.
  */
 export function gfn_maxColumn(dataArray: DataRow[], column: string): number | null {
   if (!Array.isArray(dataArray) || dataArray.length === 0) return null;
@@ -691,7 +691,7 @@ export function gfn_maxColumn(dataArray: DataRow[], column: string): number | nu
  * @param dataArray - 데이터 배열
  * @param column - 컬럼명
  * @returns 최소값
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `minColumn` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `minColumn` 를 쓴다.
  */
 export function gfn_minColumn(dataArray: DataRow[], column: string): number | null {
   if (!Array.isArray(dataArray) || dataArray.length === 0) return null;
@@ -707,7 +707,7 @@ export function gfn_minColumn(dataArray: DataRow[], column: string): number | nu
  * @param column - 컬럼명 (옵션)
  * @param value - 값 (옵션)
  * @returns 행 수
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `countColumn` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `countColumn` 를 쓴다.
  */
 export function gfn_countColumn(dataArray: DataRow[], column: string | null = null, value: unknown = null): number {
   if (!Array.isArray(dataArray)) return 0;
@@ -725,12 +725,12 @@ export function gfn_countColumn(dataArray: DataRow[], column: string | null = nu
 // ============================================================
 
 /** 집계 타입
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `AggType` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `AggType` 를 쓴다.
  */
 export type AggregationType = 'sum' | 'avg' | 'count' | 'max' | 'min';
 
 /** 정렬 설정
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `SortConfig` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `SortConfig` 를 쓴다.
  */
 export interface SortConfig {
   column: string;
@@ -754,7 +754,7 @@ export interface SortConfig {
  * ];
  * gfn_groupBy(data, 'dept', {amount: 'sum'})
  * // [{dept: 'A', amount: 300}, {dept: 'B', amount: 150}]
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `groupBy` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `groupBy` 를 쓴다.
  */
 export function gfn_groupBy(dataArray: DataRow[], groupColumns: string | string[], aggregations: Record<string, AggregationType> = {}): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
@@ -820,7 +820,7 @@ export function gfn_groupBy(dataArray: DataRow[], groupColumns: string | string[
  * @example
  * const data = [{name: '김', age: 30}, {name: '이', age: 25}];
  * gfn_sortBy(data, 'age', 'asc')  // [{name: '이', age: 25}, ...]
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `sortBy` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `sortBy` 를 쓴다.
  */
 export function gfn_sortBy(dataArray: DataRow[], columns: string | SortConfig[], order: 'asc' | 'desc' = 'asc'): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
@@ -858,7 +858,7 @@ export function gfn_sortBy(dataArray: DataRow[], columns: string | SortConfig[],
  * @param fromIndex - 원본 인덱스
  * @param toIndex - 대상 인덱스
  * @returns 이동된 새 배열
- * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. `@dk-oasis/shared/utils` 의 같은 기능 `moveRow` 도 사용처가 없어 함께 옮긴다.
+ * @deprecated `@dk-oasis/shared/utils` 의 `moveRow` 를 쓴다.
  */
 export function gfn_moveRow(dataArray: DataRow[], fromIndex: number, toIndex: number): DataRow[] {
   if (!Array.isArray(dataArray)) return [];

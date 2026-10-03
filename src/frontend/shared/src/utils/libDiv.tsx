@@ -23,7 +23,7 @@ interface SidebarProviderProps {
   children: ReactNode;
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 저장소 안 사용처 없음. */
 export function SidebarProvider({ children }: SidebarProviderProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -54,7 +54,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   );
 }
 
-/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
+/** @deprecated 저장소 안 사용처 없음. */
 export function useSidebar(): SidebarContextValue {
   const context = useContext(SidebarContext);
   if (!context) {
