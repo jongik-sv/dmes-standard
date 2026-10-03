@@ -179,7 +179,7 @@ export function TransferList<T extends TransferListItem>(props: TransferListProp
   ) => (
     <div data-testid={`${testId}-${side}`} style={columnStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", padding: "var(--spacing-xs)" }}>
-        <Checkbox data-testid={`${testId}-select-all-${side}`}
+        <Checkbox
           checked={list.length > 0 && list.every((it) => selected.has(it.code))}
           disabled={!editable || list.length === 0}
           onChange={(checked) => setSelected(checked ? selectAllVisible(list) : new Set())} />
