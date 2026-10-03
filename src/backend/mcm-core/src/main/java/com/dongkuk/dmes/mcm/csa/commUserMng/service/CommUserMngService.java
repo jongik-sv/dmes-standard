@@ -177,7 +177,7 @@ public class CommUserMngService {
      * <p>처리:
      * <ol>
      *   <li>{@link SecUserRepository#searchByFilter(String, String, String)} — 본 18 컬럼 검색</li>
-     *   <li>각 row 의 DEPT_NM 부착 — DeptInfoRepository.findById(deptCd).deptNm (정책 #2 / T-008)</li>
+     *   <li>각 row 의 DEPT_NM 부착 — distinct DEPT_CD 를 DeptInfoRepository.findAllById 1회로 조회 (정책 #2 / T-008)</li>
      *   <li>{@link SecUserRepository#findAllUserIdEmpNo()} — ds_mainAll 적재 (V-004 / V-006 중복 검증용)</li>
      *   <li>{@code ds_main} + {@code ds_mainAll} 두 grid 반환</li>
      * </ol>
@@ -189,15 +189,7 @@ public class CommUserMngService {
 
         List<SecUser> rows = secUserRepository.searchByFilter(pUserKey, pUseTp, pInOut);
 
-        // DEPT_NM 캐시 — N+1 회피 (한번에 distinct DEPT_CD lookup)
-        Map<String, String> deptNmCache = new HashMap<>();
-        for (SecUser u : rows) {
-            String deptCd = u.getDeptCd();
-            if (deptCd != null && !deptCd.isBlank() && !deptNmCache.containsKey(deptCd)) {
-                deptInfoRepository.findById(deptCd).ifPresent(d ->
-                        deptNmCache.put(deptCd, d.getDeptNm()));
-            }
-        }
+        Map<String, String> deptNmCache = deptNamesOf(rows);
 
         List<Map<String, Object>> outRows = new ArrayList<>(rows.size());
         for (SecUser u : rows) {
@@ -217,6 +209,33 @@ public class CommUserMngService {
         out.put("ds_main", outRows);
         out.put("ds_mainAll", outAllRows);
         return out;
+    }
+
+    /**
+     * 조회 행들이 쓰는 부서코드의 부서명 — distinct DEPT_CD 를 모아 {@code findAllById} 1회로 읽는다.
+     *
+     * <p>의미(이전 findById 루프와 같다):
+     * <ul>
+     *   <li>null·공백 부서코드는 조회 대상에서 뺀다 → DEPT_NM null.</li>
+     *   <li>없는 부서는 맵에 없다 → DEPT_NM null.</li>
+     *   <li>USE_TP 를 거르지 않는다 → 비활성 부서도 이름이 붙는다({@code searchByDeptKey} 와 다르다).</li>
+     *   <li>키는 DB 가 돌려준 DEPT_CD 그대로다(정확 일치). 행 순서는 호출측이 {@code rows} 순서로 만든다.</li>
+     * </ul>
+     */
+    private Map<String, String> deptNamesOf(List<SecUser> rows) {
+        Set<String> deptCds = new LinkedHashSet<>();
+        for (SecUser u : rows) {
+            String deptCd = u.getDeptCd();
+            if (deptCd != null && !deptCd.isBlank()) {
+                deptCds.add(deptCd);
+            }
+        }
+        Map<String, String> deptNms = new HashMap<>();
+        if (deptCds.isEmpty()) return deptNms;
+        for (DeptInfo d : deptInfoRepository.findAllById(deptCds)) {
+            deptNms.put(d.getDeptCd(), d.getDeptNm());
+        }
+        return deptNms;
     }
 
     // ────────────────────────────────────────────────────────────────
