@@ -11,6 +11,7 @@ import { IdPicker, filterIdPicks, type IdPickRow } from "@/shell";
 
 let container: HTMLDivElement;
 let root: Root | null = null;
+let lastOnPick: (id: string) => void = () => {};
 
 const ROWS: IdPickRow[] = [
   { id: "PORT", name: "항구", status: "INUSE" },
@@ -30,6 +31,7 @@ async function render(props: Partial<Parameters<typeof IdPicker>[0]> & Pick<Para
   document.body.appendChild(container);
   root = createRoot(container);
   const onPick = props.onPick ?? vi.fn();
+  lastOnPick = onPick;
   const onError = props.onError ?? vi.fn();
   await act(async () => {
     root!.render(
@@ -57,6 +59,19 @@ async function type(value: string) {
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input(), value);
     input().dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await flush();
+}
+
+async function rerenderWith(search: Parameters<typeof IdPicker>[0]["search"], currentId: string | null) {
+  await act(async () => {
+    root!.render(
+      createElement(
+        DmesUiProvider,
+        null,
+        createElement(IdPicker, { placeholder: "ID·이름", noun: "세트", testId: "t-pick", limit: 2, onPick: lastOnPick, onError: vi.fn(), search, currentId }),
+      ),
+    );
   });
   await flush();
 }
@@ -138,27 +153,20 @@ describe("IdPicker", () => {
     expect(list()).toBeNull();
   });
 
-  it("[찾기] 뒤에 화면 인계로 연 ID 가 바뀌어도(사용자 조작 없음) 늦게 온 찾기 결과를 보인다", async () => {
+  it("[찾기] 뒤에 화면 인계로 연 ID 가 바뀌어도(사용자 조작 없음) 아직 오지 않은 찾기 결과를 보인다", async () => {
     let release!: (rows: IdPickRow[]) => void;
     const search = vi.fn(() => new Promise<IdPickRow[]>((r) => (release = r)));
     await render({ search });
-    await type("PORT");
+    await type("PO");
     await key("Enter");
-    await act(async () => {
-      root!.render(
-        createElement(
-          DmesUiProvider,
-          null,
-          createElement(IdPicker, { placeholder: "ID·이름", noun: "세트", testId: "t-pick", limit: 2, onPick: vi.fn(), onError: vi.fn(), search, currentId: "PORT" }),
-        ),
-      );
-    });
-    await flush();
+    await rerenderWith(search, "OTHER");
+    expect(input().value).toBe("OTHER");
     await act(async () => {
       release(ROWS);
     });
     await flush();
     expect(list()?.textContent ?? "").toContain("PORT");
+    expect(search).toHaveBeenCalledWith("PO");
   });
 
   it("[찾기] 뒤 응답 전에 바깥을 누르면(사용자가 다른 일로 옮김) 늦게 온 결과가 목록을 열지 않는다", async () => {
