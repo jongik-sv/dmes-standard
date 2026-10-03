@@ -5,10 +5,10 @@ import { createElement, act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ReactFlow, ReactFlowProvider, useStore, type Node } from "../../../pages/dme/ruleSetEdit/canvas/react-flow";
-import { ViewportGuard } from "../../../pages/dme/ruleSetEdit/canvas/ViewportGuard";
+import { ReactFlow, ReactFlowProvider, useStoreApi, type Node } from "../../../pages/dme/ruleSetEdit/canvas/react-flow";
+import { LOST_DELAY_MS, RECHECK_MS, ViewportGuard } from "../../../pages/dme/ruleSetEdit/canvas/ViewportGuard";
 import {
-  KEEP_VISIBLE_PX, allOutside, boundsOfRects, panExtentOf, sameExtent, visibleRect, type PanExtent,
+  KEEP_VISIBLE_PX, NO_EXTENT, allOutside, boundsOfRects, insideExtent, panExtentOf, sameExtent, visibleRect, type PanExtent,
 } from "../../../pages/dme/ruleSetEdit/canvas/viewport-guard";
 
 describe("viewport-guard 계산", () => {
@@ -45,6 +45,13 @@ describe("viewport-guard 계산", () => {
     expect(sameExtent(a, [[0, 0], [10, 11]])).toBe(false);
     expect(sameExtent(null, null)).toBe(true);
     expect(sameExtent(a, null)).toBe(false);
+  });
+
+  it("한계 안 판정 — 보이는 영역이 한계보다 큰 축은 따지지 않는다", () => {
+    const ext: PanExtent = [[0, 0], [1000, 1000]];
+    expect(insideExtent({ x: 10, y: 10, w: 100, h: 100 }, ext)).toBe(true);
+    expect(insideExtent({ x: 950, y: 10, w: 100, h: 100 }, ext)).toBe(false);
+    expect(insideExtent({ x: -500, y: 10, w: 2000, h: 100 }, ext)).toBe(true);
   });
 
   it("화면 밖 판정", () => {
@@ -100,13 +107,17 @@ const NODES: Node[] = [
   { id: "a", position: { x: 0, y: 0 }, data: {}, width: 100, height: 40 },
   { id: "b", position: { x: 400, y: 300 }, data: {}, width: 100, height: 40 },
 ];
-/** 저장소의 translateExtent 를 밖으로 내보내는 시험용 자식. */
-let seen: PanExtent | null = null;
-function ExtentProbe() {
-  seen = useStore((s) => s.translateExtent) as PanExtent;
+/** 그룹 틀(화면 밖 판정에서 빠지는 형식) — 시험에서는 빈 상자로 그린다. */
+const NODE_TYPES = { rsfGroup: () => null };
+/** 저장소를 밖으로 내보내는 시험용 자식. */
+let api: ReturnType<typeof useStoreApi> | null = null;
+function StoreProbe() {
+  api = useStoreApi();
   return null;
 }
-async function drawGuard(viewport: { x: number; y: number; zoom: number }, onFit: () => void) {
+const state = () => api!.getState();
+const extentNow = () => state().translateExtent as PanExtent;
+async function drawGuard(nodes: Node[], viewport: { x: number; y: number; zoom: number }, onFit: () => void = vi.fn()) {
   await act(async () => {
     root.render(
       createElement(
@@ -115,30 +126,92 @@ async function drawGuard(viewport: { x: number; y: number; zoom: number }, onFit
         createElement(
           "div",
           { style: { width: "800px", height: "600px" } },
-          createElement(ReactFlow, { nodes: NODES, edges: [], defaultViewport: viewport }, createElement(ViewportGuard, { onFit, fitKeyLabel: "Shift+1" }), createElement(ExtentProbe)),
+          createElement(
+            ReactFlow,
+            { nodes, edges: [], nodeTypes: NODE_TYPES, defaultViewport: viewport },
+            createElement(ViewportGuard, { onFit, fitKeyLabel: "Shift+1" }),
+            createElement(StoreProbe),
+          ),
         ),
       ),
     );
   });
-  await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+  await wait(50);
+}
+const wait = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
+const lostShown = () => document.querySelector('[data-testid="flow-lost"]') !== null;
+/** 지금 보이는 영역이 이동 한계 안인가. */
+function viewInsideExtent(): boolean {
+  const s = state();
+  const [[x0, y0], [x1, y1]] = extentNow();
+  const v = visibleRect(s.transform, s.width, s.height);
+  return v.x >= x0 - 1 && v.y >= y0 - 1 && v.x + v.w <= x1 + 1 && v.y + v.h <= y1 + 1;
 }
 
 describe("ViewportGuard", () => {
-  it("흐름도 경계 상자·캔버스 크기·배율로 이동 한계를 넣는다", async () => {
-    await drawGuard({ x: 0, y: 0, zoom: 1 }, vi.fn());
+  it("흐름도 경계 상자·캔버스 크기·배율로 이동 한계를 넣고, 배율이 바뀌면 다시 넣는다", async () => {
+    await drawGuard(NODES, { x: 0, y: 0, zoom: 1 });
     // 경계 상자 x 0~500, y 0~340, 캔버스 800x600, 배율 1 → 넓히는 양 720·520
-    expect(seen).toEqual([[-720, -520], [1220, 860]]);
-    expect(document.querySelector('[data-testid="flow-lost"]')).toBeNull(); // 노드가 화면에 있다
+    expect(extentNow()).toEqual([[-720, -520], [1220, 860]]);
+    expect(lostShown()).toBe(false); // 노드가 화면에 있다
+    await act(async () => { await state().panZoom!.scaleTo(0.5); });
+    await wait(50);
+    expect(extentNow()).toEqual([[-1440, -1040], [1940, 1380]]); // 넓히는 양 1440·1040
   });
 
-  it("화면에 걸친 노드가 없으면 안내를 띄우고 [흐름도로 돌아가기] 가 화면 맞춤을 부른다", async () => {
+  it("d3 가 한계를 실제로 지킨다 — 멀리 밀어도(panBy) 경계 상자가 화면 가장자리에 80px 남는다", async () => {
+    await drawGuard(NODES, { x: 0, y: 0, zoom: 1 });
+    await act(async () => { await state().panBy({ x: 1e6, y: 0 }); });
+    await wait(50);
+    expect(viewInsideExtent()).toBe(true);
+    const v = visibleRect(state().transform, state().width, state().height);
+    expect(v.x + v.w).toBeCloseTo(0 + KEEP_VISIBLE_PX, 0); // 화면 오른쪽 끝이 경계 상자 왼쪽(x 0)에서 80px 안쪽
+  });
+
+  it("노드가 없거나 크기를 모르면 한계를 걸지 않는다", async () => {
+    await drawGuard([], { x: 0, y: 0, zoom: 1 });
+    expect(sameExtent(extentNow(), NO_EXTENT)).toBe(true);
+  });
+
+  it("경계 상자가 줄어 화면이 한계 밖에 남으면(접기·지우기 등) 잠시 뒤 한계 안으로 맞춘다", async () => {
+    const far: Node = { id: "c", position: { x: 4000, y: 0 }, data: {}, width: 100, height: 40 };
+    await drawGuard([...NODES, far], { x: -3600, y: 0, zoom: 1 }); // c 를 보는 화면(x 3600~4400)
+    expect(viewInsideExtent()).toBe(true);
+    await drawGuard(NODES, { x: -3600, y: 0, zoom: 1 }); // c 를 지움 → 한계 오른쪽 끝 1220
+    expect(viewInsideExtent()).toBe(false); // 바로는 그대로(d3 는 한계를 바꿔도 화면을 맞추지 않는다)
+    await wait(RECHECK_MS + 100);
+    expect(viewInsideExtent()).toBe(true);
+  });
+
+  it("화면에 걸친 노드가 없으면 안내를 띄우고 [흐름도로 돌아가기] 가 화면 맞춤을 부른다 — 한계 안의 빈 곳(ㄱ자 흐름)", async () => {
     const onFit = vi.fn();
-    await drawGuard({ x: 5000, y: 5000, zoom: 1 }, onFit); // 보이는 영역 x -5000~-4200 — 노드 없음
+    const corners: Node[] = [
+      { id: "a", position: { x: 0, y: 0 }, data: {}, width: 100, height: 40 },
+      { id: "b", position: { x: 3000, y: 3000 }, data: {}, width: 100, height: 40 },
+    ];
+    await drawGuard(corners, { x: -1500, y: -1500, zoom: 1 }, onFit); // 보이는 영역 x 1500~2300 — 한계 안, 노드 없음
+    expect(viewInsideExtent()).toBe(true);
+    expect(lostShown()).toBe(false); // 바로 띄우지 않는다(깜빡임 방지)
+    await wait(LOST_DELAY_MS + 50);
     const btn = document.querySelector('[data-testid="flow-lost-fit"]') as HTMLButtonElement;
     expect(btn).not.toBeNull();
     expect(btn.textContent).toContain("흐름도로 돌아가기");
     expect(btn.closest(".nopan")).not.toBeNull(); // 안내 위에서 끌어도 화면이 움직이지 않는다
     act(() => btn.click());
     expect(onFit).toHaveBeenCalledOnce();
+    await act(async () => { await state().panZoom!.setViewport({ x: 0, y: 0, zoom: 1 }); });
+    await wait(50);
+    expect(lostShown()).toBe(false); // 노드가 다시 보이면 사라진다
+  });
+
+  it("그룹 틀만 화면에 걸쳐 있으면 안내를 띄운다(그룹 틀은 세지 않는다)", async () => {
+    const nodes: Node[] = [
+      { id: "a", position: { x: 0, y: 0 }, data: {}, width: 100, height: 40 },
+      { id: "b", position: { x: 3000, y: 3000 }, data: {}, width: 100, height: 40 },
+      { id: "g", type: "rsfGroup", position: { x: 1400, y: 1400 }, data: {}, width: 1200, height: 1000 },
+    ];
+    await drawGuard(nodes, { x: -1500, y: -1500, zoom: 1 });
+    await wait(LOST_DELAY_MS + 50);
+    expect(lostShown()).toBe(true);
   });
 });

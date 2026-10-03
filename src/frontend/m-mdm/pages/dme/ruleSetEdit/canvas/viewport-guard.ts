@@ -69,6 +69,14 @@ export function visibleRect(transform: readonly [number, number, number], width:
   return { x: -tx / zoom, y: -ty / zoom, w: width / zoom, h: height / zoom };
 }
 
+/** 보이는 영역이 이동 한계 안에 있는가(1 흐름 좌표 오차 허용). 보이는 영역이 한계보다 크면 d3 가 가운데에 맞추므로 그 축은 따지지 않는다. */
+export function insideExtent(view: FlowRect, extent: PanExtent): boolean {
+  const [[x0, y0], [x1, y1]] = extent;
+  const fitsX = view.w >= x1 - x0 || (view.x >= x0 - 1 && view.x + view.w <= x1 + 1);
+  const fitsY = view.h >= y1 - y0 || (view.y >= y0 - 1 && view.y + view.h <= y1 + 1);
+  return fitsX && fitsY;
+}
+
 function overlaps(a: FlowRect, b: FlowRect): boolean {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }

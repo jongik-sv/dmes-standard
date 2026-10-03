@@ -10,6 +10,7 @@ import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { insertSplit, setPositions, toEditFlow, type EditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { FlowCanvas, type FlowCanvasProps } from "../../../pages/dme/ruleSetEdit/canvas/FlowCanvas";
 import { positionsOf } from "../../../pages/dme/ruleSetEdit/flow-layout";
+import { collapseView } from "../../../pages/dme/ruleSetEdit/canvas/collapse";
 import { installDomStorage } from "../helpers/render";
 
 type RoCallback = (entries: Array<{ target: Element; contentRect: { width: number; height: number } }>, ro: unknown) => void;
@@ -162,5 +163,28 @@ describe("FlowCanvas 화면 맞춤", () => {
     const z0 = Number(/scale\(([-\d.]+)\)/.exec(before)![1]);
     expect(z).toBeLessThanOrEqual(Math.max(z0, 1) + 1e-6); // 노드 하나라도 지금 배율·1 배 중 큰 쪽을 넘겨 키우지 않는다
     expect(z).toBeGreaterThan(z0); // 흐름 전체 맞춤보다는 크게 보인다
+  });
+
+  it("고른 것으로 이동 — 선만 고르면 양 끝 노드로, 접힌 블록 안 노드는 접힌 상자로 맞춘다", async () => {
+    const ref: { current: (() => boolean) | null } = { current: null };
+    const f = spread(ifFlow());
+    const edge = f.edges[0];
+    await draw(props({ flow: f, fitSelectionRef: ref, selectedEdgeId: edge.id }));
+    await settle();
+    const before = viewport();
+    let done = false;
+    act(() => { done = ref.current!(); });
+    expect(done).toBe(true);
+    await settle();
+    expect(viewport()).not.toBe(before);
+
+    const ifId = f.nodes.find((n) => n.kind === "IF")!.id;
+    const collapsed = new Set([ifId]);
+    const hidden = [...collapseView(f, collapsed).hidden];
+    expect(hidden.length).toBeGreaterThan(0);
+    await draw(props({ flow: f, fitSelectionRef: ref, collapsed, selectedId: hidden[0] }));
+    await settle();
+    act(() => { done = ref.current!(); });
+    expect(done).toBe(true); // 숨은 노드 대신 접힌 상자(화면에 있는 노드)로 맞춘다
   });
 });
