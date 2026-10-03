@@ -42,6 +42,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.JpaTransactionManager;
@@ -161,6 +162,18 @@ class McmLoginLockoutDbTest {
     }
 
     @Test
+    @DisplayName("실패 경로에서 DB BUSY 가 나면 횟수 증가도 롤백된다 — 로그인 재시도 때 두 번 오르지 않는다")
+    void busyOnFailurePathRollsBackIncrement() {
+        seed(Config.BUSY_USER, 3, "Y");
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest(Config.BUSY_USER, "bad")))
+                .isInstanceOf(CannotAcquireLockException.class);
+
+        assertThat(failCount(Config.BUSY_USER)).isEqualTo(3);
+        assertThat(useTp(Config.BUSY_USER)).isEqualTo("Y");
+    }
+
+    @Test
     @DisplayName("잠긴 계정을 계정 재생성(updateReRegUser)으로 풀면 맞는 비밀번호로 다시 로그인된다")
     void reRegisterUnlocksLockedAccount() {
         seed("u_rereg", 0, "Y");
@@ -213,6 +226,7 @@ class McmLoginLockoutDbTest {
     static class Config {
 
         static final PasswordEncoder ENCODER = new PasswordEncoder();
+        static final String BUSY_USER = "u_busy";
 
         @Bean
         DataSource dataSource() {
@@ -250,7 +264,14 @@ class McmLoginLockoutDbTest {
 
         @Bean
         McmSecUserRepository cactusSecUserRepoMcmAdapter(SecUserPwdRepository secUserPwdRepository) {
-            return new McmSecUserRepository(secUserPwdRepository);
+            // u_busy 만 횟수를 쓴 직후 SQLITE_BUSY 를 흉내 낸다(로그인 통째 재시도 시 이중 집계 확인용).
+            return new McmSecUserRepository(secUserPwdRepository) {
+                @Override
+                public void incrementTryCnt(String userId) {
+                    super.incrementTryCnt(userId);
+                    if (BUSY_USER.equals(userId)) throw new CannotAcquireLockException("SQLITE_BUSY");
+                }
+            };
         }
 
         @Bean
