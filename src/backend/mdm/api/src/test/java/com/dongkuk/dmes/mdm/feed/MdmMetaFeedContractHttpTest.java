@@ -51,6 +51,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
 import kr.dongkuk.maru.mdm.engine.code.CodeRowsProjection;
+import kr.dongkuk.maru.mdm.engine.code.DefaultCodeResolver;
 import kr.dongkuk.maru.mdm.engine.domain.DefaultDomainValidator;
 import kr.dongkuk.maru.mdm.engine.domain.DomainValidator;
 import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
@@ -374,7 +375,9 @@ class MdmMetaFeedContractHttpTest {
      */
     @Test
     void CODE_원본은_HTTP_왕복_뒤에도_원장_값과_자리수까지_같다() {
-        CodeRows direct = CodeRowsProjection.releasedOnly(new MdmCodeLookup(ledger).code("CT_CD").orElseThrow()); // D-152 피드는 RELEASED 투영
+        CodeRows ledgerRows = new MdmCodeLookup(ledger).code("CT_CD").orElseThrow();
+        CodeRows direct = CodeRowsProjection.releasedOnly(ledgerRows); // D-152 피드는 RELEASED 투영
+        assertEquals(ledgerRows, direct, "버전이 모두 RELEASED 이면 투영은 항등이다");
         CodeRows viaHttp = (CodeRows) service.one(MdmTargetType.CODE, "CT_CD").orElseThrow();
 
         assertEquals(direct, viaHttp);
@@ -420,9 +423,20 @@ class MdmMetaFeedContractHttpTest {
 
         Instant now = Instant.now();
         assertTrue(validator.validate("T", "CT_CODE_COL", Map.of("CT_CODE_COL", "A"), now).valid());
-        assertFalse(validator.validate("T", "CT_CODE_COL", Map.of("CT_CODE_COL", "B"), now).valid(), "초안 전용 코드 B 는 허용되지 않는다");
-        assertFalse(validator.validate("T", "CT_DRAFT_COL", Map.of("CT_DRAFT_COL", "A"), now).valid(),
+        // B 는 원장 기준 해석기로도 1.000 에서 허용되지 않는다(1.001 부터 유효) — 이 단언은 투영 여부와 무관한 기본 판정이다
+        DomainValidator.ValidationResult codeB = validator.validate("T", "CT_CODE_COL", Map.of("CT_CODE_COL", "B"), now);
+        assertFalse(codeB.valid(), "초안 전용 코드 B 는 허용되지 않는다");
+        assertEquals(DomainValidator.Step.STD_EXPR, codeB.failures().get(0).step(), codeB.failures().toString());
+        // 초안 전용 카테고리(DRAFT_ONLY)는 HTTP 로 받은 투영에서는 소속 판정이 허용 코드 아님(STD_EXPR)으로 거부된다
+        DomainValidator.ValidationResult draftOnly = validator.validate("T", "CT_DRAFT_COL", Map.of("CT_DRAFT_COL", "A"), now);
+        assertFalse(draftOnly.valid(),
                 "초안 전용 카테고리 정의가 RELEASED 1.000 판정에 소급되지 않는다(투영 전에는 A 가 소속으로 판정됐다)");
+        assertEquals(1, draftOnly.failures().size(), draftOnly.failures().toString());
+        assertEquals(DomainValidator.Step.STD_EXPR, draftOnly.failures().get(0).step(), draftOnly.failures().toString());
+        // 대조: 투영을 거치지 않은 원장 행으로 만든 해석기는 같은 판정 시각에 A 를 DRAFT_ONLY 소속으로 본다(소급 누출) — 거부 원인이 투영임을 가른다
+        DefaultCodeResolver rawResolver = new DefaultCodeResolver(new MdmCodeLookup(ledger), CodeEffLookup.NONE);
+        LocalDateTime nowKst = now.atZone(MdmDefinitionLookup.KST).toLocalDateTime();
+        assertTrue(rawResolver.isMember("CT_CD", "DRAFT_ONLY", "A", nowKst), "투영 전 원장 해석기는 초안 전용 카테고리를 1.000 에 소급한다");
     }
 
     @Test
