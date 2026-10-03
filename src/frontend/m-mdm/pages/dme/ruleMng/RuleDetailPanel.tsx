@@ -232,7 +232,8 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
       try {
         await fn();
         if (sentForm) savedForm.current = sentForm;
-        await reload();
+        // 그사이 선택이 바뀌어 다시 읽기를 건너뛰었으면 보낸 폼을 남기지 않는다.
+        if (!(await reload())) savedForm.current = null;
       } catch (e) {
         const f = writeFailure(e);
         if (f.conflict) setConflict(true);

@@ -321,6 +321,30 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     expect(byTestId("rule-header-id")?.textContent).toBe("COIL_WGT_CALC");
   });
 
+  // 재검토 Nit 1 — 다시 읽기를 건너뛰면 보낸 폼(savedForm)을 남기지 않는다. 남으면 나중에 같은 값이 된 입력을 "보낸 그대로"로
+  // 오인해 서버 값으로 바꾼다. A 저장 중 [조회]로 B 로 옮긴 뒤 B 에서 A 에 보냈던 값과 같게 고치고 B 를 다시 읽어도 입력이 남아야 한다.
+  it("헤더 저장 중 [조회] 로 선택이 바뀌어 다시 읽기를 건너뛰면, 그 뒤 같은 값으로 고친 입력을 보낸 폼으로 오인하지 않는다", async () => {
+    await renderAndSearch();
+    const coil = draftDetail({
+      header: { ...draftDetail().header, maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE" },
+    });
+    viewsById.COIL_WGT_CALC = coil;
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "같은 이름");
+    const slowSave = gate();
+    holdActions.save = slowSave.until;
+    await act(async () => findButton(container, "헤더 저장").click());
+    searchList = [{ maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE", status: "INUSE", sourceKind: "MDM" }];
+    await search();
+    await act(async () => slowSave.release());
+    await flush();
+    await flush();
+    expect(byTestId("rule-header-id")?.textContent).toBe("COIL_WGT_CALC");
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "같은 이름");
+    viewsById.COIL_WGT_CALC = { ...coil, header: { ...coil.header, maruRuleName: "다른 창 이름", auditVer: 9 } };
+    await clickRow("COIL_WGT_CALC");
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("같은 이름");
+  });
+
   // 재검토 I3 — 쓰기 동안 헤더 입력과 쓰기 단추가 잠기지 않아, 저장 중에 또 고친 입력이 옛 auditVer 로 남거나 [헤더 저장]이 두 번
   // 나가 거짓 MDM001 이 났다. 쓰기 동안에는 입력·단추를 잠그고, codeMng 처럼 목록 행 클릭도 받지 않는다.
   it("헤더 저장 응답을 기다리는 동안 헤더 입력과 [헤더 저장]이 잠기고, 끝나면 풀려 다음 저장은 새 auditVer 를 보낸다", async () => {
