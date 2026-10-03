@@ -45,6 +45,7 @@ import {
   composePhysName,
   hasPlaceholder,
   replaceToken,
+  TOKEN_COLUMN_SIZES,
 } from "./tokens";
 import {
   emptyForm,
@@ -463,17 +464,17 @@ export default function ColumnMngPage() {
       {
         key: "seq",
         header: "순서",
-        width: 50,
+        ...TOKEN_COLUMN_SIZES.seq,
         align: "right",
         render: (v) => <span data-testid={`token-row-${v}`}>{String(v)}</span>,
       },
-      { key: "surface", header: "토큰", width: 120 },
-      { key: "MATCH_TEXT", header: "매칭", width: 140 },
-      { key: "ABBR_TEXT", header: "약어", width: 90 },
+      { key: "surface", header: "토큰", ...TOKEN_COLUMN_SIZES.surface },
+      { key: "MATCH_TEXT", header: "매칭", ...TOKEN_COLUMN_SIZES.MATCH_TEXT },
+      { key: "ABBR_TEXT", header: "약어", ...TOKEN_COLUMN_SIZES.ABBR_TEXT },
       {
         key: "ACTION",
         header: "처리",
-        width: 240,
+        ...TOKEN_COLUMN_SIZES.ACTION,
         tooltip: false,
         editable: (row) => row.status === "AMBIGUOUS",
         cellEditor: "select",

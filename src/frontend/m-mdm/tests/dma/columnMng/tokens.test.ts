@@ -5,6 +5,7 @@ import {
   composePhysName,
   hasPlaceholder,
   replaceToken,
+  TOKEN_COLUMN_SIZES,
 } from "../../../pages/dma/columnMng/tokens";
 import type { NameToken } from "../../../pages/dma/columnMng/types";
 
@@ -92,5 +93,22 @@ describe("tokens", () => {
 
     expect(next[3].status).toBe("NO_ABBR");
     expect(composePhysName(next)).toBe("RMTL_COIL_THK_***");
+  });
+});
+
+// e2e(mdm-user 여정) — 1280 기본 폭에서 분해 토큰 표가 받는 폭은 565px(실측)인데 열 폭 합이 640px 이라, 처음 그릴 때 가로 스크롤
+// 막대가 잠깐 드러나 자동 높이 표의 마지막 행 [*** 용어 등록] 버튼을 덮었다(2026-10-03). fit 그리드는 칸이 좁으면 minWidth(없으면
+// width)까지 줄고 그 합이 표 폭보다 넓으면 넘친다. 세로 스크롤바 몫(Windows 고정 약 17px)을 빼 예산은 565 - 17 = 548px 이다(§30).
+// 레이아웃은 happy-dom 이 계산하지 않아 열 정의의 최소 폭 합으로 고정하고, 실제 폭은 e2e 가 본다.
+describe("분해 토큰 표 열 폭", () => {
+  it("열 최소 폭 합이 1280 폭에서 표가 받는 폭(세로 스크롤바 몫 제외 548px) 안에 든다", () => {
+    const sizes = Object.values(TOKEN_COLUMN_SIZES) as Array<{ width: number; minWidth?: number }>;
+    const minSum = sizes.reduce((sum, c) => sum + (c.minWidth ?? c.width), 0);
+    expect(minSum).toBeLessThanOrEqual(548);
+  });
+
+  it("처리 칸은 줄이지 않는다 — 버튼·긴 안내 문구를 그리고 제목(title)이 없다", () => {
+    const action = TOKEN_COLUMN_SIZES.ACTION as { width: number; minWidth?: number };
+    expect(action.minWidth ?? action.width).toBeGreaterThanOrEqual(220);
   });
 });
