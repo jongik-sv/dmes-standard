@@ -77,6 +77,12 @@ export function DomainField({ domainId, label, search, onChange, disabled, testI
     setPopup("");
   };
 
+  // 고르지 않고 닫으면 칸 글자를 지금 도메인으로 되돌린다 — 친 글자가 남으면 저장되는 도메인과 어긋난다.
+  const closePopup = () => {
+    setText(label);
+    setPopup(null);
+  };
+
   return (
     <div style={{ display: "flex", gap: "var(--spacing-xs)", alignItems: "center" }}>
       <Input
@@ -94,9 +100,9 @@ export function DomainField({ domainId, label, search, onChange, disabled, testI
       <Button disabled={disabled} data-testid={`${testId}-find`} onClick={openFinder}>
         찾기
       </Button>
-      <Modal open={popup !== null} title="도메인 찾기" size="md" onClose={() => setPopup(null)}>
+      <Modal open={popup !== null} title="도메인 찾기" size="md" onClose={closePopup}>
         {popup !== null && (
-          <DomainSearchBox key={popup} search={search} testId={`${testId}-box`} initialKeyword={popup} onPick={pick} onClose={() => setPopup(null)} />
+          <DomainSearchBox key={popup} search={search} testId={`${testId}-box`} initialKeyword={popup} onPick={pick} onClose={closePopup} />
         )}
       </Modal>
     </div>
