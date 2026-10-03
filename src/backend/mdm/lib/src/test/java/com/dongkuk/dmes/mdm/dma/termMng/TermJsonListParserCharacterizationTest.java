@@ -1,6 +1,7 @@
 package com.dongkuk.dmes.mdm.dma.termMng;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -15,6 +16,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 /**
  * 용어 JSON 목록 파서 두 벌({@code TermMngService.readStringList}·{@code TermRecommendationCache.readStringList}, 둘 다 private)의
@@ -86,7 +89,7 @@ class TermJsonListParserCharacterizationTest {
                 new TermRecommendationCache(repo, embeddings), mock(TermEmbeddingEncoder.class));
 
         for (Case c : MATRIX) {
-            when(repo.findAll()).thenReturn(List.of(term(c.raw())));
+            when(repo.findAll(any(Specification.class), any(Sort.class))).thenReturn(List.of(term(c.raw())));
             List<TermRow> rows = service.search(null).getList();
             assertEquals(1, rows.size());
             String label = "입력=" + c.raw();

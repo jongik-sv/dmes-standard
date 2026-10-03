@@ -33,6 +33,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -81,29 +82,44 @@ public class TermMngService {
     // action: search
     // ────────────────────────────────────────────────────────────────
 
+    /**
+     * 키워드·상황 조건은 DB 에서 {@link TermSearchPrefilter} 로 먼저 줄이고(필요조건만), 아래 Java 비교가 최종 판정한다. 비교 순서
+     * (키워드 → 시스템 → 상황)와 JSON 목록 해석은 예전 그대로다. 행마다 JSON 칸은 한 번만 파싱한다.
+     */
     public TermSearchResult search(TermSearchRequest request) {
         String keyword = trimToNull(request != null ? request.getKeyword() : null);
         String keywordUpper = keyword == null ? null : keyword.toUpperCase(Locale.ROOT);
         String systemsFilter = trimToNull(request != null ? request.getSystems() : null);
         String contextFilter = trimToNull(request != null ? request.getContext() : null);
+        String contextUpper = contextFilter == null ? null : contextFilter.toUpperCase(Locale.ROOT);
 
-        List<TermRow> rows = termRepository.findAll().stream()
-                .filter(t -> keywordUpper == null || matchesKeyword(t, keywordUpper))
-                .filter(t -> systemsFilter == null || readStrings(t.getSystems()).stream()
+        Specification<MdmTerm> prefilter = TermSearchPrefilter.of(keywordUpper, contextUpper, systemsFilter != null);
+        List<TermRow> rows = termRepository.findAll(prefilter, TermSearchPrefilter.ORDER).stream()
+                .map(ParsedTerm::of)
+                .filter(p -> keywordUpper == null || matchesKeyword(p, keywordUpper))
+                .filter(p -> systemsFilter == null || p.systems().stream()
                         .anyMatch(s -> s.equalsIgnoreCase(systemsFilter)))
-                .filter(t -> contextFilter == null || (t.getContext() != null
-                        && t.getContext().toUpperCase(Locale.ROOT).contains(contextFilter.toUpperCase(Locale.ROOT))))
-                .map(this::toRow)
+                .filter(p -> contextUpper == null || (p.term().getContext() != null
+                        && p.term().getContext().toUpperCase(Locale.ROOT).contains(contextUpper)))
+                .map(TermMngService::toRow)
                 .toList();
         return new TermSearchResult(rows);
     }
 
-    private boolean matchesKeyword(MdmTerm t, String keywordUpper) {
-        if (contains(t.getTermName(), keywordUpper) || contains(t.getEngAbbr(), keywordUpper)) {
+    /** 검색 한 행 — JSON 목록 세 칸을 한 번만 파싱해 둔다. JSON null 리터럴이면 목록이 null 이다(기존 동작). */
+    private record ParsedTerm(MdmTerm term, List<String> synonyms, List<String> aliases, List<String> systems) {
+        static ParsedTerm of(MdmTerm t) {
+            return new ParsedTerm(t, readStrings(t.getSynonyms()), readStrings(t.getAliases()),
+                    readStrings(t.getSystems()));
+        }
+    }
+
+    private static boolean matchesKeyword(ParsedTerm p, String keywordUpper) {
+        if (contains(p.term().getTermName(), keywordUpper) || contains(p.term().getEngAbbr(), keywordUpper)) {
             return true;
         }
-        return readStrings(t.getSynonyms()).stream().anyMatch(s -> contains(s, keywordUpper))
-                || readStrings(t.getAliases()).stream().anyMatch(s -> contains(s, keywordUpper));
+        return p.synonyms().stream().anyMatch(s -> contains(s, keywordUpper))
+                || p.aliases().stream().anyMatch(s -> contains(s, keywordUpper));
     }
 
     private static boolean contains(String value, String keywordUpper) {
@@ -425,7 +441,8 @@ public class TermMngService {
         }
     }
 
-    private TermRow toRow(MdmTerm t) {
+    private static TermRow toRow(ParsedTerm p) {
+        MdmTerm t = p.term();
         TermRow row = new TermRow();
         row.setTermId(t.getTermId());
         row.setTermName(t.getTermName());
@@ -434,9 +451,9 @@ public class TermMngService {
         row.setContext(t.getContext());
         row.setEngName(t.getEngName());
         row.setEngAbbr(t.getEngAbbr());
-        row.setSynonyms(readStrings(t.getSynonyms()));
-        row.setAliases(readStrings(t.getAliases()));
-        row.setSystems(readStrings(t.getSystems()));
+        row.setSynonyms(p.synonyms());
+        row.setAliases(p.aliases());
+        row.setSystems(p.systems());
         row.setStdBasis(t.getStdBasis());
         return row;
     }
