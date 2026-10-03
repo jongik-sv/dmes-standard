@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Stage;
@@ -45,6 +46,14 @@ public final class MdmRuleEngine implements RuleEngine {
     private final MdmEvaluator expressions;
     private final ExpressionRunner runner;
     private final RuleEvaluator evaluator;
+    /**
+     * 세트 ID → 정의에만 의존하는 판정 준비(흐름 트리·입력 키 검사기 원본, 항목5). 세트 정의 객체와 룰 정의 객체가 앞 호출과 같은(동일성)
+     * 때만 다시 쓴다. 재등록·RELOAD·상태 변화로 새 정의 객체가 오면 새로 만들어 바꿔 넣는다. 파싱 실패는 넣지 않는다.
+     */
+    private final ConcurrentHashMap<String, Plan> plans = new ConcurrentHashMap<>();
+
+    /** 기억하는 세트 준비 수 상한 — 넘으면 비우고 다시 채운다(오래 사는 엔진에서 무한히 늘지 않게). */
+    static final int MAX_PLANS = 512;
 
     public MdmRuleEngine(MdmEvaluator evaluator, DefinitionLookup definitions) {
         this.definitions = Objects.requireNonNull(definitions, "definitions");
@@ -127,23 +136,76 @@ public final class MdmRuleEngine implements RuleEngine {
     }
 
     /**
+     * 세트 정의에만 의존하는 판정 준비 — 흐름 트리, 그리고 그 트리를 만든 시각의 룰 정의 묶음으로 만든 입력 키 검사기 원본.
+     * 키는 세트 ID 이고 적중은 세트 정의 객체·룰 정의 객체가 모두 같을(동일성) 때다. 판정마다 {@link FlowKeys#forRun} 사본을 쓴다.
+     */
+    private static final class Plan {
+        final RuleSetDefinition set;
+        final FlowTree tree;
+        final Map<String, RuleDefinition> defs;
+        final FlowKeys keys;
+
+        Plan(RuleSetDefinition set, FlowTree tree, Map<String, RuleDefinition> defs, FlowKeys keys) {
+            this.set = set;
+            this.tree = tree;
+            this.defs = defs;
+            this.keys = keys;
+        }
+
+        /** 이번 호출이 고른 룰 정의가 이 준비를 만든 정의와 같은 객체들인가(룰 ID·순서·객체 동일성). */
+        boolean sameDefs(Map<String, RuleDefinition> current) {
+            if (current.size() != defs.size()) {
+                return false;
+            }
+            var a = defs.entrySet().iterator();
+            var b = current.entrySet().iterator();
+            while (a.hasNext()) {
+                Map.Entry<String, RuleDefinition> x = a.next();
+                Map.Entry<String, RuleDefinition> y = b.next();
+                if (!x.getKey().equals(y.getKey()) || x.getValue() != y.getValue()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    /** 이 세트 정의 객체로 만든 준비가 있으면 그것, 없으면 null. */
+    private Plan cachedPlan(RuleSetDefinition set) {
+        if (set.setId() == null) {
+            return null;
+        }
+        Plan p = plans.get(set.setId());
+        return p != null && p.set == set ? p : null;
+    }
+
+    private void remember(Plan p) {
+        if (p.set.setId() == null) {
+            return;
+        }
+        if (plans.size() >= MAX_PLANS && !plans.containsKey(p.set.setId())) {
+            plans.clear();
+        }
+        plans.put(p.set.setId(), p);
+    }
+
+    /** 기억 중인 세트 준비 수(시험용). */
+    int cachedPlans() {
+        return plans.size();
+    }
+
+    /**
      * 상태 → 흐름 구조 → 레코드 키·룰 조회·입력 키 사전 검사(plan C5, design §6.13). 구조 오류는 FLOW_INVALID 로 바로 던지고,
-     * 나머지는 모아 한 번에 던진다. 폐기 세트는 룰을 조회하지 않는다.
+     * 나머지는 모아 한 번에 던진다. 폐기 세트는 룰을 조회하지 않는다. 흐름 파싱과 입력 키 검사기 생성은 정의가 같으면 기억한 것을 쓴다(항목5) —
+     * 상태 검사·룰 조회·레코드 키 검사는 호출마다 한다.
      */
     private Prepared prepare(RuleSetDefinition set, Map<String, Object> record, Instant ts) {
         if (set.status() == SetStatus.DEPRECATED) {
             throw new EngineEvaluationException(List.of(new Violation(Stage.SET_CHECK, Code.SET_DEPRECATED, null, null,
                     null, "폐기된 세트는 판정하지 않는다: " + set.setId())));
         }
-        FlowDefinition flow = set.flow() == null ? FlowParser.linear(set.ruleIds()) : set.flow();
-        FlowParse parsed = FlowParser.parse(flow);
-        if (parsed.tree() == null) {
-            throw new EngineEvaluationException(parsed.issues().stream()
-                    .map(i -> new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, i.nodeId(),
-                            "세트 " + set.setId() + " 의 흐름이 올바르지 않다: " + i.message()))
-                    .toList());
-        }
-        FlowTree tree = parsed.tree();
+        Plan cached = cachedPlan(set);
+        FlowTree tree = cached != null ? cached.tree : parse(set);
         List<Violation> violations = new ArrayList<>(RecordKeys.check(record.keySet(), Stage.SET_CHECK, null));
         Map<String, RuleDefinition> defs = new LinkedHashMap<>();
         for (String ruleId : tree.ruleIds()) {
@@ -155,12 +217,33 @@ public final class MdmRuleEngine implements RuleEngine {
                 defs.put(ruleId, def.get());
             }
         }
-        FlowKeys keys = new FlowKeys(defs, expressions);
+        FlowKeys template;
+        if (cached != null && cached.sameDefs(defs)) {
+            template = cached.keys;
+        } else {
+            Map<String, RuleDefinition> snapshot = Collections.unmodifiableMap(new LinkedHashMap<>(defs));
+            template = new FlowKeys(snapshot, expressions);
+            remember(new Plan(set, tree, snapshot, template));
+        }
+        FlowKeys keys = template.forRun();
         violations.addAll(keys.check(tree.root(), record.keySet()));
         if (!violations.isEmpty()) {
             throw new EngineEvaluationException(violations);
         }
         return new Prepared(tree, defs, keys);
+    }
+
+    /** 흐름 구조 검사 — 실패하면 FLOW_INVALID 를 던지고 기억하지 않는다. */
+    private static FlowTree parse(RuleSetDefinition set) {
+        FlowDefinition flow = set.flow() == null ? FlowParser.linear(set.ruleIds()) : set.flow();
+        FlowParse parsed = FlowParser.parse(flow);
+        if (parsed.tree() == null) {
+            throw new EngineEvaluationException(parsed.issues().stream()
+                    .map(i -> new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, i.nodeId(),
+                            "세트 " + set.setId() + " 의 흐름이 올바르지 않다: " + i.message()))
+                    .toList());
+        }
+        return parsed.tree();
     }
 
     @Override
