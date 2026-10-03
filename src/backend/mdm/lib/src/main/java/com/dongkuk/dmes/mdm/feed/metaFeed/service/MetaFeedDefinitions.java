@@ -114,7 +114,7 @@ public class MetaFeedDefinitions {
 
     /**
      * 마루 코드 원본(다섯 표)의 RELEASED 투영(D-152, {@link CodeRowsProjection#releasedOnly}) — 룰·룰 세트·전문처럼 업무 모듈 캐시에는
-     * RELEASED 기준 행만 싣는다. DRAFT·CANCELLED 버전과 그 버전에서만 유효한 행(초안 사본)은 빠지고, 초안 전용 카테고리 정의가 RELEASED
+     * RELEASED 기준 행만 싣는다. RELEASED 가 아닌 버전(DRAFT·REQUESTED·APPROVED·CANCELLED)과 그 버전에서만 유효한 행(초안 사본)은 빠지고, 초안 전용 카테고리 정의가 RELEASED
      * 판정에 소급되지도 않는다. {@link MdmCodeLookup} 자체는 원장 그대로 둔다 — 룰 저장 검사({@code CodeReferenceCheck})처럼 초안을 포함한
      * 원장 기준 검사가 같은 조회를 쓰기 때문이다.
      */

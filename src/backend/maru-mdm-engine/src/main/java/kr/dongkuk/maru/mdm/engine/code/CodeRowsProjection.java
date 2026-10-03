@@ -16,7 +16,7 @@ import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeVersionRow;
 
 /**
  * 마루 코드 행의 RELEASED 투영(D-152). 판정({@link DefaultCodeResolver})은 RELEASED 버전만 고르므로({@code CodeVersionRow} 계약 — "사본은
- * RELEASED 만 실어도 된다"), 업무 모듈에 보내는 사본에서 DRAFT·CANCELLED 버전과 그 버전에서만 유효한 행을 덜어 낸다. 판정 의미를 엔진 한
+ * RELEASED 만 실어도 된다"), 업무 모듈에 보내는 사본에서 RELEASED 가 아닌 버전(DRAFT·REQUESTED·APPROVED·CANCELLED)과 그 버전에서만 유효한 행을 덜어 낸다. 판정 의미를 엔진 한
  * 곳에 두려고 여기 둔다.
  *
  * <ul>
@@ -31,7 +31,10 @@ import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeVersionRow;
  * <p>버전은 {@link BigDecimal#compareTo} 로 비교한다(자리수 무시, 열린 끝 9999 도 일반 값). 목록 순서는 입력 그대로다. 행마다 정렬한
  * RELEASED 버전에서 {@code ceiling(fromVer)} 를 찾아 {@code < toVer} 인지 본다 — O((V + I)·log V).
  *
- * <p>카테고리마다 가장 이른 정의가 어떤 RELEASED 버전에서 유효하면 투영 전후의 RELEASED 판정(버전 선택·CODE_LIST·MASTER·attr)이 같다.
+ * <p>카테고리마다 가장 이른 정의가 어떤 RELEASED 버전에서 유효하면 투영 전후의 RELEASED 판정(버전 선택·CODE_LIST·MASTER·attr, 그리고
+ * RELEASED 버전을 인자로 준 {@code effectiveCodes})이 같다. 아니면 바뀔 수 있다(다른 남은 정의가 모든 RELEASED 버전을 덮으면 같다).
+ * 취소 버전은 없던 것으로 본다(사용자 결정) — 확정 취소 → 복원 → 재추가 뒤에는 취소 버전에서만 유효하던 정의가 남아 있을 수 있고, 투영 뒤
+ * 결과는 그 행을 지운 원장과 같다.
  */
 public final class CodeRowsProjection {
 
