@@ -16,8 +16,10 @@ import com.dongkuk.analogexpress.searcher.StartsStringContextualNewLineInspector
 import com.fasterxml.jackson.core.JsonProcessingException;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletResponse;
+import com.dongkuk.dmes.analog.config.AnalogSearchExecutors;
 import com.dongkuk.dmes.analog.dto.Result;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
@@ -30,6 +32,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileFilter;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,9 +45,12 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -86,8 +92,6 @@ public class LogSearchController {
     private String liveLogFileNameFormat;
     @Value("${analog-express.byThreadLogFileNameFormat:{MODULE}_{CLIENT_TYPE}_{THREAD_FILE_NAME_DATE}-{KEYWORD}-THREAD-{SEQ}.log}")
     private String byThreadLogFileNameFormat;
-    @Value("${analog-express.threads_per_request:10}")
-    private int threadsPerRequest;
     @Value("${analog-express.output_limit_megabyte:10}")
     private long outputLimitMegaByte;
     @Value("${analog-express.minimum_minutes_for_binary_search:50}")
@@ -117,13 +121,39 @@ public class LogSearchController {
     @Value("${analog-serializer.extraction.service_action.action_pattern}")
     private String actionPattern;
 
+    private final AnalogSearchExecutors executors;
+
     private ContextualNewLineInspector contextualNewLineInspector;
     private ServiceListExtraction serviceListExtraction;
+    // 트리 파싱 토큰 정의 — 설정 파일 경로(analog-serializer.config_file)는 기동 설정이라 요청마다 달라지지 않는다.
+    // 예전에는 /tree 요청마다 다시 읽어 전역 static 을 갈아 끼웠다(LogToken 이 처음 것을 붙잡아 실제로는 첫 번째만 쓰였다).
+    private LogPattern logPattern;
+
+    public LogSearchController(AnalogSearchExecutors executors) {
+        this.executors = executors;
+    }
 
     @PostConstruct
-    public void init() {
+    public void init() throws IOException {
         this.contextualNewLineInspector = new StartsStringContextualNewLineInspector(newLineInspector);
         this.serviceListExtraction = new ServiceListExtraction(lexPattern, startWithMatch, runTimePattern, actionStartWithMatch, actionPattern);
+        this.logPattern = loadLogPattern(filePath);
+    }
+
+    /**
+     * 토큰 정의 파일을 기동 시 한 번 읽는다. classpath: 자원은 스트림으로 읽는다 —
+     * bootJar 안(중첩 jar)의 자원은 ResourceUtils.getFile 로 File 을 얻을 수 없다. 그 밖의 경로는 예전처럼 파일로 연다.
+     */
+    static LogPattern loadLogPattern(String location) throws IOException {
+        if (location.startsWith(ResourceUtils.CLASSPATH_URL_PREFIX)) {
+            try (InputStream in = new ClassPathResource(location.substring(ResourceUtils.CLASSPATH_URL_PREFIX.length())).getInputStream()) {
+                return LogPattern.load(in);
+            }
+        }
+        File configFile = ResourceUtils.getFile(location);
+        try (InputStream in = new FileInputStream(configFile)) {
+            return LogPattern.load(in);
+        }
     }
 
     @RequestMapping(value = "/log/refresh")
@@ -204,30 +234,42 @@ public class LogSearchController {
 
         validateModule(module);
         Queue<LogData> queue = new ConcurrentLinkedQueue<>();
-        LogProcessor logProcessor = new LogProcessor(new LogLexer(), queue);
+        LogProcessor logProcessor = new LogProcessor(new LogLexer(), queue, logPattern);
         logProcessor.setDebug(logDebug);
         logProcessor.getLogLexer().setLogPattern(lexPattern);
         logProcessor.getLogLexer().setStartString(newLineInspector);
-        File configFile = ResourceUtils.getFile(filePath);
-        LogPattern.loadPattern(configFile);
 
-        Thread thread = new Thread(() -> {
-            try {
-                logProcessor.run();
-            } catch (Exception e) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        thread.start();
-
-        String largeStringResult = logRangeTime(fromTime, toTime, keyword, serverType, module, clientType, ignoreCase, byThread);
-        try (BufferedReader reader = new BufferedReader(new StringReader(largeStringResult))) {
-            logProcessor.getLogLexer().readBuffer(reader);
-        } catch (IOException e) {
-            log.error("logLexer readBuffer 실패", e);
+        // 소비(파싱)는 공유 트리 파싱 풀에서, 생산(검색 결과 → 큐)은 요청 스레드에서 한다.
+        // 풀이 꽉 차 있으면 기다리지 않고 503 — 큐에서 기다리면 생산 쪽이 큐 10만 줄 이후 줄마다 1초씩 쉰다.
+        Future<?> consumer;
+        try {
+            consumer = executors.treeParse().submit(logProcessor::run);
+        } catch (RejectedExecutionException e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "로그 트리 분석 요청이 많습니다. 잠시 뒤 다시 시도하세요.", e);
         }
 
-        thread.join();
+        boolean produced = false;
+        try {
+            String largeStringResult = logRangeTime(fromTime, toTime, keyword, serverType, module, clientType, ignoreCase, byThread);
+            try (BufferedReader reader = new BufferedReader(new StringReader(largeStringResult))) {
+                logProcessor.getLogLexer().readBuffer(reader);
+            } catch (IOException e) {
+                log.error("logLexer readBuffer 실패", e);
+            }
+            produced = true;
+        } finally {
+            if (!produced) {
+                // 검색이 실패하면 EOQ 가 오지 않아 소비 작업이 영영 끝나지 않는다 — 인터럽트로 끝내 풀 자리를 돌려받는다.
+                consumer.cancel(true);
+            }
+        }
+
+        try {
+            consumer.get();
+        } catch (ExecutionException e) {
+            // 예전처럼 소비 중 예외는 삼키고 그때까지 만든 트리를 돌려준다.
+            log.error("로그 트리 파싱 실패", e.getCause());
+        }
         return logProcessor.getTree();
     }
 
@@ -313,7 +355,7 @@ public class LogSearchController {
         LoggingTimeComparator comparator = new LoggingTimeComparator(fromTime, toTime, dateTimeFormat, beginIndexOfDateTime, endIndexOfDateTime);
 
         for (File file : files) {
-            SearchStrategy searchStrategy = new SearchStrategy(file, encoding);
+            SearchStrategy searchStrategy = new SearchStrategy(file, encoding, executors.rangeSearch());
             searchStrategy.makeStrategy(fromTime,
                     toTime,
                     comparator,
@@ -445,16 +487,18 @@ public class LogSearchController {
 
     private String search(List<SearchStrategy> searchStrategies) {
         log.info("찾기 시작/{}", System.currentTimeMillis());
-        ExecutorService executorService = Executors.newFixedThreadPool(threadsPerRequest);
+        // 파일마다 공유 파일 검색 풀에 넣고 모두 끝날 때까지 기다린다(요청마다 풀을 만들고 sleep 으로 돌던 것 대신).
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (SearchStrategy searchStrategy : searchStrategies) {
-            executorService.execute(searchStrategy.getTextSearcher());
+            futures.add(CompletableFuture.runAsync(searchStrategy.getTextSearcher(), executors.fileSearch()));
         }
-        executorService.shutdown();
-        while (!executorService.isTerminated()) {
+        for (CompletableFuture<Void> future : futures) {
             try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                // join 은 인터럽트에 끊기지 않는다 — 예전 바쁜 대기처럼 모든 파일 검색이 끝날 때까지 기다린다.
+                future.join();
+            } catch (CompletionException e) {
+                // 한 파일이 실패해도 나머지 파일 결과는 살린다(예전: 실패한 작업만 빠지고 나머지는 합쳐짐).
+                log.error("파일 검색 실패", e.getCause());
             }
         }
         log.info("검색 완료/{}", System.currentTimeMillis());

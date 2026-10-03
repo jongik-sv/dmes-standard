@@ -58,7 +58,13 @@ analog-express:
   stage: "${ANALOG_STAGE:DEV}"
   modules: "${ANALOG_MODULES:mpn,mpp,mqc,mcm,mls}"
   client_types: "${ANALOG_CLIENT_TYPES:app}"
+  # 공유 검색 풀(AnalogSearchExecutors) — 요청마다 풀을 만들지 않고 모든 요청이 나눠 쓴다.
+  #   file_search_pool_size : 파일 단위 검색 동시 실행 상한(미설정 시 threads_per_request 값)
+  #   range_search_pool_size: 큰 파일을 구간으로 나눠 검색하는 작업 상한(파일 풀과 따로 둔다 — 같은 풀이면 교착)
+  #   tree_parse_pool_size  : /log/range/time/tree 동시 파싱 상한(넘으면 503)
   threads_per_request: 8
+  range_search_pool_size: 16
+  tree_parse_pool_size: 8
   output_limit_megabyte: 100
   minimum_minutes_for_binary_search: 15
   minimum_mega_bytes_for_multi_thread: 80
