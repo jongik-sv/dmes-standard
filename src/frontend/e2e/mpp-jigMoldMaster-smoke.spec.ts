@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { login } from "./support/common";
 
 /**
  * mpp jigMoldMaster (지그금형 Master관리) full-chain smoke.
@@ -15,9 +16,7 @@ import { expect, test } from "@playwright/test";
  * playwright.config has no webServer.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
 const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin";
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 
 const NOT_FOUND_MARKERS = [
   "등록된 페이지를 찾을 수 없습니다",
@@ -29,11 +28,7 @@ test.describe("mpp jigMoldMaster full-chain smoke", () => {
 
   test("login → menu → page renders → OASIS search returns seeded rows", async ({ page }) => {
     // ── 1) Login (mcm auth) ──
-    await page.goto(`${BASE_URL}/login`);
-    await page.getByPlaceholder("아이디").fill(LOGIN_USER);
-    await page.getByPlaceholder("비밀번호").fill(LOGIN_PASSWORD);
-    await page.getByRole("button", { name: "로그인" }).click();
-    await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
+    await login(page, LOGIN_USER);
 
     // sidebar item name helper (scopes clicks to the tree, avoiding tab/title collisions)
     const treeName = (text: string) =>

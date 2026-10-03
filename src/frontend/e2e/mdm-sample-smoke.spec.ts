@@ -1,5 +1,6 @@
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { login } from "./support/common";
 
 /**
  * mdm 모듈 스캐폴드 샘플 화면(dma/mdmSample) smoke — TSK-01-01 design.md §3.3, TSK-01-02 design.md §3.5
@@ -28,9 +29,7 @@ import { expect, test } from "@playwright/test";
  * mdm 백엔드(8096)는 이 스모크에 필요 없다(위 4번 근거).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
 const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin";
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 
 const NOT_FOUND_MARKERS = [
   "등록된 페이지를 찾을 수 없습니다",
@@ -42,11 +41,7 @@ test.describe("mdm dma/mdmSample smoke", () => {
 
   test("login → menu → mdmSample page renders", async ({ page }) => {
     // ── 1) Login (mcm auth) ──
-    await page.goto(`${BASE_URL}/login`);
-    await page.getByPlaceholder("아이디").fill(LOGIN_USER);
-    await page.getByPlaceholder("비밀번호").fill(LOGIN_PASSWORD);
-    await page.getByRole("button", { name: "로그인" }).click();
-    await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
+    await login(page, LOGIN_USER);
 
     // sidebar item name helper (scopes clicks to the tree, avoiding tab/title collisions)
     const treeName = (text: string) =>

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, login, walkMenuPath } from "./support/common";
 import { clickSearch, expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -24,8 +25,6 @@ import { clickSearch, expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
  * 파일 이름 순으로 mdm-layoutConfirm.spec.ts(헤더 L110 minor 확정)가 먼저 돈다 — 그 확정은 먼 미래(apply_from)라 이 스펙의 지금 시각 단언(총 길이 187)은 그대로다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const USER = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const API = "/api/mdm/oasis/layoutMng";
@@ -37,21 +36,8 @@ const FIXTURE_LAYOUT = "출측검사 실적 수신(E2E)";
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-02/screens", name);
 const SHOT_0503 = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-03/screens", name);
 
-async function login(page: Page, user = USER) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
 async function openScreen(page: Page): Promise<Locator> {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^레이아웃$/, /^전문 레이아웃$/]) {
-    const node = item(name);
-    await expect(node).toBeVisible({ timeout: 20_000 });
-    await node.click();
-  }
+  await walkMenuPath(page, [/^마루 MDM$/, /^레이아웃$/, /^전문 레이아웃$/]);
   const layout = page.locator(".page-layout").filter({
     has: page.locator(".page-layout__footer-screen-id", { hasText: "layoutMng" }),
   });
@@ -129,7 +115,7 @@ test.describe("mdm 전문 레이아웃", () => {
   test.beforeAll(() => loadMdmFixture("mdm-layout-m201.sql"));
 
   test("L1 메뉴로 이동하고 목록은 서버 데이터, 결과가 없으면 빈 상태", async ({ page }) => {
-    await login(page);
+    await login(page, USER);
     const layout = await openScreen(page);
     await expect(layout.locator(".page-layout__footer-breadcrumb")).toHaveText("마루 MDM > 레이아웃 > 전문 레이아웃");
     await expect(layout.locator(".page-layout__footer-screen-id")).toHaveText("layoutMng");
@@ -149,7 +135,7 @@ test.describe("mdm 전문 레이아웃", () => {
   });
 
   test("L2~L8 M201 등록·상수 재정의·동시 수정·드래그", async ({ page }) => {
-    await login(page);
+    await login(page, USER);
     const layout = await openScreen(page);
 
     // ── L2 신규 — EAI 를 고르면 그 표준 헤더가 헤더 구성 1번에 ──
@@ -279,7 +265,7 @@ test.describe("mdm 전문 레이아웃", () => {
   // ── TSK-05-03 ─────────────────────────────────────────────────────────────
 
   test("L9 등록 검증 표 7종과 인코딩 바이트 기준 샘플 전문 한 줄", async ({ page }) => {
-    await login(page);
+    await login(page, USER);
     const layout = await openScreen(page);
     await search(layout, "(E2E)");
     await selectLayout(layout, FIXTURE_LAYOUT);
@@ -409,7 +395,7 @@ test.describe("mdm 전문 레이아웃", () => {
 
   test("L11 저장은 버전을 만들지 않는다 — 내 DRAFT 를 덮어쓰고, 버전 이력·스냅샷 JSON·엑셀 내려받기", async ({ page }) => {
     const name = `버전 ${STAMP}`;
-    await login(page);
+    await login(page, USER);
     const layout = await openScreen(page);
     await search(layout, "(E2E)");
     await selectLayout(layout, FIXTURE_LAYOUT);
@@ -486,7 +472,7 @@ test.describe("mdm 전문 레이아웃", () => {
   });
 
   test("L12 컬럼·도메인 변경 영향 전문 목록", async ({ page }) => {
-    await login(page);
+    await login(page, USER);
     const layout = await openScreen(page);
     await layout.getByTestId("layout-tab-version").click();
     const list = layout.getByTestId("impact-list");

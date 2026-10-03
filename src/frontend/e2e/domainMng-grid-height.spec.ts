@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { loginByApi } from "./support/common";
 
 /**
  * dma/domainMng 그리드 높이 검증 — DomainTreeGrid 의 height={360} 제거 확인.
@@ -14,22 +15,11 @@ import { expect, test } from "@playwright/test";
 
 const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
 
-/** 로그인: CSRF 발급 → credentials 콜백 (archive/six-screens-snap.spec.ts 와 동일 패턴) */
-async function login(page: import("@playwright/test").Page, context: import("@playwright/test").BrowserContext) {
-  const csrfResp = await context.request.get(`${BASE}/api/auth/csrf`);
-  const { csrfToken } = await csrfResp.json();
-  await context.request.post(`${BASE}/api/auth/callback/credentials`, {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    data: `csrfToken=${csrfToken}&userId=admin&password=admin123&callbackUrl=${encodeURIComponent(BASE + "/portal")}&json=true`,
-  });
-}
-
 test("도메인 목록 그리드가 패널 높이를 전부 사용한다", async ({ page, context }) => {
   test.setTimeout(120_000);
   page.setViewportSize({ width: 1600, height: 900 });
 
-  await login(page, context);
-  await page.goto(`${BASE}/portal`, { waitUntil: "domcontentloaded" });
+  await loginByApi(context, { baseUrl: BASE, openPortal: page });
 
   // 마루 MDM > 용어·도메인 > 도메인 관리
   for (const g of ["마루 MDM", "용어·도메인"]) {

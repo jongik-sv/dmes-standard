@@ -1,6 +1,8 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, login, walkMenuPath } from "./support/common";
+
 /**
  * 도메인 관리(dma/domainMng) 브라우저 E2E — TSK-04-03 design.md §4.6.
  *
@@ -14,8 +16,6 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * 실행마다 STAMP 로 이름을 만들어 DB 가 비어 있지 않아도 다시 돌릴 수 있다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const ADMIN = process.env.SMOKE_LOGIN_USER ?? "admin";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
@@ -32,21 +32,8 @@ const API = "/api/mdm/oasis/domainMng";
 // __dirname = src/frontend/e2e → repo root 까지 3단계 위.
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-04-03/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
 async function openDomainMng(page: Page): Promise<Locator> {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^용어·도메인$/, /^도메인 관리$/]) {
-    const node = item(name);
-    await expect(node).toBeVisible({ timeout: 20_000 });
-    await node.click();
-  }
+  await walkMenuPath(page, [/^마루 MDM$/, /^용어·도메인$/, /^도메인 관리$/]);
   const layout = page.locator(".page-layout").filter({
     has: page.locator(".page-layout__footer-screen-id", { hasText: "domainMng" }),
   });

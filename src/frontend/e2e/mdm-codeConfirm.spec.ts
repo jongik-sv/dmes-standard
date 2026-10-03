@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, clickMenuPath, login } from "./support/common";
 import { fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -19,8 +20,6 @@ import { fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
  * E2E_CF_RACE 를 확정하므로 **같은 mdm.db 로 다시 돌릴 수 없다**. SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const STD_ADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
@@ -34,14 +33,6 @@ function tid(page: Page, id: string): Locator {
   return page.getByTestId(id);
 }
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
 /** 확정 대기 목록·검사 결과 표는 AgDataGrid 다 — 행은 row-id(목록은 "ID-버전", 검사는 검사 번호)로 찾는다. */
 function gridRow(page: Page, gridTestId: string, rowId: string): Locator {
   return tid(page, gridTestId).locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"]`);
@@ -50,10 +41,7 @@ const listRow = (page: Page, id: string, ver: string) => gridRow(page, "cf-list"
 const checkRow = (page: Page, no: string) => gridRow(page, "cf-checks", no);
 
 async function openCodeConfirm(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  await item(/^마루 MDM$/).click({ timeout: 20_000 });
-  await item(/^마스터코드$/).click({ timeout: 20_000 });
-  await item(/^버전 확정$/).click({ timeout: 20_000 });
+  await clickMenuPath(page, [/^마루 MDM$/, /^마스터코드$/, /^버전 확정$/]);
   await expect(tid(page, "cf-list")).toBeVisible({ timeout: 60_000 });
 }
 

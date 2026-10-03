@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { clickSearch, loadMdmFixture, revealGridColumn } from "./support/mdm-e2e";
 
 /**
@@ -21,8 +22,6 @@ import { clickSearch, loadMdmFixture, revealGridColumn } from "./support/mdm-e2e
  * 기대 검사 결과는 픽스처 룰에 같은 편집을 한 정의를 TS 분석기로 돌려 얻었다(design Build 이탈 B9).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const STEWARD2 = process.env.SMOKE_MDM_STEWARD2_USER ?? "e2e_mdm_steward2";
 
@@ -34,31 +33,10 @@ const screenshot03 = (name: string) => path.resolve(__dirname, "../../..", "docs
 /** TSK-08-04 스크린샷 — 값 테스트·테스트 케이스·저장 거부. */
 const screenshot04 = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-08-04/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인", exact: true }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
-
-function menuItem(page: Page, text: RegExp) {
-  return page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-}
-
-/** 메뉴 트리를 따라 연다. 새로 고침 뒤에는 트리가 펼친 채 남으므로 하위 항목이 이미 보이면 상위를 누르지 않는다(누르면 접힌다). */
-async function openMenu(page: Page, leaf: RegExp) {
-  const path = [/^마루 MDM$/, /^업무기준$/, leaf];
-  for (let i = 0; i < path.length; i++) {
-    const item = menuItem(page, path[i]);
-    await expect(item).toBeVisible({ timeout: 20_000 });
-    if (i < path.length - 1 && (await menuItem(page, path[i + 1]).isVisible())) continue;
-    await item.click();
-  }
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW, exactButton: true };
 
 async function openRuleEdit(page: Page) {
-  await openMenu(page, /^룰 화면$/);
+  await openRuleMenu(page, /^룰 화면$/);
   await expect(page.getByTestId("rule-pick-keyword")).toBeVisible({ timeout: 60_000 });
 }
 
@@ -67,7 +45,7 @@ async function openRuleEdit(page: Page) {
  * 사용자처럼 룰 화면에서 만들고, 만든 버전을 골라 [내용 편집 →] 으로 넘어온다.
  */
 async function newMajorVersionAndEdit(page: Page, ruleId: string, ver: string) {
-  await openMenu(page, /^룰$/);
+  await openRuleMenu(page, /^룰$/);
   await expect(page.getByTestId("rule-search-keyword")).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("rule-search-keyword").fill(ruleId);
   await clickSearch(page);
@@ -90,7 +68,7 @@ async function pickRule(page: Page, ruleId: string) {
 }
 
 async function openRule(page: Page, user: string, ruleId: string) {
-  await login(page, user);
+  await login(page, user, LOGIN_OPTS);
   await openRuleEdit(page);
   await pickRule(page, ruleId);
 }
@@ -182,7 +160,7 @@ test.describe("mdm dme/ruleEdit", () => {
   test.beforeAll(() => loadMdmFixture("mdm-ruleEdit-data.sql"));
 
   test("S1 메뉴: 룰 화면이 열리고 룰을 고르기 전 빈 상태다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleEdit(page);
     await expect(page.getByTestId("rule-edit-empty")).toBeVisible();
   });
@@ -391,7 +369,7 @@ test.describe("mdm dme/ruleEdit", () => {
   });
 
   test("C3 산출 룰: COIL_WGT_CALC 새 버전에서 앞 결과를 읽는 열은 되고 자기 참조는 거부되어 아무 것도 반영되지 않으며 식 미리보기가 25434.0 이다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await newMajorVersionAndEdit(page, "COIL_WGT_CALC", "2.000");
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("2.000", { timeout: 20_000 });
     await openColumns(page);

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, walkMenuPath, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -22,8 +23,6 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(127.0.0.1:5100 은 메인 체크아웃 포털이라 쓰지 않는다, F23).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
 const SUFFIX = Date.now().toString(36).toUpperCase();
@@ -33,21 +32,10 @@ const NEW_NAME = `거래처 E2E ${SUFFIX}`;
 // 스크린샷은 저장소 문서(docs)를 건드리지 않도록 git 제외 폴더(mdm-user/.out)에 남긴다.
 const screenshot = (name: string) => path.resolve(__dirname, "mdm-user/.out/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openScreen(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^마스터데이터$/, /^마루 데이터$/]) {
-    const node = item(name);
-    await expect(node).toBeVisible({ timeout: 20_000 });
-    await node.click();
-  }
+  await walkMenuPath(page, [/^마루 MDM$/, /^마스터데이터$/, /^마루 데이터$/]);
   await expect(page.getByTestId("data-mng-list")).toBeVisible({ timeout: 60_000 });
 }
 
@@ -100,7 +88,7 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
 
   test.beforeAll(() => loadMdmFixture("mdm-dataMng.sql"));
   test.beforeEach(async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
   });
 

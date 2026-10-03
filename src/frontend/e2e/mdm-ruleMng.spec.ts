@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -17,11 +18,9 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  * 룰을 만들므로 같은 mdm.db 로 다시 돌릴 수 없다(새 DB 로 시작). 편집 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
 /** 헤더·버전 시나리오(H 계열) 전용 픽스처 룰 — mdm-ruleEdit-data.sql 끝. */
 const VER_RULE = "E2E_VER_JDG";
 const VER_RULE_NAME = "E2E 버전 판정";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 /** 둘째 담당자 — 소유권 시험(선점·해제)에 쓴다. */
 const STEWARD2 = process.env.SMOKE_MDM_STEWARD2_USER ?? "e2e_mdm_steward2";
@@ -29,31 +28,10 @@ const STDADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-08-02/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
-
-function menuItem(page: Page, text: RegExp) {
-  return page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-}
-
-/** 메뉴 트리를 따라 연다. 하위 항목이 이미 보이면 상위를 누르지 않는다(누르면 접힌다). */
-async function openMenu(page: Page, leaf: RegExp) {
-  const path = [/^마루 MDM$/, /^업무기준$/, leaf];
-  for (let i = 0; i < path.length; i++) {
-    const item = menuItem(page, path[i]);
-    await expect(item).toBeVisible({ timeout: 20_000 });
-    if (i < path.length - 1 && (await menuItem(page, path[i + 1]).isVisible())) continue;
-    await item.click();
-  }
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openRuleMng(page: Page) {
-  await openMenu(page, /^룰$/);
+  await openRuleMenu(page, /^룰$/);
   await expect(page.locator("#btn_rule_reg")).toBeVisible({ timeout: 60_000 });
 }
 
@@ -94,13 +72,13 @@ test.describe("mdm dme/ruleMng", () => {
   test.beforeAll(() => loadMdmFixture("mdm-ruleEdit-data.sql"));
 
   test("T1 메뉴: 마루 MDM > 업무기준 > 룰 이 열린다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await expect(page.locator(".page-layout__title:visible", { hasText: /^룰$/ })).toBeVisible();
   });
 
   test("T2 목록·빈 상태: 픽스처 룰이 서버 데이터로 보이고 없는 키워드면 빈 상태다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     // 화면을 열어도 목록은 자동 조회되지 않는다 — [조회] 를 눌러야 픽스처 룰이 보인다.
     await page.getByRole("button", { name: "조회", exact: true }).click();
@@ -117,7 +95,7 @@ test.describe("mdm dme/ruleMng", () => {
   });
 
   test("T3 등록: 등록하면 목록에 있고 고르면 상세가 버전 1 DRAFT·편집 중(나)으로 열린다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await openRuleRegister(page);
     await page.getByTestId("rule-reg-id").fill("E2E_NEW_JDG");
@@ -144,7 +122,7 @@ test.describe("mdm dme/ruleMng", () => {
   });
 
   test("T4 서버 오류: 같은 ID 로 등록하면 서버 중복 오류가 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await openRuleRegister(page);
     await page.getByTestId("rule-reg-id").fill("QLTY_GRD_JDG");
@@ -154,7 +132,7 @@ test.describe("mdm dme/ruleMng", () => {
   });
 
   test("T5 수용 1: 물리명 규칙 위반은 즉시 안내하고 막으며, 가로채 보내도 서버가 거부한다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await openRuleRegister(page);
     await page.getByTestId("rule-reg-id").fill("qlty-bad");
@@ -176,7 +154,7 @@ test.describe("mdm dme/ruleMng", () => {
   });
 
   test("T6 수용 2: 등록 폼에 원천 선택 칸이 없고 MDM 고정이다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await openRuleRegister(page);
     const form = page.getByTestId("rule-register-form");
@@ -186,7 +164,7 @@ test.describe("mdm dme/ruleMng", () => {
   });
 
   test("T7 권한: 표준 관리자(READ)는 목록은 보고 등록 버튼은 비활성이다", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openRuleMng(page);
     await page.getByRole("button", { name: "조회", exact: true }).click();
     await expect(page.getByTestId("rule-link-QLTY_GRD_JDG")).toBeVisible({ timeout: 30_000 });
@@ -197,7 +175,7 @@ test.describe("mdm dme/ruleMng", () => {
   // mdm-ruleEdit.spec.ts 가 픽스처의 2.000 DRAFT 를 고치는 룰이라, 여기서 새 버전·삭제를 하면 두 스펙이 서로를 깨뜨린다.
 
   test("H1 헤더: 룰명을 바꿔 바로 저장하면 다시 불러와도 유지된다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await openDetail(page, VER_RULE);
     await page.getByTestId("rule-header-name").fill(`${VER_RULE_NAME} 수정`);
@@ -210,7 +188,7 @@ test.describe("mdm dme/ruleMng", () => {
   });
 
   test("H2 수용 5: 새 버전은 버전 2 DRAFT(base 1, 편집 중(나))이고 그 뒤 새 버전은 막힌다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await openDetail(page, VER_RULE);
     await page.getByRole("button", { name: "새 버전(major)", exact: true }).click();
@@ -224,7 +202,7 @@ test.describe("mdm dme/ruleMng", () => {
   });
 
   test("H3 적중 정책(D-133): 버전 목록에 보이기만 하고 고치는 칸이 없다 — 고치는 곳은 룰 편집 화면의 의사결정표", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await openDetail(page, VER_RULE);
     await expect(versionRow(page, "1.000").locator('.ag-cell[col-id="hitPolicy"]')).toHaveText("FIRST");
@@ -234,7 +212,7 @@ test.describe("mdm dme/ruleMng", () => {
   });
 
   test("H4 수용 4: 다른 담당자가 편집 중인 DRAFT 는 잠김이고 헤더·버전 조작이 모두 막힌다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await openDetail(page, "E2E_LOCK_JDG");
     await expect(page.getByTestId("rule-card-versions").getByText(`잠김 · ${STEWARD2} 편집 중`)).toBeVisible();
@@ -246,7 +224,7 @@ test.describe("mdm dme/ruleMng", () => {
 
   test("H5 해제·선점: 소유자가 해제하면 다른 담당자가 선점해 편집 중(나)이 된다", async ({ browser }) => {
     const owner = await browser.newPage();
-    await login(owner, STEWARD2);
+    await login(owner, STEWARD2, LOGIN_OPTS);
     await openRuleMng(owner);
     await openDetail(owner, "E2E_LOCK_JDG");
     await expect(owner.getByTestId("rule-card-versions").getByText("편집 중(나)")).toBeVisible();
@@ -255,7 +233,7 @@ test.describe("mdm dme/ruleMng", () => {
     await owner.close();
 
     const other = await browser.newPage();
-    await login(other, STEWARD);
+    await login(other, STEWARD, LOGIN_OPTS);
     await openRuleMng(other);
     await openDetail(other, "E2E_LOCK_JDG");
     await other.getByRole("button", { name: "선점", exact: true }).click();
@@ -264,7 +242,7 @@ test.describe("mdm dme/ruleMng", () => {
   });
 
   test("H7 DRAFT 삭제: 버전 2 를 지우면 사라지고 새 버전이 다시 켜진다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await openDetail(page, VER_RULE);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
@@ -274,7 +252,7 @@ test.describe("mdm dme/ruleMng", () => {
   });
 
   test("H8 내용 편집 이동: [내용 편집 →] 은 내용 화면을 그 룰·버전으로 연다(I28)", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await openDetail(page, VER_RULE);
     await page.getByRole("button", { name: "내용 편집 →" }).click();
@@ -284,7 +262,7 @@ test.describe("mdm dme/ruleMng", () => {
 
   // H1 이 룰 이름을 바꾸므로 헤더 이름은 화면이 읽은 값에서 파생해 쓴다. 화면이 읽어 둔 auditVer 를 다른 요청이 먼저 올려 충돌을 만든다.
   test("H6 서버 오류: 헤더 저장이 MDM001 로 거부되면 다시 불러오기가 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMng(page);
     await openDetail(page, VER_RULE);
     const view = (await (await page.request.post(`${BASE_URL}/api/mdm/oasis/ruleMng/view`, {

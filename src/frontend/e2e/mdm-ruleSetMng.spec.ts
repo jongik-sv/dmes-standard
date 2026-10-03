@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -15,38 +16,15 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  * 목록 단언은 세트 키워드 `E2S_` 로 좁혀 다른 픽스처의 세트가 섞여도 흔들리지 않게 한다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const STDADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-08-06/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
-
-function menuItem(page: Page, text: RegExp) {
-  return page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-}
-
-/** 메뉴 트리를 따라 연다. 하위 항목이 이미 보이면 상위를 누르지 않는다(누르면 접힌다). */
-async function openMenu(page: Page, leaf: RegExp) {
-  const path = [/^마루 MDM$/, /^업무기준$/, leaf];
-  for (let i = 0; i < path.length; i++) {
-    const item = menuItem(page, path[i]);
-    await expect(item).toBeVisible({ timeout: 20_000 });
-    if (i < path.length - 1 && (await menuItem(page, path[i + 1]).isVisible())) continue;
-    await item.click();
-  }
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openRuleSetMng(page: Page) {
-  await openMenu(page, /^룰 세트$/);
+  await openRuleMenu(page, /^룰 세트$/);
   await expect(page.getByTestId("set-register-form")).toBeVisible({ timeout: 60_000 });
 }
 
@@ -69,13 +47,13 @@ test.describe("mdm dme/ruleSetMng", () => {
   test.beforeAll(() => loadMdmFixture("mdm-ruleSet-data.sql"));
 
   test("M1 메뉴: 마루 MDM > 업무기준 > 룰 세트 가 열리고 등록 패널이 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetMng(page);
     await expect(page.locator(".page-layout__title:visible", { hasText: /^룰 세트$/ })).toBeVisible();
   });
 
   test("M2 목록·빈 상태: 픽스처 세트가 계산 칸과 함께 보이고, 결과 변수·담은 룰로 거르며, 없는 세트면 빈 상태다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetMng(page);
     await search(page, { keyword: "E2S_" });
 
@@ -111,7 +89,7 @@ test.describe("mdm dme/ruleSetMng", () => {
   });
 
   test("M3 등록(수용 1): 저장하면 룰 세트 편집 탭이 그 빈 세트로 열리고 목록에 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetMng(page);
     await page.getByTestId("set-reg-id").fill("E2S_NEW_SET");
     await page.getByTestId("set-reg-name").fill("E2E 새 세트");
@@ -139,7 +117,7 @@ test.describe("mdm dme/ruleSetMng", () => {
   });
 
   test("M4 서버 오류: 같은 ID 로 등록하면 서버 중복 오류가 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetMng(page);
     await page.getByTestId("set-reg-id").fill("E2S_CHAIN");
     await page.getByTestId("set-reg-name").fill("중복 등록");
@@ -148,7 +126,7 @@ test.describe("mdm dme/ruleSetMng", () => {
   });
 
   test("M5 ID 규칙: 물리명 규칙 위반은 즉시 안내하고 저장을 막는다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetMng(page);
     await page.getByTestId("set-reg-id").fill("bad-id");
     await page.getByTestId("set-reg-name").fill("규칙 위반");
@@ -157,7 +135,7 @@ test.describe("mdm dme/ruleSetMng", () => {
   });
 
   test("M6 권한: 표준 관리자(READ)는 목록은 보고 등록 저장 버튼은 비활성이다", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openRuleSetMng(page);
     await search(page, { keyword: "E2S_" });
     await expect(page.getByTestId("set-link-E2S_CHAIN")).toBeVisible({ timeout: 30_000 });

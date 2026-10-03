@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, login, walkMenuPath } from "./support/common";
 import { clickSearch, expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -17,8 +18,6 @@ import { clickSearch, expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
  * beforeAll 이 SMOKE_MDM_DB(워크트리 mdm.db)에 e2e/fixtures/mdm-layout-m201.sql 을 넣는다 — 컬럼 사전 스펙 뒤에 들어가야 한다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const USER = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 const API = "/api/mdm/oasis/headerMng";
 
@@ -29,21 +28,8 @@ const NEW_EAI = `X${STAMP}`;
 // __dirname = src/frontend/e2e → repo root 까지 3단계 위.
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-02/screens", name);
 
-async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(USER);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
 async function openScreen(page: Page): Promise<Locator> {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^레이아웃$/, /^전문 헤더 정의$/]) {
-    const node = item(name);
-    await expect(node).toBeVisible({ timeout: 20_000 });
-    await node.click();
-  }
+  await walkMenuPath(page, [/^마루 MDM$/, /^레이아웃$/, /^전문 헤더 정의$/]);
   const layout = page.locator(".page-layout").filter({
     has: page.locator(".page-layout__footer-screen-id", { hasText: "headerMng" }),
   });
@@ -90,7 +76,7 @@ test.describe("mdm 전문 헤더 정의", () => {
   test.beforeAll(() => loadMdmFixture("mdm-layout-m201.sql"));
 
   test("H1 메뉴로 이동하고 목록은 서버 데이터, 결과가 없으면 빈 상태", async ({ page }) => {
-    await login(page);
+    await login(page, USER);
     const layout = await openScreen(page);
     await expect(layout.locator(".page-layout__footer-breadcrumb")).toHaveText("마루 MDM > 레이아웃 > 전문 헤더 정의");
     await expect(layout.locator(".page-layout__footer-screen-id")).toHaveText("headerMng");
@@ -114,7 +100,7 @@ test.describe("mdm 전문 헤더 정의", () => {
   });
 
   test("H2~H6 등록·사전 밖 항목·닫힌 칸·영향도·동시 수정", async ({ page }) => {
-    await login(page);
+    await login(page, USER);
     const layout = await openScreen(page);
 
     // ── H2 화면 조작만으로 헤더 등록 — 저장 전 즉시 재계산 ──
@@ -218,7 +204,7 @@ test.describe("mdm 전문 헤더 정의", () => {
     await page.getByRole("button", { name: "확인" }).click();
   });
   test("H7 확정된 헤더는 읽기 전용 — 새 버전(minor)을 만들어야 고칠 수 있다", async ({ page }) => {
-    await login(page);
+    await login(page, USER);
     const layout = await openScreen(page);
     await search(layout, "(E2E)");
     await selectHeader(layout, "L2 구간 헤더(E2E)");

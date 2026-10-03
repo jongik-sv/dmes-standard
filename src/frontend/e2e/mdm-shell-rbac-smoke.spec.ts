@@ -1,6 +1,8 @@
 import path from "node:path";
 import { expect, test, type Page, type Response } from "@playwright/test";
 
+import { BASE_URL, login, walkMenuPath } from "./support/common";
+
 /**
  * mdm 공통 셸·RBAC smoke — TSK-01-03 design.md §3.5.
  *
@@ -22,8 +24,6 @@ import { expect, test, type Page, type Response } from "@playwright/test";
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const ADMIN = process.env.SMOKE_LOGIN_USER ?? "admin";
 const NONE = process.env.SMOKE_MDM_NONE_USER ?? "e2e_mdm_none";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
@@ -43,14 +43,6 @@ function waitForMenuTree(page: Page): Promise<Response> {
   });
 }
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
 /** myMenusTree 응답의 트리 노드(자식 items 포함)에서 menuId 를 모두 모은다. */
 async function menuIds(response: Response): Promise<string[]> {
   expect(response.status()).toBe(200);
@@ -67,19 +59,7 @@ async function menuIds(response: Response): Promise<string[]> {
 }
 
 async function openSample(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-
-  const moduleFolder = item(/^마루 MDM$/);
-  await expect(moduleFolder).toBeVisible({ timeout: 20_000 });
-  await moduleFolder.click();
-
-  const groupFolder = item(/^용어·도메인$/);
-  await expect(groupFolder).toBeVisible({ timeout: 20_000 });
-  await groupFolder.click();
-
-  const leaf = item(/^MDM 샘플$/);
-  await expect(leaf).toBeVisible({ timeout: 20_000 });
-  await leaf.click();
+  await walkMenuPath(page, [/^마루 MDM$/, /^용어·도메인$/, /^MDM 샘플$/]);
 
   await expect(page.getByText("mdm 모듈 스캐폴드 검증용 빈 화면입니다", { exact: false })).toBeVisible({
     timeout: 60_000,

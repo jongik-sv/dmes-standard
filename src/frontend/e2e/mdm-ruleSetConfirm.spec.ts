@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -15,8 +16,6 @@ import { fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
 const BREADCRUMB = "마루 MDM > 업무기준 > 룰 세트 확정";
@@ -26,32 +25,11 @@ function tid(page: Page, id: string): Locator {
   return page.getByTestId(id);
 }
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인", exact: true }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW, exactButton: true };
 
-/** 보이는 메뉴 항목만 잡는다. */
-function menuItem(page: Page, text: RegExp): Locator {
-  return page.locator(".tree-item .item-name:visible").filter({ hasText: text }).first();
-}
-
-/** 메뉴 트리를 따라 연다. 하위 항목이 이미 보이면 상위를 누르지 않는다(누르면 접힌다). */
-async function openMenu(page: Page, leaf: RegExp) {
-  const trail = [/^마루 MDM$/, /^업무기준$/, leaf];
-  for (let i = 0; i < trail.length; i++) {
-    const item = menuItem(page, trail[i]);
-    await expect(item).toBeVisible({ timeout: 20_000 });
-    if (i < trail.length - 1 && (await menuItem(page, trail[i + 1]).isVisible())) continue;
-    await item.click();
-  }
-}
-
+/** 메뉴는 보이는 항목만 잡는다(visibleOnly). */
 async function openRuleSetConfirm(page: Page) {
-  await openMenu(page, /^룰 세트 확정$/);
+  await openRuleMenu(page, /^룰 세트 확정$/, { visibleOnly: true });
   await expect(tid(page, "rsc-list")).toBeVisible({ timeout: 60_000 });
 }
 
@@ -69,7 +47,7 @@ test.describe("mdm ruleSetConfirm — 룰 세트 확정", () => {
   test.beforeAll(() => loadMdmFixture("mdm-ruleSet-data.sql"));
 
   test("S1 담당자: 메뉴로 화면이 열리고 확정 대기 목록에 내 DRAFT 가 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetConfirm(page);
 
     await expect(page.locator(".page-layout__footer-breadcrumb").filter({ hasText: BREADCRUMB })).toBeVisible();
@@ -81,7 +59,7 @@ test.describe("mdm ruleSetConfirm — 룰 세트 확정", () => {
   });
 
   test("S2 담당자: 검사가 통과하면 확정되고 직전 버전의 적용이 닫힌다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetConfirm(page);
 
     const row = tid(page, "rsc-row-E2S_CONFIRM-2.000");

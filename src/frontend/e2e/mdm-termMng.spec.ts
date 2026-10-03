@@ -1,6 +1,8 @@
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, walkMenuPath, type LoginOptions } from "./support/common";
+
 /**
  * mdm dma/termMng(용어 관리) smoke — TSK-04-02 design.md §3.1.
  *
@@ -11,8 +13,6 @@ import { expect, test, type Page } from "@playwright/test";
  *   4. 서버 오류 노출 — (표기, 의미 번호) 중복 저장 거부(I6).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STDADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
 const SUFFIX = Date.now().toString(36);
@@ -25,28 +25,10 @@ const TERM2_DEF = `e2e 확인용 ${SUFFIX} 두번째`;
 const screenshot = (name: string) =>
   path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-04-02/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openTermMng(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-
-  const moduleFolder = item(/^마루 MDM$/);
-  await expect(moduleFolder).toBeVisible({ timeout: 20_000 });
-  await moduleFolder.click();
-
-  const groupFolder = item(/^용어·도메인$/);
-  await expect(groupFolder).toBeVisible({ timeout: 20_000 });
-  await groupFolder.click();
-
-  const leaf = item(/^용어 관리$/);
-  await expect(leaf).toBeVisible({ timeout: 20_000 });
-  await leaf.click();
+  await walkMenuPath(page, [/^마루 MDM$/, /^용어·도메인$/, /^용어 관리$/]);
 
   await expect(page.getByRole("button", { name: "등록" })).toBeVisible({ timeout: 60_000 });
 }
@@ -82,13 +64,13 @@ test.describe("mdm dma/termMng smoke", () => {
   test.setTimeout(150_000);
 
   test("T1 메뉴 이동: 용어 관리 화면이 열린다", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openTermMng(page);
     await page.screenshot({ path: screenshot("dma-termMng-open.png"), fullPage: true });
   });
 
   test("T2 빈 상태: 없는 키워드로 검색하면 빈 상태가 보인다", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openTermMng(page);
 
     await searchField(page, "검색어").locator("input").fill(NOMATCH_KEYWORD);
@@ -104,7 +86,7 @@ test.describe("mdm dma/termMng smoke", () => {
   });
 
   test("T3 등록 + 유사어 추천 + 동의어 확정", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openTermMng(page);
 
     await searchField(page, "검색어").locator("input").fill("");
@@ -152,7 +134,7 @@ test.describe("mdm dma/termMng smoke", () => {
   });
 
   test("T4 서버 오류 노출: (표기, 의미 번호) 중복 저장은 거부된다", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openTermMng(page);
 
     await page.getByRole("button", { name: "등록" }).click();

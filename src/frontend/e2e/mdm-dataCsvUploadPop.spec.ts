@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, walkMenuPath, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -20,8 +21,6 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  * 건드리지 않는다. 쓰기는 실행마다 새 키(`E2ECSV${SUFFIX}` 류)로 한다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
 const SUFFIX = Date.now().toString(36).toUpperCase();
@@ -68,21 +67,10 @@ function csvBody(...rows: string[]): string {
   return [CSV_HEADER, ...rows].join("\r\n") + "\r\n";
 }
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openScreen(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^마스터데이터$/, /^항목 편집$/]) {
-    const node = item(name);
-    await expect(node).toBeVisible({ timeout: 20_000 });
-    await node.click();
-  }
+  await walkMenuPath(page, [/^마루 MDM$/, /^마스터데이터$/, /^항목 편집$/]);
   await expect(page.getByTestId("item-add")).toBeVisible({ timeout: 60_000 });
   // 화면은 진입하면 첫 마루 데이터(또는 snapshot)를 비동기로 자동 선택하고, 선택이 끝나면 ID 고르기 칸을 그 ID 로 맞추며
   // 열린 후보 목록을 닫는다(IdPicker currentId). 그 전에 후보를 열어 누르면 후보가 사라져 클릭이 끝나지 않으므로
@@ -118,7 +106,7 @@ function listRow(page: Page, code: string): Locator {
 
 /** `dataItemMng` 화면으로 이동해 마루 데이터를 고르고 "CSV 업로드" 버튼으로 팝업을 연다(C1). */
 async function openCsvPopup(page: Page, maruDataId: string) {
-  await login(page, STEWARD);
+  await login(page, STEWARD, LOGIN_OPTS);
   await openScreen(page);
   await selectMaru(page, maruDataId);
   await page.getByTestId("item-csv-upload").click();

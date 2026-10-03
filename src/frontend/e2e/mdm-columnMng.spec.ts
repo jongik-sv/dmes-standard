@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, clickMenuPath, login } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -20,8 +21,6 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const STDADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
@@ -32,19 +31,8 @@ const SYSTEM_FIELD_ERROR = "한 시스템 안에서 필드명 하나는 컬럼 �
 // __dirname = src/frontend/e2e → repo root 까지 3단계 위.
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-04-04/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
 async function openColumnMng(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  await item(/^마루 MDM$/).click({ timeout: 20_000 });
-  await item(/^용어·도메인$/).click({ timeout: 20_000 });
-  await item(/^컬럼 사전$/).click({ timeout: 20_000 });
+  await clickMenuPath(page, [/^마루 MDM$/, /^용어·도메인$/, /^컬럼 사전$/]);
   await expect(page.getByTestId("column-list")).toBeVisible({ timeout: 60_000 });
 }
 

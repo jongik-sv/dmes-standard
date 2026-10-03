@@ -1,4 +1,5 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { loginByApi } from "./support/common";
 
 /**
  * 룰 화면 열 설정 — 도메인 칸에 붙은 찾기·해제 버튼(TSK-08-03 §2.1).
@@ -16,16 +17,6 @@ const RULE = "PROD_WGT_CALC";
 /** 서버 표기 룰 버전(D-144). */
 const VER = "2.000";
 
-async function login(page: Page, context: BrowserContext) {
-  const r = await context.request.get(`${BASE}/api/auth/csrf`);
-  const { csrfToken } = await r.json();
-  await context.request.post(`${BASE}/api/auth/callback/credentials`, {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    data: `csrfToken=${csrfToken}&userId=admin&password=admin123&callbackUrl=${encodeURIComponent(BASE + "/portal")}&json=true`,
-  });
-  await page.goto(`${BASE}/portal`, { waitUntil: "domcontentloaded" });
-}
-
 /** 편집기가 떴는지 — ag-grid 는 편집 칸에 input/select 을 넣는다(editText 헬퍼와 같은 기준). */
 const editors = (page: Page) => page.locator('[data-testid="col-table"] .ag-cell input, [data-testid="col-table"] .ag-cell select');
 
@@ -35,7 +26,7 @@ test("도메인 찾기·해제 버튼은 도메인 칸 안에 있고(글자 왼�
 }) => {
   test.setTimeout(200_000);
   page.setViewportSize({ width: 1700, height: 950 });
-  await login(page, context);
+  await loginByApi(context, { baseUrl: BASE, openPortal: page });
 
   for (const g of [/^마루 MDM$/, /^업무기준$/, /^룰 화면$/]) {
     const n = page.locator(".tree-item .item-name").filter({ hasText: g }).first();

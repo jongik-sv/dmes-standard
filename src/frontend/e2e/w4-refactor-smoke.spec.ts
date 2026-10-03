@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { PASSWORD } from "./support/common";
 
 /**
  * W4 리팩토링 실검증 스모크 — tsup splitting(청크 분리) dist 를 포털이 실제 로드하는지 +
@@ -17,7 +18,6 @@ import { expect, test, type Page } from "@playwright/test";
 
 const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
 const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin";
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const SNAP_DIR = "test-results/w4-snap";
 // 로그인 1회화: 첫 성공 세션의 cookie 를 저장해 이후 테스트가 재사용(반복 로그인 flake 회피)
 const STATE_FILE = "test-results/w4-auth-state.json";
@@ -113,7 +113,7 @@ test.describe("W4 리팩토링 스모크 (청크 dist + 이관 화면)", () => {
 
       // 폼 로그인 (phase2-planning-smoke 패턴 — 시드 dev 계정, 후보 순차 시도)
       const candidates = [
-        { id: LOGIN_USER, pw: LOGIN_PASSWORD },
+        { id: LOGIN_USER, pw: PASSWORD },
         { id: "admin@dmes.com", pw: "admin123" },
       ];
       let loggedIn = false;

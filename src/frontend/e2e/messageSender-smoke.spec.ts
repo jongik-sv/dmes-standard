@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { login } from "./support/common";
 
 /**
  * 메시지 전송 (mcm/cia messageSender) 화면 스모크.
@@ -15,15 +16,10 @@ import { expect, test } from "@playwright/test";
 
 const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
 const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin@dmes.com";
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 
 test.describe("메시지 전송 (messageSender) Smoke", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
-    await page.getByPlaceholder("아이디").fill(LOGIN_USER);
-    await page.getByPlaceholder("비밀번호").fill(LOGIN_PASSWORD);
-    await page.getByRole("button", { name: "로그인" }).click();
-    await expect(page).toHaveURL(/\/portal/, { timeout: 15000 });
+    await login(page, LOGIN_USER, { baseUrl: BASE_URL, portalTimeout: 15_000 });
   });
 
   test("메시지 전송 화면 렌더링 + 음수 조회 안내", async ({ page }) => {

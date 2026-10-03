@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, login, menuItem, walkMenuPath } from "./support/common";
 import { clickSearch, loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -18,8 +19,6 @@ import { clickSearch, loadMdmFixture } from "./support/mdm-e2e";
  * 적용 시작을 먼 미래로 두는 까닭: 파일 이름 순으로 이 스펙 뒤에 도는 mdm-layoutMng.spec.ts 가 "지금" 의 총 길이 187·헤더 길이 30 을 그대로 본다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
 const HEADER_NAME = "L2 구간 헤더(E2E)";
@@ -27,22 +26,9 @@ const MESSAGE_NAME = "출측검사 실적 수신(E2E)";
 
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-03/screens", name);
 
-async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(STEWARD);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
 /** 헤더 화면을 사이드바로 열고 화면 범위를 돌려준다. */
 async function openHeaderScreen(page: Page): Promise<Locator> {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^레이아웃$/, /^전문 헤더 정의$/]) {
-    const node = item(name);
-    await expect(node).toBeVisible({ timeout: 20_000 });
-    await node.click();
-  }
+  await walkMenuPath(page, [/^마루 MDM$/, /^레이아웃$/, /^전문 헤더 정의$/]);
   const layout = page.locator(".page-layout").filter({
     has: page.locator(".page-layout__footer-screen-id", { hasText: "headerMng" }),
   });
@@ -73,7 +59,7 @@ test.describe("mdm 레이아웃 확정", () => {
 
   test("C1~C3 헤더 새 버전(minor) → 확정 화면(영향 187 → 190·동시 전환·경고 확인) → 확정 → 적용 대기", async ({ page }) => {
     const applyFrom = kstAfter(30 * 24 * 3600_000);
-    await login(page);
+    await login(page, STEWARD);
     const layout = await openHeaderScreen(page);
 
     // ── C1 새 버전(minor) 1.001 DRAFT — 여분 5 를 8 로 늘리면 헤더 30 → 33 ──
@@ -147,7 +133,7 @@ test.describe("mdm 레이아웃 확정", () => {
     await page.screenshot({ path: screenshot("dmb-layoutConfirm-done.png"), fullPage: true });
 
     // ── C3 헤더 화면 — 버전 선택에 v1.001 이 적용 대기(RELEASED, 적용 시작 전)로 보인다 ──
-    await page.locator(".tree-item .item-name").filter({ hasText: /^전문 헤더 정의$/ }).first().click();
+    await menuItem(page, /^전문 헤더 정의$/).click();
     await selectHeader(layout, HEADER_NAME);
     const select = layout.getByTestId("header-ver-select");
     await expect(select.locator('option[value="1.000"]')).toHaveText("v1.000 현재", { timeout: 30_000 });

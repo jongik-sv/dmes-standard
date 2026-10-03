@@ -1,6 +1,8 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, clickMenuPath, login } from "./support/common";
+
 /**
  * 마루 코드(codeMng) — TSK-06-02 design.md §3.4 화면 스모크(2026-09-28 통합 D-101·D-102: codeMng+codeEdit → codeMng
  * 하나. 옛 mdm-codeEdit.spec.ts 의 시나리오는 여기로 옮겼고, 없어진 메뉴("마루 코드 수정")를 찾던 그 파일은 지웠다).
@@ -24,8 +26,6 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
 const SUFFIX = Date.now().toString(36).toUpperCase();
@@ -43,21 +43,8 @@ function tid(page: Page, id: string): Locator {
   return page.locator(`[data-testid="${id}"]:visible`);
 }
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
-const menuItem = (page: Page, text: RegExp) =>
-  page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-
 async function openCodeMng(page: Page) {
-  await menuItem(page, /^마루 MDM$/).click({ timeout: 20_000 });
-  await menuItem(page, /^마스터코드$/).click({ timeout: 20_000 });
-  await menuItem(page, /^마루 코드$/).click({ timeout: 20_000 });
+  await clickMenuPath(page, [/^마루 MDM$/, /^마스터코드$/, /^마루 코드$/]);
   await expect(tid(page, "code-list")).toBeVisible({ timeout: 60_000 });
 }
 

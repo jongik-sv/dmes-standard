@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, walkMenuPath, type LoginOptions } from "./support/common";
 import { expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -26,8 +27,6 @@ import { expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
  * 행은 고치지 않고 쓰기는 실행마다 새 키로 한다(같은 mdm.db 로 다시 돌려도 결과가 같다).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
 const SUFFIX = Date.now().toString(36).toUpperCase();
@@ -46,21 +45,10 @@ const HIST_KEY = `E2EH${SUFFIX}`;
 const screenshot = (name: string) => path.resolve(__dirname, "mdm-user/.out/screens", name);
 const screenshot74 = screenshot;
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openScreen(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^마스터데이터$/, /^항목 편집$/]) {
-    const node = item(name);
-    await expect(node).toBeVisible({ timeout: 20_000 });
-    await node.click();
-  }
+  await walkMenuPath(page, [/^마루 MDM$/, /^마스터데이터$/, /^항목 편집$/]);
   await expect(page.getByTestId("item-add")).toBeVisible({ timeout: 60_000 });
   // 화면은 진입하면 첫 마루 데이터(또는 snapshot)를 비동기로 자동 선택하고, 선택이 끝나면 ID 고르기 칸을 그 ID 로 맞추며
   // 열린 후보 목록을 닫는다(IdPicker currentId). 그 전에 후보를 열어 누르면 후보가 사라져 클릭이 끝나지 않으므로
@@ -184,7 +172,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   test.beforeAll(() => loadMdmFixture("mdm-dataItem.sql", "mdm-dataMng.sql"));
 
   test("S1 메뉴 이동: 마루 MDM > 마스터데이터 > 항목 편집", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await expect(
       page.locator(".page-layout__footer-breadcrumb").filter({ hasText: /마루 MDM > 마스터데이터 > 항목 편집/ }),
@@ -192,7 +180,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   });
 
   test("S2 목록: 동적 열·카테고리·빈 상태·EXTERNAL 조회 전용", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
@@ -225,7 +213,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   });
 
   test("S3 등록·수정 1회 반영, 이력 2행, 닫힌 키 등록은 다시 열기 안내(수용 기준 3)", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
@@ -274,7 +262,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   });
 
   test("S4 서버 오류 노출(키 패턴)과 다른 사용자 수정 충돌 재조회(수용 기준 4)", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
@@ -315,7 +303,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   test("S5 트리 보기: 서버 트리 데이터로 노드가 채워지고, CSV 버튼·데이터 없는 마루는 빈 상태(TSK-07-04)", async ({
     page,
   }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
@@ -344,7 +332,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   });
 
   test("S6 트리 노드 선택 → 이 노드로 보기 → 그리드 필터 칩 → 해제(TSK-07-04, I5)", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
@@ -376,7 +364,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   // ── D-104 이력: 오른쪽 열 항목 이력 패널(옛 dataHistory 화면의 대상 「항목」) ──
 
   test("S7 항목 이력 패널: 행의 [이력]을 누르면 오른쪽에 그 키의 이력(1행)이 보이고, 닫으면 안내로 돌아간다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
@@ -402,7 +390,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   });
 
   test("S8 이력 타임라인: 생성·변경·닫혀 있던 구간·다시 열기가 화면 조작만으로 남는다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
@@ -446,7 +434,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
 
   /** 카테고리 시험 전용 마루 데이터를 고른 뒤 오른쪽 [카테고리 편집] 탭(66f40e88)으로 들어간다. 마루 데이터 고르기는 [항목] 탭에서 한다. */
   async function openCateTab(page: Page) {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, CATE_PORT);
     await page.getByTestId("item-right-tab-cate").click();

@@ -1,4 +1,5 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { loginByApi } from "./support/common";
 
 /**
  * 룰 화면(ruleEdit) · 룰 세트 편집(ruleSetEdit) 레이아웃 진단.
@@ -17,16 +18,6 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
  */
 
 const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-
-async function login(page: Page, context: BrowserContext) {
-  const csrf = await context.request.get(`${BASE}/api/auth/csrf`);
-  const { csrfToken } = await csrf.json();
-  await context.request.post(`${BASE}/api/auth/callback/credentials`, {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    data: `csrfToken=${csrfToken}&userId=admin&password=admin123&callbackUrl=${encodeURIComponent(BASE + "/portal")}&json=true`,
-  });
-  await page.goto(`${BASE}/portal`, { waitUntil: "domcontentloaded" });
-}
 
 /** 마루 MDM > 업무기준 > leaf 를 순서대로 연다. 이미 펼쳐져 있으면 클릭을 무시한다. */
 async function openMenu(page: Page, leaf: RegExp) {
@@ -90,7 +81,7 @@ async function measure(page: Page, screenId: string): Promise<Probe> {
 test("ruleSetEdit — footer 맨 아래 + 본문 미잘림", async ({ page, context }) => {
   test.setTimeout(150_000);
   page.setViewportSize({ width: 1600, height: 900 });
-  await login(page, context);
+  await loginByApi(context, { baseUrl: BASE, openPortal: page });
 
   await openMenu(page, /^룰 세트 편집$/);
   await expect(page.getByTestId("set-pick-keyword")).toBeVisible({ timeout: 60_000 });
@@ -119,7 +110,7 @@ test("ruleSetEdit — footer 맨 아래 + 본문 미잘림", async ({ page, cont
 test("ruleEdit — footer 맨 아래 + 본문 미잘림", async ({ page, context }) => {
   test.setTimeout(150_000);
   page.setViewportSize({ width: 1600, height: 900 });
-  await login(page, context);
+  await loginByApi(context, { baseUrl: BASE, openPortal: page });
 
   await openMenu(page, /^룰 화면$/);
   await expect(page.getByTestId("rule-pick-keyword")).toBeVisible({ timeout: 60_000 });

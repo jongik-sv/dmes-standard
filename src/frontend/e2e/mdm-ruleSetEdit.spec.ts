@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -27,8 +28,6 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  * IF 는 합류 노드가 없다 — 갈래가 모이는 자리로 바로 간다(D-136). 저장된 옛 형식 세트(E2S_FLOW)는 열 때 바꿔 그린다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const STDADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
@@ -36,35 +35,14 @@ const DIRTY_CONFIRM = "저장하지 않은 변경이 있습니다. 버리고 이
 
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-08-06/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
-
-function menuItem(page: Page, text: RegExp) {
-  return page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-}
-
-/** 메뉴 트리를 따라 연다. 하위 항목이 이미 보이면 상위를 누르지 않는다(누르면 접힌다). */
-async function openMenu(page: Page, leaf: RegExp) {
-  const path = [/^마루 MDM$/, /^업무기준$/, leaf];
-  for (let i = 0; i < path.length; i++) {
-    const item = menuItem(page, path[i]);
-    await expect(item).toBeVisible({ timeout: 20_000 });
-    if (i < path.length - 1 && (await menuItem(page, path[i + 1]).isVisible())) continue;
-    await item.click();
-  }
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 /** 세트 입출력 표(AgDataGrid)의 한 행 — 행 키는 변수명이다. kind: inputs(입력 변수) | results(결과 변수). 세트 패널(선택 없음)에 있다. */
 const ioRow = (page: Page, kind: "inputs" | "results", name: string): Locator =>
   page.getByTestId(`set-io-${kind}`).locator(`.ag-center-cols-container .ag-row[row-id="${name}"]`);
 
 async function openRuleSetEdit(page: Page) {
-  await openMenu(page, /^룰 세트 편집$/);
+  await openRuleMenu(page, /^룰 세트 편집$/);
   await expect(page.getByTestId("set-pick-keyword")).toBeVisible({ timeout: 60_000 });
 }
 
@@ -167,14 +145,14 @@ test.describe("mdm dme/ruleSetEdit", () => {
   test.beforeAll(() => loadMdmFixture("mdm-ruleSet-data.sql"));
 
   test("E1 메뉴: 마루 MDM > 업무기준 > 룰 세트 편집 이 열리고 세트 고르기 칸과 빈 상태가 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await expect(page.locator(".page-layout__title:visible", { hasText: /^룰 세트 편집$/ })).toBeVisible();
     await expect(page.getByTestId("set-edit-empty")).toHaveText("세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다");
   });
 
   test("E2 서버 데이터: E2S_CHAIN 의 캔버스 노드·변수 흐름·입출력 표·검사가 서버 값으로 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CHAIN");
     await expect(page.getByTestId("set-status")).toHaveText("INUSE");
@@ -211,7 +189,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E3 캔버스 편집: END 앞에 IF 를 끼우면 조건식 없음 거부로 저장이 꺼지고, 조건식을 넣으면 켜지며, dirty 확인이 뜬다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CHAIN");
     await expect(flowNodes(page)).toHaveCount(5, { timeout: 20_000 });
@@ -251,7 +229,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E4 수용 3: 순환이 생기면 즉시 거부가 보이고 저장이 꺼지며, 저장하지 않고 다시 불러오면 저장된 흐름 그대로다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CYCSET");
     await expectChain(page, ["E2S_GRD"]);
@@ -272,7 +250,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E5 수용 4: 같은 결과 변수 중복 대입은 경고이고, 세트명을 고쳐 저장하면 경고와 함께 저장된다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CYCSET");
     await enterEditMode(page);
@@ -307,7 +285,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E6 구성 지침: S_SPD 의 위상 정렬 제안을 흐름에 적용해 저장하고 다시 열어도 순서가 유지되며, 순환이면 오류가 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_GUIDESET");
     // 빈 세트는 시작 → 끝만 그려진다.
@@ -344,7 +322,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E7 폐기·되살리기: DEPRECATED 세트는 되살리기만 되고, 되살린 뒤 두 단계로 다시 폐기한다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_OLDSET");
     await expect(page.getByTestId("set-status")).toHaveText("DEPRECATED");
@@ -372,7 +350,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E8 서버 오류: 저장이 MDM001 로 실패하면 충돌 안내와 다시 불러오기가 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CHAIN");
     await enterEditMode(page);
@@ -399,7 +377,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E9 권한: 표준 관리자(READ)는 세트를 보고 디버그 모드에 들어가지만 편집·저장·폐기·지침 적용·단계 실행·케이스 저장·식 평가가 비활성이다", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CHAIN");
     await expectChain(page, ["E2S_GRD", "E2S_FCT", "E2S_SPD"]);
@@ -424,7 +402,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E10 룰 링크: 룰 노드를 골라 속성 패널의 룰 편집 열기를 누르면 룰 화면 탭이 그 룰로 열린다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CHAIN");
     await page.getByTestId("flow-node-r1").click();
@@ -434,7 +412,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E11 디버그 모드: E2S_FLOW 를 [한 단계] 로 따라가고 중단점까지 계속·끝까지 하면 IF 가 고른 선이 강조되고 값 표가 채워진다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
     // 분기 세트도 캔버스로 그려진다(옛 합류 m1 은 열 때 없앤다): 시작 · r1 · if1 · r2 · r3 · 끝.
@@ -477,7 +455,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E12 룰 박스: 링크 아이콘만 룰 화면 탭을 열고, 박스 누르기는 오른쪽 속성 패널만 연다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CHAIN");
 
@@ -493,7 +471,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E13 편집기: 룰 목록에서 선으로 끌어 넣고 되돌리기·다시 하기, [+] 메뉴로 IF 를 넣고 병렬로 바꾼 뒤 Ctrl+Z 로 되돌린다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CHAIN");
     await expect(flowNodes(page)).toHaveCount(5, { timeout: 20_000 });
@@ -538,7 +516,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E14 테스트 케이스: 디버그 모드에서 지금 입력을 케이스로 저장하고 모두 실행하면 1/1 통과이며, 삭제하면 표가 비는다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
     await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
@@ -568,7 +546,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E15 찾기·접기: 룰 ID 로 찾으면 1/1 이고, 접은 블록 안 노드를 찾으면 블록이 펼쳐진다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
     await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
@@ -594,7 +572,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E16 받는 노드: 룰에 예외 받기를 붙여 저장하고, 결과 없는 입력으로 실행하면 처리 갈래로 끝나고 받은 예외가 1건이다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CATCHSET");
     await enterEditMode(page);
@@ -618,7 +596,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E17 옛 형식 열기: E2S_FLOW 를 열면 합류 없이 그려지고 알림이 보이며 dirty 가 아니고, 저장 뒤 다시 열면 같은 그림에 알림이 없다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
     await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
@@ -642,7 +620,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
   });
 
   test("E18 끝내는 갈래: 「등급 A」 갈래의 마지막 선을 끝으로 옮겨 저장하고 그 갈래를 타는 입력으로 실행하면 완료·끝낸 갈래 표시가 보이고 IF 뒤 노드는 돌지 않는다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_IFEND");
     await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });

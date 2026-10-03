@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { clickSearch, fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -22,8 +23,6 @@ import { clickSearch, fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const STD_ADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
@@ -37,32 +36,11 @@ function tid(page: Page, id: string): Locator {
   return page.getByTestId(id);
 }
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인", exact: true }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW, exactButton: true };
 
-/** 보이는 메뉴 항목만 잡는다 — "버전 확정" leaf 는 마스터코드(codeConfirm) 아래에도 있다. */
-function menuItem(page: Page, text: RegExp): Locator {
-  return page.locator(".tree-item .item-name:visible").filter({ hasText: text }).first();
-}
-
-/** 메뉴 트리를 따라 연다. 하위 항목이 이미 보이면 상위를 누르지 않는다(누르면 접힌다). */
-async function openMenu(page: Page, leaf: RegExp) {
-  const trail = [/^마루 MDM$/, /^업무기준$/, leaf];
-  for (let i = 0; i < trail.length; i++) {
-    const item = menuItem(page, trail[i]);
-    await expect(item).toBeVisible({ timeout: 20_000 });
-    if (i < trail.length - 1 && (await menuItem(page, trail[i + 1]).isVisible())) continue;
-    await item.click();
-  }
-}
-
+/** 메뉴는 보이는 항목만 잡는다(visibleOnly) — "버전 확정" leaf 는 마스터코드(codeConfirm) 아래에도 있다. */
 async function openRuleConfirm(page: Page) {
-  await openMenu(page, /^버전 확정$/);
+  await openRuleMenu(page, /^버전 확정$/, { visibleOnly: true });
   await expect(tid(page, "rc-list")).toBeVisible({ timeout: 60_000 });
 }
 
@@ -89,7 +67,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
   test.beforeAll(() => loadMdmFixture("mdm-ruleConfirm-data.sql"));
 
   test("T1 담당자: 메뉴로 화면이 열린다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleConfirm(page);
 
     await expect(page.locator(".page-layout__footer-breadcrumb").filter({ hasText: BREADCRUMB })).toBeVisible();
@@ -97,7 +75,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
   });
 
   test("T2 담당자: 확정 대기 목록이 서버 데이터로 채워지고, 걸러 없으면 빈 상태가 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleConfirm(page);
 
     await expect(tid(page, "rc-row-E2E_RC_OK-1.000")).toBeVisible({ timeout: 20_000 });
@@ -114,8 +92,8 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
   });
 
   test("T3·T4 담당자: 룰 상세의 확정 이동으로 열고 검사하면 값 테스트 거부로 확정 버튼이 꺼진다", async ({ page }) => {
-    await login(page, STEWARD);
-    await openMenu(page, /^룰$/);
+    await login(page, STEWARD, LOGIN_OPTS);
+    await openRuleMenu(page, /^룰$/, { visibleOnly: true });
     await expect(tid(page, "rule-search-keyword")).toBeVisible({ timeout: 60_000 });
     // 룰 목록은 자동 조회되지 않는다(cf4fbb05) — 그 룰로 조회해 상세(① 헤더·② 버전)를 연다.
     await tid(page, "rule-search-keyword").fill("E2E_RC_CASEFAIL");
@@ -148,7 +126,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
   });
 
   test("T5 담당자: 최초 버전을 경고 확인 뒤 확정하면 RELEASED 가 되고 목록에서 사라진다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleConfirm(page);
     await choose(page, "E2E_RC_OK", "1.000");
 
@@ -180,7 +158,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
   });
 
   test("T6 담당자: 계약 변경은 계약 확인란을 체크해야 확정되고, 직전 버전이 닫힌다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleConfirm(page);
     await choose(page, "E2E_RC_CONTRACT", "2.000");
 
@@ -216,7 +194,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
   });
 
   test("T7 담당자: 다른 세션이 먼저 확정하면 화면 확정이 서버 문구로 거부된다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleConfirm(page);
     await choose(page, "E2E_RC_RACE", "1.000");
     await validate(page, "2026-02-01 00:00:00");
@@ -250,7 +228,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     const rbacLoaded = page.waitForResponse((r) => r.url().includes("/secUser/myButtonEndpoints") && r.ok(), {
       timeout: 60_000,
     });
-    await login(page, STD_ADMIN);
+    await login(page, STD_ADMIN, LOGIN_OPTS);
     await openRuleConfirm(page);
     await rbacLoaded;
     await choose(page, "E2E_RC_CASEFAIL", "1.000");

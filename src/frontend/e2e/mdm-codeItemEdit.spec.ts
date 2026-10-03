@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, clickMenuPath, login } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -30,8 +31,6 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  * 저장이 403 이다. SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const SUFFIX = Date.now().toString(36).toUpperCase();
 
@@ -42,19 +41,8 @@ const SAVE_REJECTED = "코드 저장 검사를 통과하지 못했습니다";
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-06-03/screens", name);
 const cateScreenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-06-04/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
 async function openCodeItemEdit(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  await item(/^마루 MDM$/).click({ timeout: 20_000 });
-  await item(/^마스터코드$/).click({ timeout: 20_000 });
-  await item(/^코드 편집$/).click({ timeout: 20_000 });
+  await clickMenuPath(page, [/^마루 MDM$/, /^마스터코드$/, /^코드 편집$/]);
   await expect(page.getByTestId("code-pick-keyword")).toBeVisible({ timeout: 60_000 });
 }
 
