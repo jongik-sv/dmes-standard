@@ -730,8 +730,9 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "layout-search-keyword").fill(RUN);
     await headerSearch(page).click();
     await gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME").click();
-    await expect(tid(page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: 20_000 });
+    // 앞 시험(LAY-08)이 [버전·영향도] 탭을 연 채라, 이름 칸이 있는 [편집] 탭으로 먼저 돌아간다.
     await tid(page, "layout-tab-edit").click();
+    await expect(tid(page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: 20_000 });
     await expect(tid(page, "layout-ver-confirm")).toBeDisabled();
     await tid(page, "layout-ver-unlock").click();
     await expect(tid(page, "layout-ver-unlock")).toBeDisabled({ timeout: 20_000 });

@@ -541,6 +541,28 @@ async function confirmSetFromEdit(page: Page, setId: string, ver: string, applyF
   await expect(tid(page, "rsc-released")).toBeVisible({ timeout: 30_000 });
 }
 
+/** 세트 버전 줄 [삭제](확인창)로 내 DRAFT 를 지운다 — 확정 버전 v1.000 이 다시 골라진다(D-144 2단계 SetVersionRow). */
+async function deleteSetDraftVer(page: Page, ver: string) {
+  const checked = tid(page, "set-ver-select").locator("option:checked");
+  await expect(checked).toHaveText(`v${ver} (DRAFT)`);
+  await tid(page, "set-ver-delete").click();
+  const confirm = page.getByRole("dialog").filter({ hasText: `v${ver} DRAFT 를 지운다. 되돌릴 수 없다` });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "확인", exact: true }).click();
+  await expect(tid(page, "set-message")).toContainText(`v${ver} 을 지웠다`, { timeout: 20_000 });
+  await expect(tid(page, "set-ver-select").locator("option", { hasText: `v${ver}` })).toHaveCount(0);
+  await expect(checked).toHaveText("v1.000 (RELEASED)");
+}
+
+/** 세트 버전 줄 [새 버전(major|minor)]으로 DRAFT 를 만든다 — 만든 버전이 골라지고 편집할 수 있다. */
+async function newSetVersion(page: Page, kind: "major" | "minor", ver: string) {
+  const checked = tid(page, "set-ver-select").locator("option:checked");
+  await expect(checked).toHaveText("v1.000 (RELEASED)");
+  await tid(page, `set-ver-new-${kind}`).click();
+  await expect(tid(page, "set-message")).toContainText(`새 버전(${kind})을 만들었다`, { timeout: 20_000 });
+  await expect(checked).toHaveText(`v${ver} (DRAFT)`);
+}
+
 // ═══════════════════════════ A. 룰 등록·편집·확정 ═══════════════════════════
 
 test.describe("A 룰 등록·편집·확정", () => {
@@ -1967,12 +1989,19 @@ test.describe("C 룰 세트", () => {
     await tid(page, "set-restore").click();
     await expect(tid(page, "set-status")).toHaveText("INUSE", { timeout: 20_000 });
     await expect(setMessage()).toContainText("되살림");
-    await expect(tid(page, "set-name")).toBeEnabled();
+    // D-144 2단계: 확정 버전(v1.000)은 읽기 전용이다 — [편집] 모드로 바꿀 수 없다(view.editable). 고치려면 버전 줄
+    // [새 버전(minor)]으로 내 DRAFT 를 만든다. 남은 버튼은 그 DRAFT 에서 누르고, 끝에서 [삭제]로 지운다.
+    await expect(tid(page, "flow-mode-edit")).toBeDisabled();
+    await expect(tid(page, "set-name")).toBeDisabled();
+    await newSetVersion(page, "minor", "1.001");
+    await expect(tid(page, "flow-mode-edit")).toBeEnabled();
 
     // 남은 버튼을 한 번씩 누른다 — 보기/편집/디버그 전환, 되돌리기·다시 하기, 아래 패널 접기·펼치기, 미니맵·도움말·왼쪽 룰 패널·찾기·화면 확대 단추,
     // 디버그 모드의 실행 단추·케이스. 마지막은 보기 모드·검사 탭으로 돌려 둔다.
     await tid(page, "flow-mode-edit").click();
     await expect(tid(page, "flow-palette")).toBeVisible();
+    // 세트명·설명은 편집 모드에서 내 DRAFT 일 때 고칠 수 있다(SidePanel editable).
+    await expect(tid(page, "set-name")).toBeEnabled();
     // 도구 상자 [공간] 켜기·끄기(끄면 기본 도구 [영역 선택] 으로 돌아온다).
     await tid(page, "flow-space-tool").click();
     await expect(tid(page, "flow-space-tool")).toHaveAttribute("aria-pressed", "true");
@@ -2049,7 +2078,9 @@ test.describe("C 룰 세트", () => {
     await tid(page, "dbg-continue").click();
     await tid(page, "dbg-restart").click();
     await expect(dbgStatus).toHaveText(/^1\/\d+ · start 실행 전$/);
-    // 중단점 점 — 켰다 끈다(상태는 data-on).
+    // 중단점 점 — 켰다 끈다(상태는 data-on). 위에서 React Flow 확대·축소 단추를 누르고 디버그 줄·버전 줄(D-144)이 더해져
+    // 첫 룰 박스가 캔버스 보이는 영역 위로 밀려날 수 있다(캔버스는 화면 이동이라 스크롤로 드러나지 않는다) — [화면 맞춤] 뒤 누른다.
+    await tid(page, "flow-fit").click();
     const bpSA = tid(page, `flow-bp-${await ruleNodeIdOf(page, SA)}`);
     await bpSA.click();
     await expect(bpSA).toHaveAttribute("data-on", "true");
@@ -2070,6 +2101,10 @@ test.describe("C 룰 세트", () => {
     await expect(tid(page, "case-grid")).toContainText(`E2E 케이스 ${RUN}`, { timeout: 20_000 });
     await tid(page, "case-run-all").click();
     await expect(tid(page, "case-summary")).toHaveText("1/1 통과", { timeout: 30_000 });
+    // [중지](fc911d0d) — 디버그를 끝내고 실행 전으로 돌린다. 지난 실행이 없어지면 다시 꺼진다.
+    await expect(tid(page, "dbg-stop")).toBeEnabled();
+    await tid(page, "dbg-stop").click();
+    await expect(tid(page, "dbg-stop")).toBeDisabled({ timeout: 20_000 });
     // 디버그 모드에서도 보이는 활성 단추를 다시 확인한다. 케이스 고르기·불러오기·수정·삭제·디버그로 열기는 케이스 줄을 고르기 전에는 꺼져 있어 목록에서 빠진다.
     const dynamicAllow = async (prefix: string, why: string) =>
       Object.fromEntries(
@@ -2084,6 +2119,8 @@ test.describe("C 룰 세트", () => {
       ...(await dynamicAllow("flow-rule-open-", "룰 박스 링크 아이콘은 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)")),
       ...(await dynamicAllow("flow-section-", "오른쪽 섹션 머리 — 펴고 접기는 flow-section-rules-head 로 확인했고 나머지는 같은 동작이다")),
       "sim-detail-open-rule": "노드 상세의 [룰 편집 열기] 는 누르면 룰 화면으로 옮겨 가 다음 TC-DME-SED-06 흐름이 깨진다",
+      "set-ver-unlock": "버전 줄 [해제]·[선점]은 이 시험 끝(보기 모드)에서 누른다",
+      "set-ver-delete": "버전 줄 [삭제]는 이 시험 끝에서 v1.001·v2.000 DRAFT 를 지우며 누른다",
     });
 
     // 만든 케이스를 지워 데이터를 남기지 않는다.
@@ -2097,6 +2134,20 @@ test.describe("C 룰 세트", () => {
     await expect(tid(page, "dbg-toolbar")).toHaveCount(0);
     await tid(page, "flow-tab-checks").click();
     await expect(setChecks()).toBeVisible();
+    // 버전 줄 — 내 DRAFT 를 [해제]하면 소유자 없는 DRAFT 가 되어 [선점]이 켜지고, [선점]하면 다시 내 편집 중이다.
+    await tid(page, "set-ver-unlock").click();
+    await expect(tid(page, "set-message")).toContainText("해제했다", { timeout: 20_000 });
+    await expect(tid(page, "set-ver-lock")).toBeEnabled();
+    await expect(tid(page, "flow-mode-edit")).toBeDisabled();
+    await tid(page, "set-ver-lock").click();
+    await expect(tid(page, "set-message")).toContainText("선점했다", { timeout: 20_000 });
+    await expect(tid(page, "set-ver-unlock")).toBeEnabled();
+    await expect(tid(page, "flow-mode-edit")).toBeEnabled();
+    // 위에서 만든 v1.001 DRAFT 를 [삭제](확인창)로 지우고, [새 버전(major)]도 만들었다 지운다. 확정 버전 v1.000 만 남는다.
+    await deleteSetDraftVer(page, "1.001");
+    await newSetVersion(page, "major", "2.000");
+    await deleteSetDraftVer(page, "2.000");
+    await expect(tid(page, "set-status")).toHaveText("INUSE");
     // 룰 박스의 링크 아이콘(flow-rule-open-*)은 눌러 보면 룰 화면으로 옮겨 가므로 다음 TC-DME-SED-06 에서 누른다.
     const ruleOpenAllow = Object.fromEntries(
       (await page.locator('[data-testid^="flow-rule-open-"]:visible').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid") ?? "")))
@@ -2108,6 +2159,7 @@ test.describe("C 룰 세트", () => {
       ...(await dynamicAllow("flow-section-", "오른쪽 섹션 머리 — 펴고 접기는 flow-section-rules-head 로 확인했고 나머지는 같은 동작이다")),
       [`set-var-link-${GRD}`]: "결과 변수 링크는 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)",
       [`set-var-link-${FCT}`]: "결과 변수 링크는 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)",
+      "flow-prop-rule-open": "룰 속성 패널의 [룰 화면 열기]는 다음 TC-DME-SED-06 에서 누른다(누르면 룰 화면으로 옮겨 간다)",
     });
     watcher.assertClean("ruleSetEdit");
   });
@@ -2139,6 +2191,13 @@ test.describe("C 룰 세트", () => {
     await go(page, "ruleSetEdit");
     await tid(page, `set-var-link-${GRD}`).click();
     await expect(tid(page, "rule-edit-current")).toHaveText(SA, { timeout: 30_000 });
+    // 룰 박스를 누르면 오른쪽 속성 패널이 그 룰로 바뀌고, 패널의 [룰 화면 열기]로도 그 룰의 룰 화면이 열린다.
+    await go(page, "ruleSetEdit");
+    await ruleNodeOf(page, SB).click();
+    await expect(tid(page, "flow-prop-rule")).toBeVisible({ timeout: 20_000 });
+    await tid(page, "flow-prop-rule-open").click();
+    await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
+    await expect(tid(page, "rule-edit-current")).toHaveText(SB, { timeout: 30_000 });
     watcher.assertClean("ruleSetEdit→ruleEdit");
   });
 

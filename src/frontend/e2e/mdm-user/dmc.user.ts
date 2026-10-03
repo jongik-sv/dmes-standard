@@ -1340,7 +1340,12 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await openTab(page, "tree");
     await expect(tid(page, "code-tree")).toContainText("HR01");
     await openTab(page, "grid");
-    await assertAllButtonsPressed(page, "codeItemEdit(RELEASED)");
+    // 오른쪽 [코드 테스트] 탭 — 확정 버전에서도 카테고리 미리보기는 볼 수 있다.
+    await openTab(page, "test");
+    await openTab(page, "cate");
+    await assertAllButtonsPressed(page, "codeItemEdit(RELEASED)", {
+      찾기: "마루 코드 [찾기] 는 TC-DMC-ITM-01 에서 누른다(이 구간은 ITM-07 에서 누름 기록을 비웠다)",
+    });
     watcher.assertClean("codeItemEdit");
   });
 
