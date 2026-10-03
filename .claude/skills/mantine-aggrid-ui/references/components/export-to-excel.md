@@ -2,7 +2,7 @@
 
 화면의 목록 데이터를 엑셀(.xlsx) 파일로 내려받게 할 때 쓴다. ag-grid 의 Excel Export 는 Enterprise 기능이라 쓰지 않는다.
 
-- import: `import { exportToExcel, today, type ExcelColumn } from "@dk-oasis/shared/utils";`
+- import: `import { exportToExcel, excelFileName, toExcelColumns, today, type ExcelColumn } from "@dk-oasis/shared/utils";`
 - 소스: `src/frontend/shared/src/utils/libExcel.ts` (`today()` 는 `src/frontend/shared/src/utils/libDate.ts`)
 - 내부 구현: `xlsx` 패키지를 호출 시점에 동적으로 불러와 `XLSX.writeFile` 로 내려받는다(별도 file-saver 불필요). 별칭 `gfn_exportToExcel` 도 있으나 새 화면은 `exportToExcel` 을 쓴다. `xlsx` 는 shared 의 devDependency 이고 포털 호스트 `m-mcm` 이 dependency(`^0.18.5`)로 가진다. MES 모듈 `package.json` 에는 추가하지 않는다(런타임 다운로드는 2026-10-01 기준 직접 확인하지 않았다)
 - Part B 의 `utils` 항목은 세부 심볼 미등재(ASK)이지만, §6 이 Excel 다운로드에 한해 `exportToExcel`(`@dk-oasis/shared/utils`)을 쓰라고 지정한다.
@@ -11,6 +11,7 @@
 
 - 쓴다: PageLayout 상단 "엑셀" 버튼에서 현재 목록(`rows`)을 내려받을 때.
 - 쓰지 않는다: ag-grid Excel Export(`ag-grid-enterprise`) 사용 금지. 서버가 만든 파일 다운로드는 별도 처리다.
+- 카드·위젯 안의 표 아래에 「N행」과 [엑셀] 단추를 두는 자리에서 보이는 컬럼·행을 그대로 내려받기만 하면 이 함수를 직접 부르지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 함수를 불러 준다.
 
 ## 표준 사용
 
@@ -57,6 +58,17 @@ const EXCEL_COLUMNS: ExcelColumn[] = [
   { key: "inspNo", header: "검사번호", width: 14 },
   { key: "itemNm", header: "품명", width: 24 },
 ];
+```
+
+### 파일 이름·열 폭 계산 도우미: excelFileName · toExcelColumns
+
+그리드의 `excelExport` 가 쓰는 순수 함수를 화면도 쓸 수 있다.
+
+- `excelFileName(title, ymd, fallback = EXCEL_DEFAULT_NAME)` → 「{title}_{ymd}.xlsx」. 파일 이름에 못 쓰는 글자(`\ / : * ? " < > |` 와 제어 문자)는 `_` 로 바꾸고 `title` 은 80자로 자른다. `title` 이 없거나 공백뿐이면 `fallback`(기본 `EXCEL_DEFAULT_NAME` = 「목록」)을 쓴다.
+- `toExcelColumns(columns, rows, excludeKeys?)` → `ExcelColumn[]`. `{ key, header? }[]` 에서 제목이 비면 `key` 를 쓰고, 폭은 제목과 앞 100행 값의 길이로 어림한다(한글은 2칸, 8~50). 겹치는 제목은 뒤 열에 「(2)」를 붙여 값이 덮이지 않게 한다(`exportToExcel` 이 제목을 행 객체의 키로 쓰기 때문). `excludeKeys` 에 든 key 의 열은 뺀다.
+
+```tsx
+void exportToExcel(rows, excelFileName(title, today(), "검사결과"), "Sheet1", toExcelColumns(columns, rows, ["__rowKey"]));
 ```
 
 ### 열 정의 없이 내보내기

@@ -1,8 +1,9 @@
 /** @vitest-environment happy-dom */
 /**
- * 쿼리 표 렌더러 동작 시험 — 아래 줄(행 수·잘림 안내)과 [엑셀] 내려받기.
- * useQueryData(서버 호출)·shared 의 그리드·아래 줄(GridExcelFoot)·엑셀 쓰기는 대역으로 바꾼다(shared 는 dist 를 쓰는데 시험은 소스만 본다). 엑셀 파일 이름·컬럼 계산(_query/excel.ts)과
- * 행 수 문구(_query/format.ts)는 실물이다. JSX 없이 createElement 로 쓴다(vitest include 가 *.test.ts 만 잡는다).
+ * 쿼리 표 렌더러 동작 시험 — 결과를 그리드에 넘기는 모양과 excelExport(아래 줄 글·파일 이름·단추 testId).
+ * useQueryData(서버 호출)와 shared 의 그리드는 대역으로 바꾼다(shared 는 dist 를 쓰는데 시험은 소스만 본다). 그리드가 받은 props 를 보고,
+ * 아래 줄 그리기·엑셀 내려받기 동작 자체는 shared 시험이 실제 그리드로 본다. 행 수 문구(_query/format.ts)는 실물이다.
+ * JSX 없이 createElement 로 쓴다(vitest include 가 *.test.ts 만 잡는다).
  */
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -10,35 +11,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TABLE_ROW_KEY, type QueryResult } from "../_query/format";
 
+type GridProps = {
+  rowKey?: string;
+  columns: { key: string; header: string }[];
+  data: Record<string, unknown>[];
+  height?: string | number;
+  excelExport?: { title?: string; fallbackName?: string; note?: string; sheetName?: string; testId?: string };
+};
+
 const h = vi.hoisted(() => ({
   useQueryData: vi.fn(),
-  exportToExcel: vi.fn(),
   /** 마지막으로 그리드에 넘어간 props. */
-  grid: { current: null as null | { columns: { key: string; header: string }[]; data: Record<string, unknown>[] } },
+  grid: { current: null as null | GridProps },
 }));
 
 vi.mock("../_query/useQueryData", () => ({ useQueryData: h.useQueryData }));
 
-vi.mock("@dk-oasis/shared/utils", () => ({
-  exportToExcel: h.exportToExcel,
-  today: () => "20261003",
-}));
-
 vi.mock("@dk-oasis/shared/grid", async () => {
   const { createElement: el } = await import("react");
   return {
-    AgDataGrid: (p: { columns: { key: string; header: string }[]; data: Record<string, unknown>[] }) => {
-      h.grid.current = { columns: p.columns, data: p.data };
+    AgDataGrid: (p: GridProps) => {
+      h.grid.current = p;
       return el("div", { "data-testid": "grid", "data-rows": String(p.data.length) });
     },
-    // shared GridExcelFoot 와 같은 계약(안내 글 + testId 기본 grid-excel 의 [엑셀] 단추)만 흉내 낸다. 모습·동작은 shared 시험이 본다.
-    GridExcelFoot: (p: { note: string; onExcel: () => void; disabled?: boolean; testId?: string }) =>
-      el(
-        "div",
-        { "data-testid": "grid-foot" },
-        el("span", { "data-testid": "grid-foot-note" }, p.note),
-        el("button", { type: "button", onClick: p.onExcel, disabled: p.disabled, "data-testid": p.testId ?? "grid-excel" }, "엑셀")
-      ),
   };
 });
 
@@ -51,8 +46,6 @@ let root: Root;
 
 beforeEach(() => {
   h.useQueryData.mockReset();
-  h.exportToExcel.mockReset();
-  h.exportToExcel.mockResolvedValue(undefined);
   h.grid.current = null;
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -102,120 +95,108 @@ async function renderTable(data: QueryResult | null, over: { definition?: unknow
   return props;
 }
 
-async function clickExcel() {
-  await act(async () => {
-    must("wq-excel").click();
-  });
-}
-
 describe("쿼리 표 — 데이터 전달", () => {
   it("정의·widgetId·refreshKey 로 useQueryData 를 부른다", async () => {
     const props = await renderTable(result(sample()));
     expect(h.useQueryData).toHaveBeenCalledWith(props.definition, "def.table123", 3);
   });
 
-  it("결과가 아직 없으면(null) 표도 [엑셀]도 그리지 않는다", async () => {
+  it("결과가 아직 없으면(null) 표를 그리지 않는다", async () => {
     await renderTable(null);
-    expect(q("wq-table")).toBeNull();
-    expect(q("wq-excel")).toBeNull();
-  });
-});
-
-describe("쿼리 표 — 0행", () => {
-  it("[엑셀] 단추도 아래 줄도 없고 「표시할 데이터가 없습니다」만 보인다", async () => {
-    await renderTable(result([]));
-    expect(q("wq-excel")).toBeNull();
-    expect(q("wq-table")).toBeNull();
-    expect(must("wq-empty").textContent).toBe("표시할 데이터가 없습니다");
-    expect(h.exportToExcel).not.toHaveBeenCalled();
+    expect(q("grid")).toBeNull();
+    expect(h.grid.current).toBeNull();
   });
 
-  it("잘림 표시(truncated)가 켜져 있어도 0행이면 [엑셀]이 없다", async () => {
-    await renderTable(result([], { truncated: true }));
-    expect(q("wq-excel")).toBeNull();
-  });
-});
-
-describe("쿼리 표 — 아래 줄의 행 수·잘림 안내", () => {
-  it("잘리지 않았으면 「N행」(천 단위 쉼표)", async () => {
+  it("표는 별도 감싸개 없이 남은 높이(height 100%)를 채우고, 아래 줄·[엑셀]은 위젯이 그리지 않는다(그리드 몫)", async () => {
     await renderTable(result(sample()));
-    expect(must("wq-table").querySelector('[data-testid="grid-foot-note"]')?.textContent).toBe("3행");
     expect(must("grid").getAttribute("data-rows")).toBe("3");
-    expect(q("wq-excel")).not.toBeNull();
+    expect(h.grid.current!.height).toBe("100%");
+    expect(h.grid.current!.rowKey).toBe(TABLE_ROW_KEY);
+    expect(q("wq-table")).toBeNull();
+    expect(q("grid-foot")).toBeNull();
+    expect(q("wq-excel")).toBeNull();
   });
 
-  it("행이 많으면 천 단위 쉼표가 붙는다", async () => {
-    const rows = Array.from({ length: 1234 }, (_, i) => ({ SCREEN_NM: `화면${i}`, SEC: i }));
-    await renderTable(result(rows));
-    expect(must("wq-table").querySelector('[data-testid="grid-foot-note"]')?.textContent).toBe("1,234행");
-  });
-
-  it("잘렸으면 「상위 500행만 표시합니다」", async () => {
-    const rows = Array.from({ length: 500 }, (_, i) => ({ SCREEN_NM: `화면${i}`, SEC: i }));
-    await renderTable(result(rows, { truncated: true }));
-    expect(must("wq-table").querySelector('[data-testid="grid-foot-note"]')?.textContent).toBe("상위 500행만 표시합니다");
-    expect(q("wq-excel")).not.toBeNull();
-  });
-});
-
-describe("쿼리 표 — [엑셀]", () => {
-  it("보이는 행(data.rows)·「{위젯 제목}_{yyyyMMdd}.xlsx」·Sheet1·그리드 컬럼 순서의 컬럼으로 exportToExcel 을 부른다", async () => {
-    const data = result(sample());
-    await renderTable(data, {
-      title: "내 최근 화면",
+  it("그리드 컬럼은 컬럼 설정 순서·제목을 따르고(엑셀도 이 순서), 행에는 서버가 준 원래 값(숫자는 숫자)이 있다", async () => {
+    await renderTable(result(sample()), {
       // 컬럼 설정이 결과 컬럼 순서와 다르다 — 그리드(와 엑셀)는 설정 순서를 따른다.
       definition: { sql: "select 1", columns: [{ field: "SEC", header: "사용(초)" }, { field: "SCREEN_NM", header: "화면" }] },
     });
-    await clickExcel();
-
-    expect(h.exportToExcel).toHaveBeenCalledTimes(1);
-    const [rows, fileName, sheetName, columns] = h.exportToExcel.mock.calls[0] as [
-      Record<string, unknown>[],
-      string,
-      string,
-      { key: string; header: string; width: number }[],
-    ];
-    expect(rows).toBe(data.rows); // 서버가 준 원래 행 — 값은 그대로(숫자는 숫자), 그리드용 행 키는 없다
-    expect(rows[0]).not.toHaveProperty(TABLE_ROW_KEY);
-    expect(fileName).toBe("내 최근 화면_20261003.xlsx");
-    expect(sheetName).toBe("Sheet1");
-    expect(columns.map((c) => [c.key, c.header])).toEqual([
+    expect(h.grid.current!.columns.map((c) => [c.key, c.header])).toEqual([
       ["SEC", "사용(초)"],
       ["SCREEN_NM", "화면"],
     ]);
-    // 그리드에 넘긴 컬럼과 같은 순서(그리드의 행 키 컬럼은 엑셀에서 뺀다)
-    const gridKeys = h.grid.current!.columns.map((c) => c.key).filter((k) => k !== TABLE_ROW_KEY);
-    expect(columns.map((c) => c.key)).toEqual(gridKeys);
-    expect(columns.every((c) => c.width >= 8 && c.width <= 50)).toBe(true);
+    const row = h.grid.current!.data[0];
+    expect(row.SEC).toBe(58);
+    expect(typeof row.SEC).toBe("number");
+    expect(row.SCREEN_NM).toBe("화면 사용 통계");
+    expect(row[TABLE_ROW_KEY]).toBe("0");
   });
 
   it("컬럼 설정이 없으면 결과 컬럼 순서·이름 그대로", async () => {
-    const data = result(sample(), { columns: ["SEC", "SCREEN_NM"] });
-    await renderTable(data);
-    await clickExcel();
-    const columns = h.exportToExcel.mock.calls[0][3] as { key: string; header: string }[];
-    expect(columns.map((c) => [c.key, c.header])).toEqual([
+    await renderTable(result(sample(), { columns: ["SEC", "SCREEN_NM"] }));
+    expect(h.grid.current!.columns.map((c) => [c.key, c.header])).toEqual([
       ["SEC", "SEC"],
       ["SCREEN_NM", "SCREEN_NM"],
     ]);
   });
+});
 
-  it("위젯 제목이 없으면 「쿼리표_날짜.xlsx」, 파일 이름에 못 쓰는 글자는 _ 로 바꾼다", async () => {
-    await renderTable(result(sample()), { title: undefined });
-    await clickExcel();
-    expect(h.exportToExcel.mock.calls[0][1]).toBe("쿼리표_20261003.xlsx");
-
-    h.exportToExcel.mockClear();
-    await renderTable(result(sample()), { title: "생산/품질: 현황" });
-    await clickExcel();
-    expect(h.exportToExcel.mock.calls[0][1]).toBe("생산_품질_ 현황_20261003.xlsx");
+describe("쿼리 표 — 0행", () => {
+  it("표도 아래 줄도 없고 「표시할 데이터가 없습니다」만 보인다", async () => {
+    await renderTable(result([]));
+    expect(q("grid")).toBeNull();
+    expect(h.grid.current).toBeNull();
+    expect(must("wq-empty").textContent).toBe("표시할 데이터가 없습니다");
   });
 
-  it("잘린 결과도 지금 보이는 행만 내려받는다", async () => {
+  it("잘림 표시(truncated)가 켜져 있어도 0행이면 표가 없다", async () => {
+    await renderTable(result([], { truncated: true }));
+    expect(q("grid")).toBeNull();
+    expect(must("wq-empty")).not.toBeNull();
+  });
+});
+
+describe("쿼리 표 — excelExport", () => {
+  it("제목·기본 이름(쿼리표)·단추 testId(wq-excel)를 넘기고, 잘리지 않았으면 note 를 주지 않아 그리드 기본 「N행」이 나온다", async () => {
+    await renderTable(result(sample()));
+    expect(h.grid.current!.excelExport).toEqual({
+      title: "내 최근 화면",
+      fallbackName: "쿼리표",
+      note: undefined,
+      testId: "wq-excel",
+    });
+    expect(h.grid.current!.excelExport!.note).toBeUndefined();
+  });
+
+  it("행이 많아도 note 는 비워 둔다(천 단위 쉼표 「1,234행」은 그리드 기본)", async () => {
+    const rows = Array.from({ length: 1234 }, (_, i) => ({ SCREEN_NM: `화면${i}`, SEC: i }));
+    await renderTable(result(rows));
+    expect(h.grid.current!.excelExport!.note).toBeUndefined();
+    expect(must("grid").getAttribute("data-rows")).toBe("1234");
+  });
+
+  it("잘렸으면 note 가 「상위 500행만 표시합니다」", async () => {
     const rows = Array.from({ length: 500 }, (_, i) => ({ SCREEN_NM: `화면${i}`, SEC: i }));
-    const data = result(rows, { truncated: true });
+    await renderTable(result(rows, { truncated: true }));
+    expect(h.grid.current!.excelExport!.note).toBe("상위 500행만 표시합니다");
+    // 잘린 결과도 지금 보이는 500행 전부가 그리드에 있다(엑셀은 이 행을 내려받는다)
+    expect(h.grid.current!.data).toHaveLength(500);
+  });
+
+  it("위젯 제목이 없으면 title 은 비고 기본 이름(쿼리표)이 남는다", async () => {
+    await renderTable(result(sample()), { title: undefined });
+    expect(h.grid.current!.excelExport!.title).toBeUndefined();
+    expect(h.grid.current!.excelExport!.fallbackName).toBe("쿼리표");
+  });
+
+  it("값이 같으면 다시 그려도 같은 객체를 넘긴다(그리드 memo 가 깨지지 않는다)", async () => {
+    const data = result(sample());
     await renderTable(data);
-    await clickExcel();
-    expect((h.exportToExcel.mock.calls[0][0] as unknown[]).length).toBe(500);
+    const first = h.grid.current!.excelExport;
+    await renderTable(data);
+    expect(h.grid.current!.excelExport).toBe(first);
+    await renderTable(data, { title: "다른 제목" });
+    expect(h.grid.current!.excelExport).not.toBe(first);
   });
 });

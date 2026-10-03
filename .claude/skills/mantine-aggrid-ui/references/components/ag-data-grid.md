@@ -12,6 +12,7 @@
 - 쓴다: 조회 결과 목록, 편집 가능한 목록, 팝업·카드 안의 작은 목록(`height="auto"`).
 - 쓰지 않는다: 라벨-값 짝의 상세 폼 표 → [detail-form](detail-form.md). 비교 매트릭스(피벗) 표 → [matrix-table](matrix-table.md).
 - 제목·건수·행추가 버튼이 필요하면 [GridPanel](grid-panel.md) 안에 넣는다. 저장형 화면의 행 상태는 [use-grid-data-manager](use-grid-data-manager.md) 가 맡는다.
+- 카드·위젯 안의 표처럼 상단 버튼 막대가 없는 자리에서 표 아래에 「N행」과 [엑셀] 단추를 붙이려면 `excelExport` 속성을 준다(아래 §아래 줄과 엑셀 내려받기).
 
 ## 표준 사용
 
@@ -130,6 +131,44 @@ const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와
 <AgDataGrid columns={COLUMNS} data={rows} rowKey="NOTICE_ID" mdmValidate fieldErrors={fieldErrors} />
 ```
 
+### 아래 줄과 엑셀 내려받기: excelExport
+
+카드·위젯 안의 표 바로 아래에 「N행」과 [엑셀] 단추 줄([GridExcelFoot](grid-excel-foot.md))을 붙이고, 누르면 그리드에 **지금 보이는** 컬럼·행을 엑셀로 내려받게 한다. 속성을 주지 않으면 줄도 단추도 없고 모양·동작은 예전과 똑같다.
+
+- 속성을 주면 그리드를 세로 flex 상자로 감싸 표가 남은 높이를 채우고 아래 줄이 바닥에 붙는다. `height` 는 이 바깥 상자의 높이다(기본 부모 높이 100%). `height="auto"` 일 때는 flex 대신 block 감싸개(`cm-grid-excel--auto`)이고, 표가 행 수만큼 늘어난 바로 뒤에 아래 줄이 온다.
+- 컬럼: 그리드가 보여 주는 데이터 열의 순서·제목을 따른다(사용자가 끌어 바꾼 순서 포함). `hide` 열, 행번호(`rowNumber`)·선택 체크박스 같은 그리드 내부 열은 빠진다. 단추·링크처럼 `render` 로만 그리는 열은 `excludeKeys` 에 key 를 넣어 뺀다(보이는 열이어도 엑셀에는 나가지 않는다). 같은 제목이 겹치면 뒤 열에 「(2)」가 붙는다. 열 폭은 제목과 앞 100행 값의 길이로 어림한다(8~50).
+- 행: 그리드의 정렬·필터 순서. 값은 `render` 결과가 아니라 행의 원래 값이다(숫자는 숫자, 배지 열은 상태 글). 그리드 API 가 아직 없으면 그리드가 화면에 쓰는 행 순서(정렬된 `data`, 추가한 행은 맨 뒤)이고 열은 `columns` 에서 숨긴 열을 뺀 잎 열이다. 「{n}행」과 단추 비활성은 늘 전체 `data` 수로 정한다.
+- 행이 0이면 단추는 비활성이다. 아래 줄의 모양·`data-testid`(줄 `grid-foot`, 글 `grid-foot-note`)는 [GridExcelFoot](grid-excel-foot.md) 과 같다.
+- [엑셀] 단추가 Mantine `Button` 이라 `MantineProvider` 안에서만 그린다(포털에서는 늘 감싸져 있다).
+- 객체를 렌더마다 새로 만들면 `memo` 가 깨진다. 모듈 상수로 두거나 값이 바뀔 때만 `useMemo` 로 만든다.
+
+```tsx
+import { useMemo } from "react";
+import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+
+const COLUMNS: GridColumn[] = [
+  { key: "woNo", header: "작업지시번호", width: 130 },
+  { key: "qty", header: "수량(t)", width: 80, align: "right", type: "number" },
+];
+
+export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; title?: string }) {
+  // 파일 이름은 「{title}_{yyyyMMdd}.xlsx」, title 이 비면 fallbackName.
+  const excelExport = useMemo(() => ({ title, fallbackName: "작업지시" }), [title]);
+  return <AgDataGrid rowKey="woNo" columns={COLUMNS} data={rows} columnSizing="fit" excelExport={excelExport} />;
+}
+```
+
+| 키 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| title | `string` | - | 파일 이름 앞부분. 파일에 못 쓰는 글자는 `_` 로 바뀌고 80자까지만 쓴다 |
+| fallbackName | `string` | `"목록"` | `title` 이 없거나 공백뿐일 때의 이름 |
+| note | `string` | `"{n}행"`(천 단위 쉼표) | 아래 줄 왼쪽 글. 「N건」「상위 500행만 표시합니다」처럼 바꿀 때 준다 |
+| sheetName | `string` | `"Sheet1"` | 시트 이름 |
+| testId | `string` | `"grid-excel"` | [엑셀] 단추의 `data-testid` |
+| excludeKeys | `string[]` | - | 엑셀에서 뺄 열 key. `render` 전용 열(단추·링크)에 쓴다. 상수나 `useMemo` 로 둔다 |
+
+화면 전체 목록의 엑셀은 PageLayout 상단 「엑셀」 버튼(`action: "export"`)과 [exportToExcel](export-to-excel.md) 을 쓴다. 엑셀 내용을 직접 정해야 하면(열을 골라 바꾸거나 코드 대신 명칭으로 변환) 이 속성 대신 [GridExcelFoot](grid-excel-foot.md) 에 `onExcel` 을 넘긴다.
+
 ## Props
 
 자주 쓰는 props. 기본값은 소스의 구조분해 기본값이다.
@@ -162,6 +201,7 @@ const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와
 | onRowOrderChange | `(orderedKeys) => void` | - | 드래그 후 새 순서의 행 키 목록. 이 prop 이 있어야 드래그가 동작한다 |
 | mdmValidate | `boolean` | `false` | 편집 가능 + MDM 연결 열의 바뀐 값을 MDM 정의로 검사해 `cell-mdm-invalid`·셀 툴팁을 단다(포털 탭 안에서만) |
 | fieldErrors | `Array<{ rowKey?; rowIndex?; field; message }>` | - | 서버 오류 칸 표시(`toFieldErrors` 결과). rowKey → rowIndex(data 자리) 순으로 행을 찾는다 |
+| excelExport | `{ title?; fallbackName?; note?; sheetName?; testId?; excludeKeys? }` | - | 주면 표 아래에 「N행」·[엑셀] 줄을 붙이고 보이는 컬럼·행을 내려받는다. 없으면 줄도 단추도 없다(§아래 줄과 엑셀 내려받기). 상수나 `useMemo` 로 둔다 |
 
 나머지 props.
 
@@ -231,6 +271,10 @@ const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와
 | 엑셀 내보내기에서 `c.header` 를 그대로 읽는다(`header` 생략 열은 undefined) | `useResolvedGridColumns(COLUMNS)` 결과의 `header` 를 쓴다 |
 | 오류 칸을 칠하려고 `cellClassRules` 에 직접 검사를 넣는다 | `mdmValidate`·`fieldErrors` 를 쓴다. 클래스·툴팁·서버 우선 규칙이 들어 있다 |
 | 저장 실패 오류의 `rowIndex`(요청 목록 자리)를 바뀐 행만 보낸 화면에서 그대로 넘긴다 | 그리드는 `data` 자리로 본다. `rowKey` 를 쓰거나 자리를 바꿔 넘긴다 |
+| 표 아래 줄을 직접 만들려고 감싸개 CSS 와 `GridExcelFoot` 을 따로 붙인다 | `excelExport` 를 준다. 감싸개·아래 줄·내려받기를 그리드가 맡는다 |
+| `excelExport={{ … }}` 를 렌더 안에서 인라인으로 넘긴다 | 렌더마다 새 객체라 `memo` 가 깨진다. 모듈 상수 또는 `useMemo` |
+| `excelExport` 를 조건부로 줬다 뺐다 한다 | 루트 요소가 바뀌어 그리드가 다시 마운트된다(정렬·선택·스크롤 초기화). 항상 주거나 항상 뺀다 |
+| `excelExport` 를 쓰는 표의 `height="100%"` 가 감싸개 높이를 정해 줄 거라 본다 | `height` 는 바깥 상자의 높이다. 부모가 높이를 정하는 자리(위젯·패널 본문)에서만 기본값으로 쓴다 |
 
 ## 실제 사용 예
 
@@ -240,4 +284,5 @@ const excelColumns = useResolvedGridColumns(COLUMNS); // header 가 그리드와
 - `src/frontend/m-mdm/pages/dme/ruleEdit/sections/columns/ColumnSettingsSection.tsx:336-344`: `onCellValueChanged` 와 `rowClassRefreshToken`. 단, `getRowClassExtra` 로 `ag-row-inserted`·`ag-row-deleted` 를 직접 준다(위 함정 참고).
 - `src/frontend/m-mdm/pages/dmc/codeItemEdit/page.tsx:498-505`: `rowDragField` + `isRowDraggable` + `onRowOrderChange`. `rowNumber` 는 `src/frontend/m-mdm/pages/dmd/dataItemMng/page.tsx:698`.
 - `src/frontend/m-mcm/page-components/cmb/masterRuleData/page.tsx:419-428`: `selectable` + `multiSelect` + `selectedRows` + `onRowSelect`.
+- `excelExport`: `src/frontend/m-mcm/widget-types/query-table/renderer.tsx`(쿼리 표, 잘리면 `note` 를 「상위 N행만 표시합니다」로), `src/frontend/m-mcm/widgets/home/workOrders/widget.tsx`·`shipments/widget.tsx`(홈 기본 표, `note` 「N건」·기본 이름 「작업지시」「출하」·`testId: "wq-excel"`).
 - 열 그룹(`children`)은 아직 사용처 없음.

@@ -45,7 +45,9 @@ export async function exportToExcel(
     sheetData = data;
   }
 
-  const worksheet = XLSX.utils.json_to_sheet(sheetData);
+  // 컬럼 정의가 있으면 열 순서를 header 로 못박는다. 행을 제목을 키로 한 객체로 만들기 때문에, 「2026」「1」처럼 정수 모양인 제목은
+  // 객체 키 순서 규칙상 맨 앞으로 와서 엑셀 열 순서가 컬럼 정의(그리드)와 달라진다.
+  const worksheet = XLSX.utils.json_to_sheet(sheetData, columns ? { header: columns.map((c) => c.header) } : undefined);
 
   if (columns) {
     worksheet["!cols"] = columns.map((col) => ({ wch: col.width || 15 }));
@@ -55,6 +57,52 @@ export async function exportToExcel(
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
 
   XLSX.writeFile(workbook, fileName);
+}
+
+
+/** 제목이 없을 때 쓰는 파일 이름. 화면은 자기 이름(예: 「작업지시」)을 `excelFileName` 의 fallback 으로 넘긴다. */
+export const EXCEL_DEFAULT_NAME = "목록";
+
+/**
+ * 「{제목}_{yyyyMMdd}.xlsx」 — 파일 이름에 못 쓰는 글자는 _ 로 바꾸고 제목은 80자로 자른다.
+ * 제목이 없거나 공백뿐이면 fallback(기본 「목록」)을 쓴다.
+ */
+export function excelFileName(title: string | undefined, ymd: string, fallback: string = EXCEL_DEFAULT_NAME): string {
+  // eslint-disable-next-line no-control-regex
+  const base = (title ?? "").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim().slice(0, 80);
+  return `${base || fallback}_${ymd}.xlsx`;
+}
+
+/** 한글 등 넓은 글자는 2칸으로 센다. */
+function textWidth(v: unknown): number {
+  if (v === null || v === undefined) return 0;
+  let n = 0;
+  for (const ch of String(v)) n += ch.charCodeAt(0) > 0xff ? 2 : 1;
+  return n;
+}
+
+/**
+ * 엑셀 컬럼 — 그리드 컬럼 순서·제목 그대로, 폭은 제목과 앞 100행 값의 길이로 어림(8~50).
+ * `excludeKeys` 에 든 key 의 컬럼은 뺀다(화면이 그리드용으로만 쓰는 행 키 같은 칸).
+ * `exportToExcel` 은 제목을 행 객체의 키로 쓰므로, 겹치는 제목은 뒤 컬럼에 「(2)」처럼 번호를 붙여 값이 덮이지 않게 한다.
+ */
+export function toExcelColumns(
+  columns: readonly { key: string; header?: string }[],
+  rows: readonly Record<string, unknown>[],
+  excludeKeys: readonly string[] = [],
+): ExcelColumn[] {
+  const sample = rows.slice(0, 100);
+  const used = new Set<string>();
+  return columns
+    .filter((c) => !excludeKeys.includes(c.key))
+    .map((c) => {
+      const base = c.header || c.key;
+      let header = base;
+      for (let n = 2; used.has(header); n += 1) header = `${base}(${n})`;
+      used.add(header);
+      const widest = Math.max(textWidth(header), ...sample.map((r) => textWidth(r[c.key])));
+      return { key: c.key, header, width: Math.min(50, Math.max(8, widest + 2)) };
+    });
 }
 
 export const gfn_exportToExcel = exportToExcel;
