@@ -14,6 +14,9 @@
  *   6) RBAC 3패턴       → 서버캐시 권한키 멤버십 검증 (미보유 403) — SYSADMIN 프리패스 제거
  *                         (2026-07-30, 롤 무관 멤버십. BE 브레이크글라스 시 perm-keys=["*"] 로 전면 통과)
  *   7) 미매칭           → RBAC_DEFAULT_DENY=true 면 403, 아니면 통과 (aps/mpn/kmc rest 등)
+ *
+ * 본문 상한(lib/http/body-limit.ts): 이 proxy 가 도는 요청은 Next 가 본문을 proxyClientMaxBodySize(10MB)까지 메모리에
+ * 복제한다. 미디어 올리기(100MB) 한 경로만 matcher 에서 빼고, 그 전용 라우트가 {@link guardApiRequest} 로 같은 검사를 한다.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
@@ -24,6 +27,7 @@ import {
   type RbacPolicyConfig,
 } from "@dk-oasis/shared/auth-rbac-policy";
 import { getUserPerms } from "@/lib/auth/api-permission-cache";
+import { API_BODY_MAX_BYTES, declaredBodyExceeds } from "@/lib/http/body-limit";
 
 const AUTH_SECRET = process.env.AUTH_SECRET;
 const AUTH_COOKIE_PREFIX = process.env.AUTH_COOKIE_PREFIX ?? "oasis-mcm-auth";
@@ -106,11 +110,28 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2-0) BFF 자기참조(oasis-client.ts → BFF) 무한루프 방지.
+  // 2-0) 본문 상한 — Next 는 상한을 넘는 본문을 잘라서 라우트로 넘기므로(body-streams.js), Content-Length 로 미리 413 을 준다.
+  //       메모리 상한은 이 검사가 아니라 next.config 의 proxyClientMaxBodySize 가 지킨다(복제는 proxy 실행 전에 시작된다).
+  if (declaredBodyExceeds(req.headers, API_BODY_MAX_BYTES)) {
+    return jsonError("PAYLOAD_TOO_LARGE", "요청 본문이 너무 큽니다(최대 10MB).", 413);
+  }
+
+  // 2-1) BFF 자기참조(oasis-client.ts → BFF) 무한루프 방지.
   //       서버 내부 self-fetch 만 X-Internal-Bff-Call 헤더를 부착하므로 안전.
   if (req.headers.get("x-internal-bff-call") === "1") {
     return NextResponse.next();
   }
+
+  return (await guardApiRequest(req)) ?? NextResponse.next();
+}
+
+/**
+ * /api/* 인증·권한 판정(위 2~7단계). 막을 때는 401·403 응답, 통과면 null.
+ * proxy 와 matcher 에서 뺀 미디어 올리기 라우트가 함께 쓴다 — 정책이 한 곳에만 있게 한다.
+ * 자기참조 헤더(x-internal-bff-call) 통과는 proxy 에만 있다(올리기 라우트는 그 헤더를 믿지 않는다).
+ */
+export async function guardApiRequest(req: NextRequest): Promise<NextResponse | null> {
+  const path = req.nextUrl.pathname;
 
   // PUBLIC 은 세션 조회 없이 통과 (login 등). 그 외엔 세션 토큰 필요.
   const isPublic = RBAC_POLICY.publicPrefixes.some((p) => path.startsWith(p));
@@ -147,10 +168,21 @@ export async function proxy(req: NextRequest) {
       return jsonError("FORBIDDEN", "등록되지 않은 경로입니다.", 403);
     case "pass":
     default:
-      return NextResponse.next();
+      return null;
   }
 }
 
+/**
+ * /api/* 중 미디어 올리기 한 경로(widget-types/media/upload.ts MEDIA_UPLOAD_URL)만 뺀다 — 그 경로는 본문을 복제·절단하지 않고
+ * 전용 라우트(app/api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload/route.ts)가 guardApiRequest 뒤 BE 로 흘려보낸다.
+ * 반드시 경로 전체를 `$` 로 고정한다 — 접두만 빼면 `…/upload/api/<다른 BE 경로>` 가 일반 rest 라우트로 가서 RBAC 를 건너뛴다.
+ * Next 는 원 경로·디코드한 경로 중 하나라도 맞으면 proxy 를 돌리고 대소문자를 가린다(resolve-routes.js, middleware-route-matcher.js)
+ * — 빠지는 것은 이 문자열과 글자까지 같은 경로 하나뿐이다. tests/http/proxy-body-limit.test.ts 가 Next 의 matcher 해석기로 확인한다.
+ */
 export const config = {
-  matcher: ["/portal/:path*", "/login", "/api/:path*"],
+  matcher: [
+    "/portal/:path*",
+    "/login",
+    "/api/((?!mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload$).*)",
+  ],
 };

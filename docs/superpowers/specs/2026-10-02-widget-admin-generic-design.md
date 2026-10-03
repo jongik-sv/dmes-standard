@@ -517,7 +517,7 @@ interface LlmClient {
 ### 16.3 남은 일
 
 - **쿼리 실행기 전용 DataSource**: 읽기 권한만 가진 DB 계정으로 실행기를 분리한다. 지금은 앱 기본 DataSource 를 쓰고, 함수 거절 목록은 보조 방어선이다(§7.1-6).
-- **BFF 본문 상한 전역 확대**: `proxyClientMaxBodySize=101mb` 가 `/api/*` 전체에 적용된다. 업로드 경로만 미들웨어를 거치지 않게 하거나 앞단 Nginx 에서 경로별로 상한을 준다.
+- **BFF 본문 상한 전역 확대** — 해결: `proxyClientMaxBodySize` 는 전역 값 하나뿐이고, proxy matcher 에 걸린 요청(과 외부 rewrite)의 본문을 그 크기까지 메모리에 복제한 뒤 넘는 부분을 잘라 라우트로 넘긴다(Next 16.1.6 `server/body-streams.js`·`next-server.js` runMiddleware·`lib/router-server.js`). 그래서 상한을 Next 기본 10MB 로 되돌리고(`lib/http/body-limit.ts`), 미디어 올리기 한 경로(`/api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload`)만 matcher 에서 `$` 로 고정해 뺐다. 그 경로의 전용 라우트가 proxy 와 같은 `guardApiRequest`(401·403) 뒤 본문을 복제 없이 BE 로 흘려보내고, 101MB(Content-Length·실제 바이트)를 넘으면 413 을 준다. 일반 API 는 Content-Length 가 10MB 를 넘으면 proxy 가 413 을 준다(Content-Length 없는 chunked 본문은 여전히 10MB 에서 잘린다). 앞단 Nginx 는 기본 `client_max_body_size 10m;` 에 `location = /api/mcm/rest/commWidgetMng/upload/api/mcm/commWidgetMng/upload { client_max_body_size 101m; … }` 한 곳만 101MB 로 연다(포털 앞에 경로 접두가 붙으면 그 접두를 포함한다).
 - **환율 호출 남용**: 통화 조합·기간을 바꿔 가며 부르면 매번 외부를 호출한다. 정의에 든 통화로 허용 목록 제한, 통화 단위 시도 기록, 속도 제한, KoreaExim 일 1회 적재가 필요하다.
 - **챗봇 남용**: `instId` 를 바꾸면 인스턴스당 100개 상한이 의미가 없고 LLM 비용이 늘어난다. 사용자별 호출·기록 상한이 필요하다(배치 행 존재 검사는 부서·코드 기본 배치 사용자를 막으므로 쓰지 않는다).
 - **운영 환경 확인**: MSSQL 에서 `;` 없이 이어 쓴 여러 문장 판정, 운영 context path(`/mcm/api`)에서 BE 필터 판정, WildFly·Nginx 의 본문 101MB 허용, 챗봇 최대 응답 시간(도구 5회 × 공급자 제한 시간, 약 123초)과 앞단 시간 제한.

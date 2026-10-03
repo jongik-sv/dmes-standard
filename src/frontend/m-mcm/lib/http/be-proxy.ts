@@ -202,11 +202,13 @@ export function streamBackendResponse(
  * @param moduleId  URL path 의 `{module}` 부분
  * @param backendPath  BE 엔드포인트 path (선행 `/` 포함). 예: `/query/{queryId}`,
  *                     `/lov/master/{code}/{group}`
+ * @param options.body 원 요청 본문 대신 보낼 스트림 — 미디어 올리기 라우트가 바이트를 세는 스트림으로 감싸 넘긴다.
  */
 export async function forwardToBackend(
   req: NextRequest,
   moduleId: string,
-  backendPath: string
+  backendPath: string,
+  options: { body?: ReadableStream<Uint8Array> | null } = {},
 ): Promise<NextResponse> {
   if (!BACKEND_CLIENT_KEY) {
     console.error("[BFF] BACKEND_CLIENT_KEY 환경변수가 설정되지 않았습니다.");
@@ -265,7 +267,7 @@ export async function forwardToBackend(
   }
 
   const body =
-    req.method !== "GET" && req.method !== "HEAD" ? req.body : undefined;
+    req.method !== "GET" && req.method !== "HEAD" ? (options.body ?? req.body) : undefined;
 
   // 일반 JSON은 2분, export/download·미디어 올리기/내려받기는 5분, 실제 장기 실행 mutation만 30분을 허용한다.
   // 원 요청이 끊기면 같은 controller를 abort해 backend fetch에도 취소를 전파한다.
