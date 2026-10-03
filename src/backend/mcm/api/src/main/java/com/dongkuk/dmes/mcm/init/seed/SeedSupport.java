@@ -25,7 +25,7 @@ public class SeedSupport {
     // 사용 패턴: 컬럼 list 에 AUDIT_COLS 추가 + VALUES 에 AUDIT_VALS 추가.
     // C_USR_ID='admin' / C_AT=SYSDATETIME() / C_SVC_ID='DataInitializer' / C_PGM_ID='DataInitializer' /
     // U_USR_ID='admin' / U_AT=SYSDATETIME() / U_SVC_ID='DataInitializer' / U_PGM_ID='DataInitializer' / VER=0
-    // 분할 전에는 같은 값을 메서드마다 지역 상수로 23번 반복했다.
+    // 분할 전에는 같은 값을 메서드마다 지역 상수로 25번 반복했다.
     protected static final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
     protected static final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
                                              + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
