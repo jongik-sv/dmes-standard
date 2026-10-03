@@ -116,6 +116,10 @@ class MdmMetaServiceVersionedTest {
         assertThat(r.missing()).isEmpty();
         assertThat(feed.tocCalls.get()).isEqualTo(2);
         assertThat(feed.bodyCalls.get()).isEqualTo(2);
+        assertThat(cache.getBody(MdmTargetType.RULE, "R", "1.000")).as("본문을 없음·빈 값으로 캐시하지 않는다").isEmpty();
+        MdmMetaCache.Entry head = cache.get(MdmTargetType.RULE, "R").orElseThrow();
+        assertThat(head.absent()).as("목차를 없음으로 덮지 않는다").isFalse();
+        assertThat(head.part()).isEqualTo(MdmMetaCache.Part.TOC);
     }
 
     @Test
@@ -178,6 +182,39 @@ class MdmMetaServiceVersionedTest {
         assertThat(old.fetchCalls.get()).isEqualTo(1);
         assertThat(at.toc().versions()).as("DRAFT 는 목차에 없다").extracting(MdmTocVersion::ver)
                 .containsExactly(new BigDecimal("1.000"), new BigDecimal("2.000"));
+    }
+
+    @Test
+    void 옛_MDM_본문_응답이면_전_이력에서_그_버전을_잘라_캐시한다() {
+        FakeMetaFeed old = new FakeMetaFeed();
+        old.put(MdmTargetType.CODE, "C", codeRows());
+        MdmMetaService s = new MdmMetaService(old, cache, clock, true);
+        s.oneAt(MdmTargetType.CODE, "C", T0); // 목차 + 2.000
+
+        MdmMetaService.MdmAt at = s.oneAt(MdmTargetType.CODE, "C", Instant.parse("2026-02-28T15:00:00Z")).orElseThrow(); // KST 03-01 — 1.000
+
+        assertThat(at.ver()).isEqualTo("1.000");
+        assertThat(old.fetchCalls.get()).as("목차 한 번 + 본문 한 번(둘 다 옛 view)").isEqualTo(2);
+        assertThat(((MdmCodeVersion) at.body()).isSliced()).isTrue();
+        assertThat(((MdmCodeVersion) at.body()).members("TB")).as("TB 는 2.000 부터").contains(java.util.Set.of());
+        assertThat(cache.getBody(MdmTargetType.CODE, "C", "1.000")).isPresent();
+        assertThat(cache.getBody(MdmTargetType.CODE, "C", "2.000")).isPresent();
+    }
+
+    @Test
+    void 옛_MDM_에_물었는데_정의가_사라졌으면_목차부터_다시_받고_없음이다() {
+        FakeMetaFeed old = new FakeMetaFeed();
+        old.put(MdmTargetType.CODE, "C", codeRows());
+        MdmMetaService s = new MdmMetaService(old, cache, clock, true);
+        s.oneAt(MdmTargetType.CODE, "C", T0); // 목차 + 2.000
+        old.values.get(MdmTargetType.CODE).remove("C");
+
+        MdmMetaService.MdmAtLookup r = s.lookupAt(MdmTargetType.CODE, List.of("C"), Instant.parse("2026-02-28T15:00:00Z"));
+
+        assertThat(r.missing()).containsExactly("C");
+        assertThat(r.unavailable()).isEmpty();
+        assertThat(old.fetchCalls.get()).as("목차 + 본문(정의 없음 = 목차가 낡음) + 재시도 목차").isEqualTo(3);
+        assertThat(cache.get(MdmTargetType.CODE, "C").orElseThrow().absent()).isTrue();
     }
 
     @Test

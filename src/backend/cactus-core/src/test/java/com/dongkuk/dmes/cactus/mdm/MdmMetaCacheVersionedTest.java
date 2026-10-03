@@ -125,6 +125,44 @@ class MdmMetaCacheVersionedTest {
     }
 
     @Test
+    void 정의_키_표지만으로도_그_전에_시작한_본문_적재를_막고_지운_뒤_시작한_적재는_넣는다() {
+        cache.putTocs(MdmTargetType.CODE, Map.of("X", toc()), cache.ticket());
+        cache.putBodies(MdmTargetType.CODE, bodies("X", "1.000"), cache.ticket());
+        MdmMetaCache.Ticket before = cache.ticket();
+
+        cache.evictLocal(MdmTargetType.CODE, "X"); // 순번 없는 지움(관리 화면 load·NOT_RELEASED 재시도) — 표지만 오른다
+
+        assertThat(before.appliedSeq()).as("순번으로는 막히지 않는다").isEqualTo(cache.appliedSeq());
+        assertThat(cache.putBodies(MdmTargetType.CODE, bodies("X", "1.000"), before)).as("지움 전에 시작한 본문 적재").isEmpty();
+        assertThat(cache.putTocs(MdmTargetType.CODE, Map.of("X", toc()), before)).isEmpty();
+        assertThat(cache.getBody(MdmTargetType.CODE, "X", "1.000")).isEmpty();
+        MdmMetaCache.Ticket after = cache.ticket();
+        assertThat(cache.putBodies(MdmTargetType.CODE, bodies("X", "1.000"), after)).hasSize(1);
+        assertThat(cache.putTocs(MdmTargetType.CODE, Map.of("X", toc()), after)).containsExactly("X");
+    }
+
+    @Test
+    void 살아_있는_묶음에_목차를_바꿔_넣으면_최종_버전을_곧바로_다시_고른다() {
+        MdmToc a = new MdmToc(null, List.of(
+                new MdmTocVersion(new BigDecimal("1.000"), "RELEASED", LocalDateTime.parse("2026-01-01T00:00:00"), null)));
+        cache.putTocs(MdmTargetType.RULE, Map.of("R", a), cache.ticket());
+        cache.putBodies(MdmTargetType.RULE, bodies("R", "1.000", "2.000"), cache.ticket());
+        assertThat(view("R@1.000").current()).isTrue();
+        assertThat(view("R@2.000").current()).isFalse();
+
+        MdmToc b = new MdmToc(null, List.of( // 2.000 의 적용 시작이 이미 지났다 — 목차 A 에는 다음 경계가 없어 옛 판정이 남으면 영영 1.000 이다
+                new MdmTocVersion(new BigDecimal("1.000"), "RELEASED", LocalDateTime.parse("2026-01-01T00:00:00"),
+                        LocalDateTime.parse("2026-10-02T00:00:00")),
+                new MdmTocVersion(new BigDecimal("2.000"), "RELEASED", LocalDateTime.parse("2026-10-02T00:00:00"), null)));
+        cache.putTocs(MdmTargetType.RULE, Map.of("R", b), cache.ticket());
+
+        assertThat(view("R@2.000").current()).isTrue();
+        assertThat(view("R@1.000").current()).isFalse();
+        assertThat(view("R@2.000").remainingSeconds()).as("최종 본문은 max-idle").isEqualTo(60 * 60);
+        assertThat(view("R@1.000").remainingSeconds()).as("옛 버전 본문은 old-version-max-idle").isEqualTo(10 * 60);
+    }
+
+    @Test
     void 본문_하나만_지우면_목차와_다른_버전은_남고_그_버전의_앞선_적재만_막는다() {
         cache.putTocs(MdmTargetType.CODE, Map.of("X", toc()), cache.ticket());
         cache.putBodies(MdmTargetType.CODE, bodies("X", "1.000", "2.000"), cache.ticket());
