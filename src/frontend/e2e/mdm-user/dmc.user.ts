@@ -23,6 +23,7 @@ import {
   waitIdle,
   type LayoutOptions,
 } from "./support";
+import { fillDateTime } from "../support/mdm-e2e";
 
 /**
  * 마루 MDM > 마스터코드(dmc) 사용자 여정 E2E.
@@ -57,13 +58,13 @@ const HANDOVER_PENDING = "넘기기는 준비 중입니다. 넘겨받는 사람�
 /** codeMng 오른쪽에 아무것도 고르지 않았을 때의 안내. */
 const DETAIL_GUIDE = "목록에서 마루 코드를 고르거나 [코드 등록] 을 누르세요";
 
-/** 오늘에서 days 만큼 뺀 날의 0시 — datetime-local 입력값(yyyy-MM-ddTHH:mm)과 서버 표기(yyyy-MM-dd). */
+/** 오늘에서 days 만큼 뺀 날의 0시 — 적용 시작 칸(DateTimePicker, 6e506cc9) 입력값(yyyy-MM-dd HH:mm:ss)과 서버 표기(yyyy-MM-dd). */
 function daysAgo(days: number): { input: string; date: string } {
   const d = new Date();
   d.setDate(d.getDate() - days);
   const p = (n: number) => String(n).padStart(2, "0");
   const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  return { input: `${date}T00:00`, date };
+  return { input: `${date} 00:00:00`, date };
 }
 
 // ─────────────────────────── 지역 부품 ───────────────────────────
@@ -159,7 +160,8 @@ async function openCode(page: Page, id: string) {
   await button(page, "조회").click();
   const row = codeListRow(page, id);
   await expect(row).toHaveCount(1, { timeout: 20_000 });
-  await row.locator('.ag-cell[col-id="maruCodeId"]').click();
+  // ID 칸은 [코드 편집] 화면을 여는 링크다(d3532f39) — 상세는 행의 다른 칸(이름)을 눌러 연다.
+  await row.locator('.ag-cell[col-id="maruCodeName"]').click();
   await waitIdle(page);
   await expect(tid(page, "header-name")).toBeVisible({ timeout: 30_000 });
   await expect(tid(page, "version-list")).toBeVisible({ timeout: 30_000 });
@@ -198,13 +200,99 @@ async function registerCode(page: Page, id: string, name: string, lvl = "0", des
 
 // ── codeItemEdit 탭 ──
 
-type ItemTab = "grid" | "tree" | "cate";
+type ItemTab = "grid" | "tree" | "cate" | "test";
 
-/** codeItemEdit 의 [코드]·[트리]·[카테고리] 탭을 누른다. */
+/**
+ * codeItemEdit 의 탭을 누른다 — 왼쪽은 [코드]·[트리], 오른쪽은 [카테고리 편집]·[코드 테스트]다(ade3851f: 카테고리가 왼쪽
+ * 세 번째 탭에서 오른쪽 탭의 표로 옮겨졌고, 옛 카테고리 미리보기는 [코드 테스트] 탭이 됐다).
+ */
 async function openTab(page: Page, tab: ItemTab) {
-  await tid(page, `code-tab-${tab}`).click();
-  const body = { grid: "code-grid", tree: "code-tree", cate: "cate-tab" }[tab];
+  const tabId = { grid: "code-tab-grid", tree: "code-tab-tree", cate: "code-right-tab-cate", test: "code-right-tab-test" }[tab];
+  await tid(page, tabId).click();
+  const body = { grid: "code-grid", tree: "code-tree", cate: "cate-tab", test: "code-preview-cate" }[tab];
   await expect(tid(page, body)).toBeVisible({ timeout: 20_000 });
+}
+
+// ── [카테고리 편집] 탭(ade3851f) — 카테고리 표·소속 표·[카테고리 추가] 팝업·TABLE [편집] 팝업 ──
+
+/**
+ * 카테고리 표의 행. `cate-list` 감싸개는 높이가 0 이라(flex 자식, 표는 절대 위치) Playwright 가 보이지 않는 요소로 본다 —
+ * `:visible` 을 붙이는 tid() 로 찾으면 안을 못 보고, 그 안에 대한 toHaveCount(0) 은 늘 통과(거짓 통과)한다. 보이기 조건 없이 찾는다.
+ */
+const cateList = (page: Page) => screen(page).locator('[data-testid="cate-list"]');
+const cateRows = (page: Page) => cateList(page).locator(".ag-center-cols-container .ag-row");
+/** 카테고리 표의 한 행 — ID 칸 안쪽 span 이 `cate-row-{cateId}` 다. */
+const cateRow = (page: Page, cateId: string) => cateRows(page).filter({ has: page.locator(`[data-testid="cate-row-${cateId}"]`) });
+const cateCell = (page: Page, cateId: string, colId: string) => cateRow(page, cateId).locator(`.ag-cell[col-id="${colId}"]`);
+/** 아래 "소속 — {cateId}" 표 — REGEX 는 고른 식의 서버 해석(compare) 결과로 맞는 코드를, TABLE 은 소속 코드를 보인다. */
+const memberPanel = (page: Page) =>
+  screen(page).locator(".grid-panel").filter({ has: page.locator(".grid-panel-title", { hasText: /^소속 — / }) });
+
+/** 카테고리를 고른다. ID·이름 칸은 한 번 누르면 편집이 열리므로 편집 칸이 아닌 [해당] 칸을 누른다. */
+async function selectCate(page: Page, cateId: string) {
+  await cateCell(page, cateId, "matchCount").click();
+  await expect(memberPanel(page).locator(".grid-panel-title")).toContainText(`소속 — ${cateId}`);
+}
+
+/** [카테고리 추가] 팝업으로 카테고리를 더한다(저장은 머리 [저장]이 한다). */
+async function addCategory(page: Page, cateId: string, name: string, kind: "TABLE" | "REGEX") {
+  await tid(page, "cate-add").click();
+  await expect(tid(page, "cate-add-id")).toBeVisible();
+  await tid(page, "cate-add-id").fill(cateId);
+  await tid(page, "cate-add-name").fill(name);
+  await tid(page, "cate-add-kind").selectOption(kind);
+  await tid(page, "cate-add-submit").click();
+  await expect(page.getByTestId("cate-add-id")).toHaveCount(0);
+  await expect(cateRow(page, cateId)).toHaveCount(1);
+}
+
+/** 카테고리 표의 글자 칸을 한 번 눌러 편집하고 Enter 로 마친다. */
+async function editCateText(page: Page, cateId: string, colId: string, value: string) {
+  const cell = cateCell(page, cateId, colId);
+  const editor = cell.locator("input");
+  await expect(async () => {
+    await cell.click();
+    await expect(editor).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await editor.fill(value);
+  await editor.press("Enter");
+  await expect.poll(() => cateCellText(cell), { timeout: 5_000 }).toBe(value);
+}
+
+/**
+ * 카테고리 칸 글자 — 저장이 거부된 행은 이름 칸 아래에 이슈 문구(cate-row-issue-*)가 붙으므로(CategoryTab) 그 요소를 뺀 글자를 정확히 비교한다.
+ */
+async function cateCellText(cell: Locator): Promise<string> {
+  return cell.evaluate((el) => {
+    const copy = el.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll('[data-testid^="cate-row-issue-"]').forEach((n) => n.remove());
+    return (copy.textContent ?? "").trim();
+  });
+}
+
+/** 카테고리 표의 선택 칸(대상 칸 등)을 한 번 눌러 고른다. */
+async function editCateSelect(page: Page, cateId: string, colId: string, value: string, label: string) {
+  const cell = cateCell(page, cateId, colId);
+  const editor = cell.locator("select");
+  await expect(async () => {
+    await cell.click();
+    await expect(editor).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await editor.selectOption(value);
+  await expect(editor).toHaveCount(0, { timeout: 5_000 });
+  await expect(cell).toHaveText(label, { timeout: 5_000 });
+}
+
+/** TABLE 카테고리의 [편집] 으로 소속 편집 팝업(transfer-list)을 연다. */
+async function openTransfer(page: Page, cateId: string) {
+  await selectCate(page, cateId);
+  await tid(page, `cate-edit-${cateId}`).click();
+  await expect(tid(page, "cate-transfer")).toBeVisible({ timeout: 20_000 });
+}
+
+async function closeTransfer(page: Page) {
+  await page.getByRole("dialog").getByRole("button", { name: "닫기" }).click();
+  await expect(page.locator('[data-testid="cate-transfer"]')).toHaveCount(0);
 }
 
 // ── ag-grid 셀 편집 ──
@@ -423,12 +511,13 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
   });
 
   test("TC-DMC-MNG-05 같은 ID 로 다시 등록하면 중복 문구가 보이고, [취소]는 등록 팝업만 닫는다", async () => {
-    // [코드 등록]을 누르면 등록 팝업이 빈 칸으로 다시 열린다. 상세는 아직 고르지 않았다.
+    // [코드 등록]을 누르면 등록 팝업이 빈 칸으로 다시 열린다. 오른쪽 상세는 MNG-03 에서 등록한 코드 그대로다
+    // (조회는 목록만 다시 읽고 선택을 바꾸지 않는다 — codeMng loadList).
     await openCodeRegister(page);
     await expect(tid(page, "code-reg-id")).toHaveValue("");
     await expect(tid(page, "code-reg-name")).toHaveValue("");
     await expect(tid(page, "code-reg-lvl")).toHaveValue("0");
-    await expect(tid(page, "header-name")).toHaveCount(0);
+    await expect(tid(page, "header-name")).toHaveValue(NAME);
 
     await tid(page, "code-reg-id").fill(CODE);
     await tid(page, "code-reg-name").fill("중복 등록");
@@ -436,15 +525,19 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expectErrorModal(page, "마루 코드·마루 데이터에 같은 ID 가 있습니다", "dmc-codeMng-05-dup");
     await tid(page, "code-reg-id").fill("");
     await tid(page, "code-reg-name").fill("");
-    // [취소]는 팝업만 닫는다(고른 코드의 상세 또는 안내는 그대로). 다시 열면 칸이 비어 있다.
+    // [취소]는 팝업만 닫는다(고른 코드의 상세는 그대로). 다시 열면 칸이 비어 있다.
     await cancelCodeRegister(page);
-    await expect(screen(page).getByText(DETAIL_GUIDE)).toBeVisible();
+    await expect(tid(page, "header-name")).toHaveValue(NAME);
     await openCodeRegister(page);
     await expect(tid(page, "code-reg-id")).toHaveValue("");
     await expect(tid(page, "code-reg-name")).toHaveValue("");
     // 뒤 테스트가 목록을 누를 수 있도록 팝업을 닫아 두고, 버튼 커버리지는 팝업이 닫힌 상태에서 본다.
     await cancelCodeRegister(page);
-    await assertAllButtonsPressed(page, "codeMng");
+    // 등록한 코드의 상세가 오른쪽에 떠 있다 — 그 버튼은 이어지는 시험에서 누른다.
+    await assertAllButtonsPressed(page, "codeMng", {
+      "header-save": "헤더 저장은 TC-DMC-EDT-03 에서 누른다",
+      "header-delete-code": "코드 삭제는 TC-DMC-EDT-14 에서 누른다(이 여정의 코드는 확정까지 이어 간다)",
+    });
     watcher.assertClean("codeMng");
   });
 
@@ -645,15 +738,18 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     // 여기부터 카테고리 탭(TC-DMC-CAT-05)까지 한 화면이라 버튼 커버리지를 한 번에 센다.
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 코드 편집");
-    // 사용자가 고른다(화면 인계는 TC-DMC-LNK-01 에서 따로 본다).
-    await pickCode(page, CODE);
+    // 사용자가 고른다(화면 인계는 TC-DMC-LNK-01 에서 따로 본다). 여기서는 칸에 넣고 [찾기] 로 찾는다 — Enter 로 찾는 길은 pickCode 가 쓴다.
+    await tid(page, "code-pick-keyword").fill(CODE);
+    await screen(page).getByRole("button", { name: "찾기", exact: true }).click();
+    await tid(page, `code-pick-${CODE}`).click({ timeout: 20_000 });
+    await waitIdle(page);
     await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
     await expect(tid(page, "code-ver-select").locator("option:checked")).toHaveText("v1.000 DRAFT");
     await expect(tid(page, "code-grid-empty")).toHaveText("보일 코드가 없습니다");
     await expect(screen(page).getByText(`편집 가능 · 소유자 ${STW}`)).toBeVisible();
     await rowVersion(page, "code-row-version");
-    // [코드]·[트리]·[카테고리] 세 탭이 있다(D-101).
-    for (const t of ["code-tab-grid", "code-tab-tree", "code-tab-cate"]) await expect(tid(page, t), t).toBeVisible();
+    // 왼쪽 [코드]·[트리], 오른쪽 [카테고리 편집]·[코드 테스트] 탭이 있다(D-101, ade3851f 로 카테고리는 오른쪽 탭).
+    for (const t of ["code-tab-grid", "code-tab-tree", "code-right-tab-cate", "code-right-tab-test"]) await expect(tid(page, t), t).toBeVisible();
     // lvl_cnt 2·라벨 규격·강종이 열로 보인다.
     const headers = codeGrid(page).locator(".ag-header-cell-text");
     for (const h of ["코드", "이름", "약칭", "순서", "1차", "2차", "규격", "강종"]) {
@@ -750,7 +846,8 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "code-closed-toggle").getByText("닫힌 코드 보기").click();
     await expect(tid(page, "code-closed-toggle").locator("input")).not.toBeChecked();
 
-    // 카테고리 미리보기 — BASE 는 모든 코드가 해당한다.
+    // 카테고리 미리보기 — 오른쪽 [코드 테스트] 탭이다(ade3851f). BASE 는 모든 코드가 해당한다.
+    await openTab(page, "test");
     await expect(tid(page, "code-preview-cate")).toHaveValue("BASE");
     await expect(tid(page, "code-preview-title")).toContainText(`CODE_LIST("${CODE}", "BASE") · v1.000 · 4 / 4건 해당`);
     await choose(page, "code-preview-step-0", "HR");
@@ -789,11 +886,15 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expectToast(page, "되돌렸습니다");
     await expect(codeRow(page, "TMP1")).toHaveCount(0, { timeout: 20_000 });
     await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(3);
-    // 탭 버튼으로 [트리]·[카테고리] 탭에 갔다가 [코드] 탭으로 돌아온다.
+    // 탭 버튼으로 [트리] 탭에 갔다가 [코드] 탭으로 돌아오고, 오른쪽은 [코드 테스트] → [카테고리 편집] 으로 둔다.
     await openTab(page, "tree");
-    await openTab(page, "cate");
     await openTab(page, "grid");
-    await assertAllButtonsPressed(page, "codeItemEdit [코드] 탭");
+    await openTab(page, "test");
+    await openTab(page, "cate");
+    // 오른쪽 [카테고리 편집] 탭은 코드 탭과 나란히 늘 보인다(ade3851f) — 그 안의 버튼은 이어지는 카테고리 장에서 누른다.
+    await assertAllButtonsPressed(page, "codeItemEdit [코드] 탭", {
+      "cate-add": "카테고리 추가는 TC-DMC-CAT-02 에서 누른다",
+    });
     watcher.assertClean("codeItemEdit");
   });
 
@@ -806,11 +907,12 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "code-ver-select")).toHaveValue("1.000");
     await expect(tid(page, "cate-tab")).toContainText("카테고리·소속 변경은 코드 변경과 함께 상단 [저장] 한 번으로 저장합니다");
     await expect(tid(page, "cate-row-BASE")).toBeVisible();
-    await expect(tid(page, "cate-list").locator('[data-testid^="cate-row-"]')).toHaveCount(1);
+    await expect(cateRows(page)).toHaveCount(1);
     await rowVersion(page, "cate-row-version");
     // BASE 는 편집·닫기를 할 수 없다.
-    await tid(page, "cate-row-BASE").locator("span").first().click();
-    await expect(tid(page, "cate-close-BASE")).toHaveCount(0);
+    await selectCate(page, "BASE");
+    await expect(cateList(page).getByTestId("cate-close-BASE")).toHaveCount(0);
+    await expect(cateList(page).getByTestId("cate-edit-BASE")).toHaveCount(0);
     await expect(tid(page, "cate-base-readonly")).toHaveText("BASE 는 예약 카테고리라 편집·닫기를 할 수 없습니다");
     // 변경이 없으니 머리 [저장]은 꺼져 있다.
     await expect(button(page, "저장")).toBeDisabled();
@@ -819,62 +921,63 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     watcher.assertClean("codeItemEdit");
   });
 
-  test("TC-DMC-CAT-02 등록(C) — TABLE·REGEX 카테고리를 추가하고 정규식을 바꾸면 오른쪽 미리보기가 따라 바뀐다", async () => {
+  test("TC-DMC-CAT-02 등록(C) — TABLE·REGEX 카테고리를 추가하고 정규식·대상 칸을 바꾸면 아래 소속 표가 서버 해석을 따라 바뀐다", async () => {
     const before = await rowVersion(page, "cate-row-version");
-    // 빈 ID·이름으로는 추가되지 않는다.
+    // 빈 ID·이름으로는 추가되지 않는다 — 팝업 칸 아래에 무엇이 빠졌는지 알린다.
+    await tid(page, "cate-add").click();
     await tid(page, "cate-add-submit").click();
-    await expect(tid(page, "cate-list").locator('[data-testid^="cate-row-"]')).toHaveCount(1);
+    await expect(modal(page)).toContainText("카테고리 ID를 입력하세요");
+    await expect(modal(page)).toContainText("카테고리 이름을 입력하세요");
+    await tid(page, "cate-add-cancel").click();
+    await expect(page.getByTestId("cate-add-id")).toHaveCount(0);
+    await expect(cateRows(page)).toHaveCount(1);
 
-    await tid(page, "cate-add-id").fill("TBL_HR");
-    await tid(page, "cate-add-name").fill("열연 묶음");
-    await tid(page, "cate-add-kind").selectOption("TABLE");
-    await tid(page, "cate-add-submit").click();
-    await expect(tid(page, "cate-row-TBL_HR")).toContainText("추가");
-    await expect(tid(page, "cate-transfer")).toBeVisible();
-    await expect(tid(page, "cate-preview")).toContainText("TABLE 카테고리는 소속 목록이 곧 결과입니다");
+    // TABLE — 저장 전 새 행은 [취소] 가 보이고, TABLE 이라 [편집](소속 팝업)이 있다.
+    await addCategory(page, "TBL_HR", "열연 묶음", "TABLE");
+    await expect(tid(page, "cate-undo-TBL_HR")).toBeVisible();
+    await expect(tid(page, "cate-edit-TBL_HR")).toBeVisible();
     // 카테고리만 바꿔도 머리 [저장]이 켜진다.
     await expect(button(page, "저장")).toBeEnabled();
 
-    await tid(page, "cate-add-id").fill("RGX_CR");
-    await tid(page, "cate-add-name").fill("냉연 식");
-    await tid(page, "cate-add-kind").selectOption("REGEX");
-    await tid(page, "cate-add-submit").click();
-    await expect(tid(page, "cate-row-RGX_CR")).toContainText("추가");
-    await expect(tid(page, "cate-regex-edit")).toBeVisible();
-    await expect(tid(page, "cate-regex-name")).toHaveValue("냉연 식");
-    await expect(tid(page, "cate-regex-target")).toHaveValue("CODE");
-    await expect(tid(page, "cate-regex-expr")).toHaveValue(".*");
-    await expect(tid(page, "cate-preview-summary")).toHaveText("3 / 3건 해당", { timeout: 20_000 });
+    // REGEX — 처음 식은 ".*"·대상 칸 "코드"(CategoryAddModal). 고르면 아래 소속 표에 맞는 코드가 보인다(서버 compare).
+    await addCategory(page, "RGX_CR", "냉연 식", "REGEX");
+    await expect(tid(page, "cate-undo-RGX_CR")).toBeVisible();
+    await expect(cateCell(page, "RGX_CR", "cateName")).toHaveText("냉연 식");
+    await expect(cateCell(page, "RGX_CR", "defExpr")).toHaveText(".*");
+    await expect(cateCell(page, "RGX_CR", "defTarget")).toHaveText("코드");
+    await selectCate(page, "RGX_CR");
+    const members = memberPanel(page);
+    await expect(members.locator(".grid-panel-count")).toHaveText("3건", { timeout: 20_000 });
 
-    await tid(page, "cate-regex-expr").fill("CR.*");
-    await expect(tid(page, "cate-preview-summary")).toHaveText("1 / 3건 해당", { timeout: 20_000 });
-    await tid(page, "cate-regex-target").selectOption("LVL1");
-    await tid(page, "cate-regex-expr").fill("HR");
-    await expect(tid(page, "cate-preview-summary")).toHaveText("2 / 3건 해당", { timeout: 20_000 });
-    await tid(page, "cate-regex-expr").fill("CR");
-    await expect(tid(page, "cate-preview-summary")).toHaveText("1 / 3건 해당", { timeout: 20_000 });
-    await expect(gridRow(tid(page, "cate-preview"), "CR01", "code").locator('.ag-cell[col-id="hitMark"]')).toHaveText("●");
+    await editCateText(page, "RGX_CR", "defExpr", "CR.*");
+    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: 20_000 });
+    await editCateSelect(page, "RGX_CR", "defTarget", "LVL1", "1차");
+    await editCateText(page, "RGX_CR", "defExpr", "HR");
+    await expect(members.locator(".grid-panel-count")).toHaveText("2건", { timeout: 20_000 });
+    await editCateText(page, "RGX_CR", "defExpr", "CR");
+    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: 20_000 });
+    await expect(gridRow(members, "CR01", "code")).toHaveCount(1);
     await layout(page, "codeItemEdit 카테고리 REGEX 편집");
     await snap(page, "dmc-codeItemEdit-cate-02-regex");
 
     // 빈 TABLE 카테고리 하나를 남겨 확정 검사 2-2 경고를 받는다(TC-DMC-CNF-04).
-    await tid(page, "cate-add-id").fill("TMP_EMPTY");
-    await tid(page, "cate-add-name").fill("빈 묶음");
-    await tid(page, "cate-add-kind").selectOption("TABLE");
-    await tid(page, "cate-add-submit").click();
+    await addCategory(page, "TMP_EMPTY", "빈 묶음", "TABLE");
 
     await button(page, "저장").click();
     await expectToast(page, "저장했습니다");
+    // 저장하면 새 행 표시([취소])가 없어지고 [닫기] 가 선다.
     for (const c of ["TBL_HR", "RGX_CR", "TMP_EMPTY"]) {
       await expect(tid(page, `cate-row-${c}`), c).toBeVisible({ timeout: 20_000 });
-      await expect(tid(page, `cate-row-${c}`)).not.toContainText("추가");
+      await expect(tid(page, `cate-undo-${c}`), c).toHaveCount(0);
+      await expect(tid(page, `cate-close-${c}`), c).toBeVisible();
     }
     await expectRowVersionAbove(page, "cate-row-version", before);
     watcher.assertClean("codeItemEdit");
   });
 
   test("TC-DMC-CAT-03 TABLE 소속 — 검색·1차 필터·전체선택·Shift 범위·>·>>·<·<< 로 옮기고 머리 [저장]으로 저장한다", async () => {
-    await tid(page, "cate-row-TBL_HR").locator("span").first().click();
+    // TABLE 소속은 행의 [편집] 팝업(transfer-list)에서 고친다(ade3851f).
+    await openTransfer(page, "TBL_HR");
     const avail = tid(page, "cate-transfer-available");
     const member = tid(page, "cate-transfer-member");
     const item = (side: string, code: string) => tid(page, `cate-transfer-item-${side}-${code}`);
@@ -914,51 +1017,59 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await item("member", "CR01").click();
     await tid(page, "cate-transfer-move-left").click();
     await expect(member).toContainText("소속 2건");
-    await layout(page, "codeItemEdit 카테고리 TABLE 소속");
     await snap(page, "dmc-codeItemEdit-cate-03-transfer");
+    await closeTransfer(page);
+    // 팝업을 닫아도 소속 변경은 남아 아래 소속 표에 보인다(저장 전).
+    await expect(memberPanel(page).locator(".grid-panel-count")).toHaveText("2건");
+    await layout(page, "codeItemEdit 카테고리 TABLE 소속");
 
     await button(page, "저장").click();
     await expectToast(page, "저장했습니다");
     await button(page, "조회").click();
     await waitIdle(page);
     await expect(tid(page, "cate-tab")).toBeVisible();
-    await tid(page, "cate-row-TBL_HR").locator("span").first().click();
+    await openTransfer(page, "TBL_HR");
     await expect(item("member", "HR01")).toBeVisible({ timeout: 20_000 });
     await expect(item("member", "HR02")).toBeVisible();
     await expect(item("available", "CR01")).toBeVisible();
+    await closeTransfer(page);
     watcher.assertClean("codeItemEdit");
   });
 
-  test("TC-DMC-CAT-04 수정(U) — 틀린 정규식은 미리보기·저장에서 막히고, [취소]로 되돌린 뒤 이름만 고쳐 저장한다", async () => {
-    await tid(page, "cate-row-RGX_CR").locator("span").first().click();
-    await expect(tid(page, "cate-regex-expr")).toHaveValue("CR");
-    await tid(page, "cate-regex-name").fill("냉연 식 수정");
-    await tid(page, "cate-regex-expr").fill("(");
-    await expect(tid(page, "cate-row-RGX_CR")).toContainText("수정");
-    await expect(tid(page, "cate-preview-invalid")).toHaveText("정규식 문법 오류로 해석하지 못했습니다", { timeout: 20_000 });
+  test("TC-DMC-CAT-04 수정(U) — 틀린 정규식은 저장에서 막혀 그 행에 이슈가 보이고, [취소]로 되돌린 뒤 이름만 고쳐 저장한다", async () => {
+    await selectCate(page, "RGX_CR");
+    await expect(cateCell(page, "RGX_CR", "defExpr")).toHaveText("CR");
+    await editCateText(page, "RGX_CR", "cateName", "냉연 식 수정");
+    await editCateText(page, "RGX_CR", "defExpr", "(");
+    // 저장 전 변경은 [닫기] 대신 [취소] 로 보인다.
+    await expect(tid(page, "cate-undo-RGX_CR")).toBeVisible();
+    await expect(cateList(page).getByTestId("cate-close-RGX_CR")).toHaveCount(0);
     await button(page, "저장").click();
     await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다", "dmc-codeItemEdit-cate-04-bad-regex");
+    await expect(tid(page, "cate-row-issue-RGX_CR")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "code-right-tab-cate-issue")).toBeVisible();
 
     await tid(page, "cate-undo-RGX_CR").click();
-    await expect(tid(page, "cate-regex-expr")).toHaveValue("CR");
-    await expect(tid(page, "cate-row-RGX_CR")).not.toContainText("수정");
+    await expect(cateCell(page, "RGX_CR", "defExpr")).toHaveText("CR");
+    await expect.poll(() => cateCellText(cateCell(page, "RGX_CR", "cateName"))).toBe("냉연 식");
+    await expect(cateList(page).getByTestId("cate-undo-RGX_CR")).toHaveCount(0);
 
-    await tid(page, "cate-regex-name").fill("냉연 식 수정");
+    await editCateText(page, "RGX_CR", "cateName", "냉연 식 수정");
     await button(page, "저장").click();
     await expectToast(page, "저장했습니다");
     await button(page, "조회").click();
     await waitIdle(page);
-    await expect(tid(page, "cate-row-RGX_CR")).toContainText("냉연 식 수정");
+    await expect(cateCell(page, "RGX_CR", "cateName")).toHaveText("냉연 식 수정", { timeout: 20_000 });
     watcher.assertClean("codeItemEdit");
   });
 
   test("TC-DMC-CAT-05 닫기 — [닫기]로 표시했다 [취소]하면 그대로, 금지 문자 ID 는 저장에서 거부된다", async () => {
-    // 닫기 표시 중에는 [닫기] 버튼 대신 [취소]가 보이고 배지 "닫기"가 붙는다.
+    // 닫기 표시 중에는 [닫기] 버튼 대신 [취소]가 보인다.
     await tid(page, "cate-close-TMP_EMPTY").click();
-    await expect(tid(page, "cate-close-TMP_EMPTY")).toHaveCount(0);
-    await expect(tid(page, "cate-row-TMP_EMPTY")).toContainText("닫기");
+    await expect(cateList(page).getByTestId("cate-close-TMP_EMPTY")).toHaveCount(0);
+    await expect(tid(page, "cate-undo-TMP_EMPTY")).toBeVisible();
     await tid(page, "cate-undo-TMP_EMPTY").click();
-    await expect(tid(page, "cate-undo-TMP_EMPTY")).toHaveCount(0);
+    await expect(cateList(page).getByTestId("cate-undo-TMP_EMPTY")).toHaveCount(0);
     await expect(tid(page, "cate-close-TMP_EMPTY")).toBeVisible();
     // REGEX·TABLE 카테고리도 같은 방식으로 닫았다가 되돌릴 수 있다(저장하지 않는다).
     for (const c of ["RGX_CR", "TBL_HR"]) {
@@ -968,14 +1079,11 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
       await expect(tid(page, `cate-close-${c}`), c).toBeVisible();
     }
 
-    await tid(page, "cate-add-id").fill("BAD ID");
-    await tid(page, "cate-add-name").fill("공백 ID");
-    await tid(page, "cate-add-kind").selectOption("TABLE");
-    await tid(page, "cate-add-submit").click();
+    await addCategory(page, "BAD ID", "공백 ID", "TABLE");
     await button(page, "저장").click();
     await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다", "dmc-codeItemEdit-cate-05-bad-id");
     await tid(page, "cate-undo-BAD ID").click();
-    await expect(tid(page, "cate-row-BAD ID")).toHaveCount(0);
+    await expect(cateList(page).getByTestId("cate-row-BAD ID")).toHaveCount(0);
     await assertAllButtonsPressed(page, "codeItemEdit [카테고리] 탭");
     watcher.assertClean("codeItemEdit");
   });
@@ -1022,7 +1130,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "cf-validate").click();
     await expect(tid(page, "cf-error")).toHaveText("적용 시작 일시를 입력하세요");
 
-    await tid(page, "cf-apply-from").fill(CONFIRM1.input);
+    await fillDateTime(tid(page, "cf-apply-from"), CONFIRM1.input);
     await tid(page, "cf-validate").click();
     await expect(tid(page, "cf-checks")).toBeVisible({ timeout: 20_000 });
     await expect(tid(page, "cf-check-status-3")).toHaveText("면제");
@@ -1032,7 +1140,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "cf-check-status-1")).toHaveText("통과");
     await expect(tid(page, "cf-confirm")).toBeEnabled();
 
-    await tid(page, "cf-apply-from").fill(CONFIRM1B.input);
+    await fillDateTime(tid(page, "cf-apply-from"), CONFIRM1B.input);
     await expect(tid(page, "cf-confirm")).toBeDisabled();
     await tid(page, "cf-validate").click();
     await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: 20_000 });
@@ -1226,8 +1334,9 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     // RELEASED 의 [카테고리] 탭은 목록·미리보기만 — 추가 폼·닫기가 없다.
     await openTab(page, "cate");
     await expect(tid(page, "cate-row-TBL_HR")).toBeVisible({ timeout: 20_000 });
-    await expect(tid(page, "cate-add-submit")).toHaveCount(0);
-    await expect(tid(page, "cate-list").locator('[data-testid^="cate-close-"]')).toHaveCount(0);
+    // [카테고리 추가] 버튼(추가 팝업을 여는 것, ade3851f)이 없고 닫기도 없다.
+    await expect(screen(page).getByTestId("cate-add")).toHaveCount(0);
+    await expect(cateList(page).locator('[data-testid^="cate-close-"]')).toHaveCount(0);
     await openTab(page, "tree");
     await expect(tid(page, "code-tree")).toContainText("HR01");
     await openTab(page, "grid");
@@ -1240,10 +1349,11 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "code-ver-select").locator("option:checked")).toHaveText("v1.001 DRAFT");
     await openTab(page, "cate");
     await rowVersion(page, "cate-row-version");
-    // HR02 를 지웠으니 TBL_HR 소속은 HR01 만 남는다.
-    await tid(page, "cate-row-TBL_HR").locator("span").first().click();
+    // HR02 를 지웠으니 TBL_HR 소속은 HR01 만 남는다(소속은 [편집] 팝업에서 본다, ade3851f).
+    await openTransfer(page, "TBL_HR");
     await expect(tid(page, "cate-transfer-item-member-HR01")).toBeVisible({ timeout: 20_000 });
-    await expect(tid(page, "cate-transfer-item-member-HR02")).toHaveCount(0);
+    await expect(page.locator('[data-testid="cate-transfer-item-member-HR02"]')).toHaveCount(0);
+    await closeTransfer(page);
 
     await tid(page, "cate-close-TMP_EMPTY").click();
     await expect(tid(page, "cate-undo-TMP_EMPTY")).toBeVisible();
@@ -1273,7 +1383,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "cf-cate-TBL_HR")).toContainText("빠짐 HR02");
     await expect(tid(page, "cf-cate-TBL_HR")).toHaveAttribute("data-reduced", "true");
 
-    await tid(page, "cf-apply-from").fill(TOO_EARLY.input);
+    await fillDateTime(tid(page, "cf-apply-from"), TOO_EARLY.input);
     await tid(page, "cf-validate").click();
     await expect(tid(page, "cf-check-status-3")).toHaveText("거부", { timeout: 20_000 });
     await expect(tid(page, "cf-check-status-3")).toHaveAttribute("data-rejected", "true");
@@ -1410,7 +1520,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await expect(tid(page, "code-ver-select"), "넘겨받은 버전").toHaveValue("1.000");
       await expect(tid(page, "cate-row-BASE"), "넘겨받은 코드의 BASE").toBeVisible({ timeout: 20_000 });
       await expect(tid(page, "cate-row-version")).toHaveText(/^row_version = \d+$/);
-      await expect(tid(page, "cate-add-submit")).toBeVisible();
+      await expect(tid(page, "cate-add")).toBeVisible();
       watcher.assertClean("codeMng→codeItemEdit[카테고리]");
     } finally {
       await page.context().close();
@@ -1593,7 +1703,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await tid(page, "cf-keyword").fill(id);
       await tid(page, "cf-search").click();
       await cfRow(page, id, "1.000").click();
-      await tid(page, "cf-apply-from").fill(daysAgo(3).input);
+      await fillDateTime(tid(page, "cf-apply-from"), daysAgo(3).input);
       await tid(page, "cf-validate").click();
       await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: 20_000 });
       await tid(page, "cf-confirm").click();
@@ -1619,6 +1729,30 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
     }
   });
 
+  test("TC-DMC-CAT-07 정규식 문법 오류는 저장 전에 [카테고리 편집] 탭에서 바로 알린다 — 기능설계서 §4.4 cate-preview-invalid", async ({ browser }, testInfo) => {
+    // 옛 TC-DMC-CAT-04 앞부분의 단언을 그대로 옮겼다. ade3851f 가 카테고리 미리보기 영역(cate-preview)을 없애면서 이 안내도
+    // 화면에서 빠졌지만 기능설계서(codeItemEdit §4.4 :169·:201)는 그대로다 — 제품 결함 후보라 단언을 고치지 않고 실패로 남기되,
+    // 여정 장(serial)의 뒤 단계를 가리지 않게 독립 시험으로 둔다. 같은 일을 하는 dmd 카테고리 탭은 cate-regex-invalid 로 알린다.
+    const { page, watcher } = await openAs(browser, "stw", testInfo);
+    try {
+      const id = uid("RGXINV");
+      await registerCode(page, id, `E2E 정규식 오류 ${RUN}`);
+      await go(page, "codeItemEdit");
+      await pickCode(page, id);
+      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
+      await openTab(page, "cate");
+      await addCategory(page, "RGX_BAD", "정규식 오류", "REGEX");
+      await selectCate(page, "RGX_BAD");
+      await editCateText(page, "RGX_BAD", "defExpr", "(");
+      await expect(tid(page, "cate-undo-RGX_BAD")).toBeVisible();
+      await snap(page, "dmc-codeItemEdit-cate-07-invalid-regex");
+      await expect(tid(page, "cate-preview-invalid")).toHaveText("정규식 문법 오류로 해석하지 못했습니다", { timeout: 20_000 });
+      watcher.assertClean("codeItemEdit");
+    } finally {
+      await page.context().close();
+    }
+  });
+
   test("TC-DMC-ITM-12 머리 [저장]이 거부되면 이슈가 있는 탭 이름 옆에 경고 아이콘이 붙는다([코드]·[카테고리])", async ({ browser }, testInfo) => {
     const { page, watcher } = await openAs(browser, "stw", testInfo);
     try {
@@ -1627,8 +1761,8 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await go(page, "codeItemEdit");
       await pickCode(page, id);
       await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
-      await expect(tid(page, "code-tab-grid-issue")).toHaveCount(0);
-      await expect(tid(page, "code-tab-cate-issue")).toHaveCount(0);
+      await expect(screen(page).getByTestId("code-tab-grid-issue")).toHaveCount(0);
+      await expect(screen(page).getByTestId("code-right-tab-cate-issue")).toHaveCount(0);
 
       // 코드 행 이슈 → [코드] 탭 아이콘
       await addCodeRow(page, { code: "A B", name: "공백 코드" });
@@ -1637,15 +1771,12 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await expect(tid(page, "code-tab-grid-issue"), "[코드] 탭 경고 아이콘").toBeVisible({ timeout: 20_000 });
       await codeRow(page, "A B").getByRole("button", { name: "취소" }).click();
 
-      // 카테고리 이슈 → [카테고리] 탭 아이콘과 그 행의 이슈 문구
+      // 카테고리 이슈 → [카테고리 편집] 탭 아이콘과 그 행의 이슈 문구(카테고리는 오른쪽 탭, ade3851f)
       await openTab(page, "cate");
-      await tid(page, "cate-add-id").fill("BAD ID");
-      await tid(page, "cate-add-name").fill("공백 ID");
-      await tid(page, "cate-add-kind").selectOption("TABLE");
-      await tid(page, "cate-add-submit").click();
+      await addCategory(page, "BAD ID", "공백 ID", "TABLE");
       await button(page, "저장").click();
       await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다");
-      await expect(tid(page, "code-tab-cate-issue"), "[카테고리] 탭 경고 아이콘").toBeVisible({ timeout: 20_000 });
+      await expect(tid(page, "code-right-tab-cate-issue"), "[카테고리 편집] 탭 경고 아이콘").toBeVisible({ timeout: 20_000 });
       await expect(tid(page, "cate-row-issue-BAD ID"), "그 카테고리 행의 이슈 문구").toContainText("점·콤마·공백");
       await snap(page, "dmc-codeItemEdit-12-tab-issues");
       watcher.assertClean("codeItemEdit");
@@ -1697,8 +1828,9 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       // [카테고리] 탭 — 목록은 보이고 추가·닫기가 없다.
       await openTab(page, "cate");
       await expect(tid(page, "cate-row-BASE")).toBeVisible({ timeout: 20_000 });
-      await expect(tid(page, "cate-add-submit")).toHaveCount(0);
-      await expect(tid(page, "cate-list").locator('[data-testid^="cate-close-"]')).toHaveCount(0);
+      // [카테고리 추가] 버튼(추가 팝업을 여는 것, ade3851f)이 없고 닫기도 없다.
+      await expect(screen(page).getByTestId("cate-add")).toHaveCount(0);
+      await expect(cateList(page).locator('[data-testid^="cate-close-"]')).toHaveCount(0);
       await snap(page, "dmc-ro-codeItemEdit-cate");
 
       // codeConfirm — 남의 DRAFT 를 골라도 검사·확정이 꺼져 있다.
