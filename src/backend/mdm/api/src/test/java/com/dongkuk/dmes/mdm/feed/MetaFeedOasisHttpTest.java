@@ -213,6 +213,28 @@ class MetaFeedOasisHttpTest {
         assertEquals(0, r.path("failed").size());
     }
 
+    /**
+     * D-154 실측(스펙 2026-10-03-mdm-meta-cache-per-version §4.1) — DTO({@code MetaFeedViewRequest})에 없는 params 칸을 만나면 이 MDM 은
+     * 그 칸을 무시하고 지금 응답을 그대로 준다. 옛 MDM 이 새 cactus 의 {@code part}·{@code at} 을 만났을 때와 같은 상황이다. 칸 이름은 앞으로도
+     * DTO 에 생기지 않을 {@code zzUnknownParam} 이다({@code part} 로 재면 칸을 더한 뒤 실측이 아니게 된다).
+     */
+    @Test
+    void view_는_DTO_에_없는_params_칸을_무시하고_지금_응답을_준다() throws Exception {
+        MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
+        seeds.seedCode("PROBE_CD", "INUSE", "MDM");
+        seeds.released("PROBE_CD", "1.000", "2026-01-01 00:00:00", MasterCodeSeeds.OPEN_END);
+        seeds.seedItem("PROBE_CD", "A", "1.000", MasterCodeSeeds.OPEN, "에이", 1);
+        seeds.seedBase("PROBE_CD");
+
+        JsonNode plain = view("CODE", "PROBE_CD");
+        JsonNode probed = result(post("view", "SYSTEM",
+                body(json.createObjectNode().put("type", "CODE").put("zzUnknownParam", "TOC").put("zzUnknownAt", "2026-10-03T00:00:00"),
+                        "PROBE_CD")));
+
+        assertEquals(plain, probed, "모르는 칸이 있어도 응답이 같다");
+        assertTrue(probed.path("part").isMissingNode(), "모르는 칸을 되울리지 않는다: " + probed);
+    }
+
     // ------------------------------------------------------------------ view RULE·RULE_SET·CODE·LAYOUT
 
     @Test

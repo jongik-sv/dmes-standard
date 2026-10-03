@@ -1,0 +1,23 @@
+{
+  "items" : [ {
+    "key" : "99001",
+    "value" : {
+      "domainId" : "99001",
+      "domainName" : "골든 두께",
+      "stdName" : "GOLD_THK_D",
+      "domainKind" : "QTY",
+      "dataType" : "NUMBER",
+      "length" : null,
+      "scale" : 2,
+      "unitCode" : null,
+      "description" : null,
+      "stdExpr" : {
+        "text" : "value >= 0",
+        "ast" : null
+      },
+      "bizRuleOnServer" : false,
+      "codeRef" : null
+    }
+  } ],
+  "failed" : [ ]
+}

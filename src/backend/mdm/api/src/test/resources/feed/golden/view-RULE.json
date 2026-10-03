@@ -1,0 +1,663 @@
+{
+  "items" : [ {
+    "key" : "QLTY_GRD_JDG",
+    "value" : [ {
+      "ruleId" : "QLTY_GRD_JDG",
+      "ver" : 1.000,
+      "ruleKind" : "DECISION",
+      "hitPolicy" : "FIRST",
+      "applyFrom" : "2026-01-01T00:00:00",
+      "applyTo" : "2026-07-01T00:00:00",
+      "engineVersion" : null,
+      "vars" : [ {
+        "varId" : 1,
+        "varKind" : "COND",
+        "dispType" : "TWO",
+        "varName" : "COIL_THK",
+        "exprText" : null,
+        "exprAst" : null,
+        "refVars" : null,
+        "dataType" : "NUMBER",
+        "scale" : 2,
+        "domainId" : "99002",
+        "collectAgg" : null,
+        "prioList" : null,
+        "resGrp" : null,
+        "grpCond" : null,
+        "grpCondAst" : null,
+        "seq" : 1
+      }, {
+        "varId" : 2,
+        "varKind" : "COND",
+        "dispType" : "ONE",
+        "varName" : "COIL_WID",
+        "exprText" : null,
+        "exprAst" : null,
+        "refVars" : null,
+        "dataType" : "NUMBER",
+        "scale" : 0,
+        "domainId" : "99003",
+        "collectAgg" : null,
+        "prioList" : null,
+        "resGrp" : null,
+        "grpCond" : null,
+        "grpCondAst" : null,
+        "seq" : 2
+      }, {
+        "varId" : 3,
+        "varKind" : "COND",
+        "dispType" : "ONE",
+        "varName" : "SURF_GRD",
+        "exprText" : null,
+        "exprAst" : null,
+        "refVars" : null,
+        "dataType" : "STRING",
+        "scale" : null,
+        "domainId" : "99004",
+        "collectAgg" : null,
+        "prioList" : null,
+        "resGrp" : null,
+        "grpCond" : null,
+        "grpCondAst" : null,
+        "seq" : 3
+      }, {
+        "varId" : 4,
+        "varKind" : "RESULT",
+        "dispType" : "VALUE",
+        "varName" : "QLTY_GRD",
+        "exprText" : null,
+        "exprAst" : null,
+        "refVars" : null,
+        "dataType" : "STRING",
+        "scale" : null,
+        "domainId" : null,
+        "collectAgg" : "LIST",
+        "prioList" : null,
+        "resGrp" : null,
+        "grpCond" : null,
+        "grpCondAst" : null,
+        "seq" : 1
+      }, {
+        "varId" : 5,
+        "varKind" : "RESULT",
+        "dispType" : "VALUE",
+        "varName" : "PRC_FCT",
+        "exprText" : null,
+        "exprAst" : null,
+        "refVars" : null,
+        "dataType" : "NUMBER",
+        "scale" : null,
+        "domainId" : null,
+        "collectAgg" : "LIST",
+        "prioList" : null,
+        "resGrp" : null,
+        "grpCond" : null,
+        "grpCondAst" : null,
+        "seq" : 2
+      } ],
+      "contract" : {
+        "always" : [ {
+          "name" : "COIL_THK",
+          "dataType" : "NUMBER",
+          "scale" : 2,
+          "domainId" : "99002"
+        }, {
+          "name" : "COIL_WID",
+          "dataType" : "NUMBER",
+          "scale" : 0,
+          "domainId" : "99003"
+        }, {
+          "name" : "SURF_GRD",
+          "dataType" : "STRING",
+          "scale" : null,
+          "domainId" : "99004"
+        } ],
+        "rows" : [ {
+          "rowId" : 1,
+          "cond" : "1.6 <= COIL_THK < 2.5 · COIL_WID > 1000 · SURF_GRD IN (A)",
+          "required" : [ ],
+          "optional" : [ ]
+        }, {
+          "rowId" : 2,
+          "cond" : "1.6 <= COIL_THK < 2.5 · COIL_WID > 1000 · SURF_GRD IN (B)",
+          "required" : [ ],
+          "optional" : [ ]
+        }, {
+          "rowId" : 3,
+          "cond" : "COIL_THK >= 2.5 · SURF_GRD NOT IN (C)",
+          "required" : [ ],
+          "optional" : [ ]
+        }, {
+          "rowId" : 4,
+          "cond" : "기본 행",
+          "required" : [ ],
+          "optional" : [ ]
+        } ]
+      },
+      "rows" : [ {
+        "rowId" : 1,
+        "seq" : 1,
+        "rowKind" : "NORMAL",
+        "cells" : {
+          "1" : {
+            "op" : "<= 변수 <",
+            "left" : "1.6",
+            "right" : "2.5",
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "COIL_THK != NULL && COIL_THK >= 1.6 && COIL_THK < 2.5"
+          },
+          "2" : {
+            "op" : "GT",
+            "left" : "1000",
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "COIL_WID != NULL && COIL_WID > 1000"
+          },
+          "3" : {
+            "op" : "IN",
+            "left" : null,
+            "right" : null,
+            "list" : [ "A" ],
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "SURF_GRD != NULL && (SURF_GRD == \"A\")"
+          },
+          "4" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "A",
+            "text" : "\"A\""
+          },
+          "5" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "1.05",
+            "text" : "1.05"
+          }
+        }
+      }, {
+        "rowId" : 2,
+        "seq" : 2,
+        "rowKind" : "NORMAL",
+        "cells" : {
+          "1" : {
+            "op" : "<= 변수 <",
+            "left" : "1.6",
+            "right" : "2.5",
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "COIL_THK != NULL && COIL_THK >= 1.6 && COIL_THK < 2.5"
+          },
+          "2" : {
+            "op" : "GT",
+            "left" : "1000",
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "COIL_WID != NULL && COIL_WID > 1000"
+          },
+          "3" : {
+            "op" : "IN",
+            "left" : null,
+            "right" : null,
+            "list" : [ "B" ],
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "SURF_GRD != NULL && (SURF_GRD == \"B\")"
+          },
+          "4" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "B",
+            "text" : "\"B\""
+          },
+          "5" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "1.00",
+            "text" : "1"
+          }
+        }
+      }, {
+        "rowId" : 3,
+        "seq" : 3,
+        "rowKind" : "NORMAL",
+        "cells" : {
+          "1" : {
+            "op" : "GE",
+            "left" : "2.5",
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "COIL_THK != NULL && COIL_THK >= 2.5"
+          },
+          "2" : {
+            "op" : "NA",
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : ""
+          },
+          "3" : {
+            "op" : "NOT_IN",
+            "left" : null,
+            "right" : null,
+            "list" : [ "C" ],
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "SURF_GRD != NULL && SURF_GRD != \"C\""
+          },
+          "4" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "B",
+            "text" : "\"B\""
+          },
+          "5" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "0.98",
+            "text" : "0.98"
+          }
+        }
+      }, {
+        "rowId" : 4,
+        "seq" : 0,
+        "rowKind" : "DEFAULT",
+        "cells" : {
+          "4" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "C",
+            "text" : "\"C\""
+          },
+          "5" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "0.90",
+            "text" : "0.9"
+          }
+        }
+      } ]
+    }, {
+      "ruleId" : "QLTY_GRD_JDG",
+      "ver" : 1.001,
+      "ruleKind" : "DECISION",
+      "hitPolicy" : "FIRST",
+      "applyFrom" : "2026-07-01T00:00:00",
+      "applyTo" : "9999-12-31T00:00:00",
+      "engineVersion" : null,
+      "vars" : [ {
+        "varId" : 1,
+        "varKind" : "COND",
+        "dispType" : "TWO",
+        "varName" : "COIL_THK",
+        "exprText" : null,
+        "exprAst" : null,
+        "refVars" : null,
+        "dataType" : "NUMBER",
+        "scale" : 2,
+        "domainId" : "99002",
+        "collectAgg" : null,
+        "prioList" : null,
+        "resGrp" : null,
+        "grpCond" : null,
+        "grpCondAst" : null,
+        "seq" : 1
+      }, {
+        "varId" : 2,
+        "varKind" : "COND",
+        "dispType" : "ONE",
+        "varName" : "COIL_WID",
+        "exprText" : null,
+        "exprAst" : null,
+        "refVars" : null,
+        "dataType" : "NUMBER",
+        "scale" : 0,
+        "domainId" : "99003",
+        "collectAgg" : null,
+        "prioList" : null,
+        "resGrp" : null,
+        "grpCond" : null,
+        "grpCondAst" : null,
+        "seq" : 2
+      }, {
+        "varId" : 3,
+        "varKind" : "COND",
+        "dispType" : "ONE",
+        "varName" : "SURF_GRD",
+        "exprText" : null,
+        "exprAst" : null,
+        "refVars" : null,
+        "dataType" : "STRING",
+        "scale" : null,
+        "domainId" : "99004",
+        "collectAgg" : null,
+        "prioList" : null,
+        "resGrp" : null,
+        "grpCond" : null,
+        "grpCondAst" : null,
+        "seq" : 3
+      }, {
+        "varId" : 4,
+        "varKind" : "RESULT",
+        "dispType" : "VALUE",
+        "varName" : "QLTY_GRD",
+        "exprText" : null,
+        "exprAst" : null,
+        "refVars" : null,
+        "dataType" : "STRING",
+        "scale" : null,
+        "domainId" : null,
+        "collectAgg" : "LIST",
+        "prioList" : null,
+        "resGrp" : null,
+        "grpCond" : null,
+        "grpCondAst" : null,
+        "seq" : 1
+      }, {
+        "varId" : 5,
+        "varKind" : "RESULT",
+        "dispType" : "VALUE",
+        "varName" : "PRC_FCT",
+        "exprText" : null,
+        "exprAst" : null,
+        "refVars" : null,
+        "dataType" : "NUMBER",
+        "scale" : null,
+        "domainId" : null,
+        "collectAgg" : "LIST",
+        "prioList" : null,
+        "resGrp" : null,
+        "grpCond" : null,
+        "grpCondAst" : null,
+        "seq" : 2
+      } ],
+      "contract" : {
+        "always" : [ {
+          "name" : "COIL_THK",
+          "dataType" : "NUMBER",
+          "scale" : 2,
+          "domainId" : "99002"
+        }, {
+          "name" : "COIL_WID",
+          "dataType" : "NUMBER",
+          "scale" : 0,
+          "domainId" : "99003"
+        }, {
+          "name" : "SURF_GRD",
+          "dataType" : "STRING",
+          "scale" : null,
+          "domainId" : "99004"
+        } ],
+        "rows" : [ {
+          "rowId" : 1,
+          "cond" : "1.6 <= COIL_THK < 2.5 · COIL_WID > 1000 · SURF_GRD IN (A)",
+          "required" : [ ],
+          "optional" : [ ]
+        }, {
+          "rowId" : 2,
+          "cond" : "1.6 <= COIL_THK < 2.5 · COIL_WID > 1000 · SURF_GRD IN (B)",
+          "required" : [ ],
+          "optional" : [ ]
+        }, {
+          "rowId" : 3,
+          "cond" : "COIL_THK >= 2.5 · SURF_GRD NOT IN (C)",
+          "required" : [ ],
+          "optional" : [ ]
+        }, {
+          "rowId" : 4,
+          "cond" : "기본 행",
+          "required" : [ ],
+          "optional" : [ ]
+        } ]
+      },
+      "rows" : [ {
+        "rowId" : 1,
+        "seq" : 1,
+        "rowKind" : "NORMAL",
+        "cells" : {
+          "1" : {
+            "op" : "<= 변수 <",
+            "left" : "1.6",
+            "right" : "2.5",
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "COIL_THK != NULL && COIL_THK >= 1.6 && COIL_THK < 2.5"
+          },
+          "2" : {
+            "op" : "GT",
+            "left" : "1000",
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "COIL_WID != NULL && COIL_WID > 1000"
+          },
+          "3" : {
+            "op" : "IN",
+            "left" : null,
+            "right" : null,
+            "list" : [ "A" ],
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "SURF_GRD != NULL && (SURF_GRD == \"A\")"
+          },
+          "4" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "A",
+            "text" : "\"A\""
+          },
+          "5" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "1.05",
+            "text" : "1.05"
+          }
+        }
+      }, {
+        "rowId" : 2,
+        "seq" : 2,
+        "rowKind" : "NORMAL",
+        "cells" : {
+          "1" : {
+            "op" : "<= 변수 <",
+            "left" : "1.6",
+            "right" : "2.5",
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "COIL_THK != NULL && COIL_THK >= 1.6 && COIL_THK < 2.5"
+          },
+          "2" : {
+            "op" : "GT",
+            "left" : "1000",
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "COIL_WID != NULL && COIL_WID > 1000"
+          },
+          "3" : {
+            "op" : "IN",
+            "left" : null,
+            "right" : null,
+            "list" : [ "B" ],
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "SURF_GRD != NULL && (SURF_GRD == \"B\")"
+          },
+          "4" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "B",
+            "text" : "\"B\""
+          },
+          "5" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "1.00",
+            "text" : "1"
+          }
+        }
+      }, {
+        "rowId" : 3,
+        "seq" : 3,
+        "rowKind" : "NORMAL",
+        "cells" : {
+          "1" : {
+            "op" : "GE",
+            "left" : "2.5",
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "COIL_THK != NULL && COIL_THK >= 2.5"
+          },
+          "2" : {
+            "op" : "NA",
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : ""
+          },
+          "3" : {
+            "op" : "NOT_IN",
+            "left" : null,
+            "right" : null,
+            "list" : [ "C" ],
+            "expr" : null,
+            "ast" : null,
+            "val" : null,
+            "text" : "SURF_GRD != NULL && SURF_GRD != \"C\""
+          },
+          "4" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "B",
+            "text" : "\"B\""
+          },
+          "5" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "0.98",
+            "text" : "0.98"
+          }
+        }
+      }, {
+        "rowId" : 4,
+        "seq" : 0,
+        "rowKind" : "DEFAULT",
+        "cells" : {
+          "4" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "C",
+            "text" : "\"C\""
+          },
+          "5" : {
+            "op" : null,
+            "left" : null,
+            "right" : null,
+            "list" : null,
+            "expr" : null,
+            "ast" : null,
+            "val" : "0.90",
+            "text" : "0.9"
+          }
+        }
+      } ]
+    } ]
+  } ],
+  "failed" : [ ]
+}

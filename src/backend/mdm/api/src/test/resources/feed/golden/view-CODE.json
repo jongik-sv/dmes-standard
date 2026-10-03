@@ -1,0 +1,63 @@
+{
+  "items" : [ {
+    "key" : "GOLD_CD",
+    "value" : {
+      "header" : {
+        "maruCodeId" : "GOLD_CD",
+        "status" : "INUSE"
+      },
+      "versions" : [ {
+        "ver" : 1.001,
+        "status" : "RELEASED",
+        "applyFrom" : "2026-07-01T00:00:00",
+        "applyTo" : "9999-12-31T00:00:00"
+      }, {
+        "ver" : 1.000,
+        "status" : "RELEASED",
+        "applyFrom" : "2026-01-01T00:00:00",
+        "applyTo" : "2026-07-01T00:00:00"
+      } ],
+      "items" : [ {
+        "code" : "A",
+        "fromVer" : 1.000,
+        "toVer" : 9999.000,
+        "name" : "에이",
+        "alterName" : null,
+        "seq" : 1,
+        "lvl" : [ null, null, null, null, null ],
+        "attrs" : [ "X", null, null, null, null, null, null, null, null, null ]
+      }, {
+        "code" : "B",
+        "fromVer" : 1.001,
+        "toVer" : 9999.000,
+        "name" : "비",
+        "alterName" : null,
+        "seq" : 2,
+        "lvl" : [ null, null, null, null, null ],
+        "attrs" : [ null, null, null, null, null, null, null, null, null, null ]
+      } ],
+      "categories" : [ {
+        "cateId" : "BASE",
+        "fromVer" : 1.000,
+        "toVer" : 9999.000,
+        "defKind" : "REGEX",
+        "defExpr" : ".*",
+        "defTarget" : "CODE"
+      }, {
+        "cateId" : "TB",
+        "fromVer" : 1.001,
+        "toVer" : 9999.000,
+        "defKind" : "TABLE",
+        "defExpr" : null,
+        "defTarget" : null
+      } ],
+      "cateItems" : [ {
+        "cateId" : "TB",
+        "code" : "B",
+        "fromVer" : 1.001,
+        "toVer" : 9999.000
+      } ]
+    }
+  } ],
+  "failed" : [ ]
+}

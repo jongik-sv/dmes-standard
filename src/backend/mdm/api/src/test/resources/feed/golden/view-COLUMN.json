@@ -1,0 +1,38 @@
+{
+  "items" : [ {
+    "key" : "GOLD_THK",
+    "value" : {
+      "physName" : "GOLD_THK",
+      "columnName" : "GOLD_THK",
+      "labelLong" : null,
+      "labelMid" : null,
+      "labelShort" : null,
+      "description" : null,
+      "usageNote" : null,
+      "dataType" : "NUMBER",
+      "length" : null,
+      "scale" : 2,
+      "required" : false,
+      "defaultValue" : null,
+      "refKind" : null,
+      "refTarget" : null,
+      "refCateId" : null,
+      "domain" : {
+        "domainId" : "99001",
+        "domainName" : "골든 두께",
+        "domainKind" : "QTY"
+      },
+      "stdExpr" : {
+        "text" : "value >= 0",
+        "ast" : null
+      },
+      "bizExpr" : null,
+      "bizRequiredVars" : [ ],
+      "codeRef" : null,
+      "matchedSystem" : null,
+      "systemPhysName" : null,
+      "descriptionHtml" : null
+    }
+  } ],
+  "failed" : [ ]
+}
