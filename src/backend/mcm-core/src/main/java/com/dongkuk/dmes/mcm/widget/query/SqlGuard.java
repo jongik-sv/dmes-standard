@@ -17,7 +17,8 @@ import java.util.regex.Pattern;
  *       <b>같은 길이의 공백으로 가린 사본</b>을 만든다. 판단은 늘 가린 사본으로 한다.</li>
  *   <li>첫 낱말이 SELECT 또는 WITH 여야 한다.</li>
  *   <li>끝의 {@code ;} 하나만 허용(여러 문장 금지).</li>
- *   <li>쓰기·DDL·권한·트랜잭션 낱말은 단어 경계·대소문자 무시로 거절({@code SELECT … INTO}, {@code FOR UPDATE} 포함).</li>
+ *   <li>쓰기·DDL·권한·트랜잭션 낱말은 단어 경계·대소문자 무시로 거절({@code SELECT … INTO}, {@code FOR UPDATE} 포함).
+ *       SQL Server 가 {@code ;} 없이 이어 쓸 수 있는 서버 문장({@code WAITFOR}·{@code KILL}·{@code SHUTDOWN} 등)도 여기서 막는다.</li>
  *   <li>이름 붙은 변수({@code :name}·{@code &name}, PostgreSQL {@code ::} 캐스트 제외)는 §7.2 시스템 변수만.
  *       Spring {@code NamedParameterJdbcTemplate} 은 {@code &name} 도 변수로 바꾸므로 같은 규칙으로 본다.</li>
  * </ol>
@@ -36,11 +37,12 @@ import java.util.regex.Pattern;
  * 이 검사가 1차 방어선이고, 실행기의 읽기 전용·늘 롤백 트랜잭션이 2차 방어선이다(§7.3).
  * <p>
  * <b>함수 거절 목록</b>(§7.1 6단계, 2026-10-03 보안 지적): 읽기 전용 트랜잭션이 막지 못하는 부수효과·외부 통신·문자열 SQL 실행 함수
- * (세션 종료·권고 잠금·대기, dblink, 서버 파일, {@code query_to_xml}·{@code DBMS_XMLGEN} 처럼 리터럴 안 SQL 을 실행하는 함수,
+ * (세션 종료·권고 잠금·대기, dblink, 서버 파일, {@code ts_stat}·{@code query_to_xml}·{@code DBMS_XMLGEN} 처럼 리터럴 안 SQL 을 실행하는 함수,
  * Oracle 네트워크·잠금·작업 패키지, SQLite 확장 적재, MSSQL 외부 행 집합)를 낱말 단위로 거절한다. 따옴표 식별자로 불러도
  * ({@code "pg_sleep"(1)}) 걸리도록 이 단계만은 따옴표·대괄호 식별자 안 글자를 드러낸 사본으로 본다. PostgreSQL 유니코드 식별자
- * {@code U&"…"} 는 이스케이프로 이름을 숨길 수 있어 받지 않는다. 이름 목록은 <b>보조</b>일 뿐이고, 근본 대책은 실행기에 읽기 권한만 가진
- * DB 계정의 DataSource 를 붙이는 것이다({@link WidgetQueryExecutor} 운영 주의).
+ * {@code U&"…"} 는 이스케이프로 이름을 숨길 수 있어 받지 않는다. 이름 목록은 <b>보조</b>일 뿐이다(확장·새 판이 문자열 SQL 을 실행하는
+ * 함수를 더할 수 있다). 운영에서는 실행기에 읽기 권한만 가진 DB 계정의 DataSource({@code dmes.widget.query.datasource.*})를
+ * <b>반드시</b> 붙인다({@link WidgetQueryExecutor} 운영 주의).
  */
 public final class SqlGuard {
 
@@ -64,27 +66,54 @@ public final class SqlGuard {
     private static final Pattern FIRST_WORD =
             Pattern.compile("^(SELECT|WITH)(?!" + WORD_CHAR + ")", Pattern.CASE_INSENSITIVE);
 
+    /**
+     * 4단계 금지 낱말. 뒷줄은 SQL Server 가 {@code ;} 없이 한 배치에 이어 쓸 수 있는 문장 중 읽기 전용 강제가 없는 그 DB 에서
+     * 서버 자원을 붙잡거나 서버를 바꾸는 것(대기·세션 종료·종료·DBCC·설정 반영·백업·복원·권한 거부)이다 — 어느 DB 의 SELECT 문법에도 쓰이지 않는다.
+     */
     private static final Pattern FORBIDDEN = Pattern.compile(
             "(?<!" + WORD_CHAR + ")(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXECUTE|EXEC|CALL"
-                    + "|COMMIT|ROLLBACK|INTO|PRAGMA|ATTACH|DETACH)(?!" + WORD_CHAR + ")",
+                    + "|COMMIT|ROLLBACK|INTO|PRAGMA|ATTACH|DETACH"
+                    + "|DENY|WAITFOR|KILL|SHUTDOWN|DBCC|RECONFIGURE|BACKUP|RESTORE)(?!" + WORD_CHAR + ")",
             Pattern.CASE_INSENSITIVE);
 
     /**
-     * 6단계 함수 거절 목록 — 읽기 전용 트랜잭션이 막지 못하는 부수효과·외부 통신·문자열 SQL 실행. 낱말 경계라 스키마·패키지 접두
-     * ({@code pg_catalog.pg_sleep}, {@code SYS.DBMS_LOCK.SLEEP}, {@code UTL_HTTP.REQUEST})도 걸린다. {@code DBMS_} 전체를 막지 않는 것은
-     * {@code DBMS_LOB.SUBSTR} 같은 평범한 CLOB 조회를 살리기 위해서다.
+     * 6단계 함수 거절 목록 — 읽기 전용 트랜잭션이 막지 못하는 부수효과·외부 통신·서버 자원 붙잡기, 그리고 <b>문자열로 받은 SQL·XML 질의를
+     * 스스로 실행하는 함수</b>(리터럴은 가린 사본에서 안 보이므로 그 안의 함수는 검사가 못 본다 — 바깥 함수 이름으로 막는다,
+     * 2026-10-03 실 PostgreSQL 재현: {@code ts_stat('select … pg_terminate_backend(pid) …')} 가 읽기 전용 트랜잭션에서 다른 세션을 끊었다).
+     * 낱말 경계라 스키마·패키지 접두({@code pg_catalog.ts_stat}, {@code SYS.DBMS_LOCK.SLEEP}, {@code UTL_HTTP.REQUEST})도 걸리고,
+     * 주석을 끼워도({@code ts_stat/**&#47;(}) 주석은 공백으로 가려져 이름이 그대로 남는다.
+     * <p>
+     * 접두로 넓게 막는 것은 이름이 계속 늘어나는 함수 무리(권고 잠금·서버 파일·{@code *_to_xml*}·{@code crosstab<n>}·SQL Server 확장 프로시저
+     * {@code xp_*})뿐이다. 낱말이 열 이름과 겹칠 수 있는 무리는 하나씩 적는다 — {@code lo_*} 는 {@code LO_CD}, {@code sp_*} 는 {@code SP_CD}
+     * 같은 열을 막게 된다. SQL Server 저장 프로시저는 첫 문장이 아니면 {@code EXEC} 없이 부를 수 없고 {@code EXEC}·{@code EXECUTE} 는 4단계가
+     * 막으므로, {@code sp_} 는 이름이 알려진 위험한 것만 보조로 적는다. {@code DBMS_} 전체를 막지 않는 것은 {@code DBMS_LOB.SUBSTR} 같은
+     * 평범한 CLOB 조회를 살리기 위해서다. {@code current_setting} 은 같은 값을 {@code pg_settings} 뷰로도 읽을 수 있어 막지 않는다.
      */
     private static final Pattern FORBIDDEN_FUNCTION = Pattern.compile(
             "(?<!" + WORD_CHAR + ")("
-                    // PostgreSQL — 세션 종료·권고 잠금·대기·설정 바꾸기·알림·서버 파일·외부 DB·리터럴 안 SQL 실행
+                    // PostgreSQL — 세션 종료·권고 잠금(잠금 표 고갈)·대기·설정 바꾸기·알림·WAL 메시지
                     + "PG_TERMINATE_BACKEND|PG_CANCEL_BACKEND|PG_ADVISORY_[A-Z0-9_]*|PG_TRY_ADVISORY_[A-Z0-9_]*|PG_SLEEP(?:_[A-Z0-9_]+)?"
-                    + "|SET_CONFIG|PG_NOTIFY|PG_RELOAD_CONF|PG_ROTATE_LOGFILE|PG_READ_FILE|PG_READ_BINARY_FILE|PG_LS_DIR|PG_STAT_FILE"
-                    + "|LO_IMPORT|LO_EXPORT|DBLINK(?:_[A-Z0-9_]+)?|QUERY_TO_XML[A-Z0-9_]*|CURSOR_TO_XML[A-Z0-9_]*"
-                    // Oracle — 네트워크·파일·잠금·파이프·작업·동적 SQL·리터럴 안 SQL 실행
-                    + "|UTL_HTTP|UTL_TCP|UTL_SMTP|UTL_FILE|UTL_INADDR|HTTPURITYPE"
-                    + "|DBMS_LOCK|DBMS_PIPE|DBMS_ALERT|DBMS_SCHEDULER|DBMS_JOB|DBMS_SQL|DBMS_XMLGEN|DBMS_XMLQUERY"
-                    // SQLite 확장 적재, SQL Server 외부 행 집합
-                    + "|LOAD_EXTENSION|OPENROWSET|OPENDATASOURCE|OPENQUERY"
+                    + "|SET_CONFIG|PG_NOTIFY|PG_RELOAD_CONF|PG_ROTATE_LOGFILE|PG_LOGICAL_EMIT_MESSAGE"
+                    // PostgreSQL — 서버 파일(adminpack 포함)·큰 객체 쓰기·서버 파일 입출력
+                    + "|PG_READ_[A-Z0-9_]*|PG_LS_[A-Z0-9_]*|PG_STAT_FILE|PG_FILE_[A-Z0-9_]*"
+                    + "|LO_IMPORT|LO_EXPORT|LO_CREATE|LO_CREAT|LO_UNLINK|LO_PUT|LO_FROM_BYTEA|LO_TRUNCATE(?:64)?|LOWRITE"
+                    // PostgreSQL — 다른 연결·백그라운드 작업자에서 실행(읽기 전용·롤백을 벗어난다)
+                    + "|DBLINK(?:_[A-Z0-9_]+)?|PG_BACKGROUND_[A-Z0-9_]*"
+                    // PostgreSQL — 문자열 SQL 실행(내장 ts_stat·ts_rewrite·*_to_xml, tablefunc crosstab·connectby, xml2 xpath_table)
+                    + "|TS_STAT|TS_REWRITE|QUERY_TO_XML[A-Z0-9_]*|CURSOR_TO_XML[A-Z0-9_]*|TABLE_TO_XML[A-Z0-9_]*"
+                    + "|SCHEMA_TO_XML[A-Z0-9_]*|DATABASE_TO_XML[A-Z0-9_]*|XPATH_TABLE|CROSSTAB[0-9]*|CONNECTBY"
+                    // Oracle — 네트워크·파일·URI 원격 읽기(XMLTYPE 외부 엔터티 포함)
+                    + "|UTL_HTTP|UTL_TCP|UTL_SMTP|UTL_MAIL|UTL_FILE|UTL_INADDR|HTTPURITYPE|DBURITYPE|XDBURITYPE|URIFACTORY|XMLTYPE|BFILENAME"
+                    // Oracle — 잠금·대기·파이프·작업·동적 SQL·리터럴 안 SQL 실행·LDAP·자바·큐
+                    + "|DBMS_LOCK|DBMS_SESSION|DBMS_PIPE|DBMS_ALERT|DBMS_SCHEDULER|DBMS_JOB|DBMS_SQL|DBMS_SYS_SQL"
+                    + "|DBMS_XMLGEN|DBMS_XMLQUERY|DBMS_XMLSTORE|DBMS_LDAP|DBMS_JAVA|DBMS_AQ[A-Z0-9_]*"
+                    // SQLite — 확장 적재·토크나이저 포인터
+                    + "|LOAD_EXTENSION|FTS3_TOKENIZER"
+                    // SQL Server — 외부 행 집합·확장 프로시저·서버 파일 읽기 함수·알려진 위험 저장 프로시저
+                    + "|OPENROWSET|OPENDATASOURCE|OPENQUERY|XP_[A-Z0-9_]*"
+                    + "|FN_GET_AUDIT_FILE|FN_XE_FILE_TARGET_READ_FILE|FN_TRACE_GETTABLE|FN_DBLOG|FN_DUMP_DBLOG"
+                    + "|SP_EXECUTESQL|SP_OACREATE|SP_OAMETHOD|SP_CONFIGURE|SP_ADDEXTENDEDPROC|SP_ADDLINKEDSERVER"
+                    + "|SP_ADDSRVROLEMEMBER|SP_SEND_DBMAIL|SP_START_JOB"
                     + ")(?!" + WORD_CHAR + ")",
             Pattern.CASE_INSENSITIVE);
 

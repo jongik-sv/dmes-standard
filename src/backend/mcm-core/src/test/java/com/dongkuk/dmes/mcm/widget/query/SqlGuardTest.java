@@ -116,7 +116,18 @@ class SqlGuardTest {
                 arguments("SELECT 1 -- x\r' \n; DELETE FROM t ; '", SqlGuard.MSG_LONE_CR),
                 // 백틱은 SQLite·Spring 만 따옴표로 읽는다 — 리터럴 경계가 갈리지 않게 받지 않는다
                 arguments("SELECT `a` FROM t", SPECIAL),
-                arguments("SELECT `'` FROM t; SELECT 2 --'", SPECIAL));
+                arguments("SELECT `'` FROM t; SELECT 2 --'", SPECIAL),
+                // SQL Server 는 ; 없이 문장을 이어 쓴다 — 읽기 전용 강제가 없는 그 DB 에서 서버 자원을 붙잡거나 바꾸는 문장(2026-10-03)
+                arguments("SELECT 1 WAITFOR DELAY '00:00:10'", "쓸 수 없는 낱말이 있습니다: WAITFOR"),
+                arguments("SELECT 1 kill 52", "쓸 수 없는 낱말이 있습니다: KILL"),
+                arguments("SELECT 1 SHUTDOWN WITH NOWAIT", "쓸 수 없는 낱말이 있습니다: SHUTDOWN"),
+                arguments("SELECT 1 DBCC SHRINKDATABASE(0)", "쓸 수 없는 낱말이 있습니다: DBCC"),
+                arguments("SELECT 1 RECONFIGURE", "쓸 수 없는 낱말이 있습니다: RECONFIGURE"),
+                arguments("SELECT 1 BACKUP DATABASE d TO DISK = 'x'", "쓸 수 없는 낱말이 있습니다: BACKUP"),
+                arguments("SELECT 1 RESTORE DATABASE d FROM DISK = 'x'", "쓸 수 없는 낱말이 있습니다: RESTORE"),
+                arguments("SELECT 1 DENY SELECT ON t TO public", "쓸 수 없는 낱말이 있습니다: DENY"),
+                // Oracle 12c 인라인 PL/SQL(WITH FUNCTION)은 본문에 ; 가 있어야 해서 여러 문장으로 거절된다
+                arguments("WITH FUNCTION f RETURN NUMBER IS BEGIN DBMS_SESSION.SLEEP(5); RETURN 1; END; SELECT f FROM dual", MULTI));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -151,6 +162,42 @@ class SqlGuardTest {
                 arguments("SELECT query_to_xml('select pg_terminate_backend(1)', true, true, '')", "QUERY_TO_XML"),
                 arguments("SELECT query_to_xml_and_xmlschema('select 1', true, true, '')", "QUERY_TO_XML_AND_XMLSCHEMA"),
                 arguments("SELECT cursor_to_xml('c', 1, true, true, '')", "CURSOR_TO_XML"),
+                // 2차 보안 지적(실 PostgreSQL 재현) — 문자열 SQL 을 실행하는 ts_stat·ts_rewrite, 스키마 접두·따옴표·대소문자·주석 변형
+                arguments("SELECT * FROM ts_stat('select to_tsvector(pg_terminate_backend(pid)::text) from pg_stat_activity')",
+                        "TS_STAT"),
+                arguments("SELECT * FROM pg_catalog.ts_stat('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM \"ts_stat\"('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM \"pg_catalog\".\"ts_stat\"('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM Ts_Stat('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat/**/('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM pg_catalog . ts_stat -- x\n('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM [ts_stat]('select 1')", "TS_STAT"),
+                arguments("SELECT ts_rewrite('a & b'::tsquery, 'select t, s from aliases')", "TS_REWRITE"),
+                arguments("SELECT pg_catalog.TS_REWRITE(q, 'select 1') FROM t", "TS_REWRITE"),
+                // 서버 자원 붙잡기 — generate_series 로 권고 잠금을 대량으로 잡으면 공유 메모리 잠금 표가 고갈된다
+                arguments("SELECT count(pg_advisory_lock(g)) FROM generate_series(1, 200000) g", "PG_ADVISORY_LOCK"),
+                arguments("SELECT pg_advisory_xact_lock_shared(1)", "PG_ADVISORY_XACT_LOCK_SHARED"),
+                arguments("SELECT pg_try_advisory_lock(1)", "PG_TRY_ADVISORY_LOCK"),
+                arguments("SELECT pg_logical_emit_message(false, 'p', 'x')", "PG_LOGICAL_EMIT_MESSAGE"),
+                // 문자열 SQL·XML 질의를 실행하거나 표·스키마·DB 전체를 읽는 함수
+                arguments("SELECT table_to_xml('t', true, true, '')", "TABLE_TO_XML"),
+                arguments("SELECT schema_to_xml('public', true, true, '')", "SCHEMA_TO_XML"),
+                arguments("SELECT database_to_xml_and_xmlschema(true, true, '')", "DATABASE_TO_XML_AND_XMLSCHEMA"),
+                arguments("SELECT * FROM xpath_table('id', 'x', 't', '/a', 'true') AS t(id int, a text)", "XPATH_TABLE"),
+                arguments("SELECT * FROM crosstab('select 1, 2, 3') AS ct(a int, b int)", "CROSSTAB"),
+                arguments("SELECT * FROM public.crosstab3('select 1')", "CROSSTAB3"),
+                arguments("SELECT * FROM connectby('t', 'id', 'pid', '1', 0) AS c(id text, pid text, lv int)", "CONNECTBY"),
+                arguments("SELECT * FROM pg_background_launch('delete from t')", "PG_BACKGROUND_LAUNCH"),
+                // 서버 파일·큰 객체(lo_* 는 열 이름과 겹치지 않게 하나씩 적는다)
+                arguments("SELECT pg_read_binary_file('/etc/passwd')", "PG_READ_BINARY_FILE"),
+                arguments("SELECT * FROM pg_ls_waldir()", "PG_LS_WALDIR"),
+                arguments("SELECT * FROM pg_ls_logdir()", "PG_LS_LOGDIR"),
+                arguments("SELECT pg_file_write('x', 'y', false)", "PG_FILE_WRITE"),
+                arguments("SELECT lo_create(0)", "LO_CREATE"),
+                arguments("SELECT lo_unlink(1)", "LO_UNLINK"),
+                arguments("SELECT lo_put(1, 0, 'x')", "LO_PUT"),
+                arguments("SELECT lo_from_bytea(0, 'x')", "LO_FROM_BYTEA"),
+                arguments("SELECT lowrite(0, 'x')", "LOWRITE"),
                 // 따옴표 식별자·유니코드 아닌 대소문자 섞기로 불러도 걸린다
                 arguments("SELECT \"pg_sleep\"(10)", "PG_SLEEP"),
                 arguments("SELECT \"pg_catalog\".\"pg_terminate_backend\"(1)", "PG_TERMINATE_BACKEND"),
@@ -176,7 +223,34 @@ class SqlGuardTest {
                 arguments("SELECT * FROM OPENROWSET('SQLNCLI', 'x', 'select 1')", "OPENROWSET"),
                 arguments("SELECT * FROM OPENDATASOURCE('SQLNCLI', 'x').db.dbo.t", "OPENDATASOURCE"),
                 arguments("SELECT * FROM OPENQUERY(srv, 'select 1')", "OPENQUERY"),
-                arguments("SELECT * FROM [OPENROWSET]('SQLNCLI', 'x', 'select 1')", "OPENROWSET"));
+                arguments("SELECT * FROM [OPENROWSET]('SQLNCLI', 'x', 'select 1')", "OPENROWSET"),
+                // Oracle — URI 원격 읽기·XMLTYPE 외부 엔터티·서버 파일·대기·동적 SQL·LDAP·자바·큐
+                arguments("SELECT EXTRACTVALUE(XMLTYPE('<!DOCTYPE r [<!ENTITY % x SYSTEM \"http://h/\">%x;]><r/>'), '/r') FROM dual",
+                        "XMLTYPE"),
+                arguments("SELECT sys.xmltype.createxml('<a/>') FROM dual", "XMLTYPE"),
+                arguments("SELECT DBURITYPE('/SCOTT/EMP').GETXML() FROM dual", "DBURITYPE"),
+                arguments("SELECT XDBURITYPE('/public/x').GETCLOB() FROM dual", "XDBURITYPE"),
+                arguments("SELECT URIFACTORY.GETURI('http://h').GETCLOB() FROM dual", "URIFACTORY"),
+                arguments("SELECT BFILENAME('DIR', 'f') FROM dual", "BFILENAME"),
+                arguments("SELECT UTL_MAIL.SEND FROM dual", "UTL_MAIL"),
+                arguments("SELECT DBMS_SESSION.SLEEP(5) FROM dual", "DBMS_SESSION"),
+                arguments("SELECT SYS.DBMS_SYS_SQL.OPEN_CURSOR FROM dual", "DBMS_SYS_SQL"),
+                arguments("SELECT DBMS_XMLSTORE.NEWCONTEXT('T') FROM dual", "DBMS_XMLSTORE"),
+                arguments("SELECT DBMS_LDAP.INIT('h', 389) FROM dual", "DBMS_LDAP"),
+                arguments("SELECT DBMS_JAVA.RUNJAVA('x') FROM dual", "DBMS_JAVA"),
+                arguments("SELECT DBMS_AQADM.START_QUEUE FROM dual", "DBMS_AQADM"),
+                // SQLite — 토크나이저 포인터
+                arguments("SELECT fts3_tokenizer('simple')", "FTS3_TOKENIZER"),
+                // SQL Server — 확장 프로시저(접두)·서버 파일 읽기 함수·알려진 위험 저장 프로시저(대괄호 식별자 안도 본다)
+                arguments("SELECT * FROM t WHERE 1 = 0 UNION SELECT xp_cmdshell('dir')", "XP_CMDSHELL"),
+                arguments("SELECT master..xp_dirtree('\\\\h\\s')", "XP_DIRTREE"),
+                arguments("SELECT [master].[dbo].[xp_fileexist]('c:/x')", "XP_FILEEXIST"),
+                arguments("SELECT * FROM sys.fn_xe_file_target_read_file('c:/x*.xel', NULL, NULL, NULL)", "FN_XE_FILE_TARGET_READ_FILE"),
+                arguments("SELECT * FROM sys.fn_get_audit_file('c:/x*', DEFAULT, DEFAULT)", "FN_GET_AUDIT_FILE"),
+                arguments("SELECT * FROM fn_trace_gettable('c:/x.trc', DEFAULT)", "FN_TRACE_GETTABLE"),
+                arguments("SELECT * FROM fn_dblog(NULL, NULL)", "FN_DBLOG"),
+                arguments("SELECT 1 sp_executesql N'select 1'", "SP_EXECUTESQL"),
+                arguments("SELECT 1 FROM t WHERE x = [sp_oacreate]", "SP_OACREATE"));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -206,7 +280,49 @@ class SqlGuardTest {
                 arguments("SELECT \"utl_http_log\", \"update\" FROM t"),
                 arguments("SELECT 'pg_sleep(10)', 'UTL_HTTP' FROM t"),
                 arguments("SELECT a &\"b\" FROM t"),
-                arguments("SELECT [lo_cd], [dblinkx] FROM t"));
+                arguments("SELECT [lo_cd], [dblinkx] FROM t"),
+                // 2차 목록과 이름 일부만 같은 열·리터럴 안 이름(lo_·sp_ 는 접두로 막지 않는다)
+                arguments("SELECT lo_cd, sp_cd, ts_stat_cd, ts_stat_yn, xml_type, crosstab_yn, kill_cnt, backup_yn FROM t"),
+                arguments("SELECT 'ts_stat(''select 1'')', 'xp_cmdshell' FROM t"),
+                arguments("SELECT current_setting('TimeZone')"));
+    }
+
+    /**
+     * 함수 거절 목록이 평범한 집계를 막지 않는지 — 화면 사용 통계(TB_SEC_SCREEN_USAGE_DAY) 위젯처럼 실제로 쓰는 모양의 SQL.
+     * 방언별 집계·서식·널 처리 함수(COUNT·SUM·ROUND·TO_CHAR·COALESCE·NVL·DECODE·CASE·창 함수·문자열 집계·DBMS_LOB)를 섞는다.
+     */
+    static Stream<Arguments> realWidgetQueries() {
+        return Stream.of(
+                arguments("SELECT PAGE_ID, COUNT(DISTINCT USER_ID) AS USER_CNT, SUM(OPEN_CNT) AS OPEN_CNT,\n"
+                        + "       ROUND(SUM(DURATION_MS) / 60000.0, 1) AS \"사용 시간(분)\"\n"
+                        + "  FROM MCMAPUSER.TB_SEC_SCREEN_USAGE_DAY\n"
+                        + " WHERE USAGE_DT >= :monthStart AND USAGE_DT <= :today\n"
+                        + " GROUP BY PAGE_ID\n"
+                        + " ORDER BY OPEN_CNT DESC"),
+                arguments("WITH d AS (\n"
+                        + "  SELECT USAGE_DT, COALESCE(NULLIF(DEPT_CD, ''), '-') AS DEPT_CD, SUM(SEG_CNT) AS SEG_CNT, SUM(DURATION_MS) AS MS\n"
+                        + "    FROM TB_SEC_SCREEN_USAGE_DAY WHERE USAGE_DT BETWEEN :monthStart AND :yesterday GROUP BY USAGE_DT, DEPT_CD)\n"
+                        + "SELECT TO_CHAR(TO_DATE(USAGE_DT, 'YYYYMMDD'), 'MM-DD') AS \"일자\", DEPT_CD,\n"
+                        + "       CASE WHEN SEG_CNT = 0 THEN 0 ELSE ROUND(MS / SEG_CNT / 1000.0, 1) END AS AVG_SEC,\n"
+                        + "       ROW_NUMBER() OVER (PARTITION BY USAGE_DT ORDER BY MS DESC) AS RN,\n"
+                        + "       CAST(SUM(MS) OVER () AS NUMERIC(18, 0)) AS TOTAL_MS\n"
+                        + "  FROM d ORDER BY USAGE_DT;"),
+                arguments("SELECT NVL(DEPT_CD, '-') DEPT_CD, DECODE(SIGN(SUM(OPEN_CNT) - 10), 1, 'HIGH', 'LOW') LV,\n"
+                        + "       LISTAGG(PAGE_ID, ',') WITHIN GROUP (ORDER BY PAGE_ID) PAGES, TRUNC(SYSDATE) - 1 BASE_DT,\n"
+                        + "       RTRIM(XMLAGG(XMLELEMENT(E, USER_ID || ',')).EXTRACT('//text()'), ',') USERS,\n"
+                        + "       DBMS_LOB.SUBSTR(MAX(NOTE), 100, 1) NOTE\n"
+                        + "  FROM MCMAPUSER.TB_SEC_SCREEN_USAGE_DAY WHERE USER_ID = :userId AND DEPT_CD = :deptCd\n"
+                        + " GROUP BY DEPT_CD"),
+                arguments("SELECT STRING_AGG(PAGE_ID, ',' ORDER BY PAGE_ID) AS PAGES, EXTRACT(DOW FROM CURRENT_DATE) AS DOW,\n"
+                        + "       DATE_TRUNC('day', :now) AS BASE_TS, SUBSTR(MAX(USAGE_DT), 1, 6) AS YM, COUNT(*) FILTER (WHERE OPEN_CNT > 0) AS N\n"
+                        + "  FROM TB_SEC_SCREEN_USAGE_DAY"));
+    }
+
+    @ParameterizedTest(name = "[{index}]")
+    @MethodSource("realWidgetQueries")
+    @DisplayName("화면 사용 통계 같은 실제 집계 SQL 은 함수 거절 목록에 걸리지 않는다")
+    void allowsRealWidgetQueries(String sql) {
+        assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql.strip().replaceAll(";$", ""));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
