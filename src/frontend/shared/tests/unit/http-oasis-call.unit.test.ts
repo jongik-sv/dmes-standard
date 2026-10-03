@@ -4,6 +4,8 @@
  * 기본값은 m-mdm 공통본(src/dme/oasis-call.ts) 동작이고, 옵션 조합으로 m-mdm 화면 api.ts 15개·m-mls noticeMgmt 의 지금
  * 동작을 그대로 재현해야 한다(각 화면의 특성 시험: m-mdm tests/helpers/oasis-envelope.ts, m-mls notice-api.test.ts).
  * 다만 message 가 없거나 빈·공백인 errors 항목은 field 가 있어도 문구에 붙이지 않는다(예전에는 "F2: undefined" 가 됐다).
+ * 오류 문구는 `기본 문구 + "\n- 항목명: 메시지"` 로 통일한다 — field 코드는 문구에 넣지 않고(항목명을 모르면 메시지만),
+ * 기본 문구에 이미 들어 있는 메시지는 뺀다(포함 판정).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,6 +13,7 @@ import {
   OasisCallError,
   callOasisAt,
   isOasisCallError,
+  labelsFrom,
   omitParams,
   unwrapOasis,
   type CactusErrorDetail,
@@ -96,9 +99,8 @@ class NoticeLikeError extends Error {
 
 const NOTICE_OPTIONS: OasisUnwrapOptions = {
   includeGrids: true,
-  details: "append",
   isUserSentence,
-  fieldLabel: (f) => FIELD_LABEL[f.toUpperCase()],
+  fieldLabel: labelsFrom(FIELD_LABEL),
   errorFactory: (m, _code, errs, field) => new NoticeLikeError(m, field, errs),
 };
 
@@ -206,20 +208,50 @@ describe("unwrapOasis — 성공 펼치기", () => {
 });
 
 describe("unwrapOasis — 거부(meta.success=false)", () => {
-  it("기본(append-dedup)은 OasisCallError — base 와 같은 문구와 message 없는 항목(field 만 있음)을 거른다", () => {
+  it("기본(append-dedup)은 OasisCallError — base 에 든 문구와 message 없는 항목(field 만 있음)을 거르고 field 코드는 쓰지 않는다", () => {
     const e = thrownBy(() => unwrapOasis(REJECT)) as OasisCallError;
     expect(e).toBeInstanceOf(OasisCallError);
     expect(e).toBeInstanceOf(Error);
     expect(e.name).toBe("OasisCallError");
-    expect(e.message).toBe("거부 문구\n- F1: 칸 오류\n- java.lang.NullPointerException: boom");
+    expect(e.message).toBe("거부 문구\n- 칸 오류\n- java.lang.NullPointerException: boom");
     expect(e.code).toBe("MDM001");
     expect(e.field).toBe("F1");
     expect(e.errors).toEqual(REJECT.errors);
   });
 
-  it("append 는 base 와 같은 문구도 남긴다(unitMng·termMng)", () => {
+  it("append 는 base 와 같은 문구도 남긴다", () => {
     expect(thrownBy(() => unwrapOasis(REJECT, { details: "append" })).message).toBe(
-      "거부 문구\n- F1: 칸 오류\n- 거부 문구\n- java.lang.NullPointerException: boom",
+      "거부 문구\n- 칸 오류\n- 거부 문구\n- java.lang.NullPointerException: boom",
+    );
+  });
+
+  it("append-dedup 은 base 안에 이미 들어 있는 메시지를 뺀다(완전 일치가 아니라 포함) — 서버가 meta.message 에 요약을 이어 붙인 경우", () => {
+    // MdmErrors.of(code, detail, issues) 모양: 첫 상세는 field 없는 기본 문구, 이슈 글은 meta.message 의 ": " 뒤 요약에 들어 있다.
+    const mdmErrors = {
+      meta: { success: false, message: "도메인 저장 거부: 도메인명 필수; 길이는 1 이상이어야 한다" },
+      errors: [
+        { code: "MDM030", message: "도메인 저장 거부" },
+        { field: "DOMAIN_NAME", code: "S01", message: "도메인명 필수" },
+        { field: "LENGTH", code: "S05", message: " 길이는 1 이상이어야 한다 " },
+      ],
+    };
+    const labels = labelsFrom({ DOMAIN_NAME: "도메인명", LENGTH: "길이", SCALE: "소수 자리" });
+    const e = thrownBy(() => unwrapOasis(mdmErrors, { fieldLabel: labels })) as OasisCallError;
+    expect(e.message).toBe("도메인 저장 거부: 도메인명 필수; 길이는 1 이상이어야 한다");
+    expect(e.errors).toEqual(mdmErrors.errors);
+    expect(e.field).toBe("DOMAIN_NAME");
+
+    // 요약에 없는 상세만 항목명과 함께 붙는다.
+    const partly = {
+      ...mdmErrors,
+      errors: [...mdmErrors.errors, { field: "SCALE", code: "S06", message: "소수 자리는 길이보다 작아야 한다" }],
+    };
+    expect(thrownBy(() => unwrapOasis(partly, { fieldLabel: labels })).message).toBe(
+      "도메인 저장 거부: 도메인명 필수; 길이는 1 이상이어야 한다\n- 소수 자리: 소수 자리는 길이보다 작아야 한다",
+    );
+    // append 는 포함 판정을 하지 않는다.
+    expect(thrownBy(() => unwrapOasis(mdmErrors, { details: "append", fieldLabel: labels })).message).toBe(
+      "도메인 저장 거부: 도메인명 필수; 길이는 1 이상이어야 한다\n- 도메인 저장 거부\n- 도메인명: 도메인명 필수\n- 길이:  길이는 1 이상이어야 한다 ",
     );
   });
 
@@ -245,10 +277,10 @@ describe("unwrapOasis — 거부(meta.success=false)", () => {
     ];
     const env = { meta: { success: false, message: "확인" }, errors };
     const dedup = thrownBy(() => unwrapOasis(env)) as OasisCallError;
-    expect(dedup.message).toBe("확인\n- F1: 칸 오류\n-  앞뒤 공백 글 ");
+    expect(dedup.message).toBe("확인\n- 칸 오류\n-  앞뒤 공백 글 ");
     expect(dedup.errors).toEqual(errors);
     expect(dedup.field).toBe("F1");
-    expect(thrownBy(() => unwrapOasis(env, { details: "append" })).message).toBe("확인\n- F1: 칸 오류\n-  앞뒤 공백 글 ");
+    expect(thrownBy(() => unwrapOasis(env, { details: "append" })).message).toBe("확인\n- 칸 오류\n-  앞뒤 공백 글 ");
     expect(
       thrownBy(() => unwrapOasis(env, { details: "append", fieldLabel: (f) => FIELD_LABEL[f.toUpperCase()] })).message,
     ).toBe("확인\n- 칸 오류\n-  앞뒤 공백 글 ");
@@ -289,6 +321,15 @@ describe("unwrapOasis — 거부(meta.success=false)", () => {
     );
   });
 
+  it("fieldLabel 을 주지 않아도 field 코드는 문구에 넣지 않는다(글만)", () => {
+    const env = {
+      meta: { success: false, message: "확인" },
+      errors: [{ field: "TITLE", message: "필수" }, { field: "var:12", message: "변수 오류" }],
+    };
+    expect(thrownBy(() => unwrapOasis(env)).message).toBe("확인\n- 필수\n- 변수 오류");
+    expect(thrownBy(() => unwrapOasis(env, { details: "append" })).message).toBe("확인\n- 필수\n- 변수 오류");
+  });
+
   it("isUserSentence 를 주면 base·errors 모두 사용자 문장만 쓰고, errors 에도 그것만 싣는다. field 는 모든 오류에서 첫 것", () => {
     const e = thrownBy(() =>
       unwrapOasis(
@@ -299,7 +340,7 @@ describe("unwrapOasis — 거부(meta.success=false)", () => {
         { isUserSentence, details: "append" },
       ),
     ) as OasisCallError;
-    expect(e.message).toBe("요청이 거부되었습니다.\n- TITLE: 필수");
+    expect(e.message).toBe("요청이 거부되었습니다.\n- 필수");
     expect(e.errors).toEqual([{ field: "TITLE", message: "필수" }]);
     expect(e.field).toBe("CONTENT");
   });
@@ -312,24 +353,20 @@ describe("unwrapOasis — 거부(meta.success=false)", () => {
   });
 });
 
-describe("옵션 조합으로 지금 화면 동작을 재현한다", () => {
-  it("m-mdm 13개(meta.message 만, Error, code 없음) — details:none + Error 팩토리", () => {
-    const e = thrownBy(() => unwrapOasis(REJECT, { merge: "result", details: "none", errorFactory: (m) => new Error(m) }));
+describe("옵션 조합으로 화면 동작을 재현한다", () => {
+  it("m-mdm 화면(통일 형식, Error, code 없음) — 기본 append-dedup + labelsFrom + Error 팩토리", () => {
+    const e = thrownBy(() =>
+      unwrapOasis(REJECT, { merge: "result", fieldLabel: labelsFrom({ F1: "항목 하나" }), errorFactory: (m) => new Error(m) }),
+    );
     expect(Object.getPrototypeOf(e)).toBe(Error.prototype);
-    expect(e.message).toBe("거부 문구");
+    expect(e.message).toBe("거부 문구\n- 항목 하나: 칸 오류\n- java.lang.NullPointerException: boom");
     expect("code" in e).toBe(false);
   });
 
-  it("unitMng·termMng(중복 거르지 않음, Error) — details:append + Error 팩토리", () => {
-    const e = thrownBy(() => unwrapOasis(REJECT, { details: "append", errorFactory: (m) => new Error(m) }));
-    expect(Object.getPrototypeOf(e)).toBe(Error.prototype);
-    expect(e.message).toBe("거부 문구\n- F1: 칸 오류\n- 거부 문구\n- java.lang.NullPointerException: boom");
-  });
-
-  it("noticeMgmt — 사용자 문장만·항목명 치환·base 중복 유지·field/errors 보존·응답 grids 펼침", () => {
+  it("noticeMgmt — 사용자 문장만·항목명 치환·base 에 든 문구 뺌·field/errors 보존·응답 grids 펼침", () => {
     const e = thrownBy(() => unwrapOasis(REJECT, NOTICE_OPTIONS)) as NoticeLikeError;
     expect(e).toBeInstanceOf(NoticeLikeError);
-    expect(e.message).toBe("거부 문구\n- 칸 오류\n- 거부 문구");
+    expect(e.message).toBe("거부 문구\n- 칸 오류");
     expect(e.field).toBe("F1");
     expect(e.errors).toEqual([{ field: "F1", code: "E1", message: "칸 오류" }, { message: "거부 문구" }]);
 
@@ -351,6 +388,28 @@ describe("옵션 조합으로 지금 화면 동작을 재현한다", () => {
     expect(unwrapOasis(SUCCESS, NOTICE_OPTIONS)).toEqual({
       result: { a: 1, shared: "result" }, other: 2, shared: "result", a: 1, g: [{ k: 1 }], empty: [],
     });
+  });
+});
+
+describe("labelsFrom", () => {
+  const label = labelsFrom({ APPLY_FROM: "희망 적용 시작 일시", TITLE: "제목", cateId: "카테고리 ID 원문 키", LVL1: "1차" });
+
+  it("field 를 trim 한 뒤 원문 → 대문자 → camel→대문자 snake 순으로 찾는다", () => {
+    expect(label("TITLE")).toBe("제목");
+    expect(label(" title ")).toBe("제목");
+    expect(label("applyFrom")).toBe("희망 적용 시작 일시");
+    expect(label("APPLY_FROM")).toBe("희망 적용 시작 일시");
+    expect(label("cateId")).toBe("카테고리 ID 원문 키");
+    expect(label("lvl1")).toBe("1차");
+  });
+
+  it("맵에 없거나 합성 field·빈 값·객체 기본 속성 이름이면 undefined", () => {
+    expect(label("var:12")).toBeUndefined();
+    expect(label("HAS_CHANGES")).toBeUndefined();
+    expect(label("")).toBeUndefined();
+    expect(label("   ")).toBeUndefined();
+    expect(label("constructor")).toBeUndefined();
+    expect(label("toString")).toBeUndefined();
   });
 });
 

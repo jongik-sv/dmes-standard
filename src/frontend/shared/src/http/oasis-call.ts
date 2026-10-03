@@ -8,6 +8,8 @@
  * - 본문: `{ meta:{ menuId }, params, grids? }`. 배열은 params 가 아니라 `grids.<이름>.rows` 로 보낸다(params 배열은
  *   "Generic type" 오류). OASIS 는 params 의 null 값 타입을 정하지 못해 요청 전체가 실패하므로 기본으로 null·undefined 를 뺀다.
  * - 오류: 기본은 {@link OasisCallError}(`code`·`errors`·`field`). 화면이 자기 오류 클래스를 계속 써야 하면 `errorFactory`.
+ * - 오류 문구: `기본 문구 + "\n- 항목명: 메시지"`. 서버 field 코드는 보이지 않고(항목명을 모르면 메시지만), 기본 문구에 이미
+ *   들어 있는 메시지는 빼며, 화면은 `fieldLabel`(맵이면 {@link labelsFrom})로 항목명을 준다. errors[] 원본은 오류에 그대로 싣는다.
  *
  * ★ 번들 주의 — shared 는 tsup `splitting:false` 라 이 파일을 import 하는 진입점마다 `OasisCallError` 사본이 생겨 `instanceof` 가
  *   깨진다. 그래서 이 파일은 `/http` 진입점에서만 내보내고 shared 의 다른 모듈은 import 하지 않는다. 진입점이 갈라져도 맞게
@@ -107,10 +109,11 @@ export interface OasisUnwrapOptions {
   /** 응답 `grids.<이름>.rows` 를 결과의 `<이름>` 으로 올린다(rows 가 없으면 빈 배열). 기본 false. */
   includeGrids?: boolean;
   /**
-   * 거부 문구에 errors[] 를 붙이는 방식. 붙이면 `base\n- 항목\n- 항목` 이다. message 가 없거나 빈·공백인 항목은 field 가
-   * 있어도 어느 방식이든 붙이지 않는다(오류의 `errors`·`field` 에는 그대로 남는다).
-   * - `append-dedup`(기본): 빈 항목과 base 와 같은 항목은 뺀다
-   * - `append`: 빈 항목만 뺀다(base 와 같아도 남는다)
+   * 거부 문구에 errors[] 를 붙이는 방식. 붙이면 `base\n- 항목명: 글\n- 글` 이다(기본 문구가 맨 앞). message 가 없거나
+   * 빈·공백인 항목은 field 가 있어도 어느 방식이든 붙이지 않는다(오류의 `errors`·`field` 에는 그대로 남는다).
+   * - `append-dedup`(기본): 빈 항목과, 글(message)이 base 안에 이미 들어 있는 항목은 뺀다 — 서버가 meta.message 에 상세
+   *   요약을 이어 붙이는 경우(`기본 문구: 상세`)에 같은 글이 두 번 보이지 않게 한다. 완전 일치가 아니라 포함 여부로 본다
+   * - `append`: 빈 항목만 뺀다(base 에 들어 있어도 남는다)
    * - `none`: 붙이지 않는다(`meta.message` 만)
    */
   details?: "append-dedup" | "append" | "none";
@@ -120,8 +123,8 @@ export interface OasisUnwrapOptions {
    */
   isUserSentence?: (text: string) => boolean;
   /**
-   * field 코드 → 화면 항목명. 주면 항목명이 있을 때만 `항목명: 글`, 없으면 글만 쓴다.
-   * 주지 않으면 field 가 있을 때 `field: 글` 이다.
+   * field 코드 → 화면 항목명. 항목명이 있을 때만 `항목명: 글`, 없으면(또는 이 옵션을 주지 않으면) 글만 쓴다 — 서버 field
+   * 코드는 문구에 절대 넣지 않는다(Local-Rules §13). 맵이면 {@link labelsFrom} 으로 바꿔 넘긴다.
    */
   fieldLabel?: (field: string) => string | undefined;
   /** 거부 오류를 만드는 함수. 기본은 {@link OasisCallError}. */
@@ -181,8 +184,9 @@ function rejectionOf(env: CactusEnvelope, options: OasisUnwrapOptions): Error {
     mode === "none"
       ? []
       : kept
+          .filter((e) => mode === "append" || !isInBase(e, base))
           .map((e) => detailText(e, options.fieldLabel))
-          .filter((m): m is string => (mode === "append" ? !!m : !!m && m !== base));
+          .filter((m): m is string => !!m);
   const message = details.length > 0 ? `${base}\n- ${details.join("\n- ")}` : base;
 
   const code = env.meta?.code ?? all.find((e) => e.code)?.code ?? null;
@@ -191,14 +195,42 @@ function rejectionOf(env: CactusEnvelope, options: OasisUnwrapOptions): Error {
   return factory(message, code, kept, field);
 }
 
-/** 상세 한 건의 문구. message 가 없거나 빈·공백이면 field 가 있어도 붙이지 않는다(`field: undefined` 방지). 글은 다듬지 않는다. */
+/** 상세 글(message)이 base 안에 이미 들어 있는가 — 앞뒤 공백을 뺀 글로 본다. 빈 글은 아니다(빈 항목은 따로 버린다). */
+function isInBase(e: CactusErrorDetail, base: string): boolean {
+  const text = e.message == null ? "" : String(e.message).trim();
+  return text !== "" && base.includes(text);
+}
+
+/**
+ * 상세 한 건의 문구. message 가 없거나 빈·공백이면 field 가 있어도 붙이지 않는다(`field: undefined` 방지). 글은 다듬지 않는다.
+ * 항목명을 알면 `항목명: 글`, 모르면 글만 — field 코드는 쓰지 않는다.
+ */
 function detailText(e: CactusErrorDetail, fieldLabel: OasisUnwrapOptions["fieldLabel"]): string | undefined {
   if (e.message == null || String(e.message).trim() === "") return undefined;
-  if (fieldLabel) {
-    const label = e.field ? fieldLabel(e.field) : undefined;
-    return label ? `${label}: ${e.message}` : e.message;
-  }
-  return e.field ? `${e.field}: ${e.message}` : e.message;
+  const label = fieldLabel && e.field ? fieldLabel(e.field) : undefined;
+  return label ? `${label}: ${e.message}` : e.message;
+}
+
+/** camelCase → 대문자 snake(`applyFrom` → `APPLY_FROM`, `cateId` → `CATE_ID`). 이미 대문자면 그대로다. */
+function toUpperSnake(name: string): string {
+  return name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toUpperCase();
+}
+
+/**
+ * 항목명 맵 → {@link OasisUnwrapOptions.fieldLabel} 함수. 서버 field 는 대문자 컬럼 물리명·요청 키 원문(camelCase)이
+ * 섞여 오므로 field 를 trim 한 뒤 원문 → 대문자 → camel→대문자 snake 순으로 맵을 찾는다. 그래서 맵 키는 대문자 snake
+ * (`APPLY_FROM`) 하나면 `applyFrom`·`APPLY_FROM` 이 모두 찾아진다. 못 찾으면 undefined(문구에는 글만 남는다).
+ */
+export function labelsFrom(map: Readonly<Record<string, string>>): (field: string) => string | undefined {
+  const has = (key: string): boolean => Object.prototype.hasOwnProperty.call(map, key);
+  return (field) => {
+    const key = field.trim();
+    if (key === "") return undefined;
+    for (const candidate of [key, key.toUpperCase(), toUpperSnake(key)]) {
+      if (has(candidate)) return map[candidate];
+    }
+    return undefined;
+  };
 }
 
 export interface OasisCallOptions extends OasisUnwrapOptions {
