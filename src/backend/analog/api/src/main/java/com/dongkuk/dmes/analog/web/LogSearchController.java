@@ -240,10 +240,10 @@ public class LogSearchController {
         logProcessor.getLogLexer().setStartString(newLineInspector);
 
         // 소비(파싱)는 공유 트리 파싱 풀에서, 생산(검색 결과 → 큐)은 요청 스레드에서 한다.
-        // 풀이 꽉 차 있으면 기다리지 않고 503 — 큐에서 기다리면 생산 쪽이 큐 10만 줄 이후 줄마다 1초씩 쉰다.
+        // 동시 파싱이 상한이면 기다리지 않고 503 — 큐에서 기다리면 생산 쪽이 큐 10만 줄 이후 줄마다 1초씩 쉰다.
         Future<?> consumer;
         try {
-            consumer = executors.treeParse().submit(logProcessor::run);
+            consumer = executors.submitTreeParse(logProcessor::run);
         } catch (RejectedExecutionException e) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "로그 트리 분석 요청이 많습니다. 잠시 뒤 다시 시도하세요.", e);
         }

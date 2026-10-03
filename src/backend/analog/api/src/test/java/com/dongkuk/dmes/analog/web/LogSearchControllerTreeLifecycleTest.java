@@ -19,7 +19,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.concurrent.ThreadPoolExecutor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -74,13 +73,12 @@ class LogSearchControllerTreeLifecycleTest {
                 .param("byThread", "false")));
         assertThat(thrown).isNotNull();
 
-        ThreadPoolExecutor treePool = (ThreadPoolExecutor) executors.treeParse();
         long deadline = System.currentTimeMillis() + 5000;
-        while (treePool.getActiveCount() > 0 && System.currentTimeMillis() < deadline) {
-            Thread.onSpinWait();
+        while (executors.treeParseInFlight() > 0 && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20);
         }
         // 예전에는 EOQ 가 오지 않아 소비 스레드가 100ms 마다 깨며 영영 남았다.
-        assertThat(treePool.getActiveCount()).isZero();
+        assertThat(executors.treeParseInFlight()).isZero();
     }
 
     @Test

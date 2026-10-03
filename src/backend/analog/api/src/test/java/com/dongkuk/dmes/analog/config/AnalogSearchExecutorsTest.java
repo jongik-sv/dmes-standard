@@ -21,6 +21,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -63,16 +64,99 @@ class AnalogSearchExecutorsTest {
         executors = new AnalogSearchExecutors(1, 1, 1);
         CountDownLatch release = new CountDownLatch(1);
         CountDownLatch started = new CountDownLatch(1);
-        executors.treeParse().submit(() -> {
+        executors.submitTreeParse(() -> {
             started.countDown();
-            release.await();
-            return null;
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         });
         assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
 
-        assertThatThrownBy(() -> executors.treeParse().submit(() -> { }))
+        assertThatThrownBy(() -> executors.submitTreeParse(() -> { }))
                 .isInstanceOf(RejectedExecutionException.class);
+        assertThat(executors.treeParseInFlight()).isEqualTo(1);
         release.countDown();
+    }
+
+    @Test
+    void 트리_파싱_풀은_앞_작업이_끝난_직후_넣은_작업을_거절하지_않는다() throws Exception {
+        // 예전 SynchronousQueue 풀은 get() 이 돌아온 뒤에도 스레드가 poll 로 돌아가기 전이면 상한 미만에서 거절했다.
+        executors = new AnalogSearchExecutors(1, 1, 1);
+        AtomicInteger runs = new AtomicInteger();
+        for (int i = 0; i < 1000; i++) {
+            executors.submitTreeParse(runs::incrementAndGet).get(5, TimeUnit.SECONDS);
+        }
+        assertThat(runs).hasValue(1000);
+        assertThat(executors.treeParseInFlight()).isZero();
+    }
+
+    @Test
+    void 돌던_트리_작업을_취소하면_본문이_끝난_뒤_자리를_돌려준다() throws Exception {
+        executors = new AnalogSearchExecutors(1, 1, 2);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch started = new CountDownLatch(2);
+        // 두 자리를 막아 둔 뒤, 한 자리가 비면 바로 다음 작업이 들어오는지 본다.
+        Future<?> first = executors.submitTreeParse(() -> {
+            started.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        Future<?> second = executors.submitTreeParse(() -> {
+            started.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThatThrownBy(() -> executors.submitTreeParse(() -> { }))
+                .isInstanceOf(RejectedExecutionException.class);
+
+        // 돌던 작업을 인터럽트로 끝낸다 — 본문이 끝나면 자리가 돌아온다.
+        first.cancel(true);
+        awaitInFlight(1);
+        executors.submitTreeParse(() -> { }).get(5, TimeUnit.SECONDS);
+
+        release.countDown();
+        second.get(5, TimeUnit.SECONDS);
+        awaitInFlight(0);
+    }
+
+    private void awaitInFlight(int expected) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (executors.treeParseInFlight() != expected && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10);
+        }
+        assertThat(executors.treeParseInFlight()).isEqualTo(expected);
+    }
+
+    @Test
+    void 종료할_때_파일_작업이_도는_중에_넣는_범위_작업은_거절되지_않는다() throws Exception {
+        executors = new AnalogSearchExecutors(1, 1, 1);
+        CountDownLatch started = new CountDownLatch(1);
+        AtomicBoolean innerRan = new AtomicBoolean(false);
+        Future<?> outer = executors.fileSearch().submit(() -> {
+            started.countDown();
+            try {
+                Thread.sleep(300);   // 그 사이 shutdown 이 시작된다
+                executors.rangeSearch().submit(() -> innerRan.set(true)).get(5, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+
+        executors.shutdown();
+
+        outer.get(1, TimeUnit.SECONDS);
+        assertThat(innerRan).isTrue();
+        executors = null;
     }
 
     @Test
