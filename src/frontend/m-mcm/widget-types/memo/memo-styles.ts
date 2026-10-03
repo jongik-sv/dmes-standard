@@ -13,7 +13,7 @@ export const MEMO_CSS = `
 .mcm-memo__bar--end { justify-content: flex-end; }
 .mcm-memo__actions { display: flex; align-items: center; gap: var(--spacing-xs); }
 .mcm-memo__view { flex: 1 1 0; min-height: 0; overflow: auto; }
-.mcm-memo__edit { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.mcm-memo__edit { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: var(--spacing-xs); container-type: inline-size; }
 .mcm-memo__count { font-size: var(--font-size-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .mcm-memo__count--over { color: var(--color-danger); }
 .mcm-memo__error { flex: 1 1 0; min-width: 0; font-size: var(--font-size-sm); color: var(--color-danger); overflow-wrap: anywhere; }
@@ -27,5 +27,8 @@ export const MEMO_CSS = `
    더하면 180~190px 이다. 이보다 낮으면 편집기가 아래 [저장]·[취소] 줄을 덮는다. 작은 위젯은 틀 본문이 스크롤한다.
    링크 입력 칸(.cm-md-link-pop)이 absolute 로 상자 밖까지 뜨므로 overflow 로 가두지 않는다(잘림 방지). */
 .mcm-memo__md { flex: 1 1 0; min-height: 190px; display: flex; flex-direction: column; }
+/* 편집 영역 폭이 420px 이상이면 도구 막대가 한 줄(30px)이라 30 + 4 + 130 = 164px 면 된다. 190px 를 그대로 두면 기본 크기(8×10, 본문 약 236px)에서
+   [저장] 줄이 칸 아래로 밀려 스크롤해야 보인다(2026-10-03 화면 확인). 폭 기준은 .mcm-memo__edit 의 container-type 이다. */
+@container (min-width: 420px) { .mcm-memo__md { min-height: 164px; } }
 .mcm-memo__md--locked { pointer-events: none; opacity: 0.7; }
 `;
