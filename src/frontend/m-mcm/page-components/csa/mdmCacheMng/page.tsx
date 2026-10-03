@@ -27,7 +27,16 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { describeForceFailure, fetchAllStatus, fetchAppliedSeq, fetchEntries, fetchEntry, forceByType, groupByType } from "./api";
 import { runForceWait } from "./forceWait";
 import { RegisterModal } from "./RegisterModal";
-import { ESTIMATED_SIZE_HELP, FORCE_WAIT_TIMEOUT_NOTICE, describeLifetime, entryKeySet, entryKindLabel, formatBytes, withEntryKind } from "./utils";
+import {
+  ESTIMATED_SIZE_HELP,
+  FORCE_WAIT_KEYS_NOTICE,
+  FORCE_WAIT_TIMEOUT_NOTICE,
+  describeLifetime,
+  entryKindLabel,
+  formatBytes,
+  shouldWaitAfterForce,
+  withEntryKind,
+} from "./utils";
 import {
   ENTRY_SORT_OPTIONS,
   MDM_CACHE_MODULES,
@@ -370,9 +379,9 @@ export default function MdmCacheMngPage() {
           if (selectedModule) {
             await loadEntries(selectedModule, filters);
             refreshDetail(selectedModule);
-            if (!outcome.failedType && outcome.toSeq !== null && outcome.toSeq > 0 && run === forceWaitRun.current) {
+            const toSeq = shouldWaitAfterForce(outcome);
+            if (toSeq !== null && run === forceWaitRun.current) {
               const targetModule = selectedModule;
-              const toSeq = outcome.toSeq;
               const forcedKeys = groups.flatMap(([type, keys]) => keys.map((key) => `${type}:${key}`));
               setWaitingModule(targetModule);
               void runForceWait({
@@ -380,16 +389,19 @@ export default function MdmCacheMngPage() {
                 toSeq,
                 forcedKeys,
                 readAppliedSeq: () => fetchAppliedSeq(targetModule),
-                refetchEntries: async () => {
-                  const rows = await loadEntries(targetModule, filters);
-                  return rows ? entryKeySet(rows) : null;
+                // 표 요청과 반영을 나눈다 — 응답이 늦게 와도 취소됐으면(모듈 바꿈·[조회]·새 강제 실행) 표·선택을 건드리지 않는다.
+                fetchEntries: async () => (await fetchEntries(targetModule, filters)).items,
+                applyEntries: (items) => {
+                  setEntries(items);
+                  setSelectedKeys([]);
                 },
+                onRefetchError: (e) => showMessage({ title: "오류", message: errorText(e), alertType: "error" }),
                 isCancelled: () => run !== forceWaitRun.current,
               }).then((result) => {
                 if (result === "CANCELLED") return;
                 setWaitingModule("");
                 if (result === "DONE") refreshDetail(targetModule);
-                else showMessage({ message: FORCE_WAIT_TIMEOUT_NOTICE, alertType: "warning", toast: true });
+                else showMessage({ message: result === "TIMEOUT_KEYS" ? FORCE_WAIT_KEYS_NOTICE : FORCE_WAIT_TIMEOUT_NOTICE, alertType: "warning", toast: true });
               });
             }
           }
