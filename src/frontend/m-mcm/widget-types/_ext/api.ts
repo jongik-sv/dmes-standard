@@ -3,6 +3,8 @@
  * 요청 본문은 CactusRequest 표준(params 는 평평한 값), 응답은 data.result(Map). envelope 해제는 screenUsageStat/api.ts 와 같은 규칙이다:
  * meta.success=false(HTTP 200 업무 거절) → Error(message), data(+data.result) 펼침.
  * 서버가 사용자·부서를 정하므로 meta.userId 는 보내지 않는다. 날짜는 yyyyMMdd·yyyy-MM-dd 둘 다 받아 yyyy-MM-dd 로 맞춘다.
+ * fetch 자체가 실패하면(네트워크 끊김 등 — 브라우저가 영어 TypeError "Failed to fetch"·"Load failed"·"NetworkError …" 를 던진다)
+ * 한국어 문구({@link NETWORK_ERROR_MESSAGE})로 바꿔 던진다. 서버가 보낸 거절 문구(업무 거절·HTTP 오류)는 그대로 둔다.
  * @dk-oasis/shared 를 런타임 import 하지 않는다(m-mcm vitest 가 shared dist 없이 시험한다).
  */
 import { createJsonApiClient } from "@/lib/http/json-api-client";
@@ -44,11 +46,26 @@ export function unwrapPayload(res: unknown): Record<string, unknown> {
   return out;
 }
 
-async function callAction(action: "exchange" | "weather", params: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const res = await api.request<unknown>(`${OASIS_BASE}/${action}`, {
-    method: "POST",
-    body: { meta: { menuId: MENU_ID }, params },
-  });
+type ExtAction = "exchange" | "weather";
+
+/** 응답 없이 fetch 가 실패했을 때(네트워크 끊김 등) 보일 문구. */
+export const NETWORK_ERROR_MESSAGE: Record<ExtAction, string> = {
+  exchange: "환율 정보를 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+  weather: "날씨 정보를 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+};
+
+async function callAction(action: ExtAction, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  let res: unknown;
+  try {
+    res = await api.request<unknown>(`${OASIS_BASE}/${action}`, {
+      method: "POST",
+      body: { meta: { menuId: MENU_ID }, params },
+    });
+  } catch (e) {
+    // fetch 는 응답을 받지 못하면 TypeError 를 던진다(문구는 브라우저마다 다른 영어). HTTP 오류는 json-api-client 가 서버 문구로 Error 를 만든다.
+    if (e instanceof TypeError) throw new Error(NETWORK_ERROR_MESSAGE[action], { cause: e });
+    throw e;
+  }
   return unwrapPayload(res);
 }
 
