@@ -9,3 +9,4 @@ export { openMdmPage, takeMdmPageParams, useMdmPageParams, type MdmPageParams } 
 export { HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT } from "./handover";
 export { VersionActionBar, type VersionActionBarProps, type VersionAction, type VersionActionIds } from "./VersionActionBar";
 export { fmtVer, normVer, sameVer } from "./version-format";
+export { VEIL_FRESH, VEIL_STALE } from "./stale-veil";
