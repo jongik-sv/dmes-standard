@@ -65,8 +65,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 않게). VER 은 남긴다 — UPDATE 실행 횟수, 곧 시드 순서 회귀를 잡는다. 테이블·뷰·인덱스 정의(sqlite_master.sql)는
  * {@code __SCHEMA__} 줄 하나로 따로 해시한다.
  *
- * <p><b>골든 갱신</b> — 골든 파일이 없거나 {@code -Dfingerprint.update=true} 또는 환경 변수 {@code FINGERPRINT_UPDATE=true} 면
- * 비교하지 않고 골든을 새로 쓴다. mcm 의 build.gradle 은 시스템 속성을 테스트 JVM 으로 넘기지 않으므로 gradle 실행에서는
+ * <p><b>골든 갱신</b> — {@code -Dfingerprint.update=true} 또는 환경 변수 {@code FINGERPRINT_UPDATE=true} 면
+ * 비교하지 않고 골든을 새로 쓴다. 갱신을 요청하지 않았는데 골든 파일이 없으면 실패한다(다른 작업 디렉터리에서 돌려 골든을 못 찾고
+ * 새로 쓴 뒤 회귀를 놓친 채 통과하는 일을 막는다). mcm 의 build.gradle 은 시스템 속성을 테스트 JVM 으로 넘기지 않으므로 gradle 실행에서는
  * 환경 변수를 쓴다: {@code FINGERPRINT_UPDATE=true ../gradlew :api:test --tests '*DataInitializerSeedFingerprintTest'}.
  * 골든은 classpath 사본이 아니라 소스 경로(작업 디렉터리 mcm/api 기준)를 읽고 쓴다.
  */
@@ -170,7 +171,13 @@ class DataInitializerSeedFingerprintTest {
 
         boolean update = Boolean.getBoolean("fingerprint.update")
                 || "true".equalsIgnoreCase(System.getenv("FINGERPRINT_UPDATE"));
-        if (update || !Files.exists(GOLDEN)) {
+        if (!update) {
+            assertThat(Files.exists(GOLDEN))
+                    .as("골든 파일이 없다(%s) — 작업 디렉터리가 mcm/api 인지 확인하고, 처음 만드는 것이면 FINGERPRINT_UPDATE=true 로 돌린다",
+                            GOLDEN.toAbsolutePath())
+                    .isTrue();
+        }
+        if (update) {
             writeGolden(actual);
             System.out.println("[fingerprint] 골든을 새로 썼다: " + GOLDEN.toAbsolutePath() + " (" + actual.size() + " 줄)");
             return;
