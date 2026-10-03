@@ -40,3 +40,27 @@ export function typeLabel(row: DomainRow): string {
   if (row.LENGTH === null || row.LENGTH === undefined) return base;
   return `${base} ${row.LENGTH}${row.SCALE !== null && row.SCALE !== undefined ? `,${row.SCALE}` : ""}`;
 }
+
+/** 검색어에 맞지 않아 흐리게 그리는 조상 행의 이름 칸 값 꼬리표 — 보이지 않는 글자라 툴팁·복사에 티가 나지 않는다. */
+export const DIMMED_MARK = "​";
+
+/** 도메인 목록 그리드 행 — 다른 칸에서 파생되는 표시를 자기 칸 값(_NAME 등)으로 담는다. */
+export type DomainGridRow = DomainRow & { _NAME: string; _TYPE: string; _UNIT: string; _STD: string; _BIZ: string };
+
+/**
+ * 그리드는 행 키(DOMAIN_ID)가 같으면 칸 값이 바뀐 칸만 다시 그린다. 표시가 DEPTH·PARENT_DOMAIN_ID·MATCHED·DOMAIN_KIND 같은
+ * 다른 칸에서 나오면 부모 연결을 끊고 다시 조회해도 「└ … (상속)」이 남는다. 그래서 표시 문자열을 미리 만들어 칸 값으로 둔다.
+ */
+export function toGridRows(rows: DomainRow[]): DomainGridRow[] {
+  return rows.map((r) => {
+    const vars = r.BIZ_REQUIRED_VARS ?? [];
+    return {
+      ...r,
+      _NAME: indentLabel(r.DOMAIN_NAME ?? "", Number(r.DEPTH ?? 0)) + (r.MATCHED === false ? DIMMED_MARK : ""),
+      _TYPE: typeLabel(r),
+      _UNIT: r.PARENT_DOMAIN_ID != null && !r.UNIT_CODE ? "(상속)" : String(r.UNIT_CODE ?? ""),
+      _STD: r.DOMAIN_KIND === "CODE" ? "비움(코드 참조만)" : String(r.STD_RULE ?? ""),
+      _BIZ: r.HAS_BIZ ? `있음${vars.length ? ` (${vars.join(", ")})` : ""}` : "-",
+    };
+  });
+}

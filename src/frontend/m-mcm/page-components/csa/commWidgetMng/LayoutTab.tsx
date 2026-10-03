@@ -6,6 +6,8 @@
  * - 오른쪽: 고른 키의 보드 = WidgetWorkspace singleTab + 관리자 어댑터 store(layout-store). [완료] 가 saveLayout, [기본 배치 지우기] 가 deleteLayout.
  * - 등록부는 코드 등록부 + 유형 등록부 + widgetDef/list 를 mergeWidgetRegistry 로 합친다. 정의 조회 전에는 보드를 마운트하지 않고(정의 위젯이 「없는 위젯」으로
  *   보이는 상태의 저장은 배치에서 지운다 — W-D19), 실패하면 코드 등록부로 마운트하되 registryStatus="error" 로 편집을 막는다.
+ * - 보드는 WidgetBoardModeContext("preview")로 감싼다 — 실제 칸을 그리므로 개인 메모 위젯이 관리자 본인 메모를 불러오거나 저장하지 않게 미리보기처럼
+ *   다루게 한다(스펙 §17.5). 위젯 본체는 shared WidgetFrame 이 같은 React 트리에서 그리므로 맥락이 닿는다.
  * - 배치를 바꾸면 보드를 key 로 다시 마운트한다(편집 중이던 변경은 사라진다 — WidgetWorkspace 가 편집 상태를 밖으로 알리지 않는다).
  * 순수 로직은 layout-model.ts, 서버 호출은 layout-api.ts, 저장소 어댑터는 layout-store.ts.
  */
@@ -26,6 +28,7 @@ import {
 import { WIDGET_REGISTRY } from "@/lib/generated/widget-registry";
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
 import { notifyWidgetDefsChanged } from "@/lib/widget-defs-events";
+import { WidgetBoardModeContext } from "@/lib/widget-board-mode";
 import { HOME_DEFAULT_LAYOUT } from "@/page-components/home/home-layout";
 
 import { DeptPicker } from "./DeptPicker";
@@ -155,16 +158,18 @@ function LayoutBoard({ layoutKey, title, rows, registry, registryStatus, onRetry
           {notice}
         </div>
       )}
-      <WidgetWorkspace
-        registry={registry}
-        homeDefault={HOME_DEFAULT_LAYOUT}
-        store={store}
-        singleTab={{ title }}
-        typeTitles={TYPE_TITLES}
-        registryStatus={registryStatus}
-        onRetryRegistry={onRetryRegistry}
-        testId={BOARD_TEST_ID}
-      />
+      <WidgetBoardModeContext.Provider value="preview">
+        <WidgetWorkspace
+          registry={registry}
+          homeDefault={HOME_DEFAULT_LAYOUT}
+          store={store}
+          singleTab={{ title }}
+          typeTitles={TYPE_TITLES}
+          registryStatus={registryStatus}
+          onRetryRegistry={onRetryRegistry}
+          testId={BOARD_TEST_ID}
+        />
+      </WidgetBoardModeContext.Provider>
     </>
   );
 }
