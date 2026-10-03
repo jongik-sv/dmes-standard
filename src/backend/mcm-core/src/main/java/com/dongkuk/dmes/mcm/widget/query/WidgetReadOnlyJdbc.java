@@ -19,8 +19,8 @@ import org.slf4j.LoggerFactory;
  *   <li>풀에 돌려주기 전에 빌릴 때 상태로 되돌린다. 순서는 <b>롤백 → autoCommit → SQLite {@code query_only} → readOnly</b> —
  *       autoCommit 을 먼저 켜 트랜잭션 밖에서 나머지를 바꾼다(JDBC 규약·pgjdbc: 트랜잭션 중 {@code setReadOnly} 는 예외, 트랜잭션 중
  *       autoCommit 을 켜면 커밋). 롤백이 실패하면 autoCommit 을 켜지 않는다(열린 트랜잭션이 커밋되지 않게).</li>
- *   <li>롤백·되돌리기에 실패한 연결은 풀에서 빼고(Hikari {@code evictConnection}) 바로 끊는다({@code abort}) — 읽기 전용으로 남은 연결이
- *       업무 쓰기를 막지 않게, 그리고 풀이 반납 처리에서 autoCommit 을 되돌리며 커밋하지 못하게.</li>
+ *   <li>롤백·되돌리기에 실패한 연결은 <b>먼저 끊고</b>({@code abort}) 그다음 풀에서 뺀다(Hikari {@code evictConnection}) — 읽기 전용으로
+ *       남은 연결이 업무 쓰기를 막지 않게, 그리고 풀이 반납·축출 처리에서 autoCommit 을 되돌리거나 물리 연결을 닫으며 커밋하지 못하게.</li>
  * </ol>
  * 실 PostgreSQL 18 + pgjdbc 42.7.8 + Hikari 7 실측(2026-10-03): 서버 로그가 {@code BEGIN READ ONLY → SET TRANSACTION READ ONLY →
  * SHOW transaction_read_only → SELECT → ROLLBACK} 이고 {@code COMMIT} 은 없다. 풀(1개)의 같은 물리 연결(백엔드 PID 동일)이 다음 실행과
@@ -212,20 +212,22 @@ public final class WidgetReadOnlyJdbc {
     }
 
     /**
-     * 풀에서 빼고(Hikari) 바로 끊는다. 빼기만 하면 Hikari 가 반납({@code close}) 처리에서 롤백·autoCommit 되돌리기를 다시 시도해
-     * 롤백하지 못한 트랜잭션을 커밋할 수 있다 — 끊어 두면 서버가 그 트랜잭션을 버린다.
+     * 바로 끊고({@code abort}) 그다음 풀에서 뺀다(Hikari). 순서가 중요하다 — Hikari 7 의 {@code evictConnection} 은 물리 연결 닫기를
+     * <b>다른 스레드</b>(closeConnectionExecutor)에 넘기므로, 빼기를 먼저 하면 그 스레드의 {@code close} 가 이 스레드의 {@code abort} 보다
+     * 먼저 돌 수 있고, 닫을 때 커밋하는 드라이버(Oracle 기본 등)에서는 롤백하지 못한 쓰기가 커밋된다. 끊어 두면 서버가 그 트랜잭션을
+     * 버리고, 뒤이은 빼기·반납({@code close})은 이미 끊긴 연결을 다룰 뿐이다. 끊기가 실패해도 빼기는 따로 한다(풀이 다시 내주지 않게).
      */
     private void discard(Connection con) {
-        log.error("[widgetQuery] 연결을 빌릴 때 상태로 되돌리지 못해 풀에서 빼고 끊습니다(읽기 전용 상태로 업무 코드에 넘어가지 않게)");
-        try {
-            if (HIKARI_PRESENT) Hikari.evict(dataSource, con);
-        } catch (SQLException | RuntimeException | LinkageError e) {
-            log.warn("[widgetQuery] 풀에서 빼기 실패: {}", e.getMessage());
-        }
+        log.error("[widgetQuery] 연결을 빌릴 때 상태로 되돌리지 못해 끊고 풀에서 뺍니다(읽기 전용 상태로 업무 코드에 넘어가지 않게)");
         try {
             con.abort(Runnable::run);
         } catch (SQLException | RuntimeException e) {
             log.warn("[widgetQuery] 연결 끊기 실패: {}", e.getMessage());
+        }
+        try {
+            if (HIKARI_PRESENT) Hikari.evict(dataSource, con);
+        } catch (SQLException | RuntimeException | LinkageError e) {
+            log.warn("[widgetQuery] 풀에서 빼기 실패: {}", e.getMessage());
         }
     }
 
@@ -264,8 +266,8 @@ public final class WidgetReadOnlyJdbc {
     /** Hikari 가 있을 때만 읽히는 클래스(없으면 로드하지 않는다). */
     private static final class Hikari {
         /**
-         * Hikari 풀이 직접 내준 연결만 뺀다({@code evictConnection} 은 Hikari 연결이 아니면 조용히 아무것도 하지 않는다 —
-         * 그때도 뒤이은 abort 가 끊는다). 뺐으면 true.
+         * Hikari 풀이 직접 내준 연결만 뺀다(Hikari 연결이 아니면 아무것도 하지 않는다 — 그때도 앞선 abort 가 이미 끊었다). 뺐으면 true.
+         * 끊긴 뒤에도 프록시의 {@code isClosed()} 는 false 라 Hikari 는 이 연결을 주인으로 보고 바로 뺀다.
          */
         static boolean evict(DataSource ds, Connection con) throws SQLException {
             if (!con.getClass().getName().startsWith("com.zaxxer.hikari.")) return false;

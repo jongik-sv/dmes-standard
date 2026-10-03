@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
@@ -173,22 +174,39 @@ class WidgetQueryReadOnlyTest {
     }
 
     @Test
-    @DisplayName("query_only 를 되돌리지 못한 연결은 풀에서 빠진다 — 다음에 빌리는 연결은 새 물리 연결이고 업무 쓰기를 한다")
+    @DisplayName("query_only 를 되돌리지 못한 연결은 먼저 끊고(abort) 그다음 풀에서 빠진다 — 다음에 빌리는 연결은 새 물리 연결이고 업무 쓰기를 한다")
     void connectionThatCannotBeRestoredIsEvicted() throws Exception {
         AtomicBoolean failRestore = new AtomicBoolean(true);
-        HikariDataSource faulty = new HikariDataSource();
+        List<String> calls = new CopyOnWriteArrayList<>(); // 물리 연결 abort·close 는 Hikari 닫기 스레드에서도 적힌다
+        HikariDataSource faulty = new HikariDataSource() {
+            @Override
+            public void evictConnection(Connection connection) {
+                calls.add("evict");
+                super.evictConnection(connection);
+            }
+        };
         faulty.setPoolName("widget-query-test-faulty");
         faulty.setMaximumPoolSize(1);
-        faulty.setDataSource(failingRestoreDataSource(new DriverManagerDataSource(url), failRestore));
+        faulty.setDataSource(failingRestoreDataSource(new DriverManagerDataSource(url), failRestore, calls));
         extraPools.add(faulty);
         Connection before;
         try (Connection c = faulty.getConnection()) {
             before = c.unwrap(Connection.class);
         }
+        calls.clear();
 
         WidgetReadOnlyJdbc ro = new WidgetReadOnlyJdbc(faulty);
         Integer one = ro.execute(con -> 1);
         assertThat(one).isEqualTo(1);
+
+        // Hikari 7 의 evictConnection 은 물리 close 를 다른 스레드에 넘긴다 — 끊기가 빼기보다 먼저여야 그 close(닫을 때 커밋하는
+        // 드라이버라면 커밋)가 끊기 전에 돌 수 없다. 물리 close 는 닫기 스레드가 하므로 적힐 때까지 기다린다.
+        assertThat(calls).contains("abort:physical", "evict");
+        assertThat(calls.indexOf("abort:physical")).isLessThan(calls.indexOf("evict"));
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        while (!calls.contains("close:physical") && System.nanoTime() < deadline) Thread.sleep(10);
+        assertThat(calls).contains("close:physical");
+        assertThat(calls.indexOf("abort:physical")).isLessThan(calls.indexOf("close:physical"));
 
         failRestore.set(false);
         try (Connection c = faulty.getConnection()) {
@@ -408,8 +426,11 @@ class WidgetQueryReadOnlyTest {
         return String.valueOf(root.getMessage());
     }
 
-    /** 실제 SQLite 연결이지만 {@code PRAGMA query_only = 0}(되돌리기)을 실패시키는 DataSource — failRestore 가 켜진 동안만. */
-    private static DataSource failingRestoreDataSource(DataSource target, AtomicBoolean failRestore) {
+    /**
+     * 실제 SQLite 연결이지만 {@code PRAGMA query_only = 0}(되돌리기)을 실패시키는 DataSource — failRestore 가 켜진 동안만.
+     * 물리 연결의 abort·close 를 calls 에 {@code abort:physical}·{@code close:physical} 로 적는다.
+     */
+    private static DataSource failingRestoreDataSource(DataSource target, AtomicBoolean failRestore, List<String> calls) {
         return (DataSource) Proxy.newProxyInstance(WidgetQueryReadOnlyTest.class.getClassLoader(), new Class<?>[] {DataSource.class},
                 (p, m, a) -> {
                     Object out = invoke(m, target, a);
@@ -417,6 +438,7 @@ class WidgetQueryReadOnlyTest {
                     Connection real = (Connection) out;
                     return Proxy.newProxyInstance(WidgetQueryReadOnlyTest.class.getClassLoader(), new Class<?>[] {Connection.class},
                             (cp, cm, ca) -> {
+                                if ("abort".equals(cm.getName()) || "close".equals(cm.getName())) calls.add(cm.getName() + ":physical");
                                 if (!"createStatement".equals(cm.getName())) return invoke(cm, real, ca);
                                 Statement st = (Statement) invoke(cm, real, ca);
                                 return Proxy.newProxyInstance(WidgetQueryReadOnlyTest.class.getClassLoader(),
