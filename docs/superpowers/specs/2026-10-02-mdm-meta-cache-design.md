@@ -115,7 +115,7 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | `domains` | `domainIds[]` | 유효 도메인 메타 목록(§4.3) |
 | `rules` | `ruleIds[]` | 룰별 RELEASED 버전 **전체**의 `RuleDefinition` 목록(적용 기간 포함) |
 | `ruleSets` | `setIds[]` | 세트별 RELEASED 버전 **전체**의 `RuleSetDefinition` 목록(`ver`·적용 기간 포함, D-144 2단계) |
-| `codes` | `maruCodeIds[]` | 엔진 `CodeLookup.CodeRows`(헤더·버전·항목·카테고리·카테고리 항목, 해석 전 원본) |
+| `codes` | `maruCodeIds[]` | 엔진 `CodeLookup.CodeRows`(헤더·버전·항목·카테고리·카테고리 항목, 해석 전 원본)의 RELEASED 투영(`CodeRowsProjection.releasedOnly`, D-152 — DRAFT·CANCELLED 버전과 그 버전에서만 유효한 행은 싣지 않는다) |
 | `layouts` | `layoutIds[]` | 전문별 RELEASED 버전 **전체**(D-144 3단계) — 버전마다 `ver`(문자열 `"1.000"`)·`applyFrom`·`applyTo` 와, 그 구간을 쌓은 헤더 버전 경계로 나눈 합성 구간 `segments[{applyFrom, applyTo, snapshot}]`(`MdmLayoutSnapshot`). 헤더 레이아웃은 빠지고, 어느 구간이든 합성이 깨진 전문은 그 키만 failed(Ruling R4). 정상 운영 경로의 구간 빈틈(쌓인 헤더의 첫 버전 확정 취소 등)은 헤더 확정 취소 가드(판정 P3-22 — 쌓은 RELEASED 전문의 적용 구간이 합성되지 않게 되면 원장에서 거부)가 막으므로, failed 는 원장 손상 같은 예외 상황에서만 생긴다 |
 | `force` | `type`, `keys[]`, `kind`(`EVICT`·`RELOAD`) | 추가된 `REV_SEQ` 범위. SYSADMIN 만 |
 
@@ -133,7 +133,7 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | 도메인 | `DOMAIN_ID`(문자열) | §4.3 | 툴팁 도메인 정보 |
 | 룰 | `MARU_RULE_ID` | RELEASED 버전 전체 | 평가 시각으로 그때그때 고른다. "현재 버전"을 캐시하지 않는다 — 적용 시작일 도래는 쓰기가 없어 기록이 남지 않기 때문이다. `ver` 는 major/minor 소수(D-144, `NUMERIC(7,3)`, JSON number `1.000`·`1.001`)이고 목록 정렬·여럿일 때 최대 고르기는 수 비교(`BigDecimal.compareTo`)다 |
 | 룰세트 | `MARU_RULE_SET_ID` | RELEASED 버전 전체 | 룰과 같다(D-144 2단계부터 세트도 버전이 있다). 엔진 `RuleSetDefinition` 에 `ver`·`applyFrom`·`applyTo` 를 더했고, 업무 모듈은 판정 시각으로 그때그때 고른다(`APPLY_FROM <= t < APPLY_TO`, 여럿이면 VER 최대). `status` 는 버전마다 부모의 계산 상태(저장 CREATED → INUSE) |
-| 마스터코드 | `MARU_CODE_ID` | `CodeRows` 원본 | 엔진 `CodeResolver` 가 기준일로 해석한다. 버전 적용 기간도 같은 이유로 원본째 둔다 |
+| 마스터코드 | `MARU_CODE_ID` | `CodeRows` 원본의 RELEASED 투영 | 엔진 `CodeResolver` 가 기준일로 해석한다. 버전 적용 기간도 같은 이유로 원본째 둔다. 2026-10-03 D-152 부터 RELEASED 버전과 그 버전에서 유효한 행만 싣는다(룰·룰세트·전문과 같다) — 초안 사본 행이 캐시를 부풀리고, 초안 전용 카테고리 정의가 최초 소급으로 RELEASED 판정에 새던 결함을 막는다 |
 | 전문 | `LAYOUT_ID`(MESSAGE) | RELEASED 버전 전체 + 버전별 합성 구간 | 룰과 같다(D-144 3단계, 2026-10-03 반영). MDM 이 전문 버전 구간을 쌓은 헤더의 RELEASED 버전 경계(적용 시작·끝)로 나눠 구간마다 미리 합성하므로 업무 모듈은 판정 시각 하나로 버전(`APPLY_FROM <= t < APPLY_TO`, 여럿이면 VER 최대)과 그 안의 구간을 고른다(`MdmDefinitionLookup.layout(id, t)`). 헤더 확정·확정 취소는 그 헤더를 쌓은 전문 키로 펼쳐 기록하므로 구간 경계가 바뀌면 무효화된다. 예약 버전의 적용 시작 도래는 목록에 이미 있어 기록이 필요 없다. 소비 연동(직렬화·파싱)은 범위 밖. **배포 순서**: 값 모양이 3단계 전(스냅샷 하나)과 호환되지 않으므로 MDM 과 cactus-core 는 같은 릴리스로 배포한다. 섞이는 동안에는 LAYOUT 키만 failed 이고 캐시 관리 화면(mdmCacheMng)에도 그렇게 보인다. 캐시는 메모리에만 있으므로 재시작하면 정리된다 |
 
 ### 4.2 컬럼 메타
