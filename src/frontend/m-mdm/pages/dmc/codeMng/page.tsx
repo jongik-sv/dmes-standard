@@ -16,6 +16,9 @@
  * 비우지 않고 새 상세가 올 때까지 잠근 채(`stale` — 쓰기·입력·버전 선택 불가, 늦으면 흐리게) 두었다가 같은 DOM 위에 바꿔
  * 그린다(2026-09-29, 행을 바꿀 때마다 상세 전체를 지웠다 다시 그려 깜빡이던 문제). 삭제·조회 실패는 전처럼 비운다.
  * 상세 조회·쓰기 응답은 요청 순번(`detailSeq`)이 지금 것과 다르면 버린다 — 늦게 온 A 응답이 B 화면을 덮지 않는다.
+ * 같은 코드를 다시 읽어도(행 다시 누르기·쓰기 뒤) 저장하지 않은 헤더 입력은 말없이 지우지 않는다(2026-10-03, ruleMng 과 같은
+ * 규칙) — 입력이 이전 서버 값·새 서버 값과 모두 다르면 남기고, 헤더 저장에는 입력을 시작할 때의 auditVer(`formAuditVer`)를
+ * 보내 다른 창 변경은 MDM001 로 드러나게 한다. MDM001 오류창을 닫을 때의 다시 읽기만 입력을 버린다.
  * 조회가 실패하면 선택을 비운다. busy 는 진행 중인 요청 수(`pending`)로 센다. 쓰기(저장·폐기·새 버전·DRAFT 액션·
  * 코드 삭제·등록)가 진행 중이면 목록 행 클릭(↑/↓ 키 이동 포함)을 받지 않는다 — 사용자가 누른 쓰기의 결과(토스트,
  * 충돌 모달과 다시 불러오기)를 그 코드 위에서 보게 하려는 것이다. handoff 는 쓰기 중에도 받으므로 응답 가드는 그대로 둔다.
@@ -52,7 +55,7 @@ import {
   viewCode,
   type DraftAction,
 } from "./edit-api";
-import { CONFLICT_PREFIX, headerFormOf, type CodeEditView, type HeaderForm } from "./edit-types";
+import { CONFLICT_PREFIX, headerFormOf, sameHeaderForm, type CodeEditView, type HeaderForm } from "./edit-types";
 import { HandoverModal } from "./HandoverModal";
 import { NewVersionModal, type VerKind } from "./NewVersionModal";
 import { STATUS_OPTIONS, type CodeMngRow, type CodeRegForm } from "./types";
@@ -125,9 +128,12 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
   const [newVersionKind, setNewVersionKind] = useState<VerKind | null>(null);
   const [handoverOpen, setHandoverOpen] = useState(false);
   const handedOff = useRef(false);
-  // 사용자가 상세 폼을 고친 횟수와 지금 보이는 상세의 코드 ID — 조회 응답이 사용자가 방금 고친 폼을 덮지 않게 하는 데 쓴다.
-  const editSeq = useRef(0);
+  // 지금 보이는 상세의 코드 ID·서버 헤더 폼 값과 폼이 기대는 auditVer — 다시 읽은 응답이 사용자가 고친 폼을 덮지 않게 하는 데 쓴다.
   const shownId = useRef<string | null>(null);
+  const serverForm = useRef<HeaderForm | null>(null);
+  const formRef = useRef(form);
+  formRef.current = form;
+  const [formAuditVer, setFormAuditVer] = useState<number | null>(null);
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
 
@@ -188,6 +194,7 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
     setMode(nextMode);
     if (!keepDetail) {
       shownId.current = null;
+      serverForm.current = null;
       setView(null);
       setForm(null);
       setSelectedVer(null);
@@ -198,11 +205,22 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
 
   // 상세 view 를 화면 상태로 반영. ver 를 주면(목록 선택·handoff) 그 버전을 고르고, 안 주면(액션 뒤 새로고침) 이전 선택을
   // 버전이 아직 있으면 유지한다.
-  // keepForm 이면 서버 값(auditVer·버전 목록 등)만 새로 바꾸고 사용자가 고친 헤더·라벨 폼은 그대로 둔다.
-  const apply = useCallback((next: CodeEditView, ver?: string | null, keepForm = false) => {
+  // 같은 코드를 다시 읽었는데 사용자가 고친 칸이 있으면(이전 서버 값과도 새 서버 값과도 다르면) 서버 값(버전 목록 등)만
+  // 새로 바꾸고 헤더·라벨 폼과 그 폼이 기대는 auditVer 는 그대로 둔다. 헤더 저장 성공 뒤에는 폼이 새 서버 값과 같아 새 값으로
+  // 맞춰진다. discard 면(MDM001 뒤 다시 불러오기) 입력을 버린다.
+  const apply = useCallback((next: CodeEditView, ver?: string | null, discard = false) => {
+    const nextForm = headerFormOf(next.header);
+    const cur = formRef.current;
+    const base = serverForm.current;
+    const keepForm = !discard && shownId.current === next.header.maruCodeId && !!cur && !!base
+      && !sameHeaderForm(cur, base) && !sameHeaderForm(cur, nextForm);
     shownId.current = next.header.maruCodeId;
+    serverForm.current = nextForm;
     setView(next);
-    if (!keepForm) setForm(headerFormOf(next.header));
+    if (!keepForm) {
+      setForm(nextForm);
+      setFormAuditVer(next.header.auditVer);
+    }
     setSelectedVer((prev) => {
       const want = ver === undefined ? prev : ver;
       return want && next.versions.some((v) => v.ver === want) ? want : null;
@@ -210,16 +228,14 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
   }, []);
 
   const loadDetail = useCallback(
-    async (id: string, ver?: string | null) => {
+    async (id: string, ver?: string | null, discard = false) => {
       if (!id) return;
       const seq = ++detailSeq.current;
-      const editsAtStart = editSeq.current;
       begin();
       try {
         const next = await viewCode(id);
         if (seq !== detailSeq.current) return; // 그사이 다른 코드를 골랐거나 더 새 요청이 나갔다
-        // 같은 코드를 다시 불러오는 사이 사용자가 폼을 고쳤으면 그 입력을 늦게 온 응답으로 덮지 않는다.
-        apply(next, ver, editSeq.current !== editsAtStart && shownId.current === next.header.maruCodeId);
+        apply(next, ver, discard);
       } catch (e) {
         if (seq !== detailSeq.current) return;
         // 강조만 남고 상세가 이전 코드로 남지 않게 선택을 비운다. snapshot 도 바로 지워 다시 열 때 같은 오류를 또 띄우지 않는다.
@@ -304,8 +320,8 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
 
   const handleSaveHeader = useCallback(() => {
     if (!header || !form) return;
-    void run(() => saveHeader(header.maruCodeId, header.auditVer, form), "저장했습니다");
-  }, [header, form, run]);
+    void run(() => saveHeader(header.maruCodeId, formAuditVer, form), "저장했습니다");
+  }, [header, form, formAuditVer, run]);
 
   const handleDeprecate = useCallback(() => {
     if (!header) return;
@@ -336,7 +352,6 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
   }, [header, begin, end, showMessage, select, clearSnapshotTarget, reloadList, fail]);
 
   const setField = useCallback((key: keyof HeaderForm, value: string) => {
-    editSeq.current += 1;
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
   }, []);
 
@@ -616,7 +631,7 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
             const reload = error.reload;
             setError(null);
             // 렌더 때 값이 아니라 지금 선택을 본다 — 모달이 떠 있는 사이 선택이 바뀌었을 수 있다.
-            if (reload && selectedIdRef.current) void loadDetail(selectedIdRef.current);
+            if (reload && selectedIdRef.current) void loadDetail(selectedIdRef.current, undefined, true);
           }}
         />
       )}
