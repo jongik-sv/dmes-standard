@@ -5,7 +5,6 @@ import com.dongkuk.caravan.console.host.AppHostJpaRepository;
 import com.dongkuk.caravan.console.caravanhubconfig.ConsoleCaravanHubConfigJpaRepository;
 import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
-import com.dongkuk.dmes.mcm.screenusage.schema.ScreenUsageMssqlDdl;
 import com.dongkuk.dmes.mcm.init.seed.CaravanMetaSeeder;
 import com.dongkuk.dmes.mcm.init.seed.CoreRbacSeeder;
 import com.dongkuk.dmes.mcm.init.seed.McmMenuSeeder;
@@ -14,6 +13,7 @@ import com.dongkuk.dmes.mcm.init.seed.ModuleMenuSeeder;
 import com.dongkuk.dmes.mcm.init.seed.RuleMasterSampleSeeder;
 import com.dongkuk.dmes.mcm.init.seed.SchemaArtifactsMssql;
 import com.dongkuk.dmes.mcm.init.seed.SchemaArtifactsSqlite;
+import com.dongkuk.dmes.mcm.init.seed.ScreenUsageSchemaArtifacts;
 import com.dongkuk.dmes.mcm.init.seed.SeedSupport;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -33,13 +33,13 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>2026-10-04 분할 — 이 클래스는 단계의 순서만 정하고, DDL·시드 본문은 단계 클래스가 갖는다.
  * {@code com.dongkuk.dmes.mcm.init.seed} 의 SchemaArtifactsMssql·SchemaArtifactsSqlite·CaravanMetaSeeder·
- * RuleMasterSampleSeeder·CoreRbacSeeder·McmMenuSeeder·ModuleMenuSeeder·MenuFinalizer 와, 이 파일 안의
- * ScreenUsageSchemaArtifacts·MdmMenuSeeder 다. 단계 클래스는 빈이 아니다. {@link #run} 이 방언을 판정한 뒤 만든
+ * RuleMasterSampleSeeder·CoreRbacSeeder·McmMenuSeeder·ModuleMenuSeeder·MenuFinalizer·ScreenUsageSchemaArtifacts 와,
+ * 이 파일 안의 MdmMenuSeeder 다. 단계 클래스는 빈이 아니다. {@link #run} 이 방언을 판정한 뒤 만든
  * {@link SeedSupport} 를 받아 쓰고, 트랜잭션은 {@link #run} 의 {@code @Transactional} 하나다.
  *
- * <p>PERM_ALL allActions 선언, 화면 사용 통계 DDL, MDM 메뉴 시드는 다른 모듈의 소스 대조 시험(mcm-core
- * ScreenUsageOasisContractTest·ScreenUsageMssqlDdlTest, mdm MdmOasisActionVocabularyTest)이 이 파일을 문자열로 읽으므로
- * seed 패키지로 옮기지 않고 이 파일에 둔다.
+ * <p>PERM_ALL allActions 선언과 MDM 메뉴 시드는 다른 모듈의 소스 대조 시험(mcm-core ScreenUsageOasisContractTest,
+ * mdm MdmOasisActionVocabularyTest)이 이 파일을 문자열로 읽으므로 seed 패키지로 옮기지 않고 이 파일에 둔다.
+ * mcm-core ScreenUsageMssqlDdlTest 는 {@link #run} 의 화면 사용 통계 단계와 SQLite 보강 단계의 호출 순서를 이 파일에서 본다.
  */
 @Component
 public class DataInitializer implements ApplicationRunner {
@@ -319,61 +319,6 @@ public class DataInitializer implements ApplicationRunner {
     int unlockLocalAdmin() {
         return new CoreRbacSeeder(new SeedSupport(entityManager, sqliteDialect), passwordEncoder, environment)
                 .unlockLocalAdmin();
-    }
-
-    /**
-     * 화면 사용 통계 원본·일별 집계 테이블 멱등 생성 단계 (MSSQL 계열, 2026-10-04 DataInitializer 분할).
-     *
-     * <p>mcm-core {@code ScreenUsageMssqlDdlTest} 가 이 DDL 사용과 호출 위치를 {@code DataInitializer.java} 소스에서
-     * 문자열로 확인하므로 seed 패키지로 옮기지 않고 이 파일 안에 둔다.
-     */
-    static final class ScreenUsageSchemaArtifacts extends SeedSupport {
-
-        ScreenUsageSchemaArtifacts(SeedSupport support) {
-            super(support);
-        }
-
-        /**
-         * 화면 사용 통계 원본·일별 집계 테이블 멱등 생성 (MSSQL 계열, 2026-10-02).
-         * <p>DDL 정본은 mcm-core {@link ScreenUsageMssqlDdl} — 운영 DBA 전달본과 같은 문장이다. 두 테이블은 schema 접두가 없어
-         * {@link #tableExists(String, String)}(schema 필수) 대신 기본 스키마로 해석하는 {@code OBJECT_ID(테이블)} 로 확인한다.
-         * local-db 는 ddl-auto=update 가 먼저 만들 수 있으므로 인덱스도 이름으로 하나씩 확인한다.
-         */
-        void initScreenUsageArtifacts() {
-            if (!tableExistsInDefaultSchema(ScreenUsageMssqlDdl.LOG_TABLE)) {
-                nq(ScreenUsageMssqlDdl.CREATE_LOG_TABLE).executeUpdate();
-                log.info("[DataInitializer] CREATE TABLE: {}", ScreenUsageMssqlDdl.LOG_TABLE);
-            }
-            for (ScreenUsageMssqlDdl.IndexDdl index : ScreenUsageMssqlDdl.LOG_INDEXES) {
-                if (!indexExistsInDefaultSchema(ScreenUsageMssqlDdl.LOG_TABLE, index.name())) {
-                    nq(index.sql()).executeUpdate();
-                    log.info("[DataInitializer] CREATE INDEX: {}", index.name());
-                }
-            }
-            if (!tableExistsInDefaultSchema(ScreenUsageMssqlDdl.DAY_TABLE)) {
-                nq(ScreenUsageMssqlDdl.CREATE_DAY_TABLE).executeUpdate();
-                log.info("[DataInitializer] CREATE TABLE: {}", ScreenUsageMssqlDdl.DAY_TABLE);
-            }
-        }
-
-        /** schema 접두 없는 테이블 존재 여부 — 접속 계정 기본 스키마로 해석 (MSSQL). */
-        private boolean tableExistsInDefaultSchema(String table) {
-            Number cnt = (Number) nq(
-                    "SELECT COUNT(*) FROM sys.objects WHERE object_id = OBJECT_ID(:name) AND type = 'U'")
-                    .setParameter("name", table)
-                    .getSingleResult();
-            return cnt != null && cnt.intValue() > 0;
-        }
-
-        /** schema 접두 없는 테이블의 인덱스 존재 여부 (MSSQL). */
-        private boolean indexExistsInDefaultSchema(String table, String indexName) {
-            Number cnt = (Number) nq(
-                    "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(:name) AND name = :idx")
-                    .setParameter("name", table)
-                    .setParameter("idx", indexName)
-                    .getSingleResult();
-            return cnt != null && cnt.intValue() > 0;
-        }
     }
 
     /**
