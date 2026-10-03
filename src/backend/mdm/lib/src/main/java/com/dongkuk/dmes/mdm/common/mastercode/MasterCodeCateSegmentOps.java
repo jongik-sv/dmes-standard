@@ -35,6 +35,10 @@ import org.springframework.stereotype.Component;
  * <p>쓰기는 DRAFT V 에서만 한다(아니면 MDM002). ROW_VERSION 은 받지도 올리지도 않는다 — 호출자가 같은 트랜잭션에서 먼저
  * {@code VersionWriteGuard.beginDraftWrite} 를 부른다(불변 규칙 8). BASE(cate_id="BASE")는 모든 조작에서 MDM012 다(불변
  * 규칙 2).
+ *
+ * <p>flush 규칙은 {@link MasterCodeItemSegmentOps} 클래스 설명과 같다. 지우기는 {@code delete} 바로 뒤 {@code flush}, 단건
+ * 쓰기는 {@code saveAndFlush} 이고, 반복문 안의 연쇄 갱신(소속 닫기·다시 열기)은 {@code save} 로 모은 뒤 public 메서드가
+ * 돌아가기 전에 리포지토리 {@code flush} 를 한 번 부른다(DB 오류가 serviceTask 안에서 나게).
  */
 @Component
 public class MasterCodeCateSegmentOps {
@@ -121,9 +125,10 @@ public class MasterCodeCateSegmentOps {
                 deleteCateItem(ci);
             } else {
                 ci.setToVer(v);
-                cateItemRepository.saveAndFlush(ci);
+                cateItemRepository.save(ci);
             }
         }
+        cateItemRepository.flush();
     }
 
     // ── 쓰기: TABLE 소속 ────────────────────────────────────────────────
@@ -240,8 +245,9 @@ public class MasterCodeCateSegmentOps {
                 continue;
             }
             ci.setToVer(OPEN);
-            cateItemRepository.saveAndFlush(ci);
+            cateItemRepository.save(ci);
         }
+        cateItemRepository.flush();
     }
 
     // ── 공통 ────────────────────────────────────────────────────────────
