@@ -3,11 +3,7 @@ package kr.dongkuk.maru.mdm.engine.expr;
 import com.ezylang.evalex.EvaluationException;
 import com.ezylang.evalex.data.EvaluationValue;
 import com.ezylang.evalex.parser.Token;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.time.format.ResolverStyle;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import kr.dongkuk.maru.mdm.engine.code.CodeResolver;
@@ -23,12 +19,6 @@ final class MasterQuery {
 
     private static final String BASE = "BASE";
     private static final Pattern ATTR = Pattern.compile("attr(0[1-9]|10)");
-    private static final Pattern DATE_8 = Pattern.compile("[0-9]{8}");
-    private static final Pattern DATE_TIME_14 = Pattern.compile("[0-9]{14}");
-    private static final DateTimeFormatter YYYYMMDD =
-            DateTimeFormatter.ofPattern("uuuuMMdd").withResolverStyle(ResolverStyle.STRICT);
-    private static final DateTimeFormatter YYYYMMDDHHMMSS =
-            DateTimeFormatter.ofPattern("uuuuMMddHHmmss").withResolverStyle(ResolverStyle.STRICT);
 
     private final CodeLookup codes;
     private final CodeResolver resolver;
@@ -76,18 +66,13 @@ final class MasterQuery {
         if (value.isNullValue()) {
             return null;
         }
-        if (value.isStringValue()) {
+        if (value.isStringValue() && MasterBaseDt.isShape(value.getStringValue())) {
             String s = value.getStringValue();
-            try {
-                if (DATE_8.matcher(s).matches()) {
-                    return LocalDate.parse(s, YYYYMMDD).atStartOfDay();
-                }
-                if (DATE_TIME_14.matcher(s).matches()) {
-                    return LocalDateTime.parse(s, YYYYMMDDHHMMSS);
-                }
-            } catch (DateTimeParseException e) {
+            Optional<LocalDateTime> dt = MasterBaseDt.parse(s);
+            if (dt.isEmpty()) {
                 throw new EvaluationException(token, "MASTER_AT base_dt '" + s + "' 는 달력에 없는 일시다");
             }
+            return dt.get();
         }
         throw new EvaluationException(token,
                 "MASTER_AT base_dt 는 YYYYMMDD·YYYYMMDDHHMMSS 문자열이어야 한다: " + value.getValue());

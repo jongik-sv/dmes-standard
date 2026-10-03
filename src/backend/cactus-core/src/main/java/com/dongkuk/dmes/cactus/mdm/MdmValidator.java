@@ -6,6 +6,7 @@ import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import kr.dongkuk.maru.mdm.engine.domain.DefaultDomainValidator;
 import kr.dongkuk.maru.mdm.engine.domain.DomainValidator;
@@ -23,6 +25,7 @@ import kr.dongkuk.maru.mdm.engine.domain.DomainValidator.ValidationResult;
 import kr.dongkuk.maru.mdm.engine.domain.EffectiveExpressions;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation;
+import kr.dongkuk.maru.mdm.engine.expr.MasterBaseDt;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
 import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
@@ -209,6 +212,7 @@ public class MdmValidator {
         Set<String> missing = new LinkedHashSet<>();
         Set<String> skipped = new LinkedHashSet<>();
         Map<String, Set<String>> codesByItem = new LinkedHashMap<>(); // 항목 → 그 항목이 참조하는 마루 코드 ID
+        Map<String, Set<MdmExprRefs.MasterAtRef>> atByItem = new LinkedHashMap<>(); // 항목 → 그 항목의 MASTER_AT 기준 시각
 
         // 컬럼
         Map<String, MdmColumnMeta> metas = new LinkedHashMap<>();
@@ -224,6 +228,7 @@ public class MdmValidator {
                 MdmColumnMeta m = (MdmColumnMeta) v;
                 metas.put(phys, m);
                 codesByItem.put(item(MdmTargetType.COLUMN, phys), refs.columnCodes(m));
+                atByItem.put(item(MdmTargetType.COLUMN, phys), new LinkedHashSet<>(refs.columnMasterAt(m)));
             });
         }
 
@@ -242,6 +247,7 @@ public class MdmValidator {
                 if (at.body() instanceof RuleSetDefinition set) { // 적용 버전이 없으면 엔진이 SET_NOT_FOUND 로 행 오류를 낸다
                     rulesBySet.put(setId, MdmExprRefs.ruleIds(set));
                     codesByItem.put(item(MdmTargetType.RULE_SET, setId), new LinkedHashSet<>(refs.flowCodes(set)));
+                    atByItem.put(item(MdmTargetType.RULE_SET, setId), new LinkedHashSet<>(refs.flowMasterAt(set)));
                 }
             });
             Set<String> ruleIds = new LinkedHashSet<>();
@@ -257,6 +263,7 @@ public class MdmValidator {
                         MdmMetaService.MdmAt at = ruleDefs.found().get(ruleId); // MDM 에 없는 룰은 엔진이 RULE_NOT_FOUND 로 행 오류를 낸다
                         if (at != null && at.body() instanceof RuleDefinition rule) {
                             codesByItem.get(setItem).addAll(refs.ruleCodes(rule));
+                            atByItem.get(setItem).addAll(refs.ruleMasterAt(rule));
                         }
                     }
                 });
@@ -283,7 +290,56 @@ public class MdmValidator {
                 }
             });
         }
+        // MASTER_AT 기준 시각의 본문(스펙 §7.3, 결정 P8) — 상수는 그 시각, 행 칸 변수는 행들의 그 칸 값마다. 풀 수 없는 값은 엔진 평가에 맡긴다
+        Map<LocalDateTime, Map<String, Set<String>>> byTime = new TreeMap<>(); // 시각 → 코드 → 항목
+        atByItem.forEach((itemKey, ats) -> {
+            if (skipped.contains(itemKey)) {
+                return;
+            }
+            for (MdmExprRefs.MasterAtRef ref : ats) {
+                for (LocalDateTime dt : baseTimes(ref, request.rows())) {
+                    byTime.computeIfAbsent(dt, k -> new LinkedHashMap<>()).computeIfAbsent(ref.codeId(), k -> new LinkedHashSet<>()).add(itemKey);
+                }
+            }
+        });
+        byTime.forEach((dt, byCode) -> {
+            MdmMetaService.MdmAtLookup r = service.lookupAt(MdmTargetType.CODE, byCode.keySet(), dt.atZone(MdmDefinitionLookup.KST).toInstant());
+            byCode.forEach((id, items) -> {
+                if (r.unavailable().contains(id)) {
+                    items.forEach(itemKey -> skip(itemKey, item(MdmTargetType.CODE, id), skipped, unavailable));
+                }
+            });
+        });
         return new Plan(columns, metas, skipped, unavailable, missing);
+    }
+
+    /** MASTER_AT 기준 시각 — 상수면 그 시각, 변수면 삭제가 아닌 행마다 그 물리명 칸이 하나뿐이고 문자열이며 풀리는 값. */
+    private static Set<LocalDateTime> baseTimes(MdmExprRefs.MasterAtRef ref, List<Map<String, Object>> rows) {
+        if (ref.at() != null) {
+            return Set.of(ref.at());
+        }
+        String phys = MdmNames.toPhysName(ref.var());
+        Set<LocalDateTime> out = new LinkedHashSet<>();
+        if (phys == null) {
+            return out;
+        }
+        for (Map<String, Object> row : rows) {
+            if (row == null || deleted(row)) {
+                continue;
+            }
+            Object value = null;
+            int n = 0;
+            for (Map.Entry<String, Object> e : row.entrySet()) {
+                if (phys.equals(MdmNames.toPhysName(e.getKey()))) {
+                    n++;
+                    value = e.getValue();
+                }
+            }
+            if (n == 1 && value instanceof String s) { // 칸이 겹치면 미리 받지 않는다 — 검사 단계가 형식 오류로 잡는다
+                MasterBaseDt.parse(s).ifPresent(out::add);
+            }
+        }
+        return out;
     }
 
     private static void skip(String itemKey, String cause, Set<String> skipped, Set<String> unavailable) {
