@@ -11,6 +11,20 @@ pnpm test:e2e:mdm-user --project=dmc    # 한 그룹만(setup 이 먼저 돈다)
 ```
 
 - 전제: 포털(`SMOKE_MCM_BASE_URL`, 기본 `http://localhost:5100` — `NEXTAUTH_URL` 과 같아야 로그인 쿠키가 유지된다)·mcm·mdm 백엔드가 떠 있다.
+- 전제 DB(2026-10-03 결정): 사용자가 평소 로컬에서 쓰는 주 DB, 곧 **마루 MDM 로컬 샘플이 든 mdm.db** 다. `./be-run.sh` 로 mdm 을 띄우면
+  빈 mdm.db 에 `src/backend/mdm/sample/mdm-local-sample.sql` 이 한 번 들어간다(`MdmLocalSampleLoader`). 새 DB 로 따로 띄울 때는 mdm 을
+  같은 인자로 띄운다. mcm 은 기동 시드만 있으면 되고 시험 사용자는 setup 이 화면에서 만든다. SQL 픽스처는 넣지 않는다.
+  ```bash
+  # 새 DB 격리 실행 — src/backend/data 의 mcm·mdm·caravan-*.db(-wal·-shm 포함)를 옮긴 뒤. 포트는 비어 있는 것으로 바꿔 쓴다.
+  # 나머지(포털 환경변수·정리)는 docs/mdm/tasks/TSK-05-02/design.md §3.7 과 같다. 다른 점은 mdm 의 --mdm.sample.path 와 픽스처를 넣지 않는 것이다.
+  cd src/backend/mcm && ../gradlew :api:bootRun --no-daemon --console=plain --args="--spring.profiles.active=local --server.port=18521 …"
+  cd src/backend/mdm && ../gradlew :api:bootRun --no-daemon --console=plain \
+    --args="--spring.profiles.active=local --server.port=18596 --mdm.sample.path=sample/mdm-local-sample.sql"
+  ```
+- 샘플 의존: dmb 여정은 샘플의 표준 컬럼(TC_CD·SND_FAC_TP·SND_SYS·LINE_CODE·SEQUENCE_NO·COIL_ID·PROD_DT·COIL_THK)의 길이·이름과
+  EAI `GLUE`, 이미 전문에 쌓인 헤더를 단언에 쓴다. 샘플 SQL 을 바꾸면 이 단언이 깨질 수 있다.
+- 새 mcm 을 띄운 뒤 첫 만료 토큰 정리(`RevokedTokenPurger`, 기동 60초 뒤)가 지나간 다음에 시작한다. 그 정리가 setup 로그인과 겹치면
+  SQLite 잠금(SQLITE_BUSY)으로 로그인이 500 이 된다. be-mcm 로그에 `scheduling-1` 의 `TB_SEC_REVOKED_TOKEN` 삭제가 찍히면 지나간 것이다.
 - 로그인 상태(`.out/auth/*.json`)가 이미 있으면 `--project=dme --no-deps` 처럼 setup 을 건너뛸 수 있다. dme 는 장별로 `-g "A 룰 등록"`·`"B 새 버전"`·`"C 룰 세트"`·`"D 화면 연결"` 로 나눠 돌릴 수 있다.
 - 결과물: `e2e/mdm-user/.out/` (git 제외) — `screens/`(사람이 보는 스크린샷), `results/`(실패 스크린샷·trace), `report/`(HTML 보고서).
 - 동시 로그인·쓰기에서 SQLite 가 SQLITE_BUSY 를 내므로 한 줄(workers 1)로 돈다. 다른 세션이 m-mdm 코드를 고치는 중이면 개발 서버 Fast Refresh 로 화면이 다시 적재되어 실패할 수 한다.

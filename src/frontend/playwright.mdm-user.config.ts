@@ -8,6 +8,9 @@ import { defineConfig } from "@playwright/test";
  *
  * 파일 접미어를 .user.ts 로 두어 기본 playwright.config.ts(e2e/**.spec.ts)에 섞이지 않는다.
  * 전제: 포털(SMOKE_MCM_BASE_URL, 기본 http://localhost:5100)·mcm·mdm 백엔드가 떠 있다. 결과물은 e2e/mdm-user/.out (git 제외).
+ * 전제 DB: 마루 MDM 로컬 샘플이 든 mdm.db — be-run.sh 로 띄우거나, 새 DB 면 mdm 을
+ *   `--mdm.sample.path=sample/mdm-local-sample.sql` 로 띄운다(MdmLocalSampleLoader 가 빈 DB 에 한 번 넣는다). SQL 픽스처는 넣지 않는다.
+ *   dmb 여정은 샘플의 표준 컬럼 길이·이름과 EAI GLUE 를 단언에 쓴다 — 샘플 SQL 을 바꾸면 깨질 수 있다. 자세한 절차는 e2e/mdm-user/TEST-CASES.md.
  */
 const group = (name: string) => ({ name, testMatch: new RegExp(`${name}\\.user\\.ts$`), dependencies: ["setup"] });
 
