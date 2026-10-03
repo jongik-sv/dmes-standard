@@ -68,15 +68,6 @@ public class JpaConfig {
             ds.setPassword(password);
         }
         ds.setPoolName("mcm-host-primary");
-        if (url != null && url.startsWith("jdbc:sqlite:")) {
-            // 로컬 SQLite 전용(2026-10-03) — 트랜잭션을 BEGIN IMMEDIATE 로 열어 시작에서 쓰기 잠금을 기다리게 한다.
-            // DEFERRED 면 SELECT 로 SHARED 를 쥔 트랜잭션이 UPDATE 로 승격할 때 다른 쓰기와 겹치면 SQLite 가 busy handler 없이
-            // 바로 SQLITE_BUSY 를 돌려준다(동시 로그인 resetTryCnt·RevokedTokenPurger DELETE → 500 → 포털 401).
-            // 대가로 읽기 트랜잭션도 쓰기 잠금을 잡아 로컬 트랜잭션이 직렬화되므로 대기 시간을 10초로 늘린다(드라이버 기본 3초).
-            // cmn extras 풀(같은 mcm.db)은 걸지 않는다 — txBiz 가 잠금을 쥔 요청 안에서 txCmn 이 BEGIN IMMEDIATE 하면 자기 교착한다.
-            ds.addDataSourceProperty("transaction_mode", "IMMEDIATE");
-            ds.addDataSourceProperty("busy_timeout", "10000");
-        }
         return ds;
     }
 
