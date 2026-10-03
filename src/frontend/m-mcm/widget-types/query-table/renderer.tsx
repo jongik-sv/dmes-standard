@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { IconDownload } from "@tabler/icons-react";
-import { Button } from "@dk-oasis/shared/form";
-import { AgDataGrid } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GridExcelFoot } from "@dk-oasis/shared/grid";
 import { exportToExcel, today } from "@dk-oasis/shared/utils";
 import type { WidgetProps } from "@dk-oasis/shared/widget";
 
@@ -46,15 +44,11 @@ export default function QueryTableRenderer({ definition, widgetId, refreshKey, t
                 ariaLabel="쿼리 결과"
               />
             </div>
-            <div className="wq-foot">
-              <span className="wq-foot__note">
-                {data.truncated ? truncatedNote(data.rows.length) : `${data.rows.length.toLocaleString()}행`}
-              </span>
-              <Button size="mini" onClick={handleExcel} title="보이는 행을 엑셀로 내려받기" data-testid="wq-excel">
-                <IconDownload size={12} aria-hidden="true" style={{ marginRight: 2 }} />
-                엑셀
-              </Button>
-            </div>
+            <GridExcelFoot
+              note={data.truncated ? truncatedNote(data.rows.length) : `${data.rows.length.toLocaleString()}행`}
+              onExcel={handleExcel}
+              testId="wq-excel"
+            />
           </div>
         ))}
     </>

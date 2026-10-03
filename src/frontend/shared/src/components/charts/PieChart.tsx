@@ -12,9 +12,12 @@ interface PieChartProps {
   data: PieSlice[];
   size?: number;
   showLegend?: boolean;
+  /** 범례 값 뒤에 붙는 단위. 기본 「건」, 빈 문자열이면 단위 없이 값만 보인다. */
+  unit?: string;
 }
 
-const PieChart = memo(function PieChart({ data, size = 180, showLegend = true }: PieChartProps) {
+const PieChart = memo(function PieChart({ data, size = 180, showLegend = true, unit }: PieChartProps) {
+  const legendUnit = unit ?? "건";
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return <div style={{ color: "#999", fontSize: 12, padding: 12 }}>데이터 없음</div>;
 
@@ -50,7 +53,7 @@ const PieChart = memo(function PieChart({ data, size = 180, showLegend = true }:
             <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
               <div style={{ width: 12, height: 12, borderRadius: 2, background: s.color, flexShrink: 0 }} />
               <span>
-                {s.label}: {s.value}건 ({s.pct}%)
+                {s.label}: {s.value}{legendUnit} ({s.pct}%)
               </span>
             </div>
           ))}

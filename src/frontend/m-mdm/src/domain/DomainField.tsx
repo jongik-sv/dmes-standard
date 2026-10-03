@@ -22,11 +22,21 @@ export interface DomainFieldProps {
   onChange: (row: DomainRow | null) => void;
   disabled?: boolean;
   testId: string;
+  /** 입력 칸의 접근성 이름. */
+  ariaLabel?: string;
+  /** 검색 결과에서 바로 적용할 도메인을 고른다. 기본은 `matchDomain`(정확 일치, 없으면 단건). */
+  autoPick?: (rows: readonly DomainRow[], text: string) => DomainRow | null;
+  /** 찾기 팝업이 열리고 닫힐 때 알린다 — 바깥 팝업이 Escape 를 무시할 때 쓴다(Local-Rules §18). */
+  onPopupChange?: (open: boolean) => void;
 }
 
-export function DomainField({ domainId, label, search, onChange, disabled, testId }: DomainFieldProps) {
+export function DomainField({ domainId, label, search, onChange, disabled, testId, ariaLabel, autoPick = matchDomain, onPopupChange }: DomainFieldProps) {
   const [text, setText] = useState(label);
-  const [popup, setPopup] = useState<string | null>(null);
+  const [popup, setPopupState] = useState<string | null>(null);
+  const setPopup = (v: string | null) => {
+    setPopupState(v);
+    onPopupChange?.(v !== null);
+  };
   const seq = useRef(0);
 
   // 밖에서 도메인이 바뀌면(행 선택·초기화) 칸 글자를 맞춘다.
@@ -55,7 +65,7 @@ export function DomainField({ domainId, label, search, onChange, disabled, testI
       // 검색 오류는 팝업이 다시 검색하며 보인다.
     }
     if (mine !== seq.current) return;
-    const hit = matchDomain(found, t);
+    const hit = autoPick(found, t);
     if (hit) pick(hit);
     else setPopup(t);
   };
@@ -64,6 +74,7 @@ export function DomainField({ domainId, label, search, onChange, disabled, testI
     <div style={{ display: "flex", gap: "var(--spacing-xs)", alignItems: "center" }}>
       <Input
         data-testid={testId}
+        aria-label={ariaLabel}
         value={text}
         disabled={disabled}
         placeholder="도메인명·표준명 입력"

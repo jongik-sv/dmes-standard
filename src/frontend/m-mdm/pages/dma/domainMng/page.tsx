@@ -18,6 +18,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 import { MdmPageLayout } from "@/shell";
 import { executePreview, saveDomain, searchDomains, validateDomain, viewDomain } from "./api";
 import { parentCandidates } from "./domain-tree";
+import { makeParentSearch } from "./parent-search";
 import { storedForm, type ParentLinkMode } from "./parent-link";
 import { previewStandard } from "./preview";
 import { DomainBasicForm, KIND_OPTIONS } from "./components/DomainBasicForm";
@@ -87,9 +88,13 @@ export default function DomainMngPage() {
 
   const readOnly = mode === "none" || !canEdit || busy;
   const currentKey = useMemo(() => JSON.stringify([draft, cases, examplesText]), [draft, cases, examplesText]);
+  // 부모를 칸에서 검색해 고르면 화면 목록(rows)에 없을 수 있다 — 고른 원본 행을 보관해 목록과 함께 찾는다.
+  const seenParents = useRef(new Map<number, DomainRow>());
+  const [pickedParent, setPickedParent] = useState<DomainRow | null>(null);
   const parentRow = useMemo(
-    () => rows.find((r) => r.DOMAIN_ID === draft.parentDomainId) ?? null,
-    [rows, draft.parentDomainId],
+    () => rows.find((r) => r.DOMAIN_ID === draft.parentDomainId)
+      ?? (pickedParent && pickedParent.DOMAIN_ID === draft.parentDomainId ? pickedParent : null),
+    [rows, draft.parentDomainId, pickedParent],
   );
 
   // ── 조회 ──
@@ -135,6 +140,7 @@ export default function DomainMngPage() {
       setRequiredVars(out.requiredVars ?? []);
       setImpact(out.impact ?? null);
       setMode("edit");
+      setPickedParent(null);
       setPreviewValue("");
       setVarValues({});
       resetResults();
@@ -154,6 +160,7 @@ export default function DomainMngPage() {
     setRequiredVars([]);
     setImpact(null);
     setMode("new");
+    setPickedParent(null);
     setPreviewValue("");
     resetResults();
   };
@@ -170,6 +177,8 @@ export default function DomainMngPage() {
     setRequiredVars([]);
     setImpact(null);
     setMode("child");
+    // 부모는 지금 고른 행이다 — 이전에 검색해 고른 부모를 이어 쓰지 않고, 목록에 없어도 이 행으로 이름·안내를 보인다.
+    setPickedParent(selectedRow);
     setPreviewValue("");
     resetResults();
   };
@@ -252,7 +261,18 @@ export default function DomainMngPage() {
   const effStdExpr = editingExpr ? (server?.effStdExpr ?? null) : (selectedRow?.EFF_STD_EXPR ?? null);
   const effBizExpr = editingExpr ? (server?.effBizExpr ?? null) : (selectedRow?.EFF_BIZ_EXPR ?? null);
 
-  const candidates = useMemo(() => parentCandidates(rows, draft.domainId), [rows, draft.domainId]);
+  // 부모 후보는 칸에서 검색할 때 서버에서 받는다. 자기·하위 제외 규칙은 검색 결과 전체에 적용한다.
+  const parentSearch = useMemo(
+    () => makeParentSearch(
+      (keyword) => searchDomains({ keyword, domainKind: "" }).then((out) => out.domains ?? []),
+      (found) => parentCandidates(found, draft.domainId),
+      (matched) => {
+        // 검색할 때마다 그 검색의 후보로 교체한다(누적하지 않는다).
+        seenParents.current = new Map(matched.map((r) => [r.DOMAIN_ID, r]));
+      },
+    ),
+    [draft.domainId],
+  );
   const results = validation?.testResults ?? [];
 
   return (
@@ -300,10 +320,15 @@ export default function DomainMngPage() {
                     structureLocked={mode === "child" || mode === "edit"}
                     parentLocked={mode === "child" || mode === "edit"}
                     readOnly={readOnly}
-                    parentOptions={candidates}
+                    parentSearch={parentSearch}
                     parentRow={parentRow}
                     examplesText={examplesText}
-                    onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+                    onChange={(patch) => {
+                      if (patch.parentDomainId !== undefined) {
+                        setPickedParent(patch.parentDomainId === null ? null : seenParents.current.get(patch.parentDomainId) ?? null);
+                      }
+                      setDraft((d) => ({ ...d, ...patch }));
+                    }}
                     onExamplesChange={setExamplesText}
                   />
                 </div>
@@ -343,7 +368,7 @@ export default function DomainMngPage() {
       </ContentBody>
 
       {selectedRow && (
-        <ParentLinkModal open={parentLink !== null} mode={parentLink ?? "link"} domain={selectedRow}
+        <ParentLinkModal open={parentLink !== null} mode={parentLink ?? "link"} rows={rows} domain={selectedRow}
           dirty={storedKey !== null && storedKey !== currentKey} onClose={() => setParentLink(null)}
           onChanged={(id) => {
             void runSearch(filters).then(() => openDomain(id));

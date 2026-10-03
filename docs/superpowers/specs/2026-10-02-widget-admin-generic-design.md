@@ -307,7 +307,7 @@ BE `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` 와 FE `m-mcm/proxy.
 | 유형 | 설정 | 렌더러 동작 |
 |---|---|---|
 | `query-table` | `{ sql, columns?: [{field, header?, width?, align?: "left"\|"right"\|"center", format?: "number"\|"date"\|"text"}] }` | `widgetData/run` 결과를 `AgDataGrid`(shared)로. `columns` 없으면 결과 컬럼 전부. `truncated` 면 아래에 「상위 500행만 표시」 |
-| `query-chart` | `{ sql, chartType: "bar"\|"line"\|"area"\|"pie", xField, series: [{field, label?}] }` | shared `charts` 컴포넌트로. 본문 크기는 `useWidgetBodySize` |
+| `query-chart` | `{ sql, chartType: "bar"\|"line"\|"area"\|"pie", xField, series: [{field, label?}], unit?: string }` | shared `charts` 컴포넌트로. 본문 크기는 `useWidgetBodySize`. `unit`(선택, 10자 이하)은 원 차트 범례 단위 — 비면 첫 계열 이름 끝 괄호(반각 `()`·전각 `（）`, 안 공백 뺀 1~10자, 「사용 시간(분)」→분)를 쓰고, 그것도 없으면 단위를 붙이지 않는다. 백엔드는 이 키를 검사하지 않는다 |
 | `query-number` | `{ sql, labelField, valueField, unitField?, unit?, format?: "number"\|"percent" }` | 결과 행마다 숫자 타일(최대 8개). shared `KpiTile` 재사용 |
 | `markdown` | `{ markdown }` | `marked` → `dompurify` 정화 → 포털 안에 그대로 |
 | `html` | `{ html, allowScript: boolean }` | `false`: `dompurify` 정화 후 포털 안에. `true`: `<iframe sandbox="allow-scripts" srcdoc>` — **`allow-same-origin` 은 절대 넣지 않는다**(둘을 함께 주면 sandbox 를 벗어난다). 높이는 위젯 칸을 채운다 |
@@ -522,7 +522,7 @@ interface LlmClient {
 - **챗봇 남용**: `instId` 를 바꾸면 인스턴스당 100개 상한이 의미가 없고 LLM 비용이 늘어난다. 사용자별 호출·기록 상한이 필요하다(배치 행 존재 검사는 부서·코드 기본 배치 사용자를 막으므로 쓰지 않는다).
 - **운영 환경 확인**: MSSQL 에서 `;` 없이 이어 쓴 여러 문장 판정, 운영 context path(`/mcm/api`)에서 BE 필터 판정, WildFly·Nginx 의 본문 101MB 허용, 챗봇 최대 응답 시간(도구 5회 × 공급자 제한 시간, 약 123초)과 앞단 시간 제한.
 - **KoreaExim**: CNH/CNY 표기 차이를 실제 키로 검증하지 않았다.
-- **shared**: `PieChart` 범례의 「건」 고정 단위와 같은 이름 항목의 key 중복(기존 컴포넌트 변경이라 승인 뒤).
+- **shared**: ~~`PieChart` 범례의 「건」 고정 단위~~ — 해결됨(2026-10-03): `PieChart` 에 `unit` 속성(기본 「건」, `""` 이면 단위 없음)을 더하고, 쿼리 차트 원 차트는 첫 계열 이름 끝 괄호(「사용 시간(분)」→분)를 단위로 넘긴다(`pieUnitOf`). 남은 일: 같은 이름 항목의 key 중복(기존 컴포넌트 변경이라 승인 뒤).
 
 ## 17. 메모장 위젯 `memo` (2026-10-03 추가)
 

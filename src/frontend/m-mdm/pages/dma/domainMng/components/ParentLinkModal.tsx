@@ -10,16 +10,19 @@ import { Button } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { Modal } from "@dk-oasis/shared/modal";
+import { DomainField, matchExactDomain } from "@/domain";
 import { saveDomain, searchDomains, validateDomain } from "../api";
+import { makeParentSearch } from "../parent-search";
 import { linkCandidates, parentLinkLabels, relinkDraft, type ParentLinkMode } from "../parent-link";
 import type { DomainDetail, DomainRow, ValidateResult } from "../types";
 import { DomainCheckList } from "./DomainCheckList";
 import { DomainImpactPanel } from "./DomainImpactPanel";
-import { ParentDomainSelect } from "./ParentDomainSelect";
 
 export interface ParentLinkModalProps {
   open: boolean;
   mode: ParentLinkMode;
+  /** 화면이 이미 들고 있는 목록 — 「지금 부모」 이름을 보이는 데만 쓴다(전체 조회를 따로 하지 않는다). */
+  rows: DomainRow[];
   /** 저장된 행(view 응답). */
   domain: DomainDetail;
   /** 편집 폼에 저장하지 않은 변경이 있으면 버려진다고 알린다. */
@@ -35,9 +38,11 @@ function nameOf(rows: DomainRow[], id: number | null): string {
   return r ? `${r.DOMAIN_NAME} (${r.STD_NAME})` : String(id);
 }
 
-export function ParentLinkModal({ open, mode, domain, dirty, onClose, onChanged }: ParentLinkModalProps) {
+export function ParentLinkModal({ open, mode, rows, domain, dirty, onClose, onChanged }: ParentLinkModalProps) {
   const { showMessage } = useMessage();
-  const [rows, setRows] = useState<DomainRow[]>([]);
+  const [parentLabel, setParentLabel] = useState("");
+  // 찾기 팝업이 위에 떠 있는 동안 Escape 는 그 팝업만 닫는다(Local-Rules §18).
+  const [finding, setFinding] = useState(false);
   const [parentId, setParentId] = useState<number | null>(null);
   const [validation, setValidation] = useState<ValidateResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,22 +69,25 @@ export function ParentLinkModal({ open, mode, domain, dirty, onClose, onChanged 
     }
   };
 
-  // 열 때마다 초기화한다. 후보는 검색 조건과 무관하게 전체 목록에서 고른다(화면 목록은 걸러져 있을 수 있다).
+  // 열 때마다 초기화한다. 후보는 칸에서 검색할 때만 서버에서 받는다(열 때 전체 조회 없음).
   useEffect(() => {
     if (!open) return;
     setParentId(null);
     setValidation(null);
-    searchDomains({ keyword: "", domainKind: "" })
-      .then((out) => setRows(out.domains ?? []))
-      .catch(fail);
+    setParentLabel("");
+    setFinding(false);
     if (mode === "unlink") void check(null);
     // 열 때 한 번만 — domain·mode 는 열린 동안 바뀌지 않는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const candidates = useMemo(
-    () => linkCandidates(rows, domain.DOMAIN_ID, domain.PARENT_DOMAIN_ID ?? null),
-    [rows, domain.DOMAIN_ID, domain.PARENT_DOMAIN_ID],
+  // 후보 규칙(자기·자기 하위·지금 부모 제외)은 검색 결과 전체에 적용한다 — 하위가 검색어에 맞으면 서버가 조상 행을 함께 준다.
+  const parentSearch = useMemo(
+    () => makeParentSearch(
+      (keyword) => searchDomains({ keyword, domainKind: "" }).then((out) => out.domains ?? []),
+      (found) => linkCandidates(found, domain.DOMAIN_ID, domain.PARENT_DOMAIN_ID ?? null),
+    ),
+    [domain.DOMAIN_ID, domain.PARENT_DOMAIN_ID],
   );
 
   const choose = (id: number | null) => {
@@ -111,7 +119,9 @@ export function ParentLinkModal({ open, mode, domain, dirty, onClose, onChanged 
       open={open}
       title={labels.title}
       size="lg"
-      onClose={onClose}
+      onClose={() => {
+        if (!finding) onClose();
+      }}
       footer={
         <>
           <Button onClick={onClose}>취소</Button>
@@ -136,8 +146,13 @@ export function ParentLinkModal({ open, mode, domain, dirty, onClose, onChanged 
               <tr>
                 <th style={DETAIL_LABEL_CELL}>새 부모 도메인 *</th>
                 <td style={DETAIL_VALUE_CELL}>
-                  <ParentDomainSelect value={parentId} options={candidates} placeholder="선택" disabled={busy}
-                    onChange={choose} />
+                  <DomainField testId="domain-parent-link-field" ariaLabel="부모 도메인" autoPick={matchExactDomain}
+                    onPopupChange={setFinding} domainId={parentId} label={parentLabel}
+                    search={parentSearch} disabled={busy}
+                    onChange={(r) => {
+                      setParentLabel(r ? r.domainName || r.stdName : "");
+                      choose(r ? r.domainId : null);
+                    }} />
                 </td>
               </tr>
             )}
