@@ -21,6 +21,7 @@ import {
   uid,
   type LayoutOptions,
 } from "./support";
+import { expectRowCell, fillDateTime } from "../support/mdm-e2e";
 
 /**
  * 마루 MDM > 레이아웃(dmb) 사용자 여정 E2E.
@@ -122,6 +123,37 @@ async function revealRow(grid: Locator, text: string): Promise<Locator> {
   return row;
 }
 
+/**
+ * 항목 표 위 [삭제](고른 항목 지우기) — 3단계(D-144)부터 같은 화면 버전 줄에 [삭제](header-ver-delete·layout-ver-delete)가 생겨
+ * 이름만으로는 둘이 겹친다. 항목 버튼 줄의 [+ FILLER] 바로 옆 버튼으로 찾는다(HeaderItemGrid·BodyItemGrid, testid 없음).
+ */
+const itemDeleteButton = (page: Page, prefix: "header" | "layout") =>
+  tid(page, `${prefix}-item-add-filler`).locator("xpath=following-sibling::button[normalize-space()='삭제'][1]");
+
+/**
+ * 확정 버전 위에 [새 버전(minor)]으로 DRAFT 를 만든 뒤 버전 줄 [삭제](3단계 D-144)로 지운다. 확인창을 거치고, 지우면 확정 버전만 남는다.
+ * 첫 버전 DRAFT 를 지우면 헤더·전문이 버전 없이 목록에 남으므로(LayoutVersionActionSqliteTest), 여정은 확정 뒤 새 DRAFT 를 지운다.
+ */
+async function newMinorThenDelete(page: Page, prefix: "header" | "layout") {
+  const sel = tid(page, `${prefix}-ver-select`);
+  await expect(sel).toHaveValue("1.000", { timeout: 20_000 });
+  await tid(page, `${prefix}-ver-new-minor`).click();
+  await expect(sel).toHaveValue("1.001", { timeout: 20_000 });
+  await expect(sel.locator('option[value="1.001"]')).toHaveText("v1.001 작성 중"); // DRAFT 표기(versionOptions)
+  await tid(page, `${prefix}-ver-delete`).click();
+  const confirm = page.getByRole("dialog").filter({ hasText: "v1.001 DRAFT 를 삭제할까요?" });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "확인", exact: true }).click();
+  await expect(sel.locator('option[value="1.001"]')).toHaveCount(0, { timeout: 20_000 });
+  await expect(sel).toHaveValue("1.000");
+}
+
+/**
+ * 화면 머리 [조회]. 레이아웃 [버전·영향도] 탭이 열려 있으면 영향 전문 찾기의 [조회](impact-search)도 보여 이름이 겹친다.
+ */
+const headerSearch = (page: Page) =>
+  screen(page).locator(".page-layout__header-buttons").getByRole("button", { name: "조회", exact: true });
+
 /** 검색 결과 그리드에서 표준 물리명이 정확히 phys 인 행 — 접두어가 겹치는 컬럼(PROD_DT/PLAN_PROD_DT 등)을 가려낸다. */
 function columnPickRow(page: Page, phys: string): Locator {
   return tid(page, "column-pick-grid").locator(".ag-row")
@@ -143,8 +175,7 @@ async function pickColumn(page: Page, addTestId: string, phys: string) {
 /** 확정 화면(dmb/layoutConfirm)에서 적용 시작을 넣어 검사하고(경고가 있으면 확인) 확정한다. [확정] 으로 화면이 열린 직후에 부른다. */
 async function confirmOnScreen(page: Page, applyFrom: string) {
   await expect(tid(page, "lc-target")).toBeVisible({ timeout: 60_000 });
-  await tid(page, "lc-apply-from").fill(applyFrom);
-  await tid(page, "lc-apply-from").press("Enter");
+  await fillDateTime(tid(page, "lc-apply-from"), applyFrom);
   await tid(page, "lc-validate").click();
   await expect(tid(page, "lc-checks")).toBeVisible({ timeout: 30_000 });
   if (await tid(page, "lc-ack").count()) await tid(page, "lc-ack").getByText("경고를 확인했습니다").click();
@@ -197,7 +228,11 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await go(page, "headerMng");
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 레이아웃 > 전문 헤더 정의");
-    await expect(tid(page, "header-list")).toBeVisible();
+    // 첫 진입은 조회하지 않는다(cf4fbb05) — 목록 자리는 빈 안내이고 [조회]로 목록을 받는다.
+    await expect(tid(page, "header-search-keyword")).toBeVisible();
+    await expect(tid(page, "header-list-empty")).toHaveText("조회된 헤더가 없습니다");
+    await button(page, "조회").click();
+    await expect(tid(page, "header-list").locator(".ag-center-cols-container .ag-row").first()).toBeVisible({ timeout: 20_000 });
     await expect(screen(page).getByText("목록에서 헤더를 선택하거나 [신규] 를 누르세요.")).toBeVisible();
     await expect(button(page, "조회")).toBeEnabled();
     await expect(button(page, "신규")).toBeEnabled();
@@ -293,7 +328,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expect(tid(page, "item-detail-filler-length")).toBeDisabled();
     await snap(page, "dmb-headerMng-04-temp-toggled");
 
-    await button(page, "삭제").click();
+    await itemDeleteButton(page, "header").click();
     await expect(tid(page, "header-length")).toHaveText("28 바이트 (4항목)");
 
     // 사용 전문 영향도 — 새 헤더는 아직 아무 전문도 안 쓴다.
@@ -385,11 +420,15 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expect(row.locator('.ag-cell[col-id="ITEM_COUNT"]')).toHaveText("3");
     await layout(page, "headerMng 목록 H1·H2");
     await snap(page, "dmb-headerMng-08-list");
-    await assertAllButtonsPressed(page, "headerMng");
+    // 3단계(D-144) 버전 줄 — [해제]와 DRAFT [삭제]는 다음 TC-DMB-HDR-09 에서 누른다. 확정 권한이 없어 [확정]은 꺼져 있다.
+    await assertAllButtonsPressed(page, "headerMng", {
+      "header-ver-unlock": "해제는 TC-DMB-HDR-09 에서 누른다",
+      "header-ver-delete": "DRAFT 삭제는 TC-DMB-HDR-09 에서 누른다(확정 뒤 새 버전 DRAFT 를 지운다)",
+    });
     watcher.assertClean("headerMng");
   });
 
-  test("TC-DMB-HDR-09 확정 — 표준관리자(std)는 확정할 수 없다. DRAFT 를 해제하면 담당자(stw)가 선점해 확정한다", async ({ browser }, testInfo) => {
+  test("TC-DMB-HDR-09 확정 — 표준관리자(std)는 확정할 수 없다. DRAFT 를 해제하면 담당자(stw)가 선점해 확정하고, 그 뒤 새 버전 DRAFT 는 [삭제]로 지운다", async ({ browser }, testInfo) => {
     // std — 방금 만든 H2 가 열려 있다. 내 DRAFT 라 해제는 되지만 확정 권한이 없어 [확정] 은 꺼져 있다
     await expect(tid(page, "header-ver-confirm")).toBeDisabled();
     for (const name of [HDR2, HDR1]) {
@@ -424,13 +463,23 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
       await button(steward.page, "조회").click();
       for (const name of [HDR1, HDR2]) {
         const row = gridRow(tid(steward.page, "header-list"), name, "LAYOUT_NAME");
-        await expect(row.locator('.ag-cell[col-id="HEADER_VER"]')).toHaveText("v1.000", { timeout: 20_000 });
-        await expect(row.locator('.ag-cell[col-id="HEADER_STATE"]')).toHaveText("현재");
+        // 목록 오른쪽 열(버전·상태)은 좁은 목록에서 가로 가상화로 그려지지 않을 수 있다 — 굴려 드러낸 뒤 본다(공용 expectRowCell).
+        await expectRowCell(row, "HEADER_VER", "v1.000", { timeout: 20_000 });
+        await expectRowCell(row, "HEADER_STATE", "현재");
       }
       steward.watcher.assertClean("headerMng·layoutConfirm(stw)");
     } finally {
       await steward.page.context().close();
     }
+
+    // std — 확정된 H1 에 [새 버전(minor)]으로 DRAFT 를 만들고 버전 줄 [삭제]로 지우면 확정 버전 v1.000 만 남는다.
+    await tid(page, "header-search-keyword").fill(RUN);
+    await button(page, "조회").click();
+    await gridRow(tid(page, "header-list"), HDR1, "LAYOUT_NAME").click();
+    await expect(tid(page, "header-form-name")).toHaveValue(HDR1, { timeout: 20_000 });
+    await newMinorThenDelete(page, "header");
+    await expectRowCell(gridRow(tid(page, "header-list"), HDR1, "LAYOUT_NAME"), "HEADER_VER", "v1.000", { timeout: 20_000 });
+    watcher.assertClean("headerMng(새 버전 삭제)");
   });
 
   // ═══════════════════════ layoutMng — 전문 레이아웃 ═══════════════════════
@@ -440,7 +489,11 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await go(page, "layoutMng");
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 레이아웃 > 전문 레이아웃");
-    await expect(tid(page, "layout-list")).toBeVisible();
+    // 첫 진입은 조회하지 않는다(cf4fbb05) — 목록 자리는 빈 안내이고 [조회]로 목록을 받는다.
+    await expect(tid(page, "layout-search-keyword")).toBeVisible();
+    await expect(tid(page, "layout-list-empty")).toHaveText("조회된 전문이 없습니다");
+    await button(page, "조회").click();
+    await expect(tid(page, "layout-list").locator(".ag-center-cols-container .ag-row").first()).toBeVisible({ timeout: 20_000 });
     for (const t of ["layout-tab-edit", "layout-tab-check", "layout-tab-version"]) await expect(tid(page, t)).toBeVisible();
     await expect(screen(page).getByText("목록에서 전문을 선택하거나 [신규] 를 누르세요.")).toBeVisible();
     await expect(button(page, "저장")).toBeDisabled();
@@ -490,7 +543,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "layout-item-add-filler").click();
     await tid(page, "item-detail-filler-length").fill("1");
     await expect(tid(page, "layout-body-summary")).toContainText("38");
-    await button(page, "삭제").click();
+    await itemDeleteButton(page, "layout").click();
 
     await pickColumn(page, "layout-item-add-column", "COIL_ID");
     await pickColumn(page, "layout-item-add-column", "PROD_DT");
@@ -511,7 +564,9 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expect(cm.locator('[data-testid^="const-input-"]')).toHaveCount(1);
     await expect(cm.getByTestId("const-default-SND_FAC_TP")).toHaveText("E1");
     // 값 칸은 표시 span 이다 — 칸을 눌러 편집기를 열고 값을 넣어 Enter 로 확정한다.
-    await cm.locator(".ag-center-cols-container .ag-cell").filter({ has: cm.getByTestId("const-input-SND_FAC_TP") }).click();
+    // filter 의 has 는 바깥 칸 기준으로 다시 찾는다 — 모달에서 시작한 로케이터(cm.getByTestId)를 넣으면 칸 안에서 모달을 찾아 늘 0건이다.
+    // 페이지 기준 로케이터로 그 표지를 가진 칸을 고른다(화면 스펙 mdm-layoutMng 의 constRow 와 같은 방식).
+    await cm.locator(".ag-center-cols-container .ag-cell").filter({ has: page.getByTestId("const-input-SND_FAC_TP") }).click();
     const constEditor = cm.locator(".ag-cell-inline-editing input");
     await constEditor.fill("E9");
     await constEditor.press("Enter");
@@ -641,14 +696,19 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     const row = tid(page, "impact-list").locator(".ag-center-cols-container .ag-row").filter({ hasText: LAYOUT_NAME }).first();
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(row).toContainText("MES → ERP");
-    await expect(row).toContainText("91 / 4");
+    // 3단계(D-148, 1d23688e)부터 본문 항목 offset 은 본문 기준 상대값이다(LayoutImpactFinder) — 전문 전체 기준 91 에서 헤더 38바이트를 뺀 53.
+    await expect(row).toContainText("(본문 53 / 4)");
     await snap(page, "dmb-layoutMng-08-impact");
 
     await tid(page, "impact-keyword").fill(`없음-${RUN}`);
     await tid(page, "impact-search").click();
     await expect(tid(page, "impact-list-empty")).toHaveText("찾은 컬럼·도메인이 없습니다", { timeout: 20_000 });
     await layout(page, "layoutMng 영향 전문");
-    await assertAllButtonsPressed(page, "layoutMng");
+    // 3단계(D-144) 버전 줄 — [해제]와 DRAFT [삭제]는 TC-DMB-LAY-10 에서 누른다.
+    await assertAllButtonsPressed(page, "layoutMng", {
+      "layout-ver-unlock": "해제는 TC-DMB-LAY-10 에서 누른다",
+      "layout-ver-delete": "DRAFT 삭제는 TC-DMB-LAY-10 에서 누른다(확정 뒤 새 버전 DRAFT 를 지운다)",
+    });
     watcher.assertClean("layoutMng");
   });
 
@@ -664,14 +724,15 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     watcher.assertClean("headerMng(전문 저장 뒤)");
   });
 
-  test("TC-DMB-LAY-10 확정 — 표준관리자가 DRAFT 를 해제하면 담당자가 선점해 확정하고, 표준관리자 화면에 현재 버전으로 보인다", async ({ browser }, testInfo) => {
+  test("TC-DMB-LAY-10 확정 — 표준관리자가 DRAFT 를 해제하면 담당자가 선점해 확정하고, 표준관리자 화면에 현재 버전으로 보인다. 그 뒤 새 버전 DRAFT 는 [삭제]로 지운다", async ({ browser }, testInfo) => {
     // std — 내 DRAFT 를 해제한다([확정] 은 권한이 없어 꺼져 있다)
     await go(page, "layoutMng");
     await tid(page, "layout-search-keyword").fill(RUN);
-    await button(page, "조회").click();
+    await headerSearch(page).click();
     await gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME").click();
-    await expect(tid(page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: 20_000 });
+    // 앞 시험(LAY-08)이 [버전·영향도] 탭을 연 채라, 이름 칸이 있는 [편집] 탭으로 먼저 돌아간다.
     await tid(page, "layout-tab-edit").click();
+    await expect(tid(page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: 20_000 });
     await expect(tid(page, "layout-ver-confirm")).toBeDisabled();
     await tid(page, "layout-ver-unlock").click();
     await expect(tid(page, "layout-ver-unlock")).toBeDisabled({ timeout: 20_000 });
@@ -696,14 +757,19 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     }
 
     // std — 다시 조회하면 현재 버전이 v1.000 이고 DRAFT 는 없다
-    await button(page, "조회").click();
+    await headerSearch(page).click();
     const row = gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME");
-    await expect(row.locator('.ag-cell[col-id="CURRENT_VER"]')).toHaveText("v1.000", { timeout: 20_000 });
-    await expect(row.locator('.ag-cell[col-id="DRAFT_VER"]')).toHaveText("");
+    // 목록 오른쪽 열(현재·DRAFT 버전)은 가로 가상화로 그려지지 않을 수 있다 — 굴려 드러낸 뒤 본다(공용 expectRowCell).
+    await expectRowCell(row, "CURRENT_VER", "v1.000", { timeout: 20_000 });
+    await expectRowCell(row, "DRAFT_VER", "");
     await row.click();
     await expect(tid(page, "layout-ver-select").locator('option[value="1.000"]')).toHaveText("v1.000 현재", { timeout: 20_000 });
     await expect(tid(page, "layout-form-name")).toBeDisabled(); // 확정된 버전은 읽기 전용
     await snap(page, "dmb-layoutMng-10-released");
+    // 확정된 전문에 [새 버전(minor)]으로 DRAFT 를 만들고 버전 줄 [삭제]로 지우면 현재 버전 v1.000 만 남는다.
+    await newMinorThenDelete(page, "layout");
+    await expect(tid(page, "layout-ver-select").locator('option[value="1.000"]')).toHaveText("v1.000 현재");
+    await expectRowCell(gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME"), "DRAFT_VER", "", { timeout: 20_000 });
     watcher.assertClean("layoutMng(확정 뒤)");
   });
 
