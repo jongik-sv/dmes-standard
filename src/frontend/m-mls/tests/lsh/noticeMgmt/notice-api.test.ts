@@ -173,3 +173,87 @@ describe("noticeMgmt api", () => {
     ]);
   });
 });
+
+// 공통 계약(@dk-oasis/shared/http)으로 옮기기 전 현재 동작 고정(특성 시험) — 옮긴 뒤에도 그대로 통과해야 한다.
+describe("noticeMgmt api — OASIS 호출 특성(현재 동작 고정)", () => {
+  beforeEach(() => apiRequest.mockReset());
+
+  const REJECT = {
+    meta: { success: false, message: "  거부 문구  ", code: "MDM001" },
+    errors: [
+      { field: "F1", code: "E1", message: "칸 오류" },
+      { message: "거부 문구" },
+      { field: "F2" },
+      { message: "java.lang.NullPointerException: boom" },
+    ],
+  };
+
+  it("요청은 POST, meta 는 menuId 하나, params 는 거르지 않고(null·빈 문자열도 싣는다) grids 는 줄 때만 싣는다", async () => {
+    apiRequest.mockResolvedValue({ meta: { success: true } });
+    await api.changeNoticeStatus("N1", null as unknown as string);
+    await api.searchNotices({
+      title: "", noticeStatus: "  ", postStartDt: "", postEndDt: "", noticeCategory: "", contentFormat: "",
+    });
+    const [url, init] = apiRequest.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/mls/oasis/noticeMgmt/changeStatus");
+    expect(init.method).toBe("POST");
+    expect(Object.keys(init).sort()).toEqual(["body", "method"]);
+    const body = bodyOf(apiRequest.mock.calls[0]);
+    expect(body).toEqual({ meta: { menuId: "noticeMgmt" }, params: { noticeId: "N1", noticeStatus: null } });
+    expect(bodyOf(apiRequest.mock.calls[1]).params).toEqual({
+      title: "", noticeStatus: "  ", postStartDt: "", postEndDt: "", noticeCategory: "", contentFormat: "",
+    });
+  });
+
+  it("역할 목록은 다른 서비스 경로지만 menuId 는 화면 ID(noticeMgmt)다", async () => {
+    apiRequest.mockResolvedValue({ meta: { success: true } });
+    await api.searchRoles();
+    expect(apiRequest.mock.calls[0][0]).toBe("/api/mcm/oasis/commRoleMng/search");
+    expect(bodyOf(apiRequest.mock.calls[0]).meta).toEqual({ menuId: "noticeMgmt" });
+  });
+
+  it("성공은 data 전체 위에 data.result(객체)를 덮고, 응답 grids 의 rows 를 이름대로 올린다(rows 가 없으면 빈 배열)", async () => {
+    apiRequest.mockResolvedValue({
+      meta: { success: true },
+      data: { result: { a: 1, shared: "result" }, other: 2, shared: "data" },
+      grids: { g: { rows: [{ k: 1 }] }, empty: {} },
+    });
+    expect(await api.changeNoticeStatus("N1", "STOP")).toEqual({
+      result: { a: 1, shared: "result" }, other: 2, shared: "result", a: 1, g: [{ k: 1 }], empty: [],
+    });
+    apiRequest.mockResolvedValue({ data: { result: [1] } });
+    expect(await api.changeNoticeStatus("N1", "STOP")).toEqual({ result: [1] });
+  });
+
+  it("거부는 NoticeApiError — 사용자 문장인 errors 만 붙이고(base 와 같아도 남김), 항목명이 없는 field 는 글만 쓴다", async () => {
+    apiRequest.mockResolvedValue(REJECT);
+    const e = (await api.changeNoticeStatus("N1", "STOP").catch((x: unknown) => x)) as InstanceType<typeof api.NoticeApiError>;
+    expect(Object.getPrototypeOf(e)).toBe(api.NoticeApiError.prototype);
+    expect(e.name).toBe("NoticeApiError");
+    expect(e.message).toBe("거부 문구\n- 칸 오류\n- 거부 문구");
+    expect(e.field).toBe("F1");
+    expect(e.errors).toEqual([{ field: "F1", code: "E1", message: "칸 오류" }, { message: "거부 문구" }]);
+    expect("code" in e).toBe(false);
+  });
+
+  it("field 는 소문자여도 대문자로 항목명을 찾고, field 는 예외 원문 오류에서도 첫 것을 쓴다", async () => {
+    apiRequest.mockResolvedValue({
+      meta: { success: false, message: "확인" },
+      errors: [{ field: "CONTENT", message: "java.lang.IllegalStateException: x" }, { field: "title", message: "필수입니다" }],
+    });
+    const e = (await api.changeNoticeStatus("N1", "STOP").catch((x: unknown) => x)) as InstanceType<typeof api.NoticeApiError>;
+    expect(e.message).toBe("확인\n- 제목: 필수입니다");
+    expect(e.field).toBe("CONTENT");
+    expect(e.errors).toEqual([{ field: "title", message: "필수입니다" }]);
+  });
+
+  it("거부 문구가 비거나 공백·예외 원문이면 기본 문구다", async () => {
+    for (const message of [undefined, "   ", "ORA-00001: unique constraint"]) {
+      apiRequest.mockResolvedValue({ meta: { success: false, message } });
+      const e = (await api.changeNoticeStatus("N1", "STOP").catch((x: unknown) => x)) as InstanceType<typeof api.NoticeApiError>;
+      expect(e.message).toBe("요청이 거부되었습니다.");
+      expect(e.field).toBeUndefined();
+      expect(e.errors).toEqual([]);
+    }
+  });
+});
