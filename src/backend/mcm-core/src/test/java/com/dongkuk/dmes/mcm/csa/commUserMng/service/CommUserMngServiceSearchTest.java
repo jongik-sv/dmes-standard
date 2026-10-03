@@ -228,7 +228,8 @@ class CommUserMngServiceSearchTest extends CommUserMngJpaTestBase {
 
         @BeforeEach
         void forceMssqlBranch() {
-            // 정적 전역 상태 — 다른 테스트가 켜 둔 채 남겼을 경우를 막는다. SQLite 분기는 이 테스트 범위 밖이다.
+            // 정적 전역 상태 — 다른 테스트가 켜 둔 채 남겼을 경우를 막는다.
+            // SQLite 분기는 CommUserMngServiceSearchRoleGrpSqliteTest 가 실제 SQLite 로 같은 시나리오를 고정한다.
             sqliteBefore = McmAuditStatementInspector.isSqlite();
             McmAuditStatementInspector.setSqlite(false);
         }
