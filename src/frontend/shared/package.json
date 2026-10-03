@@ -154,6 +154,10 @@
       "types": "./dist/types/components/json-view/index.d.ts",
       "import": "./dist/json-view.js"
     },
+    "./card": {
+      "types": "./dist/types/components/card/index.d.ts",
+      "import": "./dist/card.js"
+    },
     "./dashboard": {
       "types": "./dist/types/components/dashboard/index.d.ts",
       "import": "./dist/dashboard.js"
