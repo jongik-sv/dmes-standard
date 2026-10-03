@@ -144,6 +144,28 @@ class AuditLogServiceSearchByActorPagingTest {
         assertThatThrownBy(() -> service.searchByActor(req("page", 0, "size", 0))).isInstanceOf(BusinessException.class);
     }
 
+    @Test
+    @DisplayName("건너뛸 행 수가 int 를 넘는 page, int 범위 밖 정수는 저장소까지 가지 않고 BusinessException")
+    void outOfRangePaging() {
+        // 오프셋 2000000×2000 = 4e9 — 고치기 전에는 저장소 실행 단계의 일반 예외였다.
+        assertThatThrownBy(() -> service.searchByActor(req("page", 2_000_000, "size", 2000))).isInstanceOf(BusinessException.class);
+        // 잘린 size 기준으로 판정한다 — size 5000 은 2000 으로 잘린 뒤 같은 오프셋이 된다.
+        assertThatThrownBy(() -> service.searchByActor(req("page", 2_000_000, "size", 5000))).isInstanceOf(BusinessException.class);
+        // int 범위 밖 정수는 Integer.MAX_VALUE 로 자르지 않는다.
+        assertThatThrownBy(() -> service.searchByActor(req("page", 3_000_000_000L))).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.searchByActor(req("page", 0, "size", 3_000_000_000L))).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.searchByActor(req("page", new BigDecimal("3000000000")))).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.searchByActor(req("page", -3.0e9))).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.searchByActor(req("page", "3000000000"))).isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("문자열은 정수 표기만 받고, 숫자형은 소수부가 0 이면 받는다(현재 규칙 고정)")
+    void decimalNotation() {
+        assertThatThrownBy(() -> service.searchByActor(req("page", "1.0", "size", 2))).isInstanceOf(BusinessException.class);
+        assertThat(ids(service.searchByActor(req("page", 1.0, "size", new BigDecimal("2.0"))))).containsExactly("a5", "a1");
+    }
+
     /** 상한은 저장소에 넘어가는 Pageable 로 확인한다(2001 행을 넣지 않는다). */
     @Nested
     @DisplayName("size 상한 2000 — 저장소에 넘기는 Pageable")
@@ -181,6 +203,20 @@ class AuditLogServiceSearchByActorPagingTest {
         void pageOnlyDefaultsToCap() {
             capped.searchByActor(req("page", 0));
             assertThat(captured().getPageSize()).isEqualTo(2000);
+        }
+
+        @Test
+        @DisplayName("오프셋 경계 — 1073741×2000 은 int 안이라 넘기고, 1073742×2000 은 넘어서 저장소를 부르지 않는다")
+        void offsetBoundary() {
+            capped.searchByActor(req("page", 1_073_741, "size", 5000));
+            Pageable p = captured();
+            assertThat(p.getPageNumber()).isEqualTo(1_073_741);
+            assertThat(p.getOffset()).isEqualTo(2_147_482_000L);
+
+            AuditLogRepository r = mock(AuditLogRepository.class);
+            AuditLogService s = new AuditLogService(r);
+            assertThatThrownBy(() -> s.searchByActor(req("page", 1_073_742, "size", 2000))).isInstanceOf(BusinessException.class);
+            verifyNoMoreInteractions(r);
         }
 
         @Test

@@ -38,9 +38,13 @@ public class AuditLogService {
      * <p>둘 중 하나라도 있으면 그 필터 경로에서 한 페이지만 돌려준다.
      * <ul>
      *   <li>정렬은 발생 시각 내림차순, 같은 시각은 AUDIT_ID 내림차순.</li>
-     *   <li>page 가 없으면 0, size 가 없으면 {@value #MAX_PAGE_SIZE}. size 가 {@value #MAX_PAGE_SIZE} 보다 크면 {@value #MAX_PAGE_SIZE} 로 자른다.</li>
-     *   <li>숫자 또는 숫자 문자열(앞뒤 공백 허용)만 받는다. 숫자가 아니거나 page 가 음수, size 가 1 보다 작으면
-     *       {@link BusinessException}({@link ErrorCode#INVALID_VALUE}).</li>
+     *   <li>page 가 없으면 0, size 가 없으면 {@value #MAX_PAGE_SIZE}. int 범위 안의 size 가 {@value #MAX_PAGE_SIZE} 보다 크면
+     *       {@value #MAX_PAGE_SIZE} 로 자른다.</li>
+     *   <li>받는 값: 정수로 쓴 문자열(앞뒤 공백 허용, {@code "1.0"} 같은 소수 표기는 거부)과 숫자형(소수부가 0 이면 받는다 —
+     *       {@code 1.0}·{@code BigDecimal("1.0")} 은 1).</li>
+     *   <li>다음은 {@link BusinessException}({@link ErrorCode#INVALID_VALUE}) — 숫자가 아님, int 범위 밖 정수(자르지 않는다),
+     *       page 가 음수, size 가 1 보다 작음, 건너뛸 행 수(page × 잘린 size)가 {@link Integer#MAX_VALUE} 를 넘음
+     *       (저장소 실행 단계의 일반 오류로 새지 않게 미리 막는다).</li>
      * </ul>
      * 반환 형태는 어느 경로든 {@code List<AuditLog>} 다.
      */
@@ -78,17 +82,25 @@ public class AuditLogService {
         if (s < 1) {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "size 는 1 이상이어야 합니다.");
         }
-        return PageRequest.of(p, Math.min(s, MAX_PAGE_SIZE), PAGE_SORT);
+        int cappedSize = Math.min(s, MAX_PAGE_SIZE);
+        // 건너뛸 행 수가 int 를 넘으면 Spring Data·Hibernate 가 실행 단계에서 일반 예외를 던진다 — 입력 오류로 먼저 막는다.
+        if ((long) p * cappedSize > Integer.MAX_VALUE) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, "page 가 너무 큽니다: page=" + p + ", size=" + cappedSize);
+        }
+        return PageRequest.of(p, cappedSize, PAGE_SORT);
     }
 
-    /** 숫자·숫자 문자열 → int. null·공백 문자열이면 null(없음). */
+    /** 숫자·숫자 문자열 → int. null·공백 문자열이면 null(없음). int 범위 밖 정수는 자르지 않고 INVALID_VALUE. */
     private static Integer intParam(Map<String, Object> request, String key) {
         Object v = request.get(key);
         if (v == null) return null;
         if (v instanceof Integer i) return i;
         if (v instanceof Long || v instanceof Short || v instanceof Byte) {
             long l = ((Number) v).longValue();
-            return (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, l));
+            if (l < Integer.MIN_VALUE || l > Integer.MAX_VALUE) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE, key + " 가 int 범위를 벗어났습니다: " + v);
+            }
+            return (int) l;
         }
         if (v instanceof String str) {
             String t = str.trim();
@@ -102,7 +114,10 @@ public class AuditLogService {
         if (v instanceof Number n) {
             double d = n.doubleValue();
             if (d == Math.rint(d) && !Double.isInfinite(d)) {
-                return (int) Math.max(Integer.MIN_VALUE, Math.min(Integer.MAX_VALUE, d));
+                if (d < Integer.MIN_VALUE || d > Integer.MAX_VALUE) {
+                    throw new BusinessException(ErrorCode.INVALID_VALUE, key + " 가 int 범위를 벗어났습니다: " + v);
+                }
+                return (int) d;
             }
         }
         throw new BusinessException(ErrorCode.INVALID_VALUE, key + " 는 정수여야 합니다: " + v);
