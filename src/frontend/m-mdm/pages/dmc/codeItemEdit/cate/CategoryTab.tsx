@@ -20,6 +20,7 @@ import { CategoryAddModal } from "./components/CategoryAddModal";
 import { TransferListPanel } from "./components/TransferListPanel";
 import { buildDefTargetOptions, type AttrLabel } from "./defTargetOptions";
 import { hint, issueText, toolbar } from "./components/styles";
+import { isRegexInvalid } from "./regexInvalid";
 import { BASE_CATE_ID } from "./types";
 
 export interface CategoryTabProps {
@@ -165,6 +166,8 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
     { key: "mark", header: "상태", width: 100, align: "center" },
   ], []);
 
+  const regexInvalid = isRegexInvalid(selectedRow, cate.preview);
+
   // REGEX 카테고리는 정규식에 매칭되는 코드를 동적으로 표시
   const memberRows = useMemo(() => {
     if (!selectedRow) return [];
@@ -247,7 +250,15 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
           </p>
         )}
         <ContentPanel>
-          <GridPanel title={`소속 — ${selectedRow?.cateId ?? ""}`} count={memberRows.length}>
+          <GridPanel title={`소속 — ${selectedRow?.cateId ?? ""}`} count={memberRows.length}
+            /* REGEX 문법 오류는 소속 목록이 그냥 비어 있는 것으로 보인다 — 저장 전에 이유를 바로 알린다
+               (기능설계서 §4.4 `cate-preview-invalid`, 옛 미리보기 패널이 홀로 담당하던 문구). */
+            titleExtra={regexInvalid ? (
+              <span data-testid="cate-preview-invalid" style={{ color: "var(--color-danger)" }}>
+                정규식 문법 오류로 해석하지 못했습니다
+              </span>
+            ) : undefined}
+          >
             <AgDataGrid
               columns={memberColumns}
               data={memberRows as unknown as Record<string, unknown>[]}
