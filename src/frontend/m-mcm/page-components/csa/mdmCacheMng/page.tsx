@@ -24,9 +24,10 @@ import { AgDataGrid, GridBadge, GridPanel, type GridColumn } from "@dk-oasis/sha
 import { JsonView } from "@dk-oasis/shared/json-view";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
-import { describeForceFailure, fetchAllStatus, fetchEntries, fetchEntry, forceByType, groupByType } from "./api";
+import { describeForceFailure, fetchAllStatus, fetchAppliedSeq, fetchEntries, fetchEntry, forceByType, groupByType } from "./api";
+import { runForceWait } from "./forceWait";
 import { RegisterModal } from "./RegisterModal";
-import { ESTIMATED_SIZE_HELP, describeLifetime, entryKindLabel, formatBytes, withEntryKind } from "./utils";
+import { ESTIMATED_SIZE_HELP, FORCE_WAIT_TIMEOUT_NOTICE, describeLifetime, entryKeySet, entryKindLabel, formatBytes, withEntryKind } from "./utils";
 import {
   ENTRY_SORT_OPTIONS,
   MDM_CACHE_MODULES,
@@ -178,6 +179,12 @@ export default function MdmCacheMngPage() {
    * 콜백이 쥔 옛 detailTarget 으로 패널을 되돌리지 않게 한다.
    */
   const detailTargetRef = useRef<DetailTarget | null>(null);
+  /**
+   * 강제 기록 뒤 반영 기다리기 실행 번호(detailSeq 와 같은 방식). 언마운트·모듈 바꿈·[조회]·새 강제 실행이 올려 돌고 있던 기다리기를 취소한다.
+   * waitingModule 은 기다리는 중인 모듈(표시용) — 비어 있으면 기다리지 않는다.
+   */
+  const forceWaitRun = useRef(0);
+  const [waitingModule, setWaitingModule] = useState("");
 
   const selectedEntries = useMemo(() => entries.filter((e) => selectedKeys.includes(e.rowId)), [entries, selectedKeys]);
   /** 모듈의 "남은 수명" 도움말 — 그 모듈 status 의 유휴 수명·절대 상한. */
@@ -213,6 +220,19 @@ export default function MdmCacheMngPage() {
     }
   }, []);
 
+  const cancelForceWait = useCallback(() => {
+    forceWaitRun.current++;
+    setWaitingModule("");
+  }, []);
+
+  // 화면을 떠나면 기다리기를 멈춘다(남은 타이머가 깨어나도 취소를 보고 아무것도 읽지 않는다).
+  useEffect(
+    () => () => {
+      forceWaitRun.current++;
+    },
+    [],
+  );
+
   const closeDetail = useCallback(() => {
     detailSeq.current++;
     detailTargetRef.current = null;
@@ -236,15 +256,19 @@ export default function MdmCacheMngPage() {
     [closeDetail, openDetail],
   );
 
+  /** 모듈의 항목을 조회해 표에 담는다. 받은 행을 돌려주고, 실패하면 오류창을 띄우고 null 을 돌려준다. */
   const loadEntries = useCallback(
-    async (module: string, f: EntryFilters) => {
+    async (module: string, f: EntryFilters): Promise<CacheEntryRow[] | null> => {
       setIsDetailBusy(true);
       try {
-        setEntries((await fetchEntries(module, f)).items);
+        const items = (await fetchEntries(module, f)).items;
+        setEntries(items);
         setSelectedKeys([]);
+        return items;
       } catch (e) {
         setEntries([]);
         showMessage({ title: "오류", message: errorText(e), alertType: "error" });
+        return null;
       } finally {
         setIsDetailBusy(false);
       }
@@ -253,6 +277,7 @@ export default function MdmCacheMngPage() {
   );
 
   const handleSearch = useCallback(async () => {
+    cancelForceWait();
     setIsBusy(true);
     try {
       const { rows, latestSeq: latest } = await fetchAllStatus(MDM_CACHE_MODULES);
@@ -273,7 +298,7 @@ export default function MdmCacheMngPage() {
     } finally {
       setIsBusy(false);
     }
-  }, [closeDetail, filters, loadEntries, refreshDetail, selectedModule, showMessage]);
+  }, [cancelForceWait, closeDetail, filters, loadEntries, refreshDetail, selectedModule, showMessage]);
 
   useEffect(() => {
     // 첫 진입 때 한 번 조회한다(조회 결과를 상태에 담는 비동기 호출이라 effect 안 setState 규칙에 걸린다).
@@ -286,6 +311,7 @@ export default function MdmCacheMngPage() {
   const handleModuleClick = useCallback(
     async (row: Record<string, unknown>) => {
       const moduleId = String(row.module ?? "");
+      if (moduleId !== selectedModule) cancelForceWait();
       setSelectedModule(moduleId);
       if (!isReachable(row.state as ModuleState)) {
         setEntries([]);
@@ -296,7 +322,7 @@ export default function MdmCacheMngPage() {
       if (moduleId !== detailTargetRef.current?.module) closeDetail();
       await loadEntries(moduleId, filters);
     },
-    [closeDetail, filters, loadEntries],
+    [cancelForceWait, closeDetail, filters, loadEntries, selectedModule],
   );
 
   /** 항목 행을 누르면 그 항목의 상세(캐시 값 전체)를 연다. 같은 행을 다시 누르면 다시 받는다. */
@@ -319,23 +345,53 @@ export default function MdmCacheMngPage() {
 
   /**
    * 대상 종류마다 강제 기록한다. 하나라도 반영하면 항목 목록을 다시 조회하고, 중간에 실패하면 어느 종류까지 반영했는지 알린다.
-   * 강제 기록은 다음 확인(약 10초) 때 반영되므로 바로 다시 조회한 목록에는 아직 남아 있을 수 있다.
+   * 강제 기록은 각 모듈이 다음 확인(약 10초) 때 반영하므로 바로 다시 조회한 목록에는 옛 행이 남아 있을 수 있다. 모두 반영됐고 순번(toSeq)이
+   * 있으면 고른 모듈의 적용 순번이 따라올 때까지(최대 약 25초) 기다렸다가 표와 상세를 다시 조회한다(forceWait).
    */
   const runForce = useCallback(
     async (kind: ForceKind) => {
+      const run = ++forceWaitRun.current; // 새 강제 실행은 돌고 있던 기다리기를 취소한다
+      setWaitingModule("");
       setIsBusy(true);
       try {
-        const outcome = await forceByType(groupByType(selectedEntries), kind);
+        const groups = groupByType(selectedEntries);
+        const outcome = await forceByType(groups, kind);
         if (outcome.failedType) {
           showMessage({ title: "오류", message: describeForceFailure(outcome), alertType: "error" });
         } else {
-          showMessage({ message: kind === "EVICT" ? "삭제되었습니다." : "재등록을 요청했습니다.", alertType: "success", toast: true });
+          showMessage({
+            message: kind === "EVICT" ? "삭제를 요청했습니다. 반영되면 표를 다시 조회합니다." : "재등록을 요청했습니다. 반영되면 표를 다시 조회합니다.",
+            alertType: "success",
+            toast: true,
+          });
         }
         if (outcome.applied.length > 0) {
           setSelectedKeys([]);
           if (selectedModule) {
             await loadEntries(selectedModule, filters);
             refreshDetail(selectedModule);
+            if (!outcome.failedType && outcome.toSeq !== null && outcome.toSeq > 0 && run === forceWaitRun.current) {
+              const targetModule = selectedModule;
+              const toSeq = outcome.toSeq;
+              const forcedKeys = groups.flatMap(([type, keys]) => keys.map((key) => `${type}:${key}`));
+              setWaitingModule(targetModule);
+              void runForceWait({
+                kind,
+                toSeq,
+                forcedKeys,
+                readAppliedSeq: () => fetchAppliedSeq(targetModule),
+                refetchEntries: async () => {
+                  const rows = await loadEntries(targetModule, filters);
+                  return rows ? entryKeySet(rows) : null;
+                },
+                isCancelled: () => run !== forceWaitRun.current,
+              }).then((result) => {
+                if (result === "CANCELLED") return;
+                setWaitingModule("");
+                if (result === "DONE") refreshDetail(targetModule);
+                else showMessage({ message: FORCE_WAIT_TIMEOUT_NOTICE, alertType: "warning", toast: true });
+              });
+            }
           }
         }
       } catch (e) {
@@ -400,7 +456,7 @@ export default function MdmCacheMngPage() {
         <ContentBody height="40%" resizable storageKey="mcm.csa.mdmCacheMng.entries">
           <ContentPanel>
             <GridPanel
-              title={selectedModule ? `캐시 항목 — ${selectedModule}` : "캐시 항목"}
+              title={selectedModule ? `캐시 항목 — ${selectedModule}${waitingModule === selectedModule ? " (반영 기다리는 중)" : ""}` : "캐시 항목"}
               count={entries.length}
               buttons={[{ id: "btn_grid_detail_close", label: "상세 닫기", onClick: closeDetail, disabled: !detailTarget }]}
             >

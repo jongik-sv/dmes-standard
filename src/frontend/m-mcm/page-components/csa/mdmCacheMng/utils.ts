@@ -6,7 +6,7 @@
  */
 
 import { VERSIONED_TARGET_TYPES } from "./types";
-import type { CacheEntryRow, EntryPart, MdmTargetType } from "./types";
+import type { CacheEntryRow, EntryPart, ForceKind, MdmTargetType } from "./types";
 
 const UNITS = ["KB", "MB", "GB"] as const;
 
@@ -72,3 +72,48 @@ export function withEntryKind(rows: CacheEntryRow[]): (CacheEntryRow & { kind: s
 
 /** 추정 크기 열·요약의 도움말. */
 export const ESTIMATED_SIZE_HELP = "JSON 직렬화 크기 기준, 실제 힙 점유는 이보다 큼";
+
+
+/** 강제 기록(삭제·재등록) 뒤 모듈이 반영하기를 기다리는 한도 — 모듈 확인 주기(기본 10초)의 2.5 배쯤. */
+export const FORCE_WAIT_LIMIT_MS = 25_000;
+/** 반영 순번을 다시 읽는 간격. */
+export const FORCE_WAIT_INTERVAL_MS = 2_500;
+export const FORCE_WAIT_TIMEOUT_NOTICE = "아직 반영 전입니다. 잠시 뒤 [조회]로 다시 확인하세요.";
+
+/** 표의 행 모음을 '종류:정의 키' 집합으로 — 본문 행(`X@1.000`)도 정의 키 `X` 로 접어, 강제 기록 키(`groupByType` 의 정의 키)와 견준다. */
+export function entryKeySet(rows: Pick<CacheEntryRow, "type" | "key">[]): Set<string> {
+  return new Set(rows.map((r) => `${r.type}:${definitionKey(r.type, r.key)}`));
+}
+
+/** 기다리기 판단 결과 — 계속 기다림 | 표를 다시 조회 | 끝(완료) | 끝(한도 초과 안내). */
+export type ForceWaitDecision = "WAIT" | "REFETCH" | "DONE" | "TIMEOUT";
+
+export interface ForceWaitInput {
+  kind: ForceKind;
+  /** 강제 기록이 닿은 변경 기록 순번(최댓값). */
+  toSeq: number;
+  /** 고른 모듈의 지금 적용 순번. 읽지 못했으면 null. */
+  appliedSeq: number | null;
+  /** 반영 뒤에 다시 조회한 표의 '종류:정의 키' 집합. 반영 뒤 아직 다시 조회하지 않았으면 null(반영 전에 조회한 표는 넘기지 않는다). */
+  tableKeys: ReadonlySet<string> | null;
+  /** 강제 기록한 '종류:정의 키' 목록. */
+  forcedKeys: readonly string[];
+  elapsedMs: number;
+  limitMs: number;
+}
+
+/**
+ * 강제 기록 뒤 기다리기 판단. 모듈 폴러는 지우기 → 적용 순번 올리기 → 다시 받기 순서라 appliedSeq >= toSeq 가 된 순간에는 [재등록] 키가
+ * 아직 표에 없을 수 있다. 그래서 삭제는 반영되면 한 번 다시 조회하고 끝, 재등록은 다시 조회한 표에 강제한 키가 모두 보일 때 끝낸다.
+ * 한도를 넘으면 안내하고 멈춘다. 다만 반영 뒤 아직 표를 다시 조회하지 않았으면(tableKeys null) 한도가 지나도 한 번은 다시 조회한다.
+ */
+export function decideForceWait(i: ForceWaitInput): ForceWaitDecision {
+  const applied = i.appliedSeq !== null && i.appliedSeq >= i.toSeq;
+  if (applied) {
+    if (i.kind === "EVICT") return "REFETCH";
+    if (i.tableKeys === null) return "REFETCH";
+    if (i.forcedKeys.every((k) => i.tableKeys!.has(k))) return "DONE";
+  }
+  if (i.elapsedMs >= i.limitMs) return "TIMEOUT";
+  return applied ? "REFETCH" : "WAIT";
+}
