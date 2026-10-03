@@ -147,6 +147,86 @@ class MetaFeedVersionedHttpTest {
         assertEquals("INVALID_VER", failed(r, Q, "x.y").path("message").asText());
     }
 
+    // ------------------------------------------------------------------ RULE_SET
+
+    /** 세트 두 버전: 1.000 [2000-01-01, 2026-07-01), 1.001 [2026-07-01, 9999-12-31) — 버전마다 ruleIds 를 달리 해 내용으로 가른다. */
+    private void seedSet() {
+        DmeTestSupport.ruleSet(jdbc, "VS_SET", "버전 세트", "[\"" + Q + "\"]", "CREATED", 0);
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_TO = '2026-07-01 00:00:00' WHERE MARU_RULE_SET_ID = 'VS_SET' AND VER = 1");
+        DmeTestSupport.ruleSetVersion(jdbc, "VS_SET", "1.001", "MINOR", "RELEASED", null, "[\"" + Q + "\",\"R2\"]",
+                "2026-07-01 00:00:00", "9999-12-31 00:00:00", 0);
+        DmeTestSupport.ruleSetDraft(jdbc, "VS_SET", "2.000", "kim", "[\"DRAFT_R\"]", 0);
+    }
+
+    @Test
+    void RULE_SET_목차와_current_와_본문은_part_없는_목록_원소와_같다() throws Exception {
+        seedSet();
+        JsonNode legacy = item(view("RULE_SET", "VS_SET"), "VS_SET");
+
+        JsonNode t = toc("RULE_SET", "2026-08-01T00:00:00", "VS_SET", "NO_SET");
+        assertEquals(1, t.path("items").size(), t.toString());
+        JsonNode versions = t.path("items").get(0).path("value").path("versions");
+        assertEquals(2, versions.size(), "DRAFT 2.000 은 빠진다: " + versions);
+        assertEquals("1.001", t.path("items").get(0).path("current").path("ver").asText());
+        assertEquals(legacy.get(1), t.path("items").get(0).path("current").path("value"));
+        assertEquals("INUSE", t.path("items").get(0).path("current").path("value").path("status").asText(), "부모 계산 상태는 본문에 남는다");
+
+        JsonNode b = bodies("RULE_SET", "VS_SET", "1.000", "VS_SET", "2.000");
+        assertEquals(legacy.get(0), b.path("items").get(0).path("value"));
+        assertEquals("NOT_RELEASED", failed(b, "VS_SET", "2.000").path("message").asText());
+    }
+
+    // ------------------------------------------------------------------ LAYOUT
+
+    private void seedLayouts() {
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_HEADER WHERE LAYOUT_ID IN (9601, 9603, 9690, 9691)");
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT_VER WHERE LAYOUT_ID IN (9601, 9603, 9690, 9691)");
+        jdbc.update("DELETE FROM TB_MDM_LAYOUT WHERE LAYOUT_ID IN (9601, 9603, 9690, 9691)");
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT (LAYOUT_ID, LAYOUT_KIND, LAYOUT_NAME, STATUS, VER) VALUES "
+                + "(9690, 'HEADER', '버전 헤더', 'INUSE', 0), (9691, 'HEADER', '초안 헤더', 'CREATED', 0), "
+                + "(9601, 'MESSAGE', '버전 전문', 'INUSE', 0), (9603, 'MESSAGE', '깨진 전문', 'INUSE', 0)");
+        layoutVer(9690, "1.000", "RELEASED", "2000-01-01 00:00:00", "9999-12-31 00:00:00", 7);
+        layoutVer(9691, "1.000", "DRAFT", null, null, 3);
+        layoutVer(9601, "1.000", "RELEASED", "2000-01-01 00:00:00", "2026-07-01 00:00:00", 10);
+        layoutVer(9601, "2.000", "RELEASED", "2026-07-01 00:00:00", "9999-12-31 00:00:00", 12);
+        layoutVer(9603, "1.000", "RELEASED", "2000-01-01 00:00:00", "9999-12-31 00:00:00", 4);
+        stack(9601, "1.000", 9690);
+        stack(9601, "2.000", 9690);
+        stack(9603, "1.000", 9691);
+    }
+
+    @Test
+    void LAYOUT_목차와_current_와_본문은_part_없는_목록_원소와_같고_합성이_깨진_전문은_그_키만_failed_다() throws Exception {
+        seedLayouts();
+        JsonNode legacy = item(view("LAYOUT", "9601"), "9601");
+
+        JsonNode t = toc("LAYOUT", "2026-08-01T00:00:00", "9601", "9603", "9690", "abc");
+        assertEquals(1, t.path("items").size(), "헤더·숫자 아닌 키는 빠진다: " + t);
+        assertEquals(1, t.path("failed").size(), t.toString());
+        assertEquals("9603", t.path("failed").get(0).path("key").asText());
+        JsonNode it = t.path("items").get(0);
+        assertEquals("2.000", it.path("value").path("versions").get(1).path("ver").decimalValue().toPlainString());
+        assertEquals("2.000", it.path("current").path("ver").asText());
+        assertEquals(legacy.get(1), it.path("current").path("value"), "전문 본문 = 목록 원소(ver 문자열·segments 포함)");
+
+        JsonNode b = bodies("LAYOUT", "9601", "1.000", "abc", "1.000", "9601", "3.000");
+        assertEquals(1, b.path("items").size(), b.toString());
+        assertEquals(legacy.get(0), b.path("items").get(0).path("value"));
+        assertEquals("NOT_RELEASED", failed(b, "abc", "1.000").path("message").asText());
+        assertEquals("NOT_RELEASED", failed(b, "9601", "3.000").path("message").asText());
+    }
+
+    private void layoutVer(long id, String ver, String status, String from, String to, int own) {
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT_VER (LAYOUT_ID, VER, VER_KIND, STATUS, OWNER_ID, APPLY_FROM, APPLY_TO, OWN_LENGTH) "
+                + "VALUES (?, ?, 'MAJOR', ?, ?, ?, ?, ?)", id, new BigDecimal(ver), status, "DRAFT".equals(status) ? "kim" : null,
+                from, to, own);
+    }
+
+    private void stack(long messageId, String ver, long headerId) {
+        jdbc.update("INSERT INTO TB_MDM_LAYOUT_HEADER (LAYOUT_ID, VER, SEQ, HEADER_LAYOUT_ID) VALUES (?, ?, 1, ?)",
+                messageId, new BigDecimal(ver), headerId);
+    }
+
     // ------------------------------------------------------------------ 공통
 
     @Test

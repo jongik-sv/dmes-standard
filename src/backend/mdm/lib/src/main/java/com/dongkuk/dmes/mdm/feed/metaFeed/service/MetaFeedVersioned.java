@@ -3,6 +3,8 @@ package com.dongkuk.dmes.mdm.feed.metaFeed.service;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.metarev.MetaTargetType;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
+import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
+import com.dongkuk.dmes.mdm.dmb.layout.LayoutReleaseTimeline;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import java.math.BigDecimal;
@@ -13,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
 import org.springframework.stereotype.Component;
 
 /**
@@ -22,6 +25,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class MetaFeedVersioned {
 
+    private static final String RELEASED = "RELEASED";
     static final String NOT_RELEASED = "NOT_RELEASED";
     static final String INVALID_VER = "INVALID_VER";
 
@@ -35,6 +39,8 @@ public class MetaFeedVersioned {
         MetaFeedVersionedResult.Builder b = MetaFeedVersionedResult.builder(MetaFeedPart.TOC);
         switch (type) {
             case RULE -> rulesToc(keys, at, b);
+            case RULE_SET -> setsToc(keys, at, b);
+            case LAYOUT -> layoutsToc(keys, at, b);
             default -> throw MetaFeedService.invalid("part=TOC 를 아직 받지 않는 대상입니다: " + type);
         }
         return b.build();
@@ -44,6 +50,8 @@ public class MetaFeedVersioned {
         MetaFeedVersionedResult.Builder b = MetaFeedVersionedResult.builder(MetaFeedPart.BODY);
         switch (type) {
             case RULE -> ruleBodies(keys, b);
+            case RULE_SET -> setBodies(keys, b);
+            case LAYOUT -> layoutBodies(keys, b);
             default -> throw MetaFeedService.invalid("part=BODY 를 아직 받지 않는 대상입니다: " + type);
         }
         return b.build();
@@ -84,6 +92,78 @@ public class MetaFeedVersioned {
                         .orElse(Loaded.of(List.of())),
                 rv -> rv.ver().getVer(),
                 (k, rv) -> MetaFeedJson.plain(definitions.assembleRule(k.key(), rv.rule(), rv.ver(), scope)));
+    }
+
+    private void setsToc(List<String> ids, LocalDateTime at, MetaFeedVersionedResult.Builder b) {
+        for (String id : ids) {
+            try {
+                Optional<List<RuleSetDefinition>> released = definitions.releasedSets(id);
+                if (released.isEmpty()) {
+                    continue;
+                }
+                List<RuleSetDefinition> list = released.get();
+                Map<String, Object> current = MetaFeedVersionSelect
+                        .releasedAt(list, RuleSetDefinition::ver, RuleSetDefinition::applyFrom, RuleSetDefinition::applyTo, at)
+                        .map(d -> MetaFeedVersionedResult.current(d.ver(), MetaFeedJson.plain(d)))
+                        .orElse(null);
+                b.toc(id, MetaFeedVersionedResult.toc(null, list.stream()
+                        .map(d -> MetaFeedVersionedResult.tocVersion(d.ver(), RELEASED, d.applyFrom(), d.applyTo())).toList()), current);
+            } catch (StoredDefinitionException e) {
+                b.tocFailed(id, e.getMessage());
+            }
+        }
+    }
+
+    /** 본문 루프(INVALID_VER → 키별 적재 → NOT_RELEASED → 렌더)는 {@code renderBodies} 하나다 — 여기는 적재와 렌더 두 줄만 둔다. */
+    private void setBodies(List<MetaFeedService.BodyKey> keys, MetaFeedVersionedResult.Builder b) {
+        this.<RuleSetDefinition>renderBodies(keys, b,
+                id -> {
+                    try {
+                        return Loaded.of(definitions.releasedSets(id).orElse(List.of()));
+                    } catch (StoredDefinitionException e) {
+                        return Loaded.failed(e);
+                    }
+                },
+                RuleSetDefinition::ver,
+                (k, d) -> MetaFeedJson.plain(d));
+    }
+
+    private void layoutsToc(List<String> keys, LocalDateTime at, MetaFeedVersionedResult.Builder b) {
+        for (String key : keys) {
+            Optional<Long> id = definitions.messageLayoutId(key);
+            if (id.isEmpty()) {
+                continue;
+            }
+            try {
+                List<LayoutReleaseTimeline.ReleasedVersion> released = definitions.releasedLayouts(id.get());
+                Map<String, Object> current = MetaFeedVersionSelect
+                        .releasedAt(released, LayoutReleaseTimeline.ReleasedVersion::ver, LayoutReleaseTimeline.ReleasedVersion::applyFrom,
+                                LayoutReleaseTimeline.ReleasedVersion::applyTo, at)
+                        .map(v -> MetaFeedVersionedResult.current(v.ver(), MetaFeedDefinitions.layoutVersion(v)))
+                        .orElse(null);
+                b.toc(key, MetaFeedVersionedResult.toc(null, released.stream()
+                        .map(v -> MetaFeedVersionedResult.tocVersion(v.ver(), RELEASED, v.applyFrom(), v.applyTo())).toList()), current);
+            } catch (BusinessException | IllegalArgumentException | IllegalStateException e) {
+                b.tocFailed(key, e.getMessage());
+            }
+        }
+    }
+
+    private void layoutBodies(List<MetaFeedService.BodyKey> keys, MetaFeedVersionedResult.Builder b) {
+        this.<LayoutReleaseTimeline.ReleasedVersion>renderBodies(keys, b,
+                key -> {
+                    Optional<Long> id = definitions.messageLayoutId(key);
+                    if (id.isEmpty()) {
+                        return Loaded.of(List.of());
+                    }
+                    try {
+                        return Loaded.of(definitions.releasedLayouts(id.get()));
+                    } catch (BusinessException | IllegalArgumentException | IllegalStateException e) {
+                        return Loaded.failed(e);
+                    }
+                },
+                LayoutReleaseTimeline.ReleasedVersion::ver,
+                (k, v) -> MetaFeedDefinitions.layoutVersion(v));
     }
 
     /** 적재 결과 — 목록 또는 실패 메시지. 실패면 그 키의 모든 쌍이 같은 메시지로 failed 가 된다. */

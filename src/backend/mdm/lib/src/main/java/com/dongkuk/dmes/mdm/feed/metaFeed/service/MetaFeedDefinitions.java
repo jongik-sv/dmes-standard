@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import kr.dongkuk.maru.mdm.engine.code.CodeRowsProjection;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
 import org.springframework.stereotype.Component;
 
 /**
@@ -116,17 +117,21 @@ public class MetaFeedDefinitions {
     }
 
     public MetaFeedResult ruleSets(Collection<String> setIds) {
-        StoredDefinitionLookup lookup = new StoredDefinitionLookup(ruleQueries, stored, rules, setVersions, sets);
         Map<String, Object> found = new LinkedHashMap<>();
         Map<String, String> failed = new LinkedHashMap<>();
         for (String id : setIds) {
             try {
-                lookup.releasedSets(id).ifPresent(released -> found.put(id, MetaFeedJson.plain(released)));
+                releasedSets(id).ifPresent(released -> found.put(id, MetaFeedJson.plain(released)));
             } catch (StoredDefinitionException e) {
                 failed.put(id, e.getMessage());
             }
         }
         return new MetaFeedResult(found, failed);
+    }
+
+    /** 세트의 RELEASED 버전 정의(ver 오름차순). 세트가 없으면 빈 값. 저장값이 깨지면 StoredDefinitionException. */
+    Optional<List<RuleSetDefinition>> releasedSets(String id) {
+        return new StoredDefinitionLookup(ruleQueries, stored, rules, setVersions, sets).releasedSets(id);
     }
 
     /**
@@ -155,18 +160,12 @@ public class MetaFeedDefinitions {
         Map<String, Object> found = new LinkedHashMap<>();
         Map<String, String> failed = new LinkedHashMap<>();
         for (String key : layoutIds) {
-            Long id;
-            try {
-                id = Long.valueOf(key.trim());
-            } catch (NumberFormatException e) {
-                continue;
-            }
-            boolean message = layouts.findById(id).map(l -> MESSAGE.equals(l.getLayoutKind())).orElse(false);
-            if (!message) {
+            Optional<Long> id = messageLayoutId(key);
+            if (id.isEmpty()) {
                 continue;
             }
             try {
-                found.put(key, layoutVersions(timeline.released(id)));
+                found.put(key, layoutVersions(releasedLayouts(id.get())));
             } catch (BusinessException | IllegalArgumentException | IllegalStateException e) {
                 failed.put(key, e.getMessage());
             }
@@ -174,24 +173,45 @@ public class MetaFeedDefinitions {
         return new MetaFeedResult(found, failed);
     }
 
+    /** MESSAGE 전문 키 → ID. 숫자가 아니거나 없는 ID·헤더면 빈 값(Ruling R9). */
+    Optional<Long> messageLayoutId(String key) {
+        Long id;
+        try {
+            id = Long.valueOf(key.trim());
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+        boolean message = layouts.findById(id).map(l -> MESSAGE.equals(l.getLayoutKind())).orElse(false);
+        return message ? Optional.of(id) : Optional.empty();
+    }
+
+    List<LayoutReleaseTimeline.ReleasedVersion> releasedLayouts(long id) {
+        return timeline.released(id);
+    }
+
     private static List<Object> layoutVersions(List<LayoutReleaseTimeline.ReleasedVersion> released) {
         List<Object> out = new ArrayList<>();
         for (LayoutReleaseTimeline.ReleasedVersion v : released) {
-            List<Object> segments = new ArrayList<>();
-            for (LayoutReleaseTimeline.Segment s : v.segments()) {
-                Map<String, Object> seg = new LinkedHashMap<>();
-                seg.put("applyFrom", MetaFeedJson.plain(s.applyFrom()));
-                seg.put("applyTo", MetaFeedJson.plain(s.applyTo()));
-                seg.put("snapshot", MetaFeedJson.plain(s.snapshot()));
-                segments.add(seg);
-            }
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("ver", VersionNumbers.plain(v.ver()));
-            row.put("applyFrom", MetaFeedJson.plain(v.applyFrom()));
-            row.put("applyTo", MetaFeedJson.plain(v.applyTo()));
-            row.put("segments", segments);
-            out.add(row);
+            out.add(layoutVersion(v));
         }
         return out;
+    }
+
+    /** 전문 RELEASED 버전 하나의 피드 값 — {@code {ver:"1.000", applyFrom, applyTo, segments[{applyFrom, applyTo, snapshot}]}}. */
+    static Map<String, Object> layoutVersion(LayoutReleaseTimeline.ReleasedVersion v) {
+        List<Object> segments = new ArrayList<>();
+        for (LayoutReleaseTimeline.Segment s : v.segments()) {
+            Map<String, Object> seg = new LinkedHashMap<>();
+            seg.put("applyFrom", MetaFeedJson.plain(s.applyFrom()));
+            seg.put("applyTo", MetaFeedJson.plain(s.applyTo()));
+            seg.put("snapshot", MetaFeedJson.plain(s.snapshot()));
+            segments.add(seg);
+        }
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("ver", VersionNumbers.plain(v.ver()));
+        row.put("applyFrom", MetaFeedJson.plain(v.applyFrom()));
+        row.put("applyTo", MetaFeedJson.plain(v.applyTo()));
+        row.put("segments", segments);
+        return row;
     }
 }
