@@ -189,6 +189,29 @@ class MasterCodeSegmentFlushSqliteTest extends AbstractMdmSharedDbTest {
         assertMultiRowBatch(closed);
     }
 
+    /**
+     * 감사 VER 고정 — 앞 행의 UPDATE 가 flush 되기 전에 첫 삭제 행이 CATE_ITEM 을 JPQL 로 읽으면, Hibernate 자동 flush 가 표가
+     * 겹치지 않아 실행을 미루면서도 {@code @PreUpdate} 를 한 번 불러 VER 이 하나 더 오른다(2026-10-04 실험). 지금은 행마다
+     * flush 해서 모든 닫힌 행의 VER 이 1 이다. 투영 순서(DELETED 먼저)가 아닌 순서로 applyItems 를 불러도 같아야 한다.
+     */
+    @Test
+    void I7b_수정_행_뒤에_삭제_행이_와도_감사_VER_은_flush_한_번씩만_오른다() {
+        seedCascade();
+
+        Map<String, List<String>> closed = inTx(() -> clean(itemOps.applyItems(DRAFT, List.of(
+                new Change(RowStatus.CHANGED, "A", values("새 에이", 1, "G")),
+                new Change(RowStatus.DELETED, "C", null),
+                new Change(RowStatus.DELETED, "B", null)))));
+
+        Map<String, List<String>> expected = new LinkedHashMap<>();
+        expected.put("C", List.of());
+        expected.put("B", List.of("T1", "T2", "T3"));
+        assertEquals(expected, closed);
+        assertEquals(List.of("A|1.000|1.001|에이|1", "A|1.001|9999|새 에이|0", "B|1.000|1.001|비|1",
+                "C|1.000|1.001|씨|1"), items());
+        assertEquals(List.of("T1 A@1.000-9999 v0", "T1 B@1.000-1.001 v1", "T2 B@1.000-1.001 v1"), cateItems());
+    }
+
     @Test
     void I8_여러_행_배치는_트랜잭션_밖_detached_에서도_같다() {
         seedCascade();
