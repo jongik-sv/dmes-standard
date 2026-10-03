@@ -384,6 +384,8 @@ cactus:
 
 - **화면 허용 코드**(`allowedCodes`): 지금 시각 `codeList` 다(`cactus/MdmMetaController.java:361-375`). 최종 본문과 색인을 쓰므로 빨라진다. 바뀌는 동작은 없다.
 - **`MdmDefinitionLookup.column`** 은 코드 참조가 있으면 코드를 미리 받는다(`cactus/MdmDefinitionLookup.java:43-53`). 이것을 "목차 + 지금 시각 본문"으로 바꾼다.
+- **일반 엔진 경로의 기준 시각 미리 받기**: `column` 에는 시각 인자가 없어 늘 지금 시각 본문만 미리 받는다. 일반 엔진(`DefaultDomainValidator`·`MdmEvaluator` 를 `MdmDefinitionLookup` 위에 만든 경우)을 과거 `evalTs` 로 쓰는 호출자는 평가 전에 `MdmDefinitionLookup.prefetchColumns(columnNames, evalTs)`(codeRef 코드까지) 또는 `prefetchCodes(maruCodeIds, evalTs)`(코드 목차 + 그 시각 본문, 목차 한 번 + 본문 한 번으로 묶음)를 불러야 한다. 부르지 않으면 그 시각 본문을 평가 스레드(시간 한도 1초)에서 받게 되어 느린 MDM 은 TIMEOUT, 받을 수 없음은 EVALUATION_ERROR 로 분류된다(§5.4 불변식·결정 P9 가 일반 경로의 캐시 부재 적재를 허용하므로 결함이 아니라 분류·지연 위험이다). 이 API 는 호출자 스레드에서 받을 수 없음을 `MdmUnavailableException` 으로 올리고, MDM 에 없는 코드·컬럼은 조용히 넘기며, `versioned-feed: off` 에서는 전 이력 한 키(목차·본문 요청 없음)로 받는다. `column` 은 `prefetchCodes(…, now())` 위임이라 동작이 같다. 호출처가 아직 없어 자동 보호(장식자)는 두지 않았다.
+  - **남는 빈틈(별도 후속)**: 표준식·비즈니스식이 참조하는 코드, 일반 `RuleEngine` 룰 식이 참조하는 코드(`MASTER`·`MASTER_AT`·`CODE`)는 이 API 가 컬럼 이름만으로 찾지 못해 여전히 미리 받지 않는다(호출자가 `prefetchCodes` 로 직접 넘겨야 한다). 저장 검증기(`MdmValidator`, §7.2)는 `MdmExprRefs` 로 이를 받는다. 일반 경로에도 같은 수집을 공개하려면 검증기 prefetch 를 공용으로 떼어내는 별도 작업이 필요하다.
 - **강제 기록(`force`)·변경 기록 표·Flyway**: 바꾸지 않는다(§4.3).
 - **도메인·컬럼 캐시**: 바꾸지 않는다.
 

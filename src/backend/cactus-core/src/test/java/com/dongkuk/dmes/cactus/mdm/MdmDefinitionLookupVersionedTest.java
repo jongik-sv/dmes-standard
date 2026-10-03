@@ -119,4 +119,123 @@ class MdmDefinitionLookupVersionedTest {
         assertThatThrownBy(() -> lookup.rule("R", T0)).isInstanceOf(MdmUnavailableException.class);
         assertThatThrownBy(() -> lookup.code("C")).isInstanceOf(MdmUnavailableException.class);
     }
+
+    // ---- fu4 — 기준 시각(evalTs)을 받는 공개 미리 받기. 과거 시각 = KST 2026-03-01 09:00(코드 C 의 1.000 [01-01, 07-01)), 지금(T0)은 2.000.
+
+    private static final Instant PAST = Instant.parse("2026-03-01T00:00:00Z");
+    private static final MdmBodyKey C_V1 = new MdmBodyKey("C", "1.000");
+
+    private DomainValidator generalValidator() {
+        return new DefaultDomainValidator(lookup,
+                new MdmEvaluator(new EngineLookups(lookup, lookup, lookup, MasterLookup.NONE, FunctionProvider.NONE)));
+    }
+
+    @Test
+    void prefetchColumns_는_과거_evalTs_본문을_미리_받아_이후_평가와_조회가_MDM_을_더_부르지_않는다() {
+        feed.put(MdmTargetType.COLUMN, "BASE_COL", codeCol("BASE_COL", "C", "BASE"));
+
+        lookup.prefetchColumns(List.of("BASE_COL"), PAST);
+
+        assertThat(feed.tocAts).as("컬럼은 목차 없는 값이라 코드 C 의 목차만 과거 시각으로, 응답 current 로 그 시각 본문이 온다")
+                .containsExactly(LocalDateTime.parse("2026-03-01T09:00:00"));
+        assertThat(feed.tocKeys).containsExactly(List.of("C"));
+        assertThat(feed.bodyCalls.get()).as("current 가 과거 시각 버전이라 본문 요청은 없다").isZero();
+        int toc = feed.tocCalls.get();
+        int body = feed.bodyCalls.get();
+
+        assertThat(lookup.codeAt("C", new BigDecimal("1.000")).orElseThrow().versions()).hasSize(1);
+        assertThat(lookup.codes("C", new BigDecimal("1.000"), "BASE")).isNotNull();
+
+        assertThat(feed.tocCalls.get()).isEqualTo(toc);
+        assertThat(feed.bodyCalls.get()).isEqualTo(body);
+    }
+
+    @Test
+    void prefetchColumns_뒤_과거_evalTs_평가는_평가_스레드에서_본문을_받지_않는다() {
+        feed.put(MdmTargetType.COLUMN, "BASE_COL", codeCol("BASE_COL", "C", "BASE"));
+        DomainValidator v = generalValidator();
+        lookup.prefetchColumns(List.of("BASE_COL"), PAST);
+        lookup.column("T", "BASE_COL"); // 컬럼 정의는 호출자 스레드에서(지금 시각 본문 2.000 도 여기서)
+        int toc = feed.tocCalls.get();
+        int body = feed.bodyCalls.get();
+
+        v.validate("T", "BASE_COL", Map.of("BASE_COL", "A"), PAST);
+
+        assertThat(feed.tocCalls.get()).isEqualTo(toc);
+        assertThat(feed.bodyCalls.get()).isEqualTo(body);
+    }
+
+    @Test
+    void 미리_받기_없이_과거_evalTs_로_평가하면_평가_중에_그_시각_본문을_받는다_현재_동작_고정() {
+        feed.put(MdmTargetType.COLUMN, "BASE_COL", codeCol("BASE_COL", "C", "BASE"));
+        DomainValidator v = generalValidator();
+        lookup.column("T", "BASE_COL"); // 지금 시각 본문만
+        assertThat(feed.bodyKeys.stream().flatMap(List::stream)).doesNotContain(C_V1);
+
+        v.validate("T", "BASE_COL", Map.of("BASE_COL", "A"), PAST);
+
+        assertThat(feed.bodyKeys.stream().flatMap(List::stream)).as("평가 스레드에서 받았다").contains(C_V1);
+    }
+
+    @Test
+    void prefetchCodes_는_여러_코드를_목차_한_번_본문_한_번으로_묶어_그_시각_본문을_받는다() {
+        CodeRows c = MdmMetaServiceVersionedTest.codeRows();
+        feed.put(MdmTargetType.CODE, "D", new CodeRows(new kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeHeader("D", "INUSE"), c.versions(),
+                c.items(), c.categories(), c.cateItems()));
+
+        feed.omitCurrent = true; // 본문 요청 경로를 강제 — 목차 한 번 + 본문 한 번으로 묶이는지 본다
+
+        lookup.prefetchCodes(List.of("C", "D", "C"), PAST);
+
+        assertThat(feed.tocCalls.get()).isEqualTo(1);
+        assertThat(feed.tocKeys.get(0)).containsExactly("C", "D");
+        assertThat(feed.bodyCalls.get()).isEqualTo(1);
+        assertThat(feed.bodyKeys.get(0)).containsExactlyInAnyOrder(C_V1, new MdmBodyKey("D", "1.000"));
+        lookup.codeAt("C", new BigDecimal("1.000"));
+        lookup.codeAt("D", new BigDecimal("1.000"));
+        assertThat(feed.bodyCalls.get()).as("이어진 조회는 캐시").isEqualTo(1);
+    }
+
+    @Test
+    void prefetchCodes_로_받은_과거_본문은_codes_codeAt_조회에_HTTP_를_더_부르지_않는다() {
+        lookup.prefetchCodes(List.of("C"), PAST);
+        int toc = feed.tocCalls.get();
+        int body = feed.bodyCalls.get();
+
+        assertThat(lookup.codeAt("C", new BigDecimal("1.000"))).isPresent();
+        assertThat(lookup.codes("C", new BigDecimal("1.000"), "BASE")).isNotNull();
+
+        assertThat(feed.tocCalls.get()).isEqualTo(toc);
+        assertThat(feed.bodyCalls.get()).isEqualTo(body);
+    }
+
+    @Test
+    void 미리_받기에서_MDM_을_받을_수_없으면_호출자_스레드에서_MdmUnavailableException_이다() {
+        feed.omitCurrent = true;
+        feed.failedBodies.put(C_V1, "BOOM");
+
+        assertThatThrownBy(() -> lookup.prefetchCodes(List.of("C"), PAST)).isInstanceOf(MdmUnavailableException.class);
+
+        feed.fetchError = new MdmUnavailableException("MDM 연결 실패");
+        assertThatThrownBy(() -> lookup.prefetchColumns(List.of("ANY_COL"), PAST)).isInstanceOf(MdmUnavailableException.class);
+    }
+
+    @Test
+    void 없는_코드와_컬럼_빈_입력은_미리_받기에서_예외_없이_넘어간다() {
+        lookup.prefetchCodes(List.of("NOPE"), PAST);
+        lookup.prefetchCodes(List.of(), PAST);
+        lookup.prefetchColumns(List.of("NO_SUCH_COL", " "), PAST);
+        lookup.prefetchColumns(List.of(), PAST);
+        assertThat(feed.bodyCalls.get()).isZero();
+    }
+
+    @Test
+    void column_은_지금_시각으로_위임한다_과거_시각_목차를_요청하지_않는다() {
+        feed.put(MdmTargetType.COLUMN, "BASE_COL", codeCol("BASE_COL", "C", "BASE"));
+
+        lookup.column("T", "BASE_COL");
+
+        assertThat(feed.tocAts).containsExactly(LocalDateTime.parse("2026-10-03T00:00:00"));
+        assertThat(feed.bodyCalls.get()).isZero();
+    }
 }
