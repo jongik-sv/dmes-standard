@@ -5,8 +5,7 @@ import com.dongkuk.dmes.mcm.favorite.dto.SecFavoriteSearchRequest;
 import com.dongkuk.dmes.mcm.favorite.entity.SecUserFavoriteFold;
 import com.dongkuk.dmes.mcm.favorite.repository.SecUserFavoriteFoldRepository;
 import com.dongkuk.dmes.mcm.favorite.repository.SecUserFavoriteRepository;
-import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
-import com.dongkuk.dmes.mcm.repository.SecObjRepository;
+import com.dongkuk.dmes.mcm.menu.MenuCatalog;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,8 +29,7 @@ class SecFavoriteServiceTest {
 
     @Mock SecUserFavoriteRepository favoriteRepository;
     @Mock SecUserFavoriteFoldRepository folderRepository;
-    @Mock SecMenuRepository secMenuRepository;
-    @Mock SecObjRepository secObjRepository;
+    @Mock MenuCatalog menuCatalog;
     @Mock SecurityIdentity securityIdentity;
 
     @InjectMocks SecFavoriteService service;
@@ -57,6 +55,7 @@ class SecFavoriteServiceTest {
         when(securityIdentity.currentUserId()).thenReturn("userA");
         when(folderRepository.findByUserIdOrderByFvtFoldSeq("userA")).thenReturn(List.of(folder("userA", "FVT000")));
         when(favoriteRepository.findByUserId("userA")).thenReturn(new ArrayList<>()); // 서비스가 정렬하므로 가변 목록
+        when(menuCatalog.snapshot()).thenReturn(MenuCatalog.Snapshot.of(List.of(), List.of())); // 이전 findAll mock 기본값(빈 목록)과 같은 뜻
 
         List<Map<String, Object>> rows = service.searchFavorites(search("userB"));
 
