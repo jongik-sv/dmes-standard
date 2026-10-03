@@ -8,11 +8,16 @@
  * - 불러오기 실패면 기본 「홈」을 보이고 [배치 편집]을 막는다(빈 상태로 덮어쓰지 않게).
  * - 정의 위젯 목록(registryStatus)이 loading·error 면 [배치 편집]과 (+) 새 탭(둘 다 편집 진입로)·탭 메뉴를 막고, error 면 띠를 보인다(스펙 widget-admin-generic §1.1·W-D19).
  * - singleTab 이면 탭 줄 대신 제목을 보이고 「홈」 하나만 다룬다(관리자 기본 배치 편집, 스펙 §10.2).
+ * - pdfTarget 을 주면 도구 줄에 [PDF] 단추를 그린다 — 대상 요소를 한 장짜리 페이지로 인쇄(printElementAsPage)하고, 편집 중에는 막는다.
+ *   인쇄 창을 열지 못하면(print() 예외) 알림을 보인다. 잠금·불러오기 실패·좁은 화면에서도 켜져 있다(보기 기능이라 편집 가능 여부와 무관).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { IconPrinter } from "@tabler/icons-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useContainerWidth } from "react-grid-layout";
 
 import { useMessage } from "../components/message-provider";
+import { today } from "../utils/libDate";
+import { printElementAsPage } from "../utils/libPrint";
 import { HOME_TAB_ID, MAX_TABS, WIDGET_COLS } from "./constants";
 import { WidgetBoard } from "./WidgetBoard";
 import { WidgetPicker } from "./WidgetPicker";
@@ -57,6 +62,12 @@ export interface WidgetWorkspaceProps {
   typeTitles?: Readonly<Record<string, string>>;
   /** 탭 줄을 숨기고 「홈」 탭 하나만 다룬다 — 관리자 기본 배치 편집용. title 은 보드 위 제목. */
   singleTab?: { title: string };
+  /**
+   * 인쇄(PDF) 대상 요소. 주면 도구 줄의 [배치 편집] 앞에 [PDF] 단추를 그린다(없으면 단추가 없다).
+   * 누르면 대상을 그 크기의 한 장짜리 페이지로 인쇄한다 — 인쇄 창에서 「PDF로 저장」을 고르면 PDF 한 장이고,
+   * 기본 파일 이름은 「{지금 탭 이름}_{yyyyMMdd}」다. ref 가 비어 있으면 작업 공간 자체를 찍는다. 편집 중에는 막는다.
+   */
+  pdfTarget?: RefObject<HTMLElement | null>;
 }
 
 type LoadStatus = "loading" | "ready" | "error";
@@ -71,6 +82,15 @@ function useOptionalMessage() {
 }
 
 const errMsg = (e: unknown) => (e instanceof Error && e.message ? e.message : "요청을 처리하지 못했습니다.");
+/**
+ * PDF 기본 파일 이름 「{탭 이름}_{yyyyMMdd}」 — 파일 이름에 못 쓰는 글자는 _ 로 바꾸고 80자(글자 단위, 서로게이트 쌍은 한 글자)로 자른 뒤
+ * 앞뒤 공백과 끝 마침표를 지운다. 비면 「홈위젯」.
+ */
+const pdfTitle = (tabName: string) => {
+  const replaced = tabName.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim();
+  const base = Array.from(replaced).slice(0, 80).join("").trim().replace(/[.\s]+$/, "");
+  return `${base || "홈위젯"}_${today()}`;
+};
 const lastTabKey = (userId?: string | null) => (userId ? `dmes:widget:lastTab:${userId}` : null);
 
 function readLastTab(userId?: string | null): string | null {
@@ -107,6 +127,7 @@ export function WidgetWorkspace({
   onRetryRegistry,
   typeTitles,
   singleTab,
+  pdfTarget,
 }: WidgetWorkspaceProps) {
   const message = useOptionalMessage();
   // singleTab 은 화면이 렌더마다 새 객체로 넘기기 쉬우므로 불러오기 의존성에는 있고 없음만 쓴다.
@@ -422,8 +443,34 @@ export function WidgetWorkspace({
               ? "잠긴 탭입니다. 탭 메뉴에서 잠금을 풀어 주세요."
               : null;
 
+  const printPdf = () => {
+    const el = pdfTarget?.current ?? outer.containerRef.current;
+    if (!el || editing) return;
+    try {
+      printElementAsPage(el, { title: pdfTitle(active.name) });
+    } catch {
+      tell("인쇄 창을 열지 못했습니다.", "error");
+    }
+  };
+  // 편집 중에도 자리를 지키고 비활성으로만 바뀐다. data-print-hide — 찍힌 PDF 에는 도구 줄 단추가 나오지 않는다.
+  const pdfButton = pdfTarget ? (
+    <button
+      type="button"
+      className="cm-widget-ws__btn cm-widget-ws__btn--icon"
+      data-action="print-pdf"
+      data-print-hide=""
+      disabled={editing}
+      title={editing ? "편집 중에는 사용할 수 없습니다" : "위젯 화면을 PDF 로 저장(인쇄 창에서 'PDF로 저장' 선택)"}
+      onClick={printPdf}
+    >
+      <IconPrinter size={14} stroke={1.8} aria-hidden="true" />
+      PDF
+    </button>
+  ) : null;
+
   const trailing = editing ? (
     <>
+      {pdfButton}
       <span className="cm-widget-ws__hint">배치 편집 중</span>
       <button type="button" className="cm-widget-ws__btn" data-action="cancel-edit" disabled={saving} onClick={() => void cancelEdit()}>
         취소
@@ -433,16 +480,20 @@ export function WidgetWorkspace({
       </button>
     </>
   ) : (
-    <button
-      type="button"
-      className="cm-widget-ws__btn"
-      data-action="start-edit"
-      disabled={editBlockedReason != null}
-      title={editBlockedReason ?? "위젯을 옮기고 크기를 바꿉니다"}
-      onClick={startEdit}
-    >
-      ✎ 배치 편집
-    </button>
+    <>
+      {pdfButton}
+      <button
+        type="button"
+        className="cm-widget-ws__btn"
+        data-action="start-edit"
+        data-print-hide={pdfTarget ? "" : undefined}
+        disabled={editBlockedReason != null}
+        title={editBlockedReason ?? "위젯을 옮기고 크기를 바꿉니다"}
+        onClick={startEdit}
+      >
+        ✎ 배치 편집
+      </button>
+    </>
   );
 
   return (
@@ -451,7 +502,7 @@ export function WidgetWorkspace({
       {status === "error" && (
         <div className="cm-widget-ws__banner" role="alert">
           저장한 위젯 화면을 불러오지 못했습니다.
-          <button type="button" className="cm-widget-ws__btn" onClick={() => void load()}>
+          <button type="button" className="cm-widget-ws__btn" data-print-hide="" onClick={() => void load()}>
             다시 시도
           </button>
         </div>
@@ -460,7 +511,7 @@ export function WidgetWorkspace({
         <div className="cm-widget-ws__banner" role="alert" data-testid={testId ? `${testId}-registry-error` : undefined}>
           위젯 정의를 불러오지 못했습니다
           {onRetryRegistry && (
-            <button type="button" className="cm-widget-ws__btn" data-action="retry-registry" onClick={onRetryRegistry}>
+            <button type="button" className="cm-widget-ws__btn" data-action="retry-registry" data-print-hide="" onClick={onRetryRegistry}>
               다시 시도
             </button>
           )}

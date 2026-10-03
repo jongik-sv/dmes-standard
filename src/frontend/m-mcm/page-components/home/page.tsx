@@ -6,8 +6,9 @@
  * 실행 시 등록부 = 코드 등록부 + 유형 등록부 + widgetDef/list 의 DB 정의·덮어쓰기 행(shared mergeWidgetRegistry),
  * 「홈」 기본 배치 = 응답의 부서·전사 기본 배치, 없으면 코드 상수. 스펙 2026-10-02-widget-admin-generic §11.
  * KPI·차트·표·알림은 sample-data.ts 의 샘플이다(인사말 줄에 표시).
+ * [PDF](작업 공간 도구 줄)는 홈 뿌리 .mcm-home 전체(인사말·공지 띠·탭 줄·보드)를 한 장짜리 PDF 로 인쇄한다.
  */
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { PageProps } from "@dk-oasis/shared/portal-shell-core";
 import { PageLayout } from "@dk-oasis/shared/layout";
 import { Badge, Button, SegmentedControl } from "@dk-oasis/shared/form";
@@ -40,6 +41,8 @@ export default function PortalHomePage(_props: PageProps) {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [productGroup, setProductGroup] = useState(PRODUCT_GROUPS[0]);
   const { notices } = useNoticeStore();
+  // [PDF] 인쇄 대상 — 홈 뿌리(.mcm-home) 전체.
+  const homeRef = useRef<HTMLDivElement>(null);
 
   // 위젯 정의 조회 — 응답 전·실패 동안은 코드 등록부만으로 보이고 [배치 편집]이 막힌다(정의 위젯이 사용자 배치에서 지워지지 않게).
   // 등록부·기본 배치가 응답으로 바뀌면 WidgetWorkspace 가 탭을 다시 불러오므로(load 가 registry·homeDefault 에 의존) 따로 다시 마운트하지 않는다.
@@ -117,7 +120,7 @@ export default function PortalHomePage(_props: PageProps) {
       <style href={HOME_STYLE_HREF} precedence="default">
         {HOME_CSS}
       </style>
-      <div className="mcm-home" data-testid="portal-home">
+      <div ref={homeRef} className="mcm-home" data-testid="portal-home">
         <div className="mcm-home-welcome">
           <h2 className="mcm-home-welcome__hello" data-testid="home-greeting">
             {greeting ? `안녕하세요, ${greeting} 님` : "안녕하세요"}
@@ -158,6 +161,7 @@ export default function PortalHomePage(_props: PageProps) {
           registryStatus={defsState.status}
           onRetryRegistry={retryDefs}
           typeTitles={TYPE_TITLES}
+          pdfTarget={homeRef}
         />
       </div>
     </PageLayout>

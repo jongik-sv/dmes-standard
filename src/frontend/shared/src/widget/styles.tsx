@@ -108,6 +108,7 @@ export const WIDGET_CSS = `
 .cm-widget-ws__btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .cm-widget-ws__btn--primary { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-on-primary); }
 .cm-widget-ws__btn--primary:hover:not(:disabled) { background: var(--color-primary-hover); }
+.cm-widget-ws__btn--icon { display: inline-flex; align-items: center; gap: 4px; }
 .cm-widget-ws__hint { font-size: var(--font-size-sm); font-weight: 600; color: var(--color-primary); }
 .cm-widget-ws__head { display: flex; align-items: center; gap: 6px; min-height: 34px; padding-bottom: 4px; border-bottom: 1px solid var(--color-border); }
 .cm-widget-ws__title { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-lg); font-weight: 700; color: var(--color-text); }

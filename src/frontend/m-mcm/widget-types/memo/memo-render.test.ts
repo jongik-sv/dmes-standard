@@ -9,9 +9,19 @@
  */
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MEMO_MD_MODE_STORAGE_KEY, MemoServiceError, type MemoRecord } from "./memo-model";
+import { WidgetBoardModeContext, type WidgetBoardMode } from "@/lib/widget-board-mode";
+
+import {
+  MEMO_DRAFT_DELAY_MS,
+  MEMO_MAX_LENGTH,
+  MEMO_MD_MODE_STORAGE_KEY,
+  MemoServiceError,
+  memoBaseHash,
+  type MemoDraft,
+  type MemoRecord,
+} from "./memo-model";
 
 const h = vi.hoisted(() => ({
   fetchMemo: vi.fn(),
@@ -19,11 +29,21 @@ const h = vi.hoisted(() => ({
   setStatus: vi.fn(),
   /** MarkdownField 대역이 마운트될 때마다 올리는 번호 — key 로 새로 그렸는지 본다. */
   mdMounts: 0,
+  /** 확인된 사용자 ID(대역) — "" 면 사용자를 모르는 상태다. */
+  userId: "u1",
+  /** 사용자 확인 상태(대역) — pending: 확인 중, confirmed: 확인됨, failed: 확인이 끝났는데 ID 를 모른다. */
+  userStatus: "confirmed" as "pending" | "confirmed" | "failed",
+  /** renderWidget 이 마지막으로 넘긴 props — 같은 위젯을 다시 그리는 시험이 쓴다. */
+  lastProps: null as unknown,
 }));
 
 vi.mock("./api", () => ({ fetchMemo: h.fetchMemo, saveMemo: h.saveMemo }));
 
 vi.mock("@dk-oasis/shared/widget", () => ({ useWidgetStatus: () => h.setStatus }));
+
+// 사용자 확인(shared portal-shell 의 /api/auth/me 호출)을 막고 시험이 정한 사용자를 돌려준다. enabled 를 무시해
+// 미리보기·보드 맥락에서 읽지·쓰지 않는 것이 렌더러 자신의 판정임을 확인한다(실제 훅은 enabled=false 면 "").
+vi.mock("./memo-user", () => ({ useConfirmedUser: () => ({ userId: h.userId, status: h.userStatus }) }));
 
 vi.mock("@dk-oasis/shared/form", async () => {
   const { createElement: el } = await import("react");
@@ -107,6 +127,43 @@ let container: HTMLDivElement;
 let root: Root;
 let unmounted = false;
 
+/**
+ * 메모리 저장소 대역 — Node 22+ 는 `--localstorage-file` 없이는 전역 localStorage 가 undefined 인 접근자를 갖고 있어
+ * happy-dom 환경에서도 window.localStorage 가 비어 있다. 시험마다 새 저장소를 window.localStorage 로 꽂는다.
+ */
+class MemoryStorage {
+  private readonly map = new Map<string, string>();
+  get length() {
+    return this.map.size;
+  }
+  getItem(key: string) {
+    return this.map.has(key) ? (this.map.get(key) as string) : null;
+  }
+  setItem(key: string, v: string) {
+    this.map.set(key, String(v));
+  }
+  removeItem(key: string) {
+    this.map.delete(key);
+  }
+  clear() {
+    this.map.clear();
+  }
+  key(i: number) {
+    return [...this.map.keys()][i] ?? null;
+  }
+}
+
+let store = new MemoryStorage();
+/** 시험이 저장소를 막거나 감쌀 때 건다 — window.localStorage 접근이 이 함수의 결과(또는 던진 예외)가 된다. */
+let storageOverride: (() => unknown) | null = null;
+const ownStorageDescriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+Object.defineProperty(window, "localStorage", { configurable: true, get: () => (storageOverride ? storageOverride() : store) });
+
+afterAll(() => {
+  if (ownStorageDescriptor) Object.defineProperty(window, "localStorage", ownStorageDescriptor);
+  else delete (window as unknown as { localStorage?: unknown }).localStorage;
+});
+
 /** 시험 안에서 먼저 내리는 경우(afterEach 가 한 번 더 내리지 않게 표시한다). */
 function unmount() {
   if (unmounted) return;
@@ -130,6 +187,10 @@ beforeEach(() => {
   h.fetchMemo.mockReset();
   h.saveMemo.mockReset();
   h.setStatus.mockReset();
+  h.userId = "u1";
+  h.userStatus = "confirmed";
+  store = new MemoryStorage();
+  storageOverride = null;
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -190,6 +251,8 @@ interface RenderProps {
   widgetId?: string;
   instanceId?: string;
   refreshKey?: number;
+  /** 보드 성격 맥락 — 주면 그 값의 provider 안에서 그린다(위젯관리 [기본 배치] 보드는 "preview"). 안 주면 provider 밖(홈)이다. */
+  boardMode?: WidgetBoardMode;
 }
 
 async function renderWidget(p: RenderProps = {}) {
@@ -201,8 +264,10 @@ async function renderWidget(p: RenderProps = {}) {
     size: { w: 8, h: 10 },
     config: null,
   };
+  h.lastProps = props;
+  const widget = createElement(MemoRenderer, props as never);
   await act(async () => {
-    root.render(createElement(MemoRenderer, props as never));
+    root.render(p.boardMode ? createElement(WidgetBoardModeContext.Provider, { value: p.boardMode }, widget) : widget);
   });
   await flush();
   return props;
@@ -777,6 +842,808 @@ describe("개인 메모 — 관리 화면 미리보기", () => {
     await click("memo-edit");
     expect(q("memo-input")).toBeNull();
     expect(h.setStatus).toHaveBeenLastCalledWith({ kind: "ready" });
+  });
+});
+
+describe("개인 메모 — 위젯관리 [기본 배치] 보드(스펙 §17.5)", () => {
+  it("보드 맥락(preview) 안에서는 실제 칸이어도 load·save 를 부르지 않고 안내만 보이며 [편집]은 막힌다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ content: "관리자 본인 메모" }));
+    await renderWidget({ boardMode: "preview" }); // 저장된 정의(def.abc12345)·실제 칸 ID(inst-1) — 미리보기 판정으로는 실제 메모다
+    expect(h.fetchMemo).not.toHaveBeenCalled();
+    expect(h.saveMemo).not.toHaveBeenCalled();
+    expect(must("memo-preview-hint").textContent).toBe("기본 배치 화면에서는 개인 메모를 쓰지 않습니다(사용자가 홈에서 씁니다)");
+    expect(container.textContent).not.toContain("관리자 본인 메모");
+    expect(must("memo-edit").hasAttribute("disabled")).toBe(true);
+    await click("memo-edit");
+    expect(q("memo-input")).toBeNull();
+    expect(q("memo-input-md")).toBeNull();
+    expect(h.fetchMemo).not.toHaveBeenCalled();
+    expect(h.saveMemo).not.toHaveBeenCalled();
+    expect(h.setStatus).toHaveBeenLastCalledWith({ kind: "ready" });
+  });
+
+  it("새로 고침 신호가 와도 보드 맥락에서는 서버를 부르지 않는다", async () => {
+    await renderWidget({ boardMode: "preview", refreshKey: 0 });
+    await renderWidget({ boardMode: "preview", refreshKey: 1 });
+    expect(h.fetchMemo).not.toHaveBeenCalled();
+  });
+
+  it("맥락 값이 live 이거나 provider 밖(홈)이면 같은 칸이 그대로 실제 메모다 — 불러오고 [편집]이 열린다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ content: "내 메모" }));
+    await renderWidget(); // provider 밖
+    expect(h.fetchMemo).toHaveBeenCalledWith("inst-1");
+    expect(must("widget-memo-body").textContent).toContain("내 메모");
+    expect(q("memo-preview-hint")).toBeNull();
+    expect(must("memo-edit").hasAttribute("disabled")).toBe(false);
+
+    h.fetchMemo.mockClear();
+    await renderWidget({ boardMode: "live" });
+    expect(h.fetchMemo).toHaveBeenCalledTimes(1);
+    expect(q("memo-preview-hint")).toBeNull();
+  });
+
+  it("보드 맥락에서도 관리 화면 미리보기 안내 문구(「미리보기에서는…」)를 쓰지 않는다 — 두 곳의 문구가 다르다", async () => {
+    await renderWidget({ boardMode: "preview" });
+    expect(must("memo-preview-hint").textContent).not.toContain("미리보기에서는");
+  });
+
+  it("공용 메모는 보드 맥락과 상관없이 그대로 보인다", async () => {
+    await renderWidget({ boardMode: "preview", definition: { scope: "shared", format: "text", content: "공지 내용" } });
+    expect(must("widget-memo-shared").textContent).toBe("공지 내용");
+  });
+});
+
+describe("개인 메모 — 쓰다 만 글 임시 저장(localStorage)", () => {
+  const KEY = "dmes:widget:memo-draft:v1:u1:inst-1";
+  const PREFIX = "dmes:widget:memo-draft:";
+  const SAVED = record({ content: "서버 글" });
+  /** 시험 안의 「지금」 — 가짜 시계를 이 시각에 맞춘다(임시본은 7일 만료라 실제 시계에 기대면 날짜가 지나 깨진다). putDraft 의 기본 savedAt 은 이 시각 55분 전. */
+  const NOW = new Date(2026, 9, 3, 15, 0).getTime();
+  const DAY = 24 * 60 * 60 * 1000;
+  /** 저장소에 있는 키(정렬). */
+  const keys = () => Array.from({ length: store.length }, (_, i) => store.key(i) as string).sort();
+
+  const stored = (key = KEY): MemoDraft | null => {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as MemoDraft) : null;
+  };
+  const putDraft = (over: Partial<MemoDraft> = {}, key = KEY) =>
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({ format: "text", content: "쓰던 글", baseHash: memoBaseHash(SAVED), savedAt: new Date(2026, 9, 3, 14, 5).getTime(), ...over })
+    );
+  /**
+   * 디바운스가 지나게 한다 — 가짜 타이머를 앞으로 돌린다. shouldAdvanceTime 이라 실제 시간도 흘러(flush 의 setTimeout 0 이 풀린다)
+   * 다른 도움 함수는 그대로 쓴다.
+   */
+  const settle = () =>
+    act(async () => {
+      vi.advanceTimersByTime(MEMO_DRAFT_DELAY_MS + 60);
+      await Promise.resolve();
+    });
+  /** 위젯을 내렸다 새로 올린다(탭 전환·화면 이동). */
+  async function remount(p: RenderProps = {}) {
+    act(() => root.unmount());
+    root = createRoot(container);
+    await renderWidget(p);
+  }
+
+  /** 사용자 확인 결과가 바뀐 것을 반영한다(같은 위젯을 다시 그린다). */
+  async function changeUser(userId: string, status: "pending" | "confirmed" | "failed") {
+    h.userId = userId;
+    h.userStatus = status;
+    await act(async () => {
+      root.render(createElement(MemoRenderer, h.lastProps as never));
+    });
+    await flush();
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(NOW);
+    h.fetchMemo.mockResolvedValue(SAVED);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("글을 바꾸면 300ms 뒤에 { format, content, baseHash, savedAt } 를 쓴다 — 그 전에는 쓰지 않는다", async () => {
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input", "쓰는 중");
+    expect(stored()).toBeNull(); // 디바운스 중
+    await typeInto("memo-input", "쓰는 중인 글");
+    await settle();
+    const draft = stored();
+    expect(draft).toMatchObject({ format: "text", content: "쓰는 중인 글", baseHash: memoBaseHash(SAVED) });
+    expect(typeof draft!.savedAt).toBe("number");
+    expect(window.localStorage.length).toBe(1);
+  });
+
+  it("키의 사용자·칸 ID 는 URI 인코딩한다 — 구분자(:)가 들어 있어도 키가 모호하지 않다", async () => {
+    await renderWidget({ instanceId: "inst:1/a" });
+    await click("memo-edit");
+    await typeInto("memo-input", "글");
+    await settle();
+    expect(keys()).toEqual([`${PREFIX}v1:u1:inst%3A1%2Fa`]);
+  });
+
+  it("편집을 열기만 하고 바꾸지 않으면 쓰지 않는다 — 서버 글을 편집기에 넣은 것은 사용자 변경이 아니다", async () => {
+    await renderWidget();
+    await click("memo-edit");
+    await settle();
+    act(() => root.unmount());
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it("형식만 바꿔도(글이 있으면) 임시 저장한다", async () => {
+    await renderWidget();
+    await click("memo-edit");
+    await choose("memo-format", "html");
+    await settle();
+    expect(stored()).toMatchObject({ format: "html", content: "서버 글" });
+  });
+
+  it("md 편집기에서 쓴 글도 임시 저장한다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ format: "md", content: "처음 md" }));
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input-md", "# 고친 md");
+    await settle();
+    expect(stored()).toMatchObject({ format: "md", content: "# 고친 md" });
+  });
+
+  it("글을 쓰다 위젯을 내렸다 다시 올리면 [편집] 옆에 표시가 뜨고, [편집]에서 안내가 뜨며 [이어 쓰기]로 형식·글이 복원된다", async () => {
+    await renderWidget();
+    await click("memo-edit");
+    await choose("memo-format", "html");
+    await typeInto("memo-input", "<p>쓰다 만 글</p>");
+    // 디바운스가 지나기 전에 내린다 — 내릴 때 못 쓴 값은 바로 쓴다.
+    await remount();
+    expect(must("memo-draft-flag").textContent).toBe("쓰다 만 글 있음");
+    expect(must("widget-memo-body").textContent).toContain("서버 글"); // 보기는 서버 메모 그대로
+
+    await click("memo-edit");
+    expect(q("memo-draft-flag")).toBeNull();
+    expect(must("memo-draft-notice").textContent).toContain("저장하지 않은 글이 있습니다(");
+    expect(must("memo-draft-text").textContent).not.toContain("다른 곳에서");
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("서버 글"); // 고르기 전에는 서버 글
+
+    await click("memo-draft-resume");
+    expect(q("memo-draft-notice")).toBeNull();
+    expect((must("memo-format") as HTMLSelectElement).value).toBe("html");
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("<p>쓰다 만 글</p>");
+    expect(stored()).toMatchObject({ format: "html", content: "<p>쓰다 만 글</p>" }); // 임시본은 그대로
+  });
+
+  it("md 형식 임시본도 복원된다", async () => {
+    putDraft({ format: "md", content: "# 쓰던 md" });
+    await renderWidget();
+    await click("memo-edit");
+    await click("memo-draft-resume");
+    expect((must("memo-format") as HTMLSelectElement).value).toBe("md");
+    expect((must("memo-input-md") as HTMLTextAreaElement).value).toBe("# 쓰던 md");
+  });
+
+  it("안내 시각은 임시본의 savedAt 을 「yyyy-MM-dd HH:mm」 로 보인다", async () => {
+    putDraft();
+    await renderWidget();
+    await click("memo-edit");
+    expect(must("memo-draft-text").textContent).toBe("저장하지 않은 글이 있습니다(2026-10-03 14:05)");
+  });
+
+  it("[버리기] 는 임시본을 지우고 서버 글로 계속 쓴다 — 보기로 돌아와도 표시가 없다", async () => {
+    putDraft();
+    await renderWidget();
+    expect(must("memo-draft-flag")).toBeTruthy();
+    await click("memo-edit");
+    await click("memo-draft-discard");
+    expect(q("memo-draft-notice")).toBeNull();
+    expect(stored()).toBeNull();
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("서버 글");
+    await click("memo-cancel");
+    expect(q("memo-draft-flag")).toBeNull();
+    act(() => root.unmount());
+    expect(stored()).toBeNull();
+  });
+
+  it("[버리기] 뒤에 쓰는 글은 다시 임시 저장된다", async () => {
+    putDraft();
+    await renderWidget();
+    await click("memo-edit");
+    await click("memo-draft-discard");
+    await typeInto("memo-input", "다시 쓰는 글");
+    await settle();
+    expect(stored()).toMatchObject({ content: "다시 쓰는 글", baseHash: memoBaseHash(SAVED) });
+  });
+
+  it("저장에 성공하면 임시본을 지운다 — 늦게 도는 타이머·언마운트 뒤처리가 되살리지 않는다", async () => {
+    h.saveMemo.mockResolvedValue(record({ content: "저장한 글" }));
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input", "저장한 글");
+    await settle();
+    expect(stored()).not.toBeNull();
+    await typeInto("memo-input", "저장한 글!"); // 타이머가 걸린 채로 저장
+    await click("memo-save");
+    expect(h.saveMemo).toHaveBeenCalledTimes(1);
+    expect(stored()).toBeNull();
+    await settle();
+    expect(stored()).toBeNull();
+    act(() => root.unmount());
+    expect(stored()).toBeNull();
+    expect(q("memo-draft-flag")).toBeNull();
+  });
+
+  it("저장에 실패하면 임시본을 남긴다", async () => {
+    h.saveMemo.mockRejectedValue(new MemoServiceError("서버 거절"));
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input", "못 저장한 글");
+    await click("memo-save");
+    expect(must("memo-error").textContent).toBe("서버 거절");
+    await settle();
+    expect(stored()).toMatchObject({ content: "못 저장한 글" });
+  });
+
+  it("[취소] 는 임시본을 지운다 — 디바운스 중에 눌러도, 그 뒤 위젯을 내려도 되살아나지 않는다", async () => {
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input", "한 번 쓴 글");
+    await settle();
+    expect(stored()).not.toBeNull();
+    await typeInto("memo-input", "한 번 쓴 글 더");
+    await click("memo-cancel"); // 타이머가 걸린 채로 취소
+    expect(stored()).toBeNull();
+    expect(q("memo-draft-flag")).toBeNull();
+    await settle();
+    expect(stored()).toBeNull();
+    act(() => root.unmount());
+    expect(stored()).toBeNull();
+  });
+
+  it("글을 서버 글과 같게 되돌리면 임시본을 지운다", async () => {
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input", "바꾼 글");
+    await settle();
+    expect(stored()).not.toBeNull();
+    await typeInto("memo-input", "서버 글");
+    await settle();
+    expect(stored()).toBeNull();
+  });
+
+  describe("사용자 확인", () => {
+    const locked = (el: HTMLElement) => (el as HTMLTextAreaElement).readOnly === true;
+
+    it("확인이 끝나기 전(pending)에는 [편집]이 막혀 있다 — 확인되면 열리고, 옛 임시본 안내가 편집 첫 화면부터 나온다", async () => {
+      putDraft();
+      h.userId = "";
+      h.userStatus = "pending";
+      await renderWidget();
+      expect(must("memo-edit").hasAttribute("disabled")).toBe(true);
+      await click("memo-edit");
+      expect(q("memo-editing")).toBeNull();
+      await changeUser("u1", "confirmed");
+      expect(must("memo-edit").hasAttribute("disabled")).toBe(false);
+      await click("memo-edit");
+      expect(must("memo-draft-notice")).toBeTruthy();
+      expect(locked(must("memo-input"))).toBe(true);
+    });
+
+    it("확인이 실패로 끝나면(failed) 임시 저장하지 않고 읽지도 않는다 — 편집·저장은 그대로 된다", async () => {
+      h.userId = "";
+      h.userStatus = "failed";
+      putDraft({}, `${PREFIX}:inst-1`);
+      putDraft({}, `${PREFIX}undefined:inst-1`);
+      const before = window.localStorage.length;
+      h.saveMemo.mockResolvedValue(record({ content: "저장한 글" }));
+      await renderWidget();
+      expect(q("memo-draft-flag")).toBeNull();
+      expect(must("memo-edit").hasAttribute("disabled")).toBe(false);
+      await click("memo-edit");
+      expect(q("memo-draft-notice")).toBeNull();
+      await typeInto("memo-input", "사용자 모르는 글");
+      await settle();
+      act(() => root.unmount());
+      expect(window.localStorage.length).toBe(before); // 새 키가 생기지 않았고 있던 키도 훑어 지우지 않았다
+      root = createRoot(container);
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "저장할 글");
+      await click("memo-save");
+      expect(h.saveMemo).toHaveBeenCalledTimes(1);
+    });
+
+    it("확인 실패로 시작한 편집 도중 사용자가 확인돼도 입력이 잠기지 않고 방금 쓴 글이 옛 임시본으로 덮이지 않는다", async () => {
+      putDraft({ content: "옛 임시본" });
+      h.userId = "";
+      h.userStatus = "failed";
+      h.saveMemo.mockResolvedValue(record({ content: "방금 쓴 글" }));
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "방금 쓴 글");
+      await changeUser("u1", "confirmed");
+      await settle();
+      expect(q("memo-draft-notice")).toBeNull();
+      expect(locked(must("memo-input"))).toBe(false);
+      expect((must("memo-input") as HTMLTextAreaElement).value).toBe("방금 쓴 글");
+      expect(must("memo-save").hasAttribute("disabled")).toBe(false);
+      expect(stored()).toMatchObject({ content: "옛 임시본" }); // 이 편집은 임시 저장 없이 시작했으므로 옛 임시본을 건드리지 않는다
+      await click("memo-save");
+      expect(h.saveMemo).toHaveBeenCalledWith(expect.objectContaining({ content: "방금 쓴 글" }));
+    });
+
+    it.each([
+      ["저장", "memo-save"],
+      ["취소", "memo-cancel"],
+    ])("편집 도중 사용자 ID 가 사라져도 그 뒤 입력이 같은 키에 임시 저장되고 [%s]가 그 임시본을 지운다", async (_name, button) => {
+      h.saveMemo.mockResolvedValue(record({ content: "첫 글 더" }));
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "첫 글");
+      await settle();
+      expect(stored()).toMatchObject({ content: "첫 글" });
+      await changeUser("", "failed");
+      await typeInto("memo-input", "첫 글 더");
+      await settle();
+      expect(stored()).toMatchObject({ content: "첫 글 더" }); // 사용자를 잃었어도 이 편집의 임시 저장은 이어진다
+      await click(button);
+      expect(stored()).toBeNull();
+      await settle();
+      act(() => root.unmount());
+      expect(keys()).toEqual([]);
+    });
+
+    it("사용자를 확인한 뒤에야 임시본을 읽는다 — 확인 전에는 표시도 없다", async () => {
+      putDraft();
+      h.userId = "";
+      h.userStatus = "pending";
+      await renderWidget();
+      expect(q("memo-draft-flag")).toBeNull();
+      await changeUser("u1", "confirmed");
+      expect(must("memo-draft-flag")).toBeTruthy();
+    });
+  });
+
+  it("다른 사용자의 임시본은 보이지 않는다", async () => {
+    putDraft({}, `${PREFIX}v1:other:inst-1`);
+    await renderWidget();
+    expect(q("memo-draft-flag")).toBeNull();
+    await click("memo-edit");
+    expect(q("memo-draft-notice")).toBeNull();
+  });
+
+  it("다른 칸(instanceId)의 임시본은 보이지 않는다", async () => {
+    putDraft({}, `${PREFIX}v1:u1:inst-2`);
+    await renderWidget();
+    expect(q("memo-draft-flag")).toBeNull();
+  });
+
+  describe("보관 기간(7일)과 정리", () => {
+    it("savedAt 으로부터 7일이 지난 임시본은 없는 것으로 본다 — 표시도 안내도 없고 저장소에서도 사라진다", async () => {
+      putDraft({ savedAt: NOW - 7 * DAY - 60_000 });
+      await renderWidget();
+      expect(q("memo-draft-flag")).toBeNull();
+      await click("memo-edit");
+      expect(q("memo-draft-notice")).toBeNull();
+      expect(stored()).toBeNull();
+    });
+
+    it("7일이 안 된 임시본은 그대로 되살린다", async () => {
+      putDraft({ savedAt: NOW - 7 * DAY + 60_000 });
+      await renderWidget();
+      expect(must("memo-draft-flag")).toBeTruthy();
+      await click("memo-edit");
+      expect(must("memo-draft-notice")).toBeTruthy();
+    });
+
+    it("화면을 연 채 7일이 지나면 [편집] 때 읽다가 만료를 알아보고 지운다(훑기가 아니라 읽기 쪽 만료)", async () => {
+      putDraft();
+      await renderWidget();
+      expect(must("memo-draft-flag")).toBeTruthy(); // 마운트 때는 살아 있다
+      act(() => {
+        vi.setSystemTime(NOW + 8 * DAY);
+      });
+      await click("memo-edit");
+      expect(q("memo-draft-notice")).toBeNull();
+      expect(stored()).toBeNull();
+    });
+
+    it("사용자가 확인되면 7일 지난 임시본과 다른 사용자·옛 모양 키를 지운다 — 본인의 유효한 임시본과 이 기능 밖의 키는 남긴다", async () => {
+      putDraft({}, KEY); // 본인·유효
+      putDraft({ savedAt: NOW - 7 * DAY - 60_000 }, `${PREFIX}v1:u1:inst-9`); // 본인·만료
+      putDraft({}, `${PREFIX}v1:other:inst-1`); // 다른 사용자(유효해도)
+      putDraft({}, `${PREFIX}v1:u10:inst-1`); // u1 의 접두에 걸리지 않는 다른 사용자
+      putDraft({}, `${PREFIX}u1:inst-1`); // 옛 모양 키
+      window.localStorage.setItem(`${PREFIX}v1:u1:inst-8`, "{깨짐"); // 본인·쓸 수 없는 값
+      window.localStorage.setItem("dmes:other:thing", "x");
+      await renderWidget();
+      expect(keys()).toEqual([KEY, "dmes:other:thing"].sort());
+    });
+
+    it("사용자 확인 전·실패에는 훑지 않는다 — 확인되는 순간 한 번 훑는다", async () => {
+      putDraft({}, `${PREFIX}v1:other:inst-1`);
+      h.userId = "";
+      h.userStatus = "pending";
+      await renderWidget();
+      expect(keys()).toEqual([`${PREFIX}v1:other:inst-1`]);
+      await changeUser("", "failed");
+      expect(keys()).toEqual([`${PREFIX}v1:other:inst-1`]);
+      await changeUser("u1", "confirmed");
+      expect(keys()).toEqual([]);
+    });
+
+    it("미리보기 맥락에서는 사용자를 알아도 훑지 않는다", async () => {
+      putDraft({}, `${PREFIX}v1:other:inst-1`);
+      await renderWidget({ boardMode: "preview" });
+      expect(keys()).toEqual([`${PREFIX}v1:other:inst-1`]);
+    });
+
+    it("훑는 도중 저장소가 던져도 보기·편집이 그대로 된다", async () => {
+      storageOverride = () => ({
+        length: 2,
+        key: () => {
+          throw new Error("denied");
+        },
+        getItem: (k: string) => store.getItem(k),
+        setItem: (k: string, v: string) => store.setItem(k, v),
+        removeItem: (k: string) => store.removeItem(k),
+      });
+      await renderWidget();
+      expect(must("widget-memo-body").textContent).toContain("서버 글");
+      await click("memo-edit");
+      await typeInto("memo-input", "훑기가 던져도 쓰는 글");
+      expect((must("memo-input") as HTMLTextAreaElement).value).toBe("훑기가 던져도 쓰는 글");
+    });
+  });
+
+  describe("페이지가 사라질 때 못 쓴 글을 바로 쓴다(pagehide·visibilitychange)", () => {
+    const setVisibility = (state: "visible" | "hidden") =>
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+    afterEach(() => {
+      delete (document as unknown as { visibilityState?: unknown }).visibilityState;
+    });
+
+    it("pagehide — 디바운스가 지나기 전의 글을 바로 쓰고, 그 뒤에도 입력은 계속 임시 저장된다", async () => {
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "새로 고침 직전 글");
+      expect(stored()).toBeNull(); // 디바운스 중
+      act(() => {
+        window.dispatchEvent(new Event("pagehide"));
+      });
+      expect(stored()).toMatchObject({ content: "새로 고침 직전 글" });
+      await typeInto("memo-input", "돌아와서 더 쓴 글");
+      await settle();
+      expect(stored()).toMatchObject({ content: "돌아와서 더 쓴 글" });
+    });
+
+    it("visibilitychange — hidden 이 될 때만 바로 쓴다(visible 로 돌아올 때는 쓰지 않는다)", async () => {
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "탭을 가리기 직전 글");
+      setVisibility("visible");
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      expect(stored()).toBeNull();
+      setVisibility("hidden");
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      expect(stored()).toMatchObject({ content: "탭을 가리기 직전 글" });
+    });
+
+    it("[취소]한 뒤에는 pagehide 가 와도 지운 임시본을 되살리지 않는다", async () => {
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "쓰다 취소할 글");
+      await click("memo-cancel");
+      act(() => {
+        window.dispatchEvent(new Event("pagehide"));
+      });
+      expect(stored()).toBeNull();
+    });
+
+    it("리스너는 마운트 때 달고 위젯이 내려갈 때 같은 함수로 뗀다", async () => {
+      const winAdd = vi.spyOn(window, "addEventListener");
+      const winRemove = vi.spyOn(window, "removeEventListener");
+      const docAdd = vi.spyOn(document, "addEventListener");
+      const docRemove = vi.spyOn(document, "removeEventListener");
+      try {
+        await renderWidget();
+        const onPageHide = winAdd.mock.calls.find((c) => c[0] === "pagehide")?.[1];
+        const onVisibility = docAdd.mock.calls.find((c) => c[0] === "visibilitychange")?.[1];
+        expect(onPageHide).toBeTypeOf("function");
+        expect(onVisibility).toBeTypeOf("function");
+        expect(winRemove).not.toHaveBeenCalledWith("pagehide", onPageHide);
+        unmount();
+        expect(winRemove).toHaveBeenCalledWith("pagehide", onPageHide);
+        expect(docRemove).toHaveBeenCalledWith("visibilitychange", onVisibility);
+      } finally {
+        winAdd.mockRestore();
+        winRemove.mockRestore();
+        docAdd.mockRestore();
+        docRemove.mockRestore();
+      }
+    });
+  });
+
+  describe("저장소를 쓸 수 없을 때", () => {
+    it("localStorage 접근이 예외를 던져도 보기·편집·저장이 그대로 된다", async () => {
+      storageOverride = () => {
+        throw new Error("storage denied");
+      };
+      h.saveMemo.mockResolvedValue(record({ content: "저장한 글" }));
+      await renderWidget();
+      expect(must("widget-memo-body").textContent).toContain("서버 글");
+      expect(q("memo-draft-flag")).toBeNull();
+      await click("memo-edit");
+      await typeInto("memo-input", "저장소 없이 쓴 글");
+      await settle();
+      expect((must("memo-input") as HTMLTextAreaElement).value).toBe("저장소 없이 쓴 글");
+      await click("memo-save");
+      expect(h.saveMemo).toHaveBeenCalledWith(expect.objectContaining({ content: "저장소 없이 쓴 글" }));
+      expect(must("widget-memo-body").textContent).toBe("저장한 글");
+      // 쓰다가 내려도 예외가 새지 않는다.
+      await click("memo-edit");
+      await typeInto("memo-input", "또 쓰는 글");
+      expect(() => act(() => root.unmount())).not.toThrow();
+    });
+
+    it("localStorage 가 아예 없어도(undefined) 그대로 된다", async () => {
+      storageOverride = () => undefined;
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "저장소 없는 글");
+      await settle();
+      expect((must("memo-input") as HTMLTextAreaElement).value).toBe("저장소 없는 글");
+      expect(must("memo-save").hasAttribute("disabled")).toBe(false);
+      expect(() => act(() => root.unmount())).not.toThrow();
+    });
+
+    it("setItem 이 용량 초과로 던져도 편집이 그대로 된다", async () => {
+      storageOverride = () => ({
+        getItem: (k: string) => store.getItem(k),
+        removeItem: (k: string) => store.removeItem(k),
+        setItem: () => {
+          throw new DOMException("quota", "QuotaExceededError");
+        },
+      });
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "용량 넘친 글");
+      await settle();
+      expect((must("memo-input") as HTMLTextAreaElement).value).toBe("용량 넘친 글");
+      expect(must("memo-save").hasAttribute("disabled")).toBe(false);
+    });
+  });
+
+  describe("미리보기·기본 배치 보드", () => {
+    /** 읽기·쓰기·지우기 호출을 기록하는 저장소 감싸개. */
+    function trackStorage() {
+      const calls: string[] = [];
+      storageOverride = () => ({
+        getItem: (k: string) => (calls.push(`get:${k}`), store.getItem(k)),
+        setItem: (k: string, v: string) => (calls.push(`set:${k}`), store.setItem(k, v)),
+        removeItem: (k: string) => (calls.push(`remove:${k}`), store.removeItem(k)),
+      });
+      return calls;
+    }
+
+    it.each([
+      ["관리 화면 미리보기(instId preview)", { instanceId: "preview", widgetId: "def.abc12345" }],
+      ["저장 전 정의(def.preview)", { instanceId: "inst-1", widgetId: "def.preview" }],
+      ["기본 배치 보드 맥락", { boardMode: "preview" as const }],
+    ])("%s — 저장소를 읽지도 쓰지도 지우지도 않는다(사용자를 알아도)", async (_name, p) => {
+      putDraft({}, `${PREFIX}v1:u1:preview`);
+      putDraft();
+      const calls = trackStorage();
+      await renderWidget(p);
+      await click("memo-edit"); // 막혀 있다
+      await settle();
+      expect(q("memo-draft-flag")).toBeNull();
+      expect(q("memo-draft-notice")).toBeNull();
+      act(() => root.unmount());
+      expect(calls.filter((c) => c.includes(PREFIX))).toEqual([]);
+    });
+  });
+
+  describe("안내에서 고르기 전", () => {
+    const locked = (el: HTMLElement) => (el as HTMLTextAreaElement).readOnly === true;
+
+    it("입력칸·형식 선택·[저장]이 잠기고 [취소]·[이어 쓰기]·[버리기]만 열려 있다 — 쓴 글이 임시 저장되지 않아 사라지는 것을 막는다", async () => {
+      putDraft({ content: "옛 임시본" });
+      await renderWidget();
+      await click("memo-edit");
+      expect(locked(must("memo-input"))).toBe(true);
+      expect(must("memo-format").hasAttribute("disabled")).toBe(true);
+      expect(must("memo-save").hasAttribute("disabled")).toBe(true);
+      expect(must("memo-cancel").hasAttribute("disabled")).toBe(false);
+      expect(must("memo-draft-resume").hasAttribute("disabled")).toBe(false);
+      expect(must("memo-draft-discard").hasAttribute("disabled")).toBe(false);
+      await click("memo-save"); // 막혀 있다 — 서버 글을 다시 저장해 옛 임시본이 고르기 없이 지워지지 않는다
+      expect(h.saveMemo).not.toHaveBeenCalled();
+      expect(stored()).toMatchObject({ content: "옛 임시본" });
+    });
+
+    it("md 형식도 편집기를 잠근다(inert)", async () => {
+      h.fetchMemo.mockResolvedValue(record({ format: "md", content: "서버 md" }));
+      putDraft({ format: "md", content: "옛 md", baseHash: memoBaseHash(record({ format: "md", content: "서버 md" })) });
+      await renderWidget();
+      await click("memo-edit");
+      const wrap = must("memo-input-md").closest(".mcm-memo__md")!;
+      expect(wrap.hasAttribute("inert")).toBe(true);
+      await click("memo-draft-discard");
+      expect(wrap.hasAttribute("inert")).toBe(false);
+    });
+
+    it.each([
+      ["이어 쓰기", "memo-draft-resume"],
+      ["버리기", "memo-draft-discard"],
+    ])("[%s]를 누르면 잠금이 풀리고 [저장]이 열린다", async (_name, button) => {
+      putDraft({ content: "옛 임시본" });
+      await renderWidget();
+      await click("memo-edit");
+      expect(locked(must("memo-input"))).toBe(true);
+      await click(button);
+      expect(q("memo-draft-notice")).toBeNull();
+      expect(locked(must("memo-input"))).toBe(false);
+      expect(must("memo-format").hasAttribute("disabled")).toBe(false);
+      expect(must("memo-save").hasAttribute("disabled")).toBe(false);
+    });
+
+    it("잠금을 뚫고 들어온 입력(IME 조합 확정 등)도 옛 임시본을 덮어쓰지 않는다 — 임시 저장을 쉰다", async () => {
+      putDraft({ content: "옛 임시본" });
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "새어 들어온 글"); // readOnly 여도 시험 대역은 입력을 전달한다
+      await settle();
+      expect(stored()).toMatchObject({ content: "옛 임시본" });
+      act(() => root.unmount());
+      expect(stored()).toMatchObject({ content: "옛 임시본" });
+    });
+
+    it("[취소] 해도 옛 임시본은 남고 보기에 표시가 뜬다 — 사용자가 고르지 않았다", async () => {
+      putDraft({ content: "옛 임시본" });
+      await renderWidget();
+      await click("memo-edit");
+      await click("memo-cancel");
+      expect(stored()).toMatchObject({ content: "옛 임시본" });
+      expect(must("memo-draft-flag")).toBeTruthy();
+    });
+
+    it("[이어 쓰기] 뒤 글을 더 쓰면 새 임시본이 된다 — 기준은 지금의 서버 메모다", async () => {
+      putDraft({ content: "옛 임시본", baseHash: "old" });
+      await renderWidget();
+      await click("memo-edit");
+      expect(must("memo-draft-text").textContent).toContain("그 뒤 다른 곳에서 메모가 바뀌었습니다");
+      await click("memo-draft-resume");
+      await typeInto("memo-input", "옛 임시본에 더 쓴 글");
+      await settle();
+      expect(stored()).toMatchObject({ content: "옛 임시본에 더 쓴 글", baseHash: memoBaseHash(SAVED) });
+    });
+
+    it("[이어 쓰기] 만 하고 글을 바꾸지 않은 채 내려가면 임시본은 그대로다 — 기준 해시·시각을 지금 값으로 다시 쓰지 않는다", async () => {
+      const original = { content: "옛 임시본", baseHash: "old", savedAt: new Date(2026, 9, 1, 9, 0).getTime() };
+      putDraft(original);
+      await renderWidget();
+      await click("memo-edit");
+      await click("memo-draft-resume");
+      expect((must("memo-input") as HTMLTextAreaElement).value).toBe("옛 임시본");
+      await settle();
+      act(() => root.unmount());
+      expect(stored()).toEqual({ format: "text", ...original });
+    });
+
+    it("[이어 쓰기] 뒤 [취소]는 확인 없이 임시본을 지운다", async () => {
+      putDraft({ content: "옛 임시본" });
+      await renderWidget();
+      await click("memo-edit");
+      await click("memo-draft-resume");
+      await click("memo-cancel");
+      expect(stored()).toBeNull();
+      expect(q("memo-draft-flag")).toBeNull();
+    });
+
+    it("안내가 없는 보통 편집에서는 잠기지 않는다", async () => {
+      await renderWidget();
+      await click("memo-edit");
+      expect(locked(must("memo-input"))).toBe(false);
+      expect(must("memo-format").hasAttribute("disabled")).toBe(false);
+    });
+  });
+
+  describe("서버 메모와의 관계", () => {
+    it("임시본을 만든 뒤 서버 메모가 바뀌었으면 안내에 「그 뒤 다른 곳에서 메모가 바뀌었습니다」를 덧붙인다", async () => {
+      putDraft({ baseHash: memoBaseHash(record({ content: "예전 서버 글" })) });
+      await renderWidget();
+      await click("memo-edit");
+      const text = must("memo-draft-text").textContent!;
+      expect(text).toContain("저장하지 않은 글이 있습니다(2026-10-03 14:05)");
+      expect(text).toContain("그 뒤 다른 곳에서 메모가 바뀌었습니다");
+      expect(must("memo-draft-notice").textContent).toContain("이어 쓰기");
+    });
+
+    it("메모가 없던 때 만든 임시본인데 그 사이 메모가 저장되었으면 바뀐 것으로 본다", async () => {
+      putDraft({ baseHash: memoBaseHash(null) });
+      await renderWidget();
+      await click("memo-edit");
+      expect(must("memo-draft-text").textContent).toContain("그 뒤 다른 곳에서 메모가 바뀌었습니다");
+    });
+
+    it("서버 메모가 그대로면 덧붙이지 않는다", async () => {
+      putDraft();
+      await renderWidget();
+      await click("memo-edit");
+      expect(must("memo-draft-text").textContent).not.toContain("바뀌었습니다");
+    });
+
+    it("임시본 내용이 서버 메모와 같으면 안내도 표시도 없이 조용히 지운다(저장 응답을 못 받고 내려간 경우)", async () => {
+      putDraft({ content: "서버 글" });
+      await renderWidget();
+      expect(q("memo-draft-flag")).toBeNull();
+      expect(stored()).toBeNull();
+      await click("memo-edit");
+      expect(q("memo-draft-notice")).toBeNull();
+    });
+
+    it("메모가 없는 칸의 임시본도 되살린다", async () => {
+      h.fetchMemo.mockResolvedValue(null);
+      putDraft({ content: "첫 글", baseHash: memoBaseHash(null) });
+      await renderWidget();
+      expect(must("memo-draft-flag")).toBeTruthy();
+      await click("memo-edit");
+      expect(must("memo-draft-text").textContent).not.toContain("다른 곳에서");
+      await click("memo-draft-resume");
+      expect((must("memo-input") as HTMLTextAreaElement).value).toBe("첫 글");
+    });
+  });
+
+  describe("상한·깨진 값", () => {
+    it("20,000자를 넘는 글은 임시 저장하지 않는다 — 넘기기 전의 값이 남는다", async () => {
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "넘기기 전");
+      await settle();
+      await typeInto("memo-input", "가".repeat(MEMO_MAX_LENGTH + 1));
+      await settle();
+      act(() => root.unmount()); // 내릴 때도 쓰지 않는다
+      expect(stored()).toMatchObject({ content: "넘기기 전" });
+    });
+
+    it("글을 쓴 뒤 300ms 안에 20,001자를 붙여 넣어도 임시본에는 앞서 쓴 글이 남는다 — 못 쓰는 글이 맡겨 둔 값을 덮지 않는다", async () => {
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "A");
+      await typeInto("memo-input", "가".repeat(MEMO_MAX_LENGTH + 1)); // 디바운스가 지나기 전
+      await settle();
+      expect(stored()).toMatchObject({ content: "A" });
+    });
+
+    it("정확히 20,000자는 저장한다", async () => {
+      await renderWidget();
+      await click("memo-edit");
+      await typeInto("memo-input", "가".repeat(MEMO_MAX_LENGTH));
+      await settle();
+      expect(stored()!.content).toHaveLength(MEMO_MAX_LENGTH);
+    });
+
+    it.each([
+      ["JSON 이 아님", "{깨짐"],
+      ["형식이 허용값이 아님", JSON.stringify({ format: "pdf", content: "x", baseHash: "a", savedAt: 1 })],
+      ["글이 문자열이 아님", JSON.stringify({ format: "text", content: 3, baseHash: "a", savedAt: 1 })],
+      ["20,000자 초과", JSON.stringify({ format: "text", content: "가".repeat(MEMO_MAX_LENGTH + 1), baseHash: "a", savedAt: 1 })],
+      ["시각이 숫자가 아님", JSON.stringify({ format: "text", content: "x", baseHash: "a", savedAt: "어제" })],
+    ])("깨진 임시본(%s)은 없는 것으로 본다", async (_name, raw) => {
+      window.localStorage.setItem(KEY, raw);
+      await renderWidget();
+      expect(q("memo-draft-flag")).toBeNull();
+      await click("memo-edit");
+      expect(q("memo-draft-notice")).toBeNull();
+      expect((must("memo-input") as HTMLTextAreaElement).value).toBe("서버 글");
+    });
   });
 });
 
