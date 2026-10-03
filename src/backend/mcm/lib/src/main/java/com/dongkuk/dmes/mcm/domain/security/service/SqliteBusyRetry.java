@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.sqlite.SQLiteErrorCode;
 import org.sqlite.SQLiteException;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 로컬 SQLite 에서 SQLITE_BUSY 로 실패한 트랜잭션을 통째로 다시 시도한다(2026-10-03, 로그인 전용).
@@ -35,6 +36,11 @@ public final class SqliteBusyRetry {
                 return work.get();
             } catch (RuntimeException e) {
                 if (attempt >= RETRIES || !McmAuditStatementInspector.isSqlite() || !isBusy(e)) throw e;
+                if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                    // 바깥 트랜잭션 안에서는 SHARED 가 풀리지 않고 rollback-only 로 깨지므로 다시 시도해도 소용없다.
+                    log.warn("[SqliteBusyRetry] 바깥 트랜잭션 안에서 불려 다시 시도하지 않는다 — 트랜잭션 경계 바깥에서 불러야 한다");
+                    throw e;
+                }
                 log.info("[SqliteBusyRetry] SQLITE_BUSY — 다시 시도 {}/{}", attempt + 1, RETRIES);
                 // 지수 대기 + 흔들림 — 겹친 로그인들이 같은 박자로 다시 부딪히지 않게.
                 long waitMs = (50L << attempt) + ThreadLocalRandom.current().nextLong(50);

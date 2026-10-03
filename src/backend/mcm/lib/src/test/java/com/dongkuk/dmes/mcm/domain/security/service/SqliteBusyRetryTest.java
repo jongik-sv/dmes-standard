@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.sqlite.SQLiteErrorCode;
 import org.sqlite.SQLiteException;
 
@@ -67,6 +68,23 @@ class SqliteBusyRetryTest {
             calls.incrementAndGet();
             throw new IllegalStateException(new SQLiteException("constraint", SQLiteErrorCode.SQLITE_CONSTRAINT));
         }));
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    void 바깥에_트랜잭션이_열려_있으면_다시_시도하지_않는다() {
+        // 재시도는 트랜잭션 바깥에서만 뜻이 있다 — 바깥 트랜잭션 안이면 SHARED 가 풀리지 않고 rollback-only 로 깨진다.
+        McmAuditStatementInspector.setSqlite(true);
+        AtomicInteger calls = new AtomicInteger();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            assertThrows(RuntimeException.class, () -> SqliteBusyRetry.call(() -> {
+                calls.incrementAndGet();
+                throw busy();
+            }));
+        } finally {
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
         assertEquals(1, calls.get());
     }
 }
