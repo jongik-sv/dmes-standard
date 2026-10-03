@@ -87,6 +87,16 @@ describe("buildColumnDefs — HTML 설명 열은 머리글 라벨(innerHeaderCom
     });
   });
 
+  it('captionPriority="mdm" 이면 header: "" 열도 MDM 캡션이 이름이 되어 라벨을 단다', () => {
+    const [d] = buildColumnDefs([{ key: "noticeBody", header: "" }], {
+      ...OPTS,
+      mdm: { priority: "mdm" as const, infoByKey: new Map([["noticeBody", info(BODY)]]) },
+    }) as ColDef[];
+    expect(d.headerName).toBe("본문");
+    expect(d.headerComponentParams?.innerHeaderComponent).toBe(MdmHeaderLabel);
+    expect(d.headerTooltip).toBeUndefined();
+  });
+
   it('표시 이름이 빈 열(header: "")은 라벨을 달지 않고 예전 글자 머리글 카드(칸 전체, 물리명 툴팁)로 둔다', () => {
     const [d] = buildColumnDefs([{ key: "noticeBody", header: "" }], {
       ...OPTS,
@@ -453,9 +463,10 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
   it("말줄임: 라벨이 감싸개(display:contents) 규칙을 문서 머리에 한 번 스스로 싣는다 — 호스트 grid.css 에 기대지 않는다", async () => {
     stub();
     await render(grid());
-    expect(label("noticeBody")!.parentElement?.classList.contains("mdm-header-label-host")).toBe(
-      true
-    );
+    const host = label("noticeBody")!.parentElement!;
+    expect(host.classList.contains("mdm-header-label-host")).toBe(true);
+    // 규칙은 자식 결합자(.ag-header-cell-text > .mdm-header-label-host)다 — 감싸개가 글자 칸의 바로 아래여야 맞는다.
+    expect(host.parentElement?.classList.contains("ag-header-cell-text")).toBe(true);
     const styles = [...document.head.querySelectorAll("style")].filter((el) =>
       el.textContent?.includes(".mdm-header-label-host")
     );
@@ -512,6 +523,43 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       advance(500);
       pointerDown(el);
       advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS * 2);
+      expect(portal()).toBeNull();
+    });
+
+    it("터치로 누른 뒤 따라오는 흉내 mouseenter 로는 열지 않는다(태블릿 탭 정렬) — 마우스 진입은 그대로 연다", async () => {
+      stub();
+      await render(grid());
+      const el = placeLabel();
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const touch = (type: string) =>
+        act(() => {
+          const ev = new MouseEvent(type, {
+            bubbles: true,
+            button: 0,
+            buttons: type === "pointerdown" ? 1 : 0,
+          });
+          Object.defineProperty(ev, "pointerType", { value: "touch" });
+          el.dispatchEvent(ev);
+        });
+      touch("pointerover");
+      touch("pointerdown");
+      touch("pointerup");
+      touch("pointerout");
+      over(el); // 브라우저가 탭 뒤에 흉내 mouseover(buttons 0)를 보낸다
+      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS * 2);
+      expect(portal()).toBeNull();
+      // 흉내 이벤트 창(1초)이 지난 뒤 실제 마우스로 들어오면 연다
+      out(el);
+      vi.useRealTimers();
+      await act(async () => {
+        await settle(1100);
+      });
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      over(el);
+      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS);
+      expect(portal()).not.toBeNull();
+      out(el);
+      advance(200);
       expect(portal()).toBeNull();
     });
 

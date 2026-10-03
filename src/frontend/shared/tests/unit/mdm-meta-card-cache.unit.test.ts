@@ -12,7 +12,11 @@ vi.mock("../../src/components/notice-body-view/sanitize", async (importOriginal)
 });
 
 import { sanitizeNoticeHtml } from "../../src/components/notice-body-view/sanitize";
-import { MDM_CARD_SAFE_HTML_CACHE_MAX, mdmCardSafeHtml } from "../../src/mdm-meta/MdmMetaCard";
+import {
+  MDM_CARD_SAFE_HTML_CACHE_MAX,
+  mdmCardSafeHtml,
+  resetMdmCardSafeHtmlCache,
+} from "../../src/mdm-meta/MdmMetaCard";
 
 const sanitize = vi.mocked(sanitizeNoticeHtml);
 const col = (html: string) => ({ descriptionHtml: html });
@@ -27,17 +31,23 @@ describe("mdmCardSafeHtml 소독 캐시", () => {
     expect(sanitize).toHaveBeenCalledTimes(2);
   });
 
-  it(`상한(${MDM_CARD_SAFE_HTML_CACHE_MAX})에 이르면 비운다 — 처음 원문을 다시 소독한다`, () => {
+  it(`상한(${MDM_CARD_SAFE_HTML_CACHE_MAX})에 이르면 통째로 비운다 — 처음 원문도, 상한 직전에 넣은 원문도 다시 소독한다`, () => {
     expect(MDM_CARD_SAFE_HTML_CACHE_MAX).toBe(500);
+    resetMdmCardSafeHtmlCache();
     const first = "<p>처음</p>";
+    const last = "<p>마지막</p>";
     mdmCardSafeHtml(col(first));
+    for (let i = 0; i < MDM_CARD_SAFE_HTML_CACHE_MAX - 2; i++)
+      mdmCardSafeHtml(col(`<p>채움 ${i}</p>`));
+    mdmCardSafeHtml(col(last)); // 이제 꽉 찼다(500)
     sanitize.mockClear();
     mdmCardSafeHtml(col(first));
-    expect(sanitize).not.toHaveBeenCalled();
-    // 캐시를 상한까지 채운 뒤 하나 더 넣으면 비우고 다시 쌓는다.
-    for (let i = 0; i < MDM_CARD_SAFE_HTML_CACHE_MAX; i++) mdmCardSafeHtml(col(`<p>채움 ${i}</p>`));
+    mdmCardSafeHtml(col(last));
+    expect(sanitize).not.toHaveBeenCalled(); // 꽉 찰 때까지는 모두 남아 있다
+    mdmCardSafeHtml(col("<p>넘침</p>")); // 501번째 — 통째로 비우고 넣는다
     sanitize.mockClear();
+    mdmCardSafeHtml(col(last)); // 오래된 것부터 하나씩 내보내는 방식이면 남아 있을 원문
     mdmCardSafeHtml(col(first));
-    expect(sanitize).toHaveBeenCalledTimes(1);
+    expect(sanitize).toHaveBeenCalledTimes(2);
   });
 });

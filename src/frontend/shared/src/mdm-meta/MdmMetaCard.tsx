@@ -53,6 +53,11 @@ const safeHtmlCache = new Map<string, string | null>();
 /** 소독 결과 캐시 상한 — 다 차면 비운다. */
 export const MDM_CARD_SAFE_HTML_CACHE_MAX = 500;
 
+/** 소독 캐시를 비운다 — 시험용(배럴에는 내보내지 않는다). */
+export function resetMdmCardSafeHtmlCache(): void {
+  safeHtmlCache.clear();
+}
+
 /** 소독한 HTML 에 보이는 내용(글자 또는 그림)이 있는가 — `<p></p>`·`<p><br></p>` 처럼 빈 HTML 은 글자 설명으로 대신한다. */
 function hasVisibleContent(html: string): boolean {
   const t = document.createElement("template");
