@@ -121,8 +121,9 @@ public class MasterCodeMybatisInterceptor implements Interceptor {
             if (!key.endsWith(CD_NM_SUFFIX) && !key.endsWith(STS_NM_SUFFIX)) {
                 continue;
             }
-            // "_NM" 잘라 그룹 코드 키 (예: "ORDER_STS_NM" → "ORDER_STS")
-            String groupKey = key.substring(0, key.indexOf(NM_SUFFIX));
+            // 끝의 "_NM" 접미사만 잘라 그룹 코드 키 (예: "ORDER_STS_NM" → "ORDER_STS",
+            // "ORDER_NMBR_CD_NM" → "ORDER_NMBR_CD"). 위 endsWith 검사로 접미사임이 보장된다.
+            String groupKey = key.substring(0, key.length() - NM_SUFFIX.length());
             Object codeValue = rowMap.get(groupKey);
             if (codeValue == null) {
                 continue;
