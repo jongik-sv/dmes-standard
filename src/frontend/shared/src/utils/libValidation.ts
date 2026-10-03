@@ -297,25 +297,47 @@ export function validate(value: unknown, rules: ValidationRule[]): ValidationRes
 }
 
 // gfn_ 호환 별칭
+/** @deprecated 같은 모듈의 `isValidRsrNo` 을 쓴다. */
 export const gfn_isRsrNo = isValidRsrNo;
+/** @deprecated 같은 모듈의 `isValidBizNo` 을 쓴다. */
 export const gfn_isCompRegNo = isValidBizNo;
+/** @deprecated 같은 모듈의 `isValidCorpNo` 을 쓴다. */
 export const gfn_isCorpRegNo = isValidCorpNo;
+/** @deprecated 같은 모듈의 `isValidEmail` 을 쓴다. */
 export const gfn_isEmail = isValidEmail;
+/** @deprecated 같은 모듈의 `isValidCellPhone` 을 쓴다. */
 export const gfn_isCellPhone = isValidCellPhone;
+/** @deprecated 같은 모듈의 `isValidPhone` 을 쓴다. */
 export const gfn_isPhone = isValidPhone;
+/** @deprecated 같은 모듈의 `checkSpecialChar` 을 쓴다. */
 export const gfn_checkSpecialChar = checkSpecialChar;
+/** @deprecated 같은 모듈의 `isValidUrl` 을 쓴다. */
 export const gfn_isUrl = isValidUrl;
+/** @deprecated 같은 모듈의 `isValidIPAddress` 을 쓴다. */
 export const gfn_isIPAddress = isValidIPAddress;
+/** @deprecated 같은 모듈의 `isRequired` 을 쓴다. */
 export const gfn_isRequired = isRequired;
+/** @deprecated 같은 모듈의 `isMinLength` 을 쓴다. */
 export const gfn_isMinLength = isMinLength;
+/** @deprecated 같은 모듈의 `isMaxLength` 을 쓴다. */
 export const gfn_isMaxLength = isMaxLength;
+/** @deprecated 같은 모듈의 `isLengthRange` 을 쓴다. */
 export const gfn_isLengthRange = isLengthRange;
+/** @deprecated 같은 모듈의 `isRange` 을 쓴다. */
 export const gfn_isRange = isRange;
+/** @deprecated 같은 모듈의 `isValidCardNo` 을 쓴다. */
 export const gfn_isCardNo = isValidCardNo;
+/** @deprecated 같은 모듈의 `isValidAccountNo` 을 쓴다. */
 export const gfn_isAccountNo = isValidAccountNo;
+/** @deprecated 같은 모듈의 `isValidPassword` 을 쓴다. */
 export const gfn_isPassword = isValidPassword;
+/** @deprecated 같은 모듈의 `getPasswordStrength` 을 쓴다. */
 export const gfn_getPasswordStrength = getPasswordStrength;
+/** @deprecated 같은 모듈의 `isKorean` 을 쓴다. */
 export const gfn_isKorean = isKorean;
+/** @deprecated 같은 모듈의 `isKoreanWithSpace` 을 쓴다. */
 export const gfn_isKoreanWithSpace = isKoreanWithSpace;
+/** @deprecated 같은 모듈의 `isAlphaNumeric` 을 쓴다. */
 export const gfn_isAlphaNumeric = isAlphaNumeric;
+/** @deprecated 같은 모듈의 `validate` 을 쓴다. */
 export const gfn_validate = validate;

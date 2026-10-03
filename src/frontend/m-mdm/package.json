@@ -4,19 +4,91 @@
   "private": false,
   "type": "module",
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/types/src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./dist/types/src/index.d.ts",
       "import": "./dist/index.js"
     },
     "./evalex": {
-      "types": "./dist/evalex/index.d.ts",
+      "types": "./dist/types/src/evalex/index.d.ts",
       "import": "./dist/evalex/index.js"
     },
-    "./pages/*": {
-      "types": "./dist/pages/*.d.ts",
-      "import": "./dist/pages/*.js"
+    "./pages/dma/columnMng/page": {
+      "types": "./dist/types/pages/dma/columnMng/page.d.ts",
+      "import": "./dist/pages/dma/columnMng/page.js"
+    },
+    "./pages/dma/domainMng/page": {
+      "types": "./dist/types/pages/dma/domainMng/page.d.ts",
+      "import": "./dist/pages/dma/domainMng/page.js"
+    },
+    "./pages/dma/mdmSample/page": {
+      "types": "./dist/types/pages/dma/mdmSample/page.d.ts",
+      "import": "./dist/pages/dma/mdmSample/page.js"
+    },
+    "./pages/dma/termMng/page": {
+      "types": "./dist/types/pages/dma/termMng/page.d.ts",
+      "import": "./dist/pages/dma/termMng/page.js"
+    },
+    "./pages/dma/unitMng/page": {
+      "types": "./dist/types/pages/dma/unitMng/page.d.ts",
+      "import": "./dist/pages/dma/unitMng/page.js"
+    },
+    "./pages/dmb/headerMng/page": {
+      "types": "./dist/types/pages/dmb/headerMng/page.d.ts",
+      "import": "./dist/pages/dmb/headerMng/page.js"
+    },
+    "./pages/dmb/layoutConfirm/page": {
+      "types": "./dist/types/pages/dmb/layoutConfirm/page.d.ts",
+      "import": "./dist/pages/dmb/layoutConfirm/page.js"
+    },
+    "./pages/dmb/layoutMng/page": {
+      "types": "./dist/types/pages/dmb/layoutMng/page.d.ts",
+      "import": "./dist/pages/dmb/layoutMng/page.js"
+    },
+    "./pages/dmc/codeConfirm/page": {
+      "types": "./dist/types/pages/dmc/codeConfirm/page.d.ts",
+      "import": "./dist/pages/dmc/codeConfirm/page.js"
+    },
+    "./pages/dmc/codeItemEdit/page": {
+      "types": "./dist/types/pages/dmc/codeItemEdit/page.d.ts",
+      "import": "./dist/pages/dmc/codeItemEdit/page.js"
+    },
+    "./pages/dmc/codeMng/page": {
+      "types": "./dist/types/pages/dmc/codeMng/page.d.ts",
+      "import": "./dist/pages/dmc/codeMng/page.js"
+    },
+    "./pages/dmd/dataItemMng/page": {
+      "types": "./dist/types/pages/dmd/dataItemMng/page.d.ts",
+      "import": "./dist/pages/dmd/dataItemMng/page.js"
+    },
+    "./pages/dmd/dataMng/page": {
+      "types": "./dist/types/pages/dmd/dataMng/page.d.ts",
+      "import": "./dist/pages/dmd/dataMng/page.js"
+    },
+    "./pages/dme/ruleConfirm/page": {
+      "types": "./dist/types/pages/dme/ruleConfirm/page.d.ts",
+      "import": "./dist/pages/dme/ruleConfirm/page.js"
+    },
+    "./pages/dme/ruleEdit/page": {
+      "types": "./dist/types/pages/dme/ruleEdit/page.d.ts",
+      "import": "./dist/pages/dme/ruleEdit/page.js"
+    },
+    "./pages/dme/ruleMng/page": {
+      "types": "./dist/types/pages/dme/ruleMng/page.d.ts",
+      "import": "./dist/pages/dme/ruleMng/page.js"
+    },
+    "./pages/dme/ruleSetConfirm/page": {
+      "types": "./dist/types/pages/dme/ruleSetConfirm/page.d.ts",
+      "import": "./dist/pages/dme/ruleSetConfirm/page.js"
+    },
+    "./pages/dme/ruleSetEdit/page": {
+      "types": "./dist/types/pages/dme/ruleSetEdit/page.d.ts",
+      "import": "./dist/pages/dme/ruleSetEdit/page.js"
+    },
+    "./pages/dme/ruleSetMng/page": {
+      "types": "./dist/types/pages/dme/ruleSetMng/page.d.ts",
+      "import": "./dist/pages/dme/ruleSetMng/page.js"
     },
     "./pages/*.css": "./dist/pages/*.css"
   },

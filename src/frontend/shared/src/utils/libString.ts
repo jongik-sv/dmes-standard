@@ -204,31 +204,59 @@ export function camelize(str: unknown): string {
 }
 
 // gfn_ 호환 별칭
+/** @deprecated 같은 모듈의 `blankStr` 을 쓴다. */
 export const gfn_blankStr = blankStr;
+/** @deprecated 같은 모듈의 `toString` 을 쓴다. */
 export const gfn_toString = toString;
+/** @deprecated 같은 모듈의 `nullToEmpty` 을 쓴다. */
 export const gfn_nullToEmpty = nullToEmpty;
+/** @deprecated 같은 모듈의 `getLength` 을 쓴다. */
 export const gfn_getLength = getLength;
+/** @deprecated 같은 모듈의 `length` 을 쓴다. */
 export const gfn_length = length;
+/** @deprecated 같은 모듈의 `getByteLength` 을 쓴다. */
 export const gfn_getLengthB = getByteLength;
+/** @deprecated 같은 모듈의 `left` 을 쓴다. */
 export const gfn_left = left;
+/** @deprecated 같은 모듈의 `right` 을 쓴다. */
 export const gfn_right = right;
+/** @deprecated 같은 모듈의 `mid` 을 쓴다. */
 export const gfn_mid = mid;
+/** @deprecated 같은 모듈의 `indexOf` 을 쓴다. */
 export const gfn_indexOf = indexOf;
+/** @deprecated 같은 모듈의 `pos` 을 쓴다. */
 export const gfn_pos = pos;
+/** @deprecated 같은 모듈의 `split` 을 쓴다. */
 export const gfn_split = split;
+/** @deprecated 같은 모듈의 `replace` 을 쓴다. */
 export const gfn_replace = replace;
+/** @deprecated 같은 모듈의 `replaceAll` 을 쓴다. */
 export const gfn_replaceAll = replaceAll;
+/** @deprecated 같은 모듈의 `lTrim` 을 쓴다. */
 export const gfn_lTrim = lTrim;
+/** @deprecated 같은 모듈의 `rTrim` 을 쓴다. */
 export const gfn_rTrim = rTrim;
+/** @deprecated 같은 모듈의 `trim` 을 쓴다. */
 export const gfn_trim = trim;
+/** @deprecated 같은 모듈의 `lpad` 을 쓴다. */
 export const gfn_lpad = lpad;
+/** @deprecated 같은 모듈의 `rpad` 을 쓴다. */
 export const gfn_rpad = rpad;
+/** @deprecated 같은 모듈의 `fullLpad` 을 쓴다. */
 export const gfn_full_lpad = fullLpad;
+/** @deprecated 같은 모듈의 `fullRpad` 을 쓴다. */
 export const gfn_full_rpad = fullRpad;
+/** @deprecated 같은 모듈의 `quote` 을 쓴다. */
 export const gfn_quote = quote;
+/** @deprecated 같은 모듈의 `getNum` 을 쓴다. */
 export const gfn_getNum = getNum;
+/** @deprecated 같은 모듈의 `isAlpha` 을 쓴다. */
 export const gfn_isAlpha = isAlpha;
+/** @deprecated 같은 모듈의 `isNum` 을 쓴다. */
 export const gfn_isNum = isNum;
+/** @deprecated 같은 모듈의 `isNumeric` 을 쓴다. */
 export const gfn_isNumeric = isNumeric;
+/** @deprecated 같은 모듈의 `returnSplit` 을 쓴다. */
 export const gfn_returnSplit = returnSplit;
+/** @deprecated 같은 모듈의 `camelize` 을 쓴다. */
 export const gfn_camelize = camelize;

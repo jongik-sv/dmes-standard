@@ -201,25 +201,47 @@ export function formatText(text: unknown, maxLength: number, suffix: string = ".
 }
 
 // gfn_ 호환 별칭
+/** @deprecated 같은 모듈의 `formatComma` 을 쓴다. */
 export const gfn_setComma = formatComma;
+/** @deprecated 같은 모듈의 `removeComma` 을 쓴다. */
 export const gfn_removeComma = removeComma;
+/** @deprecated 같은 모듈의 `formatNumber` 을 쓴다. */
 export const gfn_formatNumber = formatNumber;
+/** @deprecated 같은 모듈의 `formatCurrency` 을 쓴다. */
 export const gfn_formatCurrency = formatCurrency;
+/** @deprecated 같은 모듈의 `formatPercent` 을 쓴다. */
 export const gfn_formatPercent = formatPercent;
+/** @deprecated 같은 모듈의 `formatPhone` 을 쓴다. */
 export const gfn_formatPhone = formatPhone;
+/** @deprecated 같은 모듈의 `formatPhone` 을 쓴다. */
 export const gfn_formatPhoneNum = formatPhone;
+/** @deprecated 같은 모듈의 `formatCellPhone` 을 쓴다. */
 export const gfn_formatCellPhone = formatCellPhone;
+/** @deprecated 같은 모듈의 `formatCellPhone` 을 쓴다. */
 export const gfn_formatCellNum = formatCellPhone;
+/** @deprecated 같은 모듈의 `formatBizNo` 을 쓴다. */
 export const gfn_formatBizNo = formatBizNo;
+/** @deprecated 같은 모듈의 `formatCorpNo` 을 쓴다. */
 export const gfn_formatCorpNo = formatCorpNo;
+/** @deprecated 같은 모듈의 `formatRsrNo` 을 쓴다. */
 export const gfn_formatRsrNo = formatRsrNo;
+/** @deprecated 같은 모듈의 `formatCardNo` 을 쓴다. */
 export const gfn_formatCardNo = formatCardNo;
+/** @deprecated 같은 모듈의 `formatAccountNo` 을 쓴다. */
 export const gfn_formatAccountNo = formatAccountNo;
+/** @deprecated 같은 모듈의 `maskString` 을 쓴다. */
 export const gfn_maskString = maskString;
+/** @deprecated 같은 모듈의 `formatDateStr` 을 쓴다. */
 export const gfn_formatDate = formatDateStr;
+/** @deprecated 같은 모듈의 `formatTime` 을 쓴다. */
 export const gfn_formatTime = formatTime;
+/** @deprecated 같은 모듈의 `formatDateTime` 을 쓴다. */
 export const gfn_formatDateTime = formatDateTime;
+/** @deprecated 같은 모듈의 `formatBytes` 을 쓴다. */
 export const gfn_formatBytes = formatBytes;
+/** @deprecated 같은 모듈의 `formatPostcode` 을 쓴다. */
 export const gfn_formatPostcode = formatPostcode;
+/** @deprecated 같은 모듈의 `removeFormat` 을 쓴다. */
 export const gfn_removeFormat = removeFormat;
+/** @deprecated 같은 모듈의 `formatText` 을 쓴다. */
 export const gfn_formatText = formatText;
