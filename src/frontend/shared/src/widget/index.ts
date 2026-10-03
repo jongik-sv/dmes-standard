@@ -32,6 +32,7 @@ export {
   openPortalPage,
   useWidgetBodySize,
   useWidgetStatus,
+  useWidgetTitle,
   WidgetHeaderActions,
   WidgetTitleExtra,
 } from "./frame-context";

@@ -3606,7 +3606,7 @@ DashboardWidgetPickerProps: `board`(필수), `renderTrigger`(필수, `(t: Dashbo
 
 사용자가 위젯(조각 프로그램)을 24칸 격자에서 자유롭게 옮기고 크기를 바꾸며, 탭으로 나눠 서버에 저장하게 하는 홈 화면을 만들 때 쓴다(관리자 정의 위젯·사용 중지·기본 배치 편집 포함). 행 단위 대시보드가 필요하면 [dashboard](dashboard.md), 사용자가 자유 배치·탭·서버 저장을 쓰면 widget 을 고른다.
 
-- import: `import { WidgetWorkspace, WidgetBoard, WidgetFrame, WidgetTabs, WidgetPicker, WidgetStyle, useWidgetStatus, useWidgetBodySize, WidgetHeaderActions, WidgetTitleExtra, mergeWidgetRegistry, toWidgetDefRow, type WidgetWorkspaceProps, type WidgetBoardProps, type WidgetFrameProps, type WidgetTabsProps, type WidgetPickerProps, type WidgetMeta, type WidgetProps, type WidgetItem, type WidgetTab, type WidgetStore, type WidgetRegistry, type WidgetRegistryEntry, type WidgetStatus, type WidgetDefRow, type WidgetTypeRegistry, type WidgetTypeMeta, type WidgetTypeEditorProps } from "@dk-oasis/shared/widget";` (CSS import 없음 — 컴포넌트가 `<WidgetStyle />` 로 자기 스타일을 넣는다)
+- import: `import { WidgetWorkspace, WidgetBoard, WidgetFrame, WidgetTabs, WidgetPicker, WidgetStyle, useWidgetStatus, useWidgetBodySize, useWidgetTitle, WidgetHeaderActions, WidgetTitleExtra, mergeWidgetRegistry, toWidgetDefRow, type WidgetWorkspaceProps, type WidgetBoardProps, type WidgetFrameProps, type WidgetTabsProps, type WidgetPickerProps, type WidgetMeta, type WidgetProps, type WidgetItem, type WidgetTab, type WidgetStore, type WidgetRegistry, type WidgetRegistryEntry, type WidgetStatus, type WidgetDefRow, type WidgetTypeRegistry, type WidgetTypeMeta, type WidgetTypeEditorProps } from "@dk-oasis/shared/widget";` (CSS import 없음 — 컴포넌트가 `<WidgetStyle />` 로 자기 스타일을 넣는다)
 - 소스: `src/frontend/shared/src/widget/` (`WidgetWorkspace.tsx`·`WidgetBoard.tsx`·`WidgetFrame.tsx`·`WidgetTabs.tsx`·`WidgetPicker.tsx`·`frame-context.ts`·`widget-layout.ts`(순수 함수)·`widget-registry.ts`(등록부 합치기 순수 함수)·`types.ts`·`constants.ts`·`styles.tsx`)
 - 내부 구현: 격자는 react-grid-layout 2.x, 나머지는 일반 `div`/`button`. Mantine 을 쓰지 않는다. 색·간격은 공통 토큰만 쓴다
 - Part B 허용 목록(§1): `widget` SHOULD.
@@ -3749,7 +3749,8 @@ WidgetProps(위젯 본체가 받는 값): `instanceId`·`size`·`config`(인스�
 
 등록부 순수 함수(`widget-registry.ts`): `mergeWidgetRegistry(code, types, defs)`(실행 시 등록부), `toWidgetDefRow(raw)`(서버 응답 한 줄 → `WidgetDefRow`, `configJson` 문자열 파싱, srcTp 가 C·D 가 아니면 `null`), `applyWidgetOverride(meta, row)`(코드 메타 + 덮어쓰기 행), `defWidgetMeta(row, type)`(정의 위젯 메타), `defWidgetLoader(type, definition)`(유형 렌더러에 `definition` 을 끼운 본체 로더). 관리 화면 미리보기는 저장 전 폼 값으로 `applyWidgetOverride`·`defWidgetMeta`·`defWidgetLoader` 를 불러 `WidgetFrame` 에 넘긴다.
 
-틀 훅: `useWidgetStatus()` → `(status: WidgetStatus) => void`, `useWidgetBodySize()` → `{ width, height }`, `<WidgetHeaderActions>`(제목 줄 오른쪽 버튼 자리), `<WidgetTitleExtra>`(제목 옆 동적 부제·배지).
+틀 훅: `useWidgetStatus()` → `(status: WidgetStatus) => void`, `useWidgetBodySize()` → `{ width, height }`, `<WidgetHeaderActions>`(제목 줄 오른쪽 버튼 자리), `<WidgetTitleExtra>`(제목 옆 동적 부제·배지), `useWidgetTitle(title: string | null | undefined)` → `void`(칸마다 제목이 다른 위젯이 틀 제목을 바꾼다).
+- `useWidgetTitle`: 제목 줄 `h3` 와 틀의 `aria-label` 만 덮어쓴다. 본체가 받는 `props.title`(등록부 이름)·`WidgetFrameApi` 의 다른 값은 그대로다. `null`·`undefined`·공백뿐인 값은 덮어쓰지 않아 등록부 제목이 보이고, 값이 바뀌거나 본체가 사라지면 이전 덮어쓰기를 되돌린다(틀 밖에서는 아무 일도 하지 않는다). 틀은 덮어쓴 값을 위젯 ID 와 함께 기억하므로 같은 칸에 다른 위젯이 오면 저절로 풀린다. 사용 중지·없는 위젯 칸의 제목은 바꾸지 않는다. 이 훅을 부르지 않는 위젯의 DOM·동작은 이전과 같다. **틀 하나에 한 곳에서만 부른다** — 둘 이상이면 나중에 정한 값이 이기고, 한쪽이 사라지면 남은 쪽 값까지 지워져 정의 이름으로 돌아간다. 쓸 때는 저장된 값만 넘기고(편집 중 입력은 미리 보이지 않는다), 실제 칸이 아닌 곳(관리 화면 미리보기·기본 배치 보드)에서는 `null` 을 넘긴다. 예: 개인 메모장(m-mcm `widget-types/memo`) `useWidgetTitle(live ? memo?.title ?? null : null)`.
 
 WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Error(message)` 로 던진다)
 
@@ -3779,7 +3780,8 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 | `widgetDef/list` 응답 전·실패인데 `registryStatus` 를 넘기지 않는다 | 정의 위젯이 「없는 위젯」으로 보이는 상태에서 편집·저장하면 사용자 탭에서 정의 위젯이 지워진다. 응답 전 `"loading"`, 실패 `"error"` 를 넘긴다 |
 | 사용 중지 위젯을 등록부에서 빼 버린다 | 「없는 위젯」이 되어 저장할 때 사용자 배치에서 사라진다. `meta.disabled: true` 로 남긴다(`mergeWidgetRegistry` 가 그렇게 한다) |
 | `onWideChange` 에 렌더마다 새 화살표 함수를 넘긴다 | 보드가 effect 의존성으로 쓴다. `useCallback` 이나 `setState` 함수를 넘긴다 |
-| 위젯 본체가 자기 제목 줄을 그린다 | 틀(`WidgetFrame`)이 그린다. 고유 버튼은 `WidgetHeaderActions`, 부제는 `WidgetTitleExtra` |
+| 위젯 본체가 자기 제목 줄을 그린다 | 틀(`WidgetFrame`)이 그린다. 고유 버튼은 `WidgetHeaderActions`, 부제는 `WidgetTitleExtra`, 사용자가 붙인 제목은 `useWidgetTitle` |
+| 칸마다 다른 제목을 `WidgetTitleExtra` 로 제목 옆에 덧붙이거나 본문 첫 줄에 그린다 | 등록부 이름과 겹쳐 두 제목이 보인다. `useWidgetTitle` 로 틀 제목 자체를 바꾼다 |
 | 위젯 `id` 를 나중에 바꾼다 | 저장 키라서 사용자 배치에서 그 위젯이 빠진다. 새 ID 로 만들고 옛 것은 한동안 둔다 |
 | shared `widget` 소스에 Mantine 컴포넌트를 import 한다 | 시험에 MantineProvider 가 없다. `<button>` + `WIDGET_CSS` 클래스로 만든다(위젯 본체를 만드는 화면은 shared 래퍼를 쓴다) |
 | `WidgetStore.load` 가 실패를 빈 배열로 돌려준다 | 던져야 한다. 빈 배열이면 작업 공간이 빈 상태를 저장해 사용자 배치를 지울 수 있다(던지면 [배치 편집]이 막힌다) |

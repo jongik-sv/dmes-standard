@@ -13,6 +13,7 @@ import org.hibernate.type.SqlTypes;
  * 메모장 위젯의 개인 메모 — 스펙 2026-10-02-widget-admin-generic §17.2. 사용자·배치 칸(instId)마다 하나.
  * CONTENT 는 20,000자까지라 LONG32VARCHAR(W-D30, {@code @Lob} 금지). 빈 메모는 Oracle 이 '' 를 NULL 로 저장하므로
  * CONTENT 는 NULL 을 허용하고 읽을 때 빈 문자열로 돌려준다. U_AT 이 마지막 저장 시각이다.
+ * TITLE 은 사용자가 정한 메모장 제목(2026-10-03 추가, 선택). NULL 이면 위젯 정의 이름을 쓴다 — 서비스가 앞뒤 공백을 자른 뒤 빈 값을 NULL 로 저장한다.
  */
 @Entity
 @Table(name = "TB_MCM_SEC_USER_WIDGET_MEMO", schema = "MCMAPUSER")
@@ -39,6 +40,10 @@ public class WidgetMemo extends McmAuditEntity {
     @Column(name = "CONTENT")
     private String content;
 
+    /** 메모장 제목(최대 40자, 코드 포인트 기준). NULL = 정의 이름. 운영 DDL 은 Oracle VARCHAR2(100 CHAR) 로 만든다(40자 × 한글 3바이트가 100바이트를 넘는다). */
+    @Column(name = "TITLE", length = 100)
+    private String title;
+
     public WidgetMemo() {}
 
     public String getUserId() { return userId; }
@@ -51,4 +56,6 @@ public class WidgetMemo extends McmAuditEntity {
     public void setFmt(String fmt) { this.fmt = fmt; }
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 }

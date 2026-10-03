@@ -378,6 +378,7 @@ Table TB_MCM_SEC_USER_WIDGET_MEMO {
   DEF_ID  varchar(100) [not null, note: '정의 위젯 ID(def.xxxxxxxx) — memo 유형·scope=personal']
   FMT     varchar(10)  [not null, note: 'text · md · html']
   CONTENT text         [note: '본문 20,000자 이하. 빈 메모는 Oracle 이 NULL 로 저장하므로 NULL 허용']
+  TITLE   varchar(100) [note: '메모장 제목(2026-10-03) 40자(코드 포인트) 이하, NULL = 위젯 정의 이름. Oracle 은 VARCHAR2(100 CHAR) 로 만든다(한글 40자 = 120바이트)']
 
   indexes {
     (USER_ID, INST_ID) [pk]

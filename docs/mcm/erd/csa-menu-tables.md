@@ -199,7 +199,7 @@
 - **`TB_MCM_WIDGET_MEDIA`**: 미디어 위젯 파일 메타. 본체는 DB 가 아니라 `dmes.widget.media-dir/{FILE_ID}` 디스크 파일이다(운영 배포 시 이 폴더를 보존·백업 대상에 넣는다).
 - **`TB_MCM_EXCHANGE_RATE`**: 일자별 환율. 환율 위젯이 조회할 때 빠진 날짜를 제공자(기본 Frankfurter, 키가 있으면 한국수출입은행)에서 받아 쌓는다. `RATE` = 대상 통화 1단위의 원화 값.
 - **`TB_MCM_SEC_USER_WIDGET_CHAT`**: AI 챗봇 위젯 대화 기록(사용자·인스턴스별 최근 100개).
-- **`TB_MCM_SEC_USER_WIDGET_MEMO`**: 메모장 위젯의 개인 메모(`scope=personal` 정의만). 사용자·배치 칸(`INST_ID`)마다 하나이고 `FMT` 는 `text`·`md`·`html`, 본문은 20,000자까지다. 사용자당 100개(새 칸을 저장할 때만 센다). 공용 메모(`scope=shared`)는 이 테이블이 아니라 `TB_MCM_WIDGET_DEF.CONFIG_JSON` 에 있다. 사용자가 위젯을 빼도 행은 남는다.
+- **`TB_MCM_SEC_USER_WIDGET_MEMO`**: 메모장 위젯의 개인 메모(`scope=personal` 정의만). 사용자·배치 칸(`INST_ID`)마다 하나이고 `FMT` 는 `text`·`md`·`html`, 본문은 20,000자까지다. `TITLE`(2026-10-03 추가, NULL 허용)은 사용자가 붙인 메모장 제목(40자 이하, NULL = 위젯 정의 이름)이다 — 개발계·운영계는 앱 배포 전에 `ALTER TABLE … ADD TITLE`(Oracle `VARCHAR2(100 CHAR)`, PostgreSQL `varchar(100)`)을 먼저 실행한다(스펙 widget-admin-generic §17.2). 사용자당 100개(새 칸을 저장할 때만 센다). 공용 메모(`scope=shared`)는 이 테이블이 아니라 `TB_MCM_WIDGET_DEF.CONFIG_JSON` 에 있다. 사용자가 위젯을 빼도 행은 남는다.
 - 서비스: 사용자용 `widgetDef/list`·`widgetData/run`·`widgetExt/*`·`widgetChat/*`·`widgetMemo/*`·미디어 내려받기는 AUTH_ONLY, 관리자용 `commWidgetMng/*`(정의 저장·SQL 미리보기·기본 배치·미디어 올리기)는 위젯 관리 메뉴 권한(RBAC). 여섯 테이블 모두 Flyway 없이 로컬 `ddl-auto: update` 로 생기므로 개발계·운영계는 DDL 을 미리 만든다(`csa-menu.dbml` 참고, 긴 문자열은 Oracle CLOB·PostgreSQL TEXT).
 
 ---
