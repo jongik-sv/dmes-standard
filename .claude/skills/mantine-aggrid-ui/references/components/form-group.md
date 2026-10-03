@@ -48,7 +48,7 @@ import { Input } from "@dk-oasis/shared/form";
 
 `name`(화면 필드 이름)을 주면 포털 탭 안에서 MDM 컬럼 사전 메타를 찾는다([mdm-meta](mdm-meta.md)). `label` 을 생략하면 폼 캡션(`labelMid` → `labelLong` → `labelShort` → `columnName`), `tip` 을 생략하면 `MdmMetaCard` 가 라벨 툴팁이 된다. 적은 `label`·`tip` 이 이긴다(공급자 `captionPriority="mdm"` 이면 라벨은 MDM 이 이긴다). FormGroup 은 입력값을 보지 않는다 — 값 검사는 화면이 하고 결과를 `error` 로 준다. `FormGroup` 을 쓰지 않는 th/td 상세 표의 라벨은 같은 캡션·툴팁을 주는 `MdmFieldLabel`([mdm-meta](mdm-meta.md))을 쓴다.
 
-MDM 설명이 HTML(`descriptionHtml`)이면 라벨 툴팁은 넓은 카드(최대 640px, 떠나도 150ms 유예, Escape 로 닫힘)가 되고, 마우스로 열었을 때만 카드 안으로 마우스가 들어갈 수 있다(필드 focus 로 연 카드는 예전처럼 마우스를 통과시키고 blur 에 닫힌다). 모달 안에서는 카드가 열려 있을 때 Escape 가 카드만 닫는다. 스크린리더 사본은 글자 설명이다. `tip` 을 주면 예전 툴팁 그대로다 — [mdm-meta](mdm-meta.md) §HTML 설명·상호작용 툴팁.
+MDM 설명이 HTML(`descriptionHtml`)이면 라벨 툴팁은 넓은 카드(최대 640px, 떠나도 150ms 유예, Escape 로 닫힘)가 되고, 마우스로 열었을 때만 카드 안으로 마우스가 들어갈 수 있다(필드 focus 로 연 카드는 예전처럼 마우스를 통과시키고 blur 에 닫힌다). 모달 안에서는 카드가 열려 있을 때 누른 Escape 가 focus 위치와 상관없이 카드만 닫고, 다음 Escape 가 모달을 닫는다(필드의 ComboBox 드롭다운이 열려 있으면 그 Escape 는 드롭다운도 함께 닫는다). 스크린리더 사본은 글자 설명이다. `tip` 을 주면 예전 툴팁 그대로다 — [mdm-meta](mdm-meta.md) §HTML 설명·상호작용 툴팁.
 
 ```tsx
 <FormGroup name="title" required error={errors.title}>
