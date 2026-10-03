@@ -43,6 +43,8 @@ final class FakeMetaFeed implements MdmMetaFeed {
     final Set<MdmBodyKey> notReleasedOnce = ConcurrentHashMap.newKeySet();
     /** 늘 NOT_RELEASED 로 답할 쌍. */
     final Set<MdmBodyKey> notReleasedAlways = ConcurrentHashMap.newKeySet();
+    /** 본문 요청에서 이 메시지로 failed 를 줄 쌍(목차·current 는 그대로) — 그 버전 본문만 받을 수 없는 상황. */
+    final Map<MdmBodyKey, String> failedBodies = new ConcurrentHashMap<>();
 
     FakeMetaFeed() {
         for (MdmTargetType t : MdmTargetType.values()) {
@@ -139,6 +141,10 @@ final class FakeMetaFeed implements MdmMetaFeed {
             }
             if (failedKeys.containsKey(k.key())) {
                 failed.put(k, failedKeys.get(k.key()));
+                continue;
+            }
+            if (failedBodies.containsKey(k)) {
+                failed.put(k, failedBodies.get(k));
                 continue;
             }
             Object full = values.get(type).get(k.key());

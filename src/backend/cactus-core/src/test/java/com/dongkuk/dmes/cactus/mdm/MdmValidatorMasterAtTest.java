@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import kr.dongkuk.maru.mdm.engine.spi.FunctionProvider;
 import org.junit.jupiter.api.Test;
 
@@ -32,11 +33,17 @@ class MdmValidatorMasterAtTest {
     }
 
     private static MdmValidationResult run(boolean versioned, MdmColumnMeta column, List<Map<String, Object>> rows) {
+        return run(versioned, column, rows, feed -> {
+        });
+    }
+
+    private static MdmValidationResult run(boolean versioned, MdmColumnMeta column, List<Map<String, Object>> rows, Consumer<FakeMetaFeed> setup) {
         MutableClock clock = new MutableClock(T0);
         FakeMetaFeed feed = new FakeMetaFeed();
         if (versioned) {
             feed.versioned();
         }
+        setup.accept(feed);
         feed.put(MdmTargetType.COLUMN, "CODE_VAL", column);
         feed.put(MdmTargetType.CODE, "C", MdmMetaServiceVersionedTest.codeRows());
         MdmMetaCache cache = new MdmMetaCache(1000, Duration.ofHours(24), Duration.ofMinutes(60), Duration.ofMinutes(10), clock);
@@ -64,6 +71,27 @@ class MdmValidatorMasterAtTest {
         MdmValidationResult on = run(true, c, rows);
         assertThat(on.unavailable()).as("1.000 본문을 미리 받았다").isEmpty();
         assertThat(on.errors()).hasSize(2);
+    }
+
+    @Test
+    void 열네_자리_날짜만_가리키는_옛_버전_본문도_미리_받는다() {
+        MdmColumnMeta c = col("MASTER_AT(\"C\", \"TB\", value, ORDER_DT)", List.of("ORDER_DT"));
+        // 지금(T0)은 2.000 — 1.000 본문은 이 14자리 값을 풀어야만 미리 받는다
+        List<Map<String, Object>> rows = List.of(row("CODE_VAL", "B", "ORDER_DT", "20260301120000"));
+        assertSame(c, rows);
+        MdmValidationResult on = run(true, c, rows);
+        assertThat(on.unavailable()).isEmpty();
+        assertThat(on.errors()).as("1.000 에는 TB 소속이 없다").hasSize(1);
+    }
+
+    @Test
+    void base_dt_본문을_받을_수_없으면_그_항목을_검증_불가로_뺀다() {
+        MdmColumnMeta c = col("MASTER_AT(\"C\", \"TB\", value, ORDER_DT)", List.of("ORDER_DT"));
+        MdmValidationResult on = run(true, c, List.of(row("CODE_VAL", "B", "ORDER_DT", "20260301")),
+                feed -> feed.failedBodies.put(new MdmBodyKey("C", "1.000"), "깨진 본문"));
+
+        assertThat(on.unavailable()).containsExactly("CODE:C");
+        assertThat(on.errors()).as("검사에서 빠졌다").isEmpty();
     }
 
     @Test

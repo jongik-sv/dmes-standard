@@ -57,10 +57,14 @@ class MdmValidatorVersionedTest {
     @Test
     void 판정_시각에_적용되는_세트_버전의_룰만_미리_받는다() {
         validator.validate(MdmValidationRequest.rows("g", List.of(row("QTY", 1))).ruleSet("S").evalTs(Instant.parse("2026-03-01T00:00:00Z")).build());
-        validator.validate(MdmValidationRequest.rows("g", List.of(row("QTY", 1))).ruleSet("S").evalTs(T0).build());
+        assertThat(feed.tocKeys).as("세트 1.000 의 룰 R1 만").containsExactly(List.of("S"), List.of("R1"));
+        assertThat(feed.tocAts).containsOnly(LocalDateTime.parse("2026-03-01T09:00:00"));
+        feed.tocKeys.clear();
+        feed.tocAts.clear();
 
-        assertThat(feed.tocKeys.stream().flatMap(List::stream).toList()).contains("R1", "R2");
-        assertThat(feed.tocAts).contains(LocalDateTime.parse("2026-03-01T09:00:00"), LocalDateTime.parse("2026-10-03T00:00:00"));
+        validator.validate(MdmValidationRequest.rows("g", List.of(row("QTY", 1))).ruleSet("S").evalTs(T0).build());
+        assertThat(feed.tocKeys).as("세트 목차는 캐시 — 2.000 의 룰 R2 만").containsExactly(List.of("R2"));
+        assertThat(feed.tocAts).containsExactly(LocalDateTime.parse("2026-10-03T00:00:00"));
     }
 
     @Test
@@ -71,6 +75,19 @@ class MdmValidatorVersionedTest {
         assertThat(ok.errors()).isEmpty();
         assertThat(ok.unavailable()).isEmpty();
         assertThat(bad.errors()).hasSize(1);
+    }
+
+    @Test
+    void 코드_칸은_지금이_아니라_판정_시각의_본문으로_검증한다() {
+        Instant march = LocalDateTime.parse("2026-03-01T00:00:00").atZone(MdmDefinitionLookup.KST).toInstant(); // 1.000 — TB 는 2.000 부터
+        MdmValidationResult past = validator.validate(MdmValidationRequest.rows("g", List.of(row("TB_COL", "B"))).columns("TB_COL").evalTs(march).build());
+        MdmValidationResult now = validator.validate(MdmValidationRequest.rows("g", List.of(row("TB_COL", "B"))).columns("TB_COL").evalTs(T0).build());
+
+        assertThat(past.unavailable()).as("판정 시각 본문을 미리 받았다").isEmpty();
+        assertThat(past.errors()).as("1.000 에는 TB 소속이 없다").hasSize(1);
+        assertThat(now.unavailable()).isEmpty();
+        assertThat(now.errors()).as("2.000 에서 B 는 TB 소속").isEmpty();
+        assertThat(feed.tocAts).contains(LocalDateTime.parse("2026-03-01T00:00:00"));
     }
 
     @Test
