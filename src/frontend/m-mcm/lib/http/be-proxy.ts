@@ -271,6 +271,7 @@ export async function forwardToBackend(
     "X-Authenticated-Role": roleHeader,
   };
   // Content-Type 은 pickRequestHeaders 가 이미 넘긴다(대소문자가 다른 키를 또 넣으면 값이 겹친다).
+  // XFF 는 TRUSTED_PROXY_HOPS 만큼 오른쪽에서 고른 주소 하나만(기본 0 = 넘기지 않음) — 클라이언트가 보낸 값으로 IP 를 위조하지 못하게.
   const forwardedFor = forwardedForHeader(req.headers);
   if (forwardedFor) {
     headers["X-Forwarded-For"] = forwardedFor;
