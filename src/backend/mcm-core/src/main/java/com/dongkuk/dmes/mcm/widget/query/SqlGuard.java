@@ -103,6 +103,9 @@ public final class SqlGuard {
                     + "|LO_IMPORT|LO_EXPORT|LO_CREATE|LO_CREAT|LO_UNLINK|LO_PUT|LO_FROM_BYTEA|LO_TRUNCATE(?:64)?|LOWRITE"
                     // PostgreSQL — 다른 연결·백그라운드 작업자에서 실행(읽기 전용·롤백을 벗어난다)
                     + "|DBLINK(?:_[A-Z0-9_]+)?|PG_BACKGROUND_[A-Z0-9_]*"
+                    // PostgreSQL — 복제 슬롯 만들기·지우기·전진·변경 소비와 통계 초기화(읽기 전용·롤백을 벗어난다 — 실 PostgreSQL 18.6 재현:
+                    // pg_drop_replication_slot 영구 삭제, 만든 슬롯 남음, pg_stat_reset). 같은 이름의 뷰 pg_replication_slots 는 부르지 않으므로 통과한다
+                    + "|PG_[A-Z_]*REPLICATION_SLOT[A-Z_]*|PG_LOGICAL_SLOT_[A-Z_]*|PG_REPLICATION_SLOT_ADVANCE|PG_STAT_RESET[A-Z0-9_]*"
                     // PostgreSQL — 문자열 SQL 실행(내장 ts_stat·ts_rewrite·*_to_xml, tablefunc crosstab·connectby, xml2 xpath_table)
                     + "|TS_STAT|TS_REWRITE|QUERY_TO_XML[A-Z0-9_]*|CURSOR_TO_XML[A-Z0-9_]*|TABLE_TO_XML[A-Z0-9_]*"
                     + "|SCHEMA_TO_XML[A-Z0-9_]*|DATABASE_TO_XML[A-Z0-9_]*|XPATH_TABLE|CROSSTAB[0-9]*|CONNECTBY"

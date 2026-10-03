@@ -198,6 +198,17 @@ class SqlGuardTest {
                 arguments("SELECT lo_put(1, 0, 'x')", "LO_PUT"),
                 arguments("SELECT lo_from_bytea(0, 'x')", "LO_FROM_BYTEA"),
                 arguments("SELECT lowrite(0, 'x')", "LOWRITE"),
+                // 3차 보안 리뷰(실 PostgreSQL 18.6 재현) — 복제 슬롯·통계 초기화는 읽기 전용·롤백을 벗어난다
+                arguments("SELECT pg_drop_replication_slot('s')", "PG_DROP_REPLICATION_SLOT"),
+                arguments("SELECT * FROM pg_create_logical_replication_slot('s', 'test_decoding')", "PG_CREATE_LOGICAL_REPLICATION_SLOT"),
+                arguments("SELECT pg_create_physical_replication_slot('s', true)", "PG_CREATE_PHYSICAL_REPLICATION_SLOT"),
+                arguments("SELECT pg_copy_logical_replication_slot('a', 'b')", "PG_COPY_LOGICAL_REPLICATION_SLOT"),
+                arguments("SELECT * FROM pg_logical_slot_get_changes('s', NULL, NULL)", "PG_LOGICAL_SLOT_GET_CHANGES"),
+                arguments("SELECT * FROM pg_logical_slot_peek_binary_changes('s', NULL, NULL)", "PG_LOGICAL_SLOT_PEEK_BINARY_CHANGES"),
+                arguments("SELECT pg_replication_slot_advance('s', '0/0')", "PG_REPLICATION_SLOT_ADVANCE"),
+                arguments("SELECT pg_stat_reset()", "PG_STAT_RESET"),
+                arguments("SELECT pg_catalog.pg_stat_reset_shared('bgwriter')", "PG_STAT_RESET_SHARED"),
+                arguments("SELECT pg_stat_reset_single_table_counters(16384)", "PG_STAT_RESET_SINGLE_TABLE_COUNTERS"),
                 // 따옴표 식별자·유니코드 아닌 대소문자 섞기로 불러도 걸린다
                 arguments("SELECT \"pg_sleep\"(10)", "PG_SLEEP"),
                 arguments("SELECT \"pg_catalog\".\"pg_terminate_backend\"(1)", "PG_TERMINATE_BACKEND"),
@@ -314,7 +325,11 @@ class SqlGuardTest {
                 arguments("SELECT h.XP_CNT FROM XP_HIST h WHERE h.XP_CNT > 0"),
                 arguments("SELECT 1 AS \"xmltype\", 2 AS \"ts_stat\" FROM T"),
                 arguments("SELECT dblink, ts_stat, crosstab, bfilename FROM t ORDER BY dblink"),
-                arguments("SELECT t.ts_stat FROM t"));
+                arguments("SELECT t.ts_stat FROM t"),
+                // 복제 슬롯 함수 접두와 이름이 겹치는 읽기 전용 카탈로그 뷰·통계 열은 부르지 않으므로 통과한다
+                arguments("SELECT slot_name, active FROM pg_replication_slots"),
+                arguments("SELECT s.slot_name FROM pg_catalog.pg_replication_slots s"),
+                arguments("SELECT datname, stats_reset FROM pg_stat_database"));
     }
 
     /**
