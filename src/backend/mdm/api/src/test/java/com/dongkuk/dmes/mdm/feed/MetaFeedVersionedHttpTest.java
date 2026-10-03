@@ -288,6 +288,103 @@ class MetaFeedVersionedHttpTest {
                 messageId, new BigDecimal(ver), headerId);
     }
 
+    // ------------------------------------------------------------------ CODE
+
+    /**
+     * 코드 VS_CD: RELEASED 1.000 [2026-01-01, 2026-04-01)·1.001(REAL) [2026-04-01, 2026-07-01)·2.000(INTEGER) [2026-07-01, 열린 끝), DRAFT 2.001.
+     * items A(1.000~), B(1.001~), C(2.001~ 초안). TABLE TB(1.001~): B.
+     */
+    private void seedCode() {
+        MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
+        seeds.seedCode("VS_CD", "INUSE", "MDM");
+        seeds.released("VS_CD", "1.000", "2026-01-01 00:00:00", "2026-04-01 00:00:00");
+        seeds.released("VS_CD", "1.001", "2026-04-01 00:00:00", "2026-07-01 00:00:00");
+        seeds.released("VS_CD", "2.000", "2026-07-01 00:00:00", MasterCodeSeeds.OPEN_END);
+        seeds.draft("VS_CD", "2.001", "kim");
+        seeds.seedItem("VS_CD", "A", "1.000", MasterCodeSeeds.OPEN, "에이", 1);
+        seeds.seedItem("VS_CD", "B", "1.001", MasterCodeSeeds.OPEN, "비", 2);
+        seeds.seedItem("VS_CD", "C", "2.001", MasterCodeSeeds.OPEN, "씨(초안)", 3);
+        seeds.seedBase("VS_CD");
+        seeds.seedCate("VS_CD", "TB", "1.001", MasterCodeSeeds.OPEN, "TABLE", null, null, "표");
+        seeds.seedCateItem("VS_CD", "TB", "B", "1.001", MasterCodeSeeds.OPEN);
+    }
+
+    @Test
+    void CODE_목차는_헤더와_RELEASED_버전만_scale_3_으로_싣고_current_는_소급까지_엔진_규칙으로_고른다() throws Exception {
+        seedCode();
+        JsonNode t = toc("CODE", "2025-06-01T00:00:00", "VS_CD", "NO_CD");
+        assertEquals(1, t.path("items").size(), t.toString());
+        JsonNode value = t.path("items").get(0).path("value");
+        assertEquals("VS_CD", value.path("header").path("maruCodeId").asText());
+        assertEquals("INUSE", value.path("header").path("status").asText());
+        JsonNode versions = value.path("versions");
+        assertEquals(3, versions.size(), "DRAFT 2.001 은 빠진다: " + versions);
+        assertEquals("1.000", versions.get(0).path("ver").decimalValue().toPlainString());
+        assertEquals("1.001", versions.get(1).path("ver").decimalValue().toPlainString());
+        assertEquals("2.000", versions.get(2).path("ver").decimalValue().toPlainString(), "INTEGER 로 저장된 2 도 scale 3");
+        assertEquals("1.000", t.path("items").get(0).path("current").path("ver").asText(), "첫 적용 전 시각은 첫 버전으로 소급");
+    }
+
+    @Test
+    void CODE_본문은_엔진_자르기와_같고_소속과_전체_표시를_싣는다() throws Exception {
+        seedCode();
+        JsonNode b = bodies("CODE", "VS_CD", "1.000", "VS_CD", "2", "VS_CD", "2.001", "NO_CD", "1.000");
+
+        assertEquals(2, b.path("items").size(), b.toString());
+        JsonNode v1 = b.path("items").get(0).path("value");
+        assertEquals("1.000", b.path("items").get(0).path("ver").asText());
+        assertEquals(1, v1.path("items").size(), "1.000 의 items 는 A 하나: " + v1);
+        JsonNode tb1 = category(v1, "TB");
+        assertEquals(false, tb1.path("all").asBoolean(true), "1.000 에서 TB 는 최초 소급으로 1.001 정의를 고르고 소속 B 는 1.000 items 에 없다");
+        assertEquals(0, tb1.path("members").size());
+        JsonNode v2 = b.path("items").get(1).path("value");
+        assertEquals("2.000", b.path("items").get(1).path("ver").asText(), "요청 ver 2 는 2.000 으로 되돌린다");
+        assertEquals(2, v2.path("items").size(), "C(초안 행)는 없다: " + v2);
+        assertTrue(category(v2, "BASE").path("all").asBoolean());
+        assertTrue(category(v2, "BASE").path("members").isNull());
+        assertEquals("B", category(v2, "TB").path("members").get(0).asText());
+        assertEquals("NOT_RELEASED", failed(b, "VS_CD", "2.001").path("message").asText());
+        assertEquals("NOT_RELEASED", failed(b, "NO_CD", "1.000").path("message").asText());
+    }
+
+    @Test
+    void CODE_current_본문은_같은_시각의_BODY_본문과_같다() throws Exception {
+        seedCode();
+        JsonNode t = toc("CODE", "2026-08-01T00:00:00", "VS_CD");
+        JsonNode b = bodies("CODE", "VS_CD", "2.000");
+        assertEquals("2.000", t.path("items").get(0).path("current").path("ver").asText());
+        assertEquals(b.path("items").get(0).path("value"), t.path("items").get(0).path("current").path("value"));
+    }
+
+    @Test
+    void CODE_저장값이_깨진_코드는_그_키만_failed_이고_묶음은_거부하지_않는다() throws Exception {
+        seedCode();
+        MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
+        seeds.seedCode("BAD_CD", "INUSE", "MDM");
+        seeds.released("BAD_CD", "1.000", "2026-01-01 00:00:00", MasterCodeSeeds.OPEN_END);
+        seeds.seedItem("BAD_CD", "A", "1.000", MasterCodeSeeds.OPEN, "에이", 1);
+        seeds.seedBase("BAD_CD");
+        seeds.seedCate("BAD_CD", "BROKEN", "1.000", MasterCodeSeeds.OPEN, "REGEX", "[", "CODE", "깨진 정규식"); // SQL 로 넣어 저장 검사를 우회한다
+
+        JsonNode t = toc("CODE", "2026-08-01T00:00:00", "VS_CD", "BAD_CD");
+        assertEquals(1, t.path("items").size(), t.toString());
+        assertEquals("VS_CD", t.path("items").get(0).path("key").asText());
+        assertEquals("BAD_CD", t.path("failed").get(0).path("key").asText(), t.toString());
+
+        JsonNode b = bodies("CODE", "VS_CD", "2.000", "BAD_CD", "1.000");
+        assertEquals(1, b.path("items").size(), b.toString());
+        assertEquals("BAD_CD", b.path("failed").get(0).path("key").asText(), b.toString());
+    }
+
+    static JsonNode category(JsonNode body, String cateId) {
+        for (JsonNode c : body.path("categories")) {
+            if (cateId.equals(c.path("cateId").asText())) {
+                return c;
+            }
+        }
+        throw new AssertionError("카테고리 없음: " + cateId + " in " + body);
+    }
+
     // ------------------------------------------------------------------ 공통
 
     @Test
