@@ -64,6 +64,17 @@ class McmValuesTest {
         assertEquals(LocalDateTime.of(2026, 10, 4, 0, 0), McmValues.parseLocalDateTime("2026-10-04", FB));
         assertEquals(LocalDateTime.of(2026, 10, 4, 13, 5, 7), McmValues.parseLocalDateTime("2026-10-04 13:05:07", FB));
         assertEquals(LocalDateTime.of(2026, 10, 4, 13, 5, 7), McmValues.parseLocalDateTime(" 2026-10-04T13:05:07 ", FB));
+        // 소수 초는 공백을 T 로 바꿔 ISO 로 파싱
+        assertEquals(LocalDateTime.of(2026, 10, 4, 13, 5, 7, 123_000_000),
+                McmValues.parseLocalDateTime("2026-10-04 13:05:07.123", FB));
+    }
+
+    @Test
+    void parseLocalDateTime_lengthBranchFallbacks() {
+        // 길이 10 이지만 ISO 날짜가 아니면 fallback
+        assertSame(FB, McmValues.parseLocalDateTime("2026/10/04", FB));
+        // 8자리 숫자지만 날짜로 잘못되면 fallback
+        assertSame(FB, McmValues.parseLocalDateTime("20261345", FB));
     }
 
     @Test
@@ -99,6 +110,20 @@ class McmValuesTest {
     }
 
     @Test
+    void toIntStrict_negativeAndOverflow() {
+        assertEquals(-5, McmValues.toIntStrict("-5", "x"));
+        assertEquals(-1234, McmValues.toIntStrict("-1,234", "x"));
+        assertEquals(Integer.MAX_VALUE, McmValues.toIntStrict("2,147,483,647", "x"));
+        assertEquals(Integer.MIN_VALUE, McmValues.toIntStrict("-2147483648", "x"));
+        // int 범위 초과는 문자열·Long 모두 예외
+        BusinessException e = assertThrows(BusinessException.class, () -> McmValues.toIntStrict("2147483648", "수량"));
+        assertEquals(ErrorCode.INVALID_VALUE, e.getErrorCode());
+        assertEquals("수량은(는) 정수만 입력 가능합니다.", e.getMessage());
+        assertThrows(BusinessException.class, () -> McmValues.toIntStrict(2147483648L, "x"));
+        assertThrows(BusinessException.class, () -> McmValues.toIntStrict("-2,147,483,649", "x"));
+    }
+
+    @Test
     void toIntOrNull_numbersAndStrings() {
         assertNull(McmValues.toIntOrNull(null));
         assertNull(McmValues.toIntOrNull(""));
@@ -111,5 +136,15 @@ class McmValuesTest {
         assertEquals(7, McmValues.toIntOrNull(7L));
         assertEquals(1, McmValues.toIntOrNull(1.9));
         assertEquals(1000, McmValues.toIntOrNull(new BigDecimal("1E+3")));
+    }
+
+    @Test
+    void toIntOrNull_numberOverflowTruncatesStringOverflowNulls() {
+        // Number 는 intValue 라 int 범위를 넘으면 하위 32비트로 잘린다
+        assertEquals(Integer.MIN_VALUE, McmValues.toIntOrNull(2147483648L));
+        assertEquals(1, McmValues.toIntOrNull(4294967297L));
+        // 문자열은 parseInt 실패라 null
+        assertNull(McmValues.toIntOrNull("2147483648"));
+        assertEquals(-5, McmValues.toIntOrNull("-5"));
     }
 }
