@@ -1375,3 +1375,11 @@
 - **Rationale**: 시각 T 를 순수 함수 밖에 두면 직렬화·파서가 시계 없이 시험되고, 헤더가 바뀌어도 전문 행을 건드리지 않고 판정 시각 해석만으로 반영된다(D-144 K1). 확정 시각에 EAI 연결을 옮기면 적용 전 확정이 미리 반영되고 확정 취소가 되돌리지 못하므로 시각 T 해석이 맞다. 원장 가드(11)는 룰 확정·확정 시 apply_from 합성 검사와 대칭이고 meta-cache 계약을 바꾸지 않는다
 - **Reversible**: no(번호 칼럼·감사 카운터 개명·EAI 연결 해석 방식. 되돌리려면 새 마이그레이션과 새 ADR)
 - **Source**: [ADR-0006](adr/0006-object-versioning-major-minor.md) 3단계 결과 절, 스펙 [`2026-10-02-mdm-object-versioning-design.md`](../superpowers/specs/2026-10-02-mdm-object-versioning-design.md) §7, 계획 [`2026-10-02-mdm-versioning-phase3-layout.md`](../superpowers/plans/2026-10-02-mdm-versioning-phase3-layout.md), 사용자 결정 2026-10-02(D-144 3단계 병렬 진행). 원천 설계 문서(`/Users/jji/project/mdm/docs/design` 03:72·06:988)는 이 저장소에서 고치지 않는다 — 다른 저장소에서 갱신
+
+## D-149 (2026-10-03T04:00:00Z)
+- **Phase**: design(MDM 컬럼 시스템 별칭 매칭 — B·C 후속)
+- **Decision needed**: 화면 키·서버 검증 컬럼을 표준 물리명(`TB_MDM_COLUMN.PHYS_NAME`)으로만 찾아, 시스템별 실제 물리명(`TB_MDM_COLUMN_SYSTEM`, MES 5,938건이 표준과 다름)을 쓰는 화면은 MDM 메타를 받지 못한다
+- **Decision made**: (1) 표준 물리명이 먼저, 없을 때만 모듈 시스템의 별칭으로 찾는다(겹치는 6개는 표준) (2) 시스템은 `cactus.mdm.system-code`(기본 없음=끔, 다섯 업무 모듈은 MES), metaFeed COLUMN 요청 `params.systemCode` (3) 별칭은 대소문자 무시, 여러 컬럼을 가리키면 "없음" (4) 응답에 `matchedSystem`·`systemPhysName`, `physName` 은 표준 (5) 변경 기록은 컬럼의 표준 이름+모든 별칭, 별칭 행 변경 시 전·후 별칭 (6) TRANSFORM·요구 변수 별칭 변환은 하지 않음
+- **Rationale**: 지금 맞는 이름의 뜻이 바뀌지 않아 회귀가 없고, 별칭 키로 캐시된 항목도 변경 기록으로 지워진다
+- **Reversible**: yes(설정·피드 선택 칸)
+- **Source**: 사용자 지시 2026-10-03 "별칭 매칭부터 진행해". 스펙 [`2026-10-03-mdm-column-system-alias-design.md`](../superpowers/specs/2026-10-03-mdm-column-system-alias-design.md)

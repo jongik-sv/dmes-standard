@@ -361,13 +361,42 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         assertEquals(2, count("TB_MDM_COLUMN_SYSTEM"));
     }
 
+    /**
+     * spec 2026-10-03-mdm-column-system-alias-design L3 — 별칭 매칭이 대소문자를 무시하므로, 다른 컬럼에 대소문자만 다른 별칭을 두면 기존 별칭이
+     * 모호해져 '없음'이 된다. 저장 검사도 대소문자를 무시해 막는다(TSK-04-04 I13 의 정확 일치를 대체).
+     */
     @Test
-    void C12_필드명_비교는_대소문자를_구분한다() {
-        save(other("코일 두께", "COIL_THK"), List.of(sys("ERP", "MATNR", null, null)), List.of());
+    void C12_다른_컬럼에_대소문자만_다른_필드명이면_MDM018_이고_아무것도_저장하지_않는다() {
+        Long first = save(other("코일 두께", "COIL_THK"), List.of(sys("MES", "AMB", null, null)), List.of());
 
-        save(valid(), List.of(sys("ERP", "matnr", null, null)), List.of());
+        BusinessException e = assertCode(MdmErrorCode.SYSTEM_FIELD_ALREADY_MAPPED,
+                () -> save(valid(), List.of(sys("MES", "amb", null, null)), List.of()));
+
+        assertTrue(e.getMessage().contains("MES·amb → 컬럼 '코일 두께'"), e.getMessage());
+        assertEquals(1, count("TB_MDM_COLUMN"));
+        assertEquals(1, count("TB_MDM_COLUMN_SYSTEM"));
+        assertEquals("AMB", jdbc.queryForObject("SELECT PHYS_NAME FROM TB_MDM_COLUMN_SYSTEM WHERE COLUMN_ID = ?",
+                String.class, first));
+    }
+
+    @Test
+    void C12b_대소문자만_다른_필드명이라도_시스템이_다르면_충돌하지_않는다() {
+        save(other("코일 두께", "COIL_THK"), List.of(sys("MES", "AMB", null, null)), List.of());
+
+        save(valid(), List.of(sys("ERP", "amb", null, null)), List.of());
 
         assertEquals(2, count("TB_MDM_COLUMN_SYSTEM"));
+    }
+
+    @Test
+    void C12c_한_컬럼은_대소문자만_다른_별칭을_함께_가질_수_있고_다시_저장해도_자기와_충돌하지_않는다() {
+        Long id = save(valid(), List.of(sys("MES", "SPARE1", null, null), sys("MES", "Spare1", null, null)), List.of());
+        ColumnMngSaveRequest again = valid();
+        again.setColumnId(id);
+
+        assertEquals(id, save(again, List.of(sys("MES", "SPARE1", null, null), sys("MES", "Spare1", null, null),
+                sys("MES", "spare1", null, null)), List.of()));
+        assertEquals(3, count("TB_MDM_COLUMN_SYSTEM"));
     }
 
     @Test
@@ -579,6 +608,54 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         save(renamed, List.of(), List.of());
 
         assertEquals(List.of("COLUMN:COIL_THK:SAVE", "COLUMN:RMTL_COIL_THK:SAVE"), MetaRevTestSupport.rows(jdbc));
+    }
+
+    /** spec 2026-10-03-mdm-column-system-alias-design L6 — 별칭 행의 전·후를 모두 COLUMN 키(대문자)로 남긴다. */
+    @Test
+    void META_신규_저장은_새_시스템_별칭도_기록한다() {
+        MetaRevTestSupport.clear(jdbc);
+        save(valid(), List.of(sys("MES", "Rmtl_T", null, null), sys("APS", "aps_t", null, null)), List.of());
+        assertEquals(Set.of("RMTL_COIL_THK", "RMTL_T", "APS_T"), MetaRevTestSupport.keys(jdbc, "COLUMN"));
+    }
+
+    @Test
+    void META_별칭_행을_바꾸면_바뀌기_전과_뒤_별칭을_모두_기록한다() {
+        Long id = save(valid(), List.of(sys("MES", "OLD_T", null, null), sys("MES", "KEEP_T", null, null)), List.of());
+        MetaRevTestSupport.clear(jdbc);
+        ColumnMngSaveRequest again = valid();
+        again.setColumnId(id);
+
+        save(again, List.of(sys("MES", "KEEP_T", null, null), sys("APS", "new_t", null, null)), List.of());
+
+        assertEquals(Set.of("RMTL_COIL_THK", "OLD_T", "KEEP_T", "NEW_T"), MetaRevTestSupport.keys(jdbc, "COLUMN"));
+        assertEquals(List.of("APS·new_t", "MES·KEEP_T"), mappings.findByColumnId(id).stream()
+                .map(m -> m.getSystemCode() + "·" + m.getPhysName()).sorted().toList());
+    }
+
+    @Test
+    void META_별칭이_그대로여도_컬럼_저장은_그_별칭을_기록한다() {
+        Long id = save(valid(), List.of(sys("MES", "Rmtl_T", null, null)), List.of());
+        MetaRevTestSupport.clear(jdbc);
+        ColumnMngSaveRequest described = valid();
+        described.setColumnId(id);
+        described.setDescription("설명만 바꾼다");
+
+        save(described, List.of(sys("MES", "Rmtl_T", null, null)), List.of());
+
+        assertEquals(Set.of("RMTL_COIL_THK", "RMTL_T"), MetaRevTestSupport.keys(jdbc, "COLUMN"));
+    }
+
+    @Test
+    void META_별칭을_모두_지우면_지운_별칭을_기록한다() {
+        Long id = save(valid(), List.of(sys("MES", "GONE_T", null, null)), List.of());
+        MetaRevTestSupport.clear(jdbc);
+        ColumnMngSaveRequest again = valid();
+        again.setColumnId(id);
+
+        save(again, List.of(), List.of());
+
+        assertEquals(Set.of("RMTL_COIL_THK", "GONE_T"), MetaRevTestSupport.keys(jdbc, "COLUMN"));
+        assertEquals(List.of(), mappings.findByColumnId(id));
     }
 
     @Test

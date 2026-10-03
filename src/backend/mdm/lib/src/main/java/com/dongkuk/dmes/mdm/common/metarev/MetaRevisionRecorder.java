@@ -68,10 +68,24 @@ public class MetaRevisionRecorder {
      * 바뀌면 옛 이름을 쓰는 항목이 사전을 잃으므로 옛 이름도 찾는다. 펼침 조회와 기록은 한 트랜잭션(호출자 합류)에서 한 문장으로 남긴다.
      */
     public void column(String oldPhysName, String newPhysName, boolean layoutFeedMayChange) {
+        column(oldPhysName, newPhysName, layoutFeedMayChange, List.of());
+    }
+
+    /**
+     * {@link #column(String, String, boolean)} 에 그 컬럼의 시스템 별칭({@code TB_MDM_COLUMN_SYSTEM.PHYS_NAME}, 모든 시스템)을 COLUMN 키(대문자)로
+     * 더한다 — 업무 모듈 캐시는 별칭 이름으로도 키를 둔다(spec 2026-10-03-mdm-column-system-alias-design L5·L6). 별칭이 바뀌는 저장이면 부르는 쪽이
+     * 바뀌기 전·뒤 별칭을 모두 넘긴다. 별칭은 전문 펼침에 쓰지 않는다(전문 항목은 표준 물리명을 가리킨다).
+     */
+    public void column(String oldPhysName, String newPhysName, boolean layoutFeedMayChange, Collection<String> systemAliases) {
         tx.executeWithoutResult(status -> {
             Set<Key> keys = new LinkedHashSet<>();
             add(keys, MetaTargetType.COLUMN, oldPhysName);
             add(keys, MetaTargetType.COLUMN, newPhysName);
+            if (systemAliases != null) {
+                for (String alias : systemAliases) {
+                    add(keys, MetaTargetType.COLUMN, alias);
+                }
+            }
             if (layoutFeedMayChange) {
                 addLayoutsUsing(keys, physNames(oldPhysName, newPhysName));
             }
@@ -92,7 +106,9 @@ public class MetaRevisionRecorder {
         tx.executeWithoutResult(status -> {
             Set<Key> keys = new LinkedHashSet<>();
             Set<String> phys = new LinkedHashSet<>();
-            expandDomain(domainId, keys, phys);
+            Set<Long> columnIds = new LinkedHashSet<>();
+            expandDomain(domainId, keys, phys, columnIds);
+            addSystemAliases(keys, columnIds);
             if (layoutFeedMayChange) {
                 addLayoutsUsing(keys, phys);
             }
@@ -112,16 +128,18 @@ public class MetaRevisionRecorder {
         write(keys, MetaChangeKind.SAVE);
     }
 
-    /** 마스터코드 — 그 코드 + {@code MARU_CODE_ID} 로 직접 참조하는 도메인 각각의 도메인 펼침. */
+    /** 마스터코드 — 그 코드 + {@code MARU_CODE_ID} 로 직접 참조하는 도메인 각각의 도메인 펼침(참조 컬럼의 시스템 별칭까지). */
     public void code(String maruCodeId) {
         tx.executeWithoutResult(status -> {
             Set<Key> keys = new LinkedHashSet<>();
             add(keys, MetaTargetType.CODE, maruCodeId);
+            Set<Long> columnIds = new LinkedHashSet<>();
             if (maruCodeId != null && !maruCodeId.isBlank()) {
                 for (String domainId : codeRemoval.referencingDomainIds(maruCodeId)) {
-                    expandDomain(Long.valueOf(domainId), keys);
+                    expandDomain(Long.valueOf(domainId), keys, new LinkedHashSet<>(), columnIds);
                 }
             }
+            addSystemAliases(keys, columnIds);
             insert(keys, MetaChangeKind.SAVE);
         });
     }
@@ -148,12 +166,11 @@ public class MetaRevisionRecorder {
         });
     }
 
-    private void expandDomain(Long domainId, Set<Key> keys) {
-        expandDomain(domainId, keys, new LinkedHashSet<>());
-    }
-
-    /** {@code phys} 에 참조 컬럼 물리명을 저장된 글자 그대로 모은다(COLUMN 키는 대문자로 바뀌므로 키에서 다시 뽑지 않는다). */
-    private void expandDomain(Long domainId, Set<Key> keys, Set<String> phys) {
+    /**
+     * {@code phys} 에 참조 컬럼 물리명을 저장된 글자 그대로 모은다(COLUMN 키는 대문자로 바뀌므로 키에서 다시 뽑지 않는다). {@code columnIds} 에는
+     * 참조 컬럼 ID 를 모은다 — 부르는 쪽이 펼침을 다 마친 뒤 {@link #addSystemAliases} 로 별칭을 한 번에 더한다(도메인마다 읽지 않게).
+     */
+    private void expandDomain(Long domainId, Set<Key> keys, Set<String> phys, Set<Long> columnIds) {
         if (domainId == null) {
             return;
         }
@@ -164,6 +181,19 @@ public class MetaRevisionRecorder {
             if (r.physName() != null && !r.physName().isBlank()) {
                 phys.add(r.physName());
             }
+            if (r.columnId() != null) {
+                columnIds.add(r.columnId());
+            }
+        }
+    }
+
+    /** 펼친 컬럼들의 시스템 별칭(모든 시스템)을 COLUMN 키로 — spec 2026-10-03-mdm-column-system-alias-design L6. 호출자 트랜잭션 안에서만. */
+    private void addSystemAliases(Set<Key> keys, Collection<Long> columnIds) {
+        if (columnIds.isEmpty()) {
+            return;
+        }
+        for (String alias : domainQueries.systemAliases(columnIds)) {
+            add(keys, MetaTargetType.COLUMN, alias);
         }
     }
 

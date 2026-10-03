@@ -62,7 +62,7 @@ class MdmDefinitionLookupTest {
     static MdmColumnMeta qty(String phys, String stdExpr, Integer scale) {
         return new MdmColumnMeta(phys, "이름", null, null, null, null, null, "NUMBER", 10, scale, true, null, null, null, null,
                 new MdmColumnMeta.DomainRef("7", "두께", "QTY"), stdExpr == null ? null : new MdmColumnMeta.Expr(stdExpr, null),
-                null, List.of(), null);
+                null, List.of(), null, null, null);
     }
 
     /** 룰 버전은 major/minor 소수(D-144) — 문자열로 받아 scale 그대로 BigDecimal 로 싣는다. */
@@ -91,7 +91,7 @@ class MdmDefinitionLookupTest {
     @Test
     void 도메인_없는_컬럼은_TEXT_STRING_으로_본다() {
         feed.put(MdmTargetType.COLUMN, "MEMO", new MdmColumnMeta("MEMO", "메모", null, null, null, null, null, null, null, null, false,
-                null, null, null, null, null, null, null, null, null));
+                null, null, null, null, null, null, null, null, null, null, null));
         ColumnDefinition d = lookup.column("T", "MEMO").orElseThrow();
         assertThat(d.domainKind()).isEqualTo(DomainKind.TEXT);
         assertThat(d.dataType()).isEqualTo(DataType.STRING);
@@ -123,7 +123,7 @@ class MdmDefinitionLookupTest {
         feed.put(MdmTargetType.CODE, "PROC_CD", rows);
         feed.put(MdmTargetType.COLUMN, "PROC_COL", new MdmColumnMeta("PROC_COL", "공정", null, null, null, null, null, "STRING", 10, null,
                 false, null, null, null, null, new MdmColumnMeta.DomainRef("8", "공정", "CODE"), null, null, List.of(),
-                new MdmColumnMeta.CodeRefMeta("PROC_CD", "BASE")));
+                new MdmColumnMeta.CodeRefMeta("PROC_CD", "BASE"), null, null));
 
         assertThat(validator.validate("T", "PROC_COL", Map.of("PROC_COL", "A"), NOW).valid()).isTrue();
         assertThat(validator.validate("T", "PROC_COL", Map.of("PROC_COL", "Z"), NOW).valid()).isFalse();
@@ -146,7 +146,7 @@ class MdmDefinitionLookupTest {
         feed.put(MdmTargetType.CODE, "SCALE_CD", rows);
         feed.put(MdmTargetType.COLUMN, "SCALE_COL", new MdmColumnMeta("SCALE_COL", "공정", null, null, null, null, null, "STRING", 10,
                 null, false, null, null, null, null, new MdmColumnMeta.DomainRef("9", "공정", "CODE"), null, null, List.of(),
-                new MdmColumnMeta.CodeRefMeta("SCALE_CD", "BASE")));
+                new MdmColumnMeta.CodeRefMeta("SCALE_CD", "BASE"), null, null));
 
         assertThat(validator.validate("T", "SCALE_COL", Map.of("SCALE_COL", "A"), NOW).valid()).isTrue();
         assertThat(validator.validate("T", "SCALE_COL", Map.of("SCALE_COL", "Z"), NOW).valid()).isFalse();
@@ -164,7 +164,7 @@ class MdmDefinitionLookupTest {
 
     static MdmColumnMeta procCol() {
         return new MdmColumnMeta("PROC_COL", "공정", null, null, null, null, null, "STRING", 10, null, false, null, null, null, null,
-                new MdmColumnMeta.DomainRef("8", "공정", "CODE"), null, null, List.of(), new MdmColumnMeta.CodeRefMeta("PROC_CD", "BASE"));
+                new MdmColumnMeta.DomainRef("8", "공정", "CODE"), null, null, List.of(), new MdmColumnMeta.CodeRefMeta("PROC_CD", "BASE"), null, null);
     }
 
     /**
