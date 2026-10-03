@@ -354,3 +354,11 @@ ag-grid 33 은 열 정의를 다시 받으면 머리 그룹 칸 ctrl 을 새로 
 - `AgDataGrid` 의 열 정의는 **그리는 값이 바뀔 때만** 새로 만든다. 그리드 안 MDM 옵션(`useGridMdm`)은 칸 메타의 `loading` 만 바뀐 경우(404·꺼진 모듈·사전에 없는 칸)에는 앞 값을 그대로 둔다. 화면 쪽 규칙은 §20(`columns` 를 `useMemo` 로 만들고 deps 를 좁힌다)과 같다.
 - 그룹 구조(묶음·변수 수)가 바뀌면 화면이 그리드를 `key` 로 새로 마운트한다(`DecisionTableCard` 의 `gridKey`). 마운트된 그룹 그리드에 다른 그룹 구조를 그대로 넘기지 않는다.
 - 시험은 StrictMode·`MdmMetaProvider`(fetch 404) 아래에서 그룹 머리까지 그린다. 공급자가 없으면 이 경로가 돌지 않아 시험이 통과해 버린다. 예: `shared/tests/unit/grid-mdm-group-strict.unit.test.ts`, `m-mdm/tests/dme/ruleEdit/decision-table-card.test.ts` 의 「포털 탭」 묶음.
+
+## 33. React Flow 화면 맞춤 — `rf.fitView` 는 다음 노드 갱신까지 미뤄진다 (2026-10-03)
+
+React Flow 12 의 `useReactFlow().fitView()` 는 곧바로 화면을 옮기지 않는다. 저장소에 `fitViewQueued` 를 세우고 다음 `setNodes`(노드가 다 잰 상태) 때 실행한다. 제어형 캔버스(`nodes` prop 을 화면이 만든다)에서 키·단추 처리기가 상태를 바꾸지 않고 `fitView` 만 부르면 다시 그리기가 없어 대부분 아무 일도 없고, 나중에 다른 일로 노드가 갱신될 때 엉뚱하게 실행된다. 룰 세트 편집 캔버스의 Shift+2(고른 것으로 이동)·[흐름도로 돌아가기] 에서 실측했다. happy-dom 시험은 다른 갱신이 끼어 통과해 버리므로 브라우저로 확인한다.
+
+- 곧바로 옮겨야 하는 동작은 경계 상자로 화면을 계산해 넣는다: `getViewportForBounds(rf.getNodesBounds(ids), width, height, minZoom, maxZoom, padding)` → `rf.setViewport(vp, { duration })`. `width`·`height`·`minZoom`·`maxZoom` 은 `useStoreApi().getState()` 에서 읽는다. 예: `m-mdm/pages/dme/ruleSetEdit/canvas/FlowCanvas.tsx` 의 `fitNodes`.
+- 상태를 바꿔 다시 그리는 경로(툴바 [화면 맞춤] 의 신호 값, 세트를 바꿀 때)는 `rf.fitView` 를 써도 된다. 새 노드를 다 잴 때까지 기다렸다 맞추는 성질이 오히려 필요하다.
+- `translateExtent` 같은 이동 한계는 휠·끌기·`scaleBy`·`setViewportConstrained` 에만 걸리고 `fitView`·`setCenter`·`setViewport` 는 거치지 않는다. 한계를 바꿔도 지금 화면을 다시 맞추지 않으므로, 한계가 줄 수 있으면 움직임이 멈춘 뒤 `panZoom.setViewportConstrained` 로 한 번 맞춘다(같은 캔버스의 `ViewportGuard`).
