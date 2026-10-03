@@ -32,7 +32,7 @@
 | `toIntOrNull` | Number 는 `intValue`, 문자열은 trim 후 `parseInt`, 실패 시 null | 2곳 |
 
   - 합계: strOf 18(12+6), blankToNull 9(4+5), parseLocalDateTime 6, toInt 4(2+2).
-  - 제외한 파일: 위젯 패키지 `widget/admin/service/CommWidgetMngService`(blankToNull 이 trim 에 더해 리터럴 "null" 도 null 로 바꾸는 다른 변형), 화면 사용 통계 패키지 `screenusage/service/ScreenUsageStatSupport`, `sample` 패키지의 `SampleMasterCodeService`(대상 이름 정의 없음). 위젯·화면 사용 통계는 다른 기능 소유 패키지라 이번 범위에서 뺐다. 조사로 확인한 Sample 계열 서비스는 이 1개이며 지시문의 "3개"와는 차이가 있다.
+  - 제외한 파일: 위젯 패키지 `widget/admin/service/CommWidgetMngService`(blankToNull 이 trim 에 더해 리터럴 "null" 도 null 로 바꾸는 다른 변형), 화면 사용 통계 패키지 `screenusage/service/ScreenUsageStatSupport`, 샘플 서비스 3개(`SampleNoticeService`(mcm/lib), `SampleMasterCodeService`(mcm-core, 대상 이름 정의 없음), `SampleInventoryItemService`(mls/lib)). 위젯·화면 사용 통계는 다른 작업이 진행 중인 금지 영역이고, 샘플 서비스 3개는 a8 레인(AOP 어노테이션 규약 위반 수정)으로 넘어간 파일이라 이번 범위에서 뺐다. 이번 치환 대상은 mcm-core 뿐이라 mcm/lib·mls/lib 의 두 샘플 서비스는 원래 범위 밖이다.
   - 의미가 다른 변형을 합치지 않은 근거: `strOf` 와 `strOfTrim` 은 앞뒤 공백이 달라진다. `blankToNullTrim` 과 `blankToNull` 은 호출처가 trim 하지 않은 값을 DB 에 쓰므로 합치면 저장값이 바뀐다. `toIntStrict`(예외, 콤마 허용)와 `toIntOrNull`(null 반환, 소수 버림)도 실패 동작이 다르다. 그래서 7개를 이름으로 구분해 남겼다.
 - 바꾼 이유: 같은 함수가 파일마다 복사돼 있어 한 곳을 고치면 나머지가 어긋난다. 변형 차이도 파일을 열어 봐야 알 수 있었다.
 - 동작 보존 근거:
