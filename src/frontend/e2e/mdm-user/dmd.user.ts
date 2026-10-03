@@ -1278,6 +1278,10 @@ test.describe("C 카테고리 탭·이력", () => {
       항목: "[항목] 탭 — 다음 시험(TC-DMD-CATE-06)에서 누른다",
       트리: "[트리] 탭 — 장 B 에서 눌렀다(이 화면은 장 C 에서 새로 열었다)",
       "코드 테스트": "[코드 테스트] 탭 — TC-DMD-HIST-01 에서 누른다(이 화면은 TC-DMD-CATE-01 에서 새로 열었다)",
+      // 66f40e88 부터 왼쪽 항목 표와 위 마루 데이터 칸은 오른쪽 탭과 함께 늘 보인다 — 장 C 는 새 페이지라 누름 기록이 비어 있다.
+      "item-add": "[항목 추가] — 장 B 에서 눌렀다(fillItemForm, 장 C 는 새 페이지로 열었다)",
+      "item-csv-upload": "[CSV 업로드] — 장 B 에서 눌렀다(openCsvPopup, 장 C 는 새 페이지로 열었다)",
+      찾기: "마루 데이터 [찾기] — 장 E TC-DMD-ROLE-01 에서 누른다(이 장은 Enter 로 찾는다)",
     });
     watcher.assertClean("dataCateEdit 닫기");
   });
