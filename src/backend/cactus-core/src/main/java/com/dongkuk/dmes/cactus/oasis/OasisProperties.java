@@ -11,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     service-group: production
  *     service-path: /services                # ClassPathFileServiceLoader 의 검색 prefix (classpath* 기준)
  *     service-loader-url:                    # 명시 시 HttpServiceDocumentLoader 사용 (transactional=true 필수)
- *     transactional: false                   # true 면 SpringServiceStarterFactory + JpaTransactionManager
+ *     transactional: false                   # true 면 CactusServiceStarterFactory + JpaTransactionManager
  *     transaction-manager-name: transactionManager
  *     dialect:                                # mssql | sqlite | none. 명시 시 ColumnConverter 빈 등록
  * </pre>
@@ -42,7 +42,7 @@ public class OasisProperties {
     /** HTTP 원격 BPMN 로더 URL. {@code {serviceId}} 토큰 치환. {@code transactional=true} 필수. */
     private String serviceLoaderUrl;
 
-    /** 트랜잭션 사용 여부 — true 면 {@code SpringServiceStarterFactory} + JpaTxMgr. */
+    /** 트랜잭션 사용 여부 — true 면 {@code CactusServiceStarterFactory} + JpaTxMgr. */
     private boolean transactional = false;
 
     /** 트랜잭션 매니저 빈 이름 (기본 Spring Boot 의 "transactionManager"). */

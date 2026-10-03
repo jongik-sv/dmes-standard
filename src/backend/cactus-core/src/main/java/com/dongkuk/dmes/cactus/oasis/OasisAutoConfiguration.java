@@ -7,14 +7,15 @@ import com.dongkuk.dmes.cactus.oasis.provider.CactusCachingServiceProvider;
 import com.dongkuk.dmes.cactus.oasis.provider.DefaultTxInjectingServiceProvider;
 import com.dongkuk.dmes.cactus.oasis.task.MyBatisSqlRunner;
 import com.dongkuk.dmes.cactus.tx.CactusTxProperties;
+import com.dongkuk.oasis.context.SpringApplicationContext;
 import com.dongkuk.oasis.executors.SqlRunner;
 import com.dongkuk.oasis.factories.NonTransactionalServiceStarterFactory;
-import com.dongkuk.oasis.factories.SpringServiceStarterFactory;
 import com.dongkuk.oasis.jdbc.ColumnConverter;
 import com.dongkuk.oasis.provider.GenericServiceProvider;
 import com.dongkuk.oasis.provider.ServiceProvider;
 import com.dongkuk.oasis.provider.SimpleServiceProvider;
 import com.dongkuk.oasis.service.ServiceStarter;
+import com.dongkuk.oasis.transaction.SpringTransactionHandler;
 import com.dongkuk.oasis.unmarshal.camunda.CamundaBpmnServiceUnmarshaller;
 import org.apache.ibatis.session.SqlSession;
 import org.slf4j.Logger;
@@ -102,7 +103,6 @@ public class OasisAutoConfiguration {
             String[] tmNames = isMultiTx
                     ? txProps.getManagers().keySet().toArray(new String[0])
                     : new String[]{props.getTransactionManagerName()};
-            SpringServiceStarterFactory factory = new SpringServiceStarterFactory(ctx, tmNames);
 
             ServiceProvider provider;
             if (url != null) {
@@ -123,8 +123,13 @@ public class OasisAutoConfiguration {
                 log.info("[Cactus Oasis] legacy mode — single tx={}, cactus.tx.managers 마이그레이션 권장",
                         props.getTransactionManagerName());
             }
-            factory.setServiceProvider(new CactusCachingServiceProvider(provider, cacheSize));
-            return factory.generateServiceStarter();
+            // oasis SpringServiceStarterFactory 와 같은 그래프를 cactus 에서 직접 조립한다(refactor/framework-tx 3a).
+            // 트랜잭션 핸들러는 아직 oasis SpringTransactionHandler 그대로다.
+            SpringTransactionHandler txHandler =
+                    new SpringTransactionHandler(new SpringApplicationContext(ctx), tmNames);
+            return new CactusServiceStarterFactory(
+                    ctx, new CactusCachingServiceProvider(provider, cacheSize), txHandler)
+                    .generateServiceStarter();
         }
 
         // non-transactional
