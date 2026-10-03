@@ -18,6 +18,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import kr.dongkuk.maru.mdm.engine.code.CodeVersionSlice;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
 
@@ -125,20 +128,13 @@ public class MdmMetaService {
                 }
                 continue;
             }
-            CompletableFuture<Optional<Object>> f = new CompletableFuture<>();
-            CompletableFuture<Optional<Object>> running = inflight.putIfAbsent(id(type, key), f);
-            if (running == null) {
-                mine.put(key, f);
-            } else {
-                waiting.put(key, running);
-            }
+            Claim<Optional<Object>> c = claim(inflight, id(type, key), true);
+            (c.mine() ? mine : waiting).put(key, c.future());
         }
         if (!mine.isEmpty()) {
             load(type, mine);
         }
-        Map<String, CompletableFuture<Optional<Object>>> all = new LinkedHashMap<>(mine);
-        all.putAll(waiting);
-        await(all, found, missing, unavailable);
+        await(joined(mine, waiting), found, missing, unavailable);
         return new MdmLookup(found, missing, unavailable);
     }
 
@@ -206,9 +202,7 @@ public class MdmMetaService {
             if (evictFirst) {
                 cache.evictLocal(type, key);
             }
-            CompletableFuture<Optional<Object>> f = new CompletableFuture<>();
-            inflight.put(id(type, key), f); // 앞선 적재의 자리를 빼앗는다. 앞선 적재는 자기 것만 지우므로 이 자리를 건드리지 않는다
-            mine.put(key, f);
+            mine.put(key, claim(inflight, id(type, key), false).future()); // 앞선 적재의 자리를 빼앗는다. 앞선 적재는 자기 것만 지우므로 이 자리를 건드리지 않는다
         }
         Map<String, Object> found = new LinkedHashMap<>();
         List<String> missing = new ArrayList<>();
@@ -226,58 +220,121 @@ public class MdmMetaService {
 
     private static void await(Map<String, CompletableFuture<Optional<Object>>> futures, Map<String, Object> found, List<String> missing,
                               List<String> unavailable) {
-        futures.forEach((key, f) -> {
-            try {
-                Optional<Object> v = f.get(WAIT_LIMIT.toMillis(), TimeUnit.MILLISECONDS);
-                if (v.isPresent()) {
-                    found.put(key, v.get());
-                } else {
-                    missing.add(key);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                unavailable.add(key);
-            } catch (ExecutionException | TimeoutException e) {
-                unavailable.add(key);
-            }
-        });
+        awaitAll(futures, (key, v) -> v.ifPresentOrElse(x -> found.put(key, x), () -> missing.add(key)), unavailable::add);
     }
 
     private void load(MdmTargetType type, Map<String, CompletableFuture<Optional<Object>>> mine) {
-        MdmMetaCache.Ticket ticket = cache.ticket();
-        try {
-            if (skipping(mine.values())) {
-                return;
-            }
-            MdmFetchResult result;
-            try {
-                result = feed.fetch(type, mine.keySet());
-            } catch (RuntimeException e) {
-                failed(e, mine.values());
-                return;
-            }
-            health.set(Health.OK);
+        loadBatch(mine, inflight, key -> id(type, key), keys -> feed.fetch(type, keys), (result, keys, ticket) -> {
             Map<String, Object> toCache = new LinkedHashMap<>();
-            mine.keySet().forEach(key -> {
+            keys.forEach(key -> {
                 if (!result.failed().containsKey(key)) {
                     toCache.put(key, result.found().get(key)); // null = "없음"
                 }
             });
             cache.putAll(type, toCache, ticket);
-            mine.forEach((key, f) -> {
+            Map<String, Outcome<Optional<Object>>> outcome = new LinkedHashMap<>();
+            keys.forEach(key -> {
                 String failed = result.failed().get(key);
                 if (failed != null || result.failed().containsKey(key)) {
-                    f.completeExceptionally(new MdmUnavailableException(failed == null ? "MDM 이 정의를 만들지 못했습니다: " + key : failed));
-                    return;
+                    outcome.put(key, Outcome.fail(new MdmUnavailableException(failed == null ? "MDM 이 정의를 만들지 못했습니다: " + key : failed)));
+                } else {
+                    outcome.put(key, Outcome.ok(Optional.ofNullable(result.found().get(key))));
                 }
-                f.complete(Optional.ofNullable(result.found().get(key)));
+            });
+            return outcome;
+        });
+    }
+
+    // ------------------------------------------------------------------ 적재 공통(값·목차·본문)
+
+    /** 진행 중 적재 자리 — {@code mine} 이면 내가 적재하고, 아니면 {@code future} 는 남의 진행 중 적재다. */
+    private record Claim<V>(CompletableFuture<V> future, boolean mine) {
+    }
+
+    /**
+     * 진행 중 적재 자리를 잡는다. {@code join} 이면 진행 중 적재에 합류하고(putIfAbsent), 아니면 자리를 빼앗는다(put — reload·폴러 RELOAD). 앞선
+     * 적재는 {@link #loadBatch} 의 finally 에서 자기 future 만 지우므로 빼앗은 자리를 건드리지 않는다.
+     */
+    private static <V> Claim<V> claim(ConcurrentHashMap<String, CompletableFuture<V>> inflight, String id, boolean join) {
+        CompletableFuture<V> f = new CompletableFuture<>();
+        CompletableFuture<V> running = join ? inflight.putIfAbsent(id, f) : inflight.put(id, f);
+        return !join || running == null ? new Claim<>(f, true) : new Claim<>(running, false);
+    }
+
+    /** 키 하나의 적재 결과 — 값, 또는 받을 수 없음({@code error}). */
+    private record Outcome<V>(V value, RuntimeException error) {
+        static <V> Outcome<V> ok(V value) {
+            return new Outcome<>(value, null);
+        }
+
+        static <V> Outcome<V> fail(RuntimeException error) {
+            return new Outcome<>(null, error);
+        }
+    }
+
+    /** 해석·캐시 쓰기 — feed 응답을 해석해 받은 Ticket 으로 캐시에 넣고, {@code keys} 의 키마다 결과를 낸다. */
+    @FunctionalInterface
+    private interface Settle<K, R, V> {
+        Map<K, Outcome<V>> apply(R response, Set<K> keys, MdmMetaCache.Ticket ticket);
+    }
+
+    /**
+     * 적재 한 묶음 — 값·목차·본문이 함께 쓰는 골격. ① 호출 전에 Ticket 을 받는다 ② 건너뛰는 중이면 모두 받을 수 없음 ③ feed 호출만 실패로 센다
+     * (RuntimeException → {@link #failed}) ④ 호출이 성공하면 health 를 OK 로 ⑤ 해석·캐시 쓰기({@code settle}) ⑥ 그 뒤에 키별로 완료한다 — 합류자가
+     * 깨어나면 캐시가 이미 채워져 있다. 해석·캐시 쓰기 단계의 예외는 실패로 세지 않고 호출자에게 나가며, finally 가 남은 future 를 "적재가 끝나지
+     * 않았습니다" 로 닫는다. finally 는 진행 중 장부에서 자기 future 만 지운다(remove(id, f)) — 자리를 빼앗은 새 적재를 지우지 않는다.
+     */
+    private <K, V, R> void loadBatch(Map<K, CompletableFuture<V>> mine, ConcurrentHashMap<String, CompletableFuture<V>> inflight,
+                                     Function<K, String> inflightId, Function<Set<K>, R> fetch, Settle<K, R, V> settle) {
+        MdmMetaCache.Ticket ticket = cache.ticket();
+        try {
+            if (skipping(mine.values())) {
+                return;
+            }
+            R response;
+            try {
+                response = fetch.apply(mine.keySet());
+            } catch (RuntimeException e) {
+                failed(e, mine.values());
+                return;
+            }
+            health.set(Health.OK);
+            Map<K, Outcome<V>> outcome = settle.apply(response, mine.keySet(), ticket);
+            mine.forEach((key, f) -> {
+                Outcome<V> o = outcome.get(key);
+                if (o.error() != null) {
+                    f.completeExceptionally(o.error());
+                } else {
+                    f.complete(o.value());
+                }
             });
         } finally {
             mine.forEach((key, f) -> {
                 f.completeExceptionally(new MdmUnavailableException("적재가 끝나지 않았습니다: " + key)); // 이미 끝났으면 무시된다
-                inflight.remove(id(type, key), f);
+                inflight.remove(inflightId.apply(key), f);
             });
         }
+    }
+
+    /** 진행 중 적재를 {@link #WAIT_LIMIT} 까지 기다린다. 받으면 {@code onValue}, 실패·시간 초과·인터럽트(표시는 되살린다)면 {@code onUnavailable}. */
+    private static <K, V> void awaitAll(Map<K, CompletableFuture<V>> futures, BiConsumer<K, V> onValue, Consumer<K> onUnavailable) {
+        futures.forEach((key, f) -> {
+            try {
+                onValue.accept(key, f.get(WAIT_LIMIT.toMillis(), TimeUnit.MILLISECONDS));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                onUnavailable.accept(key);
+            } catch (ExecutionException | TimeoutException e) {
+                onUnavailable.accept(key);
+            }
+        });
+    }
+
+    /** 내 적재 먼저, 그다음 합류한 적재 — 기다리는 순서. */
+    private static <K, V> Map<K, CompletableFuture<V>> joined(Map<K, CompletableFuture<V>> mine, Map<K, CompletableFuture<V>> waiting) {
+        Map<K, CompletableFuture<V>> all = new LinkedHashMap<>(mine);
+        all.putAll(waiting);
+        return all;
     }
 
     // ------------------------------------------------------------------ 버전 입구
@@ -549,56 +606,23 @@ public class MdmMetaService {
                 tocs.put(key, (MdmToc) hit.get().value());
                 continue;
             }
-            CompletableFuture<Optional<MdmToc>> f = new CompletableFuture<>();
-            if (!join) {
-                inflightToc.put(id(type, key), f);
-                mine.put(key, f);
-                continue;
-            }
-            CompletableFuture<Optional<MdmToc>> running = inflightToc.putIfAbsent(id(type, key), f);
-            if (running == null) {
-                mine.put(key, f);
-            } else {
-                waiting.put(key, running);
-            }
+            Claim<Optional<MdmToc>> c = claim(inflightToc, id(type, key), join);
+            (c.mine() ? mine : waiting).put(key, c.future());
         }
         if (!mine.isEmpty()) {
             loadTocs(type, mine, at, current);
         }
-        Map<String, CompletableFuture<Optional<MdmToc>>> all = new LinkedHashMap<>(mine);
-        all.putAll(waiting);
-        all.forEach((key, f) -> {
-            try {
-                tocs.put(key, f.get(WAIT_LIMIT.toMillis(), TimeUnit.MILLISECONDS).orElse(null));
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                unavailable.add(key);
-            } catch (ExecutionException | TimeoutException e) {
-                unavailable.add(key);
-            }
-        });
+        awaitAll(joined(mine, waiting), (key, v) -> tocs.put(key, v.orElse(null)), unavailable::add);
         return new Tocs(tocs, unavailable, current);
     }
 
     private void loadTocs(MdmTargetType type, Map<String, CompletableFuture<Optional<MdmToc>>> mine, LocalDateTime at,
                           Map<String, MdmCurrent> current) {
-        MdmMetaCache.Ticket ticket = cache.ticket();
-        try {
-            if (skipping(mine.values())) {
-                return;
-            }
-            MdmTocResult r;
-            try {
-                r = feed.fetchToc(type, mine.keySet(), at);
-            } catch (RuntimeException e) {
-                failed(e, mine.values());
-                return;
-            }
-            health.set(Health.OK);
+        loadBatch(mine, inflightToc, key -> id(type, key), keys -> feed.fetchToc(type, keys, at), (r, keys, ticket) -> {
             Map<String, MdmToc> tocs = new LinkedHashMap<>();
             Map<MdmBodyKey, Object> bodies = new LinkedHashMap<>();
             Map<String, String> failed = new LinkedHashMap<>();
-            for (String key : mine.keySet()) {
+            for (String key : keys) {
                 if (r.failed().containsKey(key)) {
                     failed.put(key, r.failed().get(key));
                     continue;
@@ -632,19 +656,16 @@ public class MdmMetaService {
             }
             cache.putTocs(type, tocs, ticket);
             cache.putBodies(type, bodies, ticket);
-            mine.forEach((key, f) -> {
+            Map<String, Outcome<Optional<MdmToc>>> outcome = new LinkedHashMap<>();
+            for (String key : keys) {
                 if (failed.containsKey(key)) {
-                    f.completeExceptionally(new MdmUnavailableException(failed.get(key)));
+                    outcome.put(key, Outcome.fail(new MdmUnavailableException(failed.get(key))));
                 } else {
-                    f.complete(Optional.ofNullable(tocs.get(key)));
+                    outcome.put(key, Outcome.ok(Optional.ofNullable(tocs.get(key))));
                 }
-            });
-        } finally {
-            mine.forEach((key, f) -> {
-                f.completeExceptionally(new MdmUnavailableException("적재가 끝나지 않았습니다: " + key));
-                inflightToc.remove(id(type, key), f);
-            });
-        }
+            }
+            return outcome;
+        });
     }
 
     private Bodies bodies(MdmTargetType type, Map<MdmBodyKey, MdmToc> need, Map<String, MdmCurrent> prefetched, boolean join) {
@@ -665,96 +686,56 @@ public class MdmMetaService {
                 found.put(bk, hit.get().value());
                 return;
             }
-            CompletableFuture<Optional<Object>> f = new CompletableFuture<>();
-            String id = id(type, MdmVersions.logical(bk.key(), bk.ver()));
-            CompletableFuture<Optional<Object>> running = join ? inflightBody.putIfAbsent(id, f) : inflightBody.put(id, f);
-            if (!join || running == null) {
-                mine.put(bk, f);
+            Claim<Optional<Object>> slot = claim(inflightBody, bodyInflightId(type, bk), join);
+            if (slot.mine()) {
+                mine.put(bk, slot.future());
                 mineTocs.put(bk, toc);
             } else {
-                waiting.put(bk, running);
+                waiting.put(bk, slot.future());
             }
         });
         if (!mine.isEmpty()) {
             loadBodies(type, mine, mineTocs);
         }
-        Map<MdmBodyKey, CompletableFuture<Optional<Object>>> all = new LinkedHashMap<>(mine);
-        all.putAll(waiting);
-        all.forEach((bk, f) -> {
-            try {
-                Optional<Object> v = f.get(WAIT_LIMIT.toMillis(), TimeUnit.MILLISECONDS);
-                if (v.isPresent()) {
-                    found.put(bk, v.get());
-                } else {
-                    notReleased.add(bk);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                unavailable.add(bk);
-            } catch (ExecutionException | TimeoutException e) {
-                unavailable.add(bk);
-            }
-        });
+        awaitAll(joined(mine, waiting), (bk, v) -> v.ifPresentOrElse(x -> found.put(bk, x), () -> notReleased.add(bk)), unavailable::add);
         return new Bodies(found, unavailable, notReleased);
     }
 
     private void loadBodies(MdmTargetType type, Map<MdmBodyKey, CompletableFuture<Optional<Object>>> mine, Map<MdmBodyKey, MdmToc> tocs) {
-        MdmMetaCache.Ticket ticket = cache.ticket();
-        try {
-            if (skipping(mine.values())) {
-                return;
-            }
-            MdmBodyResult r;
-            try {
-                r = feed.fetchBodies(type, mine.keySet());
-            } catch (RuntimeException e) {
-                failed(e, mine.values());
-                return;
-            }
-            health.set(Health.OK);
+        loadBatch(mine, inflightBody, bk -> bodyInflightId(type, bk), keys -> feed.fetchBodies(type, keys), (r, keys, ticket) -> {
             Map<MdmBodyKey, Object> toCache = new LinkedHashMap<>();
-            Map<MdmBodyKey, Object> outcome = new LinkedHashMap<>(); // Optional<Object>(빈 값 = NOT_RELEASED) 또는 RuntimeException
-            for (MdmBodyKey bk : mine.keySet()) {
+            Map<MdmBodyKey, Outcome<Optional<Object>>> outcome = new LinkedHashMap<>(); // 빈 값 = NOT_RELEASED
+            for (MdmBodyKey bk : keys) {
                 try {
                     if (r.found().containsKey(bk)) {
                         Object body = wrap(type, tocs.get(bk), bk.ver(), r.found().get(bk));
                         toCache.put(bk, body);
-                        outcome.put(bk, Optional.of(body));
+                        outcome.put(bk, Outcome.ok(Optional.of(body)));
                     } else if (r.failed().containsKey(bk)) {
                         String m = r.failed().get(bk);
-                        outcome.put(bk, NOT_RELEASED.equals(m) ? Optional.empty() : new MdmUnavailableException(m));
+                        if (NOT_RELEASED.equals(m)) {
+                            outcome.put(bk, Outcome.ok(Optional.empty()));
+                        } else {
+                            outcome.put(bk, Outcome.fail(new MdmUnavailableException(m)));
+                        }
                     } else if (r.legacy().containsKey(bk.key())) { // 옛 MDM — 전 이력에서 자른다(§5.8)
                         Optional<Object> body = MdmLegacyValues.body(type, r.legacy().get(bk.key()), bk.ver());
                         body.ifPresent(b -> toCache.put(bk, b));
-                        outcome.put(bk, body);
+                        outcome.put(bk, Outcome.ok(body));
                     } else if (r.legacyFailed().containsKey(bk.key())) {
-                        outcome.put(bk, new MdmUnavailableException(r.legacyFailed().get(bk.key())));
+                        outcome.put(bk, Outcome.fail(new MdmUnavailableException(r.legacyFailed().get(bk.key()))));
                     } else if (r.legacyAsked().contains(bk.key())) {
-                        outcome.put(bk, Optional.empty()); // 옛 MDM 에도 없는 정의 — 목차가 낡았다
+                        outcome.put(bk, Outcome.ok(Optional.empty())); // 옛 MDM 에도 없는 정의 — 목차가 낡았다
                     } else {
-                        outcome.put(bk, new MdmUnavailableException("MDM 응답에 본문이 없습니다: " + bk));
+                        outcome.put(bk, Outcome.fail(new MdmUnavailableException("MDM 응답에 본문이 없습니다: " + bk)));
                     }
                 } catch (RuntimeException e) {
-                    outcome.put(bk, new MdmUnavailableException("MDM 본문을 해석할 수 없습니다: " + e.getMessage()));
+                    outcome.put(bk, Outcome.fail(new MdmUnavailableException("MDM 본문을 해석할 수 없습니다: " + e.getMessage())));
                 }
             }
             cache.putBodies(type, toCache, ticket);
-            mine.forEach((bk, f) -> {
-                Object o = outcome.get(bk);
-                if (o instanceof RuntimeException e) {
-                    f.completeExceptionally(e);
-                } else {
-                    @SuppressWarnings("unchecked")
-                    Optional<Object> v = (Optional<Object>) o;
-                    f.complete(v);
-                }
-            });
-        } finally {
-            mine.forEach((bk, f) -> {
-                f.completeExceptionally(new MdmUnavailableException("적재가 끝나지 않았습니다: " + bk));
-                inflightBody.remove(id(type, MdmVersions.logical(bk.key(), bk.ver())), f);
-            });
-        }
+            return outcome;
+        });
     }
 
     /** off 경로 — 값 해석 실패는 그 키만 받을 수 없음이다(버전 경로 {@code loadTocs} 의 키별 처리와 같은 결과 모양). 요청 순서를 지킨다. */
@@ -869,5 +850,10 @@ public class MdmMetaService {
 
     private static String id(MdmTargetType type, String key) {
         return type.name() + ':' + key;
+    }
+
+    /** 본문 적재 합류 키 — ver 가 들어간다(같은 코드의 두 버전이 합쳐지지 않게). */
+    private static String bodyInflightId(MdmTargetType type, MdmBodyKey bk) {
+        return id(type, MdmVersions.logical(bk.key(), bk.ver()));
     }
 }
