@@ -38,6 +38,17 @@ export function matchDomain(rows: readonly DomainRow[], text: string): DomainRow
   return exact.length === 0 && rows.length === 1 ? rows[0] : null;
 }
 
+/**
+ * `matchDomain` 의 엄격판 — 표준명·도메인명이 글자와 같은(대소문자 무시) 도메인이 정확히 하나일 때만 돌려준다.
+ * 결과가 하나뿐이라는 이유로는 고르지 않는다(후보에서 뺀 도메인 이름을 넣었을 때 남은 다른 도메인이 저절로 적용되지 않게).
+ */
+export function matchExactDomain(rows: readonly DomainRow[], text: string): DomainRow | null {
+  const t = text.trim().toUpperCase();
+  if (t === "") return null;
+  const exact = rows.filter((r) => r.stdName.trim().toUpperCase() === t || (r.domainName ?? "").trim().toUpperCase() === t);
+  return exact.length === 1 ? exact[0] : null;
+}
+
 export interface DomainSearchBoxProps {
   /** 서버 도메인 검색 함수. */
   search: DomainSearchFn;
