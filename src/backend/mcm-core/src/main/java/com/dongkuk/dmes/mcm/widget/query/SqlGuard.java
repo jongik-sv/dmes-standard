@@ -261,19 +261,30 @@ public final class SqlGuard {
 
     /**
      * 이름 끝(from) 뒤가 부르는 모양인가 — 공백·주석(가린 사본에서 공백)을 건너뛴 첫 글자가 {@code (}(호출)·{@code .}(Oracle 패키지
-     * {@code DBMS_X.F}, 형 메서드 {@code XMLTYPE.CREATEXML})·{@code @}(Oracle DB 링크 {@code F@LINK(})이면 true.
+     * {@code DBMS_X.F}, 형 메서드 {@code XMLTYPE.CREATEXML})이거나, {@code @} 뒤(공백을 건너뛰고)에 링크 이름 글자가 오면(Oracle DB 링크
+     * {@code F@LINK(}) true. {@code @} 뒤가 이름 글자가 아니면 PostgreSQL 연산자({@code xp_flags @> ARRAY[1]}, {@code @@})라 부르는 것이 아니다.
      * 건너뛰는 글자는 유니코드 공백·구분자·제어·서식 글자까지 넓게 잡는다 — DB 가 공백으로 읽는 글자를 놓치면 우회가 되고,
      * 넓게 잡아서 생기는 일은 더 많이 거절하는 것뿐이다.
      */
     private static boolean isCalled(String revealed, int from) {
+        int k = skip(revealed, from);
+        if (k >= revealed.length()) return false;
+        int cp = revealed.codePointAt(k);
+        if (cp == '(' || cp == '.') return true;
+        if (cp != '@') return false;
+        int link = skip(revealed, k + 1);
+        return link < revealed.length() && isWordChar(revealed.charAt(link));
+    }
+
+    /** from 부터 건너뛸 글자({@link #isSkippable})를 지난 첫 위치. */
+    private static int skip(String s, int from) {
         int k = from;
-        int n = revealed.length();
-        while (k < n) {
-            int cp = revealed.codePointAt(k);
-            if (!isSkippable(cp)) return cp == '(' || cp == '.' || cp == '@';
+        while (k < s.length()) {
+            int cp = s.codePointAt(k);
+            if (!isSkippable(cp)) break;
             k += Character.charCount(cp);
         }
-        return false;
+        return k;
     }
 
     private static boolean isSkippable(int cp) {

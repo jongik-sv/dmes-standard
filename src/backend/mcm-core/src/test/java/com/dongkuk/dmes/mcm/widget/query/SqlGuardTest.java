@@ -300,6 +300,7 @@ class SqlGuardTest {
                 arguments("SELECT DBMS_LOCK . SLEEP(5) FROM dual", "DBMS_LOCK"),
                 arguments("SELECT DBMS_SESSION.UNIQUE_SESSION_ID FROM dual", "DBMS_SESSION"),
                 arguments("SELECT BFILENAME@remote_link('D', 'f') FROM dual", "BFILENAME"),
+                arguments("SELECT BFILENAME @ \"REMOTE\"('D', 'f') FROM dual", "BFILENAME"),
                 arguments("SELECT xp_cmdshell ('dir')", "XP_CMDSHELL"),
                 arguments("SELECT XMLTYPE.CREATEXML('<a/>') FROM dual", "XMLTYPE"),
                 // 같은 SQL 에 열 이름으로 먼저 나오고 뒤에서 부르면 뒤의 호출이 걸린다
@@ -350,6 +351,8 @@ class SqlGuardTest {
                 arguments("SELECT 1 AS \"xmltype\", 2 AS \"ts_stat\" FROM T"),
                 arguments("SELECT dblink, ts_stat, crosstab, bfilename FROM t ORDER BY dblink"),
                 arguments("SELECT t.ts_stat FROM t"),
+                // 이름 뒤 @ 가 DB 링크가 아니라 PostgreSQL 연산자(@>·@@·@ 절댓값)면 부르는 것이 아니다
+                arguments("SELECT id FROM t WHERE xp_flags @> ARRAY[1] OR ts_stat @@ q OR xp_cnt + @ -5 > 0"),
                 // 복제 슬롯 함수 접두와 이름이 겹치는 읽기 전용 카탈로그 뷰·통계 열은 부르지 않으므로 통과한다
                 arguments("SELECT slot_name, active FROM pg_replication_slots"),
                 arguments("SELECT s.slot_name FROM pg_catalog.pg_replication_slots s"),
