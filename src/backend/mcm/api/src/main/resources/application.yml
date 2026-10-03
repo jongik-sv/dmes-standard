@@ -235,4 +235,4 @@ logging:
     com.dongkuk.dmes.cactus: DEBUG
     com.dongkuk.dmes.mcm: DEBUG
     org.hibernate.SQL: DEBUG
-    com.dongkuk.oasis.methodinvoker: WARN   # OASIS 메서드 해석(Try binding·Strategy) 요청마다 남는 INFO 를 끈다 — analog 파싱 문구는 이 패키지에서 나오지 않는다
+    com.dongkuk.oasis.methodinvoker: WARN   # OASIS 메서드 해석(Try binding·Strategy) 요청마다 남는 INFO 를 끈다 — analog 가 쓰는 문구(Task·Process·Service·Invoking class)는 이 패키지에서 나오지 않는다(버리는 규칙 'has bound by name' 만 해당)
