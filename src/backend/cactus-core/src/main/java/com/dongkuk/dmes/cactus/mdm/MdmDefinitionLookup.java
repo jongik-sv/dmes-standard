@@ -4,10 +4,12 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -58,12 +60,58 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup, CodeEf
         return meta.map(m -> toColumnDefinition(m, table));
     }
 
-    /** 버전 경로는 목차 + 지금 시각 본문(스펙 §7.4), off 는 전 이력 한 키(지금 동작 — 목차를 만들지 않는다). */
+    /** 버전 경로는 목차 + 지금 시각 본문(스펙 §7.4), off 는 전 이력 한 키(지금 동작 — 목차를 만들지 않는다). {@link #prefetchCodes} 에 지금 시각을 넘긴다. */
     private void prefetchCode(String maruCodeId) {
-        if (service.versioned()) {
-            service.oneAt(MdmTargetType.CODE, maruCodeId, service.now());
-        } else {
-            service.one(MdmTargetType.CODE, maruCodeId);
+        prefetchCodes(List.of(maruCodeId), service.now());
+    }
+
+    /**
+     * 컬럼들의 코드 원본을 판정 시각 {@code evalTs} 기준으로 호출자 스레드에서 미리 받아 둔다 — 컬럼 메타를 묶어 받고, 코드 참조(codeRef)가 있는 컬럼의
+     * 코드를 {@link #prefetchCodes} 로 받는다. 범위는 {@link #column} 과 같이 codeRef 뿐이다(표준식·비즈니스식이 참조하는 코드는 받지 않는다).
+     * 컬럼 이름은 {@link #column} 과 같이 물리명으로 바꾸며, 바꿀 수 없거나 MDM 에 없는 컬럼은 조용히 넘어간다.
+     *
+     * <p><b>일반 엔진({@code DefaultDomainValidator}·{@code MdmEvaluator} 를 이 클래스 위에 만든 경우)을 과거 {@code evalTs} 로 쓰는 호출자는
+     * 평가 전에 이것을 불러야 한다.</b> {@link #column} 은 시각 인자가 없어 늘 지금 시각 본문만 미리 받는다. 과거 시각의 본문이 캐시에 없으면 평가 스레드
+     * (시간 한도 1초)에서 MDM 을 부르게 되고, 느린 MDM 은 TIMEOUT, 받을 수 없음은 EVALUATION_ERROR 로 분류된다('검증 불가'가 아니라 '판정 오류').
+     * 여기서 받을 수 없으면 호출자 스레드에서 {@link MdmUnavailableException} 이 그대로 올라간다.
+     */
+    public void prefetchColumns(Collection<String> columnNames, Instant evalTs) {
+        List<String> phys = columnNames.stream().map(MdmNames::toPhysName).filter(Objects::nonNull).distinct().toList();
+        if (phys.isEmpty()) {
+            return;
+        }
+        MdmMetaService.MdmLookup r = service.lookup(MdmTargetType.COLUMN, phys);
+        if (!r.unavailable().isEmpty()) {
+            throw new MdmUnavailableException("MDM 컬럼 정의를 받을 수 없습니다: " + r.unavailable());
+        }
+        prefetchCodes(r.found().values().stream().map(MdmColumnMeta.class::cast).map(MdmColumnMeta::codeRef)
+                .filter(Objects::nonNull).map(MdmColumnMeta.CodeRefMeta::maruCodeId).filter(id -> id != null && !id.isBlank())
+                .distinct().toList(), evalTs);
+    }
+
+    /**
+     * 코드들의 목차와 판정 시각 {@code evalTs} 의 버전 본문을 호출자 스레드에서 묶어서(목차 한 번 + 본문 한 번) 미리 받아 둔다. 룰 식이 참조하는
+     * 코드처럼 컬럼 이름만으로는 찾을 수 없는 코드를 호출자가 직접 넘길 때도 쓴다. MDM 에 없는 코드는 조용히 넘어가고, 받을 수 없으면
+     * {@link MdmUnavailableException}. versioned-feed off 면 지금처럼 전 이력 한 키로 받고(시각 무관, 목차·본문 요청 없음) 이미 받은 것은 다시 받지 않는다.
+     *
+     * <p><b>일반 엔진을 과거 {@code evalTs} 로 쓰는 호출자는 평가 전에 이것(또는 {@link #prefetchColumns})을 불러야 한다.</b> 부르지 않으면 그 시각
+     * 본문을 평가 스레드(시간 한도 1초)에서 받게 되어, 느린 MDM 은 TIMEOUT, 받을 수 없음은 EVALUATION_ERROR 로 분류된다.
+     */
+    public void prefetchCodes(Collection<String> maruCodeIds, Instant evalTs) {
+        List<String> ids = maruCodeIds.stream().filter(id -> id != null && !id.isBlank()).distinct().toList();
+        if (ids.isEmpty()) {
+            return;
+        }
+        if (!service.versioned()) {
+            MdmMetaService.MdmLookup r = service.lookup(MdmTargetType.CODE, ids);
+            if (!r.unavailable().isEmpty()) {
+                throw new MdmUnavailableException("MDM 코드 정의를 받을 수 없습니다: " + MdmTargetType.CODE + " " + r.unavailable());
+            }
+            return;
+        }
+        MdmMetaService.MdmAtLookup r = service.lookupAt(MdmTargetType.CODE, ids, evalTs);
+        if (!r.unavailable().isEmpty()) {
+            throw new MdmUnavailableException("MDM 코드 정의를 받을 수 없습니다: " + MdmTargetType.CODE + " " + r.unavailable());
         }
     }
 

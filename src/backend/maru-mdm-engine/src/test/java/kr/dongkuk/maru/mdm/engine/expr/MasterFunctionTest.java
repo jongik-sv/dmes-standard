@@ -2,6 +2,7 @@ package kr.dongkuk.maru.mdm.engine.expr;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -124,6 +125,20 @@ class MasterFunctionTest {
                     () -> assertEquals(Boolean.TRUE, eval(text, vars("D", baseDt), SEP10_KST).getBooleanValue()),
                     () -> assertEquals(List.of(LocalDateTime.parse(expected)), masters.baseDts()));
         }
+    }
+
+    @ParameterizedTest(name = "{0} → {1}")
+    @CsvSource(delimiter = '|', value = {
+            "20260231|달력에 없는 일시",
+            "2026090|YYYYMMDD·YYYYMMDDHHMMSS 문자열이어야",
+            "2026-09-06|YYYYMMDD·YYYYMMDDHHMMSS 문자열이어야",
+            "20260906250000|달력에 없는 일시"})
+    void MASTER_AT_base_dt_오류_메시지는_달력_오류와_모양_오류를_가른다(String baseDt, String expectedPart) {
+        String text = "MASTER_AT(\"PORT\", \"BASE\", \"KRPUS\", D)";
+        ExpressionFailure f = assertThrows(ExpressionFailure.class, () -> eval(text, vars("D", baseDt), SEP10_KST));
+        assertTrue(f.getMessage().contains(expectedPart), f.getMessage());
+        String other = expectedPart.equals("달력에 없는 일시") ? "문자열이어야" : "달력에 없는 일시";
+        assertFalse(f.getMessage().contains(other), "다른 종류의 오류 문구가 섞이면 안 된다: " + f.getMessage());
     }
 
     @Test
