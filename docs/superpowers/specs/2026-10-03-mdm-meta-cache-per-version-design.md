@@ -1,6 +1,6 @@
 # MDM 메타 캐시 버전별 적재(정의@버전 + 색인) 설계
 
-> 작성: 2026-10-03 · 상태: **사용자 결정 반영, 최종 검토 대기**, 구현 계획 전 · 기반: 현행 설계 [`2026-10-02-mdm-meta-cache-design.md`](2026-10-02-mdm-meta-cache-design.md)(이하 "현행 스펙") + D-152(RELEASED 투영, dev 머지 27451909)
+> 작성: 2026-10-03 · 상태: **구현 완료(브랜치 feat/mdm-meta-cache-per-version)** · 기반: 현행 설계 [`2026-10-02-mdm-meta-cache-design.md`](2026-10-02-mdm-meta-cache-design.md)(이하 "현행 스펙") + D-152(RELEASED 투영, dev 머지 27451909)
 > 근거 표기의 줄임: `engine/` = `src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/`, `cactus/` = `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/mdm/`, `mdm/` = `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/`, `부록 A` = 이 문서 끝의 벤치 요약, `현행 스펙` = `docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md`. 줄 번호는 dev 27451909 기준이다.
 
 ## 1. 목적과 범위
@@ -295,6 +295,7 @@ cactus:
   - (가) 본문 응답이 `NOT_RELEASED` 면 목차가 낡은 것이다. 이 인스턴스에서 그 정의 묶음을 지우고(`evictLocal` 과 같은 지움 기록), 목차부터 한 번만 다시 받는다. 두 번째에도 어긋나면 "받을 수 없음"으로 답한다. "없음"으로 캐시하지 않는다.
   - (나) 처음 적재는 `TOC + current` 를 한 읽기 트랜잭션에서 받으므로 어긋나지 않는다(§4.1).
   - (다) 그 밖의 어긋남(같은 ver 인데 내용이 제자리 수정됨)은 지금도 있는 "폴링 간격만큼 늦음"과 같은 범위다. 다음 폴링이 묶음을 지운다.
+    엔진이 한 해석기 호출 안에서 옛 목차로 고른 ver 가 그새 확정 취소되면, 본문 `NOT_RELEASED` → 목차 다시 받기 → 그 ver 없음이다. 이때 `codeAt`·`codes` 는 빈 값이 아니라 **받을 수 없음**(`MdmUnavailableException`)을 던져 §5.4 의 빈 값 금지 불변식을 지킨다(빈 값이면 해석기가 소속을 빈 집합으로 내려 옛 판정도 새 판정도 아닌 값이 된다). 캐시만 읽는 조회기는 그 본문이 캐시에 없으므로 부재 기록 후 던진다.
 - **RELOAD**: 지운 뒤 목차와 지금 시각의 최종 본문을 다시 받는다(`MdmRevisionPoller.java:146-155` 의 `service::lookup` 을 `lookupAt(…, now)` 로). 지우기 전에 있던 옛 본문은 다시 받지 않는다. 필요해지면 미스 때 받는다.
 - **통째 비우기**(기동·truncated·역행, `MdmRevisionPoller.java:113-128`)는 지금 그대로다. 세대가 올라가 목차·본문이 함께 버려진다(`MdmMetaCache.java:227-232`).
 
@@ -339,7 +340,7 @@ cactus:
 |---|---|---|
 | 엔진 단위 | `CodeVersionSlicer.slice` + `codeAt`·`CodeEffLookup` 연결이 위 다섯 판정에서 투영 전 이력과 같다 | `CodeRowsProjectionTest` 처럼 엔진 시험으로 둔다. 기준은 `new DefaultCodeResolver(id -> projected, NONE)`. 시각은 RELEASED 버전마다 applyFrom·applyTo 의 ±1초, 첫 버전 이전, 버전 사이 빈틈, 닫힌 끝 뒤, 열린 끝(9999) 직전. 카테고리는 투영에 남은 cateId 전부 + `BASE` + 없는 cateId + null·빈 문자열. 코드는 각 버전 items 코드 전부 + 없는 코드 + null |
 | 엔진 데이터 | 생성 데이터와 손 사례 | 부록 A.1 의 생성기 A·B·C(1,200건 동치 단언을 썼다)를 시험용으로 옮긴다. 손 사례: 뒤 버전에만 정의가 있는 카테고리의 최초 소급, TABLE effVer(정의 fromVer > v), REGEX 의 LVL·ATTR 대상, 소속 없는 카테고리(`members: []`), "전체" 판정(REGEX `.*` 와 TABLE 이 우연히 전부 담는 경우 둘 다), DEPRECATED 헤더의 빈 codeList, 확정 취소 버전(D-152 결함 고정 사례), RELEASED 없는 코드, **TABLE 카테고리 + 본문 미적재 상태의 `CodeEffLookup`**(빈 값을 주지 않고 적재하거나 예외를 던지는지 — §5.4 불변식) |
-| MDM 피드 | `part` 없음은 지금 응답과 바이트 단위로 같다. TOC·BODY 모양, `at`·`current`, `NOT_RELEASED`, 500 행 상한, COLUMN·DOMAIN 은 `part` 무시 | `MdmMetaFeedContractHttpTest` 에 사례 추가(OASIS HTTP) |
+| MDM 피드 | `part` 없음은 지금 응답과 글자 그대로 같다(JSON 정규화 뒤 비교 — BigDecimal 자리수·칸 순서까지). TOC·BODY 모양, `at`·`current`, `NOT_RELEASED`, 500 행 상한, COLUMN·DOMAIN 은 `part` 무시 | `MdmMetaFeedContractHttpTest` 에 사례 추가(OASIS HTTP) |
 | MDM 생성 | 피드 본문 = 엔진 `slice`(전부 읽기 경로). 후속으로 SQL 거르기를 하면 두 경로가 같은지 | SQLite 서비스 시험 |
 | cactus 판정 | 새 경로와 전 이력 경로가 같다. 가짜 피드 두 벌(새 MDM·옛 MDM)로 같은 원장을 흉내 내고 `MdmValidator.validate` 결과(오류·검증 불가·세트 결과)가 같은지 본다 | 단위 시험(가짜 피드·가짜 시계) |
 | cactus 룰·세트·전문 | 전 목록 `select`·`selectSet`·`selectLayout` 결과 = 목차 선택 + 본문 | 단위 시험, 경계 시각은 위와 같다 |
@@ -392,7 +393,7 @@ cactus:
 
 | 조합 | 동작 |
 |---|---|
-| 새 MDM + 옛 cactus | 옛 cactus 는 `part` 를 보내지 않는다. MDM 은 지금 응답을 그대로 준다(§4.1, `part` 없음 경로는 바이트 단위로 같다는 시험). **안 깨진다** |
+| 새 MDM + 옛 cactus | 옛 cactus 는 `part` 를 보내지 않는다. MDM 은 지금 응답을 그대로 준다(§4.1, `part` 없음 경로는 글자 그대로(JSON 정규화 뒤 비교) 같다는 시험). **안 깨진다** |
 | 옛 MDM + 새 cactus | 옛 MDM 이 `part` 를 무시하면 응답에 `part` 가 없고, 거부하면 cactus 가 `part` 없이 한 번 다시 보낸다(§4.1 신호 (가)·(나)). 어느 쪽이든 물러남(§5.8)으로 전 이력에서 목차·본문을 만든다. **안 깨진다**. 메모리 이득은 그대로이고 MDM 전송량만 지금과 같다. 거부 쪽이면 미스마다 HTTP 가 한 번 더 든다 |
 | 새 MDM + 새 cactus | 목차·본문 경로 |
 | D-152 전 엔진 jar 의 cactus | CODE 물러남이 투영을 못 한다. D-152 는 이미 dev 에 있고(27451909), 엔진 jar 는 cactus·MDM 이 같은 저장소 소스로 빌드하므로 이 작업 브랜치에서는 생기지 않는다 |
@@ -419,7 +420,7 @@ cactus:
 
 ## 10. 함께 남길 기록
 
-- **결정 기록**: `docs/mdm/decisions.md` 에 D-154(예정)로 남긴다. dev 의 마지막 번호는 D-153 이다(`docs/mdm/decisions.md:1411`). 번호는 다른 작업의 머지 순서에 따라 바뀔 수 있다.
+- **결정 기록**: `docs/mdm/decisions.md` 에 D-154 로 남겼다. dev 의 마지막 번호는 D-153 이다(`docs/mdm/decisions.md:1411`). 번호는 다른 작업의 머지 순서에 따라 바뀔 수 있다.
 - **ADR**: ADR-0007(하이브리드 캐시·리비전 무효화)의 캐시 값 모양 결정을 바꾸는 일이다. 그래서 0007 에 개정 절을 더한다. 무효화·배포 구조는 그대로이기 때문이다(결정 P13).
 - **현행 스펙**: §3.4 피드 표, §4.1 대상 표, §5.1 설정, §5.2 구성 요소, §6 화면을 이 문서로 링크해 고친다.
 - **가이드**: "업무 모듈에서 MDM 메타 켜기" 절(현행 스펙:270)에 `old-version-max-idle`·`versioned-feed` 를 더한다.
