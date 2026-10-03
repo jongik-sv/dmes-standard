@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
 
 /**
  * commMenuMng — OASIS BPMN serviceTask entry point (W2 / csa 9 화면 2번째).
@@ -427,8 +429,6 @@ public class CommMenuMngService {
     // helpers
     // ────────────────────────────────────────────────────────────────
 
-    private static String strOf(Object o) { return o == null ? null : String.valueOf(o); }
-
     /**
      * MENU_SEQ '0' LPAD 8자리 (2026-06-05 사용자 지시 — 예: "12" → "00000012").
      * <p>null → null / 빈 값 · 이미 8자 이상 → trim 후 그대로 (truncate ✗). 숫자 검증은 FE 가 담당.
@@ -440,32 +440,4 @@ public class CommMenuMngService {
         return "00000000".substring(t.length()) + t;
     }
 
-    /**
-     * Map row 의 date 값 → {@link LocalDateTime} 변환 (cma / W1 정본 패턴).
-     * 지원 입력 type: {@link LocalDateTime} 직접 / {@link String} "yyyy-MM-dd[ HH:mm:ss]" / "yyyyMMdd" 8자
-     * (As-Is xfdl:691/721 default "99991231") / null → fallback.
-     */
-    private static LocalDateTime parseLocalDateTime(Object v, LocalDateTime fallback) {
-        if (v == null) return fallback;
-        if (v instanceof LocalDateTime ldt) return ldt;
-        String s = String.valueOf(v).trim();
-        if (s.isEmpty() || "null".equals(s)) return fallback;
-        try {
-            if (s.length() == 8 && s.matches("\\d{8}")) {
-                // "yyyyMMdd" → 자정 (As-Is V-004 millisecond cut 정합)
-                return LocalDateTime.parse(
-                        s.substring(0, 4) + "-" + s.substring(4, 6) + "-" + s.substring(6, 8) + "T00:00:00");
-            }
-            if (s.length() == 10) {
-                return LocalDateTime.parse(s + "T00:00:00");
-            }
-            if (s.contains(" ")) {
-                return LocalDateTime.parse(s.replace(' ', 'T'));
-            }
-            return LocalDateTime.parse(s);
-        } catch (Exception e) {
-            log.warn("[commMenuMng.parseLocalDateTime] parse failed value={} — fallback", s);
-            return fallback;
-        }
-    }
 }

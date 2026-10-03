@@ -17,6 +17,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
 
 /**
  * 업무기준 상세조회 — cmb/masterRuleDataList OASIS 서비스 (Spring bean = {@code masterRuleDataListService}).
@@ -220,7 +222,7 @@ public class MasterRuleDataListService {
                 throw new BusinessException(ErrorCode.INVALID_VALUE,
                         "[" + colId + "] 컬럼정의 COL_ID 가 식별자 형식이 아닙니다.");
             }
-            map.put(colId, strOf(d[9]));   // COL_ID → COL_TYPE
+            map.put(colId, strOfTrim(d[9]));   // COL_ID → COL_TYPE
         }
         return map;
     }
@@ -238,15 +240,8 @@ public class MasterRuleDataListService {
         return list;
     }
 
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s;
-    }
-
     private static String nvl(String s) {
         return s == null ? "" : s.trim();
     }
 
-    private static String strOf(Object o) {
-        return o == null ? null : String.valueOf(o).trim();
-    }
 }

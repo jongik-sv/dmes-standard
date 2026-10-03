@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.toIntOrNull;
 
 /**
  * 마스터 코드 카테고리 (TB_SEC_CODE_CATEGORY) CRUD 서비스.
@@ -109,7 +110,7 @@ public class SecCodeCategoryService {
                 SecCodeCategory entity = categoryRepository.findById(id).orElse(new SecCodeCategory());
                 entity.setId(id);
                 entity.setCategoryNm((String) row.get("categoryNm"));
-                entity.setSortOrd(toInt(row.get("sortOrd")));
+                entity.setSortOrd(toIntOrNull(row.get("sortOrd")));
                 entity.setUseYn((String) row.get("useYn"));
                 categoryRepository.save(entity);
                 count++;
@@ -127,11 +128,4 @@ public class SecCodeCategoryService {
 
     private static String nz(String s) { return s == null ? "" : s.trim(); }
 
-    private Integer toInt(Object raw) {
-        if (raw == null) return null;
-        if (raw instanceof Number n) return n.intValue();
-        String s = raw.toString().trim();
-        if (s.isEmpty()) return null;
-        try { return Integer.parseInt(s); } catch (NumberFormatException e) { return null; }
-    }
 }
