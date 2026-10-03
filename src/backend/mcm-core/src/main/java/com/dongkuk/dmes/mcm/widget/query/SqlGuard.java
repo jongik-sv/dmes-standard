@@ -108,9 +108,10 @@ public final class SqlGuard {
                     + "|SCHEMA_TO_XML[A-Z0-9_]*|DATABASE_TO_XML[A-Z0-9_]*|XPATH_TABLE|CROSSTAB[0-9]*|CONNECTBY"
                     // Oracle — 네트워크·파일·URI 원격 읽기(XMLTYPE 외부 엔터티 포함)
                     + "|UTL_HTTP|UTL_TCP|UTL_SMTP|UTL_MAIL|UTL_FILE|UTL_INADDR|HTTPURITYPE|DBURITYPE|XDBURITYPE|URIFACTORY|XMLTYPE|BFILENAME"
-                    // Oracle — 잠금·대기·파이프·작업·동적 SQL·리터럴 안 SQL 실행·LDAP·자바·큐
+                    // Oracle — 잠금·대기·파이프·작업·동적 SQL·리터럴 안 SQL 실행·LDAP·자바·큐·OLAP 명령·외부 HTTP(APEX·클라우드)
                     + "|DBMS_LOCK|DBMS_SESSION|DBMS_PIPE|DBMS_ALERT|DBMS_SCHEDULER|DBMS_JOB|DBMS_SQL|DBMS_SYS_SQL"
-                    + "|DBMS_XMLGEN|DBMS_XMLQUERY|DBMS_XMLSTORE|DBMS_LDAP|DBMS_JAVA|DBMS_AQ[A-Z0-9_]*"
+                    + "|DBMS_XMLGEN|DBMS_XMLQUERY|DBMS_XMLSTORE|DBMS_SQLHASH|DBMS_LDAP|DBMS_JAVA[A-Z0-9_]*|DBMS_AQ[A-Z0-9_]*"
+                    + "|DBMS_AW|DBMS_CLOUD[A-Z0-9_]*|APEX_WEB_SERVICE"
                     // SQLite — 확장 적재·토크나이저 포인터
                     + "|LOAD_EXTENSION|FTS3_TOKENIZER"
                     // SQL Server — 외부 행 집합·확장 프로시저·서버 파일 읽기 함수

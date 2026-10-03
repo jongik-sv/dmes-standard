@@ -239,6 +239,13 @@ class SqlGuardTest {
                 arguments("SELECT DBMS_LDAP.INIT('h', 389) FROM dual", "DBMS_LDAP"),
                 arguments("SELECT DBMS_JAVA.RUNJAVA('x') FROM dual", "DBMS_JAVA"),
                 arguments("SELECT DBMS_AQADM.START_QUEUE FROM dual", "DBMS_AQADM"),
+                // 3차 보안 리뷰 — 자바 무리 접두(DBMS_JAVA_TEST)·리터럴 안 SQL 실행·외부 HTTP·OLAP 명령
+                arguments("SELECT DBMS_JAVA_TEST.FUNCALL('oracle/aurora/util/Wrapper', 'main', 'c:/x') FROM dual", "DBMS_JAVA_TEST"),
+                arguments("SELECT SYS.DBMS_SQLHASH.GETHASH('select 1 from dual', 2) FROM dual", "DBMS_SQLHASH"),
+                arguments("SELECT APEX_WEB_SERVICE.MAKE_REST_REQUEST('http://h/', 'GET') FROM dual", "APEX_WEB_SERVICE"),
+                arguments("SELECT DBMS_CLOUD.SEND_REQUEST(c, 'http://h/', 'GET') FROM dual", "DBMS_CLOUD"),
+                arguments("SELECT DBMS_CLOUD_AI.GENERATE('x') FROM dual", "DBMS_CLOUD_AI"),
+                arguments("SELECT DBMS_AW.INTERP('aw attach x') FROM dual", "DBMS_AW"),
                 // SQLite — 토크나이저 포인터
                 arguments("SELECT fts3_tokenizer('simple')", "FTS3_TOKENIZER"),
                 // SQL Server — 확장 프로시저(접두)·서버 파일 읽기 함수·알려진 위험 저장 프로시저(대괄호 식별자 안도 본다)
