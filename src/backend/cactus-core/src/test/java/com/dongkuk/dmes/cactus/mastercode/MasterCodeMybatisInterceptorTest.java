@@ -261,28 +261,43 @@ class MasterCodeMybatisInterceptorTest {
     }
 
     /**
-     * 현재 동작 고정 (결함 후보) — 그룹 키를 {@code key.indexOf("_NM")} 첫 위치에서 자른다.
-     * 컬럼 이름 앞쪽에 "_NM" 이 있으면 (예: ORDER_NMBR_CD_NM) 의도한 ORDER_NMBR_CD 가 아니라 ORDER 를 코드 컬럼으로 본다.
+     * 그룹 키는 끝의 "_NM" 접미사만 떼어 정한다 — 이름 앞쪽의 "_NM" (예: ORDER_NMBR_CD_NM 의 ORDER) 에서 자르지 않는다.
      */
     @Test
-    void 이름_중간에_NM이_있으면_첫_NM_앞까지를_그룹_키로_쓴다() throws Exception {
-        when(decoder.decode("Z", "ORDER")).thenReturn("엉뚱한 값");
+    void 이름_중간에_NM이_있어도_첫_NM_앞부분_컬럼으로_디코딩하지_않는다() throws Exception {
+        when(decoder.decode("X", "ORDER_NMBR_CD")).thenReturn("주문번호코드명");
         Map<String, Object> r = row("ORDER", "Z", "ORDER_NMBR_CD", "X", "ORDER_NMBR_CD_NM", null);
 
         interceptor.intercept(returning(new ArrayList<>(List.of(r))));
 
-        assertThat(r.get("ORDER_NMBR_CD_NM")).isEqualTo("엉뚱한 값");
-        verify(decoder, never()).decode("X", "ORDER_NMBR_CD");
+        assertThat(r.get("ORDER_NMBR_CD_NM")).isEqualTo("주문번호코드명");
+        verify(decoder, never()).decode("Z", "ORDER");
     }
 
     @Test
-    void 이름_중간에_NM이_있고_앞부분_컬럼이_없으면_채우지_않는다() throws Exception {
+    void 이름_중간에_NM이_있고_앞부분_컬럼이_없어도_채운다() throws Exception {
+        when(decoder.decode("X", "ORDER_NMBR_CD")).thenReturn("주문번호코드명");
         Map<String, Object> r = row("ORDER_NMBR_CD", "X", "ORDER_NMBR_CD_NM", null);
 
         interceptor.intercept(returning(new ArrayList<>(List.of(r))));
 
-        assertThat(r.get("ORDER_NMBR_CD_NM")).isNull();
-        verifyNoInteractions(decoder);
+        assertThat(r.get("ORDER_NMBR_CD_NM")).isEqualTo("주문번호코드명");
+        verify(decoder).decode("X", "ORDER_NMBR_CD");
+    }
+
+    /** 결함 수정 — 그룹 키는 끝의 "_NM" 접미사만 떼어 정한다 (이름 앞쪽의 "_NM" 에서 자르지 않는다). */
+    @Test
+    void 이름_중간에_NM이_있어도_끝의_NM만_떼어_그룹_키로_쓴다() throws Exception {
+        when(decoder.decode("X", "ORDER_NMBR_CD")).thenReturn("주문번호코드명");
+        when(decoder.decode("10", "PROC_NM_STS")).thenReturn("진행");
+        Map<String, Object> r = row(
+                "ORDER", "Z", "ORDER_NMBR_CD", "X", "ORDER_NMBR_CD_NM", null,
+                "PROC", "P", "PROC_NM_STS", "10", "PROC_NM_STS_NM", null);
+
+        interceptor.intercept(returning(new ArrayList<>(List.of(r))));
+
+        assertThat(r.get("ORDER_NMBR_CD_NM")).isEqualTo("주문번호코드명");
+        assertThat(r.get("PROC_NM_STS_NM")).isEqualTo("진행");
     }
 
     @Test
