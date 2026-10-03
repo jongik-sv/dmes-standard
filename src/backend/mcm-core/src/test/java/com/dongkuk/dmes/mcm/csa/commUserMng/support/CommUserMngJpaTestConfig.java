@@ -85,6 +85,8 @@ public class CommUserMngJpaTestConfig {
         props.put("hibernate.hbm2ddl.auto", "create-drop");
         // entity 패키지에는 다른 스키마(MCAAPUSER·MCM_SOURCE) 엔티티도 있다 — 스키마를 만들어 DDL 오류 로그를 없앤다.
         props.put("hibernate.hbm2ddl.create_namespaces", "true");
+        // SQL 을 바꾸지 않고 기록만 한다 — 성능 근거 테스트(*SqlCountTest)가 SELECT·DELETE 수를 센다.
+        props.put("hibernate.session_factory.statement_inspector", SqlStatementCounter.INSTANCE);
         em.setJpaProperties(props);
         return em;
     }
