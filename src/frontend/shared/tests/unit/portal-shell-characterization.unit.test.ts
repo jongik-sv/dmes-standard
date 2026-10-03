@@ -397,6 +397,30 @@ describe("PortalShell 탭 복원·저장 (특성)", () => {
     expect(stored(storageKey)?.tabs.map((t) => t.title)).toEqual(["A 새이름", "B 새이름"]);
   });
 
+  it("menu 교체와 기본 화면 목록 도착이 한 커밋에 겹쳐도 복원 뒤에 기본 화면을 덧붙인다(복원 effect 가 기본 화면 effect 보다 먼저)", async () => {
+    writeSecureJson<StoredTabs>(storageKey, {
+      tabs: [{ id: "b-1", title: "B", pageId: "t:g/b", snapshot: null }],
+      activeTabId: "b-1",
+    });
+    rendered = renderWithMantine(shell({ startPages: [], isStartPagesLoaded: false }));
+    await flush();
+    expect(orderIds()).toEqual(["b-1"]);
+
+    // 새 menu 객체(복원 effect 재실행)와 기본 화면 목록(기본 화면 effect 실행)을 한 번에 넘긴다.
+    rerender(
+      rendered,
+      shell({
+        menu: menuOf({ a: "A 새이름", b: "B 새이름", c: "C 새이름" }),
+        startPages: [{ pageId: "t:g/c", menuId: "t:g/c", displayText: "C", sortOrder: 1 }],
+        isStartPagesLoaded: true,
+      })
+    );
+    await flush();
+    expect(order()).toEqual(["B 새이름", "C 새이름"]);
+    expect(orderIds()[0]).toBe("b-1");
+    expect(active()).toBe("B 새이름"); // 복원된 탭이 있으므로 활성 탭은 그대로
+  });
+
   it("홈 화면이 없고 저장된 탭도 없으면 메뉴 첫 화면을 연다", async () => {
     rendered = renderWithMantine(shell({ homePageId: null }));
     await flush();
