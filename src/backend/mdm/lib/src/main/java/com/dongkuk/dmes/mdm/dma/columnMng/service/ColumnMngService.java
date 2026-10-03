@@ -354,15 +354,21 @@ public class ColumnMngService {
         column.setUsageNote(blankToNull(req.getUsageNote()));
         column = columnRepository.save(column);
         Long columnId = column.getColumnId();
+        // 바뀌기 전 시스템 매핑 — 신규면 없다. 메타 기록(별칭 전·후)과 8 의 차분이 함께 쓴다
+        List<MdmColumnSystem> before = selfId == null ? List.of() : columnSystemRepository.findByColumnId(columnId);
         // 전문 합성은 항목의 타입·단위·소수를 컬럼 → 도메인에서 읽는다 — 신규·물리명 변경·도메인 교체면 그 물리명을 쓰는 RELEASED 전문까지
         // LAYOUT 키로 펼친다(검토 I1). 이름·라벨·설명만 바뀐 저장은 전문 피드 값과 무관하다
         boolean layoutFeedMayChange = selfId == null || !Objects.equals(oldPhysName, physName)
                 || !Objects.equals(oldDomainId, req.getDomainId());
-        recorder.column(oldPhysName, physName, layoutFeedMayChange);
+        // 업무 모듈 캐시는 시스템 별칭 이름으로도 키를 둔다 — 바뀌기 전·뒤 별칭을 모두 남긴다(별칭이 그대로여도, spec 2026-10-03 L6)
+        Set<String> aliases = new LinkedHashSet<>();
+        before.forEach(m -> aliases.add(m.getPhysName()));
+        requested.forEach(m -> aliases.add(m.getPhysName()));
+        recorder.column(oldPhysName, physName, layoutFeedMayChange, aliases);
 
         // 8. 매핑 차분 — 같은 키는 UPDATE, 새 키는 INSERT, 빠진 키는 DELETE(같은 키를 지웠다 다시 넣지 않는다)
         Map<String, MdmColumnSystem> existing = new LinkedHashMap<>();
-        for (MdmColumnSystem m : columnSystemRepository.findByColumnId(columnId)) {
+        for (MdmColumnSystem m : before) {
             existing.put(key(m.getSystemCode(), m.getPhysName()), m);
         }
         for (MdmColumnSystem want : requested) {
@@ -482,19 +488,35 @@ public class ColumnMngService {
             throw MdmErrors.of(MdmErrorCode.SYSTEM_FIELD_ALREADY_MAPPED,
                     String.join(", ", repeated) + " 이(가) 요청 안에서 두 번 나옵니다", List.of());
         }
+        // 별칭 매칭(metaFeed, spec 2026-10-03-mdm-column-system-alias-design L3)이 대소문자를 무시하므로 충돌도 대소문자 무시로 본다.
+        // 같은 시스템 안에서 UPPER(PHYS_NAME) 이 같고 COLUMN_ID 가 다른 행이 있으면 그 별칭이 모호해져 '없음'이 되므로 막는다.
+        Map<String, Set<String>> upperBySystem = new LinkedHashMap<>();
+        for (MdmColumnSystem want : requested) {
+            upperBySystem.computeIfAbsent(want.getSystemCode(), k -> new LinkedHashSet<>())
+                    .add(want.getPhysName().toUpperCase(Locale.ROOT));
+        }
+        Map<String, List<MdmColumnSystem>> othersByKey = new LinkedHashMap<>();
+        upperBySystem.forEach((system, upperNames) -> {
+            for (MdmColumnSystem other : columnSystemRepository.findBySystemCodeAndUpperPhysNameIn(system, upperNames)) {
+                if (!other.getColumnId().equals(selfId)) {
+                    othersByKey.computeIfAbsent(key(system, other.getPhysName().toUpperCase(Locale.ROOT)),
+                            k -> new ArrayList<>()).add(other);
+                }
+            }
+        });
         List<String> conflicts = new ArrayList<>();
         List<MdmCheckIssue> issues = new ArrayList<>();
         for (MdmColumnSystem want : requested) {
-            for (MdmColumnSystem other : columnSystemRepository.findBySystemCodeAndPhysName(want.getSystemCode(),
-                    want.getPhysName())) {
-                if (!other.getColumnId().equals(selfId)) {
-                    String owner = columnRepository.findById(other.getColumnId())
-                            .map(MdmColumn::getColumnName).orElse(String.valueOf(other.getColumnId()));
-                    String text = want.getSystemCode() + "·" + want.getPhysName() + " → 컬럼 '" + owner + "'";
-                    conflicts.add(text);
-                    issues.add(new MdmCheckIssue(MdmErrorCode.SYSTEM_FIELD_ALREADY_MAPPED.code(), text,
-                            "physName", want.getSystemCode()));
-                }
+            List<MdmColumnSystem> others = othersByKey.getOrDefault(
+                    key(want.getSystemCode(), want.getPhysName().toUpperCase(Locale.ROOT)), List.of());
+            for (MdmColumnSystem other : others) {
+                String owner = columnRepository.findById(other.getColumnId())
+                        .map(MdmColumn::getColumnName).orElse(String.valueOf(other.getColumnId()));
+                String text = want.getSystemCode() + "·" + want.getPhysName() + " → 컬럼 '" + owner + "'"
+                        + (other.getPhysName().equals(want.getPhysName()) ? "" : "(" + other.getPhysName() + ")");
+                conflicts.add(text);
+                issues.add(new MdmCheckIssue(MdmErrorCode.SYSTEM_FIELD_ALREADY_MAPPED.code(), text,
+                        "physName", want.getSystemCode()));
             }
         }
         if (!conflicts.isEmpty()) {

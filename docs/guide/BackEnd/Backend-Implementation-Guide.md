@@ -404,6 +404,7 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
     mdm:
       enabled: ${MDM_CACHE_ENABLED:true}
       module: mls                       # /api/{module}/mdmMeta 의 module. 비면 cactus.oasis.service-group
+      system-code: MES                  # 컬럼 별칭 매칭 시스템. 표준 물리명으로 못 찾는 이름을 이 시스템의 별칭(TB_MDM_COLUMN_SYSTEM)으로 찾는다. 비우면 끔
       base-url: ${MDM_WAS_URL:http://localhost:8096}
       client-key: ${BACKEND_CLIENT_KEY:dmes-bff-local-client-key-2026}   # MDM 이 받는 키와 같아야 한다. 기본값은 로컬 개발용
       poll-interval: 10s
@@ -416,6 +417,7 @@ MDM(8096)의 컬럼 사전·도메인·룰·룰 세트·마스터코드·전문 
       read-timeout: 5s
   ```
 
+- 별칭 매칭: `system-code` 가 있으면 COLUMN 조회(`metaFeed/view`)에만 `params.systemCode` 를 실어, 키가 표준 물리명과 맞지 않을 때 그 시스템의 별칭으로 컬럼을 찾는다(표준 우선·대소문자 무시·모호하면 없음). 별칭으로 맞은 컬럼은 `matchedSystem`·`systemPhysName` 을 함께 받고 `physName` 은 표준 이름이다. 설계는 [spec](../../superpowers/specs/2026-10-03-mdm-column-system-alias-design.md).
 - 수명: 마지막 조회 뒤 `max-idle` 동안 조회가 없거나 적재 뒤 `max-age`(절대 상한)가 지나면 만료다 — 자주 조회되는 항목일수록 오래 남는다.
   만료 항목은 폴링마다(약 10초) 쓸어 내고, 상한(`max-entries`)을 넘으면 만료 항목, 그다음 오래 조회되지 않은 순(LRU)으로 지운다.
   관리 화면 읽기(`entries`·`entry`)는 수명을 연장하지 않는다.

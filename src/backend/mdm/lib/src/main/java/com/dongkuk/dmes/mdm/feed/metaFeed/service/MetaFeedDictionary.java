@@ -6,6 +6,7 @@ import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeReader;
 import com.dongkuk.dmes.mdm.common.dictionary.DomainTreeSnapshot;
 import com.dongkuk.dmes.mdm.common.dictionary.EffectiveDomainView;
 import com.dongkuk.dmes.mdm.entity.MdmColumn;
+import com.dongkuk.dmes.mdm.entity.MdmColumnSystem;
 import com.dongkuk.dmes.mdm.feed.metaFeed.service.MetaFeedPayloads.BizExpr;
 import com.dongkuk.dmes.mdm.feed.metaFeed.service.MetaFeedPayloads.CodeRefMeta;
 import com.dongkuk.dmes.mdm.feed.metaFeed.service.MetaFeedPayloads.ColumnMeta;
@@ -13,12 +14,18 @@ import com.dongkuk.dmes.mdm.feed.metaFeed.service.MetaFeedPayloads.DomainMeta;
 import com.dongkuk.dmes.mdm.feed.metaFeed.service.MetaFeedPayloads.DomainRef;
 import com.dongkuk.dmes.mdm.feed.metaFeed.service.MetaFeedPayloads.Expr;
 import com.dongkuk.dmes.mdm.repository.MdmColumnRepository;
+import com.dongkuk.dmes.mdm.repository.MdmColumnSystemRepository;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import kr.dongkuk.maru.mdm.engine.domain.EffectiveExpressions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -30,27 +37,92 @@ import org.springframework.stereotype.Component;
 @Component
 public class MetaFeedDictionary {
 
+    private static final Logger log = LoggerFactory.getLogger(MetaFeedDictionary.class);
+
     private final MdmColumnRepository columns;
+    private final MdmColumnSystemRepository columnSystems;
     private final DomainTreeReader reader;
     private final DomainChainAssembler assembler;
 
-    public MetaFeedDictionary(MdmColumnRepository columns, DomainTreeReader reader, DomainChainAssembler assembler) {
+    public MetaFeedDictionary(MdmColumnRepository columns, MdmColumnSystemRepository columnSystems, DomainTreeReader reader,
+                              DomainChainAssembler assembler) {
         this.columns = columns;
+        this.columnSystems = columnSystems;
         this.reader = reader;
         this.assembler = assembler;
     }
 
-    /** 키 = 대문자 물리명. 없는 컬럼은 빠진다. */
+    /** 키 = 대문자 물리명. 없는 컬럼은 빠진다. 별칭 매칭은 하지 않는다. */
     public MetaFeedResult columns(Collection<String> physNames) {
+        return columns(physNames, null);
+    }
+
+    /**
+     * 키 = 대문자 이름(spec 2026-10-03-mdm-column-system-alias-design L1·L3·L4). 표준 물리명이 먼저다. 표준으로 못 찾은 키는 {@code systemCode}
+     * 가 있을 때만 그 시스템의 별칭({@code TB_MDM_COLUMN_SYSTEM.PHYS_NAME}, 대소문자 무시)으로 찾는다. 한 별칭이 서로 다른 컬럼을 가리키면
+     * 모호해서 빠지고(없음) WARN 을 남긴다. 키 수와 무관하게 표준 1·별칭 1·컬럼 1 문장이다(도메인 트리 읽기 별도).
+     */
+    public MetaFeedResult columns(Collection<String> physNames, String systemCode) {
         if (physNames.isEmpty()) {
             return MetaFeedResult.empty();
         }
         DomainTreeSnapshot snapshot = reader.load();
         Map<String, Object> found = new LinkedHashMap<>();
         for (MdmColumn c : columns.findByPhysNameIn(physNames)) {
-            found.put(c.getPhysName().toUpperCase(Locale.ROOT), MetaFeedJson.plain(columnMeta(c, chain(snapshot, c.getDomainId()))));
+            found.put(c.getPhysName().toUpperCase(Locale.ROOT),
+                    MetaFeedJson.plain(columnMeta(c, chain(snapshot, c.getDomainId()), null, null)));
         }
-        return new MetaFeedResult(found, Map.of());
+        String system = systemCode == null ? "" : systemCode.trim();
+        List<String> rest = physNames.stream().filter(k -> !found.containsKey(k)).distinct().toList();
+        if (!system.isEmpty() && !rest.isEmpty()) {
+            Map<String, MdmColumnSystem> byKey = aliasMatches(system, rest);
+            Map<Long, MdmColumn> byId = new HashMap<>();
+            if (!byKey.isEmpty()) {
+                columns.findAllById(byKey.values().stream().map(MdmColumnSystem::getColumnId).distinct().toList())
+                        .forEach(c -> byId.put(c.getColumnId(), c));
+            }
+            for (String key : rest) {
+                MdmColumnSystem alias = byKey.get(key);
+                MdmColumn c = alias == null ? null : byId.get(alias.getColumnId());
+                if (c != null) {
+                    found.put(key, MetaFeedJson.plain(
+                            columnMeta(c, chain(snapshot, c.getDomainId()), alias.getSystemCode(), alias.getPhysName())));
+                }
+            }
+        }
+        // 응답은 요청 키 순서로(표준·별칭이 섞여도)
+        Map<String, Object> ordered = new LinkedHashMap<>();
+        for (String key : physNames) {
+            Object v = found.get(key);
+            if (v != null) {
+                ordered.put(key, v);
+            }
+        }
+        return new MetaFeedResult(ordered, Map.of());
+    }
+
+    /**
+     * 키별로 맞은 별칭 행 하나. 서로 다른 COLUMN_ID 를 가리키는 키는 빠진다(모호, WARN). 한 컬럼에 대소문자만 다른 별칭이 여럿이면 키와 글자까지
+     * 같은 원문을, 없으면 원문 사전순 첫 값을 고른다(응답이 늘 같게).
+     */
+    private Map<String, MdmColumnSystem> aliasMatches(String system, List<String> keys) {
+        Map<String, List<MdmColumnSystem>> grouped = new LinkedHashMap<>();
+        for (MdmColumnSystem row : columnSystems.findBySystemCodeAndUpperPhysNameIn(system, keys)) {
+            grouped.computeIfAbsent(row.getPhysName().toUpperCase(Locale.ROOT), k -> new ArrayList<>()).add(row);
+        }
+        Map<String, MdmColumnSystem> out = new LinkedHashMap<>();
+        grouped.forEach((key, rows) -> {
+            List<Long> ids = rows.stream().map(MdmColumnSystem::getColumnId).distinct().sorted().toList();
+            if (ids.size() > 1) {
+                log.warn("MDM 컬럼 별칭이 모호해서 찾지 않습니다: system={}, key={}, columnIds={}", system, key, ids);
+                return;
+            }
+            out.put(key, rows.stream()
+                    .min(Comparator.comparing((MdmColumnSystem r) -> !r.getPhysName().equals(key))
+                            .thenComparing(MdmColumnSystem::getPhysName))
+                    .orElseThrow());
+        });
+        return out;
     }
 
     /** 키 = DOMAIN_ID 문자열. 숫자가 아니거나 없는 키는 빠지고, 상속이 순환이면 failed 다. */
@@ -101,7 +173,7 @@ public class MetaFeedDictionary {
         }
     }
 
-    static ColumnMeta columnMeta(MdmColumn c, Chain chain) {
+    static ColumnMeta columnMeta(MdmColumn c, Chain chain, String matchedSystem, String systemPhysName) {
         EffectiveDomainView v = chain == null ? null : chain.view();
         return new ColumnMeta(
                 c.getPhysName().toUpperCase(Locale.ROOT),
@@ -123,7 +195,9 @@ public class MetaFeedDictionary {
                 v == null || v.chainStdExpr() == null ? null : new Expr(v.chainStdExpr(), chain.chainStdAst()),
                 v == null || v.bizExpr() == null ? null : new BizExpr(v.bizExpr()),
                 v == null || v.bizRequiredVars() == null ? List.of() : v.bizRequiredVars(),
-                v == null || v.codeRef() == null ? null : new CodeRefMeta(v.codeRef().maruCodeId(), v.codeRef().cateId()));
+                v == null || v.codeRef() == null ? null : new CodeRefMeta(v.codeRef().maruCodeId(), v.codeRef().cateId()),
+                matchedSystem,
+                systemPhysName);
     }
 
     static DomainMeta domainMeta(Chain chain) {

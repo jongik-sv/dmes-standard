@@ -15,6 +15,11 @@ public class MdmClientProperties {
     private String module;
     private String baseUrl = "http://localhost:8096";
     private String clientKey;
+    /**
+     * 이 모듈이 쓰는 MDM 시스템 코드(MES 등). 있으면 COLUMN 조회에 {@code params.systemCode} 로 실어 표준 물리명으로 못 찾은 이름을 그 시스템의 별칭으로 찾게
+     * 한다. 기본 없음 = 별칭 매칭 끔(spec 2026-10-03-mdm-column-system-alias-design L2).
+     */
+    private String systemCode;
     private Duration pollInterval = Duration.ofSeconds(10);
     /** 대상 합계 상한. 넘으면 만료 항목, 그다음 오래 조회되지 않은 순(LRU)으로 지운다. */
     private int maxEntries = 20_000;
@@ -51,6 +56,7 @@ public class MdmClientProperties {
 
     public boolean isEnabled() { return enabled; }
     public String getModule() { return module; }
+    public String getSystemCode() { return systemCode; }
     public String getBaseUrl() { return baseUrl; }
     public String getClientKey() { return clientKey; }
     public Duration getPollInterval() { return pollInterval; }
@@ -64,6 +70,7 @@ public class MdmClientProperties {
 
     public void setEnabled(boolean v) { this.enabled = v; }
     public void setModule(String v) { this.module = v; }
+    public void setSystemCode(String v) { this.systemCode = v; }
     public void setBaseUrl(String v) { this.baseUrl = v; }
     public void setClientKey(String v) { this.clientKey = v; }
     public void setPollInterval(Duration v) { this.pollInterval = v; }

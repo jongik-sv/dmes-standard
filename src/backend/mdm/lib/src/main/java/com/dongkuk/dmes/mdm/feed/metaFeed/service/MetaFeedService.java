@@ -83,19 +83,24 @@ public class MetaFeedService {
         });
     }
 
-    /** action view(= 스펙 columns·domains·rules·ruleSets·codes·layouts) — {@code {items:[{key, value}], failed:[{key, message}]}}. */
+    /**
+     * action view(= 스펙 columns·domains·rules·ruleSets·codes·layouts) — {@code {items:[{key, value}], failed:[{key, message}]}}.
+     * COLUMN 은 선택 {@code params.systemCode} 를 받아 시스템 별칭으로도 찾는다(spec 2026-10-03-mdm-column-system-alias-design §3). 다른 type 은 무시한다.
+     */
     public Map<String, Object> view(MetaFeedViewRequest request, List<Map<String, Object>> keys) {
         MetaTargetType type = requireType(request == null ? null : request.getType());
         List<String> wanted = keyList(type, keys);
         if (wanted.isEmpty()) {
             return MetaFeedResult.empty().toResponse();
         }
-        return readTx.execute(status -> fetch(type, wanted)).toResponse();
+        String systemCode = request.getSystemCode();
+        return readTx.execute(status -> fetch(type, wanted, systemCode)).toResponse();
     }
 
-    MetaFeedResult fetch(MetaTargetType type, List<String> keys) {
+    /** {@code systemCode} 는 COLUMN 에서만 쓴다 — 표준 물리명으로 못 찾은 키를 그 시스템의 별칭으로 찾는다(spec 2026-10-03 L1). */
+    MetaFeedResult fetch(MetaTargetType type, List<String> keys, String systemCode) {
         return switch (type) {
-            case COLUMN -> dictionary.columns(keys);
+            case COLUMN -> dictionary.columns(keys, systemCode);
             case DOMAIN -> dictionary.domains(keys);
             case RULE -> definitions.rules(keys);
             case RULE_SET -> definitions.ruleSets(keys);
