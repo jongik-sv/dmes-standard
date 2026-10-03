@@ -3785,7 +3785,7 @@ async function save() {
 | column | `MdmScreenColumn` | 필수 | 컬럼 메타 |
 | domain | `MdmDomainMeta \| null` | 없음 | 도메인 메타(단위·도메인 표준식) |
 
-순서: 제목(`labelLong`)+물리명 → 설명·사용 메모 → 형식(`STRING(20)`·`NUMBER(3,1)`)·필수·기본값 → 도메인(ID·종류)·단위 → 표준식 → 허용 코드 앞 10개("외 N개") → 서버 업무 규칙 안내. 글자색·배경은 감싸는 툴팁을 따른다.
+순서: 제목(`labelLong`)+물리명 → 설명·사용 메모 → 형식(`STRING(20)`·`NUMBER(3,1)`)·필수·기본값 → 도메인(ID·종류)·단위 → 표준식 → 허용 코드 앞 10개("외 N개") → 서버 업무 규칙 안내. 글자색·배경은 감싸는 툴팁을 따른다. 컬럼이 시스템 별칭으로 맞았으면(`MdmScreenColumn.matchedSystem`·`systemPhysName` 이 둘 다 있으면) 제목 바로 아래에 "MES 이름 {별칭} · 표준 {physName}" 한 줄(`data-mdm-section="alias"`)이 더해진다 — 표준 이름으로 맞았거나 옛 모듈 응답(두 칸 없음)이면 그 줄이 없다.
 
 ### MdmFieldLabel
 
