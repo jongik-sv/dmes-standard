@@ -62,7 +62,11 @@ public final class SqlGuard {
     static final String MSG_NESTED_COMMENT = "주석 안에 /* 를 다시 쓸 수 없습니다(DB 마다 겹친 주석을 다르게 읽습니다)";
     static final String MSG_FORBIDDEN_FUNCTION = "쓸 수 없는 함수가 있습니다: ";
 
-    /** 식별자를 이루는 글자(Oracle 의 $·# 포함) — 낱말 경계 판단용. */
+    /**
+     * 식별자를 이루는 글자(Oracle 의 $·# 포함) — 낱말 경계 판단용. 거절 낱말·함수 패턴은 {@code UNICODE_CASE} 로 대소문자를 유니코드 규칙으로
+     * 무시한다 — ASCII 규칙만 쓰면 대문자로 바꾸면 I·S 가 되는 {@code ı}(U+0131)·{@code ſ}(U+017F)를 끼운 {@code DBMS_PıPE}·{@code DBMſ_XMLGEN}
+     * 이 통과하는데, 이름을 대문자로 바꿔 찾는 DB(Oracle 등)는 그것을 원래 이름으로 읽을 수 있다.
+     */
     private static final String WORD_CHAR = "[\\p{L}\\p{N}_$#]";
 
     private static final Pattern FIRST_WORD =
@@ -76,7 +80,7 @@ public final class SqlGuard {
             "(?<!" + WORD_CHAR + ")(INSERT|UPDATE|DELETE|MERGE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE|EXECUTE|EXEC|CALL"
                     + "|COMMIT|ROLLBACK|INTO|PRAGMA|ATTACH|DETACH"
                     + "|DENY|WAITFOR|KILL|SHUTDOWN|DBCC|RECONFIGURE|BACKUP|RESTORE)(?!" + WORD_CHAR + ")",
-            Pattern.CASE_INSENSITIVE);
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /**
      * 6단계 함수 거절 목록 — 읽기 전용 트랜잭션이 막지 못하는 부수효과·외부 통신·서버 자원 붙잡기, 그리고 <b>문자열로 받은 SQL·XML 질의를
@@ -121,7 +125,7 @@ public final class SqlGuard {
                     + "|OPENROWSET|OPENDATASOURCE|OPENQUERY|XP_[A-Z0-9_]*"
                     + "|FN_GET_AUDIT_FILE|FN_XE_FILE_TARGET_READ_FILE|FN_TRACE_GETTABLE|FN_DBLOG|FN_DUMP_DBLOG"
                     + ")(?!" + WORD_CHAR + ")",
-            Pattern.CASE_INSENSITIVE);
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /**
      * 6단계 중 SQL Server 의 알려진 위험 저장 프로시저 — 괄호 없이 부르므로({@code sp_executesql N'…'}) 부르는 모양을 따지지 않고 <b>낱말만으로</b>
@@ -133,7 +137,7 @@ public final class SqlGuard {
                     + "SP_EXECUTESQL|SP_OACREATE|SP_OAMETHOD|SP_CONFIGURE|SP_ADDEXTENDEDPROC|SP_ADDLINKEDSERVER"
                     + "|SP_ADDSRVROLEMEMBER|SP_SEND_DBMAIL|SP_START_JOB"
                     + ")(?!" + WORD_CHAR + ")",
-            Pattern.CASE_INSENSITIVE);
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /**
      * 이름 붙은 변수 {@code :name}·{@code &name}(Spring 이 둘 다 변수로 바꾼다). 앞 글자가 ':' 인 ':'(PostgreSQL ::text 캐스트)는

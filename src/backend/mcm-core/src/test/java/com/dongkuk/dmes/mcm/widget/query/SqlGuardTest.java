@@ -126,6 +126,8 @@ class SqlGuardTest {
                 arguments("SELECT 1 BACKUP DATABASE d TO DISK = 'x'", "쓸 수 없는 낱말이 있습니다: BACKUP"),
                 arguments("SELECT 1 RESTORE DATABASE d FROM DISK = 'x'", "쓸 수 없는 낱말이 있습니다: RESTORE"),
                 arguments("SELECT 1 DENY SELECT ON t TO public", "쓸 수 없는 낱말이 있습니다: DENY"),
+                // 대문자로 바꾸면 I 가 되는 ı(U+0131)를 끼워도 걸린다(UNICODE_CASE)
+                arguments("SELECT 1 K\u0131LL 52", "쓸 수 없는 낱말이 있습니다: KILL"),
                 // Oracle 12c 인라인 PL/SQL(WITH FUNCTION)은 본문에 ; 가 있어야 해서 여러 문장으로 거절된다
                 arguments("WITH FUNCTION f RETURN NUMBER IS BEGIN DBMS_SESSION.SLEEP(5); RETURN 1; END; SELECT f FROM dual", MULTI));
     }
@@ -283,7 +285,11 @@ class SqlGuardTest {
                 arguments("SELECT xp_cmdshell ('dir')", "XP_CMDSHELL"),
                 arguments("SELECT XMLTYPE.CREATEXML('<a/>') FROM dual", "XMLTYPE"),
                 // 같은 SQL 에 열 이름으로 먼저 나오고 뒤에서 부르면 뒤의 호출이 걸린다
-                arguments("SELECT xmltype, XMLTYPE('<a/>') FROM t", "XMLTYPE"));
+                arguments("SELECT xmltype, XMLTYPE('<a/>') FROM t", "XMLTYPE"),
+                // 대문자로 바꾸면 I·S 가 되는 유니코드 글자(ı U+0131, ſ U+017F)를 끼워도 걸린다(UNICODE_CASE)
+                arguments("SELECT DBMS_P\u0131PE.RECEIVE_MESSAGE('p', 10) FROM dual", "DBMS_PIPE"),
+                arguments("SELECT DBM\u017F_XMLGEN.GETXML('select 1 from dual') FROM dual", "DBMS_XMLGEN"),
+                arguments("SELECT 1 \u017Fp_executesql N'select 1'", "SP_EXECUTESQL"));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
