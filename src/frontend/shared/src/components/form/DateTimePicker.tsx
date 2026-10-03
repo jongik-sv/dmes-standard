@@ -179,6 +179,7 @@ export function DateTimePicker({
       >
         <Popover.Target>
           <Input
+            size="xs"
             data-dates-input
             data-read-only={readOnly || undefined}
             autoComplete="off"
