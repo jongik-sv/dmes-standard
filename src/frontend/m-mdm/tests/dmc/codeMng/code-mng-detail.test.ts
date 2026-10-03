@@ -7,6 +7,7 @@ import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearToasts } from "../../helpers/toasts";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { openMdmPage, takeMdmPageParams } from "@/shell";
 import CodeMngPage from "../../../pages/dmc/codeMng/page";
@@ -181,6 +182,8 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     vi.unstubAllGlobals();
     delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
     document.body.innerHTML = "";
+    // 성공 알림이 전역 알림 저장소(limit 3)에 쌓여 뒤 시험의 알림을 밀어내지 않게 한다.
+    clearToasts();
   });
 
   it("같은 코드를 다시 불러오는 사이 고친 헤더 폼은 늦게 온 view 응답이 덮지 않는다", async () => {
@@ -210,8 +213,6 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
   // 2026-10-03 팀장 결정 — ruleMng 과 같은 규칙: 같은 행을 다시 눌러 다시 읽어도 저장하지 않은 입력은 남기고, 저장은 입력을
   // 시작할 때의 auditVer 로 보낸다(다른 창 변경은 MDM001 로 드러난다). 고친 칸이 없으면 서버 값으로 바꾼다.
   it("누르기 전에 고친 헤더 입력은 같은 행을 다시 눌러 다시 읽어도 남고, 저장은 입력을 시작할 때의 auditVer 로 보낸다", async () => {
-    // 보낸 값만 본다 — 성공 알림(토스트)이 문서에 쌓여 뒤 시험의 알림을 밀어내지 않게 저장은 거부로 둔다.
-    saveResponse = { meta: { success: false, message: "시험용 거부" } };
     await render({ snapshot: { maruCodeId: "PROC_CD" } });
     await search();
     await typeInto("header-name", "고치는 중");
@@ -227,7 +228,6 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
   });
 
   it("고친 칸이 없으면 같은 행을 다시 눌러 다시 읽은 서버 값과 auditVer 로 바뀐다", async () => {
-    saveResponse = { meta: { success: false, message: "시험용 거부" } };
     await render({ snapshot: { maruCodeId: "PROC_CD" } });
     await search();
     nextView = () => viewResult({ header: { ...viewResult().header, maruCodeName: "다른 창 이름", auditVer: 1 } });
