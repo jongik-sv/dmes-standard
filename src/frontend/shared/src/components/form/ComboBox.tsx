@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Select } from "@mantine/core";
 import clsx from "clsx";
 
@@ -103,11 +103,19 @@ export function ComboBox({
     return options;
   }, [options, value]);
 
-  // value(선택된 옵션)가 바뀌면 검색어를 그 라벨로 동기화한다 — 기존 구현의
-  // "value prop → input 표시 텍스트 동기화" 이펙트와 동일한 역할.
+  // value(선택된 옵션)가 바뀌면 검색어를 그 라벨로 동기화한다. value 는 그대로이고 options 만
+  // 바뀐 경우에는, 검색어가 마지막으로 맞춰 둔 텍스트와 같을 때(사용자가 손대지 않았을 때)만
+  // 새 라벨로 맞춘다. 사용자가 치고 있던 글자는 목록 응답이 늦게 도착해도 지킨다.
+  const syncedRef = useRef<{ value: string; text: string } | null>(null);
+  const searchRef = useRef(searchValue);
+  searchRef.current = searchValue;
   useEffect(() => {
     const found = options.find((o) => o.value === value);
-    setSearchValue(found ? found.label : value || "");
+    const text = found ? found.label : value || "";
+    const prev = syncedRef.current;
+    if (prev && prev.value === value && searchRef.current !== prev.text) return;
+    syncedRef.current = { value, text };
+    setSearchValue(text);
   }, [value, options]);
 
   const trimmed = searchValue.trim();
