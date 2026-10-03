@@ -1,15 +1,15 @@
 package com.dongkuk.dmes.mcm.init;
 
 import com.dongkuk.dmes.cactus.security.auth.PasswordEncoder;
-import com.dongkuk.caravan.console.host.AppHostEntity;
 import com.dongkuk.caravan.console.host.AppHostJpaRepository;
-import com.dongkuk.caravan.console.caravanhubconfig.ConsoleCaravanHubConfigEntity;
 import com.dongkuk.caravan.console.caravanhubconfig.ConsoleCaravanHubConfigJpaRepository;
 import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
-import com.dongkuk.dmes.mcm.entity.RuleMaster;
 import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.screenusage.schema.ScreenUsageMssqlDdl;
+import com.dongkuk.dmes.mcm.init.seed.CaravanMetaSeeder;
+import com.dongkuk.dmes.mcm.init.seed.CoreRbacSeeder;
+import com.dongkuk.dmes.mcm.init.seed.RuleMasterSampleSeeder;
 import com.dongkuk.dmes.mcm.init.seed.SchemaArtifactsMssql;
 import com.dongkuk.dmes.mcm.init.seed.SchemaArtifactsSqlite;
 import com.dongkuk.dmes.mcm.init.seed.SeedSupport;
@@ -23,11 +23,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -99,8 +97,9 @@ public class DataInitializer implements ApplicationRunner {
         // caravan-console 메타 (TB_MCM_APPHOST / TB_MCM_MOM_KAFKA_SERAI_CONFIG) 는 secondary DB (caravan.db / CARAVANUSER).
         // mcm.db 의 secUser count 와 무관하게 매번 idempotent saveAll 수행 (JpaRepository.save 는 PK 있으면 UPDATE).
         // v4 결정 #14 + Phase 4-C (2026-05-13).
-        initAppHostData();
-        initCaravanHubConfigData();
+        CaravanMetaSeeder caravanMeta = new CaravanMetaSeeder(appHostJpaRepository, consoleCaravanHubConfigJpaRepository);
+        caravanMeta.initAppHostData();
+        caravanMeta.initCaravanHubConfigData();
 
         // MCM cma 동기화 schema artifacts — 매번 IF NOT EXISTS 멱등 적재 (2026-05-29 사용자 결정).
         // 원장 DML 대상 = MCM_SOURCE (Entity @Table schema). MCMAPUSER = 운영 read 동기화본 (빈 테이블 + 뷰).
@@ -115,7 +114,7 @@ public class DataInitializer implements ApplicationRunner {
         }
 
         // 업무기준(cmb/masterRuleList) 조회 필터 검증용 샘플 — local/mssql/dev tier·idempotent (BR-002/003).
-        initRuleMasterSampleData();
+        new RuleMasterSampleSeeder(environment, ruleMasterRepository).initRuleMasterSampleData();
 
         // 2026-06-06 — SQLite(local 단독)에서는 아래 csa W1~W8 native DDL 을 전부 skip한다. SEC 테이블 대부분은
         // @Entity 가 있어 ddl-auto=update 가 SQLite 에 생성하고, entity 미보유 TB_MCM_SEC_MENU_FLD 만 else 에서 보강.
@@ -138,7 +137,7 @@ public class DataInitializer implements ApplicationRunner {
         // secUserRepository.count() 가드는 사용자 본인 SecUser (cactus) 기준 — 본 시드는 신규
         // TB_MCM_SEC_USER 기준이므로 별도 멱등 가드 (existsById) 로 처리한다.
 
-        seedMcmSecRbac();
+        seedMcmSecRbac(support);
 
         log.info("[DataInitializer] 초기 데이터 삽입 완료. MCM SEC RBAC 시드 (admin / SYSADMIN role-group / SYSADMIN role / PERM_ALL / 9 화면 ROLE_MAPPING) + caravan-console 메타 완료.");
     }
@@ -159,82 +158,10 @@ public class DataInitializer implements ApplicationRunner {
      *
      * <p>모든 INSERT 는 멱등 (존재 검증 후 skip).
      */
-    private void seedMcmSecRbac() {
-        // ── 공통 audit 9 컬럼 fragment (모든 seed INSERT 동일 — McmAuditEntity 정합) ──
-        // 사용 패턴: 컬럼 list 에 AUDIT_COLS 추가 + VALUES 에 AUDIT_VALS 추가.
-        // C_USR_ID='admin' / C_AT=SYSDATETIME() / C_SVC_ID='DataInitializer' / C_PGM_ID='DataInitializer' /
-        // U_USR_ID='admin' / U_AT=SYSDATETIME() / U_SVC_ID='DataInitializer' / U_PGM_ID='DataInitializer' / VER=0
-        final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
-        final String AUDIT_VALS = ", 'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', "
-                                + "'admin', SYSDATETIME(), 'DataInitializer', 'DataInitializer', 0";
-
-        // TB_MCM_SEC_USER — admin
-        insertIfAbsent(
-                "TB_MCM_SEC_USER", "USER_ID", "admin",
-                "INSERT INTO MCMAPUSER.TB_MCM_SEC_USER " +
-                "(USER_ID, USER_NM, USER_EMP_NO, DEPT_CD, USE_TP, IN_OUT_EMP_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('admin', N'관리자', 'E0001', 'IT', 'Y', 'I', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
-
-        // TB_MCM_SEC_USER_PWD — admin 비밀번호 (BCrypt). passwordEncoder 가 null 인 빈 환경에서는 skip.
-        if (passwordEncoder != null) {
-            insertIfAbsent(
-                    "TB_MCM_SEC_USER_PWD", "USER_ID", "admin",
-                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_USER_PWD " +
-                    "(USER_ID, USER_ENC_PWD, LAST_PWD_CHNG_DATE" + AUDIT_COLS + ") " +
-                    "VALUES ('admin', '" + escapeSql(passwordEncoder.encode("admin123")) + "', SYSDATETIME()" + AUDIT_VALS + ")");
-            // 2026-06-05 사용자 결정 — 매 부팅 시 admin 비밀번호 admin123 으로 강제 재설정.
-            //   사유: DB hash 가 commUserMng 의 "비밀번호 초기화" 액션 / 수동 변경으로 어긋난 경우 dev 환경 복구 안전망.
-            //   운영 환경(prod profile)에서는 본 강제 갱신을 분기로 차단할 수 있도록 후속 cycle 에서 조건 추가 검토.
-            String adminHash = passwordEncoder.encode("admin123");
-            int updated = nq(
-                    "UPDATE MCMAPUSER.TB_MCM_SEC_USER_PWD " +
-                    "   SET USER_ENC_PWD = :hash, LAST_PWD_CHNG_DATE = SYSDATETIME(), U_USR_ID = 'admin', U_AT = SYSDATETIME() " +
-                    " WHERE USER_ID = 'admin'")
-                    .setParameter("hash", adminHash)
-                    .executeUpdate();
-            log.info("[DataInitializer] admin password force-reset to 'admin123' (UPDATE rows={})", updated);
-        }
-        unlockLocalAdmin();
-
-        // TB_MCM_SEC_ROLEGROUP — ROLE_GROUP_SYSADMIN
-        insertIfAbsent(
-                "TB_MCM_SEC_ROLEGROUP", "ROLE_GROUP_ID", "ROLE_GROUP_SYSADMIN",
-                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP " +
-                "(ROLE_GROUP_ID, ROLE_GROUP_NM, ROLE_GROUP_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('ROLE_GROUP_SYSADMIN', N'시스템관리자 그룹', N'시스템 전체 관리 권한', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
-
-        // TB_MCM_SEC_USER_MAPPING — (admin, ROLE_GROUP_SYSADMIN)
-        insertIfAbsentComposite(
-                "TB_MCM_SEC_USER_MAPPING",
-                new String[]{"USER_ID", "ROLE_GROUP_ID"},
-                new String[]{"admin",   "ROLE_GROUP_SYSADMIN"},
-                "INSERT INTO MCMAPUSER.TB_MCM_SEC_USER_MAPPING (USER_ID, ROLE_GROUP_ID" + AUDIT_COLS + ") " +
-                "VALUES ('admin', 'ROLE_GROUP_SYSADMIN'" + AUDIT_VALS + ")");
-
-        // TB_MCM_SEC_ROLE — SYSADMIN
-        // 2026-06-01 fix — RoleId 에서 "ROLE_" prefix 제거. McmAuthService.loadUserRoles 가 "ROLE_" + roleId 로
-        // JWT claim 빌드 시 결과는 "ROLE_SYSADMIN" (Spring Security 표준). EndpointPermissionFilter /
-        // SecUserService.filterMenusByRole 의 hasAuthority("ROLE_SYSADMIN") 검사와 정합.
-        insertIfAbsent(
-                "TB_MCM_SEC_ROLE", "ROLE_ID", "SYSADMIN",
-                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE " +
-                "(ROLE_ID, ROLE_NM, ROLE_DESC, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('SYSADMIN', N'시스템관리자', N'전체 권한', 'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
-
-        // 기존 잔존 "ROLE_SYSADMIN" row 가 있다면 swap UPDATE — 멱등성 (신규 클린 DB 무영향).
-        // 외래키 (TB_MCM_SEC_ROLEGROUP_MAPPING.ROLE_ID / TB_MCM_SEC_ROLE_MAPPING.ROLE_ID) 도 동시 UPDATE.
-        cleanupLegacyRoleSysadmin();
-
-        // TB_MCM_SEC_ROLEGROUP_MAPPING — (ROLE_GROUP_SYSADMIN, SYSADMIN)
-        insertIfAbsentComposite(
-                "TB_MCM_SEC_ROLEGROUP_MAPPING",
-                new String[]{"ROLE_GROUP_ID",       "ROLE_ID"},
-                new String[]{"ROLE_GROUP_SYSADMIN", "SYSADMIN"},
-                "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING (ROLE_GROUP_ID, ROLE_ID" + AUDIT_COLS + ") " +
-                "VALUES ('ROLE_GROUP_SYSADMIN', 'SYSADMIN'" + AUDIT_VALS + ")");
-
-        // TB_MCM_SEC_PERM — PERM_ALL (전체 권한).
-        // PERMISSION_ACTION 에 모든 action 콤마 텍스트 (UserPermCache 가 콤마 분할 후 PermKey 빌드).
+    private void seedMcmSecRbac(SeedSupport support) {
+        // TB_MCM_SEC_PERM — PERM_ALL (전체 권한) 의 action 목록. INSERT 는 CoreRbacSeeder 가 한다.
+        // 이 선언은 소스 대조 시험(mcm-core ScreenUsageOasisContractTest · mdm MdmOasisActionVocabularyTest)이
+        // 이 파일에서 문자열로 읽으므로 DataInitializer 에 둔다. 문자열 연결만 하므로 앞당겨 계산해도 동작은 같다.
         String allActions = String.join(",",
                 "search", "save", "delete", "import", "export", "reg",
                 "confirm", "cancel", "approve", "reject", "copy",
@@ -280,59 +207,9 @@ public class DataInitializer implements ApplicationRunner {
                 //   grep -h 'sourceRef="actionGateway"' src/backend/{모듈}/**/services/**/*.bpmn
                 // 화면을 추가할 때마다 함께 갱신할 것.
         );
-        insertIfAbsent(
-                "TB_MCM_SEC_PERM", "PERMISSION_ID", "PERM_ALL",
-                "INSERT INTO MCMAPUSER.TB_MCM_SEC_PERM " +
-                "(PERMISSION_ID, PERMISSION_NM, PERMISSION_DESC, PERMISSION_COMMON, PERMISSION_ACTION, USE_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
-                "VALUES ('PERM_ALL', N'전체 권한', N'SYSADMIN 전체 접근', " +
-                "'search,save,delete,import,export', " +
-                "'" + escapeSql(allActions) + "', " +
-                "'Y', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
-        ensurePermAllActions(allActions);
 
-        // TB_MCM_SEC_OBJ — 13 화면 OBJECT 시드 (W1~W9 9 화면 + cma 4 화면).
-        insertMcmSecObjIfAbsent("commObjMng",          "OBJECT 관리",                  "mcm");
-        insertMcmSecObjIfAbsent("commMenuMng",         "MENU 관리",                    "mcm");
-        insertMcmSecObjIfAbsent("commRoleMng",         "역할 관리",            "mcm");
-        insertMcmSecObjIfAbsent("commRoleGrpMng",      "역할 그룹 관리", "mcm");
-        insertMcmSecObjIfAbsent("commUserMng",         "사용자 관리",      "mcm");
-        insertMcmSecObjIfAbsent("commPermMng",         "PERMISSION 관리",              "mcm");
-        insertMcmSecObjIfAbsent("commUserRoleCopy",    "사용자 권한 일괄 등록", "mcm");
-        insertMcmSecObjIfAbsent("commSyncMng",         "동기화 관리",      "mcm");
-        insertMcmSecObjIfAbsent("masterCodeMngList",   "Master Code 상세조회", "mcm");
-        // cma 4 화면 — 동일 RBAC 적용
-        insertMcmSecObjIfAbsent("masterCodeMng",                  "Master Code 관리",                 "mcm");
-        insertMcmSecObjIfAbsent("masterCategoryMng",              "카테고리 관리",     "mcm");
-        insertMcmSecObjIfAbsent("masterCodeSelPop",               "마스터코드 선택 팝업", "mcm");
-        insertMcmSecObjIfAbsent("masterCodeUploadFilePopup",      "마스터코드 등록(Excel Upload)", "mcm");
-        // cmb 7 화면 — 업무기준 관리(원장). 일반 4 + 팝업 3.
-        //   2026-06-05 masterRuleList 만 등재했다가, 나머지 6 화면(2026-08-12 점검)이 통째로 누락돼 있었다.
-        //   FE 는 /api/mcm/oasis/{serviceId}/{action} 를 호출하고 UserPermCache 는 TB_MCM_SEC_OBJ.OBJECT_ID
-        //   로만 PermKey 를 만든다 → OBJECT 행이 없으면 admin(SYSADMIN)도 EndpointPermissionFilter 에서
-        //   전부 403 이다(증상은 "조용한 빈 데이터"). BPMN(services/cmb/*.bpmn) 은 7개 모두 존재한다.
-        insertMcmSecObjIfAbsent("masterRuleList",                 "업무기준 목록조회",            "mcm");
-        insertMcmSecObjIfAbsent("masterRuleData",                 "업무기준 Data관리",            "mcm");
-        insertMcmSecObjIfAbsent("masterRuleDataList",             "업무기준 상세조회",            "mcm");
-        insertMcmSecObjIfAbsent("masterRuleFrame",                "업무기준 구조관리",            "mcm");
-        // 팝업 3 — 모달이지만 자기 serviceId 로 OASIS 를 직접 호출하므로 OBJECT+RBAC 를 갖는다(mpp ppz 와 동일 규약).
-        insertMcmSecObjIfAbsent("masterRuleListPop",              "업무기준 List조회 팝업",       "mcm");
-        insertMcmSecObjIfAbsent("masterRuleFrameColListPopup",    "업무기준 컬럼 리스트 등록 팝업", "mcm");
-        insertMcmSecObjIfAbsent("masterRuleDataUploadFilePopup",  "일반 업무기준 등록(Excel Upload)", "mcm");
-
-        // TB_MCM_SEC_ROLE_MAPPING — SYSADMIN x 20 OBJECT x PERM_ALL = 20 rows
-        for (String objId : new String[]{
-                "commObjMng", "commMenuMng", "commRoleMng", "commRoleGrpMng", "commUserMng",
-                "commPermMng", "commUserRoleCopy", "commSyncMng", "masterCodeMngList",
-                "masterCodeMng", "masterCategoryMng", "masterCodeSelPop", "masterCodeUploadFilePopup",
-                "masterRuleList", "masterRuleData", "masterRuleDataList", "masterRuleFrame",
-                "masterRuleListPop", "masterRuleFrameColListPopup", "masterRuleDataUploadFilePopup"}) {
-            insertIfAbsentComposite(
-                    "TB_MCM_SEC_ROLE_MAPPING",
-                    new String[]{"ROLE_ID",  "OBJECT_ID", "PERMISSION_ID"},
-                    new String[]{"SYSADMIN", objId,       "PERM_ALL"},
-                    "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING (ROLE_ID, OBJECT_ID, PERMISSION_ID" + AUDIT_COLS + ") " +
-                    "VALUES ('SYSADMIN', '" + escapeSql(objId) + "', 'PERM_ALL'" + AUDIT_VALS + ")");
-        }
+        // 사용자·비밀번호·역할그룹·역할·PERM_ALL·OBJECT·ROLE_MAPPING — 코어 RBAC.
+        new CoreRbacSeeder(support, passwordEncoder, environment).seedCoreRbac(allActions);
 
         // TB_MCM_SEC_MENU — 메뉴 트리 시드 leaf 13 row (화면 only). round 3 (2026-06-02): 모듈/그룹 폴더 4 row 는
         // 본 테이블 owner ✗ — 모두 TB_MCM_SEC_MENU_FLD owner. PARENT_MENU_ID 는 SEC_MENU_FLD.MENU_ID 참조.
@@ -1890,68 +1767,6 @@ public class DataInitializer implements ApplicationRunner {
         }
     }
 
-    /**
-     * 2026-06-01 fix — 기존 잔존 "ROLE_SYSADMIN" RoleId 를 "SYSADMIN" 으로 swap.
-     *
-     * <p>cycle 1 시드는 RoleId="ROLE_SYSADMIN" 으로 적재되었고, McmAuthService.loadUserRoles 가
-     * "ROLE_" + roleId 를 prefix 로 붙여 JWT claim 을 만들어 "ROLE_ROLE_SYSADMIN" 이라는 double prefix
-     * authority 가 생성. 결과적으로 hasAuthority("ROLE_SYSADMIN") 검사가 false → SYSADMIN bypass 실패.
-     *
-     * <p>fix 정책: 시드 RoleId 를 "SYSADMIN" (prefix 없음) 으로 변경 + 기존 row 를 멱등 UPDATE.
-     * 신규 클린 DB 에서는 UPDATE 영향 0 (행 미존재) → 무영향.
-     *
-     * <p>처리 순서 (FK 영향 회피):
-     * <ol>
-     *   <li>TB_MCM_SEC_ROLEGROUP_MAPPING.ROLE_ID 변경 (자식)</li>
-     *   <li>TB_MCM_SEC_ROLE_MAPPING.ROLE_ID 변경 (자식)</li>
-     *   <li>TB_MCM_SEC_ROLE.ROLE_ID 변경 (부모)</li>
-     * </ol>
-     *
-     * <p>SYSADMIN row 가 이미 시드되어 PK 충돌이 발생하지 않도록, 변경 전 SYSADMIN row 존재 시 ROLE_SYSADMIN row 만 삭제.
-     */
-    private void cleanupLegacyRoleSysadmin() {
-        // SYSADMIN 신규 row 가 이미 존재하면, legacy ROLE_SYSADMIN row 들은 PK 충돌 회피를 위해 DELETE.
-        Number sysadminExists = (Number) nq(
-                "SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE WHERE ROLE_ID = 'SYSADMIN'")
-                .getSingleResult();
-        Number legacyExists = (Number) nq(
-                "SELECT COUNT(*) FROM MCMAPUSER.TB_MCM_SEC_ROLE WHERE ROLE_ID = 'ROLE_SYSADMIN'")
-                .getSingleResult();
-        if (legacyExists == null || legacyExists.intValue() == 0) {
-            return; // 잔존 데이터 ✗ → 무영향
-        }
-        if (sysadminExists != null && sysadminExists.intValue() > 0) {
-            // 충돌 회피 — legacy ROLE_SYSADMIN 자식 + 부모 DELETE (SYSADMIN 시드가 정본).
-            int dRgm = nq(
-                    "DELETE FROM MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING WHERE ROLE_ID = 'ROLE_SYSADMIN'")
-                    .executeUpdate();
-            int dRm = nq(
-                    "DELETE FROM MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING WHERE ROLE_ID = 'ROLE_SYSADMIN'")
-                    .executeUpdate();
-            int dRole = nq(
-                    "DELETE FROM MCMAPUSER.TB_MCM_SEC_ROLE WHERE ROLE_ID = 'ROLE_SYSADMIN'")
-                    .executeUpdate();
-            log.info("[DataInitializer] legacy ROLE_SYSADMIN cleanup (SYSADMIN 충돌) — RGM={} RM={} ROLE={}",
-                    dRgm, dRm, dRole);
-            return;
-        }
-        // SYSADMIN row 미존재 → 단순 UPDATE swap (자식 먼저).
-        int uRgm = nq(
-                "UPDATE MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING SET ROLE_ID = 'SYSADMIN' " +
-                "WHERE ROLE_ID = 'ROLE_SYSADMIN'")
-                .executeUpdate();
-        int uRm = nq(
-                "UPDATE MCMAPUSER.TB_MCM_SEC_ROLE_MAPPING SET ROLE_ID = 'SYSADMIN' " +
-                "WHERE ROLE_ID = 'ROLE_SYSADMIN'")
-                .executeUpdate();
-        int uRole = nq(
-                "UPDATE MCMAPUSER.TB_MCM_SEC_ROLE SET ROLE_ID = 'SYSADMIN' " +
-                "WHERE ROLE_ID = 'ROLE_SYSADMIN'")
-                .executeUpdate();
-        log.info("[DataInitializer] legacy ROLE_SYSADMIN UPDATE swap — RGM={} RM={} ROLE={}",
-                uRgm, uRm, uRole);
-    }
-
     /** TB_MCM_SEC_OBJ 멱등 INSERT — SecObj entity 컬럼 정합 + audit 9 컬럼 명시 (McmAuditEntity 정합). */
     private void insertMcmSecObjIfAbsent(String objectId, String objectNm, String systemCode) {
         final String AUDIT_COLS = ", C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER";
@@ -1962,15 +1777,6 @@ public class DataInitializer implements ApplicationRunner {
                 "(OBJECT_ID, OBJECT_NM, SYSTEM_CODE, OBJECT_TYPE, USE_TP, ACCESS_TP, START_ACTIVE_DATE, END_ACTIVE_DATE" + AUDIT_COLS + ") " +
                 "VALUES ('" + escapeSql(objectId) + "', N'" + escapeSql(objectNm) + "', " +
                 "'" + escapeSql(systemCode) + "', 'web', 'Y', N'내부', SYSDATETIME(), '9999-12-31 23:59:59'" + AUDIT_VALS + ")");
-    }
-
-    /**
-     * 기존 DB 보정 — {@code insertIfAbsent(PERM_ALL)} 은 이미 존재하는 PERM_ALL 을 갱신하지 않는다.
-     * PageLayout button RBAC 는 {@code PERMISSION_ACTION} 콤마 토큰을 그대로 펼치므로, 표준 액션이
-     * 뒤늦게 추가된 경우 부팅 시 누락분만 append 한다.
-     */
-    private void ensurePermAllActions(String desiredActionsCsv) {
-        ensurePermActions("PERM_ALL", desiredActionsCsv);
     }
 
     /**
@@ -2024,152 +1830,6 @@ public class DataInitializer implements ApplicationRunner {
         return s.replace("'", "''");
     }
 
-    /**
-     * v4 Phase 4-B (2026-05-13) — TB_MCM_APPHOST 시드 단순화.
-     *
-     * <p>v3: 모듈별 5 row (mcm/mls/mpn/mpp/mqc) — caravan-console 가 모듈 WAS 직접 호출하던 패턴.
-     * <p>v4: <b>caravan-hub 인스턴스 row 만</b> — caravan-console 는 caravan-hub VIP 한 곳만 호출 (v4 §3 정본). 모듈은 caravan-hub 통한
-     * 메시지 발행만 (CaravanHubIntegrationClient). caravan-console 콘솔의 토픽/메시지/대시보드는 caravan API 응답을 caravan-hub 가
-     * 그대로 반환하므로 모듈 호스트 매핑 무의미.
-     *
-     * <p>local: 단일 'hub1' row (LB VIP 또는 단일 인스턴스). 운영: hub1/hub2/hub3 멀티 인스턴스 가능.
-     *
-     * <p>v4 결정 #14 (2026-05-13) — AppHostEntity 가 cactus secondary EMF (caravan.db / CARAVANUSER) 매핑이라
-     * {@link AppHostJpaRepository} 사용. Repository 는 {@code ConsoleSecondaryJpaConfig} 가 secondary EMF 로 wiring.
-     *
-     * <p>secondary EMF 비활성 환경 (Repository 빈 미등록) 에서는 skip.
-     */
-    private void initAppHostData() {
-        if (appHostJpaRepository == null) {
-            log.info("[DataInitializer] AppHostJpaRepository 미활성 — TB_MCM_APPHOST 시드 skip (secondary EMF 비활성 환경)");
-            return;
-        }
-        // v4 §8-1 — caravan-hub 인스턴스 row 만. WORKS_CD='p' (caravan-console caravan-console.works-code yml property 와 정합).
-        // appHostId 는 caravan-hub 의 biz-system(application.yml: HUB1) 과 정확히 일치해야 한다.
-        //   ConsoleTopicService.getTopicsWithStatus() 가 hostUrlMap.containsKey(topic.bizSystem) 로 case-sensitive 매핑하고,
-        //   AppHostService.getHostUrl(bizSystem)=findByAppHostIdAndWorksCd(bizSystem,..) 이므로 대소문자 불일치 시
-        //   토픽 상태 UNKNOWN + 컨슈머 제어 "호스트 미등록" 이 된다. (SoT = caravan-hub biz-system)
-        List<AppHostEntity> hosts = List.of(
-                AppHostEntity.builder()
-                        .appHostId("HUB1")
-                        .worksCd("p")
-                        .appHostNm("caravan-hub EAI 게이트웨이")
-                        .appHostDesc("caravan-hub EAI hub — caravan 라이브러리 유일 호스트 (v4 §3)")
-                        .appHostUrl("http://localhost:8200")
-                        .build()
-        );
-        appHostJpaRepository.saveAll(hosts);
-    }
-
-    /**
-     * v4 Phase 4-C (2026-05-13) — SERAI_CONFIG 시드 (PoC 토픽별 INTEGRATION_TYPE 등록).
-     *
-     * <p>v4 §6-1 — 각 토픽이 INBOUND/OUTBOUND × DB/HTTP/FILE 4 조합 중 어느 패턴인지 운영자가 등록.
-     * caravan-hub 가 부팅 시점에 본 테이블 read → 토픽별 라우팅 결정.
-     *
-     * <p>PoC 3 row (mls 제외 — §11 별 트랙):
-     * <ul>
-     *   <li>{@code MMPPMERPTT01} INBOUND DB — mpp 가 IF_MMPPMERPTT01 INSERT → caravan-hub 60초 polling → Kafka publish</li>
-     *   <li>{@code MMCMMERPTT02} INBOUND HTTP — mcm 이 CaravanHubIntegrationClient.send() → caravan-hub sync REST → Kafka publish</li>
-     *   <li>{@code MMQCMMPNTT01} OUTBOUND DB — caravan-hub 가 Kafka 수신 → IF_MMQCMMPNTT01 INSERT → mpn 60초 polling</li>
-     * </ul>
-     *
-     * <p>secondary EMF 비활성 환경 (Repository 빈 미등록) 에서는 skip.
-     */
-    private void initCaravanHubConfigData() {
-        if (consoleCaravanHubConfigJpaRepository == null) {
-            log.info("[DataInitializer] ConsoleCaravanHubConfigJpaRepository 미활성 — SERAI_CONFIG 시드 skip");
-            return;
-        }
-        List<ConsoleCaravanHubConfigEntity> configs = List.of(
-                ConsoleCaravanHubConfigEntity.builder()
-                        .topicId("MMPPMERPTT01")
-                        .direction("INBOUND")
-                        .integrationType("DB")
-                        .pollingIntervalMs(60000)
-                        .dbTableName("IF_MMPPMERPTT01")
-                        .useYn("Y")
-                        .build(),
-                ConsoleCaravanHubConfigEntity.builder()
-                        .topicId("MMCMMERPTT02")
-                        .direction("INBOUND")
-                        .integrationType("HTTP")
-                        .httpUrl("http://localhost:8200/caravanHubApi/v1/send")
-                        .httpMethod("POST")
-                        .useYn("Y")
-                        .build(),
-                ConsoleCaravanHubConfigEntity.builder()
-                        .topicId("MMQCMMPNTT01")
-                        .direction("OUTBOUND")
-                        .integrationType("DB")
-                        .pollingIntervalMs(60000)
-                        .dbTableName("IF_MMQCMMPNTT01")
-                        .useYn("Y")
-                        .build()
-        );
-        consoleCaravanHubConfigJpaRepository.saveAll(configs);
-        log.info("[DataInitializer] SERAI_CONFIG 시드 완료 — {} row (PoC)", configs.size());
-    }
-
-    /**
-     * 업무기준(cmb/masterRuleList) 조회 필터 검증용 샘플 시드 — 개발체크리스트 ITEM-BE-05.
-     *
-     * <p><b>local/local-ph/local-kp tier 한정</b>(WildFly dev/prod·실운영 제외) — 사용자 결정 2026-06-05:
-     * MSSQL 검증용으로 직결 프로파일에도 허용(구 mssql/dev → 신 local-ph/local-kp, 2026-07-07 개편).
-     * <b>idempotent</b> — sentinel PK 'USD' 존재 시 skip (재부팅 누적 방지).
-     *
-     * <p>6 row 로 고정 필터 2종(분석 §6.1 / 기능 BR-002·BR-003)을 교차 검증:
-     * USD/USDFWD/EUR/JPY 활성 + USDOFF(USE_TP='N', BR-003) + USDHIST(OLD_RULE_ID=RULE_ID, BR-002).
-     * audit(C_USR_ID 등)는 인증 컨텍스트 없는 시드라 McmAuditListener 가 null 로 둠(C_AT/VER 만 채움).
-     */
-    private void initRuleMasterSampleData() {
-        if (ruleMasterRepository == null) {
-            return;   // mcm-core repository 빈 미등록 환경 — skip
-        }
-        // 시드 허용 = local/local-ph/local-kp (bootRun 직결 개발·검증 tier). WildFly JNDI(dev/prod) 및 실운영 제외.
-        // 프로파일 개편 (2026-07-07 JNDI 전환 설계): 구 mssql→local-ph, 구 dev(직결)→local-kp.
-        //   신 dev 는 WildFly JNDI 프로파일이 되어 시드 대상에서 제외 (가짜 시드가 개발계 WAS 기동으로 주입되는 것 방지).
-        // acceptsProfiles — 프로파일 미지정 bootRun 의 default(local) 폴백도 인식.
-        boolean seedAllowed = environment.acceptsProfiles(Profiles.of("local", "local-ph", "local-kp"));
-        if (!seedAllowed) {
-            return;   // dev/prod 등 WAS·실운영 — 가짜 시드 미주입
-        }
-        List<String> active = List.of(environment.getActiveProfiles());   // 로그 표기용
-        if (ruleMasterRepository.existsById("USD")) {
-            return;   // 이미 시드됨 — idempotent
-        }
-
-        List<RuleMaster> samples = List.of(
-                rule("USD", null, "USD 미국 달러 환율 적용기준", "수출입 USD 환산 기준", "재무팀", "E0001", "Y"),
-                rule("USDFWD", null, "USD 선물환 적용기준", "선물환 USD 헤지 기준", "재무팀", "E0002", "Y"),
-                rule("EUR", null, "유로 환율 적용기준 EUR", "유럽향 EUR 환산 기준", "재무팀", "E0003", "Y"),
-                rule("JPY", null, "엔화 환율 적용기준 JPY", "일본향 JPY 환산 기준", "재무팀", "E0004", "Y"),
-                // BR-003 검증 — USE_TP='N' (검색어 USD 매칭이어도 제외돼야 정상)
-                rule("USDOFF", null, "USD 사용중지 기준", "폐기된 USD 기준(미사용)", "재무팀", "E0005", "N"),
-                // BR-002 검증 — OLD_RULE_ID=RULE_ID 이력행 (검색어 USD 매칭이어도 제외돼야 정상)
-                rule("USDHIST", "USDHIST", "USD 구 환율기준(이력)", "이전 버전 USD 기준", "재무팀", "E0006", "Y")
-        );
-        ruleMasterRepository.saveAll(samples);
-        log.info("[DataInitializer] 업무기준(TB_MCA_RULE_MASTER) 샘플 시드 완료 — {} row ({} profile·BR-002/003 검증용)",
-                samples.size(), active);
-    }
-
-    /** RuleMaster 샘플 행 빌더 — RULE_TP='A'·RULE_VER=1 고정(As-Is rowAdd 기본값 xfdl:229·231). */
-    private static RuleMaster rule(String ruleId, String oldRuleId, String ruleNm, String ruleDesc,
-                                   String ownerDeptNm, String ownerEmpNo, String useTp) {
-        RuleMaster e = new RuleMaster();
-        e.setRuleId(ruleId);
-        e.setOldRuleId(oldRuleId);
-        e.setRuleNm(ruleNm);
-        e.setRuleDesc(ruleDesc);
-        e.setRuleVer(BigDecimal.ONE);
-        e.setRuleTp("A");
-        e.setRuleOwnerDeptNm(ownerDeptNm);
-        e.setRuleOwnerEmpNo(ownerEmpNo);
-        e.setUseTp(useTp);
-        return e;
-    }
-
     // ─────────────────────────────────────────────────────────────────────────
     // SQLite(개발자 Mac local 단독 부팅) 호환 레이어 — 2026-06-06
     //  · detectSqliteDialect       : 런타임 connection product name 으로 방언 1회 감지 (profile 비의존)
@@ -2211,27 +1871,14 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /**
-     * local 프로필(SQLite 단독, 프로필 미지정 폴백 포함) 부팅 때 admin 의 로그인 잠금을 푼다 — PWD_FAIL_COUNT=0, USE_TP='Y'.
-     *
-     * <p>로그인 실패가 최대 횟수에 닿으면 USE_TP='N' 으로 잠긴다(AuthService · McmSecUserRepository#lockUser). 위의 비밀번호
-     * 강제 재설정만으로는 풀리지 않아, 공용 로컬 DB 에서 admin 이 한 번 잠기면 재기동해도 admin 으로 로그인하는 e2e 가 모두 막힌다.
-     * admin 외 계정, local-db(외부 RDB 직결)·dev·prod 는 건드리지 않는다. 이미 풀려 있으면 쓰지 않는다.
+     * local 프로필 부팅 때 admin 의 로그인 잠금을 푼다 — 본문은 {@link CoreRbacSeeder#unlockLocalAdmin()}.
+     * 기존 시험(DataInitializerLocalAdminUnlockTest)이 이 진입점을 직접 부른다.
      *
      * @return 되돌린 행 수(0 또는 1)
      */
     int unlockLocalAdmin() {
-        if (!environment.acceptsProfiles(Profiles.of("local"))) {
-            return 0;
-        }
-        int updated = nq(
-                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET PWD_FAIL_COUNT = 0, USE_TP = 'Y' " +
-                " WHERE USER_ID = 'admin' " +
-                "   AND (USE_TP IS NULL OR USE_TP <> 'Y' OR COALESCE(PWD_FAIL_COUNT, 0) <> 0)")
-                .executeUpdate();
-        if (updated > 0) {
-            log.info("[DataInitializer] local — admin 로그인 잠금 해제 (PWD_FAIL_COUNT=0, USE_TP='Y')");
-        }
-        return updated;
+        return new CoreRbacSeeder(new SeedSupport(entityManager, sqliteDialect), passwordEncoder, environment)
+                .unlockLocalAdmin();
     }
 
     /** native query 생성 공통 진입점 — SQLite 면 sanitize 후 실행, MSSQL 은 원문(no-op). */
