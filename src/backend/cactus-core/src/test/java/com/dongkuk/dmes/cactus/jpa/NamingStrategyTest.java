@@ -37,10 +37,18 @@ class NamingStrategyTest {
         }
 
         @Test
-        void Entity는_접미사가_아니어도_어디서든_지운다() {
-            // 현재 동작 (결함 후보): String.replace 라 이름 중간의 "Entity" 도 사라진다.
-            assertThat(table("parentEntityId")).isEqualTo("parent_id");
-            assertThat(table("EntityType")).isEqualTo("type");
+        void Entity_접미사는_점을_밑줄로_바꾼_뒤_끝에서_한_번만_지운다() {
+            assertThat(table("a.bEntity")).isEqualTo("a_b");
+            assertThat(table("EntityEntity")).isEqualTo("entity");
+        }
+
+        /** 결함 수정 — "Entity" 는 이름 끝(접미사)일 때만 지운다. */
+        @Test
+        void 이름_중간의_Entity는_지우지_않는다() {
+            assertThat(table("parentEntityId")).isEqualTo("parent_entity_id");
+            assertThat(table("EntityType")).isEqualTo("entity_type");
+            assertThat(table("EntityTypeEntity")).isEqualTo("entity_type");
+            assertThat(s.toPhysicalColumnName(id("targetEntityCd"), null).getText()).isEqualTo("target_entity_cd");
         }
 
         @Test
