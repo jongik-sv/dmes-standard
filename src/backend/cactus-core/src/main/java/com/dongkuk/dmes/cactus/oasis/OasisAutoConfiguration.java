@@ -124,9 +124,9 @@ public class OasisAutoConfiguration {
                         props.getTransactionManagerName());
             }
             // oasis SpringServiceStarterFactory 와 같은 그래프를 cactus 에서 직접 조립한다(refactor/framework-tx 3a).
-            // 트랜잭션 핸들러는 아직 oasis SpringTransactionHandler 그대로다.
+            // 트랜잭션 핸들러는 커밋 실패를 삼키지 않고 스레드 상태를 반드시 정리하는 cactus 하위 클래스다(3b).
             SpringTransactionHandler txHandler =
-                    new SpringTransactionHandler(new SpringApplicationContext(ctx), tmNames);
+                    new CactusSpringTransactionHandler(new SpringApplicationContext(ctx), tmNames);
             return new CactusServiceStarterFactory(
                     ctx, new CactusCachingServiceProvider(provider, cacheSize), txHandler)
                     .generateServiceStarter();

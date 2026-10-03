@@ -19,8 +19,8 @@ import org.springframework.context.ApplicationContext;
  *   └ SpringServiceStarter(ctx)
  *       └ CoreServiceStarter(provider, processStarter, transactionHandler)
  * </pre>
- * 달라진 점은 트랜잭션 핸들러를 안에서 만들지 않고 주입받는 것 하나다. 지금은 호출부가 oasis
- * {@code SpringTransactionHandler} 를 그대로 넘긴다.
+ * 달라진 점은 트랜잭션 핸들러를 안에서 만들지 않고 주입받는 것 하나다. 호출부({@link OasisAutoConfiguration})는
+ * 커밋 실패를 삼키지 않는 {@link CactusSpringTransactionHandler} 를 넘긴다(3b).
  *
  * <p>프로세스 실행기 기본값은 oasis {@code SpringServiceStarterFactory} 2인자 생성자와 같다 —
  * 클래스 이름 결정자 {@link NonModifyClassNameResolver}, 병렬 최대 스레드 {@value #MAX_THREADS},
