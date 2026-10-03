@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.cactus.oasis;
 
+import com.dongkuk.dmes.cactus.oasis.aop.OasisAopAnnotationChecker;
 import com.dongkuk.dmes.cactus.oasis.converter.MssqlColumnConverter;
 import com.dongkuk.dmes.cactus.oasis.converter.SqliteColumnConverter;
 import com.dongkuk.dmes.cactus.oasis.loader.HttpServiceDocumentLoader;
@@ -172,6 +173,19 @@ public class OasisAutoConfiguration {
         return new OasisServiceExecutor(
                 serviceStarter, springApplicationContext,
                 requestConverter, responseConverter);
+    }
+
+    /**
+     * BPMN 이 부르는 빈의 프록시 의존 어노테이션 검사기 ({@code cactus.oasis.aop-check}, 기본 warn).
+     * classpath 로더 모드는 기동 시 {@code service-path} 아래 BPMN 을 스캔해 검사하고, HTTP 로더 모드는
+     * 기동 시 BPMN 목록이 없어 검사할 수 없다는 안내만 한 번 남긴다.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public OasisAopAnnotationChecker oasisAopAnnotationChecker(OasisProperties props, ApplicationContext ctx) {
+        boolean classpathLoader = trimToNull(props.getServiceLoaderUrl()) == null;
+        return new OasisAopAnnotationChecker(ctx, props.getAopCheck(), props.getServicePath(),
+                classpathLoader, props.isTransactional());
     }
 
     /**
