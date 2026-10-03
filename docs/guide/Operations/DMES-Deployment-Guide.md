@@ -343,7 +343,8 @@ flowchart LR
 | DB | 운영 방언 DB(고객사 확정) 최소권한 계정, `ddl-auto=none`, 승인 migration만 적용 |
 | Secret | WildFly credential store/JNDI 또는 조직 secret store |
 | Portal | 동일 standalone checksum을 A/B에 배포하고 upstream 전환 |
-| Portal 필수 env | `PORT`, `HOSTNAME`, `NEXTAUTH_URL`, `AUTH_SECRET`, `AUTH_COOKIE_PREFIX`, `BACKEND_API_URL`, `BACKEND_CLIENT_KEY`, `RBAC_DEFAULT_DENY=true`, `TRUSTED_PROXY_HOPS`(앞단 단계 수, 아래 행) |
+| Portal 필수 env | `PORT`, `HOSTNAME`, `NEXTAUTH_URL`, `AUTH_SECRET`, `AUTH_COOKIE_PREFIX`, `BACKEND_API_URL`, `BACKEND_CLIENT_KEY`, `BFF_INTERNAL_SECRET`, `RBAC_DEFAULT_DENY=true`, `TRUSTED_PROXY_HOPS`(앞단 단계 수, 아래 행) |
+| MCM → Portal 권한 캐시 무효화 | MCM 환경변수 `BFF_INVALIDATE_ROLE_URL`(Portal 의 `…/api/mcm/internal/cache/invalidate-role`, 내부망 https 권장)·`BFF_INTERNAL_SECRET`(Portal 과 같은 값, `BACKEND_CLIENT_KEY` 와 다른 값 — 같거나 저장소 로컬 값이면 운영 Portal 이 거절). 둘 중 하나라도 없으면 부르지 않고 권한 변경은 Portal 캐시 TTL 5분으로 반영된다. 주소는 하나라 Portal A/B 이면 다른 노드는 TTL 로 반영된다(2026-10-03) |
 | Portal 앞단 Nginx · 사용자 IP | Portal 앞 Nginx 는 클라이언트가 보낸 값을 덮어쓴다: `proxy_set_header X-Forwarded-For $remote_addr;`. Portal 은 `TRUSTED_PROXY_HOPS`=앞단 단계 수(Nginx 한 단계면 `1`)로 두고, 그만큼 오른쪽에서 고른 주소 하나만 BE 로 넘긴다. 기본 `0` 은 XFF 를 넘기지 않는다(Next 16 은 소켓 주소를 주지 않아 위조 값과 구별할 수 없다 — `m-mcm/lib/http/forwarded-for.ts`). BE `dmes.client-ip.trusted-proxies` 에 Portal 노드 IP 를 넣어야 그 값이 화면 사용 기록에 쓰인다(2026-10-03) |
 | Portal 공존 조건 | 서로 다른 build가 A/B·rolling 중 공존하고 Server Actions를 사용하면 CI build 입력 `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`와 deployment ID를 노드 간 일치시킨다. cache/ISR을 사용하면 공유 저장소 또는 버전 고정 routing 정책 적용 |
 | Portal readiness | `/readyz`가 프로세스 생존뿐 아니라 Gateway·MCM 인증·`BACKEND_CLIENT_KEY` 의존성까지 판정 |
