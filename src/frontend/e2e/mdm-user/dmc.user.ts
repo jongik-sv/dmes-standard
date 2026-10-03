@@ -15,6 +15,9 @@ import {
   expectToast,
   footerScreenId,
   gridRow,
+  gridRowById,
+  gridRowByIndex,
+  gridRows,
   modal,
   openAs,
   openMenu,
@@ -140,13 +143,12 @@ async function openCode(page: Page, id: string) {
 }
 
 /** 확정 대기 목록·검사 결과 표는 AgDataGrid 다 — 행은 row-id(목록은 "ID-버전", 검사는 검사 번호)로 찾는다. */
-const gridRowById = (page: Page, gridTestId: string, rowId: string) =>
-  tid(page, gridTestId).locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"]`);
-const cfRow = (page: Page, id: string, ver: string) => gridRowById(page, "cf-list", `${id}-${ver}`);
-const cfCheckRow = (page: Page, no: string) => gridRowById(page, "cf-checks", no);
+const rowById = (page: Page, gridTestId: string, rowId: string) => gridRowById(tid(page, gridTestId), rowId);
+const cfRow = (page: Page, id: string, ver: string) => rowById(page, "cf-list", `${id}-${ver}`);
+const cfCheckRow = (page: Page, no: string) => rowById(page, "cf-checks", no);
 
 /** 버전 목록도 AgDataGrid 다 — 행 키(rowKey)는 버전 값이다. */
-const versionRow = (page: Page, ver: string) => gridRowById(page, "version-list", ver);
+const versionRow = (page: Page, ver: string) => rowById(page, "version-list", ver);
 
 async function selectVersion(page: Page, ver: string) {
   await versionRow(page, ver).click();
@@ -192,7 +194,7 @@ async function openTab(page: Page, tab: ItemTab) {
  * `:visible` 을 붙이는 tid() 로 찾으면 안을 못 보고, 그 안에 대한 toHaveCount(0) 은 늘 통과(거짓 통과)한다. 보이기 조건 없이 찾는다.
  */
 const cateList = (page: Page) => screen(page).locator('[data-testid="cate-list"]');
-const cateRows = (page: Page) => cateList(page).locator(".ag-center-cols-container .ag-row");
+const cateRows = (page: Page) => gridRows(cateList(page));
 /** 카테고리 표의 한 행 — ID 칸 안쪽 span 이 `cate-row-{cateId}` 다. */
 const cateRow = (page: Page, cateId: string) => cateRows(page).filter({ has: page.locator(`[data-testid="cate-row-${cateId}"]`) });
 const cateCell = (page: Page, cateId: string, colId: string) => cateRow(page, cateId).locator(`.ag-cell[col-id="${colId}"]`);
@@ -270,7 +272,7 @@ async function closeTransfer(page: Page) {
 // ── ag-grid 셀 편집 ──
 
 const codeGrid = (page: Page) => tid(page, "code-grid");
-const newRow = (grid: Locator) => grid.locator('.ag-center-cols-container .ag-row[row-index="0"]');
+const newRow = (grid: Locator) => gridRowByIndex(grid, 0);
 const cellOf = (row: Locator, colId: string) => row.locator(`.ag-cell[col-id="${colId}"]`);
 
 /** 열 가상화로 아직 그려지지 않은 열이면 가로로 밀어 그리게 한다. */
@@ -812,20 +814,20 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     // 거르기 — [이 노드로 편집]은 [코드] 탭으로 돌아온다.
     await expect(codeGrid(page)).toBeVisible();
     await expect(tid(page, "code-filter-chip")).toContainText("HR 아래");
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(codeGrid(page))).toHaveCount(2);
     // 거르는 중에 추가하면 계층 칸이 그 노드 경로로 채워진다 — 확인만 하고 취소한다.
     await tid(page, "code-add").click();
     await expect(cellOf(newRow(codeGrid(page)), "lvl1")).toHaveText("HR");
     await newRow(codeGrid(page)).getByRole("button", { name: "취소" }).click();
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(codeGrid(page))).toHaveCount(2);
     await tid(page, "code-filter-clear").click();
     await expect(tid(page, "code-filter-chip")).toHaveCount(0);
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(4);
+    await expect(gridRows(codeGrid(page))).toHaveCount(4);
 
     // 닫힌 코드 보기 — v1.000 은 닫힌 행이 없어 그대로다.
     await tid(page, "code-closed-toggle").getByText("닫힌 코드 보기").click();
     await expect(tid(page, "code-closed-toggle").locator("input")).toBeChecked();
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(4);
+    await expect(gridRows(codeGrid(page))).toHaveCount(4);
     await tid(page, "code-closed-toggle").getByText("닫힌 코드 보기").click();
     await expect(tid(page, "code-closed-toggle").locator("input")).not.toBeChecked();
 
@@ -837,7 +839,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "code-preview-step-1").locator("option")).toContainText(["HR01 (코드, 열연 1호)", "HR02 (코드, 열연 2호)"]);
     await tid(page, "code-preview-mode").getByText("목록·근거").click();
     const previewGrid = tid(page, "code-preview");
-    await expect(previewGrid.locator(".ag-center-cols-container .ag-row")).toHaveCount(4, { timeout: 20_000 });
+    await expect(gridRows(previewGrid)).toHaveCount(4, { timeout: 20_000 });
     await expect(gridRow(previewGrid, "CR01", "code").locator('.ag-cell[col-id="path"]')).toHaveText("CR > CRA");
     await snap(page, "dmc-codeItemEdit-04-preview-list");
     await tid(page, "code-preview-mode").getByText("콤보").click();
@@ -845,7 +847,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
 
     // 조회 버튼으로 다시 읽어도 같다.
     await button(page, "조회").click();
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(4, { timeout: 20_000 });
+    await expect(gridRows(codeGrid(page))).toHaveCount(4, { timeout: 20_000 });
     watcher.assertClean("codeItemEdit");
   });
 
@@ -868,7 +870,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await codeRow(page, "TMP1").getByRole("button", { name: "되돌리기" }).click();
     await expectToast(page, "되돌렸습니다");
     await expect(codeRow(page, "TMP1")).toHaveCount(0, { timeout: 20_000 });
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(3);
+    await expect(gridRows(codeGrid(page))).toHaveCount(3);
     // 탭 버튼으로 [트리] 탭에 갔다가 [코드] 탭으로 돌아오고, 오른쪽은 [코드 테스트] → [카테고리 편집] 으로 둔다.
     await openTab(page, "tree");
     await openTab(page, "grid");

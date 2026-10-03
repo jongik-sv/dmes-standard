@@ -18,6 +18,8 @@ import {
   expectToast,
   footerScreenId,
   gridRow,
+  gridRowById,
+  gridRows,
   modal,
   openAs,
   openMenu,
@@ -181,7 +183,7 @@ async function saveLabels(page: Page, labels: Partial<Record<"attr01Name" | "att
 // ── 항목 편집(항목 탭) ──
 
 const itemList = (page: Page) => tid(page, "item-list");
-const itemRow = (page: Page, code: string) => itemList(page).locator(`.ag-center-cols-container .ag-row[row-id="${code}"]`);
+const itemRow = (page: Page, code: string) => gridRowById(itemList(page), code);
 const itemCell = (page: Page, code: string, col: string) => itemRow(page, code).locator(`.ag-cell[col-id="${col}"]`);
 const itemCount = (page: Page) => itemList(page).locator(".grid-panel-count").first();
 
@@ -298,7 +300,7 @@ async function addCategory(page: Page, id: string, name: string, kind: "REGEX" |
 const catePanel = (page: Page) =>
   // 제목 칸(.grid-panel-title)에는 건수도 함께 있으므로 제목 글자 span 만 본다.
   screen(page).locator(".grid-panel").filter({ has: page.locator(".grid-panel-title > span").filter({ hasText: /^카테고리$/ }) });
-const cateRows = (page: Page) => catePanel(page).locator(".ag-center-cols-container .ag-row");
+const cateRows = (page: Page) => gridRows(catePanel(page));
 const cateRow = (page: Page, cateId: string) => cateRows(page).filter({ has: page.locator(`[data-testid="cate-row-${cateId}"]`) });
 const cateCell = (page: Page, cateId: string, colId: string) => cateRow(page, cateId).locator(`.ag-cell[col-id="${colId}"]`);
 /** 카테고리를 고른다 — 행을 누른다(소속·이력이 그 카테고리로 바뀐다). */
@@ -318,7 +320,7 @@ async function closeDialog(page: Page) {
 // ── 이력(항목 이력 패널·카테고리 이력 패널이 같은 타임라인을 쓴다) ──
 
 const timelineRows = (page: Page, panelTestId: string) =>
-  tid(page, panelTestId).locator(".ag-center-cols-container .ag-row");
+  gridRows(tid(page, panelTestId));
 
 // ═══════════════════════════ A. 마루 데이터 등록·수정 ═══════════════════════════
 
@@ -777,7 +779,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await tid(page, "item-history-CNSHA").click();
     const panel = tid(page, "item-history");
     await expect(panel).toContainText("이력 — CNSHA");
-    const rows = panel.locator(".ag-center-cols-container .ag-row");
+    const rows = gridRows(panel);
     await expect(rows).toHaveCount(2, { timeout: 20_000 });
     await expect(rows.nth(0)).toContainText("생성");
     await expect(rows.nth(1)).toContainText("변경");

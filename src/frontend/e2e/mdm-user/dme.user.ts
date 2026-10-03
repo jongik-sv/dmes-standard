@@ -16,6 +16,8 @@ import {
   expectToast,
   footerScreenId,
   gridRow,
+  gridRowById,
+  gridRows,
   modal,
   openAs,
   openMenu,
@@ -140,7 +142,7 @@ async function searchRule(page: Page, keyword: string, opts: { kind?: string; st
 const versionsCard = (page: Page) => tid(page, "rule-card-versions");
 /** 상세 ② 버전 표의 한 줄 — 행 키(row-id)는 서버 버전 표기("1.000")다(D-144). */
 const detailVerRow = (page: Page, ver: string) =>
-  tid(page, "rule-version-table").locator(`.ag-center-cols-container .ag-row[row-id="${ver}"]`);
+  gridRowById(tid(page, "rule-version-table"), ver);
 
 /**
  * ruleMng 에서 룰을 조회해 그 행을 눌러 오른쪽 상세를 연다. 룰 ID 링크는 룰 화면 탭을 열므로 룰명 칸을 누른다(기능설계서 G-001).
@@ -248,8 +250,7 @@ const colSelect = (page: Page, key: string, field: string, value: string) => gri
 
 /** 열 설정 표의 새 열 키(`n{번호}`) 목록. */
 async function newColKeys(page: Page): Promise<string[]> {
-  const ids = await colTable(page)
-    .locator(".ag-center-cols-container .ag-row")
+  const ids = await gridRows(colTable(page))
     .evaluateAll((els) => els.map((e) => e.getAttribute("row-id") ?? ""));
   return ids.filter((i) => /^n\d+$/.test(i));
 }
@@ -352,7 +353,7 @@ async function dtEqual(page: Page, rowId: number, varId: number, value: string) 
 const vtCard = (page: Page) => tid(page, "rule-card-value-test");
 const tcCard = (page: Page) => tid(page, "rule-card-test-cases");
 /** 케이스 표(AgDataGrid)의 행들. */
-const caseRows = (page: Page) => tcCard(page).locator(".ag-center-cols-container .ag-row");
+const caseRows = (page: Page) => gridRows(tcCard(page));
 /** 케이스 줄 — 이름 칸이 name 으로 시작하고 복사본("(복사)")이 아닌 줄(설명은 이름 뒤에 " · " 로 붙는다). */
 const caseRow = (page: Page, name: string) =>
   caseRows(page).filter({ has: page.locator('.ag-cell[col-id="name"]', { hasText: new RegExp(`^\\s*${escapeRe(name)}(?! \\(복사\\))`) }) });
@@ -373,7 +374,7 @@ async function deletePickedCases(page: Page, count: number) {
 }
 /** 세트 입출력 표(AgDataGrid)의 한 행 — 행 키는 변수명이다. kind: inputs(입력 변수) | results(결과 변수). */
 const ioRow = (page: Page, kind: "inputs" | "results", name: string): Locator =>
-  page.getByTestId(`set-io-${kind}`).locator(`.ag-center-cols-container .ag-row[row-id="${name}"]`);
+  gridRowById(page.getByTestId(`set-io-${kind}`), name);
 
 const resultValue = (page: Page, name: string) => tid(page, "vt-result-values").locator("tr", { hasText: name }).locator("td");
 
@@ -402,8 +403,8 @@ async function vtRun(page: Page) {
 // ── ruleConfirm ──
 
 // 버전 확정 화면의 검사 결과·변경 표는 AgDataGrid 다 — 행은 row-id(검사 항목 / row_id)로 찾는다.
-const rcCheckRow = (page: Page, item: string) => tid(page, "rc-checks").locator(`.ag-center-cols-container .ag-row[row-id="${item}"]`);
-const rcDiffRow = (page: Page, rowId: number | string) => tid(page, "rc-diff").locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"]`);
+const rcCheckRow = (page: Page, item: string) => gridRowById(tid(page, "rc-checks"), item);
+const rcDiffRow = (page: Page, rowId: number | string) => gridRowById(tid(page, "rc-diff"), String(rowId));
 const rcDiffKind = (page: Page, rowId: number | string) => rcDiffRow(page, rowId).locator('.ag-cell[col-id="kindLabel"]');
 
 async function rcValidate(page: Page, applyFrom: string) {
@@ -756,7 +757,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tid(page, "rule-header-description")).toHaveValue("E2E 사용자 여정으로 만든 판정 룰");
     await expect(tid(page, "rule-header-usage")).toHaveValue("E2E 품질 판정 화면");
     // 버전 1 DRAFT 하나 — 미적용이 있어 새 버전이 막히고 안내가 보인다. 작성 중 룰은 폐기 버튼이 없다(INUSE 만).
-    await expect(tid(page, "rule-version-table").locator(".ag-center-cols-container .ag-row")).toHaveCount(1);
+    await expect(gridRows(tid(page, "rule-version-table"))).toHaveCount(1);
     await expect(tid(page, "rule-version-table")).toContainText(STW);
     await expect(tid(page, "rule-ver-new-major")).toBeDisabled();
     await expect(tid(page, "rule-ver-new-minor")).toBeDisabled();
@@ -1120,7 +1121,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tid(page, "vt-result-hits")).toContainText(`row_id ${ids[0]}`);
     await expect(tid(page, "vt-result-on-table")).toBeVisible();
     await expect(tid(page, "dt-test-shown")).toContainText("편집본");
-    await expect(dtGrid(page).locator(`.ag-center-cols-container .ag-row[row-id="${ids[0]}"]`)).toHaveClass(/ag-row-test-hit/);
+    await expect(gridRowById(dtGrid(page), String(ids[0]))).toHaveClass(/ag-row-test-hit/);
     await tid(page, "rule-card-test-result").scrollIntoViewIfNeeded();
     await snap(page, "dme-ruleEdit-VT-01-body");
 
@@ -1343,7 +1344,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, "rc-keyword").fill(RULE);
     await tid(page, "rc-search").click();
     // 확정 대기 목록은 AgDataGrid 다 — rc-row-* 는 룰 ID 칸 표지이고, 행은 row-id(룰 ID-버전, 버전은 "1.000" 표기 — D-144)로 찾는다.
-    const row = tid(page, "rc-list").locator(`.ag-center-cols-container .ag-row[row-id="${RULE}-1.000"]`);
+    const row = gridRowById(tid(page, "rc-list"), `${RULE}-1.000`);
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(row).toContainText(NAME2);
     await expect(row).toContainText("DECISION");
@@ -1361,7 +1362,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     // 같은 행 보기 — 최초 버전은 모두 추가라 같은 행이 없다.
     await tid(page, "rc-diff-show-same").getByText("같은 행 보기").click();
     await expect(
-      tid(page, "rc-diff").locator(".ag-center-cols-container .ag-row")
+      gridRows(tid(page, "rc-diff"))
         .filter({ has: page.locator('.ag-cell[col-id="kindLabel"]', { hasText: /^추가$/ }) }),
     ).toHaveCount(4);
     await tid(page, "rc-diff-show-same").getByText("같은 행 보기").click();
@@ -2090,7 +2091,7 @@ test.describe("C 룰 세트", () => {
     });
 
     // 만든 케이스를 지워 데이터를 남기지 않는다.
-    await tid(page, "case-grid").locator(".ag-center-cols-container .ag-row").first().click();
+    await gridRows(tid(page, "case-grid")).first().click();
     await tid(page, "case-delete").click();
     await tid(page, "case-delete-confirm").click();
     await expect(tid(page, "case-grid")).not.toContainText(`E2E 케이스 ${RUN}`, { timeout: 20_000 });

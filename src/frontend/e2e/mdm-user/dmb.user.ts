@@ -11,7 +11,10 @@ import {
   errorBody,
   expectErrorModal as expectErrorModalBase,
   expectToast,
+  gridCells,
   gridRow,
+  gridRowByIndex,
+  gridRows,
   modal,
   openAs,
   openMenu,
@@ -95,7 +98,7 @@ const headerGrid = (page: Page) => tid(page, "header-items");
 const layoutGrid = (page: Page) => tid(page, "layout-items");
 const stackGrid = (page: Page) => tid(page, "layout-header-stack");
 const itemRow = (grid: Locator, text: string): Locator =>
-  grid.locator(".ag-center-cols-container .ag-row").filter({ hasText: text }).first();
+  gridRows(grid).filter({ hasText: text }).first();
 
 /**
  * 세로 가상화로 아직 그려지지 않은 행이면 그리드를 끝까지 스크롤해 그리게 한다 — [헤더 추가] 목록은 값이 쌓일수록
@@ -221,7 +224,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expect(tid(page, "header-search-keyword")).toBeVisible();
     await expect(tid(page, "header-list-empty")).toHaveText("조회된 헤더가 없습니다");
     await button(page, "조회").click();
-    await expect(tid(page, "header-list").locator(".ag-center-cols-container .ag-row").first()).toBeVisible({ timeout: 20_000 });
+    await expect(gridRows(tid(page, "header-list")).first()).toBeVisible({ timeout: 20_000 });
     await expect(screen(page).getByText("목록에서 헤더를 선택하거나 [신규] 를 누르세요.")).toBeVisible();
     await expect(button(page, "조회")).toBeEnabled();
     await expect(button(page, "신규")).toBeEnabled();
@@ -268,14 +271,14 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "item-detail-filler-length").fill("6");
 
     const grid = headerGrid(page);
-    await expect(grid.locator(".ag-center-cols-container .ag-cell[col-id=\"OFFSET\"]")).toHaveText(["0", "8", "12", "22"]);
+    await expect(gridCells(grid, "OFFSET")).toHaveText(["0", "8", "12", "22"]);
     await expect(tid(page, "header-length")).toHaveText("28 바이트 (4항목)");
     await snap(page, "dmb-headerMng-03-editing");
     await layout(page, "headerMng 편집 중");
 
     // 드래그 — FILLER 를 맨 앞으로.
     await dragRow(page, grid, "FILLER", "TC_CD");
-    await expect(grid.locator(".ag-center-cols-container .ag-cell[col-id=\"OFFSET\"]")).toHaveText(["0", "6", "14", "18"], { timeout: 10_000 });
+    await expect(gridCells(grid, "OFFSET")).toHaveText(["0", "6", "14", "18"], { timeout: 10_000 });
     await expect(tid(page, "header-length")).toHaveText("28 바이트 (4항목)");
     await snap(page, "dmb-headerMng-03-dragged");
 
@@ -365,13 +368,13 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     // 목록에서 "사용 전문" 열이 0 이 아닌 첫 행을 고른다.
     await tid(page, "header-search-keyword").fill("");
     await button(page, "조회").click();
-    const used = tid(page, "header-list").locator(".ag-center-cols-container .ag-row")
+    const used = gridRows(tid(page, "header-list"))
       .filter({ has: page.locator('.ag-cell[col-id="USED_BY_COUNT"]', { hasText: /[1-9]/ }) }).first();
     await expect(used).toBeVisible({ timeout: 20_000 });
     await used.click();
     const usage = tid(page, "header-usage");
     await expect(usage).not.toContainText("이 헤더를 쓰는 전문이 없습니다", { timeout: 20_000 });
-    await expect(usage.locator(".ag-center-cols-container .ag-row").first()).toBeVisible();
+    await expect(gridRows(usage).first()).toBeVisible();
     await snap(page, "dmb-headerMng-07-impact");
     // 조회만 했다 — 저장 버튼을 누르지 않는다(공용 샘플 데이터 보호).
     watcher.assertClean("headerMng");
@@ -392,7 +395,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "item-detail-filler-length").fill("4");
 
     const grid = headerGrid(page);
-    await expect(grid.locator(".ag-center-cols-container .ag-cell[col-id=\"OFFSET\"]")).toHaveText(["0", "2", "6"]);
+    await expect(gridCells(grid, "OFFSET")).toHaveText(["0", "2", "6"]);
     await expect(tid(page, "header-length")).toHaveText("10 바이트 (3항목)");
     await layout(page, "headerMng H2 편집 중");
     await snap(page, "dmb-headerMng-08-hdr2");
@@ -482,7 +485,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expect(tid(page, "layout-search-keyword")).toBeVisible();
     await expect(tid(page, "layout-list-empty")).toHaveText("조회된 전문이 없습니다");
     await button(page, "조회").click();
-    await expect(tid(page, "layout-list").locator(".ag-center-cols-container .ag-row").first()).toBeVisible({ timeout: 20_000 });
+    await expect(gridRows(tid(page, "layout-list")).first()).toBeVisible({ timeout: 20_000 });
     for (const t of ["layout-tab-edit", "layout-tab-check", "layout-tab-version"]) await expect(tid(page, t)).toBeVisible();
     await expect(screen(page).getByText("목록에서 전문을 선택하거나 [신규] 를 누르세요.")).toBeVisible();
     await expect(button(page, "저장")).toBeDisabled();
@@ -504,7 +507,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "layout-form-name").fill(LAYOUT_NAME);
     await tid(page, "layout-form-eai").selectOption(EAI1);
     const stack = stackGrid(page);
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRows(stack)).toHaveCount(1, { timeout: 20_000 });
     await expect(stack).toContainText(HDR1);
     await expect(stack.locator('.ag-cell[col-id="TOTAL_LENGTH"]').first()).toHaveText("28");
     await expect(stack.locator('.ag-cell[col-id="POSITION"]').first()).toHaveText("1-28");
@@ -515,15 +518,15 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expect(pick).toBeVisible();
     await expect(pick.locator(".ag-row").filter({ hasText: HDR1 })).toHaveCount(0);
     await (await revealRow(pick, HDR2)).click();
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(stack)).toHaveCount(2);
     await expect(stack).toContainText(HDR2);
 
     // 빼기 → 다시 추가(왕복 확인).
     await itemRow(stack, HDR2).getByRole("button", { name: "빼기" }).click();
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(1);
+    await expect(gridRows(stack)).toHaveCount(1);
     await tid(page, "layout-header-add").click();
     await (await revealRow(tid(page, "header-pick-modal"), HDR2)).click();
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(stack)).toHaveCount(2);
 
     await tid(page, "layout-form-snd").selectOption("MES");
     await tid(page, "layout-form-rcv").selectOption("ERP");
@@ -540,7 +543,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "item-detail-filler-length").fill("29");
 
     const grid = layoutGrid(page);
-    await expect(grid.locator(".ag-center-cols-container .ag-cell[col-id=\"OFFSET\"]")).toHaveText(["38", "58", "66"]);
+    await expect(gridCells(grid, "OFFSET")).toHaveText(["38", "58", "66"]);
     await expect(tid(page, "layout-total-length")).toHaveText("헤더 38 (28 + 10) + 본문 57 (20 + 8 + 29) = 95 바이트");
     await snap(page, "dmb-layoutMng-03-editing");
     await layout(page, "layoutMng 편집 중");
@@ -660,9 +663,9 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expect(tid(page, "layout-ver-select")).toHaveValue("1.000");
     await tid(page, "layout-tab-version").click();
     const versions = tid(page, "version-list");
-    const vrow = (i: number) => versions.locator(`.ag-center-cols-container .ag-row[row-index="${i}"]`);
+    const vrow = (i: number) => gridRowByIndex(versions, i);
     // 저장은 버전을 만들지 않는다 — 확정 전이라 v1.000 작성 중 한 줄이고 전환 방식은 아직 없다
-    await expect(versions.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRows(versions)).toHaveCount(1, { timeout: 20_000 });
     await expect(vrow(0).locator('.ag-cell[col-id="VER"]')).toHaveText("v1.000");
     await expect(vrow(0)).toContainText("작성 중");
     await expect(vrow(0).locator('.ag-cell[col-id="SWITCH_MODE"]')).toHaveText("-");
@@ -682,7 +685,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     // 버전 탭에 이미 있다(TC-DMB-LAY-07 에서 이동).
     await tid(page, "impact-keyword").fill("COIL_THK");
     await tid(page, "impact-search").click();
-    const row = tid(page, "impact-list").locator(".ag-center-cols-container .ag-row").filter({ hasText: LAYOUT_NAME }).first();
+    const row = gridRows(tid(page, "impact-list")).filter({ hasText: LAYOUT_NAME }).first();
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(row).toContainText("MES → ERP");
     // 3단계(D-148, 1d23688e)부터 본문 항목 offset 은 본문 기준 상대값이다(LayoutImpactFinder) — 전문 전체 기준 91 에서 헤더 38바이트를 뺀 53.

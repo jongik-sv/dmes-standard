@@ -9,6 +9,7 @@ import {
   Watcher,
   authFile,
   gridRow,
+  gridRows,
   loginUI,
   modal,
   openMenu,
@@ -83,7 +84,7 @@ test("SETUP-01~04 시험 사용자 등록·역할 부여·비밀번호 초기화
           .click();
         const lov = modal(page);
         await expect(lov).toContainText("부서 검색");
-        await lov.locator(".ag-center-cols-container .ag-row").first().click();
+        await gridRows(lov).first().click();
         await lov.getByRole("button", { name: "확인" }).click();
         await expect(lov).toBeHidden();
         await expect(detailInput(page, "부서코드 \\*")).not.toHaveValue("");

@@ -11,7 +11,9 @@ import {
   expectErrorModal,
   expectToast,
   gridRow,
+  gridRowById,
   gridRowCount,
+  gridRows,
   modal,
   openAs,
   openMenu,
@@ -67,8 +69,7 @@ type ScreenId = keyof typeof MENU;
 
 /** 테스트 케이스 표(AgDataGrid)의 n 번째 케이스 칸을 눌러 값을 넣는다 — 행 키는 1부터, 결과 칸(RESULT_TEXT)이 있는 행이 이 표의 행이다. 기대 칸은 true/false 선택이다. */
 async function editCaseCell(root: Locator, n: number, col: "VALUE" | "EXPECT" | "MEMO", value: string) {
-  const row = root
-    .locator(`.ag-center-cols-container .ag-row[row-id="${n}"]`)
+  const row = gridRowById(root, String(n))
     .filter({ has: root.page().locator('.ag-cell[col-id="RESULT_TEXT"]') });
   await row.locator(`.ag-cell[col-id="${col}"]`).click();
   if (col === "EXPECT") {
@@ -120,10 +121,10 @@ const calcValue = (page: Page): Locator => screen(page).getByLabel("환산할 �
 const calcUnit = (page: Page): Locator => screen(page).getByRole("combobox", { name: "입력 단위", exact: true });
 const calcGrid = (page: Page): Locator =>
   screen(page).locator(".ag-root-wrapper").filter({ has: page.locator(".ag-header-cell-text", { hasText: /^환산값$/ }) });
-const calcRows = (page: Page): Locator => calcGrid(page).locator(".ag-center-cols-container .ag-row");
+const calcRows = (page: Page): Locator => gridRows(calcGrid(page));
 /** 결과 표 행 — 행 키(row-id)는 단위 코드다(rowKey="unitCode"). */
 const calcRow = (page: Page, unitCode: string): Locator =>
-  calcGrid(page).locator(`.ag-center-cols-container .ag-row[row-id="${unitCode}"]`);
+  gridRowById(calcGrid(page), unitCode);
 const calcCell = (page: Page, unitCode: string): Locator => calcRow(page, unitCode).locator('.ag-cell[col-id="display"]');
 
 /** 입력 단위 콤보에서 단위를 고른다 — 칸에 코드를 쳐서 좁히고 "코드 (차원)" 항목을 누른다. */
@@ -140,7 +141,7 @@ async function chooseCalcUnit(page: Page, unitCode: string) {
  * 처리 결과(등록됨·용어 등록 버튼)는 같은 행의 처리 칸에 있다. 그래서 그 표지를 가진 행 전체로 본다.
  */
 const tokenRow = (page: Page, n: number): Locator =>
-  screen(page).locator(".ag-center-cols-container .ag-row").filter({ has: page.locator(`[data-testid="token-row-${n}"]`) });
+  gridRows(screen(page)).filter({ has: page.locator(`[data-testid="token-row-${n}"]`) });
 
 /** SearchArea 안 SearchField(label) — <table> 이 아니라 .search-field div 구조라 field() 와 다른 셀렉터를 쓴다. */
 function searchField(page: Page, label: string): Locator {
@@ -165,8 +166,7 @@ function panelByTitle(page: Page, title: string): Locator {
  */
 function domainRow(page: Page, name: string): Locator {
   const grid = panelByTitle(page, "도메인 목록");
-  return grid
-    .locator(".ag-center-cols-container .ag-row")
+  return gridRows(grid)
     .filter({ has: page.locator('.ag-cell[col-id="_NAME"]', { hasText: new RegExp(`^[\\s\\u3000]*(└ )?${escapeRe(name)}\\u200B?\\s*$`) }) });
 }
 
@@ -820,7 +820,7 @@ test.describe("D 컬럼 사전", () => {
     await snap(page, "dma-columnMng-01-initial");
 
     await button(page, "조회").click();
-    await expect(tid(page, "column-list").locator(".ag-center-cols-container .ag-row").first()).toBeVisible({ timeout: 20_000 });
+    await expect(gridRows(tid(page, "column-list")).first()).toBeVisible({ timeout: 20_000 });
     watcher.assertClean("columnMng");
   });
 
@@ -886,10 +886,10 @@ test.describe("D 컬럼 사전", () => {
     // 내장 select 편집기 자동화가 불안정해 값은 넣지 않는다 — 보고서 관찰 항목).
     const sysGrid = tid(page, "system-grid");
     await screen(page).getByRole("button", { name: "행추가" }).click();
-    await expect(sysGrid.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 10_000 });
+    await expect(gridRows(sysGrid)).toHaveCount(1, { timeout: 10_000 });
     await sysGrid.locator('.ag-cell[col-id="note"]').first().click();
     await screen(page).getByRole("button", { name: "행삭제" }).click();
-    await expect(sysGrid.locator(".ag-center-cols-container .ag-row")).toHaveCount(0, { timeout: 10_000 });
+    await expect(gridRows(sysGrid)).toHaveCount(0, { timeout: 10_000 });
     watcher.assertClean("columnMng");
   });
 
@@ -1062,9 +1062,9 @@ test.describe("dma 화면 연결·권한", () => {
       // columnMng — 첫 진입은 조회하지 않는다(cf4fbb05). [조회]로 목록을 받아 첫 행으로 조회를 확인하고,
       // 신규·저장이 막혀 있는지 본다(분해는 READ 등급이라 켜져 있다 — 설계).
       await openMenu(page, TRAIL(MENU.columnMng), "columnMng");
-      await expect(tid(page, "column-list").locator(".ag-center-cols-container .ag-row")).toHaveCount(0);
+      await expect(gridRows(tid(page, "column-list"))).toHaveCount(0);
       await button(page, "조회").click();
-      await expect(tid(page, "column-list").locator(".ag-center-cols-container .ag-row").first()).toBeVisible({ timeout: 20_000 });
+      await expect(gridRows(tid(page, "column-list")).first()).toBeVisible({ timeout: 20_000 });
       await expect(button(page, "신규")).toBeDisabled();
       await expect(button(page, "저장")).toBeDisabled();
       await tid(page, "gen-input").fill("아무값");
