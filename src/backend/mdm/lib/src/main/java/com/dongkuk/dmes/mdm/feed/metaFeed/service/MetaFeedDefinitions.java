@@ -68,6 +68,11 @@ public class MetaFeedDefinitions {
         this.timeline = timeline;
     }
 
+    /** 코드 원장 질의 — {@link MetaFeedVersioned} 가 코드 목차·본문을 만들 때 쓴다. */
+    MasterCodeLedgerQueries ledger() {
+        return ledger;
+    }
+
     public MetaFeedResult rules(Collection<String> ruleIds) {
         Map<String, Object> found = new LinkedHashMap<>();
         Map<String, String> failed = new LinkedHashMap<>();

@@ -1,26 +1,37 @@
 package com.dongkuk.dmes.mdm.feed.metaFeed.service;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
+import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
+import com.dongkuk.dmes.mdm.common.mastercode.MdmCodeLookup;
 import com.dongkuk.dmes.mdm.common.metarev.MetaTargetType;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
 import com.dongkuk.dmes.mdm.common.rule.definition.StoredDefinitionException;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.dmb.layout.LayoutReleaseTimeline;
 import com.dongkuk.dmes.mdm.entity.MdmRule;
 import com.dongkuk.dmes.mdm.entity.MdmRuleVer;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import kr.dongkuk.maru.mdm.engine.code.CodeRowsProjection;
+import kr.dongkuk.maru.mdm.engine.code.CodeVersionSlicer;
+import kr.dongkuk.maru.mdm.engine.code.CodeVersions;
+import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
+import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeVersionRow;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
 import org.springframework.stereotype.Component;
 
 /**
  * 메타 피드 목차·본문(D-154, 스펙 2026-10-03-mdm-meta-cache-per-version §4.1·§4.2). 본문 값은 {@code part} 없는 응답의 목록 원소와 같은 조립을
  * 쓴다({@link MetaFeedDefinitions}). 목차와 {@code current} 본문은 같은 읽기 트랜잭션에서 만든다(호출자 {@code MetaFeedService.view}).
+ * 코드 본문은 원장 → 투영(D-152) → 자르기. SQL 버전 거르기 최적화는 후속(스펙 §4.2·§11).
  */
 @Component
 public class MetaFeedVersioned {
@@ -41,7 +52,8 @@ public class MetaFeedVersioned {
             case RULE -> rulesToc(keys, at, b);
             case RULE_SET -> setsToc(keys, at, b);
             case LAYOUT -> layoutsToc(keys, at, b);
-            default -> throw MetaFeedService.invalid("part=TOC 를 아직 받지 않는 대상입니다: " + type);
+            case CODE -> codesToc(keys, at, b);
+            case COLUMN, DOMAIN -> throw new IllegalStateException("COLUMN·DOMAIN 은 part 가 NONE 이다");
         }
         return b.build();
     }
@@ -52,7 +64,8 @@ public class MetaFeedVersioned {
             case RULE -> ruleBodies(keys, b);
             case RULE_SET -> setBodies(keys, b);
             case LAYOUT -> layoutBodies(keys, b);
-            default -> throw MetaFeedService.invalid("part=BODY 를 아직 받지 않는 대상입니다: " + type);
+            case CODE -> codeBodies(keys, b);
+            case COLUMN, DOMAIN -> throw new IllegalStateException("COLUMN·DOMAIN 은 part 가 NONE 이다");
         }
         return b.build();
     }
@@ -164,6 +177,51 @@ public class MetaFeedVersioned {
                 },
                 LayoutReleaseTimeline.ReleasedVersion::ver,
                 (k, v) -> MetaFeedDefinitions.layoutVersion(v));
+    }
+
+    private void codesToc(List<String> ids, LocalDateTime at, MetaFeedVersionedResult.Builder b) {
+        MasterCodeLedgerQueries ledger = definitions.ledger();
+        for (String id : ids) {
+            Optional<MasterCodeLedgerQueries.Header> header = ledger.header(id);
+            if (header.isEmpty()) {
+                continue;
+            }
+            List<CodeVersionRow> released = ledger.versions(id).stream()
+                    .filter(v -> RELEASED.equals(v.status()))
+                    .map(v -> new CodeVersionRow(VersionNumbers.scaled(v.ver()), v.status(), v.applyFrom(), v.applyTo()))
+                    .sorted(Comparator.comparing(CodeVersionRow::ver))
+                    .toList();
+            try { // 코드 하나의 저장값이 깨져도(잘못된 REGEX·모르는 defTarget) 그 키만 failed — 묶음 거부는 옛 MDM 신호(나)로 읽힌다
+                Map<String, Object> current = at == null ? null : CodeVersions.select(released, at)
+                        .map(ver -> MetaFeedVersionedResult.current(ver, MetaFeedJson.plain(CodeVersionSlicer.slice(projected(id), ver))))
+                        .orElse(null);
+                Map<String, Object> head = new LinkedHashMap<>();
+                head.put("maruCodeId", header.get().maruCodeId());
+                head.put("status", header.get().status());
+                b.toc(id, MetaFeedVersionedResult.toc(head, released.stream()
+                        .map(v -> MetaFeedVersionedResult.tocVersion(v.ver(), v.status(), v.applyFrom(), v.applyTo())).toList()), current);
+            } catch (RuntimeException e) {
+                b.tocFailed(id, message(e));
+            }
+        }
+    }
+
+    /** 투영한 코드와 그 안의 RELEASED 버전 행 하나 — 한 코드의 여러 버전이 읽기·투영을 한 번만 하도록 {@code rows} 를 공유한다. */
+    private record CodeVer(CodeRows rows, CodeVersionRow row) {
+    }
+
+    /** 본문 루프는 T5 의 {@code renderBodies} 가 한 번만 쓴다 — 여기는 적재(원장 → 투영)와 렌더(자르기) 두 식이다. 저장값이 깨진 코드는 그 쌍만 failed(렌더 예외). */
+    private void codeBodies(List<MetaFeedService.BodyKey> keys, MetaFeedVersionedResult.Builder b) {
+        this.<CodeVer>renderBodies(keys, b,
+                id -> new MdmCodeLookup(definitions.ledger()).code(id).map(CodeRowsProjection::releasedOnly)
+                        .map(rows -> Loaded.of(rows.versions().stream().map(v -> new CodeVer(rows, v)).toList()))
+                        .orElse(Loaded.of(List.of())),
+                c -> c.row().ver(),
+                (k, c) -> MetaFeedJson.plain(CodeVersionSlicer.slice(c.rows(), k.ver())));
+    }
+
+    private CodeRows projected(String id) {
+        return CodeRowsProjection.releasedOnly(new MdmCodeLookup(definitions.ledger()).code(id).orElseThrow());
     }
 
     /** 적재 결과 — 목록 또는 실패 메시지. 실패면 그 키의 모든 쌍이 같은 메시지로 failed 가 된다. */

@@ -119,6 +119,8 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | `layouts` | `layoutIds[]` | 전문별 RELEASED 버전 **전체**(D-144 3단계) — 버전마다 `ver`(문자열 `"1.000"`)·`applyFrom`·`applyTo` 와, 그 구간을 쌓은 헤더 버전 경계로 나눈 합성 구간 `segments[{applyFrom, applyTo, snapshot}]`(`MdmLayoutSnapshot`). 헤더 레이아웃은 빠지고, 어느 구간이든 합성이 깨진 전문은 그 키만 failed(Ruling R4). 정상 운영 경로의 구간 빈틈(쌓인 헤더의 첫 버전 확정 취소 등)은 헤더 확정 취소 가드(판정 P3-22 — 쌓은 RELEASED 전문의 적용 구간이 합성되지 않게 되면 원장에서 거부)가 막으므로, failed 는 원장 손상 같은 예외 상황에서만 생긴다 |
 | `force` | `type`, `keys[]`, `kind`(`EVICT`·`RELOAD`) | 추가된 `REV_SEQ` 범위. SYSADMIN 만 |
 
+> D-154(2026-10-03) — RULE·RULE_SET·CODE·LAYOUT 은 `part=TOC|BODY`·`at` 으로 목차와 버전 본문을 따로 준다. [버전별 적재 설계](2026-10-03-mdm-meta-cache-per-version-design.md) §4
+
 - 조립 재사용: 유효 도메인은 `DefaultMdmEffectiveDomainResolver`·`EffectiveDomainView`, 룰은 `RuleQueries.versions` + `StoredRuleDefinitions`·`RuleDefinitionAssembler`, 룰세트는 `StoredDefinitionLookup.releasedSets`(같은 클래스의 `ruleSet(setId, evalTs)` 와 같은 `toDefinition`·`RuleSetVersionQueries`), 코드는 `MdmCodeLookup.code` 와 같은 쿼리(`MasterCodeLedgerQueries`). `MdmCodeLookup`·`StoredDefinitionLookup` 을 빈으로 만들면 안 된다(D-077, ADR-0005 가드 테스트). 서비스 안에서 `new` 로 쓴다.
 - 컬럼 메타 조립은 새 코드다. `DomainTestCaseRunner.definition` 의 규칙(유효 표준식은 `chainStdExpr`, 비즈니스식·필수 변수·코드 참조·타입·소수 자리는 `EffectiveDomainView`)을 따르고, 테이블 칼럼 `REQUIRED`·`DEFAULT_VALUE`·`REF_KIND/TARGET/CATE_ID`·표시명·설명을 더한다. 도메인 없는 컬럼(V16 이후 nullable)은 도메인 칸을 비운다.
 - 인증: 기존 채널 그대로다. 호출자는 `X-Client-Key` + `X-Authenticated-User`(`system:{모듈}`) + `X-Authenticated-Role` 을 보낸다. `X-Authenticated-User` 가 없으면 JWT 흐름으로 빠져 401 이 나므로 클라이언트가 반드시 넣는다.
@@ -135,6 +137,8 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | 룰세트 | `MARU_RULE_SET_ID` | RELEASED 버전 전체 | 룰과 같다(D-144 2단계부터 세트도 버전이 있다). 엔진 `RuleSetDefinition` 에 `ver`·`applyFrom`·`applyTo` 를 더했고, 업무 모듈은 판정 시각으로 그때그때 고른다(`APPLY_FROM <= t < APPLY_TO`, 여럿이면 VER 최대). `status` 는 버전마다 부모의 계산 상태(저장 CREATED → INUSE) |
 | 마스터코드 | `MARU_CODE_ID` | `CodeRows` 원본의 RELEASED 투영 | 엔진 `CodeResolver` 가 기준일로 해석한다. 버전 적용 기간도 같은 이유로 원본째 둔다. 2026-10-03 D-152 부터 RELEASED 버전과 그 버전에서 유효한 행만 싣는다(룰·룰세트·전문과 같다). 단 TABLE 카테고리의 소속 행은 같은 카테고리의 남은 TABLE 정의 fromVer(취소 버전일 수 있다)에서 유효한 행도 싣는다(소급 경로가 읽는다) — 초안 사본 행이 캐시를 부풀리고, 초안 전용 카테고리 정의가 최초 소급으로 RELEASED 판정에 새던 결함을 막는다 |
 | 전문 | `LAYOUT_ID`(MESSAGE) | RELEASED 버전 전체 + 버전별 합성 구간 | 룰과 같다(D-144 3단계, 2026-10-03 반영). MDM 이 전문 버전 구간을 쌓은 헤더의 RELEASED 버전 경계(적용 시작·끝)로 나눠 구간마다 미리 합성하므로 업무 모듈은 판정 시각 하나로 버전(`APPLY_FROM <= t < APPLY_TO`, 여럿이면 VER 최대)과 그 안의 구간을 고른다(`MdmDefinitionLookup.layout(id, t)`). 헤더 확정·확정 취소는 그 헤더를 쌓은 전문 키로 펼쳐 기록하므로 구간 경계가 바뀌면 무효화된다. 예약 버전의 적용 시작 도래는 목록에 이미 있어 기록이 필요 없다. 소비 연동(직렬화·파싱)은 범위 밖. **배포 순서**: 값 모양이 3단계 전(스냅샷 하나)과 호환되지 않으므로 MDM 과 cactus-core 는 같은 릴리스로 배포한다. 섞이는 동안에는 LAYOUT 키만 failed 이고 캐시 관리 화면(mdmCacheMng)에도 그렇게 보인다. 캐시는 메모리에만 있으므로 재시작하면 정리된다 |
+
+> D-154 — 네 대상의 캐시 값은 목차 키 + 버전 본문 키다([같은 문서](2026-10-03-mdm-meta-cache-per-version-design.md) §3).
 
 ### 4.2 컬럼 메타
 
@@ -174,6 +178,8 @@ cactus:
     max-entries: 20000            # 대상 합계 상한
     max-age: 24h                  # 적재 뒤 절대 상한 — 기록 누락 대비 안전망(조회가 많아도 이 시간 뒤에는 다시 받는다)
     max-idle: 60m                 # 마지막 조회 뒤 유휴 수명 — 조회될 때마다 연장
+    old-version-max-idle: 10m     # 옛·예약 버전 본문의 유휴 수명(D-154). 목차·최종 본문은 max-idle
+    versioned-feed: auto          # auto(기본) | off — off 면 전 이력 한 키(재기동해 반영, D-154)
     connect-timeout: 2s
     read-timeout: 5s
 ```
@@ -194,6 +200,8 @@ cactus:
 | `MdmRevisionPoller` | `poll-interval` 마다 `changes(since=appliedSeq)`. 받은 키를 지우고, `RELOAD` 는 지운 뒤 바로 다시 적재한다. `appliedSeq`, 마지막 성공 시각, 연속 실패 수를 상태로 둔다 |
 | `MdmDefinitionLookup` | 엔진 spi `DefinitionLookup`·`CodeLookup` 구현. `rule(id, evalTs)` 는 캐시된 RELEASED 버전 중 적용 기간이 `evalTs` 를 포함하는 것을 고른다(`RuleVersions.currentReleased` 와 같은 규칙) |
 | `MdmMetaController` | `/api/{module}/mdmMeta/{action}` 엔드포인트(§5.5). 등록 방식은 `DmomReceiveController` 선례(클래스 레벨 `@RequestMapping` + `@ResponseBody`, 자동 설정에서 `@Bean`) |
+
+> D-154 — `MdmMetaService.lookupAt`·묶음 캐시·`MdmCodeVersion` 색인([같은 문서](2026-10-03-mdm-meta-cache-per-version-design.md) §5)
 
 ### 5.3 리비전 규칙
 
@@ -224,6 +232,8 @@ cactus:
 | `entry` | GET | `type`, `key`(컬럼은 camelCase 도 정규화) | 항목 하나 `{type, key, absent, loadedAt, lastAccessAt, hits, remainingSeconds, loadSeq, bytes, value}` — `value` 는 캐시 값 전체(§4.2 예외, `MdmJson` 설정: 소수 자리수 유지·날짜 ISO). 캐시를 읽기만 한다(조회 수·마지막 조회 시각·적재·지움 상태 불변 — 수명을 연장하지 않는다, 캐시에 없거나 수명이 지났으면 MDM 에서 받지 않고 404, 본문 `code: MDM_ENTRY_NOT_CACHED` — 화면은 이 code 가 있는 404 만 "캐시에 없음"으로 본다). 잘못된 `type`·빈 `key` 400 | SYSADMIN |
 | `load` | POST | `type`, `keys[]` | 이 인스턴스에 미리 적재한 결과 | SYSADMIN |
 
+> D-154 — entries 는 part·ver·current 를, status 는 bodyCounts·oldVersionMaxIdleSeconds·versionedFeed 를 더 싣고 버전 대상의 key 는 논리 키(`X`, `X@1.000`), load 는 논리 키를 받는다([같은 문서](2026-10-03-mdm-meta-cache-per-version-design.md) §7.1).
+
 - 이름 정규화: 소문자가 섞인 이름은 camelCase 로 보고 `UPPER_SNAKE` 로 바꾼다(`codeNm` → `CODE_NM`). 이미 대문자면 그대로 쓴다.
 - 권한 연결: `mdmCacheMng` OBJECT 를 mcm `DataInitializer` 에 시드하고 SYSADMIN 에 매핑한다. `columns`·`domains` 는 BFF `proxy.ts` 의 로그인 전용 경로에 추가한다. mcm BE 의 `EndpointPermissionFilter` 가 3-segment 경로를 permKey 로 검사하므로, 두 objId(`mdmMeta`, `mdmCacheMng`)가 어떻게 판정되는지 구현 계획에서 실측하고 맞춘다.
 
@@ -243,6 +253,8 @@ cactus:
   - **재등록**: MDM `force(kind=RELOAD)`. 모든 모듈·인스턴스가 지운 뒤 다시 적재한다.
   - 삭제·재등록은 확인 대화 상자를 거친다(Local-Rules 중요 액션 UX).
 - 화면은 shared 컴포넌트만 쓴다(`mantine-aggrid-ui` 스킬, 커밋 전 audit 0건).
+
+> D-154 — 항목 그리드 '구분' 열, 본문 행 삭제·재등록은 정의 키로([같은 문서](2026-10-03-mdm-meta-cache-per-version-design.md) §7.1).
 
 ## 7. 테스트
 
