@@ -9,6 +9,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -377,5 +380,110 @@ class MdmRevisionPollerTest {
         assertThat(vcache.get(MdmTargetType.RULE, "R")).isEmpty();
         assertThat(vcache.getBody(MdmTargetType.RULE, "R", "1.000")).isEmpty();
         assertThat(vcache.sizes().get(MdmTargetType.RULE)).isZero();
+    }
+
+    // ---- fu3: RELOAD 는 지움 전에 시작한 진행 중 적재에 합류하지 않는다(관리 화면 reload 와 같은 자리 빼앗기) ----
+
+    /**
+     * 지움 전 Ticket 으로 시작해 문 앞에서 멈춘 목차 적재가 있을 때 RELOAD — 합류하면 그 적재를 기다리다(가짜 문 한도 5초) 3초 안에 끝나지 않고, 끝나도
+     * 지움 전 Ticket 이라 목차·최종 본문이 캐시에 남지 않는다.
+     */
+    @Test
+    void 버전_대상_RELOAD_는_지움_전에_시작한_목차_적재에_합류하지_않고_목차와_최종_본문을_넣는다() throws Exception {
+        FakeMetaFeed vfeed = new FakeMetaFeed().versioned();
+        vfeed.put(MdmTargetType.RULE, "R", List.of(
+                MdmDefinitionLookupTest.rule("1.000", LocalDateTime.parse("2026-01-01T00:00:00"), null)));
+        MdmMetaCache vcache = new MdmMetaCache(100, Duration.ofHours(24), Duration.ofMinutes(60), Duration.ofMinutes(10), clock);
+        MdmMetaService vservice = new MdmMetaService(vfeed, vcache, clock, true);
+        MdmRevisionPoller vpoller = new MdmRevisionPoller(vfeed, vcache, vservice, clock, Duration.ofSeconds(10), 1000, 0);
+        vfeed.changes.add(changes(5, false));
+        vpoller.pollOnce();
+        CountDownLatch gate = new CountDownLatch(1);
+        try {
+            vfeed.fetchGate = gate;
+            CompletableFuture<MdmMetaService.MdmAtLookup> old = CompletableFuture.supplyAsync(
+                    () -> vservice.lookupAt(MdmTargetType.RULE, List.of("R"), clock.instant()));
+            assertThat(vfeed.fetchEntered.await(5, TimeUnit.SECONDS)).isTrue(); // 옛 목차(1.000 만)를 읽고 문 앞에서 멈췄다
+            vfeed.fetchGate = null;
+            vfeed.put(MdmTargetType.RULE, "R", List.of(
+                    MdmDefinitionLookupTest.rule("1.000", LocalDateTime.parse("2026-01-01T00:00:00"), LocalDateTime.parse("2026-06-01T00:00:00")),
+                    MdmDefinitionLookupTest.rule("2.000", LocalDateTime.parse("2026-06-01T00:00:00"), null)));
+            int tocs = vfeed.tocCalls.get();
+
+            vfeed.changes.add(changes(6, false, new MdmChange(6, "RULE", "R", "RELOAD")));
+            CompletableFuture.runAsync(vpoller::pollOnce).get(3, TimeUnit.SECONDS); // 옛 적재를 기다리지 않는다
+
+            Object toc = vcache.get(MdmTargetType.RULE, "R").orElseThrow().value();
+            assertThat(toc).isInstanceOf(MdmToc.class);
+            assertThat(((MdmToc) toc).version("2.000")).as("새 목차").isPresent();
+            assertThat(vcache.peek(MdmTargetType.RULE, "R@2.000").orElseThrow().current()).as("목차와 함께 들어가 최종 수명").isTrue();
+            assertThat(vfeed.tocCalls.get()).as("합류하지 않고 자기 목차 요청 한 번").isEqualTo(tocs + 1);
+
+            gate.countDown(); // 옛 적재의 put 이 RELOAD 의 put 보다 늦게 온다
+            assertThat(old.get(5, TimeUnit.SECONDS).found().get("R").ver()).as("옛 값은 그 호출자에게만 간다").isEqualTo("1.000");
+            assertThat(vcache.get(MdmTargetType.RULE, "R").orElseThrow().value()).as("옛 적재는 새 목차를 덮지 않는다").isSameAs(toc);
+            assertThat(vcache.getBody(MdmTargetType.RULE, "R", "1.000")).isEmpty();
+            assertThat(vcache.peek(MdmTargetType.RULE, "R@2.000").orElseThrow().current()).isTrue();
+        } finally {
+            gate.countDown();
+        }
+    }
+
+    @Test
+    void RELOAD_는_지움_전에_시작한_값_적재에_합류하지_않고_새_값을_캐시한다() throws Exception {
+        started(5);
+        CountDownLatch gate = new CountDownLatch(1);
+        try {
+            feed.fetchGate = gate;
+            CompletableFuture<MdmMetaService.MdmLookup> old = CompletableFuture.supplyAsync(() -> service.lookup(MdmTargetType.COLUMN, List.of("A")));
+            assertThat(feed.fetchEntered.await(5, TimeUnit.SECONDS)).isTrue(); // 옛 적재가 "a" 를 읽고 문 앞에서 멈췄다
+            feed.fetchGate = null;
+            feed.put(MdmTargetType.COLUMN, "A", "a2");
+
+            feed.changes.add(changes(6, false, new MdmChange(6, "COLUMN", "A", "RELOAD")));
+            CompletableFuture.runAsync(poller::pollOnce).get(3, TimeUnit.SECONDS);
+
+            assertThat(cache.get(MdmTargetType.COLUMN, "A").orElseThrow().value()).isEqualTo("a2");
+            assertThat(feed.fetchCalls.get()).isEqualTo(2);
+
+            gate.countDown();
+            assertThat(old.get(5, TimeUnit.SECONDS).found()).containsEntry("A", "a");
+            assertThat(cache.get(MdmTargetType.COLUMN, "A").orElseThrow().value()).isEqualTo("a2");
+            assertThat(service.lookup(MdmTargetType.COLUMN, List.of("A")).found()).containsEntry("A", "a2");
+            assertThat(feed.fetchCalls.get()).as("이어진 조회는 캐시에서").isEqualTo(2);
+        } finally {
+            gate.countDown();
+        }
+    }
+
+    @Test
+    void versioned_feed_off_의_버전_대상_RELOAD_도_합류하지_않는다() throws Exception {
+        List<Object> before = List.of(MdmDefinitionLookupTest.rule("1.000", LocalDateTime.parse("2026-01-01T00:00:00"), null));
+        List<Object> after = List.of(
+                MdmDefinitionLookupTest.rule("1.000", LocalDateTime.parse("2026-01-01T00:00:00"), LocalDateTime.parse("2026-06-01T00:00:00")),
+                MdmDefinitionLookupTest.rule("2.000", LocalDateTime.parse("2026-06-01T00:00:00"), null));
+        feed.put(MdmTargetType.RULE, "R", before);
+        started(5);
+        CountDownLatch gate = new CountDownLatch(1);
+        try {
+            feed.fetchGate = gate;
+            CompletableFuture<MdmMetaService.MdmAtLookup> old = CompletableFuture.supplyAsync(
+                    () -> service.lookupAt(MdmTargetType.RULE, List.of("R"), clock.instant()));
+            assertThat(feed.fetchEntered.await(5, TimeUnit.SECONDS)).isTrue();
+            feed.fetchGate = null;
+            feed.put(MdmTargetType.RULE, "R", after);
+
+            feed.changes.add(changes(6, false, new MdmChange(6, "RULE", "R", "RELOAD")));
+            CompletableFuture.runAsync(poller::pollOnce).get(3, TimeUnit.SECONDS);
+
+            assertThat(cache.get(MdmTargetType.RULE, "R").orElseThrow().value()).as("새 전 이력").isEqualTo(after);
+
+            gate.countDown();
+            assertThat(old.get(5, TimeUnit.SECONDS).found().get("R").ver()).isEqualTo("1.000");
+            assertThat(cache.get(MdmTargetType.RULE, "R").orElseThrow().value()).isEqualTo(after);
+            assertThat(feed.fetchCalls.get()).isEqualTo(2);
+        } finally {
+            gate.countDown();
+        }
     }
 }
