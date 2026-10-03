@@ -97,10 +97,14 @@ public interface SecUserRepository extends JpaRepository<SecUser, String> {
      *
      * <p>반환: 영향 행 수. ReRegCommUserMng.java:59~62 의 updateReRegUserCnt < 0 차단 조건 (= 0 이면 UserException)
      * 정합을 위해 int 반환.
+     *
+     * <p>로그인 실패 횟수(PWD_FAIL_COUNT)도 0 으로 되돌린다. 로그인 잠금은 USE_TP='N' 으로 표시되고 이 재생성이
+     * 화면의 해제 경로인데, 횟수를 남기면 다음 로그인에서 최대 횟수 검사로 곧바로 다시 잠긴다
+     * (McmSecUserRepository#unlockUser 와 같은 의미).
      */
     @Modifying
     @Query("UPDATE McmSecUser u SET u.startActiveDate = :startActiveDate, u.endActiveDate = :endActiveDate, "
-         + "u.useTp = :useTp WHERE u.userId = :userId")
+         + "u.useTp = :useTp, u.pwdFailCount = 0 WHERE u.userId = :userId")
     int updateReRegUser(@Param("userId") String userId,
                         @Param("startActiveDate") LocalDateTime startActiveDate,
                         @Param("endActiveDate") LocalDateTime endActiveDate,
