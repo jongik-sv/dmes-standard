@@ -1,0 +1,23 @@
+{
+  "log": "2026-05-15 09:30:00.000 [http-1] [T1] [SVC01] INFO  c.d.Web - POST \"/api/order/save\"\n2026-05-15 09:30:00.010 [http-1] [T1] [SVC01] INFO  c.d.Svc - Service [SVC01] start. Request Tag [RT1]\n2026-05-15 09:30:00.020 [http-2] [T2] [SVC02] INFO  c.d.Web - GET \"/api/item/list\"\n2026-05-15 09:30:00.030 [http-1] [T1] [SVC01] INFO  c.d.Svc - Process [P1](saveProc) start.\n2026-05-15 09:30:00.040 [http-1] [T1] [SVC01] INFO  c.d.Svc - Task [K1](saveTask) start.\n2026-05-15 09:30:00.050 [http-1] [T1] [SVC01] DEBUG c.d.Sql - Mybatis SQL : select * from item where id = ?\n2026-05-15 09:30:00.051 [http-1] [T1] [SVC01] TRACE c.d.Bind - binding parameter [1] as [VARCHAR] - [A01]\n2026-05-15 09:30:00.060 [http-1] [T1] [SVC01] INFO  c.d.Svc - Invoking class : [com.d.Foo], method : [bar]\n2026-05-15 09:30:00.070 [http-1] [T1] [SVC01] INFO  c.d.Svc - Task [K1](saveTask) finish.(30ms)\n2026-05-15 09:30:00.090 [http-1] [T1] [SVC01] INFO  c.d.Svc - plain business message\n2026-05-15 10:00:00.095 [http-2] [T2] [SVC02] INFO  c.d.Svc - Sub-service [SUB9] start.\n2026-05-15 10:00:00.100 [http-1] [T1] [SVC01] INFO  c.d.Svc - Process [P1](saveProc) finish.(70ms)\n2026-05-15 10:00:00.110 [http-1] [T1] [SVC01] INFO  c.d.Svc - Service [SVC01] finish.(100ms)\n2026-05-15 10:00:00.120 [http-1] [T1] [SVC01] INFO  c.d.Web - Completed 200 OK\n2026-05-15 10:00:00.200 [http-2] [T2] [SVC02] DEBUG c.d.Svc - Converted value on extraction: x\n2026-05-15 11:30:00.000 [http-2] [T2] [SVC02] DEBUG c.d.Svc - Converted value on extraction: after-range\n",
+  "serviceList": [
+    {
+      "serviceName": "SVC01",
+      "serviceTag": "T1",
+      "startTime": "2026-05-15 09:30:00.000",
+      "endTime": "2026-05-15 10:00:00.120",
+      "action": null,
+      "error": false,
+      "runTime": 0
+    },
+    {
+      "serviceName": "SVC02",
+      "serviceTag": "T2",
+      "startTime": "2026-05-15 09:30:00.020",
+      "endTime": "2026-05-15 11:30:00.000",
+      "action": null,
+      "error": false,
+      "runTime": 0
+    }
+  ]
+}

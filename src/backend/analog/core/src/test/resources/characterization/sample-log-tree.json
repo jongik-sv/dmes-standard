@@ -1,0 +1,74 @@
+[ {
+  "property" : {
+    "exception" : [ "failure occurred\n\tat com.d.Foo.bar(Foo.java:10)\n\tat com.d.Main.main(Main.java:3)" ],
+    "request" : "POST \"/api/order/save\"",
+    "requestType" : "api",
+    "service" : [ "SVC01" ],
+    "serviceTag" : "T1",
+    "thread" : "http-1",
+    "complete" : "true",
+    "requestTag" : "RT1",
+    "objectType" : "Request",
+    "timestamp" : "2026-05-15 10:00:00.000"
+  },
+  "_id" : "2026-05-15 10:00:00.000$SVC01$T1$RT1",
+  "child" : [ "POST \"/api/order/save\"", {
+    "property" : {
+      "objectName" : "SVC01",
+      "runTime" : "100",
+      "objectId" : "SVC01",
+      "objectType" : "Service",
+      "timestamp" : "2026-05-15 10:00:00.010"
+    },
+    "child" : [ {
+      "property" : {
+        "objectName" : "saveProc",
+        "runTime" : "70",
+        "objectId" : "P1",
+        "objectType" : "Process",
+        "timestamp" : "2026-05-15 10:00:00.030"
+      },
+      "child" : [ {
+        "property" : {
+          "method" : "bar",
+          "objectName" : "saveTask",
+          "runTime" : "30",
+          "class" : "com.d.Foo",
+          "objectId" : "K1",
+          "hasQuery" : "y",
+          "objectType" : "Task",
+          "timestamp" : "2026-05-15 10:00:00.040"
+        },
+        "child" : [ {
+          "property" : {
+            "query" : "select * from item where id = ?",
+            "runTime" : 2,
+            "params" : [ "A01" ],
+            "objectType" : "Query",
+            "timestamp" : "2026-05-15 10:00:00.050"
+          }
+        } ]
+      }, "plain business message" ]
+    } ]
+  } ]
+}, {
+  "property" : {
+    "request" : "GET \"/api/item/list\"",
+    "hasSubService" : "y",
+    "requestType" : "api",
+    "service" : [ "SUB9" ],
+    "serviceTag" : "T2",
+    "thread" : "http-2",
+    "objectType" : "Request",
+    "timestamp" : "2026-05-15 10:00:00.020"
+  },
+  "_id" : "2026-05-15 10:00:00.020$SUB9$T2$_",
+  "child" : [ "GET \"/api/item/list\"", {
+    "property" : {
+      "objectName" : "SUB9",
+      "objectId" : "SUB9",
+      "objectType" : "Service",
+      "timestamp" : "2026-05-15 10:00:00.095"
+    }
+  } ]
+} ]
