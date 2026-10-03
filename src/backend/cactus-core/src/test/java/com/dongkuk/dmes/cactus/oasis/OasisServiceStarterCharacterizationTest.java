@@ -45,7 +45,8 @@ import org.springframework.transaction.support.DefaultTransactionStatus;
  * 실제 BPMN 실행 결과(성공 커밋, 업무 예외·일반 예외 롤백)가 바뀌지 않음을 고정한다.
  * 조립 방식과 무관하게 빈 메서드만 거쳐 검증하므로 변경 전 코드로도 통과해야 한다.
  *
- * <p>BPMN 은 {@code cactus-starter-char/} 아래 3개 — 다른 jar 의 {@code /services} 와 섞이지 않게 별도 경로를 쓴다.
+ * <p>BPMN 은 {@code cactus-starter-char/} 아래 charOk·charUserError·charSystemError 3개 — 다른 jar 의 {@code /services} 와
+ * 섞이지 않게 별도 경로를 쓴다. 같은 폴더의 charBusinessErrors 는 {@link CactusResponseConverterBusinessErrorsTest} 몫이다.
  * 트랜잭션 매니저는 DB 없이 begin·commit·rollback 만 기록하는 가짜다.
  */
 @Execution(ExecutionMode.SAME_THREAD)
