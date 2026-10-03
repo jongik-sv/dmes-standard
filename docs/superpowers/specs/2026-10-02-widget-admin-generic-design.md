@@ -251,6 +251,7 @@ A 와 같은 방식: 로컬은 `ddl-auto: update`, 개발계·운영계는 `docs
 | `LINKS_JSON` | VARCHAR(4000) | 답에 붙은 화면 링크 `[{pageId,title}]` |
 
 - 인스턴스당 최근 100개만 남긴다(넘으면 오래된 것부터 지움). 사용자가 위젯을 빼도 기록은 남고 [새 대화]로 지운다.
+- 사용자 합계(모든 인스턴스)도 `dmes.widget.llm.user-history-limit`(기본 300)개까지 — 넘으면 그 사용자의 가장 오래된 기록(`C_AT`·`INST_ID`·`MSG_SEQ` 순)부터 지운다(2026-10-03, §16.3).
 
 ## 5. 서비스 (OASIS, 계약 고정)
 
@@ -331,7 +332,7 @@ mcm-core `widget.query` 패키지의 `WidgetQueryExecutor`. mcm 업무 코드에
 3. 끝의 `;` 하나는 지우고, 그 밖에 `;` 가 있으면 거절(여러 문장 금지).
 4. 낱말 단위로 `INSERT UPDATE DELETE MERGE DROP ALTER CREATE TRUNCATE GRANT REVOKE EXEC EXECUTE CALL COMMIT ROLLBACK INTO PRAGMA ATTACH DETACH` 가 있으면 거절(`SELECT … INTO` 포함).
 5. 이름 붙은 변수는 §7.2 목록만 허용. 모르는 `:name` 이 있으면 거절(시간 표기 `'10:30'` 은 리터럴이라 2단계에서 걷힌다).
-6. 읽기 전용 트랜잭션이 막지 못하는 함수는 낱말 단위로 거절한다(2026-10-03 보안 지적, 「쓸 수 없는 함수가 있습니다: …」). PostgreSQL `pg_terminate_backend` `pg_cancel_backend` `pg_advisory_*` `pg_try_advisory_*` `pg_sleep*` `set_config` `pg_notify` `pg_reload_conf` `pg_rotate_logfile` `pg_read_file` `pg_read_binary_file` `pg_ls_dir` `pg_stat_file` `lo_import` `lo_export` `dblink*` `query_to_xml*` `cursor_to_xml*`, Oracle `UTL_HTTP` `UTL_TCP` `UTL_SMTP` `UTL_FILE` `UTL_INADDR` `HTTPURITYPE` `DBMS_LOCK` `DBMS_PIPE` `DBMS_ALERT` `DBMS_SCHEDULER` `DBMS_JOB` `DBMS_SQL` `DBMS_XMLGEN` `DBMS_XMLQUERY`, SQLite `load_extension`, SQL Server `OPENROWSET` `OPENDATASOURCE` `OPENQUERY`. 따옴표·대괄호 식별자로 불러도 걸리게 이 단계는 식별자 안 글자도 보고, 이스케이프로 이름을 숨길 수 있는 PostgreSQL `U&"…"` 식별자는 받지 않는다. `DBMS_` 전체를 막지는 않는다(`DBMS_LOB.SUBSTR` 같은 CLOB 조회). 이 목록은 **보조 방어선**이고 근본 대책은 실행기에 읽기 권한만 가진 DB 계정의 DataSource 를 붙이는 것이다(§7 실행기 운영 주의 — 아직 앱 기본 DataSource 를 쓴다).
+6. 읽기 전용 트랜잭션이 막지 못하는 함수는 낱말 단위로 거절한다(2026-10-03 보안 지적, 「쓸 수 없는 함수가 있습니다: …」). PostgreSQL `pg_terminate_backend` `pg_cancel_backend` `pg_advisory_*` `pg_try_advisory_*` `pg_sleep*` `set_config` `pg_notify` `pg_reload_conf` `pg_rotate_logfile` `pg_read_file` `pg_read_binary_file` `pg_ls_dir` `pg_stat_file` `lo_import` `lo_export` `dblink*` `query_to_xml*` `cursor_to_xml*`, Oracle `UTL_HTTP` `UTL_TCP` `UTL_SMTP` `UTL_FILE` `UTL_INADDR` `HTTPURITYPE` `DBMS_LOCK` `DBMS_PIPE` `DBMS_ALERT` `DBMS_SCHEDULER` `DBMS_JOB` `DBMS_SQL` `DBMS_XMLGEN` `DBMS_XMLQUERY`, SQLite `load_extension`, SQL Server `OPENROWSET` `OPENDATASOURCE` `OPENQUERY`. 따옴표·대괄호 식별자로 불러도 걸리게 이 단계는 식별자 안 글자도 보고, 이스케이프로 이름을 숨길 수 있는 PostgreSQL `U&"…"` 식별자는 받지 않는다. `DBMS_` 전체를 막지는 않는다(`DBMS_LOB.SUBSTR` 같은 CLOB 조회). 이 목록은 **보조 방어선**이고 근본 대책은 실행기에 읽기 권한만 가진 DB 계정의 DataSource 를 붙이는 것이다(§7.3 `dmes.widget.query.datasource.*`).
 
 ### 7.2 시스템 변수
 
@@ -347,7 +348,12 @@ mcm-core `widget.query` 패키지의 `WidgetQueryExecutor`. mcm 업무 코드에
 ### 7.3 실행 안전장치
 
 - `NamedParameterJdbcTemplate`, `setMaxRows(501)`(501행이면 500행만 돌려주고 `truncated=true`), `setQueryTimeout(10초)`, `setFetchSize(100)`.
-- 별도 트랜잭션(`TransactionTemplate`, `readOnly=true`)으로 실행하고 **늘 롤백**한다. `readOnly` 는 SQLite 에서 효과가 없으므로 §7.1 검사가 1차 방어선이다.
+- **읽기 전용 강제**(2026-10-03, `WidgetReadOnlyJdbc`): 실행마다 DataSource 에서 연결을 따로 빌린다(스레드에 묶인 OASIS 업무 트랜잭션 연결은 쓰지 않는다). `setReadOnly(true)` → 자동 커밋 끔 → 방언별 보강 → 실행 → **늘 롤백**(커밋 없음). 방언은 연결 메타데이터의 제품 이름으로 판정한다.
+  - SQLite: 드라이버가 연결 뒤 `setReadOnly` 를 거절하므로 `PRAGMA query_only = 1` 을 걸고 다시 읽어 확인한다. 이 값은 연결에 남으므로 풀에 돌려주기 전에 원래 값으로 되돌리고 다시 읽어 확인한다.
+  - PostgreSQL·Oracle: `SET TRANSACTION READ ONLY`. PostgreSQL 은 `SHOW transaction_read_only = on` 을 확인한다(PostgreSQL 18 + pgjdbc 42.7.8 실측: INSERT·UPDATE·DELETE·CREATE TABLE·`nextval()` 이 25006 으로 거절, 돌려준 연결은 autoCommit·readOnly·`transaction_read_only=off` 로 되돌아감). Oracle 은 문장 성공으로 걸린 것으로 본다(실제 DB 미검증 — ORA-01453 등으로 실패하면 실행하지 않는다).
+  - SQL Server·그 밖: 읽기 전용 트랜잭션이 없어 `readOnly` 힌트와 늘 롤백뿐이다(처음 실행 때 경고 로그).
+  - 읽기 전용을 걸지 못하면 SQL 을 실행하지 않는다(실패 닫힘). 빌릴 때 상태(autoCommit·readOnly·`query_only`)로 되돌리지 못한 연결은 풀에서 뺀다(Hikari `evictConnection`, 그 밖 `abort`) — 읽기 전용으로 남은 연결이 업무 쓰기를 막지 않게.
+- **실행기 전용 DataSource**(선택, `dmes.widget.query.datasource.*`): `jndi-name`(WildFly 컨테이너 풀)이 있으면 그것, 없고 `url` 이 있으면 직결 풀(Hikari `widget-query`, `maximum-pool-size` 기본 5, `username`·`password`·`driver-class-name`), 둘 다 없으면 앱 기본 DataSource. 운영에서는 **읽기 권한만 가진 DB 계정**을 붙인다. url 없이 계정만 있으면 기본 DataSource 로 물러나지 않고 기동을 막는다. 비밀번호는 환경변수(`WIDGET_QUERY_DS_PASSWORD` 등)로만 받고 주소·계정·비밀번호는 로그에 남기지 않는다. 전용 DataSource 는 DataSource 형 빈으로 등록하지 않는다(다른 빈이 집어 가지 않게).
 - 결과 값은 JSON 직렬화 가능한 형으로 바꾼다(`Timestamp`→ISO 문자열, `BigDecimal`→숫자, `Clob`→문자열 4000자까지).
 - **결과 캐시**: 키 `(defId, SQL 이 쓰는 시스템 변수 값들)`, 30초. 사용자 여러 명의 자동 새로 고침이 같은 SQL 을 반복하지 않게 한다. 정의를 저장하면 그 defId 캐시를 비운다.
 - 실행 오류는 DB 메시지를 그대로 내보내지 않는다. 사용자에게는 「위젯 데이터를 불러오지 못했습니다」, 서버 로그에는 defId 와 원인. 관리자 `previewQuery` 는 DB 메시지를 보여 준다(SQL 작성을 도우려고).
@@ -360,7 +366,12 @@ mcm-core `widget.query` 패키지의 `WidgetQueryExecutor`. mcm 업무 코드에
   - 기본 `FrankfurterProvider` — `https://api.frankfurter.dev/v1/{from}..{to}?symbols=KRW,USD,…` 를 EUR 기준으로 받아 「1 외화 = KRW ÷ X」 교차 계산으로 「1 외화 = n KRW」 를 저장한다(유럽중앙은행 기준, 키 없음, 영업일만 있음. 처음 적은 base=KRW 역수 방식에서 구현 때 바꿨다. Frankfurter 는 VND 를 주지 않는다).
   - `KoreaEximProvider` — `dmes.widget.ext.exchange.koreaexim-key` 가 있을 때 쓴다(한국수출입은행 매매기준율).
   - 고르기: `dmes.widget.ext.exchange.provider`(`frankfurter` 기본·`koreaexim`).
-- 조회 흐름: DB 에서 기간 값을 읽고, 빠진 날짜가 있으면(오늘 포함, 하루 한 번만 시도) 제공자로 채워 넣은 뒤 돌려준다. 제공자 실패면 DB 에 있는 값만 돌려주고 `stale: true` 를 붙인다.
+- 조회 흐름: DB 에서 기간 값을 읽고, 빠진 날짜가 있으면 제공자로 채워 넣은 뒤 돌려준다. 제공자 실패면 DB 에 있는 값만 돌려주고 `stale: true` 를 붙인다.
+- 남용 막기(2026-10-03, §16.3):
+  - **허용 목록**: 요청 통화 묶음·기간은 사용 중인 환율 위젯 정의 **하나**의 범위(통화 부분집합·기간 이하) 안이어야 한다. 아니면 E002 「환율 위젯 정의에 없는 통화·기간입니다. 위젯관리에서 환율 위젯 정의를 저장한 뒤 다시 조회하세요.」. 정의 설정 해석은 화면(`readExchangeConfig`·`exchangeRequest`)과 같다(통화 없으면 USD·EUR·JPY·CNY, 기간 없으면 30, 대문자·영문 3자리·KRW 제외·중복 제거·앞 10개, 기간 반올림 1~90). 정의 ID 는 받지 않는다 — 정의는 모두에게 보이므로 받아도 막는 범위가 같다. 목록은 60초 캐시, 정의 저장 이벤트로 비운다. 관리 화면 미리보기에서 저장 전 통화는 저장 뒤에 보인다(렌더러가 서버 문구를 보인다).
+  - **시도 기록**은 (제공자, 통화, 날짜) 단위 — 통화 조합·기간을 바꿔도 이미 물어본 날짜를 다시 묻지 않는다. DB 에 있는 날짜는 묻지 않는다. 실패·일부만 받음·오늘 값 없음(고시 전)은 `retry-after-fail-sec`(기본 600초) 뒤, 답했는데 지난 날짜 값이 없으면(휴일) 그날 끝까지 다시 묻지 않는다. 물을 날짜는 잠금 안에서 먼저 「진행 중」으로 적어 동시 요청이 함께 묻지 않는다.
+  - 날짜마다 부르는 제공자(KoreaExim)는 빈 날의 이어진 구간만 부른다(첫 빈 날~마지막 빈 날 사이 DB 에 있는 날은 부르지 않는다).
+  - **속도 제한**: 외부 호출을 일으키는 요청만 사용자별로 `user-fetch-limit`(기본 10)회 / `user-fetch-window-sec`(기본 600초). 넘으면 E010 「환율 조회 요청이 너무 잦습니다. 잠시 뒤 다시 시도하세요.」. DB 값만으로 답하는 요청은 세지 않는다.
 - `dmes.widget.ext.enabled=false` 면 외부 호출을 하지 않는다(망 분리 환경).
 
 ### 8.2 날씨
@@ -403,6 +414,7 @@ interface LlmClient {
 - 도구 반복은 최대 4번. 넘으면 그때까지의 답을 돌려준다.
 - 문맥: 저장된 대화 최근 20개 + 이번 질문. 시스템 프롬프트 앞에 「너는 DMES 포털의 도우미다. 오늘은 {today}, 사용자는 {userNm}({deptNm}).」 를 붙인다.
 - 실패(시간 초과 60초·공급자 오류): 「답을 받지 못했습니다. 잠시 뒤 다시 시도하세요.」 를 assistant 로 저장하지 않고 오류로 돌려준다. 사용자 메시지는 저장한다.
+- 하루 호출 상한(2026-10-03, §16.3): 사용자별 서울 날짜 하루 LLM 호출 수 `dmes.widget.llm.daily-call-limit`(기본 200, 도구 반복 포함 호출마다 1). 인스턴스와 관계없이 사용자 단위. 상한이면 질문을 저장하기 전에 E010 「오늘 AI 챗봇 사용 한도(n회)를 모두 썼습니다. 내일 다시 이용하세요.」, 차례 도중 닿으면 더 부르지 않고 그때까지 받은 글(없으면 「오늘 AI 챗봇 사용 한도에 닿아 답을 마치지 못했습니다…」)로 답한다.
 
 ## 10. 위젯관리 화면 (`mcm:csa/commWidgetMng`)
 
@@ -516,10 +528,10 @@ interface LlmClient {
 
 ### 16.3 남은 일
 
-- **쿼리 실행기 전용 DataSource**: 읽기 권한만 가진 DB 계정으로 실행기를 분리한다. 지금은 앱 기본 DataSource 를 쓰고, 함수 거절 목록은 보조 방어선이다(§7.1-6).
+- **쿼리 실행기 전용 DataSource** — 해결(2026-10-03): 선택 설정 `dmes.widget.query.datasource.{jndi-name,url,username,password,driver-class-name,maximum-pool-size}`(기본 모두 빈 값 = 앱 기본 DataSource, 풀 5)로 읽기 계정 DataSource 를 붙인다. 어느 DataSource 든 실행마다 읽기 전용(readOnly·늘 롤백·SQLite `query_only`·PostgreSQL/Oracle `SET TRANSACTION READ ONLY`)을 걸고, 되돌리지 못한 연결은 풀에서 뺀다(§7.3). 한계: **SQL Server 는 읽기 전용 트랜잭션이 없고**(WildFly 템플릿 기본 방언) Oracle 은 자율 트랜잭션 함수·DDL 암묵 커밋이 롤백을 벗어나므로 **전용 읽기 계정이 꼭 필요하다**. Oracle 경로는 실제 DB 로 확인하지 못했다(문장 순서만 시험). 운영 계정 권한 부여·JNDI 등록은 배포 작업으로 남는다.
 - **BFF 본문 상한 전역 확대**: `proxyClientMaxBodySize=101mb` 가 `/api/*` 전체에 적용된다. 업로드 경로만 미들웨어를 거치지 않게 하거나 앞단 Nginx 에서 경로별로 상한을 준다.
-- **환율 호출 남용**: 통화 조합·기간을 바꿔 가며 부르면 매번 외부를 호출한다. 정의에 든 통화로 허용 목록 제한, 통화 단위 시도 기록, 속도 제한, KoreaExim 일 1회 적재가 필요하다.
-- **챗봇 남용**: `instId` 를 바꾸면 인스턴스당 100개 상한이 의미가 없고 LLM 비용이 늘어난다. 사용자별 호출·기록 상한이 필요하다(배치 행 존재 검사는 부서·코드 기본 배치 사용자를 막으므로 쓰지 않는다).
+- **환율 호출 남용** — 해결(2026-10-03, §8.1): 사용 중인 환율 정의 하나의 범위 안만 허용, (제공자, 통화, 날짜) 단위 시도 기록(DB 에 있는 날짜는 묻지 않음, 실패·빈 결과·오늘 값 없음은 `dmes.widget.ext.exchange.retry-after-fail-sec` 기본 600초 뒤, 지난 휴일은 그날 끝까지), 동시 요청 한 번만, KoreaExim 은 빈 날 구간만, 사용자별 속도 제한 `user-fetch-limit` 기본 10회 / `user-fetch-window-sec` 기본 600초. 한계: 기록·속도 제한은 **메모리라 인스턴스마다 따로이고 재기동하면 비워진다(다중 인스턴스 공유는 범위 밖)**. 계정을 여러 개 쓰면 사용자별 제한은 넘을 수 있지만 시도 기록이 전역이라 외부 호출 수는 늘지 않는다. KoreaExim 일 1회 적재(배치)는 아직 없다.
+- **챗봇 남용** — 해결(2026-10-03, §4.5·§9.2): 사용자별 하루(서울 날짜) LLM 호출 상한 `dmes.widget.llm.daily-call-limit` 기본 200(도구 반복 포함 호출마다 1, instId 와 무관), 사용자 합계 기록 상한 `dmes.widget.llm.user-history-limit` 기본 300(넘으면 가장 오래된 것부터 지움). 배치 행 존재 검사는 부서·코드 기본 배치 사용자를 막으므로 쓰지 않았다. 한계: 하루 상한은 **메모리 계수라 재기동하면 0 부터, 인스턴스마다 따로 센다(다중 인스턴스 범위 밖)**. 기록 상한은 잠금 없이 세는 근사 상한이다(같은 사용자 동시 쓰기에서 잠시 한두 개 차이). 전체 사용자 합계 비용 상한은 없다.
 - **운영 환경 확인**: MSSQL 에서 `;` 없이 이어 쓴 여러 문장 판정, 운영 context path(`/mcm/api`)에서 BE 필터 판정, WildFly·Nginx 의 본문 101MB 허용, 챗봇 최대 응답 시간(도구 5회 × 공급자 제한 시간, 약 123초)과 앞단 시간 제한.
 - **KoreaExim**: CNH/CNY 표기 차이를 실제 키로 검증하지 않았다.
 - **shared**: ~~`PieChart` 범례의 「건」 고정 단위~~ — 해결됨(2026-10-03): `PieChart` 에 `unit` 속성(기본 「건」, `""` 이면 단위 없음)을 더하고, 쿼리 차트 원 차트는 첫 계열 이름 끝 괄호(「사용 시간(분)」→분)를 단위로 넘긴다(`pieUnitOf`). 남은 일: 같은 이름 항목의 key 중복(기존 컴포넌트 변경이라 승인 뒤).
