@@ -69,6 +69,53 @@ class ClientKeyFilterTest {
     }
 
     @Test
+    @DisplayName("길이는 같고 내용이 다른 X-Client-Key → 401 (바이트 비교)")
+    void sameLengthDifferentKey_returns401() throws ServletException, IOException {
+        assertEquals(401, statusFor("secret-key", "secret-kez"));
+        assertEquals(401, statusFor("secret-key", "Secret-key"));
+    }
+
+    @Test
+    @DisplayName("길이가 다른 X-Client-Key(앞부분만 같음·더 김) → 401")
+    void differentLengthKey_returns401() throws ServletException, IOException {
+        assertEquals(401, statusFor("secret-key", "secret"));
+        assertEquals(401, statusFor("secret-key", "secret-key-extra"));
+        assertEquals(401, statusFor("secret-key", "secret-key "));
+    }
+
+    @Test
+    @DisplayName("빈 X-Client-Key 헤더·헤더 없음 → 401")
+    void emptyOrMissingKey_returns401() throws ServletException, IOException {
+        assertEquals(401, statusFor("secret-key", ""));
+        assertEquals(401, statusFor("secret-key", null));
+    }
+
+    @Test
+    @DisplayName("한글 등 UTF-8 키도 같은 값이면 통과, 다르면 401")
+    void utf8Key_comparedAsBytes() throws ServletException, IOException {
+        assertEquals(200, statusFor("비밀-키", "비밀-키"));
+        assertEquals(401, statusFor("비밀-키", "비밀-귀"));
+    }
+
+    /** 키를 설정한 필터에 헤더(null 이면 넣지 않음)를 보내 응답 상태를 돌려준다. 통과면 체인이 불려야 한다. */
+    private static int statusFor(String configuredKey, String headerValue) throws ServletException, IOException {
+        ClientKeyFilter filter = new ClientKeyFilter(configuredKey, null);
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/something");
+        if (headerValue != null) {
+            request.addHeader("X-Client-Key", headerValue);
+        }
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicBoolean chainCalled = new AtomicBoolean(false);
+        FilterChain chain = (req, res) -> chainCalled.set(true);
+
+        filter.doFilter(request, response, chain);
+
+        assertEquals(response.getStatus() == 200, chainCalled.get(), "통과일 때만 체인을 부른다");
+        return response.getStatus();
+    }
+
+    @Test
     @DisplayName("키 미설정 시 검증 스킵 (개발 편의)")
     void noKeyConfigured_passes() throws ServletException, IOException {
         ClientKeyFilter filter = new ClientKeyFilter("", null);
