@@ -1,6 +1,7 @@
 /**
  * postJson - 서버 API 호출 유틸리티
  * 원본: libTran.js의 gfn_transaction을 fetch 기반으로 재구현
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다.
  */
 
 export interface PostJsonOptions {
@@ -9,6 +10,7 @@ export interface PostJsonOptions {
   headers?: Record<string, string>;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface PostJsonResult<T = unknown> {
   ok: boolean;
   data?: T;
@@ -18,6 +20,7 @@ export interface PostJsonResult<T = unknown> {
 
 const DEFAULT_TIMEOUT = 300000; // 5분
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export async function postJson<T = unknown>(
   url: string,
   body: unknown = {},
@@ -74,4 +77,5 @@ export async function postJson<T = unknown>(
   }
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_postJson = postJson;

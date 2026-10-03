@@ -5,6 +5,7 @@
 
 import { isNullOrEmpty } from "./libUtil";
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatComma(val: unknown): string {
   if (isNullOrEmpty(val)) return "";
   const str = String(val);
@@ -27,11 +28,13 @@ export function formatComma(val: unknown): string {
   return result;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function removeComma(val: unknown): string {
   if (isNullOrEmpty(val)) return "";
   return String(val).replace(/,/g, "");
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatNumber(val: unknown, decimals: number = 0, useComma: boolean = true): string {
   if (isNullOrEmpty(val)) return "";
   const num = parseFloat(removeComma(val));
@@ -45,6 +48,7 @@ export function formatNumber(val: unknown, decimals: number = 0, useComma: boole
   return fixed;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatCurrency(val: unknown, currency: string = "₩", decimals: number = 0): string {
   if (isNullOrEmpty(val)) return "";
   const formatted = formatNumber(val, decimals);
@@ -52,6 +56,7 @@ export function formatCurrency(val: unknown, currency: string = "₩", decimals:
   return currency + formatted;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatPercent(val: unknown, decimals: number = 1, multiply: boolean = true): string {
   if (isNullOrEmpty(val)) return "";
   let num = parseFloat(String(val));
@@ -60,6 +65,7 @@ export function formatPercent(val: unknown, decimals: number = 1, multiply: bool
   return num.toFixed(decimals) + "%";
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatPhone(phone: unknown): string {
   if (isNullOrEmpty(phone)) return "";
   const num = String(phone).replace(/[^0-9]/g, "");
@@ -76,6 +82,7 @@ export function formatPhone(phone: unknown): string {
   return num;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatCellPhone(phone: unknown): string {
   if (isNullOrEmpty(phone)) return "";
   const num = String(phone).replace(/[^0-9]/g, "");
@@ -84,6 +91,7 @@ export function formatCellPhone(phone: unknown): string {
   return num;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatBizNo(bizNo: unknown): string {
   if (isNullOrEmpty(bizNo)) return "";
   const num = String(bizNo).replace(/[^0-9]/g, "");
@@ -91,6 +99,7 @@ export function formatBizNo(bizNo: unknown): string {
   return num;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatCorpNo(corpNo: unknown): string {
   if (isNullOrEmpty(corpNo)) return "";
   const num = String(corpNo).replace(/[^0-9]/g, "");
@@ -98,6 +107,7 @@ export function formatCorpNo(corpNo: unknown): string {
   return num;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatRsrNo(rsrNo: unknown, mask: boolean = true): string {
   if (isNullOrEmpty(rsrNo)) return "";
   const num = String(rsrNo).replace(/[^0-9]/g, "");
@@ -106,6 +116,7 @@ export function formatRsrNo(rsrNo: unknown, mask: boolean = true): string {
   return num.replace(/(\d{6})(\d{7})/, "$1-$2");
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatCardNo(cardNo: unknown, mask: boolean = true): string {
   if (isNullOrEmpty(cardNo)) return "";
   const num = String(cardNo).replace(/[^0-9]/g, "");
@@ -114,6 +125,7 @@ export function formatCardNo(cardNo: unknown, mask: boolean = true): string {
   return num.replace(/(\d{4})(\d{4})(\d{4})(\d{4})/, "$1-$2-$3-$4");
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatAccountNo(accountNo: unknown, mask: boolean = false): string {
   if (isNullOrEmpty(accountNo)) return "";
   const num = String(accountNo).replace(/[^0-9]/g, "");
@@ -126,6 +138,7 @@ export function formatAccountNo(accountNo: unknown, mask: boolean = false): stri
   return num;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function maskString(str: unknown, start: number, length: number, maskChar: string = "*"): string {
   if (isNullOrEmpty(str)) return "";
   const s = String(str);
@@ -144,6 +157,7 @@ export function formatDateStr(date: unknown, separator: string = "-"): string {
   return d.substring(0, 4) + separator + d.substring(4, 6) + separator + d.substring(6, 8);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatTime(time: unknown, separator: string = ":"): string {
   if (isNullOrEmpty(time)) return "";
   const t = String(time).replace(/[^0-9]/g, "");
@@ -152,12 +166,14 @@ export function formatTime(time: unknown, separator: string = ":"): string {
   return t;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface DateTimeFormatOptions {
   dateSeparator?: string;
   timeSeparator?: string;
   datetimeSeparator?: string;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatDateTime(datetime: unknown, options: DateTimeFormatOptions = {}): string {
   const { dateSeparator = "-", timeSeparator = ":", datetimeSeparator = " " } = options;
   if (isNullOrEmpty(datetime)) return "";
@@ -171,6 +187,7 @@ export function formatDateTime(datetime: unknown, options: DateTimeFormatOptions
   return dateStr + datetimeSeparator + timeStr;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatBytes(bytes: number, decimals: number = 2): string {
   if (bytes === 0) return "0 Bytes";
   if (isNullOrEmpty(bytes)) return "";
@@ -180,6 +197,7 @@ export function formatBytes(bytes: number, decimals: number = 2): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + " " + sizes[i];
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatPostcode(postcode: unknown): string {
   if (isNullOrEmpty(postcode)) return "";
   const num = String(postcode).replace(/[^0-9]/g, "");
@@ -188,11 +206,13 @@ export function formatPostcode(postcode: unknown): string {
   return num;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function removeFormat(str: unknown): string {
   if (isNullOrEmpty(str)) return "";
   return String(str).replace(/[^0-9]/g, "");
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function formatText(text: unknown, maxLength: number, suffix: string = "..."): string {
   if (isNullOrEmpty(text)) return "";
   const str = String(text);
@@ -201,25 +221,47 @@ export function formatText(text: unknown, maxLength: number, suffix: string = ".
 }
 
 // gfn_ 호환 별칭
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_setComma = formatComma;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_removeComma = removeComma;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatNumber = formatNumber;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatCurrency = formatCurrency;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatPercent = formatPercent;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatPhone = formatPhone;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatPhoneNum = formatPhone;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatCellPhone = formatCellPhone;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatCellNum = formatCellPhone;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatBizNo = formatBizNo;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatCorpNo = formatCorpNo;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatRsrNo = formatRsrNo;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatCardNo = formatCardNo;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatAccountNo = formatAccountNo;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_maskString = maskString;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatDate = formatDateStr;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatTime = formatTime;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatDateTime = formatDateTime;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatBytes = formatBytes;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatPostcode = formatPostcode;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_removeFormat = removeFormat;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_formatText = formatText;

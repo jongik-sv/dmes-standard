@@ -5,14 +5,19 @@
 
 import { isNullOrEmpty } from "./libUtil";
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const ROW_TYPE = { NORMAL: 1, INSERT: 2, UPDATE: 4, DELETE: 8 } as const;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export type RowType = (typeof ROW_TYPE)[keyof typeof ROW_TYPE];
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const ROW_STATUS = { INSERTED: "inserted", UPDATED: "updated", DELETED: "deleted" } as const;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export type RowStatus = (typeof ROW_STATUS)[keyof typeof ROW_STATUS];
 
 type DataRow = Record<string, unknown>;
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function findFirstRow(dataArray: DataRow[], col: string, val: unknown): number {
   if (!Array.isArray(dataArray)) return -1;
   for (let i = 0; i < dataArray.length; i++) {
@@ -21,6 +26,7 @@ export function findFirstRow(dataArray: DataRow[], col: string, val: unknown): n
   return -1;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function findRows(dataArray: DataRow[], col: string, val: unknown): number[] {
   const result: number[] = [];
   if (!Array.isArray(dataArray)) return result;
@@ -30,6 +36,7 @@ export function findRows(dataArray: DataRow[], col: string, val: unknown): numbe
   return result;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function findRowsByMultiCol(dataArray: DataRow[], conditions: Record<string, unknown>): number[] {
   const result: number[] = [];
   if (!Array.isArray(dataArray)) return result;
@@ -47,11 +54,13 @@ export function findRowsByMultiCol(dataArray: DataRow[], conditions: Record<stri
   return result;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function deleteRows(dataArray: DataRow[], col: string, val: unknown): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
   return dataArray.filter((row) => row[col] != val);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function deleteMultiRows(dataArray: DataRow[], indices: number[]): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
   if (!Array.isArray(indices)) return dataArray;
@@ -59,6 +68,7 @@ export function deleteMultiRows(dataArray: DataRow[], indices: number[]): DataRo
   return dataArray.filter((_, index) => !indexSet.has(index));
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isDuplicationCheck(
   dataArray: DataRow[],
   columnIds: string | string[],
@@ -82,6 +92,7 @@ export function isDuplicationCheck(
   return false;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function removeDuplicates(dataArray: DataRow[], columnIds: string | string[]): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
   const cols = Array.isArray(columnIds) ? columnIds : [columnIds];
@@ -97,18 +108,21 @@ export function removeDuplicates(dataArray: DataRow[], columnIds: string | strin
   return result;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isDatasetChanged(dataArray: DataRow[], originalArray: DataRow[]): boolean {
   if (!Array.isArray(dataArray) || !Array.isArray(originalArray)) return dataArray !== originalArray;
   if (dataArray.length !== originalArray.length) return true;
   return JSON.stringify(dataArray) !== JSON.stringify(originalArray);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface ChangedRows {
   inserted: DataRow[];
   updated: DataRow[];
   deleted: DataRow[];
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function getChangedRows(dataArray: DataRow[]): ChangedRows {
   const result: ChangedRows = { inserted: [], updated: [], deleted: [] };
   if (!Array.isArray(dataArray)) return result;
@@ -129,6 +143,7 @@ export function getChangedRows(dataArray: DataRow[]): ChangedRows {
   return result;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function findData(
   dataArray: DataRow[],
   idCol: string,
@@ -144,6 +159,7 @@ export function findData(
   return -1;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function editData(
   dataArray: DataRow[],
   idCol: string,
@@ -161,6 +177,7 @@ export function editData(
   return newArray;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function deleteData(
   dataArray: DataRow[],
   idCol: string,
@@ -174,6 +191,7 @@ export function deleteData(
   return dataArray.filter((_, index) => index !== curRow);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function setFirstRow(
   dataArray: DataRow[],
   codeValue: unknown,
@@ -186,11 +204,13 @@ export function setFirstRow(
   return [newRow, ...dataArray];
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface RowCopyResult {
   data: DataRow[];
   newRowIndex: number;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function rowcopyData(
   dataArray: DataRow[],
   sourceRow: number,
@@ -220,6 +240,7 @@ export function rowcopyData(
   return { data: newArray, newRowIndex };
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function addRow(dataArray: DataRow[], rowData: DataRow = {}, position: number = -1): DataRow[] {
   if (!Array.isArray(dataArray)) return [rowData];
   const newRow = { _rowType: ROW_TYPE.INSERT, ...rowData };
@@ -232,41 +253,49 @@ export function addRow(dataArray: DataRow[], rowData: DataRow = {}, position: nu
   return newArray;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function getColumnValues(dataArray: DataRow[], column: string): unknown[] {
   if (!Array.isArray(dataArray)) return [];
   return dataArray.map((row) => row[column]);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function sumColumn(dataArray: DataRow[], column: string): number {
   if (!Array.isArray(dataArray)) return 0;
   return dataArray.reduce((sum, row) => sum + (parseFloat(String(row[column])) || 0), 0);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function avgColumn(dataArray: DataRow[], column: string): number {
   if (!Array.isArray(dataArray) || dataArray.length === 0) return 0;
   return sumColumn(dataArray, column) / dataArray.length;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function maxColumn(dataArray: DataRow[], column: string): number | null {
   if (!Array.isArray(dataArray) || dataArray.length === 0) return null;
   const values = dataArray.map((row) => parseFloat(String(row[column])) || 0);
   return Math.max(...values);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function minColumn(dataArray: DataRow[], column: string): number | null {
   if (!Array.isArray(dataArray) || dataArray.length === 0) return null;
   const values = dataArray.map((row) => parseFloat(String(row[column])) || 0);
   return Math.min(...values);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function countColumn(dataArray: DataRow[], column: string | null = null, value: unknown = null): number {
   if (!Array.isArray(dataArray)) return 0;
   if (column === null) return dataArray.length;
   return dataArray.filter((row) => row[column] == value).length;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export type AggType = "sum" | "avg" | "count" | "max" | "min";
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function groupBy(
   dataArray: DataRow[],
   groupColumns: string | string[],
@@ -313,11 +342,13 @@ export function groupBy(
   return result;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface SortConfig {
   column: string;
   order?: "asc" | "desc";
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function sortBy(dataArray: DataRow[], columns: string | SortConfig[], order: "asc" | "desc" = "asc"): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
   const sortConfig: SortConfig[] = Array.isArray(columns) ? columns : [{ column: columns, order }];
@@ -338,6 +369,7 @@ export function sortBy(dataArray: DataRow[], columns: string | SortConfig[], ord
   });
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function moveRow(dataArray: DataRow[], fromIndex: number, toIndex: number): DataRow[] {
   if (!Array.isArray(dataArray)) return [];
   if (fromIndex < 0 || fromIndex >= dataArray.length) return [...dataArray];
@@ -349,27 +381,51 @@ export function moveRow(dataArray: DataRow[], fromIndex: number, toIndex: number
 }
 
 // gfn_ 호환 별칭
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_findFirstRow = findFirstRow;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_findRows = findRows;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_findRowsByMultiCol = findRowsByMultiCol;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_deleteRows = deleteRows;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_deleteMultiRows = deleteMultiRows;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isDuplicationCheck = isDuplicationCheck;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_dsDupDel = removeDuplicates;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isDatasetChanged = isDatasetChanged;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_getChangedRows = getChangedRows;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_findData = findData;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_editData = editData;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_deleteData = deleteData;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_setFirstRow = setFirstRow;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_rowcopyData = rowcopyData;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_addRow = addRow;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_getColumnValues = getColumnValues;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_sumColumn = sumColumn;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_avgColumn = avgColumn;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_maxColumn = maxColumn;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_minColumn = minColumn;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_countColumn = countColumn;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_groupBy = groupBy;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_sortBy = sortBy;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_moveRow = moveRow;

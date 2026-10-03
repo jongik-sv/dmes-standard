@@ -31,6 +31,7 @@ const TARGET_ATTR = "data-print-target";
 /** 인쇄 동안 head 에 넣는 style 의 표시 속성. */
 const STYLE_ATTR = "data-print-page";
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface PrintElementOptions {
   /** 인쇄 동안의 document.title — Chrome 「PDF로 저장」의 기본 파일 이름이 된다. 없으면 제목을 바꾸지 않는다. */
   title?: string;

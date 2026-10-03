@@ -9,6 +9,7 @@
  * ("Module not found: Can't resolve 'file-saver'"). 동적 import 라 정적 검색에도 잘 잡히지 않아
  * m-mls(common/excel.ts) · m-mcm(cia/interfaceList, cmb/masterRuleList) 은 각각 XLSX.writeFile
  * 직접 호출로 우회해 왔다. 본 유틸을 같은 방식으로 정리해 우회 사유 자체를 제거한다.
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다.
  */
 
 export interface ExcelColumn {
@@ -105,4 +106,5 @@ export function toExcelColumns(
     });
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_exportToExcel = exportToExcel;

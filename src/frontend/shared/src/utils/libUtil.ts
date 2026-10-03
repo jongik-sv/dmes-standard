@@ -23,6 +23,7 @@ export function isNullOrEmpty(sValue: unknown): boolean {
   return false;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function nvl<T>(inVal: T | null | undefined, emptyVal: T): T {
   if (isNullOrEmpty(inVal)) {
     return emptyVal;
@@ -34,11 +35,13 @@ export function nvl<T>(inVal: T | null | undefined, emptyVal: T): T {
 // 텍스트 크기 측정 (Canvas API)
 // ============================================================
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface TextSize {
   width: number;
   height: number;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function measureTextSize(sText: string, font?: string): TextSize {
   const actualFont = font?.trim() || "12px '맑은 고딕'";
 
@@ -71,6 +74,9 @@ export function generateId(prefix: string = "cm"): string {
 // ============================================================
 // gfn_ 호환 별칭
 // ============================================================
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isNull = isNullOrEmpty;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isNvl = nvl;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_getTextSize = measureTextSize;

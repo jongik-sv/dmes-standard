@@ -6,6 +6,7 @@
  * import { getMenuPath } from '@dk-oasis/shared/lib';
  * const path = getMenuPath(menuList, 'menu-001', '사용자 관리');
  * // "공통관리 > 권한관리 > 사용자 관리"
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다.
  */
 
 export interface MenuPathItem {
@@ -24,6 +25,7 @@ export interface MenuPathItem {
  * @param menuId - 현재 메뉴 ID
  * @param screenName - 현재 화면명 (선택)
  * @returns 메뉴 경로 문자열 (예: "공통관리 > 권한관리 > 사용자 관리")
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다.
  */
 export function getMenuPath(menuInfo: MenuPathItem[], menuId: string, screenName?: string): string {
   if (!menuInfo || !Array.isArray(menuInfo) || !menuId) {
@@ -53,6 +55,7 @@ export function getMenuPath(menuInfo: MenuPathItem[], menuId: string, screenName
  * 컴포넌트 경로 계산
  * @param fullId - FULL_ID (예: "csa/csa::CommUserMng")
  * @returns 컴포넌트 경로 문자열
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다.
  */
 export function getObjectPath(fullId: string | null | undefined): string {
   if (!fullId) return "";
@@ -64,6 +67,7 @@ export function getObjectPath(fullId: string | null | undefined): string {
  * @param item - 원본 메뉴 아이템
  * @param menuInfo - 전체 메뉴 정보 배열
  * @returns 보완된 메뉴 아이템
+ * @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다.
  */
 export function enrichMenuItem(item: MenuPathItem, menuInfo: MenuPathItem[]): MenuPathItem {
   if (!menuInfo || !Array.isArray(menuInfo)) return item;

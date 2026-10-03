@@ -46,6 +46,7 @@ import { gfn_isNull } from './libUtil';
  * gfn_blankStr(undefined)  // ""
  * gfn_blankStr(null)       // ""
  * gfn_blankStr("  hello  ") // "hello"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_blankStr 를 쓴다.
  */
 export function gfn_blankStr(oParam: unknown): string {
   const strParam = String(oParam);
@@ -66,6 +67,7 @@ export function gfn_blankStr(oParam: unknown): string {
  * gfn_toString(123)     // "123"
  * gfn_toString(null)    // ""
  * gfn_toString(undefined) // ""
+ * @deprecated @dk-oasis/shared/utils 의 gfn_toString 를 쓴다.
  */
 export function gfn_toString(val: unknown): string {
   if (gfn_isNull(val)) {
@@ -85,6 +87,7 @@ export function gfn_toString(val: unknown): string {
  * @example
  * gfn_nullToEmpty(null, "없음")  // "없음"
  * gfn_nullToEmpty("값", "없음")  // "값"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_nullToEmpty 를 쓴다.
  */
 export function gfn_nullToEmpty<T>(sValue: T | null | undefined, sEmptyVal: T | string = ""): T | string {
   if (gfn_isNull(sValue)) {
@@ -108,6 +111,7 @@ export function gfn_nullToEmpty<T>(sValue: T | null | undefined, sEmptyVal: T | 
  * gfn_getLength("hello")  // 5
  * gfn_getLength(12345)    // 5
  * gfn_getLength(null)     // 0
+ * @deprecated @dk-oasis/shared/utils 의 gfn_getLength 를 쓴다.
  */
 export function gfn_getLength(val: unknown): number {
   if (gfn_isNull(val)) {
@@ -119,6 +123,7 @@ export function gfn_getLength(val: unknown): number {
 /**
  * @function gfn_length
  * @description gfn_getLength의 별칭
+ * @deprecated @dk-oasis/shared/utils 의 gfn_length 를 쓴다.
  */
 export const gfn_length = gfn_getLength;
 
@@ -133,6 +138,7 @@ export const gfn_length = gfn_getLength;
  * gfn_getLengthB("hello")   // 5
  * gfn_getLengthB("안녕")    // 4 (한글 2byte)
  * gfn_getLengthB("hello안녕") // 9
+ * @deprecated @dk-oasis/shared/utils 의 gfn_getLengthB 를 쓴다.
  */
 export function gfn_getLengthB(sValue: string | null | undefined): number {
   if (gfn_isNull(sValue)) {
@@ -165,6 +171,7 @@ export function gfn_getLengthB(sValue: string | null | undefined): number {
  * @example
  * gfn_isMaxLength("hello", 10)  // true
  * gfn_isMaxLength("hello world", 5)  // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isMaxLength 를 쓴다.
  */
 export function gfn_isMaxLength(val: unknown, nLimit: number): boolean {
   const nLength = gfn_length(val);
@@ -186,6 +193,7 @@ export function gfn_isMaxLength(val: unknown, nLimit: number): boolean {
  * @example
  * gfn_left("hello world", 5)  // "hello"
  * gfn_left("hello", 10)       // "hello"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_left 를 쓴다.
  */
 export function gfn_left(sText: string | number, nSize: number | null | undefined): string {
   const str = String(sText);
@@ -206,6 +214,7 @@ export function gfn_left(sText: string | number, nSize: number | null | undefine
  * @example
  * gfn_right("hello world", 5)  // "world"
  * gfn_right("hello", 10)       // "hello"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_right 를 쓴다.
  */
 export function gfn_right(sText: string | number, nSize: number): string {
   const str = String(sText);
@@ -232,6 +241,7 @@ export function gfn_right(sText: string | number, nSize: number): string {
  * @example
  * gfn_mid("hello[world]end", "[", "]")  // "world"
  * gfn_mid("aaBBbbccdd", "bb", "dd")     // "cc"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_mid 를 쓴다.
  */
 export function gfn_mid(sOrg: string | null | undefined, sStart: string = "", sEnd: string = "", nStart: number = 0): string {
   if (gfn_isNull(sOrg)) {
@@ -279,6 +289,7 @@ export function gfn_mid(sOrg: string | null | undefined, sStart: string = "", sE
  * @example
  * gfn_indexOf("hello world", "world")  // 6
  * gfn_indexOf("hello world", "x")      // -1
+ * @deprecated @dk-oasis/shared/utils 의 gfn_indexOf 를 쓴다.
  */
 export function gfn_indexOf(val: unknown, strOld: string, index: number = 0): number {
   return gfn_toString(val).indexOf(strOld, index);
@@ -296,6 +307,7 @@ export function gfn_indexOf(val: unknown, strOld: string, index: number = 0): nu
  * @example
  * gfn_pos("aaBBbbcc", "bb")  // 4
  * gfn_pos("aaBBbbcc", "BB")  // 2
+ * @deprecated @dk-oasis/shared/utils 의 gfn_pos 를 쓴다.
  */
 export function gfn_pos(sOrg: string | null | undefined, sFind: string | null | undefined, nStart: number = 0): number {
   if (gfn_isNull(sOrg) || gfn_isNull(sFind)) {
@@ -319,6 +331,7 @@ export function gfn_pos(sOrg: string | null | undefined, sFind: string | null | 
  * @example
  * gfn_split("a,b,c", ",")  // ["a", "b", "c"]
  * gfn_split("hello", "")   // ["hello"]
+ * @deprecated @dk-oasis/shared/utils 의 gfn_split 를 쓴다.
  */
 export function gfn_split(strString: string | null | undefined, strChar: string | null | undefined): string[] {
   if (gfn_isNull(strString)) {
@@ -343,6 +356,7 @@ export function gfn_split(strString: string | null | undefined, strChar: string 
  *
  * @example
  * gfn_replace("hello world world", "world", "react")  // "hello react world"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_replace 를 쓴다.
  */
 export function gfn_replace(val: unknown, strOld: string, strNew: string): string {
   if (gfn_isNull(val)) {
@@ -362,6 +376,7 @@ export function gfn_replace(val: unknown, strOld: string, strNew: string): strin
  *
  * @example
  * gfn_replaceAll("hello world world", "world", "react")  // "hello react react"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_replaceAll 를 쓴다.
  */
 export function gfn_replaceAll(val: unknown, strOld: string, strNew: string): string {
   if (gfn_isNull(val)) {
@@ -385,6 +400,7 @@ export function gfn_replaceAll(val: unknown, strOld: string, strNew: string): st
  * @example
  * gfn_lTrim("   hello")      // "hello"
  * gfn_lTrim("000123", "0")   // "123"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_lTrim 를 쓴다.
  */
 export function gfn_lTrim(sOrg: unknown, sTrim: string = " "): string {
   if (gfn_isNull(sOrg)) {
@@ -414,6 +430,7 @@ export function gfn_lTrim(sOrg: unknown, sTrim: string = " "): string {
  * @example
  * gfn_rTrim("hello   ")      // "hello"
  * gfn_rTrim("12300", "0")    // "123"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_rTrim 를 쓴다.
  */
 export function gfn_rTrim(sOrg: unknown, sTrim: string = " "): string {
   if (gfn_isNull(sOrg)) {
@@ -443,6 +460,7 @@ export function gfn_rTrim(sOrg: unknown, sTrim: string = " "): string {
  * @example
  * gfn_trim("  hello  ")      // "hello"
  * gfn_trim("00012300", "0")  // "123"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_trim 를 쓴다.
  */
 export function gfn_trim(sOrg: unknown, sTrim: string = " "): string {
   let result = gfn_rTrim(sOrg, sTrim);
@@ -466,6 +484,7 @@ export function gfn_trim(sOrg: unknown, sTrim: string = " "): string {
  * @example
  * gfn_lpad("5", "0", 3)    // "005"
  * gfn_lpad("123", "0", 5)  // "00123"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_lpad 를 쓴다.
  */
 export function gfn_lpad(sOrg: string | number, sPad: string = " ", nCnt?: number | null): string {
   let orgStr = typeof sOrg !== "string" ? String(sOrg) : sOrg;
@@ -499,6 +518,7 @@ export function gfn_lpad(sOrg: string | number, sPad: string = " ", nCnt?: numbe
  * @example
  * gfn_rpad("5", "0", 3)    // "500"
  * gfn_rpad("123", "0", 5)  // "12300"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_rpad 를 쓴다.
  */
 export function gfn_rpad(sOrg: string | number, sPad: string = " ", nCnt?: number | null): string {
   let orgStr = typeof sOrg !== "string" ? String(sOrg) : sOrg;
@@ -527,6 +547,7 @@ export function gfn_rpad(sOrg: string | number, sPad: string = " ", nCnt?: numbe
  * @param sPad - 채울 문자 (default: " ")
  * @param nCnt - 전체 길이
  * @returns 패딩된 문자열
+ * @deprecated @dk-oasis/shared/utils 의 gfn_full_lpad 를 쓴다.
  */
 export function gfn_full_lpad(sOrg: string | number, sPad: string = " ", nCnt?: number | null): string {
   let orgStr = typeof sOrg !== "string" ? String(sOrg) : sOrg;
@@ -556,6 +577,7 @@ export function gfn_full_lpad(sOrg: string | number, sPad: string = " ", nCnt?: 
  * @param sPad - 채울 문자 (default: " ")
  * @param nCnt - 전체 길이 (byte 기준)
  * @returns 패딩된 문자열
+ * @deprecated @dk-oasis/shared/utils 의 gfn_full_rpad 를 쓴다.
  */
 export function gfn_full_rpad(sOrg: string | number, sPad: string = " ", nCnt?: number | null): string {
   let orgStr = typeof sOrg !== "string" ? String(sOrg) : sOrg;
@@ -589,6 +611,7 @@ export function gfn_full_rpad(sOrg: string | number, sPad: string = " ", nCnt?: 
  *
  * @example
  * gfn_quote("hello")  // "'hello'"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_quote 를 쓴다.
  */
 export function gfn_quote(sReturn: string): string {
   return "'" + sReturn + "'";
@@ -605,6 +628,7 @@ export function gfn_quote(sReturn: string): string {
  * gfn_getNum("123")   // 123
  * gfn_getNum("abc")   // 0
  * gfn_getNum("12.5")  // 12
+ * @deprecated @dk-oasis/shared/utils 의 gfn_getNum 를 쓴다.
  */
 export function gfn_getNum(sNum: string | number | null | undefined): number {
   if (gfn_isNum(sNum)) {
@@ -624,6 +648,7 @@ export function gfn_getNum(sNum: string | number | null | undefined): number {
  * gfn_isAlpha("hello")   // true
  * gfn_isAlpha("hello1")  // false
  * gfn_isAlpha("한글")    // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isAlpha 를 쓴다.
  */
 export function gfn_isAlpha(sValue: string | null | undefined): boolean {
   if (gfn_isNull(sValue)) {
@@ -643,6 +668,7 @@ export function gfn_isAlpha(sValue: string | null | undefined): boolean {
  * gfn_isNum("12345")  // true
  * gfn_isNum("123.45") // false
  * gfn_isNum("abc")    // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isNum 를 쓴다.
  */
 export function gfn_isNum(sValue: unknown): boolean {
   if (gfn_isNull(sValue)) {
@@ -663,6 +689,7 @@ export function gfn_isNum(sValue: unknown): boolean {
  * gfn_isNumeric("-123")   // true
  * gfn_isNumeric("12.34")  // true
  * gfn_isNumeric("abc")    // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isNumeric 를 쓴다.
  */
 export function gfn_isNumeric(sValue: unknown): boolean {
   if (gfn_isNull(sValue)) {
@@ -681,6 +708,7 @@ export function gfn_isNumeric(sValue: unknown): boolean {
  *
  * @example
  * gfn_returnSplit("a,b,c", ",")  // "'a','b','c'"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_returnSplit 를 쓴다.
  */
 export function gfn_returnSplit(strString: string, strChar: string): string {
   const arr = String(strString).split(strChar);
@@ -697,6 +725,7 @@ export function gfn_returnSplit(strString: string, strChar: string): string {
  * @example
  * gfn_camelize("hello_world")  // "helloWorld"
  * gfn_camelize("hello-world")  // "helloWorld"
+ * @deprecated @dk-oasis/shared/utils 의 gfn_camelize 를 쓴다.
  */
 export function gfn_camelize(str: string | null | undefined): string {
   if (gfn_isNull(str)) {

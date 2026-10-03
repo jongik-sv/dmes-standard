@@ -51,6 +51,7 @@ function isNumeric(sValue: unknown): boolean {
  * @example
  * gfn_isRsrNo("8001011234567")  // true 또는 false
  * gfn_isRsrNo("800101-1234567") // true 또는 false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isRsrNo 를 쓴다.
  */
 export function gfn_isRsrNo(rsrno: string | null | undefined): boolean {
   if (gfn_isNull(rsrno)) return false;
@@ -124,6 +125,7 @@ export function gfn_isRsrNo(rsrno: string | null | undefined): boolean {
  * @example
  * gfn_isCompRegNo("1234567890")     // true 또는 false
  * gfn_isCompRegNo("123-45-67890")   // true 또는 false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isCompRegNo 를 쓴다.
  */
 export function gfn_isCompRegNo(compNo: string | null | undefined): boolean {
   if (gfn_isNull(compNo)) return false;
@@ -163,6 +165,7 @@ export function gfn_isCompRegNo(compNo: string | null | undefined): boolean {
  * @example
  * gfn_isCorpRegNo("1101111234567")   // true 또는 false
  * gfn_isCorpRegNo("110111-1234567")  // true 또는 false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isCorpRegNo 를 쓴다.
  */
 export function gfn_isCorpRegNo(corpNo: string | null | undefined): boolean {
   if (gfn_isNull(corpNo)) return false;
@@ -203,6 +206,7 @@ export function gfn_isCorpRegNo(corpNo: string | null | undefined): boolean {
  * @example
  * gfn_isEmail("test@example.com")  // true
  * gfn_isEmail("invalid-email")     // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isEmail 를 쓴다.
  */
 export function gfn_isEmail(email: string | null | undefined): boolean {
   if (gfn_isNull(email)) return false;
@@ -214,6 +218,7 @@ export function gfn_isEmail(email: string | null | undefined): boolean {
 }
 
 // 별칭 (Nexacro 호환)
+/** @deprecated 오타 별칭이다. @dk-oasis/shared/utils 의 gfn_isEmail 을 쓴다. */
 export const gfn_isEmailo = gfn_isEmail;
 
 /**
@@ -227,6 +232,7 @@ export const gfn_isEmailo = gfn_isEmail;
  * gfn_isCellPhone("01012345678")   // true
  * gfn_isCellPhone("010-1234-5678") // true
  * gfn_isCellPhone("0112345678")    // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isCellPhone 를 쓴다.
  */
 export function gfn_isCellPhone(phone: string | null | undefined): boolean {
   if (gfn_isNull(phone)) return false;
@@ -251,6 +257,7 @@ export function gfn_isCellPhone(phone: string | null | undefined): boolean {
  * gfn_isPhone("0212345678")    // true
  * gfn_isPhone("02-1234-5678")  // true
  * gfn_isPhone("01012345678")   // true
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isPhone 를 쓴다.
  */
 export function gfn_isPhone(phone: string | null | undefined): boolean {
   if (gfn_isNull(phone)) return false;
@@ -279,6 +286,7 @@ export function gfn_isPhone(phone: string | null | undefined): boolean {
  * @example
  * gfn_checkSpecialChar("hello@world")  // true
  * gfn_checkSpecialChar("hello")        // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_checkSpecialChar 를 쓴다.
  */
 export function gfn_checkSpecialChar(str: string | null | undefined, allowedChars: string = ""): boolean {
   if (gfn_isNull(str)) return false;
@@ -305,6 +313,7 @@ export function gfn_checkSpecialChar(str: string | null | undefined, allowedChar
  * @example
  * gfn_isUrl("https://www.example.com")  // true
  * gfn_isUrl("not-a-url")                // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isUrl 를 쓴다.
  */
 export function gfn_isUrl(url: string | null | undefined): boolean {
   if (gfn_isNull(url)) return false;
@@ -324,6 +333,7 @@ export function gfn_isUrl(url: string | null | undefined): boolean {
  * @example
  * gfn_isIPAddress("192.168.0.1")  // true
  * gfn_isIPAddress("256.0.0.1")    // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isIPAddress 를 쓴다.
  */
 export function gfn_isIPAddress(ip: string | null | undefined): boolean {
   if (gfn_isNull(ip)) return false;
@@ -348,6 +358,7 @@ export function gfn_isIPAddress(ip: string | null | undefined): boolean {
  * gfn_isRequired("hello")  // true
  * gfn_isRequired("")       // false
  * gfn_isRequired(null)     // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isRequired 를 쓴다.
  */
 export function gfn_isRequired(value: unknown): boolean {
   return !gfn_isNull(value);
@@ -364,6 +375,7 @@ export function gfn_isRequired(value: unknown): boolean {
  * @example
  * gfn_isMinLength("hello", 3)  // true
  * gfn_isMinLength("hi", 3)     // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isMinLength 를 쓴다.
  */
 export function gfn_isMinLength(value: string | null | undefined, minLen: number): boolean {
   if (gfn_isNull(value)) return minLen <= 0;
@@ -392,6 +404,7 @@ export function gfn_isMinLength(value: string | null | undefined, minLen: number
  * @param minLen - 최소 길이
  * @param maxLen - 최대 길이
  * @returns 범위 내이면 true
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isLengthRange 를 쓴다.
  */
 export function gfn_isLengthRange(value: string | null | undefined, minLen: number, maxLen: number): boolean {
   return gfn_isMinLength(value, minLen) && gfn_isMaxLength(value, maxLen);
@@ -409,6 +422,7 @@ export function gfn_isLengthRange(value: string | null | undefined, minLen: numb
  * @example
  * gfn_isRange(5, 1, 10)   // true
  * gfn_isRange(15, 1, 10)  // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isRange 를 쓴다.
  */
 export function gfn_isRange(value: number | string, min: number, max: number): boolean {
   const num = parseFloat(String(value));
@@ -429,6 +443,7 @@ export function gfn_isRange(value: number | string, min: number, max: number): b
  *
  * @example
  * gfn_isCardNo("4111111111111111")  // true (테스트 카드번호)
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isCardNo 를 쓴다.
  */
 export function gfn_isCardNo(cardNo: string | null | undefined): boolean {
   if (gfn_isNull(cardNo)) return false;
@@ -471,6 +486,7 @@ export function gfn_isCardNo(cardNo: string | null | undefined): boolean {
  *
  * @example
  * gfn_isAccountNo("123-456-789012")  // true
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isAccountNo 를 쓴다.
  */
 export function gfn_isAccountNo(accountNo: string | null | undefined): boolean {
   if (gfn_isNull(accountNo)) return false;
@@ -489,6 +505,7 @@ export function gfn_isAccountNo(accountNo: string | null | undefined): boolean {
 /**
  * @interface PasswordOptions
  * @description gfn_isPassword 옵션
+ * @deprecated @dk-oasis/shared/utils 의 PasswordOptions 를 쓴다.
  */
 export interface PasswordOptions {
   minLength?: number;
@@ -501,6 +518,7 @@ export interface PasswordOptions {
 /**
  * @interface ValidationResult
  * @description 검증 결과 타입
+ * @deprecated @dk-oasis/shared/utils 의 ValidationResult 를 쓴다.
  */
 export interface ValidationResult {
   valid: boolean;
@@ -518,6 +536,7 @@ export interface ValidationResult {
  * @example
  * gfn_isPassword("Test123!")
  * // { valid: true, errors: [] }
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isPassword 를 쓴다.
  */
 export function gfn_isPassword(password: string | null | undefined, options: PasswordOptions = {}): ValidationResult {
   const {
@@ -565,6 +584,7 @@ export function gfn_isPassword(password: string | null | undefined, options: Pas
 /**
  * @interface PasswordStrengthResult
  * @description 패스워드 강도 결과 타입
+ * @deprecated 저장소 안 사용처 없음. @dk-oasis/shared/utils 에 같은 결과 타입이 없다. 다음 정리 때 archive 로 옮긴다.
  */
 export interface PasswordStrengthResult {
   score: number;
@@ -577,6 +597,7 @@ export interface PasswordStrengthResult {
  *
  * @param password - 패스워드
  * @returns { score: 0-100, level: 'weak'|'fair'|'good'|'strong' }
+ * @deprecated @dk-oasis/shared/utils 의 gfn_getPasswordStrength 를 쓴다.
  */
 export function gfn_getPasswordStrength(password: string | null | undefined): PasswordStrengthResult {
   if (gfn_isNull(password)) {
@@ -621,6 +642,7 @@ export function gfn_getPasswordStrength(password: string | null | undefined): Pa
  * @example
  * gfn_isKorean("홍길동")  // true
  * gfn_isKorean("홍길동1") // false
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isKorean 를 쓴다.
  */
 export function gfn_isKorean(str: string | null | undefined): boolean {
   if (gfn_isNull(str)) return false;
@@ -633,6 +655,7 @@ export function gfn_isKorean(str: string | null | undefined): boolean {
  *
  * @param str - 체크할 문자열
  * @returns 한글과 공백만 있으면 true
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isKoreanWithSpace 를 쓴다.
  */
 export function gfn_isKoreanWithSpace(str: string | null | undefined): boolean {
   if (gfn_isNull(str)) return false;
@@ -645,6 +668,7 @@ export function gfn_isKoreanWithSpace(str: string | null | undefined): boolean {
  *
  * @param str - 체크할 문자열
  * @returns 영문/숫자만 있으면 true
+ * @deprecated @dk-oasis/shared/utils 의 gfn_isAlphaNumeric 를 쓴다.
  */
 export function gfn_isAlphaNumeric(str: string | null | undefined): boolean {
   if (gfn_isNull(str)) return false;
@@ -658,6 +682,7 @@ export function gfn_isAlphaNumeric(str: string | null | undefined): boolean {
 /**
  * @interface ValidationRule
  * @description 검증 규칙 타입
+ * @deprecated @dk-oasis/shared/utils 의 ValidationRule 를 쓴다.
  */
 export interface ValidationRule {
   type: 'required' | 'email' | 'phone' | 'cellPhone' | 'minLength' | 'maxLength' | 'range' | 'pattern' | 'custom';
@@ -682,6 +707,7 @@ export interface ValidationRule {
  *   { type: 'required', message: '필수 입력입니다.' },
  *   { type: 'email', message: '이메일 형식이 아닙니다.' }
  * ])
+ * @deprecated @dk-oasis/shared/utils 의 gfn_validate 를 쓴다.
  */
 export function gfn_validate(value: unknown, rules: ValidationRule[]): ValidationResult {
   const errors: string[] = [];

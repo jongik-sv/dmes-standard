@@ -10,6 +10,7 @@ function isNumStr(sValue: unknown): boolean {
   return /^[0-9]+$/.test(String(sValue));
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidRsrNo(rsrno: string): boolean {
   if (isNullOrEmpty(rsrno)) return false;
   const juminNo = String(rsrno).replace(/-/g, "").trim();
@@ -43,6 +44,7 @@ export function isValidRsrNo(rsrno: string): boolean {
   return checksum === parseInt(juminNo.substring(12, 13), 10);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidBizNo(compNo: string): boolean {
   if (isNullOrEmpty(compNo)) return false;
   const bizNo = String(compNo).replace(/-/g, "").trim();
@@ -58,6 +60,7 @@ export function isValidBizNo(compNo: string): boolean {
   return checkDigit === parseInt(bizNo.charAt(9), 10);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidCorpNo(corpNo: string): boolean {
   if (isNullOrEmpty(corpNo)) return false;
   const corpRegNo = String(corpNo).replace(/-/g, "").trim();
@@ -72,6 +75,7 @@ export function isValidCorpNo(corpNo: string): boolean {
   return checkDigit === parseInt(corpRegNo.charAt(12), 10);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidEmail(email: string): boolean {
   if (isNullOrEmpty(email)) return false;
   const emailRegex =
@@ -79,18 +83,21 @@ export function isValidEmail(email: string): boolean {
   return emailRegex.test(String(email).trim());
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidCellPhone(phone: string): boolean {
   if (isNullOrEmpty(phone)) return false;
   const phoneNum = String(phone).replace(/[^0-9]/g, "");
   return /^01[016789][0-9]{7,8}$/.test(phoneNum);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidPhone(phone: string): boolean {
   if (isNullOrEmpty(phone)) return false;
   const phoneNum = String(phone).replace(/[^0-9]/g, "");
   return /^(01[016789][0-9]{7,8}|0[2-6][0-9]{7,8}|0[78]0[0-9]{7,8}|050[0-9]{8,9})$/.test(phoneNum);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function checkSpecialChar(str: string, allowedChars: string = ""): boolean {
   if (isNullOrEmpty(str)) return false;
   let pattern = /[^a-zA-Z0-9가-힣\s]/;
@@ -101,11 +108,13 @@ export function checkSpecialChar(str: string, allowedChars: string = ""): boolea
   return pattern.test(String(str));
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidUrl(url: string): boolean {
   if (isNullOrEmpty(url)) return false;
   return /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/i.test(String(url).trim());
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidIPAddress(ip: string): boolean {
   if (isNullOrEmpty(ip)) return false;
   return /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(
@@ -113,30 +122,36 @@ export function isValidIPAddress(ip: string): boolean {
   );
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isRequired(value: unknown): boolean {
   return !isNullOrEmpty(value);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isMinLength(value: unknown, minLen: number): boolean {
   if (isNullOrEmpty(value)) return minLen <= 0;
   return String(value).length >= minLen;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isMaxLength(value: unknown, maxLen: number): boolean {
   if (isNullOrEmpty(value)) return true;
   return String(value).length <= maxLen;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isLengthRange(value: unknown, minLen: number, maxLen: number): boolean {
   return isMinLength(value, minLen) && isMaxLength(value, maxLen);
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isRange(value: unknown, min: number, max: number): boolean {
   const num = parseFloat(String(value));
   if (isNaN(num)) return false;
   return num >= min && num <= max;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidCardNo(cardNo: string): boolean {
   if (isNullOrEmpty(cardNo)) return false;
   const digits = String(cardNo).replace(/[^0-9]/g, "");
@@ -155,12 +170,14 @@ export function isValidCardNo(cardNo: string): boolean {
   return sum % 10 === 0;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidAccountNo(accountNo: string): boolean {
   if (isNullOrEmpty(accountNo)) return false;
   const digits = String(accountNo).replace(/[^0-9]/g, "");
   return digits.length >= 10 && digits.length <= 16;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface PasswordOptions {
   minLength?: number;
   requireUppercase?: boolean;
@@ -169,11 +186,13 @@ export interface PasswordOptions {
   requireSpecial?: boolean;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface PasswordResult {
   valid: boolean;
   errors: string[];
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isValidPassword(password: string, options: PasswordOptions = {}): PasswordResult {
   const {
     minLength = 8,
@@ -193,11 +212,13 @@ export function isValidPassword(password: string, options: PasswordOptions = {})
   return { valid: errors.length === 0, errors };
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface PasswordStrength {
   score: number;
   level: "weak" | "fair" | "good" | "strong";
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function getPasswordStrength(password: string): PasswordStrength {
   if (isNullOrEmpty(password)) return { score: 0, level: "weak" };
   const pwd = String(password);
@@ -217,21 +238,25 @@ export function getPasswordStrength(password: string): PasswordStrength {
   return { score: Math.min(score, 100), level };
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isKorean(str: string): boolean {
   if (isNullOrEmpty(str)) return false;
   return /^[가-힣]+$/.test(String(str));
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isKoreanWithSpace(str: string): boolean {
   if (isNullOrEmpty(str)) return false;
   return /^[가-힣\s]+$/.test(String(str));
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export function isAlphaNumeric(str: string): boolean {
   if (isNullOrEmpty(str)) return false;
   return /^[a-zA-Z0-9]+$/.test(String(str));
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export type ValidationType =
   | "required"
   | "email"
@@ -253,6 +278,7 @@ export interface ValidationRule {
   validator?: (value: unknown) => boolean;
 }
 
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
@@ -297,25 +323,47 @@ export function validate(value: unknown, rules: ValidationRule[]): ValidationRes
 }
 
 // gfn_ 호환 별칭
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isRsrNo = isValidRsrNo;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isCompRegNo = isValidBizNo;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isCorpRegNo = isValidCorpNo;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isEmail = isValidEmail;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isCellPhone = isValidCellPhone;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isPhone = isValidPhone;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_checkSpecialChar = checkSpecialChar;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isUrl = isValidUrl;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isIPAddress = isValidIPAddress;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isRequired = isRequired;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isMinLength = isMinLength;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isMaxLength = isMaxLength;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isLengthRange = isLengthRange;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isRange = isRange;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isCardNo = isValidCardNo;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isAccountNo = isValidAccountNo;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isPassword = isValidPassword;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_getPasswordStrength = getPasswordStrength;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isKorean = isKorean;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isKoreanWithSpace = isKoreanWithSpace;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_isAlphaNumeric = isAlphaNumeric;
+/** @deprecated 저장소 안 사용처 없음. 다음 정리 때 archive 로 옮긴다. */
 export const gfn_validate = validate;
