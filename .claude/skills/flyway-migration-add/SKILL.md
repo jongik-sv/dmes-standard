@@ -1,6 +1,6 @@
 ---
 name: flyway-migration-add
-description: "Flyway 마이그레이션을 추가할 때 방언(Oracle·PostgreSQL·SQLite·MSSQL 등) 간 안전한 버전 번호를 채번하고 파일을 스캐폴딩합니다. aps-core/mcm-core 등 모듈의 스키마를 바꿀 때(엔티티·컬럼·인덱스·제약 추가/변경) 사용합니다. 방언별로 번호를 따로 고르면 같은 번호가 서로 다른 변경을 가리키는 드리프트가 생깁니다."
+description: "Flyway 마이그레이션을 추가할 때 방언(Oracle·PostgreSQL·SQLite 등) 간 안전한 버전 번호를 채번하고 파일을 스캐폴딩합니다. aps-core/mcm-core 등 모듈의 스키마를 바꿀 때(엔티티·컬럼·인덱스·제약 추가/변경) 사용합니다. 방언별로 번호를 따로 고르면 같은 번호가 서로 다른 변경을 가리키는 드리프트가 생깁니다."
 ---
 
 # Flyway 마이그레이션 추가 (dmes-standard)
@@ -17,15 +17,15 @@ DDL 인지 모호해진다.
 
 ## 0. 방언 폴더 구성
 
-DB 구성은 **로컬·자동 테스트 = SQLite, 운영 = 고객사가 확정하는 방언**이다. 운영 방언은 주로
-Oracle 또는 PostgreSQL 이고 MSSQL 인 경우도 있다. 운영 방언이 정해지지 않은 모듈은 SQLite 한 벌만
+DB 구성은 **로컬·자동 테스트 = SQLite, 운영 = Oracle 또는 PostgreSQL(현장마다 하나)** 이고 MSSQL 은
+거의 쓰지 않는다(2026-10-03 결정). 운영 방언을 아직 더하지 않은 모듈은 SQLite 한 벌만
 둔다(예: mdm — [ADR-0004](../../../docs/mdm/adr/0004-drop-mssql-production-assumption.md)).
 
 | 폴더 | 역할 | 비고 |
 |---|---|---|
 | `sqlite/` | 로컬·자동 테스트 | 거의 모든 모듈에 있다 |
 | `oracle/` · `postgresql/` | 운영 방언 | 고객사 확정 시 추가 |
-| `mssql/` (또는 `sqlserver/`) | 운영 방언 | 고객사가 MSSQL 일 때만 |
+| `mssql/` (또는 `sqlserver/`) | 운영 방언(드묾) | 거의 없음. MSSQL 현장일 때만 |
 | `{모듈명}/` · `common/` | 공통(방언 무관) 위치 | 템플릿의 샘플 모듈이 이 모양이다 |
 
 Spring Boot 의 `spring.flyway.locations=classpath:db/migration/{vendor}` 자리표시자를 쓰면 폴더 이름은
@@ -118,7 +118,7 @@ JAVA_HOME=~/.sdkman/candidates/java/21.0.10-sapmchn ../gradlew :aps-core:test
 
 `--tests` 필터에 맞는 테스트가 없으면 Gradle 이 "No tests found" 로 실패한다. 템플릿의 aps-core·mcm-core 에는
 마이그레이션 테스트가 없으므로 필터 없이 돌리고, `*CrossDialect*` 필터는 버전 일치 테스트를 둔 프로젝트만 쓴다.
-aps-core 는 JDK 21 로 빌드한다. 운영 방언(Oracle·PostgreSQL·MSSQL) 실측은 컨테이너가 필요하므로
+aps-core 는 JDK 21 로 빌드한다. 운영 방언(Oracle·PostgreSQL) 실측은 컨테이너가 필요하므로
 워커가 아니라 팀장의 방언 검증(`.dflow` 의 `dialect_check`)이나 사람이 돌린다.
 sqlite 에서 Flyway 를 켜는 런타임은 `spring.flyway.mixed=true` 가 필수다 — 테이블 재생성 마이그가
 PRAGMA(비트랜잭션)와 DDL 을 한 파일에 섞기 때문이다.
@@ -135,7 +135,7 @@ PRAGMA(비트랜잭션)와 DDL 을 한 파일에 섞기 때문이다.
   `NOT NULL DEFAULT ''` 는 쓰지 않는다. 식별자는 따옴표 없이 대문자로 저장된다.
 - **PostgreSQL DDL 은 트랜잭션 안에서 롤백된다**: 대신 `CREATE INDEX CONCURRENTLY` 처럼 트랜잭션 밖에서만
   되는 문장은 다른 DDL 과 섞지 말고 별도 파일로 둔다. 따옴표 없는 식별자는 소문자로 저장된다.
-- **MSSQL**: `CREATE PROCEDURE`·`CREATE TRIGGER` 처럼 배치의 첫 문장이어야 하는 구문은 앞뒤를 `GO` 로 끊는다.
+- **MSSQL**(MSSQL 을 쓸 때만): `CREATE PROCEDURE`·`CREATE TRIGGER` 처럼 배치의 첫 문장이어야 하는 구문은 앞뒤를 `GO` 로 끊는다.
 
 ## 8. 도구 자체 검증
 

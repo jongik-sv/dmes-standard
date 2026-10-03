@@ -114,6 +114,8 @@ dmes-backend-<releaseId>.zip
 
 dev 자동 DDL은 진단 편의일 뿐 승격 artifact가 아니다. 각 모듈의 schema diff를 versioned DDL/migration으로 만들고 빈 DB, 기존 DB upgrade, 운영유사 clone에서 같은 checksum을 검증한다.
 
+> **주의: WildFly 프로필의 SQL Server 설정**: MCM과 Caravan Hub의 `application-wildfly.yml`은 지금도 SQL Server 방언(`org.hibernate.dialect.SQLServerDialect`)과 `java:/jdbc/mssql/{모듈}/{DS}` 형식의 JNDI 이름을 쓴다. dmes-ksm(MSSQL) 이관 시절 설정이며 운영 대상은 Oracle 또는 PostgreSQL이므로, 운영 전에 방언·JNDI 이름·드라이버 모듈을 운영 DB에 맞게 바꿔야 한다.
+
 MPN은 ERP DB를 변경하지 않으며 기존 IF 팀이 제공하는 계약 경계 밖의 `EAIUSER` schema도 MPN migration으로
 소유하지 않는다. MPN 최초 구축 lineage의 대상은 `MPNAPUSER` 업무 schema다. 상세 분류·baseline 예외·전환
 순서는 [ADR-0058](../../aps/design/adr/0058-mpn-database-clean-build-and-if-boundary.md)을 따른다.
@@ -295,7 +297,7 @@ flowchart LR
     GW --> MQC["/mqc · mqc.war"]
     GW --> HUB["/caravan-hub · caravan-hub.war"]
     GW --> ANA["Analog service"]
-    MCM --> DB["운영 방언 DB(고객사 확정) 개발 인스턴스 · schema 분리"]
+    MCM --> DB["운영 DB(Oracle 또는 PostgreSQL) 개발 인스턴스 · schema 분리"]
     MLS --> DB
     MPN --> DB
     MPP --> DB
@@ -308,7 +310,7 @@ flowchart LR
 |---|---|
 | WildFly | WildFly 40 통합 인스턴스부터 시작 가능; 자원·장애영역 문제 시 MPN/Caravan 분리 |
 | Backend profile | 모든 WAR에 `spring.profiles.active=dev` 명시 |
-| DB | 운영 방언 DB(고객사 확정)의 개발 인스턴스, 모듈별 schema·계정; SQLite는 로컬 개발·테스트 전용 |
+| DB | 운영 DB(Oracle 또는 PostgreSQL)의 개발 인스턴스, 모듈별 schema·계정; SQLite는 로컬 개발·테스트 전용 |
 | Portal | Next standalone artifact로 서비스 기동 |
 | Routing | `BACKEND_API_URL`이 내부 dev Gateway를 가리킴; 모듈별 URL은 진단 예외 |
 | Kafka | localKafka 또는 개발 Kafka; 운영 데이터 연결 금지 |
@@ -328,7 +330,7 @@ flowchart LR
     BG --> MES["MPP · MQC · MLS WildFly Groups"]
     BG --> IF["Caravan Hub WildFly Group"]
     BG --> LOG["Analog service"]
-    AUTH --> DB["운영 방언 DB(고객사 확정) · schema/계정 분리"]
+    AUTH --> DB["운영 DB(Oracle 또는 PostgreSQL) · schema/계정 분리"]
     PLAN --> DB
     MES --> DB
     IF --> DB
@@ -340,7 +342,7 @@ flowchart LR
 | WildFly | MCM, MPN, MES 업무군, Caravan Hub를 독립 JVM/server group으로 분리 |
 | 이중화 | Portal A/B, 핵심 WildFly는 2노드 또는 rolling 가능한 group |
 | Backend profile | `prod` 강제, 기본 profile fail-fast |
-| DB | 운영 방언 DB(고객사 확정) 최소권한 계정, `ddl-auto=none`, 승인 migration만 적용 |
+| DB | 운영 DB(Oracle 또는 PostgreSQL) 최소권한 계정, `ddl-auto=none`, 승인 migration만 적용 |
 | Secret | WildFly credential store/JNDI 또는 조직 secret store |
 | Portal | 동일 standalone checksum을 A/B에 배포하고 upstream 전환 |
 | Portal 필수 env | `PORT`, `HOSTNAME`, `NEXTAUTH_URL`, `AUTH_SECRET`, `AUTH_COOKIE_PREFIX`, `BACKEND_API_URL`, `BACKEND_CLIENT_KEY`, `BFF_INTERNAL_SECRET`, `RBAC_DEFAULT_DENY=true`, `TRUSTED_PROXY_HOPS`(앞단 단계 수, 아래 행) |
@@ -540,7 +542,7 @@ Portal component의 상세 전제·구조·이식성 검증은 §3.2~3.6을 적�
 | Artifact | 승인 branch 자동배포 가능 | 개발계 통과 checksum 승격 | UAT 승인 checksum만 승격 |
 | Backend | 통합 WildFly 허용 | 운영유사 group/context/Gateway | 장애영역 분리·rolling |
 | Portal | 단일 Node 허용 | standalone·실 route 검증 | A/B 동일 artifact·upstream 전환 |
-| DB | 운영 방언 DB(고객사 확정) 개발 인스턴스·schema 분리 | prod-like clone·versioned migration | 최소권한·승인 migration |
+| DB | 운영 DB(Oracle 또는 PostgreSQL) 개발 인스턴스·schema 분리 | prod-like clone·versioned migration | 최소권한·승인 migration |
 | Kafka/IF | 개발 Kafka | 상대 staging | 운영 Kafka/실 IF |
 | Gate | 자동 test+smoke | 전체 프로세스·UAT·복구 | go/no-go·post-smoke·reconciliation |
 
@@ -580,7 +582,7 @@ destructive down migration은 DBA 승인 없이 실행하지 않는다.
 |---|---|
 | Unit/API | failures/errors 0, 예상하지 않은 skip 0 |
 | SQLite/local | 격리 fixture와 상태·수량 불변식 PASS |
-| 운영 방언 DB(고객사 확정) | migration·권한·대표 query·schema diff PASS |
+| 운영 DB(Oracle 또는 PostgreSQL) | migration·권한·대표 query·schema diff PASS |
 | Artifact | checksum 일치, secret scan 0, 빈 디렉터리 이식 smoke PASS |
 | Security | 401·403·default deny·내부 헤더 위조 negative PASS |
 | Integration | Portal→Gateway→각 모듈, Kafka/IF 계약 PASS |

@@ -2,7 +2,7 @@
 
 > 정본: [`docs/mdm/tasks/TSK-02-03/design.md`](../tasks/TSK-02-03/design.md). 명명·감사칼럼·방언 규칙은 [`docs/mdm/naming-dialect-rules.md`](../naming-dialect-rules.md).
 > 이 디렉터리는 **ERD·DDL 초안**이다. 실제 마이그레이션(Flyway)은 각 영역 계약 Task 가 만든다.
-> 운영 DB 는 미정이다(로컬·테스트는 SQLite) — [ADR-0004](../adr/0004-drop-mssql-production-assumption.md). 이 디렉터리의 DDL 은 SQLite 한 벌이다.
+> 운영 DB 는 Oracle 또는 PostgreSQL 로 좁혀졌고(2026-10-03) 방언은 아직 더하지 않았다(로컬·테스트는 SQLite) — [ADR-0004](../adr/0004-drop-mssql-production-assumption.md). 이 디렉터리의 DDL 은 SQLite 한 벌이다.
 
 ## 파일 목록
 

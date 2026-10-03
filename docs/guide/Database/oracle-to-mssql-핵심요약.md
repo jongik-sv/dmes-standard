@@ -1,5 +1,7 @@
 # Oracle → MSSQL 핵심 요약 (개발자/설계자용)
 
+> **보관 자료 (2026-10-03)**: 운영 DB 는 Oracle 또는 PostgreSQL(현장마다 하나)이고 MSSQL 은 거의 쓰지 않는다. 이 문서는 dmes-ksm(MSSQL) 이관 시절 자료로 남겨 두며, MSSQL 현장을 맡을 때만 참고한다. 새 작업의 SQL 은 [`dialect-neutral-sql.md`](dialect-neutral-sql.md) 를 따른다.
+
 > 시간 없는 팀원을 위해 3개 가이드를 한 장으로 압축했다. 이것만 외워도 마이그레이션/설계 사고는 막는다.
 
 ---

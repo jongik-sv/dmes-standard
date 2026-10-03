@@ -1,5 +1,7 @@
 # Oracle 사용자가 SQL Server를 쓸 때 반드시 알아야 할 차이와 실무 가이드
 
+> **보관 자료 (2026-10-03)**: 운영 DB 는 Oracle 또는 PostgreSQL(현장마다 하나)이고 MSSQL 은 거의 쓰지 않는다. 이 문서는 dmes-ksm(MSSQL) 이관 시절 자료로 남겨 두며, MSSQL 현장을 맡을 때만 참고한다. 새 작업의 SQL 은 [`dialect-neutral-sql.md`](dialect-neutral-sql.md) 를 따른다.
+
 ## Executive Summary
 
 이 보고서는 가능하면 한국어 공식 문서인 Microsoft Learn ko-KR를 우선 사용하고, Oracle 쪽은 한국어 공식 문서 범위가 상대적으로 좁아 Oracle Corporation 의 영문 공식 문서를 병행했다. 비교 기준은 Oracle Database 19c 계열 개념과 현재 공개된 Microsoft SQL Server 공식 문서다. 버전이나 에디션에 따라 기능 차이가 큰 항목은 본문에서 따로 지적했다.

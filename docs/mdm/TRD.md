@@ -26,7 +26,7 @@
 | 언어·런타임 | Java 21, Spring Boot 4.0.6, Gradle 9.3.1 wrapper(`src/backend/gradlew`) | `src/backend/mcm/build.gradle`, wrapper properties |
 | 프레임워크 | cactus-core 1.0.22-SNAPSHOT(보안·JWT·다중 DS/TX), OASIS 5.1.1(BPMN 서비스) | 각 `build.gradle` |
 | 영속성 | JPA(엔티티·Repository) + JPA native 쿼리(방언별 SQL). MyBatis 는 쓰지 않는다 | backend-standard 04 MES 모듈 규칙, [명명·방언 규칙](naming-dialect-rules.md) §4 |
-| DB | 로컬·테스트 SQLite. 운영 DB 는 미정(WildFly JNDI 프로파일만 둔다, [ADR-0004](adr/0004-drop-mssql-production-assumption.md)) | `application-*.yml` |
+| DB | 로컬·테스트 SQLite. 운영 DB 는 Oracle 또는 PostgreSQL 로 좁혀졌고(2026-10-03) 방언은 아직 더하지 않았다(WildFly JNDI 프로파일만 둔다, [ADR-0004](adr/0004-drop-mssql-production-assumption.md)) | `application-*.yml` |
 | 식 엔진 | EvalEx 3.7.0 (precision 68, HALF_EVEN, allowOverwriteConstants=false, 시간대 Asia/Seoul·로캘 ROOT 고정) | 06, evalex-guide, [engine-contract.md](engine-contract.md) |
 | 임베딩(용어 유사어 2차) | KURE-v1 ONNX INT8 + ONNX Runtime Java 1.30.0(CPU) + DJL tokenizers 0.38.0, CLS 풀링·L2. mdm 서버 모듈에만 둔다(엔진 jar 금지). 저장은 원장 칼럼 + 서버 메모리 전수 비교 | 02 「유사어 추천 방식」, [term-embedding.md](term-embedding.md) |
 | 프론트 | Next.js 16.1.6(App Router, m-mcm), React 19, TypeScript 5.9, Mantine 9, AG Grid 33, decimal.js | `m-mcm/package.json`, `shared/package.json` |
@@ -57,7 +57,7 @@
 
 확정 규칙표(2026-09-24, TSK-02-01): [naming-dialect-rules.md](naming-dialect-rules.md) §3. 아래 표는 요약이며 충돌하면 규칙표가 우선한다.
 
-운영 DB 는 미정이라 방언 열은 SQLite(로컬·테스트) 하나다. 운영 DB 가 정해지면 열을 더한다.
+운영 DB 는 Oracle 또는 PostgreSQL 로 좁혀졌지만(2026-10-03) 방언을 아직 더하지 않아 방언 열은 SQLite(로컬·테스트) 하나다. 운영 방언을 더할 때 그 열을 더한다.
 
 | 설계 문법 | SQLite(로컬·테스트) |
 |---|---|
@@ -68,7 +68,7 @@
 | 재귀 CTE(영향도·상속 트리) | 지원(공통 문안은 `RECURSIVE` 없이 WITH + UNION ALL) |
 
 ### 4.3 스키마 관리
-- 새 모듈이므로 Flyway 를 쓴다. 위치 `mdm/api/src/main/resources/db/migration/mdm/sqlite` (mqc 관례). 운영 DB 가 정해지면 방언 폴더를 더한다.
+- 새 모듈이므로 Flyway 를 쓴다. 위치 `mdm/api/src/main/resources/db/migration/mdm/sqlite` (mqc 관례). 운영 DB 는 Oracle 또는 PostgreSQL 로 좁혀졌고(2026-10-03) 방언은 아직 더하지 않았으므로, 운영 방언을 더할 때 방언 폴더를 더한다.
 - 번호는 기존 최대 버전 다음으로 채번한다.
 - 테이블 명명(사용자 결정 2026-09-23): 원천 설계의 `MD_*` 를 저장소 규칙 `TB_{모듈}_*` 에 맞춰 **`TB_MDM_*`** 로 바꾼다. 예: `MD_UNIT` → `TB_MDM_UNIT`, `MD_CODE_ITEM` → `TB_MDM_CODE_ITEM`.
   - 원천 설계 문서·HTML 시안·sql 도 2026-09-23 에 `TB_MDM_*` 로 바꿨다(백업: `/Users/jji/project/mdm/old/basic-before-tb-mdm-rename-2026-09-23.tar.gz`).
@@ -133,7 +133,7 @@
 
 - 엔진 jar(`maru-mdm-engine`)는 EvalEx 외 라이브러리에 의존하지 않고 DB·네트워크를 직접 부르지 않는다. 정의·사본 조회는 `engine.spi` 인터페이스로만 받는다(01 §8).
 - 업무 API 는 OASIS BPMN 으로만 노출한다.
-- 원장 DDL 은 지금 SQLite 한 벌로 낸다. 운영 DB 가 정해지면 같은 Flyway 번호로 그 방언을 더한다.
+- 원장 DDL 은 지금 SQLite 한 벌로 낸다. 운영 방언(Oracle 또는 PostgreSQL)을 더할 때 같은 Flyway 번호로 그 방언을 더한다.
 - 화면은 m-mdm 라이브러리에 두고 m-mcm 포털로 적재한다. 팝업에 `page.tsx` 를 쓰지 않는다.
 - 파생값(유효 식·유효 AST·요구 변수·입력 계약)은 저장하지 않고 조회 시 계산한다. 단 EvalEx 텍스트와 함께 AST JSON 은 저장한다(02 「검증식 계약」).
 - 임베딩 런타임(ONNX Runtime·토크나이저)과 모델 파일은 mdm 서버 모듈 몫이다. 모델 파일(약 568 MB)은 WAR·저장소에 넣지 않고 서버 파일 경로로 준다. 모델이 없으면 2차 추천을 끄고 1차 문자열 추천만 한다.

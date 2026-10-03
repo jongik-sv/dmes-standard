@@ -67,7 +67,7 @@ mcm 의 스키마는 **Flyway 가 아니라** hibernate `ddl-auto`(local) 와 `m
 `/flyway-migration-add` 스킬을 쓴다.
 
 화면 사용 통계 테이블(`TB_SEC_SCREEN_USAGE_LOG`·`TB_SEC_SCREEN_USAGE_DAY`)은 감사 계열처럼 schema 접두가 없다.
-MSSQL DDL 정본은 `screenusage/schema/ScreenUsageMssqlDdl` 이며 `DataInitializer` 와 운영 DBA 전달본이 같은 문장을 쓴다.
+MSSQL DDL 정본은 `screenusage/schema/ScreenUsageMssqlDdl` 이며 `DataInitializer` 와 운영 DBA 전달본이 같은 문장을 쓴다. 이 MSSQL 경로(SEC DDL 포함)는 dmes-ksm 이관 시절 것이고, 운영 대상인 Oracle·PostgreSQL 용 DDL 은 아직 없다.
 
 ## 새 도메인을 추가할 때
 

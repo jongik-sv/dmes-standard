@@ -1,5 +1,7 @@
 # cactus-mybatis multi-DS 통합 설계 (P3: ScriptTask + ds/tx 속성)
 
+> **DB 전제 안내 (2026-10-03)**: 이 문서의 「운영 = SQLServer 단일」(dialect 분기 불필요, mapper.xml 에 SQLServer 함수 사용 권장 등)은 dmes-ksm(MSSQL) 이관 시절 결정이다. 운영 DB 는 Oracle 또는 PostgreSQL 이고 MSSQL 은 거의 쓰지 않으므로, 새 mapper SQL 은 [`dialect-neutral-sql.md`](../../guide/Database/dialect-neutral-sql.md) 를 따르고 dialect 분기 필요 여부를 다시 판단한다. 아래 결정 표의 옛 행은 이력으로 남긴다.
+
 > **본 문서의 책임**: cactus-core 가 BPMN ScriptTask 환경에서 multi-DS MyBatis 매퍼 호출을
 > 호스트 boilerplate 0 으로 지원하는 설계 정본.
 >
