@@ -26,7 +26,6 @@ test("도메인 목록 그리드가 패널 높이를 전부 사용한다", async
     const node = page.locator(".tree-item .item-name").filter({ hasText: g }).first();
     await expect(node).toBeVisible({ timeout: T.LONG });
     await node.click();
-    await page.waitForTimeout(400);
   }
   const target = page.locator(".tree-item .item-name").filter({ hasText: "도메인 관리" }).first();
   await expect(target).toBeVisible({ timeout: T.UI });

@@ -34,7 +34,7 @@ test.describe("토픽 관리 (caravanConsole/topic) CRUD Smoke", () => {
         const rootEl = page.getByText(root, { exact: true }).first();
         if (await rootEl.isVisible().catch(() => false)) {
           await rootEl.click();
-          await page.waitForTimeout(700);
+          await group.waitFor({ state: "visible", timeout: 700 }).catch(() => {});
           if (await group.isVisible().catch(() => false)) break;
         }
       }
@@ -43,7 +43,7 @@ test.describe("토픽 관리 (caravanConsole/topic) CRUD Smoke", () => {
     if (!(await leaf.isVisible().catch(() => false))) {
       if (await group.isVisible().catch(() => false)) {
         await group.click();
-        await page.waitForTimeout(900);
+        await leaf.waitFor({ state: "visible", timeout: 900 }).catch(() => {});
       }
     }
     await leaf.waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});

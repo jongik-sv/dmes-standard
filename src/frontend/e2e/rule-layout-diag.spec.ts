@@ -25,7 +25,6 @@ async function openMenu(page: Page, leaf: RegExp) {
     const n = page.locator(".tree-item .item-name").filter({ hasText: label }).first();
     await expect(n).toBeVisible({ timeout: T.LONG });
     await n.click().catch(() => {});
-    await page.waitForTimeout(400);
   }
   const t = page.locator(".tree-item .item-name").filter({ hasText: leaf }).first();
   await expect(t).toBeVisible({ timeout: T.UI });
@@ -117,8 +116,8 @@ test("ruleEdit — footer 맨 아래 + 본문 미잘림", async ({ page, context
 
   await page.getByTestId("rule-pick-keyword").fill("BASE_SPD_LKP");
   await page.getByTestId("rule-edit-topbar").getByRole("button", { name: "찾기" }).click();
-  await page.waitForTimeout(2_000);
   const pick = page.getByTestId("rule-pick-BASE_SPD_LKP");
+  await pick.waitFor({ state: "visible", timeout: 2_000 }).catch(() => {});
   if (await pick.isVisible({ timeout: 5_000 }).catch(() => false)) await pick.click();
   await page.waitForTimeout(2_500);
   if (process.env.SNAP_OUT) await page.screenshot({ path: `${process.env.SNAP_OUT}-ruleEdit.png`, fullPage: false });

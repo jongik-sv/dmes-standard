@@ -29,7 +29,7 @@ test.describe("메시지 전송 (messageSender) Smoke", () => {
       const child = page.getByText(path[i + 1], { exact: true }).first();
       if (!(await child.isVisible().catch(() => false))) {
         await page.getByText(path[i], { exact: true }).first().click();
-        await page.waitForTimeout(900);
+        await child.waitFor({ state: "visible", timeout: 900 }).catch(() => {});
       }
     }
     const menuItem = page.getByText(path[path.length - 1], { exact: true }).first();
