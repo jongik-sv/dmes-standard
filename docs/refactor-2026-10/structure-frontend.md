@@ -16,15 +16,19 @@
   - portal-shell-characterization 18건. 분리 전 코드에서 먼저 통과시킨 뒤 분리했다. 뮤테이션 확인에서 복원 순서를 바꾸면 해당 시험이 실패했다(r5 지도 §4). 예를 들어 저장 effect 를 복원 effect 앞으로 옮기면 `storageKey 가 바뀌면…` 1건, 제목 동기화를 복원 앞으로 옮기면 4건(ef7df8e2 뒤 5건), 기본 화면을 복원 앞으로 옮기면 ef7df8e2 에서 더한 1건이 실패한다.
   - 관련 portal-shell 시험 13파일 107건 통과
   - shared 전체 1403건 통과
-- effect 순서(탭 묶음 안의 상대 순서는 원래와 같다).
+- effect 순서. 탭 묶음 안의 순서(E8 → E9 → E10 → E11 → E12 → E13 → E14 → E15 → E19)와 각 effect 의 의존성 배열은 원본과 같다. 아래 순서는 c07e63ca 의 `portal-shell.tsx` 와 `use-portal-*.ts` 를 직접 읽어 확인했다.
 
-| 구분 | 원래 | 지금 |
-|---|---|---|
-| 탭 effect | 복원(E8) → 기본 화면(E9) → 화면 불러오기(E10) → 제목 동기화(E11) → 빈 목록 대체(E12) → 순서 부여(E13) → E14 → E15 → 저장(E19), 한 컴포넌트 안에서 선언 순서대로 | `usePortalTabs` 안에서 같은 순서. 저장(E19)은 탭 훅의 맨 마지막 effect |
-| 인증 사용자(E1)와 최근 메뉴(E7) 등 | 탭 effect 보다 앞 | 인증 사용자 훅은 탭 훅보다 먼저 호출. 일부는 탭 effect 뒤로 이동 |
-| 저장(E19)과 화면 사용(E16~E18) | 저장이 화면 사용 effect 뒤 | 저장이 화면 사용 effect 앞으로 이동 |
+| 구분 | 순서 |
+|---|---|
+| 원래 | E1 → H2 → E2 → E3 → H3 → E4 → E5 → E6 → E7 → E8 → … → E15 → E16 → E17 → E18 → E19 |
+| 지금 | E1 → E7 → [H1 layout] E6 → E8 → E9 → E10 → E11 → E12 → E13 → E14 → E15 → E19 → H2 → E2 → E3 → H3 → E4 → E5 → E16 → E17 → E18 |
 
-  상대 순서가 달라진 두 곳은 서로 같은 상태·저장소를 건드리지 않는다(r5 지도 §3).
+  E1 은 인증 사용자, E2~E4 와 H2·H3 은 전체 화면, E5 는 F3 단축키, E6 은 portal-open-tab 이벤트 등록, E7 은 최근 메뉴 저장, E8~E15 는 탭 복원부터 활성화 이벤트까지, E16~E18 은 화면 사용 추적, E19 는 탭 저장이다. H1 은 탭 기록의 layout effect 로, 모든 일반 effect 보다 먼저 돈다.
+
+  위치가 바뀐 세 가지와 결과가 같은 이유는 다음과 같다.
+  - (a) E7(최근 메뉴 저장)이 E6(portal-open-tab 등록)보다 먼저 돌지만 둘이 같이 쓰는 상태가 없다.
+  - (b) 전체 화면 effect(H2·E2·E3·H3·E4)와 F3(E5)가 탭 묶음 뒤로 갔지만 이들은 isTabFullscreen 과 슬라이딩 메뉴 상태만 건드린다.
+  - (c) E19(저장)가 E16~E18(화면 사용) 앞으로 갔지만 E16~E18 은 ref 와 추적기만 읽고 저장소를 건드리지 않는다.
 - 영향 범위: 공개 export 는 그대로다. 훅 4개는 `portal-shell` 폴더 안에서만 쓰고 shared 루트에서 내보내지 않는다. 호출부·설정 변경 없음.
 - 되돌리는 방법: c07e63ca 를 revert 한다. 특성 시험(bb6124d2·ef7df8e2)은 그대로 둬도 통과한다.
 
@@ -32,7 +36,7 @@
 - 커밋: e8cd73b3, ccbcfa10, 머지 4f335f12
 - 바뀌기 전: tsup 의 dts 옵션이 타입 선언을 번들로 만들었다. `package.json` exports 는 `./pages/*` 와일드카드였다.
 - 바뀐 뒤: `tsconfig.build.json`(`emitDeclarationOnly`)으로 `tsc` 가 `dist/types/` 아래에 파일별 선언을 만든다. exports 는 화면별 명시 항목으로 바뀌었다. 빌드 순서는 tsup(JS) 뒤 tsc(선언)이며 `scripts/lib-dev.mjs` 가 돌린다(shared 와 같은 방식).
-- 바꾼 이유: tsup dts 가 오래 걸리고 메모리를 많이 쓴다. 증분 빌드도 되지 않았다. 효과는 `perf-frontend.md` P2 에서 잰다.
+- 바꾼 이유: shared 에 같은 방식을 먼저 적용한 커밋 0abcbb46 의 메시지에 따르면 타입 정보 생성 단계가 메모리를 너무 많이 써서 빌드가 멈추던 문제를 고친 것이다. `src/frontend/scripts/lib-dev.mjs` 머리 주석에는 2026-10-02 실측으로 tsup 의 rollup-plugin-dts 가 RSS 3.1~3.5GB, 12~13초에 4GB 힙에서 OOM 이 났고 tsc 는 RSS 약 650MB, 1.9초라고 적혀 있다. 효과는 `perf-frontend.md` P2 에서 잰다.
 - 동작 보존 근거:
   - 진입점 21개의 export 이름을 전환 전후로 비교해 차이 0건
   - m-mcm 의 tsc 통과
