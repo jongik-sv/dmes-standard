@@ -90,7 +90,7 @@ export function ColumnPickModal({ open, onClose, onPick, search, used = [] }: Co
             }} />
           <Button data-testid="column-pick-search" onClick={() => void run()} disabled={busy}>조회</Button>
         </div>
-        {error && <p className="form-error-message">{error}</p>}
+        {error && <p className="form-error-message" style={{ whiteSpace: "pre-line" }}>{error}</p>}
         {rows === null && <p style={empty}>검색어를 넣고 조회하세요. 컬럼 사전에 있는 컬럼만 항목이 됩니다.</p>}
         {rows !== null && rows.length === 0 && !error && (
           <p data-testid="column-pick-empty" style={empty}>컬럼 사전에 없습니다. 먼저 컬럼 사전에 등재하세요</p>
