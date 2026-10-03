@@ -10,6 +10,6 @@ export const meta: WidgetTypeMeta = {
   title: "단위 계산기",
   description: "길이·무게·압력·온도 등 단위 환산",
   defaultSize: { w: 8, h: 12 },
-  minSize: { w: 5, h: 8 },
+  minSize: { w: 5, h: 10 }, // 5×8 은 좁은(쌓인) 배치에서 환산 목록이 거의 안 보인다(본문 약 165px < 필요 약 186px)
   initialConfig: { categories: [], defaultCategory: "length" },
 };
