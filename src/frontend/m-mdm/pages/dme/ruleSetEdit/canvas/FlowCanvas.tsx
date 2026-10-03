@@ -105,6 +105,7 @@ import { GroupSizeContext, ZERO_PAD, createGroupPadStore, dragGroupPad, samePad,
 import { ANCHOR_IN, ANCHOR_OUT, CATCH_HANDLE, GroupNodeData, NODE_TYPES, NoteNodeData, FlowNodeData, handlesOf, type CollapsedBlockInfo } from "./nodes";
 import type { EdgeState, Overlay } from "./overlay";
 import { useStableById } from "./reuse";
+import { ViewportGuard } from "./ViewportGuard";
 import {
   BaseEdge,
   ConnectionMode,
@@ -314,6 +315,13 @@ export interface FlowCanvasProps {
    * 캔버스가 "지금 React Flow 로 고른 것(흐름 노드·메모·그룹, 흐름에 있는 것만, 단일 선택으로 채우지 않음)" 을 얻는 함수를 채우는 ref(M2 — Delete 가 여럿 지우기에 쓴다).
    */
   selectionRef?: MutableRefObject<(() => string[]) | null>;
+  /**
+   * 캔버스가 "고른 것으로 이동(Shift+2)" 함수를 채우는 ref — React Flow 로 고른 노드·메모·그룹, 없으면 단일 선택(노드, 선이면 양 끝 노드)에 화면을 맞춘다.
+   * 접힌 블록 안 노드는 그 접힌 상자로 맞춘다. 고른 것이 없으면 false(키를 쓰지 않는다).
+   */
+  fitSelectionRef?: MutableRefObject<(() => boolean) | null>;
+  /** 화면 밖 안내에 적을 화면 맞춤 단축키 글(기본 "Shift+1", Mac 은 page 가 "⇧1" 을 넘긴다). */
+  fitKeyLabel?: string;
   /** 우클릭·[+] — 대상과 화면 좌표(B7·A3). */
   onContextMenu: (target: MenuTarget, at: { x: number; y: number }) => void;
   /** 즉석 조건식 Enter(B10 — Task 7). */
@@ -1105,7 +1113,7 @@ function Inner(props: FlowCanvasProps) {
     flow, rules, checks, mode, varDisplay, varLabels, selectedId, selectedEdgeId, overlay, focusId, focusSeq, focusReveal, fitSignal, fitKey,
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId, editingLabelEdgeId, onEditLabel, onEditLabelClose,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onAddCatch, onReconnect, onDropPalette, onDropRule, onAssignDrop, onRenameTask, onNoteChange, onContextMenu, onToggleBreakpoint,
-    onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, selectionRef, onEditCondClose, onSelectionChange,
+    onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, selectionRef, fitSelectionRef, fitKeyLabel, onEditCondClose, onSelectionChange,
     spaceTool, onSpaceToolChange, onShiftSpace, dragTool,
   } = props;
   const editable = mode === "edit";
@@ -1748,6 +1756,8 @@ function Inner(props: FlowCanvasProps) {
     lastFit.current = { signal: fitSignal, key: fitKey };
     void rf.fitView({ ...FIT_OPTIONS, duration: last.key === fitKey ? 200 : 0 });
   }, [fitSignal, fitKey, rf]);
+  /** 화면 밖 안내의 [흐름도로 돌아가기] — [화면 맞춤] 과 같다. */
+  const fitAll = useCallback(() => void rf.fitView({ ...FIT_OPTIONS, duration: 200 }), [rf]);
 
   /** 화면 좌표 → 흐름 좌표(정수). */
   const flowAt = (clientX: number, clientY: number): FlowPos => {
@@ -2053,6 +2063,8 @@ function Inner(props: FlowCanvasProps) {
   rfSelRef.current = rfSel;
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
+  const selectedEdgeIdRef = useRef(selectedEdgeId);
+  selectedEdgeIdRef.current = selectedEdgeId;
   const spaceDrawnRef = useRef<() => Record<string, FlowPos>>(() => ({}));
   useEffect(() => {
     if (!alignSourceRef) return;
@@ -2068,6 +2080,30 @@ function Inner(props: FlowCanvasProps) {
       alignSourceRef.current = null;
     };
   }, [alignSourceRef]);
+  useEffect(() => {
+    if (!fitSelectionRef) return;
+    fitSelectionRef.current = () => {
+      const v = viewRef.current;
+      const vf = flowRef.current;
+      // 접힌 블록 안 노드는 그 노드를 품은 접힌 블록(그리는 노드)으로 바꾼다(D16 — 검사 항목 이동과 같다).
+      const drawn = (id: string) => (v.hidden.has(id) ? (Object.keys(v.blocks).find((b) => v.blocks[b].members.includes(id)) ?? id) : id);
+      let ids = [...rfSelRef.current];
+      if (ids.length === 0) {
+        const edgeId = selectedEdgeIdRef.current;
+        const edge = edgeId ? vf.edges.find((e) => e.id === edgeId) : undefined;
+        if (edge) ids = [edge.from, edge.to];
+        else if (selectedIdRef.current) ids = [selectedIdRef.current];
+      }
+      const targets = [...new Set(ids.map(drawn))].filter((id) => rf.getNode(id));
+      if (targets.length === 0) return false;
+      // 노드 하나도 너무 크게 키우지 않는다 — 지금 배율보다 줄이거나 1 배까지만 키운다.
+      void rf.fitView({ nodes: targets.map((id) => ({ id })), padding: 0.3, maxZoom: Math.max(rf.getZoom(), 1), duration: 200 });
+      return true;
+    };
+    return () => {
+      fitSelectionRef.current = null;
+    };
+  }, [fitSelectionRef, rf]);
   useEffect(() => {
     if (!selectionRef) return;
     selectionRef.current = () => {
@@ -2604,6 +2640,7 @@ function Inner(props: FlowCanvasProps) {
         {/* 오른쪽 아래 확대·축소 단추 줄, 오른쪽 위 미니맵(4단계 P1 — 왼쪽 위는 page 가 그리는 도구 상자 자리) */}
         <Controls position="bottom-right" orientation="horizontal" showInteractive={false} />
         {showMiniMap && <MiniMap position="top-right" pannable zoomable />}
+        <ViewportGuard onFit={fitAll} fitKeyLabel={fitKeyLabel ?? "Shift+1"} />
         <SpaceGuide store={spaceStore} />
         <SnapGuides store={snapStore} />
       </ReactFlow>
