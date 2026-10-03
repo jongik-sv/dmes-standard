@@ -1,4 +1,4 @@
-## 신규 기능
+## /신규 기능
 
 - 룰셋에서 룰셋을 호출 할 수 있도록 한다.
 
@@ -89,3 +89,17 @@
 ### 버그·기술 부채
 
 - 포털 인증 쿠키 접두어가 `m-mcm/lib/auth/config.ts:22` 에 `"oasis-mcm-auth"` 로 고정되어 `AUTH_COOKIE_PREFIX` 환경 변수를 무시한다. proxy 는 환경 변수 접두어를, 로그인 페이지는 고정 접두어를 봐서 접두어를 바꾸면 `/login` 무한 리디렉션이 난다(2026-10-02 위젯 E2E 중 발견).- 로그인 잠금과 계정 삭제가 둘 다 `USE_TP='N'` 이라 구분되지 않는다. 잠긴 계정 로그인 응답도 ACCOUNT_LOCKED 가 아니라 ACCOUNT_DISABLED 로 나가고, 잠금을 푸는 길은 비밀번호까지 초기화하는 '계정 재생성'뿐이다(관리자 비밀번호 초기화는 잠금·실패 횟수를 풀지 않고, `unlockUser` 는 부르는 곳이 없다). 잠금 전용 표시 칸과 비밀번호를 건드리지 않는 잠금 해제 경로(화면·API)를 설계하자(2026-10-03 로그인 잠금 롤백 수정 중 발견).
+
+### 리팩토링 후속
+
+- m-mcm 화면의 OASIS 호출 복사본 20개를 shared 공통 계층으로 옮기기 — 정리 문서: [docs/refactor-2026-10/m-mcm-api-commonization.md](refactor-2026-10/m-mcm-api-commonization.md) (2026-10-04)
+  - 필요성: 같은 unwrap 로직이 20벌 복사돼 있고, 프론트 가이드 §7-A-2 와 스킬 예제가 이 복사 코드를 싣고 있어 새 화면·새 고객사 프로젝트마다 늘어난다. 오류 문구 선택 C(기본 문구 + 항목명 상세)를 m-mcm 에 넓히려면 공통 계층이 필요하다.
+  - 지킬 조건: 모듈별 호출 경로(/api/mcm·mdm·mls)는 UI 서버 분할을 위한 의도된 설계이므로 basePath 를 필수로 받는다. 채팅·메모 자체 오류 클래스, null 필터 차이, vitest 의 shared import 제약에 대응한다.
+  - 단계: ① 같은 복사본 13개 위임 → ② export 형 3개 → ③ 채팅·메모·캐시 관리 → ④ HTTP 계층 통일(json-api-client → shared apiRequest, 별도 결정).
+  - 선행 조건: 이번 리팩토링(c3 레인)의 m-mdm·m-mls 공통 계층과 a8 레인의 서버 errors[] 보강이 dev 에 들어온 뒤 진행한다.
+  - 결정 대기: 진행 시점, HTTP 계층 통일 여부, ObjectPickerModal 오류 노출, `userId:"admin"` 하드코딩, 가이드·예제 갱신.
+- caravanhub 연동 클라이언트 복제 7파일 통합 — 2026-10-04 a8 조사, 사용자 결정으로 이번 리팩토링에서는 보류
+  - 현황: `caravan-console/.../console/caravanhub` 7파일(270줄)과 `cactus-core/.../integration/caravanhub` 7파일(약 400줄)이 이름만 다른 복제본이다. 로직은 같고 설정 prefix(`caravan-console.caravanhub` / `cactus.caravan-hub`)·빈 이름·패키지·로그 문구만 다르다. mcm 은 같은 환경변수를 yml 두 블록에 적고, 컨텍스트에 RestClient·hub 클라이언트가 2벌씩 뜬다.
+  - caravan-console 은 멈춘 모듈이 아니다(mcm 이 엔티티·서비스·대시보드를 씀). 합칠 대상은 hub 클라이언트 7파일뿐이고, console 쪽 클라이언트 사용처는 ConsoleTopicService 전송 1곳이다.
+  - 권장안 A: cactus 쪽을 정본으로 둔다(테스트 있음, dmom 이 의존). console 이 cactus-core 를 compileOnly 로 의존하고 ConsoleTopicService 가 CaravanHubIntegrationClient 를 주입받게 바꾼 뒤, 7파일은 archive 로 옮긴다(caravanhubconfig 엔티티 패키지는 유지).
+  - 보류 이유: console 의 "cactus 의존 0" 설계를 되돌리고, 켜고 끄는 키가 `cactus.caravan-hub.enabled` 로 바뀐다. 운영·개발계 외부 설정에서 두 prefix 의 값이 다른지 확인한 뒤 다시 다룬다(실서버 설정을 볼 수 있을 때).
