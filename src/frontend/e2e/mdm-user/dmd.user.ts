@@ -10,6 +10,7 @@ import {
   assertAllButtonsPressed,
   breadcrumb,
   button,
+  closeScreenTab,
   checkLayout,
   expectToast,
   footerScreenId,
@@ -573,8 +574,13 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     await expectErrorModal(page, "키 패턴 정규식이 올바르지 않습니다", "dmd-dataMng-08-invalid-pattern");
     expectOnly4xx(watcher, "dataMng 검증");
 
-    // 다시 불러오면 저장된 값으로 돌아간다(거부된 값은 남지 않는다).
+    // 같은 행을 다시 골라 다시 읽어도 저장하지 않은 입력은 남는다(5f0b1784 — ruleMng·codeMng 과 같은 규칙).
     await reselectMng(page, MD);
+    await expect(tid(page, "data-edit-pattern")).toHaveValue("[A-Z");
+    // 거부된 값은 저장되지 않았다 — 화면을 닫고 메뉴로 다시 열면 서버 값이 보인다.
+    await closeScreenTab(page, "마루 데이터");
+    await openDmd(page, "마루 데이터", "dataMng");
+    await selectMng(page, MD);
     await expect(tid(page, "data-edit-pattern")).toHaveValue(KEY_PATTERN, { timeout: 20_000 });
     watcher.assertClean("dataMng");
   });
@@ -1249,19 +1255,26 @@ test.describe("C 카테고리 탭·이력", () => {
     await closeDialog(page);
 
     // 닫힌 카테고리 ID 로 다시 등록하면 다시 열기로 안내한다. 이미 있는 ID 는 중복으로 거부된다.
-    // 거부돼도 [카테고리 추가] 팝업은 닫힌다(CategoryAddModal submit 이 결과와 무관하게 닫는다 — 보고서 관찰). 다시 열어 시도한다.
+    // 거부되면 [카테고리 추가] 팝업은 입력을 남긴 채 열려 있어 같은 팝업에서 고쳐 다시 보낸다(dfb2b5d2 — 룰·마루 코드 등록 팝업과 같은 관례).
     await tid(page, "cate-add").click();
     await tid(page, "cate-add-id").fill("MAJOR");
     await tid(page, "cate-add-name").fill("다시 등록");
     await tid(page, "cate-add-submit").click();
     await expectErrorModal(page, "닫힌 키입니다. 새로 등록할 수 없으니 다시 여세요");
-    await expect(page.locator('[data-testid="cate-add-id"]')).toHaveCount(0);
-    await tid(page, "cate-add").click();
+    await expect(tid(page, "cate-add-id")).toHaveValue("MAJOR");
+    await expect(tid(page, "cate-add-name")).toHaveValue("다시 등록");
     await tid(page, "cate-add-id").fill("KRONLY");
     await tid(page, "cate-add-name").fill("중복 등록");
     await tid(page, "cate-add-submit").click();
     await expectErrorModal(page, "이미 있는 키입니다");
     expectOnly4xx(watcher, "카테고리 중복");
+    await expect(tid(page, "cate-add-id")).toHaveValue("KRONLY");
+    // [취소]로 닫는다 — 다시 열면 칸이 비어 있다.
+    await tid(page, "cate-add-cancel").click();
+    await expect(page.locator('[data-testid="cate-add-id"]')).toHaveCount(0);
+    await tid(page, "cate-add").click();
+    await expect(tid(page, "cate-add-id")).toHaveValue("");
+    await tid(page, "cate-add-cancel").click();
     await expect(page.locator('[data-testid="cate-add-id"]')).toHaveCount(0);
     // 카테고리는 셋 그대로다(새로 생기지 않았다).
     await expect(cateRows(page)).toHaveCount(3);
@@ -1500,8 +1513,13 @@ test.describe("D 계층 축소 거부·폐기", () => {
     await tid(page, "data-edit-save").click();
     await expectErrorModal(page, "LVL2 에 값이 있는 코드가 있어 계층 칸 수를 1 로 줄일 수 없습니다", "dmd-dataMng-lvl-shrink");
     expectOnly4xx(watcher, "계층 축소");
-    // 다시 불러오면 저장된 값(2)으로 돌아간다.
+    // 같은 행을 다시 골라 다시 읽어도 저장하지 않은 입력(1)은 남는다(5f0b1784).
     await reselectMng(page, MD);
+    await expect(tid(page, "data-edit-lvl")).toHaveValue("1");
+    // 거부된 값은 저장되지 않았다 — 화면을 닫고 메뉴로 다시 열면 저장된 값(2)이 보인다.
+    await closeScreenTab(page, "마루 데이터");
+    await openDmd(page, "마루 데이터", "dataMng");
+    await selectMng(page, MD);
     await expect(tid(page, "data-edit-lvl")).toHaveValue("2", { timeout: 20_000 });
     watcher.assertClean("dataMng");
   });
