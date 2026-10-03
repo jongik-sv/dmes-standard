@@ -1,9 +1,9 @@
 /** @vitest-environment happy-dom */
 /**
- * HTML 설명 열이 있는 그리드의 다른 툴팁은 dev 와 같다(2026-10-03 조정 결정 → 리뷰 반영 I1 ③).
+ * HTML 설명 열이 있는 그리드의 다른 툴팁은 예전과 같다(2026-10-03 조정 결정 → 리뷰 반영 I1 ③).
  * HTML 카드는 머리글 라벨(MdmHeaderLabel)이 포털로 띄우고 그리드 tooltipInteraction 은 쓰지 않는다. 그래서 같은 그리드의 기본 셀 툴팁·
  * 검증 오류 툴팁·MDM 셀 툴팁·글자 MDM 머리글 카드는 ag-grid 비상호작용 툴팁 그대로다(마우스가 들어가지 못하고 다음 행을 가리지 않는다).
- * 글자 MDM 열의 열 정의(키 순서)도 dev 와 같다.
+ * 글자 MDM 열의 열 정의(키 순서)도 예전과 같다.
  */
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -22,8 +22,8 @@ const BODY = column("NOTICE_BODY", {
   descriptionHtml: "<p><b>굵은</b> 설명</p>",
 });
 
-describe("글자 MDM 열의 열 정의는 dev 와 같다", () => {
-  // dev(4fdeafe2) leafColDef 의 키 순서 — MDM 메타가 있는 글자 열은 headerTooltip 자리를 덮고 tooltipComponent·Params 를 rowDrag 뒤에 더한다.
+describe("글자 MDM 열의 열 정의는 예전과 같다", () => {
+  // HTML 설명 기능 이전(4fdeafe2) leafColDef 의 키 순서 — MDM 메타가 있는 글자 열은 headerTooltip 자리를 덮고 tooltipComponent·Params 를 rowDrag 뒤에 더한다.
   const DEV_TEXT_MDM_KEYS = [
     "field",
     "headerName",
@@ -59,7 +59,7 @@ describe("글자 MDM 열의 열 정의는 dev 와 같다", () => {
     loading: false,
   });
 
-  it("HTML 열이 같은 그리드에 있어도 글자 MDM 열의 키·값은 dev 그대로(headerComponentParams 없음)", () => {
+  it("HTML 열이 같은 그리드에 있어도 글자 MDM 열의 키·값은 예전 그대로(headerComponentParams 없음)", () => {
     const defs = buildColumnDefs([{ key: "title" }, { key: "noticeBody" }], {
       sortable: true,
       columnSizing: "fixed",
@@ -78,7 +78,7 @@ describe("글자 MDM 열의 열 정의는 dev 와 같다", () => {
   });
 });
 
-describe("AgDataGrid — HTML 열이 있는 그리드의 셀·머리글 툴팁은 dev 처럼 비상호작용", () => {
+describe("AgDataGrid — HTML 열이 있는 그리드의 셀·머리글 툴팁은 예전처럼 비상호작용", () => {
   let container: HTMLDivElement;
   let root: Root | null = null;
   beforeEach(() => {
@@ -140,7 +140,7 @@ describe("AgDataGrid — HTML 열이 있는 그리드의 셀·머리글 툴팁�
     return box!;
   }
 
-  /** dev 와 같은 비상호작용 툴팁 — 문서 어디에도 ag-grid 상호작용 클래스가 없고 상자에 pointer-events 를 따로 두지 않는다(ag-grid CSS 의 none). */
+  /** 예전과 같은 비상호작용 툴팁 — 문서 어디에도 ag-grid 상호작용 클래스가 없고 상자에 pointer-events 를 따로 두지 않는다(ag-grid CSS 의 none). */
   function expectDevTooltip(box: HTMLElement) {
     expect(document.querySelector(".ag-tooltip-interactive")).toBeNull();
     expect(box.style.pointerEvents).toBe("");

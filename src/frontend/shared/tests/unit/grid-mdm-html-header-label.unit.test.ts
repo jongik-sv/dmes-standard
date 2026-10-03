@@ -3,7 +3,7 @@
  * AgDataGrid × MDM 컬럼 설명 HTML — 머리글 라벨 포털 카드(리뷰 반영 I1 ③, 2026-10-03).
  *  - HTML 설명 카드를 가진 MDM 열은 ag-grid 기본 머리글의 innerHeaderComponent(MdmHeaderLabel)가 캡션을 그리고, 그 라벨에 마우스를
  *    올리면 useHoverTip 상호작용 모드로 MdmMetaCard(HTML)를 document.body 포털에 띄운다. ag-grid 머리글 툴팁은 걸지 않는다.
- *  - 그리드 tooltipInteraction 은 쓰지 않는다 — 셀·검증 오류·글자 머리글 툴팁은 dev 와 같다.
+ *  - 그리드 tooltipInteraction 은 쓰지 않는다 — 셀·검증 오류·글자 머리글 툴팁은 예전과 같다.
  *  - 메타는 그리드를 만든 뒤 오므로 라벨이 생기거나 빠질 때 머리글을 한 번 다시 만든다(refreshHeader, 0단계 시험 참고).
  *  - 라벨 카드는 ag-grid 머리글 툴팁과 같은 표시 지연(기본 2000ms)을 두고, 라벨을 누르면(정렬·끌기 시작) 닫힌다. 버튼을 누른 채 지나가면 열지 않는다.
  *  - 표시 이름이 빈 열(header: "")은 라벨을 달지 않고 예전 글자 머리글 카드(칸 전체)로 둔다.
@@ -112,7 +112,7 @@ describe("buildColumnDefs — HTML 설명 열은 머리글 라벨(innerHeaderCom
     expect(d.tooltipComponent).toBe(MdmGridTooltip);
   });
 
-  it("글자(비 HTML) MDM 열은 dev 와 같다 — headerComponentParams 를 더하지 않고 머리글 툴팁(MdmGridTooltip)", () => {
+  it("글자(비 HTML) MDM 열은 예전과 같다 — headerComponentParams 를 더하지 않고 머리글 툴팁(MdmGridTooltip)", () => {
     const [d] = buildColumnDefs([{ key: "title" }], {
       ...OPTS,
       mdm: mdm([["title", info(TITLE, TEXT_DOMAIN)]]),
@@ -140,7 +140,7 @@ describe("MdmGridTooltip — 머리글 카드는 늘 글자 카드(상호작용 
     vi.restoreAllMocks();
   });
 
-  it("HTML 열이 글자 툴팁 경로로 떨어져도 HTML 을 넣지 않고 상자는 dev 그대로(max-content·380), 문서 이벤트를 듣지 않는다", () => {
+  it("HTML 열이 글자 툴팁 경로로 떨어져도 HTML 을 넣지 않고 상자는 예전 그대로(max-content·380), 문서 이벤트를 듣지 않는다", () => {
     const add = vi.spyOn(document, "addEventListener");
     host = document.createElement("div");
     document.body.appendChild(host);
@@ -281,7 +281,7 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
     });
   };
 
-  it("메타가 그리드를 만든 뒤 와도 HTML 열 머리글은 라벨(MdmHeaderLabel)이 MDM 캡션을 그리고, 글자 MDM 열·MDM 아닌 열은 dev 그대로 글자다", async () => {
+  it("메타가 그리드를 만든 뒤 와도 HTML 열 머리글은 라벨(MdmHeaderLabel)이 MDM 캡션을 그리고, 글자 MDM 열·MDM 아닌 열은 예전 그대로 글자다", async () => {
     stub();
     await render(grid());
     expect(label("noticeBody")?.textContent).toBe("본문");
@@ -399,7 +399,7 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
     expect(portal()).toBeNull();
   });
 
-  it("그리드 tooltipInteraction 을 쓰지 않는다 — HTML 열이 있는 그리드의 셀 툴팁도 dev 처럼 상호작용이 아니다", async () => {
+  it("그리드 tooltipInteraction 을 쓰지 않는다 — HTML 열이 있는 그리드의 셀 툴팁도 예전처럼 상호작용이 아니다", async () => {
     stub();
     await render(grid());
     await fire(
