@@ -386,28 +386,33 @@ class MdmMetaServiceVersionedTest {
                 Thread.onSpinWait();
             }
             assertThat(feed.tocCalls.get()).as("옛 적재에 합류하지 않고 자기 목차 요청").isEqualTo(2);
+
+            // 새 적재를 문에 붙잡아 둔 채 옛 적재를 먼저 끝낸다 — 옛 적재의 finally 가 inflightToc.remove(id, f) 를 지난다
+            oldGate.countDown();
+            assertThat(old.get(5, TimeUnit.SECONDS).found().get("R").ver()).isEqualTo("1.000");
+            assertThat(feed.bodyCalls.get()).as("옛 호출자도 본문은 목차 응답의 current").isZero();
+            assertThat(cache.get(MdmTargetType.RULE, "R")).as("옛 적재는 목차를 넣지 못한다").isEmpty();
+            assertThat(cache.getBody(MdmTargetType.RULE, "R", "1.000")).as("옛 적재는 본문을 넣지 못한다").isEmpty();
+
             CompletableFuture<MdmMetaService.MdmAtLookup> later = CompletableFuture.supplyAsync(
-                    () -> service.lookupAt(MdmTargetType.RULE, List.of("R"), T0)); // refresh 시작 뒤 들어온 조회
+                    () -> service.lookupAt(MdmTargetType.RULE, List.of("R"), T0)); // 옛 적재가 끝난 뒤, 새 적재가 끝나기 전에 들어온 조회
             Thread.sleep(100);
+            assertThat(later.isDone()).as("새 적재가 끝나기 전에는 답하지 않는다").isFalse();
 
             newGate.countDown();
             refresh.get(5, TimeUnit.SECONDS);
             assertThat(later.get(5, TimeUnit.SECONDS).found().get("R").ver()).isEqualTo("3.000");
-            assertThat(feed.tocCalls.get()).as("뒤이은 조회는 새 적재에 합류").isEqualTo(2);
-            assertThat(feed.bodyCalls.get()).as("최종 본문은 목차 응답의 current").isZero();
+            assertThat(feed.tocCalls.get()).as("옛 적재의 finally 가 새 자리를 지우지 않아 뒤이은 조회가 새 적재에 합류했다").isEqualTo(2);
+            assertThat(feed.bodyCalls.get()).as("최종 본문은 목차 응답의 current — 목차와 같은 Ticket 으로 들어갔다").isZero();
             MdmMetaCache.Entry head = cache.get(MdmTargetType.RULE, "R").orElseThrow();
             MdmMetaCache.Entry body = cache.getBody(MdmTargetType.RULE, "R", "3.000").orElseThrow();
             assertThat(((MdmToc) head.value()).version("3.000")).isPresent();
-            assertThat(body.loadSeq()).as("목차와 본문이 같은 Ticket").isEqualTo(head.loadSeq()).isEqualTo(1);
+            assertThat(body.loadSeq()).as("목차와 본문의 적재 순번").isEqualTo(head.loadSeq()).isEqualTo(1);
             assertThat(cache.peek(MdmTargetType.RULE, "R@3.000").orElseThrow().current()).isTrue();
             assertThat(cache.tombstoneCount()).as("지움 기록을 더하지 않는다").isEqualTo(tombstones);
-
-            oldGate.countDown();
-            assertThat(old.get(5, TimeUnit.SECONDS).found().get("R").ver()).isEqualTo("1.000");
-            assertThat(cache.get(MdmTargetType.RULE, "R").orElseThrow().value()).as("옛 적재는 넣지 못한다").isSameAs(head.value());
             assertThat(cache.getBody(MdmTargetType.RULE, "R", "1.000")).isEmpty();
             service.lookupAt(MdmTargetType.RULE, List.of("R"), T0);
-            assertThat(feed.tocCalls.get()).as("옛 적재가 새 자리를 지우지 않아 캐시에서 답한다").isEqualTo(2);
+            assertThat(feed.tocCalls.get()).as("뒤이은 조회는 MDM 을 다시 부르지 않는다").isEqualTo(2);
         } finally {
             oldGate.countDown();
             newGate.countDown();
