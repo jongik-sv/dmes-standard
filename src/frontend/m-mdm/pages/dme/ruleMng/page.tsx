@@ -121,7 +121,8 @@ export default function RuleMngPage() {
   );
 
   // refreshDetail 이면([조회]) 목록이 온 뒤 고른 룰의 상세도 다시 읽는다. 고른 룰이 없으면 첫 줄을 연다 — 상세가
-  // 빈 화면으로 남지 않게(dmc codeMng 과 같은 접합).
+  // 빈 화면으로 남지 않게(dmc codeMng 과 같은 접합). [조회] 결과에 고른 룰이 없으면 강조 없는 옛 상세를 남기지 않고 새 목록
+  // 첫 줄을 고르며, 목록이 비면 선택과 상세를 비운다(검토 M3). 쪽 넘기기는 선택을 그대로 둔다.
   const load = useCallback(
     async (f: RuleSearchFilters, pageNo: number, refreshDetail = false) => {
       setIsBusy(true);
@@ -136,7 +137,8 @@ export default function RuleMngPage() {
         if (!current) {
           if (list.length > 0) void choose(list[0].maruRuleId);
         } else if (refreshDetail) {
-          void loadDetail(current);
+          if (list.some((r) => r.maruRuleId === current)) void loadDetail(current);
+          else void choose(list[0]?.maruRuleId ?? null);
         }
       } catch (e) {
         setErrorMessage(e instanceof Error ? e.message : String(e));

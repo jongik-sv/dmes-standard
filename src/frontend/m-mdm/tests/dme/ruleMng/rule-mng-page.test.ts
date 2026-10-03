@@ -31,6 +31,8 @@ let viewsById: Record<string, RuleMngView> = {};
 let holdViews: Record<string, Promise<void>> = {};
 /** 설정하면 이 액션(save·lock 등) 응답을 이 약속이 풀릴 때까지 붙잡는다. */
 let holdActions: Record<string, Promise<void>> = {};
+/** 목록 조회 응답 — null 이면 기본 두 룰(QLTY_GRD_JDG·COIL_WGT_CALC). */
+let searchList: Array<Record<string, unknown>> | null = null;
 const ALL_RBAC = [{ objId: "*", action: "*", endpoint: "*", httpMethod: "*" }];
 let rbacRows: Array<Record<string, string>> = ALL_RBAC;
 
@@ -156,6 +158,7 @@ beforeEach(() => {
   viewsById = {};
   holdViews = {};
   holdActions = {};
+  searchList = null;
   rbacRows = ALL_RBAC;
   globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -174,11 +177,11 @@ beforeEach(() => {
           meta: { success: true },
           data: {
             result: {
-              list: [
+              list: searchList ?? [
                 { maruRuleId: "QLTY_GRD_JDG", maruRuleName: "품질 등급 판정", ruleKind: "DECISION", status: "INUSE", sourceKind: "MDM" },
                 { maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE", status: "INUSE", sourceKind: "MDM" },
               ],
-              totalCount: 2,
+              totalCount: searchList?.length ?? 2,
               page: 0,
               size: 20,
             },
@@ -255,6 +258,27 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     expect(viewCount()).toBe(before + 1);
     // 선택은 첫 줄로 돌아가지 않고 고른 룰 그대로다.
     expect(params("view")).toEqual({ maruRuleId: "COIL_WGT_CALC" });
+  });
+
+  // 검토 M3 — 조건을 바꿔 [조회] 했는데 고른 룰이 새 목록에 없으면, 강조 없는 옛 상세를 다시 읽지 않고 첫 진입 자동 선택처럼
+  // 새 목록 첫 줄을 고른다. 목록이 비면 선택과 상세를 비운다.
+  it("[조회] 결과에 고른 룰이 없으면 새 목록 첫 줄을 고르고, 목록이 비면 선택과 상세를 비운다", async () => {
+    await renderAndSearch();
+    expect(byTestId("rule-header-id")?.textContent).toBe("QLTY_GRD_JDG");
+    viewsById.COIL_WGT_CALC = draftDetail({
+      header: { ...draftDetail().header, maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE" },
+    });
+    searchList = [{ maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE", status: "INUSE", sourceKind: "MDM" }];
+    await search();
+    expect(params("view")).toEqual({ maruRuleId: "COIL_WGT_CALC" });
+    expect(byTestId("rule-header-id")?.textContent).toBe("COIL_WGT_CALC");
+
+    searchList = [];
+    const before = viewCount();
+    await search();
+    expect(viewCount()).toBe(before);
+    expect(byTestId("rule-header-id")).toBeNull();
+    expect(byTestId("rule-detail-empty")?.textContent).toBe("룰을 고르세요.");
   });
 
   it("A·B 를 빠르게 누르고 A 응답이 늦게 와도 상세는 B 로 남는다", async () => {
