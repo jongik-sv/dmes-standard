@@ -27,6 +27,8 @@ import type {
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
 import {
   MdmMetaCard,
+  MDM_META_CARD_HTML_MAX_WIDTH,
+  mdmCardHasHtml,
   mdmCaption,
   resolveCaption,
   toPhysName,
@@ -568,15 +570,37 @@ export interface MdmGridTooltipParams {
  * .ag-tooltip 이 내용에 맞춰 줄어들 폭을 얻지 못해 글자마다 줄이 바뀐다(2026-10-03 포털 확인). 내용 폭을 쓰고 넓은 내용은 최대 폭에서 줄을 바꾼다.
  */
 const MDM_TOOLTIP_BOX_STYLE: CSSProperties = { width: "max-content", maxWidth: 380 };
+/**
+ * HTML 설명 카드(descriptionHtml) 상자 — 최대 폭 640, 마우스가 들어갈 수 있다. ag-grid 는 tooltipInteraction 일 때 감싸개(.ag-tooltip-custom)에만
+ * `ag-tooltip-interactive` 를 달아, 이 상자(.ag-tooltip)에는 ag-grid CSS 의 pointer-events:none 이 그대로 걸린다 — 그래서 직접 auto 로 둔다.
+ */
+const MDM_HTML_TOOLTIP_BOX_STYLE: CSSProperties = {
+  width: "max-content",
+  maxWidth: MDM_META_CARD_HTML_MAX_WIDTH,
+  pointerEvents: "auto",
+};
 
 /**
  * MDM 메타가 있는 열의 ag-grid 사용자 툴팁(tooltipComponent). ag-grid 는 열의 tooltipComponent 를 머리글과 셀 툴팁에 함께 쓰므로,
  * 머리글(`location: "header"`)이면 MdmMetaCard 를, 셀이면 기본 툴팁과 같은 값 글자를 그린다.
+ * 머리글 카드가 HTML 설명 카드면 넓은 상자에 마우스가 들어갈 수 있고(그리드가 tooltipInteraction 을 켠다) Escape 로 닫는다
+ * (ag-grid 는 툴팁 밖 keydown 에만 닫으므로 툴팁 안에 focus 가 있을 때를 위해 문서 keydown 을 듣고 hideTooltipCallback 을 부른다).
  */
 export function MdmGridTooltip(props: ITooltipParams & Partial<MdmGridTooltipParams>) {
+  const htmlCard = props.location === "header" && mdmCardHasHtml(props.mdmColumn);
+  const hideTooltip = props.hideTooltipCallback;
+  useEffect(() => {
+    if (!htmlCard || !hideTooltip) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") hideTooltip();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [htmlCard, hideTooltip]);
+
   if (props.location === "header" && props.mdmColumn) {
     return (
-      <div className="ag-tooltip mdm-meta-tooltip" style={MDM_TOOLTIP_BOX_STYLE}>
+      <div className="ag-tooltip mdm-meta-tooltip" style={htmlCard ? MDM_HTML_TOOLTIP_BOX_STYLE : MDM_TOOLTIP_BOX_STYLE}>
         <MdmMetaCard column={props.mdmColumn} domain={props.mdmDomain ?? null} />
       </div>
     );
@@ -588,6 +612,19 @@ export function MdmGridTooltip(props: ITooltipParams & Partial<MdmGridTooltipPar
       {value == null ? "" : String(value)}
     </div>
   );
+}
+
+/**
+ * 열 정의(그룹 안까지) 중 HTML 설명 카드(descriptionHtml)를 머리글 툴팁으로 다는 열이 있는가 — 있으면 그리드의 tooltipInteraction 을 켠다.
+ * 화면이 headerTooltip·headerComponent 를 줘 MDM 카드를 달지 않은 열은 세지 않는다.
+ */
+export function hasMdmHtmlHeaderTooltip(defs: ReadonlyArray<ColDef | ColGroupDef>): boolean {
+  return defs.some((d) => {
+    if ("children" in d && Array.isArray(d.children)) return hasMdmHtmlHeaderTooltip(d.children);
+    const c = d as ColDef;
+    if (c.tooltipComponent !== MdmGridTooltip) return false;
+    return mdmCardHasHtml((c.tooltipComponentParams as Partial<MdmGridTooltipParams> | undefined)?.mdmColumn);
+  });
 }
 
 /** 열 하나의 머리글 글자. MDM 이 없으면 적은 header, 그것도 없으면 key(ag-grid 가 field 로 'Code Nm' 같은 이름을 지어내지 않게). */
@@ -1051,6 +1088,32 @@ function AgDataGridComponent({
     }),
     [effectiveSortable, wrapHeaderText, autoHeaderHeight]
   );
+
+  // MDM HTML 설명 카드가 머리글 툴팁인 열이 있을 때만 tooltipInteraction 을 켠다(마우스가 툴팁 안으로 들어가 링크·스크롤을 쓴다).
+  // 한 번도 켠 적이 없으면 속성을 넘기지 않는다 — 그 밖의 그리드는 예전과 같다. tooltipInteraction 은 ag-grid 초기(@initial) 속성이고
+  // 툴팁 관리자는 머리글 칸을 만들 때 그 값을 한 번 읽는다. 메타는 보통 그리드를 만든 뒤 오므로 값이 바뀌면 머리글을 다시 만든다(아래 효과).
+  const mdmHtmlTooltip = useMemo(() => hasMdmHtmlHeaderTooltip(columnDefs), [columnDefs]);
+  const tooltipInteractionUsedRef = useRef(mdmHtmlTooltip);
+  if (mdmHtmlTooltip) tooltipInteractionUsedRef.current = true;
+  /** 지금 머리글 칸들이 만들어질 때의 tooltipInteraction 값. 그리드는 첫 렌더 값으로 만들어진다. */
+  const appliedTooltipInteractionRef = useRef(mdmHtmlTooltip);
+  useEffect(() => {
+    if (!gridReady || appliedTooltipInteractionRef.current === mdmHtmlTooltip) return;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const apply = (triesLeft: number) => {
+      const api = gridRef.current?.api;
+      if (!api || api.isDestroyed()) return;
+      // ag-grid-react 는 바뀐 속성을 자기 효과(이 효과보다 먼저 돈다)에서 넘긴다 — 아직 대기 중이면 잠깐 뒤에 다시 본다.
+      if (!!api.getGridOption("tooltipInteraction") !== mdmHtmlTooltip && triesLeft > 0) {
+        retry = setTimeout(() => apply(triesLeft - 1), 0);
+        return;
+      }
+      appliedTooltipInteractionRef.current = mdmHtmlTooltip;
+      api.refreshHeader();
+    };
+    apply(3);
+    return () => clearTimeout(retry);
+  }, [gridReady, mdmHtmlTooltip]);
 
   const hasEditableColumns = useMemo(() => hasEditableColumn(columns), [columns]);
 
@@ -1785,6 +1848,7 @@ function AgDataGridComponent({
         suppressHorizontalScroll={false}
         alwaysShowHorizontalScroll={alwaysShowHorizontalScroll}
         domLayout={isAutoHeight ? "autoHeight" : "normal"}
+        {...(tooltipInteractionUsedRef.current ? { tooltipInteraction: mdmHtmlTooltip } : {})}
         {...rowDrag.gridProps}
       />
     </div>
