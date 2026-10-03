@@ -858,13 +858,38 @@ function mdmLeafEntries(columns: GridColumn[], out: Array<{ name: string; meta?:
   return out;
 }
 
-/** 그리드 안에서 쓰는 MDM 옵션. 공급자 밖이면 undefined — 열 정의가 예전과 같다. */
+/**
+ * 두 칸 메타 Map 이 그리드가 읽는 값까지 같은가 — 키 목록과 칸마다 column·domain(참조). `loading` 은 보지 않는다(그리드는 쓰지 않는다).
+ */
+export function sameGridMdmValues(a: Map<string, MdmColumnInfo>, b: Map<string, MdmColumnInfo>): boolean {
+  if (a === b) return true;
+  if (a.size !== b.size) return false;
+  for (const [key, next] of b) {
+    const prev = a.get(key);
+    if (!prev || prev.column !== next.column || prev.domain !== next.domain) return false;
+  }
+  return true;
+}
+
+/**
+ * 그리드 안에서 쓰는 MDM 옵션. 공급자 밖이면 undefined — 열 정의가 예전과 같다.
+ * 값은 그리드가 읽는 메타(칸마다 column·domain)가 바뀔 때만 새로 낸다. 메타가 없는 칸(404·꺼진 모듈·사전에 없음)도 새 열 목록마다
+ * 처음엔 `loading` 이었다가 응답 뒤 없음으로 바뀐다 — 그것만으로 값을 새로 내면 내용이 같은 열 정의가 ag-grid 에 다시 들어가고,
+ * 머리 그룹 칸이 처음 붙는 커밋과 겹치면 React 개발 모드 효과 재실행이 파기된 머리 그룹 ctrl 을 다시 붙이다 죽는다
+ * (getProvidedColumnGroup of null — mdm ruleEdit 첫 열 적용, 2026-10-03).
+ */
 function useGridMdm(columns: GridColumn[]): BuildColumnDefsOptions["mdm"] {
   const scope = useMdmMetaScope();
   const entries = useMemo(() => (scope ? mdmLeafEntries(columns) : []), [scope, columns]);
   const infoByKey = useMdmColumns(entries);
   const priority = useMdmCaptionPriority();
-  return useMemo(() => (scope ? { infoByKey, priority } : undefined), [scope, infoByKey, priority]);
+  const prevRef = useRef<BuildColumnDefsOptions["mdm"]>(undefined);
+  return useMemo(() => {
+    if (!scope) return (prevRef.current = undefined);
+    const prev = prevRef.current;
+    if (prev && prev.priority === priority && sameGridMdmValues(prev.infoByKey, infoByKey)) return prev;
+    return (prevRef.current = { infoByKey, priority });
+  }, [scope, infoByKey, priority]);
 }
 
 function resolveColumnHeaders(columns: GridColumn[], mdm: BuildColumnDefsOptions["mdm"]): GridColumn[] {

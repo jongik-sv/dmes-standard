@@ -1,6 +1,13 @@
 /** @vitest-environment happy-dom */
+/** @vitest-environment-options {"settings":{"navigation":{"disableChildFrameNavigation":true}}} */
 
 // 공지 본문 뷰어(shared notice-body-view) — 형식별(TEXT·MD·HTML) 렌더링, HTML 소독, TEXT 이스케이프, 빈 본문.
+//
+// 자식 프레임 이동을 끄는 까닭: happy-dom 은 DOMPurify 가 문자열을 해석하려고 만든 문서 안의
+// <iframe src="https://e.com"> 도 실제 브라우저와 달리 페이지를 불러오기 시작한다(네트워크 요청).
+// 소독이 그 iframe 을 곧바로 지우면 프레임이 닫힌 뒤에 이동이 이어져 "AsyncTaskManager … has been destroyed"
+// 오류가 매 실행 stderr 에 찍혔고, 다른 시험이 실패한 실행에서 그 줄이 실패 원인으로 오인됐다.
+// 이 시험은 소독 결과만 보므로 iframe 이 페이지를 불러올 필요가 없다.
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
