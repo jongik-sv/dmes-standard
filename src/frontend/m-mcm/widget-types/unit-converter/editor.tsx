@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * 단위 계산기 편집기 — 「보일 분류」 체크 목록(전체 선택·해제)과 「기본 분류」 선택(보일 분류 안에서만).
- * 아무것도 고르지 않으면 전체 분류를 보인다. 체크를 바꾸면 알려진 분류만 표 순서로 올리고, 기본 분류가 보일 분류 밖으로 나가면
- * 첫 분류(length 가 있으면 length)로 맞춘다 — 그래서 편집기로는 틀린 설정을 만들 수 없고, 밖에서 들어온 틀린 값(모르는 분류 id 등)은
- * 검사 오류(onValidate)로 알린다. 오류 문구는 관리 화면이 목록으로 보인다. 미리보기는 관리 화면 미리보기가 맡는다.
+ * 단위 계산기 편집기 — 「보일 분류」 체크 목록(전체 선택)과 「기본 분류」 선택(보일 분류 안에서만).
+ * categories 가 빈 배열이면 전체 분류를 보이므로 체크박스를 모두 켠 채로 보인다. 모두 켜져 있으면(「전체 선택」 포함) `[]` 로 저장해
+ * 분류가 새로 늘어도 보이게 한다. 체크는 하나 이상 남아야 해서 마지막 하나는 끌 수 없다(전부 끄면 전체와 같아져 혼란스럽다).
+ * 체크를 바꾸면 알려진 분류만 표 순서로 올리되 기본 분류는 건드리지 않는다 — 틀린 기본 분류(보일 분류 밖·모르는 id)는 검사 오류(onValidate)로
+ * 알리고 선택칸은 「선택하세요」로 보이며, 사용자가 기본 분류를 고를 때 바로잡힌다. 오류 문구는 관리 화면이 목록으로 보인다. 미리보기는 관리 화면 미리보기가 맡는다.
  */
 import { Button, Checkbox, FormGroup, Select } from "@dk-oasis/shared/form";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
@@ -13,6 +14,7 @@ import { useReportErrors } from "../_content/hooks";
 import { ContentStyle } from "../_content/styles";
 import {
   buildUnitConfig,
+  changeUnitSelection,
   readUnitConfig,
   readUnitSelection,
   UNIT_EDITOR_ALL_NOTE,
@@ -24,13 +26,14 @@ import { CATEGORIES, CATEGORY_IDS, getCategory, isCategoryId, type CategoryId } 
 
 export default function UnitConverterEditor({ value, onChange, onValidate }: WidgetTypeEditorProps) {
   const cfg = readUnitConfig(value);
-  /** 체크된 분류(알려진 id 만, 표 순서). 비어 있으면 「전체」. */
+  /** 저장된 보일 분류(알려진 id 만, 표 순서). 비어 있으면 「전체」. */
   const selected = readUnitSelection(value);
+  /** 체크된 분류 — 저장된 목록이 비었으면 전체(모두 켠 채로 보인다). */
+  const checked = selected.length === 0 ? CATEGORY_IDS : selected;
+  const isAll = checked.length === CATEGORY_IDS.length;
   useReportErrors(validateUnitConfig(value), onValidate);
 
-  const emit = (next: readonly CategoryId[]) => onChange(buildUnitConfig(next, cfg.defaultCategory));
-
-  const toggle = (id: CategoryId, checked: boolean) => emit(checked ? [...selected, id] : selected.filter((c) => c !== id));
+  const toggle = (id: CategoryId, on: boolean) => onChange(changeUnitSelection(value, on ? [...checked, id] : checked.filter((c) => c !== id)));
 
   const rawDefault = typeof value === "object" && value !== null ? (value as { defaultCategory?: unknown }).defaultCategory : undefined;
   const missingDefault = rawDefault === undefined || rawDefault === null || rawDefault === "";
@@ -50,22 +53,24 @@ export default function UnitConverterEditor({ value, onChange, onValidate }: Wid
       <FormGroup label="보일 분류" labelWidth={80} className="mcm-fg-block">
         <div>
           <div className="mcm-uc-edit__actions">
-            <Button size="sm" disabled={selected.length === CATEGORY_IDS.length} onClick={() => emit(CATEGORY_IDS)} data-testid="widget-unit-select-all">
+            <Button size="sm" disabled={selected.length === 0} onClick={() => onChange(changeUnitSelection(value, []))} data-testid="widget-unit-select-all">
               전체 선택
-            </Button>
-            <Button size="sm" disabled={selected.length === 0} onClick={() => emit([])} data-testid="widget-unit-select-none">
-              전체 해제
             </Button>
           </div>
           <div className="mcm-uc-edit__checks">
             {CATEGORIES.map((c) => (
               <div key={c.id} data-testid={`widget-unit-cat-${c.id}`}>
-                <Checkbox label={c.label} checked={selected.includes(c.id)} onChange={(checked) => toggle(c.id, checked)} />
+                <Checkbox
+                  label={c.label}
+                  checked={checked.includes(c.id)}
+                  disabled={!isAll && checked.length === 1 && checked.includes(c.id)}
+                  onChange={(on) => toggle(c.id, on)}
+                />
               </div>
             ))}
           </div>
           <div className="mcm-wt-editor__note" data-testid="widget-unit-note">
-            {selected.length === 0 ? UNIT_EDITOR_ALL_NOTE : unitEditorCountNote(selected.length)}
+            {isAll ? UNIT_EDITOR_ALL_NOTE : unitEditorCountNote(checked.length)}
           </div>
         </div>
       </FormGroup>

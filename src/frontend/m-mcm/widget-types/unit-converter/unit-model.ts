@@ -1,8 +1,10 @@
 /**
  * 단위 계산기 유형의 순수 로직 — 정의 설정 읽기·검사, 화면 값 계산, 브라우저 기억(localStorage) 값의 직렬화·검증.
  * 렌더러(renderer.tsx)·편집기(editor.tsx)는 이 파일과 units.ts·unit-format.ts 만 부른다.
- * 저장소(window.localStorage) 접근 자체는 렌더러가 try/catch 로 감싸서 한다 — 여기서는 문자열만 다룬다.
+ * 저장소(window.localStorage) 접근 자체는 unit-storage.ts 가 try/catch 로 감싸서 한다 — 여기서는 문자열만 다룬다.
  */
+import type { Dec } from "@dk-oasis/shared/evalex";
+
 import {
   CATEGORIES,
   CATEGORY_IDS,
@@ -11,9 +13,19 @@ import {
   getCategory,
   isBelowAbsoluteZero,
   isCategoryId,
+  type CategoryDef,
   type CategoryId,
 } from "./units";
-import { formatNumber, INVALID_NUMBER_TEXT, MAX_INPUT_LENGTH, NO_VALUE_TEXT, parseNumberInput } from "./unit-format";
+import {
+  formatExact,
+  formatNumber,
+  INVALID_NUMBER_TEXT,
+  MAX_INPUT_LENGTH,
+  NO_VALUE_TEXT,
+  parseNumberInput,
+  TOO_LARGE_TEXT,
+  TOO_SMALL_TEXT,
+} from "./unit-format";
 
 /* ------------------------------------------------------------------ 정의 설정 */
 
@@ -91,14 +103,32 @@ export function validateUnitConfig(raw: unknown): string[] {
   return errors;
 }
 
-export const UNIT_EDITOR_ALL_NOTE = "아무것도 고르지 않으면 전체 분류를 보입니다.";
+export const UNIT_EDITOR_ALL_NOTE = "모든 분류를 보입니다. 분류가 새로 늘어도 자동으로 보입니다.";
 export const unitEditorCountNote = (n: number): string => `${n}개 분류를 보입니다.`;
 
-/** 편집기가 올리는 설정 — 알려진 분류만 표 순서로, 기본 분류는 보일 분류 안으로 맞춘다. */
-export function buildUnitConfig(selected: readonly CategoryId[], defaultCategory: unknown): UnitConverterConfig {
+/** 고른 분류 → 저장할 목록. 알려진 분류만 표 순서로 하고, 비었거나 전부 골랐으면 `[]`(= 전체 — 분류가 늘어도 보인다). */
+export function normalizeSelection(selected: readonly CategoryId[]): CategoryId[] {
   const categories = CATEGORY_IDS.filter((id) => selected.includes(id));
+  return categories.length === CATEGORY_IDS.length ? [] : categories;
+}
+
+/** 편집기 선택칸이 올리는 설정 — 보일 분류는 normalizeSelection, 기본 분류는 보일 분류 안으로 맞춘다. */
+export function buildUnitConfig(selected: readonly CategoryId[], defaultCategory: unknown): UnitConverterConfig {
+  const categories = normalizeSelection(selected);
   const visible = categories.length > 0 ? categories : CATEGORY_IDS;
-  return { categories: [...categories], defaultCategory: pickDefaultCategory(visible, defaultCategory) };
+  return { categories, defaultCategory: pickDefaultCategory(visible, defaultCategory) };
+}
+
+/**
+ * 편집기 체크박스가 올리는 설정 — 보일 분류만 바꾸고 기본 분류는 받은 값 그대로 둔다(틀린 값을 조용히 고치지 않는다 — 검사 오류로 알리고
+ * 사용자가 기본 분류를 고를 때 바로잡는다). 기본 분류가 아예 빠져 있으면 새 보일 분류 기준의 읽은 값으로 채운다.
+ */
+export function changeUnitSelection(raw: unknown, selected: readonly CategoryId[]): UnitConverterConfig {
+  const categories = normalizeSelection(selected);
+  const visible = categories.length > 0 ? categories : CATEGORY_IDS;
+  const rawDefault = isRecord(raw) ? raw.defaultCategory : undefined;
+  const missing = rawDefault === undefined || rawDefault === null || rawDefault === "";
+  return { categories, defaultCategory: missing ? pickDefaultCategory(visible, undefined) : (rawDefault as string) };
 }
 
 /* ------------------------------------------------------------------ 화면 값 계산 */
@@ -112,38 +142,73 @@ export interface UnitRow {
   text: string;
 }
 
+/** 계산이 안 된 까닭 — empty(빈 입력)·invalid(숫자가 아님)·tooLarge·tooSmall(지수가 너무 큼·작음, 또는 결과가 무한대). */
+export type UnitProblem = "empty" | "invalid" | "tooLarge" | "tooSmall";
+
 export interface UnitView {
   /** 입력이 숫자이고 계산이 됐다. */
   ok: boolean;
-  /** 결과 칸에 보일 글 — 숫자가 아니면 「숫자를 입력하세요」. */
+  /** ok 가 아닐 때의 까닭(ok 면 null). */
+  problem: UnitProblem | null;
+  /** 결과 칸에 보일 글 — 숫자가 아니면 「숫자를 입력하세요」, 너무 크거나 작으면 「값이 너무 큽니다」·「값이 너무 작습니다」. */
   resultText: string;
-  /** 복사·[⇄] 에 쓰는 쉼표 없는 결과(ok 가 아니면 빈 글). */
+  /** 복사에 쓰는 쉼표 없는 결과(10자리 — 화면에 보이는 값, ok 가 아니면 빈 글). */
   plainText: string;
+  /** [⇄] 가 입력으로 잇는 반올림하지 않은 정밀 값(유효숫자 17자리, 쉼표 없음). ok 가 아니거나 입력으로 못 읽는 크기면 빈 글. */
+  exactText: string;
   /** 분류의 모든 단위로 환산한 목록(표 순서). */
   rows: UnitRow[];
   /** 절대영도 아래 온도 — 계산은 하되 경고를 보인다. */
   belowAbsoluteZero: boolean;
 }
 
+const PROBLEM_TEXT: Record<UnitProblem, string> = {
+  empty: INVALID_NUMBER_TEXT,
+  invalid: INVALID_NUMBER_TEXT,
+  tooLarge: TOO_LARGE_TEXT,
+  tooSmall: TOO_SMALL_TEXT,
+};
+
+/**
+ * 환산 결과 중 유한하지 않은 값이 있으면 그 까닭. 무한대(±)는 tooLarge, NaN 은 invalid. 모두 유한하면 null.
+ * 입력 지수를 1000 으로 막아 두어 보통은 닿지 않는 방어선이다(decimal.js 지수 한계 ±9e15 를 넘는 결과가 `Infinity` 로 보이고 복사가 켜지는 것을 막는다).
+ */
+export function findNonFinite(values: readonly Dec[]): UnitProblem | null {
+  let problem: UnitProblem | null = null;
+  for (const v of values) {
+    if (v.isNaN()) return "invalid";
+    if (!v.isFinite()) problem = "tooLarge";
+  }
+  return problem;
+}
+
+function failedView(cat: CategoryDef, problem: UnitProblem): UnitView {
+  return {
+    ok: false,
+    problem,
+    resultText: PROBLEM_TEXT[problem],
+    plainText: "",
+    exactText: "",
+    rows: cat.units.map((u) => ({ id: u.id, label: u.label, text: NO_VALUE_TEXT })),
+    belowAbsoluteZero: false,
+  };
+}
+
 /** 입력 글 + 분류·단위 → 결과 칸·목록·경고. */
 export function computeView(text: string, category: CategoryId, fromId: string, toId: string): UnitView {
   const cat = getCategory(category);
   const parsed = parseNumberInput(text);
-  if (!parsed.ok) {
-    return {
-      ok: false,
-      resultText: INVALID_NUMBER_TEXT,
-      plainText: "",
-      rows: cat.units.map((u) => ({ id: u.id, label: u.label, text: NO_VALUE_TEXT })),
-      belowAbsoluteZero: false,
-    };
-  }
+  if (!parsed.ok) return failedView(cat, parsed.reason);
   const all = convertAll(parsed.value, category, fromId);
+  const nonFinite = findNonFinite(all.map((c) => c.value));
+  if (nonFinite) return failedView(cat, nonFinite);
   const target = all.find((c) => c.unit.id === toId) ?? all[0];
   return {
     ok: true,
+    problem: null,
     resultText: formatNumber(target.value),
     plainText: formatNumber(target.value, false),
+    exactText: formatExact(target.value),
     rows: all.map((c) => ({ id: c.unit.id, label: c.unit.label, text: formatNumber(c.value) })),
     belowAbsoluteZero: isBelowAbsoluteZero(parsed.value, category, fromId),
   };
@@ -166,16 +231,24 @@ export interface UnitState {
 
 export const UNIT_DEFAULT_TEXT = "1";
 
-/** 위젯 인스턴스별 기억 키. 접두사는 위젯 작업 영역의 `dmes:widget:lastTab:{userId}` 와 같은 계열이다. */
+/** 사용자·위젯 인스턴스별 기억 키 접두사. 위젯 작업 영역의 `dmes:widget:lastTab:{userId}` 와 같은 계열이다. */
 export const UNIT_STORAGE_PREFIX = "dmes:widget:unit-converter:";
 /** 관리 화면 미리보기의 위젯·인스턴스 ID — 실제 배치가 아니므로 기억하지 않는다. */
 const PREVIEW_WIDGET_ID = "def.preview";
 const PREVIEW_INST_ID = "preview";
 
-/** 기억 키. 인스턴스가 없거나 관리 화면 미리보기면 null(기억하지 않는다). */
-export function storageKey(widgetId: string | undefined, instanceId: string | undefined): string | null {
-  if (!instanceId || instanceId === PREVIEW_INST_ID || widgetId === PREVIEW_WIDGET_ID) return null;
-  return UNIT_STORAGE_PREFIX + instanceId;
+/** 기억할 수 있는 자리인가 — 인스턴스가 있고 관리 화면 미리보기가 아니다. */
+export function isRememberable(widgetId: string | undefined, instanceId: string | undefined): boolean {
+  return !!instanceId && instanceId !== PREVIEW_INST_ID && widgetId !== PREVIEW_WIDGET_ID;
+}
+
+/**
+ * 기억 키 `dmes:widget:unit-converter:{userId}:{instanceId}`. 같은 PC 를 쓰는 다른 사용자가 관리자가 정한 같은 기본 배치(같은 instanceId)를 열어도
+ * 값이 섞이지 않게 사용자를 키에 넣는다. 사용자를 모르거나(빈 글) 기억할 수 없는 자리면 null(기억하지 않는다).
+ */
+export function storageKey(widgetId: string | undefined, instanceId: string | undefined, userId: string | null | undefined): string | null {
+  if (!userId || !isRememberable(widgetId, instanceId)) return null;
+  return `${UNIT_STORAGE_PREFIX}${userId}:${instanceId}`;
 }
 
 /** 분류 안에서 쓸 단위 쌍 — 고른 값이 그 분류의 단위가 아니면 분류의 기본 단위로 바로잡는다. */
@@ -194,10 +267,14 @@ export function resolveCategory(stateCategory: unknown, config: UnitConfig): Cat
   return isCategoryId(stateCategory) && config.categories.includes(stateCategory) ? stateCategory : config.defaultCategory;
 }
 
-/** 처음 상태 — 기억한 값이 있으면 그것을, 없으면 설정의 기본 분류·기본 단위·「1」. */
+/**
+ * 처음 상태 — 기억한 값이 있으면 그것을, 없으면 설정의 기본 분류·기본 단위·「1」.
+ * 기억한 분류가 설정에서 빠졌어도 상태에는 그대로 둔다(화면은 resolveCategory 로 그때그때 기본 분류를 보인다). 그래야 입력만 고쳐도
+ * 기억한 분류가 기본 분류로 덮이지 않고, 설정에 그 분류가 다시 들어오면 돌아온다.
+ */
 export function initialState(config: UnitConfig, stored: UnitState | null): UnitState {
   return {
-    category: resolveCategory(stored?.category, config),
+    category: stored?.category ?? config.defaultCategory,
     units: stored?.units ?? {},
     text: stored?.text ?? UNIT_DEFAULT_TEXT,
   };

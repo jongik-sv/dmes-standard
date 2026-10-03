@@ -121,8 +121,11 @@ describe("환산 — 그 밖의 계수", () => {
     expect(conv("1", "pressure", "bar", "kpa")).toBe("100");
     expect(conv("1", "pressure", "kgfmm2", "kgfcm2")).toBe("100");
     expect(conv("1", "pressure", "psi", "pa")).toBe("6894.757293");
-    // 133.322387415 Pa 은 반올림한 값이라 760 mmHg 는 정확히 1 atm 이 아니다(101325.0144 Pa).
-    expect(conv("760", "pressure", "mmhg", "atm")).toBe("1.000000142");
+    // mmHg 는 Torr 정의(101325/760 Pa)라 760 mmHg = 1 atm 이 정확히 맞는다.
+    expect(conv("760", "pressure", "mmhg", "atm")).toBe("1");
+    expect(conv("1", "pressure", "atm", "mmhg")).toBe("760");
+    expect(conv("1", "pressure", "mmhg", "pa")).toBe("133.3223684");
+    expect(conv("1", "pressure", "mmhg", "kpa")).toBe("0.1333223684");
   });
   it("힘", () => {
     expect(conv("1", "force", "tf", "kn")).toBe("9.80665");
@@ -135,9 +138,11 @@ describe("환산 — 그 밖의 계수", () => {
     expect(conv("1", "speed", "mph", "kmh")).toBe("1.609344");
   });
   it("에너지", () => {
-    expect(conv("1", "energy", "kcal", "kj")).toBe("4.184");
-    expect(conv("1", "energy", "cal", "j")).toBe("4.184");
-    expect(conv("1", "energy", "kwh", "kcal")).toBe("860.4206501");
+    // 국제증기표 칼로리 — 1 cal = 4.1868 J, 1 kcal = 4186.8 J, 1 kWh ≈ 859.845 kcal.
+    expect(conv("1", "energy", "kcal", "kj")).toBe("4.1868");
+    expect(conv("1", "energy", "cal", "j")).toBe("4.1868");
+    expect(conv("1", "energy", "kcal", "cal")).toBe("1000");
+    expect(conv("1", "energy", "kwh", "kcal")).toBe("859.8452279");
   });
   it("온도 — 0 °C = 32 °F = 273.15 K, 절대영도", () => {
     expect(conv("0", "temperature", "celsius", "fahrenheit")).toBe("32");
@@ -159,7 +164,7 @@ describe("환산 — 같은 단위·왕복·음수", () => {
       for (const a of c.units) {
         for (const b of c.units) {
           for (const v of ["123.456", "-7.5", "0.000123", "98765"]) {
-            const there = convert(new D(v), c.id, a.id, b.id); // 중간값은 반올림하지 않는다(화면의 [⇄] 는 반올림한 값을 되먹이지만 그 경우는 별도 시험)
+            const there = convert(new D(v), c.id, a.id, b.id); // 중간값은 반올림하지 않는다(화면의 [⇄] 는 17자리 정밀 값을 되먹이고, 그 경우는 unit-model·unit-render 시험이 본다)
             const back = convert(there, c.id, b.id, a.id);
             expect(formatNumber(back, false), `${v} ${a.id}→${b.id}→${a.id}`).toBe(formatNumber(new D(v), false));
           }

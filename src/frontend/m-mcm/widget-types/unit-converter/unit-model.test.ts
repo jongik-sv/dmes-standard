@@ -2,12 +2,17 @@
  * 단위 계산기 유형 순수 로직 시험 — 설정 읽기·검증, 화면 값 계산, 기억 값 직렬화(스펙: 위젯 단위 계산기).
  * 렌더 시험은 unit-render.test.ts.
  */
+import { D } from "@dk-oasis/shared/evalex";
 import { describe, expect, it } from "vitest";
 
 import {
   buildUnitConfig,
+  changeUnitSelection,
   computeView,
+  findNonFinite,
   initialState,
+  isRememberable,
+  normalizeSelection,
   parseStoredState,
   pickDefaultCategory,
   readUnitConfig,
@@ -134,6 +139,41 @@ describe("validateUnitConfig", () => {
     expect(buildUnitConfig([], "force")).toEqual({ categories: [], defaultCategory: "force" });
     expect(validateUnitConfig(buildUnitConfig(["mass", "energy"], "pressure"))).toEqual([]);
   });
+
+  it("모든 분류를 골랐으면 [] 로 저장한다(분류가 늘어도 보이게) — 기본 분류는 그대로", () => {
+    expect(normalizeSelection(CATEGORY_IDS)).toEqual([]);
+    expect(normalizeSelection([...CATEGORY_IDS].reverse())).toEqual([]);
+    expect(normalizeSelection([])).toEqual([]);
+    expect(normalizeSelection(["pressure", "length"])).toEqual(["length", "pressure"]);
+    expect(normalizeSelection(CATEGORY_IDS.filter((id) => id !== "speed"))).toHaveLength(CATEGORY_IDS.length - 1);
+    expect(buildUnitConfig(CATEGORY_IDS, "force")).toEqual({ categories: [], defaultCategory: "force" });
+  });
+
+  it("changeUnitSelection — 체크박스는 보일 분류만 바꾸고 기본 분류는 받은 값 그대로 둔다", () => {
+    expect(changeUnitSelection({ categories: ["length", "mass"], defaultCategory: "mass" }, ["length", "mass", "area"])).toEqual({
+      categories: ["length", "mass", "area"],
+      defaultCategory: "mass",
+    });
+    // 기본 분류가 보일 분류 밖이 돼도 조용히 고치지 않는다 — 검사 오류가 알린다
+    const outside = changeUnitSelection({ categories: ["length", "mass"], defaultCategory: "mass" }, ["length"]);
+    expect(outside).toEqual({ categories: ["length"], defaultCategory: "mass" });
+    expect(validateUnitConfig(outside)).toEqual([UNIT_DEFAULT_OUTSIDE_ERROR]);
+    // 이미 틀린 기본 분류도 그대로(알 수 없는 id·형이 틀린 값 포함)
+    expect(changeUnitSelection({ categories: ["length"], defaultCategory: "pressure" }, ["length", "mass"]).defaultCategory).toBe("pressure");
+    expect(changeUnitSelection({ categories: [], defaultCategory: "zzz" }, ["length"]).defaultCategory).toBe("zzz");
+    expect(changeUnitSelection({ categories: [], defaultCategory: 5 }, ["length"]).defaultCategory).toBe(5);
+    // 바로 그 체크가 틀린 기본 분류를 바로잡는 경우는 그대로 맞는다
+    expect(validateUnitConfig(changeUnitSelection({ categories: ["length"], defaultCategory: "pressure" }, ["length", "pressure"]))).toEqual([]);
+    // 모두 켜면 []
+    expect(changeUnitSelection({ categories: ["length"], defaultCategory: "length" }, CATEGORY_IDS)).toEqual({ categories: [], defaultCategory: "length" });
+  });
+
+  it("changeUnitSelection — 기본 분류가 빠져 있으면 새 보일 분류 기준 읽은 값으로 채운다", () => {
+    expect(changeUnitSelection({ categories: [] }, ["mass", "area"])).toEqual({ categories: ["mass", "area"], defaultCategory: "mass" });
+    expect(changeUnitSelection({ categories: [] }, ["length", "mass"]).defaultCategory).toBe("length");
+    expect(changeUnitSelection(undefined, ["pressure"])).toEqual({ categories: ["pressure"], defaultCategory: "pressure" });
+    expect(changeUnitSelection({ defaultCategory: "" }, ["force"]).defaultCategory).toBe("force");
+  });
 });
 
 describe("computeView", () => {
@@ -160,14 +200,68 @@ describe("computeView", () => {
   });
 
   it("숫자가 아니면 안내 문구와 빈 값 줄(–)", () => {
-    for (const text of ["", "abc", "1.2.3", "Infinity"]) {
+    for (const text of ["", "abc", "1.2.3", "Infinity", "1,5", "1,2,3"]) {
       const v = computeView(text, "length", "in", "mm");
-      expect(v.ok).toBe(false);
-      expect(v.resultText).toBe("숫자를 입력하세요");
+      expect(v.ok, text).toBe(false);
+      expect(v.problem, text).toBe(text === "" ? "empty" : "invalid");
+      expect(v.resultText, text).toBe("숫자를 입력하세요");
       expect(v.plainText).toBe("");
+      expect(v.exactText).toBe("");
       expect(v.rows.map((r) => r.text)).toEqual(Array(8).fill("–"));
       expect(v.belowAbsoluteZero).toBe(false);
     }
+  });
+
+  it("입력 지수가 너무 크거나 작으면 「값이 너무 큽니다」·「값이 너무 작습니다」 — 무한대를 보이지 않고 복사·[⇄] 값도 없다", () => {
+    for (const [text, problem, message] of [
+      ["1e9000000000000000", "tooLarge", "값이 너무 큽니다"],
+      ["1e1001", "tooLarge", "값이 너무 큽니다"],
+      ["-3e5000", "tooLarge", "값이 너무 큽니다"],
+      ["1e-1001", "tooSmall", "값이 너무 작습니다"],
+      ["1e-9000000000000000", "tooSmall", "값이 너무 작습니다"],
+    ] as const) {
+      const v = computeView(text, "length", "km", "mm");
+      expect(v.ok, text).toBe(false);
+      expect(v.problem, text).toBe(problem);
+      expect(v.resultText, text).toBe(message);
+      expect(v.plainText).toBe("");
+      expect(v.exactText).toBe("");
+      expect(v.rows.every((r) => r.text === "–")).toBe(true);
+    }
+    // 상한 안(지수 1000)은 계산한다 — 결과가 지수 1006 이어도 유한하다
+    const edge = computeView("1e1000", "length", "km", "mm");
+    expect(edge.ok).toBe(true);
+    expect(edge.resultText).toBe("1e+1006");
+    expect(edge.exactText).toBe(""); // 입력으로 읽을 수 없는 크기라 [⇄] 는 값을 잇지 않는다
+    expect(computeView("1e-1000", "length", "mm", "km").resultText).toBe("1e-1006");
+  });
+
+  it("findNonFinite — 무한대는 tooLarge, NaN 은 invalid, 모두 유한하면 null(방어선)", () => {
+    expect(findNonFinite([new D(1), new D("1e1000")])).toBeNull();
+    expect(findNonFinite([])).toBeNull();
+    expect(findNonFinite([new D(1), new D("Infinity")])).toBe("tooLarge");
+    expect(findNonFinite([new D("-Infinity")])).toBe("tooLarge");
+    expect(findNonFinite([new D("Infinity"), new D("NaN")])).toBe("invalid");
+    expect(findNonFinite([new D("NaN")])).toBe("invalid");
+  });
+
+  it("exactText — [⇄] 가 잇는 17자리 정밀 값(화면 결과는 10자리)", () => {
+    const v = computeView("9.999999999", "pressure", "mpa", "kgfcm2");
+    expect(v.resultText).toBe("101.9716213");
+    expect(v.exactText).toBe("101.97162128759566");
+    expect(v.plainText).toBe("101.9716213");
+    // 되돌려 환산하면 원래 값
+    const back = computeView(v.exactText, "pressure", "kgfcm2", "mpa");
+    expect(back.resultText).toBe("9.999999999");
+    expect(back.exactText).toBe("9.9999999989999998"); // 17자리 반올림 오차는 표시 10자리 밖이다
+    expect(computeView("1", "length", "km", "mm").exactText).toBe("1000000");
+    expect(computeView("1e10", "length", "km", "mm").exactText).toBe("1e+16");
+    expect(computeView("0", "length", "km", "mm").exactText).toBe("0");
+  });
+
+  it("쉼표는 천 단위 모양만, 전각 숫자는 반각으로 읽는다", () => {
+    expect(computeView("1,234", "length", "mm", "mm").resultText).toBe("1,234");
+    expect(computeView("１２", "length", "mm", "mm").resultText).toBe("12");
   });
 
   it("음수는 모든 분류에서 계산한다", () => {
@@ -196,16 +290,33 @@ describe("computeView", () => {
 });
 
 describe("기억 키", () => {
-  it("인스턴스별 키 — 접두사 + instanceId", () => {
-    expect(storageKey("def.abc12345", "inst-7")).toBe("dmes:widget:unit-converter:inst-7");
-    expect(storageKey("def.abc12345", "inst-8")).not.toBe(storageKey("def.abc12345", "inst-7"));
+  it("사용자·인스턴스별 키 — dmes:widget:unit-converter:{userId}:{instanceId}", () => {
+    expect(storageKey("def.abc12345", "inst-7", "u1")).toBe("dmes:widget:unit-converter:u1:inst-7");
+    expect(storageKey("def.abc12345", "inst-8", "u1")).not.toBe(storageKey("def.abc12345", "inst-7", "u1"));
+    // 같은 instanceId(관리자가 정한 기본 배치)라도 사용자가 다르면 키가 다르다
+    expect(storageKey("def.abc12345", "inst-7", "u2")).toBe("dmes:widget:unit-converter:u2:inst-7");
+    expect(storageKey("def.abc12345", "inst-7", "u2")).not.toBe(storageKey("def.abc12345", "inst-7", "u1"));
+  });
+
+  it("사용자를 모르면 null(기억하지 않는다)", () => {
+    expect(storageKey("def.abc12345", "inst-7", "")).toBeNull();
+    expect(storageKey("def.abc12345", "inst-7", null)).toBeNull();
+    expect(storageKey("def.abc12345", "inst-7", undefined)).toBeNull();
   });
 
   it("인스턴스가 없거나 관리 화면 미리보기면 null(기억하지 않는다)", () => {
-    expect(storageKey("def.abc12345", undefined)).toBeNull();
-    expect(storageKey("def.abc12345", "")).toBeNull();
-    expect(storageKey("def.abc12345", "preview")).toBeNull();
-    expect(storageKey("def.preview", "inst-7")).toBeNull();
+    expect(storageKey("def.abc12345", undefined, "u1")).toBeNull();
+    expect(storageKey("def.abc12345", "", "u1")).toBeNull();
+    expect(storageKey("def.abc12345", "preview", "u1")).toBeNull();
+    expect(storageKey("def.preview", "inst-7", "u1")).toBeNull();
+  });
+
+  it("isRememberable — 인스턴스가 있고 미리보기가 아니다", () => {
+    expect(isRememberable("def.abc12345", "inst-7")).toBe(true);
+    expect(isRememberable("def.abc12345", undefined)).toBe(false);
+    expect(isRememberable("def.abc12345", "")).toBe(false);
+    expect(isRememberable("def.abc12345", "preview")).toBe(false);
+    expect(isRememberable("def.preview", "inst-7")).toBe(false);
   });
 });
 
@@ -262,10 +373,11 @@ describe("초기 상태·분류·단위 맞추기", () => {
     expect(initialState(only, stored)).toEqual(stored);
   });
 
-  it("기억한 분류가 설정에서 빠졌으면 기본 분류로 돌아간다(값·단위 기억은 남긴다)", () => {
+  it("기억한 분류가 설정에서 빠졌어도 상태에는 그대로 두고(덮지 않는다) 화면만 기본 분류를 보인다(값·단위 기억도 남긴다)", () => {
     const stored: UnitState = { category: "pressure", units: { pressure: { from: "mpa", to: "psi" } }, text: "9" };
     const s = initialState(only, stored);
-    expect(s.category).toBe("mass");
+    expect(s).toEqual(stored);
+    expect(resolveCategory(s.category, only)).toBe("mass");
     expect(s.text).toBe("9");
   });
 

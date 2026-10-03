@@ -2,6 +2,7 @@
 /**
  * 단위 계산기 렌더러·편집기 동작 시험.
  * - shared 의 폼 부품(@dk-oasis/shared/form)은 대역으로 바꾼다(Mantine 은 MantineProvider 가 필요하다). 복사(copyText)도 대역이다.
+ * - 현재 사용자(./unit-user — shared 포털 셸의 `/api/auth/me` 확인)도 대역이다. h.peek = 첫 렌더에 쓰는 마지막 확인 사용자, h.userId = 확인된 사용자.
  * - 계산·서식은 실물(units·unit-format·unit-model — @dk-oasis/shared/evalex 의 D)을 쓴다.
  * - JSX 없이 createElement 로 쓴다(vitest include 가 *.test.ts 만 잡는다).
  */
@@ -9,10 +10,18 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UNIT_ABSOLUTE_ZERO_WARNING, UNIT_DEFAULT_OUTSIDE_ERROR, unitUnknownCategoryError } from "./unit-model";
+import { UNIT_ABSOLUTE_ZERO_WARNING, UNIT_DEFAULT_OUTSIDE_ERROR, UNIT_EDITOR_ALL_NOTE, unitUnknownCategoryError } from "./unit-model";
+import { SAVE_DELAY_MS } from "./use-unit-state";
 
 const h = vi.hoisted(() => ({
   copyText: vi.fn<(text: string) => Promise<boolean>>(),
+  peek: "u1",
+  userId: "u1",
+}));
+
+vi.mock("./unit-user", () => ({
+  peekUserId: () => h.peek,
+  useConfirmedUserId: (enabled: boolean) => (enabled ? h.userId : ""),
 }));
 
 vi.mock("@dk-oasis/shared/form", async () => {
@@ -25,26 +34,33 @@ vi.mock("@dk-oasis/shared/form", async () => {
       onClick?: () => void;
       disabled?: boolean;
       ariaLabel?: string;
+      title?: string;
       className?: string;
       "data-testid"?: string;
     }) =>
       el(
         "button",
-        { type: "button", onClick: p.onClick, disabled: p.disabled, "aria-label": p.ariaLabel, className: p.className, "data-testid": p["data-testid"] },
+        { type: "button", onClick: p.onClick, disabled: p.disabled, "aria-label": p.ariaLabel, title: p.title, className: p.className, "data-testid": p["data-testid"] },
         p.children as never
       ),
     Input: (p: {
       value?: string | number;
       onChange?: (v: string) => void;
       maxLength?: number;
+      inputMode?: "text" | "decimal";
       "aria-label"?: string;
+      "aria-invalid"?: boolean;
+      "aria-describedby"?: string;
       "data-testid"?: string;
     }) =>
       el("input", {
         type: "text",
         value: p.value,
         maxLength: p.maxLength,
+        inputMode: p.inputMode,
         "aria-label": p["aria-label"],
+        "aria-invalid": p["aria-invalid"],
+        "aria-describedby": p["aria-describedby"],
         "data-testid": p["data-testid"],
         onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value),
       }),
@@ -77,11 +93,16 @@ vi.mock("@dk-oasis/shared/form", async () => {
           el("button", { key: o.value, type: "button", "data-value": o.value, "aria-pressed": p.value === o.value, onClick: () => p.onChange?.(o.value) }, o.label)
         )
       ),
-    Checkbox: (p: { checked?: boolean; onChange?: (c: boolean) => void; label?: string }) =>
+    Checkbox: (p: { checked?: boolean; disabled?: boolean; onChange?: (c: boolean) => void; label?: string }) =>
       el(
         "label",
         null,
-        el("input", { type: "checkbox", checked: !!p.checked, onChange: (e: { currentTarget: { checked: boolean } }) => p.onChange?.(e.currentTarget.checked) }),
+        el("input", {
+          type: "checkbox",
+          checked: !!p.checked,
+          disabled: !!p.disabled,
+          onChange: (e: { currentTarget: { checked: boolean } }) => p.onChange?.(e.currentTarget.checked),
+        }),
         p.label
       ),
     FormGroup: (p: { label?: string; children?: unknown }) => el("div", { "data-group": p.label }, p.children as never),
@@ -151,6 +172,8 @@ function mount() {
 beforeEach(() => {
   h.copyText.mockReset();
   h.copyText.mockImplementation(async () => true);
+  h.peek = "u1";
+  h.userId = "u1";
   store = new MemoryStorage();
   useStore();
   mount();
@@ -177,6 +200,13 @@ const rowIds = () => rowTexts().map(([id]) => id);
 async function flush() {
   await act(async () => {
     await new Promise((r) => setTimeout(r, 0));
+  });
+}
+
+/** 기억 디바운스(SAVE_DELAY_MS)가 지나 localStorage 에 쓰이도록 기다린다. */
+async function settled() {
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, SAVE_DELAY_MS + 80));
   });
 }
 
@@ -306,6 +336,53 @@ describe("값을 넣으면 결과와 전체 목록이 바뀐다", () => {
     expect(text("unit-result")).toBe("0.07874015748");
   });
 
+  it("쉼표는 천 단위 모양만 받는다 — 1,5·1,2,3 은 숫자가 아니다", async () => {
+    await renderWidget();
+    await choose("unit-from", "m");
+    await choose("unit-to", "m");
+    for (const [input, shown] of [
+      ["1,234", "1,234"],
+      ["1,234,567.5", "1,234,567.5"],
+      [" 12 345 ", "12,345"],
+    ]) {
+      await typeInto("unit-input", input);
+      expect(text("unit-result"), input).toBe(shown);
+    }
+    for (const bad of ["1,5", "1,2,3", "12,34", ",5", "1,234,"]) {
+      await typeInto("unit-input", bad);
+      expect(text("unit-result"), bad).toBe("숫자를 입력하세요");
+      expect(must("unit-input").getAttribute("aria-invalid"), bad).toBe("true");
+    }
+  });
+
+  it("전각 숫자·쉼표·마침표·부호는 반각으로 읽는다", async () => {
+    await renderWidget();
+    await choose("unit-from", "m");
+    await choose("unit-to", "m");
+    await typeInto("unit-input", "１２");
+    expect(text("unit-result")).toBe("12");
+    await typeInto("unit-input", "－１，２３４．５");
+    expect(text("unit-result")).toBe("-1,234.5");
+    await typeInto("unit-input", "１２Ａ");
+    expect(text("unit-result")).toBe("숫자를 입력하세요");
+  });
+
+  it("지수가 너무 크거나 작으면 무한대 대신 「값이 너무 큽니다」·「값이 너무 작습니다」, 복사는 막힌다", async () => {
+    await renderWidget();
+    await choose("unit-from", "km");
+    await choose("unit-to", "mm");
+    await typeInto("unit-input", "1e9000000000000000");
+    expect(text("unit-result")).toBe("값이 너무 큽니다");
+    expect(rowTexts().every(([, t]) => t === "–")).toBe(true);
+    expect((must("unit-copy") as HTMLButtonElement).disabled).toBe(true);
+    expect(must("unit-input").getAttribute("aria-invalid")).toBe("true");
+    await typeInto("unit-input", "1e-5000");
+    expect(text("unit-result")).toBe("값이 너무 작습니다");
+    await typeInto("unit-input", "1e1000");
+    expect(text("unit-result")).toBe("1e+1006");
+    expect((must("unit-copy") as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("음수는 모든 분류에서 받는다", async () => {
     await renderWidget();
     await typeInto("unit-input", "-25.4");
@@ -341,6 +418,79 @@ describe("값을 넣으면 결과와 전체 목록이 바뀐다", () => {
     ]);
     await typeInto("unit-input", "-40");
     expect(text("unit-result")).toBe("-40");
+  });
+});
+
+describe("접근성", () => {
+  it("결과 칸은 라이브 영역(role=status·aria-live=polite)이고, 역할 없는 상자의 aria-label 은 없다", async () => {
+    await renderWidget();
+    const result = must("unit-result");
+    expect(result.getAttribute("role")).toBe("status");
+    expect(result.getAttribute("aria-live")).toBe("polite");
+    expect(must("unit-result-box").getAttribute("aria-label")).toBeNull();
+    expect(must("unit-result-box").getAttribute("role")).toBeNull();
+    await typeInto("unit-input", "abc");
+    expect(must("unit-result").getAttribute("role")).toBe("status"); // 안내 문구도 같은 영역에서 읽힌다
+    expect(text("unit-result")).toBe("숫자를 입력하세요");
+  });
+
+  it("입력 칸은 inputMode=text 다(iOS 숫자 패드에는 - 가 없어 음수 온도를 못 넣는다)", async () => {
+    await renderWidget();
+    expect(must("unit-input").getAttribute("inputmode")).toBe("text");
+  });
+
+  it("잘못된 입력이면 입력 칸에 aria-invalid 와 결과 칸을 가리키는 aria-describedby 를 단다", async () => {
+    await renderWidget();
+    const input = must("unit-input");
+    const resultId = must("unit-result").id;
+    expect(resultId).not.toBe("");
+    expect(input.getAttribute("aria-invalid")).toBe("false");
+    expect(input.getAttribute("aria-describedby")).toBeNull();
+    await typeInto("unit-input", "1.2.3");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.getAttribute("aria-describedby")).toBe(resultId);
+    await typeInto("unit-input", "5");
+    expect(input.getAttribute("aria-invalid")).toBe("false");
+    expect(input.getAttribute("aria-describedby")).toBeNull();
+  });
+
+  it("빈 입력은 잘못된 입력이 아니다 — aria-invalid 는 false 이고 안내만 연결한다", async () => {
+    await renderWidget();
+    await typeInto("unit-input", "");
+    expect(must("unit-input").getAttribute("aria-invalid")).toBe("false");
+    expect(must("unit-input").getAttribute("aria-describedby")).toBe(must("unit-result").id);
+    expect(text("unit-result")).toBe("숫자를 입력하세요");
+  });
+
+  it("아이콘 단추에 title 이 있다", async () => {
+    await renderWidget();
+    expect(must("unit-swap").getAttribute("title")).toBe("단위 바꾸기");
+    expect(must("unit-copy").getAttribute("title")).toBe("결과 복사");
+    expect(must("unit-swap").getAttribute("aria-label")).toBe("단위 바꾸기");
+    expect(must("unit-copy").getAttribute("aria-label")).toBe("결과 복사");
+  });
+
+  it("단위 목록 ul 에 role=list 를 준다", async () => {
+    await renderWidget();
+    const list = must("unit-list");
+    expect(list.tagName).toBe("UL");
+    expect(list.getAttribute("role")).toBe("list");
+  });
+
+  it("복사하면 보이지 않는 role=status 가 「복사했습니다」를 알린다(처음엔 비어 있다)", async () => {
+    await renderWidget();
+    const notice = must("unit-copy-notice");
+    expect(notice.getAttribute("role")).toBe("status");
+    expect(notice.textContent).toBe("");
+    await click("unit-copy");
+    expect(must("unit-copy-notice").textContent).toBe("복사했습니다");
+  });
+
+  it("복사가 실패하면 알리지 않는다", async () => {
+    await renderWidget();
+    h.copyText.mockImplementation(async () => false);
+    await click("unit-copy");
+    expect(must("unit-copy-notice").textContent).toBe("");
   });
 });
 
@@ -457,6 +607,53 @@ describe("[⇄] 바꾸기", () => {
     expect(text("unit-result")).toBe("10,000,000,000");
   });
 
+  it("어려운 값 — 9.999999999 MPa → kgf/cm² 를 바꿔도 왕복이 깨지지 않는다(10자리로 반올림한 값을 잇지 않는다)", async () => {
+    await renderWidget();
+    await choose("unit-category", "pressure");
+    await typeInto("unit-input", "9.999999999");
+    expect(text("unit-result")).toBe("101.9716213");
+    await click("unit-swap");
+    expect(value("unit-from")).toBe("kgfcm2");
+    expect(value("unit-to")).toBe("mpa");
+    // 입력으로 이어지는 값은 17자리 정밀 값이고, 화면 결과만 10자리다
+    expect(value("unit-input")).toBe("101.97162128759566");
+    expect(text("unit-result")).toBe("9.999999999"); // 반올림한 10 이 아니다
+  });
+
+  it("입력을 고치지 않고 [⇄] 를 다시 누르면 직전 입력·단위를 그대로 되돌린다(긴 소수가 남지 않는다)", async () => {
+    await renderWidget();
+    await choose("unit-category", "pressure");
+    await typeInto("unit-input", "9.999999999");
+    await click("unit-swap");
+    expect(value("unit-input")).toBe("101.97162128759566");
+    await click("unit-swap");
+    expect(value("unit-input")).toBe("9.999999999");
+    expect(value("unit-from")).toBe("mpa");
+    expect(value("unit-to")).toBe("kgfcm2");
+    expect(text("unit-result")).toBe("101.9716213");
+    // 되돌린 뒤 다시 누르면 처음처럼 바꾼다
+    await click("unit-swap");
+    expect(value("unit-input")).toBe("101.97162128759566");
+    expect(value("unit-from")).toBe("kgfcm2");
+  });
+
+  it("입력·단위·분류를 고치면 되돌리기가 풀려 새로 바꾼다", async () => {
+    await renderWidget();
+    await choose("unit-category", "pressure");
+    await typeInto("unit-input", "9.999999999");
+    await click("unit-swap"); // kgf/cm² → MPa, 입력 101.97162128759566
+    await typeInto("unit-input", "100");
+    await click("unit-swap"); // 입력을 고쳤으므로 되돌리지 않고 바꾼다: MPa → kgf/cm²
+    expect(value("unit-from")).toBe("mpa");
+    expect(value("unit-to")).toBe("kgfcm2");
+    expect(value("unit-input")).toBe("9.8066500000000000".replace(/0+$/, "")); // 100 kgf/cm² = 9.80665 MPa
+    await click("unit-row-psi"); // 단위를 고쳤다
+    await click("unit-swap");
+    expect(value("unit-from")).toBe("psi");
+    expect(value("unit-to")).toBe("mpa");
+    expect(value("unit-input")).not.toBe("100");
+  });
+
   it("입력이 숫자가 아니면 단위만 바뀌고 입력은 그대로다", async () => {
     await renderWidget();
     await typeInto("unit-input", "abc");
@@ -512,7 +709,16 @@ describe("복사", () => {
 });
 
 describe("브라우저 기억(localStorage)", () => {
-  const KEY = "dmes:widget:unit-converter:inst-1";
+  const KEY = "dmes:widget:unit-converter:u1:inst-1";
+  const stored = (key = KEY) => JSON.parse(store.getItem(key)!);
+
+  /** 위젯을 닫았다가(탭 전환·다시 그리기) 다시 연다. */
+  async function reopen(p: RenderProps = {}) {
+    unmount();
+    container.remove();
+    mount();
+    await renderWidget(p);
+  }
 
   it("기억한 분류·단위·입력값이 다시 그릴 때 복원된다", async () => {
     await renderWidget();
@@ -521,10 +727,7 @@ describe("브라우저 기억(localStorage)", () => {
     await typeInto("unit-input", "55");
     expect(text("unit-result")).toBe("7,977.075575"); // 55 MPa → psi
     const before = text("unit-result");
-    unmount();
-    container.remove();
-    mount();
-    await renderWidget();
+    await reopen();
     expect(value("unit-category")).toBe("pressure");
     expect(value("unit-from")).toBe("mpa");
     expect(value("unit-to")).toBe("psi");
@@ -532,28 +735,137 @@ describe("브라우저 기억(localStorage)", () => {
     expect(text("unit-result")).toBe(before);
   });
 
-  it("저장하는 값 — 인스턴스별 키에 분류·단위·입력값이 들어 있다", async () => {
+  it("저장하는 값 — 사용자·인스턴스별 키(dmes:widget:unit-converter:{userId}:{instanceId})에 분류·단위·입력값이 들어 있다", async () => {
     await renderWidget();
     await choose("unit-category", "mass");
     await choose("unit-to", "oz");
     await typeInto("unit-input", "7");
-    const saved = JSON.parse(store.getItem(KEY)!);
+    await settled();
+    expect(store.length).toBe(1);
+    const saved = stored();
     expect(saved.category).toBe("mass");
     expect(saved.text).toBe("7");
     expect(saved.units.mass).toEqual({ from: "kg", to: "oz" });
   });
 
-  it("다른 인스턴스는 기억이 따로다", async () => {
+  it("마운트만 해서는 쓰지 않는다 — 값이 바뀔 때만 쓴다", async () => {
+    store.setItem(KEY, JSON.stringify({ v: 1, category: "mass", units: {}, text: "3" }));
+    const setItem = vi.spyOn(store, "setItem");
+    await renderWidget();
+    await settled();
+    expect(setItem).not.toHaveBeenCalled();
+    await typeInto("unit-input", "4");
+    await settled();
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(stored().text).toBe("4");
+  });
+
+  it("쓰기는 300ms 디바운스한다 — 연달아 고쳐도 한 번, 마지막 값만 쓴다", async () => {
+    const setItem = vi.spyOn(store, "setItem");
+    await renderWidget();
+    await typeInto("unit-input", "1");
+    await typeInto("unit-input", "12");
+    await typeInto("unit-input", "123");
+    expect(setItem).not.toHaveBeenCalled();
+    expect(store.getItem(KEY)).toBeNull();
+    await settled();
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(stored().text).toBe("123");
+  });
+
+  it("아직 쓰기 전에 위젯이 사라져도(탭 전환) 마지막 값을 바로 쓴다", async () => {
+    await renderWidget();
+    await typeInto("unit-input", "77");
+    expect(store.getItem(KEY)).toBeNull();
+    unmount();
+    expect(stored().text).toBe("77");
+  });
+
+  it("다른 인스턴스는 기억이 따로다 — 고치지 않은 인스턴스는 키도 만들지 않는다", async () => {
     await renderWidget({ instanceId: "inst-1" });
     await choose("unit-category", "force");
     await typeInto("unit-input", "9");
-    unmount();
-    container.remove();
-    mount();
-    await renderWidget({ instanceId: "inst-2" });
+    await reopen({ instanceId: "inst-2" });
     expect(value("unit-category")).toBe("length");
     expect(value("unit-input")).toBe("1");
-    expect(store.getItem("dmes:widget:unit-converter:inst-2")).not.toBeNull();
+    await settled();
+    expect(store.getItem("dmes:widget:unit-converter:u1:inst-2")).toBeNull();
+    expect(stored().text).toBe("9");
+  });
+
+  it("사용자가 다르면 같은 인스턴스(관리자가 정한 기본 배치)라도 기억이 섞이지 않는다", async () => {
+    await renderWidget();
+    await choose("unit-category", "force");
+    await typeInto("unit-input", "9");
+    h.peek = "u2";
+    h.userId = "u2";
+    await reopen();
+    expect(value("unit-category")).toBe("length"); // u1 의 값이 보이지 않는다
+    expect(value("unit-input")).toBe("1");
+    await typeInto("unit-input", "5");
+    await settled();
+    expect(stored("dmes:widget:unit-converter:u2:inst-1").text).toBe("5");
+    expect(stored().text).toBe("9"); // u1 의 값은 덮이지 않았다
+    h.peek = "u1";
+    h.userId = "u1";
+    await reopen();
+    expect(value("unit-category")).toBe("force");
+    expect(value("unit-input")).toBe("9");
+  });
+
+  it("사용자를 모르면 기억하지 않는다 — 읽지도 쓰지도 않는다", async () => {
+    store.setItem(KEY, JSON.stringify({ v: 1, category: "mass", units: {}, text: "3" }));
+    h.peek = "";
+    h.userId = "";
+    await renderWidget();
+    expect(value("unit-category")).toBe("length");
+    expect(value("unit-input")).toBe("1");
+    const before = store.getItem(KEY);
+    await typeInto("unit-input", "8");
+    await settled();
+    expect(store.length).toBe(1);
+    expect(store.getItem(KEY)).toBe(before);
+    unmount();
+    expect(store.getItem(KEY)).toBe(before);
+  });
+
+  it("확인된 사용자가 나중에 정해지면 그 사용자의 기억으로 다시 읽고, 읽기만으로는 쓰지 않는다", async () => {
+    store.setItem(KEY, JSON.stringify({ v: 1, category: "pressure", units: { pressure: { from: "bar", to: "psi" } }, text: "42" }));
+    const raw = store.getItem(KEY);
+    h.peek = "";
+    h.userId = "";
+    await renderWidget();
+    expect(value("unit-category")).toBe("length");
+    h.userId = "u1"; // /api/auth/me 확인이 끝났다
+    await renderWidget();
+    expect(value("unit-category")).toBe("pressure");
+    expect(value("unit-from")).toBe("bar");
+    expect(value("unit-to")).toBe("psi");
+    expect(value("unit-input")).toBe("42");
+    await settled();
+    expect(store.getItem(KEY)).toBe(raw);
+  });
+
+  it("처음에 읽은 사용자와 확인된 사용자가 다르면(재로그인 직후) 확인된 사용자의 기억으로 다시 읽는다", async () => {
+    store.setItem(KEY, JSON.stringify({ v: 1, category: "mass", units: {}, text: "5" }));
+    store.setItem("dmes:widget:unit-converter:u2:inst-1", JSON.stringify({ v: 1, category: "force", units: {}, text: "7" }));
+    h.peek = "u1"; // 이전 사용자
+    h.userId = "u2";
+    await renderWidget();
+    expect(value("unit-category")).toBe("force");
+    expect(value("unit-input")).toBe("7");
+    await settled();
+    expect(stored().text).toBe("5"); // 이전 사용자의 기억은 건드리지 않는다
+  });
+
+  it("처음에 읽은 사용자와 확인된 사용자가 다른데 새 사용자의 기억이 없으면 기본값으로 시작한다", async () => {
+    store.setItem(KEY, JSON.stringify({ v: 1, category: "mass", units: {}, text: "5" }));
+    h.peek = "u1";
+    h.userId = "u3";
+    await renderWidget();
+    expect(value("unit-category")).toBe("length");
+    expect(value("unit-input")).toBe("1");
+    expect(store.getItem("dmes:widget:unit-converter:u3:inst-1")).toBeNull();
   });
 
   it("[⇄] 와 목록 줄 선택도 기억한다", async () => {
@@ -561,16 +873,13 @@ describe("브라우저 기억(localStorage)", () => {
     await typeInto("unit-input", "25.4");
     await click("unit-swap");
     await click("unit-row-cm");
-    unmount();
-    container.remove();
-    mount();
-    await renderWidget();
+    await reopen();
     expect(value("unit-from")).toBe("in");
     expect(value("unit-to")).toBe("cm");
     expect(value("unit-input")).toBe("1");
   });
 
-  it("기억한 분류가 설정에서 빠졌으면 기본 분류로 돌아간다", async () => {
+  it("기억한 분류가 설정에서 빠졌으면 화면은 기본 분류로 시작한다(입력값은 이어진다)", async () => {
     store.setItem(KEY, JSON.stringify({ v: 1, category: "pressure", units: { pressure: { from: "bar", to: "psi" } }, text: "42" }));
     await renderWidget({ definition: { categories: ["length", "mass"], defaultCategory: "mass" } });
     expect(must("unit-category").getAttribute("role")).toBe("radiogroup");
@@ -578,6 +887,38 @@ describe("브라우저 기억(localStorage)", () => {
     expect(value("unit-from")).toBe("kg");
     expect(value("unit-to")).toBe("lb");
     expect(value("unit-input")).toBe("42"); // 입력값은 분류와 상관없이 이어진다
+  });
+
+  it("설정에서 빠진 분류를 기억하고 있어도 입력·단위를 고치다가 그 분류를 덮지 않는다", async () => {
+    const definition = { categories: ["length", "mass"], defaultCategory: "mass" };
+    store.setItem(KEY, JSON.stringify({ v: 1, category: "pressure", units: { pressure: { from: "bar", to: "psi" } }, text: "42" }));
+    await renderWidget({ definition });
+    await typeInto("unit-input", "43");
+    await settled();
+    expect(stored().category).toBe("pressure");
+    expect(stored().units.pressure).toEqual({ from: "bar", to: "psi" });
+    expect(stored().text).toBe("43");
+    await choose("unit-to", "oz"); // 화면에 보이는 무게 분류의 단위를 고쳐도
+    await click("unit-swap");
+    await settled();
+    expect(stored().category).toBe("pressure");
+    expect(stored().units.mass).toEqual({ from: "oz", to: "kg" });
+    expect(stored().units.pressure).toEqual({ from: "bar", to: "psi" });
+    // 설정에 그 분류가 다시 들어오면 기억한 분류로 돌아온다
+    await reopen();
+    await reopen({ definition: { categories: [], defaultCategory: "length" } });
+    expect(value("unit-category")).toBe("pressure");
+    expect(value("unit-from")).toBe("bar");
+  });
+
+  it("분류를 직접 고르면 그 분류를 기억한다", async () => {
+    store.setItem(KEY, JSON.stringify({ v: 1, category: "pressure", units: {}, text: "42" }));
+    await renderWidget({ definition: { categories: ["length", "mass"], defaultCategory: "mass" } });
+    await act(async () => {
+      must("unit-category").querySelector<HTMLElement>('[data-value="length"]')!.click();
+    });
+    await settled();
+    expect(stored().category).toBe("length");
   });
 
   it("기억한 분류가 설정 안이면 그대로 쓴다", async () => {
@@ -607,19 +948,18 @@ describe("브라우저 기억(localStorage)", () => {
     await renderWidget({ instanceId: "preview", widgetId: "def.preview" });
     await choose("unit-category", "pressure");
     await typeInto("unit-input", "8");
+    await settled();
     expect(store.length).toBe(0);
 
-    unmount();
-    container.remove();
-    mount();
-    await renderWidget({ instanceId: "", widgetId: "def.abc12345" });
+    await reopen({ instanceId: "", widgetId: "def.abc12345" });
     await typeInto("unit-input", "9");
+    await settled();
     expect(store.length).toBe(0);
     expect(value("unit-input")).toBe("9");
   });
 
   it("미리보기는 저장돼 있던 값을 읽지도 않는다", async () => {
-    store.setItem("dmes:widget:unit-converter:preview", JSON.stringify({ v: 1, category: "mass", units: {}, text: "77" }));
+    store.setItem("dmes:widget:unit-converter:u1:preview", JSON.stringify({ v: 1, category: "mass", units: {}, text: "77" }));
     await renderWidget({ instanceId: "preview", widgetId: "def.preview" });
     expect(value("unit-category")).toBe("length");
     expect(value("unit-input")).toBe("1");
@@ -665,8 +1005,10 @@ describe("저장소가 막혀 있어도 정상 동작한다", () => {
     await renderWidget();
     await typeInto("unit-input", "100");
     expect(text("unit-result")).toBe("3.937007874");
+    await settled();
     expect(getItem).toHaveBeenCalled();
     expect(setItem).toHaveBeenCalled();
+    expect(text("unit-result")).toBe("3.937007874");
   });
 
   it("저장소가 아예 없어도(undefined) 그려진다", async () => {
@@ -700,45 +1042,94 @@ describe("편집기", () => {
   const box = (id: string) => container.querySelector<HTMLInputElement>(`[data-testid="widget-unit-cat-${id}"] input`)!;
   const checkedIds = () => Array.from(container.querySelectorAll<HTMLElement>('[data-testid^="widget-unit-cat-"]')).filter((d) => d.querySelector("input")!.checked).map((d) => d.getAttribute("data-testid")!.replace("widget-unit-cat-", ""));
 
-  it("처음 설정은 아무것도 체크되지 않고 「전체」 안내, 기본 분류는 길이, 오류 없음", async () => {
+  const ALL_IDS = ["length", "mass", "area", "volume", "temperature", "pressure", "force", "speed", "energy"];
+  const defaultOptions = () => Array.from(must("widget-unit-default").querySelectorAll("option")).map((o) => o.value);
+
+  it("처음 설정(categories 가 빈 배열 = 전체)은 체크박스가 모두 켜져 있고 「모든 분류」 안내, 기본 분류는 길이, 오류 없음", async () => {
     await renderEditor({ categories: [], defaultCategory: "length" });
     expect(container.querySelectorAll('[data-testid^="widget-unit-cat-"]')).toHaveLength(9);
-    expect(checkedIds()).toEqual([]);
-    expect(text("widget-unit-note")).toBe("아무것도 고르지 않으면 전체 분류를 보입니다.");
+    expect(checkedIds()).toEqual(ALL_IDS);
+    expect(text("widget-unit-note")).toBe(UNIT_EDITOR_ALL_NOTE);
     expect(value("widget-unit-default")).toBe("length");
-    expect(Array.from(must("widget-unit-default").querySelectorAll("option")).map((o) => o.value)).toEqual(["", "length", "mass", "area", "volume", "temperature", "pressure", "force", "speed", "energy"]);
+    expect(defaultOptions()).toEqual(["", ...ALL_IDS]);
     expect(onValidate).toHaveBeenLastCalledWith([]);
-    expect((must("widget-unit-select-none") as HTMLButtonElement).disabled).toBe(true);
+    expect((must("widget-unit-select-all") as HTMLButtonElement).disabled).toBe(true);
+    expect(q("widget-unit-select-none")).toBeNull(); // 「전체 해제」는 없다 — 비어 있으면 전체와 같아서 뜻이 겹친다
   });
 
-  it("체크하면 알려진 분류만 표 순서로 올리고 기본 분류를 보일 분류 안으로 맞춘다", async () => {
+  it("모두 켜진 상태에서 하나를 끄면 나머지를 표 순서로 올리고 기본 분류는 그대로 둔다", async () => {
     await renderEditor({ categories: [], defaultCategory: "length" });
     await act(async () => {
       box("pressure").click();
     });
-    expect(onChange).toHaveBeenLastCalledWith({ categories: ["pressure"], defaultCategory: "pressure" });
+    expect(onChange).toHaveBeenLastCalledWith({ categories: ALL_IDS.filter((id) => id !== "pressure"), defaultCategory: "length" });
   });
 
-  it("체크를 풀면 기본 분류가 빠졌을 때 첫 분류(length 우선)로 맞춘다", async () => {
+  it("기본 분류의 체크를 끄면 기본 분류를 조용히 고치지 않는다 — 검사 오류가 알리고 선택칸은 「선택하세요」다", async () => {
     await renderEditor({ categories: ["length", "mass"], defaultCategory: "mass" });
     expect(checkedIds()).toEqual(["length", "mass"]);
     expect(text("widget-unit-note")).toBe("2개 분류를 보입니다.");
-    expect(Array.from(must("widget-unit-default").querySelectorAll("option")).map((o) => o.value)).toEqual(["", "length", "mass"]);
+    expect(defaultOptions()).toEqual(["", "length", "mass"]);
     await act(async () => {
       box("mass").click();
     });
+    const next = { categories: ["length"], defaultCategory: "mass" };
+    expect(onChange).toHaveBeenLastCalledWith(next);
+    await renderEditor(next); // 관리 화면이 올린 값을 다시 내려준다
+    expect(onValidate).toHaveBeenLastCalledWith([UNIT_DEFAULT_OUTSIDE_ERROR]);
+    expect(value("widget-unit-default")).toBe("");
+    // 기본 분류를 사용자가 고르면 그때 바로잡힌다
+    await choose("widget-unit-default", "length");
     expect(onChange).toHaveBeenLastCalledWith({ categories: ["length"], defaultCategory: "length" });
   });
 
-  it("전체 선택·전체 해제", async () => {
-    await renderEditor({ categories: ["mass"], defaultCategory: "mass" });
-    await click("widget-unit-select-all");
-    expect(onChange).toHaveBeenLastCalledWith({
-      categories: ["length", "mass", "area", "volume", "temperature", "pressure", "force", "speed", "energy"],
-      defaultCategory: "mass",
+  it("이미 틀린 기본 분류(보일 분류 밖)는 체크박스만 눌러서는 고쳐지지 않는다 — 그 분류를 켜면 저절로 맞는다", async () => {
+    await renderEditor({ categories: ["length", "mass"], defaultCategory: "pressure" });
+    await act(async () => {
+      box("area").click();
     });
-    await click("widget-unit-select-none");
+    expect(onChange).toHaveBeenLastCalledWith({ categories: ["length", "mass", "area"], defaultCategory: "pressure" });
+    await act(async () => {
+      box("pressure").click();
+    });
+    expect(onChange).toHaveBeenLastCalledWith({ categories: ["length", "mass", "pressure"], defaultCategory: "pressure" });
+  });
+
+  it("체크로 모두 켜면 [] 로 저장한다(분류가 늘어도 보이게)", async () => {
+    await renderEditor({ categories: ALL_IDS.filter((id) => id !== "speed"), defaultCategory: "length" });
+    expect(checkedIds()).toEqual(ALL_IDS.filter((id) => id !== "speed"));
+    await act(async () => {
+      box("speed").click();
+    });
+    expect(onChange).toHaveBeenLastCalledWith({ categories: [], defaultCategory: "length" });
+  });
+
+  it("전체 선택은 [] 로 저장하고 기본 분류는 그대로 둔다", async () => {
+    await renderEditor({ categories: ["mass"], defaultCategory: "mass" });
+    expect((must("widget-unit-select-all") as HTMLButtonElement).disabled).toBe(false);
+    await click("widget-unit-select-all");
     expect(onChange).toHaveBeenLastCalledWith({ categories: [], defaultCategory: "mass" });
+  });
+
+  it("옛 설정처럼 아홉 분류를 모두 적어 둔 값도 모두 켠 채로 보이고 전체 선택으로 [] 로 정리한다", async () => {
+    await renderEditor({ categories: ALL_IDS, defaultCategory: "length" });
+    expect(checkedIds()).toEqual(ALL_IDS);
+    expect(text("widget-unit-note")).toBe(UNIT_EDITOR_ALL_NOTE);
+    await click("widget-unit-select-all");
+    expect(onChange).toHaveBeenLastCalledWith({ categories: [], defaultCategory: "length" });
+  });
+
+  it("하나만 남은 체크는 끌 수 없다(전부 끄면 전체와 같아진다)", async () => {
+    await renderEditor({ categories: ["mass"], defaultCategory: "mass" });
+    expect(box("mass").disabled).toBe(true);
+    expect(box("length").disabled).toBe(false);
+    onChange.mockClear();
+    await act(async () => {
+      box("mass").click();
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    await renderEditor({ categories: ["mass", "area"], defaultCategory: "mass" });
+    expect(box("mass").disabled).toBe(false);
   });
 
   it("기본 분류는 보일 분류 안에서만 고른다", async () => {
@@ -748,6 +1139,12 @@ describe("편집기", () => {
     onChange.mockClear();
     await choose("widget-unit-default", "pressure"); // 목록에 없는 값은 받지 않는다
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("전체(빈 목록)일 때 기본 분류는 아무 분류나 고른다", async () => {
+    await renderEditor({ categories: [], defaultCategory: "length" });
+    await choose("widget-unit-default", "pressure");
+    expect(onChange).toHaveBeenLastCalledWith({ categories: [], defaultCategory: "pressure" });
   });
 
   it("모르는 분류 id 는 검증 오류로 알리고, 체크를 바꾸면 모르는 id 는 떨어진다", async () => {
