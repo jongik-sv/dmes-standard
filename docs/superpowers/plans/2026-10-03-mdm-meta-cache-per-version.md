@@ -390,6 +390,7 @@ Expected: PASS
 - Modify: `src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/spi/CodeLookup.java:16-19`
 - Modify: `src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/code/DefaultCodeResolver.java:46-150`
 - Modify: `src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/arch/ContractTypeShapeTest.java:90-92`
+- Modify: `src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/code/DefaultCodeResolverTest.java:166-171`(`effectiveCodes_는_CodeEffLookup_을_보지_않는다` 삭제 — 스펙 §5.4 의 의도된 동작 변경, 새 시험이 대체)
 - Create: `src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/code/CodeVersionsTest.java`
 - Create: `src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/code/DefaultCodeResolverCodeAtTest.java`
 
@@ -680,10 +681,14 @@ Expected: FAIL `계약_interface_의_몸체_있는_메서드는_RuleEngine_text_
 
 `validItems` 선언을 `static List<CodeItemRow> validItems(CodeRows rows, BigDecimal ver)`(private 제거)로 바꾼다. 쓰이지 않게 된 import(`CodeVersionRow`)를 지운다.
 
+- [ ] **Step 8-1: 정반대 단언의 기존 시험을 삭제한다**
+
+Step 8 로 `effectiveCodes` 가 `CodeEffLookup` 을 먼저 보게 되므로, 기존 `DefaultCodeResolverTest#effectiveCodes_는_CodeEffLookup_을_보지_않는다`(`src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/code/DefaultCodeResolverTest.java:166-171` — eff 가 `Set.of("81")` 을 줘도 `{82, 84}` 를 기대)는 반드시 실패한다. 이것은 의도된 동작 변경이다(스펙 `2026-10-03-mdm-meta-cache-per-version-design.md` §5.4 마지막 해석기 항목: `effectiveCodes` 도 `codeEff` → `codeAt` 순서로 맞춘다). 새 시험 `effectiveCodes_도_미리_계산한_집합을_먼저_보고`(Step 1 의 `DefaultCodeResolverCodeAtTest`)가 같은 입력으로 반대 단언을 이미 갖고 있으므로 기존 시험은 **삭제**한다(고쳐 쓰지 않는다 — 같은 단언이 중복된다). 삭제 뒤 `DefaultCodeResolverTest.java` 에서 쓰이지 않게 된 import(`CodeEffLookup`·`Optional`·`Set` 중 다른 시험이 쓰지 않는 것)만 지운다.
+
 - [ ] **Step 9: 엔진 시험 전체를 돌린다**
 
 Run: `cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test`
-Expected: PASS(기존 `DefaultCodeResolverTest`·`CodeRowsProjectionTest`·`MasterFunctionTest` 포함)
+Expected: PASS(기존 `DefaultCodeResolverTest`(Step 8-1 에서 지운 한 건은 제외)·`CodeRowsProjectionTest`·`MasterFunctionTest` 포함)
 
 - [ ] **Step 10: 기본 구현 = 지금 동작임을 바깥 시험으로 확인한다**
 
@@ -696,7 +701,7 @@ Expected: 둘 다 PASS(원장 `MdmCodeLookup`·cactus `MdmDefinitionLookup` 은 
 - [ ] **Step 11: 커밋**
 
 ```bash
-/usr/bin/git add src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/code/CodeVersions.java src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/spi/CodeLookup.java src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/code/DefaultCodeResolver.java src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/arch/ContractTypeShapeTest.java src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/code/CodeVersionsTest.java src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/code/DefaultCodeResolverCodeAtTest.java
+/usr/bin/git add src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/code/CodeVersions.java src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/spi/CodeLookup.java src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/code/DefaultCodeResolver.java src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/arch/ContractTypeShapeTest.java src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/code/DefaultCodeResolverTest.java src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/code/CodeVersionsTest.java src/backend/maru-mdm-engine/src/test/java/kr/dongkuk/maru/mdm/engine/code/DefaultCodeResolverCodeAtTest.java
 /usr/bin/git commit -m "feat(mdm-engine): 코드 버전 고르기를 공개하고 CodeLookup.codeAt default 로 해석기가 버전 본문을 읽게 한다" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 ```
 
@@ -1054,6 +1059,13 @@ class CodeVersionSlicerTest {
         assertEquals(List.of("B"), byCate.get("TBL_LATE").stream().map(CodeCateItemRow::code).toList());
         assertEquals(0, byCate.get("TBL_LATE").get(0).fromVer().compareTo(V2), "effVer = max(2.000, 2.000)");
         assertTrue(rows.cateItems().stream().allMatch(ci -> ci.toVer().compareTo(OPEN_VER) == 0));
+
+        // V1 슬라이스 — 정의 fromVer(2.000)가 본문 ver(1.000)보다 뒤라 effVer = max(2.000, 1.000) = 2.000. effVer 를 ver 로 바꾸는 변이가 여기서 잡힌다.
+        CodeVersionRow v1 = projected.versions().stream().filter(v -> v.ver().compareTo(V1) == 0).findFirst().orElseThrow();
+        CodeRows rows1 = CodeVersionSlicer.slice(projected, V1).rows(projected.header(), v1);
+        List<CodeCateItemRow> late1 = rows1.cateItems().stream().filter(ci -> ci.cateId().equals("TBL_LATE")).toList();
+        assertEquals(List.of("B"), late1.stream().map(CodeCateItemRow::code).toList());
+        assertEquals(0, late1.get(0).fromVer().compareTo(V2), "effVer = max(정의 fromVer 2.000, ver 1.000) = 2.000");
     }
 
     @Test
@@ -1452,8 +1464,8 @@ Expected: PASS(생성기를 먼저 쓰고 시험이 바로 통과하는 경우�
 
 - [ ] **Step 4: 변이로 시험이 잡는지 확인하고 되돌린다**
 
-`CodeVersionSlice.rows` 의 `BigDecimal effVer = c.fromVer().max(ver);` 를 잠시 `BigDecimal effVer = ver;` 로 바꾸고 Step 3 을 돌린다.
-Expected: 이 시험은 PASS 일 수 있다(생성 데이터의 TABLE 정의는 1.000 부터라 effVer 가 같다). 대신 `CodeVersionSlicerTest#동치_손_사례_묶음` 이 FAIL 이어야 한다. 확인한 뒤 원래대로 되돌린다. 두 번째 변이로 `CodeVersionSlicer` 의 `boolean all = …` 를 `boolean all = false;` 로 바꾸면 `결과가_items_전체면_all_…` 이 FAIL 이어야 한다. 되돌린다.
+`CodeVersionSlice.rows` 의 `if (TABLE.equals(c.defKind())) {` 를 잠시 `if (false) {` 로 바꿔 합성 cateItems 를 없애고 Step 3 과 `CodeVersionSlicerTest` 를 돌린다. (`effVer = ver` 로 바꾸는 변이는 쓰지 않는다 — 합성 행은 `fromVer <= effVer < 9999` 만 만족하면 `compute` 가 effVer 를 스스로 `max(정의 fromVer, ver)` 로 다시 계산해 어떤 시험도 실패하지 않는 동치 변이다. effVer 값 자체는 Task 3 의 `rows_는_그_버전_1행…` 의 V1 슬라이스 단언이 고정한다.)
+Expected: `CodeVersionSlicerTest#동치_손_사례_묶음`(`NONE` 경로의 `TBL_LATE`·`TBL_ALL`)과 `rows_는_그_버전_1행_고른_정의_합성_cateItems_를_준다`(`byCate.get("TBL_LATE")` NPE)가 FAIL 이어야 한다. 생성 데이터 시험도 TABLE 정의가 있으면 FAIL 일 수 있다. 확인한 뒤 원래대로 되돌린다. 두 번째 변이로 `CodeVersionSlicer` 의 `boolean all = …` 를 `boolean all = false;` 로 바꾸면 `결과가_items_전체면_all_…` 이 FAIL 이어야 한다. 되돌린다.
 
 - [ ] **Step 5: 엔진 시험 전체를 돌린다**
 
@@ -1493,6 +1505,7 @@ Expected: PASS. 이 클래스 실행 시간이 30초를 넘으면 B′ 의 코�
   - `MetaFeedVersionedResult` 의 `Builder`(`toc(key, tocValue, current)`·`tocFailed(key, message)`·`body(BodyKey, value)`·`bodyFailed(BodyKey, message)`·`build()`), `toResponse()`.
   - `MetaFeedVersionSelect.releasedAt(List<T>, Function<T, BigDecimal>, Function<T, LocalDateTime> from, Function<T, LocalDateTime> to, LocalDateTime at) : Optional<T>`.
   - `MetaFeedDefinitions.assembleRule(String id, MdmRule rule, MdmRuleVer v, RuleVarTypeResolver.Scope scope) : RuleDefinition`(package-private).
+  - `MetaFeedVersioned` 안의 BODY 공통 루프 `private <T> void renderBodies(List<BodyKey>, Builder, Function<String, Loaded<T>> loader, Function<T, BigDecimal> verOf, BiFunction<BodyKey, T, Object> render)`, 값 `record Loaded<T>(List<T> list, String error)`(`of`·`failed`), `static String message(Throwable)`. Task 6·7 의 세트·전문·코드 본문이 이것을 쓴다(루프를 복붙하지 않는다).
 
 - [ ] **Step 1: 실패하는 HTTP 시험을 쓴다**
 
@@ -1637,7 +1650,7 @@ class MetaFeedVersionedHttpTest {
     @Test
     void RULE_본문_RELEASED_가_아닌_ver_와_없는_룰은_NOT_RELEASED_형식이_틀린_ver_는_INVALID_VER_이고_묶음은_거부하지_않는다() throws Exception {
         seedRule();
-        DmeTestSupport.draft(jdbc, Q, new BigDecimal("2.000"));
+        DmeTestSupport.pending(jdbc, Q, new BigDecimal("2.000"), "MAJOR", "DRAFT", "kim", "FIRST", null);
 
         JsonNode r = bodies("RULE", Q, "2.000", "NO_RULE", "1.000", Q, "x.y", Q, "1.000");
 
@@ -1765,7 +1778,7 @@ class MetaFeedVersionedHttpTest {
 }
 ```
 
-`DmeTestSupport.draft(jdbc, id, ver)` 가 없으면 `DmeTestSupport` 의 버전 INSERT(`released` 의 몸체)를 기준으로 `STATUS='DRAFT', APPLY_FROM/APPLY_TO NULL, OWNER_ID='kim'` 인 `draft(JdbcTemplate, String, BigDecimal)` 를 같은 파일에 더한다.
+DRAFT 버전(적용 구간 null)은 이미 있는 `DmeTestSupport.pending(jdbc, id, ver, verKind, status, owner, hit, baseVer)` 로 만든다. 새 헬퍼는 더하지 않으므로 `DmeTestSupport.java` 는 이 작업에서 고치지 않는다.
 
 - [ ] **Step 2: 실패를 확인한다**
 
@@ -2071,32 +2084,75 @@ public class MetaFeedVersioned {
         }
     }
 
+    /** 룰 엔티티와 그 RELEASED 버전 하나 — 같은 룰의 여러 버전이 룰 조회를 한 번만 하도록 {@code renderBodies} 의 적재 결과에 담는다. */
+    private record RuleVer(MdmRule rule, MdmRuleVer ver) {
+    }
+
     private void ruleBodies(List<MetaFeedService.BodyKey> keys, MetaFeedVersionedResult.Builder b) {
         RuleVarTypeResolver.Scope scope = definitions.ruleScope();
-        Map<String, Optional<MdmRule>> rules = new HashMap<>();
-        Map<String, List<MdmRuleVer>> versions = new HashMap<>();
+        this.<RuleVer>renderBodies(keys, b,
+                id -> definitions.rule(id)
+                        .map(rule -> Loaded.of(definitions.releasedRuleVersions(id).stream().map(v -> new RuleVer(rule, v)).toList()))
+                        .orElse(Loaded.of(List.of())),
+                rv -> rv.ver().getVer(),
+                (k, rv) -> MetaFeedJson.plain(definitions.assembleRule(k.key(), rv.rule(), rv.ver(), scope)));
+    }
+
+    /** 적재 결과 — 목록 또는 실패 메시지. 실패면 그 키의 모든 쌍이 같은 메시지로 failed 가 된다. */
+    record Loaded<T>(List<T> list, String error) {
+
+        static <T> Loaded<T> of(List<T> list) {
+            return new Loaded<>(list, null);
+        }
+
+        static <T> Loaded<T> failed(Throwable e) {
+            return new Loaded<>(List.of(), message(e));
+        }
+    }
+
+    /** 예외 메시지 — {@code getMessage()} 가 null 이면 {@code toString()}. 실패 행의 message 가 null 이 되지 않게 한다. */
+    static String message(Throwable e) {
+        return e.getMessage() == null ? e.toString() : e.getMessage();
+    }
+
+    /**
+     * BODY 공통 루프 — 네 대상(룰·세트·전문·코드)이 이것 하나를 쓴다. 쌍마다 ver 형식 오류면 INVALID_VER, 키별로 {@code loader} 를 한 번만 불러
+     * 적재(같은 키의 여러 버전은 읽기를 공유), 적재가 실패면 그 메시지, RELEASED 목록에 그 ver 가 없으면 NOT_RELEASED, 있으면 {@code render}.
+     * {@code render} 가 던지면 그 쌍만 failed 다(저장값이 깨진 정의). {@code loader} 는 null 을 돌려주지 않는다 — 메모에 {@code computeIfAbsent} 를 쓰므로
+     * 실패는 {@link Loaded#failed} 로 담는다.
+     */
+    private <T> void renderBodies(List<MetaFeedService.BodyKey> keys, MetaFeedVersionedResult.Builder b,
+                                  Function<String, Loaded<T>> loader, Function<T, BigDecimal> verOf,
+                                  BiFunction<MetaFeedService.BodyKey, T, Object> render) {
+        Map<String, Loaded<T>> memo = new HashMap<>();
         for (MetaFeedService.BodyKey k : keys) {
             if (k.ver() == null) {
                 b.bodyFailed(k, INVALID_VER);
                 continue;
             }
-            Optional<MdmRule> rule = rules.computeIfAbsent(k.key(), definitions::rule);
-            Optional<MdmRuleVer> v = rule.isEmpty() ? Optional.empty()
-                    : versions.computeIfAbsent(k.key(), definitions::releasedRuleVersions).stream()
-                            .filter(x -> x.getVer().compareTo(k.ver()) == 0).findFirst();
-            if (v.isEmpty()) {
+            Loaded<T> loaded = memo.computeIfAbsent(k.key(), loader);
+            if (loaded.error() != null) {
+                b.bodyFailed(k, loaded.error());
+                continue;
+            }
+            Optional<T> hit = loaded.list().stream().filter(x -> verOf.apply(x).compareTo(k.ver()) == 0).findFirst();
+            if (hit.isEmpty()) {
                 b.bodyFailed(k, NOT_RELEASED);
                 continue;
             }
             try {
-                b.body(k, MetaFeedJson.plain(definitions.assembleRule(k.key(), rule.get(), v.get(), scope)));
-            } catch (BusinessException | IllegalArgumentException | IllegalStateException e) {
-                b.bodyFailed(k, e.getMessage());
+                b.body(k, render.apply(k, hit.get()));
+            } catch (RuntimeException e) {
+                b.bodyFailed(k, message(e));
             }
         }
     }
 }
 ```
+
+import 를 더한다: `java.math.BigDecimal`, `java.util.function.BiFunction`, `java.util.function.Function`. `Optional`·`HashMap`·`Map` 은 이미 있다.
+
+T6·T7 의 본문 처리(`setBodies`·`layoutBodies`·`codeBodies`)도 이 `renderBodies`·`Loaded`·`message` 를 쓴다 — 본문 루프를 각자 복붙하지 않는다.
 
 - [ ] **Step 7: `MetaFeedService` 를 분기한다**
 
@@ -2178,7 +2234,7 @@ Expected: PASS(`MetaFeedVersionedHttpTest`·`MetaFeedLegacyGoldenTest`·`MetaFee
 - [ ] **Step 9: 커밋**
 
 ```bash
-/usr/bin/git add src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/feed/metaFeed src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/feed/MetaFeedVersionedHttpTest.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dme/DmeTestSupport.java
+/usr/bin/git add src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/feed/metaFeed src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/feed/MetaFeedVersionedHttpTest.java
 /usr/bin/git commit -m "feat(mdm): 메타 피드 view 에 part=TOC|BODY 와 at 을 더하고 룰 목차·본문을 준다" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 ```
 
@@ -2194,7 +2250,7 @@ Expected: PASS(`MetaFeedVersionedHttpTest`·`MetaFeedLegacyGoldenTest`·`MetaFee
 - Modify: `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/feed/MetaFeedVersionedHttpTest.java`
 
 **Interfaces:**
-- Consumes: Task 5 의 `MetaFeedVersionedResult`·`MetaFeedVersionSelect`·`BodyKey`.
+- Consumes: Task 5 의 `MetaFeedVersionedResult`·`MetaFeedVersionSelect`·`BodyKey`·`MetaFeedVersioned.renderBodies`/`Loaded`/`message`(BODY 공통 루프).
 - Produces: `MetaFeedDefinitions.releasedSets(String id) : Optional<List<RuleSetDefinition>>`(StoredDefinitionException 그대로 던짐), `MetaFeedDefinitions.messageLayoutId(String key) : Optional<Long>`, `static Map<String, Object> layoutVersion(LayoutReleaseTimeline.ReleasedVersion v)`, `MetaFeedDefinitions.releasedLayouts(long id) : List<LayoutReleaseTimeline.ReleasedVersion>`.
 
 - [ ] **Step 1: 실패하는 시험을 더한다**
@@ -2358,33 +2414,18 @@ Expected: 새 두 시험이 FAIL — `part=TOC 를 아직 받지 않는 대상�
         }
     }
 
+    /** 본문 루프(INVALID_VER → 키별 적재 → NOT_RELEASED → 렌더)는 T5 의 {@code renderBodies} 하나다 — 여기는 적재와 렌더 두 줄만 둔다. */
     private void setBodies(List<MetaFeedService.BodyKey> keys, MetaFeedVersionedResult.Builder b) {
-        Map<String, Object> memo = new HashMap<>(); // id → List<RuleSetDefinition> 또는 실패 메시지(String)
-        for (MetaFeedService.BodyKey k : keys) {
-            if (k.ver() == null) {
-                b.bodyFailed(k, INVALID_VER);
-                continue;
-            }
-            Object loaded = memo.computeIfAbsent(k.key(), id -> {
-                try {
-                    return definitions.releasedSets(id).orElse(List.of());
-                } catch (StoredDefinitionException e) {
-                    return e.getMessage();
-                }
-            });
-            if (loaded instanceof String message) {
-                b.bodyFailed(k, message);
-                continue;
-            }
-            @SuppressWarnings("unchecked")
-            Optional<RuleSetDefinition> hit = ((List<RuleSetDefinition>) loaded).stream()
-                    .filter(d -> d.ver().compareTo(k.ver()) == 0).findFirst();
-            if (hit.isEmpty()) {
-                b.bodyFailed(k, NOT_RELEASED);
-            } else {
-                b.body(k, MetaFeedJson.plain(hit.get()));
-            }
-        }
+        this.<RuleSetDefinition>renderBodies(keys, b,
+                id -> {
+                    try {
+                        return Loaded.of(definitions.releasedSets(id).orElse(List.of()));
+                    } catch (StoredDefinitionException e) {
+                        return Loaded.failed(e);
+                    }
+                },
+                RuleSetDefinition::ver,
+                (k, d) -> MetaFeedJson.plain(d));
     }
 
     private void layoutsToc(List<String> keys, LocalDateTime at, MetaFeedVersionedResult.Builder b) {
@@ -2409,36 +2450,20 @@ Expected: 새 두 시험이 FAIL — `part=TOC 를 아직 받지 않는 대상�
     }
 
     private void layoutBodies(List<MetaFeedService.BodyKey> keys, MetaFeedVersionedResult.Builder b) {
-        Map<String, Object> memo = new HashMap<>(); // 키 → List<ReleasedVersion> 또는 실패 메시지(String)
-        for (MetaFeedService.BodyKey k : keys) {
-            if (k.ver() == null) {
-                b.bodyFailed(k, INVALID_VER);
-                continue;
-            }
-            Object loaded = memo.computeIfAbsent(k.key(), key -> {
-                Optional<Long> id = definitions.messageLayoutId(key);
-                if (id.isEmpty()) {
-                    return List.of();
-                }
-                try {
-                    return definitions.releasedLayouts(id.get());
-                } catch (BusinessException | IllegalArgumentException | IllegalStateException e) {
-                    return e.getMessage() == null ? e.toString() : e.getMessage();
-                }
-            });
-            if (loaded instanceof String message) {
-                b.bodyFailed(k, message);
-                continue;
-            }
-            @SuppressWarnings("unchecked")
-            Optional<LayoutReleaseTimeline.ReleasedVersion> hit = ((List<LayoutReleaseTimeline.ReleasedVersion>) loaded).stream()
-                    .filter(v -> v.ver().compareTo(k.ver()) == 0).findFirst();
-            if (hit.isEmpty()) {
-                b.bodyFailed(k, NOT_RELEASED);
-            } else {
-                b.body(k, MetaFeedDefinitions.layoutVersion(hit.get()));
-            }
-        }
+        this.<LayoutReleaseTimeline.ReleasedVersion>renderBodies(keys, b,
+                key -> {
+                    Optional<Long> id = definitions.messageLayoutId(key);
+                    if (id.isEmpty()) {
+                        return Loaded.of(List.of());
+                    }
+                    try {
+                        return Loaded.of(definitions.releasedLayouts(id.get()));
+                    } catch (BusinessException | IllegalArgumentException | IllegalStateException e) {
+                        return Loaded.failed(e);
+                    }
+                },
+                LayoutReleaseTimeline.ReleasedVersion::ver,
+                (k, v) -> MetaFeedDefinitions.layoutVersion(v));
     }
 ```
 
@@ -2468,7 +2493,7 @@ Expected: PASS(골든 포함)
 - Modify: `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/feed/MetaFeedVersionedHttpTest.java`
 
 **Interfaces:**
-- Consumes: Task 2 `CodeVersions.select`, Task 3 `CodeVersionSlicer.slice`, 기존 `CodeRowsProjection.releasedOnly`, `MdmCodeLookup`, `MasterCodeLedgerQueries.header(id)`·`versions(id)`.
+- Consumes: Task 2 `CodeVersions.select`, Task 3 `CodeVersionSlicer.slice`, 기존 `CodeRowsProjection.releasedOnly`, `MdmCodeLookup`, `MasterCodeLedgerQueries.header(id)`·`versions(id)`, Task 5 의 `MetaFeedVersioned.renderBodies`/`Loaded`(BODY 공통 루프).
 - Produces: CODE 목차 값 `{header:{maruCodeId, status}, versions:[…]}`, CODE 본문 값 = `CodeVersionSlice` JSON. `MetaFeedDefinitions.ledger() : MasterCodeLedgerQueries`(package-private).
 
 - [ ] **Step 1: 실패하는 시험을 더한다**
@@ -2609,27 +2634,18 @@ Expected: CODE 시험 넷이 FAIL(MDM021 "아직 받지 않는 대상").
         }
     }
 
+    /** 투영한 코드와 그 안의 RELEASED 버전 행 하나 — 한 코드의 여러 버전이 읽기·투영을 한 번만 하도록 {@code rows} 를 공유한다. */
+    private record CodeVer(CodeRows rows, CodeVersionRow row) {
+    }
+
+    /** 본문 루프는 T5 의 {@code renderBodies} 가 한 번만 쓴다 — 여기는 적재(원장 → 투영)와 렌더(자르기) 두 식이다. 타입 인자는 명시한다({@code this.<CodeVer>renderBodies}) — 암시적 람다만으로는 추론이 안 될 수 있다. 저장값이 깨진 코드는 그 쌍만 failed(렌더 예외). */
     private void codeBodies(List<MetaFeedService.BodyKey> keys, MetaFeedVersionedResult.Builder b) {
-        Map<String, Optional<CodeRows>> memo = new HashMap<>(); // 같은 코드의 여러 버전은 읽기·투영을 한 번만
-        for (MetaFeedService.BodyKey k : keys) {
-            if (k.ver() == null) {
-                b.bodyFailed(k, INVALID_VER);
-                continue;
-            }
-            Optional<CodeRows> projected = memo.computeIfAbsent(k.key(),
-                    id -> new MdmCodeLookup(definitions.ledger()).code(id).map(CodeRowsProjection::releasedOnly));
-            boolean released = projected.isPresent()
-                    && projected.get().versions().stream().anyMatch(v -> v.ver().compareTo(k.ver()) == 0);
-            if (!released) {
-                b.bodyFailed(k, NOT_RELEASED);
-                continue;
-            }
-            try { // 저장값이 깨진 코드는 그 쌍만 failed
-                b.body(k, MetaFeedJson.plain(CodeVersionSlicer.slice(projected.get(), k.ver())));
-            } catch (RuntimeException e) {
-                b.bodyFailed(k, e.getMessage() == null ? e.toString() : e.getMessage());
-            }
-        }
+        this.<CodeVer>renderBodies(keys, b,
+                id -> new MdmCodeLookup(definitions.ledger()).code(id).map(CodeRowsProjection::releasedOnly)
+                        .map(rows -> Loaded.of(rows.versions().stream().map(v -> new CodeVer(rows, v)).toList()))
+                        .orElse(Loaded.of(List.of())),
+                c -> c.row().ver(),
+                (k, c) -> MetaFeedJson.plain(CodeVersionSlicer.slice(c.rows(), k.ver())));
     }
 
     private CodeRows projected(String id) {
@@ -3239,8 +3255,8 @@ class MdmMetaClientVersionedTest {
 
     private static final String REJECTED = "{\"meta\":{\"success\":false,\"message\":\"입력값 오류\"}}";
 
-    private static final String RULE_1000 = "{\"ruleId\":\"R\",\"ver\":1.000,\"kind\":\"DECISION\",\"hitPolicy\":\"FIRST\","
-            + "\"applyFrom\":\"2026-01-01T00:00:00\",\"applyTo\":null,\"rowsHash\":\"1\",\"vars\":[],"
+    private static final String RULE_1000 = "{\"ruleId\":\"R\",\"ver\":1.000,\"ruleKind\":\"DECISION\",\"hitPolicy\":\"FIRST\","
+            + "\"applyFrom\":\"2026-01-01T00:00:00\",\"applyTo\":null,\"engineVersion\":\"1\",\"vars\":[],"
             + "\"contract\":{\"always\":[],\"rows\":[]},\"rows\":[]}";
 
     @Test
@@ -3373,7 +3389,7 @@ class MdmMetaClientVersionedTest {
 }
 ```
 
-`RULE_1000` 의 칸 이름이 엔진 `RuleDefinition` 과 다르면(`MdmMetaClientTest` 가 쓰는 룰 JSON 이 정본이다) 그 JSON 을 옮겨 쓴다.
+`RULE_1000` 의 칸 이름(`ruleKind`·`engineVersion`)은 엔진 `RuleDefinition` 과 `MdmMetaClientTest` 의 룰 JSON 에 맞춘 것이다. 알 수 없는 칸을 무시하는 설정 때문에 이름이 틀려도 시험은 통과하므로 임의로 바꾸지 않는다.
 
 - [ ] **Step 2: 실패를 확인한다**
 
@@ -4456,7 +4472,7 @@ Run:
 - `cd src/backend/mls && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:test --tests 'com.dongkuk.dmes.mls.lsh.noticeMgmt.NoticeMgmtMdmRealValidatorTest'`
 - `cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:test --tests 'com.dongkuk.dmes.mdm.feed.MdmMetaFeedContractHttpTest'`
 
-Expected: 모두 PASS(기존 `MdmMetaCacheTest` 26건 포함).
+Expected: 모두 PASS(기존 `MdmMetaCacheTest` 24건 포함).
 
 - [ ] **Step 6: 커밋**
 
@@ -5125,9 +5141,7 @@ final class MdmLegacyValues {
             for (String k : defKeys) {
                 Object full = r.found().get(k);
                 if (full != null) {
-                    MdmToc toc = MdmLegacyValues.toc(type, full);
-                    String ver = MdmVersionSelector.select(type, toc, at).orElse(null);
-                    found.put(k, new MdmAt(toc, ver, ver == null ? null : legacyBody(type, full, ver).orElse(null)));
+                    found.put(k, legacyMdmAt(type, full, at));
                 }
             }
             bodyKeys.forEach((l, lk) -> {
@@ -5445,12 +5459,15 @@ final class MdmLegacyValues {
     private MdmAtLookup legacyAt(MdmTargetType type, List<String> keys, LocalDateTime at) {
         MdmLookup r = lookupValue(type, keys);
         Map<String, MdmAt> found = new LinkedHashMap<>();
-        r.found().forEach((key, full) -> {
-            MdmToc toc = MdmLegacyValues.toc(type, full);
-            String ver = MdmVersionSelector.select(type, toc, at).orElse(null);
-            found.put(key, new MdmAt(toc, ver, ver == null ? null : legacyBody(type, full, ver).orElse(null)));
-        });
+        r.found().forEach((key, full) -> found.put(key, legacyMdmAt(type, full, at)));
         return new MdmAtLookup(found, r.missing(), r.unavailable());
+    }
+
+    /** off 경로 — 전 이력 값 하나를 목차로 바꿔 {@code at} 의 버전을 고르고 그 본문을 감싼다. {@code legacyAt} 과 {@code reloadAt} 의 off 분기(정의 키)가 함께 쓴다. */
+    private static MdmAt legacyMdmAt(MdmTargetType type, Object full, LocalDateTime at) {
+        MdmToc toc = MdmLegacyValues.toc(type, full);
+        String ver = MdmVersionSelector.select(type, toc, at).orElse(null);
+        return new MdmAt(toc, ver, ver == null ? null : legacyBody(type, full, ver).orElse(null));
     }
 
     /** off 경로 — CODE 는 전 이력을 그대로 감싼다(호출마다 자르지 않는다). */
@@ -5636,7 +5653,7 @@ Expected: PASS
 - Modify: `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/mdm/MdmDefinitionLookup.java`
 - Modify: `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/mdm/MdmCachedDefinitions.java:33-129`
 - Modify: `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/mdm/MdmValidator.java:111-116`
-- Modify: `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/mdm/MdmMetaController.java:68-78, 309-321`
+- Modify: `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/mdm/MdmMetaController.java:69-78(생성자), 338-353(prefetchCodes)`
 - Create: `src/backend/cactus-core/src/test/java/com/dongkuk/dmes/cactus/mdm/MdmDefinitionLookupVersionedTest.java`
 - Create: `src/backend/cactus-core/src/test/java/com/dongkuk/dmes/cactus/mdm/MdmCachedDefinitionsTest.java`
 - Modify: `src/backend/cactus-core/src/test/java/com/dongkuk/dmes/cactus/mdm/MdmMetaControllerTest.java`(버전 경로 허용 코드 한 건)
@@ -5902,9 +5919,15 @@ Expected: 컴파일 실패(`codes` 가 없다) 또는 `IllegalStateException`(�
         return service.oneAt(MdmTargetType.RULE_SET, setId, evalTs).map(MdmMetaService.MdmAt::body).map(RuleSetDefinition.class::cast);
     }
 
-    /** 목차 행 {@code (header, versions, [], [], [])} — 버전 선택·DEPRECATED·"마루 코드인가"에 쓴다. */
+    /**
+     * 목차 행 {@code (header, versions, [], [], [])} — 버전 선택·DEPRECATED·"마루 코드인가"에 쓴다.
+     * off({@code versioned=false}) 면 지금처럼 전 이력 행을 그대로 준다(기존 {@code MdmDefinitionLookupTest} 의 동작 불변 — off 는 {@code guardValue} 가 막지 않는다).
+     */
     @Override
     public Optional<CodeRows> code(String maruCodeId) {
+        if (!service.versioned()) {
+            return service.one(MdmTargetType.CODE, maruCodeId).map(CodeRows.class::cast);
+        }
         return service.toc(MdmTargetType.CODE, maruCodeId).map(MdmToc::codeRows);
     }
 
@@ -5957,6 +5980,14 @@ Expected: 컴파일 실패(`codes` 가 없다) 또는 `IllegalStateException`(�
 
     @Override
     public Optional<CodeRows> code(String maruCodeId) {
+        if (!service.versioned()) {
+            // off: 캐시의 전 이력 값을 그대로 준다(지금 동작). 부재 기록 `CODE:id`·예외 규칙도 그대로 — 아래 목차 경로와 같은 기록 키다.
+            Read r = read(MdmTargetType.CODE, maruCodeId);
+            if (!r.cached()) {
+                throw new MdmUnavailableException("캐시에 없는 마루 코드입니다(평가 중에는 MDM 을 부르지 않습니다): " + maruCodeId);
+            }
+            return r.map(rows -> Optional.of((CodeRows) rows));
+        }
         MdmMetaService.CachedRead toc = service.cachedToc(MdmTargetType.CODE, maruCodeId);
         if (!toc.cached()) {
             miss(MdmTargetType.CODE, maruCodeId);
@@ -6039,7 +6070,7 @@ Run:
 - `cd src/backend/mls && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:test --tests 'com.dongkuk.dmes.mls.lsh.noticeMgmt.NoticeMgmtMdmRealValidatorTest'`
 - `cd src/backend/mdm && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ../gradlew :api:test --tests 'com.dongkuk.dmes.mdm.feed.MdmMetaFeedContractHttpTest'`
 
-Expected: 모두 PASS. 기존 `MdmDefinitionLookupTest`·`MdmValidatorTest`·`MdmMetaControllerTest` 는 off 경로로 지금과 같은 결과를 내야 한다.
+Expected: 모두 PASS. 기존 `MdmDefinitionLookupTest`·`MdmValidatorTest`·`MdmMetaControllerTest` 는 off 경로로 지금과 같은 결과를 내야 한다 — 특히 `MdmDefinitionLookupTest` 의 `assertThat(lookup.code("PROC_CD")).contains(rows)`(전 이력 행 동일성)는 기대값을 고치지 않고 통과해야 한다(`code` 의 off 분기가 보장한다).
 
 - [ ] **Step 8: 커밋**
 
@@ -6905,22 +6936,28 @@ Expected: 새 시험이 FAIL(칸 없음·`load` 가 `reload` 로 `IllegalStateEx
         row.put("current", v.current());      // 본문만 — 최종 버전이면 true
 ```
 
-`load` 의 `MdmMetaService.MdmLookup r = service.reload(type.get(), keys);` 와 그 뒤 세 줄을 아래로 바꾼다.
+`load` 의 `MdmMetaService.MdmLookup r = service.reload(type.get(), keys);` 부터 `return ResponseEntity.ok(out);` 까지 전부(`Map out` 선언·`put` 3개·`return` — 다섯 줄)를 아래로 바꾼다. 교체 코드가 `out` 선언과 `return` 을 포함하므로 세 줄만 바꾸면 중복 선언으로 컴파일이 깨진다.
 
 ```java
-        Map<String, Object> out = new LinkedHashMap<>();
+        List<String> loaded;
+        List<String> missing;
+        List<String> unavailable;
         if (MdmVersions.isVersioned(type.get())) {
             // 정의 키 X: 묶음째 지우고 목차 + 지금 시각 본문, 본문 키 X@ver: 그 본문만(스펙 §7.1)
             MdmMetaService.MdmAtLookup r = service.reloadAt(type.get(), keys, clock.instant());
-            out.put("loaded", new ArrayList<>(r.found().keySet()));
-            out.put("missing", r.missing());
-            out.put("unavailable", r.unavailable());
+            loaded = new ArrayList<>(r.found().keySet());
+            missing = r.missing();
+            unavailable = r.unavailable();
         } else {
             MdmMetaService.MdmLookup r = service.reload(type.get(), keys);
-            out.put("loaded", new ArrayList<>(r.found().keySet()));
-            out.put("missing", r.missing());
-            out.put("unavailable", r.unavailable());
+            loaded = new ArrayList<>(r.found().keySet());
+            missing = r.missing();
+            unavailable = r.unavailable();
         }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("loaded", loaded);
+        out.put("missing", missing);
+        out.put("unavailable", unavailable);
         return ResponseEntity.ok(out);
 ```
 
@@ -6946,7 +6983,7 @@ Expected: 모두 PASS.
 
 ### Task 18: MDM 계약 시험 — 실제 HTTP 로 새 경로(목차·본문)를 끝까지 잇는다
 
-스펙 §6.2「MDM 피드」「cactus 판정」을 실제 HTTP 로 확인한다(Review Focus 1·3 의 끝단). MDM 원장에서 직접 판정한 결과와, 실제 `MdmMetaClient` → `metaFeed/view?part=TOC|BODY` → 버전 서비스로 판정한 결과가 같아야 한다. 버전 자리수가 섞인 원장(1.000 INTEGER, 1.001 REAL, 2.000 INTEGER)에서 본문 키가 한 벌로만 생기고 두 번째 판정은 HTTP 를 다시 부르지 않아야 한다. 목차가 낡았을 때(원장에서 버전 확정 취소)는 NOT_RELEASED → 목차 재수신으로 새 원장 판정을 따라야 한다.
+스펙 §6.2「MDM 피드」「cactus 판정」을 실제 HTTP 로 확인한다(Review Focus 1 과 스펙 §5.6(가)의 끝단). MDM 원장에서 직접 판정한 결과와, 실제 `MdmMetaClient` → `metaFeed/view?part=TOC|BODY` → 버전 서비스로 판정한 결과가 같아야 한다. 버전 자리수가 섞인 원장(1.000 INTEGER, 1.001 REAL, 2.000 INTEGER)에서 본문 키가 한 벌로만 생기고 두 번째 판정은 HTTP 를 다시 부르지 않아야 한다. 목차가 낡았을 때(원장에서 버전 확정 취소)는 NOT_RELEASED → 목차 재수신으로 새 원장 판정을 따라야 한다.
 
 **Files:**
 - Modify: `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/feed/MdmMetaFeedContractHttpTest.java`
@@ -6993,6 +7030,22 @@ Expected: 모두 PASS.
         }
     }
 
+    /**
+     * 세 시험이 공유하는 고정 시계 — 2026-10-02T15:00:00Z = KST 2026-10-03 00:00 이라 MDM 이 목차에 싣는 current 는 CT2 의 1.001 이다.
+     * 실제 시계를 쓰면 2027-01-01(2.000 적용 시작) 이후에는 current 가 2.000 으로 바뀌어 아래 단언(키 목록, 목차 재수신 횟수)이 날짜에 따라 깨진다.
+     * 고정 시계에서는 두 단언이 실행 날짜와 무관하게 성립한다.
+     */
+    private static Clock fixedClock() {
+        return Clock.fixed(Instant.parse("2026-10-02T15:00:00Z"), ZoneOffset.UTC);
+    }
+
+    /** 버전 경로 캐시(10분 옛 버전 수명)를 만들어 비운 채로 돌려준다. 시험이 서비스에 넣는 시계와 같은 시계를 받는다. */
+    private static MdmMetaCache newVersionCache(Clock clock) {
+        MdmMetaCache cache = new MdmMetaCache(1000, Duration.ofHours(24), Duration.ofMinutes(60), Duration.ofMinutes(10), clock);
+        cache.clear(0);
+        return cache;
+    }
+
     /** CT2: RELEASED 1.000 [2026-01-01, 2026-07-01)·1.001 [2026-07-01, 2027-01-01)·2.000 [2027-01-01, 열린 끝). items A(1.000~), B(1.001~), C(2.000~). TABLE TB(1.001~): B·C. */
     private void seedMixedScaleCode() {
         MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
@@ -7013,9 +7066,9 @@ Expected: 모두 PASS.
     void 버전_경로_코드_판정은_자리수가_섞인_원장과_같고_본문_키는_한_벌이며_두_번째는_HTTP_를_부르지_않는다() {
         seedMixedScaleCode();
         CountingFeed feed = new CountingFeed(client);
-        MdmMetaCache vcache = new MdmMetaCache(1000, Duration.ofHours(24), Duration.ofMinutes(60), Duration.ofMinutes(10), Clock.systemUTC());
-        vcache.clear(0);
-        MdmMetaService vservice = new MdmMetaService(feed, vcache, Clock.systemUTC(), true);
+        Clock clock = fixedClock();
+        MdmMetaCache vcache = newVersionCache(clock);
+        MdmMetaService vservice = new MdmMetaService(feed, vcache, clock, true);
         MdmDefinitionLookup vlookup = new MdmDefinitionLookup(vservice);
         DefaultCodeResolver viaHttp = new DefaultCodeResolver(vlookup, vlookup);
         DefaultCodeResolver ledgerResolver = new DefaultCodeResolver(
@@ -7048,9 +7101,9 @@ Expected: 모두 PASS.
     void 버전_경로_목차가_낡으면_NOT_RELEASED_로_목차를_다시_받아_새_원장을_따른다() {
         seedMixedScaleCode();
         CountingFeed feed = new CountingFeed(client);
-        MdmMetaCache vcache = new MdmMetaCache(1000, Duration.ofHours(24), Duration.ofMinutes(60), Duration.ofMinutes(10), Clock.systemUTC());
-        vcache.clear(0);
-        MdmMetaService vservice = new MdmMetaService(feed, vcache, Clock.systemUTC(), true);
+        Clock clock = fixedClock();
+        MdmMetaCache vcache = newVersionCache(clock);
+        MdmMetaService vservice = new MdmMetaService(feed, vcache, clock, true);
         Instant at2027 = LocalDateTime.of(2027, 2, 1, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant();
         vservice.lookupAt(MdmTargetType.CODE, List.of("CT2"), LocalDateTime.of(2026, 8, 1, 0, 0).atZone(MdmDefinitionLookup.KST).toInstant());
         jdbc.update("UPDATE TB_MDM_CODE_VER SET STATUS = 'CANCELLED' WHERE MARU_CODE_ID = 'CT2' AND VER = 2"); // 캐시의 목차에는 2.000 이 남아 있다
@@ -7066,9 +7119,8 @@ Expected: 모두 PASS.
     void 버전_경로_룰_세트_전문_선택은_원장과_같다() {
         seedLayouts();
         CountingFeed feed = new CountingFeed(client);
-        MdmMetaCache vcache = new MdmMetaCache(1000, Duration.ofHours(24), Duration.ofMinutes(60), Duration.ofMinutes(10), Clock.systemUTC());
-        vcache.clear(0);
-        MdmDefinitionLookup vlookup = new MdmDefinitionLookup(new MdmMetaService(feed, vcache, Clock.systemUTC(), true));
+        Clock clock = fixedClock();
+        MdmDefinitionLookup vlookup = new MdmDefinitionLookup(new MdmMetaService(feed, newVersionCache(clock), clock, true));
         StoredDefinitionLookup stored = stored();
         for (LocalDateTime at : List.of(LocalDateTime.of(2026, 6, 30, 23, 59, 59), LocalDateTime.of(2026, 7, 1, 0, 0),
                 LocalDateTime.of(2026, 12, 31, 23, 59, 59), LocalDateTime.of(2027, 1, 1, 0, 0))) {
@@ -7088,7 +7140,7 @@ Expected: 모두 PASS.
     }
 ```
 
-import: `com.dongkuk.dmes.cactus.mdm.MdmBodyKey`, `MdmBodyResult`, `MdmChanges`, `MdmFetchResult`, `MdmMetaFeed`, `MdmTocResult`. `TB_MDM_CODE_VER` 의 상태 칼럼 이름이 다르면 `MasterCodeSeeds.seedVer` 의 INSERT 가 정본이다.
+import: `com.dongkuk.dmes.cactus.mdm.MdmBodyKey`, `MdmBodyResult`, `MdmChanges`, `MdmFetchResult`, `MdmMetaFeed`, `MdmTocResult`, `java.time.ZoneOffset`(`Clock`·`Instant`·`Duration` 은 이미 있으면 그대로). `TB_MDM_CODE_VER` 의 상태 칼럼 이름이 다르면 `MasterCodeSeeds.seedVer` 의 INSERT 가 정본이다.
 
 - [ ] **Step 2: 시험을 돌린다**
 
@@ -7281,7 +7333,15 @@ export function describeLifetime(
     current: typeof e.current === "boolean" ? e.current : null,
 ```
 
-`fetchEntry` 의 상세 매핑에도 같은 세 칸을 더한다. `fetchAllStatus` 의 실패 행에 `oldVersionMaxIdleSeconds: null`, 성공 행에 `oldVersionMaxIdleSeconds: numberOrNull(v.oldVersionMaxIdleSeconds)` 를 더한다. `groupByType` 을 바꾼다.
+`fetchEntry` 의 상세 매핑(`detail: { type: res.type, key: res.key, … }`)에는 `res`(`CacheEntryDetail` 로 받은 응답 — Step 3 에서 세 칸이 생긴다)를 쓰는 같은 세 칸을 더한다. 옛 모듈 응답에는 칸이 없으므로 `?? null` 로 받는다. `current` 는 boolean 이 아니면 null 이다(타입이 `boolean | null`).
+
+```ts
+      part: res.part ?? null,
+      ver: res.ver ?? null,
+      current: typeof res.current === "boolean" ? res.current : null,
+```
+
+`fetchAllStatus` 의 실패 행에 `oldVersionMaxIdleSeconds: null`, 성공 행에 `oldVersionMaxIdleSeconds: numberOrNull(v.oldVersionMaxIdleSeconds)` 를 더한다. `groupByType` 을 바꾼다.
 
 ```ts
 /** 선택한 항목을 대상 종류별 정의 키로 묶는다 — 본문 행(`X@1.000`)도 정의 키 `X` 로 기록한다(변경 기록은 정의 키 단위, D-154). 같은 정의는 한 번만. */
@@ -7332,7 +7392,16 @@ import: `definitionKey` from `./utils`, `EntryPart` type from `./types`.
   };
 ```
 
-import: `entryKindLabel` from `./utils`, `VERSIONED_TARGET_TYPES`·`EntryPart` from `./types`. 상세 패널 요약에 구분이 있으면 "구분" 줄을 더한다(`entryKindLabel(detail.part, detail.current)`, 비면 줄을 그리지 않는다). 상세 패널 요약을 그리는 방식(라벨-값 짝)은 지금 코드를 따른다.
+import: `entryKindLabel` from `./utils`, `VERSIONED_TARGET_TYPES`·`EntryPart` from `./types`. 상세 패널(`page.tsx` 의 `detailLookup?.found ? (<>…</>)` 블록)에서 '적재' 줄(`<th style={DETAIL_LABEL_CELL}>적재</th>` 를 가진 `<tr>`) 바로 앞에 아래 줄을 더한다. `entryKindLabel` 이 빈 문자열(옛 모듈 — part 가 null)이면 줄을 그리지 않는다.
+
+```tsx
+{entryKindLabel(detailLookup.detail.part, detailLookup.detail.current) ? (
+  <tr>
+    <th style={DETAIL_LABEL_CELL}>구분</th>
+    <td style={DETAIL_VALUE_CELL}>{entryKindLabel(detailLookup.detail.part, detailLookup.detail.current)}</td>
+  </tr>
+) : null}
+```
 
 - [ ] **Step 7: 시험·타입·audit 를 돌린다**
 
@@ -7357,18 +7426,21 @@ Expected: vitest PASS, tsc 오류 0, audit 2종 0건. tsc 가 형제 패키지 d
 
 **Files:**
 - Modify: `docs/mdm/decisions.md`(맨 끝에 D-154)
-- Modify: `docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md`(개정 절)
-- Modify: `docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md`(§3.4·§4.1·§5.1·§5.2·§6 에 링크 한 줄씩)
+- Modify: `docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md`(`## 개정 이력` 절)
+- Modify: `docs/mdm/adr/README.md`(33줄 0007 요약 행 끝에 개정 한 줄)
+- Modify: `docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md`(§3.4·§4.1·§5.1·§5.2·§5.5·§6 에 링크 한 줄씩)
 - Modify: `docs/guide/BackEnd/Backend-Implementation-Guide.md`(§11 설정 블록·수명 설명)
 
 **Interfaces:**
-- Consumes: Task 1 실측 결과(커밋 메시지), Task 1~19 의 이름.
+- Consumes: Task 1 실측 결과(Task 1 커밋 본문 첫 줄의 `실측: 모르는 params = …`), Task 1~19 의 이름.
 - Produces: 없음.
 
 - [ ] **Step 1: 결정 번호와 시각을 확인한다**
 
 Run: `grep -n "^## D-" docs/mdm/decisions.md | tail -3` 와 `date -u +%Y-%m-%dT%H:%M:%SZ`
 Expected: 마지막 번호가 D-153 이면 D-154 를 쓴다. 다른 작업이 먼저 D-154 를 썼으면 다음 빈 번호를 쓰고, 이 계획·코드 주석의 "D-154" 를 그 번호로 바꾸는 커밋을 따로 만든다.
+
+이어서 Task 1 의 실측 결과를 읽는다: `/usr/bin/git log --grep="실측:" --format=%B -n 3` 를 실행해 Task 1 커밋 본문 첫 줄의 `실측: 모르는 params = …`(무시 또는 거부)를 찾고, Step 2 의 D-154 에 그대로 옮긴다. 추측해서 적지 않는다. 찾지 못하면 Task 1 의 골든 시험(`MetaFeedLegacyGoldenTest`)과 실측 시험 결과를 다시 읽어 확인한다.
 
 - [ ] **Step 2: D-154 를 쓴다**
 
@@ -7382,11 +7454,13 @@ Expected: 마지막 번호가 D-153 이면 D-154 를 쓴다. 다른 작업이 �
 
 - [ ] **Step 3: ADR-0007 개정 절을 더한다**
 
-`adr-write` 스킬을 불러(Skill 도구 `adr-write`) 그 스킬의 개정 절차·린트를 따른다. 개정 절 내용: 날짜 2026-10-03(또는 머지 날짜), "캐시 값 모양을 정의 전 이력 한 키에서 목차 + 버전 본문으로 바꾼다(D-154). 하이브리드 배포·변경 기록 순번 무효화 구조는 그대로다(결정 P13)", 링크 두 개(스펙·D-154). ADR 본문(결정·결과)은 고치지 않는다.
+`adr-write` 스킬을 불러(Skill 도구 `adr-write`) 그 스킬의 개정 절차(§7 색인 정합)·린트를 따른다. 절 제목은 선례(ADR-0002)대로 `## 개정 이력` 으로 한다. 스킬 §8 의 본문 개정 전 적대적 검토는 이 계획에서는 최종 브랜치 리뷰(opus)가 대신한다(구현자는 서브에이전트를 쓰지 않으므로 별도 검토를 띄우지 않고, 이 사실을 커밋 본문에 한 줄 적는다). 개정 절 내용: 날짜 2026-10-03(또는 머지 날짜), "캐시 값 모양을 정의 전 이력 한 키에서 목차 + 버전 본문으로 바꾼다(D-154). 하이브리드 배포·변경 기록 순번 무효화 구조는 그대로다(결정 P13)", 링크 두 개(스펙·D-154). ADR 본문(결정·결과)은 고치지 않는다.
+
+`docs/mdm/adr/README.md` 33줄(0007 요약 행) 끝에 "2026-10-03 개정으로 캐시 값 모양을 목차 + 버전 본문으로 변경(D-154)" 를 덧붙인다.
 
 - [ ] **Step 4: 현행 스펙과 가이드를 고친다**
 
-현행 스펙 `2026-10-02-mdm-meta-cache-design.md` 의 다섯 곳에 한 줄씩 더한다: §3.4 피드 표 아래 "D-154(2026-10-03) — RULE·RULE_SET·CODE·LAYOUT 은 `part=TOC|BODY`·`at` 으로 목차와 버전 본문을 따로 준다. [버전별 적재 설계](2026-10-03-mdm-meta-cache-per-version-design.md) §4", §4.1 대상 표 아래 "D-154 — 네 대상의 캐시 값은 목차 키 + 버전 본문 키다(같은 문서 §3)", §5.1 설정 블록에 `old-version-max-idle: 10m`·`versioned-feed: auto` 두 줄과 주석, §5.2 구성 요소 표 아래 "D-154 — `MdmMetaService.lookupAt`·묶음 캐시·`MdmCodeVersion` 색인(같은 문서 §5)", §6 화면 아래 "D-154 — 항목 그리드 '구분' 열, 본문 행 삭제·재등록은 정의 키로(같은 문서 §7.1)".
+현행 스펙 `2026-10-02-mdm-meta-cache-design.md` 의 여섯 곳에 한 줄씩 더한다: §3.4 피드 표 아래 "D-154(2026-10-03) — RULE·RULE_SET·CODE·LAYOUT 은 `part=TOC|BODY`·`at` 으로 목차와 버전 본문을 따로 준다. [버전별 적재 설계](2026-10-03-mdm-meta-cache-per-version-design.md) §4", §4.1 대상 표 아래 "D-154 — 네 대상의 캐시 값은 목차 키 + 버전 본문 키다(같은 문서 §3)", §5.1 설정 블록에 `old-version-max-idle: 10m`·`versioned-feed: auto` 두 줄과 주석, §5.2 구성 요소 표 아래 "D-154 — `MdmMetaService.lookupAt`·묶음 캐시·`MdmCodeVersion` 색인(같은 문서 §5)", §5.5 엔드포인트 표 아래 "D-154 — entries 는 part·ver·current 를, status 는 bodyCounts·oldVersionMaxIdleSeconds·versionedFeed 를 더 싣고 버전 대상의 key 는 논리 키(X, X@1.000), load 는 논리 키를 받는다(같은 문서 §7.1)", §6 화면 아래 "D-154 — 항목 그리드 '구분' 열, 본문 행 삭제·재등록은 정의 키로(같은 문서 §7.1)".
 
 `Backend-Implementation-Guide.md` §11 의 설정 예(`max-idle: 60m` 줄 아래)에 두 줄을 더한다.
 
@@ -7405,7 +7479,7 @@ Expected: 세 파일 모두 한 줄 이상. `adr-write` 스킬의 린트가 오�
 - [ ] **Step 6: 커밋**
 
 ```bash
-/usr/bin/git add docs/mdm/decisions.md docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md docs/guide/BackEnd/Backend-Implementation-Guide.md
+/usr/bin/git add docs/mdm/decisions.md docs/mdm/adr/0007-mdm-meta-hybrid-cache-revision.md docs/mdm/adr/README.md docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md docs/guide/BackEnd/Backend-Implementation-Guide.md
 /usr/bin/git commit -m "docs(mdm): 메타 캐시 버전별 적재 결정(D-154)과 ADR-0007 개정 절, 현행 스펙·가이드 링크를 남긴다" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 ```
 
