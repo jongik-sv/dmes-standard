@@ -86,6 +86,8 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | `layouts(layoutIds)` | 넘겨받은 전문 전부 |
 | `force(type, keys, kind)` | 화면 요청(§3.4). 펼치지 않는다 |
 
+- 시스템 별칭(2026-10-03 [별칭 매칭](2026-10-03-mdm-column-system-alias-design.md) L6): `column(…, systemAliases)` 4인자 판은 그 컬럼의 시스템 별칭을 COLUMN 키(대문자)로 더한다 — 컬럼 저장은 바뀌기 전·뒤 별칭을 모두 넘긴다(별칭이 그대로여도). `domain`·`code` 펼침도 참조 컬럼의 모든 시스템 별칭을 한 번에 읽어(`DomainImpactQueries.systemAliases`) 더한다. 별칭은 LAYOUT 펼침에 쓰지 않는다.
+
 ### 3.3 호출 지점
 
 판정에 쓰이는 값(RELEASED 버전, 유효 도메인, 컬럼 속성, 룰세트 정의, 전문)이 바뀌는 쓰기에만 건다. DRAFT 편집·선점·테스트 케이스 저장은 캐시 값에 영향이 없으므로 걸지 않는다. 의심스러우면 거는 쪽을 택한다(과잉 기록은 캐시 재적재 한 번이 비용이고, 누락은 오래된 값이 남는다).
@@ -109,7 +111,7 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 | action | params | 응답 |
 |---|---|---|
 | `changes` | `since`(정수), `limit`(기본 1000) | `latestSeq`, `items[{seq, type, key, kind}]`, `truncated`(limit 초과 여부) |
-| `columns` | `physNames[]` | 찾은 컬럼의 메타 목록(§4.2). 없는 키는 응답에서 빠진다 |
+| `columns` | `physNames[]`, 선택 `systemCode` | 찾은 컬럼의 메타 목록(§4.2). 없는 키는 응답에서 빠진다. `systemCode` 가 있으면 표준 물리명으로 못 찾은 키를 그 시스템의 `TB_MDM_COLUMN_SYSTEM` 별칭(대소문자 무시)으로 찾고, 한 별칭이 여러 컬럼을 가리키면 없음+WARN 이다(2026-10-03 [별칭 매칭](2026-10-03-mdm-column-system-alias-design.md)). 구현은 `metaFeed/view` 의 `params.type=COLUMN`·`params.systemCode` |
 | `domains` | `domainIds[]` | 유효 도메인 메타 목록(§4.3) |
 | `rules` | `ruleIds[]` | 룰별 RELEASED 버전 **전체**의 `RuleDefinition` 목록(적용 기간 포함) |
 | `ruleSets` | `setIds[]` | 세트별 RELEASED 버전 **전체**의 `RuleSetDefinition` 목록(`ver`·적용 기간 포함, D-144 2단계) |
@@ -146,7 +148,8 @@ domain: { domainId, domainName, domainKind } | null,
 stdExpr: { text, ast } | null,           ← 유효 표준식(chainStdExpr)
 bizExpr: { text } | null,                ← 서버 전용. 화면 응답에는 존재 여부만 싣는다
 bizRequiredVars[],
-codeRef: { maruCodeId, cateId } | null
+codeRef: { maruCodeId, cateId } | null,
+matchedSystem, systemPhysName            ← 별칭으로 찾았을 때 시스템 코드·저장된 별칭 원문. 표준 매칭이면 null(2026-10-03)
 ```
 
 - 엔진용 `ColumnDefinition` 은 이 값에서 변환한다(테이블 인자는 무시한다. 컬럼사전은 테이블과 무관한 표준 컬럼이다).

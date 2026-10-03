@@ -4,9 +4,12 @@ import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,7 +17,7 @@ import org.springframework.stereotype.Component;
  * 요청 트랜잭션의 커넥션에서 읽는다(불변 I11). 재귀 CTE 는 방언 중립 문안이다 — {@code RECURSIVE} 키워드 없음, 앵커와
  * 재귀부 칼럼 타입 동일, 깊이 가드 50(불변 I13).
  *
- * <p>02 자신의 테이블({@code TB_MDM_DOMAIN}·{@code TB_MDM_COLUMN})만 읽는다. 03·06 참조는
+ * <p>02 자신의 테이블({@code TB_MDM_DOMAIN}·{@code TB_MDM_COLUMN}·{@code TB_MDM_COLUMN_SYSTEM})만 읽는다. 03·06 참조는
  * {@code MdmDomainReferenceSpi} 로만 받는다(불변 I12, D1).
  */
 @Component
@@ -48,7 +51,13 @@ public class DomainImpactQueries {
     public static final String COLUMNS_BY_PHYS_SQL =
             "SELECT PHYS_NAME, COLUMN_NAME FROM TB_MDM_COLUMN WHERE UPPER(PHYS_NAME) IN (:names)";
 
-    public static final List<String> ALL_SQL = List.of(SUBTREE_SQL, ANCESTORS_SQL, COLUMNS_BY_PHYS_SQL);
+    /** 컬럼들의 시스템 별칭 원문(모든 시스템) — 메타 변경 기록이 별칭 키를 더한다(spec 2026-10-03-mdm-column-system-alias-design L6). */
+    public static final String ALIASES_BY_COLUMN_SQL = "SELECT DISTINCT PHYS_NAME FROM TB_MDM_COLUMN_SYSTEM WHERE COLUMN_ID IN (:ids)";
+
+    /** IN 목록 한 번에 넣는 최대 수(Oracle 1000 한도 아래). */
+    static final int IN_CHUNK = 500;
+
+    public static final List<String> ALL_SQL = List.of(SUBTREE_SQL, ANCESTORS_SQL, COLUMNS_BY_PHYS_SQL, ALIASES_BY_COLUMN_SQL);
 
     private final EntityManager entityManager;
 
@@ -84,6 +93,22 @@ public class DomainImpactQueries {
             out.put(((String) r[0]).toUpperCase(Locale.ROOT), (String) r[1]);
         }
         return out;
+    }
+
+    /** 컬럼 ID 들의 시스템 별칭 원문(저장된 글자 그대로, 중복 없이). {@value #IN_CHUNK}개씩 나눠 읽는다. */
+    public List<String> systemAliases(Collection<Long> columnIds) {
+        List<Long> ids = columnIds.stream().filter(Objects::nonNull).distinct().toList();
+        Set<String> out = new LinkedHashSet<>();
+        for (int from = 0; from < ids.size(); from += IN_CHUNK) {
+            List<?> raw = entityManager.createNativeQuery(ALIASES_BY_COLUMN_SQL)
+                    .setParameter("ids", ids.subList(from, Math.min(ids.size(), from + IN_CHUNK))).getResultList();
+            for (Object o : raw) {
+                if (o != null) {
+                    out.add(o.toString());
+                }
+            }
+        }
+        return List.copyOf(out);
     }
 
     @SuppressWarnings("unchecked")

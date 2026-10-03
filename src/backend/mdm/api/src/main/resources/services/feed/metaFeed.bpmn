@@ -4,7 +4,7 @@
     <bpmn:documentation>metaFeed — MDM 메타 제공(spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §3.4). 업무 모듈 cactus 캐시와 포털 MDM 캐시 관리 화면이 부른다.
 
 action=search -&gt; searchTask (metaFeedService.search) — 순번 since 뒤의 변경(스펙 changes)
-action=view   -&gt; viewTask   (metaFeedService.view)   — params.type 하나의 키 묶음(grids.keys) 정의
+action=view   -&gt; viewTask   (metaFeedService.view)   — params.type 하나의 키 묶음(grids.keys) 정의. COLUMN 은 선택 params.systemCode 로 시스템 별칭도 찾는다(spec 2026-10-03-mdm-column-system-alias-design)
 action=save   -&gt; saveTask   (metaFeedService.save)   — 화면 삭제·재등록 강제 기록(스펙 force). SYSADMIN 만(MDM027)
 
 화면이 아니다. 캐시를 두지 않고 늘 DB 최신 값을 준다(D4).</bpmn:documentation>

@@ -354,15 +354,21 @@ public class ColumnMngService {
         column.setUsageNote(blankToNull(req.getUsageNote()));
         column = columnRepository.save(column);
         Long columnId = column.getColumnId();
+        // 바뀌기 전 시스템 매핑 — 신규면 없다. 메타 기록(별칭 전·후)과 8 의 차분이 함께 쓴다
+        List<MdmColumnSystem> before = selfId == null ? List.of() : columnSystemRepository.findByColumnId(columnId);
         // 전문 합성은 항목의 타입·단위·소수를 컬럼 → 도메인에서 읽는다 — 신규·물리명 변경·도메인 교체면 그 물리명을 쓰는 RELEASED 전문까지
         // LAYOUT 키로 펼친다(검토 I1). 이름·라벨·설명만 바뀐 저장은 전문 피드 값과 무관하다
         boolean layoutFeedMayChange = selfId == null || !Objects.equals(oldPhysName, physName)
                 || !Objects.equals(oldDomainId, req.getDomainId());
-        recorder.column(oldPhysName, physName, layoutFeedMayChange);
+        // 업무 모듈 캐시는 시스템 별칭 이름으로도 키를 둔다 — 바뀌기 전·뒤 별칭을 모두 남긴다(별칭이 그대로여도, spec 2026-10-03 L6)
+        Set<String> aliases = new LinkedHashSet<>();
+        before.forEach(m -> aliases.add(m.getPhysName()));
+        requested.forEach(m -> aliases.add(m.getPhysName()));
+        recorder.column(oldPhysName, physName, layoutFeedMayChange, aliases);
 
         // 8. 매핑 차분 — 같은 키는 UPDATE, 새 키는 INSERT, 빠진 키는 DELETE(같은 키를 지웠다 다시 넣지 않는다)
         Map<String, MdmColumnSystem> existing = new LinkedHashMap<>();
-        for (MdmColumnSystem m : columnSystemRepository.findByColumnId(columnId)) {
+        for (MdmColumnSystem m : before) {
             existing.put(key(m.getSystemCode(), m.getPhysName()), m);
         }
         for (MdmColumnSystem want : requested) {

@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.cactus.mdm.MdmColumnMeta;
 import com.dongkuk.dmes.cactus.mdm.MdmDefinitionLookup;
+import com.dongkuk.dmes.cactus.mdm.MdmJson;
 import com.dongkuk.dmes.cactus.mdm.MdmLayoutVersion;
 import com.dongkuk.dmes.cactus.mdm.MdmMetaCache;
 import com.dongkuk.dmes.cactus.mdm.MdmMetaClient;
@@ -25,7 +27,14 @@ import com.dongkuk.dmes.mdm.dmc.MasterCodeSeeds;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
 import com.dongkuk.dmes.mdm.repository.MdmRuleSetRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -180,6 +189,76 @@ class MdmMetaFeedContractHttpTest {
         CodeRows rows = (CodeRows) service.one(MdmTargetType.CODE, "CT_CD").orElseThrow();
         assertEquals(0, rows.versions().get(0).ver().compareTo(new BigDecimal("1.000")));
         assertEquals(LocalDateTime.of(2026, 1, 1, 0, 0), rows.versions().get(0).applyFrom());
+    }
+
+    /**
+     * spec 2026-10-03-mdm-column-system-alias-design §3·§4 — 별칭으로 찾은 컬럼 값(새 칸 matchedSystem·systemPhysName 포함)이 cactus
+     * {@link MdmColumnMeta} 로 그대로 읽히고, 별칭 칸을 뺀 나머지 칸이 표준 이름으로 찾은 값과 같다. cactus 의 systemCode 전송은 병렬 작업(C)이 만든다 — 여기서는
+     * HTTP 본문에 {@code params.systemCode} 를 직접 싣는다. cactus 클라이언트 경유 사례는 통합 단계에서 맞춘다.
+     */
+    @Test
+    void 별칭으로_찾은_컬럼_값이_cactus_컬럼_메타로_읽히고_표준_값과_같다() throws Exception {
+        long id = jdbc.queryForObject("SELECT COLUMN_ID FROM TB_MDM_COLUMN WHERE PHYS_NAME = 'COIL_THK'", Long.class);
+        jdbc.update("INSERT INTO TB_MDM_COLUMN_SYSTEM (COLUMN_ID, SYSTEM_CODE, PHYS_NAME, VER) VALUES (?, 'MES', 'Coil_T', 0)", id);
+
+        JsonNode result = viewRaw("COLUMN", "MES", "COIL_T", "COIL_THK");
+
+        JsonNode aliasValue = valueOf(result, "COIL_T");
+        JsonNode standardValue = valueOf(result, "COIL_THK");
+        assertEquals("MES", aliasValue.path("matchedSystem").asText(), aliasValue.toString());
+        assertEquals("Coil_T", aliasValue.path("systemPhysName").asText(), aliasValue.toString());
+        assertTrue(standardValue.path("matchedSystem").isNull(), "표준으로 맞으면 matchedSystem 은 null: " + standardValue);
+        assertTrue(standardValue.path("systemPhysName").isNull(), "표준으로 맞으면 systemPhysName 은 null: " + standardValue);
+
+        // 별칭 칸을 실제로 빼고 비교한다 — cactus MdmColumnMeta 가 두 칸을 갖게 돼도(병렬 작업 C) 등식이 그대로 선다.
+        ObjectNode aliasDefinition = withoutAliasFields(aliasValue);
+        ObjectNode standardDefinition = withoutAliasFields(standardValue);
+        assertEquals(standardDefinition, aliasDefinition, "별칭 칸을 뺀 정의는 표준 매칭과 같다");
+        MdmColumnMeta viaAlias = MdmJson.MAPPER.treeToValue(aliasDefinition, MdmColumnMeta.class);
+        MdmColumnMeta viaStandard = MdmJson.MAPPER.treeToValue(standardDefinition, MdmColumnMeta.class);
+        assertEquals("COIL_THK", viaAlias.physName());
+        assertEquals(viaStandard, viaAlias, "별칭 칸을 뺀 정의는 표준 매칭과 같다");
+        assertTrue(viaAlias.required());
+        assertEquals("value >= 0", viaAlias.stdExpr().text());
+    }
+
+    /** 컬럼 값 사본에서 별칭 칸(matchedSystem·systemPhysName)을 뺀 정의만 남긴다. */
+    private static ObjectNode withoutAliasFields(JsonNode columnValue) {
+        ObjectNode copy = columnValue.deepCopy();
+        copy.remove(List.of("matchedSystem", "systemPhysName"));
+        return copy;
+    }
+
+    private JsonNode viewRaw(String type, String systemCode, String... keys) throws Exception {
+        ObjectNode body = MdmJson.MAPPER.createObjectNode();
+        body.putObject("meta").put("menuId", "metaFeed");
+        body.putObject("params").put("type", type).put("systemCode", systemCode);
+        ArrayNode rows = body.putObject("grids").putObject("keys").putArray("rows");
+        for (String k : keys) {
+            rows.addObject().put("key", k);
+        }
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://127.0.0.1:" + port + "/oasis/metaFeed/view"))
+                .header("Content-Type", "application/json")
+                .header("X-Client-Key", effectiveClientKey())
+                .header("X-Authenticated-User", "system:mls")
+                .header("X-Authenticated-Role", "SYSTEM")
+                .POST(HttpRequest.BodyPublishers.ofString(MdmJson.MAPPER.writeValueAsString(body)))
+                .build();
+        HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, response.statusCode(), response.body());
+        JsonNode root = MdmJson.MAPPER.readTree(response.body());
+        assertTrue(root.path("meta").path("success").asBoolean(false), root.toString());
+        return root.path("data").path("result");
+    }
+
+    private static JsonNode valueOf(JsonNode result, String key) {
+        for (JsonNode i : result.path("items")) {
+            if (key.equals(i.path("key").asText())) {
+                return i.path("value");
+            }
+        }
+        throw new AssertionError("키가 없다: " + key + " in " + result);
     }
 
     /**

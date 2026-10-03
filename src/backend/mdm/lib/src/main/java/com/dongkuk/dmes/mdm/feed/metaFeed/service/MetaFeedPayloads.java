@@ -12,7 +12,11 @@ public final class MetaFeedPayloads {
     private MetaFeedPayloads() {
     }
 
-    /** 컬럼 메타. 도메인 칸(dataType·length·scale·domain·stdExpr·bizExpr·bizRequiredVars·codeRef)은 유효 도메인에서 온다. */
+    /**
+     * 컬럼 메타. 도메인 칸(dataType·length·scale·domain·stdExpr·bizExpr·bizRequiredVars·codeRef)은 유효 도메인에서 온다.
+     * {@code matchedSystem}·{@code systemPhysName} 은 요청 키를 시스템 별칭({@code TB_MDM_COLUMN_SYSTEM})으로 찾았을 때의 시스템 코드와 저장된
+     * 별칭 원문이다 — 표준 물리명으로 찾았으면 둘 다 null(spec 2026-10-03-mdm-column-system-alias-design L4). {@code physName} 은 늘 표준 물리명이다.
+     */
     public record ColumnMeta(
             String physName,
             String columnName,
@@ -33,7 +37,9 @@ public final class MetaFeedPayloads {
             Expr stdExpr,
             BizExpr bizExpr,
             List<String> bizRequiredVars,
-            CodeRefMeta codeRef) {
+            CodeRefMeta codeRef,
+            String matchedSystem,
+            String systemPhysName) {
     }
 
     public record DomainRef(String domainId, String domainName, String domainKind) {
