@@ -4,6 +4,7 @@ import com.dongkuk.dmes.cactus.oasis.converter.MssqlColumnConverter;
 import com.dongkuk.dmes.cactus.oasis.converter.SqliteColumnConverter;
 import com.dongkuk.dmes.cactus.oasis.loader.HttpServiceDocumentLoader;
 import com.dongkuk.dmes.cactus.oasis.provider.CactusCachingServiceProvider;
+import com.dongkuk.dmes.cactus.oasis.provider.CactusConcurrentCacheService;
 import com.dongkuk.dmes.cactus.oasis.provider.DefaultTxInjectingServiceProvider;
 import com.dongkuk.dmes.cactus.oasis.task.MyBatisSqlRunner;
 import com.dongkuk.dmes.cactus.tx.CactusTxProperties;
@@ -86,7 +87,9 @@ public class OasisAutoConfiguration {
      *
      * <p>{@link CactusCachingServiceProvider} 는 항상 적용 — oasis-core 의
      * {@code CachingServiceProvider} 가 {@code cache.cache()} 호출 누락으로 미동작 (R-multi-22) 이라
-     * legacy 모드에도 cache 정상화 혜택.
+     * legacy 모드에도 cache 정상화 혜택. 캐시 저장소는 {@link CactusConcurrentCacheService}(적중 경로 락 없음,
+     * 넣은 순서로 {@code cactus.oasis.cache.size} 상한 유지)이고, 같은 serviceId 동시 미스는 한 번만 로드한다.
+     * oasis-core-api {@code SizeBaseCacheService} 는 적중 때도 전역 락 아래 O(n) 작업을 해 쓰지 않는다(리팩토링 항목 2).
      */
     @Bean
     @ConditionalOnMissingBean
@@ -123,7 +126,8 @@ public class OasisAutoConfiguration {
                 log.info("[Cactus Oasis] legacy mode — single tx={}, cactus.tx.managers 마이그레이션 권장",
                         props.getTransactionManagerName());
             }
-            factory.setServiceProvider(new CactusCachingServiceProvider(provider, cacheSize));
+            factory.setServiceProvider(new CactusCachingServiceProvider(
+                    provider, new CactusConcurrentCacheService<>(cacheSize)));
             return factory.generateServiceStarter();
         }
 
