@@ -291,7 +291,7 @@ public class MdmMetaService {
         requireVersionedType(type);
         LocalDateTime at = kst(t);
         List<String> wanted = distinct(keys);
-        return versioned ? lookupAtVersioned(type, wanted, at, true, true) : legacyAt(type, wanted, at);
+        return versioned ? lookupAtVersioned(type, wanted, at, true, true) : offAt(type, wanted, at);
     }
 
     /** 키 하나. 없으면 빈 값, 받을 수 없으면 {@link MdmUnavailableException}. */
@@ -307,7 +307,7 @@ public class MdmMetaService {
     public Optional<MdmToc> toc(MdmTargetType type, String key) {
         requireVersionedType(type);
         if (!versioned) {
-            return oneValue(type, key).map(full -> legacyToc(type, key, full));
+            return oneValue(type, key).map(full -> offToc(type, key, full));
         }
         Tocs s = tocs(type, List.of(key), kst(clock.instant()), true);
         if (s.unavailable().contains(key)) {
@@ -327,7 +327,7 @@ public class MdmMetaService {
         if (!versioned) {
             return oneValue(type, key).flatMap(full -> {
                 try {
-                    return legacyBody(type, full, ver);
+                    return offBody(type, full, ver);
                 } catch (RuntimeException e) {
                     throw unreadable(type, key, e);
                 }
@@ -365,7 +365,7 @@ public class MdmMetaService {
             return new CachedRead(false, null);
         }
         Object v = hit.get().value();
-        return new CachedRead(true, !versioned && v != null ? legacyToc(type, key, v) : v);
+        return new CachedRead(true, !versioned && v != null ? offToc(type, key, v) : v);
     }
 
     /** 캐시만 읽는 본문. off 면 전 이력에서 고른다(CODE 는 full). */
@@ -384,9 +384,9 @@ public class MdmMetaService {
                 return new CachedRead(true, null);
             }
             try {
-                return new CachedRead(true, legacyBody(type, full, ver).orElse(null));
+                return new CachedRead(true, offBody(type, full, ver).orElse(null));
             } catch (RuntimeException e) {
-                throw unreadable(type, key, e); // 손상 값(소수 넷째 자리 ver 등) — body·legacyMdmAt 과 같다
+                throw unreadable(type, key, e); // 손상 값(소수 넷째 자리 ver 등) — body·offMdmAt 과 같다
             }
         }
         return cache.getBody(type, key, ver).map(e -> new CachedRead(true, e.value())).orElse(new CachedRead(false, null));
@@ -422,7 +422,7 @@ public class MdmMetaService {
                     unavailable.add(k);
                 } else if (r.found().containsKey(k)) {
                     try {
-                        found.put(k, legacyMdmAt(type, k, r.found().get(k), at));
+                        found.put(k, offMdmAt(type, k, r.found().get(k), at));
                     } catch (MdmUnavailableException e) {
                         unavailable.add(k);
                     }
@@ -441,12 +441,12 @@ public class MdmMetaService {
                     return;
                 }
                 try {
-                    MdmToc toc = legacyToc(type, lk.key(), full);
-                    if (toc.version(lk.ver()).isEmpty()) { // CODE 의 legacyBody 는 ver 를 보지 않는다 — 목차로 먼저 거른다
+                    MdmToc toc = offToc(type, lk.key(), full);
+                    if (toc.version(lk.ver()).isEmpty()) { // CODE 의 offBody 는 ver 를 보지 않는다 — 목차로 먼저 거른다
                         missing.add(l);
                         return;
                     }
-                    found.put(l, new MdmAt(toc, lk.ver(), legacyBody(type, full, lk.ver()).orElse(null)));
+                    found.put(l, new MdmAt(toc, lk.ver(), offBody(type, full, lk.ver()).orElse(null)));
                 } catch (RuntimeException e) {
                     unavailable.add(l);
                 }
@@ -758,13 +758,13 @@ public class MdmMetaService {
     }
 
     /** off 경로 — 값 해석 실패는 그 키만 받을 수 없음이다(버전 경로 {@code loadTocs} 의 키별 처리와 같은 결과 모양). 요청 순서를 지킨다. */
-    private MdmAtLookup legacyAt(MdmTargetType type, List<String> keys, LocalDateTime at) {
+    private MdmAtLookup offAt(MdmTargetType type, List<String> keys, LocalDateTime at) {
         MdmLookup r = lookupValue(type, keys);
         Map<String, MdmAt> found = new LinkedHashMap<>();
         Set<String> broken = new LinkedHashSet<>();
         r.found().forEach((key, full) -> {
             try {
-                found.put(key, legacyMdmAt(type, key, full, at));
+                found.put(key, offMdmAt(type, key, full, at));
             } catch (MdmUnavailableException e) {
                 broken.add(key);
             }
@@ -782,21 +782,21 @@ public class MdmMetaService {
     }
 
     /**
-     * off 경로 — 전 이력 값 하나를 목차로 바꿔 {@code at} 의 버전을 고르고 그 본문을 감싼다. {@code legacyAt} 과 {@code reloadAt} 의 off 분기(정의 키)가
+     * off 경로 — 전 이력 값 하나를 목차로 바꿔 {@code at} 의 버전을 고르고 그 본문을 감싼다. {@code offAt} 과 {@code reloadAt} 의 off 분기(정의 키)가
      * 함께 쓴다. 해석하지 못하면 {@link MdmUnavailableException}.
      */
-    private static MdmAt legacyMdmAt(MdmTargetType type, String key, Object full, LocalDateTime at) {
+    private static MdmAt offMdmAt(MdmTargetType type, String key, Object full, LocalDateTime at) {
         try {
             MdmToc toc = MdmLegacyValues.toc(type, full);
             String ver = MdmVersionSelector.select(type, toc, at).orElse(null);
-            return new MdmAt(toc, ver, ver == null ? null : legacyBody(type, full, ver).orElse(null));
+            return new MdmAt(toc, ver, ver == null ? null : offBody(type, full, ver).orElse(null));
         } catch (RuntimeException e) {
             throw unreadable(type, key, e);
         }
     }
 
     /** off 경로의 목차 — 해석하지 못하면(null ver·소수 넷째 자리 등) {@link MdmUnavailableException}. */
-    private static MdmToc legacyToc(MdmTargetType type, String key, Object full) {
+    private static MdmToc offToc(MdmTargetType type, String key, Object full) {
         try {
             return MdmLegacyValues.toc(type, full);
         } catch (RuntimeException e) {
@@ -810,7 +810,7 @@ public class MdmMetaService {
     }
 
     /** off 경로 — CODE 는 전 이력을 그대로 감싼다(호출마다 자르지 않는다). */
-    private static Optional<Object> legacyBody(MdmTargetType type, Object full, String ver) {
+    private static Optional<Object> offBody(MdmTargetType type, Object full, String ver) {
         return type == MdmTargetType.CODE ? Optional.of(MdmCodeVersion.full((CodeRows) full)) : MdmLegacyValues.rawBody(type, full, ver);
     }
 
