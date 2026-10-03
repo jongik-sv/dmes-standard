@@ -8,6 +8,7 @@ import { fetchMemo, saveMemo } from "./api";
 import { readDraft, removeDraft, writeDraft } from "./memo-draft-storage";
 import {
   canSave,
+  clampTitle,
   classifyDraft,
   countLabel,
   draftDiffers,
@@ -28,6 +29,9 @@ import {
   MEMO_MAX_LENGTH,
   MEMO_SAVE_ERROR,
   MEMO_SCOPE_ERROR,
+  MEMO_TITLE_CONTROL_MESSAGE,
+  MEMO_TITLE_MAX,
+  MEMO_TITLE_TOO_LONG_MESSAGE,
   MEMO_TOO_LONG_MESSAGE,
   memoBaseHash,
   memoDraftKey,
@@ -37,6 +41,7 @@ import {
   memoErrorMessage,
   MemoServiceError,
   memoUserStatus,
+  normalizeTitle,
   parseDraft,
   parseMemo,
   readMemoChoices,
@@ -45,7 +50,9 @@ import {
   saveRequest,
   serializeDraft,
   unwrapMemo,
+  titleLength,
   validateDraft,
+  validateTitle,
   validateMemoConfig,
   viewFormat,
   type MemoDraft,
@@ -191,8 +198,8 @@ describe("편집 중인 글", () => {
 describe("메모 레코드 해석", () => {
   it("서버 memo 를 화면 값으로 바꾼다", () => {
     expect(
-      parseMemo({ instId: "i1", defId: "def.abc12345", format: "md", content: "# 제목", updatedAt: "2026-10-03T10:00:00" })
-    ).toEqual({ instId: "i1", defId: "def.abc12345", format: "md", content: "# 제목", updatedAt: "2026-10-03T10:00:00" });
+      parseMemo({ instId: "i1", defId: "def.abc12345", format: "md", content: "# 제목", title: "내 할 일", updatedAt: "2026-10-03T10:00:00" })
+    ).toEqual({ instId: "i1", defId: "def.abc12345", format: "md", content: "# 제목", title: "내 할 일", updatedAt: "2026-10-03T10:00:00" });
   });
 
   it("객체가 아니면(null 포함) 메모 없음이다", () => {
@@ -205,14 +212,20 @@ describe("메모 레코드 해석", () => {
       defId: "",
       format: "text",
       content: "",
+      title: null,
       updatedAt: null,
     });
   });
 
+  it("title 이 없거나 null·공백뿐·문자열이 아니면 null(정의 이름을 쓴다)", () => {
+    for (const title of [undefined, null, "", "   ", 3, {}]) expect(parseMemo({ instId: "i1", title })?.title).toBeNull();
+    expect(parseMemo({ instId: "i1", title: " 앞뒤 공백은 서버가 이미 잘랐다 " })?.title).toBe(" 앞뒤 공백은 서버가 이미 잘랐다 ");
+  });
+
   it("isBlankMemo — 없거나 공백뿐이면 비었다", () => {
     expect(isBlankMemo(null)).toBe(true);
-    expect(isBlankMemo({ instId: "i", defId: "d", format: "text", content: " \n ", updatedAt: null })).toBe(true);
-    expect(isBlankMemo({ instId: "i", defId: "d", format: "text", content: "글", updatedAt: null })).toBe(false);
+    expect(isBlankMemo({ instId: "i", defId: "d", format: "text", content: " \n ", title: null, updatedAt: null })).toBe(true);
+    expect(isBlankMemo({ instId: "i", defId: "d", format: "text", content: "글", title: null, updatedAt: null })).toBe(false);
   });
 });
 
@@ -243,14 +256,28 @@ describe("요청 모양", () => {
   });
 
   it("save — instId·defId·format·content", () => {
-    expect(saveRequest({ instId: "inst-1", defId: "def.abc12345", format: "md", content: "# 제목" })).toEqual({
+    expect(saveRequest({ instId: "inst-1", defId: "def.abc12345", format: "md", content: "# 제목", title: "내 할 일" })).toEqual({
       url: "/api/mcm/oasis/widgetMemo/save",
-      body: { meta: { menuId: "HOME" }, params: { instId: "inst-1", defId: "def.abc12345", format: "md", content: "# 제목" } },
+      body: {
+        meta: { menuId: "HOME" },
+        params: { instId: "inst-1", defId: "def.abc12345", format: "md", content: "# 제목", title: "내 할 일" },
+      },
     });
   });
 
+  it("save — 제목을 비우면(null·공백뿐) 키를 빼지 않고 빈 문자열로 보낸다(null 은 dropNullParams 가 키를 빼 서버가 옛 제목을 유지한다)", () => {
+    for (const title of [null, "", "   "]) {
+      const params = saveRequest({ instId: "i", defId: "def.abc12345", format: "text", content: "x", title }).body.params;
+      expect(params).toHaveProperty("title", "");
+    }
+  });
+
+  it("save — 제목은 앞뒤 공백을 자르고 보낸다", () => {
+    expect(saveRequest({ instId: "i", defId: "def.abc12345", format: "text", content: "x", title: "  제목  " }).body.params).toHaveProperty("title", "제목");
+  });
+
   it("save — 빈 글(\"\")은 값이므로 보낸다", () => {
-    expect(saveRequest({ instId: "i", defId: "def.abc12345", format: "text", content: "" }).body.params).toHaveProperty("content", "");
+    expect(saveRequest({ instId: "i", defId: "def.abc12345", format: "text", content: "", title: null }).body.params).toHaveProperty("content", "");
   });
 
   it("dropNullParams — null·undefined 키는 빼고 빈 글·0·false 는 남긴다", () => {
@@ -258,7 +285,7 @@ describe("요청 모양", () => {
   });
 
   it("save — 값이 null 인 키는 params 에 넣지 않는다(cactus 변환기가 null 을 받으면 요청 전체가 실패)", () => {
-    const req = saveRequest({ instId: "i", defId: null as unknown as string, format: "text", content: "x" });
+    const req = saveRequest({ instId: "i", defId: null as unknown as string, format: "text", content: "x", title: null });
     expect(Object.keys(req.body.params)).not.toContain("defId");
     expect(Object.values(req.body.params)).not.toContain(null);
   });
@@ -305,7 +332,7 @@ describe("api 호출(fetch 대역)", () => {
     const [url, init] = fetchMock.mock.calls[i] as [string, RequestInit];
     return { url, init, body: JSON.parse(String(init.body)) as { meta: unknown; params: Record<string, unknown> } };
   };
-  const memoRow = { instId: "inst-1", defId: "def.abc12345", format: "html", content: "<p>글</p>", updatedAt: "2026-10-03T10:00:00" };
+  const memoRow = { instId: "inst-1", defId: "def.abc12345", format: "html", content: "<p>글</p>", title: "내 메모장", updatedAt: "2026-10-03T10:00:00" };
 
   it("fetchMemo — load 를 POST 하고 data.result.memo 를 돌려준다", async () => {
     reply({ meta: { success: true }, data: { result: { memo: memoRow } } });
@@ -328,36 +355,37 @@ describe("api 호출(fetch 대역)", () => {
 
   it("saveMemo — instId·defId·format·content 를 보내고 저장된 메모를 돌려준다", async () => {
     reply({ meta: { success: true }, data: { result: { memo: memoRow } } });
-    const saved = await saveMemo({ instId: "inst-1", defId: "def.abc12345", format: "html", content: "<p>글</p>" });
+    const saved = await saveMemo({ instId: "inst-1", defId: "def.abc12345", format: "html", content: "<p>글</p>", title: "내 메모장" });
     expect(sent().url).toBe("/api/mcm/oasis/widgetMemo/save");
     expect(sent().body).toEqual({
       meta: { menuId: "HOME" },
-      params: { instId: "inst-1", defId: "def.abc12345", format: "html", content: "<p>글</p>" },
+      params: { instId: "inst-1", defId: "def.abc12345", format: "html", content: "<p>글</p>", title: "내 메모장" },
     });
     expect(saved).toEqual(memoRow);
   });
 
   it("saveMemo — 빈 글도 content 키를 보낸다", async () => {
     reply({ meta: { success: true }, data: { result: { memo: { ...memoRow, content: "" } } } });
-    await saveMemo({ instId: "inst-1", defId: "def.abc12345", format: "text", content: "" });
+    await saveMemo({ instId: "inst-1", defId: "def.abc12345", format: "text", content: "", title: null });
     expect(sent().body.params).toHaveProperty("content", "");
+    expect(sent().body.params).toHaveProperty("title", "");
   });
 
   it("saveMemo — 서버가 거절하면(meta.success=false) 서버 문구로 던진다", async () => {
     reply({ meta: { success: false, message: "메모는 100개까지 저장할 수 있습니다" } });
-    await expect(saveMemo({ instId: "i", defId: "def.abc12345", format: "text", content: "x" })).rejects.toThrowError(
+    await expect(saveMemo({ instId: "i", defId: "def.abc12345", format: "text", content: "x", title: null })).rejects.toThrowError(
       "메모는 100개까지 저장할 수 있습니다"
     );
   });
 
   it("saveMemo — memo 가 없는 응답은 기본 저장 오류 문구로 던진다", async () => {
     reply({ meta: { success: true }, data: { result: {} } });
-    await expect(saveMemo({ instId: "i", defId: "def.abc12345", format: "text", content: "x" })).rejects.toThrowError(MEMO_SAVE_ERROR);
+    await expect(saveMemo({ instId: "i", defId: "def.abc12345", format: "text", content: "x", title: null })).rejects.toThrowError(MEMO_SAVE_ERROR);
   });
 
   it("saveMemo — HTTP 오류는 던지고 화면에는 기본 문구가 쓰인다", async () => {
     reply({ message: "boom" }, 500);
-    const err = await saveMemo({ instId: "i", defId: "def.abc12345", format: "text", content: "x" }).catch((e: unknown) => e);
+    const err = await saveMemo({ instId: "i", defId: "def.abc12345", format: "text", content: "x", title: null }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(Error);
     expect(err).not.toBeInstanceOf(MemoServiceError);
     expect(memoErrorMessage(err, MEMO_SAVE_ERROR)).toBe(MEMO_SAVE_ERROR);
@@ -370,6 +398,7 @@ describe("임시 저장(쓰다 만 글) 순수 로직", () => {
     defId: "def.x",
     format: "text",
     content: "서버 글",
+    title: null,
     updatedAt: null,
     ...over,
   });
@@ -484,9 +513,11 @@ describe("임시 저장(쓰다 만 글) 순수 로직", () => {
     expect(memoEditBase(rec({ format: "md", content: "글" }), "text")).toEqual({
       format: "md",
       content: "글",
+      title: "",
       hash: memoBaseHash(rec({ format: "md", content: "글" })),
     });
-    expect(memoEditBase(null, "html")).toEqual({ format: "html", content: "", hash: "none" });
+    expect(memoEditBase(rec({ title: "내 제목" }), "text").title).toBe("내 제목");
+    expect(memoEditBase(null, "html")).toEqual({ format: "html", content: "", title: "", hash: "none" });
   });
 
   it("되살릴 임시본 — 기준과 다른 글만, 서버 메모가 그 뒤 바뀌었는지(changedElsewhere)도 알린다", () => {
@@ -534,5 +565,117 @@ describe("md 편집기 높이 규칙", () => {
     expect(MEMO_CSS).toMatch(/\.mcm-memo__md \{[^}]*min-height: 190px/);
     expect(MEMO_CSS).toMatch(/\.mcm-memo__edit \{[^}]*container-type: inline-size/);
     expect(MEMO_CSS).toMatch(/@container \(min-width: 420px\) \{ \.mcm-memo__md \{ min-height: 164px; \} \}/);
+  });
+});
+
+describe("메모장 제목(2026-10-03)", () => {
+  const rec = (over: Partial<MemoRecord> = {}): MemoRecord => ({
+    instId: "i",
+    defId: "def.x",
+    format: "text",
+    content: "서버 글",
+    title: null,
+    updatedAt: null,
+    ...over,
+  });
+  const draft = (over: Partial<MemoDraft> = {}): MemoDraft => ({
+    format: "text",
+    content: "서버 글",
+    baseHash: memoBaseHash(rec()),
+    savedAt: 1,
+    ...over,
+  });
+
+  it("상한은 40자이고 코드 포인트로 센다 — 이모지 하나가 1자", () => {
+    expect(MEMO_TITLE_MAX).toBe(40);
+    expect(titleLength("가나다")).toBe(3);
+    expect(titleLength("😀".repeat(40))).toBe(40);
+    expect("😀".repeat(40).length).toBe(80);
+  });
+
+  it("validateTitle — 40자(코드 포인트)까지 통과하고 41자는 서버와 같은 문구로 막는다. 빈 제목은 통과(제목 없음)", () => {
+    expect(validateTitle("")).toBeNull();
+    expect(validateTitle("   ")).toBeNull();
+    expect(validateTitle("가".repeat(40))).toBeNull();
+    expect(validateTitle("😀".repeat(40))).toBeNull();
+    expect(validateTitle("가".repeat(41))).toBe(MEMO_TITLE_TOO_LONG_MESSAGE);
+    expect(validateTitle("😀".repeat(41))).toBe(MEMO_TITLE_TOO_LONG_MESSAGE);
+    expect(MEMO_TITLE_TOO_LONG_MESSAGE).toBe("메모 제목은 40자까지 쓸 수 있습니다.");
+    // 앞뒤 공백은 자른 뒤 센다.
+    expect(validateTitle(`  ${"가".repeat(40)}  `)).toBeNull();
+  });
+
+  it("validateTitle — 줄바꿈·탭·NUL·DEL·C1 같은 제어 문자는 서버와 같은 문구로 막고, 바깥 공백(줄바꿈 포함)은 잘라 통과한다", () => {
+    expect(MEMO_TITLE_CONTROL_MESSAGE).toBe("메모 제목에 줄바꿈 같은 제어 문자는 쓸 수 없습니다.");
+    for (const bad of ["가\n나", "가\r\n나", "a\tb", "a\u0000b", "a\u001fb", "a\u007fb", "a\u0085b"]) {
+      expect(validateTitle(bad)).toBe(MEMO_TITLE_CONTROL_MESSAGE);
+    }
+    expect(validateTitle("\n제목\t")).toBeNull();
+  });
+
+  it("clampTitle — 40 코드 포인트로 자르고 서로게이트 쌍 가운데서 자르지 않는다", () => {
+    expect(clampTitle("짧은 제목")).toBe("짧은 제목");
+    expect(clampTitle("가".repeat(50))).toBe("가".repeat(40));
+    expect(clampTitle("😀".repeat(50))).toBe("😀".repeat(40));
+    expect(clampTitle("a" + "😀".repeat(50))).toBe("a" + "😀".repeat(39));
+  });
+
+  it("normalizeTitle — 앞뒤 공백만 자른다", () => {
+    expect(normalizeTitle("  내  할 일 ")).toBe("내  할 일");
+    expect(normalizeTitle("   ")).toBe("");
+  });
+
+  it("canSave — 제목이 잘못되면 저장할 수 없다(셋째 인자는 선택)", () => {
+    expect(canSave("글", false)).toBe(true);
+    expect(canSave("글", false, "제목")).toBe(true);
+    expect(canSave("글", false, "가\n나")).toBe(false);
+    expect(canSave("글", false, "가".repeat(41))).toBe(false);
+  });
+
+  it("memoBaseHash — 제목이 없으면 제목 칸이 생기기 전과 같은 값이고, 제목이 있거나 바뀌면 달라진다", () => {
+    const withoutField = memoBaseHash({ format: "text", content: "서버 글" });
+    expect(memoBaseHash(rec())).toBe(withoutField);
+    expect(memoBaseHash(rec({ title: "   " }))).toBe(withoutField);
+    expect(memoBaseHash(rec({ title: "내 제목" }))).not.toBe(withoutField);
+    expect(memoBaseHash(rec({ title: "내 제목" }))).not.toBe(memoBaseHash(rec({ title: "다른 제목" })));
+  });
+
+  it("임시본의 제목 — 직렬화하면 그대로 읽고, 옛 임시본(제목 없음)과 문자열이 아닌 제목은 키 없이 읽는다", () => {
+    expect(parseDraft(serializeDraft(draft({ title: "쓰던 제목" })))).toMatchObject({ title: "쓰던 제목" });
+    expect(parseDraft(serializeDraft(draft({ title: "" })))).toMatchObject({ title: "" });
+    const old = parseDraft(serializeDraft(draft()));
+    expect(old).not.toBeNull();
+    expect(old).not.toHaveProperty("title");
+    expect(parseDraft(JSON.stringify({ ...draft(), title: 3 }))).not.toHaveProperty("title");
+  });
+
+  it("draftDiffers — 제목만 달라도 쓰다 만 글이고, 제목이 없는 옛 임시본은 저장된 제목과 같다고 본다", () => {
+    const base = { format: "text" as const, content: "서버 글", title: "저장된 제목" };
+    expect(draftDiffers({ format: "text", content: "서버 글", title: "고친 제목" }, base)).toBe(true);
+    expect(draftDiffers({ format: "text", content: "서버 글", title: "" }, base)).toBe(true); // 제목을 지우려던 글
+    expect(draftDiffers({ format: "text", content: "서버 글", title: " 저장된 제목 " }, base)).toBe(false); // 공백 차이는 무시
+    expect(draftDiffers({ format: "text", content: "서버 글" }, base)).toBe(false); // 옛 임시본
+    expect(draftDiffers({ format: "text", content: "다른 글" }, base)).toBe(true);
+    // 저장된 제목이 없을 때 제목을 새로 적은 것
+    expect(draftDiffers({ format: "text", content: "서버 글", title: "새 제목" }, { format: "text", content: "서버 글", title: "" })).toBe(true);
+    expect(draftDiffers({ format: "text", content: "서버 글", title: "" }, { format: "text", content: "서버 글", title: "" })).toBe(false);
+  });
+
+  it("restorableDraft·classifyDraft — 제목만 다른 임시본도 되살리고(쓰다 만 글 표시), 제목이 서버와 같아지면 stale 이다", () => {
+    const saved = rec({ title: "저장된 제목" });
+    const base = memoEditBase(saved, "text");
+    const titleOnly = draft({ title: "고친 제목", baseHash: base.hash });
+    expect(restorableDraft(titleOnly, base)).toEqual({ draft: titleOnly, changedElsewhere: false });
+    expect(classifyDraft(titleOnly, saved, "text")).toEqual({ pending: titleOnly, stale: false });
+    expect(classifyDraft(draft({ title: "저장된 제목", baseHash: base.hash }), saved, "text")).toEqual({ pending: null, stale: true });
+    // 옛 임시본(제목 없음)은 저장된 제목을 쓰므로 글만 같으면 stale
+    expect(classifyDraft(draft({ baseHash: base.hash }), saved, "text")).toEqual({ pending: null, stale: true });
+  });
+
+  it("다른 곳에서 제목이 바뀌었으면 임시본의 기준 해시가 어긋나 changedElsewhere 가 된다", () => {
+    const before = memoEditBase(rec({ title: "예전 제목" }), "text");
+    const after = memoEditBase(rec({ title: "새 제목" }), "text");
+    const d = draft({ title: "쓰던 제목", baseHash: before.hash });
+    expect(restorableDraft(d, after)?.changedElsewhere).toBe(true);
   });
 });

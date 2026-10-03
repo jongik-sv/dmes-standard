@@ -4,6 +4,7 @@
  * text·html 입력칸은 shared Textarea(Mantine 겹 래퍼)를 감싼 .mcm-memo__field 안에서 남는 높이를 채운다.
  * md 편집기(shared MarkdownField fill)는 .mcm-memo__field 밖의 .mcm-memo__md 에 둔다 — `.mcm-memo__field div` 후손 규칙이
  * 편집기 안의 div(도구 막대·Tiptap 감싸개·ProseMirror 노드)에 걸려 모양을 망가뜨리지 않게. 저장 중 잠금은 --locked(누름 막기·흐리게)다.
+ * 편집 화면 맨 위 줄은 [제목 입력칸 | 형식 선택]이고, 글자 수는 아래 줄 [저장]·[취소] 왼쪽에 둔다(제목 줄을 더해도 기본 크기에서 [저장] 줄이 밀리지 않게).
  */
 export const MEMO_STYLE_HREF = "mcm-widget-memo";
 
@@ -12,6 +13,8 @@ export const MEMO_CSS = `
 .mcm-memo__bar { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-sm); }
 .mcm-memo__bar--end { justify-content: flex-end; }
 .mcm-memo__actions { display: flex; align-items: center; gap: var(--spacing-xs); }
+/* 제목 입력칸 — 편집 화면 맨 위 줄에서 형식 선택 왼쪽의 남는 폭을 쓴다(좁은 칸에서도 min-width 0 으로 줄어든다). */
+.mcm-memo__title { flex: 1 1 0; min-width: 0; }
 .mcm-memo__view { flex: 1 1 0; min-height: 0; overflow: auto; }
 .mcm-memo__edit { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: var(--spacing-xs); container-type: inline-size; }
 .mcm-memo__count { font-size: var(--font-size-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }

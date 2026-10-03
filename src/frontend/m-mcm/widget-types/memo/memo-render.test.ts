@@ -1,6 +1,8 @@
 /** @vitest-environment happy-dom */
 /**
  * 메모장 렌더러·편집기 동작 시험(스펙 2026-10-02-widget-admin-generic §17.4).
+ * - 메모장 제목(2026-10-03): 틀 제목 훅(useWidgetTitle)은 마지막으로 틀에 알린 값(h.frameTitle)을 기록하는 대역이다 — 저장된 제목만 알리는지,
+ *   공용 메모·미리보기·기본 배치 보드에서는 알리지 않는지 본다. 실제 틀(제목 줄 h3)에서 바뀌는 것은 shared widget-frame 시험이 맡는다.
  * - 서버 호출(./api)과 shared 의 폼 부품·위젯 틀 훅은 대역으로 바꾼다. 형식별 보기(NoticeBodyView)는 실물을 쓴다 —
  *   html 정화(script·onclick·style 제거)와 text 줄바꿈을 실제 DOM 으로 확인한다(shared dist 가 필요하다).
  * - md 편집기(shared MarkdownField)도 대역(textarea)이다 — Tiptap·서식/MD 전환은 shared markdown-editor 시험이 맡고, 여기서는
@@ -35,11 +37,29 @@ const h = vi.hoisted(() => ({
   userStatus: "confirmed" as "pending" | "confirmed" | "failed",
   /** renderWidget 이 마지막으로 넘긴 props — 같은 위젯을 다시 그리는 시험이 쓴다. */
   lastProps: null as unknown,
+  /** useWidgetTitle 대역이 틀에 알린 제목(위젯이 사라지면 null 로 되돌린다). */
+  frameTitle: null as string | null,
+  /** useWidgetTitle 이 렌더마다 받은 값 — 훅을 아예 부르지 않는 경우(공용 메모)를 가린다. */
+  titleArgs: [] as (string | null | undefined)[],
 }));
 
 vi.mock("./api", () => ({ fetchMemo: h.fetchMemo, saveMemo: h.saveMemo }));
 
-vi.mock("@dk-oasis/shared/widget", () => ({ useWidgetStatus: () => h.setStatus }));
+vi.mock("@dk-oasis/shared/widget", async () => {
+  const { useEffect } = await import("react");
+  return {
+    useWidgetStatus: () => h.setStatus,
+    useWidgetTitle: (title: string | null | undefined) => {
+      h.titleArgs.push(title);
+      useEffect(() => {
+        h.frameTitle = title ?? null;
+        return () => {
+          h.frameTitle = null;
+        };
+      }, [title]);
+    },
+  };
+});
 
 // 사용자 확인(shared portal-shell 의 /api/auth/me 호출)을 막고 시험이 정한 사용자를 돌려준다. enabled 를 무시해
 // 미리보기·보드 맥락에서 읽지·쓰지 않는 것이 렌더러 자신의 판정임을 확인한다(실제 훅은 enabled=false 면 "").
@@ -72,6 +92,23 @@ vi.mock("@dk-oasis/shared/form", async () => {
           el("option", { key: o.value, value: o.value }, o.label)
         )
       ),
+    Input: (p: {
+      value?: string;
+      onChange?: (v: string) => void;
+      readOnly?: boolean;
+      placeholder?: string;
+      "data-testid"?: string;
+      "aria-label"?: string;
+    }) =>
+      el("input", {
+        type: "text",
+        value: p.value,
+        readOnly: p.readOnly,
+        placeholder: p.placeholder,
+        "data-testid": p["data-testid"],
+        "aria-label": p["aria-label"],
+        onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value),
+      }),
     Textarea: (p: {
       value?: string;
       onChange?: (v: string) => void;
@@ -189,6 +226,8 @@ beforeEach(() => {
   h.setStatus.mockReset();
   h.userId = "u1";
   h.userStatus = "confirmed";
+  h.frameTitle = null;
+  h.titleArgs = [];
   store = new MemoryStorage();
   storageOverride = null;
   container = document.createElement("div");
@@ -229,6 +268,15 @@ async function typeInto(testId: string, text: string) {
   });
 }
 
+/** 제목 입력칸(<input>)에 쓴다 — typeInto 는 textarea 전용이다. */
+async function typeTitle(text: string) {
+  const el = must("memo-title-input") as HTMLInputElement;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(el, text);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 async function choose(testId: string, value: string) {
   const el = must(testId) as HTMLSelectElement;
   await act(async () => {
@@ -242,6 +290,7 @@ const record = (over: Partial<MemoRecord> = {}): MemoRecord => ({
   defId: "def.abc12345",
   format: "text",
   content: "저장된 메모",
+  title: null,
   updatedAt: "2026-10-03T10:00:00",
   ...over,
 });
@@ -251,6 +300,8 @@ interface RenderProps {
   widgetId?: string;
   instanceId?: string;
   refreshKey?: number;
+  /** 위젯 정의 이름(WidgetProps.title) — 제목 입력칸 placeholder 가 알린다. */
+  title?: string;
   /** 보드 성격 맥락 — 주면 그 값의 provider 안에서 그린다(위젯관리 [기본 배치] 보드는 "preview"). 안 주면 provider 밖(홈)이다. */
   boardMode?: WidgetBoardMode;
 }
@@ -261,6 +312,7 @@ async function renderWidget(p: RenderProps = {}) {
     widgetId: p.widgetId ?? "def.abc12345",
     definition: p.definition ?? { scope: "personal", format: "text", content: "" },
     refreshKey: p.refreshKey ?? 0,
+    title: p.title ?? "메모장",
     size: { w: 8, h: 10 },
     config: null,
   };
@@ -369,7 +421,7 @@ describe("개인 메모 — load → 보기 → 편집 → 저장", () => {
     await click("memo-save");
 
     expect(h.saveMemo).toHaveBeenCalledTimes(1);
-    expect(h.saveMemo).toHaveBeenCalledWith({ instId: "inst-1", defId: "def.abc12345", format: "html", content: "<p>새 글</p>" });
+    expect(h.saveMemo).toHaveBeenCalledWith({ instId: "inst-1", defId: "def.abc12345", format: "html", content: "<p>새 글</p>", title: null });
     expect(q("memo-input")).toBeNull(); // 보기로 돌아왔다
     expect(q("memo-input-md")).toBeNull();
     expect(must("widget-memo-body").getAttribute("data-format")).toBe("HTML");
@@ -613,6 +665,7 @@ describe("개인 메모 — md 형식은 공용 마크다운 편집기(공지 �
       defId: "def.abc12345",
       format: "md",
       content: "# 새 제목\n\n- 항목 **굵게**",
+      title: null,
     });
     expect(q("memo-input-md")).toBeNull(); // 보기로 돌아왔다
     expect(must("widget-memo-body").querySelector("h1")?.textContent).toBe("새 제목");
@@ -1644,6 +1697,240 @@ describe("개인 메모 — 쓰다 만 글 임시 저장(localStorage)", () => {
       expect(q("memo-draft-notice")).toBeNull();
       expect((must("memo-input") as HTMLTextAreaElement).value).toBe("서버 글");
     });
+  });
+});
+
+describe("개인 메모 — 메모장 제목(2026-10-03)", () => {
+  const KEY = "dmes:widget:memo-draft:v1:u1:inst-1";
+  const SAVED = record({ content: "서버 글", title: "저장된 제목" });
+  const NOW = new Date(2026, 9, 3, 15, 0).getTime();
+  const stored = (): MemoDraft | null => {
+    const raw = window.localStorage.getItem(KEY);
+    return raw ? (JSON.parse(raw) as MemoDraft) : null;
+  };
+  const putDraft = (over: Record<string, unknown> = {}) =>
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify({ format: "text", content: "서버 글", baseHash: memoBaseHash(SAVED), savedAt: new Date(2026, 9, 3, 14, 5).getTime(), ...over })
+    );
+  const settle = () =>
+    act(async () => {
+      vi.advanceTimersByTime(MEMO_DRAFT_DELAY_MS + 60);
+      await Promise.resolve();
+    });
+  async function remount(p: RenderProps = {}) {
+    act(() => root.unmount());
+    root = createRoot(container);
+    await renderWidget(p);
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("저장된 제목이 있으면 load 뒤 틀 제목을 그것으로 바꾸고, 없으면 바꾸지 않는다(정의 이름)", async () => {
+    h.fetchMemo.mockResolvedValue(SAVED);
+    await renderWidget();
+    expect(h.frameTitle).toBe("저장된 제목");
+
+    act(() => root.unmount());
+    expect(h.frameTitle).toBeNull(); // 위젯이 사라지면 틀이 되돌린다
+    root = createRoot(container);
+    h.fetchMemo.mockResolvedValue(record({ title: null }));
+    await renderWidget();
+    expect(h.frameTitle).toBeNull();
+  });
+
+  it("[편집] 입력칸은 저장된 제목으로 시작하고, 비었으면 placeholder 가 정의 이름으로 돌아간다고 알린다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ title: null }));
+    await renderWidget({ title: "메모장" });
+    await click("memo-edit");
+    const input = must("memo-title-input") as HTMLInputElement;
+    expect(input.value).toBe("");
+    expect(input.placeholder).toBe("제목(비우면 「메모장」)");
+    expect(input.getAttribute("aria-label")).toBe("메모 제목");
+    // 맨 위 줄 — 형식 선택과 같은 줄이고 입력칸이 먼저다
+    const bar = input.closest(".mcm-memo__bar")!;
+    expect(bar.querySelector('[data-testid="memo-format"]')).not.toBeNull();
+    expect(bar.firstElementChild!.contains(input)).toBe(true);
+    // 메모가 없는 칸(첫 편집)도 같다
+    await click("memo-cancel");
+    h.fetchMemo.mockResolvedValue(SAVED);
+    await remount({ title: "메모장" });
+    await click("memo-edit");
+    expect((must("memo-title-input") as HTMLInputElement).value).toBe("저장된 제목");
+  });
+
+  it("제목을 쓰고 [저장]하면 내용과 함께 보내고(앞뒤 공백은 자른다), 저장 뒤 틀 제목이 서버가 돌려준 제목으로 바뀐다 — 편집 중에는 미리 바뀌지 않는다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ title: null }));
+    h.saveMemo.mockResolvedValue(record({ content: "새 글", title: "나의 할 일" }));
+    await renderWidget();
+    await click("memo-edit");
+    await typeInto("memo-input", "새 글");
+    await typeTitle("  나의 할 일  ");
+    expect(h.frameTitle).toBeNull(); // 저장 전
+
+    await click("memo-save");
+    expect(h.saveMemo).toHaveBeenCalledWith({ instId: "inst-1", defId: "def.abc12345", format: "text", content: "새 글", title: "나의 할 일" });
+    expect(q("memo-title-input")).toBeNull(); // 보기로 돌아왔다
+    expect(h.frameTitle).toBe("나의 할 일");
+  });
+
+  it("제목을 비우고 저장하면 title 을 null 로 넘기고(요청 계층이 \"\" 로 보낸다), 서버가 title 없이 돌려주면 틀 제목은 정의 이름으로 돌아간다", async () => {
+    h.fetchMemo.mockResolvedValue(SAVED);
+    h.saveMemo.mockResolvedValue(record({ content: "서버 글", title: null }));
+    await renderWidget();
+    expect(h.frameTitle).toBe("저장된 제목");
+    await click("memo-edit");
+    await typeTitle("   ");
+    await click("memo-save");
+    expect(h.saveMemo).toHaveBeenCalledWith(expect.objectContaining({ title: null }));
+    expect(h.frameTitle).toBeNull();
+  });
+
+  it("제목은 40자(코드 포인트)까지만 담긴다 — 더 쓰거나 붙여 넣으면 잘리고 이모지는 쌍 가운데서 잘리지 않는다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ title: null }));
+    await renderWidget();
+    await click("memo-edit");
+    await typeTitle("가".repeat(50));
+    expect((must("memo-title-input") as HTMLInputElement).value).toBe("가".repeat(40));
+    await typeTitle("😀".repeat(50));
+    expect((must("memo-title-input") as HTMLInputElement).value).toBe("😀".repeat(40));
+    await typeTitle("😀".repeat(40)); // 40자(UTF-16 80단위)는 그대로 저장할 수 있다
+    expect(must("memo-save").hasAttribute("disabled")).toBe(false);
+  });
+
+  it("제목에 탭 같은 제어 문자가 들어 있으면 [저장]을 막는다 — 지우면 다시 열린다(한 줄 입력칸은 줄바꿈을 스스로 지운다)", async () => {
+    h.fetchMemo.mockResolvedValue(record({ title: null }));
+    await renderWidget();
+    await click("memo-edit");
+    await typeTitle("가\t나");
+    expect(must("memo-save").hasAttribute("disabled")).toBe(true);
+    await click("memo-save");
+    expect(h.saveMemo).not.toHaveBeenCalled();
+    await typeTitle("가나");
+    expect(must("memo-save").hasAttribute("disabled")).toBe(false);
+  });
+
+  it("서버가 제목을 거절하면 서버 문구를 아래 줄에 보이고 쓰던 제목·글은 그대로 둔다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ title: null }));
+    h.saveMemo.mockRejectedValue(new MemoServiceError("메모 제목은 40자까지 쓸 수 있습니다."));
+    await renderWidget();
+    await click("memo-edit");
+    await typeTitle("쓰던 제목");
+    await click("memo-save");
+    expect(must("memo-error").textContent).toBe("메모 제목은 40자까지 쓸 수 있습니다.");
+    expect((must("memo-title-input") as HTMLInputElement).value).toBe("쓰던 제목");
+    expect(h.frameTitle).toBeNull();
+  });
+
+  it("저장 중에는 제목 입력칸이 잠긴다", async () => {
+    h.fetchMemo.mockResolvedValue(record({ title: null }));
+    const d = deferred<MemoRecord>();
+    h.saveMemo.mockReturnValue(d.promise);
+    await renderWidget();
+    await click("memo-edit");
+    await typeTitle("제목");
+    await act(async () => {
+      must("memo-save").click();
+    });
+    expect((must("memo-title-input") as HTMLInputElement).readOnly).toBe(true);
+    await act(async () => {
+      d.resolve(record({ title: "제목" }));
+    });
+    await flush();
+    expect(h.frameTitle).toBe("제목");
+  });
+
+  it("공용 메모는 제목 입력칸도 틀 제목 바꾸기도 없다", async () => {
+    await renderWidget({ definition: { scope: "shared", format: "text", content: "공지" } });
+    expect(q("memo-title-input")).toBeNull();
+    expect(h.titleArgs).toEqual([]); // useWidgetTitle 을 부르지 않는다
+    expect(h.frameTitle).toBeNull();
+  });
+
+  it.each([
+    ["관리 화면 미리보기", { instanceId: "preview", widgetId: "def.abc12345" }],
+    ["기본 배치 보드", { boardMode: "preview" as const }],
+  ])("%s — 편집이 막혀 제목 입력칸이 없고 틀 제목은 정의 이름 그대로다(서버도 부르지 않는다)", async (_name, p) => {
+    h.fetchMemo.mockResolvedValue(SAVED);
+    await renderWidget(p);
+    await click("memo-edit");
+    expect(q("memo-title-input")).toBeNull();
+    expect(h.frameTitle).toBeNull();
+    expect(h.fetchMemo).not.toHaveBeenCalled();
+    expect(h.titleArgs.every((t) => t === null)).toBe(true);
+  });
+
+  it("제목만 바꿔도 300ms 뒤 임시본에 title 을 쓰고, 저장된 제목으로 되돌리면 임시본을 지운다", async () => {
+    h.fetchMemo.mockResolvedValue(SAVED);
+    await renderWidget();
+    await click("memo-edit");
+    await typeTitle("쓰던 제목");
+    expect(stored()).toBeNull(); // 디바운스 중
+    await settle();
+    expect(stored()).toMatchObject({ format: "text", content: "서버 글", title: "쓰던 제목", baseHash: memoBaseHash(SAVED) });
+    await typeTitle("저장된 제목");
+    await settle();
+    expect(stored()).toBeNull();
+  });
+
+  it("제목을 비우려던 글도 임시 저장하고, 위젯을 내렸다 올리면 [이어 쓰기]로 제목 입력칸이 복원된다", async () => {
+    h.fetchMemo.mockResolvedValue(SAVED);
+    await renderWidget();
+    await click("memo-edit");
+    await typeTitle("쓰던 제목");
+    await remount(); // 디바운스가 지나기 전에 내려도 바로 쓴다
+    expect(must("memo-draft-flag").textContent).toBe("쓰다 만 글 있음");
+    await click("memo-edit");
+    expect((must("memo-title-input") as HTMLInputElement).value).toBe("저장된 제목"); // 고르기 전에는 서버 값(입력칸은 잠김)
+    expect((must("memo-title-input") as HTMLInputElement).readOnly).toBe(true);
+    await click("memo-draft-resume");
+    expect((must("memo-title-input") as HTMLInputElement).value).toBe("쓰던 제목");
+    expect((must("memo-title-input") as HTMLInputElement).readOnly).toBe(false);
+  });
+
+  it("제목 칸이 생기기 전의 옛 임시본(title 없음)은 이어 쓰면 저장된 제목을 그대로 쓰고 글만 복원한다", async () => {
+    h.fetchMemo.mockResolvedValue(SAVED);
+    putDraft({ content: "쓰던 글" }); // title 키 없음
+    await renderWidget();
+    expect(must("memo-draft-flag")).toBeTruthy();
+    await click("memo-edit");
+    await click("memo-draft-resume");
+    expect((must("memo-title-input") as HTMLInputElement).value).toBe("저장된 제목");
+    expect((must("memo-input") as HTMLTextAreaElement).value).toBe("쓰던 글");
+  });
+
+  it("옛 임시본이 글도 서버와 같으면(제목 없음) 쓸모없어 지운다 — 제목 칸 때문에 쓰다 만 글로 보이지 않는다", async () => {
+    h.fetchMemo.mockResolvedValue(SAVED);
+    putDraft({ content: "서버 글" });
+    await renderWidget();
+    expect(q("memo-draft-flag")).toBeNull();
+    expect(window.localStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("제목만 다른 임시본은 쓰다 만 글로 표시된다", async () => {
+    h.fetchMemo.mockResolvedValue(SAVED);
+    putDraft({ title: "다른 제목" });
+    await renderWidget();
+    expect(must("memo-draft-flag")).toBeTruthy();
+  });
+
+  it("저장에 성공하면 제목 포함 임시본을 지운다", async () => {
+    h.fetchMemo.mockResolvedValue(SAVED);
+    h.saveMemo.mockResolvedValue(record({ content: "서버 글", title: "새 제목" }));
+    await renderWidget();
+    await click("memo-edit");
+    await typeTitle("새 제목");
+    await settle();
+    expect(stored()).toMatchObject({ title: "새 제목" });
+    await click("memo-save");
+    expect(window.localStorage.getItem(KEY)).toBeNull();
+    expect(h.frameTitle).toBe("새 제목");
   });
 });
 

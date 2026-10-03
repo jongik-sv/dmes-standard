@@ -84,6 +84,9 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
   const [status, setStatus] = useState<WidgetStatus>({ kind: "ready" });
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   const [titleSlot, setTitleSlot] = useState<HTMLElement | null>(null);
+  // 본체가 useWidgetTitle 로 덮어쓴 제목. 위젯 ID 와 함께 기억해 렌더 중에 걸러 쓴다 — 다른 위젯이 같은 칸에 오면 effect 없이 풀린다
+  // (부모 effect 로 초기화하면 이미 불러온 본체의 자식 effect 가 먼저 정한 제목을 지운다).
+  const [titleOverride, setTitleOverride] = useState<{ widgetId: string; title: string } | null>(null);
   const [bodySize, setBodySize] = useState<{ width: number; height: number | null }>({ width: 0, height: null });
   const bodyRef = useRef<HTMLDivElement>(null);
   const meta = entry?.meta;
@@ -109,10 +112,16 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
     return () => window.clearInterval(t);
   }, [editing, refreshSec]);
 
-  const api = useMemo<WidgetFrameApi>(
-    () => ({ setStatus, bodySize, actionsSlot, titleSlot }),
-    [bodySize, actionsSlot, titleSlot]
+  const widgetId = entry?.meta.id ?? item.widgetId;
+  const setTitle = useCallback(
+    (title: string | null) => setTitleOverride(title && title.trim() ? { widgetId, title } : null),
+    [widgetId]
   );
+  const api = useMemo<WidgetFrameApi>(
+    () => ({ setStatus, setTitle, bodySize, actionsSlot, titleSlot }),
+    [setTitle, bodySize, actionsSlot, titleSlot]
+  );
+  const shownTitle = titleOverride && titleOverride.widgetId === widgetId ? titleOverride.title : (entry?.meta.title ?? "");
 
   const retryLoad = useCallback(() => {
     // lazy 는 실패한 import 를 기억하므로 캐시를 지워 다시 불러오게 한다.
@@ -228,11 +237,11 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
       data-inst-id={item.instId}
       data-editing={editing ? "true" : undefined}
       data-locked={item.locked ? "true" : undefined}
-      aria-label={entry.meta.title}
+      aria-label={shownTitle}
     >
       <WidgetStyle />
       <div className="cm-widget__head" tabIndex={editing ? 0 : -1} onKeyDown={onHeadKeyDown}>
-        <h3 className="cm-widget__title">{entry.meta.title}</h3>
+        <h3 className="cm-widget__title">{shownTitle}</h3>
         {entry.meta.subtitle && <span className="cm-widget__sub">{entry.meta.subtitle}</span>}
         <span className="cm-widget__title-extra" ref={setTitleSlot} />
         <span className="cm-widget__spacer" />

@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code SecWidgetTabWriter} 와 같은 방식(바깥 OASIS 트랜잭션에 합류한다).
  * <p>덮어쓰기는 읽어 온 행의 값만 바꾼다 — 새 객체로 merge 하면 C_AT·C_USR_ID·VER 가 지워진다.
  * 끝에 flush 해서 {@code @PreUpdate} 가 채운 U_AT 을 응답에 쓸 수 있게 한다.
+ * <p>제목: 제목을 받는 오버로드는 그 값(null = 지움)으로 바꾸고, 받지 않는 오버로드는 기존 제목을 그대로 둔다(새 행이면 null).
  */
 @Component("widgetMemoWriter")
 public class WidgetMemoWriter {
@@ -30,9 +31,19 @@ public class WidgetMemoWriter {
         this.repository = repository;
     }
 
-    /** (userId, instId) 메모를 넣거나 덮어쓴다. 새 instId 일 때만 사용자당 100개 상한을 본다. */
+    /** (userId, instId) 메모를 넣거나 덮어쓴다 — 기존 제목은 그대로 둔다(새 메모면 제목 없음). 새 instId 일 때만 사용자당 100개 상한을 본다. */
     @Transactional
     public WidgetMemo save(String userId, String instId, String defId, String fmt, String content) {
+        return apply(userId, instId, defId, fmt, content, false, null);
+    }
+
+    /** 위와 같되 제목을 {@code title} 로 바꾼다(null = 제목을 지워 정의 이름으로 돌아감). 값 검사는 호출자(서비스)가 끝낸 뒤다. */
+    @Transactional
+    public WidgetMemo save(String userId, String instId, String defId, String fmt, String content, String title) {
+        return apply(userId, instId, defId, fmt, content, true, title);
+    }
+
+    private WidgetMemo apply(String userId, String instId, String defId, String fmt, String content, boolean replaceTitle, String title) {
         WidgetMemo memo = repository.findById(new WidgetMemoId(userId, instId)).orElse(null);
         if (memo == null) {
             if (repository.countByUserId(userId) >= MAX_PER_USER) {
@@ -45,6 +56,7 @@ public class WidgetMemoWriter {
         memo.setDefId(defId);
         memo.setFmt(fmt);
         memo.setContent(content);
+        if (replaceTitle) memo.setTitle(title);
         return repository.saveAndFlush(memo);
     }
 }

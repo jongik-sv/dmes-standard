@@ -30,6 +30,7 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 /**
  * {@link WidgetMemoService} — H2 메모(실제 Writer·저장소) + mock(정의 저장소·사용자). 스펙 §17.3:
  * 없는 메모 null, 저장·조회 왕복, 사용자 격리, instId 형식, personal memo 정의만, format, 20,000자 경계, 100개 상한(새 instId 만).
+ * 제목(2026-10-03): 공백 자르기, 빈 값은 null, 40자(코드 포인트) 경계, 제어 문자 거절, title 키가 없으면 기존 제목 유지.
  */
 @SpringJUnitConfig(WidgetMemoJpaTestConfig.class)
 class WidgetMemoServiceTest {
@@ -90,6 +91,13 @@ class WidgetMemoServiceTest {
         return req(instId, DEF_ID, "text", content);
     }
 
+    /** title 키를 보낸 저장 요청(null 이면 키를 보내지 않은 것과 같다). */
+    private static WidgetMemoRequest req(String instId, String content, String title) {
+        WidgetMemoRequest r = req(instId, content);
+        r.setTitle(title);
+        return r;
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> memo(Map<String, Object> result) {
         assertThat(result).containsKey("memo");
@@ -125,7 +133,8 @@ class WidgetMemoServiceTest {
         assertThat(loaded).containsEntry("instId", "w-abc-123").containsEntry("defId", DEF_ID)
                 .containsEntry("format", "md").containsEntry("content", "# 제목\n- 할 일");
         assertThat(loaded.get("updatedAt")).isNotNull();
-        assertThat(loaded.keySet()).containsExactly("instId", "defId", "format", "content", "updatedAt");
+        assertThat(loaded.keySet()).containsExactly("instId", "defId", "format", "content", "title", "updatedAt");
+        assertThat(loaded).containsEntry("title", null);
     }
 
     @Test
@@ -252,5 +261,100 @@ class WidgetMemoServiceTest {
         loginAs("userB");
         service.save(req("i101", "B 는 첫 메모"));
         assertThat(repository.countByUserId("userB")).isEqualTo(1);
+    }
+    // ── 제목 ────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("제목은 앞뒤 공백을 자르고 저장하며 save·load 응답에 title 로 돌려준다")
+    void titleTrimmedAndRoundTrip() {
+        Map<String, Object> saved = memo(service.save(req("i1", "본문", "  나의 할 일  ")));
+        assertThat(saved).containsEntry("title", "나의 할 일").containsEntry("content", "본문");
+        assertThat(memo(service.load(inst("i1")))).containsEntry("title", "나의 할 일");
+        assertThat(repository.findById(new WidgetMemoId("userA", "i1")).orElseThrow().getTitle()).isEqualTo("나의 할 일");
+    }
+
+    @Test
+    @DisplayName("제목이 아직 없는 메모의 title 은 null 이다(키는 있다)")
+    void titleNullWhenNeverSet() {
+        service.save(req("i1", "본문"));
+        assertThat(memo(service.load(inst("i1")))).containsEntry("title", null);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "   ", "\u3000"})
+    @DisplayName("빈 제목(공백뿐 포함)은 null 로 저장해 기존 제목을 지운다 — 정의 이름으로 돌아간다")
+    void blankTitleClearsExisting(String blank) {
+        service.save(req("i1", "본문", "제목"));
+        Map<String, Object> saved = memo(service.save(req("i1", "본문", blank)));
+        assertThat(saved).containsEntry("title", null);
+        assertThat(memo(service.load(inst("i1")))).containsEntry("title", null);
+        assertThat(repository.findById(new WidgetMemoId("userA", "i1")).orElseThrow().getTitle()).isNull();
+    }
+
+    @Test
+    @DisplayName("요청에 title 키가 없으면(null) 기존 제목을 그대로 두고 본문만 고친다 — 새 메모면 제목 없음")
+    void missingTitleKeepsExisting() {
+        service.save(req("i1", "처음", "내 제목"));
+
+        Map<String, Object> saved = memo(service.save(req("i1", "고침", null)));
+
+        assertThat(saved).containsEntry("title", "내 제목").containsEntry("content", "고침");
+        assertThat(memo(service.load(inst("i1")))).containsEntry("title", "내 제목");
+
+        assertThat(memo(service.save(req("i2", "새 메모", null)))).containsEntry("title", null);
+    }
+
+    @Test
+    @DisplayName("제목은 40자(코드 포인트)까지 — 한글 40자와 이모지 40개(UTF-16 80단위)는 받고 41자는 E002")
+    void titleLengthBoundaryByCodePoint() {
+        String korean40 = "가".repeat(WidgetMemoService.TITLE_MAX);
+        String emoji40 = "\uD83D\uDE00".repeat(WidgetMemoService.TITLE_MAX);
+        assertThat(emoji40.length()).isEqualTo(80);
+
+        assertThat(memo(service.save(req("i1", "x", korean40)))).containsEntry("title", korean40);
+        assertThat(memo(service.save(req("i2", "x", emoji40)))).containsEntry("title", emoji40);
+        assertThat((String) memo(service.load(inst("i2"))).get("title")).isEqualTo(emoji40);
+
+        assertInvalid(req("i3", "x", "가".repeat(41)), "메모 제목은 40자까지 쓸 수 있습니다.");
+        assertInvalid(req("i3", "x", "\uD83D\uDE00".repeat(41)), "메모 제목은 40자까지 쓸 수 있습니다.");
+        // 공백은 자른 뒤 센다 — 바깥 공백이 40자를 넘기게 만들지 않는다.
+        assertThat(memo(service.save(req("i4", "x", "  " + korean40 + "  ")))).containsEntry("title", korean40);
+        assertThat(repository.findById(new WidgetMemoId("userA", "i3"))).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"가\n나", "가\r\n나", "a\tb", "a\u0000b", "a\u001Fb", "a\u007Fb", "a\u0085b"})
+    @DisplayName("제목 안의 줄바꿈 같은 제어 문자는 E002")
+    void titleControlCharactersRejected(String bad) {
+        assertInvalid(req("i1", "x", bad), "메모 제목에 줄바꿈 같은 제어 문자는 쓸 수 없습니다.");
+        assertThat(repository.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("제목 바깥의 줄바꿈·탭은 공백으로 보고 잘라 받는다")
+    void titleOuterWhitespaceControlsAreTrimmed() {
+        assertThat(memo(service.save(req("i1", "x", "\n제목\t")))).containsEntry("title", "제목");
+    }
+
+    @Test
+    @DisplayName("잘못된 제목이면 본문·제목 모두 저장하지 않는다 — 새 메모도 기존 메모도 그대로")
+    void invalidTitleWritesNothing() {
+        service.save(req("i1", "원래 글", "원래 제목"));
+
+        assertInvalid(req("i1", "고친 글", "가\n나"), "메모 제목에 줄바꿈 같은 제어 문자는 쓸 수 없습니다.");
+        assertInvalid(req("i2", "새 글", "가".repeat(41)), "메모 제목은 40자까지 쓸 수 있습니다.");
+
+        assertThat(memo(service.load(inst("i1")))).containsEntry("content", "원래 글").containsEntry("title", "원래 제목");
+        assertThat(repository.findById(new WidgetMemoId("userA", "i2"))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("제목도 사용자 격리 — 다른 사용자가 같은 칸에 저장해도 내 제목은 그대로다")
+    void titleIsolatedPerUser() {
+        service.save(req("i1", "A 글", "A 제목"));
+        loginAs("userB");
+        service.save(req("i1", "B 글", "B 제목"));
+        loginAs("userA");
+        assertThat(memo(service.load(inst("i1")))).containsEntry("title", "A 제목");
     }
 }
