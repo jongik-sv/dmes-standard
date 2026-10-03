@@ -78,7 +78,7 @@ mdm 서비스는 `@Transactional` 을 쓰지 않는다(CGLIB 프록시가 OASIS 
 
 | 메서드 | 기록하는 키 |
 |---|---|
-| `column(oldPhysName, newPhysName, layoutFeedMayChange)` | 두 물리명 모두(같으면 하나). 신규는 새 이름만. 펼침이 켜지면 두 물리명을 항목으로 쓰는 RELEASED 레이아웃 버전(지난 구간 포함, LEGACY 스냅샷 버전 제외)의 전문 ID, 헤더면 헤더 + 그 헤더를 쌓은 전문(`LayoutQueries.withStackingMessages`)을 LAYOUT 키로 더한다(D-144 3단계 최종 검토 I1 — 전문 합성의 타입·단위·소수가 그때의 사전에서 온다). 2인자 판은 펼침을 켠다 |
+| `column(oldPhysName, newPhysName, layoutFeedMayChange)` | 두 물리명 모두(같으면 하나). 신규는 새 이름만. 펼침이 켜지면 두 물리명을 항목으로 쓰는 RELEASED 레이아웃 버전(지난 구간 포함, LEGACY 스냅샷 버전 제외)의 전문 ID, 헤더면 헤더 + 그 헤더를 쌓은 전문(`LayoutQueries.withStackingMessages`)을 LAYOUT 키로 더한다(D-144 3단계 최종 검토 I1 — 전문 합성의 타입·단위·소수가 그때의 사전에서 왔다. D-151 이후 확정한 버전은 항목 행에 고정돼 사전과 무관하므로 펼침은 값이 바뀌지 않는 키까지 거는 무해한 무효화로 남긴다). 2인자 판은 펼침을 켠다 |
 | `domain(domainId, layoutFeedMayChange)` | 그 도메인 + `DomainImpactQueries.subtree(domainId)` 의 하위 도메인 전부 + 그 도메인들을 참조하는 컬럼의 물리명 전부. 펼침이 켜지면 그 컬럼들로 위와 같이 LAYOUT 키를 더한다. 1인자 판은 펼침을 켠다. `code(…)` 의 도메인 펼침은 LAYOUT 으로 펼치지 않는다(코드 변경은 타입·단위·소수를 바꾸지 않는다) |
 | `rule(ruleId)` | 그 룰 |
 | `ruleSet(setId)` | 그 룰세트(버전 구분 없이 세트 키 하나 — 클라이언트는 RELEASED 버전 목록째 다시 받는다) |

@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dmb.layout;
 
+import com.dongkuk.dmes.mdm.common.dictionary.EffectiveDomainView;
 import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.layout.MdmFillKind;
 import com.dongkuk.dmes.mdm.dmb.layoutMng.dto.LayoutMngSaveRequest;
@@ -142,6 +143,7 @@ public class LayoutDraftBuilder {
         //    화면은 HEADER_SEQ 로 주고, 저장 대상은 그 헤더 버전의 항목 물리명이다
         Map<String, LayoutDraft.ConstRow> constRows = new LinkedHashMap<>();
         List<LayoutRegistrationRules.Override> overrides = new ArrayList<>();
+        List<MdmLayoutItem> overrideTargets = new ArrayList<>(); // overrides 와 같은 순서 — 재정의 대상 헤더 항목 행
         for (Map<String, Object> row : consts == null ? List.<Map<String, Object>>of() : consts) {
             String value = row.get("CONST_VALUE") == null ? null : LayoutRows.text(String.valueOf(row.get("CONST_VALUE")));
             if (value == null) {
@@ -169,6 +171,7 @@ public class LayoutDraftBuilder {
                     new LayoutDraft.ConstRow(headerId, seqValue.intValue(), target.getColumnPhys(), value));
             overrides.add(new LayoutRegistrationRules.Override(headerId, seqValue.intValue(), target.getColumnPhys(), value,
                     target.getLength()));
+            overrideTargets.add(target);
         }
         // ④ 본문 항목
         List<LayoutItemDraft> drafts = LayoutRows.drafts(items);
@@ -176,13 +179,21 @@ public class LayoutDraftBuilder {
         issues.addAll(LayoutItemRules.check(drafts, dict));
         // ④' 03 등록 거부 #2·#3·#4·#7(L12~L15) — 바이트 길이는 전문 EAI 인코딩으로 센다(없으면 UTF-8)
         Charset charset = charset(eai == null ? null : eai.getEncoding());
-        List<String> judged = new ArrayList<>(LayoutRows.physNames(drafts));
-        overrides.forEach(o -> judged.add(o.columnPhys()));
-        BiFunction<String, String, LayoutConstJudge.Judgement> judge = constJudge.forColumns(judged);
+        BiFunction<String, String, LayoutConstJudge.Judgement> judge = constJudge.forColumns(LayoutRows.physNames(drafts));
         issues.addAll(LayoutRegistrationRules.check(drafts, dict, codecs.units(), charset, lengthsBySeq(drafts, dict), judge, warnings));
-        Map<String, LayoutColumnInfo> overrideDict = dictionary.byPhysNames(overrides.stream()
-                .map(LayoutRegistrationRules.Override::columnPhys).toList());
-        issues.addAll(LayoutRegistrationRules.checkOverrides(overrides, overrideDict, charset, judge, warnings));
+        // 재정의 값은 그 헤더 버전 항목이 직렬화에 쓰는 타입·소수·단위로 판정한다(D-151 — 확정 헤더 버전이면 고정값, 합성과 같은 선택
+        // LayoutSnapshotAssembler.columnAttrs). 같은 물리명이 쌓은 헤더 둘에 있어도 항목마다 따로 본다. 표준식은 지금 사전의 것이다
+        LayoutDictionary.Cache overrideCache = dictionary.cache();
+        List<String> overridePhys = overrides.stream().map(LayoutRegistrationRules.Override::columnPhys).toList();
+        Map<String, LayoutColumnInfo> overrideDict = overrideCache.byPhysNames(overridePhys);
+        Map<String, EffectiveDomainView> overrideViews = overrideCache.views(overridePhys);
+        for (int i = 0; i < overrides.size(); i++) {
+            MdmLayoutItem target = overrideTargets.get(i);
+            LayoutSnapshotAssembler.ColumnAttrs attrs = LayoutSnapshotAssembler.columnAttrs(target.isPinned(), target.getDataType(),
+                    target.getUnitCode(), target.getScale(), overrideDict.get(target.getColumnPhys()));
+            issues.addAll(LayoutRegistrationRules.checkOverrides(List.of(overrides.get(i)), overrideDict, charset,
+                    constJudge.withAttrs(overrideViews, attrs), warnings));
+        }
         if (!issues.isEmpty()) {
             return new Built(null, issues, warnings, layout, eai, dict);
         }

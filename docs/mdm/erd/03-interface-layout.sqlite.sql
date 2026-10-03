@@ -1,12 +1,15 @@
 -- 영역 03 (dmb) SQLite DDL — TB_MDM_LAYOUT · EAI · LAYOUT_VER · LAYOUT_ITEM · LAYOUT_HEADER · LAYOUT_CONST
--- 정본: src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V21__layout_version.sql 의 ④ 새 표(D-144 3단계, D-148, ADR-0006).
---   이 파일은 V21 이 만든 최종 모양을 옮겨 적은 것이다 — 고칠 때는 마이그레이션을 먼저 바꾸고 여기를 맞춘다.
+-- 정본: src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V21__layout_version.sql 의 ④ 새 표(D-144 3단계, D-148, ADR-0006)
+--   + V22__layout_item_pin_column_attrs.sql 의 ③ 항목 표(D-151 — 확정 고정값 DATA_TYPE·UNIT_CODE·SCALE, 고정 표시 PINNED_YN).
+--   이 파일은 V21·V22 가 만든 최종 모양을 옮겨 적은 것이다 — 고칠 때는 마이그레이션을 먼저 바꾸고 여기를 맞춘다.
 -- 3단계 모양 요약:
 --   · 부모 TB_MDM_LAYOUT 은 ID·종류·이름·송수신 시스템·상태만 둔다. EAI_CODE·TOTAL_LENGTH·업무 VERSION 은 없다(EAI ↔ 레이아웃 순환 FK 해소).
 --   · 버전 행 TB_MDM_LAYOUT_VER 의 키는 (LAYOUT_ID, VER NUMERIC(7,3)) 이다. EAI_CODE·OWN_LENGTH(그 버전 자신의 항목 길이 합)·확정 기록·
 --     이행 전 스냅샷(LEGACY_SNAPSHOT_YN='Y' 면 SNAPSHOT_JSON 필수)을 가진다. 전문 총 길이는 저장하지 않는다(판정 시각 T 의 헤더 버전으로 합성).
 --   · 항목·헤더 구성·상수 재정의는 버전 키 (LAYOUT_ID, VER) 아래에 있다. 버전 표 4개의 감사 카운터는 AUD_VER 다(업무 VER 와 이름 충돌, D-034).
 --   · 상수 재정의 대상은 헤더 항목 물리명(HEADER_COLUMN_PHYS)이다 — 헤더 항목 FK 는 없다(헤더 버전은 판정 시각에 정해진다).
+--   · 항목의 DATA_TYPE·UNIT_CODE·SCALE 은 확정 고정값이다(D-151) — 확정이 행 전부를 고정 표시(PINNED_YN 'Y')하고 확정 시점 사전 유효값
+--     (없으면 NULL)을 쓰며 확정 취소가 비운다. DRAFT 는 'N'·NULL. 합성은 'Y' 행이면 NULL 까지 고정값을, 'N' 행이면 지금 사전 값을 쓴다.
 --   · TB_MDM_EAI.HEADER_LAYOUT_ID 는 남아 있으나 운영 코드는 읽지 않는다 — EAI 표준 헤더는 헤더 버전 행 EAI_CODE 를 시각 T 로 해석한다.
 -- 예약어 칼럼(ITEM 의 OFFSET·LENGTH)은 V21 과 같이 백틱으로 감싼다(SQLite 가 받는다). 부모 FK 를 먼저 만들도록 순서는 V21 과 같다.
 
@@ -103,6 +106,10 @@ CREATE TABLE TB_MDM_LAYOUT_ITEM (
     FILLER_LENGTH INTEGER,
     `OFFSET` INTEGER NOT NULL DEFAULT 0,
     `LENGTH` INTEGER NOT NULL DEFAULT 0,
+    DATA_TYPE VARCHAR(20),
+    UNIT_CODE VARCHAR(20),
+    SCALE INTEGER,
+    PINNED_YN VARCHAR(1) NOT NULL DEFAULT 'N',
     C_USR_ID VARCHAR(100),
     C_AT TIMESTAMP,
     C_SVC_ID VARCHAR(100),
@@ -116,8 +123,11 @@ CREATE TABLE TB_MDM_LAYOUT_ITEM (
     CONSTRAINT FK_TB_MDM_LAYOUT_ITEM_VER FOREIGN KEY (LAYOUT_ID, VER) REFERENCES TB_MDM_LAYOUT_VER (LAYOUT_ID, VER),
     CONSTRAINT FK_TB_MDM_LAYOUT_ITEM_COLUMN FOREIGN KEY (COLUMN_PHYS) REFERENCES TB_MDM_COLUMN (PHYS_NAME),
     CONSTRAINT FK_TB_MDM_LAYOUT_ITEM_UNIT FOREIGN KEY (TRANS_UNIT) REFERENCES TB_MDM_UNIT (UNIT_CODE),
+    CONSTRAINT FK_TB_MDM_LAYOUT_ITEM_UNIT_CODE FOREIGN KEY (UNIT_CODE) REFERENCES TB_MDM_UNIT (UNIT_CODE),
     CONSTRAINT CK_TB_MDM_LAYOUT_ITEM_FILL_KIND CHECK (FILL_KIND IN ('DATA','CONST','AUTO','FILLER')),
-    CONSTRAINT CK_TB_MDM_LAYOUT_ITEM_UNIT CHECK (TRANS_UNIT IS NULL OR UNIT_ITEM IS NULL)
+    CONSTRAINT CK_TB_MDM_LAYOUT_ITEM_UNIT CHECK (TRANS_UNIT IS NULL OR UNIT_ITEM IS NULL),
+    CONSTRAINT CK_TB_MDM_LAYOUT_ITEM_PINNED CHECK (PINNED_YN IN ('Y','N')
+        AND (PINNED_YN = 'Y' OR (DATA_TYPE IS NULL AND UNIT_CODE IS NULL AND SCALE IS NULL)))
 );
 
 CREATE TABLE TB_MDM_LAYOUT_HEADER (

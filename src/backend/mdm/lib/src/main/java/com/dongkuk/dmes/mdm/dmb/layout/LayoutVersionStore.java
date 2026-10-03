@@ -104,4 +104,54 @@ public class LayoutVersionStore {
         q.setParameter("ver", VersionNumbers.scaled(ver));
         return q.executeUpdate();
     }
+
+    /**
+     * 확정 고정 표시(D-151) — RELEASED 버전의 항목 행 전부를 고정 표시(PINNED_YN 'Y')하고 세 값을 비운다(물리명 있는 행은 이어서
+     * {@link #pinColumnAttrs} 가 채운다 — 그래서 물리명 없는 행·사전 값이 없는 칸은 "값 없음" 으로 고정된다). 엔티티 칼럼은
+     * insertable·updatable=false 라 네이티브로만 쓴다. 감사 칼럼은 건드리지 않는다(확정 기록은 버전 행이 남긴다).
+     */
+    public int markPinned(Long layoutId, BigDecimal ver) {
+        em.flush();
+        NativeQuery<?> q = em.createNativeQuery("UPDATE TB_MDM_LAYOUT_ITEM "
+                        + "SET PINNED_YN = 'Y', DATA_TYPE = NULL, UNIT_CODE = NULL, SCALE = NULL "
+                        + "WHERE LAYOUT_ID = :id AND VER = :ver AND EXISTS (SELECT 1 FROM TB_MDM_LAYOUT_VER v "
+                        + "WHERE v.LAYOUT_ID = TB_MDM_LAYOUT_ITEM.LAYOUT_ID AND v.VER = TB_MDM_LAYOUT_ITEM.VER AND v.STATUS = 'RELEASED')")
+                .unwrap(NativeQuery.class);
+        q.setParameter("id", layoutId);
+        q.setParameter("ver", VersionNumbers.scaled(ver));
+        return q.executeUpdate();
+    }
+
+    /**
+     * 확정 고정값(D-151) — 고정 표시한 RELEASED 버전의 항목 중 물리명이 {@code columnPhys} 인 행에 확정 시점 사전 유효값을 쓴다(값이
+     * 없으면 NULL). 관리 상태의 항목 엔티티는 옛 값을 쥐고 있으므로 호출자는 이 뒤에 항목을 다시 읽는다.
+     */
+    public int pinColumnAttrs(Long layoutId, BigDecimal ver, String columnPhys, String dataType, String unitCode, Integer scale) {
+        em.flush();
+        NativeQuery<?> q = em.createNativeQuery("UPDATE TB_MDM_LAYOUT_ITEM "
+                        + "SET DATA_TYPE = :dataType, UNIT_CODE = :unitCode, SCALE = :scale "
+                        + "WHERE LAYOUT_ID = :id AND VER = :ver AND COLUMN_PHYS = :phys AND PINNED_YN = 'Y' "
+                        + "AND EXISTS (SELECT 1 FROM TB_MDM_LAYOUT_VER v "
+                        + "WHERE v.LAYOUT_ID = TB_MDM_LAYOUT_ITEM.LAYOUT_ID AND v.VER = TB_MDM_LAYOUT_ITEM.VER AND v.STATUS = 'RELEASED')")
+                .unwrap(NativeQuery.class);
+        q.setParameter("dataType", dataType, String.class);
+        q.setParameter("unitCode", unitCode, String.class);
+        q.setParameter("scale", scale, Integer.class);
+        q.setParameter("id", layoutId);
+        q.setParameter("ver", VersionNumbers.scaled(ver));
+        q.setParameter("phys", columnPhys, String.class);
+        return q.executeUpdate();
+    }
+
+    /** 확정 취소(D-151) — 그 버전 항목 행의 고정 표시와 고정값을 모두 비운다(DRAFT 는 지금 사전을 읽는다). */
+    public int clearColumnAttrs(Long layoutId, BigDecimal ver) {
+        em.flush();
+        NativeQuery<?> q = em.createNativeQuery("UPDATE TB_MDM_LAYOUT_ITEM "
+                        + "SET PINNED_YN = 'N', DATA_TYPE = NULL, UNIT_CODE = NULL, SCALE = NULL "
+                        + "WHERE LAYOUT_ID = :id AND VER = :ver")
+                .unwrap(NativeQuery.class);
+        q.setParameter("id", layoutId);
+        q.setParameter("ver", VersionNumbers.scaled(ver));
+        return q.executeUpdate();
+    }
 }

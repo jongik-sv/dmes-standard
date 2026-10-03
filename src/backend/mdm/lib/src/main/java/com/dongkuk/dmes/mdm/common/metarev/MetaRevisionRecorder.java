@@ -64,8 +64,10 @@ public class MetaRevisionRecorder {
 
     /**
      * 컬럼 저장 — 두 물리명 모두(같으면 하나). 신규는 {@code oldPhysName} 이 null. {@code layoutFeedMayChange} 면 두 물리명을 쓰는 RELEASED
-     * 전문(헤더면 쌓은 전문까지)을 LAYOUT 키로 더한다 — 전문 합성은 항목의 타입·단위·소수를 그때의 컬럼 사전에서 읽는다(검토 I1). 물리명이
-     * 바뀌면 옛 이름을 쓰는 항목이 사전을 잃으므로 옛 이름도 찾는다. 펼침 조회와 기록은 한 트랜잭션(호출자 합류)에서 한 문장으로 남긴다.
+     * 전문(헤더면 쌓은 전문까지)을 LAYOUT 키로 더한다(검토 I1). D-151 뒤로 확정한 버전은 항목의 타입·단위·소수를 고정해 사전과 무관하므로
+     * 이 펼침은 값이 바뀌지 않는 키까지 거는 무해한 캐시 무효화다(고정 표시가 없는 RELEASED — 확정 경로를 거치지 않은 고정 데이터 — 만 지금
+     * 사전을 읽는다). 물리명이 바뀌면 옛 이름을 쓰는 항목이 사전을 잃으므로 옛 이름도 찾는다. 펼침 조회와 기록은 한 트랜잭션(호출자
+     * 합류)에서 한 문장으로 남긴다.
      */
     public void column(String oldPhysName, String newPhysName, boolean layoutFeedMayChange) {
         column(oldPhysName, newPhysName, layoutFeedMayChange, List.of());
@@ -100,7 +102,8 @@ public class MetaRevisionRecorder {
 
     /**
      * 도메인 저장 — 그 도메인 + 하위 도메인 전부 + 그 도메인들을 참조하는 컬럼 전부. {@code layoutFeedMayChange} 면 그 컬럼들을 쓰는 RELEASED
-     * 전문까지 LAYOUT 키로 더한다(검토 I1 — 유효 타입·단위·소수가 하위로 상속된다).
+     * 전문까지 LAYOUT 키로 더한다(검토 I1 — 유효 타입·단위·소수가 하위로 상속된다. D-151 뒤로 확정한 버전은 이 변경과 무관해 무해한 캐시
+     * 무효화로 남긴다).
      */
     public void domain(Long domainId, boolean layoutFeedMayChange) {
         tx.executeWithoutResult(status -> {

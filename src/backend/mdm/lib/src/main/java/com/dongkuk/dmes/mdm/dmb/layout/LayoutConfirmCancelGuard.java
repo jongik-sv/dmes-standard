@@ -25,7 +25,11 @@ import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
- * LAYOUT 확정 취소 원장 가드(D-144 3단계, Ruling P3-22·P3-23). 헤더 확정을 취소한 뒤 상태에서 그 헤더를 쌓은 RELEASED(현재·미래) 전문
+ * LAYOUT 확정 취소 훅 — 먼저 취소한 버전 항목 행의 확정 고정값을 비우고(D-151, {@link LayoutColumnPins#clear} — 전문·헤더 모두, DRAFT 는
+ * 늘 NULL), 이어 원장 가드를 본다. 비움이 이 훅에 있는 까닭: 공통 엔진의 취소 트랜잭션 안이라 상태 되돌림과 함께 커밋·롤백된다(DRAFT 삭제
+ * 훅 {@link LayoutDraftDeletion} 이 자식 행을 지우는 것과 같은 자리).
+ *
+ * <p>원장 가드(D-144 3단계, Ruling P3-22·P3-23): 헤더 확정을 취소한 뒤 상태에서 그 헤더를 쌓은 RELEASED(현재·미래) 전문
  * 버전 가운데 하나라도 적용 구간에서 합성되지 않으면 취소를 거부한다({@link MdmErrorCode#CONFIRM_CANCEL_BREAKS_LAYOUTS}). 그대로 두면 메타
  * 피드가 그 전문 키 전체를 failed 로 내 지금 적용 중인 버전까지 업무 모듈이 받지 못한다(Ruling R4 — 피드 규칙은 그대로 둔다).
  *
@@ -44,13 +48,15 @@ public class LayoutConfirmCancelGuard implements VersionConfirmCancelCheckSpi {
     private final LayoutVersionStore store;
     private final LayoutComposer composer;
     private final LayoutReleaseTimeline timeline;
+    private final LayoutColumnPins columnPins;
     private final MdmLayoutRepository layoutRepository;
     private final EntityManager em;
     private final Clock clock;
 
     public LayoutConfirmCancelGuard(LayoutQueries queries, LayoutVersionStore store, LayoutComposer composer, LayoutReleaseTimeline timeline,
-                                    MdmLayoutRepository layoutRepository, EntityManager em, Clock clock) {
+                                    LayoutColumnPins columnPins, MdmLayoutRepository layoutRepository, EntityManager em, Clock clock) {
         this.queries = queries;
+        this.columnPins = columnPins;
         this.store = store;
         this.composer = composer;
         this.timeline = timeline;
@@ -66,6 +72,8 @@ public class LayoutConfirmCancelGuard implements VersionConfirmCancelCheckSpi {
 
     @Override
     public void afterConfirmCancel(VersionRef cancelled) {
+        // D-151 — 전문·헤더 모두 먼저 비운다(아래 가드는 전문이면 바로 끝난다)
+        columnPins.clear(Long.parseLong(cancelled.objectId()), cancelled.ver());
         long headerId = Long.parseLong(cancelled.objectId());
         Map<Long, Set<LayoutKey>> stackingByMessage = new LinkedHashMap<>();
         for (MdmLayoutHeader h : queries.stacksUsing(headerId)) {

@@ -54,6 +54,10 @@ erDiagram
         INT4 FILLER_LENGTH
         INT4 OFFSET "예약어, 헤더 안 또는 본문 시작 기준 상대값"
         INT4 LENGTH "예약어"
+        CD20 DATA_TYPE "확정 고정값(D-151), DRAFT 는 NULL"
+        CD20 UNIT_CODE FK "확정 고정값(D-151)"
+        INT4 SCALE "확정 고정값(D-151)"
+        YN PINNED_YN "고정 표시 Y·N(D-151), Y 면 NULL 까지 고정값"
         BIGI AUD_VER "감사 카운터"
     }
     TB_MDM_LAYOUT_HEADER {
@@ -88,6 +92,7 @@ erDiagram
     TB_MDM_LAYOUT_VER ||--o{ TB_MDM_LAYOUT_ITEM : "LAYOUT_ID,VER"
     TB_MDM_COLUMN ||..o{ TB_MDM_LAYOUT_ITEM : "COLUMN_PHYS (점선, 교차영역 03→02)"
     TB_MDM_UNIT ||..o{ TB_MDM_LAYOUT_ITEM : "TRANS_UNIT (점선, 교차영역)"
+    TB_MDM_UNIT ||..o{ TB_MDM_LAYOUT_ITEM : "UNIT_CODE 확정 고정값 (점선, 교차영역)"
     TB_MDM_LAYOUT_VER ||--o{ TB_MDM_LAYOUT_HEADER : "LAYOUT_ID,VER (MESSAGE)"
     TB_MDM_LAYOUT ||--o{ TB_MDM_LAYOUT_HEADER : "HEADER_LAYOUT_ID (HEADER)"
     TB_MDM_LAYOUT_HEADER ||--o{ TB_MDM_LAYOUT_CONST : "LAYOUT_ID,VER,HEADER_LAYOUT_ID"

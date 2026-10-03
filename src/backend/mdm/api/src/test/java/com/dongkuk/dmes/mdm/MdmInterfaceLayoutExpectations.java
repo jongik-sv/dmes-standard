@@ -15,6 +15,9 @@ import java.util.Set;
  * <p>D-144 3단계 — 기대값은 V21(레이아웃 버전) 모양이다. 부모 {@code TB_MDM_LAYOUT} 에서 EAI_CODE·TOTAL_LENGTH·VERSION 이
  * 빠지고 STATUS 가 생겼다. 버전 표 4개(VER·ITEM·HEADER·CONST)는 업무 버전 {@code VER NUMERIC(7,3)} 가 키이고 감사 카운터는
  * {@code AUD_VER} 다(D-034). 부모와 EAI 의 감사 카운터는 {@code VER} 그대로다.
+ *
+ * <p>D-151 — V22 가 항목 표를 다시 만들어 확정 고정값 칸(DATA_TYPE·UNIT_CODE·SCALE)과 고정 표시(PINNED_YN)를 LENGTH 뒤에 더했다
+ * (단위는 단위 원장 FK, 고정 표시는 Y·N 이고 'N' 이면 세 칸이 비어 있다).
  */
 final class MdmInterfaceLayoutExpectations {
 
@@ -41,7 +44,8 @@ final class MdmInterfaceLayoutExpectations {
                 "SWITCH_MODE", "CHANGE_KINDS", "CHANGE_SUMMARY", "SNAPSHOT_JSON", "LEGACY_SNAPSHOT_YN"));
         BUSINESS_COLUMNS.put("TB_MDM_LAYOUT_ITEM", List.of(
                 "LAYOUT_ID", "VER", "SEQ", "FILL_KIND", "COLUMN_PHYS", "TRANS_UNIT", "UNIT_ITEM", "NUM_FORMAT",
-                "DEFAULT_VALUE", "FILLER_LENGTH", "OFFSET", "LENGTH"));
+                "DEFAULT_VALUE", "FILLER_LENGTH", "OFFSET", "LENGTH", "DATA_TYPE", "UNIT_CODE", "SCALE",
+                "PINNED_YN"));
         BUSINESS_COLUMNS.put("TB_MDM_LAYOUT_HEADER", List.of("LAYOUT_ID", "VER", "SEQ", "HEADER_LAYOUT_ID"));
         BUSINESS_COLUMNS.put("TB_MDM_LAYOUT_CONST", List.of(
                 "LAYOUT_ID", "VER", "HEADER_LAYOUT_ID", "HEADER_COLUMN_PHYS", "CONST_VALUE"));
@@ -63,7 +67,8 @@ final class MdmInterfaceLayoutExpectations {
                 "CK_TB_MDM_LAYOUT_VER_APPLY", "CK_TB_MDM_LAYOUT_VER_SWITCH", "CK_TB_MDM_LAYOUT_VER_LEGACY"));
         CONSTRAINTS.put("TB_MDM_LAYOUT_ITEM", Set.of(
                 "PK_TB_MDM_LAYOUT_ITEM", "FK_TB_MDM_LAYOUT_ITEM_VER", "FK_TB_MDM_LAYOUT_ITEM_COLUMN",
-                "FK_TB_MDM_LAYOUT_ITEM_UNIT", "CK_TB_MDM_LAYOUT_ITEM_FILL_KIND", "CK_TB_MDM_LAYOUT_ITEM_UNIT"));
+                "FK_TB_MDM_LAYOUT_ITEM_UNIT", "FK_TB_MDM_LAYOUT_ITEM_UNIT_CODE", "CK_TB_MDM_LAYOUT_ITEM_FILL_KIND",
+                "CK_TB_MDM_LAYOUT_ITEM_UNIT", "CK_TB_MDM_LAYOUT_ITEM_PINNED"));
         CONSTRAINTS.put("TB_MDM_LAYOUT_HEADER", Set.of(
                 "PK_TB_MDM_LAYOUT_HEADER", "FK_TB_MDM_LAYOUT_HEADER_VER", "FK_TB_MDM_LAYOUT_HEADER_HEADER"));
         CONSTRAINTS.put("TB_MDM_LAYOUT_CONST", Set.of("PK_TB_MDM_LAYOUT_CONST", "FK_TB_MDM_LAYOUT_CONST_HEADER"));

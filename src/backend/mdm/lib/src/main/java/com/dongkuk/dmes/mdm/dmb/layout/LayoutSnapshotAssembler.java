@@ -24,8 +24,11 @@ import org.springframework.stereotype.Component;
  *
  * <p>오프셋: 헤더 항목은 헤더 안 상대값 그대로, 본문 항목 저장값은 본문 시작 기준 상대값이므로 헤더 길이 합을 더해 계약의 메시지
  * 절대값으로 바꾼다(F23). 총 길이 = 헤더 길이 합 + 본문 길이. 항목의 {@code dataType}·{@code unitCode}·{@code scale} 은 도메인
- * 파생값(D3), 헤더 항목의 {@code overrideValue} 는 이 전문 버전의 재정의(키 {@code 헤더ID:헤더 항목 물리명}), {@code encoding}·
- * {@code padRule} 은 전문 버전 EAI 의 값이다.
+ * 파생값(D3)이되, 고정 표시된 항목 행(D-151 — 확정이 표시·값을 쓰고 확정 취소가 비운다)은 NULL 까지 그 행의 고정값을 쓴다
+ * ({@link #columnAttrs}). 그래서 확정한 버전은 확정 뒤 사전이 바뀌어도 합성이 그대로이고, DRAFT·초안({@link #fromDraft})은 고정 표시가
+ * 없어 지금 사전을 읽는다.
+ * 헤더 항목의 {@code overrideValue} 는 이 전문 버전의 재정의(키 {@code 헤더ID:헤더 항목 물리명}), {@code encoding}·{@code padRule} 은
+ * 전문 버전 EAI 의 지금 값이다(EAI 는 고정하지 않는다 — D-151 범위 밖).
  */
 @Component
 public class LayoutSnapshotAssembler {
@@ -77,19 +80,44 @@ public class LayoutSnapshotAssembler {
         for (int i = 0; i < draft.items().size(); i++) {
             LayoutItemDraft d = draft.items().get(i);
             body.add(new Row(d.seq(), d.fillKind(), d.columnPhys(), d.transUnit(), d.unitItem(), d.numFormat(), d.defaultValue(),
-                    d.fillerLength(), headerTotal + draft.bodyOffsets().get(i), draft.itemLengths().get(i)));
+                    d.fillerLength(), headerTotal + draft.bodyOffsets().get(i), draft.itemLengths().get(i), false, null, null, null));
         }
         return build(draft.layoutId() == null ? 0L : draft.layoutId(), draft.layoutName(), ver == null ? VersionNumbers.FIRST : ver,
                 draft.eaiCode(), draft.sndSystem(), draft.rcvSystem(), headerTotal + draft.ownLength(), headers, overrides, body);
     }
 
-    /** 항목 행 — 엔티티와 초안의 공통 모양. {@code offset} 은 계약 기준(헤더 항목은 헤더 안 상대, 본문 항목은 메시지 절대)이다. */
+    /**
+     * 항목 행 — 엔티티와 초안의 공통 모양. {@code offset} 은 계약 기준(헤더 항목은 헤더 안 상대, 본문 항목은 메시지 절대)이다.
+     * {@code pinned*} 는 확정 고정 표시·고정값(D-151, 초안은 늘 고정 아님).
+     */
     private record Row(int seq, String fillKind, String columnPhys, String transUnit, String unitItem, String numFormat,
-                       String defaultValue, Integer fillerLength, int offset, int length) {
+                       String defaultValue, Integer fillerLength, int offset, int length, boolean pinned, String pinnedDataType,
+                       String pinnedUnitCode, Integer pinnedScale) {
         static Row of(MdmLayoutItem i, int offset) {
             return new Row(i.getSeq(), i.getFillKind(), i.getColumnPhys(), i.getTransUnit(), i.getUnitItem(), i.getNumFormat(),
-                    i.getDefaultValue(), i.getFillerLength(), offset, i.getLength());
+                    i.getDefaultValue(), i.getFillerLength(), offset, i.getLength(), i.isPinned(), i.getDataType(), i.getUnitCode(),
+                    i.getScale());
         }
+    }
+
+    /** 항목 하나가 합성에 쓰는 컬럼 속성 — 도메인 타입(예: NUMBER)·단위·소수 자릿수. */
+    record ColumnAttrs(String dataType, String unitCode, Integer scale) {
+    }
+
+    /**
+     * 확정 고정값과 지금 사전 값 중 무엇을 쓸지 정하는 유일한 곳(D-151) — 고정 표시 행이면 NULL 까지 그 행의 고정값(확정 때 사전 값이
+     * 없던 칸은 "값 없음" 으로 고정), 아니면 지금 사전 값. 운영에서 고정 표시는 확정 이후 버전(DRAFT·LEGACY 아님)의 행 전부에 있으므로
+     * (확정·V22 이행이 쓰고 확정 취소가 지운다) "DRAFT 만 지금 사전을 읽는다" 와 같다. 표시가 없는 RELEASED 행(확정 경로를 거치지 않은
+     * 로컬 샘플·e2e 고정 데이터·시험 준비)은 지금 사전으로 떨어진다. 브리프 결정 4(칸별 NULL 이면 지금 사전)는 팀장 결정(2026-10-03)으로
+     * 이렇게 바꿨다 — 칸별 대체는 확정 뒤 사전에 새로 생긴 값이 확정 버전에 새어 들어갔다.
+     *
+     * @param col 지금 사전 행(사전에 없으면 null)
+     */
+    static ColumnAttrs columnAttrs(boolean pinned, String pinnedDataType, String pinnedUnitCode, Integer pinnedScale, LayoutColumnInfo col) {
+        if (pinned) {
+            return new ColumnAttrs(pinnedDataType, pinnedUnitCode, pinnedScale);
+        }
+        return col == null ? new ColumnAttrs(null, null, null) : new ColumnAttrs(col.dataType(), col.unitCode(), col.scale());
     }
 
     private MdmLayoutSnapshot build(long layoutId, String name, BigDecimal ver, String eaiCode, String snd, String rcv, int total,
@@ -124,10 +152,11 @@ public class LayoutSnapshotAssembler {
         MdmFillKind kind = MdmFillKind.valueOf(r.fillKind());
         boolean filler = kind == MdmFillKind.FILLER;
         LayoutColumnInfo col = r.columnPhys() == null ? null : dict.get(r.columnPhys());
-        MdmLayoutItemType type = filler ? null : col != null && NUMBER.equals(col.dataType()) ? MdmLayoutItemType.NUM : MdmLayoutItemType.CHAR;
+        ColumnAttrs a = r.columnPhys() == null ? new ColumnAttrs(null, null, null)
+                : columnAttrs(r.pinned(), r.pinnedDataType(), r.pinnedUnitCode(), r.pinnedScale(), col);
+        MdmLayoutItemType type = filler ? null : NUMBER.equals(a.dataType()) ? MdmLayoutItemType.NUM : MdmLayoutItemType.CHAR;
         return new MdmLayoutItemSnapshot(r.seq(), kind, type, r.columnPhys(), r.transUnit(), r.unitItem(),
                 r.numFormat() == null ? null : LayoutNumFormatCodec.decode(r.numFormat()).toContract(), r.defaultValue(), override,
-                r.fillerLength(), r.offset(), r.length(), filler || col == null ? null : col.unitCode(),
-                filler || col == null ? null : col.scale());
+                r.fillerLength(), r.offset(), r.length(), filler ? null : a.unitCode(), filler ? null : a.scale());
     }
 }

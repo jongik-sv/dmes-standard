@@ -52,6 +52,23 @@ public class LayoutConstJudge {
         return forColumns(List.of(columnPhys)).apply(columnPhys, value);
     }
 
+    /**
+     * 컬럼 속성을 바꿔 판정하는 함수 — 판정 도메인의 타입·소수·단위를 {@code attrs} 로 바꾸고(종류·길이·식은 {@code views} 의 지금 사전
+     * 값) 판정한다. 헤더 상수 재정의는 그 헤더 버전 항목이 직렬화에 쓰는 값으로 본다(D-151 — 호출자가
+     * {@link LayoutSnapshotAssembler#columnAttrs} 로 고른다: 확정 헤더 버전이면 고정값, 아니면 지금 사전). 표준식은 고정하지 않는다.
+     *
+     * @param views {@link LayoutDictionary#views} — 사전에 없는 물리명은 PASS
+     */
+    BiFunction<String, String, Judgement> withAttrs(Map<String, EffectiveDomainView> views, LayoutSnapshotAssembler.ColumnAttrs attrs) {
+        return (phys, value) -> {
+            EffectiveDomainView v = views.get(phys);
+            EffectiveDomainView as = v == null ? null : new EffectiveDomainView(v.domainId(), v.domainKind(), attrs.dataType(), v.length(),
+                    attrs.scale(), attrs.unitCode(), v.codeRef(), v.chainStdExpr(), v.stdExpr(), v.stdAst(), v.bizExpr(), v.bizAst(),
+                    v.bizRequiredVars());
+            return judge(as, phys, value);
+        };
+    }
+
     private Judgement judge(EffectiveDomainView view, String phys, String value) {
         if (view == null || value == null) {
             return new Judgement(Judgement.PASS, null);
