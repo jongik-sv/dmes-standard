@@ -56,6 +56,7 @@ public class McmAuditStatementInspector implements StatementInspector {
      * (SecMenuNativeRepository / SecMenuFldLovRepository / SecRoleMappingNativeRepository)가 MSSQL 전용
      * 함수(CONCAT / RIGHT / subquery TOP)를 SQLite 호환 구문({@code ||} / SUBSTR / LIMIT)으로 분기할 때 참조한다.
      * schema 접두({@code MCMAPUSER.}) 제거는 본 inspector 의 {@link #toSqlite}가 담당하므로 어댑터 분기는 함수 토큰만 다룬다.
+     * 로그인 SQLITE_BUSY 재시도({@code SqliteBusyRetry}, mcm/lib)도 이 값으로 로컬 SQLite 에서만 다시 시도한다.
      */
     public static boolean isSqlite() {
         return sqlite;

@@ -355,6 +355,24 @@ ag-grid 33 은 열 정의를 다시 받으면 머리 그룹 칸 ctrl 을 새로 
 - 그룹 구조(묶음·변수 수)가 바뀌면 화면이 그리드를 `key` 로 새로 마운트한다(`DecisionTableCard` 의 `gridKey`). 마운트된 그룹 그리드에 다른 그룹 구조를 그대로 넘기지 않는다.
 - 시험은 StrictMode·`MdmMetaProvider`(fetch 404) 아래에서 그룹 머리까지 그린다. 공급자가 없으면 이 경로가 돌지 않아 시험이 통과해 버린다. 예: `shared/tests/unit/grid-mdm-group-strict.unit.test.ts`, `m-mdm/tests/dme/ruleEdit/decision-table-card.test.ts` 의 「포털 탭」 묶음.
 
+## 32. 목록+상세 화면·등록 팝업 — 다시 읽기와 거부 처리 (2026-10-03)
+
+ruleMng 는 상세를 `useEffect([selectedId])` 로만 읽어, 같은 행을 다시 누르거나 [조회] 해도 상세를 다시 읽지 않았다. 그래서 다른 창에서 바뀐 상태(선점 해제·확정)가 보이지 않았다. 카테고리 추가 팝업(dmd dataItemMng)은 `onAdd` 의 결과와 상관없이 닫혀, 서버가 거부하면 입력이 사라졌다. mdm-user 여정 e2e 에서 찾았다.
+
+- 목록+상세 화면의 상세는 고르는 곳(행 클릭·첫 줄 자동 선택·등록 뒤·[조회])에서 **직접** 부른다. 같은 행이어도 다시 읽는다. 선택 상태 effect 에 맡기면 값이 같을 때 돌지 않는다.
+  - [조회] 때 고른 상세까지 다시 읽는 화면은 지금 ruleMng 뿐이다. dmc `codeMng`·dmd `dataMng` 의 [조회]는 목록만 다시 읽는다(후속).
+  - ruleMng 의 [조회] 결과에 고른 룰이 없으면 새 목록 첫 줄을 고르고, 목록이 비면 선택과 상세를 비운다. 쪽 넘기기는 선택을 그대로 둔다. [조회]는 새 검색이라 늘 첫 쪽을 읽는다. 그래서 다른 쪽에서 고른 룰은 새 첫 쪽에 없으면 첫 줄로 바뀐다(의도, 2026-10-03 결정).
+  - 쓰기(저장·선점·폐기 등) 동안에는 헤더 입력·쓰기 단추를 잠그고 목록 행 클릭도 받지 않는다. 저장 중에 또 고친 입력이 옛 잠금 값으로 남거나, 이중 클릭으로 두 번째 저장이 같은 잠금 값으로 나가 거짓 충돌이 나기 때문이다. 예: ruleMng `RuleDetailPanel` 의 `writing`·`onWriting`, dmc `codeMng` 의 `writing`.
+  - 쓰기 뒤 다시 읽기는 누른 시점이 아니라 **지금 선택**(ref)을 본다. 쓰기를 기다리는 사이 다른 행을 골랐으면 옛 대상을 다시 읽지 않는다. 예: ruleMng `reload`.
+- 상세 응답은 요청 순번으로 가드한다. 순번이 지금 것과 다르면 성공·실패 모두 버리고, busy 도 지금 요청이 끝날 때만 푼다. 예: `m-mdm/pages/dme/ruleMng/page.tsx` 의 `detailSeq`, dmc `codeMng`.
+- 다시 읽어도 저장하지 않은 입력은 말없이 지우지 않는다. 같은 대상이고 입력이 이전 서버 값·새 서버 값과 모두 다르면 입력을 남기고, 저장에는 입력을 시작할 때의 낙관적 잠금 값을 보낸다. 입력을 버리는 길은 [다시 불러오기]·충돌 오류창 닫기처럼 사용자가 누르는 것만 둔다. 예: `RuleDetailPanel` 의 `formAuditVer`, dmc `codeMng`·dmd `dataMng` 의 `apply`(`serverForm`·`formAuditVer`, 충돌 뒤 다시 읽기는 `discard`).
+  - 서버는 저장할 때 값을 trim·정규화한다. 그래서 헤더 저장에 성공한 다시 읽기는 유지 판정을 거치지 않는다. 보낸 폼을 기억해 두고, 입력이 보낸 그대로면 서버 값·새 잠금 값으로 맞춘다. 저장하는 사이 또 고친 입력만 남긴다(`savedForm`·`sent`).
+  - 입력을 남기더라도 새 서버 헤더 값이 입력을 시작할 때의 값(`formBase`)과 칸마다 같으면, 다른 창이 고치지 않고 VER 만 오른 것이다. 이때는 잠금 값을 새 값으로 올린다. 헤더 칸이 바뀐 진짜 충돌만 옛 잠금 값으로 드러난다.
+- 상세를 서버에서 다시 읽지 않고 목록 행 값으로 채우는 화면은 같은 행을 다시 누를 때 폼을 다시 채우지 않는다. 목록을 새로 받을 때 선택도 비우므로 다시 채우면 입력만 사라진다. 예: dma `termMng`·`unitMng` 의 `handleRowClick`.
+- 다른 행으로 옮길 때 입력을 버리는 동작은 모든 화면이 같고 확인 창을 두지 않는다(2026-10-03 결정).
+- 팝업이 서버 등록을 부르면 `onAdd`·`onSubmit` 은 성공 여부(`boolean`)를 돌려주고, 팝업은 성공일 때만 칸을 비우고 닫는다. 로컬 diff 에만 얹는 팝업은 이미 있는 ID(서버 행·로컬 새 행)를 팝업 안에서 막고 서버와 같은 문구를 보인다(예: dmc `codeItemEdit` `CategoryAddModal` 의 `existingIds`). 닫기 표시한 행의 ID 도 막는다. 서버는 같은 저장에서 닫기를 먼저 적용하므로 받아들일 수 있지만, 로컬 행은 ID 를 키로 쓰기 때문이다. 대신 그 행의 [취소]로 닫기를 풀어 쓰라고 안내한다(`closedIds`). 팝업 컴포넌트가 닫혔을 때 `return null` 하려면 훅을 모두 부른 뒤에 하고, 다시 열 때 칸을 비우는 일은 열리는 렌더에서 상태를 맞춰 한다(`wasOpen`). 거부는 오류창으로 알리고 입력을 남긴다. 오류창이 떠 있는 동안 팝업 닫기를 무시하는 것은 §18 을 따른다. 예: `dmd/dataItemMng/cate/components/CategoryAddModal.tsx`, `useDataCategories.ts` 의 `write`.
+- 시험은 같은 행 다시 누르기·[조회]·늦게 온 옛 응답·미저장 입력·끝 공백 저장 뒤 trim 응답·VER 만 오른 다시 읽기·쓰기 중 다른 행 클릭, 그리고 등록 거부 뒤 오류창을 닫거나 Escape 를 눌러도 입력이 남는지를 본다. 성공 토스트는 Mantine 전역 저장소(limit 3)에 쌓여 뒤 시험의 알림을 밀어내므로, 시험 뒤 `tests/helpers/toasts.ts` 의 `clearToasts` 로 비운다. 예: `tests/dme/ruleMng/rule-mng-page.test.ts`, `tests/dmd/dataItemMng/data-item-page.test.ts`.
+
 ## 33. React Flow 화면 맞춤 — `rf.fitView` 는 다음 노드 갱신까지 미뤄진다 (2026-10-03)
 
 React Flow 12 의 `useReactFlow().fitView()` 는 곧바로 화면을 옮기지 않는다. 저장소에 `fitViewQueued` 를 세우고 다음 `setNodes`(노드가 다 잰 상태) 때 실행한다. 제어형 캔버스(`nodes` prop 을 화면이 만든다)에서 키·단추 처리기가 상태를 바꾸지 않고 `fitView` 만 부르면 다시 그리기가 없어 대부분 아무 일도 없고, 나중에 다른 일로 노드가 갱신될 때 엉뚱하게 실행된다. 룰 세트 편집 캔버스의 Shift+2(고른 것으로 이동)·[흐름도로 돌아가기] 에서 실측했다. happy-dom 시험은 다른 갱신이 끼어 통과해 버리므로 브라우저로 확인한다.
@@ -362,3 +380,11 @@ React Flow 12 의 `useReactFlow().fitView()` 는 곧바로 화면을 옮기지 �
 - 곧바로 옮겨야 하는 동작은 경계 상자로 화면을 계산해 넣는다: `getViewportForBounds(rf.getNodesBounds(ids), width, height, minZoom, maxZoom, padding)` → `rf.setViewport(vp, { duration })`. `width`·`height`·`minZoom`·`maxZoom` 은 `useStoreApi().getState()` 에서 읽는다. 예: `m-mdm/pages/dme/ruleSetEdit/canvas/FlowCanvas.tsx` 의 `fitNodes`.
 - 상태를 바꿔 다시 그리는 경로(툴바 [화면 맞춤] 의 신호 값, 세트를 바꿀 때)는 `rf.fitView` 를 써도 된다. 새 노드를 다 잴 때까지 기다렸다 맞추는 성질이 오히려 필요하다.
 - `translateExtent` 같은 이동 한계는 휠·끌기·`scaleBy`·`setViewportConstrained` 에만 걸리고 `fitView`·`setCenter`·`setViewport` 는 거치지 않는다. 한계를 바꿔도 지금 화면을 다시 맞추지 않으므로, 한계가 줄 수 있으면 움직임이 멈춘 뒤 `panZoom.setViewportConstrained` 로 한 번 맞춘다(같은 캔버스의 `ViewportGuard`).
+
+## 34. 검색 칸의 요청 순번 — 무르기는 사용자 조작으로만 한다 (2026-10-03)
+
+§11·§15 의 요청 순번으로 늦게 온 검색 응답을 버릴 때, 순번을 올리는 계기는 **사용자 조작**(글자 바꿈·다시 찾기·[찾기]·바깥 누름)으로 한정한다. 화면 인계로 연 ID 가 바뀌는 것처럼 사용자가 하지 않은 변화로 순번을 올리면, 인계가 [찾기] 응답보다 늦게 왔을 때 사용자가 누른 찾기가 아무 일도 없던 것처럼 사라진다(IdPicker, e2e TC-DMC-ITM-01). 반대로 사용자가 [찾기]를 눌렀으면, 그 전에 칸을 떠날 때(blur) 시작된 자동 확정 검색은 무른다. 무르지 않으면 늦게 온 한 건 응답이 막 연 찾기 팝업을 닫는다(DomainField).
+
+- 범위: 사용자가 친 검색어의 후보 목록(IdPicker·DomainField 등)에 한한다. 대상 상세·폼을 채우는 조회(§11·§15)는 인계 때도 순번을 올린다.
+- 찾기 목록은 고르기 전까지 어느 대상에도 쓰이지 않으므로, 연 ID 가 바뀌어도 아직 오지 않은 사용자 찾기의 결과는 보인다. 칸 글자는 새 ID 로 맞추고, 이미 열려 있던 목록은 닫는다(칸에 새 ID 가 보이는데 Enter 가 옛 목록에서 고르지 않게).
+- 시험은 지연 응답(직접 resolve 하는 Promise)으로 순서를 고정한다. 예: `m-mdm/tests/shell/id-picker.test.ts`, `m-mdm/tests/domain/domain-field.test.ts`.

@@ -45,6 +45,7 @@ import {
   composePhysName,
   hasPlaceholder,
   replaceToken,
+  TOKEN_COLUMN_SIZES,
 } from "./tokens";
 import {
   emptyForm,
@@ -463,17 +464,17 @@ export default function ColumnMngPage() {
       {
         key: "seq",
         header: "순서",
-        width: 50,
+        ...TOKEN_COLUMN_SIZES.seq,
         align: "right",
         render: (v) => <span data-testid={`token-row-${v}`}>{String(v)}</span>,
       },
-      { key: "surface", header: "토큰", width: 120 },
-      { key: "MATCH_TEXT", header: "매칭", width: 140 },
-      { key: "ABBR_TEXT", header: "약어", width: 90 },
+      { key: "surface", header: "토큰", ...TOKEN_COLUMN_SIZES.surface },
+      { key: "MATCH_TEXT", header: "매칭", ...TOKEN_COLUMN_SIZES.MATCH_TEXT },
+      { key: "ABBR_TEXT", header: "약어", ...TOKEN_COLUMN_SIZES.ABBR_TEXT },
       {
         key: "ACTION",
         header: "처리",
-        width: 240,
+        ...TOKEN_COLUMN_SIZES.ACTION,
         tooltip: false,
         editable: (row) => row.status === "AMBIGUOUS",
         cellEditor: "select",
@@ -1012,43 +1013,44 @@ export default function ColumnMngPage() {
     </MdmPageLayout>
   );
 
+  // 처리 칸은 render 전용이라 셀 툴팁을 끈다(tooltip:false). 최소 폭(220px)에서 긴 후보 이름·안내가 말줄임돼도 전체를 보도록
+  // 글자·버튼마다 제목(title)을 붙인다(Local-Rules §30, 2026-10-03).
   function renderAction(t: NameToken) {
+    const titled = (text: string) => <span title={text}>{text}</span>;
     switch (t.status) {
       case "MATCHED":
-        return "등록됨";
+        return titled("등록됨");
       case "SYNONYM":
-        return `동의어 → ${t.termName ?? ""}`;
+        return titled(`동의어 → ${t.termName ?? ""}`);
       case "AMBIGUOUS": {
         // 칸을 누르면 후보 편집기가 열린다(그리드 인라인 편집)
         const picked = t.candidates.find((c) => c.termId === t.termId);
+        const text = picked ? `${picked.termName} (${picked.senseNo}) ${picked.engAbbr ?? ""}` : "후보를 고르세요";
         return (
-          <span data-testid={`token-candidate-${t.seq}`}>
-            {picked ? (
-              `${picked.termName} (${picked.senseNo}) ${picked.engAbbr ?? ""}`
-            ) : (
-              <span style={mutedText}>후보를 고르세요</span>
-            )}
+          <span data-testid={`token-candidate-${t.seq}`} title={text}>
+            {picked ? text : <span style={mutedText}>{text}</span>}
           </span>
         );
       }
       case "NO_ABBR":
-        return "약어 없음 — 용어 관리에서 약어 등록";
+        return titled("약어 없음 — 용어 관리에서 약어 등록");
       case "UNKNOWN":
         return gen?.direction === "FORWARD" ? (
           <Button
             size="mini"
             data-testid={`token-placeholder-${t.seq}`}
+            title={`${PLACEHOLDER} 용어 등록`}
             onClick={() => setPopToken(t)}
           >
             {PLACEHOLDER} 용어 등록
           </Button>
         ) : (
-          <span data-testid={`token-placeholder-${t.seq}`}>
+          <span data-testid={`token-placeholder-${t.seq}`} title={STATUS_TEXT.UNKNOWN}>
             {STATUS_TEXT.UNKNOWN}
           </span>
         );
       default:
-        return STATUS_TEXT[t.status];
+        return titled(STATUS_TEXT[t.status]);
     }
   }
 }

@@ -46,9 +46,11 @@ export interface CategoryTabProps {
   canSave: boolean;
   /** 이력 조회 실패 문구를 페이지의 ErrorModal 로 올린다. */
   onError: (message: string) => void;
+  /** 페이지의 ErrorModal 이 떠 있는지 — 떠 있는 동안에는 추가 팝업의 닫기를 무시한다. */
+  errorShown?: boolean;
 }
 
-export function CategoryTab({ cate, loaded, editable, canSave, onError }: CategoryTabProps) {
+export function CategoryTab({ cate, loaded, editable, canSave, onError, errorShown = false }: CategoryTabProps) {
   const { selectedRow, detail } = cate;
   const canEdit = editable && canSave;
   // 훅 객체 전체가 아니라 안정된 함수만 열 정의에 건다.
@@ -218,9 +220,16 @@ export function CategoryTab({ cate, loaded, editable, canSave, onError }: Catego
         </ContentPanel>
       </ContentBody>
 
+      {/*
+        등록 거부는 팝업을 닫지 않고 페이지 ErrorModal 로 알린다(입력을 고쳐 다시 보낼 수 있게). shared `Modal` 은 열린 창마다
+        window Escape 를 받아 Escape 한 번에 두 창이 함께 닫힌다(ruleMng 등록 팝업과 같은 실측) — 오류창이 떠 있는 동안에는
+        이 팝업의 닫기를 무시한다.
+      */}
       <CategoryAddModal
         open={addOpen}
-        onClose={() => setAddOpen(false)}
+        onClose={() => {
+          if (!errorShown) setAddOpen(false);
+        }}
         busy={cate.busy}
         onAdd={cate.add}
       />

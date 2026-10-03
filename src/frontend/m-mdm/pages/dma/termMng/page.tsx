@@ -110,12 +110,15 @@ export default function TermMngPage() {
 
   const handleRowClick = useCallback((row: Record<string, unknown>) => {
     const termId = Number(row.termId);
+    // 같은 행을 다시 누르면 폼을 목록 값으로 되돌리지 않는다 — 목록은 [조회]·저장 때만 새로 받고 그때 선택도 비우므로, 다시 채우면
+    // 고친 입력만 말없이 사라진다(2026-10-03).
+    if (termId === selectedTermId) return;
     setSelectedTermId(termId);
     const original = rows.find((r) => r.termId === termId);
     if (original) {
       setForm(termFormFromRow(original));
     }
-  }, [rows]);
+  }, [rows, selectedTermId]);
 
   const handleFormChange = useCallback((key: keyof TermForm, value: string) => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));

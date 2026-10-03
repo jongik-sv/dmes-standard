@@ -25,6 +25,14 @@ const originalFetch = globalThis.fetch;
 let requests: Array<{ action: string; body: Record<string, unknown> }> = [];
 let view: RuleMngView = draftDetail();
 let actionResponses: Record<string, unknown> = {};
+/** 룰별 view 응답 — 없으면 `view` 를 준다. */
+let viewsById: Record<string, RuleMngView> = {};
+/** 설정하면 이 룰의 view 응답을 이 약속이 풀릴 때까지 붙잡는다(응답 순서 경쟁 시험). */
+let holdViews: Record<string, Promise<void>> = {};
+/** 설정하면 이 액션(save·lock 등) 응답을 이 약속이 풀릴 때까지 붙잡는다. */
+let holdActions: Record<string, Promise<void>> = {};
+/** 목록 조회 응답 — null 이면 기본 두 룰(QLTY_GRD_JDG·COIL_WGT_CALC). */
+let searchList: Array<Record<string, unknown>> | null = null;
 const ALL_RBAC = [{ objId: "*", action: "*", endpoint: "*", httpMethod: "*" }];
 let rbacRows: Array<Record<string, string>> = ALL_RBAC;
 
@@ -108,6 +116,32 @@ function text(): string {
   return container.textContent ?? "";
 }
 
+function viewCount(): number {
+  return requests.filter((r) => r.action === "view").length;
+}
+
+/** 목록 행을 누른다 — 룰 ID 칸은 링크(내용 화면 열기)라서 룰명 칸을 누른다. */
+async function clickRow(ruleId: string) {
+  const row = Array.from(container.querySelectorAll(".ag-row")).find(
+    (r) => r.querySelector('.ag-cell[col-id="maruRuleId"]')?.textContent === ruleId,
+  );
+  expect(row, `row ${ruleId}`).toBeTruthy();
+  await act(async () => {
+    row!.querySelector('.ag-cell[col-id="maruRuleName"]')!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await flush();
+  await flush();
+}
+
+/** 붙잡아 둘 수 있는 약속 — release 를 부르면 풀린다. */
+function gate(): { until: Promise<void>; release: () => void } {
+  let release!: () => void;
+  const until = new Promise<void>((r) => {
+    release = r;
+  });
+  return { until, release };
+}
+
 function params(action: string): Record<string, unknown> | undefined {
   return requests.filter((r) => r.action === action).at(-1)?.body.params as Record<string, unknown> | undefined;
 }
@@ -121,6 +155,10 @@ beforeEach(() => {
   requests = [];
   view = draftDetail();
   actionResponses = {};
+  viewsById = {};
+  holdViews = {};
+  holdActions = {};
+  searchList = null;
   rbacRows = ALL_RBAC;
   globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -128,23 +166,29 @@ beforeEach(() => {
     const m = url.match(/\/oasis\/ruleMng\/(\w+)/);
     if (m) {
       requests.push({ action: m[1], body });
-      if (m[1] === "view") return jsonResponse({ meta: { success: true }, data: { result: view } });
+      if (m[1] === "view") {
+        const ruleId = String((body.params as Record<string, unknown> | undefined)?.maruRuleId ?? "");
+        const result = viewsById[ruleId] ?? view;
+        if (holdViews[ruleId]) await holdViews[ruleId];
+        return jsonResponse({ meta: { success: true }, data: { result } });
+      }
       if (m[1] === "search") {
         return jsonResponse({
           meta: { success: true },
           data: {
             result: {
-              list: [
+              list: searchList ?? [
                 { maruRuleId: "QLTY_GRD_JDG", maruRuleName: "품질 등급 판정", ruleKind: "DECISION", status: "INUSE", sourceKind: "MDM" },
                 { maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE", status: "INUSE", sourceKind: "MDM" },
               ],
-              totalCount: 2,
+              totalCount: searchList?.length ?? 2,
               page: 0,
               size: 20,
             },
           },
         });
       }
+      if (holdActions[m[1]]) await holdActions[m[1]];
       return jsonResponse(actionResponses[m[1]] ?? { meta: { success: true }, data: { result: { maruRuleId: "QLTY_GRD_JDG", ver: "2.000", rowVersion: 4 } } });
     }
     if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
@@ -185,6 +229,230 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     await act(async () => byTestId<HTMLButtonElement>("rule-link-COIL_WGT_CALC")!.click());
     await flush();
     expect(params("view")).toEqual({ maruRuleId: "COIL_WGT_CALC" });
+  });
+
+  // ── 다시 읽기(2026-10-03 mdm-user 여정 결함) — 다른 창에서 바뀐 상태(선점 해제·확정 등)를 상세에 보이게 한다 ──
+
+  it("이미 고른 행을 다시 누르면 상세를 다시 읽어 다른 창에서 바뀐 상태를 보인다", async () => {
+    await renderAndSearch();
+    const before = viewCount();
+    // 다른 창에서 DRAFT 선점을 풀었다 — 소유자가 없어지면 [선점] 이 보여야 한다.
+    view = draftDetail({
+      versions: [
+        { ver: "2.000", status: "DRAFT", applyFrom: null, applyTo: null, ownerId: null, baseVer: "1.000", hitPolicy: "FIRST", rowVersion: 4 },
+        { ver: "1.000", status: "RELEASED", applyFrom: "2026-01-01 00:00:00", applyTo: "9999-12-31 00:00:00", ownerId: null, baseVer: null, hitPolicy: "FIRST", rowVersion: 0 },
+      ],
+    });
+    expect(byTestId<HTMLButtonElement>("rule-version-lock")?.disabled).toBe(true);
+    await clickRow("QLTY_GRD_JDG");
+    expect(viewCount()).toBe(before + 1);
+    expect(params("view")).toEqual({ maruRuleId: "QLTY_GRD_JDG" });
+    expect(byTestId<HTMLButtonElement>("rule-version-lock")?.disabled).toBe(false);
+  });
+
+  it("[조회] 로 목록을 다시 받으면 고른 룰의 상세도 다시 읽는다", async () => {
+    await renderAndSearch();
+    await clickRow("COIL_WGT_CALC");
+    const before = viewCount();
+    await search();
+    expect(viewCount()).toBe(before + 1);
+    // 선택은 첫 줄로 돌아가지 않고 고른 룰 그대로다.
+    expect(params("view")).toEqual({ maruRuleId: "COIL_WGT_CALC" });
+  });
+
+  // 검토 M3 — 조건을 바꿔 [조회] 했는데 고른 룰이 새 목록에 없으면, 강조 없는 옛 상세를 다시 읽지 않고 첫 진입 자동 선택처럼
+  // 새 목록 첫 줄을 고른다. 목록이 비면 선택과 상세를 비운다.
+  it("[조회] 결과에 고른 룰이 없으면 새 목록 첫 줄을 고르고, 목록이 비면 선택과 상세를 비운다", async () => {
+    await renderAndSearch();
+    expect(byTestId("rule-header-id")?.textContent).toBe("QLTY_GRD_JDG");
+    viewsById.COIL_WGT_CALC = draftDetail({
+      header: { ...draftDetail().header, maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE" },
+    });
+    searchList = [{ maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE", status: "INUSE", sourceKind: "MDM" }];
+    await search();
+    expect(params("view")).toEqual({ maruRuleId: "COIL_WGT_CALC" });
+    expect(byTestId("rule-header-id")?.textContent).toBe("COIL_WGT_CALC");
+
+    searchList = [];
+    const before = viewCount();
+    await search();
+    expect(viewCount()).toBe(before);
+    expect(byTestId("rule-header-id")).toBeNull();
+    expect(byTestId("rule-detail-empty")?.textContent).toBe("룰을 고르세요.");
+  });
+
+  it("A·B 를 빠르게 누르고 A 응답이 늦게 와도 상세는 B 로 남는다", async () => {
+    await renderAndSearch();
+    viewsById.COIL_WGT_CALC = draftDetail({
+      header: { ...draftDetail().header, maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE" },
+    });
+    const slowA = gate();
+    holdViews.COIL_WGT_CALC = slowA.until;
+    await clickRow("COIL_WGT_CALC");
+    await clickRow("QLTY_GRD_JDG");
+    expect(byTestId("rule-header-id")?.textContent).toBe("QLTY_GRD_JDG");
+    await act(async () => slowA.release());
+    await flush();
+    await flush();
+    expect(byTestId("rule-header-id")?.textContent).toBe("QLTY_GRD_JDG");
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("품질 등급 판정");
+  });
+
+  // 검토 I2 — 쓰기 뒤 다시 읽기가 누른 시점의 룰을 붙잡고 있으면, 쓰기 중에 선택이 바뀌었을 때 옛 룰을 더 새 순번으로 읽어
+  // 강조와 상세가 어긋났다. 다시 읽기는 지금 선택을 보고, 선택이 바뀌었으면 옛 룰을 읽지 않는다. 쓰기 중 행 클릭은 막히므로(I3)
+  // 쓰기 중에도 선택을 바꿀 수 있는 [조회](고른 룰이 새 목록에 없으면 첫 줄, M3) 경로로 본다.
+  it("헤더 저장 응답을 기다리는 사이 [조회] 로 선택이 바뀌면 저장이 끝나도 상세는 새로 고른 룰로 남는다", async () => {
+    await renderAndSearch();
+    viewsById.COIL_WGT_CALC = draftDetail({
+      header: { ...draftDetail().header, maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE" },
+    });
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "고친 이름");
+    const slowSave = gate();
+    holdActions.save = slowSave.until;
+    await act(async () => findButton(container, "헤더 저장").click());
+    searchList = [{ maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE", status: "INUSE", sourceKind: "MDM" }];
+    await search();
+    expect(byTestId("rule-header-id")?.textContent).toBe("COIL_WGT_CALC");
+    const viewsBefore = viewCount();
+    await act(async () => slowSave.release());
+    await flush();
+    await flush();
+    expect(viewCount()).toBe(viewsBefore);
+    expect(byTestId("rule-header-id")?.textContent).toBe("COIL_WGT_CALC");
+  });
+
+  // 재검토 Nit 1 — 다시 읽기를 건너뛰면 보낸 폼(savedForm)을 남기지 않는다. 남으면 나중에 같은 값이 된 입력을 "보낸 그대로"로
+  // 오인해 서버 값으로 바꾼다. A 저장 중 [조회]로 B 로 옮긴 뒤 B 에서 A 에 보냈던 값과 같게 고치고 B 를 다시 읽어도 입력이 남아야 한다.
+  it("헤더 저장 중 [조회] 로 선택이 바뀌어 다시 읽기를 건너뛰면, 그 뒤 같은 값으로 고친 입력을 보낸 폼으로 오인하지 않는다", async () => {
+    await renderAndSearch();
+    const coil = draftDetail({
+      header: { ...draftDetail().header, maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE" },
+    });
+    viewsById.COIL_WGT_CALC = coil;
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "같은 이름");
+    const slowSave = gate();
+    holdActions.save = slowSave.until;
+    await act(async () => findButton(container, "헤더 저장").click());
+    searchList = [{ maruRuleId: "COIL_WGT_CALC", maruRuleName: "코일 중량 산출", ruleKind: "DERIVE", status: "INUSE", sourceKind: "MDM" }];
+    await search();
+    await act(async () => slowSave.release());
+    await flush();
+    await flush();
+    expect(byTestId("rule-header-id")?.textContent).toBe("COIL_WGT_CALC");
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "같은 이름");
+    viewsById.COIL_WGT_CALC = { ...coil, header: { ...coil.header, maruRuleName: "다른 창 이름", auditVer: 9 } };
+    await clickRow("COIL_WGT_CALC");
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("같은 이름");
+  });
+
+  // 재검토 I3 — 쓰기 동안 헤더 입력과 쓰기 단추가 잠기지 않아, 저장 중에 또 고친 입력이 옛 auditVer 로 남거나 [헤더 저장]이 두 번
+  // 나가 거짓 MDM001 이 났다. 쓰기 동안에는 입력·단추를 잠그고, codeMng 처럼 목록 행 클릭도 받지 않는다.
+  it("헤더 저장 응답을 기다리는 동안 헤더 입력과 [헤더 저장]이 잠기고, 끝나면 풀려 다음 저장은 새 auditVer 를 보낸다", async () => {
+    await renderAndSearch();
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "X");
+    view = draftDetail({ header: { ...draftDetail().header, maruRuleName: "X", auditVer: 5 } });
+    const slowSave = gate();
+    holdActions.save = slowSave.until;
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.disabled).toBe(true);
+    expect(findButton(container, "헤더 저장").disabled).toBe(true);
+    await act(async () => slowSave.release());
+    await flush();
+    await flush();
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.disabled).toBe(false);
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("X");
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "XY");
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    expect(params("save")).toMatchObject({ maruRuleName: "XY", auditVer: 5 });
+  });
+
+  it("[헤더 저장]을 응답 전에 두 번 눌러도 저장은 한 번만 나간다", async () => {
+    await renderAndSearch();
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "X");
+    const slowSave = gate();
+    holdActions.save = slowSave.until;
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    await act(async () => findButton(container, "헤더 저장").click());
+    await act(async () => slowSave.release());
+    await flush();
+    await flush();
+    expect(requests.filter((r) => r.action === "save")).toHaveLength(1);
+  });
+
+  it("쓰기 응답을 기다리는 동안에는 목록 행을 눌러도 선택을 바꾸지 않는다(codeMng 과 같다)", async () => {
+    await renderAndSearch();
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "X");
+    const slowSave = gate();
+    holdActions.save = slowSave.until;
+    await act(async () => findButton(container, "헤더 저장").click());
+    await clickRow("COIL_WGT_CALC");
+    expect(requests.filter((r) => r.action === "view").map((r) => (r.body.params as Record<string, unknown>).maruRuleId)).not.toContain(
+      "COIL_WGT_CALC",
+    );
+    expect(byTestId("rule-header-id")?.textContent).toBe("QLTY_GRD_JDG");
+    await act(async () => slowSave.release());
+    await flush();
+    await flush();
+    expect(byTestId("rule-header-id")?.textContent).toBe("QLTY_GRD_JDG");
+  });
+
+  it("저장하지 않은 헤더 입력은 같은 행을 다시 눌러 다시 읽어도 남고, 저장은 입력을 시작할 때의 auditVer 로 보낸다", async () => {
+    await renderAndSearch();
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "고치는 중");
+    // 다른 창에서 헤더가 바뀌었다(auditVer 4→5).
+    view = draftDetail({ header: { ...draftDetail().header, maruRuleName: "다른 창 이름", auditVer: 5 } });
+    const before = viewCount();
+    await clickRow("QLTY_GRD_JDG");
+    expect(viewCount()).toBe(before + 1);
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("고치는 중");
+    // 편집은 auditVer 4 위에서 시작했다 — 저장은 4 를 보내 서버가 다른 창 변경을 충돌(MDM001)로 알리게 한다.
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    expect(params("save")).toMatchObject({ maruRuleName: "고치는 중", auditVer: 4 });
+  });
+
+  // 검토 I1 — 서버는 저장 때 값을 trim 한다. 끝 공백을 남긴 채 저장에 성공하면 다시 읽은 값이 보낸 값과 달라도
+  // 고친 입력으로 보지 않고 서버 값·새 auditVer 로 맞춰야 한다(아니면 다음 저장이 옛 auditVer 로 거짓 충돌).
+  it("끝 공백을 넣어 헤더 저장에 성공하면 서버가 trim 한 값과 새 auditVer 로 맞추고, 다음 저장은 새 auditVer 를 보낸다", async () => {
+    await renderAndSearch();
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "새 이름 ");
+    view = draftDetail({ header: { ...draftDetail().header, maruRuleName: "새 이름", auditVer: 5 } });
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    await flush();
+    expect(params("save")).toMatchObject({ maruRuleName: "새 이름 ", auditVer: 4 });
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("새 이름");
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "또 이름");
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    expect(params("save")).toMatchObject({ maruRuleName: "또 이름", auditVer: 5 });
+  });
+
+  // 검토 M1 — 입력을 남기더라도 다시 읽은 헤더 값이 입력을 시작할 때와 칸마다 같으면(VER 만 오른 자기 쓰기 등) 다른 창이 헤더를
+  // 고치지 않은 것이므로 저장할 auditVer 를 새 값으로 올린다. 헤더 칸이 바뀐 진짜 충돌은 여전히 옛 auditVer 로 드러난다.
+  it("입력을 남긴 채 다시 읽었는데 헤더 값은 그대로이고 auditVer 만 올랐으면 저장은 새 auditVer 를 보낸다", async () => {
+    await renderAndSearch();
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "고치는 중");
+    view = draftDetail({ header: { ...draftDetail().header, auditVer: 5 } });
+    await clickRow("QLTY_GRD_JDG");
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("고치는 중");
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    expect(params("save")).toMatchObject({ maruRuleName: "고치는 중", auditVer: 5 });
+  });
+
+  it("고친 칸이 없으면 다시 읽은 서버 값과 auditVer 로 바뀐다", async () => {
+    await renderAndSearch();
+    view = draftDetail({ header: { ...draftDetail().header, maruRuleName: "다른 창 이름", auditVer: 5 } });
+    await clickRow("QLTY_GRD_JDG");
+    expect(byTestId<HTMLInputElement>("rule-header-name")?.value).toBe("다른 창 이름");
+    await typeInto(byTestId<HTMLInputElement>("rule-header-name")!, "새 이름");
+    await act(async () => findButton(container, "헤더 저장").click());
+    await flush();
+    expect(params("save")).toMatchObject({ maruRuleName: "새 이름", auditVer: 5 });
   });
 
   it("[내용 편집 →] 은 내용 화면 탭을 열고 룰·버전을 넘긴다(I28)", async () => {
@@ -540,6 +808,8 @@ describe("RuleMngPage 상세(① 헤더·② 버전)", () => {
     expect(params("reg")).toMatchObject({ maruRuleId: "NEW_RULE_JDG", maruRuleName: "새 판정", ruleKind: "DECISION" });
     expect(document.querySelector('[data-testid="rule-register-form"]')).toBeNull();
     expect(requests.filter((r) => r.action === "search").length).toBe(searches + 1);
+    // 방금 만든 룰의 상세를 연다.
+    expect(params("view")).toEqual({ maruRuleId: "NEW_RULE_JDG" });
   });
 
   it("등록 권한(reg)이 없으면 [룰 등록] 은 보이지만 꺼져 있다", async () => {
