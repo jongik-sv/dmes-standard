@@ -77,5 +77,5 @@ export function generateId(prefix: string = "cm"): string {
 export const gfn_isNull = isNullOrEmpty;
 /** @deprecated 같은 모듈의 `nvl` 을 쓴다. */
 export const gfn_isNvl = nvl;
-/** @deprecated 같은 모듈의 `measureTextSize` 을 쓴다. */
+/** @deprecated 저장소 안 사용처 없음. */
 export const gfn_getTextSize = measureTextSize;

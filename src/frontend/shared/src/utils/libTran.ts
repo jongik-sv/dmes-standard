@@ -77,5 +77,5 @@ export async function postJson<T = unknown>(
   }
 }
 
-/** @deprecated 같은 모듈의 `postJson` 을 쓴다. */
+/** @deprecated 저장소 안 사용처 없음. */
 export const gfn_postJson = postJson;
