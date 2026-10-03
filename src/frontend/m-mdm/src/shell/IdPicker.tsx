@@ -104,13 +104,19 @@ export function IdPicker({ label, placeholder, noun, testId, search, limit, onPi
   const [active, setActive] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  /** 요청 순번(Local-Rules §11·§15) — 글자를 바꾸거나 다시 찾은 뒤 늦게 온 옛 결과가 목록을 다시 열거나 덮지 않게. */
+  /**
+   * 요청 순번(Local-Rules §11·§15) — 글자를 바꾸거나 다시 찾거나 바깥을 누른 뒤 늦게 온 옛 결과가 목록을 다시 열거나 덮지 않게.
+   * 사용자 조작만 올린다. 화면이 연 ID(currentId)가 바뀌는 것으로는 올리지 않는다(Local-Rules §34).
+   */
   const findSeq = useRef(0);
   const listId = `${testId}-list`;
 
   const close = () => setPicks(null);
 
   // 연 ID 가 바뀌면(링크로 열림·목록에서 고름·다른 세트 열기) 칸을 그 ID 로 맞춘다. 첫 그리기는 useState 초기값이 맡는다.
+  // 아직 오지 않은 찾기는 무르지 않는다 — 찾기는 늘 사용자가 시작한 것이고 목록은 고르기 전까지 어느 대상에도 쓰이지 않는다.
+  // 화면 인계가 [찾기] 응답보다 늦게 와도 찾기 결과를 버리지 않게(2026-10-03, e2e TC-DMC-ITM-01).
+  // 이미 열린 목록은 닫는다 — 칸에 새 ID 가 보이는데 Enter 가 옛 검색어의 목록에서 고르지 않게.
   const shownId = useRef(currentId ?? null);
   useEffect(() => {
     const id = currentId ?? null;
@@ -118,7 +124,6 @@ export function IdPicker({ label, placeholder, noun, testId, search, limit, onPi
     shownId.current = id;
     if (id) {
       setKeyword(id);
-      findSeq.current++;
       setPicks(null);
     }
   }, [currentId]);
@@ -140,15 +145,16 @@ export function IdPicker({ label, placeholder, noun, testId, search, limit, onPi
     onPick(id);
   };
 
-  // 목록이 열려 있을 때만 바깥 누름으로 닫는다.
+  // 바깥을 누르면 목록을 닫고, 아직 오지 않은 찾기도 무른다 — 사용자가 다른 일(다른 대상 열기 등)로 옮겼으므로.
   useEffect(() => {
-    if (!picks) return;
     const onDown = (e: MouseEvent) => {
-      if (!boxRef.current?.contains(e.target as Node)) close();
+      if (boxRef.current?.contains(e.target as Node)) return;
+      findSeq.current++;
+      close();
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [picks]);
+  }, []);
 
   // ↑↓ 로 옮긴 줄이 목록 밖이면 보이게 굴린다.
   useEffect(() => {

@@ -380,3 +380,11 @@ React Flow 12 의 `useReactFlow().fitView()` 는 곧바로 화면을 옮기지 �
 - 곧바로 옮겨야 하는 동작은 경계 상자로 화면을 계산해 넣는다: `getViewportForBounds(rf.getNodesBounds(ids), width, height, minZoom, maxZoom, padding)` → `rf.setViewport(vp, { duration })`. `width`·`height`·`minZoom`·`maxZoom` 은 `useStoreApi().getState()` 에서 읽는다. 예: `m-mdm/pages/dme/ruleSetEdit/canvas/FlowCanvas.tsx` 의 `fitNodes`.
 - 상태를 바꿔 다시 그리는 경로(툴바 [화면 맞춤] 의 신호 값, 세트를 바꿀 때)는 `rf.fitView` 를 써도 된다. 새 노드를 다 잴 때까지 기다렸다 맞추는 성질이 오히려 필요하다.
 - `translateExtent` 같은 이동 한계는 휠·끌기·`scaleBy`·`setViewportConstrained` 에만 걸리고 `fitView`·`setCenter`·`setViewport` 는 거치지 않는다. 한계를 바꿔도 지금 화면을 다시 맞추지 않으므로, 한계가 줄 수 있으면 움직임이 멈춘 뒤 `panZoom.setViewportConstrained` 로 한 번 맞춘다(같은 캔버스의 `ViewportGuard`).
+
+## 34. 검색 칸의 요청 순번 — 무르기는 사용자 조작으로만 한다 (2026-10-03)
+
+§11·§15 의 요청 순번으로 늦게 온 검색 응답을 버릴 때, 순번을 올리는 계기는 **사용자 조작**(글자 바꿈·다시 찾기·[찾기]·바깥 누름)으로 한정한다. 화면 인계로 연 ID 가 바뀌는 것처럼 사용자가 하지 않은 변화로 순번을 올리면, 인계가 [찾기] 응답보다 늦게 왔을 때 사용자가 누른 찾기가 아무 일도 없던 것처럼 사라진다(IdPicker, e2e TC-DMC-ITM-01). 반대로 사용자가 [찾기]를 눌렀으면, 그 전에 칸을 떠날 때(blur) 시작된 자동 확정 검색은 무른다. 무르지 않으면 늦게 온 한 건 응답이 막 연 찾기 팝업을 닫는다(DomainField).
+
+- 범위: 사용자가 친 검색어의 후보 목록(IdPicker·DomainField 등)에 한한다. 대상 상세·폼을 채우는 조회(§11·§15)는 인계 때도 순번을 올린다.
+- 찾기 목록은 고르기 전까지 어느 대상에도 쓰이지 않으므로, 연 ID 가 바뀌어도 아직 오지 않은 사용자 찾기의 결과는 보인다. 칸 글자는 새 ID 로 맞추고, 이미 열려 있던 목록은 닫는다(칸에 새 ID 가 보이는데 Enter 가 옛 목록에서 고르지 않게).
+- 시험은 지연 응답(직접 resolve 하는 Promise)으로 순서를 고정한다. 예: `m-mdm/tests/shell/id-picker.test.ts`, `m-mdm/tests/domain/domain-field.test.ts`.

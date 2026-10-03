@@ -37,6 +37,7 @@ export function DomainField({ domainId, label, search, onChange, disabled, testI
     setPopupState(v);
     onPopupChange?.(v !== null);
   };
+  /** 확정 검색 순번(Local-Rules §11·§15) — [찾기]·새 확정이 시작되면 그 전에 시작된 확정 응답은 적용하지 않는다. */
   const seq = useRef(0);
 
   // 밖에서 도메인이 바뀌면(행 선택·초기화) 칸 글자를 맞춘다.
@@ -70,6 +71,18 @@ export function DomainField({ domainId, label, search, onChange, disabled, testI
     else setPopup(t);
   };
 
+  // [찾기]를 누르면 칸을 떠날 때(blur) 시작된 확정 검색을 무른다 — 늦게 온 한 건 응답이 막 연 팝업을 닫지 않게.
+  const openFinder = () => {
+    seq.current++;
+    setPopup("");
+  };
+
+  // 고르지 않고 닫으면 칸 글자를 지금 도메인으로 되돌린다 — 친 글자가 남으면 저장되는 도메인과 어긋난다.
+  const closePopup = () => {
+    setText(label);
+    setPopup(null);
+  };
+
   return (
     <div style={{ display: "flex", gap: "var(--spacing-xs)", alignItems: "center" }}>
       <Input
@@ -84,12 +97,12 @@ export function DomainField({ domainId, label, search, onChange, disabled, testI
           if (e.key === "Enter" && !e.nativeEvent.isComposing) void confirm();
         }}
       />
-      <Button disabled={disabled} data-testid={`${testId}-find`} onClick={() => setPopup("")}>
+      <Button disabled={disabled} data-testid={`${testId}-find`} onClick={openFinder}>
         찾기
       </Button>
-      <Modal open={popup !== null} title="도메인 찾기" size="md" onClose={() => setPopup(null)}>
+      <Modal open={popup !== null} title="도메인 찾기" size="md" onClose={closePopup}>
         {popup !== null && (
-          <DomainSearchBox key={popup} search={search} testId={`${testId}-box`} initialKeyword={popup} onPick={pick} onClose={() => setPopup(null)} />
+          <DomainSearchBox key={popup} search={search} testId={`${testId}-box`} initialKeyword={popup} onPick={pick} onClose={closePopup} />
         )}
       </Modal>
     </div>
