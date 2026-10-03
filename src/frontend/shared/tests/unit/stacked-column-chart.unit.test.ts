@@ -120,4 +120,16 @@ describe("StackedColumnChart", () => {
     expect(svg.getAttribute("width")).toBe("640");
     expect(svg.getAttribute("height")).toBe("120");
   });
+
+  it("잰 폭이 여백보다 좁으면(탭이 다시 보이는 순간 등) 재기 전처럼 640px 로 그려 막대 폭이 음수가 되지 않는다", () => {
+    // 여백 left 36 + right 10 = 46. 그보다 좁은 양수 폭을 재면 iw·막대 폭이 음수가 되어 <rect width="-1.8"> 콘솔 오류가 났다.
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(40);
+    const el = render({ ...BASE, height: 300 })!;
+    const svg = el.querySelector("svg")!;
+    expect(svg.getAttribute("width")).toBe("640");
+    const widths = Array.from(svg.querySelectorAll("rect")).map((r) => Number(r.getAttribute("width")));
+    expect(widths.length).toBeGreaterThan(0);
+    expect(widths.every((w) => w >= 0)).toBe(true);
+  });
 });
+

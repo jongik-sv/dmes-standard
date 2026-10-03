@@ -107,7 +107,8 @@ const StackedColumnChart = memo(function StackedColumnChart({
       if (raf !== 0) cancelAnimationFrame(raf);
     };
   }, []);
-  const W = measured > 0 ? measured : FALLBACK_WIDTH;
+  // 여백보다 좁은 폭(숨김·탭 전환 중 잠깐 잰 값)은 재기 전과 같이 본다 — 그대로 쓰면 그릴 폭·막대 폭이 음수가 되어 <rect width> 오류가 난다.
+  const W = measured > PAD.left + PAD.right ? measured : FALLBACK_WIDTH;
   const H = Math.max(MIN_HEIGHT, Math.round(height));
 
   const totals = useMemo(
