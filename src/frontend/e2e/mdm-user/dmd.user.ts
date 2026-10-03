@@ -213,6 +213,9 @@ const itemCount = (page: Page) => itemList(page).locator(".grid-panel-count").fi
 
 /** 항목 편집에서 마루 데이터를 고른다(고르면 머리와 첫 쪽을 불러온다). */
 async function selectItemMaru(page: Page, id: string) {
+  // 진입 때 첫 마루 데이터를 비동기로 자동 선택하고 그때 후보 목록을 닫는다(IdPicker currentId, 8cb5520c) — 그 사이 후보를 누르면
+  // 요소가 사라져 클릭이 끝나지 않는다. 자동 선택이 끝난 표시(item-current)를 본 뒤 고른다(화면 스펙 mdm-dataItemMng 와 같다).
+  await expect(tid(page, "item-current")).toBeVisible({ timeout: 30_000 });
   await tid(page, "item-pick-keyword").fill(id);
   await tid(page, "item-pick-keyword").press("Enter");
   await tid(page, `item-pick-${id}`).click({ timeout: 20_000 });
@@ -225,9 +228,21 @@ async function searchItems(page: Page) {
   await waitIdle(page);
 }
 
+/**
+ * 오른쪽 [코드 테스트] 탭을 연다. 66f40e88 부터 항목 추가 패널과 항목 이력 패널은 이 탭 안에 있고 오른쪽 기본 탭은
+ * [카테고리 편집] 이다. [항목 추가]·[이력] 은 탭을 바꾸지 않으므로 사용자처럼 탭을 먼저 연다.
+ */
+async function openItemTestTab(page: Page) {
+  await tid(page, "item-right-tab-test").click();
+  await expect(tid(page, "item-history")).toBeVisible({ timeout: 20_000 });
+}
+
 /** "항목 추가" 패널에 값을 넣는다(등록은 누르지 않는다). */
 async function fillItemForm(page: Page, fields: Record<string, string>) {
-  if (!(await tid(page, "item-form").isVisible())) await button(page, "항목 추가").click();
+  if (!(await tid(page, "item-form").isVisible())) {
+    await openItemTestTab(page);
+    await button(page, "항목 추가").click();
+  }
   await expect(tid(page, "item-form")).toBeVisible();
   for (const [field, value] of Object.entries(fields)) await tid(page, `item-form-${field}`).fill(value);
 }
@@ -286,15 +301,17 @@ async function chooseCsv(page: Page, file: string) {
 
 // ── 카테고리 탭 ──
 
-/** 항목 편집 화면에서 마루 데이터를 고른 채 [카테고리] 탭으로 들어간다(탭에 들어가면 그 데이터의 카테고리 목록을 읽는다). */
+/** 항목 편집 화면에서 마루 데이터를 고른 채 오른쪽 [카테고리 편집] 탭으로 들어간다(66f40e88 — 카테고리는 오른쪽 탭의 표다). */
 async function openCateTab(page: Page) {
-  await tid(page, "item-tab-cate").click();
+  await tid(page, "item-right-tab-cate").click();
   await expect(tid(page, "cate-tab")).toBeVisible({ timeout: 20_000 });
   await expect(tid(page, "cate-row-BASE")).toBeVisible({ timeout: 20_000 });
   await waitIdle(page);
 }
 
+/** [카테고리 추가] 팝업으로 카테고리를 등록한다(dmd 는 추가할 때 바로 저장된다 — 「카테고리 변경은 [추가]·[편집]·[닫기] 마다 바로 저장됩니다」). */
 async function addCategory(page: Page, id: string, name: string, kind: "REGEX" | "TABLE") {
+  await tid(page, "cate-add").click();
   await tid(page, "cate-add-id").fill(id);
   await tid(page, "cate-add-name").fill(name);
   await tid(page, "cate-add-kind").selectOption(kind);
@@ -303,18 +320,31 @@ async function addCategory(page: Page, id: string, name: string, kind: "REGEX" |
   await expect(tid(page, `cate-row-${id}`)).toBeVisible({ timeout: 20_000 });
 }
 
+/** 카테고리 표의 한 행 — ID 칸 안쪽 span 이 `cate-row-{cateId}` 다(66f40e88 AgDataGrid). */
+const catePanel = (page: Page) =>
+  // 제목 칸(.grid-panel-title)에는 건수도 함께 있으므로 제목 글자 span 만 본다.
+  screen(page).locator(".grid-panel").filter({ has: page.locator(".grid-panel-title > span").filter({ hasText: /^카테고리$/ }) });
+const cateRows = (page: Page) => catePanel(page).locator(".ag-center-cols-container .ag-row");
+const cateRow = (page: Page, cateId: string) => cateRows(page).filter({ has: page.locator(`[data-testid="cate-row-${cateId}"]`) });
+const cateCell = (page: Page, cateId: string, colId: string) => cateRow(page, cateId).locator(`.ag-cell[col-id="${colId}"]`);
+/** 카테고리를 고른다 — 행을 누른다(소속·이력이 그 카테고리로 바뀐다). */
+async function selectCate(page: Page, cateId: string) {
+  await cateCell(page, cateId, "matchCount").click();
+  await expect(tid(page, "cate-history-title")).toHaveText(`카테고리 이력 — ${cateId}`, { timeout: 20_000 });
+}
+/** 아래 "소속 — {cateId}" 표 — REGEX 는 서버 해석(compare) 결과가, TABLE 은 저장된 소속이 곧 목록이다(미리보기 패널은 없어졌다). */
+const memberPanel = (page: Page) =>
+  screen(page).locator(".grid-panel").filter({ has: page.locator(".grid-panel-title", { hasText: /^소속 — / }) });
+/** 행의 [편집] 팝업(REGEX 정의·TABLE 소속)을 닫는다. */
+async function closeDialog(page: Page) {
+  await page.getByRole("dialog").getByRole("button", { name: "닫기" }).last().click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+}
+
 // ── 이력(항목 이력 패널·카테고리 이력 패널이 같은 타임라인을 쓴다) ──
 
 const timelineRows = (page: Page, panelTestId: string) =>
   tid(page, panelTestId).locator(".ag-center-cols-container .ag-row");
-
-/** 카테고리 이력 패널에서 소속 이력을 본다 — 대상을 「소속」으로 바꾸고 키를 넣어 [조회] 한다(고른 카테고리 안의 항목 하나). */
-async function queryMemberHistory(page: Page, key: string) {
-  await tid(page, "cate-history-target").selectOption("CATE_ITEM");
-  await tid(page, "cate-history-key").fill(key);
-  await tid(page, "cate-history-search").click();
-  await waitIdle(page);
-}
 
 // ═══════════════════════════ A. 마루 데이터 등록·수정 ═══════════════════════════
 
@@ -629,11 +659,13 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await openDmd(page, "항목 편집", "dataItemMng");
     await expect(breadcrumb(page)).toContainText(/마루 MDM > 마스터데이터 > 항목 편집/);
     await selectItemMaru(page, MD);
-    // 탭 셋과 오른쪽 열(항목 이력 자리 — 이력을 부르기 전에도 패널이 보이고 안내만 있다).
+    // 왼쪽 탭은 항목·트리, 오른쪽 탭은 카테고리 편집·코드 테스트다(66f40e88). [코드 테스트] 탭의 항목 이력 자리는
+    // 이력을 부르기 전에도 패널이 보이고 안내만 있다.
     await expect(tid(page, "item-tab-grid")).toHaveText("항목");
     await expect(tid(page, "item-tab-tree")).toHaveText("트리");
-    await expect(tid(page, "item-tab-cate")).toHaveText("카테고리");
-    await expect(tid(page, "item-history")).toBeVisible();
+    await expect(tid(page, "item-right-tab-cate")).toHaveText("카테고리 편집");
+    await expect(tid(page, "item-right-tab-test")).toHaveText("코드 테스트");
+    await openItemTestTab(page);
     await expect(tid(page, "item-history-empty")).toHaveText("행의 [이력] 을 누르면 여기에 보입니다");
     await expect(tid(page, "item-form")).toHaveCount(0);
     await expect(itemList(page).locator(".grid-panel-title")).toContainText(`항목 — ${NAME}`);
@@ -643,7 +675,8 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
       expect(itemList(page).getByText("조회된 항목이 없습니다.")).toBeVisible({ timeout: 5_000 }),
     );
     const headers = itemList(page).locator(".ag-header-cell-text");
-    await expect(headers).toHaveText(["키", "이름", "약칭", "순서", "1차", "2차", "국가명", "비고", "상태", "시작 일시", "작업"]);
+    // 맨 앞 No 는 행 번호 열이다(66f40e88 — 페이징 없이 한 번에 받고 rowNumber 를 켠다).
+    await expect(headers).toHaveText(["No", "키", "이름", "약칭", "순서", "1차", "2차", "국가명", "비고", "상태", "시작 일시", "작업"]);
     await expect(button(page, "항목 추가")).toBeEnabled();
     await expect(button(page, "CSV 업로드")).toBeEnabled();
     await layout.layout(page, "dataItemMng 초기");
@@ -652,6 +685,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
   });
 
   test("TC-DMD-ITEM-02 등록(C) — 항목 추가 패널의 모든 칸을 채워 등록한다", async () => {
+    // 항목 추가 패널은 오른쪽 [코드 테스트] 탭에 있다(ITEM-01 에서 열어 두었다).
     await button(page, "항목 추가").click();
     await expect(tid(page, "item-form")).toBeVisible();
     for (const f of ["code", "name", "alterName", "seq", "description", "lvl1", "lvl2", "attr01", "attr02"]) {
@@ -951,9 +985,11 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
 
     await kr.click();
     await expect(tid(page, "item-tree-to-grid")).toBeEnabled();
+    // 오른쪽 탭 머리(카테고리 편집·코드 테스트)와 마루 데이터 [찾기](IdPicker)는 이 장의 다른 단계·장 C 가 누른다(66f40e88 구조).
     await assertAllButtonsPressed(page, "dataItemMng 트리", {
       항목: "[항목] 탭 — 아래에서 탭 머리로 누른다",
-      카테고리: "[카테고리] 탭 — 장 C 에서 누른다",
+      "카테고리 편집": "오른쪽 [카테고리 편집] 탭 — 장 C 에서 누른다",
+      찾기: "마루 데이터 [찾기] — 이 장은 Enter 로 찾는다(selectItemMaru). [찾기] 단추 길은 장 E TC-DMD-ROLE-01 에서 누른다",
       "item-tree-to-grid": "이 노드로 보기 — 바로 다음 줄에서 누른다(누르면 그리드로 바뀌어 이 목록에서 볼 수 없다)",
     });
     await tid(page, "item-tree-to-grid").click();
@@ -970,9 +1006,10 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await expect(tid(page, "item-tree-panel")).toBeVisible();
     await tid(page, "item-tab-grid").click();
     await expect(itemCount(page)).toHaveText("58건");
+    // 쪽 이동 막대는 66f40e88 로 없어졌다(전체 조회 — TC-DMD-PAGE-01).
     await assertAllButtonsPressed(page, "dataItemMng", {
-      카테고리: "[카테고리] 탭 — 장 C 에서 누른다",
-      다음: "쪽 이동은 TC-DMD-PAGE-01 에서 따로 누른다(막대가 그리드에 가려지는 결함이 있어 독립 장으로 뗐다)",
+      "카테고리 편집": "오른쪽 [카테고리 편집] 탭 — 장 C 에서 누른다",
+      찾기: "마루 데이터 [찾기] — 장 E TC-DMD-ROLE-01 에서 누른다(이 장은 Enter 로 찾는다)",
     });
     watcher.assertClean("dataItemMng 트리");
   });
@@ -983,9 +1020,9 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
 });
 
 
-// ═══════════════════════════ B2. 항목 쪽 이동 ═══════════════════════════
+// ═══════════════════════════ B2. 항목 전체 조회 ═══════════════════════════
 
-test.describe("B2 항목 쪽 이동", () => {
+test.describe("B2 항목 전체 조회", () => {
   test.describe.configure({ mode: "serial" });
 
   const MD = mdId("DMP");
@@ -1019,21 +1056,26 @@ test.describe("B2 항목 쪽 이동", () => {
     watcher.assertClean("준비");
   });
 
-  test("TC-DMD-PAGE-01 쪽 이동 — 50건을 넘으면 쪽 이동 막대가 보이고 다음 쪽으로 넘겼다 돌아온다", async () => {
-    const pager = screen(page).getByText(/\d+ \/ \d+ 페이지/);
-    await expect(pager).toHaveText("1 / 2 페이지 · 총 55건");
-    // 사용자가 누르려면 쪽 이동 막대가 화면 안에 보여야 한다(그리드에 가려지거나 밀려나지 않아야 한다).
-    await expect(screen(page).getByRole("button", { name: "다음", exact: true })).toBeInViewport();
-    await expect(screen(page).getByRole("button", { name: "이전", exact: true })).toBeDisabled();
-    await screen(page).getByRole("button", { name: "다음", exact: true }).click();
-    await expect(pager).toHaveText("2 / 2 페이지 · 총 55건", { timeout: 20_000 });
-    await expect(itemList(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(5);
-    await expect(screen(page).getByRole("button", { name: "다음", exact: true })).toBeDisabled();
-    await checkLayout(page, "dataItemMng 2쪽");
-    await snap(page, "dmd-dataItemMng-page2");
-    await screen(page).getByRole("button", { name: "이전", exact: true }).click();
-    await expect(pager).toHaveText("1 / 2 페이지 · 총 55건", { timeout: 20_000 });
-    watcher.assertClean("dataItemMng 쪽 이동");
+  test("TC-DMD-PAGE-01 전체 조회 — 50건을 넘어도 쪽을 나누지 않고 55건을 한 번에 보이며, 맨 앞 No 칸이 행 번호다", async () => {
+    // 66f40e88: 항목 편집은 페이징을 없애고 조건에 맞는 항목을 한 번에 받는다(잘리면 item-truncated 안내). 옛 쪽 이동 막대
+    // ([이전]·[다음]·「n / m 페이지」)는 없다 — 옛 "다음 쪽으로 넘겼다 돌아온다" 대신 한 목록에서 끝까지 보이는지 본다.
+    await expect(itemCount(page)).toHaveText("55건");
+    await expect(screen(page).getByText(/\d+ \/ \d+ 페이지/)).toHaveCount(0);
+    await expect(screen(page).getByRole("button", { name: "다음", exact: true })).toHaveCount(0);
+    await expect(page.locator('[data-testid="item-truncated"]')).toHaveCount(0);
+    // No 칸은 왼쪽 고정 열(shared AgDataGrid ROW_NUMBER_COL_ID = "__rowNo")이다 — 키 칸도 고정이라 행이 아니라 그 칸만 본다.
+    const noCell = (code: string) =>
+      itemList(page).locator(`.ag-pinned-left-cols-container .ag-row[row-id="${code}"] .ag-cell[col-id="__rowNo"]`);
+    await expect(noCell("PG001")).toHaveText("1");
+    // 맨 아래까지 굴리면 마지막 항목(PG055)이 55번 행으로 그려진다(세로 가상화).
+    await itemList(page).locator(".ag-body-viewport").first().evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect(itemRow(page, "PG055")).toBeVisible({ timeout: 10_000 });
+    await expect(noCell("PG055")).toHaveText("55");
+    await checkLayout(page, "dataItemMng 55건 끝");
+    await snap(page, "dmd-dataItemMng-all-rows");
+    watcher.assertClean("dataItemMng 전체 조회");
   });
 });
 
@@ -1073,20 +1115,24 @@ test.describe("C 카테고리 탭·이력", () => {
     watcher.assertClean("준비");
   });
 
-  test("TC-DMD-CATE-01 [카테고리] 탭 배치 — BASE 는 닫기 버튼이 없고, 오른쪽 열은 미리보기·카테고리 이력으로 바뀐다", async () => {
+  test("TC-DMD-CATE-01 [카테고리 편집] 탭 배치 — BASE 는 닫기·편집 버튼이 없고, 카테고리 표 아래에 카테고리 이력·소속이 있다", async () => {
     await closeTabs(page);
     await openDmd(page, "항목 편집", "dataItemMng");
     await selectItemMaru(page, MD);
     await openCateTab(page);
-    // 고르기 전 — 편집 자리와 카테고리 이력 자리에는 안내만 있다. 항목 이력 패널은 이 탭에 없다.
-    await expect(tid(page, "cate-edit-empty")).toHaveText("왼쪽에서 카테고리를 고르세요");
-    await expect(tid(page, "cate-history-empty")).toHaveText("왼쪽 목록에서 카테고리를 고르면 이력이 보입니다");
-    await expect(tid(page, "cate-preview")).toBeVisible();
-    await expect(tid(page, "item-history")).toHaveCount(0);
-    await expect(tid(page, "cate-row-BASE")).toContainText("REGEX");
-    await expect(tid(page, "cate-match-BASE")).toHaveText("3건");
-    await expect(tid(page, "cate-close-BASE")).toHaveCount(0);
+    // 고르기 전 — 카테고리 이력 자리에는 안내만 있다(66f40e88: 오른쪽 탭 안 세로 배치, 미리보기 패널은 없다).
+    // 항목 이력 패널은 [코드 테스트] 탭에 있어 이 탭에는 없다.
+    await expect(tid(page, "cate-history-empty")).toHaveText("카테고리를 고르면 이력이 보입니다");
+    await expect(page.locator('[data-testid="item-history"]')).toHaveCount(0);
+    await expect(cateCell(page, "BASE", "defKind")).toHaveText("REGEX");
+    await expect(cateCell(page, "BASE", "matchCount")).toHaveText("3건");
+    await expect(page.locator('[data-testid="cate-close-BASE"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="cate-edit-BASE"]')).toHaveCount(0);
+    // 추가 팝업의 종류 기본값은 TABLE 이다 — 열어 보고 [취소] 로 닫는다.
+    await tid(page, "cate-add").click();
     await expect(tid(page, "cate-add-kind")).toHaveValue("TABLE");
+    await tid(page, "cate-add-cancel").click();
+    await expect(page.locator('[data-testid="cate-add-id"]')).toHaveCount(0);
     // 머리의 [조회] 는 이 탭에서 카테고리 목록을 다시 읽는다.
     await headerBtn(page, "조회").click();
     await waitIdle(page);
@@ -1096,52 +1142,52 @@ test.describe("C 카테고리 탭·이력", () => {
     watcher.assertClean("카테고리 탭");
   });
 
-  test("TC-DMD-CATE-02 BASE 정의를 저장하려 하면 예약 카테고리 문구로 거부된다", async () => {
-    await tid(page, "cate-row-BASE").click();
-    await expect(tid(page, "regex-edit-panel")).toContainText("BASE — REGEX 정의");
-    const save = tid(page, "regex-save");
-    if (await save.isEnabled()) {
-      await save.click();
-      await expectErrorModal(page, "예약 카테고리 BASE 는 편집·삭제할 수 없습니다", "dmd-dataCateEdit-02-base");
-      expectOnly4xx(watcher, "BASE 저장");
-    }
+  test("TC-DMD-CATE-02 BASE 는 예약 카테고리라 고르면 편집·닫기를 할 수 없다는 안내만 보인다", async () => {
+    // 66f40e88 부터 BASE 행에는 [편집] 버튼이 없어 정의 편집 팝업을 열 수 없다(서버의 BASE 저장 거부는 화면으로 일으킬 수 없다 —
+    // 서버 단위 시험이 맡는다). 고르면 안내가 보인다.
+    await selectCate(page, "BASE");
+    await expect(tid(page, "cate-base-readonly")).toHaveText("BASE 는 예약 카테고리라 편집·닫기를 할 수 없습니다");
+    await expect(page.locator('[data-testid="cate-edit-BASE"]')).toHaveCount(0);
+    await snap(page, "dmd-dataCateEdit-02-base");
     watcher.assertClean("dataCateEdit BASE");
   });
 
-  test("TC-DMD-CATE-03 REGEX 카테고리 — 등록·대상 후보·미리보기·문법 오류·저장", async () => {
-    await tid(page, "cate-add-kind").selectOption("REGEX");
+  test("TC-DMD-CATE-03 REGEX 카테고리 — 등록·대상 후보·소속(해석 결과)·문법 오류·저장", async () => {
     await addCategory(page, "KRONLY", "한국 항구", "REGEX");
-    await expect(tid(page, "regex-edit-panel")).toContainText("KRONLY — REGEX 정의");
-    // 오른쪽 열 — 등록한 카테고리의 이력에 「생성」 1행이 바로 남는다.
+    // 등록한 카테고리가 골라진 채 카테고리 표 아래 이력에 「생성」 1행이 바로 남는다.
     await expect(tid(page, "cate-history")).toContainText("카테고리 이력 — KRONLY", { timeout: 20_000 });
     await expect(timelineRows(page, "cate-history")).toHaveCount(1, { timeout: 20_000 });
     await expect(timelineRows(page, "cate-history").first()).toContainText("생성");
+    // 정의는 행의 [편집] 팝업에서 고친다(66f40e88).
+    await tid(page, "cate-edit-KRONLY").click();
+    await expect(tid(page, "regex-edit-panel")).toContainText("KRONLY — REGEX 정의");
     await expect(tid(page, "regex-expr")).toHaveValue("^.*$");
     await expect(tid(page, "regex-target")).toHaveValue("KEY");
-    // 대상 후보는 KEY + 계층 칸 수(1)만큼 — 라벨 없는 ATTR 은 없다(D5).
-    await expect(tid(page, "regex-target").locator("option")).toHaveText(["KEY", "LVL1"]);
+    // 대상 후보는 KEY + 계층 칸 수(1)만큼 — 라벨 없는 ATTR 은 없다(D5). 화면에는 키가 아니라 칸 이름(키·1차)을 보인다(66f40e88 defTargetOptions).
+    await expect(tid(page, "regex-target").locator("option")).toHaveText(["키", "1차"]);
+    expect(await tid(page, "regex-target").locator("option").evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value))).toEqual(["KEY", "LVL1"]);
 
-    // 정규식은 값 전체에 맞춘다(서버 matches) — "KR 로 시작" 은 ^KR.* 로 쓴다.
+    // 정규식은 값 전체에 맞춘다(서버 matches) — "KR 로 시작" 은 ^KR.* 로 쓴다. 미리보기 패널 대신 아래 소속 목록이 해석 결과다.
+    const members = memberPanel(page);
     await tid(page, "regex-expr").fill("^KR.*");
-    await expect(tid(page, "preview-count")).toHaveText("매칭 2건", { timeout: 20_000 });
-    await expect(tid(page, "preview-panel")).toContainText("KRPUS");
-    await expect(tid(page, "preview-panel")).not.toContainText("CNSHA");
+    await expect(members.locator(".grid-panel-count")).toHaveText("2건", { timeout: 20_000 });
+    await expect(members).toContainText("KRPUS");
+    await expect(members).not.toContainText("CNSHA");
 
     await tid(page, "regex-expr").fill("[");
-    await expect(tid(page, "preview-invalid")).toHaveText("정규식 문법이 올바르지 않습니다", { timeout: 20_000 });
+    await expect(tid(page, "cate-regex-invalid")).toHaveText("정규식 문법이 올바르지 않습니다", { timeout: 20_000 });
     await snap(page, "dmd-dataCateEdit-03-invalid-preview");
 
     await tid(page, "regex-expr").fill("^KR$");
     await tid(page, "regex-target").selectOption("LVL1");
-    await expect(tid(page, "preview-count")).toHaveText("매칭 2건", { timeout: 20_000 });
+    await expect(members.locator(".grid-panel-count")).toHaveText("2건", { timeout: 20_000 });
     await tid(page, "regex-name").fill("한국 항구(계층)");
     await tid(page, "regex-desc").fill("1차가 KR 인 항목");
-    await layout.layout(page, "dataCateEdit REGEX 편집");
     await snap(page, "dmd-dataCateEdit-03-regex");
     await tid(page, "regex-save").click();
     await expectToast(page, "저장했습니다");
-    await expect(tid(page, "cate-match-KRONLY")).toHaveText("2건", { timeout: 20_000 });
-    await expect(tid(page, "cate-row-KRONLY")).toContainText("한국 항구(계층)");
+    await expect(cateCell(page, "KRONLY", "matchCount")).toHaveText("2건", { timeout: 20_000 });
+    await expect(cateCell(page, "KRONLY", "cateName")).toHaveText("한국 항구(계층)");
     // 저장하면 카테고리 이력에 「변경」 행이 더해진다.
     await expect(timelineRows(page, "cate-history")).toHaveCount(2, { timeout: 20_000 });
     await expect(timelineRows(page, "cate-history").nth(1)).toContainText("변경");
@@ -1151,12 +1197,16 @@ test.describe("C 카테고리 탭·이력", () => {
     await tid(page, "regex-save").click();
     await expectErrorModal(page, "카테고리 정의가 올바르지 않습니다");
     expectOnly4xx(watcher, "REGEX 저장 오류");
+    await closeDialog(page);
+    await layout.layout(page, "dataCateEdit REGEX 편집 뒤");
     watcher.assertClean("dataCateEdit REGEX");
   });
 
   test("TC-DMD-CATE-04 TABLE 카테고리 — 등록하고 후보를 검색·선택해 좌우로 옮긴다", async () => {
-    await tid(page, "cate-add-kind").selectOption("TABLE");
     await addCategory(page, "MAJOR", "주요 항구", "TABLE");
+    // 소속은 행의 [편집] 팝업(transfer-list)에서 고른다(66f40e88).
+    await selectCate(page, "MAJOR");
+    await tid(page, "cate-edit-MAJOR").click();
     const panel = tid(page, "transfer-list-panel");
     await expect(panel).toBeVisible({ timeout: 20_000 });
     for (const code of ["KRPUS", "KRINC", "CNSHA"]) await expect(tid(page, `transfer-available-${code}`)).toBeVisible();
@@ -1164,7 +1214,7 @@ test.describe("C 카테고리 탭·이력", () => {
     // 검색어로 좁혔다가 푼다.
     await tid(page, "transfer-query").fill("인천");
     await expect(tid(page, "transfer-available-KRINC")).toBeVisible();
-    await expect(tid(page, "transfer-available-KRPUS")).toHaveCount(0);
+    await expect(page.locator('[data-testid="transfer-available-KRPUS"]')).toHaveCount(0);
     await tid(page, "transfer-query").fill("");
 
     await tid(page, "transfer-available-KRPUS").click();
@@ -1172,15 +1222,16 @@ test.describe("C 카테고리 탭·이력", () => {
     await tid(page, "transfer-move-right").click();
     await expect(tid(page, "transfer-member-KRPUS")).toBeVisible();
     await expect(tid(page, "transfer-member-CNSHA")).toBeVisible();
-    await layout.layout(page, "dataCateEdit TABLE 편집");
     await snap(page, "dmd-dataCateEdit-04-transfer");
     // 오른쪽에서 골라 왼쪽으로 되돌린다(적용 전이라 서버에는 아무것도 가지 않는다 — 적용은 TC-DMD-CATE-08).
     await tid(page, "transfer-member-KRPUS").click();
     await tid(page, "transfer-member-CNSHA").click();
     await tid(page, "transfer-move-left").click();
     await expect(tid(page, "transfer-available-KRPUS")).toBeVisible();
-    await expect(tid(page, "transfer-member-KRPUS")).toHaveCount(0);
-    await expect(tid(page, "cate-match-MAJOR")).toHaveText("0건");
+    await expect(page.locator('[data-testid="transfer-member-KRPUS"]')).toHaveCount(0);
+    await closeDialog(page);
+    await expect(cateCell(page, "MAJOR", "matchCount")).toHaveText("0건");
+    await layout.layout(page, "dataCateEdit TABLE 편집 뒤");
     watcher.assertClean("dataCateEdit TABLE");
   });
 
@@ -1188,32 +1239,45 @@ test.describe("C 카테고리 탭·이력", () => {
     await tid(page, "cate-close-MAJOR").click();
     await expectToast(page, "닫았습니다");
     await expect(tid(page, "cate-reopen-MAJOR")).toBeVisible({ timeout: 20_000 });
-    await expect(tid(page, "cate-close-MAJOR")).toHaveCount(0);
+    await expect(page.locator('[data-testid="cate-close-MAJOR"]')).toHaveCount(0);
+    // 닫힌 카테고리의 [편집] 팝업은 옮기기·적용이 꺼져 있다.
+    await selectCate(page, "MAJOR");
+    await tid(page, "cate-edit-MAJOR").click();
     await expect(tid(page, "transfer-apply")).toBeDisabled();
     await expect(tid(page, "transfer-move-right")).toBeDisabled();
     await snap(page, "dmd-dataCateEdit-05-closed");
+    await closeDialog(page);
 
     // 닫힌 카테고리 ID 로 다시 등록하면 다시 열기로 안내한다. 이미 있는 ID 는 중복으로 거부된다.
+    // 거부돼도 [카테고리 추가] 팝업은 닫힌다(CategoryAddModal submit 이 결과와 무관하게 닫는다 — 보고서 관찰). 다시 열어 시도한다.
+    await tid(page, "cate-add").click();
     await tid(page, "cate-add-id").fill("MAJOR");
     await tid(page, "cate-add-name").fill("다시 등록");
     await tid(page, "cate-add-submit").click();
     await expectErrorModal(page, "닫힌 키입니다. 새로 등록할 수 없으니 다시 여세요");
+    await expect(page.locator('[data-testid="cate-add-id"]')).toHaveCount(0);
+    await tid(page, "cate-add").click();
     await tid(page, "cate-add-id").fill("KRONLY");
     await tid(page, "cate-add-name").fill("중복 등록");
     await tid(page, "cate-add-submit").click();
     await expectErrorModal(page, "이미 있는 키입니다");
     expectOnly4xx(watcher, "카테고리 중복");
+    await expect(page.locator('[data-testid="cate-add-id"]')).toHaveCount(0);
+    // 카테고리는 셋 그대로다(새로 생기지 않았다).
+    await expect(cateRows(page)).toHaveCount(3);
 
     await tid(page, "cate-reopen-MAJOR").click();
     await expectToast(page, "다시 열었습니다");
     await expect(tid(page, "cate-close-MAJOR")).toBeVisible({ timeout: 20_000 });
-    await tid(page, "cate-row-MAJOR").click();
+    await selectCate(page, "MAJOR");
+    await tid(page, "cate-edit-MAJOR").click();
     await expect(tid(page, "transfer-move-right")).toBeEnabled({ timeout: 20_000 });
-    await assertAllButtonsPressed(page, "항목 편집 [카테고리] 탭", {
+    await closeDialog(page);
+    // 카테고리 행의 버튼(닫기·다시 열기·편집)은 표 안에 있어 커버리지 대상이 아니다.
+    await assertAllButtonsPressed(page, "항목 편집 [카테고리 편집] 탭", {
       항목: "[항목] 탭 — 다음 시험(TC-DMD-CATE-06)에서 누른다",
       트리: "[트리] 탭 — 장 B 에서 눌렀다(이 화면은 장 C 에서 새로 열었다)",
-      "cate-close-KRONLY": "닫기는 MAJOR 로 확인했다(같은 버튼의 다른 행)",
-      "transfer-apply": "적용은 TC-DMD-CATE-08 에서 누른다(서버 결함으로 실패해 장 끝에 둔다)",
+      "코드 테스트": "[코드 테스트] 탭 — TC-DMD-HIST-01 에서 누른다(이 화면은 TC-DMD-CATE-01 에서 새로 열었다)",
     });
     watcher.assertClean("dataCateEdit 닫기");
   });
@@ -1254,9 +1318,10 @@ test.describe("C 카테고리 탭·이력", () => {
   test("TC-DMD-HIST-01 항목 이력 패널 배치 — 이력을 부르기 전에도 패널이 보이고 안내만 있다", async () => {
     await tid(page, "item-search-closed").selectOption("N");
     await searchItems(page);
-    await expect(tid(page, "item-history")).toBeVisible();
+    // 항목 이력 패널은 오른쪽 [코드 테스트] 탭에 있다(66f40e88).
+    await openItemTestTab(page);
     await expect(tid(page, "item-history-empty")).toHaveText("행의 [이력] 을 누르면 여기에 보입니다");
-    await expect(tid(page, "item-history-close")).toHaveCount(0);
+    await expect(screen(page).getByTestId("item-history-close")).toHaveCount(0);
     await expect(tid(page, "item-history")).not.toContainText("이력 — ");
     await layout.layout(page, "항목 이력 패널 초기");
     await snap(page, "dmd-itemHistory-01-initial");
@@ -1286,9 +1351,9 @@ test.describe("C 카테고리 탭·이력", () => {
     watcher.assertClean("항목 이력");
   });
 
-  test("TC-DMD-HIST-03 카테고리 이력 — 정의 변경·닫혀 있던 구간이 남고, 소속 조회는 키를 넣어야 한다", async () => {
+  test("TC-DMD-HIST-03 카테고리 이력 — 정의 변경·닫혀 있던 구간이 남는다", async () => {
     await openCateTab(page);
-    await tid(page, "cate-row-KRONLY").click();
+    await selectCate(page, "KRONLY");
     await expect(tid(page, "cate-history")).toContainText("카테고리 이력 — KRONLY", { timeout: 20_000 });
     await expect(tid(page, "cate-history").getByTestId("history-state")).toContainText("KRONLY · 열림", { timeout: 20_000 });
     await expect(timelineRows(page, "cate-history").first()).toContainText("생성");
@@ -1308,25 +1373,12 @@ test.describe("C 카테고리 탭·이력", () => {
       .evaluate((el) => el.scrollWidth - el.clientWidth);
     expect(overflow, "카테고리 이력 그리드에 가로 스크롤이 없다").toBeLessThanOrEqual(0);
 
-    await tid(page, "cate-row-MAJOR").click();
-    await expect(tid(page, "cate-history")).toContainText("카테고리 이력 — MAJOR", { timeout: 20_000 });
+    await selectCate(page, "MAJOR");
     await expect(tid(page, "cate-history").getByTestId("history-timeline")).toContainText("닫혀 있던 구간", { timeout: 20_000 });
     await snap(page, "dmd-cateHistory-03-cate");
-
-    // 소속 — 대상을 바꾸면 항목 키 칸과 [조회] 가 나타난다. 대상 선택지는 카테고리·소속 둘이다.
-    await expect(tid(page, "cate-history-target").locator("option")).toHaveText(["카테고리", "소속"]);
-    await tid(page, "cate-history-target").selectOption("CATE_ITEM");
-    await expect(tid(page, "cate-history-key")).toHaveAttribute("placeholder", "항목 키");
-    // 키를 비운 채 조회하면 서버 거부 문구가 보인다(판정은 서버 한 곳).
-    await tid(page, "cate-history-search").click();
-    await expectErrorModal(page, "키를 입력하세요", "dmd-cateHistory-03-key-required");
-    expectOnly4xx(watcher, "소속 이력 키 누락");
-
-    // 아직 소속을 적용하지 않았으므로 행이 없다. 없는 키도 같다.
-    await queryMemberHistory(page, "KRPUS");
-    await expect(tid(page, "cate-history").getByTestId("history-state")).toContainText("KRPUS · 행 없음", { timeout: 20_000 });
-    await queryMemberHistory(page, `NOPE${RUN}`);
-    await expect(tid(page, "cate-history").getByTestId("history-empty")).toHaveText("행이 없습니다", { timeout: 20_000 });
+    // 옛 소속 이력 조회(대상 「소속」·항목 키·[조회])는 지웠다 — 66f40e88 이 이 패널을 "고른 카테고리 하나가 곧 조건" 으로 줄여
+    // 대상·키·[조회] 를 두지 않는다(CategoryHistoryPanel 머리 주석, 화면 스펙 mdm-dataItemMng S12 도 같은 근거로 지웠다 — 9eb26b78).
+    // 서버 dataHistory CATE_ITEM 은 그대로다.
     await layout.layout(page, "카테고리 이력");
     watcher.assertClean("카테고리 이력");
   });
@@ -1335,29 +1387,31 @@ test.describe("C 카테고리 탭·이력", () => {
     layout.assertEmpty("C 카테고리·이력");
   });
 
-  test("TC-DMD-CATE-08 TABLE 소속 적용 — 넣고 적용, 빼고 적용하면 건수·항목 조건·소속 이력에 반영된다", async () => {
-    // 이 시점에는 [카테고리] 탭이 열려 있다 — MAJOR 를 고르면 소속 transfer-list 가 나타난다.
-    await tid(page, "cate-row-MAJOR").click();
+  test("TC-DMD-CATE-08 TABLE 소속 적용 — 넣고 적용, 빼고 적용하면 건수·소속 목록·항목 조건에 반영된다", async () => {
+    // 이 시점에는 [카테고리 편집] 탭이 열려 있다 — MAJOR 를 고르고 [편집] 으로 소속 transfer-list 팝업을 연다(66f40e88).
+    await selectCate(page, "MAJOR");
+    await tid(page, "cate-edit-MAJOR").click();
     await expect(tid(page, "transfer-list-panel")).toBeVisible({ timeout: 20_000 });
     await tid(page, "transfer-available-KRPUS").click();
     await tid(page, "transfer-available-CNSHA").click();
     await tid(page, "transfer-move-right").click();
     await tid(page, "transfer-apply").click();
     await expectToast(page, "적용했습니다");
-    await expect(tid(page, "cate-match-MAJOR")).toHaveText("2건", { timeout: 20_000 });
+    await expect(cateCell(page, "MAJOR", "matchCount")).toHaveText("2건", { timeout: 20_000 });
 
     await tid(page, "transfer-member-CNSHA").click();
     await tid(page, "transfer-move-left").click();
     await tid(page, "transfer-apply").click();
     await expectToast(page, "적용했습니다");
-    await expect(tid(page, "cate-match-MAJOR")).toHaveText("1건", { timeout: 20_000 });
+    await expect(cateCell(page, "MAJOR", "matchCount")).toHaveText("1건", { timeout: 20_000 });
+    await closeDialog(page);
 
-    // 소속 이력 — 오른쪽 열의 카테고리 이력에서 대상을 「소속」으로 바꿔 두 키를 본다(고른 카테고리는 MAJOR).
-    await queryMemberHistory(page, "CNSHA");
-    await expect(tid(page, "cate-history").getByTestId("history-state")).toContainText("CNSHA · 소멸(닫힘)", { timeout: 20_000 });
+    // 아래 소속 목록이 저장된 소속을 보인다(옛 소속 이력 조회는 66f40e88 로 없어졌다 — TC-DMD-HIST-03 주석).
+    const members = memberPanel(page);
+    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: 20_000 });
+    await expect(members).toContainText("KRPUS");
+    await expect(members).not.toContainText("CNSHA");
     await snap(page, "dmd-cateHistory-08-member");
-    await queryMemberHistory(page, "KRPUS");
-    await expect(tid(page, "cate-history").getByTestId("history-state")).toContainText("KRPUS · 열림", { timeout: 20_000 });
 
     // [항목] 탭의 카테고리 조건에도 반영된다.
     await tid(page, "item-tab-grid").click();
@@ -1384,8 +1438,10 @@ test.describe("C2 카테고리 등록 빈 값", () => {
       const first = await tid(page, "item-pick-list").locator('[data-testid^="item-pick-E2E_USR_"]').first().getAttribute("data-testid");
       await selectItemMaru(page, (first ?? "").replace("item-pick-", ""));
       await openCateTab(page);
-      const rows = tid(page, "cate-list").locator('[data-testid^="cate-row-"]');
+      const rows = cateRows(page);
       const before = await rows.count();
+      // [카테고리 추가] 는 팝업을 연다(66f40e88).
+      await tid(page, "cate-add").click();
       await tid(page, "cate-add-id").fill("");
       await tid(page, "cate-add-name").fill("");
       await tid(page, "cate-add-submit").click();
@@ -1510,8 +1566,9 @@ test.describe("D 계층 축소 거부·폐기", () => {
     // [카테고리] 탭도 조회 전용이다 — 안내가 보이고 등록 폼이 없다.
     await openCateTab(page);
     await expect(tid(page, "cate-readonly")).toHaveText("조회 전용 마루 데이터라 카테고리를 편집할 수 없습니다.");
-    await expect(tid(page, "cate-add-submit")).toHaveCount(0);
-    await expect(tid(page, "cate-close-BASE")).toHaveCount(0);
+    // [카테고리 추가] 버튼(추가 팝업을 여는 것, 66f40e88)이 없고 BASE 닫기도 없다.
+    await expect(page.locator('[data-testid="cate-add"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="cate-close-BASE"]')).toHaveCount(0);
     await layout.layout(page, "카테고리 탭 조회 전용");
     watcher.assertClean("dataItemMng 조회 전용");
   });
@@ -1562,7 +1619,13 @@ test.describe("E 표준관리자(std) 읽기 전용", () => {
       await expect(tid(page, "data-edit-deprecate")).toBeDisabled();
 
       await openDmd(page, "항목 편집", "dataItemMng");
-      await selectItemMaru(page, MD);
+      // 마루 데이터는 칸에 넣고 [찾기] 단추로 찾는다(다른 장은 Enter 로 찾는다 — 두 길을 다 누른다).
+      await expect(tid(page, "item-current")).toBeVisible({ timeout: 30_000 });
+      await tid(page, "item-pick-keyword").fill(MD);
+      await screen(page).getByRole("button", { name: "찾기", exact: true }).click();
+      await tid(page, `item-pick-${MD}`).click({ timeout: 20_000 });
+      await expect(itemList(page).locator(".grid-panel-title")).toContainText("항목 — ", { timeout: 20_000 });
+      await waitIdle(page);
       await expect(itemRow(page, "KRPUS")).toBeVisible({ timeout: 20_000 });
       await expect(button(page, "항목 추가")).toBeDisabled();
       await expect(button(page, "CSV 업로드")).toBeDisabled();
@@ -1570,17 +1633,19 @@ test.describe("E 표준관리자(std) 읽기 전용", () => {
       if (await close.count()) await expect(close).toBeDisabled();
       await snap(page, "dmd-std-dataItemMng");
 
-      // 오른쪽 열의 이력은 조회 권한만으로 본다.
+      // 오른쪽 [코드 테스트] 탭의 이력은 조회 권한만으로 본다(66f40e88).
+      await openItemTestTab(page);
       await tid(page, "item-history-KRPUS").click();
       await expect(tid(page, "item-history").getByTestId("history-state")).toHaveText("KRPUS · 열림 · 1행", { timeout: 20_000 });
 
-      // [카테고리] 탭 — 목록은 보이지만 등록 폼·닫기가 없고 소속 [적용] 이 막힌다.
+      // [카테고리 편집] 탭 — 목록은 보이지만 [카테고리 추가]·닫기·[편집](소속 팝업)이 없어 소속을 바꿀 수 없다(66f40e88).
       await openCateTab(page);
       await expect(tid(page, "cate-row-MAJOR")).toBeVisible();
-      await expect(tid(page, "cate-add-submit")).toHaveCount(0);
-      await expect(tid(page, "cate-close-MAJOR")).toHaveCount(0);
-      await tid(page, "cate-row-MAJOR").click();
-      await expect(tid(page, "transfer-apply")).toBeDisabled({ timeout: 20_000 });
+      await expect(page.locator('[data-testid="cate-add"]')).toHaveCount(0);
+      await expect(page.locator('[data-testid="cate-close-MAJOR"]')).toHaveCount(0);
+      await expect(page.locator('[data-testid="cate-edit-MAJOR"]')).toHaveCount(0);
+      await selectCate(page, "MAJOR");
+      await expect(tid(page, "cate-history")).toContainText("카테고리 이력 — MAJOR");
       watcher.assertClean("std 읽기 전용");
     } finally {
       await page.context().close();
