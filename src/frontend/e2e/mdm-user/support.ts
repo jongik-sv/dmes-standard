@@ -300,6 +300,12 @@ export async function checkLayout(page: Page, label: string, opts: LayoutOptions
         for (let j = i + 1; j < ctrls.length; j++) {
           const a = ctrls[i], b = ctrls[j];
           if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+          // 입력 칸 안 오른쪽 구역에 붙은 그 입력 자신의 단추([지우기] 등 Mantine Input section)는 그 입력의 일부다 — 서로 다른 컨트롤의 겹침이 아니다.
+          const ownSection = (x: Element, y: Element) => {
+            const wrap = x.closest('[class*="Input-section"]')?.closest('[class*="Input-wrapper"]');
+            return !!wrap && wrap === y.closest('[class*="Input-wrapper"]');
+          };
+          if (ownSection(a.el, b.el) || ownSection(b.el, a.el)) continue;
           const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
           const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
           if (w > 2 && h > 2) out.push(`L3 겹침: "${name(a.el)}" ↔ "${name(b.el)}"`);
@@ -386,6 +392,17 @@ export async function scrolledOut(page: Page): Promise<string[]> {
     }
     return out;
   });
+}
+
+/**
+ * ag-grid 가 가로로 넘치는 표를 처음 그리거나 굴릴 때, 스크롤 막대를 겹쳐 그리는 환경(macOS — ag-apple-scrollbar)은 숨은 가로 막대를
+ * 0.5초쯤 드러내(ag-scrollbar-scrolling) 맨 아래 행 위를 덮는다. 그동안 그 행·버튼을 누르면 막대가 가로챈다(Playwright 는 다시 굴리며
+ * 재시도해 막대가 또 드러난다). 사람처럼 막대가 다시 숨은 뒤 누른다. inner 는 그 표 안의 요소다.
+ */
+export async function waitGridScrollbarSettled(inner: Locator) {
+  const hscroll = inner.locator("xpath=ancestor-or-self::div[contains(concat(' ', normalize-space(@class), ' '), ' ag-root-wrapper ')][1]").locator(".ag-body-horizontal-scroll");
+  await expect(hscroll).toHaveCount(1);
+  await expect(hscroll).not.toHaveClass(/ag-scrollbar-(scrolling|active)/);
 }
 
 // ─────────────────────────── 버튼 커버리지 ───────────────────────────

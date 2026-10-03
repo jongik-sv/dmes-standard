@@ -20,6 +20,7 @@ import {
   snap,
   tid,
   uid,
+  waitGridScrollbarSettled,
   waitIdle,
 } from "./support";
 import { revealGridColumn } from "../support/mdm-e2e";
@@ -843,6 +844,9 @@ test.describe("D 컬럼 사전", () => {
     await expect(tid(page, "token-placeholder-1")).toContainText("용어 등록");
     await snap(page, "dma-columnMng-02-unknown-token");
 
+    // 토큰 표는 열 폭 합(640px)이 표 폭(565px)보다 넓어 가로로 넘친다 — 처음 그릴 때 드러나는 가로 막대가 이 버튼 가운데를 덮는다
+    // (탐침: 막대 509~525px, 버튼 501~527px, 보고서 관찰). 막대가 숨은 뒤 누른다.
+    await waitGridScrollbarSettled(tid(page, "token-placeholder-1"));
     await tid(page, "token-placeholder-1").click(); // "*** 용어 등록"
     await expect(tid(page, "term-pop")).toBeVisible({ timeout: 20_000 });
     await expect(tid(page, "term-pop-term-name")).toHaveValue(COL_INPUT);
@@ -869,7 +873,12 @@ test.describe("D 컬럼 사전", () => {
       // 도메인 칸은 검색형 입력이다 — 이름을 넣고 Enter 로 확정하면 서버가 하나로 정해 바로 적용한다.
       const domainInput = tid(page, "form-domain");
       await domainInput.fill(DOM_NAME);
+      // Enter 확정은 서버 도메인 검색(ruleEdit/search, target DOMAIN) 응답에서 하나를 골라 적용한다 — 사람처럼 그 결과가 온 뒤 다음을 누른다.
+      // 응답 전에 [찾기]를 누르면 칸을 떠나며(blur) 확정 검색이 다시 돌고, 그 결과가 막 연 찾기 팝업을 닫는다(DomainField pick — 보고서 관찰).
+      const enterSearch = page.waitForResponse((r) => r.url().includes("/oasis/ruleEdit/search") && r.request().method() === "POST");
       await domainInput.press("Enter");
+      expect((await enterSearch).ok()).toBe(true);
+      await waitIdle(page);
       await expect(domainInput).toHaveValue(DOM_NAME);
       // [찾기] 는 빈 검색어로 도메인 찾기 팝업을 연다 — 검색해 고르면 칸에 그 도메인이 들어간다(DomainField).
       await tid(page, "form-domain-find").click();
