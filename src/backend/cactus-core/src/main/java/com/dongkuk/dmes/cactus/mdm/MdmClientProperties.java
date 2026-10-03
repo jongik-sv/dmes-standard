@@ -31,6 +31,14 @@ public class MdmClientProperties {
     private Duration maxIdle = Duration.ofMinutes(60);
     /** 옛 버전·예약 버전 본문의 유휴 수명(D-154 결정 P6·P9). 목차·최종 본문은 {@code max-idle}. */
     private Duration oldVersionMaxIdle = Duration.ofMinutes(10);
+    /**
+     * D-154 버전별 적재 — AUTO(기본): 버전 대상(룰·룰 세트·코드·전문)을 목차·본문으로 받는다(옛 MDM 이면 cactus 가 전 이력에서 만든다). OFF: part 를
+     * 보내지 않고 지금처럼 전 이력 한 키로 돈다 — 배포 중 문제가 생기면 되돌리는 스위치이고 재기동해 반영한다. 모든 업무 모듈이 새 cactus 로 바뀐
+     * 다음 릴리스에 지운다(결정 P12).
+     */
+    public enum VersionedFeed { AUTO, OFF }
+
+    private VersionedFeed versionedFeed = VersionedFeed.AUTO;
     private Duration connectTimeout = Duration.ofSeconds(2);
     private Duration readTimeout = Duration.ofSeconds(5);
     /** 한 번 폴링에서 받는 변경 수 상한. 넘으면(truncated) 캐시를 비운다(§5.3-3). */
@@ -55,6 +63,9 @@ public class MdmClientProperties {
     }
 
     public Validation getValidation() { return validation; }
+
+    public VersionedFeed getVersionedFeed() { return versionedFeed; }
+    public void setVersionedFeed(VersionedFeed v) { this.versionedFeed = v; }
 
     public boolean isEnabled() { return enabled; }
     public String getModule() { return module; }

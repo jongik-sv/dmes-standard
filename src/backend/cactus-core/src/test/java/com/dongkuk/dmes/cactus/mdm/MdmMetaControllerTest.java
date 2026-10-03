@@ -73,6 +73,88 @@ class MdmMetaControllerTest {
         feed.put(MdmTargetType.COLUMN, "COIL_THK", coilThk);
     }
 
+    private record Versioned(FakeMetaFeed feed, MdmMetaService service, MockMvc mvc) {
+    }
+
+    private Versioned versioned() {
+        FakeMetaFeed vfeed = new FakeMetaFeed().versioned();
+        vfeed.put(MdmTargetType.RULE, "R", List.of(
+                MdmDefinitionLookupTest.rule("1.000", LocalDateTime.parse("2026-01-01T00:00:00"), LocalDateTime.parse("2026-06-01T00:00:00")),
+                MdmDefinitionLookupTest.rule("2.000", LocalDateTime.parse("2026-06-01T00:00:00"), null)));
+        vfeed.put(MdmTargetType.CODE, "PROC_CD", MdmValidatorTest.codeRows("PROC_CD"));
+        MdmMetaCache vcache = new MdmMetaCache(100, Duration.ofHours(24), Duration.ofMinutes(60), Duration.ofMinutes(10), clock);
+        vcache.clear(0);
+        MdmMetaService vservice = new MdmMetaService(vfeed, vcache, clock, true);
+        MdmRevisionPoller vpoller = new MdmRevisionPoller(vfeed, vcache, vservice, clock, Duration.ofSeconds(10), 1000);
+        MockMvc vmvc = MockMvcBuilders.standaloneSetup(new MdmMetaController("mls", "123@host", vservice, vcache, vpoller, clock))
+                .setCustomHandlerMapping(CactusRequestMappingHandlerMapping::new).build();
+        return new Versioned(vfeed, vservice, vmvc);
+    }
+
+    @Test
+    void 버전_경로_entries_는_구분_ver_최종_여부와_논리_키를_싣는다() throws Exception {
+        Versioned v = versioned();
+        v.service().lookupAt(MdmTargetType.RULE, List.of("R"), clock.instant());                         // 목차 + 2.000(최종)
+        v.service().lookupAt(MdmTargetType.RULE, List.of("R"), Instant.parse("2026-03-01T00:00:00Z"));   // 1.000(옛)
+
+        v.mvc().perform(get("/api/mls/mdmMeta/entries").param("type", "RULE").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(3))
+                .andExpect(jsonPath("$.items[0].key").value("R"))
+                .andExpect(jsonPath("$.items[0].part").value("TOC"))
+                .andExpect(jsonPath("$.items[0].current").value(nullValue()))
+                .andExpect(jsonPath("$.items[1].key").value("R@1.000"))
+                .andExpect(jsonPath("$.items[1].part").value("BODY"))
+                .andExpect(jsonPath("$.items[1].ver").value("1.000"))
+                .andExpect(jsonPath("$.items[1].current").value(false))
+                .andExpect(jsonPath("$.items[2].current").value(true));
+    }
+
+    @Test
+    void 버전_경로_status_는_본문_수_옛_버전_수명_버전_경로_여부를_싣는다() throws Exception {
+        Versioned v = versioned();
+        v.service().lookupAt(MdmTargetType.RULE, List.of("R"), clock.instant());
+
+        v.mvc().perform(get("/api/mls/mdmMeta/status").header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.counts.RULE").value(2))
+                .andExpect(jsonPath("$.bodyCounts.RULE").value(1))
+                .andExpect(jsonPath("$.oldVersionMaxIdleSeconds").value(600))
+                .andExpect(jsonPath("$.versionedFeed").value(true));
+    }
+
+    @Test
+    void 버전_경로_entry_는_본문_논리_키로_본문_값을_준다() throws Exception {
+        Versioned v = versioned();
+        v.service().lookupAt(MdmTargetType.CODE, List.of("PROC_CD"), clock.instant());
+
+        v.mvc().perform(get("/api/mls/mdmMeta/entry").param("type", "CODE").param("key", "PROC_CD@1.000")
+                        .header("X-Authenticated-Role", "SYSADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.part").value("BODY"))
+                .andExpect(jsonPath("$.value.maruCodeId").value("PROC_CD"))
+                .andExpect(jsonPath("$.value.categories[0].cateId").value("BASE"));
+    }
+
+    @Test
+    void 버전_경로_load_는_정의_키면_목차와_최종_본문_본문_키면_그_본문만_다시_받는다() throws Exception {
+        Versioned v = versioned();
+        v.service().lookupAt(MdmTargetType.RULE, List.of("R"), clock.instant());
+        int tocs = v.feed().tocCalls.get();
+
+        v.mvc().perform(post("/api/mls/mdmMeta/load").contentType(MediaType.APPLICATION_JSON).header("X-Authenticated-Role", "SYSADMIN")
+                        .content("{\"type\":\"RULE\",\"keys\":[\"R@1.000\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loaded[0]").value("R@1.000"));
+        assertThat(v.feed().tocCalls.get()).isEqualTo(tocs);
+
+        v.mvc().perform(post("/api/mls/mdmMeta/load").contentType(MediaType.APPLICATION_JSON).header("X-Authenticated-Role", "SYSADMIN")
+                        .content("{\"type\":\"RULE\",\"keys\":[\"R\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.loaded[0]").value("R"));
+        assertThat(v.feed().tocCalls.get()).isEqualTo(tocs + 1);
+    }
+
     @Test
     void columns_는_camelCase_요청_이름으로_화면_메타를_주고_비즈니스식_원문은_싣지_않는다() throws Exception {
         mvc.perform(post("/api/mls/mdmMeta/columns").contentType(MediaType.APPLICATION_JSON)
