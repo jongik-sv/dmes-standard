@@ -35,6 +35,10 @@ import org.junit.jupiter.api.Test;
  * <p>동등성은 "카테고리마다 가장 이른 정의가 어떤 RELEASED 버전에서 유효하다"는 조건에서만 성립한다. 가장 이른 정의가 초안·취소 버전에만
  * 있으면 투영 뒤 소급 대상이 남은 정의 가운데 가장 이른 것으로 바뀐다 — 그것이 결함 수정이고, {@link #소급_대상이_취소_정의에서_RELEASED_정의로_바뀐다}
  * 와 {@link #결함_고정_초안_전용_카테고리는_투영_뒤_RELEASED_판정에_새지_않는다} 가 그 차이를 못박는다.
+ *
+ * <p>취소 버전은 없던 것으로 본다(사용자 결정). 확정 취소 → 복원 → 재추가 흐름에서 취소 버전에만 유효한 정의가 남는 것이 정상이고, 투영 뒤
+ * 결과는 그 행을 지운 원장과 같다. {@link #취소_버전은_없던_것으로_본다_사용자_결정_가운데_RELEASED_시점에_뒤_정의가_소급된다} 가 이미 확정된
+ * 가운데 RELEASED 시점의 판정이 달라지는 것까지 못박는다.
  */
 class CodeRowsProjectionTest {
 
@@ -101,6 +105,52 @@ class CodeRowsProjectionTest {
         assertFalse(before.isMember("R_CD", "K", "B", atV1));
         assertFalse(after.isMember("R_CD", "K", "A", atV1));
         assertTrue(after.isMember("R_CD", "K", "B", atV1), "투영 뒤: 남은 가장 이른 정의(1.002, B)로 소급된다");
+    }
+
+    /**
+     * 취소 버전은 없던 것으로 본다(사용자 결정, D-152). 확정 취소 → 1.000 기준 복원(취소 버전에서 열린 행을 닫는다) → 재추가라는 정상 흐름에서
+     * 생기는 모양이다. 투영 뒤 결과는 취소 버전 행을 지운 원장(DRAFT 삭제와 같은 결과)과 같다. 그래서 이미 확정된 1.002 시점의 판정이 투영 전
+     * (빈 값)과 달라지고(남은 가장 이른 정의 [1.003,…) 가 소급된다) 그 변화를 여기서 못박는다.
+     */
+    @Test
+    void 취소_버전은_없던_것으로_본다_사용자_결정_가운데_RELEASED_시점에_뒤_정의가_소급된다() {
+        CodeRows rows = new CodeRows(new CodeHeader("X_CD", "INUSE"),
+                List.of(released(V1_000, "2025-01-01T00:00", "2026-01-01T00:00"), cancelled(V1_001),
+                        released(V1_002, "2026-01-01T00:00", "2026-07-01T00:00"), released(V1_003, "2026-07-01T00:00", null)),
+                List.of(item("A", V1_000, OPEN_VER, "에이"), item("B", V1_000, OPEN_VER, "비")),
+                List.of(regex("BASE", V1_000, OPEN_VER, ".*", "CODE"), regex("K", V1_001, V1_002, "A", "CODE"),
+                        regex("K", V1_003, OPEN_VER, "B", "CODE")),
+                List.of());
+        LocalDateTime atV1_000 = dt("2025-06-01T00:00");
+        LocalDateTime atV1_002 = dt("2026-03-01T00:00");
+        LocalDateTime atV1_003 = dt("2026-08-01T00:00");
+
+        DefaultCodeResolver before = resolver(rows);
+        DefaultCodeResolver after = resolver(CodeRowsProjection.releasedOnly(rows));
+
+        // 대조: 투영 전 원본 해석기는 1.002 에서 K 를 빈 값으로 본다(덮는 정의가 없고 1.002 가 가장 이른 정의 1.001 보다 뒤)
+        assertFalse(before.isMember("X_CD", "K", "B", atV1_002), "투영 전: 1.002 시점 K 는 빈 값이다");
+        assertFalse(before.isMember("X_CD", "K", "A", atV1_002));
+        assertTrue(after.isMember("X_CD", "K", "B", atV1_002), "투영 뒤: 남은 가장 이른 정의 [1.003,…) 가 1.002 에 소급된다");
+        assertFalse(after.isMember("X_CD", "K", "A", atV1_002));
+        // 1.000 은 취소 정의가 새던 것이 막힌다(의도한 수정)
+        assertTrue(before.isMember("X_CD", "K", "A", atV1_000), "투영 전: 취소 정의(A)가 1.000 에 소급된다");
+        assertFalse(after.isMember("X_CD", "K", "A", atV1_000));
+        assertTrue(after.isMember("X_CD", "K", "B", atV1_000));
+        // 1.003 은 전후가 같다
+        assertTrue(before.isMember("X_CD", "K", "B", atV1_003));
+        assertTrue(after.isMember("X_CD", "K", "B", atV1_003));
+        // 투영 뒤 결과는 취소 버전 행을 지운 원장과 같다
+        CodeRows withoutCancelled = new CodeRows(rows.header(),
+                rows.versions().stream().filter(v -> !"CANCELLED".equals(v.status())).toList(), rows.items(),
+                rows.categories().stream().filter(c -> c.fromVer().compareTo(V1_001) != 0).toList(), rows.cateItems());
+        DefaultCodeResolver ledgerWithoutCancelled = resolver(withoutCancelled);
+        for (LocalDateTime t : List.of(atV1_000, atV1_002, atV1_003)) {
+            for (String code : List.of("A", "B")) {
+                assertEquals(ledgerWithoutCancelled.isMember("X_CD", "K", code, t), after.isMember("X_CD", "K", code, t),
+                        "취소 버전 행을 지운 원장과 같다 " + code + " " + t);
+            }
+        }
     }
 
     /** TABLE 소속은 effVer = max(정의 fromVer, ver) 로 읽는다 — 정의 fromVer 가 취소 버전이어도 소급 경로가 쓰는 행을 남긴다. */
@@ -179,7 +229,9 @@ class CodeRowsProjectionTest {
     /**
      * PROC_CD 와 비슷한 고정 데이터 — RELEASED 셋(1.000·1.002·2.000), CANCELLED 1.001, DRAFT 2.001. 카테고리는 REGEX(CODE·LVL1·ATTR01)·TABLE 이
      * 섞이고, 초안·취소에만 있는 카테고리는 없다(초안 사본 정의는 있다). 소급 경로를 모두 지난다: 첫 적용 전 시각(버전 소급), 첫 정의가 2.000 인
-     * ATTR_Y(카테고리 소급), 정의 fromVer 가 취소 1.001 인 TABLE TBL(소속 행 [1.001,1.002) 를 소급으로 읽음).
+     * ATTR_Y(카테고리 소급), 정의 fromVer 가 취소 1.001 인 TABLE TBL(소속 행 [1.001,1.002) 를 소급으로 읽음). 또 "가장 최근 RELEASED 만 남기는"
+     * 변이를 잡으려고 가운데 RELEASED 에서 정의가 바뀌는 REGEX 카테고리 K([1.000,1.002) → [1.002,…))와, 정의 fromVer 가 아니면서 가운데
+     * RELEASED 에서 닫히는 TABLE 소속 행(TBL2 20 [1.002,2.000))을 둔다.
      */
     static CodeRows equivalenceFixture() {
         return new CodeRows(new CodeHeader(EQ, "INUSE"),
@@ -199,6 +251,8 @@ class CodeRowsProjectionTest {
                         regex("BASE", V2_001, OPEN_VER, ".*", "CODE"),
                         regex("LVL_A", V1_000, OPEN_VER, "A", "LVL1"),
                         regex("ATTR_Y", V2_000, OPEN_VER, "Y", "ATTR01"),
+                        regex("K", V1_000, V1_002, "1.*", "CODE"),
+                        regex("K", V1_002, OPEN_VER, "[23].*", "CODE"),
                         table("TBL", V1_001, OPEN_VER),
                         table("TBL2", V1_000, V2_001),
                         table("TBL2", V2_001, OPEN_VER)),
@@ -208,6 +262,7 @@ class CodeRowsProjectionTest {
                         new CodeCateItemRow("TBL", "30", V1_002, OPEN_VER),
                         new CodeCateItemRow("TBL", "50", V2_001, OPEN_VER),
                         new CodeCateItemRow("TBL2", "10", V1_000, OPEN_VER),
+                        new CodeCateItemRow("TBL2", "20", V1_002, V2_000),
                         new CodeCateItemRow("TBL2", "20", V2_000, OPEN_VER),
                         new CodeCateItemRow("TBL2", "30", V2_001, OPEN_VER)));
     }
@@ -219,14 +274,14 @@ class CodeRowsProjectionTest {
         // 투영이 실제로 무언가를 뺐는지(빈 시험 방지)
         assertEquals(3, projected.versions().size());
         assertEquals(List.of("10", "20", "20", "30"), projected.items().stream().map(CodeItemRow::code).toList());
-        assertEquals(5, projected.categories().size());
-        assertEquals(List.of("10", "20", "30", "10", "20"), projected.cateItems().stream().map(CodeCateItemRow::code).toList());
+        assertEquals(7, projected.categories().size());
+        assertEquals(List.of("10", "20", "30", "10", "20", "20"), projected.cateItems().stream().map(CodeCateItemRow::code).toList());
 
         DefaultCodeResolver before = resolver(full);
         DefaultCodeResolver after = resolver(projected);
         List<LocalDateTime> times = List.of(dt("2024-06-01T00:00"), dt("2025-01-01T00:00"), dt("2025-12-31T23:59:59"),
                 dt("2026-01-01T00:00"), dt("2026-06-30T23:59:59"), dt("2026-07-01T00:00"), dt("2030-01-01T00:00"));
-        List<String> cates = Arrays.asList(null, "", "BASE", "LVL_A", "ATTR_Y", "TBL", "TBL2", "NONE");
+        List<String> cates = Arrays.asList(null, "", "BASE", "LVL_A", "ATTR_Y", "K", "TBL", "TBL2", "NONE");
         List<String> codes = Arrays.asList("10", "20", "30", "40", "50", "99", null);
         int checks = 0;
         for (LocalDateTime t : times) {
@@ -252,6 +307,12 @@ class CodeRowsProjectionTest {
         // 소급 경로가 실제로 쓰였는지 — 1.000 에서 TBL 은 취소 1.001 의 소속 행([1.001,1.002) 의 20)으로 판정한다
         assertTrue(after.isMember(EQ, "TBL", "20", dt("2024-06-01T00:00")));
         assertTrue(after.isMember(EQ, "ATTR_Y", "30", dt("2026-01-01T00:00")), "ATTR_Y 는 2.000 정의를 1.002 에 소급한다");
+        // 가운데 RELEASED 에서 바뀌는 카테고리 정의(K)와 정의 fromVer 가 아니면서 가운데 RELEASED 에서 닫히는 TABLE 소속 행(TBL2 20 [1.002,2.000))
+        assertTrue(after.isMember(EQ, "K", "10", dt("2025-06-01T00:00")), "K 의 1.000 정의(1.*)는 가장 최근 RELEASED 가 아니어도 남는다");
+        assertFalse(after.isMember(EQ, "K", "20", dt("2025-06-01T00:00")));
+        assertTrue(after.isMember(EQ, "K", "20", dt("2026-03-01T00:00")), "1.002 정의([23].*)");
+        assertTrue(after.isMember(EQ, "TBL2", "20", dt("2026-03-01T00:00")), "TBL2 20 [1.002,2.000) 은 1.002 에서만 유효하다");
+        assertFalse(after.isMember(EQ, "TBL2", "20", dt("2025-06-01T00:00")));
     }
 
     // ---- 결함 고정 ----
