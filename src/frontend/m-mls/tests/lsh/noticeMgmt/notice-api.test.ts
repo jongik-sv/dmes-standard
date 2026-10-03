@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiRequest = vi.fn();
 
-vi.mock("@dk-oasis/shared/http", () => {
+// 나머지 export(공통 계약 unwrapOasis 등)는 진짜를 쓰고, apiRequest·HttpError 만 바꿔 끼운다.
+vi.mock("@dk-oasis/shared/http", async (importOriginal) => {
   class HttpError extends Error {
     readonly status: number;
     constructor(status: number, message: string) {
@@ -10,7 +11,7 @@ vi.mock("@dk-oasis/shared/http", () => {
       this.status = status;
     }
   }
-  return { apiRequest: (...args: unknown[]) => apiRequest(...args), HttpError };
+  return { ...(await importOriginal<object>()), apiRequest: (...args: unknown[]) => apiRequest(...args), HttpError };
 });
 
 const api = await import("../../../pages/lsh/noticeMgmt/api");

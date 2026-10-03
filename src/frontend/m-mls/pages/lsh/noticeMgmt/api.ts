@@ -11,7 +11,13 @@
  * 인증 헤더 3종(`X-Client-Key` / `X-Authenticated-User` / `X-Authenticated-Role`)을 주입한다.
  * 화면 코드는 그 헤더를 직접 다루지 않는다.
  */
-import { HttpError, apiRequest } from "@dk-oasis/shared/http";
+import {
+  HttpError,
+  apiRequest,
+  unwrapOasis,
+  type CactusErrorDetail,
+  type OasisUnwrapOptions,
+} from "@dk-oasis/shared/http";
 
 import {
   SCREEN_ID,
@@ -24,31 +30,8 @@ import {
 const OASIS_BASE = "/api/mls/oasis/noticeMgmt";
 const ROLE_SEARCH_URL = "/api/mcm/oasis/commRoleMng/search";
 
-/**
- * Cactus 표준 응답 봉투.
- *
- * BE 가 `Map<String,Object>` 를 반환하고 BPMN 이 `output="result"` 이므로 결과는
- * `data.result` 안에 통째로 들어온다. cactus 는 Map 내부 List 를 자동 분리하지 않는다
- * (BackEnd 표준 §6-D-2) — 그래서 아래 `unwrap` 이 `result` 를 flat 전개한다.
- */
-interface CactusEnvelope {
-  meta?: { success?: boolean; message?: string; code?: string };
-  data?: Record<string, unknown>;
-  grids?: Record<string, { rows?: unknown[] }>;
-  errors?: Array<{
-    grid?: string;
-    rowKey?: string | number;
-    rowIndex?: number;
-    field?: string;
-    code?: string;
-    message?: string;
-  }>;
-}
-
 /** 서버 오류 상세 한 건 — `toFieldErrors`(@dk-oasis/shared/http)가 읽는 cactus `ErrorDetail` 모양. */
-export type NoticeErrorDetail = NonNullable<
-  CactusEnvelope["errors"]
->[number] & {
+export type NoticeErrorDetail = CactusErrorDetail & {
   message: string;
 };
 
@@ -107,56 +90,32 @@ export class NoticeApiError extends Error {
 }
 
 /**
- * 응답 봉투 해제 + **비즈니스 거부 판정**.
+ * 응답 봉투 해제 + **비즈니스 거부 판정** — `@dk-oasis/shared/http` 공통 계약(unwrapOasis)에 이 화면의 옵션을 준다.
  *
  * ★ OASIS 실행기는 `BusinessException` 을 잡아 HTTP 200 + `meta.success=false` 로 되돌려준다.
  *   `apiRequest` 는 `!res.ok` 일 때만 throw 하므로, 이 판정이 없으면 저장 실패가 조용히 성공으로
  *   처리돼 "버튼을 눌러도 아무 일이 없는" 증상이 된다.
  *
- *   행·필드 단위 상세(`errors[]`)가 오면 항목명을 붙여 덧붙인다. 원문처럼 보이는 글은 버린다.
+ * - 성공: BE 가 `Map<String,Object>` 를 반환하고 BPMN 이 `output="result"` 이므로 결과는 `data.result` 안에 통째로
+ *   들어온다(cactus 는 Map 내부 List 를 자동 분리하지 않는다, BackEnd 표준 §6-D-2). data 전체 위에 `result` 를 덮어
+ *   펴고, 응답 `grids.<이름>.rows` 도 `<이름>` 으로 올린다.
+ * - 거부: 행·필드 단위 상세(`errors[]`)가 오면 항목명을 붙여 덧붙인다(base 와 같아도 남긴다). 원문처럼 보이는 글은 버린다.
+ *   오류는 {@link NoticeApiError}.
  */
-function unwrap(res: unknown): Record<string, unknown> {
-  const env = res as CactusEnvelope;
+const UNWRAP: OasisUnwrapOptions = {
+  merge: "data+result",
+  includeGrids: true,
+  details: "append",
+  isUserSentence,
+  fieldLabel: (field) => FIELD_LABEL[field.toUpperCase()],
+  errorFactory: (message, _code, errors, field) =>
+    new NoticeApiError(message, field, errors as NoticeErrorDetail[]),
+};
 
-  if (env?.meta && env.meta.success === false) {
-    const base = isUserSentence(env.meta.message)
-      ? env.meta.message.trim()
-      : "요청이 거부되었습니다.";
-    const errs = env.errors ?? [];
-    const details = errs
-      .filter((e) => isUserSentence(e.message))
-      .map((e) => {
-        const label = e.field ? FIELD_LABEL[e.field.toUpperCase()] : undefined;
-        return label ? `${label}: ${e.message}` : (e.message as string);
-      });
-    const message =
-      details.length > 0 ? `${base}\n- ${details.join("\n- ")}` : base;
-    const userErrors = errs.filter((e): e is NoticeErrorDetail =>
-      isUserSentence(e.message),
-    );
-    throw new NoticeApiError(
-      message,
-      errs.find((e) => e.field)?.field,
-      userErrors,
-    );
-  }
-
-  const out: Record<string, unknown> = {};
-  if (env?.data) {
-    Object.assign(out, env.data);
-    const inner = env.data["result"];
-    if (inner && typeof inner === "object" && !Array.isArray(inner)) {
-      Object.assign(out, inner as Record<string, unknown>);
-    }
-  }
-  if (env?.grids) {
-    for (const [key, val] of Object.entries(env.grids)) {
-      out[key] = val?.rows ?? [];
-    }
-  }
-  return out;
-}
-
+/**
+ * POST — 본문 `{ meta:{ menuId: SCREEN_ID }, params, grids? }`. params 는 거르지 않는다(null 도 싣는다).
+ * 다른 서비스(역할 목록)를 불러도 menuId 는 이 화면 ID 다(화면 메뉴 권한으로 부른다).
+ */
 async function post(
   url: string,
   params: Record<string, unknown>,
@@ -170,7 +129,7 @@ async function post(
       ...(grids ? { grids } : {}),
     }),
   });
-  return unwrap(res);
+  return unwrapOasis(res, UNWRAP);
 }
 
 async function callAction(
