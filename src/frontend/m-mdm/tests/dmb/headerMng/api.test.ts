@@ -2,6 +2,8 @@
 // 빈 배열이라도 늘 보내고(F11), params 에서 null·빈 값 키는 뺀다. 행은 서버 키만 보낸다(KEY·파생 칸·OFFSET·LENGTH 제외).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanParams, saveHeader, searchColumns, searchHeaders, viewHeader } from "../../../pages/dmb/headerMng/api";
+import type { HeaderDraft } from "../../../pages/dmb/headerMng/types";
+import { NOISY_PARAMS, NOISY_SENT, describeOasisEnvelope } from "../../helpers/oasis-envelope";
 
 const originalFetch = globalThis.fetch;
 let calls: Array<{ url: string; body: Record<string, unknown> }>;
@@ -65,5 +67,22 @@ describe("headerMng api", () => {
 
   it("cleanParams 는 null·빈 문자열을 빼고 0·false 는 남긴다", () => {
     expect(cleanParams({ a: null, b: undefined, c: "", d: " ", e: 0, f: false, g: "x" })).toEqual({ e: 0, f: false, g: "x" });
+  });
+});
+
+// 공통 계약으로 옮기기 전 현재 동작 고정(특성 시험).
+describeOasisEnvelope("headerMng", {
+  call: () => viewHeader(7),
+  url: "/api/mdm/oasis/headerMng/view",
+  menuId: "headerMng",
+  merge: "data+result",
+  reject: "meta-only",
+  noGrids: true,
+  noisy: { call: (p) => saveHeader(p as unknown as HeaderDraft, []), omit: "nullish+blank" },
+});
+
+describe("headerMng — export 한 cleanParams 는 nullish+blank 방식이다", () => {
+  it("NOISY_PARAMS", () => {
+    expect(cleanParams({ ...NOISY_PARAMS })).toEqual(NOISY_SENT["nullish+blank"]);
   });
 });

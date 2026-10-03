@@ -5,6 +5,8 @@ import {
   cleanParams, exportSnapshot, renderSample, saveLayout, searchColumns, searchHeaders, searchImpact, searchLayouts, validateLayout, viewLayout,
 } from "../../../pages/dmb/layoutMng/api";
 import { newLayoutVersion } from "@/layout/version-api";
+import type { LayoutDraft } from "../../../pages/dmb/layoutMng/types";
+import { NOISY_PARAMS, NOISY_SENT, describeOasisEnvelope } from "../../helpers/oasis-envelope";
 
 const originalFetch = globalThis.fetch;
 let calls: Array<{ url: string; body: Record<string, unknown> }>;
@@ -125,5 +127,22 @@ describe("layoutMng api", () => {
 
   it("cleanParams 는 null·빈 문자열을 뺀다", () => {
     expect(cleanParams({ a: null, b: "", c: 0 })).toEqual({ c: 0 });
+  });
+});
+
+// 공통 계약으로 옮기기 전 현재 동작 고정(특성 시험).
+describeOasisEnvelope("layoutMng", {
+  call: () => viewLayout(7),
+  url: "/api/mdm/oasis/layoutMng/view",
+  menuId: "layoutMng",
+  merge: "data+result",
+  reject: "meta-only",
+  noGrids: true,
+  noisy: { call: (p) => saveLayout(p as unknown as LayoutDraft, [], [], []), omit: "nullish+blank" },
+});
+
+describe("layoutMng — export 한 cleanParams 는 nullish+blank 방식이다", () => {
+  it("NOISY_PARAMS", () => {
+    expect(cleanParams({ ...NOISY_PARAMS })).toEqual(NOISY_SENT["nullish+blank"]);
   });
 });
