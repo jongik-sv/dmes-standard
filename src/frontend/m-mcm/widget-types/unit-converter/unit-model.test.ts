@@ -40,7 +40,7 @@ describe("유형 메타", () => {
     expect(meta.title).toBe("단위 계산기");
     expect(meta.description).toBe("길이·무게·압력·온도 등 단위 환산");
     expect(meta.defaultSize).toEqual({ w: 8, h: 12 });
-    expect(meta.minSize).toEqual({ w: 5, h: 8 });
+    expect(meta.minSize).toEqual({ w: 5, h: 10 });
   });
 
   it("초기 설정은 { categories: [], defaultCategory: length } 이고 검사를 통과하며 읽으면 전체·length 다", () => {
