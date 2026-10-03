@@ -177,7 +177,7 @@ public class MdmMetaService {
      * 폴러 RELOAD 전용(스펙 §5.6 RELOAD) — 폴러가 이미 지운({@code evict}·{@code markApplied} 뒤) 키를 다시 받는다. 진행 중 적재에 합류하지 않는다(관리
      * 화면 reload 와 같은 자리 빼앗기). 합류하면 지움 전 Ticket 적재의 결과는 캐시에 들어가지 못하고, 그 적재를 최대 {@link #WAIT_LIMIT} 까지
      * 기다린다. 자기 적재의 Ticket 은 지움 뒤에 받으므로 들어간다. 버전 대상(versioned)은 목차와 {@code t} 시각 최종 본문을 한 Ticket 으로 함께
-     * 넣는다. 값 대상과 versioned-feed off 의 버전 대상은 값 적재다. 지움 기록은 더하지 않는다(폴러가 남겼다). 결과는 버린다 — 받을 수 없는 키는
+     * 넣는다. 값 대상과 versioned-feed off 의 버전 대상은 값 적재다. 지움 기록은 더하지 않는다(폴러가 남겼다. 본문이 NOT_RELEASED 로 와 다시 받는 재시도만 기존대로 evictLocal 한다). 결과는 버린다 — 받을 수 없는 키는
      * 캐시에 남지 않는다.
      */
     void refreshAfterEvict(MdmTargetType type, Collection<String> keys, Instant t) {
