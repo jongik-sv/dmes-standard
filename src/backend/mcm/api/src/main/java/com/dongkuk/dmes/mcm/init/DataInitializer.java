@@ -3635,7 +3635,6 @@ public class DataInitializer implements ApplicationRunner {
                    .replace("SYSDATETIME()", "CURRENT_TIMESTAMP"));
     }
 
-    /** native query 생성 공통 진입점 — SQLite 면 sanitize 후 실행, MSSQL 은 원문(no-op). */
     /**
      * local 프로필(SQLite 단독, 프로필 미지정 폴백 포함) 부팅 때 admin 의 로그인 잠금을 푼다 — PWD_FAIL_COUNT=0, USE_TP='Y'.
      *
@@ -3660,6 +3659,7 @@ public class DataInitializer implements ApplicationRunner {
         return updated;
     }
 
+    /** native query 생성 공통 진입점 — SQLite 면 sanitize 후 실행, MSSQL 은 원문(no-op). */
     private jakarta.persistence.Query nq(String sql) {
         return entityManager.createNativeQuery(sanitize(sql));
     }
