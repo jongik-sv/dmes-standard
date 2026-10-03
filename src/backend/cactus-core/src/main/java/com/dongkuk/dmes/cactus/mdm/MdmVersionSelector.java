@@ -7,7 +7,8 @@ import kr.dongkuk.maru.mdm.engine.code.CodeVersions;
 
 /**
  * 목차로 판정 시각의 버전 고르기(D-154, 스펙 §3.2) — 대상마다 지금 쓰는 함수를 그대로 쓴다. 코드는 엔진 {@link CodeVersions#select}(소급 있음),
- * 룰·룰 세트·전문은 {@link MdmDefinitionLookup#covers} + ver 최대(소급 없음). 시각은 KST 벽시계다.
+ * 룰·룰 세트·전문은 {@link MdmDefinitionLookup#covers} + ver 최대(소급 없음) — status 는 보지 않는다(목차는 RELEASED 만 싣는다, {@link MdmTocVersion}).
+ * 코드는 {@link MdmToc#codeRows()} 의 행(null 일시를 엔진 모양으로 바꾼 것)으로 고른다. 시각은 KST 벽시계다.
  */
 public final class MdmVersionSelector {
 

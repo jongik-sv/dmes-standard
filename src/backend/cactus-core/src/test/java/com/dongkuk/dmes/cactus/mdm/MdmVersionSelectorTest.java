@@ -47,6 +47,24 @@ class MdmVersionSelectorTest {
     }
 
     @Test
+    void 코드_목차의_applyTo_null_은_열린_끝이고_applyFrom_null_은_덮지_않되_소급_후보로는_남는다() {
+        MdmToc openEnd = new MdmToc(new CodeHeader("C", "INUSE"), List.of(
+                v("1.000", "2026-01-01T00:00:00", "2026-06-01T00:00:00"),
+                v("2.000", "2026-06-01T00:00:00", null)));
+        assertThat(MdmVersionSelector.select(MdmTargetType.CODE, openEnd, LocalDateTime.parse("2030-01-01T00:00:00"))).contains("2.000");
+        assertThat(MdmVersionSelector.select(MdmTargetType.CODE, openEnd, LocalDateTime.parse("2026-03-01T00:00:00"))).contains("1.000");
+        assertThat(openEnd.codeRows().versions().get(1).applyTo()).as("엔진 열린 끝").isEqualTo(OPEN);
+        assertThat(openEnd.versions().get(1).applyTo()).as("목차 자체(JSON·경계)는 그대로").isNull();
+
+        MdmToc noStart = new MdmToc(new CodeHeader("C", "INUSE"), List.of(
+                v("1.000", null, null),
+                v("2.000", "2026-06-01T00:00:00", null)));
+        assertThat(MdmVersionSelector.select(MdmTargetType.CODE, noStart, LocalDateTime.parse("2030-01-01T00:00:00"))).contains("2.000");
+        assertThat(MdmVersionSelector.select(MdmTargetType.CODE, noStart, LocalDateTime.parse("2026-03-01T00:00:00")))
+                .as("시작 없는 1.000 은 덮지 않지만 가장 작은 ver 소급으로 고른다").contains("1.000");
+    }
+
+    @Test
     void 다음_경계는_t_보다_뒤인_가장_이른_applyFrom_applyTo_이고_없으면_MAX_다() {
         assertThat(MdmVersionSelector.nextBoundary(TOC, LocalDateTime.parse("2025-06-01T00:00:00"))).isEqualTo(LocalDateTime.parse("2026-01-01T00:00:00"));
         assertThat(MdmVersionSelector.nextBoundary(TOC, LocalDateTime.parse("2026-01-01T00:00:00"))).isEqualTo(LocalDateTime.parse("2026-03-01T00:00:00"));
