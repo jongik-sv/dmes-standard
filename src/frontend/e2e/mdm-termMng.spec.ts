@@ -59,6 +59,23 @@ function detailRow(page: Page, label: string) {
   return page.locator("tr", { hasText: label });
 }
 
+/**
+ * [조회] 를 누르고 search 응답이 돌아올 때까지 기다린다. 진입할 때 목록은 비어 있어 "0건" 이 처음부터 보이므로, 응답을 기다리지 않으면
+ * 조회가 돌지 않아도 건수 단언이 통과한다. 진입 때 콤보 값만 받는 호출(optionsOnly)은 요청 본문으로 거른다.
+ */
+async function clickSearchAndWait(page: Page) {
+  const response = page.waitForResponse(
+    (r) =>
+      r.url().includes("/api/mdm/oasis/termMng/search") &&
+      r.request().method() === "POST" &&
+      !(r.request().postData() ?? "").includes("optionsOnly") &&
+      r.status() === 200,
+    { timeout: 20_000 },
+  );
+  await page.getByRole("button", { name: "조회" }).click();
+  await response;
+}
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("mdm dma/termMng smoke", () => {
@@ -75,8 +92,13 @@ test.describe("mdm dma/termMng smoke", () => {
     await openTermMng(page);
 
     await searchField(page, "검색어").locator("input").fill(NOMATCH_KEYWORD);
-    await page.getByRole("button", { name: "조회" }).click();
-    await expect(page.getByText("0건")).toBeVisible({ timeout: 20_000 });
+    await clickSearchAndWait(page);
+    // 화면에 GridPanel 이 둘(용어 목록·유사어 추천)이라 "0건" 이 두 번 보인다 — 용어 목록 패널의 건수만 본다.
+    const termListCount = page
+      .locator(".grid-panel")
+      .filter({ has: page.locator(".grid-panel-title", { hasText: "용어 목록" }) })
+      .locator(".grid-panel-count");
+    await expect(termListCount).toHaveText("0건", { timeout: 20_000 });
 
     await page.screenshot({ path: screenshot("dma-termMng-empty.png"), fullPage: true });
   });

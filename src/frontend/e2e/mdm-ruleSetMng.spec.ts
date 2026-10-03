@@ -1,6 +1,8 @@
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
+import { loadMdmFixture } from "./support/mdm-e2e";
+
 /**
  * mdm dme/ruleSetMng(룰 세트 조회·등록) — TSK-08-06 design.md §3.4.1.
  *
@@ -8,7 +10,7 @@ import { expect, test, type Page } from "@playwright/test";
  * 고유: M5 세트 ID 물리명 규칙(즉시 안내·저장 비활성), M6 권한(READ 는 등록 비활성).
  *
  * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
- * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
+ * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql, beforeAll 이 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
  * 세트를 만들므로 같은 mdm.db 로 다시 돌릴 수 없다(새 DB 로 시작). 등록 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
  * 목록 단언은 세트 키워드 `E2S_` 로 좁혀 다른 픽스처의 세트가 섞여도 흔들리지 않게 한다.
  */
@@ -64,6 +66,8 @@ test.describe.configure({ mode: "serial" });
 test.describe("mdm dme/ruleSetMng", () => {
   test.setTimeout(180_000);
 
+  test.beforeAll(() => loadMdmFixture("mdm-ruleSet-data.sql"));
+
   test("M1 메뉴: 마루 MDM > 업무기준 > 룰 세트 가 열리고 등록 패널이 보인다", async ({ page }) => {
     await login(page, STEWARD);
     await openRuleSetMng(page);
@@ -116,7 +120,8 @@ test.describe("mdm dme/ruleSetMng", () => {
 
     // 룰 세트 편집 탭 — handoff 대상(setId)을 받아 새 세트를 연다.
     await expect(page.getByTestId("set-edit-current")).toContainText("E2S_NEW_SET", { timeout: 60_000 });
-    await expect(page.getByTestId("set-status")).toHaveText("INUSE");
+    // 새 세트는 확정 전이라 CREATED 다 — 첫 확정에서 INUSE 가 된다(D-144 2단계, MdmRuleSet STATUS). 배지는 코드명을 그대로 보인다.
+    await expect(page.getByTestId("set-status")).toHaveText("CREATED");
     // 등록은 1.000 DRAFT 를 함께 만든다 — 편집 화면이 그 버전으로 열린다.
     await expect(page.getByTestId("set-ver-select")).toContainText("v1.000 (DRAFT)", { timeout: 20_000 });
     // 빈 세트는 캔버스에 시작 → 끝만 그려진다(룰 노드 없음).

@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.widget.chat.repository;
 import com.dongkuk.dmes.mcm.widget.chat.entity.WidgetChatMessage;
 import com.dongkuk.dmes.mcm.widget.chat.entity.WidgetChatMessageId;
 import java.util.List;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -24,6 +25,12 @@ public interface WidgetChatMessageRepository extends JpaRepository<WidgetChatMes
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from WidgetChatMessage m where m.userId = :userId and m.instId = :instId and m.msgSeq <= :maxSeq")
     int deleteUpTo(@Param("userId") String userId, @Param("instId") String instId, @Param("maxSeq") int maxSeq);
+
+    /** 사용자 기록 수(모든 인스턴스 합계) — 사용자별 저장 상한. */
+    long countByUserId(String userId);
+
+    /** 사용자 기록을 오래된 순(C_AT, 인스턴스, MSG_SEQ)으로 — 사용자별 상한을 넘은 만큼 앞에서부터 지운다. */
+    List<WidgetChatMessage> findByUserIdOrderByCreatedAtAscInstIdAscMsgSeqAsc(String userId, Pageable pageable);
 
     /** reset — 그 인스턴스 기록 전부. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)

@@ -1,7 +1,7 @@
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+
+import { clickSearch, loadMdmFixture } from "./support/mdm-e2e";
 
 /**
  * 레이아웃 확정(dmb/layoutConfirm) 브라우저 E2E — D-144 3단계(레이아웃·헤더 버전 관리), 전문·헤더 공용 확정 화면.
@@ -27,12 +27,6 @@ const MESSAGE_NAME = "출측검사 실적 수신(E2E)";
 
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-03/screens", name);
 
-function loadFixture() {
-  const db = process.env.SMOKE_MDM_DB;
-  if (!db) throw new Error("SMOKE_MDM_DB 에 워크트리 mdm.db 경로를 넣는다(mdm-headerMng.spec.ts 와 같다)");
-  execFileSync("sqlite3", [db], { input: readFileSync(path.resolve(__dirname, "fixtures/mdm-layout-m201.sql")) });
-}
-
 async function login(page: Page) {
   await page.goto(`${BASE_URL}/login`);
   await page.getByPlaceholder("아이디").fill(STEWARD);
@@ -52,13 +46,14 @@ async function openHeaderScreen(page: Page): Promise<Locator> {
   const layout = page.locator(".page-layout").filter({
     has: page.locator(".page-layout__footer-screen-id", { hasText: "headerMng" }),
   });
-  await expect(layout.getByTestId("header-list")).toBeVisible({ timeout: 60_000 });
+  // 화면은 목록을 자동 조회하지 않고 열린다(cf4fbb05) — 목록이 아니라 검색 칸이 보이면 열린 것이다.
+  await expect(layout.getByTestId("header-search-keyword")).toBeVisible({ timeout: 60_000 });
   return layout;
 }
 
 async function selectHeader(layout: Locator, name: string) {
   await layout.getByTestId("header-search-keyword").fill("(E2E)");
-  await layout.getByRole("button", { name: "조회", exact: true }).click();
+  await clickSearch(layout);
   await layout.getByTestId("header-list").locator(".ag-row").filter({ hasText: name }).first().click();
   await expect(layout.getByTestId("header-form-name")).toHaveValue(name, { timeout: 30_000 });
 }
@@ -74,7 +69,7 @@ test.use({ viewport: { width: 1680, height: 1200 } });
 test.describe("mdm 레이아웃 확정", () => {
   test.setTimeout(180_000);
 
-  test.beforeAll(() => loadFixture());
+  test.beforeAll(() => loadMdmFixture("mdm-layout-m201.sql"));
 
   test("C1~C3 헤더 새 버전(minor) → 확정 화면(영향 187 → 190·동시 전환·경고 확인) → 확정 → 적용 대기", async ({ page }) => {
     const applyFrom = kstAfter(30 * 24 * 3600_000);

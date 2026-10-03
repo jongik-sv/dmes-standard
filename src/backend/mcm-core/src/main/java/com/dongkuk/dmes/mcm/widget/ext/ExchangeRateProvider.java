@@ -13,4 +13,12 @@ public interface ExchangeRateProvider {
     String id();
 
     List<ExchangeRatePoint> fetch(String base, List<String> symbols, LocalDate from, LocalDate to);
+
+    /**
+     * 날짜마다 따로 부르는 제공자인지(한국수출입은행). 그렇다면 서비스는 빈 날의 이어진 구간만 나눠 부른다 — 첫 빈 날~마지막 빈 날
+     * 사이에 이미 DB 에 있는 날까지 하루씩 다시 부르지 않게. 구간 한 번으로 받는 제공자(Frankfurter)는 false.
+     */
+    default boolean callsPerDay() {
+        return false;
+    }
 }

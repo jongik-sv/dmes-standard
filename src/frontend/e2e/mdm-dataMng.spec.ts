@@ -1,6 +1,8 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { loadMdmFixture } from "./support/mdm-e2e";
+
 /**
  * mdm dmd/dataMng(마루 데이터) smoke — TSK-07-02 design.md §3.3 스모크 넷(2026-09-29 통합 D-104: dataMng+dataEdit
  * → dataMng 하나. 옛 mdm-dataEdit.spec.ts 의 시나리오는 여기로 옮겼고, 없어진 메뉴("마루 데이터 수정")를 찾던 그 파일은
@@ -95,6 +97,8 @@ async function register(page: Page, id: string, name: string) {
 
 test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통합)", () => {
   test.setTimeout(120_000);
+
+  test.beforeAll(() => loadMdmFixture("mdm-dataMng.sql"));
   test.beforeEach(async ({ page }) => {
     await login(page, STEWARD);
     await openScreen(page);

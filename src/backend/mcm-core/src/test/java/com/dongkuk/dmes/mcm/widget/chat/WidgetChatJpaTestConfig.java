@@ -49,7 +49,7 @@ public class WidgetChatJpaTestConfig {
 
     @Bean
     public WidgetChatWriter widgetChatWriter(WidgetChatMessageRepository repository) {
-        return new WidgetChatWriter(repository);
+        return new WidgetChatWriter(repository, WidgetChatWriter.DEFAULT_USER_HISTORY_LIMIT);
     }
 
     @Bean

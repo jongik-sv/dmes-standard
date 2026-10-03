@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  NETWORK_ERROR_MESSAGE,
   exchangeParams,
   fetchExchange,
   fetchWeather,
@@ -160,5 +161,30 @@ describe("fetchExchange · fetchWeather — 호출", () => {
   it("HTTP 오류도 던진다", async () => {
     reply({ message: "권한이 없습니다." }, 403);
     await expect(fetchExchange(["USD"], 7)).rejects.toThrow("권한이 없습니다.");
+  });
+});
+
+describe("네트워크 실패 — 브라우저 영어 문구 대신 한국어", () => {
+  it.each(["Failed to fetch", "Load failed", "NetworkError when attempting to fetch resource."])(
+    "환율: fetch 가 TypeError(%s)로 실패하면 한국어 문구로 던진다",
+    async (browserMessage) => {
+      fetchMock.mockRejectedValueOnce(new TypeError(browserMessage));
+      const err = await fetchExchange(["USD"], 7).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).message).toBe("환율 정보를 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
+      expect((err as Error).message).not.toContain(browserMessage);
+    }
+  );
+
+  it("날씨: 같은 경우 날씨 문구로 던진다", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await expect(fetchWeather(1, 2)).rejects.toThrow(NETWORK_ERROR_MESSAGE.weather);
+  });
+
+  it("서버가 보낸 거절 문구는 바꾸지 않는다(업무 거절·HTTP 오류)", async () => {
+    reply({ meta: { success: false, message: "정의에 없는 통화입니다: JPY" } });
+    await expect(fetchExchange(["JPY"], 7)).rejects.toThrow("정의에 없는 통화입니다: JPY");
+    reply({ message: "요청이 너무 잦습니다. 잠시 뒤 다시 시도하세요." }, 429);
+    await expect(fetchExchange(["USD"], 7)).rejects.toThrow("요청이 너무 잦습니다. 잠시 뒤 다시 시도하세요.");
   });
 });

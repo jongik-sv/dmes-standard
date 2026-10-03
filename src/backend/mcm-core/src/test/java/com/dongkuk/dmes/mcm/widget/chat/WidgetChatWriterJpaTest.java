@@ -93,4 +93,41 @@ class WidgetChatWriterJpaTest {
                 .containsExactly("q");
         assertThat(repository.findByUserIdAndInstIdOrderByMsgSeqAsc("userA", "i2")).isEmpty();
     }
+
+    @Test
+    @DisplayName("사용자 기록 합계가 상한을 넘으면 인스턴스와 관계없이 그 사용자의 가장 오래된 기록부터 지운다 — instId 를 바꿔도 합계는 상한")
+    void capsUserTotalAcrossInstances() {
+        WidgetChatWriter small = new WidgetChatWriter(repository, 5); // 트랜잭션은 시험이 감싼다(빈이 아니라 프록시가 없다)
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        writer.append("userB", "i1", "user", "other", null);
+
+        tx.executeWithoutResult(s -> small.append("userA", "i1", "user", "a1", null));
+        tx.executeWithoutResult(s -> small.append("userA", "i1", "assistant", "a2", null));
+        tx.executeWithoutResult(s -> small.append("userA", "i2", "user", "b1", null));
+        tx.executeWithoutResult(s -> small.append("userA", "i3", "user", "c1", null));
+        tx.executeWithoutResult(s -> small.append("userA", "i4", "user", "d1", null));
+        assertThat(repository.countByUserId("userA")).isEqualTo(5);
+
+        for (int k = 10; k < 30; k++) { // 인스턴스 ID 를 바꿔 가며 20개 더
+            String inst = "inst" + k;
+            String text = "x" + k;
+            tx.executeWithoutResult(s -> small.append("userA", inst, "user", text, null));
+            assertThat(repository.countByUserId("userA")).isEqualTo(5);
+        }
+
+        assertThat(repository.findByUserIdAndInstIdOrderByMsgSeqAsc("userA", "i1")).isEmpty(); // 가장 오래된 것부터 지워졌다
+        assertThat(repository.findAll()).filteredOn(m -> "userA".equals(m.getUserId()))
+                .extracting(WidgetChatMessage::getContent).containsExactlyInAnyOrder("x25", "x26", "x27", "x28", "x29");
+        assertThat(repository.countByUserId("userB")).isEqualTo(1); // 다른 사용자는 그대로
+    }
+
+    @Test
+    @DisplayName("사용자별 상한은 설정값(기본 300)을 쓰고, 0 이하면 기본값이다")
+    void userHistoryLimitDefaults() {
+        assertThat(writer.userHistoryLimit()).isEqualTo(WidgetChatWriter.DEFAULT_USER_HISTORY_LIMIT);
+        assertThat(new WidgetChatWriter(repository, 0).userHistoryLimit()).isEqualTo(300);
+        com.dongkuk.dmes.mcm.widget.chat.WidgetLlmProperties props = new com.dongkuk.dmes.mcm.widget.chat.WidgetLlmProperties();
+        props.setUserHistoryLimit(50);
+        assertThat(new WidgetChatWriter(repository, props).userHistoryLimit()).isEqualTo(50);
+    }
 }
