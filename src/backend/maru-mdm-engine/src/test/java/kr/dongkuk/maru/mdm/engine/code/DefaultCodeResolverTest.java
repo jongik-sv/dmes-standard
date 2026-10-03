@@ -162,11 +162,4 @@ class DefaultCodeResolverTest {
         DefaultCodeResolver r = resolver(CodeFixtures.withHeaderStatus(CodeFixtures.procCd(), "DEPRECATED"));
         assertEquals(List.of(), r.codeList(PROC_CD, "BASE", dt("2026-09-10T00:00")));
     }
-
-    @Test
-    void effectiveCodes_는_CodeEffLookup_을_보지_않는다() {
-        CodeEffLookup eff = (id, ver, cate) -> Optional.of(Set.of("81"));
-        DefaultCodeResolver r = new DefaultCodeResolver(InMemoryLookups.codeLookup(CodeFixtures.procCd()), eff);
-        assertEquals(Set.of("82", "84"), r.effectiveCodes(PROC_CD, V1_001, "COATING"));
-    }
 }

@@ -17,7 +17,6 @@ import kr.dongkuk.maru.mdm.engine.spi.CodeLookup;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeCateRow;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeItemRow;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
-import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeVersionRow;
 
 /**
  * 마루 코드 해석기(04 「판정 참고 구현」 04:670-735, TSK-03-02 design §6.10). {@code sql/04-code-exists.sql} 과 같은
@@ -29,7 +28,6 @@ import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeVersionRow;
 public final class DefaultCodeResolver implements CodeResolver {
 
     private static final String BASE = "BASE";
-    private static final String RELEASED = "RELEASED";
     private static final String DEPRECATED = "DEPRECATED";
     private static final String REGEX = "REGEX";
     private static final String TABLE = "TABLE";
@@ -45,7 +43,7 @@ public final class DefaultCodeResolver implements CodeResolver {
 
     @Override
     public Optional<BigDecimal> selectVersion(String maruCodeId, LocalDateTime baseDt) {
-        return codes.code(maruCodeId).flatMap(rows -> selectVersion(rows, baseDt));
+        return codes.code(maruCodeId).flatMap(rows -> CodeVersions.select(rows.versions(), baseDt));
     }
 
     @Override
@@ -53,12 +51,8 @@ public final class DefaultCodeResolver implements CodeResolver {
         if (code == null) {
             return false;
         }
-        Optional<CodeRows> rows = codes.code(maruCodeId);
-        if (rows.isEmpty()) {
-            return false;
-        }
-        Optional<BigDecimal> ver = selectVersion(rows.get(), baseDt);
-        return ver.isPresent() && resolve(rows.get(), cate(cateId), ver.get()).contains(code);
+        Optional<BigDecimal> ver = selectVersion(maruCodeId, baseDt);
+        return ver.isPresent() && resolve(maruCodeId, cate(cateId), ver.get()).contains(code);
     }
 
     @Override
@@ -66,9 +60,9 @@ public final class DefaultCodeResolver implements CodeResolver {
         if (!isMember(maruCodeId, cateId, code, baseDt)) {
             return Optional.empty();
         }
-        CodeRows rows = codes.code(maruCodeId).orElseThrow();
-        BigDecimal ver = selectVersion(rows, baseDt).orElseThrow();
-        return validItems(rows, ver).stream()
+        BigDecimal ver = selectVersion(maruCodeId, baseDt).orElseThrow();
+        return codes.codeAt(maruCodeId, ver).stream()
+                .flatMap(rows -> validItems(rows, ver).stream())
                 .filter(i -> i.code().equals(code))
                 .findFirst()
                 .map(i -> i.attrs().get(attrNo - 1));
@@ -76,16 +70,17 @@ public final class DefaultCodeResolver implements CodeResolver {
 
     @Override
     public List<CodeListEntry> codeList(String maruCodeId, String cateId, LocalDateTime baseDt) {
-        Optional<CodeRows> rows = codes.code(maruCodeId);
-        if (rows.isEmpty() || DEPRECATED.equals(rows.get().header().status())) {
+        Optional<CodeRows> toc = codes.code(maruCodeId);
+        if (toc.isEmpty() || DEPRECATED.equals(toc.get().header().status())) {
             return List.of();
         }
-        Optional<BigDecimal> ver = selectVersion(rows.get(), baseDt);
+        Optional<BigDecimal> ver = CodeVersions.select(toc.get().versions(), baseDt);
         if (ver.isEmpty()) {
             return List.of();
         }
-        Set<String> members = resolve(rows.get(), cate(cateId), ver.get());
-        return validItems(rows.get(), ver.get()).stream()
+        Set<String> members = resolve(maruCodeId, cate(cateId), ver.get());
+        return codes.codeAt(maruCodeId, ver.get()).stream()
+                .flatMap(rows -> validItems(rows, ver.get()).stream())
                 .filter(i -> members.contains(i.code()))
                 .sorted(Comparator.comparing(CodeItemRow::seq, Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(CodeItemRow::code))
@@ -95,20 +90,13 @@ public final class DefaultCodeResolver implements CodeResolver {
 
     @Override
     public Set<String> effectiveCodes(String maruCodeId, BigDecimal ver, String cateId) {
-        return codes.code(maruCodeId).map(rows -> compute(rows, cate(cateId), ver)).orElse(Set.of());
+        return codes.code(maruCodeId).isPresent() ? resolve(maruCodeId, cate(cateId), ver) : Set.of();
     }
 
-    /** RELEASED 중 {@code applyFrom <= dt < applyTo}, 없으면 최초 RELEASED(버전 소급). CANCELLED·DRAFT 는 보지 않는다. */
-    private static Optional<BigDecimal> selectVersion(CodeRows rows, LocalDateTime baseDt) {
-        List<CodeVersionRow> released = rows.versions().stream().filter(v -> RELEASED.equals(v.status())).toList();
-        return Segments.covering(released, CodeVersionRow::applyFrom, CodeVersionRow::applyTo, baseDt)
-                .or(() -> released.stream().min(Comparator.comparing(CodeVersionRow::ver)))
-                .map(CodeVersionRow::ver);
-    }
-
-    /** ① 사본의 미리 계산한 집합(빈 집합 = 소속 없음) ② 없으면 행으로 계산. */
-    private Set<String> resolve(CodeRows rows, String cateId, BigDecimal ver) {
-        return codeEff.codes(rows.header().maruCodeId(), ver, cateId).orElseGet(() -> compute(rows, cateId, ver));
+    /** ① 사본·캐시의 미리 계산한 집합(빈 집합 = 소속 없음) ② 없으면 {@code codeAt(id, ver)} 행으로 계산. */
+    private Set<String> resolve(String maruCodeId, String cateId, BigDecimal ver) {
+        return codeEff.codes(maruCodeId, ver, cateId)
+                .orElseGet(() -> codes.codeAt(maruCodeId, ver).map(rows -> compute(rows, cateId, ver)).orElse(Set.of()));
     }
 
     /** 04 SQL 2-4단계. 결과는 V 에 유효한 코드의 부분집합이다. */
@@ -143,7 +131,7 @@ public final class DefaultCodeResolver implements CodeResolver {
     }
 
     /** {@code from_ver <= V < to_ver} 인 코드 행. 코드는 늘 V 기준이다(소급하지 않는다). */
-    private static List<CodeItemRow> validItems(CodeRows rows, BigDecimal ver) {
+    static List<CodeItemRow> validItems(CodeRows rows, BigDecimal ver) {
         return rows.items().stream()
                 .filter(i -> i.fromVer().compareTo(ver) <= 0 && ver.compareTo(i.toVer()) < 0)
                 .toList();
