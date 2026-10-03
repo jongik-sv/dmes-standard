@@ -492,6 +492,20 @@ describe("DataMngPage(dataEdit 통합)", () => {
     expect(actions("dataEdit", "save")[1].params).toMatchObject({ maruDataName: "또 이름", auditVer: 1 });
   });
 
+  // 검토 M1 — 입력을 남기더라도 다시 읽은 헤더 값이 입력을 시작할 때와 칸마다 같으면(VER 만 오른 자기 쓰기 등) 다른 창이 헤더를
+  // 고치지 않은 것이므로 저장할 auditVer 를 새 값으로 올린다. 헤더 칸이 바뀐 진짜 충돌은 여전히 옛 auditVer 로 드러난다.
+  it("입력을 남긴 채 다시 읽었는데 헤더 값은 그대로이고 auditVer 만 올랐으면 저장은 새 auditVer 를 보낸다", async () => {
+    await render({ snapshot: { maruDataId: "PORT" } });
+    await search();
+    await typeInto("data-edit-name", "고치는 중");
+    nextView = (id) => viewResult({ maruDataId: id, auditVer: 1 });
+    await clickListRow("PORT");
+    await flush();
+    expect(nameValue()).toBe("고치는 중");
+    await click(byTestId("data-edit-save"));
+    expect(actions("dataEdit", "save")[0].params).toMatchObject({ maruDataName: "고치는 중", auditVer: 1 });
+  });
+
   it("다른 데이터로 옮길 때는 응답이 폼을 새 값으로 바꾼다(이전 입력 폐기)", async () => {
     await render({ snapshot: { maruDataId: "PORT" } });
     await search();

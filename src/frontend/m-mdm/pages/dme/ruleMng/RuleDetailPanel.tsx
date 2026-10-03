@@ -19,7 +19,8 @@
  *
  * <p>같은 룰을 다시 읽어도(행 다시 누르기·[조회]·버전 쓰기 뒤) 저장하지 않은 헤더 입력은 말없이 지우지 않는다(2026-10-03).
  * 입력은 남기고 저장에는 입력을 시작할 때의 auditVer 를 보낸다 — 그사이 다른 창에서 헤더가 바뀌었으면 서버가 MDM001 로
- * 거부해 위 [다시 불러오기] 로 이어진다(버전 쓰기는 룰 헤더 VER 을 올리지 않아 자기 쓰기로 거짓 충돌이 나지 않는다).
+ * 거부해 위 [다시 불러오기] 로 이어진다. 다시 읽은 헤더 값이 입력을 시작할 때와 칸마다 같으면(폐기처럼 VER 만 오른 자기 쓰기)
+ * 저장할 auditVer 를 새 값으로 올려 거짓 충돌을 막는다(검토 M1).
  * 입력을 버리는 길은 [다시 불러오기] 하나다. 헤더 저장에 성공한 뒤에는 입력이 보낸 그대로면 서버 값(trim 된 값)·새 auditVer 로
  * 맞춘다(검토 I1).
  */
@@ -130,6 +131,8 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
   const shown = useRef({ id, initial });
   // 헤더 저장에 성공했을 때 보낸 폼 — 다음 다시 읽기에서 한 번 쓰고 비운다.
   const savedForm = useRef<HeaderForm | null>(null);
+  // formAuditVer 를 받을 때의 서버 헤더 값 — 입력을 남긴 채 다시 읽었는데 헤더 값이 이것과 같으면 VER 만 오른 것이다.
+  const formBase = useRef(initial);
   useEffect(() => {
     const prev = shown.current;
     shown.current = { id, initial };
@@ -141,7 +144,13 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
     // 새 서버 값과 달라 보여도 고친 입력이 아니다(검토 I1). 저장하는 사이 또 고쳤으면 아래 규칙대로 남긴다.
     const savedAsIs = prev.id === id && !!saved && sameForm(cur, saved);
     // 같은 룰을 다시 읽었는데 사용자가 고친 칸이 있으면(이전 서버 값과도 새 서버 값과도 다르면) 입력을 남긴다.
-    if (!savedAsIs && prev.id === id && !sameForm(cur, prev.initial) && !sameForm(cur, initial)) return;
+    if (!savedAsIs && prev.id === id && !sameForm(cur, prev.initial) && !sameForm(cur, initial)) {
+      // 헤더 값이 입력을 시작할 때와 칸마다 같으면 다른 창이 헤더를 고치지 않았다 — VER 만 오른 자기 쓰기(폐기 등) 뒤
+      // 거짓 충돌이 나지 않게 저장할 auditVer 를 새 값으로 올린다(검토 M1). 헤더 칸이 바뀌었으면 옛 값을 둬 충돌로 드러낸다.
+      if (sameForm(initial, formBase.current)) setFormAuditVer(header.auditVer);
+      return;
+    }
+    formBase.current = initial;
     setForm(initial);
     setFormAuditVer(header.auditVer);
   }, [id, initial, header.auditVer]);

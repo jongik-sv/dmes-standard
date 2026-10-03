@@ -108,6 +108,8 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
   // 지금 보이는 상세의 데이터 ID·서버 헤더 폼 값과 폼이 기대는 auditVer — 다시 읽은 응답이 사용자가 고친 폼을 덮지 않게 하는 데 쓴다.
   const shownId = useRef<string | null>(null);
   const serverForm = useRef<HeaderForm | null>(null);
+  // formAuditVer 를 받을 때의 서버 헤더 값 — 입력을 남긴 채 다시 읽었는데 헤더 값이 이것과 같으면 VER 만 오른 것이다.
+  const formBase = useRef<HeaderForm | null>(null);
   const formRef = useRef(form);
   formRef.current = form;
   const [formAuditVer, setFormAuditVer] = useState(0);
@@ -189,7 +191,12 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
     serverForm.current = nextForm;
     setView(next);
     if (!keepForm) {
+      formBase.current = nextForm;
       setForm(nextForm);
+      setFormAuditVer(next.auditVer);
+    } else if (formBase.current && sameHeaderForm(nextForm, formBase.current)) {
+      // 헤더 값이 입력을 시작할 때와 칸마다 같으면 다른 창이 헤더를 고치지 않았다 — VER 만 오른 경우 거짓 충돌이 나지
+      // 않게 저장할 auditVer 를 새 값으로 올린다(검토 M1).
       setFormAuditVer(next.auditVer);
     }
   }, []);

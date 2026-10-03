@@ -258,6 +258,21 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     expect(actions("save")[1].params).toMatchObject({ maruCodeName: "또 이름", auditVer: 1 });
   });
 
+  // 검토 M1 — 입력을 남기더라도 다시 읽은 헤더 값이 입력을 시작할 때와 칸마다 같으면(VER 만 오른 자기 쓰기 등) 다른 창이 헤더를
+  // 고치지 않은 것이므로 저장할 auditVer 를 새 값으로 올린다. 헤더 칸이 바뀐 진짜 충돌은 여전히 옛 auditVer 로 드러난다.
+  it("입력을 남긴 채 다시 읽었는데 헤더 값은 그대로이고 auditVer 만 올랐으면 저장은 새 auditVer 를 보낸다", async () => {
+    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await search();
+    await typeInto("header-name", "고치는 중");
+    nextView = () => viewResult({ header: { ...viewResult().header, auditVer: 1 } });
+    const row = Array.from(document.body.querySelectorAll('[data-testid="code-list"] .ag-row')).find((r) => r.textContent?.includes("PROC_CD"));
+    await click(row!.querySelector(".ag-cell"));
+    await flush();
+    expect((byTestId("header-name") as HTMLInputElement).value).toBe("고치는 중");
+    await click(byTestId("header-save"));
+    expect(actions("save")[0].params).toMatchObject({ maruCodeName: "고치는 중", auditVer: 1 });
+  });
+
   it("코드를 고르기 전에는 안내만 보인다", async () => {
     await render();
     // 첫 진입은 목록을 자동 조회하지 않는다 — [조회] 를 눌러야 불러온다(cf4fbb05).

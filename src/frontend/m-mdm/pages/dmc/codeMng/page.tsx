@@ -131,6 +131,8 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
   // 지금 보이는 상세의 코드 ID·서버 헤더 폼 값과 폼이 기대는 auditVer — 다시 읽은 응답이 사용자가 고친 폼을 덮지 않게 하는 데 쓴다.
   const shownId = useRef<string | null>(null);
   const serverForm = useRef<HeaderForm | null>(null);
+  // formAuditVer 를 받을 때의 서버 헤더 값 — 입력을 남긴 채 다시 읽었는데 헤더 값이 이것과 같으면 VER 만 오른 것이다.
+  const formBase = useRef<HeaderForm | null>(null);
   const formRef = useRef(form);
   formRef.current = form;
   const [formAuditVer, setFormAuditVer] = useState<number | null>(null);
@@ -220,7 +222,12 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
     serverForm.current = nextForm;
     setView(next);
     if (!keepForm) {
+      formBase.current = nextForm;
       setForm(nextForm);
+      setFormAuditVer(next.header.auditVer);
+    } else if (formBase.current && sameHeaderForm(nextForm, formBase.current)) {
+      // 헤더 값이 입력을 시작할 때와 칸마다 같으면 다른 창이 헤더를 고치지 않았다 — VER 만 오른 자기 쓰기(새 버전·복원의
+      // 첫 INUSE 전환 등) 뒤 거짓 충돌이 나지 않게 저장할 auditVer 를 새 값으로 올린다(검토 M1).
       setFormAuditVer(next.header.auditVer);
     }
     setSelectedVer((prev) => {
