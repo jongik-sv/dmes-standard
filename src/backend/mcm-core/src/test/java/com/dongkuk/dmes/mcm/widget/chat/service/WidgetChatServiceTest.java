@@ -100,8 +100,12 @@ class WidgetChatServiceTest {
     }
 
     private WidgetChatService newService(LlmClient client, Clock clock) {
+        return newService(client, clock, WidgetChatService.DEFAULT_DAILY_CALL_LIMIT);
+    }
+
+    private WidgetChatService newService(LlmClient client, Clock clock, int dailyCallLimit) {
         return new WidgetChatService(repository, writer, defRepository, queryRunner, userContextResolver, screenFinder,
-                client, securityIdentity, transactionManager, Duration.ofSeconds(60), clock);
+                client, securityIdentity, transactionManager, Duration.ofSeconds(60), clock, dailyCallLimit);
     }
 
     // ── helpers ─────────────────────────────────────────────────────────
@@ -617,5 +621,62 @@ class WidgetChatServiceTest {
         m.put(k1, v1);
         m.put(k2, v2);
         return m;
+    }
+
+    // ── 남용 막기(사용자별 하루 LLM 호출 상한) ───────────────────────────────
+
+    @Test
+    @DisplayName("하루 LLM 호출 상한을 넘으면 질문을 저장하지 않고 거절한다 — instId 를 바꿔도 사용자 단위로 세고, 다른 사용자는 그대로")
+    void dailyLimitIsPerUserAcrossInstances() {
+        WidgetChatService limited = newService(llm, Clock.fixed(NOW, SEOUL), 2);
+        llm.then(LlmReply.ofText("a1")).then(LlmReply.ofText("a2")).then(LlmReply.ofText("a3"));
+
+        limited.send(req("i1", DEF_ID, "q1"));
+        limited.send(req("i2", DEF_ID, "q2")); // 다른 인스턴스도 같은 사용자 몫
+        assertThatThrownBy(() -> limited.send(req("i3", DEF_ID, "q3")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("오늘 AI 챗봇 사용 한도(2회)를 모두 썼습니다. 내일 다시 이용하세요.");
+        assertThat(stored("userA", "i3")).isEmpty(); // 거절한 질문은 저장하지 않는다
+        assertThat(llm.calls()).hasSize(2);
+
+        when(securityIdentity.currentUserId()).thenReturn("userB");
+        assertThat(reply(limited.send(req("i3", DEF_ID, "q3"))).get("content")).isEqualTo("a3");
+    }
+
+    @Test
+    @DisplayName("서울 날짜가 바뀌면 하루 상한이 0 부터 다시 — 23:59:59 까지는 거절, 00:00 부터 허용")
+    void dailyLimitResetsOnNextDay() {
+        MovableClock clock = new MovableClock(NOW, SEOUL); // 서울 10-02 01:30
+        WidgetChatService limited = newService(llm, clock, 1);
+        llm.then(LlmReply.ofText("a1")).then(LlmReply.ofText("a2"));
+
+        limited.send(req("i1", DEF_ID, "q1"));
+        assertThatThrownBy(() -> limited.send(req("i1", DEF_ID, "q2"))).isInstanceOf(BusinessException.class);
+        clock.advance(Duration.between(NOW, Instant.parse("2026-10-02T14:59:59Z"))); // 서울 10-02 23:59:59
+        assertThatThrownBy(() -> limited.send(req("i1", DEF_ID, "q2"))).isInstanceOf(BusinessException.class);
+        clock.advance(Duration.ofSeconds(1)); // 서울 10-03 00:00
+        assertThat(reply(limited.send(req("i1", DEF_ID, "q2"))).get("content")).isEqualTo("a2");
+        assertThat(stored("userA", "i1")).extracting(WidgetChatMessage::getContent).containsExactly("q1", "a1", "q2", "a2");
+    }
+
+    @Test
+    @DisplayName("상한은 LLM 호출마다 센다 — 도구 반복 중 닿으면 더 부르지 않고 그때까지 받은 글로 답한다(글이 없으면 한도 안내)")
+    void dailyLimitMidTurnAnswersWithTextSoFar() {
+        when(screenFinder.find(anyString(), anyInt())).thenReturn(List.of());
+        WidgetChatService limited = newService(llm, Clock.fixed(NOW, SEOUL), 1);
+        llm.then(LlmReply.ofToolCalls("찾아보는 중입니다.", List.of(new LlmToolCall("t1", "find_screen", Map.of("keyword", "위젯")))))
+                .then(LlmReply.ofText("부르면 안 되는 답"));
+
+        assertThat(reply(limited.send(req("i1", DEF_ID, "위젯 어디?"))).get("content")).isEqualTo("찾아보는 중입니다.");
+        assertThat(llm.calls()).hasSize(1);
+        assertThatThrownBy(() -> limited.send(req("i1", DEF_ID, "또"))).isInstanceOf(BusinessException.class);
+
+        FakeLlmClient silent = FakeLlmClient.scripted()
+                .then(callTool("t2", "find_screen", Map.of("keyword", "공지")))
+                .then(LlmReply.ofText("부르면 안 되는 답"));
+        when(securityIdentity.currentUserId()).thenReturn("userB");
+        assertThat(reply(newService(silent, Clock.fixed(NOW, SEOUL), 1).send(req("i1", DEF_ID, "공지 어디?"))).get("content"))
+                .isEqualTo(WidgetChatService.DAILY_LIMIT_PARTIAL_MESSAGE);
+        assertThat(silent.calls()).hasSize(1);
     }
 }

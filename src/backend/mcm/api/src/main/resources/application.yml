@@ -198,6 +198,9 @@ dmes:
       timeout-sec: 60
       # 생각(thinking) 토큰도 한도에 들어가는 모델이 있어 1024 는 답이 잘리기 쉽다(Task 11 권고).
       max-tokens: 4096
+      # 남용 막기(메모리·인스턴스마다 따로 센다). 하루 상한은 서울 날짜 기준, 도구 반복 포함 LLM 호출마다 1.
+      daily-call-limit: 200      # 사용자별 하루 LLM 호출 수 상한 — 넘으면 「오늘 AI 챗봇 사용 한도(n회)를 모두 썼습니다」
+      user-history-limit: 300    # 사용자별 저장 대화 기록 수(모든 인스턴스 합계) — 넘으면 가장 오래된 것부터 지운다
 
 # ── caravan-console 자체 설정 + Repository alias (kmc-core 0.2.0 패턴 B) ──
 # caravan 의존 제거 (2026-05-12) — caravan-console.kafka.* / caravan.* 블록 삭제. caravan 라이브러리는 caravan-hub 호스트에서만 사용 (v4 정본).
