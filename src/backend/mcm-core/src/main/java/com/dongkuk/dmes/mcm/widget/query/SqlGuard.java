@@ -38,7 +38,9 @@ import java.util.regex.Pattern;
  * <p>
  * <b>함수 거절 목록</b>(§7.1 6단계, 2026-10-03 보안 지적): 읽기 전용 트랜잭션이 막지 못하는 부수효과·외부 통신·문자열 SQL 실행 함수
  * (세션 종료·권고 잠금·대기, dblink, 서버 파일, {@code ts_stat}·{@code query_to_xml}·{@code DBMS_XMLGEN} 처럼 리터럴 안 SQL 을 실행하는 함수,
- * Oracle 네트워크·잠금·작업 패키지, SQLite 확장 적재, MSSQL 외부 행 집합)를 낱말 단위로 거절한다. 따옴표 식별자로 불러도
+ * Oracle 네트워크·잠금·작업 패키지, SQLite 확장 적재, MSSQL 외부 행 집합)를 <b>부르는 모양</b>일 때 거절한다 — 이름 뒤에 공백·주석을
+ * 건너뛰고 {@code (}·{@code .}(Oracle 패키지 {@code DBMS_X.F})·{@code @}(Oracle DB 링크)가 올 때만이다. 그래서 같은 이름의 열·표·별칭
+ * ({@code SELECT XMLTYPE FROM T}, {@code XP_CNT}, {@code FROM XP_HIST})은 통과한다. 따옴표 식별자로 불러도
  * ({@code "pg_sleep"(1)}) 걸리도록 이 단계만은 따옴표·대괄호 식별자 안 글자를 드러낸 사본으로 본다. PostgreSQL 유니코드 식별자
  * {@code U&"…"} 는 이스케이프로 이름을 숨길 수 있어 받지 않는다. 이름 목록은 <b>보조</b>일 뿐이다(확장·새 판이 문자열 SQL 을 실행하는
  * 함수를 더할 수 있다). 운영에서는 실행기에 읽기 권한만 가진 DB 계정의 DataSource({@code dmes.widget.query.datasource.*})를
@@ -80,14 +82,16 @@ public final class SqlGuard {
      * 6단계 함수 거절 목록 — 읽기 전용 트랜잭션이 막지 못하는 부수효과·외부 통신·서버 자원 붙잡기, 그리고 <b>문자열로 받은 SQL·XML 질의를
      * 스스로 실행하는 함수</b>(리터럴은 가린 사본에서 안 보이므로 그 안의 함수는 검사가 못 본다 — 바깥 함수 이름으로 막는다,
      * 2026-10-03 실 PostgreSQL 재현: {@code ts_stat('select … pg_terminate_backend(pid) …')} 가 읽기 전용 트랜잭션에서 다른 세션을 끊었다).
-     * 낱말 경계라 스키마·패키지 접두({@code pg_catalog.ts_stat}, {@code SYS.DBMS_LOCK.SLEEP}, {@code UTL_HTTP.REQUEST})도 걸리고,
-     * 주석을 끼워도({@code ts_stat/**&#47;(}) 주석은 공백으로 가려져 이름이 그대로 남는다.
+     * 이름이 맞아도 <b>부르는 모양일 때만</b> 거절한다({@link #isCalled}) — 이름 뒤에 공백·주석을 건너뛰고 {@code (}·{@code .}·{@code @} 가
+     * 와야 한다. 낱말 경계라 스키마·패키지 접두({@code pg_catalog.ts_stat(}, {@code SYS.DBMS_LOCK.SLEEP}, {@code UTL_HTTP.REQUEST})도 걸리고,
+     * 주석을 끼워도({@code ts_stat/**&#47;(}) 주석은 공백으로 가려져 이름과 괄호가 그대로 남는다. 열·표·별칭 이름({@code XP_CNT},
+     * {@code FROM XP_HIST}, {@code AS "xmltype"})은 뒤에 괄호가 없어 통과한다(표 이름으로 열을 한정한 {@code XP_HIST.CNT} 는 패키지 호출과
+     * 구별할 수 없어 거절된다 — 별칭을 쓴다).
      * <p>
      * 접두로 넓게 막는 것은 이름이 계속 늘어나는 함수 무리(권고 잠금·서버 파일·{@code *_to_xml*}·{@code crosstab<n>}·SQL Server 확장 프로시저
-     * {@code xp_*})뿐이다. 낱말이 열 이름과 겹칠 수 있는 무리는 하나씩 적는다 — {@code lo_*} 는 {@code LO_CD}, {@code sp_*} 는 {@code SP_CD}
-     * 같은 열을 막게 된다. SQL Server 저장 프로시저는 첫 문장이 아니면 {@code EXEC} 없이 부를 수 없고 {@code EXEC}·{@code EXECUTE} 는 4단계가
-     * 막으므로, {@code sp_} 는 이름이 알려진 위험한 것만 보조로 적는다. {@code DBMS_} 전체를 막지 않는 것은 {@code DBMS_LOB.SUBSTR} 같은
-     * 평범한 CLOB 조회를 살리기 위해서다. {@code current_setting} 은 같은 값을 {@code pg_settings} 뷰로도 읽을 수 있어 막지 않는다.
+     * {@code xp_*})뿐이다. 낱말이 열 이름과 겹칠 수 있는 무리는 하나씩 적는다 — {@code lo_*} 는 {@code LO_CD} 같은 열을 막게 된다.
+     * {@code DBMS_} 전체를 막지 않는 것은 {@code DBMS_LOB.SUBSTR} 같은 평범한 CLOB 조회를 살리기 위해서다. {@code current_setting} 은
+     * 같은 값을 {@code pg_settings} 뷰로도 읽을 수 있어 막지 않는다.
      */
     private static final Pattern FORBIDDEN_FUNCTION = Pattern.compile(
             "(?<!" + WORD_CHAR + ")("
@@ -109,10 +113,20 @@ public final class SqlGuard {
                     + "|DBMS_XMLGEN|DBMS_XMLQUERY|DBMS_XMLSTORE|DBMS_LDAP|DBMS_JAVA|DBMS_AQ[A-Z0-9_]*"
                     // SQLite — 확장 적재·토크나이저 포인터
                     + "|LOAD_EXTENSION|FTS3_TOKENIZER"
-                    // SQL Server — 외부 행 집합·확장 프로시저·서버 파일 읽기 함수·알려진 위험 저장 프로시저
+                    // SQL Server — 외부 행 집합·확장 프로시저·서버 파일 읽기 함수
                     + "|OPENROWSET|OPENDATASOURCE|OPENQUERY|XP_[A-Z0-9_]*"
                     + "|FN_GET_AUDIT_FILE|FN_XE_FILE_TARGET_READ_FILE|FN_TRACE_GETTABLE|FN_DBLOG|FN_DUMP_DBLOG"
-                    + "|SP_EXECUTESQL|SP_OACREATE|SP_OAMETHOD|SP_CONFIGURE|SP_ADDEXTENDEDPROC|SP_ADDLINKEDSERVER"
+                    + ")(?!" + WORD_CHAR + ")",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * 6단계 중 SQL Server 의 알려진 위험 저장 프로시저 — 괄호 없이 부르므로({@code sp_executesql N'…'}) 부르는 모양을 따지지 않고 <b>낱말만으로</b>
+     * 거절한다. 저장 프로시저는 첫 문장이 아니면 {@code EXEC} 없이 부를 수 없고 {@code EXEC}·{@code EXECUTE} 는 4단계가 막으므로 보조다.
+     * {@code sp_*} 를 접두로 막지 않는 것은 {@code SP_CD} 같은 열을 살리기 위해서다(이름을 하나씩 적어 열 이름과 겹칠 일이 드물다).
+     */
+    private static final Pattern FORBIDDEN_PROCEDURE = Pattern.compile(
+            "(?<!" + WORD_CHAR + ")("
+                    + "SP_EXECUTESQL|SP_OACREATE|SP_OAMETHOD|SP_CONFIGURE|SP_ADDEXTENDEDPROC|SP_ADDLINKEDSERVER"
                     + "|SP_ADDSRVROLEMEMBER|SP_SEND_DBMAIL|SP_START_JOB"
                     + ")(?!" + WORD_CHAR + ")",
             Pattern.CASE_INSENSITIVE);
@@ -192,10 +206,37 @@ public final class SqlGuard {
         return new Inspection(semicolon, List.copyOf(new ArrayList<>(used)));
     }
 
-    /** 6단계 — 식별자 글자를 드러낸 사본에서 거절 목록 함수 이름을 찾는다. */
+    /** 6단계 — 식별자 글자를 드러낸 사본에서 거절 목록 함수를 부르는 곳(과 위험 저장 프로시저 이름)을 찾는다. */
     private static void rejectForbiddenFunction(String revealed) {
+        Matcher procedure = FORBIDDEN_PROCEDURE.matcher(revealed);
+        if (procedure.find()) throw invalid(MSG_FORBIDDEN_FUNCTION + procedure.group(1).toUpperCase(Locale.ROOT));
         Matcher m = FORBIDDEN_FUNCTION.matcher(revealed);
-        if (m.find()) throw invalid(MSG_FORBIDDEN_FUNCTION + m.group(1).toUpperCase(Locale.ROOT));
+        while (m.find()) {
+            if (isCalled(revealed, m.end())) throw invalid(MSG_FORBIDDEN_FUNCTION + m.group(1).toUpperCase(Locale.ROOT));
+        }
+    }
+
+    /**
+     * 이름 끝(from) 뒤가 부르는 모양인가 — 공백·주석(가린 사본에서 공백)을 건너뛴 첫 글자가 {@code (}(호출)·{@code .}(Oracle 패키지
+     * {@code DBMS_X.F}, 형 메서드 {@code XMLTYPE.CREATEXML})·{@code @}(Oracle DB 링크 {@code F@LINK(})이면 true.
+     * 건너뛰는 글자는 유니코드 공백·구분자·제어·서식 글자까지 넓게 잡는다 — DB 가 공백으로 읽는 글자를 놓치면 우회가 되고,
+     * 넓게 잡아서 생기는 일은 더 많이 거절하는 것뿐이다.
+     */
+    private static boolean isCalled(String revealed, int from) {
+        int k = from;
+        int n = revealed.length();
+        while (k < n) {
+            int cp = revealed.codePointAt(k);
+            if (!isSkippable(cp)) return cp == '(' || cp == '.' || cp == '@';
+            k += Character.charCount(cp);
+        }
+        return false;
+    }
+
+    private static boolean isSkippable(int cp) {
+        if (Character.isWhitespace(cp) || Character.isSpaceChar(cp)) return true;
+        int type = Character.getType(cp);
+        return type == Character.CONTROL || type == Character.FORMAT;
     }
 
     /** {@link #mask(String, boolean, boolean)} 의 식별자를 가리는 판(2~5단계용). */

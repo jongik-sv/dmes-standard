@@ -249,8 +249,23 @@ class SqlGuardTest {
                 arguments("SELECT * FROM sys.fn_get_audit_file('c:/x*', DEFAULT, DEFAULT)", "FN_GET_AUDIT_FILE"),
                 arguments("SELECT * FROM fn_trace_gettable('c:/x.trc', DEFAULT)", "FN_TRACE_GETTABLE"),
                 arguments("SELECT * FROM fn_dblog(NULL, NULL)", "FN_DBLOG"),
+                // 저장 프로시저는 괄호 없이 부르므로 부르는 모양을 따지지 않고 낱말만으로 거절한다
                 arguments("SELECT 1 sp_executesql N'select 1'", "SP_EXECUTESQL"),
-                arguments("SELECT 1 FROM t WHERE x = [sp_oacreate]", "SP_OACREATE"));
+                arguments("SELECT 1 FROM t WHERE x = [sp_oacreate]", "SP_OACREATE"),
+                // 3차 보안 리뷰(2026-10-03) — 이름 뒤에 ( · . · @ 가 오면 부르는 것이다. 공백·주석·유니코드 공백·서식 글자를 끼워도 걸린다
+                arguments("SELECT (ts_stat('select 1')).*", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat\u00A0('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat\u3000('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat\u200B('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat\t\r\n('select 1')", "TS_STAT"),
+                arguments("SELECT * FROM ts_stat /* a */ -- b\n /* c */ ('select 1')", "TS_STAT"),
+                arguments("SELECT DBMS_LOCK . SLEEP(5) FROM dual", "DBMS_LOCK"),
+                arguments("SELECT DBMS_SESSION.UNIQUE_SESSION_ID FROM dual", "DBMS_SESSION"),
+                arguments("SELECT BFILENAME@remote_link('D', 'f') FROM dual", "BFILENAME"),
+                arguments("SELECT xp_cmdshell ('dir')", "XP_CMDSHELL"),
+                arguments("SELECT XMLTYPE.CREATEXML('<a/>') FROM dual", "XMLTYPE"),
+                // 같은 SQL 에 열 이름으로 먼저 나오고 뒤에서 부르면 뒤의 호출이 걸린다
+                arguments("SELECT xmltype, XMLTYPE('<a/>') FROM t", "XMLTYPE"));
     }
 
     @ParameterizedTest(name = "[{index}] {0}")
@@ -284,7 +299,15 @@ class SqlGuardTest {
                 // 2차 목록과 이름 일부만 같은 열·리터럴 안 이름(lo_·sp_ 는 접두로 막지 않는다)
                 arguments("SELECT lo_cd, sp_cd, ts_stat_cd, ts_stat_yn, xml_type, crosstab_yn, kill_cnt, backup_yn FROM t"),
                 arguments("SELECT 'ts_stat(''select 1'')', 'xp_cmdshell' FROM t"),
-                arguments("SELECT current_setting('TimeZone')"));
+                arguments("SELECT current_setting('TimeZone')"),
+                // 3차 보안 리뷰(2026-10-03) — 거절 목록과 같은 이름이어도 부르지 않는 열·표·별칭은 통과한다
+                arguments("SELECT XMLTYPE FROM T"),
+                arguments("SELECT XP_CNT, xp_yn FROM TB_EQP"),
+                arguments("SELECT CNT FROM XP_HIST"),
+                arguments("SELECT h.XP_CNT FROM XP_HIST h WHERE h.XP_CNT > 0"),
+                arguments("SELECT 1 AS \"xmltype\", 2 AS \"ts_stat\" FROM T"),
+                arguments("SELECT dblink, ts_stat, crosstab, bfilename FROM t ORDER BY dblink"),
+                arguments("SELECT t.ts_stat FROM t"));
     }
 
     /**
