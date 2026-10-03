@@ -30,6 +30,7 @@ export {
   MdmMetaCard,
   formatMdmDataType,
   mdmCardHasHtml,
+  mdmCardSafeHtml,
   MDM_META_CARD_MAX_CODES,
   MDM_META_CARD_HTML_MAX_WIDTH,
   MDM_META_CARD_HTML_MAX_HEIGHT,

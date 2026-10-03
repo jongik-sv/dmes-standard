@@ -151,12 +151,59 @@ describe("MdmMetaCard — HTML 설명", () => {
     expect(styles[0].textContent).toMatch(/\.mdm-meta-card-html img\s*\{[^}]*max-width:\s*100%/);
   });
 
-  it("mdmCardHasHtml — 비어 있지 않은 descriptionHtml 일 때만 참", () => {
+  it("mdmCardHasHtml — 소독 결과에 보이는 내용(글자·그림)이 있을 때만 참", () => {
     expect(mdmCardHasHtml(BODY)).toBe(true);
+    expect(
+      mdmCardHasHtml(
+        column("A", { descriptionHtml: '<p><img src="https://example.com/a.png"></p>' })
+      )
+    ).toBe(true);
     expect(mdmCardHasHtml(column("A", { descriptionHtml: null }))).toBe(false);
     expect(mdmCardHasHtml(column("A", { descriptionHtml: "  " }))).toBe(false);
+    expect(mdmCardHasHtml(column("A", { descriptionHtml: "<script>x</script>" }))).toBe(false);
+    expect(mdmCardHasHtml(column("A", { descriptionHtml: "<p></p>" }))).toBe(false);
+    expect(mdmCardHasHtml(column("A", { descriptionHtml: "<p><br></p><p> </p>" }))).toBe(false);
     expect(mdmCardHasHtml(column("A"))).toBe(false);
     expect(mdmCardHasHtml(null)).toBe(false);
+  });
+
+  it("보이는 내용이 없는 HTML(<p><br></p>)은 글자 카드다 — 폭 360, 설명 칸은 글자", () => {
+    render({ column: column("X", { description: "대신 글자", descriptionHtml: "<p><br></p>" }) });
+    expect(htmlBody()).toBeNull();
+    expect(card().style.maxWidth).toBe("360px");
+    expect(desc()!.textContent).toBe("대신 글자");
+    expect(desc()!.style.maxHeight).toBe("");
+  });
+
+  it("그림만 있는 HTML 은 HTML 카드다", () => {
+    render({
+      column: column("X", {
+        description: "",
+        descriptionHtml: '<p><img src="https://example.com/a.png"></p>',
+      }),
+    });
+    expect(htmlBody()!.querySelector("img")?.getAttribute("src")).toBe("https://example.com/a.png");
+    expect(card().style.maxWidth).toBe("640px");
+  });
+
+  it("HTML 대신 그리는 글자는 줄바꿈을 살린다(white-space: pre-line) — 일반 글 설명은 예전 그대로", () => {
+    render({
+      column: column("X", {
+        description: "두께 < 10\n하나\n둘",
+        descriptionHtml: "<script>x</script>",
+      }),
+    });
+    expect((desc()!.firstElementChild as HTMLElement).style.whiteSpace).toBe("pre-line");
+    act(() => root?.unmount());
+    host.remove();
+    render({ column: BODY, textOnly: true });
+    expect((desc()!.firstElementChild as HTMLElement).style.whiteSpace).toBe("pre-line");
+    act(() => root?.unmount());
+    host.remove();
+    render({ column: column("X", { description: "일반 글" }) });
+    expect((desc()!.firstElementChild as HTMLElement).getAttribute("style")).toBe(
+      "display: block;"
+    );
   });
 });
 
