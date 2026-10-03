@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.dmd.dataCateEdit.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
+
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.segment.CateSegmentRow;
 import com.dongkuk.dmes.mdm.common.segment.DataCategoryResolver;
@@ -335,10 +337,6 @@ public class DataCateEditService {
 
     private static RuntimeException keyIssue(String message, String key) {
         return DataItemChecks.rejected(List.of(new MdmCheckIssue("KEY", message, "key", key)));
-    }
-
-    private static BusinessException invalid(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
     }
 
     private static String trim(String s) {

@@ -1,5 +1,8 @@
 package com.dongkuk.dmes.mdm.dmd.dataEdit.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
+
 import com.dongkuk.dmes.mdm.common.segment.CateSegmentRow;
 import com.dongkuk.dmes.mdm.common.segment.DataCategoryResolver;
 import com.dongkuk.dmes.mdm.common.segment.DataCateValue;
@@ -252,17 +255,5 @@ public class DataEditService {
             throw invalid("라벨 attr" + (slot < 10 ? "0" : "") + slot + " 은 " + LABEL_MAX + "자 이내여야 합니다");
         }
         return v;
-    }
-
-    private static RuntimeException invalid(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
-    }
-
-    private static String trimToNull(String s) {
-        if (s == null) {
-            return null;
-        }
-        String t = s.trim();
-        return t.isEmpty() ? null : t;
     }
 }

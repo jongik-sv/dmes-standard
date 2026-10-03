@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.feed.metaFeed.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
+
 import com.dongkuk.dmes.mdm.common.metarev.MetaTargetType;
 import java.util.Locale;
 
@@ -14,7 +16,7 @@ public enum MetaFeedPart {
         return switch (text.trim().toUpperCase(Locale.ROOT)) {
             case "TOC" -> TOC;
             case "BODY" -> BODY;
-            default -> throw MetaFeedService.invalid("part 는 TOC·BODY 중 하나여야 합니다: " + text);
+            default -> throw invalid("part 는 TOC·BODY 중 하나여야 합니다: " + text);
         };
     }
 }
