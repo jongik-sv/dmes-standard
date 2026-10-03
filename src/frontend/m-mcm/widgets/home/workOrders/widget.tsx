@@ -1,10 +1,14 @@
 "use client";
 
+import { useCallback } from "react";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { ProgressBar } from "@dk-oasis/shared/form";
-import { WidgetTitleExtra } from "@dk-oasis/shared/widget";
+import { exportToExcel, today } from "@dk-oasis/shared/utils";
+import { WidgetTitleExtra, type WidgetProps } from "@dk-oasis/shared/widget";
 
 import { SAMPLE_WORK_ORDERS, WORK_ORDER_STATUS_TONE, WORK_ORDER_SUMMARY } from "@/page-components/home/sample-data";
+import { excelFileName, toExcelColumns } from "@/widget-types/_query/excel";
+import { ExcelFoot } from "@/widget-types/_query/excel-foot";
 
 import { toneBadge } from "../_shared/grid-badge";
 
@@ -34,7 +38,18 @@ const WORK_ORDER_COLUMNS: GridColumn[] = [
 
 const WORK_ORDER_DATA = SAMPLE_WORK_ORDERS as unknown as Record<string, unknown>[];
 
-export default function WorkOrdersWidget() {
+export default function WorkOrdersWidget({ title }: WidgetProps) {
+  // 보이는 행·컬럼 그대로 「{위젯 제목}_{yyyyMMdd}.xlsx」 — 진행률·상태처럼 render 로 그리는 컬럼도 원래 값(숫자·글)이 들어간다.
+  const handleExcel = useCallback(() => {
+    if (WORK_ORDER_DATA.length === 0) return;
+    void exportToExcel(
+      WORK_ORDER_DATA,
+      excelFileName(title, today()),
+      "Sheet1",
+      toExcelColumns(WORK_ORDER_COLUMNS, WORK_ORDER_DATA)
+    );
+  }, [title]);
+
   return (
     <>
       <WidgetTitleExtra>
@@ -46,6 +61,11 @@ export default function WorkOrdersWidget() {
         data={WORK_ORDER_DATA}
         columnSizing="fit"
         height="auto"
+      />
+      <ExcelFoot
+        note={`${WORK_ORDER_DATA.length.toLocaleString()}건`}
+        onExcel={handleExcel}
+        disabled={WORK_ORDER_DATA.length === 0}
       />
     </>
   );
