@@ -158,6 +158,10 @@
       "types": "./dist/types/components/card/index.d.ts",
       "import": "./dist/card.js"
     },
+    "./transfer-list": {
+      "types": "./dist/types/components/transfer-list/index.d.ts",
+      "import": "./dist/transfer-list.js"
+    },
     "./dashboard": {
       "types": "./dist/types/components/dashboard/index.d.ts",
       "import": "./dist/dashboard.js"

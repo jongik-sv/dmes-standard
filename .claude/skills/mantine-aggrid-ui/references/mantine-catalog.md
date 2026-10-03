@@ -36,6 +36,7 @@ Mantine 문서 조회: `python3 .claude/skills/mantine-aggrid-ui/scripts/mantine
 | `SegmentedControl` | `SegmentedControl` (`form`) | [segmented-control](components/segmented-control.md) |
 | `Card`·`SimpleGrid` (대시보드) | **쓰지 않는다** → `DashboardGrid`·`DashboardCard`·`KpiTile` (`dashboard`, 자체 구현) | [dashboard](components/dashboard.md) |
 | `Card`·`Collapse` (편집 화면 카드 쌓기·함께 접기) | `CardFrame`·`CardGroup`·`MutedText` (`card`, 자체 구현 — 접어도 본문을 내리지 않는다) | [card](components/card.md) |
+| 좌우 전송 목록(Mantine 에 없음, `MultiSelect` 로 흉내) | `TransferList` (`transfer-list`, 자체 구현 — 제어형, 검색·분류·Shift 범위·전체 이동) | [transfer-list](components/transfer-list.md) |
 | `CopyButton` | `CopyTextButton`·`copyText` (`form`, 자체 구현 — `ErrorModal`·`MessageModal` 도 사용) | [button](components/button.md) |
 | `Popover`·`HoverCard` (큰 상세 설명) | `DetailPopover` (`detail-popover`, 자체 구현 — 클릭으로 여는 큰 패널, 그리드 셀·머리 안 사용 가능) | [detail-popover](components/detail-popover.md) |
 | `JsonInput`(읽기 전용 값 보기)·`Code` 블록에 JSON 덤프 | `JsonView` (`json-view`, 자체 구현 — 접고 펴는 JSON 트리·종류별 색·복사) | [json-view](components/json-view.md) |

@@ -72,6 +72,7 @@
 - [DetailPopover](detail-popover.md): 정보 아이콘(또는 감싼 글자)을 누르면 팝업에 가까운 큰 패널(제목·닫기·내부 스크롤)을 그 자리에 여는 상세 팝오버다. 툴팁에 담기 어려운 긴 설명(HTML 본문, 라벨-값 표)을 화면 이동 없이 보여 줄 때 쓴다.
 - [JsonView](json-view.md): JSON 값(서버 설정·캐시 값·응답 본문처럼 모양이 정해지지 않은 값)을 읽기 전용 트리로 살펴볼 때 쓴다. 객체·배열은 접고 펼 수 있고, 글자·수·참거짓·null 은 종류별 색으로 보인다. 글자 값은 JSON 표기(따옴표·역슬래시·줄바꿈 이스케이프)로 보인다.
 - [Card](card.md): 내용 높이를 따르는 테두리 카드(`CardFrame`: 제목 줄 + 본문), 여러 카드를 제목 줄 하나로 함께 접는 묶음(`CardGroup`), 카드 안 흐린 보조 글(`MutedText`)을 그릴 때 쓴다. 편집 화면처럼 카드 여러 장을 세로로 쌓는 화면에 맞다.
+- [TransferList](transfer-list.md): 좌(가능)·우(소속) 두 목록 사이로 코드를 옮겨 소속 집합을 고칠 때 쓰는 제어형 전송 목록이다(`TransferList`). 검색·분류 필터·행 토글·Shift 범위 선택·전체선택·`>`/`>>`/`<`/`<<` 를 갖췄고, 같은 일을 하는 순수 함수(검색·분류·이동·diff 집합)도 함께 낸다.
 - [MatrixTable](matrix-table.md): "첫 열(라벨) + 동적으로 늘어나는 열 + 셀마다 직접 그린 값" 구조의 비교 매트릭스(피벗) 표를 보일 때 쓴다.
 - [차트 (DonutChart · PieChart · HBarChart · LineChart · StackedBarChart · StackedColumnChart)](charts.md): 현황 대시보드에서 비율(도넛·파이), 항목별 크기(가로 막대), 추이(선), 구성 비율(누적 막대), 기간별 누적 실적과 계획선(세로 누적 막대)을 간단한 SVG 차트로 보일 때 쓴다.
 - [exportToExcel](export-to-excel.md): 화면의 목록 데이터를 엑셀(.xlsx) 파일로 내려받게 할 때 쓴다. ag-grid 의 Excel Export 는 Enterprise 기능이라 쓰지 않는다.
