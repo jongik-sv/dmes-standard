@@ -1,6 +1,8 @@
 /**
  * 계산기 렌더러 전용 스타일 — 로컬 .css import 대신 TS 문자열로 두고 렌더러 루트에서 한 번 넣는다(Local-Rules §17).
  * 색·간격·글꼴 크기는 공통 토큰만 쓴다. 단추 5행 4열은 CSS grid 로 본문 높이·너비를 채운다.
+ * 아랫줄 값은 flex-end 로 붙여 칸을 넘치면 앞쪽이 잘리고 끝자리(최근 자릿수)가 보인다(윗줄 식과 같은 방식, 숫자·부호 순서는 그대로).
+ * 잘릴 만큼 길 때 왼쪽 끝이 옅어져 알아챌 수 있고, 전체 값은 title 로 보인다.
  * 글자 크기는 렌더러가 본문 크기에 맞춰 --calc-key-font·--calc-value-font 로 넣고, 없으면(크기를 모르면) 토큰 기본값이다.
  * 단추는 shared Button(Mantine, 고정 높이)이 grid 늘이기와 맞지 않아 button 을 직접 꾸민다.
  */
@@ -17,13 +19,17 @@ export const CALC_CSS = `
 .mcm-calc__expr { display: flex; justify-content: flex-end; overflow: hidden; min-height: 1.5em; font-size: var(--font-size-sm); line-height: 1.5; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .mcm-calc__expr > span { flex: none; white-space: nowrap; }
 .mcm-calc__row { display: flex; align-items: center; gap: var(--spacing-xs); }
-.mcm-calc__value { flex: 1 1 0; min-width: 0; overflow: hidden; text-align: right; white-space: nowrap; font-size: var(--calc-value-font, var(--font-size-title)); font-weight: 600; line-height: 1.25; color: var(--color-text); font-variant-numeric: tabular-nums; }
-.mcm-calc__value--error { font-size: var(--font-size-md); color: var(--color-danger); white-space: normal; line-height: 1.4; }
+.mcm-calc__value { flex: 1 1 0; min-width: 0; display: flex; justify-content: flex-end; overflow: hidden; font-size: var(--calc-value-font, var(--font-size-title)); font-weight: 600; line-height: 1.25; color: var(--color-text); font-variant-numeric: tabular-nums; }
+.mcm-calc__value > span { flex: none; white-space: nowrap; }
+.mcm-calc__value:not(.mcm-calc__value--error) { -webkit-mask-image: linear-gradient(to right, transparent, currentColor 10px); mask-image: linear-gradient(to right, transparent, currentColor 10px); }
+.mcm-calc__value--error { display: block; text-align: right; font-size: var(--font-size-md); color: var(--color-danger); line-height: 1.4; }
+.mcm-calc__value--error > span { white-space: normal; }
 .mcm-calc__copy { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding: var(--spacing-xs); border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-muted); cursor: pointer; }
 .mcm-calc__copy:hover:not(:disabled) { background: var(--color-bg-hover); color: var(--color-text); }
 .mcm-calc__copy:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 1px; }
 .mcm-calc__copy:disabled { color: var(--color-text-disabled); cursor: default; }
 .mcm-calc__copy--done { color: var(--color-success); }
+.mcm-calc__sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 .mcm-calc__keys { flex: 1 1 0; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(5, minmax(0, 1fr)); gap: ${CALC_GAP}px; }
 .mcm-calc__key { min-width: 0; min-height: 0; margin: 0; padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg); color: var(--color-text); font-family: inherit; font-size: var(--calc-key-font, var(--font-size-lg)); line-height: 1; cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
