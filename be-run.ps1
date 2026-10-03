@@ -28,7 +28,9 @@ be-run.ps1 — 백엔드 모듈(local 프로파일) 실행 스크립트 (Windows
 대상 포트를 이미 물고 있는 프로세스가 있으면 정리하고 시작한다.
   .\be-run.ps1 --keep-port  # 회수하지 않고 "점유 중" 으로 중단
 
-종료: Ctrl+C 로 자식 프로세스 및 gradle daemon 일괄 정리.
+종료: Ctrl+C 로 이 실행이 띄운 것(gradlew 실행기·이 체크아웃의 bootRun 앱 JVM)만 정리한다.
+  Gradle 데몬은 멈추지 않는다(gradlew --stop 은 같은 버전의 모든 데몬을 멈춰 다른 워크트리 빌드를 깬다).
+  쉬는 데몬은 org.gradle.daemon.idletimeout(10분)으로 스스로 내려간다.
 실행 정책 때문에 막히면 be-run.cmd 를 쓰거나 다음처럼 실행한다.
   powershell -ExecutionPolicy Bypass -File .\be-run.ps1
 #>
@@ -310,7 +312,7 @@ $null = New-Item -ItemType Directory -Force -Path (Join-Path $BackendDir 'data')
 
 # ── 이전 실행 인스턴스 종료 ──────────────────────────────────
 # 포트만 뺏으면 이전 be-run 이 "내 모듈이 다 죽었다" 고 판단해 뒤늦게 cleanup 을 돌린다.
-# 그 cleanup 의 `gradlew --stop` 은 전역이라 방금 띄운 모듈까지 함께 죽는다.
+# 그 cleanup 은 모듈 포트의 앱 JVM 을 정리하므로 방금 띄운 같은 포트의 모듈까지 함께 죽일 수 있다.
 function Stop-PreviousBeRuns {
     $victims = @()
     try {
@@ -320,7 +322,7 @@ function Stop-PreviousBeRuns {
     } catch { return }
     if ($victims.Count -eq 0) { return }
 
-    Write-DevLog 'be' "이전 be-run 인스턴스 종료 대기 (pid $($victims -join ' ')) — Gradle 데몬 정리까지 끝나야 안전하다"
+    Write-DevLog 'be' "이전 be-run 인스턴스 종료 대기 (pid $($victims -join ' ')) — 그 cleanup 이 끝나야 안전하다"
     foreach ($p in $victims) { Stop-ProcessTree -ProcessId $p }
     if (-not (Wait-ProcessExit -ProcessIds $victims -TimeoutSeconds 30)) {
         foreach ($p in $victims) { Stop-ProcessTree -ProcessId $p -Force }
@@ -430,17 +432,31 @@ function Write-QueuedLogs {
     }
 }
 
-function Stop-GradleDaemons {
-    Write-DevLog 'be' 'gradle daemon 정리 중...'
-    foreach ($m in $Selected) {
-        $gradlew = Get-ModuleGradlew -Module $m
-        $dir     = Join-Path $BackendDir $m
-        try {
-            Start-Process -FilePath $env:ComSpec `
-                          -ArgumentList ('/c ""' + $gradlew + '" --stop"') `
-                          -WorkingDirectory $dir -NoNewWindow -Wait -ErrorAction SilentlyContinue | Out-Null
-        } catch { }
+# pid 가 이 체크아웃의 모듈($Module) bootRun 앱 JVM 인지 (be-run.sh 의 is_own_backend_jvm 대응).
+# bootRun 의 앱 JVM 은 cmd → gradlew 트리가 아니라 Gradle 데몬의 자식이라 실행기만 끊으면 남는다. 그래서 종료 때
+# 모듈 포트의 리스너를 따로 정리하되, 다른 체크아웃(메인 저장소·다른 워크트리)의 같은 포트 서버는 건드리지 않는다.
+# Windows 는 남의 프로세스 작업 디렉터리를 쉽게 못 읽으므로 명령줄로 본다 — 이름이 java(w) 이고 명령줄(또는 Gradle 이
+# 긴 명령줄을 줄인 @인자 파일 내용)에 이 체크아웃의 모듈 폴더 경로 "<BackendDir>\<모듈>\" 가 들어 있을 때만 참.
+# 워크트리는 <RootDir>\.claude\worktrees\·<RootDir>\dflow-<id8> 아래라 이 문자열을 서로 포함하지 않는다.
+function Test-OwnBackendJvm {
+    param([int] $ProcessId, [string] $Module)
+    try {
+        $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction Stop
+    } catch { return $false }
+    if (-not $proc -or $proc.Name -notmatch '^javaw?\.exe$') { return $false }
+    $cmd = [string] $proc.CommandLine
+    if (-not $cmd) { return $false }
+
+    $needle  = (Join-Path $BackendDir $Module) + '\'
+    $escaped = $needle.Replace('\', '\\')   # 인자 파일은 경로의 \ 를 \\ 로 적기도 한다
+    if ($cmd.IndexOf($needle, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+    foreach ($match in [regex]::Matches($cmd, '@("[^"]+"|\S+)')) {
+        $argFile = $match.Groups[1].Value.Trim('"')
+        try { $text = [System.IO.File]::ReadAllText($argFile) } catch { continue }
+        if ($text.IndexOf($needle, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+        if ($text.IndexOf($escaped, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
     }
+    return $false
 }
 
 $script:CleanedUp = $false
@@ -456,16 +472,25 @@ function Invoke-Cleanup {
     Wait-ProcessExit -ProcessIds @($Running | ForEach-Object { $_.Process.Id }) -TimeoutSeconds 10 | Out-Null
     foreach ($entry in $Running) {
         if ($entry.Process -and -not $entry.Process.HasExited) { Stop-ProcessTree -ProcessId $entry.Process.Id -Force }
-        # 포트를 아직 물고 있는 잔존 리스너까지 회수 (bootRun JVM 이 cmd 트리 밖으로 새는 경우)
-        foreach ($p in (Get-PortListenerPids -Port $entry.Port)) { Stop-ProcessTree -ProcessId $p -Force }
+        # 포트를 아직 물고 있는 이 체크아웃의 bootRun 앱 JVM 회수 (Gradle 데몬의 자식이라 cmd 트리 밖에 남는다).
+        # 콘솔 JVM 은 taskkill(/F 없음)에 응하지 않으므로 종전처럼 바로 /F 로 끝낸다. 남의 체크아웃 리스너는 둔다.
+        foreach ($p in (Get-PortListenerPids -Port $entry.Port)) {
+            if (Test-OwnBackendJvm -ProcessId $p -Module $entry.Module) {
+                Write-DevLog 'be' "$($entry.Tag) 포트 $($entry.Port) 앱 JVM 정리 (pid=$p)"
+                Stop-ProcessTree -ProcessId $p -Force
+            } else {
+                Write-DevLog 'be' "$($entry.Tag) 포트 $($entry.Port) 리스너 pid=$p 는 이 체크아웃의 bootRun JVM 이 아니라 건드리지 않는다"
+            }
+        }
         foreach ($sub in $entry.Subscriptions) {
             Unregister-Event -SubscriptionId $sub.Id -ErrorAction SilentlyContinue
             Remove-Job -Id $sub.Id -Force -ErrorAction SilentlyContinue
         }
     }
     Write-QueuedLogs
-    Stop-GradleDaemons
-    Write-DevLog 'be' '정리 완료.'
+    # Gradle 데몬은 멈추지 않는다 — gradlew --stop 은 같은 사용자·같은 Gradle 버전의 데몬을 모두 멈춰 다른 워크트리의
+    # 빌드·시험을 깨뜨린다. bootRun 을 돌던 데몬은 쉬게 되고 org.gradle.daemon.idletimeout(10분)으로 스스로 내려간다.
+    Write-DevLog 'be' '정리 완료. (Gradle 데몬은 그대로 둔다 — 쉬면 10분 뒤 스스로 내려간다)'
 }
 
 try {

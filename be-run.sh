@@ -27,7 +27,9 @@
 # 대상 포트를 이미 물고 있는 프로세스가 있으면 정리하고 시작한다.
 #   ./be-run.sh --keep-port  # 회수하지 않고 "점유 중" 으로 중단 (종전 동작)
 #
-# 종료: Ctrl+C 로 자식 프로세스 및 gradle daemon 일괄 정리.
+# 종료: Ctrl+C 로 이 실행이 띄운 것(gradlew 실행기·이 체크아웃의 bootRun 앱 JVM)만 정리한다.
+#   Gradle 데몬은 멈추지 않는다(gradlew --stop 은 같은 버전의 모든 데몬을 멈춰 다른 워크트리 빌드를 깬다).
+#   쉬는 데몬은 org.gradle.daemon.idletimeout(10분)으로 스스로 내려간다.
 # ── 머리말 끝 (--help 는 여기까지 출력) ──
 
 set -u
@@ -488,9 +490,8 @@ mkdir -p "$BACKEND_DIR/data"
 
 # ── 이전 실행 인스턴스 종료 ──────────────────────────────────
 # 포트만 뺏으면 이전 be-run.sh 가 "내 모듈이 다 죽었다" 고 판단해 뒤늦게 cleanup 을 돌린다.
-# 그 cleanup 에는 `gradlew --stop`(전역 데몬 정지)이 들어 있어서, 방금 새로 띄운 모듈들이
-#   FAILURE: Gradle build daemon has been stopped: stop command received
-# 로 함께 죽는다. 그래서 포트를 건드리기 전에 이전 인스턴스를 먼저 끝내고 기다린다.
+# 그 cleanup 은 이 체크아웃 모듈 포트의 앱 JVM 을 정리하므로, 방금 새로 띄운 같은 포트의 모듈까지
+# 함께 죽일 수 있다. 그래서 포트를 건드리기 전에 이전 인스턴스를 먼저 끝내고 기다린다.
 #
 # 대상은 **이 체크아웃의** be-run.sh 만이다. 같은 PC 의 다른 체크아웃·워크트리(예: /dflow-team 팀원
 # 워크트리 dflow-<id8>)에서 도는 be-run.sh 까지 잡으면 남의 서버를 죽인다(2026-09-24 사고: 팀원이
@@ -527,20 +528,6 @@ is_own_be_run() {
   return 1
 }
 
-# 다른 체크아웃의 be-run.sh 가 살아 있는지. Gradle 데몬은 체크아웃 사이에 공유되므로(GRADLE_USER_HOME)
-# 그때는 cleanup 에서 전역 `gradlew --stop` 을 하지 않는다.
-other_checkout_be_run_alive() {
-  local pid
-  command -v pgrep >/dev/null 2>&1 || return 1
-  for pid in $(pgrep -f "be-run.sh" 2>/dev/null || true); do
-    [ "$pid" = "$$" ] && continue
-    [ "$pid" = "$PPID" ] && continue
-    kill -0 "$pid" 2>/dev/null || continue
-    is_own_be_run "$pid" || return 0
-  done
-  return 1
-}
-
 terminate_previous_be_runs() {
   local pid
   local victims=()
@@ -558,12 +545,12 @@ terminate_previous_be_runs() {
 
   [ "${#victims[@]}" -gt 0 ] || return 0
 
-  dev_log_print "be" "이전 be-run.sh 인스턴스 종료 대기 (pid ${victims[*]}) — Gradle 데몬 정리까지 끝나야 안전하다"
+  dev_log_print "be" "이전 be-run.sh 인스턴스 종료 대기 (pid ${victims[*]}) — 그 cleanup 이 끝나야 안전하다"
   for pid in "${victims[@]}"; do
     kill -TERM "$pid" 2>/dev/null || true
   done
 
-  # cleanup(gradlew --stop 포함)이 끝날 때까지 최대 30초 기다린다.
+  # cleanup(앱 JVM 정리 포함)이 끝날 때까지 최대 30초 기다린다.
   local i alive
   for i in $(seq 1 120); do
     alive=0
@@ -606,7 +593,6 @@ reclaim_backend_port() {
       dev_log_error "$tag 가 사용할 포트 $port 가 이미 점유 중입니다 (pid=$pid)."
       echo "        --keep-port 가 지정돼 회수하지 않습니다. 직접 정리한 뒤 다시 실행하세요:" >&2
       echo "          kill $pid" >&2
-      echo "          (cd $BACKEND_DIR && ./gradlew --stop)" >&2
       return 1
     fi
 
@@ -724,67 +710,70 @@ wait_for_backend_exit() {
   done
 }
 
-terminate_backend_ports() {
-  local signal="$1"
-  local entry port tag port_pid
+# pid 가 이 체크아웃의 모듈($2) bootRun 앱 JVM 인지.
+# bootRun 의 앱 JVM 은 be-run 의 프로세스 트리가 아니라 Gradle 데몬의 자식이다. 그래서 gradlew 실행기만
+# 끊으면 남는다 — 종료 경로에서 모듈 포트의 리스너를 따로 정리하되, 다른 체크아웃(메인 저장소·다른 워크트리)의
+# 같은 포트 서버는 절대 건드리지 않게 여기서 고른다.
+# - 이름이 java 인 프로세스만.
+# - 작업 디렉터리를 알면 그것으로만 판단한다: bootRun 이 workingDir = rootProject.projectDir 이라
+#   이 체크아웃의 모듈 폴더($BACKEND_DIR/<모듈>)와 정확히 같아야 한다(lsof 는 실제 경로를 내므로 pwd -P 도 비교).
+#   워크트리는 $ROOT_DIR/.claude/worktrees/·$ROOT_DIR/dflow-<id8> 아래라 정확 비교로 서로 갈린다.
+# - 작업 디렉터리를 모르면 명령줄(공백·콜론으로 나눈 classpath 항목)이 그 모듈 폴더 아래 경로로 시작할 때만.
+is_own_backend_jvm() {
+  local pid="$1"
+  local m="$2"
+  local mod_dir="$BACKEND_DIR/$m"
+  local mod_dir_phys comm cwd args tok
+  local IFS=$' \t\n'
 
-  local entries=()
-  local m
+  mod_dir_phys="$(cd "$mod_dir" 2>/dev/null && pwd -P)"
+  [ -n "$mod_dir_phys" ] || mod_dir_phys="$mod_dir"
 
-  for m in "${SELECTED_MODULES[@]}"; do
-    entries+=("$(be_module_port "$m"):be-$m")
+  comm="$(ps -o comm= -p "$pid" 2>/dev/null | head -n 1)"
+  [ "${comm##*/}" = "java" ] || return 1
+
+  cwd="$(pid_cwd "$pid")"
+  if [ -n "$cwd" ]; then
+    [ "$cwd" = "$mod_dir" ] || [ "$cwd" = "$mod_dir_phys" ]
+    return
+  fi
+
+  args="$(ps -ww -o command= -p "$pid" 2>/dev/null || true)"
+  IFS=$' \t\n:'
+  for tok in $args; do
+    case "$tok" in
+      "$mod_dir"/*|"$mod_dir_phys"/*) return 0 ;;
+    esac
   done
-
-  for entry in "${entries[@]}"; do
-    port="${entry%%:*}"
-    tag="${entry##*:}"
-    for port_pid in $(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true); do
-      dev_log_print "be" "$tag 포트 $port 리스너 정리 ($signal pid=$port_pid)"
-      terminate_pid_tree "$signal" "$port_pid"
-    done
-  done
+  return 1
 }
 
-stop_gradle_daemons() {
-  local stop_pids=()
-  local pid
-  local alive
-  local i
+# 이 실행이 맡은 모듈 포트를 LISTEN 중인 이 체크아웃의 앱 JVM 에 신호를 보낸다.
+# 신호를 보낸 pid 는 BE_OWN_PORT_PIDS 에 남는다(호출할 때마다 새로 찾는다 — KILL 단계는 다시 스캔해
+# 그사이 끝난 pid 나 새로 바인드한 남의 프로세스를 치지 않는다).
+BE_OWN_PORT_PIDS=()
+terminate_backend_ports() {
+  local signal="$1"
+  local m port tag port_pid
 
-  local m gw
-
-  if other_checkout_be_run_alive; then
-    dev_log_print "be" "다른 체크아웃의 be-run.sh 가 실행 중이라 공유 Gradle 데몬 정지(gradlew --stop)를 건너뜁니다"
-    return 0
-  fi
+  BE_OWN_PORT_PIDS=()
+  command -v lsof >/dev/null 2>&1 || return 0
 
   for m in "${SELECTED_MODULES[@]}"; do
-    gw="$(be_module_gradlew "$m")"
-    ( cd "$BACKEND_DIR/$m" && "$gw" --stop >/dev/null 2>&1 ) &
-    stop_pids+=("$!")
-  done
-
-  [ "${#stop_pids[@]}" -gt 0 ] || return 0
-
-  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40; do
-    alive=0
-    for pid in "${stop_pids[@]}"; do
-      if kill -0 "$pid" 2>/dev/null; then
-        alive=1
+    port="$(be_module_port "$m")"
+    tag="be-$m"
+    for port_pid in $(lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true); do
+      [ -n "$port_pid" ] || continue
+      [ "$port_pid" = "$$" ] && continue
+      if is_own_backend_jvm "$port_pid" "$m"; then
+        dev_log_print "be" "$tag 포트 $port 앱 JVM 정리 ($signal pid=$port_pid)"
+        terminate_pid_tree "$signal" "$port_pid"
+        BE_OWN_PORT_PIDS+=("$port_pid")
+      elif [ "$signal" = "TERM" ]; then
+        dev_log_print "be" "$tag 포트 $port 리스너 pid=$port_pid 는 이 체크아웃의 bootRun JVM 이 아니라 건드리지 않는다 — $(ps -o comm= -p "$port_pid" 2>/dev/null | head -n 1)"
       fi
     done
-    [ "$alive" = "0" ] && break
-    sleep 0.25
   done
-
-  if [ "${alive:-0}" != "0" ]; then
-    dev_log_print "be" "gradle daemon stop 지연, 강제 종료 중..."
-    for pid in "${stop_pids[@]}"; do
-      terminate_pid_tree KILL "$pid"
-      wait "$pid" 2>/dev/null || true
-    done
-  fi
-  wait "${stop_pids[@]}" 2>/dev/null || true
 }
 
 cleanup() {
@@ -800,33 +789,36 @@ cleanup() {
 
   echo
   dev_log_print "be" "종료 신호 수신, 자식 프로세스 정리 중..."
+  # 배열이 비어도 bash 3.2 + set -u 에서 죽지 않게 ${arr[@]+"${arr[@]}"} 로 편다.
   if [ "$reason" = "INT" ]; then
-    wait_for_exit "${PIDS[@]}" || true
+    wait_for_exit ${PIDS[@]+"${PIDS[@]}"} || true
   else
-    for pid in "${PIDS[@]}"; do
+    for pid in ${PIDS[@]+"${PIDS[@]}"}; do
       terminate_pid_tree "$first_signal" "$pid"
     done
   fi
 
-  for pid in "${PIDS[@]}"; do
+  # gradlew 실행기 트리 → 이 체크아웃의 앱 JVM(데몬의 자식이라 실행기 트리 밖) 순서로 TERM → 대기 → KILL.
+  for pid in ${PIDS[@]+"${PIDS[@]}"}; do
     terminate_pid_tree TERM "$pid"
   done
   terminate_backend_ports TERM
-  wait_for_exit "${PIDS[@]}" || true
+  wait_for_exit ${PIDS[@]+"${PIDS[@]}"} ${BE_OWN_PORT_PIDS[@]+"${BE_OWN_PORT_PIDS[@]}"} || true
 
-  for pid in "${PIDS[@]}"; do
+  for pid in ${PIDS[@]+"${PIDS[@]}"}; do
     terminate_pid_tree KILL "$pid"
   done
   terminate_backend_ports KILL
 
-  for pid in "${LOG_PIDS[@]}"; do
+  for pid in ${LOG_PIDS[@]+"${LOG_PIDS[@]}"}; do
     terminate_pid_tree TERM "$pid"
   done
-  wait_for_exit "${LOG_PIDS[@]}" || true
+  wait_for_exit ${LOG_PIDS[@]+"${LOG_PIDS[@]}"} || true
 
-  dev_log_print "be" "gradle daemon 정리 중..."
-  stop_gradle_daemons
-  dev_log_print "be" "정리 완료."
+  # Gradle 데몬은 멈추지 않는다. gradlew --stop 은 같은 사용자·같은 Gradle 버전의 데몬을 모두 멈춰
+  # 다른 워크트리에서 도는 빌드·시험을 "Gradle build daemon has been stopped" 로 깨뜨린다.
+  # bootRun 을 돌던 데몬은 빌드가 끝나 쉬게 되고, org.gradle.daemon.idletimeout(10분)으로 스스로 내려간다.
+  dev_log_print "be" "정리 완료. (Gradle 데몬은 그대로 둔다 — 쉬면 10분 뒤 스스로 내려간다)"
 
   case "$reason" in
     INT) exit 130 ;;
