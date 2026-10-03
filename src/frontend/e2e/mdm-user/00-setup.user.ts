@@ -4,6 +4,7 @@ import {
   ADMIN,
   AUTH_DIR,
   INIT_PWD,
+  T,
   USERS,
   VIEWPORT,
   Watcher,
@@ -39,7 +40,7 @@ const panel = (page: Page, title: string): Locator =>
 /** 저장 결과 "알림" 모달을 확인으로 닫는다. */
 async function closeNotice(page: Page, text: RegExp) {
   const m = modal(page);
-  await expect(m).toContainText(text, { timeout: 20_000 });
+  await expect(m).toContainText(text, { timeout: T.UI });
   await m.getByRole("button", { name: "확인" }).click();
   await expect(m).toBeHidden();
 }
@@ -125,7 +126,7 @@ test("SETUP-01~04 시험 사용자 등록·역할 부여·비밀번호 초기화
       await row.getByLabel("Yes").check();
       await row.getByRole("button", { name: "비밀번호 초기화" }).click();
       const m = modal(page);
-      await expect(m).toBeVisible({ timeout: 20_000 });
+      await expect(m).toBeVisible({ timeout: T.UI });
       // 초기 비밀번호 안내 팝업(init-pwd-modal) 또는 "비밀번호가 초기화 되었습니다" 알림 — 둘 다 확인으로 닫는다.
       if (await m.getByTestId("init-pwd-close").isVisible().catch(() => false)) {
         await expect(m).toContainText(INIT_PWD);
@@ -147,7 +148,7 @@ test("SETUP-01~04 시험 사용자 등록·역할 부여·비밀번호 초기화
       const p = await ctx.newPage();
       await loginUI(p, u.id, INIT_PWD);
       await expect(p.locator(".sidebar-container .tree-item .item-name").filter({ hasText: /^마루 MDM$/ })).toBeVisible({
-        timeout: 60_000,
+        timeout: T.SLOW,
       });
       await ctx.storageState({ path: authFile(role as keyof typeof USERS) });
       await ctx.close();

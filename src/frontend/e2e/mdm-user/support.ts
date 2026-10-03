@@ -88,7 +88,7 @@ export async function openAs(browser: Browser, role: Role, testInfo: TestInfo): 
   const page = await context.newPage();
   const watcher = new Watcher(page, testInfo);
   await page.goto(`${BASE_URL}/portal`);
-  await expect(page.locator(".sidebar-container")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator(".sidebar-container")).toBeVisible({ timeout: T.SLOW });
   return { page, watcher };
 }
 
@@ -134,13 +134,13 @@ export async function openMenu(page: Page, trail: string[], screenId: string) {
   for (let i = 0; i < trail.length; i++) {
     const node = menuNode(scope, trail[i]);
     const item = node.locator("xpath=./div[contains(@class,'tree-item')]");
-    await expect(item, `메뉴 "${trail.slice(0, i + 1).join(" > ")}"`).toBeVisible({ timeout: 20_000 });
+    await expect(item, `메뉴 "${trail.slice(0, i + 1).join(" > ")}"`).toBeVisible({ timeout: T.UI });
     const isLeaf = i === trail.length - 1;
     const expanded = !isLeaf && (await node.locator("xpath=./ul").isVisible().catch(() => false));
     if (!expanded) await item.click();
     scope = node;
   }
-  await expect(footerScreenId(page)).toHaveText(screenId, { timeout: 60_000 });
+  await expect(footerScreenId(page)).toHaveText(screenId, { timeout: T.SLOW });
   await waitIdle(page);
 }
 
@@ -159,8 +159,8 @@ export async function closeAllTabs(page: Page) {
 
 /** 로딩 표시가 사라지고 네트워크가 잠잠해질 때까지 기다린다. */
 export async function waitIdle(page: Page) {
-  await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => undefined);
-  await expect(page.locator(".portal-shell__loading:visible")).toHaveCount(0, { timeout: 30_000 });
+  await page.waitForLoadState("networkidle", { timeout: T.LONG }).catch(() => undefined);
+  await expect(page.locator(".portal-shell__loading:visible")).toHaveCount(0, { timeout: T.LONG });
 }
 
 // ─────────────────────────── 공용 조작 ───────────────────────────
@@ -182,7 +182,7 @@ export async function answerConfirm(page: Page, name: string | RegExp = /^(확�
 
 /** 토스트 문구가 뜨는지 본다. */
 export async function expectToast(page: Page, text: string | RegExp) {
-  await expect(page.locator(".mantine-Notification-root").filter({ hasText: text }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".mantine-Notification-root").filter({ hasText: text }).first()).toBeVisible();
 }
 
 /** 보이는 오류 모달(ErrorModal) 본문. */
@@ -214,13 +214,13 @@ export interface ErrorModalOptions {
 export async function expectErrorModal(page: Page, text: string | RegExp, shot?: string, opts: ErrorModalOptions = {}) {
   if (opts.inModal) {
     const m = modal(page);
-    await expect(m.locator(".error-modal__body")).toContainText(text, { timeout: 20_000 });
+    await expect(m.locator(".error-modal__body")).toContainText(text, { timeout: T.UI });
     if (shot) await snap(page, shot);
     await m.getByRole("button", { name: "확인", exact: true }).click();
     await expect(m.locator(".error-modal__body")).toHaveCount(0);
     return;
   }
-  await expect(errorBody(page)).toContainText(text, { timeout: 20_000 });
+  await expect(errorBody(page)).toContainText(text, { timeout: T.UI });
   if (shot) await snapModal(page, shot);
   if (opts.close === "answerConfirm") {
     await answerConfirm(page, "확인");
