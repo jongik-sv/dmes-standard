@@ -91,7 +91,7 @@ MDM 이 컬럼 설명을 HTML 로 저장하면 화면 메타(`MdmScreenColumn`)�
 - 상호작용 툴팁: HTML 카드를 띄울 때만 마우스가 툴팁 안으로 들어갈 수 있다(링크 누르기·스크롤).
   - `FormGroup`·`MdmFieldLabel`(내부 `useHoverTip` interactive): 상자 `pointer-events:auto`(`data-tip-interactive="true"`)·최대 폭 640px. 트리거를 떠나도 150ms(`HOVER_TIP_GRACE_MS`) 유예하고 그 사이 상자에 들어가면 유지, 상자를 나가면 유예 뒤 닫힌다. Escape 로 닫힌다. 화면 안에 들도록 상자 높이를 줄이고 넘치면 상자 안에서 스크롤한다. 위쪽 공간 판정은 큰 카드(60vh+120px)로 한다. 화면이 `FormGroup tip` 을 주면 HTML 메타가 있어도 예전 툴팁이다.
   - 스크린리더 사본(`.form-sr-only`, `aria-describedby`)은 HTML 이 아니라 `description` 글자다(`MdmMetaCard textOnly`) — 보이지 않는 링크가 Tab 순서에 들지 않게.
-  - `AgDataGrid`: 머리글 툴팁이 HTML 카드인 열이 하나라도 있는 그리드만 ag-grid `tooltipInteraction` 을 켠다(그 밖의 그리드는 속성 자체를 넘기지 않는다). 상자는 최대 폭 640px·`pointer-events:auto`(ag-grid 는 감싸개에만 interactive 클래스를 달아 상자에는 직접 둔다). 유예는 ag-grid 고정값 100ms 다. Escape 로 닫힌다(툴팁 밖 keydown 은 ag-grid 가, 툴팁 안 focus 때는 카드가 `hideTooltipCallback` 으로 닫는다). `tooltipInteraction` 은 그리드 단위라 그 그리드의 셀 툴팁도 마우스가 들어갈 수 있다. ag-grid 초기 속성이라 메타가 그리드를 만든 뒤 오면 머리글을 한 번 다시 만든다(`refreshHeader`).
+  - `AgDataGrid`: 머리글 툴팁이 HTML 카드인 열이 하나라도 있는 그리드만 ag-grid `tooltipInteraction` 을 켠다(그 밖의 그리드는 속성 자체를 넘기지 않는다). 상자는 최대 폭 640px·`pointer-events:auto`(ag-grid 는 감싸개에만 interactive 클래스를 달아 상자에는 직접 둔다). 유예는 ag-grid 고정값 100ms 다. Escape 로 닫힌다(툴팁 밖 keydown 은 ag-grid 가, 툴팁 안 focus 때는 카드가 `hideTooltipCallback` 으로 닫는다). `tooltipInteraction` 은 그리드 단위지만 상호작용은 HTML 머리글 카드 상자에만 둔다 — 그 그리드의 다른 툴팁(기본 셀 툴팁·검증 오류 툴팁·MDM 셀 툴팁·글자 머리글 카드·열 그룹 툴팁)은 `MdmGridTooltip` 상자가 `pointer-events:none` 이라 마우스가 들어가지 못하고(다음 행을 덮지 않는다), 마우스를 누르면 닫힌다(`withPassThroughTooltips`). ag-grid 초기 속성이라 메타가 그리드를 만든 뒤 오면 머리글을 한 번 다시 만든다(`refreshHeader`).
 - 화면이 카드를 직접 쓸 때 HTML 카드 여부는 `mdmCardHasHtml(column)`.
 
 ### 화면 값 검증(C, 2026-10-03)

@@ -1,7 +1,7 @@
 "use client";
 
 import "./grid.css";
-import React, { useState, useMemo, useRef, useEffect, useCallback, memo, type CSSProperties } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback, memo, createContext, useContext, type CSSProperties } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 import type {
@@ -579,6 +579,14 @@ const MDM_HTML_TOOLTIP_BOX_STYLE: CSSProperties = {
   maxWidth: MDM_META_CARD_HTML_MAX_WIDTH,
   pointerEvents: "auto",
 };
+/**
+ * 상호작용 그리드(tooltipInteraction 켬) 안에서 HTML 머리글 카드가 아닌 상자 — 마우스를 받지 않는다. ag-grid 는 상호작용을 그리드 단위로 켜
+ * 셀·검증 오류·글자 카드 툴팁에도 마우스가 들어가게 하는데, 이 툴팁들은 커서 18px 아래에 떠 다음 행을 덮으므로 예전처럼 통과시킨다.
+ */
+const MDM_TOOLTIP_BOX_NO_POINTER_STYLE: CSSProperties = { ...MDM_TOOLTIP_BOX_STYLE, pointerEvents: "none" };
+
+/** 지금 그리드가 tooltipInteraction 을 켰는가(HTML 설명 머리글 카드가 있는 그리드). AgDataGrid 가 AgGridReact 를 감싸 준다. */
+export const MdmGridInteractiveContext = createContext(false);
 
 /**
  * MDM 메타가 있는 열의 ag-grid 사용자 툴팁(tooltipComponent). ag-grid 는 열의 tooltipComponent 를 머리글과 셀 툴팁에 함께 쓰므로,
@@ -588,6 +596,7 @@ const MDM_HTML_TOOLTIP_BOX_STYLE: CSSProperties = {
  */
 export function MdmGridTooltip(props: ITooltipParams & Partial<MdmGridTooltipParams>) {
   const htmlCard = props.location === "header" && mdmCardHasHtml(props.mdmColumn);
+  const interactiveGrid = useContext(MdmGridInteractiveContext);
   const hideTooltip = props.hideTooltipCallback;
   useEffect(() => {
     if (!htmlCard || !hideTooltip) return;
@@ -597,10 +606,19 @@ export function MdmGridTooltip(props: ITooltipParams & Partial<MdmGridTooltipPar
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [htmlCard, hideTooltip]);
+  // 상호작용 그리드의 HTML 카드가 아닌 툴팁 — ag-grid 상호작용 모드는 칸 mousedown 으로 닫는 동작을 끈다. 예전처럼 누르면 닫는다.
+  const passThrough = interactiveGrid && !htmlCard;
+  useEffect(() => {
+    if (!passThrough || !hideTooltip) return;
+    const onMouseDown = () => hideTooltip();
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
+  }, [passThrough, hideTooltip]);
+  const boxStyle = htmlCard ? MDM_HTML_TOOLTIP_BOX_STYLE : passThrough ? MDM_TOOLTIP_BOX_NO_POINTER_STYLE : MDM_TOOLTIP_BOX_STYLE;
 
   if (props.location === "header" && props.mdmColumn) {
     return (
-      <div className="ag-tooltip mdm-meta-tooltip" style={htmlCard ? MDM_HTML_TOOLTIP_BOX_STYLE : MDM_TOOLTIP_BOX_STYLE}>
+      <div className="ag-tooltip mdm-meta-tooltip" style={boxStyle}>
         <MdmMetaCard column={props.mdmColumn} domain={props.mdmDomain ?? null} />
       </div>
     );
@@ -608,10 +626,33 @@ export function MdmGridTooltip(props: ITooltipParams & Partial<MdmGridTooltipPar
   // ag-grid 기본 TooltipComponent 와 같게 value(tooltipValueGetter 결과)만 그린다 — valueFormatted 는 쓰지 않는다.
   const value = props.value;
   return (
-    <div className="ag-tooltip" style={MDM_TOOLTIP_BOX_STYLE}>
+    <div className="ag-tooltip" style={boxStyle}>
       {value == null ? "" : String(value)}
     </div>
   );
+}
+
+/**
+ * HTML 설명 머리글 카드가 있는 그리드(tooltipInteraction 켬)의 열 정의 — 툴팁 컴포넌트가 없는 잎 열과 headerTooltip 을 가진 열 그룹에
+ * `MdmGridTooltip` 을 달아, ag-grid 기본 툴팁 대신 마우스를 받지 않는 상자(MdmGridInteractiveContext)로 그리게 한다.
+ * HTML 카드 열이 없으면 받은 배열을 그대로 돌려준다(그 밖의 그리드는 열 정의가 예전과 같다).
+ */
+export function withPassThroughTooltips(defs: (ColDef | ColGroupDef)[]): (ColDef | ColGroupDef)[] {
+  if (!hasMdmHtmlHeaderTooltip(defs)) return defs;
+  const walk = (list: (ColDef | ColGroupDef)[]): (ColDef | ColGroupDef)[] =>
+    list.map((d) => {
+      if ("children" in d && Array.isArray(d.children)) {
+        const g = d as ColGroupDef;
+        return {
+          ...g,
+          ...(g.headerTooltip != null && g.tooltipComponent == null ? { tooltipComponent: MdmGridTooltip } : {}),
+          children: walk(g.children),
+        };
+      }
+      const c = d as ColDef;
+      return c.tooltipComponent == null ? { ...c, tooltipComponent: MdmGridTooltip } : c;
+    });
+  return walk(defs);
 }
 
 /**
@@ -1039,7 +1080,7 @@ function AgDataGridComponent({
     return m;
   }, [columns]);
   const columnDefs = useMemo<(ColDef | ColGroupDef)[]>(() => {
-    const defs = buildColumnDefs(columns, {
+    const builtDefs = buildColumnDefs(columns, {
       sortable: effectiveSortable,
       columnSizing: resolvedColumnSizing,
       shouldAutoSizeColumns,
@@ -1048,6 +1089,8 @@ function AgDataGridComponent({
       ...(mdm ? { mdm } : {}),
       ...(issuesEnabled ? { cellIssue } : {}),
     });
+    // HTML 설명 머리글 카드가 있는 그리드만: 다른 툴팁은 마우스를 받지 않는 상자로(아래 tooltipInteraction 설명).
+    const defs = withPassThroughTooltips(builtDefs);
     // 체크박스는 rowSelection 설정에서 자동 관리 (수동 컬럼 불필요)
     if (!rowNumber) return defs;
     const noOpt = typeof rowNumber === "object" ? rowNumber : {};
@@ -1787,6 +1830,7 @@ function AgDataGridComponent({
       tabIndex={-1}
       onKeyDown={handleContainerKeyDown}
     >
+      <MdmGridInteractiveContext.Provider value={mdmHtmlTooltip}>
       <AgGridReact
         ref={gridRef}
         rowData={sortedData}
@@ -1851,6 +1895,7 @@ function AgDataGridComponent({
         {...(tooltipInteractionUsedRef.current ? { tooltipInteraction: mdmHtmlTooltip } : {})}
         {...rowDrag.gridProps}
       />
+      </MdmGridInteractiveContext.Provider>
     </div>
   );
 }
