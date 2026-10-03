@@ -10,14 +10,18 @@ import {
   assertAllButtonsPressed,
   breadcrumb,
   button,
+  closeAllTabs,
   closeScreenTab,
   checkLayout,
+  expectErrorModal as expectErrorModalBase,
+  expectOnly4xx,
   expectToast,
   footerScreenId,
   gridRow,
   modal,
   openAs,
   openMenu,
+  resetClicks,
   screen,
   snap,
   tid,
@@ -66,19 +70,6 @@ async function openDmd(page: Page, leaf: string, screenId: string) {
 }
 
 /**
- * 열린 MDI 탭을 모두 닫는다. 탭의 × 는 마우스를 올렸을 때만 눌리므로(TabsBar.css pointer-events) 사용자처럼
- * 탭에 먼저 올린 뒤 누른다 — support.closeAllTabs 는 올리지 않고 눌러 비활성 탭에서 막힌다.
- */
-async function closeTabs(page: Page) {
-  const tabs = page.locator(".tabs-bar .tab-item").filter({ has: page.locator(".tab-close") });
-  for (let n = await tabs.count(); n > 0; n = await tabs.count()) {
-    await tabs.first().hover();
-    await tabs.first().locator(".tab-close").click();
-    await expect(tabs).toHaveCount(n - 1);
-  }
-}
-
-/**
  * 배치·표시 검사 기록 — 검사는 그 상태에서 바로 하되 단언은 장 끝의 "-99" 테스트가 한다. serial 장에서 배치
  * 위반이나 빈 상태 안내 누락 하나가 뒤의 CRUD·권한 단계를 모두 건너뛰게 하지 않으려는 것이다(위반은 실패로 남는다).
  */
@@ -102,27 +93,9 @@ class Findings {
   }
 }
 
-/** 버튼 누름 기록을 비운다 — 화면별 assertAllButtonsPressed 가 그 화면에서 실제로 누른 것만 보게. */
-async function resetClicks(page: Page) {
-  await page.evaluate(() => {
-    (window as unknown as { __mdmClicked?: string[] }).__mdmClicked = [];
-  });
-}
-
-/** 의도한 업무 오류(4xx) 직후 — 모인 문제가 4xx 네트워크 콘솔 줄뿐인지 본다(5xx·페이지 예외는 남기지 않는다). */
-function expectOnly4xx(watcher: Watcher, label: string) {
-  const rest = watcher.drain().filter((p) => !/status of 4\d\d/.test(p));
-  expect(rest, `${label}: 의도한 4xx 외의 오류가 없어야 한다`).toEqual([]);
-}
-
-/** 오류 모달(ErrorModal)이 문구를 보이는지 확인하고 "확인" 으로 닫는다. */
-async function expectErrorModal(page: Page, text: string | RegExp, shot?: string) {
-  const m = modal(page);
-  await expect(m.locator(".error-modal__body")).toContainText(text, { timeout: 20_000 });
-  if (shot) await snap(page, shot);
-  await m.getByRole("button", { name: "확인", exact: true }).click();
-  await expect(m.locator(".error-modal__body")).toHaveCount(0);
-}
+/** 오류 모달(ErrorModal)이 문구를 보이는지 확인하고 "확인" 으로 닫는다 — 이 파일은 가장 위 모달 안의 본문을 보고 바로 찍는다(inModal). */
+const expectErrorModal = (page: Page, text: string | RegExp, shot?: string) =>
+  expectErrorModalBase(page, text, shot, { inModal: true });
 
 /** 화면 머리 버튼([조회])만 — 화면 본문 안 같은 이름 버튼(카테고리 이력의 [조회])과 섞이지 않게 한다. */
 const headerBtn = (page: Page, name: string) =>
@@ -367,7 +340,7 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
   });
 
   test("TC-DMD-MNG-01 마루 데이터 화면 배치 — 메뉴 이동·breadcrumb·목록과 오른쪽 안내", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await openDmd(page, "마루 데이터", "dataMng");
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터데이터 > 마루 데이터");
     await expect(tid(page, "data-mng-list").locator(".grid-panel-title")).toContainText("마루 데이터 목록");
@@ -654,14 +627,14 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
   });
 
   test("TC-DMD-ITEM-00 준비 — 계층 2칸·라벨 2개짜리 마루 데이터를 화면으로 만든다", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await registerMaruData(page, { id: MD, name: NAME, lvl: "2" });
     await saveLabels(page, { attr01Name: "국가명", attr02Name: "비고" });
     watcher.assertClean("준비");
   });
 
   test("TC-DMD-ITEM-01 항목 편집 화면 배치 — 동적 열(계층·라벨)과 빈 목록", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await openDmd(page, "항목 편집", "dataItemMng");
     await expect(breadcrumb(page)).toContainText(/마루 MDM > 마스터데이터 > 항목 편집/);
     await selectItemMaru(page, MD);
@@ -1111,7 +1084,7 @@ test.describe("C 카테고리 탭·이력", () => {
   });
 
   test("TC-DMD-CATE-00 준비 — 계층 1칸 마루 데이터와 항목 3건을 화면으로 만든다", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await registerMaruData(page, { id: MD, name: NAME, lvl: "1" });
     await openDmd(page, "항목 편집", "dataItemMng");
     await selectItemMaru(page, MD);
@@ -1122,7 +1095,7 @@ test.describe("C 카테고리 탭·이력", () => {
   });
 
   test("TC-DMD-CATE-01 [카테고리 편집] 탭 배치 — BASE 는 닫기·편집 버튼이 없고, 카테고리 표 아래에 카테고리 이력·소속이 있다", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await openDmd(page, "항목 편집", "dataItemMng");
     await selectItemMaru(page, MD);
     await openCateTab(page);
@@ -1498,7 +1471,7 @@ test.describe("D 계층 축소 거부·폐기", () => {
   });
 
   test("TC-DMD-DEL-00 준비 — 계층 2칸 마루 데이터와 2차 값이 있는 항목을 만든다", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await registerMaruData(page, { id: MD, name: NAME, lvl: "2" });
     await openDmd(page, "항목 편집", "dataItemMng");
     await selectItemMaru(page, MD);

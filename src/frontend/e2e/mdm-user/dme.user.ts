@@ -4,12 +4,15 @@ import {
   RUN,
   USERS,
   Watcher,
-  answerConfirm,
   assertAllButtonsPressed,
   breadcrumb,
   button,
   checkLayout,
+  daysAgo,
+  errorBody,
   escapeRe,
+  expectErrorModal as expectErrorModalBase,
+  expectOnly4xx,
   expectToast,
   footerScreenId,
   gridRow,
@@ -20,6 +23,7 @@ import {
   screen,
   scrolledOut,
   snap,
+  snapModal,
   tid,
   uid,
   waitGridScrollbarSettled,
@@ -70,16 +74,6 @@ async function go(page: Page, id: ScreenId) {
   await openMenu(page, ["마루 MDM", "업무기준", MENU[id]], id);
 }
 
-/** 오늘에서 days 만큼 뺀 날의 0시 — 적용 시작 칸(DateTimePicker, 6e506cc9) 입력값(yyyy-MM-dd HH:mm:ss)과 서버 표기(yyyy-MM-dd). */
-function daysAgo(days: number): { input: string; date: string } {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  const p = (n: number) => String(n).padStart(2, "0");
-  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  return { input: `${date} 00:00:00`, date };
-}
-
-
 /**
  * 배치·표시 검사 기록 — 검사는 그 상태에서 바로 하되 단언은 장 끝의 "-99" 테스트가 한다(dmd 와 같은 방식).
  * serial 장에서 배치 위반 하나가 뒤의 CRUD 단계를 모두 건너뛰게 하지 않으려는 것이다.
@@ -102,30 +96,9 @@ class Findings {
   }
 }
 
-const errorBody = (page: Page) => page.locator(".error-modal__body:visible");
-
-/** 오류 모달(ErrorModal) 문구를 보고 [확인]으로 닫는다. */
-async function expectErrorModal(page: Page, text: string | RegExp, shot?: string) {
-  await expect(errorBody(page)).toContainText(text, { timeout: 20_000 });
-  if (shot) await snapModal(page, shot);
-  await answerConfirm(page, "확인");
-}
-
-/** 모달이 다 떠오른 뒤(열림 애니메이션 끝) 찍는다. */
-async function snapModal(page: Page, name: string) {
-  const m = modal(page);
-  await expect(m).toBeVisible();
-  await expect
-    .poll(() => m.evaluate((el) => Number(getComputedStyle(el).opacity) * (el.getAnimations().length ? 0 : 1)))
-    .toBe(1);
-  await snap(page, name);
-}
-
-/** 의도한 업무 오류(4xx) 직후 — 모인 문제가 4xx 콘솔 줄뿐인지 본다(5xx·페이지 예외는 남기지 않는다). */
-function expectOnly4xx(watcher: Watcher, label: string) {
-  const rest = watcher.drain().filter((p) => !/status of 4\d\d/.test(p));
-  expect(rest, `${label}: 의도한 4xx 외의 오류가 없어야 한다`).toEqual([]);
-}
+/** 오류 모달 문구를 보고 [확인]으로 닫는다 — 이 파일은 answerConfirm 으로 닫는다(가장 위 모달이 닫혔는지 본다). */
+const expectErrorModal = (page: Page, text: string | RegExp, shot?: string) =>
+  expectErrorModalBase(page, text, shot, { close: "answerConfirm" });
 
 /** 조회영역의 select(SearchField type="select") — 라벨로 찾는다. */
 const searchSelect = (page: Page, label: string) =>

@@ -4,11 +4,12 @@ import {
   RUN,
   USERS,
   Watcher,
-  answerConfirm,
   assertAllButtonsPressed,
   breadcrumb,
   button,
   checkLayout,
+  errorBody,
+  expectErrorModal as expectErrorModalBase,
   expectToast,
   gridRow,
   modal,
@@ -17,6 +18,7 @@ import {
   resetClicks,
   screen,
   snap,
+  snapModal,
   tid,
   uid,
   type LayoutOptions,
@@ -73,22 +75,9 @@ async function layout(page: Page, label: string, opts?: LayoutOptions) {
   }
 }
 
-const errorBody = (page: Page) => page.locator(".error-modal__body:visible");
-
-async function snapModal(page: Page, name: string) {
-  const m = modal(page);
-  await expect(m).toBeVisible();
-  await expect
-    .poll(() => m.evaluate((el) => Number(getComputedStyle(el).opacity) * (el.getAnimations().length ? 0 : 1)))
-    .toBe(1);
-  await snap(page, name);
-}
-
-async function expectErrorModal(page: Page, text: string | RegExp, shot?: string) {
-  await expect(errorBody(page)).toContainText(text, { timeout: 20_000 });
-  if (shot) await snapModal(page, shot);
-  await answerConfirm(page, "확인");
-}
+/** 오류 모달 문구를 보고 [확인]으로 닫는다 — 이 파일은 answerConfirm 으로 닫는다(가장 위 모달이 닫혔는지 본다). */
+const expectErrorModal = (page: Page, text: string | RegExp, shot?: string) =>
+  expectErrorModalBase(page, text, shot, { close: "answerConfirm" });
 
 /** SearchArea 의 라벨-only(select) 조회칸 — testid 도 aria-label 도 없다(SearchField.tsx). */
 function searchField(page: Page, label: string): Locator {

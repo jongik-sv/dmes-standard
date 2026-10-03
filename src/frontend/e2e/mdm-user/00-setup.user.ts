@@ -5,6 +5,7 @@ import {
   AUTH_DIR,
   INIT_PWD,
   USERS,
+  VIEWPORT,
   Watcher,
   authFile,
   gridRow,
@@ -53,7 +54,7 @@ test("SETUP-01~04 시험 사용자 등록·역할 부여·비밀번호 초기화
   test.setTimeout(300_000);
   fs.mkdirSync(AUTH_DIR, { recursive: true });
 
-  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+  const context = await browser.newContext({ viewport: VIEWPORT });
   const page = await context.newPage();
   const watcher = new Watcher(page, testInfo);
   await loginUI(page, ADMIN.id, ADMIN.pwd);
@@ -141,7 +142,7 @@ test("SETUP-01~04 시험 사용자 등록·역할 부여·비밀번호 초기화
 
   for (const [role, u] of Object.entries(USERS)) {
     await test.step(`${u.id} 로그인 → ${role}.json`, async () => {
-      const ctx = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+      const ctx = await browser.newContext({ viewport: VIEWPORT });
       const p = await ctx.newPage();
       await loginUI(p, u.id, INIT_PWD);
       await expect(p.locator(".sidebar-container .tree-item .item-name").filter({ hasText: /^마루 MDM$/ })).toBeVisible({

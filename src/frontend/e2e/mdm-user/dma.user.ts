@@ -8,6 +8,7 @@ import {
   button,
   checkLayout,
   escapeRe,
+  expectErrorModal,
   expectToast,
   gridRow,
   gridRowCount,
@@ -18,6 +19,7 @@ import {
   screen,
   scrolledOut,
   snap,
+  snapModal,
   tid,
   uid,
 } from "./support";
@@ -97,25 +99,6 @@ class Findings {
   assertEmpty(chapter: string) {
     expect(this.items, `${chapter}: 화면 배치 위반(스크린샷: .out/screens/dma-layout-*)`).toEqual([]);
   }
-}
-
-const errorBody = (page: Page) => page.locator(".error-modal__body:visible");
-
-/** 모달이 다 떠오른 뒤(열림 애니메이션 끝) 찍는다. */
-async function snapModal(page: Page, name: string) {
-  const m = modal(page);
-  await expect(m).toBeVisible();
-  await expect
-    .poll(() => m.evaluate((el) => Number(getComputedStyle(el).opacity) * (el.getAnimations().length ? 0 : 1)))
-    .toBe(1);
-  await snap(page, name);
-}
-
-async function expectErrorModal(page: Page, text: string | RegExp, shot?: string) {
-  await expect(errorBody(page)).toContainText(text, { timeout: 20_000 });
-  if (shot) await snapModal(page, shot);
-  await modal(page).getByRole("button", { name: "확인", exact: true }).click();
-  await expect(errorBody(page)).toHaveCount(0);
 }
 
 /**

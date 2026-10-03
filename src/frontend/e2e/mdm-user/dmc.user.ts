@@ -10,6 +10,8 @@ import {
   button,
   closeScreenTab,
   checkLayout,
+  daysAgo,
+  expectErrorModal,
   expectToast,
   footerScreenId,
   gridRow,
@@ -19,6 +21,7 @@ import {
   resetClicks,
   screen,
   snap,
+  snapModal,
   tid,
   uid,
   waitIdle,
@@ -59,15 +62,6 @@ const HANDOVER_PENDING = "넘기기는 준비 중입니다. 넘겨받는 사람�
 /** codeMng 오른쪽에 아무것도 고르지 않았을 때의 안내. */
 const DETAIL_GUIDE = "목록에서 마루 코드를 고르거나 [코드 등록] 을 누르세요";
 
-/** 오늘에서 days 만큼 뺀 날의 0시 — 적용 시작 칸(DateTimePicker, 6e506cc9) 입력값(yyyy-MM-dd HH:mm:ss)과 서버 표기(yyyy-MM-dd). */
-function daysAgo(days: number): { input: string; date: string } {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  const p = (n: number) => String(n).padStart(2, "0");
-  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  return { input: `${date} 00:00:00`, date };
-}
-
 // ─────────────────────────── 지역 부품 ───────────────────────────
 
 async function go(page: Page, id: ScreenId) {
@@ -83,29 +77,6 @@ async function layout(page: Page, label: string, opts?: LayoutOptions) {
     layoutIssues.push(`${label}\n${(e as Error).message.split("\n").slice(0, 30).join("\n")}`);
     await snap(page, `dmc-layout-${label.replace(/[^\w가-힣-]+/g, "_")}`);
   }
-}
-
-const errorBody = (page: Page) => page.locator(".error-modal__body:visible");
-
-/** 모달이 다 떠오른 뒤(열림 애니메이션 끝) 찍는다 — 반투명한 중간 프레임이 찍히지 않게. */
-async function snapModal(page: Page, name: string) {
-  const m = modal(page);
-  await expect(m).toBeVisible();
-  await expect
-    .poll(() => m.evaluate((el) => Number(getComputedStyle(el).opacity) * (el.getAnimations().length ? 0 : 1)))
-    .toBe(1);
-  await snap(page, name);
-}
-
-/**
- * 오류 모달 문구를 보고 [확인]으로 닫는다. 등록 팝업 위에 뜬 오류창도 다루므로, 닫힌 뒤 "마지막 보이는 모달"을 다시 찾지 않고
- * 오류창 본문이 사라졌는지로 본다(다시 찾으면 아래의 등록 팝업을 가리켜 answerConfirm 의 toBeHidden 이 실패한다).
- */
-async function expectErrorModal(page: Page, text: string | RegExp, shot?: string) {
-  await expect(errorBody(page)).toContainText(text, { timeout: 20_000 });
-  if (shot) await snapModal(page, shot);
-  await modal(page).getByRole("button", { name: "확인", exact: true }).click();
-  await expect(errorBody(page)).toHaveCount(0);
 }
 
 /** codeMng 목록 헤더 [코드 등록] 으로 등록 팝업을 연다(열 때마다 새로 마운트되어 칸이 빈 채로 시작한다). */
