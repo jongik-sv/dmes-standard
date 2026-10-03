@@ -94,9 +94,12 @@ export default function ExchangeWidget({ definition, refreshKey }: WidgetProps) 
         setResult(r);
         setStatus({ kind: "ready" });
       })
-      .catch(() => {
+      .catch((e: unknown) => {
         if (cancelled) return;
-        setStatus({ kind: "error", message: LOAD_ERROR, retry: () => setAttempt((a) => a + 1) });
+        // 서버 거절 문구(정의에 없는 통화·기간, 요청이 너무 잦음 등)는 그대로 보인다 — 관리 화면 미리보기에서 저장 전 통화가
+        // 왜 안 보이는지 알 수 있게. 문구가 없으면 고정 문구.
+        const message = e instanceof Error && e.message.trim() ? e.message : LOAD_ERROR;
+        setStatus({ kind: "error", message, retry: () => setAttempt((a) => a + 1) });
       });
     return () => {
       cancelled = true;

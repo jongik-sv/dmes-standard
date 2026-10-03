@@ -1,6 +1,15 @@
 package com.dongkuk.dmes.mcm.widget.ext;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
+import com.dongkuk.dmes.mcm.widget.def.WidgetDefSavedEvent;
+import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
+import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 
 import com.dongkuk.dmes.mcm.widget.ext.dto.WidgetExtExchangeRequest;
 import com.dongkuk.dmes.mcm.widget.ext.dto.WidgetExtWeatherRequest;
@@ -16,6 +25,7 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
@@ -33,6 +43,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 /**
  * 빈 연결 확인 — mcm 런처처럼 {@code widget.ext} 패키지를 스캔해 설정 바인딩(dmes.widget.ext.*)·생성자 선택·저장소가
  * 함께 뜨는지, OASIS 진입점이 실제 DB(H2)로 끝까지 도는지 본다. 외부 호출은 enabled=false 로 막는다(실제 네트워크 금지).
+ * 환율 허용 목록은 실제 정의 표(TB_MCM_WIDGET_DEF)의 exchange 정의로 판정한다.
  */
 @SpringJUnitConfig(WidgetExtWiringTest.Config.class)
 @TestPropertySource(properties = {
@@ -45,7 +56,7 @@ class WidgetExtWiringTest {
 
     @Configuration
     @EnableTransactionManagement
-    @EnableJpaRepositories(basePackageClasses = ExchangeRateRepository.class)
+    @EnableJpaRepositories(basePackageClasses = {ExchangeRateRepository.class, WidgetDefRepository.class})
     @ComponentScan(basePackageClasses = WidgetExtService.class,
             excludeFilters = @ComponentScan.Filter(type = FilterType.REGEX, pattern = ".*Test.*"))
     static class Config {
@@ -64,7 +75,7 @@ class WidgetExtWiringTest {
         LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
             LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
             em.setDataSource(dataSource);
-            em.setPackagesToScan("com.dongkuk.dmes.mcm.widget.ext.entity");
+            em.setPackagesToScan("com.dongkuk.dmes.mcm.widget.ext.entity", "com.dongkuk.dmes.mcm.widget.def.entity");
             em.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
             Properties props = new Properties();
             props.put("hibernate.hbm2ddl.auto", "create-drop");
@@ -76,11 +87,20 @@ class WidgetExtWiringTest {
         PlatformTransactionManager transactionManager(EntityManagerFactory entityManagerFactory) {
             return new JpaTransactionManager(entityManagerFactory);
         }
+
+        @Bean
+        SecurityIdentity securityIdentity() {
+            SecurityIdentity identity = mock(SecurityIdentity.class);
+            when(identity.currentUserId()).thenReturn("userA");
+            return identity;
+        }
     }
 
     @Autowired WidgetExtProperties properties;
     @Autowired WidgetExtService service;
     @Autowired ExchangeRateWriter writer;
+    @Autowired WidgetDefRepository defRepository;
+    @Autowired ApplicationEventPublisher events;
 
     @Test
     @DisplayName("dmes.widget.ext.* 가 바인딩되고 widgetExtService 가 DB 값만으로 환율·날씨를 돌려준다")
@@ -94,6 +114,22 @@ class WidgetExtWiringTest {
         WidgetExtExchangeRequest req = new WidgetExtExchangeRequest();
         req.setSymbols("USD");
         req.setDays(7);
+        assertThatThrownBy(() -> service.exchange(req)) // 환율 정의가 없으면 허용 목록이 비어 있다
+                .isInstanceOf(BusinessException.class).hasMessage(ExchangeAllowList.MSG_NOT_ALLOWED);
+        WidgetDef fx = new WidgetDef();
+        fx.setWidgetId("def.fxwiring");
+        fx.setSrcTp(WidgetDef.SRC_DEF);
+        fx.setTypeId("exchange");
+        fx.setTitle("환율");
+        fx.setUseYn("Y");
+        fx.setConfigJson("{\"base\":\"KRW\",\"currencies\":[\"USD\",\"EUR\"],\"days\":30}");
+        defRepository.save(fx);
+        events.publishEvent(new WidgetDefSavedEvent("def.fxwiring")); // 위젯관리 저장이 내는 이벤트 — 허용 목록 캐시를 비운다
+        WidgetExtExchangeRequest other = new WidgetExtExchangeRequest();
+        other.setSymbols("GBP");
+        other.setDays(7);
+        assertThatThrownBy(() -> service.exchange(other)) // 정의에 없는 통화는 거절
+                .isInstanceOf(BusinessException.class).hasMessage(ExchangeAllowList.MSG_NOT_ALLOWED);
         assertThat(service.exchange(req)).containsEntry("disabled", true);
 
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));

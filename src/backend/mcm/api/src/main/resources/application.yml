@@ -183,6 +183,10 @@ dmes:
         frankfurter-base-url: https://api.frankfurter.dev/v1
         koreaexim-key: ${WIDGET_KOREAEXIM_KEY:}   # 키는 환경변수로만 넣는다(로그·저장소에 남기지 않는다)
         koreaexim-base-url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON
+        # 남용 막기 — 조회는 사용 중인 환율 위젯 정의의 통화·기간 안만 된다. 아래는 메모리 기록이라 인스턴스마다 따로 센다.
+        user-fetch-limit: 10          # 사용자별로 외부 호출을 일으키는 요청 수 상한(구간마다). 넘으면 「환율 조회 요청이 너무 잦습니다」
+        user-fetch-window-sec: 600    # 위 상한의 구간(초)
+        retry-after-fail-sec: 600     # 실패·일부만 받음·오늘 값 없음 뒤 같은 통화·날짜를 다시 묻기까지(초). 지난 휴일은 그날 끝까지
       weather:
         base-url: https://api.open-meteo.com/v1/forecast
     # AI 챗봇 위젯(§9). provider 가 빈 값이면 가짜 공급자(정해진 답)로 동작한다.
