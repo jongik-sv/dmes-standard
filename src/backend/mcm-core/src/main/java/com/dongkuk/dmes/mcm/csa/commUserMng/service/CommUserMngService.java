@@ -46,6 +46,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 
 /**
  * commUserMng — OASIS BPMN serviceTask entry point (W5 / csa 9 화면 5번째).
@@ -863,8 +864,6 @@ public class CommUserMngService {
     private static String currentYyyymmdd() {
         return LocalDate.now().format(YYYYMMDD);
     }
-
-    private static String strOf(Object o) { return o == null ? null : String.valueOf(o); }
 
     /**
      * Map row 의 date 값 → {@link LocalDateTime} 변환 (W4 정본 패턴 차용).

@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 
 /**
  * commMenuMng — OASIS BPMN serviceTask entry point (W2 / csa 9 화면 2번째).
@@ -426,8 +427,6 @@ public class CommMenuMngService {
     // ────────────────────────────────────────────────────────────────
     // helpers
     // ────────────────────────────────────────────────────────────────
-
-    private static String strOf(Object o) { return o == null ? null : String.valueOf(o); }
 
     /**
      * MENU_SEQ '0' LPAD 8자리 (2026-06-05 사용자 지시 — 예: "12" → "00000012").

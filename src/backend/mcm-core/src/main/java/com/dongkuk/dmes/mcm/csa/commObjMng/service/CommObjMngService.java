@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 
 /**
  * commObjMng — OASIS BPMN serviceTask entry point.
@@ -311,8 +312,6 @@ public class CommObjMngService {
         if (idx < 0) return objectId; // "::" 없으면 전체 반환 (As-Is INSTR 0 → SUBSTR(_, 2, _) 와 mismatch — Java 보수 처리)
         return objectId.substring(idx + 2);
     }
-
-    private static String strOf(Object o) { return o == null ? null : String.valueOf(o); }
 
     /**
      * Map row 의 date 값 → {@link LocalDateTime} 변환.

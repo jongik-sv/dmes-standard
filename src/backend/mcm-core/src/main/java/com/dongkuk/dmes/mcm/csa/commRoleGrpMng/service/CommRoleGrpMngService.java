@@ -26,6 +26,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 
 /**
  * commRoleGrpMng — OASIS BPMN serviceTask entry point (W4 / csa 9 화면 4번째).
@@ -407,8 +408,6 @@ public class CommRoleGrpMngService {
         row.put("USER_ID", secRoleGroupRepository.findOneUserIdByRoleGroupId(r.getRoleGroupId()));
         return row;
     }
-
-    private static String strOf(Object o) { return o == null ? null : String.valueOf(o); }
 
     /**
      * Map row 의 date 값 → {@link LocalDateTime} 변환 (W1·W2·W3 정본 패턴).

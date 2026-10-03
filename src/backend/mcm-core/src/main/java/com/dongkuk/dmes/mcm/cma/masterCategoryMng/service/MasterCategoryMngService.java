@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 
 /**
  * 카테고리 관리 — masterCategoryMng OASIS 서비스 (Spring bean = {@code masterCategoryMngService}).
@@ -234,11 +235,6 @@ public class MasterCategoryMngService {
 
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s;
-    }
-
-    private static String strOf(Object o) {
-        if (o == null) return null;
-        return o.toString();
     }
 
     private static Integer toInt(Object o) {

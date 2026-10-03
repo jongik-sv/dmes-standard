@@ -30,6 +30,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 
 /**
  * commUserRoleCopy — OASIS BPMN serviceTask entry point (W7 / csa 9 화면 7번째).
@@ -406,8 +407,6 @@ public class CommUserRoleCopyService {
             return null;
         }
     }
-
-    private static String strOf(Object o) { return o == null ? null : String.valueOf(o); }
 
     /**
      * 2026-06-04 — 빈 문자열("") / 공백만 있는 문자열을 null 로 정규화.
