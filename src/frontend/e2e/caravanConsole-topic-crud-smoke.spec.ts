@@ -46,7 +46,7 @@ test.describe("토픽 관리 (caravanConsole/topic) CRUD Smoke", () => {
         await page.waitForTimeout(900);
       }
     }
-    await leaf.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+    await leaf.waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});
     if (!(await leaf.isVisible().catch(() => false))) {
       // 메뉴 미등록 환경 — 컴포넌트 빌드는 성공이므로 skip (기존 smoke 정합)
       test.skip();
@@ -84,6 +84,6 @@ test.describe("토픽 관리 (caravanConsole/topic) CRUD Smoke", () => {
 
     // (5) 변경 없이 저장 → 안내 메시지 (save 핸들러 + getChanges 경로 확인)
     await page.getByRole("button", { name: "저장" }).first().click();
-    await expect(page.getByText("변경된 내용이 없습니다", { exact: false }).first()).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText("변경된 내용이 없습니다", { exact: false }).first()).toBeVisible({ timeout: 8_000 });
   });
 });

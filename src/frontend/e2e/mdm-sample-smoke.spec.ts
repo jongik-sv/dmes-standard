@@ -1,6 +1,6 @@
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { login } from "./support/common";
+import { T, login } from "./support/common";
 
 /**
  * mdm 모듈 스캐폴드 샘플 화면(dma/mdmSample) smoke — TSK-01-01 design.md §3.3, TSK-01-02 design.md §3.5
@@ -49,7 +49,7 @@ test.describe("mdm dma/mdmSample smoke", () => {
 
     // ── 2) Expand module folder 마루 MDM ──
     const moduleFolder = treeName("마루 MDM").first();
-    await expect(moduleFolder).toBeVisible({ timeout: 20_000 });
+    await expect(moduleFolder).toBeVisible({ timeout: T.UI });
     await moduleFolder.click();
 
     // ── 3) Expand group folder 용어·도메인(dma) ──
@@ -57,7 +57,7 @@ test.describe("mdm dma/mdmSample smoke", () => {
       .locator(".tree-item .item-name")
       .filter({ hasText: /^용어·도메인$/ })
       .first();
-    await expect(groupFolder).toBeVisible({ timeout: 20_000 });
+    await expect(groupFolder).toBeVisible({ timeout: T.UI });
     await groupFolder.click();
 
     // ── 4) Click leaf MDM 샘플 → opens tab ──
@@ -65,14 +65,14 @@ test.describe("mdm dma/mdmSample smoke", () => {
       .locator(".tree-item .item-name")
       .filter({ hasText: /^MDM 샘플$/ })
       .first();
-    await expect(leaf).toBeVisible({ timeout: 20_000 });
+    await expect(leaf).toBeVisible({ timeout: T.UI });
     await leaf.click();
 
     // ── 5) Page must resolve (registry/import) — 빈 화면이므로 스캐폴드 안내 문구로 로드를 확인한다 ──
     const placeholder = page.getByText("mdm 모듈 스캐폴드 검증용 빈 화면입니다", {
       exact: false,
     });
-    await expect(placeholder).toBeVisible({ timeout: 60_000 });
+    await expect(placeholder).toBeVisible({ timeout: T.SLOW });
 
     const bodyText = (await page.textContent("body")) ?? "";
     for (const marker of NOT_FOUND_MARKERS) {

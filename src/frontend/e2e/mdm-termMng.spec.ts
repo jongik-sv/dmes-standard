@@ -30,7 +30,7 @@ const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 async function openTermMng(page: Page) {
   await walkMenuPath(page, [/^마루 MDM$/, /^용어·도메인$/, /^용어 관리$/]);
 
-  await expect(page.getByRole("button", { name: "등록" })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("button", { name: "등록" })).toBeVisible({ timeout: T.SLOW });
 }
 
 function searchField(page: Page, label: string) {
@@ -52,7 +52,7 @@ async function clickSearchAndWait(page: Page) {
       r.request().method() === "POST" &&
       !(r.request().postData() ?? "").includes("optionsOnly") &&
       r.status() === 200,
-    { timeout: 20_000 },
+    { timeout: T.UI },
   );
   await page.getByRole("button", { name: "조회" }).click();
   await response;
@@ -80,7 +80,7 @@ test.describe("mdm dma/termMng smoke", () => {
       .locator(".grid-panel")
       .filter({ has: page.locator(".grid-panel-title", { hasText: "용어 목록" }) })
       .locator(".grid-panel-count");
-    await expect(termListCount).toHaveText("0건", { timeout: 20_000 });
+    await expect(termListCount).toHaveText("0건", { timeout: T.UI });
 
     await page.screenshot({ path: screenshot("dma-termMng-empty.png"), fullPage: true });
   });
@@ -98,13 +98,13 @@ test.describe("mdm dma/termMng smoke", () => {
     await detailRow(page, "의미 번호").locator("input").fill("1");
     await detailRow(page, "정의").locator("textarea").fill(TERM1_DEF);
     await page.getByRole("button", { name: "저장" }).click();
-    await expect(page.getByText(TERM1_NAME, { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(TERM1_NAME, { exact: true })).toBeVisible({ timeout: T.UI });
 
     // 두 번째 용어 등록 중 — 표기 입력이 끝나면 디바운스 후 compare 호출을 기다린다.
     await page.getByRole("button", { name: "등록" }).click();
     const recommendResponse = page.waitForResponse(
       (r) => r.url().includes("/api/mdm/oasis/termMng/compare") && r.status() === 200,
-      { timeout: 20_000 },
+      { timeout: T.UI },
     );
     await detailRow(page, "표기").locator("input").fill(TERM2_NAME);
     await detailRow(page, "정의").locator("textarea").fill(TERM2_DEF);
@@ -113,7 +113,7 @@ test.describe("mdm dma/termMng smoke", () => {
     // 1차 추천 후보로 방금 등록한 용어가 뜬다.
     const recoGrid = page.getByLabel("유사어 추천");
     await expect(recoGrid.locator('[data-testid^="reco-candidate-1-"]', { hasText: TERM1_NAME })).toBeVisible({
-      timeout: 20_000,
+      timeout: T.UI,
     });
 
     // 동의어로 확정 — 추천 그리드 행의 표기 칸에 reco-candidate-{stage}-{termId} testid 가 있다. 그 행의 확정 버튼을 누른다.
@@ -127,8 +127,8 @@ test.describe("mdm dma/termMng smoke", () => {
     await page.getByRole("button", { name: "저장" }).click();
     // TERM1_NAME 은 그리드에서 term1 자신의 표기 칸과 term2 의 동의어 칸(방금 확정) 두 곳에 나타날 수
     // 있으므로 .first() 로 "어딘가에 보인다"만 확인한다.
-    await expect(page.getByText(TERM1_NAME, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(TERM2_NAME, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(TERM1_NAME, { exact: true }).first()).toBeVisible({ timeout: T.UI });
+    await expect(page.getByText(TERM2_NAME, { exact: true }).first()).toBeVisible({ timeout: T.UI });
 
     await page.screenshot({ path: screenshot("dma-termMng-registered.png"), fullPage: true });
   });
@@ -143,7 +143,7 @@ test.describe("mdm dma/termMng smoke", () => {
     await detailRow(page, "정의").locator("textarea").fill("중복 시도");
     await page.getByRole("button", { name: "저장" }).click();
 
-    await expect(page.getByText("같은 표기·의미 번호의 용어가 이미 있습니다.")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("같은 표기·의미 번호의 용어가 이미 있습니다.")).toBeVisible({ timeout: T.UI });
 
     await page.screenshot({ path: screenshot("dma-termMng-error.png"), fullPage: true });
   });

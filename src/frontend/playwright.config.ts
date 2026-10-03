@@ -9,6 +9,8 @@ export default defineConfig({
   // 기본값으로 둔다(인자를 빠뜨려도 안전). CLI --workers 는 이 값을 덮어쓴다.
   workers: 1,
   timeout: 30_000,
+  // 스펙의 단언은 10_000 을 따로 적지 않고 이 기본값을 쓴다. 더 긴 대기는 e2e/support/common.ts 의 T 상수를 쓴다.
+  // actionTimeout·navigationTimeout 은 일부러 두지 않는다(무제한) — 두면 시간을 적지 않은 동작의 대기가 바뀐다.
   expect: {
     timeout: 10_000,
   },

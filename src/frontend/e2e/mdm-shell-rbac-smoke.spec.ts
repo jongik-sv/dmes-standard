@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test, type Page, type Response } from "@playwright/test";
 
-import { BASE_URL, login, walkMenuPath } from "./support/common";
+import { BASE_URL, T, login, walkMenuPath } from "./support/common";
 
 /**
  * mdm 공통 셸·RBAC smoke — TSK-01-03 design.md §3.5.
@@ -39,7 +39,7 @@ const screenshot = (name: string) =>
 
 function waitForMenuTree(page: Page): Promise<Response> {
   return page.waitForResponse((r) => r.url().includes("/api/mcm/oasis/secUser/myMenusTree"), {
-    timeout: 60_000,
+    timeout: T.SLOW,
   });
 }
 
@@ -62,7 +62,7 @@ async function openSample(page: Page) {
   await walkMenuPath(page, [/^마루 MDM$/, /^용어·도메인$/, /^MDM 샘플$/]);
 
   await expect(page.getByText("mdm 모듈 스캐폴드 검증용 빈 화면입니다", { exact: false })).toBeVisible({
-    timeout: 60_000,
+    timeout: T.SLOW,
   });
 }
 
@@ -113,7 +113,7 @@ test.describe("mdm shell & RBAC smoke", () => {
     }
 
     // 메뉴 응답을 받은 뒤 사이드바가 그려진 상태에서 본다(그려지기 전의 거짓 통과 방지).
-    await expect(page.locator(".sidebar-container")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(".sidebar-container")).toBeVisible({ timeout: T.UI });
     await expect(page.locator(".tree-item .item-name").filter({ hasText: "마루 MDM" })).toHaveCount(0);
 
     const api = await page.request.post(`${BASE_URL}${SAMPLE_API}`, { data: {} });

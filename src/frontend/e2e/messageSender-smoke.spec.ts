@@ -33,7 +33,7 @@ test.describe("메시지 전송 (messageSender) Smoke", () => {
       }
     }
     const menuItem = page.getByText(path[path.length - 1], { exact: true }).first();
-    await menuItem.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+    await menuItem.waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});
     if (!(await menuItem.isVisible().catch(() => false))) {
       // 메뉴 미등록 환경 — 컴포넌트 빌드는 성공이므로 skip (기존 smoke 정합)
       test.skip();

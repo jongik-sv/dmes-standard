@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { loginByApi } from "./support/common";
+import { T, loginByApi } from "./support/common";
 
 /**
  * dma/domainMng 그리드 높이 검증 — DomainTreeGrid 의 height={360} 제거 확인.
@@ -24,26 +24,26 @@ test("도메인 목록 그리드가 패널 높이를 전부 사용한다", async
   // 마루 MDM > 용어·도메인 > 도메인 관리
   for (const g of ["마루 MDM", "용어·도메인"]) {
     const node = page.locator(".tree-item .item-name").filter({ hasText: g }).first();
-    await expect(node).toBeVisible({ timeout: 30_000 });
+    await expect(node).toBeVisible({ timeout: T.LONG });
     await node.click();
     await page.waitForTimeout(400);
   }
   const target = page.locator(".tree-item .item-name").filter({ hasText: "도메인 관리" }).first();
-  await expect(target).toBeVisible({ timeout: 20_000 });
+  await expect(target).toBeVisible({ timeout: T.UI });
   await target.click();
 
   // domainMng 화면 식별자로 특정 (다른 화면과 레이아웃 구조가 달라 혼동 방지)
   const layout = page.locator(".page-layout").filter({
     has: page.locator(".page-layout__footer-screen-id", { hasText: "domainMng" }),
   });
-  await expect(layout.locator(".domain-mng__count")).toBeVisible({ timeout: 60_000 });
+  await expect(layout.locator(".domain-mng__count")).toBeVisible({ timeout: T.SLOW });
 
   const grid = layout.locator(".grid-panel").filter({ has: page.locator(".grid-panel-title", { hasText: "도메인 목록" }) });
   await expect(grid).toBeVisible();
 
   // ag-grid 가 렌더링을 마칠 때까지 대기
   const agRoot = grid.locator(".ag-root-wrapper");
-  await expect(agRoot).toBeVisible({ timeout: 30_000 });
+  await expect(agRoot).toBeVisible({ timeout: T.LONG });
   await page.waitForTimeout(1_500);
 
   const m = await page.evaluate(() => {

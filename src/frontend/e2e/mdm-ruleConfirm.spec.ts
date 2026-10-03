@@ -42,22 +42,22 @@ const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW, exactButton: true };
 /** 메뉴는 보이는 항목만 잡는다(visibleOnly) — "버전 확정" leaf 는 마스터코드(codeConfirm) 아래에도 있다. */
 async function openRuleConfirm(page: Page) {
   await openRuleMenu(page, /^버전 확정$/, { visibleOnly: true });
-  await expect(tid(page, "rc-list")).toBeVisible({ timeout: 60_000 });
+  await expect(tid(page, "rc-list")).toBeVisible({ timeout: T.SLOW });
 }
 
 /** ver 는 서버 표기 `"1.000"`(D-144) — 행 키·대상 문구가 이 문자열을 쓴다. */
 async function choose(page: Page, id: string, ver: string) {
   const row = tid(page, `rc-row-${id}-${ver}`);
-  await expect(row).toBeVisible({ timeout: 20_000 });
+  await expect(row).toBeVisible({ timeout: T.UI });
   await row.click();
-  await expect(tid(page, "rc-target")).toContainText(`${id} 버전 v${ver}`, { timeout: 20_000 });
+  await expect(tid(page, "rc-target")).toContainText(`${id} 버전 v${ver}`, { timeout: T.UI });
 }
 
 /** 적용 시작(shared DateTimePicker — 6e506cc9 에서 datetime-local 을 바꿨다)에 `yyyy-MM-dd HH:mm:ss` 로 넣고 검사한다. */
 async function validate(page: Page, applyFrom: string) {
   await fillDateTime(tid(page, "rc-apply-from"), applyFrom);
   await tid(page, "rc-validate").click();
-  await expect(tid(page, "rc-checks")).toBeVisible({ timeout: 30_000 });
+  await expect(tid(page, "rc-checks")).toBeVisible({ timeout: T.LONG });
 }
 
 test.describe.configure({ mode: "serial" });
@@ -79,7 +79,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await login(page, STEWARD, LOGIN_OPTS);
     await openRuleConfirm(page);
 
-    await expect(tid(page, "rc-row-E2E_RC_OK-1.000")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "rc-row-E2E_RC_OK-1.000")).toBeVisible({ timeout: T.UI });
     await expect(tid(page, "rc-row-E2E_RC_CASEFAIL-1.000")).toBeVisible();
     await expect(tid(page, "rc-row-E2E_RC_CONTRACT-2.000")).toBeVisible();
     await expect(tid(page, "rc-row-E2E_RC_RACE-1.000")).toBeVisible();
@@ -89,27 +89,27 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
 
     await tid(page, "rc-keyword").fill("NO_SUCH");
     await tid(page, "rc-search").click();
-    await expect(tid(page, "rc-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: 20_000 });
+    await expect(tid(page, "rc-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: T.UI });
   });
 
   test("T3·T4 담당자: 룰 상세의 확정 이동으로 열고 검사하면 값 테스트 거부로 확정 버튼이 꺼진다", async ({ page }) => {
     await login(page, STEWARD, LOGIN_OPTS);
     await openRuleMenu(page, /^룰$/, { visibleOnly: true });
-    await expect(tid(page, "rule-search-keyword")).toBeVisible({ timeout: 60_000 });
+    await expect(tid(page, "rule-search-keyword")).toBeVisible({ timeout: T.SLOW });
     // 룰 목록은 자동 조회되지 않는다(cf4fbb05) — 그 룰로 조회해 상세(① 헤더·② 버전)를 연다.
     await tid(page, "rule-search-keyword").fill("E2E_RC_CASEFAIL");
     await clickSearch(page);
     // 룰 ID 링크는 룰 화면 탭을 연다(기능설계서 G-001) — 상세는 행의 다른 칸(룰명)을 눌러 연다.
     await page.locator(".ag-row", { has: tid(page, "rule-link-E2E_RC_CASEFAIL") }).locator('.ag-cell[col-id="maruRuleName"]').click();
-    await expect(tid(page, "rule-header-id")).toHaveText("E2E_RC_CASEFAIL", { timeout: 30_000 });
+    await expect(tid(page, "rule-header-id")).toHaveText("E2E_RC_CASEFAIL", { timeout: T.LONG });
     await gridRowById(tid(page, "rule-version-table"), "1.000").locator('.ag-cell[col-id="ver"]').click();
 
     const move = tid(page, "rule-move-to-confirm");
-    await expect(move).toBeEnabled({ timeout: 20_000 });
+    await expect(move).toBeEnabled({ timeout: T.UI });
     await move.click();
 
     // T3: 버전 확정 탭이 그 룰·버전으로 열린다
-    await expect(tid(page, "rc-target")).toContainText("E2E_RC_CASEFAIL 버전 v1.000", { timeout: 60_000 });
+    await expect(tid(page, "rc-target")).toContainText("E2E_RC_CASEFAIL 버전 v1.000", { timeout: T.SLOW });
     await expect(page.locator(".page-layout__footer-breadcrumb").filter({ hasText: BREADCRUMB })).toBeVisible();
     await expect(tid(page, "rc-previous")).toHaveText("최초 버전 — 적용 순서 검사를 하지 않습니다");
 
@@ -137,9 +137,9 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await expect(tid(page, "rc-check-status-APPLY_FROM")).toHaveText("면제");
     await expect(tid(page, "rc-check-status-SAVE_CHECKS")).toHaveText("경고");
 
-    await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: 20_000 });
+    await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: T.UI });
     await tid(page, "rc-confirm").click();
-    await expect(tid(page, "rc-modal-warnings")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "rc-modal-warnings")).toBeVisible({ timeout: T.UI });
     // 과거 일시라 미래 적용 경고는 없다(서버 futureApplyFrom=false). 최초 버전이라 계약 변경 확인란도 없다.
     await expect(tid(page, "rc-future-warning")).toHaveCount(0);
     await expect(tid(page, "rc-modal-contract")).toHaveCount(0);
@@ -148,13 +148,13 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await expect(tid(page, "rc-modal-ok")).toBeEnabled();
     await tid(page, "rc-modal-ok").click();
 
-    await expect(page.getByText("확정했습니다").first()).toBeVisible({ timeout: 20_000 });
-    await expect(tid(page, "rc-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("확정했습니다").first()).toBeVisible({ timeout: T.UI });
+    await expect(tid(page, "rc-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: T.UI });
     await expect(tid(page, "rc-released")).toContainText("적용 구간 2026-01-01 00:00:00 ~ 9999-12-31 00:00:00");
     await expect(tid(page, "rc-released")).toContainText(`확정자 ${STEWARD}`);
     await expect(tid(page, "rc-row-E2E_RC_OK-1.000")).toHaveCount(0);
     await expect(tid(page, "rc-row-E2E_RC_RACE-1.000")).toBeVisible();
-    await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 }); // 닫히는 대화상자가 스크린샷을 가리지 않게
+    await expect(page.getByRole("dialog")).toHaveCount(0); // 닫히는 대화상자가 스크린샷을 가리지 않게
     await page.screenshot({ path: screenshot("dme-ruleConfirm-confirmed.png"), fullPage: true });
   });
 
@@ -172,9 +172,9 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await expect(tid(page, "rc-contract")).toContainText("[COIL_WID]");
     await page.screenshot({ path: screenshot("dme-ruleConfirm-contract.png"), fullPage: true });
 
-    await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: 20_000 });
+    await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: T.UI });
     await tid(page, "rc-confirm").click();
-    await expect(tid(page, "rc-modal-contract")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "rc-modal-contract")).toBeVisible({ timeout: T.UI });
     await expect(tid(page, "rc-future-warning")).toBeVisible();
     await expect(tid(page, "rc-modal-ok")).toBeDisabled();
     // 일반 경고가 있으면 그 확인란을 먼저 체크한다 — 계약 변경 확인란 전에는 여전히 비활성이어야 한다(I44).
@@ -186,12 +186,12 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await expect(tid(page, "rc-modal-ok")).toBeEnabled();
     await tid(page, "rc-modal-ok").click();
 
-    await expect(page.getByText("확정했습니다").first()).toBeVisible({ timeout: 20_000 });
-    await expect(tid(page, "rc-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("확정했습니다").first()).toBeVisible({ timeout: T.UI });
+    await expect(tid(page, "rc-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: T.UI });
     await expect(tid(page, "rc-closed-previous")).toHaveText("직전 버전 v1.000 의 적용을 닫았습니다");
     await expect(tid(page, "rc-released")).toContainText("적용 구간 2030-01-01 00:00:00 ~ 9999-12-31 00:00:00");
     await expect(tid(page, "rc-row-E2E_RC_CONTRACT-2.000")).toHaveCount(0);
-    await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
+    await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 
   test("T7 담당자: 다른 세션이 먼저 확정하면 화면 확정이 서버 문구로 거부된다", async ({ page }) => {
@@ -199,7 +199,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await openRuleConfirm(page);
     await choose(page, "E2E_RC_RACE", "1.000");
     await validate(page, "2026-02-01 00:00:00");
-    await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: 20_000 });
+    await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: T.UI });
 
     // 빈틈 경고가 있으므로 먼저 확정하는 세션은 경고 확인(true)을 보낸다 — false 면 MDM014 로 경합이 만들어지지 않는다.
     const res = await page.request.post(`${BASE_URL}/api/mdm/oasis/ruleConfirm/confirm`, {
@@ -217,17 +217,17 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
 
     await tid(page, "rc-confirm").click();
     await tid(page, "rc-ack").getByText("경고를 확인했습니다").click();
-    await expect(tid(page, "rc-modal-ok")).toBeEnabled({ timeout: 20_000 });
+    await expect(tid(page, "rc-modal-ok")).toBeEnabled({ timeout: T.UI });
     await tid(page, "rc-modal-ok").click();
-    await expect(tid(page, "rc-error")).toContainText(RACE_REJECTED, { timeout: 20_000 });
-    await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
+    await expect(tid(page, "rc-error")).toContainText(RACE_REJECTED, { timeout: T.UI });
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.screenshot({ path: screenshot("dme-ruleConfirm-error.png"), fullPage: true });
   });
 
   test("T8 표준 관리자: 검사·확정 버튼이 비활성이다", async ({ page }) => {
     // 권한 조회가 끝나기 전에는 버튼이 늘 꺼져 있으므로, 조회 응답을 받은 뒤에 단언한다(무조건 통과 방지).
     const rbacLoaded = page.waitForResponse((r) => r.url().includes("/secUser/myButtonEndpoints") && r.ok(), {
-      timeout: 60_000,
+      timeout: T.SLOW,
     });
     await login(page, STD_ADMIN, LOGIN_OPTS);
     await openRuleConfirm(page);

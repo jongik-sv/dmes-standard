@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { loginByApi } from "./support/common";
+import { T, loginByApi } from "./support/common";
 
 /**
  * 룰 화면 열 설정 — 도메인 칸에 붙은 찾기·해제 버튼(TSK-08-03 §2.1).
@@ -30,7 +30,7 @@ test("도메인 찾기·해제 버튼은 도메인 칸 안에 있고(글자 왼�
 
   for (const g of [/^마루 MDM$/, /^업무기준$/, /^룰 화면$/]) {
     const n = page.locator(".tree-item .item-name").filter({ hasText: g }).first();
-    await expect(n).toBeVisible({ timeout: 30_000 });
+    await expect(n).toBeVisible({ timeout: T.LONG });
     await n.click();
     await page.waitForTimeout(400);
   }
@@ -40,7 +40,7 @@ test("도메인 찾기·해제 버튼은 도메인 칸 안에 있고(글자 왼�
   for (let i = 0; i < 5; i++) {
     await page.getByTestId("rule-pick-keyword").fill(RULE);
     await find.click();
-    await expect(page.getByTestId(`rule-pick-${RULE}`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId(`rule-pick-${RULE}`)).toBeVisible({ timeout: T.UI });
     await page.getByTestId(`rule-pick-${RULE}`).click();
     const opened = await page
       .getByTestId("rule-edit-current")
@@ -51,7 +51,7 @@ test("도메인 찾기·해제 버튼은 도메인 칸 안에 있고(글자 왼�
       .catch(() => false);
     if (opened) break;
   }
-  await expect(page.getByTestId("rule-edit-current")).toHaveText(RULE, { timeout: 20_000 });
+  await expect(page.getByTestId("rule-edit-current")).toHaveText(RULE, { timeout: T.UI });
 
   // DRAFT 버전을 고르고(RELEASED 면 읽기 전용이라 버튼이 죽는다), 없으면 선점한다
   await page.getByTestId(`rule-ver-row-${VER}`).click();
@@ -65,7 +65,7 @@ test("도메인 찾기·해제 버튼은 도메인 칸 안에 있고(글자 왼�
   const toggle = page.getByTestId("rule-section-columns-toggle");
   if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
   const grid = page.getByTestId("col-table");
-  await expect(grid).toBeVisible({ timeout: 30_000 });
+  await expect(grid).toBeVisible({ timeout: T.LONG });
   await expect(page.getByTestId("col-readonly")).toHaveCount(0);
   await page.waitForTimeout(1200);
 
@@ -121,5 +121,5 @@ test("도메인 찾기·해제 버튼은 도메인 칸 안에 있고(글자 왼�
     expect(box).not.toBeNull();
     await page.mouse.click(box!.x + 30, box!.y + box!.height / 2);
     await expect(editors(page)).toHaveCount(1, { timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: T.UI });
 });

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { BASE_URL, login, walkMenuPath } from "./support/common";
+import { BASE_URL, T, login, walkMenuPath } from "./support/common";
 import { gridCells, gridRowById } from "./support/grid";
 
 /**
@@ -38,7 +38,7 @@ async function openDomainMng(page: Page): Promise<Locator> {
   const layout = page.locator(".page-layout").filter({
     has: page.locator(".page-layout__footer-screen-id", { hasText: "domainMng" }),
   });
-  await expect(layout.locator(".domain-mng__count")).toBeVisible({ timeout: 60_000 });
+  await expect(layout.locator(".domain-mng__count")).toBeVisible({ timeout: T.SLOW });
   return layout;
 }
 
@@ -56,11 +56,11 @@ async function selectRow(layout: Locator, name: string) {
   // 저장 직후에는 같은 행이 이미 열려 있어 도메인명 대기가 곧바로 참이 된다. ag-grid 는 rowClicked 를 비동기 큐로 늦게
   // 보내므로(TSK-05-02 Build 실측), 클릭이 부른 view 응답과 그 반영까지 기다린 뒤 다음 조작을 한다.
   const page = layout.page();
-  const viewed = page.waitForResponse((r) => r.url().includes(`${API}/view`), { timeout: 30_000 });
+  const viewed = page.waitForResponse((r) => r.url().includes(`${API}/view`), { timeout: T.LONG });
   await gridRow(layout, name).click();
   await viewed;
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))));
-  await expect(layout.locator('input[aria-label="도메인명"]')).toHaveValue(name, { timeout: 30_000 });
+  await expect(layout.locator('input[aria-label="도메인명"]')).toHaveValue(name, { timeout: T.LONG });
 }
 
 /** 테스트 케이스 표(AgDataGrid)의 n 번째 케이스 행 — 행 키는 1부터이고, 결과 칸(RESULT_TEXT)이 있는 행만 이 표의 행이다. */
@@ -87,7 +87,7 @@ async function addCase(layout: Locator, n: number, value: string, expectValue: "
 
 async function validateAndSave(layout: Locator) {
   await layout.getByRole("button", { name: "도메인검증" }).click();
-  await expect(layout.locator(".domain-mng__check-summary")).toContainText("검사 통과", { timeout: 30_000 });
+  await expect(layout.locator(".domain-mng__check-summary")).toContainText("검사 통과", { timeout: T.LONG });
   const save = layout.getByRole("button", { name: "저장", exact: true });
   await expect(save).toBeEnabled();
   await save.click();
@@ -106,7 +106,7 @@ test.describe("mdm 도메인 관리", () => {
     await expect(layout.locator(".page-layout__footer-breadcrumb")).toHaveText(BREADCRUMB);
     await expect(layout.locator(".page-layout__footer-screen-id")).toHaveText("domainMng");
     await search(layout, `없음-${STAMP}`);
-    await expect(layout.locator(".domain-mng__empty")).toHaveText("조회된 도메인이 없습니다", { timeout: 30_000 });
+    await expect(layout.locator(".domain-mng__empty")).toHaveText("조회된 도메인이 없습니다", { timeout: T.LONG });
     await page.screenshot({ path: screenshot("dma-domainMng-empty.png"), fullPage: true });
   });
 
@@ -125,12 +125,12 @@ test.describe("mdm 도메인 관리", () => {
     await addCase(layout, 1, "C24090401AB", "true");
     await addCase(layout, 2, "abc", "false");
     await layout.getByRole("button", { name: "도메인검증" }).click();
-    await expect(layout.locator(".domain-mng__check-summary")).toContainText("검사 통과", { timeout: 30_000 });
+    await expect(layout.locator(".domain-mng__check-summary")).toContainText("검사 통과", { timeout: T.LONG });
     await expect(gridCells(layout, "RESULT_TEXT")).toHaveText(["일치", "일치"]);
     await layout.locator(".domain-mng__checks").scrollIntoViewIfNeeded();
     await layout.getByRole("button", { name: "저장", exact: true }).click();
     await search(layout, STAMP);
-    await expect(gridRow(layout, PARENT_NAME)).toBeVisible({ timeout: 30_000 });
+    await expect(gridRow(layout, PARENT_NAME)).toBeVisible({ timeout: T.LONG });
     await page.screenshot({ path: screenshot("dma-domainMng-register.png"), fullPage: true });
 
     // ── E3 하위 도메인 — 종류·타입 고정, 유효 식 조립, 저장된 도메인의 JS 미리보기 ──
@@ -148,7 +148,7 @@ test.describe("mdm 도메인 관리", () => {
     await validateAndSave(layout);
     await search(layout, STAMP);
     const childRow = gridRow(layout, CHILD_NAME);
-    await expect(childRow).toContainText(`└ ${CHILD_NAME}`, { timeout: 30_000 });
+    await expect(childRow).toContainText(`└ ${CHILD_NAME}`, { timeout: T.LONG });
     await expect(childRow).toContainText("&&");
     await page.screenshot({ path: screenshot("dma-domainMng-tree.png"), fullPage: true });
 
@@ -169,7 +169,7 @@ test.describe("mdm 도메인 관리", () => {
     // ── E4 거부 표시 — 부모(20)보다 긴 길이는 R06, 저장 비활성 ──
     await layout.locator('input[aria-label="길이"]').fill("30");
     await layout.getByRole("button", { name: "도메인검증" }).click();
-    await expect(layout.locator(".domain-mng__check-summary")).toContainText("검사 실패", { timeout: 30_000 });
+    await expect(layout.locator(".domain-mng__check-summary")).toContainText("검사 실패", { timeout: T.LONG });
     await expect(layout.locator(".domain-mng__checks")).toContainText("R06");
     await expect(layout.locator(".domain-mng__checks")).toContainText("길이·소수 자리는 부모 이하로만 정할 수 있습니다");
     await expect(layout.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
@@ -197,7 +197,7 @@ test.describe("mdm 도메인 관리", () => {
     await layout.locator('textarea[aria-label="정의"]').fill("화면에서 고친 설명");
     await validateAndSave(layout);
     const modal = page.locator(".error-modal__body");
-    await expect(modal).toBeVisible({ timeout: 30_000 });
+    await expect(modal).toBeVisible({ timeout: T.LONG });
     await expect(modal).toContainText("다른 사용자가 수정");
     await page.screenshot({ path: screenshot("dma-domainMng-error.png"), fullPage: true });
     await page.getByRole("button", { name: "확인" }).click();
@@ -236,18 +236,18 @@ test.describe("mdm 도메인 관리", () => {
     const dialog = page.getByTestId("domain-parent-link-modal");
     const dialogButton = (name: string) => page.locator(".cm-modal").getByRole("button", { name, exact: true });
     await expect(page.locator(".cm-modal-title")).toHaveText("부모 교체");
-    const validated = page.waitForResponse((r) => r.url().includes(`${API}/validate`), { timeout: 30_000 });
+    const validated = page.waitForResponse((r) => r.url().includes(`${API}/validate`), { timeout: T.LONG });
     // 검색형 칸 — 이름을 넣고 Enter 로 확정하면 서버 검색이 하나로 정해 바로 검사한다.
     const parentField = dialog.getByTestId("domain-parent-link-field");
     await parentField.fill(OTHER_NAME);
     await parentField.press("Enter");
     await validated;
-    await expect(dialog.locator(".domain-mng__check-summary")).toContainText("검사 통과", { timeout: 30_000 });
+    await expect(dialog.locator(".domain-mng__check-summary")).toContainText("검사 통과", { timeout: T.LONG });
     await expect(dialog.locator(".domain-mng__checks")).toContainText("W04");
     await expect(dialog.locator(".domain-mng__classification")).toHaveText("부모 변경");
     await page.screenshot({ path: screenshot("dma-domainMng-relink.png"), fullPage: true });
     await dialogButton("교체").click();
-    await expect(dialog).toHaveCount(0, { timeout: 30_000 });
+    await expect(dialog).toHaveCount(0, { timeout: T.LONG });
     await search(layout, STAMP);
     let child = await viewChild(page);
     expect(child.PARENT_DOMAIN_ID, "새 부모로 바뀐다").toBe(await domainId(page, OTHER_STD));
@@ -256,10 +256,10 @@ test.describe("mdm 도메인 관리", () => {
     await selectRow(layout, CHILD_NAME);
     await layout.getByRole("button", { name: "연결 제거", exact: true }).click();
     await expect(page.locator(".cm-modal-title")).toHaveText("부모 연결 제거");
-    await expect(dialog.locator(".domain-mng__checks")).toContainText("W05", { timeout: 30_000 });
+    await expect(dialog.locator(".domain-mng__checks")).toContainText("W05", { timeout: T.LONG });
     await page.screenshot({ path: screenshot("dma-domainMng-unlink.png"), fullPage: true });
     await dialogButton("연결 제거").click();
-    await expect(dialog).toHaveCount(0, { timeout: 30_000 });
+    await expect(dialog).toHaveCount(0, { timeout: T.LONG });
     child = await viewChild(page);
     expect(child.PARENT_DOMAIN_ID).toBeNull();
     expect(child.STD_RULE, "상속받던 표준식을 이어 붙인다").toBe("(STR_LENGTH(value) <= 30) && (STR_LENGTH(value) <= 15)");
@@ -275,7 +275,7 @@ test.describe("mdm 도메인 관리", () => {
     await login(page, STEWARD);
     const layout = await openDomainMng(page);
     await search(layout, STAMP);
-    await expect(gridRow(layout, PARENT_NAME)).toBeVisible({ timeout: 30_000 });
+    await expect(gridRow(layout, PARENT_NAME)).toBeVisible({ timeout: T.LONG });
     await selectRow(layout, CHILD_NAME);
     // 앞의 E8 이 이 하위 도메인의 부모를 바꾸고 끊어 표준식이 "(길이 ≤ 30) && (길이 ≤ 15)" 가 된다 — 옛 입력 "abc" 는 이제 통과한다.
     // E8 전의 상속 패턴(^[A-Z0-9]{10,20}$)과 E8 뒤의 길이 조건 모두에 걸리는 값(소문자 17자)으로 화면 미리보기의 실패를 본다.

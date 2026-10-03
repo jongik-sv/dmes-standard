@@ -33,7 +33,7 @@ test.describe("I/F Format 조회 (interfaceFormatList) Smoke", () => {
       }
     }
     const menuItem = page.getByText(path[path.length - 1], { exact: true }).first();
-    await menuItem.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+    await menuItem.waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});
     if (!(await menuItem.isVisible().catch(() => false))) {
       test.skip();
       return;

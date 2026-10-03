@@ -38,7 +38,7 @@ const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW, exactButton: true };
 
 async function openRuleEdit(page: Page) {
   await openRuleMenu(page, /^룰 화면$/);
-  await expect(page.getByTestId("rule-pick-keyword")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("rule-pick-keyword")).toBeVisible({ timeout: T.SLOW });
 }
 
 /**
@@ -47,25 +47,25 @@ async function openRuleEdit(page: Page) {
  */
 async function newMajorVersionAndEdit(page: Page, ruleId: string, ver: string) {
   await openRuleMenu(page, /^룰$/);
-  await expect(page.getByTestId("rule-search-keyword")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("rule-search-keyword")).toBeVisible({ timeout: T.SLOW });
   await page.getByTestId("rule-search-keyword").fill(ruleId);
   await clickSearch(page);
   // 룰 ID 링크는 룰 화면 탭을 연다(ruleMng 기능설계서 G-001) — 상세는 행의 다른 칸(룰명)을 눌러 연다.
   await page.locator(".ag-row", { has: page.getByTestId(`rule-link-${ruleId}`) }).locator('.ag-cell[col-id="maruRuleName"]').click();
-  await expect(page.getByTestId("rule-header-id")).toHaveText(ruleId, { timeout: 30_000 });
+  await expect(page.getByTestId("rule-header-id")).toHaveText(ruleId, { timeout: T.LONG });
   await page.getByRole("button", { name: "새 버전(major)", exact: true }).click();
   const created = gridRowById(page.getByTestId("rule-version-table"), ver);
-  await expect(created.locator('[data-status="DRAFT"]')).toBeVisible({ timeout: 20_000 });
+  await expect(created.locator('[data-status="DRAFT"]')).toBeVisible({ timeout: T.UI });
   await created.locator('.ag-cell[col-id="ver"]').click();
   await page.getByRole("button", { name: "내용 편집 →" }).click();
-  await expect(page.getByTestId("rule-edit-current")).toHaveText(ruleId, { timeout: 60_000 });
+  await expect(page.getByTestId("rule-edit-current")).toHaveText(ruleId, { timeout: T.SLOW });
 }
 
 async function pickRule(page: Page, ruleId: string) {
   await page.getByTestId("rule-pick-keyword").fill(ruleId);
   await page.getByRole("button", { name: "찾기", exact: true }).click();
   await page.getByTestId(`rule-pick-${ruleId}`).click();
-  await expect(page.getByTestId("rule-edit-current")).toHaveText(ruleId, { timeout: 30_000 });
+  await expect(page.getByTestId("rule-edit-current")).toHaveText(ruleId, { timeout: T.LONG });
 }
 
 async function openRule(page: Page, user: string, ruleId: string) {
@@ -87,7 +87,7 @@ async function editText(page: Page, rowId: number, field: string, value: string)
   const c = cell(page, rowId, field);
   await c.click();
   const input = c.locator("input");
-  await expect(input).toBeVisible({ timeout: 10_000 });
+  await expect(input).toBeVisible();
   await input.fill(value);
   await input.press("Enter");
   await expect(input).toHaveCount(0);
@@ -97,7 +97,7 @@ async function selectOp(page: Page, rowId: number, field: string, op: string) {
   const c = cell(page, rowId, field);
   await c.click();
   const select = c.locator("select");
-  await expect(select).toBeVisible({ timeout: 10_000 });
+  await expect(select).toBeVisible();
   await select.selectOption(op);
   await expect(select).toHaveCount(0);
 }
@@ -121,7 +121,7 @@ async function colEdit(page: Page, key: string, field: string, value: string) {
   const c = colCell(page, key, field);
   await c.click();
   const input = c.locator("input");
-  await expect(input).toBeVisible({ timeout: 10_000 });
+  await expect(input).toBeVisible();
   await input.fill(value);
   await input.press("Enter");
   await expect(input).toHaveCount(0);
@@ -132,7 +132,7 @@ async function colSelect(page: Page, key: string, field: string, value: string) 
   const c = colCell(page, key, field);
   await c.click();
   const select = c.locator("select");
-  await expect(select).toBeVisible({ timeout: 10_000 });
+  await expect(select).toBeVisible();
   await select.selectOption(value);
   await expect(select).toHaveCount(0);
 }
@@ -144,7 +144,7 @@ function checkRows(page: Page): Locator {
 /** 저장 거부 등 서버 오류 때 함께 뜨는 ErrorModal 을 닫는다(다음 조작을 가리지 않게). */
 async function closeErrorModal(page: Page) {
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible({ timeout: 20_000 });
+  await expect(dialog).toBeVisible({ timeout: T.UI });
   await dialog.getByRole("button").first().click();
   await expect(dialog).toHaveCount(0);
 }
@@ -221,7 +221,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await page.mouse.move(hb.x + hb.width / 2, hb.y - 10, { steps: 5 });
     await page.mouse.move(tb.x + 20, tb.y + 2, { steps: 15 });
     await page.mouse.up();
-    await expect(grid(page).locator('.ag-pinned-left-cols-container .ag-row[row-index="0"]')).toHaveAttribute("row-id", "-1", { timeout: 10_000 });
+    await expect(grid(page).locator('.ag-pinned-left-cols-container .ag-row[row-index="0"]')).toHaveAttribute("row-id", "-1");
     await expect(page.getByTestId("dt-row--1")).toContainText("1");
 
     await page.getByRole("button", { name: "되돌리기", exact: true }).click();
@@ -235,14 +235,14 @@ test.describe("mdm dme/ruleEdit", () => {
     await editText(page, -2, "c4_val", "D");
     // 결과 PRC_FCT 칸이 없으면 미완성으로 거부된다(I4).
     await page.getByRole("button", { name: "표 저장", exact: true }).click();
-    await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: 30_000 });
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: T.LONG });
     await expect(page.getByTestId("dt-save-rejected")).toContainText("INCOMPLETE_RESULT");
     await closeErrorModal(page);
     await expect(page.getByTestId("dt-row--2")).toBeVisible();
 
     await editText(page, -2, "c5_val", "0.80");
     await page.getByRole("button", { name: "표 저장", exact: true }).click();
-    await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: 30_000 });
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: T.LONG });
     await expect(page.getByTestId("dt-save-rejected")).toContainText("ALL_NA_ROW");
     await closeErrorModal(page);
     await expect(page.getByTestId("dt-row--2")).toBeVisible();
@@ -252,7 +252,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await selectOp(page, -2, "c3_op", "IN");
     await editText(page, -2, "c3_left", "D");
     await page.getByRole("button", { name: "표 저장", exact: true }).click();
-    await expect(page.getByTestId("dt-row-5")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("dt-row-5")).toBeVisible({ timeout: T.LONG });
     await expect(page.getByTestId("dt-dirty")).toHaveCount(0);
     await expect(page.getByTestId("dt-save-rejected")).toHaveCount(0);
     await expect(cell(page, 5, "c4_val")).toHaveText("D");
@@ -276,7 +276,7 @@ test.describe("mdm dme/ruleEdit", () => {
 
     // FIRST 겹침은 경고라 저장되고, 저장 응답의 서버 분석과 화면 분석이 같다.
     await page.getByRole("button", { name: "표 저장", exact: true }).click();
-    await expect(page.getByTestId("dt-check-same")).toHaveText("화면·서버 검사 일치", { timeout: 30_000 });
+    await expect(page.getByTestId("dt-check-same")).toHaveText("화면·서버 검사 일치", { timeout: T.LONG });
     await expect(page.getByTestId("dt-check")).toContainText("검사(서버)");
     await expect(checkRows(page)).toContainText("경고 [OVERLAP] 행 1, 2");
     await expect(page.getByTestId("dt-dirty")).toHaveCount(0);
@@ -288,7 +288,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("dt-dirty")).toBeVisible();
     await expect(checkRows(page)).toContainText("오류 [OVERLAP] 행 1, 2");
     await page.getByRole("button", { name: "표 저장", exact: true }).click();
-    await expect(page.getByTestId("dt-save-rejected")).toContainText("OVERLAP", { timeout: 30_000 });
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("OVERLAP", { timeout: T.LONG });
     await closeErrorModal(page);
     await page.getByRole("button", { name: "되돌리기", exact: true }).click();
     await expect(page.getByTestId("dt-hit-policy")).toHaveValue("FIRST");
@@ -311,7 +311,7 @@ test.describe("mdm dme/ruleEdit", () => {
 
   /** 열 설정 섹션을 펼친다 — 처음에는 접혀 있다(2026-10-01). 이미 펼쳐져 있으면(되살린 초안 등) 그대로 둔다. */
   async function openColumns(page: Page) {
-    await expect(page.getByTestId("rule-section-columns")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("rule-section-columns")).toBeVisible({ timeout: T.LONG });
     const toggle = page.getByTestId("rule-section-columns-toggle");
     if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
     await expect(page.getByTestId("rule-section-columns-body")).toBeVisible();
@@ -348,14 +348,14 @@ test.describe("mdm dme/ruleEdit", () => {
     await colEdit(page, "v4", "grpCond", 'TOP_RESIN_CD == "FL"');
     await expect(page.getByTestId("col-dirty")).toBeVisible();
     await showCol(page, "exprInfo");
-    await expect(page.getByTestId("col-grpcond-v4-status")).toContainText("TOP_RESIN_CD", { timeout: 20_000 }); // 서버 파싱 결과의 참조 변수
+    await expect(page.getByTestId("col-grpcond-v4-status")).toContainText("TOP_RESIN_CD", { timeout: T.UI }); // 서버 파싱 결과의 참조 변수
     await expect(page.getByTestId("col-reject-count")).toHaveText("거부 0건");
     // 초안이 있으면 표 저장은 막힌다(불변 13).
     await expect(page.getByTestId("dt-col-block")).toContainText("열 설정 초안이 있어 표를 저장할 수 없습니다");
     await expect(page.getByRole("button", { name: "표 저장", exact: true })).toBeDisabled();
 
     await page.getByTestId("col-apply").click();
-    await expect(page.getByTestId("col-dirty")).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByTestId("col-dirty")).toHaveCount(0, { timeout: T.LONG });
     await showCol(page, "grpCond");
     await expect(page.getByTestId("col-grpcond-v4")).toHaveText('TOP_RESIN_CD == "FL"');
 
@@ -372,7 +372,7 @@ test.describe("mdm dme/ruleEdit", () => {
   test("C3 산출 룰: COIL_WGT_CALC 새 버전에서 앞 결과를 읽는 열은 되고 자기 참조는 거부되어 아무 것도 반영되지 않으며 식 미리보기가 25434.0 이다", async ({ page }) => {
     await login(page, STEWARD, LOGIN_OPTS);
     await newMajorVersionAndEdit(page, "COIL_WGT_CALC", "2.000");
-    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2.000", { timeout: 20_000 });
+    await expect(page.getByTestId("rule-ver-select")).toHaveValue("2.000", { timeout: T.UI });
     await openColumns(page);
     await expect(page.getByTestId("dt-derive-notice")).toBeVisible();
     await showCol(page, "expr");
@@ -381,7 +381,7 @@ test.describe("mdm dme/ruleEdit", () => {
     // 식 미리보기 — 서버 AST 를 화면 evalex 로 평가한다(케이스 1.8 × 1200 × 1500, 비중 7.85).
     await page.getByTestId("col-preview-input").fill("COIL_THK=1.8, COIL_WID=1200, COIL_LEN=1500, SPEC_GRAV=7.85");
     await showCol(page, "exprInfo");
-    await expect(page.getByTestId("col-expr-v1-preview")).toContainText("25434", { timeout: 20_000 });
+    await expect(page.getByTestId("col-expr-v1-preview")).toContainText("25434", { timeout: T.UI });
     await showCol(page, "exprInfo");
     await expect(page.getByTestId("col-expr-v1-preview")).toHaveText("= 25434.0");
 
@@ -393,7 +393,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await colSelect(page, "n1", "dataType", "NUMBER");
     await colEdit(page, "n1", "expr", "COIL_WGT * 2");
     await showCol(page, "exprInfo");
-    await expect(page.getByTestId("col-expr-n1-status")).toContainText("COIL_WGT", { timeout: 20_000 });
+    await expect(page.getByTestId("col-expr-n1-status")).toContainText("COIL_WGT", { timeout: T.UI });
     await expect(page.getByTestId("col-reject-count")).toHaveText("거부 0건");
 
     // 순서를 바꾸면 뒤 순서 결과를 읽게 되어 거부된다.
@@ -416,7 +416,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await colEdit(page, "n1", "expr", "COIL_WGT * 2");
     await expect(page.getByTestId("col-reject-count")).toHaveText("거부 0건");
     await page.getByTestId("col-apply").click();
-    await expect(page.getByTestId("col-dirty")).toHaveCount(0, { timeout: 30_000 });
+    await expect(page.getByTestId("col-dirty")).toHaveCount(0, { timeout: T.LONG });
 
     await reopen(page, "COIL_WGT_CALC");
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("2.000");
@@ -428,7 +428,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("col-name-v2")).toHaveText("COIL_WGT_X2");
     await page.getByTestId("col-preview-input").fill("COIL_THK=1.8, COIL_WID=1200, COIL_LEN=1500, SPEC_GRAV=7.85");
     await showCol(page, "exprInfo");
-    await expect(page.getByTestId("col-expr-v1-preview")).toHaveText("= 25434.0", { timeout: 20_000 });
+    await expect(page.getByTestId("col-expr-v1-preview")).toHaveText("= 25434.0", { timeout: T.UI });
     await page.getByTestId("col-table").scrollIntoViewIfNeeded(); // 포털은 안쪽 영역이 스크롤되므로 이 섹션이 보이게 한 뒤 남긴다
     await page.screenshot({ path: screenshot03("dme-ruleEdit-derive.png"), fullPage: true });
   });
@@ -449,7 +449,7 @@ test.describe("mdm dme/ruleEdit", () => {
 
   test("C5 입력 계약 변경 알림: PROD_WGT_CALC v2 는 SPEC_GRAV 가 필수에서 선택이 된 것을 RELEASED 대비 알림 한 줄로 보이고 경고는 없다", async ({ page }) => {
     await openRuleVer(page, "PROD_WGT_CALC", "2.000");
-    await expect(page.getByTestId("contract-diff-info")).toContainText("필수 입력이 선택이 되었습니다: SPEC_GRAV", { timeout: 30_000 });
+    await expect(page.getByTestId("contract-diff-info")).toContainText("필수 입력이 선택이 되었습니다: SPEC_GRAV", { timeout: T.LONG });
     await expect(page.getByTestId("contract-diff-warning")).toHaveCount(0);
     await page.getByTestId("contract-notice").scrollIntoViewIfNeeded();
     await page.screenshot({ path: screenshot03("dme-ruleEdit-contract.png"), fullPage: true });
@@ -462,7 +462,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await page.getByTestId("col-domain-v2-keyword").fill("SPEED");
     await page.getByTestId("col-domain-v2-search").click();
     const items = page.getByTestId("col-domain-v2-rows").locator("li");
-    await expect(items.first()).toBeVisible({ timeout: 20_000 });
+    await expect(items.first()).toBeVisible({ timeout: T.UI });
     expect(await items.count()).toBeLessThanOrEqual(8);
     await expect(page.getByTestId("col-domain-v2-pick-SPEED_MPM")).toBeVisible();
     await expect(items.first()).toContainText("SPEED_MPM"); // ID 앞부분 일치 우선
@@ -474,7 +474,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await colEdit(page, "v2", "resGrp", "PROD_WGT");
     await colEdit(page, "v2", "grpCond", 'MASTER("PORT", "ALL", SURF_GRD) == "A"');
     await showCol(page, "exprInfo");
-    await expect(page.getByTestId("col-grpcond-v2-status")).toContainText("서버 평가로 넘긴다", { timeout: 20_000 });
+    await expect(page.getByTestId("col-grpcond-v2-status")).toContainText("서버 평가로 넘긴다", { timeout: T.UI });
     await page.getByTestId("col-discard").click();
     await expect(page.getByTestId("col-dirty")).toHaveCount(0);
   });
@@ -510,10 +510,10 @@ test.describe("mdm dme/ruleEdit", () => {
   /** ④ 입력 표가 그려진 뒤(다른 버전 정의는 비동기로 받는다) 값 칸을 눌러 편집하고 Enter 로 확정한다. */
   async function fillInput(page: Page, name: string, value: string) {
     const c = vtValueCell(page, name);
-    await expect(c).toBeVisible({ timeout: 30_000 });
+    await expect(c).toBeVisible({ timeout: T.LONG });
     await c.click();
     const input = c.locator("input");
-    await expect(input).toBeVisible({ timeout: 10_000 });
+    await expect(input).toBeVisible();
     await input.fill(value);
     await input.press("Enter");
     await expect(input).toHaveCount(0);
@@ -521,7 +521,7 @@ test.describe("mdm dme/ruleEdit", () => {
 
   async function runValueTest(page: Page) {
     await valueTestCard(page).getByRole("button", { name: "실행", exact: true }).click();
-    await expect(page.getByTestId("vt-result-target")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("vt-result-target")).toBeVisible({ timeout: T.LONG });
   }
 
   function resultValue(page: Page, name: string): Locator {
@@ -541,7 +541,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("vt-target")).toHaveValue("BODY");
 
     await pickRule(page, "QLTY_GRD_JDG");
-    await expect(page.getByTestId("tc-empty")).toHaveText("테스트 케이스가 없습니다", { timeout: 20_000 });
+    await expect(page.getByTestId("tc-empty")).toHaveText("테스트 케이스가 없습니다", { timeout: T.UI });
   });
 
   test("V2 저장된 버전: 버전 1 을 돌리면 결과 값·적중 행이 보이고, 보이는 표(v2)와 달라 결과 카드에 v1 표를 따로 칠한다", async ({ page }) => {
@@ -621,12 +621,12 @@ test.describe("mdm dme/ruleEdit", () => {
     await page.getByTestId("vt-case-name").fill("E2E 중간 두께 B");
     await valueTestCard(page).getByRole("button", { name: "케이스로 저장", exact: true }).click();
     const added = caseRowWith(page, "E2E 중간 두께 B");
-    await expect(added).toBeVisible({ timeout: 30_000 });
+    await expect(added).toBeVisible({ timeout: T.LONG });
     await expect(added).toContainText('"QLTY_GRD"');
     await expect(page.getByTestId("vt-case-name")).toHaveValue("");
 
     await caseCard(page).getByRole("button", { name: "모두 실행", exact: true }).click();
-    await expect(page.getByTestId("tc-badge-1")).toHaveText(/통과/, { timeout: 30_000 });
+    await expect(page.getByTestId("tc-badge-1")).toHaveText(/통과/, { timeout: T.LONG });
     await expect(page.getByTestId("tc-badge-2")).toHaveText(/실패/);
     await expect(caseRow(page, 2)).toContainText("QLTY_GRD");
     await expect(added.locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/);
@@ -640,7 +640,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await page.getByTestId("tc-delete").click();
     await expect(page.getByText("선택한 케이스 1건을 삭제하시겠습니까?")).toBeVisible();
     await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).last().click();
-    await expect(caseRowWith(page, "E2E 중간 두께 B")).toHaveCount(0, { timeout: 30_000 });
+    await expect(caseRowWith(page, "E2E 중간 두께 B")).toHaveCount(0, { timeout: T.LONG });
     await expect(caseRow(page, 1)).toBeVisible();
     await expect(caseRow(page, 2)).toBeVisible();
   });
@@ -651,7 +651,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await fillInput(page, "COIL_THK", "2.0");
     await fillInput(page, "SURF_GRD", "A".repeat(17_000));
     await valueTestCard(page).getByRole("button", { name: "실행", exact: true }).click();
-    await expect(page.getByTestId("vt-error")).toContainText("값 테스트 요청 상한", { timeout: 30_000 });
+    await expect(page.getByTestId("vt-error")).toContainText("값 테스트 요청 상한", { timeout: T.LONG });
     await expect(page.getByTestId("vt-result-target")).toHaveCount(0);
   });
 
@@ -663,7 +663,7 @@ test.describe("mdm dme/ruleEdit", () => {
     await editText(page, 2, "c2_left", "A");
     await expect(checkRows(page)).toContainText("오류 [OVERLAP] 행 1, 2");
     await page.getByRole("button", { name: "표 저장", exact: true }).click();
-    await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: 30_000 });
+    await expect(page.getByTestId("dt-save-rejected")).toContainText("룰 저장 거부", { timeout: T.LONG });
     await expect(page.getByTestId("dt-save-rejected")).toContainText("OVERLAP");
     await closeErrorModal(page);
     await expect(page.getByTestId("dt-dirty")).toBeVisible();

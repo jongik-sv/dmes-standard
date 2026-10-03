@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { login } from "./support/common";
+import { T, login } from "./support/common";
 
 /**
  * mpp jigMoldMaster (지그금형 Master관리) full-chain smoke.
@@ -36,7 +36,7 @@ test.describe("mpp jigMoldMaster full-chain smoke", () => {
 
     // ── 2) Expand module folder 생산관리 ──
     const moduleFolder = treeName("생산관리").first();
-    await expect(moduleFolder).toBeVisible({ timeout: 20_000 });
+    await expect(moduleFolder).toBeVisible({ timeout: T.UI });
     await moduleFolder.click();
 
     // ── 3) Expand group folder 지그금형관리 ──
@@ -44,7 +44,7 @@ test.describe("mpp jigMoldMaster full-chain smoke", () => {
       .locator(".tree-item .item-name")
       .filter({ hasText: /^지그금형관리$/ })
       .first();
-    await expect(groupFolder).toBeVisible({ timeout: 20_000 });
+    await expect(groupFolder).toBeVisible({ timeout: T.UI });
     await groupFolder.click();
 
     // ── 4) Click leaf 지그금형 Master관리 → opens tab ──
@@ -52,12 +52,12 @@ test.describe("mpp jigMoldMaster full-chain smoke", () => {
       .locator(".tree-item .item-name")
       .filter({ hasText: /^지그금형 Master관리$/ })
       .first();
-    await expect(leaf).toBeVisible({ timeout: 20_000 });
+    await expect(leaf).toBeVisible({ timeout: T.UI });
     await leaf.click();
 
     // ── 5) Page must resolve (registry/import) — 조회 button is part of the page body (2026-07-03 검색→조회) ──
     const searchBtn = page.getByRole("button", { name: "조회" }).first();
-    await expect(searchBtn).toBeVisible({ timeout: 60_000 });
+    await expect(searchBtn).toBeVisible({ timeout: T.SLOW });
 
     const bodyText = (await page.textContent("body")) ?? "";
     for (const marker of NOT_FOUND_MARKERS) {
@@ -69,10 +69,10 @@ test.describe("mpp jigMoldMaster full-chain smoke", () => {
 
     // ── 7) Assert the master grid renders ≥1 seeded row ──
     const grid = page.locator(".cm-data-grid").first();
-    await expect(grid).toBeVisible({ timeout: 20_000 });
+    await expect(grid).toBeVisible({ timeout: T.UI });
     // seeded ids JM-2026-0001..0005 — assert at least the first is visible
     await expect(grid.getByText("JM-2026-0001", { exact: false })).toBeVisible({
-      timeout: 30_000,
+      timeout: T.LONG,
     });
     const rowCount = await grid.locator(".ag-row").count();
     expect(rowCount, "master grid should have >=1 row after search").toBeGreaterThan(0);

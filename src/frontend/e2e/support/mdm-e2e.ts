@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, type Locator, type Page } from "@playwright/test";
 
+import { T } from "./common";
 import { gridRowById } from "./grid";
 
 /**
@@ -66,7 +67,7 @@ export function loadMdmFixture(...files: string[]) {
  */
 export async function clickSearch(scope: Page | Locator) {
   const button = scope.getByRole("button", { name: "조회", exact: true });
-  await expect(button).toBeEnabled({ timeout: 20_000 });
+  await expect(button).toBeEnabled({ timeout: T.UI });
   await button.click();
 }
 

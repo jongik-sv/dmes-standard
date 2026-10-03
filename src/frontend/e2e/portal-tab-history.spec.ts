@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { T } from "./support/common";
 
 /**
  * 포털 브라우저 뒤로/앞으로가기 ↔ 탭 전환 검증.
@@ -52,7 +53,7 @@ test("portal back/forward navigates tabs (MRU) and stays on /portal", async ({ p
   await page.locator("#login-user-id").fill("admin");
   await page.locator("#login-password").fill("admin123");
   await page.locator("button.login-button").click();
-  await page.waitForURL(/\/portal/, { timeout: 30_000 });
+  await page.waitForURL(/\/portal/, { timeout: T.LONG });
   await page.waitForTimeout(2_500);
   await dismissModal(page);
 

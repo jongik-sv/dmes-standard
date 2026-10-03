@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { BASE_URL, login, menuItem, walkMenuPath } from "./support/common";
+import { BASE_URL, T, login, menuItem, walkMenuPath } from "./support/common";
 import { clickSearch, loadMdmFixture } from "./support/mdm-e2e";
 import { gridRows } from "./support/grid";
 
@@ -34,7 +34,7 @@ async function openHeaderScreen(page: Page): Promise<Locator> {
     has: page.locator(".page-layout__footer-screen-id", { hasText: "headerMng" }),
   });
   // 화면은 목록을 자동 조회하지 않고 열린다(cf4fbb05) — 목록이 아니라 검색 칸이 보이면 열린 것이다.
-  await expect(layout.getByTestId("header-search-keyword")).toBeVisible({ timeout: 60_000 });
+  await expect(layout.getByTestId("header-search-keyword")).toBeVisible({ timeout: T.SLOW });
   return layout;
 }
 
@@ -42,7 +42,7 @@ async function selectHeader(layout: Locator, name: string) {
   await layout.getByTestId("header-search-keyword").fill("(E2E)");
   await clickSearch(layout);
   await layout.getByTestId("header-list").locator(".ag-row").filter({ hasText: name }).first().click();
-  await expect(layout.getByTestId("header-form-name")).toHaveValue(name, { timeout: 30_000 });
+  await expect(layout.getByTestId("header-form-name")).toHaveValue(name, { timeout: T.LONG });
 }
 
 /** 지금부터 ms 뒤를 KST 벽시계 `yyyy-MM-dd HH:mm:ss` 로 — 확정 화면·서버가 쓰는 형식이다. */
@@ -65,19 +65,19 @@ test.describe("mdm 레이아웃 확정", () => {
 
     // ── C1 새 버전(minor) 1.001 DRAFT — 여분 5 를 8 로 늘리면 헤더 30 → 33 ──
     await selectHeader(layout, HEADER_NAME);
-    await expect(layout.getByTestId("header-ver-select")).toHaveValue("1.000", { timeout: 30_000 });
+    await expect(layout.getByTestId("header-ver-select")).toHaveValue("1.000", { timeout: T.LONG });
     await expect(layout.getByTestId("header-form-name")).toBeDisabled();
     await layout.getByTestId("header-ver-new-minor").click();
-    await expect(layout.getByTestId("header-ver-select")).toHaveValue("1.001", { timeout: 30_000 });
+    await expect(layout.getByTestId("header-ver-select")).toHaveValue("1.001", { timeout: T.LONG });
     await expect(layout.getByTestId("header-ver-select").locator('option[value="1.001"]')).toHaveText("v1.001 작성 중");
     await expect(layout.getByTestId("header-form-name")).toBeEnabled();
     await gridRows(layout.getByTestId("header-items")).filter({ hasText: "FILLER" }).first().click();
     await layout.getByTestId("item-detail-filler-length").fill("8");
     await expect(layout.getByTestId("header-length")).toHaveText("33 바이트 (6항목)");
     await layout.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.getByText("저장했습니다.").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("저장했습니다.").first()).toBeVisible({ timeout: T.LONG });
     // 저장은 버전을 만들지 않는다 — 버전은 1.000(현재)·1.001(작성 중) 둘뿐이고, DRAFT 저장은 사용 전문을 바꾸지 않는다
-    await expect(layout.getByTestId("header-ver-select")).toHaveValue("1.001", { timeout: 30_000 });
+    await expect(layout.getByTestId("header-ver-select")).toHaveValue("1.001", { timeout: T.LONG });
     await expect(layout.getByTestId("header-ver-select").locator("option")).toHaveCount(2);
     await expect(layout.getByTestId("header-length")).toHaveText("33 바이트 (6항목)");
     await page.screenshot({ path: screenshot("dmb-layoutConfirm-header-draft.png"), fullPage: true });
@@ -86,7 +86,7 @@ test.describe("mdm 레이아웃 확정", () => {
     await expect(layout.getByTestId("header-ver-confirm")).toBeEnabled();
     await layout.getByTestId("header-ver-confirm").click();
     const target = page.getByTestId("lc-target");
-    await expect(target).toContainText(HEADER_NAME, { timeout: 60_000 });
+    await expect(target).toContainText(HEADER_NAME, { timeout: T.SLOW });
     await expect(target).toContainText("헤더");
     await expect(target).toContainText("v1.001");
     await expect(page.getByTestId("lc-previous")).toContainText("직전 RELEASED 버전 v1.000");
@@ -96,7 +96,7 @@ test.describe("mdm 레이아웃 확정", () => {
     await page.getByTestId("lc-apply-from").fill(applyFrom);
     await page.getByTestId("lc-apply-from").press("Enter");
     await page.getByTestId("lc-validate").click();
-    await expect(page.getByTestId("lc-checks")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("lc-checks")).toBeVisible({ timeout: T.LONG });
     // 항목 길이가 바뀌어 동시 전환 — 송신·수신 양쪽이 함께 전환해야 한다는 강조 띠
     await expect(page.getByTestId("lc-simultaneous")).toBeVisible();
     await expect(page.getByTestId("lc-simultaneous")).toContainText("동시 전환");
@@ -127,9 +127,9 @@ test.describe("mdm 레이아웃 확정", () => {
 
     // 확정 — 직전 1.000 의 적용이 apply_from 에 닫힌다
     await page.getByTestId("lc-confirm").click();
-    await expect(page.getByTestId("lc-done")).toContainText("확정했습니다", { timeout: 30_000 });
+    await expect(page.getByTestId("lc-done")).toContainText("확정했습니다", { timeout: T.LONG });
     await expect(page.getByTestId("lc-done")).toContainText("직전 v1.000");
-    await expect(page.getByTestId("lc-released")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("lc-released")).toBeVisible({ timeout: T.LONG });
     await expect(page.getByTestId("lc-confirm")).toBeDisabled();
     await page.screenshot({ path: screenshot("dmb-layoutConfirm-done.png"), fullPage: true });
 
@@ -137,7 +137,7 @@ test.describe("mdm 레이아웃 확정", () => {
     await menuItem(page, /^전문 헤더 정의$/).click();
     await selectHeader(layout, HEADER_NAME);
     const select = layout.getByTestId("header-ver-select");
-    await expect(select.locator('option[value="1.000"]')).toHaveText("v1.000 현재", { timeout: 30_000 });
+    await expect(select.locator('option[value="1.000"]')).toHaveText("v1.000 현재", { timeout: T.LONG });
     await expect(select.locator('option[value="1.001"]')).toHaveText("v1.001 적용 대기");
     // 적용 시작 전이라 지금 시각의 헤더 길이·사용 전문 총 길이는 그대로(30·187)다
     await select.selectOption("1.000");

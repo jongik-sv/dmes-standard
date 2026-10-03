@@ -34,7 +34,7 @@ const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 async function openUnitMng(page: Page) {
   await walkMenuPath(page, [/^마루 MDM$/, /^용어·도메인$/, /^단위 마스터$/]);
 
-  await expect(page.getByRole("button", { name: "단위 등록" })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("button", { name: "단위 등록" })).toBeVisible({ timeout: T.SLOW });
 }
 
 function searchField(page: Page, label: string) {
@@ -64,7 +64,7 @@ async function clickSearchAndWait(page: Page) {
       r.request().method() === "POST" &&
       !(r.request().postData() ?? "").includes("optionsOnly") &&
       r.status() === 200,
-    { timeout: 20_000 },
+    { timeout: T.UI },
   );
   await page.getByRole("button", { name: "조회" }).click();
   await response;
@@ -87,7 +87,7 @@ test.describe("mdm dma/unitMng smoke", () => {
 
     await searchField(page, "검색어").locator("input").fill(NOMATCH_KEYWORD);
     await clickSearchAndWait(page);
-    await expect(unitListCount(page)).toHaveText("0건", { timeout: 20_000 });
+    await expect(unitListCount(page)).toHaveText("0건", { timeout: T.UI });
 
     await page.screenshot({ path: screenshot("dma-unitMng-empty.png"), fullPage: true });
   });
@@ -99,7 +99,7 @@ test.describe("mdm dma/unitMng smoke", () => {
     // 필터를 지우고 전체 조회.
     await searchField(page, "검색어").locator("input").fill("");
     await clickSearchAndWait(page);
-    await expect(unitListCount(page)).toHaveText(/^\d+건$/, { timeout: 20_000 });
+    await expect(unitListCount(page)).toHaveText(/^\d+건$/, { timeout: T.UI });
 
     // 새 차원의 첫 단위 — 자기 자신이 기준 단위(I3).
     await page.getByRole("button", { name: "단위 등록" }).click();
@@ -111,7 +111,7 @@ test.describe("mdm dma/unitMng smoke", () => {
     // 새 차원 첫 등록은 화면이 계수를 1로 자동 고정하고 잠근다(I3) — 다시 채우지 않는다.
     await expect(detailRow(page, "환산 계수").locator("input")).toHaveValue("1");
     await page.getByRole("button", { name: "저장" }).click();
-    await expect(page.getByText(UNIT_BASE).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(UNIT_BASE).first()).toBeVisible({ timeout: T.UI });
 
     // 같은 차원의 파생 단위 — 화면이 기준 단위를 UNIT_BASE 로 자동 고정해 보여준다(D2).
     await page.getByRole("button", { name: "단위 등록" }).click();
@@ -128,8 +128,8 @@ test.describe("mdm dma/unitMng smoke", () => {
     await detailRow(page, "환산 계수").locator("input").fill("500");
     await page.getByRole("button", { name: "저장" }).click();
 
-    await expect(page.getByText(UNIT_BASE).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(UNIT_DERIVED).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(UNIT_BASE).first()).toBeVisible({ timeout: T.UI });
+    await expect(page.getByText(UNIT_DERIVED).first()).toBeVisible({ timeout: T.UI });
 
     await page.screenshot({ path: screenshot("dma-unitMng-registered.png"), fullPage: true });
   });
@@ -147,7 +147,7 @@ test.describe("mdm dma/unitMng smoke", () => {
     await page.getByRole("button", { name: "저장" }).click();
 
     await expect(page.getByText("월·년·영업일·근무시간처럼 고정 계수가 없는 단위는 등록할 수 없습니다.")).toBeVisible({
-      timeout: 20_000,
+      timeout: T.UI,
     });
 
     await page.screenshot({ path: screenshot("dma-unitMng-error.png"), fullPage: true });

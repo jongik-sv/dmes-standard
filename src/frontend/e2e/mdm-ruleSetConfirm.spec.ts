@@ -30,7 +30,7 @@ const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW, exactButton: true };
 /** 메뉴는 보이는 항목만 잡는다(visibleOnly). */
 async function openRuleSetConfirm(page: Page) {
   await openRuleMenu(page, /^룰 세트 확정$/, { visibleOnly: true });
-  await expect(tid(page, "rsc-list")).toBeVisible({ timeout: 60_000 });
+  await expect(tid(page, "rsc-list")).toBeVisible({ timeout: T.SLOW });
 }
 
 /** `yyyy-MM-dd HH:mm:ss` — 적용 시작 칸(shared DateTimePicker)의 값 형식. 지금부터 1분 뒤를 KST 벽시계로 만든다. */
@@ -51,11 +51,11 @@ test.describe("mdm ruleSetConfirm — 룰 세트 확정", () => {
     await openRuleSetConfirm(page);
 
     await expect(page.locator(".page-layout__footer-breadcrumb").filter({ hasText: BREADCRUMB })).toBeVisible();
-    await expect(tid(page, "rsc-row-E2S_CONFIRM-2.000")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "rsc-row-E2S_CONFIRM-2.000")).toBeVisible({ timeout: T.UI });
 
     await tid(page, "rsc-keyword").fill("NO_SUCH");
     await tid(page, "rsc-search").click();
-    await expect(tid(page, "rsc-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: 20_000 });
+    await expect(tid(page, "rsc-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: T.UI });
   });
 
   test("S2 담당자: 검사가 통과하면 확정되고 직전 버전의 적용이 닫힌다", async ({ page }) => {
@@ -63,24 +63,24 @@ test.describe("mdm ruleSetConfirm — 룰 세트 확정", () => {
     await openRuleSetConfirm(page);
 
     const row = tid(page, "rsc-row-E2S_CONFIRM-2.000");
-    await expect(row).toBeVisible({ timeout: 20_000 });
+    await expect(row).toBeVisible({ timeout: T.UI });
     await row.click();
-    await expect(tid(page, "rsc-target")).toContainText("E2S_CONFIRM 버전 v2.000", { timeout: 20_000 });
+    await expect(tid(page, "rsc-target")).toContainText("E2S_CONFIRM 버전 v2.000", { timeout: T.UI });
     await expect(tid(page, "rsc-previous")).toContainText("직전 RELEASED 버전 v1.000");
 
     await fillDateTime(tid(page, "rsc-apply-from"), oneMinuteLaterKst());
     await tid(page, "rsc-validate").click();
-    await expect(tid(page, "rsc-checks")).toBeVisible({ timeout: 30_000 });
+    await expect(tid(page, "rsc-checks")).toBeVisible({ timeout: T.LONG });
     for (const item of CHECK_ITEMS) {
       await expect(tid(page, `rsc-check-status-${item}`)).toHaveText("통과");
     }
 
-    await expect(tid(page, "rsc-confirm")).toBeEnabled({ timeout: 20_000 });
+    await expect(tid(page, "rsc-confirm")).toBeEnabled({ timeout: T.UI });
     await tid(page, "rsc-confirm").click();
     await tid(page, "rc-modal-ok").click();
 
-    await expect(tid(page, "rsc-released")).toBeVisible({ timeout: 30_000 });
+    await expect(tid(page, "rsc-released")).toBeVisible({ timeout: T.LONG });
     await expect(tid(page, "rsc-closed-previous")).toHaveText("직전 버전 v1.000 의 적용을 닫았습니다");
-    await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
+    await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 });

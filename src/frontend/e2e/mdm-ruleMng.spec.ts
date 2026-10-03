@@ -33,13 +33,13 @@ const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openRuleMng(page: Page) {
   await openRuleMenu(page, /^룰$/);
-  await expect(page.locator("#btn_rule_reg")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator("#btn_rule_reg")).toBeVisible({ timeout: T.SLOW });
 }
 
 /** 목록 헤더 [룰 등록] 으로 등록 팝업을 연다. 팝업은 열 때만 마운트되고 칸은 빈 채로 시작한다. */
 async function openRuleRegister(page: Page) {
   await page.locator("#btn_rule_reg").click();
-  await expect(page.getByTestId("rule-register-form")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("rule-register-form")).toBeVisible({ timeout: T.UI });
 }
 
 async function search(page: Page, keyword: string) {
@@ -53,7 +53,7 @@ async function openDetail(page: Page, ruleId: string) {
   await search(page, ruleId);
   // 룰 ID 링크는 룰 화면 탭을 연다(기능설계서 G-001) — 상세는 행의 다른 칸(룰명)을 눌러 연다(행 클릭).
   await page.locator(".ag-row", { has: page.getByTestId(`rule-link-${ruleId}`) }).locator('.ag-cell[col-id="maruRuleName"]').click();
-  await expect(page.getByTestId("rule-header-id")).toHaveText(ruleId, { timeout: 30_000 });
+  await expect(page.getByTestId("rule-header-id")).toHaveText(ruleId, { timeout: T.LONG });
 }
 
 /**
@@ -84,14 +84,14 @@ test.describe("mdm dme/ruleMng", () => {
     // 화면을 열어도 목록은 자동 조회되지 않는다 — [조회] 를 눌러야 픽스처 룰이 보인다.
     await page.getByRole("button", { name: "조회", exact: true }).click();
     const qlty = page.locator(".ag-row", { has: page.getByTestId("rule-link-QLTY_GRD_JDG") });
-    await expect(qlty).toBeVisible({ timeout: 30_000 });
+    await expect(qlty).toBeVisible({ timeout: T.LONG });
     await expect(qlty.locator('[col-id="releasedVer"]')).toHaveText("v1.000");
     await expect(qlty.locator('[col-id="hitPolicy"]')).toHaveText("FIRST");
     await expect(page.getByTestId("rule-link-E2E_LOCK_JDG")).toBeVisible();
     await page.screenshot({ path: screenshot("dme-ruleMng-list.png"), fullPage: true });
 
     await search(page, "NO_SUCH_RULE");
-    await expect(page.getByTestId("rule-list-empty")).toHaveText("조회된 룰이 없습니다.", { timeout: 20_000 });
+    await expect(page.getByTestId("rule-list-empty")).toHaveText("조회된 룰이 없습니다.", { timeout: T.UI });
     await expect(page.locator(".grid-panel-count")).toHaveText("0건");
   });
 
@@ -104,16 +104,16 @@ test.describe("mdm dme/ruleMng", () => {
     await page.getByTestId("rule-reg-kind").selectOption("DECISION");
     await page.screenshot({ path: screenshot("dme-ruleMng-register.png"), fullPage: true });
     await page.getByTestId("rule-reg-submit").click();
-    await expect(page.getByTestId("rule-register-form")).toHaveCount(0, { timeout: 20_000 });
+    await expect(page.getByTestId("rule-register-form")).toHaveCount(0, { timeout: T.UI });
 
     // 등록하면 룰 화면(ruleEdit) 탭이 새 룰의 버전 1 DRAFT 로 열린다(ruleMng 기능설계서 B-003). 룰 탭으로 돌아와 목록을 본다.
-    await expect(page.getByTestId("rule-edit-current")).toHaveText("E2E_NEW_JDG", { timeout: 60_000 });
+    await expect(page.getByTestId("rule-edit-current")).toHaveText("E2E_NEW_JDG", { timeout: T.SLOW });
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("1.000");
     await page.locator(".tab-item .tab-title", { hasText: /^룰$/ }).click();
-    await expect(page.getByTestId("rule-search-keyword")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("rule-search-keyword")).toBeVisible({ timeout: T.UI });
 
     await search(page, "E2E_NEW");
-    await expect(page.getByTestId("rule-link-E2E_NEW_JDG")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("rule-link-E2E_NEW_JDG")).toBeVisible({ timeout: T.UI });
 
     // D-105 — 고르면 같은 화면의 상세(① 헤더·② 버전)가 열린다(자동 선점된 버전 1 DRAFT).
     await openDetail(page, "E2E_NEW_JDG");
@@ -129,7 +129,7 @@ test.describe("mdm dme/ruleMng", () => {
     await page.getByTestId("rule-reg-id").fill("QLTY_GRD_JDG");
     await page.getByTestId("rule-reg-name").fill("중복 등록");
     await page.getByTestId("rule-reg-submit").click();
-    await expect(page.getByRole("dialog").filter({ hasText: /같은 룰 ID 가 이미 있습니다/ }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("dialog").filter({ hasText: /같은 룰 ID 가 이미 있습니다/ }).first()).toBeVisible({ timeout: T.UI });
   });
 
   test("T5 수용 1: 물리명 규칙 위반은 즉시 안내하고 막으며, 가로채 보내도 서버가 거부한다", async ({ page }) => {
@@ -150,7 +150,7 @@ test.describe("mdm dme/ruleMng", () => {
     });
     await page.getByTestId("rule-reg-submit").click();
     // 서버 오류 ErrorModal — 등록 팝업(rule-register-form 을 품은 dialog)이 아닌 dialog 로 좁힌다.
-    await expect(page.getByRole("dialog").filter({ hasNot: page.getByTestId("rule-register-form") }).getByText(/컬럼 물리명 규칙/)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("dialog").filter({ hasNot: page.getByTestId("rule-register-form") }).getByText(/컬럼 물리명 규칙/)).toBeVisible({ timeout: T.UI });
     await page.unroute("**/api/mdm/oasis/ruleMng/reg");
   });
 
@@ -168,7 +168,7 @@ test.describe("mdm dme/ruleMng", () => {
     await login(page, STDADMIN, LOGIN_OPTS);
     await openRuleMng(page);
     await page.getByRole("button", { name: "조회", exact: true }).click();
-    await expect(page.getByTestId("rule-link-QLTY_GRD_JDG")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("rule-link-QLTY_GRD_JDG")).toBeVisible({ timeout: T.LONG });
     await expect(page.locator("#btn_rule_reg")).toBeDisabled();
   });
   // ── D-105 — ① 헤더·② 버전 상세 (옮겨 온 시험) ──
@@ -181,7 +181,7 @@ test.describe("mdm dme/ruleMng", () => {
     await openDetail(page, VER_RULE);
     await page.getByTestId("rule-header-name").fill(`${VER_RULE_NAME} 수정`);
     await page.getByRole("button", { name: "헤더 저장", exact: true }).click();
-    await expect(page.getByTestId("rule-header-name")).toHaveValue(`${VER_RULE_NAME} 수정`, { timeout: 20_000 });
+    await expect(page.getByTestId("rule-header-name")).toHaveValue(`${VER_RULE_NAME} 수정`, { timeout: T.UI });
     await page.reload();
     await openRuleMng(page);
     await openDetail(page, VER_RULE);
@@ -193,7 +193,7 @@ test.describe("mdm dme/ruleMng", () => {
     await openRuleMng(page);
     await openDetail(page, VER_RULE);
     await page.getByRole("button", { name: "새 버전(major)", exact: true }).click();
-    await expect(versionRow(page, "2.000").locator('[data-status="DRAFT"]')).toBeVisible({ timeout: 20_000 });
+    await expect(versionRow(page, "2.000").locator('[data-status="DRAFT"]')).toBeVisible({ timeout: T.UI });
     await expect(versionRow(page, "2.000").locator('.ag-cell[col-id="baseVer"]')).toHaveText("v1.000");
     // 잠금 배지는 고른 버전 하나만 보인다(버튼 줄 끝) — 새 버전을 만들어도 고른 행은 그대로라 2.000 을 골라 확인한다.
     await versionRow(page, "2.000").locator('.ag-cell[col-id="ver"]').click();
@@ -230,7 +230,7 @@ test.describe("mdm dme/ruleMng", () => {
     await openDetail(owner, "E2E_LOCK_JDG");
     await expect(owner.getByTestId("rule-card-versions").getByText("편집 중(나)")).toBeVisible();
     await owner.getByRole("button", { name: "해제", exact: true }).click();
-    await expect(owner.getByTestId("rule-card-versions").getByText("선점 가능")).toBeVisible({ timeout: 20_000 });
+    await expect(owner.getByTestId("rule-card-versions").getByText("선점 가능")).toBeVisible({ timeout: T.UI });
     await owner.close();
 
     const other = await browser.newPage();
@@ -238,7 +238,7 @@ test.describe("mdm dme/ruleMng", () => {
     await openRuleMng(other);
     await openDetail(other, "E2E_LOCK_JDG");
     await other.getByRole("button", { name: "선점", exact: true }).click();
-    await expect(other.getByTestId("rule-card-versions").getByText("편집 중(나)")).toBeVisible({ timeout: 20_000 });
+    await expect(other.getByTestId("rule-card-versions").getByText("편집 중(나)")).toBeVisible({ timeout: T.UI });
     await other.close();
   });
 
@@ -248,7 +248,7 @@ test.describe("mdm dme/ruleMng", () => {
     await openDetail(page, VER_RULE);
     await page.getByRole("button", { name: "삭제", exact: true }).click();
     await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).last().click();
-    await expect(versionRow(page, "2.000")).toHaveCount(0, { timeout: 20_000 });
+    await expect(versionRow(page, "2.000")).toHaveCount(0, { timeout: T.UI });
     await expect(page.getByRole("button", { name: "새 버전(major)", exact: true })).toBeEnabled();
   });
 
@@ -257,7 +257,7 @@ test.describe("mdm dme/ruleMng", () => {
     await openRuleMng(page);
     await openDetail(page, VER_RULE);
     await page.getByRole("button", { name: "내용 편집 →" }).click();
-    await expect(page.getByTestId("rule-edit-current")).toHaveText(VER_RULE, { timeout: 60_000 });
+    await expect(page.getByTestId("rule-edit-current")).toHaveText(VER_RULE, { timeout: T.SLOW });
     await expect(page.getByTestId("rule-ver-select")).toHaveValue("1.000");
   });
 
@@ -279,7 +279,7 @@ test.describe("mdm dme/ruleMng", () => {
     await page.getByTestId("rule-header-name").fill(`${view.header.maruRuleName} 수정2`);
     await page.getByRole("button", { name: "헤더 저장", exact: true }).click();
     // 설계(TSK-08-02 design.md:444, D-105 (5)): MDM001 이면 '다른 창에서 바뀌었습니다. 다시 불러오세요' 를 보인다.
-    await expect(page.getByRole("dialog").getByText("다른 창에서 바뀌었습니다. 다시 불러오세요")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("dialog").getByText("다른 창에서 바뀌었습니다. 다시 불러오세요")).toBeVisible({ timeout: T.UI });
     // 오류 창을 닫아도 거부는 상세를 다시 부르지 않으므로 입력이 남고, 상세 맨 위에 [다시 불러오기] 가 남는다(ruleMng 기능설계서 N-6).
     await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -288,7 +288,7 @@ test.describe("mdm dme/ruleMng", () => {
     await expect(reload).toBeVisible();
     // [다시 불러오기] 는 서버 값(다른 요청이 저장한 이름)으로 돌아가고 안내를 끈다.
     await reload.click();
-    await expect(page.getByTestId("rule-header-name")).toHaveValue(`${view.header.maruRuleName} 다른이`, { timeout: 20_000 });
+    await expect(page.getByTestId("rule-header-name")).toHaveValue(`${view.header.maruRuleName} 다른이`, { timeout: T.UI });
     await expect(reload).toHaveCount(0);
   });
 });

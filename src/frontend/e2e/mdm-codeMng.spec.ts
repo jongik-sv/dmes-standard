@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { BASE_URL, clickMenuPath, login } from "./support/common";
+import { BASE_URL, T, clickMenuPath, login } from "./support/common";
 import { gridRowById, gridRows } from "./support/grid";
 
 /**
@@ -46,7 +46,7 @@ function tid(page: Page, id: string): Locator {
 
 async function openCodeMng(page: Page) {
   await clickMenuPath(page, [/^마루 MDM$/, /^마스터코드$/, /^마루 코드$/]);
-  await expect(tid(page, "code-list")).toBeVisible({ timeout: 60_000 });
+  await expect(tid(page, "code-list")).toBeVisible({ timeout: T.SLOW });
 }
 
 async function search(page: Page, keyword: string) {
@@ -61,7 +61,7 @@ function listRow(page: Page, id: string): Locator {
 
 async function register(page: Page, id: string, name: string, lvl: string) {
   await page.locator("#btn_code_reg").click();
-  await expect(tid(page, "code-register-form")).toBeVisible({ timeout: 20_000 });
+  await expect(tid(page, "code-register-form")).toBeVisible({ timeout: T.UI });
   await tid(page, "code-reg-id").fill(id);
   await tid(page, "code-reg-name").fill(name);
   await tid(page, "code-reg-lvl").selectOption(lvl);
@@ -81,11 +81,11 @@ async function selectCode(page: Page, id: string) {
       r.url().includes("/api/mdm/oasis/codeEdit/view") &&
       r.status() === 200 &&
       (r.request().postData() ?? "").includes(`"${id}"`),
-    { timeout: 30_000 },
+    { timeout: T.LONG },
   );
   await listRow(page, id).click();
   await viewed;
-  await expect(tid(page, "header-code-id")).toHaveText(id, { timeout: 30_000 });
+  await expect(tid(page, "header-code-id")).toHaveText(id, { timeout: T.LONG });
   await expect(tid(page, "header-name")).toBeVisible();
 }
 
@@ -129,22 +129,22 @@ test.describe("mdm codeMng — 마루 코드(조회·등록·수정 통합)", ()
 
   test("M2 조건에 맞는 코드가 없으면 빈 상태가 보인다", async () => {
     await search(page, CODE_ID);
-    await expect(tid(page, "code-list-empty")).toHaveText(/조회된 마루 코드가 없습니다/, { timeout: 20_000 });
+    await expect(tid(page, "code-list-empty")).toHaveText(/조회된 마루 코드가 없습니다/, { timeout: T.UI });
   });
 
   test("M3 등록하면 같은 화면 오른쪽에 상세가 보이고 목록에도 반영된다(탭을 새로 열지 않는다)", async () => {
     await register(page, CODE_ID, "E2E 마루 코드", "2");
-    await expect(page.getByText("등록했습니다").first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("등록했습니다").first()).toBeVisible({ timeout: T.UI });
 
     // 등록 트랜잭션의 자동 선점(편집 중(나)) — 같은 탭 오른쪽에 바로 보인다.
-    await expect(tid(page, "version-list")).toBeVisible({ timeout: 60_000 });
+    await expect(tid(page, "version-list")).toBeVisible({ timeout: T.SLOW });
     await expect(tid(page, "version-list")).toContainText("v1.000");
     await expect(tid(page, "version-list")).toContainText("편집 중(나)");
 
     // 목록도 같은 조건으로 다시 조회됐다.
     await search(page, CODE_ID);
     const row = listRow(page, CODE_ID);
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await expect(row.locator('.ag-cell[col-id="status"]')).toHaveText("CREATED");
     await expect(row.locator('.ag-cell[col-id="currentVerLabel"]')).toHaveText("미확정");
     await expect(row.locator('.ag-cell[col-id="unappliedLabel"]')).toHaveText("v1.000 DRAFT");
@@ -154,15 +154,15 @@ test.describe("mdm codeMng — 마루 코드(조회·등록·수정 통합)", ()
   test("M4 같은 ID 로 다시 등록하면 서버 오류가 보이고 닫으면 사라진다", async () => {
     await register(page, CODE_ID, "중복", "0");
     const modal = page.locator(".error-modal__body:visible");
-    await expect(modal).toBeVisible({ timeout: 20_000 });
+    await expect(modal).toBeVisible({ timeout: T.UI });
     await expect(modal).toContainText(DUP_ERROR);
     await page.screenshot({ path: screenshot("dmc-codeMng-dup-error.png"), fullPage: true });
     await confirmDialog(page);
-    await expect(modal).toBeHidden({ timeout: 20_000 });
+    await expect(modal).toBeHidden({ timeout: T.UI });
     // 등록 팝업은 오류 뒤에도 입력값을 든 채 열려 있다 — 다음 테스트가 목록을 누를 수 있도록 [취소]로 닫는다.
     await expect(tid(page, "code-register-form")).toBeVisible();
     await tid(page, "code-reg-cancel").click();
-    await expect(tid(page, "code-register-form")).toHaveCount(0, { timeout: 20_000 });
+    await expect(tid(page, "code-register-form")).toHaveCount(0, { timeout: T.UI });
   });
 
   test("M5 목록에서 고르면 상세가 바뀌고, 헤더·라벨 저장과 새 버전이 반영된다", async () => {
@@ -176,24 +176,24 @@ test.describe("mdm codeMng — 마루 코드(조회·등록·수정 통합)", ()
     await tid(page, "header-name").fill("E2E 수정됨");
     await tid(page, "label-attr01").fill("인장강도");
     await tid(page, "header-save").click();
-    await expect(page.getByText("저장했습니다").first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("저장했습니다").first()).toBeVisible({ timeout: T.UI });
     await page.locator(".portal-shell__tab-page:visible").getByRole("button", { name: "조회", exact: true }).click();
     await search(page, CODE_ID);
     await selectCode(page, CODE_ID);
-    await expect(tid(page, "header-name")).toHaveValue("E2E 수정됨", { timeout: 20_000 });
+    await expect(tid(page, "header-name")).toHaveValue("E2E 수정됨", { timeout: T.UI });
     await expect(tid(page, "label-attr01")).toHaveValue("인장강도");
 
     // DRAFT 삭제 → 빈 상태 → 새버전 활성 → 모달 번호(v1.000) → 빈 버전으로 다시 생성.
     await selectVersion(page, "1.000");
     await tid(page, "ver-delete").click();
     await confirmDialog(page);
-    await expect(tid(page, "version-empty")).toHaveText(/버전이 없습니다/, { timeout: 20_000 });
+    await expect(tid(page, "version-empty")).toHaveText(/버전이 없습니다/, { timeout: T.UI });
     await expect(tid(page, "ver-new-major")).toBeEnabled();
     await tid(page, "ver-new-major").click();
     await expect(tid(page, "newver-number")).toHaveText("v1.000");
     await page.screenshot({ path: screenshot("dmc-codeMng-newver-dialog.png"), fullPage: true });
     await tid(page, "newver-ok").click();
-    await expect(tid(page, "version-list")).toContainText("v1.000", { timeout: 20_000 });
+    await expect(tid(page, "version-list")).toContainText("v1.000", { timeout: T.UI });
     await expect(tid(page, "version-list")).toContainText("편집 중(나)");
   });
 
@@ -210,11 +210,11 @@ test.describe("mdm codeMng — 마루 코드(조회·등록·수정 통합)", ()
 
     await tid(page, "header-delete-code").click();
     await confirmDialog(page);
-    await expect(page.getByText("삭제했습니다").first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText("목록에서 마루 코드를 고르거나").first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("삭제했습니다").first()).toBeVisible({ timeout: T.UI });
+    await expect(page.getByText("목록에서 마루 코드를 고르거나").first()).toBeVisible({ timeout: T.UI });
 
     await search(page, CODE_B);
-    await expect(tid(page, "code-list-empty")).toHaveText(/조회된 마루 코드가 없습니다/, { timeout: 20_000 });
+    await expect(tid(page, "code-list-empty")).toHaveText(/조회된 마루 코드가 없습니다/, { timeout: T.UI });
   });
 
   test("M7 다른 사용자가 먼저 저장하면 오류가 보이고 닫으면 다시 불러온다", async () => {
@@ -231,10 +231,10 @@ test.describe("mdm codeMng — 마루 코드(조회·등록·수정 통합)", ()
     await tid(page, "header-name").fill("화면에서 고침");
     await tid(page, "header-save").click();
     const modal = page.locator(".error-modal__body:visible");
-    await expect(modal).toBeVisible({ timeout: 20_000 });
+    await expect(modal).toBeVisible({ timeout: T.UI });
     await expect(modal).toContainText(CONFLICT);
     await page.screenshot({ path: screenshot("dmc-codeMng-conflict-error.png"), fullPage: true });
     await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).last().click();
-    await expect(tid(page, "header-name")).toHaveValue("E2E 동시", { timeout: 20_000 });
+    await expect(tid(page, "header-name")).toHaveValue("E2E 동시", { timeout: T.UI });
   });
 });

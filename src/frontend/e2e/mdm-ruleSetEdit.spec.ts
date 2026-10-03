@@ -44,7 +44,7 @@ const ioRow = (page: Page, kind: "inputs" | "results", name: string): Locator =>
 
 async function openRuleSetEdit(page: Page) {
   await openRuleMenu(page, /^룰 세트 편집$/);
-  await expect(page.getByTestId("set-pick-keyword")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("set-pick-keyword")).toBeVisible({ timeout: T.SLOW });
 }
 
 /** 상단 바에서 세트를 찾아 고른다. dirty 면 확인 대화상자가 뜨므로 대화상자 처리는 호출자가 먼저 건다. */
@@ -56,7 +56,7 @@ async function clickPick(page: Page, setId: string) {
 
 async function pickSet(page: Page, setId: string) {
   await clickPick(page, setId);
-  await expect(page.getByTestId("set-edit-current")).toContainText(setId, { timeout: 30_000 });
+  await expect(page.getByTestId("set-edit-current")).toContainText(setId, { timeout: T.LONG });
   await expect(page.getByTestId("set-card-id")).toHaveText(setId);
 }
 
@@ -66,7 +66,7 @@ const ruleNodes = (page: Page): Locator => page.getByTestId("flow-canvas").locat
 
 /** 노드 하나가 그 룰이다(노드 안에 룰 ID 가 보인다). */
 async function expectRuleNode(page: Page, nodeId: string, ruleId: string) {
-  await expect(page.getByTestId(`flow-node-${nodeId}`)).toContainText(ruleId, { timeout: 20_000 });
+  await expect(page.getByTestId(`flow-node-${nodeId}`)).toContainText(ruleId, { timeout: T.UI });
 }
 
 /** 한 줄 흐름(노드 ID r1 … rN)의 룰 순서를 확인한다. */
@@ -124,7 +124,7 @@ async function revealEdgeAdd(page: Page, edgeId: string) {
  */
 async function dragRuleToEdge(page: Page, ruleId: string, edgeId: string) {
   const row = page.getByTestId(`flow-rule-row-${ruleId}`);
-  await expect(row).toBeVisible({ timeout: 20_000 });
+  await expect(row).toBeVisible({ timeout: T.UI });
   await revealEdgeAdd(page, edgeId);
   const box = await page.getByTestId(`flow-edge-add-${edgeId}`).boundingBox();
   if (!box) throw new Error(`선 ${edgeId} 의 [+] 단추가 안 보인다`);
@@ -158,13 +158,13 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await pickSet(page, "E2S_CHAIN");
     await expect(page.getByTestId("set-status")).toHaveText("INUSE");
     // 기본 선택은 내 DRAFT v2.000 이다(D-144 2단계) — 버전 줄에 보인다.
-    await expect(page.getByTestId("set-ver-row")).toContainText("v2.000", { timeout: 20_000 });
+    await expect(page.getByTestId("set-ver-row")).toContainText("v2.000", { timeout: T.UI });
     await expect(page.getByTestId("set-ver-select")).toHaveValue("2.000");
 
     // 세트를 열면 보기 모드다 — 팔레트가 없고, 노드 5개(시작 · 룰 셋 · 끝)가 그려진다.
     await expect(page.getByTestId("flow-mode-view")).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("flow-palette")).toHaveCount(0);
-    await expect(flowNodes(page)).toHaveCount(5, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(5, { timeout: T.UI });
     await expect(page.getByTestId("flow-node-start")).toContainText("시작");
     await expect(page.getByTestId("flow-node-end")).toContainText("끝");
     await expectChain(page, ["E2S_GRD", "E2S_FCT", "E2S_SPD"]);
@@ -193,7 +193,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CHAIN");
-    await expect(flowNodes(page)).toHaveCount(5, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(5, { timeout: T.UI });
 
     // 고치지 않았으면 편집 모드여도 저장이 꺼져 있다(dirty 아님).
     await enterEditMode(page);
@@ -212,7 +212,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
 
     // 새 IF 가 선택돼 있어 오른쪽이 속성 패널이다. 조건식을 넣으면 서버가 변수 정의를 확인(validate)한 뒤 저장이 켜진다.
     await page.getByTestId("flow-prop-branch-e5-cond").fill('S_GRD = "A"');
-    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: 20_000 });
+    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: T.UI });
     await expect(page.getByTestId("set-checks")).not.toContainText("갈래 e5에 조건식이 없다");
     await expect(page.getByTestId("set-checks")).toContainText("빈 단계 2개 — 실행 때 그냥 지나간다");
 
@@ -263,13 +263,13 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("set-checks")).toContainText(warn);
 
     // 경고만 있으면 저장된다.
-    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: 20_000 });
+    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: T.UI });
     // 저장 요청은 선택한 내 DRAFT 버전(ver)을 싣는다.
     const saveRequest = page.waitForRequest((r) => r.url().includes("/api/mdm/oasis/ruleSetEdit/save"));
     await page.getByTestId("set-save").click();
     expect((await saveRequest).postDataJSON().params).toMatchObject({ setId: "E2S_CYCSET", ver: "2.000" });
     const message = page.getByTestId("set-message");
-    await expect(message).toContainText("저장 · row_version 1", { timeout: 20_000 });
+    await expect(message).toContainText("저장 · row_version 1", { timeout: T.UI });
     await expect(message).toContainText(warn);
     await expect(page.getByTestId("set-row-version")).toHaveText("row_version 1");
     // 저장하면 서버가 돌려준 정규 흐름으로 다시 불러오되, 편집 모드는 그대로 유지한다(자동 저장 도입 뒤 동작).
@@ -290,13 +290,13 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_GUIDESET");
     // 빈 세트는 시작 → 끝만 그려진다.
-    await expect(flowNodes(page)).toHaveCount(2, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(2, { timeout: T.UI });
     await expect(ruleNodes(page)).toHaveCount(0);
 
     await page.getByTestId("set-guide-var").fill("S_SPD");
     await page.getByTestId("set-guide-run").click();
     const order = page.getByTestId("set-guide-order");
-    await expect(order).toContainText("제안 순서 · 1. E2S_DUP → 2. E2S_FCT → 3. E2S_SPD", { timeout: 20_000 });
+    await expect(order).toContainText("제안 순서 · 1. E2S_DUP → 2. E2S_FCT → 3. E2S_SPD", { timeout: T.UI });
     await expect(order).toContainText("S_GRD: E2S_DUP, E2S_GRD");
     await page.screenshot({ path: screenshot("dme-ruleSetEdit-guide.png"), fullPage: true });
 
@@ -309,7 +309,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(ioRow(page, "results", "S_GRD")).toContainText("중간");
     await expect(page.getByTestId("set-checks")).toContainText("통과");
     await page.getByTestId("set-save").click();
-    await expect(page.getByTestId("set-message")).toContainText("저장 · row_version 1", { timeout: 20_000 });
+    await expect(page.getByTestId("set-message")).toContainText("저장 · row_version 1", { timeout: T.UI });
 
     // 다른 세트를 거쳐 다시 열어도 저장한 순서가 그대로다.
     await pickSet(page, "E2S_CHAIN");
@@ -319,7 +319,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
 
     await page.getByTestId("set-guide-var").fill("S_CYA");
     await page.getByTestId("set-guide-run").click();
-    await expect(page.getByTestId("set-guide-error")).toContainText("순환이 있다(", { timeout: 20_000 });
+    await expect(page.getByTestId("set-guide-error")).toContainText("순환이 있다(", { timeout: T.UI });
   });
 
   test("E7 폐기·되살리기: DEPRECATED 세트는 되살리기만 되고, 되살린 뒤 두 단계로 다시 폐기한다", async ({ page }) => {
@@ -335,7 +335,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("set-deprecate")).toHaveCount(0);
 
     await page.getByTestId("set-restore").click();
-    await expect(page.getByTestId("set-status")).toHaveText("INUSE", { timeout: 20_000 });
+    await expect(page.getByTestId("set-status")).toHaveText("INUSE", { timeout: T.UI });
     await expect(page.getByTestId("set-message")).toContainText("되살림");
 
     await page.getByTestId("set-deprecate").click();
@@ -344,7 +344,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("set-deprecate-cancel")).toBeVisible();
     await expect(page.getByTestId("set-status")).toHaveText("INUSE");
     await page.getByTestId("set-deprecate-confirm").click();
-    await expect(page.getByTestId("set-status")).toHaveText("DEPRECATED", { timeout: 20_000 });
+    await expect(page.getByTestId("set-status")).toHaveText("DEPRECATED", { timeout: T.UI });
     await expect(page.getByTestId("set-message")).toContainText("폐기. 행은 남기고 되살릴 수 있다");
     await expect(page.getByTestId("set-restore")).toBeVisible();
     await page.screenshot({ path: screenshot("dme-ruleSetEdit-deprecated.png"), fullPage: true });
@@ -367,13 +367,13 @@ test.describe("mdm dme/ruleSetEdit", () => {
     );
     await page.getByTestId("set-name").fill("E2E 사슬 세트(충돌)");
     await page.getByTestId("set-save").click();
-    await expect(page.getByTestId("set-message")).toContainText("다른 창에서 바뀌었습니다. 다시 불러오세요", { timeout: 20_000 });
+    await expect(page.getByTestId("set-message")).toContainText("다른 창에서 바뀌었습니다. 다시 불러오세요", { timeout: T.UI });
     const reload = page.getByTestId("set-reload");
     await expect(reload).toBeVisible();
     await page.unroute("**/api/mdm/oasis/ruleSetEdit/save");
 
     await reload.click();
-    await expect(page.getByTestId("set-name")).toHaveValue("E2E 사슬 세트", { timeout: 20_000 });
+    await expect(page.getByTestId("set-name")).toHaveValue("E2E 사슬 세트", { timeout: T.UI });
     await expect(reload).toHaveCount(0);
   });
 
@@ -391,7 +391,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     // 지침 찾기는 READ 로 되고, 적용 버튼만 막힌다.
     await page.getByTestId("set-guide-var").fill("S_SPD");
     await page.getByTestId("set-guide-run").click();
-    await expect(page.getByTestId("set-guide-order")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("set-guide-order")).toBeVisible({ timeout: T.UI });
     await expect(page.getByTestId("set-guide-apply")).toBeDisabled();
 
     // 디버그 모드는 READ 로도 들어간다. 실행(execute)은 EDIT 권한이라 표준 관리자는 단계 실행·케이스 저장·식 평가를 할 수 없다(P-D3).
@@ -409,7 +409,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await page.getByTestId("flow-node-r1").click();
     await expect(page.getByTestId("flow-prop-rule")).toBeVisible();
     await page.getByTestId("flow-prop-rule-open").click();
-    await expect(page.getByTestId("rule-edit-current")).toHaveText("E2S_GRD", { timeout: 60_000 });
+    await expect(page.getByTestId("rule-edit-current")).toHaveText("E2S_GRD", { timeout: T.SLOW });
   });
 
   test("E11 디버그 모드: E2S_FLOW 를 [한 단계] 로 따라가고 중단점까지 계속·끝까지 하면 IF 가 고른 선이 강조되고 값 표가 채워진다", async ({ page }) => {
@@ -417,7 +417,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
     // 분기 세트도 캔버스로 그려진다(옛 합류 m1 은 열 때 없앤다): 시작 · r1 · if1 · r2 · r3 · 끝.
-    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: T.UI });
 
     await enterDebugMode(page);
     await fillDebugInputs(page);
@@ -425,7 +425,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
 
     // 처음 [한 단계] 는 저장 없이 실행해 시작 노드 앞에 선다. 두 번 더 누르면 시작 → r1 을 지나 if1 앞이다.
     await page.getByTestId("dbg-step").click();
-    await expect(status).toHaveText(/^1\/\d+ · start 실행 전$/, { timeout: 30_000 });
+    await expect(status).toHaveText(/^1\/\d+ · start 실행 전$/, { timeout: T.LONG });
     await page.getByTestId("dbg-step").click();
     await page.getByTestId("dbg-step").click();
     await expect(status).toHaveText(/^3\/\d+ · if1 실행 전$/);
@@ -468,21 +468,21 @@ test.describe("mdm dme/ruleSetEdit", () => {
 
     // 링크 아이콘 = openRuleEdit(ruleId).
     await page.getByTestId("flow-rule-open-r2").click();
-    await expect(page.getByTestId("rule-edit-current")).toHaveText("E2S_FCT", { timeout: 60_000 });
+    await expect(page.getByTestId("rule-edit-current")).toHaveText("E2S_FCT", { timeout: T.SLOW });
   });
 
   test("E13 편집기: 룰 목록에서 선으로 끌어 넣고 되돌리기·다시 하기, [+] 메뉴로 IF 를 넣고 병렬로 바꾼 뒤 Ctrl+Z 로 되돌린다", async ({ page }) => {
     await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CHAIN");
-    await expect(flowNodes(page)).toHaveCount(5, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(5, { timeout: T.UI });
     await enterEditMode(page);
 
     // 왼쪽 룰 목록에서 E2S_SPD 를 찾아 END 로 들어가는 선(e4)에 끌어 놓는다 → 룰 노드 +1.
     await page.getByTestId("flow-rule-panel-search").fill("E2S_SPD");
     await page.getByTestId("flow-rule-panel-find").click();
     await dragRuleToEdge(page, "E2S_SPD", "e4");
-    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: T.UI });
     await expect(ruleNodes(page)).toHaveCount(4);
 
     // 되돌리기 → 원래 수, 다시 하기 → 다시 늘어난다.
@@ -520,37 +520,37 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
-    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: T.UI });
     await enterDebugMode(page);
     await fillDebugInputs(page);
 
     // 끝까지 실행해 두면 그 결과가 기대값 칸에 미리 채워진다.
     await page.getByTestId("dbg-finish").click();
-    await expect(page.getByTestId("dbg-status")).toHaveText(/^완료 · \d+단계 · 결과 변수 \d+개$/, { timeout: 30_000 });
+    await expect(page.getByTestId("dbg-status")).toHaveText(/^완료 · \d+단계 · 결과 변수 \d+개$/, { timeout: T.LONG });
 
     await page.getByTestId("case-save-current").click();
     await expect(page.getByTestId("case-modal")).toBeVisible();
     await page.getByTestId("case-modal-name").fill("E2E 케이스");
     await page.getByTestId("case-modal-save").click();
-    await expect(page.getByTestId("case-modal")).toHaveCount(0, { timeout: 20_000 });
+    await expect(page.getByTestId("case-modal")).toHaveCount(0, { timeout: T.UI });
     const grid = page.getByTestId("case-grid");
-    await expect(grid).toContainText("E2E 케이스", { timeout: 20_000 });
+    await expect(grid).toContainText("E2E 케이스", { timeout: T.UI });
 
     await page.getByTestId("case-run-all").click();
-    await expect(page.getByTestId("case-summary")).toHaveText("1/1 통과", { timeout: 30_000 });
+    await expect(page.getByTestId("case-summary")).toHaveText("1/1 통과", { timeout: T.LONG });
 
     // 한 줄을 골라 지운다(확인 단추가 한 번 더 나온다).
     await gridRows(grid).first().click();
     await page.getByTestId("case-delete").click();
     await page.getByTestId("case-delete-confirm").click();
-    await expect(grid).not.toContainText("E2E 케이스", { timeout: 20_000 });
+    await expect(grid).not.toContainText("E2E 케이스", { timeout: T.UI });
   });
 
   test("E15 찾기·접기: 룰 ID 로 찾으면 1/1 이고, 접은 블록 안 노드를 찾으면 블록이 펼쳐진다", async ({ page }) => {
     await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
-    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: T.UI });
 
     // 툴바 [노드 찾기] 가 캔버스 오른쪽 위 찾기 위젯을 연다(Ctrl/Cmd+F 와 같다).
     await page.getByTestId("flow-find-open").click();
@@ -586,12 +586,12 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("flow-prop-catch")).toBeVisible();
 
     await page.getByTestId("set-save").click();
-    await expect(page.getByTestId("set-save")).toBeDisabled({ timeout: 30_000 });
+    await expect(page.getByTestId("set-save")).toBeDisabled({ timeout: T.LONG });
 
     await enterDebugMode(page);
     await page.getByTestId("dbg-input-SET_THK").fill("1");
     await page.getByTestId("dbg-finish").click();
-    await expect(page.getByTestId("dbg-status")).toHaveText("예외로 끝남: 결과 없음 · 4단계 · 결과 변수 0개", { timeout: 30_000 });
+    await expect(page.getByTestId("dbg-status")).toHaveText("예외로 끝남: 결과 없음 · 4단계 · 결과 변수 0개", { timeout: T.LONG });
     await expect(page.getByTestId("flow-node-r1")).toHaveAttribute("data-state", "caught");
     await expect(page.getByTestId("dbg-caught-toggle")).toContainText("받은 예외 1건");
   });
@@ -600,7 +600,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_FLOW");
-    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: T.UI });
     await expect(page.getByTestId("flow-node-m1")).toHaveCount(0);
     await expect(page.getByTestId("set-message")).toContainText("옛 합류 노드 1개를 없앤 형식으로 바꿔 열었다. 저장하면 새 형식으로 남는다.");
     await enterEditMode(page);
@@ -608,14 +608,14 @@ test.describe("mdm dme/ruleSetEdit", () => {
 
     // 세트명을 고쳐 저장하면 새 형식(합류 없음)으로 남는다.
     await page.getByTestId("set-name").fill("E2E 분기 흐름 세트(새 형식)");
-    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: 20_000 });
+    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: T.UI });
     await page.getByTestId("set-save").click();
-    await expect(page.getByTestId("set-message")).toContainText(/저장 · row_version \d+/, { timeout: 20_000 });
+    await expect(page.getByTestId("set-message")).toContainText(/저장 · row_version \d+/, { timeout: T.UI });
 
     // 다른 세트를 거쳐 다시 열면 같은 그림이고 알림이 없다.
     await pickSet(page, "E2S_CHAIN");
     await pickSet(page, "E2S_FLOW");
-    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: T.UI });
     await expect(page.getByTestId("set-name")).toHaveValue("E2E 분기 흐름 세트(새 형식)");
     await expect(page.getByText("옛 합류 노드")).toHaveCount(0);
   });
@@ -624,7 +624,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_IFEND");
-    await expect(flowNodes(page)).toHaveCount(6, { timeout: 20_000 });
+    await expect(flowNodes(page)).toHaveCount(6, { timeout: T.UI });
     await expect(page.getByText("옛 합류 노드")).toHaveCount(0);
     await enterEditMode(page);
 
@@ -635,7 +635,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     // 선 e5(r2 → r3)를 골라 도착 끝 손잡이를 끝 노드 몸통에 놓는다(R13 — 선 끝 옮기기 R1).
     await page.locator('[data-testid="rf__edge-e5"] .react-flow__edge-interaction').dispatchEvent("click");
     const handle = page.locator('[data-testid="rf__edge-e5"] .react-flow__edgeupdater-target');
-    await expect(handle).toBeAttached({ timeout: 10_000 });
+    await expect(handle).toBeAttached();
     const hb = await handle.boundingBox();
     const eb = await page.getByTestId("flow-node-end").boundingBox();
     if (!hb || !eb) throw new Error("끝 손잡이나 끝 노드가 안 보인다");
@@ -649,15 +649,15 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("flow-prop-branch-e3-ending")).toHaveText("끝냄");
     await expect(page.getByTestId("flow-prop-if-ending-help")).toBeVisible();
 
-    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: 20_000 });
+    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: T.UI });
     await page.getByTestId("set-save").click();
-    await expect(page.getByTestId("set-save")).toBeDisabled({ timeout: 30_000 });
+    await expect(page.getByTestId("set-save")).toBeDisabled({ timeout: T.LONG });
 
     // E2S_GRD 는 언제나 "A" 라 「등급 A」 갈래를 타고 r2(E2S_FCT) 뒤 끝난다 — 기록 start·r1·if1·r2·end, 결과 변수 S_GRD·S_FCT.
     await enterDebugMode(page);
     await fillDebugInputs(page);
     await page.getByTestId("dbg-finish").click();
-    await expect(page.getByTestId("dbg-status")).toHaveText("완료 · 5단계 · 결과 변수 2개 · IF 등급 확인의 「등급 A」 갈래에서 끝냈다", { timeout: 30_000 });
+    await expect(page.getByTestId("dbg-status")).toHaveText("완료 · 5단계 · 결과 변수 2개 · IF 등급 확인의 「등급 A」 갈래에서 끝냈다", { timeout: T.LONG });
     await expect(page.getByTestId("flow-node-r2")).toHaveAttribute("data-state", "run");
     await expect(page.getByTestId("flow-node-r3")).toHaveAttribute("data-state", "dim");
   });

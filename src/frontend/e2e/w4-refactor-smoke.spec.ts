@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { PASSWORD } from "./support/common";
+import { PASSWORD, T } from "./support/common";
 
 /**
  * W4 리팩토링 실검증 스모크 — tsup splitting(청크 분리) dist 를 포털이 실제 로드하는지 +
@@ -81,7 +81,7 @@ const SCREENS: TargetScreen[] = [
       const rowCount = await page.locator(".ag-row").count();
       if (rowCount > 0) {
         const pagination = page.locator('[class*="pagination"]').first();
-        await expect(pagination).toBeVisible({ timeout: 10_000 });
+        await expect(pagination).toBeVisible();
       } else {
         console.log("[equipDowntimeMng] 데이터 0건 — Pagination 조건부 미표시(정상)");
       }
@@ -145,7 +145,7 @@ test.describe("W4 리팩토링 스모크 (청크 dist + 이관 화면)", () => {
           await page.getByRole("button", { name: "로그인" }).click();
           try {
             // 첫 요청은 Next dev 의 /portal 컴파일 지연이 있어 넉넉히 대기
-            await page.waitForURL(/\/portal/, { timeout: 30_000 });
+            await page.waitForURL(/\/portal/, { timeout: T.LONG });
             loggedIn = true;
             break outer;
           } catch {

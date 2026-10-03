@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { login, walkMenuPath } from "./support/common";
+import { T, login, walkMenuPath } from "./support/common";
 
 /**
  * mpp 지그금형관리(ppd) — 4개 메인 화면 통합 full-chain smoke.
@@ -48,7 +48,7 @@ test.describe("mpp ppd 4개 화면 full-chain smoke", () => {
 
       // 페이지 resolve — 조회 버튼이 body 에 존재 (레지스트리/동적 import 성공, 2026-07-03 개편: 검색→조회)
       const searchBtn = page.getByRole("button", { name: "조회" }).first();
-      await expect(searchBtn).toBeVisible({ timeout: 60_000 });
+      await expect(searchBtn).toBeVisible({ timeout: T.SLOW });
 
       const bodyText = (await page.textContent("body")) ?? "";
       for (const marker of NOT_FOUND_MARKERS) {
@@ -60,7 +60,7 @@ test.describe("mpp ppd 4개 화면 full-chain smoke", () => {
 
       // 메인 그리드 렌더 (rows≥0, 크래시 없음)
       const grid = page.locator(".cm-data-grid").first();
-      await expect(grid).toBeVisible({ timeout: 20_000 });
+      await expect(grid).toBeVisible({ timeout: T.UI });
       // 그리드 로딩 오버레이가 사라질 시간을 잠깐 준다
       await page.waitForTimeout(1500);
       const rowCount = await grid.locator(".ag-row").count();

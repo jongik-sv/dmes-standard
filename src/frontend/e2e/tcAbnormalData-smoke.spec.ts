@@ -33,7 +33,7 @@ test.describe("비정상 TC 등록 (tcAbnormalData) Smoke", () => {
       }
     }
     const menuItem = page.getByText(path[path.length - 1], { exact: true }).first();
-    await menuItem.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+    await menuItem.waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});
     if (!(await menuItem.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -53,6 +53,6 @@ test.describe("비정상 TC 등록 (tcAbnormalData) Smoke", () => {
     // 조회 → Footer 토스트 "N건 조회 되었습니다."
     await page.getByRole("button", { name: "조회" }).click();
     await page.waitForTimeout(2000);
-    await expect(page.getByText(/건 조회 되었습니다/).first()).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText(/건 조회 되었습니다/).first()).toBeVisible({ timeout: 8_000 });
   });
 });
