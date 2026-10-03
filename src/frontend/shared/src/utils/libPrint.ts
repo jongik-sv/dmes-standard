@@ -5,19 +5,26 @@
  * 브라우저 인쇄로 찍는다. 인쇄 동안만 아래를 건다.
  * - `@page { size: W×H; margin: 0 }` — 용지를 대상 크기(scrollWidth × scrollHeight)에 맞춘 한 장으로.
  * - 대상 밖은 visibility:hidden, 대상은 화면 왼쪽 위에 fixed 로 펼친다(안쪽 스크롤 없이 전체 높이).
+ *   대상 후손의 visibility 는 상속에 맡긴다 — 후손이 스스로 hidden 인 부품(ag-grid 의 .ag-invisible 등)은 그대로 숨는다.
  * - `print-color-adjust: exact` — 배경색·그라데이션을 빼는 브라우저 기본 동작을 끈다.
  *   iframe 안 문서는 부모 스타일을 물려받지 않으므로 srcdoc 문서는 스스로 같은 스타일을 넣어야 한다.
  * - 대상 안에서 `data-print-hide` 를 단 요소(도구 줄 단추 등)는 찍지 않는다.
  * - Chrome PDF 한 장의 한도(약 200인치 = 19,200px)를 넘으면 CSS zoom 으로 줄여 한 장에 넣는다.
  * - 내려받을 PDF 기본 파일 이름은 브라우저가 document.title 에서 가져오므로 인쇄 동안 opts.title 로 바꾼다.
  *
- * 정리(스타일·속성 제거, 제목·스크롤 복원)는 afterprint 에서 하고, 이벤트가 오지 않는 브라우저를 위해
- * print() 가 돌아온 뒤에도 한 번 더 부른다(두 번 불려도 안전). 정리 전에 다시 부르면 앞의 것을 먼저 정리한다.
+ * 정리(스타일·속성 제거, 제목·스크롤 복원)는 afterprint 에서 한다. print() 가 바로 돌아오는 브라우저는 미리보기를 그리기 전에
+ * 스타일이 사라지지 않도록 돌아온 뒤에도 PRINT_CLEANUP_FALLBACK_MS 를 기다렸다가 정리한다(afterprint 가 먼저 오면 그 타이머는 아무 일도 하지 않는다).
+ * print() 가 던지면 즉시 정리하고 예외를 그대로 던진다. 정리는 호출마다 한 번만 일어나고(done), 끝나면 자기 afterprint 리스너를 뗀다 —
+ * 늦게 온 afterprint 나 타이머가 이미 끝난 호출의 상태(제목·스크롤)나 다음 호출의 상태를 건드리지 않는다.
+ * 정리 전에 다시 부르면 앞의 것을 먼저 정리한다.
  * Chrome 은 print() 가 인쇄 창이 닫힐 때까지 돌아오지 않는다(확인한 브라우저는 Chrome 뿐이다).
  */
 
 /** Chrome PDF 한 장의 최대 변 길이(약 200인치 × 96px). 넘으면 zoom 으로 줄인다. */
 export const PRINT_PAGE_MAX_PX = 19200;
+
+/** print() 가 돌아온 뒤에도 afterprint 가 오지 않을 때 정리하기까지 기다리는 시간(ms). print() 가 바로 돌아오는 브라우저의 미리보기용 여유다. */
+const PRINT_CLEANUP_FALLBACK_MS = 1000;
 
 /** 인쇄 대상에 다는 표시 속성. */
 const TARGET_ATTR = "data-print-target";
@@ -48,7 +55,8 @@ function pageBoxOf(width: number, height: number): PageBox {
   const h = Math.max(1, Math.ceil(height));
   const scale = Math.min(1, PRINT_PAGE_MAX_PX / w, PRINT_PAGE_MAX_PX / h);
   // 내림 — 줄인 크기가 한도를 넘지 않게.
-  const zoom = scale < 1 ? Math.floor(scale * 10000) / 10000 : 1;
+  // 하한 0.0001 — 극단적으로 큰 대상이 zoom: 0 (아무것도 안 찍힘)이 되지 않게.
+  const zoom = scale < 1 ? Math.max(Math.floor(scale * 10000) / 10000, 0.0001) : 1;
   const pageWidth = zoom < 1 ? Math.min(PRINT_PAGE_MAX_PX, Math.ceil(w * zoom)) : w;
   const pageHeight = zoom < 1 ? Math.min(PRINT_PAGE_MAX_PX, Math.ceil(h * zoom)) : h;
   return { width: w, height: h, zoom, pageWidth, pageHeight };
@@ -61,8 +69,10 @@ function printCss(box: PageBox): string {
     `@page { size: ${box.pageWidth}px ${box.pageHeight}px; margin: 0; }`,
     "@media print {",
     `  html, body { height: ${box.pageHeight}px !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }`,
-    "  body * { visibility: hidden !important; }",
-    `  ${t}, ${t} * { visibility: visible !important; ${exact} }`,
+    // 대상과 그 조상·형제만 숨기고 대상 후손은 상속에 맡긴다(후손이 스스로 hidden 이면 숨은 채로 둔다).
+    `  body *:not(${t}, ${t} *) { visibility: hidden !important; }`,
+    `  ${t} { visibility: visible !important; }`,
+    `  ${t}, ${t} * { ${exact} }`,
     `  ${t} [data-print-hide], ${t} [data-print-hide] * { visibility: hidden !important; }`,
     `  ${t} { position: fixed !important; left: 0 !important; top: 0 !important; margin: 0 !important; box-sizing: border-box !important;` +
       ` width: ${box.width}px !important; height: ${box.height}px !important; max-width: none !important; max-height: none !important;` +
@@ -101,6 +111,8 @@ export function printElementAsPage(el: HTMLElement, opts: PrintElementOptions = 
   if (prevScrollTop !== 0) el.scrollTop = 0;
   if (prevScrollLeft !== 0) el.scrollLeft = 0;
 
+  // 정리는 한 번만 — afterprint·안전망 타이머·다음 호출의 선행 정리 중 먼저 오는 쪽이 하고 나머지는 아무 일도 하지 않는다.
+  // (타이머는 따로 취소하지 않는다. done 이 막는다.)
   let done = false;
   const cleanup = () => {
     if (done) return;
@@ -118,8 +130,10 @@ export function printElementAsPage(el: HTMLElement, opts: PrintElementOptions = 
   window.addEventListener("afterprint", cleanup);
   try {
     window.print();
-  } finally {
-    // afterprint 가 오지 않는 브라우저용 — 이미 정리했으면 아무 일도 하지 않는다.
+  } catch (e) {
     cleanup();
+    throw e;
   }
+  // print() 가 바로 돌아오는 브라우저(미리보기가 아직 그려지는 중)는 afterprint 를 기다리고, 오지 않으면 잠시 뒤 정리한다.
+  if (!done) setTimeout(cleanup, PRINT_CLEANUP_FALLBACK_MS);
 }
