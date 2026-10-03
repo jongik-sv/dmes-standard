@@ -39,134 +39,27 @@ RUN_ENV_FILE="$ROOT_DIR/.run.env"
 
 [ -f "$RUN_ENV_FILE" ] && . "$RUN_ENV_FILE"
 
-# ── 로그 컬러링 ──────────────────────────────────────────────
-case "${DEV_LOG_COLOR:-always}" in
-  always|1|true|yes) DEVLOG_COLOR_ENABLED=1 ;;
-  never|0|false|no) DEVLOG_COLOR_ENABLED=0 ;;
-  auto)
-    if [ -n "${NO_COLOR:-}" ] || [ "${TERM:-}" = "dumb" ]; then
-      DEVLOG_COLOR_ENABLED=0
-    else
-      DEVLOG_COLOR_ENABLED=1
-    fi
-    ;;
-  *) DEVLOG_COLOR_ENABLED=1 ;;
-esac
+# ── 공용 함수 ────────────────────────────────────────────────
+# 로그(dev_log_*)·프로세스(terminate_pid_tree·wait_for_exit)·인자(load_default_args) 함수는
+# fe-run.sh·local-run.sh 와 함께 scripts/lib/ 에 둔다. 경로는 현재 디렉터리가 아니라 이 스크립트 위치 기준이다.
+# log.sh 는 .run.env 를 읽은 뒤에 source 한다(DEV_LOG_COLOR 를 .run.env 에 둘 수 있다).
+SCRIPT_LIB_DIR="$ROOT_DIR/scripts/lib"
+. "$SCRIPT_LIB_DIR/log.sh"
+. "$SCRIPT_LIB_DIR/proc.sh"
+. "$SCRIPT_LIB_DIR/args.sh"
 
-if [ "$DEVLOG_COLOR_ENABLED" = "1" ]; then
-  DEVLOG_RESET=$'\033[0m'
-  DEVLOG_DIM=$'\033[2m'
-  DEVLOG_RED=$'\033[31m'
-  DEVLOG_GREEN=$'\033[32m'
-  DEVLOG_YELLOW=$'\033[33m'
-  DEVLOG_BLUE=$'\033[34m'
-  DEVLOG_MAGENTA=$'\033[35m'
-  DEVLOG_CYAN=$'\033[36m'
-else
-  DEVLOG_RESET=
-  DEVLOG_DIM=
-  DEVLOG_RED=
-  DEVLOG_GREEN=
-  DEVLOG_YELLOW=
-  DEVLOG_BLUE=
-  DEVLOG_MAGENTA=
-  DEVLOG_CYAN=
-fi
-
-dev_log_tag_color() {
+# be-<모듈> 로그 태그 색 (log.sh 의 dev_log_tag_color 가 부른다). 모르는 모듈은 빈 값 → 청록.
+be_module_color() {
   case "$1" in
-    be) printf '%s' "$DEVLOG_GREEN" ;;
-    be-mcm) printf '%s' "$DEVLOG_BLUE" ;;
-    be-mpn) printf '%s' "$DEVLOG_MAGENTA" ;;
-    be-mls) printf '%s' "$DEVLOG_CYAN" ;;
-    be-mqc) printf '%s' "$DEVLOG_YELLOW" ;;
-    be-mpp) printf '%s' "$DEVLOG_GREEN" ;;
-    be-mdm) printf '%s' "$DEVLOG_RED" ;;
-    be-analog) printf '%s' "$DEVLOG_DIM" ;;
-    *) printf '%s' "$DEVLOG_CYAN" ;;
+    mcm) printf 'blue' ;;
+    mpn) printf 'magenta' ;;
+    mls) printf 'cyan' ;;
+    mqc) printf 'yellow' ;;
+    mpp) printf 'green' ;;
+    mdm) printf 'red' ;;
+    analog) printf 'dim' ;;
+    *) printf '' ;;
   esac
-}
-
-dev_log_print() {
-  local tag="$1"
-  shift
-  local color
-  color="$(dev_log_tag_color "$tag")"
-  printf '%b[%s]%b %s\n' "$color" "$tag" "$DEVLOG_RESET" "$*"
-}
-
-dev_log_error() {
-  printf '%b[error]%b %s\n' "$DEVLOG_RED" "$DEVLOG_RESET" "$*" >&2
-}
-
-dev_log_run() {
-  if [ "${DEVLOG_COLOR_ENABLED:-0}" = "1" ]; then
-    FORCE_COLOR="${FORCE_COLOR:-1}" "$@"
-  else
-    "$@"
-  fi
-}
-
-dev_log_prefix_stream() {
-  local tag="$1"
-  local tag_color
-  tag_color="$(dev_log_tag_color "$tag")"
-
-  awk \
-    -v tag="$tag" \
-    -v tag_color="$tag_color" \
-    -v reset="$DEVLOG_RESET" \
-    -v dim="$DEVLOG_DIM" \
-    -v red="$DEVLOG_RED" \
-    -v green="$DEVLOG_GREEN" \
-    -v yellow="$DEVLOG_YELLOW" \
-    -v cyan="$DEVLOG_CYAN" '
-function paint(line, color) {
-  return color == "" ? line : color line reset
-}
-
-function colorize(line) {
-  if (line ~ /(^|[^[:alpha:]])(ERROR|ERR!|FAIL|FAILED|Failed|failed|Exception|Caused by:)([^[:alpha:]]|$)/) {
-    return paint(line, red)
-  }
-  if (line ~ /(^|[^[:alpha:]])(WARN|WARNING|Warning|warning|Deprecated|deprecated)([^[:alpha:]]|$)/) {
-    return paint(line, yellow)
-  }
-  if (line ~ /(could not|Cannot|Unable to|not found|No such file)/) {
-    return paint(line, yellow)
-  }
-  if (line ~ /(^|[^[:alpha:]])(SUCCESS|SUCCESSFUL|Successful|successful|Ready|ready|Started|started|Compiled|compiled|Listening|listening)([^[:alpha:]]|$)/) {
-    return paint(line, green)
-  }
-  if (line ~ /(Starting|Downloading|Installing|Building|Watching|> Task)/) {
-    return paint(line, cyan)
-  }
-  if (line ~ /(^|[^[:alpha:]])(INFO|Info)([^[:alpha:]]|$)/) {
-    return paint(line, cyan)
-  }
-  if (line ~ /(^|[^[:alpha:]])(DEBUG|TRACE)([^[:alpha:]]|$)/) {
-    return paint(line, dim)
-  }
-  return line
-}
-
-{
-  printf "%s[%s]%s %s\n", tag_color, tag, reset, colorize($0)
-  fflush()
-}
-'
-}
-
-ENV_ARGS=()
-
-load_default_args() {
-  local var_name="$1"
-  local value="${!var_name:-}"
-
-  [ -n "$value" ] || return 1
-  # shellcheck disable=SC2206
-  ENV_ARGS=($value)
-  [ "${#ENV_ARGS[@]}" -gt 0 ]
 }
 
 # 인자가 없거나 옵션(--dry-run·--keep-port)뿐인지. 그러면 모듈 대상은 기본값(BE_RUN_ARGS, 없으면 --all)에서
@@ -197,7 +90,7 @@ fi
 
 # ── 모듈 카탈로그 ────────────────────────────────────────────
 # 실행 가능한 Spring Boot 모듈. 신규 모듈을 추가하면 아래 3곳만 손보면 된다.
-#   (1) BE_ALL_MODULES  (2) be_module_port  (3) dev_log_tag_color 의 be-{모듈} 색상
+#   (1) BE_ALL_MODULES  (2) be_module_port  (3) be_module_color 의 로그 색상
 BE_ALL_MODULES=(mls mqc mpp mpn mdm mcm analog)
 
 be_module_port() {
@@ -439,40 +332,6 @@ if [ "$DRY_RUN" = "1" ]; then
   done
   exit 0
 fi
-
-# ── 프로세스 유틸 (포트 회수·종료 처리 공용) ─────────────────
-terminate_pid_tree() {
-  local signal="$1"
-  local pid="$2"
-  local child
-
-  [ -n "$pid" ] || return 0
-  kill -0 "$pid" 2>/dev/null || return 0
-
-  while IFS= read -r child; do
-    [ -n "$child" ] && terminate_pid_tree "$signal" "$child"
-  done < <(pgrep -P "$pid" 2>/dev/null || true)
-
-  kill "-$signal" "$pid" 2>/dev/null || true
-}
-
-wait_for_exit() {
-  local pid
-  local alive
-  local i
-
-  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-    alive=0
-    for pid in "$@"; do
-      if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-        alive=1
-      fi
-    done
-    [ "$alive" = "0" ] && return 0
-    sleep 0.25
-  done
-  return 1
-}
 
 # ── 사전 점검 ────────────────────────────────────────────────
 for m in "${SELECTED_MODULES[@]}"; do
