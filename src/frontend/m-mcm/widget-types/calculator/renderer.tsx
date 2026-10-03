@@ -5,16 +5,21 @@
  * 계산은 calculator-model.ts 의 reducer 가 한다(이 파일은 그리기·입력 연결만).
  * - 키보드: 계산기 영역(tabIndex=0) 자신에 초점이 있을 때만 받는다(React onKeyDown 이라 영역 밖 입력칸의 키는 오지 않는다).
  *   안쪽 단추(기록·복사)에 초점이 있을 때는 그 단추의 Enter·Space 를 건드리지 않도록 무시한다. Ctrl·Meta·Alt 조합과 한글 조합 중 키도 무시한다.
- *   처리한 키만 preventDefault 한다.
+ *   처리한 키만 preventDefault 한다. F9 는 ±. 받는 키는 aria-keyshortcuts 로 알린다.
+ *   계산기가 처리한 Esc(모두 지우기)는 위로 올리지 않는다 — [배치 편집] 취소(작업 공간의 document keydown)로 새지 않게.
  * - 마우스로 단추를 눌러도 초점이 단추로 옮겨 가지 않고 계산기 영역에 머문다(mousedown 에서 기본 동작을 막고 영역에 초점을 준다).
- *   키 단추는 Tab 순서에서 뺀다 — 키보드는 영역 하나에서 모두 받는다.
+ *   키 단추는 Tab 순서에서 뺀다 — 키보드는 영역 하나에서 모두 받는다. 복사·기록 단추를 키보드로 눌러도 끝나면 영역으로 초점을 돌린다.
+ * - 복사는 shared copyText 로 한다(http 처럼 navigator.clipboard 가 없는 곳은 execCommand 대체 경로 — 숨은 textarea 가 초점을 가져가므로 영역으로 되돌린다).
+ *   성공은 1.2초 체크 표시와 보이지 않는 status 영역(「복사했습니다」)으로 알린다.
  * - 본문 크기(useWidgetBodySize)에 맞춰 단추·표시창 글자 크기를 정하고, 너비가 충분하면 기록 칸을 보인다. 크기를 모르면 스타일 기본값.
  */
-import { useEffect, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useId, useReducer, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
 import { IconCheck, IconCopy } from "@tabler/icons-react";
+import { copyText } from "@dk-oasis/shared/form";
 import { useWidgetBodySize, type WidgetProps } from "@dk-oasis/shared/widget";
 
 import {
+  CALC_KEY_SHORTCUTS,
   CALC_KEYS,
   calcActionForKey,
   calcFonts,
@@ -29,6 +34,21 @@ import {
 } from "./calculator-model";
 import { CALC_CSS, CALC_STYLE_HREF } from "./calculator-styles";
 
+/** 복사 완료 표시(체크·스크린리더 안내)를 두는 시간. */
+const COPIED_MS = 1200;
+const COPIED_ANNOUNCE = "복사했습니다";
+
+/**
+ * 계산기가 처리한 Esc 를 위(배치 편집 취소)로 올리지 않는다. preventDefault 는 호출자가 이미 했다.
+ * shared WidgetWorkspace 는 document 에 bubble 단계 keydown 을 걸어 두는데(capture 아님), Next 앱 라우터는 React 위임 뿌리가
+ * document 라 React 의 합성 stopPropagation 만으로는 같은 document 의 뒤에 등록된 리스너를 못 막는다 — 네이티브 이벤트의
+ * stopImmediatePropagation 도 부른다(React 리스너가 먼저 등록되므로 뒤 리스너가 막힌다). 메모 위젯 stopEscape 와 같은 방식이다.
+ */
+function swallowEscape(e: KeyboardEvent<HTMLElement>) {
+  e.stopPropagation();
+  e.nativeEvent.stopImmediatePropagation();
+}
+
 function CalculatorStyle() {
   return (
     <style href={CALC_STYLE_HREF} precedence="default">
@@ -42,6 +62,7 @@ export default function CalculatorRenderer({ definition }: WidgetProps) {
   const body = useWidgetBodySize();
   const [state, dispatch] = useReducer(calcReducer, INITIAL_CALC_STATE);
   const rootRef = useRef<HTMLDivElement>(null);
+  const historyTitleId = useId();
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -63,29 +84,37 @@ export default function CalculatorRenderer({ definition }: WidgetProps) {
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
     if (e.ctrlKey || e.metaKey || e.altKey || e.nativeEvent.isComposing) return;
-    const action = calcActionForKey(e.key);
+    const action = calcActionForKey(e.key, e.code);
     if (!action) return;
     e.preventDefault();
+    if (e.key === "Escape") swallowEscape(e);
     dispatch(action);
   };
+
+  /** 계산기 영역에 초점을 둔다 — 바로 숫자 키를 쓸 수 있게. */
+  const focusRoot = () => rootRef.current?.focus({ preventScroll: true });
 
   /** 마우스 누름 — 단추로 초점이 가지 않게 막고, 키보드를 바로 쓰도록 계산기 영역에 초점을 둔다. */
   const keepFocus = (e: MouseEvent<HTMLElement>) => {
     e.preventDefault();
-    rootRef.current?.focus({ preventScroll: true });
+    focusRoot();
   };
 
   const copy = async () => {
     const text = copyValue(state);
     if (!text) return;
+    let ok = false;
     try {
-      await navigator.clipboard.writeText(text);
+      ok = await copyText(text);
     } catch {
-      return; // 클립보드가 막혀 있으면 조용히 넘어간다
+      ok = false; // 클립보드가 막혀도 조용히 넘어간다
     }
+    // copyText 의 대체 경로(숨은 textarea + execCommand)는 초점을 가져가므로 성공·실패와 상관없이 영역으로 되돌린다.
+    focusRoot();
+    if (!ok || !rootRef.current) return; // 실패하거나 그새 사라졌으면 표시하지 않는다
     setCopied(true);
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
-    copiedTimer.current = setTimeout(() => setCopied(false), 1200);
+    copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
   };
 
   const expr = exprText(state);
@@ -96,6 +125,7 @@ export default function CalculatorRenderer({ definition }: WidgetProps) {
       className="mcm-calc"
       role="group"
       aria-label="계산기"
+      aria-keyshortcuts={CALC_KEY_SHORTCUTS}
       tabIndex={0}
       style={style}
       onKeyDown={onKeyDown}
@@ -112,9 +142,10 @@ export default function CalculatorRenderer({ definition }: WidgetProps) {
               className={isError ? "mcm-calc__value mcm-calc__value--error" : "mcm-calc__value"}
               role="status"
               aria-live="polite"
+              title={valueText}
               data-testid="calc-value"
             >
-              {valueText}
+              <span>{valueText}</span>
             </div>
             <button
               type="button"
@@ -128,6 +159,9 @@ export default function CalculatorRenderer({ definition }: WidgetProps) {
             >
               {copied ? <IconCheck size={14} aria-hidden="true" /> : <IconCopy size={14} aria-hidden="true" />}
             </button>
+            <span className="mcm-calc__sr" role="status" aria-live="polite" data-testid="calc-copy-status">
+              {copied ? COPIED_ANNOUNCE : ""}
+            </span>
           </div>
         </div>
         <div className="mcm-calc__keys">
@@ -148,8 +182,10 @@ export default function CalculatorRenderer({ definition }: WidgetProps) {
         </div>
       </div>
       {showHistory && (
-        <aside className="mcm-calc__history" aria-label="계산 기록" data-testid="calc-history">
-          <h4 className="mcm-calc__htitle">계산 기록</h4>
+        <aside className="mcm-calc__history" aria-labelledby={historyTitleId} data-testid="calc-history">
+          <h4 id={historyTitleId} className="mcm-calc__htitle">
+            계산 기록
+          </h4>
           {state.history.length === 0 ? (
             <div className="mcm-calc__hempty" data-testid="calc-history-empty">
               기록이 없습니다
@@ -163,7 +199,10 @@ export default function CalculatorRenderer({ definition }: WidgetProps) {
                     className="mcm-calc__hitem"
                     title="이 결과를 불러옵니다"
                     onMouseDown={keepFocus}
-                    onClick={() => dispatch({ type: "recall", value: h.result })}
+                    onClick={() => {
+                      dispatch({ type: "recall", value: h.result });
+                      focusRoot(); // 키보드로 눌렀어도 바로 숫자 키를 쓸 수 있게
+                    }}
                     data-testid="calc-history-item"
                   >
                     <span className="mcm-calc__hexpr">{h.expr} =</span>

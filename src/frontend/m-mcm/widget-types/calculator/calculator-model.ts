@@ -106,11 +106,19 @@ function normalizeNumber(text: string): string {
   return /e/i.test(t) ? t : new D(t).toString();
 }
 
-/** 정수부 천 단위 쉼표. 입력 중인 글("1250.", "0.50")은 모양을 그대로 두고, 지수 표기("1e+16")는 건드리지 않는다. */
+/** 보일 때만 하이픈 `-` 를 빼기 연산자와 같은 `−`(U+2212)로 바꾼다 — 음수 부호가 연산자와 섞여 `5 − -5` 로 보이지 않게. 복사·계산 값은 `-` 그대로다. */
+function displayMinus(text: string): string {
+  return text.replace(/-/g, "−");
+}
+
+/**
+ * 보일 글 — 정수부 천 단위 쉼표, 음수 부호는 `−`(displayMinus). 입력 중인 글("1250.", "0.50")은 모양을 그대로 두고,
+ * 지수 표기("1e+16")는 쉼표를 넣지 않는다. 화면에 보이는 숫자는 모두 이 함수를 거친다(복사 값은 거치지 않는다).
+ */
 export function formatNumberText(raw: string): string {
   const m = /^(-?)(\d+)(\.\d*)?$/.exec(raw);
-  if (!m) return raw;
-  return `${m[1]}${m[2].replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${m[3] ?? ""}`;
+  if (!m) return displayMinus(raw);
+  return displayMinus(`${m[1]}${m[2].replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${m[3] ?? ""}`);
 }
 
 /**
@@ -319,7 +327,9 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
     case "digit": {
       const s = startTyping(state);
       if (digitCount(s.entry) >= CALC_MAX_DIGITS) return s;
-      return { ...s, entry: s.entry === "0" ? action.digit : s.entry + action.digit };
+      // 입력이 "0"·"-0" 이면 그 0 을 숫자로 바꾼다(선행 0 방지) — "-0" 뒤 7 → "-7", 0 → "-0" 그대로.
+      const base = s.entry === "0" ? "" : s.entry === "-0" ? "-" : s.entry;
+      return { ...s, entry: base + action.digit };
     }
     case "decimal": {
       const s = startTyping(state);
@@ -408,11 +418,16 @@ export const CALC_KEYS: readonly CalcKey[] = [
 export const CALC_KEY_COLS = 4;
 export const CALC_KEY_ROWS = 5;
 
+/** 계산기 영역의 aria-keyshortcuts — 숫자·연산자·계산·지우기·부호. `+` 는 구분자와 겹쳐 Plus 로 쓴다. */
+export const CALC_KEY_SHORTCUTS = "0 1 2 3 4 5 6 7 8 9 Plus - * / % . = Enter Backspace Escape Delete F9";
+
 /**
  * 키보드 키 → 동작. 처리하지 않을 키는 null(호출자가 preventDefault 하지 않는다).
  * 수정키(Ctrl·Meta·Alt)가 눌렸는지는 호출자가 먼저 거른다 — `*`·`+`·`%` 는 Shift 가 필요하므로 Shift 는 여기서 따지지 않는다.
+ * F9 는 ±(Windows 계산기와 같은 키). `,` 는 숫자패드 소수점(code === "NumpadDecimal", 쉼표 로캘의 소수점 키)일 때만 소수점이다 —
+ * 일반 `,` 는 천 단위 쉼표를 버릇대로 치는 것이라 무시한다.
  */
-export function calcActionForKey(key: string): CalcAction | null {
+export function calcActionForKey(key: string, code?: string): CalcAction | null {
   if (key.length === 1 && key >= "0" && key <= "9") return { type: "digit", digit: key };
   switch (key) {
     case "+":
@@ -434,8 +449,11 @@ export function calcActionForKey(key: string): CalcAction | null {
     case "%":
       return { type: "percent" };
     case ".":
-    case ",":
       return { type: "decimal" };
+    case ",":
+      return code === "NumpadDecimal" ? { type: "decimal" } : null;
+    case "F9":
+      return { type: "negate" };
     default:
       return null;
   }
@@ -455,11 +473,14 @@ export interface CalcFonts {
   value: number;
 }
 
+/** 표시창 큰 글씨 크기의 하한(px). 그래도 넘치면 스타일이 앞쪽을 잘라 끝자리(최근 자릿수)를 보인다. */
+export const CALC_VALUE_MIN_FONT = 10;
+
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
 /**
  * 본문 크기에 맞춘 글자 크기. 본문 크기를 모르면(너비 0 이하·높이 null) null — 스타일의 기본 크기를 쓴다.
- * 단추 칸의 가로·세로 중 작은 쪽에 맞추고, 표시창 큰 글씨는 단추 글자의 약 1.7배에서 시작해 글이 칸 너비를 넘으면 줄인다.
+ * 단추 칸의 가로·세로 중 작은 쪽에 맞추고, 표시창 큰 글씨는 단추 글자의 약 1.7배에서 시작해 글이 칸 너비를 넘으면 줄인다(하한 CALC_VALUE_MIN_FONT).
  */
 export function calcFonts(
   width: number,
@@ -477,5 +498,5 @@ export function calcFonts(
   const wanted = clamp(Math.round(key * 1.7), 18, valueMax);
   // 글자 폭은 대략 0.6em 으로 본다(숫자 + 쉼표). 표시창 좌우 여백 16px 를 뺀다.
   const fit = Math.floor((mainWidth - 16 - 28) / (Math.max(valueText.length, 1) * 0.6));
-  return { key, value: clamp(Math.min(wanted, fit), 12, valueMax) };
+  return { key, value: clamp(Math.min(wanted, fit), CALC_VALUE_MIN_FONT, valueMax) };
 }

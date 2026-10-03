@@ -7,7 +7,9 @@ import { describe, expect, it } from "vitest";
 import {
   CALC_DIV_ZERO_MESSAGE,
   CALC_HISTORY_MAX,
+  CALC_KEY_SHORTCUTS,
   CALC_KEYS,
+  CALC_VALUE_MIN_FONT,
   CALCULATOR_DEFAULT_CONFIG,
   INITIAL_CALC_STATE,
   calcActionForKey,
@@ -109,7 +111,7 @@ describe("숫자 입력과 표시", () => {
     expect(shown("1250.")).toBe("1,250.");
     expect(shown("1.50")).toBe("1.50");
     expect(shown("100")).toBe("100");
-    expect(formatNumberText("-1234567")).toBe("-1,234,567");
+    expect(formatNumberText("-1234567")).toBe("−1,234,567");
     expect(formatNumberText("1.2345e+16")).toBe("1.2345e+16"); // 지수 표기는 쉼표를 넣지 않는다
   });
 
@@ -117,6 +119,18 @@ describe("숫자 입력과 표시", () => {
     expect(shown("007")).toBe("7");
     expect(shown("00")).toBe("0");
     expect(shown("0.05")).toBe("0.05");
+  });
+
+  it("-0 뒤의 숫자도 선행 0 을 바꾼다 — 0 . 5 ± ⌫ ⌫ 7 → -7, 0 이면 -0 그대로", () => {
+    const negZero = run("0.5±<<"); // "-0.5" → "-0." → "-0"
+    expect(negZero.entry).toBe("-0");
+    expect(calcReducer(negZero, { type: "digit", digit: "7" }).entry).toBe("-7");
+    expect(calcReducer(negZero, { type: "digit", digit: "0" }).entry).toBe("-0");
+    expect(displayText(calcReducer(negZero, { type: "digit", digit: "7" }))).toBe("−7");
+    expect(run("0.5±<<7=").entry).toBe("-7");
+    expect(copyValue(run("0.5±<<7"))).toBe("-7");
+    // 소수점이 있으면 0 은 그대로 둔다
+    expect(run("0.±5").entry).toBe("-0.5");
   });
 
   it("소수점만 먼저 눌러도 0. 으로 시작하고, 소수점은 한 번만 받는다", () => {
@@ -257,15 +271,15 @@ describe("퍼센트(%)", () => {
 
 describe("부호(±)", () => {
   it("입력 중인 값의 부호를 바꾼다 — 두 번 누르면 원래대로", () => {
-    expect(shown("5±")).toBe("-5");
+    expect(shown("5±")).toBe("−5");
     expect(shown("5±±")).toBe("5");
-    expect(shown("1250±")).toBe("-1,250");
-    expect(shown("1.5±")).toBe("-1.5");
+    expect(shown("1250±")).toBe("−1,250");
+    expect(shown("1.5±")).toBe("−1.5");
   });
 
   it("입력한 뒤에도 이어서 입력할 수 있다", () => {
-    expect(shown("5±3")).toBe("-53");
-    expect(shown("0.±5")).toBe("-0.5");
+    expect(shown("5±3")).toBe("−53");
+    expect(shown("0.±5")).toBe("−0.5");
   });
 
   it("0 의 부호는 바꾸지 않는다(−0 이 안 생긴다)", () => {
@@ -274,21 +288,21 @@ describe("부호(±)", () => {
   });
 
   it("음수를 식에 넣어 계산한다 — 5 × -3 = -15", () => {
-    expect(shown("5×3±=")).toBe("-15");
+    expect(shown("5×3±=")).toBe("−15");
     expect(shown("5+3±=")).toBe("2");
   });
 
   it("연산자 바로 뒤의 ± 는 직전 값의 부호를 바꿔 입력 값으로 둔다 — 5 + ± = 0", () => {
-    expect(displayText(run("5+±"))).toBe("-5");
+    expect(displayText(run("5+±"))).toBe("−5");
     expect(shown("5+±=")).toBe("0");
     expect(shown("5+±3=")).toBe("8"); // 계산된 값이라 다음 숫자가 대신한다
   });
 
   it("결과의 부호를 바꾸면 그 값에서 이어 계산한다 — 2 + 3 = ± → -5, + 1 = -4", () => {
     const s = run("2+3=±");
-    expect(displayText(s)).toBe("-5");
+    expect(displayText(s)).toBe("−5");
     expect(s.mode).toBe("input");
-    expect(shown("2+3=±+1=")).toBe("-4");
+    expect(shown("2+3=±+1=")).toBe("−4");
   });
 });
 
@@ -422,14 +436,14 @@ describe("큰 값·작은 값 표기", () => {
 
   it("0.000001 미만의 0 아닌 값은 지수 표기, 그 이상은 그대로", () => {
     expect(shown("1÷1000000=")).toBe("0.000001");
-    expect(shown("1÷10000000=")).toBe("1e-7");
-    expect(shown("1÷3000000=")).toBe("3.33333333333333e-7");
+    expect(shown("1÷10000000=")).toBe("1e−7");
+    expect(shown("1÷3000000=")).toBe("3.33333333333333e−7");
     expect(shown("0.000001−0.000001=")).toBe("0"); // 0 은 지수로 안 쓴다
   });
 
   it("음수도 같은 규칙", () => {
-    expect(shown("123456789012345×10±=")).toBe("-1.23456789012345e+15");
-    expect(shown("5−5−1÷10000000=")).toBe("-1e-7");
+    expect(shown("123456789012345×10±=")).toBe("−1.23456789012345e+15");
+    expect(shown("5−5−1÷10000000=")).toBe("−1e−7");
   });
 
   it("지수 표기 결과를 이어 계산한다 — 값은 그대로 쓰인다", () => {
@@ -544,6 +558,19 @@ describe("표시 값·복사 값", () => {
   it("입력이 없는 식의 아랫줄은 직전 숫자", () => {
     expect(displayValue(run("5+"))).toBe("5");
   });
+
+  it("음수 부호는 보일 때만 −(U+2212)로 바꾼다 — 윗줄 식·기록 식·아랫줄은 −, 복사 값·내부 값은 하이픈 그대로", () => {
+    const s = run("5−5±");
+    expect(exprText(s)).toBe("5 − −5"); // 연산자 − 와 음수 부호 − 가 같은 글리프
+    expect(displayText(s)).toBe("−5");
+    expect(copyValue(s)).toBe("-5");
+    expect(s.entry).toBe("-5");
+    const done = run("5−5±=");
+    expect(done.history[0]).toEqual({ id: 1, expr: "5 − −5", result: "10" });
+    expect(copyValue(run("5±"))).toBe("-5");
+    expect(copyValue(run("123456789012345×10±="))).toBe("-1.23456789012345e+15");
+    expect(displayText(INITIAL_CALC_STATE)).not.toContain("-");
+  });
 });
 
 describe("키보드 매핑", () => {
@@ -560,7 +587,26 @@ describe("키보드 매핑", () => {
     expect(calcActionForKey("Delete")).toEqual({ type: "clear" });
     expect(calcActionForKey("%")).toEqual({ type: "percent" });
     expect(calcActionForKey(".")).toEqual({ type: "decimal" });
-    expect(calcActionForKey(",")).toEqual({ type: "decimal" });
+  });
+
+  it("F9 는 ±(Windows 계산기와 같은 키)", () => {
+    expect(calcActionForKey("F9")).toEqual({ type: "negate" });
+    expect(calcActionForKey("F9", "F9")).toEqual({ type: "negate" });
+  });
+
+  it("쉼표는 숫자패드 소수점(code NumpadDecimal)일 때만 소수점이고, 일반 쉼표는 무시한다 — 천 단위 쉼표를 버릇대로 쳐도 1,250 이 1.250 이 되지 않는다", () => {
+    expect(calcActionForKey(",", "NumpadDecimal")).toEqual({ type: "decimal" });
+    expect(calcActionForKey(",")).toBeNull();
+    expect(calcActionForKey(",", "Comma")).toBeNull();
+    expect(calcActionForKey(".", "NumpadDecimal")).toEqual({ type: "decimal" });
+    expect(calcActionForKey(".", "Period")).toEqual({ type: "decimal" });
+  });
+
+  it("aria-keyshortcuts 값에 받는 키(숫자·연산자·Enter·Backspace·Escape·F9)가 모두 들어 있다", () => {
+    const keys = CALC_KEY_SHORTCUTS.split(" ");
+    for (const k of ["0", "9", "Plus", "-", "*", "/", "%", ".", "=", "Enter", "Backspace", "Escape", "Delete", "F9"]) {
+      expect(keys).toContain(k);
+    }
   });
 
   it("처리하지 않는 키는 null — 글자·Tab·방향키·F 키·스페이스", () => {
@@ -596,11 +642,16 @@ describe("기록 칸·글자 크기", () => {
     expect(big.value).toBeLessThanOrEqual(34);
   });
 
-  it("긴 값은 표시창 큰 글씨가 줄지만 12px 아래로는 안 내려간다", () => {
+  it("긴 값은 표시창 큰 글씨가 줄지만 10px 아래로는 안 내려간다", () => {
     const short = calcFonts(300, 300, false, "7")!;
-    const long = calcFonts(300, 300, false, "-1,234,567,890,123,456")!;
+    const long = calcFonts(300, 300, false, "−1,234,567,890,123,456")!;
     expect(long.value).toBeLessThan(short.value);
-    expect(calcFonts(120, 300, false, "-1,234,567,890,123,456")!.value).toBe(12);
+    expect(CALC_VALUE_MIN_FONT).toBe(10);
+    expect(calcFonts(120, 300, false, "−1,234,567,890,123,456")!.value).toBe(10);
+    // 하한이 12 일 때는 12 에서 멈췄을 너비에서 더 줄어든다 — 좁은 칸에서도 최대한 한 줄에 담는다
+    const narrow = calcFonts(200, 300, false, "−1,234,567,890,123,456")!;
+    expect(narrow.value).toBeLessThan(12);
+    expect(narrow.value).toBeGreaterThanOrEqual(10);
   });
 
   it("기록 칸이 보이면 그만큼 단추 칸이 좁아져 글자도 작아진다", () => {
