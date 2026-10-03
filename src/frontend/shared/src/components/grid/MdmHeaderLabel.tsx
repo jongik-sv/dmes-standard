@@ -43,7 +43,10 @@ export function MdmHeaderLabel(props: MdmHeaderLabelProps) {
   const caption = props.displayName ?? "";
   const descId = `${useId()}-tip`;
   // 카드는 머리글 아래로 크게 열린다 — 위쪽 공간 판정·폭·상호작용은 HTML 카드 옵션(mdmCardTipOptions).
-  const { anchorRef, tipPos, showTip, hideTip, box } = useHoverTip<HTMLSpanElement>(false, mdmCardTipOptions(column));
+  const { anchorRef, tipPos, showTip, hideTip, box } = useHoverTip<HTMLSpanElement>(
+    false,
+    mdmCardTipOptions(column)
+  );
 
   const host = props.reactContainer;
   useLayoutEffect(() => {
