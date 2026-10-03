@@ -53,6 +53,11 @@ export interface MdmScreenColumn {
    */
   matchedSystem?: string | null;
   systemPhysName?: string | null;
+  /**
+   * 컬럼 설명이 HTML 일 때만 있다 — MDM 서버가 소독한 HTML 이고, 그때 `description` 은 거기서 뽑은 글자다. 일반 글 설명이면 null.
+   * 카드(MdmMetaCard)는 이 값을 우선해 브라우저에서 한 번 더 소독해 그린다. 이 칸 이전 모듈의 응답에는 칸 자체가 없으므로 선택 칸이다.
+   */
+  descriptionHtml?: string | null;
 }
 
 export interface MdmDomainMeta {

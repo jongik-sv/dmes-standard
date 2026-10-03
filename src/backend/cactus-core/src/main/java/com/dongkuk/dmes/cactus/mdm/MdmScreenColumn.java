@@ -8,6 +8,9 @@ import java.util.List;
  * 못함 등) null 이다 — 빈 목록은 "풀었는데 허용 코드가 없다"이다. 허용 코드를 풀지 못해도 컬럼 메타 자체는 그대로 준다.
  *
  * <p>{@code matchedSystem}·{@code systemPhysName} 은 컬럼 메타의 것을 그대로 넘긴다 — 별칭으로 맞았을 때만 있다(카드가 "MES 이름 X · 표준 Y" 를 보인다).
+ *
+ * <p>{@code descriptionHtml} 도 컬럼 메타의 것을 그대로 넘긴다 — 설명이 HTML 일 때만 있고(MDM 이 소독한 HTML), 카드는 이것을 브라우저에서 한 번 더
+ * 소독해 그린다. 없으면(null) {@code description} 글자를 그린다.
  */
 public record MdmScreenColumn(
         String physName,
@@ -32,7 +35,8 @@ public record MdmScreenColumn(
         MdmColumnMeta.CodeRefMeta codeRef,
         List<AllowedCode> allowedCodes,
         String matchedSystem,
-        String systemPhysName) {
+        String systemPhysName,
+        String descriptionHtml) {
 
     public record AllowedCode(String code, String name) {
     }
@@ -42,6 +46,6 @@ public record MdmScreenColumn(
                 m.usageNote(), m.dataType(), m.length(), m.scale(), m.required(), m.defaultValue(), m.refKind(), m.refTarget(),
                 m.refCateId(), m.domain(), m.stdExpr(), m.bizExpr() != null && m.bizExpr().text() != null,
                 m.bizRequiredVars() == null ? List.of() : m.bizRequiredVars(), m.codeRef(), allowedCodes,
-                m.matchedSystem(), m.systemPhysName());
+                m.matchedSystem(), m.systemPhysName(), m.descriptionHtml());
     }
 }

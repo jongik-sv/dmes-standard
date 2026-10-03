@@ -27,6 +27,7 @@ import type {
 import { GRID_TEMP_ID_FIELD } from "./GridPanel";
 import {
   MdmMetaCard,
+  mdmCardHasHtml,
   mdmCaption,
   resolveCaption,
   toPhysName,
@@ -41,6 +42,7 @@ import {
 } from "../../mdm-meta";
 import { GRID_SIZE_CHANGE_SETTLE_MS, resolveGridSizeChangeAction } from "./grid-size-change";
 import { AgDataGridExcelFrame, type AgDataGridExcelExport } from "./AgDataGridExcel";
+import { MdmHeaderLabel, type MdmHeaderLabelParams } from "./MdmHeaderLabel";
 
 /** `rowNumber` 로 넣는 행번호 열의 colId — 테스트·화면이 이 칸을 집을 때 쓴다. */
 export const ROW_NUMBER_COL_ID = "__rowNo";
@@ -580,12 +582,14 @@ const MDM_TOOLTIP_BOX_STYLE: CSSProperties = { width: "max-content", maxWidth: 3
 /**
  * MDM 메타가 있는 열의 ag-grid 사용자 툴팁(tooltipComponent). ag-grid 는 열의 tooltipComponent 를 머리글과 셀 툴팁에 함께 쓰므로,
  * 머리글(`location: "header"`)이면 MdmMetaCard 를, 셀이면 기본 툴팁과 같은 값 글자를 그린다.
+ * ag-grid 툴팁은 마우스가 들어갈 수 없으므로 카드는 늘 글자 카드다(textOnly). HTML 설명 카드는 머리글 라벨(MdmHeaderLabel)이 포털로 띄운다 —
+ * 이 경로로 오는 HTML 열은 화면이 innerHeaderComponent 를 직접 준 열뿐이다.
  */
 export function MdmGridTooltip(props: ITooltipParams & Partial<MdmGridTooltipParams>) {
   if (props.location === "header" && props.mdmColumn) {
     return (
       <div className="ag-tooltip mdm-meta-tooltip" style={MDM_TOOLTIP_BOX_STYLE}>
-        <MdmMetaCard column={props.mdmColumn} domain={props.mdmDomain ?? null} />
+        <MdmMetaCard column={props.mdmColumn} domain={props.mdmDomain ?? null} textOnly />
       </div>
     );
   }
@@ -596,6 +600,25 @@ export function MdmGridTooltip(props: ITooltipParams & Partial<MdmGridTooltipPar
       {value == null ? "" : String(value)}
     </div>
   );
+}
+
+/**
+ * HTML 설명 머리글 라벨(MdmHeaderLabel)을 단 잎 열 id 목록(그룹 안까지, 순서대로 이어 붙인 서명). 바뀌면 머리글을 다시 만든다 —
+ * ag-grid 는 만든 뒤 colDef 에 innerHeaderComponent 가 생기거나 빠져도 머리글을 스스로 다시 만들지 않는다.
+ */
+export function mdmHeaderLabelSignature(defs: ReadonlyArray<ColDef | ColGroupDef>): string {
+  const ids: string[] = [];
+  const walk = (list: ReadonlyArray<ColDef | ColGroupDef>) => {
+    for (const d of list) {
+      if ("children" in d && Array.isArray(d.children)) walk(d.children);
+      else if ((d as ColDef).headerComponentParams?.innerHeaderComponent === MdmHeaderLabel) {
+        const c = d as ColDef;
+        ids.push(c.colId ?? c.field ?? "");
+      }
+    }
+  };
+  walk(defs);
+  return ids.join("\u0000");
 }
 
 /** 열 하나의 머리글 글자. MDM 이 없으면 적은 header, 그것도 없으면 key(ag-grid 가 field 로 'Code Nm' 같은 이름을 지어내지 않게). */
@@ -718,15 +741,32 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
     : null;
   const headerName = columnCaption(col, opts.mdm);
   // MDM 머리글 툴팁 — 메타가 있고 화면이 headerTooltip·headerComponent 를 직접 주지 않았을 때만. 그 밖에는 키를 더하지 않는다(예전 열 정의 그대로).
+  // HTML 설명 카드 열은 ag-grid 머리글 툴팁 대신 기본 머리글의 안쪽 라벨(MdmHeaderLabel)이 포털 카드를 띄운다(화면이 innerHeaderComponent 를
+  // 이미 줬으면 손대지 않고 글자 머리글 툴팁). 셀 툴팁(MdmGridTooltip 셀 분기)은 어느 쪽이든 같다.
   const mdmInfo = opts.mdm?.infoByKey.get(col.key);
-  const mdmTooltip =
-    mdmInfo?.column && col.headerTooltip == null && col.headerComponent == null
+  const mdmCol = mdmInfo?.column && col.headerTooltip == null && col.headerComponent == null ? mdmInfo.column : null;
+  const tooltipParams = mdmCol ? ({ mdmColumn: mdmCol, mdmDomain: mdmInfo?.domain ?? null } satisfies MdmGridTooltipParams) : null;
+  // 표시 이름이 빈 열(header: "")은 라벨 글자가 비어 마우스를 올릴 곳이 없다 — 예전 글자 머리글 카드(칸 전체, 물리명 툴팁)로 둔다.
+  const htmlLabel =
+    mdmCol &&
+    headerName.trim() !== "" &&
+    mdmCardHasHtml(mdmCol) &&
+    col.headerComponentParams?.innerHeaderComponent == null
       ? {
-          headerTooltip: headerName || mdmInfo.column.physName,
-          tooltipComponent: MdmGridTooltip,
-          tooltipComponentParams: { mdmColumn: mdmInfo.column, mdmDomain: mdmInfo.domain } satisfies MdmGridTooltipParams,
+          headerComponentParams: {
+            ...(col.headerComponentParams ?? {}),
+            innerHeaderComponent: MdmHeaderLabel,
+            innerHeaderComponentParams: tooltipParams satisfies MdmHeaderLabelParams | null,
+          },
         }
       : null;
+  const mdmTooltip = tooltipParams
+    ? {
+        ...(htmlLabel ? {} : { headerTooltip: headerName || tooltipParams.mdmColumn.physName }),
+        tooltipComponent: MdmGridTooltip,
+        tooltipComponentParams: tooltipParams,
+      }
+    : null;
   return {
     field: col.key,
     headerName,
@@ -760,6 +800,7 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
     headerStyle: col.headerStyle,
     rowDrag,
     ...(mdmTooltip ?? {}),
+    ...(htmlLabel ?? {}),
     ...(col.tooltip === false ? { tooltipValueGetter: () => "" } : {}),
     ...(issueTooltip ?? {}),
     cellRenderer: col.render
@@ -1060,6 +1101,31 @@ function AgDataGridComponent({
     }),
     [effectiveSortable, wrapHeaderText, autoHeaderHeight]
   );
+
+  // HTML 설명 머리글 라벨(MdmHeaderLabel)을 단 열이 바뀌면 머리글을 한 번 다시 만든다. ag-grid 는 만든 뒤 colDef 에 innerHeaderComponent 가
+  // 생기거나 빠져도 기본 머리글을 다시 만들지 않는다(tests/unit/aggrid-inner-header-capability.unit.test.ts 3). 메타는 늘 그리드를 만든 뒤 오므로
+  // HTML 열이 있는 그리드에서 한 번 일어난다 — 그때 화면의 상태 있는 머리글 컴포넌트도 다시 마운트된다. HTML 열이 없는 그리드는 부르지 않는다.
+  const headerLabelSignature = useMemo(() => mdmHeaderLabelSignature(columnDefs), [columnDefs]);
+  /** 지금 머리글 칸들이 만들어질 때의 라벨 서명. 그리드는 첫 렌더 값으로 만들어진다. */
+  const appliedHeaderLabelRef = useRef(headerLabelSignature);
+  useEffect(() => {
+    if (!gridReady || appliedHeaderLabelRef.current === headerLabelSignature) return;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const apply = (triesLeft: number) => {
+      const api = gridRef.current?.api;
+      if (!api || api.isDestroyed()) return;
+      // ag-grid-react 는 바뀐 열 정의를 자기 효과(이 효과보다 먼저 돈다)에서 넘긴다 — 아직 대기 중이면 잠깐 뒤에 다시 본다.
+      const current = mdmHeaderLabelSignature((api.getColumns() ?? []).map((c) => c.getColDef()));
+      if (current !== headerLabelSignature && triesLeft > 0) {
+        retry = setTimeout(() => apply(triesLeft - 1), 0);
+        return;
+      }
+      appliedHeaderLabelRef.current = headerLabelSignature;
+      api.refreshHeader();
+    };
+    apply(3);
+    return () => clearTimeout(retry);
+  }, [gridReady, headerLabelSignature]);
 
   const hasEditableColumns = useMemo(() => hasEditableColumn(columns), [columns]);
 
@@ -1603,6 +1669,8 @@ function AgDataGridComponent({
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable)
         return;
+      // 머리글 라벨의 HTML 설명 카드(body 포털)에서 올라온 키 — React 이벤트는 React 트리를 따라 여기까지 온다. 카드 안 ↑↓ 는 설명 스크롤에 둔다.
+      if (target?.closest?.("[data-tip-interactive]")) return;
 
       // ←/→ : 현재 포커스(highlight) 행을 접힘/펼침. 행 이동은 없음 (단순 expand/collapse).
       if (isHorizontal) {

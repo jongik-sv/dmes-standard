@@ -265,7 +265,7 @@ class MdmMetaFeedContractHttpTest {
                 viaAlias.labelShort(), viaAlias.description(), viaAlias.usageNote(), viaAlias.dataType(), viaAlias.length(),
                 viaAlias.scale(), viaAlias.required(), viaAlias.defaultValue(), viaAlias.refKind(), viaAlias.refTarget(),
                 viaAlias.refCateId(), viaAlias.domain(), viaAlias.stdExpr(), viaAlias.bizExpr(), viaAlias.bizRequiredVars(),
-                viaAlias.codeRef(), null, null), "별칭 칸을 뺀 정의는 표준 매칭과 같다");
+                viaAlias.codeRef(), null, null, viaAlias.descriptionHtml()), "별칭 칸을 뺀 정의는 표준 매칭과 같다");
 
         MdmColumnMeta overlap = (MdmColumnMeta) result.found().get("CT_CODE_COL");
         assertEquals("CT_CODE_COL", overlap.physName(), "겹치는 이름은 표준 컬럼(별칭 대상 COIL_THK 가 아니다)");
@@ -281,11 +281,12 @@ class MdmMetaFeedContractHttpTest {
 
     /**
      * D-150 — HTML 설명이 MDM 피드에서 {@code descriptionHtml} = 소독본, {@code description} = 글자만으로 나간다. 원장에는 소독하지 않은 옛
-     * 데이터를 직접 넣어 피드의 재소독도 본다. 일반 글 설명은 그대로이고 {@code descriptionHtml} 은 null 이다. HTML 활용처 메모는 글자만 싣는다. cactus 는 아직 이 칸을 모르지만
-     * (cactus 전달·화면 카드는 메타 캐시 세션 담당) 모르는 칸을 무시하므로 HTTP 로 받은 {@link MdmColumnMeta} 가 깨지지 않고 글자만 설명을 읽는다.
+     * 데이터를 직접 넣어 피드의 재소독도 본다. 일반 글 설명은 그대로이고 {@code descriptionHtml} 은 null 이다. HTML 활용처 메모는 글자만 싣는다. cactus 는 HTTP 로 받은
+     * {@link MdmColumnMeta} 의 {@code descriptionHtml} 로 소독본을, {@code description} 으로 글자만 설명을 읽는다 — 서버 JSON 칸 이름과 cactus 레코드 칸 이름이
+     * 같다는 것을 HTTP 를 거친 끝까지 고정한다.
      */
     @Test
-    void HTML_설명은_소독본_descriptionHtml_과_글자만_description_으로_나가고_cactus_는_글자_설명을_읽는다() throws Exception {
+    void HTML_설명은_소독본_descriptionHtml_과_글자만_description_으로_나가고_cactus_가_둘_다_읽는다() throws Exception {
         String sanitized = "<p>두께 &lt; 10</p><ul><li>하나</li><li>둘</li></ul>";
         jdbc.update("UPDATE TB_MDM_COLUMN SET DESCRIPTION = ? WHERE PHYS_NAME = 'COIL_THK'",
                 "<p onclick=\"x()\">두께 &lt; 10</p><ul><li>하나</li><li>둘</li></ul><script>alert(1)</script>");
@@ -309,10 +310,12 @@ class MdmMetaFeedContractHttpTest {
         assertEquals("descriptionHtml", lastFieldName(plain), plain.toString());
 
         MdmColumnMeta meta = (MdmColumnMeta) service.one(MdmTargetType.COLUMN, "COIL_THK").orElseThrow();
-        assertEquals("두께 < 10\n하나\n둘", meta.description(), "옛 cactus 는 태그 대신 글자를 본다");
+        assertEquals("두께 < 10\n하나\n둘", meta.description(), "글자 칸은 태그 대신 글자를 본다");
+        assertEquals(sanitized, meta.descriptionHtml(), "cactus 는 소독본 HTML 을 descriptionHtml 로 받는다");
         assertTrue(meta.required(), "새 칸이 있어도 나머지 칸은 그대로 읽힌다");
         MdmColumnMeta plainMeta = (MdmColumnMeta) service.one(MdmTargetType.COLUMN, "CT_CODE_COL").orElseThrow();
         assertEquals("a < b & Map<String>", plainMeta.description());
+        assertNull(plainMeta.descriptionHtml(), "일반 글 설명이면 descriptionHtml 은 null");
     }
 
     /** 컬럼 값 사본에서 별칭 칸(matchedSystem·systemPhysName)을 뺀 정의만 남긴다. */

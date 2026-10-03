@@ -162,6 +162,29 @@ class MdmMetaClientTest {
         assertThat(old.systemPhysName()).isNull();
     }
 
+    /** 컬럼 설명 HTML(2026-10-03 계약) — HTML 설명이면 소독한 HTML 이 descriptionHtml 에, 글자는 description 에 온다. 일반 글·옛 MDM 응답이면 null. */
+    @Test
+    void COLUMN_값의_descriptionHtml_을_읽고_null_이거나_칸이_없으면_null_이다() {
+        server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))
+                .andRespond(withSuccess(ok("""
+                        {"items":[
+                         {"key":"NOTICE_BODY","value":{"physName":"NOTICE_BODY","columnName":"본문","description":"굵은 설명",
+                          "dataType":"STRING","required":false,"matchedSystem":null,"systemPhysName":null,
+                          "descriptionHtml":"<p><b>굵은</b> 설명</p>"}},
+                         {"key":"COIL_THK","value":{"physName":"COIL_THK","columnName":"코일 두께","description":"두께",
+                          "dataType":"NUMBER","required":false,"descriptionHtml":null}},
+                         {"key":"OLD","value":{"physName":"OLD","columnName":"옛 응답","dataType":"STRING","required":false}}],
+                         "failed":[]}"""), MediaType.APPLICATION_JSON));
+
+        MdmFetchResult r = client.fetch(MdmTargetType.COLUMN, List.of("NOTICE_BODY", "COIL_THK", "OLD"));
+
+        MdmColumnMeta html = (MdmColumnMeta) r.found().get("NOTICE_BODY");
+        assertThat(html.descriptionHtml()).isEqualTo("<p><b>굵은</b> 설명</p>");
+        assertThat(html.description()).isEqualTo("굵은 설명");
+        assertThat(((MdmColumnMeta) r.found().get("COIL_THK")).descriptionHtml()).isNull();
+        assertThat(((MdmColumnMeta) r.found().get("OLD")).descriptionHtml()).isNull();
+    }
+
     @Test
     void fetch_RULE_은_LocalDateTime_과_정수_셀_키를_엔진_레코드로_되읽고_failed_를_돌려준다() {
         server.expect(requestTo("http://mdm.test/oasis/metaFeed/view"))

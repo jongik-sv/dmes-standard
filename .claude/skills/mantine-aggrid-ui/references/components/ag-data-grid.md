@@ -105,6 +105,7 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
   열 `key` 를 물리명으로 바꿔(`noticeTitle` → `NOTICE_TITLE`, 대문자는 그대로) 찾는다. 다른 물리명이면 `meta: "TITLE"`, 끄려면 `meta: false`.
 - `header` 를 적은 열은 그대로다. 공급자가 `captionPriority="mdm"` 이면 MDM 캡션이 이긴다. `header: ""` 는 일부러 비운 머리글로 그대로 둔다.
 - MDM 메타가 있는 열은 머리글에 마우스를 올리면 `MdmMetaCard`(형식·필수·도메인·허용 코드 등) 툴팁이 뜬다. 화면이 `headerTooltip`·`headerComponent` 를 주면 그대로 둔다.
+- 설명이 HTML(`descriptionHtml`)인 열은 머리글 캡션 글자(안쪽 라벨)에 마우스를 올리면 HTML 카드(최대 폭 640px, 마우스가 들어갈 수 있음, 150ms 유예·Escape 로 닫힘)가 ag-grid 머리글 툴팁과 같은 지연(기본 2000ms) 뒤 body 포털로 뜨고, 라벨을 누르면 닫힌다. 그리드 `tooltipInteraction` 은 쓰지 않아 셀 툴팁과 HTML 설명 열이 없는 그리드는 예전과 같다 — [mdm-meta](mdm-meta.md) §HTML 설명·상호작용 툴팁.
 - 포털 밖(단독 실행·시험)에서는 예전과 똑같다. 단 `header` 를 비우면 `key` 가 머리글이다.
 - 엑셀 내보내기처럼 화면이 `header` 를 직접 읽으면 `useResolvedGridColumns(columns)` 로 그리드와 같은 캡션을 받는다.
 

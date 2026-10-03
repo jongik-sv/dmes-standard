@@ -26,7 +26,16 @@ export {
   type MdmColumnInfo,
   type MdmMetaScope,
 } from "./context";
-export { MdmMetaCard, formatMdmDataType, MDM_META_CARD_MAX_CODES, type MdmMetaCardProps } from "./MdmMetaCard";
+export {
+  MdmMetaCard,
+  formatMdmDataType,
+  mdmCardHasHtml,
+  mdmCardSafeHtml,
+  MDM_META_CARD_MAX_CODES,
+  MDM_META_CARD_HTML_MAX_WIDTH,
+  MDM_META_CARD_HTML_MAX_HEIGHT,
+  type MdmMetaCardProps,
+} from "./MdmMetaCard";
 export { MdmFieldLabel, type MdmFieldLabelProps } from "./MdmFieldLabel";
 export {
   validateMdmValue,
