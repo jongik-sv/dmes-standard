@@ -6,6 +6,7 @@
  * 권한키는 토큰이 아니라 BFF 서버 캐시(`getUserPerms`, BE `/api/sec/perm-keys` lazy load)에서 가져온다.
  *
  * 경로 분류 (평가순서):
+ *   0) /api/* 경로 모양 → 인코딩된 `/`·`\`·`.`·`;`·점 조각이면 400 (lib/http/path-guard.ts, 아래 판정보다 먼저)
  *   1) /portal/*        → 인증 보호 (미인증 시 /login)
  *   2) PUBLIC           → 완전 공개 (로그인 등)
  *   3) 세션 없음        → 401
@@ -32,6 +33,7 @@ import {
 import { getUserPerms } from "@/lib/auth/api-permission-cache";
 import { API_BODY_MAX_BYTES, declaredBodyExceeds } from "@/lib/http/body-limit";
 import { INTERNAL_API_PREFIX, isTrustedInternalCall } from "@/lib/http/internal-call";
+import { isUnsafeApiPath } from "@/lib/http/path-guard";
 
 const AUTH_SECRET = process.env.AUTH_SECRET;
 const AUTH_COOKIE_PREFIX = process.env.AUTH_COOKIE_PREFIX ?? "oasis-mcm-auth";
@@ -114,13 +116,20 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2-0) 본문 상한 — Next 는 상한을 넘는 본문을 잘라서 라우트로 넘기므로(body-streams.js), Content-Length 로 미리 413 을 준다.
+  // 2-0) 경로 모양 — 인코딩된 `/`·`\`·`.`·`;`(이중 인코딩 포함)·날 `\`·`;`·점 조각은 권한 판정보다 먼저 400.
+  //      아래 판정은 원래 경로의 접두를 보는데 라우트는 디코드한 조각으로 BE URL 을 만들어, 섞이면 둘이 보는 경로가 갈라진다
+  //      (`…/noticeBoard/search%2F..%2F..%2FnoticeMgmt%2Fsave` → BE /oasis/noticeMgmt/save, 2026-10-03 보안 지적. lib/http/path-guard.ts).
+  if (isUnsafeApiPath(path)) {
+    return jsonError("BAD_REQUEST", "허용되지 않는 경로 형식입니다.", 400);
+  }
+
+  // 2-1) 본문 상한 — Next 는 상한을 넘는 본문을 잘라서 라우트로 넘기므로(body-streams.js), Content-Length 로 미리 413 을 준다.
   //       메모리 상한은 이 검사가 아니라 next.config 의 proxyClientMaxBodySize 가 지킨다(복제는 proxy 실행 전에 시작된다).
   if (declaredBodyExceeds(req.headers, API_BODY_MAX_BYTES)) {
     return jsonError("PAYLOAD_TOO_LARGE", "요청 본문이 너무 큽니다(최대 10MB).", 413);
   }
 
-  // 2-1) 서버 간 내부 경로(BE RoleChangedEventListener → 권한 캐시 무효화) — 세션 없는 서버 호출이라 사용자 RBAC 대신
+  // 2-2) 서버 간 내부 경로(BE RoleChangedEventListener → 권한 캐시 무효화) — 세션 없는 서버 호출이라 사용자 RBAC 대신
   //       BFF↔BE 합의 비밀(X-Client-Key = BACKEND_CLIENT_KEY)을 본다. 틀리거나 없으면 로그인한 사용자여도 403. 라우트가 한 번 더 본다.
   if (path.startsWith(INTERNAL_API_PREFIX)) {
     return isTrustedInternalCall(req.headers)

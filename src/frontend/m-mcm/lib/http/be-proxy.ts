@@ -19,6 +19,7 @@ import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 import { hasAnyRole } from "@dk-oasis/shared/auth-rbac-policy";
 import { forwardedForHeader } from "./forwarded-for";
+import { isUnsafeApiPath } from "./path-guard";
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL ?? "http://localhost:8080";
 const BACKEND_CLIENT_KEY = process.env.BACKEND_CLIENT_KEY;
@@ -215,6 +216,15 @@ export async function forwardToBackend(
     return NextResponse.json(
       { success: false, error: { code: "SERVER_ERROR", message: "서버 설정 오류입니다." } },
       { status: 500 }
+    );
+  }
+
+  // BE 경로 모양 — 라우트 매처는 Next 가 정리하기 전 경로로 조각을 나눠, proxy 가 못 본 날 `..`·`.` 조각이 params 로 올 수 있다.
+  // encodeURIComponent 는 `.` 를 인코딩하지 않아 그대로 붙이면 fetch 가 정리해 다른 BE 경로가 된다(lib/http/path-guard.ts).
+  if (isUnsafeApiPath(backendPath)) {
+    return NextResponse.json(
+      { success: false, error: { code: "BAD_REQUEST", message: "허용되지 않는 경로 형식입니다." } },
+      { status: 400 }
     );
   }
 

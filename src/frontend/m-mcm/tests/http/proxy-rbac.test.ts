@@ -63,15 +63,21 @@ describe("proxy — 미디어 파일 내려받기(읽기 전용 AUTH_ONLY)", () 
     }
   });
 
-  it("경로 조작(.. · %2e%2e · %2f · //)도 403 — URL 이 정규화된 뒤에도 내려받기 모양이 아니다", async () => {
+  it("경로 조작(.. · %2e%2e · //)도 403 — URL 이 정규화된 뒤에도 내려받기 모양이 아니다", async () => {
     for (const path of [
       `${MEDIA_FILE}../../sample-notices`,
       `${MEDIA_FILE}%2e%2e/%2e%2e/sample-notices`,
-      `${MEDIA_FILE}${FILE_ID}%2f..%2f..%2fsample-notices`,
       `/api/mcm/rest/widgetMedia/file//api/mcm/widgetMedia/file/${FILE_ID}`,
     ]) {
       expect(await call(path, "GET"), path).toEqual({ status: 403, passed: false });
     }
+  });
+
+  it("인코딩된 / 가 든 경로는 권한 판정 전에 400 — lib/http/path-guard.ts(2026-10-03)", async () => {
+    expect(await call(`${MEDIA_FILE}${FILE_ID}%2f..%2f..%2fsample-notices`, "GET")).toEqual({
+      status: 400,
+      passed: false,
+    });
   });
 });
 
