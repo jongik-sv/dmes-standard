@@ -198,7 +198,7 @@ public final class SqlGuard {
 
         // 4. 금지 낱말
         Matcher forbidden = FORBIDDEN.matcher(masked);
-        if (forbidden.find()) throw invalid(MSG_FORBIDDEN + forbidden.group(1).toUpperCase(Locale.ROOT));
+        if (forbidden.find()) throw invalid(forbiddenWord(forbidden.group(1).toUpperCase(Locale.ROOT)));
 
         // 5. 시스템 변수만(:name·&name)
         Set<String> used = new LinkedHashSet<>();
@@ -212,6 +212,14 @@ public final class SqlGuard {
             used.add(name);
         }
         return new Inspection(semicolon, List.copyOf(new ArrayList<>(used)));
+    }
+
+    /**
+     * 4단계 거절 문구. 금지 낱말은 같은 이름의 열·표({@code SELECT SHUTDOWN FROM TB_EQP})도 막으므로 큰따옴표로 감싸는 길을 알려 준다 —
+     * 따옴표 식별자는 가린 사본에서 공백이 되어 4단계를 지난다. 따옴표 안은 대소문자를 가리므로(PostgreSQL 은 소문자로 만든 이름) 그것도 적는다.
+     */
+    static String forbiddenWord(String word) {
+        return MSG_FORBIDDEN + word + " — 열·표 이름이면 큰따옴표로 감싸세요(예: \"" + word + "\", 따옴표 안은 대소문자를 구분합니다)";
     }
 
     /** 6단계 — 식별자 글자를 드러낸 사본에서 거절 목록 함수를 부르는 곳(과 위험 저장 프로시저 이름)을 찾는다. */

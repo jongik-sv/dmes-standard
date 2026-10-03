@@ -335,7 +335,7 @@ class WidgetQueryExecutorTest {
         insertRow(601);
         assertThat(executor.preview(null, "SELECT COUNT(*) AS CNT FROM WIDGET_T;", 50).rows().get(0).get("CNT")).isEqualTo(601L);
 
-        assertMessage(() -> executor.preview("mcm", "select * into x from WIDGET_T", 50), "쓸 수 없는 낱말이 있습니다: INTO");
+        assertMessage(() -> executor.preview("mcm", "select * into x from WIDGET_T", 50), SqlGuard.forbiddenWord("INTO"));
     }
 
     // ── 로컬 SQLite ──────────────────────────────────────────────────

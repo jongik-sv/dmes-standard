@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * {@link SqlGuard} — 스펙 2026-10-02-widget-admin-generic §7.1 사례 표(Review Focus 2: 주석·문자열 안 ;, SELECT … INTO,
@@ -70,8 +71,8 @@ class SqlGuardTest {
         return Stream.of(
                 arguments("UPDATE t SET a=1", NOT_SELECT),
                 arguments("SELECT 1; SELECT 2", MULTI),
-                arguments("select * into x from t", "쓸 수 없는 낱말이 있습니다: INTO"),
-                arguments("SELECT * FROM t FOR UPDATE", "쓸 수 없는 낱말이 있습니다: UPDATE"),
+                arguments("select * into x from t", SqlGuard.forbiddenWord("INTO")),
+                arguments("SELECT * FROM t FOR UPDATE", SqlGuard.forbiddenWord("UPDATE")),
                 arguments("DeLeTe FROM t", NOT_SELECT),
                 arguments("SELECT 1; DROP TABLE t", MULTI),
                 arguments("PRAGMA x", NOT_SELECT),
@@ -82,8 +83,8 @@ class SqlGuardTest {
                 arguments("   ", EMPTY),
                 arguments("SELECT 1;;", MULTI),
                 // 덧붙인 사례: 쓰기 CTE·대소문자 섞인 금지어·닫히지 않은 따옴표·특수 문자열로 검사 우회
-                arguments("WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d", "쓸 수 없는 낱말이 있습니다: DELETE"),
-                arguments("SELECT a FROM t WHERE b IN (SELECT c FROM u) uNiOn SELECT 1 FROM t fOr UpDaTe", "쓸 수 없는 낱말이 있습니다: UPDATE"),
+                arguments("WITH d AS (DELETE FROM t RETURNING *) SELECT * FROM d", SqlGuard.forbiddenWord("DELETE")),
+                arguments("SELECT a FROM t WHERE b IN (SELECT c FROM u) uNiOn SELECT 1 FROM t fOr UpDaTe", SqlGuard.forbiddenWord("UPDATE")),
                 arguments("SELECT 1 FROM t; dRoP TABLE t", MULTI),
                 arguments("SELECT 'abc FROM t", UNCLOSED),
                 arguments("SELECT /* 1", UNCLOSED),
@@ -101,7 +102,7 @@ class SqlGuardTest {
                 arguments("SELECT 1 /* x /*/ FROM t", NESTED),
                 // 대괄호는 PostgreSQL 에서 식이다 — 그 안의 ;·금지 낱말·변수도 본다
                 arguments("SELECT [a;b] FROM t", MULTI),
-                arguments("SELECT [update] FROM t", "쓸 수 없는 낱말이 있습니다: UPDATE"),
+                arguments("SELECT [update] FROM t", SqlGuard.forbiddenWord("UPDATE")),
                 arguments("SELECT a[:foo] FROM t",
                         "알 수 없는 변수입니다: :foo (쓸 수 있는 변수: :userId, :deptCd, :today, :yesterday, :monthStart, :now)"),
                 // Spring 이 변수로 바꾸는 &name·점 붙은 이름도 같은 규칙(검사는 통과하고 실행 때 늘 실패하는 SQL 을 막는다)
@@ -118,16 +119,20 @@ class SqlGuardTest {
                 arguments("SELECT `a` FROM t", SPECIAL),
                 arguments("SELECT `'` FROM t; SELECT 2 --'", SPECIAL),
                 // SQL Server 는 ; 없이 문장을 이어 쓴다 — 읽기 전용 강제가 없는 그 DB 에서 서버 자원을 붙잡거나 바꾸는 문장(2026-10-03)
-                arguments("SELECT 1 WAITFOR DELAY '00:00:10'", "쓸 수 없는 낱말이 있습니다: WAITFOR"),
-                arguments("SELECT 1 kill 52", "쓸 수 없는 낱말이 있습니다: KILL"),
-                arguments("SELECT 1 SHUTDOWN WITH NOWAIT", "쓸 수 없는 낱말이 있습니다: SHUTDOWN"),
-                arguments("SELECT 1 DBCC SHRINKDATABASE(0)", "쓸 수 없는 낱말이 있습니다: DBCC"),
-                arguments("SELECT 1 RECONFIGURE", "쓸 수 없는 낱말이 있습니다: RECONFIGURE"),
-                arguments("SELECT 1 BACKUP DATABASE d TO DISK = 'x'", "쓸 수 없는 낱말이 있습니다: BACKUP"),
-                arguments("SELECT 1 RESTORE DATABASE d FROM DISK = 'x'", "쓸 수 없는 낱말이 있습니다: RESTORE"),
-                arguments("SELECT 1 DENY SELECT ON t TO public", "쓸 수 없는 낱말이 있습니다: DENY"),
+                arguments("SELECT 1 WAITFOR DELAY '00:00:10'", SqlGuard.forbiddenWord("WAITFOR")),
+                arguments("SELECT 1 kill 52", SqlGuard.forbiddenWord("KILL")),
+                arguments("SELECT 1 SHUTDOWN WITH NOWAIT", SqlGuard.forbiddenWord("SHUTDOWN")),
+                arguments("SELECT 1 DBCC SHRINKDATABASE(0)", SqlGuard.forbiddenWord("DBCC")),
+                arguments("SELECT 1 RECONFIGURE", SqlGuard.forbiddenWord("RECONFIGURE")),
+                arguments("SELECT 1 BACKUP DATABASE d TO DISK = 'x'", SqlGuard.forbiddenWord("BACKUP")),
+                arguments("SELECT 1 RESTORE DATABASE d FROM DISK = 'x'", SqlGuard.forbiddenWord("RESTORE")),
+                arguments("SELECT 1 DENY SELECT ON t TO public", SqlGuard.forbiddenWord("DENY")),
                 // 대문자로 바꾸면 I 가 되는 ı(U+0131)를 끼워도 걸린다(UNICODE_CASE)
-                arguments("SELECT 1 K\u0131LL 52", "쓸 수 없는 낱말이 있습니다: KILL"),
+                arguments("SELECT 1 K\u0131LL 52", SqlGuard.forbiddenWord("KILL")),
+                // 금지 낱말과 같은 이름의 열도 막는다 — 문구가 큰따옴표로 감싸는 길을 알려 준다(감싸면 통과: allowsQuotedForbiddenWordAsName)
+                arguments("SELECT SHUTDOWN FROM TB_EQP",
+                        "쓸 수 없는 낱말이 있습니다: SHUTDOWN — 열·표 이름이면 큰따옴표로 감싸세요(예: \"SHUTDOWN\", 따옴표 안은 대소문자를 구분합니다)"),
+                arguments("SELECT backup FROM TB_EQP", SqlGuard.forbiddenWord("BACKUP")),
                 // Oracle 12c 인라인 PL/SQL(WITH FUNCTION)은 본문에 ; 가 있어야 해서 여러 문장으로 거절된다
                 arguments("WITH FUNCTION f RETURN NUMBER IS BEGIN DBMS_SESSION.SLEEP(5); RETURN 1; END; SELECT f FROM dual", MULTI));
     }
@@ -431,6 +436,16 @@ class SqlGuardTest {
     @MethodSource("allowedNearFunctions")
     @DisplayName("거절 목록과 이름 일부만 같은 정상 조회는 통과한다")
     void allowsNearFunctions(String sql) {
+        assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql);
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}")
+    @ValueSource(strings = {
+            "SELECT \"SHUTDOWN\" FROM TB_EQP",
+            "SELECT e.\"BACKUP\", e.\"kill\", \"RESTORE\" AS \"DENY\" FROM TB_EQP e",
+            "SELECT \"USE\", \"CHECKPOINT\", \"BEGIN\" FROM TB_EQP"})
+    @DisplayName("금지 낱말과 같은 이름의 열·표는 큰따옴표로 감싸면 통과한다(거절 문구의 안내대로)")
+    void allowsQuotedForbiddenWordAsName(String sql) {
         assertThat(SqlGuard.check(sql).sql()).isEqualTo(sql);
     }
 
