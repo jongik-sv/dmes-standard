@@ -285,6 +285,51 @@ class TermMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
         assertEquals(List.of(), keyword("name"), "원문의 키 이름으로는 찾히지 않는다");
     }
 
+    @Test
+    void ASCII_밖_원본이_대문자로_ASCII가_되어도_찾는다() {
+        // ß 말고도 ſ(긴 s)·ı(점 없는 i)·ﬁ·ﬃ(합자)는 Java 대문자 변환으로 ASCII 가 된다. DB UPPER 는 이렇게 바꾸지 않는다.
+        Long longS = seed("ſtate");
+        Long dotless = seed("약어행", t -> t.setEngAbbr("ıd"));
+        Long ligature = seed("동의어행", t -> t.setSynonyms("[\"ﬁle\"]"));
+        Long ffi = seed("별칭행", t -> t.setAliases("[\"oﬃce\"]"));
+        Long ctx = seed("상황행", t -> t.setContext("ﬁ"));
+
+        assertEquals(List.of(longS), keyword("STATE"));
+        assertEquals(List.of(longS), keyword("st"));
+        assertEquals(List.of(dotless), keyword("id"));
+        assertEquals(List.of(ligature), keyword("FILE"));
+        assertEquals(List.of(ligature, ffi), keyword("fi"));
+        assertEquals(List.of(ffi), keyword("OFFICE"));
+        assertEquals(List.of(ctx), filter(null, null, "FI"));
+    }
+
+    @Test
+    void 느낌표와_퍼센트_밑줄이_섞인_키워드도_글자_그대로_비교한다() {
+        Long bang = seed("A!B");
+        Long bangPercent = seed("C!%D");
+        Long bangUnderscore = seed("동의어행", t -> t.setSynonyms("[\"E!_F\"]"));
+        Long plain = seed("AXB");
+
+        assertEquals(List.of(bang, bangPercent, bangUnderscore), keyword("!"));
+        assertEquals(List.of(bang), keyword("a!b"));
+        assertEquals(List.of(bangPercent), keyword("!%"));
+        assertEquals(List.of(bangUnderscore), keyword("!_"));
+        assertEquals(List.of(), keyword("!!"));
+        assertEquals(List.of(), keyword("A!X"));
+        assertEquals(List.of(plain), keyword("AX"));
+    }
+
+    @Test
+    void 상황_조건에_안_맞는_행도_시스템_조건의_NPE는_그대로_난다() {
+        // 기존 결함 고정: Java 는 시스템 조건을 상황 조건보다 먼저 본다. 시스템 칸이 JSON null 리터럴인 행은 상황이 달라도 NPE.
+        seed("널시스템", t -> {
+            t.setSystems("null");
+            t.setContext("냉연");
+        });
+        assertThrows(NullPointerException.class, () -> filter(null, "MES", "열연"));
+        assertEquals(List.of(), filter(null, null, "열연"), "시스템 조건이 없으면 NPE 없이 빈 결과");
+    }
+
     // ── 시스템 조건 ──
 
     @Test
