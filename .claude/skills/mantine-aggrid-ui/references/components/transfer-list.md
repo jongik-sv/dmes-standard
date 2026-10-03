@@ -83,6 +83,8 @@ testId 조립(`{p}` = `testId`):
 
 버튼 활성: `>`·`<` 는 그쪽 선택이 있어야, `>>`·`<<` 는 그쪽 보이는(검색·분류 통과) 목록이 있어야 켜진다. `>`·`<` 는 옮긴 뒤 그쪽 선택을 비운다(`>>`·`<<` 는 비우지 않는다).
 
+행 선택: 행 어디를 눌러도(행 안 체크박스 포함) 한 번 토글되고, Shift 를 누르고 누르면 마지막으로 누른 행부터 범위를 고른다. 열 머리 체크박스는 testid 가 없다 — e2e 는 열(`{p}-available`·`{p}-member`) 안 첫 `input[type=checkbox]` 로 찾는다.
+
 ## 순수 함수
 
 모두 입력 `Set` 을 바꾸지 않고 새 `Set` 을 돌려준다. 항목은 `code`·`name` 만 본다.
@@ -111,4 +113,4 @@ testId 조립(`{p}` = `testId`):
 ## 실제 사용 예
 
 - `src/frontend/m-mdm/pages/dmc/codeItemEdit/cate/components/TransferListPanel.tsx`: 코드 편집 카테고리 탭. 소속 집합은 `CategoryTab` 이 쥐고 `TransferList` 는 제어형으로 쓴다.
-- `src/frontend/m-mdm/pages/dmd/dataItemMng/cate/CategoryTab.tsx`: 데이터 항목 카테고리 소속 편집. [적용] 단추는 `TransferList` 밖(패널 아래)에 두고, 눌렀을 때 `diffSets` 로 추가·제거 목록을 만들어 서비스를 부른다.
+- `src/frontend/m-mdm/pages/dmd/dataItemMng/cate/CategoryTab.tsx`: 데이터 항목 카테고리 소속 편집. [적용] 단추는 `TransferList` 밖(패널 아래)에 두고, 훅(`useDataCategories`)의 `applyMembers` 가 `transfer.ts` 의 `diffMembers`(내부 `diffSets` + `.sort()`)로 `addCodes`·`removeCodes` 를 만들어 저장한다.
