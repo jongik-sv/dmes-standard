@@ -16,12 +16,16 @@ export const MEMO_CSS = `
 .mcm-memo__edit { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: var(--spacing-xs); }
 .mcm-memo__count { font-size: var(--font-size-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .mcm-memo__count--over { color: var(--color-danger); }
-.mcm-memo__error { flex: 0 0 auto; font-size: var(--font-size-sm); color: var(--color-danger); overflow-wrap: anywhere; }
+.mcm-memo__error { flex: 1 1 0; min-width: 0; font-size: var(--font-size-sm); color: var(--color-danger); overflow-wrap: anywhere; }
 .mcm-memo__field { flex: 1 1 0; min-height: 80px; display: flex; flex-direction: column; }
 .mcm-memo__field div { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
 .mcm-memo__field textarea { flex: 1 1 0; min-height: 0; height: auto; resize: none; }
 .mcm-memo__field--code textarea { font-family: var(--font-family-mono); }
-/* 최소 높이 = 도구 막대(약 30px)+간격+shared 편집 칸 최소 120px — 이보다 낮으면 편집기가 아래 [저장] 줄을 덮는다. 작은 위젯은 틀 본문이 스크롤한다. */
-.mcm-memo__md { flex: 1 1 0; min-height: 160px; display: flex; flex-direction: column; }
+/* 최소 높이 190px — 도구 막대가 두 줄일 때 기준이다. shared 도구 막대(.cm-md-toolbar)는 flex-wrap: wrap 이라 본문 폭이 약 395px 미만이면
+   두 줄이 된다: 단추 24px×2 + 줄 간격 2px + 안쪽 여백 2px×2 + 테두리 1px×2 = 56px(한 줄이면 30px). 여기에 도구 막대 아래 간격
+   var(--spacing-xs)=4px, 편집 칸 최소 120px(.cm-md-inline .cm-md-body min-height, border-box 이면 120px·아니면 안쪽 여백·테두리 10px 가 더해져 130px)를
+   더하면 180~190px 이다. 이보다 낮으면 편집기가 아래 [저장]·[취소] 줄을 덮는다. 작은 위젯은 틀 본문이 스크롤한다.
+   링크 입력 칸(.cm-md-link-pop)이 absolute 로 상자 밖까지 뜨므로 overflow 로 가두지 않는다(잘림 방지). */
+.mcm-memo__md { flex: 1 1 0; min-height: 190px; display: flex; flex-direction: column; }
 .mcm-memo__md--locked { pointer-events: none; opacity: 0.7; }
 `;

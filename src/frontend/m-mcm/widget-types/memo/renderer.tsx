@@ -4,18 +4,24 @@
  * 메모장 렌더러(스펙 2026-10-02-widget-admin-generic §17).
  * - 공용 메모(scope=shared): 정의의 content 를 형식대로 보이기만 한다. 편집 버튼 없음.
  * - 개인 메모(scope=personal): 마운트 때 load → 보기 모드(+[편집]). 편집 모드는 형식 선택·입력칸·글자 수·[저장]·[취소].
- *   저장이 실패하면 입력칸 위에 오류 문구를 보이고 쓰던 글은 그대로 둔다.
+ *   저장이 실패하면 아래 [저장]·[취소] 줄의 왼쪽에 오류 문구를 보이고 쓰던 글은 그대로 둔다(입력칸 위에 두면 md 편집기가 하한 높이
+ *   때문에 줄지 못해 [저장] 줄이 스크롤 밖으로 밀린다).
  * - 입력칸은 공지 작성 화면(m-mls NoticeBodyEditor)과 같다: md = shared MarkdownField(서식·MD 두 방식, 도구 막대 inline),
  *   text·html = shared Textarea(html 은 고정폭). 형식을 바꿔도 쓰던 글은 그대로다(편집기만 바뀐다).
- *   MarkdownField 는 편집마다·인스턴스마다 key 로 새로 그린다(되돌리기 기록이 다른 글로 넘어가지 않게). 저장 중에는 editable 을
- *   끄지 않고(편집기가 내려가 되돌리기 기록이 사라진다) 감싸개를 잠그고(aria-busy·inert — Tab 으로도 못 들어간다) 그동안 들어온 변경은 버린다.
+ *   MarkdownField 는 인스턴스마다 key(instanceId)로 새로 그린다(되돌리기 기록이 다른 글로 넘어가지 않게). 새 편집을 시작할 때 새로
+ *   그려지는 것은 key 때문이 아니라 보기·편집이 서로 다른 가지라 [편집]마다 편집 가지가 새로 마운트되기 때문이다.
+ *   저장 중에는 editable 을 끄지 않고(편집기가 내려가 되돌리기 기록이 사라진다) 감싸개를 잠근다(aria-busy·inert — 누르기·Tab 이 막힌다).
+ *   그동안 들어온 변경(IME 조합 확정 등 inert 를 뚫고 온 입력)도 버리지 않고 draft 에 그대로 담는다 — shared MarkdownEditor 는 onChange 를 부르기
+ *   전에 자기 값(lastSynced)을 먼저 갱신하므로, 부모가 값을 버리면 편집기에는 글이 남고 draft 에는 없어 어긋난다.
+ *   [배치 편집] 중 md 편집 칸(contenteditable)에서 누른 Esc 는 배치 편집 취소(shared WidgetWorkspace 의 document keydown, 입력칸·메뉴·
+ *   대화상자만 거른다)로 새지 않게 감싸개에서 끊는다.
  * - 관리 화면 미리보기(저장소 없음)는 load·save 를 부르지 않고 「미리보기에서는 저장하지 않습니다」만 보인다.
  * 형식별 보기는 shared NoticeBodyView 한 곳이 맡는다: TEXT = 줄바꿈 유지 글, MD = 글(md) 위젯과 같은 MarkdownView,
  * HTML = html 위젯(allowScript=false)과 같은 DOMPurify 정화(script·on*·style·iframe 제거).
  * 기록을 처음 불러오는 일만 틀 상태(useWidgetStatus)로 알린다. 저장 오류를 틀의 error 로 알리면 틀이 본문을 숨겨
  * 쓰던 글이 안 보이므로 저장 오류는 이 화면 안에서 보인다.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Button, Select, Textarea } from "@dk-oasis/shared/form";
 import { MarkdownField } from "@dk-oasis/shared/markdown-editor";
 import { NoticeBodyView } from "@dk-oasis/shared/notice-body-view";
@@ -71,6 +77,18 @@ export default function MemoRenderer(props: WidgetProps) {
 
 type Mode = "view" | "edit";
 
+/**
+ * md 편집 칸의 Esc 를 위(배치 편집 취소)로 올리지 않는다. preventDefault 는 하지 않는다(편집기 자신의 Esc 처리를 건드리지 않는다).
+ * shared WidgetWorkspace 는 document 에 bubble 단계 keydown 을 걸어 두는데(capture 아님), 포털(Next 앱 라우터)은 React 뿌리가
+ * document 라 React 의 합성 stopPropagation 만으로는 같은 document 의 뒤에 등록된 리스너를 못 막는다 — 네이티브 이벤트의
+ * stopImmediatePropagation 도 부른다(React 리스너가 먼저 등록되므로 뒤 리스너가 막힌다). 뿌리가 div 이면 stopPropagation 이 막는다.
+ */
+function stopEscape(e: KeyboardEvent<HTMLElement>) {
+  if (e.key !== "Escape") return;
+  e.stopPropagation();
+  e.nativeEvent.stopImmediatePropagation();
+}
+
 function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetProps) {
   const setStatus = useWidgetStatus();
   const live = isLiveMemo(widgetId, instanceId);
@@ -84,8 +102,6 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
   const [draftContent, setDraftContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
-  /** 편집 차례 — [편집]마다 올린다. md 편집기 key 에 넣어 새 편집은 새 편집기(빈 되돌리기 기록)로 시작한다. */
-  const [editSeq, setEditSeq] = useState(0);
 
   /** 요청 세대 — 불러오기·저장이 시작될 때 올리고, 늦게 온 이전 응답은 버린다. 인스턴스가 바뀌거나 사라질 때도 올린다. */
   const genRef = useRef(0);
@@ -131,7 +147,6 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
     setDraftFormat(memo?.format ?? initialFormat);
     setDraftContent(memo?.content ?? "");
     setErrorText(null);
-    setEditSeq((n) => n + 1);
     setMode("edit");
   };
 
@@ -165,12 +180,6 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
     } finally {
       setSaving(false);
     }
-  };
-
-  /** 입력칸 변경 — 저장 중에 들어온 변경은 버린다(md 편집기는 잠가도 키 입력이 들어올 수 있다). */
-  const changeDraft = (next: string) => {
-    if (saving) return;
-    setDraftContent(next);
   };
 
   const over = validateDraft(draftContent) !== null;
@@ -220,26 +229,22 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
               {countLabel(draftContent)}
             </span>
           </div>
-          {errorText && (
-            <div className="mcm-memo__error" role="alert" data-testid="memo-error">
-              {errorText}
-            </div>
-          )}
           {draftFormat === "md" ? (
             <div
               className={saving ? "mcm-memo__md mcm-memo__md--locked" : "mcm-memo__md"}
               aria-busy={saving || undefined}
               inert={saving || undefined}
+              onKeyDown={stopEscape}
             >
               <MarkdownField
-                key={`${instanceId}:${editSeq}`}
+                key={instanceId}
                 value={draftContent}
                 editable
                 fill
                 ariaLabel="메모 내용"
                 modeStorageKey={MEMO_MD_MODE_STORAGE_KEY}
                 testId="memo-input-md"
-                onChange={changeDraft}
+                onChange={setDraftContent}
               />
             </div>
           ) : (
@@ -250,12 +255,17 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey }: WidgetPr
                 aria-label="메모 내용"
                 readOnly={saving}
                 spellCheck={draftFormat === "text"}
-                onChange={changeDraft}
+                onChange={setDraftContent}
                 data-testid="memo-input"
               />
             </div>
           )}
           <div className="mcm-memo__bar mcm-memo__bar--end">
+            {errorText && (
+              <div className="mcm-memo__error" role="alert" data-testid="memo-error">
+                {errorText}
+              </div>
+            )}
             <div className="mcm-memo__actions">
               <Button variant="primary" onClick={() => void save()} disabled={!canSave(draftContent, saving)} data-testid="memo-save">
                 저장
