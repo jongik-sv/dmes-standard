@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, login, menuItem, walkMenuPath } from "./support/common";
 import { clickSearch, loadMdmFixture } from "./support/mdm-e2e";
+import { gridRows } from "./support/grid";
 
 /**
  * 레이아웃 확정(dmb/layoutConfirm) 브라우저 E2E — D-144 3단계(레이아웃·헤더 버전 관리), 전문·헤더 공용 확정 화면.
@@ -70,7 +71,7 @@ test.describe("mdm 레이아웃 확정", () => {
     await expect(layout.getByTestId("header-ver-select")).toHaveValue("1.001", { timeout: 30_000 });
     await expect(layout.getByTestId("header-ver-select").locator('option[value="1.001"]')).toHaveText("v1.001 작성 중");
     await expect(layout.getByTestId("header-form-name")).toBeEnabled();
-    await layout.getByTestId("header-items").locator(".ag-center-cols-container .ag-row").filter({ hasText: "FILLER" }).first().click();
+    await gridRows(layout.getByTestId("header-items")).filter({ hasText: "FILLER" }).first().click();
     await layout.getByTestId("item-detail-filler-length").fill("8");
     await expect(layout.getByTestId("header-length")).toHaveText("33 바이트 (6항목)");
     await layout.getByRole("button", { name: "저장", exact: true }).click();
@@ -103,7 +104,7 @@ test.describe("mdm 레이아웃 확정", () => {
     // 영향받는 전문 — 이 헤더를 쌓은 M201 의 총 길이가 적용 시작 시점에 187 → 190
     const impact = page.getByTestId("lc-impact");
     await expect(impact).toBeVisible();
-    const m201 = impact.locator(".ag-center-cols-container .ag-row").filter({ hasText: MESSAGE_NAME }).first();
+    const m201 = gridRows(impact).filter({ hasText: MESSAGE_NAME }).first();
     await expect(m201).toBeVisible();
     await expect(m201).toContainText("187 → 190");
     await expect(page.getByTestId("lc-eais")).toBeVisible();

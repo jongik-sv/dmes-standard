@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, clickMenuPath, login } from "./support/common";
 import { fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowById } from "./support/grid";
 
 /**
  * 마루 코드 버전 확정(codeConfirm) — TSK-06-05 design.md §3.4 화면 스모크 넷 + 수용 기준.
@@ -35,7 +36,7 @@ function tid(page: Page, id: string): Locator {
 
 /** 확정 대기 목록·검사 결과 표는 AgDataGrid 다 — 행은 row-id(목록은 "ID-버전", 검사는 검사 번호)로 찾는다. */
 function gridRow(page: Page, gridTestId: string, rowId: string): Locator {
-  return tid(page, gridTestId).locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"]`);
+  return gridRowById(tid(page, gridTestId), rowId);
 }
 const listRow = (page: Page, id: string, ver: string) => gridRow(page, "cf-list", `${id}-${ver}`);
 const checkRow = (page: Page, no: string) => gridRow(page, "cf-checks", no);

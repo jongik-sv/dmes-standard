@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { BASE_URL, T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowById } from "./support/grid";
 
 /**
  * mdm dme/ruleMng(룰 헤더·버전) — TSK-08-02 design.md §3.4.1, decisions.md D-105.
@@ -61,7 +62,7 @@ async function openDetail(page: Page, ruleId: string) {
  */
 /** ver 는 서버 표기 `"1.000"`(D-144) — 버전 목록의 행 키(row-id)가 이 문자열이다. */
 function versionRow(page: Page, ver: string) {
-  return page.getByTestId("rule-version-table").locator(`.ag-center-cols-container .ag-row[row-id="${ver}"]`);
+  return gridRowById(page.getByTestId("rule-version-table"), ver);
 }
 
 test.describe.configure({ mode: "serial" });

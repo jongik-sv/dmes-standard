@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { clickSearch, fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowById } from "./support/grid";
 
 /**
  * 룰 버전 확정(ruleConfirm) — TSK-08-05 design.md §3.4 화면 스모크 넷 + 수용 기준.
@@ -101,7 +102,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     // 룰 ID 링크는 룰 화면 탭을 연다(기능설계서 G-001) — 상세는 행의 다른 칸(룰명)을 눌러 연다.
     await page.locator(".ag-row", { has: tid(page, "rule-link-E2E_RC_CASEFAIL") }).locator('.ag-cell[col-id="maruRuleName"]').click();
     await expect(tid(page, "rule-header-id")).toHaveText("E2E_RC_CASEFAIL", { timeout: 30_000 });
-    await tid(page, "rule-version-table").locator('.ag-center-cols-container .ag-row[row-id="1.000"] .ag-cell[col-id="ver"]').click();
+    await gridRowById(tid(page, "rule-version-table"), "1.000").locator('.ag-cell[col-id="ver"]').click();
 
     const move = tid(page, "rule-move-to-confirm");
     await expect(move).toBeEnabled({ timeout: 20_000 });
@@ -117,7 +118,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await expect(tid(page, "rc-check-status-TEST_CASES")).toHaveText("거부");
     await expect(tid(page, "rc-check-status-TEST_CASES")).toHaveAttribute("data-rejected", "true");
     // 검사 표는 AgDataGrid 다 — 행은 row-id(검사 항목)로 찾는다.
-    await expect(tid(page, "rc-checks").locator('.ag-center-cols-container .ag-row[row-id="TEST_CASES"]')).toContainText("CASE:1");
+    await expect(gridRowById(tid(page, "rc-checks"), "TEST_CASES")).toContainText("CASE:1");
     await expect(tid(page, "rc-check-status-APPLY_FROM")).toHaveText("면제");
     await expect(tid(page, "rc-check-status-NOT_EMPTY")).toHaveText("통과");
     await expect(tid(page, "rc-validate")).toBeEnabled();

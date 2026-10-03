@@ -2,6 +2,7 @@ import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, login, walkMenuPath } from "./support/common";
+import { gridCells, gridRowById } from "./support/grid";
 
 /**
  * 도메인 관리(dma/domainMng) 브라우저 E2E — TSK-04-03 design.md §4.6.
@@ -64,8 +65,7 @@ async function selectRow(layout: Locator, name: string) {
 
 /** 테스트 케이스 표(AgDataGrid)의 n 번째 케이스 행 — 행 키는 1부터이고, 결과 칸(RESULT_TEXT)이 있는 행만 이 표의 행이다. */
 const caseRow = (root: Locator, n: number): Locator =>
-  root
-    .locator(`.ag-center-cols-container .ag-row[row-id="${n}"]`)
+  gridRowById(root, n)
     .filter({ has: root.page().locator('.ag-cell[col-id="RESULT_TEXT"]') });
 /** 케이스 칸을 눌러 편집기를 열고 값을 넣어 확정한다. 기대 칸은 true/false 선택이다. */
 async function editCaseCell(root: Locator, n: number, col: "VALUE" | "EXPECT" | "MEMO", value: string) {
@@ -126,7 +126,7 @@ test.describe("mdm 도메인 관리", () => {
     await addCase(layout, 2, "abc", "false");
     await layout.getByRole("button", { name: "도메인검증" }).click();
     await expect(layout.locator(".domain-mng__check-summary")).toContainText("검사 통과", { timeout: 30_000 });
-    await expect(layout.locator('.ag-center-cols-container .ag-cell[col-id="RESULT_TEXT"]')).toHaveText(["일치", "일치"]);
+    await expect(gridCells(layout, "RESULT_TEXT")).toHaveText(["일치", "일치"]);
     await layout.locator(".domain-mng__checks").scrollIntoViewIfNeeded();
     await layout.getByRole("button", { name: "저장", exact: true }).click();
     await search(layout, STAMP);

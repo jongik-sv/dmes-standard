@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, login, walkMenuPath } from "./support/common";
 import { clickSearch, expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
+import { gridCells, gridRows } from "./support/grid";
 
 /**
  * 전문 헤더 정의(dmb/headerMng) 브라우저 E2E — TSK-05-02 design.md §3.5.
@@ -64,7 +65,7 @@ async function pickColumn(page: Page, layout: Locator, phys: string) {
 }
 
 function offsets(layout: Locator): Locator {
-  return layout.getByTestId("header-items").locator('.ag-center-cols-container .ag-cell[col-id="OFFSET"]');
+  return gridCells(layout.getByTestId("header-items"), "OFFSET");
 }
 
 test.describe.configure({ mode: "serial" });
@@ -153,7 +154,7 @@ test.describe("mdm 전문 헤더 정의", () => {
     expect(nopeBody.meta.message).toContain("L01");
 
     // ── H4 FILLER 행 — 닫힌 칸은 disabled, fill_kind 를 DATA 로 바꾸면 FILLER 길이가 비워지고 닫힌다 ──
-    await layout.getByTestId("header-items").locator(".ag-center-cols-container .ag-row").filter({ hasText: "FILLER" }).first().click();
+    await gridRows(layout.getByTestId("header-items")).filter({ hasText: "FILLER" }).first().click();
     for (const id of ["item-detail-default", "item-detail-trans-unit", "item-detail-unit-item", "item-detail-sign",
       "item-detail-zero", "item-detail-implied", "item-detail-width"]) {
       await expect(layout.getByTestId(id), id).toBeDisabled();

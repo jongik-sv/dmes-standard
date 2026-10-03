@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, clickMenuPath, login } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowByIndex, gridRows } from "./support/grid";
 
 /**
  * 컬럼 사전(columnMng) + 용어 인라인 등록 팝업(termRegPop) — TSK-04-04 design.md §3.5.
@@ -45,17 +46,13 @@ async function decompose(page: Page, input: string) {
 /** 논리명 칸이 글자 그대로 같은 목록 행(부분 문자열로 다른 행이 걸리지 않게). */
 function listRow(page: Page, columnName: string): Locator {
   const exact = new RegExp(`^${columnName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
-  return page
-    .getByTestId("column-list")
-    .locator(".ag-center-cols-container .ag-row")
+  return gridRows(page.getByTestId("column-list"))
     .filter({ has: page.locator('.ag-cell[col-id="columnName"]', { hasText: exact }) });
 }
 
 /** 시스템 그리드 n번째(0부터) 행의 셀. */
 function systemCell(page: Page, rowIndex: number, colId: string): Locator {
-  return page
-    .getByTestId("system-grid")
-    .locator(`.ag-center-cols-container .ag-row[row-index="${rowIndex}"] .ag-cell[col-id="${colId}"]`);
+  return gridRowByIndex(page.getByTestId("system-grid"), rowIndex).locator(`.ag-cell[col-id="${colId}"]`);
 }
 
 async function addSystemRow(page: Page, rowIndex: number, systemCode: string, fieldName?: string) {
@@ -180,7 +177,7 @@ test.describe("mdm columnMng — 컬럼 사전", () => {
     // 실제 필드명 검색(대소문자 무시)으로 기존 컬럼을 찾는다.
     await page.getByTestId("column-search-keyword").fill("zz_rmtl_coil_thk_dev");
     await page.getByRole("button", { name: "조회", exact: true }).click();
-    await expect(page.getByTestId("column-list").locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRows(page.getByTestId("column-list"))).toHaveCount(1, { timeout: 20_000 });
     await expect(listRow(page, "원재료 코일 두께 편차")).toHaveCount(1);
 
     // 역분해 — 용어로 분해가 안 되는 실제 필드명은 시스템 매핑에서 찾는다.

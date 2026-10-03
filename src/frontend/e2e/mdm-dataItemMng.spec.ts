@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, T, login, walkMenuPath, type LoginOptions } from "./support/common";
 import { expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowById, gridRows } from "./support/grid";
 
 /**
  * mdm dmd/dataItemMng(항목 편집) smoke — TSK-07-03 design.md §3.1 + TSK-07-04 design.md §3(트리·CSV 버튼).
@@ -115,7 +116,7 @@ async function search(page: Page) {
 }
 
 function listRow(page: Page, code: string): Locator {
-  return page.getByTestId("item-list").locator(`.ag-center-cols-container .ag-row[row-id="${code}"]`);
+  return gridRowById(page.getByTestId("item-list"), code);
 }
 
 function cell(page: Page, code: string, colId: string): Locator {
@@ -236,7 +237,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     const r1 = panel.locator('.ag-row[row-id="r1"]');
     await expect(r0).toContainText("생성");
     await expect(r1).toContainText("변경");
-    await expect(panel.locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(panel)).toHaveCount(2);
     const r0To = await r0.locator('.ag-cell[col-id="validTo"]').innerText();
     await expect(r1.locator('.ag-cell[col-id="validFrom"]')).toHaveText(r0To);
     await page.screenshot({ path: screenshot("dmd-dataItemMng-edit.png"), fullPage: true });
@@ -379,7 +380,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     const panel = page.getByTestId("item-history");
     await expect(panel).toContainText("이력 — KRPUS");
     await expect(panel.getByTestId("history-state")).toHaveText("KRPUS · 열림 · 1행", { timeout: 20_000 });
-    await expect(panel.locator(".ag-center-cols-container .ag-row")).toHaveCount(1);
+    await expect(gridRows(panel)).toHaveCount(1);
     await expect(panel.locator('.ag-row[row-id="r0"]')).toContainText("생성");
     await expect(panel.locator('.ag-row[row-id="r0"]')).toContainText("열림");
     await page.screenshot({ path: screenshot("dmd-dataItemMng-history.png"), fullPage: true });
@@ -422,7 +423,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await page.getByTestId(`item-history-${HIST_KEY}`).click();
     await history;
     const panel = page.getByTestId("item-history");
-    await expect(panel.locator(".ag-center-cols-container .ag-row")).toHaveCount(4, { timeout: 20_000 });
+    await expect(gridRows(panel)).toHaveCount(4, { timeout: 20_000 });
     await expect(panel.locator('.ag-row[row-id="r0"]')).toContainText("생성");
     await expect(panel.locator('.ag-row[row-id="gap2"]')).toContainText("닫혀 있던 구간");
     await expect(panel.locator('.ag-row[row-id="r2"]')).toContainText("다시 열기");
@@ -460,7 +461,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
 
   /** 카테고리 표의 한 행. ID 칸 안쪽 span 이 `cate-row-{cateId}` 다. */
   function cateRow(page: Page, cateId: string): Locator {
-    return page.locator(".ag-center-cols-container .ag-row").filter({ has: page.getByTestId(`cate-row-${cateId}`) });
+    return gridRows(page).filter({ has: page.getByTestId(`cate-row-${cateId}`) });
   }
 
   /** 소속 패널(카테고리 탭 아래쪽, 제목 "소속 — {cateId}"). */
@@ -492,7 +493,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
 
     const cateHistory = page.getByTestId("cate-history");
     await expect(cateHistory).toContainText("카테고리 이력 — DC_GROUP", { timeout: 20_000 });
-    await expect(cateHistory.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRows(cateHistory)).toHaveCount(1, { timeout: 20_000 });
     // TABLE 은 정규식·대상이 없다 — 정의 칸에 이름과 종류만 보인다.
     const tableDef = cateHistory.locator('.ag-row[row-id="r0"] .ag-cell[col-id="cateName"]');
     await expect(tableDef).toBeVisible();
@@ -502,7 +503,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     // 소속은 픽스처의 DCKRPUS 한 건(DCKRINC 는 소속이 아니다).
     const members = memberPanel(page, "DC_GROUP");
     await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: 20_000 });
-    await expect(members.locator(".ag-center-cols-container .ag-row")).toContainText(["DCKRPUS"]);
+    await expect(gridRows(members)).toContainText(["DCKRPUS"]);
     await expect(members).not.toContainText("DCKRINC");
     await page.screenshot({ path: screenshot("dmd-dataItemMng-cate-history.png"), fullPage: true });
   });
@@ -514,7 +515,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     // 카테고리 표 바로 밑 — 등록한 카테고리를 고른 채 그 이력(생성 1행)이 보인다.
     const cateHistory = page.getByTestId("cate-history");
     await expect(cateHistory).toContainText(`카테고리 이력 — ${NEW_CATE_ID}`, { timeout: 20_000 });
-    await expect(cateHistory.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRows(cateHistory)).toHaveCount(1, { timeout: 20_000 });
     await expect(cateHistory.locator('.ag-row[row-id="r0"]')).toContainText("생성");
     // 정의(이름·종류·대상·정규식)가 가로로 밀지 않고 한 칸에 보인다(D-104 회귀).
     await expect(cateHistory.locator(".ag-header-cell-text")).toHaveText(["사건", "시작", "끝", "카테고리 정의"]);
@@ -540,7 +541,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await page.getByTestId("regex-save").click();
     await saved;
     await expect(cateRow(page, NEW_CATE_ID).locator('.ag-cell[col-id="matchCount"]')).toHaveText("1건", { timeout: 20_000 });
-    await expect(cateHistory.locator(".ag-center-cols-container .ag-row")).toHaveCount(2, { timeout: 20_000 });
+    await expect(gridRows(cateHistory)).toHaveCount(2, { timeout: 20_000 });
     await expect(cateHistory.locator('.ag-row[row-id="r1"]')).toContainText("변경");
     // 바뀐 정규식이 변경 행에 보인다.
     const changedDef = cateHistory.locator('.ag-row[row-id="r1"] .ag-cell[col-id="cateName"]');

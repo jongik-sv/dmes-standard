@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, T, login, walkMenuPath, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowById } from "./support/grid";
 
 /**
  * mdm dmd/dataMng(마루 데이터) smoke — TSK-07-02 design.md §3.3 스모크 넷(2026-09-29 통합 D-104: dataMng+dataEdit
@@ -51,7 +52,7 @@ const headerButton = (page: Page, name: string) =>
   page.locator(".page-layout__header-buttons:visible").getByRole("button", { name, exact: true });
 
 function listRow(page: Page, id: string): Locator {
-  return page.getByTestId("data-mng-list").locator(`.ag-center-cols-container .ag-row[row-id="${id}"]`);
+  return gridRowById(page.getByTestId("data-mng-list"), id);
 }
 
 async function search(page: Page, id: string) {
@@ -114,7 +115,7 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
     await selectRow(page, "E2E_DM_PORT");
     const categories = page.getByTestId("data-edit-categories");
     for (const cateId of ["BASE", "KR", "MAJOR"]) {
-      await expect(categories.locator(`.ag-center-cols-container .ag-row[row-id="${cateId}"]`)).toBeVisible({ timeout: 20_000 });
+      await expect(gridRowById(categories, cateId)).toBeVisible({ timeout: 20_000 });
     }
     await expect(page.getByTestId("data-edit-item-count")).toHaveText("3");
     await page.screenshot({ path: screenshot("dmd-dataMng-detail.png") });
@@ -140,7 +141,7 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
     await expect(page.getByTestId("data-edit-name")).toHaveValue("E2E 등록 테스트");
     await expect(page.getByTestId("data-mng-register-form")).toHaveCount(0);
     await expect(
-      page.getByTestId("data-edit-categories").locator('.ag-center-cols-container .ag-row[row-id="BASE"]'),
+      gridRowById(page.getByTestId("data-edit-categories"), "BASE"),
     ).toBeVisible({ timeout: 20_000 });
     // 목록도 다시 조회돼 방금 만든 행이 보인다.
     await search(page, NEW_ID);
@@ -192,7 +193,7 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
     await expect(page.locator(".page-layout__footer-screen-id").filter({ hasText: "dataItemMng" })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("item-current")).toContainText("E2E_DM_PORT", { timeout: 30_000 });
     await expect(page.getByTestId("item-tab-grid")).toBeVisible();
-    await expect(page.locator(".ag-center-cols-container .ag-row[row-id=\"KRPUS\"]")).toBeVisible({ timeout: 20_000 });
+    await expect(gridRowById(page, "KRPUS")).toBeVisible({ timeout: 20_000 });
     await page.screenshot({ path: screenshot("dmd-dataMng-to-itemMng.png") });
   });
 });

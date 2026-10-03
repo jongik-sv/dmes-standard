@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from "@playwright/test";
+import { gridCells, gridRows } from "./support/grid";
 
 const BASE = "http://localhost:5100";
 const SHOT = "test-results/master-rule-frame";   // 실행 증거 스크린샷 (BE 8100 local-ph + FE 5100 dev + SMOKE_LOGIN_USER/PASSWORD 필요)
@@ -68,7 +69,7 @@ test("masterRuleFrame E2E — 메뉴 진입/P-001/조회/행추가/저장/재조
   const outGrid = page.locator(".ag-root").nth(1);
 
   const cellOf = (grid: Locator, colId: string) =>
-    grid.locator(`.ag-center-cols-container .ag-cell[col-id="${colId}"]`).first();
+    gridCells(grid, colId).first();
 
   const fillText = async (grid: Locator, colId: string, value: string) => {
     const cell = cellOf(grid, colId);
@@ -101,7 +102,7 @@ test("masterRuleFrame E2E — 메뉴 진입/P-001/조회/행추가/저장/재조
 
   // 4. IN 행추가 + 입력 (기준일자/BASE_DT/N/DATE/8)
   await page.getByRole("button", { name: "행추가" }).nth(0).click();
-  await expect(inGrid.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 10_000 });
+  await expect(gridRows(inGrid)).toHaveCount(1, { timeout: 10_000 });
   await fillText(inGrid, "colNm", "기준일자");
   await fillText(inGrid, "colId", "BASE_DT");
   await fillSelect(inGrid, "masterCodeDiv", "N");
@@ -110,7 +111,7 @@ test("masterRuleFrame E2E — 메뉴 진입/P-001/조회/행추가/저장/재조
 
   // 5. OUT 행추가 + 입력 (적용환율/APPLY_RATE/N/NUMBER/10/4)
   await page.getByRole("button", { name: "행추가" }).nth(1).click();
-  await expect(outGrid.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 10_000 });
+  await expect(gridRows(outGrid)).toHaveCount(1, { timeout: 10_000 });
   await fillText(outGrid, "colNm", "적용환율");
   await fillText(outGrid, "colId", "APPLY_RATE");
   await fillSelect(outGrid, "masterCodeDiv", "N");
@@ -155,7 +156,7 @@ test("masterRuleFrame E2E — 메뉴 진입/P-001/조회/행추가/저장/재조
 
   //  8-c. 1행 선택(chk=Y) 후 일괄 IN 적용 (E-001 기능 등가) — 나머지는 기본 OUT
   const colGrid = colPop.locator(".ag-root").first();
-  const chkCell = colGrid.locator('.ag-center-cols-container .ag-row').first().locator('.ag-cell[col-id="chk"]');
+  const chkCell = gridRows(colGrid).first().locator('.ag-cell[col-id="chk"]');
   await expect(async () => {
     await chkCell.click();
     const editor = colGrid.locator(".ag-cell select, .ag-popup").first();
@@ -167,7 +168,7 @@ test("masterRuleFrame E2E — 메뉴 진입/P-001/조회/행추가/저장/재조
   }).toPass({ timeout: 20_000 });
   await colPop.locator("select.form-input").selectOption("IN");
   await colPop.getByRole("button", { name: "적용" }).click();
-  await expect(colGrid.locator('.ag-center-cols-container .ag-row').first().locator('.ag-cell[col-id="ioFlag"]')).toHaveText("IN", { timeout: 5_000 });
+  await expect(gridRows(colGrid).first().locator('.ag-cell[col-id="ioFlag"]')).toHaveText("IN", { timeout: 5_000 });
 
   //  8-d. 등록 → XV-001 confirm → 저장 → 팝업 닫힘 → 부모 자동 재조회 (IN 1 / OUT 2)
   await colPop.getByRole("button", { name: "등록" }).click();

@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, clickMenuPath, login } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowByIndex, gridRows } from "./support/grid";
 
 /**
  * 코드 편집(codeItemEdit) — TSK-06-03 design.md §4.9 화면 스모크 넷 + 카테고리 탭(TSK-06-04 design.md §3 스모크 넷,
@@ -60,7 +61,7 @@ async function openCateTab(page: Page) {
 
 /** 카테고리 표의 한 행. ID 칸 안쪽 span 이 `cate-row-{cateId}` 다. */
 function cateRow(page: Page, cateId: string): Locator {
-  return page.getByTestId("cate-list").locator(".ag-center-cols-container .ag-row")
+  return gridRows(page.getByTestId("cate-list"))
     .filter({ has: page.getByTestId(`cate-row-${cateId}`) });
 }
 
@@ -88,12 +89,12 @@ function grid(page: Page): Locator {
 /** 코드 칸이 글자 그대로 같은 그리드 행. */
 function gridRow(page: Page, code: string): Locator {
   const exact = new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
-  return grid(page).locator(".ag-center-cols-container .ag-row")
+  return gridRows(grid(page))
     .filter({ has: page.locator('.ag-cell[col-id="code"]', { hasText: exact }) });
 }
 
 async function editCell(page: Page, rowIndex: number, colId: string, value: string) {
-  const cell = grid(page).locator(`.ag-center-cols-container .ag-row[row-index="${rowIndex}"] .ag-cell[col-id="${colId}"]`);
+  const cell = gridRowByIndex(grid(page), rowIndex).locator(`.ag-cell[col-id="${colId}"]`);
   await expect(cell).toBeVisible({ timeout: 10_000 });
   const editor = cell.locator("input");
   // 새 행을 넣은 직후에는 그리드가 다시 그려지는 중이라 첫 클릭이 편집을 시작하지 못할 수 있다 — 열릴 때까지 누른다.
@@ -222,7 +223,7 @@ test.describe("mdm codeItemEdit — 코드 편집", () => {
     await page.getByTestId("code-tree-to-grid").click();
     await expect(grid(page)).toBeVisible();
     await expect(page.getByTestId("code-filter-chip")).toContainText("KS-3 아래");
-    await expect(grid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(5, { timeout: 20_000 });
+    await expect(gridRows(grid(page))).toHaveCount(5, { timeout: 20_000 });
   });
   test("T7 담당자: 왼쪽 탭은 코드·트리, 오른쪽 탭은 카테고리 편집·코드 테스트이고 마루 코드를 고르기 전 카테고리 편집은 빈 상태다", async ({ page }) => {
     await login(page, STEWARD);
@@ -251,7 +252,7 @@ test.describe("mdm codeItemEdit — 코드 편집", () => {
 
     await chooseCode(page, "E2E_CATE_EMPTY");
     await expect(page.getByTestId("cate-row-BASE")).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId("cate-list").locator(".ag-center-cols-container .ag-row")).toHaveCount(1);
+    await expect(gridRows(page.getByTestId("cate-list"))).toHaveCount(1);
     await selectCate(page, "BASE");
     await expect(page.getByTestId("cate-base-readonly")).toBeVisible();
     await page.screenshot({ path: cateScreenshot("dmc-codeItemEdit-cate-empty.png"), fullPage: true });

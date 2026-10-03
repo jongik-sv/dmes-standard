@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { clickSearch, loadMdmFixture, revealGridColumn } from "./support/mdm-e2e";
+import { gridRowById, gridRows } from "./support/grid";
 
 /**
  * mdm dme/ruleEdit(룰 화면 골격·의사결정표) — TSK-08-02 design.md §3.4.2.
@@ -53,7 +54,7 @@ async function newMajorVersionAndEdit(page: Page, ruleId: string, ver: string) {
   await page.locator(".ag-row", { has: page.getByTestId(`rule-link-${ruleId}`) }).locator('.ag-cell[col-id="maruRuleName"]').click();
   await expect(page.getByTestId("rule-header-id")).toHaveText(ruleId, { timeout: 30_000 });
   await page.getByRole("button", { name: "새 버전(major)", exact: true }).click();
-  const created = page.getByTestId("rule-version-table").locator(`.ag-center-cols-container .ag-row[row-id="${ver}"]`);
+  const created = gridRowById(page.getByTestId("rule-version-table"), ver);
   await expect(created.locator('[data-status="DRAFT"]')).toBeVisible({ timeout: 20_000 });
   await created.locator('.ag-cell[col-id="ver"]').click();
   await page.getByRole("button", { name: "내용 편집 →" }).click();
@@ -435,9 +436,9 @@ test.describe("mdm dme/ruleEdit", () => {
   test("C4 조건별 수식: PROD_WGT_CALC v2 의 행마다 다른 결과 식이 그리드에, 조건 열이 열 설정에 보이고 DRAFT 식에 COALESCE(SPEC_GRAV, 7.85) 가 있다", async ({ page }) => {
     await openRuleVer(page, "PROD_WGT_CALC", "2.000");
     for (const rowId of [1, 2, 3]) await expect(page.getByTestId(`dt-row-${rowId}`)).toBeVisible();
-    await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="1"]')).toContainText("COALESCE(SPEC_GRAV, 7.85)");
-    await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="2"]')).toContainText("SHEET_CNT");
-    await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="3"]')).toContainText("COIL_OUT_DIA");
+    await expect(gridRowById(grid(page), "1")).toContainText("COALESCE(SPEC_GRAV, 7.85)");
+    await expect(gridRowById(grid(page), "2")).toContainText("SHEET_CNT");
+    await expect(gridRowById(grid(page), "3")).toContainText("COIL_OUT_DIA");
     await showCol(page, "varName");
     await expect(page.getByTestId("col-name-v1")).toHaveText("PROD_TYPE");
     await expect(page.getByTestId("col-name-v3")).toHaveText("CALC_BASIS");
@@ -494,11 +495,11 @@ test.describe("mdm dme/ruleEdit", () => {
 
   /** 케이스 표(AgDataGrid)의 행 — id 를 주면 row-id(case_id)로, hasText 를 주면 그 글자가 든 행으로 좁힌다. */
   function caseRow(page: Page, id: number): Locator {
-    return caseCard(page).locator(`.ag-center-cols-container .ag-row[row-id="${id}"]`);
+    return gridRowById(caseCard(page), id);
   }
 
   function caseRowWith(page: Page, text: string): Locator {
-    return caseCard(page).locator(".ag-center-cols-container .ag-row", { hasText: text });
+    return gridRows(caseCard(page), { hasText: text });
   }
 
   /** ④ 입력 표의 값 칸 — 행 키는 변수명이다. */
@@ -557,10 +558,10 @@ test.describe("mdm dme/ruleEdit", () => {
     // 결과 카드의 v1 표: 적중 행 초록, 평가했지만 거짓인 행의 첫 거짓 칸 붉음(2행 = 표면등급, 3행 = 두께).
     const table = page.getByTestId("vt-result-table");
     await expect(table).toBeVisible();
-    await expect(table.locator('.ag-center-cols-container .ag-row[row-id="1"]')).toHaveClass(/ag-row-test-hit/);
-    await expect(table.locator('.ag-center-cols-container .ag-row[row-id="2"] .cell-test-false').first()).toBeVisible();
-    await expect(table.locator('.ag-center-cols-container .ag-row[row-id="3"] .cell-test-false').first()).toBeVisible();
-    await expect(table.locator('.ag-center-cols-container .ag-row[row-id="2"]')).not.toHaveClass(/ag-row-test-hit/);
+    await expect(gridRowById(table, "1")).toHaveClass(/ag-row-test-hit/);
+    await expect(gridRowById(table, "2").locator('.cell-test-false').first()).toBeVisible();
+    await expect(gridRowById(table, "3").locator('.cell-test-false').first()).toBeVisible();
+    await expect(gridRowById(table, "2")).not.toHaveClass(/ag-row-test-hit/);
     // 보이는 표(v2 편집본)는 칠하지 않는다(I33).
     await expect(grid(page).locator(".ag-row-test-hit")).toHaveCount(0);
     await expect(page.getByTestId("dt-test-shown")).toHaveCount(0);
@@ -582,9 +583,9 @@ test.describe("mdm dme/ruleEdit", () => {
     await expect(page.getByTestId("vt-result-hits")).toContainText("row_id 1");
     await expect(page.getByTestId("vt-result-on-table")).toBeVisible();
     await expect(page.getByTestId("dt-test-shown")).toContainText("편집본");
-    await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="1"]')).toHaveClass(/ag-row-test-hit/);
-    await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="2"] .cell-test-false').first()).toBeVisible();
-    await expect(grid(page).locator('.ag-center-cols-container .ag-row[row-id="3"] .cell-test-false').first()).toBeVisible();
+    await expect(gridRowById(grid(page), "1")).toHaveClass(/ag-row-test-hit/);
+    await expect(gridRowById(grid(page), "2").locator('.cell-test-false').first()).toBeVisible();
+    await expect(gridRowById(grid(page), "3").locator('.cell-test-false').first()).toBeVisible();
     await page.getByTestId("rule-card-table").scrollIntoViewIfNeeded();
     await page.screenshot({ path: screenshot04("dme-ruleEdit-valuetest-body.png"), fullPage: true });
 

@@ -4,6 +4,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, login, walkMenuPath } from "./support/common";
 import { clickSearch, expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
+import { gridCells, gridRowByIndex, gridRows } from "./support/grid";
 
 /**
  * 전문 레이아웃(dmb/layoutMng) 브라우저 E2E — TSK-05-02 design.md §3.5.
@@ -72,16 +73,16 @@ async function pickColumn(page: Page, layout: Locator, phys: string) {
 }
 
 function bodyCells(layout: Locator, col: string): Locator {
-  return layout.getByTestId("layout-items").locator(`.ag-center-cols-container .ag-cell[col-id="${col}"]`);
+  return gridCells(layout.getByTestId("layout-items"), col);
 }
 
 function bodyRow(layout: Locator, text: string): Locator {
-  return layout.getByTestId("layout-items").locator(".ag-center-cols-container .ag-row").filter({ hasText: text }).first();
+  return gridRows(layout.getByTestId("layout-items")).filter({ hasText: text }).first();
 }
 
 /** 상수 편집 표(AgDataGrid)의 한 행 — 값 칸 span(const-input-PHYS)을 가진 행. */
 const constRow = (modal: Locator, phys: string) =>
-  modal.locator(".ag-center-cols-container .ag-row").filter({ has: modal.page().getByTestId(`const-input-${phys}`) });
+  gridRows(modal).filter({ has: modal.page().getByTestId(`const-input-${phys}`) });
 /** 값 칸을 한 번 눌러 편집기를 열고 값을 넣어 Enter 로 확정한다. */
 async function editConst(modal: Locator, phys: string, value: string) {
   await constRow(modal, phys).locator('.ag-cell[col-id="VALUE"]').click();
@@ -143,7 +144,7 @@ test.describe("mdm 전문 레이아웃", () => {
     await layout.getByTestId("layout-form-name").fill(NEW_LAYOUT);
     await layout.getByTestId("layout-form-eai").selectOption("E2EGLUE");
     const stack = layout.getByTestId("layout-header-stack");
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 30_000 });
+    await expect(gridRows(stack)).toHaveCount(1, { timeout: 30_000 });
     await expect(stack).toContainText("GLUE 공통 헤더(E2E)");
     await expect(stack.locator('.ag-cell[col-id="TOTAL_LENGTH"]').first()).toHaveText("100");
     await expect(stack.locator('.ag-cell[col-id="POSITION"]').first()).toHaveText("1-100");
@@ -151,7 +152,7 @@ test.describe("mdm 전문 레이아웃", () => {
     // ── L3 헤더 추가·시스템·본문 4항목 — 저장 전 즉시 계산 ──
     await layout.getByTestId("layout-header-add").click();
     await page.getByTestId("header-pick-modal").locator(".ag-row").filter({ hasText: "L2 구간 헤더(E2E)" }).first().click();
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(stack)).toHaveCount(2);
     await layout.getByTestId("layout-form-snd").selectOption("L2");
     await layout.getByTestId("layout-form-rcv").selectOption("MES");
     await pickColumn(page, layout, "COIL_ID");
@@ -410,10 +411,10 @@ test.describe("mdm 전문 레이아웃", () => {
     await layout.getByTestId("layout-form-name").fill(name);
     await layout.getByTestId("layout-form-eai").selectOption("E2EGLUE");
     const stack = layout.getByTestId("layout-header-stack");
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 30_000 });
+    await expect(gridRows(stack)).toHaveCount(1, { timeout: 30_000 });
     await layout.getByTestId("layout-header-add").click();
     await page.getByTestId("header-pick-modal").locator(".ag-row").filter({ hasText: "L2 구간 헤더(E2E)" }).first().click();
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(stack)).toHaveCount(2);
     await layout.getByTestId("layout-form-snd").selectOption("L2");
     await layout.getByTestId("layout-form-rcv").selectOption("MES");
     await pickColumn(page, layout, "COIL_ID");
@@ -427,8 +428,8 @@ test.describe("mdm 전문 레이아웃", () => {
     await expect(layout.getByTestId("layout-ver-select")).toHaveValue("1.000", { timeout: 30_000 });
     await layout.getByTestId("layout-tab-version").click();
     const versions = layout.getByTestId("version-list");
-    const vrow = (i: number) => versions.locator(`.ag-center-cols-container .ag-row[row-index="${i}"]`);
-    await expect(versions.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 30_000 });
+    const vrow = (i: number) => gridRowByIndex(versions, i);
+    await expect(gridRows(versions)).toHaveCount(1, { timeout: 30_000 });
     await expectRowCell(vrow(0), "VER", "v1.000");
     await expect(vrow(0)).toContainText("작성 중");
     await expectRowCell(vrow(0), "OWN_LENGTH", "57");
@@ -450,7 +451,7 @@ test.describe("mdm 전문 레이아웃", () => {
     await expect(bodyCells(layout, "OFFSET")).toHaveText(["130", "150", "158", "183"], { timeout: 30_000 });
     await expect(layout.getByTestId("layout-ver-select")).toHaveValue("1.000");
     await layout.getByTestId("layout-tab-version").click();
-    await expect(versions.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 30_000 });
+    await expect(gridRows(versions)).toHaveCount(1, { timeout: 30_000 });
     await expectRowCell(vrow(0), "OWN_LENGTH", "57");
     await expect(layout.getByTestId("snapshot-preview")).toContainText('"layoutVersion"', { timeout: 30_000 });
     await page.screenshot({ path: SHOT_0503("dmb-layoutMng-version.png"), fullPage: true });
@@ -478,8 +479,7 @@ test.describe("mdm 전문 레이아웃", () => {
     const list = layout.getByTestId("impact-list");
     // 3단계(D-148)부터 영향 목록은 레이아웃 버전마다 한 행이다 — L10·L11 이 만든 픽스처 전문의 v1.001 DRAFT 행도 함께 나오므로
     // 지금 적용 중인(현재) 버전 행을 고른다. 항목 오프셋은 본문 시작 기준 상대값이다(LayoutImpactFinder — 헤더 130 을 빼면 158 → 28).
-    const fixtureRow = list
-      .locator(".ag-center-cols-container .ag-row")
+    const fixtureRow = gridRows(list)
       .filter({ hasText: FIXTURE_LAYOUT })
       .filter({ has: page.locator('.ag-cell[col-id="VER_STATE"]', { hasText: /^현재$/ }) });
     // 조회마다 새 search 응답을 기다린다 — 앞 조회의 목록이 남아 있어도 통과하지 않게 한다.

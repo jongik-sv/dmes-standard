@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, type Locator, type Page } from "@playwright/test";
 
+import { gridRowById } from "./grid";
+
 /**
  * 마루 MDM 화면 스펙(e2e/mdm-*.spec.ts) 공용 도우미. 사용자 여정(e2e/mdm-user)은 자기 support.ts 를 쓴다.
  *
@@ -95,7 +97,7 @@ export async function expectRowCell(
   const rowId = await row.getAttribute("row-id");
   if (rowId === null) throw new Error("ag-grid 행에 row-id 가 없다");
   const root = row.locator("xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' ag-root-wrapper ')][1]");
-  const cell = root.locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"] .ag-cell[col-id="${colId}"]`);
+  const cell = gridRowById(root, rowId).locator(`.ag-cell[col-id="${colId}"]`);
   const viewport = root.locator(".ag-center-cols-viewport");
   let scrolled = false;
   if ((await cell.count()) === 0) {

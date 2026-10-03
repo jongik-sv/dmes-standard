@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowById, gridRows } from "./support/grid";
 
 /**
  * mdm dme/ruleSetEdit(룰 세트 편집 — 흐름도 캔버스·디버거) — TSK-08-06 design.md §3.4.2 + 룰 세트 흐름도 2단계(Task 12).
@@ -39,7 +40,7 @@ const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 /** 세트 입출력 표(AgDataGrid)의 한 행 — 행 키는 변수명이다. kind: inputs(입력 변수) | results(결과 변수). 세트 패널(선택 없음)에 있다. */
 const ioRow = (page: Page, kind: "inputs" | "results", name: string): Locator =>
-  page.getByTestId(`set-io-${kind}`).locator(`.ag-center-cols-container .ag-row[row-id="${name}"]`);
+  gridRowById(page.getByTestId(`set-io-${kind}`), name);
 
 async function openRuleSetEdit(page: Page) {
   await openRuleMenu(page, /^룰 세트 편집$/);
@@ -176,7 +177,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
 
     // 세트 패널(선택 없음)의 입출력 표.
     const inputs = page.getByTestId("set-io-inputs");
-    await expect(inputs.locator(".ag-center-cols-container .ag-row")).toHaveCount(3);
+    await expect(gridRows(inputs)).toHaveCount(3);
     for (const name of ["SET_THK", "SET_SURF", "SET_WID"]) {
       await expect(ioRow(page, "inputs", name)).toContainText("컬럼 사전");
     }
@@ -539,7 +540,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("case-summary")).toHaveText("1/1 통과", { timeout: 30_000 });
 
     // 한 줄을 골라 지운다(확인 단추가 한 번 더 나온다).
-    await grid.locator(".ag-center-cols-container .ag-row").first().click();
+    await gridRows(grid).first().click();
     await page.getByTestId("case-delete").click();
     await page.getByTestId("case-delete-confirm").click();
     await expect(grid).not.toContainText("E2E 케이스", { timeout: 20_000 });

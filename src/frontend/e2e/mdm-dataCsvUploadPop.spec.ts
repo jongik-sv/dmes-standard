@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, T, login, walkMenuPath, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowById } from "./support/grid";
 
 /**
  * mdm dmd/dataCsvUploadPop(항목 CSV 업로드 팝업) smoke — TSK-07-04 design.md §3(e2e 스모크 넷).
@@ -101,7 +102,7 @@ function waitAction(page: Page, action: string, service = "dataItemMng") {
 }
 
 function listRow(page: Page, code: string): Locator {
-  return page.getByTestId("item-list").locator(`.ag-center-cols-container .ag-row[row-id="${code}"]`);
+  return gridRowById(page.getByTestId("item-list"), code);
 }
 
 /** `dataItemMng` 화면으로 이동해 마루 데이터를 고르고 "CSV 업로드" 버튼으로 팝업을 연다(C1). */

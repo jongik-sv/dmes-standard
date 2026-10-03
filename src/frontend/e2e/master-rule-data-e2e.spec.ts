@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from "@playwright/test";
+import { gridRows } from "./support/grid";
 
 const BASE = "http://localhost:5100";
 const SHOT = "test-results/master-rule-data";   // 실행 조건: BE 8100(local-ph) + FE 5100 + SMOKE_LOGIN_USER/PASSWORD
@@ -43,7 +44,7 @@ test("masterRuleData E2E — 메뉴/P-001/lov+search 연쇄/동적그리드/행�
   await page.screenshot({ path: `${SHOT}/e2e-2-dynamic-grid.png` });
 
   const cellOf = (rowIdx: number, colId: string) =>
-    grid.locator(".ag-center-cols-container .ag-row").nth(rowIdx).locator(`.ag-cell[col-id="${colId}"]`);
+    gridRows(grid).nth(rowIdx).locator(`.ag-cell[col-id="${colId}"]`);
 
   const fillCell = async (rowIdx: number, colId: string, value: string) => {
     const cell = cellOf(rowIdx, colId);
@@ -62,7 +63,7 @@ test("masterRuleData E2E — 메뉴/P-001/lov+search 연쇄/동적그리드/행�
 
   // 4. 행추가(C) + PK 필수검증(MSG-002) — CURR_CD 비운 채 저장 시도
   await page.getByRole("button", { name: "행추가" }).click();
-  await expect(grid.locator(".ag-center-cols-container .ag-row")).toHaveCount(3, { timeout: 10_000 });
+  await expect(gridRows(grid)).toHaveCount(3, { timeout: 10_000 });
   await fillCell(2, "BASE_DT", "2026-07-08");
   await page.getByRole("button", { name: "저장" }).click();
   await expect(page.getByText(/통화코드 항목은 필수 입력사항 입니다/)).toBeVisible({ timeout: 10_000 });   // MSG-002 (BR-006)
@@ -74,7 +75,7 @@ test("masterRuleData E2E — 메뉴/P-001/lov+search 연쇄/동적그리드/행�
   await page.getByRole("button", { name: "저장" }).click();
   await expect(page.getByText(/1건 저장 되었습니다/)).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: "확인" }).click();
-  await expect(grid.locator(".ag-center-cols-container .ag-row")).toHaveCount(3, { timeout: 20_000 });
+  await expect(gridRows(grid)).toHaveCount(3, { timeout: 20_000 });
   await expect(grid.getByText("EUR", { exact: true })).toBeVisible();
   await page.screenshot({ path: `${SHOT}/e2e-3-inserted.png` });
 

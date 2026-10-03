@@ -2,6 +2,7 @@ import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { BASE_URL, clickMenuPath, login } from "./support/common";
+import { gridRowById, gridRows } from "./support/grid";
 
 /**
  * 마루 코드(codeMng) — TSK-06-02 design.md §3.4 화면 스모크(2026-09-28 통합 D-101·D-102: codeMng+codeEdit → codeMng
@@ -54,8 +55,7 @@ async function search(page: Page, keyword: string) {
 }
 
 function listRow(page: Page, id: string): Locator {
-  return tid(page, "code-list")
-    .locator(".ag-center-cols-container .ag-row")
+  return gridRows(tid(page, "code-list"))
     .filter({ has: page.locator('.ag-cell[col-id="maruCodeId"]', { hasText: new RegExp(`^${id}$`) }) });
 }
 
@@ -95,7 +95,7 @@ async function confirmDialog(page: Page) {
 
 async function selectVersion(page: Page, ver: string) {
   // 버전 목록은 AgDataGrid — 행은 row-id(버전 값)로 찾고 첫 칸을 눌러 고른다.
-  await tid(page, "version-list").locator(`.ag-center-cols-container .ag-row[row-id="${ver}"] .ag-cell`).first().click();
+  await gridRowById(tid(page, "version-list"), ver).locator(".ag-cell").first().click();
 }
 
 async function api(page: Page, action: string, params: Record<string, unknown>, service = "codeEdit") {
