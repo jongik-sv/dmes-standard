@@ -50,12 +50,15 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import javax.sql.DataSource;
+import kr.dongkuk.maru.mdm.engine.code.CodeRowsProjection;
 import kr.dongkuk.maru.mdm.engine.domain.DefaultDomainValidator;
 import kr.dongkuk.maru.mdm.engine.domain.DomainValidator;
 import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
+import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeCateRow;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
+import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeVersionRow;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.EngineLookups;
@@ -371,7 +374,7 @@ class MdmMetaFeedContractHttpTest {
      */
     @Test
     void CODE_원본은_HTTP_왕복_뒤에도_원장_값과_자리수까지_같다() {
-        CodeRows direct = new MdmCodeLookup(ledger).code("CT_CD").orElseThrow();
+        CodeRows direct = CodeRowsProjection.releasedOnly(new MdmCodeLookup(ledger).code("CT_CD").orElseThrow()); // D-152 피드는 RELEASED 투영
         CodeRows viaHttp = (CodeRows) service.one(MdmTargetType.CODE, "CT_CD").orElseThrow();
 
         assertEquals(direct, viaHttp);
@@ -381,6 +384,45 @@ class MdmMetaFeedContractHttpTest {
         assertEquals(new BigDecimal("9999.000"), viaHttp.items().get(0).toVer());
         assertEquals(3, viaHttp.categories().get(0).fromVer().scale());
         assertEquals(LocalDateTime.of(9999, 12, 31, 0, 0), viaHttp.versions().get(0).applyTo());
+    }
+
+    /**
+     * D-152 — CODE 피드는 RELEASED 투영만 싣는다. CT_CD 에 DRAFT 1.001 을 열어 A 를 고친 초안 사본·초안 전용 코드 B·초안 전용 카테고리
+     * DRAFT_ONLY 를 둔다. 원장({@link MdmCodeLookup})에는 초안이 그대로 있고, cactus 가 HTTP 로 받은 {@link CodeRows} 에는 초안 버전·초안
+     * 사본 행·초안 전용 행이 없다. 초안 전용 카테고리가 RELEASED 1.000 판정에 소급되지도 않는다.
+     */
+    @Test
+    void CODE_피드는_DRAFT_버전과_초안_사본_행을_싣지_않는다() {
+        MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
+        seeds.draft("CT_CD", "1.001", "kim");
+        jdbc.update("UPDATE TB_MDM_CODE_ITEM SET TO_VER = 1.001 WHERE MARU_CODE_ID = 'CT_CD' AND CODE = 'A'");
+        seeds.seedItem("CT_CD", "A", "1.001", MasterCodeSeeds.OPEN, "에이(초안)", 1);
+        seeds.seedItem("CT_CD", "B", "1.001", MasterCodeSeeds.OPEN, "비(초안)", 2);
+        seeds.seedCate("CT_CD", "DRAFT_ONLY", "1.001", MasterCodeSeeds.OPEN, "REGEX", "[AB]", "CODE", "초안 전용");
+        jdbc.update("INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, MARU_CODE_ID, CATE_ID, VER) "
+                + "VALUES ('계약 초안 카테고리', 'CT_DRAFT_D', 'CODE', 'STRING', 'CT_CD', 'DRAFT_ONLY', 0)");
+        DmeTestSupport.column(jdbc, "CT_DRAFT_COL",
+                jdbc.queryForObject("SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'CT_DRAFT_D'", Long.class));
+
+        CodeRows ledgerRows = new MdmCodeLookup(ledger).code("CT_CD").orElseThrow();
+        assertEquals(2, ledgerRows.versions().size(), "원장에는 초안이 있다(MdmCodeLookup 은 그대로): " + ledgerRows.versions());
+        assertEquals(3, ledgerRows.items().size());
+        assertEquals(2, ledgerRows.categories().size());
+
+        CodeRows viaHttp = (CodeRows) service.one(MdmTargetType.CODE, "CT_CD").orElseThrow();
+        assertEquals(List.of("RELEASED"), viaHttp.versions().stream().map(CodeVersionRow::status).toList());
+        assertEquals(0, viaHttp.versions().get(0).ver().compareTo(new BigDecimal("1.000")));
+        assertEquals(1, viaHttp.items().size(), viaHttp.items().toString());
+        assertEquals("에이", viaHttp.items().get(0).name());
+        assertEquals(0, viaHttp.items().get(0).toVer().compareTo(new BigDecimal("1.001")), "RELEASED 쪽 닫힌 행은 남는다");
+        assertEquals(List.of("BASE"), viaHttp.categories().stream().map(CodeCateRow::cateId).toList());
+        assertEquals(CodeRowsProjection.releasedOnly(ledgerRows), viaHttp);
+
+        Instant now = Instant.now();
+        assertTrue(validator.validate("T", "CT_CODE_COL", Map.of("CT_CODE_COL", "A"), now).valid());
+        assertFalse(validator.validate("T", "CT_CODE_COL", Map.of("CT_CODE_COL", "B"), now).valid(), "초안 전용 코드 B 는 허용되지 않는다");
+        assertFalse(validator.validate("T", "CT_DRAFT_COL", Map.of("CT_DRAFT_COL", "A"), now).valid(),
+                "초안 전용 카테고리 정의가 RELEASED 1.000 판정에 소급되지 않는다(투영 전에는 A 가 소속으로 판정됐다)");
     }
 
     @Test
