@@ -20,7 +20,6 @@ import {
   snap,
   tid,
   uid,
-  waitIdle,
 } from "./support";
 import { revealGridColumn } from "../support/mdm-e2e";
 
@@ -860,14 +859,18 @@ test.describe("D 컬럼 사전", () => {
     await expect(tid(page, "term-pop-term-name")).toHaveValue(COL_INPUT);
     await tid(page, "term-pop-definition").fill("E2E 컬럼 사전 인라인 등록 용어");
     await tid(page, "term-pop-eng-name").fill("JudgmentValue");
+    // [약어 제안]은 영문명을 실어 서버에 물은 제안값으로 약어 칸을 채운다(termRegPop handleSuggest). 사람처럼 그 제안이 칸에 들어온 뒤
+    // 직접 정한 값으로 한 번 고쳐 쓴다 — 응답 전에 쓰면 뒤늦은 제안이 덮는다(최종 실행 7회차, trace). 제안값이 ENG_ABBR 형식에 안
+    // 맞을 수도 있어 어차피 직접 정한 값으로 덮는다.
+    const suggested = page.waitForResponse(
+      (r) => r.url().includes("/oasis/termRegPop/search") && r.request().method() === "POST" && (r.request().postData() ?? "").includes("JudgmentValue"),
+    );
     await tid(page, "term-pop-abbr-suggest").click();
-    await waitIdle(page);
-    // 제안 응답이 waitIdle 직후에도 뒤늦게 칸을 덮어쓸 때가 있어(관찰) — 내가 정한 값이 그대로 남을 때까지
-    // 다시 채운다. 제안값이 ENG_ABBR 형식에 안 맞을 수도 있어 어차피 직접 정한 값으로 덮어야 한다.
-    await expect(async () => {
-      await tid(page, "term-pop-abbr").fill(COL_ABBR);
-      await expect(tid(page, "term-pop-abbr")).toHaveValue(COL_ABBR);
-    }).toPass({ timeout: 5_000 });
+    expect((await suggested).ok()).toBe(true);
+    await expect(tid(page, "term-pop-abbr")).not.toHaveValue("");
+    await expect(tid(page, "term-pop-abbr-suggest")).toBeEnabled();
+    await tid(page, "term-pop-abbr").fill(COL_ABBR);
+    await expect(tid(page, "term-pop-abbr")).toHaveValue(COL_ABBR);
     await snapModal(page, "dma-columnMng-02-termRegPop");
     await tid(page, "term-pop-reg").click();
     await expect(tid(page, "term-pop")).toHaveCount(0, { timeout: 20_000 });
