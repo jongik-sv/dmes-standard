@@ -265,6 +265,7 @@ public class DataInitializer implements ApplicationRunner {
                     .executeUpdate();
             log.info("[DataInitializer] admin password force-reset to 'admin123' (UPDATE rows={})", updated);
         }
+        unlockLocalAdmin();
 
         // TB_MCM_SEC_ROLEGROUP — ROLE_GROUP_SYSADMIN
         insertIfAbsent(
@@ -3635,6 +3636,30 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     /** native query 생성 공통 진입점 — SQLite 면 sanitize 후 실행, MSSQL 은 원문(no-op). */
+    /**
+     * local 프로필(SQLite 단독, 프로필 미지정 폴백 포함) 부팅 때 admin 의 로그인 잠금을 푼다 — PWD_FAIL_COUNT=0, USE_TP='Y'.
+     *
+     * <p>로그인 실패가 최대 횟수에 닿으면 USE_TP='N' 으로 잠긴다(AuthService · McmSecUserRepository#lockUser). 위의 비밀번호
+     * 강제 재설정만으로는 풀리지 않아, 공용 로컬 DB 에서 admin 이 한 번 잠기면 재기동해도 admin 으로 로그인하는 e2e 가 모두 막힌다.
+     * admin 외 계정, local-db(외부 RDB 직결)·dev·prod 는 건드리지 않는다. 이미 풀려 있으면 쓰지 않는다.
+     *
+     * @return 되돌린 행 수(0 또는 1)
+     */
+    int unlockLocalAdmin() {
+        if (!environment.acceptsProfiles(Profiles.of("local"))) {
+            return 0;
+        }
+        int updated = nq(
+                "UPDATE MCMAPUSER.TB_MCM_SEC_USER SET PWD_FAIL_COUNT = 0, USE_TP = 'Y' " +
+                " WHERE USER_ID = 'admin' " +
+                "   AND (USE_TP IS NULL OR USE_TP <> 'Y' OR COALESCE(PWD_FAIL_COUNT, 0) <> 0)")
+                .executeUpdate();
+        if (updated > 0) {
+            log.info("[DataInitializer] local — admin 로그인 잠금 해제 (PWD_FAIL_COUNT=0, USE_TP='Y')");
+        }
+        return updated;
+    }
+
     private jakarta.persistence.Query nq(String sql) {
         return entityManager.createNativeQuery(sanitize(sql));
     }
