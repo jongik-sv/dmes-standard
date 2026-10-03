@@ -388,3 +388,10 @@ React Flow 12 의 `useReactFlow().fitView()` 는 곧바로 화면을 옮기지 �
 - 범위: 사용자가 친 검색어의 후보 목록(IdPicker·DomainField 등)에 한한다. 대상 상세·폼을 채우는 조회(§11·§15)는 인계 때도 순번을 올린다.
 - 찾기 목록은 고르기 전까지 어느 대상에도 쓰이지 않으므로, 연 ID 가 바뀌어도 아직 오지 않은 사용자 찾기의 결과는 보인다. 칸 글자는 새 ID 로 맞추고, 이미 열려 있던 목록은 닫는다(칸에 새 ID 가 보이는데 Enter 가 옛 목록에서 고르지 않게).
 - 시험은 지연 응답(직접 resolve 하는 Promise)으로 순서를 고정한다. 예: `m-mdm/tests/shell/id-picker.test.ts`, `m-mdm/tests/domain/domain-field.test.ts`.
+
+## 35. 그리드 칸 표시가 다른 필드에 기대면 — 미리 계산한 필드를 칸으로 둔다 (2026-10-03)
+
+`AgDataGrid` 는 행 키(`rowKey`)가 같은 행을 다시 받으면 **그 칸 필드 값이 바뀐 셀만** 다시 그린다. `render: (v, row) => …row.other…` 처럼 칸 필드(`key`)가 아닌 다른 필드로 문구를 정하면, 다른 필드만 바뀐 행은 [조회] 뒤에도 옛 문구가 남는다(mdmCacheMng "구분" 칸: `part` 는 그대로 BODY 인데 `current` 만 true→false). 새로고침하면 맞게 나와 놓치기 쉽다.
+
+- 표시 문구를 행 데이터에 미리 계산해 넣고(`rows.map(r => ({ ...r, kind: label(r.part, r.current) }))`, `useMemo`) 그 필드를 칸 `key` 로 쓴다.
+- 꾸밈만 하는 `render`(배지·서식)는 칸 필드 값만 읽게 한다.

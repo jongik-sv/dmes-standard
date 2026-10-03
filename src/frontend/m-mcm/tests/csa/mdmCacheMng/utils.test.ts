@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { definitionKey, describeLifetime, entryKindLabel, formatBytes } from "../../../page-components/csa/mdmCacheMng/utils";
+import { definitionKey, describeLifetime, entryKindLabel, formatBytes, withEntryKind } from "../../../page-components/csa/mdmCacheMng/utils";
 
 describe("mdmCacheMng utils", () => {
   it("formatBytes — 1024 단위 B/KB/MB/GB, KB 부터 소수 1자리", () => {
@@ -47,6 +47,16 @@ describe("mdmCacheMng utils", () => {
     expect(entryKindLabel("BODY", true)).toBe("본문(최종)");
     expect(entryKindLabel("BODY", false)).toBe("본문(옛)");
     expect(entryKindLabel(null, null)).toBe("");
+  });
+
+  it("withEntryKind — current 만 바뀐 같은 행 키에도 새 구분 문구가 칸 값으로 실린다(그리드 셀 갱신)", () => {
+    const base = { rowId: "CODE:X@1.000", type: "CODE" as const, key: "X@1.000", absent: false, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 1, part: "BODY" as const, ver: "1.000" };
+    const before = withEntryKind([{ ...base, current: true }]);
+    const after = withEntryKind([{ ...base, current: false }]);
+    expect(before[0].kind).toBe("본문(최종)");
+    expect(after[0].kind).toBe("본문(옛)");
+    expect(after[0].rowId).toBe(before[0].rowId);
+    expect(withEntryKind([{ ...base, part: "TOC", ver: null, current: null }])[0].kind).toBe("목차");
   });
 
   it("describeLifetime — 옛 버전 본문 수명을 알면 덧붙인다", () => {

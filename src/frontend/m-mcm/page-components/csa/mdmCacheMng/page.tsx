@@ -26,7 +26,7 @@ import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { describeForceFailure, fetchAllStatus, fetchEntries, fetchEntry, forceByType, groupByType } from "./api";
 import { RegisterModal } from "./RegisterModal";
-import { ESTIMATED_SIZE_HELP, describeLifetime, entryKindLabel, formatBytes } from "./utils";
+import { ESTIMATED_SIZE_HELP, describeLifetime, entryKindLabel, formatBytes, withEntryKind } from "./utils";
 import {
   ENTRY_SORT_OPTIONS,
   MDM_CACHE_MODULES,
@@ -39,7 +39,6 @@ import {
   type CacheEntryLookup,
   type CacheEntryRow,
   type EntryFilters,
-  type EntryPart,
   type ForceKind,
   type MdmTargetType,
   type ModuleState,
@@ -99,12 +98,11 @@ const entryColumns = (lifetimeHelp: string): GridColumn[] => [
   { key: "type", header: "대상", width: 100, align: "left", render: (v) => TARGET_TYPE_LABELS[v as MdmTargetType] ?? String(v) },
   { key: "key", header: "키", width: 180, minWidth: 180, align: "left" },
   {
-    key: "part",
+    key: "kind",
     header: "구분",
     width: 90,
     align: "center",
     headerTooltip: "목차 = 버전 목록, 본문(최종) = 지금 적용 중인 버전, 본문(옛) = 지난·예약 버전",
-    render: (v, row) => entryKindLabel(v as EntryPart | null, row.current as boolean | null),
   },
   {
     key: "absent",
@@ -193,6 +191,7 @@ export default function MdmCacheMngPage() {
   // 도움말 문자열이 바뀔 때만 열을 다시 만든다 — 조회마다 modules 배열이 새로 생겨도 열 정의가 그대로라 사용자가 바꾼 열 폭이 유지된다.
   const lifetimeHelp = lifetimeHelpOf(selectedModule);
   const entryGridColumns = useMemo(() => entryColumns(lifetimeHelp), [lifetimeHelp]);
+  const entryRows = useMemo(() => withEntryKind(entries), [entries]);
 
   /** 항목 하나의 캐시 값을 받아 상세 패널에 보인다. 서버는 캐시를 읽기만 한다(조회 수·적재 없음). */
   const openDetail = useCallback(async (target: DetailTarget) => {
@@ -408,7 +407,7 @@ export default function MdmCacheMngPage() {
               <AgDataGrid
                 rowKey="rowId"
                 columns={entryGridColumns}
-                data={entries}
+                data={entryRows}
                 columnSizing="fit"
                 selectable
                 multiSelect
