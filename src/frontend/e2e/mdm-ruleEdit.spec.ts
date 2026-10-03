@@ -495,7 +495,7 @@ test.describe("mdm dme/ruleEdit", () => {
 
   /** 케이스 표(AgDataGrid)의 행 — id 를 주면 row-id(case_id)로, hasText 를 주면 그 글자가 든 행으로 좁힌다. */
   function caseRow(page: Page, id: number): Locator {
-    return gridRowById(caseCard(page), id);
+    return gridRowById(caseCard(page), String(id));
   }
 
   function caseRowWith(page: Page, text: string): Locator {

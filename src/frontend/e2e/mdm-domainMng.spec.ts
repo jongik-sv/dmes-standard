@@ -65,7 +65,7 @@ async function selectRow(layout: Locator, name: string) {
 
 /** 테스트 케이스 표(AgDataGrid)의 n 번째 케이스 행 — 행 키는 1부터이고, 결과 칸(RESULT_TEXT)이 있는 행만 이 표의 행이다. */
 const caseRow = (root: Locator, n: number): Locator =>
-  gridRowById(root, n)
+  gridRowById(root, String(n))
     .filter({ has: root.page().locator('.ag-cell[col-id="RESULT_TEXT"]') });
 /** 케이스 칸을 눌러 편집기를 열고 값을 넣어 확정한다. 기대 칸은 true/false 선택이다. */
 async function editCaseCell(root: Locator, n: number, col: "VALUE" | "EXPECT" | "MEMO", value: string) {
