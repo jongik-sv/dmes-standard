@@ -135,7 +135,9 @@ export const CATEGORIES: readonly CategoryDef[] = [
       { id: "psi", label: "psi", factor: "6894.757293168361" },
       { id: "kgfcm2", label: "kgf/cm²", factor: "98066.5" },
       { id: "kgfmm2", label: "kgf/mm²", factor: "9806650" },
-      { id: "mmhg", label: "mmHg", factor: "133.322387415" },
+      // mmHg 는 Torr 정의(1 atm = 760 mmHg → 101325/760 Pa ≈ 133.3223684)를 쓴다. 그래서 760 mmHg = 1 atm 이 정확히 맞는다.
+      // 관용 mmHg(수은 13595.1 kg/m³·표준중력 → 133.322387415 Pa)와는 상대 1.4e-7 차이라 표시 10자리 중 7자리까지 같다.
+      { id: "mmhg", label: "mmHg", factor: "101325/760" },
     ],
   },
   {
@@ -176,8 +178,10 @@ export const CATEGORIES: readonly CategoryDef[] = [
       { id: "j", label: "J", factor: "1" },
       { id: "kj", label: "kJ", factor: "1000" },
       { id: "kwh", label: "kWh", factor: "3600000" },
-      { id: "cal", label: "cal", factor: "4.184" },
-      { id: "kcal", label: "kcal", factor: "4184" },
+      // cal·kcal 은 국제증기표 칼로리(IT): 1 cal = 4.1868 J, 1 kcal = 4186.8 J — 국내 에너지 통계 관례이고 1 kWh ≈ 859.845 kcal.
+      // 열화학 칼로리(1 cal = 4.184 J)와는 상대 0.07% 차이가 난다. 표시 이름은 그냥 cal·kcal 이다.
+      { id: "cal", label: "cal", factor: "4.1868" },
+      { id: "kcal", label: "kcal", factor: "4186.8" },
     ],
   },
 ];
