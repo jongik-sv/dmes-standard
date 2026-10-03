@@ -14,6 +14,7 @@
 import {
   HttpError,
   apiRequest,
+  labelsFrom,
   unwrapOasis,
   type CactusErrorDetail,
   type OasisUnwrapOptions,
@@ -42,7 +43,10 @@ export interface NoticeMgmtPayload {
   savedIds?: string[];
 }
 
-/** 서버 오류 필드 코드 → 화면 항목명. 사용자에게 컬럼 코드를 보이지 않는다(Local-Rules §13). */
+/**
+ * 서버 오류 필드 코드 → 화면 항목명. 사용자에게 컬럼 코드를 보이지 않는다(Local-Rules §13). `labelsFrom` 이 field 를
+ * 원문 → 대문자 → camel→대문자 snake 순으로 찾으므로 키는 대문자 물리명 하나다. 맵에 없는 field 는 메시지만 보인다.
+ */
 const FIELD_LABEL: Record<string, string> = {
   NOTICE_ID: "공지번호",
   TITLE: "제목",
@@ -99,15 +103,15 @@ export class NoticeApiError extends Error {
  * - 성공: BE 가 `Map<String,Object>` 를 반환하고 BPMN 이 `output="result"` 이므로 결과는 `data.result` 안에 통째로
  *   들어온다(cactus 는 Map 내부 List 를 자동 분리하지 않는다, BackEnd 표준 §6-D-2). data 전체 위에 `result` 를 덮어
  *   펴고, 응답 `grids.<이름>.rows` 도 `<이름>` 으로 올린다.
- * - 거부: 행·필드 단위 상세(`errors[]`)가 오면 항목명을 붙여 덧붙인다(base 와 같아도 남긴다). 원문처럼 보이는 글은 버린다.
- *   오류는 {@link NoticeApiError}.
+ * - 거부: 문구는 m-mdm 과 같은 통일 형식 `기본 문구 + "\n- 항목명: 메시지"` 다. 행·필드 단위 상세(`errors[]`)가 오면
+ *   항목명을 붙여 덧붙이고(항목명을 모르면 메시지만), 기본 문구에 이미 든 메시지는 뺀다. 원문처럼 보이는 글은 버린다.
+ *   오류는 {@link NoticeApiError} — `errors` 는 사용자 문장인 상세 원본(field 코드 포함)이라 칸 오류 표시에 그대로 쓴다.
  */
 const UNWRAP: OasisUnwrapOptions = {
   merge: "data+result",
   includeGrids: true,
-  details: "append",
   isUserSentence,
-  fieldLabel: (field) => FIELD_LABEL[field.toUpperCase()],
+  fieldLabel: labelsFrom(FIELD_LABEL),
   errorFactory: (message, _code, errors, field) =>
     new NoticeApiError(message, field, errors as NoticeErrorDetail[]),
 };

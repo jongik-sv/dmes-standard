@@ -226,12 +226,12 @@ describe("noticeMgmt api — OASIS 호출 특성(현재 동작 고정)", () => {
     expect(await api.changeNoticeStatus("N1", "STOP")).toEqual({ result: [1] });
   });
 
-  it("거부는 NoticeApiError — 사용자 문장인 errors 만 붙이고(base 와 같아도 남김), 항목명이 없는 field 는 글만 쓴다", async () => {
+  it("거부는 NoticeApiError — 사용자 문장인 errors 만 붙이고(base 에 든 문구는 뺌), 항목명이 없는 field 는 글만 쓴다", async () => {
     apiRequest.mockResolvedValue(REJECT);
     const e = (await api.changeNoticeStatus("N1", "STOP").catch((x: unknown) => x)) as InstanceType<typeof api.NoticeApiError>;
     expect(Object.getPrototypeOf(e)).toBe(api.NoticeApiError.prototype);
     expect(e.name).toBe("NoticeApiError");
-    expect(e.message).toBe("거부 문구\n- 칸 오류\n- 거부 문구");
+    expect(e.message).toBe("거부 문구\n- 칸 오류");
     expect(e.field).toBe("F1");
     expect(e.errors).toEqual([{ field: "F1", code: "E1", message: "칸 오류" }, { message: "거부 문구" }]);
     expect("code" in e).toBe(false);
@@ -246,6 +246,18 @@ describe("noticeMgmt api — OASIS 호출 특성(현재 동작 고정)", () => {
     expect(e.message).toBe("확인\n- 제목: 필수입니다");
     expect(e.field).toBe("CONTENT");
     expect(e.errors).toEqual([{ field: "title", message: "필수입니다" }]);
+  });
+
+  it("기본 문구에 이미 들어 있는 상세는 다시 붙이지 않는다(포함 판정). errors 원본은 그대로 싣는다", async () => {
+    const errors = [
+      { grid: "master", rowIndex: 0, field: "TITLE", code: "REQUIRED_VALUE", message: "제목은 필수입니다" },
+      { grid: "master", rowIndex: 0, field: "POST_END_DT", code: "INVALID_VALUE", message: "게시종료일이 게시시작일보다 빠릅니다" },
+    ];
+    apiRequest.mockResolvedValue({ meta: { success: false, message: "입력값을 확인해주세요: 제목은 필수입니다" }, errors });
+    const e = (await api.changeNoticeStatus("N1", "STOP").catch((x: unknown) => x)) as InstanceType<typeof api.NoticeApiError>;
+    expect(e.message).toBe("입력값을 확인해주세요: 제목은 필수입니다\n- 게시종료일: 게시종료일이 게시시작일보다 빠릅니다");
+    expect(e.field).toBe("TITLE");
+    expect(e.errors).toEqual(errors);
   });
 
   it("거부 문구가 비거나 공백·예외 원문이면 기본 문구다", async () => {
