@@ -265,7 +265,7 @@ DB 전제: 로컬 개발과 자동 테스트는 **SQLite** 로 고정한다. 운
 
 - schema 변경은 마이그레이션 파일로 관리한다.
 - 운영 방언이 확정된 모듈은 SQLite(로컬·테스트) 폴더와 운영 방언 폴더를 함께 작성하고 두 폴더의 버전 번호 집합을 같게 유지한다. 운영 방언이 미정이면 SQLite 폴더만 둔다.
-- 방언 폴더 이름은 `oracle/` · `postgresql/` · `sqlite/` 로 쓰고(`db/migration/{모듈}/sqlite/` 또는 모듈 단 없이 `db/migration/sqlite/`), 드물게 MSSQL 현장이 생기면 `mssql/` (드묾)을 더한다. Spring Boot Flyway 의 `{vendor}` 자리표시자로 폴더를 고르면 MSSQL 폴더 이름은 `sqlserver` 가 된다.
+- 방언 폴더 이름은 `oracle/` · `postgresql/` · `sqlite/` 로 쓰고(`db/migration/{모듈}/sqlite/` 또는 모듈 단 없이 `db/migration/sqlite/`), MSSQL 현장이 생기면(드묾) `mssql/` 을 더한다. Spring Boot Flyway 의 `{vendor}` 자리표시자로 폴더를 고르면 MSSQL 폴더 이름은 `sqlserver` 가 된다.
 - 이미 공유된 migration 은 수정하지 않고 후속 migration 을 추가한다.
 - seed / 운영 데이터 INSERT 는 schema migration 과 분리한다.
 - 스키마 변경 시 seed, test fixture, local SQLite template 갱신 여부를 함께 확인한다.
