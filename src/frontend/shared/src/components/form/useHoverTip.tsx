@@ -17,9 +17,10 @@
  * mantine-test-utils.ts(공유 테스트 인프라, 담당 파일 아님) 변경이 필요해 이번 라운드에서는
  * 보류하고(리드에게 후속 제안), 검증된 기존 커스텀 포지셔닝을 유지한다.
  *
- * 상호작용 모드(`interactive`, 2026-10-03) — MDM HTML 설명 카드처럼 링크·스크롤이 있는 툴팁을 띄울 때만 켠다. 켜면 상자가
- * pointer-events:auto 이고, 트리거를 떠나도 `HOVER_TIP_GRACE_MS` 동안 열어 두며 그 사이 상자에 들어가면 유지, 상자를 나가면(유예 뒤)
- * 닫힌다. Escape 로 닫힌다. 끄면(기본) 예전과 같다 — 떠나는 즉시 닫히고, 문서 이벤트를 듣지 않으며, 상자 DOM 도 그대로다.
+ * 상호작용 모드(`interactive`, 2026-10-03) — MDM HTML 설명 카드처럼 링크·스크롤이 있는 툴팁을 띄울 때만 켠다. 켜면 hover 로 연
+ * 상자가 pointer-events:auto 이고(키보드 focus 로만 열면 none — 이웃 입력을 가리지 않게, 마우스가 트리거에 들어오면 auto),
+ * 트리거를 떠나도 `HOVER_TIP_GRACE_MS` 동안 열어 두며 그 사이 상자에 들어가면 유지, 상자를 나가면(유예 뒤) 닫힌다. Escape 로 닫힌다.
+ * focus 로만 연 상자는 blur 하면 바로 닫힌다. 끄면(기본) 예전과 같다 — 떠나는 즉시 닫히고, 문서 이벤트를 듣지 않으며, 상자 DOM 도 그대로다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
@@ -48,18 +49,31 @@ export interface HoverTipOptions {
 /** 상호작용 툴팁 상자에 붙이는 값(`HoverTipPortal` 의 `box`). */
 export interface HoverTipBox {
   maxWidth?: number;
+  /**
+   * 상자가 마우스를 받는가 — hover 로 열었으면 true. 키보드 focus 로만 열었으면 false(예전 툴팁처럼 가려진 칸을 그대로 누를 수 있게)이고,
+   * 이어 마우스가 트리거에 들어오면 true 가 된다.
+   */
+  pointer: boolean;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
 }
+
+/** showTip·hideTip 이 받는 이벤트(React 합성 이벤트 그대로) — 종류(type)로 hover 와 focus 를 가린다. */
+type TipEvent = { type?: string } | undefined;
+const isFocusEvent = (e: TipEvent) => e?.type === "focus" || e?.type === "focusin";
+const isBlurEvent = (e: TipEvent) => e?.type === "blur" || e?.type === "focusout";
 
 export interface HoverTip<T extends HTMLElement> {
   /** 툴팁이 붙을 앵커(라벨 박스·트리거 글자)에 건다. */
   anchorRef: RefObject<T | null>;
   /** 열려 있으면 위치, 닫혀 있으면 null. `HoverTipPortal` 에 그대로 준다. */
   tipPos: HoverTipPos | null;
-  showTip: () => void;
-  /** 닫는다. 상호작용 모드면 유예 뒤에 닫고, 마우스가 상자 안에 있으면 닫지 않는다. */
-  hideTip: () => void;
+  /** 연다. 핸들러에 그대로 걸면(onMouseEnter·onFocus) 이벤트 종류로 hover·focus 를 가린다(상호작용 모드의 pointer). */
+  showTip: (e?: TipEvent) => void;
+  /**
+   * 닫는다. 상호작용 모드면 유예 뒤에 닫고, 마우스가 상자 안에 있으면 닫지 않는다. focus 로만 연 카드의 blur 는 바로 닫는다.
+   */
+  hideTip: (e?: TipEvent) => void;
   /** 상호작용 모드면 상자에 붙일 값(`HoverTipPortal` 에 그대로 준다), 아니면 null. */
   box: HoverTipBox | null;
 }
@@ -77,10 +91,19 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
   const estHeight = options?.estHeight;
   const anchorRef = useRef<T>(null);
   const [tipPos, setTipPos] = useState<HoverTipPos | null>(null);
+  const tipPosRef = useRef<HoverTipPos | null>(null);
+  tipPosRef.current = tipPos;
   /** 상호작용 모드의 닫기 유예 타이머. */
   const graceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** 마우스가 상자 안에 있는가 — 그동안은 트리거를 떠나거나 focus 가 빠져도 닫지 않는다. */
   const insideBoxRef = useRef(false);
+  /** 상호작용 상자가 마우스를 받는가(hover 로 열었는가). 렌더용 상태와 콜백용 ref 를 함께 둔다. */
+  const [pointer, setPointer] = useState(false);
+  const pointerRef = useRef(false);
+  const setPointerBoth = useCallback((v: boolean) => {
+    pointerRef.current = v;
+    setPointer(v);
+  }, []);
 
   const clearGrace = useCallback(() => {
     if (graceRef.current != null) {
@@ -89,10 +112,12 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
     }
   }, []);
 
-  const showTip = useCallback(() => {
+  const showTip = useCallback((e?: TipEvent) => {
     clearGrace();
     const el = anchorRef.current;
     if (!el || typeof window === "undefined") return;
+    // focus 로 열 때는 이미 hover 로 열려 마우스를 받던 상자만 그대로 받는다.
+    if (interactive) setPointerBoth(isFocusEvent(e) ? pointerRef.current && tipPosRef.current != null : true);
     const rect = el.getBoundingClientRect();
     const TIP_MAX_WIDTH = maxWidth ?? 320;
     // 글자 툴팁은 두세 줄, MDM 카드 같은 노드 툴팁은 더 크다 — 위쪽 공간 판정에만 쓴다.
@@ -109,23 +134,32 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
       // 상호작용 상자는 마우스로 안을 읽으므로 화면 밖으로 넘기지 않는다 — 넘치면 상자 안에서 스크롤한다.
       ...(interactive ? { maxHeight: Math.max(0, (above ? top : window.innerHeight - top) - GUTTER) } : {}),
     });
-  }, [tipIsText, maxWidth, estHeight, interactive, clearGrace]);
+  }, [tipIsText, maxWidth, estHeight, interactive, clearGrace, setPointerBoth]);
 
   const close = useCallback(() => {
     clearGrace();
     insideBoxRef.current = false;
+    pointerRef.current = false;
     setTipPos(null);
   }, [clearGrace]);
 
-  const hideTip = useCallback(() => {
-    if (!interactive) {
-      setTipPos(null);
-      return;
-    }
-    if (insideBoxRef.current) return;
-    clearGrace();
-    graceRef.current = setTimeout(close, HOVER_TIP_GRACE_MS);
-  }, [interactive, clearGrace, close]);
+  const hideTip = useCallback(
+    (e?: TipEvent) => {
+      if (!interactive) {
+        setTipPos(null);
+        return;
+      }
+      if (insideBoxRef.current) return;
+      // focus 로만 연(마우스를 받지 않는) 카드는 예전 툴팁처럼 blur 즉시 닫는다.
+      if (isBlurEvent(e) && !pointerRef.current) {
+        close();
+        return;
+      }
+      clearGrace();
+      graceRef.current = setTimeout(close, HOVER_TIP_GRACE_MS);
+    },
+    [interactive, clearGrace, close]
+  );
 
   const onBoxEnter = useCallback(() => {
     insideBoxRef.current = true;
@@ -151,8 +185,8 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
   useEffect(() => clearGrace, [clearGrace]);
 
   const box = useMemo<HoverTipBox | null>(
-    () => (interactive ? { maxWidth, onMouseEnter: onBoxEnter, onMouseLeave: onBoxLeave } : null),
-    [interactive, maxWidth, onBoxEnter, onBoxLeave]
+    () => (interactive ? { maxWidth, pointer, onMouseEnter: onBoxEnter, onMouseLeave: onBoxLeave } : null),
+    [interactive, maxWidth, pointer, onBoxEnter, onBoxLeave]
   );
 
   return { anchorRef, tipPos, showTip, hideTip, box };
@@ -160,7 +194,8 @@ export function useHoverTip<T extends HTMLElement>(tipIsText: boolean, options?:
 
 /**
  * 열려 있을 때(tipPos 가 있을 때) 툴팁 상자를 document.body 에 그린다. 닫혀 있거나 서버 렌더면 아무것도 그리지 않는다.
- * `box`(상호작용 모드)를 주면 상자가 마우스를 받고(pointer-events:auto, `data-tip-interactive`), 최대 폭·높이를 둔다. 없으면 예전 DOM 그대로다.
+ * `box`(상호작용 모드)를 주면 `data-tip-interactive` 와 최대 폭·높이를 두고, hover 로 열었으면 마우스를 받는다(pointer-events:auto —
+ * focus 로만 열었으면 none). 없으면 예전 DOM 그대로다.
  */
 export function HoverTipPortal({
   tipPos,
@@ -183,7 +218,7 @@ export function HoverTipPortal({
         ...(tipPos.above ? { transform: "translateY(-100%)" } : {}),
         ...(box
           ? {
-              pointerEvents: "auto",
+              pointerEvents: box.pointer ? "auto" : "none",
               ...(box.maxWidth != null ? { maxWidth: box.maxWidth } : {}),
               ...(tipPos.maxHeight != null ? { maxHeight: tipPos.maxHeight, overflowY: "auto" as const } : {}),
             }

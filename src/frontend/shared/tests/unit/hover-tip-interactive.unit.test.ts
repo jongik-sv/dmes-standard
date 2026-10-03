@@ -238,3 +238,89 @@ describe("FormGroup — MDM HTML 카드일 때만 상호작용", () => {
     expect(portal()).toBeNull();
   });
 });
+
+describe("상호작용 모드 — focus·blur·링크 focus·언마운트(리뷰 I2·I3·M5)", () => {
+  const input = () => createElement(Input, { value: "", onChange: () => undefined });
+  const label = () => r!.host.querySelector("label") as HTMLElement;
+  const field = () => r!.host.querySelector("input") as HTMLInputElement;
+
+  it("focus 로 연 HTML 카드는 마우스를 받지 않고(pointer-events:none), 이어 트리거에 마우스가 들어오면 auto", async () => {
+    await show(createElement(FormGroup, { name: "noticeBody" }, input()));
+    place(label(), { left: 100, top: 400, bottom: 420 });
+    act(() => field().focus());
+    const p = portal()!;
+    expect(p.getAttribute("data-tip-interactive")).toBe("true");
+    expect(p.style.pointerEvents).toBe("none");
+    enter(trigger(), true);
+    expect(portal()!.style.pointerEvents).toBe("auto");
+  });
+
+  it("focus 로 연 카드는 blur 하면(마우스가 상자 밖) 바로 닫힌다", async () => {
+    await show(createElement(FormGroup, { name: "noticeBody" }, input()));
+    place(label(), { left: 100, top: 400, bottom: 420 });
+    act(() => field().focus());
+    expect(portal()).not.toBeNull();
+    act(() => field().blur());
+    expect(portal()).toBeNull();
+  });
+
+  it("마우스가 상자 안이면 blur 해도 유지되고, 상자를 나가면 유예 뒤 닫힌다", async () => {
+    await show(createElement(FormGroup, { name: "noticeBody" }, input()));
+    place(label(), { left: 100, top: 400, bottom: 420 });
+    vi.useFakeTimers();
+    act(() => field().focus());
+    enter(trigger(), true);
+    const p = portal()!;
+    enter(p, true);
+    act(() => field().blur());
+    advance(1000);
+    expect(portal()).toBe(p);
+    enter(p, false);
+    advance(151);
+    expect(portal()).toBeNull();
+  });
+
+  it("hover 로 연 카드는 마우스가 상자 밖일 때 blur 하면 유예 뒤 닫힌다", async () => {
+    await show(createElement(FormGroup, { name: "noticeBody" }, input()));
+    place(label(), { left: 100, top: 400, bottom: 420 });
+    vi.useFakeTimers();
+    act(() => field().focus());
+    enter(trigger(), true);
+    act(() => field().blur());
+    advance(149);
+    expect(portal()).not.toBeNull();
+    advance(2);
+    expect(portal()).toBeNull();
+  });
+
+  it("카드 안 링크를 누른 뒤(링크에 focus) 마우스가 상자를 나가면 유예 뒤 닫힌다", async () => {
+    await show(createElement(MdmFieldLabel, { name: "NOTICE_BODY" }));
+    place(trigger(), { left: 100, top: 400, bottom: 420 });
+    vi.useFakeTimers();
+    enter(trigger(), true);
+    const p = portal()!;
+    enter(p, true);
+    const link = p.querySelector("a") as HTMLAnchorElement;
+    act(() => link.focus());
+    expect(document.activeElement).toBe(link);
+    enter(p, false);
+    advance(151);
+    expect(portal()).toBeNull();
+  });
+
+  it("유예 타이머가 도는 중에 언마운트해도 타이머를 지우고 경고가 없다", async () => {
+    const error = vi.spyOn(console, "error");
+    await show(createElement(MdmFieldLabel, { name: "NOTICE_BODY" }));
+    place(trigger(), { left: 100, top: 400, bottom: 420 });
+    vi.useFakeTimers();
+    enter(trigger(), true);
+    enter(trigger(), false);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    r!.unmount();
+    r = null;
+    expect(vi.getTimerCount()).toBe(0);
+    advance(500);
+    expect(portal()).toBeNull();
+    expect(error).not.toHaveBeenCalled();
+  });
+});
