@@ -166,7 +166,7 @@ public final class MdmCachedDefinitions implements DefinitionLookup, CodeLookup,
         try {
             v = MdmVersions.key(ver);
         } catch (IllegalArgumentException e) {
-            miss(MdmTargetType.CODE, MdmVersions.logical(maruCodeId, ver == null ? null : ver.toPlainString()));
+            miss(MdmTargetType.CODE, MdmVersions.logical(maruCodeId, ver.toPlainString()));
             throw new MdmUnavailableException("MDM 정의를 해석할 수 없습니다: " + MdmTargetType.CODE + " " + maruCodeId + " — " + e.getMessage(), e);
         }
         MdmMetaService.CachedRead body = service.cachedBody(MdmTargetType.CODE, maruCodeId, v);

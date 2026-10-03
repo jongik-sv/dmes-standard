@@ -20,6 +20,8 @@ import kr.dongkuk.maru.mdm.engine.code.CodeVersionSlice;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup.CodeRows;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -36,6 +38,8 @@ import org.springframework.web.client.RestClientException;
  * <p>D-154 — 목차·본문({@link #fetchToc}·{@link #fetchBodies})과 옛 MDM 신호 (가)·(나).
  */
 public class MdmMetaClient implements MdmMetaFeed {
+
+    private static final Logger log = LoggerFactory.getLogger(MdmMetaClient.class);
 
     static final String SERVICE_PATH = "/oasis/metaFeed/";
     static final String SYSTEM_ROLE = "SYSTEM";
@@ -206,6 +210,8 @@ public class MdmMetaClient implements MdmMetaFeed {
         try {
             return new MdmCurrent(MdmVersions.key(cur.path("ver").asText()), convertBody(type, cur.path("value")));
         } catch (IllegalArgumentException | MdmUnavailableException e) {
+            // 버려도 서비스가 BODY 를 따로 받는다. MDM 이 계속 잘못 보내면 목차마다 BODY 한 번이 더 생기므로 흔적만 남긴다.
+            log.debug("MDM 목차 current 해석 실패 — 버린다: type={}, ver={}, {}", type, cur.path("ver").asText(), e.getMessage());
             return null;
         }
     }
