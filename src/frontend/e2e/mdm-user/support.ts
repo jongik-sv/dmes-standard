@@ -104,6 +104,19 @@ const menuNode = (scope: Locator, text: string) =>
     .first();
 
 /**
+ * 포털 탭 줄에서 제목이 title 인 화면 탭을 닫는다(없으면 그냥 지나간다). 닫은 화면은 다음에 메뉴로 열 때 새로 그려 서버 값을 읽는다 —
+ * 저장하지 않은 입력을 남기는 화면(같은 행을 다시 골라도 입력 유지)에서 "저장되지 않았다" 를 볼 때 쓴다.
+ */
+export async function closeScreenTab(page: Page, title: string) {
+  const exact = new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+  const tab = page.locator(".tabs-bar .tab-item").filter({ has: page.locator(".tab-title", { hasText: exact }) });
+  if (!(await tab.count())) return;
+  await tab.first().hover();
+  await tab.first().locator(".tab-close").click();
+  await expect(tab).toHaveCount(0);
+}
+
+/**
  * 사이드바 트리를 사용자처럼 클릭해 화면을 연다.
  * 예: openMenu(page, ["마루 MDM", "마스터코드", "마루 코드"], "codeMng").
  * 폴더명(2026-09-28): 용어·도메인(dma) · 레이아웃(dmb) · 마스터코드(dmc) · 마스터데이터(dmd) · 업무기준(dme).

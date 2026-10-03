@@ -8,6 +8,7 @@ import {
   assertAllButtonsPressed,
   breadcrumb,
   button,
+  closeScreenTab,
   checkLayout,
   expectToast,
   footerScreenId,
@@ -614,6 +615,12 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "header-name").fill("");
     await tid(page, "header-save").click();
     await expectErrorModal(page, "이름은 1~100자여야 합니다", "dmc-codeMng-detail-04-name-required");
+    // 같은 행을 다시 골라 다시 읽어도 저장하지 않은 입력(빈 이름)은 남는다(a4f0e79d — ruleMng 과 같은 규칙).
+    await openCode(page, CODE);
+    await expect(tid(page, "header-name")).toHaveValue("");
+    // 거부된 값은 저장되지 않았다 — 화면을 닫고 메뉴로 다시 열면 서버 값(NAME2)이 보인다.
+    await closeScreenTab(page, "마루 코드");
+    await go(page, "codeMng");
     await openCode(page, CODE);
     await expect(tid(page, "header-name")).toHaveValue(NAME2, { timeout: 20_000 });
     watcher.assertClean("codeMng");
@@ -739,8 +746,8 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 코드 편집");
     // [코드 편집]은 마루 코드·버전을 넘겨 이 화면이 그 코드를 연다(화면 인계는 TC-DMC-LNK-01 에서 따로 본다). 인계가 끝나 위 칸이
-    // 그 코드를 보인 뒤 사용자가 [찾기]로 다시 고른다 — 인계가 [찾기] 응답보다 늦게 오면 IdPicker 가 진행 중인 찾기 결과를 버린다
-    // (findSeq, 보고서 관찰). 여기서는 칸에 넣고 [찾기] 로 찾는다 — Enter 로 찾는 길은 pickCode 가 쓴다.
+    // 그 코드를 보인 뒤 사용자가 [찾기]로 다시 고른다 — IdPicker 는 인계 때 아직 오지 않은 찾기는 살리지만 이미 열린 찾기 목록은
+    // 닫는다(3ee724b4, Local-Rules §34 설계). 여기서는 칸에 넣고 [찾기] 로 찾는다 — Enter 로 찾는 길은 pickCode 가 쓴다.
     await expect(tid(page, "code-current")).toContainText(CODE, { timeout: 20_000 });
     await expect(tid(page, "code-pick-keyword")).toHaveValue(CODE);
     await waitIdle(page);
@@ -1214,6 +1221,11 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "header-lvl").selectOption("1");
     await tid(page, "header-save").click();
     await expectErrorModal(page, "LVL2 에 값이 있는 코드가 있어 계층 칸 수를 1 로 줄일 수 없습니다", "dmc-codeMng-detail-09-lvl-reduce");
+    // 같은 행을 다시 골라도 저장하지 않은 입력(1)은 남는다(a4f0e79d). 거부된 값은 저장되지 않았다 — 화면을 닫고 다시 열면 2 다.
+    await openCode(page, CODE);
+    await expect(tid(page, "header-lvl")).toHaveValue("1");
+    await closeScreenTab(page, "마루 코드");
+    await go(page, "codeMng");
     await openCode(page, CODE);
     await expect(tid(page, "header-lvl")).toHaveValue("2", { timeout: 20_000 });
     await expect(versionRow(page, "1.000")).toContainText("확정");
