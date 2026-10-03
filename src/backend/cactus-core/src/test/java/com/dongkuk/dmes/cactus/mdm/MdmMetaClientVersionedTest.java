@@ -149,6 +149,63 @@ class MdmMetaClientVersionedTest {
 
         assertThat(r.failed()).containsKey("BAD");
         assertThat(r.tocs()).containsOnlyKeys("R");
+        assertThat(r.current()).as("current:null 이면 목차만 있고 current 는 없다").isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void 목차_value_가_null_이거나_없으면_없음이_아니라_failed_이고_current_value_가_null_이면_current_만_뺀다() {
+        server.expect(requestTo(URL)).andRespond(withSuccess(ok("{\"part\":\"TOC\",\"items\":["
+                + "{\"key\":\"NULL\",\"value\":null},"
+                + "{\"key\":\"NONE\"},"
+                + "{\"key\":\"R\",\"value\":{\"header\":null,\"versions\":[{\"ver\":1.000,\"status\":\"RELEASED\","
+                + "\"applyFrom\":\"2026-01-01T00:00:00\",\"applyTo\":null}]},\"current\":{\"ver\":\"1.000\",\"value\":null}}],"
+                + "\"failed\":[]}"), MediaType.APPLICATION_JSON));
+
+        MdmTocResult r = client.fetchToc(MdmTargetType.RULE, List.of("NULL", "NONE", "R"), LocalDateTime.of(2026, 10, 3, 0, 0));
+
+        assertThat(r.failed()).as("건너뛰거나 null 로 담으면 그 키가 없음으로 60분 캐시된다").containsOnlyKeys("NULL", "NONE");
+        assertThat(r.tocs()).containsOnlyKeys("R");
+        assertThat(r.tocs().get("R")).isNotNull();
+        assertThat(r.current()).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void 본문_value_가_null_이거나_없으면_그_쌍은_NOT_RELEASED_가_아닌_failed_다() {
+        server.expect(requestTo(URL)).andRespond(withSuccess(ok("{\"part\":\"BODY\",\"items\":["
+                + "{\"key\":\"R\",\"ver\":\"1.000\",\"value\":null},{\"key\":\"R\",\"ver\":\"2.000\"}],\"failed\":[]}"),
+                MediaType.APPLICATION_JSON));
+
+        MdmBodyResult r = client.fetchBodies(MdmTargetType.RULE, List.of(new MdmBodyKey("R", "1.000"), new MdmBodyKey("R", "2.000")));
+
+        assertThat(r.found()).isEmpty();
+        assertThat(r.failed()).containsOnlyKeys(new MdmBodyKey("R", "1.000"), new MdmBodyKey("R", "2.000"));
+        assertThat(r.failed().values()).doesNotContain(MdmMetaService.NOT_RELEASED);
+        server.verify();
+    }
+
+    @Test
+    void 본문_신호_나_업무_거부면_정의_키만_한_번씩_part_없이_다시_보내고_legacy_와_legacyAsked_를_채운다() {
+        server.expect(requestTo(URL)).andExpect(jsonPath("$.params.part").value("BODY"))
+                .andExpect(jsonPath("$.grids.keys.rows.length()").value(3))
+                .andRespond(withSuccess(REJECTED, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(URL)).andExpect(jsonPath("$.params.part").doesNotExist())
+                .andExpect(jsonPath("$.grids.keys.rows.length()").value(2))
+                .andExpect(jsonPath("$.grids.keys.rows[0].key").value("R"))
+                .andExpect(jsonPath("$.grids.keys.rows[0].ver").doesNotExist())
+                .andExpect(jsonPath("$.grids.keys.rows[1].key").value("NO"))
+                .andRespond(withSuccess(ok("{\"items\":[{\"key\":\"R\",\"value\":[" + RULE_1000 + "]}],\"failed\":[]}"),
+                        MediaType.APPLICATION_JSON));
+
+        MdmBodyResult r = client.fetchBodies(MdmTargetType.RULE,
+                List.of(new MdmBodyKey("R", "1.000"), new MdmBodyKey("R", "2.000"), new MdmBodyKey("NO", "1.000")));
+
+        assertThat(r.found()).isEmpty();
+        assertThat(r.failed()).isEmpty();
+        assertThat(r.legacy()).containsOnlyKeys("R");
+        assertThat(r.legacy().get("R")).isInstanceOf(List.class);
+        assertThat(r.legacyAsked()).containsExactly("R", "NO");
         server.verify();
     }
 

@@ -122,7 +122,7 @@ public class MdmMetaClient implements MdmMetaFeed {
         for (JsonNode n : result.path("items")) {
             String key = n.path("key").asText();
             JsonNode value = n.path("value");
-            if (value.isMissingNode() || value.isNull()) {
+            if (absent(value)) {
                 failed.put(key, "value 없음");
                 continue;
             }
@@ -168,10 +168,17 @@ public class MdmMetaClient implements MdmMetaFeed {
             }
             for (JsonNode n : result.path("items")) {
                 String key = n.path("key").asText();
+                JsonNode value = n.path("value");
+                if (absent(value)) {
+                    // null 목차로 담으면 그 키가 "없음"으로 60분 캐시된다 — 받을 수 없는 키(failed)로 돌린다(지금 값 경로와 같다).
+                    failed.put(key, "value 없음");
+                    continue;
+                }
                 try {
-                    MdmToc toc = MdmJson.MAPPER.treeToValue(n.path("value"), MdmToc.class);
+                    MdmToc toc = MdmJson.MAPPER.treeToValue(value, MdmToc.class);
                     JsonNode cur = n.path("current");
-                    MdmCurrent c = cur.isObject()
+                    // current 는 덤이다 — 본문이 비었으면 목차만 받고 본문은 서비스가 따로 요청한다
+                    MdmCurrent c = cur.isObject() && !absent(cur.path("value"))
                             ? new MdmCurrent(MdmVersions.key(cur.path("ver").asText()), convertBody(type, cur.path("value")))
                             : null;
                     tocs.put(key, toc);
@@ -224,8 +231,13 @@ public class MdmMetaClient implements MdmMetaFeed {
                 } catch (IllegalArgumentException e) {
                     continue; // 키를 알 수 없는 줄 — 그 쌍은 응답에 없는 것으로 남아 서비스가 받을 수 없음으로 처리한다
                 }
+                JsonNode value = n.path("value");
+                if (absent(value)) {
+                    failed.put(key, "value 없음"); // null 본문을 담지 않는다 — NOT_RELEASED 가 아니라 받을 수 없음이다
+                    continue;
+                }
                 try {
-                    found.put(key, convertBody(type, n.path("value")));
+                    found.put(key, convertBody(type, value));
                 } catch (MdmUnavailableException e) {
                     failed.put(key, e.getMessage());
                 }
@@ -257,6 +269,11 @@ public class MdmMetaClient implements MdmMetaFeed {
         } catch (IOException | IllegalArgumentException e) {
             throw new MdmUnavailableException("MDM 응답의 " + type + " 본문을 읽을 수 없습니다: " + e.getMessage(), e);
         }
+    }
+
+    /** Jackson 은 null·없는 값을 예외 없이 null 로 읽는다 — 값 경로({@link #readLegacy})처럼 먼저 거른다. */
+    private static boolean absent(JsonNode value) {
+        return value.isMissingNode() || value.isNull();
     }
 
     private static ArrayNode keyRows(Collection<String> keys) {
