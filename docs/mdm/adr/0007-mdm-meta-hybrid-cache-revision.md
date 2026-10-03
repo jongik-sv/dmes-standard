@@ -88,9 +88,14 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
   - V20 `TB_MDM_META_REV.REV_SEQ` 를 시퀀스·IDENTITY 로 정의하고, 순번 순서 가정(CACHE 포함)을 다시 검증한다.
   - 시간대 교차 트랜잭션으로 인한 순번 역전이 정말 일어나는지 부하 테스트로 확인한다.
 
+## 개정 이력
+
+- **2026-10-03 — 캐시 값 모양을 목차 + 버전 본문으로 바꾼다(D-154).** 룰·룰 세트·코드·전문의 캐시 값을 정의 전 이력 한 키에서 목차 키 `X` 와 버전 본문 키 `X@ver` 로 나눈다. 하이브리드 배포(정의는 MDM 이 주고 판정은 업무 모듈 엔진)와 변경 기록 순번 무효화·10초 폴링 구조는 그대로다(결정 P13). Decision 본문은 고치지 않았다. 설계는 [spec 2026-10-03-mdm-meta-cache-per-version-design.md](../../superpowers/specs/2026-10-03-mdm-meta-cache-per-version-design.md), 결정은 [D-154](../decisions.md). 본문 개정 전 적대적 검토는 이 작업에서 따로 띄우지 않고 최종 브랜치 리뷰가 대신한다.
+
 ## References
 
 - [spec 2026-10-02-mdm-meta-cache-design](../../superpowers/specs/2026-10-02-mdm-meta-cache-design.md)
+- [spec 2026-10-03-mdm-meta-cache-per-version-design](../../superpowers/specs/2026-10-03-mdm-meta-cache-per-version-design.md) (D-154)
 - [ADR-0004 운영 DB 미정](0004-drop-mssql-production-assumption.md), [ADR-0005 룰 세트 실행은 엔진](0005-rule-set-runs-in-engine.md),
   [ADR-0006 룰 버전 major/minor 소수](0006-object-versioning-major-minor.md)(`metaFeed` RULE 의 `ver` 는 소수 — 정렬은 수 비교)
 - 코드: `src/backend/mdm/lib/.../common/metarev/MetaRevisionRecorder.java`, `.../feed/metaFeed/service/MetaFeedService.java`,
