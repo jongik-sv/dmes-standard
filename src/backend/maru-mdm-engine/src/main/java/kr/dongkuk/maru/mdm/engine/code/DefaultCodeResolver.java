@@ -32,7 +32,7 @@ public final class DefaultCodeResolver implements CodeResolver {
     private static final String REGEX = "REGEX";
     private static final String TABLE = "TABLE";
 
-    private static final CodeMatch NOT_MEMBER = new CodeMatch(false, List.of());
+    private static final CodeMatch NOT_MEMBER = new CodeMatch(false, null);
 
     private final CodeLookup codes;
     private final CodeEffLookup codeEff;
@@ -53,7 +53,7 @@ public final class DefaultCodeResolver implements CodeResolver {
         if (code == null) {
             return false; // 목차도 읽지 않는다
         }
-        return match(maruCodeId, cateId, code, baseDt, false).map(CodeMatch::member).orElse(false);
+        return match(maruCodeId, cateId, code, baseDt, null).map(CodeMatch::member).orElse(false);
     }
 
     @Override
@@ -61,7 +61,7 @@ public final class DefaultCodeResolver implements CodeResolver {
         if (code == null) {
             return Optional.empty(); // 목차도 읽지 않는다
         }
-        return match(maruCodeId, cateId, code, baseDt, true).flatMap(m -> m.attr(attrNo));
+        return match(maruCodeId, cateId, code, baseDt, attrNo).map(CodeMatch::attr);
     }
 
     /**
@@ -69,7 +69,7 @@ public final class DefaultCodeResolver implements CodeResolver {
      * 색인으로 소속을 알았을 때만 속성을 위해 {@code codeAt} 을 한 번 더 부른다.
      */
     @Override
-    public Optional<CodeMatch> match(String maruCodeId, String cateId, String code, LocalDateTime baseDt, boolean withAttrs) {
+    public Optional<CodeMatch> match(String maruCodeId, String cateId, String code, LocalDateTime baseDt, Integer attrNo) {
         Optional<CodeRows> toc = codes.code(maruCodeId);
         if (toc.isEmpty()) {
             return Optional.empty();
@@ -85,17 +85,17 @@ public final class DefaultCodeResolver implements CodeResolver {
         if (!resolved.members().contains(code)) {
             return Optional.of(NOT_MEMBER);
         }
-        if (!withAttrs) {
-            return Optional.of(new CodeMatch(true, List.of()));
+        if (attrNo == null) {
+            return Optional.of(new CodeMatch(true, null));
         }
         Optional<CodeRows> rows = resolved.rows().isPresent() ? resolved.rows() : codes.codeAt(maruCodeId, ver.get());
-        List<String> attrs = rows.stream()
+        String attr = rows.stream()
                 .flatMap(r -> validItems(r, ver.get()).stream())
                 .filter(i -> i.code().equals(code))
                 .findFirst()
-                .map(CodeItemRow::attrs)
-                .orElse(List.of());
-        return Optional.of(new CodeMatch(true, attrs));
+                .map(i -> i.attrs().get(attrNo - 1))
+                .orElse(null);
+        return Optional.of(new CodeMatch(true, attr));
     }
 
     @Override

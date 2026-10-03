@@ -44,14 +44,14 @@ final class MasterQuery {
             return attrNo == null ? EvaluationValue.booleanValue(false) : EvaluationValue.NULL_VALUE;
         }
         // 목차를 한 번만 읽어 마루 코드인지 가리고 소속·속성까지 함께 받는다. 마루 코드가 아니면 마루 데이터로 넘긴다.
-        Optional<CodeResolver.CodeMatch> hit = resolver.match(maruId, cateId, keyText, baseDt, attrNo != null);
+        Optional<CodeResolver.CodeMatch> hit = resolver.match(maruId, cateId, keyText, baseDt, attrNo);
         if (attrNo == null) {
             return EvaluationValue.booleanValue(hit.isPresent()
                     ? hit.get().member()
                     : masters.isValid(maruId, cateId, keyText, baseDt));
         }
         Optional<String> value = hit.isPresent()
-                ? hit.get().attr(attrNo)
+                ? Optional.ofNullable(hit.get().attr())
                 : masters.attr(maruId, cateId, keyText, baseDt, attrNo);
         return value.map(EvaluationValue::stringValue).orElse(EvaluationValue.NULL_VALUE);
     }

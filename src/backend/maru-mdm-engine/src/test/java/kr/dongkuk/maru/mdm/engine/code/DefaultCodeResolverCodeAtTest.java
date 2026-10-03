@@ -7,6 +7,7 @@ import static kr.dongkuk.maru.mdm.engine.testsupport.CodeFixtures.dt;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -116,7 +117,7 @@ class DefaultCodeResolverCodeAtTest {
     void match_는_마루_코드가_아니면_빈_값이고_본문을_읽지_않는다() {
         Counting lookup = new Counting(CodeFixtures.steel());
         DefaultCodeResolver r = new DefaultCodeResolver(lookup, CodeEffLookup.NONE);
-        assertEquals(Optional.empty(), r.match("PORT", "BASE", "KRPUS", AUG, true));
+        assertEquals(Optional.empty(), r.match("PORT", "BASE", "KRPUS", AUG, 1));
         assertEquals(1, lookup.codeCalls);
         assertEquals(List.of(), lookup.atCalls);
     }
@@ -125,14 +126,14 @@ class DefaultCodeResolverCodeAtTest {
     void match_는_코드면_소속과_속성을_함께_준다() {
         Counting lookup = new Counting(CodeFixtures.steel());
         DefaultCodeResolver r = new DefaultCodeResolver(lookup, CodeEffLookup.NONE);
-        CodeResolver.CodeMatch hit = r.match(CodeFixtures.STEEL, "BASE", "82", AUG, true).orElseThrow();
-        CodeResolver.CodeMatch miss = r.match(CodeFixtures.STEEL, "BASE", "NOPE", AUG, true).orElseThrow();
-        CodeResolver.CodeMatch nullCode = r.match(CodeFixtures.STEEL, "BASE", null, AUG, true).orElseThrow();
+        CodeResolver.CodeMatch hit = r.match(CodeFixtures.STEEL, "BASE", "82", AUG, 1).orElseThrow();
+        CodeResolver.CodeMatch miss = r.match(CodeFixtures.STEEL, "BASE", "NOPE", AUG, 1).orElseThrow();
+        CodeResolver.CodeMatch nullCode = r.match(CodeFixtures.STEEL, "BASE", null, AUG, 1).orElseThrow();
         assertAll(
                 () -> assertTrue(hit.member()),
-                () -> assertEquals(Optional.of("KR"), hit.attr(1)),
+                () -> assertEquals("KR", hit.attr()),
                 () -> assertFalse(miss.member()),
-                () -> assertEquals(Optional.empty(), miss.attr(1)),
+                () -> assertNull(miss.attr()),
                 () -> assertFalse(nullCode.member()));
     }
 
@@ -141,7 +142,7 @@ class DefaultCodeResolverCodeAtTest {
         Counting lookup = new Counting(CodeFixtures.steel());
         CodeEffLookup eff = (id, ver, cate) -> Optional.of(Set.of("82"));
         DefaultCodeResolver r = new DefaultCodeResolver(lookup, eff);
-        assertTrue(r.match(CodeFixtures.STEEL, "BASE", "82", AUG, false).orElseThrow().member());
+        assertTrue(r.match(CodeFixtures.STEEL, "BASE", "82", AUG, null).orElseThrow().member());
         assertEquals(1, lookup.codeCalls);
         assertEquals(List.of(), lookup.atCalls);
     }

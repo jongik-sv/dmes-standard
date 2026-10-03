@@ -66,7 +66,7 @@ class ContractTypeShapeTest {
                     "expr.MdmExpressionConfig",
                     "expr.MdmFunction",
                     // code
-                    "code.CodeResolver", "code.CodeResolver$CodeListEntry",
+                    "code.CodeResolver", "code.CodeResolver$CodeListEntry", "code.CodeResolver$CodeMatch",
                     // rule
                     "rule.RuleEngine", "rule.RuleEngine$Part",
                     "rule.RuleResult", "rule.RuleResult$Hit", "rule.RuleResult$RowTrace",
