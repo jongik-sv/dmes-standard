@@ -79,3 +79,9 @@ cactus:
     max-idle: 60m        # 마지막 조회 뒤 이 시간 동안 조회가 없으면 만료(조회될 때마다 연장)
     connect-timeout: 2s
     read-timeout: 5s
+
+# ── 로깅 ──
+# OASIS 메서드 해석(Try binding·Strategy) 요청마다 남는 INFO 를 끈다 — analog 파싱 문구(Task·Process·Service 등)는 이 패키지에서 나오지 않는다.
+logging:
+  level:
+    com.dongkuk.oasis.methodinvoker: WARN
