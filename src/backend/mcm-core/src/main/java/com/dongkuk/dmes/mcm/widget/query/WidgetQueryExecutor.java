@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Blob;
 import java.sql.Clob;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -45,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
+import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.core.PreparedStatementCreator;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -52,26 +54,26 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.support.JdbcUtils;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 쿼리 위젯 실행기 — 스펙 2026-10-02-widget-admin-generic §7. {@link WidgetQueryRunner} 의 유일한 구현.
  * <ul>
- *   <li>mcm 업무 코드에 기대지 않고 {@link DataSource}·{@link PlatformTransactionManager} 만 받는다 — 다른 모듈은 같은 클래스를
- *       자기 DataSource 로 붙이면 된다(다른 모듈 실제 연결은 이번 범위 밖, 지금은 {@code dataSrc=mcm} 만 실행).</li>
+ *   <li>mcm 업무 코드에 기대지 않고 {@link DataSource} 만 받는다 — 다른 모듈은 같은 클래스를 자기 DataSource 로 붙이면 된다
+ *       (다른 모듈 실제 연결은 이번 범위 밖, 지금은 {@code dataSrc=mcm} 만 실행). 스프링 빈은 {@link WidgetQueryDataSource}
+ *       (전용 설정 {@code dmes.widget.query.datasource.*} 이 있으면 그것, 없으면 앱 기본 DataSource)를 받는다.</li>
  *   <li>SQL 은 늘 {@link SqlGuard} 검사(§7.1)를 거친다. 저장된 정의도 실행 때마다 다시 검사한다.</li>
- *   <li>실행은 별도(REQUIRES_NEW)·읽기 전용 트랜잭션에서 하고 <b>늘 롤백</b>한다. 행 상한+1·10초·가져오기 100(§7.3).</li>
+ *   <li>실행은 {@link WidgetReadOnlyJdbc} 가 따로 빌린 연결에서 읽기 전용(readOnly·방언별 보강)으로 하고 <b>늘 롤백</b>한다.
+ *       스레드에 묶인 업무 트랜잭션 연결은 쓰지 않는다. 행 상한+1·10초·가져오기 100(§7.3).</li>
  *   <li>시스템 변수(§7.2)는 SQL 이 쓰는 것만 만들고 바인딩한다. 사용자 값은 늘 인증 컨텍스트에서 얻는다(IDOR).</li>
  *   <li>결과 캐시: 키 (defId, 행 상한, 쓰인 시스템 변수 값들 — {@code :now} 는 30초 구간 시작), 30초. 정의 저장 이벤트가 오면
  *       그 defId 캐시를 비운다.</li>
  *   <li>DB 오류: 사용자에게는 고정 문구, 서버 로그에는 defId·원인. 관리자 미리보기만 DB 메시지를 보여 준다.</li>
  * </ul>
- * <b>운영 주의</b>: {@code readOnly} 는 SQLite 에서 효과가 없고 SQL Server 에서는 힌트일 뿐이며, SQL Server 는 {@code ;} 없이도
- * 한 배치에 문장을 이어 쓸 수 있다. 그래서 운영 DB 에서는 이 실행기에 <b>읽기 권한만 가진 DB 계정의 DataSource</b> 를 붙이는 것이
- * 근본 대책이다(실행기는 DataSource 만 받으므로 빈 연결만 바꾸면 된다).
+ * <b>운영 주의</b>: SQL Server 에는 읽기 전용 트랜잭션이 없고({@code readOnly} 는 힌트일 뿐), {@code ;} 없이도 한 배치에 문장을
+ * 이어 쓸 수 있다({@code SET IMPLICIT_TRANSACTIONS OFF} 뒤 쓰기는 자동 커밋되어 늘 롤백도 벗어난다). 그래서 읽기 전용 트랜잭션을 걸 수 없는
+ * DB(SQL Server·방언을 모르는 DB)에서는 전용 DataSource({@code dmes.widget.query.datasource.*})가 없으면 <b>실행·미리보기·저장 검사를
+ * 모두 거절한다</b>(실패 닫힘, {@link #validate}). Oracle 은 자율 트랜잭션 함수·DDL 의 암묵 커밋이 읽기 전용 트랜잭션과 롤백을 벗어난다.
+ * 그래서 운영 DB 에서는 어느 DB 든 <b>읽기 권한만 가진 DB 계정의 DataSource</b> 를 붙이는 것이 근본 대책이다.
  */
 @Component
 public class WidgetQueryExecutor implements WidgetQueryRunner {
@@ -96,6 +98,11 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     static final String MSG_NO_SQL = "위젯 정의에 SQL 이 없습니다";
     static final String MSG_LOAD_FAILED = "위젯 데이터를 불러오지 못했습니다";
     static final String MSG_PREVIEW_PREFIX = "쿼리 오류: ";
+    static final String MSG_SQLSERVER_NEEDS_DEDICATED =
+            "SQL Server 에서는 읽기 전용 계정의 전용 연결(dmes.widget.query.datasource)을 설정해야 쿼리 위젯을 실행할 수 있습니다";
+    static final String MSG_OTHER_NEEDS_DEDICATED =
+            "읽기 전용 트랜잭션을 걸 수 없는 DB 에서는 읽기 전용 계정의 전용 연결(dmes.widget.query.datasource)을 설정해야 쿼리 위젯을 실행할 수 있습니다";
+    static final String MSG_DB_UNAVAILABLE = "쿼리 위젯 DB 에 연결하지 못했습니다";
 
     private static final DateTimeFormatter YMD = DateTimeFormatter.ofPattern("yyyyMMdd");
     /** 로컬 SQLite 실행 때 지우는 스키마 접두(대소문자 무시, 식별자 중간은 제외). */
@@ -104,9 +111,10 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
 
     private final WidgetDefRepository defRepository;
     private final WidgetUserContextResolver userContextResolver;
-    private final DataSource dataSource;
+    private final WidgetReadOnlyJdbc readOnlyJdbc;
+    /** 전용 DataSource(dmes.widget.query.datasource.*)인가 — 읽기 전용 트랜잭션이 없는 DB 에서 실행을 허락할지 정한다. */
+    private final boolean dedicated;
     private final LimitedJdbcTemplate jdbc;
-    private final TransactionTemplate transactionTemplate;
     private final Clock clock;
     private final Map<CacheKey, CachedResult> cache = new ConcurrentHashMap<>();
 
@@ -121,26 +129,21 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     @Autowired
     public WidgetQueryExecutor(WidgetDefRepository defRepository,
                                WidgetUserContextResolver userContextResolver,
-                               DataSource dataSource,
-                               PlatformTransactionManager transactionManager) {
-        this(defRepository, userContextResolver, dataSource, transactionManager, Clock.system(ZONE));
+                               WidgetQueryDataSource queryDataSource) {
+        this(defRepository, userContextResolver, queryDataSource, Clock.system(ZONE));
     }
 
     WidgetQueryExecutor(WidgetDefRepository defRepository,
                         WidgetUserContextResolver userContextResolver,
-                        DataSource dataSource,
-                        PlatformTransactionManager transactionManager,
+                        WidgetQueryDataSource queryDataSource,
                         Clock clock) {
+        DataSource dataSource = queryDataSource.dataSource();
         this.defRepository = defRepository;
         this.userContextResolver = userContextResolver;
-        this.dataSource = dataSource;
+        this.readOnlyJdbc = new WidgetReadOnlyJdbc(dataSource);
+        this.dedicated = queryDataSource.dedicated();
         this.jdbc = new LimitedJdbcTemplate(dataSource);
         this.clock = clock;
-        TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        tx.setName("widgetQuery");
-        tx.setReadOnly(true);
-        tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        this.transactionTemplate = tx;
     }
 
     @Override
@@ -155,7 +158,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
             throw new BusinessException(ErrorCode.INVALID_VALUE, MSG_NOT_QUERY);
         }
         requireSupportedSource(def.getDataSrc());
-        SqlGuard.Validated validated = SqlGuard.check(sqlOf(def));
+        SqlGuard.Validated validated = validate(sqlOf(def));
         Map<String, Object> values = systemValues(validated.variables());
 
         Instant now = clock.instant();
@@ -181,7 +184,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     public WidgetQueryResult preview(String dataSrc, String sql, int maxRows) {
         requireMaxRows(maxRows);
         requireSupportedSource(dataSrc);
-        SqlGuard.Validated validated = SqlGuard.check(sql);
+        SqlGuard.Validated validated = validate(sql);
         Map<String, Object> values = systemValues(validated.variables());
         try {
             return execute(validated.sql(), values, maxRows);
@@ -193,7 +196,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
 
     @Override
     public void validateSql(String sql) {
-        SqlGuard.check(sql);
+        validate(sql);
     }
 
     /** 정의를 저장·삭제하면 그 정의의 캐시 항목(모든 사용자·행 상한)을 비운다. */
@@ -204,8 +207,8 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         cache.keySet().removeIf(key -> key.defId().equals(id));
     }
 
-    TransactionTemplate transactionTemplate() {
-        return transactionTemplate;
+    WidgetReadOnlyJdbc readOnlyJdbc() {
+        return readOnlyJdbc;
     }
 
     int cacheSize() {
@@ -253,18 +256,20 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
 
     // ── 실행 ────────────────────────────────────────────────────────────
 
-    private WidgetQueryResult execute(String sql, Map<String, Object> values, int maxRows) {
+    /**
+     * 검사(§7.1)를 마친 SQL 을 읽기 전용 연결에서 실행한다(늘 롤백). 이 아래층은 검사를 하지 않는다 — 검사를 거치지 않은 쓰기 문장이
+     * 와도 읽기 전용 강제·롤백이 DB 를 바꾸지 못하게 막는다(시험이 이 메서드로 직접 넣어 본다). SQL 오류는 런타임 예외로 감싼다.
+     */
+    WidgetQueryResult execute(String sql, Map<String, Object> values, int maxRows) {
         MapSqlParameterSource params = new MapSqlParameterSource();
         // 값이 null(부서 없음)이어도 형을 알려 줘야 PostgreSQL·H2 가 받는다.
         values.forEach((name, value) -> params.addValue(name, value, "now".equals(name) ? Types.TIMESTAMP : Types.VARCHAR));
-        return transactionTemplate.execute(status -> {
-            status.setRollbackOnly(); // 늘 롤백(§7.3) — 끝날 때 commit() 이 아니라 rollback 으로 닫힌다.
-            if (!TransactionSynchronizationManager.hasResource(dataSource)) {
-                // 트랜잭션 관리자가 이 DataSource 를 관리하지 않으면 자동 커밋 연결로 돌게 된다 — 실행하지 않는다.
-                throw new IllegalStateException("위젯 쿼리 트랜잭션이 DataSource 연결을 잡지 못했습니다");
-            }
-            return jdbc.queryLimited(adaptForLocalSqlite(sql), params, maxRows + 1, rs -> extract(rs, maxRows));
-        });
+        String runSql = adaptForLocalSqlite(sql);
+        try {
+            return readOnlyJdbc.execute(con -> jdbc.queryLimited(con, runSql, params, maxRows + 1, rs -> extract(rs, maxRows)));
+        } catch (SQLException e) {
+            throw new UncategorizedSQLException("widgetQuery", runSql, e);
+        }
     }
 
     /**
@@ -351,6 +356,38 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
 
     // ── 검사 도우미 ──────────────────────────────────────────────────────
 
+    /**
+     * 실행·미리보기·저장 검사가 함께 쓰는 판정(§7.1 + 실패 닫힘). 순서:
+     * <ol>
+     *   <li>어느 DB 에나 적용하는 검사 — 여기서 걸리면 연결을 빌리지 않는다.</li>
+     *   <li>실행 DB 갈래 판정(처음 한 번 연결을 빌려 메타데이터만 읽는다). 읽기 전용 트랜잭션을 걸 수 없는 갈래(SQL Server·방언을 모르는 DB)인데
+     *       전용 DataSource 가 없으면 거절한다 — {@code ;} 없이 이어 쓴 T-SQL({@code SET IMPLICIT_TRANSACTIONS OFF}·{@code USE}·{@code WHILE})을
+     *       낱말 목록이 다 막는다고 기대할 수 없고, 앱 기본 DataSource 는 쓰기 계정이다.</li>
+     *   <li>갈래별 검사(SQL Server 의 {@code SET}·{@code IF}).</li>
+     * </ol>
+     * 거절은 {@code BusinessException} 이고 미리보기·실행의 DB 오류 감싸기(쿼리 오류·고정 문구) 밖에서 던진다 — 설정 안내가 그대로 보인다.
+     */
+    private SqlGuard.Validated validate(String sql) {
+        SqlGuard.check(sql);
+        WidgetReadOnlyJdbc.Dialect dialect = requireRunnableDialect();
+        return SqlGuard.check(sql, dialect);
+    }
+
+    private WidgetReadOnlyJdbc.Dialect requireRunnableDialect() {
+        WidgetReadOnlyJdbc.Dialect dialect;
+        try {
+            dialect = readOnlyJdbc.resolveDialect();
+        } catch (SQLException | RuntimeException e) {
+            log.warn("위젯 쿼리 DB 갈래 판정 실패 원인={}", rootMessage(e));
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, MSG_DB_UNAVAILABLE);
+        }
+        if (!dedicated && !WidgetReadOnlyJdbc.enforcesReadOnly(dialect)) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, dialect == WidgetReadOnlyJdbc.Dialect.SQLSERVER
+                    ? MSG_SQLSERVER_NEEDS_DEDICATED : MSG_OTHER_NEEDS_DEDICATED);
+        }
+        return dialect;
+    }
+
     /** 지금은 mcm 만 실행한다. 비어 있으면 mcm 으로 본다(유일한 모듈). */
     private static void requireSupportedSource(String dataSrc) {
         String src = dataSrc == null ? "" : dataSrc.strip();
@@ -387,24 +424,29 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         return message == null || message.isBlank() ? root.getClass().getSimpleName() : message.strip();
     }
 
-    /** {@link NamedParameterJdbcTemplate} 이 만든 문장에 행 상한·시간 제한·가져오기 크기를 건다(§7.3). */
+    /**
+     * {@link NamedParameterJdbcTemplate} 의 이름 붙은 변수 처리로 문장을 만들되, <b>넘겨받은 연결</b>(읽기 전용으로 건 연결)에서
+     * 실행한다 — JdbcTemplate 이 DataSource 에서 연결을 다시 얻으면 스레드에 묶인 업무 트랜잭션 연결을 집을 수 있다.
+     * 행 상한·시간 제한·가져오기 크기를 건다(§7.3).
+     */
     static final class LimitedJdbcTemplate extends NamedParameterJdbcTemplate {
 
         LimitedJdbcTemplate(DataSource dataSource) {
-            super(dataSource);
+            super(dataSource); // 연결은 쓰지 않는다 — 이름 붙은 변수 해석만 빌린다
         }
 
-        <T> T queryLimited(String sql, SqlParameterSource params, int fetchRows, ResultSetExtractor<T> extractor) {
+        <T> T queryLimited(Connection con, String sql, SqlParameterSource params, int fetchRows,
+                           ResultSetExtractor<T> extractor) throws SQLException {
             PreparedStatementCreator named = getPreparedStatementCreator(sql, params);
-            PreparedStatementCreator limited = con -> {
-                PreparedStatement ps = named.createPreparedStatement(con);
+            try (PreparedStatement ps = named.createPreparedStatement(con)) {
                 ps.setMaxRows(fetchRows);
                 ps.setQueryTimeout(QUERY_TIMEOUT_SEC);
                 // 가져오기 크기가 행 상한보다 크면 거절하는 드라이버가 있다(H2 등 — 미리보기 50+1행).
                 ps.setFetchSize(Math.min(FETCH_SIZE, fetchRows));
-                return ps;
-            };
-            return getJdbcOperations().query(limited, extractor);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return extractor.extractData(rs);
+                }
+            }
         }
     }
 }

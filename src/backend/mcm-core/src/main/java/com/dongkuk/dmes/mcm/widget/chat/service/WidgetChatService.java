@@ -16,6 +16,7 @@ import com.dongkuk.dmes.mcm.widget.chat.llm.LlmToolResult;
 import com.dongkuk.dmes.mcm.widget.chat.repository.WidgetChatMessageRepository;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContext;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
+import com.dongkuk.dmes.mcm.widget.common.WidgetUserQuota;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryResult;
@@ -57,6 +58,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       더 부르지 않는다. 마감은 각 호출 앞에서만 확인하므로, 마감 직전에 시작한 호출은 HTTP 읽기 시간(기본 60초)만큼 더 걸려
  *       한 차례가 최대 약 123초(연결 3초 포함)까지 갈 수 있다.</li>
  *   <li>모델이 SQL 을 만들어 실행하는 기능은 두지 않는다(W-D28). 키·프롬프트·메시지 본문은 로그에 남기지 않는다.</li>
+ *   <li><b>남용 막기</b>: 사용자별 하루(서울 날짜) LLM 호출 수 상한({@code dmes.widget.llm.daily-call-limit}, 기본 200) — 인스턴스와
+ *       관계없이 사용자 단위로 센다. 첫 호출 몫은 사용자 메시지를 저장하기 <b>전에</b> 잡는다(세기·확인이 한 잠금 안이라 상한 경계의
+ *       동시 요청 2건이 함께 통과해 둘 다 질문을 저장하는 일이 없다). 못 잡으면 저장 없이 거절하고, 차례 도중에 상한에 닿으면 더 부르지
+ *       않고 그때까지 받은 글로 답한다. 잡은 첫 몫은 그 뒤 실패(문맥 읽기 실패·마감 초과 등)로 LLM 을 못 불러도 돌려주지 않는다. 저장 기록 상한(사용자 합계)은 {@link WidgetChatWriter}. 배치 행이 있는 인스턴스만 받는 검사는
+ *       두지 않는다 — 「홈」을 저장하지 않은 사용자의 부서·코드 기본 배치 칸은 행이 없어 막힌다.</li>
  * </ul>
  * <b>트랜잭션</b>: OASIS({@code cactus.oasis.transactional: true})는 서비스 시작 때 txBiz 를 열고 예외면 통째로 롤백한다.
  * send·reset 은 그 바깥 트랜잭션을 {@code NOT_SUPPORTED} 로 잠시 내려놓고 돈다 — 그래서 ① 공급자가 실패해 바깥이 롤백돼도
@@ -86,6 +92,12 @@ public class WidgetChatService {
 
     static final String FAILED_MESSAGE = "답을 받지 못했습니다. 잠시 뒤 다시 시도하세요.";
     static final String TOOL_LIMIT_MESSAGE = "도구를 여러 번 써도 답을 마치지 못했습니다. 질문을 좁혀 다시 물어 주세요.";
+    /** 차례 도중 하루 상한에 닿았는데 그때까지 받은 글이 없을 때 답. */
+    static final String DAILY_LIMIT_PARTIAL_MESSAGE = "오늘 AI 챗봇 사용 한도에 닿아 답을 마치지 못했습니다. 내일 다시 이용하세요.";
+    /** 하루 LLM 호출 수 상한 기본값. */
+    static final int DEFAULT_DAILY_CALL_LIMIT = 200;
+    /** 하루 상한을 기억하는 사용자 수(가장 오래 안 쓴 사용자부터 버린다). */
+    static final int MAX_QUOTA_USERS = 10_000;
     /** 답 최대 토큰에 걸려 글이 끊겼을 때 답 끝에 붙이는 표시. */
     static final String TRUNCATED_NOTICE = "(답이 길어 중간에 끊겼습니다.)";
     /** 한 차례(질문 하나 → 답 하나, 도구 반복 포함) 시간 제한 기본값(스펙 §9.2 「시간 초과 60초」). */
@@ -116,6 +128,9 @@ public class WidgetChatService {
     private final Duration turnTimeout;
     private final TransactionTemplate outsideTx;
     private final Clock clock;
+    private final int dailyCallLimit;
+    /** 사용자 → 오늘(서울 날짜 epochDay) LLM 호출 수. */
+    private final WidgetUserQuota llmQuota = new WidgetUserQuota(MAX_QUOTA_USERS);
 
     @Autowired
     public WidgetChatService(WidgetChatMessageRepository messageRepository,
@@ -129,7 +144,8 @@ public class WidgetChatService {
                              PlatformTransactionManager transactionManager,
                              WidgetLlmProperties llmProperties) {
         this(messageRepository, writer, defRepository, queryRunner, userContextResolver, screenFinder, llmClient,
-                securityIdentity, transactionManager, turnTimeout(llmProperties), Clock.system(ZoneId.of("Asia/Seoul")));
+                securityIdentity, transactionManager, turnTimeout(llmProperties), Clock.system(ZoneId.of("Asia/Seoul")),
+                llmProperties == null ? 0 : llmProperties.getDailyCallLimit());
     }
 
     WidgetChatService(WidgetChatMessageRepository messageRepository,
@@ -142,7 +158,8 @@ public class WidgetChatService {
                       SecurityIdentity securityIdentity,
                       PlatformTransactionManager transactionManager,
                       Duration turnTimeout,
-                      Clock clock) {
+                      Clock clock,
+                      int dailyCallLimit) {
         this.messageRepository = messageRepository;
         this.writer = writer;
         this.defRepository = defRepository;
@@ -153,6 +170,7 @@ public class WidgetChatService {
         this.securityIdentity = securityIdentity;
         this.turnTimeout = turnTimeout;
         this.clock = clock;
+        this.dailyCallLimit = dailyCallLimit > 0 ? dailyCallLimit : DEFAULT_DAILY_CALL_LIMIT;
         TransactionTemplate outside = new TransactionTemplate(transactionManager);
         outside.setName("widgetChat");
         outside.setPropagationBehavior(TransactionDefinition.PROPAGATION_NOT_SUPPORTED);
@@ -190,6 +208,12 @@ public class WidgetChatService {
         String message = requireMessage(request == null ? null : request.getMessage());
         WidgetDef def = requireChatDef(request.getDefId());
         ChatConfig config = ChatConfig.parse(def.getConfigJson(), def.getWidgetId());
+        // 첫 LLM 호출 몫을 질문 저장 전에 잡는다 — 못 잡으면 질문을 저장하지 않고 거절한다(인스턴스를 바꿔도 사용자 단위로 센다).
+        // 「쓴 수 확인 → 저장 → 호출 때 세기」 로 나누면 상한 경계의 동시 요청 둘이 함께 확인을 통과해 둘 다 질문을 저장한다.
+        if (!llmQuota.tryAcquire(userId, today(), dailyCallLimit)) {
+            log.info("[widgetChat] 하루 LLM 호출 상한 — userId={}", userId);
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, dailyLimitMessage());
+        }
         WidgetUserContext user = userContextResolver.current();
 
         // 사용자 메시지는 먼저 저장 — Writer 가 바로 커밋하므로 공급자가 실패해도 보낸 질문은 남는다(스펙 §9.2).
@@ -198,7 +222,9 @@ public class WidgetChatService {
         ToolBox toolBox = new ToolBox(config);
         String answer;
         try {
-            answer = converse(systemPrompt(user, config.systemPrompt()), context(userId, instId), toolBox, deadline);
+            answer = converse(userId, systemPrompt(user, config.systemPrompt()), context(userId, instId), toolBox, deadline);
+        } catch (BusinessException e) {
+            throw e; // 업무 거절 문구는 그대로
         } catch (RuntimeException e) {
             log.warn("[widgetChat] 답을 받지 못함 defId={} instId={} cause={}", def.getWidgetId(), instId,
                     e instanceof LlmException ? e.getMessage() : e.getClass().getSimpleName());
@@ -227,15 +253,21 @@ public class WidgetChatService {
 
     /**
      * 도구 반복. 도구를 4번 실행한 뒤에도 모델이 도구를 원하면 멈추고 그때까지의 답(이번 차례에서 마지막으로 받은 글)을 쓴다.
-     * 호출마다 앞서 차례 마감을 확인한다. 답 최대 토큰에 걸려 끊긴 답은 도구를 실행하지 않는다 — 도구 입력이 덜 왔을 수 있다.
+     * 호출마다 앞서 차례 마감과 하루 상한을 확인한다(상한은 호출마다 1 씩 센다 — 첫 호출 몫은 send 가 질문 저장 전에 잡아 두었고,
+     * 도중에 걸리면 그때까지의 글).
+     * 답 최대 토큰에 걸려 끊긴 답은 도구를 실행하지 않는다 — 도구 입력이 덜 왔을 수 있다.
      * 글이 있으면 끊겼다는 표시를 붙여 답으로 쓰고, 없으면 실패로 본다.
      */
-    private String converse(String system, List<LlmMessage> context, ToolBox toolBox, Instant deadline) {
+    private String converse(String userId, String system, List<LlmMessage> context, ToolBox toolBox, Instant deadline) {
         List<LlmMessage> messages = new ArrayList<>(context);
         List<LlmTool> tools = toolBox.tools();
         String lastText = "";
         for (int round = 0; ; round++) {
             requireTimeLeft(deadline);
+            if (round > 0 && !llmQuota.tryAcquire(userId, today(), dailyCallLimit)) { // 첫 호출 몫은 send 가 잡았다
+                log.info("[widgetChat] 하루 LLM 호출 상한 — userId={} round={}", userId, round);
+                return lastText.isBlank() ? DAILY_LIMIT_PARTIAL_MESSAGE : lastText;
+            }
             LlmReply reply = llmClient.chat(system, messages, tools);
             if (reply.stopReason() != null && TRUNCATED_STOPS.contains(reply.stopReason())) { // Set.of 는 null 을 못 받는다
                 if (reply.text().isBlank()) throw new LlmException("답이 끊김(stop=" + reply.stopReason() + ")");
@@ -254,6 +286,15 @@ public class WidgetChatService {
             for (LlmToolCall call : reply.toolCalls()) results.add(toolBox.run(call));
             messages.add(LlmMessage.toolResults(results));
         }
+    }
+
+    /** 하루 상한의 구간 — 서울 날짜(시계 시간대). 날짜가 바뀌면 0 부터 다시 센다. */
+    private long today() {
+        return LocalDate.now(clock).toEpochDay();
+    }
+
+    private String dailyLimitMessage() {
+        return "오늘 AI 챗봇 사용 한도(" + dailyCallLimit + "회)를 모두 썼습니다. 내일 다시 이용하세요.";
     }
 
     /** 차례 마감(send 시작 + timeout-sec)이 지났으면 더 묻지 않는다 → 「답을 받지 못했습니다」. */

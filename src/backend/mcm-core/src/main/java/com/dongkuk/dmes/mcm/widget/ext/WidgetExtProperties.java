@@ -15,6 +15,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *         frankfurter-base-url: https://api.frankfurter.dev/v1
  *         koreaexim-key: ""
  *         koreaexim-base-url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON
+ *         user-fetch-limit: 10        # 사용자별 외부 호출을 일으키는 요청 수 상한(구간마다)
+ *         user-fetch-window-sec: 600  # 위 상한의 구간(초)
+ *         retry-after-fail-sec: 600   # 실패·빈 결과·오늘 값 없음 뒤 같은 통화·날짜를 다시 묻기까지(초)
  *       weather:
  *         base-url: https://api.open-meteo.com/v1/forecast
  * }</pre>
@@ -48,6 +51,18 @@ public class WidgetExtProperties {
 
         private String koreaeximBaseUrl = "https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON";
 
+        /** 사용자별로 외부 호출을 일으키는 요청 수 상한(구간마다, 기본 10). DB 값만으로 답하는 요청은 세지 않는다. 0 이하면 기본값. */
+        private int userFetchLimit = 10;
+
+        /** {@link #userFetchLimit} 의 구간(초, 기본 600 = 10분). 0 이하면 기본값. */
+        private int userFetchWindowSec = 600;
+
+        /**
+         * 같은 (제공자, 통화, 날짜)를 다시 묻기까지 기다리는 시간(초, 기본 600 = 10분) — 호출 실패·일부만 받음, 그리고 오늘 날짜 값이 아직
+         * 없을 때(고시 전). 제공자가 답했는데 지난 날짜 값이 없으면(휴일) 그날은 끝까지 다시 묻지 않는다. 0 이하면 기본값.
+         */
+        private int retryAfterFailSec = 600;
+
         public String getProvider() { return provider; }
         public void setProvider(String provider) { this.provider = provider; }
         public String getFrankfurterBaseUrl() { return frankfurterBaseUrl; }
@@ -56,6 +71,12 @@ public class WidgetExtProperties {
         public void setKoreaeximKey(String koreaeximKey) { this.koreaeximKey = koreaeximKey; }
         public String getKoreaeximBaseUrl() { return koreaeximBaseUrl; }
         public void setKoreaeximBaseUrl(String koreaeximBaseUrl) { this.koreaeximBaseUrl = koreaeximBaseUrl; }
+        public int getUserFetchLimit() { return userFetchLimit; }
+        public void setUserFetchLimit(int userFetchLimit) { this.userFetchLimit = userFetchLimit; }
+        public int getUserFetchWindowSec() { return userFetchWindowSec; }
+        public void setUserFetchWindowSec(int userFetchWindowSec) { this.userFetchWindowSec = userFetchWindowSec; }
+        public int getRetryAfterFailSec() { return retryAfterFailSec; }
+        public void setRetryAfterFailSec(int retryAfterFailSec) { this.retryAfterFailSec = retryAfterFailSec; }
     }
 
     /** 날씨 제공자 설정. */

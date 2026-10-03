@@ -9,13 +9,20 @@ import static org.mockito.Mockito.when;
 
 import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
+import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContext;
 import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.def.WidgetDefSavedEvent;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,15 +38,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.DelegatingDataSource;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.DefaultTransactionStatus;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * {@link WidgetQueryExecutor} — H2 메모리 DB 에 600행 표를 만들어 실제 JDBC 로 확인한다(스펙 2026-10-02-widget-admin-generic §7).
  * 행 상한·잘림, 컬럼 순서, 시스템 변수 바인딩(Asia/Seoul), 30초 캐시·이벤트 비우기, 거절 메시지, DB 오류 메시지, 늘 롤백.
+ * 연결 단위 확인(커밋 0·롤백·readOnly 걸기·닫을 때 상태)은 {@link RecordingDataSource} 로 센다. SQLite 의 쓰기 거절·풀 연결 복원은
+ * {@link WidgetQueryReadOnlyTest}.
  */
 class WidgetQueryExecutorTest {
 
@@ -49,7 +55,7 @@ class WidgetQueryExecutorTest {
 
     private DriverManagerDataSource dataSource;
     private JdbcTemplate jdbc;
-    private RecordingTransactionManager transactionManager;
+    private RecordingDataSource recording;
     private WidgetDefRepository defRepository;
     private WidgetUserContextResolver resolver;
     private MutableClock clock;
@@ -64,11 +70,12 @@ class WidgetQueryExecutorTest {
         jdbc.execute("INSERT INTO WIDGET_T (ID, NM, AMT, OWNER_ID, DEPT_CD)"
                 + " SELECT X, CONCAT('N', X), X * 1.5, CASE WHEN X <= 100 THEN 'userA' ELSE 'userB' END, 'D100'"
                 + " FROM SYSTEM_RANGE(1, 600)");
-        transactionManager = new RecordingTransactionManager(dataSource);
+        recording = new RecordingDataSource(dataSource);
         defRepository = mock(WidgetDefRepository.class);
         resolver = mock(WidgetUserContextResolver.class);
         clock = new MutableClock(T0);
-        executor = new WidgetQueryExecutor(defRepository, resolver, dataSource, transactionManager, clock);
+        // H2 는 읽기 전용 트랜잭션을 걸 수 없는 갈래(OTHER)라 전용 DataSource 가 아니면 실패 닫힘으로 거절된다 — 읽기 계정 전용 연결로 붙인다.
+        executor = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.dedicated(recording, null), clock);
     }
 
     @AfterEach
@@ -287,7 +294,7 @@ class WidgetQueryExecutorTest {
         noSql.setConfigJson("{\"columns\":[]}");
         assertMessage(() -> executor.runDefinition("def.nosql", 500), "위젯 정의에 SQL 이 없습니다");
 
-        assertThat(transactionManager.commits + transactionManager.rollbacks).isZero();
+        assertThat(recording.connections).isZero(); // 검사에서 걸리면 연결을 빌리지도 않는다
     }
 
     @Test
@@ -296,7 +303,7 @@ class WidgetQueryExecutorTest {
         def("def.bad", "query-table", "UPDATE WIDGET_T SET NM = 'x'");
         assertMessage(() -> executor.runDefinition("def.bad", 500), "SELECT 또는 WITH 로 시작하는 조회문만 쓸 수 있습니다");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM WIDGET_T WHERE NM = 'x'", Long.class)).isZero();
-        assertThat(transactionManager.commits + transactionManager.rollbacks).isZero();
+        assertThat(recording.connections).isZero();
 
         assertThatThrownBy(() -> executor.validateSql("SELECT 1; DELETE FROM WIDGET_T"))
                 .isInstanceOf(BusinessException.class).hasMessage("문장은 하나만 쓸 수 있습니다");
@@ -331,7 +338,7 @@ class WidgetQueryExecutorTest {
         insertRow(601);
         assertThat(executor.preview(null, "SELECT COUNT(*) AS CNT FROM WIDGET_T;", 50).rows().get(0).get("CNT")).isEqualTo(601L);
 
-        assertMessage(() -> executor.preview("mcm", "select * into x from WIDGET_T", 50), "쓸 수 없는 낱말이 있습니다: INTO");
+        assertMessage(() -> executor.preview("mcm", "select * into x from WIDGET_T", 50), SqlGuard.forbiddenWord("INTO"));
     }
 
     // ── 로컬 SQLite ──────────────────────────────────────────────────
@@ -357,27 +364,149 @@ class WidgetQueryExecutorTest {
     // ── 트랜잭션 ─────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("실행은 별도(REQUIRES_NEW)·읽기 전용 트랜잭션에서 하고 늘 롤백한다")
-    void alwaysRollsBackInReadOnlyNewTransaction() {
-        TransactionTemplate tx = executor.transactionTemplate();
-        assertThat(tx.isReadOnly()).isTrue();
-        assertThat(tx.getPropagationBehavior()).isEqualTo(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        assertThat(tx.getTransactionManager()).isSameAs(transactionManager);
-
+    @DisplayName("실행마다 따로 빌린 연결을 readOnly·자동 커밋 끔으로 걸고 늘 롤백한다 — 커밋 0, 돌려줄 때는 빌릴 때 상태")
+    void alwaysRollsBackOnReadOnlyConnection() {
         def("def.count", "query-number", "SELECT COUNT(*) AS CNT FROM WIDGET_T");
         count("def.count");
         executor.preview("mcm", "SELECT 1 AS A FROM WIDGET_T WHERE ID = 1", 50);
-        assertThat(transactionManager.rollbacks).isEqualTo(2);
-        assertThat(transactionManager.commits).isZero();
-        assertThat(transactionManager.readOnlyBegins).isEqualTo(2);
+        assertThat(recording.connections).isEqualTo(3); // 처음 한 번 DB 갈래 판정(메타데이터만) + 실행 2
+
+        assertThat(recording.readOnlyOn).isEqualTo(2);
+        assertThat(recording.autoCommitOff).isEqualTo(2);
+        assertThat(recording.rollbacks).isEqualTo(2);
+        assertThat(recording.commits).isZero();
+        assertThat(recording.dirtyCloses).isZero();
+        assertThat(executor.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER); // H2
 
         def("def.broken", "query-table", "SELECT * FROM NO_SUCH_TABLE");
         assertThatThrownBy(() -> executor.runDefinition("def.broken", 500)).isInstanceOf(BusinessException.class);
-        assertThat(transactionManager.rollbacks).isEqualTo(3);
-        assertThat(transactionManager.commits).isZero();
+        assertThat(recording.rollbacks).isEqualTo(3);
+        assertThat(recording.commits).isZero();
+        assertThat(recording.dirtyCloses).isZero();
+    }
+
+    @Test
+    @DisplayName("readOnly 가 힌트뿐인 DB(H2·SQL Server)에서도 검사를 거치지 않은 쓰기는 롤백되어 남지 않는다")
+    void writesBelowGuardAreRolledBackWhereReadOnlyIsAHint() throws Exception {
+        int changed = executor.readOnlyJdbc().execute(con -> {
+            try (Statement st = con.createStatement()) {
+                return st.executeUpdate("UPDATE WIDGET_T SET NM = 'x' WHERE ID <= 10");
+            }
+        });
+        assertThat(changed).isEqualTo(10); // H2 는 readOnly 를 강제하지 않는다 — 그래서 늘 롤백이 막는다
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM WIDGET_T WHERE NM = 'x'", Long.class)).isZero();
+        assertThat(recording.commits).isZero();
+        assertThat(recording.dirtyCloses).isZero();
+    }
+
+    // ── 읽기 전용 트랜잭션이 없는 DB — 전용 연결 없으면 실패 닫힘 ─────────────────
+
+    @Test
+    @DisplayName("SQL Server 는 전용 연결이 없으면 미리보기·저장 검사·실행을 모두 거절한다 — SQL 은 DB 에 닿지 않는다(갈래 판정만)")
+    void sqlServerWithoutDedicatedDataSourceFailsClosed() {
+        RecordingDataSource sqlServer = new RecordingDataSource(productAs("Microsoft SQL Server", dataSource));
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(sqlServer), clock);
+        def("def.count", "query-number", "SELECT COUNT(*) AS CNT FROM WIDGET_T");
+
+        assertThatThrownBy(() -> ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM WIDGET_T", 50))
+                .isInstanceOf(BusinessException.class).hasMessage(WidgetQueryExecutor.MSG_SQLSERVER_NEEDS_DEDICATED)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.BUSINESS_ERROR));
+        assertMessage(() -> ex.validateSql("SELECT COUNT(*) AS CNT FROM WIDGET_T"), WidgetQueryExecutor.MSG_SQLSERVER_NEEDS_DEDICATED);
+        assertMessage(() -> ex.runDefinition("def.count", 500), WidgetQueryExecutor.MSG_SQLSERVER_NEEDS_DEDICATED);
+
+        assertThat(ex.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.SQLSERVER);
+        assertThat(sqlServer.connections).isEqualTo(1); // 갈래 판정 한 번뿐 — 실행 연결은 빌리지 않는다
+        assertThat(sqlServer.autoCommitOff).isZero();
+        assertThat(sqlServer.rollbacks).isZero();
+
+        // 어느 DB 에나 적용하는 검사에서 걸리는 SQL 은 갈래 판정 전에 그 문구로 거절된다
+        assertMessage(() -> ex.validateSql("UPDATE WIDGET_T SET NM = 'x'"), "SELECT 또는 WITH 로 시작하는 조회문만 쓸 수 있습니다");
+    }
+
+    @Test
+    @DisplayName("방언을 모르는 DB(H2)도 전용 연결이 없으면 거절한다 — 읽기 전용 트랜잭션을 걸 수 없는 갈래")
+    void unknownDialectWithoutDedicatedDataSourceFailsClosed() {
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.shared(recording), clock);
+        assertMessage(() -> ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM WIDGET_T", 50), WidgetQueryExecutor.MSG_OTHER_NEEDS_DEDICATED);
+        assertMessage(() -> ex.validateSql("SELECT 1 AS A FROM WIDGET_T"), WidgetQueryExecutor.MSG_OTHER_NEEDS_DEDICATED);
+        assertThat(ex.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.OTHER);
+        assertThat(recording.rollbacks).isZero();
+    }
+
+    @Test
+    @DisplayName("SQL Server 전용 연결이면 실행하되, ; 없이 이어 쓴 SET·USE·WHILE·IF 같은 T-SQL 은 거절한다")
+    void sqlServerWithDedicatedDataSourceRunsButRejectsTsql() {
+        RecordingDataSource sqlServer = new RecordingDataSource(productAs("Microsoft SQL Server", dataSource));
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.dedicated(sqlServer, null), clock);
+
+        assertThat(ex.preview("mcm", "SELECT COUNT(*) AS CNT FROM WIDGET_T", 50).rows().get(0).get("CNT")).isEqualTo(600L);
+        ex.validateSql("SELECT ID, \"SET\", [IF] FROM WIDGET_T"); // 같은 이름의 열은 감싸면 통과
+
+        String base = "SELECT COUNT(*) AS CNT FROM WIDGET_T ";
+        assertMessage(() -> ex.preview("mcm", base + "SET IMPLICIT_TRANSACTIONS OFF", 50), SqlGuard.forbiddenWord("SET"));
+        assertMessage(() -> ex.validateSql(base + "set language us_english"), SqlGuard.forbiddenWord("SET"));
+        assertMessage(() -> ex.validateSql(base + "SET ANSI_WARNINGS OFF"), SqlGuard.forbiddenWord("SET"));
+        assertMessage(() -> ex.validateSql(base + "USE master"), SqlGuard.forbiddenWord("USE"));
+        assertMessage(() -> ex.validateSql(base + "WHILE 1=1 BEGIN SELECT 1 END"), SqlGuard.forbiddenWord("WHILE"));
+        assertMessage(() -> ex.validateSql(base + "IF 1=1 SELECT 1"), SqlGuard.forbiddenWord("IF"));
+        def("def.tsql", "query-number", base + "SET IMPLICIT_TRANSACTIONS OFF");
+        assertMessage(() -> ex.runDefinition("def.tsql", 500), SqlGuard.forbiddenWord("SET"));
+        assertThat(sqlServer.commits).isZero();
+    }
+
+    @Test
+    @DisplayName("SET·IF 는 SQL Server 갈래에서만 막는다 — PostgreSQL 연결(전용 아님)은 같은 SQL 을 갈래 검사에서 거절하지 않는다")
+    void setAndIfAreSqlServerOnly() {
+        WidgetQueryExecutor pg = new WidgetQueryExecutor(defRepository, resolver,
+                WidgetQueryDataSource.shared(productAs("PostgreSQL", dataSource)), clock);
+        // 실제로는 H2 연결이라 실행 결과는 보지 않는다 — 저장 검사(갈래 판정·실패 닫힘·갈래별 검사)를 지나는지만 본다
+        pg.validateSql("SELECT SET(TAGS) AS S, IF(AMT > 0, 1, 0) AS F FROM WIDGET_T");
+        assertThat(pg.readOnlyJdbc().dialect()).isEqualTo(WidgetReadOnlyJdbc.Dialect.POSTGRESQL);
+    }
+
+    @Test
+    @DisplayName("DB 갈래를 판정하지 못하면(연결 실패) 실행·저장 검사를 거절한다 — DB 메시지는 보내지 않는다")
+    void failsClosedWhenDialectCannotBeResolved() {
+        DataSource down = new DelegatingDataSource(dataSource) {
+            @Override
+            public Connection getConnection() throws SQLException {
+                throw new SQLException("Connection refused: db-host:1433");
+            }
+        };
+        WidgetQueryExecutor ex = new WidgetQueryExecutor(defRepository, resolver, WidgetQueryDataSource.dedicated(down, null), clock);
+        assertMessage(() -> ex.validateSql("SELECT 1 AS A FROM WIDGET_T"), WidgetQueryExecutor.MSG_DB_UNAVAILABLE);
+        assertMessage(() -> ex.preview("mcm", "SELECT 1 AS A FROM WIDGET_T", 50), WidgetQueryExecutor.MSG_DB_UNAVAILABLE);
     }
 
     // ── helpers ─────────────────────────────────────────────────────
+
+    /** 실제 연결(H2)로 실행하되 메타데이터의 제품 이름만 바꿔 다른 DB 갈래로 보이게 한다. */
+    private static DataSource productAs(String productName, DataSource target) {
+        return new DelegatingDataSource(target) {
+            @Override
+            public Connection getConnection() throws SQLException {
+                Connection real = super.getConnection();
+                return (Connection) Proxy.newProxyInstance(WidgetQueryExecutorTest.class.getClassLoader(), new Class<?>[] {Connection.class},
+                        (proxy, method, args) -> {
+                            if ("getMetaData".equals(method.getName())) {
+                                DatabaseMetaData md = real.getMetaData();
+                                return Proxy.newProxyInstance(WidgetQueryExecutorTest.class.getClassLoader(),
+                                        new Class<?>[] {DatabaseMetaData.class}, (p, m, a) -> "getDatabaseProductName".equals(m.getName())
+                                                ? productName : invokeOn(m, md, a));
+                            }
+                            return invokeOn(method, real, args);
+                        });
+            }
+        };
+    }
+
+    private static Object invokeOn(java.lang.reflect.Method method, Object target, Object[] args) throws Throwable {
+        try {
+            return method.invoke(target, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
+        }
+    }
 
     private WidgetDef def(String id, String typeId, String sql) {
         WidgetDef d = new WidgetDef();
@@ -411,32 +540,52 @@ class WidgetQueryExecutorTest {
         assertThatThrownBy(call).isInstanceOf(BusinessException.class).hasMessage(message);
     }
 
-    /** commit·rollback 이 실제로 어느 쪽으로 끝났는지 센다(rollback-only 면 commit() 호출 안에서 doRollback 이 불린다). */
-    static final class RecordingTransactionManager extends DataSourceTransactionManager {
+    /**
+     * 빌린 연결의 commit·rollback·setReadOnly(true)·setAutoCommit(false) 를 세고, 닫을 때 autoCommit=false 또는 readOnly=true 로
+     * 남았으면 dirtyCloses 를 센다(풀에 그대로 돌아갔다면 업무 코드에 넘어갈 상태).
+     */
+    static final class RecordingDataSource extends DelegatingDataSource {
+        int connections;
         int commits;
         int rollbacks;
-        int readOnlyBegins;
+        int readOnlyOn;
+        int autoCommitOff;
+        int dirtyCloses;
 
-        RecordingTransactionManager(DataSource dataSource) {
-            super(dataSource);
+        RecordingDataSource(DataSource target) {
+            super(target);
         }
 
         @Override
-        protected void doBegin(Object transaction, TransactionDefinition definition) {
-            if (definition.isReadOnly()) readOnlyBegins++;
-            super.doBegin(transaction, definition);
-        }
-
-        @Override
-        protected void doCommit(DefaultTransactionStatus status) {
-            commits++;
-            super.doCommit(status);
-        }
-
-        @Override
-        protected void doRollback(DefaultTransactionStatus status) {
-            rollbacks++;
-            super.doRollback(status);
+        public Connection getConnection() throws SQLException {
+            connections++;
+            Connection real = super.getConnection();
+            return (Connection) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[] {Connection.class},
+                    (proxy, method, args) -> {
+                        switch (method.getName()) {
+                            case "commit" -> commits++;
+                            case "rollback" -> {
+                                if (args == null) rollbacks++;
+                            }
+                            case "setReadOnly" -> {
+                                if (Boolean.TRUE.equals(args[0])) readOnlyOn++;
+                            }
+                            case "setAutoCommit" -> {
+                                if (Boolean.FALSE.equals(args[0])) autoCommitOff++;
+                            }
+                            case "close" -> {
+                                if (!real.isClosed() && (!real.getAutoCommit() || real.isReadOnly())) dirtyCloses++;
+                            }
+                            default -> {
+                                // 그대로 넘긴다
+                            }
+                        }
+                        try {
+                            return method.invoke(real, args);
+                        } catch (InvocationTargetException e) {
+                            throw e.getCause();
+                        }
+                    });
         }
     }
 

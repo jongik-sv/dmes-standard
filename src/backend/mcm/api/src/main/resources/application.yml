@@ -167,6 +167,20 @@ dmes:
     # 미디어 위젯 파일 본체 폴더(§4.3). 실행 폴더 기준 상대 경로 — bootRun 은 src/backend/mcm. 없으면 첫 올리기 때 만든다.
     # 파일 이름은 FILE_ID(32자 16진수)만 쓴다. 운영계는 공유 디스크 절대 경로로 바꾼다.
     media-dir: ./data/widget-media
+    # 쿼리 위젯 실행기(§7) 전용 DataSource — 선택. 모두 비우면 앱 기본 DataSource 를 쓴다.
+    # 운영에서는 여기에 **읽기 권한만 가진 DB 계정**을 붙인다(근본 대책). 실행기는 어느 DataSource 든 실행마다 읽기 전용
+    # (연결 readOnly·늘 롤백·SQLite query_only·PostgreSQL/Oracle SET TRANSACTION READ ONLY)을 걸지만 보조 방어선일 뿐이다 —
+    # SQL Server 는 읽기 전용 트랜잭션이 없고, Oracle 은 자율 트랜잭션 함수가 롤백을 벗어난다.
+    # jndi-name(WildFly 컨테이너 풀)이 있으면 그것, 없고 url 이 있으면 직결 풀(widget-query). url 없이 계정만 넣으면 기동이 멈춘다
+    # (기본 DataSource 로 물러나지 않는다). 비밀번호는 환경변수로만 넣는다 — 주소·계정·비밀번호는 로그에 남기지 않는다.
+    query:
+      datasource:
+        jndi-name: ${WIDGET_QUERY_DS_JNDI:}
+        url: ${WIDGET_QUERY_DS_URL:}
+        username: ${WIDGET_QUERY_DS_USERNAME:}
+        password: ${WIDGET_QUERY_DS_PASSWORD:}
+        driver-class-name: ${WIDGET_QUERY_DS_DRIVER:}
+        maximum-pool-size: 5
     # 환율·날씨 위젯(§8). 기본은 키 없는 공개 API. 서버가 밖으로 나갈 수 없는 망이면 enabled: false 로 끈다
     # (위젯은 「외부 정보를 불러오지 못했습니다」를 보인다).
     ext:
@@ -176,6 +190,10 @@ dmes:
         frankfurter-base-url: https://api.frankfurter.dev/v1
         koreaexim-key: ${WIDGET_KOREAEXIM_KEY:}   # 키는 환경변수로만 넣는다(로그·저장소에 남기지 않는다)
         koreaexim-base-url: https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON
+        # 남용 막기 — 조회는 사용 중인 환율 위젯 정의의 통화·기간 안만 된다. 아래는 메모리 기록이라 인스턴스마다 따로 센다.
+        user-fetch-limit: 10          # 사용자별로 외부 호출을 일으키는 요청 수 상한(구간마다). 넘으면 「환율 조회 요청이 너무 잦습니다」
+        user-fetch-window-sec: 600    # 위 상한의 구간(초)
+        retry-after-fail-sec: 600     # 실패·일부만 받음·오늘 값 없음 뒤 같은 통화·날짜를 다시 묻기까지(초). 지난 휴일은 그날 끝까지
       weather:
         base-url: https://api.open-meteo.com/v1/forecast
     # AI 챗봇 위젯(§9). provider 가 빈 값이면 가짜 공급자(정해진 답)로 동작한다.
@@ -187,6 +205,9 @@ dmes:
       timeout-sec: 60
       # 생각(thinking) 토큰도 한도에 들어가는 모델이 있어 1024 는 답이 잘리기 쉽다(Task 11 권고).
       max-tokens: 4096
+      # 남용 막기(메모리·인스턴스마다 따로 센다). 하루 상한은 서울 날짜 기준, 도구 반복 포함 LLM 호출마다 1.
+      daily-call-limit: 200      # 사용자별 하루 LLM 호출 수 상한 — 넘으면 「오늘 AI 챗봇 사용 한도(n회)를 모두 썼습니다」
+      user-history-limit: 300    # 사용자별 저장 대화 기록 수(모든 인스턴스 합계) — 넘으면 가장 오래된 것부터 지운다
 
 # ── caravan-console 자체 설정 + Repository alias (kmc-core 0.2.0 패턴 B) ──
 # caravan 의존 제거 (2026-05-12) — caravan-console.kafka.* / caravan.* 블록 삭제. caravan 라이브러리는 caravan-hub 호스트에서만 사용 (v4 정본).
