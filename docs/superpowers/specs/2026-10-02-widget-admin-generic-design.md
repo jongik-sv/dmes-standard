@@ -307,7 +307,7 @@ BE `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` 와 FE `m-mcm/proxy.
 | 유형 | 설정 | 렌더러 동작 |
 |---|---|---|
 | `query-table` | `{ sql, columns?: [{field, header?, width?, align?: "left"\|"right"\|"center", format?: "number"\|"date"\|"text"}] }` | `widgetData/run` 결과를 `AgDataGrid`(shared)로. `columns` 없으면 결과 컬럼 전부. `truncated` 면 아래에 「상위 500행만 표시」 |
-| `query-chart` | `{ sql, chartType: "bar"\|"line"\|"area"\|"pie", xField, series: [{field, label?}] }` | shared `charts` 컴포넌트로. 본문 크기는 `useWidgetBodySize` |
+| `query-chart` | `{ sql, chartType: "bar"\|"line"\|"area"\|"pie", xField, series: [{field, label?}], unit?: string }` | shared `charts` 컴포넌트로. 본문 크기는 `useWidgetBodySize`. `unit`(선택, 10자 이하)은 원 차트 범례 단위 — 비면 첫 계열 이름 끝 괄호(반각 `()`·전각 `（）`, 안 공백 뺀 1~10자, 「사용 시간(분)」→분)를 쓰고, 그것도 없으면 단위를 붙이지 않는다. 백엔드는 이 키를 검사하지 않는다 |
 | `query-number` | `{ sql, labelField, valueField, unitField?, unit?, format?: "number"\|"percent" }` | 결과 행마다 숫자 타일(최대 8개). shared `KpiTile` 재사용 |
 | `markdown` | `{ markdown }` | `marked` → `dompurify` 정화 → 포털 안에 그대로 |
 | `html` | `{ html, allowScript: boolean }` | `false`: `dompurify` 정화 후 포털 안에. `true`: `<iframe sandbox="allow-scripts" srcdoc>` — **`allow-same-origin` 은 절대 넣지 않는다**(둘을 함께 주면 sandbox 를 벗어난다). 높이는 위젯 칸을 채운다 |

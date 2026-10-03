@@ -45,6 +45,8 @@ export interface QueryChartConfig {
   chartType: ChartType;
   xField: string;
   series: ChartSeriesConfig[];
+  /** 원 차트 범례 단위(선택, 최대 PIE_UNIT_MAX 자) — 비면 첫 계열 이름 끝 괄호를 단위로 쓴다(pieUnitOf). */
+  unit?: string;
 }
 
 export type NumberFormat = "number" | "percent";
@@ -97,6 +99,9 @@ export const NUMBER_FORMAT_OPTIONS: readonly { value: NumberFormat; label: strin
 export const ALIGN_LABELS: Readonly<Record<string, string>> = { "": "자동", left: "왼쪽", center: "가운데", right: "오른쪽" };
 export const FORMAT_LABELS: Readonly<Record<string, string>> = { "": "그대로", text: "글자", number: "숫자", date: "날짜" };
 
+/** 원 차트 범례 단위 최대 글자 수 — 설정 `unit` 과 계열 이름 끝 괄호 안 글자에 같이 적용한다. */
+export const PIE_UNIT_MAX = 10;
+
 const CHART_TYPES: readonly ChartType[] = ["bar", "line", "area", "pie"];
 const ALIGNS: readonly ColumnAlign[] = ["left", "center", "right"];
 const FORMATS: readonly ColumnFormat[] = ["text", "number", "date"];
@@ -109,6 +114,11 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 function str(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
+}
+
+/** 원 차트 단위 읽기 — 앞뒤 공백을 지우고 PIE_UNIT_MAX 자까지만(관리자 값이라 길이를 믿지 않는다). */
+function unitText(v: unknown): string {
+  return str(v).slice(0, PIE_UNIT_MAX).trim();
 }
 
 function pick<T extends string>(v: unknown, allowed: readonly T[]): T | undefined {
@@ -271,12 +281,15 @@ export function chartConfigOf(v: unknown): QueryChartConfig {
       series.push(out);
     }
   }
-  return {
+  const out: QueryChartConfig = {
     sql: typeof c.sql === "string" ? c.sql : "",
     chartType: pick(c.chartType, CHART_TYPES) ?? "bar",
     xField: str(c.xField),
     series,
   };
+  const unit = unitText(c.unit);
+  if (unit) out.unit = unit;
+  return out;
 }
 
 export function numberConfigOf(v: unknown): QueryNumberConfig {
@@ -393,17 +406,22 @@ export function toPieSlices(data: ChartData): { label: string; value: number; co
   return data.categories.map((label, i) => ({ label, value: s.values[i] ?? 0, color: chartColor(i) }));
 }
 
-const PIE_UNIT_RE = /\(([^()]{1,10})\)\s*$/;
+/** 끝 괄호 한 쌍 — 반각 () 또는 전각 （）, 안에는 어느 괄호도 없어야 한다(괄호 안 괄호 거절). */
+const PIE_UNIT_RE = /(?:\(([^()（）]*)\)|（([^()（）]*)）)\s*$/;
 
 /**
- * 원 차트 범례 단위 — 첫 계열 이름 끝의 짧은 괄호 안 글자(「사용 시간(분)」→「분」, 「금액 (원)」→「원」).
- * 괄호가 없거나 비었거나 10자를 넘거나 계열이 없으면 "" — shared PieChart 에 "" 를 넘겨야 기본 「건」이 붙지 않는다.
+ * 원 차트 범례 단위 — 설정 `unit`(공백 아님)이 먼저, 없으면 첫 계열 이름 끝 괄호 안 글자(「사용 시간(분)」→「분」, 「금액 （원）」→「원」), 그것도 없으면 "".
+ * 괄호 안은 앞뒤 공백을 뺀 1~PIE_UNIT_MAX 자만 인정한다(비었거나 길거나 괄호 안 괄호면 "").
+ * shared PieChart 에 "" 를 넘겨야 기본 「건」이 붙지 않는다.
  */
-export function pieUnitOf(data: ChartData): string {
+export function pieUnitOf(data: ChartData, unit?: string): string {
+  const own = unitText(unit);
+  if (own) return own;
   const label = data.series[0]?.label;
   if (!label) return "";
   const m = PIE_UNIT_RE.exec(label);
-  return m ? m[1].trim() : "";
+  const inner = (m?.[1] ?? m?.[2] ?? "").trim();
+  return inner.length >= 1 && inner.length <= PIE_UNIT_MAX ? inner : "";
 }
 
 /** 범례 줄 높이(StackedColumnChart 는 범례를 그림 높이 밖에 그린다). */
@@ -468,6 +486,8 @@ export function validateQueryConfig(typeId: string, cfg: unknown): string[] {
     if (c.xField === "") errors.push("가로축 필드를 고르세요");
     if (c.series.length === 0) errors.push("값 계열을 하나 이상 넣으세요");
     else if (c.series.some((s) => s.field === "")) errors.push("필드가 빈 값 계열이 있습니다");
+    // chartConfigOf 는 단위를 잘라 읽으므로 길이 검사는 원래 값으로 한다.
+    if (isRecord(cfg) && str(cfg.unit).length > PIE_UNIT_MAX) errors.push(`단위는 ${PIE_UNIT_MAX}자 이하로 입력하세요`);
   } else if (typeId === "query-number") {
     const c = numberConfigOf(cfg);
     if (c.labelField === "") errors.push("라벨 필드를 고르세요");
