@@ -43,14 +43,14 @@ const PieChart = memo(function PieChart({ data, size = 180, showLegend = true, u
   return (
     <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
       <svg width={size} height={size}>
-        {slices.map((s) => (
-          <path key={s.label} d={s.path} fill={s.color} opacity={0.85} stroke="#fff" strokeWidth={1} />
+        {slices.map((s, i) => (
+          <path key={`${i}:${s.label}`} d={s.path} fill={s.color} opacity={0.85} stroke="#fff" strokeWidth={1} />
         ))}
       </svg>
       {showLegend && (
         <div style={{ fontSize: 12 }}>
-          {slices.map((s) => (
-            <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+          {slices.map((s, i) => (
+            <div key={`${i}:${s.label}`} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
               <div style={{ width: 12, height: 12, borderRadius: 2, background: s.color, flexShrink: 0 }} />
               <span>
                 {s.label}: {s.value}{legendUnit} ({s.pct}%)

@@ -204,6 +204,7 @@ m-* 모듈 페이지의 로컬 `.css` import 는 tsup 이 dist 의 `pages/<영�
 - 화면 스타일은 인라인 `style`·shared 토큰·제공 클래스로 둔다. 화면 전용 규칙이 많으면 TS 문자열로 두고 페이지 루트에서 React 19 `<style href="…" precedence="default">` 로 한 번만 넣는다.
 - 외부 패키지 CSS(`@xyflow/react/dist/style.css` 등)는 호스트가 번들하므로 import 해도 된다.
 - 예시: `m-mdm/pages/dme/ruleSetEdit/rsf-styles.ts`·`page.tsx` 와 테스트(`rule-set-edit-page` 의 style 한 번 주입).
+- 개발 서버(next dev)에서 이 TS 문자열을 고치면, 이미 열린 탭은 같은 href 의 `<style>` 을 처음 넣은 내용 그대로 둔다(React 가 href 로 한 번만 넣는다). 새 규칙이 안 먹은 것처럼 보이면 코드를 고치기 전에 화면을 새로 고쳐 본다(2026-10-03, 홈 [PDF] 단추가 옛 스타일로 두 줄이 됨).
 
 ## 18. 팝업 위에 뜬 오류창 — Escape 한 번에 아래 팝업까지 닫힌다 (2026-09-30)
 
