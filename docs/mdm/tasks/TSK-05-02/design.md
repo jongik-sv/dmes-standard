@@ -265,9 +265,9 @@ tsup entry 는 기존 `tests/tsup-entries.smoke.test.ts` 가 자동으로 검사
 
 ### 3.5 브라우저 E2E — 스모크 넷 (dev-discipline 「화면 작업의 브라우저 E2E」)
 
-공통: `mdm-columnMng.spec.ts`(dev)·`mdm-shell-rbac-smoke.spec.ts` 의 `login`·메뉴 이동 방식을 **스펙 안에 복제**한다(공유 헬퍼 파일 신설 금지). `BASE_URL = SMOKE_MCM_BASE_URL`, 쓰기 사용자 `SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin"`(BFF dmb EDIT — 서버 가드가 없든(D5) 생기든 통과), 비밀번호 `SMOKE_LOGIN_PASSWORD ?? "admin123"`. `test.describe.configure({ mode: "serial" })`, `test.setTimeout(180_000)`, 뷰포트 1680×1200. `const STAMP = Date.now().toString(36).toUpperCase()` 로 이름 충돌을 피한다. 스크린샷 `path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-02/screens", name)`, fullPage. 메뉴: `.tree-item .item-name` 을 `/^마루 MDM$/` → `/^레이아웃$/` → `/^전문 헤더 정의$/`(또는 `/^전문 레이아웃$/`). 화면 범위는 `.page-layout__footer-screen-id` 가 screenId 인 `.page-layout`.
+공통: `mdm-columnMng.spec.ts`(dev)·`mdm-shell-rbac-smoke.spec.ts` 의 `login`·메뉴 이동 방식을 스펙 안에 둔다. 다만 2026-10-03 e2e 수리부터 픽스처 적재·[조회]·날짜 입력·가로 가상화 열 확인은 여러 MDM 스펙이 `e2e/support/mdm-e2e.ts` 의 공용 도우미를 함께 쓴다. `BASE_URL = SMOKE_MCM_BASE_URL`, 쓰기 사용자 `SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin"`(BFF dmb EDIT — 서버 가드가 없든(D5) 생기든 통과), 비밀번호 `SMOKE_LOGIN_PASSWORD ?? "admin123"`. `test.describe.configure({ mode: "serial" })`, `test.setTimeout(180_000)`, 뷰포트 1680×1200. `const STAMP = Date.now().toString(36).toUpperCase()` 로 이름 충돌을 피한다. 스크린샷 `path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-02/screens", name)`, fullPage. 메뉴: `.tree-item .item-name` 을 `/^마루 MDM$/` → `/^레이아웃$/` → `/^전문 헤더 정의$/`(또는 `/^전문 레이아웃$/`). 화면 범위는 `.page-layout__footer-screen-id` 가 screenId 인 `.page-layout`.
 
-**픽스처 적재(두 스펙 공통 `test.beforeAll`)**: `process.env.SMOKE_MDM_DB` 가 없으면 즉시 실패시킨다("SMOKE_MDM_DB 에 워크트리 mdm.db 경로를 넣는다"). 있으면 `execFileSync("sqlite3", [SMOKE_MDM_DB], { input: readFileSync(path.resolve(__dirname, "fixtures/mdm-layout-m201.sql")) })`. 픽스처는 전부 `INSERT OR IGNORE`·`WHERE NOT EXISTS` 라 두 번 적재해도 같다. **스펙 안에서 적재하는 이유**: dev 의 `mdm-columnMng.spec.ts` E1 은 컬럼 사전이 비어 있어야 한다(F20). `--workers=1` 에서 파일은 이름순(`mdm-columnMng` < `mdm-domainMng` < `mdm-headerMng` < `mdm-layoutMng` < …)으로 돌므로 컬럼 사전 스펙이 끝난 뒤에 이 픽스처가 들어간다. 서버 기동 때 적재하면 그 스펙이 깨진다.
+**픽스처 적재(두 스펙 공통 `test.beforeAll`)**: `process.env.SMOKE_MDM_DB` 가 없으면 즉시 실패시킨다("SMOKE_MDM_DB 에 워크트리 mdm.db 경로를 넣는다"). 있으면 공용 도우미 `loadMdmFixture`(`e2e/support/mdm-e2e.ts`)로 `fixtures/mdm-layout-m201.sql` 을 넣는다. 도우미는 sqlite3 `-bail` 로 한 트랜잭션에 넣고, 픽스처 파일 이름을 `C_PGM_ID` 로 가진 행이 probe 표에 이미 있으면 건너뛴다(같은 DB 에 다시 돌려도 중복 적재가 없다). 중간에 실패하면 `beforeAll` 이 실패하고 일부만 들어간 채 넘어가지 않는다. **스펙 안에서 적재하는 이유**: dev 의 `mdm-columnMng.spec.ts` E1 은 컬럼 사전이 비어 있어야 한다(F20). `--workers=1` 에서 파일은 이름순(`mdm-columnMng` < `mdm-domainMng` < `mdm-headerMng` < `mdm-layoutMng` < …)으로 돌므로 컬럼 사전 스펙이 끝난 뒤에 이 픽스처가 들어간다. 서버 기동 때 적재하면 그 스펙이 깨진다.
 
 **`mdm-headerMng.spec.ts`**
 
@@ -317,8 +317,12 @@ lsof -iTCP:$BE_MCM -sTCP:LISTEN; lsof -iTCP:$BE_MDM -sTCP:LISTEN; lsof -iTCP:$FE
 # 1) PC 전역 슬롯 — HEAVY_ACQUIRED 확인, HEAVY_BUSY 면 같은 명령을 다시 부른다
 cd $W && .claude/skills/dflow-dev/scripts/heavy.sh acquire e2e-TSK-05-02
 # 2) 격리 DB — 워크트리 로컬. 옛 파일은 지우지 않고 scratchpad 로 옮긴다(없으면 메인 체크아웃 DB 를 잡는다, F26)
+#    -wal·-shm 와 caravan DB(caravan-if·caravan-console, mcm 이 만든다)도 함께 옮긴다 — 남으면 새 DB 가 아니다.
 mkdir -p $W/src/backend/data
-for f in mcm mdm; do [ -f $W/src/backend/data/$f.db ] && mv $W/src/backend/data/$f.db $SP/$f.db.$(date +%s); done
+ts=$(date +%s)
+for f in mcm mdm caravan-if caravan-console; do
+  for x in db db-wal db-shm; do [ -f $W/src/backend/data/$f.$x ] && mv $W/src/backend/data/$f.$x $SP/$f.$x.$ts; done
+done
 # 3) mcm 백엔드(로그인·메뉴·RBAC 시드)
 cd $W/src/backend/mcm && JAVA_HOME=$J ../gradlew :api:bootRun --no-daemon --console=plain \
   --args="--spring.profiles.active=local --server.port=$BE_MCM --mcm.bff.invalidate-role-url=http://127.0.0.1:$FE/api/mcm/internal/cache/invalidate-role --cactus.notify.publish-url=http://127.0.0.1:$BE_MCM/notify/publish" > $SP/be-mcm.log 2>&1 &
@@ -334,13 +338,15 @@ cd $W/src/frontend && sqlite3 $W/src/backend/data/mcm.db < e2e/fixtures/mdm-rbac
 sqlite3 $W/src/backend/data/mcm.db < e2e/fixtures/mdm-rbac-users.sql
 sqlite3 $W/src/backend/data/mcm.db "SELECT ROLE_ID, OBJECT_ID, PERMISSION_ID FROM TB_MCM_SEC_ROLE_MAPPING WHERE OBJECT_ID IN ('headerMng','layoutMng') ORDER BY OBJECT_ID, ROLE_ID;"
 #    기대(Build 이후): MDM_STD_ADMIN|…|PERM_MDM_EDIT / MDM_STEWARD|…|PERM_MDM_READ / SYSADMIN|…|PERM_ALL × 2 (기점에서는 0행 — 정상)
-#    dev 의 컬럼 사전 스펙이 브랜치에 있으면 그 픽스처를 mdm 기동 뒤에 넣는다(없으면 건너뜀)
-if [ -f e2e/fixtures/mdm-columnMng-dict.sql ]; then sqlite3 $W/src/backend/data/mdm.db < e2e/fixtures/mdm-columnMng-dict.sql; fi
+#    mdm 픽스처는 미리 넣지 않는다 — 각 스펙의 beforeAll 이 SMOKE_MDM_DB 에 자기 픽스처를 넣는다(e2e/support/mdm-e2e.ts
+#    loadMdmFixture, 이미 들어 있으면 건너뜀). 서버 기동 때 모두 넣으면 이름순으로 먼저 도는 스펙의 전제가 깨진다
+#    (예: mdm-ruleEdit-data 의 COIL_THK 컬럼 → mdm-columnMng E5). 시험 사용자(mcm)만 위에서 넣고, 둘째 담당자도 넣는다.
+sqlite3 $W/src/backend/data/mcm.db < e2e/fixtures/mdm-ruleEdit-users.sql
 # 6) 포털 — shared·m-mdm 을 먼저 빌드(shared 를 바꿨으므로 필수), 레지스트리는 커밋된 것을 쓴다
 cd $W/src/frontend && pnpm build:libs
 cd $W/src/frontend/m-mcm && AUTH_SECRET=$(openssl rand -hex 32) NEXTAUTH_URL=http://127.0.0.1:$FE OIDC_ISSUER=http://127.0.0.1:$FE \
   MCM_WAS_URL=http://127.0.0.1:$BE_MCM MDM_WAS_URL=http://127.0.0.1:$BE_MDM BACKEND_API_URL=http://127.0.0.1:$BE_MCM \
-  BACKEND_CLIENT_KEY=dmes-bff-local-client-key-2026 pnpm exec next dev --turbopack --port $FE > $SP/fe.log 2>&1 &
+  BACKEND_CLIENT_KEY=dmes-bff-local-client-key-2026 BFF_INTERNAL_SECRET=dmes-bff-internal-local-2026 pnpm exec next dev --turbopack --port $FE > $SP/fe.log 2>&1 &
 echo $! > $SP/fe.pid
 # 7) E2E — 기존 mdm 스펙까지 전부(셸 glob 이 있는 파일만 펼친다), 반드시 자기 포털, workers 1
 cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:$FE SMOKE_LOGIN_USER=admin SMOKE_LOGIN_PASSWORD=admin123 \
@@ -349,15 +355,27 @@ cd $W/src/frontend && SMOKE_MCM_BASE_URL=http://127.0.0.1:$FE SMOKE_LOGIN_USER=a
 kill $(cat $SP/fe.pid) $(cat $SP/be-mdm.pid) $(cat $SP/be-mcm.pid)
 for p in $FE $BE_MDM $BE_MCM; do pid=$(lsof -tiTCP:$p -sTCP:LISTEN); [ -n "$pid" ] && kill $pid; done
 cd $W && .claude/skills/dflow-dev/scripts/heavy.sh release
-# 9) 기존 스펙이 덮어쓴 추적 파일 되돌리기(이 작업 산출물 아님). TSK-05-02 스크린샷만 커밋한다
-cd $W && /usr/bin/git checkout -- docs/mdm/tasks/TSK-01-02/screens/dma-mdmSample.png docs/mdm/tasks/TSK-01-03/screens docs/mdm/tasks/TSK-04-03/screens src/frontend/m-mcm/next-env.d.ts
-[ -d docs/mdm/tasks/TSK-04-04/screens ] && /usr/bin/git checkout -- docs/mdm/tasks/TSK-04-04/screens
-/usr/bin/git status --short   # src/frontend/test-results/** 등 추적 파일 변경이 남으면 /usr/bin/git restore 로 되돌린다
+# 9) 전체 mdm 스펙이 덮어쓴 추적 스크린샷 되돌리기(이 작업 산출물 아님). 이 Task 의 스크린샷만 커밋한다
+cd $W && /usr/bin/git status --short   # 먼저 무엇이 바뀌었는지 본다
+#    추적 파일 중 이 Task 산출물이 아닌 docs/mdm/tasks/**/screens 변경은 git status 에 나온 경로를 골라 되돌린다:
+#      /usr/bin/git restore -- <변경된 docs/mdm/tasks/**/screens 경로…> src/frontend/m-mcm/next-env.d.ts
+#    새로 생긴 PNG(??) 는 지우지 않는다 — /usr/bin/git status --short | grep '^??' 로 목록을 내고, 이 Task 산출물인지 사람이 판단해 커밋하거나 scratchpad 로 옮긴다.
+#    src/frontend/test-results/** 등 추적 파일 변경도 같은 방식으로 되돌린다.
 ```
 
-- **오케스트레이터가 E2E 기준선을 잴 줄은 7)** 이다(1~6 으로 서버를 띄운 뒤). 기점에서는 glob 이 `mdm-domainMng`·`mdm-sample-smoke`·`mdm-shell-rbac-smoke` 셋으로 펼쳐지고(F27, TSK-04-03 실측 "8 passed"), `SMOKE_MDM_DB` 는 쓰이지 않는다. Build 뒤에는 `mdm-headerMng`·`mdm-layoutMng` 가 더해지고, dev 머지 뒤에는 `mdm-columnMng` 도 더해진다 — 그 스펙은 5) 의 조건부 픽스처와 **새 mdm.db**(2) 가 전제다. 같은 DB 로 7) 을 다시 돌리려면 2)~5) 를 다시 한다(스펙들이 행을 만든다).
-- mdm 백엔드 코드를 바꾸면 mdm 만 다시 띄우되 mdm.db 를 다시 옮기고 5) 의 mdm 픽스처를 다시 한다. DataInitializer 를 바꾸면 mcm 을 새 DB 로 다시 띄우고 5) 를 다시 한다(BFF 권한 캐시 60초·`UserPermCache` 10분 영향 제거).
-- 통과 기준: 7) 이 failed·skipped 0. 거짓 통과 방지 증거 셋을 보고에 붙인다 — ① 두 백엔드 로그의 SQLite 경로가 워크트리 쪽, ② `be-mdm.log` 에 `/oasis/headerMng`·`/oasis/layoutMng` 요청이 찍힘, ③ `sqlite3 $W/src/backend/data/mdm.db "SELECT LAYOUT_NAME, TOTAL_LENGTH FROM TB_MDM_LAYOUT WHERE LAYOUT_KIND='MESSAGE'"` 에 L6 에서 만든 `출측검사 <STAMP>|187`.
+- **오케스트레이터가 E2E 기준선을 잴 줄은 7)** 이다(1~6 으로 서버를 띄운 뒤). 기점에서는 glob 이 `mdm-domainMng`·`mdm-sample-smoke`·`mdm-shell-rbac-smoke` 셋으로 펼쳐지고(F27, TSK-04-03 실측 "8 passed"), `SMOKE_MDM_DB` 는 쓰이지 않는다. Build 뒤에는 `mdm-headerMng`·`mdm-layoutMng` 가 더해지고, dev 머지 뒤에는 `mdm-columnMng` 도 더해진다 — 그 스펙은 **새 mdm.db**(2) 가 전제다. mdm 픽스처는 각 스펙의 `beforeAll` 이 넣는다. 같은 DB 로 7) 을 다시 돌리려면 2) 로 새 mdm.db 를 만들고 서버를 다시 띄운다(스펙들이 행을 만든다).
+- mdm 백엔드 코드를 바꾸면 mdm 만 다시 띄우되 mdm.db 를 다시 옮긴다(2). mdm 픽스처는 스펙 `beforeAll` 이 넣는다. DataInitializer 를 바꾸면 mcm 을 새 DB 로 다시 띄우고 5) 를 다시 한다(BFF 권한 캐시 60초·`UserPermCache` 10분 영향 제거).
+- 통과 기준: 7) 이 failed·skipped 0. 거짓 통과 방지 증거 셋을 보고에 붙인다 — ① 두 백엔드 로그의 SQLite 경로가 워크트리 쪽, ② `be-mdm.log` 에 `/oasis/headerMng`·`/oasis/layoutMng` 요청이 찍힘, ③ V21 뒤 `TB_MDM_LAYOUT` 에는 `TOTAL_LENGTH` 칸이 없고 길이는 `TB_MDM_LAYOUT_VER.OWN_LENGTH` 에 있다. 다음 질의에 L6 에서 만든 `출측검사 <STAMP>…|1|57|1,2|187` 행이 나와야 한다(본문 57 + 헤더 구성 1·2 의 OWN_LENGTH 합 = 187):
+  ```sql
+  SELECT l.LAYOUT_NAME, v.VER, v.OWN_LENGTH,
+         (SELECT GROUP_CONCAT(h.HEADER_LAYOUT_ID) FROM TB_MDM_LAYOUT_HEADER h WHERE h.LAYOUT_ID = v.LAYOUT_ID AND h.VER = v.VER) AS HEADERS,
+         v.OWN_LENGTH + COALESCE((SELECT SUM(hv.OWN_LENGTH) FROM TB_MDM_LAYOUT_HEADER h
+              JOIN TB_MDM_LAYOUT_VER hv ON hv.LAYOUT_ID = h.HEADER_LAYOUT_ID AND hv.STATUS = 'RELEASED'
+                   AND hv.APPLY_FROM <= datetime('now', '+9 hours') AND datetime('now', '+9 hours') < hv.APPLY_TO
+              WHERE h.LAYOUT_ID = v.LAYOUT_ID AND h.VER = v.VER), 0) AS TOTAL
+  FROM TB_MDM_LAYOUT l JOIN TB_MDM_LAYOUT_VER v ON v.LAYOUT_ID = l.LAYOUT_ID
+  WHERE l.LAYOUT_KIND = 'MESSAGE';
+  ```
 
 ---
 

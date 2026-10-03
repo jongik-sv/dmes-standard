@@ -1,6 +1,8 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
+
 /**
  * 마루 코드 버전 확정(codeConfirm) — TSK-06-05 design.md §3.4 화면 스모크 넷 + 수용 기준.
  *
@@ -13,7 +15,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *   T6 표준 관리자: 메뉴로 열고 E2E_CF_NOCHG 를 골라도 검사·확정 버튼이 비활성(수용 기준 3 의 화면 판).
  *
  * 전제(design.md 「서버·E2E 기동 방법」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고, mcm 기동
- * 뒤 e2e/fixtures/mdm-rbac-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-codeConfirm.sql 을 넣는다. 이 spec 은 E2E_CF_OK·
+ * 뒤 e2e/fixtures/mdm-rbac-users.sql, beforeAll 이 e2e/fixtures/mdm-codeConfirm.sql 을 넣는다. 이 spec 은 E2E_CF_OK·
  * E2E_CF_RACE 를 확정하므로 **같은 mdm.db 로 다시 돌릴 수 없다**. SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */
 
@@ -62,10 +64,9 @@ async function choose(page: Page, id: string, ver: string) {
   await expect(tid(page, "cf-target")).toContainText(id, { timeout: 20_000 });
 }
 
-/** datetime-local(step 1) 에 `yyyy-MM-ddTHH:mm` 로 넣고 검사한다. 초가 0 이면 Chromium 이 값을 분 단위로 정규화해
- * `fill("…T00:00:00")` 이 Malformed value 로 실패한다. 화면이 초 `:00` 을 붙여 보낸다(I34). */
+/** 적용 시작(shared DateTimePicker — 6e506cc9 에서 datetime-local 을 바꿨다)에 `yyyy-MM-dd HH:mm:ss` 로 넣고 검사한다. */
 async function validate(page: Page, applyFrom: string) {
-  await tid(page, "cf-apply-from").fill(applyFrom);
+  await fillDateTime(tid(page, "cf-apply-from"), applyFrom);
   await tid(page, "cf-validate").click();
   await expect(tid(page, "cf-checks")).toBeVisible({ timeout: 20_000 });
 }
@@ -74,6 +75,8 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
   test.setTimeout(150_000);
+
+  test.beforeAll(() => loadMdmFixture("mdm-codeConfirm.sql"));
 
   test("T1 담당자: 메뉴로 화면이 열린다", async ({ page }) => {
     await login(page, STEWARD);
@@ -107,7 +110,7 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
     await expect(tid(page, "cf-previous")).toContainText("v1.000 · 2026-01-01 00:00:00");
     await expect(tid(page, "cf-diff-empty")).toHaveText("변경된 행이 없습니다");
 
-    await validate(page, "2026-10-01T00:00");
+    await validate(page, "2026-10-01 00:00:00");
     await expect(tid(page, "cf-check-status-4")).toHaveText("거부");
     await expect(tid(page, "cf-check-status-4")).toHaveAttribute("data-rejected", "true");
     await expect(tid(page, "cf-check-status-3")).toHaveText("통과");
@@ -122,7 +125,7 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
     await choose(page, "E2E_CF_OK", "1.000");
 
     await expect(tid(page, "cf-previous")).toHaveText("최초 버전 — 적용 순서 검사를 하지 않습니다");
-    await validate(page, "2026-01-01T00:00");
+    await validate(page, "2026-01-01 00:00:00");
     await expect(tid(page, "cf-check-status-3")).toHaveText("면제");
     await expect(tid(page, "cf-check-status-4")).toHaveText("면제");
     await expect(tid(page, "cf-check-status-2-2")).toHaveText("경고");
@@ -152,7 +155,7 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
     await login(page, STEWARD);
     await openCodeConfirm(page);
     await choose(page, "E2E_CF_RACE", "1.000");
-    await validate(page, "2026-02-01T00:00");
+    await validate(page, "2026-02-01 00:00:00");
     await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: 20_000 });
 
     const res = await page.request.post(`${BASE_URL}/api/mdm/oasis/codeConfirm/confirm`, {

@@ -55,7 +55,8 @@ async function openDomainMng(page: Page): Promise<Locator> {
 }
 
 async function search(layout: Locator, keyword: string) {
-  await layout.getByPlaceholder("도메인명·표준명").fill(keyword);
+  // 부모 도메인 칸(placeholder "도메인명·표준명 입력", 8ca732ba)과 겹치지 않게 검색 칸 문구를 정확히 맞춘다.
+  await layout.getByPlaceholder("도메인명·표준명", { exact: true }).fill(keyword);
   await layout.getByRole("button", { name: "조회", exact: true }).click();
 }
 
@@ -289,7 +290,9 @@ test.describe("mdm 도메인 관리", () => {
     await search(layout, STAMP);
     await expect(gridRow(layout, PARENT_NAME)).toBeVisible({ timeout: 30_000 });
     await selectRow(layout, CHILD_NAME);
-    await layout.locator('input[aria-label="미리보기 입력값"]').fill("abc");
+    // 앞의 E8 이 이 하위 도메인의 부모를 바꾸고 끊어 표준식이 "(길이 ≤ 30) && (길이 ≤ 15)" 가 된다 — 옛 입력 "abc" 는 이제 통과한다.
+    // E8 전의 상속 패턴(^[A-Z0-9]{10,20}$)과 E8 뒤의 길이 조건 모두에 걸리는 값(소문자 17자)으로 화면 미리보기의 실패를 본다.
+    await layout.locator('input[aria-label="미리보기 입력값"]').fill("abcdefghijklmnopq");
     await expect(layout.locator(".domain-mng__preview-std")).toHaveText("표준 실패");
     await expect(layout.getByRole("button", { name: "도메인검증" })).toHaveCount(0);
     await expect(layout.getByRole("button", { name: "저장", exact: true })).toHaveCount(0);

@@ -1,26 +1,36 @@
 -- TSK-08-02 E2E 전용 mdm.db 사전 픽스처(design.md §3.4.3, D10). seed-only — 워크트리 격리 mdm.db 에만 적용한다. 운영·공유 DB 금지.
 -- 운영 Flyway 시드가 아니다. 열 편집(TSK-08-03)이 없어 변수가 있는 룰을 화면으로 만들 수 없으므로 06 샘플(06:85-90)을 직접 넣는다.
--- mdm 기동(Flyway V11 까지 적용) 뒤 한 번만 넣는다. INSERT 만(DELETE 없음).
+-- mdm 기동 뒤 한 번만 넣는다 — mdm-ruleEdit·mdm-ruleMng 스펙의 beforeAll 이 넣고, 이미 있으면 건너뛴다(e2e/support/mdm-e2e.ts). INSERT 만(DELETE 없음).
 -- 이 픽스처를 쓰는 mdm-ruleMng·mdm-ruleEdit 스펙은 룰을 만들고 고치므로 같은 mdm.db 로 다시 돌릴 수 없다(새 mdm.db 로 시작).
---   도메인 3 · 컬럼 3(COIL_THK NUMBER scale 2, COIL_WID NUMBER scale 0, SURF_GRD STRING)
---   QLTY_GRD_JDG — INUSE, VER 1 RELEASED(FIRST), 조건 3 · 결과 2(Value), 행 3 + 기본 행
+--   도메인 3 · 컬럼 3(COIL_THK NUMBER scale 2, COIL_WID NUMBER scale 0, SURF_GRD STRING) — 같은 물리명 컬럼이 이미 있으면(앞서 돈
+--     mdm-ruleConfirm-data.sql 이 같은 정의로 넣는다) 건너뛴다. 컬럼 사전 스펙(mdm-columnMng)보다 뒤에 들어가야 그 스펙의 COIL_THK 전제가 산다.
+--   QLTY_GRD_JDG — INUSE, VER 1 RELEASED(FIRST) + VER 2 DRAFT(base 1, 내용 편집 스펙용), 조건 3 · 결과 2(Value), 행 3 + 기본 행
+--   E2E_VER_JDG  — INUSE, VER 1 RELEASED(FIRST) — ruleMng 헤더·버전 시나리오 전용(파일 끝)
 --   E2E_LOCK_JDG — CREATED, VER 1 DRAFT 소유자 e2e_mdm_steward2(비소유자 잠금 시나리오)
 --   LS_E2E       — QLTY_GRD_JDG 를 담은 룰 세트(활용처 카드) (D-144 2단계: 부모 + 1.000 RELEASED)
 
-INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, DESCRIPTION, C_USR_ID, C_PGM_ID, VER) VALUES
-    ('E2E 코일 두께', 'COIL_THK', 'QTY', 'NUMBER', 5, 2, '코일 두께(mm)', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('E2E 코일 폭', 'COIL_WID', 'QTY', 'NUMBER', 5, 0, '코일 폭(mm)', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('E2E 표면 등급', 'SURF_GRD', 'TEXT', 'STRING', 2, NULL, '표면 등급 문자', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, DESCRIPTION, C_USR_ID, C_PGM_ID, VER)
+SELECT 'E2E 코일 두께', 'COIL_THK', 'QTY', 'NUMBER', 5, 2, '코일 두께(mm)', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0
+ WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_COLUMN WHERE PHYS_NAME = 'COIL_THK');
+INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, DESCRIPTION, C_USR_ID, C_PGM_ID, VER)
+SELECT 'E2E 코일 폭', 'COIL_WID', 'QTY', 'NUMBER', 5, 0, '코일 폭(mm)', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0
+ WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_COLUMN WHERE PHYS_NAME = 'COIL_WID');
+INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, DESCRIPTION, C_USR_ID, C_PGM_ID, VER)
+SELECT 'E2E 표면 등급', 'SURF_GRD', 'TEXT', 'STRING', 2, NULL, '표면 등급 문자', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0
+ WHERE NOT EXISTS (SELECT 1 FROM TB_MDM_COLUMN WHERE PHYS_NAME = 'SURF_GRD');
 
 INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, LABEL_LONG, LABEL_MID, PHYS_NAME, DESCRIPTION, DOMAIN_ID, C_USR_ID, C_PGM_ID, VER)
 SELECT '코일 두께', '코일 두께', '두께', 'COIL_THK', '코일 한 개의 두께', d.DOMAIN_ID, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0
-  FROM TB_MDM_DOMAIN d WHERE d.STD_NAME = 'COIL_THK' AND d.C_PGM_ID = 'mdm-ruleEdit-data.sql';
+  FROM TB_MDM_DOMAIN d WHERE d.STD_NAME = 'COIL_THK' AND d.C_PGM_ID = 'mdm-ruleEdit-data.sql'
+   AND NOT EXISTS (SELECT 1 FROM TB_MDM_COLUMN WHERE PHYS_NAME = 'COIL_THK');
 INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, LABEL_LONG, LABEL_MID, PHYS_NAME, DESCRIPTION, DOMAIN_ID, C_USR_ID, C_PGM_ID, VER)
 SELECT '코일 폭', '코일 폭', '폭', 'COIL_WID', '코일 한 개의 폭', d.DOMAIN_ID, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0
-  FROM TB_MDM_DOMAIN d WHERE d.STD_NAME = 'COIL_WID' AND d.C_PGM_ID = 'mdm-ruleEdit-data.sql';
+  FROM TB_MDM_DOMAIN d WHERE d.STD_NAME = 'COIL_WID' AND d.C_PGM_ID = 'mdm-ruleEdit-data.sql'
+   AND NOT EXISTS (SELECT 1 FROM TB_MDM_COLUMN WHERE PHYS_NAME = 'COIL_WID');
 INSERT INTO TB_MDM_COLUMN (COLUMN_NAME, LABEL_LONG, LABEL_MID, PHYS_NAME, DESCRIPTION, DOMAIN_ID, C_USR_ID, C_PGM_ID, VER)
 SELECT '표면 등급', '표면 등급', '표면등급', 'SURF_GRD', '표면 품질 등급', d.DOMAIN_ID, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0
-  FROM TB_MDM_DOMAIN d WHERE d.STD_NAME = 'SURF_GRD' AND d.C_PGM_ID = 'mdm-ruleEdit-data.sql';
+  FROM TB_MDM_DOMAIN d WHERE d.STD_NAME = 'SURF_GRD' AND d.C_PGM_ID = 'mdm-ruleEdit-data.sql'
+   AND NOT EXISTS (SELECT 1 FROM TB_MDM_COLUMN WHERE PHYS_NAME = 'SURF_GRD');
 
 INSERT INTO TB_MDM_RULE (MARU_RULE_ID, MARU_RULE_NAME, RULE_KIND, STATUS, SOURCE_KIND, DESCRIPTION, USAGE_NOTE,
                          LAST_VAR_ID, LAST_ROW_ID, LAST_CASE_ID, C_USR_ID, C_PGM_ID, VER) VALUES
@@ -56,6 +66,22 @@ INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS, NO
      '후물', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
     ('QLTY_GRD_JDG', 1, 4, 0, 'DEFAULT', '{"4":{"val":"C"},"5":{"val":"0.90"}}', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
     ('E2E_LOCK_JDG', 1, 1, 1, 'NORMAL', '{"1":{"op":"GE","left":"1"}}', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+
+-- QLTY_GRD_JDG 2.000 DRAFT(base 1.000, 소유 e2e_mdm_steward) — mdm-ruleEdit.spec.ts 의 내용 편집(S2 버전 고르기 2개, S5~S7 편집)이 쓴다.
+-- D-105 로 새 버전 버튼이 ruleMng 으로 옮겨 가 이 스펙이 화면에서 버전 2 를 만들 수 없고, 파일 이름순으로 mdm-ruleMng.spec.ts 보다
+-- 먼저 돌므로 픽스처가 미리 둔다. 새 버전(RuleVersionService.newVersion)과 같게 변수·행을 var_id·row_id·seq 그대로 복사한다.
+-- ruleMng 의 헤더·버전 시나리오는 이 룰을 건드리지 않고 아래 E2E_VER_JDG 를 쓴다(두 스펙이 서로 독립).
+INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, VER_KIND, STATUS, BASE_VER, OWNER_ID, HIT_POLICY, APPLY_FROM, APPLY_TO, RELEASED_AT,
+                             ROW_VERSION, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
+    ('QLTY_GRD_JDG', 2, 'MAJOR', 'DRAFT', 1, 'e2e_mdm_steward', 'FIRST', NULL, NULL, NULL, 0, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, VAR_AST, DOMAIN_ID, DATA_TYPE, COLLECT_AGG, PRIO_LIST,
+                             RES_GRP, GRP_COND, GRP_COND_AST, SEQ, LABEL, DESCRIPTION, C_USR_ID, C_PGM_ID, AUD_VER)
+SELECT MARU_RULE_ID, 2, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, VAR_AST, DOMAIN_ID, DATA_TYPE, COLLECT_AGG, PRIO_LIST,
+       RES_GRP, GRP_COND, GRP_COND_AST, SEQ, LABEL, DESCRIPTION, C_USR_ID, C_PGM_ID, AUD_VER
+  FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 1;
+INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS, NOTE, C_USR_ID, C_PGM_ID, AUD_VER)
+SELECT MARU_RULE_ID, 2, ROW_ID, SEQ, ROW_KIND, CELLS, NOTE, C_USR_ID, C_PGM_ID, AUD_VER
+  FROM TB_MDM_RULE_ROW WHERE MARU_RULE_ID = 'QLTY_GRD_JDG' AND VER = 1;
 
 -- D-144 2단계: 세트는 부모(TB_MDM_RULE_SET) + 1.000 MAJOR RELEASED 버전 행(TB_MDM_RULE_SET_VER). 아래 값 행은 그대로 두고 임시 표를 거쳐 나눠 넣는다.
 CREATE TEMP TABLE TMP_RULE_SET (MARU_RULE_SET_ID TEXT, MARU_RULE_SET_NAME TEXT, RULE_IDS TEXT, FLOW_JSON TEXT, DESCRIPTION TEXT,
@@ -147,36 +173,36 @@ INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, BASE_VER, OWNER_ID, HIT_
     ('PROD_WGT_CALC', 2, 'DRAFT', 1, 'e2e_mdm_steward', 'UNIQUE', NULL, NULL, NULL, 0, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
     ('E2E_PVT_LKP', 1, 'DRAFT', NULL, 'e2e_mdm_steward', 'UNIQUE', NULL, NULL, NULL, 0, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
 
-INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, AXIS, VAR_NAME, VAR_AST, DOMAIN_ID, DATA_TYPE, COLLECT_AGG, PRIO_LIST,
+INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, VAR_AST, DOMAIN_ID, DATA_TYPE, COLLECT_AGG, PRIO_LIST,
                              RES_GRP, GRP_COND, GRP_COND_AST, SEQ, LABEL, DESCRIPTION, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
-    ('BASE_SPD_LKP', 1, 1, 'COND', '2', 'NONE', 'COIL_THK', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '두께', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 1, 2, 'RESULT', 'Value', NULL, 'TEXTURE', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "2")', '{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"2"}]}', 1, '질감', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 1, 3, 'RESULT', 'Value', NULL, 'AKZO', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "6")', '{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"6"}]}', 2, 'AKZO 도료', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 1, 4, 'RESULT', 'Value', NULL, 'FLUORO', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'TOP_RESIN_CD == "F"', '{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"F"}]}', 3, '불소', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 1, 5, 'RESULT', 'Value', NULL, 'WXL1', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "W") && COAT_SIDE == "1"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"W"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"1"}]}]}', 4, 'WEATHER XL 단면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 1, 6, 'RESULT', 'Value', NULL, 'WXL2', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "W") && COAT_SIDE == "2"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"W"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"2"}]}]}', 5, 'WEATHER XL 양면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 1, 7, 'RESULT', 'Value', NULL, 'BACK1', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "B") && COAT_SIDE == "1"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"B"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"1"}]}]}', 6, 'Back 도료 단면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 1, 8, 'RESULT', 'Value', NULL, 'BACK2', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "B") && COAT_SIDE == "2"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"B"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"2"}]}]}', 7, 'Back 도료 양면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 1, 9, 'RESULT', 'Value', NULL, 'GENERAL', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', NULL, NULL, 8, '일반', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 2, 1, 'COND', '2', 'NONE', 'COIL_THK', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '두께', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 2, 2, 'RESULT', 'Value', NULL, 'TEXTURE', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "2")', '{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"2"}]}', 1, '질감', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 2, 3, 'RESULT', 'Value', NULL, 'AKZO', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "6")', '{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"6"}]}', 2, 'AKZO 도료', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 2, 4, 'RESULT', 'Value', NULL, 'FLUORO', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'TOP_RESIN_CD == "F"', '{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"F"}]}', 3, '불소', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 2, 5, 'RESULT', 'Value', NULL, 'WXL1', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "W") && COAT_SIDE == "1"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"W"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"1"}]}]}', 4, 'WEATHER XL 단면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 2, 6, 'RESULT', 'Value', NULL, 'WXL2', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "W") && COAT_SIDE == "2"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"W"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"2"}]}]}', 5, 'WEATHER XL 양면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 2, 7, 'RESULT', 'Value', NULL, 'BACK1', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "B") && COAT_SIDE == "1"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"B"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"1"}]}]}', 6, 'Back 도료 단면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 2, 8, 'RESULT', 'Value', NULL, 'BACK2', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "B") && COAT_SIDE == "2"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"B"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"2"}]}]}', 7, 'Back 도료 양면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('BASE_SPD_LKP', 2, 9, 'RESULT', 'Value', NULL, 'GENERAL', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', NULL, NULL, 8, '일반', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('COIL_WGT_CALC', 1, 1, 'RESULT', 'Expression', NULL, 'COIL_WGT', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'WGT_KG' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, NULL, NULL, NULL, 1, '코일 중량', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('PROD_WGT_CALC', 1, 1, 'COND', 'Equal', 'NONE', 'PROD_TYPE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '제품 형태', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('PROD_WGT_CALC', 1, 2, 'RESULT', 'Expression', NULL, 'PROD_WGT', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'WGT_KG' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, NULL, NULL, NULL, 1, '제품 중량', '이론 중량이다. 실측 중량과 다를 수 있다', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('PROD_WGT_CALC', 1, 3, 'COND', 'Equal', 'NONE', 'CALC_BASIS', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, '산출 기준', '코일만 본다. 시트는 무관', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('PROD_WGT_CALC', 2, 1, 'COND', 'Equal', 'NONE', 'PROD_TYPE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '제품 형태', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('PROD_WGT_CALC', 2, 2, 'RESULT', 'Expression', NULL, 'PROD_WGT', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'WGT_KG' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, NULL, NULL, NULL, 1, '제품 중량', '이론 중량이다. 실측 중량과 다를 수 있다', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('PROD_WGT_CALC', 2, 3, 'COND', 'Equal', 'NONE', 'CALC_BASIS', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, '산출 기준', '코일만 본다. 시트는 무관', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('E2E_PVT_LKP', 1, 1, 'COND', '2', 'ROW', 'COIL_THK', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '두께', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('E2E_PVT_LKP', 1, 2, 'COND', 'Equal', 'COL', 'TOP_RESIN_CD', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, '상도 수지', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
-    ('E2E_PVT_LKP', 1, 3, 'RESULT', 'Value', NULL, 'BASE_SPD', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, NULL, NULL, NULL, 1, '기본 L/S', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+    ('BASE_SPD_LKP', 1, 1, 'COND', '2', 'COIL_THK', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '두께', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 1, 2, 'RESULT', 'Value', 'TEXTURE', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "2")', '{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"2"}]}', 1, '질감', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 1, 3, 'RESULT', 'Value', 'AKZO', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "6")', '{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"6"}]}', 2, 'AKZO 도료', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 1, 4, 'RESULT', 'Value', 'FLUORO', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'TOP_RESIN_CD == "F"', '{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"F"}]}', 3, '불소', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 1, 5, 'RESULT', 'Value', 'WXL1', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "W") && COAT_SIDE == "1"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"W"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"1"}]}]}', 4, 'WEATHER XL 단면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 1, 6, 'RESULT', 'Value', 'WXL2', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "W") && COAT_SIDE == "2"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"W"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"2"}]}]}', 5, 'WEATHER XL 양면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 1, 7, 'RESULT', 'Value', 'BACK1', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "B") && COAT_SIDE == "1"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"B"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"1"}]}]}', 6, 'Back 도료 단면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 1, 8, 'RESULT', 'Value', 'BACK2', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "B") && COAT_SIDE == "2"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"B"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"2"}]}]}', 7, 'Back 도료 양면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 1, 9, 'RESULT', 'Value', 'GENERAL', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', NULL, NULL, 8, '일반', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 2, 1, 'COND', '2', 'COIL_THK', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '두께', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 2, 2, 'RESULT', 'Value', 'TEXTURE', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "2")', '{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"2"}]}', 1, '질감', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 2, 3, 'RESULT', 'Value', 'AKZO', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "6")', '{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"6"}]}', 2, 'AKZO 도료', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 2, 4, 'RESULT', 'Value', 'FLUORO', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'TOP_RESIN_CD == "F"', '{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"F"}]}', 3, '불소', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 2, 5, 'RESULT', 'Value', 'WXL1', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "W") && COAT_SIDE == "1"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"W"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"1"}]}]}', 4, 'WEATHER XL 단면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 2, 6, 'RESULT', 'Value', 'WXL2', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "W") && COAT_SIDE == "2"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"W"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"2"}]}]}', 5, 'WEATHER XL 양면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 2, 7, 'RESULT', 'Value', 'BACK1', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "B") && COAT_SIDE == "1"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"B"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"1"}]}]}', 6, 'Back 도료 단면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 2, 8, 'RESULT', 'Value', 'BACK2', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', 'STR_STARTS_WITH(TOP_RESIN_CD, "B") && COAT_SIDE == "2"', '{"type":"INFIX_OPERATOR","value":"&&","params":[{"type":"FUNCTION","value":"STR_STARTS_WITH","params":[{"type":"VARIABLE_OR_CONSTANT","value":"TOP_RESIN_CD"},{"type":"STRING_LITERAL","value":"B"}]},{"type":"INFIX_OPERATOR","value":"==","params":[{"type":"VARIABLE_OR_CONSTANT","value":"COAT_SIDE"},{"type":"STRING_LITERAL","value":"2"}]}]}', 7, 'Back 도료 양면', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('BASE_SPD_LKP', 2, 9, 'RESULT', 'Value', 'GENERAL', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, 'BASE_SPD', NULL, NULL, 8, '일반', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('COIL_WGT_CALC', 1, 1, 'RESULT', 'Expression', 'COIL_WGT', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'WGT_KG' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, NULL, NULL, NULL, 1, '코일 중량', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('PROD_WGT_CALC', 1, 1, 'COND', 'Equal', 'PROD_TYPE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '제품 형태', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('PROD_WGT_CALC', 1, 2, 'RESULT', 'Expression', 'PROD_WGT', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'WGT_KG' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, NULL, NULL, NULL, 1, '제품 중량', '이론 중량이다. 실측 중량과 다를 수 있다', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('PROD_WGT_CALC', 1, 3, 'COND', 'Equal', 'CALC_BASIS', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, '산출 기준', '코일만 본다. 시트는 무관', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('PROD_WGT_CALC', 2, 1, 'COND', 'Equal', 'PROD_TYPE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '제품 형태', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('PROD_WGT_CALC', 2, 2, 'RESULT', 'Expression', 'PROD_WGT', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'WGT_KG' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, NULL, NULL, NULL, 1, '제품 중량', '이론 중량이다. 실측 중량과 다를 수 있다', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('PROD_WGT_CALC', 2, 3, 'COND', 'Equal', 'CALC_BASIS', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, '산출 기준', '코일만 본다. 시트는 무관', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_PVT_LKP', 1, 1, 'COND', '2', 'COIL_THK', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '두께', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_PVT_LKP', 1, 2, 'COND', 'Equal', 'TOP_RESIN_CD', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 2, '상도 수지', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_PVT_LKP', 1, 3, 'RESULT', 'Value', 'BASE_SPD', NULL, (SELECT DOMAIN_ID FROM TB_MDM_DOMAIN WHERE STD_NAME = 'SPEED_MPM' AND C_PGM_ID = 'mdm-ruleEdit-data.sql'), NULL, NULL, NULL, NULL, NULL, NULL, 1, '기본 L/S', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
 
 INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS, NOTE, TAG, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
     ('BASE_SPD_LKP', 1, 1, 1, 'NORMAL', '{"1":{"op":"< 변수 <=","left":"0","right":"0.5"},"2":{"val":"100"},"3":{"val":"100"},"4":{"val":"90"},"5":{"val":"110"},"6":{"val":"110"},"7":{"val":"110"},"8":{"val":"110"},"9":{"val":"120"}}', NULL, NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
@@ -253,3 +279,27 @@ INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS, NO
 INSERT INTO TB_MDM_RULE_TEST_CASE (MARU_RULE_ID, CASE_ID, CASE_NAME, INPUT_JSON, EXPECTED_JSON, DESCRIPTION, ROW_VERSION, C_USR_ID, C_PGM_ID, VER) VALUES
     ('E2E_VT_JDG', 1, '중간 두께 A', '{"COIL_THK":2.0,"SURF_GRD":"A"}', '{"QLTY_GRD":"A","hit":1}', '기대값 맞음', 0, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
     ('E2E_VT_JDG', 2, '후물 C', '{"COIL_THK":3.0,"SURF_GRD":"C"}', '{"QLTY_GRD":"A"}', '기대값 틀림(실제 B) — 실패 시연', 0, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────
+-- mdm-ruleMng.spec.ts 헤더·버전 시나리오(H1·H2·H3·H6·H7·H8) 전용 룰. 헤더 이름을 바꾸고 새 버전을 만들고 지우므로
+-- 내용 편집 스펙(mdm-ruleEdit, 이름순으로 먼저 돈다)이 고치는 QLTY_GRD_JDG 와 나눈다.
+--   E2E_VER_JDG — INUSE, v1 RELEASED(FIRST), 조건 COIL_THK(2) · 결과 QLTY_GRD Value, 행 1 + 기본 행.
+-- ─────────────────────────────────────────────────────────────────────────────────────────────
+
+INSERT INTO TB_MDM_RULE (MARU_RULE_ID, MARU_RULE_NAME, RULE_KIND, STATUS, SOURCE_KIND, DESCRIPTION, USAGE_NOTE,
+                         LAST_VAR_ID, LAST_ROW_ID, LAST_CASE_ID, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2E_VER_JDG', 'E2E 버전 판정', 'DECISION', 'INUSE', 'MDM', '두께로 품질 등급을 정한다 — 헤더·버전 E2E', '헤더·버전 조작 확인용',
+     2, 2, 0, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+
+INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, BASE_VER, OWNER_ID, HIT_POLICY, APPLY_FROM, APPLY_TO, RELEASED_AT,
+                             ROW_VERSION, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
+    ('E2E_VER_JDG', 1, 'RELEASED', NULL, NULL, 'FIRST', '2026-01-01 00:00:00', '9999-12-31 00:00:00', '2026-01-01 00:00:00',
+     0, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+
+INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, DATA_TYPE, SEQ, LABEL, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
+    ('E2E_VER_JDG', 1, 1, 'COND', '2', 'COIL_THK', NULL, 1, '두께', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VER_JDG', 1, 2, 'RESULT', 'Value', 'QLTY_GRD', 'STRING', 1, '판정등급', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);
+
+INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS, NOTE, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
+    ('E2E_VER_JDG', 1, 1, 1, 'NORMAL', '{"1":{"op":"GE","left":"2.5"},"2":{"val":"B"}}', '후물', 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0),
+    ('E2E_VER_JDG', 1, 2, 0, 'DEFAULT', '{"2":{"val":"A"}}', NULL, 'e2e-fixture', 'mdm-ruleEdit-data.sql', 0);

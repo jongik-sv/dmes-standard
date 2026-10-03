@@ -1,7 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+
+import { clickSearch, expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
 
 /**
  * 전문 레이아웃(dmb/layoutMng) 브라우저 E2E — TSK-05-02 design.md §3.5.
@@ -36,12 +37,6 @@ const FIXTURE_LAYOUT = "출측검사 실적 수신(E2E)";
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-02/screens", name);
 const SHOT_0503 = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-03/screens", name);
 
-function loadFixture() {
-  const db = process.env.SMOKE_MDM_DB;
-  if (!db) throw new Error("SMOKE_MDM_DB 에 워크트리 mdm.db 경로를 넣는다(design.md §3.7)");
-  execFileSync("sqlite3", [db], { input: readFileSync(path.resolve(__dirname, "fixtures/mdm-layout-m201.sql")) });
-}
-
 async function login(page: Page, user = USER) {
   await page.goto(`${BASE_URL}/login`);
   await page.getByPlaceholder("아이디").fill(user);
@@ -60,13 +55,14 @@ async function openScreen(page: Page): Promise<Locator> {
   const layout = page.locator(".page-layout").filter({
     has: page.locator(".page-layout__footer-screen-id", { hasText: "layoutMng" }),
   });
-  await expect(layout.getByTestId("layout-list")).toBeVisible({ timeout: 60_000 });
+  // 화면은 목록을 자동 조회하지 않고 열린다(cf4fbb05) — 목록이 아니라 검색 칸이 보이면 열린 것이다.
+  await expect(layout.getByTestId("layout-search-keyword")).toBeVisible({ timeout: 60_000 });
   return layout;
 }
 
 async function search(layout: Locator, keyword: string) {
   await layout.getByTestId("layout-search-keyword").fill(keyword);
-  await layout.getByRole("button", { name: "조회", exact: true }).click();
+  await clickSearch(layout);
 }
 
 function listRow(layout: Locator, text: string): Locator {
@@ -130,7 +126,7 @@ test.use({ viewport: { width: 1680, height: 1200 } });
 test.describe("mdm 전문 레이아웃", () => {
   test.setTimeout(180_000);
 
-  test.beforeAll(() => loadFixture());
+  test.beforeAll(() => loadMdmFixture("mdm-layout-m201.sql"));
 
   test("L1 메뉴로 이동하고 목록은 서버 데이터, 결과가 없으면 빈 상태", async ({ page }) => {
     await login(page);
@@ -138,14 +134,14 @@ test.describe("mdm 전문 레이아웃", () => {
     await expect(layout.locator(".page-layout__footer-breadcrumb")).toHaveText("마루 MDM > 레이아웃 > 전문 레이아웃");
     await expect(layout.locator(".page-layout__footer-screen-id")).toHaveText("layoutMng");
     // 화면을 열어도 목록은 자동 조회되지 않는다 — [조회] 를 눌러야 픽스처 전문이 보인다.
-    await layout.getByRole("button", { name: "조회", exact: true }).click();
+    await clickSearch(layout);
     const row = listRow(layout, FIXTURE_LAYOUT);
     await expect(row).toBeVisible({ timeout: 30_000 });
-    await expect(row.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("187");
+    await expectRowCell(row, "TOTAL_LENGTH", "187");
     // 픽스처는 1.000 RELEASED(2000-01-01 부터) — 지금 적용 중인 버전이 현재 버전 열에 보이고 DRAFT 는 없다
-    await expect(row.locator('.ag-cell[col-id="CURRENT_VER"]')).toHaveText("v1.000");
-    await expect(row.locator('.ag-cell[col-id="DRAFT_VER"]')).toHaveText("");
-    await expect(row.locator('.ag-cell[col-id="HEADER_SUMMARY"]')).toHaveText("GLUE 공통 헤더(E2E) (100) + L2 구간 헤더(E2E) (30)");
+    await expectRowCell(row, "CURRENT_VER", "v1.000");
+    await expectRowCell(row, "DRAFT_VER", "");
+    await expectRowCell(row, "HEADER_SUMMARY", "GLUE 공통 헤더(E2E) (100) + L2 구간 헤더(E2E) (30)");
     await page.screenshot({ path: screenshot("dmb-layoutMng-list.png"), fullPage: true });
     await search(layout, `없음-${STAMP}`);
     await expect(layout.getByTestId("layout-list-empty")).toHaveText("조회된 전문이 없습니다", { timeout: 30_000 });
@@ -204,10 +200,10 @@ test.describe("mdm 전문 레이아웃", () => {
     await layout.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.getByText("저장했습니다.").first()).toBeVisible({ timeout: 30_000 });
     await search(layout, STAMP);
-    await expect(listRow(layout, NEW_LAYOUT).locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("187", { timeout: 30_000 });
+    await expectRowCell(listRow(layout, NEW_LAYOUT), "TOTAL_LENGTH", "187", { timeout: 30_000 });
     // 신규 저장은 v1.000 DRAFT 를 만든다 — 확정 전이라 현재 버전은 없고 DRAFT 열에 버전·소유자가 보인다
-    await expect(listRow(layout, NEW_LAYOUT).locator('.ag-cell[col-id="CURRENT_VER"]')).toHaveText("");
-    await expect(listRow(layout, NEW_LAYOUT).locator('.ag-cell[col-id="DRAFT_VER"]')).toContainText("v1.000");
+    await expectRowCell(listRow(layout, NEW_LAYOUT), "CURRENT_VER", "");
+    await expectRowCell(listRow(layout, NEW_LAYOUT), "DRAFT_VER", "v1.000", { contains: true });
     await selectLayout(layout, NEW_LAYOUT);
     await expect(layout.getByTestId("layout-ver-select")).toHaveValue("1.000");
     await expect(layout.getByTestId("layout-ver-select").locator('option[value="1.000"]')).toHaveText("v1.000 작성 중");
@@ -274,8 +270,8 @@ test.describe("mdm 전문 레이아웃", () => {
     await page.mouse.move(from.x + from.width / 2, to.y + 4, { steps: 10 });
     await page.mouse.move(from.x + from.width / 2, to.y + 2, { steps: 5 });
     await page.mouse.up();
-    await expect(bodyRow(layout, "FILLER").locator('.ag-cell[col-id="OFFSET"]')).toHaveText("158", { timeout: 10_000 });
-    await expect(bodyRow(layout, "EXIT_COIL_THK").locator('.ag-cell[col-id="OFFSET"]')).toHaveText("183");
+    await expectRowCell(bodyRow(layout, "FILLER"), "OFFSET", "158", { timeout: 10_000 });
+    await expectRowCell(bodyRow(layout, "EXIT_COIL_THK"), "OFFSET", "183");
     await expect(layout.getByTestId("layout-total-length")).toContainText("187");
     await page.screenshot({ path: screenshot("dmb-layoutMng-drag.png"), fullPage: true });
   });
@@ -363,9 +359,19 @@ test.describe("mdm 전문 레이아웃", () => {
     // 거부된 저장은 DRAFT 를 쓰지 않았다 — 다시 읽으면 폭 4
     await layout.getByTestId("layout-tab-edit").click();
     await search(layout, "(E2E)");
-    await selectLayout(layout, FIXTURE_LAYOUT);
+    // 이름 칸은 이미 같은 값이라 selectLayout 의 대기는 화면이 서버에서 다시 읽었다는 증거가 되지 못한다 —
+    // 목록 행을 누르면서 view 응답을 기다리고, 눌림이 목록 갱신에 묻히면 다시 누른다.
+    await expect(async () => {
+      const viewed = page.waitForResponse(
+        (r) => r.url().includes("/api/mdm/oasis/layoutMng/view") && r.request().method() === "POST" && r.status() === 200,
+        { timeout: 8_000 },
+      );
+      await listRow(layout, FIXTURE_LAYOUT).click();
+      await viewed;
+    }).toPass({ timeout: 40_000 });
     await expect(layout.getByTestId("layout-ver-select")).toHaveValue("1.001", { timeout: 30_000 });
-    await expect(bodyRow(layout, "EXIT_COIL_THK").locator('.ag-cell[col-id="LENGTH"]')).toHaveText("4");
+    // 본문 길이 열 전체가 서버 값(20·8·4·25)이 될 때까지 기다린다 — 행 로케이터를 미리 잡으면 다시 그려지는 행을 놓친다.
+    await expect(bodyCells(layout, "LENGTH")).toHaveText(["20", "8", "4", "25"], { timeout: 30_000 });
 
     // 여분 25 를 23 으로 줄이고 라인코드(2) 를 쪼개 쓴다 — 총 길이·기존 오프셋은 그대로(순차 전환 대상)
     await bodyRow(layout, "FILLER").click();
@@ -437,11 +443,11 @@ test.describe("mdm 전문 레이아웃", () => {
     const versions = layout.getByTestId("version-list");
     const vrow = (i: number) => versions.locator(`.ag-center-cols-container .ag-row[row-index="${i}"]`);
     await expect(versions.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 30_000 });
-    await expect(vrow(0).locator('.ag-cell[col-id="VER"]')).toHaveText("v1.000");
+    await expectRowCell(vrow(0), "VER", "v1.000");
     await expect(vrow(0)).toContainText("작성 중");
-    await expect(vrow(0).locator('.ag-cell[col-id="OWN_LENGTH"]')).toHaveText("57");
+    await expectRowCell(vrow(0), "OWN_LENGTH", "57");
     // 확정 전이라 변경 분류·전환 방식이 아직 없다
-    await expect(vrow(0).locator('.ag-cell[col-id="SWITCH_MODE"]')).toHaveText("-");
+    await expectRowCell(vrow(0), "SWITCH_MODE", "-");
 
     // 같은 DRAFT 를 다시 저장 — 여분 29 를 25 로 줄이고 EXIT_COIL_THK 4 를 쪼개 쓴다. 버전은 늘지 않는다
     await layout.getByTestId("layout-tab-edit").click();
@@ -459,7 +465,7 @@ test.describe("mdm 전문 레이아웃", () => {
     await expect(layout.getByTestId("layout-ver-select")).toHaveValue("1.000");
     await layout.getByTestId("layout-tab-version").click();
     await expect(versions.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 30_000 });
-    await expect(vrow(0).locator('.ag-cell[col-id="OWN_LENGTH"]')).toHaveText("57");
+    await expectRowCell(vrow(0), "OWN_LENGTH", "57");
     await expect(layout.getByTestId("snapshot-preview")).toContainText('"layoutVersion"', { timeout: 30_000 });
     await page.screenshot({ path: SHOT_0503("dmb-layoutMng-version.png"), fullPage: true });
 
@@ -484,20 +490,36 @@ test.describe("mdm 전문 레이아웃", () => {
     const layout = await openScreen(page);
     await layout.getByTestId("layout-tab-version").click();
     const list = layout.getByTestId("impact-list");
-    const fixtureRow = list.locator(".ag-center-cols-container .ag-row").filter({ hasText: FIXTURE_LAYOUT }).first();
-    await layout.getByTestId("impact-keyword").fill("EXIT_COIL_THK");
-    await layout.getByTestId("impact-search").click();
+    // 3단계(D-148)부터 영향 목록은 레이아웃 버전마다 한 행이다 — L10·L11 이 만든 픽스처 전문의 v1.001 DRAFT 행도 함께 나오므로
+    // 지금 적용 중인(현재) 버전 행을 고른다. 항목 오프셋은 본문 시작 기준 상대값이다(LayoutImpactFinder — 헤더 130 을 빼면 158 → 28).
+    const fixtureRow = list
+      .locator(".ag-center-cols-container .ag-row")
+      .filter({ hasText: FIXTURE_LAYOUT })
+      .filter({ has: page.locator('.ag-cell[col-id="VER_STATE"]', { hasText: /^현재$/ }) });
+    // 조회마다 새 search 응답을 기다린다 — 앞 조회의 목록이 남아 있어도 통과하지 않게 한다.
+    const searchImpact = async (keyword: string) => {
+      const response = page.waitForResponse(
+        (r) =>
+          r.url().includes("/api/mdm/oasis/layoutMng/search") &&
+          r.request().method() === "POST" &&
+          (r.request().postData() ?? "").includes(`"keyword":"${keyword}"`) &&
+          r.status() === 200,
+        { timeout: 30_000 },
+      );
+      await layout.getByTestId("impact-keyword").fill(keyword);
+      await layout.getByTestId("impact-search").click();
+      await response;
+    };
+    await searchImpact("EXIT_COIL_THK");
     await expect(fixtureRow).toBeVisible({ timeout: 30_000 });
     await expect(fixtureRow).toContainText("L2 → MES");
-    await expect(fixtureRow).toContainText("158 / 4");
+    await expect(fixtureRow).toContainText("본문 28 / 4");
     await page.screenshot({ path: SHOT_0503("dmb-layoutMng-impact.png"), fullPage: true });
     // 도메인 표준명 — 도메인 → 컬럼 → 전문
-    await layout.getByTestId("impact-keyword").fill("COIL_THK");
-    await layout.getByTestId("impact-search").click();
+    await searchImpact("COIL_THK");
     await expect(fixtureRow).toBeVisible({ timeout: 30_000 });
-    await expect(fixtureRow).toContainText("158 / 4");
-    await layout.getByTestId("impact-keyword").fill(`없음-${STAMP}`);
-    await layout.getByTestId("impact-search").click();
+    await expect(fixtureRow).toContainText("본문 28 / 4");
+    await searchImpact(`없음-${STAMP}`);
     await expect(layout.getByTestId("impact-list-empty")).toHaveText("찾은 컬럼·도메인이 없습니다", { timeout: 30_000 });
   });
 });

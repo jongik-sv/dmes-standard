@@ -2,6 +2,8 @@
 
 표(그리드) 바로 아래에 왼쪽 행 수 안내와 오른쪽 [엑셀] 단추를 한 줄로 붙이고, 그 줄을 표 영역 바닥에 고정할 때 쓴다. 단추를 누르면 `onExcel` 만 부르므로 파일 만들기는 화면이 한다.
 
+> 표 아래 줄과 보이는 컬럼·행 내려받기를 그대로 쓰면 되는 화면은 이 컴포넌트를 직접 붙이지 말고 [AgDataGrid](ag-data-grid.md) 의 `excelExport` 속성을 준다. 그리드가 이 줄(`GridExcelFoot`)·감싸개·내려받기를 모두 맡는다. 이 컴포넌트는 엑셀 내용을 화면이 직접 정해야 할 때(열을 골라 바꾸거나 값을 변환) 단독으로 쓴다.
+
 - import: `import { GridExcelFoot, type GridExcelFootProps } from "@dk-oasis/shared/grid";` (CSS import 없음)
 - 소스: `src/frontend/shared/src/components/grid/GridExcelFoot.tsx`
 - 내부 구현: 일반 `div`·`span` + shared `Button`(`size="mini"`) + `@tabler/icons-react` 의 `IconDownload`. 스타일은 컴포넌트가 `<style href="cm-grid-foot">` 로 직접 넣는다(`grid.css` 아님 — 포털이 원격 모듈의 CSS 파일을 싣지 않는다, Part B §18-3). 색·간격은 공통 토큰만 쓴다
@@ -9,12 +11,14 @@
 
 ## 언제 쓰나
 
-- 쓴다: 카드·위젯 안의 작은 목록처럼 PageLayout 상단 버튼 막대가 없는 자리에서, 표 아래에 「N건」과 엑셀 내려받기를 함께 둘 때. 보이는 행 그대로를 내려받는 화면에 맞다.
+- 쓴다: 카드·위젯 안의 작은 목록처럼 PageLayout 상단 버튼 막대가 없는 자리에서, 표 아래에 안내 글과 엑셀 단추를 두되 **엑셀 내용을 화면이 직접 정할 때**. 보이는 컬럼·행을 그대로 내려받기만 하면 `AgDataGrid` 의 `excelExport` 가 더 간단하다([AgDataGrid](ag-data-grid.md) §아래 줄과 엑셀 내려받기).
 - 쓰지 않는다: 화면 전체 목록의 엑셀 버튼 → PageLayout 상단 「엑셀」 버튼(`action: "export"`)과 [exportToExcel](export-to-excel.md). 이 컴포넌트는 파일을 만들지 않고 단추 줄만 그린다.
 - 쓰지 않는다: 서버 페이징 막대 → [Pagination](pagination.md)(페이지 이동·총 건수). 패널 머리의 건수·버튼 → [GridPanel](grid-panel.md)(`count`·`buttons`).
-- 엑셀 파일 내용(컬럼·파일 이름)은 `onExcel` 안에서 [exportToExcel](export-to-excel.md) 로 만든다.
+- 엑셀 파일 내용(컬럼·파일 이름)은 `onExcel` 안에서 [exportToExcel](export-to-excel.md) 로 만든다. 파일 이름·열 폭 계산은 같은 유틸의 `excelFileName`·`toExcelColumns` 를 쓸 수 있다.
 
 ## 표준 사용
+
+(보이는 컬럼·행을 그대로 내려받는 화면은 `AgDataGrid excelExport` 를 쓴다. 아래는 이 컴포넌트를 단독으로 쓰는 모양이다.)
 
 표를 남은 높이만큼 채우고(`AgDataGrid height="100%"`) 이 줄을 바닥에 두려면, 세로 flex 감싸개 안에 표 칸(`flex: 1 1 0; min-height: 0`)과 이 줄을 순서대로 둔다. 이 줄은 `flex: none` 이라 높이를 키우지 않는다. 감싸개의 높이가 정해져 있어야 한다(위젯 본문처럼 부모가 높이를 주는 자리).
 
@@ -94,5 +98,5 @@ export function OrderTable({ rows }: { rows: Record<string, unknown>[] }) {
 
 ## 실제 사용 예
 
-- `src/frontend/m-mcm/widget-types/query-table/renderer.tsx`: 쿼리 표 위젯. `.wq-fill`/`.wq-fill__grow` 감싸개 + `AgDataGrid height="100%"` + 이 줄(행 수·잘림 안내).
-- `src/frontend/m-mcm/widgets/home/workOrders/widget.tsx`, `src/frontend/m-mcm/widgets/home/shipments/widget.tsx`: 홈 기본 표 위젯. `widgets/home/_shared/grid-fill.tsx` 의 `HomeGridFill`(감싸개 + 스타일)에 표와 이 줄을 넣는다. 제목이 없을 때 파일 이름은 각각 「작업지시」「출하」.
+- 단독 사용처는 아직 없다. 쿼리 표(`src/frontend/m-mcm/widget-types/query-table/renderer.tsx`)와 홈 기본 표 위젯(`widgets/home/workOrders/widget.tsx`·`shipments/widget.tsx`)은 `AgDataGrid` 의 `excelExport` 속성으로 옮겼다(이 줄은 그리드 안에서 그려진다).
+- 모양과 `data-testid`(줄 `grid-foot`, 글 `grid-foot-note`)는 `excelExport` 를 써도 이 컴포넌트와 같다. [엑셀] 단추의 기본 `data-testid` 는 `grid-excel` 이고, m-mcm 의 세 위젯은 `testId: "wq-excel"` 을 넘긴다. 시험: `src/frontend/shared/tests/unit/grid-excel-foot.unit.test.ts`(이 줄), `ag-data-grid-excel.unit.test.ts`(`excelExport`).

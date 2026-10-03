@@ -1,7 +1,7 @@
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+
+import { clickSearch, expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
 
 /**
  * 전문 헤더 정의(dmb/headerMng) 브라우저 E2E — TSK-05-02 design.md §3.5.
@@ -29,12 +29,6 @@ const NEW_EAI = `X${STAMP}`;
 // __dirname = src/frontend/e2e → repo root 까지 3단계 위.
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-02/screens", name);
 
-function loadFixture() {
-  const db = process.env.SMOKE_MDM_DB;
-  if (!db) throw new Error("SMOKE_MDM_DB 에 워크트리 mdm.db 경로를 넣는다(design.md §3.7)");
-  execFileSync("sqlite3", [db], { input: readFileSync(path.resolve(__dirname, "fixtures/mdm-layout-m201.sql")) });
-}
-
 async function login(page: Page) {
   await page.goto(`${BASE_URL}/login`);
   await page.getByPlaceholder("아이디").fill(USER);
@@ -53,13 +47,14 @@ async function openScreen(page: Page): Promise<Locator> {
   const layout = page.locator(".page-layout").filter({
     has: page.locator(".page-layout__footer-screen-id", { hasText: "headerMng" }),
   });
-  await expect(layout.getByTestId("header-list")).toBeVisible({ timeout: 60_000 });
+  // 화면은 목록을 자동 조회하지 않고 열린다(cf4fbb05) — 목록이 아니라 검색 칸이 보이면 열린 것이다.
+  await expect(layout.getByTestId("header-search-keyword")).toBeVisible({ timeout: 60_000 });
   return layout;
 }
 
 async function search(layout: Locator, keyword: string) {
   await layout.getByTestId("header-search-keyword").fill(keyword);
-  await layout.getByRole("button", { name: "조회", exact: true }).click();
+  await clickSearch(layout);
 }
 
 function listRow(layout: Locator, text: string): Locator {
@@ -92,7 +87,7 @@ test.use({ viewport: { width: 1680, height: 1200 } });
 test.describe("mdm 전문 헤더 정의", () => {
   test.setTimeout(180_000);
 
-  test.beforeAll(() => loadFixture());
+  test.beforeAll(() => loadMdmFixture("mdm-layout-m201.sql"));
 
   test("H1 메뉴로 이동하고 목록은 서버 데이터, 결과가 없으면 빈 상태", async ({ page }) => {
     await login(page);
@@ -100,17 +95,17 @@ test.describe("mdm 전문 헤더 정의", () => {
     await expect(layout.locator(".page-layout__footer-breadcrumb")).toHaveText("마루 MDM > 레이아웃 > 전문 헤더 정의");
     await expect(layout.locator(".page-layout__footer-screen-id")).toHaveText("headerMng");
     // 화면을 열어도 목록은 자동 조회되지 않는다 — [조회] 를 눌러야 픽스처 헤더가 보인다.
-    await layout.getByRole("button", { name: "조회", exact: true }).click();
+    await clickSearch(layout);
     const glue = listRow(layout, "GLUE 공통 헤더(E2E)");
     await expect(glue).toBeVisible({ timeout: 30_000 });
-    await expect(glue.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("100");
-    await expect(glue.locator('.ag-cell[col-id="ITEM_COUNT"]')).toHaveText("13");
+    await expectRowCell(glue, "TOTAL_LENGTH", "100");
+    await expectRowCell(glue, "ITEM_COUNT", "13");
     // 픽스처 헤더는 1.000 RELEASED(2000-01-01 부터) — 지금 적용 중이다
-    await expect(glue.locator('.ag-cell[col-id="HEADER_VER"]')).toHaveText("v1.000");
-    await expect(glue.locator('.ag-cell[col-id="HEADER_STATE"]')).toHaveText("현재");
+    await expectRowCell(glue, "HEADER_VER", "v1.000");
+    await expectRowCell(glue, "HEADER_STATE", "현재");
     const l2 = listRow(layout, "L2 구간 헤더(E2E)");
-    await expect(l2.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("30");
-    await expect(l2.locator('.ag-cell[col-id="ITEM_COUNT"]')).toHaveText("6");
+    await expectRowCell(l2, "TOTAL_LENGTH", "30");
+    await expectRowCell(l2, "ITEM_COUNT", "6");
     await page.screenshot({ path: screenshot("dmb-headerMng-list.png"), fullPage: true });
 
     await search(layout, `없음-${STAMP}`);
@@ -143,12 +138,12 @@ test.describe("mdm 전문 헤더 정의", () => {
     await expect(page.getByText("저장했습니다.").first()).toBeVisible({ timeout: 30_000 });
     await search(layout, STAMP);
     const created = listRow(layout, NEW_HEADER);
-    await expect(created.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("22", { timeout: 30_000 });
-    await expect(created.locator('.ag-cell[col-id="ITEM_COUNT"]')).toHaveText("3");
+    await expectRowCell(created, "TOTAL_LENGTH", "22", { timeout: 30_000 });
+    await expectRowCell(created, "ITEM_COUNT", "3");
     await expect(created.locator('.ag-cell[col-id="EAI_CODE"]')).toHaveText(NEW_EAI);
     // 저장은 v1.000 DRAFT 를 만든다 — 확정 전이라 상태는 작성 중이다
-    await expect(created.locator('.ag-cell[col-id="HEADER_VER"]')).toHaveText("v1.000");
-    await expect(created.locator('.ag-cell[col-id="HEADER_STATE"]')).toHaveText("작성 중");
+    await expectRowCell(created, "HEADER_VER", "v1.000");
+    await expectRowCell(created, "HEADER_STATE", "작성 중");
     await page.screenshot({ path: screenshot("dmb-headerMng-register.png"), fullPage: true });
 
     // ── H3 사전에 없는 항목 — 팝업에 만들 경로가 없고, API 로 보내도 L01 ──

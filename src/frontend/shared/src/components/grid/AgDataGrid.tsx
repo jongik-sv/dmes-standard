@@ -41,6 +41,7 @@ import {
   type MdmScreenColumn,
 } from "../../mdm-meta";
 import { GRID_SIZE_CHANGE_SETTLE_MS, resolveGridSizeChangeAction } from "./grid-size-change";
+import { AgDataGridExcelFrame, type AgDataGridExcelExport } from "./AgDataGridExcel";
 import { MdmHeaderLabel, type MdmHeaderLabelParams } from "./MdmHeaderLabel";
 
 /** `rowNumber` 로 넣는 행번호 열의 colId — 테스트·화면이 이 칸을 집을 때 쓴다. */
@@ -429,6 +430,13 @@ export interface AgDataGridProps {
    * (새 fieldErrors 를 받으면 다시 처음부터).
    */
   fieldErrors?: Array<{ rowKey?: string; rowIndex?: number; field: string; message: string }>;
+  /**
+   * 표 아래에 「N행」과 [엑셀] 단추 줄(GridExcelFoot)을 붙이고, 누르면 그리드에 지금 보이는 컬럼·행을 엑셀로 내려받는다. 주지 않으면 줄도 단추도 없다.
+   * 주면 바깥을 세로 flex 상자로 감싸 표가 남은 높이를 채우고 아래 줄이 바닥에 붙는다(`height` 는 이 바깥 상자의 높이).
+   * 컬럼은 보이는 순서·제목, 숨긴 열·행 번호·체크박스는 뺀다(`excludeKeys` 로 render 전용 열도 뺄 수 있다). 행은 정렬·필터 순서, 값은 `render` 가 아니라 행의 원래 값이다.
+   * 객체를 렌더마다 새로 만들면 memo 가 깨지니 상수나 `useMemo` 로 둔다.
+   */
+  excelExport?: AgDataGridExcelExport;
 }
 
 /** 칸 검증 표시 한 건 — `AgDataGridProps.fieldErrors` 의 항목. */
@@ -982,6 +990,7 @@ function AgDataGridComponent({
   onRowOrderChange,
   mdmValidate = false,
   fieldErrors,
+  excelExport,
 }: AgDataGridProps) {
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1781,12 +1790,13 @@ function AgDataGridComponent({
   );
 
   const isAutoHeight = height === "auto";
+  const getExcelApi = useCallback(() => gridRef.current?.api, []);
 
-  return (
+  const grid = (
     <div
       ref={containerRef}
       className={`cm-data-grid ag-theme-alpine${isAutoHeight ? " cm-data-grid-auto-height" : ""}${isAutoHeight && sortedData.length === 0 ? " cm-data-grid-empty" : ""} ${className}`.trim()}
-      style={{ height: isAutoHeight ? "auto" : height || "100%", width: "100%" }}
+      style={{ height: isAutoHeight ? "auto" : excelExport ? "100%" : height || "100%", width: "100%" }}
       aria-label={ariaLabel || "데이터 목록"}
       aria-busy={loading}
       tabIndex={-1}
@@ -1856,6 +1866,20 @@ function AgDataGridComponent({
         {...rowDrag.gridProps}
       />
     </div>
+  );
+
+  if (!excelExport) return grid;
+  return (
+    <AgDataGridExcelFrame
+      options={excelExport}
+      columns={columns}
+      data={data}
+      fallbackRows={sortedData}
+      height={height}
+      getApi={getExcelApi}
+    >
+      {grid}
+    </AgDataGridExcelFrame>
   );
 }
 

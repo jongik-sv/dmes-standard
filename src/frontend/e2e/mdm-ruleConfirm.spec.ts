@@ -1,12 +1,15 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { clickSearch, fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
+
 /**
  * 룰 버전 확정(ruleConfirm) — TSK-08-05 design.md §3.4 화면 스모크 넷 + 수용 기준.
  *
  *   T1 담당자: 메뉴(마루 MDM > 업무기준 > 버전 확정)로 화면이 열린다(스모크 넷 1, 수용 기준 4).
  *   T2 담당자: 확정 대기 목록이 서버 데이터(E2E_RC_*)로 채워지고, keyword NO_SUCH 면 빈 상태(스모크 넷 2).
- *   T3 담당자: 룰 화면에서 E2E_RC_CASEFAIL v1 을 고르고 "확정 이동" → 버전 확정 탭이 그 룰·버전으로 열린다.
+ *   T3 담당자: 룰(ruleMng) 상세에서 E2E_RC_CASEFAIL v1.000 을 고르고 [확정 →] → 버전 확정 탭이 그 룰·버전으로 열린다.
+ *      (확정 이동은 룰 헤더·버전 카드를 ruleMng 으로 나눌 때(86ec7d67, D-105) 룰 화면(ruleEdit)에서 룰 상세의 버전 버튼 줄로 옮겨졌다.)
  *   T4 담당자: (T3 이어서) 검사 → 값 테스트 거부·적용 순서 면제·확정 버튼 비활성(수용 기준 1).
  *   T5 담당자: E2E_RC_OK 검사 → 경고 확인 → 확정 → 토스트·RELEASED 배지·목록에서 사라짐(스모크 넷 3).
  *   T6 담당자: E2E_RC_CONTRACT v2 검사 → 계약 변경 영역, 계약 확인란 전에는 확인 비활성 → 확정·직전 v1 닫힘.
@@ -14,7 +17,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *   T8 표준 관리자: 메뉴로 열고 E2E_RC_CASEFAIL 을 골라도 검사·확정 버튼이 비활성(수용 기준 2 의 화면 판).
  *
  * 전제(design.md 「서버·E2E 기동 방법」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고, mcm 기동
- * 뒤 e2e/fixtures/mdm-rbac-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-ruleConfirm-data.sql 을 넣는다. 이 spec 은 E2E_RC_OK·
+ * 뒤 e2e/fixtures/mdm-rbac-users.sql, beforeAll 이 e2e/fixtures/mdm-ruleConfirm-data.sql 을 넣는다. 이 spec 은 E2E_RC_OK·
  * CONTRACT·RACE 를 확정하므로, 다시 돌리려면 먼저 mdm-ruleConfirm-data.sql 을 다시 넣는다(E2E_RC_* 를 지우고 다시 넣는다).
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */
@@ -71,10 +74,9 @@ async function choose(page: Page, id: string, ver: string) {
   await expect(tid(page, "rc-target")).toContainText(`${id} 버전 v${ver}`, { timeout: 20_000 });
 }
 
-/** datetime-local(step 1) 에 `yyyy-MM-ddTHH:mm` 로 넣고 검사한다. 초가 0 이면 Chromium 이 값을 분 단위로 정규화하므로
- * 초 없이 넣는다. 화면이 초 `:00` 을 붙여 보낸다(I38). */
+/** 적용 시작(shared DateTimePicker — 6e506cc9 에서 datetime-local 을 바꿨다)에 `yyyy-MM-dd HH:mm:ss` 로 넣고 검사한다. */
 async function validate(page: Page, applyFrom: string) {
-  await tid(page, "rc-apply-from").fill(applyFrom);
+  await fillDateTime(tid(page, "rc-apply-from"), applyFrom);
   await tid(page, "rc-validate").click();
   await expect(tid(page, "rc-checks")).toBeVisible({ timeout: 30_000 });
 }
@@ -83,6 +85,8 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
   test.setTimeout(150_000);
+
+  test.beforeAll(() => loadMdmFixture("mdm-ruleConfirm-data.sql"));
 
   test("T1 담당자: 메뉴로 화면이 열린다", async ({ page }) => {
     await login(page, STEWARD);
@@ -109,16 +113,19 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await expect(tid(page, "rc-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: 20_000 });
   });
 
-  test("T3·T4 담당자: 룰 화면의 확정 이동으로 열고 검사하면 값 테스트 거부로 확정 버튼이 꺼진다", async ({ page }) => {
+  test("T3·T4 담당자: 룰 상세의 확정 이동으로 열고 검사하면 값 테스트 거부로 확정 버튼이 꺼진다", async ({ page }) => {
     await login(page, STEWARD);
-    await openMenu(page, /^룰 화면$/);
-    await expect(tid(page, "rule-pick-keyword")).toBeVisible({ timeout: 60_000 });
-    await tid(page, "rule-pick-keyword").fill("E2E_RC_CASEFAIL");
-    await page.getByRole("button", { name: "찾기", exact: true }).click();
-    await tid(page, "rule-pick-E2E_RC_CASEFAIL").click();
-    await expect(tid(page, "rule-edit-current")).toHaveText("E2E_RC_CASEFAIL", { timeout: 30_000 });
+    await openMenu(page, /^룰$/);
+    await expect(tid(page, "rule-search-keyword")).toBeVisible({ timeout: 60_000 });
+    // 룰 목록은 자동 조회되지 않는다(cf4fbb05) — 그 룰로 조회해 상세(① 헤더·② 버전)를 연다.
+    await tid(page, "rule-search-keyword").fill("E2E_RC_CASEFAIL");
+    await clickSearch(page);
+    // 룰 ID 링크는 룰 화면 탭을 연다(기능설계서 G-001) — 상세는 행의 다른 칸(룰명)을 눌러 연다.
+    await page.locator(".ag-row", { has: tid(page, "rule-link-E2E_RC_CASEFAIL") }).locator('.ag-cell[col-id="maruRuleName"]').click();
+    await expect(tid(page, "rule-header-id")).toHaveText("E2E_RC_CASEFAIL", { timeout: 30_000 });
+    await tid(page, "rule-version-table").locator('.ag-center-cols-container .ag-row[row-id="1.000"] .ag-cell[col-id="ver"]').click();
 
-    const move = page.getByRole("button", { name: "확정", exact: true });
+    const move = tid(page, "rule-move-to-confirm");
     await expect(move).toBeEnabled({ timeout: 20_000 });
     await move.click();
 
@@ -128,7 +135,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await expect(tid(page, "rc-previous")).toHaveText("최초 버전 — 적용 순서 검사를 하지 않습니다");
 
     // T4: 값 테스트 거부 · 적용 순서 면제 · 확정 비활성
-    await validate(page, "2026-10-01T00:00");
+    await validate(page, "2026-10-01 00:00:00");
     await expect(tid(page, "rc-check-status-TEST_CASES")).toHaveText("거부");
     await expect(tid(page, "rc-check-status-TEST_CASES")).toHaveAttribute("data-rejected", "true");
     // 검사 표는 AgDataGrid 다 — 행은 row-id(검사 항목)로 찾는다.
@@ -146,7 +153,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await choose(page, "E2E_RC_OK", "1.000");
 
     await expect(tid(page, "rc-previous")).toHaveText("최초 버전 — 적용 순서 검사를 하지 않습니다");
-    await validate(page, "2026-01-01T00:00");
+    await validate(page, "2026-01-01 00:00:00");
     await expect(tid(page, "rc-check-status-TEST_CASES")).toHaveText("통과");
     await expect(tid(page, "rc-check-status-APPLY_FROM")).toHaveText("면제");
     await expect(tid(page, "rc-check-status-SAVE_CHECKS")).toHaveText("경고");
@@ -180,7 +187,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await expect(tid(page, "rc-previous")).toContainText("직전 RELEASED 버전 v1.000 · 2026-01-01 00:00:00");
     await expect(tid(page, "rc-diff-counts")).toHaveText("추가 0 · 삭제 0 · 수정 2 · 같음 0");
     // 먼 미래 일시 — 서버 시계 기준 futureApplyFrom=true 가 실행 날짜와 상관없이 늘 참이다.
-    await validate(page, "2030-01-01T00:00");
+    await validate(page, "2030-01-01 00:00:00");
     await expect(tid(page, "rc-check-status-APPLY_FROM")).toHaveText("통과");
     await expect(tid(page, "rc-contract")).toHaveAttribute("data-state", "CHANGED");
     await expect(tid(page, "rc-contract")).toContainText("[COIL_WID]");
@@ -212,7 +219,7 @@ test.describe("mdm ruleConfirm — 룰 버전 확정", () => {
     await login(page, STEWARD);
     await openRuleConfirm(page);
     await choose(page, "E2E_RC_RACE", "1.000");
-    await validate(page, "2026-02-01T00:00");
+    await validate(page, "2026-02-01 00:00:00");
     await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: 20_000 });
 
     // 빈틈 경고가 있으므로 먼저 확정하는 세션은 경고 확인(true)을 보낸다 — false 면 MDM014 로 경합이 만들어지지 않는다.
