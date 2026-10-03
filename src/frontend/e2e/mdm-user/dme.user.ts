@@ -171,22 +171,15 @@ const detailVerRow = (page: Page, ver: string) =>
 
 /**
  * ruleMng 에서 룰을 조회해 그 행을 눌러 오른쪽 상세를 연다. 룰 ID 링크는 룰 화면 탭을 열므로 룰명 칸을 누른다(기능설계서 G-001).
- *
- * ruleMng 는 이미 고른 행을 다시 누르거나 다시 조회해도 상세를 다시 읽지 않는다(page.tsx selectedId effect — 같은 값이면 안 돈다).
- * 다른 사용자의 선점·해제를 보려면 사용자처럼 룰 탭을 닫고 메뉴로 다시 연다(보고서 제품 결함 후보 — codeMng·dataMng 는 같은 행을
- * 다시 누르면 상세를 다시 읽는다). 그래서 이 도우미는 늘 룰 탭을 새로 연다.
+ * 같은 행을 다시 눌러도 상세를 다시 읽는다(0828a082) — 다른 사용자의 선점·해제·확정이 보이도록 행을 누른 뒤의 상세 응답을 기다린다.
  */
 async function openRuleDetail(page: Page, id: string) {
-  const ruleTab = page.locator(".tabs-bar .tab-item").filter({ has: page.locator(".tab-title", { hasText: /^룰$/ }) });
-  if (await ruleTab.count()) {
-    await ruleTab.first().hover();
-    await ruleTab.first().locator(".tab-close").click();
-    await expect(ruleTab).toHaveCount(0);
-  }
   await go(page, "ruleMng");
   await searchRule(page, id);
   await expect(ruleRow(page, id)).toHaveCount(1, { timeout: 20_000 });
+  const view = page.waitForResponse((r) => r.url().includes("/oasis/ruleMng/view") && r.request().method() === "POST");
   await ruleCell(page, id, "maruRuleName").click();
+  expect((await view).ok()).toBe(true);
   await expect(tid(page, "rule-header-id")).toHaveText(id, { timeout: 30_000 });
 }
 
@@ -1628,7 +1621,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
     // DRAFT 삭제는 룰 상세 ② 버전 줄의 [삭제] 다(D-105).
     await go(page, "ruleMng");
     await openRuleDetail(page, RULE);
-    // 기본 선택은 미적용 버전(2.000)이다. 확정 버전 1 을 고르면 삭제가 꺼진다.
+    // 미적용 버전(2.000)이 골라져 있다(다시 읽어도 남은 버전이면 선택을 유지한다 — RuleDetailPanel). 확정 버전 1 을 고르면 삭제가 꺼진다.
     await expect(detailVerRow(page, "2.000")).toHaveClass(/ag-row-highlighted/);
     await selectDetailVer(page, "1.000");
     await expect(tid(page, "rule-version-delete")).toBeDisabled();

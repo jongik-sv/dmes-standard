@@ -374,12 +374,13 @@ dmc·dmd 첫 실행은 99건 중 통과 85 / 실패 14 였고, 실패는 모두 
 - `Pagination.tsx` 에 16진수 색이 직접 들어 있다.
 
 
-2026-10-03 수리 중 관찰(실패로 두지 않음):
-- 새 mcm 을 띄운 뒤 첫 만료 토큰 정리(RevokedTokenPurger, 기동 60초 뒤)와 로그인이 겹치면 SQLite 잠금(SQLITE_BUSY)으로 로그인이 500 이 된다(mcm SQLite busy_timeout 없음).
-- ruleMng 상세는 같은 행을 다시 누르거나 다시 조회해도 다시 읽지 않는다(page.tsx selectedId 가 바뀔 때만 loadDetail). codeMng·dataMng 는 누를 때마다 읽는다.
-- dmd 카테고리 추가 팝업은 서버가 거부해도 닫히고 입력이 지워진다(CategoryAddModal submit). 룰·마루 코드 등록 팝업은 입력을 남긴다.
-- dma 컬럼 사전 토큰 표는 열 폭 합(640px)이 표 폭(565px)보다 넓어 가로로 넘치고, 처음 그릴 때 드러나는 겹침 가로 막대가 마지막 행 버튼을 덮는다(macOS 겹침 스크롤 막대).
-- DomainField 는 칸을 떠날 때 돈 확정 검색 결과로 막 연 [찾기] 팝업을 닫을 수 있다. IdPicker 는 화면 인계로 연 ID 가 바뀌면 진행 중인 [찾기] 결과를 버린다.
+2026-10-03 수리 중 관찰(실패로 두지 않음 — 뒤 괄호는 dev 수정):
+- 새 mcm 을 띄운 뒤 첫 만료 토큰 정리(RevokedTokenPurger, 기동 60초 뒤)와 로그인이 겹치면 SQLite 잠금(SQLITE_BUSY)으로 로그인이 500 이 된다(mcm SQLite busy_timeout 없음 — 0f9fa18b 로그인 SQLITE_BUSY 재시도).
+- ruleMng 상세는 같은 행을 다시 누르거나 다시 조회해도 다시 읽지 않는다(page.tsx selectedId 가 바뀔 때만 loadDetail). codeMng·dataMng 는 누를 때마다 읽는다(0828a082 — 같은 행 재클릭·[조회] 때 다시 읽는다).
+- dmd 카테고리 추가 팝업은 서버가 거부해도 닫히고 입력이 지워진다(CategoryAddModal submit). 룰·마루 코드 등록 팝업은 입력을 남긴다(dfb2b5d2 — 거부되면 입력을 남긴 채 열려 있다).
+- dma 컬럼 사전 토큰 표는 열 폭 합(640px)이 표 폭(565px)보다 넓어 가로로 넘치고, 처음 그릴 때 드러나는 겹침 가로 막대가 마지막 행 버튼을 덮는다(macOS 겹침 스크롤 막대 — 15864467 열 최소 폭 합을 표 폭 안으로).
+- DomainField 는 칸을 떠날 때 돈 확정 검색 결과로 막 연 [찾기] 팝업을 닫을 수 있다. IdPicker 는 화면 인계로 연 ID 가 바뀌면 진행 중인 [찾기] 결과를 버린다(20bbb905·53074304·3ee724b4 — 인계 때 아직 오지 않은 찾기는 살리고 이미 열린 목록은 닫는다).
+- 공용 ComboBox 는 목록(options)이 새로 오면 검색어를 선택값 라벨로 되돌린다(ComboBox.tsx 동기화 효과 [value, options]). unitMng 차원 콤보에 목록이 오기 전에 새 차원을 치면 글자가 지워진다(새로 띄운 mdm 의 첫 조회가 5초 걸린 최종 실행 4회차에서 관찰). 시험은 목록이 뜬 뒤 입력한다.
 
 dma·dmb·dme 관찰(실패로 두지 않음):
 - domainMng 6개 하위 컴포넌트에 data-testid 가 없다(aria-label 로 찾음). unitMng·termMng 상세 폼도 testid 가 거의 없다.
