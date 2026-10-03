@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.common.rule;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.str;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -67,9 +69,5 @@ public final class RuleAnalysisInputMapper {
         return new RuleCell(str(c.get("op")), str(c.get("left")), str(c.get("right")),
                 c.get("list") instanceof List<?> list ? list.stream().map(x -> x == null ? null : x.toString()).toList() : null,
                 str(c.get("expr")), RuleCellsCodec.ast(c.get("ast")), str(c.get("val")), null);
-    }
-
-    private static String str(Object value) {
-        return value == null ? null : value.toString();
     }
 }

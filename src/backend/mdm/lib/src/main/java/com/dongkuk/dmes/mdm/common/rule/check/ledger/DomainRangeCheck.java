@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.common.rule.check.ledger;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.str;
+
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckReport;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveCheck;
@@ -76,7 +78,7 @@ public class DomainRangeCheck implements RuleSaveCheck {
 
     private List<String> values(LedgerCells.Cell c) {
         if ("RESULT".equals(c.var().varKind())) {
-            String val = LedgerCells.str(c.cell().get("val"));
+            String val = str(c.cell().get("val"));
             return val == null || val.isBlank() || c.cell().get("expr") != null ? List.of() : List.of(val);
         }
         boolean string = !"NUMBER".equals(c.var().dataType()) && !"BOOLEAN".equals(c.var().dataType());

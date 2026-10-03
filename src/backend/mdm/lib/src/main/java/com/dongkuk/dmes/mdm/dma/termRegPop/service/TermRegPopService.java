@@ -1,5 +1,8 @@
 package com.dongkuk.dmes.mdm.dma.termRegPop.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
+
 import com.dongkuk.dmes.mdm.common.security.MdmStdAdminGuard;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
@@ -83,8 +86,8 @@ public class TermRegPopService {
 
         String termName = trim(req.getTermName());
         String definition = trim(req.getDefinition());
-        String context = blankToNull(req.getContext());
-        String engName = blankToNull(req.getEngName());
+        String context = trimToNull(req.getContext());
+        String engName = trimToNull(req.getEngName());
         String engAbbr = trim(req.getEngAbbr());
         Integer senseNo = req.getSenseNo();
         if (termName.isEmpty() || !NamingRules.TERM_NAME.matcher(termName).matches()) {
@@ -166,16 +169,7 @@ public class TermRegPopService {
         }
     }
 
-    private static RuntimeException invalid(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
-    }
-
     private static String trim(String value) {
         return value == null ? "" : value.trim();
-    }
-
-    private static String blankToNull(String value) {
-        String trimmed = trim(value);
-        return trimmed.isEmpty() ? null : trimmed;
     }
 }

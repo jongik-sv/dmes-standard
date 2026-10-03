@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.dme.ruleSetMng.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.blankToNull;
+
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.RuleIo;
@@ -216,9 +218,5 @@ public class RuleSetMngService {
 
     private static String upper(String s) {
         return s == null ? null : s.toUpperCase(Locale.ROOT);
-    }
-
-    private static String blankToNull(String s) {
-        return s == null || s.isBlank() ? null : s.trim();
     }
 }
