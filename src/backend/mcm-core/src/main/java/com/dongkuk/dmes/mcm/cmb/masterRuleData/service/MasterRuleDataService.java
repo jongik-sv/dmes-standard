@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
 
 /**
  * 업무기준 Data관리 — cmb/masterRuleData OASIS 서비스 (Spring bean = {@code masterRuleDataService}).
@@ -198,7 +199,7 @@ public class MasterRuleDataService {
 
         // 루프 #1 — updated / deleted (As-Is java:63~134)
         for (Map<String, Object> row : rows) {
-            String status = nvl(strOf(row.get("rowStatus")));
+            String status = nvl(strOfTrim(row.get("rowStatus")));
             if ("U".equals(status)) {
                 Map<String, Object> cols = filterCols(row, typeMap);
                 Object seq = row.get("RULE_SEQ");
@@ -233,7 +234,7 @@ public class MasterRuleDataService {
         // 루프 #2 — inserted (채번 후 — As-Is java:136~181)
         long maxSeq = -1;
         for (Map<String, Object> row : rows) {
-            if (!"C".equals(nvl(strOf(row.get("rowStatus"))))) continue;
+            if (!"C".equals(nvl(strOfTrim(row.get("rowStatus"))))) continue;
             if (maxSeq < 0) {
                 Object max = em.createNativeQuery("SELECT ISNULL(MAX(RULE_SEQ), 0) FROM " + table).getSingleResult();   // #4 GetMaxRuleSeq
                 maxSeq = ((Number) max).longValue();
@@ -331,7 +332,7 @@ public class MasterRuleDataService {
                 throw new BusinessException(ErrorCode.INVALID_VALUE,
                         "[" + colId + "] 컬럼정의 COL_ID 가 식별자 형식이 아닙니다.");
             }
-            map.put(colId, strOf(d[9]));   // COL_ID → COL_TYPE
+            map.put(colId, strOfTrim(d[9]));   // COL_ID → COL_TYPE
         }
         return map;
     }
@@ -390,7 +391,4 @@ public class MasterRuleDataService {
         return s == null ? "" : s.trim();
     }
 
-    private static String strOf(Object o) {
-        return o == null ? null : String.valueOf(o).trim();
-    }
 }

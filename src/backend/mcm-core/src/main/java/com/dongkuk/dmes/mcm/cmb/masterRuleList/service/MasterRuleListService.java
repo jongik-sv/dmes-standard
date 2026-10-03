@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
 
 /**
  * 업무기준 목록조회 — cmb/masterRuleList OASIS 서비스 (Spring bean = {@code masterRuleListService}).
@@ -113,8 +114,8 @@ public class MasterRuleListService {
         for (int i = 0; i < master.size(); i++) {
             Map<String, Object> row = master.get(i);
             if (row == null) continue;
-            String rowStatus = strOf(row.get("rowStatus"));
-            String ruleId = strOf(row.get("ruleId"));
+            String rowStatus = strOfTrim(row.get("rowStatus"));
+            String ruleId = strOfTrim(row.get("ruleId"));
 
             // BR-005 RULE_ID 필수 (updated/inserted 행)
             if (("C".equals(rowStatus) || "U".equals(rowStatus)) && isBlank(ruleId)) {
@@ -129,11 +130,11 @@ public class MasterRuleListService {
                 }
                 RuleMaster e = new RuleMaster();
                 e.setRuleId(ruleId);
-                e.setRuleTp(strOf(row.get("ruleTp")));
-                e.setRuleDesc(strOf(row.get("ruleDesc")));
-                e.setRuleOwnerEmpNo(strOf(row.get("ruleOwnerEmpNo")));
-                e.setRuleNm(strOf(row.get("ruleNm")));
-                e.setUseTp(strOf(row.get("useTp")));
+                e.setRuleTp(strOfTrim(row.get("ruleTp")));
+                e.setRuleDesc(strOfTrim(row.get("ruleDesc")));
+                e.setRuleOwnerEmpNo(strOfTrim(row.get("ruleOwnerEmpNo")));
+                e.setRuleNm(strOfTrim(row.get("ruleNm")));
+                e.setUseTp(strOfTrim(row.get("useTp")));
                 e.setRuleVer(defaultVer(row.get("ruleVer")));                         // As-Is INSERT '1' (xfdl:231)
                 repository.save(e);
             } else if ("U".equals(rowStatus)) {
@@ -141,9 +142,9 @@ public class MasterRuleListService {
                 RuleMaster e = repository.findById(ruleId).orElseThrow(() ->
                         new BusinessException(ErrorCode.BUSINESS_ERROR,
                                 "[" + ruleId + "] 수정 대상 업무기준이 존재하지 않습니다."));
-                e.setRuleNm(strOf(row.get("ruleNm")));
-                e.setRuleDesc(strOf(row.get("ruleDesc")));
-                e.setUseTp(strOf(row.get("useTp")));
+                e.setRuleNm(strOfTrim(row.get("ruleNm")));
+                e.setRuleDesc(strOfTrim(row.get("ruleDesc")));
+                e.setUseTp(strOfTrim(row.get("useTp")));
                 repository.save(e);
             }
             // 그 외 rowStatus(빈 문자열 등) → 변경 없음 skip
@@ -171,13 +172,9 @@ public class MasterRuleListService {
         return (s == null || s.isBlank()) ? null : s.trim();
     }
 
-    private static String strOf(Object o) {
-        return o == null ? null : String.valueOf(o).trim();
-    }
-
     /** RULE_VER 기본값 — 공란/비숫자 시 1 (As-Is rowAdd xfdl:231). NUMBER(8,2) → BigDecimal. */
     private static BigDecimal defaultVer(Object v) {
-        String s = strOf(v);
+        String s = strOfTrim(v);
         if (isBlank(s)) return BigDecimal.ONE;
         try {
             return new BigDecimal(s);

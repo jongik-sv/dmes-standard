@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
 
 /**
  * 업무기준 컬럼 리스트 등록 팝업 — cmb/masterRuleFrameColListPopup OASIS 서비스
@@ -117,13 +118,13 @@ public class MasterRuleFrameColListPopupService {
             MasterRuleColList e = new MasterRuleColList();
             e.setId(new MasterRuleColListId(ruleId, ++cnt));   // COL_SEQ 재채번 (As-Is Java:43)
             e.setRuleVer(BigDecimal.ONE);                      // RULE_VER "1" 고정 (As-Is Java:42)
-            e.setColId(strOf(row.get("colId")));
-            e.setColNm(strOf(row.get("colNm")));
-            e.setIoFlag(strOf(row.get("ioFlag")));
-            e.setColType(strOf(row.get("colType")));
+            e.setColId(strOfTrim(row.get("colId")));
+            e.setColNm(strOfTrim(row.get("colNm")));
+            e.setIoFlag(strOfTrim(row.get("ioFlag")));
+            e.setColType(strOfTrim(row.get("colType")));
             e.setColLen(toInt(row.get("colLen"), "총길이"));
             e.setColPrecLen(toInt(row.get("colPrecLen"), "소수점길이"));
-            e.setMasterCodeDiv(strOf(row.get("masterCodeDiv")));
+            e.setMasterCodeDiv(strOfTrim(row.get("masterCodeDiv")));
             // OLD_COL_ID / MES_COL_ID — As-Is 주석(INSERT 비포함, Java:46/51) 보존 → 미설정(null)
             entities.add(e);
         }
@@ -143,19 +144,19 @@ public class MasterRuleFrameColListPopupService {
             Map<String, Object> row = rows.get(i);
             if (row == null) continue;
             String pos = (i + 1) + "행: ";
-            if (isBlank(strOf(row.get("colNm")))) {
+            if (isBlank(strOfTrim(row.get("colNm")))) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, pos + "한글항목명을 입력해 주십시오.");   // V-003
             }
-            if (isBlank(strOf(row.get("colId")))) {
+            if (isBlank(strOfTrim(row.get("colId")))) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, pos + "영문항목명을 입력해 주십시오.");   // V-004
             }
-            if (isBlank(strOf(row.get("masterCodeDiv")))) {
+            if (isBlank(strOfTrim(row.get("masterCodeDiv")))) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, pos + "코드여부를 선택해 주십시오.");     // V-005
             }
-            if (isBlank(strOf(row.get("colType")))) {
+            if (isBlank(strOfTrim(row.get("colType")))) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, pos + "유형을 선택해 주십시오.");         // V-006
             }
-            if (isBlank(strOf(row.get("colLen")))) {
+            if (isBlank(strOfTrim(row.get("colLen")))) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, pos + "총길이를 입력해 주십시오.");       // V-007
             }
         }
@@ -169,13 +170,9 @@ public class MasterRuleFrameColListPopupService {
         return (s == null || s.isBlank()) ? null : s.trim();
     }
 
-    private static String strOf(Object o) {
-        return o == null ? null : String.valueOf(o).trim();
-    }
-
     /** 정수 변환 — 공란 → null (colPrecLen 등 선택 입력). As-Is mask ##,##9 콤마 허용. */
     private static Integer toInt(Object v, String label) {
-        String s = strOf(v);
+        String s = strOfTrim(v);
         if (isBlank(s)) return null;
         try {
             return Integer.valueOf(s.replace(",", ""));
