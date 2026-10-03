@@ -28,7 +28,6 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * 시드 후 recomputeMenuFullSeq() 가 트리 위치 기준으로 FULL_SEQ 재부여(멱등). 모두 insertIfAbsent 멱등.
      */
     public void seedAnalogMenus() {
-
         // ── 폴더 (FLD) — root analog + group anl ──
         insertMpnFld("analog", "00000004", "로그 분석", null,     4000000L);
         insertMpnFld("anl",    "00000100", "로그 조회", "analog", 4010000L);
@@ -112,7 +111,6 @@ public final class ModuleMenuSeeder extends SeedSupport {
      * 트리 위치 기준으로 다시 매긴다. 모두 멱등이다.
      */
     public void seedMlsMenus() {
-
         // ── 폴더 (FLD) — 공통관리(mcm) 아래 lsh(공지관리). 이미 다른 부모로 시드된 DB 는 아래 보정이 옮긴다 ──
         insertMpnFld("lsh", "00000600", "공지관리", "mcm", 1060000L);
         relocateNoticeFolderToMcm();

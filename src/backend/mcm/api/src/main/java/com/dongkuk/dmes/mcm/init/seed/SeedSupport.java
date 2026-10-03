@@ -135,7 +135,6 @@ public class SeedSupport {
     protected void insertMcmSecMenuIfAbsent(String menuId, String menuSeq, String fullSeq,
                                           String menuNm, String parentMenuId, String objectId,
                                           String viewYn) {
-
         // 2026-06-05 Phase 1 — OBJECT_ID camelCase 룰 강제 (reference_naming_standards §A.3.1).
         //   FE 의 page-components/{group}/{OBJECT_ID}/page.tsx 폴더명과 1:1 일치해야 동적 import 가 성공한다.
         //   PascalCase / snake_case / 빈 문자열 / 하이픈 포함 등은 모두 시드 단계에서 차단 (런타임 fail 회피).

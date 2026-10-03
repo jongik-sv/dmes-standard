@@ -389,7 +389,6 @@ public final class McmMenuSeeder extends SeedSupport {
      * LoV 표기는 표시되며 admin DEPT_CD 의 별도 정정은 후속 운영 시드에서 처리.
      */
     public void seedMcmDeptInfo() {
-
         // DEPT_001 — 경영지원본부 (root, UPPER_DEPT_CD = NULL)
         insertIfAbsent(
                 "TB_MCM_DEPT_INFO", "DEPT_CD", "DEPT_001",
