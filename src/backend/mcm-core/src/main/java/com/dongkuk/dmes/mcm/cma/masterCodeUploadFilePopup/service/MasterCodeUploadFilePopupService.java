@@ -39,6 +39,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 
 @Service("masterCodeUploadFilePopupService")
 public class MasterCodeUploadFilePopupService {
@@ -187,9 +188,6 @@ public class MasterCodeUploadFilePopupService {
     // ── helpers ──
     private static boolean isBlank(Object v) {
         return v == null || (v instanceof String s && s.isBlank());
-    }
-    private static String strOf(Object v) {
-        return v == null ? null : v.toString();
     }
     private static Long toLong(Object v) {
         if (v == null) return null;
