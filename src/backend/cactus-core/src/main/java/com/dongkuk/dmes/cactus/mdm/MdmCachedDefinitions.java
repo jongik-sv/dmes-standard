@@ -157,9 +157,18 @@ public final class MdmCachedDefinitions implements DefinitionLookup, CodeLookup,
         return cachedCode(maruCodeId, ver).members(cateId);
     }
 
-    /** 코드 버전 본문 — 캐시에 없으면 부재 기록 후 던진다(빈 값을 주지 않는다, 스펙 §5.4 불변식). */
+    /**
+     * 코드 버전 본문 — 캐시에 없으면(목차에 없는 버전 포함) 부재 기록 후 던진다(빈 값을 주지 않는다, 스펙 §5.4 불변식). ver 를 키로 만들 수 없어도
+     * 부재 기록({@code CODE:X@그 ver 그대로}) 후 던진다 — 검증기는 예외가 아니라 부재 기록으로 검증 불가를 가린다.
+     */
     private MdmCodeVersion cachedCode(String maruCodeId, BigDecimal ver) {
-        String v = MdmVersions.key(ver);
+        String v;
+        try {
+            v = MdmVersions.key(ver);
+        } catch (IllegalArgumentException e) {
+            miss(MdmTargetType.CODE, MdmVersions.logical(maruCodeId, ver == null ? null : ver.toPlainString()));
+            throw new MdmUnavailableException("MDM 정의를 해석할 수 없습니다: " + MdmTargetType.CODE + " " + maruCodeId + " — " + e.getMessage(), e);
+        }
         MdmMetaService.CachedRead body = service.cachedBody(MdmTargetType.CODE, maruCodeId, v);
         if (!body.cached() || body.value() == null) {
             miss(MdmTargetType.CODE, MdmVersions.logical(maruCodeId, v));

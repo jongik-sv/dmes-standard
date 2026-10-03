@@ -61,10 +61,6 @@ public final class MdmCodeVersion {
         return slice == null ? Optional.empty() : Optional.of(members.getOrDefault(cateId, Set.of()));
     }
 
-    public boolean isSliced() {
-        return slice != null;
-    }
-
     @JsonValue
     public Object json() {
         return slice != null ? slice : rows;

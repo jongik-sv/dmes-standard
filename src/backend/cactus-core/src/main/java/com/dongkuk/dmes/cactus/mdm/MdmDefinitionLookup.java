@@ -29,7 +29,7 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
  *
  * <p>D-154 — 버전 대상은 목차로 판정 시각의 버전을 고르고 그 본문을 쓴다({@link MdmMetaService#oneAt}). 코드는 {@link #code}(목차 행)·
  * {@link #codeAt}(본문 행)·{@link #codes}(소속 집합). 불변식: 목차가 있는 코드에 대해 {@code codes} 는 빈 값을 주지 않는다(본문을 받아 집합을 주거나
- * 받을 수 없으면 던진다). off 의 전 이력 본문만 빈 값이다.
+ * 받을 수 없으면 던진다 — 목차에 없는 버전, 소수 넷째 자리 ver 도 던진다). off 의 전 이력 본문만 빈 값이다.
  */
 public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup, CodeEffLookup {
 
@@ -98,16 +98,28 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup, CodeEf
         return service.toc(MdmTargetType.CODE, maruCodeId).map(MdmToc::codeRows);
     }
 
-    /** 버전 본문 행 — 그 버전 1행·유효 items·고른 정의·합성 cateItems(off 면 전 이력 행). */
+    /** 버전 본문 행 — 그 버전 1행·유효 items·고른 정의·합성 cateItems(off 면 전 이력 행). 목차에 없는 버전이면 {@link MdmUnavailableException}. */
     @Override
     public Optional<CodeRows> codeAt(String maruCodeId, BigDecimal ver) {
-        return service.body(MdmTargetType.CODE, maruCodeId, MdmVersions.key(ver)).map(b -> ((MdmCodeVersion) b).rows());
+        return service.body(MdmTargetType.CODE, maruCodeId, verKey(maruCodeId, ver)).map(b -> ((MdmCodeVersion) b).rows());
     }
 
-    /** 소속 집합 색인(결정 P4) — 본문에 없는 cateId 는 빈 집합. off 의 전 이력이면 빈 값(해석기가 계산한다). */
+    /**
+     * 소속 집합 색인(결정 P4) — 본문에 없는 cateId 는 빈 집합. off 의 전 이력이면 빈 값(해석기가 계산한다). 목차에 없는 버전이면
+     * {@link MdmUnavailableException}(빈 값 금지 불변식).
+     */
     @Override
     public Optional<Set<String>> codes(String maruCodeId, BigDecimal ver, String cateId) {
-        return service.body(MdmTargetType.CODE, maruCodeId, MdmVersions.key(ver)).flatMap(b -> ((MdmCodeVersion) b).members(cateId));
+        return service.body(MdmTargetType.CODE, maruCodeId, verKey(maruCodeId, ver)).flatMap(b -> ((MdmCodeVersion) b).members(cateId));
+    }
+
+    /** 본문 키 ver — 소수 넷째 자리 등 키로 만들 수 없으면 받을 수 없음(원장은 DECIMAL(7,3) 이라 드물다). */
+    static String verKey(String maruCodeId, BigDecimal ver) {
+        try {
+            return MdmVersions.key(ver);
+        } catch (IllegalArgumentException e) {
+            throw new MdmUnavailableException("MDM 정의를 해석할 수 없습니다: " + MdmTargetType.CODE + " " + maruCodeId + " — " + e.getMessage(), e);
+        }
     }
 
     /**

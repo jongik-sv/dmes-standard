@@ -295,8 +295,10 @@ public class MdmMetaService {
     }
 
     /**
-     * 버전 본문 하나(엔진 {@code codeAt}·{@code CodeEffLookup}). 목차에 없는 버전이면 빈 값. 받을 수 없으면 {@link MdmUnavailableException} —
-     * 다른 버전으로 대신하지 않는다(§5.9). off 면 CODE 는 전 이력을 {@link MdmCodeVersion#full} 로 감싼다(자르지 않는다).
+     * 버전 본문 하나(엔진 {@code codeAt}·{@code CodeEffLookup}). 정의가 없으면(목차 없음) 빈 값. 받을 수 없으면 {@link MdmUnavailableException} —
+     * 다른 버전으로 대신하지 않는다(§5.9). 목차에 없는 버전(엔진이 옛 목차로 고른 뒤 확정 취소된 경합 등, §5.6 다)도 빈 값이 아니라 받을 수 없음이다 —
+     * 빈 값이면 해석기가 소속을 빈 집합으로 내려 옛 판정도 새 판정도 아닌 값이 된다. off 면 CODE 는 전 이력을 {@link MdmCodeVersion#full} 로
+     * 감싼다(자르지 않는다).
      */
     public Optional<Object> body(MdmTargetType type, String key, String ver) {
         requireVersionedType(type);
@@ -311,8 +313,11 @@ public class MdmMetaService {
         }
         for (int attempt = 0; attempt < 2; attempt++) {
             Optional<MdmToc> toc = toc(type, key);
-            if (toc.isEmpty() || toc.get().version(ver).isEmpty()) {
+            if (toc.isEmpty()) {
                 return Optional.empty();
+            }
+            if (toc.get().version(ver).isEmpty()) {
+                throw new MdmUnavailableException("목차에 없는 버전입니다(확정 취소 경합 등): " + type + " " + MdmVersions.logical(key, ver));
             }
             MdmBodyKey bk = new MdmBodyKey(key, ver);
             Bodies b = bodies(type, Map.of(bk, toc.get()), Map.of(), true);
@@ -353,7 +358,14 @@ public class MdmMetaService {
                 return new CachedRead(false, null);
             }
             Object full = hit.get().value();
-            return new CachedRead(true, full == null ? null : legacyBody(type, full, ver).orElse(null));
+            if (full == null) {
+                return new CachedRead(true, null);
+            }
+            try {
+                return new CachedRead(true, legacyBody(type, full, ver).orElse(null));
+            } catch (RuntimeException e) {
+                throw unreadable(type, key, e); // 손상 값(소수 넷째 자리 ver 등) — body·legacyMdmAt 과 같다
+            }
         }
         return cache.getBody(type, key, ver).map(e -> new CachedRead(true, e.value())).orElse(new CachedRead(false, null));
     }

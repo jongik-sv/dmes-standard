@@ -175,19 +175,17 @@ public class MdmMetaClient implements MdmMetaFeed {
                     failed.put(key, "value 없음");
                     continue;
                 }
+                MdmToc toc;
                 try {
-                    MdmToc toc = MdmJson.MAPPER.treeToValue(value, MdmToc.class);
-                    JsonNode cur = n.path("current");
-                    // current 는 덤이다 — 본문이 비었으면 목차만 받고 본문은 서비스가 따로 요청한다
-                    MdmCurrent c = cur.isObject() && !absent(cur.path("value"))
-                            ? new MdmCurrent(MdmVersions.key(cur.path("ver").asText()), convertBody(type, cur.path("value")))
-                            : null;
-                    tocs.put(key, toc);
-                    if (c != null) {
-                        current.put(key, c);
-                    }
+                    toc = MdmJson.MAPPER.treeToValue(value, MdmToc.class);
                 } catch (IOException | IllegalArgumentException | MdmUnavailableException e) {
                     failed.put(key, "MDM 응답의 " + type + " 목차를 읽을 수 없습니다: " + e.getMessage());
+                    continue;
+                }
+                tocs.put(key, toc);
+                MdmCurrent c = current(type, n.path("current"));
+                if (c != null) {
+                    current.put(key, c);
                 }
             }
             for (JsonNode n : result.path("failed")) {
@@ -195,6 +193,21 @@ public class MdmMetaClient implements MdmMetaFeed {
             }
         }
         return new MdmTocResult(tocs, current, legacy, failed);
+    }
+
+    /**
+     * 목차 응답의 current — 덤이다. 없거나 본문이 비었거나 해석하지 못하면(빈·잘못된 ver, 본문 변환 실패) null 이고 목차는 그대로 담는다. 본문은
+     * 서비스가 필요할 때 따로 요청한다.
+     */
+    private static MdmCurrent current(MdmTargetType type, JsonNode cur) {
+        if (!cur.isObject() || absent(cur.path("value"))) {
+            return null;
+        }
+        try {
+            return new MdmCurrent(MdmVersions.key(cur.path("ver").asText()), convertBody(type, cur.path("value")));
+        } catch (IllegalArgumentException | MdmUnavailableException e) {
+            return null;
+        }
     }
 
     /** 본문(D-154). 신호 (가)·(나)는 목차와 같다 — 물러나면 그 묶음의 정의 키로 전 이력을 받는다. */
