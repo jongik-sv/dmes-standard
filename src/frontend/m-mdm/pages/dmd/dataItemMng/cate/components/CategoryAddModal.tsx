@@ -15,8 +15,11 @@ import { Modal } from "@dk-oasis/shared/modal";
 export interface CategoryAddModalProps {
   open: boolean;
   onClose: () => void;
-  /** 서버 등록이 끝나면 닫고 목록은 `write` 가 다시 읽는다. */
-  onAdd: (cateId: string, cateName: string, defKind: "REGEX" | "TABLE") => void | Promise<void>;
+  /**
+   * 서버 등록. 성공하면 true — 칸을 비우고 닫으며 목록은 `write` 가 다시 읽는다. 거부되면 false — 오류는 `write` 가
+   * 알리고 팝업은 입력을 남긴 채 열려 있어 고쳐 다시 보낼 수 있다(룰·마루 코드 등록 팝업과 같은 관례).
+   */
+  onAdd: (cateId: string, cateName: string, defKind: "REGEX" | "TABLE") => boolean | Promise<boolean>;
   /** 등록 중 — 버튼을 잠가 두 번 등록되지 않게 한다. */
   busy?: boolean;
 }
@@ -39,7 +42,8 @@ export function CategoryAddModal({ open, onClose, onAdd, busy = false }: Categor
     const next = { id: !cateId.trim(), name: !cateName.trim() };
     setMissing(next);
     if (next.id || next.name) return;
-    void Promise.resolve(onAdd(cateId.trim(), cateName.trim(), defKind)).then(() => {
+    void Promise.resolve(onAdd(cateId.trim(), cateName.trim(), defKind)).then((ok) => {
+      if (!ok) return;
       setCateId("");
       setCateName("");
       setDefKind("TABLE");
