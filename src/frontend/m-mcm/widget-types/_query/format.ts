@@ -393,6 +393,19 @@ export function toPieSlices(data: ChartData): { label: string; value: number; co
   return data.categories.map((label, i) => ({ label, value: s.values[i] ?? 0, color: chartColor(i) }));
 }
 
+const PIE_UNIT_RE = /\(([^()]{1,10})\)\s*$/;
+
+/**
+ * 원 차트 범례 단위 — 첫 계열 이름 끝의 짧은 괄호 안 글자(「사용 시간(분)」→「분」, 「금액 (원)」→「원」).
+ * 괄호가 없거나 비었거나 10자를 넘거나 계열이 없으면 "" — shared PieChart 에 "" 를 넘겨야 기본 「건」이 붙지 않는다.
+ */
+export function pieUnitOf(data: ChartData): string {
+  const label = data.series[0]?.label;
+  if (!label) return "";
+  const m = PIE_UNIT_RE.exec(label);
+  return m ? m[1].trim() : "";
+}
+
 /** 범례 줄 높이(StackedColumnChart 는 범례를 그림 높이 밖에 그린다). */
 const LEGEND_HEIGHT = 26;
 

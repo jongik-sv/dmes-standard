@@ -16,6 +16,7 @@ import {
   numberConfigOf,
   patchConfig,
   pieChartSize,
+  pieUnitOf,
   previewOf,
   QUERY_EMPTY,
   QUERY_LOAD_ERROR,
@@ -382,6 +383,34 @@ describe("차트 변환", () => {
       { label: "", value: 0, color: "var(--color-chart-3)" },
     ]);
     expect(toPieSlices({ categories: [], series: [] })).toEqual([]);
+  });
+
+  it("pieUnitOf — 첫 계열 이름 끝의 짧은 괄호가 범례 단위", () => {
+    const unitOf = (label: string) => pieUnitOf({ categories: ["a"], series: [{ key: "V", label, values: [1] }] });
+    expect(unitOf("사용 시간(분)")).toBe("분");
+    expect(unitOf("금액 (원)")).toBe("원");
+    expect(unitOf("금액 ( 원 ) ")).toBe("원");
+    expect(unitOf("수량(1234567890)")).toBe("1234567890");
+  });
+
+  it("pieUnitOf — 괄호가 없거나 비었거나 길거나 끝이 아니면 빈 글자(안 넘기면 shared 기본 「건」이 붙는다)", () => {
+    const unitOf = (label: string) => pieUnitOf({ categories: ["a"], series: [{ key: "V", label, values: [1] }] });
+    expect(unitOf("사용 시간")).toBe("");
+    expect(unitOf("사용 시간()")).toBe("");
+    expect(unitOf("사용 시간( )")).toBe("");
+    expect(unitOf("수량(12345678901)")).toBe("");
+    expect(unitOf("(분) 사용 시간")).toBe("");
+    expect(unitOf("사용(총(분))")).toBe("");
+    expect(pieUnitOf({ categories: [], series: [] })).toBe("");
+  });
+
+  it("pieUnitOf — 원 차트가 그리는 첫 계열 이름만 본다", () => {
+    const data = toChartData(rows, "MON", [{ field: "QTY", label: "수량" }, { field: "AMT", label: "금액(원)" }]);
+    expect(pieUnitOf(data)).toBe("");
+    const swapped = toChartData(rows, "MON", [{ field: "AMT", label: "금액(원)" }, { field: "QTY", label: "수량" }]);
+    expect(pieUnitOf(swapped)).toBe("원");
+    // 라벨을 안 정하면 필드 이름이 계열 이름이다.
+    expect(pieUnitOf(toChartData(rows, "MON", [{ field: "QTY" }]))).toBe("");
   });
 
   it("크기 — 본문 높이에 맞추고, 높이를 모르면 기본값", () => {

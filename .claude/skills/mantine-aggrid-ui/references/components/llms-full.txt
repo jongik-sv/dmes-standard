@@ -4664,7 +4664,7 @@ DonutChart
 | centerLabel | `string` | - | 가운데 라벨 |
 | centerValue | `string` | - | 가운데 값 |
 
-PieChart: `data: PieSlice[]`(`{ label, value, color }`), `size`(180), `showLegend`(`true`).
+PieChart: `data: PieSlice[]`(`{ label, value, color }`), `size`(180), `showLegend`(`true`), `unit`(범례 값 뒤 단위, 기본 `"건"`, `""` 이면 단위 없음 — 건수가 아닌 값은 꼭 넘긴다).
 
 HBarChart: `data: BarData[]`(`{ label, value, color }`), `maxValue`(데이터 최댓값), `barHeight`(22), `labelWidth`(100), `chartWidth`(320).
 

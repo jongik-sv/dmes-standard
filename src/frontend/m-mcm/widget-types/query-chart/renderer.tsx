@@ -11,6 +11,7 @@ import {
   hasPieData,
   lineChartHeight,
   pieChartSize,
+  pieUnitOf,
   toChartData,
   toLinePoints,
   toPieSlices,
@@ -23,11 +24,12 @@ import { useQueryData } from "../_query/useQueryData";
 function ChartBody({ type, chart, body }: { type: ChartType; chart: ChartData; body: { width: number; height: number | null } }) {
   if (type === "pie") {
     // 원 차트는 첫 계열만 그린다. 양수 합이 0 이면 shared PieChart 의 「데이터 없음」 대신 QueryEmpty.
+    // 범례 단위는 계열 이름 끝 괄호에서(「사용 시간(분)」→분). 없으면 "" — 안 넘기면 shared 기본 「건」이 붙는다.
     const slices = toPieSlices(chart);
     if (!hasPieData(slices)) return <QueryEmpty />;
     return (
       <div className="wq-center" data-testid="wq-chart-pie">
-        <PieChart data={slices} size={pieChartSize(body)} />
+        <PieChart data={slices} size={pieChartSize(body)} unit={pieUnitOf(chart)} />
       </div>
     );
   }
