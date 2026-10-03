@@ -14,7 +14,7 @@ import { expect, test } from "@playwright/test";
 
 const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
 
-/** 로그인: CSRF 발급 → credentials 콜백 (six-screens-snap.spec.ts 와 동일 패턴) */
+/** 로그인: CSRF 발급 → credentials 콜백 (archive/six-screens-snap.spec.ts 와 동일 패턴) */
 async function login(page: import("@playwright/test").Page, context: import("@playwright/test").BrowserContext) {
   const csrfResp = await context.request.get(`${BASE}/api/auth/csrf`);
   const { csrfToken } = await csrfResp.json();

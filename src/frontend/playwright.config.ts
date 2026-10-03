@@ -2,6 +2,8 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  // 일회성 검증·스냅샷 스펙 보관소는 실행·컴파일 대상에서 뺀다(e2e/archive/README.md)
+  testIgnore: ["**/archive/**"],
   fullyParallel: true,
   // 병렬 스펙이 동시에 admin 로그인하면 mcm SQLite 가 SQLITE_BUSY 로 500 을 낸다. 지금도 CLI --workers=1 로 돌리므로
   // 기본값으로 둔다(인자를 빠뜨려도 안전). CLI --workers 는 이 값을 덮어쓴다.
