@@ -5,21 +5,25 @@
  *    올리면 useHoverTip 상호작용 모드로 MdmMetaCard(HTML)를 document.body 포털에 띄운다. ag-grid 머리글 툴팁은 걸지 않는다.
  *  - 그리드 tooltipInteraction 은 쓰지 않는다 — 셀·검증 오류·글자 머리글 툴팁은 dev 와 같다.
  *  - 메타는 그리드를 만든 뒤 오므로 라벨이 생기거나 빠질 때 머리글을 한 번 다시 만든다(refreshHeader, 0단계 시험 참고).
+ *  - 라벨 카드는 ag-grid 머리글 툴팁과 같은 표시 지연(기본 2000ms)을 두고, 라벨을 누르면(정렬·끌기 시작) 닫힌다. 버튼을 누른 채 지나가면 열지 않는다.
+ *  - 표시 이름이 빈 열(header: "")은 라벨을 달지 않고 예전 글자 머리글 카드(칸 전체)로 둔다.
  *  - 카드 안 조작(누름·더블클릭·문맥 메뉴·↑↓)이 정렬·행 선택·행 이동을 일으키지 않고, 카드 안 focus 에서도 Escape 로 닫힌다.
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { StrictMode, act, createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ColDef, ColGroupDef } from "ag-grid-community";
+import type { ColDef, ColGroupDef, GridApi } from "ag-grid-community";
+import { AgGridReact } from "ag-grid-react";
 import {
   AgDataGrid,
   MdmGridTooltip,
   buildColumnDefs,
   type GridColumn,
 } from "../../src/components/grid/AgDataGrid";
-import { MdmHeaderLabel } from "../../src/components/grid/MdmHeaderLabel";
+import {
+  MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS,
+  MdmHeaderLabel,
+} from "../../src/components/grid/MdmHeaderLabel";
 import { MdmMetaProvider, resetMdmMetaStore, type MdmColumnInfo } from "../../src/mdm-meta";
 import { TEXT_DOMAIN, TITLE, column, fakeMetaFetch, settle } from "./mdm-meta-fixtures";
 
@@ -81,6 +85,17 @@ describe("buildColumnDefs — HTML 설명 열은 머리글 라벨(innerHeaderCom
       innerHeaderComponent: MdmHeaderLabel,
       innerHeaderComponentParams: { mdmColumn: BODY, mdmDomain: null },
     });
+  });
+
+  it('표시 이름이 빈 열(header: "")은 라벨을 달지 않고 예전 글자 머리글 카드(칸 전체, 물리명 툴팁)로 둔다', () => {
+    const [d] = buildColumnDefs([{ key: "noticeBody", header: "" }], {
+      ...OPTS,
+      mdm: mdm([["noticeBody", info(BODY)]]),
+    }) as ColDef[];
+    expect(d.headerName).toBe("");
+    expect(d.headerComponentParams).toBeUndefined();
+    expect(d.headerTooltip).toBe("NOTICE_BODY");
+    expect(d.tooltipComponent).toBe(MdmGridTooltip);
   });
 
   it("화면이 innerHeaderComponent 를 이미 줬으면 손대지 않고 예전 글자 머리글 툴팁으로 둔다", () => {
@@ -226,12 +241,38 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       ...over,
     } as DOMRect;
   }
-  async function hoverLabel(colId = "noticeBody") {
+  function placeLabel(colId = "noticeBody") {
     const el = label(colId)!;
     el.getBoundingClientRect = () => rect({ left: 100, top: 40, bottom: 60 });
-    await act(async () => {
-      el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, relatedTarget: null }));
+    return el;
+  }
+  const over = (el: Element, buttons = 0) =>
+    act(() => {
+      el.dispatchEvent(
+        new MouseEvent("mouseover", { bubbles: true, relatedTarget: null, buttons })
+      );
     });
+  const out = (el: Element) =>
+    act(() => {
+      el.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: null }));
+    });
+  const pointerDown = (el: Element) =>
+    act(() => {
+      const Ctor =
+        (window as unknown as { PointerEvent?: typeof MouseEvent }).PointerEvent ?? MouseEvent;
+      el.dispatchEvent(new Ctor("pointerdown", { bubbles: true, button: 0, buttons: 1 }));
+    });
+  const advance = (ms: number) => act(() => void vi.advanceTimersByTime(ms));
+  /** 라벨에 올리고 표시 지연(가짜 타이머)을 넘겨 카드를 띄운다. */
+  async function hoverLabel(colId = "noticeBody") {
+    const el = placeLabel(colId);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      over(el);
+      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS);
+    } finally {
+      vi.useRealTimers();
+    }
     return portal()!;
   }
   const fire = async (el: Element, ev: Event) => {
@@ -409,10 +450,139 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
     expect(p.querySelector('[data-mdm-html="true"]')).not.toBeNull();
   });
 
-  it("grid.css 가 라벨 감싸개를 display:contents 로 둔다(머리글 말줄임이 dev 와 같게)", () => {
-    const css = readFileSync(resolve(process.cwd(), "src/components/grid/grid.css"), "utf8");
-    expect(css).toMatch(
+  it("말줄임: 라벨이 감싸개(display:contents) 규칙을 문서 머리에 한 번 스스로 싣는다 — 호스트 grid.css 에 기대지 않는다", async () => {
+    stub();
+    await render(grid());
+    expect(label("noticeBody")!.parentElement?.classList.contains("mdm-header-label-host")).toBe(
+      true
+    );
+    const styles = [...document.head.querySelectorAll("style")].filter((el) =>
+      el.textContent?.includes(".mdm-header-label-host")
+    );
+    expect(styles).toHaveLength(1);
+    expect(styles[0].textContent).toMatch(
       /\.ag-header-cell-text\s*>\s*\.mdm-header-label-host\s*\{[^}]*display:\s*contents/
     );
+  });
+
+  describe("표시 지연·누름 닫힘(재검토 N1, 가짜 타이머)", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it(`지연(${MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS}ms) 전에 떠나면 카드가 뜨지 않는다`, async () => {
+      stub();
+      await render(grid());
+      const el = placeLabel();
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      over(el);
+      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS - 1);
+      expect(portal()).toBeNull();
+      out(el);
+      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS * 2);
+      expect(portal()).toBeNull();
+    });
+
+    it("지연이 지나면 카드가 뜬다 — 그리드 기본 tooltipShowDelay(2000ms)와 같다", async () => {
+      expect(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS).toBe(2000);
+      stub();
+      await render(grid());
+      const el = placeLabel();
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      over(el);
+      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS - 1);
+      expect(portal()).toBeNull();
+      advance(1);
+      expect(portal()?.getAttribute("data-tip-interactive")).toBe("true");
+    });
+
+    it("라벨을 누르면(정렬·끌기 시작) 대기를 취소하고 열린 카드를 바로 닫는다", async () => {
+      stub();
+      await render(grid());
+      const el = placeLabel();
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      over(el);
+      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS);
+      expect(portal()).not.toBeNull();
+      pointerDown(el);
+      expect(portal()).toBeNull();
+      // 대기 중에 누르면 열리지 않는다
+      out(el);
+      over(el);
+      advance(500);
+      pointerDown(el);
+      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS * 2);
+      expect(portal()).toBeNull();
+    });
+
+    it("버튼을 누른 채 지나가면(열 끌기 중) 열지 않는다", async () => {
+      stub();
+      await render(grid());
+      const el = placeLabel();
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      over(el, 1);
+      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS * 2);
+      expect(portal()).toBeNull();
+    });
+  });
+
+  it("열 그룹 안의 HTML 열도 메타가 그리드를 만든 뒤 오면 라벨이 붙는다(재검토 N6)", async () => {
+    stub();
+    const cols: GridColumn[] = [
+      { key: "title" },
+      { key: "grp", header: "묶음", children: [{ key: "noticeBody" }] },
+    ];
+    await render(grid({ columns: cols }));
+    expect(label("noticeBody")?.textContent).toBe("본문");
+    const p = await hoverLabel();
+    expect(p.querySelector('[data-mdm-html="true"]')).not.toBeNull();
+  });
+
+  describe("refreshHeader 호출 횟수(재검토 N6)", () => {
+    /** 메타 응답을 손으로 풀 때까지 붙잡는 fetch. */
+    function gatedFetch(columns: Record<string, ReturnType<typeof column>>) {
+      const f = fakeMetaFetch({ columns });
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const fn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        await gate;
+        return f.fn(input, init);
+      });
+      vi.stubGlobal("fetch", fn);
+      return { release };
+    }
+    /** AgDataGrid 가 쓰는 AgGridReact 인스턴스의 api — render 의 this 로 잡는다. */
+    function gridApi(renderSpy: { mock: { contexts: unknown[] } }): GridApi {
+      const inst = renderSpy.mock.contexts.at(-1) as { api?: GridApi };
+      expect(inst?.api, "그리드 api").toBeTruthy();
+      return inst.api!;
+    }
+
+    it("HTML 열이 없는 그리드는 메타 도착 전후로 refreshHeader 를 부르지 않는다", async () => {
+      const renderSpy = vi.spyOn(AgGridReact.prototype, "render");
+      const { release } = gatedFetch({ TITLE });
+      await render(grid());
+      const refresh = vi.spyOn(gridApi(renderSpy), "refreshHeader");
+      expect(headerCell("title").querySelector(".ag-header-cell-text")?.textContent).toBe("title");
+      await act(async () => release());
+      await settleAll();
+      expect(headerCell("title").querySelector(".ag-header-cell-text")?.textContent).toBe("제목");
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("HTML 열 그리드는 메타 도착 때 한 번 부르고, data 만 바꾼 다시 렌더에서는 더 부르지 않는다", async () => {
+      const renderSpy = vi.spyOn(AgGridReact.prototype, "render");
+      const { release } = gatedFetch({ TITLE, NOTICE_BODY: BODY });
+      await render(grid());
+      const refresh = vi.spyOn(gridApi(renderSpy), "refreshHeader");
+      expect(label("noticeBody")).toBeNull();
+      await act(async () => release());
+      await settleAll();
+      expect(label("noticeBody")?.textContent).toBe("본문");
+      expect(refresh).toHaveBeenCalledTimes(1);
+      await render(grid({ data: [{ title: "T9", noticeBody: "B9", etc: "E9" }] }));
+      await render(grid({ data: [...DATA] }));
+      expect(refresh).toHaveBeenCalledTimes(1);
+    });
   });
 });

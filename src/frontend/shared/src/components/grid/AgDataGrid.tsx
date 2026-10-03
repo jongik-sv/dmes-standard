@@ -738,8 +738,12 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
   const mdmInfo = opts.mdm?.infoByKey.get(col.key);
   const mdmCol = mdmInfo?.column && col.headerTooltip == null && col.headerComponent == null ? mdmInfo.column : null;
   const tooltipParams = mdmCol ? ({ mdmColumn: mdmCol, mdmDomain: mdmInfo?.domain ?? null } satisfies MdmGridTooltipParams) : null;
+  // 표시 이름이 빈 열(header: "")은 라벨 글자가 비어 마우스를 올릴 곳이 없다 — 예전 글자 머리글 카드(칸 전체, 물리명 툴팁)로 둔다.
   const htmlLabel =
-    mdmCol && mdmCardHasHtml(mdmCol) && col.headerComponentParams?.innerHeaderComponent == null
+    mdmCol &&
+    headerName.trim() !== "" &&
+    mdmCardHasHtml(mdmCol) &&
+    col.headerComponentParams?.innerHeaderComponent == null
       ? {
           headerComponentParams: {
             ...(col.headerComponentParams ?? {}),
