@@ -1,6 +1,8 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { loadMdmFixture } from "./support/mdm-e2e";
+
 /**
  * 컬럼 사전(columnMng) + 용어 인라인 등록 팝업(termRegPop) — TSK-04-04 design.md §3.5.
  *
@@ -12,7 +14,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  *   E6 담당자: 팝업 [등록] 비활성·안내 문구, [저장] 비활성, BFF 403(수용 기준 5).
  *
  * 전제(design.md §3.6): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고, mcm 기동 뒤
- * e2e/fixtures/mdm-rbac-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-columnMng-dict.sql 을 넣는다.
+ * e2e/fixtures/mdm-rbac-users.sql, beforeAll 이 e2e/fixtures/mdm-columnMng-dict.sql 을 넣는다.
  * 이 spec 은 용어·컬럼을 만들기 때문에 **같은 mdm.db 로 다시 돌릴 수 없다**(새 mdm.db + 픽스처로 다시 시작).
  * 쓰기 단계는 모두 표준 관리자로 한다 — admin(SYSADMIN)은 서버가 거부한다(D1).
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
@@ -100,6 +102,8 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("mdm columnMng — 컬럼 사전", () => {
   test.setTimeout(150_000);
+
+  test.beforeAll(() => loadMdmFixture("mdm-columnMng-dict.sql"));
 
   test("E1 표준 관리자: 메뉴로 화면이 열리고 빈 목록 상태가 보인다", async ({ page }) => {
     await login(page, STDADMIN);

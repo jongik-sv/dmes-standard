@@ -1,6 +1,8 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { loadMdmFixture } from "./support/mdm-e2e";
+
 /**
  * mdm dme/ruleSetEdit(룰 세트 편집 — 흐름도 캔버스·디버거) — TSK-08-06 design.md §3.4.2 + 룰 세트 흐름도 2단계(Task 12).
  *
@@ -14,8 +16,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * E17 옛 형식 열기(E2S_FLOW 를 열면 합류 없이 그려지고 알림, dirty 아님, 저장 뒤 다시 열면 알림 없음), E18 끝내는 갈래(갈래 마지막 선을 끝으로 옮겨 저장 → 디버그에서 그 갈래로 끝냄).
  *
  * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
- * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql, mdm 기동 뒤 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
- * 세트를 고치므로 같은 mdm.db 로 다시 돌릴 수 없다(새 DB 로 시작). 편집 세트마다 담당자 소유 DRAFT 2.000 이 있고(fixtures/mdm-ruleSet-data.sql), mdm-ruleSetConfirm.spec.ts 가 E2S_CHAIN 2.000 을 확정하므로 두 spec 은 같은 DB 로 이어 돌리지 않는다. 편집 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
+ * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql, beforeAll 이 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
+ * 세트를 고치므로 같은 mdm.db 로 다시 돌릴 수 없다(새 DB 로 시작). 편집 세트마다 담당자 소유 DRAFT 2.000 이 있다(fixtures/mdm-ruleSet-data.sql). mdm-ruleSetConfirm.spec.ts 는 전용 세트 E2S_CONFIRM 을 확정하므로 이 스펙의 세트를 건드리지 않는다. 편집 시나리오는 SYSADMIN 이 아니라 담당자로 로그인한다.
  * mdm-ruleSetMng.spec.ts 와 서로의 데이터에 기대지 않는다(각자 픽스처의 다른 세트를 쓴다).
  *
  * 화면 구조: 세트를 열면 보기 모드다. 고치려면 [편집](flow-mode-edit)을 누른다. 캔버스 노드는 `flow-node-{nodeId}`,
@@ -161,6 +163,8 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("mdm dme/ruleSetEdit", () => {
   test.setTimeout(180_000);
+
+  test.beforeAll(() => loadMdmFixture("mdm-ruleSet-data.sql"));
 
   test("E1 메뉴: 마루 MDM > 업무기준 > 룰 세트 편집 이 열리고 세트 고르기 칸과 빈 상태가 보인다", async ({ page }) => {
     await login(page, STEWARD);

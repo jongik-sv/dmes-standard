@@ -1,6 +1,8 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { loadMdmFixture } from "./support/mdm-e2e";
+
 /**
  * mdm dmd/dataCsvUploadPop(항목 CSV 업로드 팝업) smoke — TSK-07-04 design.md §3(e2e 스모크 넷).
  *
@@ -82,6 +84,10 @@ async function openScreen(page: Page) {
     await node.click();
   }
   await expect(page.getByTestId("item-add")).toBeVisible({ timeout: 60_000 });
+  // 화면은 진입하면 첫 마루 데이터(또는 snapshot)를 비동기로 자동 선택하고, 선택이 끝나면 ID 고르기 칸을 그 ID 로 맞추며
+  // 열린 후보 목록을 닫는다(IdPicker currentId). 그 전에 후보를 열어 누르면 후보가 사라져 클릭이 끝나지 않으므로
+  // 자동 선택이 끝난 표시(item-current)를 본 뒤 고른다.
+  await expect(page.getByTestId("item-current")).toBeVisible({ timeout: 30_000 });
 }
 
 async function selectMaru(page: Page, id: string) {
@@ -134,6 +140,8 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("mdm dmd/dataCsvUploadPop smoke", () => {
   test.setTimeout(150_000);
+
+  test.beforeAll(() => loadMdmFixture("mdm-dataItem.sql"));
 
   test("C1 dataItemMng 화면의 CSV 업로드 버튼으로 팝업이 열린다", async ({ page }) => {
     await openCsvPopup(page, MARU);

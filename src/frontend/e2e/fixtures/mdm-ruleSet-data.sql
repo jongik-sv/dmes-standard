@@ -7,7 +7,7 @@
 --     E2S_GRD(SET_THK, SET_SURF → S_GRD) · E2S_FCT(S_GRD, SET_WID → S_FCT) · E2S_SPD(S_FCT → S_SPD) · E2S_DUP(SET_WID → S_GRD)
 --     E2S_CYA(S_CYB → S_CYA) · E2S_CYB(S_CYA → S_CYB) 순환 짝 · E2S_OLD(SET_THK → S_OLD, 룰 STATUS DEPRECATED)
 --     · E2S_NODEF(SET_THK → S_NOD, 기본 행 없음 — 받는 노드 결과 없음 e2e E16)
---   세트 9 — E2S_CHAIN · E2S_BADORD · E2S_HASOLD · E2S_OLDSET(DEPRECATED) · E2S_CYCSET · E2S_GUIDESET(빈 목록) · E2S_FLOW(분기 흐름, FLOW_JSON) · E2S_CATCHSET(E2S_NODEF 한 줄) · E2S_IFEND(새 형식 IF — 합류 없음, e2e E18) (D-144 2단계: 부모 + 1.000 RELEASED)
+--   세트 10 — E2S_CHAIN · E2S_CONFIRM(확정 스펙 전용, E2S_CHAIN 과 같은 사슬) · E2S_BADORD · E2S_HASOLD · E2S_OLDSET(DEPRECATED) · E2S_CYCSET · E2S_GUIDESET(빈 목록) · E2S_FLOW(분기 흐름, FLOW_JSON) · E2S_CATCHSET(E2S_NODEF 한 줄) · E2S_IFEND(새 형식 IF — 합류 없음, e2e E18) (D-144 2단계: 부모 + 1.000 RELEASED)
 --     FLOW_JSON 은 NULL(한 줄 흐름 = RULE_IDS 순서)이 기본이고 E2S_FLOW 만 P2 정규 JSON 을 갖는다(캔버스·디버거 e2e E11).
 
 INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, DESCRIPTION, C_USR_ID, C_PGM_ID, VER) VALUES
@@ -90,6 +90,8 @@ CREATE TEMP TABLE TMP_RULE_SET (MARU_RULE_SET_ID TEXT, MARU_RULE_SET_NAME TEXT, 
     STATUS TEXT, ROW_VERSION INTEGER, C_USR_ID TEXT, C_AT TEXT, C_PGM_ID TEXT, U_USR_ID TEXT, U_AT TEXT, U_PGM_ID TEXT, VER INTEGER);
 INSERT INTO TMP_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, FLOW_JSON, DESCRIPTION, STATUS, ROW_VERSION, C_USR_ID, C_PGM_ID, VER) VALUES
     ('E2S_CHAIN', 'E2E 사슬 세트', '["E2S_GRD","E2S_FCT","E2S_SPD"]', NULL, '등급 → 계수 → 속도', 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    -- 확정 스펙(mdm-ruleSetConfirm) 전용 — E2S_CHAIN 과 같은 사슬. 그 스펙이 2.000 을 확정하므로 편집·목록 스펙이 쓰는 E2S_CHAIN 과 나눈다.
+    ('E2S_CONFIRM', 'E2E 확정 세트', '["E2S_GRD","E2S_FCT","E2S_SPD"]', NULL, '등급 → 계수 → 속도(확정 시나리오)', 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
     ('E2S_BADORD', 'E2E 순서 뒤집힘 세트', '["E2S_FCT","E2S_GRD"]', NULL, NULL, 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
     ('E2S_HASOLD', 'E2E 폐기 룰 세트', '["E2S_OLD"]', NULL, NULL, 'INUSE', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
     ('E2S_OLDSET', 'E2E 폐기 세트', '["E2S_GRD"]', NULL, NULL, 'DEPRECATED', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
@@ -113,12 +115,12 @@ INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, VER_KIND, STATUS, APPLY_
            COALESCE(U_AT, C_AT, '2000-01-01 00:00:00'), COALESCE(ROW_VERSION, 0), C_USR_ID, C_AT, C_PGM_ID, U_USR_ID, U_AT, U_PGM_ID, 0
     FROM TMP_RULE_SET;
 DROP TABLE TMP_RULE_SET;
--- 편집·확정 시나리오가 쓰는 세트(E2S_CHAIN·E2S_FLOW·E2S_CATCHSET·E2S_IFEND·E2S_CYCSET·E2S_GUIDESET)에 담당자(e2e_mdm_steward) 소유 DRAFT 2.000 을 더한다.
+-- 편집·확정 시나리오가 쓰는 세트(E2S_CHAIN·E2S_CONFIRM·E2S_FLOW·E2S_CATCHSET·E2S_IFEND·E2S_CYCSET·E2S_GUIDESET)에 담당자(e2e_mdm_steward) 소유 DRAFT 2.000 을 더한다.
 -- 폐기 시나리오가 쓰는 세트(E2S_OLDSET 외)에는 넣지 않는다 — DRAFT 가 있으면 폐기가 막힌다(MDM006).
 INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, VER_KIND, STATUS, BASE_VER, OWNER_ID, RULE_IDS, FLOW_JSON, ROW_VERSION,
     C_USR_ID, C_PGM_ID, U_USR_ID, U_PGM_ID, AUD_VER)
     SELECT MARU_RULE_SET_ID, 2, 'MAJOR', 'DRAFT', 1, 'e2e_mdm_steward', RULE_IDS, FLOW_JSON, 0,
            'e2e-fixture', 'mdm-ruleSet-data.sql', 'e2e-fixture', 'mdm-ruleSet-data.sql', 0
     FROM TB_MDM_RULE_SET_VER
-    WHERE MARU_RULE_SET_ID IN ('E2S_CHAIN', 'E2S_FLOW', 'E2S_CATCHSET', 'E2S_IFEND', 'E2S_CYCSET', 'E2S_GUIDESET') AND VER = 1;
+    WHERE MARU_RULE_SET_ID IN ('E2S_CHAIN', 'E2S_CONFIRM', 'E2S_FLOW', 'E2S_CATCHSET', 'E2S_IFEND', 'E2S_CYCSET', 'E2S_GUIDESET') AND VER = 1;
 

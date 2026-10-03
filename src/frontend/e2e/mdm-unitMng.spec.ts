@@ -63,6 +63,31 @@ function detailRow(page: Page, label: string) {
   return page.locator("tr", { hasText: label });
 }
 
+/** 단위 목록 패널의 건수. 포털 홈 탭(알림·작업 위젯)의 "n건" 문구도 같은 DOM 에 있어 화면 전체 getByText 는 여럿에 걸린다. */
+function unitListCount(page: Page) {
+  return page
+    .locator(".grid-panel")
+    .filter({ has: page.locator(".grid-panel-title", { hasText: "단위 목록" }) })
+    .locator(".grid-panel-count");
+}
+
+/**
+ * [조회] 를 누르고 search 응답이 돌아올 때까지 기다린다. 진입할 때 목록은 비어 있어 "0건" 이 처음부터 보이므로, 응답을 기다리지 않으면
+ * 조회가 돌지 않아도 건수 단언이 통과한다. 진입 때 콤보 값만 받는 호출(optionsOnly)은 요청 본문으로 거른다.
+ */
+async function clickSearchAndWait(page: Page) {
+  const response = page.waitForResponse(
+    (r) =>
+      r.url().includes("/api/mdm/oasis/unitMng/search") &&
+      r.request().method() === "POST" &&
+      !(r.request().postData() ?? "").includes("optionsOnly") &&
+      r.status() === 200,
+    { timeout: 20_000 },
+  );
+  await page.getByRole("button", { name: "조회" }).click();
+  await response;
+}
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("mdm dma/unitMng smoke", () => {
@@ -79,8 +104,8 @@ test.describe("mdm dma/unitMng smoke", () => {
     await openUnitMng(page);
 
     await searchField(page, "검색어").locator("input").fill(NOMATCH_KEYWORD);
-    await page.getByRole("button", { name: "조회" }).click();
-    await expect(page.getByText("0건")).toBeVisible({ timeout: 20_000 });
+    await clickSearchAndWait(page);
+    await expect(unitListCount(page)).toHaveText("0건", { timeout: 20_000 });
 
     await page.screenshot({ path: screenshot("dma-unitMng-empty.png"), fullPage: true });
   });
@@ -91,8 +116,8 @@ test.describe("mdm dma/unitMng smoke", () => {
 
     // 필터를 지우고 전체 조회.
     await searchField(page, "검색어").locator("input").fill("");
-    await page.getByRole("button", { name: "조회" }).click();
-    await expect(page.getByText(/\d+건/)).toBeVisible({ timeout: 20_000 });
+    await clickSearchAndWait(page);
+    await expect(unitListCount(page)).toHaveText(/^\d+건$/, { timeout: 20_000 });
 
     // 새 차원의 첫 단위 — 자기 자신이 기준 단위(I3).
     await page.getByRole("button", { name: "단위 등록" }).click();
@@ -115,7 +140,8 @@ test.describe("mdm dma/unitMng smoke", () => {
     // 기존 차원 옵션을 옵션 목록에서 직접 클릭해 선택한다(입력 후 Enter 는 하이라이트된 옵션이 없으면
     // 아무 것도 선택하지 않을 수 있다 — 실측 확인). Mantine Select 는 접근성용 숨은 네이티브 <select><option>
     // 도 같이 두므로 실제 콤보박스 옵션(data-combobox-option)으로 좁힌다.
-    await page.locator('[data-combobox-option="true"]', { hasText: DIMENSION }).click();
+    // 기준 단위 콤보의 옵션 문구에도 차원 이름이 들어가(같은 DOM 에 남는다) 글자로 거르면 둘이 걸린다 — 옵션 value 로 고른다.
+    await page.locator(`[data-combobox-option="true"][value="${DIMENSION}"]`).click();
     await expect(detailRow(page, "기준 단위").locator("input")).toHaveValue(UNIT_BASE);
     await detailRow(page, "환산 계수").locator("input").fill("500");
     await page.getByRole("button", { name: "저장" }).click();
