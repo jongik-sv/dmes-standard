@@ -15,8 +15,9 @@
  *   6) RBAC 3패턴       → 서버캐시 권한키 멤버십 검증 (미보유 403) — SYSADMIN 프리패스 제거
  *                         (2026-07-30, 롤 무관 멤버십. BE 브레이크글라스 시 perm-keys=["*"] 로 전면 통과)
  *   7) 미매칭           → RBAC_DEFAULT_DENY=true 면 403, 아니면 통과 (aps/mpn/kmc rest 등)
- *   (예외) /api/mcm/internal/* → 서버 간 호출 전용. 세션·RBAC 대신 BE → BFF 전용 비밀(X-Bff-Internal-Secret = BFF_INTERNAL_SECRET)만
- *         본다(lib/http/internal-call.ts). BFF → BE 마스터 비밀(BACKEND_CLIENT_KEY·X-Client-Key)은 여기서 받지 않는다.
+ *   (예외) /api/mcm/internal/cache/invalidate-role → 서버 간 호출 전용. 세션·RBAC 대신 BE → BFF 전용 비밀(X-Bff-Internal-Secret =
+ *         BFF_INTERNAL_SECRET)만 본다(lib/http/internal-call.ts). BFF → BE 마스터 비밀(BACKEND_CLIENT_KEY·X-Client-Key)은 여기서 받지
+ *         않는다. /api/mcm/internal/ 아래 다른 경로는 404.
  *   그 밖 경로는 어떤 요청 헤더로도 위 검사를 건너뛰지 않는다 — 옛 `x-internal-bff-call: 1` 통과는 브라우저도 붙일 수 있어 없앴다
  *   (2026-10-03 보안 지적: 세션 없이 그 헤더와 X-Authenticated-* 를 붙이면 /api/{module}/oasis/* 를 아무 사용자로 BE 에 보낼 수 있었다).
  *
@@ -33,7 +34,11 @@ import {
 } from "@dk-oasis/shared/auth-rbac-policy";
 import { getUserPerms } from "@/lib/auth/api-permission-cache";
 import { API_BODY_MAX_BYTES, declaredBodyExceeds } from "@/lib/http/body-limit";
-import { INTERNAL_API_PREFIX, isTrustedInternalCall } from "@/lib/http/internal-call";
+import {
+  INTERNAL_API_PREFIX,
+  INTERNAL_INVALIDATE_ROLE_PATH,
+  isTrustedInternalCall,
+} from "@/lib/http/internal-call";
 import { isUnsafeApiPath } from "@/lib/http/path-guard";
 
 const AUTH_SECRET = process.env.AUTH_SECRET;
@@ -133,7 +138,11 @@ export async function proxy(req: NextRequest) {
   // 2-2) 서버 간 내부 경로(BE RoleChangedEventListener → 권한 캐시 무효화) — 세션 없는 서버 호출이라 사용자 RBAC 대신
   //       BE → BFF 전용 비밀(X-Bff-Internal-Secret = BFF_INTERNAL_SECRET)을 본다. 틀리거나 없으면 로그인한 사용자여도 403.
   //       마스터 비밀 X-Client-Key 로는 열리지 않는다. 라우트가 한 번 더 본다.
+  //       여는 경로는 무효화 정확 경로 하나뿐 — internal 아래 다른 경로는 비밀이 맞아도 404(catch-all 로 BE 까지 가지 않게).
   if (path.startsWith(INTERNAL_API_PREFIX)) {
+    if (path !== INTERNAL_INVALIDATE_ROLE_PATH) {
+      return jsonError("NOT_FOUND", "없는 경로입니다.", 404);
+    }
     return isTrustedInternalCall(req.headers)
       ? NextResponse.next()
       : jsonError("FORBIDDEN", "내부 호출 전용 경로입니다.", 403);

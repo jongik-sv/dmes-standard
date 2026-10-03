@@ -241,6 +241,29 @@ describe("proxy — 내부 경로(/api/mcm/internal/*)는 BFF_INTERNAL_SECRET �
     }
   });
 
+  it("여는 경로는 무효화 정확 경로 하나뿐 — internal 아래 다른 경로는 맞는 비밀이어도 404, BE·세션을 보지 않는다", async () => {
+    getToken.mockResolvedValue(null);
+    for (const path of [
+      "/api/mcm/internal/",
+      "/api/mcm/internal/cache",
+      "/api/mcm/internal/cache/",
+      "/api/mcm/internal/cache/invalidate-role/",
+      "/api/mcm/internal/cache/invalidate-role/x",
+      "/api/mcm/internal/cache/invalidate-roles",
+      "/api/mcm/internal/cache/invalidate-all",
+      "/api/mcm/internal/sec/perm-keys",
+    ]) {
+      for (const headers of <Headerset[]>[{ "x-bff-internal-secret": SECRET }, {}]) {
+        expect(await callProxy(path, headers), `${path} ${JSON.stringify(headers)}`).toEqual({
+          status: 404,
+          passed: false,
+        });
+      }
+    }
+    expect(getToken).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("운영에서 저장소 로컬 값이면 403", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("BFF_INTERNAL_SECRET", LOCAL_DEFAULT);
