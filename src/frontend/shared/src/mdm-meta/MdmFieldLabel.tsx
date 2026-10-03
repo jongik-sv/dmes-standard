@@ -12,13 +12,14 @@
  * - 사전에 있으면 글자가 `span.form-tip-trigger` 가 된다. 이 span 은 Tab 순서에 들지 않고(tabIndex -1 — 입력 화면에서 Tab 이 라벨마다 멈추지 않게) hover·focus 때 `.form-tip-text--portal` 을
  *   document.body 에 띄운다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두므로 th 의 글자·접근 이름은 늘지 않는다.
  * - 툴팁 모양은 form.css(`.form-tip-text`)가 정한다 — 호스트 앱이 `@dk-oasis/shared/form.css` 를 싣는다(포털은 이미 싣는다).
+ * - 컬럼 설명이 HTML(`descriptionHtml`)이면 마우스가 들어갈 수 있는 넓은 툴팁(유예 150ms·Escape)으로 띄우고, 스크린리더 사본은 글자 설명이다.
  *
  * 배럴(`../components/form`)을 거치지 않는다 — 배럴은 입력 부품 전부를 mdm-meta 묶음에 끌어들인다.
  */
 import { useId, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { HoverTipPortal, useHoverTip } from "../components/form/useHoverTip";
-import { MdmMetaCard } from "./MdmMetaCard";
+import { MdmMetaCard, mdmCardTipOptions } from "./MdmMetaCard";
 import { resolveCaption } from "./caption";
 import { useMdmCaptionPriority, useMdmColumn } from "./context";
 import type { MdmCaptionKind } from "./types";
@@ -50,8 +51,12 @@ export function MdmFieldLabel({
   const { column, domain } = useMdmColumn(name, meta);
   const captionPriority = useMdmCaptionPriority();
   const descId = `${useId()}-tip`;
-  // 카드는 글자 툴팁보다 크다 — 위쪽 공간 판정이 노드 툴팁 높이를 쓴다.
-  const { anchorRef, tipPos, showTip, hideTip } = useHoverTip<HTMLSpanElement>(false);
+  // 카드는 글자 툴팁보다 크다 — 위쪽 공간 판정이 노드 툴팁 높이를 쓴다. HTML 설명 카드면 상호작용 툴팁이다.
+  const htmlTipOptions = mdmCardTipOptions(column);
+  const { anchorRef, tipPos, showTip, hideTip, box } = useHoverTip<HTMLSpanElement>(
+    false,
+    htmlTipOptions
+  );
 
   const caption = resolveCaption(column, kind, label, captionPriority, name);
   const text = required ? `${caption} *` : caption;
@@ -68,6 +73,8 @@ export function MdmFieldLabel({
   }
 
   const card = <MdmMetaCard column={column} domain={domain} />;
+  // 스크린리더 사본 — HTML 설명이면 글자 설명으로(숨은 링크가 Tab 순서에 들지 않게), 아니면 같은 카드.
+  const srCard = htmlTipOptions ? <MdmMetaCard column={column} domain={domain} textOnly /> : card;
   return (
     <>
       <span
@@ -86,11 +93,13 @@ export function MdmFieldLabel({
       {typeof document !== "undefined" &&
         createPortal(
           <span id={descId} className="form-sr-only">
-            {card}
+            {srCard}
           </span>,
           document.body
         )}
-      <HoverTipPortal tipPos={tipPos}>{card}</HoverTipPortal>
+      <HoverTipPortal tipPos={tipPos} box={box}>
+        {card}
+      </HoverTipPortal>
     </>
   );
 }

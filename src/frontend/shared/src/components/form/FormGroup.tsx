@@ -12,7 +12,7 @@ import React, {
 } from "react";
 import { Input } from "@mantine/core";
 // 배럴(../../mdm-meta)을 거치지 않는다 — 배럴의 화면 값 검증(validate.ts)이 식 평가기(evalex·decimal.js)를 form 묶음에 끌어들인다.
-import { MdmMetaCard } from "../../mdm-meta/MdmMetaCard";
+import { MdmMetaCard, mdmCardTipOptions } from "../../mdm-meta/MdmMetaCard";
 import { resolveCaption } from "../../mdm-meta/caption";
 import { useMdmCaptionPriority, useMdmColumn } from "../../mdm-meta/context";
 import { HoverTipPortal, useHoverTip } from "./useHoverTip";
@@ -66,6 +66,11 @@ export function FormGroup({
   const tip: ReactNode =
     tipProp ?? (mdm.column ? <MdmMetaCard column={mdm.column} domain={mdm.domain} /> : undefined);
   const tipIsText = typeof tip === "string";
+  // MDM HTML 설명 카드(화면이 tip 을 주지 않았을 때만): 마우스가 들어갈 수 있는 넓은 툴팁으로 띄우고, 스크린리더 사본은 글자 설명으로 둔다
+  // (HTML 의 링크가 보이지 않는 채 Tab 순서에 들지 않게). 그 밖의 tip 은 예전 그대로다.
+  const htmlTipOptions = tipProp == null ? mdmCardTipOptions(mdm.column) : undefined;
+  const srTip: ReactNode =
+    htmlTipOptions && mdm.column ? <MdmMetaCard column={mdm.column} domain={mdm.domain} textOnly /> : tip;
   const generatedId = useId();
   const labelId = `${generatedId}-label`;
   const controlId = `${generatedId}-control`;
@@ -78,7 +83,7 @@ export function FormGroup({
   const resolvedControlId =
     singleChild && typeof singleChild.props.id === "string" ? singleChild.props.id : controlId;
   // 툴팁은 라벨 박스 기준으로 document.body 포털(position:fixed)에 띄운다 — 위치 판정·포털·Mantine Tooltip 비채택 사유는 useHoverTip.tsx.
-  const { anchorRef: labelRef, tipPos, showTip, hideTip } = useHoverTip<HTMLLabelElement>(tipIsText);
+  const { anchorRef: labelRef, tipPos, showTip, hideTip, box } = useHoverTip<HTMLLabelElement>(tipIsText, htmlTipOptions);
 
   const enhancedChildren = (() => {
     if (!singleChild) {
@@ -139,7 +144,7 @@ export function FormGroup({
         {enhancedChildren}
         {tip && (
           <span id={tipId} className="form-sr-only">
-            {tip}
+            {srTip}
           </span>
         )}
         {error && (
@@ -148,7 +153,11 @@ export function FormGroup({
           </span>
         )}
       </div>
-      {tip && <HoverTipPortal tipPos={tipPos}>{tip}</HoverTipPortal>}
+      {tip && (
+        <HoverTipPortal tipPos={tipPos} box={box}>
+          {tip}
+        </HoverTipPortal>
+      )}
     </div>
   );
 }
