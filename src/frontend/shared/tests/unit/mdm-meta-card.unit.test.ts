@@ -92,7 +92,10 @@ describe("MdmMetaCard", () => {
     );
 
     expect(sections()).toEqual(["title", "alias", "format"]);
-    expect(section("alias")).toBe("MES 이름 ABS_CHM_SLP_AMT · 표준 ABS_CHM_RPLN_AMT");
+    expect(section("alias")).toBe("MES 이름 · 표준 ABS_CHM_RPLN_AMT");
+    // 제목 줄은 화면이 쓰는 이름(별칭)을 보인다 — 표준 이름은 별칭 줄에 한 번만.
+    expect(section("title")).toContain("ABS_CHM_SLP_AMT");
+    expect(section("title")).not.toContain("ABS_CHM_RPLN_AMT");
   });
 
   it("표준 이름으로 맞았거나(null) 옛 모듈 응답(칸 없음)이면 별칭 줄이 없다", () => {

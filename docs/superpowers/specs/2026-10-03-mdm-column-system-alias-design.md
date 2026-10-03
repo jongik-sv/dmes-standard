@@ -32,10 +32,11 @@
 
 ## 3. 계약
 
-- metaFeed `search`(type=COLUMN) 요청 `params.systemCode`(선택). 다른 type 에는 영향 없음. 없거나 빈 값이면 별칭 매칭을 하지 않는다.
+- metaFeed `view`(params.type=COLUMN) 요청 `params.systemCode`(선택). (`search` 는 변경 기록 목록이라 쓰지 않는다 — 처음 적은 `search` 는 잘못이었다.) 다른 type 에는 영향 없음. 없거나 빈 값이면 별칭 매칭을 하지 않는다.
 - 응답 `ColumnMeta` 에 `matchedSystem: string|null`, `systemPhysName: string|null` 추가(MDM `MetaFeedPayloads.ColumnMeta`, cactus `MdmColumnMeta`·`MdmScreenColumn`, 화면 `MdmScreenColumn`). cactus 는 모르는 칸을 무시하므로 MDM 이 먼저 배포돼도 깨지지 않는다.
 - cactus `MdmMetaClient` 는 COLUMN 요청에만 `systemCode` 를 싣는다.
-- 화면 `MdmMetaCard` 제목 줄: 별칭으로 맞았으면 `{캡션} {요청 이름}` 아래에 "MES 이름 · 표준 {physName}" 한 줄.
+- 화면 `MdmMetaCard` 제목 줄: 별칭으로 맞았으면 `{캡션} {별칭(systemPhysName)}` 아래에 "MES 이름 · 표준 {physName}" 한 줄.
+- 컬럼 저장(columnMng)의 시스템 필드명 중복 검사도 같은 시스템 안에서 대소문자를 무시한다(다른 컬럼에 대소문자만 다른 별칭을 저장하면 MDM018). 같은 컬럼의 대소문자만 다른 별칭(SPARE1/Spare1)은 허용한다. TSK-04-04 design 의 I13·F4(정확 일치)는 이 결정으로 바뀌었다.
 
 ## 4. 시험
 
