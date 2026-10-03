@@ -11,7 +11,7 @@
       "import": "./dist/index.js"
     },
     "./http": {
-      "types": "./dist/types/http/index.d.ts",
+      "types": "./dist/types/http/entry.d.ts",
       "import": "./dist/http.js"
     },
     "./secure-storage": {
