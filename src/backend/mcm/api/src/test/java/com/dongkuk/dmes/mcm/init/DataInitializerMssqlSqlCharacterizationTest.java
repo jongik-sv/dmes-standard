@@ -71,13 +71,23 @@ import org.springframework.test.util.ReflectionTestUtils;
  *   <li>파라미터는 이름순으로 정렬한다(setParameter 호출 순서는 의미가 없다). 문자열이 아닌 값은 {@code (타입)값}.</li>
  * </ul>
  *
- * <p><b>골든 갱신</b> — 골든이 없거나 {@code -Dmssqlsql.update=true}(IDE) 또는 환경 변수 {@code MSSQLSQL_UPDATE=true}(gradle —
- * mcm build.gradle 은 시스템 속성을 테스트 JVM 으로 넘기지 않는다)면 비교하지 않고 새로 쓴다. 기본은 파일 전체 문자열 완전 일치이며,
+ * <p><b>골든 갱신</b> — {@code -Dmssqlsql.update=true}(IDE) 또는 환경 변수 {@code MSSQLSQL_UPDATE=true}(gradle —
+ * mcm build.gradle 은 시스템 속성을 테스트 JVM 으로 넘기지 않는다)면 비교하지 않고 새로 쓴다. 갱신을 요청하지 않았는데 골든이 없으면
+ * {@code 골든 없음: <절대경로>} 로 실패한다(다른 작업 디렉터리에서 돌려 골든을 못 찾고 새로 쓴 뒤 비교 없이 통과하는 일을 막는다).
+ * 기본은 파일 전체 문자열 완전 일치이며(양쪽 줄바꿈을 {@code \n} 으로 맞춘 뒤 — Windows 체크아웃의 CRLF 대비),
  * 다르면 첫 차이 줄과 앞뒤 3줄을 보여 주고 실패한다. 골든은 소스 경로(작업 디렉터리 mcm/api 기준)를 읽고 쓴다.
  *
  * <p><b>도달 진단</b> — 기록 때마다 호출 스택에서 {@code com.dongkuk.dmes.mcm.init} 패키지 클래스의 메서드를 모아,
  * 네 시나리오 어디서도 SQL 을 내지 않은 메서드 목록을 {@code build/reports/mssql-sql-characterization/unreached-methods.txt}
  * 에 쓴다(검증 대상 아님 — 고정값 규칙 때문에 건너뛴 분기를 찾는 참고 자료).
+ *
+ * <p><b>고정값 규칙 때문에 기록되지 않는 경로</b> — 아래 SQL 은 네 시나리오 어디서도 골든에 남지 않으므로 이 테스트가 지키지 못한다.
+ * <ul>
+ *   <li>{@code cleanupLegacyRoleSysadmin} 의 UPDATE swap — SYSADMIN 0·ROLE_SYSADMIN 1 조합일 때만 돈다. 고정값은 존재 확인을
+ *       시나리오마다 모두 0(ABSENT) 또는 모두 1(EXISTING·LEGACY_STUB)로 돌려주므로 이 조합이 나오지 않는다.</li>
+ *   <li>{@code SecMenuNativeRepository.recomputeMenuFullSeq} 의 FULL_SEQ UPDATE — 메뉴 행 조회 결과가 늘 빈 목록이라
+ *       갱신할 행이 없어 UPDATE 를 내지 않는다(조회 SQL 만 기록된다).</li>
+ * </ul>
  */
 class DataInitializerMssqlSqlCharacterizationTest {
 
@@ -229,19 +239,28 @@ class DataInitializerMssqlSqlCharacterizationTest {
         Path golden = GOLDEN_DIR.resolve("data-initializer-mssql-sql." + label + ".golden.txt");
         boolean update = Boolean.getBoolean("mssqlsql.update")
                 || "true".equalsIgnoreCase(System.getenv("MSSQLSQL_UPDATE"));
-        if (update || !Files.exists(golden)) {
+        if (update) {
             Files.createDirectories(golden.getParent());
             Files.writeString(golden, String.join("\n", actual) + "\n", StandardCharsets.UTF_8);
             System.out.println("[mssql-sql] 골든을 새로 썼다: " + golden.toAbsolutePath() + " (호출 " + rec.lines.size() + "건)");
             return;
         }
-        String goldenText = Files.readString(golden, StandardCharsets.UTF_8);
-        String actualText = String.join("\n", actual) + "\n";
+        if (!Files.exists(golden)) {
+            fail("골든 없음: " + golden.toAbsolutePath()
+                    + " — 작업 디렉터리가 mcm/api 인지 확인하고, 처음 만드는 것이면 MSSQLSQL_UPDATE=true 로 돌린다");
+        }
+        String goldenText = normalizeNewlines(Files.readString(golden, StandardCharsets.UTF_8));
+        String actualText = normalizeNewlines(String.join("\n", actual) + "\n");
         if (goldenText.equals(actualText)) {
             System.out.println("[mssql-sql] " + label + " 골든 일치 (호출 " + rec.lines.size() + "건)");
             return;
         }
         fail(diffMessage(golden, List.of(goldenText.split("\n", -1)), List.of(actualText.split("\n", -1))));
+    }
+
+    /** 줄바꿈을 {@code \n} 으로 맞춘다 — Windows 체크아웃(autocrlf)에서 골든이 CRLF 로 바뀌어도 같은 내용이면 같게 본다. */
+    private static String normalizeNewlines(String s) {
+        return s.replace("\r\n", "\n").replace('\r', '\n');
     }
 
     /** 첫 차이 줄과 앞뒤 3줄을 골든·실제 양쪽으로 보여 준다. */

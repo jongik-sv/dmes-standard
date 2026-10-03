@@ -69,7 +69,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 비교하지 않고 골든을 새로 쓴다. 갱신을 요청하지 않았는데 골든 파일이 없으면 실패한다(다른 작업 디렉터리에서 돌려 골든을 못 찾고
  * 새로 쓴 뒤 회귀를 놓친 채 통과하는 일을 막는다). mcm 의 build.gradle 은 시스템 속성을 테스트 JVM 으로 넘기지 않으므로 gradle 실행에서는
  * 환경 변수를 쓴다: {@code FINGERPRINT_UPDATE=true ../gradlew :api:test --tests '*DataInitializerSeedFingerprintTest'}.
- * 골든은 classpath 사본이 아니라 소스 경로(작업 디렉터리 mcm/api 기준)를 읽고 쓴다.
+ * 골든은 classpath 사본이 아니라 소스 경로(작업 디렉터리 mcm/api 기준)를 읽고 쓴다. 비교 전에 읽은 골든과 실제 값의 줄바꿈을
+ * {@code \n} 으로 맞춘다(Windows 체크아웃의 CRLF 대비).
  */
 class DataInitializerSeedFingerprintTest {
 
@@ -167,7 +168,8 @@ class DataInitializerSeedFingerprintTest {
     @DisplayName("빈 SQLite 에 local 시드를 돌린 결과(테이블별 행 수·정규화 해시·스키마 정의)가 골든과 같다")
     void seedFingerprintMatchesGolden() throws Exception {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
-        Map<String, String> actual = fingerprint(jdbc);
+        Map<String, String> actual = new TreeMap<>();
+        fingerprint(jdbc).forEach((k, v) -> actual.put(normalizeNewlines(k), normalizeNewlines(v)));
 
         boolean update = Boolean.getBoolean("fingerprint.update")
                 || "true".equalsIgnoreCase(System.getenv("FINGERPRINT_UPDATE"));
@@ -311,13 +313,18 @@ class DataInitializerSeedFingerprintTest {
 
     private static Map<String, String> readGolden() throws Exception {
         Map<String, String> out = new LinkedHashMap<>();
-        for (String line : Files.readAllLines(GOLDEN, StandardCharsets.UTF_8)) {
+        for (String line : normalizeNewlines(Files.readString(GOLDEN, StandardCharsets.UTF_8)).split("\n")) {
             String t = line.strip();
             if (t.isEmpty() || t.startsWith("#")) continue;
             int eq = t.lastIndexOf('=');
             out.put(t.substring(0, eq), t.substring(eq + 1));
         }
         return out;
+    }
+
+    /** 줄바꿈을 {@code \n} 으로 맞춘다 — Windows 체크아웃(autocrlf)에서 골든이 CRLF 로 바뀌어도 같은 내용이면 같게 본다. */
+    private static String normalizeNewlines(String s) {
+        return s.replace("\r\n", "\n").replace('\r', '\n');
     }
 
     /** BCrypt 솔트 랜덤성을 없앤 고정 인코더 — USER_ENC_PWD 를 결정적으로 만든다. */
