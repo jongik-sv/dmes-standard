@@ -354,3 +354,13 @@ ag-grid 33 은 열 정의를 다시 받으면 머리 그룹 칸 ctrl 을 새로 
 - `AgDataGrid` 의 열 정의는 **그리는 값이 바뀔 때만** 새로 만든다. 그리드 안 MDM 옵션(`useGridMdm`)은 칸 메타의 `loading` 만 바뀐 경우(404·꺼진 모듈·사전에 없는 칸)에는 앞 값을 그대로 둔다. 화면 쪽 규칙은 §20(`columns` 를 `useMemo` 로 만들고 deps 를 좁힌다)과 같다.
 - 그룹 구조(묶음·변수 수)가 바뀌면 화면이 그리드를 `key` 로 새로 마운트한다(`DecisionTableCard` 의 `gridKey`). 마운트된 그룹 그리드에 다른 그룹 구조를 그대로 넘기지 않는다.
 - 시험은 StrictMode·`MdmMetaProvider`(fetch 404) 아래에서 그룹 머리까지 그린다. 공급자가 없으면 이 경로가 돌지 않아 시험이 통과해 버린다. 예: `shared/tests/unit/grid-mdm-group-strict.unit.test.ts`, `m-mdm/tests/dme/ruleEdit/decision-table-card.test.ts` 의 「포털 탭」 묶음.
+
+## 32. 목록+상세 화면·등록 팝업 — 다시 읽기와 거부 처리 (2026-10-03)
+
+ruleMng 는 상세를 `useEffect([selectedId])` 로만 읽어, 같은 행을 다시 누르거나 [조회] 해도 상세를 다시 읽지 않았다. 그래서 다른 창에서 바뀐 상태(선점 해제·확정)가 보이지 않았다. 카테고리 추가 팝업(dmd dataItemMng)은 `onAdd` 의 결과와 상관없이 닫혀, 서버가 거부하면 입력이 사라졌다. mdm-user 여정 e2e 에서 찾았다.
+
+- 목록+상세 화면의 상세는 고르는 곳(행 클릭·첫 줄 자동 선택·등록 뒤·[조회])에서 **직접** 부른다. 같은 행이어도 다시 읽는다. 선택 상태 effect 에 맡기면 값이 같을 때 돌지 않는다.
+- 상세 응답은 요청 순번으로 가드한다. 순번이 지금 것과 다르면 성공·실패 모두 버리고, busy 도 지금 요청이 끝날 때만 푼다. 예: `m-mdm/pages/dme/ruleMng/page.tsx` 의 `detailSeq`, dmc `codeMng`.
+- 다시 읽어도 저장하지 않은 입력은 말없이 지우지 않는다. 같은 대상이고 입력이 이전 서버 값·새 서버 값과 모두 다르면 입력을 남기고, 저장에는 입력을 시작할 때의 낙관적 잠금 값을 보낸다. 입력을 버리는 길은 [다시 불러오기] 처럼 사용자가 누르는 것만 둔다. 예: `RuleDetailPanel` 의 `formAuditVer`.
+- 팝업이 서버 등록을 부르면 `onAdd`·`onSubmit` 은 성공 여부(`boolean`)를 돌려주고, 팝업은 성공일 때만 칸을 비우고 닫는다. 거부는 오류창으로 알리고 입력을 남긴다. 오류창이 떠 있는 동안 팝업 닫기를 무시하는 것은 §18 을 따른다. 예: `dmd/dataItemMng/cate/components/CategoryAddModal.tsx`, `useDataCategories.ts` 의 `write`.
+- 시험은 같은 행 다시 누르기·[조회]·늦게 온 옛 응답·미저장 입력, 그리고 등록 거부 뒤 오류창을 닫거나 Escape 를 눌러도 입력이 남는지를 본다. 예: `tests/dme/ruleMng/rule-mng-page.test.ts`, `tests/dmd/dataItemMng/data-item-page.test.ts`.
