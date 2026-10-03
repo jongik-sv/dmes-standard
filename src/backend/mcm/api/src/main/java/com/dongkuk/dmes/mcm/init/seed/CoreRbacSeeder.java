@@ -8,8 +8,8 @@ import org.springframework.core.env.Profiles;
  * 코어 RBAC 시드 — admin 사용자·비밀번호, SYSADMIN 역할그룹·역할, PERM_ALL, mcm 화면 OBJECT 와 ROLE_MAPPING
  * (2026-10-04 DataInitializer 분할, 분할 전 {@code seedMcmSecRbac} 앞부분).
  *
- * <p>PERM_ALL 의 action 목록({@code allActions})은 소스 대조 시험이 {@code DataInitializer.java} 에서 읽으므로
- * DataInitializer 가 만들어 넘긴다.
+ * <p>PERM_ALL 의 action 목록({@code allActions})은 {@link #seedCoreRbac()} 안에 선언한다. 소스 대조 시험(mcm-core
+ * ScreenUsageOasisContractTest · mdm MdmOasisActionVocabularyTest)이 그 선언을 이 파일에서 문자열로 읽는다.
  */
 public final class CoreRbacSeeder extends SeedSupport {
 
@@ -24,10 +24,9 @@ public final class CoreRbacSeeder extends SeedSupport {
 
     /**
      * 사용자·역할·권한·OBJECT·ROLE_MAPPING 멱등 적재. 모든 INSERT 는 존재 검증 후 skip.
-     *
-     * @param allActions PERM_ALL 의 PERMISSION_ACTION (콤마 텍스트, 토큰 순서가 곧 컬럼 값)
+     * PERM_ALL 의 PERMISSION_ACTION 은 메서드 안 {@code allActions} 선언의 콤마 텍스트다(토큰 순서가 곧 컬럼 값).
      */
-    public void seedCoreRbac(String allActions) {
+    public void seedCoreRbac() {
         // TB_MCM_SEC_USER — admin
         insertIfAbsent(
                 "TB_MCM_SEC_USER", "USER_ID", "admin",
@@ -92,6 +91,55 @@ public final class CoreRbacSeeder extends SeedSupport {
                 new String[]{"ROLE_GROUP_SYSADMIN", "SYSADMIN"},
                 "INSERT INTO MCMAPUSER.TB_MCM_SEC_ROLEGROUP_MAPPING (ROLE_GROUP_ID, ROLE_ID" + AUDIT_COLS + ") " +
                 "VALUES ('ROLE_GROUP_SYSADMIN', 'SYSADMIN'" + AUDIT_VALS + ")");
+
+        // PERM_ALL (전체 권한) 의 action 목록 — 아래 TB_MCM_SEC_PERM INSERT 와 ensurePermAllActions 가 쓴다.
+        // 소스 대조 시험(mcm-core ScreenUsageOasisContractTest · mdm MdmOasisActionVocabularyTest)이 이 선언을
+        // 이 파일에서 문자열로 읽는다. 선언 모양(변수 이름·String.join)을 바꾸면 두 시험도 함께 고친다.
+        String allActions = String.join(",",
+                "search", "save", "delete", "import", "export", "reg",
+                "confirm", "cancel", "approve", "reject", "copy",
+                "deleteCmUser", "reRegCmUser", "regCmUser", "pwdinit",
+                "searchUserRoleGrp", "saveUserRoleGrp",
+                "searchRoleGrp", "saveUserRoleGrpCopy",
+                "commonUserDept", "commonList",
+                "searchObj", "searchCmMenu", "searchMenuGrp", "saveCmMenu",
+                "searchCmMenuFld", "saveCmMenuFld",
+                "searchCmRole", "saveCmRole",
+                "searchCmRoleMap", "saveCmRoleMap",
+                "searchCmPerm", "lov",
+                "searchDetail", "saveDetail",
+                "searchObjectLov", "searchSystemLov", "searchDeptLov",
+                "searchCmRoleGrp", "saveCmRoleGrp",
+                "searchCmRoleGrpMap", "saveCmRoleGrpMap",
+                "searchCmRoleGrpMenu",
+                "searchCmUser", "saveCmUser",
+                "searchCmObj", "saveCmObj",
+                "searchUserList",
+                "execute", "validate", "analyze", "view",
+                "activate", "deactivate", "compare", "restore",
+                "apply", "release", "calculate",
+                // TSK-08-02 D4 — mdm DRAFT 소유권(선점·해제·넘기기). mdm MdmActions·MdmPermissions 와 같은 이름.
+                "lock", "unlock", "handover",
+                // 2026-10-02 — mls 공지사항 관리(services/lsh/noticeMgmt.bpmn) 게시상태 변경. 이 토큰이 없어 SYSADMIN 도
+                //   게시중지가 403 이었다. 이미 시드된 DB 는 아래 ensurePermAllActions 가 끝에 덧붙인다.
+                "changeStatus",
+                // 2026-10-02 — mcm 화면 사용 통계(services/csa/screenUsageStat.bpmn) 6개 action. 이미 시드된 DB 는
+                //   아래 ensurePermAllActions 가 덧붙인다. screenUsage/record 는 AUTH_ONLY 라 여기 넣지 않는다.
+                "overview", "byScreen", "byDept", "byUser", "unused", "history",
+                // 2026-10-02 — mcm 위젯관리(services/csa/commWidgetMng.bpmn) action 과 미디어 올리기(REST upload).
+                //   search·save·delete 는 위에 있다. 사용자용 widgetDef·widgetData·widgetExt·widgetChat·widgetMemo·widgetMedia 는 AUTH_ONLY 라 넣지 않는다.
+                "previewQuery", "searchLayouts", "loadLayout", "saveLayout", "deleteLayout", "searchDepts", "upload",
+                // 2026-10-02 — MDM 캐시 관리(csa/mdmCacheMng) 재등록 버튼. 이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
+                "reload"
+
+                // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
+                // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey
+                // (`{objId}/{action}`) 를 만든다. **여기에 없는 action 은 SYSADMIN 도 403 이다.**
+                // 증상이 조용해서 추적이 어렵다 — 조회 1건은 되는데 콤보/팝업/저장만 죽는 형태로 나타난다.
+                // 목록 정본 = 각 모듈 BPMN 의 actionGateway 분기명 전수:
+                //   grep -h 'sourceRef="actionGateway"' src/backend/{모듈}/**/services/**/*.bpmn
+                // 화면을 추가할 때마다 함께 갱신할 것.
+        );
 
         // TB_MCM_SEC_PERM — PERM_ALL (전체 권한).
         // PERMISSION_ACTION 에 모든 action 콤마 텍스트 (UserPermCache 가 콤마 분할 후 PermKey 빌드).

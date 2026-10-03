@@ -38,8 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
  * ScreenUsageSchemaArtifacts 다. 단계 클래스는 빈이 아니다. {@link #run} 이 방언을 판정한 뒤 만든
  * {@link SeedSupport} 를 받아 쓰고, 트랜잭션은 {@link #run} 의 {@code @Transactional} 하나다.
  *
- * <p>PERM_ALL allActions 선언은 다른 모듈의 소스 대조 시험(mcm-core ScreenUsageOasisContractTest,
- * mdm MdmOasisActionVocabularyTest)이 이 파일을 문자열로 읽으므로 seed 패키지로 옮기지 않고 이 파일에 둔다.
+ * <p>다른 모듈의 소스 대조 시험이 시드 소스를 문자열로 읽는다. PERM_ALL allActions 선언은 CoreRbacSeeder, mdm 메뉴·권한
+ * 시드는 MdmMenuSeeder, 화면 사용 통계 DDL 사용은 ScreenUsageSchemaArtifacts 파일에서 찾는다.
  * mcm-core ScreenUsageMssqlDdlTest 는 {@link #run} 의 화면 사용 통계 단계와 SQLite 보강 단계의 호출 순서를 이 파일에서 본다.
  */
 @Component
@@ -168,62 +168,13 @@ public class DataInitializer implements ApplicationRunner {
      * <p>모든 INSERT 는 멱등 (존재 검증 후 skip).
      */
     private void seedMcmSecRbac(SeedSupport support) {
-        // TB_MCM_SEC_PERM — PERM_ALL (전체 권한) 의 action 목록. INSERT 는 CoreRbacSeeder 가 한다.
-        // 이 선언은 소스 대조 시험(mcm-core ScreenUsageOasisContractTest · mdm MdmOasisActionVocabularyTest)이
-        // 이 파일에서 문자열로 읽으므로 DataInitializer 에 둔다. 문자열 연결만 하므로 앞당겨 계산해도 동작은 같다.
-        String allActions = String.join(",",
-                "search", "save", "delete", "import", "export", "reg",
-                "confirm", "cancel", "approve", "reject", "copy",
-                "deleteCmUser", "reRegCmUser", "regCmUser", "pwdinit",
-                "searchUserRoleGrp", "saveUserRoleGrp",
-                "searchRoleGrp", "saveUserRoleGrpCopy",
-                "commonUserDept", "commonList",
-                "searchObj", "searchCmMenu", "searchMenuGrp", "saveCmMenu",
-                "searchCmMenuFld", "saveCmMenuFld",
-                "searchCmRole", "saveCmRole",
-                "searchCmRoleMap", "saveCmRoleMap",
-                "searchCmPerm", "lov",
-                "searchDetail", "saveDetail",
-                "searchObjectLov", "searchSystemLov", "searchDeptLov",
-                "searchCmRoleGrp", "saveCmRoleGrp",
-                "searchCmRoleGrpMap", "saveCmRoleGrpMap",
-                "searchCmRoleGrpMenu",
-                "searchCmUser", "saveCmUser",
-                "searchCmObj", "saveCmObj",
-                "searchUserList",
-                "execute", "validate", "analyze", "view",
-                "activate", "deactivate", "compare", "restore",
-                "apply", "release", "calculate",
-                // TSK-08-02 D4 — mdm DRAFT 소유권(선점·해제·넘기기). mdm MdmActions·MdmPermissions 와 같은 이름.
-                "lock", "unlock", "handover",
-                // 2026-10-02 — mls 공지사항 관리(services/lsh/noticeMgmt.bpmn) 게시상태 변경. 이 토큰이 없어 SYSADMIN 도
-                //   게시중지가 403 이었다. 이미 시드된 DB 는 아래 ensurePermAllActions 가 끝에 덧붙인다.
-                "changeStatus",
-                // 2026-10-02 — mcm 화면 사용 통계(services/csa/screenUsageStat.bpmn) 6개 action. 이미 시드된 DB 는
-                //   아래 ensurePermAllActions 가 덧붙인다. screenUsage/record 는 AUTH_ONLY 라 여기 넣지 않는다.
-                "overview", "byScreen", "byDept", "byUser", "unused", "history",
-                // 2026-10-02 — mcm 위젯관리(services/csa/commWidgetMng.bpmn) action 과 미디어 올리기(REST upload).
-                //   search·save·delete 는 위에 있다. 사용자용 widgetDef·widgetData·widgetExt·widgetChat·widgetMemo·widgetMedia 는 AUTH_ONLY 라 넣지 않는다.
-                "previewQuery", "searchLayouts", "loadLayout", "saveLayout", "deleteLayout", "searchDepts", "upload",
-                // 2026-10-02 — MDM 캐시 관리(csa/mdmCacheMng) 재등록 버튼. 이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
-                "reload"
-
-                // ── 업무 모듈을 붙일 때 여기에 해당 모듈의 OASIS action 을 추가한다 ──────────────
-                // 본 목록은 PERM_ALL 의 PERMISSION_ACTION 이며, UserPermCache 가 콤마 분할해 PermKey
-                // (`{objId}/{action}`) 를 만든다. **여기에 없는 action 은 SYSADMIN 도 403 이다.**
-                // 증상이 조용해서 추적이 어렵다 — 조회 1건은 되는데 콤보/팝업/저장만 죽는 형태로 나타난다.
-                // 목록 정본 = 각 모듈 BPMN 의 actionGateway 분기명 전수:
-                //   grep -h 'sourceRef="actionGateway"' src/backend/{모듈}/**/services/**/*.bpmn
-                // 화면을 추가할 때마다 함께 갱신할 것.
-        );
-
         McmMenuSeeder mcmMenu = new McmMenuSeeder(support);
         ModuleMenuSeeder moduleMenus = new ModuleMenuSeeder(support);
         MdmMenuSeeder mdmMenus = new MdmMenuSeeder(support);
         MenuFinalizer menuFinalizer = new MenuFinalizer(support, secMenuNativeRepository);
 
-        // 사용자·비밀번호·역할그룹·역할·PERM_ALL·OBJECT·ROLE_MAPPING — 코어 RBAC.
-        new CoreRbacSeeder(support, passwordEncoder, environment).seedCoreRbac(allActions);
+        // 사용자·비밀번호·역할그룹·역할·PERM_ALL·OBJECT·ROLE_MAPPING — 코어 RBAC. PERM_ALL 의 action 목록도 CoreRbacSeeder 안에 있다.
+        new CoreRbacSeeder(support, passwordEncoder, environment).seedCoreRbac();
 
         // TB_MCM_SEC_MENU — 메뉴 트리 시드 leaf 13 row (화면 only). round 3 (2026-06-02): 모듈/그룹 폴더 4 row 는
         // 본 테이블 owner ✗ — 모두 TB_MCM_SEC_MENU_FLD owner. PARENT_MENU_ID 는 SEC_MENU_FLD.MENU_ID 참조.
