@@ -128,6 +128,8 @@ function maruOptions() {
 let holdCateView: { cateId: string; until: Promise<void> } | null = null;
 /** true 면 compare 가 정규식 문법 오류(invalid)를 돌려준다 — 미완성 괄호 같은 경우. */
 let holdCompareInvalid = false;
+/** 설정하면 dataCateEdit/reg 를 이 문구로 거부한다(OASIS 거부 = HTTP 200 + meta.success=false). */
+let rejectCateReg: string | null = null;
 
 async function flush() {
   for (let i = 0; i < 5; i++) {
@@ -161,6 +163,7 @@ describe("DataItemMngPage", () => {
     holdPortSearch = null;
     holdCateView = null;
     holdCompareInvalid = false;
+    rejectCateReg = null;
     withNewOption = false;
     holdClose = null;
     takeMdmPageParams("dmd/dataItemMng");
@@ -209,6 +212,9 @@ describe("DataItemMngPage", () => {
           if (holdCateView && holdCateView.cateId === params.cateId) await holdCateView.until;
           const cate = cateList.find((c) => c.cateId === params.cateId);
           return ok({ cate, items: [{ code: "KRPUS", name: "부산", lvl1: "KR" }], memberCodes: ["KRPUS"] });
+        }
+        if (other[2] === "reg" && rejectCateReg) {
+          return jsonResponse({ data: {}, meta: { success: false, message: rejectCateReg } });
         }
         if (other[2] === "compare") {
           return ok(holdCompareInvalid
@@ -452,6 +458,73 @@ describe("DataItemMngPage", () => {
     await type(testId("cate-add-name"), "신규 카테고리");
     await click(testId("cate-add-submit"));
     expect(otherCalls.some((c) => c.path === "dataCateEdit/reg" && c.params.cateId === "NEW_CATE")).toBe(true);
+  });
+
+  it("등록이 성공하면 팝업을 닫는다", async () => {
+    await render();
+    await click(testId("cate-add"));
+    await type(testId("cate-add-id"), "NEW_CATE");
+    await type(testId("cate-add-name"), "신규 카테고리");
+    await click(testId("cate-add-submit"));
+    await flush();
+    expect(testId("cate-add-id")).toBeNull();
+  });
+
+  // 2026-10-03 mdm-user 여정 결함 — 서버가 거부해도 팝업이 닫히고 입력이 지워졌다(룰·코드 등록 팝업은 입력을 남긴다).
+  it("서버가 등록을 거부하면 팝업은 열린 채 입력을 남기고 오류를 보인다(오류 창을 닫아도 남는다)", async () => {
+    rejectCateReg = "이미 있는 카테고리 ID 입니다: NEW_CATE";
+    await render();
+    await click(testId("cate-add"));
+    await type(testId("cate-add-id"), "NEW_CATE");
+    await type(testId("cate-add-name"), "신규 카테고리");
+    await click(testId("cate-add-submit"));
+    await flush();
+    expect(otherCalls.some((c) => c.path === "dataCateEdit/reg" && c.params.cateId === "NEW_CATE")).toBe(true);
+    expect(document.body.textContent).toContain("이미 있는 카테고리 ID 입니다: NEW_CATE");
+    expect((testId("cate-add-id") as HTMLInputElement | null)?.value).toBe("NEW_CATE");
+    expect((testId("cate-add-name") as HTMLInputElement | null)?.value).toBe("신규 카테고리");
+
+    const ok = Array.from(document.querySelectorAll('[role="dialog"] button')).find((b) => b.textContent === "확인");
+    await click(ok ?? null);
+    await flush();
+    expect(document.body.textContent).not.toContain("이미 있는 카테고리 ID 입니다");
+    expect((testId("cate-add-id") as HTMLInputElement | null)?.value).toBe("NEW_CATE");
+    expect((testId("cate-add-name") as HTMLInputElement | null)?.value).toBe("신규 카테고리");
+  });
+
+  it("거부 오류 창이 떠 있을 때 Escape 를 눌러도 추가 팝업은 닫히지 않는다", async () => {
+    rejectCateReg = "이미 있는 카테고리 ID 입니다: NEW_CATE";
+    await render();
+    await click(testId("cate-add"));
+    await type(testId("cate-add-id"), "NEW_CATE");
+    await type(testId("cate-add-name"), "신규 카테고리");
+    await click(testId("cate-add-submit"));
+    await flush();
+    expect(document.body.textContent).toContain("이미 있는 카테고리 ID 입니다: NEW_CATE");
+    await act(async () => {
+      // shared Modal 은 열린 창마다 window 의 Escape 를 받는다 — 요소에서 올려 window 까지 닿게 한다.
+      (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    await flush();
+    expect((testId("cate-add-id") as HTMLInputElement | null)?.value).toBe("NEW_CATE");
+  });
+
+  // 훅 규칙(2026-10-03): 팝업은 훅을 모두 부른 뒤 닫혔으면 그리지 않고, 열릴 때 칸을 비운다.
+  it("거부 뒤 [취소] 로 닫았다가 다시 열면 칸이 비어 있다", async () => {
+    rejectCateReg = "이미 있는 카테고리 ID 입니다: NEW_CATE";
+    await render();
+    await click(testId("cate-add"));
+    await type(testId("cate-add-id"), "NEW_CATE");
+    await type(testId("cate-add-name"), "신규 카테고리");
+    await click(testId("cate-add-submit"));
+    await flush();
+    const ok = Array.from(document.querySelectorAll('[role="dialog"] button')).find((b) => b.textContent === "확인");
+    await click(ok ?? null);
+    await click(testId("cate-add-cancel"));
+    expect(testId("cate-add-id")).toBeNull();
+    await click(testId("cate-add"));
+    expect((testId("cate-add-id") as HTMLInputElement | null)?.value).toBe("");
+    expect((testId("cate-add-name") as HTMLInputElement | null)?.value).toBe("");
   });
 
   it("조회 전용(EXTERNAL) 마루 데이터는 카테고리 탭도 편집을 막는다", async () => {

@@ -52,6 +52,13 @@ export type HeaderForm = {
 
 export const LVL_CNT_OPTIONS = ["0", "1", "2", "3", "4", "5"].map((v) => ({ value: v, label: v }));
 
+/** 두 헤더 폼의 칸 값이 모두 같은지. */
+export function sameHeaderForm(a: HeaderForm, b: HeaderForm): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof HeaderForm>;
+  for (const key of keys) if (a[key] !== b[key]) return false;
+  return true;
+}
+
 export function headerFormOf(view: DataEditView): HeaderForm {
   const form = {
     maruDataName: view.maruDataName ?? "",

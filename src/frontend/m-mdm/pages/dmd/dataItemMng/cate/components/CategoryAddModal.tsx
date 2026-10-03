@@ -15,8 +15,11 @@ import { Modal } from "@dk-oasis/shared/modal";
 export interface CategoryAddModalProps {
   open: boolean;
   onClose: () => void;
-  /** 서버 등록이 끝나면 닫고 목록은 `write` 가 다시 읽는다. */
-  onAdd: (cateId: string, cateName: string, defKind: "REGEX" | "TABLE") => void | Promise<void>;
+  /**
+   * 서버 등록. 성공하면 true — 칸을 비우고 닫으며 목록은 `write` 가 다시 읽는다. 거부되면 false — 오류는 `write` 가
+   * 알리고 팝업은 입력을 남긴 채 열려 있어 고쳐 다시 보낼 수 있다(룰·마루 코드 등록 팝업과 같은 관례).
+   */
+  onAdd: (cateId: string, cateName: string, defKind: "REGEX" | "TABLE") => boolean | Promise<boolean>;
   /** 등록 중 — 버튼을 잠가 두 번 등록되지 않게 한다. */
   busy?: boolean;
 }
@@ -26,20 +29,33 @@ const field = { display: "flex", flexDirection: "column", gap: 4 } as const;
 const fieldLabel = { fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)", fontWeight: 500 } as const;
 
 export function CategoryAddModal({ open, onClose, onAdd, busy = false }: CategoryAddModalProps) {
-  // shared `Modal` 은 닫힌 첫 렌더에도 content 를 마운트한다(Transition 초기 상태). 목록에 인라인 폼을 두지 않기로
-  // 한 이상, 닫혀 있는데 폼 칸이 DOM 에 남아 있으면 그게 계약 위반이다 — 닫혔으면 아예 그리지 않는다.
-  if (!open) return null;
   const [cateId, setCateId] = useState("");
   const [cateName, setCateName] = useState("");
   const [defKind, setDefKind] = useState<"REGEX" | "TABLE">("TABLE");
   // 빈 칸으로 [추가]를 누르면 칸 아래에 무엇이 빠졌는지 알린다(아무 반응이 없으면 버튼이 고장 난 것처럼 보인다).
   const [missing, setMissing] = useState<{ id: boolean; name: boolean }>({ id: false, name: false });
+  // 열릴 때마다 칸을 비운다 — 거부 뒤 [취소] 로 닫았다가 다시 열어도 옛 입력이 남지 않게. 열리는 렌더 안에서 바로 맞춰
+  // 옛 값이 한 번도 그려지지 않는다(React 의 prop 변화에 따른 상태 조정).
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setCateId("");
+      setCateName("");
+      setDefKind("TABLE");
+      setMissing({ id: false, name: false });
+    }
+  }
+  // shared `Modal` 은 닫힌 첫 렌더에도 content 를 마운트한다(Transition 초기 상태). 목록에 인라인 폼을 두지 않기로
+  // 한 이상, 닫혀 있는데 폼 칸이 DOM 에 남아 있으면 그게 계약 위반이다 — 닫혔으면 아예 그리지 않는다. 훅을 모두 부른 뒤에 돌아간다.
+  if (!open) return null;
 
   const submit = () => {
     const next = { id: !cateId.trim(), name: !cateName.trim() };
     setMissing(next);
     if (next.id || next.name) return;
-    void Promise.resolve(onAdd(cateId.trim(), cateName.trim(), defKind)).then(() => {
+    void Promise.resolve(onAdd(cateId.trim(), cateName.trim(), defKind)).then((ok) => {
+      if (!ok) return;
       setCateId("");
       setCateName("");
       setDefKind("TABLE");

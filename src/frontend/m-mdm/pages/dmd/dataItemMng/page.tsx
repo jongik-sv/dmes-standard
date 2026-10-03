@@ -737,6 +737,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                   editable={editable}
                   canSave={canCateSave}
                   onError={setError}
+                  errorShown={!!error}
                 />
               </div>
             )}

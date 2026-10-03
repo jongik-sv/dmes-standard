@@ -16,8 +16,15 @@
  *
  * <p>쓰기가 MDM001(row_version·auditVer 충돌)로 거부되면 룰 화면(`ruleEdit` useRuleEdit)과 같은 문구("다른 창에서 바뀌었습니다.
  * 다시 불러오세요")와 [다시 불러오기] 를 준다(판정·문구는 `@/dme/oasis-call` `writeFailure` 공용). 거부는 다시 불러오지 않아 입력이 남는다.
+ *
+ * <p>같은 룰을 다시 읽어도(행 다시 누르기·[조회]·버전 쓰기 뒤) 저장하지 않은 헤더 입력은 말없이 지우지 않는다(2026-10-03).
+ * 입력은 남기고 저장에는 입력을 시작할 때의 auditVer 를 보낸다 — 그사이 다른 창에서 헤더가 바뀌었으면 서버가 MDM001 로
+ * 거부해 위 [다시 불러오기] 로 이어진다. 다시 읽은 헤더 값이 입력을 시작할 때와 칸마다 같으면(폐기처럼 VER 만 오른 자기 쓰기)
+ * 저장할 auditVer 를 새 값으로 올려 거짓 충돌을 막는다(검토 M1).
+ * 입력을 버리는 길은 [다시 불러오기] 하나다. 헤더 저장에 성공한 뒤에는 입력이 보낸 그대로면 서버 값(trim 된 값)·새 auditVer 로
+ * 맞춘다(검토 I1).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
@@ -89,17 +96,31 @@ const versionColumns: GridColumn[] = [
   { key: "hitPolicy", header: "적중 정책", width: 90 },
 ];
 
+function sameForm(a: HeaderForm, b: HeaderForm): boolean {
+  return a.maruRuleName === b.maruRuleName && a.description === b.description && a.usageNote === b.usageNote;
+}
+
 export interface RuleDetailPanelProps {
   view: RuleMngView;
-  /** 상세 재조회 — 쓰기 뒤 row_version·auditVer 을 맞춰야 한다. */
-  reload: () => Promise<void>;
+  /**
+   * 상세 재조회 — 쓰기 뒤 row_version·auditVer 을 맞춰야 한다. 실제로 다시 읽었으면 true, 그사이 선택이 바뀌어 건너뛰었으면
+   * false 를 돌려준다.
+   */
+  reload: () => Promise<boolean>;
   canDo: (action: string) => boolean;
   busy: boolean;
+  /** 쓰기가 시작(+1)·끝(-1)날 때 — 쓰기 동안 목록 행 클릭을 받지 않게 페이지가 센다(codeMng 의 writing 과 같다). */
+  onWriting?: (delta: 1 | -1) => void;
   onError: (message: string) => void;
   onContentEdit: (ruleId: string, ver?: string) => void;
 }
 
-export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentEdit }: RuleDetailPanelProps) {
+export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, onContentEdit, onWriting }: RuleDetailPanelProps) {
+  // 진행 중인 쓰기 수 — 쓰기 동안 헤더 입력과 쓰기 단추를 잠근다. 저장 중에 또 고친 입력이 옛 auditVer 로 남거나 [헤더 저장]이
+  // 두 번 나가 거짓 MDM001 이 나지 않게 한다(재검토 I3). ref 는 같은 틱의 두 번째 누름까지 막는다.
+  const [writing, setWriting] = useState(0);
+  const writingRef = useRef(0);
+  const busy = pageBusy || writing > 0;
   const header: RuleHeader = view.header;
   const me = view.me ?? "";
   const flags = view.flags;
@@ -112,11 +133,37 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
     [header],
   );
   const [form, setForm] = useState<HeaderForm>(initial);
+  // 폼이 기대는 서버 헤더의 auditVer — 입력을 남긴 채 다시 읽으면 옛 값을 그대로 둔다.
+  const [formAuditVer, setFormAuditVer] = useState(header.auditVer);
   const [confirmDeprecate, setConfirmDeprecate] = useState(false);
+  const formRef = useRef(form);
+  formRef.current = form;
+  const shown = useRef({ id, initial });
+  // 헤더 저장에 성공했을 때 보낸 폼 — 다음 다시 읽기에서 한 번 쓰고 비운다.
+  const savedForm = useRef<HeaderForm | null>(null);
+  // formAuditVer 를 받을 때의 서버 헤더 값 — 입력을 남긴 채 다시 읽었는데 헤더 값이 이것과 같으면 VER 만 오른 것이다.
+  const formBase = useRef(initial);
   useEffect(() => {
-    setForm(initial);
+    const prev = shown.current;
+    shown.current = { id, initial };
+    const saved = savedForm.current;
+    savedForm.current = null;
     setConfirmDeprecate(false);
-  }, [initial]);
+    const cur = formRef.current;
+    // 헤더 저장에 성공한 뒤 입력이 보낸 그대로면 서버 값·새 auditVer 로 맞춘다 — 서버가 값을 trim 해 돌려주면 입력이
+    // 새 서버 값과 달라 보여도 고친 입력이 아니다(검토 I1). 저장하는 사이 또 고쳤으면 아래 규칙대로 남긴다.
+    const savedAsIs = prev.id === id && !!saved && sameForm(cur, saved);
+    // 같은 룰을 다시 읽었는데 사용자가 고친 칸이 있으면(이전 서버 값과도 새 서버 값과도 다르면) 입력을 남긴다.
+    if (!savedAsIs && prev.id === id && !sameForm(cur, prev.initial) && !sameForm(cur, initial)) {
+      // 헤더 값이 입력을 시작할 때와 칸마다 같으면 다른 창이 헤더를 고치지 않았다 — VER 만 오른 자기 쓰기(폐기 등) 뒤
+      // 거짓 충돌이 나지 않게 저장할 auditVer 를 새 값으로 올린다(검토 M1). 헤더 칸이 바뀌었으면 옛 값을 둬 충돌로 드러낸다.
+      if (sameForm(initial, formBase.current)) setFormAuditVer(header.auditVer);
+      return;
+    }
+    formBase.current = initial;
+    setForm(initial);
+    setFormAuditVer(header.auditVer);
+  }, [id, initial, header.auditVer]);
 
   // ② 버전 — 선택은 이 화면이 갖고 있다(내용 화면은 읽기 전용 목록만 본다).
   const [selectedVer, setSelectedVer] = useState<string | null>(null);
@@ -132,7 +179,7 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
 
   const [handoverTo, setHandoverTo] = useState("");
 
-  const changed = form.maruRuleName !== initial.maruRuleName || form.description !== initial.description || form.usageNote !== initial.usageNote;
+  const changed = !sameForm(form, initial);
   const editable = flags.headerEditable && !external;
   const canSaveHeader = editable && !!form.maruRuleName.trim() && canDo("save") && !busy;
   const canDeprecate = editable && flags.canDeprecate && canDo("delete") && !busy;
@@ -177,17 +224,27 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
 
   /** 쓰기 한 번 — 성공하면 상세 를 다시 불러 row_version·auditVer 을 맞춘다. 실패는 다시 불러오지 않는다(입력이 남는다). */
   const runWrite = useCallback(
-    async (fn: () => Promise<unknown>) => {
+    async (fn: () => Promise<unknown>, sentForm?: HeaderForm) => {
+      if (writingRef.current > 0) return;
+      writingRef.current += 1;
+      setWriting((n) => n + 1);
+      onWriting?.(1);
       try {
         await fn();
-        await reload();
+        if (sentForm) savedForm.current = sentForm;
+        // 그사이 선택이 바뀌어 다시 읽기를 건너뛰었으면 보낸 폼을 남기지 않는다.
+        if (!(await reload())) savedForm.current = null;
       } catch (e) {
         const f = writeFailure(e);
         if (f.conflict) setConflict(true);
         onError(f.message);
+      } finally {
+        writingRef.current -= 1;
+        setWriting((n) => n - 1);
+        onWriting?.(-1);
       }
     },
-    [reload, onError],
+    [reload, onError, onWriting],
   );
 
   const set = (key: keyof HeaderForm, value: string) => setForm((p) => ({ ...p, [key]: value }));
@@ -201,7 +258,15 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
           style={{ display: "flex", alignItems: "center", gap: "var(--spacing-xs)", padding: "var(--spacing-sm) var(--spacing-sm) 0" }}
         >
           <span style={{ flex: "1 1 auto", color: "var(--color-danger)" }}>{CONFLICT_MESSAGE}</span>
-          <Button data-testid="rule-conflict-reload" disabled={busy} onClick={() => void reload()}>
+          <Button
+            data-testid="rule-conflict-reload"
+            disabled={busy}
+            onClick={() => {
+              // 입력을 먼저 지금 서버 값으로 되돌려야 다시 읽은 값으로 바뀐다(고친 칸이 있으면 남기는 규칙 때문).
+              setForm(initial);
+              void reload();
+            }}
+          >
             다시 불러오기
           </Button>
         </div>
@@ -288,7 +353,7 @@ export function RuleDetailPanel({ view, reload, canDo, busy, onError, onContentE
             variant="primary"
             data-testid="rule-header-save"
             disabled={!canSaveHeader || !changed}
-            onClick={() => void runWrite(() => saveHeader(id, form, header.auditVer))}
+            onClick={() => void runWrite(() => saveHeader(id, form, formAuditVer), form)}
           >
             헤더 저장
           </Button>

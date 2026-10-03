@@ -88,6 +88,13 @@ export const LVL_CNT_OPTIONS = ["0", "1", "2", "3", "4", "5"].map((v) => ({ valu
 /** 서버 MDM001 문구의 앞부분 — 이 오류는 모달을 닫을 때 다시 불러온다(design §6.12). */
 export const CONFLICT_PREFIX = "다른 사용자가 수정했습니다";
 
+/** 두 헤더 폼의 칸 값이 모두 같은지. */
+export function sameHeaderForm(a: HeaderForm, b: HeaderForm): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof HeaderForm>;
+  for (const key of keys) if (a[key] !== b[key]) return false;
+  return true;
+}
+
 export function headerFormOf(header: CodeHeaderView): HeaderForm {
   const form = {
     maruCodeName: header.maruCodeName ?? "",

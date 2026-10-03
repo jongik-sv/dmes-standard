@@ -8,12 +8,41 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import TermMngPage from "../../../pages/dma/termMng/page";
+import { findButton, flush, installDomStorage, typeInto } from "../../dme/helpers/render";
 
 const RBAC_STORE_KEY = "__dkOasisButtonRbacStore__";
 
 let container: HTMLDivElement;
 let root: Root | null = null;
 const originalFetch = globalThis.fetch;
+let termList: unknown[] = [];
+
+/** 상세 표에서 머리글이 `label` 로 시작하는 줄의 입력 칸. */
+function detailInput(label: string): HTMLInputElement {
+  const th = Array.from(container.querySelectorAll("th")).find((x) => x.textContent?.trim().startsWith(label));
+  const input = th?.closest("tr")?.querySelector("input");
+  expect(input, `입력 ${label}`).toBeTruthy();
+  return input as HTMLInputElement;
+}
+
+async function clickListCell(text: string) {
+  const cell = Array.from(container.querySelectorAll(".ag-row .ag-cell")).find((c) => c.textContent === text);
+  expect(cell, `행 ${text}`).toBeTruthy();
+  await act(async () => {
+    cell!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await flush();
+}
+
+/** 머리 [조회] — 조회 영역에도 같은 이름 버튼이 있을 수 있어 머리 버튼 줄에서 찾는다. */
+async function pressSearch() {
+  // 버튼 권한(RBAC) 응답이 온 뒤에 누른다 — 그 전에는 머리 버튼이 동작하지 않는다.
+  await flush();
+  await flush();
+  await act(async () => findButton(container.querySelector(".page-layout__header-buttons")!, "조회").click());
+  await flush();
+  await flush();
+}
 
 async function render() {
   container = document.createElement("div");
@@ -45,10 +74,12 @@ function visibleText(el: Element): string {
 
 describe("TermMngPage", () => {
   beforeEach(() => {
+    installDomStorage();
+    termList = [];
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/oasis/termMng/search")) {
-        return jsonResponse({ data: { result: { list: [] } }, meta: { success: true } });
+        return jsonResponse({ data: { result: { list: termList } }, meta: { success: true } });
       }
       if (url.includes("/api/auth/me")) {
         // PageLayout 버튼 RBAC 훅이 사용자 확인 뒤 버튼 활성 여부를 판정한다 — 클릭 상호작용을
@@ -73,6 +104,19 @@ describe("TermMngPage", () => {
     container?.remove();
     globalThis.fetch = originalFetch;
     delete (globalThis as Record<string, unknown>)[RBAC_STORE_KEY];
+  });
+
+  // 2026-10-03 — 상세는 목록 행 값으로 채운다. 같은 행을 다시 누르면 고친 입력이 말없이 목록 값으로 돌아갔다.
+  it("고친 입력은 같은 행을 다시 눌러도 목록 값으로 되돌아가지 않는다", async () => {
+    termList = [{ termId: 7, termName: "코일", senseNo: 1, definition: "강판 말이", context: null, engName: "Coil",
+      engAbbr: "COIL", synonyms: [], aliases: [], systems: [], stdBasis: null }];
+    await render();
+    await pressSearch();
+    await clickListCell("코일");
+    expect(detailInput("표기").value).toBe("코일");
+    await typeInto(detailInput("영문명"), "Coil Strip");
+    await clickListCell("코일");
+    expect(detailInput("영문명").value).toBe("Coil Strip");
   });
 
   it("제목과 빈 상태(0건)를 그린다", async () => {
