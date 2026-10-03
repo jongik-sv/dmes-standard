@@ -33,6 +33,7 @@ import {
   type RbacPolicyConfig,
 } from "@dk-oasis/shared/auth-rbac-policy";
 import { getUserPerms } from "@/lib/auth/api-permission-cache";
+import { authCookiePrefix, sessionCookieName } from "@/lib/auth/session-cookie";
 import { API_BODY_MAX_BYTES, declaredBodyExceeds } from "@/lib/http/body-limit";
 import {
   INTERNAL_API_PREFIX,
@@ -42,8 +43,6 @@ import {
 import { isUnsafeApiPath } from "@/lib/http/path-guard";
 
 const AUTH_SECRET = process.env.AUTH_SECRET;
-const AUTH_COOKIE_PREFIX = process.env.AUTH_COOKIE_PREFIX ?? "oasis-mcm-auth";
-const SESSION_COOKIE_NAME = `${AUTH_COOKIE_PREFIX}.session-token`;
 
 /**
  * mcm BFF RBAC 정책.
@@ -98,7 +97,7 @@ const RBAC_POLICY: RbacPolicyConfig = {
 
 // 포탈 페이지 인증 보호 (shared 제공)
 const portalAuthProxy = createPortalAuthProxy({
-  authCookiePrefix: AUTH_COOKIE_PREFIX,
+  authCookiePrefix: authCookiePrefix(),
   authSecret: process.env.AUTH_SECRET,
   nextAuthUrl: process.env.NEXTAUTH_URL,
 });
@@ -160,10 +159,11 @@ export async function guardApiRequest(req: NextRequest): Promise<NextResponse | 
   const path = req.nextUrl.pathname;
 
   // PUBLIC 은 세션 조회 없이 통과 (login 등). 그 외엔 세션 토큰 필요.
+  // 쿠키 이름은 NextAuth 와 같은 함수로 정한다 — https 면 `__Secure-` 쿠키만 읽는다(lib/auth/session-cookie.ts).
   const isPublic = RBAC_POLICY.publicPrefixes.some((p) => path.startsWith(p));
   const token = isPublic
     ? null
-    : await getToken({ req, secret: AUTH_SECRET, cookieName: SESSION_COOKIE_NAME });
+    : await getToken({ req, secret: AUTH_SECRET, cookieName: sessionCookieName() });
 
   // 방식 C — RBAC 멤버십 단계에서만 BFF 서버 캐시(getUserPerms)로 사용자 권한키를 lazy load.
   // req.method 는 authOnlyReadPatterns(읽기 전용 AUTH_ONLY) 판정에 쓴다 — 빠뜨리면 그 경로가 RBAC 403 이 된다.

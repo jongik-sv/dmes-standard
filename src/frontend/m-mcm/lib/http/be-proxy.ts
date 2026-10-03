@@ -18,6 +18,7 @@
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 import { hasAnyRole } from "@dk-oasis/shared/auth-rbac-policy";
+import { sessionCookieName } from "@/lib/auth/session-cookie";
 import { forwardedForHeader } from "./forwarded-for";
 import { isUnsafeApiPath } from "./path-guard";
 
@@ -25,8 +26,6 @@ const BACKEND_API_URL = process.env.BACKEND_API_URL ?? "http://localhost:8080";
 const BACKEND_CLIENT_KEY = process.env.BACKEND_CLIENT_KEY;
 
 const AUTH_SECRET = process.env.AUTH_SECRET;
-const AUTH_COOKIE_PREFIX = process.env.AUTH_COOKIE_PREFIX ?? "oasis-mcm-auth";
-const SESSION_COOKIE_NAME = `${AUTH_COOKIE_PREFIX}.session-token`;
 
 const BACKEND_UNAVAILABLE_MESSAGE =
   "백엔드 서버와 연결할 수 없습니다. 서버 실행 상태 또는 네트워크를 확인한 뒤 다시 시도해 주세요.";
@@ -228,7 +227,8 @@ export async function forwardToBackend(
     );
   }
 
-  const token = await getToken({ req, secret: AUTH_SECRET, cookieName: SESSION_COOKIE_NAME });
+  // 쿠키 이름은 NextAuth 와 같은 함수로 정한다 — https 면 `__Secure-` 쿠키만 읽는다(lib/auth/session-cookie.ts).
+  const token = await getToken({ req, secret: AUTH_SECRET, cookieName: sessionCookieName() });
   if (!token) {
     return NextResponse.json(
       { success: false, error: { code: "UNAUTHORIZED", message: "인증이 필요합니다." } },

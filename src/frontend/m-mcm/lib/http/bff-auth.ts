@@ -7,10 +7,9 @@
  */
 import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
+import { sessionCookieName } from "@/lib/auth/session-cookie";
 
 const AUTH_SECRET = process.env.AUTH_SECRET;
-const AUTH_COOKIE_PREFIX = process.env.AUTH_COOKIE_PREFIX ?? "oasis-mcm-auth";
-const SESSION_COOKIE_NAME = `${AUTH_COOKIE_PREFIX}.session-token`;
 
 export interface BffAuthContext {
   userId: string;
@@ -30,8 +29,9 @@ export interface BffAuthContext {
  * 인증 실패 시 null 을 반환한다.
  */
 export async function getBffAuthContext(req: NextRequest): Promise<BffAuthContext | null> {
-  // 1) 쿠키 기반 NextAuth 세션
-  const token = await getToken({ req, secret: AUTH_SECRET, cookieName: SESSION_COOKIE_NAME });
+  // 1) 쿠키 기반 NextAuth 세션 — 이름은 NextAuth 와 같은 함수로 정한다(https 면 `__Secure-` 쿠키만, lib/auth/session-cookie.ts).
+  const cookieName = sessionCookieName();
+  const token = await getToken({ req, secret: AUTH_SECRET, cookieName });
   if (token?.sub) {
     const tokenRoles = Array.isArray(token.roles)
       ? (token.roles as unknown[]).filter((r): r is string => typeof r === "string")
@@ -47,7 +47,7 @@ export async function getBffAuthContext(req: NextRequest): Promise<BffAuthContex
   // 토큰 내용·요청 헤더 값은 남기지 않는다(세션 정보·비밀이 로그로 새지 않게).
   console.warn(
     "[bff-auth] 인증 실패 — cookie:",
-    SESSION_COOKIE_NAME,
+    cookieName,
     "secret존재:",
     !!AUTH_SECRET,
     "token:",
