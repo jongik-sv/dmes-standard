@@ -4,7 +4,9 @@
  * 호출 패턴: `POST /api/mdm/oasis/columnMng/{action}` — search·view·compare(READ), save(EDIT).
  * BFF 가 `MDM_WAS_URL` 로 프록시하고 인증 헤더를 주입한다. 화면은 헤더를 다루지 않는다.
  */
-import { apiRequest } from "@dk-oasis/shared/http";
+import { callOasisAt, unwrapOasis, type OasisCallOptions } from "@dk-oasis/shared/http";
+
+import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
 
 import type { DomainRow } from "@/domain";
 
@@ -15,29 +17,18 @@ import type {
   ViewResult,
 } from "./types";
 
-interface CactusEnvelope {
-  meta?: { success?: boolean; message?: string | null; code?: string };
-  data?: Record<string, unknown>;
-}
-
 type Rows = Record<string, unknown>[];
 
 /**
- * 응답 봉투 해제 + 업무 거부 판정. `apiRequest` 는 non-2xx 만 throw 하므로 `meta.success === false` 를 직접 본다.
+ * 지금 동작 그대로 — `apiRequest` 는 non-2xx 만 throw 하므로 `meta.success === false` 는 공통 계약이 본다.
  * BPMN 안에서 던진 업무 오류는 `meta.message`(= 서버 예외 message)만 오고 `errors[]` 는 비어 있다(design.md F12).
- * 그래서 message 를 그대로 화면 오류 문구로 쓴다. 성공이면 `data.result` 를 펼친다(output="result").
+ * 그래서 message 만 담은 일반 Error 를 던진다. 성공이면 `data.result` 만 펼친다(output="result").
  */
+const OASIS: OasisCallOptions = { merge: "result", details: "none", errorFactory: plainError };
+
+/** 응답 봉투 해제 + 업무 거부 판정 — 위 옵션 그대로. */
 export function unwrap<T = Record<string, unknown>>(res: unknown): T {
-  const env = res as CactusEnvelope;
-  if (env?.meta && env.meta.success === false) {
-    throw new Error(env.meta.message?.trim() || "요청이 거부되었습니다.");
-  }
-  const out: Record<string, unknown> = {};
-  const inner = env?.data?.["result"];
-  if (inner && typeof inner === "object" && !Array.isArray(inner)) {
-    Object.assign(out, inner as Record<string, unknown>);
-  }
-  return out as T;
+  return unwrapOasis<T>(res, OASIS);
 }
 
 /**
@@ -45,27 +36,13 @@ export function unwrap<T = Record<string, unknown>>(res: unknown): T {
  * params 의 null·undefined 값은 뺀다 — OASIS 가 null 값의 타입을 정하지 못해 "The type cannot be determined because
  * object is null" 로 요청 전체가 실패한다(design.md 「Build 이탈」 B3). 서버 DTO 에서는 빠진 키가 곧 null 이다.
  */
-export async function callOasis<T>(
+export function callOasis<T>(
   serviceId: string,
   action: string,
   params: Record<string, unknown>,
   grids?: Record<string, { rows: Rows }>,
 ): Promise<T> {
-  const cleaned = Object.fromEntries(
-    Object.entries(params).filter(([, v]) => v !== null && v !== undefined),
-  );
-  const res = await apiRequest<unknown>(
-    `/api/mdm/oasis/${serviceId}/${action}`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        meta: { menuId: serviceId },
-        params: cleaned,
-        ...(grids ? { grids } : {}),
-      }),
-    },
-  );
-  return unwrap<T>(res);
+  return callOasisAt<T>(MDM_OASIS_BASE, serviceId, action, params, grids, OASIS);
 }
 
 /** 도메인 조건은 도메인 ID·도메인명·표준명에 대소문자 무시 부분 일치하는 키워드다(서버 domainKeyword). 비면 전체. */

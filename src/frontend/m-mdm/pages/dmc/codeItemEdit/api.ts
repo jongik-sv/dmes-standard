@@ -8,17 +8,17 @@
  * 실패한다(F9, 서버 시험 O6). 카테고리 편집을 이 화면에 합치며(D-101) 저장은 이 서비스 한 번이다. 카테고리 조회·REGEX
  * 미리보기·되돌리기는 codeCateEdit 서비스 그대로다(cate/api.ts).
  */
-import { apiRequest } from "@dk-oasis/shared/http";
+import { callOasisAt, unwrapOasis, type OasisCallOptions } from "@dk-oasis/shared/http";
+
+import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
 
 import type { Issue as CateIssue } from "./cate/types";
 import type { Issue, PatchParams, PreviewResult, SearchResult, ViewResult } from "./types";
 
 const SERVICE = "codeItemEdit";
 
-interface CactusEnvelope {
-  meta?: { success?: boolean; message?: string | null; code?: string };
-  data?: Record<string, unknown>;
-}
+/** 지금 동작 그대로 — params 는 null·undefined 만 빼고, 성공은 `data.result` 만 펴고, 거부는 meta.message 만 담은 일반 Error. */
+const OASIS: OasisCallOptions = { merge: "result", details: "none", errorFactory: plainError };
 
 type Rows = Record<string, unknown>[];
 
@@ -27,26 +27,14 @@ type Rows = Record<string, unknown>[];
  * 비어 있다(F11). 그래서 message 를 그대로 화면 오류 문구로 쓴다. 성공이면 `data.result` 를 펼친다(output="result").
  */
 export function unwrap<T = Record<string, unknown>>(res: unknown): T {
-  const env = res as CactusEnvelope;
-  if (env?.meta && env.meta.success === false) {
-    throw new Error(env.meta.message?.trim() || "요청이 거부되었습니다.");
-  }
-  const out: Record<string, unknown> = {};
-  const inner = env?.data?.["result"];
-  if (inner && typeof inner === "object" && !Array.isArray(inner)) {
-    Object.assign(out, inner as Record<string, unknown>);
-  }
-  return out as T;
+  return unwrapOasis<T>(res, OASIS);
 }
 
 /** params 의 null·undefined 는 뺀다 — OASIS 가 null 값의 타입을 정하지 못해 요청 전체가 실패한다(F23). */
-async function callOasis<T>(action: string, params: Record<string, unknown>, grids?: Record<string, { rows: Rows }>): Promise<T> {
-  const cleaned = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined));
-  const res = await apiRequest<unknown>(`/api/mdm/oasis/${SERVICE}/${action}`, {
-    method: "POST",
-    body: JSON.stringify({ meta: { menuId: SERVICE }, params: cleaned, ...(grids ? { grids } : {}) }),
-  });
-  return unwrap<T>(res);
+function callOasis<T>(
+  action: string, params: Record<string, unknown>, grids?: Record<string, { rows: Rows }>,
+): Promise<T> {
+  return callOasisAt<T>(MDM_OASIS_BASE, SERVICE, action, params, grids, OASIS);
 }
 
 export function searchCodes(keyword = ""): Promise<SearchResult> {

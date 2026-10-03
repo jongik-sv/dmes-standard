@@ -4,39 +4,25 @@
  * 호출: `POST /api/mdm/oasis/layoutConfirm/{action}` — search·view(READ), validate(EDIT), confirm(CONFIRM).
  * 레이아웃 버전은 소수 셋째 자리 문자열로 보낸다(`"1.001"`).
  */
-import { apiRequest } from "@dk-oasis/shared/http";
+import { callOasisAt, unwrapOasis, type OasisCallOptions } from "@dk-oasis/shared/http";
+
+import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
 
 import type { ConfirmResult, SearchResult, ValidateResult, ViewResult } from "./types";
 
 const SERVICE = "layoutConfirm";
 
-interface CactusEnvelope {
-  meta?: { success?: boolean; message?: string | null; code?: string };
-  data?: Record<string, unknown>;
-}
+/** 지금 동작 그대로 — params 는 null·undefined 만 빼고, 성공은 `data.result` 만 펴고, 거부는 meta.message 만 담은 일반 Error. */
+const OASIS: OasisCallOptions = { merge: "result", details: "none", errorFactory: plainError };
 
 /** 봉투 해제 + 업무 거부 판정. 거부 message 는 그대로 화면 오류 문구가 된다. 성공이면 `data.result` 를 펼친다. */
 export function unwrap<T = Record<string, unknown>>(res: unknown): T {
-  const env = res as CactusEnvelope;
-  if (env?.meta && env.meta.success === false) {
-    throw new Error(env.meta.message?.trim() || "요청이 거부되었습니다.");
-  }
-  const out: Record<string, unknown> = {};
-  const inner = env?.data?.["result"];
-  if (inner && typeof inner === "object" && !Array.isArray(inner)) {
-    Object.assign(out, inner as Record<string, unknown>);
-  }
-  return out as T;
+  return unwrapOasis<T>(res, OASIS);
 }
 
 /** params 의 null·undefined 는 뺀다 — OASIS 가 null 값의 타입을 정하지 못해 요청 전체가 실패한다(F23). */
-async function callOasis<T>(action: string, params: Record<string, unknown>): Promise<T> {
-  const cleaned = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined));
-  const res = await apiRequest<unknown>(`/api/mdm/oasis/${SERVICE}/${action}`, {
-    method: "POST",
-    body: JSON.stringify({ meta: { menuId: SERVICE }, params: cleaned }),
-  });
-  return unwrap<T>(res);
+function callOasis<T>(action: string, params: Record<string, unknown>): Promise<T> {
+  return callOasisAt<T>(MDM_OASIS_BASE, SERVICE, action, params, undefined, OASIS);
 }
 
 export function searchDrafts(keyword = ""): Promise<SearchResult> {

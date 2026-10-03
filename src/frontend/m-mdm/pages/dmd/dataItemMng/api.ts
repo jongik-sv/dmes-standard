@@ -4,43 +4,27 @@
  * 호출 패턴: `POST /api/mdm/oasis/dataItemMng/{action}` — view·search(READ), reg·save·delete(닫기)·restore(다시 열기)
  * (EDIT, D9). BFF 가 `MDM_WAS_URL` 로 프록시하고 인증 헤더를 주입한다.
  */
-import { apiRequest } from "@dk-oasis/shared/http";
+import { callOasisAt, omitParams, type OasisCallOptions } from "@dk-oasis/shared/http";
+
+import { MDM_OASIS_BASE, plainError } from "@/oasis-screen";
 
 import type { DataItemFilters, DataItemSaveResult, DataItemSearchResult, DataItemViewResult } from "./types";
 
-interface CactusEnvelope {
-  meta?: { success?: boolean; message?: string | null; code?: string };
-  data?: Record<string, unknown>;
-}
-
 /**
- * 응답 봉투 해제 + 업무 거부 판정. BPMN 안에서 던진 업무 오류는 `meta.message` 만 오고 `errors[]` 는 비어 있다(F12).
- * 그래서 message 를 그대로 화면 오류 문구로 쓴다(충돌·닫힌 키 판정도 이 글자로 한다). 성공이면 `data.result` 를 펼친다.
+ * 지금 동작 그대로 — params 는 null·undefined·빈 문자열("")을 빼고, 성공은 `data.result` 만 편다. 거부는 meta.message 만 담은
+ * 일반 Error 다 — BPMN 안에서 던진 업무 오류는 `meta.message` 만 오고 `errors[]` 는 비어 있다(F12). 그래서 message 를 그대로
+ * 화면 오류 문구로 쓴다(충돌·닫힌 키 판정도 이 글자로 한다).
  */
-export function unwrap<T = Record<string, unknown>>(res: unknown): T {
-  const env = res as CactusEnvelope;
-  if (env?.meta && env.meta.success === false) {
-    throw new Error(env.meta.message?.trim() || "요청이 거부되었습니다.");
-  }
-  const out: Record<string, unknown> = {};
-  const inner = env?.data?.["result"];
-  if (inner && typeof inner === "object" && !Array.isArray(inner)) {
-    Object.assign(out, inner as Record<string, unknown>);
-  }
-  return out as T;
-}
+const OASIS: OasisCallOptions = { omit: "nullish+empty", merge: "result", details: "none", errorFactory: plainError };
 
 /** params 의 null·undefined·빈 문자열은 뺀다(A4 — OASIS 가 null 값의 타입을 정하지 못해 요청 전체가 실패한다, F14). */
 export function omitNullish(params: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== ""));
+  return omitParams(params, "nullish+empty");
 }
 
-export async function callOasis<T>(serviceId: string, action: string, params: Record<string, unknown>): Promise<T> {
-  const res = await apiRequest<unknown>(`/api/mdm/oasis/${serviceId}/${action}`, {
-    method: "POST",
-    body: JSON.stringify({ meta: { menuId: serviceId }, params: omitNullish(params) }),
-  });
-  return unwrap<T>(res);
+/** `POST /api/mdm/oasis/{serviceId}/{action}` — dataCsvUploadPop·history 도 serviceId 만 바꿔 쓴다. */
+export function callOasis<T>(serviceId: string, action: string, params: Record<string, unknown>): Promise<T> {
+  return callOasisAt<T>(MDM_OASIS_BASE, serviceId, action, params, undefined, OASIS);
 }
 
 export function viewDataItems(maruDataId?: string): Promise<DataItemViewResult> {
