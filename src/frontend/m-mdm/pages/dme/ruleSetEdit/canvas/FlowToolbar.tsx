@@ -279,7 +279,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
             disabled={!editing || busy}
             onClick={onAutoLayout}
           />
-          <ToolButton data-testid="flow-fit" label="화면 맞춤" icon={<IconArrowsMaximize size={14} aria-hidden="true" />} onClick={onFit} />
+          <ToolButton data-testid="flow-fit" label="화면 맞춤" tip={`화면 맞춤 (${mac ? "⇧1" : "Shift+1"})`} icon={<IconArrowsMaximize size={14} aria-hidden="true" />} onClick={onFit} />
           <ToolButton
             data-testid="flow-var-toggle"
             label={VAR_DISPLAY_TEXT[varDisplay]}

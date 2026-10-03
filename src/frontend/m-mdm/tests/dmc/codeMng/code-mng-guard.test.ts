@@ -7,7 +7,7 @@
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, openMdmPage, takeMdmPageParams } from "@/shell";
 import CodeMngPage from "../../../pages/dmc/codeMng/page";
@@ -294,6 +294,9 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
   });
 
   it("A 를 보다가 B 를 고르면 상세를 지웠다 다시 그리지 않고, B 가 올 때까지 A 를 잠근 채 둔다(깜빡임 방지)", async () => {
+    // 잠금이 풀릴 때 흐림 덮개 스타일이 React 경고(transition 단축 속성 + transitionDelay 제거)를 내지 않는다(2026-10-03).
+    const errors = vi.spyOn(console, "error");
+    onTestFinished(() => errors.mockRestore());
     const snapshots: unknown[] = [];
     await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
     await search();
@@ -322,6 +325,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     expect(byTestId("header-code-id")).toBe(headerCell);
     expect(byTestId("version-list")).toBe(versionList);
     expect(button("header-save").disabled).toBe(false);
+    expect(errors.mock.calls.filter((c) => String(c[0]).includes("a style property during rerender"))).toEqual([]);
   });
 
   it("A 저장 중에 B 를 눌러도 선택을 바꾸지 않고, 저장 결과는 A 위에 보인다", async () => {

@@ -5,7 +5,7 @@
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { openMdmPage, takeMdmPageParams } from "@/shell";
 import { pickDateTime } from "../../helpers/datetime-picker";
@@ -219,6 +219,9 @@ describe("CodeConfirmPage", () => {
   });
 
   it("다른 코드를 고르면 상세를 지웠다 다시 그리지 않고, 새 view 가 올 때까지 이전 상세를 잠근 채 둔다(깜빡임 방지)", async () => {
+    // 잠금이 풀릴 때 흐림 덮개 스타일이 React 경고(transition 단축 속성 + transitionDelay 제거)를 내지 않는다(2026-10-03).
+    const errors = vi.spyOn(console, "error");
+    onTestFinished(() => errors.mockRestore());
     openMdmPage("dmc/codeConfirm", { maruCodeId: "PROC_CD", ver: "2.000" });
     await render();
     const form = byTestId("cf-form");
@@ -247,6 +250,7 @@ describe("CodeConfirmPage", () => {
     expect(byTestId("cf-form")).toBe(form);
     expect(visibleText(form!)).toContain("LINE_CD");
     expect((byTestId("cf-validate") as HTMLButtonElement).disabled).toBe(false);
+    expect(errors.mock.calls.filter((c) => String(c[0]).includes("a style property during rerender"))).toEqual([]);
   });
 
   it("검사한 뒤 다른 코드를 고르면 새 view 가 올 때까지 검사 표를 그대로 두고, 온 뒤에 비운다", async () => {

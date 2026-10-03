@@ -61,6 +61,18 @@ describe("shortcuts", () => {
     expect(f5.preventDefault).not.toHaveBeenCalled();
   });
 
+  it("Shift+1 화면 맞춤 · Shift+2 고른 것으로 이동 — 자판과 무관하게 물리 키로 본다", () => {
+    expect(shortcutOf(k("!", { shiftKey: true, code: "Digit1" }), false)).toBe("fitView");
+    expect(shortcutOf(k("!", { shiftKey: true, code: "Digit1" }), true)).toBe("fitView");
+    expect(shortcutOf(k("@", { shiftKey: true, code: "Digit2" }), false)).toBe("fitSelection");
+    expect(shortcutOf(k("1", { code: "Digit1" }), false)).toBeNull(); // Shift 없이는 아니다
+    expect(shortcutOf(k("!", { shiftKey: true, ctrlKey: true, code: "Digit1" }), false)).toBeNull();
+    expect(shortcutOf(k("!", { shiftKey: true, metaKey: true, code: "Digit1" }), true)).toBeNull();
+    expect(shortcutOf(k("!", { shiftKey: true, altKey: true, code: "Digit1" }), false)).toBeNull();
+    const input = document.createElement("input");
+    expect(shortcutOf(k("!", { shiftKey: true, code: "Digit1" }, input), false)).toBeNull(); // 입력 칸은 무시
+  });
+
   it("플랫폼 판정", () => {
     expect(isMacPlatform({ platform: "MacIntel" })).toBe(true);
     expect(isMacPlatform({ platform: "Win32", userAgent: "Windows NT" })).toBe(false);

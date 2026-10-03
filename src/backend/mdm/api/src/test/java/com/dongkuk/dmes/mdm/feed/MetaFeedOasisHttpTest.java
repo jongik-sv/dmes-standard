@@ -309,7 +309,7 @@ class MetaFeedOasisHttpTest {
     }
 
     @Test
-    void view_CODE_는_다섯_표_원본을_버전_자리수와_적용_구간_그대로_준다() throws Exception {
+    void view_CODE_는_다섯_표의_RELEASED_투영을_버전_자리수와_적용_구간_그대로_준다() throws Exception {
         MasterCodeSeeds seeds = new MasterCodeSeeds(jdbc);
         seeds.seedCode("FEED_CD", "INUSE", "MDM");
         seeds.released("FEED_CD", "1.000", "2026-01-01 00:00:00", MasterCodeSeeds.OPEN_END);

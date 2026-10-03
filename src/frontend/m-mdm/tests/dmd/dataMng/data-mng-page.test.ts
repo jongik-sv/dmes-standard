@@ -453,6 +453,33 @@ describe("DataMngPage(dataEdit 통합)", () => {
     expect(nameValue()).toBe("선박");
   });
 
+  // 2026-10-03 — 흐림 덮개가 transition 단축 속성과 transitionDelay 를 섞어 써, 잠금이 풀릴 때 React 가 경고(console.error)를 냈다.
+  it("다른 데이터를 고르는 동안 이전 상세를 잠갔다가 풀어도 스타일 경고가 나지 않는다", async () => {
+    let release: (v: unknown) => void = () => {};
+    const gate = new Promise((r) => { release = r; });
+    const baseFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/oasis/dataEdit/view") && String(init?.body ?? "").includes("SHIP")) {
+        await gate;
+      }
+      return baseFetch(input, init);
+    }) as typeof fetch;
+    const errors = vi.spyOn(console, "error");
+    try {
+      await render({ snapshot: { maruDataId: "PORT" } });
+      await search();
+      await clickListRow("SHIP");
+      expect(byTestId("detail-stale")).toBeTruthy();
+      release(null);
+      await flush();
+      await flush();
+      expect(byTestId("detail-stale")).toBeNull();
+      expect(errors.mock.calls.filter((c) => String(c[0]).includes("a style property during rerender"))).toEqual([]);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
   it("쓰기 진행 중에는 목록 행 클릭을 받지 않는다", async () => {
     let release: (v: unknown) => void = () => {};
     const gate = new Promise((r) => { release = r; });

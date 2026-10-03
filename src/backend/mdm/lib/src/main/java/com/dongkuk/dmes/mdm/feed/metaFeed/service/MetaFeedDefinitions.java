@@ -24,11 +24,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import kr.dongkuk.maru.mdm.engine.code.CodeRowsProjection;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
 import org.springframework.stereotype.Component;
 
 /**
- * 룰·룰세트·마스터코드·전문 정의 묶음(spec 2026-10-02-mdm-meta-cache-design §3.4). {@link StoredDefinitionLookup}·{@link MdmCodeLookup} 은
+ * 룰·룰세트·마스터코드·전문 정의 묶음(spec 2026-10-02-mdm-meta-cache-design §3.4). 넷 다 RELEASED 기준이다(마스터코드는 D-152).
+ * {@link StoredDefinitionLookup}·{@link MdmCodeLookup} 은
  * 빈이 아니다(D-077, ADR-0005 — {@code DefinitionLookup} 빈 0개 가드) — 호출마다 {@code new} 로 만든다.
  *
  * <p>룰과 룰 세트는 RELEASED 버전 <b>전체</b>를 준다 — 적용 시작일 도래는 쓰기가 없어 기록이 남지 않으므로 업무 모듈이 판정 시각으로 그때그때
@@ -110,11 +112,17 @@ public class MetaFeedDefinitions {
         return new MetaFeedResult(found, failed);
     }
 
+    /**
+     * 마루 코드 원본(다섯 표)의 RELEASED 투영(D-152, {@link CodeRowsProjection#releasedOnly}) — 룰·룰 세트·전문처럼 업무 모듈 캐시에는
+     * RELEASED 기준 행만 싣는다. RELEASED 가 아닌 버전(DRAFT·REQUESTED·APPROVED·CANCELLED)과 그 버전에서만 유효한 행(초안 사본)은 빠지고, 초안 전용 카테고리 정의가 RELEASED
+     * 판정에 소급되지도 않는다. {@link MdmCodeLookup} 자체는 원장 그대로 둔다 — 룰 저장 검사({@code CodeReferenceCheck})처럼 초안을 포함한
+     * 원장 기준 검사가 같은 조회를 쓰기 때문이다.
+     */
     public MetaFeedResult codes(Collection<String> maruCodeIds) {
         MdmCodeLookup lookup = new MdmCodeLookup(ledger);
         Map<String, Object> found = new LinkedHashMap<>();
         for (String id : maruCodeIds) {
-            lookup.code(id).ifPresent(rows -> found.put(id, MetaFeedJson.plain(rows)));
+            lookup.code(id).ifPresent(rows -> found.put(id, MetaFeedJson.plain(CodeRowsProjection.releasedOnly(rows))));
         }
         return new MetaFeedResult(found, Map.of());
     }
