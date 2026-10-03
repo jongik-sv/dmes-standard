@@ -529,6 +529,26 @@ describe("codeItemEdit page", () => {
     expect(testId("cate-list")?.querySelectorAll('[data-testid="cate-row-T2"]')).toHaveLength(1);
   });
 
+  // 훅 규칙(2026-10-03): 팝업은 훅을 모두 부른 뒤 닫혔으면 그리지 않고, 열릴 때 칸을 비운다.
+  it("⑲ 추가 팝업을 [취소] 로 닫았다가 다시 열면 칸·중복 오류가 비어 있다", async () => {
+    stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9")]),
+      { cateView: cateViewOf("DRAFT", true, [BASE, TABLE1]) });
+    await render(createElement(CodeItemEditPage));
+    await chooseCode("STEEL");
+    await openCateTab();
+    await click(testId("cate-add"));
+    await typeInto("cate-add-id", "T1");
+    await typeInto("cate-add-name", "표1 또");
+    await click(testId("cate-add-submit"));
+    expect(document.body.textContent).toContain("이 버전에 이미 있는 카테고리다");
+    await click(testId("cate-add-cancel"));
+    expect(testId("cate-add-id")).toBeNull();
+    await click(testId("cate-add"));
+    expect((testId("cate-add-id") as HTMLInputElement).value).toBe("");
+    expect((testId("cate-add-name") as HTMLInputElement).value).toBe("");
+    expect(document.body.textContent).not.toContain("이 버전에 이미 있는 카테고리다");
+  });
+
   it("⑰ 추가 뒤 취소한 새 카테고리의 소속 행은 저장 요청에 실리지 않는다(§ 결함 1)", async () => {
     stubFetch(viewOf("DRAFT", { editable: true, patchable: false }, [row("KS-9")]), {
       cateView: cateViewOf("DRAFT", true, [BASE, TABLE1],

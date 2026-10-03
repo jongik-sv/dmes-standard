@@ -509,6 +509,24 @@ describe("DataItemMngPage", () => {
     expect((testId("cate-add-id") as HTMLInputElement | null)?.value).toBe("NEW_CATE");
   });
 
+  // 훅 규칙(2026-10-03): 팝업은 훅을 모두 부른 뒤 닫혔으면 그리지 않고, 열릴 때 칸을 비운다.
+  it("거부 뒤 [취소] 로 닫았다가 다시 열면 칸이 비어 있다", async () => {
+    rejectCateReg = "이미 있는 카테고리 ID 입니다: NEW_CATE";
+    await render();
+    await click(testId("cate-add"));
+    await type(testId("cate-add-id"), "NEW_CATE");
+    await type(testId("cate-add-name"), "신규 카테고리");
+    await click(testId("cate-add-submit"));
+    await flush();
+    const ok = Array.from(document.querySelectorAll('[role="dialog"] button')).find((b) => b.textContent === "확인");
+    await click(ok ?? null);
+    await click(testId("cate-add-cancel"));
+    expect(testId("cate-add-id")).toBeNull();
+    await click(testId("cate-add"));
+    expect((testId("cate-add-id") as HTMLInputElement | null)?.value).toBe("");
+    expect((testId("cate-add-name") as HTMLInputElement | null)?.value).toBe("");
+  });
+
   it("조회 전용(EXTERNAL) 마루 데이터는 카테고리 탭도 편집을 막는다", async () => {
     await render();
     await chooseMaru("CUST");
