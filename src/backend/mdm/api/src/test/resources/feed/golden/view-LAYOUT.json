@@ -1,0 +1,113 @@
+{
+  "items" : [ {
+    "key" : "9801",
+    "value" : [ {
+      "ver" : "1.000",
+      "applyFrom" : "2000-01-01T00:00:00",
+      "applyTo" : "2026-07-01T00:00:00",
+      "segments" : [ {
+        "applyFrom" : "2000-01-01T00:00:00",
+        "applyTo" : "2026-04-01T00:00:00",
+        "snapshot" : {
+          "layoutId" : 9801,
+          "layoutName" : "골든 전문",
+          "eaiCode" : null,
+          "sndSystem" : null,
+          "rcvSystem" : null,
+          "encoding" : null,
+          "padRule" : null,
+          "layoutVersion" : 1.000,
+          "totalLength" : 17,
+          "headers" : [ {
+            "seq" : 1,
+            "headerLayoutId" : 9890,
+            "headerLayoutName" : "골든 헤더",
+            "offset" : 0,
+            "totalLength" : 7,
+            "items" : [ ],
+            "headerVersion" : 1.000
+          } ],
+          "items" : [ ]
+        }
+      }, {
+        "applyFrom" : "2026-04-01T00:00:00",
+        "applyTo" : "2026-07-01T00:00:00",
+        "snapshot" : {
+          "layoutId" : 9801,
+          "layoutName" : "골든 전문",
+          "eaiCode" : null,
+          "sndSystem" : null,
+          "rcvSystem" : null,
+          "encoding" : null,
+          "padRule" : null,
+          "layoutVersion" : 1.000,
+          "totalLength" : 19,
+          "headers" : [ {
+            "seq" : 1,
+            "headerLayoutId" : 9890,
+            "headerLayoutName" : "골든 헤더",
+            "offset" : 0,
+            "totalLength" : 9,
+            "items" : [ ],
+            "headerVersion" : 2.000
+          } ],
+          "items" : [ ]
+        }
+      } ]
+    }, {
+      "ver" : "2.000",
+      "applyFrom" : "2026-07-01T00:00:00",
+      "applyTo" : "9999-12-31T00:00:00",
+      "segments" : [ {
+        "applyFrom" : "2026-07-01T00:00:00",
+        "applyTo" : "9999-12-31T00:00:00",
+        "snapshot" : {
+          "layoutId" : 9801,
+          "layoutName" : "골든 전문",
+          "eaiCode" : null,
+          "sndSystem" : null,
+          "rcvSystem" : null,
+          "encoding" : null,
+          "padRule" : null,
+          "layoutVersion" : 2.000,
+          "totalLength" : 21,
+          "headers" : [ {
+            "seq" : 1,
+            "headerLayoutId" : 9890,
+            "headerLayoutName" : "골든 헤더",
+            "offset" : 0,
+            "totalLength" : 9,
+            "items" : [ ],
+            "headerVersion" : 2.000
+          } ],
+          "items" : [ ]
+        }
+      } ]
+    } ]
+  }, {
+    "key" : "9804",
+    "value" : [ {
+      "ver" : "1.000",
+      "applyFrom" : "2000-01-01T00:00:00",
+      "applyTo" : "9999-12-31T00:00:00",
+      "segments" : [ {
+        "applyFrom" : "2000-01-01T00:00:00",
+        "applyTo" : "9999-12-31T00:00:00",
+        "snapshot" : {
+          "layoutId" : 9804,
+          "layoutName" : "헤더 없는 골든 전문",
+          "eaiCode" : null,
+          "sndSystem" : null,
+          "rcvSystem" : null,
+          "encoding" : null,
+          "padRule" : null,
+          "layoutVersion" : 1.000,
+          "totalLength" : 5,
+          "headers" : [ ],
+          "items" : [ ]
+        }
+      } ]
+    } ]
+  } ],
+  "failed" : [ ]
+}

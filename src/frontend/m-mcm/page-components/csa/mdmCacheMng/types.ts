@@ -20,6 +20,12 @@ export const TARGET_TYPE_OPTIONS = [
   ...MDM_TARGET_TYPES.map((value) => ({ value, label: TARGET_TYPE_LABELS[value] })),
 ];
 
+/** 버전이 있는 대상(D-154) — 항목이 목차·본문으로 나뉜다. 본문 키는 `정의키@1.000`. */
+export const VERSIONED_TARGET_TYPES: readonly MdmTargetType[] = ["RULE", "RULE_SET", "CODE", "LAYOUT"];
+
+/** 항목 구분(D-154) — VALUE 값 하나(컬럼·도메인, versioned-feed off), TOC 목차, BODY 버전 본문. */
+export type EntryPart = "VALUE" | "TOC" | "BODY";
+
 export const REGISTER_TYPE_OPTIONS = MDM_TARGET_TYPES.map((value) => ({ value, label: TARGET_TYPE_LABELS[value] }));
 
 /** 업무 모듈 GET /api/{module}/mdmMeta/status 응답. */
@@ -43,6 +49,12 @@ export interface ModuleStatus {
   maxAgeSeconds: number;
   /** 마지막 조회 뒤 유휴 수명(초). 조회될 때마다 연장된다. 옛 모듈은 없다. */
   maxIdleSeconds?: number;
+  /** 버전 본문 수(D-154) — counts 는 목차 + 본문 합계다. 옛 모듈은 없다. */
+  bodyCounts?: Record<string, number>;
+  /** 옛·예약 버전 본문 유휴 수명(초). 옛 모듈은 없다. */
+  oldVersionMaxIdleSeconds?: number;
+  /** 버전별 피드를 쓰는가. 옛 모듈은 없다. */
+  versionedFeed?: boolean;
 }
 
 /**
@@ -79,6 +91,8 @@ export interface ModuleStatusRow extends Record<string, unknown> {
   /** "남은 수명" 도움말용. 모르면 null. */
   maxIdleSeconds: number | null;
   maxAgeSeconds: number | null;
+  /** 옛·예약 버전 본문 유휴 수명(초). 옛 모듈은 null. */
+  oldVersionMaxIdleSeconds: number | null;
 }
 
 export interface CacheEntryRow extends Record<string, unknown> {
@@ -94,6 +108,12 @@ export interface CacheEntryRow extends Record<string, unknown> {
   remainingSeconds: number;
   /** 추정 크기(바이트). -1 = 잴 수 없음, null = 옛 모듈. */
   bytes: number | null;
+  /** 구분(D-154). 옛 모듈은 null. */
+  part: EntryPart | null;
+  /** 본문의 버전(scale 3 문자열). 목차·값은 null. */
+  ver: string | null;
+  /** 본문이 최종 버전인가. 목차·값·옛 모듈은 null. */
+  current: boolean | null;
 }
 
 /**
@@ -113,6 +133,12 @@ export interface CacheEntryDetail {
   loadSeq: number;
   /** 추정 크기(바이트). -1 = 잴 수 없음, null = 옛 모듈. */
   bytes: number | null;
+  /** 구분(D-154). 옛 모듈은 null. */
+  part: EntryPart | null;
+  /** 본문의 버전(scale 3 문자열). 목차·값은 null. */
+  ver: string | null;
+  /** 본문이 최종 버전인가. 목차·값·옛 모듈은 null. */
+  current: boolean | null;
   value: unknown;
 }
 

@@ -47,7 +47,7 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
   기록 누락에 대비해 항목 수명을 둔다(A2, 2026-10-02) — 마지막 조회 뒤 유휴 60분(`max-idle`, 조회마다 연장), 적재 뒤 절대 상한 24시간(`max-age`).
   자주 조회되는 항목일수록 오래 남되 절대 상한은 넘지 않는다.
 - **D5 화면 삭제·재등록**: MDM 변경 기록에 강제 기록(EVICT·RELOAD, SYSADMIN 만)을 더하는 방식이다. 모든 모듈·인스턴스가 다음 확인에서 반영한다.
-- **D6 버전 있는 정의는 RELEASED 버전 전체를 캐시한다**: 룰·룰 세트(D-144 2단계, 엔진 `RuleSetDefinition` 에 `ver`·`applyFrom`·`applyTo` 를 더했다)와 전문(D-144 3단계 — 버전마다 쌓은 헤더의 버전 경계로 나눈 합성 구간을 함께 싣는다, spec §4.1)은 RELEASED 버전 목록을 받아 두고 판정 시각마다 `APPLY_FROM <= t < APPLY_TO`(여럿이면 VER 최대)로 고른다(전문은 이어서 그 버전 안에서 시각을 담는 합성 구간). "현재 버전"을 캐시하지 않으므로 예약 버전의 APPLY_FROM 도래(원장 쓰기 없음)에 무효화가 필요 없다 — 기록은 확정·확정 취소·부모 상태 변경처럼 RELEASED 목록이나 상태를 바꾸는 쓰기에만 남긴다.
+- **(D-154 로 대체 — 개정 이력)** ~~**D6 버전 있는 정의는 RELEASED 버전 전체를 캐시한다**: 룰·룰 세트(D-144 2단계, 엔진 `RuleSetDefinition` 에 `ver`·`applyFrom`·`applyTo` 를 더했다)와 전문(D-144 3단계 — 버전마다 쌓은 헤더의 버전 경계로 나눈 합성 구간을 함께 싣는다, spec §4.1)은 RELEASED 버전 목록을 받아 두고 판정 시각마다 `APPLY_FROM <= t < APPLY_TO`(여럿이면 VER 최대)로 고른다(전문은 이어서 그 버전 안에서 시각을 담는 합성 구간). "현재 버전"을 캐시하지 않으므로 예약 버전의 APPLY_FROM 도래(원장 쓰기 없음)에 무효화가 필요 없다 — 기록은 확정·확정 취소·부모 상태 변경처럼 RELEASED 목록이나 상태를 바꾸는 쓰기에만 남긴다.~~ 지금은 목차(전 RELEASED 버전)와 버전 본문(`X@ver`)을 나눠 캐시하고, 목차로 판정 시각마다 버전을 다시 고른다 — 예약 버전 도래에 무효화가 필요 없다는 결론은 그대로다.
 
 ## Consequences (결과)
 
@@ -88,9 +88,14 @@ MDM 에는 컬럼 사전·도메인·업무기준(룰)·룰 세트·마스터코
   - V20 `TB_MDM_META_REV.REV_SEQ` 를 시퀀스·IDENTITY 로 정의하고, 순번 순서 가정(CACHE 포함)을 다시 검증한다.
   - 시간대 교차 트랜잭션으로 인한 순번 역전이 정말 일어나는지 부하 테스트로 확인한다.
 
+## 개정 이력
+
+- **2026-10-03 — 캐시 값 모양을 목차 + 버전 본문으로 바꾼다(D-154).** 룰·룰 세트·코드·전문의 캐시 값을 정의 전 이력 한 키에서 목차 키 `X` 와 버전 본문 키 `X@ver` 로 나눈다. 하이브리드 배포(정의는 MDM 이 주고 판정은 업무 모듈 엔진)와 변경 기록 순번 무효화·10초 폴링 구조는 그대로다(결정 P13). D6(RELEASED 버전 전체 캐시)은 목차(전 버전) + 버전 본문으로 대체했다(Decision 의 D6 줄에 취소선으로 표시). D4 와 Consequences 첫 줄의 "MDM 이 멈춰도 이미 받은 정의로 계속된다"는 두 경우에 후퇴한다 — 장애 중 적용 시작 경계를 지나 새 최종 버전 본문이 캐시에 없을 때, `MASTER_AT` 의 base_dt 가 미리 받지 못한 시각의 버전을 가리킬 때는 받을 수 없음이고(`on-unavailable: REJECT` 면 저장 거부) 다른 버전으로 대신 판정하지 않는다(결정 P8·P9, spec §5.9). D1·D2·D3·D5 본문은 그대로다. 설계는 [spec 2026-10-03-mdm-meta-cache-per-version-design.md](../../superpowers/specs/2026-10-03-mdm-meta-cache-per-version-design.md), 결정은 [D-154](../decisions.md). 본문 개정 전 적대적 검토는 이 작업에서 따로 띄우지 않고 최종 브랜치 리뷰가 대신한다.
+
 ## References
 
 - [spec 2026-10-02-mdm-meta-cache-design](../../superpowers/specs/2026-10-02-mdm-meta-cache-design.md)
+- [spec 2026-10-03-mdm-meta-cache-per-version-design](../../superpowers/specs/2026-10-03-mdm-meta-cache-per-version-design.md) (D-154)
 - [ADR-0004 운영 DB 미정](0004-drop-mssql-production-assumption.md), [ADR-0005 룰 세트 실행은 엔진](0005-rule-set-runs-in-engine.md),
   [ADR-0006 룰 버전 major/minor 소수](0006-object-versioning-major-minor.md)(`metaFeed` RULE 의 `ver` 는 소수 — 정렬은 수 비교)
 - 코드: `src/backend/mdm/lib/.../common/metarev/MetaRevisionRecorder.java`, `.../feed/metaFeed/service/MetaFeedService.java`,

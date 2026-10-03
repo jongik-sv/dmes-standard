@@ -7,12 +7,17 @@ import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder.MetaRevisionRang
 import com.dongkuk.dmes.mdm.common.metarev.MetaTargetType;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
 import com.dongkuk.dmes.mdm.common.support.MdmErrors;
+import com.dongkuk.dmes.mdm.common.version.VersionNumbers;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.entity.MdmMetaRev;
 import com.dongkuk.dmes.mdm.feed.metaFeed.dto.MetaFeedSaveRequest;
 import com.dongkuk.dmes.mdm.feed.metaFeed.dto.MetaFeedSearchRequest;
 import com.dongkuk.dmes.mdm.feed.metaFeed.dto.MetaFeedViewRequest;
 import com.dongkuk.dmes.mdm.repository.MdmMetaRevRepository;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -30,7 +35,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 업무 모듈 cactus 캐시가 부른다. 캐시를 두지 않고 늘 DB 최신 값을 돌려준다(D4).
  *
  * <p>{@code @Transactional} 을 쓰지 않는다(OASIS 파라미터 이름, F11). 조회는 읽기 전용 {@link TransactionTemplate} 으로 읽는다
- * (DataHistoryService 선례). 키 목록은 {@code grids.keys.rows[{key}]} 로 받는다 — params 배열 금지(oasis-contract-check 6-E-2).
+ * (DataHistoryService 선례). D-154 — {@code part=TOC|BODY} 는 {@link MetaFeedVersioned} 가 준다. 키 목록은 {@code grids.keys.rows[{key}]} 로 받는다 — params 배열 금지(oasis-contract-check 6-E-2).
  */
 @Service("metaFeedService")
 public class MetaFeedService {
@@ -44,15 +49,17 @@ public class MetaFeedService {
     private final MdmMetaRevRepository revisions;
     private final MetaFeedDictionary dictionary;
     private final MetaFeedDefinitions definitions;
+    private final MetaFeedVersioned versioned;
     private final MetaRevisionRecorder recorder;
     private final MdmCurrentUser currentUser;
     private final TransactionTemplate readTx;
 
     public MetaFeedService(MdmMetaRevRepository revisions, MetaFeedDictionary dictionary, MetaFeedDefinitions definitions,
-                           MetaRevisionRecorder recorder, MdmCurrentUser currentUser, PlatformTransactionManager transactionManager) {
+                           MetaFeedVersioned versioned, MetaRevisionRecorder recorder, MdmCurrentUser currentUser, PlatformTransactionManager transactionManager) {
         this.revisions = revisions;
         this.dictionary = dictionary;
         this.definitions = definitions;
+        this.versioned = versioned;
         this.recorder = recorder;
         this.currentUser = currentUser;
         this.readTx = new TransactionTemplate(transactionManager);
@@ -89,6 +96,16 @@ public class MetaFeedService {
      */
     public Map<String, Object> view(MetaFeedViewRequest request, List<Map<String, Object>> keys) {
         MetaTargetType type = requireType(request == null ? null : request.getType());
+        MetaFeedPart part = MetaFeedPart.of(request.getPart(), type);
+        if (part == MetaFeedPart.TOC) {
+            List<String> wanted = keyList(type, keys);
+            LocalDateTime at = parseAt(request.getAt());
+            return readTx.execute(status -> versioned.toc(type, wanted, at)).toResponse();
+        }
+        if (part == MetaFeedPart.BODY) {
+            List<BodyKey> wanted = bodyKeyList(keys);
+            return readTx.execute(status -> versioned.bodies(type, wanted)).toResponse();
+        }
         List<String> wanted = keyList(type, keys);
         if (wanted.isEmpty()) {
             return MetaFeedResult.empty().toResponse();
@@ -131,6 +148,50 @@ public class MetaFeedService {
         out.put("toSeq", range.toSeq());
         out.put("count", range.count());
         return out;
+    }
+
+    /** BODY 키 한 줄 — {@code ver} 가 null 이면 형식이 틀린 버전({@code rawVer} 가 원문)이다. 그 키만 failed(INVALID_VER)로 돌린다. */
+    public record BodyKey(String key, BigDecimal ver, String rawVer) {
+    }
+
+    /** grids.keys.rows 의 {key, ver} — 공백 제거, (key, 수로 비교한 ver) 쌍으로 중복 제거, 최대 {@link #MAX_KEYS}. keyList 와 달리 같은 키의 여러 버전을 지킨다. */
+    static List<BodyKey> bodyKeyList(List<Map<String, Object>> rows) {
+        Map<String, BodyKey> out = new LinkedHashMap<>();
+        if (rows != null) {
+            for (Map<String, Object> row : rows) {
+                Object k = row == null ? null : row.get("key");
+                if (k == null || String.valueOf(k).isBlank()) {
+                    continue;
+                }
+                String key = String.valueOf(k).trim();
+                Object v = row.get("ver");
+                String raw = v == null ? "" : String.valueOf(v).trim();
+                BigDecimal ver;
+                try {
+                    ver = VersionNumbers.parse(raw);
+                } catch (IllegalArgumentException e) {
+                    ver = null;
+                }
+                String dedupe = key + '\u0000' + (ver == null ? "?" + raw : ver.toPlainString());
+                out.putIfAbsent(dedupe, new BodyKey(key, ver, raw));
+            }
+        }
+        if (out.size() > MAX_KEYS) {
+            throw invalid("키는 한 번에 " + MAX_KEYS + "개까지 받습니다: " + out.size());
+        }
+        return List.copyOf(out.values());
+    }
+
+    /** {@code at} — 비면 null(current 를 싣지 않는다). KST {@code yyyy-MM-ddTHH:mm:ss}, 초 미만은 자른다. 형식이 틀리면 입력 오류(묶음 거부). */
+    static LocalDateTime parseAt(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(text.trim()).truncatedTo(ChronoUnit.SECONDS);
+        } catch (DateTimeParseException e) {
+            throw invalid("at 은 yyyy-MM-ddTHH:mm:ss 형식이어야 합니다: " + text);
+        }
     }
 
     /** grids.keys.rows 의 key — 공백을 빼고 중복 없이, COLUMN 은 대문자(Ruling R2). 최대 {@link #MAX_KEYS}. */

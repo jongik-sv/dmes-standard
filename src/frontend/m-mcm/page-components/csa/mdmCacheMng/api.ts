@@ -1,6 +1,7 @@
 /**
  * mdmCacheMng 호출 — 업무 모듈 cactus 엔드포인트 /api/{module}/mdmMeta/*(GET status·entries·entry, POST load)와 MDM OASIS metaFeed/save(강제 기록).
  * status 의 추정 크기·힙·수명과 entries·entry 의 bytes·lastAccessAt 은 A2(2026-10-02) 에 더해졌다 — 옛 모듈 응답에는 없으므로 null·빈 문자열로 둔다.
+ * D-154(2026-10-03) 는 구분·ver·최종 여부와 옛 버전 본문 수명을 더했다 — 옛 모듈 응답에는 없으므로 null 이다.
  * spec docs/superpowers/specs/2026-10-02-mdm-meta-cache-design.md §5.5·§6. 강제 기록 봉투의 키 목록은 grids.keys.rows 다(params 배열 금지).
  *
  * 모듈별 status·entries·entry 는 apiRequest 가 아니라 getJson 으로 부른다 — apiRequest 는 401 이면 로그인 화면으로 보내므로, 모듈 하나가 BFF 요청을
@@ -15,12 +16,14 @@ import {
   TARGET_TYPE_LABELS,
   MODULE_STATE_LABELS,
 } from "./types";
+import { definitionKey } from "./utils";
 import type {
   CacheEntryDetail,
   CacheEntryLookup,
   CacheEntryPage,
   CacheEntryRow,
   EntryFilters,
+  EntryPart,
   ForceKind,
   ForceResult,
   LoadResult,
@@ -54,6 +57,10 @@ interface EntryPayload {
     remainingSeconds: number;
     /** 옛 모듈은 없다. */
     bytes?: number;
+    /** 구분·본문 버전·최종 여부(D-154). 옛 모듈은 없다. */
+    part?: EntryPart;
+    ver?: string | null;
+    current?: boolean | null;
   }>;
 }
 
@@ -126,6 +133,7 @@ export async function fetchAllStatus(modules: readonly string[]): Promise<{ rows
         heapMax: null,
         maxIdleSeconds: null,
         maxAgeSeconds: null,
+        oldVersionMaxIdleSeconds: null,
       };
     }
     const v = s.value;
@@ -143,6 +151,7 @@ export async function fetchAllStatus(modules: readonly string[]): Promise<{ rows
       heapMax: numberOrNull(v.heap?.maxBytes),
       maxIdleSeconds: numberOrNull(v.maxIdleSeconds),
       maxAgeSeconds: numberOrNull(v.maxAgeSeconds),
+      oldVersionMaxIdleSeconds: numberOrNull(v.oldVersionMaxIdleSeconds),
     };
   });
   return { rows, latestSeq };
@@ -173,6 +182,9 @@ export async function fetchEntries(module: string, filters: EntryFilters, page =
     hits: e.hits,
     remainingSeconds: e.remainingSeconds,
     bytes: numberOrNull(e.bytes),
+    part: e.part ?? null,
+    ver: e.ver ?? null,
+    current: typeof e.current === "boolean" ? e.current : null,
   }));
   return { total: res.total, page: res.page, size: res.size, items };
 }
@@ -227,6 +239,9 @@ export async function fetchEntry(module: string, type: MdmTargetType, key: strin
       remainingSeconds: res.remainingSeconds,
       loadSeq: res.loadSeq,
       bytes: numberOrNull(res.bytes),
+      part: res.part ?? null,
+      ver: res.ver ?? null,
+      current: typeof res.current === "boolean" ? res.current : null,
       value: res.absent ? null : res.value,
     },
   };
@@ -300,12 +315,13 @@ export function describeLoadResult(r: LoadResult): string {
   return `적재 ${r.loaded.length}건, ${part("MDM 에 없음", r.missing)}, ${part("받을 수 없음", r.unavailable)}`;
 }
 
-/** 선택한 항목을 대상 종류별로 묶는다(강제 기록은 종류 하나씩 부른다). */
+/** 선택한 항목을 대상 종류별 정의 키로 묶는다 — 본문 행(`X@1.000`)도 정의 키 `X` 로 기록한다(변경 기록은 정의 키 단위, D-154). 같은 정의는 한 번만. */
 export function groupByType(rows: CacheEntryRow[]): Array<[MdmTargetType, string[]]> {
   const map = new Map<MdmTargetType, string[]>();
   for (const r of rows) {
     const list = map.get(r.type) ?? [];
-    list.push(r.key);
+    const key = definitionKey(r.type, r.key);
+    if (!list.includes(key)) list.push(key);
     map.set(r.type, list);
   }
   return Array.from(map.entries());

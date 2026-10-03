@@ -366,13 +366,56 @@ describe("mdmCacheMng api", () => {
     expect(api.parseKeys("A, B\nC  A")).toEqual(["A", "B", "C"]);
     expect(
       api.groupByType([
-        { rowId: "COLUMN:A", type: "COLUMN", key: "A", absent: false, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 1 },
-        { rowId: "RULE:R", type: "RULE", key: "R", absent: false, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 1 },
-        { rowId: "COLUMN:B", type: "COLUMN", key: "B", absent: true, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 0 },
+        { rowId: "COLUMN:A", type: "COLUMN", key: "A", absent: false, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 1, part: null, ver: null, current: null },
+        { rowId: "RULE:R", type: "RULE", key: "R", absent: false, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 1, part: null, ver: null, current: null },
+        { rowId: "COLUMN:B", type: "COLUMN", key: "B", absent: true, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 0, part: null, ver: null, current: null },
       ]),
     ).toEqual([
       ["COLUMN", ["A", "B"]],
       ["RULE", ["R"]],
     ]);
+  });
+
+  it("항목 — 구분·ver·최종 여부를 싣고 옛 모듈 응답이면 null 이다", async () => {
+    getJson.mockResolvedValueOnce({
+      total: 3,
+      page: 0,
+      size: 200,
+      items: [
+        { type: "CODE", key: "PROC_CD", absent: false, loadedAt: "2026-10-02T00:00:00Z", hits: 1, remainingSeconds: 10, part: "TOC", ver: null, current: null },
+        { type: "CODE", key: "PROC_CD@1.000", absent: false, loadedAt: "2026-10-02T00:00:00Z", hits: 1, remainingSeconds: 10, part: "BODY", ver: "1.000", current: true },
+        { type: "COLUMN", key: "TITLE", absent: false, loadedAt: "2026-10-02T00:00:00Z", hits: 1, remainingSeconds: 10 },
+      ],
+    });
+    const page = await api.fetchEntries("mls", emptyFilters());
+    expect(page.items.map((r) => [r.part, r.ver, r.current])).toEqual([
+      ["TOC", null, null],
+      ["BODY", "1.000", true],
+      [null, null, null],
+    ]);
+  });
+
+  it("삭제·재등록 묶음 — 본문 행은 정의 키로 바꾸고 같은 정의는 하나로 보낸다", () => {
+    const base = { absent: false, loadedAt: "", lastAccessAt: "", hits: 0, remainingSeconds: 0, bytes: 1, ver: null, current: null };
+    expect(
+      api.groupByType([
+        { ...base, rowId: "CODE:PROC_CD", type: "CODE", key: "PROC_CD", part: "TOC" },
+        { ...base, rowId: "CODE:PROC_CD@1.000", type: "CODE", key: "PROC_CD@1.000", part: "BODY", ver: "1.000", current: true },
+        { ...base, rowId: "CODE:PROC_CD@0.900", type: "CODE", key: "PROC_CD@0.900", part: "BODY", ver: "0.900", current: false },
+        { ...base, rowId: "COLUMN:TITLE", type: "COLUMN", key: "TITLE", part: "VALUE" },
+      ]),
+    ).toEqual([
+      ["CODE", ["PROC_CD"]],
+      ["COLUMN", ["TITLE"]],
+    ]);
+  });
+
+  it("상태 — 옛 버전 본문 수명을 행에 싣고 옛 모듈이면 null 이다", async () => {
+    getJson.mockImplementation(async (url: string) =>
+      url.includes("/mls/") ? { ...status("mls", 9, 9), oldVersionMaxIdleSeconds: 600, bodyCounts: { CODE: 1 }, versionedFeed: true } : status(url.split("/")[2], 9, 9),
+    );
+    const { rows } = await api.fetchAllStatus(["mls", "mqc"]);
+    expect(rows.find((r) => r.module === "mls")?.oldVersionMaxIdleSeconds).toBe(600);
+    expect(rows.find((r) => r.module === "mqc")?.oldVersionMaxIdleSeconds).toBeNull();
   });
 });

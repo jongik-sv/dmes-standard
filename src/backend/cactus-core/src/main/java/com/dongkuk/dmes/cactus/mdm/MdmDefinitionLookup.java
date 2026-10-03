@@ -9,7 +9,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
+import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import kr.dongkuk.maru.mdm.engine.spi.CodeLookup;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
 
@@ -24,8 +26,12 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
  *
  * <p>전문(LAYOUT, D-144 3단계)도 같은 규칙으로 버전을 고른 뒤, 그 버전의 합성 구간 가운데 판정 시각을 담는 것의 스냅샷을 준다
  * ({@link #layout}). 엔진 spi 에는 전문이 없으므로 이 클래스의 공개 메서드다.
+ *
+ * <p>D-154 — 버전 대상은 목차로 판정 시각의 버전을 고르고 그 본문을 쓴다({@link MdmMetaService#oneAt}). 코드는 {@link #code}(목차 행)·
+ * {@link #codeAt}(본문 행)·{@link #codes}(소속 집합). 불변식: 목차가 있는 코드에 대해 {@code codes} 는 빈 값을 주지 않는다(본문을 받아 집합을 주거나
+ * 받을 수 없으면 던진다 — 목차에 없는 버전, 소수 넷째 자리 ver 도 던진다). off 의 전 이력 본문만 빈 값이다.
  */
-public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
+public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup, CodeEffLookup {
 
     public static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
@@ -48,25 +54,72 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
         }
         Optional<MdmColumnMeta> meta = service.one(MdmTargetType.COLUMN, phys).map(MdmColumnMeta.class::cast);
         meta.map(MdmColumnMeta::codeRef).map(MdmColumnMeta.CodeRefMeta::maruCodeId).filter(id -> !id.isBlank())
-                .ifPresent(id -> service.one(MdmTargetType.CODE, id));
+                .ifPresent(this::prefetchCode);
         return meta.map(m -> toColumnDefinition(m, table));
     }
 
+    /** 버전 경로는 목차 + 지금 시각 본문(스펙 §7.4), off 는 전 이력 한 키(지금 동작 — 목차를 만들지 않는다). */
+    private void prefetchCode(String maruCodeId) {
+        if (service.versioned()) {
+            service.oneAt(MdmTargetType.CODE, maruCodeId, service.now());
+        } else {
+            service.one(MdmTargetType.CODE, maruCodeId);
+        }
+    }
+
+    /** off 는 전 이력 목록에서 바로 고른다(지금 동작) — 조회마다 목차를 다시 만들지 않는다. 결과는 버전 경로와 같다({@code MdmVersionedEquivalenceTest}). */
     @Override
     @SuppressWarnings("unchecked")
     public Optional<RuleDefinition> rule(String ruleId, Instant evalTs) {
-        return service.one(MdmTargetType.RULE, ruleId).flatMap(v -> select((List<RuleDefinition>) v, evalTs));
+        if (!service.versioned()) {
+            return service.one(MdmTargetType.RULE, ruleId).flatMap(v -> select((List<RuleDefinition>) v, evalTs));
+        }
+        return service.oneAt(MdmTargetType.RULE, ruleId, evalTs).map(MdmMetaService.MdmAt::body).map(RuleDefinition.class::cast);
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
-        return service.one(MdmTargetType.RULE_SET, setId).flatMap(v -> selectSet((List<RuleSetDefinition>) v, evalTs));
+        if (!service.versioned()) {
+            return service.one(MdmTargetType.RULE_SET, setId).flatMap(v -> selectSet((List<RuleSetDefinition>) v, evalTs));
+        }
+        return service.oneAt(MdmTargetType.RULE_SET, setId, evalTs).map(MdmMetaService.MdmAt::body).map(RuleSetDefinition.class::cast);
     }
 
+    /**
+     * 목차 행 {@code (header, versions, [], [], [])} — 버전 선택·DEPRECATED·"마루 코드인가"에 쓴다.
+     * off({@code versioned=false}) 면 지금처럼 전 이력 행을 그대로 준다(기존 {@code MdmDefinitionLookupTest} 의 동작 불변 — off 는 {@code guardValue} 가 막지 않는다).
+     */
     @Override
     public Optional<CodeRows> code(String maruCodeId) {
-        return service.one(MdmTargetType.CODE, maruCodeId).map(CodeRows.class::cast);
+        if (!service.versioned()) {
+            return service.one(MdmTargetType.CODE, maruCodeId).map(CodeRows.class::cast);
+        }
+        return service.toc(MdmTargetType.CODE, maruCodeId).map(MdmToc::codeRows);
+    }
+
+    /** 버전 본문 행 — 그 버전 1행·유효 items·고른 정의·합성 cateItems(off 면 전 이력 행). 목차에 없는 버전이면 {@link MdmUnavailableException}. */
+    @Override
+    public Optional<CodeRows> codeAt(String maruCodeId, BigDecimal ver) {
+        return service.body(MdmTargetType.CODE, maruCodeId, verKey(maruCodeId, ver)).map(b -> ((MdmCodeVersion) b).rows());
+    }
+
+    /**
+     * 소속 집합 색인(결정 P4) — 본문에 없는 cateId 는 빈 집합. off 의 전 이력이면 빈 값(해석기가 계산한다). 목차에 없는 버전이면
+     * {@link MdmUnavailableException}(빈 값 금지 불변식).
+     */
+    @Override
+    public Optional<Set<String>> codes(String maruCodeId, BigDecimal ver, String cateId) {
+        return service.body(MdmTargetType.CODE, maruCodeId, verKey(maruCodeId, ver)).flatMap(b -> ((MdmCodeVersion) b).members(cateId));
+    }
+
+    /** 본문 키 ver — 소수 넷째 자리 등 키로 만들 수 없으면 받을 수 없음(원장은 DECIMAL(7,3) 이라 드물다). */
+    static String verKey(String maruCodeId, BigDecimal ver) {
+        try {
+            return MdmVersions.key(ver);
+        } catch (IllegalArgumentException e) {
+            throw new MdmUnavailableException("MDM 정의를 해석할 수 없습니다: " + MdmTargetType.CODE + " " + maruCodeId + " — " + e.getMessage(), e);
+        }
     }
 
     /**
@@ -75,15 +128,22 @@ public class MdmDefinitionLookup implements DefinitionLookup, CodeLookup {
      */
     @SuppressWarnings("unchecked")
     public Optional<Map<String, Object>> layout(String layoutId, Instant evalTs) {
-        return service.one(MdmTargetType.LAYOUT, layoutId).flatMap(v -> selectLayout((List<MdmLayoutVersion>) v, evalTs));
+        if (!service.versioned()) {
+            return service.one(MdmTargetType.LAYOUT, layoutId).flatMap(v -> selectLayout((List<MdmLayoutVersion>) v, evalTs));
+        }
+        return service.oneAt(MdmTargetType.LAYOUT, layoutId, evalTs).map(MdmMetaService.MdmAt::body).map(MdmLayoutVersion.class::cast)
+                .flatMap(v -> segmentAt(v, LocalDateTime.ofInstant(evalTs, KST)));
     }
 
     /** 전문 RELEASED 버전 목록에서 판정 시각의 스냅샷 — 버전은 룰과 같은 규칙, 구간은 같은 {@code [from, to)} 판정. */
     public static Optional<Map<String, Object>> selectLayout(List<MdmLayoutVersion> released, Instant evalTs) {
-        LocalDateTime t = LocalDateTime.ofInstant(evalTs, KST);
         return select(released, MdmLayoutVersion::ver, MdmLayoutVersion::applyFrom, MdmLayoutVersion::applyTo, evalTs)
-                .flatMap(v -> v.segments().stream().filter(s -> covers(s.applyFrom(), s.applyTo(), t)).findFirst())
-                .map(MdmLayoutVersion.Segment::snapshot);
+                .flatMap(v -> segmentAt(v, LocalDateTime.ofInstant(evalTs, KST)));
+    }
+
+    /** 전문 버전 하나 안에서 시각을 담는 합성 구간의 스냅샷. */
+    public static Optional<Map<String, Object>> segmentAt(MdmLayoutVersion v, LocalDateTime t) {
+        return v.segments().stream().filter(s -> covers(s.applyFrom(), s.applyTo(), t)).findFirst().map(MdmLayoutVersion.Segment::snapshot);
     }
 
     /** 룰 RELEASED 버전 목록에서 판정 시각에 적용되는 것. */

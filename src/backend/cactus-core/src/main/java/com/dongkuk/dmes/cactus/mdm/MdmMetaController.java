@@ -15,7 +15,6 @@ import java.util.Optional;
 import java.util.Set;
 import kr.dongkuk.maru.mdm.engine.code.CodeResolver;
 import kr.dongkuk.maru.mdm.engine.code.DefaultCodeResolver;
-import kr.dongkuk.maru.mdm.engine.spi.CodeEffLookup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -42,6 +41,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
  * 없으면 요청 헤더 {@code X-Authenticated-Role} 로 판정한다(Ruling R10 — 처음에는 mqc·mpp·mpn 에 ClientKeyFilter 가 없었다. 2026-10-02 부터 다섯 모듈
  * 모두 cactus 보안 체인 뒤에 있지만, 보안 설정이 빠진 새 모듈을 위해 헤더 판정을 남긴다). {@code DmomReceiveController} 처럼 {@code @Controller} 없이
  * 클래스 수준 {@code @RequestMapping} + {@code @ResponseBody} 로 두고 자동 설정이 {@code @Bean} 으로 만든다.
+ *
+ * <p>버전 대상(룰·룰 세트·코드·전문)의 {@code key} 는 논리 키(정의 키 {@code X}, 본문 키 {@code X@1.000})다(D-154).
  */
 @ResponseBody
 @RequestMapping("/api/{module}/mdmMeta")
@@ -74,7 +75,8 @@ public class MdmMetaController {
         this.cache = cache;
         this.poller = poller;
         this.clock = clock;
-        this.codes = new DefaultCodeResolver(new MdmDefinitionLookup(service), CodeEffLookup.NONE);
+        MdmDefinitionLookup lookup = new MdmDefinitionLookup(service);
+        this.codes = new DefaultCodeResolver(lookup, lookup); // 소속은 본문 색인(D-154), off 면 전 이력으로 계산
     }
 
     public record NamesRequest(List<String> names) {
@@ -170,6 +172,11 @@ public class MdmMetaController {
         out.put("maxEntries", cache.maxEntries());
         out.put("maxAgeSeconds", cache.maxAge().getSeconds()); // 적재 뒤 절대 상한
         out.put("maxIdleSeconds", cache.maxIdle().getSeconds()); // 마지막 조회 뒤 유휴 수명
+        Map<String, Integer> bodyCounts = new LinkedHashMap<>();
+        cache.bodySizes().forEach((t, n) -> bodyCounts.put(t.name(), n));
+        out.put("bodyCounts", bodyCounts); // 버전 본문 수(D-154) — counts 는 목차 + 본문 합계
+        out.put("oldVersionMaxIdleSeconds", cache.oldVersionMaxIdle().getSeconds()); // 옛·예약 버전 본문 유휴 수명
+        out.put("versionedFeed", service.versioned());
         return ResponseEntity.ok(out);
     }
 
@@ -267,11 +274,25 @@ public class MdmMetaController {
         for (String k : trimmed(body.keys())) {
             keys.add(type.get() == MdmTargetType.COLUMN ? MdmNames.toPhysName(k) : k);
         }
-        MdmMetaService.MdmLookup r = service.reload(type.get(), keys);
+        List<String> loaded;
+        List<String> missing;
+        List<String> unavailable;
+        if (MdmVersions.isVersioned(type.get())) {
+            // 정의 키 X: 묶음째 지우고 목차 + 지금 시각 본문, 본문 키 X@ver: 그 본문만(스펙 §7.1)
+            MdmMetaService.MdmAtLookup r = service.reloadAt(type.get(), keys, clock.instant());
+            loaded = new ArrayList<>(r.found().keySet());
+            missing = r.missing();
+            unavailable = r.unavailable();
+        } else {
+            MdmMetaService.MdmLookup r = service.reload(type.get(), keys);
+            loaded = new ArrayList<>(r.found().keySet());
+            missing = r.missing();
+            unavailable = r.unavailable();
+        }
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("loaded", new ArrayList<>(r.found().keySet()));
-        out.put("missing", r.missing());
-        out.put("unavailable", r.unavailable());
+        out.put("loaded", loaded);
+        out.put("missing", missing);
+        out.put("unavailable", unavailable);
         return ResponseEntity.ok(out);
     }
 
@@ -349,7 +370,7 @@ public class MdmMetaController {
         if (ids.isEmpty()) {
             return Set.of();
         }
-        return new HashSet<>(service.lookup(MdmTargetType.CODE, ids).unavailable());
+        return new HashSet<>(service.lookupAt(MdmTargetType.CODE, ids, clock.instant()).unavailable());
     }
 
     /**
@@ -394,6 +415,9 @@ public class MdmMetaController {
         row.put("hits", v.hits());
         row.put("remainingSeconds", v.remainingSeconds());
         row.put("loadSeq", v.loadSeq());
+        row.put("part", v.part().name());     // VALUE·TOC·BODY(D-154)
+        row.put("ver", v.ver());              // 본문만
+        row.put("current", v.current());      // 본문만 — 최종 버전이면 true
         return row;
     }
 

@@ -87,9 +87,12 @@ class ContractTypeShapeTest {
     /** 예외 타입은 class 여야 한다. 생성자의 위반 목록 복사는 값 운반이다(design §6.1 허용 예외). */
     static final String EXCEPTION_TYPE = PREFIX + "expr.EngineEvaluationException";
 
-    /** 원천 06:480 이 정한 default 위임 두 개(design §6.1 허용 예외). */
+    /**
+     * 몸체 있는 interface 메서드 허용 목록 — 원천 06:480 이 정한 default 위임 두 개(design §6.1 허용 예외)와 {@code CodeLookup.codeAt}(D-154, 결정
+     * P7: 기본 구현이 {@code code(id)} 위임이라 원장·옛 구현이 바뀌지 않는다).
+     */
     private static final Set<String> INTERFACE_BODY_ALLOWED = Set.of(
-            PREFIX + "rule.RuleEngine.text", PREFIX + "rule.RuleEngine.textAndAst");
+            PREFIX + "rule.RuleEngine.text", PREFIX + "rule.RuleEngine.textAndAst", PREFIX + "spi.CodeLookup.codeAt");
 
     private static final Set<String> RECORD_OBJECT_METHODS = Set.of("equals", "hashCode", "toString");
 
@@ -176,7 +179,7 @@ class ContractTypeShapeTest {
     }
 
     @Test
-    void 계약_interface_의_몸체_있는_메서드는_RuleEngine_text_textAndAst_뿐이다() {
+    void 계약_interface_의_몸체_있는_메서드는_허용_목록뿐이다() {
         Set<String> withBody = new TreeSet<>();
         for (JavaClass c : contractClasses()) {
             if (!c.isInterface()) {

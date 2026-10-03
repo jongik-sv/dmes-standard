@@ -46,13 +46,13 @@ public class MdmAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public MdmMetaCache mdmMetaCache(MdmClientProperties props) {
-        return new MdmMetaCache(props.getMaxEntries(), props.getMaxAge(), props.getMaxIdle(), Clock.systemUTC());
+        return new MdmMetaCache(props.getMaxEntries(), props.getMaxAge(), props.getMaxIdle(), props.getOldVersionMaxIdle(), Clock.systemUTC());
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public MdmMetaService mdmMetaService(MdmMetaClient client, MdmMetaCache cache) {
-        return new MdmMetaService(client, cache, Clock.systemUTC());
+    public MdmMetaService mdmMetaService(MdmMetaClient client, MdmMetaCache cache, MdmClientProperties props) {
+        return new MdmMetaService(client, cache, Clock.systemUTC(), props.getVersionedFeed() != MdmClientProperties.VersionedFeed.OFF);
     }
 
     /** 되돌아보기({@code revision-lookback})를 넘기는 7인자 생성자를 쓴다 — 6인자는 설정을 버리고 기본값을 쓴다. */

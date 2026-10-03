@@ -60,6 +60,13 @@ class MdmAutoConfigurationTest {
     }
 
     @Test
+    void versioned_feed_기본은_버전_경로이고_off_면_지금_경로다() {
+        runner.withPropertyValues(ON).run(ctx -> assertThat(ctx.getBean(MdmMetaService.class).versioned()).isTrue());
+        runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.versioned-feed=off").run(ctx ->
+                assertThat(ctx.getBean(MdmMetaService.class).versioned()).isFalse());
+    }
+
+    @Test
     void 켜면_구성_요소가_모두_생기고_DefinitionLookup_은_MdmDefinitionLookup_이며_CacheManager_는_없다() {
         runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.module=mls").run(ctx -> {
             assertThat(ctx).hasSingleBean(MdmMetaClient.class).hasSingleBean(MdmMetaCache.class).hasSingleBean(MdmMetaService.class)
@@ -167,6 +174,14 @@ class MdmAutoConfigurationTest {
             assertThat(cache.maxIdle()).isEqualTo(Duration.ofMinutes(15));
             assertThat(cache.maxAge()).isEqualTo(Duration.ofHours(2));
         });
+    }
+
+    @Test
+    void old_version_max_idle_기본은_10분이고_설정이_캐시에_닿는다() {
+        runner.withPropertyValues(ON).run(ctx ->
+                assertThat(ctx.getBean(MdmMetaCache.class).oldVersionMaxIdle()).isEqualTo(Duration.ofMinutes(10)));
+        runner.withPropertyValues(ON).withPropertyValues("cactus.mdm.old-version-max-idle=3m").run(ctx ->
+                assertThat(ctx.getBean(MdmMetaCache.class).oldVersionMaxIdle()).isEqualTo(Duration.ofMinutes(3)));
     }
 
     @Test

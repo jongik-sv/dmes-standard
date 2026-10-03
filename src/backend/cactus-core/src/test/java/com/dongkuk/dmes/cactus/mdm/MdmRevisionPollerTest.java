@@ -7,6 +7,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -332,5 +333,49 @@ class MdmRevisionPollerTest {
         assertThat(cache.appliedSeq()).isEqualTo(5);
         assertThat(realPoller.status().consecutiveFailures()).isEqualTo(1);
         assertThat(realPoller.status().lastError()).contains("data.result");
+    }
+
+    /** D-154 — 정의 키 변경은 목차와 본문 전부를 지우고, RELOAD 는 목차 + 지금 시각 최종 본문만 다시 받는다(옛 본문은 미스 때). */
+    @Test
+    void 버전_대상_RELOAD_는_묶음을_지우고_목차와_최종_본문만_다시_받는다() {
+        FakeMetaFeed vfeed = new FakeMetaFeed().versioned();
+        vfeed.put(MdmTargetType.RULE, "R", List.of(
+                MdmDefinitionLookupTest.rule("1.000", LocalDateTime.parse("2026-01-01T00:00:00"), LocalDateTime.parse("2026-06-01T00:00:00")),
+                MdmDefinitionLookupTest.rule("2.000", LocalDateTime.parse("2026-06-01T00:00:00"), null)));
+        MdmMetaCache vcache = new MdmMetaCache(100, Duration.ofHours(24), Duration.ofMinutes(60), Duration.ofMinutes(10), clock);
+        MdmMetaService vservice = new MdmMetaService(vfeed, vcache, clock, true);
+        MdmRevisionPoller vpoller = new MdmRevisionPoller(vfeed, vcache, vservice, clock, Duration.ofSeconds(10), 1000, 0);
+        vfeed.changes.add(changes(5, false));
+        vpoller.pollOnce();
+        vservice.lookupAt(MdmTargetType.RULE, List.of("R"), clock.instant());                             // 목차 + 2.000
+        vservice.lookupAt(MdmTargetType.RULE, List.of("R"), Instant.parse("2026-03-01T00:00:00Z"));       // 1.000 본문
+        assertThat(vcache.bodySizes().get(MdmTargetType.RULE)).isEqualTo(2);
+        int tocs = vfeed.tocCalls.get();
+
+        vfeed.changes.add(changes(6, false, new MdmChange(6, "RULE", "R", "RELOAD")));
+        vpoller.pollOnce();
+
+        assertThat(vfeed.tocCalls.get()).isEqualTo(tocs + 1);
+        assertThat(vcache.getBody(MdmTargetType.RULE, "R", "2.000")).isPresent();
+        assertThat(vcache.getBody(MdmTargetType.RULE, "R", "1.000")).as("옛 본문은 다시 받지 않는다").isEmpty();
+    }
+
+    @Test
+    void 버전_대상_EVICT_는_목차와_본문을_묶음째_지운다() {
+        FakeMetaFeed vfeed = new FakeMetaFeed().versioned();
+        vfeed.put(MdmTargetType.RULE, "R", List.of(MdmDefinitionLookupTest.rule("1.000", LocalDateTime.parse("2026-01-01T00:00:00"), null)));
+        MdmMetaCache vcache = new MdmMetaCache(100, Duration.ofHours(24), Duration.ofMinutes(60), Duration.ofMinutes(10), clock);
+        MdmMetaService vservice = new MdmMetaService(vfeed, vcache, clock, true);
+        MdmRevisionPoller vpoller = new MdmRevisionPoller(vfeed, vcache, vservice, clock, Duration.ofSeconds(10), 1000, 0);
+        vfeed.changes.add(changes(5, false));
+        vpoller.pollOnce();
+        vservice.lookupAt(MdmTargetType.RULE, List.of("R"), clock.instant());
+
+        vfeed.changes.add(changes(6, false, new MdmChange(6, "RULE", "R", "EVICT")));
+        vpoller.pollOnce();
+
+        assertThat(vcache.get(MdmTargetType.RULE, "R")).isEmpty();
+        assertThat(vcache.getBody(MdmTargetType.RULE, "R", "1.000")).isEmpty();
+        assertThat(vcache.sizes().get(MdmTargetType.RULE)).isZero();
     }
 }
