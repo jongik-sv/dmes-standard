@@ -1,0 +1,23 @@
+# j4(C1·C2 — Test 입력 선언 정리) 허용 차이 — compare.sh --ignore-file 용. 판정 전에 고정했다(판정 담당은 고치거나 늘리지 않는다).
+# A = logic3(③ 결과), B = j4(C1 78d32000 + C2 89911003 이 들어간 커밋). A 가 B 의 바로 앞 커밋이 아닐 수 있다(경고는 정상).
+# 의존성 파일(deps/·buildEnvironment/·configurations/)에는 패턴이 없다 — 그쪽 차이는 모두 위반.
+# 사용: compare.sh <logic3> <j4> --ignore-file scripts/build-verify/allow-j4.txt
+# 줄 형식은 dump-settings.init.gradle 241행 'inputs.files <이름> normalizer=… optional=… type=… behavior=… = [정렬된 리포 상대경로]'
+# 그대로이고, 값(경로 목록)까지 고정했다.
+
+# ── C1 (78d32000) — mdm/api/build.gradle test 의 inputs.files(mcmDataInitializer)에서 mcm init/DataInitializer.java 하나를 뺐다 ──
+# propertyName·나머지 두 항목(seed/CoreRbacSeeder.java·seed/MdmMenuSeeder.java)·withPathSensitivity(RELATIVE)는 그대로.
+# 덤프 위치: mdm 모듈 api 프로젝트 settings 의 '## Test :api:test' 섹션 한 줄(v-mdm-1 147행에서 확인 — 이 이름은 파일에 한 줄뿐).
+# dd3f59e5 → ③ 사이에 mdm/api/build.gradle 의 이 입력은 바뀌지 않아 v-mdm-1 의 줄이 A(logic3) 줄과 같다.
+# C1-원본(A 쪽) — 기대: A 1 / B 0.
+@^mdm/settings/api\.txt$ ^inputs\.files mcmDataInitializer normalizer=RELATIVE_PATH optional=false type=FILES behavior=NON_INCREMENTAL = \[src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer\.java, src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/CoreRbacSeeder\.java, src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/MdmMenuSeeder\.java\]$
+
+# C1-바뀐 줄(B 쪽) — DataInitializer.java 항목만 빠진 같은 줄. 기대: A 0 / B 1.
+@^mdm/settings/api\.txt$ ^inputs\.files mcmDataInitializer normalizer=RELATIVE_PATH optional=false type=FILES behavior=NON_INCREMENTAL = \[src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/CoreRbacSeeder\.java, src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/MdmMenuSeeder\.java\]$
+
+# ── C2 (89911003) — mcm-core/build.gradle test 에 inputs.files(mcmScreenUsageBpmn) 새로 선언 ──
+# rootProject.file('../mcm/api/src/main/resources/services/audit/screenUsage.bpmn'), (…/csa/screenUsageStat.bpmn),
+# withPathSensitivity(RELATIVE) → normalizer=RELATIVE_PATH(같은 파일 mcmSeedSources 줄과 같은 형식). 두 파일 모두 리포에 있다.
+# mcm-core 는 단일 프로젝트라 settings/_root.txt 의 '## Test :test' 섹션 한 줄. 다른 모듈 덤프에는 나오지 않는다(included build 는 덤프 안 함).
+# 기대: A 0 / B 1.
+@^mcm-core/settings/_root\.txt$ ^inputs\.files mcmScreenUsageBpmn normalizer=RELATIVE_PATH optional=false type=FILES behavior=NON_INCREMENTAL = \[src/backend/mcm/api/src/main/resources/services/audit/screenUsage\.bpmn, src/backend/mcm/api/src/main/resources/services/csa/screenUsageStat\.bpmn\]$

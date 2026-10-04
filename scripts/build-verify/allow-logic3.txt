@@ -1,0 +1,47 @@
+# ③ build-logic(convention plugin) 허용 차이 — compare.sh --ignore-file 용. 판정 전에 고정했다(판정 담당은 고치거나 늘리지 않는다).
+# A = cat1(① 결과, build-catalog 1adfcf85 또는 같은 내용의 덤프), B = logic3(③ 결과, build-logic 의 ③-a~e 뒤 커밋).
+# 근거 소스: 저장소의 src/backend/build-logic/(작성 당시 refactor/build-logic 브랜치)
+#   - src/main/groovy/dmes.test-conventions.gradle  → 플러그인 id 'dmes.test-conventions', 생성 클래스 DmesTestConventionsPlugin
+#   - src/main/groovy/dmes.business-module.gradle   → 플러그인 id 'dmes.business-module',  생성 클래스 DmesBusinessModulePlugin
+#   - settings.gradle rootProject.name = 'build-logic', build.gradle 은 groovy-gradle-plugin(precompiled script plugin)만.
+#   - 두 플러그인 모두 "project != rootProject 이면 예외" — 모듈 루트에만 적용된다. 그래서 모든 패턴은 경로를 <모듈>/…/_root.txt 로
+#     고정했다. 하위 프로젝트(lib·api·oasis-core·oasis-core-api) 파일에는 어떤 패턴도 걸리지 않는다(그쪽 차이는 모두 위반).
+# 적용 모듈(커밋 e48a0303·7831ad2f 의 build.gradle plugins {}):
+#   dmes.test-conventions : aps-core caravan-core caravan-hub caravan-console mcm-core cactus-core maru-mdm-engine mdm localKafka
+#                           mpn mpp mqc mls mcm (14개 — analog 는 test-slot.gradle 을 직접 apply 해 대상 아님)
+#   dmes.business-module  : mpn mpp mqc mls mcm (5개)
+#
+# 사용: compare.sh <cat1> <logic3> --ignore-file scripts/build-verify/allow-logic3.txt --flat
+#   --flat 은 필수다. 이미 spring 플러그인 마커가 있는 8개 모듈(caravan-hub localKafka mdm mpn mpp mqc mls mcm)의 루트
+#   buildEnvironment 에서 build-logic 항목이 끼어들면 기존 최상위 줄의 '\---'/'+---' 와 자식 줄 들여쓰기('     '/'|    ')가 바뀐다.
+#   이 패턴들은 build-logic 항목 줄만 빼므로, 트리 기호 차이는 --flat 으로만 없어진다(해석 좌표가 같으면 --flat 에서 0).
+# 이 파일 밖의 차이(예: Test jvmArgs 순서·actions 수, 하위 프로젝트 파일 변화)는 모두 ③ 의 "설정 불변" 위반 후보다 — fail 로 보고.
+
+# ── 1) settings '## plugins' 섹션 — 모듈 루트에 convention plugin id 한 줄 ──
+# dump-settings 는 PluginManagerInternal.findPluginIdForClass 로 id 를 찾고, 못 찾으면 'class:<클래스>' 를 쓴다.
+# precompiled script plugin 'dmes.test-conventions.gradle' 의 생성 클래스는 DmesTestConventionsPlugin(기본 패키지).
+# 기대: A 0 / B 14 (모듈당 1줄).
+@^(aps-core|caravan-core|caravan-hub|caravan-console|mcm-core|cactus-core|maru-mdm-engine|mdm|localKafka|mpn|mpp|mqc|mls|mcm)/settings/_root\.txt$ ^(dmes\.test-conventions|class:DmesTestConventionsPlugin)$
+
+# 업무 모듈 5개 루트에만 dmes.business-module(생성 클래스 DmesBusinessModulePlugin). 기대: A 0 / B 5.
+@^(mpn|mpp|mqc|mls|mcm)/settings/_root\.txt$ ^(dmes\.business-module|class:DmesBusinessModulePlugin)$
+
+# ── 2) 루트 buildEnvironment(classpath) — build-logic 항목 ──
+# Gradle 9.3.1(_meta.txt 의 gradle 줄) 의 included build 플러그인 해석은 마커 모듈이 아니라 프로젝트 의존을 classpath 에 넣는다:
+#   gradle-composite-builds-9.3.1.jar CompositeBuildPluginResolverContributor$LocalPluginResolution.accept
+#   → DefaultProjectDependencyFactory.create(<생산 프로젝트 경로>) → visitor.visitDependency (javap 로 확인, 2026-10-04).
+# 그래서 실제 줄은 '+--- project :build-logic' 꼴로 예상한다(실측 덤프 없음 — 형식 미검증). 마커 좌표 꼴
+# ('dmes.<id>:dmes.<id>.gradle.plugin[:버전] -> project :build-logic')도 같은 패턴의 대안으로 받는다. 어느 쪽이든 해석 대상은
+# project :build-logic 으로 고정이다. build-logic 은 외부 의존이 없어(gradleApi·localGroovy 는 파일 의존이라 보고에 안 나옴) 자식 줄이 없다.
+# 최상위 줄만 받는다('+---'/'\---' 로 시작). 끝의 ' (*)' 는 같은 노드 반복 표시라 허용한다.
+#
+# 2-a) test-conventions 만 쓰는 9개 모듈 — 기대: A 0 / B 9.
+@^(aps-core|caravan-core|caravan-hub|caravan-console|mcm-core|cactus-core|maru-mdm-engine|mdm|localKafka)/buildEnvironment/_root\.txt$ ^[+\\]--- (project :build-logic|dmes\.test-conventions:dmes\.test-conventions\.gradle\.plugin(:[^ ]+)? -> project :build-logic)( \(\*\))?$
+
+# 2-b) 두 플러그인을 쓰는 업무 모듈 5개 — 같은 프로젝트 의존 두 개가 하나로 합쳐지면 B 5, 따로 나오면 B 10(마커 꼴이면 B 10).
+@^(mpn|mpp|mqc|mls|mcm)/buildEnvironment/_root\.txt$ ^[+\\]--- (project :build-logic|dmes\.test-conventions:dmes\.test-conventions\.gradle\.plugin(:[^ ]+)? -> project :build-logic|dmes\.business-module:dmes\.business-module\.gradle\.plugin(:[^ ]+)? -> project :build-logic)( \(\*\))?$
+
+# 2-c) 루트 classpath 가 비어 있던 6개 모듈 — A 의 'No dependencies' 한 줄이 build-logic 항목으로 바뀐다(2-a 의 직접 결과).
+#      --flat 은 트리 기호만 떼므로 이 줄은 --flat 에서도 남는다. v-all-1(dd3f59e5) 실측: 이 6개만 루트 classpath 가 'No dependencies'.
+#      (caravan-hub localKafka mdm 과 업무 모듈 5개는 spring 플러그인 마커가 이미 있어 해당 없음.) 기대: A 6 / B 0.
+@^(aps-core|caravan-core|caravan-console|mcm-core|cactus-core|maru-mdm-engine)/buildEnvironment/_root\.txt$ ^No dependencies$

@@ -1,0 +1,539 @@
+// scripts/build-verify/dump-deps.sh 가 -I 로 넘기는 init 스크립트 (2) — 빌드 설정 덤프.
+//
+// 프로젝트마다 정렬된 텍스트 2개를 남긴다.
+//   <mod>/settings/<프로젝트>.txt        플러그인 id·group·version·java·extensions·카탈로그 확장·ext·저장소·Test·JavaCompile·
+//                                       보관(jar/war/bootJar/bootWar) 태스크·JavaExec·publishing
+//   <mod>/configurations/<프로젝트>.txt  모든 구성(해석 불가 포함)의 플래그·extendsFrom·속성·선언 의존성·제약
+// 모듈 하나에 settings/_settings.txt(settings 단계 저장소·repositoriesMode·versionCatalogs 이름) 도 남긴다.
+//
+// 판정자가 허용 차이를 줄 단위로 걸러낼 수 있게 섹션·줄 접두어를 고정한다.
+//   ## plugins          플러그인 id 정렬 목록 — ③ convention plugin id 는 이 섹션의 한 줄로만 더해진다
+//   ## extensions       확장 이름 : 공개 타입(버전 카탈로그 확장 제외)
+//   ## version catalog extensions   'catalog.<이름> = <타입>' 또는 'catalog = (none)' — ① libs 허용 차이
+//   ## ext              'ext.<키> = <값>' — ① caravan-hub ext.camelVersion 허용 차이
+//
+// 원칙
+// - 실행마다 바뀌는 값(임시 경로·PID·시각)은 넣지 않는다. 절대경로는 리포 루트 상대경로로 바꾼다
+//   (리포 밖: Gradle 사용자 홈 → <GRADLE_USER_HOME>/…, 홈 → ~/…).
+// - 자격증명 값은 절대 출력하지 않는다(있으면 credentials=<redacted> 만).
+// - bootJar/bootWar/bootRun 의 mainClass 관례값은 resolveMainClassName 출력(build/ 아래)에서 파생되어 그 워크트리가
+//   빌드된 적 있는지에 따라 달라진다 — 설정 값(springBoot.mainClass, resolveMainClassName.configuredMainClassName,
+//   일반 JavaExec.mainClass)만 남긴다. 태스크에 직접 준 bootJar.mainClass 는 관례값과 구분할 수 없어 빠진다(현재 리포에 없음).
+// - Spring Boot·dependency-management 클래스는 init 스크립트 클래스로더에 없다 — import·instanceof 로 참조하지 않고
+//   클래스 이름 문자열·동적 속성으로만 다룬다(참조하면 모든 모듈에서 스크립트 컴파일이 깨진다).
+// - render/taskDeps 가 잡은 예외는 값 자리에 '<error 예외: 메시지>' 로, safe{} 가 잡은 예외는 '!ERROR' 줄로 남는다.
+//   dump-deps.sh 가 둘 다 _errors.txt 로 모은다(양쪽이 같은 오류면 diff 0 이 되므로 오류로 세어야 한다).
+// - included build(부모 있는 빌드)는 건너뛴다.
+if (gradle.parent != null) return
+
+def outDir = new File(System.getProperty('dump.out'))
+def modName = System.getProperty('dump.mod')
+def modDir = new File(outDir, modName)
+def repoRoots = [System.getProperty('dump.repo')].findAll { it }.collectMany { [it, new File(it).canonicalPath] }.unique()
+def guh = gradle.gradleUserHomeDir.canonicalPath
+def home = new File(System.getProperty('user.home')).canonicalPath
+
+def projName = { org.gradle.api.Project p -> p.path == ':' ? '_root' : p.path.substring(1).replace(':', '_') }
+
+// 절대경로 → 리포 상대경로. 문자열 안에 섞인 경로도 바꾼다(긴 접두어부터).
+def relStr
+relStr = { String s ->
+    if (s == null) return null
+    String r = s
+    repoRoots.sort { -it.length() }.each { String root ->
+        r = r.replace(root + '/', '').replace(root, '.')
+    }
+    r = r.replace(guh, '<GRADLE_USER_HOME>').replace(home, '~')
+    return r
+}
+def relFile = { File f -> f == null ? null : relStr(f.absolutePath) }
+
+// 예외 → 한 줄 설명. 맨 바깥 예외와 근본 원인의 첫 줄을 남긴다(해시·절대경로 제거). 양쪽이 같은 오류여도 원인이 보이게.
+def errText = { Throwable e ->
+    def one = { Throwable x ->
+        String m = String.valueOf(x.message)
+        try { m = relStr(m) } catch (Throwable ignored) { }
+        m = (m.readLines().find { it.trim() } ?: '').trim().replaceAll(/@[0-9a-f]{4,}/, '@<hash>')
+        if (m.length() > 300) m = m.substring(0, 300) + '…'
+        "${x.getClass().simpleName}: ${m}".toString()
+    }
+    Throwable root = e
+    int guard = 0
+    while (root.cause != null && !root.cause.is(root) && guard++ < 30) root = root.cause
+    return root.is(e) ? one(e) : "${one(e)} <- ${one(root)}".toString()
+}
+
+// 값 → 결정적 문자열. 리스트는 순서 유지, 맵·집합은 정렬.
+def render
+render = { Object v ->
+    try {
+        if (v == null) return '<null>'
+        if (v instanceof org.gradle.api.provider.Provider) return render(v.getOrNull())
+        if (v instanceof File) return relFile(v)
+        if (v instanceof org.gradle.api.file.FileSystemLocation) return relFile(v.asFile)
+        if (v instanceof org.gradle.api.file.FileCollection) return '[' + v.files.collect { relFile(it) }.sort().join(', ') + ']'
+        if (v instanceof Map) return '{' + v.collect { k, x -> "${k}=${render(x)}" }.sort().join(', ') + '}'
+        if (v instanceof Set) return '[' + v.collect { render(it) }.sort().join(', ') + ']'
+        if (v instanceof Iterable || v instanceof Object[]) return '[' + v.collect { render(it) }.join(', ') + ']'
+        if (v instanceof org.gradle.api.Task) return v.path
+        if (v instanceof Closure) return '<closure>'
+        if (v instanceof Enum || v instanceof CharSequence || v instanceof Number || v instanceof Boolean || v instanceof org.gradle.api.JavaVersion) return relStr(v.toString())
+        if (v instanceof org.gradle.api.Named) return v.name
+        String s = v.toString()
+        // 객체 기본 toString(클래스@해시)은 실행마다 바뀐다 — 클래스 이름만 남긴다
+        if (s ==~ /(?s).*@[0-9a-f]{4,}.*/ || s.contains('$$Lambda')) return "<${v.getClass().name.replaceAll(/_Decorated$/, '').replaceAll(/\/0x[0-9a-f]+/, '')}>"
+        return relStr(s)
+    } catch (Throwable e) {
+        return "<error ${errText(e)}>".toString()
+    }
+}
+
+// inputs.property 값 전용 — 인자 없는 Closure·Callable·Supplier 를 풀어 실제 값을 남긴다(Gradle 이 등록 시점엔 풀지 않는다).
+// render 에 넣지 않는 이유: ext 에 든 인자 있는 Closure(mdm 의 mdmEnvFingerprint 등)를 부르면 안 된다.
+def unwrapDeferred
+unwrapDeferred = { Object v ->
+    int guard = 0
+    while (guard++ < 10) {
+        if (v instanceof Closure) {
+            Closure c = (Closure) v
+            // 인자 없음: { -> } 또는 암묵 인자 it 하나({ ... })만. { String name -> } 처럼 인자가 필요한 것은 부르지 않는다.
+            boolean noArg = c.maximumNumberOfParameters == 0 || (c.parameterTypes.length == 1 && c.parameterTypes[0] == Object)
+            if (!noArg) return v
+            v = c.call()
+        } else if (v instanceof java.util.concurrent.Callable) {
+            v = ((java.util.concurrent.Callable) v).call()
+        } else if (v instanceof java.util.function.Supplier) {
+            v = ((java.util.function.Supplier) v).get()
+        } else {
+            return v
+        }
+    }
+    return v
+}
+
+def sec = { StringBuilder sb, String title -> sb.append('\n## ').append(title).append('\n') }
+def kv = { StringBuilder sb, String k, Object v -> sb.append(k).append(' = ').append(render(v)).append('\n') }
+def safe = { StringBuilder sb, String what, Closure c ->
+    try { c.call() } catch (Throwable e) { sb.append("!ERROR ${what}: ${errText(e)}\n") }
+}
+
+// 저장소 — 이름·종류·URL·순서. 자격증명은 있으면 <redacted> 만.
+def renderRepos = { StringBuilder sb, Object repos ->
+    int i = 0
+    repos.each { r ->
+        i++
+        String kind = r instanceof org.gradle.api.artifacts.repositories.MavenArtifactRepository ? 'maven' :
+                r instanceof org.gradle.api.artifacts.repositories.IvyArtifactRepository ? 'ivy' :
+                r instanceof org.gradle.api.artifacts.repositories.FlatDirectoryArtifactRepository ? 'flatDir' : r.getClass().simpleName
+        def line = new StringBuilder("${i}. ${r.name} [${kind}]")
+        if (r.metaClass.respondsTo(r, 'getUrl')) line.append(" url=${render(r.url)}")
+        if (r instanceof org.gradle.api.artifacts.repositories.MavenArtifactRepository) {
+            def extra = r.artifactUrls
+            if (extra) line.append(" artifactUrls=${render(extra as List)}")
+        }
+        if (r instanceof org.gradle.api.artifacts.repositories.FlatDirectoryArtifactRepository) line.append(" dirs=${render(r.dirs)}")
+        if (r.metaClass.respondsTo(r, 'isAllowInsecureProtocol')) line.append(" allowInsecureProtocol=${r.allowInsecureProtocol}")
+        String cred = 'none'
+        try {
+            if (r.metaClass.respondsTo(r, 'getConfiguredCredentials')) cred = r.configuredCredentials.isPresent() ? '<redacted>' : 'none'
+        } catch (Throwable ignored) { cred = '<unknown>' }
+        line.append(" credentials=${cred}")
+        sb.append(line).append('\n')
+    }
+    if (i == 0) sb.append('(none)\n')
+}
+
+// 등록 입력(inputs.property / inputs.files 로 빌드가 직접 넣은 것)만 방문한다 — 주석 기반 입력(classpath 등)은 제외.
+class DumpRegisteredVisitor implements org.gradle.internal.properties.PropertyVisitor {
+    List<List<Object>> files = []
+    List<List<Object>> props = []
+    List<List<Object>> outs = []
+    @Override
+    void visitInputFileProperty(String name, boolean optional, org.gradle.internal.properties.InputBehavior behavior,
+                                org.gradle.internal.fingerprint.DirectorySensitivity ds, org.gradle.internal.fingerprint.LineEndingSensitivity les,
+                                org.gradle.internal.fingerprint.FileNormalizer normalizer, org.gradle.internal.properties.PropertyValue value,
+                                org.gradle.internal.properties.InputFilePropertyType type) {
+        files << [name, value, normalizer, optional, type, behavior]
+    }
+    @Override
+    void visitInputProperty(String name, org.gradle.internal.properties.PropertyValue value, boolean optional) {
+        props << [name, value]
+    }
+    @Override
+    void visitOutputFileProperty(String name, boolean optional, org.gradle.internal.properties.PropertyValue value,
+                                 org.gradle.internal.properties.OutputFilePropertyType type) {
+        outs << [name, value, type]
+    }
+}
+
+def taskDeps = { org.gradle.api.Task t, Object dep ->
+    try {
+        dep.getDependencies(t).collect { d ->
+            try { d.identityPath.toString() } catch (Throwable ignored) { d.path }
+        }.sort()
+    } catch (Throwable e) {
+        ["<error ${errText(e)}>".toString()]
+    }
+}
+
+// 태스크 관계(dependsOn·finalizedBy·mustRunAfter·shouldRunAfter)는 dumpSettings 의 dependsOn 클로저 안에서 미리 계산해 둔다
+// (Gradle 이 태스크 그래프를 채우는 구간 — 빌드가 TaskSchedule 상태에 머문다. 실제 빌드가 의존을 푸는 구간과 같다).
+// 문자열 경로 의존(mdm 루트 :test 의 dependsOn(':lib:test', ':api:test'))은 BuildScopedTaskResolver 가
+// ensureProjectsConfigured 를 부르는데, 빌드 상태가 "전이 중"이면 거절된다. 실측(2026-10-04, Gradle 9.3.1):
+//   실행 단계(doLast)      : IllegalStateException: ... is in state ReadyToRun and transitioning to Configure.
+//   projectsEvaluated      : ... is in state Configure and transitioning to TaskSchedule. (+ 구성 해석이 'without an exclusive lock' 로 거절)
+//   taskGraph.whenReady    : ... is in state TaskSchedule and transitioning to ReadyToRun.
+//   dependsOn 클로저        : 성공 — :test = [:api:test, :classes, :compileJava, :compileTestJava, :lib:test, :testClasses]
+// 실제 빌드는 이 오류가 없다(`gradlew -m :test` 성공) — 덤프 도구의 결함이었다.
+// 키: 태스크 identityPath. 값: [resolved, finalizedBy, mustRunAfter, shouldRunAfter].
+def relCache = [:]
+def taskKey = { org.gradle.api.Task t -> try { t.identityPath.toString() } catch (Throwable ignored) { t.path } }
+def precomputeRels = { org.gradle.api.Task t ->
+    relCache[taskKey(t)] = [taskDeps(t, t.taskDependencies), taskDeps(t, t.finalizedBy), taskDeps(t, t.mustRunAfter), taskDeps(t, t.shouldRunAfter)]
+}
+// 한 프로젝트의 덤프 대상 태스크(Test·JavaCompile·보관·JavaExec) 관계를 계산한다. 관계 계산이 다른 태스크(같은 종류일 수도 있다)를
+// 실체화해 컨테이너가 바뀌므로(mdm 에서 ConcurrentModificationException) 매번 목록을 복사해 돌고, 새 대상이 없을 때까지 되풀이한다.
+def dumpTypes = [org.gradle.api.tasks.testing.Test, org.gradle.api.tasks.compile.JavaCompile,
+                 org.gradle.api.tasks.bundling.AbstractArchiveTask, org.gradle.api.tasks.JavaExec]
+def precomputeProject = { org.gradle.api.Project p ->
+    int rounds = 0
+    while (rounds++ < 10) {
+        def pending = []
+        dumpTypes.each { type -> pending.addAll(p.tasks.withType(type).toList().findAll { !relCache.containsKey(taskKey(it)) }) }
+        if (pending.isEmpty()) break
+        pending.each { t -> precomputeRels(t) }
+    }
+}
+
+// inputMode: 'registered' = inputs.property / inputs.files 를 이름별로(Test·JavaExec — 빌드가 직접 넣은 입력)
+//            'filesUnion' = 등록 입력 파일의 합집합만(Archive — copy spec 입력 이름 rootSpec$1$2… 은 spec 등록 순서에 따라
+//                           번호가 바뀌어 ③ 에서 거짓 차이를 내고, 값은 람다라 정보가 없다. 담기는 파일 집합만 본다)
+def renderTaskCommon = { StringBuilder sb, org.gradle.api.Task t, org.gradle.api.Project p, String inputMode ->
+    kv(sb, 'type', t.getClass().name.replaceAll(/_Decorated$/, ''))
+    kv(sb, 'enabled', t.enabled)
+    // 구성 단계에서 계산한 값만 쓴다. 없으면(실행 중에 처음 생긴 태스크) 오류로 남긴다 — 실행 단계 계산은 위 이유로 믿을 수 없다.
+    def rels = relCache[taskKey(t)]
+    def noRel = ["<error 구성 단계에서 계산 안 됨: ${taskKey(t)}>".toString()]
+    sb.append('dependsOn(resolved) = ').append(rels ? rels[0] : noRel).append('\n')
+    sb.append('dependsOn(declared) = ').append(t.dependsOn.collect { render(it) }.sort()).append('\n')
+    sb.append('finalizedBy = ').append(rels ? rels[1] : noRel).append('\n')
+    sb.append('mustRunAfter = ').append(rels ? rels[2] : noRel).append('\n')
+    sb.append('shouldRunAfter = ').append(rels ? rels[3] : noRel).append('\n')
+    // 리포 안 build/ 아래 경로(컴파일 결과·임시 MANIFEST 등)는 뺀다 — 디렉터리 트리가 펼쳐져 그 워크트리가
+    // 빌드된 적 있는지에 따라 목록이 달라진다(base·lane 잡음). 리포 밖(<GRADLE_USER_HOME>·~)은 그대로 둔다.
+    def keepFile = { String f -> f.startsWith('<') || f.startsWith('~') || f.startsWith('/') || !(f ==~ /(.*\/)?build\/.*/) }
+    safe(sb, 'registered inputs') {
+        def v = new DumpRegisteredVisitor()
+        ((org.gradle.api.internal.TaskInputsInternal) t.inputs).visitRegisteredProperties(v)
+        if (inputMode == 'filesUnion') {
+            def all = new TreeSet<String>()
+            v.files.each { e -> p.files(e[1].call()).files.each { File f -> String r = relFile(f); if (keepFile(r)) all << r } }
+            sb.append("inputs.files(union, names ignored) = ${all as List}\n")
+        } else {
+            v.props.sort { it[0] }.each { e ->
+                String val
+                try { val = render(unwrapDeferred(e[1].call())) } catch (Throwable x) { val = "<error ${errText(x)}>".toString() }
+                sb.append("inputs.property ${e[0]} = ${val}\n")
+            }
+            v.files.sort { it[0] }.each { e ->
+                def files = p.files(e[1].call()).files.collect { relFile(it) }.findAll { String f -> keepFile(f) }.sort()
+                def norm = e[2] == null ? '-' : (e[2] instanceof Enum ? e[2].name() : render(e[2]))
+                sb.append("inputs.files ${e[0]} normalizer=${norm} optional=${e[3]} type=${e[4]} behavior=${e[5]} = ${files}\n")
+            }
+            def vo = new DumpRegisteredVisitor()
+            ((org.gradle.api.internal.TaskOutputsInternal) t.outputs).visitRegisteredProperties(vo)
+            vo.outs.sort { it[0] }.each { e -> sb.append("outputs.registered ${e[0]} type=${e[2]} = ${render(e[1].call())}\n") }
+        }
+    }
+    safe(sb, 'cache specs') {
+        def o = (org.gradle.api.internal.TaskOutputsInternal) t.outputs
+        // 캐시 조건·제외 사유 이름과 개수. 하나라도 참이면 캐시하지 않는 OR 조건이라 순서는 동작에 영향이 없다 — 정렬해
+        // ③(convention plugin 으로 옮겨 등록 순서가 바뀌는 경우)에서 거짓 차이를 내지 않게 한다.
+        def cacheIf = o.cacheIfSpecs.collect { it.displayName }.sort()
+        def notIf = o.doNotCacheIfSpecs.collect { it.displayName }.sort()
+        sb.append("outputs.cacheIf(${cacheIf.size()}) = ").append(cacheIf).append('\n')
+        sb.append("outputs.doNotCacheIf(${notIf.size()}) = ").append(notIf).append('\n')
+    }
+    safe(sb, 'required services') {
+        def names = t.metaClass.respondsTo(t, 'getRequiredServices') ? t.requiredServices.elements.collect { it.name }.sort() : []
+        sb.append('requiredServices = ').append(names).append('\n')
+    }
+    // 액션 수 — 주의: ~/.gradle/init.d/dflow-test-jvm.gradle 이 빌드 루트·조상에 .dflow-agent 가 있으면 Test 에 doFirst 를
+    // 하나 더한다. 같은 PC 라도 표식 유무가 다른 워크트리끼리 비교하면 Test 의 actions 가 달라진다(_meta.txt dflow-agent 줄 확인).
+    sb.append("actions = ${t.actions.size()}\n")
+}
+
+gradle.settingsEvaluated { org.gradle.api.initialization.Settings s ->
+    def sb = new StringBuilder("# settings — module ${modName}\n")
+    safe(sb, 'settings') {
+        kv(sb, 'rootProject.name', s.rootProject.name)
+        sec(sb, 'pluginManagement.repositories'); renderRepos(sb, s.pluginManagement.repositories)
+        sec(sb, 'dependencyResolutionManagement.repositories'); renderRepos(sb, s.dependencyResolutionManagement.repositories)
+        kv(sb, 'dependencyResolutionManagement.repositoriesMode', s.dependencyResolutionManagement.repositoriesMode)
+        safe(sb, 'versionCatalogs') {
+            kv(sb, 'versionCatalogs', s.dependencyResolutionManagement.versionCatalogs.collect { it.name }.sort())
+        }
+    }
+    new File(modDir, 'settings').mkdirs()
+    new File(modDir, 'settings/_settings.txt').text = sb.toString()
+}
+
+gradle.allprojects { org.gradle.api.Project p ->
+    p.tasks.register('dumpSettings') {
+        group = 'dump'
+        description = 'build-verify: 플러그인·저장소·Test·JavaCompile·보관 태스크 설정과 구성 선언을 파일로 남긴다.'
+        // 태스크 관계는 Gradle 이 이 태스크의 의존을 풀 때(태스크 그래프 채우기 — 빌드가 TaskSchedule 상태에 머무는 구간) 계산한다.
+        // 실제 빌드가 의존을 푸는 구간과 같아 문자열 경로 의존·구성 해석이 허용된다. 아무 태스크도 더하지 않는다(빈 목록).
+        dependsOn { precomputeProject(p); [] }
+        doLast {
+            def pn = projName(p)
+            def sb = new StringBuilder("# project ${p.path} (module ${modName})\n")
+            kv(sb, 'projectDir', p.projectDir)
+            kv(sb, 'buildFile', p.buildFile)
+            kv(sb, 'group', p.group)
+            kv(sb, 'version', p.version)
+            kv(sb, 'description', p.description)
+            kv(sb, 'buildDir', p.layout.buildDirectory)
+
+            sec(sb, 'plugins (id; id 없는 플러그인은 class:)')
+            safe(sb, 'plugins') {
+                def pm = (org.gradle.api.internal.plugins.PluginManagerInternal) p.pluginManager
+                def ids = new TreeSet<String>()
+                p.plugins.each { pl ->
+                    Class cls = pl.getClass()
+                    if (cls.name.endsWith('_Decorated')) cls = cls.superclass
+                    def id = pm.findPluginIdForClass(cls)
+                    ids << (id.isPresent() ? id.get().id : "class:${cls.name}".toString())
+                }
+                ids.each { sb.append(it).append('\n') }
+            }
+
+            sec(sb, 'java')
+            safe(sb, 'java') {
+                def java = p.extensions.findByType(org.gradle.api.plugins.JavaPluginExtension)
+                if (java == null) { sb.append('(no java extension)\n'); return }
+                kv(sb, 'toolchain.languageVersion', java.toolchain.languageVersion)
+                kv(sb, 'toolchain.vendor', java.toolchain.vendor)
+                kv(sb, 'toolchain.implementation', java.toolchain.implementation)
+                kv(sb, 'sourceCompatibility', java.sourceCompatibility)
+                kv(sb, 'targetCompatibility', java.targetCompatibility)
+                kv(sb, 'modularity.inferModulePath', java.modularity.inferModulePath)
+                kv(sb, 'sourceSets', java.sourceSets.collect { it.name }.sort())
+                java.sourceSets.sort { it.name }.each { ss ->
+                    kv(sb, "sourceSet.${ss.name}.java.srcDirs", ss.java.srcDirs.collect { relFile(it) }.sort())
+                    kv(sb, "sourceSet.${ss.name}.resources.srcDirs", ss.resources.srcDirs.collect { relFile(it) }.sort())
+                }
+                def base = p.extensions.findByType(org.gradle.api.plugins.BasePluginExtension)
+                if (base != null) kv(sb, 'base.archivesName', base.archivesName)
+                def boot = p.extensions.findByName('springBoot')
+                if (boot != null) safe(sb, 'springBoot') { kv(sb, 'springBoot.mainClass(explicit)', boot.mainClass) }
+            }
+
+            // 확장 — 버전 카탈로그 확장(libs 등)은 따로 둔다(① 허용 차이를 줄 하나로 걸러낼 수 있게).
+            def catalogNames = new TreeSet<String>()
+            safe(sb, 'catalog names') {
+                def vcs = p.extensions.findByType(org.gradle.api.artifacts.VersionCatalogsExtension)
+                if (vcs != null) catalogNames.addAll(vcs.getCatalogNames())
+            }
+            sec(sb, 'extensions (이름 : 공개 타입, 버전 카탈로그 확장 제외)')
+            safe(sb, 'extensions') {
+                p.extensions.getExtensionsSchema().getElements()
+                        .findAll { !catalogNames.contains(it.name) }
+                        .collect { "${it.name} : ${it.getPublicType().getConcreteClass().name.replaceAll(/_Decorated$/, '')}".toString() }
+                        .sort().each { sb.append(it).append('\n') }
+            }
+            sec(sb, 'version catalog extensions')
+            safe(sb, 'version catalog extensions') {
+                if (catalogNames.isEmpty()) sb.append('catalog = (none)\n')
+                catalogNames.each { String n ->
+                    def cext = p.extensions.findByName(n)
+                    sb.append("catalog.${n} = ${cext == null ? '<no extension>' : cext.getClass().name.replaceAll(/_Decorated$/, '')}\n")
+                }
+            }
+            // ext(extra properties) — 키 정렬, 값은 render(Closure 는 부르지 않고 <closure>). 자격증명처럼 보이는 키는 값 대신 <redacted>.
+            // gradle.properties 항목도 여기에 들어올 수 있다(전역 ~/.gradle/gradle.properties 포함).
+            sec(sb, 'ext (extra properties)')
+            safe(sb, 'ext') {
+                def props = p.extensions.getExtraProperties().getProperties()
+                if (props.isEmpty()) sb.append('ext = (none)\n')
+                props.keySet().collect { it.toString() }.sort().each { String k ->
+                    boolean secret = k ==~ /(?i).*(pass(word|wd)?|secret|token|credential|auth|api[-_.]?key|private[-_.]?key|signing).*/
+                    sb.append("ext.${k} = ${secret ? '<redacted>' : render(props[k])}\n")
+                }
+            }
+
+            sec(sb, 'repositories (project)'); safe(sb, 'repositories') { renderRepos(sb, p.repositories) }
+            sec(sb, 'repositories (buildscript)'); safe(sb, 'buildscript repositories') { renderRepos(sb, p.buildscript.repositories) }
+            def publishing = p.extensions.findByName('publishing')
+            if (publishing != null) {
+                sec(sb, 'publishing')
+                safe(sb, 'publishing') {
+                    sb.append('repositories:\n'); renderRepos(sb, publishing.repositories)
+                    publishing.publications.sort { it.name }.each { pub ->
+                        String gav = pub.metaClass.respondsTo(pub, 'getGroupId') ? "${pub.groupId}:${pub.artifactId}:${pub.version}" : ''
+                        sb.append("publication ${pub.name} [${pub.getClass().simpleName.replaceAll(/_Decorated$/, '')}] ${gav}\n")
+                    }
+                }
+            }
+
+            p.tasks.withType(org.gradle.api.tasks.testing.Test).sort { it.name }.each { org.gradle.api.tasks.testing.Test t ->
+                sec(sb, "Test ${t.path}")
+                safe(sb, "Test ${t.name}") {
+                    def fw = t.testFramework
+                    String fwName = fw.getClass().simpleName.replaceAll(/_Decorated$/, '')
+                    kv(sb, 'testFramework', fwName.contains('JUnitPlatform') ? 'useJUnitPlatform' : fwName.contains('JUnitTestFramework') ? 'useJUnit' : fwName.contains('TestNG') ? 'useTestNG' : fwName)
+                    def o = fw.options
+                    ['includeTags', 'excludeTags', 'includeEngines', 'excludeEngines', 'includeCategories', 'excludeCategories', 'includeGroups', 'excludeGroups'].each { n ->
+                        if (o.metaClass.respondsTo(o, 'get' + n.capitalize())) kv(sb, "options.${n}", o."${n}")
+                    }
+                    kv(sb, 'includes', t.includes)
+                    kv(sb, 'excludes', t.excludes)
+                    kv(sb, 'filter.includePatterns', t.filter.includePatterns)
+                    kv(sb, 'filter.excludePatterns', t.filter.excludePatterns)
+                    kv(sb, 'filter.failOnNoMatchingTests', t.filter.failOnNoMatchingTests)
+                    kv(sb, 'failFast', t.failFast)
+                    kv(sb, 'ignoreFailures', t.ignoreFailures)
+                    kv(sb, 'jvmArgs', t.jvmArgs)
+                    // user.country·language·variant 는 데몬 JVM 의 기본 로캘에서 온다(어느 데몬이 잡히느냐에 따라 바뀜) — 뺀다
+                    kv(sb, 'allJvmArgs(-Duser.country/language/variant 제외)', t.allJvmArgs.findAll { !(it ==~ /-Duser\.(country|language|variant)(=.*)?/) })
+                    kv(sb, 'systemProperties', t.systemProperties)
+                    def buildEnv = t.environment.findAll { k, v -> System.getenv(k as String) != (v == null ? null : v.toString()) }
+                    kv(sb, 'environment(build-set)', buildEnv)
+                    kv(sb, 'maxParallelForks', t.maxParallelForks)
+                    kv(sb, 'forkEvery', t.forkEvery)
+                    kv(sb, 'minHeapSize', t.minHeapSize)
+                    kv(sb, 'maxHeapSize', t.maxHeapSize)
+                    kv(sb, 'debug', t.debug)
+                    kv(sb, 'workingDir', t.workingDir)
+                    safe(sb, 'javaLauncher') { kv(sb, 'javaLauncher.languageVersion', t.javaLauncher.map { it.metadata.languageVersion }) }
+                    kv(sb, 'testClassesDirs', t.testClassesDirs)
+                    kv(sb, 'reports.html.required', t.reports.html.required)
+                    kv(sb, 'reports.junitXml.required', t.reports.junitXml.required)
+                    renderTaskCommon(sb, t, p, 'registered')
+                }
+            }
+
+            p.tasks.withType(org.gradle.api.tasks.compile.JavaCompile).sort { it.name }.each { org.gradle.api.tasks.compile.JavaCompile t ->
+                sec(sb, "JavaCompile ${t.path}")
+                safe(sb, "JavaCompile ${t.name}") {
+                    kv(sb, 'options.release', t.options.release)
+                    kv(sb, 'options.encoding', t.options.encoding)
+                    kv(sb, 'options.compilerArgs', t.options.compilerArgs)
+                    kv(sb, 'options.compilerArgumentProviders', t.options.compilerArgumentProviders.collect { it.getClass().name.replaceAll(/_Decorated$/, '').replaceAll(/\/0x[0-9a-f]+/, '').replaceAll('\\$\\$Lambda\\$[0-9]+', '\\$\\$Lambda') })
+                    kv(sb, 'options.fork', t.options.fork)
+                    kv(sb, 'options.incremental', t.options.incremental)
+                    kv(sb, 'options.deprecation', t.options.deprecation)
+                    kv(sb, 'options.warnings', t.options.warnings)
+                    kv(sb, 'options.debug', t.options.debug)
+                    kv(sb, 'options.failOnError', t.options.failOnError)
+                    kv(sb, 'options.generatedSourceOutputDirectory', t.options.generatedSourceOutputDirectory)
+                    kv(sb, 'sourceCompatibility', t.sourceCompatibility)
+                    kv(sb, 'targetCompatibility', t.targetCompatibility)
+                    safe(sb, 'javaCompiler') { kv(sb, 'javaCompiler.languageVersion', t.javaCompiler.map { it.metadata.languageVersion }) }
+                    kv(sb, 'destinationDirectory', t.destinationDirectory)
+                    renderTaskCommon(sb, t, p, 'registered')
+                }
+            }
+
+            p.tasks.withType(org.gradle.api.tasks.bundling.AbstractArchiveTask).sort { it.name }.each { t ->
+                sec(sb, "Archive ${t.path}")
+                safe(sb, "Archive ${t.name}") {
+                    kv(sb, 'archiveFileName', t.archiveFileName)
+                    kv(sb, 'destinationDirectory', t.destinationDirectory)
+                    kv(sb, 'duplicatesStrategy', t.duplicatesStrategy)
+                    kv(sb, 'preserveFileTimestamps', t.preserveFileTimestamps)
+                    kv(sb, 'reproducibleFileOrder', t.reproducibleFileOrder)
+                    if (t instanceof org.gradle.api.tasks.bundling.Jar) kv(sb, 'manifest.attributes', t.manifest.attributes)
+                    // bootJar/bootWar 의 mainClass 관례값은 resolveMainClassName 출력(build/ 아래 파일)을 읽어 그 워크트리가
+                    // 빌드된 적 있는지에 따라 값·예외가 갈린다 — 그 값 대신 "설정된" main class(springBoot.mainClass·application
+                    // mainClass 에서 오는 resolveMainClassName.configuredMainClassName)를 남긴다. Spring Boot 클래스는 init
+                    // 스크립트 클래스로더에 없으므로 이름 문자열·동적 속성으로만 다룬다.
+                    String tcn = t.getClass().name
+                    if (tcn.contains('BootJar') || tcn.contains('BootWar')) {
+                        def rmc = p.tasks.findByName('resolveMainClassName')
+                        kv(sb, 'mainClass(configured)', rmc == null ? '<no resolveMainClassName>' : rmc.getConfiguredMainClassName())
+                        sb.append('mainClass(task) = <관례값은 build/ 산출물에서 파생 — 덤프 안 함, 태스크에 직접 준 값도 구분 불가>\n')
+                    }
+                    renderTaskCommon(sb, t, p, 'filesUnion')
+                }
+            }
+
+            p.tasks.withType(org.gradle.api.tasks.JavaExec).sort { it.name }.each { t ->
+                sec(sb, "JavaExec ${t.path}")
+                safe(sb, "JavaExec ${t.name}") {
+                    boolean boot = t.getClass().name.contains('BootRun')
+                    kv(sb, 'mainClass', boot ? '<derived — not dumped>' : t.mainClass)
+                    if (boot) {
+                        def rmc = p.tasks.findByName(t.name == 'bootTestRun' ? 'resolveTestMainClassName' : 'resolveMainClassName')
+                        kv(sb, 'mainClass(configured)', rmc == null ? '<no resolve task>' : rmc.getConfiguredMainClassName())
+                    }
+                    kv(sb, 'jvmArgs', t.jvmArgs)
+                    kv(sb, 'args', t.args)
+                    kv(sb, 'systemProperties', t.systemProperties)
+                    renderTaskCommon(sb, t, p, 'registered')
+                }
+            }
+
+            def sdir = new File(modDir, 'settings'); sdir.mkdirs()
+            new File(sdir, "${pn}.txt").text = sb.toString()
+
+            // 구성 선언 — 해석 불가 구성(implementation·api 등) 포함. 선언 좌표·버전 제약·exclude·속성.
+            def cb = new StringBuilder("# configurations ${p.path} (module ${modName})\n")
+            p.configurations.sort { it.name }.each { cfg ->
+                safe(cb, "configuration ${cfg.name}") {
+                    cb.append("\n## ${cfg.name} resolvable=${cfg.canBeResolved} consumable=${cfg.canBeConsumed} transitive=${cfg.transitive} visible=${cfg.visible}\n")
+                    cb.append("extendsFrom = ${cfg.extendsFrom.collect { it.name }.sort()}\n")
+                    def attrs = cfg.attributes.keySet().collect { a -> "${a.name}=${render(cfg.attributes.getAttribute(a))}" }.sort()
+                    if (attrs) cb.append("attributes = ${attrs}\n")
+                    if (cfg.excludeRules) cb.append("excludeRules = ${cfg.excludeRules.collect { "${it.group}:${it.module}" }.sort()}\n")
+                    def lines = cfg.dependencies.collect { d ->
+                        String s
+                        if (d instanceof org.gradle.api.artifacts.ProjectDependency) {
+                            s = "project ${d.path}"
+                        } else if (d instanceof org.gradle.api.artifacts.FileCollectionDependency) {
+                            s = "files ${render(d.files)}"
+                        } else if (d instanceof org.gradle.api.artifacts.ExternalModuleDependency) {
+                            def vc = d.versionConstraint
+                            s = "module ${d.group}:${d.name}:${d.version}"
+                            if (vc.strictVersion) s += " strictly=${vc.strictVersion}"
+                            if (vc.preferredVersion) s += " prefer=${vc.preferredVersion}"
+                            if (vc.rejectedVersions) s += " reject=${vc.rejectedVersions}"
+                            if (d.changing) s += ' changing'
+                            if (d.force) s += ' force'
+                        } else {
+                            s = "other ${d.group}:${d.name}:${d.version} <${d.getClass().simpleName.replaceAll(/_Decorated$/, '')}>"
+                        }
+                        if (d instanceof org.gradle.api.artifacts.ModuleDependency) {
+                            if (!d.transitive) s += ' transitive=false'
+                            if (d.excludeRules) s += " excludes=${d.excludeRules.collect { "${it.group}:${it.module}" }.sort()}"
+                            def da = d.attributes.keySet().collect { a -> "${a.name}=${render(d.attributes.getAttribute(a))}" }.sort()
+                            if (da) s += " attributes=${da}"
+                            if (d.requestedCapabilities) s += " capabilities=${d.requestedCapabilities.collect { render(it) }.sort()}"
+                            if (d.targetConfiguration) s += " targetConfiguration=${d.targetConfiguration}"
+                            if (d.artifacts) s += " artifacts=${d.artifacts.collect { "${it.name}:${it.type}:${it.extension}:${it.classifier}" }.sort()}"
+                        }
+                        if (d.reason) s += " reason=${d.reason}"
+                        s
+                    }.sort()
+                    lines.each { cb.append('dep ').append(it).append('\n') }
+                    cfg.dependencyConstraints.collect { c ->
+                        "constraint ${c.group}:${c.name}:${c.version}" + (c.versionConstraint.strictVersion ? " strictly=${c.versionConstraint.strictVersion}" : '')
+                    }.sort().each { cb.append(it).append('\n') }
+                }
+            }
+            def cdir = new File(modDir, 'configurations'); cdir.mkdirs()
+            new File(cdir, "${pn}.txt").text = cb.toString()
+        }
+    }
+}
+
+// dumpSettings 가 실행 시점에 태스크를 처음 만들지 않도록, 구성 단계 끝에 관련 태스크를 모두 실체화해 둔다.
+gradle.projectsEvaluated {
+    gradle.rootProject.allprojects { org.gradle.api.Project p ->
+        [org.gradle.api.tasks.testing.Test, org.gradle.api.tasks.compile.JavaCompile,
+         org.gradle.api.tasks.bundling.AbstractArchiveTask, org.gradle.api.tasks.JavaExec].each { type ->
+            p.tasks.withType(type).each { }
+        }
+        ['resolveMainClassName', 'resolveTestMainClassName'].each { n -> if (p.tasks.names.contains(n)) p.tasks.named(n).get() }
+    }
+}
