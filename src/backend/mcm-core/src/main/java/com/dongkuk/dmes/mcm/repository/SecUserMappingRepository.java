@@ -72,8 +72,14 @@ public interface SecUserMappingRepository extends JpaRepository<SecUserMapping, 
      *   <li>{@code flushAutomatically} 는 쓰지 않는다 — Hibernate 가 벌크 DELETE 실행 직전에 영향 표(매핑 표)에 미뤄 둔
      *       변경이 있으면 스스로 auto-flush 하므로({@code StandardJdbcMutationExecutor} 의 {@code autoFlushIfRequired})
      *       같은 트랜잭션에서 앞서 저장한 매핑의 INSERT → 이 DELETE 순서가 지켜진다(SecUserServiceDeleteAutoFlushTest).
-     *       다른 표(사용자 계정 등)의 변경은 전처럼 커밋 때 flush 된다 — 옛 경로가 'D' 행마다 같은 표에 낸 JPQL SELECT 와
-     *       auto-flush 범위·횟수가 같아 관찰 가능한 DB 상태와 오류 시점이 바뀌지 않는다.</li>
+     *       'D' 행이 하나인 요청은 옛 경로(매핑 ID SELECT 뒤 건별 {@code deleteById})와 flush 시점·결과가 같다.
+     *       'D' 행이 둘 이상이고 앞 'D' 사용자에게 매핑이 있었으면 달라진다 — 옛 경로는 {@code deleteById} 가 남긴
+     *       매핑 DELETE(미뤄 둔 {@code em.remove}) 때문에 다음 'D' 행의 JPQL SELECT 에서 Hibernate 가 계정까지 전체 flush 했고,
+     *       지금은 벌크 DELETE 가 바로 실행돼 매핑 표에 미뤄 둔 것이 없으므로 사용자 계정 변경이 커밋 때 나간다.
+     *       그래서 같은 요청에서 고친('U') 계정의 VER 이 옛 경로의 +2 대신 ('D' 행 수 + 1) 만큼 오르고 U_AT 도 다르며
+     *       (Hibernate 는 '필요 없음' 으로 끝나는 auto-flush 검사에서도 dirty 엔티티의 {@code @PreUpdate} 를 부른다),
+     *       계정 UPDATE·DELETE 의 DB 오류는 {@code saveUsers} 안이 아니라 커밋 때 난다.
+     *       이 save 를 부르는 화면이 아직 없어 그대로 두며, 차이 설명은 docs/refactor-2026-10/perf-mcm.md P2 에 있다.</li>
      *   <li>{@code clearAutomatically} 는 쓰지 않는다 — 호출하는 {@code saveUsers}(secUser.bpmn saveTask) 는 이 삭제 뒤
      *       같은 트랜잭션에서 매핑을 다시 읽지 않고, 비우면 같은 영속성 단위의 다른 관리 엔티티(사이트 어댑터의 사용자 등)까지
      *       분리돼 버린다. 이 메서드를 새로 쓰는 곳이 삭제 뒤 매핑 엔티티를 다시 읽는다면 그쪽에서 판단한다.
