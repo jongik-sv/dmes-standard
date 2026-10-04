@@ -24,6 +24,7 @@ import com.dongkuk.dmes.mls.repository.NoticeTargetRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -134,12 +135,43 @@ public class NoticeMgmtService {
         String format = searchCode(request != null ? request.getContentFormat() : null,
                 NoticeCodes.FORMAT_DOMAIN, "본문 형식");
 
-        List<Notice> rows = noticeRepository.searchByFilter(title, status, fromDt, toDt, category, format);
+        String noticeId = request != null ? request.getNoticeId() : null;
+        if (!isBlank(noticeId)) {
+            // 상세 조회 — 행을 고를 때 본문을 받는다(목록은 본문 없이 내려간다).
+            List<Notice> one = noticeRepository.findById(noticeId.trim()).map(List::of).orElse(List.of());
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("list", toRows(one));
+            return detail;
+        }
+
+        Integer limit = request != null ? request.getLimit() : null;
+        boolean withContent = request == null || request.getIncludeContent() == null || request.getIncludeContent();
+        boolean noCondition = isBlank(title) && isBlank(status) && fromDt == null && toDt == null
+                && isBlank(category) && isBlank(format);
+        boolean limited = limit != null && limit > 0 && noCondition;
+
+        List<Map<String, Object>> list;
+        if (withContent) {
+            List<Notice> rows = noticeRepository.searchByFilter(title, status, fromDt, toDt, category, format,
+                    limited ? Limit.of(limit) : Limit.unlimited());
+            list = toRows(rows);
+        } else {
+            // 본문 칸을 읽지 않는다 — 정렬(NOTICE_ID DESC)·조건은 본문 포함 조회와 같다.
+            List<Object[]> rows = noticeRepository.searchSummaryByFilter(title, status, fromDt, toDt, category, format,
+                    limited ? Limit.of(limit) : Limit.unlimited());
+            list = toSummaryRows(rows);
+        }
+        int size = list.size();
         log.info("[noticeMgmt] search — title={} status={} from={} to={} category={} format={} rows={}",
-                title, status, fromDt, toDt, category, format, rows.size());
+                title, status, fromDt, toDt, category, format, size);
 
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("list", toRows(rows));
+        out.put("list", list);
+        if (limit != null && limit > 0) {
+            long total = limited ? noticeRepository.count() : size;
+            out.put("totalCount", total);
+            out.put("truncated", limited && total > size);
+        }
         return out;
     }
 
@@ -520,6 +552,29 @@ public class NoticeMgmtService {
             map.put("POST_END_DT", n.getPostEndDt() == null ? null : n.getPostEndDt().toString());
             map.put("C_USR_ID", n.getCreatedBy());
             map.put("C_AT", n.getCreatedAt() == null ? null : n.getCreatedAt().toString());
+            out.add(map);
+        }
+        return out;
+    }
+
+    /** 요약 조회({@link NoticeRepository#searchSummaryByFilter}) 열 → 화면 행. 본문(CONTENT) 키는 싣지 않는다. */
+    private List<Map<String, Object>> toSummaryRows(List<Object[]> rows) {
+        Map<String, List<String>> targets = targetsByNotice(rows.stream().map(r -> (String) r[0]).toList());
+        List<Map<String, Object>> out = new ArrayList<>(rows.size());
+        for (Object[] r : rows) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("NOTICE_ID", r[0]);
+            map.put("TITLE", r[1]);
+            map.put("NOTICE_STATUS", r[2]);
+            map.put("CONTENT_FORMAT", r[3]);
+            map.put("NOTICE_CATEGORY", r[4]);
+            map.put("PIN_YN", r[5]);
+            map.put("TARGET_SCOPE", r[6]);
+            map.put("TARGET_ROLES", targets.getOrDefault((String) r[0], List.of()));
+            map.put("POST_START_DT", r[7] == null ? null : r[7].toString());
+            map.put("POST_END_DT", r[8] == null ? null : r[8].toString());
+            map.put("C_USR_ID", r[9]);
+            map.put("C_AT", r[10] == null ? null : r[10].toString());
             out.add(map);
         }
         return out;
