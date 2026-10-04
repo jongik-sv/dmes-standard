@@ -3,7 +3,7 @@
 PERF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GIT_BIN="${GIT:-/usr/bin/git}"
 [ -x "$GIT_BIN" ] || GIT_BIN="$(command -v git)"
-# 저장소 루트: 스크립트 위치에서 계산한다(REPO_DIR 로 덮어쓸 수 있다). 측정 워크트리는 이 저장소의 형제 워크트리로 만든다.
+# 저장소 루트: 스크립트 위치에서 계산한다(REPO_DIR 로 덮어쓸 수 있다). 측정 워크트리는 기본으로 그 체크아웃의 .claude/worktrees 아래에 만든다(연결 워크트리에서 부르면 그 워크트리 안이 되므로 PERF_WT_ROOT 로 바꿀 수 있다).
 REPO_DIR="${REPO_DIR:-$($GIT_BIN -C "$PERF_DIR" rev-parse --show-toplevel 2>/dev/null)}"
 [ -n "$REPO_DIR" ] || { echo "[perf] 오류: 저장소 루트를 못 찾음. REPO_DIR 를 지정한다" >&2; exit 1; }
 MAIN_REPO="$REPO_DIR"
@@ -166,7 +166,7 @@ kill_own_listeners() {  # kill_own_listeners <wt>
   sleep 2
 }
 
-# 워크트리의 git 무시 대상 build/.gradle 폴더(깊이 3 이하)만 지운다. 콜드 조건.
+# 워크트리의 git 무시 대상 build/.gradle 폴더(src/backend 아래 깊이 4 이하)만 지운다. 콜드 조건.
 clean_cold() {  # clean_cold A|B
   local p d n=0; p="$(wt_path "$1")"; assert_perf_wt "$p"
   [ -d "$p/src/backend" ] || die "src/backend 없음: $p"
@@ -197,7 +197,7 @@ be_boot_once() {
     for p in $BE_PORTS; do lsof -nP -tiTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1 || { ports_up=0; break; }; done
     [ "$ports_up" = 1 ] && { t1="$(now_s)"; break; }
     kill -0 "$pid" 2>/dev/null || { BOOT_RC=5; break; }
-    # 모듈 하나라도 bootRun 이 끝나 버리면(기준 A 의 공유 includeBuild 동시 컴파일 충돌 등) 7개가 다 뜰 수 없다 — 기다리지 않고 rc 7.
+    # 모듈 하나라도 bootRun 이 끝나 버리면(기준 A 의 공유 includeBuild 동시 컴파일 충돌 등) 7개가 다 뜰 수 없으므로 기다리지 않고 rc 7 로 끝낸다.
     grep -q '프로세스가 종료됐습니다' "$logf" 2>/dev/null && { BOOT_RC=7; break; }
     # 시간 상한은 벽시계 기준(lsof 7회가 매 반복 시간을 더 쓰므로 sleep 합으로 세면 상한이 늘어진다).
     [ "$(perl -e "print int($(now_s)-$t0)")" -ge "$limit" ] && { BOOT_RC=124; break; }

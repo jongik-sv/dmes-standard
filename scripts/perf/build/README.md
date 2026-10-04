@@ -13,13 +13,13 @@
 보조: `run_all.sh`(P1 콜드·웜 → P2 → P3 일괄과 요약), `summarize.sh`(CSV 를 모드×지표×대상 중앙값으로 요약), `lib.sh`(공통 설정·워크트리·콜드 정리·기동 측정 부품).
 측정용 Java 클래스는 없다. 이 하네스는 `be-run.sh` 를 있는 그대로 부르고 로그와 포트만 본다.
 
-## 전제
+## 준비물
 - macOS(`lsof`·`pmset`·`sysctl`·`uptime` 사용), bash 3.2 이상, perl, git, JDK 21. 도커 없음.
 - **서버 창이 있어야 한다.** 측정 대상 포트(8092 8093 8094 8095 8096 8100 8191)를 메인 서버가 쓰고 있으면 스크립트가 포트 점유로 거부한다(be-run 은 점유 프로세스를 죽이므로 막아 둔 것이다). 다른 `be-run.sh` 가 살아 있어도 거부한다. 메인 서버를 직접 끄지 말고 조정 세션에 서버 창을 요청한다.
 - 측정 전 PC 가 조용해야 한다(다른 레인의 빌드·서버·시험 없음, 전원 연결). 이 PC(MacBook Air M5)는 같은 설정에서도 2배 흔들리므로 3회 이상 재고 회차마다 load 를 본다. 스크립트는 회차 전에 1분 load 가 `LOAD_MAX` 이하가 되기를 기다린다.
 - 기준 태그 `refactor-2026-10-base` 가 저장소에 있을 것. 변경 쪽 코드는 측정 전에 커밋을 끝낸다(`B_REF` 기본은 저장소 현재 HEAD 라서 커밋하지 않은 변경은 측정되지 않는다).
 - gradle 의존성이 `~/.gradle` 에 이미 받아져 있을 것(측정 전용 Gradle 홈이 그 캐시를 읽기 공유한다).
-- 측정 워크트리 `perf-build-a`·`perf-build-b` 가 `git worktree list` 에 남아 있지 않을 것.
+- 측정 워크트리 `perf-build-a`·`perf-build-b` 가 다른 커밋으로 남아 있지 않을 것(요청 커밋과 HEAD 가 같으면 재사용한다).
 
 ## 환경 변수
 스크립트는 저장소 어디서든 `scripts/perf/build/<스크립트>` 로 부른다. PC 마다 다른 값은 모두 환경 변수다.
@@ -31,7 +31,7 @@
 | `DFLOW_HEAVY_SLOTS` | 호출 환경 값 그대로(없으면 기본 동작) | heavy 슬롯 수. 위와 같다 |
 | `DMES_TEST_SLOTS` | `0` | 시험 동시 슬롯. 0 은 시험 줄 세우기를 끈다 |
 | `REPO_DIR` | 스크립트 위치에서 `git rev-parse --show-toplevel` | 저장소 루트 |
-| `PERF_WT_ROOT` | `$REPO_DIR/.claude/worktrees` | 측정용 detached 워크트리 위치. 이름은 `perf-build-a`·`perf-build-b` |
+| `PERF_WT_ROOT` | `$REPO_DIR/.claude/worktrees` | 측정용 detached 워크트리 위치. 이름은 `perf-build-a`·`perf-build-b`. 연결 워크트리에서 부르면 `REPO_DIR` 가 그 워크트리라서 그 안에 만들어지므로, 주 체크아웃 옆에 두려면 이 값을 지정한다 |
 | `PERF_RESULTS` | `${TMPDIR:-/tmp}/dmes-perf/build` | 결과 폴더(저장소 밖, 절대 경로만. 상대 경로는 거부한다. 스크립트가 자기 폴더로 cd 한 뒤 읽기 때문). CSV·로그·`meta.txt` 가 쌓인다 |
 | `PERF_GRADLE_HOME` | `${TMPDIR:-/tmp}/dmes-perf/build-gradle-home` | 측정 전용 Gradle 사용자 홈. P1 은 `<값>-A`·`<값>-B`, P3 는 `<값>` 을 쓴다. `global` 이면 분리하지 않는데 그러면 P3 는 실행을 거부한다(전역 `--stop` 이 다른 레인을 죽인다) |
 | `A_REF` | `refactor-2026-10-base` | 기준(A) 커밋 |
@@ -64,12 +64,19 @@ $S/summarize.sh "${PERF_RESULTS:-${TMPDIR:-/tmp}/dmes-perf/build}/p1.csv"
 ```
 export JAVA_HOME=<JDK 21 경로>
 export PERF_RESULTS=<절대 경로의 새 결과 폴더>
+export DFLOW_HEAVY_DIR=<레인 전용 heavy 폴더> DFLOW_HEAVY_SLOTS=1   # 본 측정은 레인 전용 heavy 칸 한 개로 돌았다
 $S/run_all.sh 114f909e
 ```
 - `p1_boot.sh <cold|warm|both> [ROUNDS=3]`: 콜드는 매 회차 앞에 측정 워크트리의 git 무시 대상 `build/`·`.gradle/`(깊이 4 이하)를 지우고 빌드 캐시를 끄며(`-Dorg.gradle.caching=false`) 단발 데몬(`-Dorg.gradle.daemon=false`)으로 돈다. 웜은 시간을 재지 않는 예열 1회 뒤 기존 산출물·데몬 설정 그대로 잰다.
 - `p2_count.sh [로그 접두]`: 기본 접두는 `$PERF_RESULTS/p1_cold`. 콜드 로그가 없으면 종료한다.
 - `p3_stop.sh`: A 먼저 B 나중. 같은 Gradle 홈에서 반대편 워크트리의 희생 빌드가 돌고 있는 중에 대상의 be-run 을 띄웠다 TERM 으로 내리고, 희생 빌드의 성공 여부와 데몬 수를 기록한다.
 - 각 스크립트는 측정 워크트리(`git worktree add --detach … <커밋>`)를 스스로 만들고 끝에(trap) `git worktree remove`(`--force` 없음)로 지운다. 이미 있으면 HEAD 가 요청 커밋과 같을 때만 재사용하고 다르면 종료한다.
+
+## 기준 커밋·변경 커밋
+- 기준: `refactor-2026-10-base`(b557ccbd). 기본 ref 는 `A_REF` 이고, 태그가 b557ccbd 가 아니면 경고한다.
+- 변경: `B_REF`(기본 저장소 현재 `HEAD`, `run_all.sh <커밋>` 인자로도 줄 수 있다). 2026-10-04 본 측정은 dev 114f909e(빌드 레인 2차 머지)였다. 재현할 때는 해시로 고정한다.
+- 실제로 쓰인 A·B 커밋의 전체 해시는 `$PERF_RESULTS/meta.txt` 에 남는다.
+- 본 측정에 쓴 원본 스크립트와 달라진 기본값은 둘이다. 원본은 `B_REF` 기본이 114f909e 였고 저장소 판은 `HEAD` 다. 원본의 `P3_VICTIM_CMD` 기본은 `maru-mdm-engine test` 였는데 25초 안에 끝나 무효였으므로, 저장소 판은 세 번째(유효) 시도에서 환경 변수로 준 `mdm :lib:test :api:test --rerun-tasks` 를 기본으로 삼았다.
 
 ## 판정 규칙(스크립트에 들어 있는 것)
 - P1 rc: `0` 성공, `3` 포트·be-run 점유, `4` 종료 뒤 포트 잔존, `5` be-run 이 포트가 열리기 전에 종료, `7` 모듈 하나의 bootRun 이 먼저 끝남(로그의 `프로세스가 종료됐습니다`를 감지해 기다리지 않고 바로 끝낸다), `124` 시간 초과(벽시계 `BOOT_TIMEOUT`).
@@ -78,12 +85,12 @@ $S/run_all.sh 114f909e
 - P3 의 희생 빌드가 `P3_WARMUP` 초 안에 끝나면 `victim_valid` 0 행(rc 6)을 남기고 종료한다. `P3_VICTIM_CMD` 를 더 긴 시험으로 바꿔 다시 잰다.
 - 측정 환경은 `$PERF_RESULTS/meta.txt` 에 남는다: A·B 커밋 전체 해시, 호스트, OS 버전, 전원 상태, `lowpowermode`(0 이어야 한다), 일시. 회차별 1분 load 는 CSV 의 `load1` 열이다.
 
-## 결과 위치
+## 결과 형식
 - `$PERF_RESULTS/p1.csv`(P1), `p2.csv`(P2), `p3.csv`(P3): 열은 `round,time,target,mode,metric,value,rc,load1`.
 - `$PERF_RESULTS/p1_<모드>_<A|B>_r<회차>.log`(회차별 be-run 로그), `p1_warmup_<A|B>.log`, `p3_<A|B>_victim.log`·`p3_<A|B>_be.log`, `meta.txt`, `run_all.log`.
 - 결과 폴더는 저장소 밖이라 커밋 대상이 아니다. 수치는 `docs/refactor-2026-10/perf-build.md` 에 옮겨 적는다.
 
-## 주의
+## 알려진 문제·주의
 - 메인 서버가 떠 있는 동안에는 실행하지 않는다(점유 확인이 막지만 서버 창 없이 시도하지 않는다). P3 의 기준(A)은 be-run 종료에서 전역 `gradlew --stop` 을 부르므로 측정 전용 Gradle 홈 안에서만 돌려야 한다. `PERF_GRADLE_HOME=global` 은 쓰지 않는다.
 - 같은 워크트리를 쓰는 P1·P3 를 동시에 돌리지 않는다. `run_all.sh` 는 한 번에 하나씩 차례로 돈다.
 - 2026-10-04 측정에서 기준 콜드는 `be-run --all` 이 공유 includeBuild 를 동시에 컴파일하다 실패했다. 스크립트가 rc 7 로 감지하면 그 회차를 바로 끝낸다. 기준 콜드가 0/3 이어도 스크립트 오류가 아니라 관측 결과일 수 있으니 회차 로그(`Unable to delete directory`)를 확인한다.
