@@ -220,6 +220,8 @@ public class CommUserMngService {
      *   <li>없는 부서는 맵에 없다 → DEPT_NM null.</li>
      *   <li>USE_TP 를 거르지 않는다 → 비활성 부서도 이름이 붙는다({@code searchByDeptKey} 와 다르다).</li>
      *   <li>키는 DB 가 돌려준 DEPT_CD 그대로다(정확 일치). 행 순서는 호출측이 {@code rows} 순서로 만든다.</li>
+     *   <li>알려진 차이 — MSSQL 의 대소문자·뒤 공백 무시 비교에서만 생긴다: 사용자 DEPT_CD 가 부서 마스터와 대소문자·뒤 공백만
+     *       다르면 전(요청 키로 부착)에는 이름이 붙었고 지금은 null 이다. Oracle·PostgreSQL·SQLite·H2 에서는 같다(perf-mcm.md P1).</li>
      * </ul>
      */
     private Map<String, String> deptNamesOf(List<SecUser> rows) {

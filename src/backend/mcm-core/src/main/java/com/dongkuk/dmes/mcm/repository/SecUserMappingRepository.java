@@ -75,6 +75,18 @@ public interface SecUserMappingRepository extends JpaRepository<SecUserMapping, 
      *       분리돼 버린다. 이 메서드를 새로 쓰는 곳이 삭제 뒤 매핑 엔티티를 다시 읽는다면 그쪽에서 판단한다.</li>
      * </ul>
      *
+     * <p><b>알려진 차이(현재 호출 화면 없음).</b> {@code flushAutomatically} 때문에 같은 요청 앞 행에서 바뀐 사용자 계정(SecUser)이
+     * 커밋 때 한 번이 아니라 첫 'D' 행에서 먼저 flush 된다. 업무 컬럼과 매핑 결과는 같지만 같은 계정이 그 flush 앞뒤로
+     * 두 번 바뀌는 요청에서는 다음이 달라진다({@code CactusAuditListener} {@code @PreUpdate} 가 UPDATE 마다 VER+1·U_AT·U_USR_ID 를 채운다).
+     * <ul>
+     *   <li>{@code [C X, D Y, U X]} — 전: 최종 값으로 INSERT 1회. 지금: D 의 flush 에서 INSERT, 커밋 때 UPDATE → 같은 요청에서 만든 행이 VER=1.</li>
+     *   <li>{@code [U X, D Y, U X]} — UPDATE 가 2회 나가 VER 이 +1 대신 +2(VER 은 {@code @Version} 이 아니라 잠금 충돌은 없다).</li>
+     *   <li>앞 C·U 행에 DB 수준 오류(길이·제약)가 있고 다른 행에 검증 오류가 있으면 — 전: 행별 검증 {@code BusinessException} 후 롤백.
+     *       지금: 첫 'D' 행의 flush 에서 DB 예외가 먼저 난다.</li>
+     * </ul>
+     * 지금은 src/frontend 에서 secUser 의 save 액션을 부르는 곳이 없어 이런 요청이 들어오지 않는다.
+     * 부르는 화면이 생기면 실제 JPA 계정 저장소로 {@code [C X, D Y, U X]} 시험을 더한다(perf-mcm.md P2).
+     *
      * @return 지운 행 수
      */
     @Modifying(flushAutomatically = true)
