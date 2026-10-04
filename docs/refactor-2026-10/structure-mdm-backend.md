@@ -61,14 +61,14 @@
   - `TermDictionary.parseSurfaces` — 배열을 원소 단위로 관대하게 읽음
   - `ColumnMngService.parseTermIds` — ID 목록 읽기
 - 바뀐 뒤: `com.dongkuk.dmes.mdm.common.support.MdmJsonLists`(신규 110줄) 하나에 호출부별 동작을 메서드로 나눠 보존한다. 합치지 않고 나눈 이유는 호출부마다 동작이 달라서다(커밋 본문).
-  - `readStrings` — 엄격. JSON null 리터럴이면 null(빈 목록 아님). 깨진 JSON·배열 아님은 빈 목록 + 경고 로그
+  - `readStrings` — 엄격. JSON null 리터럴이면 null(빈 목록 아님) — 이 절의 변경 시점 동작이다. D1 수정(3e645c34) 뒤에는 null 리터럴도 빈 목록 `List.of()`(로그 없음). 원소 null(`[null]`)은 D2 수정(d2c7b283) 전에는 null 원소로 남았고, 뒤에는 파싱 뒤 `removeIf(Objects::isNull)` 로 버린다(공백·빈 문자열 원소는 남는다). 깨진 JSON·배열 아님은 빈 목록 + 경고 로그
   - `readArrayElements` — 원소 단위 관대 읽기(용어 사전 표면형)
   - `readLongs` — ID 목록, null 원소 자리 유지
   - 쓰기(옛 `writeJson` → `MdmJsonLists.writeStrings`)도 여기로 옮김. 표면형의 이름 추출·괄호 떼기는 `TermDictionary` 에 남겼다. 옛 private 파서와 클래스별 `ObjectMapper` 는 지웠다. 기본 설정의 classic `ObjectMapper` 를 쓴다(Spring Boot 4 가 이 타입 빈을 자동 등록하지 않음 — 클래스 javadoc).
 - 바꾼 이유: 같은 일을 하는 파서가 네 곳에 흩어져 있어 한쪽만 고쳐질 수 있다.
-- 동작 보존 근거: 29a613ba 가 같은 입력 행렬로 네 파서를 먼저 고정했다 — `TermJsonListCharacterizationTest`·`TermJsonListParserCharacterizationTest`(termMng), `TermDictionaryParseSurfacesCharacterizationTest`(naming), `ColumnMngParseTermIdsCharacterizationTest`(columnMng). 저장 JSON 이 한글을 이스케이프하지 않음과 SQLite `json_valid` CHECK 도 고정한다. JSON null 리터럴·`[null]` 시스템 원소의 NPE 는 기존 결함으로 `assertThrows` 에 남겼다(고치지 않음). 커밋 본문: "특성 시험은 그대로 통과한다"(시험 로그 원문은 확인 필요).
+- 동작 보존 근거: 29a613ba 가 같은 입력 행렬로 네 파서를 먼저 고정했다 — `TermJsonListCharacterizationTest`·`TermJsonListParserCharacterizationTest`(termMng), `TermDictionaryParseSurfacesCharacterizationTest`(naming), `ColumnMngParseTermIdsCharacterizationTest`(columnMng). 저장 JSON 이 한글을 이스케이프하지 않음과 SQLite `json_valid` CHECK 도 고정한다. JSON null 리터럴·`[null]` 시스템 원소의 NPE 는 기존 결함으로 `assertThrows` 에 남겼다(고치지 않음. null 리터럴 쪽은 뒤에 D1 수정 3e645c34, 원소 null 쪽은 D2 수정 d2c7b283 에서 새 동작 기대로 바꿨다 — 아래 결함 후보 1·2번). 커밋 본문: "특성 시험은 그대로 통과한다"(시험 로그 원문은 확인 필요).
 - 영향 범위: mdm lib 의 dma(termMng·naming·columnMng) 4개 파일 + 신규 1개(134 추가·97 삭제). 화면·API·설정·다른 레인 변경 없음.
-- 되돌리는 방법: `git revert cd6aca56`. S5 의 0ec7a57b 는 `ParsedTerm` 에서 `readStrings` 를 새로 부르고, S6 의 c273897e 는 `parseTermIds` 호출을 옮겼으며 이 메서드는 `MdmJsonLists.readLongs` 에 위임한다(ColumnMngService:710-711). 그래서 S5·S6 을 먼저 되돌려야 한다(S5·S6 은 코드로 확인함). S4(2153ebb7)는 `MdmJsonLists` 를 쓰지 않지만 cd6aca56 과 같은 ColumnMngService 를 고쳐 되돌릴 때 글자 충돌이 날 수 있다.
+- 되돌리는 방법: `git revert cd6aca56`. S5 의 0ec7a57b 는 `ParsedTerm` 에서 `readStrings` 를 새로 부르고, S6 의 c273897e 는 `parseTermIds` 호출을 옮겼으며 이 메서드는 `MdmJsonLists.readLongs` 에 위임한다(ColumnMngService:710-711). 그래서 S5·S6 을 먼저 되돌려야 한다(S5·S6 은 코드로 확인함). 또 cd6aca56 이 만든 `MdmJsonLists.readStrings` 를 3e645c34(D1, null 리터럴 → 빈 목록)·d2c7b283(D2, `removeIf(Objects::isNull)`·`Objects` import·javadoc)가 고쳤고 두 커밋은 관련 특성 시험 기대값도 바꿨으므로 이 둘도 먼저 되돌려야 한다. S5 되돌리기 순서(아래 S5 절)가 D1·D2·S6 을 이미 포함하므로, 이어서 되돌리면 된다: `git revert 7c5572af 90e507e5 d2c7b283 3e645c34 64bcf6cc c273897e 0ec7a57b cd6aca56`. 2026-10-04 `git merge-tree` 모의로 이 순서가 모두 충돌 없음을 확인했다(시험 실행은 안 함). D1·D2 결함이 돌아오는 점은 S5 절과 같다. S4(2153ebb7)는 `MdmJsonLists` 를 쓰지 않고 cd6aca56 과 같은 ColumnMngService 를 고쳤지만, 같은 모의에서 S4 를 남긴 채 cd6aca56 을 되돌려도 충돌이 없었다.
 
 ## S4. 컬럼 사전·용어 등록 팝업의 용어 사전 읽기 사본을 TermDictionaryLoader 하나로 합침
 - 커밋: 2153ebb7(변경), f2392a4a(특성 시험, 7a3e0570 완성), 7a3e0570(wip — 컬럼 검색 특성 시험을 이동 준비로 중간에 남긴 커밋. 미검증 상태였고 f2392a4a 에서 완성·검증됨. 이 커밋을 단독 체크아웃하면 시험이 미완성이다)
@@ -92,10 +92,14 @@
   - 대소문자: Java `toUpperCase(ROOT)` 는 ß→SS·ſ→S·ı→I·합자처럼 ASCII 밖 글자를 ASCII 로 바꾸지만 SQL `UPPER` 는 그렇지 않다(SQLite 는 ASCII 만 접음). 그래서 대문자 키워드에서 그런 변환 결과로 나올 수 없는 글자만 이어진 가장 긴 구간을 "바늘"로 쓰고, 그런 구간이 없으면 DB 에서 거르지 않는다.
   - ESCAPE: `%`·`_` 는 `ESCAPE '!'` 로 처리한다. 역슬래시를 이스케이프 문자로 쓰지 않은 것은 방언마다 문자열 리터럴의 역슬래시 해석이 달라서다. 쓰는 함수는 `UPPER`·`LIKE`·`ESCAPE` 뿐이라 Oracle·PostgreSQL·SQLite 공통 문법이라고 커밋 본문이 적었다.
   - JSON 칸: 이스케이프된 원소를 놓치지 않게 원문에 역슬래시가 든 행은 늘 남긴다.
-  - 기존 결함 보존: JSON null 리터럴 NPE 동작을 바꾸지 않으려고 원문에 `null` 이 든 행도 남기고, 64bcf6cc 에서 키워드 단계 NPE 행을 상황 조건이 빼지 않도록 고쳤다(결함 수정 커밋에서 함께 뺄 조건).
+  - 기존 결함 보존: JSON null 리터럴 NPE 동작을 바꾸지 않으려고 원문에 `null` 이 든 행도 남기고, 64bcf6cc 에서 키워드 단계 NPE 행을 상황 조건이 빼지 않도록 고쳤다(D1·D2 수정 뒤 90e507e5 에서 걷었다. 걷은 뒤에는 원문에 null 이 든 행도 다른 행처럼 키워드·상황 칸 LIKE 로만 판정되고, `of(...)` 의 시스템 조건 인자도 없어졌다. 검색 결과는 같다).
 - 동작 보존 근거: `TermMngSearchCharacterizationTest`(29a613ba 354줄, 64bcf6cc 에서 2건 추가 — 옛 검색 코드에서는 통과하고 0ec7a57b 에서는 실패하던 것을 확인)·f8087cce 가 더한 3건(ASCII 로 바뀌는 원본 글자·느낌표·퍼센트·밑줄 섞인 키워드·상황 조건 뒤 시스템 NPE, 옛 코드에서 통과 확인. 커밋 본문의 21건은 그 시점 클래스 전체(18+3)가 옛 코드에서 통과한 수)·`TermSearchPrefilterTest`·`TermSearchPrefilterSqliteTest`(0ec7a57b). **SQLite 로만 확인함. Oracle·PostgreSQL 의 LIKE 대소문자 구분·ESCAPE·CLOB 비교는 정적 리뷰 결과이며 운영 DB 확인이 필요하다.** 시험 통과 로그 원문도 확인 필요.
 - 영향 범위: `TermMngService`·신규 `TermSearchPrefilter`·`MdmTermRepository`(0ec7a57b 6개 파일). 가짜 저장소 파서 특성 시험은 새 조회 메서드를 스텁하도록만 고쳤다. 화면·API 응답 모양 변경 없음.
-- 되돌리는 방법: 64bcf6cc 를 먼저, 이어 0ec7a57b 를 되돌린다(`git revert 64bcf6cc 0ec7a57b`). 특성 시험 29a613ba·f8087cce 는 남겨도 된다.
+- 되돌리는 방법: 0ec7a57b·64bcf6cc 뒤에 같은 파일(`TermSearchPrefilter`·`TermMngService`·`TermSearchPrefilterSqliteTest`·특성 시험)을 고친 커밋이 있어 `git revert 64bcf6cc 0ec7a57b` 만으로는 충돌한다. 64bcf6cc 가 넣은 OR 블록은 90e507e5 에서 이미 지워졌으므로 90e507e5 를 먼저 되돌려 그 블록을 살린 뒤에 64bcf6cc 를 되돌린다. 순서(새것부터): `git revert 7c5572af 90e507e5 d2c7b283 3e645c34 64bcf6cc c273897e 0ec7a57b`.
+  - 7c5572af·90e507e5 는 `TermMngService` javadoc·`%null%` 걷음, d2c7b283(D2)·3e645c34(D1)는 `TermSearchPrefilter` 주석·`ParsedTerm`·시험 기대값을 고쳤다. c273897e(S6)는 0ec7a57b 와 같은 `MdmTermRepository` 를 고쳐 먼저 되돌려야 한다(S6 이 함께 되돌아간다).
+  - 확인 방법: 2026-10-04 `git merge-tree --write-tree --merge-base=<커밋> <현재> <커밋>^` 로 위 순서를 한 단계씩 모의해 모두 충돌 없음을 봤다(작업 트리·브랜치는 건드리지 않음). c5c26f15(afterCommit)는 되돌리지 않아도 충돌하지 않았다. 시험 실행은 하지 않았다.
+  - D1·D2 수정을 살리고 S5 만 되돌리려면 손으로 풀어야 한다: 7c5572af·90e507e5 뒤 64bcf6cc 되돌리기가 `TermSearchPrefilter`·`TermSearchPrefilterSqliteTest`·`TermMngSearchCharacterizationTest` 에서 충돌한다(같은 모의로 확인). 위 순서대로 D1·D2 까지 되돌리면 JSON null 리터럴·원소 null 의 NPE 결함(결함 후보 1·2번)이 돌아오므로 `MdmJsonLists.readStrings` 수정은 다시 넣어야 한다.
+  - 특성 시험 29a613ba·f8087cce 는 남겨도 된다.
 
 ## S6. 컬럼 검색에 DB 1차 거름(ColumnSearchPrefilter)과 반복문 단건 조회 세 곳의 IN 조회 도입
 - 커밋: c273897e(변경), 시험 f2392a4a(wip 7a3e0570 완성분)
@@ -146,11 +150,14 @@
 ## 메모
 - 항목 1(마스터코드 선분 flush, a139fe07·8db3e93c·0daad719)은 구조 변경이 아니라 쓰기 시점 변경이라 S 에 넣지 않는다. 성능 기록 P1 에 있다.
 
-## 발견한 기존 결함 후보(고치지 않음)
+## 발견한 기존 결함 후보(고치지 않음, 수정분 표시)
 2차 구조 변경 작업(워크플로 wf_4800545b-5b2·wf_0bfb5e10-6f5 단계 보고)에서 찾은 기존 결함 후보다. 모두 "동작 변경이라 fix 커밋 대상, 이번 레인에서는 고치지 않음". 특성 시험이 현재 동작 그대로 고정해 두었으므로 고칠 때는 시험도 함께 고친다. 보고서 기반이며 코드로 다시 확인하지 않은 항목은 "확인 필요"로 표시했다.
 
-1. JSON null 리터럴 저장 시 NPE(용어 JSON 칸) — `json_valid` 를 통과하는 `null` 리터럴이 저장되면 목록이 null 이 되어 키워드 검색·시스템 조건 검색·`recommend` 1차 추천(캐시 synonyms for-each)이 NPE 로 실패한다. 근거: `MdmJsonLists.readStrings`(null 리터럴이면 null), `TermMngService.search`, `TermRecommendationCache`; 시험 `TermMngSearchCharacterizationTest`·`TermJsonListCharacterizationTest`(assertThrows). 파서가 null 대신 빈 목록을 돌려주면 고쳐진다. 고칠 때 `TermSearchPrefilter` 의 `%null%` 보존 OR 조건(64bcf6cc 포함)도 함께 빼야 한다. 운영 방언은 `json_valid` CHECK 가 SQLite 마이그레이션에만 있어 저장값이 유효 JSON 이라고 가정할 수 없다.
-2. 시스템 목록 `[null]` 원소 NPE — SYSTEMS 에 `[null]` 이 있을 때 시스템 조건 검색이 `s.equalsIgnoreCase` 에서 NPE. 근거: `TermMngService.search` 시스템 단계, `TermDictionaryParseSurfacesCharacterizationTest`·`TermMngSearchCharacterizationTest`. 위 1번과 같은 방식으로 함께 고친다.
+1. JSON null 리터럴 저장 시 NPE(용어 JSON 칸) — **수정됨(3e645c347c9bdfd82ec7100a2748f22f79fe36f9, fix/refactor-followups)** — 수정 전에는 그런 행이 하나만 있어도 `recommend` 전체가 실패했다. 이하는 수정 전 상태 기록. `json_valid` 를 통과하는 `null` 리터럴이 저장되면 목록이 null 이 되어 키워드 검색·시스템 조건 검색·`recommend` 1차 추천(캐시 synonyms for-each)이 NPE 로 실패한다. 근거: `MdmJsonLists.readStrings`(null 리터럴이면 null), `TermMngService.search`, `TermRecommendationCache`; 시험 `TermMngSearchCharacterizationTest`·`TermJsonListCharacterizationTest`(assertThrows). 수정은 파서가 null 대신 빈 목록을 돌려주게 했다(`readStrings`). `TermSearchPrefilter` 의 `%null%` 보존 OR 조건(64bcf6cc 포함)은 D1·D2 수정 뒤에는 결과를 바꾸지 않고 남는 행만 늘려서 90e507e5 에서 걷었다(2번 참고). 운영 방언은 `json_valid` CHECK 가 SQLite 마이그레이션에만 있어 저장값이 유효 JSON 이라고 가정할 수 없다.
+2. 목록 원소 null(`[null]`) NPE — **수정됨(d2c7b283, fix/refactor-followups)**. 수정 방침은 파서 `readStrings` 가 파싱 뒤 null 원소를 버리는 것이다(공백·빈 문자열 원소는 남긴다. 자리를 지켜야 하는 ID 목록 `readLongs` 는 null 원소를 그대로 두고, 원소를 어떻게 쓸지 호출부가 고르는 `readArrayElements`(용어 사전 표면형)도 null 노드를 그대로 돌려준다. 둘 다 바꾸지 않음). 이하는 수정 전 상태 기록. 파서는 `[null]` 을 null 원소 하나짜리 목록으로 읽었다(D1 수정 뒤에도 그대로). 두 경로가 실패했다.
+   - 시스템 조건 검색: SYSTEMS 에 `[null]` 이 있으면 `s.equalsIgnoreCase` 에서 NPE. 근거: `TermMngService.search` 시스템 단계, `TermDictionaryParseSurfacesCharacterizationTest`·`TermMngSearchCharacterizationTest`(`[null]` 시스템 고정 시험 있음).
+   - `recommend` 1차 추천: SYNONYMS 에 `[null]` 인 행이 캐시에 하나라도 있으면 `recommendStage1` 의 `TRAILING_PAREN.matcher(syn)` 이 `matcher(null)` NPE 를 내 모든 추천 요청이 실패한다(D1 수정 전과 같은 범위). 근거: `TermMngService.recommendStage1` 277행, `TermRecommendationCache.toCachedTerm` 이 `readStrings` 결과를 그대로 캐시(코드 확인). 수정 전에는 이 경로를 고정한 특성 시험이 없었고(grep 확인), 수정 때 `TermJsonListCharacterizationTest` 에 재현 시험을 더했다.
+   - 고친 방식: 두 경로를 파서 한 곳에서 함께 고쳤다. `TermSearchPrefilter` 의 `%null%` 보존 조건(1번 참고)은 D2 커밋에서는 그대로 두었고 뒤의 90e507e5 에서 걷었다.
 3. L16 칸 구분에 항목 순번(seq) 포함 — `l16Cell` 이 L16 칸을 구분할 때 순번을 넣어, 헤더 항목 순서만 바뀌어도 이미 있던 L16 이 새 오류(ERROR)로 올라온다. 예: 삭제 시나리오 M7(LEN3 순번 2→1). 근거: 레이아웃 헤더 확정 영향도(S2 `LayoutHeaderImpact`·`LayoutHeaderImpactEquivalenceSqliteTest`, 시험 주석에 기록. `l16Cell` 은 `mdm/lib/.../dmb/layout/confirm/LayoutHeaderImpact.java:267` 에서 `i.seq()` 를 칸 키에 넣는다, 코드 확인).
 4. MDM018 충돌 순서 미정 — 다른 컬럼에 대소문자만 다른 매핑이 둘 있으면 메시지 안 충돌 순서가 정해지지 않는다. 근거: `findBySystemCodeAndUpperPhysNameIn` 에 `ORDER BY` 없음(`ColumnMngService` 매핑 충돌 검사, S6).
 5. REVERSE 중복 미병합 — `compare(REVERSE)` 의 중복 목록이 같은 컬럼을 합치지 않아 여러 번 나올 수 있다. 근거: `ColumnMngService.compare`, `ColumnMngLookupCharacterizationTest`.
@@ -160,5 +167,7 @@
 9. FlowParser h6 문구 중복 — 한 받는 노드가 같은 종류를 두 번 적고(`c2=[NO_RESULT, NO_RESULT]`) 같은 대상의 다른 받는 노드도 그 종류를 받으면 "룰 노드 t1에서 예외 종류 NO_RESULT를 c1와 c2가 함께 받는다" 가 두 번 나고 h5 겹침 이슈와도 겹친다. 근거: `FlowParser.checkCatchTargets`(50c5d09e 이전 h6), `FlowParserStageOneCharacterizationTest`. TS `flow-model.ts` 266~274행의 owner 로직도 같다(코드 확인).
 10. FlowParser h6·h7 문구 — 대상이 TASK 여도 "룰 노드 t1"·"룰 t1로" 라고 쓴다. 근거: `FlowParser.checkCatchTargets`. 문구 결함이라 우선순위 낮음.
 11. RuleAnalyzer 죽은 분기 2곳 — 5단계 `isExpressionColumn` 검사(Expression 열은 영역이 STRING 이라 앞 조건에서 이미 빠짐)와 `describe()` 의 빈 셀 `''` 분기(빈 셀은 exact 가 아니라 OVERLAP 문구에 닿지 않음). 분할 때도 그대로 둠. 근거: `RuleAnalyzer.checkValueGaps`·`describe`; 커버리지 도구 없이 코드 읽기로 판정했다. `domainOf` 가 Expression 열에 STRING 을 주므로 `isExpressionColumn` 분기는 죽었고, 빈 셀은 `UNKNOWN_NULL`(exact 아님)이라 `crosses` 가 YES 를 줄 수 없어 `describe` 의 `""` 분기에 닿지 않는다(코드 확인).
+
+추가 수정(위 목록 밖): `TermMngService.afterCommitOrNow` 의 커밋 뒤 캐시 갱신 예외가 S001 로 번지던 문제를 c5c26f156a996306145ec5e9080f631a6be40e76 로 고쳤다(경고 로그만 남기고 삼킴).
 
 기록만 하고 결함은 아닌 것: 0ec7a57b 단독 시점의 "상황 조건 + 키워드 단계 NPE 행" 동작 변화는 64bcf6cc 가 바로잡았다(HEAD 는 정상, bisect 로 그 커밋에 멈출 때만 해당).

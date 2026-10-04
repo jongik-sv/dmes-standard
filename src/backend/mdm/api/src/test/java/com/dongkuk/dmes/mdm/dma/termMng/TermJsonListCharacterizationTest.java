@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache.CachedTerm;
+import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermRow;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest;
@@ -19,6 +20,7 @@ import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +32,8 @@ import org.springframework.test.context.ActiveProfiles;
  * 용어 JSON 목록 칸(SYNONYMS·ALIASES·SYSTEMS) 읽기·쓰기 특성 시험 — 파서 공통화 전에 지금 동작을 고정한다.
  *
  * <p>읽기: {@code TermMngService}(검색 결과 행)와 {@code TermRecommendationCache}(캐시 항목)는 같은 엄격한 파서다 —
- * {@code new ObjectMapper().readValue(json, List<String>)}, 실패하면 빈 목록. 두 파서를 같은 입력 행렬로 나란히 고정한다.
+ * {@code new ObjectMapper().readValue(json, List<String>)}, 실패하면 빈 목록. 원소 null 은 버린다(D2 수정). 두 파서를 같은 입력
+ * 행렬로 나란히 고정한다.
  * 쓰기: {@code TermMngService.save} 는 기본 {@code new ObjectMapper()} 로 쓴다 — 한글을 {@code \\uXXXX} 로 바꾸지 않는다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -53,7 +56,7 @@ class TermJsonListCharacterizationTest extends AbstractMdmSharedDbTest {
         senseSeq = 0;
     }
 
-    /** 입력 원문 → 엄격한 파서의 기대 결과(null 이면 결과 자체가 null). */
+    /** 입력 원문 → 엄격한 파서의 기대 결과. 결과 목록 자체는 null 이 아니다(D1 수정). */
     private record Case(String raw, List<String> expected) {
     }
 
@@ -77,7 +80,10 @@ class TermJsonListCharacterizationTest extends AbstractMdmSharedDbTest {
             new Case("\"\"", List.of()),
             new Case("3", List.of()),
             // 원소 모양
-            new Case("[\" a \",\"\",null,\"   \"]", list(" a ", "", null, "   ")),
+            // D2 수정(fix): 원소 null 은 버린다(예전에는 null 원소로 남았다). 공백·빈 문자열 원소는 그대로 남는다.
+            new Case("[\" a \",\"\",null,\"   \"]", list(" a ", "", "   ")),
+            new Case("[null]", List.of()),
+            new Case("[\"a\",null]", list("a")),
             new Case("[1,true,1.5]", list("1", "true", "1.5")),
             new Case("[{\"name\":\"x\"}]", List.of()),
             new Case("[[\"a\"]]", List.of()),
@@ -146,53 +152,89 @@ class TermJsonListCharacterizationTest extends AbstractMdmSharedDbTest {
         assertEquals(0, termRepository.count());
     }
 
-    // ── JSON null 리터럴 / 빈 문자열 리터럴 — 결과가 null 이 되는 경로 ──
+    // ── JSON null 리터럴 / 빈 문자열 리터럴 — D1 수정(fix) 뒤 둘 다 빈 목록 ──
 
     @Test
-    void JSON_null_리터럴은_빈_목록이_아니라_null이_된다() {
+    void D1_JSON_null_리터럴은_null이_아니라_빈_목록이_된다() {
+        // D1 수정(fix): 예전에는 검색 결과 행·캐시 항목의 목록이 null 이었다.
         Long nullLiteral = seedRaw("null");
         Long emptyString = seedRaw("\"\"");
         cache.reloadAll();
 
         List<TermRow> rows = service.search(null).getList();
         assertEquals(nullLiteral, rows.get(0).getTermId());
-        assertNull(rows.get(0).getSynonyms(), "검색 결과 행의 synonyms 가 빈 목록이 아니라 null");
-        assertNull(rows.get(0).getSystems());
-        assertNull(cache.get(nullLiteral).synonyms(), "캐시 항목의 synonyms 도 null");
+        assertEquals(List.of(), rows.get(0).getSynonyms(), "검색 결과 행의 synonyms 는 빈 목록");
+        assertEquals(List.of(), rows.get(0).getAliases());
+        assertEquals(List.of(), rows.get(0).getSystems());
+        assertEquals(List.of(), cache.get(nullLiteral).synonyms(), "캐시 항목의 synonyms 도 빈 목록");
+        assertEquals(List.of(), cache.get(nullLiteral).aliases());
+        assertEquals(List.of(), cache.get(nullLiteral).systems());
         assertEquals(emptyString, rows.get(1).getTermId());
-        assertEquals(List.of(), rows.get(1).getSynonyms(), "JSON 빈 문자열 리터럴 \"\" 은 빈 목록이다(null 아님)");
+        assertEquals(List.of(), rows.get(1).getSynonyms(), "JSON 빈 문자열 리터럴 \"\" 도 빈 목록이다");
         assertEquals(List.of(), cache.get(emptyString).synonyms());
     }
 
     @Test
-    void JSON_null_리터럴이_있으면_키워드_검색과_시스템_조건_검색이_NPE로_실패한다() {
-        // 기존 결함 고정: readStringList 가 null 을 돌려주고 .stream() 에서 NPE.
+    void D1_JSON_null_리터럴_행이_있어도_키워드_검색과_시스템_조건_검색은_NPE_없이_그_행을_빈_목록으로_판정한다() {
+        // D1 수정(fix) 재현: 예전에는 목록이 null 이라 .stream() 에서 NPE 가 났다. DB 1차 거르기는 원문 null 행을 따로 남기지 않으므로,
+        // 키워드를 "null" 로 둬 원문 글자(NULL)가 바늘에 걸리게 해 이 행을 Java 비교까지 오게 한다.
         seedRaw("null");
         TermSearchRequest byKeyword = new TermSearchRequest();
-        byKeyword.setKeyword("없는말");
-        assertThrows(NullPointerException.class, () -> service.search(byKeyword));
+        byKeyword.setKeyword("null"); // 표기·약어에 안 맞아 동의어·별칭까지 본다
+        assertEquals(List.of(), service.search(byKeyword).getList());
 
+        Long mes = seedRaw("[\"MES\"]");
         TermSearchRequest bySystem = new TermSearchRequest();
         bySystem.setSystems("MES");
-        assertThrows(NullPointerException.class, () -> service.search(bySystem));
+        assertEquals(List.of(mes), service.search(bySystem).getList().stream().map(TermRow::getTermId).toList());
     }
 
     @Test
-    void JSON_null_리터럴이_캐시에_있으면_1차_추천이_NPE로_실패한다() {
-        // 기존 결함 고정: CachedTerm.synonyms() 가 null 이라 for-each 에서 NPE.
+    void D1_JSON_null_리터럴_행이_캐시에_있어도_1차_추천은_NPE_없이_다른_행을_찾는다() {
+        // D1 수정(fix) 재현: 예전에는 CachedTerm.synonyms() 가 null 이라 for-each 에서 NPE 가 나, 그런 행이 하나만 있어도 모든 추천이
+        // 실패했다.
         seedRaw("null");
+        Long coil = termRepository.saveAndFlush(new MdmTerm("코일", ++senseSeq, "정의")).getTermId();
         cache.reloadAll();
         RecommendRequest request = new RecommendRequest();
         request.setTermName("코일");
-        assertThrows(NullPointerException.class, () -> service.recommend(request));
+
+        Map<String, Object> result = service.recommend(request);
+        @SuppressWarnings("unchecked")
+        List<RecommendCandidate> candidates = (List<RecommendCandidate>) (List<?>) result.get("candidates");
+        assertTrue(candidates.stream().anyMatch(c -> coil.equals(c.getTermId()) && c.getScore() == 1.0d),
+                candidates.toString());
+    }
+
+    @Test
+    void D2_원소_null_동의어_행이_캐시에_있어도_1차_추천은_NPE_없이_다른_행을_찾는다() {
+        // D2 수정(fix) 재현: 예전에는 CachedTerm.synonyms() 에 null 원소가 남아 TRAILING_PAREN.matcher(syn) 에서 NPE 가 나, 그런 행이
+        // 캐시에 하나만 있어도 모든 추천이 실패했다. 이제 파서가 null 원소를 버린다.
+        seedRaw("[null]");
+        Long withSynonym = seedRaw("[null,\"코일\"]"); // null 원소 뒤의 동의어 "코일" 은 그대로 비교된다
+        Long coil = termRepository.saveAndFlush(new MdmTerm("코일", ++senseSeq, "정의")).getTermId();
+        cache.reloadAll();
+        RecommendRequest request = new RecommendRequest();
+        request.setTermName("코일");
+
+        Map<String, Object> result = service.recommend(request);
+        @SuppressWarnings("unchecked")
+        List<RecommendCandidate> candidates = (List<RecommendCandidate>) (List<?>) result.get("candidates");
+        assertTrue(candidates.stream().anyMatch(c -> coil.equals(c.getTermId()) && c.getScore() == 1.0d),
+                candidates.toString());
+        assertTrue(candidates.stream().anyMatch(c -> withSynonym.equals(c.getTermId()) && c.getScore() == 1.0d),
+                candidates.toString());
     }
 
     @Test
     void 원소에_null이_있어도_키워드_검색은_그_원소만_건너뛴다() {
+        // D2 수정(fix) 뒤로는 파서가 null 원소를 버려 결과 행의 동의어에도 null 이 없다(예전에는 비교만 건너뛰고 [null, 배치] 로 실렸다).
         Long id = seedRaw("[null,\"배치\"]");
         TermSearchRequest r = new TermSearchRequest();
         r.setKeyword("배치");
-        assertEquals(List.of(id), service.search(r).getList().stream().map(TermRow::getTermId).toList());
+        List<TermRow> rows = service.search(r).getList();
+        assertEquals(List.of(id), rows.stream().map(TermRow::getTermId).toList());
+        assertEquals(List.of("배치"), rows.get(0).getSynonyms());
     }
 
     // ── 쓰기(save) — 저장 원문 모양 ──
