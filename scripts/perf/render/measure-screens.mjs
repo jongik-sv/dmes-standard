@@ -411,6 +411,11 @@ async function clickTrail(page, screen) {
     await item.waitFor({ state: "visible", timeout: TIMEOUT });
     const isLeaf = i === screen.trail.length - 1;
     if (isLeaf) {
+      // 메뉴 잎 클릭 시각을 페이지 시계로 남긴다(진입 뒤 호출을 Resource Timing 과 같은 축에서 세려고).
+      await page.evaluate(() => {
+        window.__MENU_CLICK__ = null;
+        document.addEventListener("click", (e) => { window.__MENU_CLICK__ = e.timeStamp; }, { capture: true, once: true });
+      });
       const t0 = monotonic();
       const t0Wall = Date.now();
       await item.click();
@@ -726,13 +731,23 @@ async function measureScreen(page, cdp, screen, calls, round) {
   }
 
   const pclk = searched ? await readInPageClock(page).catch(() => null) : null;
-  const searchBeforeClick = tSearchWall === null ? "" :
-    calls.filter((c) => isSearchCall(screen, c) && typeof c.wallStart === "number" && c.wallStart * 1000 < tSearchWall).length;
-  const apiAfterMenuClick = calls.filter((c) => typeof c.wallStart === "number" && c.wallStart * 1000 >= t0Wall).length;
-  const authMeAfterMenuClick = calls.filter(
-    (c) => typeof c.wallStart === "number" && c.wallStart * 1000 >= t0Wall && c.url.includes("/api/auth/me")
-  ).length;
-  const authMeAll = calls.filter((c) => c.url.includes("/api/auth/me")).length;
+  // ★호출 시각은 페이지 시계(Resource Timing)로 센다★ Node Date.now() 와 CDP wallTime 은 120~160ms 어긋나
+  //   클릭 직전·직후 호출을 잘못 나눈다(2026-10-04 검증에서 확인).
+  const rt = await page.evaluate(() => ({
+    menuClick: window.__MENU_CLICK__ ?? null,
+    searchClick: window.__PCLK__?.click ?? null,
+    entries: performance.getEntriesByType("resource").filter((e) => e.name.includes("/api/")).map((e) => ({ name: e.name, start: e.startTime })),
+  }));
+  const searchUrlRe = screen.searchUrlPattern;
+  const searchBeforeClick = rt.searchClick === null ? "" :
+    rt.entries.filter((e) => searchUrlRe.test(e.name) && e.start < rt.searchClick).length;
+  // 클릭 뒤에 나간 조회 요청 수. 0 이면 [조회] 가 요청을 내지 않은 것이라 주 지표 무효(layoutConfirm 처럼 진입 자동 조회 화면).
+  const searchAfterClick = rt.searchClick === null ? "" :
+    rt.entries.filter((e) => searchUrlRe.test(e.name) && e.start >= rt.searchClick).length;
+  const afterMenu = rt.menuClick === null ? [] : rt.entries.filter((e) => e.start >= rt.menuClick && (rt.searchClick === null || e.start < rt.searchClick));
+  const apiAfterMenuClick = rt.menuClick === null ? "" : afterMenu.length;
+  const authMeAfterMenuClick = rt.menuClick === null ? "" : afterMenu.filter((e) => e.name.includes("/api/auth/me")).length;
+  const authMeAll = rt.entries.filter((e) => e.name.includes("/api/auth/me")).length;
 
   const after = await perfMetrics(cdp);
   const traceChunks = trace ? await trace.stop() : null;
@@ -765,8 +780,11 @@ async function measureScreen(page, cdp, screen, calls, round) {
     /** 페이지 안 시계: 조회 클릭(event.timeStamp) → 첫 행 DOM 삽입 / 그다음 프레임. 폴링 격자 없음. */
     inPageSearchToRowMutMs: pclk?.click != null && pclk?.rowMut != null ? round1(pclk.rowMut - pclk.click) : "",
     inPageSearchToRowFrameMs: pclk?.click != null && pclk?.rowFrame != null ? round1(pclk.rowFrame - pclk.click) : "",
-    /** 클릭보다 먼저 나간 조회 요청 수. 1 이상이면 진입 자동 조회라 주 지표가 조회 대기를 재지 않는다. */
+    /** 클릭보다 먼저 나간 조회 URL 요청 수(본문을 못 보므로 optionsOnly 같은 진입 호출도 센다 — 참고값). */
     searchBeforeClick,
+    /** ★판정★ [조회] 클릭 뒤 나간 조회 URL 요청 수. 0 이면 이 회차의 searchToRow 계열은 무효. */
+    searchAfterClick,
+    /** 메뉴 잎 클릭 ~ [조회] 클릭 사이에 시작한 /api/ 호출 수(화면 진입 호출). 페이지 시계 기준. */
     apiAfterMenuClick,
     authMeAfterMenuClick,
     authMeAll,
