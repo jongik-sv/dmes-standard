@@ -138,6 +138,10 @@ public class CactusMultiTransactionManagerAutoConfiguration
     /**
      * alias 를 실제 빈 정의 이름으로 푼다. 이름이 alias 가 아니면 그대로 돌려준다.
      * registry 는 보통 {@link SimpleAliasRegistry} 인 DefaultListableBeanFactory 라 alias 사슬까지 풀린다.
+     *
+     * <p>SimpleAliasRegistry 가 아니면 빈 정의 이름마다 {@code getAliases} 를 훑어 그 이름을 가진 빈을 찾는다.
+     * Spring 기본 구현(GenericApplicationContext 등)은 {@code getAliases} 가 사슬까지 돌려주므로 똑같이 풀리지만,
+     * {@code getAliases} 가 직접 alias 만 돌려주는 registry 라면 한 단계만 풀리고, 찾지 못하면 이름을 그대로 돌려준다.
      */
     static String canonicalName(BeanDefinitionRegistry registry, String name) {
         if (!registry.isAlias(name)) {
