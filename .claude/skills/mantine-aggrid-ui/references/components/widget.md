@@ -53,7 +53,7 @@ export default function NoticeWidget({ refreshKey }: WidgetProps) {
 - 화면은 코드 등록부 + 유형 등록부 + `widgetDef/list` 행을 `mergeWidgetRegistry` 로 합친 **실행 시 등록부**를 작업 공간에 넘긴다. 정의 목록을 받는 동안·실패하면 `registryStatus` 로 알려 편집 진입로([배치 편집]·(+) 새 탭)를 막는다 — 정의 위젯이 「없는 위젯」으로 보이는 상태에서 저장하면 사용자 탭에서 지워지기 때문이다.
 
 ```tsx
-import { mergeWidgetRegistry, toWidgetDefRow, WidgetWorkspace, type WidgetDefRow } from "@dk-oasis/shared/widget";
+import { mergeWidgetRegistry, toWidgetDefRow, WidgetWorkspace, type WidgetDefRow, type WidgetRegistry } from "@dk-oasis/shared/widget";
 
 import { WIDGET_REGISTRY } from "@/lib/generated/widget-registry";
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
@@ -63,7 +63,12 @@ const TYPE_TITLES = Object.fromEntries(Object.values(WIDGET_TYPE_REGISTRY).map((
 function Home({ store, rawDefs, status, retry }: Props) {
   // rawDefs: widgetDef/list 응답 줄(configJson 문자열 포함). 응답 전·실패면 [].
   const defs = useMemo(() => rawDefs.map(toWidgetDefRow).filter((r): r is WidgetDefRow => r !== null), [rawDefs]);
-  const registry = useMemo(() => mergeWidgetRegistry(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defs), [defs]);
+  const prevRegistry = useRef<WidgetRegistry | undefined>(undefined);
+  const registry = useMemo(() => {
+    const next = mergeWidgetRegistry(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defs, prevRegistry.current);
+    prevRegistry.current = next;
+    return next;
+  }, [defs]);
   return (
     <WidgetWorkspace
       registry={registry}
@@ -143,7 +148,7 @@ WidgetProps(위젯 본체가 받는 값): `instanceId`·`size`·`config`(인스�
 
 유형 계약: `WidgetTypeMeta`(`id`·`title`·`defaultSize`·`initialConfig` 필수, `description`·`minSize`·`maxSize`·`bodyPadding`), `WidgetTypeRegistryEntry`(`meta`·`loadRenderer`·`loadEditor`), `WidgetTypeRegistry`, `WidgetTypeEditorProps`(`value`·`onChange`·`onValidate?`), `WidgetTypeEditorComponent`, `WidgetDefRow`(`widgetDef/list`·`commWidgetMng/search` 응답 한 줄).
 
-등록부 순수 함수(`widget-registry.ts`): `mergeWidgetRegistry(code, types, defs)`(실행 시 등록부), `toWidgetDefRow(raw)`(서버 응답 한 줄 → `WidgetDefRow`, `configJson` 문자열 파싱, srcTp 가 C·D 가 아니면 `null`), `applyWidgetOverride(meta, row)`(코드 메타 + 덮어쓰기 행), `defWidgetMeta(row, type)`(정의 위젯 메타), `defWidgetLoader(type, definition)`(유형 렌더러에 `definition` 을 끼운 본체 로더). 관리 화면 미리보기는 저장 전 폼 값으로 `applyWidgetOverride`·`defWidgetMeta`·`defWidgetLoader` 를 불러 `WidgetFrame` 에 넘긴다.
+등록부 순수 함수(`widget-registry.ts`): `mergeWidgetRegistry(code, types, defs, prev?)`(실행 시 등록부. 선택 `prev` 는 지난번 결과 — 합친 결과의 항목이 모두 같은 객체면 `prev` 를 그대로 돌려줘 화면이 같은 등록부를 새것으로 보지 않게 한다), `toWidgetDefRow(raw)`(서버 응답 한 줄 → `WidgetDefRow`, `configJson` 문자열 파싱, srcTp 가 C·D 가 아니면 `null`), `applyWidgetOverride(meta, row)`(코드 메타 + 덮어쓰기 행), `defWidgetMeta(row, type)`(정의 위젯 메타), `defWidgetLoader(type, definition)`(유형 렌더러에 `definition` 을 끼운 본체 로더). 관리 화면 미리보기는 저장 전 폼 값으로 `applyWidgetOverride`·`defWidgetMeta`·`defWidgetLoader` 를 불러 `WidgetFrame` 에 넘긴다.
 
 틀 훅: `useWidgetStatus()` → `(status: WidgetStatus) => void`, `useWidgetBodySize()` → `{ width, height }`, `<WidgetHeaderActions>`(제목 줄 오른쪽 버튼 자리), `<WidgetTitleExtra>`(제목 옆 동적 부제·배지), `useWidgetTitle(title: string | null | undefined)` → `void`(칸마다 제목이 다른 위젯이 틀 제목을 바꾼다).
 - `useWidgetTitle`: 제목 줄 `h3` 와 틀의 `aria-label` 만 덮어쓴다. 본체가 받는 `props.title`(등록부 이름)·`WidgetFrameApi` 의 다른 값은 그대로다. `null`·`undefined`·공백뿐인 값은 덮어쓰지 않아 등록부 제목이 보이고, 값이 바뀌거나 본체가 사라지면 이전 덮어쓰기를 되돌린다(틀 밖에서는 아무 일도 하지 않는다). 틀은 덮어쓴 값을 위젯 ID 와 함께 기억하므로 같은 칸에 다른 위젯이 오면 저절로 풀린다. 사용 중지·없는 위젯 칸의 제목은 바꾸지 않는다. 이 훅을 부르지 않는 위젯의 DOM·동작은 이전과 같다. **틀 하나에 한 곳에서만 부른다** — 둘 이상이면 나중에 정한 값이 이기고, 한쪽이 사라지면 남은 쪽 값까지 지워져 정의 이름으로 돌아간다. 쓸 때는 저장된 값만 넘기고(편집 중 입력은 미리 보이지 않는다), 실제 칸이 아닌 곳(관리 화면 미리보기·기본 배치 보드)에서는 `null` 을 넘긴다. 예: 개인 메모장(m-mcm `widget-types/memo`) `useWidgetTitle(live ? memo?.title ?? null : null)`.
@@ -159,6 +164,16 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 | `resetHome()` | 사용자 「홈」 배치를 지운다(다음부터 기본 배치) |
 
 순수 함수(`widget-layout.ts`, 화면이 직접 부를 일은 드물다): `sanitizeLayout`·`reflowLayout`·`colsForWidth`·`minSizeOf`·`maxSizeOf`(격자 정리·칸 수·크기 범위), `addItem`·`removeItem`·`toggleLock`·`canAddWidget`(위젯 추가·빼기·잠금·한도·사용 중지 거절), `itemsEqual`·`tabsEqual`(변경 비교), `validateTabName`·`nextTabId`·`homeTab`·`newInstanceId`(탭·ID), `validateWidgetMeta`(등록부 메타 검사). `openPortalPage(pageId)` 는 `portal-open-tab` 이벤트로 포털 탭을 여는 함수이며 틀의 「화면 열기」가 쓴다.
+
+## 성능 규칙
+
+정본은 [화면 성능 가이드](../../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) R13~R16·R7 이고, `A audit` 가 `[P-R14]`·`[P-R16]` 을 경고로 잡는다.
+
+- **진입 불러오기는 `WidgetWorkspace` 가 한 번만 한다(R13).** `store.load()` 는 마운트와 배치 출처(`store`·사용자·`singleTab`)가 바뀔 때만 부른다. `registry`·`homeDefault`·`userId`(모름 → 확인됨)가 늦게 바뀌어도 다시 조회하지 않고, 이미 받은 탭을 새 등록부로 다시 정리하며 이미 보이는 보드는 스켈레톤으로 되돌리지 않는다. 그러니 **화면이 `key` 로 작업 공간을 다시 마운트하지 않는다**(배치 출처가 진짜로 바뀔 때만 예외 — 위 `singleTab` 예). 편집 중이면 등록부·기본 배치 변경에 따른 다시 불러오기는 편집이 끝난 뒤로 미룬다. `registry`·`homeDefault`·`store` 는 안정 참조를 넘긴다.
+- **등록부 병합은 `prev` 를 넘긴다(R7).** `mergeWidgetRegistry(code, types, defs, prev)` — 같은 결과면 `prev`(그리고 항목은 원래 객체)를 돌려줘 틀의 지연 로딩 캐시(`entry.load` 기준)가 유지되고 본체가 다시 마운트되지 않는다. 직접 만든 entry·배치도 같은 결과면 새 객체를 만들지 않는다.
+- **타이머는 표시와 연동한다(R14).** 자동 새로 고침은 틀의 `meta.refreshSec` 에 맡기는 것이 기본이다. 본체가 자기 `setInterval`·재귀 `setTimeout` 을 쓰면 `document.visibilityState`(`visibilitychange`)·`IntersectionObserver`·탭 활성 여부(`useTabPage().isActive`)를 확인해 숨은 탭·가려진 위젯에서는 멈추고, 다시 보일 때 한 번 갱신한다. 일회성·디바운스 `setTimeout` 은 해당 없음.
+- **같은 목록은 호스트 저장소를 다시 쓴다(R15).** 사이드바·호스트가 이미 받은 목록(즐겨찾기 등)을 위젯 인스턴스마다 다시 조회하지 않는다. 호스트가 받을 때마다 올려 두는 작은 저장소를 두고 위젯은 읽는다 — `m-mcm/lib/portal-favorites-store.ts`(`publishPortalFavorites`·`usePublishedPortalFavorites`, 포털 밖이거나 받기 전이면 `null` → 위젯이 직접 조회). 화면 묶음이 여러 번 실려도 같은 저장소를 쓰도록 `globalThis` 에 둔다.
+- **외부 스토어는 필드 훅으로 구독한다(R16).** `useSyncExternalStore` 훅을 통째 상태로만 내보내면 한 필드가 바뀔 때 구독자가 모두 다시 그려진다. getSnapshot 이 그 필드만 돌려주는 훅을 따로 내보내고, 위젯 본체는 필요한 필드 훅만 쓴다 — `m-mcm/page-components/home/notice-store.ts` 의 `useNotices`·`useSelectedNoticeId`. 갱신 함수는 건드리지 않은 필드를 같은 객체로 유지한다.
 
 ## 표준값: 모든 화면 동일
 
@@ -180,6 +195,8 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 | 칸마다 다른 제목을 `WidgetTitleExtra` 로 제목 옆에 덧붙이거나 본문 첫 줄에 그린다 | 등록부 이름과 겹쳐 두 제목이 보인다. `useWidgetTitle` 로 틀 제목 자체를 바꾼다 |
 | 위젯 `id` 를 나중에 바꾼다 | 저장 키라서 사용자 배치에서 그 위젯이 빠진다. 새 ID 로 만들고 옛 것은 한동안 둔다 |
 | shared `widget` 소스에 Mantine 컴포넌트를 import 한다 | 시험에 MantineProvider 가 없다. `<button>` + `WIDGET_CSS` 클래스로 만든다(위젯 본체를 만드는 화면은 shared 래퍼를 쓴다) |
+| 화면이 `key={...}` 로 `WidgetWorkspace` 를 등록부·기본 배치·사용자 확인이 바뀔 때마다 다시 마운트한다 | 진입 조회가 다시 일어나고 그린 보드가 스켈레톤으로 돌아간다. 작업 공간이 늦게 온 값을 다시 조회 없이 정리하므로 `key` 는 배치 출처가 진짜 바뀔 때만 쓴다([성능 규칙](#성능-규칙)) |
+| 위젯 본체가 숨은 탭에서도 `setInterval` 로 조회하고, 사이드바가 받은 목록을 위젯마다 또 조회하고, 스토어를 통째 구독한다 | [성능 규칙](#성능-규칙) — 표시 연동 타이머·호스트 저장소 재사용·필드 훅 |
 | `WidgetStore.load` 가 실패를 빈 배열로 돌려준다 | 던져야 한다. 빈 배열이면 작업 공간이 빈 상태를 저장해 사용자 배치를 지울 수 있다(던지면 [배치 편집]이 막힌다) |
 | `userId` 를 요청 본문에 실어 저장소로 보낸다 | 서버가 `SecurityIdentity` 로만 얻는다. 저장소 구현에서 userId 를 보내지 않는다 |
 | 위젯 컴포넌트 시험에 `@testing-library` 를 쓴다 | `createRoot` + `act` 를 쓴다(shared 시험 관례) |

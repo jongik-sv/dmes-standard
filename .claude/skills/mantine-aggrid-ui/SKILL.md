@@ -17,6 +17,7 @@ description: Mantine 9(@mantine/core · dates · hooks · modals · notification
 |---|---|
 | DMES 화면(`m-*`) 새로 만들기·고치기 | [screen-patterns.md](references/screen-patterns.md) 에서 화면 유형을 고르고 `references/examples/` 예제를 복사한다 → 요소별 세부는 [components/llms.txt](references/components/llms.txt) 색인 → §3 |
 | 새 화면·상세 폼·목록 조회를 만들거나 고침 | 성능 규칙을 먼저 읽는다: [화면 성능 가이드](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) 의 「새 화면 만들 때 하지 말 것」 표 → [screen-patterns.md](references/screen-patterns.md) §성능 기본 구조(첫 조회 상한·상세 폼 분리·안정 참조 열 정의) → §4 검증의 성능 점검 |
+| 홈 위젯(`WidgetWorkspace`)·위젯 본체(`m-mcm/widgets/`)·위젯 유형(`widget-types/`)을 만들거나 고침 | [components/widget.md](references/components/widget.md)(§성능 규칙 포함) → 행 단위 현황판이면 [dashboard.md](references/components/dashboard.md). 위젯 본체도 화면과 같은 성능 규칙을 따른다: [가이드 R13~R16·R7](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
 | 특정 shared 컴포넌트 사용법 | `U get <이름>` (예: `U get AgDataGrid`) |
 | Mantine 컴포넌트를 화면에 쓰고 싶음 | [mantine-catalog.md](references/mantine-catalog.md) 에서 대응 래퍼를 찾는다. 래퍼가 없으면 shared 에 새 래퍼를 등록한다(아래 행) |
 | 화면에 쓸 새 UI 부품(입력 칸·편집기·표시 부품·도구 막대)을 만들어야 함 | 화면 폴더에 만들지 않는다. Part B §18 절차로 shared 에 등록하고 이 스킬에 컴포넌트 문서를 더한다 → §4 검증(0번 포함) |
@@ -113,6 +114,11 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 카드 안 작은 목록을 원시 `<table>` 로 그림 | `AgDataGrid height="auto"` |
 | "SearchArea 가 레이아웃에 안 맞아서" 직접 조립 | 사용자에게 알리고, 필요하면 shared 를 확장 |
 | 범용 부품(편집기·입력 칸)을 화면 폴더에 만들어 그 화면에서만 씀 | shared 에 등록한다(Part B §18) — 화면은 그 부품을 import 해 쓴다 |
+| 위젯·홈이 진입 때 같은 목록·정의를 여러 번 조회하고 그린 보드를 스켈레톤으로 되돌림(준비 조건이 늦게 와서 다시 불러옴) | 준비 조건(등록부·기본 배치·사용자 확인)을 모아 한 번만 불러온다. 늦게 온 값은 다시 조회하지 않고 다시 정리한다. 화면이 `key` 로 `WidgetWorkspace` 를 다시 마운트하지 않는다 — [가이드 R13](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
+| 위젯 본체가 `setInterval`·재귀 `setTimeout` 으로 계속 조회함(숨은 탭에서도) | 탭 활성·`document.visibilityState`·표시 여부와 연동하거나 틀 `refreshSec` 에 맡긴다 — [가이드 R14](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
+| 같은 엔드포인트 목록을 호스트(사이드바 등)와 위젯 인스턴스가 따로 조회 | 호스트가 받은 것을 올려 두는 저장소를 두고 위젯이 읽는다(`m-mcm/lib/portal-favorites-store.ts`). 저장소가 비면 직접 조회 — [가이드 R15](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
+| 위젯이 외부 스토어(`useSyncExternalStore`)를 통째 구독해 한 필드 변경에 모두 다시 그림 | 필드별 훅을 내보낸다(getSnapshot 이 그 필드만 돌려줌) — `useNotices`·`useSelectedNoticeId`(`m-mcm/page-components/home/notice-store.ts`). [가이드 R16](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
+| `mergeWidgetRegistry` 를 `prev` 없이 부르거나 등록부 entry·배치를 같은 결과인데 새 객체로 만듦 | 같은 결과면 원래 객체를 돌려준다: `mergeWidgetRegistry(code, types, defs, prevRegistry)`, 지연 로딩 캐시는 `entry.load` 같은 안정 키 — [가이드 R7](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
 | `<Collapse in>`, `<Grid gutter>`, `<Text color>`, `leftIcon` | [mantine-v9-changes.md](references/mantine-v9-changes.md) |
 | `rowSelection="multiple"`, `checkboxSelection`, `ag-grid.css` import | [aggrid.md](references/aggrid.md) §2 |
 | ag-grid.com 최신(v36) 예제·옵션을 그대로 사용 | `A get <slug>`(archive 33.3.2) · `A types` |
