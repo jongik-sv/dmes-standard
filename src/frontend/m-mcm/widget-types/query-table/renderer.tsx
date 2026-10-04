@@ -45,7 +45,7 @@ export default function QueryTableRenderer({ definition, widgetId, refreshKey, t
           columnSizing="fit"
           height="100%"
           ariaLabel="쿼리 결과"
-          excelExport={excelExport}
+          excelExport={rowCount > 0 ? excelExport : undefined}
           emptyMessage={QUERY_EMPTY}
           emptyTestId="wq-empty"
         />

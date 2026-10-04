@@ -71,7 +71,9 @@ describe("domainMng page", () => {
     stubFetch([]);
     await render();
     expect(container.querySelector(".page-layout__footer-screen-id")?.textContent).toBe("domainMng");
-    expect(container.querySelector("[data-testid=domain-mng-empty]")?.textContent).toBe("조회된 도메인이 없습니다");
+    await vi.waitFor(() =>
+      expect(container.querySelector("[data-testid=domain-mng-empty]")?.textContent).toBe("조회된 도메인이 없습니다")
+    );
   });
 
   it("행이 있으면 들여쓴 이름이 보인다", async () => {

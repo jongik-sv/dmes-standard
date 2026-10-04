@@ -317,7 +317,7 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
           data={rows}
           rowKey="rowId"
           highlightedRowKey={selected ? draftKey(selected.layoutId, selected.ver) : null}
-          emptyMessage={drafts ? "확정할 DRAFT 가 없습니다" : ""}
+          emptyMessage="확정할 DRAFT 가 없습니다"
           emptyTestId="lc-list-empty"
           onRowClick={(r) => {
             const d = byId.get(String(r.rowId));

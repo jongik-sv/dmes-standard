@@ -408,8 +408,8 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
           rowKey="rowId"
           highlightedRowKey={selected ? draftKey(selected.maruRuleId, selected.ver) : null}
           onRowClick={(r) => onSelect(r as unknown as PendingDraft)}
-          emptyMessage={drafts ? "확정할 DRAFT 가 없습니다" : undefined}
-          emptyTestId={drafts ? "rc-list-empty" : undefined}
+          emptyMessage="확정할 DRAFT 가 없습니다"
+          emptyTestId="rc-list-empty"
           ariaLabel="확정 대기 목록"
         />
       </div>

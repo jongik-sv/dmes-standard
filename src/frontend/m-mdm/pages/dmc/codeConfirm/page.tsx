@@ -399,7 +399,8 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
           rowKey="rowId"
           highlightedRowKey={selected ? `${selected.maruCodeId}-${selected.ver}` : null}
           onRowClick={(r) => onSelect(r as unknown as PendingDraft)}
-          {...(drafts ? { emptyMessage: "확정할 DRAFT 가 없습니다", emptyTestId: "cf-list-empty" } : {})}
+          emptyMessage="확정할 DRAFT 가 없습니다"
+          emptyTestId="cf-list-empty"
         />
       </div>
     </div>

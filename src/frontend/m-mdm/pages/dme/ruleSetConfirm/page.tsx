@@ -394,8 +394,8 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
           rowKey="rowId"
           highlightedRowKey={selected ? draftKey(selected.setId, selected.ver) : null}
           onRowClick={(r) => onSelect(r as unknown as PendingSetDraft)}
-          emptyMessage={drafts ? "확정할 DRAFT 가 없습니다" : undefined}
-          emptyTestId={drafts ? "rsc-list-empty" : undefined}
+          emptyMessage="확정할 DRAFT 가 없습니다"
+          emptyTestId="rsc-list-empty"
           ariaLabel="확정 대기 목록"
         />
       </div>
