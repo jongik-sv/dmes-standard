@@ -1,6 +1,5 @@
-import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { LOGIN_USER, T, login } from "./support/common";
+import { LOGIN_USER, T, login, taskScreenshotPath } from "./support/common";
 
 /**
  * mdm 모듈 스캐폴드 샘플 화면(dma/mdmSample) smoke — TSK-01-01 design.md §3.3, TSK-01-02 design.md §3.5
@@ -27,6 +26,9 @@ import { LOGIN_USER, T, login } from "./support/common";
  *   - 실행: SMOKE_MCM_BASE_URL=http://127.0.0.1:<FE 포트> pnpm exec playwright test e2e/mdm-sample-smoke.spec.ts
  *     (기본값 5100 은 메인 체크아웃 포털을 가리키므로 반드시 자기 포털 주소를 준다.)
  * mdm 백엔드(8096)는 이 스모크에 필요 없다(위 4번 근거).
+ *
+ * 스크린샷: 기본은 시험 산출물 폴더(src/frontend/test-results/…, git 제외)에 남는다. 승인용 화면
+ * docs/mdm/tasks/TSK-01-02/screens/dma-mdmSample.png 를 갱신하려면 E2E_WRITE_TASK_SCREENS=1 을 붙여 돌린다.
  */
 
 
@@ -79,13 +81,8 @@ test.describe("mdm dma/mdmSample smoke", () => {
     }
 
     // ── 6) 스크린샷 — 승인자가 화면 모양을 눈으로 확인하는 산출물(TSK-01-02 design.md §3.5) ──
-    //    dflow.sh taskdir <ref> 산출 경로 규칙: <repo root>/docs/mdm/tasks/TSK-01-02/screens/.
-    //    __dirname = src/frontend/e2e 이므로 repo root 까지 3단계 위로 올라간다.
-    const screenshotPath = path.resolve(
-      __dirname,
-      "../../..",
-      "docs/mdm/tasks/TSK-01-02/screens/dma-mdmSample.png",
-    );
-    await page.screenshot({ path: screenshotPath, fullPage: true });
+    //    기본은 시험 산출물 폴더. E2E_WRITE_TASK_SCREENS=1 이면 dflow.sh taskdir 규칙 경로
+    //    <repo root>/docs/mdm/tasks/TSK-01-02/screens/ 에 쓴다(support/common.ts taskScreenshotPath).
+    await page.screenshot({ path: taskScreenshotPath("TSK-01-02", "dma-mdmSample.png"), fullPage: true });
   });
 });
