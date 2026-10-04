@@ -76,6 +76,11 @@ const DO_TRACE = process.env.RENDER_TRACE === "1";
 const CALIBRATE = process.env.RENDER_CALIBRATE === "1";
 /** 실행 후 브라우저·컨텍스트를 남기지 않는다. 디버깅할 때만 1 로 둔다. */
 const KEEP_OPEN = process.env.RENDER_KEEP_OPEN === "1";
+/**
+ * cold 에서 화면마다 새 컨텍스트(새 로그인·빈 localStorage)를 쓴다. 기본 0 은 회차당 컨텍스트 1개라
+ * 포털이 localStorage 에 저장한 열린 탭이 뒤 화면 진입 때 숨은 탭으로 복원된다(회차 안 오염).
+ */
+const ISOLATE = process.env.RENDER_ISOLATE === "1";
 
 /** performance.getEntriesByType('longtask') 는 브라우저 안에만 있다 — 페이지 로드 전에 심어 둔다. */
 const LONGTASK_INIT_SCRIPT = `
@@ -222,6 +227,9 @@ function attachNetworkCollector(cdp, sink) {
     if (!p) return;
     pending.delete(e.requestId);
     const ms = (e.timestamp - p.start) * 1000;
+    // responseReceived 의 encodedDataLength 는 헤더까지만 센 값(약 250B)이다. 본문까지의 전송량은
+    // loadingFinished 의 encodedDataLength 에 온다.
+    if (typeof e.encodedDataLength === "number") p.encodedDataLength = e.encodedDataLength;
     const split = splitTiming(p);
     // bodyMs = 전체 - (헤더까지 걸린 시간). responseReceived 의 timing 만으로는 본문 구간이
     // 분리되지 않으므로(loadingFinished 시각이 여기서야 나온다) 이렇게 뺀다.
@@ -235,6 +243,7 @@ function attachNetworkCollector(cdp, sink) {
       postData: p.postData,
       status: p.status ?? 0,
       ms,
+      wallStart: p.wallStart,
       // epoch 밀리초. wallTime 이 없는 경우(undefined)는 이 축을 쓰지 않는다.
       wallEndMs: typeof p.wallStart === "number" ? p.wallStart * 1000 + ms : null,
       failed,
@@ -402,6 +411,11 @@ async function clickTrail(page, screen) {
     await item.waitFor({ state: "visible", timeout: TIMEOUT });
     const isLeaf = i === screen.trail.length - 1;
     if (isLeaf) {
+      // 메뉴 잎 클릭 시각을 페이지 시계로 남긴다(진입 뒤 호출을 Resource Timing 과 같은 축에서 세려고).
+      await page.evaluate(() => {
+        window.__MENU_CLICK__ = null;
+        document.addEventListener("click", (e) => { window.__MENU_CLICK__ = e.timeStamp; }, { capture: true, once: true });
+      });
       const t0 = monotonic();
       const t0Wall = Date.now();
       await item.click();
@@ -467,6 +481,47 @@ async function waitShell(page, screen) {
 async function firstRowVisible(page, screen) {
   const row = page.locator(firstRowSelector(screen)).first();
   return (await row.count()) > 0 && (await row.isVisible().catch(() => false));
+}
+
+/**
+ * 페이지 안 시계 — Playwright 의 waitFor 는 0·20·50·100·100·500ms 간격으로 다시 확인하므로
+ * 끝 시각이 그 격자에 붙는다. 같은 페이지 시계(performance.now)로 클릭(이벤트 timeStamp)과
+ * 첫 행 DOM 삽입(MutationObserver)·그다음 프레임(rAF)을 기록해 격자 없는 값을 함께 낸다.
+ */
+async function armInPageClock(page, screen) {
+  const tab = await page.locator(`${VISIBLE_GRID.trim()}`).first().elementHandle();
+  await page.evaluate(
+    ([tab, title]) => {
+      const st = (window.__PCLK__ = { click: null, rowMut: null, rowFrame: null });
+      const found = () => {
+        let scope = tab;
+        if (title) {
+          const p = [...tab.querySelectorAll(".grid-panel")].find((g) =>
+            (g.querySelector(".grid-panel-title")?.textContent ?? "").includes(title)
+          );
+          if (!p) return false;
+          scope = p.querySelector(".grid-panel-content") ?? p;
+        }
+        const r = scope.querySelector(".ag-center-cols-container .ag-row[row-id]");
+        return !!(r && r.getClientRects().length);
+      };
+      document.addEventListener("click", (e) => { if (st.click === null) st.click = e.timeStamp; }, { capture: true, once: true });
+      const mo = new MutationObserver(() => {
+        if (st.click === null || st.rowMut !== null || !found()) return;
+        st.rowMut = performance.now();
+        mo.disconnect();
+        requestAnimationFrame(() => { st.rowFrame = performance.now(); });
+      });
+      mo.observe(tab, { childList: true, subtree: true, attributes: true });
+    },
+    [tab, screen.listPanelTitle ?? null]
+  );
+}
+
+async function readInPageClock(page) {
+  // rAF 한 번이 돌 시간을 준다.
+  await page.waitForTimeout(50);
+  return page.evaluate(() => window.__PCLK__ ?? null);
 }
 
 async function waitFirstRow(page, screen) {
@@ -616,6 +671,7 @@ async function measureScreen(page, cdp, screen, calls, round) {
   let searchCallCount = null;
   let searchCallMs = null;
   let invalidSearch = 0;
+  let tSearchWall = null;
 
   // MDM 목록 화면은 진입 시 자동 조회를 하지 않는다. 첫 행이 이미 있으면 조회 없이 끝난 것으로 본다.
   if (await firstRowVisible(page, screen)) {
@@ -625,6 +681,8 @@ async function measureScreen(page, cdp, screen, calls, round) {
     // 조회 단추도 **보이는 탭 안에서만** 찾는다(숨겨진 탭에 같은 이름의 단추가 있을 수 있다).
     const btn = page.locator(`${VISIBLE_GRID}button`).filter({ hasText: /^조회$/ }).first();
     await btn.waitFor({ state: "visible", timeout: TIMEOUT });
+    await armInPageClock(page, screen);
+    tSearchWall = Date.now();
     const tSearch = monotonic();
     await btn.click();
     searched = true;
@@ -672,6 +730,25 @@ async function measureScreen(page, cdp, screen, calls, round) {
     log(`  ${screen.id}: 보정 ${calibrateMs}ms 바쁜 루프 주입 완료`);
   }
 
+  const pclk = searched ? await readInPageClock(page).catch(() => null) : null;
+  // ★호출 시각은 페이지 시계(Resource Timing)로 센다★ Node Date.now() 와 CDP wallTime 은 120~160ms 어긋나
+  //   클릭 직전·직후 호출을 잘못 나눈다(2026-10-04 검증에서 확인).
+  const rt = await page.evaluate(() => ({
+    menuClick: window.__MENU_CLICK__ ?? null,
+    searchClick: window.__PCLK__?.click ?? null,
+    entries: performance.getEntriesByType("resource").filter((e) => e.name.includes("/api/")).map((e) => ({ name: e.name, start: e.startTime })),
+  }));
+  const searchUrlRe = screen.searchUrlPattern;
+  const searchBeforeClick = rt.searchClick === null ? "" :
+    rt.entries.filter((e) => searchUrlRe.test(e.name) && e.start < rt.searchClick).length;
+  // 클릭 뒤에 나간 조회 요청 수. 0 이면 [조회] 가 요청을 내지 않은 것이라 주 지표 무효(layoutConfirm 처럼 진입 자동 조회 화면).
+  const searchAfterClick = rt.searchClick === null ? "" :
+    rt.entries.filter((e) => searchUrlRe.test(e.name) && e.start >= rt.searchClick).length;
+  const afterMenu = rt.menuClick === null ? [] : rt.entries.filter((e) => e.start >= rt.menuClick && (rt.searchClick === null || e.start < rt.searchClick));
+  const apiAfterMenuClick = rt.menuClick === null ? "" : afterMenu.length;
+  const authMeAfterMenuClick = rt.menuClick === null ? "" : afterMenu.filter((e) => e.name.includes("/api/auth/me")).length;
+  const authMeAll = rt.entries.filter((e) => e.name.includes("/api/auth/me")).length;
+
   const after = await perfMetrics(cdp);
   const traceChunks = trace ? await trace.stop() : null;
 
@@ -700,6 +777,17 @@ async function measureScreen(page, cdp, screen, calls, round) {
     /** ★지시 3★ 조회 POST 가 실제로 나갔는지. 1 이면 정상, 1 이 아니면 이 회차의 검색 지표는 무효. */
     searchCallCount,
     searchCallMs,
+    /** 페이지 안 시계: 조회 클릭(event.timeStamp) → 첫 행 DOM 삽입 / 그다음 프레임. 폴링 격자 없음. */
+    inPageSearchToRowMutMs: pclk?.click != null && pclk?.rowMut != null ? round1(pclk.rowMut - pclk.click) : "",
+    inPageSearchToRowFrameMs: pclk?.click != null && pclk?.rowFrame != null ? round1(pclk.rowFrame - pclk.click) : "",
+    /** 클릭보다 먼저 나간 조회 URL 요청 수(본문을 못 보므로 optionsOnly 같은 진입 호출도 센다 — 참고값). */
+    searchBeforeClick,
+    /** ★판정★ [조회] 클릭 뒤 나간 조회 URL 요청 수. 0 이면 이 회차의 searchToRow 계열은 무효. */
+    searchAfterClick,
+    /** 메뉴 잎 클릭 ~ [조회] 클릭 사이에 시작한 /api/ 호출 수(화면 진입 호출). 페이지 시계 기준. */
+    apiAfterMenuClick,
+    authMeAfterMenuClick,
+    authMeAll,
     searchTtfbMs: api.searchTtfbMs ?? "",
     searchBodyMs: api.searchBodyMs ?? "",
     searchQueueMs: api.searchQueueMs ?? "",
@@ -785,6 +873,7 @@ async function main() {
     `load_limit: ${LOAD_LIMIT}`,
     `trace: ${DO_TRACE ? "1" : "0"}`,
     `calibrate: ${CALIBRATE ? "1" : "0"}`,
+    `isolate: ${ISOLATE ? "1" : "0"}`,
     `screens: ${targets.map((s) => s.id).join(",")}`,
     `ac: ${acPower()}`,
   ];
@@ -795,10 +884,16 @@ async function main() {
 
       if (TAB_STATE === "cold") {
         // 화면마다 새 페이지 — 탭이 처음 마운트되는 상태를 잰다.
-        const context = await browser.newContext();
-        await loginByApi(context, BASE_URL);
-        await context.addInitScript(LONGTASK_INIT_SCRIPT);
+        let context = null;
+        const openContext = async () => {
+          const c = await browser.newContext();
+          await loginByApi(c, BASE_URL);
+          await c.addInitScript(LONGTASK_INIT_SCRIPT);
+          return c;
+        };
+        if (!ISOLATE) context = await openContext();
         for (const screen of targets) {
+          if (ISOLATE) context = await openContext();
           const page = await context.newPage();
           const cdp = await context.newCDPSession(page);
           await cdp.send("Performance.enable");
@@ -831,9 +926,10 @@ async function main() {
           } finally {
             detach();
             await page.close().catch(() => {});
+            if (ISOLATE) await context.close().catch(() => {});
           }
         }
-        await context.close();
+        if (!ISOLATE) await context.close();
       } else {
         // warm: 한 페이지를 유지한다. 1회차 방문은 예열(기록하지 않음), 2회차 방문이 측정이다.
         const context = await browser.newContext();
