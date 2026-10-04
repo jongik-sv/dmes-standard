@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect } from "react";
 
+import { CardGroup } from "@dk-oasis/shared/card";
 import { ErrorModal, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Select } from "@dk-oasis/shared/form";
 import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, badgeStyle, fmtVer, sameVer } from "@/shell";
@@ -17,7 +18,6 @@ import { RULE_EDIT_TARGET_EVENT, takeRuleEditTarget, type RuleEditTarget } from 
 
 import { RULE_EDIT_CARDS, cardSegments, type RuleEditCardProps } from "./cards";
 import { RulePicker } from "./RulePicker";
-import { CardGroup } from "./cards/CardGroup";
 import { useRuleEdit } from "./state/useRuleEdit";
 import { RuleWorkbenchProvider } from "./state/workbench-context";
 
@@ -144,7 +144,7 @@ export default function RuleEditPage() {
                   </div>
                 ) : (
                   <div key={seg.id} style={{ gridColumn: "span 16", minWidth: 0 }}>
-                    <CardGroup id={seg.id} title={seg.title}>
+                    <CardGroup id={seg.id} title={seg.title} testIdPrefix="rule-group" columns={16}>
                       {seg.slots.map((slot) => (
                         <div key={slot.id} style={{ gridColumn: `span ${slot.span}`, minWidth: 0 }}>
                           <slot.Component {...cardProps} />

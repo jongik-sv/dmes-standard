@@ -67,10 +67,12 @@
 - [Tree](tree.md): 메뉴·코드 계층처럼 부모-자식 구조를 접고 펼치는 트리로 보여 주고 한 노드를 고르게 할 때 쓴다.
 - [LookupModal (LookupTextField · LookupIconButton)](lookup.md): 코드(품목·부서 등)를 직접 입력하거나, 돋보기 버튼·F4 로 검색 팝업을 열어 코드·명 한 행을 골라 채울 때 쓴다.
 - [MarkdownEditor](markdown-editor.md): 메모·설명처럼 서식(제목·굵게·목록·할 일·인용·링크)이 있는 글을 마크다운 문자열로 편집하고 보여 줄 때 쓴다. 서식 모드와 MD(원문) 모드를 오가며 고친다.
-- [HtmlEditor](html-editor.md): 설명·안내 글처럼 서식이 있는 글을 HTML 문자열로 편집할 때 쓴다. 서식 모드(도구 막대)와 HTML 원문 모드를 [HTML] 단추로 오가며 고친다.
+- [HtmlEditor](html-editor.md): 설명·안내 글처럼 서식이 있는 글을 HTML 문자열로 편집할 때 쓴다. 서식 모드(도구 막대)와 HTML 원문 모드를 [HTML] 단추로 오가며 고친다. 같은 칸에 일반 글과 HTML 을 함께 받으면 형식 전환 칸 `HtmlFormatField` 를 쓴다.
 - [NoticeBodyView](notice-body-view.md): 공지 본문을 일반 글(TEXT)·마크다운(MD)·HTML 세 형식으로 읽기 전용으로 보여 줄 때 쓴다. 세 형식 모두 같은 문서 서식(제목·목록·인용·코드·표·링크)으로 보인다.
 - [DetailPopover](detail-popover.md): 정보 아이콘(또는 감싼 글자)을 누르면 팝업에 가까운 큰 패널(제목·닫기·내부 스크롤)을 그 자리에 여는 상세 팝오버다. 툴팁에 담기 어려운 긴 설명(HTML 본문, 라벨-값 표)을 화면 이동 없이 보여 줄 때 쓴다.
 - [JsonView](json-view.md): JSON 값(서버 설정·캐시 값·응답 본문처럼 모양이 정해지지 않은 값)을 읽기 전용 트리로 살펴볼 때 쓴다. 객체·배열은 접고 펼 수 있고, 글자·수·참거짓·null 은 종류별 색으로 보인다. 글자 값은 JSON 표기(따옴표·역슬래시·줄바꿈 이스케이프)로 보인다.
+- [Card](card.md): 내용 높이를 따르는 테두리 카드(`CardFrame`: 제목 줄 + 본문), 여러 카드를 제목 줄 하나로 함께 접는 묶음(`CardGroup`), 카드 안 흐린 보조 글(`MutedText`)을 그릴 때 쓴다. 편집 화면처럼 카드 여러 장을 세로로 쌓는 화면에 맞다.
+- [TransferList](transfer-list.md): 좌(가능)·우(소속) 두 목록 사이로 코드를 옮겨 소속 집합을 고칠 때 쓰는 제어형 전송 목록이다(`TransferList`). 검색·분류 필터·행 토글·Shift 범위 선택·전체선택·`>`/`>>`/`<`/`<<` 를 갖췄고, 같은 일을 하는 순수 함수(검색·분류·이동·diff 집합)도 함께 낸다.
 - [MatrixTable](matrix-table.md): "첫 열(라벨) + 동적으로 늘어나는 열 + 셀마다 직접 그린 값" 구조의 비교 매트릭스(피벗) 표를 보일 때 쓴다.
 - [차트 (DonutChart · PieChart · HBarChart · LineChart · StackedBarChart · StackedColumnChart)](charts.md): 현황 대시보드에서 비율(도넛·파이), 항목별 크기(가로 막대), 추이(선), 구성 비율(누적 막대), 기간별 누적 실적과 계획선(세로 누적 막대)을 간단한 SVG 차트로 보일 때 쓴다.
 - [exportToExcel](export-to-excel.md): 화면의 목록 데이터를 엑셀(.xlsx) 파일로 내려받게 할 때 쓴다. ag-grid 의 Excel Export 는 Enterprise 기능이라 쓰지 않는다.
@@ -4489,10 +4491,10 @@ import { MarkdownView } from "@dk-oasis/shared/markdown-editor";
 
 # HtmlEditor
 
-설명·안내 글처럼 서식이 있는 글을 HTML 문자열로 편집할 때 쓴다. 서식 모드(도구 막대)와 HTML 원문 모드를 [HTML] 단추로 오가며 고친다.
+설명·안내 글처럼 서식이 있는 글을 HTML 문자열로 편집할 때 쓴다. 서식 모드(도구 막대)와 HTML 원문 모드를 [HTML] 단추로 오가며 고친다. 같은 칸에 일반 글과 HTML 을 함께 받으면 형식 전환 칸 `HtmlFormatField` 를 쓴다.
 
-- import: `import { HtmlEditor, HTML_EDITOR_LOSS_MESSAGE, textToHtml, htmlToText, unsupportedRichTags, type HtmlEditorProps } from "@dk-oasis/shared/html-editor";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣는다)
-- 소스: `src/frontend/shared/src/components/html-editor/` (`HtmlEditor.tsx`·`HtmlToolbar.tsx`·`extensions.ts`·`convert.ts`·`styles.tsx`)
+- import: `import { HtmlEditor, HTML_EDITOR_LOSS_MESSAGE, HtmlFormatField, HTML_TO_TEXT_MESSAGE, textToHtml, htmlToText, unsupportedRichTags, type HtmlEditorProps, type HtmlFormatFieldProps, type HtmlFormatFieldMessages, type HtmlFormat } from "@dk-oasis/shared/html-editor";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣는다)
+- 소스: `src/frontend/shared/src/components/html-editor/` (`HtmlEditor.tsx`·`HtmlFormatField.tsx`·`HtmlToolbar.tsx`·`extensions.ts`·`convert.ts`·`styles.tsx`)
 - 내부 구현: 서식 모드는 Tiptap 3(`@tiptap/react`·`starter-kit` 의 밑줄·링크·코드·코드 블록·구분선·되돌리기, 표 확장 없음), 원문 모드는 고정폭 `textarea`, 미리보기·읽기 모습은 [NoticeBodyView](notice-body-view.md) `format="HTML"`(DOMPurify 소독). 서식 모드 글 모양도 NoticeBodyView 의 `.nbv-doc` 스타일이라 편집 칸이 곧 읽기 모습이다. 도구 막대는 shared `Button`·`Input`(form)과 Tabler 아이콘. 새 의존성은 없다(markdown-editor 와 같은 Tiptap 패키지).
 - Part B 허용 목록(§1): `html-editor` SHOULD.
 
@@ -4539,9 +4541,47 @@ export function DescriptionSection({ row, onChange }: { row: Row; onChange: (htm
 
 ## 변형
 
-### 「글 | HTML」 형식을 고르는 칸
+### 「글 | HTML」 형식을 고르는 칸 — `HtmlFormatField`
 
-같은 칸에 일반 글과 HTML 을 함께 받으면 화면이 형식 선택([SegmentedControl](segmented-control.md))을 두고, 글 → HTML 은 `textToHtml`, HTML → 글은 확인 뒤 `htmlToText` 로 바꾼다. 형식 판별 규칙(어떤 값을 HTML 로 볼지)은 업무 규칙이라 화면 쪽에 둔다. 예: `m-mdm/pages/dma/columnMng/DescriptionField.tsx`(판별은 `@/column-info` 의 `descriptionFormat`).
+같은 칸에 일반 글과 HTML 을 함께 받으면(형식을 따로 저장하지 않고 값에서 판별) `HtmlFormatField` 를 쓴다. 형식 선택([SegmentedControl](segmented-control.md) `글 | HTML`) + 글 모드 `Textarea`(글자 수 줄) + HTML 모드 `HtmlEditor` 를 묶은 합성 부품이다.
+
+- 형식 판별 규칙(어떤 값을 HTML 로 볼지)은 업무 규칙이라 **화면이 `detectFormat` 으로 준다**(필수). 저장 뒤 툴팁·팝오버가 쓰는 판별과 같은 함수를 넘긴다. 처음 형식은 그릴 때 한 번 정한다 — 대상이 바뀌면 `key` 로 새로 그린다.
+- 글 → HTML 은 `textToHtml`(묻지 않음), HTML → 글은 확인 뒤 `htmlToText`. 빈 값(공백뿐)은 빈 값으로 두고 묻지 않는다.
+- 저장하면 다른 형식으로 보일 값(글 모드인데 판별이 HTML, HTML 모드인데 판별이 글)은 `-format-warning` 으로 미리 알린다.
+- `maxLength` 를 주면 글 모드에 `n / 상한자` 를 보이고 넘으면 경고만 한다. HTML 모드 편집기에도 같은 상한이 간다.
+
+```tsx
+import { HtmlFormatField } from "@dk-oasis/shared/html-editor";
+import { descriptionFormat } from "@/column-info"; // 화면(업무) 쪽 판별 규칙
+
+<HtmlFormatField
+  key={row.id}
+  value={row.description}
+  onChange={(v) => update({ description: v })}
+  detectFormat={descriptionFormat}
+  maxLength={20000}
+  testId="form-description"
+  ariaLabel="설명"
+  confirm={confirm}
+/>
+```
+
+예: `m-mdm/pages/dma/columnMng/DescriptionField.tsx`(이 부품을 감싸 판별 `descriptionFormat`·상한 20,000 을 넘긴다).
+
+`HtmlFormatField` props:
+
+| prop | 타입 | 기본 | 설명 |
+|---|---|---|---|
+| `value` | `string` | — | 글 또는 HTML 문자열 |
+| `onChange` | `(value: string) => void` | — | 입력·형식 전환 때 새 값 |
+| `detectFormat` | `(value: string) => "TEXT" \| "HTML"` | — (필수) | 값의 형식 판별. 처음 형식과 형식 경고에 쓴다 |
+| `confirm` | `(message: string) => Promise<boolean>` | 공용 확인창 | HTML → 글 확인, 편집기의 서식 손실 확인 |
+| `testId` | `string` | `"html-format-field"` | 뿌리 `data-testid`. 안쪽: `-format`(형식 선택)·`-text`·`-text-count`(글)·`-html`(편집기, 그 안은 HtmlEditor 접미)·`-format-warning` |
+| `ariaLabel` | `string` | `"본문"` | 칸 이름. 형식 선택 이름은 `<ariaLabel> 형식` |
+| `maxLength` | `number` | 없음 | 글자 수 상한(경고만). 없으면 글 모드 글자 수 줄을 그리지 않는다 |
+| `rows` | `number` | `2` | 글 모드 Textarea 줄 수 |
+| `minHeight` | `number \| string` | `120` | HTML 편집 칸 최소 높이 |
+| `messages` | `Partial<HtmlFormatFieldMessages>` | 기본 문구 | `textLabel`("글")·`htmlLabel`("HTML")·`toTextConfirm`(`HTML_TO_TEXT_MESSAGE`)·`textLooksHtml`·`htmlLooksText`(null 이면 그 경고를 끈다)·`overLimit(max)` |
 
 ### 읽기 전용
 
@@ -4566,6 +4606,7 @@ export function DescriptionSection({ row, onChange }: { row: Row; onChange: (htm
 - `htmlToText(html)` — 글자만. 블록 사이·`<br>` 은 줄바꿈, 블록 끝 `<br>` 은 줄을 더하지 않음, 표 칸은 탭, `script`·`style` 내용은 버림. `textToHtml` 결과를 되돌리면 원래 글이다(탭만 공백 4칸으로 돌아온다).
 - `unsupportedRichTags(html)` — 서식 모드가 지키지 못하는 태그 이름 목록(빈 목록이면 서식 모드로 열어도 서식이 그대로).
 - `HTML_EDITOR_LOSS_MESSAGE` — 원문 → 서식 확인 문구.
+- `HTML_TO_TEXT_MESSAGE` — `HtmlFormatField` 의 HTML → 글 확인 기본 문구.
 
 ## 흔한 실수
 
@@ -4576,6 +4617,7 @@ export function DescriptionSection({ row, onChange }: { row: Row; onChange: (htm
 | 열 때 `getHTML()` 과 `value` 를 비교해 다르면 저장 안 됨 표시 | 열기만 해서는 `onChange` 가 없다. Tiptap 이 다듬은 HTML 은 사용자가 고칠 때만 나간다 |
 | 다른 행으로 바꿔도 `key` 없이 같은 편집기를 씀 | `key={행 id}` — 되돌리기 기록과 처음 모드 판별이 새 값에서 시작한다 |
 | 표가 든 HTML 을 서식 모드로 강제로 엶 | 원문 모드로 연다. 서식 모드로 바꾸면 표가 사라진다는 확인을 거친다 |
+| 글·HTML 을 함께 받는 칸을 화면에서 SegmentedControl + Textarea + HtmlEditor 로 직접 조립 | `HtmlFormatField` 에 판별 함수(`detectFormat`)만 넘긴다 |
 | 마크다운 메모에 이 편집기를 씀 | 저장 형식이 마크다운이면 [MarkdownEditor](markdown-editor.md) |
 | HTML 미리보기를 `dangerouslySetInnerHTML` 로 직접 그림 | 원문 모드 [미리보기]·읽기 모습이 NoticeBodyView 로 소독해 그린다 |
 
@@ -4754,6 +4796,211 @@ export function ValuePanel({ value }: { value: unknown }) {
 | `<pre>{JSON.stringify(v, null, 2)}</pre>` 를 화면에 직접 둠 | `JsonView` — 접기·색·복사가 같은 모습으로 나온다 |
 | `ContentPanel` 안에서 트리가 잘림 | `fill` 을 준다. `ContentPanel` 은 넘침을 숨기므로 스크롤은 `JsonView` 가 맡는다 |
 | 값 종류별 색을 화면 CSS 로 덮음 | 색은 의미 토큰으로 정해져 있다. 바꿔야 하면 shared 를 고친다(승인 뒤) |
+
+
+<!-- ===== card.md ===== -->
+
+# Card
+
+내용 높이를 따르는 테두리 카드(`CardFrame`: 제목 줄 + 본문), 여러 카드를 제목 줄 하나로 함께 접는 묶음(`CardGroup`), 카드 안 흐린 보조 글(`MutedText`)을 그릴 때 쓴다. 편집 화면처럼 카드 여러 장을 세로로 쌓는 화면에 맞다.
+
+- import: `import { CardFrame, CardGroup, MutedText, type CardFrameProps, type CardGroupProps, type MutedTextProps } from "@dk-oasis/shared/card";` (CSS import 없음 — 인라인 스타일, 색·간격은 의미 토큰)
+- 소스: `src/frontend/shared/src/components/card/CardFrame.tsx`, `CardGroup.tsx`
+- 내부 구현: 원시 `<section>`·`<header>`·`<button>`(Mantine 미사용). 접기 아이콘은 `@tabler/icons-react` `IconChevronDown`·`IconChevronRight`.
+- Part B 허용 목록(§1): `card` SHOULD (Part B §18 로 등록, 처음 쓴 곳은 m-mdm 룰 화면 `ruleEdit`·`ruleSetEdit`).
+
+## 언제 쓰나
+
+- 쓴다: 한 화면에 성격이 다른 카드(헤더 정보·의사결정표·값 테스트·활용처 등)를 위아래로 쌓을 때. 몇 장을 한 덩어리로 접어 두고 싶으면 `CardGroup` 으로 감싼다.
+- 쓰지 않는다:
+  - 그리드에 제목·건수·행추가/삭제 툴바를 붙이고 남은 높이를 채울 때 → [GridPanel](grid-panel.md).
+  - 대시보드 12열 격자 칸·행 접기·크기 조절·배치 저장이 필요할 때 → [dashboard](dashboard.md) 의 `DashboardCard`·`DashboardRow`.
+  - 화면을 좌우·상하로 나누고 높이를 채우는 영역 → [content-body](content-body.md) 의 `ContentPanel`.
+- `CardGroup` 은 접어도 본문을 내리지 않는다(`hidden`). 안쪽 카드의 입력·dirty 상태·실행 결과가 접었다 펴도 그대로 남는다. 내려야(언마운트) 하는 경우라면 화면이 조건부로 그린다.
+- `columns` 를 주면 본문이 `repeat(n, minmax(0, 1fr))` 격자가 되고, 자식은 `style={{ gridColumn: "span k", minWidth: 0 }}` 로 칸을 잡는다. 주지 않으면 흐름 배치다.
+
+## 표준 사용
+
+```tsx
+import { Button } from "@dk-oasis/shared/form";
+import { CardFrame, CardGroup, MutedText } from "@dk-oasis/shared/card";
+
+export function UsageCard({ note }: { note?: string }) {
+  return (
+    <CardFrame title="⑧ 활용처" testId="rule-card-usage" right={<Button size="sm">새로 고침</Button>}>
+      <strong>활용처 메모</strong> {note ? note : <MutedText>없음</MutedText>}
+    </CardFrame>
+  );
+}
+
+// 카드 세 장을 16칸 격자로 쌓고 제목 줄 하나로 함께 접는다(testId: rule-group-valueTests, -toggle, -body).
+export function ValueTestGroup() {
+  return (
+    <CardGroup id="valueTests" title="④ 값 테스트 · ⑤ 테스트 결과" testIdPrefix="rule-group" columns={16}>
+      <div style={{ gridColumn: "span 16", minWidth: 0 }}>
+        <CardFrame title="④ 값 테스트">…</CardFrame>
+      </div>
+      <div style={{ gridColumn: "span 16", minWidth: 0 }}>
+        <CardFrame title="⑤ 테스트 결과">…</CardFrame>
+      </div>
+    </CardGroup>
+  );
+}
+```
+
+## Props
+
+`CardFrame`
+
+| prop | 타입 | 기본 | 설명 |
+|---|---|---|---|
+| `title` | `ReactNode` | — | 제목 줄 왼쪽 글 |
+| `testId` | `string` | — | 뿌리 `<section>` 의 `data-testid`. 없으면 붙이지 않는다 |
+| `right` | `ReactNode` | — | 제목 줄 오른쪽 자리(배지·버튼) |
+| `children` | `ReactNode` | — | 본문 |
+
+`CardGroup`
+
+| prop | 타입 | 기본 | 설명 |
+|---|---|---|---|
+| `id` | `string` | — | 묶음 id. testId 끝에 붙는다 |
+| `title` | `string` | — | 제목 줄 글. 단추 `aria-label` 은 `{title} 접기`/`{title} 펼치기` |
+| `testIdPrefix` | `string` | `"card-group"` | 뿌리 `{접두어}-{id}`, 단추 `{접두어}-{id}-toggle`, 본문 `{접두어}-{id}-body` |
+| `columns` | `number \| null` | `null` | 본문 격자 칸 수. `null` 이면 격자 없음 |
+| `defaultOpen` | `boolean` | `true` | 처음 펼침 여부 |
+| `labels` | `{ collapse?: string; expand?: string }` | `접기`·`펼치기` | 단추 `aria-label` 의 동작 말 |
+| `children` | `ReactNode` | — | 묶음 안 카드 |
+
+`MutedText` — `children` 만 받는 `--color-text-muted` 색 `<span>`.
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| 화면 폴더에 테두리 `<section>` 카드 틀을 또 만듦 | `CardFrame` |
+| 접기를 `{open && children}` 으로 구현해 카드 상태가 사라짐 | `CardGroup` — `hidden` 으로 숨긴다 |
+| 본문 격자 div 에 `hidden` 과 `display: grid` 를 함께 줌(인라인 display 가 hidden 을 이김) | `CardGroup columns` — 숨김 div 와 격자 div 를 나눠 둔다 |
+| 흐린 글 색을 `#888`·`gray` 로 직접 씀 | `MutedText` 또는 `var(--color-text-muted)` |
+
+
+<!-- ===== transfer-list.md ===== -->
+
+# TransferList
+
+좌(가능)·우(소속) 두 목록 사이로 코드를 옮겨 소속 집합을 고칠 때 쓰는 제어형 전송 목록이다(`TransferList`). 검색·분류 필터·행 토글·Shift 범위 선택·전체선택·`>`/`>>`/`<`/`<<` 를 갖췄고, 같은 일을 하는 순수 함수(검색·분류·이동·diff 집합)도 함께 낸다.
+
+- import: `import { TransferList, type TransferListProps, type TransferListItem, type TransferListBadge } from "@dk-oasis/shared/transfer-list";` (CSS import 없음 — 인라인 스타일, 색·간격은 의미 토큰)
+- 소스: `src/frontend/shared/src/components/transfer-list/TransferList.tsx`, `transfer-set.ts`
+- 내부 구현: shared `form` 의 `Input`·`Select`·`Checkbox`·`Button`, 배지는 shared `GridBadge`(그리드 배지 모양). Mantine `Transfer` 류는 쓰지 않는다.
+- Part B 허용 목록(§1): `transfer-list` SHOULD (Part B §18 로 등록, 처음 쓴 곳은 m-mdm 코드 편집 카테고리 탭 `dmc/codeItemEdit/cate`).
+
+## 언제 쓰나
+
+- 쓴다: 후보 목록에서 몇 개를 골라 어떤 묶음(카테고리·그룹·권한 대상)에 넣고 빼는 편집. 후보가 수백~천 건이어도 이동은 선택 수에만 비례한다.
+- 쓰지 않는다:
+  - 한 건만 고를 때 → [lookup](lookup.md) 의 `LookupModal` 또는 [ComboBox](combo-box.md).
+  - 입력칸 안에서 여러 개를 고르는 짧은 목록 → [MultiSelectComboBox](multi-select-combo-box.md).
+  - 행마다 여러 칸을 편집해야 할 때 → [AgDataGrid](ag-data-grid.md).
+- 제어형이다. 소속 집합(`value`)은 부모가 쥐고 이동마다 `onChange(next)` 로 받는다. 부품은 `value` 를 복사해 두지 않고 검색어·분류·좌우 선택·Shift 기준점만 로컬로 둔다. 서버 저장 시점([저장]·[적용])은 화면이 정한다 — 버튼은 부품 밖에 둔다.
+- 분류 필터는 `getGroup` 을 주고, 그 값이 하나라도 있을 때만 그린다. 배지(`getBadge`)·가능 쪽 숨김(`hideFromAvailable`)·문구(`labels`)는 화면 규칙이라 props 로 넘긴다.
+
+## 표준 사용
+
+```tsx
+import { useState } from "react";
+import { Button } from "@dk-oasis/shared/form";
+import { TransferList, diffSets, type TransferListBadge } from "@dk-oasis/shared/transfer-list";
+
+interface Candidate { code: string; name: string | null; lvl1: string | null; unsaved?: boolean }
+
+// 함수는 모듈 수준에 둔다 — 렌더마다 새 함수면 목록 계산(useMemo)이 매번 다시 돈다.
+const lvl1Of = (it: Candidate) => it.lvl1;
+const badgeOf = (it: Candidate): TransferListBadge | null =>
+  it.unsaved ? { label: "미저장", bg: "var(--color-warning-soft)", color: "var(--color-warning)" } : null;
+
+export function MemberEditor({ items, saved, onApply }: {
+  items: Candidate[]; saved: ReadonlySet<string>; onApply: (add: string[], remove: string[]) => void;
+}) {
+  const [members, setMembers] = useState<ReadonlySet<string>>(saved);
+  const { added, removed } = diffSets(saved, members);
+  return (
+    <>
+      <TransferList
+        items={items}
+        value={members}
+        onChange={setMembers}
+        testId="member-transfer"
+        getGroup={lvl1Of}
+        getBadge={badgeOf}
+        labels={{ groupAll: "1차 전체" }}
+      />
+      <Button size="sm" disabled={added.length + removed.length === 0}
+        onClick={() => onApply(added.sort(), removed.sort())}>적용</Button>
+    </>
+  );
+}
+```
+
+## Props
+
+| prop | 타입 | 기본 | 설명 |
+|---|---|---|---|
+| `items` | `readonly T[]` (`T extends TransferListItem` = `{ code: string; name?: string \| null }`) | — | 후보 전체(양쪽). 이 순서로 그린다 |
+| `value` | `ReadonlySet<string>` | — | 지금 소속 코드 집합(제어형) |
+| `onChange` | `(next: Set<string>) => void` | — | 이동할 때마다 새 집합으로 부른다 |
+| `editable` | `boolean` | `true` | false 면 이동·행 선택·전체선택이 꺼진다(검색·분류는 된다) |
+| `testId` | `string` | `"transfer-list"` | testId 접두어(아래 표) |
+| `getGroup` | `(item: T) => string \| null \| undefined` | — | 분류 값. 주면 분류 필터(`Select`)를 그린다. 값이 하나도 없으면 그리지 않는다 |
+| `groupTestIdSuffix` | `string` | `"group"` | 분류 필터 testId 접미 |
+| `hideFromAvailable` | `(item: T) => boolean` | — | true 인 항목은 가능 쪽에 보이지 않는다(소속 쪽에는 남는다) |
+| `getBadge` | `(item: T) => TransferListBadge \| null \| undefined` | — | 항목 옆 배지 `{ label, bg?, color?, title? }`. 색은 의미 토큰 |
+| `labels` | `{ search?, available?, member?, countUnit?, groupAll? }` | `코드·이름 검색`·`가능`·`소속`·`건`·`분류 전체` | 검색 placeholder, 열 이름, 건수 단위(`{열 이름} {n}{단위}`), 분류 '전체' 글 |
+
+testId 조립(`{p}` = `testId`):
+
+| 자리 | testId |
+|---|---|
+| 뿌리 | `{p}` |
+| 검색 칸 | `{p}-search` |
+| 분류 필터 | `{p}-{groupTestIdSuffix}` |
+| 열(가능·소속) | `{p}-available`, `{p}-member` |
+| 항목 행 | `{p}-item-available-{code}`, `{p}-item-member-{code}` |
+| 배지 | `{p}-mark-{code}` |
+| 이동 | `{p}-move-right`, `{p}-move-right-all`, `{p}-move-left`, `{p}-move-left-all` |
+
+버튼 활성: `>`·`<` 는 그쪽 선택이 있어야, `>>`·`<<` 는 그쪽 보이는(검색·분류 통과) 목록이 있어야 켜진다. `>`·`<` 는 옮긴 뒤 그쪽 선택을 비운다(`>>`·`<<` 는 비우지 않는다).
+
+행 선택: 행 어디를 눌러도(행 안 체크박스 포함) 한 번 토글되고, Shift 를 누르고 누르면 마지막으로 누른 행부터 범위를 고른다. 열 머리 체크박스는 testid 가 없다 — e2e 는 열(`{p}-available`·`{p}-member`) 안 첫 `input[type=checkbox]` 로 찾는다.
+
+## 순수 함수
+
+모두 입력 `Set` 을 바꾸지 않고 새 `Set` 을 돌려준다. 항목은 `code`·`name` 만 본다.
+
+| 함수 | 하는 일 |
+|---|---|
+| `matchesQuery(item, query)` | 코드·이름 부분 일치(앞뒤 공백·대소문자 무시, 빈 검색어는 통과) |
+| `matchesGroup(value, group)` | 고른 분류가 비면 통과, 아니면 값이 같아야 통과 |
+| `visibleList(items, value, side, { query, group, getGroup, hideFromAvailable })` | 한쪽(`"available"`·`"member"`) 목록. `getGroup` 이 없으면 분류로 거르지 않는다 |
+| `groupOptions(items, getGroup)` | 비어 있지 않은 분류 값을 중복 없이 기본 `.sort()` |
+| `rangeSelect(visible, anchorCode, targetCode)` | Shift 범위(양방향). 기준점이 없거나 목록에 없으면 target 하나 |
+| `toggleSelect(selected, code)`, `selectAllVisible(visible)` | 선택 토글, 보이는 목록 전체 선택 |
+| `moveSelected`, `removeSelected`, `moveAllVisible`, `removeAllVisible` | `>`, `<`, `>>`, `<<` |
+| `diffSets(original, current)` | `{ added, removed }` — 정렬하지 않는다. 저장 모양·정렬 규칙은 화면이 정한다 |
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| 화면 폴더에 좌우 목록·이동 버튼을 또 만듦 | `TransferList` |
+| 부품 안에 소속 집합을 복사해 두고 [적용] 때만 부모에 알림 | 제어형으로 쓴다 — `value`·`onChange` 는 부모 상태, [적용]·[저장] 버튼은 부품 밖 |
+| `getGroup`·`getBadge` 를 렌더마다 새 화살표 함수로 넘김 | 모듈 수준 함수나 `useCallback` 으로 고정한다 |
+| 기존 화면의 testId 가 바뀜 | `testId` 접두어와 `groupTestIdSuffix` 로 옛 이름을 그대로 만든다 |
+| `diffSets` 결과를 정렬된 것으로 믿음 | 순회 순서 그대로다. 필요한 정렬(`.sort()`·`localeCompare`)을 화면이 건다 |
+
+## 실제 사용 예
+
+- `src/frontend/m-mdm/pages/dmc/codeItemEdit/cate/components/TransferListPanel.tsx`: 코드 편집 카테고리 탭. 소속 집합은 `CategoryTab` 이 쥐고 `TransferList` 는 제어형으로 쓴다.
+- `src/frontend/m-mdm/pages/dmd/dataItemMng/cate/CategoryTab.tsx`: 데이터 항목 카테고리 소속 편집. [적용] 단추는 `TransferList` 밖(패널 아래)에 두고, 훅(`useDataCategories`)의 `applyMembers` 가 `transfer.ts` 의 `diffMembers`(내부 `diffSets` + `.sort()`)로 `addCodes`·`removeCodes` 를 만들어 저장한다.
 
 
 <!-- ===== matrix-table.md ===== -->

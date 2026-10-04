@@ -16,6 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { CardFrame, MutedText } from "@dk-oasis/shared/card";
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
@@ -31,7 +32,6 @@ import { planBoundaryCases, type GroupCondColumn } from "../value-test/boundary-
 import { emptyResultInputs, saveSequential } from "../value-test/boundary-run";
 import { bodyTable, defaultRowIdOf, prepareRun, resolveTarget, targetLabel, targetOptions, useTargetView } from "../value-test/run-request";
 import { BoundaryCaseModal, type BoundarySession } from "./BoundaryCaseModal";
-import { CardFrame, MutedText } from "./CardFrame";
 import { TestCaseEditModal } from "./TestCaseEditModal";
 
 /** 카드 ④ 의 입력 JSON → 객체(경계값 후보의 기본 입력). 못 읽거나 객체가 아니면 빈 객체. */
