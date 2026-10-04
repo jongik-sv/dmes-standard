@@ -1459,18 +1459,6 @@ function AgDataGridComponent({
   }, []);
 
   useEffect(() => {
-    if (!gridReady || !gridRef.current?.api) return;
-    const api = gridRef.current.api;
-    if (loading) {
-      api.showLoadingOverlay();
-      return;
-    }
-    // hideOverlay 는 "데이터 없음" 안내까지 숨긴다 — 조회가 끝났는데 행이 없으면 안내를 다시 띄운다.
-    api.hideOverlay();
-    if (api.getDisplayedRowCount() === 0) api.showNoRowsOverlay();
-  }, [loading, gridReady]);
-
-  useEffect(() => {
     // 스크롤 정책:
     //  1) scrollToRow 명시 → "middle" 정렬 (행추가/포커스 이동 등 명시 의도).
     //  2) highlightedRowKey 만 변경 → 위치 인자 없이 ensureNodeVisible 호출.
@@ -1813,6 +1801,23 @@ function AgDataGridComponent({
       },
     [loadingMessage]
   );
+
+  const isDataEmpty = sortedData.length === 0;
+
+  // 조회 중 표시·데이터 없음 안내를 상태에 맞게 맞춘다(noRowsOverlayComponent 정의 뒤에 둬야 의존성에 쓸 수 있다).
+  useEffect(() => {
+    if (!gridReady || !gridRef.current?.api) return;
+    const api = gridRef.current.api;
+    if (loading) {
+      api.showLoadingOverlay();
+      return;
+    }
+    // hideOverlay 는 "데이터 없음" 안내까지 숨긴다 — 조회가 끝났는데 행이 없으면 안내를 다시 띄운다.
+    // 안내가 이미 떠 있어도 거둔 뒤 다시 띄운다: ag-grid 는 떠 있는 오버레이 부품을 새 옵션(emptyMessage)으로
+    // 갱신하지 않으므로, 문구가 바뀌거나 비어 있음 여부가 바뀔 때마다 새로 만들어야 최신 문구가 보인다.
+    api.hideOverlay();
+    if (api.getDisplayedRowCount() === 0) api.showNoRowsOverlay();
+  }, [loading, gridReady, isDataEmpty, noRowsOverlayComponent]);
 
   const isAutoHeight = height === "auto";
   const getExcelApi = useCallback(() => gridRef.current?.api, []);

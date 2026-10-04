@@ -104,7 +104,7 @@ MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절
 - **할 것**: 그리드를 늘 두고 빈 상태는 `emptyMessage` 오버레이로 보인다.
 - **근거**: headerMng 는 0건 → 조회마다 AG Grid 를 새로 만든다(생성 2.9ms, 검증 §5.2 S5, `headerMng/components/HeaderList.tsx:32-47`). layoutConfirm 도 같은 구조다.
 - **적용 사례**: 커밋 14231811·ddd08bfb·a72e2239·ecceccee(병합 5f862b97). 0건 때 그리드를 내리던 3항·`&&` 24곳(분류표 19건 + `ImpactPanel` + `&&` 형태 4곳)을 상시 마운트 + `emptyMessage` 로 바꿨다. 5100 화면 5곳(도메인·헤더 정의·코드/룰/룰 세트/레이아웃 확정)에서 0건 → N건 전환 때 그리드 DOM 노드가 같았고(재마운트 0) 콘솔 오류는 0 이었다.
-- **함정**: `AgDataGrid` 의 빈 오버레이는 `rows` 가 `null` → `[]` 로 바뀔 때 문구를 갱신하지 않는다. 확정 목록은 빈 문구 상수를 고정해 가렸다. shared 근본 수정은 후속이다(§8).
+- **함정**(고침): 예전에는 `AgDataGrid` 의 빈 오버레이가 `emptyMessage` 변경이나 `rows` 의 `null`(`undefined`) → `[]` 전환 때 문구를 갱신하지 않아, 확정 목록은 빈 문구 상수를 고정해 가렸다. 이제 shared 가 빈 상태·`emptyMessage` 가 바뀔 때마다 안내를 다시 띄워 최신 문구가 보인다(브랜치 `fix/aggrid-empty-overlay`). 확정 목록의 상수 문구는 그대로 두었다(조회 전에도 같은 문구가 보이는 현재 동작).
 
 ### R7. 변화가 없으면 새 배열·객체로 setState 하지 않는다 — 확정
 
@@ -379,7 +379,7 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 - **결정 대기(shared·화면 변경 승인 필요)**:
   1. 포털 홈 공지 카드가 본문을 포함해 50건을 받는다(공지사항 관리 R1b 와 같은 문제, 홈 카드는 이번 범위 밖).
   2. `commWidgetMng` 목록이 `configJson` 을 실어 200KB 에 이른다.
-  3. `AgDataGrid` 빈 오버레이가 `null` → `[]` 때 문구를 갱신하지 않는다(shared 수정, 현재는 화면 쪽 빈 문구 상수로 우회).
+  3. ~~`AgDataGrid` 빈 오버레이가 `null` → `[]` 때 문구를 갱신하지 않는다~~ — shared 에서 고침(빈 상태·`emptyMessage` 변경 때 안내 재생성). 화면 쪽 빈 문구 상수는 우회가 필요 없어졌지만 동작이 달라지므로 그대로 둔다.
 - **한계**: `ruleConfirm`·`layoutConfirm` 목록 정렬이 ID 뿐이라 한 대상에 DRAFT 가 여럿이면 상한 경계의 순서가 실행마다 달라질 수 있다(실제로는 거의 없다). `headerMng` 의 사용 전문 수(`USED_BY_COUNT`) 계산은 상한과 무관하게 전문 전체를 읽는다.
 - **운영 DB 건수 미확인**: domainMng·codeMng·codeItemEdit·dataMng 와 마스터코드 2화면은 로컬 171·17·18·3건과 마스터 성격만으로 오탐 판정했다. 운영 행 수가 1,000건·500KB 를 넘는다면 R1 을 적용한다.
 
