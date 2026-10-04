@@ -4,7 +4,7 @@
  * 포털이 이미 받아 둔 즐겨찾기 목록(secFavorite/search)을 홈 위젯이 다시 조회하지 않고 읽게 하는 작은 저장소.
  * - 쓰기: app/portal/page.tsx 가 usePortalFavorites 결과를 받을 때마다 publishPortalFavorites 로 올린다(사이드바와 같은 목록).
  * - 읽기: 바로가기 위젯이 usePublishedPortalFavorites() 로 받는다(포털 밖이거나 받기 전이면 null — 위젯이 직접 조회한다).
- * 진입 때 사이드바·위젯이 같은 목록을 따로 부르던 중복을 없앤다(widget-render-findings W4, Screen-Performance-Guide R16).
+ * 진입 때 사이드바·위젯이 같은 목록을 따로 부르던 중복을 없앤다(widget-render-findings W4, Screen-Performance-Guide R15).
  * 화면 묶음이 여러 번 실려도 같은 저장소를 쓰도록 globalThis 에 둔다(portal-menu-store 와 같은 방식).
  */
 import { useSyncExternalStore } from "react";

@@ -78,7 +78,7 @@ export function useNoticeStore(): NoticeStoreState {
 
 /**
  * 공지 목록만 — 행 선택(selectedId)이 바뀌어도 다시 그려지지 않는다. set 이 notices 를 건드리지 않으면 같은 객체라서다.
- * 홈 페이지(긴급 공지 띠)가 이 훅을 써서 행 클릭이 보드 전체로 번지지 않게 한다(widget-render-findings W8).
+ * 홈 페이지(긴급 공지 띠)가 이 훅을 써서 행 클릭이 보드 전체로 번지지 않게 한다(widget-render-findings W8, Screen-Performance-Guide R16).
  */
 export function useNotices(): NoticeLoadState {
   return useSyncExternalStore(subscribe, getNotices, getNotices);
