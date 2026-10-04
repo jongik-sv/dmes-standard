@@ -49,6 +49,9 @@
 | `RENDER_TRACE` | `0` | `1` 이면 CDP trace json 을 `$PERF_OUT/trace/` 에 쓴다. **크므로 기본 끔** |
 | `RENDER_KEEP_OPEN` | `0` | `1` 이면 브라우저를 끝까지 열어 둔다(디버깅 전용) |
 | `RENDER_ISOLATE` | `0` | `1` 이면 cold 에서 **화면마다 새 컨텍스트**(새 로그인·빈 localStorage)를 쓴다. 0 이면 회차의 6화면이 컨텍스트 하나를 나눠 써 앞 화면 탭이 뒤 화면 진입 때 복원된다(진입 API 27→47건). 화면 간 비교·진입 비용은 `1` 로 잰다 |
+| `RENDER_HOME_IDLE` | `1` | 메뉴를 누르기 전에 포털 홈 로딩(`/api/` 호출·50ms 넘는 task)이 `RENDER_HOME_IDLE_QUIET_MS`(500) 동안 멈출 때까지 기다린다(상한 `RENDER_HOME_IDLE_MAX_MS` 10000). `0` 이면 2026-10-04 검증 때와 같은 진입 조건이다(전후 비교용) |
+| `RENDER_WARMUP` | `1` | cold 측정 앞에 예열 회차(round 0)를 돌리고 `keep=0`·`warmup=1` 로 남긴다. `0` 이면 끈다 |
+| `RENDER_FULL_VIEW` | `0` | `1` 이면 첫 조회 뒤 상한 안내 띠의 [전체 보기] 를 눌러 상한 없는 재조회도 잰다(`fullView*` 필드) |
 | `RENDER_NO_EXCLUSIVE` | `0` | `1` 이면 `heavy.sh` 독점을 건너뛴다. 신뢰도 낮음 |
 | `HEAVY_SH` | `$PERF_REPO/.claude/skills/dflow-dev/scripts/heavy.sh` | 줄 세우기 경로 |
 | `PLAYWRIGHT_PATH` | (비움) | playwright 모듈이 있는 폴더. 비우면 기본 탐색 |
@@ -174,9 +177,22 @@ columnMng 는 실제 ≈380ms 가 ≈820ms 로, termMng 는 ≈167ms 가 ≈210m
   RENDER_SCREENS=termMng PERF_OUT=<저장소 밖 폴더> node scripts/perf/render/count-renders.mjs
   ```
 
+- ⑤ 상세 폼 입력: `screens.mjs` 에 `formInput` 이 있는 화면(columnMng 표시명 긴, termMng 맥락)은 탭 복귀 뒤 그 칸에
+  `RENDER_INPUT_TEXT`(기본 `ABCDE`)를 150ms 간격으로 친다. **저장하지 않고** 컨텍스트를 닫는다. 요약에 한 글자당 커밋·렌더 시간이 나온다.
+
+## 응답 뒤 CPU 배분 — `cpu-profile-search.mjs`
+조회 응답이 온 뒤 첫 행까지의 CPU 를 함수·청크(AG Grid·React·Mantine·화면 코드·엔진)별로 나눈다. 행 가공이 무거운지(가이드 R11) 볼 때 쓴다.
+- `count-renders.mjs` 와 같은 `next build --profile --no-mangling` 번들을 쓴다. 프로파일러가 켜진 측정이라 절대값보다 비율로 읽는다.
+- 모드: `limit`([조회], 상한 적용) · `full`([조회] 뒤 [전체 보기]). 화면·모드·회차마다 새 컨텍스트.
+  ```
+  RENDER_SCREENS=columnMng,termMng CPU_MODES=limit,full RENDER_ROUNDS=3 PERF_OUT=<저장소 밖 폴더> node scripts/perf/render/cpu-profile-search.mjs
+  ```
+- 결과: `$PERF_OUT/cpu-profile.json`(회차별 `afterHeaders`·`afterFinished` 의 `byFile`·`selfTop`·`inclTop`)과 회차별 `.cpuprofile`(DevTools Performance 패널로 열린다).
+- `(program)` 은 V8 내부 작업(응답 본문 JSON 파싱 포함)이다. 상한 경로의 `getClientRects` ≈2.7ms 는 측정기의 첫 행 판정 몫이다.
+
 ## 결과 형식
 `$PERF_OUT` 아래(저장소에는 넣지 않는다).
-- `results.json`: 회차별 원자료. 위 표의 모든 지표 + `load1`, `keep`, `rc`, `error`, `apiCalls`
+- `results.json`: 회차별 원자료. 위 표의 모든 지표 + `load1`, `keep`, `rc`, `error`, `apiCalls`, `searchRows`·`searchTotalCount`·`searchTruncated`(응답 본문에서), `apiAfterMenuClickNames`(진입 호출 경로), `warmup`, `fullView*`
 - `results.csv`: 없음(1차가 라운드 구조라 json 로 충분하다. 비교 단계에서 csv 로 옮긴다)
 - `env.txt`: 시작·끝 시각, base_url, 계정, 회차, tab_state, load_limit, 대상 화면, 전원 상태
 - `trace/*.json`: `RENDER_TRACE=1` 일 때만. CDP 이벤트 원본(수백 MB 될 수 있다)
