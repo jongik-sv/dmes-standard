@@ -17,11 +17,12 @@
 - [x] 지시 2 반영 — 본 지표를 `searchToRowMs` 로 변경, 0건 처리 추가, `cold` 만, 계정 고정, `.env` 사본 절차
 - [x] **판정 기준 선기록** — 가설마다 "무엇이 보이면 참/거짓인지" (§4)
 - [x] **1차 스캔 수치** — 6개 화면 × cold 3회, 중앙값 (2026-10-04 재측정). §5 에 표가 있다
-- [ ] **2차** — Top 3 심층(네트워크·서버 왕복). 6차 보고 뒤 조정자 확인 뒤 착수
+- [x] **2차** — Top 3 심층(네트워크·서버 왕복) + TTFB 분리 + warm (§6)
 - [x] Top 3 선별 — columnMng · termMng · headerMng (§5)
-- [ ] Top 3 심층 분석 — 방향을 네트워크·서버 왕복으로 바꿈(지시 4-23)
+- [x] Top 3 심층 분석 — TTFB 분해까지 완료(§6.2·6.3)
 - [x] ~~A/B 실험~~ — **A1·A4~A8 기각으로 취소**(지시 4-23). 렌더 비용 가설 아님
-- [ ] 수정안 — **수정은 이번 단계 범위가 아니다.** 조정자 보고 → 사용자 승인 뒤 별도 시작
+- [x] **수정안** — 선택지·예상 효과·위험·바뀌는 파일 (§7). **선택하지 않는다**(지시 5-18)
+- [ ] 수정 실행 — **이번 단계 범위가 아니다.** 사용자 승인 뒤 별도
 
 재측정 조건: AC 전원 연결 확인(조정자), `localhost:5300` 프로덕션 빌드 미리보기,
 계정 `admin`/`admin123`, `cold`(화면마다 새 페이지·탭 첫 마운트), 보정 회차 제외.
@@ -412,6 +413,11 @@ render·`useMemo`·무방어 effect 에서 데이터 로드를 부르는 곳 없
 | A7 `/api/auth/me` 중복 | **주체가 아님** | 요청 개수와 체감 시간은 비례하지 않다는 §4.4 예상이 맞음 |
 | A8 셀마다 래퍼 2개 | **주체가 아님** | 가상화로 보이는 셀만 그려서 cell count 가 작다 |
 
+★**후속 2차에서 이 기각을 두 개 되돌린다**(§7.4): 위 표의 근거는 "50ms 를 넘기지 않는다" 였는데,
+columnMng 2차에서 `RecalcStyleCount 129`·`LayoutCount 59` 로 **작은 작업이 매우 많이** 나왔다.
+각각 50ms 미만이라 long task 로는 검출되지 않지만 합치면 수백 ms 다. **A2·C5 는 "기각" 이 아니라
+"미판정" 이다.** A1·A4~A8 중 나머지 기각은 그대로 둔다.
+
 **즉 "메인 스레드가 막힌다" 는 렌더 비용 가설은 5개 화면 전부 기각이다.**
 남는 가설은 **네트워크·서버 왕복** 쪽이다. `apiCount` 가 화면마다 27~43건이고
 `apiTotalMs` 가 수백 ms 다. **1차 스캔에서 이쪽을 봐야 한다.**
@@ -531,27 +537,228 @@ Top 3 각각에 대해, **백엔드 코드는 고치지 않고** file:line 과 �
    - 꼭 필요하지 않은 호출 — 위젯·즐겨찾기가 MDM 목록 화면에 필요한지.
 5. **Top 3 에만 `warm`**(지시 4-28) — 숨겨진 탭 유지 비용(§4.7 보류분).
 
-## 6. 이 문서의 한계
+## 6. 2차 분석 (2026-10-04)
 
-- **1차 수치는 있으나 2차 확인이 없다.** §5 는 재측정 3회 중앙값이지만, 병목의 **원인**은 아직
-  가설이다. §5 Top 3 해석은 API 호출 합계로 한 겹 나눈 것이지 인과를 확증한 것이 아니다.
-- **TTFB 와 전송 시간을 구분하지 못했다.** 하네스가 CDP `Network` 합성만 재서
-  "서버 응답 시간" 과 "전송·대기" 가 한 값으로 합쳐진다. columnMng 378.8ms 중 얼마가 서버인지
-  알 수 없다. → 2차에서 TTFB 분리가 필요(지시 4-25).
-- **termMng R1(315.7ms) 의 이상치 원인은 미확인.** R2·R3(227~229ms)보다 88ms 높았다.
-  첫 회차든 무작위든 확인하지 않았다.
-- **`headerMng` 는 Top 3 중 네트워크로 설명되지 않는다.** 검색 10.2ms 인데 `searchToRowMs` 60.8ms.
-  남는 50ms 의 성격은 미상이다.
-- **codeMng·dataMng·layoutConfirm 의 화면 진입 API 266~602ms 는 본 지표 밖이다.**
-  `searchToRowMs` 는 조회 클릭 이후만 재므로, 화면을 열 때만 나가는 위젯·즐겨찾기·권한 호출이
-  잡히지 않는다. "조회→첫 행" 이 빠르다고 화면이 빠른 건 아니다 — 이 함정은 §5 에 적었다.
-- **행 수·카테고리 수·`rbac.rows` 길이는 재지 않았다.** admin 계정 기준 §6 의 데이터 규모 표가
-  근거다(지시 2-3 이 인용한 통합 확인: 컬럼 7,858건·용어 22건·데이터 18건·코드 17건).
-- **`shellReadyMs` 가 3위(Top 3 밖)와 1위가 같다.** headerMng 116ms 는 columnMng 117ms 와
-  사실상 같다. 본 지표에서는 3위지만 **shell 단계만 보면 최상위**다. 두 지표를 어떻게 함께 볼지는
-  2차에서 정한다.
-- **로컬 SQLite 데이터 규모**라 운영보다 차이가 작게 나올 수 있다(`docs/idea.md:115`).
-- **`warm` 미실행**(지시 2-2, 2차 Top 3 대상). 숨은 탭 유지 비용(§4.7)은 여전히 미판정이다.
-- **`row_mode` 가 전부 `row` 다.** 0건 화면 처리는(layoutConfirm 이 0건이면 그리드를 안 만든다)
-  코드로는 넣었지만 이번 재측정에서 실제로 0건 화면을 만나지 못했다. 그 경로는 미검증이다.
-- **ag-grid 내부 동작은 여전히 추측이다.** 이 워크트리에 `node_modules` 가 없어 소스를 읽지 못했다.
+대상(지시 5-8): ① columnMng 조회 ② termMng 조회 ③ 화면 진입 공통 비용.
+`headerMng` 의 60.8ms 는 문턱(100ms) 아래라 표에만 남겼다.
+
+### 6.1 TTFB 분리 — 하네스에 추가함
+
+`measure-screens.mjs` 의 수집기가 CDP `Network.responseReceived.response.timing`(단위 ms, 브라우저 시작 기준
+상대 시각)을 받아 `sendEnd → receiveHeadersEnd` = **TTFB**, `전체 − TTFB` = **본문** 으로 나눈다.
+queue(요청~sendStart)·dns·connect·`encodedDataLength` 도 함께 남긴다.
+
+★**주의(해석)★ `ttfbMs` 는 **헤더까지**다. 서버가 본문을 만들고 내려주는 시간이 `bodyMs` 에 든다.
+
+### 6.2 columnMng 826.9ms — **TTFB 371ms(45%) + 프런트 442ms(53%)**
+
+3회 중앙값(2차 측정 `perf-2nd`):
+
+| 구간 | 값 | 비중 |
+|---|---|---|
+| `searchToRowMs` 전체 | 812.6ms (3회: 826.7 / 812.6 / 812.3) | 100% |
+| **실조회 TTFB** | **371.1ms** | **46%** |
+| 실조회 본문(body) | 2.0ms | 0.2% |
+| 큐 대기 | 0.0ms | — |
+| connect / dns | 0.0ms | — |
+| **조회 응답 → 첫 행** | **442.5ms** | **53%** |
+
+- **TTFB 371ms 는 순수 서버 시간이다.** BFF 경유가 아니라 그보다 앞 — 실제 응답을 `curl` 로 받아 보니
+  `POST /api/mdm/oasis/columnMng/search` → **2,893,211B(2.89MB)**, `time_starttransfer=357ms`,
+  `time_total=361ms`. `list` 길이 **7,858**건, 행당 평균 368B, 행당 키 13개.
+  `bodyMs=2ms` 인 건 로컬 서버라 2.89MB 가 순식간에 온다 — **운영에선 이 2ms 가 네트워크로 잡힌다.**
+- **나머지 442ms 는 프런트다.** CDP 델타로 보면 `ScriptDuration≈100ms`, `TaskDuration≈300ms`,
+  `RecalcStyleCount=129`, `LayoutCount=59`, `nodeDelta=+3,735`, `heapDeltaMB=+16.9`.
+  즉 2.89MB `JSON.parse` + 7,858행 `map`(`page.tsx:203-213` — 행마다 `formatLabels` 로 3중 폴백 문자열 조합) +
+  ag-grid `rowData` 적재 + 스타일 재계산.
+- **작업 대상 코드의 위치**(읽기만, 고치지 않는다)
+  - `ColumnMngService.java:130-135` — 조건 없음 분기가 `columnRepository.findAll()` +
+    `columnSystemRepository.findAll()` + `domainRepository.findAll()` 을 **전부** 읽는다.
+  - `:157-159` — `findAllInChunks(..., IN_CHUNK=500)` 로 용어를 IN 분할 조회.
+  - `:162-165` — `hits` 전량을 `listRow(...)` 로 맵한다.
+  - `page.tsx:203-213` `listRows` — `list.map` + `formatLabels(r)`(`labels.ts:27-30`) 행마다 호출.
+  - `app/api/[module]/oasis/[serviceId]/[action]/route.ts:36-49` — BFF 프록시.
+    `MDM_WAS_URL`(개발) 또는 `BACKEND_API_URL`(운영 Nginx)로 그대로 넘긴다.
+- **P4 문서와 대조**(지시 5-12): `perf-mdm-backend.md:190-204` 의 맞바꾸기 표에서
+  조건 없는 `search`(k=1,461 실제 데이터)는 **기준 255.8ms → 변경 253.1ms**(≈무차이),
+  `k=8,000` 에서는 **+126%(587.7ms)**. 그리고 P4 한계 문이 남긴
+  **"조건 없는 search 의 결과 7,857건을 한 번에 돌려주는 호출은 실제 UI 에서 드물 수 있으나
+  호출 빈도는 확인하지 않았다(확인 필요)"** — **재측정이 이 조건을 채웠다.**
+  실측 371ms 는 P4 의 253ms 보다 크다. 차이는 P4 가 SQLite 시험 DB 를, 우리는 실행 중인 서버(SQLite)를
+  썼고 BFF·프런트 구간이 앞뒤에 붙은 탓이다. **방향은 일치한다** — 조건 없는 전체 조회가 이 화면의 기본이고,
+  371ms 를 쓴다.
+- **★해석에 주의★ 442ms 를 "렌더 비용" 으로 되돌리면 안 된다.** §4.8 이 `longTask 0` 으로
+  A4~A8 을 기각했는데, 그 근거는 "50ms 를 넘기지 않는다" 였다. 그런데 여기에 `RecalcStyle 129회`·
+  `Layout 59회` 로 **작은 작업이 매우 많이** 일어난다. 각각은 50ms 미만이라 long task 로는 안 잡히지만
+  합치면 수백 ms 다. **"개별 작업은 작고 개수가 많다" 는 패턴은 long task 로 검출되지 않는다.**
+  이건 §4.8 판정의 한계이고, §A2(강제 리플로우)·C5(전 행 새 객체)가 기각이 아니라 **미판정**으로 내려간다.
+
+### 6.3 termMng 228.6ms — **TTFB 136ms(66%) + 프런트 68ms**
+
+| 구간 | 값 | 비중 |
+|---|---|---|
+| `searchToRowMs` 전체 | 206.6ms (3회: 213.5 / 206.2 / 206.6) | 100% |
+| **실조회 TTFB** | **136.4ms** | **66%** |
+| 실조회 본문 | 1.7ms | — |
+| 조회 응답 → 첫 행 | 68.4ms | 33% |
+
+- 요청 본문 `{"keyword":"","systems":"","context":""}` — **조건 없는 전체 조회.**
+- P3 대조(`perf-mdm-backend.md:100-152`): P3 은 조건 있는 검색에서 -93~-96% 개선,
+  **조건 없음은 +1.3%(≈1ms)로 실질 차이 없음** 이라고 판정했다. 실측 136ms 도 같은 구간이다.
+  → **termMng 의 개선 여지는 "검색 엔진" 이 아니라 "조건 없는 조회를 기본으로 두는 것" 다.**
+
+### 6.4 화면 진입 공통 비용 — 6개 화면 합산(3회×6=18회 관측)
+
+| 횟수(1회 진입당) | 평균ms | 최대ms | 경로 |
+|---|---|---|---|
+| **22.2** | 9.8 | 35.6 | **`/api/auth/me`** |
+| 3.0 | 5.9 | 14.3 | `/api/mcm/oasis/secFavorite/search` |
+| 3.0 | 7.0 | 13.1 | `/api/mcm/oasis/secWidget/search` |
+| 1.0 | 12.8 | 33.5 | `/api/mls/oasis/noticeBoard/search` |
+| 1.0 | 11.2 | 22.7 | `/api/mcm/oasis/secUser/myButtonEndpoints` |
+| 1.0 | 11.2 | 15.1 | `/api/mcm/oasis/widgetDef/list` |
+| 1.0 | 8.6 | 17.0 | `/api/mcm/oasis/secUser/myMenusTree` |
+| 1.0 | 4.7 | 10.8 | `/api/mcm/oasis/secStartPgm/search` |
+| 1.0 | 4.1 | 5.3 | `/api/mcm/mdmMeta/columns` |
+| 1.0 | 3.4 | 7.4 | `/api/mcm/mdmMeta/domains` |
+
+(그 밖에 화면별 검색 1건이 붙는다 — 위 표에서 빠진 것.)
+
+#### ① 중복 호출 — `/api/auth/me` 가 진입당 22회
+
+- 호출처(전부 `fetch("/api/auth/me", { credentials: "same-origin" })` — 인라인이며 캐시가 없다):
+  - `shared/src/portal-shell/use-portal-menu.ts:41`
+  - `shared/src/portal-shell/use-portal-start-pages.ts:45`
+  - `shared/src/portal-shell/use-portal-favorites.ts:40`
+  - `shared/src/portal-shell/use-portal-auth-user.ts:31`
+  - `shared/src/portal-shell/use-user-button-rbac.ts:66`
+  - `m-mcm/app/portal/page.tsx:61, 147, 191, 246`
+- **`use-user-button-rbac.ts` 가 구독자마다 부른다**: `:150-183` 의 effect 안에서
+  `fetchCurrentUserId()`(`:64-72`)를 호출하고, 그 다음에야 `s.cachedState` 의 `userId` 와 비교한다(`:161-165`).
+  → **"캐시가 있는지 확인" 하려고 캐시가 없는 API 를 먼저 부른다.** 그래서 구독자가 늘면 선형으로 늘고,
+  화면마다 호출자 수가 다르다:
+  - 화면 쪽: `columnMng/page.tsx:116`, `codeMng/page.tsx:101`, `dataMng/page.tsx:81`,
+    `layoutConfirm/page.tsx:88`, `headerMng/page.tsx:54`
+  - shared 쪽: `PageLayout.tsx:105`(1) + `ContentBody.tsx:171`(리사이즈 패널 1당 1)
+    → columnMng 는 ContentBody 2개 → **합 4구독자**, codeMng·dataMng 는 3개 → **합 5구독자**.
+- **개수와 체감은 비례하지 않는다**(§4.4 예상이 맞았다): 22회 × 평균 9.8ms 지만 **동시 발화**라
+  병렬이다. 6개 화면 모두 `shellReadyMs` 63~117ms 안에 이 22건이 들어간다.
+  → **"22회를 없애면 빠르겠다" 는 잘못된 기대다.** 진짜 문제는 *필요 없는 호출이 끼어 있는 것* 이다.
+
+#### ② 워터폴 — 구조적으로 없다
+
+6개 화면의 진입 호출을 인덱스(발생 순) 순으로 봤을 때 **32건이 모두 검색 1건보다 앞에 있고,
+그 32건끼리는 직렬 사슬이 없다.** 실측 R2 에서 실조회가 마지막(인덱스 32/32)이고,
+그전까지 모든 요청이 몇 ms 안 되는 규모였다. → **워터폴은 원인이 아니다**(§4.6 C3/K7 같은 종류는
+쓰기·등록 경로라 1차 스캔 대상이 아니었다).
+
+#### ③ 화면과 무관한 호출 — 위젯·즐겨찾기가 MDM 목록 화면에 붙어 있다
+
+| 호출 | 화면과 관련? | 근거 |
+|---|---|---|
+| `/api/mcm/oasis/secWidget/search` ×3, `/api/mcm/oasis/widgetDef/list` | **무관** | 포털 홈 위젯. MDM 목록 화면이 이걸 왜 부르는지는 §2 에서 추적하지 않았다 — **미확인** |
+| `/api/mcm/oasis/secFavorite/search` ×3 | **무관** | 즐겨찾기 목록 |
+| `/api/mls/oasis/noticeBoard/search` | **무관** | 공지(MES 모듈). MDM 목록 화면과 다른 모듈 |
+| `/api/mcm/oasis/secStartPgm/search` | 부분 관련 | 시작 프로그램 |
+| `/api/mcm/oasis/secUser/myMenusTree` | **관련(필요)** | 메뉴 트리 |
+| `/api/mcm/oasis/secUser/myButtonEndpoints` | **관련(필요)** | 버튼 권한 |
+| `/api/mcm/mdmMeta/columns`, `/domains` | **관련(필요)** | MDM 컬럼 메타 |
+
+★**이것이 "화면 진입 공통 비용" 의 핵심이며, `shellReadyMs` 63~117ms 의 주 후보다.**
+`shellReadyMs` 는 조회보다 앞서므로 **조회와 직렬로 더해진다.** 그 합이 `clickToRowMs` 다
+(columnMng 953.2ms = shell 117 + 조회 833.5, 실측 확인).
+
+### 6.5 warm — 숨은 탭 유지 비용 (§4.7 판정)
+
+columnMng·termMng 만, 3회(지시 5-14). **탭 여러 개를 열어 둔 상태**에서 재 눌렀을 때:
+
+| 화면 | shell 준비 | 조회→첫 행 | API |
+|---|---|---|---|
+| columnMng | 35.0 / 35.9 / 35.0 → **35.0ms** | 37.8 / 39.0 / 37.8 → **37.8ms** | **0건** |
+| termMng | 35.1 / 35.3 / 35.7 → **35.3ms** | 37.9 / 38.3 / 38.5 → **38.3ms** | **0건** |
+
+- cold 대비 **약 4배 빠르다**(columnMng shell 117 → 35ms, 조회→첫 행 826.9 → 37.8ms).
+- **API 0건** — 탭을 다시 보낼 때는 아무것도 다시 부르지 않는다. 조회도 다시 안 한다
+  (이건 `useMdmPageParams` 가 파라미터를 한 번만 소비한다는 §3.5 의 확인과 일치한다).
+- **판정: 숨은 탭 유지 비용은 체감 문턱 아래다.** §4.7 이 미판정으로 두었던 항목에 대한 답이다.
+  포털이 탭을 마운트된 채 두는 구조(§1, `portal-shell.tsx:154`)는 **메모리·DOM 을 붙들고는 있으나
+  사용자가 기다리는 시간은 만들지 않는다.** 이것을 "문제"로 취급할 근거는 없다.
+
+## 7. 수정안
+
+★**선택지다. 어느 것을 고를지는 사용자가 한다** (지시 5-18). 아래는 **예상 효과·위험·바뀌는 파일**이다.
+`@dk-oasis/shared` 의 기존 props·동작·모습을 바꾸는 항목은 **사용자 승인 대상**이다(CLAUDE.md).
+
+### 7.1 [A안] 조건 없는 전체 조회를 기본으로 두지 않는다 — columnMng (826.9ms) · termMng (228.6ms)
+
+두 화면의 `searchToRowMs` 중 **TTFB 가 46%·66%** 다. 그리고 그 요청이 `{"keyword":""}` — 전량 조회다.
+
+| 선택지 | 예상 효과 | 위험 | 바뀌는 파일 |
+|---|---|---|---|
+| **A-1 초기 빈 상태 → 첫 입력 때 조회** | 화면 진입이 즉시 끝난다. 첫 조회도 조건이 걸려 P4/P3 수치를 따르면 `ms_ref` 10.8~24.3ms(-90~-95%). **가장 큰 효과** | "빈 화면"이라 정보를 못 찾겠다. 사용자가blank 화면을 오해할 수 있음. `docs/idea.md` §74 이 관리자 업무용이라 목록이 기본일 수 있음 | `dma/columnMng/page.tsx`(조회 버튼 상태·useEffect), `dma/termMng/page.tsx`, 가능하면 `@dk-oasis/shared` 의 검색 공통 |
+| **A-2 페이징** | 7,858행을 한 번에 안 나간다. 1회 응답이 수 KB 로 준다 | 목록 스크롤 UX 가 바뀐다. ag-grid 서버 사이드 페이지네이션 요구 → `AgDataGrid` props 추가가 필요할 수 있다. **shared 컴포넌트 변경**이라 승인 필요 | `dma/columnMng/page.tsx`, `@dk-oasis/shared/components/grid/AgDataGrid.tsx`(신규 prop) |
+| **A-3 "처음 N건만 + 전체 보기"** | 진입 비용은 N 건으로 줄고, 필요하면 전체를 별도 요청 | 중간 상태의 이해가 필요하다. 서버에도 N 건용 경로가 필요할 수 있다 | `dma/columnMng/page.tsx`, 서버측 N 건 경로 |
+| **A-4 서버 `search` 를 빠르게 한다** | 조건 없는 조회 371ms 를 줄인다. P4 표의 "k 가 크면 조건 없는 search 는 느려진다" 구간이 대상 | **백엔드 코드 수정이라 이번 범위 밖.** 그리고 P4 는 응답 시간 개선이 아니고 읽는 행(-24%)였다 고 이미 판정했다 | 백엔드 `ColumnMngService.java` — **이번 단계에서 다루지 않음** |
+
+★**고르지 않는다.** A-1 과 A-2 는 제품 결정(무엇을 기본으로 보여줄 것인가)이 코드보다 앞이다.
+
+### 7.2 [B안] 프런트 442ms 구간 — columnMng
+
+조회 응답(TTFB 371ms) 뒤 **442ms** 가 프런트다. `JSON.parse` 2.89MB + 7,858행 `map` + ag-grid 적재.
+
+| 선택지 | 예상 효과 | 위험 | 바뀌는 파일 |
+|---|---|---|---|
+| **B-1 A-1 이면 자연 소멸** | 조건이 걸리면 후보가 줄어서 `map` 대상이 줄어든다. 별도 수정 불필요 | A-1 선택에 종속 | — |
+| **B-2 `formatLabels` 를 메모이즈** | 행마다 3중 폴백 문자열 조합(`labels.ts:27-30`)이 7,858회 돈다. `listRows` 의 `map` 안에서 이미 `useMemo` 었으니 **추가 이득은 작을 수 있다** | 측정 없이 최적화하면 헛수정. **지금 `scriptMs≈100ms` 중 몇 ms 인지는 미측정** | `dma/columnMng/page.tsx:203-213`, `dma/columnMng/labels.ts` |
+| **B-3 rowData 적재 비용 줄이기** | `nodeDelta +3,735` 이지만 ag-grid 가상화 덕에 DOM 은 이미 적다. 가상화의 한계라 **측정 후 판단** | shared `AgDataGrid` 를 건드릴 수도 있음 | `@dk-oasis/shared/components/grid/AgDataGrid.tsx` |
+
+★**B-2·B-3 은 효과 미확인이다.** 442ms 안에서 각 항목이 얼마인지는 CDP trace 로 더 쪼개야 한다.
+**지금은 "총 442ms 가 존재한다" 만 사실이고, 그 안의 배분은 모른다.**
+
+### 7.3 [C안] 화면 진입 공통 비용 — 6개 화면 전체
+
+`shellReadyMs` 63~117ms. 조회와 직렬로 더해진다.
+
+| 선택지 | 예상 효과 | 위험 | 바뀌는 파일 |
+|---|---|---|---|
+| **C-1 위젯·즐겨찾기·공지를 MDM 화면에서 떼어낸다** | 진입 호출 32건 중 **무관한 7건**(위젯 3·즐겨찾기 3·공지 1)이 빠진다. `shellReadyMs` 감소 예상 | **왜 붙어 있는지 확인해야 한다** — 포털 껍데이라면 화면과 무관하게 한 번만, 탭 안이라면 화면마다 다를 수 있다. **미확인 상태에서 손대면 회귀 위험** | 미확인 — 포털 shell 호출 구조를 먼저 봐야 한다 |
+| **C-2 `/api/auth/me` 중복 제거** | 22회 → 줄 수 있다. **단 체감 이득은 작다**(동시 발화라 병렬) | `use-user-button-rbac.ts:161-165` 의 "캐시 확인을 먼저 부르는" 구조를 바꿔야 한다. 권한 판정이 틀어지면 **화면이 깨진다** — 되돌리기 어려움 | `shared/src/portal-shell/use-user-button-rbac.ts`, `use-portal-menu.ts`, `use-portal-start-pages.ts`, `use-portal-favorites.ts` |
+| **C-3 아무것도 안 한다** | — | C-1·C-2 모두 위험 대비 효과가 작다. `shellReadyMs` 63~117ms 는 이미 빠르게 보인다 | — |
+
+### 7.4 기각을 "미판정"으로 되돌리는 것
+
+§6.2 에서 적었듯 **`longTask 0` 은 "작은 작업이 많이" 인 패턴을 검출하지 못한다.**
+그래서 §4.8 에서 기각한 것 중 두 항목은 **미판정으로 되돌린다**:
+
+| 가설 | 이전 판정 | 지금 |
+|---|---|---|
+| A2 강제 레이아웃(fit 모드에서 no-op 리플로우) | 기각 | **미판정** — columnMng `LayoutCount 59`·`RecalcStyleCount 129`. A/B 가 아니라 **trace 로 쪼개야** 알 수 있다 |
+| C5 조회 후 전 행 새 객체 | 기각 | **미판정** — `listRows` 가 7,858행 전부 새 객체. DOM 비용은 아니나 Script 100ms 안의 비율은 모름 |
+
+A1·A4·A5·A6·A7·A8 의 기각은 그대로 둔다(근거가 코드 확인 + longTask 0 으로 이중).
+
+### 7.5 warm 에 대한 답 (2026-10-04)
+
+**숨은 탭 유지 비용은 문턱 아래다**(§6.5: shell 35ms, API 0건, cold 대비 4배 빠름).
+→ **조치 없음.** §4.7 미판정 항목에 대한 답이 나왔다.
+
+## 8. 이 문서의 한계
+
+- **수정의 근거가 되지 못한 것이 많다.** §7 의 효과 예측은 **추정**이다. 실제로 몇 ms 줄어드는지는
+  A/B 재측정 전까지 모른다.
+- **TTFB 분해는 "헤더까지" 다.** 서버가 본문을 만드는 시간이 `bodyMs` 에 들어간다. 로컬이라
+  `bodyMs=2ms` 인데, **운영에서는 2.89MB 전송이 이 2ms 자리를 차지한다.** 즉 운영의 병목 모양이
+  이 수치와 다를 수 있다.
+- **442ms 안의 배분을 모른다.** `JSON.parse`·`7,858행 map`·ag-grid 적재·스타일 재계산 중 각 얼마인지
+  CDP trace 로 쪼개지 않았다. §7.2 의 효과 예측이 전부 이 때문에 막혀 있다.
+- **`shellReadyMs` 안에서 무관한 호출을 못 골랐다.** 왜 위젯·즐겨찾기·공지가 MDM 화면 진입에 붙는지
+  **코드 구조를 확인하지 않았다**(§6.4-③ 는 실측 사실만 적었다).
+- **SQLite + 로컬 서버다.** 운영(Oracle·PostgreSQL) 쿼리 시간과 네트워크 전송은 다를 수 있다
+  (`docs/idea.md:115`).
+- **`/api/auth/me` 22회가 정말 전부 중복인지 확인하지 않았다.** 호출처 9곳을 나열했지만,
+  포털이 몇 개를 다른 목적(인증 확인 vs 권한 캐시 키)으로 쓰는지 안 읽었다.
+- **저장·등록 경로는 측정하지 않았다.** C3·K7 같은 3연속 왕복 가설은 쓰기 작업이라
+  1·2차 스캔 대상이 아니었다. **읽기 전용 화면**에서만 재었다(지시 2-50: 저장·확정·삭제 단추 금지).
+- **6개 화면뿐이다.** MDM 은 화면이 20개 넘고(`pages/` 기준 21개 디렉터리), 그 중 우선순위 후보
+  6개만 봤다.
+- **ag-grid 내부 동작은 여전히 추측.** 이 워크트리에 `node_modules` 가 없다.
