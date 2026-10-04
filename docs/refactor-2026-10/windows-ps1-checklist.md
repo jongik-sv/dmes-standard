@@ -132,7 +132,10 @@
 
 ### 3-9. 이전 인스턴스 종료 (현재 동작 기록)
 - 실행: 창 A 에서 `.\be-run.ps1 --mcm` → 기동 뒤 창 B 에서 `.\be-run.ps1 --mpn`
-- 기대: 창 B 에 `이전 be-run 인스턴스 종료 대기 (pid …)`, 창 A 의 be-run 이 정리되며 8100 이 내려가고 창 B 는 mpn 만 띄운다. README §"모듈을 나중에 하나 더 띄울 때" 의 현재 동작이다.
+- 기대: 창 B 에 `이전 be-run 인스턴스 종료 대기 (pid …)` 가 찍히고 창 B 는 mpn 을 띄운다. README §"모듈을 나중에 하나 더 띄울 때" 의 의도한 동작은 창 A 의 be-run 이 정리되며 8100 이 내려가는 것이다. 다만 아래 두 가지는 단정하지 말고 결과대로 적는다.
+  - be-run.ps1 `Stop-PreviousBeRuns` 는 먼저 `/F` 없는 `taskkill /T` 를 보내고 30초(`Wait-ProcessExit`) 기다린 뒤에야 `/F` 로 죽인다. 창 없는 콘솔 powershell 은 보통 `/F` 없이는 안 끝나므로 창 B 가 30초 멈춰 있다가 강제 종료로 넘어갈 수 있다.
+  - 강제 종료되면 창 A 의 정리 블록이 돌지 않아, Gradle 데몬의 자식인 앱 JVM(예: mcm 8100)이 남을 수 있다. 그 경우 이어지는 포트 회수 단계(`Clear-PortListener`)가 대상 모듈 포트만 정리하므로, 대상이 아닌 모듈의 포트는 계속 점유된 채일 수 있다.
+- 확인할 거리: (1) 창 B 의 `이전 be-run 인스턴스 종료 대기` 줄 뒤 30초 대기가 생기는지(초 단위로 잰다). (2) 창 B 가 mpn 을 띄운 뒤 8100 이 남아 있는지(`Get-NetTCPConnection -LocalPort 8100`)와 그 프로세스 이름·부모. 남았다면 개선 거리(`/F` 먼저 쓰기, 또는 데몬 자식 정리)로 기록한다.
 - 함께 볼 것: 이 판정은 명령줄에 `be-run.ps1` 만 있으면 **다른 체크아웃의 것도** 잡는다(셸 판은 이 체크아웃만). 두 번째 clone 에서 be-run.ps1 을 띄워 둔 상태로 창 B 를 실행했을 때 그쪽도 끝나는지 적는다 — 끝난다면 셸 판처럼 범위를 좁히는 개선 거리다.
 - 관련 커밋: `be51ac2e`(cleanup 내용 변경). 판정 범위 자체는 1b 이전부터 같다.
 - 결과:
@@ -158,6 +161,7 @@
   `Get-CimInstance Win32_Process | ? { $_.CommandLine -like "*$PWD\src\frontend*" -or $_.CommandLine -like '*_launch-frontend.ps1*' } | select ProcessId, Name`
 - 기대: 대기 중 `backend exited before coming up (not up: …) - check logs\be.log`, `prebuild failed? …`, **`stopping the frontend started above`**, 종료 코드 1. 이후 5100 free, 위 프로세스 조회 결과가 비어 있다. `logs\be.log` 에 선빌드 실패 로그.
 - 확인 방법: 출력·포트·프로세스 조회. 수정 전에는 5100 과 node 가 남았다.
+- 알려진 한계: 4aa617fe 의 FE 정리는 '포트가 열리기 전에 백엔드가 종료된' 분기에만 있다. 8분 대기 시간 초과 분기(`not up after 8 min: …`, 종료 코드 1)는 FE 를 정리하지 않으므로 FE(5100)와 node 가 그대로 남는다. 느린 선빌드로 시간 초과가 났을 때 확인하면 `dmes-down.cmd` 로 정리해야 한다. 개선 거리로만 적고 이 항목의 통과 조건에는 넣지 않는다.
 - 함께 볼 것: 이 분기는 선빌드 실패뿐 아니라 "백엔드 런처가 포트를 열기 전에 끝난 모든 경우"(포트 회수 실패 등)에 탄다.
 - 관련 커밋: `4aa617fe`(이 레인에서 고쳤고 실행해 보지 못했다), `f71b7c4a`.
 - 결과:
