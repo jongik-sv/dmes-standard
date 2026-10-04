@@ -1,6 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type Browser, type Locator, type Page, type TestInfo } from "@playwright/test";
+import { BASE_URL, LOGIN_USER, PASSWORD, T, login } from "../support/common";
+import { gridRows } from "../support/grid";
+
+/** 대기 시간 상수·ag-grid 본문 행 찾기는 e2e/support 공용을 그대로 쓴다(스펙은 이 파일 한 곳에서 import 한다). */
+export { T };
+export { gridCells, gridRowById, gridRowByIndex, gridRows } from "../support/grid";
 
 /**
  * 마루 MDM 사용자 여정 E2E 공용 부품.
@@ -14,12 +20,14 @@ import { expect, test, type Browser, type Locator, type Page, type TestInfo } fr
  * 시험 사용자는 00-setup.user.ts 가 admin 으로 포털 "사용자 관리" 화면에서 만든다.
  */
 
-export const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
+export { BASE_URL };
 export const OUT_DIR = path.resolve(__dirname, ".out");
 export const AUTH_DIR = path.join(OUT_DIR, "auth");
 export const SCREEN_DIR = path.join(OUT_DIR, "screens");
+/** 여정 브라우저 창 크기(설정 use.viewport 와 같다) — 손으로 여는 컨텍스트에도 같은 크기를 준다. */
+export const VIEWPORT = { width: 1600, height: 1000 };
 
-export const ADMIN = { id: process.env.SMOKE_LOGIN_USER ?? "admin", pwd: process.env.SMOKE_LOGIN_PASSWORD ?? "admin123" };
+export const ADMIN = { id: LOGIN_USER, pwd: PASSWORD };
 /** commUserMng 가 새 계정에 주는 초기 비밀번호(CommUserMngService.DEFAULT_PASSWORD). */
 export const INIT_PWD = "dmesInit!1";
 
@@ -63,12 +71,9 @@ export const E2E_ID_PREFIX = "E2E_";
 
 // ─────────────────────────── 로그인 ───────────────────────────
 
+/** 로그인 화면에서 로그인하고 포털로 넘어가길(T.LONG) 기다린다 — e2e/support/common 의 login 에 이 파일의 BASE_URL 을 넘긴다. */
 export async function loginUI(page: Page, id: string, pwd: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(id);
-  await page.getByPlaceholder("비밀번호").fill(pwd);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
+  await login(page, id, { baseUrl: BASE_URL, password: pwd });
 }
 
 /**
@@ -78,12 +83,12 @@ export async function loginUI(page: Page, id: string, pwd: string) {
 export async function openAs(browser: Browser, role: Role, testInfo: TestInfo): Promise<{ page: Page; watcher: Watcher }> {
   const file = authFile(role);
   if (!fs.existsSync(file)) throw new Error(`${file} 이 없다 — setup 프로젝트(00-setup.user.ts)를 먼저 돌린다`);
-  const context = await browser.newContext({ storageState: file, viewport: { width: 1600, height: 1000 } });
+  const context = await browser.newContext({ storageState: file, viewport: VIEWPORT });
   await context.addInitScript(installClickRecorder);
   const page = await context.newPage();
   const watcher = new Watcher(page, testInfo);
   await page.goto(`${BASE_URL}/portal`);
-  await expect(page.locator(".sidebar-container")).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator(".sidebar-container")).toBeVisible({ timeout: T.SLOW });
   return { page, watcher };
 }
 
@@ -129,13 +134,13 @@ export async function openMenu(page: Page, trail: string[], screenId: string) {
   for (let i = 0; i < trail.length; i++) {
     const node = menuNode(scope, trail[i]);
     const item = node.locator("xpath=./div[contains(@class,'tree-item')]");
-    await expect(item, `메뉴 "${trail.slice(0, i + 1).join(" > ")}"`).toBeVisible({ timeout: 20_000 });
+    await expect(item, `메뉴 "${trail.slice(0, i + 1).join(" > ")}"`).toBeVisible({ timeout: T.UI });
     const isLeaf = i === trail.length - 1;
     const expanded = !isLeaf && (await node.locator("xpath=./ul").isVisible().catch(() => false));
     if (!expanded) await item.click();
     scope = node;
   }
-  await expect(footerScreenId(page)).toHaveText(screenId, { timeout: 60_000 });
+  await expect(footerScreenId(page)).toHaveText(screenId, { timeout: T.SLOW });
   await waitIdle(page);
 }
 
@@ -154,8 +159,8 @@ export async function closeAllTabs(page: Page) {
 
 /** 로딩 표시가 사라지고 네트워크가 잠잠해질 때까지 기다린다. */
 export async function waitIdle(page: Page) {
-  await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => undefined);
-  await expect(page.locator(".portal-shell__loading:visible")).toHaveCount(0, { timeout: 30_000 });
+  await page.waitForLoadState("networkidle", { timeout: T.LONG }).catch(() => undefined);
+  await expect(page.locator(".portal-shell__loading:visible")).toHaveCount(0, { timeout: T.LONG });
 }
 
 // ─────────────────────────── 공용 조작 ───────────────────────────
@@ -177,19 +182,78 @@ export async function answerConfirm(page: Page, name: string | RegExp = /^(확�
 
 /** 토스트 문구가 뜨는지 본다. */
 export async function expectToast(page: Page, text: string | RegExp) {
-  await expect(page.locator(".mantine-Notification-root").filter({ hasText: text }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(".mantine-Notification-root").filter({ hasText: text }).first()).toBeVisible();
+}
+
+/** 보이는 오류 모달(ErrorModal) 본문. */
+export const errorBody = (page: Page) => page.locator(".error-modal__body:visible");
+
+/** 모달이 다 떠오른 뒤(열림 애니메이션 끝) 찍는다 — 반투명한 중간 프레임이 찍히지 않게. */
+export async function snapModal(page: Page, name: string) {
+  const m = modal(page);
+  await expect(m).toBeVisible();
+  await expect
+    .poll(() => m.evaluate((el) => Number(getComputedStyle(el).opacity) * (el.getAnimations().length ? 0 : 1)))
+    .toBe(1);
+  await snap(page, name);
+}
+
+export interface ErrorModalOptions {
+  /**
+   * 닫는 방법(inModal 이 아닐 때).
+   *   "exact"(기본) — [확인] 을 이름 완전 일치로 누르고 오류 본문이 사라졌는지 본다. 등록 팝업 위에 뜬 오류창도 다룬다
+   *     (닫힌 뒤 "마지막 보이는 모달"을 다시 찾으면 아래의 등록 팝업을 가리켜 toBeHidden 이 실패한다).
+   *   "answerConfirm" — answerConfirm(page, "확인"): 가장 위 모달이 닫혔는지 본다.
+   */
+  close?: "exact" | "answerConfirm";
+  /** 오류 본문을 가장 위 모달 안에서 찾고, shot 은 열림 애니메이션을 기다리지 않고 바로 찍는다(snap). */
+  inModal?: boolean;
+}
+
+/** 오류 모달 문구를 보고(부분 일치 toContainText) [확인]으로 닫는다. shot 을 주면 닫기 전에 스크린샷을 남긴다. */
+export async function expectErrorModal(page: Page, text: string | RegExp, shot?: string, opts: ErrorModalOptions = {}) {
+  if (opts.inModal) {
+    const m = modal(page);
+    await expect(m.locator(".error-modal__body")).toContainText(text, { timeout: T.UI });
+    if (shot) await snap(page, shot);
+    await m.getByRole("button", { name: "확인", exact: true }).click();
+    await expect(m.locator(".error-modal__body")).toHaveCount(0);
+    return;
+  }
+  await expect(errorBody(page)).toContainText(text, { timeout: T.UI });
+  if (shot) await snapModal(page, shot);
+  if (opts.close === "answerConfirm") {
+    await answerConfirm(page, "확인");
+    return;
+  }
+  await modal(page).getByRole("button", { name: "확인", exact: true }).click();
+  await expect(errorBody(page)).toHaveCount(0);
+}
+
+/** 의도한 업무 오류(4xx) 직후 — 모인 문제가 4xx 네트워크 콘솔 줄뿐인지 본다(5xx·페이지 예외는 남기지 않는다). */
+export function expectOnly4xx(watcher: Watcher, label: string) {
+  const rest = watcher.drain().filter((p) => !/status of 4\d\d/.test(p));
+  expect(rest, `${label}: 의도한 4xx 외의 오류가 없어야 한다`).toEqual([]);
+}
+
+/** 오늘에서 days 만큼 뺀 날의 0시 — 적용 시작 칸(DateTimePicker, 6e506cc9) 입력값(yyyy-MM-dd HH:mm:ss)과 서버 표기(yyyy-MM-dd). */
+export function daysAgo(days: number): { input: string; date: string } {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return { input: `${date} 00:00:00`, date };
 }
 
 /** ag-grid 안에서 셀 값으로 행을 찾는다. colId 를 주면 그 열만 본다. */
 export function gridRow(grid: Locator, value: string, colId?: string): Locator {
   const cell = colId ? `.ag-cell[col-id="${colId}"]` : ".ag-cell";
-  return grid
-    .locator(".ag-center-cols-container .ag-row")
+  return gridRows(grid)
     .filter({ has: grid.page().locator(cell, { hasText: new RegExp(`^\\s*${escapeRe(value)}\\s*$`) }) });
 }
 
 /** ag-grid 표시 행 수(가상화 때문에 화면에 그려진 행만 센다). */
-export const gridRowCount = (grid: Locator) => grid.locator(".ag-center-cols-container .ag-row").count();
+export const gridRowCount = (grid: Locator) => gridRows(grid).count();
 
 // ─────────────────────────── 품질 감시 ───────────────────────────
 

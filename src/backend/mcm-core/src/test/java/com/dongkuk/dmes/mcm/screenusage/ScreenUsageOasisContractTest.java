@@ -33,8 +33,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ScreenUsageOasisContractTest {
 
     static final Path SERVICES = Path.of("../mcm/api/src/main/resources/services");
-    static final Path DATA_INITIALIZER =
-            Path.of("../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java");
+    /** mcm 시드 소스 폴더. 시험이 읽는 파일은 아래 상수에 이름으로 적는다(폴더 전체를 훑지 않는다). */
+    static final Path MCM_INIT = Path.of("../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init");
+    /** PERM_ALL 의 {@code String allActions = String.join(",", ...)} 선언이 있는 파일. */
+    static final Path ALL_ACTIONS_SOURCE = MCM_INIT.resolve("seed/CoreRbacSeeder.java");
 
     @Test
     @DisplayName("screenUsage.bpmn 은 record 하나를 screenUsageService.record 로 보내고 output 은 result 다")
@@ -88,9 +90,9 @@ class ScreenUsageOasisContractTest {
     @Test
     @DisplayName("PERM_ALL allActions 에 통계 6개 action 이 있다 (없으면 SYSADMIN 도 403)")
     void permAllContainsStatActions() throws Exception {
-        String source = Files.readString(DATA_INITIALIZER);
+        String source = Files.readString(ALL_ACTIONS_SOURCE);
         int from = source.indexOf("String allActions = String.join(\",\",");
-        assertThat(from).as("allActions 선언").isNotNegative();
+        assertThat(from).as("allActions 선언 (" + ALL_ACTIONS_SOURCE.getFileName() + ")").isNotNegative();
         String block = source.substring(from, source.indexOf(");", from));
         Set<String> actions = new LinkedHashSet<>();
         Matcher m = Pattern.compile("\"([^\"]+)\"").matcher(block);

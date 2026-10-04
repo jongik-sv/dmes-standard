@@ -1,7 +1,9 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { T, login, walkMenuPath, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowById } from "./support/grid";
 
 /**
  * mdm dmd/dataMng(마루 데이터) smoke — TSK-07-02 design.md §3.3 스모크 넷(2026-09-29 통합 D-104: dataMng+dataEdit
@@ -19,11 +21,9 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  *
  * 픽스처: e2e/fixtures/mdm-dataMng.sql(mdm.db). E2E_DM_PORT(카테고리 3·항목 3)는 읽기만, 헤더 저장은 E2E_DM_CUST 로
  * 한다(카테고리 편집 spec 이 쓰는 E2E_DC_PORT 는 건드리지 않는다). 서버 절차는 design.md 「E2E 서버 절차」.
- * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(127.0.0.1:5100 은 메인 체크아웃 포털이라 쓰지 않는다, F23).
+ * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 localhost:5100 은 메인 체크아웃 포털이라 쓰지 않는다, F23).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
 const SUFFIX = Date.now().toString(36).toUpperCase();
@@ -33,28 +33,17 @@ const NEW_NAME = `거래처 E2E ${SUFFIX}`;
 // 스크린샷은 저장소 문서(docs)를 건드리지 않도록 git 제외 폴더(mdm-user/.out)에 남긴다.
 const screenshot = (name: string) => path.resolve(__dirname, "mdm-user/.out/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openScreen(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^마스터데이터$/, /^마루 데이터$/]) {
-    const node = item(name);
-    await expect(node).toBeVisible({ timeout: 20_000 });
-    await node.click();
-  }
-  await expect(page.getByTestId("data-mng-list")).toBeVisible({ timeout: 60_000 });
+  await walkMenuPath(page, [/^마루 MDM$/, /^마스터데이터$/, /^마루 데이터$/]);
+  await expect(page.getByTestId("data-mng-list")).toBeVisible({ timeout: T.SLOW });
 }
 
 function waitAction(page: Page, action: string, service = "dataMng") {
   return page.waitForResponse(
     (r) => r.url().includes(`/api/mdm/oasis/${service}/${action}`) && r.status() === 200,
-    { timeout: 30_000 },
+    { timeout: T.LONG },
   );
 }
 
@@ -63,7 +52,7 @@ const headerButton = (page: Page, name: string) =>
   page.locator(".page-layout__header-buttons:visible").getByRole("button", { name, exact: true });
 
 function listRow(page: Page, id: string): Locator {
-  return page.getByTestId("data-mng-list").locator(`.ag-center-cols-container .ag-row[row-id="${id}"]`);
+  return gridRowById(page.getByTestId("data-mng-list"), id);
 }
 
 async function search(page: Page, id: string) {
@@ -78,13 +67,13 @@ async function selectRow(page: Page, id: string) {
   const viewed = waitAction(page, "view", "dataEdit");
   await listRow(page, id).click();
   await viewed;
-  await expect(page.getByTestId("data-edit-id")).toHaveText(id, { timeout: 20_000 });
+  await expect(page.getByTestId("data-edit-id")).toHaveText(id, { timeout: T.UI });
 }
 
 /** 목록 헤더 [데이터 등록] 으로 등록 팝업을 연다(열 때마다 새로 마운트되어 칸이 빈다). */
 async function openRegister(page: Page) {
   await page.locator("#btn_data_reg").click();
-  await expect(page.getByTestId("data-mng-register-form")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("data-mng-register-form")).toBeVisible({ timeout: T.UI });
 }
 
 async function register(page: Page, id: string, name: string) {
@@ -100,7 +89,7 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
 
   test.beforeAll(() => loadMdmFixture("mdm-dataMng.sql"));
   test.beforeEach(async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
   });
 
@@ -113,7 +102,7 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
 
   test("M2 목록·상세: 조회하면 행이 보이고, 행을 누르면 오른쪽 상세(헤더·카테고리 요약·항목 수)가 채워진다", async ({ page }) => {
     await search(page, "E2E_DM");
-    await expect(listRow(page, "E2E_DM_PORT")).toBeVisible({ timeout: 20_000 });
+    await expect(listRow(page, "E2E_DM_PORT")).toBeVisible({ timeout: T.UI });
     await expect(listRow(page, "E2E_DM_CUST")).toBeVisible();
     await page.screenshot({ path: screenshot("dmd-dataMng-list.png") });
 
@@ -126,7 +115,7 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
     await selectRow(page, "E2E_DM_PORT");
     const categories = page.getByTestId("data-edit-categories");
     for (const cateId of ["BASE", "KR", "MAJOR"]) {
-      await expect(categories.locator(`.ag-center-cols-container .ag-row[row-id="${cateId}"]`)).toBeVisible({ timeout: 20_000 });
+      await expect(gridRowById(categories, cateId)).toBeVisible({ timeout: T.UI });
     }
     await expect(page.getByTestId("data-edit-item-count")).toHaveText("3");
     await page.screenshot({ path: screenshot("dmd-dataMng-detail.png") });
@@ -148,22 +137,22 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
     await registered;
 
     // 같은 탭 오른쪽에 그 ID 의 상세(BASE 카테고리 1행)가 뜨고 등록 폼은 닫힌다.
-    await expect(page.getByTestId("data-edit-id")).toHaveText(NEW_ID, { timeout: 20_000 });
+    await expect(page.getByTestId("data-edit-id")).toHaveText(NEW_ID, { timeout: T.UI });
     await expect(page.getByTestId("data-edit-name")).toHaveValue("E2E 등록 테스트");
     await expect(page.getByTestId("data-mng-register-form")).toHaveCount(0);
     await expect(
-      page.getByTestId("data-edit-categories").locator('.ag-center-cols-container .ag-row[row-id="BASE"]'),
-    ).toBeVisible({ timeout: 20_000 });
+      gridRowById(page.getByTestId("data-edit-categories"), "BASE"),
+    ).toBeVisible({ timeout: T.UI });
     // 목록도 다시 조회돼 방금 만든 행이 보인다.
     await search(page, NEW_ID);
-    await expect(listRow(page, NEW_ID)).toBeVisible({ timeout: 20_000 });
+    await expect(listRow(page, NEW_ID)).toBeVisible({ timeout: T.UI });
     await page.screenshot({ path: screenshot("dmd-dataMng-register.png") });
   });
 
   test("M4 중복 ID 재등록은 MDM011 문구로 거부된다", async ({ page }) => {
     await register(page, "E2E_DM_PORT", "중복 시도");
 
-    await expect(page.getByText("마루 코드·마루 데이터에 같은 ID 가 있습니다")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("마루 코드·마루 데이터에 같은 ID 가 있습니다")).toBeVisible({ timeout: T.UI });
     await page.screenshot({ path: screenshot("dmd-dataMng-duplicate-id.png") });
   });
 
@@ -177,7 +166,7 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
     await expect(page.getByTestId("data-edit-name")).toHaveValue(NEW_NAME);
 
     // 목록에도 바뀐 이름이 보이고, 다른 데이터를 골랐다 돌아와도 저장된 값이 그대로다.
-    await expect(listRow(page, "E2E_DM_CUST").locator('.ag-cell[col-id="maruDataName"]')).toHaveText(NEW_NAME, { timeout: 20_000 });
+    await expect(listRow(page, "E2E_DM_CUST").locator('.ag-cell[col-id="maruDataName"]')).toHaveText(NEW_NAME, { timeout: T.UI });
     await selectRow(page, "E2E_DM_PORT");
     await selectRow(page, "E2E_DM_CUST");
     await expect(page.getByTestId("data-edit-name")).toHaveValue(NEW_NAME);
@@ -190,7 +179,7 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
     await page.getByTestId("data-edit-pattern").fill("[");
     await page.getByTestId("data-edit-save").click();
 
-    await expect(page.getByText("키 패턴 정규식이 올바르지 않습니다")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("키 패턴 정규식이 올바르지 않습니다")).toBeVisible({ timeout: T.UI });
     await page.screenshot({ path: screenshot("dmd-dataMng-invalid-pattern.png") });
   });
 
@@ -201,10 +190,10 @@ test.describe("mdm dmd/dataMng — 마루 데이터(조회·등록·수정 통�
     await page.getByTestId("data-edit-item-edit").click();
 
     // dataItemMng 탭이 새로 열리고 마루 데이터 조건이 E2E_DM_PORT 로 고정된다. 첫 항목(E2E_DI_…)으로 열리면 handoff 실패다.
-    await expect(page.locator(".page-layout__footer-screen-id").filter({ hasText: "dataItemMng" })).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("item-current")).toContainText("E2E_DM_PORT", { timeout: 30_000 });
+    await expect(page.locator(".page-layout__footer-screen-id").filter({ hasText: "dataItemMng" })).toBeVisible({ timeout: T.LONG });
+    await expect(page.getByTestId("item-current")).toContainText("E2E_DM_PORT", { timeout: T.LONG });
     await expect(page.getByTestId("item-tab-grid")).toBeVisible();
-    await expect(page.locator(".ag-center-cols-container .ag-row[row-id=\"KRPUS\"]")).toBeVisible({ timeout: 20_000 });
+    await expect(gridRowById(page, "KRPUS")).toBeVisible({ timeout: T.UI });
     await page.screenshot({ path: screenshot("dmd-dataMng-to-itemMng.png") });
   });
 });

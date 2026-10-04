@@ -40,8 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * /log/range/time · /log/range/time/tree 응답을 고정한다. 기대값(characterization/*.json)은 바꾸기 전 코드로 뽑았다.
  *
  * <p>minimum_mega_bytes_for_multi_thread=0 으로 작은 파일도 MultiThreadRangeSearcherRunner(범위 분할) 경로를 타게 한다.
- * 픽스처에 이어진 줄(스택)을 두지 않는다 — LogProcessor 소비 스레드가 생산 도중 깨어나면 이어진 줄을 놓칠 수 있는
- * 기존 타이밍 문제가 있어(파서 특성 테스트가 따로 고정), 여기서는 결과가 흔들리지 않게 한다.
+ * 픽스처에 이어진 줄(스택)을 두지 않는다 — 기대값을 뽑던 때의 코드는 소비 스레드가 생산 도중 빈 큐를 만나면 이어진 줄을
+ * 놓칠 수 있었다(지금은 고쳐졌고 core LogProcessorCatchUpTest 가 따로 확인한다). 예전 기대값을 그대로 쓰려고 두지 않는다.
  */
 @SpringBootTest(properties = {
         "analog-express.modules=test",
@@ -104,8 +104,8 @@ class LogSearchControllerCharacterizationTest {
         live.append(line("10:00:00.110", "http-1", "T1", "SVC01", "INFO ", "c.d.Svc", "Service [SVC01] finish.(100ms)"));
         live.append(line("10:00:00.120", "http-1", "T1", "SVC01", "INFO ", "c.d.Web", "Completed 200 OK"));
         live.append(line("10:00:00.200", "http-2", "T2", "SVC02", "DEBUG", "c.d.Svc", "Converted value on extraction: x"));
-        // 범위(~11:00) 밖 줄. live 파일은 이 줄까지 결과에 들어온다(기존 동작). 검색 결과의 마지막 논리 줄은
-        // LogProcessor 가 소비하지 않을 수도 있어(EOQ 직전 버퍼) 소비되든 안 되든 트리가 같은 T2 버림 메시지로 둔다.
+        // 범위(~11:00) 밖 줄. live 파일은 이 줄까지 결과에 들어온다(기존 동작). 이제 LogProcessor 는 끝 신호(EOQ)에서
+        // 마지막 논리 줄도 소비한다 — 예전 기대값을 그대로 쓰려고 트리에 영향 없는 T2 버림 메시지를 보초 줄로 남긴다.
         live.append(line("11:30:00.000", "http-2", "T2", "SVC02", "DEBUG", "c.d.Svc", "Converted value on extraction: after-range"));
         Files.writeString(logDir.resolve("dmes-test.log"), live.toString(), StandardCharsets.UTF_8);
     }

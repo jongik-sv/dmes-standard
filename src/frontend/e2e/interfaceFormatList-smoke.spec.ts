@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { BASE_URL, LOGIN_USER, login } from "./support/common";
 
 /**
  * I/F Format 조회 (mcm/cib interfaceFormatList) 화면 스모크.
@@ -13,17 +14,10 @@ import { expect, test } from "@playwright/test";
  *   (4) 비교 버튼 노출 확인
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin@dmes.com";
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 
 test.describe("I/F Format 조회 (interfaceFormatList) Smoke", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
-    await page.getByPlaceholder("아이디").fill(LOGIN_USER);
-    await page.getByPlaceholder("비밀번호").fill(LOGIN_PASSWORD);
-    await page.getByRole("button", { name: "로그인" }).click();
-    await expect(page).toHaveURL(/\/portal/, { timeout: 15000 });
+    await login(page, LOGIN_USER, { baseUrl: BASE_URL, portalTimeout: 15_000 });
   });
 
   test("화면 렌더링 + 조회 동작", async ({ page }) => {
@@ -33,11 +27,11 @@ test.describe("I/F Format 조회 (interfaceFormatList) Smoke", () => {
       const child = page.getByText(path[i + 1], { exact: true }).first();
       if (!(await child.isVisible().catch(() => false))) {
         await page.getByText(path[i], { exact: true }).first().click();
-        await page.waitForTimeout(900);
+        await child.waitFor({ state: "visible", timeout: 900 }).catch(() => {});
       }
     }
     const menuItem = page.getByText(path[path.length - 1], { exact: true }).first();
-    await menuItem.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+    await menuItem.waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});
     if (!(await menuItem.isVisible().catch(() => false))) {
       test.skip();
       return;

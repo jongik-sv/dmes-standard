@@ -3,7 +3,7 @@
 이 문서는 1b 레인(`refactor/build`)의 구조 변경을 적는다. 형식은 [README.md](./README.md) §6.1 을 따른다.
 
 - 이번 1차 머지 범위: `af572b93..HEAD` (문서를 추가한 83a14e90 자신을 포함해 15개 커밋 + 레인 내부 머지 1개).
-- E2E(8번)·버전 카탈로그(2번)·build-logic(3번)은 다음 머지에서 이어 적는다.
+- E2E(8번)는 이번 머지에 들어간다(S10~S13, 범위 `af572b93..HEAD -- src/frontend/e2e src/frontend/playwright.config.ts`, 커밋 13개). 버전 카탈로그(2번)·build-logic(3번)은 다음 머지에서 이어 적는다.
 - 스크립트 경로 표기: `be-run.sh`·`fe-run.sh`·`local-run.sh`·`be-run.ps1`·`dmes-up.ps1` 등은 저장소 루트에 있고, 공통 부품은 `scripts/lib/` 에 있다.
 - ps1 변경은 이 PC 에 pwsh 가 없어 구문 분석·실행 모두 미검증이다. Windows 에서 확인해야 한다(S3·S4·S5 해당).
 
@@ -16,6 +16,12 @@
 | S5 | 공통 함수 scripts/lib 추출, 모듈·포트 단일 원본, 포털 포트 결함 수정 |
 | S6 | cactus-core 시험에 sqlite-jdbc 추가 |
 | S7 | mdm/api 시험 입력에 mcm 시드 파일 2개 추가 |
+| S8 | mcm-core 시험 입력에 mcm/api 시드 소스 세 파일 선언 |
+| S9 | cactus-core 시험의 sqlite-jdbc 를 실행 범위로 옮기고 hibernate SQLite 방언 추가 (S6 후속) |
+| S10 | 일회성 스펙 17개 e2e/archive 이동과 testIgnore |
+| S11 | E2E 공통 헬퍼 통합(로그인·메뉴·그리드 셀렉터·대기 상수·조건 대기) |
+| S12 | dmd 소속 편집 팝업 TransferList testid 반영 |
+| S13 | E2E 기본값 결함 수정(포털 주소·기본 아이디) |
 
 ## S1. restart-all.sh 를 scripts/archive 로 보관
 - 커밋: 5d893cc3
@@ -158,3 +164,46 @@
 - 동작 보존 근거: dev 의 시험 소스 grep 에서 cactus-core 에는 `org.sqlite`·`org.hibernate.community` import 가 없다(org.sqlite import 는 mcm/lib 시험에만, 방언은 문자열 지정뿐). `testRuntimeClasspath` 해석: hibernate-community-dialects 7.2.12.Final, hibernate-core 7.2.12.Final(같은 버전), sqlite-jdbc 3.45.3.0 -> 3.50.3.0(BOM 이 올림). `testCompileClasspath` 에는 두 의존이 없다. `compileTestJava` BUILD SUCCESSFUL. 시험 실행은 하지 않았다.
 - 영향 범위: cactus-core 시험 런타임 클래스패스만. main·운영 산출물 변화 없음. S6 에서 걱정한 선언과 해석 버전 차이는 위 값으로 확인됐다(3.50.3.0).
 - 되돌리는 방법: 7af5a32e revert (a8 의 SQLite 방언 시험이 방언 클래스를 못 찾아 실패한다).
+
+## S10. 일회성 스펙 17개 e2e/archive 이동과 testIgnore
+- 커밋: b389e91c
+- 바뀌기 전: `src/frontend/e2e/` 바로 아래에 일회성 검증·스냅샷 스펙이 정식 스모크와 섞여 있었다. `playwright test --list` 기본 217개.
+- 바뀐 뒤: 17개 스펙을 `src/frontend/e2e/archive/` 로 `git mv`(내용 변경 없음)하고 `playwright.config.ts` 에 `testIgnore: ["**/archive/**"]` 를 더했다. `archive/README.md`(보관 규칙·되살리는 법) 추가. 이동한 스펙 17개: auto-search-csa, commRoleMng-debug, mpp-ppd-revision-verify, phase12-quick, phase12-verify, round2-verify, round3-phase1-verify, round4-verify, round6-verify, round7-verify, round7b-fld-grid, round8-verify, round8b-detail-formurl, six-screens-snap, snapshot-9, snapshot-w5, w5-propagation-verify. 남은 스펙이 이 파일을 가리키던 주석 2곳(domainMng-grid-height, portal-tab-history)은 `archive/` 경로로 고쳤다.
+- 바꾼 이유: 한 번 쓰고 끝난 스펙이 실행 목록과 컴파일 대상에 섞여 정식 회귀의 소음이 됐다. 이동은 조정 세션 승인을 받았다.
+- 남긴 3개와 근거(이름만 보면 일회성 같지만 남김): w4-refactor-smoke 는 `docs/guide/.../part-d-mpn-shared-catalog.md:163` 이 E2E 스모크 정본으로 지정한다. phase2-planning-smoke 는 렌더 스모크다. rule-layout-diag 는 이름은 diag 지만 레이아웃 회귀 expect 가 있다. mpp-ppd-revision-verify 는 경계 사례였으나 정식 스모크 mpp-ppd-all-smoke 가 같은 화면을 맡고 있어 보관으로 옮겼다.
+- 동작 보존 근거: `--list` 기본 217 -> 175(보관한 42개 테스트만 빠지고 나머지는 그대로). 스펙 파일 내용은 이동만 했다.
+- 영향 범위: E2E 실행 목록. 보관 스펙은 실행·컴파일되지 않으므로 support 헬퍼를 바꿔 import 가 깨져도 고치지 않는다.
+- 되돌리는 방법: b389e91c revert (17개가 `e2e/` 로 돌아오고 testIgnore 가 사라져 217개로 복귀).
+
+## S11. E2E 공통 헬퍼 통합
+- 커밋: c37fb04a(로그인·메뉴·PASSWORD), fc7c8e57(ag-grid 셀렉터), 39abfef7(대기 숫자 T 상수), ce8a8d0a(waitForTimeout 조건 대기), e1bd277f·dcab5073·9ffc450b(mdm-user 여정의 중복·셀렉터·대기 숫자), b905e2fc(FORMAT 선택 팝업 대기 상한 11초 복원·안 쓰는 BASE_URL import 제거), df1ad1e1(gridRowById 숫자 인자 String() 정리)
+- 바뀌기 전: 스펙마다 로그인·메뉴 이동 함수와 PASSWORD 상수를 따로 갖고 있었다. ag-grid 본문 행 셀렉터(`.ag-center-cols-container .ag-row`)가 스펙에 직접 박혀 있었고, 대기 시간 숫자(20_000 등)가 흩어져 있었다. 기다릴 대상이 분명한 곳에도 고정 `waitForTimeout` 이 있었다. mdm-user 여정(dma~dme)은 로그인·오류 모달·resetClicks·closeTabs 를 파일마다 복사해 두었다.
+- 바뀐 뒤:
+  - 로그인·메뉴 이동·PASSWORD 를 `e2e/support/common.ts` 로 모았다(34개 파일, 282줄 추가·584줄 삭제).
+  - ag-grid 본문 행·칸 셀렉터를 `e2e/support/grid.ts`(gridRows·gridRowById·gridRowByIndex·gridCells)로 모았다. mdm-user 쪽 직접 사용 52건도 같은 셀렉터 문자열을 만드는 헬퍼로 바꿨다. 컨테이너 없는 `.ag-row`·고정 열·컨테이너 안 testid 셀렉터는 의미가 달라 그대로 뒀다.
+  - 대기 숫자를 T 상수로 올렸다(mdm-user: 20_000 -> T.UI 351건, 30_000 -> T.LONG 72건, 60_000 -> T.SLOW 30건). playwright 설정의 기본값과 같은 10_000(`playwright.config.ts` 쪽)·15_000(mdm-user 설정의 expect.timeout)은 인자에서 뺐다. 설정값과 다른 10_000·5_000·2_000 은 그대로 뒀다.
+  - 기다릴 대상이 분명한 고정 쉼은 조건 대기로 바꿨다(7개 파일, 10줄 추가·12줄 삭제). 대상이 불분명하거나 부정 단언 앞의 쉼은 그대로 뒀다.
+  - mdm-user 의 중복(로그인·expectErrorModal·resetClicks·closeAllTabs·VIEWPORT)을 `mdm-user/support.ts` 로 모았다. dmc 의 지역 gridRowById 는 공용 이름과 겹쳐 rowById 로 바꿨다.
+  - b905e2fc 는 FORMAT 선택 팝업 대기 상한을 11초로 되돌린 fix 이고, 불필요한 BASE_URL import 를 지웠다. df1ad1e1 은 gridRowById 숫자 인자를 String() 으로 맞췄다.
+- 바꾼 이유: 같은 코드를 스펙마다 고치던 비용을 줄이고, 대기 시간을 한 곳에서 조정하게 한다.
+- 동작 보존 근거: `--list` 가 175(mdm-user 설정은 217)로 전후 동일. 서버를 띄워 실행한 결과 A군(일반 스펙) 회귀 0건이다. 실패 10건은 모두 리팩토링 전 스펙도 같은 오류로 실패했다(환경·데이터·메뉴 미시드). C군 mdm-user 여정은 217개 중 211 통과·1 실패·5 건너뜀이다. 실패한 TC-DMA-COL-02 는 공용 DB 의 용어 사전 데이터 상태 때문이다('판정값E2EX' 가 사전 적재 용어로 쪼개져 UNKNOWN 토큰 자리가 달라진다). 시험 코드는 전후 동일하다. dmd TC-DMD-CATE-04·05·08 은 통과했다.
+- 영향 범위: E2E 스펙·support 코드. 앱 코드 변화 없음. 새 스펙은 support/common·support/grid·T 상수를 써야 한다.
+- 되돌리는 방법: 위 커밋 revert. 앞 커밋 일부만 되돌리면 뒤 커밋이 support 헬퍼를 참조해 깨지므로 역순으로 되돌린다.
+
+## S12. dmd 소속 편집 팝업 TransferList testid 반영
+- 커밋: d825e20d
+- 바뀌기 전: `mdm-user/dmd.user.ts` 가 소속 편집 팝업의 옛 testid 와 선택 뒤 이동 버튼 활성 조건을 따랐다.
+- 바뀐 뒤: 팝업이 TransferList 로 바뀐 새 testid 와 이동 버튼 활성 조건에 맞췄다(1개 파일, 17줄 추가·16줄 삭제).
+- 바꾼 이유: c3 레인 2차 커밋(72a0b65b)이 팝업을 TransferList 로 바꿨다. 이 시험이 따라가지 않으면 dmd 여정이 깨진다. c3 교차 리뷰에서 고칠 점 없음.
+- 동작 보존 근거: dmd TC-DMD-CATE-04·05·08 통과(S11 의 C군 실행).
+- 영향 범위: dmd 여정 시험만. 앱 코드 변화 없음. 이 시험은 c3 의 72a0b65b 이후 화면을 전제한다.
+- 되돌리는 방법: d825e20d revert (c3 2차 이후 화면에서 dmd 소속 편집 시험이 실패한다).
+
+## S13. E2E 기본값 결함 수정 (동작 변경)
+- 커밋: ad7ba83a, 67610840
+- 바뀌기 전: 포털 주소 기본값이 `127.0.0.1` 이었고 로그인 기본 아이디가 `admin@dmes.com` 이었다. master-rule-data·data-list·data-upload·frame 스펙은 `SMOKE_LOGIN_USER!`·`SMOKE_LOGIN_PASSWORD!` 를 기본값 없이 읽어 환경변수가 없으면 undefined 를 입력했다.
+- 바뀐 뒤: 포털 주소 기본값을 `localhost`(`http://localhost:5100`), 기본 아이디를 `admin` 으로 고쳤다(ad7ba83a, 21개 파일). master-rule 4개 스펙은 `support/common` 의 LOGIN_USER·PASSWORD(기본 admin/admin123, 환경변수로 덮음)와 DEFAULT_BASE_URL 을 쓴다(67610840, 4개 파일).
+- 바꾼 이유: 이것은 리팩토링이 아니라 fix 이며 동작이 달라진다. 원래 결함: 포털이 `127.0.0.1` 접속을 `localhost` 로 되돌려 세션이 끊겼고, `admin@dmes.com` 은 401 이었다. master-rule 4개는 환경변수 없이 돌리면 로그인할 수 없었다.
+- 동작 보존 근거: 보존이 아니라 결함 수정이다. 환경변수로 값을 직접 주던 실행은 그대로이고, 기본값에 기대던 실행만 바뀐다. S11 의 서버 실행에서 기본값으로 로그인이 통과했다.
+- 영향 범위: 환경변수 없이 E2E 를 돌리는 사람. 주소·계정이 다르면 환경변수로 덮어야 한다.
+- 되돌리는 방법: ad7ba83a·67610840 revert (옛 결함이 돌아온다. 되돌릴 이유가 없다).

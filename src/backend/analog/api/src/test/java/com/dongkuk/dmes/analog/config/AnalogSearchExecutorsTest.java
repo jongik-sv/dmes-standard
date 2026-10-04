@@ -6,7 +6,12 @@ import com.dongkuk.analogexpress.searcher.MultiThreadRangeSearcherRunner;
 import com.dongkuk.analogexpress.searcher.Range;
 import com.dongkuk.analogexpress.searcher.SearchResult;
 import com.dongkuk.analogexpress.searcher.StartsStringContextualNewLineInspector;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.AfterEach;
+import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -185,5 +190,41 @@ class AnalogSearchExecutorsTest {
         terminated.add(executors.treeParse().isTerminated());
         assertThat(terminated).containsOnly(true);
         executors = null;
+    }
+
+    @Test
+    void 종료_대기_중_인터럽트되면_시간_초과가_아니라_인터럽트로_강제_종료했다고_남긴다() throws Exception {
+        executors = new AnalogSearchExecutors(1, 1, 1);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        executors.fileSearch().submit(() -> {
+            started.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+
+        Logger logger = (Logger) LoggerFactory.getLogger(AnalogSearchExecutors.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            Thread.currentThread().interrupt();   // 종료 대기(awaitTermination)가 곧바로 InterruptedException 을 던진다
+            executors.shutdown();
+            assertThat(Thread.interrupted()).isTrue();   // 인터럽트 상태를 되살려 둔다 — 확인하며 지운다
+        } finally {
+            logger.detachAppender(appender);
+            release.countDown();
+        }
+
+        List<String> warnings = new ArrayList<>();
+        for (ILoggingEvent e : appender.list) {
+            if (e.getLevel() == Level.WARN) warnings.add(e.getFormattedMessage());
+        }
+        assertThat(warnings).anySatisfy(w -> assertThat(w).contains("파일").contains("인터럽트되어 강제 종료"));
+        assertThat(warnings).noneSatisfy(w -> assertThat(w).contains("초 안에 끝나지 않아"));
     }
 }

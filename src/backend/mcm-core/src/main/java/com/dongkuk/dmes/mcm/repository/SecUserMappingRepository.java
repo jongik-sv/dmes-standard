@@ -60,4 +60,40 @@ public interface SecUserMappingRepository extends JpaRepository<SecUserMapping, 
      */
     @Query("SELECT DISTINCT m.userId FROM SecUserMapping m WHERE m.roleGroupId IN :roleGroupIds")
     List<String> findUserIdsByRoleGroupIdIn(@Param("roleGroupIds") Collection<String> roleGroupIds);
+
+    /**
+     * 한 사용자의 역할그룹 매핑 전체를 DELETE 한 번으로 지운다 — 사용자 삭제(SecUserService 'D' 분기) 용.
+     *
+     * <p>JPQL 벌크 DELETE 라 엔티티를 읽지 않고 영속성 컨텍스트·엔티티 콜백을 거치지 않는다.
+     * {@link SecUserMapping} 에는 {@code @PreRemove}·cascade·연관이 없고 감사 리스너는 PrePersist·PreUpdate 만 다루므로
+     * 건별 {@code deleteById} 와 DB 결과가 같다. (파생 {@code deleteBy…} 는 행마다 읽고 지우므로 쓰지 않는다.)
+     *
+     * <ul>
+     *   <li>{@code flushAutomatically} 는 쓰지 않는다 — Hibernate 가 벌크 DELETE 실행 직전에 영향 표(매핑 표)에 미뤄 둔
+     *       변경이 있으면 스스로 auto-flush 하므로({@code StandardJdbcMutationExecutor} 의 {@code autoFlushIfRequired})
+     *       같은 트랜잭션에서 앞서 저장한 매핑의 INSERT → 이 DELETE 순서가 지켜진다(SecUserServiceDeleteAutoFlushTest).
+     *       'D' 행이 하나인 요청은 옛 경로(매핑 ID SELECT 뒤 건별 {@code deleteById})와 flush 시점·결과가 같다.
+     *       'D' 행이 둘 이상이고 앞 'D' 사용자에게 매핑이 있었으면 달라진다 — 옛 경로는 {@code deleteById} 가 남긴
+     *       매핑 DELETE(미뤄 둔 {@code em.remove}) 때문에 다음 'D' 행의 JPQL SELECT 에서 Hibernate 가 계정까지 전체 flush 했고,
+     *       지금은 벌크 DELETE 가 바로 실행돼 매핑 표에 미뤄 둔 것이 없으므로 사용자 계정 변경이 커밋 때(또는 뒤 'C' 행의
+     *       {@code existsById} 계정 count 쿼리가 계정 표 auto-flush 를 일으키는 시점) 나간다.
+     *       그래서 같은 요청에서 고친('U') 계정의 VER 이 옛 경로와 다르게 오르고 U_AT 도 다르다 — 예를 들어 'U' 행 뒤에
+     *       'D' 행이 둘 이상 오면 옛 경로의 +2 대신 ('U' 행 뒤에 오는 'D' 행 수 + 1) 만큼 오른다
+     *       (Hibernate 는 '필요 없음' 으로 끝나는 auto-flush 검사에서도 dirty 엔티티의 {@code @PreUpdate} 를 부른다).
+     *       계정 INSERT·UPDATE·DELETE 의 DB 오류도 {@code saveUsers} 안의 두 번째 'D' 행이 아니라 그 뒤 시점에 난다.
+     *       이 save 를 부르는 화면이 아직 없어 그대로 두며, 차이 설명은 docs/refactor-2026-10/perf-mcm.md P2 에 있다.</li>
+     *   <li>{@code clearAutomatically} 는 쓰지 않는다 — 호출하는 {@code saveUsers}(secUser.bpmn saveTask) 는 이 삭제 뒤
+     *       같은 트랜잭션에서 매핑을 다시 읽지 않고, 비우면 같은 영속성 단위의 다른 관리 엔티티(사이트 어댑터의 사용자 등)까지
+     *       분리돼 버린다. 이 메서드를 새로 쓰는 곳이 삭제 뒤 매핑 엔티티를 다시 읽는다면 그쪽에서 판단한다.
+     *       특히 같은 트랜잭션에서 이 사용자의 매핑을 미리 읽어 두었다면, 벌크 삭제 뒤 같은 PK 로 다시 저장할 때 지워진 행에
+     *       UPDATE 가 나가 {@code StaleStateException} 으로 실패하므로 그 호출부에서 {@code em.clear}·{@code detach} 를 판단한다.
+     *       (이는 새 인스턴스를 save 해 {@code merge} 가 관리 인스턴스를 dirty 로 만드는 경우다. 미리 읽어 둔 관리 인스턴스를
+     *       그대로 다시 save 하면 dirty 가 아니어서 UPDATE·INSERT 가 나가지 않고, 다시 넣으려던 행이 오류 없이 사라진다.)</li>
+     * </ul>
+     *
+     * @return 지운 행 수
+     */
+    @Modifying
+    @Query("DELETE FROM SecUserMapping m WHERE m.userId = :userId")
+    int bulkDeleteByUserId(@Param("userId") String userId);
 }

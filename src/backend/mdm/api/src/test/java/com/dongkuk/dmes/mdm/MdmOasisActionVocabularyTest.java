@@ -110,16 +110,16 @@ class MdmOasisActionVocabularyTest {
     }
 
     /**
-     * TSK-08-02 I23 — mcm {@code DataInitializer} 는 mdm lib 을 의존하지 않아 action 을 문자열로 적는다. PERM_ALL 의 allActions 에
+     * TSK-08-02 I23 — mcm 시드({@code CoreRbacSeeder}·{@code MdmMenuSeeder})는 mdm lib 을 의존하지 않아 action 을 문자열로 적는다. PERM_ALL 의 allActions 에
      * 없는 action 은 SYSADMIN 도 403 이고, PERM_MDM_EDIT 문자열이 계약과 어긋나면 역할 사용자가 403 이다. 단위 테스트가 없는
      * 모듈이라 소스 문자열을 읽어 mdm 계약·BPMN 과 대조한다.
      */
     @Test
     void mcm_시드의_allActions_는_mdm_BPMN_의_모든_action_을_담고_editActions_는_계약과_같다() throws Exception {
-        String source = Files.readString(DATA_INITIALIZER);
-        int from = source.indexOf("String allActions = String.join(\",\",");
-        assertTrue(from >= 0, "allActions 선언을 찾지 못했다");
-        Set<String> allActions = quoted(source.substring(from, source.indexOf(");", from)));
+        String allActionsSource = Files.readString(ALL_ACTIONS_SOURCE);
+        int from = allActionsSource.indexOf("String allActions = String.join(\",\",");
+        assertTrue(from >= 0, "allActions 선언을 찾지 못했다: " + ALL_ACTIONS_SOURCE.getFileName());
+        Set<String> allActions = quoted(allActionsSource.substring(from, allActionsSource.indexOf(");", from)));
         Set<String> bpmnActions = new LinkedHashSet<>();
         Set<String> scanned = new LinkedHashSet<>();
         try (var files = Files.walk(Path.of("src/main/resources/services"))) {
@@ -132,11 +132,12 @@ class MdmOasisActionVocabularyTest {
                 "dme BPMN 이 스캔되지 않았다: " + scanned);
         Set<String> missing = new LinkedHashSet<>(bpmnActions);
         missing.removeAll(allActions);
-        assertEquals(Set.of(), missing, "mcm DataInitializer allActions 에 없는 mdm BPMN action");
+        assertEquals(Set.of(), missing, "mcm CoreRbacSeeder allActions 에 없는 mdm BPMN action");
 
-        java.util.regex.Matcher read = java.util.regex.Pattern.compile("String readActions = \"([^\"]*)\";").matcher(source);
-        java.util.regex.Matcher edit = java.util.regex.Pattern.compile("String editActions = readActions \\+ \"([^\"]*)\";").matcher(source);
-        assertTrue(read.find() && edit.find(), "readActions·editActions 선언을 찾지 못했다");
+        String seederSource = Files.readString(MDM_MENU_SEEDER_SOURCE);
+        java.util.regex.Matcher read = java.util.regex.Pattern.compile("String readActions = \"([^\"]*)\";").matcher(seederSource);
+        java.util.regex.Matcher edit = java.util.regex.Pattern.compile("String editActions = readActions \\+ \"([^\"]*)\";").matcher(seederSource);
+        assertTrue(read.find() && edit.find(), "readActions·editActions 선언을 찾지 못했다: " + MDM_MENU_SEEDER_SOURCE.getFileName());
         assertEquals(String.join(",", MdmPermissions.READ_ACTIONS), read.group(1));
         assertEquals(String.join(",", MdmPermissions.EDIT_ACTIONS), read.group(1) + edit.group(1));
     }
@@ -144,7 +145,7 @@ class MdmOasisActionVocabularyTest {
     /** design.md B1 (i)-1 — 기존 시험은 readActions·editActions 까지만 본다. confirmActions 까지 마저 본다. */
     @Test
     void mcm_시드의_confirmActions_는_MdmPermissions_CONFIRM_ACTIONS_와_같다() throws Exception {
-        String source = Files.readString(DATA_INITIALIZER);
+        String source = Files.readString(MDM_MENU_SEEDER_SOURCE);
         java.util.regex.Matcher read = java.util.regex.Pattern.compile("String readActions = \"([^\"]*)\";").matcher(source);
         java.util.regex.Matcher edit = java.util.regex.Pattern.compile("String editActions = readActions \\+ \"([^\"]*)\";").matcher(source);
         java.util.regex.Matcher confirm = java.util.regex.Pattern.compile("String confirmActions = editActions \\+ \"([^\"]*)\";").matcher(source);
@@ -156,7 +157,7 @@ class MdmOasisActionVocabularyTest {
 
     @Test
     void layoutConfirm_메뉴가_dmb_아래_시드된다() throws Exception {
-        String seed = Files.readString(DATA_INITIALIZER);
+        String seed = Files.readString(MDM_MENU_SEEDER_SOURCE);
         assertTrue(seed.contains("insertMcmSecMenuIfAbsent(\"layoutConfirm\", \"003\", \"5020130\", \"레이아웃 확정\", \"dmb\", \"layoutConfirm\")"));
         assertTrue(seed.contains("seedMdmObjectRbac(\"layoutConfirm\", \"dmb\")"));
     }
@@ -167,7 +168,7 @@ class MdmOasisActionVocabularyTest {
      */
     @Test
     void mcm_시드의_그룹_역할_매트릭스는_MdmPermissions_MATRIX_와_같다() throws Exception {
-        String source = Files.readString(DATA_INITIALIZER);
+        String source = Files.readString(MDM_MENU_SEEDER_SOURCE);
         String marker = "java.util.Map<String, java.util.Map<String, String>> matrix = java.util.Map.of";
         int markerIdx = source.indexOf(marker);
         assertTrue(markerIdx >= 0, "seedMdmObjectRbac 의 matrix 선언을 찾지 못했다");
@@ -196,12 +197,12 @@ class MdmOasisActionVocabularyTest {
     /**
      * design.md B1 (i)-3 — BPMN 26개(`find src/main/resources/services -iname "*.bpmn"`, D-144 2단계 ruleSetConfirm·3단계 layoutConfirm·메타 캐시 metaFeed 포함) 중
      * metaFeed 를 뺀 화면 목록과 mcm
-     * {@code DataInitializer} 의 모든 {@code seedMdmObjectRbac(...)} 호출에서 뽑은 objectId 목록을 대조한다.
+     * {@code MdmMenuSeeder} 의 모든 {@code seedMdmObjectRbac(...)} 호출에서 뽑은 objectId 목록을 대조한다.
      * {@code mdmSample} 은 BPMN 없는 샘플 화면이라 예외로 둔다(원천이 원래 다르다).
      */
     @Test
     void mcm_시드가_BPMN_26개_화면을_모두_커버한다() throws Exception {
-        String source = Files.readString(DATA_INITIALIZER);
+        String source = Files.readString(MDM_MENU_SEEDER_SOURCE);
         Set<String> bpmnScreens = new LinkedHashSet<>();
         try (var files = Files.walk(Path.of("src/main/resources/services"))) {
             for (Path bpmn : files.filter(f -> f.toString().endsWith(".bpmn")).toList()) {
@@ -262,7 +263,7 @@ class MdmOasisActionVocabularyTest {
     }
 
     /**
-     * mcm {@code DataInitializer} 의 {@code seedMdmObjectRbac(...)} 호출에서 objectId 를 모두 뽑는다(design.md B1 (i)-3,
+     * mcm {@code MdmMenuSeeder} 의 {@code seedMdmObjectRbac(...)} 호출에서 objectId 를 모두 뽑는다(design.md B1 (i)-3,
      * 세 모양). ① 리터럴 {@code seedMdmObjectRbac("codeConfirm", "dmc")} ② 배열 루프 {@code for (String objectId : new
      * String[]{"a","b"}) { ...; seedMdmObjectRbac(objectId, "dma"); }} ③ 2차원 배열 루프 {@code String[][] screens =
      * {{"a",...}, ...}; for (String[] screen : screens) { String objectId = screen[0]; ...; seedMdmObjectRbac(objectId,
@@ -303,8 +304,17 @@ class MdmOasisActionVocabularyTest {
         return ids;
     }
 
-    private static final Path DATA_INITIALIZER =
-            Path.of("../../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java");
+    /** mcm 시드 소스 폴더. 시험이 읽는 파일은 아래 상수에 이름으로 적는다(폴더 전체를 훑지 않는다). */
+    private static final Path MCM_INIT = Path.of("../../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init");
+
+    /** PERM_ALL 의 {@code String allActions = String.join(",", ...)} 선언이 있는 파일. */
+    private static final Path ALL_ACTIONS_SOURCE = MCM_INIT.resolve("seed/CoreRbacSeeder.java");
+
+    /**
+     * MdmMenuSeeder 가 있는 파일 — {@code readActions}·{@code editActions}·{@code confirmActions}·{@code matrix} 선언,
+     * 세 모양의 {@code seedMdmObjectRbac(...)} 호출, metaFeed OBJECT·layoutConfirm 메뉴 시드를 여기서 찾는다.
+     */
+    private static final Path MDM_MENU_SEEDER_SOURCE = MCM_INIT.resolve("seed/MdmMenuSeeder.java");
 
     private static Set<String> quoted(String text) {
         Set<String> out = new LinkedHashSet<>();
