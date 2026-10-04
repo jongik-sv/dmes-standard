@@ -74,4 +74,5 @@ fi
 
 # 다른 무거운 명령이 돌지 않게 독점 슬롯을 잡고 돌린다.
 # 슬롯을 DFLOW_HEAVY_WAIT(기본 90초) 안에 못 얻으면 HEAVY_BUSY(exit 75)로 끝난다 — 실패가 아니니 다시 부른다.
-bash "$HEAVY_SH" --exclusive -- bash "$SCRIPT_DIR/run-measure.sh" "$RENDER_ROUNDS"
+# 감싼 자식이 다시 독점을 요청하면 heavy.sh 가 HEAVY_EXCL_NESTED(exit 2)로 거부한다 — 자식에는 독점을 끄고 넘긴다.
+bash "$HEAVY_SH" --exclusive -- env RENDER_NO_EXCLUSIVE=1 bash "$SCRIPT_DIR/run-measure.sh" "$RENDER_ROUNDS"
