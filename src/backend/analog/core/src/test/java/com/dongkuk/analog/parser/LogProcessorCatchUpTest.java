@@ -4,7 +4,6 @@ import com.dongkuk.analog.process.LogProcessor;
 import com.dongkuk.analog.scanner.LogData;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.BufferedReader;
@@ -28,7 +27,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 다음 '\tat ...' 줄이 들어오기 전에 큐가 빌 수 있다. 여기서는 소비자가 넣은 줄을 모두 꺼내고 빈 큐를 볼 때마다
  * 렉서가 한 줄씩 내보내도록 맞물려, 줄마다 따라잡기가 생기게 한다(타이밍에 기대지 않는다).
  */
-@Disabled("재현 — 다음 fix 커밋에서 켬")
 class LogProcessorCatchUpTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

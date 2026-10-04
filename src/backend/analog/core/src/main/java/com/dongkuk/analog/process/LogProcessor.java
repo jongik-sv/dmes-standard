@@ -148,7 +148,11 @@ public class LogProcessor {
         while (true) {
             if(queue.isEmpty())
             {
-                if(buff != null) {
+                // 큐가 비어도 1회 실행 모드에서는 들고 있던 줄을 소비하지 않는다 — 생산자가 아직 이어진 줄(스택)을
+                // 넣는 중일 수 있고, 다음 머리 줄이나 끝 신호(EOQ)에서 이어 붙인 메시지로 소비한다.
+                // 연속 모드는 끝 신호가 없으니 여기서 이어 붙인 메시지로 소비한다.
+                if(buff != null && logLexer.isContinuesProcessing()) {
+                    buff.setMessage(sb.toString());
                     consume(buff);
                     buff = null;
                 }
