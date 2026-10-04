@@ -114,7 +114,7 @@ init/
 - 이번에 바꾸지 않았다. 지우거나 살리는 결정은 위 테이블 선택과 함께 한다.
 
 ### (2) pwdinit SSO 일괄 분기 개선안(bcrypt 비용 불변)
-- 현재(`CommUserMngService.pwdinit`, 616-632): 행마다 `bcrypt.encode(userId + 사번)` → `updateSsoPwd` 단건 UPDATE → 영향 0건이면 `findById` 후 `save`. 한 요청이 OASIS 트랜잭션 하나라 중간 실패면 전체 롤백이다. 행 수 상한이 없다(필터 결과 수십~수천 행).
+- 현재(퍼사드 `CommUserMngService.pwdinit` 의 `SSO_RESET_FLAG="Y"` 분기 → `CommUserMngSsoService.resetSsoPwd`, 43-63): 행마다 `bcrypt.encode(userId + 사번)`(`CommUserMngPwdWriter.encode`, 인코더 하나) → `updateSsoPwd` 단건 UPDATE → 영향 0건이면 `findById` 후 `save`(`CommUserMngPwdWriter.upsertUserPwd`). 한 요청이 OASIS 트랜잭션 하나라 중간 실패면 전체 롤백이다. 행 수 상한이 없다(필터 결과 수십~수천 행).
 - 개선안
   1. 해시 계산 병렬화: 해시 N개를 먼저 병렬(스레드 풀)로 계산하고 DB 쓰기는 모아서 한다. cost·salt 는 그대로라 보안 속성이 같다. 같은 JVM 의 다른 요청 지연이 커질 수 있다. 병목은 행당 bcrypt(약 50~100ms)라서 이 안의 효과가 가장 크다.
   2. 해시 재사용은 권하지 않는다. 비밀번호가 `userId+사번` 이라 사용자마다 평문이 달라 효과가 없고, 재사용하면 같은 해시(같은 salt)가 되어 한 해시가 새면 전원이 같은 비밀번호임이 드러난다.

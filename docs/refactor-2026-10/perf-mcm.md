@@ -13,7 +13,7 @@
 
 ## P1. `searchCmUser` 부서명 조회 쿼리 수
 - 관련 구조 변경: 1번 N+1 정리(진행 예정). S4(`CommUserMngService` 분할)와 같은 파일을 만진다.
-- 지표(회): 한 번의 `searchCmUser` 호출이 내는 SELECT 문 수. 고유 부서 K 개일 때 K+1 → 2 를 예상한다(부서 일괄 조회 1회 + 사용자 조회 1회).
+- 지표(회): 한 번의 `searchCmUser` 호출이 내는 SELECT 문 수. 사용자 조회(`searchByFilter`) 1회와 ds_mainAll 용 `findAllUserIdEmpNo` 1회는 양쪽 모두 늘 나간다. 옛 경로는 부서코드마다 `findById` 를 하되 없는 부서는 캐시하지 않아 그런 부서를 가진 행마다 다시 조회했으므로, 기준은 2 + (있는 distinct 부서 수 + 없는 부서를 가진 행 수), 변경은 3(붙일 부서코드가 하나도 없으면 2)을 예상한다. `TB_MCM_DEPT_INFO` SELECT 수만 보면(`CommUserMngServiceSearchSqlCountTest` 와 같은 범위) 기준은 있는 부서 수 + 없는 부서 행 수, 변경은 1(코드가 없으면 0)이다.
 - 측정 절차:
   1. 기준·변경 양쪽에 같은 측정 시험을 둔다. H2 또는 SQLite 에 사용자 200명·고유 부서 30개(부서코드가 null·공백·없는 부서인 행도 몇 개 섞는다)를 넣는다.
   2. `hibernate.generate_statistics=true`(`Statistics.getPrepareStatementCount()`) 또는 `StatementInspector` 로 SELECT 수를 센다. 호출 전에 통계를 비운다.
@@ -28,6 +28,7 @@
 
 - 중앙값: 해당 없음(결정적 1회). 기준 <값> → 변경 <값>
 - 판정: 측정 전
+- 알려진 차이(MSSQL 의 대소문자·뒤 공백 무시 비교에서만): 부서명 맵의 키가 요청 키가 아니라 DB 가 돌려준 DEPT_CD 라서, 사용자 표 DEPT_CD 가 부서 마스터와 대소문자·뒤 공백만 다르면 전에는 이름이 붙고 지금은 `DEPT_NM` 이 null 이다. Oracle(VARCHAR2)·PostgreSQL·SQLite·H2 에서는 차이가 없고 저장소 DDL 에 CHAR 형 DEPT_CD·NOCASE 콜레이션은 없다. 대소문자 보정은 구분하는 DB 에서 결과를 바꾸므로 코드는 고치지 않는다(`deptNamesOf` javadoc).
 
 ## P2. 사용자 삭제(`SecUserService.doSaveUsers` D 분기) 매핑 삭제 SQL 수
 - 관련 구조 변경: 1번 N+1 정리(진행 예정)
@@ -47,6 +48,13 @@
 
 - 중앙값: 해당 없음(결정적 1회)
 - 판정: 측정 전
+- 알려진 차이: 'D' 행이 둘 이상인 요청에서 사용자 계정(TB_SEC_USER) 변경의 flush 시점과 감사 컬럼이 달라진다. 'D' 행이 하나인 요청은 옛 경로와 같다.
+  - 매핑 순서: `bulkDeleteByUserId` 는 `@Modifying` 만 쓰고 `flushAutomatically` 를 두지 않는다. Hibernate 가 벌크 DELETE 직전에 영향 표(`TB_MCM_SEC_USER_MAPPING`)에 미뤄 둔 변경이 있으면 auto-flush 하므로(`StandardJdbcMutationExecutor.execute` 첫머리의 `autoFlushIfRequired`), 같은 트랜잭션의 매핑 INSERT → DELETE 순서는 지켜진다. `SecUserServiceDeleteAutoFlushTest` 가 고정한다(flush 없이 저장한 매핑이 같은 트랜잭션의 'D' 행에서 지워진다). 매핑 표에 미뤄 둔 변경이 있어 이 auto-flush 가 일어나면 Hibernate 는 계정까지 전체 flush 한다. 미뤄 둔 매핑 변경이 없으면 계정 변경은 커밋 때 flush 된다.
+  - 옛 경로와의 차이: 옛 경로는 'D' 행마다 매핑 ID JPQL SELECT 뒤 매핑마다 `deleteById`(`em.find` + `em.remove`)를 했다. 그래서 앞 'D' 사용자에게 매핑이 있었으면 그 매핑 DELETE 가 큐에 남고, 다음 'D' 행의 JPQL SELECT 가 이를 보고 전체 flush 를 했다. 이때 앞 'U' 행 계정의 UPDATE 와 앞 'D' 사용자의 계정 DELETE 가 먼저 나가고 계정 스냅샷이 다시 맞춰졌다. 지금은 벌크 DELETE 가 바로 실행돼 매핑 표에 미뤄 둔 것이 없으므로 뒤 'D' 행의 auto-flush 검사는 모두 '필요 없음' 으로 끝나고, 계정 변경은 커밋 때 나간다(뒤에 'C' 행이 오면 그 행의 `existsById` 가 `TB_SEC_USER` count 쿼리라 이 표에 미뤄 둔 계정 변경을 보고 `saveUsers` 안에서 전체 flush 한다).
+  - 감사 컬럼: Hibernate 7.2 는 '필요 없음' 으로 끝나는 auto-flush 검사에서도 `flushEntities` 를 먼저 돌려 dirty 엔티티의 `@PreUpdate`(`CactusAuditListener`)를 부른다. 그래서 'U' 1행 + 'D' 1행에서도 옛 경로·지금 모두 그 계정의 VER 이 +2 다. 이 이중 증가는 원래 있던 동작이다. 'U' 행 뒤에 'D' 행이 n 개(n ≥ 2, 앞 'D' 사용자에게 매핑 있음) 오면 옛 경로는 +2, 지금은 n+1 이고 U_AT 도 다르다. 예: [U X, D Y(매핑 있음), D Z] 에서 X 의 VER 은 옛 경로 +2, 지금 +3.
+  - 오류 시점: 계정 INSERT·UPDATE·DELETE 의 DB 오류(길이·중복·FK)는 옛 경로에서는 두 번째 'D' 행 처리 중 `saveUsers` 안에서 났다. 지금은 커밋 때(또는 뒤 'C' 행의 `existsById` 가 계정 표 flush 를 일으키는 시점) 나거나, 그보다 먼저 뒤 행의 검증 `BusinessException` 이 난다. `AuditLogger.record` 는 성공 때만 같은 트랜잭션에서 감사 행을 남기므로 실패 감사 행은 영향이 없다.
+  - 코드는 그대로 둔다. `flushAutomatically` 를 되살리거나 `em.flush()` 로 옛 경로를 흉내 내지 않는다('D' 1행인 경우 옛 경로와 같은 것은 지금 코드다). 지금 `src/frontend` 에서 이 save 를 부르는 곳이 없고, `SecUserServiceDeleteUsersTest`·`SecUserServiceDeleteAutoFlushTest` 는 계정 저장소가 메모리 가짜라 이 차이를 잡지 못한다. 실제 JPA 계정 저장소로 [U X, D Y, D Z] 를 보는 시험은 이 save 를 부르는 화면이 생길 때 더한다.
+  - (처음 커밋 6e5eb813 은 `flushAutomatically=true` 를 붙여 첫 'D' 행에서 계정까지 앞당겨 flush 했다. VER 증가 횟수가 옛 경로와 달라지고(위 예에서 +1) DB 오류가 행별 검증 오류보다 먼저 나는 차이가 있어 리뷰에서 뺐다. 커밋 c9a2f7ee 제목의 '옛 경로와 같게' 는 'D' 1행인 경우에만 맞는다.)
 
 ## P3. 메뉴 카탈로그 캐시 SELECT 수·응답 시간
 - 관련 구조 변경: S3(예정, 메뉴 카탈로그 캐시)

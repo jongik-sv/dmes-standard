@@ -9,7 +9,6 @@ import com.dongkuk.dmes.mcm.entity.SecMenu;
 import com.dongkuk.dmes.mcm.entity.SecObj;
 import com.dongkuk.dmes.mcm.entity.SecPerm;
 import com.dongkuk.dmes.mcm.entity.SecRoleMapping;
-import com.dongkuk.dmes.mcm.entity.SecUserMapping;
 import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuFldLovRepository;
 import com.dongkuk.dmes.mcm.repository.SecObjRepository;
@@ -239,11 +238,8 @@ public class SecUserService {
             } else if ("D".equals(rowStatus)) {
                 if (isBlank(userId)) continue;
                 // 신규 chain: 사용자 삭제 시 SecUserMapping (USER → RoleGroup) 도 동반 정리.
-                // legacy SecUserRole (USER → Role) 흡수 매핑.
-                List<String> roleGroupIds = secUserMappingRepository.findRoleGroupIdsByUserId(userId);
-                for (String rgId : roleGroupIds) {
-                    secUserMappingRepository.deleteById(new SecUserMapping.PK(userId, rgId));
-                }
+                // legacy SecUserRole (USER → Role) 흡수 매핑. 사용자 단위 벌크 DELETE 1회.
+                secUserMappingRepository.bulkDeleteByUserId(userId);
                 userAccountRepository.deleteById(userId);
                 count++;
             }
