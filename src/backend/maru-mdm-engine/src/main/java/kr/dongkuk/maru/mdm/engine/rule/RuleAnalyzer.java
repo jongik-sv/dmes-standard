@@ -91,13 +91,9 @@ public final class RuleAnalyzer {
         }
     }
 
-    /** 규칙 분석. */
+    /** 규칙 분석. 이슈 순서는 아래 단계 호출 순서 그대로다. */
     public static List<RuleIssue> analyze(AnalysisRule rule) {
-        List<RuleIssue> issues = new ArrayList<>();
-        List<Column> cols = new ArrayList<>();
-        for (AnalysisVar v : condVars(rule)) {
-            cols.add(new Column(v, domainOf(v)));
-        }
+        List<Column> cols = columnsOf(rule);
         if (cols.isEmpty()) {
             return List.of();
         }
@@ -105,7 +101,30 @@ public final class RuleAnalyzer {
         boolean unique = policy == HitPolicy.UNIQUE;
         boolean first = rule.ruleKind() == RuleKind.DECISION && policy == HitPolicy.FIRST;
 
-        // 1. 전부 NA 인 행
+        List<RuleIssue> issues = new ArrayList<>();
+        List<RuleRow> rows = dropAllNaRows(rule, cols, issues);
+        List<List<ValueSet>> sets = cellSets(rows, cols);
+        checkUnresolvedCells(rows, cols, sets, issues);
+        Set<String> overlaps = checkOverlaps(rows, cols, sets, unique, issues);
+        if (first) {
+            checkUnreachable(rows, sets, overlaps, cols, issues);
+        }
+        checkValueGaps(rows, cols, sets, issues);
+        checkNullGaps(rows, cols, issues);
+        return List.copyOf(issues);
+    }
+
+    /** 조건 열과 그 값 영역. */
+    private static List<Column> columnsOf(AnalysisRule rule) {
+        List<Column> cols = new ArrayList<>();
+        for (AnalysisVar v : condVars(rule)) {
+            cols.add(new Column(v, domainOf(v)));
+        }
+        return cols;
+    }
+
+    /** 1. 전부 NA 인 행 — 이슈로 내고 빼며, 남은 NORMAL 행을 돌려준다. */
+    private static List<RuleRow> dropAllNaRows(AnalysisRule rule, List<Column> cols, List<RuleIssue> issues) {
         List<RuleRow> rows = new ArrayList<>();
         for (RuleRow r : normalRows(rule)) {
             boolean allNa = true;
@@ -123,7 +142,11 @@ public final class RuleAnalyzer {
                 rows.add(r);
             }
         }
+        return rows;
+    }
 
+    /** 행 × 열 셀 값 집합. */
+    private static List<List<ValueSet>> cellSets(List<RuleRow> rows, List<Column> cols) {
         List<List<ValueSet>> sets = new ArrayList<>();
         for (RuleRow r : rows) {
             List<ValueSet> row = new ArrayList<>();
@@ -132,8 +155,11 @@ public final class RuleAnalyzer {
             }
             sets.add(row);
         }
+        return sets;
+    }
 
-        // 2. 못 푸는 셀
+    /** 2. 못 푸는 셀(행 → 열 순). */
+    private static void checkUnresolvedCells(List<RuleRow> rows, List<Column> cols, List<List<ValueSet>> sets, List<RuleIssue> issues) {
         for (int i = 0; i < rows.size(); i++) {
             for (int k = 0; k < cols.size(); k++) {
                 RuleCell cell = cell(rows.get(i), cols.get(k).v());
@@ -144,8 +170,11 @@ public final class RuleAnalyzer {
                 }
             }
         }
+    }
 
-        // 3. 겹침
+    /** 3. 겹침 — 확실히 겹치는 행 쌍 색인({@code i:j})을 돌려준다(도달 불가 판정용). */
+    private static Set<String> checkOverlaps(List<RuleRow> rows, List<Column> cols, List<List<ValueSet>> sets, boolean unique,
+            List<RuleIssue> issues) {
         Set<String> overlaps = new HashSet<>();
         for (int i = 0; i < rows.size(); i++) {
             for (int j = i + 1; j < rows.size(); j++) {
@@ -175,60 +204,51 @@ public final class RuleAnalyzer {
                 }
             }
         }
+        return overlaps;
+    }
 
-        // 4. 도달 불가(FIRST)
-        if (first) {
-            boolean[] allExact = new boolean[rows.size()];
-            for (int r = 0; r < rows.size(); r++) {
-                allExact[r] = sets.get(r).stream().allMatch(s -> s.exact);
+    /** 4. 도달 불가(FIRST 일 때만 부른다). */
+    private static void checkUnreachable(List<RuleRow> rows, List<List<ValueSet>> sets, Set<String> overlaps, List<Column> cols,
+            List<RuleIssue> issues) {
+        boolean[] allExact = new boolean[rows.size()];
+        for (int r = 0; r < rows.size(); r++) {
+            allExact[r] = sets.get(r).stream().allMatch(s -> s.exact);
+        }
+        for (int r = 0; r < rows.size(); r++) {
+            if (!allExact[r]) {
+                continue;
             }
-            for (int r = 0; r < rows.size(); r++) {
-                if (!allExact[r]) {
-                    continue;
+            List<Integer> prev = new ArrayList<>();
+            for (int p = 0; p < r; p++) {
+                if (allExact[p] && overlaps.contains(p + ":" + r)) {
+                    prev.add(p);
                 }
-                List<Integer> prev = new ArrayList<>();
-                for (int p = 0; p < r; p++) {
-                    if (allExact[p] && overlaps.contains(p + ":" + r)) {
-                        prev.add(p);
-                    }
-                }
-                if (prev.isEmpty()) {
-                    continue;
-                }
-                Set<Integer> used = covered(sets, cols, r, prev, 0);
-                if (used != null) {
-                    List<Integer> rowIds = new ArrayList<>();
-                    rowIds.add(rows.get(r).rowId());
-                    used.stream().sorted().forEach(p -> rowIds.add(rows.get(p).rowId()));
-                    issues.add(issue(RuleIssueCode.UNREACHABLE, Severity.WARNING, rowIds, null, null, null,
-                            rows.get(r).rowId() + "행은 앞 행에 모두 덮여 적중하지 않는다"));
-                }
+            }
+            if (prev.isEmpty()) {
+                continue;
+            }
+            Set<Integer> used = covered(sets, cols, r, prev, 0);
+            if (used != null) {
+                List<Integer> rowIds = new ArrayList<>();
+                rowIds.add(rows.get(r).rowId());
+                used.stream().sorted().forEach(p -> rowIds.add(rows.get(p).rowId()));
+                issues.add(issue(RuleIssueCode.UNREACHABLE, Severity.WARNING, rowIds, null, null, null,
+                        rows.get(r).rowId() + "행은 앞 행에 모두 덮여 적중하지 않는다"));
             }
         }
+    }
 
-        // 5. 값 빈틈(Number 열, 소수 자리수 격자, 내부 빈틈만)
+    /** 5. 값 빈틈(Number 열, 소수 자리수 격자, 내부 빈틈만). */
+    private static void checkValueGaps(List<RuleRow> rows, List<Column> cols, List<List<ValueSet>> sets, List<RuleIssue> issues) {
         for (int k = 0; k < cols.size(); k++) {
             AnalysisVar v = cols.get(k).v();
             Domain domain = cols.get(k).domain();
             if (domain.kind != ValueSets.DECIMAL || isExpressionColumn(v)) {
                 continue;
             }
-            Map<String, List<Integer>> groups = new LinkedHashMap<>();
-            for (int i = 0; i < rows.size(); i++) {
-                StringBuilder key = new StringBuilder();
-                for (int m = 0; m < cols.size(); m++) {
-                    if (m > 0) {
-                        key.append('\u0001');
-                    }
-                    if (m != k) {
-                        key.append(canonicalKey(cols.get(m).v(), cell(rows.get(i), cols.get(m).v())));
-                    }
-                }
-                groups.computeIfAbsent(key.toString(), x -> new ArrayList<>()).add(i);
-            }
             int s = scaleOf(v, rows);
             BigDecimal step = BigDecimal.ONE.scaleByPowerOfTen(-s);
-            for (List<Integer> members : groups.values()) {
+            for (List<Integer> members : gapGroups(rows, cols, k).values()) {
                 List<ValueSet> parts = new ArrayList<>();
                 for (int i : members) {
                     parts.add(sets.get(i).get(k));
@@ -237,32 +257,58 @@ public final class RuleAnalyzer {
                     continue;
                 }
                 ValueSet gaps = complementNonNull(union(parts, domain), domain);
-                for (Interval iv : gaps.intervals) {
-                    if (!isBounded(iv)) {
-                        continue;
-                    }
-                    BigDecimal lo = (BigDecimal) iv.lo.v;
-                    BigDecimal hi = (BigDecimal) iv.hi.v;
-                    BigDecimal g1 = lo.setScale(s, RoundingMode.CEILING);
-                    if (iv.lo.open && g1.compareTo(lo) == 0) {
-                        g1 = g1.add(step);
-                    }
-                    BigDecimal g2 = hi.setScale(s, RoundingMode.FLOOR);
-                    if (iv.hi.open && g2.compareTo(hi) == 0) {
-                        g2 = g2.subtract(step);
-                    }
-                    if (g1.compareTo(g2) <= 0) {
-                        List<Integer> rowIds = members.stream().map(i -> rows.get(i).rowId()).toList();
-                        String lower = toFixed(g1, s);
-                        String upper = toFixed(g2, s);
-                        issues.add(issue(RuleIssueCode.VALUE_GAP, Severity.WARNING, rowIds, v.varId(), lower, upper,
-                                labelOf(v) + ": " + lower + " ~ " + upper + " 에 맞는 행이 없다"));
-                    }
-                }
+                addGridGaps(members, rows, v, s, step, gaps, issues);
             }
         }
+    }
 
-        // 6. NULL 빈틈(열 단위)
+    /** 열 k 를 뺀 나머지 열의 정규 키가 같은 행끼리 묶는다(첫 등장 순). */
+    private static Map<String, List<Integer>> gapGroups(List<RuleRow> rows, List<Column> cols, int k) {
+        Map<String, List<Integer>> groups = new LinkedHashMap<>();
+        for (int i = 0; i < rows.size(); i++) {
+            StringBuilder key = new StringBuilder();
+            for (int m = 0; m < cols.size(); m++) {
+                if (m > 0) {
+                    key.append('\u0001');
+                }
+                if (m != k) {
+                    key.append(canonicalKey(cols.get(m).v(), cell(rows.get(i), cols.get(m).v())));
+                }
+            }
+            groups.computeIfAbsent(key.toString(), x -> new ArrayList<>()).add(i);
+        }
+        return groups;
+    }
+
+    /** 한 묶음의 빈틈 구간마다 격자(소수 s 자리) 위 값이 하나라도 있으면 VALUE_GAP 을 낸다. 양끝 열린 빈틈은 건너뛴다. */
+    private static void addGridGaps(List<Integer> members, List<RuleRow> rows, AnalysisVar v, int s, BigDecimal step, ValueSet gaps,
+            List<RuleIssue> issues) {
+        for (Interval iv : gaps.intervals) {
+            if (!isBounded(iv)) {
+                continue;
+            }
+            BigDecimal lo = (BigDecimal) iv.lo.v;
+            BigDecimal hi = (BigDecimal) iv.hi.v;
+            BigDecimal g1 = lo.setScale(s, RoundingMode.CEILING);
+            if (iv.lo.open && g1.compareTo(lo) == 0) {
+                g1 = g1.add(step);
+            }
+            BigDecimal g2 = hi.setScale(s, RoundingMode.FLOOR);
+            if (iv.hi.open && g2.compareTo(hi) == 0) {
+                g2 = g2.subtract(step);
+            }
+            if (g1.compareTo(g2) <= 0) {
+                List<Integer> rowIds = members.stream().map(i -> rows.get(i).rowId()).toList();
+                String lower = toFixed(g1, s);
+                String upper = toFixed(g2, s);
+                issues.add(issue(RuleIssueCode.VALUE_GAP, Severity.WARNING, rowIds, v.varId(), lower, upper,
+                        labelOf(v) + ": " + lower + " ~ " + upper + " 에 맞는 행이 없다"));
+            }
+        }
+    }
+
+    /** 6. NULL 빈틈(열 단위). */
+    private static void checkNullGaps(List<RuleRow> rows, List<Column> cols, List<RuleIssue> issues) {
         for (Column c : cols) {
             AnalysisVar v = c.v();
             if (isExpressionColumn(v)) {
@@ -281,7 +327,6 @@ public final class RuleAnalyzer {
                         labelOf(v) + " 이(가) NULL 이면 맞는 행이 없다"));
             }
         }
-        return List.copyOf(issues);
     }
 
     // ------------------------------------------------------------------ 모델 도우미(TS rule-model.ts)

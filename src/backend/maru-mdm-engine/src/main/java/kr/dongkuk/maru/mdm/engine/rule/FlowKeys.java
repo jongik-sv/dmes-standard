@@ -48,19 +48,36 @@ final class FlowKeys {
 
     private final Map<String, RuleDefinition> defs;
     private final MdmEvaluator expressions;
+    /** 판정 한 번의 지연 목록 — {@link #check} 가 레코드 키에 따라 채운다. 판정마다 {@link #forRun} 으로 새로 받는다. */
     private final Map<String, List<String>> deferred = new HashMap<>();
     /**
      * 세트 안 룰이 선언한 변수 타입 — 이름마다 처음 선언한 타입(룰은 defs 순서, 룰 안은 always·행 required·optional·결과).
-     * 이름은 대소문자를 가리지 않는다(EvalEx 변수 조회와 같다).
+     * 이름은 대소문자를 가리지 않는다(EvalEx 변수 조회와 같다). 생성자에서 다 채운 뒤에는 읽기만 하므로 {@link #forRun} 사본끼리 나눠 쓴다.
      */
-    private final Map<String, DataType> declared = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+    private final Map<String, DataType> declared;
 
     FlowKeys(Map<String, RuleDefinition> defs, MdmEvaluator expressions) {
         this.defs = defs;
         this.expressions = expressions;
+        this.declared = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         for (RuleDefinition def : defs.values()) {
             declare(def);
         }
+    }
+
+    private FlowKeys(FlowKeys template) {
+        this.defs = template.defs;
+        this.expressions = template.expressions;
+        this.declared = template.declared;
+    }
+
+    /**
+     * 정의에만 의존하는 부분(룰 정의·선언 타입)은 이 객체와 나눠 쓰고 지연 목록만 비어 있는 새 검사기(항목5). 엔진은 정의별로 만든 검사기를
+     * 기억해 두고 판정마다 이 사본으로 {@link #check} 한다 — 지연 목록이 레코드·스레드끼리 섞이지 않는다. 사본을 만든 원본에는 {@link #check}
+     * 를 부르지 않는다.
+     */
+    FlowKeys forRun() {
+        return new FlowKeys(this);
     }
 
     /**
