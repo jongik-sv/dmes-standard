@@ -1,7 +1,7 @@
 # 구조 변경 기록 — MDM 백엔드·엔진 레인
 
 레인: MDM 백엔드·엔진(세션 dmes-standard-b9) / 브랜치: `refactor/mdm-backend` / 기준 태그: `refactor-2026-10-base`.
-형식은 `docs/refactor-2026-10/README.md` §6.1 을 따른다. 이 문서는 1차 머지분이며, 이후 머지에서 항목이 늘어난다.
+형식은 `docs/refactor-2026-10/README.md` §6.1 을 따른다. 이 문서는 1차 머지분(S1·S2)에 2차 머지분(S3~S6)을 더한 것이며, 이후 머지에서 항목이 늘어난다.
 
 ## S1. 서비스 private 보조 메서드를 common/support 공용 메서드로 모음
 - 커밋: db95bc1e
@@ -18,7 +18,23 @@
 - 합치지 않은 변형(동작을 지키려고 이름을 둘로 나눔·일부는 남김):
   - `blankToNull`(isBlank 기준)과 `trimToNull`(trim 기준)은 하나로 합치지 않았다. 유니코드 공백만 있는 문자열의 판정이 달라지기 때문이다. 호출부가 쓰던 기준 그대로 이름을 골라 치환했다(ColumnMngService 의 옛 `blankToNull` 은 trim 기준이므로 `trimToNull` 로 치환).
   - `RuleCellRules.blankToNull` 은 `trim()` 하지 않고 원문을 돌려주는 다른 본문이라 남겼다(db95bc1e diff 에서 `str` 만 지움).
-  - 이 커밋 시점 이후에도 같은 이름의 private 사본이 남은 파일: RuleConfirmService·RuleSetConfirmService·CodeConfirmService(`trimToNull`), RuleSetEditService(`blankToNull`), CodeConfirmService·RuleTableService·RuleCellsCodec(`invalid`, 반환 타입·메시지 처리가 같은지 확인 필요), `str(BigDecimal)`(CodeItemEditService·CodeCateEditService, 인자 타입이 달라 대상 아님), RuleColumnsSaveRequest.`str`. 남긴 이유는 커밋 본문에 없다 — 확인 필요.
+  - db95bc1e 이후에도 남은 private 사본(2026-10-04 grep: `private static … (invalid|trimToNull|blankToNull|str)(` 로 `src/backend/mdm` 전체 확인). 본문은 현재 파일에서 읽어 `MdmStrings`·`MdmErrors.invalid` 와 대조했다.
+
+    | 파일 | 남은 메서드 | 본문 대조 | 남긴 이유 |
+    |---|---|---|---|
+    | RuleConfirmService:470 | `trimToNull` | `MdmStrings.trimToNull` 과 같음 | 레인 금지 파일(확정 서비스 4종) — 조정 지시 기준, 코드·커밋 본문으로는 확인 못 함 |
+    | RuleSetConfirmService:323 | `trimToNull` | 같음 | 위와 같음 |
+    | CodeConfirmService:404·408 | `invalid`, `trimToNull` | 둘 다 같음(`invalid` 는 `MdmErrors.of(INVALID_INPUT, detail, List.of())` 로 `MdmErrors.invalid` 와 같은 호출이고 반환 선언 타입만 `RuntimeException`) | 위와 같음 |
+    | LayoutConfirmService | (사본 없음) | grep 에 안 걸림 | 해당 없음 |
+    | RuleSetEditService:863 | `blankToNull` | `MdmStrings.blankToNull` 과 같음 | 레인 금지 파일 — 조정 지시 기준, 확인 필요(금지 목록 원문은 이 저장소 문서에 없음) |
+    | RuleTableService:357 | `invalid` | 다름 — `new BusinessException(ErrorCode.INVALID_VALUE, message)`(cactus 공통 코드, MDMnnn 코드·기본 문구 접두 없음) | 본문이 달라 합치지 않음 |
+    | RuleCellsCodec:186 | `invalid` | 다름 — 위와 같은 `ErrorCode.INVALID_VALUE` | 본문이 달라 합치지 않음 |
+    | RuleCellRules:356 | `blankToNull` | 다름 — `isBlank` 이면 null, 아니면 `trim()` 없이 원문 | 본문이 달라 합치지 않음(위에 적음) |
+    | RuleColumnsSaveRequest:47 | `str(Object)` | 다름 — `String.valueOf(v).trim()` 후 빈 문자열이면 null | 본문이 달라 합치지 않음 |
+    | CodeItemEditService:593·CodeCateEditService:409 | `str(BigDecimal)` | 다름 — 버전 숫자를 `setScale(VER_SCALE).toPlainString()` 으로 만듦 | 이름만 같고 인자·용도가 달라 대상 아님 |
+    | DataItemRows:26·RuleScreenSupport:101 | public `blankToNull` | `MdmStrings` 에 위임 | 시그니처 유지(위에 적음) |
+
+    남은 확정 서비스 사본 4곳(RuleConfirm·RuleSetConfirm·CodeConfirm의 `trimToNull` 둘과 `invalid`) 과 RuleSetEditService 는 본문이 같아 금지가 풀리면 기계적으로 치환할 수 있다.
 - 바꾼 이유: 같은 본문 사본 27곳이 흩어져 있어 한쪽만 고쳐지는 드리프트가 생길 수 있다. 정본 하나로 모은다.
 - 동작 보존 근거: `MdmStringsTest`(db95bc1e 에서 추가, 신규 41줄)가 세 메서드의 경계(null·빈 문자열·공백만·앞뒤 공백)를 고정한다. 리뷰에서 치환 전후 본문 동일성을 확인했고, mdm 시험이 통과했다(조정 지시 기준 기록, 시험 로그 원문은 확인 필요).
 - 영향 범위: 호출부 29개 파일(db95bc1e `--stat`: 소스 27 + 신규 `MdmStrings` + 시험 `MdmStringsTest`, 159 추가·165 삭제). 영역은 common(dictionary·rule·rule/check·rule/definition·support), dma(columnMng·termMng·termRegPop·unitMng), dmc(codeCateEdit·codeEdit·codeItemEdit·codeMng), dmd(dataCateEdit·dataEdit·dataHistory·dataItemMng·dataMng), dme(ruleMng·ruleSetMng), feed/metaFeed. BPMN 연결 이름(`camunda:class`·메서드 이름)은 그대로다. 화면·API·설정 변경 없음. 다른 레인과 겹치는 파일 없음(mdm 모듈 안).
@@ -37,6 +53,66 @@
 - 동작 보존 근거: `LayoutHeaderImpactEquivalenceSqliteTest`(ea1955c5, 8건) — `LayoutHeaderImpact.evaluate` 의 Result 전체(영향 행·오류·경고·EAI)를 정규화 글로 비교한다. 변경 전 코드에서 먼저 통과시킨 기준선이고, 변경 후에도 같은 시험으로 확인한다(변경 후 통과 결과 원문은 확인 필요). 고정 경우: 전문 여러 개, 헤더 여러 개·버전 경계, 전문 버전 거르기(apply_to 경계·미래 RELEASED·DRAFT·LEGACY), minor 버전, 항목 추가·삭제·변경, 첫 확정·HEADER_UNRESOLVED, 영향 없음, EAI 표준 헤더 전환, 같은 트랜잭션 flush 전 JPA 변경.
 - 영향 범위: `LayoutComposer` 의 공개 메서드(`compose`·`composeDetailed`·`headerAlone`·`eaiHeaderAt`·`eaiHeadersAt`·`headerAt`)는 시그니처를 유지하고 `batch`·`Batch` 가 추가됐다(코드 확인). 변경 호출부는 `LayoutHeaderImpact` 하나. 묶음은 읽은 뒤 변경이 보이지 않으므로 요청 안에서 만들어 쓰고 버린다(필드에 두지 않는다 — 클래스 Javadoc). 화면·API·설정 변경 없음.
 - 되돌리는 방법: `git revert 7f598bdf`(시험 ea1955c5 는 남겨도 된다 — 쿼리 수는 단언하지 않고 출력만 한다).
+
+## S3. 용어 JSON 목록 파서 네 곳을 공용 코덱 MdmJsonLists 로 모음
+- 커밋: cd6aca56(변경), 29a613ba(변경 전 동작을 고정한 특성 시험)
+- 바뀌기 전: DB 의 JSON 배열 칸을 읽는 private 파서가 네 곳에 따로 있었고 클래스마다 `ObjectMapper` 를 따로 두었다.
+  - `TermMngService`·`TermRecommendationCache` — 엄격 문자열 목록 파서(`readStringList`)와 쓰기(`writeJson`)
+  - `TermDictionary.parseSurfaces` — 배열을 원소 단위로 관대하게 읽음
+  - `ColumnMngService.parseTermIds` — ID 목록 읽기
+- 바뀐 뒤: `com.dongkuk.dmes.mdm.common.support.MdmJsonLists`(신규 110줄) 하나에 호출부별 동작을 메서드로 나눠 보존한다. 합치지 않고 나눈 이유는 호출부마다 동작이 달라서다(커밋 본문).
+  - `readStrings` — 엄격. JSON null 리터럴이면 null(빈 목록 아님). 깨진 JSON·배열 아님은 빈 목록 + 경고 로그
+  - `readArrayElements` — 원소 단위 관대 읽기(용어 사전 표면형)
+  - `readLongs` — ID 목록, null 원소 자리 유지
+  - 쓰기(`writeJson`)도 여기로 옮김. 표면형의 이름 추출·괄호 떼기는 `TermDictionary` 에 남겼다. 옛 private 파서와 클래스별 `ObjectMapper` 는 지웠다. 기본 설정의 classic `ObjectMapper` 를 쓴다(Spring Boot 4 가 이 타입 빈을 자동 등록하지 않음 — 클래스 javadoc).
+- 바꾼 이유: 같은 일을 하는 파서가 네 곳에 흩어져 있어 한쪽만 고쳐질 수 있다.
+- 동작 보존 근거: 29a613ba 가 같은 입력 행렬로 네 파서를 먼저 고정했다 — `TermJsonListCharacterizationTest`·`TermJsonListParserCharacterizationTest`(termMng), `TermDictionaryParseSurfacesCharacterizationTest`(naming), `ColumnMngParseTermIdsCharacterizationTest`(columnMng). 저장 JSON 이 한글을 이스케이프하지 않음과 SQLite `json_valid` CHECK 도 고정한다. JSON null 리터럴·`[null]` 시스템 원소의 NPE 는 기존 결함으로 `assertThrows` 에 남겼다(고치지 않음). 커밋 본문: "특성 시험은 그대로 통과한다"(시험 로그 원문은 확인 필요).
+- 영향 범위: mdm lib 의 dma(termMng·naming·columnMng) 4개 파일 + 신규 1개(134 추가·97 삭제). 화면·API·설정·다른 레인 변경 없음.
+- 되돌리는 방법: `git revert cd6aca56`. 이후 커밋(S4·S5·S6)이 `MdmJsonLists`·`readStrings` 를 이어서 쓰므로 그 커밋들을 먼저 되돌려야 한다 — 확인 필요(호출 관계는 코드로 대조하지 않음).
+
+## S4. 컬럼 사전·용어 등록 팝업의 용어 사전 읽기 사본을 TermDictionaryLoader 하나로 합침
+- 커밋: 2153ebb7(변경), f2392a4a(특성 시험, 7a3e0570 완성), 7a3e0570(wip — 컬럼 검색 특성 시험을 이동 준비로 중간에 남긴 커밋. 미검증 상태였고 f2392a4a 에서 완성·검증됨. 이 커밋만 되돌리거나 단독 체크아웃하면 시험이 미완성이다)
+- 바뀌기 전: `ColumnMngService`·`TermRegPopService` 가 용어 표 전체를 `TermDictionary` 로 만드는 private `loadDictionary` 를 각자 가졌다. 글자 그대로 같은 코드였다(1단계 특성 시험으로 차이 없음 확인 — 커밋 본문).
+- 바뀐 뒤: `dma.support.TermDictionaryLoader.load(MdmTermRepository)`(신규 30줄) 하나. `findAll()` 순서를 그대로 넘기고 정렬하지 않는다. `dma.naming` 은 DB 에 기대지 않는 순수 패키지라 로더는 `dma.support` 에 둔다.
+- 캐시를 넣지 않은 이유: 설계 불변 규칙 I26(요청마다 새로 읽음) 때문이다(`TermDictionaryLoader` javadoc, 커밋 본문). 그래서 이 항목은 성능 항목(P)이 아니라 구조 변경이다.
+- 바꾼 이유: 같은 코드 사본 둘의 드리프트 방지.
+- 동작 보존 근거: `ColumnMngLookupCharacterizationTest`(f2392a4a 신규)가 두 서비스의 사본 결과 동일과 "I26 요청마다 새로 읽기"를 고정한다. 2153ebb7 에서 이 시험을 "합치기 전 사본 코드를 시험 안 기준 사전으로 옮겨 공용 로더와 비교"하도록 고쳐 썼다. 통과 결과 원문은 확인 필요.
+- 영향 범위: mdm lib 의 `columnMng`·`termRegPop` 서비스 둘과 신규 로더(52 추가·36 삭제). 화면·API·설정 변경 없음.
+- 되돌리는 방법: `git revert 2153ebb7`(시험 f2392a4a 는 사본 비교 부분이 로더 기준으로 바뀐 상태라 되돌린 뒤 시험도 맞춰야 할 수 있음 — 확인 필요).
+
+## S5. 용어 검색에 DB 1차 거름(TermSearchPrefilter) 도입
+- 커밋: 0ec7a57b(변경), 64bcf6cc(NPE 행 보존 보정), 시험 29a613ba·f8087cce(변경 전 코드에서 통과 확인한 특성 시험 추가)
+- 바뀌기 전: `TermMngService.search` 가 `termRepository.findAll()` 로 용어 전체(로컬 8,152행)를 읽어 Java 에서 키워드 → 시스템 → 상황 순서로 거르고, 행마다 JSON 칸(동의어·별칭·시스템)을 단계마다 다시 파싱했다. 정렬은 `findAll()` 의 SQLite 기본 순서에 기댔다.
+- 바뀐 뒤: 호출 경로가 `termRepository.findAll(Specification, Sort)` 로 바뀐다.
+  - 새 `TermSearchPrefilter`(Specification)가 키워드·상황 조건을 `UPPER … LIKE … ESCAPE '!'` 로 먼저 줄인다. 최종 판정은 기존 Java 비교가 그대로 한다(필요조건만 DB 에 건다).
+  - `MdmTermRepository` 가 `JpaSpecificationExecutor` 를 더 확장한다. 정렬은 `ORDER BY TERM_ID` 로 명시한다.
+  - 남은 행은 `ParsedTerm` 으로 JSON 세 칸을 한 번만 파싱해 키워드·시스템·응답 변환에 재사용한다.
+- 바꾼 이유: 검색마다 용어 전체를 읽고 파싱하던 비용을 줄인다. 커밋 본문: 로컬 DB(8,152행) 기준 후보가 '코일' 22행, 'coil' 249행.
+- 리뷰에서 확인한 대소문자·ESCAPE 처리(커밋 본문·javadoc 요약):
+  - 대소문자: Java `toUpperCase(ROOT)` 는 ß→SS·ſ→S·ı→I·합자처럼 ASCII 밖 글자를 ASCII 로 바꾸지만 SQL `UPPER` 는 그렇지 않다(SQLite 는 ASCII 만 접음). 그래서 대문자 키워드에서 그런 변환 결과로 나올 수 없는 글자만 이어진 가장 긴 구간을 "바늘"로 쓰고, 그런 구간이 없으면 DB 에서 거르지 않는다.
+  - ESCAPE: `%`·`_` 는 `ESCAPE '!'` 로 처리한다. 역슬래시를 이스케이프 문자로 쓰지 않은 것은 방언마다 문자열 리터럴의 역슬래시 해석이 달라서다. 쓰는 함수는 `UPPER`·`LIKE`·`ESCAPE` 뿐이라 Oracle·PostgreSQL·SQLite 공통 문법이라고 커밋 본문이 적었다.
+  - JSON 칸: 이스케이프된 원소를 놓치지 않게 원문에 역슬래시가 든 행은 늘 남긴다.
+  - 기존 결함 보존: JSON null 리터럴 NPE 동작을 바꾸지 않으려고 원문에 `null` 이 든 행도 남기고, 64bcf6cc 에서 키워드 단계 NPE 행을 상황 조건이 빼지 않도록 고쳤다(결함 수정 커밋에서 함께 뺄 조건).
+- 동작 보존 근거: `TermMngSearchCharacterizationTest`(29a613ba 354줄, 64bcf6cc 에서 2건 추가 — 옛 검색 코드에서는 통과하고 0ec7a57b 에서는 실패하던 것을 확인)·f8087cce 의 21건(옛 코드에서 통과 확인: ASCII 로 바뀌는 원본 글자·느낌표 섞인 키워드·상황 조건 뒤 시스템 NPE)·`TermSearchPrefilterTest`·`TermSearchPrefilterSqliteTest`(0ec7a57b). **SQLite 로만 확인함. Oracle·PostgreSQL 의 LIKE 대소문자 구분·ESCAPE·CLOB 비교는 정적 리뷰 결과이며 운영 DB 확인이 필요하다.** 시험 통과 로그 원문도 확인 필요.
+- 영향 범위: `TermMngService`·신규 `TermSearchPrefilter`·`MdmTermRepository`(0ec7a57b 6개 파일). 가짜 저장소 파서 특성 시험은 새 조회 메서드를 스텁하도록만 고쳤다. 화면·API 응답 모양 변경 없음.
+- 되돌리는 방법: 64bcf6cc 를 먼저, 이어 0ec7a57b 를 되돌린다(`git revert 64bcf6cc 0ec7a57b`). 특성 시험 29a613ba·f8087cce 는 남겨도 된다.
+
+## S6. 컬럼 검색에 DB 1차 거름(ColumnSearchPrefilter)과 반복문 단건 조회 세 곳의 IN 조회 도입
+- 커밋: c273897e(변경), 시험 f2392a4a(wip 7a3e0570 완성분)
+- 바뀌기 전: `ColumnMngService.search` 는 도메인·용어·시스템 매핑·컬럼을 모두 `findAll()` 로 읽고 Java 에서 거렀다(옛 javadoc: 방언별 LIKE·대소문자 비교 차이와 `_` 와일드카드를 피하려고 Java 에서 거른다, 규모 수천 행). 엔티티 로드가 전체 행 수에 비례했고, 반복문 안에서 단건 조회를 불렀다 — `save` 의 용어 ID `existsById`(행마다), 매핑 충돌 소유 컬럼 `findById`, `compare(REVERSE)` 중복의 `findById`.
+- 바뀐 뒤: 호출 경로가 바뀐다.
+  - `search`: 조건이 있으면 새 `ColumnSearchPrefilter`(Specification)가 후보 컬럼과 그 매핑만 읽고(필요조건, 상관 `EXISTS`), 도메인은 후보가 가리키는 것만, 용어는 남은 컬럼의 `TERM_IDS` 에 든 것만 IN 으로 읽는다. 최종 판정·정렬은 기존 Java 비교 그대로다. `MdmColumnRepository`·`MdmColumnSystemRepository` 가 `JpaSpecificationExecutor` 를 확장한다.
+  - `save` 용어 ID 존재 검사: 행마다 `existsById` → `MdmTermRepository.findExistingTermIds`(ID 투영 IN, 신규)를 한 번.
+  - 매핑 충돌 소유 컬럼 `findById` → `findAllById` 한 번. `compare(REVERSE)` 중복의 `findById` → `findAllById` 한 번.
+  - IN 은 500개씩 나눠 Oracle IN 1,000개 제한 안이다. 캐시는 넣지 않았다(I26).
+- 바꾼 이유: 검색의 엔티티 로드와 반복문 안 왕복을 줄인다(수치는 perf-mdm-backend.md P4).
+- 리뷰에서 확인한 대소문자·ESCAPE 처리(커밋 본문·javadoc 요약):
+  - 대소문자: Java `toLowerCase(ROOT)` 와 SQL `LOWER` 가 다르다(SQLite 는 ASCII 만 접음, Java 는 Ä→ä·İ→i̇·K(켈빈)→k 처럼 ASCII 밖도 접음). 그래서 소문자로 바꿔 자기가 되는 원본 글자가 자기 자신과 ASCII 대문자뿐인 "안전 글자" 구간만 바늘로 쓰고, 그리스 어말 시그마(ς)는 문자열 문맥에서만 나오므로 따로 뺀다. 안전 구간이 없으면 글자로 거르지 않는다.
+  - ESCAPE: `%`·`_`·`\` 를 글자 그대로 보려고 `ESCAPE '!'` 로 `!`·`%`·`_` 를 이스케이프한다. 역슬래시를 쓰지 않는 이유는 S5 와 같다. 함수는 `LOWER`·`LIKE` 만 쓴다.
+  - 하위 조회는 상관 `EXISTS` 로만 쓴다(Criteria 의 `expr.in(subquery)` 는 Hibernate 가 `IN ((select …))` 로 그려 Oracle 에서 단일 행 하위 조회로 읽힐 수 있다는 javadoc 근거). 숫자·`-` 만 있는 도메인 키워드는 CAST 없이 도메인 행 존재만 본다.
+- 동작 보존 근거: `ColumnMngSearchCharacterizationTest`(검색어·도메인 키워드 조건마다 일치·불일치·대소문자·한글·`%`·`_`·역슬래시·trim, 조건 없음, 결과 순서·건수·응답 13개 키)와 `ColumnMngLookupCharacterizationTest`(save 용어 `existsById` 경우들·충돌 소유 컬럼·REVERSE 중복)를 변경 전 코드로 먼저 고정했고(f2392a4a), `ColumnSearchPrefilterTest` 가 추가됐다. **SQLite 로만 확인함. Oracle·PostgreSQL 의 LIKE 대소문자 구분·ESCAPE·CLOB 비교는 정적 리뷰 결과이며 운영 DB 확인이 필요하다.** 시험 통과 로그 원문은 확인 필요.
+- 영향 범위: `ColumnMngService`·신규 `ColumnSearchPrefilter`·저장소 세 개(`MdmColumn`·`MdmColumnSystem`·`MdmTerm`, 371 추가·40 삭제). 응답 모양·화면·설정 변경 없음.
+- 되돌리는 방법: `git revert c273897e`. 특성 시험은 남겨도 된다(쿼리 수는 기록만 한다고 커밋 본문이 적었다 — 단언 여부는 확인 필요).
 
 ## 메모
 - 항목 1(마스터코드 선분 flush, a139fe07·8db3e93c·0daad719)은 구조 변경이 아니라 쓰기 시점 변경이라 S 에 넣지 않는다. 성능 기록 P1 에 있다.
