@@ -116,7 +116,7 @@
 |---|---|---|
 | W1 | 진입 불러오기를 준비 조건을 모아 한 번만 실행(`shared/src/widget/WidgetWorkspace.tsx`). 늦게 온 사용자 확인·정의는 다시 조회하지 않고 가진 배치를 다시 정리, 이미 그린 보드를 스켈레톤으로 되돌리지 않음 | fc5dbff0 |
 | W2·W3 | 등록부 병합 결과가 같으면 원래 entry 를 돌려주고(`widget-registry.ts`), lazy 캐시를 안정 키(load 함수) 기준으로(`WidgetFrame.tsx`), 정리한 배치도 같으면 이전 참조 재사용(`widget-layout.ts`) | fc5dbff0 |
-| 리뷰 수정 | 등록부가 바뀌면 화면 items 가 그대로인 탭은 원래 배치(서버·저장 값)에서 다시 정리(이전 등록부로 잘린 크기를 다시 자르지 않음), 편집 시작·보기 모드 즉시 저장 때 진행 중인 조용한 다시 불러오기를 버림, 정의 loader 캐시를 위젯마다 한 칸으로 | bb672816 |
+| 리뷰 수정 | 등록부가 바뀌면 화면 items 가 그대로인 탭은 원래 배치(서버·저장 값)에서 다시 정리(이전 등록부로 잘린 크기를 다시 자르지 않음, 판정은 내용 비교), 편집 시작·보기 모드 즉시 저장 때 진행 중인 조용한 다시 불러오기를 버림, 정의 loader 캐시를 위젯마다 한 칸으로 | bb672816·dd5dae6f |
 | W4 | 호스트(포털)가 받은 즐겨찾기를 올려 두는 저장소(`m-mcm/lib/portal-favorites-store.ts`), 바로가기 위젯이 이를 공유(`widgets/home/quickLinks/widget.tsx`, `app/portal/page.tsx`) | dff10752 |
 | W8 | 공지 스토어를 필드별 훅(`useNotices()` 등)으로 노출, 홈 페이지는 `notices` 만 구독(`notice-store.ts`, `page.tsx`) | dff10752 |
 | 시험 | 진입 불러오기 1회·entry 재사용·본체 유지(shared), 공지 행 선택·바로가기 공유 목록(m-mcm) | 96f48639·569c8aaf·4bc837fa |
