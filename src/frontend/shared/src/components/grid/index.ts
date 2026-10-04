@@ -50,3 +50,8 @@ export {
 } from "./useRowStateManager";
 export { Pagination, type PaginationProps } from "./Pagination";
 export { GridExcelFoot, type GridExcelFootProps } from "./GridExcelFoot";
+export {
+  GridLimitNotice,
+  gridLimitNoticeText,
+  type GridLimitNoticeProps,
+} from "./GridLimitNotice";

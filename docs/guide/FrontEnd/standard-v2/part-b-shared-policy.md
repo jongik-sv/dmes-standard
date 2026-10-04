@@ -240,6 +240,7 @@ import "@dk-oasis/shared/grid.css";
 - 셀 상태 클래스(`@dk-oasis/shared/grid.css`): `cell-light-pink`(오류·비정상), `cell-warning`(경고), `cell-edited`(바뀐 칸), `cell-emphasis`(안쪽 테두리 강조). `GridColumn.cellClassRules` 로 준다. 화면 CSS 에 색 값을 두지 않는다(mdm TSK-08-02).
 - MDM 칸 검증 표시(2026-10-03): `AgDataGrid` 의 `mdmValidate?: boolean`(편집 가능 + MDM 연결 열의 바뀐 값을 검사), `fieldErrors?: Array<{ rowKey?; rowIndex?; field; message }>`(서버 오류 — `@dk-oasis/shared/http` 의 `toFieldErrors(error, grid)` 결과). 오류 칸은 `cell-mdm-invalid` 클래스와 셀 툴팁(문구), 같은 칸이면 서버 문구가 이긴다. `HttpError` 에 선택 칸 `errors`(서버 `ErrorDetail` 목록)가 생겼다.
 - 표 아래 줄·엑셀 내려받기(2026-10-03): `AgDataGrid` 의 `excelExport?: { title?; fallbackName?; note?; sheetName?; testId?; excludeKeys? }`. 주면 그리드를 세로 flex 상자로 감싸 표가 남은 높이를 채우고 아래 줄(`GridExcelFoot`: 「{n}행」·[엑셀])이 바닥에 붙으며(`height` 는 바깥 상자, `height="auto"` 는 flex 대신 block 감싸개라 행 수만큼 늘어난 표 바로 뒤에 아래 줄), 누르면 그리드에 보이는 컬럼 순서·제목과 정렬·필터 순서의 행(값은 `render` 가 아니라 원래 값)으로 `exportToExcel` 을 부른다. 숨긴 열·행번호·체크박스는 빼고 `render` 전용 열은 `excludeKeys` 로 뺀다. 조건부로 줬다 뺐다 하면 그리드가 다시 마운트되니 항상 주거나 항상 뺀다. 주지 않으면 줄·단추가 없고 모양·동작은 예전과 같다. 파일 이름·열 폭 계산(`excelFileName`·`toExcelColumns`)은 `@dk-oasis/shared/utils` 에 있다. 객체는 상수나 `useMemo` 로 둔다(memo).
+- 첫 조회 상한 안내(2026-10-04): `GridLimitNotice`(`shownCount`·`totalCount?`·`onShowAll`·`disabled?`·`testId?`). 서버가 목록을 상한으로 잘랐을 때 `GridPanel titleExtra` 에 「전체 N건 중 M건을 표시합니다…」와 [전체 보기] 를 보이고, 잘리지 않았으면 그리지 않는다. 화면 성능 가이드 R1 의 화면 쪽 부품이다(선례 m-mdm columnMng·termMng).
 
 ---
 
