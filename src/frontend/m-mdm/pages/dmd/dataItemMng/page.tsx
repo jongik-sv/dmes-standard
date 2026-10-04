@@ -26,9 +26,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   ContentBody,
   ContentPanel,
-  DETAIL_LABEL_CELL,
-  DETAIL_TABLE_STYLE,
-  DETAIL_VALUE_CELL,
   ErrorModal,
   SearchArea,
   SearchField,
@@ -48,6 +45,7 @@ import { DataHistoryTimeline } from "./history/DataHistoryTimeline";
 import { searchDataHistory } from "./history/api";
 import type { DataHistoryResult } from "./history/types";
 import { ItemActionCell, type ItemActionState, type ItemActionStore } from "./ItemActionCell";
+import { ItemRegForm, type ItemRegField, type ItemRegFormHandle } from "./ItemRegForm";
 import { ItemTreePanel } from "./ItemTreePanel";
 import {
   closeDataItem,
@@ -67,7 +65,6 @@ import {
   toMaruPicks,
   type AttrField,
   type DataItemFilters,
-  type DataItemForm,
   type DataItemHeader,
   type DataItemRow,
   type MaruDataOption,
@@ -116,7 +113,8 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
   /** 서버 상한(ITEMS_MAX)에 걸려 목록이 일부만 왔다 — 조용히 자르지 않고 여기서 말한다. */
   const [truncated, setTruncated] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
-  const [form, setForm] = useState<DataItemForm | null>(null);
+  /** 등록 폼 — 입력 값은 ItemRegForm 이 갖고, 루트는 `ref` 로 열고 비우고 등록 때 읽는다(R12). */
+  const regFormRef = useRef<ItemRegFormHandle>(null);
   const [history, setHistory] = useState<DataHistoryResult | null>(null);
   const [busy, setBusy] = useState(false);
   // 목록 조회 전용 — 그리드 로딩 표시는 이것만 본다(행 쓰기·이력 조회로 목록이 깜빡이지 않게, Local-Rules §11).
@@ -293,7 +291,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
       const next = { ...emptyFilters(), maruDataId };
       setFilters(next);
       applied.current = { filters: next };
-      setForm(null);
+      regFormRef.current?.load(null);
       historySeq.current++;
       setHistory(null);
       setRows([]);
@@ -488,6 +486,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
   // ── 등록 패널 ───────────────────────────────────────────────────────────
 
   const handleRegister = useCallback(async () => {
+    const form = regFormRef.current?.getForm() ?? null;
     if (!form) return;
     const md = applied.current.filters.maruDataId;
     const origin: WriteOrigin = { md, seq: selectSeq.current };
@@ -495,17 +494,17 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
     try {
       const params = toSaveParams(md, form);
       await registerDataItem(params);
-      if (origin.seq === selectSeq.current) setForm(null);
+      if (origin.seq === selectSeq.current) regFormRef.current?.load(null);
       await afterWrite(origin, String(params.code ?? ""), "등록했습니다");
     } catch (e) {
       await handleWriteError(e);
     } finally {
       setBusy(false);
     }
-  }, [afterWrite, form, handleWriteError]);
+  }, [afterWrite, handleWriteError]);
 
   const formFields = useMemo(() => {
-    const fields: { key: keyof DataItemForm; label: string }[] = [
+    const fields: ItemRegField[] = [
       { key: "code", label: "키 *" },
       { key: "name", label: "이름 *" },
       { key: "alterName", label: "약칭" },
@@ -661,7 +660,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                         size="sm"
                         data-testid="item-add"
                         disabled={working || !editable || !canReg}
-                        onClick={() => setForm(emptyItemForm())}
+                        onClick={() => regFormRef.current?.load(emptyItemForm())}
                       >
                         항목 추가
                       </Button>
@@ -720,17 +719,18 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
           </div>
         </ContentPanel>
 
-        {/* 오른쪽 열 — 탭 형식으로 카테고리 편집과 코드 테스트를 함께 볼 수 있다. */}
+        {/* 오른쪽 열 — 탭 형식으로 카테고리 편집과 코드 테스트를 함께 볼 수 있다. 두 탭 내용을 한 세로 흐름에 두는데,
+           등록 폼(ItemRegForm)은 탭을 오가도 입력을 지키게 항상 마운트하고 숨김으로만 끈다(R12). */}
         <ContentBody direction="column" width="34%" resizable storageKey="mdm.dmd.dataItemMng.right">
           <ContentPanel>
             <Tabs activeKey={rightTab} onChange={(k) => setRightTab(k as RightTab)} items={[
               { key: "cateEdit", label: <span data-testid="item-right-tab-cate">카테고리 편집</span> },
               { key: "codeTest", label: <span data-testid="item-right-tab-test">코드 테스트</span> },
             ]} />
-            {rightTab === "cateEdit" && (
-              /* 카테고리 이력은 CategoryTab 안에서 카테고리 그리드 바로 밑에 그린다(2026-09-30) —
-                 탭 전체가 카테고리/이력/소속 세 칸의 세로 분할이 되고, 이력을 고른 카테고리에 따라간다. */
-              <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+              {rightTab === "cateEdit" && (
+                /* 카테고리 이력은 CategoryTab 안에서 카테고리 그리드 바로 밑에 그린다(2026-09-30) —
+                   탭 전체가 카테고리/이력/소속 세 칸의 세로 분할이 되고, 이력을 고른 카테고리에 따라간다. */
                 <CategoryTab
                   cate={cate}
                   loaded={!!header}
@@ -739,47 +739,16 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                   onError={setError}
                   errorShown={!!error}
                 />
-              </div>
-            )}
-            {rightTab === "codeTest" && (
-              <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-                {form && (
-                  <ContentPanel key="form">
-                    <div data-testid="item-form" style={{ height: "100%", overflowY: "auto" }}>
-                      <p style={{ ...panelTitle, padding: "0 var(--spacing-md)" }}>항목 추가</p>
-                      <table style={DETAIL_TABLE_STYLE}>
-                        <tbody>
-                          {formFields.map((f) => (
-                            <tr key={f.key}>
-                              <th style={DETAIL_LABEL_CELL}>{f.label}</th>
-                              <td style={DETAIL_VALUE_CELL}>
-                                <Input
-                                  data-testid={`item-form-${f.key}`}
-                                  value={form[f.key]}
-                                  disabled={busy}
-                                  onChange={(v) => setForm((prev) => (prev ? { ...prev, [f.key]: v } : prev))}
-                                />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <div style={{ display: "flex", gap: "var(--spacing-sm)", padding: "var(--spacing-sm) var(--spacing-md)" }}>
-                        <Button
-                          variant="primary"
-                          data-testid="item-form-submit"
-                          disabled={busy || !canReg}
-                          onClick={() => void handleRegister()}
-                        >
-                          등록
-                        </Button>
-                        <Button data-testid="item-form-cancel" onClick={() => setForm(null)}>
-                          취소
-                        </Button>
-                      </div>
-                    </div>
-                  </ContentPanel>
-                )}
+              )}
+              <ItemRegForm
+                ref={regFormRef}
+                hidden={rightTab !== "codeTest"}
+                busy={busy}
+                canReg={canReg}
+                fields={formFields}
+                onRegister={() => void handleRegister()}
+              />
+              {rightTab === "codeTest" && (
                 <ContentPanel key="itemHistory">
                   <div data-testid="item-history" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -799,8 +768,8 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                     )}
                   </div>
                 </ContentPanel>
-              </div>
-            )}
+              )}
+            </div>
           </ContentPanel>
         </ContentBody>
       </ContentBody>
