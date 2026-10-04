@@ -35,10 +35,10 @@ scripts/build-verify/dump-deps.sh <출력폴더> mpn mdm
   - 언제나: `HOME PATH USER LOGNAME TMPDIR`, `LANG/LC_ALL=en_US.UTF-8`, `TERM=dumb`, `DMES_TEST_SLOTS`(아래)
   - 호출 환경에 있을 때만: `JAVA_HOME`, `DFLOW_HEAVY_DIR`, `DFLOW_HEAVY_SLOTS`, `GRADLE_USER_HOME`, `CLAUDE_PID`
   - `JAVA_HOME` 이 없으면 PATH 의 java 를 쓰고, heavy 변수가 없으면 gradlew 가 감싸는 heavy.sh 의 기본값(`~/.dflow/locks/heavy`, 칸 수는 RAM 기준)을 쓴다. 넘긴 `JAVA_HOME` 은 `_meta.txt` 의 `java-home` 줄에 남는다.
-- 전용 heavy 칸으로 돌리는 예(dmes-standard 레인 1b, macOS Homebrew JDK 21):
+- 전용 heavy 칸으로 돌리는 예(값은 PC·작업마다 바꾼다):
   ```bash
-  JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home \
-  DFLOW_HEAVY_DIR=$HOME/.dflow/locks/heavy-1b DFLOW_HEAVY_SLOTS=1 \
+  JAVA_HOME=<JDK 21 경로> \
+  DFLOW_HEAVY_DIR=$HOME/.dflow/locks/heavy-<칸 이름> DFLOW_HEAVY_SLOTS=1 \
     scripts/build-verify/dump-deps.sh <출력폴더> mpn
   ```
   `<출력폴더>.logs/<모듈>.stderr` 의 `HEAVY_SLOT slot-1 k=1` 줄로 그 칸을 잡았는지 확인할 수 있다.

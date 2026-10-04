@@ -284,7 +284,7 @@
 - 기존 빌드 실패 2건은 2차 이전부터 있었고 2차에서 고치지 않았다.
   - cactus-core 를 자기 폴더에서 `build` 하면 `:oasis-core:checkstyleTest` 가 `cactus-core/config/checkstyle/checkstyle.xml` 이 없어 실패한다(2차 직전 dev 에서도 같은 실패를 확인했다). 루트 composite 의 `buildAll` 로 돌리면 이 실패는 나지 않는다.
   - caravan-hub 는 `com.dongkuk.caravan:caravan-core:3.0.0` 을 루트 composite 의 includeBuild 치환으로만 풀기 때문에 자기 폴더에서 단독으로 빌드하거나 해석할 수 없다. 그래서 15개 전체 덤프의 오류 14줄은 항상 이 caravan-hub 단독 해석 불가이고, 기준선·2차 모든 덤프에서 `known-errors-15.txt` 와 바이트 단위로 같다. caravan-hub 시험은 루트 `src/backend` 에서 `:caravan-hub:test` 로 돌린다.
-- 기준선(`b557ccbd`, 덤프 base2)과 2차 직전 dev 의 덤프는 4개 파일이 다르다. 이 차이는 2차가 아니라 1차(S6·S9, cactus-core 시험의 sqlite-jdbc·hibernate 방언)에서 생겼다. 해석 버전이 바뀐 좌표 3개는 sqlite-jdbc(선언 3.45.3.0, 해석 3.50.3.0), hibernate-community-dialects(해석 7.2.12.Final), jboss-logging(3.6.1.Final 에서 3.6.3.Final)이고, 모두 cactus-core 의 시험 런타임 클래스패스에만 나타난다. 나머지 두 파일은 S7·S8 의 시험 입력 선언 줄이다.
+- 리팩토링 전 기준점(`b557ccbd`, 덤프 base2)과 2차 직전 dev(`dd3f59e5`, 덤프 pre2)의 덤프는 4개 파일이 다르다. 이 차이는 2차가 아니라 1차(S6·S9, cactus-core 시험의 sqlite-jdbc·hibernate 방언)에서 생겼다. 해석 버전이 바뀐 좌표 3개는 sqlite-jdbc(선언 3.45.3.0, 해석 3.50.3.0), hibernate-community-dialects(해석 7.2.12.Final), jboss-logging(hibernate-community-dialects 아래 새로 생긴 전이 줄, 선언 3.6.1.Final, 해석 3.6.3.Final)이고, 모두 cactus-core 의 시험 런타임 클래스패스에만 나타난다. 나머지 두 파일은 S7·S8 의 시험 입력 선언 줄이다.
 
 ## S18. 백엔드 버전 카탈로그 도입 (버전 불변)
 - 커밋: 1adfcf85 (43개 파일, 568줄 추가·313줄 삭제)
