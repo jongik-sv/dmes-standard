@@ -8,7 +8,8 @@
  * - 서랍에서 끌어 오면(widget-dnd) 놓은 자리에 기본 크기로 추가한다.
  */
 import { useEffect, useMemo, useState } from "react";
-import ReactGridLayout, { useContainerWidth, verticalCompactor, type Layout, type LayoutItem } from "react-grid-layout";
+import ReactGridLayout, { verticalCompactor, type Layout, type LayoutItem } from "react-grid-layout";
+import { useVisibleContainerWidth } from "./use-visible-container-width";
 
 import {
   WIDGET_COLS,
@@ -57,7 +58,7 @@ function applyLayout(layout: Layout, items: readonly WidgetItem[]): WidgetItem[]
 }
 
 export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onWideChange, cols: colsOverride, width: fixedWidth, testId }: WidgetBoardProps) {
-  const measured = useContainerWidth({ initialWidth: fixedWidth ?? 1280 });
+  const measured = useVisibleContainerWidth({ initialWidth: fixedWidth ?? 1280 });
   const width = fixedWidth ?? measured.width;
   const cols = colsOverride ?? colsForWidth(width);
   const wide = cols === WIDGET_COLS;

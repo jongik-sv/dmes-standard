@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { redirectToLoginOn401 } from "../http";
 import type { PortalFavoriteMenuRecord } from "../portal-menu";
+import { getCurrentUser } from "./current-user";
 
 export interface PortalFavoritePagesState {
   favorites: PortalFavoriteMenuRecord[];
@@ -37,19 +38,14 @@ export function usePortalFavorites(config: PortalFavoritesEndpoint): PortalFavor
       try {
         let items: PortalFavoriteMenuRecord[];
 
-        const meRes = await fetch("/api/auth/me", { credentials: "same-origin" });
-        if (meRes.status === 401 || !meRes.ok) {
+        // 공유 사용자 확인(진행 중 요청 공유·세션 캐시) — 진입마다 /api/auth/me 를 따로 부르지 않는다(K3).
+        const me = await getCurrentUser();
+        if (!me.ok) {
           redirectToLoginOn401();
           if (!cancelled) setIsLoading(false);
           return;
         }
-        const me = await meRes.json();
-        const userId: string = me.user?.id ?? "";
-        if (!userId) {
-          redirectToLoginOn401();
-          if (!cancelled) setIsLoading(false);
-          return;
-        }
+        const userId: string = me.user.id;
 
         const res = await fetch(config.endpoint, {
           method: "POST",

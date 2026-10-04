@@ -1,7 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { peekLastUserId, useUserButtonRbac } from "../portal-shell/use-user-button-rbac";
+import { peekCurrentUser } from "../portal-shell/current-user";
+import { useCurrentUserId } from "../portal-shell/use-current-user-id";
 import {
   computeResize,
   DEFAULT_MIN_COLUMN,
@@ -168,12 +169,13 @@ interface ResizableBodyProps {
 }
 
 function ResizableBody({ className, style, direction, storageKey, maximized, children }: ResizableBodyProps) {
-  const { userId } = useUserButtonRbac();
+  // 저장 키용 사용자 ID 만 쓴다 — 패널마다 RBAC 구독을 늘리지 않는다(Screen-Performance-Guide K4).
+  const userId = useCurrentUserId();
   // 첫 렌더는 이 세션에서 이미 확인된 사용자의 저장값으로 그린다 — 다시 마운트될 때(상세 영역 교체·탭 복귀)
   // 사용자 확인(비동기)을 기다리면 기본 크기로 그렸다가 저장 크기로 바뀌며 깜빡인다.
   const loadedFor = useRef("");
   const [overrides, setOverrides] = useState<Record<string, SizeSpec>>(() => {
-    const lastUserId = peekLastUserId();
+    const lastUserId = peekCurrentUser()?.id ?? "";
     if (!lastUserId || !storageKey) return {};
     loadedFor.current = `${lastUserId}:${storageKey}`;
     return loadSplit(lastUserId, storageKey);

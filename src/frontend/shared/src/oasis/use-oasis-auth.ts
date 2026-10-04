@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { createOasisApiClient } from "./oasis-api-client";
 import { setTokens, clearTokens } from "./oasis-token-store";
+import { clearCurrentUserCache } from "../portal-shell/current-user";
 import type { OasisLoginRequest, OasisLoginApiResponse } from "./types";
 
 const OASIS_API_URL =
@@ -46,6 +47,7 @@ export function useOasisAuth() {
 
   const logout = useCallback(() => {
     clearTokens();
+    clearCurrentUserCache();
     if (typeof window !== "undefined") {
       window.location.href = "/login";
     }

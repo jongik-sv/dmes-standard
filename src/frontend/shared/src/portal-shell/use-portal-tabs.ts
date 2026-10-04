@@ -115,6 +115,8 @@ export function usePortalTabs({
   const [tabs, setTabs] = useState<PortalShellTabState[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [tabOrder, setTabOrder] = useState<string[]>([]);
+  const tabOrderRef = useRef(tabOrder);
+  tabOrderRef.current = tabOrder;
   const [isStorageHydrated, setIsStorageHydrated] = useState<boolean>(false);
 
   const loadingTabIdsRef = useRef<Set<string>>(new Set());
@@ -243,14 +245,28 @@ export function usePortalTabs({
     [homeTabId]
   );
 
+  // 탭마다 마지막으로 요청받은 snapshot — 아래 사전 비교가 아직 렌더되지 않은 변경을 놓치지 않게 한다.
+  const lastSentSnapshotRef = useRef(new Map<string, unknown>());
   const onTabSnapshotChange = useCallback((tabId: string, nextSnapshot: unknown) => {
-    setTabs((prev) =>
-      prev.map((tab) => {
+    // 렌더된 값과 마지막 요청이 모두 같으면 setTabs 를 부르지 않는다 — 같은 값을 돌려주는 갱신 함수라도 React 는
+    // 그것을 계산하려고 셸을 한 번 렌더한다(K1). 행 클릭마다 같은 선택값을 다시 보내는 화면에서 셸 렌더 0회.
+    const sent = lastSentSnapshotRef.current;
+    const rendered = tabsRef.current.find((tab) => tab.id === tabId);
+    if (rendered && sent.has(tabId) && isSnapshotEqual(sent.get(tabId), nextSnapshot) && isSnapshotEqual(rendered.snapshot, nextSnapshot)) {
+      return;
+    }
+    sent.set(tabId, cloneSnapshot(nextSnapshot));
+    // 같은 snapshot 이면 prev 를 그대로 돌려준다 — 새 배열을 넣으면 값이 같아도 셸이 다시 그려진다(K1).
+    setTabs((prev) => {
+      let changed = false;
+      const next = prev.map((tab) => {
         if (tab.id !== tabId) return tab;
         if (isSnapshotEqual(tab.snapshot, nextSnapshot)) return tab;
+        changed = true;
         return { ...tab, snapshot: cloneSnapshot(nextSnapshot) };
-      })
-    );
+      });
+      return changed ? next : prev;
+    });
   }, []);
 
   const reorderTabs = useCallback((fromIndex: number, toIndex: number) => {
@@ -429,6 +445,10 @@ export function usePortalTabs({
   // Sync tabOrder with tabs (add new tabs, remove closed tabs)
   useEffect(() => {
     const nonHomeIds = tabs.filter((t) => !t.isHome).map((t) => t.id);
+    // 탭 구성이 그대로면(snapshot·제목만 바뀜) setTabOrder 를 부르지 않는다 — 같은 값을 돌려주는 갱신 함수라도
+    // React 는 그것을 계산하려고 셸을 한 번 더 렌더한다(K2).
+    const committed = tabOrderRef.current;
+    if (committed.length === nonHomeIds.length && nonHomeIds.every((id) => committed.includes(id))) return;
     // 갱신 함수는 나중에(두 번) 불릴 수 있으므로 지금 값을 떠서 쓰고, 기준 기록은 바로 지운다.
     const anchors = new Map(newTabAnchorRef.current);
     setTabOrder((prev) => {
@@ -442,6 +462,8 @@ export function usePortalTabs({
         else if (anchor != null && anchor === homeTabId) next.unshift(id);
         else next.push(id);
       }
+      // 순서가 그대로면 prev 를 돌려준다 — 탭 상태가 바뀔 때마다 셸이 한 번 더 그려지지 않게(K2).
+      if (next.length === prev.length && next.every((id, i) => id === prev[i])) return prev;
       return next;
     });
     for (const id of anchors.keys())

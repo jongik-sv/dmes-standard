@@ -1,3 +1,5 @@
+import { clearCurrentUserCache } from "../portal-shell/current-user";
+
 export class HttpError extends Error {
   public readonly status: number;
   public readonly statusText: string;
@@ -311,6 +313,8 @@ export function redirectToLoginOn401(): void {
   if (redirectingToLogin) return;
   if (window.location.pathname === "/login") return;
   redirectingToLogin = true;
+  // 세션이 끝났다 — 공유 사용자·RBAC 캐시를 비워 다시 로그인한 사용자에게 남지 않게 한다(K3).
+  clearCurrentUserCache();
 
   void (async () => {
     // 1) 서버 사이드 NextAuth 쿠키 강제 삭제
