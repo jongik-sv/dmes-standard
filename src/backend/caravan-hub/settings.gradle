@@ -1,4 +1,6 @@
+// 백엔드 빌드 관례 플러그인(dmes.*, src/backend/build-logic) — Gradle 규칙상 pluginManagement 는 settings 맨 앞이어야 한다.
 pluginManagement {
+    includeBuild('../build-logic')
     repositories {
         // maven {
         //     url "http://172.31.1.96:8889/nexus/content/groups/public"

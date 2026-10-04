@@ -1,0 +1,24 @@
+// dmes.test-conventions — 백엔드 모듈 공통 Test 관례(빌드 캐시 제외·JIT 설정, ③ build-logic, 2026-10-04 에 모듈 루트 build.gradle 끝에서 옮겼다).
+// 모듈 루트 build.gradle 의 plugins { … id 'dmes.test-conventions' } 로 루트 프로젝트에만 한 번 적용한다. 아래 allprojects
+// 가 그 빌드의 모든 프로젝트(하위 lib·api, cactus-core 가 끌어오는 oasis-core·oasis-core-api 포함)의 Test 에 건다.
+// PC 전역 테스트 슬롯은 여기서 걸지 않는다 — 모듈 루트 build.gradle 끝의 apply from: file('../gradle/test-slot.gradle') 가 건다.
+// precompiled script plugin 안의 apply from 은 Gradle 9.3.1 에서 구성 단계에 "No service of type ClassLoaderScope available
+// in project services" 로 실패하고, test-slot.gradle 은 analog 와 함께 쓰는 단일 구현이라 그 파일을 그대로 apply 한다.
+if (project != rootProject) {
+    throw new GradleException("dmes.test-conventions 는 모듈 루트 프로젝트에만 적용한다(${project.path} 에 적용됨) — allprojects 로 하위까지 건다.")
+}
+
+// ── 빌드 부하·속도 설정(chore/gradle-tuning, 2026-09-26) — 모든 Test 태스크 공통 ──
+// - 빌드 캐시(gradle.properties org.gradle.caching=true)에서 Test 를 뺀다. 테스트가 선언되지 않은 외부 입력에 기댄다 —
+//   작업 트리 밖 파일(mdm: frontend messages.ts·mcm DataInitializer·maru-mdm-engine 코퍼스), 기본 application.yml 의
+//   상태 있는 ../data/*.db, BACKEND_CLIENT_KEY 환경 변수. 캐시가 다른 워크트리의 통과 결과를 꺼내 실패를 숨길 수 있다.
+//   컴파일 등 다른 태스크는 그대로 캐시한다. 루트 composite 에서 켠 캐시는 모든 includeBuild 에 적용되므로 모듈마다 이 플러그인을 적용한다.
+// - 테스트 JVM 은 짧게 돌아 C2 JIT 컴파일이 CPU 만 먹고(측정 시 350% 가까이) 이득이 없다 — C1 까지만 쓴다.
+allprojects {
+    tasks.withType(Test).configureEach {
+        outputs.doNotCacheIf('선언되지 않은 외부 입력(작업 트리 밖 파일·../data SQLite·환경 변수)에 기대는 테스트') { true }
+        // C1 만 쓰면 JVM 이 코드 캐시 기본값을 240MB → 48MB 로 줄인다. mdm/api 1060건에서 "Out of space in CodeCache for
+        // adapters" 로 OASIS 호출이 실패했다(2026-09-26) — 원래 기본값으로 되돌린다(예약 크기라 쓰는 만큼만 잡힌다).
+        jvmArgs '-XX:TieredStopAtLevel=1', '-XX:ReservedCodeCacheSize=240m'
+    }
+}
