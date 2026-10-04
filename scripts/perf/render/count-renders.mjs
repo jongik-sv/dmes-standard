@@ -17,7 +17,9 @@
  *   섞이므로 쓰지 않는다.
  *
  * 동작(화면마다 새 컨텍스트): ① 메뉴 클릭 진입 ② [조회] 클릭 ③ 목록 첫 행 클릭(선택만, 저장 없음)
- *   ④ 다른 화면으로 갔다가 이 화면 탭으로 돌아오기(warm 탭 전환). 동작 사이는 화면이 조용해질 때까지 기다린다.
+ *   ④ 다른 화면으로 갔다가 이 화면 탭으로 돌아오기(warm 탭 전환) ⑤ 상세 폼 입력(screens.mjs `formInput` 이 있는 화면만,
+ *   RENDER_INPUT_TEXT 를 한 글자씩 150ms 간격으로 친다. 저장하지 않고 컨텍스트를 닫는다). 동작 사이는 화면이 조용해질 때까지 기다린다.
+ *   ⑤ 는 글자 수로 나눠 "한 글자당 커밋·렌더 시간" 과 루트·그리드 재렌더 여부(R12)를 본다.
  *
  * 환경 변수: RENDER_BASE_URL(기본 http://localhost:5300) · RENDER_LOGIN_USER/PASSWORD(admin/admin123) ·
  *   RENDER_SCREENS(콤마 id) · PERF_OUT(결과 폴더, 기본 $TMPDIR/dmes-perf/render-count) · PLAYWRIGHT_PATH
@@ -35,6 +37,7 @@ const USER = process.env.RENDER_LOGIN_USER ?? "admin";
 const PASSWORD = process.env.RENDER_LOGIN_PASSWORD ?? "admin123";
 const OUT = process.env.PERF_OUT ?? path.join(process.env.TMPDIR ?? "/tmp", "dmes-perf", "render-count");
 const TIMEOUT = 60_000;
+const INPUT_TEXT = process.env.RENDER_INPUT_TEXT ?? "ABCDE";
 const ids = (process.env.RENDER_SCREENS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 const targets = ids.length ? SCREENS.filter((s) => ids.includes(s.id)) : SCREENS;
 
@@ -214,14 +217,32 @@ try {
     await page.locator(`${VISIBLE_GRID}${SHELL_SELECTOR}`).filter({ hasText: screen.breadcrumb }).first().waitFor({ state: "visible", timeout: TIMEOUT });
     await settle(page);
 
+    // ⑤ 상세 폼 입력(R12): ③ 에서 고른 행의 상세 폼 칸에 글자를 친다. 저장 단추는 누르지 않는다.
+    let inputChars = 0;
+    if (screen.formInput) {
+      const input = page.locator(`${VISIBLE_GRID}${screen.formInput}`).first();
+      if (await input.isEditable().catch(() => false)) {
+        await input.click();
+        await input.press("End");
+        await settle(page);
+        await seg(page, "5-form-input");
+        await page.keyboard.type(INPUT_TEXT, { delay: 150 });
+        inputChars = INPUT_TEXT.length;
+        await settle(page);
+      } else {
+        console.log(`  ${screen.id}: ⑤ 입력 칸(${screen.formInput})이 편집 가능하지 않다 — 건너뛴다.`);
+      }
+    }
+
     const commits = await page.evaluate(() => window.__RC__.commits);
-    results[screen.id] = { summary: summarize(commits), commits };
+    results[screen.id] = { summary: summarize(commits), inputChars, commits };
     const s = results[screen.id].summary;
     console.log(`\n## ${screen.id}`);
     for (const [k, v] of Object.entries(s)) {
       if (k === "boot" || k === "x-away") continue;
       const dup = v.top.filter((c) => c.renders >= 2).slice(0, 8).map((c) => `${c.name}×${c.renders}(${c.selfMs}ms)`).join(", ");
-      console.log(`${k}: commits=${v.commits} dur=${v.durSum}ms | 2회 이상: ${dup}`);
+      const per = k === "5-form-input" && inputChars ? ` (한 글자당 commits=${(v.commits / inputChars).toFixed(1)} dur=${(v.durSum / inputChars).toFixed(1)}ms)` : "";
+      console.log(`${k}: commits=${v.commits} dur=${v.durSum}ms${per} | 2회 이상: ${dup}`);
     }
     await context.close();
   }

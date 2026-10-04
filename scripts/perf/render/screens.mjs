@@ -84,6 +84,8 @@ export const SCREENS = [
     trail: [/^마루 MDM$/, /^용어·도메인$/, /^용어 관리$/],
     breadcrumb: "마루 MDM > 용어·도메인 > 용어 관리",
     listPanelTitle: "용어 목록",
+    /** count-renders ⑤ 상세 폼 입력 대상(R12). 저장하지 않는다. */
+    formInput: 'tr:has(th:text-is("맥락")) input',
     /** 조회 응답 대기용 — 이 URL 패턴이 아닌 다른 API 는 집계에서 뺀다. */
     searchUrlPattern: /\/api\/mdm\/oasis\/termMng\/search/,
     /**
@@ -100,6 +102,8 @@ export const SCREENS = [
     trail: [/^마루 MDM$/, /^용어·도메인$/, /^컬럼 사전$/],
     breadcrumb: "마루 MDM > 용어·도메인 > 컬럼 사전",
     listPanelTitle: "컬럼 목록",
+    /** count-renders ⑤ 상세 폼 입력 대상(R12, 표시명 긴). 저장하지 않는다. */
+    formInput: 'input[data-testid="form-label-long"]',
     searchUrlPattern: /\/api\/mdm\/oasis\/columnMng\/(columnMng\/search|search)/,
     searchUrlExclude: /optionsOnly/,
     needsSearch: true,
@@ -122,6 +126,11 @@ export const SCREENS = [
     needsSearch: true,
     /** 이 화면은 조회 0건이면 그리드를 아예 만들지 않는다 → 0건이면 빈 상태 지표로 잰다(지시 2-1). */
     emptyWhenNoGrid: true,
+    /**
+     * 진입하면 자동으로 조회한다(`layoutConfirm/page.tsx:149-156`). [조회] 클릭보다 ≈60ms 먼저 나가 첫 행이
+     * 자동 조회 응답으로 그려지므로 조회→첫 행 지표가 무효다(검증 §2.1). summarize.mjs 가 조회 지표에서 뺀다.
+     */
+    autoSearchAtEntry: true,
   },
   {
     // headerMng 는 원래 1차 후보가 아니었다. layoutConfirm 메뉴 경로를 잘못 잡은 과정에서

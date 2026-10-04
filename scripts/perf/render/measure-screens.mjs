@@ -81,6 +81,17 @@ const KEEP_OPEN = process.env.RENDER_KEEP_OPEN === "1";
  * 포털이 localStorage 에 저장한 열린 탭이 뒤 화면 진입 때 숨은 탭으로 복원된다(회차 안 오염).
  */
 const ISOLATE = process.env.RENDER_ISOLATE === "1";
+/** 1(기본)이면 메뉴를 누르기 전에 포털 홈 로딩(호출·50ms 넘는 task)이 조용해질 때까지 기다린다(결함 12). */
+const HOME_IDLE = process.env.RENDER_HOME_IDLE !== "0";
+/**
+ * 1(기본)이면 cold 측정 앞에 예열 회차(round 0)를 한 번 돌리고 버린다(keep=0, warmup=1, 결함 13).
+ * 서버 첫 호출(JIT·캐시·커넥션)이 첫 회차에 섞여 termMng 826.6ms(TTFB 315) 같은 값이 나왔다.
+ */
+const WARMUP = process.env.RENDER_WARMUP !== "0";
+/** 1 이면 첫 조회 뒤 상한 안내 띠의 [전체 보기] 를 눌러 상한 없는 재조회도 잰다(R1 적용 화면). */
+const FULL_VIEW = process.env.RENDER_FULL_VIEW === "1";
+const HOME_IDLE_QUIET_MS = Number(process.env.RENDER_HOME_IDLE_QUIET_MS ?? 500);
+const HOME_IDLE_MAX_MS = Number(process.env.RENDER_HOME_IDLE_MAX_MS ?? 10_000);
 
 /** performance.getEntriesByType('longtask') 는 브라우저 안에만 있다 — 페이지 로드 전에 심어 둔다. */
 const LONGTASK_INIT_SCRIPT = `
@@ -231,6 +242,9 @@ function attachNetworkCollector(cdp, sink) {
     // loadingFinished 의 encodedDataLength 에 온다.
     if (typeof e.encodedDataLength === "number") p.encodedDataLength = e.encodedDataLength;
     const split = splitTiming(p);
+    // 응답 헤더 도착 시각(CDP monotonic 초). cpu-profile 등 같은 축을 쓰는 도구가 구간을 자를 때 쓴다.
+    const respMono = p.resourceTiming && typeof p.resourceTiming.requestTime === "number" && typeof p.resourceTiming.receiveHeadersEnd === "number"
+      ? p.resourceTiming.requestTime + p.resourceTiming.receiveHeadersEnd / 1000 : null;
     // bodyMs = 전체 - (헤더까지 걸린 시간). responseReceived 의 timing 만으로는 본문 구간이
     // 분리되지 않으므로(loadingFinished 시각이 여기서야 나온다) 이렇게 뺀다.
     if (split.ttfbMs !== null) {
@@ -241,8 +255,11 @@ function attachNetworkCollector(cdp, sink) {
       url: p.url,
       method: p.method,
       postData: p.postData,
+      requestId: e.requestId,
       status: p.status ?? 0,
       ms,
+      monoStart: p.start,
+      monoHeaders: respMono,
       wallStart: p.wallStart,
       // epoch 밀리초. wallTime 이 없는 경우(undefined)는 이 축을 쓰지 않는다.
       wallEndMs: typeof p.wallStart === "number" ? p.wallStart * 1000 + ms : null,
@@ -299,7 +316,12 @@ function splitTiming(p) {
     sendMs: send === null ? null : round1(send),
     dnsMs: round1(dns),
     connectMs: round1(conn),
-    queueMs: round1(Math.max(0, t.sendStart - (typeof t.requestTime === "number" ? t.requestTime : t.sendStart))),
+    // 큐 대기 = 요청 생성(requestWillBeSent, monotonic 초) → 송신 시작(requestTime 초 + sendStart ms).
+    //   예전 식 `sendStart − requestTime` 은 ms 오프셋에서 초 기준값을 빼 단위가 섞여 늘 0 이었다(검증 §4 결함 10).
+    queueMs:
+      typeof t.requestTime === "number" && typeof p?.start === "number"
+        ? round1(Math.max(0, (t.requestTime - p.start) * 1000 + t.sendStart))
+        : null,
     encodedDataLength: p?.encodedDataLength ?? null,
   };
 }
@@ -452,6 +474,43 @@ async function waitMenuReady(page, menuReady) {
   await page.waitForFunction(() => document.querySelectorAll(".tree-item .item-name").length >= 3, undefined, {
     timeout: t,
   });
+  if (HOME_IDLE) await waitHomeIdle(page);
+}
+
+/**
+ * 포털 홈(위젯·공지 등) 로딩이 끝날 때까지 기다린다(검증 §4 결함 12).
+ * 메뉴 트리만 기다리면 홈 호출·렌더가 아직 도는 중에 메뉴를 눌러, 진입 구간(shellReady·진입 호출)에
+ * 홈 꼬리가 섞였다(잎 클릭 전 302ms 중 234ms 가 메인 스레드 사용).
+ * 판정: `/api/` Resource Timing 항목 수가 HOME_IDLE_QUIET_MS 동안 늘지 않고, 그동안 50ms 넘는 task 가 없으면 조용하다고 본다.
+ * 상한 HOME_IDLE_MAX_MS 를 넘기면 경고만 남기고 진행한다(측정을 막지 않는다).
+ */
+async function waitHomeIdle(page) {
+  const res = await page.evaluate(
+    ([quiet, max]) =>
+      new Promise((resolve) => {
+        const t0 = performance.now();
+        let last = -1;
+        let since = t0;
+        let lastLong = 0;
+        let po = null;
+        try {
+          po = new PerformanceObserver((l) => { for (const e of l.getEntries()) lastLong = Math.max(lastLong, e.startTime + e.duration); });
+          po.observe({ type: "longtask", buffered: true });
+        } catch {}
+        const tick = () => {
+          const now = performance.now();
+          const n = performance.getEntriesByType("resource").filter((e) => e.name.includes("/api/")).length;
+          if (n !== last) { last = n; since = now; }
+          const quietFrom = Math.max(since, lastLong);
+          if (now - quietFrom >= quiet) { po?.disconnect(); return resolve({ ok: true, waited: Math.round(now - t0), api: n }); }
+          if (now - t0 >= max) { po?.disconnect(); return resolve({ ok: false, waited: Math.round(now - t0), api: n }); }
+          setTimeout(tick, 50);
+        };
+        tick();
+      }),
+    [HOME_IDLE_QUIET_MS, HOME_IDLE_MAX_MS]
+  );
+  if (!res.ok) log(`  포털 홈이 ${res.waited}ms 안에 조용해지지 않았다(api ${res.api}) — 그대로 진행한다.`);
 }
 
 /** `myMenusTree` 응답을 **goto 전에** 걸어 두는 대기열 하나. 여러 번 호출해도 하나만 만든다. */
@@ -650,6 +709,71 @@ async function startTrace(cdp) {
   };
 }
 
+/**
+ * 응답 본문에서 행 수·전체 건수를 뽑는다. 본문 크기만으로는 건수를 모르므로 CDP 로 본문을 한 번 읽는다
+ * (측정 구간이 끝난 뒤라 시간 값에 영향이 없다). 가장 긴 배열 길이를 행 수로, `totalCount`·`truncated` 는 있는 대로 낸다.
+ */
+async function responseRows(cdp, call) {
+  if (!call?.requestId) return { rows: null, totalCount: null, truncated: null };
+  try {
+    const { body, base64Encoded } = await cdp.send("Network.getResponseBody", { requestId: call.requestId });
+    const json = JSON.parse(base64Encoded ? Buffer.from(body, "base64").toString("utf8") : body);
+    let rows = 0;
+    let totalCount = null;
+    let truncated = null;
+    const walk = (v, depth) => {
+      if (depth > 6 || v === null || typeof v !== "object") return;
+      if (Array.isArray(v)) { rows = Math.max(rows, v.length); return; }
+      for (const [k, x] of Object.entries(v)) {
+        if (k === "totalCount" && typeof x === "number") totalCount = x;
+        else if (k === "truncated" && typeof x === "boolean") truncated = x;
+        else walk(x, depth + 1);
+      }
+    };
+    walk(json, 0);
+    return { rows, totalCount, truncated };
+  } catch {
+    return { rows: null, totalCount: null, truncated: null };
+  }
+}
+
+/**
+ * [전체 보기] 경로(R1 상한 안내 띠). 보이는 탭에 `*-limit-show-all` 단추가 있으면 누르고,
+ * 페이지 안 시계로 클릭(event.timeStamp) → 안내 띠가 사라진 순간(MutationObserver)을 잰다.
+ * 상한 없는 재조회 요청의 TTFB·크기·행 수도 함께 낸다. 단추가 없으면(잘리지 않음) fullViewShown=0.
+ */
+async function measureFullView(page, cdp, screen, calls) {
+  const btn = page.locator(`${VISIBLE_GRID}[data-testid$="-limit-show-all"]`).first();
+  if (!(await btn.isVisible().catch(() => false))) return { fullViewShown: 0 };
+  const before = calls.filter((c) => isSearchCall(screen, c)).length;
+  const tab = await page.locator(VISIBLE_GRID.trim()).first().elementHandle();
+  await page.evaluate((tab) => {
+    const st = (window.__FV__ = { click: null, gone: null });
+    document.addEventListener("click", (e) => { if (st.click === null) st.click = e.timeStamp; }, { capture: true, once: true });
+    const mo = new MutationObserver(() => {
+      if (st.click === null || st.gone !== null) return;
+      if (!tab.querySelector('[data-testid$="-limit"]')) { st.gone = performance.now(); mo.disconnect(); }
+    });
+    mo.observe(tab, { childList: true, subtree: true });
+  }, tab);
+  await btn.click();
+  await page.waitForFunction(() => window.__FV__?.gone != null, undefined, { timeout: TIMEOUT }).catch(() => {});
+  const deadline = Date.now() + TIMEOUT;
+  while (calls.filter((c) => isSearchCall(screen, c)).length <= before && Date.now() < deadline) await page.waitForTimeout(50);
+  const fv = await page.evaluate(() => window.__FV__);
+  const call = calls.filter((c) => isSearchCall(screen, c))[before] ?? null;
+  const body = await responseRows(cdp, call);
+  return {
+    fullViewShown: 1,
+    fullViewInPageMs: fv?.click != null && fv?.gone != null ? round1(fv.gone - fv.click) : "",
+    fullViewTtfbMs: call?.ttfbMs ?? "",
+    fullViewTotalMs: call ? round1(call.ms) : "",
+    fullViewEncodedBytes: call?.encodedDataLength ?? "",
+    fullViewRows: body.rows ?? "",
+    fullViewPostData: call?.postData?.slice(0, 200) ?? "",
+  };
+}
+
 // ── 한 화면 측정 ────────────────────────────────────────────────────────────
 async function measureScreen(page, cdp, screen, calls, round) {
   await clearBuffers(page);
@@ -747,6 +871,12 @@ async function measureScreen(page, cdp, screen, calls, round) {
   const afterMenu = rt.menuClick === null ? [] : rt.entries.filter((e) => e.start >= rt.menuClick && (rt.searchClick === null || e.start < rt.searchClick));
   const apiAfterMenuClick = rt.menuClick === null ? "" : afterMenu.length;
   const authMeAfterMenuClick = rt.menuClick === null ? "" : afterMenu.filter((e) => e.name.includes("/api/auth/me")).length;
+  // 진입 호출 이름(경로만, 시작 순). R3 "진입 호출 목록" 과 홈 위젯 무관 재요청(K5)을 판정할 때 본다.
+  const apiAfterMenuClickNames = afterMenu
+    .slice()
+    .sort((a, b) => a.start - b.start)
+    .map((e) => new URL(e.name).pathname.replace(/^\/api\//, ""))
+    .join(",");
   const authMeAll = rt.entries.filter((e) => e.name.includes("/api/auth/me")).length;
 
   const after = await perfMetrics(cdp);
@@ -754,7 +884,11 @@ async function measureScreen(page, cdp, screen, calls, round) {
 
   const longTasks = await readLongTasks(page);
   const profiler = await readProfiler(page);
-  const api = attachSearchTiming(summarizeApi(calls), screen, calls);
+  // 첫 조회 기준 값은 [전체 보기] 재조회 전에 굳힌다(attachSearchTiming 은 마지막 조회 요청을 고른다).
+  const api = attachSearchTiming(summarizeApi(calls.slice()), screen, calls.slice());
+  const searchCall = calls.filter((c) => isSearchCall(screen, c)).pop() ?? null;
+  const searchBody = searched ? await responseRows(cdp, searchCall) : { rows: null, totalCount: null, truncated: null };
+  const fullView = FULL_VIEW && searched && rowMode === "row" ? await measureFullView(page, cdp, screen, calls) : {};
 
   const row = {
     round,
@@ -787,13 +921,21 @@ async function measureScreen(page, cdp, screen, calls, round) {
     /** 메뉴 잎 클릭 ~ [조회] 클릭 사이에 시작한 /api/ 호출 수(화면 진입 호출). 페이지 시계 기준. */
     apiAfterMenuClick,
     authMeAfterMenuClick,
+    apiAfterMenuClickNames,
     authMeAll,
     searchTtfbMs: api.searchTtfbMs ?? "",
     searchBodyMs: api.searchBodyMs ?? "",
     searchQueueMs: api.searchQueueMs ?? "",
     searchConnectMs: api.searchConnectMs ?? "",
     searchEncodedBytes: api.searchEncodedBytes ?? "",
+    searchRows: searchBody.rows ?? "",
+    searchTotalCount: searchBody.totalCount ?? "",
+    searchTruncated: searchBody.truncated === null ? "" : searchBody.truncated ? 1 : 0,
+    searchPostData: searchCall?.postData?.slice(0, 200) ?? "",
+    ...fullView,
     invalidSearch,
+    /** 진입 자동 조회 화면이면 1 — 조회 지표 무효(summarize.mjs 가 뺀다). */
+    autoSearchAtEntry: screen.autoSearchAtEntry ? 1 : 0,
     /** ★지시 3★ 보정 회차에서 주입한 바쁜 루프 실측 시간(ms). null 이면 주입 실패. */
     calibrateMs,
     longTaskCount: longTasks.length,
@@ -874,13 +1016,17 @@ async function main() {
     `trace: ${DO_TRACE ? "1" : "0"}`,
     `calibrate: ${CALIBRATE ? "1" : "0"}`,
     `isolate: ${ISOLATE ? "1" : "0"}`,
+    `warmup: ${WARMUP && TAB_STATE === "cold" ? "1 (round 0 버림)" : "0"}`,
+    `full_view: ${FULL_VIEW ? "1" : "0"}`,
+    `home_idle: ${HOME_IDLE ? `1 (quiet ${HOME_IDLE_QUIET_MS}ms, max ${HOME_IDLE_MAX_MS}ms)` : "0"}`,
     `screens: ${targets.map((s) => s.id).join(",")}`,
     `ac: ${acPower()}`,
   ];
 
   try {
-    for (let round = 1; round <= rounds; round++) {
-      log(`── 회차 ${round}/${rounds} (tab_state=${TAB_STATE})`);
+    const firstRound = WARMUP && TAB_STATE === "cold" ? 0 : 1;
+    for (let round = firstRound; round <= rounds; round++) {
+      log(round === 0 ? `── 예열 회차(기록하되 keep=0)` : `── 회차 ${round}/${rounds} (tab_state=${TAB_STATE})`);
 
       if (TAB_STATE === "cold") {
         // 화면마다 새 페이지 — 탭이 처음 마운트되는 상태를 잰다.
@@ -906,6 +1052,7 @@ async function main() {
             await page.goto(`${BASE_URL}/portal`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
             await waitMenuReady(page, menuReady);
             const row = await measureScreen(page, cdp, screen, calls, round);
+            if (round === 0) Object.assign(row, { keep: 0, warmup: 1 });
             rows.push(row);
             log(
               `  ${screen.id}: shell ${row.shellReadyMs}ms · click→row ${row.clickToRowMs || "n/a"}ms · ` +
@@ -966,6 +1113,7 @@ async function main() {
           const detach = attachNetworkCollector(cdp, calls);
           try {
             const row = await measureScreen(page, cdp, screen, calls, round);
+            if (round === 0) Object.assign(row, { keep: 0, warmup: 1 });
             rows.push(row);
             log(
               `  ${screen.id}: shell ${row.shellReadyMs}ms · click→row ${row.clickToRowMs || "n/a"}ms · ` +
