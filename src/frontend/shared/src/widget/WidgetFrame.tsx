@@ -264,7 +264,7 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
         {!editing && (
           <>
             {item.locked && <span className="cm-widget__sub" title="잠김">🔒</span>}
-            <button type="button" className="cm-widget__btn" data-action="refresh" title="새로 고침" aria-label="새로 고침" onClick={() => setRefreshKey((k) => k + 1)}>
+            <button type="button" className="cm-widget__btn" data-action="refresh" title="새로 고침" aria-label="새로 고침" onClick={() => { lastRefreshAt.current = Date.now(); setRefreshKey((k) => k + 1); }}>
               ↻
             </button>
             {entry.meta.linkPageId && (
