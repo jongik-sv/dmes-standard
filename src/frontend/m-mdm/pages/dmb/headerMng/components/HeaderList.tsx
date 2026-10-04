@@ -1,6 +1,7 @@
 "use client";
 
 /** 헤더 목록(TSK-05-02 design.md §2, D-144 3단계) — 헤더 이름·EAI·인코딩·길이·항목 수·사용 전문 수·버전·상태. */
+import type { ReactNode } from "react";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { versionStateLabel } from "@/layout/version-rows";
 import { fmtVer } from "@/shell";
@@ -23,11 +24,13 @@ export interface HeaderListProps {
   selectedId: number | null;
   loading: boolean;
   onSelect: (row: HeaderRow) => void;
+  /** 제목 오른쪽 자리 — 첫 조회 상한 안내(GridLimitNotice). */
+  titleExtra?: ReactNode;
 }
 
-export function HeaderList({ rows, selectedId, loading, onSelect }: HeaderListProps) {
+export function HeaderList({ rows, selectedId, loading, onSelect, titleExtra }: HeaderListProps) {
   return (
-    <GridPanel title="헤더 목록" count={rows.length}>
+    <GridPanel title="헤더 목록" count={rows.length} titleExtra={titleExtra}>
       <div data-testid="header-list" style={{ position: "absolute", inset: 0 }}>
         <AgDataGrid
           columnSizing="fit"

@@ -27,8 +27,9 @@ function callOasis<T>(action: string, params: Record<string, unknown>): Promise<
   return callOasisAt<T>(MDM_OASIS_BASE, SERVICE, action, params, undefined, OASIS);
 }
 
-export function searchDrafts(keyword = ""): Promise<SearchResult> {
-  return callOasis<SearchResult>("search", { keyword });
+/** `limit` 은 검색어가 없을 때만 서버가 적용하는 행 수 상한이다(R1) — 주면 응답에 totalCount·truncated 가 온다. 비우면 상한 없음. */
+export function searchDrafts(keyword = "", limit?: number): Promise<SearchResult> {
+  return callOasis<SearchResult>("search", { keyword, limit });
 }
 
 /** ver 를 비우면 서버가 그 레이아웃의 DRAFT 를 고른다. */

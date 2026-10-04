@@ -14,8 +14,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";
-import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GridLimitNotice, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, fmtVer, normVer, useMdmPageParams } from "@/shell";
 
 import { confirmDraft, searchDrafts, validateDraft, viewDraft } from "./api";
@@ -155,6 +156,10 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
 
   const [keyword, setKeyword] = useState("");
   const [drafts, setDrafts] = useState<PendingDraft[] | null>(null);
+  /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
+  const [draftsTotal, setDraftsTotal] = useState<number | null>(null);
+  /** 마지막 조회가 [전체 보기](상한 없음)였는지 — 확정 뒤 재조회가 이 모드를 따른다. */
+  const [showAll, setShowAll] = useState(false);
   const [target, setTarget] = useState<Target | null>(null);
   const [view, setView] = useState<ViewResult | null>(null);
   const [applyInput, setApplyInput] = useState("");
@@ -170,10 +175,13 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
 
   const fail = useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []);
 
-  const refreshList = useCallback(async (kw: string) => {
+  // 검색어가 없는 [조회] 는 첫 조회 상한(R1)을 걸고, [전체 보기] 는 상한 없이 받는다. 검색어가 있으면 서버가 상한을 무시한다.
+  const refreshList = useCallback(async (kw: string, all = false) => {
     try {
-      const out = await searchDrafts(kw);
+      const out = await searchDrafts(kw, all ? undefined : FIRST_SEARCH_LIMIT);
       setDrafts(out.rows ?? []);
+      setDraftsTotal(out.truncated ? (out.totalCount ?? null) : null);
+      setShowAll(all);
     } catch (e) {
       fail(e);
     }
@@ -273,7 +281,7 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
       setClosedPreviousVer(out.closedPreviousVer ?? null);
       showMessage({ message: "확정했습니다", alertType: "info", toast: true });
       await load({ maruRuleId: view.rule.maruRuleId, ver: version.ver });
-      await refreshList(keyword);
+      await refreshList(keyword, showAll);
     } catch (e) {
       setModalOpen(false);
       fail(e);
@@ -290,7 +298,7 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
         <ContentPanel width="30%">
           <DraftList
             drafts={drafts} keyword={keyword} selected={target} onKeyword={setKeyword}
-            onSearch={() => void refreshList(keyword)} onSelect={(d) => choose({ maruRuleId: d.maruRuleId, ver: d.ver })}
+            onSearch={() => void refreshList(keyword)} total={draftsTotal} onShowAll={() => void refreshList(keyword, true)} onSelect={(d) => choose({ maruRuleId: d.maruRuleId, ver: d.ver })}
           />
         </ContentPanel>
 
@@ -385,10 +393,12 @@ interface DraftListProps {
   selected: Target | null;
   onKeyword: (v: string) => void;
   onSearch: () => void;
+  total: number | null;
+  onShowAll: () => void;
   onSelect: (d: PendingDraft) => void;
 }
 
-function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }: DraftListProps) {
+function DraftList({ drafts, keyword, selected, onKeyword, onSearch, total, onShowAll, onSelect }: DraftListProps) {
   const draftRows = useMemo(
     () => (drafts ?? []).map((d) => ({ ...d, rowId: draftKey(d.maruRuleId, d.ver) }) as unknown as Record<string, unknown>),
     [drafts],
@@ -399,6 +409,9 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
       <div style={{ ...section, ...rowFlex, paddingTop: "var(--spacing-sm)" }}>
         <Input data-testid="rc-keyword" value={keyword} placeholder="룰 ID·이름" onChange={onKeyword} />
         <Button data-testid="rc-search" onClick={onSearch}>조회</Button>
+      </div>
+      <div style={{ padding: "0 var(--spacing-md)" }}>
+        <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={total} onShowAll={onShowAll} testId="rc-list-limit" />
       </div>
       <div style={{ ...section, flex: 1, minHeight: 0 }}>
         <AgDataGrid

@@ -1,6 +1,7 @@
 "use client";
 
 /** 전문 목록(TSK-05-02 design.md §2, D-144 3단계) — 레이아웃 ID·전문 이름·송신→수신·헤더 구성·본문 항목 수·총 길이·현재 버전·DRAFT(소유자). */
+import type { ReactNode } from "react";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { lengthText } from "@/layout/layout-calc";
 import { fmtVer } from "@/shell";
@@ -23,11 +24,13 @@ export interface LayoutListProps {
   selectedId: number | null;
   loading: boolean;
   onSelect: (row: LayoutRow) => void;
+  /** 제목 오른쪽 자리 — 첫 조회 상한 안내(GridLimitNotice). */
+  titleExtra?: ReactNode;
 }
 
-export function LayoutList({ rows, selectedId, loading, onSelect }: LayoutListProps) {
+export function LayoutList({ rows, selectedId, loading, onSelect, titleExtra }: LayoutListProps) {
   return (
-    <GridPanel title="전문 목록" count={rows.length}>
+    <GridPanel title="전문 목록" count={rows.length} titleExtra={titleExtra}>
       <div data-testid="layout-list" style={{ position: "absolute", inset: 0 }}>
         <AgDataGrid
           columnSizing="fit"

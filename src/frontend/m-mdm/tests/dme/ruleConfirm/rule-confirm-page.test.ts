@@ -199,7 +199,7 @@ describe("RuleConfirmPage", () => {
     await render();
     await typeTestId("rc-keyword", "NO_SUCH");
     await click(byTestId("rc-search"));
-    expect(actions("search").at(-1)?.params).toEqual({ keyword: "NO_SUCH" });
+    expect(actions("search").at(-1)?.params).toEqual({ keyword: "NO_SUCH", limit: 1000 });
     expect(byTestId("rc-list-empty")?.textContent).toContain("확정할 DRAFT 가 없습니다");
   });
 

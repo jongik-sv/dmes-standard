@@ -2,7 +2,7 @@
 // 헤더 항목을 보내는 grid 는 없다(불변 I8).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  cleanParams, exportSnapshot, renderSample, saveLayout, searchColumns, searchHeaders, searchImpact, searchLayouts, validateLayout, viewLayout,
+  cleanParams, exportSnapshot, renderSample, saveLayout, searchColumns, loadHeaderPick, searchHeaders, searchImpact, searchLayouts, validateLayout, viewLayout,
 } from "../../../pages/dmb/layoutMng/api";
 import { newLayoutVersion } from "@/layout/version-api";
 import type { LayoutDraft } from "../../../pages/dmb/layoutMng/types";
@@ -36,8 +36,20 @@ describe("layoutMng api", () => {
   it("헤더·컬럼 검색은 search 의 target 이다(D8)", async () => {
     await searchHeaders("");
     await searchColumns("coil");
-    expect(calls[0].body.params).toEqual({ target: "HEADER" });
+    // 선택 목록은 항목을 빼고 받는다(withoutItems) — 고른 헤더의 항목은 loadHeaderPick 으로 따로 받는다
+    expect(calls[0].body.params).toEqual({ target: "HEADER", withoutItems: true });
     expect(calls[1].body.params).toEqual({ target: "COLUMN", keyword: "coil" });
+  });
+
+  it("전문 목록 조회는 limit 을 보내고(R1), 안 주면 키를 빼며, 고른 헤더 한 건은 headerLayoutId 로 받는다", async () => {
+    await searchLayouts({ keyword: "", headerLayoutId: "", sndSystem: "", rcvSystem: "" }, 1000);
+    await searchLayouts({ keyword: "", headerLayoutId: "", sndSystem: "", rcvSystem: "" });
+    expect(calls[0].body.params).toEqual({ limit: 1000 });
+    expect(calls[1].body.params).toEqual({});
+    stub({ meta: { success: true }, data: { result: { headers: [{ LAYOUT_ID: 11, items: [{ SEQ: 1 }] }] } } });
+    const pick = await loadHeaderPick(11);
+    expect(calls[0].body.params).toEqual({ target: "HEADER", headerLayoutId: 11 });
+    expect(pick).toEqual({ LAYOUT_ID: 11, items: [{ SEQ: 1 }] });
   });
 
   it("view 는 layoutId 를 보낸다", async () => {

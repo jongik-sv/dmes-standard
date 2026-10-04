@@ -17,6 +17,10 @@ export interface PendingDraft {
 
 export interface SearchResult {
   rows?: PendingDraft[];
+  /** 조건에 맞는 전체 건수 — 상한으로 잘렸으면 rows 길이보다 크다(limit 을 보냈을 때만 온다). */
+  totalCount?: number;
+  /** 상한(limit)으로 잘렸는지. */
+  truncated?: boolean;
 }
 
 export interface ConfirmRule {

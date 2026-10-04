@@ -67,6 +67,45 @@ class RuleSetConfirmServiceSqliteTest extends AbstractMdmSharedDbTest {
 
     @SuppressWarnings("unchecked")
     @Test
+    void 조건_없는_조회에_limit_이_오면_세트_ID_앞쪽만_주고_전체_건수와_잘림을_알린다() {
+        DmeTestSupport.ruleSet(jdbc, "S_D", "둘째 세트", "[]", "INUSE", 0);
+        DmeTestSupport.ruleSetDraft(jdbc, "S_D", "2.000", "kim", "[\"R_A\"]", 4);
+        RuleSetConfirmSearchRequest q = new RuleSetConfirmSearchRequest();
+        q.setLimit(1);
+
+        Map<String, Object> result = service.search(q);
+
+        assertThat((List<Map<String, Object>>) result.get("rows")).extracting(r -> r.get("setId")).containsExactly("S_C");
+        assertThat(result.get("totalCount")).isEqualTo(2);
+        assertThat(result.get("truncated")).isEqualTo(true);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void limit_이_없거나_조건이_있으면_상한_없이_전부_주고_limit_없는_응답_모양은_그대로다() {
+        DmeTestSupport.ruleSet(jdbc, "S_D", "둘째 세트", "[]", "INUSE", 0);
+        DmeTestSupport.ruleSetDraft(jdbc, "S_D", "2.000", "kim", "[\"R_A\"]", 4);
+        RuleSetConfirmSearchRequest withKeyword = new RuleSetConfirmSearchRequest();
+        withKeyword.setKeyword("S_");
+        withKeyword.setLimit(1);
+        RuleSetConfirmSearchRequest big = new RuleSetConfirmSearchRequest();
+        big.setLimit(1000);
+
+        Map<String, Object> noLimit = service.search(new RuleSetConfirmSearchRequest());
+        Map<String, Object> keyword = service.search(withKeyword);
+        Map<String, Object> bigResult = service.search(big);
+
+        assertThat((List<?>) noLimit.get("rows")).hasSize(2);
+        assertThat(noLimit.keySet()).containsExactly("rows");
+        for (Map<String, Object> r : List.of(keyword, bigResult)) {
+            assertThat((List<?>) r.get("rows")).hasSize(2);
+            assertThat(r.get("totalCount")).isEqualTo(2);
+            assertThat(r.get("truncated")).isEqualTo(false);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
     void searchViewValidateConfirmClosesPreviousAndUsesNewVersion() {
         RuleSetConfirmSearchRequest s = new RuleSetConfirmSearchRequest();
         List<Map<String, Object>> rows = (List<Map<String, Object>>) service.search(s).get("rows");

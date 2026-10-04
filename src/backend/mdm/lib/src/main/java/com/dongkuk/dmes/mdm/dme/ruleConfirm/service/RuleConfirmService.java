@@ -116,7 +116,12 @@ public class RuleConfirmService {
 
     public Map<String, Object> search(RuleConfirmSearchRequest request) {
         LocalDateTime now = now();
-        List<Pending> drafts = confirmQueries.drafts(request == null ? null : request.getKeyword());
+        String keyword = request == null ? null : request.getKeyword();
+        int limit = request == null || request.getLimit() == null ? 0 : request.getLimit();
+        boolean noCondition = keyword == null || keyword.isBlank();
+        // 조건 없음 + 상한(R1) — DB 가 룰 ID 순 앞쪽 limit 건만 읽고 전체 건수는 COUNT 로 센다
+        boolean capped = noCondition && limit > 0;
+        List<Pending> drafts = capped ? confirmQueries.drafts(keyword, limit) : confirmQueries.drafts(keyword);
         Map<String, List<MdmRuleVer>> versions = queries.versionsOf(drafts.stream().map(p -> p.rule().getMaruRuleId()).distinct().toList())
                 .stream().collect(Collectors.groupingBy(MdmRuleVer::getMaruRuleId));
         List<Map<String, Object>> rows = new ArrayList<>(drafts.size());
@@ -133,6 +138,12 @@ public class RuleConfirmService {
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("rows", rows);
+        if (limit > 0) {
+            // limit 을 보낸 호출자에게만 싣는다 — 보내지 않는 기존 호출자의 응답 모양(rows 한 키)은 그대로다
+            int total = capped ? confirmQueries.countDrafts(keyword) : rows.size();
+            result.put("totalCount", total);
+            result.put("truncated", rows.size() < total);
+        }
         return result;
     }
 

@@ -10,8 +10,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";
-import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GridLimitNotice, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, fmtVer, normVer, useMdmPageParams } from "@/shell";
 
 import { confirmDraft, searchDrafts, validateDraft, viewDraft } from "./api";
@@ -91,6 +92,10 @@ export default function LayoutConfirmPage({ tabId, snapshot, onSnapshotChange }:
 
   const [keyword, setKeyword] = useState("");
   const [drafts, setDrafts] = useState<DraftRow[] | null>(null);
+  /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
+  const [draftsTotal, setDraftsTotal] = useState<number | null>(null);
+  /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
+  const [showAll, setShowAll] = useState(false);
   const [target, setTarget] = useState<Target | null>(null);
   const [view, setView] = useState<ViewResult | null>(null);
   const [applyInput, setApplyInput] = useState("");
@@ -105,9 +110,13 @@ export default function LayoutConfirmPage({ tabId, snapshot, onSnapshotChange }:
 
   const fail = useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []);
 
-  const refreshList = useCallback(async (kw: string) => {
+  // 진입 자동 조회·[조회] 는 첫 조회 상한(R1)을 걸고, [전체 보기] 는 상한 없이 받는다. 확정 뒤 재조회는 지금 모드를 따른다.
+  const refreshList = useCallback(async (kw: string, all = false) => {
     try {
-      setDrafts((await searchDrafts(kw)).rows ?? []);
+      const out = await searchDrafts(kw, all ? undefined : FIRST_SEARCH_LIMIT);
+      setDrafts(out.rows ?? []);
+      setDraftsTotal(out.truncated ? (out.totalCount ?? null) : null);
+      setShowAll(all);
     } catch (e) {
       fail(e);
     }
@@ -201,7 +210,7 @@ export default function LayoutConfirmPage({ tabId, snapshot, onSnapshotChange }:
       setAcknowledged(false);
       showMessage({ message: "확정했습니다", alertType: "info", toast: true });
       await load({ layoutId: view.layout.LAYOUT_ID, ver: version.VER });
-      await refreshList(keyword);
+      await refreshList(keyword, showAll);
     } catch (e) {
       fail(e);
     } finally {
@@ -215,7 +224,8 @@ export default function LayoutConfirmPage({ tabId, snapshot, onSnapshotChange }:
         <ContentPanel width="30%">
           <DraftList
             drafts={drafts} keyword={keyword} selected={target} onKeyword={setKeyword}
-            onSearch={() => void refreshList(keyword)} onSelect={(d) => choose({ layoutId: d.LAYOUT_ID, ver: normVer(d.VER) })}
+            onSearch={() => void refreshList(keyword)} onShowAll={() => void refreshList(keyword, true)} totalCount={draftsTotal}
+            onSelect={(d) => choose({ layoutId: d.LAYOUT_ID, ver: normVer(d.VER) })}
           />
         </ContentPanel>
 
@@ -292,10 +302,14 @@ interface DraftListProps {
   selected: Target | null;
   onKeyword: (v: string) => void;
   onSearch: () => void;
+  /** [전체 보기] — 상한 없이 다시 받는다. */
+  onShowAll: () => void;
+  /** 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
+  totalCount: number | null;
   onSelect: (d: DraftRow) => void;
 }
 
-function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }: DraftListProps) {
+function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onShowAll, totalCount, onSelect }: DraftListProps) {
   const rows = useMemo(
     () => (drafts ?? []).map((d) => ({
       ...d, rowId: draftKey(d.LAYOUT_ID, d.VER), kindText: kindLabel(d.LAYOUT_KIND), verText: fmtVer(d.VER), ownerText: d.OWNER_ID ?? "—",
@@ -306,6 +320,11 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
   return (
     <div data-testid="lc-list" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={cardTitle}>확정 대기 목록</div>
+      {totalCount !== null && (
+        <div style={{ ...section, paddingTop: "var(--spacing-xs)" }}>
+          <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={totalCount} onShowAll={onShowAll} testId="lc-list-limit" />
+        </div>
+      )}
       <div style={{ ...section, ...rowFlex, paddingTop: "var(--spacing-sm)" }}>
         <Input data-testid="lc-keyword" value={keyword} placeholder="이름" onChange={onKeyword} />
         <Button data-testid="lc-search" onClick={onSearch}>조회</Button>
