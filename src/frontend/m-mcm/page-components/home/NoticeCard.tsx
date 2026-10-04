@@ -93,7 +93,7 @@ function NoticeViewer({
       ) : detail?.status === "ok" ? (
         <NoticeBodyView
           value={detail.content ?? ""}
-          format={noticeFormat(row.CONTENT_FORMAT)}
+          format={noticeFormat(detail.format ?? row.CONTENT_FORMAT)}
           emptyText="내용이 없습니다."
           testId="home-notice-body"
         />

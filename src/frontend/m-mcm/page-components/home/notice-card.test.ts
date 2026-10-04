@@ -71,15 +71,20 @@ function render(detail: NoticeDetailState | undefined, onRetryDetail = () => {})
 
 describe("NoticeCard 본문", () => {
   it("본문이 도착하면 본문 형식 그대로 보인다", () => {
-    render({ status: "ok", content: "## 안내\n본문" });
+    render({ status: "ok", content: "## 안내\n본문", format: null });
     const body = host.querySelector('[data-testid="home-notice-body"]');
     expect(body?.textContent).toBe("## 안내\n본문");
     expect(body?.getAttribute("data-format")).toBe("MD");
     expect(host.querySelector('[data-testid="home-notice-viewer-title"]')?.textContent).toBe("점검 안내");
   });
 
+  it("상세 응답의 형식이 목록 시점의 형식과 다르면 상세의 형식으로 그린다", () => {
+    render({ status: "ok", content: "<p>x</p>", format: "HTML" });
+    expect(host.querySelector('[data-testid="home-notice-body"]')?.getAttribute("data-format")).toBe("HTML");
+  });
+
   it("본문이 비어 있으면 빈 값으로 넘긴다(뷰어가 안내 문구를 낸다)", () => {
-    render({ status: "ok", content: null });
+    render({ status: "ok", content: null, format: null });
     expect(host.querySelector('[data-testid="home-notice-body"]')?.textContent).toBe("");
   });
 

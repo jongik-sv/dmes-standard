@@ -28,7 +28,7 @@ export type NoticeLoadState =
 
 /** 고른 공지 본문 조회 상태 — 목록은 본문 없이 오므로 선택할 때 따로 받는다. */
 export type NoticeDetailState =
-  { status: "loading" } | { status: "error" } | { status: "ok"; content: string | null };
+  { status: "loading" } | { status: "error" } | { status: "ok"; content: string | null; format: string | null };
 
 export const NOTICE_CATEGORY_LABEL: Record<NoticeCategory, string> = {
   NORMAL: "일반",

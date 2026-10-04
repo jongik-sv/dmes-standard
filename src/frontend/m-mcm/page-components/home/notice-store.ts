@@ -64,7 +64,7 @@ export function loadDetail(id: string | null): void {
   fetchNoticeDetail(id).then(
     (row) => {
       if (mine !== seq) return;
-      set({ details: { ...state.details, [id]: { status: "ok", content: row?.CONTENT ?? null } } });
+      set({ details: { ...state.details, [id]: { status: "ok", content: row?.CONTENT ?? null, format: row?.CONTENT_FORMAT ?? null } } });
     },
     () => {
       if (mine !== seq) return;
