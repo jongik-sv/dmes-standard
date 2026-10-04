@@ -186,18 +186,18 @@ function NoticeMgmtScreen() {
 
   /**
    * 목록은 본문 없이 받으므로 공지를 고르면 상세 조회로 본문을 받아 상세 폼을 채운다. 응답이 올 때까지 이전 상세를 그대로 둔다.
-   * 반환값은 상세를 폼에 실었는지(실패·낡은 응답이면 false).
+   * 반환값은 조회 결과다: 폼에 실었으면 "ok", 더 새 요청에 밀렸으면 "stale", 오류면 "failed".
    */
   const loadDetail = useCallback(
-    async (id: string): Promise<boolean> => {
+    async (id: string): Promise<"ok" | "stale" | "failed"> => {
       const seq = ++detailSeq.current;
       try {
         const row = await fetchNotice(id);
-        if (seq !== detailSeq.current) return false;
+        if (seq !== detailSeq.current) return "stale";
         bindDetail(row);
-        return true;
+        return "ok";
       } catch (e) {
-        if (seq !== detailSeq.current) return false;
+        if (seq !== detailSeq.current) return "stale";
         showMessage({
           title: "오류",
           message: toUserMessage(
@@ -206,7 +206,7 @@ function NoticeMgmtScreen() {
           ),
           alertType: "error",
         });
-        return false;
+        return "failed";
       }
     },
     [bindDetail, showMessage],
@@ -232,7 +232,8 @@ function NoticeMgmtScreen() {
         setRows(list);
         setRowsTotal(payload.truncated ? (payload.totalCount ?? null) : null);
         if (keep?.id) {
-          await loadDetail(keep.id);
+          // 저장·게시중지 뒤 상세를 못 받으면 낡은 폼(저장 전 값·신규 ID 없음)을 두지 않고 비운다 — 목록은 이미 새 값이다.
+          if ((await loadDetail(keep.id)) === "failed") bindDetail(null);
         } else {
           detailSeq.current += 1;
           bindDetail(null);
@@ -305,7 +306,7 @@ function NoticeMgmtScreen() {
   const handleRowClick = useCallback(
     (row: Record<string, unknown>) => {
       const id = String(row.NOTICE_ID ?? "");
-      if (!id || id === selectedId) return;
+      if (isBusy || !id || id === selectedId) return;
       const target = rows.find((r) => r.NOTICE_ID === id);
       if (!target) return;
       confirmDiscard("다른 공지를 여시겠습니까?", () => {
@@ -313,7 +314,7 @@ function NoticeMgmtScreen() {
         void loadDetail(id).finally(() => setIsBusy(false));
       });
     },
-    [rows, selectedId, confirmDiscard, loadDetail],
+    [rows, selectedId, isBusy, confirmDiscard, loadDetail],
   );
 
   /** B-002 신규 — 빈 상세 폼. 서버 호출 없음. */
