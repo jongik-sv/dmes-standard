@@ -129,6 +129,8 @@ dependencies {
     testImplementation 'io.jsonwebtoken:jjwt-jackson:0.12.5'
     testImplementation 'jakarta.servlet:jakarta.servlet-api'
     testImplementation 'org.springframework:spring-web'
+    // 트랜잭션 재현 시험이 cactus-core 에서 SQLite 를 쓴다(버전은 mcm/lib 등과 동일)
+    testImplementation 'org.xerial:sqlite-jdbc:3.45.3.0'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
