@@ -22,12 +22,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.config.TransactionManagementConfigUtils;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.event.TransactionalEventListenerFactory;
 
 /**
  * 메뉴 카탈로그 — {@code TB_MCM_SEC_MENU}·{@code TB_MCM_SEC_OBJ} 전수 목록을 한 곳에서 읽고 캐시한다.
@@ -64,12 +67,18 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * 두 리스너 모두 예외를 밖으로 던지지 않는다 — WARN 로그만 남긴다. 트랜잭션이 끝난 뒤(커밋·롤백) 도는 리스너의 예외가
  * 밖으로 나가면, 커밋된 경우 DB 는 이미 커밋됐는데 OASIS 응답은 S001 실패로 나가기 때문이다. 이벤트는 같은 JVM 안에서만 전달되므로 다른 인스턴스·운영자의
  * 직접 SQL 은 TTL 로만 반영된다. 기동 시드({@code DataInitializer}, mcm/api)는 끝에 {@link MenuChangedEvent#SEED} 를 낸다.
- * <br>2번이 정말 트랜잭션 단계 리스너로 걸렸는지는 기동 로그 한 줄로 확인한다 — 컨텍스트 새로고침이 끝나면 한 번
+ * <br>2번이 정말 트랜잭션 단계 리스너로 걸렸는지는 기동 로그 한 줄로 확인한다 — 이 빈이 속한 컨텍스트의 새로고침이 끝나면 한 번
  * {@code [menuCatalog] 트랜잭션 끝 무효화 리스너: 트랜잭션 단계 등록=true|false} 를 남긴다. Spring 은
- * {@code TransactionalEventListenerFactory} 빈({@link TransactionManagementConfigUtils#TRANSACTIONAL_EVENT_LISTENER_FACTORY_BEAN_NAME},
+ * {@link TransactionalEventListenerFactory} 빈({@link TransactionManagementConfigUtils#TRANSACTIONAL_EVENT_LISTENER_FACTORY_BEAN_NAME},
  * Boot 는 {@code TransactionAutoConfiguration} → {@code @EnableTransactionManagement} 가 등록)이 있을 때만
- * {@code @TransactionalEventListener} 를 트랜잭션 단계 리스너로 만든다. 없으면 {@code @EventListener} 메타 어노테이션 때문에
- * 발행 즉시 도는 보통 리스너가 되어 커밋 전 재적재 방어가 사라진다(TTL 이 안전망) — 그때는 WARN 이다.
+ * {@code @TransactionalEventListener} 를 트랜잭션 단계 리스너로 만든다. 그 판정({@code EventListenerMethodProcessor})은
+ * 자기 컨텍스트의 빈만 보고 부모 컨텍스트는 보지 않으므로 이 로그도 자기 컨텍스트만 본다. 팩토리가 없으면
+ * {@code @EventListener} 메타 어노테이션 때문에 발행 즉시 도는 보통 리스너가 되어 커밋 전 재적재 방어가 사라진다
+ * (TTL 이 안전망) — 그때는 WARN 이다. 운영 로그 확인은 대괄호를 문자 집합으로 읽지 않게
+ * {@code grep -F '[menuCatalog] 트랜잭션 끝 무효화 리스너'} 또는 {@code grep '트랜잭션 단계 등록='} 로 한다.
+ * 시험 — 판정·로그는 {@code MenuCatalogTxListenerReportTest}, 팩토리가 있을 때 커밋 뒤 무효화는
+ * {@code MenuCatalogEventWiringTest}, Boot 자동 구성({@code TransactionAutoConfiguration})만으로 팩토리가 생겨 등록=true·커밋 뒤
+ * 무효화가 되는지는 mcm/api 의 {@code MenuCatalogBootTxAutoConfigTest}. JPA 까지 포함한 실제 조립은 기동 로그로 확인한다.
  *
  * <p><b>캐시된 엔티티는 읽기 전용이다.</b> 반환하는 {@link SecMenu}·{@link SecObj} 는 모든 요청이 함께 쓰는 같은
  * 인스턴스이며, 처음 읽은 요청의 영속성 컨텍스트에서 나온 것이다. 호출부는 setter 를 부르거나 {@code save} 하지 않는다
@@ -81,7 +90,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * 첫 단계 패키지 {@code mcm.menu} 에 둔다. 이 패키지는 entity·repository·common 만 쓴다.
  */
 @Component
-public class MenuCatalog {
+public class MenuCatalog implements ApplicationContextAware {
 
     static final long TTL_MINUTES = 5;
     static final Duration TTL = Duration.ofMinutes(TTL_MINUTES);
@@ -138,7 +147,9 @@ public class MenuCatalog {
      */
     final AtomicLong generation = new AtomicLong();
     private volatile Cached cached;
-    /** 트랜잭션 단계 리스너 등록 여부 로그를 이미 남겼는가 — 새로고침이 여러 번 와도(부모·자식 컨텍스트 등) 한 번만 남긴다. */
+    /** 이 빈이 속한 컨텍스트 — 다른 컨텍스트(자식 등)의 새로고침 이벤트를 걸러 내는 기준. 빈이 아니면 null. */
+    private volatile ApplicationContext ownContext;
+    /** 트랜잭션 단계 리스너 등록 여부 로그를 이미 남겼는가 — 자기 컨텍스트가 여러 번 새로고침돼도 한 번만 남긴다. */
     private final AtomicBoolean txListenerReported = new AtomicBoolean();
 
     @Autowired
@@ -231,21 +242,33 @@ public class MenuCatalog {
         safeInvalidate(event, "트랜잭션 끝");
     }
 
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) {
+        this.ownContext = applicationContext;
+    }
+
     /**
-     * 컨텍스트 새로고침이 끝나면 한 번 — 트랜잭션 끝 리스너({@link #onChangedAfterCompletion})가 트랜잭션 단계 리스너로
-     * 등록됐는지(= {@code TransactionalEventListenerFactory} 빈이 있는지) 로그로 남긴다. 운영(mcm 에는 actuator 가 없다)에서
-     * 기동 로그 한 줄로 확인하기 위해서다. 캐시·무효화 동작은 바꾸지 않는다.
+     * 이 빈이 속한 컨텍스트의 새로고침이 끝나면 한 번 — 트랜잭션 끝 리스너({@link #onChangedAfterCompletion})가 트랜잭션 단계
+     * 리스너로 등록됐는지(= 그 컨텍스트에 {@link TransactionalEventListenerFactory} 빈이 있는지) 로그로 남긴다. 운영에서
+     * 기동 로그 한 줄로 확인하기 위해서다. 다른 컨텍스트의 새로고침 이벤트(부모로 올라온 자식 이벤트 등)는 판정하지 않고
+     * 한 번만 남기기 표시도 건드리지 않는다. 캐시·무효화 동작은 바꾸지 않는다.
      */
     @EventListener(ContextRefreshedEvent.class)
     public void onContextRefreshed(ContextRefreshedEvent event) {
+        ApplicationContext own = ownContext;
+        if (own == null || event.getApplicationContext() != own) return;
         if (!txListenerReported.compareAndSet(false, true)) return;
-        reportTxListenerRegistration(event.getApplicationContext());
+        reportTxListenerRegistration(own);
     }
 
-    /** {@code beanFactory} 에(부모 포함) 트랜잭션 이벤트 리스너 팩토리 빈이 있으면 INFO, 없으면 WARN. */
+    /**
+     * {@code beanFactory} 자신에(부모 제외) 트랜잭션 이벤트 리스너 팩토리 빈이 있으면 INFO, 없으면 WARN.
+     * {@code EventListenerMethodProcessor} 가 팩토리를 찾는 방식({@code getBeansOfType(EventListenerFactory, false, false)} —
+     * 부모를 보지 않는다)과 맞춰 {@link ListableBeanFactory#getBeanNamesForType(Class, boolean, boolean)} 으로 본다.
+     */
     void reportTxListenerRegistration(ListableBeanFactory beanFactory) {
-        boolean registered = beanFactory.containsBean(
-                TransactionManagementConfigUtils.TRANSACTIONAL_EVENT_LISTENER_FACTORY_BEAN_NAME);
+        boolean registered = beanFactory.getBeanNamesForType(
+                TransactionalEventListenerFactory.class, false, false).length > 0;
         if (registered) {
             log.info("[menuCatalog] 트랜잭션 끝 무효화 리스너: 트랜잭션 단계 등록=true");
         } else {
