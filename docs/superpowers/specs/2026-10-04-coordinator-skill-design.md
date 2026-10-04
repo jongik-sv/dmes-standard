@@ -1,6 +1,6 @@
 # 조정자(coordinator) 스킬 설계
 
-- 작성일: 2026-10-04
+- 작성일: 2026-10-04 (갱신 2026-10-05: §3.e 모델 등급·GLM 기동 절차, Q13)
 - 상태: 초안(설계만, 구현·설치 없음)
 - 출발점: 2026-10-04 시스템 리팩토링 5레인 조정(조정 세션 dmes-standard-cb, 레인 a8·b9·a6·1b·c3)에서 사람이 손으로 하던 조정 일을 스킬로 옮긴다.
 - 근거 표기: 본문의 `[근거: …]` 는 직접 읽은 파일·명령 결과다. 확인하지 못한 것은 **미확인**, 추정은 **추정** 이라고 적는다.
@@ -22,6 +22,7 @@
 | cb 기록 | `~/.claude/projects/-Users-jji-project-dmes-standard/f733ea8c-9350-4a0f-98e8-603ba013c51d.jsonl` |
 | Orca | `orca skills get orca-cli` (Orca 1.4.219), `orca terminal <cmd> --help`, `orca orchestration worker-start --help` |
 | 사용자 전역 | `~/.claude/CLAUDE.md` 「Orca 로 opencode 워커 띄우기」 |
+| GLM·탭 메모 | 같은 메모 폴더의 `glm-claude-worker.md`(alias `glm` 기동·통신 실측), `worker-sessions-in-new-tab.md`, `weak-worker-partial-takeover.md`, `zcode-worker-launch.md` |
 
 ---
 
@@ -64,7 +65,7 @@
 |---|---|---|---|
 | **조정자** | 대화형 Claude Code 세션 1개(예: dmes-standard-cb) | 분해·할당, 머지 허가, 측정 창 운영, 감시 루프, 세션·Pane 생성과 정리, 사용량 띠 판정, 다른 세션 compact, 서버 기동·브라우저 확인(통합 확인), SUMMARY·마감 보고 | 레인 소유 파일 수정(통합 확인 중 아주 작은 것 빼고) |
 | **레인 세션** | 사용자가 띄웠거나 조정자가 띄운 Claude Code 세션. 레인 하나에 브랜치·워크트리 하나 | 자기 레인 일을 Workflow 로 진행, 진행 보고, 머지 요청·머지·정리, 자기 정본 메모 유지 | dev 에 허가 없이 머지, 메인 저장소 서버 재기동, 남의 소유 파일 수정 |
-| **임시 워커(Pane)** | 조정자나 레인이 띄운 Orca 터미널 탭·pane. Claude Code·opencode·agy 등 | 짧은 단일 과제(교차 리뷰, 조사, 측정 실행, 문서 대조) | 머지, 다른 워커 관리 |
+| **임시 워커(Pane)** | 조정자나 레인이 띄운 Orca 터미널 탭(작업 세션은 새 탭이 기본). Claude Code(Anthropic 모델 또는 GLM)·ZCode·opencode·agy 등 | 짧은 단일 과제(교차 리뷰, 조사, 측정 실행, 문서 대조) | 머지, 다른 워커 관리 |
 | **서브에이전트·Workflow agent** | 각 세션 안의 Agent·Workflow 하위 에이전트 | 세션 안 단계 작업 | 조정자와 직접 통신하지 않는다(세션이 대신 보고) |
 
 통신 수단
@@ -186,6 +187,35 @@ PC 줄 하나: `load1 · 코어 수 · heavy held/waiting · test-slot 보유 ·
 
 ### e. 세션·Pane 생성과 정리
 
+**모델 등급과 실행 수단**(2026-10-05 사용자 지시)
+
+조정자는 세션·워커를 띄우기 전에 일의 난이도로 등급을 정하고, 등급에 맞는 모델과 실행 수단을 고른다. Workflow 안 `agent()` 의 단계별 모델(README §1)도 같은 등급 표를 따른다.
+
+| 등급 | 쓰는 일 | 모델 | 실행 수단 |
+|---|---|---|---|
+| **Fable** | 사용자가 Fable 을 요청한 경우에만 | `claude-fable-5-1` | Claude Code 세션(`--model claude-fable-5-1`) |
+| **Opus** | 어려운 일: 설계 판정, 리뷰(동작 보존 판정), 보안, 트랜잭션·동시성 정합성, 원인 모를 결함 조사, 측정 판정 | `claude-opus-5-5` | Claude Code 세션 / `agent({model:'opus'})` |
+| **Sonnet** | 일반 작업: 구현·수정, 시험 작성, 조사·위치 찾기, 문서 갱신 | `claude-sonnet-5-5` | Claude Code 세션 / `agent({model:'sonnet'})` |
+| **GLM** | 일반 작업 중 **쉬운 일**(Sonnet 보다 쉽고 Haiku 보다 어려운 일): 본보기가 이미 있는 같은 패턴의 반복 적용(예: 다른 화면에 이미 들어간 상세 폼 분리 구조를 다음 화면에 적용), 정해진 형식의 문서·표 정리, 범위가 좁고 시험으로 바로 검증되는 수정 | GLM-5.3(Z.ai) | **새 탭**의 Claude Code 세션을 `glm -n <이름>` 으로 띄운다(아래 GLM 기동 절차). Claude Code 이므로 SendMessage·머지 요청 절차가 Claude 세션과 같다 |
+| **Haiku** | 쉬운 일: 기계적 치환, 결과 확인·집계, 상태 읽기, 형식 검사 | `claude-haiku-4-5-20251001` | `agent({model:'haiku'})` 위주 |
+
+- 경계가 애매하면 한 등급 위를 고른다. GLM 에 맡긴 일이 같은 문제에 20분 넘게 막히거나 방향이 틀어지면, 막힌 단계만 Sonnet·Opus Claude 세션(새 탭)에 넘기고 나머지는 GLM 이 계속한다 [근거: 메모 `weak-worker-partial-takeover.md`].
+- GLM 은 Workflow `agent()` 의 model 값으로 고를 수 없다(같은 세션 안 서브에이전트는 그 세션의 API 공급자를 따른다). GLM 등급 일은 **세션 단위**로만 맡긴다.
+- 작업 세션은 pane 분할이 아니라 **새 탭**으로 연다: `orca terminal create --worktree active --title <세션 이름> --json` → handle 에 실행 명령 send [근거: 메모 `worker-sessions-in-new-tab.md`].
+
+**GLM 기동 절차 — Z.ai 로 가는지 먼저 확인한다**
+
+회사 PC·회사망에서는 GLM 이 동작하지 않는다(사용자 확인, 2026-10-05). 그래서 GLM 세션을 띄우기 전에 아래 사전 확인을 반드시 거치고, 하나라도 실패하면 GLM 을 쓰지 않고 **Sonnet 세션으로 대신 띄운 뒤 사용자에게 한 줄로 알린다**("GLM 사전 확인 실패(<단계>) → Sonnet 으로 진행").
+
+1. **alias 확인**: `zsh -ic 'alias glm'` 이 있어야 한다. 없으면 실패(그 PC 에는 GLM 설정이 없다).
+2. **목적지 확인**: alias 의 `ANTHROPIC_BASE_URL` 호스트가 `api.z.ai` 여야 한다. 다른 호스트(사내 프록시 등)면 실패.
+3. **실제 호출 확인**: alias 의 환경 값으로 `POST <ANTHROPIC_BASE_URL>/v1/messages`(모델 `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `max_tokens: 1`, 제한 시간 10초)를 한 번 보내 **HTTP 200** 과 응답 `model` 이 GLM 이름인지 본다. 연결 실패·시간 초과·4xx·5xx 는 실패. 비용은 토큰 몇 개 수준이다. [근거: 2026-10-05 01:3x 이 PC 실측 — `base host: api.z.ai`, `HTTP 200 model glm-5.3-flash 1.2s`]
+4. **기동 뒤 확인**: 새 탭에서 `glm -n <이름>` → `terminal wait --for tui-idle` → `terminal read --screen` 에 `glm-5.3` 과 `API Usage Billing` 이 보여야 한다(`Claude Max`·`Opus` 가 보이면 GLM 이 아니라 Anthropic 계정으로 뜬 것이므로 닫고 실패 처리). 이어 시험 지시로 SendMessage 왕복(`<브랜치> / glm-ok / <모델>`)을 한 번 받는다.
+
+- 사전 확인은 스킬 스크립트 `scripts/glm-preflight.sh` 하나로 묶는다(출력: `ok <host> <model> <초>` 또는 `fail <단계> <사유>`). **토큰 값은 출력·로그·이벤트 어디에도 남기지 않는다**(alias 에 평문으로 있으므로 스크립트가 읽어 쓰기만 한다).
+- 결과는 상태 파일에 `glm: ok|fail <시각>` 으로 남기고, 같은 조정 회차에서 실패했으면 다시 시도하지 않는다(망이 바뀌었을 때만 재확인).
+- 등급이 GLM 인 일을 Sonnet 으로 대신 띄웠으면 마감 보고에 그 사실을 적는다.
+
 **생성 경로 선택**
 
 | 경우 | 명령 흐름 | 근거 |
@@ -194,6 +224,7 @@ PC 줄 하나: `load1 · 코어 수 · heavy held/waiting · test-slot 보유 ·
 | 새 레인, 새 워크트리까지 | `orca worktree create --name <n> --agent claude --prompt "<지시>" --json` 은 모델·effort 를 못 준다 → 모델이 필요하면 `worktree create`(agent 없이) 뒤 위 `terminal create` | orca-cli 가이드 「Custom … model/effort handoff」 |
 | 감독형 단일 과제 워커(Claude) | `orca orchestration worker-start --spec "<과제>" --agent claude --model <m> --effort <e> --worktree current --json` → 완료(`worker_done`) → `worker-release` → `check --ack` | `worker-start --help`(`--model`·`--effort` 는 `--terminal` 과 함께 못 씀) |
 | opencode 워커 | `orca terminal create --worktree current --title <n> --command "opencode --standalone" --json` → `terminal wait --for tui-idle` 뒤 `terminal read --screen` 으로 빈 입력창 확인 → `worker-start --terminal <h> --worktree current --spec "<지시>"`. 지시문에 `!`·`/`·`@` 금지. `--agent opencode` 는 쓰지 않는다 | 사용자 전역 CLAUDE.md 「Orca 로 opencode 워커 띄우기」 |
+| GLM 세션(쉬운 일 등급) | `glm-preflight.sh` 가 `ok` 일 때만: `orca terminal create --worktree active --title <n> --json` → `terminal send --text "cd <리포> && glm -n <n>" --enter` → `terminal wait --for tui-idle` → 화면에 `glm-5.3`·`API Usage Billing` 확인 → 지시 파일 경로 send. `fail` 이면 같은 흐름으로 Sonnet 세션 | 위 「GLM 기동 절차」, 메모 `glm-claude-worker.md` |
 
 - 사용자가 세션을 `orca claude-teams --dangerously-skip-permissions` 로 띄우고 있다 [근거: `orca terminal list` 의 preview]. `orca claude-teams --help` 가 claude 의 help 를 그대로 내므로 claude 플래그가 통과한다고 **추정**한다. 실행 명령은 config(`launch.claude`)로 두고 킷에 박지 않는다.
 - 레인 수 상한은 사용량 띠(§3.f)와 입장 제어(capacity.sh 와 같은 판정: free·swap·load)로 정한다. capacity.sh 를 그대로 부를 수 있다(`capacity.sh` 는 dflow-team 자원이므로, 없는 PC 에서는 건너뛴다).
@@ -608,3 +639,4 @@ coordinator/
 - **Q10 감시 틱 간격**: 20분(이번 실사용)이 적당한가? 사용량이 낮을 때 10분으로 줄일지?
 - **Q12 확인 창 자동 응답 범위**(§3.l): 조정자가 레인 세션의 실행 여부 질문에 자동으로 승인해도 되는 범위를 판단 표 그대로 둘지, 더 좁힐지(예: 읽기·조회만 자동, 편집·빌드는 알림 후 승인). 감시를 Workflow 가 도는 레인에만 둘지, 모든 레인에 둘지.
 - **Q11 dflow-team 과의 관계**: D'Flow 작업을 레인으로 받는 경우 dflow-team 의 capacity.sh·statusLine 덤프·tmux 백엔드를 공유 모듈로 뺄지, 따로 둘지?
+- **Q13 GLM 등급 — 결정됨(2026-10-05)**: 일반 작업 중 쉬운 일(Sonnet 보다 쉽고 Haiku 보다 어려운 일)은 새 탭의 GLM Claude Code 세션(`glm`)에 맡긴다. 띄우기 전에 Z.ai 로 실제 호출이 가는지 확인하고(회사 PC 에서는 GLM 이 동작하지 않음), 실패하면 Sonnet 으로 대신한다(§3.e 「모델 등급과 실행 수단」). 남은 결정: GLM 이 API 사용량 과금이므로 하루·조정 회차당 GLM 세션 상한을 둘지.
