@@ -11,6 +11,9 @@
 /** 화면 ID — PageLayout screenId·objId, 요청 meta.menuId 공용. */
 export const SCREEN_ID = "noticeMgmt";
 
+/** 조건 없는 [조회] 의 첫 조회 행 수 상한 — 화면 성능 가이드 R1. 잘리면 GridLimitNotice 의 [전체 보기] 로 상한 없이 다시 받는다. */
+export const FIRST_SEARCH_LIMIT = 1000;
+
 /** 좌우 분할 크기 저장 키(`<모듈>.<그룹>.<screenId>`). */
 export const SPLIT_STORAGE_KEY = "mls.lsh.noticeMgmt";
 
@@ -172,7 +175,8 @@ export function emptyFilters(): NoticeMgmtFilters {
 export interface NoticeRow {
   NOTICE_ID: string;
   TITLE: string;
-  CONTENT: string | null;
+  /** 목록 응답에는 없다 — 행을 고를 때 상세 조회(fetchNotice)로 받는다. */
+  CONTENT?: string | null;
   NOTICE_STATUS: string;
   CONTENT_FORMAT?: string | null;
   NOTICE_CATEGORY?: string | null;

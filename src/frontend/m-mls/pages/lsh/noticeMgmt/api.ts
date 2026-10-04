@@ -38,6 +38,10 @@ export type NoticeErrorDetail = CactusErrorDetail & {
 
 export interface NoticeMgmtPayload {
   list?: NoticeRow[];
+  /** search 에 `limit` 을 보냈을 때만 — 조건에 맞는 전체 건수(상한으로 잘렸으면 list 길이보다 크다). */
+  totalCount?: number;
+  /** search 에 `limit` 을 보냈을 때만 — 상한으로 잘렸는지. */
+  truncated?: boolean;
   cntMerge?: number;
   /** save 응답 — 저장한 NOTICE_ID(입력 행 순서). 백엔드가 아직 주지 않으면 없다. */
   savedIds?: string[];
@@ -148,9 +152,16 @@ async function callAction(
   )) as NoticeMgmtPayload;
 }
 
-/** action=search — §3 조회조건 S-001~S-006 으로 목록 조회 (B-001). 빈 값 = 전체. */
+/**
+ * action=search — §3 조회조건 S-001~S-006 으로 목록 조회 (B-001). 빈 값 = 전체.
+ *
+ * 목록은 본문(`CONTENT`)을 빼고 받는다(`includeContent:false`) — 본문은 최대 20만 자라 행마다 실으면 응답이 수 MB 가 된다.
+ * 본문은 행을 고를 때 {@link fetchNotice} 로 받는다. `limit` 은 조건이 하나도 없을 때만 서버가 적용하는 행 수 상한이다
+ * (화면 성능 가이드 R1). 비우면 상한 없음.
+ */
 export async function searchNotices(
   filters: NoticeMgmtFilters,
+  limit?: number,
 ): Promise<NoticeMgmtPayload> {
   return callAction("search", {
     title: filters.title,
@@ -159,7 +170,15 @@ export async function searchNotices(
     postEndDt: filters.postEndDt,
     noticeCategory: filters.noticeCategory,
     contentFormat: filters.contentFormat,
+    includeContent: false,
+    limit,
   });
+}
+
+/** 상세 조회 — `noticeId` 로 search 를 불러 본문을 포함한 한 건을 받는다. 없으면 null. */
+export async function fetchNotice(noticeId: string): Promise<NoticeRow | null> {
+  const out = await callAction("search", { noticeId });
+  return out.list?.[0] ?? null;
 }
 
 /**
