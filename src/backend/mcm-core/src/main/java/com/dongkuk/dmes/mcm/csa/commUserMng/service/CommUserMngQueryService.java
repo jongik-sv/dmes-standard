@@ -102,6 +102,7 @@ public class CommUserMngQueryService {
      *   <li>키는 DB 가 돌려준 DEPT_CD 그대로다(정확 일치). 행 순서는 호출측이 {@code rows} 순서로 만든다.</li>
      *   <li>알려진 차이 — MSSQL 의 대소문자·뒤 공백 무시 비교에서만 생긴다: 사용자 DEPT_CD 가 부서 마스터와 대소문자·뒤 공백만
      *       다르면 전(요청 키로 부착)에는 이름이 붙었고 지금은 null 이다. Oracle·PostgreSQL·SQLite·H2 에서는 같다(perf-mcm.md P1).</li>
+     *   <li>전제 — distinct 부서코드 수 ≲ 2000(MSSQL 바인드 파라미터 한도 2100). Oracle 의 IN 1000 한도는 Hibernate dialect 가 나눈다.</li>
      * </ul>
      */
     private Map<String, String> deptNamesOf(List<SecUser> rows) {
