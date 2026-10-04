@@ -42,14 +42,27 @@ export function unwrap(res: unknown): Record<string, unknown> {
   return out;
 }
 
-/** 게시 중 공지 목록(서버 정렬: 상단 고정 → 긴급 → 등록 최신순). */
+/**
+ * 게시 중 공지 목록(서버 정렬: 상단 고정 → 긴급 → 등록 최신순). 본문은 싣지 않는다 —
+ * 카드가 고른 공지 1건의 본문만 보이므로 선택할 때 {@link fetchNoticeDetail} 로 받는다(화면 성능 가이드 R1).
+ */
 export async function searchNoticeBoard(): Promise<NoticeBoardRow[]> {
   const res = await apiRequest<unknown>(NOTICE_BOARD_URL, {
     method: "POST",
-    body: JSON.stringify({ meta: { menuId: "noticeBoard" }, params: {} }),
+    body: JSON.stringify({ meta: { menuId: "noticeBoard" }, params: { includeContent: false } }),
   });
   const list = unwrap(res).list;
   return Array.isArray(list) ? (list as NoticeBoardRow[]) : [];
+}
+
+/** 공지 1건의 본문. 목록에서 사라졌거나 볼 수 없는 공지면 null. */
+export async function fetchNoticeDetail(noticeId: string): Promise<NoticeBoardRow | null> {
+  const res = await apiRequest<unknown>(NOTICE_BOARD_URL, {
+    method: "POST",
+    body: JSON.stringify({ meta: { menuId: "noticeBoard" }, params: { noticeId } }),
+  });
+  const list = unwrap(res).list;
+  return Array.isArray(list) && list[0] ? (list[0] as NoticeBoardRow) : null;
 }
 
 export interface CurrentUser {
