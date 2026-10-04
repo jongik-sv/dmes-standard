@@ -48,6 +48,32 @@ describe("noticeMgmt api", () => {
     });
   });
 
+  it("조회 — 본문 제외(includeContent=false)와 limit 을 보내고 totalCount·truncated 를 받는다", async () => {
+    apiRequest.mockResolvedValue({
+      meta: { success: true },
+      data: { result: { list: [{ NOTICE_ID: "N1" }], totalCount: 5, truncated: true } },
+    });
+    const f = { title: "", noticeStatus: "", postStartDt: "", postEndDt: "", noticeCategory: "", contentFormat: "" };
+    const out = await api.searchNotices(f, 1000);
+    expect(out.totalCount).toBe(5);
+    expect(out.truncated).toBe(true);
+    expect(bodyOf(apiRequest.mock.calls[0]).params).toMatchObject({ includeContent: false, limit: 1000 });
+    await api.searchNotices(f);
+    expect(bodyOf(apiRequest.mock.calls[1]).params.limit).toBeUndefined();
+  });
+
+  it("상세 조회 — noticeId 로 search 를 불러 첫 행을 주고, 없으면 null", async () => {
+    apiRequest.mockResolvedValueOnce({
+      meta: { success: true },
+      data: { result: { list: [{ NOTICE_ID: "N1", CONTENT: "본문" }] } },
+    });
+    expect(await api.fetchNotice("N1")).toEqual({ NOTICE_ID: "N1", CONTENT: "본문" });
+    const params = bodyOf(apiRequest.mock.calls[0]).params;
+    expect(params).toEqual({ noticeId: "N1" });
+    apiRequest.mockResolvedValueOnce({ meta: { success: true }, data: { result: { list: [] } } });
+    expect(await api.fetchNotice("N2")).toBeNull();
+  });
+
   it("저장 — grids.master.rows 에 TARGET_ROLES 배열을 그대로 싣는다", async () => {
     apiRequest.mockResolvedValue({
       meta: { success: true },
@@ -203,6 +229,7 @@ describe("noticeMgmt api — OASIS 호출 특성(현재 동작 고정)", () => {
     expect(body).toEqual({ meta: { menuId: "noticeMgmt" }, params: { noticeId: "N1", noticeStatus: null } });
     expect(bodyOf(apiRequest.mock.calls[1]).params).toEqual({
       title: "", noticeStatus: "  ", postStartDt: "", postEndDt: "", noticeCategory: "", contentFormat: "",
+      includeContent: false,
     });
   });
 
