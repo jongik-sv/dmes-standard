@@ -37,6 +37,10 @@ tasks.named('test') {
                 rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/ScreenUsageSchemaArtifacts.java'),
                 rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java'))
             .withPropertyName('mcmSeedSources').withPathSensitivity(PathSensitivity.RELATIVE)
+    // ScreenUsageOasisContractTest — mcm/api 의 BPMN 2개를 SERVICES.resolve 로 직접 읽는다(디렉터리 walk 없음)
+    inputs.files(rootProject.file('../mcm/api/src/main/resources/services/audit/screenUsage.bpmn'),
+                rootProject.file('../mcm/api/src/main/resources/services/csa/screenUsageStat.bpmn'))
+            .withPropertyName('mcmScreenUsageBpmn').withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 dependencies {
