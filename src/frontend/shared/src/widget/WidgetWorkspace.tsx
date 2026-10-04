@@ -31,6 +31,7 @@ import {
   homeTab,
   newInstanceId,
   nextTabId,
+  reuseTabs,
   sanitizeLayout,
   tabsEqual,
   validateTabName,
@@ -174,60 +175,127 @@ export function WidgetWorkspace({
 
   const defaultHome = useCallback(() => homeTab(sanitizeLayout(homeDefault, registry)), [homeDefault, registry]);
 
-  const load = useCallback(async () => {
-    const seq = ++loadSeq.current;
-    setStatus("loading");
-    // 다시 불러오면 편집 중이던 변경은 버려진다 — 편집 상태도 함께 정리한다.
-    setEditing(false);
-    setSnapshot(null);
-    setRenamingTabId(null);
-    try {
-      const loaded = await store.load();
-      if (seq !== loadSeq.current) return;
-      const cleaned = loaded.map((t) => ({ ...t, items: sanitizeLayout(t.items, registry) }));
-      const home = cleaned.find((t) => t.tabId === HOME_TAB_ID);
-      // 단일 탭이면 「홈」만 다룬다 — 다른 탭은 상태에 두지 않으므로 저장되지도 않는다.
-      const others = single ? [] : cleaned.filter((t) => t.tabId !== HOME_TAB_ID).sort((a, b) => a.seq - b.seq);
-      const next = [home ? { ...home, name: homeTab([]).name, seq: 0 } : defaultHome(), ...others];
-      setTabs(next);
-      const last = readLastTab(memoUserId);
-      setActiveTabId(last && next.some((t) => t.tabId === last) ? last : HOME_TAB_ID);
-      setStatus("ready");
-    } catch {
-      if (seq !== loadSeq.current) return;
-      setTabs([defaultHome()]);
-      setActiveTabId(HOME_TAB_ID);
-      setStatus("error");
-    }
-  }, [store, registry, defaultHome, memoUserId, single]);
+  // 불러오기(store.load)는 마운트·배치 출처(store·사용자·단일 탭)가 바뀔 때만 한다. 등록부·기본 배치·사용자 확인이 늦게 도착해도
+  // 다시 조회하지 않고 이미 가진 탭을 새 등록부로 다시 정리한다 — 진입 한 번에 조회 3회·보드 2회 재구성(스켈레톤 되돌림)을 막는다
+  // (widget-render-findings W1, Screen-Performance-Guide R13). 그래서 load 는 등록부·기본 배치·사용자를 ref 로 읽는다.
+  const registryRef = useRef(registry);
+  registryRef.current = registry;
+  const homeDefaultRef = useRef(homeDefault);
+  homeDefaultRef.current = homeDefault;
+  const memoUserIdRef = useRef(memoUserId);
+  memoUserIdRef.current = memoUserId;
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
+  /** 진행 중인 불러오기의 순번(없으면 0). loadSeq 와 같으면 아직 유효한 불러오기가 있다. */
+  const pendingSeq = useRef(0);
+  /** 마지막으로 시작한 불러오기 순번 — loadSeq 와 다르면(언마운트·취소) 다시 불러와야 한다. */
+  const startedSeq = useRef(0);
+  /** 「홈」이 저장한 배치가 아니라 기본 배치인지 — 기본 배치가 응답으로 바뀌면 이 홈만 새 기본 배치로 바꾼다. */
+  const homeIsDefault = useRef(false);
+  /** 사용자가 탭을 직접 골랐는지 — 사용자 확인이 늦게 끝나도 고른 탭을 기억한 탭으로 덮지 않는다. */
+  const tabTouched = useRef(false);
 
-  // 등록부·기본 배치만 바뀌면(정의 위젯 새로 고침) 편집 중일 때 다시 불러오기를 편집이 끝날 때까지 미룬다 — 바로 불러오면 편집 중이던 변경이 버려진다.
+  const load = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const seq = ++loadSeq.current;
+      startedSeq.current = seq;
+      pendingSeq.current = seq;
+      // 이미 보이는 보드는 스켈레톤으로 되돌리지 않는다(silent) — 응답이 오면 바뀐 탭만 바꾼다.
+      if (!opts?.silent) setStatus("loading");
+      // 다시 불러오면 편집 중이던 변경은 버려진다 — 편집 상태도 함께 정리한다.
+      setEditing(false);
+      setSnapshot(null);
+      setRenamingTabId(null);
+      try {
+        const loaded = await store.load();
+        if (seq !== loadSeq.current) return;
+        const reg = registryRef.current;
+        const cleaned = loaded.map((t) => ({ ...t, items: sanitizeLayout(t.items, reg) }));
+        const home = cleaned.find((t) => t.tabId === HOME_TAB_ID);
+        homeIsDefault.current = !home;
+        // 단일 탭이면 「홈」만 다룬다 — 다른 탭은 상태에 두지 않으므로 저장되지도 않는다.
+        const others = single ? [] : cleaned.filter((t) => t.tabId !== HOME_TAB_ID).sort((a, b) => a.seq - b.seq);
+        const next = [home ? { ...home, name: homeTab([]).name, seq: 0 } : homeTab(sanitizeLayout(homeDefaultRef.current, reg)), ...others];
+        setTabs((prev) => reuseTabs(prev, next));
+        const last = readLastTab(memoUserIdRef.current);
+        setActiveTabId((cur) =>
+          opts?.silent && next.some((t) => t.tabId === cur) ? cur : last && next.some((t) => t.tabId === last) ? last : HOME_TAB_ID
+        );
+        setStatus("ready");
+      } catch {
+        if (seq !== loadSeq.current) return;
+        homeIsDefault.current = true;
+        setTabs([homeTab(sanitizeLayout(homeDefaultRef.current, registryRef.current))]);
+        setActiveTabId(HOME_TAB_ID);
+        setStatus("error");
+      } finally {
+        if (pendingSeq.current === seq) pendingSeq.current = 0;
+      }
+    },
+    [store, single]
+  );
+
+  // 등록부·기본 배치만 바뀌면(정의 새로 고침) 편집 중일 때 다시 불러오기를 편집이 끝날 때까지 미룬다 — 바로 불러오면 편집 중이던 변경이 버려진다.
   // 미루는 동안에도 서랍·보드는 새 registry prop 을 쓰므로 새 위젯은 서랍에 바로 보인다.
   // store·사용자·단일 탭 여부가 바뀌면 다른 배치이므로 예전처럼 바로 다시 불러오고 편집을 끝낸다.
+  // 단 사용자가 「모름(null) → 확인됨」으로 바뀐 것은 다른 배치가 아니다 — 다시 부르지 않고 기억한 탭만 고른다.
   const editingRef = useRef(false);
   editingRef.current = editing;
   const reloadPending = useRef(false);
-  const sourceRef = useRef({ store, memoUserId, single });
+  const sourceRef = useRef<{ store: WidgetStore; memoUserId: string | null | undefined; single: boolean } | null>(null);
 
   useEffect(() => {
     const prev = sourceRef.current;
-    const sourceChanged = prev.store !== store || prev.memoUserId !== memoUserId || prev.single !== single;
     sourceRef.current = { store, memoUserId, single };
-    if (editingRef.current && !sourceChanged) {
-      reloadPending.current = true;
+    const alive = startedSeq.current !== 0 && startedSeq.current === loadSeq.current;
+    const sameSource = prev != null && prev.store === store && prev.single === single;
+    const userResolved = prev != null && prev.memoUserId == null && memoUserId != null;
+    if (alive && sameSource && (prev.memoUserId === memoUserId || userResolved)) {
+      if (userResolved && !tabTouched.current) {
+        const last = readLastTab(memoUserId);
+        if (last && tabsRef.current.some((t) => t.tabId === last)) setActiveTabId(last);
+      }
       return;
     }
     reloadPending.current = false;
     void load();
-    return () => {
-      loadSeq.current += 1;
-    };
   }, [load, store, memoUserId, single]);
+
+  const shapeRef = useRef({ registry, homeDefault });
+  useEffect(() => {
+    const prev = shapeRef.current;
+    shapeRef.current = { registry, homeDefault };
+    if (prev.registry === registry && prev.homeDefault === homeDefault) return;
+    // 불러오는 중이면 응답이 최신 등록부(ref)로 정리한다.
+    if (pendingSeq.current !== 0 && pendingSeq.current === loadSeq.current) return;
+    if (editingRef.current) {
+      reloadPending.current = true;
+      return;
+    }
+    // 불러오기 실패 상태면 예전처럼 다시 불러온다(새 정의와 함께 회복 시도).
+    if (statusRef.current === "error") {
+      void load();
+      return;
+    }
+    if (statusRef.current !== "ready") return;
+    setTabs((cur) =>
+      reuseTabs(
+        cur,
+        cur.map((t) =>
+          t.tabId === HOME_TAB_ID && homeIsDefault.current
+            ? { ...homeTab(sanitizeLayout(homeDefault, registry)), locked: t.locked }
+            : { ...t, items: sanitizeLayout(t.items, registry) }
+        )
+      )
+    );
+  }, [registry, homeDefault, load]);
 
   useEffect(() => {
     if (editing || !reloadPending.current) return;
     reloadPending.current = false;
-    void load();
+    void load({ silent: true });
   }, [editing, load]);
 
   // 미룬 다시 불러오기가 언마운트 뒤에 상태를 쓰지 않게 한다.
@@ -238,11 +306,18 @@ export function WidgetWorkspace({
     []
   );
 
+  /** 탭 하나 저장 — 「홈」을 저장하면 더는 기본 배치가 아니다. */
+  const persistTab = async (tab: WidgetTab) => {
+    await store.saveTab(tab);
+    if (tab.tabId === HOME_TAB_ID) homeIsDefault.current = false;
+  };
+
   const active = tabs.find((t) => t.tabId === activeTabId) ?? tabs[0];
   const setActiveItems = (items: WidgetItem[]) =>
     setTabs((prev) => prev.map((t) => (t.tabId === active?.tabId ? { ...t, items } : t)));
 
   const selectTab = (tabId: string) => {
+    tabTouched.current = true;
     setActiveTabId(tabId);
     writeLastTab(memoUserId, tabId);
   };
@@ -276,7 +351,7 @@ export function WidgetWorkspace({
       for (const t of changedTabs) {
         const seq = tabs.indexOf(t);
         const saved = { ...t, seq };
-        await store.saveTab(saved);
+        await persistTab(saved);
         // 저장된 탭은 되돌릴 기준(snapshot)도 새 값으로 — 뒤 탭이 실패해도 [취소]가 저장된 탭을 되돌리지 않는다.
         setSnapshot((prev) => (prev ? (prev.some((s) => s.tabId === saved.tabId) ? prev.map((s) => (s.tabId === saved.tabId ? saved : s)) : [...prev, saved]) : prev));
       }
@@ -326,14 +401,16 @@ export function WidgetWorkspace({
   };
 
   /** 보기 모드 즉시 저장 — 먼저 화면에 반영하고 실패하면 되돌린다. */
-  const saveNow = async (next: WidgetTab[], persist: () => Promise<void>) => {
+  const saveNow = async (next: WidgetTab[], persist: () => Promise<void>): Promise<boolean> => {
     const before = tabs;
     setTabs(next);
     try {
       await persist();
+      return true;
     } catch (e) {
       setTabs(before);
       tell(errMsg(e), "error");
+      return false;
     }
   };
 
@@ -347,7 +424,7 @@ export function WidgetWorkspace({
     if (editing) setTabs(next);
     else {
       const tab = next.find((t) => t.tabId === tabId)!;
-      void saveNow(next, () => store.saveTab({ ...tab, seq: next.indexOf(tab) }));
+      void saveNow(next, () => persistTab({ ...tab, seq: next.indexOf(tab) }));
     }
     return null;
   };
@@ -355,7 +432,7 @@ export function WidgetWorkspace({
   const toggleTabLock = (tabId: string) => {
     const next = tabs.map((t) => (t.tabId === tabId ? { ...t, locked: !t.locked } : t));
     const tab = next.find((t) => t.tabId === tabId)!;
-    void saveNow(next, () => store.saveTab({ ...tab, seq: next.indexOf(tab) }));
+    void saveNow(next, () => persistTab({ ...tab, seq: next.indexOf(tab) }));
   };
 
   const moveTab = (tabId: string, dir: -1 | 1) => {
@@ -379,7 +456,7 @@ export function WidgetWorkspace({
   const resetHome = async () => {
     if (!(await ask("기본 배치로 되돌릴까요?", "「홈」 탭의 내 배치를 지우고 기본 배치로 돌아갑니다."))) return;
     const next = tabs.map((t) => (t.tabId === HOME_TAB_ID ? defaultHome() : t));
-    await saveNow(next, () => store.resetHome());
+    if (await saveNow(next, () => store.resetHome())) homeIsDefault.current = true;
   };
 
   // 서랍에서 눌러 추가한 위젯으로 스크롤한다(스펙 §3.4). 격자가 칸을 그리는 시점이 한 박자 늦을 수 있어 찾을 때까지 몇 프레임 다시 본다.
