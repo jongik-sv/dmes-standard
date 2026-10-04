@@ -11,7 +11,8 @@ export type NoticeCategory = "NORMAL" | "MAINT" | "URGENT";
 export interface NoticeBoardRow {
   NOTICE_ID: string | number;
   TITLE: string;
-  CONTENT: string | null;
+  /** 목록 응답에는 없다(undefined) — 고른 공지의 본문은 상세 조회로 받는다. */
+  CONTENT?: string | null;
   CONTENT_FORMAT: string | null;
   NOTICE_CATEGORY: string | null;
   PIN_YN: string | null;
@@ -24,6 +25,10 @@ export interface NoticeBoardRow {
 
 export type NoticeLoadState =
   { status: "loading" } | { status: "error" } | { status: "ok"; rows: NoticeBoardRow[] };
+
+/** 고른 공지 본문 조회 상태 — 목록은 본문 없이 오므로 선택할 때 따로 받는다. */
+export type NoticeDetailState =
+  { status: "loading" } | { status: "error" } | { status: "ok"; content: string | null; format: string | null };
 
 export const NOTICE_CATEGORY_LABEL: Record<NoticeCategory, string> = {
   NORMAL: "일반",

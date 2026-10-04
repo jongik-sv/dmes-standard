@@ -471,6 +471,50 @@ class CommWidgetMngServiceTest {
     }
 
     @Test
+    @DisplayName("search includeConfig=false 는 요약 조회로 configJson 키 없이 userCount·usage 를 돌려준다")
+    void searchWithoutConfig() {
+        Object[] q = {"def.q1", "D", "query-table", "쿼리", null, null, 8, 6, null, null, null, null, null, null, null, null, "mcm"};
+        Object[] c = {"home.notice", "C", null, null, null, null, null, null, null, null, null, null, null, null, null, "N", null};
+        when(defRepository.findAllSummaryOrderByWidgetIdAsc()).thenReturn(List.of(q, c));
+        List<Object[]> usageRows = new ArrayList<>();
+        usageRows.add(new Object[] {"home.notice", 4L});
+        when(usageRepository.countUsersByWidget()).thenReturn(usageRows);
+        CommWidgetMngRequest req = new CommWidgetMngRequest();
+        req.setIncludeConfig(false);
+
+        Map<String, Object> result = service.search(req);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> defs = (List<Map<String, Object>>) result.get("defs");
+        assertThat(defs).hasSize(2);
+        assertThat(defs.get(0)).doesNotContainKey("configJson").containsEntry("widgetId", "def.q1")
+                .containsEntry("typeId", "query-table").containsEntry("defW", 8).containsEntry("useYn", "Y")
+                .containsEntry("userCount", 0L);
+        assertThat(defs.get(1)).doesNotContainKey("configJson").containsEntry("useYn", "N").containsEntry("userCount", 4L);
+        assertThat(result.get("usage")).isEqualTo(Map.of("home.notice", 4L));
+        verify(defRepository, never()).findAllByOrderByWidgetIdAsc();
+    }
+
+    @Test
+    @DisplayName("search widgetId 를 주면 그 정의 1건을 configJson 포함으로 돌려주고, 없으면 빈 목록이다")
+    void searchDetail() {
+        WidgetDef query = row("def.q1", "D");
+        query.setConfigJson("{\"sql\":\"select 1\"}");
+        when(defRepository.findById("def.q1")).thenReturn(Optional.of(query));
+        when(defRepository.findById("def.none")).thenReturn(Optional.empty());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> found = (List<Map<String, Object>>) service.search(idReq("def.q1")).get("defs");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> missing = (List<Map<String, Object>>) service.search(idReq("def.none")).get("defs");
+
+        assertThat(found).hasSize(1);
+        assertThat(found.get(0)).containsEntry("widgetId", "def.q1").containsEntry("configJson", "{\"sql\":\"select 1\"}");
+        assertThat(missing).isEmpty();
+        verifyNoInteractions(usageRepository);
+    }
+
+    @Test
     @DisplayName("previewQuery 는 queryRunner.preview(dataSrc, sql, 50) 결과를 columns·rows·truncated 로 돌려준다")
     void previewDelegates() {
         WidgetQueryResult qr = new WidgetQueryResult(List.of("A"), List.of(Map.of("A", 1)), true);

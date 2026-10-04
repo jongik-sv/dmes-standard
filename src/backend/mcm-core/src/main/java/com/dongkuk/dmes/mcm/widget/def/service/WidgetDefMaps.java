@@ -63,6 +63,32 @@ public final class WidgetDefMaps {
         }
     }
 
+    /**
+     * 관리자 목록용 — {@link WidgetDefRepository#findAllSummaryOrderByWidgetIdAsc} 열을 Map 으로. {@code configJson} 키는 싣지 않는다
+     * (행을 고를 때 상세 조회로 받는다).
+     */
+    public static Map<String, Object> toSummaryMap(Object[] r) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("widgetId", r[0]);
+        m.put("srcTp", r[1]);
+        m.put("typeId", r[2]);
+        m.put("title", r[3]);
+        m.put("subtitle", r[4]);
+        m.put("description", r[5]);
+        m.put("defW", r[6]);
+        m.put("defH", r[7]);
+        m.put("minW", r[8]);
+        m.put("minH", r[9]);
+        m.put("maxW", r[10]);
+        m.put("maxH", r[11]);
+        m.put("refreshSec", r[12]);
+        m.put("linkPageId", r[13]);
+        m.put("multipleYn", r[14]);
+        m.put("useYn", r[15] == null ? "Y" : r[15]);
+        m.put("dataSrc", r[16]);
+        return m;
+    }
+
     private static Map<String, Object> toMap(WidgetDef d, String configJson) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("widgetId", d.getWidgetId());

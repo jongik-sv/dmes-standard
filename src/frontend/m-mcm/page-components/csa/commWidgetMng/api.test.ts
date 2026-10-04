@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deleteWidgetDef, saveWidgetDef, searchWidgetDefs } from "./api";
+import { deleteWidgetDef, fetchWidgetDef, saveWidgetDef, searchWidgetDefs } from "./api";
 import type { WidgetSaveParams } from "./types";
 
 const fetchMock = vi.fn();
@@ -46,6 +46,24 @@ const PARAMS: WidgetSaveParams = {
   configJson: '{"markdown":""}',
 };
 
+describe("fetchWidgetDef", () => {
+  it("widgetId 로 search 를 불러 정의 1건(configJson 포함)을 돌려준다", async () => {
+    reply({
+      meta: { success: true },
+      data: { result: { defs: [{ widgetId: "def.a", srcTp: "D", configJson: '{"markdown":"본문"}' }] } },
+    });
+    const def = await fetchWidgetDef("def.a");
+    expect(sent().url).toBe("/api/mcm/oasis/commWidgetMng/search");
+    expect(sent().body).toEqual({ meta: { menuId: "commWidgetMng" }, params: { widgetId: "def.a" } });
+    expect(def).toEqual({ widgetId: "def.a", srcTp: "D", configJson: '{"markdown":"본문"}' });
+  });
+
+  it("행이 없으면 null", async () => {
+    reply({ meta: { success: true }, data: { result: { defs: [] } } });
+    expect(await fetchWidgetDef("def.none")).toBeNull();
+  });
+});
+
 describe("searchWidgetDefs", () => {
   it("commWidgetMng/search 를 부르고 data.result 의 defs·usage 를 푼다", async () => {
     reply({
@@ -59,7 +77,8 @@ describe("searchWidgetDefs", () => {
     });
     const out = await searchWidgetDefs();
     expect(sent().url).toBe("/api/mcm/oasis/commWidgetMng/search");
-    expect(sent().body).toEqual({ meta: { menuId: "commWidgetMng" }, params: {} });
+    // 목록은 configJson 없이 받는다(행을 고를 때 fetchWidgetDef 로 받는다).
+    expect(sent().body).toEqual({ meta: { menuId: "commWidgetMng" }, params: { includeConfig: false } });
     expect(out.defs).toEqual([{ widgetId: "home.notice", srcTp: "C", title: "사내 공지", userCount: 3 }]);
     expect(out.usage).toEqual({ "home.notice": 3, "home.kpi": 2 });
   });

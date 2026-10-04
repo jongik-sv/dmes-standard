@@ -27,6 +27,7 @@ import {
   toLocalDate,
   toLocalDateTime,
   type NoticeBoardRow,
+  type NoticeDetailState,
   type NoticeLoadState,
 } from "./types";
 
@@ -35,6 +36,9 @@ export interface NoticeCardProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onRetry: () => void;
+  /** 고른 공지의 본문 조회 상태(목록은 본문 없이 온다). 아직 요청 전이면 undefined — 불러오는 중으로 보인다. */
+  detail?: NoticeDetailState;
+  onRetryDetail?: () => void;
   /** 공지사항 관리 메뉴 권한이 있으면 true — 그때만 "공지 관리 ›" 를 보인다. */
   canManage: boolean;
 }
@@ -50,7 +54,15 @@ function FormatBadge({ row }: { row: NoticeBoardRow }) {
   );
 }
 
-function NoticeViewer({ row }: { row: NoticeBoardRow }) {
+function NoticeViewer({
+  row,
+  detail,
+  onRetryDetail,
+}: {
+  row: NoticeBoardRow;
+  detail?: NoticeDetailState;
+  onRetryDetail?: () => void;
+}) {
   const author = noticeAuthor(row);
   const createdAt = toLocalDateTime(row.C_AT);
   const period = [toDate(row.POST_START_DT), toDate(row.POST_END_DT)].filter(Boolean).join(" ~ ");
@@ -69,17 +81,40 @@ function NoticeViewer({ row }: { row: NoticeBoardRow }) {
         )}
         {period && <span className="mcm-home-viewer__meta">게시 {period}</span>}
       </div>
-      <NoticeBodyView
-        value={row.CONTENT ?? ""}
-        format={noticeFormat(row.CONTENT_FORMAT)}
-        emptyText="내용이 없습니다."
-        testId="home-notice-body"
-      />
+      {detail?.status === "error" ? (
+        <div className="mcm-home-state mcm-home-state--error" role="alert" data-testid="home-notice-body-error">
+          <span>{NOTICE_LOAD_ERROR}</span>
+          {onRetryDetail && (
+            <Button size="sm" onClick={onRetryDetail}>
+              다시 시도
+            </Button>
+          )}
+        </div>
+      ) : detail?.status === "ok" ? (
+        <NoticeBodyView
+          value={detail.content ?? ""}
+          format={noticeFormat(detail.format ?? row.CONTENT_FORMAT)}
+          emptyText="내용이 없습니다."
+          testId="home-notice-body"
+        />
+      ) : (
+        <div className="mcm-home-state" data-testid="home-notice-body-loading">
+          본문을 불러오는 중입니다.
+        </div>
+      )}
     </div>
   );
 }
 
-export function NoticeCard({ state, selectedId, onSelect, onRetry, canManage }: NoticeCardProps) {
+export function NoticeCard({
+  state,
+  selectedId,
+  onSelect,
+  onRetry,
+  detail,
+  onRetryDetail,
+  canManage,
+}: NoticeCardProps) {
   const viewerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const rows = state.status === "ok" ? state.rows : [];
@@ -180,7 +215,7 @@ export function NoticeCard({ state, selectedId, onSelect, onRetry, canManage }: 
         <ContentPanel key="viewer" flex={7} minSize={240}>
           <div className="mcm-home-scroll" ref={viewerRef} data-testid="home-notice-viewer">
             {selected ? (
-              <NoticeViewer row={selected} />
+              <NoticeViewer row={selected} detail={detail} onRetryDetail={onRetryDetail} />
             ) : (
               <div className="mcm-home-state">선택한 공지가 없습니다.</div>
             )}

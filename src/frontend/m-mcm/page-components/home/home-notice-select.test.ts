@@ -42,6 +42,7 @@ vi.mock("@/lib/widget-defs-events", () => ({ onWidgetDefsChanged: () => () => {}
 
 vi.mock("./api", () => ({
   fetchCurrentUser: () => new Promise(() => {}),
+  fetchNoticeDetail: async () => null,
   searchNoticeBoard: async () => [
     { NOTICE_ID: 1, TITLE: "긴급 점검", CONTENT: null, NOTICE_CATEGORY: "URGENT" },
     { NOTICE_ID: 2, TITLE: "일반 공지", CONTENT: null, NOTICE_CATEGORY: "NORMAL" },

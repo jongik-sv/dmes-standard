@@ -202,6 +202,83 @@ class NoticeBoardServiceTest extends MlsTestDb {
         assertThat(board(null).get(0).get("CONTENT")).isEqualTo("<p>안내</p>");
     }
 
+    // ── 목록 본문 제외·상세 조회 (화면 성능 가이드 R1) ─────────────────
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> summaryBoard() {
+        NoticeBoardSearchRequest q = new NoticeBoardSearchRequest();
+        q.setIncludeContent(false);
+        em.clear();
+        return (List<Map<String, Object>>) service.search(q).get("list");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> detail(String noticeId) {
+        NoticeBoardSearchRequest q = new NoticeBoardSearchRequest();
+        q.setNoticeId(noticeId);
+        em.clear();
+        return (List<Map<String, Object>>) service.search(q).get("list");
+    }
+
+    @Test
+    @DisplayName("includeContent=false — 본문 키 없이 나머지 9개 키·같은 정렬로 내려간다, 기본은 본문 포함 그대로")
+    void summaryOmitsContent() {
+        Notice a = notice("일반", "POSTED", TODAY.minusDays(1), TODAY.plusDays(1), "NORMAL", "N");
+        Notice b = notice("고정", "POSTED", TODAY.minusDays(1), TODAY.plusDays(1), "MAINT", "Y");
+
+        List<Map<String, Object>> rows = summaryBoard();
+
+        assertThat(rows).extracting(r -> r.get("NOTICE_ID")).containsExactly(b.getNoticeId(), a.getNoticeId());
+        assertThat(rows.get(0).keySet()).containsExactly("NOTICE_ID", "TITLE", "CONTENT_FORMAT", "NOTICE_CATEGORY",
+                "PIN_YN", "POST_START_DT", "POST_END_DT", "C_USR_ID", "C_AT");
+        assertThat(rows.get(0)).containsEntry("TITLE", "고정").containsEntry("PIN_YN", "Y")
+                .containsEntry("POST_START_DT", TODAY.minusDays(1).toString());
+        assertThat(rows.get(0).get("C_AT")).isNotNull();
+        assertThat(board(null).get(0)).containsKey("CONTENT");
+    }
+
+    @Test
+    @DisplayName("요약 목록도 게시중·기간·대상 조건을 그대로 지킨다")
+    void summaryKeepsVisibility() {
+        posted("전체");
+        forRoles("관리자용", "SYSADMIN");
+        notice("작성중", "DRAFT", TODAY.minusDays(1), TODAY.plusDays(1), "NORMAL", "N");
+        loginAs("MDM_STEWARD");
+
+        assertThat(summaryBoard()).extracting(r -> r.get("TITLE")).containsExactly("전체");
+    }
+
+    @Test
+    @DisplayName("상세 — noticeId 로 본문 포함 1건을 받고 HTML 은 다시 소독한다")
+    void detailHasContent() {
+        Notice n = posted("상세");
+        new JdbcTemplate(dataSource).update(
+                "UPDATE TB_MLS_NOTICE SET CONTENT_FORMAT = 'HTML', CONTENT = ? WHERE NOTICE_ID = ?",
+                "<p onclick=\"x()\">안내</p><script>alert(1)</script>", n.getNoticeId());
+
+        List<Map<String, Object>> rows = detail(n.getNoticeId());
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0)).containsEntry("NOTICE_ID", n.getNoticeId()).containsEntry("CONTENT", "<p>안내</p>");
+    }
+
+    @Test
+    @DisplayName("상세도 목록과 같은 가시성 — 대상 아님·게시 전·기간 밖 공지는 번호를 알아도 비어 돌아온다")
+    void detailKeepsVisibility() {
+        Notice roleOnly = forRoles("관리자용", "SYSADMIN");
+        Notice draft = notice("작성중", "DRAFT", TODAY.minusDays(1), TODAY.plusDays(1), "NORMAL", "N");
+        Notice ended = notice("끝남", "POSTED", TODAY.minusDays(5), TODAY.minusDays(1), "NORMAL", "N");
+        loginAs("MDM_STEWARD");
+
+        assertThat(detail(roleOnly.getNoticeId())).isEmpty();
+        assertThat(detail(draft.getNoticeId())).isEmpty();
+        assertThat(detail(ended.getNoticeId())).isEmpty();
+        assertThat(detail("NO-SUCH")).isEmpty();
+
+        loginAs("SYSADMIN");
+        assertThat(detail(roleOnly.getNoticeId())).hasSize(1);
+    }
+
     // ── 게시 대상 (V4) ─────────────────────────────────────────────
 
     @Test

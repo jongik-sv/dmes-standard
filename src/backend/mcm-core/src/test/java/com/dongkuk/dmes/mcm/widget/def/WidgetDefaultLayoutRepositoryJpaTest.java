@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.dongkuk.dmes.mcm.widget.admin.repository.WidgetUsageRepository;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
+import com.dongkuk.dmes.mcm.widget.def.service.WidgetDefMaps;
 import com.dongkuk.dmes.mcm.widget.entity.SecUserWidget;
 import com.dongkuk.dmes.mcm.widget.layout.entity.WidgetDefaultLayout;
 import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultLayoutRepository;
@@ -68,6 +69,34 @@ class WidgetDefaultLayoutRepositoryJpaTest {
         assertThat(layoutRepository.findByLayoutKeyOrderByPosYAscPosXAsc("*")).hasSize(2);
         writer.delete("NONE"); // 없는 키는 아무것도 하지 않는다
         assertThat(layoutRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("목록 요약 조회는 widgetId 순으로 설정(CONFIG_JSON) 열 없이 17개 열만 읽는다")
+    void summaryOmitsConfigJson() {
+        WidgetDef big = new WidgetDef();
+        big.setWidgetId("def.b");
+        big.setSrcTp(WidgetDef.SRC_DEF);
+        big.setTypeId("markdown");
+        big.setTitle("큰 설정");
+        big.setDefW(8);
+        big.setUseYn("N");
+        big.setDataSrc("mcm");
+        big.setConfigJson("{\"markdown\":\"" + "가".repeat(50000) + "\"}");
+        WidgetDef code = new WidgetDef();
+        code.setWidgetId("home.a");
+        code.setSrcTp(WidgetDef.SRC_CODE);
+        code.setUseYn("Y");
+        defRepository.saveAndFlush(big);
+        defRepository.saveAndFlush(code);
+
+        List<Object[]> rows = defRepository.findAllSummaryOrderByWidgetIdAsc();
+
+        assertThat(rows).extracting(r -> r[0]).containsExactly("def.b", "home.a");
+        assertThat(rows.get(0)).hasSize(17);
+        assertThat(rows.get(0)).containsExactly("def.b", "D", "markdown", "큰 설정", null, null, 8, null, null, null,
+                null, null, null, null, null, "N", "mcm");
+        assertThat(WidgetDefMaps.toSummaryMap(rows.get(0))).doesNotContainKey("configJson").containsEntry("useYn", "N");
     }
 
     @Test

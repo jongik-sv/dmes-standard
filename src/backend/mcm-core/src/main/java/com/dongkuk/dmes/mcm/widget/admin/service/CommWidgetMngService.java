@@ -67,15 +67,34 @@ public class CommWidgetMngService {
      * (DB 행이 없는 코드 위젯 포함).
      */
     public Map<String, Object> search(CommWidgetMngRequest request) {
+        String detailId = request == null ? null : blankToNull(request.getWidgetId());
+        if (detailId != null) {
+            // 상세 — 행을 고를 때 설정(configJson)을 받는다(목록은 설정 없이 내려갈 수 있다).
+            List<Map<String, Object>> one = new ArrayList<>();
+            defRepository.findById(detailId).ifPresent(d -> one.add(WidgetDefMaps.toMap(d)));
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("defs", one);
+            return detail;
+        }
         Map<String, Long> usage = new TreeMap<>();
         for (Object[] row : usageRepository.countUsersByWidget()) {
             usage.put(String.valueOf(row[0]), ((Number) row[1]).longValue());
         }
+        boolean withConfig = request == null || request.getIncludeConfig() == null || request.getIncludeConfig();
         List<Map<String, Object>> defs = new ArrayList<>();
-        for (WidgetDef d : defRepository.findAllByOrderByWidgetIdAsc()) {
-            Map<String, Object> m = WidgetDefMaps.toMap(d);
-            m.put("userCount", usage.getOrDefault(d.getWidgetId(), 0L));
-            defs.add(m);
+        if (withConfig) {
+            for (WidgetDef d : defRepository.findAllByOrderByWidgetIdAsc()) {
+                Map<String, Object> m = WidgetDefMaps.toMap(d);
+                m.put("userCount", usage.getOrDefault(d.getWidgetId(), 0L));
+                defs.add(m);
+            }
+        } else {
+            // 설정 칸을 읽지 않는다 — 정렬·나머지 키는 설정 포함 조회와 같다.
+            for (Object[] r : defRepository.findAllSummaryOrderByWidgetIdAsc()) {
+                Map<String, Object> m = WidgetDefMaps.toSummaryMap(r);
+                m.put("userCount", usage.getOrDefault(String.valueOf(r[0]), 0L));
+                defs.add(m);
+            }
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("defs", defs);

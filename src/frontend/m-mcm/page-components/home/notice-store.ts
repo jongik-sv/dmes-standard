@@ -5,15 +5,17 @@
  */
 import { useSyncExternalStore } from "react";
 
-import { searchNoticeBoard } from "./api";
-import { firstUrgent, keepSelection, noticeKey, type NoticeLoadState } from "./types";
+import { fetchNoticeDetail, searchNoticeBoard } from "./api";
+import { firstUrgent, keepSelection, noticeKey, type NoticeDetailState, type NoticeLoadState } from "./types";
 
 interface NoticeStoreState {
   notices: NoticeLoadState;
   selectedId: string | null;
+  /** 고른 공지 본문(공지 키별) — 목록은 본문 없이 오므로 선택할 때 받아 두고, 다시 고르면 요청 없이 쓴다. */
+  details: Record<string, NoticeDetailState>;
 }
 
-let state: NoticeStoreState = { notices: { status: "loading" }, selectedId: null };
+let state: NoticeStoreState = { notices: { status: "loading" }, selectedId: null, details: {} };
 let requested = false;
 let seq = 0;
 const listeners = new Set<() => void>();
@@ -30,7 +32,10 @@ export function reloadNotices(): Promise<void> {
   return searchNoticeBoard().then(
     (rows) => {
       if (mine !== seq) return;
-      set({ notices: { status: "ok", rows }, selectedId: keepSelection(rows, state.selectedId) });
+      // 목록을 다시 받으면 본문 캐시를 비운다(그 사이 공지가 고쳐졌을 수 있다).
+      const selectedId = keepSelection(rows, state.selectedId);
+      set({ notices: { status: "ok", rows }, selectedId, details: {} });
+      loadDetail(selectedId);
     },
     () => {
       if (mine !== seq) return;
@@ -49,15 +54,37 @@ export function resetNoticesRequest(): void {
   requested = false;
 }
 
+/** 고른 공지 본문을 받는다. 이미 받았거나 받는 중이면 아무것도 하지 않는다(실패했으면 다시 시도한다). */
+export function loadDetail(id: string | null): void {
+  if (!id) return;
+  const cur = state.details[id];
+  if (cur && cur.status !== "error") return;
+  set({ details: { ...state.details, [id]: { status: "loading" } } });
+  const mine = seq;
+  fetchNoticeDetail(id).then(
+    (row) => {
+      if (mine !== seq) return;
+      set({ details: { ...state.details, [id]: { status: "ok", content: row?.CONTENT ?? null, format: row?.CONTENT_FORMAT ?? null } } });
+    },
+    () => {
+      if (mine !== seq) return;
+      set({ details: { ...state.details, [id]: { status: "error" } } });
+    }
+  );
+}
+
 export function selectNotice(id: string | null): void {
   set({ selectedId: id });
+  loadDetail(id);
 }
 
 /** 공지 알림·긴급 띠 「내용 보기」 — 긴급 공지(없으면 첫 공지)를 고른다. */
 export function selectUrgentOrFirst(): void {
   if (state.notices.status !== "ok" || state.notices.rows.length === 0) return;
   const target = firstUrgent(state.notices.rows) ?? state.notices.rows[0];
-  set({ selectedId: noticeKey(target) });
+  const id = noticeKey(target);
+  set({ selectedId: id });
+  loadDetail(id);
 }
 
 function subscribe(l: () => void): () => void {
