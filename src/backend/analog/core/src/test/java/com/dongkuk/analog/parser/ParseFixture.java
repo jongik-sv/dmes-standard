@@ -28,8 +28,8 @@ final class ParseFixture {
 
     /**
      * 요청 하나(T1)를 Service·Process·Task·Query·예외·메시지까지 열고 닫고, 다른 요청(T2)이 사이에 끼는 샘플.
-     * 마지막 줄은 아직 열린 T2 의 버림 메시지다 — LogProcessor 가 마지막 논리 줄을 소비하지 않을 수 있어
-     * (EOQ 직전 버퍼), 소비되든 안 되든 트리가 같도록 둔 보초 줄이다.
+     * 마지막 줄은 아직 열린 T2 의 버림 메시지다 — 이제 LogProcessor 는 끝 신호(EOQ)에서 마지막 논리 줄도 소비한다.
+     * 예전 기대값(골든)을 그대로 두려고 남긴 보초 줄이다.
      */
     static final String SAMPLE_LOG = String.join("\n",
             "2026-05-15 10:00:00.000 [http-1] [T1] [SVC01] INFO  c.d.Web - POST \"/api/order/save\"",
