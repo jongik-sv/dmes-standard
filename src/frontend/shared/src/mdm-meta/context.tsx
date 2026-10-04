@@ -45,6 +45,20 @@ function moduleOfPageId(pageId: string): string | null {
   return m || null;
 }
 
+/**
+ * `mdmMeta` 엔드포인트가 없는 모듈 — 포털 탭은 이 모듈 화면에 메타를 부르지 않는다(요청 0).
+ * MDM 서버 자신은 `cactus.mdm.enabled` 를 켜지 않고(spec 2026-10-02 §5.1 "MDM 서버 자신은 켜지 않는다"), analog BE 는 cactus-core 를 쓰지 않아 엔드포인트가 없다.
+ * 예전에는 첫 404 뒤 세션 동안 끄는 방식(spec 2026-10-03 B5)에 맡겨 세션마다 그 모듈 첫 탭에서 404 가 한 번 남았다(2026-10-05 F7). store 의 404 끄기는
+ * 목록에 없는 모듈을 위한 방어로 그대로 둔다. 모듈이 엔드포인트를 새로 얻으면 여기서 뺀다.
+ */
+export const MDM_META_UNSUPPORTED_MODULES: ReadonlySet<string> = new Set(["mdm", "analog"]);
+
+/** 포털 탭 pageId(`모듈:화면`)의 모듈이 `mdmMeta` 엔드포인트가 없는 모듈인가. */
+export function isMdmMetaUnsupportedPage(pageId: string): boolean {
+  const m = moduleOfPageId(pageId);
+  return m != null && MDM_META_UNSUPPORTED_MODULES.has(m);
+}
+
 export function MdmMetaProvider({ module, captionPriority, disabled, children }: MdmMetaProviderProps) {
   const parent = useContext(MdmMetaContext);
   const { pageId } = useTabPage();

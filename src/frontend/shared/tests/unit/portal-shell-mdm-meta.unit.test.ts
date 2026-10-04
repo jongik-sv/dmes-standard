@@ -84,4 +84,30 @@ describe("PortalShell 탭 MDM 메타 공급자", () => {
     expect(document.querySelector('[data-testid="page"]')?.textContent).toBe("mls|제목");
     expect(urls).toContain("/api/mls/mdmMeta/columns");
   });
+
+  // mdmMeta 엔드포인트가 없는 모듈(MDM 서버·analog)은 첫 404 를 기다리지 않고 미리 끈다(2026-10-05 F7 — /api/mdm/mdmMeta/columns 404).
+  it.each(["mdm:dme/ruleEdit", "analog:anl/logViewer"])("엔드포인트가 없는 모듈 탭(%s)은 mdmMeta 를 부르지 않는다", async (homePageId) => {
+    const Page: PortalShellPageComponent = () => {
+      const scope = useMdmMetaScope();
+      const info = useMdmColumn("title");
+      return createElement("div", { "data-testid": "page" }, `${scope?.disabled}|${info.loading}|${info.column?.labelShort ?? ""}`);
+    };
+    rendered = renderWithMantine(
+      createElement(PortalShell, {
+        appName: "TEST",
+        menu: { items: [] },
+        resolvePage: async () => Page,
+        homePageId,
+        storageKey: `portal-shell-mdm-meta-${Math.random()}`,
+      })
+    );
+    await act(async () => {
+      await settle(80);
+    });
+    await act(async () => {
+      await settle(80);
+    });
+    expect(document.querySelector('[data-testid="page"]')?.textContent).toBe("true|false|");
+    expect(urls.filter((u) => u.includes("/mdmMeta/"))).toEqual([]);
+  });
 });

@@ -6,7 +6,7 @@
 - 서버 오류 → 칸 오류: `import { toFieldErrors } from "@dk-oasis/shared/http";`
 - 소스: `src/frontend/shared/src/mdm-meta/`(`context.tsx`·`store.ts`·`caption.ts`·`names.ts`·`MdmMetaCard.tsx`·`MdmFieldLabel.tsx`·`validate.ts`), `src/frontend/shared/src/components/form/useHoverTip.tsx`(FormGroup·MdmFieldLabel·그리드 머리글 라벨 MdmHeaderLabel 이 함께 쓰는 내부 포털 툴팁 — 화면은 직접 쓰지 않는다), `src/frontend/shared/src/components/grid/MdmHeaderLabel.tsx`(HTML 설명 열의 그리드 머리글 라벨, 내부용), `src/frontend/shared/src/components/hover-tip-escape-guard.ts`(모달 안 Escape 보호 가드, 내부용 — useHoverTip·modal.tsx 가 설치), `src/frontend/shared/src/http/index.ts`(`toFieldErrors`)
 - 설계: `docs/superpowers/specs/2026-10-03-mdm-screen-meta-validation-design.md` §2 B1~B8·C1·C2·C5·C9, §4, §5
-- 받는 곳: 업무 BE `POST /api/{module}/mdmMeta/columns`(본문 `{"names":[…]}`)·`/domains`(본문 `{"domainIds":[…]}`). 한 화면에서 등록한 이름을 16ms 동안 모아 모듈마다 한 번 부르고, 받은 것은 5분 둔다. 404·401·403·연결 실패면 그 모듈은 세션 동안 메타 없이 두고 다시 부르지 않는다(401 에도 로그인 화면으로 보내지 않는다).
+- 받는 곳: 업무 BE `POST /api/{module}/mdmMeta/columns`(본문 `{"names":[…]}`)·`/domains`(본문 `{"domainIds":[…]}`). 한 화면에서 등록한 이름을 16ms 동안 모아 모듈마다 한 번 부르고, 받은 것은 5분 둔다. 404·401·403·연결 실패면 그 모듈은 세션 동안 메타 없이 두고 다시 부르지 않는다(401 에도 로그인 화면으로 보내지 않는다). `mdmMeta` 엔드포인트가 없는 모듈(`mdm`·`analog`, `MDM_META_UNSUPPORTED_MODULES`)의 포털 탭은 공급자를 미리 꺼(`disabled`) 요청 자체를 보내지 않는다(2026-10-05 F7). 새 업무 모듈이 cactus `mdmMeta` 를 켜지 않으면 그 목록에 넣는다. 끈 탭 안에서 `MdmMetaProvider module="mls"` 처럼 다른 모듈로 덮어쓰려면 `disabled={false}` 를 함께 준다(`disabled` 는 바깥 값을 물려받는다).
 
 ## 언제 쓰나
 
