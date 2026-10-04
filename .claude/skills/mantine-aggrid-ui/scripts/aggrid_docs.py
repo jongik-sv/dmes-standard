@@ -540,7 +540,7 @@ def _enclosing_block(t: str, pos: int, opener: re.Pattern) -> str | None:
     return None
 
 
-BODY_EXCLUDE_PARAM = re.compile(r"(?:include|with)\w*(?:content|body)\w*\s*:\s*false|exclude\w*(?:content|body)\w*\s*:\s*true", re.I)
+BODY_EXCLUDE_PARAM = re.compile(r"(?:include|with)(?:content|body)[\"']?\s*:\s*false|exclude(?:content|body)[\"']?\s*:\s*true", re.I)
 
 
 def _list_call_drops_body(f: Path, t: str, call: re.Match) -> bool:
@@ -551,7 +551,7 @@ def _list_call_drops_body(f: Path, t: str, call: re.Match) -> bool:
         return True
     api = f.with_name("api.ts")
     if api.exists() and api != f:
-        a = api.read_text(encoding="utf-8", errors="ignore")
+        a = mask_comments(api.read_text(encoding="utf-8", errors="ignore"))
         m = re.search(r"function\s+" + re.escape(call[1]) + r"\b", a)
         if m:
             nxt = re.search(r"\n(?:export\s|/\*\*)", a[m.end():])
