@@ -47,6 +47,8 @@ python3 $D/aggrid_docs.py audit <바꾼 파일·폴더>
 | `[P-R1]` 목록 파일(page.tsx·`AgDataGrid`/`GridPanel` 사용)에서 import 한 `search*()` 호출 인자에 상한·페이징(`limit`·`size`·`max`·`page`)이나 상위 키(`…Id`·`…Code`)가 없고 `GridLimitNotice` 도 없음 | [성능 가이드 R1](Screen-Performance-Guide.md) | 경고 |
 | `[P-R6]` `rows.length === 0 ? (…) : (<AgDataGrid…/>)` 처럼 0건이면 그리드를 내림 → `emptyMessage` | [성능 가이드 R6](Screen-Performance-Guide.md) | 경고 |
 | `[P-R10]` `portal-tab-activated` 를 받으면서 파일에 `tabId` 비교가 없음 | [성능 가이드 R10·K5](Screen-Performance-Guide.md) | 경고 |
+| `[P-R14]` 위젯 파일(경로에 `widgets/`·`widget-types/`, 파일명에 `widget`·`renderer`)에 `setInterval(` 또는 자기 자신을 다시 거는 `setTimeout(` 이 있는데 `visibilityState`·`visibilitychange`·`IntersectionObserver`·`useTabPage`·`isActive` 가 없음 | [성능 가이드 R14](Screen-Performance-Guide.md) | 경고 |
+| `[P-R16]` `useSyncExternalStore` 의 getSnapshot 이 상태 객체 전체(`() => state`)뿐이고 같은 파일에 필드 단위 getSnapshot(`() => state.field`) 훅이 없음 | [성능 가이드 R16](Screen-Performance-Guide.md) | 경고 |
 
 성능 항목(`[P-…]`)은 `aggrid_docs.py audit` 가 함께 낸다. 오류는 종료 코드 1, 경고는 종료 코드에 영향이 없다(설계상 정상일 수 있으므로 해당 규칙을 읽고 판단한다). 테스트 파일(`tests/`·`*.test.*`)은 성능 점검에서 뺀다.
 
@@ -54,6 +56,8 @@ python3 $D/aggrid_docs.py audit <바꾼 파일·폴더>
 - `[P-K]` 는 `fetch(` 에 경로 문자열이 바로 들어간 호출만 잡는다. `apiRequest`·상수 URL 을 거친 호출은 놓친다.
 - `[P-R12]`·`[P-R12b]` 는 이름이 `form`·`*Form` 인 상태만 본다. `draft` 같은 다른 이름의 폼 상태는 놓친다. 그래서 화면 시험(루트 렌더 수)과 `count-renders` ⑤ 로도 확인한다.
 - `[P-R1]` 은 잡음이 크다(2026-10-05 저장소 전체 28건). 자동완성·조회 팝업(예: 용어 등록 팝업의 중복 확인 조회)처럼 상한이 필요 없는 조회도 걸리므로 경고만 낸다. 오탐이면 이유를 보고에 적는다.
+- `[P-R14]` 는 같은 파일에 표시 확인 흔적이 한 군데라도 있으면 통과시킨다(타이머별로 연결을 따지지 않는다). 효과 재실행으로 도는 타이머(deps 가 바뀔 때마다 `setTimeout` 을 다시 거는 슬라이드쇼 등)와 틀 밖 파일에서 만든 타이머는 놓친다. 일회성·디바운스 `setTimeout` 은 대상이 아니다.
+- `[P-R16]` 은 스토어 정의 파일만 본다. 다른 파일에서 `const { a } = useXxxStore()` 로 일부 필드만 쓰는 호출은 파일 간 추적이 어려워 잡지 않는다(그런 사용은 필드 훅을 내보내라는 신호로 직접 확인한다).
 - 경고도 오류와 같은 `경로:줄:` 형식으로 찍힌다. 줄 수로 세지 말고 `[P-…]` 코드와 수준으로 나눈다.
 
 점검 규칙을 바꿀 때는 이 표와 스크립트를 함께 고친다.

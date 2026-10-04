@@ -131,3 +131,41 @@ describe("toWidgetDefRow", () => {
     expect(toWidgetDefRow({ widgetId: "def.a1", srcTp: "X" })).toBeNull();
   });
 });
+
+describe("mergeWidgetRegistry — 같은 행이면 같은 entry(W2)", () => {
+  const def = row({ widgetId: "def.q1", srcTp: "D", typeId: "query-table", config: { sql: "select 1" } });
+
+  it("같은 행을 다시 합치면 덮어쓰기·정의 entry 와 정의 loader 가 같은 객체다", () => {
+    const over = row({ title: "새 제목" });
+    const a = mergeWidgetRegistry(CODE, TYPES, [over, def]);
+    const b = mergeWidgetRegistry(CODE, TYPES, [{ ...over }, { ...def, config: { sql: "select 1" } }]);
+    expect(b["home.a"]).toBe(a["home.a"]);
+    expect(b["def.q1"]).toBe(a["def.q1"]);
+    expect(b["def.q1"].load).toBe(a["def.q1"].load);
+    // 덮어쓰기는 코드 본체 로더를 그대로 쓴다 — WidgetFrame 지연 로딩 캐시(load 기준)가 이어진다.
+    expect(a["home.a"].load).toBe(CODE["home.a"].load);
+  });
+
+  it("행 내용·정의 설정이 바뀌면 새 entry·새 loader 다", () => {
+    const a = mergeWidgetRegistry(CODE, TYPES, [row({ title: "하나" }), def]);
+    const b = mergeWidgetRegistry(CODE, TYPES, [row({ title: "둘" }), { ...def, config: { sql: "select 2" } }]);
+    expect(b["home.a"]).not.toBe(a["home.a"]);
+    expect(b["home.a"].meta.title).toBe("둘");
+    expect(b["def.q1"].load).not.toBe(a["def.q1"].load);
+  });
+
+  it("prev 를 주면 항목이 모두 같을 때 prev 객체를 그대로 돌려준다", () => {
+    const a = mergeWidgetRegistry(CODE, TYPES, [def]);
+    expect(mergeWidgetRegistry(CODE, TYPES, [{ ...def }], a)).toBe(a);
+    expect(mergeWidgetRegistry(CODE, TYPES, [], a)).not.toBe(a);
+  });
+
+  it("정의 행의 제목만 바뀌고 설정이 같으면 새 entry 지만 본체 loader 는 그대로다(본체를 다시 마운트하지 않는다)", () => {
+    const a = mergeWidgetRegistry(CODE, TYPES, [def]);
+    const b = mergeWidgetRegistry(CODE, TYPES, [{ ...def, title: "새 이름" }]);
+    expect(b["def.q1"]).not.toBe(a["def.q1"]);
+    expect(b["def.q1"].meta.title).toBe("새 이름");
+    expect(b["def.q1"].load).toBe(a["def.q1"].load);
+  });
+});
+

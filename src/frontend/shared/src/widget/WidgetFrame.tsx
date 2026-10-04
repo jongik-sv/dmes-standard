@@ -38,17 +38,19 @@ export interface WidgetFrameProps {
   onKeyMove?: (instId: string, key: WidgetMoveKey, mode: "move" | "resize") => void;
 }
 
-const lazyCache = new WeakMap<WidgetRegistryEntry, LazyExoticComponent<WidgetComponent>>();
+// 지연 로딩 캐시는 entry 객체가 아니라 본체 로더(entry.load) 기준이다 — 덮어쓰기 행으로 meta 만 바뀐 새 entry 가 와도
+// 같은 본체 컴포넌트를 써서 본체가 다시 마운트되지 않는다(widget-render-findings W2).
+const lazyCache = new WeakMap<WidgetRegistryEntry["load"], LazyExoticComponent<WidgetComponent>>();
 
 function lazyBody(entry: WidgetRegistryEntry): LazyExoticComponent<WidgetComponent> {
-  let comp = lazyCache.get(entry);
+  let comp = lazyCache.get(entry.load);
   if (!comp) {
     comp = lazy(async () => {
       const mod = await entry.load();
       if (typeof mod.default !== "function") throw new Error(`${entry.meta.id}: default export 가 컴포넌트가 아닙니다.`);
       return { default: mod.default as WidgetComponent };
     });
-    lazyCache.set(entry, comp);
+    lazyCache.set(entry.load, comp);
   }
   return comp;
 }
@@ -127,7 +129,7 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
 
   const retryLoad = useCallback(() => {
     // lazy 는 실패한 import 를 기억하므로 캐시를 지워 다시 불러오게 한다.
-    if (entry) lazyCache.delete(entry);
+    if (entry) lazyCache.delete(entry.load);
     setStatus({ kind: "ready" });
     setAttempt((a) => a + 1);
   }, [entry]);

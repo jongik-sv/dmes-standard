@@ -210,6 +210,30 @@ export function tabsEqual(a: WidgetTab, b: WidgetTab): boolean {
   return a.tabId === b.tabId && a.name === b.name && a.locked === b.locked && itemsEqual(a.items, b.items);
 }
 
+const sameJson = (a: unknown, b: unknown) => a === b || JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+/** 순서·설정까지 같은 항목 목록인지 — itemsEqual(저장 대상 판정, 순서 무시)보다 엄격하다. */
+export function sameItemsExact(a: readonly WidgetItem[], b: readonly WidgetItem[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((x, i) => {
+    const y = b[i];
+    return itemKey(x) === itemKey(y) && sameJson(x.config, y.config);
+  });
+}
+
+function sameTabExact(a: WidgetTab, b: WidgetTab): boolean {
+  return a.tabId === b.tabId && a.name === b.name && a.seq === b.seq && a.locked === b.locked && sameItemsExact(a.items, b.items);
+}
+
+/**
+ * 다시 정리한 탭 목록에서 이전과 같은 탭은 이전 객체를, 모두 같으면 이전 배열을 돌려준다(Screen-Performance-Guide R7·W3).
+ * 같은 배치를 다시 받아도 setTabs 가 바뀐 것 없음으로 끝나 보드·위젯 틀이 다시 그려지지 않는다.
+ */
+export function reuseTabs(prev: readonly WidgetTab[], next: WidgetTab[]): WidgetTab[] {
+  const out = next.map((t) => prev.find((p) => p.tabId === t.tabId && sameTabExact(p, t)) ?? t);
+  return out.length === prev.length && out.every((t, i) => t === prev[i]) ? (prev as WidgetTab[]) : out;
+}
+
 export function validateTabName(name: string, tabs: readonly WidgetTab[], selfTabId: string): string | null {
   const v = name.trim();
   if (!v) return "탭 이름을 입력해 주세요.";

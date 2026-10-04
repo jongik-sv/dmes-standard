@@ -24,6 +24,7 @@ import "@dk-oasis/shared/form.css";
 import "@dk-oasis/shared/modal.css";
 import { resolvePortalPage } from "./registered-modules";
 import { publishPortalMenu } from "@/lib/portal-menu-store";
+import { publishPortalFavorites } from "@/lib/portal-favorites-store";
 
 const MODULE_ID = "mcm";
 const MENU_ENDPOINT = { endpoint: "/api/mcm/oasis/secUser/myMenusTree" };
@@ -311,6 +312,12 @@ export default function PortalPage() {
     errorMessage: favoritesErrorMessage,
     refetch: refetchFavorites,
   } = usePortalFavorites(FAVORITES_ENDPOINT);
+
+  // 받은 즐겨찾기를 홈 바로가기 위젯이 다시 조회하지 않고 쓰게 올려 둔다(진입 때 같은 목록 중복 요청 방지).
+  useEffect(() => {
+    publishPortalFavorites(isFavoritesLoading || favoritesErrorMessage ? null : favorites);
+  }, [favorites, isFavoritesLoading, favoritesErrorMessage]);
+  useEffect(() => () => publishPortalFavorites(null), []);
 
   // 기본 화면 목록은 포털을 가리지 않는다(로딩 화면 조건에 넣지 않음) — 조회가 끝나면 PortalShell 이 한 번 자동으로 연다.
   // 여기(최상위)에 두어 PortalShell 이 다시 마운트돼도(메뉴·즐겨찾기 첫 로딩 등) 목록·조회 상태를 잃지 않는다.

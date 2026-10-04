@@ -165,7 +165,7 @@ const handleSave = async () => { const form = detailRef.current?.getForm(); ... 
 <EquipDetailPane ref={detailRef} busy={isBusy} isNew={isNew} />
 ```
 
-그 밖에 지킬 것: `fetch("/api/auth/me")` 를 직접 부르지 않고(`getCurrentUser()`), 권한 훅 `useUserButtonRbac()` 는 화면 루트 한 곳에서만 쓴다(R9). 0건이어도 그리드를 언마운트하지 않는다(R6). 행 클릭·입력마다 `onSnapshotChange` 를 부르지 않는다(R8). 같은 값이면 `setState` 하지 않는다(R7).
+그 밖에 지킬 것: `fetch("/api/auth/me")` 를 직접 부르지 않고(`getCurrentUser()`), 권한 훅 `useUserButtonRbac()` 는 화면 루트 한 곳에서만 쓴다(R9). 0건이어도 그리드를 언마운트하지 않는다(R6). 행 클릭·입력마다 `onSnapshotChange` 를 부르지 않는다(R8). 같은 값이면 `setState` 하지 않는다(R7). 홈 위젯·`WidgetWorkspace` 를 다루면 [widget.md §성능 규칙](components/widget.md#성능-규칙)(R13~R16: 진입 조회 한 번·표시 연동 타이머·호스트 목록 재사용·스토어 필드 훅)도 따른다.
 
 ## 유형별 메모
 

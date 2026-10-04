@@ -1,7 +1,8 @@
 /**
  * 실행 시 등록부 합치기 — 코드 등록부 + 위젯 유형 등록부 + DB 정의·덮어쓰기 행(스펙 2026-10-02-widget-admin-generic §1.1).
- * 순수 함수라 단위 시험으로 고정한다. 코드 위젯을 덮어쓰지 않으면 원래 entry 객체를 그대로 돌려줘
- * WidgetFrame 의 지연 로딩 캐시(entry 객체 기준)가 다시 만들어지지 않게 한다.
+ * 순수 함수라 단위 시험으로 고정한다. 코드 위젯을 덮어쓰지 않으면 원래 entry 객체를 그대로 돌려준다.
+ * 같은 (코드 entry·유형) 에 같은 행을 다시 합치면 지난번 entry·loader 를 그대로 돌려준다 — 정의 목록을 다시 받아도(진입·위젯관리 새로 고침)
+ * 값이 같으면 보드·본체가 바뀐 것으로 보지 않는다(widget-render-findings W2, Screen-Performance-Guide R7).
  */
 import { createElement } from "react";
 
@@ -112,6 +113,42 @@ export function defWidgetMeta(row: WidgetDefRow, type: WidgetTypeRegistryEntry):
 
 /** 유형 렌더러를 불러와 정의 설정(definition)을 끼워 넣는 본체 로더. */
 export function defWidgetLoader(type: WidgetTypeRegistryEntry, definition: unknown | null): WidgetRegistryEntry["load"] {
+  return makeDefLoader(type, definition);
+}
+
+/** 직렬화할 수 없으면 null(캐시하지 않는다). */
+function jsonKey(v: unknown): string | null {
+  try {
+    return JSON.stringify(v ?? null);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * (코드 entry 또는 유형 entry) → 위젯 ID → 마지막으로 합친 행 내용·정의 설정·entry. 위젯마다 한 칸만 기억한다.
+ * 행이 같으면 같은 entry, 행은 달라도 정의 설정이 같으면 같은 본체 loader 를 쓴다(WidgetFrame 지연 로딩 캐시가 load 기준이라 본체가 유지된다).
+ */
+const entryCache = new WeakMap<object, Map<string, { key: string; configKey: string | null; entry: WidgetRegistryEntry }>>();
+
+function cachedEntry(
+  owner: object,
+  row: WidgetDefRow,
+  make: (prevLoad: WidgetRegistryEntry["load"] | undefined) => WidgetRegistryEntry
+): WidgetRegistryEntry {
+  const key = jsonKey(row);
+  if (key === null) return make(undefined);
+  let byId = entryCache.get(owner);
+  if (!byId) entryCache.set(owner, (byId = new Map()));
+  const hit = byId.get(row.widgetId);
+  if (hit && hit.key === key) return hit.entry;
+  const configKey = jsonKey(row.config);
+  const entry = make(hit && configKey !== null && hit.configKey === configKey ? hit.entry.load : undefined);
+  byId.set(row.widgetId, { key, configKey, entry });
+  return entry;
+}
+
+function makeDefLoader(type: WidgetTypeRegistryEntry, definition: unknown | null): WidgetRegistryEntry["load"] {
   return async () => {
     const mod = await type.loadRenderer();
     if (typeof mod.default !== "function") throw new Error(`${type.meta.id}: renderer default export 가 컴포넌트가 아닙니다.`);
@@ -130,13 +167,15 @@ export function mergeWidgetRegistry(
   code: WidgetRegistry,
   types: WidgetTypeRegistry,
   defs: readonly WidgetDefRow[],
+  /** 지난번 결과(선택). 합친 결과의 항목이 모두 같은 객체면 이 객체를 그대로 돌려준다 — 화면이 같은 등록부를 새것으로 보지 않게. */
+  prev?: WidgetRegistry,
 ): WidgetRegistry {
   const out: Record<string, WidgetRegistryEntry> = { ...code };
   for (const row of defs) {
     if (row.srcTp === "C") {
       const base = code[row.widgetId];
       if (!base) continue;
-      out[row.widgetId] = { meta: applyWidgetOverride(base.meta, row), load: base.load };
+      out[row.widgetId] = cachedEntry(base, row, () => ({ meta: applyWidgetOverride(base.meta, row), load: base.load }));
       continue;
     }
     if (code[row.widgetId]) {
@@ -148,7 +187,12 @@ export function mergeWidgetRegistry(
       console.warn(`[widget] 정의 위젯 ${row.widgetId} 의 유형 ${row.typeId ?? "(없음)"} 이 등록부에 없어 건너뜁니다.`);
       continue;
     }
-    out[row.widgetId] = { meta: defWidgetMeta(row, type), load: defWidgetLoader(type, row.config) };
+    out[row.widgetId] = cachedEntry(type, row, (prevLoad) => ({ meta: defWidgetMeta(row, type), load: prevLoad ?? defWidgetLoader(type, row.config) }));
   }
-  return out;
+  return prev && sameEntries(prev, out) ? prev : out;
+}
+
+function sameEntries(a: WidgetRegistry, b: WidgetRegistry): boolean {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
 }

@@ -372,6 +372,9 @@ GRID_MEMO_NAME = re.compile(r"(?i)(columns|columndefs|coldefs|rows|rowdata|gridd
 INPUT_TAG = re.compile(r"<(Input|Textarea|TextInput|NumberInput|InputNumber|SelectOrInput)\b")
 API_SEARCH_CALL = re.compile(r"(?<![\w.$])(search[A-Z]\w*)\s*\(")
 AUTH_ME_FETCH = re.compile(r"\bfetch\s*\(\s*[`'\"][^`'\"\n]*/auth/me\b")
+WIDGET_TIMER = re.compile(r"(?<![\w.$])(?:window\.)?(setInterval)\s*\(|(?<![\w.$])(?:window\.)?(setTimeout)\s*\(")
+VISIBILITY_TRACE = re.compile(r"visibilityState|visibilitychange|IntersectionObserver|useTabPage|\bisActive\b")
+SYNC_STORE = re.compile(r"useSyncExternalStore\s*\(\s*[\w.$]+\s*,\s*(\(\s*\)\s*=>\s*[\w.$()]+|[\w$]+)")
 TAB_ACTIVATED = re.compile(r"addEventListener\s*\(\s*[`'\"]portal-tab-activated")
 EMPTY_TERNARY = re.compile(r"\.length\s*(===?\s*0|<\s*1|>\s*0|!==?\s*0)[^?;{}]*?\?\s*\(")
 
@@ -450,6 +453,53 @@ def _tag_attrs(t: str, start: int) -> str:
     return t[start:j]
 
 
+def _is_widget_file(f: Path) -> bool:
+    return bool({"widgets", "widget-types"} & set(f.parts)) or bool(re.search(r"widget|^renderer\.", f.name, re.I))
+
+
+def _recursive_timeouts(t: str):
+    """setTimeout 의 첫 인자가 부르는 함수가, 그 함수 자신의 본문 안에서 setTimeout 을 다시 거는 위치(재귀 타이머)."""
+    for m in WIDGET_TIMER.finditer(t):
+        if not m[2]:
+            continue
+        cb = re.match(r"\s*(?:\(\s*\)\s*=>\s*)?([A-Za-z_$][\w$]*)\s*(?:\(|,|\))", t[m.end():])
+        if not cb:
+            continue
+        name = re.escape(cb[1])
+        for d in re.finditer(rf"(?:function\s+{name}\s*\(|const\s+{name}\s*(?::[^=]+)?=\s*(?:async\s*)?\()", t):
+            pe = match_close(t, d.end() - 1)
+            bs = t.find("{", pe) if pe > 0 else -1
+            be = match_close(t, bs) if bs >= 0 else -1
+            if be > 0 and bs < m.start() < be:
+                yield m.start()
+                break
+
+
+def _whole_state_getters(t: str) -> tuple[list[tuple[int, str]], int]:
+    """useSyncExternalStore 호출 중 getSnapshot 이 상태 객체 전체인 것 [(pos, 이름)] 과 필드 단위 호출 수."""
+    whole: list[tuple[int, str]] = []
+    fields = 0
+    for m in SYNC_STORE.finditer(t):
+        g = m[1].strip()
+        body = None
+        if g.startswith("("):
+            body = re.sub(r"^\(\s*\)\s*=>\s*", "", g)
+        else:
+            d = (re.search(rf"const\s+{re.escape(g)}\s*(?::[^=]+)?=\s*\(\s*\)\s*(?::[^=>]+)?=>\s*([^;\n]+)", t)
+                 or re.search(rf"function\s+{re.escape(g)}\s*\(\s*\)[^{{]*\{{\s*return\s+([^;}}\n]+)", t))
+            body = d[1].strip() if d else None
+        if body is None:
+            fields += 1
+            continue
+        ident = re.fullmatch(r"[A-Za-z_$][\w$]*", body)
+        if ident and re.search(rf"(?:let|const|var)\s+{re.escape(body)}\b\s*(?::[^=;]+)?=\s*\{{|"
+                               rf"(?:let|const|var)\s+{re.escape(body)}\s*:\s*\w*(?:State|Snapshot|Store)\b", t):
+            whole.append((m.start(), g))
+        else:
+            fields += 1
+    return whole, fields
+
+
 def perf_audit(f: Path, raw: str, in_shared: bool, error, warn) -> None:
     """화면 성능 가이드에서 정적으로 잡히는 항목. error(pos, msg)·warn(pos, msg) 로 낸다."""
     parts = set(f.parts)
@@ -468,6 +518,21 @@ def perf_audit(f: Path, raw: str, in_shared: bool, error, warn) -> None:
         m = TAB_ACTIVATED.search(t)
         warn(m.start(), f"[P-R10 경고] portal-tab-activated 를 받으며 tabId 비교가 없다 → 어느 탭이 활성화돼도 다시 조회한다. "
                         f"useTabPage().tabId 와 detail.tabId 를 비교한다 ({PERF_GUIDE} R10·K5)")
+
+    # P-R14: 위젯의 타이머가 탭 활성·표시 여부를 보지 않는다 — 숨은 탭에서도 계속 조회한다(R14)
+    if _is_widget_file(f) and not VISIBILITY_TRACE.search(t):
+        hit = next((m for m in WIDGET_TIMER.finditer(t) if m[1]), None)
+        pos = hit.start() if hit else next(_recursive_timeouts(t), None)
+        if pos is not None:
+            warn(pos, f"[P-R14 경고] 위젯 파일에 setInterval·재귀 setTimeout 이 있는데 표시 확인(visibilityState·visibilitychange·"
+                      f"IntersectionObserver·useTabPage·isActive)이 없다 → 숨은 탭·접힌 위젯도 계속 조회한다. "
+                      f"자동 새로 고침은 틀(refreshSec)에 맡기거나 표시 여부와 연동한다 ({PERF_GUIDE} R14)")
+
+    # P-R16: 외부 스토어를 통째 상태로만 구독 — 필드 훅이 없으면 한 필드만 바뀌어도 모든 구독자가 다시 그려진다(R16)
+    whole, fields = _whole_state_getters(t)
+    if whole and not fields and re.search(r"export\s+(?:function|const)\s+use\w+", t):
+        warn(whole[0][0], f"[P-R16 경고] useSyncExternalStore 가 상태 객체 전체(`{whole[0][1]}`)만 돌려주고 필드 단위 훅이 없다 "
+                          f"→ 한 필드만 바뀌어도 구독자가 모두 다시 그려진다. 필드별 훅(getSnapshot 이 그 필드만 돌려줌)을 내보낸다 ({PERF_GUIDE} R16)")
 
     if in_shared:
         return
