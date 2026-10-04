@@ -59,7 +59,8 @@ export const TermDetailPane = memo(function TermDetailPane({ ref, busy }: { ref:
     () => ({
       load: (next) => {
         setForm(next);
-        setCandidates([]);
+        // 이미 비어 있으면 그대로 둔다 — 새 빈 배열은 같은 내용으로 한 번 더 그리게 한다(R7).
+        setCandidates((prev) => (prev.length === 0 ? prev : []));
       },
       getForm: () => form,
     }),
@@ -179,18 +180,33 @@ export const TermDetailPane = memo(function TermDetailPane({ ref, busy }: { ref:
         )}
       </ContentPanel>
 
-      <ContentPanel height={300}>
-        <GridPanel title={`유사어 추천${stage2Enabled ? "" : " (1차 이름 비교만, 임베딩 인코더 꺼짐)"}`} count={recoRows.length}>
-          <AgDataGrid
-            ariaLabel="유사어 추천"
-            columnSizing="fit"
-            columns={recoColumns}
-            data={recoRows}
-            rowKey="recoKey"
-            emptyMessage="표기를 2자 이상 입력하면 비슷한 용어를 보여 줍니다."
-          />
-        </GridPanel>
-      </ContentPanel>
+      <RecoPanel rows={recoRows} columns={recoColumns} stage2Enabled={stage2Enabled} />
     </>
+  );
+});
+
+/** 유사어 추천 그리드 — 상세 칸 입력 중에는 props 가 그대로라 다시 그리지 않는다(R12). */
+const RecoPanel = memo(function RecoPanel({
+  rows,
+  columns,
+  stage2Enabled,
+}: {
+  rows: Record<string, unknown>[];
+  columns: GridColumn[];
+  stage2Enabled: boolean;
+}) {
+  return (
+    <ContentPanel height={300}>
+      <GridPanel title={`유사어 추천${stage2Enabled ? "" : " (1차 이름 비교만, 임베딩 인코더 꺼짐)"}`} count={rows.length}>
+        <AgDataGrid
+          ariaLabel="유사어 추천"
+          columnSizing="fit"
+          columns={columns}
+          data={rows}
+          rowKey="recoKey"
+          emptyMessage="표기를 2자 이상 입력하면 비슷한 용어를 보여 줍니다."
+        />
+      </GridPanel>
+    </ContentPanel>
   );
 });
