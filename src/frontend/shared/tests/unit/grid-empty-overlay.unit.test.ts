@@ -122,7 +122,14 @@ describe("AgDataGrid 빈 상태 안내", () => {
     await render({ data: [{ code: "A" }], emptyMessage: "조회 전" });
     await waitUntil("행 A", () => rowShown("A"));
     await render({ data: [{ code: "A" }], emptyMessage: "결과 없음" });
+    // 안내는 ag-grid 타이머로 비동기로 붙으므로 몇 틱 흘린 뒤에도 보이지 않아야 한다.
+    for (let i = 0; i < 10; i++) {
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+    }
     expect(emptyShown()).toBe(false);
+    expect(rowShown("A")).toBe(true);
     await render({ data: [], emptyMessage: "결과 없음" });
     await waitUntil("현재 문구", () => emptyText() === "결과 없음");
   });
