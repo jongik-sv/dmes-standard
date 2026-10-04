@@ -352,7 +352,7 @@
   - 이 트리에서 `mcm-core :test`(13초)와 `mdm :api:test`(1분 29초)를 실제로 돌려 BUILD SUCCESSFUL 이고 UP-TO-DATE 로 건너뛰지 않았다. S22 이후 시험(mcm-core 887, mdm lib 1652·api 1638)도 기준선과 같다.
 - 영향 범위: mdm `:api:test` 와 mcm-core `:test` 의 최신 여부 판정. 이제 `DataInitializer.java` 만 고쳐도 `:mdm:api:test` 는 다시 돌지 않고(읽지 않으므로 정당), 두 BPMN 만 고쳐도 `:mcm-core:test` 가 건너뛰지 않는다. `.dflow-gates` 줄의 갱신은 a6 레인이 맞춘다(C1·C2 변경은 a6 레인에 통지한다).
 - 되돌리는 방법: 8bb30ee4 또는 5c6f2383 을 각각 revert (둘은 서로 독립이다). 54e6f2ca 는 주석이라 되돌릴 필요가 없다.
-- `.dflow-gates` 반영: 커밋 56078726(dev 머지 c936f629)에서 `mdm/api` 줄(`DataInitializer.java`)의 명령에서 `:mdm:api:test` 를 뺐고, BPMN 2개(`services/audit/screenUsage.bpmn`·`services/csa/screenUsageStat.bpmn`) 줄을 `:mcm:test :mcm-core:test` 로 새로 더했다.
+- `.dflow-gates` 반영: 커밋 56078726(dev 머지 c936f629)에서 `mcm/api` 의 `DataInitializer.java` 줄 명령에서 `:mdm:api:test` 를 뺐고, `mcm/api` 의 BPMN 2개(`services/audit/screenUsage.bpmn`·`services/csa/screenUsageStat.bpmn`) 줄을 `:mcm:test :mcm-core:test` 와 OASIS 계약 검사를 돌리는 줄로 새로 더했다.
 
 ## S22. mybatis-spring-boot-starter 3.0.5 통일 (동작 변경)
 - 커밋: 2a95c5e7 (4개 파일, 4줄 추가·5줄 삭제)
