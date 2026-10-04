@@ -82,10 +82,28 @@ public class NoticeBoardService {
         // 빈 IN 목록은 방언마다 문법 오류라, 역할이 없으면 결코 일치하지 않는 값 하나를 넣는다(전체 대상 공지만 보인다).
         List<String> roleParam = roles.isEmpty() ? List.of(NO_ROLE) : List.copyOf(roles);
 
+        Map<String, Object> out = new LinkedHashMap<>();
+        String noticeId = request != null && request.getNoticeId() != null ? request.getNoticeId().trim() : "";
+        if (!noticeId.isEmpty()) {
+            // 상세 — 행을 고를 때 본문을 받는다(목록은 본문 없이 내려갈 수 있다). 가시성 조건은 목록과 같다.
+            List<Notice> one = noticeRepository.findBoardOne(noticeId, NoticeCodes.STATUS_POSTED, today, roleParam);
+            log.info("[noticeBoard] detail — noticeId={} found={}", noticeId, !one.isEmpty());
+            out.put("list", toRows(one));
+            return out;
+        }
+
+        boolean withContent = request == null || request.getIncludeContent() == null || request.getIncludeContent();
+        if (!withContent) {
+            // 본문 칸을 읽지 않는다 — 정렬·조건은 본문 포함 조회와 같다.
+            List<Object[]> rows = noticeRepository.findBoardSummary(NoticeCodes.STATUS_POSTED, today, roleParam, Limit.of(limit));
+            log.info("[noticeBoard] search(summary) — today={} roles={} limit={} rows={}", today, roles, limit, rows.size());
+            out.put("list", toSummaryRows(rows));
+            return out;
+        }
+
         List<Notice> rows = noticeRepository.findBoard(NoticeCodes.STATUS_POSTED, today, roleParam, Limit.of(limit));
         log.info("[noticeBoard] search — today={} roles={} limit={} rows={}", today, roles, limit, rows.size());
 
-        Map<String, Object> out = new LinkedHashMap<>();
         out.put("list", toRows(rows));
         return out;
     }
@@ -149,6 +167,25 @@ public class NoticeBoardService {
             map.put("POST_END_DT", n.getPostEndDt() == null ? null : n.getPostEndDt().toString());
             map.put("C_USR_ID", n.getCreatedBy());
             map.put("C_AT", n.getCreatedAt() == null ? null : n.getCreatedAt().toString());
+            out.add(map);
+        }
+        return out;
+    }
+
+    /** 요약 조회({@link NoticeRepository#findBoardSummary}) 열 → 홈 행. 본문(CONTENT) 키는 싣지 않는다. */
+    private List<Map<String, Object>> toSummaryRows(List<Object[]> rows) {
+        List<Map<String, Object>> out = new ArrayList<>(rows.size());
+        for (Object[] r : rows) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("NOTICE_ID", r[0]);
+            map.put("TITLE", r[1]);
+            map.put("CONTENT_FORMAT", r[2]);
+            map.put("NOTICE_CATEGORY", r[3]);
+            map.put("PIN_YN", r[4]);
+            map.put("POST_START_DT", r[5] == null ? null : r[5].toString());
+            map.put("POST_END_DT", r[6] == null ? null : r[6].toString());
+            map.put("C_USR_ID", r[7]);
+            map.put("C_AT", r[8] == null ? null : r[8].toString());
             out.add(map);
         }
         return out;

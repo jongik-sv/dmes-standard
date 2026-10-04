@@ -18,7 +18,21 @@ public class NoticeBoardSearchRequest {
     /** 최대 건수. 비었거나 1 미만이면 50, 50 을 넘으면 50 으로 자른다. */
     private Integer limit;
 
+    /** false 면 본문(CONTENT)을 싣지 않는다. 비면 true(기존 응답과 같다). */
+    private Boolean includeContent;
+
+    /** 값이 있으면 그 공지 1건의 상세(본문 포함)만 돌려준다. 목록과 같은 가시성 조건이 걸린다. */
+    private String noticeId;
+
     public Integer getLimit() { return limit; }
 
     public void setLimit(Integer v) { this.limit = v; }
+
+    public Boolean getIncludeContent() { return includeContent; }
+
+    public void setIncludeContent(Boolean v) { this.includeContent = v; }
+
+    public String getNoticeId() { return noticeId; }
+
+    public void setNoticeId(String v) { this.noticeId = v; }
 }

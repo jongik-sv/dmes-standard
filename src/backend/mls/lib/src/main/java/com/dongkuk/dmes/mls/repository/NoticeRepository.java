@@ -131,6 +131,51 @@ public interface NoticeRepository extends JpaRepository<Notice, String> {
                            Limit limit);
 
     /**
+     * 홈 공지 목록 요약 — {@link #findBoard} 와 같은 조건·정렬이되 본문(CONTENT)을 읽지 않는다(화면 성능 가이드 R1).
+     * 열 순서: NOTICE_ID, TITLE, CONTENT_FORMAT, NOTICE_CATEGORY, PIN_YN, POST_START_DT, POST_END_DT, C_USR_ID, C_AT.
+     */
+    @Query("""
+            SELECT n.noticeId, n.title, n.contentFormat, n.noticeCategory, n.pinYn,
+                   n.postStartDt, n.postEndDt, n.createdBy, n.createdAt
+            FROM Notice n
+            WHERE n.noticeStatus = :pStatus
+              AND (n.postStartDt IS NULL OR n.postStartDt <= :pToday)
+              AND (n.postEndDt IS NULL OR n.postEndDt >= :pToday)
+              AND (n.targetScope = 'ALL'
+                   OR (n.targetScope = 'ROLE'
+                       AND EXISTS (SELECT 1 FROM NoticeTarget t
+                                    WHERE t.noticeId = n.noticeId AND t.roleId IN :pRoles)))
+            ORDER BY CASE WHEN n.pinYn = 'Y' THEN 0 ELSE 1 END,
+                     CASE WHEN n.noticeCategory = 'URGENT' THEN 0 ELSE 1 END,
+                     CASE WHEN n.createdAt IS NULL THEN 1 ELSE 0 END,
+                     n.createdAt DESC,
+                     n.noticeId DESC
+            """)
+    List<Object[]> findBoardSummary(@Param("pStatus") String pStatus,
+                                    @Param("pToday") LocalDate pToday,
+                                    @Param("pRoles") Collection<String> pRoles,
+                                    Limit limit);
+
+    /**
+     * 홈 공지 상세 1건 — 목록과 같은 가시성 조건(게시중·게시기간·대상)을 그대로 걸어, 목록에 보이지 않는 공지는 번호를 알아도 받지 못한다.
+     */
+    @Query("""
+            SELECT n FROM Notice n
+            WHERE n.noticeId = :pNoticeId
+              AND n.noticeStatus = :pStatus
+              AND (n.postStartDt IS NULL OR n.postStartDt <= :pToday)
+              AND (n.postEndDt IS NULL OR n.postEndDt >= :pToday)
+              AND (n.targetScope = 'ALL'
+                   OR (n.targetScope = 'ROLE'
+                       AND EXISTS (SELECT 1 FROM NoticeTarget t
+                                    WHERE t.noticeId = n.noticeId AND t.roleId IN :pRoles)))
+            """)
+    List<Notice> findBoardOne(@Param("pNoticeId") String pNoticeId,
+                              @Param("pStatus") String pStatus,
+                              @Param("pToday") LocalDate pToday,
+                              @Param("pRoles") Collection<String> pRoles);
+
+    /**
      * 채번 보조 — 같은 날짜 prefix 의 마지막 {@code NOTICE_ID} 1건.
      *
      * <p>{@code MAX()} 집계 대신 {@code ORDER BY DESC} + {@link Limit} 을 쓰는 이유는
