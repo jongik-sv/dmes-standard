@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { login } from "./support/common";
+import { BASE_URL, LOGIN_USER, login } from "./support/common";
 
 /**
  * 메시지 전송 (mcm/cia messageSender) 화면 스모크.
@@ -14,8 +14,6 @@ import { login } from "./support/common";
  *   (4) 라디오 A/B 토글 + 전송 버튼 노출 확인
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin@dmes.com";
 
 test.describe("메시지 전송 (messageSender) Smoke", () => {
   test.beforeEach(async ({ page }) => {

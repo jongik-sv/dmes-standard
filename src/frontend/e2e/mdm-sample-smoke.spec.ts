@@ -1,6 +1,6 @@
 import path from "node:path";
 import { expect, test } from "@playwright/test";
-import { T, login } from "./support/common";
+import { LOGIN_USER, T, login } from "./support/common";
 
 /**
  * mdm 모듈 스캐폴드 샘플 화면(dma/mdmSample) smoke — TSK-01-01 design.md §3.3, TSK-01-02 design.md §3.5
@@ -29,7 +29,6 @@ import { T, login } from "./support/common";
  * mdm 백엔드(8096)는 이 스모크에 필요 없다(위 4번 근거).
  */
 
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin";
 
 const NOT_FOUND_MARKERS = [
   "등록된 페이지를 찾을 수 없습니다",

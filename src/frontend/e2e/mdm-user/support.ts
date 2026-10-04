@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type Browser, type Locator, type Page, type TestInfo } from "@playwright/test";
-import { PASSWORD, T, login } from "../support/common";
+import { BASE_URL, LOGIN_USER, PASSWORD, T, login } from "../support/common";
 import { gridRows } from "../support/grid";
 
 /** 대기 시간 상수·ag-grid 본문 행 찾기는 e2e/support 공용을 그대로 쓴다(스펙은 이 파일 한 곳에서 import 한다). */
@@ -20,14 +20,14 @@ export { gridCells, gridRowById, gridRowByIndex, gridRows } from "../support/gri
  * 시험 사용자는 00-setup.user.ts 가 admin 으로 포털 "사용자 관리" 화면에서 만든다.
  */
 
-export const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
+export { BASE_URL };
 export const OUT_DIR = path.resolve(__dirname, ".out");
 export const AUTH_DIR = path.join(OUT_DIR, "auth");
 export const SCREEN_DIR = path.join(OUT_DIR, "screens");
 /** 여정 브라우저 창 크기(설정 use.viewport 와 같다) — 손으로 여는 컨텍스트에도 같은 크기를 준다. */
 export const VIEWPORT = { width: 1600, height: 1000 };
 
-export const ADMIN = { id: process.env.SMOKE_LOGIN_USER ?? "admin", pwd: PASSWORD };
+export const ADMIN = { id: LOGIN_USER, pwd: PASSWORD };
 /** commUserMng 가 새 계정에 주는 초기 비밀번호(CommUserMngService.DEFAULT_PASSWORD). */
 export const INIT_PWD = "dmesInit!1";
 

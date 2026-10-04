@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { T } from "./support/common";
+import { BASE_URL as BASE, T } from "./support/common";
 
 /**
  * 포털 브라우저 뒤로/앞으로가기 ↔ 탭 전환 검증.
@@ -11,7 +11,6 @@ import { T } from "./support/common";
  * dev 픽스처 계정(admin/admin123)은 기존 e2e(archive/auto-search-csa)와 동일.
  */
 
-const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
 
 const portalTab = (page: Page) =>
   page.evaluate(() => {

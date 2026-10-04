@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { login } from "./support/common";
+import { BASE_URL, LOGIN_USER, login } from "./support/common";
 
 /**
  * 비정상 TC 등록 (mcm/cic tcAbnormalData) 화면 스모크.
@@ -14,8 +14,6 @@ import { login } from "./support/common";
  *   (4) 조회 → "N건 조회 되었습니다." Footer 토스트 + 그리드 렌더
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin"; // DataInitializer 시드 (USER_ID=admin)
 
 test.describe("비정상 TC 등록 (tcAbnormalData) Smoke", () => {
   test.beforeEach(async ({ page }) => {

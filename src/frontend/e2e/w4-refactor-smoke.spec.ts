@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { PASSWORD, T } from "./support/common";
+import { BASE_URL as BASE, LOGIN_USER, PASSWORD, T } from "./support/common";
 
 /**
  * W4 리팩토링 실검증 스모크 — tsup splitting(청크 분리) dist 를 포털이 실제 로드하는지 +
@@ -16,8 +16,6 @@ import { PASSWORD, T } from "./support/common";
  * 각 화면의 그리드/컨테이너가 렌더되어야 한다. (데이터 유무에는 관대)
  */
 
-const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin";
 const SNAP_DIR = "test-results/w4-snap";
 // 로그인 1회화: 첫 성공 세션의 cookie 를 저장해 이후 테스트가 재사용(반복 로그인 flake 회피)
 const STATE_FILE = "test-results/w4-auth-state.json";

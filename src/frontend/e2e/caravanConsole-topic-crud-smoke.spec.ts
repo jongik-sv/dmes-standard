@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { login } from "./support/common";
+import { BASE_URL, LOGIN_USER, login } from "./support/common";
 
 /**
  * 토픽 관리 (caravanConsole/topic) CRUD 스모크.
@@ -17,8 +17,6 @@ import { login } from "./support/common";
  * 주의: 실제 C/U/D 의 caravan fan-out(브로커/DB 반영)은 대상 caravan WAS 기동이 전제라 본 스모크 범위 밖.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin@dmes.com";
 
 test.describe("토픽 관리 (caravanConsole/topic) CRUD Smoke", () => {
   test.beforeEach(async ({ page }) => {

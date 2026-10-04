@@ -1,14 +1,13 @@
 import { expect, test, type Locator } from "@playwright/test";
 import { gridRows } from "./support/grid";
-import { T } from "./support/common";
+import { DEFAULT_BASE_URL as BASE, LOGIN_USER, PASSWORD, T } from "./support/common";
 
-const BASE = "http://localhost:5100";
-const SHOT = "test-results/master-rule-data";   // 실행 조건: BE 8100(local-ph) + FE 5100 + SMOKE_LOGIN_USER/PASSWORD
+const SHOT = "test-results/master-rule-data";   // 실행 조건: BE 8100(local-ph) + FE 5100, 계정은 SMOKE_LOGIN_USER/PASSWORD 로 덮고 없으면 support/common 기본값
 
 test("masterRuleData E2E — 메뉴/P-001/lov+search 연쇄/동적그리드/행추가·수정/저장/재조회", async ({ page }) => {
   test.setTimeout(240_000);
-  const user = process.env.SMOKE_LOGIN_USER!;
-  const pw = process.env.SMOKE_LOGIN_PASSWORD!;
+  const user = LOGIN_USER;
+  const pw = PASSWORD;
 
   // 1. 로그인 → 메뉴 진입 (업무기준 Data관리 — sqlcmd 등재 메뉴 실동작)
   await page.goto(`${BASE}/login`);

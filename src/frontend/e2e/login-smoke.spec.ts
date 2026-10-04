@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { BASE_URL } from "./support/common";
 
 interface SmokeAppConfig {
   appId: "mcm";
@@ -10,7 +11,7 @@ interface SmokeAppConfig {
 const smokeApps: SmokeAppConfig[] = [
   {
     appId: "mcm",
-    baseUrl: process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100",
+    baseUrl: BASE_URL,
     userEnvKey: "SMOKE_MCM_USER",
     passwordEnvKey: "SMOKE_MCM_PASSWORD",
   },

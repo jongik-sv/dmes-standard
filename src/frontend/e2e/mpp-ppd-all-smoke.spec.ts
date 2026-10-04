@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { T, login, walkMenuPath } from "./support/common";
+import { BASE_URL, LOGIN_USER, T, login, walkMenuPath } from "./support/common";
 
 /**
  * mpp 지그금형관리(ppd) — 4개 메인 화면 통합 full-chain smoke.
@@ -15,8 +15,6 @@ import { T, login, walkMenuPath } from "./support/common";
  * 임시 검증 산출물(프로덕션 소스 아님). 서버는 외부에서 부팅됨(webServer 미설정).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin";
 
 const NOT_FOUND_MARKERS = [
   "등록된 페이지를 찾을 수 없습니다",

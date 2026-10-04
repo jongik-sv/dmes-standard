@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test, type Page, type Response } from "@playwright/test";
 
-import { BASE_URL, T, login, walkMenuPath } from "./support/common";
+import { BASE_URL, LOGIN_USER, T, login, walkMenuPath } from "./support/common";
 
 /**
  * mdm 공통 셸·RBAC smoke — TSK-01-03 design.md §3.5.
@@ -24,7 +24,7 @@ import { BASE_URL, T, login, walkMenuPath } from "./support/common";
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
  */
 
-const ADMIN = process.env.SMOKE_LOGIN_USER ?? "admin";
+const ADMIN = LOGIN_USER;
 const NONE = process.env.SMOKE_MDM_NONE_USER ?? "e2e_mdm_none";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const STDADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";

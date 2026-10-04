@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { T, login } from "./support/common";
+import { LOGIN_USER, T, login } from "./support/common";
 
 /**
  * mpp jigMoldMaster (지그금형 Master관리) full-chain smoke.
@@ -16,7 +16,6 @@ import { T, login } from "./support/common";
  * playwright.config has no webServer.
  */
 
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin";
 
 const NOT_FOUND_MARKERS = [
   "등록된 페이지를 찾을 수 없습니다",
