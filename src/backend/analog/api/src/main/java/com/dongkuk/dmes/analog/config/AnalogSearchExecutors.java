@@ -150,6 +150,7 @@ public class AnalogSearchExecutors {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(SHUTDOWN_WAIT_SECONDS);
         fileSearch.shutdown();
         treeParse.shutdown();
+        boolean interrupted = false;
         try {
             awaitUntil(fileSearch, deadline);
             rangeSearch.shutdown();
@@ -157,20 +158,25 @@ public class AnalogSearchExecutors {
             awaitUntil(treeParse, deadline);
         } catch (InterruptedException e) {
             rangeSearch.shutdown();
+            interrupted = true;
             Thread.currentThread().interrupt();
         }
-        forceIfAlive(fileSearch, "파일");
-        forceIfAlive(rangeSearch, "범위");
-        forceIfAlive(treeParse, "트리");
+        forceIfAlive(fileSearch, "파일", interrupted);
+        forceIfAlive(rangeSearch, "범위", interrupted);
+        forceIfAlive(treeParse, "트리", interrupted);
     }
 
     private static void awaitUntil(ExecutorService pool, long deadline) throws InterruptedException {
         pool.awaitTermination(Math.max(0L, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
     }
 
-    private static void forceIfAlive(ExecutorService pool, String name) {
+    private static void forceIfAlive(ExecutorService pool, String name, boolean interrupted) {
         if (!pool.isTerminated()) {
-            log.warn("analog {} 검색 풀이 {}초 안에 끝나지 않아 강제 종료한다", name, SHUTDOWN_WAIT_SECONDS);
+            if (interrupted) {
+                log.warn("analog {} 검색 풀이 종료 대기 중 인터럽트되어 강제 종료한다", name);
+            } else {
+                log.warn("analog {} 검색 풀이 {}초 안에 끝나지 않아 강제 종료한다", name, SHUTDOWN_WAIT_SECONDS);
+            }
             pool.shutdownNow();
         }
     }
