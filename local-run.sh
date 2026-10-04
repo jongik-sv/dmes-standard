@@ -23,30 +23,20 @@ set -u
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUN_ENV_FILE="$ROOT_DIR/.run.env"
 
+# 인자(load_default_args·has_scope_arg)·프로세스(terminate_cmdline_stragglers) 함수는 be-run.sh·fe-run.sh 와
+# 함께 scripts/lib/ 에 둔다. 경로는 현재 디렉터리가 아니라 이 스크립트 위치 기준이다.
+SCRIPT_LIB_DIR="$ROOT_DIR/scripts/lib"
+if [ ! -f "$SCRIPT_LIB_DIR/log.sh" ]; then
+  printf '[error] scripts/lib 없음: %s (스크립트 파일 심볼릭 링크로 부르면 저장소 위치를 못 찾는다)\n' "$SCRIPT_LIB_DIR" >&2
+  exit 1
+fi
+# PORTAL_PORT(안내문용)는 fe-run.sh 와 같은 순서로 .run.env 보다 먼저 읽어 .run.env 가 덮어쓸 수 있게 한다.
+. "$SCRIPT_LIB_DIR/modules.sh"
+
 [ -f "$RUN_ENV_FILE" ] && . "$RUN_ENV_FILE"
 
-ENV_ARGS=()
-
-load_default_args() {
-  local var_name="$1"
-  local value="${!var_name:-}"
-
-  [ -n "$value" ] || return 1
-  # shellcheck disable=SC2206
-  ENV_ARGS=($value)
-  [ "${#ENV_ARGS[@]}" -gt 0 ]
-}
-
-has_scope_arg() {
-  local arg
-
-  for arg in "$@"; do
-    case "$arg" in
-      --all|--full|--mpn|--mpn-only|--mdm|--mdm-only) return 0 ;;
-    esac
-  done
-  return 1
-}
+. "$SCRIPT_LIB_DIR/proc.sh"
+. "$SCRIPT_LIB_DIR/args.sh"
 
 for arg in "$@"; do
   case "$arg" in
@@ -83,14 +73,7 @@ CLEANUP_DONE=0
 # 그러면 "프론트만 살아 있고 백엔드는 없는" 상태가 되어, 화면은 뜨는데 로그인만 실패한다.
 # 종료 시 이 저장소 경로를 명령줄에 물고 있는 프로세스를 한 번 더 쓸어 담아 그 상태를 막는다.
 terminate_repo_stragglers() {
-  local signal="$1"
-  local pid
-
-  for pid in $(pgrep -f "$ROOT_DIR/src/" 2>/dev/null || true); do
-    [ "$pid" = "$$" ] && continue
-    kill -0 "$pid" 2>/dev/null || continue
-    kill "-$signal" "$pid" 2>/dev/null || true
-  done
+  terminate_cmdline_stragglers "$1" "$ROOT_DIR/src/"
 }
 
 cleanup() {
@@ -124,7 +107,7 @@ FE_PID="$!"
 PIDS+=("$FE_PID")
 
 echo "[launcher] BE + FE 모두 기동. Ctrl+C 로 종료."
-echo "[launcher]   포털 http://localhost:5100  (초기 계정 admin / admin123)"
+echo "[launcher]   포털 http://localhost:$PORTAL_PORT  (초기 계정 admin / admin123)"
 echo "[launcher]   백엔드 기동에는 시간이 더 걸린다 — be-mcm 이 뜨기 전에는 로그인이 실패한다."
 
 # 어느 쪽이 먼저 끝났는지 알려준다. 한쪽만 조용히 죽어 원인을 못 찾는 상황을 막는다.

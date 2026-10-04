@@ -129,6 +129,12 @@ dependencies {
     testImplementation 'io.jsonwebtoken:jjwt-jackson:0.12.5'
     testImplementation 'jakarta.servlet:jakarta.servlet-api'
     testImplementation 'org.springframework:spring-web'
+    // 트랜잭션 재현 시험이 cactus-core 에서 SQLite 를 쓴다. 시험 소스는 org.sqlite 를 컴파일 단계에서
+    // 참조하지 않으므로 실행 범위로 둔다(다른 모듈과 같은 범위, 버전은 mcm/lib 등과 동일)
+    testRuntimeOnly 'org.xerial:sqlite-jdbc:3.45.3.0'
+    // 같은 시험이 hibernate.dialect 를 org.hibernate.community.dialect.SQLiteDialect 문자열로만 지정한다(import 없음)
+    // 버전은 BOM 이 관리한다
+    testRuntimeOnly 'org.hibernate.orm:hibernate-community-dialects'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

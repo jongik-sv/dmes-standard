@@ -25,8 +25,16 @@ import javax.sql.DataSource;
  *   <li>{@code DefaultDataSourceResolver} 클래스 존재 (oasis-core 5.1.0)</li>
  *   <li>{@code DataSource} 빈 존재 (Spring Boot 자동)</li>
  * </ul>
+ *
+ * <p>순서: {@code @ConditionalOnBean(SqlSessionFactory.class)} 가 그 빈 정의를 보려면 생산 자동설정
+ * ({@link CactusMultiMybatisAutoConfiguration}, mybatis-spring-boot {@code MybatisAutoConfiguration}) 뒤에
+ * 처리돼야 한다 — 이름순 정렬에 기대지 않고 {@code after} 로 명시한다.
  */
-@AutoConfiguration
+@AutoConfiguration(
+        after = CactusMultiMybatisAutoConfiguration.class,
+        // mybatis-spring-boot-starter 의 단일 SqlSessionFactory 자동설정 (cactus.mybatis.enabled=false 일 때의 생산자)
+        afterName = "org.mybatis.spring.boot.autoconfigure.MybatisAutoConfiguration"
+)
 @ConditionalOnClass({SqlSessionFactory.class, DefaultDataSourceResolver.class})
 @ConditionalOnBean(SqlSessionFactory.class)
 @EnableConfigurationProperties(CactusMybatisProperties.class)

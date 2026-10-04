@@ -26,6 +26,14 @@ import java.util.Map;
  * {@link Advised#getTargetSource()} 의 target instance 를 추출한다. target instance 는
  * 원본 컴파일 결과를 그대로 보유하여 {@code -parameters} 옵션의 MethodParameters attribute 가
  * 보존된다.
+ *
+ * <p>그 대가로 프록시가 붙여 주는 {@code @Transactional}·{@code @Cacheable}·{@code @PreAuthorize} 등은
+ * 오류 없이 무시된다. BPMN 이 부르는 빈의 이런 어노테이션은
+ * {@link com.dongkuk.dmes.cactus.oasis.aop.OasisAopAnnotationChecker} 가 기동 시 알린다.
+ *
+ * <p>주의: {@code cactus.oasis.transactional=true} 이면 oasis-core {@code SpringServiceStarter.start} 가
+ * 서비스 컨텍스트의 애플리케이션 컨텍스트를 {@code SpringApplicationContext} 로 바꿔 끼우므로,
+ * 그 모드에서는 이 구현이 서비스 태스크의 빈 조회에 쓰이지 않는다.
  */
 public final class CactusUnwrappingApplicationContext implements ApplicationContext {
 

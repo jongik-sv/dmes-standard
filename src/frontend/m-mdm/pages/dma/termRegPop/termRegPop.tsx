@@ -354,7 +354,7 @@ export function TermRegPopModal({
             className="form-error-message"
             role="alert"
             data-testid="term-pop-error"
-            style={{ margin: 0 }}
+            style={{ margin: 0, whiteSpace: "pre-line" }}
           >
             {error}
           </p>

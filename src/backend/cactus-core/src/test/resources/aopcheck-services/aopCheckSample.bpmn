@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- OasisAopAnnotationCheckerTest 용 — camunda:class 로 빈 이름·Class#method·클래스 이름을 참조한다 -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_aopCheckSample" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="aopCheckSample" isExecutable="true">
+    <bpmn:startEvent id="start"/>
+    <bpmn:serviceTask id="t1" name="클래스 레벨" camunda:class="classTxService#search"/>
+    <bpmn:serviceTask id="t2" name="깨끗한 빈" camunda:class="cleanService"/>
+    <bpmn:serviceTask id="t3" name="없는 빈" camunda:class="noSuchService#run"/>
+    <bpmn:endEvent id="end"/>
+  </bpmn:process>
+</bpmn:definitions>

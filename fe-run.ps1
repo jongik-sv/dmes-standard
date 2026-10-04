@@ -25,7 +25,8 @@ $RootDir     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $FrontendDir = Join-Path $RootDir 'src\frontend'
 $McmDir      = Join-Path $FrontendDir 'm-mcm'
 $RunEnvFile  = Join-Path $RootDir '.run.env'
-$PortalPort  = 5000
+. (Join-Path $RootDir 'scripts\lib\modules.ps1')   # 모듈·포트 카탈로그(scripts\lib\modules.conf)
+$PortalPort  = $DmesPortalPort
 
 function Write-DevLog  { param([string] $Message) Write-Host '[fe] ' -ForegroundColor Cyan -NoNewline; Write-Host $Message }
 function Write-DevError { param([string] $Message) Write-Host '[error] ' -ForegroundColor Red -NoNewline; Write-Host $Message }
@@ -209,7 +210,7 @@ function Invoke-Cleanup {
     if ($devProc -and -not $devProc.HasExited) { Stop-ProcessTree -ProcessId $devProc.Id }
     if ($devProc) { Wait-ProcessExit -ProcessIds @($devProc.Id) -TimeoutSeconds 10 | Out-Null }
     if ($devProc -and -not $devProc.HasExited) { Stop-ProcessTree -ProcessId $devProc.Id -Force }
-    # pnpm --parallel 워커 잔존분 정리 — 남겨두면 포트 5000 과 tsup watch 가 계속 물려 있다.
+    # pnpm --parallel 워커 잔존분 정리 — 남겨두면 포트 5100 과 tsup watch 가 계속 물려 있다.
     Stop-FrontendStragglers
     Start-Sleep -Seconds 2
     Stop-FrontendStragglers -Force

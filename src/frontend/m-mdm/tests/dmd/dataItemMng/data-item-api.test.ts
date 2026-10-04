@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { closeDataItem, searchDataItems } from "../../../pages/dmd/dataItemMng/api";
 import { emptyFilters } from "../../../pages/dmd/dataItemMng/types";
+import { callOasis, omitNullish, viewDataItems } from "../../../pages/dmd/dataItemMng/api";
+import {
+  NOISY_PARAMS, NOISY_SENT, SUCCESS_ENVELOPE, describeOasisEnvelope, stubOasis,
+} from "../../helpers/oasis-envelope";
 
 const originalFetch = globalThis.fetch;
 let bodies: Record<string, unknown>[] = [];
@@ -43,5 +47,34 @@ describe("dataItemMng api", () => {
   it("닫기는 row_version 을 expectedRowVersion 으로 보낸다", async () => {
     await closeDataItem("PORT", "KRPUS", 3);
     expect(bodies[0].params).toEqual({ maruDataId: "PORT", code: "KRPUS", expectedRowVersion: 3 });
+  });
+});
+
+// 공통 계약으로 옮기기 전 현재 동작 고정(특성 시험). callOasis 는 dataCsvUploadPop/api·history/api 가 serviceId 를 바꿔 쓴다.
+describeOasisEnvelope("dataItemMng", {
+  call: () => viewDataItems("PORT"),
+  url: "/api/mdm/oasis/dataItemMng/view",
+  menuId: "dataItemMng",
+  merge: "result",
+  reject: "unified",
+  labelled: { field: "code", label: "키" },
+  noGrids: true,
+  noisy: { call: (p) => callOasis("dataItemMng", "view", p), omit: "nullish+empty" },
+});
+
+describe("dataItemMng — export 한 omitNullish·callOasis", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("omitNullish 는 nullish+empty 방식이다(공통본 같은 이름 함수와 다르다)", () => {
+    expect(omitNullish({ ...NOISY_PARAMS })).toEqual(NOISY_SENT["nullish+empty"]);
+  });
+
+  it("callOasis 는 serviceId 로 경로와 menuId 를 정한다", async () => {
+    const calls = stubOasis(SUCCESS_ENVELOPE);
+    await callOasis("dataItemHistory", "search", {});
+    expect(calls[0].url).toBe("/api/mdm/oasis/dataItemHistory/search");
+    expect(calls[0].body.meta).toEqual({ menuId: "dataItemHistory" });
   });
 });
