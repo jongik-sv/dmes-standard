@@ -20,7 +20,7 @@ import {
   SearchArea,
   SearchField,
 } from "@dk-oasis/shared/layout";
-import { AgDataGrid, GridPanel } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GridLimitNotice, GridPanel } from "@dk-oasis/shared/grid";
 import {
   Checkbox,
   DatePicker,
@@ -37,6 +37,7 @@ import { MdmMetaProvider, useMdmValidation } from "@dk-oasis/shared/mdm-meta";
 import {
   changeNoticeStatus,
   deleteNotice,
+  fetchNotice,
   saveNotices,
   searchNotices,
   searchRoles,
@@ -66,6 +67,7 @@ import {
 import { NOTICE_MGMT_CSS, NOTICE_MGMT_STYLE_HREF } from "./notice-styles";
 import {
   CONTENT_FORMAT_SHORT,
+  FIRST_SEARCH_LIMIT,
   CONTENT_FORMAT_OPTIONS,
   CONTENT_FORMAT_SEGMENTS,
   NOTICE_CATEGORY_FORM_OPTIONS,
@@ -105,6 +107,12 @@ function NoticeMgmtScreen() {
   const { showMessage } = useMessage();
   const [filters, setFilters] = useState<NoticeMgmtFilters>(emptyFilters);
   const [rows, setRows] = useState<NoticeRow[]>([]);
+  /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
+  const [rowsTotal, setRowsTotal] = useState<number | null>(null);
+  /** 마지막 조회가 [전체 보기](상한 없음)였는지 — 저장·삭제·게시중지 뒤 재조회가 이 모드를 따른다. */
+  const showAllRef = useRef(false);
+  /** 늦게 도착한 이전 상세 응답을 버리기 위한 요청 순번. */
+  const detailSeq = useRef(0);
   /** 목록 조회 전용 로딩 — 저장·상태 변경 중에는 목록 오버레이를 띄우지 않는다(Local-Rules §11). */
   const [listLoading, setListLoading] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
@@ -177,27 +185,63 @@ function NoticeMgmtScreen() {
   }, []);
 
   /**
-   * B-001 조회. `keep` 이 있으면 그 공지를 다시 고른다(저장·게시중지 뒤). 응답이 올 때까지 이전 상세를 그대로 둔다.
-   * `keep.fallback` 은 조회조건에 걸리지 않을 때 대신 보일 행(저장 응답의 전체 목록에서 찾은 값)이다.
+   * 목록은 본문 없이 받으므로 공지를 고르면 상세 조회로 본문을 받아 상세 폼을 채운다. 응답이 올 때까지 이전 상세를 그대로 둔다.
+   * 반환값은 조회 결과다: 폼에 실었으면 "ok", 더 새 요청에 밀렸으면 "stale", 오류면 "failed".
+   */
+  const loadDetail = useCallback(
+    async (id: string): Promise<"ok" | "stale" | "failed"> => {
+      const seq = ++detailSeq.current;
+      try {
+        const row = await fetchNotice(id);
+        if (seq !== detailSeq.current) return "stale";
+        bindDetail(row);
+        return "ok";
+      } catch (e) {
+        if (seq !== detailSeq.current) return "stale";
+        showMessage({
+          title: "오류",
+          message: toUserMessage(
+            e,
+            "공지사항 상세를 조회하지 못했습니다. 잠시 뒤 다시 시도하세요.",
+          ),
+          alertType: "error",
+        });
+        return "failed";
+      }
+    },
+    [bindDetail, showMessage],
+  );
+
+  /**
+   * B-001 조회. `keep` 이 있으면 그 공지를 상세 조회로 다시 연다(저장·게시중지 뒤 — 조회조건에 걸리지 않아도 연다).
+   * `all` 이 true 면 첫 조회 상한 없이 받고([전체 보기]), 생략하면 마지막 조회 모드를 따른다.
    */
   const runSearch = useCallback(
-    async (
-      f: NoticeMgmtFilters,
-      keep?: { id: string; fallback?: NoticeRow },
-    ) => {
+    async (f: NoticeMgmtFilters, keep?: { id: string }, all?: boolean) => {
       const seq = ++searchSeq.current;
+      const showAll = all ?? showAllRef.current;
       setListLoading(true);
       try {
-        const list = (await searchNotices(f)).list ?? [];
+        const payload = await searchNotices(
+          f,
+          showAll ? undefined : FIRST_SEARCH_LIMIT,
+        );
         if (seq !== searchSeq.current) return;
+        showAllRef.current = showAll;
+        const list = payload.list ?? [];
         setRows(list);
-        const found = keep?.id
-          ? (list.find((r) => r.NOTICE_ID === keep.id) ?? keep.fallback ?? null)
-          : null;
-        bindDetail(found);
+        setRowsTotal(payload.truncated ? (payload.totalCount ?? null) : null);
+        if (keep?.id) {
+          // 저장·게시중지 뒤 상세를 못 받으면 낡은 폼(저장 전 값·신규 ID 없음)을 두지 않고 비운다 — 목록은 이미 새 값이다.
+          if ((await loadDetail(keep.id)) === "failed") bindDetail(null);
+        } else {
+          detailSeq.current += 1;
+          bindDetail(null);
+        }
       } catch (e) {
         if (seq !== searchSeq.current) return;
         setRows([]);
+        setRowsTotal(null);
         bindDetail(null);
         showMessage({
           title: "오류",
@@ -211,12 +255,12 @@ function NoticeMgmtScreen() {
         if (seq === searchSeq.current) setListLoading(false);
       }
     },
-    [bindDetail, showMessage],
+    [bindDetail, loadDetail, showMessage],
   );
 
   // 진입 시 1회 자동 조회 + 역할 선택 목록. 역할 목록 실패는 치명적이지 않다(ID 로 보인다).
   useEffect(() => {
-    void runSearch(emptyFilters());
+    void runSearch(emptyFilters(), undefined, false);
     let alive = true;
     searchRoles()
       .then((list) => alive && setRoles(list))
@@ -245,18 +289,32 @@ function NoticeMgmtScreen() {
   );
 
   const handleSearch = useCallback(() => {
-    confirmDiscard("조회하시겠습니까?", () => void runSearch(filters));
+    confirmDiscard(
+      "조회하시겠습니까?",
+      () => void runSearch(filters, undefined, false),
+    );
+  }, [confirmDiscard, runSearch, filters]);
+
+  /** [전체 보기] — 첫 조회 상한 없이 현재 조건으로 다시 받는다. */
+  const handleShowAll = useCallback(() => {
+    confirmDiscard(
+      "전체 목록을 다시 조회하시겠습니까?",
+      () => void runSearch(filters, undefined, true),
+    );
   }, [confirmDiscard, runSearch, filters]);
 
   const handleRowClick = useCallback(
     (row: Record<string, unknown>) => {
       const id = String(row.NOTICE_ID ?? "");
-      if (!id || id === selectedId) return;
+      if (isBusy || !id || id === selectedId) return;
       const target = rows.find((r) => r.NOTICE_ID === id);
       if (!target) return;
-      confirmDiscard("다른 공지를 여시겠습니까?", () => bindDetail(target));
+      confirmDiscard("다른 공지를 여시겠습니까?", () => {
+        setIsBusy(true);
+        void loadDetail(id).finally(() => setIsBusy(false));
+      });
     },
-    [rows, selectedId, confirmDiscard, bindDetail],
+    [rows, selectedId, isBusy, confirmDiscard, loadDetail],
   );
 
   /** B-002 신규 — 빈 상세 폼. 서버 호출 없음. */
@@ -320,12 +378,7 @@ function NoticeMgmtScreen() {
         alertType: "success",
         toast: true,
       });
-      await runSearch(
-        filters,
-        savedId
-          ? { id: savedId, fallback: all.find((r) => r.NOTICE_ID === savedId) }
-          : undefined,
-      );
+      await runSearch(filters, savedId ? { id: savedId } : undefined);
     } catch (e) {
       // 서버 저장 검증 오류(errors 상세)를 입력 칸에 붙인다. 저장은 한 행이라 "master" 그리드의 오류가 이 폼 것이다.
       setFieldErrors(toFormFieldErrors(toFieldErrors(e, "master")));
@@ -524,7 +577,19 @@ function NoticeMgmtScreen() {
 
       <ContentBody root resizable storageKey={SPLIT_STORAGE_KEY}>
         <ContentPanel minSize={320}>
-          <GridPanel title="공지사항 목록" count={rows.length}>
+          <GridPanel
+            title="공지사항 목록"
+            count={rows.length}
+            titleExtra={
+              <GridLimitNotice
+                shownCount={rows.length}
+                totalCount={rowsTotal}
+                onShowAll={handleShowAll}
+                disabled={listLoading || isBusy}
+                testId="notice-list-limit"
+              />
+            }
+          >
             <AgDataGrid
               rowKey="NOTICE_ID"
               columns={NOTICE_COLUMNS}

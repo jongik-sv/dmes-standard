@@ -16,6 +16,7 @@ ag-grid.com 의 llms.txt · `.md` 는 **최신 메이저**만 제공한다. 설�
 from __future__ import annotations
 
 import argparse
+import functools
 import html
 import json
 import os
@@ -377,6 +378,18 @@ VISIBILITY_TRACE = re.compile(r"visibilityState|visibilitychange|IntersectionObs
 SYNC_STORE = re.compile(r"useSyncExternalStore\s*\(\s*[\w.$]+\s*,\s*(\(\s*\)\s*=>\s*[\w.$()]+|[\w$]+)")
 TAB_ACTIVATED = re.compile(r"addEventListener\s*\(\s*[`'\"]portal-tab-activated")
 EMPTY_TERNARY = re.compile(r"\.length\s*(===?\s*0|<\s*1|>\s*0|!==?\s*0)[^?;{}]*?\?\s*\(")
+# {rows.length > 0 && (<AgDataGrid …/>)} — 0건이면 그리드를 내리는 && 조건부 렌더(빈 상태 <p> 는 형제로 따로 둔다)
+EMPTY_AND = re.compile(r"\.length\s*(?:>\s*0|>=\s*1|!==?\s*0)?\s*&&\s*(?:!?[\w.$?]+\s*&&\s*)*")
+EMPTY_SIBLING = re.compile(r"\.length\s*(?:===?\s*0|<\s*1)[^;{}]*?&&\s*\(?\s*<p\b")
+# 목록 행 타입에 본문·긴 글 열이 있는지 — types.ts 의 `CONTENT: string`, `body?: string` 류
+BIG_TEXT_FIELD = re.compile(r"^\s*(?:readonly\s+)?[\"']?(\w*(?:content|body|cntn|clob)\w*)[\"']?\??\s*:\s*string\b(?!\s*\[)", re.I | re.M)
+BIG_TEXT_SKIP = re.compile(r"(?i)format|type|kind|length|size|status")
+# 호출 결과를 쥐는 setter 이름 — 콤보 옵션용(옵션·LoV·역할)인지, 그리드 데이터용인지 가른다
+OPTION_SETTER = re.compile(r"(?i)options?|lov|roles?|choices")
+# 피커 검색 래퍼 — `async function searchXxxPicks(kw): Promise<IdPickRow[]>`
+PICKER_WRAPPER = re.compile(r"(?:async\s+function\s+\w+|const\s+\w+\s*=\s*async)\s*\([^)]*\)\s*:\s*Promise<\w*PickRows?\[\]>\s*(?:=>\s*)?\{")
+# 사람이 판정해 둔 예외 — 파일·호출·사유·level(exempt=숨김, info=정보성 출력). 정적 분석이 못 보는 서버 상태·규모 근거를 적는다
+EXCEPTIONS_FILE = Path(__file__).with_name("audit-exceptions.json")
 
 
 def _is_form_state(name: str, generic: str | None) -> bool:
@@ -500,8 +513,72 @@ def _whole_state_getters(t: str) -> tuple[list[tuple[int, str]], int]:
     return whole, fields
 
 
-def perf_audit(f: Path, raw: str, in_shared: bool, error, warn) -> None:
-    """화면 성능 가이드에서 정적으로 잡히는 항목. error(pos, msg)·warn(pos, msg) 로 낸다."""
+@functools.lru_cache(maxsize=1)
+def load_exceptions() -> list[dict]:
+    try:
+        return json.loads(EXCEPTIONS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+
+def _exception_level(f: Path, rule: str, call: str | None = None) -> str | None:
+    """audit-exceptions.json 에 이 파일·규칙(·호출)이 있으면 그 level(exempt|info), 없으면 None."""
+    posix = f.resolve().as_posix()
+    for e in load_exceptions():
+        if e.get("rule") == rule and posix.endswith("/" + e.get("path", "\0")) and e.get("call") in (None, call):
+            return e.get("level", "exempt")
+    return None
+
+
+def _enclosing_block(t: str, pos: int, opener: re.Pattern) -> str | None:
+    """opener 로 시작해 닫히는 블록(`{…}`) 중 pos 를 감싸는 것의 본문. 없으면 None."""
+    for m in opener.finditer(t):
+        bs = m.end() - 1
+        be = match_close(t, bs)
+        if be > pos > bs:
+            return t[bs:be]
+    return None
+
+
+def _p_r1_exclusion(t: str, pos: int, end: int, name: str, call_args: str) -> str | None:
+    """P-R1 에서 조건 있는 조회·옵션 조회로 볼 수 있는 호출의 사유. 없으면 None. 'info:' 로 시작하면 정보성만 남긴다."""
+    # 피커 검색 래퍼(IdPicker·DomainField 의 search prop) — 입력값이 조건이다. 클라이언트에서 자르면 서버 무제한이 남을 수 있어 정보성
+    body = _enclosing_block(t, pos, PICKER_WRAPPER)
+    if body is not None:
+        return "info:피커 검색 래퍼, 클라이언트 상한(서버 응답 한도 확인)" if re.search(r"\.slice\(|_LIMIT\b", body) else "피커 검색 래퍼"
+    # makeXxxSearch(...) 에 콜백으로 넘기는 검색 — DomainField 부모 후보 찾기 등
+    for m in re.finditer(r"(?<![\w.$])make\w*Search\s*\(", t):
+        c = match_close(t, m.end() - 1)
+        if c > pos > m.end():
+            return "makeXxxSearch 콜백"
+    # 첫 인자가 비면 일찍 반환한 뒤 부르는 조건 검색(typeahead·onChange 핸들러)
+    tok = re.match(r"\s*([A-Za-z_$][\w$]*)\s*(?:,|$)", call_args)
+    if tok:
+        window = t[max(0, pos - 800):pos]
+        n = re.escape(tok[1])
+        g = re.compile(rf"^([ \t]*)if\s*\(\s*(?:!\s*{n}|{n}\s*===?\s*[\"']{{2}})\s*\)\s*\{{?[\s\S]{{0,300}}?\breturn\b", re.M)
+        last = None
+        for gm in g.finditer(window):
+            last = gm
+        if last:
+            # 가드와 호출 사이에 가드보다 얕은 들여쓰기 줄(다른 함수 선언)이 있으면 같은 함수가 아니다
+            ind = len(last[1].expandtabs(2))
+            between = window[last.start():].split("\n")[1:]
+            if all(not ln.strip() or len(ln) - len(ln.lstrip()) >= ind for ln in between):
+                return "빈 값이면 일찍 반환하는 조건 검색"
+    # 결과를 콤보 옵션 상태에만 담는다(그리드 data 로 가지 않음)
+    setters = [x for x in re.findall(r"\bset([A-Z]\w*)\s*\(", t[end:end + 400])
+               if not re.search(r"(?i)error|busy|loading|searching|failed|message|open", x)]  # 상태 표시용 setter 는 뺀다
+    if setters and all(OPTION_SETTER.search(x) for x in setters):
+        # 옵션 이름이어도 그 상태가 그리드 data 로 가면 목록 조회다
+        if not any(re.search(rf"data\s*=\s*\{{[^}}]*\b{x[0].lower() + x[1:]}\b", t) for x in setters):
+            return "콤보 옵션 전용 조회"
+    return None
+
+
+def perf_audit(f: Path, raw: str, in_shared: bool, error, warn, info=None) -> None:
+    """화면 성능 가이드에서 정적으로 잡히는 항목. error(pos, msg)·warn(pos, msg)·info(pos, msg) 로 낸다."""
+    info = info or warn
     parts = set(f.parts)
     if {"tests", "__tests__", "e2e"} & parts or re.search(r"\.(test|spec)\.[jt]sx?$", f.name):
         return
@@ -524,9 +601,11 @@ def perf_audit(f: Path, raw: str, in_shared: bool, error, warn) -> None:
         hit = next((m for m in WIDGET_TIMER.finditer(t) if m[1]), None)
         pos = hit.start() if hit else next(_recursive_timeouts(t), None)
         if pos is not None:
-            warn(pos, f"[P-R14 경고] 위젯 파일에 setInterval·재귀 setTimeout 이 있는데 표시 확인(visibilityState·visibilitychange·"
-                      f"IntersectionObserver·useTabPage·isActive)이 없다 → 숨은 탭·접힌 위젯도 계속 조회한다. "
-                      f"자동 새로 고침은 틀(refreshSec)에 맡기거나 표시 여부와 연동한다 ({PERF_GUIDE} R14)")
+            lvl = _exception_level(f, "P-R14")
+            if lvl != "exempt":
+                (info if lvl == "info" else warn)(pos, f"[P-R14 {'정보' if lvl == 'info' else '경고'}] 위젯 파일에 setInterval·재귀 setTimeout 이 있는데 표시 확인(visibilityState·visibilitychange·"
+                          f"IntersectionObserver·useTabPage·isActive)이 없다 → 숨은 탭·접힌 위젯도 계속 조회한다. "
+                          f"자동 새로 고침은 틀(refreshSec)에 맡기거나 표시 여부와 연동한다 ({PERF_GUIDE} R14)")
 
     # P-R16: 외부 스토어를 통째 상태로만 구독 — 필드 훅이 없으면 한 필드만 바뀌어도 모든 구독자가 다시 그려진다(R16)
     whole, fields = _whole_state_getters(t)
@@ -601,13 +680,34 @@ def perf_audit(f: Path, raw: str, in_shared: bool, error, warn) -> None:
             call_args = t[m.end():end] if end > 0 else ""
             # 상위 키(…Id·…Code·key)로 묶인 조회(마스터-디테일 하위·단건·중복 확인)는 조건이 있는 조회다. 검색 조건 객체의
             # 칸(filters.unitCode 등)은 비어 있을 수 있으므로 키로 치지 않는다.
-            keyed = any(re.search(r"(?i)(id|code|key)$", tok.split(".")[-1])
+            keyed = any(re.search(r"(?i)(id|code|key)$|^token$", tok.split(".")[-1])
                         and not re.match(r"(filters?|f|cond|conditions?|query|params)\.", tok)
                         for tok in re.findall(r"[A-Za-z_$][\w$.]*", call_args))
             if end > 0 and not keyed and not re.search(r"(?i)limit|size|max|\bpage\b", call_args):
+                lvl = _exception_level(f, "P-R1", m[1])
+                if lvl == "exempt":
+                    continue
+                why = _p_r1_exclusion(t, m.start(), end, m[1], call_args) if lvl is None else None
+                if why and not why.startswith("info:"):
+                    continue
+                if lvl == "info" or why:
+                    info(m.start(), f"[P-R1 정보] 목록 조회 `{m[1]}(…)` 에 첫 조회 상한이 없다"
+                                    + (f" — {why[5:]}" if why else " — 예외 목록(audit-exceptions.json)에 정보성으로 올라 있다"))
+                    continue
                 warn(m.start(), f"[P-R1 경고] 목록 조회 `{m[1]}(…)` 에 첫 조회 상한(limit)이 없고 화면에 GridLimitNotice 가 없다 "
                                 f"→ 조건 없는 조회면 전체 행을 받는다. 필수 조건을 두거나 FIRST_SEARCH_LIMIT 를 넘기고 잘리면 "
                                 f"GridLimitNotice 를 보인다 ({PERF_GUIDE} R1)")
+
+    # P-R1b: 목록을 그리는 파일이 search* 를 부르는데 같은 폴더 types.ts 의 행 타입에 본문 열이 있다 — 행마다 본문을 실어 보낼 수 있다
+    if lists_rows and f.name != "api.ts" and f.suffix in (".tsx", ".ts") and _exception_level(f, "P-R1b") != "exempt":
+        tf = f.with_name("types.ts")
+        call = next((m for m in API_SEARCH_CALL.finditer(t) if not re.search(r"(function|import|as)\s*$", t[max(0, m.start() - 20):m.start()])), None)
+        if call and tf.exists() and tf != f:
+            cols = sorted({n for n in BIG_TEXT_FIELD.findall(tf.read_text(encoding="utf-8", errors="ignore")) if not BIG_TEXT_SKIP.search(n)})
+            if cols:
+                (info if _exception_level(f, "P-R1b") == "info" else warn)(call.start(), f"[P-R1b 경고] 목록 조회 `{call[1]}(…)` 를 쓰는 화면의 types.ts 에 본문·긴 글 열({', '.join(cols)})이 있다 "
+                                   f"→ 목록 응답이 행마다 본문을 실으면 누적될 때 수 MB 가 된다. 목록에는 그리드에 보이는 열만 싣고 "
+                                   f"본문은 행 선택 때 상세 조회로 받는다 ({PERF_GUIDE} R1)")
 
     # P-R6: 0건이면 AgDataGrid 를 언마운트하는 3항
     if f.suffix in (".tsx", ".jsx"):
@@ -626,6 +726,19 @@ def perf_audit(f: Path, raw: str, in_shared: bool, error, warn) -> None:
             if "<AgDataGrid" in grid_b and "<AgDataGrid" not in other_b:
                 warn(m.start(), f"[P-R6 경고] 0건이면 AgDataGrid 를 내린다 → 조회마다 그리드를 새로 만든다. "
                                 f"그리드를 늘 두고 빈 상태는 emptyMessage 로 보인다 ({PERF_GUIDE} R6)")
+        # && 조건부 렌더: {rows.length > 0 && (<AgDataGrid/>)} — 3항과 같은 언마운트
+        for m in EMPTY_AND.finditer(t):
+            k = m.end()
+            if t.startswith("(", k):
+                e = match_close(t, k)
+                grid = e > 0 and "<AgDataGrid" in t[k:e]
+            else:
+                grid = t.startswith("<AgDataGrid", k)
+            # 빈 상태 <p> 가 형제로 따로 있는 쌍만 본다 — 0건 안내를 그리드 밖에 두는 구조라 0↔N 전환에 그리드가 내려간다
+            sibling = grid and EMPTY_SIBLING.search(t[max(0, m.start() - 900):m.start()] + t[k:k + 1200])
+            if grid and sibling:
+                warn(m.start(), f"[P-R6 경고] 행이 있을 때만(`&&`) AgDataGrid 를 그린다 → 0건이면 그리드를 내리고 조회마다 새로 만든다. "
+                                f"그리드를 늘 두고 빈 상태는 emptyMessage 로 보인다 ({PERF_GUIDE} R6)")
 
 
 def cmd_audit(args: argparse.Namespace) -> None:
@@ -641,6 +754,7 @@ def cmd_audit(args: argparse.Namespace) -> None:
     fixed = [(re.compile(rx), msg) for rx, msg in FIXED_RULES]
     issues = 0
     warnings = 0
+    infos = 0
 
     def report(f: Path, text: str, pos: int, msg: str) -> None:
         nonlocal issues
@@ -651,6 +765,11 @@ def cmd_audit(args: argparse.Namespace) -> None:
         nonlocal warnings
         print(f"{f}:{text.count(chr(10), 0, pos) + 1}: {msg}")
         warnings += 1
+
+    def report_info(f: Path, text: str, pos: int, msg: str) -> None:
+        nonlocal infos
+        print(f"{f}:{text.count(chr(10), 0, pos) + 1}: {msg}")
+        infos += 1
 
     for f in files:
         text = f.read_text(encoding="utf-8", errors="ignore")
@@ -676,9 +795,11 @@ def cmd_audit(args: argparse.Namespace) -> None:
                 report(f, text, m.start(), f"`{name}` deprecated: {note}")
         perf_audit(f, text, in_shared,
                    lambda pos, msg, f=f, text=text: report(f, text, pos, msg),
-                   lambda pos, msg, f=f, text=text: report_warn(f, text, pos, msg))
+                   lambda pos, msg, f=f, text=text: report_warn(f, text, pos, msg),
+                   lambda pos, msg, f=f, text=text: report_info(f, text, pos, msg))
     print(f"\n{len(files)}개 파일 점검, 의심 {issues}건 (deprecated 기준: 설치본 {len(deprecated)}개 속성)"
           + (f", 성능 경고 {warnings}건(종료 코드 무관)" if warnings else "")
+          + (f", 정보 {infos}건" if infos else "")
           + ("" if issues else " — 통과"))
     sys.exit(1 if issues else 0)
 

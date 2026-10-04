@@ -53,7 +53,43 @@ public interface NoticeRepository extends JpaRepository<Notice, String> {
                                 @Param("pFromDt") LocalDate pFromDt,
                                 @Param("pToDt") LocalDate pToDt,
                                 @Param("pCategory") String pCategory,
-                                @Param("pFormat") String pFormat);
+                                @Param("pFormat") String pFormat,
+                                Limit limit);
+
+    /** 상한 없이 조건 조회. */
+    default List<Notice> searchByFilter(String pTitle, String pStatus, LocalDate pFromDt, LocalDate pToDt,
+                                        String pCategory, String pFormat) {
+        return searchByFilter(pTitle, pStatus, pFromDt, pToDt, pCategory, pFormat, Limit.unlimited());
+    }
+
+    /**
+     * 목록용 요약 조회 — {@link #searchByFilter} 와 같은 조건·정렬이되 본문(CONTENT)을 읽지 않는다(화면 성능 가이드 R1).
+     * 본문은 최대 20만 자라 목록 응답이 수 MB 가 되는 원인이다.
+     * 열 순서: NOTICE_ID, TITLE, NOTICE_STATUS, CONTENT_FORMAT, NOTICE_CATEGORY, PIN_YN, TARGET_SCOPE,
+     * POST_START_DT, POST_END_DT, C_USR_ID, C_AT. {@code limit} 은 앞쪽 N건만 읽는다.
+     */
+    @Query("""
+            SELECT n.noticeId, n.title, n.noticeStatus, n.contentFormat, n.noticeCategory, n.pinYn, n.targetScope,
+                   n.postStartDt, n.postEndDt, n.createdBy, n.createdAt
+            FROM Notice n
+            WHERE (:pTitle IS NULL OR :pTitle = ''
+                   OR UPPER(n.title) LIKE UPPER(CONCAT('%', :pTitle, '%')))
+              AND (:pStatus IS NULL OR :pStatus = '' OR n.noticeStatus = :pStatus)
+              AND (:pFromDt IS NULL OR n.postEndDt IS NULL OR n.postEndDt >= :pFromDt)
+              AND (:pToDt IS NULL OR n.postStartDt IS NULL OR n.postStartDt <= :pToDt)
+              AND (:pCategory IS NULL OR :pCategory = '' OR n.noticeCategory = :pCategory)
+              AND (:pFormat IS NULL OR :pFormat = '' OR n.contentFormat = :pFormat)
+            ORDER BY n.noticeId DESC
+            """)
+    List<Object[]> searchSummaryByFilter(@Param("pTitle") String pTitle,
+                                         @Param("pStatus") String pStatus,
+                                         @Param("pFromDt") LocalDate pFromDt,
+                                         @Param("pToDt") LocalDate pToDt,
+                                         @Param("pCategory") String pCategory,
+                                         @Param("pFormat") String pFormat,
+                                         Limit limit);
+
+    // 전체 건수는 JpaRepository.count() 를 쓴다 — 상한은 조건이 없을 때만 걸리므로 전체 건수가 곧 totalCount 다.
 
     /** 조건 없이 전건 — 저장·상태변경 뒤 재조회용. */
     default List<Notice> searchAll() {

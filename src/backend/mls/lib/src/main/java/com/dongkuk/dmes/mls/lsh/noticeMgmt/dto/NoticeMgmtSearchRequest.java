@@ -38,12 +38,35 @@ public class NoticeMgmtSearchRequest {
     /** S-006 본문 형식 — {@code CONTENT_FORMAT} 일치 (LV-002). 빈 값 = 전체. 허용 코드 밖이면 서비스가 거부한다. */
     private String contentFormat;
 
+    /**
+     * 조건(S-001~S-006)이 모두 비었을 때만 적용하는 행 수 상한(화면 성능 가이드 R1). 비우거나 0 이하면 상한 없음 — 이 값을 보내지
+     * 않는 기존 호출자는 지금처럼 전체를 받는다. 조건이 있으면 무시한다. 응답의 {@code totalCount}·{@code truncated} 로 잘림을 알린다.
+     */
+    private Integer limit;
+
+    /**
+     * {@code false} 이면 목록 행에서 본문({@code CONTENT})을 뺀다(DB 에서도 읽지 않는다). 비우면 지금처럼 본문을 싣는다.
+     * 본문은 행을 고를 때 {@code noticeId} 상세 조회로 받는다.
+     */
+    private Boolean includeContent;
+
+    /** 상세 조회 — 값이 있으면 다른 조건·상한은 무시하고 그 공지 한 건을 본문 포함으로 돌려준다(없으면 빈 목록). */
+    private String noticeId;
+
     public String getTitle() { return title; }
     public String getNoticeStatus() { return noticeStatus; }
     public String getPostStartDt() { return postStartDt; }
     public String getPostEndDt() { return postEndDt; }
     public String getNoticeCategory() { return noticeCategory; }
     public String getContentFormat() { return contentFormat; }
+
+    public Integer getLimit() { return limit; }
+    public Boolean getIncludeContent() { return includeContent; }
+    public String getNoticeId() { return noticeId; }
+
+    public void setLimit(Integer v) { this.limit = v; }
+    public void setIncludeContent(Boolean v) { this.includeContent = v; }
+    public void setNoticeId(String v) { this.noticeId = v; }
 
     public void setTitle(String v) { this.title = v; }
     public void setNoticeStatus(String v) { this.noticeStatus = v; }

@@ -1,0 +1,11 @@
+[
+  {"rule": "P-R1", "path": "m-mcm/page-components/csa/commObjMng/page.tsx", "call": "searchCommObjMng", "level": "exempt", "reason": "TB_MCM_SEC_OBJ 는 화면·프로그램 등록부라 화면 수에 묶인 수십~수백 건 고정 마스터(triage #4)"},
+  {"rule": "P-R1", "path": "m-mcm/page-components/csa/commPermMng/page.tsx", "call": "searchCommPermMng", "level": "exempt", "reason": "TB_MCM_SEC_PERM 은 권한 정의 마스터로 수십 건 이하(triage #5)"},
+  {"rule": "P-R1", "path": "m-mcm/page-components/csa/commWidgetMng/LayoutTab.tsx", "call": "searchLayouts", "level": "exempt", "reason": "키별 개수만 모은 3컬럼 집계 목록으로 부서 수가 상한(triage #6)"},
+  {"rule": "P-R1", "path": "m-mcm/page-components/csa/commWidgetMng/WidgetListTab.tsx", "call": "searchWidgetDefs", "level": "exempt", "reason": "위젯 정의는 등록부 크기에 묶인 수십 건 이하이고 클라이언트 필터가 설계 의도(triage #7·#8)"},
+  {"rule": "P-R1", "path": "m-mdm/pages/dma/termRegPop/termRegPop.tsx", "call": "searchTerms", "level": "exempt", "reason": "유사어 후보 조회라 서버가 20건으로 자른다(SimilarTermFinder.MAX_RESULTS, triage #11·#12)"},
+  {"rule": "P-R1", "path": "m-mdm/pages/dma/unitMng/page.tsx", "call": "searchUnits", "level": "exempt", "reason": "고정 단위 마스터이고 응답이 콤보 옵션과 함께 와서 전체가 필요(triage #13)"},
+  {"rule": "P-R1", "path": "m-mdm/pages/dmb/layoutMng/page.tsx", "call": "searchImpact", "level": "exempt", "reason": "서버 LayoutImpactFinder 가 빈 키워드면 빈 목록을 돌려줘 전체 조회가 불가능(triage #18)"},
+  {"rule": "P-R1", "path": "m-mdm/pages/dmc/codeConfirm/page.tsx", "call": "searchDrafts", "level": "exempt", "reason": "서버가 DRAFT 버전만 행으로 만들어 동시 편집 중인 안건 수만 나간다(triage #19)"},
+  {"rule": "P-R14", "path": "shared/src/widget/WidgetFrame.tsx", "level": "info", "reason": "가이드 R14 가 확정한 잠재 위치. 어떤 위젯도 refreshSec 을 쓰지 않아 지금 비용은 0, 쓰기 전에 표시 연동을 넣는다(triage #48)"}
+]
