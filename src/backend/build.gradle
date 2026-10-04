@@ -1,10 +1,17 @@
 // Composite aggregator — 실제 빌드 로직은 각 includeBuild 프로젝트가 담당한다.
 // 사용 예:
-//   ./gradlew buildAll     // 5개 프로젝트 전체 build
-//   ./gradlew testAll      // 5개 프로젝트 전체 test
-//   ./gradlew cleanAll     // 5개 프로젝트 전체 clean
+//   ./gradlew buildAll     // settings.gradle 의 includeBuild 15개 전체 build
+//   ./gradlew testAll      // 15개 전체 test
+//   ./gradlew cleanAll     // 15개 전체 clean
+// 한계: 각 included build 루트의 :build·:test·:clean 만 부른다. 루트 :test 가 lib·api 서브프로젝트 시험을 모으는 곳은
+// mdm 뿐이라, 루트가 서브프로젝트 시험을 모으지 않는 모듈(mpn·mpp·mqc·mcm·mls·analog)은 testAll 로 lib·api 시험이 돌지 않는다
+// (루트 :test NO-SOURCE). 서브프로젝트 시험 집계(④b)는 별건으로 결정 대기 — 그 전에는 :mls:lib:test 처럼 서브프로젝트를 직접 지정한다.
+// 새 includeBuild 를 settings.gradle 에 더하면 이 목록에도 더한다.
 
-def includedProjectNames = ['mpn', 'aps-core', 'cactus-core', 'mpp', 'mqc', 'mcm', 'localKafka', 'caravan-core', 'caravan-hub', 'mdm', 'maru-mdm-engine']
+def includedProjectNames = [
+    'mpn', 'aps-core', 'cactus-core', 'mcm-core', 'mpp', 'mqc', 'mls', 'mcm',
+    'localKafka', 'caravan-core', 'caravan-hub', 'caravan-console', 'analog', 'mdm', 'maru-mdm-engine'
+]
 
 tasks.register('buildAll') {
     group = 'composite'
