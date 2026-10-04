@@ -45,11 +45,20 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { performance as monotonic } from "node:perf_hooks";
+import { performance as perfHooks } from "node:perf_hooks";
 
-import { FIRST_ROW_SELECTOR, SCREENS, SHELL_SELECTOR, screenById } from "./screens.mjs";
+/**
+ * 측정용 단조 시계(ms).
+ *
+ * `node:perf_hooks` 의 `performance.now()` 을 쓴다 — 벽시계가 아니라 단조 시계라 NTP 보정으로
+ * 값이 뒤로 가지 않는다. (Node 16 에는 전역 `performance` 가 이미 있으나, 명시적으로
+ * `perf_hooks` 에서 가져와 어느 런타임에서도 같게 쓴다.)
+ */
+const monotonic = () => perfHooks.now();
 
-const require_ = createRequire(import.meta.url);
+import { SCREENS, SHELL_SELECTOR, VISIBLE_GRID, emptyOverlaySelector, firstRowSelector, listGridRoot, screenById } from "./screens.mjs";
+
+// 사용처는 loadChromium() 이 만들 때마다 path 를 넣는다(기본 경로로 고정하지 않는다).
 
 // ── 환경 설정 ────────────────────────────────────────────────────────────────
 // PC 고유 경로는 전부 환경 변수로 받는다. 여기 박아 두지 않는다(저장소가 여러 PC 에서 쓰인다).
@@ -63,6 +72,8 @@ const TAB_STATE = process.env.RENDER_TAB_STATE ?? "cold";
 const TIMEOUT = Number(process.env.RENDER_TIMEOUT_MS ?? 60_000);
 const LOAD_LIMIT = Number(process.env.LOAD_LIMIT ?? 5);
 const DO_TRACE = process.env.RENDER_TRACE === "1";
+/** ★지시 3★ 측정기 보정 회차 — 200ms 바쁜 루프를 주입해 long task 관측기를 검증한다. */
+const CALIBRATE = process.env.RENDER_CALIBRATE === "1";
 /** 실행 후 브라우저·컨텍스트를 남기지 않는다. 디버깅할 때만 1 로 둔다. */
 const KEEP_OPEN = process.env.RENDER_KEEP_OPEN === "1";
 
@@ -109,20 +120,42 @@ function acPower() {
   }
 }
 
-/** @playwright/test 또는 playwright 에서 chromium 을 꺼낸다. 어느 쪽이든 warn 하고 끝내지 않는다. */
+/**
+ * playwright 모듈에서 chromium 을 꺼낸다.
+ *
+ * 이 스크립트는 `scripts/perf/render/` 에 있고 워크트리 루트에서 실행하므로,
+ * Node 의 기본 탐색으로는 `src/frontend/node_modules` 가 보이지 않는다(pnpm 워크스페이스).
+ * 그래서 후보를 순서대로 붙여 본다: `PLAYWRIGHT_PATH`(환경 변수) → 이 스크립트 기준
+ * `../../src/frontend` → `../../../src/frontend`(저장소 루트 밖 실행 대비).
+ */
+const PLAYWRIGHT_ROOTS = [
+  process.env.PLAYWRIGHT_PATH,
+  path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../src/frontend"),
+  path.resolve(process.cwd(), "src/frontend"),
+  process.cwd(),
+].filter(Boolean);
+
 async function loadChromium() {
-  for (const spec of ["@playwright/test", "playwright", "playwright-core"]) {
-    try {
-      const mod = require_(spec);
-      const chromium = mod.chromium ?? mod.default?.chromium;
-      if (chromium?.launch) return chromium;
-    } catch {
-      /* 다음 후보 */
+  const tried = [];
+  for (const root of PLAYWRIGHT_ROOTS) {
+    for (const spec of ["@playwright/test", "playwright", "playwright-core"]) {
+      const req = createRequire(path.join(root, "__resolve__.js"));
+      try {
+        const mod = req(spec);
+        const chromium = mod.chromium ?? mod.default?.chromium;
+        if (chromium?.launch) {
+          if (tried.length) log(`찾은 경로: ${root} → ${spec}`);
+          return chromium;
+        }
+      } catch {
+        tried.push(`${root} → ${spec}`);
+      }
     }
   }
   die(
-    "playwright 를 찾지 못했다. 이 스크립트는 src/frontend 의 node_modules 를 본다.\n" +
-      "  → 그 폴더에서 실행하거나, PLAYWRIGHT_PATH 환경 변수로 playwright 모듈 경로를 준다."
+    "playwright 를 찾지 못했다. 본 후보를 전부 시도했다:\n" +
+      tried.map((t) => `  - ${t}`).join("\n") +
+      "\n  → PLAYWRIGHT_PATH 로 playwright 모듈이 있는 폴더를 준다."
   );
 }
 
@@ -168,7 +201,13 @@ function attachNetworkCollector(cdp, sink) {
       postData: e.request.postData ?? "",
     });
   };
-  const finish = (e, status, failed) => {
+  // ★status 는 `responseReceived` 에서 온다★ `loadingFinished` 에는 없다.
+  //   첫 실행에서 status 가 전부 0 으로 기록돼 404·500 을 구분할 수 없었다.
+  const onResponse = (e) => {
+    const p = pending.get(e.requestId);
+    if (p) p.status = e.response?.status ?? 0;
+  };
+  const finish = (e, failed) => {
     const p = pending.get(e.requestId);
     if (!p) return;
     pending.delete(e.requestId);
@@ -177,20 +216,22 @@ function attachNetworkCollector(cdp, sink) {
       url: p.url,
       method: p.method,
       postData: p.postData,
-      status,
+      status: p.status ?? 0,
       ms,
       // epoch 밀리초. wallTime 이 없는 경우(undefined)는 이 축을 쓰지 않는다.
       wallEndMs: typeof p.wallStart === "number" ? p.wallStart * 1000 + ms : null,
       failed,
     });
   };
-  const onDone = (e) => finish(e, e.status ?? 0, false);
-  const onFail = (e) => finish(e, 0, true);
+  const onDone = (e) => finish(e, false);
+  const onFail = (e) => finish(e, true);
   cdp.on("Network.requestWillBeSent", onRequest);
+  cdp.on("Network.responseReceived", onResponse);
   cdp.on("Network.loadingFinished", onDone);
   cdp.on("Network.loadingFailed", onFail);
   return () => {
     cdp.off("Network.requestWillBeSent", onRequest);
+    cdp.off("Network.responseReceived", onResponse);
     cdp.off("Network.loadingFinished", onDone);
     cdp.off("Network.loadingFailed", onFail);
   };
@@ -256,58 +297,129 @@ function menuItem(page, re) {
  *                 표시 시각을 빼야 하는데, DOM 시각은 t0 축이고 CDP 응답 시각은 epoch 축이다.
  *                 측정 시작점에서 두 축의 차이를 한 번 잡아 서로 옮긴다.)
  */
+/**
+ * 메뉴 경로를 위에서 아래로 연다. 마지막(잎) 항목 클릭 직후의 시각을 돌려준다 — 측정의 t0.
+ *
+ * ★상위 항목을 "늘상 누르면" 안 된다★ 메뉴 트리 펼침 상태는 포털이 저장한다. 그래서 두 번째 화면부터는
+ *   이미 펼쳐져 있는 트리를 **한 번 더 누르면 접힌다.** 첫 실행에서 12건이 여기서 실패했다
+ *   (termMng 은 통과하고 뒤의 4개가 하위 항목 대기 timeout).
+ *   → 하위 항목이 이미 보이면 상위를 누르지 않는다. e2e 의 `openMenu` 이 같은 이유로 그런다
+ *   (`e2e/support/common.ts:113-121`).
+ *
+ * ★두 시계 축을 함께 돌려준다.
+ *   - `t0`      node `performance.now()` 축. 이 스크립트가 재는 모든 값의 기준.
+ *   - `t0Wall`  `Date.now()` epoch ms 축. CDP `Network` 의 `wallTime` 과 맞추는 용도.
+ *                (0건 화면의 "조회 응답 완료 → 빈 상태 표시" 구간은 CDP 응답 시각과 페이지 내 DOM
+ *                 표시 시각을 빼야 하는데, DOM 시각은 t0 축이고 CDP 응답 시각은 epoch 축이다.
+ *                 측정 시작점에서 두 축의 차이를 한 번 잡아 서로 옮긴다.)
+ */
 async function clickTrail(page, screen) {
   for (let i = 0; i < screen.trail.length; i++) {
     const item = menuItem(page, screen.trail[i]);
     await item.waitFor({ state: "visible", timeout: TIMEOUT });
-    if (i === screen.trail.length - 1) {
+    const isLeaf = i === screen.trail.length - 1;
+    if (isLeaf) {
       const t0 = monotonic();
       const t0Wall = Date.now();
       await item.click();
       return { t0, t0Wall };
     }
+    // 하위가 이미 펼쳐져 있으면 이 노드는 건드리지 않는다(누르면 접힌다).
+    const child = menuItem(page, screen.trail[i + 1]);
+    if (await child.isVisible().catch(() => false)) continue;
     await item.click();
+    await child.waitFor({ state: "visible", timeout: TIMEOUT });
   }
   const t0 = monotonic();
   return { t0, t0Wall: Date.now() };
 }
 
-/** 화면 틀(breadcrumb)이 섰는지. */
+/**
+ * 메뉴 트리가 준비됐는지 기다린다.
+ *
+ * ★이게 없으면 측정이 조용히 망가진다★ 포털은 메뉴를 클라이언트에서 `secUser/myMenusTree`
+ * 응답으로 채운다. 트리가 오기 전의 `.item-name` 을 누르면 **클릭이 아무 일도 하지 않는다**
+ * (hydrate 전이라 이벤트 리스너가 없다). 그러면 하위 항목이 영영 안 나타나 `clickTrail` 이 timeout 난다.
+ *
+ * 루트 항목(`공통관리`·`마루 MDM` 등)만 몇 개 보이는 상태가 "트리 로드 완료" 신호다.
+ * 루트만 있고 하위가 0인 상태는 아직 로딩 중이다. 트리 항목이 3개 이상 뜰 때까지 기다린다.
+ */
+async function waitMenuReady(page, menuReady) {
+  const t = Math.min(TIMEOUT, 30_000);
+  // 포털은 메뉴를 클라이언트에서 `secUser/myMenusTree` 응답으로 채운다. 응답 전에는 루트 항목만
+  // SSR 초기값으로 보인다(관측: 정확히 3개 — 공통관리·로그 분석·마루 MDM).
+  // 그러므로 "항목 3개 이상" 은 준비 신호가 아니다(첫 로드에서 이미 만족한다).
+  // ★응답 대기를 goto 전에 걸어 두고 여기서 회수한다★ (goto 뒤에 걸면 이미 끝난 응답을 놓친다)
+  await menuReady.catch(() => {});
+  // 트리 항목이 그려졌는지.
+  await page.waitForFunction(() => document.querySelectorAll(".tree-item .item-name").length >= 3, undefined, {
+    timeout: t,
+  });
+}
+
+/** `myMenusTree` 응답을 **goto 전에** 걸어 두는 대기열 하나. 여러 번 호출해도 하나만 만든다. */
+function pendingMenuResponse(page) {
+  const KEY = Symbol.for("render-perf:menu-response");
+  if (page[KEY]) return page[KEY];
+  page[KEY] = page.waitForResponse((r) => r.url().includes("myMenusTree") && r.status() === 200, { timeout: 60_000 });
+  return page[KEY];
+}
+
+/**
+ * 화면 틀(breadcrumb)이 섰는지.
+ *
+ * ★숨겨진 탭의 breadcrumb 도 조회된다★ portal-shell.tsx:154 가 숨겨진 탭을 마운트된 채 두므로
+ * 문서 전체에서 breadcrumb 을 찾으면 예전 탭 것이 먼저 나올 수 있다. `VISIBLE_GRID` 접두로
+ * 현재 보이는 탭 안에 있는지만 본다.
+ */
 async function waitShell(page, screen) {
   await page
-    .locator(SHELL_SELECTOR)
+    .locator(`${VISIBLE_GRID}${SHELL_SELECTOR}`)
     .filter({ hasText: screen.breadcrumb })
     .first()
     .waitFor({ state: "visible", timeout: TIMEOUT });
   return monotonic();
 }
 
-async function firstRowVisible(page) {
-  const row = page.locator(FIRST_ROW_SELECTOR).first();
+async function firstRowVisible(page, screen) {
+  const row = page.locator(firstRowSelector(screen)).first();
   return (await row.count()) > 0 && (await row.isVisible().catch(() => false));
 }
 
-async function waitFirstRow(page) {
-  await page.locator(FIRST_ROW_SELECTOR).first().waitFor({ state: "visible", timeout: TIMEOUT });
+async function waitFirstRow(page, screen) {
+  await page.locator(firstRowSelector(screen)).first().waitFor({ state: "visible", timeout: TIMEOUT });
   return monotonic();
 }
 
 /**
- * 그리드의 "행 없음" 오버레이가 떴는가 — 0건 화면의 도착 신호다.
- * `AgDataGrid.tsx:1792-1801` 이 `noRowsOverlayComponent` 로 `.ag-overlay-no-rows-wrapper` 를 그린다
- * (안쪽 span 에 `emptyMessage`, `emptyTestId` 가 있으면 data-testid). `ag-grid` 도 rowData 가 비면 같은
- * 오버레이를 띄운다. 로딩 오버레이(`.ag-overlay-loading-wrapper`)가 함께 떠 있을 수 있으므로
- * "보이는" 상태를 본다.
+ * 목록 그리드가 화면에 존재하는지 **확인만** 한다 — 없으면 경고하고 계속한다(예외로 끝내지 않는다).
+ *
+ * ★왜 부드럽게 넘어가는가★ `layoutConfirm` 은 조회 결과가 0건이면 그리드를 아예 만들지 않는다
+ * (`page.tsx:313-330` — 0건이면 `<p/>` 로 갈음). 즉 "그리드 없음"이 정상 상태일 수 있다.
+ * 이걸 예외로 바꾸면 0건 화면을 정상적으로 "0건"으로 측정할 수 없다.
+ * 그래서 신호가 필요하면 `row_mode`(row/empty/timeout) 으로 판단한다.
  */
-const EMPTY_OVERLAY_SELECTOR = ".ag-overlay-no-rows-wrapper";
+async function listGridPresent(page, screen) {
+  const n = await page.locator(listGridRoot(screen)).count();
+  if (n === 0) {
+    log(`  ${screen.id}: shell 시점에 목록 그리드가 없다 — 0건 화면일 수 있다(listPanelTitle 확인 필요).`);
+  }
+  return n;
+}
 
-async function emptyOverlayVisible(page) {
-  const el = page.locator(EMPTY_OVERLAY_SELECTOR).first();
+/**
+ * 목록 그리드의 "행 없음" 오버레이 — 0건 화면의 도착 신호.
+ * `AgDataGrid.tsx:1792-1801` 이 `noRowsOverlayComponent` 로 `.ag-overlay-no-rows-wrapper` 를 그린다.
+ * ★목록 그리드로 한정해야 한다★ 같은 화면 안의 다른 그리드(용어 관리의 '유사어 추천' 등)는
+ *   항상 비어 있어, 그 오버레이를 잡으면 "조회 결과 0건" 으로 잘못 읽힌다(2026-10-04 실제 발생).
+ */
+async function emptyOverlayVisible(page, screen) {
+  const el = page.locator(emptyOverlaySelector(screen)).first();
   return (await el.count()) > 0 && (await el.isVisible().catch(() => false));
 }
 
-async function waitEmptyOverlay(page) {
-  await page.locator(EMPTY_OVERLAY_SELECTOR).first().waitFor({ state: "visible", timeout: TIMEOUT });
+async function waitEmptyOverlay(page, screen) {
+  await page.locator(emptyOverlaySelector(screen)).first().waitFor({ state: "visible", timeout: TIMEOUT });
   return monotonic();
 }
 
@@ -318,6 +430,45 @@ function searchResponseToEmptyMs(calls, screen, tEmpty, t0, t0Wall) {
   if (!resp || resp.wallEndMs == null) return null;
   const respMono = t0 + (resp.wallEndMs - t0Wall);
   return round1(tEmpty - respMono);
+}
+
+/**
+ * ★측정기 보정 회차★ (지시 3)
+ *
+ * 페이지 안에서 **일부러 200ms 짜리 바쁜 루프**를 한 번 돌린다. 제품 코드는 건드리지 않고
+ * `page.evaluate` 로 주입한다. 바쁜 루프는 메인 스레드를 연속으로 점유하므로
+ * `PerformanceObserver('longtask')` 가 반드시 잡아야 한다(기준 50ms).
+ *
+ * 판정:
+ *   - long task 1건(약 200ms) 이 잡히면 → ** 측정기는 정상.** 1차 스캔의 long task 0 은
+ *     (나) "화면 렌더가 실제로 가볍다" 로 판정한다.
+ *   - 잡히지 않으면 → ** 측정기 결함.** 등록 시점·buffered 옵션·trace 카테고리를 고친다.
+ *
+ * @returns {Promise<number|null>} 실제로 걸린 시간(ms). evaluate 가 막히면 null.
+ */
+async function runCalibration(page) {
+  const t = monotonic();
+  try {
+    // ★`setTimeout(0)` 안에서 돌린다★ `page.evaluate` 의 최상위 코드에서 돌리면
+    // **long task 로 기록되지 않는다**(2026-10-04 실측: 같은 200ms 루프가 evaluate 직렬 실행에서는 0건,
+    // setTimeout/rAF 안에서는 정확히 200ms 1건으로 잡혔다).
+    // evaluate 의 실행 컨텍스트는 브라우저가 "task" 로 계상하는 프레임(task) 안에 들어가지 않는 것으로
+    // 보인다. 검증을 위해 넣는 루프인데 관측되지 않으면 판정 자체가 불가능해진다.
+    await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => {
+            const end = performance.now() + 200;
+            let x = 0;
+            while (performance.now() < end) x += Math.sqrt(x + 1);
+            resolve(x);
+          }, 0);
+        })
+    );
+  } catch {
+    return null;
+  }
+  return round1(monotonic() - t);
 }
 
 async function readLongTasks(page) {
@@ -370,6 +521,8 @@ async function measureScreen(page, cdp, screen, calls, round) {
 
   const { t0, t0Wall } = await clickTrail(page, screen);
   const tShell = await waitShell(page, screen);
+  // 목록 그리드가 실제로 있는가 — 셀렉터가 틀리면 아래 모든 지표가 무의미해진다.
+  await listGridPresent(page, screen);
 
   let tRow = null;
   let tEmpty = null;
@@ -377,13 +530,17 @@ async function measureScreen(page, cdp, screen, calls, round) {
   let searchToEmptyMs = null;
   let searched = false;
   let rowMode = "";
+  let searchCallCount = null;
+  let searchCallMs = null;
+  let invalidSearch = 0;
 
   // MDM 목록 화면은 진입 시 자동 조회를 하지 않는다. 첫 행이 이미 있으면 조회 없이 끝난 것으로 본다.
-  if (await firstRowVisible(page)) {
+  if (await firstRowVisible(page, screen)) {
     tRow = monotonic();
     rowMode = "row-at-entry";
   } else if (screen.needsSearch) {
-    const btn = page.getByRole("button", { name: "조회", exact: true }).first();
+    // 조회 단추도 **보이는 탭 안에서만** 찾는다(숨겨진 탭에 같은 이름의 단추가 있을 수 있다).
+    const btn = page.locator(`${VISIBLE_GRID}button`).filter({ hasText: /^조회$/ }).first();
     await btn.waitFor({ state: "visible", timeout: TIMEOUT });
     const tSearch = monotonic();
     await btn.click();
@@ -392,8 +549,8 @@ async function measureScreen(page, cdp, screen, calls, round) {
     //   둘이 동시에 뜨는 걸 기다렸다가 어느 쪽인지 본다 — 렌더 순서가 흔들리는 화면이 있으면
     //   rows 지표가 그때 비어 있게 두고 사유를 적는다.
     const outcome = await Promise.race([
-      waitFirstRow(page).then(() => "row"),
-      waitEmptyOverlay(page).then(() => "empty"),
+      waitFirstRow(page, screen).then(() => "row"),
+      waitEmptyOverlay(page, screen).then(() => "empty"),
     ]).catch(() => null);
 
     if (outcome === "row") {
@@ -408,6 +565,28 @@ async function measureScreen(page, cdp, screen, calls, round) {
       rowMode = "timeout";
       log(`  ${screen.id}: 조회 후 첫 행도 빈 상태도 보이지 않았다 — timeout 으로 기록한다.`);
     }
+
+    // ★지시 3: 조회를 눌렀다는 건 **클릭 성공이 아니라 POST 가 나갔는지** 로 확인한다.
+    //   단추를 눌렀어도 네트워크 요청이 안 나간 경우가 있다(비활성 상태, 가드 로직, 다른 탭의 단추).
+    //   그러면 searchToRowMs 는 "조회 대기가 아니라 다른 무엇의 대기" 다 — 무효로 표시한다.
+    const searchCalls = calls.filter((c) => isSearchCall(screen, c));
+    searchCallCount = searchCalls.length;
+    searchCallMs = round1(searchCalls.reduce((acc, c) => acc + c.ms, 0));
+    if (searchCallCount === 0) {
+      log(`  ${screen.id}: ★조회 POST 가 나가지 않았다 — 회차를 무효로 표시한다.`);
+      invalidSearch = 1;
+    }
+  }
+
+  // ★지시 3: 측정기 보정 회차★ 조회 직후 페이지 안에서 200ms 짜리 바쁜 루프를 한 번 돌린다.
+  //   제품 코드 수정 없이 page.evaluate 로 주입한다. 50ms 이상이면 long task 로 잡혀야 하는데
+  //   잡히지 않으면 측정기(longtask PerformanceObserver) 결함이다.
+  //   1차 스캔에서 long task 가 0건으로 나온 것을 (가)측정기 결함 / (나)실제로 렌더가 가벼움 으로
+  //   나누는 판정 수단이다.
+  let calibrateMs = null;
+  if (CALIBRATE) {
+    calibrateMs = await runCalibration(page);
+    log(`  ${screen.id}: 보정 ${calibrateMs}ms 바쁜 루프 주입 완료`);
   }
 
   const after = await perfMetrics(cdp);
@@ -435,6 +614,12 @@ async function measureScreen(page, cdp, screen, calls, round) {
     searchToEmptyMs: searchToEmptyMs ?? "",
     row_mode: rowMode,
     searched: searched ? 1 : 0,
+    /** ★지시 3★ 조회 POST 가 실제로 나갔는지. 1 이면 정상, 1 이 아니면 이 회차의 검색 지표는 무효. */
+    searchCallCount,
+    searchCallMs,
+    invalidSearch,
+    /** ★지시 3★ 보정 회차에서 주입한 바쁜 루프 실측 시간(ms). null 이면 주입 실패. */
+    calibrateMs,
     longTaskCount: longTasks.length,
     longTaskSumMs: round1(longTasks.reduce((s, e) => s + e.duration, 0)),
     longTaskMaxMs: round1(longTasks.reduce((m, e) => Math.max(m, e.duration), 0)),
@@ -511,6 +696,7 @@ async function main() {
     `timeout_ms: ${TIMEOUT}`,
     `load_limit: ${LOAD_LIMIT}`,
     `trace: ${DO_TRACE ? "1" : "0"}`,
+    `calibrate: ${CALIBRATE ? "1" : "0"}`,
     `screens: ${targets.map((s) => s.id).join(",")}`,
     `ac: ${acPower()}`,
   ];
@@ -532,7 +718,10 @@ async function main() {
           const calls = [];
           const detach = attachNetworkCollector(cdp, calls);
           try {
+            // 메뉴 트리 응답 대기를 **goto 전에** 건다. goto 뒤에 걸면 이미 끝난 응답을 놓친다.
+            const menuReady = pendingMenuResponse(page);
             await page.goto(`${BASE_URL}/portal`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+            await waitMenuReady(page, menuReady);
             const row = await measureScreen(page, cdp, screen, calls, round);
             rows.push(row);
             log(
@@ -566,16 +755,18 @@ async function main() {
         const cdp = await context.newCDPSession(page);
         await cdp.send("Performance.enable");
         await cdp.send("Network.enable");
+        const menuReady = pendingMenuResponse(page);
         await page.goto(`${BASE_URL}/portal`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+        await waitMenuReady(page, menuReady);
 
         for (const screen of targets) {
           await clickTrail(page, screen);
           await waitShell(page, screen);
-          if (screen.needsSearch && !(await firstRowVisible(page))) {
-            const b = page.getByRole("button", { name: "조회", exact: true }).first();
+          if (screen.needsSearch && !(await firstRowVisible(page, screen))) {
+            const b = page.locator(`${VISIBLE_GRID}button`).filter({ hasText: /^조회$/ }).first();
             await b.waitFor({ state: "visible", timeout: TIMEOUT });
             await b.click();
-            await waitFirstRow(page).catch(() => {});
+            await waitFirstRow(page, screen).catch(() => {});
           }
         }
         log("  예열 방문 끝 — 이제 각 화면을 다시 눌러 측정한다(숨어 있던 탭을 다시 보이는 비용).");
