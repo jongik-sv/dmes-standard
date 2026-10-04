@@ -13,6 +13,7 @@ import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 import { HANDOVER_AVAILABLE, HANDOVER_PENDING_TEXT, takeMdmPageParams } from "@/shell";
 
 import RuleEditPage from "../../../pages/dme/ruleEdit/page";
+import { RULE_EDIT_GROUPS } from "../../../pages/dme/ruleEdit/cards";
 import { RULE_EDIT_TARGET_EVENT, RULE_EDIT_TARGET_KEY } from "../../../src/dme/rule-handoff";
 import type { RuleEditView } from "../../../pages/dme/ruleEdit/types";
 import {
@@ -236,5 +237,51 @@ describe("RuleEditPage", () => {
     expect(text).toContain("LS_E2E");
     expect(text).toContain("E2E 룰 세트");
     expect(text).toContain("BASE_SPD_LKP");
+  });
+
+  // 카드 틀(CardFrame)·카드 묶음(CardGroup) 특성 — e2e(dme.user.ts)가 rule-group-{id}·-toggle·-body 와 rule-card-* 를 쓴다.
+  // 접어도 본문을 내리지 않는다(hidden): 카드가 내려가면 dirty 알림·값 테스트 결과가 사라진다. 묶음 본문은 16칸 격자다.
+  it("카드는 rule-card-* 틀에 담기고, 묶음은 접어도 본문을 내리지 않고 숨기며 본문은 16칸 격자다", async () => {
+    const GROUP_TITLE = RULE_EDIT_GROUPS.valueTests.title;
+    await openByHandoff();
+    for (const id of ["rule-card-value-test", "rule-card-test-result", "rule-card-test-cases", "rule-card-usage"]) {
+      const card = byTestId<HTMLElement>(id);
+      expect(card, id).not.toBeNull();
+      expect(card!.tagName).toBe("SECTION");
+      expect(card!.querySelector(":scope > header")).not.toBeNull();
+    }
+    expect(byTestId("rule-card-usage")!.querySelector(":scope > header > span")!.textContent).toBe("⑧ 활용처");
+
+    const group = byTestId<HTMLElement>("rule-group-valueTests")!;
+    const toggle = byTestId<HTMLButtonElement>("rule-group-valueTests-toggle")!;
+    const body = byTestId<HTMLElement>("rule-group-valueTests-body")!;
+    expect(group).not.toBeNull();
+    expect(toggle.parentElement).toBe(group);
+    expect(body.parentElement).toBe(group);
+    expect(toggle.getAttribute("type")).toBe("button");
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.getAttribute("aria-label")).toBe(`${GROUP_TITLE} 접기`);
+    expect(toggle.textContent).toBe(GROUP_TITLE);
+    expect(body.hidden).toBe(false);
+    const grid = body.firstElementChild as HTMLElement;
+    expect(grid.getAttribute("style")).toContain("repeat(16, minmax(0, 1fr))");
+    expect(body.querySelector('[data-testid="rule-card-value-test"]')).not.toBeNull();
+    expect(body.querySelector('[data-testid="rule-card-test-cases"]')).not.toBeNull();
+
+    await act(async () => {
+      toggle.click();
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.getAttribute("aria-label")).toBe(`${GROUP_TITLE} 펼치기`);
+    expect(byTestId<HTMLElement>("rule-group-valueTests-body")!.hidden).toBe(true);
+    // 숨기기만 하고 내리지 않는다.
+    expect(byTestId("rule-card-value-test")).not.toBeNull();
+    expect(byTestId("rule-card-test-cases")).not.toBeNull();
+
+    await act(async () => {
+      toggle.click();
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(byTestId<HTMLElement>("rule-group-valueTests-body")!.hidden).toBe(false);
   });
 });

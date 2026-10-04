@@ -2,6 +2,9 @@
 // 배열은 grids 로, grids 는 빈 배열이라도 늘 보내고(B0 c), params 에서 null·빈 값 키는 뺀다(B0 e).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { saveDomain, searchDomains, validateDomain, executePreview } from "../../../pages/dma/domainMng/api";
+import { viewDomain } from "../../../pages/dma/domainMng/api";
+import type { DomainDraft } from "../../../pages/dma/domainMng/types";
+import { describeOasisEnvelope } from "../../helpers/oasis-envelope";
 
 const originalFetch = globalThis.fetch;
 let calls: Array<{ url: string; body: Record<string, unknown> }>;
@@ -56,4 +59,16 @@ describe("domainMng api", () => {
         bizRule: null, description: null }, [], []),
     ).rejects.toThrow("도메인 저장 거부: R06 길이");
   });
+});
+
+// 공통 계약으로 옮기기 전 현재 동작 고정(특성 시험).
+describeOasisEnvelope("domainMng", {
+  call: () => viewDomain(7),
+  url: "/api/mdm/oasis/domainMng/view",
+  menuId: "domainMng",
+  merge: "data+result",
+  reject: "unified",
+  labelled: { field: "DOMAIN_NAME", label: "도메인명" },
+  noGrids: true,
+  noisy: { call: (p) => saveDomain(p as unknown as DomainDraft, [], []), omit: "nullish+blank" },
 });

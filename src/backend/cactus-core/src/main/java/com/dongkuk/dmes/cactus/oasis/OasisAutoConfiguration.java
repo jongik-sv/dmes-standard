@@ -1,20 +1,23 @@
 package com.dongkuk.dmes.cactus.oasis;
 
+import com.dongkuk.dmes.cactus.oasis.aop.OasisAopAnnotationChecker;
 import com.dongkuk.dmes.cactus.oasis.converter.MssqlColumnConverter;
 import com.dongkuk.dmes.cactus.oasis.converter.SqliteColumnConverter;
 import com.dongkuk.dmes.cactus.oasis.loader.HttpServiceDocumentLoader;
 import com.dongkuk.dmes.cactus.oasis.provider.CactusCachingServiceProvider;
+import com.dongkuk.dmes.cactus.oasis.provider.CactusConcurrentCacheService;
 import com.dongkuk.dmes.cactus.oasis.provider.DefaultTxInjectingServiceProvider;
 import com.dongkuk.dmes.cactus.oasis.task.MyBatisSqlRunner;
 import com.dongkuk.dmes.cactus.tx.CactusTxProperties;
+import com.dongkuk.oasis.context.SpringApplicationContext;
 import com.dongkuk.oasis.executors.SqlRunner;
 import com.dongkuk.oasis.factories.NonTransactionalServiceStarterFactory;
-import com.dongkuk.oasis.factories.SpringServiceStarterFactory;
 import com.dongkuk.oasis.jdbc.ColumnConverter;
 import com.dongkuk.oasis.provider.GenericServiceProvider;
 import com.dongkuk.oasis.provider.ServiceProvider;
 import com.dongkuk.oasis.provider.SimpleServiceProvider;
 import com.dongkuk.oasis.service.ServiceStarter;
+import com.dongkuk.oasis.transaction.SpringTransactionHandler;
 import com.dongkuk.oasis.unmarshal.camunda.CamundaBpmnServiceUnmarshaller;
 import org.apache.ibatis.session.SqlSession;
 import org.slf4j.Logger;
@@ -86,7 +89,9 @@ public class OasisAutoConfiguration {
      *
      * <p>{@link CactusCachingServiceProvider} 는 항상 적용 — oasis-core 의
      * {@code CachingServiceProvider} 가 {@code cache.cache()} 호출 누락으로 미동작 (R-multi-22) 이라
-     * legacy 모드에도 cache 정상화 혜택.
+     * legacy 모드에도 cache 정상화 혜택. 캐시 저장소는 {@link CactusConcurrentCacheService}(적중 경로 락 없음,
+     * 넣은 순서로 {@code cactus.oasis.cache.size} 상한 유지)이고, 같은 serviceId 동시 미스는 한 번만 로드한다.
+     * oasis-core-api {@code SizeBaseCacheService} 는 적중 때도 전역 락 아래 O(n) 작업을 해 쓰지 않는다(리팩토링 항목 2).
      */
     @Bean
     @ConditionalOnMissingBean
@@ -102,7 +107,6 @@ public class OasisAutoConfiguration {
             String[] tmNames = isMultiTx
                     ? txProps.getManagers().keySet().toArray(new String[0])
                     : new String[]{props.getTransactionManagerName()};
-            SpringServiceStarterFactory factory = new SpringServiceStarterFactory(ctx, tmNames);
 
             ServiceProvider provider;
             if (url != null) {
@@ -123,8 +127,15 @@ public class OasisAutoConfiguration {
                 log.info("[Cactus Oasis] legacy mode — single tx={}, cactus.tx.managers 마이그레이션 권장",
                         props.getTransactionManagerName());
             }
-            factory.setServiceProvider(new CactusCachingServiceProvider(provider, cacheSize));
-            return factory.generateServiceStarter();
+            // oasis SpringServiceStarterFactory 와 같은 그래프를 cactus 에서 직접 조립한다(refactor/framework-tx 3a).
+            // 트랜잭션 핸들러는 커밋 실패를 삼키지 않고 스레드 상태를 반드시 정리하는 cactus 하위 클래스다(3b).
+            SpringTransactionHandler txHandler =
+                    new CactusSpringTransactionHandler(new SpringApplicationContext(ctx), tmNames);
+            return new CactusServiceStarterFactory(
+                    ctx,
+                    new CactusCachingServiceProvider(provider, new CactusConcurrentCacheService<>(cacheSize)),
+                    txHandler)
+                    .generateServiceStarter();
         }
 
         // non-transactional
@@ -162,6 +173,19 @@ public class OasisAutoConfiguration {
         return new OasisServiceExecutor(
                 serviceStarter, springApplicationContext,
                 requestConverter, responseConverter);
+    }
+
+    /**
+     * BPMN 이 부르는 빈의 프록시 의존 어노테이션 검사기 ({@code cactus.oasis.aop-check}, 기본 warn).
+     * classpath 로더 모드는 기동 시 {@code service-path} 아래 BPMN 을 스캔해 검사하고, HTTP 로더 모드는
+     * 기동 시 BPMN 목록이 없어 검사할 수 없다는 안내만 한 번 남긴다.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public OasisAopAnnotationChecker oasisAopAnnotationChecker(OasisProperties props, ApplicationContext ctx) {
+        boolean classpathLoader = trimToNull(props.getServiceLoaderUrl()) == null;
+        return new OasisAopAnnotationChecker(ctx, props.getAopCheck(), props.getServicePath(),
+                classpathLoader, props.isTransactional());
     }
 
     /**

@@ -34,9 +34,11 @@ public class LogToken {
         return matches;
     }
 
-    private static LogPattern logPattern = LogPattern.getInstance();
-
-    static public LogToken parse(LogData logData) {
+    /**
+     * 로그 한 줄을 주어진 패턴의 토큰 정의 순서대로 맞춰 본다.
+     * (예전에는 처음 읽힌 LogPattern 을 static 필드로 붙잡아 썼다 — 패턴은 이제 부르는 쪽이 넘긴다.)
+     */
+    static public LogToken parse(LogData logData, LogPattern logPattern) {
         LogToken logToken = new LogToken(logData);
         for (LogPattern.Token token : logPattern.getTokens()) {
             if(token.getStringMatchers() != null) {

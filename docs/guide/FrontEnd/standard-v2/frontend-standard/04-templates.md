@@ -141,6 +141,7 @@ entry: {
 
 - MUST: 위 5개 파일/설정이 모두 존재해야 portal 에서 페이지가 열린다.
 - **MUST (MES)**: tsup entry key 와 파일명 모두 camelCase 단일 토큰 `{screenId}` 사용. `-page` suffix / kebab-case 금지.
+- **MUST (m-mdm)**: m-mdm 은 와일드카드 exports 를 쓰지 않으므로 새 화면은 tsup entry 와 `package.json` exports 에 같은 이름으로 함께 등록한다(`m-mdm/tests/package-exports.test.ts` 가 대조한다).
 - **MUST (APS, mpn)**: 기존 kebab + `-page` suffix 패턴 유지. 신규 MES 룰 적용 금지 (AS-IS 1:1 보존).
 
 ---
