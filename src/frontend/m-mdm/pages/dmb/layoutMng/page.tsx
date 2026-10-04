@@ -122,6 +122,8 @@ export default function LayoutMngPage() {
   const [handoverTo, setHandoverTo] = useState("");
   /** view 요청 순번 — T 를 연달아 바꾸면 늦게 온 옛 응답을 버린다. */
   const viewSeq = useRef(0);
+  /** 헤더 단건 조회 응답이 늦게 도착했을 때, 그 사이 EAI·전문이 바뀌었는지 가리는 순번. */
+  const headerSeq = useRef(0);
   const [stack, setStack] = useState<HeaderStackRow[]>([]);
   const [body, setBody] = useState<LayoutItemRow[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -236,6 +238,7 @@ export default function LayoutMngPage() {
   }, []);
 
   const startNew = () => {
+    headerSeq.current += 1;
     setSelectedId(null);
     setDraft({ ...EMPTY_DRAFT, asOf });
     setView(null);
@@ -255,6 +258,8 @@ export default function LayoutMngPage() {
   // ── EAI 선택 → 표준 헤더를 1번에(I14) ──
   const changeEai = async (code: string | null) => {
     setDraft((d) => ({ ...d, eaiCode: code }));
+    const seq = ++headerSeq.current;
+    const view = viewSeq.current;
     const eai = eais.find((e) => e.EAI_CODE === code);
     if (!eai?.HEADER_LAYOUT_ID || stack.some((h) => h.HEADER_LAYOUT_ID === eai.HEADER_LAYOUT_ID)) return;
     try {
@@ -262,6 +267,7 @@ export default function LayoutMngPage() {
       if (!list.some((o) => o.LAYOUT_ID === eai.HEADER_LAYOUT_ID)) return;
       // 선택 목록에는 항목이 없다 — 표준 헤더 한 건만 항목과 함께 받는다
       const h = await loadHeaderPick(eai.HEADER_LAYOUT_ID);
+      if (seq !== headerSeq.current || view !== viewSeq.current) return;
       if (h) setStack((s) => (s.some((x) => x.HEADER_LAYOUT_ID === h.LAYOUT_ID) ? s : withSeq([stackRow(h), ...s])));
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
@@ -279,10 +285,16 @@ export default function LayoutMngPage() {
 
   // 팝업 목록에는 항목이 없다 — 고른 헤더의 항목을 한 건으로 받아 쌓는다.
   const pickHeader = async (h: HeaderOption) => {
+    setPicker("none");
+    const view = viewSeq.current;
     try {
       const detail = await loadHeaderPick(h.LAYOUT_ID);
-      if (detail) setStack((s) => withSeq([...s, stackRow(detail)]));
-      setPicker("none");
+      if (view !== viewSeq.current) return;
+      if (!detail) {
+        setErrorMessage("선택한 헤더의 확정 버전을 찾을 수 없습니다.");
+        return;
+      }
+      setStack((s) => (s.some((x) => x.HEADER_LAYOUT_ID === detail.LAYOUT_ID) ? s : withSeq([...s, stackRow(detail)])));
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     }
