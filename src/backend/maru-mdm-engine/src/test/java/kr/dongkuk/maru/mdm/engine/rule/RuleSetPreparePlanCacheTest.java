@@ -2,9 +2,13 @@ package kr.dongkuk.maru.mdm.engine.rule;
 
 import static kr.dongkuk.maru.mdm.engine.rule.fixture.FlowRules.calc;
 import static kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures.rec;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.br;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.e;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.end;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.flow;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.ifNode;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.merge;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.other;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.rule;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.start;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -171,23 +175,34 @@ class RuleSetPreparePlanCacheTest {
 
     @Test
     void 검사기_사본은_정의_부분을_나눠_쓰고_지연_목록은_따로_가진다() {
-        // start → a(R_A: A 생성) → d(R_D: A·Z 를 읽는다) → end. A 는 레코드에 없어도 R_A 가 만든다.
+        // start → if1 [X > 0 → a(R_A: A 생성)] [그 외 → b(R_B: B 생성)] → m1 → d(R_D: A 를 읽는다) → end.
+        // A 는 IF 일부 갈래에서만 만들어지므로, 레코드에 A 가 없으면 d 의 지연 목록에 들어가 실행 직전에 본다.
         RuleDefinition ra = calc("R_A", "A", "X + 1", "X");
-        RuleDefinition rd = calc("R_D", "D", "A + Z", "A", "Z");
+        RuleDefinition rb = calc("R_B", "B", "X + 2", "X");
+        RuleDefinition rd = calc("R_D", "D", "A * 2", "A");
         Map<String, RuleDefinition> defs = new LinkedHashMap<>();
         defs.put("R_A", ra);
+        defs.put("R_B", rb);
         defs.put("R_D", rd);
-        FlowDefinition f = flow(List.of(start(), rule("a", "R_A"), rule("d", "R_D"), end()),
-                List.of(e("e0", "start", "a"), e("e1", "a", "d"), e("e2", "d", "end")));
+        FlowDefinition f = flow(List.of(start(), ifNode("if1"), rule("a", "R_A"), rule("b", "R_B"), merge("m1", "if1"), rule("d", "R_D"), end()),
+                List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 0"), other("bo", "if1", "b"), e("ea", "a", "m1"),
+                        e("eb", "b", "m1"), e("em", "m1", "d"), e("ed", "d", "end")));
         var tree = FlowParser.parse(f).tree();
         FlowKeys template = new FlowKeys(defs, evaluator);
         FlowKeys first = template.forRun();
         FlowKeys second = template.forRun();
         assertNotSame(first, second);
+        // 정의에만 의존하는 선언 타입은 나눠 쓴다.
         assertSame(first.condTypes("A > 0").get("A"), second.condTypes("A > 0").get("A"));
-        // 레코드마다 검사 결과가 따로 나온다 — Z 가 없는 레코드만 MISSING_KEY.
-        assertEquals(1, first.check(tree.root(), Set.of("X")).size());
-        assertEquals(0, second.check(tree.root(), Set.of("X", "Z")).size());
+        // A 가 없는 레코드 — 사전 검사는 통과하고 d 의 지연 목록에 A 가 들어간다. 다른 사본과 원본에는 새지 않는다.
+        assertEquals(0, first.check(tree.root(), Set.of("X")).size());
+        assertEquals(List.of("A"), first.deferred("d"));
+        assertEquals(List.of(), second.deferred("d"));
+        assertEquals(List.of(), template.deferred("d"));
+        // A 가 있는 레코드 — 지연할 이름이 없다. 앞 사본의 지연 목록은 그대로다.
+        assertEquals(0, second.check(tree.root(), Set.of("X", "A")).size());
+        assertEquals(List.of(), second.deferred("d"));
+        assertEquals(List.of("A"), first.deferred("d"));
         assertEquals(List.of(), template.deferred("d"));
     }
 }
