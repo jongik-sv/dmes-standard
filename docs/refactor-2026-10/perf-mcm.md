@@ -68,11 +68,12 @@ P3 응답 시간은 조정 세션 「측정 시작」 뒤 2026-10-04 에 기준�
   - (보조) `getMyMenus` 응답 시간(ms, 비결정).
 - 측정 절차:
   1. SELECT 수(결정적, 1회): `MenuCatalogCallersSelectCountTest`(mcm-core, H2, Hibernate `StatementInspector`)가 4곳을 각 2회 부르고 전수 SELECT 문장 수를 센다. 같은 시험이 캐시를 끈 대조(TTL 0), 저장 이벤트 뒤 재적재, 즐겨찾기·기본 화면 두 토글을 센다. 폴더 표(`TB_MCM_SEC_MENU_FLD`)는 카탈로그에 넣지 않았으므로 세지 않는다(요청마다 읽는 것은 전과 같다).
-  2. 응답 시간: 서버를 띄우지 않고 저장소 밖 scratchpad 측정 하네스로 잰다(커밋 안 함). `perf-mcm-p3.sh` 와 측정 JUnit `MyMenusLatencyPerfTest` 를 임시 워크트리에 복사해 실행한다. 시험은 `AnnotationConfigApplicationContext` + SQLite 임시 파일 + `DataInitializer` 시드(메뉴 44·OBJ 52·폴더 15·SYSADMIN 매핑 52, `getMyMenus` 결과 59행)로 같은 사용자의 `getMyMenus` 를 부른다. 조건은 base=nocache(기준), after=hit(변경, 캐시 적중)·miss(변경, 매 호출 전 무효화) 셋이고, warmup 300·iters 500 회다. 기준·변경을 번갈아(A·B·A·B…) 3회 재고 회차마다 `uptime` load1 을 남기며, 결론은 중앙값이다.
+  2. 응답 시간: 서버를 띄우지 않고 측정 하네스로 잰다(`scripts/perf/mcm/`). `perf-mcm-p3.sh` 가 측정 JUnit `MyMenusLatencyPerfTest` 를 임시 워크트리에 복사해 실행하고 끝나면 지운다. 시험은 `AnnotationConfigApplicationContext` + SQLite 임시 파일 + `DataInitializer` 시드(메뉴 44·OBJ 52·폴더 15·SYSADMIN 매핑 52, `getMyMenus` 결과 59행)로 같은 사용자의 `getMyMenus` 를 부른다. 조건은 base=nocache(기준), after=hit(변경, 캐시 적중)·miss(변경, 매 호출 전 무효화) 셋이고, warmup 300·iters 500 회다. 기준·변경을 번갈아(A·B·A·B…) 3회 재고 회차마다 `uptime` load1 을 남기며, 결론은 중앙값이다.
      - 주의: 시험 JVM 이 `-XX:TieredStopAtLevel=1` 이라 절대값은 실제 서버보다 비관적이다. 기준과 변경의 상대 비교로만 쓴다.
   3. 응답 시간은 이 PC(MacBook Air M5)의 편차가 크다. 반복 측정 없이 결론 내지 않는다.
+  4. 재현: `scripts/perf/mcm/perf-mcm-p3.sh`(README 참조)
 - 기준 커밋: refactor-2026-10-base(b557ccbd) / 변경 커밋: 5162f3d6, 3ab73e90, 42a8f2fe(레인 커밋 전체는 S3 참조), 최종 HEAD 는 레인 `refactor/mcm-menu`
-- 측정 환경: SELECT 수는 시험 실측(`MenuCatalogCallersSelectCountTest`, H2, 결정적, 1회). 기준 쪽 14 는 옛 코드의 호출 구조에서 계산한 값(호출마다 2·2·2·1 문장의 두 배)이다. 응답 시간은 2026-10-04 12:23~12:24 에 조정 세션 「측정 시작」 뒤 다른 부하 없이 단독으로 쟀다(개발 PC MacBook Air M5, 원자료의 load1 3.88~5.28). 기준은 b557ccbd(refactor-2026-10-base), 변경은 dev d529e992(3번 메뉴 캐시 머지 bfd25e48 포함)이다. 원자료는 저장소 밖 `/private/tmp/claude-501/-Users-jji-project-dmes-standard/3ef05fb4-7824-4adb-9e1f-a3ac3aa1333f/scratchpad/perf-mcm-p3-results.tsv`, 스크립트는 같은 scratchpad 의 `perf-mcm-p3.sh`·`MyMenusLatencyPerfTest` 다(커밋 안 함). 전원 연결 여부는 기록하지 못했다.
+- 측정 환경: SELECT 수는 시험 실측(`MenuCatalogCallersSelectCountTest`, H2, 결정적, 1회). 기준 쪽 14 는 옛 코드의 호출 구조에서 계산한 값(호출마다 2·2·2·1 문장의 두 배)이다. 응답 시간은 2026-10-04 12:23~12:24 에 조정 세션 「측정 시작」 뒤 다른 부하 없이 단독으로 쟀다(개발 PC MacBook Air M5, 원자료의 load1 3.88~5.28). 기준은 b557ccbd(refactor-2026-10-base), 변경은 dev d529e992(3번 메뉴 캐시 머지 bfd25e48 포함)이다. 원자료 TSV 는 저장소에 넣지 않았고 아래 표에 옮겨 적었다. 스크립트는 `scripts/perf/mcm/perf-mcm-p3.sh`·`MyMenusLatencyPerfTest` 다. 전원 연결 여부는 기록하지 못했다.
 
 SELECT 수(결정적, 1회로 확정):
 
