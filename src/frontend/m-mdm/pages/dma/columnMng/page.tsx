@@ -10,7 +10,7 @@
  * 오류는 서버 `meta.message` 만 화면에 온다(F12) — ErrorModal 에 그대로 보인다.
  * 쓰기 권한: [저장]·[신규]는 action "save", [분해]는 columnMng × "compare"(D6). 서버도 표준 관리자 역할을 다시 본다(D1).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ContentBody,
@@ -28,18 +28,20 @@ import {
   AgDataGrid,
   GridLimitNotice,
   GridPanel,
-  getRowIdentifier,
   type GridColumn,
 } from "@dk-oasis/shared/grid";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { DomainField } from "@/domain";
 import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { MdmPageLayout, badgeStyle } from "@/shell";
 
-import { compareName, saveColumn, searchColumns, searchDomains, loadColumnOptions, viewColumn } from "./api";
-import { DescriptionField } from "./DescriptionField";
-import { formatLabels, resolveLabels } from "./labels";
+import { compareName, saveColumn, searchColumns, loadColumnOptions, viewColumn } from "./api";
+import {
+  ColumnDetailForm,
+  SYSTEM_ROW_KEY,
+  type ColumnDetailHandle,
+} from "./ColumnDetailForm";
+import { formatLabels } from "./labels";
 import { saveFormError, toSaveParams } from "./save-form";
 import {
   PLACEHOLDER,
@@ -49,9 +51,9 @@ import {
   replaceToken,
   TOKEN_COLUMN_SIZES,
 } from "./tokens";
+import { mutedText, panelScrollStyle, panelTitleStyle, rowStyle } from "./styles";
 import {
   emptyForm,
-  type ColumnForm,
   type ColumnListRow,
   type CompareResult,
   type Direction,
@@ -62,7 +64,6 @@ import {
 import { TermRegPopModal } from "../termRegPop";
 
 const SCREEN_ID = "columnMng";
-const ROW_KEY = "__rowId";
 
 const LIST_COLUMNS: GridColumn[] = [
   { key: "columnName", header: "논리명", width: 170 },
@@ -82,35 +83,6 @@ const STATUS_TEXT: Record<NameToken["status"], string> = {
   UNKNOWN: "미등록",
 };
 
-const panelScrollStyle = {
-  flex: 1,
-  minHeight: 0,
-  overflow: "auto",
-  padding: "var(--spacing-sm)",
-} as const;
-const panelTitleStyle = {
-  margin: "0 0 var(--spacing-xs)",
-  fontWeight: 600,
-  color: "var(--color-text-secondary)",
-} as const;
-const rowStyle = {
-  display: "flex",
-  gap: "var(--spacing-xs)",
-  alignItems: "center",
-  flexWrap: "wrap",
-} as const;
-const mutedText = {
-  color: "var(--color-text-muted)",
-  fontSize: "var(--font-size-xs)",
-} as const;
-
-type SystemGridRow = Record<string, unknown> & {
-  systemCode: string;
-  physName: string;
-  transform: string;
-  note: string;
-};
-
 /** 사용자가 고른 동음이의어 — compare 를 다시 불러도 seq·surface 가 같으면 되살린다. */
 type Picks = Record<number, { surface: string; term: PickedTerm }>;
 
@@ -120,8 +92,6 @@ export default function ColumnMngPage() {
 
   const [keyword, setKeyword] = useState("");
   const [domainFilter, setDomainFilter] = useState("");
-  /** 편집 폼 도메인 칸에 보일 글자 — form.domainId 는 ID 만 갖는다. */
-  const [domainLabel, setDomainLabel] = useState("");
   const [list, setList] = useState<ColumnListRow[]>([]);
   const [systems, setSystems] = useState<SystemOption[]>([]);
   const [selectedColumnId, setSelectedColumnId] = useState<number | null>(null);
@@ -134,15 +104,9 @@ export default function ColumnMngPage() {
   const [picks, setPicks] = useState<Picks>({});
   const [popToken, setPopToken] = useState<NameToken | null>(null);
 
-  const [form, setForm] = useState<ColumnForm>(emptyForm);
-  /** 폼을 새로 채운 횟수 — 설명·활용처 메모 칸을 새로 그려 형식([글 | HTML])을 다시 판별한다(행 열기·다시 읽기·신규). */
-  const [formSeq, setFormSeq] = useState(0);
+  /** 컬럼 상세 — 입력 값은 ColumnDetailForm 이 갖는다(R12: 한 글자마다 루트가 다시 그려지지 않게). */
+  const detailRef = useRef<ColumnDetailHandle>(null);
   const [formTerms, setFormTerms] = useState<(number | null)[]>([]);
-  const [appliedPhys, setAppliedPhys] = useState<string | null>(null);
-  const [systemRows, setSystemRows] = useState<SystemGridRow[]>([]);
-  const [selectedSystemKey, setSelectedSystemKey] = useState<
-    string | number | null
-  >(null);
 
   const [busy, setBusy] = useState(false);
   // 목록 그리드의 로딩 표시는 목록 조회만 켠다 — 상세·분해 호출까지 따라 켜면 행을 누를 때마다 목록이 깜빡인다.
@@ -229,12 +193,12 @@ export default function ColumnMngPage() {
         const c = result.column;
         setSelectedColumnId(c.columnId);
         const listed = list.find((r) => r.columnId === c.columnId);
-        setDomainLabel(
-          c.domainId == null
-            ? ""
-            : listed?.domainName || `도메인 ${c.domainId}`,
-        );
-        setForm({
+        detailRef.current?.load({
+          domainLabel:
+            c.domainId == null
+              ? ""
+              : listed?.domainName || `도메인 ${c.domainId}`,
+          form: {
           columnId: c.columnId,
           columnName: c.columnName ?? "",
           physName: c.physName ?? "",
@@ -249,22 +213,18 @@ export default function ColumnMngPage() {
           refTarget: c.refTarget ?? "",
           refCateId: c.refCateId ?? "",
           usageNote: c.usageNote ?? "",
-        });
-        setFormSeq((n) => n + 1);
-        setFormTerms(
-          (result.terms ?? []).map((t) => (t.missing ? null : t.termId)),
-        );
-        setAppliedPhys(null);
-        setSystemRows(
-          (result.systems ?? []).map((s, i) => ({
-            [ROW_KEY]: `r-${c.columnId}-${i}`,
+          },
+          systemRows: (result.systems ?? []).map((s, i) => ({
+            [SYSTEM_ROW_KEY]: `r-${c.columnId}-${i}`,
             systemCode: s.systemCode,
             physName: s.physName,
             transform: s.transform ?? "",
             note: s.note ?? "",
           })),
+        });
+        setFormTerms(
+          (result.terms ?? []).map((t) => (t.missing ? null : t.termId)),
         );
-        setSelectedSystemKey(null);
       } catch (e) {
         fail(e);
       } finally {
@@ -357,48 +317,39 @@ export default function ColumnMngPage() {
     const forward = gen.direction === "FORWARD";
     const phys = forward ? composePhysName(genTokens) : gen.physName;
     const logical = forward ? composeLogicalName(genTokens) : gen.logicalName;
-    if (genDomain) {
-      const rec = gen.domains.find((d) => String(d.domainId) === genDomain);
-      setDomainLabel(rec?.domainName ?? `도메인 ${genDomain}`);
-    }
-    setForm((prev) => ({
-      ...prev,
-      columnName: logical,
-      physName: phys,
-      ...(forward && gen.labels
-        ? {
-            labelLong: gen.labels.labelLong,
-            labelMid: gen.labels.labelMid,
-            labelShort: gen.labels.labelShort,
-          }
-        : {}),
-      ...(genDomain ? { domainId: genDomain } : {}),
-    }));
+    const rec = genDomain
+      ? gen.domains.find((d) => String(d.domainId) === genDomain)
+      : undefined;
+    detailRef.current?.apply({
+      patch: {
+        columnName: logical,
+        physName: phys,
+        ...(forward && gen.labels
+          ? {
+              labelLong: gen.labels.labelLong,
+              labelMid: gen.labels.labelMid,
+              labelShort: gen.labels.labelShort,
+            }
+          : {}),
+        ...(genDomain ? { domainId: genDomain } : {}),
+      },
+      domainLabel: genDomain
+        ? (rec?.domainName ?? `도메인 ${genDomain}`)
+        : undefined,
+      appliedPhys: hasPlaceholder(genTokens) ? null : phys,
+    });
     setFormTerms(
       genTokens.map((t) =>
         t.status === "UNKNOWN" || t.status === "NO_ABBR" ? null : t.termId,
       ),
     );
-    setAppliedPhys(hasPlaceholder(genTokens) ? null : phys);
   }, [gen, genDomain, genTokens]);
 
   // ── 상세·저장 ─────────────────────────────────────────────────────────
-  const change = useCallback((key: keyof ColumnForm, value: string) => {
-    setForm((prev) => ({
-      ...prev,
-      [key]: key === "physName" ? value.toUpperCase() : value,
-    }));
-  }, []);
-
   const handleNew = useCallback(() => {
     setSelectedColumnId(null);
-    setForm(emptyForm());
-    setFormSeq((n) => n + 1);
-    setDomainLabel("");
+    detailRef.current?.load({ form: emptyForm(), domainLabel: "", systemRows: [] });
     setFormTerms([]);
-    setAppliedPhys(null);
-    setSystemRows([]);
-    setSelectedSystemKey(null);
     setGen(null);
     setGenTokens([]);
     setGenInput("");
@@ -408,6 +359,9 @@ export default function ColumnMngPage() {
 
   const handleSave = useCallback(async () => {
     // 서버와 같은 문구로 선검사한다(I12). 서버도 다시 막는다. 도메인은 필수가 아니다(D-141).
+    const detail = detailRef.current;
+    if (!detail) return;
+    const form = detail.getForm();
     const blocked = saveFormError(form, formTerms);
     if (blocked) {
       setErrorMessage(blocked);
@@ -416,7 +370,7 @@ export default function ColumnMngPage() {
     setBusy(true);
     try {
       const params = toSaveParams(form);
-      const systemsPayload = systemRows.map((r) => ({
+      const systemsPayload = detail.getSystemRows().map((r) => ({
         systemCode: String(r.systemCode ?? ""),
         physName: String(r.physName ?? ""),
         transform: String(r.transform ?? ""),
@@ -435,14 +389,12 @@ export default function ColumnMngPage() {
   }, [
     domainFilter,
     fail,
-    form,
     formTerms,
     keyword,
     loadList,
     openColumn,
     showAll,
     showMessage,
-    systemRows,
   ]);
 
   // ── 분해 토큰 그리드 ──────────────────────────────────────────────────
@@ -511,49 +463,8 @@ export default function ColumnMngPage() {
     [genTokens, handlePickCandidate],
   );
 
-  // ── 시스템별 실제 필드명 그리드 ────────────────────────────────────────
-  const systemColumns = useMemo<GridColumn[]>(
-    () => [
-      {
-        key: "systemCode",
-        header: "시스템",
-        width: 110,
-        editable: true,
-        cellEditor: "select",
-        cellEditorValues: systems.map((s) => s.systemCode),
-      },
-      { key: "physName", header: "실제 필드명", width: 200, editable: true },
-      { key: "transform", header: "변환 규칙", width: 120, editable: true },
-      { key: "note", header: "note", width: 160, editable: true },
-    ],
-    [systems],
-  );
-
-  const handleSystemCellChange = useCallback(
-    (p: { rowKey: string | number; field: string; newValue: unknown }) => {
-      setSystemRows((prev) =>
-        prev.map((r) =>
-          getRowIdentifier(r, ROW_KEY) === p.rowKey
-            ? { ...r, [p.field]: p.newValue ?? "" }
-            : r,
-        ),
-      );
-    },
-    [],
-  );
-
   const canSave = canDoButton(rbac, SCREEN_ID, "save");
   const canCompare = canDoButton(rbac, SCREEN_ID, "compare");
-  const labelPreview = resolveLabels({
-    columnName: form.columnName,
-    labelLong: form.labelLong,
-    labelMid: form.labelMid,
-    labelShort: form.labelShort,
-  });
-  const physMismatch =
-    appliedPhys != null &&
-    form.physName !== "" &&
-    form.physName !== appliedPhys;
 
   return (
     <MdmPageLayout
@@ -809,213 +720,7 @@ export default function ColumnMngPage() {
             </div>
           </ContentPanel>
 
-          <ContentPanel flex="1.2 1 0">
-            <div style={panelScrollStyle}>
-              <p style={panelTitleStyle}>컬럼 상세</p>
-              <table style={DETAIL_TABLE_STYLE}>
-                <tbody>
-                  <tr>
-                    <th style={DETAIL_LABEL_CELL}>논리명 *</th>
-                    <td style={DETAIL_VALUE_CELL} colSpan={3}>
-                      <Input
-                        data-testid="form-column-name"
-                        value={form.columnName}
-                        maxLength={100}
-                        onChange={(v) => change("columnName", v)}
-                      />
-                    </td>
-                  </tr>
-                  <tr>
-                    <th style={DETAIL_LABEL_CELL}>표준 물리명 *</th>
-                    <td style={DETAIL_VALUE_CELL} colSpan={3}>
-                      <Input
-                        data-testid="form-phys-name"
-                        value={form.physName}
-                        maxLength={50}
-                        onChange={(v) => change("physName", v)}
-                      />
-                      {physMismatch ? (
-                        <span
-                          style={{
-                            ...mutedText,
-                            color: "var(--color-warning)",
-                          }}
-                        >
-                          약어 조합({appliedPhys})과 다릅니다. 저장은 막지
-                          않습니다.
-                        </span>
-                      ) : null}
-                    </td>
-                  </tr>
-                  <tr>
-                    <th style={DETAIL_LABEL_CELL}>표시명 긴/중간/짧은</th>
-                    <td style={DETAIL_VALUE_CELL} colSpan={3}>
-                      <div style={rowStyle}>
-                        <Input
-                          data-testid="form-label-long"
-                          value={form.labelLong}
-                          maxLength={24}
-                          onChange={(v) => change("labelLong", v)}
-                          style={{ width: 200 }}
-                        />
-                        <Input
-                          data-testid="form-label-mid"
-                          value={form.labelMid}
-                          maxLength={12}
-                          onChange={(v) => change("labelMid", v)}
-                          style={{ width: 130 }}
-                        />
-                        <Input
-                          data-testid="form-label-short"
-                          value={form.labelShort}
-                          maxLength={6}
-                          onChange={(v) => change("labelShort", v)}
-                          style={{ width: 90 }}
-                        />
-                      </div>
-                      <span data-testid="form-label-preview" style={mutedText}>
-                        표시: {labelPreview.labelLong} / {labelPreview.labelMid}{" "}
-                        / {labelPreview.labelShort}
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th style={DETAIL_LABEL_CELL}>도메인</th>
-                    <td style={DETAIL_VALUE_CELL}>
-                      <DomainField
-                        testId="form-domain"
-                        domainId={form.domainId === "" ? null : Number(form.domainId)}
-                        label={domainLabel}
-                        search={searchDomains}
-                        onChange={(row) => {
-                          setDomainLabel(row ? row.domainName || row.stdName : "");
-                          change("domainId", row ? String(row.domainId) : "");
-                        }}
-                      />
-                    </td>
-                    <th style={DETAIL_LABEL_CELL}>필수</th>
-                    <td style={DETAIL_VALUE_CELL}>
-                      <Select
-                        data-testid="form-required"
-                        value={form.required}
-                        options={["Y", "N"]}
-                        onChange={(v) => change("required", v)}
-                      />
-                    </td>
-                  </tr>
-                  <tr>
-                    <th style={DETAIL_LABEL_CELL}>기본값</th>
-                    <td style={DETAIL_VALUE_CELL}>
-                      <Input
-                        value={form.defaultValue}
-                        maxLength={50}
-                        onChange={(v) => change("defaultValue", v)}
-                      />
-                    </td>
-                    <th style={DETAIL_LABEL_CELL}>참조 종류</th>
-                    <td style={DETAIL_VALUE_CELL}>
-                      <Select
-                        value={form.refKind}
-                        options={[
-                          { value: "", label: "없음" },
-                          { value: "MASTER", label: "MASTER" },
-                        ]}
-                        onChange={(v) => change("refKind", v)}
-                      />
-                    </td>
-                  </tr>
-                  <tr>
-                    <th style={DETAIL_LABEL_CELL}>참조 대상</th>
-                    <td style={DETAIL_VALUE_CELL}>
-                      <Input
-                        value={form.refTarget}
-                        maxLength={50}
-                        onChange={(v) => change("refTarget", v)}
-                      />
-                    </td>
-                    <th style={DETAIL_LABEL_CELL}>참조 카테고리</th>
-                    <td style={DETAIL_VALUE_CELL}>
-                      <Input
-                        value={form.refCateId}
-                        maxLength={50}
-                        onChange={(v) => change("refCateId", v)}
-                      />
-                    </td>
-                  </tr>
-                  <tr>
-                    <th style={DETAIL_LABEL_CELL}>설명</th>
-                    <td style={DETAIL_VALUE_CELL} colSpan={3}>
-                      <DescriptionField
-                        key={`description-${formSeq}`}
-                        value={form.description}
-                        testId="form-description"
-                        ariaLabel="설명"
-                        confirm={askConfirm}
-                        onChange={(v) => change("description", v)}
-                      />
-                    </td>
-                  </tr>
-                  <tr>
-                    <th style={DETAIL_LABEL_CELL}>활용처 메모</th>
-                    <td style={DETAIL_VALUE_CELL} colSpan={3}>
-                      <DescriptionField
-                        key={`usage-note-${formSeq}`}
-                        value={form.usageNote}
-                        testId="form-usage-note"
-                        ariaLabel="활용처 메모"
-                        confirm={askConfirm}
-                        onChange={(v) => change("usageNote", v)}
-                      />
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <div
-                data-testid="system-grid"
-                style={{ marginTop: "var(--spacing-sm)", height: 220 }}
-              >
-                <GridPanel
-                  title="시스템별 실제 필드명"
-                  count={systemRows.length}
-                  showAddButton
-                  showDeleteButton
-                  data={systemRows}
-                  columns={systemColumns}
-                  rowKey={ROW_KEY}
-                  selectedRowKey={selectedSystemKey}
-                  defaultRowValues={{
-                    systemCode: "",
-                    physName:
-                      form.physName && !form.physName.includes("*")
-                        ? `ZZ_${form.physName}`
-                        : "",
-                    transform: "",
-                    note: "",
-                  }}
-                  onDataChange={(rows) => {
-                    setSystemRows(rows as SystemGridRow[]);
-                    setSelectedSystemKey(null);
-                  }}
-                >
-                  <AgDataGrid
-                    columnSizing="fit"
-                    columns={systemColumns}
-                    data={systemRows}
-                    rowKey={ROW_KEY}
-                    singleClickEdit
-                    stopEditingWhenCellsLoseFocus
-                    highlightedRowKey={selectedSystemKey}
-                    onRowClick={(row) =>
-                      setSelectedSystemKey(getRowIdentifier(row, ROW_KEY))
-                    }
-                    onCellValueChanged={handleSystemCellChange}
-                    emptyMessage="시스템별 실제 필드명이 없습니다. [행추가]로 넣으세요."
-                  />
-                </GridPanel>
-              </div>
-            </div>
-          </ContentPanel>
+          <ColumnDetailForm ref={detailRef} systems={systems} confirm={askConfirm} />
         </ContentBody>
       </ContentBody>
 
