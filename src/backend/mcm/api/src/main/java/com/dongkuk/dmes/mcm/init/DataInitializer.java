@@ -250,7 +250,7 @@ public class DataInitializer implements ApplicationRunner {
         // SQLite 에서는 McmAuditStatementInspector(JpaConfig 가 SQLite 한정 등록)가 schema 접두를 제거하므로 그대로 동작.
         menuFinalizer.recomputeMenuFullSeq();
 
-        // 메뉴 카탈로그 무효화 — 이 메서드의 @Transactional 안이므로 즉시 한 번, 커밋 뒤 한 번 더 비운다(MenuCatalog javadoc).
+        // 메뉴 카탈로그 무효화 — 이 메서드의 @Transactional 안이므로 즉시 한 번, 트랜잭션이 끝난 뒤(커밋·롤백) 한 번 더 비운다(MenuCatalog javadoc).
         if (eventPublisher != null) {
             eventPublisher.publishEvent(new MenuChangedEvent(MenuChangedEvent.SEED));
         }

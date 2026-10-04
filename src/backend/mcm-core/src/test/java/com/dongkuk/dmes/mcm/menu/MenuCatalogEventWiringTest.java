@@ -26,7 +26,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 스프링 컨텍스트에서 {@link MenuCatalog} 의 두 리스너가 실제로 걸리는지 — 발행 즉시 한 번, 커밋 뒤 한 번 더.
+ * 스프링 컨텍스트에서 {@link MenuCatalog} 의 두 리스너가 실제로 걸리는지 — 발행 즉시 한 번, 트랜잭션이 끝난 뒤(커밋·롤백) 한 번 더.
  * 트랜잭션은 자원 없는 시험용 매니저로 열어 동기화만 켠다(DB 를 쓰는 끝에서 끝 확인은 mcm/api 의 OASIS 통합 시험).
  */
 class MenuCatalogEventWiringTest {
@@ -57,7 +57,7 @@ class MenuCatalogEventWiringTest {
     }
 
     @Test
-    @DisplayName("트랜잭션 밖 발행 — 즉시 비우고, 커밋 뒤 리스너도 fallback 으로 바로 돈다")
+    @DisplayName("트랜잭션 밖 발행 — 즉시 비우고, 트랜잭션 끝 리스너도 fallback 으로 바로 돈다")
     void outsideTransaction() {
         catalog.snapshot();
         ctx.publishEvent(new MenuChangedEvent(MenuChangedEvent.MENU));

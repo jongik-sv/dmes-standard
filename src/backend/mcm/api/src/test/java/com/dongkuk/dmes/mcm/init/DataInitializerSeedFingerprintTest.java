@@ -217,7 +217,7 @@ class DataInitializerSeedFingerprintTest {
     }
 
     @Test
-    @DisplayName("시드 끝에 트랜잭션 안에서 MenuChangedEvent(SEED) 를 한 번 낸다 — 메뉴 카탈로그가 즉시·커밋 뒤 비워진다")
+    @DisplayName("시드 끝에 트랜잭션 안에서 MenuChangedEvent(SEED) 를 한 번 낸다 — 메뉴 카탈로그가 즉시·트랜잭션이 끝난 뒤(커밋·롤백) 비워진다")
     void seedPublishesMenuChangedEventInsideTransaction() {
         assertThat(publishedEvents).containsExactly(new MenuChangedEvent(MenuChangedEvent.SEED));
         assertThat(publishedInTx).containsExactly(true);

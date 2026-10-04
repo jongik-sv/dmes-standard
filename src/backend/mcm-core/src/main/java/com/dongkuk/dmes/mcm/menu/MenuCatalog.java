@@ -57,8 +57,8 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * 남는 한계 — 적재는 호출자의 트랜잭션 안에서 돈다. 트랜잭션 단위 스냅샷 격리(SQLite WAL, PostgreSQL REPEATABLE READ,
  * MSSQL SNAPSHOT)에서는 무효화 뒤 시작한 적재도 그 트랜잭션이 시작될 때의 옛 스냅샷을 현재 세대로 저장할 수 있다(TTL 로만
  * 회복). 운영 Oracle·PostgreSQL 기본(문장 단위 READ COMMITTED)과 로컬 SQLite(WAL 설정 없음)에서는 일어나지 않는다.
- * 두 리스너 모두 예외를 밖으로 던지지 않는다 — WARN 로그만 남긴다. 커밋 뒤 리스너의 예외가 밖으로 나가면 DB 는 이미
- * 커밋됐는데 OASIS 응답은 S001 실패로 나가기 때문이다. 이벤트는 같은 JVM 안에서만 전달되므로 다른 인스턴스·운영자의
+ * 두 리스너 모두 예외를 밖으로 던지지 않는다 — WARN 로그만 남긴다. 트랜잭션이 끝난 뒤(커밋·롤백) 도는 리스너의 예외가
+ * 밖으로 나가면, 커밋된 경우 DB 는 이미 커밋됐는데 OASIS 응답은 S001 실패로 나가기 때문이다. 이벤트는 같은 JVM 안에서만 전달되므로 다른 인스턴스·운영자의
  * 직접 SQL 은 TTL 로만 반영된다. 기동 시드({@code DataInitializer}, mcm/api)는 끝에 {@link MenuChangedEvent#SEED} 를 낸다.
  *
  * <p><b>캐시된 엔티티는 읽기 전용이다.</b> 반환하는 {@link SecMenu}·{@link SecObj} 는 모든 요청이 함께 쓰는 같은

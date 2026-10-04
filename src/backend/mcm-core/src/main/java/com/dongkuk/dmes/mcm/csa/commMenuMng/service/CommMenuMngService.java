@@ -257,7 +257,7 @@ public class CommMenuMngService {
         // CRUD 직후 · 재조회 직전에 호출 → ds_menuList 가 항상 최신 FULL_SEQ 반영.
         secMenuNativeRepository.recomputeMenuFullSeq();
         if (cnt > 0) {
-            // 메뉴 카탈로그(SEC_MENU·SEC_OBJ 전수 캐시) 무효화 — 즉시 + 커밋 뒤(MenuCatalog 리스너).
+            // 메뉴 카탈로그(SEC_MENU·SEC_OBJ 전수 캐시) 무효화 — 즉시 + 트랜잭션이 끝난 뒤(커밋·롤백), MenuCatalog 리스너.
             eventPublisher.publishEvent(new MenuChangedEvent(MenuChangedEvent.MENU));
         }
 
