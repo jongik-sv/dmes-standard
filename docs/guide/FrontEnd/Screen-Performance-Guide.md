@@ -394,3 +394,4 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 | W7 | `WidgetFrame.tsx:223-231` | props 객체가 매 렌더 새로 만들어진다(무해) | 조치 없음. 본체를 `memo` 화할 때 같이 본다 |
 | ~~F4~~ | columnMng·termMng 상세 폼 | **완료**(커밋 `a416187b·02e36638·0b9ef24b`). 입력 한 글자마다 화면 루트 렌더, termMng 은 추천 그리드 셀 연쇄(R12 위반)였다 | 상세 폼 컴포넌트 분리, `recoColumns` 를 `form` 에서 떼기. 결과는 R12 적용 사례 |
 | F5 | dataMng·codeMng·layoutConfirm | 행 클릭 셸 1회(선택 행 snapshot) | 선택 행 복원이 요구사항인지 사용자 결정(R8) |
+| ~~F7~~ | m-mdm·analog 포털 탭 진입 `mdmMeta/columns` | **완료**(커밋 `e6dd175d`, 시험 `73831d0c`). MDM 서버는 `mdmMeta` 를 켜지 않아(설계상) 세션마다 그 모듈 첫 탭 진입에서 404 를 받았다(mdm-after-fix §F7) | 엔드포인트 없는 모듈(`MDM_META_UNSUPPORTED_MODULES`) 탭은 portal-shell 이 공급자를 미리 꺼 요청 0. 경로는 모듈별 그대로 둔다 |
