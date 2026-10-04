@@ -60,8 +60,10 @@ tasks.named('test') {
                 rootProject.file('../../frontend/m-mdm/pages/dmd/dataItemMng/cate/messages.ts'),
                 rootProject.file('../../frontend/m-mdm/pages/dmd/dataMng/messages.ts'))
             .withPropertyName('mdmScreenMessages').withPathSensitivity(PathSensitivity.RELATIVE)
-    // MdmOasisActionVocabularyTest — mcm 메뉴·버튼 시드
-    inputs.files(rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java'))
+    // MdmOasisActionVocabularyTest — mcm 메뉴·버튼 시드(DataInitializer, a6 2단계부터 seed/MdmMenuSeeder·CoreRbacSeeder)
+    inputs.files(rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java'),
+                rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/MdmMenuSeeder.java'),
+                rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/CoreRbacSeeder.java'))
             .withPropertyName('mcmDataInitializer').withPathSensitivity(PathSensitivity.RELATIVE)
     // RuleLedgerChecksTest — 룰 세트 코퍼스·퍼즈 사례(lib 테스트 리소스)를 파일 경로로 직접 읽는다
     inputs.files(rootProject.file('lib/src/test/resources/com/dongkuk/dmes/mdm/common/rule/rule-set-corpus.json'),

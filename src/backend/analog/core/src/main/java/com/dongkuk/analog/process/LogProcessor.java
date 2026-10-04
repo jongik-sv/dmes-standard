@@ -2,6 +2,7 @@ package com.dongkuk.analog.process;
 
 import com.dongkuk.analog.nodes.ObjectNode;
 import com.dongkuk.analog.parser.LogParser;
+import com.dongkuk.analog.parser.LogPattern;
 import com.dongkuk.analog.repository.LogRepository;
 import com.dongkuk.analog.scanner.LogData;
 import com.dongkuk.analog.scanner.LogLexer;
@@ -13,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 
 
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
 
 
 @Data
@@ -20,16 +22,20 @@ import java.util.*;
 public class LogProcessor {
 
     private Map<String, LogParser> parserMap = new HashMap();
-    private Queue<LogData> queue;
+    // 소비 루프가 빈 큐에서 잠들었다가 생산자가 넣는 즉시 깨도록 대기 큐를 쓴다(예전: 100ms sleep 폴링).
+    private BlockingQueue<LogData> queue;
     private LogLexer logLexer;
     private LogRepository logRepository;
     private boolean eoq = false;
     private boolean debug = false;
+    // 토큰 분류에 쓸 패턴 — 프로세서마다 들고 다닌다(전역 static 갈아 끼우기 대신).
+    private final LogPattern logPattern;
 
-    public LogProcessor(LogLexer logLexer, Queue<LogData> queue) {
+    public LogProcessor(LogLexer logLexer, BlockingQueue<LogData> queue, LogPattern logPattern) {
         this.logLexer = logLexer;
         logLexer.setQueue(queue);
         this.queue = queue;
+        this.logPattern = logPattern;
     }
 
     public void init() {
@@ -76,7 +82,7 @@ public class LogProcessor {
         }
 
         if(item.getServiceTag().isEmpty()) return;
-        LogToken logToken = LogToken.parse(item);
+        LogToken logToken = LogToken.parse(item, logPattern);
         if(!parserMap.containsKey(item.getServiceTag())) {
             LogParser logParser = new LogParser(logToken);
             logParser.setDebug(debug);
@@ -142,22 +148,27 @@ public class LogProcessor {
         StringBuilder sb = new StringBuilder();
 
         while (true) {
-            if(queue.isEmpty())
+            LogData item = queue.poll();
+            if(item == null)
             {
-                if(buff != null) {
+                // 큐가 비어도 1회 실행 모드에서는 들고 있던 줄을 소비하지 않는다 — 생산자가 아직 이어진 줄(스택)을
+                // 넣는 중일 수 있고, 다음 머리 줄이나 끝 신호(EOQ)에서 이어 붙인 메시지로 소비한다.
+                // 연속 모드는 끝 신호가 없으니 여기서 이어 붙인 메시지로 소비한다.
+                // 취소(cancel(true))로 인터럽트되면 take 가 InterruptedException 을 던져 소비 작업이 끝난다.
+                if(buff != null && logLexer.isContinuesProcessing()) {
+                    buff.setMessage(sb.toString());
                     consume(buff);
                     buff = null;
                 }
-
-                try {
-                    Thread.sleep(100);
-                    continue;
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+                item = queue.take();
             }
-            LogData item = queue.poll();
             if(item.isEoq() && !logLexer.isContinuesProcessing()) {
+                // 끝 신호 직전의 마지막 논리 줄(과 이어진 줄)이 아직 버퍼에 있다 — 마저 소비하고 끝낸다.
+                if(buff != null) {
+                    buff.setMessage(sb.toString());
+                    consume(buff);
+                    buff = null;
+                }
                 log.info("버퍼처리 다 끝났으니 consumer 종료");
                 return;
             }

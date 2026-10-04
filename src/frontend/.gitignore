@@ -17,7 +17,7 @@ out
 **/menu.db
 menu.db-journal
 **/.env
-test-results/.last-run.json
+test-results/
 .claude/
 *.tmp
 

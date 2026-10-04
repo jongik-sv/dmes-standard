@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.PatternSyntaxException;
@@ -154,7 +155,8 @@ public class LogPattern {
         @JsonProperty("test")
         private String test;
 
-        private Pattern compiledPattern; // 컴파일된 패턴을 저장할 필드
+        // 컴파일된 패턴을 저장할 필드 — LogPattern 하나를 여러 요청 스레드가 함께 쓰므로 volatile 로 안전하게 게시한다.
+        private volatile Pattern compiledPattern;
 
         public String getTest() {
             return test;
@@ -186,36 +188,37 @@ public class LogPattern {
 
     }
 
-//    private static final LogPattern instance = LogPattern.loadPattern();
-
-    private static LogPattern instance;
+    // 전역 static 인스턴스(getInstance/loadPattern 으로 갈아 끼우던 방식)는 2026-10-04 에 없앴다.
+    // 요청마다 갈아 끼우면 다른 요청이 반쯤 초기화된(assignValues 가 비어 있는) 인스턴스를 볼 수 있었고,
+    // LogToken 이 처음 읽힌 인스턴스를 static 으로 붙잡아 이후 교체가 무시됐다.
+    // 이제 load 가 다 채운 새 인스턴스를 돌려주고, 쓰는 쪽(LogProcessor)이 그 인스턴스를 들고 다닌다.
 
     private LogPattern() {
     }
 
-    public static LogPattern getInstance() {
-        return instance;
-    }
-
-    public static void loadPattern(File configFile) {
+    /** 설정 파일을 읽어 다 채운 LogPattern 을 돌려준다. */
+    public static LogPattern load(File configFile) {
         try {
-
-            ObjectMapper objectMapper = new ObjectMapper();
-            instance = objectMapper.readValue(configFile, LogPattern.class);
+            return initialize(new ObjectMapper().readValue(configFile, LogPattern.class));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
 
-//        try {
-//        ObjectMapper objectMapper = new ObjectMapper();
-//            instance = objectMapper.readValue(new File("./config.json"), LogPattern.class);
-//        } catch (IOException e) {
-//            throw new RuntimeException(e);
-//        }
+    /** 설정 내용을 읽어 다 채운 LogPattern 을 돌려준다(jar 안 classpath 자원처럼 File 로 열 수 없는 경우). */
+    public static LogPattern load(InputStream configStream) {
+        try {
+            return initialize(new ObjectMapper().readValue(configStream, LogPattern.class));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
+    /** 토큰별 assignValue 를 만들어 채운다 — 이 일이 끝난 뒤에야 인스턴스를 밖으로 내보낸다. */
+    private static LogPattern initialize(LogPattern pattern) {
         log.info("LogPattern Start -----------------------------------------------------------------------------");
-        log.info("Version: " + instance.getVersion());
-        for (Token token : instance.getTokens()) {
+        log.info("Version: " + pattern.getVersion());
+        for (Token token : pattern.getTokens()) {
             log.info("Token Name: " + token.getTokenName());
             log.info("Token Type: " + token.getTokenType());
             log.info("Node Type: " + token.getNodeType());
@@ -233,14 +236,16 @@ public class LogPattern {
                 log.info("Assign Value: " + assignValueStrings);
             }
 
-            token.assignValues = new ArrayList<>();
+            List<AssignValue> assignValues = new ArrayList<>();
             if(assignValueStrings != null) {
                 for (String  inputString: assignValueStrings) {
-                    token.assignValues.add(new AssignValue(inputString));
+                    assignValues.add(new AssignValue(inputString));
                 }
             }
+            token.assignValues = assignValues;
             log.info(token.assignValues.toString());
         }
         log.info("LogPattern Finish-----------------------------------------------------------------------------");
+        return pattern;
     }
 }
