@@ -1,14 +1,13 @@
 import { expect, test, type Locator } from "@playwright/test";
 import { gridCells, gridRows } from "./support/grid";
-import { T } from "./support/common";
+import { DEFAULT_BASE_URL as BASE, LOGIN_USER, PASSWORD, T } from "./support/common";
 
-const BASE = "http://localhost:5100";
-const SHOT = "test-results/master-rule-frame";   // 실행 증거 스크린샷 (BE 8100 local-ph + FE 5100 dev + SMOKE_LOGIN_USER/PASSWORD 필요)
+const SHOT = "test-results/master-rule-frame";   // 실행 증거 스크린샷 (BE 8100 local-ph + FE 5100 dev, 계정은 SMOKE_LOGIN_USER/PASSWORD 로 덮고 없으면 support/common 기본값)
 
 test("masterRuleFrame E2E — 메뉴 진입/P-001/조회/행추가/저장/재조회", async ({ page }) => {
   test.setTimeout(240_000);
-  const user = process.env.SMOKE_LOGIN_USER!;
-  const pw = process.env.SMOKE_LOGIN_PASSWORD!;
+  const user = LOGIN_USER;
+  const pw = PASSWORD;
 
   // 1. 로그인
   await page.goto(`${BASE}/login`);

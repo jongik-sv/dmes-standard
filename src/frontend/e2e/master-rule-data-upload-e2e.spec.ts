@@ -1,15 +1,14 @@
 import { expect, test } from "@playwright/test";
 import path from "path";
-import { T } from "./support/common";
+import { DEFAULT_BASE_URL as BASE, LOGIN_USER, PASSWORD, T } from "./support/common";
 
-const BASE = "http://localhost:5100";
-const SHOT = "test-results/master-rule-data-upload";   // 실행 조건: BE 8100(local-ph) + FE 5100 + SMOKE_LOGIN_USER/PASSWORD
+const SHOT = "test-results/master-rule-data-upload";   // 실행 조건: BE 8100(local-ph) + FE 5100, 계정은 SMOKE_LOGIN_USER/PASSWORD 로 덮고 없으면 support/common 기본값
 const FIXTURE = path.join(__dirname, "fixtures", "master-rule-data-upload.xlsx");   // 5행 헤더(COL_ID)/6행~ 데이터 2행(GBP/CHF)
 
 test("masterRuleDataUploadFilePopup E2E — 부모 P-002 진입/컬럼정의 자동조회/파일선택 미리보기/삭제등록 confirm/등록/다운로드", async ({ page }) => {
   test.setTimeout(240_000);
-  const user = process.env.SMOKE_LOGIN_USER!;
-  const pw = process.env.SMOKE_LOGIN_PASSWORD!;
+  const user = LOGIN_USER;
+  const pw = PASSWORD;
 
   // 1. 로그인 → 부모 masterRuleData 진입 → P-001 로 E2ESRC 선택
   await page.goto(`${BASE}/login`);

@@ -1,13 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { T } from "./support/common";
+import { DEFAULT_BASE_URL as BASE, LOGIN_USER, PASSWORD, T } from "./support/common";
 
-const BASE = "http://localhost:5100";
-const SHOT = "test-results/master-rule-data-list";   // 실행 조건: BE 8100(local-ph) + FE 5100 + SMOKE_LOGIN_USER/PASSWORD
+const SHOT = "test-results/master-rule-data-list";   // 실행 조건: BE 8100(local-ph) + FE 5100, 계정은 SMOKE_LOGIN_USER/PASSWORD 로 덮고 없으면 support/common 기본값
 
 test("masterRuleDataList E2E — 메뉴/P-001 연쇄/읽기전용 동적그리드/조건검색/마스터코드 셀클릭 P-002/엑셀다운", async ({ page }) => {
   test.setTimeout(240_000);
-  const user = process.env.SMOKE_LOGIN_USER!;
-  const pw = process.env.SMOKE_LOGIN_PASSWORD!;
+  const user = LOGIN_USER;
+  const pw = PASSWORD;
 
   // 1. 로그인 → 메뉴 진입 (업무기준 상세조회 — sqlcmd 등재 FULL_SEQ 2040130 실동작)
   await page.goto(`${BASE}/login`);
