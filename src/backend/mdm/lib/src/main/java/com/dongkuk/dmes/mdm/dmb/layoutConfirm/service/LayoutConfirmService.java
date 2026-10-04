@@ -102,7 +102,17 @@ public class LayoutConfirmService {
     public Map<String, Object> search(LayoutConfirmSearchRequest request) {
         String keyword = request == null ? null : LayoutRows.text(request.getKeyword());
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (Object[] pair : queries.drafts()) {
+        // 조건(검색어)이 없고 limit 이 오면 앞쪽 limit 건만 DB 가 읽고 전체 건수는 COUNT 로 센다(화면 성능 가이드 R1)
+        int limit = request == null || request.getLimit() == null ? 0 : request.getLimit();
+        Long totalCount = null;
+        List<Object[]> pairs;
+        if (limit > 0 && keyword == null) {
+            pairs = queries.drafts(limit);
+            totalCount = queries.draftCount();
+        } else {
+            pairs = queries.drafts();
+        }
+        for (Object[] pair : pairs) {
             MdmLayoutVer v = (MdmLayoutVer) pair[0];
             MdmLayout l = (MdmLayout) pair[1];
             if (keyword != null && !LayoutRows.matches(l.getLayoutName(), keyword) && !String.valueOf(l.getLayoutId()).equals(keyword)) {
@@ -121,6 +131,12 @@ public class LayoutConfirmService {
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("rows", rows);
+        if (limit > 0) {
+            // limit 을 보낸 호출자에게만 싣는다 — 보내지 않는 기존 호출자의 응답 모양은 그대로다
+            long total = totalCount != null ? totalCount : rows.size();
+            result.put("totalCount", total);
+            result.put("truncated", rows.size() < total);
+        }
         return result;
     }
 

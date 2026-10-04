@@ -150,14 +150,26 @@ public class LayoutMngService {
         LocalDateTime now = now();
         List<MdmLayout> headerLayouts = queries.layoutsOfKind(HEADER);
         if (HEADER.equals(request.getTarget())) {
-            out.put("headers", headerPicks(headerLayouts, request.getKeyword(), now));
+            out.put("headers", headerPicks(headerLayouts, request.getKeyword(), request.getHeaderLayoutId(), !request.isWithoutItems(), now));
             return out;
         }
         // 헤더 버전은 헤더 수와 무관하게 한 번 읽는다 — 헤더 콤보 길이·전문 목록 총 길이가 같이 쓴다
         Map<Long, List<MdmLayoutVer>> headerVersions = versionStore.versionsOf(headerLayouts.stream().map(MdmLayout::getLayoutId).toList());
         List<Map<String, Object>> layouts = new ArrayList<>();
+        // 조건(검색어·송수신·헤더)이 없고 limit 이 오면 앞쪽 limit 건만 DB 가 읽고 전체 건수는 COUNT 로 센다(화면 성능 가이드 R1)
+        int limit = request.getLimit() == null ? 0 : request.getLimit();
         if (!request.isOptionsOnly()) { // 진입 때 콤보 값만 — 전문 목록·헤더 스택·항목 수 집계를 하지 않는다.
-            layouts = messageRows(request, headerLayouts, headerVersions, now);
+            boolean noCondition = LayoutRows.text(request.getKeyword()) == null && LayoutRows.text(request.getSndSystem()) == null
+                    && LayoutRows.text(request.getRcvSystem()) == null && request.getHeaderLayoutId() == null;
+            boolean capped = limit > 0 && noCondition;
+            List<MdmLayout> candidates = capped ? queries.layoutsOfKind(MESSAGE, limit) : queries.layoutsOfKind(MESSAGE);
+            layouts = messageRows(request, candidates, headerLayouts, headerVersions, now);
+            if (limit > 0) {
+                // limit 을 보낸 호출자에게만 싣는다 — 보내지 않는 기존 호출자의 응답 모양은 그대로다
+                long total = capped ? queries.countOfKind(MESSAGE) : layouts.size();
+                out.put("totalCount", total);
+                out.put("truncated", layouts.size() < total);
+            }
         }
         out.put("layouts", layouts);
         List<Map<String, Object>> systems = new ArrayList<>();
@@ -184,18 +196,22 @@ public class LayoutMngService {
      * 헤더 추가 팝업 — 헤더마다 지금 시각 RELEASED 의 항목·길이(저장 전 전문에서도 상수 편집을 열 수 있게). RELEASED 가 없는 헤더는
      * 쌓을 수 없으므로 뺀다. 버전·항목·EAI 는 헤더 수와 무관하게 IN 으로 한 번씩 읽는다(항목 SEQ 순, EAI 코드 순 첫 행).
      */
-    private List<Map<String, Object>> headerPicks(List<MdmLayout> headerLayouts, String keyword, LocalDateTime now) {
-        List<MdmLayout> picked = headerLayouts.stream().filter(h -> LayoutRows.matches(h.getLayoutName(), keyword)).toList();
+    private List<Map<String, Object>> headerPicks(List<MdmLayout> headerLayouts, String keyword, Long headerLayoutId, boolean withItems,
+                                                  LocalDateTime now) {
+        List<MdmLayout> picked = headerLayouts.stream().filter(h -> LayoutRows.matches(h.getLayoutName(), keyword))
+                .filter(h -> headerLayoutId == null || headerLayoutId.equals(h.getLayoutId())).toList();
         List<Long> pickedIds = picked.stream().map(MdmLayout::getLayoutId).toList();
         Map<Long, List<MdmLayoutVer>> versions = versionStore.versionsOf(pickedIds);
         Map<Long, MdmLayoutVer> current = new HashMap<>();
         for (MdmLayout h : picked) {
             LayoutVersions.releasedAt(versions.getOrDefault(h.getLayoutId(), List.of()), now).ifPresent(v -> current.put(h.getLayoutId(), v));
         }
-        Map<LayoutKey, List<MdmLayoutItem>> items = queries.itemsOf(current.values().stream().map(LayoutKey::of).toList());
+        // 항목을 빼는 요청(withoutItems)은 항목·컬럼 사전을 읽지 않는다 — 목록 선택용 응답이 가볍다. 행을 고를 때 headerLayoutId 로 한 건을 받는다.
+        Map<LayoutKey, List<MdmLayoutItem>> items = withItems
+                ? queries.itemsOf(current.values().stream().map(LayoutKey::of).toList()) : Map.of();
         List<String> phys = new ArrayList<>();
         items.values().forEach(list -> list.stream().map(MdmLayoutItem::getColumnPhys).filter(Objects::nonNull).forEach(phys::add));
-        Map<String, LayoutColumnInfo> dict = dictionary.byPhysNames(phys);
+        Map<String, LayoutColumnInfo> dict = withItems ? dictionary.byPhysNames(phys) : Map.of();
         List<Map<String, Object>> rows = new ArrayList<>();
         for (MdmLayout h : picked) {
             MdmLayoutVer v = current.get(h.getLayoutId());
@@ -204,7 +220,9 @@ public class LayoutMngService {
             }
             Map<String, Object> row = headerOption(h, v.getOwnLength());
             row.put("EAI_CODE", v.getEaiCode()); // 지금 적용 중인 헤더 버전의 EAI(Ruling P3-15)
-            row.put("items", LayoutRows.items(items.getOrDefault(LayoutKey.of(v), List.of()), dict));
+            if (withItems) {
+                row.put("items", LayoutRows.items(items.getOrDefault(LayoutKey.of(v), List.of()), dict));
+            }
             rows.add(row);
         }
         return rows;
@@ -214,11 +232,11 @@ public class LayoutMngService {
      * 전문 목록 — 현재 적용 버전 기준(없으면 첫 DRAFT), 길이는 지금 시각 헤더 버전으로 합성한다. 버전·헤더 구성·항목은 전문 수와 무관하게
      * 한 번씩 읽는다.
      */
-    private List<Map<String, Object>> messageRows(LayoutMngSearchRequest request, List<MdmLayout> headerLayouts,
+    private List<Map<String, Object>> messageRows(LayoutMngSearchRequest request, List<MdmLayout> candidates, List<MdmLayout> headerLayouts,
                                                   Map<Long, List<MdmLayoutVer>> headerVersions, LocalDateTime now) {
         String snd = LayoutRows.text(request.getSndSystem());
         String rcv = LayoutRows.text(request.getRcvSystem());
-        List<MdmLayout> messages = queries.layoutsOfKind(MESSAGE).stream()
+        List<MdmLayout> messages = candidates.stream()
                 .filter(l -> LayoutRows.matches(l.getLayoutName(), request.getKeyword()))
                 .filter(l -> (snd == null || snd.equals(l.getSndSystem())) && (rcv == null || rcv.equals(l.getRcvSystem())))
                 .toList();

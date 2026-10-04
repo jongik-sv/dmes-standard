@@ -117,6 +117,29 @@ public class LayoutQueries {
                 + "ORDER BY l.layoutKind, l.layoutName, l.layoutId", Object[].class).getResultList();
     }
 
+    /** 확정 대기 앞쪽 {@code limit} 건(첫 조회 상한 R1) — {@link #drafts()} 와 같은 순서에서 DB 가 잘라 읽는다. */
+    public List<Object[]> drafts(int limit) {
+        return em.createQuery("SELECT v, l FROM MdmLayoutVer v, MdmLayout l WHERE l.layoutId = v.layoutId AND v.status = 'DRAFT' "
+                + "ORDER BY l.layoutKind, l.layoutName, l.layoutId", Object[].class).setMaxResults(limit).getResultList();
+    }
+
+    /** 확정 대기(DRAFT 버전 행) 전체 건수 — 첫 조회 상한이 잘렸는지 알린다. */
+    public long draftCount() {
+        return em.createQuery("SELECT COUNT(v) FROM MdmLayoutVer v WHERE v.status = 'DRAFT'", Long.class).getSingleResult();
+    }
+
+    /** 이 종류 레이아웃 앞쪽 {@code limit} 건(첫 조회 상한 R1) — {@link #layoutsOfKind(String)} 와 같은 순서에서 DB 가 잘라 읽는다. */
+    public List<MdmLayout> layoutsOfKind(String kind, int limit) {
+        return em.createQuery("SELECT l FROM MdmLayout l WHERE l.layoutKind = :kind ORDER BY l.layoutId", MdmLayout.class)
+                .setParameter("kind", kind).setMaxResults(limit).getResultList();
+    }
+
+    /** 이 종류 레이아웃 전체 건수. */
+    public long countOfKind(String kind) {
+        return em.createQuery("SELECT COUNT(l) FROM MdmLayout l WHERE l.layoutKind = :kind", Long.class)
+                .setParameter("kind", kind).getSingleResult();
+    }
+
     public List<MdmLayout> layoutsOfKind(String kind) {
         return em.createQuery("SELECT l FROM MdmLayout l WHERE l.layoutKind = :kind ORDER BY l.layoutId", MdmLayout.class)
                 .setParameter("kind", kind).getResultList();

@@ -137,8 +137,17 @@ public class HeaderMngService {
             out.put("eais", eais.stream().map(e -> LayoutRows.eaiRow(e, standard.get(e.getEaiCode()))).toList());
             return out;
         }
-        List<MdmLayout> headers = queries.layoutsOfKind(HEADER).stream()
-                .filter(l -> LayoutRows.matches(l.getLayoutName(), request.getKeyword())).toList();
+        // 조건(검색어)이 없고 limit 이 오면 앞쪽 limit 건만 DB 가 읽고 전체 건수는 COUNT 로 센다(화면 성능 가이드 R1)
+        int limit = request.getLimit() == null ? 0 : request.getLimit();
+        Long totalCount = null;
+        List<MdmLayout> headers;
+        if (limit > 0 && LayoutRows.text(request.getKeyword()) == null) {
+            headers = queries.layoutsOfKind(HEADER, limit);
+            totalCount = queries.countOfKind(HEADER);
+        } else {
+            headers = queries.layoutsOfKind(HEADER).stream()
+                    .filter(l -> LayoutRows.matches(l.getLayoutName(), request.getKeyword())).toList();
+        }
         // 헤더 버전·항목·사용 전문은 헤더 수와 무관하게 한 번씩 읽는다. 목록 버전은 지금 적용 중(없으면 DRAFT)
         Map<Long, List<MdmLayoutVer>> versions = versionStore.versionsOf(headers.stream().map(MdmLayout::getLayoutId).toList());
         Map<Long, MdmLayoutVer> shown = new HashMap<>();
@@ -171,6 +180,12 @@ public class HeaderMngService {
         }
         out.put("headers", rows);
         out.put("eais", eais.stream().map(e -> LayoutRows.eaiRow(e, standard.get(e.getEaiCode()))).toList());
+        if (limit > 0) {
+            // limit 을 보낸 호출자에게만 싣는다 — 보내지 않는 기존 호출자의 응답 모양은 그대로다
+            long total = totalCount != null ? totalCount : rows.size();
+            out.put("totalCount", total);
+            out.put("truncated", rows.size() < total);
+        }
         return out;
     }
 
