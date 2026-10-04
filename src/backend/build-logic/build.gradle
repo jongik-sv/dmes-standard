@@ -1,0 +1,4 @@
+// src/main/groovy/<id>.gradle 이 그 id 의 플러그인이 된다(precompiled script plugin).
+plugins {
+    id 'groovy-gradle-plugin'
+}

@@ -389,7 +389,7 @@ void invR02_allocatedExceedsOnHandRejected() {
   - 테스트 하나를 빠르게 하지는 않는다. 동시에 도는 수만 묶으므로 줄을 선 게이트는 그만큼 늦게 시작한다.
 - 환경 변수: `DMES_TEST_SLOTS`(슬롯 수, 기본 2, `0` 이면 끈다) · `DMES_TEST_SLOT_WAIT_MS`(기본 30분, 넘으면 경고하고 슬롯 없이 돈다). `CI` 가 있으면 끈다.
 - 슬롯은 `~/.gradle/dmes-test-slots/slot-<i>` 디렉터리다. 루트 테스트 묶음이 끝나면(실패해도) 풀리고, 소유 데몬이 죽었으면 다음 테스트가 회수한다. 손으로 지울 일은 없다.
-- 새 백엔드 모듈(includeBuild)을 추가하면 루트 build.gradle 끝에 `apply from: file('../gradle/test-slot.gradle')` 를 넣는다.
+- 슬롯은 모듈 루트 build.gradle 끝의 `apply from: file('../gradle/test-slot.gradle')` 가 건다(analog 도 같은 파일을 쓴다). Test 캐시 제외·JIT 설정은 `src/backend/build-logic` 의 `dmes.test-conventions` 플러그인이 건다. 슬롯을 플러그인으로 옮기지 않은 까닭은 precompiled script plugin 안의 `apply from` 이 Gradle 9.3.1 에서 구성 단계에 ClassLoaderScope 오류로 실패하기 때문이다. 새 백엔드 모듈(includeBuild)을 추가하면 settings.gradle 맨 앞에 `pluginManagement { includeBuild('../build-logic') }` 를, 루트 build.gradle 의 `plugins {}` 에 `id 'dmes.test-conventions'` 를, 루트 build.gradle 끝에 `apply from: file('../gradle/test-slot.gradle')` 를 넣는다.
 
 ## 11. 업무 모듈에서 MDM 메타 켜기
 

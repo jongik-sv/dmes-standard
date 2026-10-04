@@ -1,3 +1,17 @@
+// 백엔드 빌드 관례 플러그인(dmes.*, src/backend/build-logic) — Gradle 규칙상 pluginManagement 는 settings 맨 앞이어야 한다.
+pluginManagement {
+    includeBuild('../build-logic')
+}
+
 rootProject.name = 'localKafka'
+
+// 백엔드 공용 버전 카탈로그 — 이 폴더엔 gradle/libs.versions.toml 이 없어 자동으로 읽히지 않으므로 직접 가져온다.
+dependencyResolutionManagement {
+    versionCatalogs {
+        libs {
+            from(files('../gradle/libs.versions.toml'))
+        }
+    }
+}
 
 include 'api'

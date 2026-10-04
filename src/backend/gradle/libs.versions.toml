@@ -1,0 +1,128 @@
+# 백엔드 버전 카탈로그 — includeBuild 모듈(analog·oasis 제외)이 settings.gradle 에서 'libs' 로 가져온다.
+# 버전 없는 항목은 Spring Boot BOM(또는 dependency-management)이 버전을 정한다.
+# 같은 좌표의 판이 모듈마다 다르면 -vNNN(버전 고정)·-managed(BOM 관리) 처럼 항목을 나눠 둔다(통일은 다음 단계).
+
+[versions]
+spring-boot = "4.0.6"
+jjwt = "0.12.5"
+mapstruct = "1.6.3"
+camel = "4.20.0"
+# 내부 모듈 자기 판 — 각 모듈 build.gradle 의 version 이 여기서 읽는다
+cactus-core = "1.0.22-SNAPSHOT"
+caravan-core = "3.0.0"
+caravan-console = "0.1.0-SNAPSHOT"
+maru-mdm-engine = "0.1.0-SNAPSHOT"
+
+[libraries]
+# ── 내부 모듈 ──
+# cactus-core 소비 쪽 선언 판(1.0.20)은 자기 판(1.0.22)과 다르다 — includeBuild 가 프로젝트로 치환한다
+cactus-core-v1020 = { module = "com.dongkuk.dmes:cactus-core", version = "1.0.20-SNAPSHOT" }
+mcm-core = { module = "com.dongkuk.dmes:mcm-core" }
+aps-core = { module = "com.dongkuk.dmes:aps-core" }
+caravan-core = { module = "com.dongkuk.caravan:caravan-core", version.ref = "caravan-core" }
+caravan-console = { module = "com.dongkuk.caravan:caravan-console", version.ref = "caravan-console" }
+maru-mdm-engine-versioned = { module = "kr.dongkuk.maru.mdm:maru-mdm-engine", version.ref = "maru-mdm-engine" }
+maru-mdm-engine-unversioned = { module = "kr.dongkuk.maru.mdm:maru-mdm-engine" }
+
+# ── Spring Boot ──
+spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+spring-boot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
+spring-boot-configuration-processor = { module = "org.springframework.boot:spring-boot-configuration-processor" }
+spring-boot-flyway = { module = "org.springframework.boot:spring-boot-flyway" }
+spring-boot-webmvc = { module = "org.springframework.boot:spring-boot-webmvc" }
+spring-boot-starter-base = { module = "org.springframework.boot:spring-boot-starter" }
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring-boot-starter-aspectj = { module = "org.springframework.boot:spring-boot-starter-aspectj" }
+spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
+spring-boot-starter-jdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-webmvc = { module = "org.springframework.boot:spring-boot-starter-webmvc" }
+
+# ── Spring Framework·Data·Kafka·Security ──
+spring-context-base = { module = "org.springframework:spring-context" }
+spring-context-support = { module = "org.springframework:spring-context-support" }
+spring-jdbc = { module = "org.springframework:spring-jdbc" }
+spring-orm = { module = "org.springframework:spring-orm" }
+spring-test = { module = "org.springframework:spring-test" }
+spring-tx = { module = "org.springframework:spring-tx" }
+spring-web = { module = "org.springframework:spring-web" }
+spring-webmvc = { module = "org.springframework:spring-webmvc" }
+spring-data-jpa = { module = "org.springframework.data:spring-data-jpa" }
+spring-kafka-base = { module = "org.springframework.kafka:spring-kafka" }
+spring-kafka-test = { module = "org.springframework.kafka:spring-kafka-test" }
+spring-security-config = { module = "org.springframework.security:spring-security-config" }
+spring-security-core = { module = "org.springframework.security:spring-security-core" }
+spring-security-test = { module = "org.springframework.security:spring-security-test" }
+spring-security-web = { module = "org.springframework.security:spring-security-web" }
+springdoc-openapi-starter-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version = "2.8.14" }
+
+# ── Apache Camel(caravan-hub, camel-spring-boot-bom 이 버전 관리) ──
+camel-spring-boot-starter = { module = "org.apache.camel.springboot:camel-spring-boot-starter" }
+camel-sql-starter = { module = "org.apache.camel.springboot:camel-sql-starter" }
+camel-jackson-starter = { module = "org.apache.camel.springboot:camel-jackson-starter" }
+camel-servlet-starter = { module = "org.apache.camel.springboot:camel-servlet-starter" }
+
+# ── JSON ──
+jackson-databind-managed = { module = "com.fasterxml.jackson.core:jackson-databind" }
+jackson-databind-v2182 = { module = "com.fasterxml.jackson.core:jackson-databind", version = "2.18.2" }
+jackson-datatype-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310" }
+json-path = { module = "com.jayway.jsonpath:json-path" }
+json-schema-validator = { module = "com.networknt:json-schema-validator", version = "1.5.9" }
+
+# ── DB·ORM·마이그레이션 ──
+hibernate-core = { module = "org.hibernate.orm:hibernate-core" }
+hibernate-community-dialects-managed = { module = "org.hibernate.orm:hibernate-community-dialects" }
+hibernate-community-dialects-v705 = { module = "org.hibernate.orm:hibernate-community-dialects", version = "7.0.5.Final" }
+mybatis-base = { module = "org.mybatis:mybatis", version = "3.5.16" }
+mybatis-spring-boot-starter = { module = "org.mybatis.spring.boot:mybatis-spring-boot-starter", version = "3.0.5" }
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version = "3.45.3.0" }
+mssql-jdbc = { module = "com.microsoft.sqlserver:mssql-jdbc", version = "12.8.1.jre11" }
+h2 = { module = "com.h2database:h2" }
+flyway-core = { module = "org.flywaydb:flyway-core" }
+flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
+
+# ── Kafka ──
+kafka-clients = { module = "org.apache.kafka:kafka-clients" }
+embedded-kafka = { module = "io.github.embeddedkafka:embedded-kafka_2.13", version = "4.2.0" }
+
+# ── 보안·웹 ──
+jjwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
+jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
+jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
+jbcrypt = { module = "org.mindrot:jbcrypt", version = "0.4" }
+jsoup = { module = "org.jsoup:jsoup", version = "1.23.2" }
+jakarta-servlet-api = { module = "jakarta.servlet:jakarta.servlet-api" }
+jakarta-validation-api = { module = "jakarta.validation:jakarta.validation-api" }
+tomcat-embed-core = { module = "org.apache.tomcat.embed:tomcat-embed-core" }
+tomcat-embed-el = { module = "org.apache.tomcat.embed:tomcat-embed-el" }
+tomcat-embed-websocket = { module = "org.apache.tomcat.embed:tomcat-embed-websocket" }
+
+# ── 공통 유틸 ──
+lombok-base = { module = "org.projectlombok:lombok" }
+lombok-mapstruct-binding = { module = "org.projectlombok:lombok-mapstruct-binding", version = "0.2.0" }
+mapstruct-base = { module = "org.mapstruct:mapstruct", version.ref = "mapstruct" }
+mapstruct-processor = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
+caffeine-managed = { module = "com.github.ben-manes.caffeine:caffeine" }
+caffeine-v320 = { module = "com.github.ben-manes.caffeine:caffeine", version = "3.2.0" }
+slf4j-api = { module = "org.slf4j:slf4j-api" }
+aspectjweaver = { module = "org.aspectj:aspectjweaver" }
+jsch = { module = "com.jcraft:jsch", version = "0.1.55" }
+evalex = { module = "com.ezylang:EvalEx", version = "3.7.0" }
+onnxruntime = { module = "com.microsoft.onnxruntime:onnxruntime", version = "1.30.0" }
+djl-tokenizers = { module = "ai.djl.huggingface:tokenizers", version = "0.38.0" }
+
+# ── 테스트 ──
+junit-bom = { module = "org.junit:junit-bom", version = "5.11.4" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+junit4 = { module = "junit:junit", version = "4.13.2" }
+mockito-core = { module = "org.mockito:mockito-core" }
+hamcrest = { module = "org.hamcrest:hamcrest" }
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version = "1.3.0" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version = "1.1.7" }

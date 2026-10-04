@@ -1,0 +1,4 @@
+// 백엔드 빌드 관례 플러그인(convention plugin) 빌드 — ③ build-logic(2026-10-04).
+// 모듈 폴더(included build)마다 settings.gradle 의 pluginManagement { includeBuild('../build-logic') } 로 끌어와
+// build.gradle 의 plugins { id 'dmes.…' } 로 쓴다. Gradle API·Groovy 만 써서 외부 의존·저장소가 없다.
+rootProject.name = 'build-logic'

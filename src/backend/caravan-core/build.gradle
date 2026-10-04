@@ -1,10 +1,11 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'dmes.test-conventions'
 }
 
 group = 'com.dongkuk.caravan'
-version = '3.0.0'
+version = libs.versions.caravan.core.get()
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -48,54 +49,54 @@ def nexusPassword = 'admin123'
 
 dependencies {
     // ── Spring Boot 4 BOM ──
-    api platform('org.springframework.boot:spring-boot-dependencies:4.0.6')
-    annotationProcessor platform('org.springframework.boot:spring-boot-dependencies:4.0.6')
-    testAnnotationProcessor platform('org.springframework.boot:spring-boot-dependencies:4.0.6')
+    api platform(libs.spring.boot.dependencies)
+    annotationProcessor platform(libs.spring.boot.dependencies)
+    testAnnotationProcessor platform(libs.spring.boot.dependencies)
 
     // ── Spring Framework / Spring Kafka ──
-    api 'org.springframework:spring-context'
-    api 'org.springframework:spring-web'
-    api 'org.springframework:spring-webmvc'
-    api 'org.springframework:spring-tx'
-    api 'org.springframework:spring-jdbc'
-    api 'org.springframework.kafka:spring-kafka'
-    api 'org.apache.kafka:kafka-clients'
+    api libs.spring.context.base
+    api libs.spring.web
+    api libs.spring.webmvc
+    api libs.spring.tx
+    api libs.spring.jdbc
+    api libs.spring.kafka.base
+    api libs.kafka.clients
 
     // ── JSON ──
-    api 'com.fasterxml.jackson.core:jackson-databind'
-    api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'  // LocalDateTime 직렬화
+    api libs.jackson.databind.managed
+    api libs.jackson.datatype.jsr310  // LocalDateTime 직렬화
 
     // ── JPA (Hibernate) ──
-    api 'org.springframework.data:spring-data-jpa'
-    api 'org.hibernate.orm:hibernate-core'
+    api libs.spring.data.jpa
+    api libs.hibernate.core
     // 비표준 dialect (SQLite 등) 자동 감지용. mcm/lib 와 동일 컨벤션.
-    api 'org.hibernate.orm:hibernate-community-dialects'
-    api 'org.springframework:spring-orm'
+    api libs.hibernate.community.dialects.managed
+    api libs.spring.orm
 
     // ── Spring Boot AutoConfiguration (compileOnly) ──
-    compileOnly 'org.springframework.boot:spring-boot-autoconfigure'
-    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+    compileOnly libs.spring.boot.autoconfigure
+    annotationProcessor libs.spring.boot.configuration.processor
 
     // ── Lombok ──
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
+    compileOnly libs.lombok.base
+    annotationProcessor libs.lombok.base
 
     // ── Logging / Validation / Servlet ──
-    implementation 'org.slf4j:slf4j-api'
-    api 'jakarta.validation:jakarta.validation-api'
-    compileOnly 'jakarta.servlet:jakarta.servlet-api'
+    implementation libs.slf4j.api
+    api libs.jakarta.validation.api
+    compileOnly libs.jakarta.servlet.api
 
     // ── Test ──
-    testImplementation 'jakarta.servlet:jakarta.servlet-api'
-    testImplementation 'org.springframework.kafka:spring-kafka-test'
-    testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.mockito:mockito-core'
-    testImplementation 'org.hamcrest:hamcrest'
-    testImplementation 'com.jayway.jsonpath:json-path'
-    testImplementation 'org.springframework:spring-test'
-    testImplementation 'com.h2database:h2'
-    testCompileOnly 'org.projectlombok:lombok'
-    testAnnotationProcessor 'org.projectlombok:lombok'
+    testImplementation libs.jakarta.servlet.api
+    testImplementation libs.spring.kafka.test
+    testImplementation libs.junit4
+    testImplementation libs.mockito.core
+    testImplementation libs.hamcrest
+    testImplementation libs.json.path
+    testImplementation libs.spring.test
+    testImplementation libs.h2
+    testCompileOnly libs.lombok.base
+    testAnnotationProcessor libs.lombok.base
 }
 
 publishing {
@@ -128,21 +129,6 @@ publishing {
             }
             allowInsecureProtocol = true
         }
-    }
-}
-
-// ── 빌드 부하·속도 설정(chore/gradle-tuning, 2026-09-26) — 모든 Test 태스크 공통 ──
-// - 빌드 캐시(gradle.properties org.gradle.caching=true)에서 Test 를 뺀다. 테스트가 선언되지 않은 외부 입력에 기댄다 —
-//   작업 트리 밖 파일(mdm: frontend messages.ts·mcm DataInitializer·maru-mdm-engine 코퍼스), 기본 application.yml 의
-//   상태 있는 ../data/*.db, BACKEND_CLIENT_KEY 환경 변수. 캐시가 다른 워크트리의 통과 결과를 꺼내 실패를 숨길 수 있다.
-//   컴파일 등 다른 태스크는 그대로 캐시한다. 루트 composite 에서 켠 캐시는 모든 includeBuild 에 적용되므로 모듈마다 둔다.
-// - 테스트 JVM 은 짧게 돌아 C2 JIT 컴파일이 CPU 만 먹고(측정 시 350% 가까이) 이득이 없다 — C1 까지만 쓴다.
-allprojects {
-    tasks.withType(Test).configureEach {
-        outputs.doNotCacheIf('선언되지 않은 외부 입력(작업 트리 밖 파일·../data SQLite·환경 변수)에 기대는 테스트') { true }
-        // C1 만 쓰면 JVM 이 코드 캐시 기본값을 240MB → 48MB 로 줄인다. mdm/api 1060건에서 "Out of space in CodeCache for
-        // adapters" 로 OASIS 호출이 실패했다(2026-09-26) — 원래 기본값으로 되돌린다(예약 크기라 쓰는 만큼만 잡힌다).
-        jvmArgs '-XX:TieredStopAtLevel=1', '-XX:ReservedCodeCacheSize=240m'
     }
 }
 
