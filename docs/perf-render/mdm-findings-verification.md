@@ -7,7 +7,7 @@
 
 ## 0. 결론 요약
 
-1. **순위와 서버 수치는 재현된다.** columnMng > termMng > 나머지 순서, 조건 없는 전체 조회, columnMng 2.89MB·7,858건, TTFB 수준(columnMng ≈345ms, termMng ≈130ms)이 같다.
+1. **cold 중앙값은 부분 재현이다**(5화면 ±25% 안, layoutConfirm 은 지표 무효, headerMng·codeMng 는 격자 안 동률). **순위와 서버 수치는 재현된다.** columnMng > termMng > 나머지 순서, 조건 없는 전체 조회, columnMng 2.89MB·7,858건, TTFB 수준(columnMng ≈345ms, termMng ≈130ms)이 같다.
 2. **하네스 본 지표 `searchToRowMs` 는 Playwright 폴링 격자 값이다.** 같은 회차를 페이지 안 시계로 재면 columnMng 조회→첫 행은 **≈380ms**(하네스 ≈820ms), termMng 은 **≈167ms**(하네스 ≈211ms)다.
 3. 그래서 **"columnMng 프런트 442ms" 는 존재하지 않는다.** 응답 헤더→첫 행은 ≈33ms 이고 그중 ≈20ms 는 모든 화면 공통 바닥값이다. columnMng 체감 시간의 ≈92% 가 서버 TTFB 다.
 4. **"cold" 가 cold 가 아니었다.** 회차 하나의 6화면이 브라우저 컨텍스트를 공유해 앞 화면 탭이 뒤 화면에 복원됐다. 그래서 "진입 API 27~47건", "/api/auth/me 진입당 22회", "화면 무관 호출 7건" 은 측정 결함이 만든 숫자다. 메뉴 클릭 뒤 실제 값은 auth/me 4회(columnMng 6회), 화면 무관 호출 1건(secFavorite)이다.
@@ -43,8 +43,8 @@
 
 | # | OC 주장 | OC 값 | 재현 값 | 판정 | 근거 |
 |---|---|---|---|---|---|
-| 1 | task 안(setTimeout·rAF) 200ms 루프는 long task 1건, `page.evaluate` 최상위 동기 루프는 안 잡힘 | 1건/200ms, 0건 | 보정 6화면 모두 calib 200.4~203.2ms 와 long task 1건 이상 잡힘 | **부분** | 앞 절반은 재현(`asis-calib`). 뒤 절반은 OC 원자료가 없고(`calib-probe*` 스크립트만 있음) 이번에도 따로 재지 않았다. 더 중요한 점: 보정은 관측기가 산다는 것만 보이고 "렌더가 가볍다" 를 증명하지 않는다(§4-3) |
-| 2 | cold 3회 중앙값 순위·크기 | columnMng 826.9 · termMng 228.6 · headerMng 60.8 · codeMng 60.0 · dataMng 55.6 · layoutConfirm 40.7 | 원본 하네스: 822.1 · 213.0 · 61.5 · 62.4 · 56.9 · 29.7 | **재현(하네스 값으로), 의미는 무효** | ±25% 안: 5개. layoutConfirm 은 −27% 로 벗어남(지표 자체가 무효, 아래). headerMng·codeMng 1ms 차 뒤바뀜은 동률. **값이 폴링 격자에 붙는다**: 같은 회차 페이지 안 시계는 columnMng 379.1 · termMng 169.8 · headerMng 25.4 · codeMng 24.8 · dataMng 24.6 · layoutConfirm 16.7(`fix-cold`). 순위는 유지된다 |
+| 1 | task 안(setTimeout·rAF) 200ms 루프는 long task 1건, `page.evaluate` 최상위 동기 루프는 안 잡힘 | 1건/200ms, 0건 | 보정 6화면 모두 long task 1건 이상 잡힘. about:blank 프로브 3회: evaluate 최상위 0건·0건·0건, setTimeout 안 202·200·200ms 1건씩 | **참** | `asis-calib`, `lt-probe.out`. OC 는 뒤 절반의 원자료를 남기지 않았다(`calib-probe*` 스크립트만). 다만: 보정은 관측기가 산다는 것만 보이고 "렌더가 가볍다" 를 증명하지 않는다(§4-3) |
+| 2 | cold 3회 중앙값 순위·크기 | columnMng 826.9 · termMng 228.6 · headerMng 60.8 · codeMng 60.0 · dataMng 55.6 · layoutConfirm 40.7 | 원본 하네스: 822.1 · 213.0 · 61.5 · 62.4 · 56.9 · 29.7 | **부분 재현**(기준 미달 2곳, 원인 확인) | ±25% 안: 5개. layoutConfirm 은 −27% 로 벗어나는데 진입 자동 조회 때문에 지표 자체가 무효다(§2.1). headerMng(61.5)·codeMng(62.4) 순위가 뒤바뀌었으나 두 값이 같은 폴링 격자 칸이라 잡음이다(페이지 안 시계 25.4·24.8). **값이 폴링 격자에 붙는다**: 같은 회차 페이지 안 시계는 columnMng 379.1 · termMng 169.8 · headerMng 25.4 · codeMng 24.8 · dataMng 24.6 · layoutConfirm 16.7(`fix-cold`). 순위는 유지된다 |
 | 3 | columnMng 조회 TTFB ≈371ms, 응답 ≈2.89MB·7,858건, 조건 없는 전체 조회 | 371 / 2.89MB / 7,858 | TTFB 하네스 343.8~350.5(중앙값), curl BFF 337~349ms, WAS(8096) 직접 318~325ms. 2,893,211B·7,858건. 요청 본문 `{"params":{"keyword":""}}` | **참**(TTFB −7%) | `fix-iso`, curl 3회씩. BFF 경유 비용은 ≈20~25ms 다(OC·리뷰가 가설로 든 "BFF 버퍼링 ≈118ms" 는 아니다) |
 | 4 | columnMng 프런트 442ms 의 성분: RecalcStyle 129·Layout 59 등 작은 작업 다수 | 442ms | 응답 헤더→첫 행 **32.6ms**(본문 완료→첫 행 19.1ms). 이 구간 UpdateLayoutTree 4회·Layout 2회, 50ms 넘는 task 0 | **거짓** | trace(§3.1). 442 = 폴링 5번째 시도(≈770ms)+클릭 비용 − TTFB. 129/59 회는 공유 컨텍스트에서 재현되지만(57/123~59/132) 메뉴 펼침·포털 홈·shell 까지 합친 누적이다 |
 | 5 | termMng TTFB ≈136ms, 조건 없는 전체 조회 | 136 | 하네스 131~134, curl BFF 125~131, WAS 111~112. 본문 `{"keyword":"","systems":"","context":""}` | **참** | 추가 발견: **termMng 응답도 3.07MB·8,155건**이다. findings 에 크기가 없다 |
@@ -240,7 +240,7 @@
 3. **같은 브라우저 컨텍스트로 여러 화면을 재면 cold 가 아니다.** 포털이 localStorage 로 열린 탭을 복원한다. 화면마다 새 컨텍스트로 잰다.
 4. **Node `Date.now()` 와 CDP `wallTime` 은 다른 시계다**(이 PC 에서 ≈123~156ms 어긋남). 클릭 전후 분류는 페이지 시계(Resource Timing) 한 축으로 한다.
 5. **long task 0 은 렌더가 가볍다는 뜻이 아니다.** 50ms 미만 작업 여럿이면 0 이다. 구간 분해(trace)로 판정한다.
-6. **`page.evaluate` 최상위 동기 루프는 long task 로 잡히지 않는다**(OC 관찰, 이번 미재현). 보정 루프는 `setTimeout` 안에서 돌린다.
+6. **`page.evaluate` 최상위 동기 루프는 long task 로 잡히지 않는다**(about:blank 프로브 3회 0건, setTimeout 안은 3회 모두 1건). 보정 루프는 `setTimeout` 안에서 돌린다.
 7. **CDP `Performance.getMetrics` 의 `*Duration` 은 초 단위**이고 구간은 스냅샷 사이 전체다.
 8. **`responseReceived.encodedDataLength` 는 헤더까지**다. 본문 크기는 `loadingFinished` 에서 받는다.
 9. **진입 자동 조회 화면**은 [조회] 클릭 지표가 무효가 된다. 클릭 뒤 조회 요청 수로 확인한다.
@@ -253,5 +253,5 @@
 ## 8. 한계
 - 로컬 SQLite·로컬 망이다. 3MB 응답 전송이 로컬에서는 ≈13ms 지만 운영 망에서는 크기만큼 늘어난다.
 - trace 에 CPU 프로파일러 카테고리를 넣지 않아 응답 뒤 ≈20ms 안의 JSON.parse·행 가공·AG Grid 적재를 나누지 못했다.
-- `page.evaluate` 최상위 루프가 long task 로 안 잡힌다는 OC 주장은 다시 재지 않았다.
+- 페이지 안 시계의 MutationObserver 콜백은 `getClientRects` 로 강제 레이아웃을 일으킨 뒤 시각을 적는다. trace 상 ≈2~3ms 라 `inPage*` 값은 그만큼 크다(≈25ms 화면에서 10% 안팎).
 - warm 은 탭 2개 전환만 쟀다. 탭 여러 개를 열어 둔 상태의 새 화면 진입 비용은 재지 않았다.
