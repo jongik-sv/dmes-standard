@@ -33,7 +33,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * <p><b>캐시</b> — 의존 추가 없이 {@code volatile} 불변 스냅샷(List.copyOf·수정 불가 맵) + TTL({@value #TTL_MINUTES}분)
  * ({@code widget.ext.ExchangeAllowList} 관례). 만료·무효화 뒤 첫 호출이 두 테이블을 한 번씩 읽어 다시 채운다.
  * 동시에 여러 요청이 들어와도 다시 읽기는 한 번만 한다(잠금). 읽는 도중 무효화가 오면 읽은 결과를 그 호출에만
- * 돌려주고 저장하지 않는다(세대 번호) — 무효화가 묻히지 않게 하기 위해서다.
+ * 돌려주고 저장하지 않는다(세대 번호) — 무효화가 묻히지 않게 하기 위해서다. 무효화는 잠금을 잡지 않으므로 세대 확인과
+ * 저장 사이에 끼어들 수 있다. 그래서 저장한 스냅샷에도 적재 때의 세대를 담고, 읽을 때 현재 세대와 다르면 버린다 —
+ * 무효화 뒤에 늦게 써진 옛 스냅샷도 다음 읽기에서 다시 읽힌다.
  *
  * <p><b>무효화</b> — {@link MenuChangedEvent}(메뉴·폴더·OBJECT 저장)와 {@link RoleChangedEvent} 를 받으면 비운다.
  * <ol>
@@ -96,15 +98,19 @@ public class MenuCatalog {
         }
     }
 
-    private record Cached(Snapshot snapshot, Instant expiresAt) {}
+    /** 저장된 스냅샷 — {@code gen} 은 적재를 시작할 때의 세대. 현재 세대와 다르면 그 사이 무효화가 있었으므로 버린다. */
+    private record Cached(Snapshot snapshot, Instant expiresAt, long gen) {}
 
     private final SecMenuRepository secMenuRepository;
     private final SecObjRepository secObjRepository;
     private final Clock clock;
     private final Duration ttl;
     private final Object loadLock = new Object();
-    /** 무효화할 때마다 1 증가 — 적재 중 무효화가 오면 그 적재 결과는 저장하지 않는다. */
-    private final AtomicLong generation = new AtomicLong();
+    /**
+     * 무효화할 때마다 1 증가 — 적재 중 무효화가 오면 그 적재 결과는 저장하지 않고, 이미 저장된 것도 세대가 다르면 쓰지 않는다.
+     * 패키지 공개는 시험이 경쟁 뒤 상태(세대만 오르고 옛 스냅샷이 남은 상태)를 만들기 위해서다.
+     */
+    final AtomicLong generation = new AtomicLong();
     private volatile Cached cached;
 
     @Autowired
@@ -122,18 +128,23 @@ public class MenuCatalog {
     /** 현재 스냅샷 — 메뉴·OBJECT 를 함께 쓸 때는 이것 하나를 받아 쓴다(두 목록이 같은 적재에서 나온다). */
     public Snapshot snapshot() {
         Cached c = cached;
-        if (c != null && clock.instant().isBefore(c.expiresAt())) return c.snapshot();
+        if (isUsable(c, clock.instant())) return c.snapshot();
         synchronized (loadLock) {
             c = cached;
             Instant now = clock.instant();
-            if (c != null && now.isBefore(c.expiresAt())) return c.snapshot();
+            if (isUsable(c, now)) return c.snapshot();
             long gen = generation.get();
             Snapshot loaded = Snapshot.of(secMenuRepository.findAll(), secObjRepository.findAll());
             if (generation.get() == gen) {
-                cached = new Cached(loaded, now.plus(ttl));
+                cached = new Cached(loaded, now.plus(ttl), gen);
             }
             return loaded;
         }
+    }
+
+    /** 저장된 스냅샷이 현재 세대이고 만료 전이면 쓴다. */
+    private boolean isUsable(Cached c, Instant now) {
+        return c != null && c.gen() == generation.get() && now.isBefore(c.expiresAt());
     }
 
     /** TB_MCM_SEC_MENU 전 행 (불변, 읽기 전용 엔티티). */

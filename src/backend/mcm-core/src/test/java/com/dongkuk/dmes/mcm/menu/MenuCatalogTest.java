@@ -186,6 +186,23 @@ class MenuCatalogTest {
     }
 
     @Test
+    @DisplayName("세대 확인 뒤·저장 전에 무효화가 끼어들어 옛 스냅샷이 저장돼도 다음 호출이 버리고 다시 읽는다")
+    void staleSnapshotStoredAfterInvalidationIsDiscarded() {
+        catalog.snapshot();
+        // 경쟁 뒤 상태 — invalidate() 가 세대를 올리고 cached 를 비운 다음, 늦게 온 적재가 옛 스냅샷을 다시 써 넣었다.
+        catalog.generation.incrementAndGet();
+
+        when(menuRepo.findAll()).thenReturn(List.of(menu("M1", "csa", "commMenuMng", "새 이름")));
+        assertThat(catalog.menus()).extracting(SecMenu::getMenuNm).containsExactly("새 이름");
+        verify(menuRepo, times(2)).findAll();
+        verify(objRepo, times(2)).findAll();
+
+        // 새로 저장된 스냅샷은 현재 세대이므로 다시 적중한다.
+        catalog.menus();
+        verify(menuRepo, times(2)).findAll();
+    }
+
+    @Test
     @DisplayName("돌려주는 목록·맵은 고칠 수 없다")
     void returnedCollectionsAreImmutable() {
         MenuCatalog.Snapshot s = catalog.snapshot();
