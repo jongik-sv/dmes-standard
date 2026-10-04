@@ -71,7 +71,7 @@ describe("domainMng page", () => {
     stubFetch([]);
     await render();
     expect(container.querySelector(".page-layout__footer-screen-id")?.textContent).toBe("domainMng");
-    expect(container.querySelector(".domain-mng__empty")?.textContent).toBe("조회된 도메인이 없습니다");
+    expect(container.querySelector("[data-testid=domain-mng-empty]")?.textContent).toBe("조회된 도메인이 없습니다");
   });
 
   it("행이 있으면 들여쓴 이름이 보인다", async () => {
@@ -83,9 +83,9 @@ describe("domainMng page", () => {
     ]);
     await render();
     // 첫 진입은 목록을 자동 조회하지 않는다 — [조회] 를 눌러야 불러온다(cf4fbb05).
-    expect(container.querySelector(".domain-mng__empty")).not.toBeNull();
+    expect(container.querySelector("[data-testid=domain-mng-empty]")).not.toBeNull();
     await search();
-    expect(container.querySelector(".domain-mng__empty")).toBeNull();
+    expect(container.querySelector("[data-testid=domain-mng-empty]")).toBeNull();
     expect(container.querySelector(".domain-mng__count")?.textContent).toBe("도메인 2건");
     expect(container.textContent).toContain("└ 코일 두께");
   });

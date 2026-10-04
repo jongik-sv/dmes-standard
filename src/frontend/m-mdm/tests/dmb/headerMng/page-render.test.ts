@@ -171,7 +171,21 @@ describe("headerMng page", () => {
     stubFetch([]);
     await render();
     expect(container.querySelector(".page-layout__footer-screen-id")?.textContent).toBe("headerMng");
-    expect(container.querySelector("[data-testid=header-list-empty]")?.textContent).toBe("조회된 헤더가 없습니다");
+    await vi.waitFor(() =>
+      expect(container.querySelector("[data-testid=header-list-empty]")?.textContent).toBe("조회된 헤더가 없습니다")
+    );
+  });
+
+  it("0건 → N건 조회 전환 때 헤더 목록 그리드가 다시 마운트되지 않는다", async () => {
+    stubFetch([]);
+    await render();
+    await search();
+    const before = container.querySelector("[data-testid=header-list] .ag-root-wrapper");
+    expect(before, "0건에도 그리드는 마운트되어 있다").not.toBeNull();
+    stubFetch([HEADER_ROW]);
+    await search();
+    expect(container.querySelector("[data-testid=header-list] .ag-root-wrapper")).toBe(before);
+    expect(container.querySelector("[data-testid=header-list] .ag-row")).not.toBeNull();
   });
 
   it("헤더를 열면 헤더 길이를 항목에서 계산하고 사용 전문 영향도를 보인다", async () => {

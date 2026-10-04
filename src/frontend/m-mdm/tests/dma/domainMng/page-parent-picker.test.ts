@@ -71,7 +71,7 @@ describe("domainMng 신규 — 부모 검색형 선택", () => {
       root!.render(createElement(DmesUiProvider, null, createElement(DomainMngPage)));
     });
     await settle();
-    expect(container.querySelector(".domain-mng__empty")).not.toBeNull(); // 목록은 아직 비어 있다
+    expect(container.querySelector("[data-testid=domain-mng-empty]")).not.toBeNull(); // 목록은 아직 비어 있다
     const startNew = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((b) => b.textContent?.trim() === "도메인 등록")!;
     await act(async () => {
       startNew.click();
