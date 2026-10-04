@@ -84,6 +84,8 @@ export const SCREENS = [
     trail: [/^마루 MDM$/, /^용어·도메인$/, /^용어 관리$/],
     breadcrumb: "마루 MDM > 용어·도메인 > 용어 관리",
     listPanelTitle: "용어 목록",
+    /** count-renders ⑤ 상세 폼 입력 대상(R12). 저장하지 않는다. */
+    formInput: 'tr:has(th:text-is("맥락")) input',
     /** 조회 응답 대기용 — 이 URL 패턴이 아닌 다른 API 는 집계에서 뺀다. */
     searchUrlPattern: /\/api\/mdm\/oasis\/termMng\/search/,
     /**
@@ -100,6 +102,8 @@ export const SCREENS = [
     trail: [/^마루 MDM$/, /^용어·도메인$/, /^컬럼 사전$/],
     breadcrumb: "마루 MDM > 용어·도메인 > 컬럼 사전",
     listPanelTitle: "컬럼 목록",
+    /** count-renders ⑤ 상세 폼 입력 대상(R12, 표시명 긴). 저장하지 않는다. */
+    formInput: 'input[data-testid="form-label-long"]',
     searchUrlPattern: /\/api\/mdm\/oasis\/columnMng\/(columnMng\/search|search)/,
     searchUrlExclude: /optionsOnly/,
     needsSearch: true,
