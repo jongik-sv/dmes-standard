@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { login } from "./support/common";
+import { BASE_URL, LOGIN_USER, login } from "./support/common";
 
 /**
  * I/F Format Layout 관리 (mcm/cib interfaceFormatLayout) 화면 스모크.
@@ -14,8 +14,6 @@ import { login } from "./support/common";
  *   (4) 행추가 (FORMAT 미선택) → "포맷 조회 후 행추가" 안내 / 저장 버튼 노출
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin@dmes.com";
 
 test.describe("I/F Format Layout 관리 (interfaceFormatLayout) Smoke", () => {
   test.beforeEach(async ({ page }) => {

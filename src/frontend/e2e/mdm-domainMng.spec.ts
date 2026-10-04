@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { BASE_URL, T, login, walkMenuPath } from "./support/common";
+import { BASE_URL, LOGIN_USER, T, login, walkMenuPath } from "./support/common";
 import { gridCells, gridRowById } from "./support/grid";
 
 /**
@@ -17,7 +17,7 @@ import { gridCells, gridRowById } from "./support/grid";
  * 실행마다 STAMP 로 이름을 만들어 DB 가 비어 있지 않아도 다시 돌릴 수 있다.
  */
 
-const ADMIN = process.env.SMOKE_LOGIN_USER ?? "admin";
+const ADMIN = LOGIN_USER;
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
 const STAMP = Date.now().toString(36).toUpperCase();

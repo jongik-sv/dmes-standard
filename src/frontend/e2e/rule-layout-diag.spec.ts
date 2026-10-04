@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { T, loginByApi } from "./support/common";
+import { BASE_URL as BASE, T, loginByApi } from "./support/common";
 
 /**
  * 룰 화면(ruleEdit) · 룰 세트 편집(ruleSetEdit) 레이아웃 진단.
@@ -17,7 +17,6 @@ import { T, loginByApi } from "./support/common";
  * 전제: 5100 포털 + mcm/mdm 백엔드.
  */
 
-const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
 
 /** 마루 MDM > 업무기준 > leaf 를 순서대로 연다. 이미 펼쳐져 있으면 클릭을 무시한다. */
 async function openMenu(page: Page, leaf: RegExp) {

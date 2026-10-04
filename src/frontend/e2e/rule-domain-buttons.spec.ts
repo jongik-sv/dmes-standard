@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { T, loginByApi } from "./support/common";
+import { DEFAULT_BASE_URL as BASE, T, loginByApi } from "./support/common";
 
 /**
  * 룰 화면 열 설정 — 도메인 칸에 붙은 찾기·해제 버튼(TSK-08-03 §2.1).
@@ -12,7 +12,6 @@ import { T, loginByApi } from "./support/common";
  *    React onClick 으로 끊으면 루트 컨테이너에서 처리돼 칸 리스너보다 늦어 통하지 않는다.)
  */
 
-const BASE = "http://127.0.0.1:5100";
 const RULE = "PROD_WGT_CALC";
 /** 서버 표기 룰 버전(D-144). */
 const VER = "2.000";

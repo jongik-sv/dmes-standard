@@ -19,11 +19,26 @@ export const T = {
   SLOW: 60_000,
 } as const;
 
-/** 포털 주소. mdm 화면 스펙의 기본값(127.0.0.1)이다 — 기본값이 localhost 인 스펙은 자기 BASE_URL 을 login 의 baseUrl 로 넘긴다. */
-export const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
+/**
+ * 포털 기본 주소. localhost 여야 한다 — 포털(NEXTAUTH_URL)이 localhost 로 되돌리므로 127.0.0.1 로 들어가면
+ * 로그인 세션 쿠키가 따라오지 않아 끊긴다. 환경변수를 읽지 않던 스펙은 이 값을 그대로 쓴다.
+ */
+export const DEFAULT_BASE_URL = "http://localhost:5100";
 
-/** 시험 계정 공통 비밀번호(mcm 픽스처 사용자·admin). */
-export const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
+/** 포털 주소. SMOKE_MCM_BASE_URL 로 덮는다(격리 포털을 띄운 스펙은 반드시 자기 포털을 가리킨다). */
+export const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? DEFAULT_BASE_URL;
+
+/** 시험 기본 계정 — DataInitializer 시드(USER_ID=admin). admin@dmes.com 은 없는 계정이라 401 이다. */
+export const DEFAULT_LOGIN_USER = "admin";
+
+/** 시험 로그인 아이디. SMOKE_LOGIN_USER 로 덮는다. */
+export const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? DEFAULT_LOGIN_USER;
+
+/** 시험 계정 공통 기본 비밀번호(mcm 픽스처 사용자·admin). */
+export const DEFAULT_PASSWORD = "admin123";
+
+/** 시험 계정 공통 비밀번호. SMOKE_LOGIN_PASSWORD 로 덮는다. */
+export const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? DEFAULT_PASSWORD;
 
 export interface LoginOptions {
   /** 포털 주소. 기본 BASE_URL. */
@@ -49,9 +64,9 @@ export async function login(page: Page, user: string, opts: LoginOptions = {}) {
 export interface ApiLoginOptions {
   /** 포털 주소(필수 — 스펙마다 기본값·환경변수 사용 여부가 다르다). */
   baseUrl: string;
-  /** 기본 "admin". */
+  /** 기본 DEFAULT_LOGIN_USER("admin"). */
   user?: string;
-  /** 기본 "admin123"(환경변수를 읽지 않는다 — 옮기기 전 스펙들이 글자 그대로 넣던 값). */
+  /** 기본 DEFAULT_PASSWORD("admin123")(환경변수를 읽지 않는다 — 옮기기 전 스펙들이 글자 그대로 넣던 값). */
   password?: string;
   /** 주면 로그인 뒤 그 페이지로 /portal 을 연다(domcontentloaded). */
   openPortal?: Page;
@@ -59,7 +74,7 @@ export interface ApiLoginOptions {
 
 /** 로그인 화면을 거치지 않고 next-auth CSRF 토큰 + credentials 콜백으로 세션 쿠키를 받는다. */
 export async function loginByApi(context: BrowserContext, opts: ApiLoginOptions) {
-  const { baseUrl, user = "admin", password = "admin123", openPortal } = opts;
+  const { baseUrl, user = DEFAULT_LOGIN_USER, password = DEFAULT_PASSWORD, openPortal } = opts;
   const csrfResp = await context.request.get(`${baseUrl}/api/auth/csrf`);
   const { csrfToken } = await csrfResp.json();
   await context.request.post(`${baseUrl}/api/auth/callback/credentials`, {

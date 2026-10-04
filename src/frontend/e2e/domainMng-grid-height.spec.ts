@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { T, loginByApi } from "./support/common";
+import { BASE_URL as BASE, T, loginByApi } from "./support/common";
 
 /**
  * dma/domainMng 그리드 높이 검증 — DomainTreeGrid 의 height={360} 제거 확인.
@@ -13,7 +13,6 @@ import { T, loginByApi } from "./support/common";
  *       SMOKE_MCM_BASE_URL 로 자기 포털을 가리키는 편이 안전하다(기본 5100 은 메인 체크아웃).
  */
 
-const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
 
 test("도메인 목록 그리드가 패널 높이를 전부 사용한다", async ({ page, context }) => {
   test.setTimeout(120_000);
