@@ -147,7 +147,7 @@ class ScreenUsageMssqlDdlTest {
     private static final Path RUN_ORDER_SOURCE = MCM_INIT.resolve("DataInitializer.java");
 
     @Test
-    @DisplayName("DataInitializer 가 MSSQL 분기에서 이 DDL 로 두 테이블과 인덱스를 멱등 생성한다")
+    @DisplayName("mcm 시드(ScreenUsageSchemaArtifacts)가 MSSQL 분기에서 이 DDL 로 두 테이블과 인덱스를 멱등 생성한다")
     void dataInitializerUsesDdl() throws Exception {
         String artifacts = Files.readString(SCREEN_USAGE_ARTIFACTS_SOURCE);
         assertThat(artifacts).as(SCREEN_USAGE_ARTIFACTS_SOURCE.getFileName().toString())
