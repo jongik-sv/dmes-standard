@@ -499,18 +499,18 @@ function DiffTable({ entries, counts }: { entries: SetDiffRow[]; counts?: DiffCo
         </span>
       </div>
       <div style={section}>
-        {changed.length === 0 && <p data-testid="rsc-diff-empty" style={mutedText}>바뀐 행이 없습니다</p>}
-        {diffRows.length > 0 && (
-          <div style={{ height: DIFF_GRID_HEIGHT }}>
-            <AgDataGrid
-              columnSizing="fit"
-              columns={DIFF_COLUMNS}
-              data={diffRows}
-              rowKey="key"
-              ariaLabel="직전 RELEASED 대비 흐름 변경"
-            />
-          </div>
-        )}
+        {changed.length === 0 && diffRows.length > 0 && <p style={mutedText}>바뀐 행이 없습니다</p>}
+        <div style={{ height: DIFF_GRID_HEIGHT }}>
+          <AgDataGrid
+            columnSizing="fit"
+            columns={DIFF_COLUMNS}
+            data={diffRows}
+            rowKey="key"
+            ariaLabel="직전 RELEASED 대비 흐름 변경"
+            emptyMessage="바뀐 행이 없습니다"
+            emptyTestId="rsc-diff-empty"
+          />
+        </div>
       </div>
     </div>
   );
