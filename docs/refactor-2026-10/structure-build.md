@@ -2,7 +2,7 @@
 
 이 문서는 1b 레인(`refactor/build`)의 구조 변경을 적는다. 형식은 [README.md](./README.md) §6.1 을 따른다.
 
-- 이번 1차 머지 범위: `af572b93..HEAD` (15개 커밋 + 레인 내부 머지 1개).
+- 이번 1차 머지 범위: `af572b93..HEAD` (문서를 추가한 83a14e90 자신을 포함해 15개 커밋 + 레인 내부 머지 1개).
 - E2E(8번)·버전 카탈로그(2번)·build-logic(3번)은 다음 머지에서 이어 적는다.
 - 스크립트 경로 표기: `be-run.sh`·`fe-run.sh`·`local-run.sh`·`be-run.ps1`·`dmes-up.ps1` 등은 저장소 루트에 있고, 공통 부품은 `scripts/lib/` 에 있다.
 - ps1 변경은 이 PC 에 pwsh 가 없어 구문 분석·실행 모두 미검증이다. Windows 에서 확인해야 한다(S3·S4·S5 해당).
@@ -58,6 +58,7 @@
   - `--dry-run` 옵션을 더했다. 이전 인스턴스 종료·포트 회수·종료 트랩보다 앞에서 끝나고 선빌드 명령·태스크 목록·기동 순서만 출력한다.
   - 선빌드나 계획이 실패하면 기동하지 않고 `exit 1`(f71b7c4a). 5f545cfa·4cbd6d9c 초판의 "실패해도 기동"은 뒤집었다. 실패한 채 띄우면 bootRun 들이 공유 includeBuild 를 다시 동시에 빌드해 경합이 되살아나기 때문이다. 우회는 `BE_PREBUILD=0`(종전 방식) 또는 `BE_PREBUILD_CONTINUE=1`(명시적 옵트인일 때만 실패해도 기동).
   - sh 선빌드는 백그라운드로 띄워 wait 하고, 그동안만 임시 TERM·INT 트랩을 건다. 신호를 받으면 서브셸·gradlew 클라이언트·awk 를 정리하고 143/130 으로 끝난다(종전에는 고아 프로세스가 남을 수 있었다).
+  - `dmes-up.ps1` 의 `-Detach` 대기 중 백엔드 런처가 포트를 열기 전에 끝나면 8분을 기다리지 않고 exit 1 로 끝난다(종전 warm-up 의 fail-fast 를 되살림, f71b7c4a).
   - `dmes-up.ps1` 의 직렬 warm-up 과 쓰이지 않게 된 `$Modules` 를 지웠다. `-Warmup` 은 호환용으로 받기만 하고 안내 한 줄을 낸다. `-Clean` 은 `-Full` 과 같다. `-Detach` 의 8분 포트 대기 안에 이제 선빌드 시간이 들어간다.
 - 바꾼 이유: 7개 Gradle 이 같은 includeBuild 를 동시에 컴파일하면 CPU·메모리를 7배로 쓰고 산출물 덮어쓰기 경합이 생긴다. 컴파일을 1회로 줄이고 경합을 없앤다.
 - 기동 방식을 모듈별 bootRun 으로 유지한 이유:
@@ -65,7 +66,7 @@
   - `java -jar` 는 고르지 않았다. 모듈이 war+providedRuntime 톰캣이라 bootWar 클래스패스가 bootRun(classes 디렉터리 + lib 출력)과 다르고, analog 의 jvmArgs·workingDir 도 따로 옮겨야 해 동작이 바뀐다. bootWar(87~170MB) 도 만들지 않게 된다.
   - `--offline` 은 의존성 해석 방식을 바꾸므로 고르지 않았다.
   - Gradle 한 번에 bootRun 7개를 띄우는 방식은 `org.gradle.workers.max=3` 때문에 3개만 동시에 돌아 쓰지 않았다.
-- 선빌드가 `DFLOW_GRADLEW_NO_HEAVY=1` 로 heavy 슬롯을 우회하는 이유: gradlew 는 bootRun 이 아닌 실행을 PC 전역 heavy 슬롯에 줄 세운다. 이 경로는 사용자가 서버를 띄우는 경로이고, 종전 bootRun 7개도 슬롯 없이 컴파일했다. 부하 평균 43 에서 선빌드가 슬롯을 17분 넘게 기다렸다(기동 대기가 새로 생기면 안 된다). 부하는 7회 컴파일 대신 1회가 되므로 오히려 준다. 조정 세션 동의를 받았다. 에이전트가 E2E 때문에 be-run 을 부르는 경로는 없다.
+- 선빌드가 `DFLOW_GRADLEW_NO_HEAVY=1` 로 heavy 슬롯을 우회하는 이유: gradlew 는 bootRun 이 아닌 실행을 PC 전역 heavy 슬롯에 줄 세운다. 이 경로는 사용자가 서버를 띄우는 경로이고, 종전 bootRun 7개도 슬롯 없이 컴파일했다. 부하 평균 43 에서 선빌드가 슬롯을 17분 넘게 기다렸다(기동 대기가 새로 생기면 안 된다). 부하는 7회 컴파일 대신 1회가 되므로 오히려 준다. 근거는 커밋 5f545cfa 본문(부하 평균 43, 슬롯 17분 대기)이다. 조정 세션의 동의 여부는 커밋·diff 에 기록이 없어 이 문서에서 확인하지 못했다(확인되면 이 줄에 근거를 덧붙인다).
 - 동작 보존 근거:
   - 명령 수준: `/bin/bash`(3.2) `-n`, `--help`, `--all --dry-run`(84 태스크), `--mcm --dry-run`, `BE_PREBUILD=0 --keep-port --dry-run`, 인자 없는 `--dry-run`(→ `--all`), `BE_RUN_ARGS="--mcm --mdm" --dry-run`, `--bogus`(exit 2).
   - 선빌드 함수만 떼어 실행: 84 태스크 중 56 up-to-date, 콜드(`--rerun-tasks --no-build-cache`, 기본 데몬 힙) 56 태스크 26초 성공. 스텁 gradlew 로 성공(계속)·빌드 실패(exit 1)·계획 실패(exit 1)·`BE_PREBUILD_CONTINUE=1`(계속)·TERM(143)·INT(130) 확인, 신호 뒤 빌드 프로세스가 남지 않음을 pgrep 으로 확인.
@@ -84,7 +85,7 @@
   - 부수 수정: cleanup 의 배열 전개가 bash 3.2 + `set -u` 에서 빈 배열로 죽지 않게 고쳤고, `--keep-port` 안내의 `gradlew --stop` 권유를 뺐다.
   - `be-run.ps1`: `Stop-GradleDaemons`(`gradlew.bat --stop`)를 없애고 잔존 포트 리스너 정리를 `Test-OwnBackendJvm`(java(w), 명령줄 또는 @인자 파일에 `<BackendDir>\<모듈>\` 포함)으로 이 체크아웃 것만 고른다. `dmes-down.ps1` 은 `gradlew.bat --stop` 과 그것만 쓰던 `JAVA_HOME` 설정을 뺐다.
 - 바꾼 이유: 한 체크아웃의 서버 종료가 다른 워크트리의 빌드·시험을 죽이는 것을 막는다(레인이 여럿 도는 지금 직접 문제다).
-- 동작 보존 근거: 다른 워크트리에서 engine test 가 실행되는 동안 정리 경로를 호출했을 때 `BUILD SUCCESSFUL`, 데몬 수 감소 없음. 로그: `/private/tmp/claude-501/-Users-jji-project-dmes-standard/eb9d7416-ff24-436f-a576-8ba7f537b70f/scratchpad/stopfix/`. 서버 종료 자체의 동작(내 모듈 포트 해제)은 조건에 맞는 JVM 에 한정해 유지된다. ps1 은 미검증.
+- 동작 보존 근거: 다른 워크트리에서 engine test 가 실행되는 동안 정리 경로를 호출했을 때 `BUILD SUCCESSFUL`, 데몬 수 감소 없음. 실측 요약(저장소 밖 세션 로그에서 옮김): 호출 전 Gradle 데몬 3개가 떠 있었고(다른 워크트리의 mdm `:api:test`·mcm-core `:test` 가 test 슬롯 점유), 이 체크아웃의 maru-mdm-engine `:test` 를 슬롯 2초 대기 뒤 실행하는 동안 정리 경로(`cleanup`)를 호출했다. 정리는 `종료 신호 수신 → 정리 완료(Gradle 데몬은 그대로 둔다)` 로 rc=0 이었고, 엔진 시험은 두 번 모두 `BUILD SUCCESSFUL`(21초·18초)이었다. 그 로그는 머지 뒤 독자가 열 수 없으므로 정식 확인은 P3 측정으로 한다. 서버 종료 자체의 동작(내 모듈 포트 해제)은 조건에 맞는 JVM 에 한정해 유지된다. ps1 은 미검증.
 - 영향 범위: `be-run.sh`·`be-run.ps1`·`dmes-down.ps1`. 동작이 바뀌는 점: 데몬이 종료 직후 곧바로 내려가지 않고 최대 10분 유휴 뒤 내려간다(메모리를 잠시 더 쓴다). 다른 체크아웃이 띄운 같은 포트의 JVM 은 더 이상 죽이지 않는다.
 - 되돌리는 방법: be51ac2e revert. 단 다른 워크트리 빌드 실패가 다시 생긴다.
 
@@ -120,15 +121,15 @@
   - `proc.sh` 는 직접 띄운 sleep 트리로만 스모크했다. 서버 기동·종료 경로는 실행하지 않았다.
   - ps1(8d91843f 등)은 pwsh 부재로 구문 분석·실행 미검증. 값은 종전 ps1 과 같게 옮겼다(`--all` 6개 같은 순서, 포털은 e9a28ff5 이후 5100).
 - 영향 범위: `be-run.sh`·`fe-run.sh`·`local-run.sh`·`be-run.ps1`·`fe-run.ps1`·`dmes-up.ps1`·`dmes-down.ps1`·`local-run.ps1`, 신규 `scripts/lib/*`. `scripts/lib` 없이 스크립트만 복사해 쓰면 실패한다(한 줄 오류). 심볼릭 링크는 파일 링크가 아니라 디렉터리 단위로 걸어야 한다.
-- 되돌리는 방법: 커밋 역순 revert(aa139e31, fa746e92, 8d91843f, ca48ef8f, e9a28ff5, 98f4ecb8). e9a28ff5 만 되돌리면 ps1 포털 포트가 5000 으로 돌아가 결함이 재현된다.
+- 되돌리는 방법: 커밋 역순 revert(aa139e31, fa746e92, 8d91843f, ca48ef8f, e9a28ff5, 98f4ecb8). ps1 포털 포트는 8d91843f 이후 `modules.conf`(5100)에서 읽으므로 e9a28ff5 만 되돌리면 충돌하거나 효과가 없다. 포털 포트를 5000 으로 복원하려면 8d91843f 를 먼저 되돌려야 한다.
 
 ## S6. cactus-core 시험에 sqlite-jdbc 추가
 - 커밋: 5cc32833
 - 바뀌기 전: cactus-core 시험 클래스패스에 SQLite 드라이버가 없었다. 트랜잭션 재현 시험(a8 요청)이 cactus-core 에서 SQLite 를 쓰는데 드라이버가 없어 실행할 수 없었다.
-- 바뀐 뒤: `src/backend/cactus-core/build.gradle` 에 `testImplementation 'org.xerial:sqlite-jdbc:3.45.3.0'` 한 줄(다른 모듈 mcm/lib 등과 같은 선언). 실제 해석 버전은 Spring Boot BOM 이 정해 3.50.3.0 이다.
+- 바뀐 뒤: `src/backend/cactus-core/build.gradle` 에 `testImplementation 'org.xerial:sqlite-jdbc:3.45.3.0'` 선언(주석 1줄 포함 2줄 추가, 다른 모듈 mcm/lib 등과 같은 선언). 실제 해석 버전이 선언과 다를 수 있다(Spring Boot BOM 이 관리하면 BOM 버전이 이긴다). 해석 버전은 `dependencies` 로 확인해 다음 머지에서 적는다.
 - 바꾼 이유: 위 시험 실행. 시험 전용 의존성이라 운영 산출물에는 들어가지 않는다.
 - 동작 보존 근거: `testImplementation` 이라 main·런타임 클래스패스가 바뀌지 않는다.
-- 영향 범위: cactus-core 시험 클래스패스. 선언 버전과 해석 버전이 다르므로 버전을 고정하려면 BOM 의 관리를 벗어나는 지정이 필요하다(2번 버전 카탈로그 작업에서 정리).
+- 영향 범위: cactus-core 시험 클래스패스. 선언 버전과 해석 버전이 다를 수 있으므로 버전을 고정하려면 BOM 의 관리를 벗어나는 지정이 필요하다(2번 버전 카탈로그 작업에서 정리).
 - 되돌리는 방법: 5cc32833 revert (해당 시험이 드라이버를 못 찾아 실패한다).
 
 ## S7. mdm/api 시험 입력에 mcm 시드 파일 2개 추가

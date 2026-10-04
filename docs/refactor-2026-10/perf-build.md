@@ -16,7 +16,7 @@
 - 지표(초): `be-run.sh --all` 을 시작한 시각부터 7개 모듈 포트(8092 8093 8094 8095 8096 8100 8191)가 모두 LISTEN 될 때까지. 콜드와 웜을 따로 잰다.
 - 측정 절차:
   1. 메인 서버와 포트(8092~8191·5100)가 겹치므로, 서버가 내려간 시간에 단독으로 잰다(메인 서버를 직접 끄지 않고 조정 세션에 요청한다). 다른 gradle 작업이 없는 상태에서 `uptime` 을 기록한다.
-  2. 콜드: 모듈 `build` 산출물 삭제 대신 `--rerun-tasks` 상당(예: 선빌드·bootRun 에 `--rerun-tasks --no-build-cache` 가 걸리게 `BE_RUN_ARGS` 로 전달)으로 하고 Gradle 데몬을 모두 새로 시작한 상태에서 시작한다. 웜: 직전 실행 그대로(데몬·빌드 산출물 유지).
+  2. 콜드: `be-run.sh` 는 gradle 추가 인자를 넘기는 통로가 없다(`BE_RUN_ARGS` 는 `--all`·`--mcm` 같은 모듈 플래그용이고 모르는 인자는 exit 2). 그래서 인자가 아니라 상태로 만든다. 측정용으로 따로 만든 워크트리 사본(기준·변경 각각)에서, 모든 모듈과 includeBuild(cactus-core·mcm-core·maru-mdm-engine 등)의 `build/` 폴더를 지운 채 시작하고, 환경변수 `GRADLE_OPTS=-Dorg.gradle.caching=false` 로 빌드 캐시를 끈다. Gradle 데몬은 새로 시작한 상태여야 하므로 다른 레인 빌드가 없음을 조정 세션과 확인한 뒤에만 멈춘다(전역 정지는 다른 레인을 죽인다). 지우는 일은 측정 담당자가 사본에서만 한다. 웜: 직전 실행 그대로(데몬·빌드 산출물 유지).
   3. 시작 시각 기록 → `./be-run.sh --all` → 포트 7개가 열릴 때까지 `lsof -iTCP:<port> -sTCP:LISTEN` 폴링(1초 간격) → 마지막 포트가 열린 시각 기록 → `./be-run.sh` 종료(Ctrl+C).
   4. 기준 워크트리(`refactor-2026-10-base`)와 변경 브랜치를 A·B 교대로 3회 이상, 콜드·웜 각각 반복한다.
 - 기준 커밋: refactor-2026-10-base / 변경 커밋: <측정 시점의 refactor/build HEAD 해시>
@@ -43,7 +43,7 @@
 
 ## P2. --all 기동 중 공유 includeBuild 컴파일 횟수
 - 관련 구조 변경: S3
-- 지표(회): `be-run --all` 한 번 기동 동안 공유 includeBuild(cactus-core 등)의 compileJava 가 실행된 횟수. 기대값 7회 → 1회.
+- 지표(회): `be-run --all` 한 번 기동 동안 공유 includeBuild(cactus-core 등)의 compileJava 가 실행된 횟수.
 - 측정 절차(결정적, 1회):
   1. P1 과 같은 조건(콜드, 단독)으로 `be-run.sh --all` 을 기동하고 로그를 파일로 저장한다.
   2. 로그에서 `:cactus-core:compileJava`(필요하면 `mcm-core`·`maru-mdm-engine` 도 같은 방법)의 `Task ... ` 줄을 세어 UP-TO-DATE·FROM-CACHE 가 아닌 실행 횟수를 센다. 예: `grep -c ':cactus-core:compileJava' <log>` 로 줄 수를, 같은 패턴에서 `UP-TO-DATE`·`FROM-CACHE`·`NO-SOURCE` 줄을 빼 실제 실행 수를 구한다. 모듈별 Gradle 프로세스마다 줄이 따로 나오므로 로그 접두어 `[be-<모듈>]` 별로도 센다.
@@ -56,7 +56,7 @@
 | :cactus-core:compileJava 실행 횟수 | | |
 | 선빌드 단계의 compileJava 실행 횟수 | | |
 
-- 판정: <기대 7회 → 1회 충족 여부>
+- 판정: <기준 N회 → 변경 M회, 근거>
 
 ## P3. be-run 종료가 다른 워크트리 gradle 빌드에 주는 영향
 - 관련 구조 변경: S4
