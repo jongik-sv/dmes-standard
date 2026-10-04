@@ -273,7 +273,7 @@ DB 메뉴 트리를 단일 SoT 로 삼고 FE 라우팅에서 정적 매핑 (구 
 
 **화면 개발(MES·APS 공통)은 메뉴와 권한 등재까지 끝나야 완료다.** 코드와 테스트가 통과해도 등재가 빠지면 사용자는 화면에 들어가지 못하거나, 들어가도 모든 호출이 403 이다. 특히 OBJECT 행이 없으면 admin(SYSADMIN)도 `EndpointPermissionFilter` 에서 403 을 받고, 증상은 "조용한 빈 데이터"로만 보인다(2026-08-12 cmb 6 화면 누락 사례).
 
-시드 위치는 `src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java` 이다. 모든 헬퍼가 `insertIfAbsent` 계열이라 멱등이다. 신규 업무 모듈은 `seedAnalogMenus()` 를 본보기로 `seed{Module}Menus()` 를 만들고 `seedMcmSecRbac()` 의 "확장 지점" 주석 자리에서 호출한다. 기존 모듈에 화면을 더할 때는 그 모듈의 seed 메서드에 행을 추가한다.
+시드 위치는 `src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/` 이다. `DataInitializer.java` 가 단계 호출 순서를 정하고, 단계 본문은 `seed/` 패키지의 역할별 Seeder 에 있다(코어 RBAC·`PERM_ALL` action 목록 `CoreRbacSeeder`, 업무 모듈 메뉴 `ModuleMenuSeeder`, MDM 메뉴 `MdmMenuSeeder`). 모든 헬퍼가 `insertIfAbsent` 계열이라 멱등이다. 신규 업무 모듈은 `ModuleMenuSeeder.seedAnalogMenus()` 를 본보기로 같은 클래스에 `seed{Module}Menus()` 를 만들고 `DataInitializer.seedMcmSecRbac()` 의 "확장 지점" 주석 자리에서 호출한다. 기존 모듈에 화면을 더할 때는 그 모듈의 seed 메서드에 행을 추가한다.
 
 신규 화면(팝업 포함) 1건마다 아래 다섯 단계를 모두 수행한다.
 
@@ -285,7 +285,7 @@ DB 메뉴 트리를 단일 SoT 로 삼고 FE 라우팅에서 정적 매핑 (구 
    - **팝업**도 leaf 로 등재하되 7-인자 오버로드로 `viewYn="N"` 을 준다. 사이드바에는 뜨지 않고, 메뉴·역할 화면에서 화면과 똑같이 RBAC 를 다룰 수 있다.
    - FULL_SEQ 는 7자리 인코딩(모듈 백만 / 그룹 만 / 화면 +100·+110…)을 따른다. 부팅 끝의 `recomputeMenuFullSeq()` 가 트리 위치 기준으로 재부여한다.
 4. **역할 매핑** — `TB_MCM_SEC_ROLE_MAPPING`: 최소 `(SYSADMIN, screenId, PERM_ALL)` 1행을 `insertIfAbsentComposite` 로 넣는다. 설계서가 업무 역할(조회 전용 등)을 정의하면 그 역할 × OBJECT × PERMISSION 행도 함께 넣는다. 역할·권한 데이터 모델은 [RBAC-PATH-CONVENTION §5.1](../../../Security/RBAC-PATH-CONVENTION.md) 을 따른다.
-5. **action 등재** — `TB_MCM_SEC_PERM.PERMISSION_ACTION`: 화면 BPMN 의 `actionGateway` 분기명 중 `seedMcmSecRbac()` 의 `allActions` 목록에 없는 것을 추가한다. **목록에 없는 action 은 SYSADMIN 도 403 이다.** 조회는 되는데 콤보·팝업·저장만 실패하는 형태로 나타난다. 이미 시드된 DB 는 `ensurePermAllActions` 가 부팅 때 누락분을 append 한다.
+5. **action 등재** — `TB_MCM_SEC_PERM.PERMISSION_ACTION`: 화면 BPMN 의 `actionGateway` 분기명 중 `CoreRbacSeeder.seedCoreRbac()` 의 `allActions` 목록에 없는 것을 추가한다. **목록에 없는 action 은 SYSADMIN 도 403 이다.** 조회는 되는데 콤보·팝업·저장만 실패하는 형태로 나타난다. 이미 시드된 DB 는 `ensurePermAllActions` 가 부팅 때 누락분을 append 한다.
    ```bash
    grep -h 'sourceRef="actionGateway"' src/backend/{moduleId}/**/services/**/*.bpmn
    ```

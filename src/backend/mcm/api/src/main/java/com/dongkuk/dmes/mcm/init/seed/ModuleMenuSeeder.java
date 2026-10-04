@@ -3,7 +3,7 @@ package com.dongkuk.dmes.mcm.init.seed;
 /**
  * 업무 모듈·부가 화면 메뉴 시드 — ANALOG, mls 공지사항, 화면 사용 통계, 위젯관리 (2026-10-04 DataInitializer 분할).
  *
- * <p>각 메서드는 폴더·OBJECT·메뉴 leaf·SYSADMIN ROLE_MAPPING 을 멱등 적재한다. MDM 메뉴는 {@code DataInitializer.MdmMenuSeeder} 몫이다.
+ * <p>각 메서드는 폴더·OBJECT·메뉴 leaf·SYSADMIN ROLE_MAPPING 을 멱등 적재한다. MDM 메뉴는 {@link MdmMenuSeeder} 몫이다.
  */
 public final class ModuleMenuSeeder extends SeedSupport {
 

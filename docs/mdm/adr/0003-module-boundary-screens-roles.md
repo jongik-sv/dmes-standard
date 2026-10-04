@@ -23,7 +23,7 @@
 - 식별자 사전 §A.2.1(사용자 결정 2026-05-28, MUST)은 새 그룹을 `{moduleId 2~3번째 글자}{a~z 순번}` 으로만 등재한다(mdm → `dma, dmb, …`). §A.5.3 은 잠정 채택을 금지한다. 현재 옛 그룹 `mdt` 를 쓰는 코드는 TSK-01-01(미승인)이 만든 샘플 1건뿐이다.
 - `docs/mdm/design` 은 외부 mdm 프로젝트로 가는 링크이며 `.gitignore` 로 통째 무시된다. RULE.md 와 Mes-Guide 가 정한 화면 산출물 경로 `docs/{moduleId}/design/{screenId}/` 를 mdm 에 그대로 쓰면 산출물이 커밋되지 않는다. 포털 codegen 이 스캔하는 FE 경로는 `m-mdm/pages/…`(`src/` 없음)인데 TRD 와 wbs 는 `m-mdm/src/pages/…` 로 적었다.
 - PRD §3 은 역할 2종(표준 관리자·담당자)과 각자의 일을 정했다. TRD §6 은 역할을 `TB_MCM_SEC_ROLE` 에 시드하고, 버전 확정은 담당자 권한이며, DRAFT 소유권은 `owner_id` 로 판정한다고 정했다. 원천 01 원칙 3 과 06:1001 은 권한(역할)과 작업 잠금(소유자)을 섞지 말라고 한다. 원천 04:1192 는 "담당자를 마루 코드별 칼럼으로 둘지" 를 미결로 남겼다.
-- 권한 action 은 PermKey `{objId}/{action}` 로 판정하고, `DataInitializer.seedMcmSecRbac()` 의 `allActions` 에 없는 action 은 SYSADMIN 도 403 이다. 현재 역할 ID 는 `SYSADMIN` 하나뿐이다.
+- 권한 action 은 PermKey `{objId}/{action}` 로 판정하고, `CoreRbacSeeder.seedCoreRbac()`(2026-10-04 전에는 `DataInitializer.seedMcmSecRbac()`) 의 `allActions` 에 없는 action 은 SYSADMIN 도 403 이다. 현재 역할 ID 는 `SYSADMIN` 하나뿐이다.
 
 ## Decision (결정)
 
@@ -54,7 +54,7 @@
   | `PERM_MDM_EDIT` | READ + `save`, `delete`, `reg`, `import`, `validate`, `execute`, `copy`, `restore` (+ DRAFT 소유권 action — 아래 대조표) |
   | `PERM_MDM_CONFIRM` | EDIT + `confirm` |
 
-  action 과 `allActions`(`DataInitializer.seedMcmSecRbac()`) 대조:
+  action 과 `allActions`(`CoreRbacSeeder.seedCoreRbac()`) 대조:
 
   | action | 용도 | allActions |
   |---|---|---|
@@ -106,5 +106,5 @@ D'Flow 에서 mdm/TSK-02-01 이 승인(approved)되고, `docs/mdm/tasks/TSK-02-0
 - `docs/mdm/decisions.md` D-015, D-016, D-018
 - `docs/mdm/tasks/TSK-02-01/design.md` §6.5·§6.6·§6.9, 담당자 확인 필요 결정 D2·D6
 - 식별자 사전 [§A.1.1·§A.2.1·§A.2.3](../../guide/design/identifier-dictionary/01-modules-and-screens.md)
-- `src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java` `seedMcmSecRbac()`(`allActions`), `seedMdmMenus()`
+- `src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/CoreRbacSeeder.java` `seedCoreRbac()`(`allActions`), `seed/MdmMenuSeeder.java` `seedMdmMenus()` (2026-10-04 전에는 둘 다 `DataInitializer.java`)
 - 원천 설계 `/Users/jji/project/mdm/docs/design/basic/01-mdm-overview.md` 원칙 3, `04-master-code-deploy-full.md`, `06-business-rule.md`
