@@ -81,6 +81,10 @@ const KEEP_OPEN = process.env.RENDER_KEEP_OPEN === "1";
  * 포털이 localStorage 에 저장한 열린 탭이 뒤 화면 진입 때 숨은 탭으로 복원된다(회차 안 오염).
  */
 const ISOLATE = process.env.RENDER_ISOLATE === "1";
+/** 1(기본)이면 메뉴를 누르기 전에 포털 홈 로딩(호출·50ms 넘는 task)이 조용해질 때까지 기다린다(결함 12). */
+const HOME_IDLE = process.env.RENDER_HOME_IDLE !== "0";
+const HOME_IDLE_QUIET_MS = Number(process.env.RENDER_HOME_IDLE_QUIET_MS ?? 500);
+const HOME_IDLE_MAX_MS = Number(process.env.RENDER_HOME_IDLE_MAX_MS ?? 10_000);
 
 /** performance.getEntriesByType('longtask') 는 브라우저 안에만 있다 — 페이지 로드 전에 심어 둔다. */
 const LONGTASK_INIT_SCRIPT = `
@@ -463,6 +467,43 @@ async function waitMenuReady(page, menuReady) {
   await page.waitForFunction(() => document.querySelectorAll(".tree-item .item-name").length >= 3, undefined, {
     timeout: t,
   });
+  if (HOME_IDLE) await waitHomeIdle(page);
+}
+
+/**
+ * 포털 홈(위젯·공지 등) 로딩이 끝날 때까지 기다린다(검증 §4 결함 12).
+ * 메뉴 트리만 기다리면 홈 호출·렌더가 아직 도는 중에 메뉴를 눌러, 진입 구간(shellReady·진입 호출)에
+ * 홈 꼬리가 섞였다(잎 클릭 전 302ms 중 234ms 가 메인 스레드 사용).
+ * 판정: `/api/` Resource Timing 항목 수가 HOME_IDLE_QUIET_MS 동안 늘지 않고, 그동안 50ms 넘는 task 가 없으면 조용하다고 본다.
+ * 상한 HOME_IDLE_MAX_MS 를 넘기면 경고만 남기고 진행한다(측정을 막지 않는다).
+ */
+async function waitHomeIdle(page) {
+  const res = await page.evaluate(
+    ([quiet, max]) =>
+      new Promise((resolve) => {
+        const t0 = performance.now();
+        let last = -1;
+        let since = t0;
+        let lastLong = 0;
+        let po = null;
+        try {
+          po = new PerformanceObserver((l) => { for (const e of l.getEntries()) lastLong = Math.max(lastLong, e.startTime + e.duration); });
+          po.observe({ type: "longtask", buffered: true });
+        } catch {}
+        const tick = () => {
+          const now = performance.now();
+          const n = performance.getEntriesByType("resource").filter((e) => e.name.includes("/api/")).length;
+          if (n !== last) { last = n; since = now; }
+          const quietFrom = Math.max(since, lastLong);
+          if (now - quietFrom >= quiet) { po?.disconnect(); return resolve({ ok: true, waited: Math.round(now - t0), api: n }); }
+          if (now - t0 >= max) { po?.disconnect(); return resolve({ ok: false, waited: Math.round(now - t0), api: n }); }
+          setTimeout(tick, 50);
+        };
+        tick();
+      }),
+    [HOME_IDLE_QUIET_MS, HOME_IDLE_MAX_MS]
+  );
+  if (!res.ok) log(`  포털 홈이 ${res.waited}ms 안에 조용해지지 않았다(api ${res.api}) — 그대로 진행한다.`);
 }
 
 /** `myMenusTree` 응답을 **goto 전에** 걸어 두는 대기열 하나. 여러 번 호출해도 하나만 만든다. */
@@ -885,6 +926,7 @@ async function main() {
     `trace: ${DO_TRACE ? "1" : "0"}`,
     `calibrate: ${CALIBRATE ? "1" : "0"}`,
     `isolate: ${ISOLATE ? "1" : "0"}`,
+    `home_idle: ${HOME_IDLE ? `1 (quiet ${HOME_IDLE_QUIET_MS}ms, max ${HOME_IDLE_MAX_MS}ms)` : "0"}`,
     `screens: ${targets.map((s) => s.id).join(",")}`,
     `ac: ${acPower()}`,
   ];
