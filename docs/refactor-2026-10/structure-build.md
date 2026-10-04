@@ -34,6 +34,7 @@
 | S21 | 시험 입력 정리: mdm/api 에서 DataInitializer.java 제거, mcm-core 에 BPMN 2개 선언(C1·C2) |
 | S22 | mybatis-spring-boot-starter 3.0.5 통일(동작 변경, 해석 버전 변화) |
 | S23 | 빌드 불변 판정 도구 scripts/build-verify 보관 |
+| S24 | 성능 측정 스크립트 scripts/perf/build 추가(P1~P3 하네스, 동작 영향 없음) |
 
 ## S1. restart-all.sh 를 scripts/archive 로 보관
 - 커밋: 5d893cc3
@@ -384,6 +385,15 @@
   - `bash -n` 이 두 스크립트에서 통과했다.
 - 영향 범위: 없다(`scripts/build-verify/` 신규, 다른 코드에서 참조하지 않는다). 한계는 README §4 에 있다: caravan-hub 단독 해석 불가(§ 위 기존 실패), 루트 composite 에서만 생기는 설정(`buildAll` 등)은 덤프 대상이 아니다, macOS 에서만 확인했다.
 - 되돌리는 방법: 7cf41d92 revert (`scripts/build-verify/` 가 사라진다).
+
+## S24. 성능 측정 스크립트 scripts/perf/build 추가
+- 커밋: 측정 스크립트 이전 커밋(이 항목과 같은 커밋)
+- 바뀌기 전: 2026-10-04 P1~P3 측정에 쓴 스크립트가 저장소 밖 작업 폴더에만 있어 같은 측정을 다시 할 수 없었다.
+- 바뀐 뒤: `scripts/perf/build/` 에 `lib.sh`, `p1_boot.sh`, `p2_count.sh`, `p3_stop.sh`, `summarize.sh`, `run_all.sh` 와 `README.md` 를 두었다(다른 레인의 `scripts/perf/<레인>/` 형식을 따랐다). 저장소 위치는 스크립트 위치에서 계산하고, `JAVA_HOME`, `DFLOW_HEAVY_DIR`, `DFLOW_HEAVY_SLOTS` 는 호출 환경에서 받으며, 결과 폴더(`PERF_RESULTS`)와 측정 전용 Gradle 홈(`PERF_GRADLE_HOME`)은 저장소 밖 임시 폴더가 기본이다. 변경 커밋 기본값은 저장소 HEAD 다. 폴더 이름이 `build` 라서 `.gitignore` 의 `build/` 규칙에 걸리므로 `!scripts/perf/build/` 예외를 한 줄 추가했다. 측정 때 고친 사항(모듈 bootRun 조기 종료 rc 7 감지, 벽시계 600초 기동 상한, P3 희생 빌드 기본값 `mdm :lib:test :api:test --rerun-tasks`, `lowpowermode` 기록)은 그대로 유지했다.
+- 바꾼 이유: 성능 측정 절차를 재현할 수 있게 저장소에 보관하고, perf-build.md 가 이 폴더를 가리키게 하기 위해서다.
+- 동작 보존 근거: 앱과 빌드에서 호출하지 않는 도구를 추가했을 뿐이다. 이 시점에 다른 워커가 화면 측정 중이라 gradle, 빌드, 서버, 측정은 실행하지 않았고 스크립트는 `bash -n` 으로 확인했다. 공통 설정을 읽어 저장소 루트 계산, JDK 21 판정, 측정 메타 기록이 되는지만 따로 확인했다.
+- 영향 범위: 없다(`scripts/perf/build/` 신규, 다른 코드에서 참조하지 않는다).
+- 되돌리는 방법: 해당 커밋 revert (`scripts/perf/build/` 가 사라지고 perf-build.md 의 도구 서술이 옛 문장이 된다).
 
 ### S18~S23 검증 요약
 - 덤프 판정: ① 대 pre2, ③ 대 ①·pre2, C1·C2 대 ③ 모두 404개 파일이 허용 차이 외 같다. ② 는 의도한 4좌표(와 전이 선언)에만 차이가 있다.

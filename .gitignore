@@ -17,6 +17,8 @@ dist/
 .vite/
 .cache/
 build/
+# 성능 측정 하네스 폴더 이름이 build 라서 위 규칙에 걸리므로 다시 추적한다
+!scripts/perf/build/
 
 # Java / Gradle
 .gradle/
