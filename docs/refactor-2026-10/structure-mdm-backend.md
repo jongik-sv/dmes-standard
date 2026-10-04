@@ -68,7 +68,7 @@
 - 바꾼 이유: 같은 일을 하는 파서가 네 곳에 흩어져 있어 한쪽만 고쳐질 수 있다.
 - 동작 보존 근거: 29a613ba 가 같은 입력 행렬로 네 파서를 먼저 고정했다 — `TermJsonListCharacterizationTest`·`TermJsonListParserCharacterizationTest`(termMng), `TermDictionaryParseSurfacesCharacterizationTest`(naming), `ColumnMngParseTermIdsCharacterizationTest`(columnMng). 저장 JSON 이 한글을 이스케이프하지 않음과 SQLite `json_valid` CHECK 도 고정한다. JSON null 리터럴·`[null]` 시스템 원소의 NPE 는 기존 결함으로 `assertThrows` 에 남겼다(고치지 않음. null 리터럴 쪽은 뒤에 D1 수정 3e645c34, 원소 null 쪽은 D2 수정 d2c7b283 에서 새 동작 기대로 바꿨다 — 아래 결함 후보 1·2번). 커밋 본문: "특성 시험은 그대로 통과한다"(시험 로그 원문은 확인 필요).
 - 영향 범위: mdm lib 의 dma(termMng·naming·columnMng) 4개 파일 + 신규 1개(134 추가·97 삭제). 화면·API·설정·다른 레인 변경 없음.
-- 되돌리는 방법: `git revert cd6aca56`. S5 의 0ec7a57b 는 `ParsedTerm` 에서 `readStrings` 를 새로 부르고, S6 의 c273897e 는 `parseTermIds` 호출을 옮겼으며 이 메서드는 `MdmJsonLists.readLongs` 에 위임한다(ColumnMngService:710-711). 그래서 S5·S6 을 먼저 되돌려야 한다(S5·S6 은 코드로 확인함). S4(2153ebb7)는 `MdmJsonLists` 를 쓰지 않지만 cd6aca56 과 같은 ColumnMngService 를 고쳐 되돌릴 때 글자 충돌이 날 수 있다.
+- 되돌리는 방법: `git revert cd6aca56`. S5 의 0ec7a57b 는 `ParsedTerm` 에서 `readStrings` 를 새로 부르고, S6 의 c273897e 는 `parseTermIds` 호출을 옮겼으며 이 메서드는 `MdmJsonLists.readLongs` 에 위임한다(ColumnMngService:710-711). 그래서 S5·S6 을 먼저 되돌려야 한다(S5·S6 은 코드로 확인함). 또 cd6aca56 이 만든 `MdmJsonLists.readStrings` 를 3e645c34(D1, null 리터럴 → 빈 목록)·d2c7b283(D2, `removeIf(Objects::isNull)`·`Objects` import·javadoc)가 고쳤고 두 커밋은 관련 특성 시험 기대값도 바꿨으므로 이 둘도 먼저 되돌려야 한다. S5 되돌리기 순서(아래 S5 절)가 D1·D2·S6 을 이미 포함하므로, 이어서 되돌리면 된다: `git revert 7c5572af 90e507e5 d2c7b283 3e645c34 64bcf6cc c273897e 0ec7a57b cd6aca56`. 2026-10-04 `git merge-tree` 모의로 이 순서가 모두 충돌 없음을 확인했다(시험 실행은 안 함). D1·D2 결함이 돌아오는 점은 S5 절과 같다. S4(2153ebb7)는 `MdmJsonLists` 를 쓰지 않고 cd6aca56 과 같은 ColumnMngService 를 고쳤지만, 같은 모의에서 S4 를 남긴 채 cd6aca56 을 되돌려도 충돌이 없었다.
 
 ## S4. 컬럼 사전·용어 등록 팝업의 용어 사전 읽기 사본을 TermDictionaryLoader 하나로 합침
 - 커밋: 2153ebb7(변경), f2392a4a(특성 시험, 7a3e0570 완성), 7a3e0570(wip — 컬럼 검색 특성 시험을 이동 준비로 중간에 남긴 커밋. 미검증 상태였고 f2392a4a 에서 완성·검증됨. 이 커밋을 단독 체크아웃하면 시험이 미완성이다)
@@ -95,7 +95,11 @@
   - 기존 결함 보존: JSON null 리터럴 NPE 동작을 바꾸지 않으려고 원문에 `null` 이 든 행도 남기고, 64bcf6cc 에서 키워드 단계 NPE 행을 상황 조건이 빼지 않도록 고쳤다(D1·D2 수정 뒤 90e507e5 에서 걷었다. 걷은 뒤에는 원문에 null 이 든 행도 다른 행처럼 키워드·상황 칸 LIKE 로만 판정되고, `of(...)` 의 시스템 조건 인자도 없어졌다. 검색 결과는 같다).
 - 동작 보존 근거: `TermMngSearchCharacterizationTest`(29a613ba 354줄, 64bcf6cc 에서 2건 추가 — 옛 검색 코드에서는 통과하고 0ec7a57b 에서는 실패하던 것을 확인)·f8087cce 가 더한 3건(ASCII 로 바뀌는 원본 글자·느낌표·퍼센트·밑줄 섞인 키워드·상황 조건 뒤 시스템 NPE, 옛 코드에서 통과 확인. 커밋 본문의 21건은 그 시점 클래스 전체(18+3)가 옛 코드에서 통과한 수)·`TermSearchPrefilterTest`·`TermSearchPrefilterSqliteTest`(0ec7a57b). **SQLite 로만 확인함. Oracle·PostgreSQL 의 LIKE 대소문자 구분·ESCAPE·CLOB 비교는 정적 리뷰 결과이며 운영 DB 확인이 필요하다.** 시험 통과 로그 원문도 확인 필요.
 - 영향 범위: `TermMngService`·신규 `TermSearchPrefilter`·`MdmTermRepository`(0ec7a57b 6개 파일). 가짜 저장소 파서 특성 시험은 새 조회 메서드를 스텁하도록만 고쳤다. 화면·API 응답 모양 변경 없음.
-- 되돌리는 방법: 64bcf6cc 를 먼저, 이어 0ec7a57b 를 되돌린다(`git revert 64bcf6cc 0ec7a57b`). 특성 시험 29a613ba·f8087cce 는 남겨도 된다.
+- 되돌리는 방법: 0ec7a57b·64bcf6cc 뒤에 같은 파일(`TermSearchPrefilter`·`TermMngService`·`TermSearchPrefilterSqliteTest`·특성 시험)을 고친 커밋이 있어 `git revert 64bcf6cc 0ec7a57b` 만으로는 충돌한다. 64bcf6cc 가 넣은 OR 블록은 90e507e5 에서 이미 지워졌으므로 90e507e5 를 먼저 되돌려 그 블록을 살린 뒤에 64bcf6cc 를 되돌린다. 순서(새것부터): `git revert 7c5572af 90e507e5 d2c7b283 3e645c34 64bcf6cc c273897e 0ec7a57b`.
+  - 7c5572af·90e507e5 는 `TermMngService` javadoc·`%null%` 걷음, d2c7b283(D2)·3e645c34(D1)는 `TermSearchPrefilter` 주석·`ParsedTerm`·시험 기대값을 고쳤다. c273897e(S6)는 0ec7a57b 와 같은 `MdmTermRepository` 를 고쳐 먼저 되돌려야 한다(S6 이 함께 되돌아간다).
+  - 확인 방법: 2026-10-04 `git merge-tree --write-tree --merge-base=<커밋> <현재> <커밋>^` 로 위 순서를 한 단계씩 모의해 모두 충돌 없음을 봤다(작업 트리·브랜치는 건드리지 않음). c5c26f15(afterCommit)는 되돌리지 않아도 충돌하지 않았다. 시험 실행은 하지 않았다.
+  - D1·D2 수정을 살리고 S5 만 되돌리려면 손으로 풀어야 한다: 7c5572af·90e507e5 뒤 64bcf6cc 되돌리기가 `TermSearchPrefilter`·`TermSearchPrefilterSqliteTest`·`TermMngSearchCharacterizationTest` 에서 충돌한다(같은 모의로 확인). 위 순서대로 D1·D2 까지 되돌리면 JSON null 리터럴·원소 null 의 NPE 결함(결함 후보 1·2번)이 돌아오므로 `MdmJsonLists.readStrings` 수정은 다시 넣어야 한다.
+  - 특성 시험 29a613ba·f8087cce 는 남겨도 된다.
 
 ## S6. 컬럼 검색에 DB 1차 거름(ColumnSearchPrefilter)과 반복문 단건 조회 세 곳의 IN 조회 도입
 - 커밋: c273897e(변경), 시험 f2392a4a(wip 7a3e0570 완성분)

@@ -56,7 +56,7 @@
 
 ## P3. 용어 검색(TermMngService.search)의 읽는 행 수·JSON 파싱 횟수
 - 관련 구조 변경: S5
-- 커밋 내용: 키워드·상황 조건을 DB `LIKE` 로 먼저 거르고(`TermSearchPrefilter`) 남은 행의 JSON 칸을 행마다 한 번만 파싱한다(0ec7a57b). 64bcf6cc 는 NPE 행 보존 보정이라 조건이 약간 넓어진다(상황 조건에 키워드 단계 NPE 행을 OR 로 남김). 이 `%null%` OR 조건과 키워드 조건(`jsonListMayContain`)의 `%null%` 는 D1(3e645c34)·D2(d2c7b283) 수정 뒤 90e507e5(fix/refactor-followups)에서 걷었다. 아래 "참고" 후보 행 수(22·249행)는 걷기 전(0ec7a57b) 코드 기준이다. 정식 측정은 아직이므로, 변경 쪽을 잴 때 90e507e5 앞 코드인지 뒤 코드인지 측정 환경에 적는다.
+- 커밋 내용: 키워드·상황 조건을 DB `LIKE` 로 먼저 거르고(`TermSearchPrefilter`) 남은 행의 JSON 칸을 행마다 한 번만 파싱한다(0ec7a57b). 64bcf6cc 는 NPE 행 보존 보정이라 조건이 약간 넓어진다(상황 조건에 키워드 단계 NPE 행을 OR 로 남김). D1(3e645c34)·D2(d2c7b283) 수정 뒤 90e507e5(fix/refactor-followups)에서 `%null%` 조건 세 가지를 모두 걷었다 — 상황 조건의 SYSTEMS `%null%` OR(시스템 조건이 있을 때, 0ec7a57b 부터 — `of(...)` 의 `systemsFiltered` 인자도 함께 없앰), 상황 조건의 SYNONYMS·ALIASES `%null%` OR(키워드 조건이 있을 때, 64bcf6cc), 키워드 조건(`jsonListMayContain`)의 `%null%`(0ec7a57b 부터). 아래 "참고" 후보 행 수(22·249행)는 걷기 전(0ec7a57b) 코드 기준이다. 정식 측정은 아직이므로, 변경 쪽을 잴 때 90e507e5 앞 코드인지 뒤 코드인지 측정 환경에 적는다.
 - 지표: (결정적) 검색 1회당 읽는 용어 행 수, JSON 파싱 횟수(동의어·별칭·시스템 칸 `readStrings` 호출 수). (보조) 응답 시간 ms(기준·변경 A·B 교대 3회 이상, 회차마다 `uptime` load).
 - 측정 절차: 특성 시험 `TermMngSearchCharacterizationTest`(`src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dma/termMng/`)의 시나리오(키워드·시스템·상황 조건 조합)를 바탕으로 측정용 시험을 둔다. 측정용 시험은 측정 때 임시로 만든다(커밋 여부는 조정 세션과 정한다).
   1. `spring.jpa.properties.hibernate.generate_statistics=true` 를 주고, 시나리오 직전 `Statistics s = entityManagerFactory.unwrap(SessionFactory.class).getStatistics(); s.clear();`
