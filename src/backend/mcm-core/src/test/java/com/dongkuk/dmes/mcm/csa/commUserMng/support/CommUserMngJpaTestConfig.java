@@ -86,6 +86,8 @@ public class CommUserMngJpaTestConfig {
         // entity 패키지에는 다른 스키마(MCAAPUSER·MCM_SOURCE) 엔티티도 있다 — 스키마를 만들어 DDL 오류 로그를 없앤다.
         props.put("hibernate.hbm2ddl.create_namespaces", "true");
         // SQL 을 바꾸지 않고 기록만 한다 — 성능 근거 테스트(*SqlCountTest)가 SELECT·DELETE 수를 센다.
+        // 전제(SqlStatementCounter javadoc): hibernate.jdbc.batch_size 를 넣지 않는다 — 켜면 실행 횟수가 아니라 준비 횟수를 세어
+        // 건별 DELETE 회귀를 놓친다(*SqlCountTest 가 단언한다). 이 구성을 쓰는 시험은 순차 실행이어야 한다(전역 계수기 공유).
         props.put("hibernate.session_factory.statement_inspector", SqlStatementCounter.INSTANCE);
         em.setJpaProperties(props);
         return em;

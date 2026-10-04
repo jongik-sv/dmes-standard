@@ -4,6 +4,8 @@ import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.support.SqlStatementCounter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import jakarta.persistence.EntityManagerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,6 +24,8 @@ class CommUserMngServiceSearchSqlCountTest extends CommUserMngJpaTestBase {
 
     static final String DEPT_TABLE = "TB_MCM_DEPT_INFO";
 
+    @Autowired EntityManagerFactory emf;
+
     static LocalDateTime day(int dayOfMonth) {
         return LocalDateTime.of(2026, 1, dayOfMonth, 0, 0);
     }
@@ -38,6 +42,7 @@ class CommUserMngServiceSearchSqlCountTest extends CommUserMngJpaTestBase {
         fx.user("U5", "D99", day(5));
         fx.user("U6", null, day(6));
 
+        SqlStatementCounter.requireNoJdbcBatching(emf);
         SqlStatementCounter sql = SqlStatementCounter.INSTANCE;
         sql.reset();
         Map<String, Object> out = inTx(() -> service.searchCmUser(new CommUserMngSearchRequest()));

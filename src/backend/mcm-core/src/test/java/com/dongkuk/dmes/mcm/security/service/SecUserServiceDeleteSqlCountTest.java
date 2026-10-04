@@ -19,6 +19,7 @@ import com.dongkuk.dmes.mcm.security.password.PasswordPolicyEvaluator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import jakarta.persistence.EntityManagerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -44,6 +45,7 @@ class SecUserServiceDeleteSqlCountTest {
     @Autowired SecUserMappingRepository secUserMappingRepository;
     @Autowired CommUserMngFixtures fx;
     @Autowired TransactionTemplate tx;
+    @Autowired EntityManagerFactory emf;
 
     final SecUserServiceDeleteUsersTest.FakeUserAccountRepository accounts =
             new SecUserServiceDeleteUsersTest.FakeUserAccountRepository();
@@ -84,6 +86,7 @@ class SecUserServiceDeleteSqlCountTest {
     @Test
     @DisplayName("매핑 3개씩 가진 사용자 2명 삭제 — 매핑 DELETE 2회, 매핑 SELECT 0회")
     void bulkDeletePerUser() {
+        SqlStatementCounter.requireNoJdbcBatching(emf);
         SqlStatementCounter sql = SqlStatementCounter.INSTANCE;
         sql.reset();
         int count = tx.execute(s -> service.saveUsers(List.of(
