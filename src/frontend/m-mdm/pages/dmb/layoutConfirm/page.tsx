@@ -329,24 +329,22 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onShowAll, 
         <Input data-testid="lc-keyword" value={keyword} placeholder="이름" onChange={onKeyword} />
         <Button data-testid="lc-search" onClick={onSearch}>조회</Button>
       </div>
-      {drafts && drafts.length === 0 ? (
-        <p data-testid="lc-list-empty" style={{ ...mutedText, padding: "0 var(--spacing-md)" }}>확정할 DRAFT 가 없습니다</p>
-      ) : (
-        <div style={{ ...section, flex: 1, minHeight: 0 }}>
-          <AgDataGrid
-            columnSizing="fit"
-            columns={DRAFT_COLUMNS}
-            data={rows}
-            rowKey="rowId"
-            highlightedRowKey={selected ? draftKey(selected.layoutId, selected.ver) : null}
-            onRowClick={(r) => {
-              const d = byId.get(String(r.rowId));
-              if (d) onSelect(d);
-            }}
-            ariaLabel="확정 대기 목록"
-          />
-        </div>
-      )}
+      <div style={{ ...section, flex: 1, minHeight: 0 }}>
+        <AgDataGrid
+          columnSizing="fit"
+          columns={DRAFT_COLUMNS}
+          data={rows}
+          rowKey="rowId"
+          highlightedRowKey={selected ? draftKey(selected.layoutId, selected.ver) : null}
+          emptyMessage="확정할 DRAFT 가 없습니다"
+          emptyTestId="lc-list-empty"
+          onRowClick={(r) => {
+            const d = byId.get(String(r.rowId));
+            if (d) onSelect(d);
+          }}
+          ariaLabel="확정 대기 목록"
+        />
+      </div>
     </div>
   );
 }
@@ -404,13 +402,10 @@ function ImpactArea({ impact, eais }: { impact: ImpactRow[]; eais: string[] }) {
       <div data-testid="lc-impact">
         <div style={cardTitle}>영향받는 전문</div>
         <div style={section}>
-          {rows.length === 0 ? (
-            <p style={mutedText}>이 헤더를 쓰는 전문이 없습니다</p>
-          ) : (
-            <div style={{ height: IMPACT_GRID_HEIGHT }}>
-              <AgDataGrid columnSizing="fit" columns={IMPACT_COLUMNS} data={rows} rowKey="rowId" ariaLabel="영향받는 전문" />
-            </div>
-          )}
+          <div style={{ height: IMPACT_GRID_HEIGHT }}>
+            <AgDataGrid columnSizing="fit" columns={IMPACT_COLUMNS} data={rows} rowKey="rowId" ariaLabel="영향받는 전문"
+              emptyMessage="이 헤더를 쓰는 전문이 없습니다" />
+          </div>
         </div>
       </div>
       <div data-testid="lc-eais" style={section}>

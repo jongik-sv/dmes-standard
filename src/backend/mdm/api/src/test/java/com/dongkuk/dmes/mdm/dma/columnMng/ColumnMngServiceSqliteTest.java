@@ -573,13 +573,13 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 목록과_중복_행의_HTML_활용처_메모는_글자만_싣고_상세는_소독본을_그대로_준다() {
+    void 목록은_활용처_메모를_싣지_않고_중복_행은_글자만_싣고_상세는_소독본을_그대로_준다() {
         ColumnMngSaveRequest req = valid();
         req.setUsageNote("<p>화면 A &amp; B</p><ul><li>배치 C</li></ul>");
         Long columnId = save(req, List.of(), List.of());
 
         Map<String, Object> listRow = maps(service.search(search("RMTL_COIL_THK", null)).get("list")).get(0);
-        assertEquals("화면 A & B\n배치 C", listRow.get("usageNote"), "목록 행은 글자만");
+        assertFalse(listRow.containsKey("usageNote"), "목록 행에는 활용처 메모 칸이 없다(그리드에 없는 긴 글)");
         Map<String, Object> dup = maps(service.compare(compare("FORWARD", "원재료 코일 두께")).get("duplicates")).get(0);
         assertEquals(columnId, ((Number) dup.get("columnId")).longValue());
         assertEquals("화면 A & B\n배치 C", dup.get("usageNote"), "중복 행도 글자만");

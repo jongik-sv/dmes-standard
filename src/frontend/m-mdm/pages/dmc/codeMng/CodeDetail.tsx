@@ -321,22 +321,18 @@ export function CodeVersionCard({
           {buttons.warning}
         </p>
       ) : null}
-      {view.versions.length === 0 ? (
-        <p data-testid="version-empty" style={{ padding: "var(--spacing-sm) var(--spacing-md)", ...mutedText }}>
-          버전이 없습니다
-        </p>
-      ) : (
-        <div data-testid="version-list" style={{ padding: "0 var(--spacing-md)", height: VERSION_GRID_HEIGHT }}>
-          <AgDataGrid
-            columnSizing="fit"
-            columns={columns}
-            data={view.versions as unknown as Record<string, unknown>[]}
-            rowKey="ver"
-            highlightedRowKey={selectedVer}
-            onRowClick={(r) => onSelectVer(String(r.ver))}
-          />
-        </div>
-      )}
+      <div data-testid="version-list" style={{ padding: "0 var(--spacing-md)", height: VERSION_GRID_HEIGHT }}>
+        <AgDataGrid
+          columnSizing="fit"
+          columns={columns}
+          data={view.versions as unknown as Record<string, unknown>[]}
+          rowKey="ver"
+          highlightedRowKey={selectedVer}
+          onRowClick={(r) => onSelectVer(String(r.ver))}
+          emptyMessage="버전이 없습니다"
+          emptyTestId="version-empty"
+        />
+      </div>
     </>
   );
 }

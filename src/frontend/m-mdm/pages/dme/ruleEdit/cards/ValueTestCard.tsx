@@ -280,22 +280,21 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
         </p>
       )}
 
-      {fields.length > 0 && (
-        <div style={{ paddingTop: "var(--spacing-xs)" }}>
-          <AgDataGrid
-            columns={columns}
-            data={rows as unknown as Record<string, unknown>[]}
-            rowKey="name"
-            height="auto"
-            columnSizing="fit"
-            sortable={false}
-            singleClickEdit
-            onCellValueChanged={handleValueChange}
-            rowClassRefreshToken={sentToken}
-            ariaLabel="값 테스트 입력"
-          />
-        </div>
-      )}
+      {/* 입력 변수가 없으면 숨기되(display:none) 그리드는 늘 마운트해 룰을 바꿀 때 다시 만들지 않는다 */}
+      <div style={{ paddingTop: "var(--spacing-xs)", display: fields.length > 0 ? undefined : "none" }}>
+        <AgDataGrid
+          columns={columns}
+          data={rows as unknown as Record<string, unknown>[]}
+          rowKey="name"
+          height="auto"
+          columnSizing="fit"
+          sortable={false}
+          singleClickEdit
+          onCellValueChanged={handleValueChange}
+          rowClassRefreshToken={sentToken}
+          ariaLabel="값 테스트 입력"
+        />
+      </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "var(--spacing-xs)", paddingTop: "var(--spacing-sm)" }}>
         <Button variant="primary" disabled={!canRun} data-testid="vt-run" onClick={() => void handleRun()}>

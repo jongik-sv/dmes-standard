@@ -6,9 +6,9 @@
  * 동영상은 자동 넘김 중에 자동 재생(음소거)하고 재생이 끝나면 다음으로 간다. YouTube 는 재생 끝을 알 수 없어 시간으로 넘긴다.
  * 판단(주소 변환·간격·넘김 방식)은 media.ts 의 순수 함수다.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
-import { WidgetHeaderActions, type WidgetProps } from "@dk-oasis/shared/widget";
+import { WidgetHeaderActions, useWidgetVisible, type WidgetProps } from "@dk-oasis/shared/widget";
 
 import { MEDIA_CSS, MEDIA_STYLE_HREF } from "./media-styles";
 import {
@@ -95,6 +95,9 @@ export default function MediaRenderer({ definition }: WidgetProps) {
   const [paused, setPaused] = useState(false);
   const [failedKey, setFailedKey] = useState<string | null>(null);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // 숨은 탭·화면 밖·hidden 문서에서는 슬라이드를 넘기지 않는다(Screen-Performance-Guide R14).
+  const visible = useWidgetVisible(rootRef);
 
   const current = clampIndex(index, count);
   const item = items[current];
@@ -111,18 +114,19 @@ export default function MediaRenderer({ definition }: WidgetProps) {
   const goNext = useCallback(() => goTo((i) => nextIndex(clampIndex(i, count), count)), [goTo, count]);
   const goPrev = useCallback(() => goTo((i) => prevIndex(clampIndex(i, count), count)), [goTo, count]);
 
-  // 시간 넘김 — 항목이 바뀔 때마다(itemKey) 처음부터 다시 센다. 마우스가 올라가 있으면 세지 않고, 이미지는 다 받아진 뒤에 센다.
+  // 시간 넘김 — 항목이 바뀔 때마다(itemKey) 처음부터 다시 센다. 마우스가 올라가 있거나 보이지 않으면 세지 않고(다시 보이면 처음부터 센다), 이미지는 다 받아진 뒤에 센다.
   useEffect(() => {
-    if (mode !== "timer" || paused || !timerReady) return;
+    if (mode !== "timer" || paused || !visible || !timerReady) return;
     const timer = window.setTimeout(goNext, intervalMs);
     return () => window.clearTimeout(timer);
-  }, [mode, paused, timerReady, intervalMs, goNext, itemKey]);
+  }, [mode, paused, visible, timerReady, intervalMs, goNext, itemKey]);
 
   const caption = item?.caption?.trim();
   const multiple = count > 1;
 
   return (
     <div
+      ref={rootRef}
       className="mwm"
       data-testid="widget-media"
       onMouseEnter={() => setPaused(true)}

@@ -4,7 +4,6 @@
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Modal } from "@dk-oasis/shared/modal";
-import { empty } from "@/layout/styles";
 import type { HeaderOption } from "../types";
 
 const COLUMNS: GridColumn[] = [
@@ -27,18 +26,15 @@ export function HeaderPickModal({ open, options, used, onPick, onClose }: Header
   return (
     <Modal open={open} title="헤더 추가" size="md" onClose={onClose} footer={<Button onClick={onClose}>닫기</Button>}>
       <div data-testid="header-pick-modal">
-        {rows.length === 0 ? (
-          <p style={empty}>더 쌓을 헤더가 없습니다</p>
-        ) : (
-          <AgDataGrid
-            columnSizing="fit"
-            columns={COLUMNS}
-            data={rows as unknown as Record<string, unknown>[]}
-            rowKey="LAYOUT_ID"
-            height={240}
-            onRowClick={(r) => onPick(r as unknown as HeaderOption)}
-          />
-        )}
+        <AgDataGrid
+          columnSizing="fit"
+          columns={COLUMNS}
+          data={rows as unknown as Record<string, unknown>[]}
+          rowKey="LAYOUT_ID"
+          height={240}
+          emptyMessage="더 쌓을 헤더가 없습니다"
+          onRowClick={(r) => onPick(r as unknown as HeaderOption)}
+        />
       </div>
     </Modal>
   );

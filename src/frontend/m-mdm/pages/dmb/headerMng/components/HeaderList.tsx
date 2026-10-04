@@ -3,7 +3,6 @@
 /** 헤더 목록(TSK-05-02 design.md §2, D-144 3단계) — 헤더 이름·EAI·인코딩·길이·항목 수·사용 전문 수·버전·상태. */
 import type { ReactNode } from "react";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
-import { empty } from "@/layout/styles";
 import { versionStateLabel } from "@/layout/version-rows";
 import { fmtVer } from "@/shell";
 import type { HeaderRow } from "../types";
@@ -32,22 +31,19 @@ export interface HeaderListProps {
 export function HeaderList({ rows, selectedId, loading, onSelect, titleExtra }: HeaderListProps) {
   return (
     <GridPanel title="헤더 목록" count={rows.length} titleExtra={titleExtra}>
-      {rows.length === 0 && !loading ? (
-        <p data-testid="header-list-empty" style={empty}>조회된 헤더가 없습니다</p>
-      ) : (
-        <div data-testid="header-list" style={{ position: "absolute", inset: 0 }}>
-          <AgDataGrid
-            columnSizing="fit"
-            columns={COLUMNS}
-            data={rows as unknown as Record<string, unknown>[]}
-            rowKey="LAYOUT_ID"
-            highlightedRowKey={selectedId}
-            loading={loading}
-            emptyMessage="조회된 헤더가 없습니다"
-            onRowClick={(r) => onSelect(r as unknown as HeaderRow)}
-          />
-        </div>
-      )}
+      <div data-testid="header-list" style={{ position: "absolute", inset: 0 }}>
+        <AgDataGrid
+          columnSizing="fit"
+          columns={COLUMNS}
+          data={rows as unknown as Record<string, unknown>[]}
+          rowKey="LAYOUT_ID"
+          highlightedRowKey={selectedId}
+          loading={loading}
+          emptyMessage="조회된 헤더가 없습니다"
+          emptyTestId="header-list-empty"
+          onRowClick={(r) => onSelect(r as unknown as HeaderRow)}
+        />
+      </div>
     </GridPanel>
   );
 }

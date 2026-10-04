@@ -92,28 +92,26 @@ export function ColumnPickModal({ open, onClose, onPick, search, used = [] }: Co
         </div>
         {error && <p className="form-error-message" style={{ whiteSpace: "pre-line" }}>{error}</p>}
         {rows === null && <p style={empty}>검색어를 넣고 조회하세요. 컬럼 사전에 있는 컬럼만 항목이 됩니다.</p>}
-        {rows !== null && rows.length === 0 && !error && (
-          <p data-testid="column-pick-empty" style={empty}>컬럼 사전에 없습니다. 먼저 컬럼 사전에 등재하세요</p>
-        )}
-        {rows !== null && rows.length > 0 && (
-          <div data-testid="column-pick-grid">
-            <AgDataGrid
-              columnSizing="fit"
-              columns={COLUMNS}
-              data={rows as unknown as Record<string, unknown>[]}
-              rowKey="PHYS_NAME"
-              height={280}
-              highlightedRowKey={selected?.PHYS_NAME ?? null}
-              onRowClick={(r) => setSelected(r as unknown as ColumnInfo)}
-              onRowDoubleClick={(r) => {
-                const c = r as unknown as ColumnInfo;
-                if (used.includes(c.PHYS_NAME)) return;
-                onPick(c);
-                close();
-              }}
-            />
-          </div>
-        )}
+        {/* 조회 전·오류로 0건이면 숨기되(display:none) 그리드는 늘 마운트해 0↔N건 전환 때 다시 만들지 않는다 */}
+        <div data-testid="column-pick-grid" style={rows === null || (rows.length === 0 && error) ? { display: "none" } : undefined}>
+          <AgDataGrid
+            columnSizing="fit"
+            columns={COLUMNS}
+            data={(rows ?? []) as unknown as Record<string, unknown>[]}
+            emptyMessage="컬럼 사전에 없습니다. 먼저 컬럼 사전에 등재하세요"
+            emptyTestId="column-pick-empty"
+            rowKey="PHYS_NAME"
+            height={280}
+            highlightedRowKey={selected?.PHYS_NAME ?? null}
+            onRowClick={(r) => setSelected(r as unknown as ColumnInfo)}
+            onRowDoubleClick={(r) => {
+              const c = r as unknown as ColumnInfo;
+              if (used.includes(c.PHYS_NAME)) return;
+              onPick(c);
+              close();
+            }}
+          />
+        </div>
       </div>
     </Modal>
   );

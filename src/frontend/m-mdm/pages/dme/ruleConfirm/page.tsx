@@ -413,21 +413,19 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, total, onSh
       <div style={{ padding: "0 var(--spacing-md)" }}>
         <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={total} onShowAll={onShowAll} testId="rc-list-limit" />
       </div>
-      {drafts && drafts.length === 0 ? (
-        <p data-testid="rc-list-empty" style={{ ...mutedText, padding: "0 var(--spacing-md)" }}>확정할 DRAFT 가 없습니다</p>
-      ) : (
-        <div style={{ ...section, flex: 1, minHeight: 0 }}>
-          <AgDataGrid
-            columnSizing="fit"
-            columns={DRAFT_COLUMNS}
-            data={draftRows}
-            rowKey="rowId"
-            highlightedRowKey={selected ? draftKey(selected.maruRuleId, selected.ver) : null}
-            onRowClick={(r) => onSelect(r as unknown as PendingDraft)}
-            ariaLabel="확정 대기 목록"
-          />
-        </div>
-      )}
+      <div style={{ ...section, flex: 1, minHeight: 0 }}>
+        <AgDataGrid
+          columnSizing="fit"
+          columns={DRAFT_COLUMNS}
+          data={draftRows}
+          rowKey="rowId"
+          highlightedRowKey={selected ? draftKey(selected.maruRuleId, selected.ver) : null}
+          onRowClick={(r) => onSelect(r as unknown as PendingDraft)}
+          emptyMessage="확정할 DRAFT 가 없습니다"
+          emptyTestId="rc-list-empty"
+          ariaLabel="확정 대기 목록"
+        />
+      </div>
     </div>
   );
 }
@@ -550,18 +548,18 @@ function DiffTable({ entries, counts, vars }: { entries: DiffRow[]; counts?: Dif
         </span>
       </div>
       <div style={section}>
-        {changed.length === 0 && <p data-testid="rc-diff-empty" style={mutedText}>바뀐 행이 없습니다</p>}
-        {diffRows.length > 0 && (
-          <div style={{ height: DIFF_GRID_HEIGHT }}>
-            <AgDataGrid
-              columnSizing="fit"
-              columns={DIFF_COLUMNS}
-              data={diffRows}
-              rowKey="rowId"
-              ariaLabel="직전 RELEASED 대비 변경"
-            />
-          </div>
-        )}
+        {changed.length === 0 && diffRows.length > 0 && <p style={mutedText}>바뀐 행이 없습니다</p>}
+        <div style={{ height: DIFF_GRID_HEIGHT }}>
+          <AgDataGrid
+            columnSizing="fit"
+            columns={DIFF_COLUMNS}
+            data={diffRows}
+            rowKey="rowId"
+            ariaLabel="직전 RELEASED 대비 변경"
+            emptyMessage="바뀐 행이 없습니다"
+            emptyTestId="rc-diff-empty"
+          />
+        </div>
       </div>
     </div>
   );
