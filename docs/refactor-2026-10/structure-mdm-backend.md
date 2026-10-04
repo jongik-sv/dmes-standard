@@ -129,15 +129,15 @@
 - 바꾼 이유: 오래 사는 엔진에 같은 정의 객체가 계속 올 때 판정마다 파싱·검사기 생성을 되풀이하지 않게 한다(수치는 perf-mdm-backend.md P5).
 - 동작 보존 근거: `RuleSetPrepareCharacterizationTest` 9건(반복 호출·정의 변경·폐기·파싱 실패·가상 스레드 32개 동시, 262ca6df 로 변경 전 코드에서 먼저 고정)과 `RuleSetPreparePlanCacheTest` 5건(적중 assertSame·교체 assertNotSame·상한·파싱 실패 비기억·사본 분리). 커밋 본문: engine 1,620(건너뜀 1)·mdm lib 1,648·api 1,613 통과, oasis-contract-check ERROR 0(로그 원문은 확인 필요). c2f3a3b0·023d4185 는 기억을 늘 놓치게 하거나 지연 목록을 공유하게 한 변형에서 시험이 실패함을 커밋 본문이 밝힌다.
 - 영향 범위: engine 모듈(`MdmRuleEngine`·`FlowKeys`)만. 호출부·설정·화면·다른 레인 변경 없음.
-- 알려진 한계: 정의 객체를 만든 뒤 안의 List·Map 을 고치는 생산자가 있으면 옛 트리를 다시 쓴다. 운영 경로(cactus `MdmCachedDefinitions`, mdm `StoredDefinitionLookup`)에서는 찾지 못했다(측정 문서 기록 — 코드 재확인 필요). mdm 의 `StoredDefinitionLookup` 은 판정 시각마다 새 세트 객체를 만든다고 측정 문서가 적었으므로 그 경로에서는 적중하지 않을 수 있다(확인 필요).
-- 되돌리는 방법: `git revert d56dde59`. 시험 262ca6df 의 특성 시험은 남겨도 되지만 c2f3a3b0·023d4185 와 `RuleSetPreparePlanCacheTest`·`RuleSetPrepareBenchTest` 는 `cachedTree`·`cachedKeys`·`cachedPlans`·`forRun` 을 쓰므로 함께 되돌려야 컴파일된다.
+- 알려진 한계: 정의 객체를 만든 뒤 안의 List·Map 을 고치는 생산자가 있으면 옛 트리를 다시 쓴다. 운영 경로(cactus `MdmCachedDefinitions`, mdm `StoredDefinitionLookup`)에서는 찾지 못했다(측정 문서 기록 — `MdmCachedDefinitions` 에 정의 객체를 고치는 생산자가 없다는 서술은 다시 보지 못했다, 확인 필요). mdm 의 `StoredDefinitionLookup.ruleSet` 은 `setCache` 를 키 `setId + "@" + evalTs` 로 두고(149~157행), `RuleSetRunner` 는 엔진과 조회기를 요청마다 새로 만든다(130·338행). 그래서 한 요청 안에서 판정 시각이 같은 호출끼리는 적중하고, 시각이 다르거나 요청이 다르면 놓친다(코드 확인).
+- 되돌리는 방법: `git revert 023d4185 c2f3a3b0 87ac5868 d56dde59`(새것부터). c2f3a3b0 이 같은 `MdmRuleEngine.java` 에 접근자를 더했고 87ac5868 의 `RuleSetPrepareBenchTest` 가 `cachedPlans()` 를 쓰므로 d56dde59 만 되돌리면 충돌하거나 컴파일되지 않는다. 시험 262ca6df 의 특성 시험은 남겨도 된다.
 
 ## S8. RuleAnalyzer.analyze·FlowParser.parse 긴 메서드를 검사 단계별 private 메서드로 분리
 - 커밋: b79d9cc9(`RuleAnalyzer`), 50c5d09e(`FlowParser`), 분할 전 특성 시험 cc1d1936.
 - 바뀌기 전: `RuleAnalyzer.analyze` 가 약 190줄, `FlowParser.parse` 가 약 170줄(커밋 본문)의 한 메서드였다.
 - 바뀐 뒤: 두 메서드는 단계 호출 순서만 남기고, 이슈 리스트를 인자로 넘겨 순서대로 append 한다. 이슈 순서·문구·코드와 public 시그니처는 그대로다(Builder 도 불변).
   - `RuleAnalyzer.analyze` 호출 순서(b79d9cc9 diff): `columnsOf` → `dropAllNaRows`(1. 전부 NA 행) → `cellSets` → `checkUnresolvedCells`(2. 못 푸는 셀) → `checkOverlaps`(3. 겹침, 겹침 행 쌍 색인을 돌려줌) → `checkUnreachable`(4. 도달 불가, `first` 일 때만) → `checkValueGaps`(5. 값 빈틈; 안에서 `gapGroups`·`addGridGaps`) → `checkNullGaps`. 마지막에 `List.copyOf(issues)`.
-  - `FlowParser.parse` 호출 순서(50c5d09e 커밋 본문·diff): `indexNodes`(a) → `attachedCatches` → `checkStartEnd`(b1·b2) → `linkEdges`(c) → `checkNodes`(d·e·f1) → `checkSplits`(f2·g1..g5·f4; 안에서 `checkIfBranches`/`checkParallelBranches` → `checkBranchOrders` → `checkSameTarget`) → `checkCatchNodes`(h1..h5) → `checkCatchTargets`(h6·h7) → `buildTree`. 메서드 호출 순서 중 `linkEdges` 의 정확한 위치는 diff 발췌만 봤고 전체 순서는 커밋 본문 설명 기준이다(확인 필요).
+  - `FlowParser.parse` 호출 순서(50c5d09e 커밋 본문·diff): `indexNodes`(a) → `attachedCatches` → `checkStartEnd`(b1·b2) → `linkEdges`(c) → `checkNodes`(d·e·f1) → `checkSplits`(f2·g1..g5·f4; 안에서 `checkIfBranches`/`checkParallelBranches` → `checkBranchOrders` → `checkSameTarget`) → `checkCatchNodes`(h1..h5) → `checkCatchTargets`(h6·h7) → `buildTree`. `linkEdges` 의 위치는 HEAD `FlowParser.parse` 65행에서 확인했다(코드 확인).
 - 바꾼 이유: 긴 메서드를 검사 단계별로 읽고 시험할 수 있게 한다. 성능 목적이 아니다.
 - 동작 보존 근거: cc1d1936 의 `RuleAnalyzerOrderCharacterizationTest`(여섯 단계 이슈가 함께 날 때의 순서·문구, 빈 셀·Equal 열 EQ 요약·Expression 열 이름 대체·못 푸는 칸이 낀 값 빈틈 묶음 건너뛰기)와 `FlowParserStageOneCharacterizationTest`(1단계 a→b→c→노드별→분기별→받는 노드별→붙은 노드별 순서 전체와 문구). 기존 코퍼스 시험: b79d9cc9 본문 engine `*RuleAnaly*` 34건·mdm `RuleAnalysisCorpusTest` 46건 통과, 50c5d09e 본문 engine 전체 1,629건(건너뜀 1) 통과(로그 원문은 확인 필요).
 - 영향 범위: `RuleAnalyzer`·`FlowParser` 두 파일(b79d9cc9 117 추가·72 삭제). 호출부·설정·화면 변경 없음.
@@ -151,14 +151,14 @@
 
 1. JSON null 리터럴 저장 시 NPE(용어 JSON 칸) — `json_valid` 를 통과하는 `null` 리터럴이 저장되면 목록이 null 이 되어 키워드 검색·시스템 조건 검색·`recommend` 1차 추천(캐시 synonyms for-each)이 NPE 로 실패한다. 근거: `MdmJsonLists.readStrings`(null 리터럴이면 null), `TermMngService.search`, `TermRecommendationCache`; 시험 `TermMngSearchCharacterizationTest`·`TermJsonListCharacterizationTest`(assertThrows). 파서가 null 대신 빈 목록을 돌려주면 고쳐진다. 고칠 때 `TermSearchPrefilter` 의 `%null%` 보존 OR 조건(64bcf6cc 포함)도 함께 빼야 한다. 운영 방언은 `json_valid` CHECK 가 SQLite 마이그레이션에만 있어 저장값이 유효 JSON 이라고 가정할 수 없다.
 2. 시스템 목록 `[null]` 원소 NPE — SYSTEMS 에 `[null]` 이 있을 때 시스템 조건 검색이 `s.equalsIgnoreCase` 에서 NPE. 근거: `TermMngService.search` 시스템 단계, `TermDictionaryParseSurfacesCharacterizationTest`·`TermMngSearchCharacterizationTest`. 위 1번과 같은 방식으로 함께 고친다.
-3. L16 칸 구분에 항목 순번(seq) 포함 — `l16Cell` 이 L16 칸을 구분할 때 순번을 넣어, 헤더 항목 순서만 바뀌어도 이미 있던 L16 이 새 오류(ERROR)로 올라온다. 예: 삭제 시나리오 M7(LEN3 순번 2→1). 근거: 레이아웃 헤더 확정 영향도(S2 `LayoutHeaderImpact`·`LayoutHeaderImpactEquivalenceSqliteTest`, 시험 주석에 기록. `l16Cell` 의 정확한 소속 클래스는 확인 필요).
+3. L16 칸 구분에 항목 순번(seq) 포함 — `l16Cell` 이 L16 칸을 구분할 때 순번을 넣어, 헤더 항목 순서만 바뀌어도 이미 있던 L16 이 새 오류(ERROR)로 올라온다. 예: 삭제 시나리오 M7(LEN3 순번 2→1). 근거: 레이아웃 헤더 확정 영향도(S2 `LayoutHeaderImpact`·`LayoutHeaderImpactEquivalenceSqliteTest`, 시험 주석에 기록. `l16Cell` 은 `mdm/lib/.../dmb/layout/confirm/LayoutHeaderImpact.java:267` 에서 `i.seq()` 를 칸 키에 넣는다, 코드 확인).
 4. MDM018 충돌 순서 미정 — 다른 컬럼에 대소문자만 다른 매핑이 둘 있으면 메시지 안 충돌 순서가 정해지지 않는다. 근거: `findBySystemCodeAndUpperPhysNameIn` 에 `ORDER BY` 없음(`ColumnMngService` 매핑 충돌 검사, S6).
 5. REVERSE 중복 미병합 — `compare(REVERSE)` 의 중복 목록이 같은 컬럼을 합치지 않아 여러 번 나올 수 있다. 근거: `ColumnMngService.compare`, `ColumnMngLookupCharacterizationTest`.
 6. 무관 용어 ID 수용 — `resolveTermIds` 는 논리명과 상관없는 용어 ID 도 존재만 하면 받는다. 근거: `ColumnMngService.resolveTermIds`.
-7. 소수 termId 절삭 — termId 가 소수(Number)로 오면 `longValue` 로 잘려 다른 ID 로 저장될 수 있다. 근거: `ColumnMngService` 의 termId 해석부.
+7. 소수 termId 절삭 — termId 가 소수(Number)로 오면 `longValue` 로 잘려 다른 ID 로 저장될 수 있다. 근거: `ColumnMngService.toLong`(742행 부근 `n.longValue()`)을 termId 해석부(426행)가 쓴다.
 8. 전각 공백 미절단 — 컬럼 검색어·도메인 키워드 모두 전각 공백을 자르지 않는다. 근거: `ColumnMngService.search` 의 trim 처리, `ColumnMngSearchCharacterizationTest`.
-9. FlowParser h6 문구 중복 — 한 받는 노드가 같은 종류를 두 번 적고(`c2=[NO_RESULT, NO_RESULT]`) 같은 대상의 다른 받는 노드도 그 종류를 받으면 "룰 노드 t1에서 예외 종류 NO_RESULT를 c1와 c2가 함께 받는다" 가 두 번 나고 h5 겹침 이슈와도 겹친다. 근거: `FlowParser.checkCatchTargets`(50c5d09e 이전 h6), `FlowParserStageOneCharacterizationTest`. TS `flow-model.ts` 와 같은지는 확인 필요.
+9. FlowParser h6 문구 중복 — 한 받는 노드가 같은 종류를 두 번 적고(`c2=[NO_RESULT, NO_RESULT]`) 같은 대상의 다른 받는 노드도 그 종류를 받으면 "룰 노드 t1에서 예외 종류 NO_RESULT를 c1와 c2가 함께 받는다" 가 두 번 나고 h5 겹침 이슈와도 겹친다. 근거: `FlowParser.checkCatchTargets`(50c5d09e 이전 h6), `FlowParserStageOneCharacterizationTest`. TS `flow-model.ts` 266~274행의 owner 로직도 같다(코드 확인).
 10. FlowParser h6·h7 문구 — 대상이 TASK 여도 "룰 노드 t1"·"룰 t1로" 라고 쓴다. 근거: `FlowParser.checkCatchTargets`. 문구 결함이라 우선순위 낮음.
-11. RuleAnalyzer 죽은 분기 2곳 — 5단계 `isExpressionColumn` 검사(Expression 열은 영역이 STRING 이라 앞 조건에서 이미 빠짐)와 `describe()` 의 빈 셀 `''` 분기(빈 셀은 exact 가 아니라 OVERLAP 문구에 닿지 않음). 분할 때도 그대로 둠. 근거: `RuleAnalyzer.checkValueGaps`·`describe`; 커버리지 도구 없이 grep 으로 판정했다(확인 필요).
+11. RuleAnalyzer 죽은 분기 2곳 — 5단계 `isExpressionColumn` 검사(Expression 열은 영역이 STRING 이라 앞 조건에서 이미 빠짐)와 `describe()` 의 빈 셀 `''` 분기(빈 셀은 exact 가 아니라 OVERLAP 문구에 닿지 않음). 분할 때도 그대로 둠. 근거: `RuleAnalyzer.checkValueGaps`·`describe`; 커버리지 도구 없이 코드 읽기로 판정했다. `domainOf` 가 Expression 열에 STRING 을 주므로 `isExpressionColumn` 분기는 죽었고, 빈 셀은 `UNKNOWN_NULL`(exact 아님)이라 `crosses` 가 YES 를 줄 수 없어 `describe` 의 `""` 분기에 닿지 않는다(코드 확인).
 
 기록만 하고 결함은 아닌 것: 0ec7a57b 단독 시점의 "상황 조건 + 키워드 단계 NPE 행" 동작 변화는 64bcf6cc 가 바로잡았다(HEAD 는 정상, bisect 로 그 커밋에 멈출 때만 해당).
