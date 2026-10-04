@@ -63,9 +63,12 @@ async function callAction(action: string, params: Record<string, unknown> = {}):
 
 const isRecord = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
-/** 정의·덮어쓰기 행 전체(configJson 전부 포함)와 위젯별 사용자 수. */
+/**
+ * 정의·덮어쓰기 행 전체와 위젯별 사용자 수. 목록에는 configJson 을 싣지 않는다(행당 최대 200KB — 화면 성능 가이드 R1).
+ * 행을 고를 때 {@link fetchWidgetDef} 로 설정을 받는다.
+ */
 export async function searchWidgetDefs(): Promise<WidgetAdminSearchResult> {
-  const out = await callAction("search");
+  const out = await callAction("search", { includeConfig: false });
   const defs = Array.isArray(out.defs) ? out.defs.filter(isRecord) : [];
   const usage: Record<string, number> = {};
   if (isRecord(out.usage)) {
@@ -75,6 +78,13 @@ export async function searchWidgetDefs(): Promise<WidgetAdminSearchResult> {
     }
   }
   return { defs, usage };
+}
+
+/** 정의 행 1개의 상세(configJson 포함) — 서버 Map 그대로. 행이 없으면 null. */
+export async function fetchWidgetDef(widgetId: string): Promise<Record<string, unknown> | null> {
+  const out = await callAction("search", { widgetId });
+  const defs = Array.isArray(out.defs) ? out.defs.filter(isRecord) : [];
+  return defs[0] ?? null;
 }
 
 /** 정의 행 1개 저장 — 결과 def Map(신규 정의 위젯이면 서버가 만든 widgetId 포함). */

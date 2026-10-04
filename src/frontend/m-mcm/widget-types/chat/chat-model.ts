@@ -244,7 +244,7 @@ export const resetRequest = (instId: string): ChatRequest => chatRequest("reset"
 /** 위젯관리 화면의 정의 목록 호출(편집기가 쿼리 위젯을 고를 때). */
 export const adminSearchRequest = (): ChatRequest => ({
   url: ADMIN_SEARCH_URL,
-  body: { meta: { menuId: ADMIN_MENU_ID }, params: {} },
+  body: { meta: { menuId: ADMIN_MENU_ID }, params: { includeConfig: false } },
 });
 
 /** 서버가 업무 규칙으로 거절한 오류(HTTP 200 + meta.success=false). 메시지는 서버가 쓴 한국어 문장이다. */

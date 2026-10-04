@@ -22,7 +22,7 @@ import { WIDGET_REGISTRY } from "@/lib/generated/widget-registry";
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
 import { notifyWidgetDefsChanged } from "@/lib/widget-defs-events";
 
-import { deleteWidgetDef, saveWidgetDef, searchWidgetDefs } from "./api";
+import { deleteWidgetDef, fetchWidgetDef, saveWidgetDef, searchWidgetDefs } from "./api";
 import {
   blankOverrideNotice,
   buildAdminRows,
@@ -105,8 +105,8 @@ const TYPE_OPTIONS = Object.values(WIDGET_TYPE_REGISTRY).map((t) => ({
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-const formForRow = (row: AdminRow): DefForm =>
-  row.kind === "코드" ? codeForm(row.widgetId, row.def) : rowToForm(row.def as WidgetDefRow);
+/** 코드 위젯 행의 상세 폼 — 덮어쓰기 행에는 설정이 없어 목록 행으로 충분하다. 정의 위젯은 설정을 상세 조회로 받아야 한다. */
+const codeFormForRow = (row: AdminRow): DefForm => codeForm(row.widgetId, row.def);
 
 export interface WidgetListTabProps {
   /** 값이 바뀌면 다시 조회한다(상단 [조회] 버튼). 0 은 첫 조회. */
@@ -171,24 +171,49 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
     setOpenSeq((n) => n + 1);
   }, []);
 
+  const showError = useCallback(
+    (e: unknown) => showMessage({ title: "오류", message: errorText(e), alertType: "error" }),
+    [showMessage]
+  );
+
+  /**
+   * 행의 상세 폼을 연다. 목록에는 configJson 이 없으므로(화면 성능 가이드 R1) 정의 위젯은 상세 조회로 설정을 받은 뒤에만 연다 —
+   * 설정 없는 폼이 열리면 [저장]이 설정을 NULL 로 지울 수 있다. 조회가 실패하면 지금 화면을 그대로 둔다.
+   */
+  const openRowForm = useCallback(
+    async (row: AdminRow) => {
+      if (row.kind === "코드" || !row.def) {
+        openForm(codeFormForRow(row), row.widgetId);
+        return;
+      }
+      const summary = row.def;
+      setIsBusy(true);
+      try {
+        const detail = await fetchWidgetDef(row.widgetId);
+        const full = (detail ? toWidgetDefRow(detail) : null) ?? summary;
+        openForm(rowToForm(full), row.widgetId);
+      } catch (e) {
+        showError(e);
+      } finally {
+        setIsBusy(false);
+      }
+    },
+    [openForm, showError]
+  );
+
   /** 받은 목록을 반영하고 selectAfter 행을 연다(없으면 선택 해제). */
   const applyList = useCallback(
-    (out: WidgetAdminSearchResult, selectAfter?: string) => {
+    async (out: WidgetAdminSearchResult, selectAfter?: string) => {
       const nextDefs = out.defs.map(toWidgetDefRow).filter((d): d is WidgetDefRow => d !== null);
       setDefs(nextDefs);
       setUsage(out.usage);
       setLoaded(true);
       const nextRows = buildAdminRows(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, nextDefs, out.usage);
       const target = selectAfter ? nextRows.find((r) => r.widgetId === selectAfter) : undefined;
-      if (target) openForm(formForRow(target), target.widgetId);
+      if (target) await openRowForm(target);
       else openForm(null, "");
     },
-    [openForm]
-  );
-
-  const showError = useCallback(
-    (e: unknown) => showMessage({ title: "오류", message: errorText(e), alertType: "error" }),
-    [showMessage]
+    [openForm, openRowForm]
   );
 
   /** 다시 조회 — 처리 중 표시를 켜고 목록을 받는다. */
@@ -196,7 +221,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
     async (selectAfter?: string) => {
       setIsBusy(true);
       try {
-        applyList(await searchWidgetDefs(), selectAfter);
+        await applyList(await searchWidgetDefs(), selectAfter);
       } catch (e) {
         showError(e);
       } finally {
@@ -231,9 +256,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
   useEffect(() => {
     let cancelled = false;
     searchWidgetDefs()
-      .then((out) => {
-        if (!cancelled) applyList(out);
-      })
+      .then((out) => (cancelled ? undefined : applyList(out)))
       .catch((e: unknown) => {
         if (!cancelled) showError(e);
       })
@@ -256,10 +279,10 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
   const handleRowClick = useCallback(
     (r: Record<string, unknown>) => {
       const row = r as AdminRow;
-      if (row.widgetId === selectedId && form) return;
-      guard("저장하지 않은 변경을 버릴까요?", () => openForm(formForRow(row), row.widgetId));
+      if (isBusy || (row.widgetId === selectedId && form)) return;
+      guard("저장하지 않은 변경을 버릴까요?", () => void openRowForm(row));
     },
-    [selectedId, form, guard, openForm]
+    [isBusy, selectedId, form, guard, openRowForm]
   );
 
   const handleNew = useCallback(
