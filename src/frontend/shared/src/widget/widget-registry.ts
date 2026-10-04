@@ -113,14 +113,7 @@ export function defWidgetMeta(row: WidgetDefRow, type: WidgetTypeRegistryEntry):
 
 /** 유형 렌더러를 불러와 정의 설정(definition)을 끼워 넣는 본체 로더. */
 export function defWidgetLoader(type: WidgetTypeRegistryEntry, definition: unknown | null): WidgetRegistryEntry["load"] {
-  const key = jsonKey(definition);
-  let byDef = loaderCache.get(type);
-  if (!byDef) loaderCache.set(type, (byDef = new Map()));
-  const cached = key === null ? undefined : byDef.get(key);
-  if (cached) return cached;
-  const loader = makeDefLoader(type, definition);
-  if (key !== null) byDef.set(key, loader);
-  return loader;
+  return makeDefLoader(type, definition);
 }
 
 /** 직렬화할 수 없으면 null(캐시하지 않는다). */
@@ -132,20 +125,26 @@ function jsonKey(v: unknown): string | null {
   }
 }
 
-/** (유형 entry, 정의 설정) → 본체 로더. 같은 설정이면 같은 함수라 WidgetFrame 지연 로딩 캐시(load 기준)를 다시 쓴다. */
-const loaderCache = new WeakMap<WidgetTypeRegistryEntry, Map<string, WidgetRegistryEntry["load"]>>();
-/** (코드 entry 또는 유형 entry) → 위젯 ID → 마지막으로 합친 행 내용·entry. 같은 행이면 같은 entry 객체(위젯마다 한 칸만 기억). */
-const entryCache = new WeakMap<object, Map<string, { key: string; entry: WidgetRegistryEntry }>>();
+/**
+ * (코드 entry 또는 유형 entry) → 위젯 ID → 마지막으로 합친 행 내용·정의 설정·entry. 위젯마다 한 칸만 기억한다.
+ * 행이 같으면 같은 entry, 행은 달라도 정의 설정이 같으면 같은 본체 loader 를 쓴다(WidgetFrame 지연 로딩 캐시가 load 기준이라 본체가 유지된다).
+ */
+const entryCache = new WeakMap<object, Map<string, { key: string; configKey: string | null; entry: WidgetRegistryEntry }>>();
 
-function cachedEntry(owner: object, row: WidgetDefRow, make: () => WidgetRegistryEntry): WidgetRegistryEntry {
+function cachedEntry(
+  owner: object,
+  row: WidgetDefRow,
+  make: (prevLoad: WidgetRegistryEntry["load"] | undefined) => WidgetRegistryEntry
+): WidgetRegistryEntry {
   const key = jsonKey(row);
-  if (key === null) return make();
+  if (key === null) return make(undefined);
   let byId = entryCache.get(owner);
   if (!byId) entryCache.set(owner, (byId = new Map()));
   const hit = byId.get(row.widgetId);
   if (hit && hit.key === key) return hit.entry;
-  const entry = make();
-  byId.set(row.widgetId, { key, entry });
+  const configKey = jsonKey(row.config);
+  const entry = make(hit && configKey !== null && hit.configKey === configKey ? hit.entry.load : undefined);
+  byId.set(row.widgetId, { key, configKey, entry });
   return entry;
 }
 
@@ -188,7 +187,7 @@ export function mergeWidgetRegistry(
       console.warn(`[widget] 정의 위젯 ${row.widgetId} 의 유형 ${row.typeId ?? "(없음)"} 이 등록부에 없어 건너뜁니다.`);
       continue;
     }
-    out[row.widgetId] = cachedEntry(type, row, () => ({ meta: defWidgetMeta(row, type), load: defWidgetLoader(type, row.config) }));
+    out[row.widgetId] = cachedEntry(type, row, (prevLoad) => ({ meta: defWidgetMeta(row, type), load: prevLoad ?? defWidgetLoader(type, row.config) }));
   }
   return prev && sameEntries(prev, out) ? prev : out;
 }

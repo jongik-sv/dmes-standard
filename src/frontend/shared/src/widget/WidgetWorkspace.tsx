@@ -196,6 +196,20 @@ export function WidgetWorkspace({
   const homeIsDefault = useRef(false);
   /** 사용자가 탭을 직접 골랐는지 — 사용자 확인이 늦게 끝나도 고른 탭을 기억한 탭으로 덮지 않는다. */
   const tabTouched = useRef(false);
+  /**
+   * 탭별 원래 배치(서버에서 받거나 저장한, 정리 전 항목)와 그것을 정리한 결과(cleaned, 화면 상태의 items 참조).
+   * 등록부가 바뀌면 화면의 items 가 아직 cleaned 그대로일 때만 원래 배치에서 다시 정리한다 — 이전 등록부로 한 번 잘린 크기를
+   * 다시 자르지 않게(새 등록부가 더 큰 크기를 허용하면 원래 크기로 돌아온다). 사용자가 바꾼 탭은 화면 값을 그대로 정리한다.
+   */
+  const sourceItems = useRef(new Map<string, { raw: readonly WidgetItem[]; cleaned: readonly WidgetItem[] }>());
+
+  /** 진행 중인 조용한 다시 불러오기를 버린다 — 사용자가 편집·즉시 저장을 시작하면 늦게 온 응답이 그 변경을 덮지 않게. */
+  const cancelPendingLoad = () => {
+    if (pendingSeq.current === 0 || pendingSeq.current !== loadSeq.current) return;
+    loadSeq.current += 1;
+    startedSeq.current = loadSeq.current;
+    pendingSeq.current = 0;
+  };
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -218,7 +232,14 @@ export function WidgetWorkspace({
         // 단일 탭이면 「홈」만 다룬다 — 다른 탭은 상태에 두지 않으므로 저장되지도 않는다.
         const others = single ? [] : cleaned.filter((t) => t.tabId !== HOME_TAB_ID).sort((a, b) => a.seq - b.seq);
         const next = [home ? { ...home, name: homeTab([]).name, seq: 0 } : homeTab(sanitizeLayout(homeDefaultRef.current, reg)), ...others];
-        setTabs((prev) => reuseTabs(prev, next));
+        const final = reuseTabs(tabsRef.current, next);
+        sourceItems.current = new Map(
+          loaded.flatMap((t) => {
+            const shown = final.find((f) => f.tabId === t.tabId);
+            return shown ? [[t.tabId, { raw: t.items, cleaned: shown.items }] as const] : [];
+          })
+        );
+        setTabs(final);
         const last = readLastTab(memoUserIdRef.current);
         setActiveTabId((cur) =>
           opts?.silent && next.some((t) => t.tabId === cur) ? cur : last && next.some((t) => t.tabId === last) ? last : HOME_TAB_ID
@@ -227,6 +248,7 @@ export function WidgetWorkspace({
       } catch {
         if (seq !== loadSeq.current) return;
         homeIsDefault.current = true;
+        sourceItems.current = new Map();
         setTabs([homeTab(sanitizeLayout(homeDefaultRef.current, registryRef.current))]);
         setActiveTabId(HOME_TAB_ID);
         setStatus("error");
@@ -280,16 +302,18 @@ export function WidgetWorkspace({
       return;
     }
     if (statusRef.current !== "ready") return;
-    setTabs((cur) =>
-      reuseTabs(
-        cur,
-        cur.map((t) =>
-          t.tabId === HOME_TAB_ID && homeIsDefault.current
-            ? { ...homeTab(sanitizeLayout(homeDefault, registry)), locked: t.locked }
-            : { ...t, items: sanitizeLayout(t.items, registry) }
-        )
-      )
-    );
+    const cur = tabsRef.current;
+    const next = cur.map((t) => {
+      if (t.tabId === HOME_TAB_ID && homeIsDefault.current) return { ...homeTab(sanitizeLayout(homeDefault, registry)), locked: t.locked };
+      const src = sourceItems.current.get(t.tabId);
+      return { ...t, items: sanitizeLayout(src && src.cleaned === t.items ? src.raw : t.items, registry) };
+    });
+    const final = reuseTabs(cur, next);
+    final.forEach((t, i) => {
+      const src = sourceItems.current.get(t.tabId);
+      if (src && src.cleaned === cur[i]?.items) src.cleaned = t.items;
+    });
+    setTabs(final);
   }, [registry, homeDefault, load]);
 
   useEffect(() => {
@@ -310,6 +334,8 @@ export function WidgetWorkspace({
   const persistTab = async (tab: WidgetTab) => {
     await store.saveTab(tab);
     if (tab.tabId === HOME_TAB_ID) homeIsDefault.current = false;
+    // 저장한 배치가 새 원래 배치다.
+    sourceItems.current.set(tab.tabId, { raw: tab.items, cleaned: tab.items });
   };
 
   const active = tabs.find((t) => t.tabId === activeTabId) ?? tabs[0];
@@ -324,6 +350,7 @@ export function WidgetWorkspace({
 
   /* ── 편집 흐름 ── */
   const startEdit = () => {
+    cancelPendingLoad();
     setSnapshot(tabs.map((t) => ({ ...t, items: [...t.items] })));
     setEditing(true);
   };
@@ -395,6 +422,7 @@ export function WidgetWorkspace({
     let name = "새 탭";
     for (let n = 2; tabs.some((t) => t.name === name); n += 1) name = `새 탭 ${n}`;
     if (!editing) startEdit();
+    tabTouched.current = true;
     setTabs((prev) => [...prev, { tabId, name, seq: prev.length, locked: false, items: [] }]);
     setActiveTabId(tabId);
     setRenamingTabId(tabId);
@@ -402,6 +430,7 @@ export function WidgetWorkspace({
 
   /** 보기 모드 즉시 저장 — 먼저 화면에 반영하고 실패하면 되돌린다. */
   const saveNow = async (next: WidgetTab[], persist: () => Promise<void>): Promise<boolean> => {
+    cancelPendingLoad();
     const before = tabs;
     setTabs(next);
     try {
