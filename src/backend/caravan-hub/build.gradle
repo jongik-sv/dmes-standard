@@ -75,7 +75,7 @@ dependencies {
     implementation libs.spring.boot.starter.actuator
 
     // MyBatis
-    implementation libs.mybatis.spring.boot.starter.v305
+    implementation libs.mybatis.spring.boot.starter
 
     // JSch (SFTP)
     implementation libs.jsch

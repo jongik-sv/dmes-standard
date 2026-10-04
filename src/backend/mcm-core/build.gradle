@@ -55,7 +55,7 @@ dependencies {
     compileOnly libs.aspectjweaver
 
     // JPA + MyBatis 혼용 패턴
-    compileOnly libs.mybatis.spring.boot.starter.v304
+    compileOnly libs.mybatis.spring.boot.starter
 
     api libs.jackson.databind.managed
     api libs.jackson.datatype.jsr310

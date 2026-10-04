@@ -99,7 +99,7 @@ dependencies {
     // cactus-mybatis-multi-ds-design.md §5-1 — 본 설계의 multi-DS SqlSessionFactory 자동 등록 +
     // 인터셉터 직접 attach + CactusMultiMyBatisSqlRunner 가 모두 mybatis-spring 의존.
     // mybatis-spring-boot-starter 가 mybatis + mybatis-spring + autoconfigure 한 번에 가져옴.
-    api libs.mybatis.spring.boot.starter.v304
+    api libs.mybatis.spring.boot.starter
 
     // ── Spring Cache + Caffeine (마스터 코드 LoV 캐시) ──
     // compileOnly 로 두어 소비 모듈이 spring-context-support 를 가져온 경우에만 활성.
