@@ -29,6 +29,7 @@
   5. 본 측정 4회. 홀수 회차는 A→B, 짝수 회차는 B→A(ABBA)로 번갈아 순서 편향을 줄인다. 빌드마다 직전 `uptime` load 를 남기고, load(1분)가 5 를 넘은 쌍은 버리고 다시 잰다. 결론은 중앙값으로 낸다.
 - 기준 커밋: refactor-2026-10-base(b557ccbd) / 변경 커밋: dev efb39f2c(6번 본체 e8cd73b3, 문서 ccbcfa10, 머지 4f335f12 포함)
 - 측정 환경: 2026-10-04 12:18:06~12:22:36, 조정 세션이 다른 레인의 새 무거운 명령을 멈춘 상태에서 `heavy.sh --exclusive` 로 단독 실행, 전원 연결(AC). MacBook Air M5(팬 없음).
+- 재현: `scripts/perf/frontend/p2-measure.sh`(README 참조)
 - 버린 측정: 예열의 A 콜드 1회(load 5.08). 다시 잰 값은 load 2.90 이었다.
 
 콜드 빌드

@@ -1,7 +1,7 @@
 # 프레임워크 레인 성능 비교 기록
 
 기준(before)은 태그 `refactor-2026-10-base`(b557ccbd)이고, 변경(after)은 `refactor/framework` 의 머지 대상 커밋이다. 기준은 별도 워크트리에서 잰다.
-수치는 조정 세션의 「측정 시작」 신호 뒤 2026-10-04 11:45~12:16 에 쟀다. 측정 스크립트와 원자료(CSV)는 저장소 밖 a8 세션 scratchpad `perf/` 에 있다(`results/p1_cache.csv`·`p2_load.csv`·`p2_cpu.csv`·`p3_logs.csv`, 회차마다 load1 기록).
+수치는 조정 세션의 「측정 시작」 신호 뒤 2026-10-04 11:45~12:16 에 쟀다. 측정 스크립트는 `scripts/perf/framework/`(README 참조)에 있다. 2026-10-04 원자료 CSV 는 저장소에 넣지 않았다(`p1_cache.csv`·`p2_load.csv`·`p2_cpu.csv`·`p3_logs.csv`, 회차마다 load1 기록).
 공용 무거운 작업 칸을 `heavy.sh --exclusive` 로 독점하고 쟀다. 조정 세션 규칙대로 1분 load 가 5 를 넘은 회차는 버리고 다시 쟀다(버린 회차는 각 절에 적는다).
 
 공통 절차(README §6.2):
@@ -15,6 +15,7 @@
 
 ## P1. OASIS 서비스 캐시 적중 처리량
 - 관련 구조 변경: S3
+- 재현: `scripts/perf/framework/` 의 `p1_cache.sh`
 - 지표(Mops/s): 캐시 적중 경로 처리량. 스레드 1·4·8 각각.
 - 측정 절차:
   - 하네스는 `CacheHitThroughputManualTest`(`src/backend/cactus-core/src/test/java/com/dongkuk/dmes/cactus/oasis/provider/`, 커밋 8a488e0d)다. 환경 변수 `CACTUS_CACHE_BENCH=1` 일 때만 돈다. 키 52개(작성 때 mdm BPMN 수로 잡은 값. dev 운영 BPMN 은 mdm 26·mcm 35 라 실제보다 많은 키로 잰다. 기준·변경 모두 같은 키 수라 비교에는 영향 없음)를 먼저 로드한 뒤 여러 스레드가 돌아가며 조회하고, 워밍업 300ms·측정 500ms·5회 반복의 최소~최대 범위를 표준 출력 `[cache-bench]` 줄로 남긴다.
@@ -43,6 +44,7 @@
 
 ## P2. analog 검색 동시 요청
 - 관련 구조 변경: S2
+- 재현: `scripts/perf/framework/` 의 `p2_build.sh`·`p2_run.sh`
 - 지표: (a) `/log/range/time` 동시 N 요청의 요청 지연 중앙값(ms)과 p95, (b) 측정 중 JVM 스레드 수 최대값(요청별 풀 생성·폐기 비용의 대리 지표), (c) `/log/range/time/tree` 동시 N 요청의 지연 중앙값과 503 건수(변경 쪽만 해당, 기준은 상한이 없다), (d) `/tree` 처리 중·유휴 시 analog 프로세스 CPU 사용량(바쁜 대기 제거 전후, 기준·1차 dev·2차 세 시점).
 - 측정 절차:
   - 같은 로그 파일 집합과 같은 질의(시간 구간·키워드)를 기준·변경 양쪽에 쓴다. 로컬 `analog/api` 를 각각 기동한다(포트가 겹치지 않게 순서대로 기동·종료한다. 메인 저장소의 실행 중 서버는 건드리지 않는다).
@@ -50,7 +52,7 @@
   - 스레드 수는 요청을 보내는 동안 `jcmd <pid> Thread.print` 의 스레드 수를 1초 간격으로 읽어 최대값을 쓴다.
   - 같은 N·같은 질의로 기준·변경을 번갈아 3회 이상 잰다. 큰 파일이 멀티스레드 검색(`minimum_mega_bytes_for_multi_thread` 이상)을 타는 경우와 작은 파일만 있는 경우를 나눠 적는다.
   - 응답 본문이 기준과 같은지 함께 확인한다(특성 시험 JSON 과 같은 질의 기준).
-  - CPU 지표(2차 S11, /tree 바쁜 대기 제거): `/tree` 처리 중과 유휴 시 analog 프로세스의 CPU 사용량을 잰다. 유휴는 서버 기동 뒤 요청 없이 30초, 처리 중은 `/tree` 를 연속으로 40초 보내는 동안 `ps -o time=` 의 CPU 시간 증가분을 경과 시간으로 나눈다(처리 중은 요청당 CPU ms 도 함께 적는다). 기준(refactor-2026-10-base)·1차 dev 머지(bb8ee036)·2차(레인 HEAD) 세 시점을 같은 로그·같은 질의로 번갈아 3회 이상 잰다. 측정 스크립트는 저장소 밖 scratchpad 에 있어 이 문서에는 절차만 적는다.
+  - CPU 지표(2차 S11, /tree 바쁜 대기 제거): `/tree` 처리 중과 유휴 시 analog 프로세스의 CPU 사용량을 잰다. 유휴는 서버 기동 뒤 요청 없이 30초, 처리 중은 `/tree` 를 연속으로 40초 보내는 동안 `ps -o time=` 의 CPU 시간 증가분을 경과 시간으로 나눈다(처리 중은 요청당 CPU ms 도 함께 적는다). 기준(refactor-2026-10-base)·1차 dev 머지(bb8ee036)·2차(레인 HEAD) 세 시점을 같은 로그·같은 질의로 번갈아 3회 이상 잰다. 측정 스크립트는 `scripts/perf/framework/` 에 있고 이 문서에는 절차만 적는다.
 - 기준 커밋: refactor-2026-10-base / 변경 커밋: 24317974 이후 `refactor/framework` 머지 커밋
 - 측정 환경: 2026-10-04 11:48~12:16, 공용 칸 독점, 전원 연결. 대상 A = 기준(refactor-2026-10-base), B = 1차 dev 머지(bb8ee036), C = 2차(레인 워크트리 = dev efb39f2c). 각 대상의 `analog/api` bootJar 를 `-Xmx1g`, 포트 18191 로 차례대로 띄웠다(메인 서버는 건드리지 않음).
   - 로그: 저장소에 fixture 가 없어 합성 로그를 만들었다(시드 고정). 작은 로그는 mpn 5MB 로 단일 스레드 검색 경로를 타고, 큰 로그는 mpp 200MB 로 `minimum_mega_bytes_for_multi_thread`(80) 를 넘어 멀티스레드 검색 경로를 탄다. 200줄마다 키워드 줄이 하나 있다.
@@ -117,6 +119,7 @@ CPU(유휴 30초, 큰 로그 `/tree` 1건씩 연속 40초. `ps -o time=` 누적 
 
 ## P3. OASIS 서비스 호출당 로그 줄 수
 - 관련 구조 변경: S1
+- 재현: `scripts/perf/framework/` 의 `p3_logs.sh`
 - 지표(줄/호출): OASIS 서비스 1회 호출당 `com.dongkuk.oasis.methodinvoker` 가 남기는 로그 줄 수. 결정적 지표라 1회로 충분하다.
 - 측정 절차: mdm 의 `DmeOasisHttpTest` 기준으로 같은 서비스 호출 1회를 기준·변경 양쪽에서 돌리고, 로그에서 `methodinvoker` 로거 줄 수를 센다. INFO(Try binding·Strategy) 줄과 그 밖 레벨을 나눠 적는다.
 - 측정 환경: 2026-10-04 11:45~11:46, 공용 칸 독점, load 3.0. 기준 워크트리와 변경(레인 워크트리, dev efb39f2c 와 같은 코드)에서 `DmeOasisHttpTest` 를 각 1회(`--rerun`) 돌려 결과 XML 의 `<system-out>` 에서 로거별 줄 수를 셌다.
