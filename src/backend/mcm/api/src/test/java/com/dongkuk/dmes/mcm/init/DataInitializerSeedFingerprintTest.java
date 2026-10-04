@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.init;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dongkuk.dmes.cactus.security.auth.PasswordEncoder;
+import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.common.audit.SecurityIdentityHolder;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.env.MockEnvironment;
@@ -44,6 +46,7 @@ import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -90,6 +93,9 @@ class DataInitializerSeedFingerprintTest {
     private static SecurityContext prevSecurityContext;
     private static long seedStartMillis;
     private static long seedEndMillis;
+    /** 시드가 낸 이벤트와 그때 트랜잭션이 열려 있었는지 — 메뉴 카탈로그 무효화(MenuChangedEvent SEED) 확인용. */
+    private static final List<Object> publishedEvents = new ArrayList<>();
+    private static final List<Boolean> publishedInTx = new ArrayList<>();
 
     @BeforeAll
     static void seedEmptySqlite() throws Exception {
@@ -147,6 +153,10 @@ class DataInitializerSeedFingerprintTest {
         ReflectionTestUtils.setField(initializer, "secMenuNativeRepository", secMenuNativeRepository);
         ReflectionTestUtils.setField(initializer, "ruleMasterRepository", ruleMasterRepository);
         ReflectionTestUtils.setField(initializer, "initEnabled", true);
+        ReflectionTestUtils.setField(initializer, "eventPublisher", (ApplicationEventPublisher) event -> {
+            publishedEvents.add(event);
+            publishedInTx.add(TransactionSynchronizationManager.isActualTransactionActive());
+        });
         // appHostJpaRepository · consoleCaravanHubConfigJpaRepository 는 null 그대로(secondary EMF — skip).
 
         seedStartMillis = System.currentTimeMillis();
@@ -204,6 +214,13 @@ class DataInitializerSeedFingerprintTest {
                 .as("시드 지문이 골든(%s)과 다르다 — 의도한 변경이면 FINGERPRINT_UPDATE=true 로 다시 써서 골든 diff 를 함께 커밋한다:%n%s",
                         GOLDEN, String.join(System.lineSeparator(), diffs))
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("시드 끝에 트랜잭션 안에서 MenuChangedEvent(SEED) 를 한 번 낸다 — 메뉴 카탈로그가 즉시·트랜잭션이 끝난 뒤(커밋·롤백) 비워진다")
+    void seedPublishesMenuChangedEventInsideTransaction() {
+        assertThat(publishedEvents).containsExactly(new MenuChangedEvent(MenuChangedEvent.SEED));
+        assertThat(publishedInTx).containsExactly(true);
     }
 
     /**

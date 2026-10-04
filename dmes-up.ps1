@@ -21,10 +21,13 @@ Steps:
      each other's build\classes. This replaces the old serial warm-up here.
      If that prebuild fails, be-run.ps1 starts no module and exits non-zero:
      in the foreground local-run.ps1 then stops the frontend too, and with
-     -Detach this script stops waiting and exits 1 (see logs\be.log).
+     -Detach this script stops the frontend it started, stops waiting and
+     exits 1 (see logs\be.log).
      Workarounds: BE_PREBUILD=0 (no prebuild, modules build themselves as
      before) or BE_PREBUILD_CONTINUE=1 (start anyway), as environment
-     variables or in .run.env.
+     variables or in .run.env. With -Detach put them in .run.env: the
+     detached sides are created through WMI and may not inherit variables
+     set in this window (not verified).
 
 Usage:
   .\dmes-up.cmd            # normal - Ctrl+C in this window stops everything
@@ -213,6 +216,15 @@ while ((Get-Date) -lt $deadline -and $up.Count -lt $pending.Count) {
             Write-Host ''
             Say "backend exited before coming up (not up: $($beDown -join ' ')) - check logs\be.log" 'Red'
             Say 'prebuild failed? fix the error, or rerun with BE_PREBUILD=0 / BE_PREBUILD_CONTINUE=1' 'Red'
+            # The frontend was started next to the backend and would otherwise keep
+            # running with no backend behind it (the foreground local-run.ps1 stops
+            # it in this case too). Same targets as step 3 for -Fe.
+            if ($Fe -and $fePid) {
+                Say 'stopping the frontend started above' 'Red'
+                Stop-Tree $fePid
+                $null = Stop-Prior -PathNeedle (Join-Path $LogDir '_launch-frontend.ps1') -NamePattern '^(cmd|powershell)'
+                $null = Stop-Prior -PathNeedle (Join-Path $RootDir 'src\frontend') -NamePattern '^(node|pnpm)'
+            }
             exit 1
         }
     }

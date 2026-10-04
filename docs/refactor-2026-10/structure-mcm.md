@@ -10,7 +10,7 @@
 |---|---|---|
 | S1 | 복제 값 변환 유틸을 `common.util.McmValues` 로 통합 | 4dd51e42 |
 | S2 | `DataInitializer` 를 `init.seed` 단계 클래스로 분할 | a0a2e4d8, d7e5bf94(시험) |
-| S3 | 메뉴 카탈로그 캐시 | (진행 중 — 별도 머지) |
+| S3 | 메뉴 카탈로그 캐시(`com.dongkuk.dmes.mcm.menu.MenuCatalog`·`MenuChangedEvent`) | 레인 커밋(S3 참조) |
 | S4 | `CommUserMngService` 를 퍼사드 + 조회·저장·비밀번호·SSO 위임 클래스로 분할 | 레인 커밋 6e6f0bf4, 1f6d0cb6, 24038a95 |
 | S5 | 시드 단계 이동 후속: `MdmMenuSeeder`·`ScreenUsageSchemaArtifacts`·`PERM_ALL` 선언을 `init/seed/` 로 | 레인 커밋(S5 참조) |
 | S6 | 1번 N+1·전수 로드 정리와 공개 API 확장(부서명 일괄 조회·매핑 벌크 삭제·감사 조회 page·size) | 레인 커밋(S6 참조) |
@@ -97,8 +97,52 @@ init/
   - 새 모듈 메뉴 시드는 `ModuleMenuSeeder` 에 메서드를 만들고 `seedMcmSecRbac` 에서 부르면 된다.
 - 되돌리는 방법: 머지 a0a2e4d8 을 `-m 1` 로 revert 하거나 구현 커밋 074e1440·6dfa03b5·3435b56f·7dadc709·653c01fd·49c3c0b8 을 역순으로 revert 한다. 지문·SQL 기록 시험과 골든(ccc7eebe·a5af6746·0fd6687f)은 분할 전 코드에서 먼저 만들었으므로 그대로 둬도 통과해야 한다. 단계별 커밋은 앞 단계에 의존하므로 일부만 revert 하지 않는다.
 
-## S3. 메뉴 카탈로그 캐시
-(진행 중 — 별도 머지)
+## S3. 메뉴 카탈로그 캐시: `SEC_MENU`·`SEC_OBJ` 전수 목록을 `MenuCatalog` 한 곳이 들고 변경 이벤트로 비운다
+- 커밋(레인 브랜치 `refactor/mcm-menu` 의 병합 아닌 커밋 15건, 오래된 순):
+  - 도입: 5162f3d6(`MenuCatalog`·`MenuChangedEvent`), 3ab73e90(메뉴·폴더·OBJECT 저장 때 이벤트 발행), 42a8f2fe(호출부 4곳을 카탈로그로)
+  - 호출부 시험 정리: d8ccdd87(mock 구성만 변경), 90577e63(OASIS 실제 경로 통합 시험 `MenuCatalogOasisSaveIntegrationTest`)
+  - 무효화 보강: 01ca1ec4(세대 번호), b3be4866(시드 끝 `SEED` 발행), b98df039(사용자별 필터 시험), 90b6a686(시드 지문 시험 javadoc 위치), d8f61f4c(커밋 뒤 무효화를 트랜잭션 끝 무효화로), dfd81ab1(삭제 이벤트 시험)
+  - 레인 합치기 뒤 마무리: 39c277a0(12인자 생성자 시험 정리), 5dbf89ec(적재 잠금 2초 상한과 직접 적재 물러남), 533b2b98(문구 정리)
+- 바뀌기 전: 아래 4곳이 호출할 때마다 `TB_MCM_SEC_MENU`·`TB_MCM_SEC_OBJ` 를 `findAll` 로 전수 읽었다. 호출 한 번의 SELECT 는 `ScreenMenuCatalog.load` 가 1문장(MENU), 나머지 셋이 2문장(MENU 1 + OBJ 1)이다.
+
+| 호출 위치 | 줄 | 하는 일 |
+|---|---|---|
+| `SecUserService.getMyMenus` | 318-330 | 내 메뉴(사이드바) |
+| `SecFavoriteService` | 89-93, 205 | 즐겨찾기 조회·토글의 메뉴 매칭 |
+| `SecStartPgmService` | 76-80, 117 | 기본 화면 조회·토글의 메뉴 매칭 |
+| `ScreenMenuCatalog.load` | 44 | 화면 사용 통계의 메뉴·경로 해석 |
+
+- 바뀐 뒤:
+  - **새 첫 단계 패키지 `com.dongkuk.dmes.mcm.menu`** 에 `MenuCatalog`(`@Component`)를 뒀다. `common` 아래에 두면 슬라이스 사이클이 생겨 첫 단계 패키지로 했고 `McmCoreArchitectureTest` 5건이 통과한다. 이 패키지는 entity·repository·common 만 import 한다.
+  - **캐시 방식**: `volatile` 불변 스냅샷(메뉴 목록·OBJECT 목록·`menusById`·`objectsById`)에 **TTL 5분**(`Clock` 주입)을 둔다. 목록은 `List.copyOf`, 맵은 `Collections.unmodifiableMap` 이다(`Map.copyOf` 는 `get(null)` 에서 NPE 라 옛 `HashMap` 동작 `null` 반환을 지키려고 쓰지 않았다). 캐시된 엔티티는 읽기 전용이라 수정·`save` 하지 않는다. 쓰기 서비스(`CommMenuMngService`·`CommObjMngService`)는 카탈로그로 읽지 않는다.
+  - **세대 번호**: 무효화마다 세대가 올라가고, 적재가 끝났을 때 적재 시작 세대와 현재 세대가 다르면 그 결과를 저장하지 않는다. 무효화 뒤 늦게 도착한 옛 스냅샷이 현재 것으로 남지 않게 한다(01ca1ec4).
+  - **적재 잠금**: 동시 재적재는 잠금으로 한 번만 읽는다. 잠금 대기에는 **2초 상한**(`LOCK_WAIT_MILLIS = 2000`, `tryLock`)이 있고, 넘기거나 인터럽트되면 WARN 을 남기고 캐시에 저장하지 않는 **직접 적재**로 물러난다(5dbf89ec). 잠금 대기 중 연결 풀이 바닥나는 것을 막기 위한 상한이다. 잠금을 못 잡았을 때도 직접 읽기 전에 캐시를 한 번 더 본다.
+  - **`common/event` 의 `MenuChangedEvent`**(record, 구분값 `MENU` / `MENU_FOLDER` / `OBJECT` / `SEED`). 발행처는 둘이다. `CommMenuMngService`(메뉴·메뉴 폴더 저장·삭제)와 `CommObjMngService`(OBJECT 저장·삭제)가 **실제로 바뀐 행이 있을 때만** 낸다. 그리고 `DataInitializer` 가 시드 끝에 `SEED` 를 낸다(`run()` 안 `recomputeMenuFullSeq()` 바로 뒤, 시드 쓰기는 모두 이 발행보다 앞이다).
+  - **무효화는 두 번**: `MenuChangedEvent`·`RoleChangedEvent` 를 받으면 ① 발행 즉시(`@EventListener`) 비우고 ② `@TransactionalEventListener(phase = AFTER_COMPLETION, fallbackExecution = true)` 로 트랜잭션이 끝난 뒤(커밋·롤백 모두) 한 번 더 비운다. 트랜잭션 밖에서 발행되면 `fallbackExecution` 으로 바로 돈다. 두 리스너 모두 **예외를 삼키고 WARN 만 남긴다.** 즉시 경로에서는 무효화 실패가 메뉴 저장 롤백으로 번지지 않게, fallback 경로에서는 발행자에게 전파되지 않게 잡는다(트랜잭션 끝 경로는 Spring 이 이미 잡아 ERROR 로그만 남기므로 응답은 S001 이 되지 않고, 여기서는 WARN 으로 통일하는 의미뿐이다). 처음에는 `AFTER_COMMIT` 이었으나 롤백된 트랜잭션 안에서 다시 채워진 커밋 전 행이 TTL 동안 남는 틈이 있어 `AFTER_COMPLETION` 으로 바꿨다(d8f61f4c).
+  - **사용자별 권한 필터는 요청마다 한다.** 캐시에는 SEC_MENU·SEC_OBJ 전수 목록만 있고 역할 매핑 필터는 `getMyMenus` 가 요청마다 DB 로 한다. 폴더 표(`TB_MCM_SEC_MENU_FLD`)도 카탈로그에 넣지 않고 요청마다 읽는다. 폴더 저장은 이벤트만 낸다.
+  - 호출부 4곳은 `MenuCatalog.snapshot()`·`menus()` 로 읽는다. `getMyMenus` 는 한 스냅샷에서 메뉴와 OBJECT 를 함께 읽는다.
+- 바꾼 이유: 사이드바·즐겨찾기·기본 화면·통계가 호출마다 변하지 않는 메뉴·OBJECT 전수 목록을 DB 에서 다시 읽었다. 변경은 메뉴 관리 화면 저장 때뿐이라 읽기 대비 쓰기가 매우 드물다. 수치는 `perf-mcm.md` P3.
+- 동작 보존 근거:
+  - **OASIS 실경로 통합 시험 `MenuCatalogOasisSaveIntegrationTest` 3건**(mcm `:api`, SQLite 임시 파일, 운영과 같은 조립 `OasisAutoConfiguration.serviceStarter` → `OasisServiceExecutor` → 실제 `commMenuMng.bpmn`·`commObjMng.bpmn` save). 저장 직후 다음 조회에 새 메뉴·OBJECT 가 반영되는지, 커밋 직전 다른 스레드가 옛 데이터로 다시 채워도 다음 조회는 새 데이터인지(커밋 전 재적재 경쟁), 롤백 뒤에는 캐시가 비워지고 롤백된 행이 남지 않는지를 본다. a8 3b `CactusSpringTransactionHandler` 가 들어간 트리에서 **시험을 고치지 않고 통과**했다(dfd81ab1 이후 이 파일 변경 없음). 끄면 실패하는지 변이 확인도 했다(커밋 뒤 무효화를 끄면 옛 메뉴 이름이 남고, `CommObjMngService` 발행을 끄면 OBJECT 시험이 실패한 뒤 원복).
+  - `MenuCatalogTest` 12건: 첫 호출 적재·두 번째 적중, TTL 만료 뒤 재적재, 이벤트 뒤 재적재, 8스레드 동시 호출에도 적재 1회, 적재 중 무효화가 묻히지 않음, 반환 컬렉션 불변, 잠금 상한 뒤 직접 적재와 인터럽트 처리. 이 중 `afterCompletionListenerSwallowsAndWarns` 가 트랜잭션 끝 리스너와 즉시 리스너가 무효화 예외를 밖으로 던지지 않고 WARN 만 남기는 것을 고정한다.
+  - `MenuCatalogTxListenerReportTest`(트랜잭션 끝 리스너 등록 판정·기동 로그), `MenuCatalogBootTxAutoConfigTest`(mcm `:api`, `TransactionAutoConfiguration` 단독 조립으로 팩토리 생성·등록=true·커밋 뒤 무효화).
+  - 기존 호출부 시험(`SecFavoriteServiceTest`·`SecStartPgmServiceTest`·`ScreenMenuCatalogTest`·`SecUserServiceDeleteUsersTest`·`SecUserMenuFolderTest`)은 **mock 구성만 바꾸고 단언은 하나도 바꾸지 않았다**(d8ccdd87).
+  - `MenuChangedEventPublishTest` 7건(저장·삭제가 바뀐 행이 있을 때만 발행), `MenuCatalogEventWiringTest` 2건(스프링 컨텍스트에서 트랜잭션 밖·안 발행), `MenuCatalogCallersSelectCountTest` 5건(SELECT 수, `perf-mcm.md` P3), 사용자별 필터 시험 b98df039.
+  - 마지막 전체 실행(HEAD 533b2b98 기준): mcm-core 913건, mcm api 47건 + lib 18건, `McmCoreArchitectureTest` 5건 모두 통과.
+- 기동 로그와 후속(txlog 커밋):
+  - 기동 로그: 카탈로그가 속한 컨텍스트의 새로고침이 끝나면 `[menuCatalog] 트랜잭션 끝 무효화 리스너: 트랜잭션 단계 등록=true|false` 를 한 번 남긴다(false 면 WARN). 판정은 자기 컨텍스트의 `TransactionalEventListenerFactory` 타입 빈 유무다(부모 컨텍스트는 보지 않는다). 운영 확인 명령은 `grep -F '[menuCatalog] 트랜잭션 끝 무효화 리스너'`.
+  - a8 교차 리뷰 결과: major 0, minor 2. 둘 다 `MenuCatalog` javadoc 만 고쳤다(코드 동작 불변). (1) 리스너가 예외를 삼키는 근거 문장이 사실과 달랐다 — 트랜잭션 끝 리스너의 예외는 Spring(`TransactionSynchronizationUtils.invokeAfterCompletion`)이 이미 잡아 ERROR 로그만 남기므로 응답이 S001 이 되지 않는다. 즉시·fallback 경로 보호와 WARN 통일 의미로 바로잡았다. (2) '남는 한계' 에 한 줄 추가 — 한 트랜잭션에서 카탈로그를 두 번 적재하고 그 사이 다른 요청이 커밋·무효화하면 옛 엔티티 인스턴스가 현재 세대로 저장돼 TTL 동안 남을 수 있다(지금은 BPMN 이 요청당 한 번만 부르고 open-in-view=false 라 열리지 않음).
+  - 후속 1: 엔티티 대신 불변 스칼라 투영 적재(호출부 타입 변경 필요, 이번엔 하지 않음).
+  - 후속 2: 머지 뒤 첫 dev 기동 로그에서 `트랜잭션 단계 등록=true` 확인. 시험(`MenuCatalogBootTxAutoConfigTest`)은 `TransactionAutoConfiguration` 단독 조립까지만 확인하고 JPA 포함 실제 조립은 보지 않는다.
+- 영향 범위:
+  - **`ScreenMenuCatalog`**(screenusage 영역): 생성자 주입이 `SecMenuRepository` 에서 `MenuCatalog` 로, `findAll()` 호출이 `menus()` 로 바뀌었다. `ScreenMenuCatalogTest` 는 `import` 1줄·`@Mock` 1줄·스텁 2줄(합쳐 4줄)만 고쳤고 단언은 0줄이다. 조정 세션 cb 의 명시 허가 11:0x 를 인용한다. "`ScreenMenuCatalog`: 생성자 주입 `SecMenuRepository`→`MenuCatalog`, `findAll()`→`menus()` 허용. 그 밖 로직 금지. `ScreenMenuCatalogTest`(d8ccdd87): import 1·@Mock 1·스텁 2줄, 단언 0줄 변경 허용."
+  - **`SecUserService` 생성자가 13인자에서 12인자로** 바뀐다(`SecMenuRepository`·`SecObjRepository` → `MenuCatalog`). 이 생성자를 직접 부르는 시험은 mcm-core 의 `SecUserServiceDeleteUsersTest`·S6 이 만든 `SecUserServiceDeleteSqlCountTest`·`SecUserServiceDeleteAutoFlushTest` 이고, 뒤 둘은 39c277a0 이 `mock(MenuCatalog.class)` 하나로 맞췄다. **병합 커밋 e297ef3f 단독으로는 mcm-core 시험이 컴파일되지 않고 39c277a0 까지 적용해야 한다**(bisect 가 그 병합에 서면 깨진다. 히스토리는 다시 쓰지 않았다).
+  - `CommMenuMngService` 생성자에 `ApplicationEventPublisher` 가 추가됐다. OASIS 서비스 빈 이름·BPMN 바인딩·method 이름은 바꾸지 않았다.
+  - **한계 1, 다중 인스턴스·DB 직접 변경**: 이벤트는 같은 JVM 안에서만 전달된다. 다른 인스턴스에서 한 저장, 운영자가 DB 에 직접 한 SQL 변경은 TTL 5분 뒤에야 반영된다.
+  - **한계 2, `UserPermCache`**: `UserPermCache` 가 `RoleChangedEvent` 만 구독하는 기존 한계는 그대로다. 이 작업이 새로 만든 것이 아니고 이번에도 고치지 않았다. 카탈로그에는 권한 판정이 들어 있지 않다(역할 매핑 필터는 요청마다).
+  - 메뉴 폴더 저장의 이벤트 발행은 단위 시험(`MenuChangedEventPublishTest`)으로만 확인했고 OASIS 통합 시험은 메뉴 저장과 OBJECT 저장만 다룬다.
+  - 같은 `SecUserService.java` 를 고친 S6 와 `import` 한 곳에서 충돌했고 풀어서 합쳤다(e297ef3f, 두 쪽 변경이 모두 남아 있음을 두 부모와 대조해 확인).
+- 되돌리는 방법: 5162f3d6·3ab73e90·42a8f2fe 와 뒤따른 보강 커밋(01ca1ec4·b3be4866·d8f61f4c·5dbf89ec)·시험 커밋을 역순으로 revert 한다. 호출부 4곳의 생성자가 `MenuCatalog` 를 받으므로 일부만 revert 하지 않는다. revert 하면 `SecUserService` 생성자가 13인자로 돌아가므로 S6 의 `SecUserServiceDeleteSqlCountTest`·`SecUserServiceDeleteAutoFlushTest`(39c277a0)도 같이 되돌려야 컴파일된다.
 
 ## S4. `CommUserMngService`(분할 직전 890줄)를 퍼사드 + 조회·저장·비밀번호·SSO 위임 클래스로 분할
 - 커밋: 6e6f0bf4(조회 5개), 1f6d0cb6(저장·비밀번호 행 쓰기 지원 클래스), 24038a95(pwdinit 단건·SSO 분기)
@@ -193,12 +237,8 @@ init/
   - **매핑 벌크 삭제의 `flushAutomatically` 와 VER·오류 시점**: 처음 커밋 6e5eb813 은 `flushAutomatically=true` 를 붙였으나 첫 'D' 행에서 계정(`TB_SEC_USER`)까지 앞당겨 flush 해 VER 증가 횟수가 옛 경로와 달라지고 DB 오류가 행별 검증 오류보다 먼저 나서 c9a2f7ee 에서 뺐다(Hibernate 7.0.5·7.2.12 모두 벌크 DML 실행 첫머리에서 영향 표의 미뤄 둔 변경을 auto-flush 하므로 순서는 플래그 없이 지켜진다). c9a2f7ee 제목의 '옛 경로와 같게' 는 **'D' 행이 하나인 요청에만** 맞는다. 'D' 행이 둘 이상이고 앞 'D' 사용자에게 매핑이 있었다면, 옛 경로는 남은 `em.remove` 때문에 다음 'D' 행에서 계정까지 전체 flush 를 했으나 지금은 계정 변경이 커밋 때(또는 뒤 'C' 행의 `existsById` 가 계정 표 flush 를 일으키는 시점) 나간다. 그래서 'U' 행 뒤에 'D' 행이 n 개(n ≥ 2) 오면 그 계정의 VER 이 옛 +2 대신 n+1 이고 `U_AT` 가 다르며, 계정 INSERT·UPDATE·DELETE 의 DB 오류 시점이 `saveUsers` 안에서 커밋 때로 늦어진다(944faa52·ab3ed6d0 과 `bulkDeleteByUserId` javadoc). 'U' 1행 + 'D' 1행의 VER +2 는 Hibernate 가 '필요 없음' 으로 끝나는 auto-flush 검사에서도 `@PreUpdate` 를 부르는 원래 동작이다. 현재 `src/frontend` 에서 이 save 를 부르는 화면이 없고 시험은 계정 저장소가 메모리 가짜라 이 차이를 잡지 못한다(실제 JPA 계정 저장소 시험은 호출 화면이 생길 때 더한다). 미리 읽어 둔 매핑 엔티티가 있으면 벌크 삭제 뒤 같은 PK 로 다시 save 할 때 `StaleStateException` 이 나거나(새 인스턴스), 읽어 둔 관리 인스턴스를 그대로 save 하면 SQL 이 나가지 않아 행이 조용히 사라지므로 새 호출부는 `em.clear`·detach 를 판단해야 한다(javadoc).
   - 감사 조회: `src/frontend` 에서 `auditLog` 를 부르는 곳은 0건이라 지금 page·size 를 보내는 호출자는 없다. 기존 화면 동작은 그대로다. 같은 인자가 없으면 이전과 같다.
   - 시험 설정: `CommUserMngJpaTestConfig` 에 `SqlStatementCounter` 를 `statement_inspector` 로 등록했다(SQL 은 바꾸지 않음). 전역 싱글턴이라 한 JVM 안에서 시험이 순차로 돈다는 전제다. 시험 전제(JDBC 배치 꺼짐·순차)는 fdf1e0d9 가 단언한다.
-  - 레인 간: 메뉴 카탈로그 작업(S3)이 같은 `SecUserService.java`(생성자 13 → 12인자)·`SecUserServiceDeleteUsersTest.java`·이 항목의 `SecUserServiceDeleteSqlCountTest.java`(옛 13인자 생성자 호출)를 고친다. 나중에 들어가는 쪽이 12인자로 맞춘다.
+  - 레인 간: 메뉴 카탈로그 작업(S3)이 같은 `SecUserService.java`(생성자 13 → 12인자)·`SecUserServiceDeleteUsersTest.java`·이 항목의 `SecUserServiceDeleteSqlCountTest.java`(옛 13인자 생성자 호출)를 고쳤다. 합친 쪽(39c277a0)이 12인자로 맞췄다.
 - 되돌리는 방법: 항목별로 독립이다. 부서명은 21821142(와 javadoc 커밋), 매핑 벌크 삭제는 6e5eb813·c9a2f7ee·2c1d3e39 와 문서 커밋, 감사 조회는 8783e933·1ad624df 를 역순으로 revert 한다. 시험 b8bd452a 는 되돌린 항목의 SQL 수 단언이 실패하므로 같이 되돌린다.
-
-## 앞으로 들어갈 항목
-
-- S3 메뉴 카탈로그 캐시: 진행 중, 별도 머지
 
 ## 부록 A. 조사 보고(구조 변경 아님)
 
