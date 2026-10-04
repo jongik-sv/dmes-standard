@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" id="Definitions_txProbeCommitFlush" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="txProbeCommitFlush" name="커밋 실패 시험 - 커밋 시점 flush 실패(두 트랜잭션)" isExecutable="true">
+    <bpmn:extensionElements>
+      <camunda:properties>
+        <camunda:property name="tx" value="txAux,txProbe" />
+      </camunda:properties>
+    </bpmn:extensionElements>
+    <bpmn:startEvent id="start">
+      <bpmn:outgoing>flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="flow_1" sourceRef="start" targetRef="task" />
+    <bpmn:serviceTask id="task" name="커밋 시점 flush 실패" camunda:class="txProbeTask">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="failAtCommitFlush" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_1</bpmn:incoming>
+      <bpmn:outgoing>flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_2" sourceRef="task" targetRef="end" />
+    <bpmn:endEvent id="end">
+      <bpmn:incoming>flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>

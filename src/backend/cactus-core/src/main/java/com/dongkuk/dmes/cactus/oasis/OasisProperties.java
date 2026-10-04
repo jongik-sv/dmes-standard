@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.cactus.oasis;
 
+import com.dongkuk.dmes.cactus.oasis.aop.OasisAopCheckMode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -11,9 +12,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     service-group: production
  *     service-path: /services                # ClassPathFileServiceLoader 의 검색 prefix (classpath* 기준)
  *     service-loader-url:                    # 명시 시 HttpServiceDocumentLoader 사용 (transactional=true 필수)
- *     transactional: false                   # true 면 SpringServiceStarterFactory + JpaTransactionManager
+ *     transactional: false                   # true 면 CactusServiceStarterFactory + JpaTransactionManager
  *     transaction-manager-name: transactionManager
  *     dialect:                                # mssql | sqlite | none. 명시 시 ColumnConverter 빈 등록
+ *     aop-check: warn                         # warn | fail | off. BPMN 빈의 프록시 의존 어노테이션 기동 검사
  * </pre>
  *
  * <p>Phase 1 (2026-05-12) — 미결 #6/#7/#8 + R-11 결정 반영. {@code dialect},
@@ -42,7 +44,7 @@ public class OasisProperties {
     /** HTTP 원격 BPMN 로더 URL. {@code {serviceId}} 토큰 치환. {@code transactional=true} 필수. */
     private String serviceLoaderUrl;
 
-    /** 트랜잭션 사용 여부 — true 면 {@code SpringServiceStarterFactory} + JpaTxMgr. */
+    /** 트랜잭션 사용 여부 — true 면 {@code CactusServiceStarterFactory} + JpaTxMgr. */
     private boolean transactional = false;
 
     /** 트랜잭션 매니저 빈 이름 (기본 Spring Boot 의 "transactionManager"). */
@@ -53,6 +55,14 @@ public class OasisProperties {
      * 허용값: {@code mssql} | {@code sqlite} | {@code none} 또는 미설정.
      */
     private String dialect;
+
+    /**
+     * BPMN 이 부르는 빈의 프록시 의존 어노테이션 검사 방식 ({@code warn} | {@code fail} | {@code off}).
+     * OASIS 서비스 태스크 경로에서는 {@code @Transactional}·{@code @Cacheable} 등이 기대대로 동작하지 않으므로
+     * (비트랜잭션 모드는 언랩으로 무시, 트랜잭션 모드는 프록시 호출 실패) 기동 시 알린다. HTTP 로더 모드는 검사하지 못한다.
+     * 기본 {@code warn} — 다른 모듈이 먼저 깨지지 않게 fail 을 기본으로 두지 않는다.
+     */
+    private OasisAopCheckMode aopCheck = OasisAopCheckMode.WARN;
 
     /**
      * BPMN parsing cache 설정 (1.0.21 신규 — R-multi-22 해소).
@@ -85,6 +95,9 @@ public class OasisProperties {
     public String getDialect() { return dialect; }
     public void setDialect(String dialect) { this.dialect = dialect; }
 
+    public OasisAopCheckMode getAopCheck() { return aopCheck; }
+    public void setAopCheck(OasisAopCheckMode aopCheck) { this.aopCheck = aopCheck; }
+
     public Cache getCache() { return cache; }
 
     /**
@@ -92,8 +105,9 @@ public class OasisProperties {
      */
     public static class Cache {
         /**
-         * Cache 크기 (default 100). 모듈의 BPMN 개수 기준 조절.
-         * mcm 38개 BPMN 기준 100 충분.
+         * Cache 크기 (default 100, 1 이상 — transactional 모드에서 0 이하이면 기동 때 IllegalArgumentException). 모듈의 BPMN 개수 기준 조절.
+         * mcm 35개·mdm 52개 BPMN 기준 100 충분. 넘치면 가장 먼저 넣은 BPMN 부터 내보낸다
+         * ({@code CactusConcurrentCacheService}).
          */
         private int size = 100;
 

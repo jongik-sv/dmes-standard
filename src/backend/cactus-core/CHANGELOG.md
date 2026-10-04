@@ -1,8 +1,20 @@
 # cactus-core CHANGELOG
 
-## 1.0.22-SNAPSHOT (2026-05-19 ~ 2026-05-20)
+## 1.0.22-SNAPSHOT (2026-05-19 ~ 2026-10-04)
 
 **Major — multi-DS MyBatis 통합 + audit/mastercode 핵심 fix.** 정본 설계: [`docs/cactus/cactus-mybatis-multi-ds-design.md`](../../docs/cactus/cactus-mybatis-multi-ds-design.md) v3.5+, [`docs/cactus/test-scenarios.md`](../../docs/cactus/test-scenarios.md).
+
+### Changed — OASIS 서비스 캐시 교체 (2026-10-04, 리팩토링 항목 2)
+
+**oasis/provider/**
+- `CactusConcurrentCacheService` (신규) — oasis-core-api `SizeBaseCacheService` 대체. 적중은 `ConcurrentHashMap.get` 한 번(락 없음), 쓰기만 한 락 아래에서 값 맵과 넣은 순서 큐를 함께 바꾼다. 기존 구현은 적중 때도 전역 락 아래 O(n) 작업을 해 OASIS 호출마다 스레드가 한 줄로 섰다.
+- `CactusCachingServiceProvider` — 캐시 저장소를 `CactusConcurrentCacheService` 로 바꾸고, 같은 serviceId 동시 미스를 한 번 로드로 묶는다(`inFlight`).
+- `OasisAutoConfiguration` — transactional 모드의 `serviceStarter` 가 `new CactusConcurrentCacheService<>(cacheSize)` 를 넣는다.
+
+**동작 변경 (호스트 확인 필요)**
+- ★ `cactus.oasis.cache.size` 가 1 보다 작으면 `cactus.oasis.transactional=true` 일 때 기동이 `IllegalArgumentException` 으로 실패한다(non-transactional 모드는 이 캐시를 만들지 않아 영향 없음). 기존에는 0 도 기동됐다(음수는 기존에도 `HashMap` 생성에서 같은 예외).
+- 상한을 실제로 지킨다 — 항목 수가 `cache.size` 를 넘으면 가장 먼저 넣은 키부터 내보낸다(FIFO, 적중은 순서를 바꾸지 않음 — LRU 아님). 기존 구현은 미스마다 키가 순서 목록에 두 번 들어가고 상한 확인이 `==` 라 상한이 사실상 지켜지지 않았다. 운영 BPMN 수(mcm 35개·mdm 52개)가 기본 100 보다 작아 보통 내보내기는 일어나지 않는다.
+- 같은 키 동시 미스는 BPMN 을 한 번만 로드한다 — 기다리던 스레드는 같은 인스턴스를 받는다. 로드 실패는 묶지 않아 기다리던 스레드가 각자 다시 로드해 자기 예외를 받는다(실패는 캐시되지 않음). 기존에는 동시 미스마다 각자 로드하고 마지막 put 이 이겼다.
 
 ### Added — 신규 클래스
 
