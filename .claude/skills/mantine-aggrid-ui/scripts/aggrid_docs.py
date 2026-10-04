@@ -10,7 +10,7 @@ ag-grid.com 의 llms.txt · `.md` 는 **최신 메이저**만 제공한다. 설�
   python3 aggrid_docs.py get <slug> [--section 제목] [--version x.y.z] [--latest]
   python3 aggrid_docs.py types <이름>                # 설치 .d.ts 에서 옵션·인터페이스 정의 찾기
   python3 aggrid_docs.py recommendations            # 공식 ag-dev 권장사항(LLM 흔한 실수)
-  python3 aggrid_docs.py audit <경로...>             # deprecated 옵션·금지 import 점검
+  python3 aggrid_docs.py audit <경로...>             # deprecated 옵션·금지 import 점검 + 화면 성능 정적 점검(P-*)
   python3 aggrid_docs.py refresh                    # 캐시 비우기
 """
 from __future__ import annotations
@@ -250,6 +250,319 @@ SCREEN_TABLE_RULES: list[tuple[re.Pattern[str], str]] = [
 ]
 
 
+# ── 화면 성능 정적 점검 (docs/guide/FrontEnd/Screen-Performance-Guide.md) ─────────────────────────────
+# 정규식·괄호 짝 수준의 점검이다. 확실히 잡히는 것만 오류(종료 코드 1)로 두고, 화면 설계에 따라 정상일 수 있는 것은
+# 경고(종료 코드 영향 없음)로 둔다. 메시지 앞의 [P-…] 코드로 항목을 가른다.
+PERF_GUIDE = "Screen-Performance-Guide"
+# 사용자 확인 공용 캐시 모듈 — 여기만 /api/auth/me 를 직접 부른다(K3, 75e84a2b).
+AUTH_ME_CACHE = ("portal-shell", "current-user.ts")
+_PAIRS = {"(": ")", "[": "]", "{": "}"}
+
+
+def _skip_quote(s: str, j: int) -> int:
+    """'…' / "…" 끝 다음 위치. 줄이 끝나도 안 닫히면 JSX 글자(아포스트로피)로 보고 따옴표 하나만 건너뛴다."""
+    q, k = s[j], j + 1
+    while k < len(s):
+        c = s[k]
+        if c == "\\":
+            k += 2
+            continue
+        if c == q:
+            return k + 1
+        if c == "\n":
+            return j + 1
+        k += 1
+    return j + 1
+
+
+def _skip_template(s: str, j: int) -> int:
+    """`…${…}…` 끝 다음 위치."""
+    k = j + 1
+    while k < len(s):
+        c = s[k]
+        if c == "\\":
+            k += 2
+            continue
+        if c == "`":
+            return k + 1
+        if c == "$" and s.startswith("${", k):
+            end = match_close(s, k + 1)
+            if end < 0:
+                return len(s)
+            k = end + 1
+            continue
+        k += 1
+    return len(s)
+
+
+def match_close(s: str, i: int) -> int:
+    """s[i] 의 ( [ { 에 짝인 닫는 괄호 위치(문자열·템플릿 안은 건너뜀). 못 찾으면 -1."""
+    stack = [_PAIRS[s[i]]]
+    j = i + 1
+    while j < len(s):
+        c = s[j]
+        if c in "'\"":
+            j = _skip_quote(s, j)
+            continue
+        if c == "`":
+            j = _skip_template(s, j)
+            continue
+        if c in _PAIRS:
+            stack.append(_PAIRS[c])
+        elif c in ")]}":
+            stack.pop()
+            if not stack:
+                return j
+        j += 1
+    return -1
+
+
+def mask_comments(s: str) -> str:
+    """// 와 /* */ 주석을 같은 길이의 공백으로 바꾼다(줄 번호 유지). 문자열·템플릿 안은 그대로 둔다."""
+    out = list(s)
+    j = 0
+    while j < len(s):
+        c = s[j]
+        if c in "'\"":
+            j = _skip_quote(s, j)
+        elif c == "`":
+            j = _skip_template(s, j)
+        elif s.startswith("//", j):
+            end = s.find("\n", j)
+            end = len(s) if end < 0 else end
+            out[j:end] = " " * (end - j)
+            j = end
+        elif s.startswith("/*", j):
+            end = s.find("*/", j + 2)
+            end = len(s) if end < 0 else end + 2
+            out[j:end] = ["\n" if ch == "\n" else " " for ch in s[j:end]]
+            j = end
+        else:
+            j += 1
+    return "".join(out)
+
+
+def _top_level_brackets(s: str) -> list[tuple[int, int]]:
+    """s 의 최상위 [ … ] 구간들."""
+    found: list[tuple[int, int]] = []
+    j = 0
+    while j < len(s):
+        c = s[j]
+        if c in "'\"":
+            j = _skip_quote(s, j)
+            continue
+        if c == "`":
+            j = _skip_template(s, j)
+            continue
+        if c in _PAIRS:
+            end = match_close(s, j)
+            if end < 0:
+                break
+            if c == "[":
+                found.append((j, end))
+            j = end + 1
+            continue
+        j += 1
+    return found
+
+
+FORM_STATE = re.compile(r"const\s*\[\s*(\w+)\s*,\s*(set\w+)\s*\]\s*=\s*useState\b(\s*<[^>(]*>)?")
+GRID_MEMO = re.compile(r"const\s+(\w+)\s*(:[^=]+)?=\s*useMemo\b")
+GRID_MEMO_NAME = re.compile(r"(?i)(columns|columndefs|coldefs|rows|rowdata|griddata)$")
+INPUT_TAG = re.compile(r"<(Input|Textarea|TextInput|NumberInput|InputNumber|SelectOrInput)\b")
+API_SEARCH_CALL = re.compile(r"(?<![\w.$])(search[A-Z]\w*)\s*\(")
+AUTH_ME_FETCH = re.compile(r"\bfetch\s*\(\s*[`'\"][^`'\"\n]*/auth/me\b")
+TAB_ACTIVATED = re.compile(r"addEventListener\s*\(\s*[`'\"]portal-tab-activated")
+EMPTY_TERNARY = re.compile(r"\.length\s*(===?\s*0|<\s*1|>\s*0|!==?\s*0)[^?;{}]*?\?\s*\(")
+
+
+def _is_form_state(name: str, generic: str | None) -> bool:
+    return bool(re.search(r"(?:^form|Form)$", name)) or bool(generic and re.search(r"Form\b", generic))
+
+
+def _root_component_body(t: str) -> tuple[str, int, int] | None:
+    """export default 함수 컴포넌트의 (이름, 본문 { 위치, } 위치)."""
+    m = re.search(r"export\s+default\s+function\s*(\w*)\s*\(", t)
+    if not m:
+        d = re.search(r"export\s+default\s+(\w+)\s*;", t)
+        if not d:
+            return None
+        m = re.search(rf"function\s+({d[1]})\s*\(", t) or re.search(rf"const\s+({d[1]})\s*=\s*(?:\w+\()?\s*\(", t)
+        if not m:
+            return None
+    params_end = match_close(t, m.end() - 1)
+    if params_end < 0:
+        return None
+    b = t.find("{", params_end)
+    e = match_close(t, b) if b >= 0 else -1
+    return (m[1] or "default", b, e) if e > 0 else None
+
+
+def _decl_segments(body: str) -> dict[str, str]:
+    """본문의 `const H = …` / `function H(…)` 선언 → 선언 텍스트(괄호 짝 기준)."""
+    segs: dict[str, str] = {}
+    for m in re.finditer(r"(?:const\s+(\w+)\s*(?::[^=]+)?=|function\s+(\w+)\s*\()", body):
+        name = m[1] or m[2]
+        # 선언 첫 여는 괄호부터 짝 맞춤을 이어 가며 `;`·줄 끝 최상위까지를 선언으로 본다
+        j, end = m.end(), len(body)
+        while j < len(body):
+            c = body[j]
+            if c in _PAIRS:
+                k = match_close(body, j)
+                if k < 0:
+                    break
+                j = k + 1
+                continue
+            if c in "'\"":
+                j = _skip_quote(body, j)
+                continue
+            if c == "`":
+                j = _skip_template(body, j)
+                continue
+            if c == ";" or (c == "\n" and m[2]):
+                end = j
+                break
+            if c == "\n" and re.match(r"\n\s*(const|let|function|return|useEffect|useLayoutEffect)\b", body[j:]):
+                end = j
+                break
+            j += 1
+        segs[name] = body[m.start():end]
+    return segs
+
+
+def _tag_attrs(t: str, start: int) -> str:
+    """`<Tag` 부터 태그 끝(최상위 `>`)까지의 속성 텍스트."""
+    j = start + 1
+    while j < len(t):
+        c = t[j]
+        if c == "{":
+            k = match_close(t, j)
+            if k < 0:
+                break
+            j = k + 1
+            continue
+        if c in "'\"":
+            j = _skip_quote(t, j)
+            continue
+        if c == ">":
+            return t[start:j]
+        j += 1
+    return t[start:j]
+
+
+def perf_audit(f: Path, raw: str, in_shared: bool, error, warn) -> None:
+    """화면 성능 가이드에서 정적으로 잡히는 항목. error(pos, msg)·warn(pos, msg) 로 낸다."""
+    parts = set(f.parts)
+    if {"tests", "__tests__", "e2e"} & parts or re.search(r"\.(test|spec)\.[jt]sx?$", f.name):
+        return
+    t = mask_comments(raw)
+
+    # P-K: /api/auth/me 직접 호출 — 공용 캐시(getCurrentUser) 를 거치지 않으면 진입마다 요청이 는다(R9·K3)
+    if f.parts[-2:] != AUTH_ME_CACHE:
+        for m in AUTH_ME_FETCH.finditer(t):
+            error(m.start(), f"[P-K] /api/auth/me 직접 호출 → getCurrentUser()·useCurrentUserId() "
+                             f"(@dk-oasis/shared/portal-shell) 를 쓴다 ({PERF_GUIDE} R9·K3)")
+
+    # P-R10: 전역 탭 활성화 이벤트로 다시 읽으면서 자기 탭인지 보지 않는다
+    if TAB_ACTIVATED.search(t) and "tabId" not in t:
+        m = TAB_ACTIVATED.search(t)
+        warn(m.start(), f"[P-R10 경고] portal-tab-activated 를 받으며 tabId 비교가 없다 → 어느 탭이 활성화돼도 다시 조회한다. "
+                        f"useTabPage().tabId 와 detail.tabId 를 비교한다 ({PERF_GUIDE} R10·K5)")
+
+    if in_shared:
+        return
+    states = [(m, m[1], m[2]) for m in FORM_STATE.finditer(t) if _is_form_state(m[1], m[3])]
+
+    # P-R12: 그리드 열·행 useMemo deps 에 폼 객체 전체
+    for m in GRID_MEMO.finditer(t):
+        name, annot = m[1], m[2] or ""
+        k = m.end()
+        generic = ""
+        if t.startswith("<", k):  # useMemo<GridColumn[]>(
+            depth, j = 0, k
+            while j < len(t):
+                depth += {"<": 1, ">": -1}.get(t[j], 0)
+                if depth == 0:
+                    break
+                j += 1
+            generic, k = t[k:j + 1], j + 1
+        p = t.find("(", k)
+        if p < 0 or not (GRID_MEMO_NAME.search(name) or re.search(r"GridColumn|ColDef", annot + generic)):
+            continue
+        end = match_close(t, p)
+        if end < 0:
+            continue
+        inner = t[p + 1:end]
+        brackets = _top_level_brackets(inner)
+        if not brackets:
+            continue
+        deps = inner[brackets[-1][0]:brackets[-1][1] + 1]
+        for _, sname, _ in states:
+            if re.search(rf"(?<![\w.$]){sname}(?![\w$]|\s*\??\.)", deps):
+                error(m.start(), f"[P-R12] 그리드 useMemo `{name}` deps 에 폼 상태 `{sname}` 전체 → 입력 한 글자마다 그리드 참조가 "
+                                 f"새로 생겨 셀이 다시 그려진다. 쓰는 값만 deps 에 두거나 셀 렌더러가 ref 로 읽는다 ({PERF_GUIDE} R12)")
+
+    # P-R12b: 화면 루트의 폼 state 를 입력 onChange 가 매 글자 바꾼다
+    root = _root_component_body(t) if f.suffix in (".tsx", ".jsx") else None
+    if root:
+        rname, b, e = root
+        body = t[b:e]
+        segs = None
+        for m, sname, setter in states:
+            if not (b < m.start() < e):
+                continue
+            segs = segs if segs is not None else _decl_segments(body)
+            via = {setter} | {h for h, seg in segs.items() if h != setter and re.search(rf"\b{setter}\b", seg)}
+            via_rx = re.compile(r"\b(" + "|".join(map(re.escape, sorted(via))) + r")\b")
+            for tag in INPUT_TAG.finditer(body):
+                attrs = _tag_attrs(body, tag.start())
+                oc = re.search(r"\bonChange\s*=\s*\{", attrs)
+                if oc and via_rx.search(attrs[oc.end() - 1:match_close(attrs, oc.end() - 1) + 1]):
+                    warn(m.start(), f"[P-R12b 경고] 화면 루트 `{rname}` 의 폼 상태 `{sname}` 를 <{tag[1]}> onChange 가 매 글자 바꾼다 "
+                                    f"→ 글자마다 화면 루트 전체가 다시 렌더된다. 상세 폼을 별도 컴포넌트로 나누고 state 를 그 안에 둔다 ({PERF_GUIDE} R12)")
+                    break
+
+    # P-R1: import 한 목록 조회 API 에 첫 조회 상한이 없고 GridLimitNotice 도 없다.
+    # 목록을 그리는 파일(page.tsx 또는 AgDataGrid·GridPanel 을 쓰는 파일)만 본다 — 입력 자동완성·Lookup 피커는 입력값이
+    # 조건이라 대상이 아니다. 인자에 limit·size·max·page(상한·페이징)가 있으면 통과.
+    lists_rows = f.name == "page.tsx" or re.search(r"<(AgDataGrid|GridPanel)\b", t)
+    if f.name != "api.ts" and lists_rows and "GridLimitNotice" not in t:
+        imported = {n for imp in re.finditer(r"import\s*(?:type\s*)?\{([^}]*)\}\s*from", t)
+                    for n in re.findall(r"\b(search[A-Z]\w*)\b", imp[1])}
+        for m in API_SEARCH_CALL.finditer(t):
+            if m[1] not in imported or re.search(r"(function|import|as)\s*$", t[max(0, m.start() - 20):m.start()]):
+                continue
+            end = match_close(t, m.end() - 1)
+            call_args = t[m.end():end] if end > 0 else ""
+            # 상위 키(…Id·…Code·key)로 묶인 조회(마스터-디테일 하위·단건·중복 확인)는 조건이 있는 조회다. 검색 조건 객체의
+            # 칸(filters.unitCode 등)은 비어 있을 수 있으므로 키로 치지 않는다.
+            keyed = any(re.search(r"(?i)(id|code|key)$", tok.split(".")[-1])
+                        and not re.match(r"(filters?|f|cond|conditions?|query|params)\.", tok)
+                        for tok in re.findall(r"[A-Za-z_$][\w$.]*", call_args))
+            if end > 0 and not keyed and not re.search(r"(?i)limit|size|max|\bpage\b", call_args):
+                warn(m.start(), f"[P-R1 경고] 목록 조회 `{m[1]}(…)` 에 첫 조회 상한(limit)이 없고 화면에 GridLimitNotice 가 없다 "
+                                f"→ 조건 없는 조회면 전체 행을 받는다. 필수 조건을 두거나 FIRST_SEARCH_LIMIT 를 넘기고 잘리면 "
+                                f"GridLimitNotice 를 보인다 ({PERF_GUIDE} R1)")
+
+    # P-R6: 0건이면 AgDataGrid 를 언마운트하는 3항
+    if f.suffix in (".tsx", ".jsx"):
+        for m in EMPTY_TERNARY.finditer(t):
+            a_end = match_close(t, m.end() - 1)
+            if a_end < 0:
+                continue
+            rest = re.match(r"\s*:\s*\(", t[a_end + 1:])
+            if not rest:
+                continue
+            b_start = a_end + 1 + rest.end() - 1
+            b_end = match_close(t, b_start)
+            then_b, else_b = t[m.end():a_end], t[b_start:b_end]
+            empty_first = not m[1].lstrip().startswith((">", "!"))
+            grid_b, other_b = (else_b, then_b) if empty_first else (then_b, else_b)
+            if "<AgDataGrid" in grid_b and "<AgDataGrid" not in other_b:
+                warn(m.start(), f"[P-R6 경고] 0건이면 AgDataGrid 를 내린다 → 조회마다 그리드를 새로 만든다. "
+                                f"그리드를 늘 두고 빈 상태는 emptyMessage 로 보인다 ({PERF_GUIDE} R6)")
+
+
 def cmd_audit(args: argparse.Namespace) -> None:
     files: list[Path] = []
     for p in map(Path, args.paths):
@@ -262,11 +575,17 @@ def cmd_audit(args: argparse.Namespace) -> None:
     dep_rx = re.compile(r"\b(" + "|".join(sorted(deprecated, key=len, reverse=True)) + r")\b\s*[:=]") if deprecated else None
     fixed = [(re.compile(rx), msg) for rx, msg in FIXED_RULES]
     issues = 0
+    warnings = 0
 
     def report(f: Path, text: str, pos: int, msg: str) -> None:
         nonlocal issues
         print(f"{f}:{text.count(chr(10), 0, pos) + 1}: {msg}")
         issues += 1
+
+    def report_warn(f: Path, text: str, pos: int, msg: str) -> None:
+        nonlocal warnings
+        print(f"{f}:{text.count(chr(10), 0, pos) + 1}: {msg}")
+        warnings += 1
 
     for f in files:
         text = f.read_text(encoding="utf-8", errors="ignore")
@@ -290,7 +609,11 @@ def cmd_audit(args: argparse.Namespace) -> None:
                 if moved_same_name and m.group(0).rstrip().endswith(":"):
                     continue
                 report(f, text, m.start(), f"`{name}` deprecated: {note}")
+        perf_audit(f, text, in_shared,
+                   lambda pos, msg, f=f, text=text: report(f, text, pos, msg),
+                   lambda pos, msg, f=f, text=text: report_warn(f, text, pos, msg))
     print(f"\n{len(files)}개 파일 점검, 의심 {issues}건 (deprecated 기준: 설치본 {len(deprecated)}개 속성)"
+          + (f", 성능 경고 {warnings}건(종료 코드 무관)" if warnings else "")
           + ("" if issues else " — 통과"))
     sys.exit(1 if issues else 0)
 

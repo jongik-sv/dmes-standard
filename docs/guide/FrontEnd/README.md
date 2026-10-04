@@ -33,13 +33,21 @@ python3 $D/mantine_docs.py audit <바꾼 파일·폴더>
 python3 $D/aggrid_docs.py audit <바꾼 파일·폴더>
 ```
 
-| 점검 항목 | 근거 규칙 |
-|---|---|
-| 화면(`m-*`)에서 `@mantine/*` 직접 import | [Part B §4-2·§17](standard-v2/part-b-shared-policy.md) |
-| 화면에서 `ag-grid-react`·`ag-grid-community` 직접 import | [Part B §6](standard-v2/part-b-shared-policy.md) |
-| 화면에서 원시 `<table>` 데이터 목록(`<thead>`) 사용 → `AgDataGrid` | [Part B §6](standard-v2/part-b-shared-policy.md) |
-| `ag-grid-enterprise` 사용 | [전 모듈 ADR-0001](../adr/0001-ui-library-mantine9-aggrid.md) D2 |
-| 화면 CSS 의 16진수·`rgb()` 색 | [UI-Visual-Standard §3](UI-Visual-Standard.md) |
-| Mantine 8 이하 API, ag-grid 설치본 기준 deprecated 옵션 | 라이브러리 설치 버전(`.d.ts`) |
+| 점검 항목 | 근거 규칙 | 수준 |
+|---|---|---|
+| 화면(`m-*`)에서 `@mantine/*` 직접 import | [Part B §4-2·§17](standard-v2/part-b-shared-policy.md) | 오류 |
+| 화면에서 `ag-grid-react`·`ag-grid-community` 직접 import | [Part B §6](standard-v2/part-b-shared-policy.md) | 오류 |
+| 화면에서 원시 `<table>` 데이터 목록(`<thead>`) 사용 → `AgDataGrid` | [Part B §6](standard-v2/part-b-shared-policy.md) | 오류 |
+| `ag-grid-enterprise` 사용 | [전 모듈 ADR-0001](../adr/0001-ui-library-mantine9-aggrid.md) D2 | 오류 |
+| 화면 CSS 의 16진수·`rgb()` 색 | [UI-Visual-Standard §3](UI-Visual-Standard.md) | 오류 |
+| Mantine 8 이하 API, ag-grid 설치본 기준 deprecated 옵션 | 라이브러리 설치 버전(`.d.ts`) | 오류 |
+| `[P-K]` 화면·위젯·shared 에서 `fetch("/api/auth/me")` 직접 호출(공용 캐시 `portal-shell/current-user.ts` 제외) → `getCurrentUser()`·`useCurrentUserId()` | [성능 가이드 R9·K3](Screen-Performance-Guide.md) | 오류 |
+| `[P-R12]` 그리드 열·행 `useMemo`(이름 `*Columns`·`*Rows`·`columnDefs` 또는 `GridColumn[]`)의 deps 에 폼 상태(`form`·`xxxForm`·`*Form` 타입) 객체 전체 | [성능 가이드 R12](Screen-Performance-Guide.md) | 오류 |
+| `[P-R12b]` 화면 루트(`export default`)의 폼 상태를 `<Input>`·`<Textarea>` onChange 가 직접 또는 핸들러 한 단계로 바꿈 → 상세 폼 컴포넌트 분리 | [성능 가이드 R12](Screen-Performance-Guide.md) | 경고 |
+| `[P-R1]` 목록 파일(page.tsx·`AgDataGrid`/`GridPanel` 사용)에서 import 한 `search*()` 호출 인자에 상한·페이징(`limit`·`size`·`max`·`page`)이나 상위 키(`…Id`·`…Code`)가 없고 `GridLimitNotice` 도 없음 | [성능 가이드 R1](Screen-Performance-Guide.md) | 경고 |
+| `[P-R6]` `rows.length === 0 ? (…) : (<AgDataGrid…/>)` 처럼 0건이면 그리드를 내림 → `emptyMessage` | [성능 가이드 R6](Screen-Performance-Guide.md) | 경고 |
+| `[P-R10]` `portal-tab-activated` 를 받으면서 파일에 `tabId` 비교가 없음 | [성능 가이드 R10·K5](Screen-Performance-Guide.md) | 경고 |
+
+성능 항목(`[P-…]`)은 `aggrid_docs.py audit` 가 함께 낸다. 오류는 종료 코드 1, 경고는 종료 코드에 영향이 없다(설계상 정상일 수 있으므로 해당 규칙을 읽고 판단한다). 테스트 파일(`tests/`·`*.test.*`)은 성능 점검에서 뺀다.
 
 점검 규칙을 바꿀 때는 이 표와 스크립트를 함께 고친다.
