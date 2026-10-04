@@ -32,7 +32,6 @@ tasks.withType(JavaCompile).configureEach {
 tasks.named('test') {
     useJUnitPlatform()
     // ScreenUsageOasisContractTest·ScreenUsageMssqlDdlTest 가 mcm/api 시드 소스를 작업 디렉터리 기준 상대 경로로 직접 읽는다 — 입력으로 선언한다.
-    // seed/ScreenUsageSchemaArtifacts.java 는 a6 2단계 머지 전에는 없을 수 있다(없는 경로는 빈 입력).
     inputs.files(rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/CoreRbacSeeder.java'),
                 rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/ScreenUsageSchemaArtifacts.java'),
                 rootProject.file('../mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java'))

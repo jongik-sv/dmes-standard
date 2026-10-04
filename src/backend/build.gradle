@@ -4,7 +4,7 @@
 //   ./gradlew testAll      // 15개 전체 test
 //   ./gradlew cleanAll     // 15개 전체 clean
 // 한계: 각 included build 루트의 :build·:test·:clean 만 부른다. 루트 :test 가 lib·api 서브프로젝트 시험을 모으는 곳은
-// mdm 뿐이라, 루트가 서브프로젝트 시험을 모으지 않는 모듈(mpn·mpp·mqc·mcm·mls·analog)은 testAll 로 lib·api 시험이 돌지 않는다
+// mdm 뿐이라, 루트가 서브프로젝트 시험을 모으지 않는 모듈(mpn·mpp·mqc·mcm·mls·analog, cactus-core 가 끌어오는 oasis-core·oasis-core-api)은 testAll 로 lib·api 시험이 돌지 않는다
 // (루트 :test NO-SOURCE). 서브프로젝트 시험 집계(④b)는 별건으로 결정 대기 — 그 전에는 :mls:lib:test 처럼 서브프로젝트를 직접 지정한다.
 // 새 includeBuild 를 settings.gradle 에 더하면 이 목록에도 더한다.
 
