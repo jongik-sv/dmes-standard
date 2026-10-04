@@ -84,7 +84,8 @@ public class TermMngService {
 
     /**
      * 키워드·상황 조건은 DB 에서 {@link TermSearchPrefilter} 로 먼저 줄이고(필요조건만), 아래 Java 비교가 최종 판정한다. 비교 순서
-     * (키워드 → 시스템 → 상황)와 JSON 목록 해석은 예전 그대로다. 행마다 JSON 칸은 한 번만 파싱한다.
+     * (키워드 → 시스템 → 상황)는 예전 그대로다. JSON 목록 해석은 {@link MdmJsonLists#readStrings} 를 따른다(D1·D2 수정 뒤 null
+     * 리터럴은 빈 목록, 원소 null 은 버림). 행마다 JSON 칸은 한 번만 파싱한다.
      */
     public TermSearchResult search(TermSearchRequest request) {
         String keyword = trimToNull(request != null ? request.getKeyword() : null);
