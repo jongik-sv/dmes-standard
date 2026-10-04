@@ -262,7 +262,7 @@ public class NoticeMgmtService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cntMerge", cnt);
         out.put("savedIds", savedIds);
-        out.put("list", toRows(noticeRepository.searchAll()));
+        out.put("list", allSummaryRows());
         return out;
     }
 
@@ -367,7 +367,7 @@ public class NoticeMgmtService {
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cntMerge", 1);
-        out.put("list", toRows(noticeRepository.searchAll()));
+        out.put("list", allSummaryRows());
         return out;
     }
 
@@ -555,6 +555,14 @@ public class NoticeMgmtService {
             out.add(map);
         }
         return out;
+    }
+
+    /**
+     * 저장·상태변경 응답의 전체 목록 — 본문(CONTENT) 없는 요약이다. 화면은 이 목록에서 저장한 공지번호만 찾고(상세는 상세 조회로 받는다)
+     * 매 저장마다 전체 본문을 실으면 목록 조회와 같은 크기 문제가 되기 때문이다(화면 성능 가이드 R1).
+     */
+    private List<Map<String, Object>> allSummaryRows() {
+        return toSummaryRows(noticeRepository.searchSummaryByFilter(null, null, null, null, null, null, Limit.unlimited()));
     }
 
     /** 요약 조회({@link NoticeRepository#searchSummaryByFilter}) 열 → 화면 행. 본문(CONTENT) 키는 싣지 않는다. */

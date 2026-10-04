@@ -556,6 +556,16 @@ class NoticeMgmtServiceTest extends MlsTestDb {
         assertThat(limitedWithContent.get("truncated")).isEqualTo(true);
     }
 
+    @Test
+    @DisplayName("저장·상태변경 응답의 전체 목록은 본문 없는 요약이다")
+    void 저장_응답_목록은_본문을_싣지_않는다() {
+        Map<String, Object> saved = service.save(List.of(newRow("응답 요약 공지")));
+
+        assertThat(list(saved)).isNotEmpty();
+        assertThat(list(saved)).allSatisfy(r -> assertThat(r).doesNotContainKey("CONTENT").containsKey("NOTICE_ID"));
+        assertThat(titles(saved)).contains("응답 요약 공지");
+    }
+
     private static List<Object> titles(Map<String, Object> out) {
         return list(out).stream().map(r -> r.get("TITLE")).toList();
     }
