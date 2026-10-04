@@ -9,7 +9,7 @@
  * 입력이 잠기는 일을 없앤다. 확인이 실패로 끝나면(failed) 임시 저장 없이 편집을 허용한다.
  * 한 모듈로 모아 두어 시험이 이 모듈만 바꿔 끼운다(portal-shell 전체를 올리지 않고 `/api/auth/me` 호출도 막는다).
  */
-import { useUserButtonRbac } from "@dk-oasis/shared/portal-shell";
+import { useCurrentUserState } from "@dk-oasis/shared/portal-shell";
 
 import { memoUserStatus, type MemoUserStatus } from "./memo-model";
 
@@ -21,6 +21,6 @@ export interface ConfirmedUser {
 
 /** enabled=false 면 확인하지 않는다(status failed·userId ""). 확인이 끝나면 다시 그려진다. */
 export function useConfirmedUser(enabled: boolean): ConfirmedUser {
-  const state = useUserButtonRbac(enabled);
+  const state = useCurrentUserState(enabled);
   return { userId: state.userId, status: memoUserStatus(state) };
 }

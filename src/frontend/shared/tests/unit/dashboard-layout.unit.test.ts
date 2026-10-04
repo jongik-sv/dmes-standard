@@ -7,8 +7,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../src/portal-shell/use-user-button-rbac", () => ({
-  useUserButtonRbac: () => ({ userId: "u1" }),
   peekLastUserId: () => "u1",
+}));
+vi.mock("../../src/portal-shell/use-current-user-id", () => ({
+  useCurrentUserState: () => ({ userId: "u1", isLoading: false }),
 }));
 
 import {

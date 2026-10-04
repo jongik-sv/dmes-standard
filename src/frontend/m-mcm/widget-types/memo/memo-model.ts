@@ -228,7 +228,7 @@ export function memoDraftKey(userId: string, instanceId: string): string | null 
 
 /**
  * 현재 사용자 확인 상태 — pending: 아직 확인 중, confirmed: 사용자 ID 를 알았다, failed: 확인이 끝났는데 ID 가 없다(조회 실패).
- * shared 의 RBAC 상태는 isLoading 으로 끝났는지를, userId 로 알았는지를 말한다(RBAC 조회만 실패해도 userId 는 있다 — confirmed).
+ * shared 의 사용자 확인 상태(useCurrentUserState)는 isLoading 으로 끝났는지를, userId 로 알았는지를 말한다.
  */
 export type MemoUserStatus = "pending" | "confirmed" | "failed";
 

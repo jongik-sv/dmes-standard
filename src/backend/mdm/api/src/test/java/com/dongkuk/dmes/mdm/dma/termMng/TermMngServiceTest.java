@@ -122,6 +122,17 @@ class TermMngServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 저장_응답에는_전체_용어_목록을_싣지_않는다() throws Exception {
+        service.save(req("코일", 1, "코일 정의"));
+        TermSaveResult saved = service.save(req("두께", 1, "두께 정의"));
+
+        assertNotNull(saved.getTermId());
+        // JSON 으로 직렬화한 응답에 list 필드가 없다 — 화면이 현재 조건으로 다시 조회한다.
+        String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(saved);
+        assertTrue(!json.contains("\"list\""), json);
+    }
+
+    @Test
     void I6_같은_표기라도_의미번호가_다르면_저장된다() {
         service.save(req("배", 1, "과일"));
         TermSaveResult second = service.save(req("배", 2, "탈것"));
@@ -159,7 +170,7 @@ class TermMngServiceTest extends AbstractMdmSharedDbTest {
         request.setSystems("MES, ERP");
         TermSaveResult result = service.save(request);
 
-        TermRow row = result.getList().stream()
+        TermRow row = service.search(new TermSearchRequest()).getList().stream()
                 .filter(r -> "콤마파싱".equals(r.getTermName()))
                 .findFirst().orElseThrow();
         assertEquals(List.of("배치(ERP)", "뱃치(MES)"), row.getSynonyms());

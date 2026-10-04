@@ -24,7 +24,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { peekLastUserId, useUserButtonRbac } from "../../portal-shell/use-user-button-rbac";
+import { useCurrentUserState } from "../../portal-shell/use-current-user-id";
+import { peekLastUserId } from "../../portal-shell/use-user-button-rbac";
 import { DashboardBoardItemContext, type DashboardWidget } from "./board-context";
 import {
   addWidget,
@@ -145,7 +146,7 @@ export function useDashboardBoard({
     [idSig, defSig]
   );
 
-  const { userId } = useUserButtonRbac(Boolean(layoutKey));
+  const { userId } = useCurrentUserState(Boolean(layoutKey));
   const loadedFor = useRef("");
   const [state, setState] = useState<DashboardBoardState>(() => {
     const last = peekLastUserId();

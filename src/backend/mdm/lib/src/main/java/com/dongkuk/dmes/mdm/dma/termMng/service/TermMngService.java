@@ -224,7 +224,7 @@ public class TermMngService {
         afterCommitOrNow("refresh termId=" + termId, () -> cache.refresh(termId));
 
         log.info("[termMng] save — termId={} termName={} senseNo={} warnings={}", termId, termName, senseNo, warnings);
-        return new TermSaveResult(termId, warnings, search(new TermSearchRequest()).getList());
+        return new TermSaveResult(termId, warnings);
     }
 
     // ────────────────────────────────────────────────────────────────
