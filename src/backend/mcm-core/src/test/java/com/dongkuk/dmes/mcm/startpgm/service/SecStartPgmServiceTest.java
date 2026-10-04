@@ -5,8 +5,7 @@ import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.entity.SecMenu;
 import com.dongkuk.dmes.mcm.entity.SecObj;
-import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
-import com.dongkuk.dmes.mcm.repository.SecObjRepository;
+import com.dongkuk.dmes.mcm.menu.MenuCatalog;
 import com.dongkuk.dmes.mcm.startpgm.dto.SecStartPgmSearchRequest;
 import com.dongkuk.dmes.mcm.startpgm.dto.SecStartPgmToggleRequest;
 import com.dongkuk.dmes.mcm.startpgm.entity.SecUserStartPgm;
@@ -37,8 +36,7 @@ class SecStartPgmServiceTest {
     private static final String PAGE_ID = "mcm:csa/commUserMng";
 
     @Mock SecUserStartPgmRepository startPgmRepository;
-    @Mock SecMenuRepository secMenuRepository;
-    @Mock SecObjRepository secObjRepository;
+    @Mock MenuCatalog menuCatalog;
     @Mock SecurityIdentity securityIdentity;
 
     @InjectMocks SecStartPgmService service;
@@ -73,8 +71,9 @@ class SecStartPgmServiceTest {
     }
 
     private void givenUserMenu() {
-        when(secMenuRepository.findAll()).thenReturn(List.of(menu("M_USER", "csa", "commUserMng", "사용자 관리")));
-        when(secObjRepository.findAll()).thenReturn(List.of(obj("commUserMng", "mcm")));
+        when(menuCatalog.snapshot()).thenReturn(MenuCatalog.Snapshot.of(
+                List.of(menu("M_USER", "csa", "commUserMng", "사용자 관리")),
+                List.of(obj("commUserMng", "mcm"))));
     }
 
     private static SecStartPgmToggleRequest toggle(String userId, String pageId) {
@@ -157,11 +156,10 @@ class SecStartPgmServiceTest {
         when(startPgmRepository.findByUserIdOrderByStartSeqAsc("userA")).thenReturn(List.of(
                 row("userA", "csa/commUserMng", "M_USER", 1),
                 row("userA", "csa/commRoleMng", "M_ROLE", 2)));
-        when(secMenuRepository.findAll()).thenReturn(List.of(
-                menu("M_USER", "csa", "commUserMng", "사용자 관리"),
-                menu("M_ROLE", "csa", "commRoleMng", "역할 관리")));
-        when(secObjRepository.findAll()).thenReturn(List.of(
-                obj("commUserMng", "mcm"), obj("commRoleMng", "mcm")));
+        when(menuCatalog.snapshot()).thenReturn(MenuCatalog.Snapshot.of(
+                List.of(menu("M_USER", "csa", "commUserMng", "사용자 관리"),
+                        menu("M_ROLE", "csa", "commRoleMng", "역할 관리")),
+                List.of(obj("commUserMng", "mcm"), obj("commRoleMng", "mcm"))));
 
         List<Map<String, Object>> rows = service.searchStartPgms(new SecStartPgmSearchRequest());
 

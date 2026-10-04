@@ -6,8 +6,7 @@ import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.entity.SecMenu;
 import com.dongkuk.dmes.mcm.entity.SecObj;
 import com.dongkuk.dmes.mcm.favorite.service.PortalPageMenuMatcher;
-import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
-import com.dongkuk.dmes.mcm.repository.SecObjRepository;
+import com.dongkuk.dmes.mcm.menu.MenuCatalog;
 import com.dongkuk.dmes.mcm.startpgm.dto.SecStartPgmSearchRequest;
 import com.dongkuk.dmes.mcm.startpgm.dto.SecStartPgmToggleRequest;
 import com.dongkuk.dmes.mcm.startpgm.entity.SecUserStartPgm;
@@ -16,7 +15,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,18 +42,16 @@ import java.util.Map;
 public class SecStartPgmService {
 
     private final SecUserStartPgmRepository startPgmRepository;
-    private final SecMenuRepository secMenuRepository;
-    private final SecObjRepository secObjRepository;
+    /** SEC_MENU·SEC_OBJ 전수 목록 캐시 (읽기 전용 엔티티). */
+    private final MenuCatalog menuCatalog;
     private final SecurityIdentity securityIdentity;
 
     @Autowired
     public SecStartPgmService(SecUserStartPgmRepository startPgmRepository,
-                              SecMenuRepository secMenuRepository,
-                              SecObjRepository secObjRepository,
+                              MenuCatalog menuCatalog,
                               SecurityIdentity securityIdentity) {
         this.startPgmRepository = startPgmRepository;
-        this.secMenuRepository = secMenuRepository;
-        this.secObjRepository = secObjRepository;
+        this.menuCatalog = menuCatalog;
         this.securityIdentity = securityIdentity;
     }
 
@@ -71,15 +67,10 @@ public class SecStartPgmService {
             return List.of();
         }
 
-        // SecMenu 는 복합 PK 라 findById 단일 불가 → 메모리 인덱스 (MENU_ID 기준 최초 1행).
-        Map<String, SecMenu> menuById = new HashMap<>();
-        for (SecMenu m : secMenuRepository.findAll()) {
-            menuById.putIfAbsent(m.getMenuId(), m);
-        }
-        Map<String, SecObj> objById = new HashMap<>();
-        for (SecObj o : secObjRepository.findAll()) {
-            objById.put(o.getObjectId(), o);
-        }
+        // 메모리 인덱스 (MENU_ID 기준 최초 1행 / OBJECT_ID) — 메뉴 카탈로그 캐시의 같은 스냅샷.
+        MenuCatalog.Snapshot catalog = menuCatalog.snapshot();
+        Map<String, SecMenu> menuById = catalog.menusById();
+        Map<String, SecObj> objById = catalog.objectsById();
 
         List<Map<String, Object>> result = new ArrayList<>(rows.size());
         for (SecUserStartPgm s : rows) {
@@ -113,8 +104,9 @@ public class SecStartPgmService {
         String pageId = request.getPageId();
         String[] parts = PortalPageMenuMatcher.splitPageId(pageId);
 
+        MenuCatalog.Snapshot catalog = menuCatalog.snapshot();
         SecMenu menu = PortalPageMenuMatcher.findMenuByComponentPath(
-                secMenuRepository.findAll(), secObjRepository.findAll(), parts[0], parts[1]);
+                catalog.menus(), catalog.objects(), parts[0], parts[1]);
         if (menu == null) {
             throw new BusinessException(ErrorCode.INVALID_VALUE,
                     "해당 페이지에 매칭되는 메뉴가 없습니다: " + pageId);
