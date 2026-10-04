@@ -16,6 +16,7 @@ ag-grid.com 의 llms.txt · `.md` 는 **최신 메이저**만 제공한다. 설�
 from __future__ import annotations
 
 import argparse
+import functools
 import html
 import json
 import os
@@ -378,16 +379,15 @@ SYNC_STORE = re.compile(r"useSyncExternalStore\s*\(\s*[\w.$]+\s*,\s*(\(\s*\)\s*=
 TAB_ACTIVATED = re.compile(r"addEventListener\s*\(\s*[`'\"]portal-tab-activated")
 EMPTY_TERNARY = re.compile(r"\.length\s*(===?\s*0|<\s*1|>\s*0|!==?\s*0)[^?;{}]*?\?\s*\(")
 # {rows.length > 0 && (<AgDataGrid …/>)} — 0건이면 그리드를 내리는 && 조건부 렌더(빈 상태 <p> 는 형제로 따로 둔다)
-EMPTY_AND = re.compile(r"\.length\s*(?:>\s*0|>=\s*1|!==?\s*0)?\s*&&\s*")
+EMPTY_AND = re.compile(r"\.length\s*(?:>\s*0|>=\s*1|!==?\s*0)?\s*&&\s*(?:!?[\w.$?]+\s*&&\s*)*")
 EMPTY_SIBLING = re.compile(r"\.length\s*(?:===?\s*0|<\s*1)[^;{}]*?&&\s*\(?\s*<p\b")
 # 목록 행 타입에 본문·긴 글 열이 있는지 — types.ts 의 `CONTENT: string`, `body?: string` 류
 BIG_TEXT_FIELD = re.compile(r"^\s*(?:readonly\s+)?[\"']?(\w*(?:content|body|cntn|clob)\w*)[\"']?\??\s*:\s*string\b(?!\s*\[)", re.I | re.M)
 BIG_TEXT_SKIP = re.compile(r"(?i)format|type|kind|length|size|status")
 # 호출 결과를 쥐는 setter 이름 — 콤보 옵션용(옵션·LoV·역할)인지, 그리드 데이터용인지 가른다
 OPTION_SETTER = re.compile(r"(?i)options?|lov|roles?|choices")
-DATA_SETTER = re.compile(r"(?i)rows?|data|list|items|drafts|results?|records")
 # 피커 검색 래퍼 — `async function searchXxxPicks(kw): Promise<IdPickRow[]>`
-PICKER_WRAPPER = re.compile(r"(?:async\s+function\s+\w+|const\s+\w+\s*=\s*async)\s*\([^)]*\)\s*:\s*Promise<\w*Pick\w*\[\]>\s*(?:=>\s*)?\{")
+PICKER_WRAPPER = re.compile(r"(?:async\s+function\s+\w+|const\s+\w+\s*=\s*async)\s*\([^)]*\)\s*:\s*Promise<\w*PickRows?\[\]>\s*(?:=>\s*)?\{")
 # 사람이 판정해 둔 예외 — 파일·호출·사유·level(exempt=숨김, info=정보성 출력). 정적 분석이 못 보는 서버 상태·규모 근거를 적는다
 EXCEPTIONS_FILE = Path(__file__).with_name("audit-exceptions.json")
 
@@ -513,6 +513,7 @@ def _whole_state_getters(t: str) -> tuple[list[tuple[int, str]], int]:
     return whole, fields
 
 
+@functools.lru_cache(maxsize=1)
 def load_exceptions() -> list[dict]:
     try:
         return json.loads(EXCEPTIONS_FILE.read_text(encoding="utf-8"))
@@ -522,9 +523,9 @@ def load_exceptions() -> list[dict]:
 
 def _exception_level(f: Path, rule: str, call: str | None = None) -> str | None:
     """audit-exceptions.json 에 이 파일·규칙(·호출)이 있으면 그 level(exempt|info), 없으면 None."""
-    posix = f.as_posix()
+    posix = f.resolve().as_posix()
     for e in load_exceptions():
-        if e.get("rule") == rule and posix.endswith(e.get("path", "\0")) and e.get("call") in (None, call):
+        if e.get("rule") == rule and posix.endswith("/" + e.get("path", "\0")) and e.get("call") in (None, call):
             return e.get("level", "exempt")
     return None
 
@@ -554,12 +555,24 @@ def _p_r1_exclusion(t: str, pos: int, end: int, name: str, call_args: str) -> st
     tok = re.match(r"\s*([A-Za-z_$][\w$]*)\s*(?:,|$)", call_args)
     if tok:
         window = t[max(0, pos - 800):pos]
-        if re.search(rf"if\s*\(\s*(?:!\s*{re.escape(tok[1])}|{re.escape(tok[1])}\s*===?\s*[\"']{{2}})\s*\)\s*\{{?[\s\S]{{0,300}}?\breturn\b", window):
-            return "빈 값이면 일찍 반환하는 조건 검색"
+        n = re.escape(tok[1])
+        g = re.compile(rf"^([ \t]*)if\s*\(\s*(?:!\s*{n}|{n}\s*===?\s*[\"']{{2}})\s*\)\s*\{{?[\s\S]{{0,300}}?\breturn\b", re.M)
+        last = None
+        for gm in g.finditer(window):
+            last = gm
+        if last:
+            # 가드와 호출 사이에 가드보다 얕은 들여쓰기 줄(다른 함수 선언)이 있으면 같은 함수가 아니다
+            ind = len(last[1].expandtabs(2))
+            between = window[last.start():].split("\n")[1:]
+            if all(not ln.strip() or len(ln) - len(ln.lstrip()) >= ind for ln in between):
+                return "빈 값이면 일찍 반환하는 조건 검색"
     # 결과를 콤보 옵션 상태에만 담는다(그리드 data 로 가지 않음)
-    setters = re.findall(r"\bset([A-Z]\w*)\s*\(", t[end:end + 400])
-    if setters and any(OPTION_SETTER.search(x) for x in setters) and not any(DATA_SETTER.search(x) for x in setters):
-        return "콤보 옵션 전용 조회"
+    setters = [x for x in re.findall(r"\bset([A-Z]\w*)\s*\(", t[end:end + 400])
+               if not re.search(r"(?i)error|busy|loading|searching|failed|message|open", x)]  # 상태 표시용 setter 는 뺀다
+    if setters and all(OPTION_SETTER.search(x) for x in setters):
+        # 옵션 이름이어도 그 상태가 그리드 data 로 가면 목록 조회다
+        if not any(re.search(rf"data\s*=\s*\{{[^}}]*\b{x[0].lower() + x[1:]}\b", t) for x in setters):
+            return "콤보 옵션 전용 조회"
     return None
 
 
@@ -667,7 +680,7 @@ def perf_audit(f: Path, raw: str, in_shared: bool, error, warn, info=None) -> No
             call_args = t[m.end():end] if end > 0 else ""
             # 상위 키(…Id·…Code·key)로 묶인 조회(마스터-디테일 하위·단건·중복 확인)는 조건이 있는 조회다. 검색 조건 객체의
             # 칸(filters.unitCode 등)은 비어 있을 수 있으므로 키로 치지 않는다.
-            keyed = any(re.search(r"(?i)(id|code|key|token)$", tok.split(".")[-1])
+            keyed = any(re.search(r"(?i)(id|code|key)$|^token$", tok.split(".")[-1])
                         and not re.match(r"(filters?|f|cond|conditions?|query|params)\.", tok)
                         for tok in re.findall(r"[A-Za-z_$][\w$.]*", call_args))
             if end > 0 and not keyed and not re.search(r"(?i)limit|size|max|\bpage\b", call_args):
@@ -686,13 +699,13 @@ def perf_audit(f: Path, raw: str, in_shared: bool, error, warn, info=None) -> No
                                 f"GridLimitNotice 를 보인다 ({PERF_GUIDE} R1)")
 
     # P-R1b: 목록을 그리는 파일이 search* 를 부르는데 같은 폴더 types.ts 의 행 타입에 본문 열이 있다 — 행마다 본문을 실어 보낼 수 있다
-    if lists_rows and f.name != "api.ts" and f.suffix in (".tsx", ".ts") and _exception_level(f, "P-R1b") is None:
+    if lists_rows and f.name != "api.ts" and f.suffix in (".tsx", ".ts") and _exception_level(f, "P-R1b") != "exempt":
         tf = f.with_name("types.ts")
         call = next((m for m in API_SEARCH_CALL.finditer(t) if not re.search(r"(function|import|as)\s*$", t[max(0, m.start() - 20):m.start()])), None)
         if call and tf.exists() and tf != f:
             cols = sorted({n for n in BIG_TEXT_FIELD.findall(tf.read_text(encoding="utf-8", errors="ignore")) if not BIG_TEXT_SKIP.search(n)})
             if cols:
-                warn(call.start(), f"[P-R1b 경고] 목록 조회 `{call[1]}(…)` 를 쓰는 화면의 types.ts 에 본문·긴 글 열({', '.join(cols)})이 있다 "
+                (info if _exception_level(f, "P-R1b") == "info" else warn)(call.start(), f"[P-R1b 경고] 목록 조회 `{call[1]}(…)` 를 쓰는 화면의 types.ts 에 본문·긴 글 열({', '.join(cols)})이 있다 "
                                    f"→ 목록 응답이 행마다 본문을 실으면 누적될 때 수 MB 가 된다. 목록에는 그리드에 보이는 열만 싣고 "
                                    f"본문은 행 선택 때 상세 조회로 받는다 ({PERF_GUIDE} R1)")
 
