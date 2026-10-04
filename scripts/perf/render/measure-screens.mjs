@@ -83,6 +83,11 @@ const KEEP_OPEN = process.env.RENDER_KEEP_OPEN === "1";
 const ISOLATE = process.env.RENDER_ISOLATE === "1";
 /** 1(기본)이면 메뉴를 누르기 전에 포털 홈 로딩(호출·50ms 넘는 task)이 조용해질 때까지 기다린다(결함 12). */
 const HOME_IDLE = process.env.RENDER_HOME_IDLE !== "0";
+/**
+ * 1(기본)이면 cold 측정 앞에 예열 회차(round 0)를 한 번 돌리고 버린다(keep=0, warmup=1, 결함 13).
+ * 서버 첫 호출(JIT·캐시·커넥션)이 첫 회차에 섞여 termMng 826.6ms(TTFB 315) 같은 값이 나왔다.
+ */
+const WARMUP = process.env.RENDER_WARMUP !== "0";
 const HOME_IDLE_QUIET_MS = Number(process.env.RENDER_HOME_IDLE_QUIET_MS ?? 500);
 const HOME_IDLE_MAX_MS = Number(process.env.RENDER_HOME_IDLE_MAX_MS ?? 10_000);
 
@@ -926,14 +931,16 @@ async function main() {
     `trace: ${DO_TRACE ? "1" : "0"}`,
     `calibrate: ${CALIBRATE ? "1" : "0"}`,
     `isolate: ${ISOLATE ? "1" : "0"}`,
+    `warmup: ${WARMUP && TAB_STATE === "cold" ? "1 (round 0 버림)" : "0"}`,
     `home_idle: ${HOME_IDLE ? `1 (quiet ${HOME_IDLE_QUIET_MS}ms, max ${HOME_IDLE_MAX_MS}ms)` : "0"}`,
     `screens: ${targets.map((s) => s.id).join(",")}`,
     `ac: ${acPower()}`,
   ];
 
   try {
-    for (let round = 1; round <= rounds; round++) {
-      log(`── 회차 ${round}/${rounds} (tab_state=${TAB_STATE})`);
+    const firstRound = WARMUP && TAB_STATE === "cold" ? 0 : 1;
+    for (let round = firstRound; round <= rounds; round++) {
+      log(round === 0 ? `── 예열 회차(기록하되 keep=0)` : `── 회차 ${round}/${rounds} (tab_state=${TAB_STATE})`);
 
       if (TAB_STATE === "cold") {
         // 화면마다 새 페이지 — 탭이 처음 마운트되는 상태를 잰다.
@@ -959,6 +966,7 @@ async function main() {
             await page.goto(`${BASE_URL}/portal`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
             await waitMenuReady(page, menuReady);
             const row = await measureScreen(page, cdp, screen, calls, round);
+            if (round === 0) Object.assign(row, { keep: 0, warmup: 1 });
             rows.push(row);
             log(
               `  ${screen.id}: shell ${row.shellReadyMs}ms · click→row ${row.clickToRowMs || "n/a"}ms · ` +
@@ -1019,6 +1027,7 @@ async function main() {
           const detach = attachNetworkCollector(cdp, calls);
           try {
             const row = await measureScreen(page, cdp, screen, calls, round);
+            if (round === 0) Object.assign(row, { keep: 0, warmup: 1 });
             rows.push(row);
             log(
               `  ${screen.id}: shell ${row.shellReadyMs}ms · click→row ${row.clickToRowMs || "n/a"}ms · ` +
