@@ -1,6 +1,7 @@
 "use client";
 
 /** 전문 목록(TSK-05-02 design.md §2, D-144 3단계) — 레이아웃 ID·전문 이름·송신→수신·헤더 구성·본문 항목 수·총 길이·현재 버전·DRAFT(소유자). */
+import type { ReactNode } from "react";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { lengthText } from "@/layout/layout-calc";
 import { empty } from "@/layout/styles";
@@ -24,11 +25,13 @@ export interface LayoutListProps {
   selectedId: number | null;
   loading: boolean;
   onSelect: (row: LayoutRow) => void;
+  /** 제목 오른쪽 자리 — 첫 조회 상한 안내(GridLimitNotice). */
+  titleExtra?: ReactNode;
 }
 
-export function LayoutList({ rows, selectedId, loading, onSelect }: LayoutListProps) {
+export function LayoutList({ rows, selectedId, loading, onSelect, titleExtra }: LayoutListProps) {
   return (
-    <GridPanel title="전문 목록" count={rows.length}>
+    <GridPanel title="전문 목록" count={rows.length} titleExtra={titleExtra}>
       {rows.length === 0 && !loading ? (
         <p data-testid="layout-list-empty" style={empty}>조회된 전문이 없습니다</p>
       ) : (

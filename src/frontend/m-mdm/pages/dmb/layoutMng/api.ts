@@ -34,11 +34,14 @@ function callAction<T>(action: string, params: object, grids?: Grids): Promise<T
   return callOasisAt<T>(MDM_OASIS_BASE, SERVICE, action, params, grids, OASIS);
 }
 
-/** 전문 목록 + 조회 조건용 시스템·EAI·헤더. */
-export function searchLayouts(f: SearchFilters): Promise<SearchResult> {
+/**
+ * 전문 목록 + 조회 조건용 시스템·EAI·헤더. `limit` 은 조건(검색어·송수신·헤더)이 하나도 없을 때만 서버가 적용하는 행 수 상한이다(R1) —
+ * 주면 응답에 totalCount·truncated 가 온다. 비우면 상한 없음.
+ */
+export function searchLayouts(f: SearchFilters, limit?: number): Promise<SearchResult> {
   return callAction("search", {
     keyword: f.keyword, headerLayoutId: f.headerLayoutId ? Number(f.headerLayoutId) : null, sndSystem: f.sndSystem,
-    rcvSystem: f.rcvSystem,
+    rcvSystem: f.rcvSystem, limit,
   });
 }
 
@@ -47,10 +50,19 @@ export function loadLayoutOptions(): Promise<SearchResult> {
   return callAction("search", { optionsOnly: true });
 }
 
-/** 헤더 추가 팝업(D8 — search target=HEADER). 헤더 항목을 함께 받는다. */
+/**
+ * 헤더 추가 팝업·EAI 표준 헤더 선택 목록(D8 — search target=HEADER). 항목(items)은 빼고 받는다(withoutItems) — 모든 헤더의 항목을
+ * 한 번에 싣지 않는다. 고른 헤더의 항목은 {@link loadHeaderPick} 으로 받는다.
+ */
 export async function searchHeaders(keyword: string): Promise<HeaderOption[]> {
-  const out = await callAction<SearchResult>("search", { target: "HEADER", keyword });
+  const out = await callAction<SearchResult>("search", { target: "HEADER", keyword, withoutItems: true });
   return out.headers ?? [];
+}
+
+/** 고른 헤더 한 건과 그 항목(search target=HEADER + headerLayoutId). 지금 적용 중인 확정 버전이 없으면 null. */
+export async function loadHeaderPick(headerLayoutId: number): Promise<HeaderOption | null> {
+  const out = await callAction<SearchResult>("search", { target: "HEADER", headerLayoutId });
+  return out.headers?.[0] ?? null;
 }
 
 /** 컬럼 사전 검색(D8 — search target=COLUMN). */

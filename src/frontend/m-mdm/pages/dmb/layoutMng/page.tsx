@@ -19,9 +19,11 @@ import { Input } from "@dk-oasis/shared/form";
 import {
   ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField, canDoButton, useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
+import { GridLimitNotice } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { Tabs } from "@dk-oasis/shared/tabs";
 import { exportToExcel } from "@dk-oasis/shared/utils";
+import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { ColumnPickModal } from "@/layout/ColumnPickModal";
 import { LayoutItemDetail } from "@/layout/LayoutItemDetail";
 import { precheck } from "@/layout/fill-kind";
@@ -39,7 +41,7 @@ import {
   DraftLockBadge, HANDOVER_AVAILABLE, MdmPageLayout, VersionActionBar, VersionStatusBadge, fmtVer, normVer, openMdmPage, type MdmVersionStatus,
 } from "@/shell";
 import {
-  exportSnapshot, renderSample, saveLayout, searchColumns, searchHeaders, searchImpact, searchLayouts, loadLayoutOptions, validateLayout, viewLayout,
+  exportSnapshot, renderSample, saveLayout, searchColumns, searchHeaders, searchImpact, searchLayouts, loadHeaderPick, loadLayoutOptions, validateLayout, viewLayout,
 } from "./api";
 import { BodyItemGrid } from "./components/BodyItemGrid";
 import { ConstEditModal } from "./components/ConstEditModal";
@@ -99,6 +101,10 @@ export default function LayoutMngPage() {
 
   const [filters, setFilters] = useState<SearchFilters>(EMPTY_FILTERS);
   const [rows, setRows] = useState<LayoutRow[]>([]);
+  /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
+  const [rowsTotal, setRowsTotal] = useState<number | null>(null);
+  /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
+  const [showAll, setShowAll] = useState(false);
   const [systems, setSystems] = useState<SystemRow[]>([]);
   const [eais, setEais] = useState<EaiRow[]>([]);
   const [headerFilter, setHeaderFilter] = useState<HeaderOption[]>([]);
@@ -153,11 +159,14 @@ export default function LayoutMngPage() {
   const selectedItem = placed.rows.find((r) => r.KEY === selectedKey) ?? null;
 
   // ── 조회 ──
-  const runSearch = useCallback(async (f: SearchFilters) => {
+  // [조회] 는 첫 조회 상한(R1)을 걸고, [전체 보기] 는 상한 없이 받는다. 저장·버전 액션 뒤 재조회는 지금 모드를 따른다.
+  const runSearch = useCallback(async (f: SearchFilters, all = false) => {
     setLoading(true);
     try {
-      const out = await searchLayouts(f);
+      const out = await searchLayouts(f, all ? undefined : FIRST_SEARCH_LIMIT);
       setRows(out.layouts ?? []);
+      setRowsTotal(out.truncated ? (out.totalCount ?? null) : null);
+      setShowAll(all);
       setSystems(out.systems ?? []);
       setEais(out.eais ?? []);
       setHeaderFilter(out.headers ?? []);
@@ -250,8 +259,10 @@ export default function LayoutMngPage() {
     if (!eai?.HEADER_LAYOUT_ID || stack.some((h) => h.HEADER_LAYOUT_ID === eai.HEADER_LAYOUT_ID)) return;
     try {
       const list = await ensureCatalog();
-      const h = list.find((o) => o.LAYOUT_ID === eai.HEADER_LAYOUT_ID);
-      if (h) setStack((s) => withSeq([stackRow(h), ...s]));
+      if (!list.some((o) => o.LAYOUT_ID === eai.HEADER_LAYOUT_ID)) return;
+      // 선택 목록에는 항목이 없다 — 표준 헤더 한 건만 항목과 함께 받는다
+      const h = await loadHeaderPick(eai.HEADER_LAYOUT_ID);
+      if (h) setStack((s) => (s.some((x) => x.HEADER_LAYOUT_ID === h.LAYOUT_ID) ? s : withSeq([stackRow(h), ...s])));
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     }
@@ -261,6 +272,17 @@ export default function LayoutMngPage() {
     try {
       await ensureCatalog();
       setPicker("header");
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // 팝업 목록에는 항목이 없다 — 고른 헤더의 항목을 한 건으로 받아 쌓는다.
+  const pickHeader = async (h: HeaderOption) => {
+    try {
+      const detail = await loadHeaderPick(h.LAYOUT_ID);
+      if (detail) setStack((s) => withSeq([...s, stackRow(detail)]));
+      setPicker("none");
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     }
@@ -301,7 +323,7 @@ export default function LayoutMngPage() {
       setDraft((d) => ({ ...d, layoutId: out.layoutId ?? d.layoutId, ver: savedVer, rowVersion: out.rowVersion ?? d.rowVersion }));
       setMode("edit");
       showMessage({ message: "저장했습니다.", alertType: "info", toast: true });
-      await runSearch(filters);
+      await runSearch(filters, showAll);
       if (out.layoutId) await openLayout(out.layoutId, savedVer, asOf);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
@@ -393,7 +415,7 @@ export default function LayoutMngPage() {
     setBusy(true);
     try {
       const r = await call();
-      await runSearch(filters);
+      await runSearch(filters, showAll);
       await openLayout(id, rereadVer(r), asOf);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
@@ -438,7 +460,11 @@ export default function LayoutMngPage() {
 
       <ContentBody root resizable storageKey="mdm.dmb.layoutMng">
         <ContentPanel width="40%">
-          <LayoutList rows={rows} selectedId={selectedId} loading={loading} onSelect={(r) => void openLayout(r.LAYOUT_ID, null, asOf)} />
+          <LayoutList rows={rows} selectedId={selectedId} loading={loading} onSelect={(r) => void openLayout(r.LAYOUT_ID, null, asOf)}
+            titleExtra={(
+              <GridLimitNotice shownCount={rows.length} totalCount={rowsTotal} onShowAll={() => void runSearch(filters, true)}
+                disabled={loading} testId="layout-list-limit" />
+            )} />
         </ContentPanel>
         <ContentPanel>
           <div style={{ overflowY: "auto", height: "100%" }}>
@@ -560,10 +586,7 @@ export default function LayoutMngPage() {
         used={body.map((r) => r.COLUMN_PHYS).filter((p): p is string => !!p)} />
       <HeaderPickModal open={picker === "header"} options={catalog ?? []} used={stack.map((h) => h.HEADER_LAYOUT_ID)}
         onClose={() => setPicker("none")}
-        onPick={(h) => {
-          setStack((s) => withSeq([...s, stackRow(h)]));
-          setPicker("none");
-        }} />
+        onPick={(h) => void pickHeader(h)} />
       <ConstEditModal header={constHeader} readOnly={readOnly} onClose={() => setConstKey(null)}
         onApply={(overrides) => {
           setStack((s) => s.map((h) => (h.KEY !== constKey ? h : {

@@ -13,6 +13,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@dk-oasis/shared/form";
+import { GridLimitNotice } from "@dk-oasis/shared/grid";
 import {
   ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField, canDoButton, useUserButtonRbac,
 } from "@dk-oasis/shared/layout";
@@ -31,6 +32,7 @@ import { versionActionState } from "@/layout/version-rows";
 import {
   DraftLockBadge, HANDOVER_AVAILABLE, MdmPageLayout, VersionActionBar, VersionStatusBadge, fmtVer, normVer, openMdmPage, type MdmVersionStatus,
 } from "@/shell";
+import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { saveHeader, searchColumns, searchHeaders, loadHeaderOptions, viewHeader } from "./api";
 import { HeaderForm } from "./components/HeaderForm";
 import { HeaderItemGrid } from "./components/HeaderItemGrid";
@@ -58,6 +60,10 @@ export default function HeaderMngPage() {
 
   const [keyword, setKeyword] = useState("");
   const [rows, setRows] = useState<HeaderRow[]>([]);
+  /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
+  const [rowsTotal, setRowsTotal] = useState<number | null>(null);
+  /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
+  const [showAll, setShowAll] = useState(false);
   const [eais, setEais] = useState<EaiRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -91,11 +97,14 @@ export default function HeaderMngPage() {
   const selectedItem = placed.rows.find((r) => r.KEY === selectedKey) ?? null;
 
   // ── 조회 ──
-  const runSearch = useCallback(async (kw: string) => {
+  // [조회] 는 첫 조회 상한(R1)을 걸고, [전체 보기] 는 상한 없이 받는다. 저장·버전 액션 뒤 재조회는 지금 모드를 따른다.
+  const runSearch = useCallback(async (kw: string, all = false) => {
     setLoading(true);
     try {
-      const out = await searchHeaders(kw);
+      const out = await searchHeaders(kw, all ? undefined : FIRST_SEARCH_LIMIT);
       setRows(out.headers ?? []);
+      setRowsTotal(out.truncated ? (out.totalCount ?? null) : null);
+      setShowAll(all);
       setEais(out.eais ?? []);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
@@ -189,7 +198,7 @@ export default function HeaderMngPage() {
       setDraft((d) => ({ ...d, layoutId: out.layoutId ?? d.layoutId, ver: savedVer, rowVersion: out.rowVersion ?? d.rowVersion }));
       setMode("edit");
       showMessage({ message: "저장했습니다.", alertType: "info", toast: true });
-      await runSearch(keyword);
+      await runSearch(keyword, showAll);
       if (out.layoutId) await openHeader(out.layoutId, savedVer);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
@@ -205,7 +214,7 @@ export default function HeaderMngPage() {
     setBusy(true);
     try {
       const r = await call();
-      await runSearch(keyword);
+      await runSearch(keyword, showAll);
       await openHeader(id, rereadVer(r));
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
@@ -239,7 +248,11 @@ export default function HeaderMngPage() {
 
       <ContentBody root resizable storageKey="mdm.dmb.headerMng">
         <ContentPanel width="36%">
-          <HeaderList rows={rows} selectedId={selectedId} loading={loading} onSelect={(r) => void openHeader(r.LAYOUT_ID, null)} />
+          <HeaderList rows={rows} selectedId={selectedId} loading={loading} onSelect={(r) => void openHeader(r.LAYOUT_ID, null)}
+            titleExtra={(
+              <GridLimitNotice shownCount={rows.length} totalCount={rowsTotal} onShowAll={() => void runSearch(keyword, true)}
+                disabled={loading} testId="header-list-limit" />
+            )} />
         </ContentPanel>
         <ContentPanel>
           <div style={{ overflowY: "auto", height: "100%" }}>

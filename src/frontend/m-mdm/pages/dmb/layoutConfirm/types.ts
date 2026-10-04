@@ -20,6 +20,10 @@ export interface DraftRow {
 
 export interface SearchResult {
   rows?: DraftRow[];
+  /** limit 을 보냈을 때만 온다 — 조건에 맞는 전체 건수. */
+  totalCount?: number;
+  /** limit 을 보냈을 때만 온다 — 상한으로 잘렸는지. */
+  truncated?: boolean;
 }
 
 export interface ViewLayout {

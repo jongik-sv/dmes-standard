@@ -36,9 +36,12 @@ function callAction<T>(action: string, params: object, grids?: Grids): Promise<T
   return callOasisAt<T>(MDM_OASIS_BASE, SERVICE, action, params, grids, OASIS);
 }
 
-/** 헤더 목록·EAI 목록. */
-export function searchHeaders(keyword: string): Promise<SearchResult> {
-  return callAction("search", { keyword });
+/**
+ * 헤더 목록·EAI 목록. `limit` 은 검색어가 없을 때만 서버가 적용하는 행 수 상한이다(R1) — 주면 응답에 totalCount·truncated 가 온다.
+ * 비우면 상한 없음.
+ */
+export function searchHeaders(keyword: string, limit?: number): Promise<SearchResult> {
+  return callAction("search", { keyword, limit });
 }
 
 /** 진입 때 EAI 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음, headers 는 빈 배열). */
