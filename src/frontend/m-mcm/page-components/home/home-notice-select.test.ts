@@ -1,27 +1,22 @@
 /** @vitest-environment happy-dom */
 /**
- * 홈 [PDF] 연결 시험 — 홈 화면이 작업 공간에 인쇄 대상(pdfTarget)으로 홈 뿌리 .mcm-home 을 넘기는지 본다.
- * [PDF] 단추 자체(누르면 인쇄 유틸이 대상·「{탭 이름}_{yyyyMMdd}」로 불림, 편집 중 비활성)는
- * shared tests/unit/widget-workspace-pdf.unit.test.ts 가 시험한다. 여기서 WidgetWorkspace 는 받은 props 를 잡는 대역이다.
- * 서버 호출(./api·./widget-defs·./notice-store·./widget-store)과 생성 등록부도 대역으로 바꾼다.
+ * 공지 행 선택이 홈 페이지·보드로 번지지 않는지(widget-render-findings W8) — 홈 페이지는 공지 목록만 구독해야 한다.
+ * 실제 공지 저장소(notice-store)를 쓰고, WidgetWorkspace 는 렌더 횟수만 세는 대역이다(home-pdf.test 와 같은 대역 구성).
  * JSX 없이 createElement 로 쓴다(vitest include 가 *.test.ts 만 잡는다).
  */
-import { act, createElement, type RefObject } from "react";
+import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({
-  /** 마지막으로 WidgetWorkspace 에 넘어간 props. */
-  ws: { current: null as null | { pdfTarget?: RefObject<HTMLElement | null>; testId?: string } },
-}));
+const h = vi.hoisted(() => ({ wsRenders: 0 }));
 
 vi.mock("@dk-oasis/shared/widget", async () => {
   const { createElement: el } = await import("react");
   return {
     mergeWidgetRegistry: () => ({}),
     toWidgetDefRow: () => null,
-    WidgetWorkspace: (p: { pdfTarget?: RefObject<HTMLElement | null>; testId?: string }) => {
-      h.ws.current = p;
+    WidgetWorkspace: (p: { testId?: string }) => {
+      h.wsRenders += 1;
       return el("div", { "data-testid": p.testId });
     },
   };
@@ -45,13 +40,12 @@ vi.mock("@/lib/generated/widget-registry", () => ({ WIDGET_REGISTRY: {} }));
 vi.mock("@/lib/generated/widget-type-registry", () => ({ WIDGET_TYPE_REGISTRY: {} }));
 vi.mock("@/lib/widget-defs-events", () => ({ onWidgetDefsChanged: () => () => {} }));
 
-vi.mock("./api", () => ({ fetchCurrentUser: () => new Promise(() => {}) }));
-vi.mock("./notice-store", () => ({
-  ensureNoticesLoaded: () => {},
-  resetNoticesRequest: () => {},
-  selectNotice: () => {},
-  useNoticeStore: () => ({ notices: { status: "loading" } }),
-  useNotices: () => ({ status: "loading" }),
+vi.mock("./api", () => ({
+  fetchCurrentUser: () => new Promise(() => {}),
+  searchNoticeBoard: async () => [
+    { NOTICE_ID: 1, TITLE: "긴급 점검", CONTENT: null, NOTICE_CATEGORY: "URGENT" },
+    { NOTICE_ID: 2, TITLE: "일반 공지", CONTENT: null, NOTICE_CATEGORY: "NORMAL" },
+  ],
 }));
 vi.mock("./widget-defs", () => ({
   INITIAL_DEFS_STATE: { status: "loading", rawDefs: [], homeDefault: null },
@@ -63,12 +57,13 @@ vi.mock("./widget-defs", () => ({
 vi.mock("./widget-store", () => ({ secWidgetStore: {} }));
 
 import PortalHomePage from "./page";
+import { selectNotice } from "./notice-store";
 
 let host: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-  h.ws.current = null;
+  h.wsRenders = 0;
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -78,15 +73,19 @@ afterEach(() => {
   host.remove();
 });
 
-describe("홈 [PDF] 인쇄 대상", () => {
-  it("작업 공간에 pdfTarget 으로 홈 뿌리 .mcm-home(인사말·공지 띠·탭 줄·보드를 모두 담은 요소)을 넘긴다", () => {
-    act(() => root.render(createElement(PortalHomePage, {} as never)));
-    const target = h.ws.current?.pdfTarget?.current;
-    expect(target).toBeTruthy();
-    expect(target!.classList.contains("mcm-home")).toBe(true);
-    expect(target!.getAttribute("data-testid")).toBe("portal-home");
-    // 인사말과 작업 공간이 모두 대상 안에 있다.
-    expect(target!.querySelector('[data-testid="home-greeting"]')).not.toBeNull();
-    expect(target!.querySelector('[data-testid="home-widgets"]')).not.toBeNull();
+describe("홈 — 공지 행 선택(W8)", () => {
+  it("공지 행을 골라도 홈 페이지(작업 공간)가 다시 그려지지 않는다", async () => {
+    await act(async () => {
+      root.render(createElement(PortalHomePage, {} as never));
+    });
+    await act(async () => {
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    });
+    // 목록이 도착해 긴급 공지 띠가 보인다(목록 구독은 살아 있다).
+    expect(host.querySelector('[data-testid="home-urgent"]')).not.toBeNull();
+    const before = h.wsRenders;
+    act(() => selectNotice("2"));
+    act(() => selectNotice("1"));
+    expect(h.wsRenders).toBe(before);
   });
 });
