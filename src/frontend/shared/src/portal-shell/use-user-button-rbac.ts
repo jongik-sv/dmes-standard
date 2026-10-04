@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  BUTTON_RBAC_STORE_KEY,
+  peekCurrentUser,
+  getCurrentUser,
+  revalidateCurrentUser,
+  subscribeCurrentUser,
+} from "./current-user";
 
 /**
  * Two-tier RBAC 의 button-level 가시성 hook.
@@ -51,30 +58,30 @@ interface RbacStore {
   cachedState: ButtonRbacState | null;
   inflight: Promise<ButtonRbacState> | null;
   subscribers: Set<(s: ButtonRbacState) => void>;
+  /** 비우기 세대 — clearCurrentUserCache 가 올린다. 비운 뒤 끝난 옛 요청은 버린다. */
+  generation?: number;
+  /** 화면이 다시 보일 때 사용자 재확인 리스너를 붙였는지(한 번만). */
+  watching?: boolean;
 }
-const STORE_KEY = "__dkOasisButtonRbacStore__";
 function getStore(): RbacStore {
   const g = globalThis as unknown as Record<string, RbacStore | undefined>;
-  if (!g[STORE_KEY]) {
-    g[STORE_KEY] = { cachedState: null, inflight: null, subscribers: new Set() };
+  if (!g[BUTTON_RBAC_STORE_KEY]) {
+    g[BUTTON_RBAC_STORE_KEY] = { cachedState: null, inflight: null, subscribers: new Set() };
   }
-  return g[STORE_KEY] as RbacStore;
+  return g[BUTTON_RBAC_STORE_KEY] as RbacStore;
 }
 
 async function fetchCurrentUserId(): Promise<string> {
   try {
-    const meRes = await fetch("/api/auth/me", { credentials: "same-origin" });
-    if (!meRes.ok) return "";
-    const me = await meRes.json();
-    return String(me.user?.id ?? "");
+    const result = await getCurrentUser();
+    return result.ok ? result.user.id : "";
   } catch {
     return "";
   }
 }
 
-async function fetchButtonRbac(): Promise<ButtonRbacState> {
+async function fetchButtonRbac(userId: string): Promise<ButtonRbacState> {
   try {
-    const userId = await fetchCurrentUserId();
     if (!userId) {
       return {
         rows: [],
@@ -122,7 +129,7 @@ async function fetchButtonRbac(): Promise<ButtonRbacState> {
  * `useUserButtonRbac` 의 비동기 확인을 기다리면 첫 렌더가 기본값으로 그려졌다 바뀌는(깜빡이는) 곳에만 쓴다.
  */
 export function peekLastUserId(): string {
-  return getStore().cachedState?.userId ?? "";
+  return getStore().cachedState?.userId || peekCurrentUser()?.id || "";
 }
 
 function notify(state: ButtonRbacState) {
@@ -131,18 +138,61 @@ function notify(state: ButtonRbacState) {
   store.subscribers.forEach((cb) => cb(state));
 }
 
+/** RBAC 를 새로 받는다(진행 중이면 그것을 함께 쓴다). 비우기(clearCurrentUserCache) 뒤 끝난 옛 요청은 버린다. */
+function startRbacFetch(userId: string) {
+  const s = getStore();
+  if (s.inflight) return;
+  const generation = s.generation ?? 0;
+  const p = fetchButtonRbac(userId);
+  s.inflight = p;
+  void p.then((newState) => {
+    const store = getStore();
+    if (store.inflight === p) store.inflight = null;
+    if ((store.generation ?? 0) !== generation) return;
+    notify(newState);
+  });
+}
+
+/**
+ * 다른 브라우저 탭에서 다른 사용자로 다시 로그인한 경우를 잡는다 — 화면이 다시 보이면 사용자를 서버에 다시 묻고,
+ * 바뀌었으면 RBAC 를 비우고 다시 받는다. 사용자 확인을 세션 캐시로 바꾸며(K3) mount 마다 하던 확인을 이리로 옮겼다.
+ */
+function ensureUserWatch() {
+  const s = getStore();
+  if (s.watching || typeof document === "undefined") return;
+  s.watching = true;
+  subscribeCurrentUser((user) => {
+    const store = getStore();
+    if (!user || store.subscribers.size === 0) return;
+    const cached = store.cachedState;
+    if (cached && cached.userId === user.id) return;
+    if (!cached && store.inflight) return;
+    // 사용자가 바뀌었다 → 옛 권한을 바로 내리고(로딩 = 비활성) 새로 받는다.
+    store.cachedState = null;
+    store.subscribers.forEach((cb) => cb(initialState));
+    startRbacFetch(user.id);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    if (getStore().subscribers.size === 0) return;
+    void revalidateCurrentUser().catch(() => {});
+  });
+}
+
 /**
  * 캐시된 RBAC 상태를 반환. 미적재 / 다른 사용자로 재로그인 시 fetch 트리거.
  *
  * <p>한번 채워진 cachedState 가 다른 사용자로 재로그인 후에도 그대로 사용되는 stale 문제를 막기 위해,
- * mount 시 가벼운 `/api/auth/me` 호출로 현재 세션의 userId 를 받아 캐시의 userId 와 비교한다.
- * 다르면 cachedState 를 무효화하고 새로 fetch.
+ * mount 시 현재 세션의 userId(공유 사용자 확인 — 진행 중 요청 공유·세션 캐시, current-user.ts)를 받아
+ * 캐시의 userId 와 비교한다. 다르면 cachedState 를 무효화하고 새로 fetch.
+ * 사용자 확인은 세션 동안 한 번만 서버에 묻는다. 로그아웃·401·로그인 때 캐시가 비워지고, 다른 탭에서의 재로그인은
+ * 화면이 다시 보일 때 재확인한다(ensureUserWatch).
  */
 export function useUserButtonRbac(enabled: boolean = true): ButtonRbacState {
   // useState 초기값은 항상 initialState — 절대 cachedState 로 시작하지 않는다.
   //   - 다른 사용자로 재로그인 후의 stale wildcard 캐시가 첫 렌더에 새어 나오는 것을 차단.
   //   - 약간의 깜빡임 (isLoading=true 동안 모든 RBAC 버튼 비활성) 은 보안 default 로 수용.
-  // 같은 사용자의 두 번째 mount (탭 전환 등) 에서는 useEffect 가 me 확인 후 cached 사용 → 즉시 갱신.
+  // 같은 사용자의 두 번째 mount (탭 전환 등) 에서는 useEffect 가 사용자 확인(캐시) 후 cached 사용 → 즉시 갱신.
   const [state, setState] = useState<ButtonRbacState>(
     enabled ? initialState : { ...initialState, isLoading: false }
   );
@@ -156,6 +206,7 @@ export function useUserButtonRbac(enabled: boolean = true): ButtonRbacState {
     let cancelled = false;
     const s = getStore();
     s.subscribers.add(setState);
+    ensureUserWatch();
 
     void (async () => {
       const currentUserId = await fetchCurrentUserId();
@@ -167,13 +218,7 @@ export function useUserButtonRbac(enabled: boolean = true): ButtonRbacState {
       }
       // 사용자 바뀌었거나 캐시 없음 → 새 fetch
       s.cachedState = null;
-      if (!s.inflight) {
-        s.inflight = fetchButtonRbac();
-        void s.inflight.then((newState) => {
-          notify(newState);
-          getStore().inflight = null;
-        });
-      }
+      startRbacFetch(currentUserId);
     })();
 
     return () => {

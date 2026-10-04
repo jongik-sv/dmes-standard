@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getJson } from "../http";
+import { getCurrentUser, peekCurrentUser, type CurrentUser } from "./current-user";
 
 /**
  * PortalShell 내부 훅 — 헤더에 보일 사용자 이름·로그인 아이디.
@@ -15,32 +15,19 @@ export function usePortalAuthUser({
   userName?: string;
   userLoginId?: string;
 }): { displayUserName: string; displayLoginId: string } {
-  // Authenticated user fetch
-  const [authenticatedUser, setAuthenticatedUser] = useState<{
-    id: string;
-    name: string | null;
-  } | null>(null);
+  // Authenticated user — 공유 사용자 확인(진행 중 요청 공유·세션 캐시, K3). 이미 확인됐으면 첫 렌더부터 쓴다.
+  const [authenticatedUser, setAuthenticatedUser] = useState<CurrentUser | null>(() => peekCurrentUser());
 
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
-      try {
-        const response = await getJson<{
-          authenticated: boolean;
-          user: { id: string; name?: string | null } | null;
-        }>("/api/auth/me", { credentials: "same-origin" });
-        if (!cancelled) {
-          if (response.authenticated && response.user) {
-            setAuthenticatedUser({ id: response.user.id, name: response.user.name ?? null });
-          } else {
-            setAuthenticatedUser(null);
-          }
-        }
-      } catch {
+    getCurrentUser().then(
+      (result) => {
+        if (!cancelled) setAuthenticatedUser(result.ok ? result.user : null);
+      },
+      () => {
         if (!cancelled) setAuthenticatedUser(null);
       }
-    };
-    void load();
+    );
     return () => {
       cancelled = true;
     };

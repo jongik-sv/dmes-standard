@@ -15,6 +15,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import { clearCurrentUserCache } from "../portal-shell/current-user";
 import { PasswordChangeModal } from "./PasswordChangeModal";
 import "./login-form.css";
 
@@ -117,6 +118,8 @@ export function PortalLoginForm({ appName, callbackUrl }: PortalLoginFormProps) 
         return;
       }
 
+      // 클라이언트 이동이라 이전 화면의 사용자·RBAC 캐시가 남을 수 있다 — 새 사용자로 다시 확인하게 비운다(K3).
+      clearCurrentUserCache();
       router.replace(signInResponse.url ?? callbackUrl);
       router.refresh();
     });

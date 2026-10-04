@@ -3,9 +3,10 @@ import { createElement as h } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // 다시 마운트된 직후: 이번 인스턴스는 아직 사용자 확인 전(userId "")이지만, 같은 세션에서 이미 확인한 사용자(u1)가 있다.
-vi.mock("../../src/portal-shell/use-user-button-rbac", () => ({
-  useUserButtonRbac: () => ({ userId: "" }),
-  peekLastUserId: () => "u1",
+vi.mock("../../src/portal-shell/use-current-user-id", () => ({ useCurrentUserId: () => "" }));
+vi.mock("../../src/portal-shell/current-user", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/portal-shell/current-user")>()),
+  peekCurrentUser: () => ({ id: "u1", name: null }),
 }));
 
 import { ContentBody } from "../../src/layout/ContentBody";

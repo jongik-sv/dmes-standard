@@ -1,10 +1,11 @@
 /**
  * 포털 홈 호출 래퍼.
  *   - 공지 목록: `POST /api/mls/oasis/noticeBoard/search` — 모든 로그인 사용자 읽기 전용(조회 범위는 서버가 고정).
- *   - 로그인 사용자: `GET /api/auth/me` — 인사말 이름.
+ *   - 로그인 사용자: 공유 사용자 확인(`getCurrentUser` — `GET /api/auth/me` 세션 캐시) — 인사말 이름.
  * 요청 봉투·응답 해제는 m-mls `noticeMgmt/api.ts` 와 같은 방식이다(모듈 간 import 를 피하려고 여기에 둔다).
  */
-import { apiRequest, getJson } from "@dk-oasis/shared/http";
+import { apiRequest } from "@dk-oasis/shared/http";
+import { getCurrentUser } from "@dk-oasis/shared/portal-shell";
 
 import type { NoticeBoardRow } from "./types";
 
@@ -59,12 +60,10 @@ export interface CurrentUser {
 /** 로그인 사용자(이름이 없으면 null). 실패하면 null — 인사말만 이름 없이 보인다. */
 export async function fetchCurrentUser(): Promise<CurrentUser | null> {
   try {
-    const me = await getJson<{
-      authenticated?: boolean;
-      user?: { id?: string; name?: string | null } | null;
-    }>("/api/auth/me", { credentials: "same-origin" });
-    if (!me?.authenticated || !me.user?.id) return null;
-    return { id: String(me.user.id), name: me.user.name?.trim() || null };
+    // 공유 사용자 확인(진행 중 요청 공유·세션 캐시) — 셸이 이미 물었으면 요청 없이 받는다(K3).
+    const me = await getCurrentUser();
+    if (!me.ok) return null;
+    return { id: me.user.id, name: me.user.name?.trim() || null };
   } catch {
     return null;
   }

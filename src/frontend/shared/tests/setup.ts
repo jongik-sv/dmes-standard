@@ -33,3 +33,11 @@ console.warn = (...args: unknown[]) => {
   if (typeof args[0] === "string" && args[0].startsWith("[@mantine/hooks/use-focus-trap]")) return;
   originalWarn(...args);
 };
+
+// 공유 사용자 확인(current-user.ts)·RBAC 캐시는 globalThis 에 산다 — 시험마다 비워 앞 시험의 사용자·fetch 결과가 새지 않게 한다.
+import { beforeEach } from "vitest";
+beforeEach(() => {
+  const g = globalThis as unknown as Record<string, unknown>;
+  delete g.__dkOasisCurrentUserStore__;
+  delete g.__dkOasisButtonRbacStore__;
+});

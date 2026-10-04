@@ -27,6 +27,7 @@ import { ErrorBoundary } from "../components/error-boundary";
 import { createHomeTabId, usePortalTabs, type PortalShellTabState } from "./use-portal-tabs";
 import { usePortalFullscreen } from "./use-portal-fullscreen";
 import { usePortalAuthUser } from "./use-portal-auth-user";
+import { clearCurrentUserCache } from "./current-user";
 import { usePortalShellFavorites } from "./use-portal-shell-favorites";
 import {
   UsageTracker,
@@ -121,8 +122,8 @@ const TabPageSlot = memo(function TabPageSlot({
 }) {
   const tabId = tab.id;
   const contextValue = useMemo(
-    () => ({ pageId: tab.pageId, serviceId }),
-    [tab.pageId, serviceId]
+    () => ({ pageId: tab.pageId, serviceId, tabId }),
+    [tab.pageId, serviceId, tabId]
   );
   const handleSnapshotChange = useCallback(
     (nextSnapshot: unknown) => onTabSnapshotChange(tabId, nextSnapshot),
@@ -345,6 +346,8 @@ export function PortalShell({
       usageLogoutPendingRef.current = null;
     }
     writeSecureJson(storageKey, { tabs: [], activeTabId: null });
+    // 공유 사용자·RBAC 캐시를 비운다 — 다음 로그인 사용자에게 남지 않게(K3). signOut 은 전체 이동이지만 실패 대비로도 비운다.
+    clearCurrentUserCache();
     // 다시 로그인하면 처음 시작이다 — 기본 화면을 다시 연다.
     clearStartPagesOpened(storageKey);
     if (typeof window !== "undefined") {
