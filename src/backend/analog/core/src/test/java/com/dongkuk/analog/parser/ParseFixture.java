@@ -12,7 +12,8 @@ import java.io.StringReader;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * 파서 특성 테스트 공용 픽스처 — 운영 설정(application.yml)과 같은 lex 패턴·줄 시작 문자열과
@@ -86,7 +87,7 @@ final class ParseFixture {
      * 동시 실행 대신 readBuffer 를 먼저 끝내고 소비해 결과가 흔들리지 않게 한다.
      */
     static List<Object> parseTree(String logText) throws IOException {
-        Queue<LogData> queue = new ConcurrentLinkedQueue<>();
+        BlockingQueue<LogData> queue = new LinkedBlockingQueue<>();
         LogProcessor processor = new LogProcessor(newLexer(queue), queue, loadDefaultPattern());
         processor.getLogLexer().readBuffer(new BufferedReader(new StringReader(logText)));
         processor.run();

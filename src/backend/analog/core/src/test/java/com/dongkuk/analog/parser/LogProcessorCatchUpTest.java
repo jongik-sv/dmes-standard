@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,7 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * /tree 소비 루프(LogProcessor.runConsumer)가 생산 도중 큐를 따라잡아 빈 큐를 만나도 이어진 줄(스택)을 잃지 않는지 본다.
  *
  * <p>컨트롤러는 소비 작업을 먼저 띄우고 요청 스레드에서 렉서가 줄을 넣으므로, 소비자가 머리 줄을 꺼낸 뒤
- * 다음 '\tat ...' 줄이 들어오기 전에 큐가 빌 수 있다. 여기서는 소비자가 넣은 줄을 모두 꺼내고 빈 큐를 볼 때마다
+ * 다음 '\tat ...' 줄이 들어오기 전에 큐가 빌 수 있다. 여기서는 소비자가 큐를 비우고 take 로 잠들 때마다
  * 렉서가 한 줄씩 내보내도록 맞물려, 줄마다 따라잡기가 생기게 한다(타이밍에 기대지 않는다).
  */
 class LogProcessorCatchUpTest {
@@ -32,30 +31,14 @@ class LogProcessorCatchUpTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final long WAIT_SECONDS = 5;
 
-    /**
-     * 소비자가 앞서 넣은 줄을 모두 꺼내고 빈 큐를 볼 때 허가를 하나 내준다.
-     * 소비 루프는 빈 큐를 100ms 마다 다시 보므로, 허가가 쌓이지 않게 마지막 허가 뒤 줄이 들어왔을 때만 낸다.
-     */
+    /** 소비자가 take 로 잠들러 갈 때마다 허가를 하나 내준다. */
     private static final class SignallingQueue extends LinkedBlockingQueue<LogData> {
         final Semaphore consumerIdle = new Semaphore(0);
-        // 처음에는 넣은 줄이 없어도 첫 허가를 내야 렉서가 첫 줄을 읽는다.
-        private final AtomicBoolean addedSinceSignal = new AtomicBoolean(true);
 
         @Override
-        public boolean offer(LogData e) {
-            boolean offered = super.offer(e);
-            // 줄이 큐에 들어간 뒤에 표시해야, 이 줄을 꺼내기 전의 빈 큐로 허가를 내는 일이 없다.
-            addedSinceSignal.set(true);
-            return offered;
-        }
-
-        @Override
-        public boolean isEmpty() {
-            boolean empty = super.isEmpty();
-            if (empty && addedSinceSignal.compareAndSet(true, false)) {
-                consumerIdle.release();
-            }
-            return empty;
+        public LogData take() throws InterruptedException {
+            consumerIdle.release();
+            return super.take();
         }
     }
 
