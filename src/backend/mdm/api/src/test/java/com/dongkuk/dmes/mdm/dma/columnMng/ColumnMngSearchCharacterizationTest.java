@@ -357,10 +357,10 @@ class ColumnMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
      */
     @Test
     void 쿼리_수_기록() {
-        probe.measureInTx("search-none-13cols", () -> service.search(new ColumnMngSearchRequest()));
-        probe.measureInTx("search-keyword-13cols", () -> service.search(search("두께", null)));
-        probe.measureInTx("search-domain-13cols", () -> service.search(search(null, "coil")));
-        probe.measureInTx("search-optionsOnly", () -> {
+        measure("search-none-13cols", () -> service.search(new ColumnMngSearchRequest()));
+        measure("search-keyword-13cols", () -> service.search(search("두께", null)));
+        measure("search-domain-13cols", () -> service.search(search(null, "coil")));
+        measure("search-optionsOnly", () -> {
             ColumnMngSearchRequest q = new ColumnMngSearchRequest();
             q.setOptionsOnly(true);
             return service.search(q);
@@ -369,8 +369,15 @@ class ColumnMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
             MdmColumn c = DmaTestSupport.column(columns, "추가 " + i, "ADD_" + i, dCoil.getDomainId());
             DmaTestSupport.mapping(mappings, c.getColumnId(), "ERP", "ADD_F" + i, null);
         }
-        probe.measureInTx("search-none-33cols", () -> service.search(new ColumnMngSearchRequest()));
-        probe.measureInTx("search-keyword-33cols", () -> service.search(search("두께", null)));
+        measure("search-none-33cols", () -> service.search(new ColumnMngSearchRequest()));
+        measure("search-keyword-33cols", () -> service.search(search("두께", null)));
+    }
+
+    /** 문 수와 함께 Hibernate 가 읽어 들인 엔티티 행 수도 찍는다(네 표 전체 읽기가 드러나는 값). */
+    private void measure(String name, java.util.function.Supplier<?> call) {
+        probe.measureInTx(name, call);
+        System.out.println("[entity-load] columnMng.search " + name + " = "
+                + emf.unwrap(org.hibernate.SessionFactory.class).getStatistics().getEntityLoadCount());
     }
 
     // ── helpers ───────────────────────────────────────────────────────────
