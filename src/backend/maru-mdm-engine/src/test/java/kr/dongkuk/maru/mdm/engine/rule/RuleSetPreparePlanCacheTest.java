@@ -8,6 +8,7 @@ import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.flow;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.rule;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.start;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -20,15 +21,19 @@ import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluator;
 import kr.dongkuk.maru.mdm.engine.expr.MdmEvaluatorFixtures;
 import kr.dongkuk.maru.mdm.engine.flow.FlowParser;
+import kr.dongkuk.maru.mdm.engine.flow.FlowTree;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.FlowRules;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.InMemoryDefinitionLookup;
 import kr.dongkuk.maru.mdm.engine.rule.fixture.TestExpressionConfig;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.ColumnDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
@@ -36,7 +41,7 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.SetStatus;
 import org.junit.jupiter.api.Test;
 
 /**
- * 엔진 안 세트 판정 준비 기억(항목5)의 경계 — 크기 상한, 파싱 실패는 기억하지 않음, 검사기 사본의 지연 목록 분리.
+ * 엔진 안 세트 판정 준비 기억(항목5)의 적중·무효화와 경계 — 같은 정의면 같은 준비 객체를 다시 쓰고 정의 객체가 바뀌면 새로 만든다, 크기 상한, 파싱 실패는 기억하지 않음, 검사기 사본의 지연 목록 분리.
  * 결과 동일성은 {@link RuleSetPrepareCharacterizationTest} 가 지킨다.
  */
 class RuleSetPreparePlanCacheTest {
@@ -59,11 +64,80 @@ class RuleSetPreparePlanCacheTest {
         InMemoryDefinitionLookup l = FlowRules.lookup(calc("R_A", "A", "X + 1", "X"), calc("R_B", "B", "A * 2", "A"));
         l.addSet(linearSet("S1", List.of("R_A", "R_B")), linearSet("S2", List.of("R_A")));
         MdmRuleEngine engine = new MdmRuleEngine(evaluator, l);
-        for (int i = 0; i < 5; i++) {
+        engine.evaluateSet("S1", rec("X", BigDecimal.ZERO), TS);
+        engine.evaluateSet("S2", rec("X", BigDecimal.ZERO), TS);
+        FlowTree tree1 = engine.cachedTree("S1");
+        FlowKeys keys1 = engine.cachedKeys("S1");
+        FlowTree tree2 = engine.cachedTree("S2");
+        FlowKeys keys2 = engine.cachedKeys("S2");
+        assertNotNull(tree1);
+        assertNotNull(keys1);
+        assertNotSame(tree1, tree2);
+        for (int i = 1; i < 5; i++) {
             engine.evaluateSet("S1", rec("X", new BigDecimal(i)), TS);
             engine.evaluateSet("S2", rec("X", new BigDecimal(i)), TS);
+            // 적중 — 앞에서 만든 흐름 트리·검사기 원본을 그대로 다시 쓴다.
+            assertSame(tree1, engine.cachedTree("S1"));
+            assertSame(keys1, engine.cachedKeys("S1"));
+            assertSame(tree2, engine.cachedTree("S2"));
+            assertSame(keys2, engine.cachedKeys("S2"));
         }
         assertEquals(2, engine.cachedPlans());
+    }
+
+    @Test
+    void 룰_정의_객체가_바뀌면_검사기를_새로_만들고_세트_정의가_바뀌면_흐름도_새로_만든다() {
+        SwappableLookup l = new SwappableLookup(FlowRules.lookup(calc("R_A", "A", "X + 1", "X")));
+        l.delegate.addSet(linearSet("S1", List.of("R_A")));
+        MdmRuleEngine engine = new MdmRuleEngine(evaluator, l);
+        RuleSetResult r = engine.evaluateSet("S1", rec("X", BigDecimal.ONE), TS);
+        assertEquals(0, new BigDecimal("2").compareTo((BigDecimal) r.finalValues().get("A")));
+        FlowTree tree1 = engine.cachedTree("S1");
+        FlowKeys keys1 = engine.cachedKeys("S1");
+
+        // 룰 재등록(새 정의 객체) — 세트 정의는 같으므로 흐름 트리는 다시 쓰고, 검사기 원본은 새로 만든다.
+        l.rule = calc("R_A", "A", "X + 10", "X");
+        r = engine.evaluateSet("S1", rec("X", BigDecimal.ONE), TS);
+        assertEquals(0, new BigDecimal("11").compareTo((BigDecimal) r.finalValues().get("A")));
+        assertSame(tree1, engine.cachedTree("S1"));
+        FlowKeys keys2 = engine.cachedKeys("S1");
+        assertNotSame(keys1, keys2);
+        engine.evaluateSet("S1", rec("X", BigDecimal.ONE), TS);
+        assertSame(keys2, engine.cachedKeys("S1"));
+
+        // 세트 재등록(내용이 같아도 새 정의 객체) — 흐름 트리와 검사기 원본을 모두 새로 만든다.
+        l.set = linearSet("S1", List.of("R_A"));
+        r = engine.evaluateSet("S1", rec("X", BigDecimal.ONE), TS);
+        assertEquals(0, new BigDecimal("11").compareTo((BigDecimal) r.finalValues().get("A")));
+        assertNotSame(tree1, engine.cachedTree("S1"));
+        assertNotSame(keys2, engine.cachedKeys("S1"));
+        assertEquals(1, engine.cachedPlans());
+    }
+
+    /** 룰·세트 정의를 새 객체로 바꿔 끼울 수 있는 조회기 — 재등록·RELOAD 로 새 정의 객체가 오는 상황을 흉내 낸다. */
+    private static final class SwappableLookup implements DefinitionLookup {
+        final InMemoryDefinitionLookup delegate;
+        RuleDefinition rule;
+        RuleSetDefinition set;
+
+        SwappableLookup(InMemoryDefinitionLookup delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Optional<ColumnDefinition> column(String table, String column) {
+            return delegate.column(table, column);
+        }
+
+        @Override
+        public Optional<RuleDefinition> rule(String ruleId, Instant evalTs) {
+            return rule != null && rule.ruleId().equals(ruleId) ? Optional.of(rule) : delegate.rule(ruleId, evalTs);
+        }
+
+        @Override
+        public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
+            return set != null && set.setId().equals(setId) ? Optional.of(set) : delegate.ruleSet(setId, evalTs);
+        }
     }
 
     @Test

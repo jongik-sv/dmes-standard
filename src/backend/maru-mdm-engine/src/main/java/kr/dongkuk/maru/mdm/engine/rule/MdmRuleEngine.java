@@ -194,6 +194,18 @@ public final class MdmRuleEngine implements RuleEngine {
         return plans.size();
     }
 
+    /** 세트 ID 로 기억 중인 흐름 트리(시험용 — 적중 시 같은 객체인지 본다). 없으면 null. */
+    FlowTree cachedTree(String setId) {
+        Plan p = plans.get(setId);
+        return p == null ? null : p.tree;
+    }
+
+    /** 세트 ID 로 기억 중인 입력 키 검사기 원본(시험용 — 적중 시 같은 객체인지 본다). 없으면 null. */
+    FlowKeys cachedKeys(String setId) {
+        Plan p = plans.get(setId);
+        return p == null ? null : p.keys;
+    }
+
     /**
      * 상태 → 흐름 구조 → 레코드 키·룰 조회·입력 키 사전 검사(plan C5, design §6.13). 구조 오류는 FLOW_INVALID 로 바로 던지고,
      * 나머지는 모아 한 번에 던진다. 폐기 세트는 룰을 조회하지 않는다. 흐름 파싱과 입력 키 검사기 생성은 정의가 같으면 기억한 것을 쓴다(항목5) —
