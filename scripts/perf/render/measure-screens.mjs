@@ -4,10 +4,16 @@
  *
  * ★지시: 실행은 「측정 시작」 신호를 받은 뒤에 한다. 이 스크립트는 그 전까지 **문법 확인만** 한다.
  *
- * 무엇을 재는가 (지표 정의는 `docs/idea.md` 111~115 절에서 왔다)
- *   1. shellReadyMs        메뉴 잎 클릭 → 화면 틀(breadcrumb) 표시
- *   2. clickToRowMs        메뉴 잎 클릭 → 그리드 첫 행 표시   ← idea.md 의 "메뉴 클릭 → 그리드 첫 행"
- *   3. searchToRowMs       [조회] 클릭 → 그리드 첫 행 표시   (조회 대기를 분리한 값)
+ * 무엇을 재는가 (지표 정의는 `docs/idea.md` 111~115 절에서 왔고, 우선순위는 조정 지시 2-1 에서 정해졌다)
+ *   ★주 지표★
+ *   1. searchToRowMs        [조회] 클릭 → 그리드 첫 행 표시. 1건 이상인 화면의 본 지표다.
+ *      (지시 2-1: 사용자가 실제로 기다리는 구간이므로 이것을 본 지표로 쓴다)
+ *   2. searchResponseToEmptyMs   조회 응답 → 그리드 빈 상태 표시. **0건 화면의 본 지표**다.
+ *      (조회 응답과 DOM 표시 시각의 시계 축이 달라서, 측정 시작점에서 두 축을 맞추는 장치가 있다)
+ *   보조 지표
+ *   3. shellReadyMs        메뉴 잎 클릭 → 화면 틀(breadcrumb) 표시. 함께 낸다.
+ *      clickToRowMs        메뉴 잎 클릭 → 첫 행. **참고값으로만** 둔다(조회 대기 시간이 섞인다).
+ *   나머지
  *   4. longTaskCount/Sum/Max   PerformanceObserver 'longtask' (50ms 이상)
  *   5. apiCount/apiTotalMs/apiSlowest{url,ms}   CDP Network 도메인
  *   6. scriptMs/taskMs/layoutMs/recalcStyleMs/layoutCount/recalcStyleCount/nodeDelta
@@ -15,12 +21,17 @@
  *   7. renderCommits/renderCommitMs/renderTopIds   React <Profiler> 수집분(계측이 있을 때만)
  *      — 계측은 `react-profiler-instrument.example.tsx` 참고. 제품 코드에 넣지 않는다.
  *
- * 탭 상태 두 가지 (`RENDER_TAB_STATE`)
- *   - `cold` (기본) 화면마다 새 페이지를 열어 탭이 **처음 마운트**될 때를 잰다. 첫 방문 비용.
- *   - `warm`             한 페이지를 유지하고 모든 화면을 한 번 방문해 둔 뒤, 다른 탭에 숨어 있는
- *                        화면을 메뉴에서 다시 눌러 **다시 보이는** 비용만 잰다.
- *                        (use-portal-tabs.ts:190-196 — 이미 있는 탭은 setActiveTabId 만 한다.
- *                          재마운트가 없다. portal-shell.tsx:154 가 display 로 숨김만 한다.)
+ * 탭 상태 (`RENDER_TAB_STATE`)
+ *   - `cold` (기본, **1차 스캔은 이것만**) 화면마다 새 페이지를 열어 탭이 **처음 마운트**될 때를 잰다.
+ *     첫 방문 비용. 지시 2-2.
+ *   - `warm`  한 페이지를 유지하고 모든 화면을 예열 방문해 둔 뒤, 다른 탭에 숨어 있는 화면을 메뉴에서
+ *     다시 눌러 **다시 보이는** 비용만 잰다. **2차에서 느린 Top 3 에 대해서만** 돌린다(지시 2-2).
+ *     (use-portal-tabs.ts:190-196 — 이미 있는 탭은 setActiveTabId 만 한다. 재마운트가 없다.
+ *      portal-shell.tsx:154 가 display 로 숨김만 한다. 즉 숨은 탭의 화면은 살아 있다.)
+ *
+ * 계정 (지시 2-3)
+ *   admin / admin123 **만** 쓴다. 다른 계정은 쓰지 않는다 — 비밀번호를 틀리면 잠기고 5회 실패 시 잠긴다.
+ *   로그인이 한 번이라도 실패하면 이 스크립트는 곧장 끝난다(재시도하지 않는다). 그때 report.md 에 보고한다.
  *
  * 사용법
  *   node scripts/perf/render/measure-screens.mjs [회차] [--screen id] [--list]
@@ -147,20 +158,34 @@ function deltaMetrics(before, after) {
 function attachNetworkCollector(cdp, sink) {
   const pending = new Map();
   const onRequest = (e) => {
-    pending.set(e.requestId, { url: e.request.url, method: e.request.method, start: e.timestamp, postData: e.request.postData ?? "" });
+    pending.set(e.requestId, {
+      url: e.request.url,
+      method: e.request.method,
+      start: e.timestamp,
+      // wallTime 은 epoch 초다. 응답 완료 시각을 Node 의 Date.now() 축으로 옮길 때 쓴다
+      // (0건 화면의 "조회 응답 → 빈 상태" 구간을 재려면 이 축이 필요하다).
+      wallStart: e.wallTime,
+      postData: e.request.postData ?? "",
+    });
   };
-  const onDone = (e) => {
+  const finish = (e, status, failed) => {
     const p = pending.get(e.requestId);
     if (!p) return;
     pending.delete(e.requestId);
-    sink.push({ url: p.url, method: p.method, postData: p.postData, status: e.status ?? 0, ms: (e.timestamp - p.start) * 1000 });
+    const ms = (e.timestamp - p.start) * 1000;
+    sink.push({
+      url: p.url,
+      method: p.method,
+      postData: p.postData,
+      status,
+      ms,
+      // epoch 밀리초. wallTime 이 없는 경우(undefined)는 이 축을 쓰지 않는다.
+      wallEndMs: typeof p.wallStart === "number" ? p.wallStart * 1000 + ms : null,
+      failed,
+    });
   };
-  const onFail = (e) => {
-    const p = pending.get(e.requestId);
-    if (!p) return;
-    pending.delete(e.requestId);
-    sink.push({ url: p.url, method: p.method, postData: p.postData, status: 0, ms: (e.timestamp - p.start) * 1000, failed: true });
-  };
+  const onDone = (e) => finish(e, e.status ?? 0, false);
+  const onFail = (e) => finish(e, 0, true);
   cdp.on("Network.requestWillBeSent", onRequest);
   cdp.on("Network.loadingFinished", onDone);
   cdp.on("Network.loadingFailed", onFail);
@@ -203,7 +228,16 @@ async function loginByApi(context, baseUrl) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     data: body,
   });
-  if (!res.ok()) die(`로그인 실패: ${res.status()} (user=${LOGIN_USER}). 비밀번호를 RENDER_LOGIN_PASSWORD 로 주거나 계정을 바꾼다.`);
+  // ★지시 2-3: 로그인 실패가 한 번이라도 나면 재시도하지 않고 즉시 끝낸다.
+  //   반복 시도하면 계정이 잠긴다(5회 실패 시 잠금). 여기서 멈추고 report.md 에 보고한다.
+  if (!res.ok()) {
+    die(
+      `로그인 실패: HTTP ${res.status()} (user=${LOGIN_USER}).\n` +
+        "  ★재시도하지 않는다★ — 반복하면 계정이 잠긴다.\n" +
+        "  지시 2-3 에 따라 admin / admin123 만 쓴다. 이 실패를 그대로 report.md 에 보고한다.\n" +
+        `  본문(앞 200자): ${(await res.text().catch(() => "")).slice(0, 200)}`
+    );
+  }
   return res.text().then((t) => JSON.parse(t));
 }
 
@@ -212,19 +246,30 @@ function menuItem(page, re) {
   return page.locator(".tree-item .item-name:visible").filter({ hasText: re }).first();
 }
 
-/** 메뉴 경로를 위에서 아래로 누른다. 마지막(잎) 클릭 직후의 시각을 돌려준다 — 측정의 t0. */
+/**
+ * 메뉴 경로를 위에서 아래로 누른다. 마지막(잎) 클릭 직후의 시각을 돌려준다 — 측정의 t0.
+ *
+ * ★두 시계 축을 함께 돌려준다.
+ *   - `t0`      node `performance.now()` 축. 이 스크립트가 재는 모든 값의 기준.
+ *   - `t0Wall`  `Date.now()` epoch ms 축. CDP `Network` 의 `wallTime` 과 맞추는 용도.
+ *                (0건 화면의 "조회 응답 완료 → 빈 상태 표시" 구간은 CDP 응답 시각과 페이지 내 DOM
+ *                 표시 시각을 빼야 하는데, DOM 시각은 t0 축이고 CDP 응답 시각은 epoch 축이다.
+ *                 측정 시작점에서 두 축의 차이를 한 번 잡아 서로 옮긴다.)
+ */
 async function clickTrail(page, screen) {
   for (let i = 0; i < screen.trail.length; i++) {
     const item = menuItem(page, screen.trail[i]);
     await item.waitFor({ state: "visible", timeout: TIMEOUT });
     if (i === screen.trail.length - 1) {
       const t0 = monotonic();
+      const t0Wall = Date.now();
       await item.click();
-      return t0;
+      return { t0, t0Wall };
     }
     await item.click();
   }
-  return monotonic();
+  const t0 = monotonic();
+  return { t0, t0Wall: Date.now() };
 }
 
 /** 화면 틀(breadcrumb)이 섰는지. */
@@ -245,6 +290,34 @@ async function firstRowVisible(page) {
 async function waitFirstRow(page) {
   await page.locator(FIRST_ROW_SELECTOR).first().waitFor({ state: "visible", timeout: TIMEOUT });
   return monotonic();
+}
+
+/**
+ * 그리드의 "행 없음" 오버레이가 떴는가 — 0건 화면의 도착 신호다.
+ * `AgDataGrid.tsx:1792-1801` 이 `noRowsOverlayComponent` 로 `.ag-overlay-no-rows-wrapper` 를 그린다
+ * (안쪽 span 에 `emptyMessage`, `emptyTestId` 가 있으면 data-testid). `ag-grid` 도 rowData 가 비면 같은
+ * 오버레이를 띄운다. 로딩 오버레이(`.ag-overlay-loading-wrapper`)가 함께 떠 있을 수 있으므로
+ * "보이는" 상태를 본다.
+ */
+const EMPTY_OVERLAY_SELECTOR = ".ag-overlay-no-rows-wrapper";
+
+async function emptyOverlayVisible(page) {
+  const el = page.locator(EMPTY_OVERLAY_SELECTOR).first();
+  return (await el.count()) > 0 && (await el.isVisible().catch(() => false));
+}
+
+async function waitEmptyOverlay(page) {
+  await page.locator(EMPTY_OVERLAY_SELECTOR).first().waitFor({ state: "visible", timeout: TIMEOUT });
+  return monotonic();
+}
+
+/** 0건 화면의 주 지표 — "조회 응답 → 빈 상태 표시". */
+function searchResponseToEmptyMs(calls, screen, tEmpty, t0, t0Wall) {
+  const resp = [...calls].filter((c) => isSearchCall(screen, c)).pop();
+  // wallEndMs 가 없으면(CDP wallTime 미제공) 이 구간은 못 잰다 — 값을 빈칸으로 두고 사유를 남긴다.
+  if (!resp || resp.wallEndMs == null) return null;
+  const respMono = t0 + (resp.wallEndMs - t0Wall);
+  return round1(tEmpty - respMono);
 }
 
 async function readLongTasks(page) {
@@ -295,24 +368,46 @@ async function measureScreen(page, cdp, screen, calls, round) {
   const before = await perfMetrics(cdp);
   const trace = await startTrace(cdp);
 
-  const t0 = await clickTrail(page, screen);
+  const { t0, t0Wall } = await clickTrail(page, screen);
   const tShell = await waitShell(page, screen);
 
   let tRow = null;
+  let tEmpty = null;
   let searchToRowMs = null;
+  let searchToEmptyMs = null;
   let searched = false;
+  let rowMode = "";
 
   // MDM 목록 화면은 진입 시 자동 조회를 하지 않는다. 첫 행이 이미 있으면 조회 없이 끝난 것으로 본다.
   if (await firstRowVisible(page)) {
     tRow = monotonic();
+    rowMode = "row-at-entry";
   } else if (screen.needsSearch) {
     const btn = page.getByRole("button", { name: "조회", exact: true }).first();
     await btn.waitFor({ state: "visible", timeout: TIMEOUT });
     const tSearch = monotonic();
     await btn.click();
     searched = true;
-    tRow = await waitFirstRow(page);
-    searchToRowMs = round1(tRow - tSearch);
+    // ★지시 2-1: 1건 이상이면 "조회 → 첫 행"(주 지표). 0건이면 "조회 응답 → 빈 상태 표시" 로 잰다.
+    //   둘이 동시에 뜨는 걸 기다렸다가 어느 쪽인지 본다 — 렌더 순서가 흔들리는 화면이 있으면
+    //   rows 지표가 그때 비어 있게 두고 사유를 적는다.
+    const outcome = await Promise.race([
+      waitFirstRow(page).then(() => "row"),
+      waitEmptyOverlay(page).then(() => "empty"),
+    ]).catch(() => null);
+
+    if (outcome === "row") {
+      tRow = monotonic();
+      searchToRowMs = round1(tRow - tSearch);
+      rowMode = "row";
+    } else if (outcome === "empty") {
+      tEmpty = monotonic();
+      searchToEmptyMs = round1(tEmpty - tSearch);
+      rowMode = "empty";
+    } else {
+      rowMode = "timeout";
+      log(`  ${screen.id}: 조회 후 첫 행도 빈 상태도 보이지 않았다 — timeout 으로 기록한다.`);
+    }
   }
 
   const after = await perfMetrics(cdp);
@@ -327,9 +422,18 @@ async function measureScreen(page, cdp, screen, calls, round) {
     screen: screen.id,
     label: screen.label,
     tab_state: TAB_STATE,
+    /** 보조 지표 — 화면 골격 비용(데이터와 무관). 지시 2-1 에서 "함께 낸다". */
     shellReadyMs: round1(tShell - t0),
+    /** 참고값 — 지시 2-1 에서 "참고값으로만 둔다". 원 지표였으나 조회 대기 시간을 섞는다. */
     clickToRowMs: tRow === null ? "" : round1(tRow - t0),
+    /** ★주 지표(1건 이상인 화면)★ 조회 클릭 → 그리드 첫 행. */
+    primaryMetric: rowMode === "empty" ? "searchResponseToEmptyMs" : "searchToRowMs",
     searchToRowMs: searchToRowMs ?? "",
+    /** ★주 지표(0건인 화면)★ 조회 응답 → 그리드 빈 상태 표시. */
+    searchResponseToEmptyMs: searchToRowMs === null ? searchResponseToEmptyMs(calls, screen, tEmpty ?? monotonic(), t0, t0Wall) : "",
+    /** 참고 — 조회 클릭 → 빈 상태 표시(응답 대기 포함). */
+    searchToEmptyMs: searchToEmptyMs ?? "",
+    row_mode: rowMode,
     searched: searched ? 1 : 0,
     longTaskCount: longTasks.length,
     longTaskSumMs: round1(longTasks.reduce((s, e) => s + e.duration, 0)),

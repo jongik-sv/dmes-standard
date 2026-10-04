@@ -29,11 +29,17 @@ function median(nums) {
 
 const round1 = (n) => (n === null || !Number.isFinite(n) ? null : Math.round(n * 10) / 10);
 
-/** 중앙값을 낼 숫자 지표 목록. */
+/**
+ * 중앙값을 낼 숫자 지표 목록. ★첫 항목이 주 지표다.★
+ * 지시 2-1: 본 지표는 `searchToRowMs`, 0건 화면은 `searchResponseToEmptyMs`.
+ * `shellReadyMs` 는 함께 내고 `clickToRowMs` 는 참고값이다 — 그래서 뒤쪽에 두고 이름에 (참고) 를 붙였다.
+ */
 const METRICS = [
+  ["searchToRowMs", "★주 지표·조회→첫 행(ms)"],
+  ["searchResponseToEmptyMs", "★주 지표(0건)·조회응답→빈 상태(ms)"],
   ["shellReadyMs", "shell 준비(ms)"],
-  ["clickToRowMs", "메뉴클릭→첫행(ms)"],
-  ["searchToRowMs", "조회→첫행(ms)"],
+  ["clickToRowMs", "(참고) 메뉴클릭→첫행(ms)"],
+  ["searchToEmptyMs", "(참고) 조회클릭→빈 상태(ms)"],
   ["longTaskCount", "long task 수"],
   ["longTaskSumMs", "long task 합(ms)"],
   ["longTaskMaxMs", "long task 최대(ms)"],
@@ -85,6 +91,10 @@ function main() {
       const vals = rows.map((r) => (typeof r[k] === "number" ? r[k] : NaN)).filter(Number.isFinite);
       entry.metrics[k] = round1(median(vals));
     }
+    // ★어느 주 지표를 썼는지 명시한다 — 0건 화면과 1건 이상 화면을 같은 표에서 읽으면 안 된다.★
+    const modes = [...new Set(rows.map((r) => r.row_mode).filter(Boolean))];
+    entry.row_mode = modes.join("+") || "(미기록)";
+    entry.primary_metric = rows.find((r) => r.primaryMetric)?.primaryMetric ?? "searchToRowMs";
     // 가장 느린 API — 중앙값 대신 "가장 흔한 최장 호출" 을 한 번 본다.
     const worst = rows.map((r) => r.apiSlowestUrl).filter(Boolean);
     entry.apiSlowestUrl = worst.length ? worst.sort((a, b) => a.localeCompare(b))[0] : "";
@@ -115,6 +125,14 @@ function main() {
   for (const s of out.screens) {
     const flag = s.enough ? "" : `  ⚠ kept ${s.rounds_kept}회 (< ${MIN_ROUNDS}) — 결론 근거로 쓰지 말 것`;
     console.log(`## ${s.label} (\`${s.screen}\`) · tab_state=${s.tab_state}${flag}`);
+    console.log(`\n주 지표: \`${s.primary_metric}\` · row_mode=${s.row_mode}`);
+    if (s.row_mode.includes("empty")) {
+      console.log(`\n> **이 화면은 조회 결과가 0건이었다.** 주 지표는 "조회 응답 → 빈 상태 표시" 이다.`);
+      console.log(`> "조회 → 첫 행" 과 다른 비용(데이터 렌더 없음)이므로 다른 화면과 같은 선으로 비교하지 말 것.`);
+    }
+    if (s.row_mode.includes("timeout")) {
+      console.log(`\n> **일부 회차가 timeout 이었다.** 도착 신호를 못 잡은 회차가 있어 값이 낮게 나올 수 있다.`);
+    }
     console.log(`\n| 지표 | 중앙값 |`);
     console.log(`|---|---|`);
     for (const [k, label] of METRICS) {
