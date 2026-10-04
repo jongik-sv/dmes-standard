@@ -27,8 +27,8 @@ import com.dongkuk.dmes.mdm.dma.naming.NameComposition;
 import com.dongkuk.dmes.mdm.dma.naming.NameToken;
 import com.dongkuk.dmes.mdm.dma.naming.NamingRules;
 import com.dongkuk.dmes.mdm.dma.naming.TermCandidate;
-import com.dongkuk.dmes.mdm.dma.naming.TermDictionary;
 import com.dongkuk.dmes.mdm.dma.naming.TermEntry;
+import com.dongkuk.dmes.mdm.dma.support.TermDictionaryLoader;
 import com.dongkuk.dmes.mdm.entity.MdmColumn;
 import com.dongkuk.dmes.mdm.entity.MdmColumnSystem;
 import com.dongkuk.dmes.mdm.entity.MdmDomain;
@@ -241,7 +241,7 @@ public class ColumnMngService {
             throw invalid("분해할 이름을 입력하세요");
         }
         Direction direction = direction(request.getDirection());
-        ColumnNameComposer composer = new ColumnNameComposer(loadDictionary());
+        ColumnNameComposer composer = new ColumnNameComposer(TermDictionaryLoader.load(termRepository));
         NameComposition composition = direction == Direction.FORWARD ? composer.forward(input) : composer.reverse(input);
 
         List<DomainEntry> domainEntries = new ArrayList<>();
@@ -304,7 +304,7 @@ public class ColumnMngService {
         }
 
         // 3. 자리 표시자(I12) — 형식·길이 검사보다 먼저
-        NameComposition composition = new ColumnNameComposer(loadDictionary()).forward(columnName);
+        NameComposition composition = new ColumnNameComposer(TermDictionaryLoader.load(termRepository)).forward(columnName);
         List<String> unresolved = composition.tokens().stream()
                 .filter(t -> ColumnNameComposer.isPlaceholder(t.status()))
                 .map(NameToken::surface).toList();
@@ -534,15 +534,6 @@ public class ColumnMngService {
 
     private static final Comparator<MdmColumnSystem> MAPPING_ORDER = Comparator
             .comparing(MdmColumnSystem::getSystemCode).thenComparing(MdmColumnSystem::getPhysName);
-
-    private TermDictionary loadDictionary() {
-        List<TermEntry> entries = new ArrayList<>();
-        for (MdmTerm t : termRepository.findAll()) {
-            entries.add(new TermEntry(t.getTermId(), t.getTermName(), t.getSenseNo(), t.getDefinition(), t.getContext(),
-                    t.getEngName(), t.getEngAbbr(), t.getSynonyms(), t.getAliases()));
-        }
-        return TermDictionary.of(entries);
-    }
 
     private List<Map<String, Object>> systems() {
         return jdbc.queryForList(

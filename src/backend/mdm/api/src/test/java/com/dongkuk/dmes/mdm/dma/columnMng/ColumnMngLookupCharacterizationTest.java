@@ -20,6 +20,7 @@ import com.dongkuk.dmes.mdm.dma.columnMng.dto.ColumnMngSaveRequest;
 import com.dongkuk.dmes.mdm.dma.columnMng.service.ColumnMngService;
 import com.dongkuk.dmes.mdm.dma.naming.TermDictionary;
 import com.dongkuk.dmes.mdm.dma.naming.TermEntry;
+import com.dongkuk.dmes.mdm.dma.support.TermDictionaryLoader;
 import com.dongkuk.dmes.mdm.dma.termRegPop.dto.TermRegPopRegRequest;
 import com.dongkuk.dmes.mdm.dma.termRegPop.dto.TermRegPopSearchRequest;
 import com.dongkuk.dmes.mdm.dma.termRegPop.service.TermRegPopService;
@@ -50,8 +51,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.util.AopTestUtils;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -62,11 +61,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  *   <li>{@code save} 의 {@code resolveTermIds} — terms 그리드 행마다 {@code existsById}.</li>
  *   <li>{@code save} 의 {@code validateMappings} — 충돌 행마다 소유 컬럼 {@code findById}(컬럼명).</li>
  *   <li>{@code compare(REVERSE)} 의 {@code duplicates} — 시스템 필드명이 걸린 매핑마다 {@code findById}.</li>
- *   <li>{@code ColumnMngService.loadDictionary} 와 {@code TermRegPopService.loadDictionary} — 글자 그대로 같은 사본이다(차이 없음을 고정).</li>
+ *   <li>용어 사전 읽기 — 두 서비스의 같은 사본을 2단계에서 공용 {@link TermDictionaryLoader} 하나로 합쳤다. 합치기 전 사본 코드를
+ *       시험 안 기준 사전으로 옮겨 두고, 공용 로더가 그와 같은 사전을 만드는지 본다.</li>
  * </ul>
  *
- * <p>사본 비교 시험은 두 private 메서드를 이름으로 부른다 — 2단계가 둘을 하나로 합치면 그 시험은 합친 곳을 부르게 고쳐 써야 한다.
- * 공개 경로(분해·용어 등록 팝업)로 보는 시험과 사전은 요청마다 새로 읽는다(I26) 시험은 그대로 남는다.
+ * <p>공개 경로(분해·용어 등록 팝업)로 보는 시험과 사전은 요청마다 새로 읽는다(I26) 시험은 1단계 그대로다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")
@@ -336,14 +335,14 @@ class ColumnMngLookupCharacterizationTest extends AbstractMdmSharedDbTest {
         assertEquals(List.of("MES"), dups.stream().map(m -> m.get("systemCode")).toList());
     }
 
-    // ── ④ 용어 사전 읽기 사본 둘 ──────────────────────────────────────────
+    // ── ④ 용어 사전 읽기(공용 로더) ───────────────────────────────────────
 
     @Test
-    void 두_서비스의_사전_읽기는_같은_입력에서_같은_사전을_만든다() {
+    void 공용_사전_로더는_합치기_전_사본과_같은_사전을_만든다() {
         seedDictionaryVariants();
 
-        TermDictionary a = loadDictionary(service);
-        TermDictionary b = loadDictionary(termRegPop);
+        TermDictionary a = TermDictionaryLoader.load(terms);
+        TermDictionary b = referenceDictionary();
 
         assertEquals(a.all(), b.all());
         assertEquals(terms.count(), a.all().size(), "용어 표 전체를 읽는다");
@@ -457,9 +456,14 @@ class ColumnMngLookupCharacterizationTest extends AbstractMdmSharedDbTest {
         return terms.findByTermName(termName).get(0).getTermId();
     }
 
-    private static TermDictionary loadDictionary(Object bean) {
-        Object target = AopTestUtils.getUltimateTargetObject(bean);
-        return ReflectionTestUtils.invokeMethod(target, "loadDictionary");
+    /** 합치기 전 두 서비스의 private {@code loadDictionary} 사본 코드 그대로 — 공용 로더의 기준값이다. */
+    private TermDictionary referenceDictionary() {
+        List<TermEntry> entries = new ArrayList<>();
+        for (MdmTerm t : terms.findAll()) {
+            entries.add(new TermEntry(t.getTermId(), t.getTermName(), t.getSenseNo(), t.getDefinition(), t.getContext(),
+                    t.getEngName(), t.getEngAbbr(), t.getSynonyms(), t.getAliases()));
+        }
+        return TermDictionary.of(entries);
     }
 
     private boolean baseTaken() {
