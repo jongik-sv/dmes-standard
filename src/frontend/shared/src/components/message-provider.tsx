@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useRef, type ReactNode } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { notifications } from "@mantine/notifications";
 import { MessageModal, type AlertType } from "./modal";
 
@@ -149,8 +149,11 @@ export function MessageProvider({ children }: { children: ReactNode }) {
     cur.onConfirm?.();
   }, []);
 
+  // 렌더마다 새 객체를 넘기면 msgState 가 바뀔 때 useMessage 소비자 전체가 다시 그려진다.
+  const contextValue = useMemo<MessageContextValue>(() => ({ showMessage }), [showMessage]);
+
   return (
-    <MessageContext.Provider value={{ showMessage }}>
+    <MessageContext.Provider value={contextValue}>
       {children}
       <MessageModal
         open={msgState.open}

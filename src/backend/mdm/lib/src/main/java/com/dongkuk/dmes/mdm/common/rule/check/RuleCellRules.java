@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.common.rule.check;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.str;
+
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -349,10 +351,6 @@ public final class RuleCellRules {
             }
         }
         return n;
-    }
-
-    private static String str(Object value) {
-        return value == null ? null : value.toString();
     }
 
     private static String blankToNull(String value) {

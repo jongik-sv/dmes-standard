@@ -46,6 +46,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
 
 /**
  * commUserMng — OASIS BPMN serviceTask entry point (W5 / csa 9 화면 5번째).
@@ -864,32 +866,4 @@ public class CommUserMngService {
         return LocalDate.now().format(YYYYMMDD);
     }
 
-    private static String strOf(Object o) { return o == null ? null : String.valueOf(o); }
-
-    /**
-     * Map row 의 date 값 → {@link LocalDateTime} 변환 (W4 정본 패턴 차용).
-     * 지원 입력 type: {@link LocalDateTime} 직접 / {@link String} "yyyy-MM-dd[ HH:mm:ss]" / "yyyyMMdd" 8자 / null → fallback.
-     */
-    private static LocalDateTime parseLocalDateTime(Object v, LocalDateTime fallback) {
-        if (v == null) return fallback;
-        if (v instanceof LocalDateTime ldt) return ldt;
-        String s = String.valueOf(v).trim();
-        if (s.isEmpty() || "null".equals(s)) return fallback;
-        try {
-            if (s.length() == 8 && s.matches("\\d{8}")) {
-                return LocalDateTime.parse(
-                        s.substring(0, 4) + "-" + s.substring(4, 6) + "-" + s.substring(6, 8) + "T00:00:00");
-            }
-            if (s.length() == 10) {
-                return LocalDateTime.parse(s + "T00:00:00");
-            }
-            if (s.contains(" ")) {
-                return LocalDateTime.parse(s.replace(' ', 'T'));
-            }
-            return LocalDateTime.parse(s);
-        } catch (Exception e) {
-            log.warn("[commUserMng.parseLocalDateTime] parse failed value={} — fallback", s);
-            return fallback;
-        }
-    }
 }

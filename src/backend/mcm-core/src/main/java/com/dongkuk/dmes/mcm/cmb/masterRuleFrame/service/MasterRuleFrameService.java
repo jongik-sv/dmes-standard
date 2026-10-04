@@ -15,6 +15,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNullTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.toIntStrict;
 
 /**
  * 업무기준 구조관리 — cmb/masterRuleFrame OASIS 서비스 (Spring bean = {@code masterRuleFrameService}).
@@ -61,7 +64,7 @@ public class MasterRuleFrameService {
      * (As-Is resultKey 보존 — BPMN설계서 §2.2. cnt = IN 건수, MSG-010 As-Is xfdl:382).
      */
     public Map<String, Object> search(MasterRuleFrameSearchRequest request) {
-        String pRuleId = request == null ? null : blankToNull(request.getPRuleId());
+        String pRuleId = request == null ? null : blankToNullTrim(request.getPRuleId());
 
         List<Map<String, Object>> inList = toRows(repository.searchRuleColList(pRuleId, IO_IN));
         List<Map<String, Object>> outList = toRows(repository.searchRuleColList(pRuleId, IO_OUT));
@@ -102,7 +105,7 @@ public class MasterRuleFrameService {
         if (outList == null) outList = List.of();
 
         // 1. ruleId 확정 (BR-012) — pRuleId 우선, 없으면 첫 행 RULE_ID (As-Is java:33)
-        String ruleId = request == null ? null : blankToNull(request.getPRuleId());
+        String ruleId = request == null ? null : blankToNullTrim(request.getPRuleId());
         if (ruleId == null) ruleId = firstRuleId(inList, outList);
         if (ruleId == null) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "업무기준 선택 후 진행해주세요.");
@@ -166,19 +169,19 @@ public class MasterRuleFrameService {
             Map<String, Object> row = rows.get(i);
             if (row == null) continue;
             String pos = gridLabel + " " + (i + 1) + "행: ";
-            if (isBlank(strOf(row.get("colNm")))) {
+            if (isBlank(strOfTrim(row.get("colNm")))) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, pos + "한글항목명을 입력해 주십시오.");   // MSG-001
             }
-            if (isBlank(strOf(row.get("colId")))) {
+            if (isBlank(strOfTrim(row.get("colId")))) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, pos + "영문항목명을 입력해 주십시오.");   // MSG-002
             }
-            if (isBlank(strOf(row.get("masterCodeDiv")))) {
+            if (isBlank(strOfTrim(row.get("masterCodeDiv")))) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, pos + "코드여부를 선택해 주십시오.");     // MSG-003
             }
-            if (isBlank(strOf(row.get("colType")))) {
+            if (isBlank(strOfTrim(row.get("colType")))) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, pos + "유형을 선택해 주십시오.");         // MSG-004
             }
-            if (isBlank(strOf(row.get("colLen")))) {
+            if (isBlank(strOfTrim(row.get("colLen")))) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, pos + "총길이를 입력해 주십시오.");       // MSG-005
             }
         }
@@ -189,15 +192,15 @@ public class MasterRuleFrameService {
         MasterRuleColList e = new MasterRuleColList();
         e.setId(new MasterRuleColListId(ruleId, colSeq));      // COL_SEQ 재계산 (BR-004)
         e.setRuleVer(defaultVer(row.get("ruleVer")));          // 공란→1 (BR-005, As-Is java:53~55)
-        e.setColId(strOf(row.get("colId")));
-        e.setColNm(strOf(row.get("colNm")));
-        e.setOldColId(strOf(row.get("oldColId")));
+        e.setColId(strOfTrim(row.get("colId")));
+        e.setColNm(strOfTrim(row.get("colNm")));
+        e.setOldColId(strOfTrim(row.get("oldColId")));
         e.setIoFlag(ioFlag);
-        e.setColType(strOf(row.get("colType")));
-        e.setColLen(toInt(row.get("colLen"), "총길이"));
-        e.setColPrecLen(toInt(row.get("colPrecLen"), "소수점길이"));
-        e.setMesColId(strOf(row.get("mesColId")));
-        e.setMasterCodeDiv(strOf(row.get("masterCodeDiv")));
+        e.setColType(strOfTrim(row.get("colType")));
+        e.setColLen(toIntStrict(row.get("colLen"), "총길이"));
+        e.setColPrecLen(toIntStrict(row.get("colPrecLen"), "소수점길이"));
+        e.setMesColId(strOfTrim(row.get("mesColId")));
+        e.setMasterCodeDiv(strOfTrim(row.get("masterCodeDiv")));
         return e;
     }
 
@@ -205,20 +208,12 @@ public class MasterRuleFrameService {
         return s == null || s.isBlank();
     }
 
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s.trim();
-    }
-
-    private static String strOf(Object o) {
-        return o == null ? null : String.valueOf(o).trim();
-    }
-
     /** IN 우선 첫 행 ruleId (As-Is ds_grdIn[0].RULE_ID — java:33. IN 공백이면 OUT 첫 행). */
     private static String firstRuleId(List<Map<String, Object>> inList, List<Map<String, Object>> outList) {
         for (List<Map<String, Object>> rows : List.of(inList, outList)) {
             for (Map<String, Object> row : rows) {
                 if (row == null) continue;
-                String v = blankToNull(strOf(row.get("ruleId")));
+                String v = blankToNullTrim(strOfTrim(row.get("ruleId")));
                 if (v != null) return v;
             }
         }
@@ -227,7 +222,7 @@ public class MasterRuleFrameService {
 
     /** RULE_VER 공란→1 보정 (BR-005). NUMBER(8,2) → BigDecimal. */
     private static BigDecimal defaultVer(Object v) {
-        String s = strOf(v);
+        String s = strOfTrim(v);
         if (isBlank(s)) return BigDecimal.ONE;
         try {
             return new BigDecimal(s);
@@ -236,14 +231,4 @@ public class MasterRuleFrameService {
         }
     }
 
-    /** 정수 변환 (BR-009 — mask integer). 공란 → null (colPrecLen 선택 입력 BR-007). */
-    private static Integer toInt(Object v, String label) {
-        String s = strOf(v);
-        if (isBlank(s)) return null;
-        try {
-            return Integer.valueOf(s.replace(",", ""));       // As-Is mask ##,##9 콤마 허용
-        } catch (NumberFormatException e) {
-            throw new BusinessException(ErrorCode.INVALID_VALUE, label + "은(는) 정수만 입력 가능합니다.");
-        }
-    }
 }

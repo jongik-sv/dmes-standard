@@ -1,5 +1,8 @@
 package com.dongkuk.dmes.mdm.dmd.dataMng.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
+
 import com.dongkuk.dmes.mdm.common.segment.DataCategorySegmentCore;
 import com.dongkuk.dmes.mdm.common.segment.DataCateValue;
 import com.dongkuk.dmes.mdm.common.segment.LockedMaruData;
@@ -151,18 +154,6 @@ public class DataMngService {
         if (!NamingRules.STD_PHYS_NAME.matcher(id).matches()) {
             throw invalid("마루 데이터 ID 는 영문 대문자로 시작하고 영문 대문자·숫자·_ 만 쓸 수 있습니다");
         }
-    }
-
-    private static RuntimeException invalid(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
-    }
-
-    private static String trimToNull(String s) {
-        if (s == null) {
-            return null;
-        }
-        String t = s.trim();
-        return t.isEmpty() ? null : t;
     }
 
     private static String escapeLike(String value) {
