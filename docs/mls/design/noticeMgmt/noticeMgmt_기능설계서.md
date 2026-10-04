@@ -360,7 +360,7 @@ STOPPED → (삭제)    rowStatus=D 저장
 | Java | `com.dongkuk.dmes.mls.lsh.noticeBoard.service.NoticeBoardService` (빈 `noticeBoardService`) |
 | API (UI→BFF) | `POST /api/mls/oasis/noticeBoard/search` |
 | API (BFF→BE) | `POST /oasis/noticeBoard/search` |
-| 요청 `params` | 비워도 된다(`{}`). 선택 키 `limit`(1~50, 없거나 범위 밖이면 50) 하나뿐 |
+| 요청 `params` | 비워도 된다(`{}`). 선택 키 `limit`(1~50, 없거나 범위 밖이면 50), `includeContent`(false 면 목록에 본문 `CONTENT` 키를 싣지 않는다, 기본 true), `noticeId`(값이 있으면 그 공지 1건의 상세만 본문 포함으로 돌려준다. 아래 조회 규칙과 같은 조건이 걸려 보이지 않는 공지는 빈 목록이다) |
 | 권한 | **AUTH_ONLY** — 로그인만 되면 누구나(§12.4). 무엇을 보여 줄지는 서비스가 현재 사용자 역할로 정한다 |
 | 응답 | noticeMgmt search 와 같은 모양 — `data.result.list` (BPMN `output="result"`) |
 
@@ -374,11 +374,12 @@ STOPPED → (삭제)    rowStatus=D 저장
 - 정렬: `PIN_YN='Y'` 먼저 → `NOTICE_CATEGORY='URGENT'` 먼저 → `C_AT` 최신순(`C_AT` 이 비어 있으면 뒤) → `NOTICE_ID` 역순.
 - 최대 50건.
 - `CONTENT_FORMAT='HTML'` 본문은 내려보낼 때도 한 번 더 소독한다(§6.4).
+- 홈 카드는 목록을 `includeContent:false` 로 받고, 고른 공지의 본문만 `noticeId` 상세로 받는다(화면 성능 가이드 R1).
 
 ### 12.3 응답 행 키
 
 `NOTICE_ID`, `TITLE`, `CONTENT`, `CONTENT_FORMAT`, `NOTICE_CATEGORY`, `PIN_YN`, `POST_START_DT`, `POST_END_DT`, `C_USR_ID`, `C_AT`
-— DB 컬럼명 SNAKE_CASE 그대로다. 날짜는 `yyyy-MM-dd`, `C_AT` 는 ISO-8601 UTC 시각 문자열(Java `Instant.toString()`, 예 `2026-10-02T04:35:17.123Z`)이다.
+— DB 컬럼명 SNAKE_CASE 그대로다(`includeContent:false` 목록에는 `CONTENT` 가 없다). 날짜는 `yyyy-MM-dd`, `C_AT` 는 ISO-8601 UTC 시각 문자열(Java `Instant.toString()`, 예 `2026-10-02T04:35:17.123Z`)이다.
 
 > 작성자 이름(`C_USR_NM`)은 넣지 않았다. 사용자 원장(`TB_MCM_SEC_USER`)은 mcm DB 에 있고 mls DB 와 파일이 달라 조인할 수
 > 없다. 필요하면 FE 가 사용자 ID 로 이름을 붙이거나, mls 에 이름 조회 경로를 따로 둔다.
