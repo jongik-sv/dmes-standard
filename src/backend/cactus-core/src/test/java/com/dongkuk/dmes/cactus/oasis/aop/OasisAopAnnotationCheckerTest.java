@@ -104,6 +104,11 @@ class OasisAopAnnotationCheckerTest {
      */
     private static GenericApplicationContext context(OasisAopCheckMode mode, boolean classpathLoader,
                                                      boolean transactional) {
+        return context(mode, classpathLoader, transactional, SERVICE_PATH);
+    }
+
+    private static GenericApplicationContext context(OasisAopCheckMode mode, boolean classpathLoader,
+                                                     boolean transactional, String servicePath) {
         GenericApplicationContext ctx = new GenericApplicationContext();
         ctx.getBeanFactory().registerSingleton("classTxService", cglibProxy(new ClassTxService()));
         ctx.registerBean("methodCacheService", MethodCacheService.class);
@@ -111,7 +116,7 @@ class OasisAopAnnotationCheckerTest {
         ctx.registerBean("cleanService", CleanService.class);
         ctx.registerBean("plainTxService", PlainTxService.class);
         ctx.registerBean(OasisAopAnnotationChecker.class,
-                () -> new OasisAopAnnotationChecker(ctx, mode, SERVICE_PATH, classpathLoader, transactional));
+                () -> new OasisAopAnnotationChecker(ctx, mode, servicePath, classpathLoader, transactional));
         return ctx;
     }
 
@@ -172,6 +177,28 @@ class OasisAopAnnotationCheckerTest {
 
             assertThat(checker.check()).extracting(OasisAopAnnotationChecker.Violation::beanName)
                     .containsExactlyInAnyOrder("classTxService", "methodCacheService", "metaTxService");
+        }
+    }
+
+    /**
+     * 같은 빈을 한 BPMN 은 빈 이름으로, 다른 BPMN 은 클래스 이름으로 불러도 위반은 빈별 1건이고,
+     * 경고의 '부르는 BPMN' 에는 두 파일이 모두 들어간다 (테스트 BPMN 은 {@code src/test/resources/aopcheck-mixed}).
+     */
+    @Test
+    void 빈_이름과_클래스_이름으로_나눠_부르는_BPMN_을_한_위반에_모두_모은다() {
+        try (GenericApplicationContext ctx = context(OasisAopCheckMode.OFF, true, false, "/aopcheck-mixed")) {
+            ctx.refresh();
+            OasisAopAnnotationChecker checker = ctx.getBean(OasisAopAnnotationChecker.class);
+
+            List<OasisAopAnnotationChecker.Violation> violations = checker.check();
+
+            assertThat(violations).singleElement().satisfies(v -> {
+                assertThat(v.beanName()).isEqualTo("classTxService");
+                assertThat(v.bpmnFiles()).containsExactly("mixedByClass.bpmn", "mixedByName.bpmn");
+                assertThat(v.message(false)).contains("부르는 BPMN: [mixedByClass.bpmn, mixedByName.bpmn]");
+            });
+            assertThat(logs(Level.INFO)).anySatisfy(i -> assertThat(i)
+                    .contains("BPMN 2개").contains("참조 빈 1개").contains("위반 1건"));
         }
     }
 
