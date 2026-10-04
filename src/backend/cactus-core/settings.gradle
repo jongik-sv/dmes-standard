@@ -23,9 +23,8 @@ project(':oasis-core-api').projectDir = file('../oasis/oasis-core-api')
 // caravan 의존 제거 (2026-05-12) — cactus-core 가 caravan 을 더 이상 transitive 노출하지 않음.
 // caravan 라이브러리는 caravan-hub 호스트에서만 직접 의존 (v4 정본). root settings.gradle 의 includeBuild('caravan-core') 만 유지.
 
+// 이웃 모듈 included build — dmesIncludeBuild(경로, 좌표) 는 includeBuild + dependencySubstitution(좌표 → 그 빌드 루트) 이다.
+apply from: '../gradle/include-builds.settings.gradle'
+
 // MDM 메타 캐시(2026-10-02) — cactus-core 가 엔진을 api 로 문다. group 은 kr.dongkuk.maru.mdm(엔진 D7).
-includeBuild('../maru-mdm-engine') {
-    dependencySubstitution {
-        substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')
-    }
-}
+dmesIncludeBuild('../maru-mdm-engine', 'kr.dongkuk.maru.mdm:maru-mdm-engine')

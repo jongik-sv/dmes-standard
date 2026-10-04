@@ -14,22 +14,13 @@ dependencyResolutionManagement {
     }
 }
 
-includeBuild('../cactus-core') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:cactus-core') using project(':')
-    }
-}
-includeBuild('../mcm-core') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:mcm-core') using project(':')
-    }
-}
-includeBuild('../maru-mdm-engine') {
-    dependencySubstitution {
-        // D7 — group 은 06-business-rule.md 패키지표 기준(kr.dongkuk.maru.mdm), com.dongkuk.dmes 아님
-        substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')
-    }
-}
+// 이웃 모듈 included build — dmesIncludeBuild(경로, 좌표) 는 includeBuild + dependencySubstitution(좌표 → 그 빌드 루트) 이다.
+apply from: '../gradle/include-builds.settings.gradle'
+
+dmesIncludeBuild('../cactus-core', 'com.dongkuk.dmes:cactus-core')
+dmesIncludeBuild('../mcm-core', 'com.dongkuk.dmes:mcm-core')
+// D7 — group 은 06-business-rule.md 패키지표 기준(kr.dongkuk.maru.mdm), com.dongkuk.dmes 아님
+dmesIncludeBuild('../maru-mdm-engine', 'kr.dongkuk.maru.mdm:maru-mdm-engine')
 
 include 'lib'
 include 'api'
