@@ -101,6 +101,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 |---|---|
 | 조건 없는 전체 조회를 기본 조회로 둠(7천 건 이상 응답 3MB) | 첫 조회에 `limit`(`FIRST_SEARCH_LIMIT`)을 보내고 잘리면 `GridPanel titleExtra` 에 `GridLimitNotice` + [전체 보기] — [가이드 R1](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
 | 목록 조회 응답에 본문·긴 텍스트(CLOB) 열을 실음(공지사항 관리: 행마다 최대 20만 자) | 목록에는 그리드에 보이는 열만, 본문은 행 선택 때 상세 조회 — audit `P-R1b`, [가이드 R1](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
+| 고르기 팝업·콤보 목록에 하위 항목(헤더의 항목 등)까지 실음 | 목록은 하위 항목 없이(`withoutItems` 류 옵션) 받고, 행을 고를 때 그 한 건만 단건 조회. 응답이 늦을 때를 대비해 순번으로 낡은 응답을 버리고 중복으로 쌓지 않는다 — [가이드 R1](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
 | 결과 0건이면 그리드를 언마운트하고 `<p>` 로 바꿈(3항·`&&` 모두) | `AgDataGrid` 를 늘 두고 `emptyMessage` 로 안내 — audit `P-R6`, [가이드 R6](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
 | 상세 폼 state 를 화면 루트에 둠(한 글자마다 루트·그리드 전체 재렌더) | 상세 폼을 별도 컴포넌트로 분리하고 루트는 `ref` 핸들(`load`·`getForm`)로 대화 — screen-patterns.md §성능 기본 구조, 가이드 R12 |
 | 그리드 `columns` 를 `useMemo(..., [form])` 처럼 폼 객체에 의존시킴 | 모듈 상수 또는 안정값(불리언·고정 콜백)만 deps 에 둔 `useMemo` |
