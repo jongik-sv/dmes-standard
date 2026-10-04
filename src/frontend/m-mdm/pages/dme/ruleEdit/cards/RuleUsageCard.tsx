@@ -4,11 +4,11 @@
  * 카드 ⑧ 활용처(TSK-08-02 design §6.7.3). 활용처 메모, 이 룰을 담은 룰 세트와 세트 안의 의존 룰(이 룰이 읽는 이름을 만드는 룰)·
  * 역의존 룰(이 룰이 만드는 이름을 읽는 룰). 룰 ID 는 룰 화면 링크(`openRuleEdit`), 세트 편집 화면(08-06)이 없어 세트는 글자로만 둔다.
  */
+import { CardFrame, MutedText } from "@dk-oasis/shared/card";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { openRuleEdit } from "@/dme/rule-handoff";
 
 import type { RuleEditCardProps } from "../cards";
-import { CardFrame, MutedText } from "./CardFrame";
 
 function RuleLinks({ ids }: { ids: string[] }) {
   if (ids.length === 0) return <MutedText>없음</MutedText>;

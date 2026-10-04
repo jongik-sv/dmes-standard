@@ -43,6 +43,7 @@
   - `path/pageName`은 빈 문자열, 선행/후행 `/`, `//`, `.`/`..`, `\\`, `:`를 허용하지 않는다.
 - 패키지 export:
   - `./pages/*`
+  - 예외: m-mdm 은 와일드카드 대신 화면별 명시 exports 를 쓴다(tsc 가 만드는 `.d.ts` 검사가 와일드카드를 풀지 못한다). 새 화면은 tsup entry 와 `package.json` exports 에 같은 이름으로 함께 등록한다(`m-mdm/tests/package-exports.test.ts` 가 대조한다).
 - 페이지 컴포넌트 타입은 `@dk-oasis/shared/portal-shell-core`의 `PageProps` 계약 준수
 
 ## 모듈 팀(독립 저장소) 준비 절차
@@ -68,7 +69,7 @@
 
 4. 발행 아티팩트
 - npm 패키지는 `dist/**`만 포함
-- `package.json` `exports`가 `./pages/*`를 노출해야 하며 하위 경로 import(`./pages/a/b/c-page`)를 지원해야 한다.
+- `package.json` `exports`가 `./pages/*`를 노출해야 하며 하위 경로 import(`./pages/a/b/c-page`)를 지원해야 한다. 단 m-mdm 은 화면별 명시 exports 를 쓰는 예외이므로 화면을 추가할 때 exports 항목을 직접 더한다.
 
 ## 레지스트리 발행(권장)
 

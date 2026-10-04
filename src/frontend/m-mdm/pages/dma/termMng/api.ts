@@ -6,17 +6,13 @@
  *   - compare — 유사어 추천 1차+2차 결합(A-RECO, D4, 불변 규칙 I18)
  *   - execute — 재인코딩 배치(관리자 전용, D6)
  */
-import { apiRequest } from "@dk-oasis/shared/http";
+import { callOasisAt, type OasisCallOptions } from "@dk-oasis/shared/http";
+
+import { MDM_OASIS_BASE, mdmFieldLabel, plainError } from "@/oasis-screen";
 
 import type { RecommendCandidate, TermForm, TermRow } from "./types";
 
-const OASIS_BASE = "/api/mdm/oasis/termMng";
-
-interface CactusEnvelope {
-  meta?: { success?: boolean; message?: string; code?: string };
-  data?: Record<string, unknown>;
-  errors?: Array<{ grid?: string; rowKey?: string; field?: string; message?: string }>;
-}
+const SERVICE = "termMng";
 
 export interface TermSearchPayload {
   list?: TermRow[];
@@ -40,47 +36,25 @@ export interface ReencodeBatchPayload {
   done?: boolean;
 }
 
-function unwrap<T>(res: unknown): T {
-  const env = res as CactusEnvelope;
-  if (env?.meta && env.meta.success === false) {
-    const base = env.meta.message?.trim() || "요청이 거부되었습니다.";
-    const details = (env.errors ?? [])
-      .map((e) => (e.field ? `${e.field}: ${e.message}` : e.message))
-      .filter(Boolean);
-    throw new Error(details.length > 0 ? `${base}\n- ${details.join("\n- ")}` : base);
-  }
-  const out: Record<string, unknown> = {};
-  if (env?.data) {
-    Object.assign(out, env.data);
-    const inner = env.data["result"];
-    if (inner && typeof inner === "object" && !Array.isArray(inner)) {
-      Object.assign(out, inner as Record<string, unknown>);
-    }
-  }
-  return out as T;
-}
+/**
+ * 성공은 data 전체 위에 `data.result` 를 덮고, 거부는 일반 Error 다. 거부 문구는 meta.message 뒤에 errors[] 를
+ * `- 항목명: 메시지`(항목명을 모르면 메시지만, 서버 field 코드는 안 보임)로 붙이고, 기본 문구에 든 메시지는 뺀다.
+ */
+const OASIS: OasisCallOptions = { merge: "data+result", fieldLabel: mdmFieldLabel(), errorFactory: plainError };
 
 /**
  * OASIS `CactusRequestConverter` 는 `params` 의 각 값을 `TypedObject`(타입 힌트 없음)로 감싸는데,
  * 그 단일 인자 생성자는 값이 `null` 이면 "The type cannot be determined because object is null" 로
  * 즉시 죽는다(실측 확인, TermSaveRequest.termId·RecommendRequest.termId 가 신규 등록 시 null 이다).
- * null/undefined 키는 아예 실어 보내지 않는다 — 서버 DTO 필드는 미지정 시 자연히 null 로 남는다.
+ * null/undefined 키는 아예 실어 보내지 않는다(공통 계약 기본값 `omit: "nullish"`) — 서버 DTO 필드는 미지정 시 자연히 null 로 남는다.
+ * `signal` 은 그대로 fetch 에 넘긴다(유사어 추천 디바운스 취소).
  */
-function omitNullish(params: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined));
-}
-
-async function callAction<T>(
+function callAction<T>(
   action: string,
   params: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<T> {
-  const res = await apiRequest<unknown>(`${OASIS_BASE}/${action}`, {
-    method: "POST",
-    body: JSON.stringify({ meta: { menuId: "termMng" }, params: omitNullish(params) }),
-    signal,
-  });
-  return unwrap<T>(res);
+  return callOasisAt<T>(MDM_OASIS_BASE, SERVICE, action, params, undefined, { ...OASIS, signal });
 }
 
 /** action=search — §3 S-001~S-003. */

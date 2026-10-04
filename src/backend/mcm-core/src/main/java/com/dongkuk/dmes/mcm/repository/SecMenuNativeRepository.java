@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 
 /**
  * {@code MCMAPUSER.TB_MCM_SEC_MENU} + {@code TB_MCM_SEC_OBJ} + {@code TB_MCM_SEC_MENU_FLD} read-only
@@ -607,8 +608,6 @@ public class SecMenuNativeRepository {
                 .setParameter("id", menuId)
                 .executeUpdate();
     }
-
-    private static String strOf(Object o) { return o == null ? null : String.valueOf(o); }
 
     /** 숫자 파싱 (소수점 포함 NUMERIC 문자열 "1010000.0" 도 허용). 실패 시 null. */
     private static Long parseLongOrNull(String s) {

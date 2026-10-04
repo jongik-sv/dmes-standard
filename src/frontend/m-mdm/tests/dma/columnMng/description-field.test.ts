@@ -28,6 +28,7 @@ import ColumnMngPage from "../../../pages/dma/columnMng/page";
 import {
   DESCRIPTION_MAX,
   DescriptionField,
+  HTML_TO_TEXT_MESSAGE,
   type DescriptionFieldProps,
 } from "../../../pages/dma/columnMng/DescriptionField";
 
@@ -200,6 +201,104 @@ describe("DescriptionField — 형식 선택 [글 | HTML]", () => {
     await flush();
     await typeInto(tid<HTMLTextAreaElement>("desc-html-source")!, "태그 없는 글");
     expect(tid("desc-format-warning")?.textContent).toMatch(/글로/);
+  });
+});
+
+// 특성 시험 — shared 형식 전환 칸으로 옮겨도 그대로 나와야 하는 문구·testid·상한·접근성 이름(2026-10-04).
+describe("DescriptionField — 문구·testid·상한 고정", () => {
+  it("뿌리와 안쪽 testid 는 testId 에 -format·-text·-text-count·-html·-format-warning 을 붙인다", async () => {
+    await mountField("<b>x</b>", { testId: "memo" });
+    expect(tid("memo")).not.toBeNull();
+    expect(tid("memo-format")).not.toBeNull();
+    expect(tid("memo-html")).not.toBeNull();
+    expect(tid("memo-text")).toBeNull();
+    await pickFormat("memo", "TEXT");
+    expect(tid("memo-text")).not.toBeNull();
+    expect(tid("memo-text-count")).not.toBeNull();
+    expect(tid("memo-html")).toBeNull();
+    await typeInto(tid<HTMLTextAreaElement>("memo-text")!, "<b>y</b>");
+    expect(tid("memo-format-warning")).not.toBeNull();
+  });
+
+  it("형식 선택 이름은 `<ariaLabel> 형식`, 글 칸 이름은 ariaLabel, 선택지 글자는 글·HTML", async () => {
+    await mountField("a");
+    const radios = Array.from(
+      tid("desc-format")!.querySelectorAll<HTMLInputElement>('input[type="radio"]')
+    ).map((r) => r.value);
+    expect(radios).toEqual(["TEXT", "HTML"]);
+    expect(tid("desc-format")!.textContent).toBe("글HTML");
+    expect(document.querySelector('[aria-label="설명 형식"]')).not.toBeNull();
+    expect(tid<HTMLTextAreaElement>("desc-text")!.getAttribute("aria-label")).toBe("설명");
+    expect(tid<HTMLTextAreaElement>("desc-text")!.getAttribute("rows")).toBe("2");
+  });
+
+  it("HTML → 글 확인 문구는 HTML_TO_TEXT_MESSAGE 그대로다", async () => {
+    const h = await mountField("<p>가</p>");
+    await pickFormat("desc", "TEXT");
+    expect(h.confirm).toHaveBeenCalledWith(HTML_TO_TEXT_MESSAGE);
+    expect(HTML_TO_TEXT_MESSAGE).toBe("HTML 서식이 사라지고 글자만 남습니다. 글로 바꾸시겠습니까?");
+  });
+
+  it("고른 형식을 다시 누르면 아무 일도 없다", async () => {
+    const h = await mountField("a\nb");
+    await pickFormat("desc", "TEXT");
+    expect(h.onChange).not.toHaveBeenCalled();
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(checkedFormat("desc")).toBe("TEXT");
+  });
+
+  it("공백만 있는 HTML 값을 글로 바꾸면 묻지 않고 빈 값으로 만든다", async () => {
+    const detected = await mountField("");
+    await pickFormat("desc", "HTML");
+    expect(checkedFormat("desc")).toBe("HTML");
+    expect(detected.onChange).not.toHaveBeenCalled();
+    // HTML 모드에서 원문으로 공백만 넣고 글로 바꾼다
+    await act(async () => {
+      tid<HTMLButtonElement>("desc-html-mode-html")!.click();
+    });
+    await flush();
+    await typeInto(tid<HTMLTextAreaElement>("desc-html-source")!, "   ");
+    expect(detected.value()).toBe("   ");
+    // 공백뿐인 HTML 모드는 형식 경고를 내지 않는다
+    expect(tid("desc-format-warning")).toBeNull();
+    await pickFormat("desc", "TEXT");
+    expect(detected.confirm).not.toHaveBeenCalled();
+    expect(detected.onChange).toHaveBeenLastCalledWith("");
+    expect(checkedFormat("desc")).toBe("TEXT");
+  });
+
+  it("형식 경고 문구는 두 가지로 고정이다", async () => {
+    await mountField("a");
+    await typeInto(tid<HTMLTextAreaElement>("desc-text")!, "<b>굵게</b>");
+    expect(tid("desc-format-warning")?.textContent).toBe("HTML 태그가 들어 있어 저장하면 HTML 로 보입니다.");
+    await typeInto(tid<HTMLTextAreaElement>("desc-text")!, "그냥 글");
+    await pickFormat("desc", "HTML");
+    await act(async () => {
+      tid<HTMLButtonElement>("desc-html-mode-html")!.click();
+    });
+    await flush();
+    await typeInto(tid<HTMLTextAreaElement>("desc-html-source")!, "태그 없는 글");
+    expect(tid("desc-format-warning")?.textContent).toBe("알려진 HTML 태그가 없어 저장하면 글로 보입니다.");
+  });
+
+  it("상한을 넘으면 글자 수 줄에 경고(role=alert)를 보이고, 넘지 않으면 숫자만 보인다", async () => {
+    await mountField("가나다");
+    expect(tid("desc-text-count")?.textContent).toBe("3 / 20,000자");
+    expect(tid("desc-text-count")?.querySelector('[role="alert"]')).toBeNull();
+    await typeInto(tid<HTMLTextAreaElement>("desc-text")!, "x".repeat(20001));
+    const alert = tid("desc-text-count")?.querySelector('[role="alert"]');
+    expect(alert?.textContent).toBe("20,000자를 넘었습니다. 줄이지 않으면 저장하지 못합니다.");
+    expect(tid("desc-text-count")?.textContent).toBe(
+      "20,000자를 넘었습니다. 줄이지 않으면 저장하지 못합니다.20,001 / 20,000자"
+    );
+  });
+
+  it("maxLength 를 주면 글 모드·HTML 모드 모두 그 상한을 쓴다", async () => {
+    await mountField("123456", { maxLength: 5 });
+    expect(tid("desc-text-count")?.textContent).toBe("5자를 넘었습니다. 줄이지 않으면 저장하지 못합니다.6 / 5자");
+    expect(tid("desc-text-count")?.getAttribute("data-over")).toBe("true");
+    await pickFormat("desc", "HTML");
+    expect(tid("desc-html-count")?.textContent).toContain("/ 5자");
   });
 });
 

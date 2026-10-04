@@ -4,16 +4,9 @@ import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState
 import { AppShell } from "@mantine/core";
 import { signOut } from "next-auth/react";
 import { readSecureJson, writeSecureJson } from "../secure-storage";
-import { cloneSnapshot, isSnapshotEqual } from "../snapshot";
-import { getJson } from "../http";
 import type { PortalFavoriteMenuRecord } from "../portal-menu";
-import { composePageName } from "./module";
 import type { PortalShellResolvePage } from "./module";
-import type {
-  PortalShellMenuItem,
-  PortalShellMenuResponse,
-  PortalShellPageComponent,
-} from "./types";
+import type { PortalShellMenuItem, PortalShellMenuResponse } from "./types";
 import {
   buildMenuSearchItems,
   buildRecentMenuSearchItems,
@@ -24,23 +17,17 @@ import { MenuSearchDialog } from "./MenuSearchDialog";
 import { Header } from "./header/Header";
 import { Sidebar, type SidebarNavigationViewMode } from "./sidebar/Sidebar";
 import type { StartPageLeaf } from "./sidebar/StartPagesList";
-import {
-  clearStartPagesOpened,
-  hasOpenedStartPages,
-  markStartPagesOpened,
-  planStartPageOpen,
-  type PortalStartPageRecord,
-} from "./start-pages";
+import { clearStartPagesOpened, type PortalStartPageRecord } from "./start-pages";
 import { TabsBar } from "./tabs-bar/TabsBar";
 import { Dashboard } from "./dashboard/Dashboard";
 import { FavoriteFolderPickerModal, type FavoriteFolderChoice } from "./FavoriteFolderPickerModal";
-import type { FavoriteFolderNode } from "./sidebar/FavoritesTree";
 import { TabPageContext } from "./tab-page-context";
 import { MdmMetaProvider } from "../mdm-meta/context";
 import { ErrorBoundary } from "../components/error-boundary";
-import { useTabHistory } from "./use-tab-history";
-import { useFullscreenSidebarHover } from "./use-fullscreen-sidebar-hover";
-import { useTabFullscreen } from "./use-tab-fullscreen";
+import { createHomeTabId, usePortalTabs, type PortalShellTabState } from "./use-portal-tabs";
+import { usePortalFullscreen } from "./use-portal-fullscreen";
+import { usePortalAuthUser } from "./use-portal-auth-user";
+import { usePortalShellFavorites } from "./use-portal-shell-favorites";
 import {
   UsageTracker,
   toUsagePageId,
@@ -55,32 +42,9 @@ import "./portal-shell.css";
 
 const PORTAL_HEADER_HEIGHT = 44;
 const DEFAULT_STORAGE_KEY = "oasis.portal.tabs.v1";
-const DEFAULT_HOME_TAB_TITLE = "홈";
 const RECENT_MENU_STORAGE_SUFFIX = ".recent-menu";
 
 type NavigationViewMode = SidebarNavigationViewMode;
-
-interface PortalShellTabState {
-  id: string;
-  title: string;
-  pageId: string;
-  isHome: boolean;
-  snapshot: unknown;
-  component: PortalShellPageComponent | null;
-  isLoading: boolean;
-  errorMessage: string | null;
-}
-
-interface StoredPortalShellState {
-  tabs: Array<{
-    id: string;
-    title: string;
-    pageId: string;
-    pageName?: string;
-    snapshot: unknown;
-  }>;
-  activeTabId: string | null;
-}
 
 function flattenMenuLeaves(items: PortalShellMenuItem[]): PortalShellMenuItem[] {
   return items.flatMap((item) => {
@@ -92,58 +56,6 @@ function flattenMenuLeaves(items: PortalShellMenuItem[]): PortalShellMenuItem[] 
     }
     return flattenMenuLeaves(item.items);
   });
-}
-
-function createTabId(pageId: string): string {
-  return `${pageId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function createHomeTabId(pageId: string): string {
-  return `home:${pageId}`;
-}
-
-function toPageIdFromFavoriteMenuItem(menuItem: PortalFavoriteMenuRecord): string | null {
-  if (menuItem.type !== "page" || !menuItem.moduleId || !menuItem.pageName) {
-    return null;
-  }
-  // toPageId(메뉴트리 별버튼)와 동기화 — componentPath(${PARENT_MENU_ID}/${OBJECT_ID}) 우선.
-  // 미스매치 시 즐겨찾기 pageId 가 별버튼 pageId 와 달라 하이라이트/탭 라우팅이 깨진다.
-  let composedPageName: string | null;
-  if (menuItem.componentPath && menuItem.componentPath.includes("/")) {
-    composedPageName = menuItem.componentPath;
-  } else {
-    composedPageName = composePageName(menuItem.path, menuItem.pageName);
-  }
-  if (!composedPageName) {
-    return null;
-  }
-  return `${menuItem.moduleId}:${composedPageName}`;
-}
-
-function mapStoredTabsToRuntime(storedTabs: StoredPortalShellState["tabs"]): PortalShellTabState[] {
-  return storedTabs.map((tab) => ({
-    id: tab.id,
-    title: tab.title,
-    pageId: tab.pageId ?? tab.pageName ?? "",
-    isHome: false,
-    snapshot: tab.snapshot,
-    component: null,
-    isLoading: true,
-    errorMessage: null,
-  }));
-}
-
-function createHomeTab(pageId: string, title: string): PortalShellTabState {
-  return {
-    id: createHomeTabId(pageId),
-    title,
-    pageId,
-    isHome: true,
-    snapshot: null,
-    component: null,
-    isLoading: true,
-    errorMessage: null,
-  };
 }
 
 export interface PortalShellProps {
@@ -268,10 +180,6 @@ export function PortalShell({
   onToggleStartPage,
   onUsageSegments,
 }: PortalShellProps) {
-  const [tabs, setTabs] = useState<PortalShellTabState[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string | null>(null);
-  const [tabOrder, setTabOrder] = useState<string[]>([]);
-  const [isStorageHydrated, setIsStorageHydrated] = useState<boolean>(false);
   const [navigationViewMode, setNavigationViewMode] = useState<NavigationViewMode>("menu");
   const [isSideNavigationExpanded, setIsSideNavigationExpanded] = useState<boolean>(true);
   const [isHeaderVisible, setIsHeaderVisible] = useState<boolean>(true);
@@ -281,18 +189,6 @@ export function PortalShell({
     () => readSecureJson<string[]>(recentMenuStorageKey)?.filter((value) => value.trim()) ?? []
   );
 
-  const loadingTabIdsRef = useRef<Set<string>>(new Set());
-  const activeTabIdRef = useRef<string | null>(activeTabId);
-  activeTabIdRef.current = activeTabId;
-  /** 새로 만든 탭 ID → 만들 때 보고 있던 탭 ID. tabOrder 동기화가 그 탭 오른쪽에 끼우고 지운다. */
-  const newTabAnchorRef = useRef<Map<string, string | null>>(new Map());
-  /** 저장소에서 복원한 (홈 제외) 탭 수 — 기본 화면을 열 때 활성 탭을 바꿀지 정한다. */
-  const restoredTabCountRef = useRef<number>(0);
-  /** 기본 화면 자동 열기를 이 마운트에서 이미 판단했는지(등록·해제 후 재조회 때 다시 열지 않는다). */
-  const startPagesAppliedRef = useRef<boolean>(false);
-  /** 최신 tabs — 활성 탭 effect 가 deps 없이 탭 정보(pageId·isHome)를 읽는다. */
-  const tabsRef = useRef<PortalShellTabState[]>(tabs);
-  tabsRef.current = tabs;
   /** 화면 사용 추적기 — onUsageSegments 가 있을 때만 만든다. */
   const usageTrackerRef = useRef<UsageTracker | null>(null);
   /**
@@ -310,24 +206,12 @@ export function PortalShell({
   /**
    * 로그아웃이 시작됐다. signOut 전 최대 USAGE_LOGOUT_WAIT_MS 기다리는 동안 탭 저장 effect 가 비운 저장소를
    * 다시 쓰지 않게 막고(공용 단말에서 다음 로그인에 이전 탭이 복원되는 것 방지), doLogout 두 번째 호출을 무시한다.
+   * 로그아웃(doLogout)이 셸에 있으므로 셸이 만들고, 탭 훅(usePortalTabs)의 저장 effect 가드로 넘긴다.
    */
   const loggingOutRef = useRef(false);
 
   const resolvedHomePageId = homePageId?.trim() || defaultHomePageId?.trim() || null;
   const homeTabId = resolvedHomePageId ? createHomeTabId(resolvedHomePageId) : null;
-
-  const activeTab = useMemo(
-    () => tabs.find((tab) => tab.id === activeTabId) ?? null,
-    [tabs, activeTabId]
-  );
-
-  // 브라우저 뒤로/앞으로가기 ↔ 탭 전환 동기화. URL 은 /portal 고정, history.state 만 사용.
-  const { navigateToTab, pushTabHistory } = useTabHistory({
-    tabs,
-    activeTab,
-    setActiveTabId,
-    isStorageHydrated,
-  });
 
   const menuLeaves = useMemo(() => flattenMenuLeaves(menu.items), [menu]);
   const menuSearchItems = useMemo(() => buildMenuSearchItems(menu.items), [menu]);
@@ -384,6 +268,7 @@ export function PortalShell({
     return map;
   }, [menu]);
 
+  // 탭 훅의 복원 effect deps 에 들어간다 — menuDisplayTextByPageId 가 그대로면 참조가 바뀌지 않아야 한다.
   const resolveDisplayText = useCallback(
     (pageId: string, fallback: string): string => {
       return menuDisplayTextByPageId.get(pageId) ?? fallback;
@@ -402,182 +287,46 @@ export function PortalShell({
     [menuSearchItemByPageId, resolvedHomePageId]
   );
 
-  // Authenticated user fetch
-  const [authenticatedUser, setAuthenticatedUser] = useState<{
-    id: string;
-    name: string | null;
-  } | null>(null);
+  // ── 훅 호출 순서 = effect 실행 순서 ─────────────────────────────────────────────
+  // 1) 인증 사용자(/api/auth/me) — 화면 사용 effect(fetch 감싸기)보다 위에 둔다.
+  // 2) 최근 메뉴 저장 effect — 탭 훅보다 위(원래도 탭 복원 바로 앞이었다).
+  // 3) 탭 훅 — 메뉴 색인·최근 메뉴 뒤. 안쪽에서 복원 → 기본 화면 → … → 저장 순서를 지킨다.
+  // 4) 전체 화면 훅 — 활성 탭(activeTab)이 필요하므로 탭 훅 뒤.
+  // 5) 즐겨찾기 훅 — effect 없음. 6) F3 · 화면 사용 effect.
+  const { displayUserName, displayLoginId } = usePortalAuthUser({ userName, userLoginId });
 
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const response = await getJson<{
-          authenticated: boolean;
-          user: { id: string; name?: string | null } | null;
-        }>("/api/auth/me", { credentials: "same-origin" });
-        if (!cancelled) {
-          if (response.authenticated && response.user) {
-            setAuthenticatedUser({ id: response.user.id, name: response.user.name ?? null });
-          } else {
-            setAuthenticatedUser(null);
-          }
-        }
-      } catch {
-        if (!cancelled) setAuthenticatedUser(null);
-      }
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    writeSecureJson(recentMenuStorageKey, recentMenuPageIds);
+  }, [recentMenuPageIds, recentMenuStorageKey]);
 
-  const displayUserName = userName?.trim() || authenticatedUser?.name?.trim() || "사용자";
-  const displayLoginId = userLoginId?.trim() || authenticatedUser?.id?.trim() || "로그인아이디";
-
-  // 즐겨찾기 트리 — 폴더(그룹) → leaf(메뉴). 2테이블 모델(FVT_FOLD_ID 별 그룹화).
-  const favoriteTree = useMemo<FavoriteFolderNode[]>(() => {
-    const folderRows = favoriteMenus.filter((f) => f.type === "folder");
-    const pageRows = favoriteMenus.filter((f) => f.type !== "folder");
-    return folderRows.map((folder) => {
-      const seen = new Set<string>();
-      const children: { pageId: string; displayText: string }[] = [];
-      for (const p of pageRows) {
-        if (p.parentId !== folder.name) continue;
-        const pageId = toPageIdFromFavoriteMenuItem(p);
-        if (!pageId || seen.has(pageId)) continue;
-        seen.add(pageId);
-        children.push({
-          pageId,
-          displayText: p.displayText?.trim() || resolveDisplayText(pageId, pageId),
-        });
-      }
-      return {
-        folderId: folder.name,
-        folderName: folder.displayText?.trim() || folder.name || "폴더",
-        children,
-      };
-    });
-  }, [favoriteMenus, resolveDisplayText]);
-
-  // 현재 페이지 즐겨찾기 여부 판정용 — 전체 leaf pageId 집합.
-  const favoritePageIdSet = useMemo(() => {
-    const s = new Set<string>();
-    for (const f of favoriteMenus) {
-      if (f.type === "folder") continue;
-      const pid = toPageIdFromFavoriteMenuItem(f);
-      if (pid) s.add(pid);
-    }
-    return s;
-  }, [favoriteMenus]);
-
-  // Tab operations
-  const loadTabPage = useCallback(
-    async (tabId: string, pageId: string) => {
-      let component: PortalShellPageComponent | null = null;
-      let loadError: string | null = null;
-      try {
-        component = await resolvePage(pageId);
-      } catch (err) {
-        // 화면 chunk 로드 실패 시 탭이 로딩 상태로 멈추지 않도록 오류로 표시한다.
-        console.error("[PortalShell] page load failed", pageId, err);
-        loadError = `화면을 불러오지 못했습니다: ${pageId}`;
-      }
-      setTabs((prev) =>
-        prev.map((tab) => {
-          if (tab.id !== tabId) return tab;
-          if (!component) {
-            return {
-              ...tab,
-              component: null,
-              isLoading: false,
-              errorMessage: loadError ?? `등록된 페이지를 찾을 수 없습니다: ${pageId}`,
-            };
-          }
-          return { ...tab, component, isLoading: false, errorMessage: null };
-        })
-      );
-    },
-    [resolvePage]
-  );
-
-  const openPageTab = useCallback(
-    (pageId: string) => {
-      rememberRecentMenuPage(pageId);
-      // 페이지 진입 hook — 페이지 접근 이력 적재 등 사이트 후처리용
-      if (onPageOpen) {
-        try {
-          onPageOpen(pageId);
-        } catch {
-          /* swallow — hook 실패가 탭 열림을 막지 않음 */
-        }
-      }
-      setTabs((prev) => {
-        const existing = prev.find((tab) => tab.pageId === pageId);
-        const displayText = resolveDisplayText(pageId, existing?.title ?? pageId);
-        if (existing) {
-          setActiveTabId(existing.id);
-          if (existing.title === displayText) return prev;
-          return prev.map((tab) => (tab.id === existing.id ? { ...tab, title: displayText } : tab));
-        }
-        const tabId = createTabId(pageId);
-        setActiveTabId(tabId);
-        const created: PortalShellTabState = {
-          id: tabId,
-          title: displayText,
-          pageId,
-          isHome: false,
-          snapshot: null,
-          component: null,
-          isLoading: true,
-          errorMessage: null,
-        };
-        // 새 탭은 지금 보고 있는 탭 바로 오른쪽에 둔다(화면 링크·메뉴 모두, 2026-10-02 사용자 요청). 표시 순서는 tabOrder 가
-        // 정하므로 여기서는 기준 탭만 적어 두고, tabOrder 동기화가 그 오른쪽에 끼운다.
-        newTabAnchorRef.current.set(tabId, activeTabIdRef.current);
-        return [...prev, created];
-      });
-      // 브라우저 히스토리 push 는 setTabs 업데이터(StrictMode 에서 2회 호출) 밖에서 1회만.
-      // 이미 활성 탭과 같은 pageId 면 내부에서 skip 된다.
-      pushTabHistory(pageId);
-    },
-    [rememberRecentMenuPage, resolveDisplayText, pushTabHistory]
-  );
-
-  const openMenuItem = useCallback(
-    (menuItem: PortalShellMenuItem) => {
-      const pageId = getPortalMenuItemPageId(menuItem);
-      if (pageId) openPageTab(pageId);
-    },
-    [openPageTab]
-  );
-
-  const closeTab = useCallback(
-    (tabId: string) => {
-      setTabs((prev) => {
-        const closing = prev.find((tab) => tab.id === tabId);
-        if (!closing || closing.isHome) return prev;
-        const next = prev.filter((tab) => tab.id !== tabId);
-        setActiveTabId((prevActive) => {
-          if (prevActive !== tabId) return prevActive;
-          return next.length > 0 ? next[next.length - 1].id : homeTabId;
-        });
-        return next;
-      });
-    },
-    [homeTabId]
-  );
-
-  const onTabSnapshotChange = useCallback((tabId: string, nextSnapshot: unknown) => {
-    setTabs((prev) =>
-      prev.map((tab) => {
-        if (tab.id !== tabId) return tab;
-        if (isSnapshotEqual(tab.snapshot, nextSnapshot)) return tab;
-        return { ...tab, snapshot: cloneSnapshot(nextSnapshot) };
-      })
-    );
-  }, []);
+  const {
+    tabs,
+    activeTabId,
+    setActiveTabId,
+    activeTab,
+    orderedTabs,
+    openPageTab,
+    closeTab,
+    onTabSnapshotChange,
+    reorderTabs,
+    refreshTab,
+    navigateToTab,
+    tabsRef,
+    activeTabIdRef,
+  } = usePortalTabs({
+    storageKey,
+    resolvedHomePageId,
+    homeTabId,
+    resolvePage,
+    onPageOpen,
+    resolveDisplayText,
+    menuLeaves,
+    menuSearchItemByPageId,
+    startPages,
+    isStartPagesLoaded,
+    rememberRecentMenuPage,
+    loggingOutRef,
+  });
 
   const doLogout = useCallback(() => {
     if (loggingOutRef.current) return; // 이미 로그아웃 중 — signOut 을 두 번 내지 않는다
@@ -628,57 +377,19 @@ export function PortalShell({
     }
   }, [onBeforeLogout, doLogout]);
 
-  const reorderTabs = useCallback((fromIndex: number, toIndex: number) => {
-    setTabOrder((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(fromIndex, 1);
-      if (!moved) return prev;
-      next.splice(toIndex, 0, moved);
-      return next;
-    });
-  }, []);
-
-  /** 탭 우클릭 '새로고침' — 그 탭의 화면을 다시 불러온다(활성 탭이 아니어도 된다). */
-  const refreshTab = useCallback((tabId: string) => {
-    setTabs((prev) =>
-      prev.map((tab) => {
-        if (tab.id !== tabId) return tab;
-        return { ...tab, component: null, isLoading: true, errorMessage: null };
-      })
-    );
-  }, []);
-
   const toggleHeaderVisible = useCallback(() => {
     setIsHeaderVisible((prev) => !prev);
   }, []);
 
-  // 탭 전체 화면 — 헤더를 접고 사이드바는 화면 위에 겹쳐 여닫는 슬라이딩 메뉴로 바꾼다. 탭바는 남겨
-  // 전체 화면 중에도 탭을 옮기고 메뉴로 다른 화면을 열 수 있다. isHeaderVisible 은 건드리지 않는다.
-  const tabFullscreen = useTabFullscreen();
-  const { isTabFullscreen, exit: exitTabFullscreen } = tabFullscreen;
-  // 슬라이딩 메뉴의 열림 상태는 평소 사이드바 펼침(isSideNavigationExpanded)과 따로 둔다.
-  const [isFullscreenSidebarOpen, setIsFullscreenSidebarOpen] = useState<boolean>(false);
-  useEffect(() => {
-    setIsFullscreenSidebarOpen(false);
-  }, [isTabFullscreen]);
-  useEffect(() => {
-    // 탭이 모두 닫혀 대시보드만 남으면 전체 화면을 끝낸다.
-    if (isTabFullscreen && !activeTab) exitTabFullscreen();
-  }, [isTabFullscreen, activeTab, exitTabFullscreen]);
-  // 손잡이에 1초 머물면 열고, 메뉴 밖으로 나간 지 2초 뒤 닫는다.
-  useFullscreenSidebarHover(isTabFullscreen, isFullscreenSidebarOpen, setIsFullscreenSidebarOpen);
-  useEffect(() => {
-    if (!isTabFullscreen || !isFullscreenSidebarOpen) return;
-    // 메뉴 바깥을 누르면 닫는다. 막(backdrop)을 깔지 않아 그 누름은 탭바·화면에도 그대로 간다.
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      // 사이드바가 띄운 모달·드롭다운(Mantine Portal)을 누른 것도 바깥으로 치지 않는다.
-      if (target instanceof Element && target.closest(".sidebar-container, [data-portal]")) return;
-      setIsFullscreenSidebarOpen(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [isTabFullscreen, isFullscreenSidebarOpen]);
+  // 탭 전체 화면 — 활성 탭이 필요하므로 탭 훅 뒤에서 부른다.
+  const {
+    isTabFullscreen,
+    enterTabFullscreen,
+    exitTabFullscreen,
+    isFullscreenSidebarOpen,
+    setIsFullscreenSidebarOpen,
+  } = usePortalFullscreen({ activeTab });
+  // 탭 열기(탭 훅)와 슬라이딩 메뉴 닫기(전체 화면 훅)를 잇는 다리라 셸에 둔다.
   const handleSidebarMenuItemClick = useCallback(
     (pageId: string) => {
       openPageTab(pageId);
@@ -687,56 +398,25 @@ export function PortalShell({
     [openPageTab, isTabFullscreen]
   );
 
-  // 폴더 선택 팝업용 — 기존 즐겨찾기 폴더 목록 (folder 행에서 추출. name=FVT_FOLD_ID / displayText=FVT_FOLD_NM).
-  const favoriteFolders = useMemo(
-    () =>
-      favoriteMenus
-        .filter((f) => f.type === "folder")
-        .map((f) => ({ fvtFoldId: f.name, fvtFoldNm: f.displayText || f.name })),
-    [favoriteMenus]
-  );
-  /** 폴더 선택 팝업의 대상 화면 — 탭 우클릭 '즐겨찾기 추가'로 연다(활성 탭이 아니라 우클릭한 탭). */
-  const [favoritePickerTarget, setFavoritePickerTarget] = useState<{
-    pageId: string;
-    title: string;
-  } | null>(null);
-
-  const handleToggleFavoritePage = useCallback(
-    (pageId: string) => {
-      if (!onToggleFavorite) return;
-      if (favoritePageIdSet.has(pageId)) {
-        onToggleFavorite(pageId); // 이미 등록 → 폴더 무관 제거
-        return;
-      }
-      const title = tabs.find((tab) => tab.pageId === pageId)?.title;
-      setFavoritePickerTarget({ pageId, title: title ?? resolveDisplayText(pageId, pageId) }); // 미등록 → 폴더 선택 팝업
-    },
-    [onToggleFavorite, favoritePageIdSet, tabs, resolveDisplayText]
-  );
-
-  const handleFolderPickerConfirm = useCallback(
-    (choice: FavoriteFolderChoice) => {
-      const target = favoritePickerTarget;
-      setFavoritePickerTarget(null);
-      if (!target || !onToggleFavorite) return;
-      onToggleFavorite(target.pageId, choice);
-    },
-    [favoritePickerTarget, onToggleFavorite]
-  );
-
-  // 사이드바 즐겨찾기 그룹 추가/삭제 + leaf 해제(=토글 off).
-  const handleAddFavoriteFolder = useCallback(
-    (folderName: string) => onAddFavoriteFolder?.(folderName),
-    [onAddFavoriteFolder]
-  );
-  const handleDeleteFavoriteFolder = useCallback(
-    (folderId: string) => onDeleteFavoriteFolder?.(folderId),
-    [onDeleteFavoriteFolder]
-  );
-  const handleDeleteFavorite = useCallback(
-    (pageId: string) => onToggleFavorite?.(pageId),
-    [onToggleFavorite]
-  );
+  const {
+    favoriteTree,
+    favoritePageIdSet,
+    favoriteFolders,
+    favoritePickerTarget,
+    setFavoritePickerTarget,
+    handleToggleFavoritePage,
+    handleFolderPickerConfirm,
+    handleAddFavoriteFolder,
+    handleDeleteFavoriteFolder,
+    handleDeleteFavorite,
+  } = usePortalShellFavorites({
+    favoriteMenus,
+    onToggleFavorite,
+    onAddFavoriteFolder,
+    onDeleteFavoriteFolder,
+    resolveDisplayText,
+    tabs,
+  });
 
   // 기본 화면 — 사이드바 목록(등록 순)·탭 우클릭 라벨 판정용 집합.
   const startPageLeaves = useMemo<StartPageLeaf[] | undefined>(() => {
@@ -821,206 +501,6 @@ export function PortalShell({
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // 커스텀 이벤트로 다른 페이지에서 탭 열기 지원
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ pageId: string }>).detail;
-      if (detail?.pageId) {
-        openPageTab(detail.pageId);
-      }
-    };
-    window.addEventListener("portal-open-tab", handler);
-    return () => window.removeEventListener("portal-open-tab", handler);
-  }, [openPageTab]);
-
-  useEffect(() => {
-    writeSecureJson(recentMenuStorageKey, recentMenuPageIds);
-  }, [recentMenuPageIds, recentMenuStorageKey]);
-
-  // Storage hydration
-  useEffect(() => {
-    const stored = readSecureJson<StoredPortalShellState>(storageKey);
-    const storedTabs = stored
-      ? mapStoredTabsToRuntime(stored.tabs).filter((tab) => tab.pageId.length > 0)
-      : [];
-
-    restoredTabCountRef.current = storedTabs.length;
-
-    if (!resolvedHomePageId || !homeTabId) {
-      setTabs(storedTabs);
-      setActiveTabId(stored?.activeTabId ?? null);
-      setIsStorageHydrated(true);
-      return;
-    }
-
-    const homeTab = createHomeTab(
-      resolvedHomePageId,
-      resolveDisplayText(resolvedHomePageId, DEFAULT_HOME_TAB_TITLE)
-    );
-    const nextTabs = [homeTab, ...storedTabs.filter((tab) => tab.pageId !== resolvedHomePageId)];
-    const nextActiveTabId =
-      stored?.activeTabId && nextTabs.some((tab) => tab.id === stored.activeTabId)
-        ? stored.activeTabId
-        : homeTabId;
-
-    setTabs(nextTabs);
-    setActiveTabId(nextActiveTabId);
-    setIsStorageHydrated(true);
-  }, [homeTabId, resolveDisplayText, resolvedHomePageId, storageKey]);
-
-  // 기본 화면 자동 열기 — 저장소 복원·메뉴·기본 화면 목록이 모두 준비된 뒤 마운트당 한 번, 브라우저 탭 세션당 한 번.
-  // openPageTab 을 반복 호출하지 않는다: 기준 탭 기록(같은 자리에 끼워 순서 뒤집힘)·히스토리 push·최근 메뉴·onPageOpen 이
-  // 탭마다 돌고 마지막 탭이 활성화되기 때문이다. 한 번의 setTabs 로 등록 순서대로 맨 끝에 덧붙인다(기준 탭 기록 없음 → 맨 끝).
-  // 위 복원 effect 보다 뒤에 선언해야 같은 커밋에서 복원(교체)이 먼저 적용되고 그 뒤에 덧붙는다.
-  useEffect(() => {
-    if (startPagesAppliedRef.current) return;
-    if (!startPages || !isStartPagesLoaded || !isStorageHydrated) return;
-    if (menuSearchItemByPageId.size === 0) return; // 메뉴(권한) 로드 전
-    startPagesAppliedRef.current = true;
-    if (hasOpenedStartPages(storageKey)) return; // 이번 세션에서 이미 열었다(새로고침·재마운트)
-    markStartPagesOpened(storageKey);
-
-    const allowedPageIds = new Set(menuSearchItemByPageId.keys());
-    const startPageIds = startPages.map((page) => page.pageId);
-    // 복원된 탭 대조는 업데이터의 prev 로 한다(이 렌더의 tabs 는 같은 커밋의 복원 전 값일 수 있다).
-    const candidates = planStartPageOpen({
-      tabs: [],
-      startPageIds,
-      allowedPageIds,
-      homePageId: resolvedHomePageId,
-    });
-    if (candidates.length === 0) return;
-    // 탭 ID 는 업데이터 밖에서 만든다(StrictMode 가 업데이터를 두 번 불러도 같은 ID).
-    const created = candidates.map<PortalShellTabState>((pageId) => ({
-      id: createTabId(pageId),
-      title: resolveDisplayText(pageId, pageId),
-      pageId,
-      isHome: false,
-      snapshot: null,
-      component: null,
-      isLoading: true,
-      errorMessage: null,
-    }));
-    setTabs((prev) => {
-      const toOpen = new Set(
-        planStartPageOpen({
-          tabs: prev,
-          startPageIds: candidates,
-          allowedPageIds,
-          homePageId: resolvedHomePageId,
-        })
-      );
-      const appended = created.filter((tab) => toOpen.has(tab.pageId));
-      return appended.length > 0 ? [...prev, ...appended] : prev;
-    });
-    // 복원된 탭이 있으면 보던 탭을 그대로 두고, 없으면(홈뿐) 첫 기본 화면을 보여 준다.
-    // 목록을 기다리는 사이 사용자가 메뉴로 연 탭이 있으면 그 탭을 그대로 둔다(홈을 보고 있을 때만 바꾼다).
-    if (restoredTabCountRef.current === 0) {
-      const firstId = created[0].id;
-      setActiveTabId((prev) => {
-        if (prev != null && prev !== homeTabId) return prev;
-        return firstId;
-      });
-    }
-  }, [
-    homeTabId,
-    startPages,
-    isStartPagesLoaded,
-    isStorageHydrated,
-    menuSearchItemByPageId,
-    storageKey,
-    resolvedHomePageId,
-    resolveDisplayText,
-  ]);
-
-  // Load tab pages
-  useEffect(() => {
-    tabs.forEach((tab) => {
-      if (!tab.isLoading || tab.component || loadingTabIdsRef.current.has(tab.id)) return;
-      loadingTabIdsRef.current.add(tab.id);
-      void loadTabPage(tab.id, tab.pageId).finally(() => {
-        loadingTabIdsRef.current.delete(tab.id);
-      });
-    });
-  }, [tabs, loadTabPage]);
-
-  // Sync display text
-  useEffect(() => {
-    setTabs((prev) => {
-      let changed = false;
-      const next = prev.map((tab) => {
-        const text = resolveDisplayText(
-          tab.pageId,
-          tab.isHome ? DEFAULT_HOME_TAB_TITLE : tab.title
-        );
-        if (text === tab.title) return tab;
-        changed = true;
-        return { ...tab, title: text };
-      });
-      return changed ? next : prev;
-    });
-  }, [resolveDisplayText]);
-
-  // Fallback to home when no tabs
-  useEffect(() => {
-    if (!isStorageHydrated || tabs.length > 0) return;
-    if (resolvedHomePageId) {
-      openPageTab(resolvedHomePageId);
-      return;
-    }
-    if (menuLeaves.length === 0) return;
-    openMenuItem(menuLeaves[0]);
-  }, [isStorageHydrated, menuLeaves, openMenuItem, openPageTab, resolvedHomePageId, tabs.length]);
-
-  // Sync tabOrder with tabs (add new tabs, remove closed tabs)
-  useEffect(() => {
-    const nonHomeIds = tabs.filter((t) => !t.isHome).map((t) => t.id);
-    // 갱신 함수는 나중에(두 번) 불릴 수 있으므로 지금 값을 떠서 쓰고, 기준 기록은 바로 지운다.
-    const anchors = new Map(newTabAnchorRef.current);
-    setTabOrder((prev) => {
-      const next = prev.filter((id) => nonHomeIds.includes(id));
-      for (const id of nonHomeIds) {
-        if (prev.includes(id)) continue;
-        // 기준 탭(만들 때 보던 탭) 바로 오른쪽. 기준이 홈이면 맨 앞, 기준이 없거나(복원 등) 닫혔으면 맨 끝.
-        const anchor = anchors.get(id);
-        const at = anchor == null ? -1 : next.indexOf(anchor);
-        if (at >= 0) next.splice(at + 1, 0, id);
-        else if (anchor != null && anchor === homeTabId) next.unshift(id);
-        else next.push(id);
-      }
-      return next;
-    });
-    for (const id of anchors.keys())
-      if (nonHomeIds.includes(id)) newTabAnchorRef.current.delete(id);
-  }, [tabs, homeTabId]);
-
-  // Ordered tabs for TabsBar display
-  const orderedTabs = useMemo(() => {
-    const homeTabs = tabs.filter((t) => t.isHome);
-    const nonHome = tabs.filter((t) => !t.isHome);
-    const ordered = tabOrder
-      .map((id) => nonHome.find((t) => t.id === id))
-      .filter(Boolean) as PortalShellTabState[];
-    // Add any tabs not in tabOrder (shouldn't happen, but safety)
-    const missing = nonHome.filter((t) => !tabOrder.includes(t.id));
-    return [...homeTabs, ...ordered, ...missing];
-  }, [tabs, tabOrder]);
-
-  // Ensure activeTabId is valid
-  useEffect(() => {
-    if (tabs.length === 0) return;
-    if (activeTabId && tabs.some((tab) => tab.id === activeTabId)) return;
-    setActiveTabId(tabs[tabs.length - 1].id);
-  }, [tabs, activeTabId]);
-
-  // Dispatch tab activation event
-  useEffect(() => {
-    if (!activeTabId) return;
-    window.dispatchEvent(
-      new CustomEvent("portal-tab-activated", { detail: { tabId: activeTabId } })
-    );
-  }, [activeTabId]);
-
   // 화면 사용 추적기 — onUsageSegments 가 있을 때만 만든다. document·window 를 넘겨 가림·pagehide·입력 리스너를 단다.
   useEffect(() => {
     if (!isUsageTrackingEnabled) return;
@@ -1097,23 +577,6 @@ export function PortalShell({
     }
   }, [tabs]);
 
-  // Persist to storage
-  useEffect(() => {
-    if (!isStorageHydrated || loggingOutRef.current) return; // 로그아웃 중엔 비운 저장소를 그대로 둔다
-    const stored: StoredPortalShellState = {
-      tabs: tabs
-        .filter((tab) => !tab.isHome)
-        .map((tab) => ({
-          id: tab.id,
-          title: tab.title,
-          pageId: tab.pageId,
-          snapshot: tab.snapshot,
-        })),
-      activeTabId,
-    };
-    writeSecureJson(storageKey, stored);
-  }, [tabs, activeTabId, isStorageHydrated, storageKey]);
-
   return (
     <AppShell
       className={isTabFullscreen ? "portal-shell portal-shell--tab-fullscreen" : "portal-shell"}
@@ -1172,7 +635,7 @@ export function PortalShell({
                 favoritePageIds={favoritePageIdSet}
                 onToggleFavoritePage={onToggleFavorite ? handleToggleFavoritePage : undefined}
                 onCaptureTab={captureTab}
-                onEnterFullscreen={activeTab ? tabFullscreen.enter : undefined}
+                onEnterFullscreen={activeTab ? enterTabFullscreen : undefined}
                 isFullscreen={isTabFullscreen}
                 onExitFullscreen={exitTabFullscreen}
                 startPageIds={startPageIdSet}

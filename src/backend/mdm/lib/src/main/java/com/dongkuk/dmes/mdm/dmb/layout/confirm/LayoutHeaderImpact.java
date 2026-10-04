@@ -94,24 +94,25 @@ public class LayoutHeaderImpact {
         for (MdmLayoutHeader h : queries.stacksUsing(headerId)) {
             keys.add(new LayoutKey(h.getLayoutId(), h.getVer()));
         }
-        Map<Long, List<MdmLayoutVer>> versions = store.versionsOf(keys.stream().map(LayoutKey::layoutId).distinct().toList());
+        // 전문·적층·헤더 버전·항목·재정의·사전을 한 번씩 읽어 두고 전문 버전마다 메모리에서 합성한다(전문 버전 수와 무관한 쿼리 수)
+        LayoutComposer.Batch batch = composer.batch(keys);
         List<Map<String, Object>> rows = new ArrayList<>();
         List<MdmCheckIssue> errors = new ArrayList<>();
         List<MdmCheckIssue> warnings = new ArrayList<>();
         for (LayoutKey k : keys) {
-            MdmLayoutVer v = versions.getOrDefault(k.layoutId(), List.of()).stream()
+            MdmLayoutVer v = batch.versions(k.layoutId()).stream()
                     .filter(x -> VersionNumbers.same(x.getVer(), k.ver())).findFirst().orElse(null);
             if (v == null || v.isLegacySnapshot() || !v.isDraft() && !v.isReleased()
                     || v.isReleased() && !v.getApplyTo().isAfter(applyFrom)) {
                 continue;
             }
             LocalDateTime at = v.isReleased() && v.getApplyFrom().isAfter(applyFrom) ? v.getApplyFrom() : applyFrom;
-            MdmLayout msg = layoutRepository.findById(k.layoutId()).orElseThrow(() -> LayoutRejections.notFound(k.layoutId(), "MESSAGE"));
+            MdmLayout msg = batch.layout(k.layoutId()).orElseThrow(() -> LayoutRejections.notFound(k.layoutId(), "MESSAGE"));
             String itemKey = k.layoutId() + "@" + VersionNumbers.plain(k.ver());
             String label = "전문 " + msg.getLayoutName() + " " + VersionNumbers.label(k.ver());
             MdmLayoutSnapshot beforeSnapshot = null;
             try {
-                beforeSnapshot = composer.compose(k.layoutId(), k.ver(), at);
+                beforeSnapshot = batch.compose(k.layoutId(), k.ver(), at);
             } catch (BusinessException e) {
                 // 지금 헤더로는 합성할 수 없다(예: 이 헤더의 첫 확정) — 전 길이를 비우고, 뒤 문제는 모두 새로 생긴 것으로 본다
             }
@@ -126,7 +127,7 @@ public class LayoutHeaderImpact {
             List<String> issues = new ArrayList<>();
             Integer after = null;
             try {
-                LayoutComposer.Composition c = composer.composeDetailed(k.layoutId(), k.ver(), at, Map.of(headerId, draftVer));
+                LayoutComposer.Composition c = batch.composeDetailed(k.layoutId(), k.ver(), at, Map.of(headerId, draftVer));
                 after = c.snapshot().totalLength();
                 for (LayoutIssue i : LayoutLengthRules.msgLengthIssues(c.snapshot())) {
                     boolean known = knownL16.contains(l16Cell(i));

@@ -1,0 +1,19 @@
+// .d.ts 전용 설정. scripts/lib-dev.mjs 가 tsup(JS) 뒤에 `tsc -p tsconfig.build.json` 으로 돌린다(shared 와 같은 방식).
+// 진입점이 src/ 와 pages/ 둘에 있으므로 rootDir 은 패키지 폴더 — 출력은 dist/types/src/… · dist/types/pages/….
+// package.json exports 의 types 가 여기를 가리킨다(tests/package-exports.test.ts 가 tsup 진입점과 맞는지 검사한다).
+// "@/*" 별칭은 tsc 가 .d.ts 에서 바꿔 주지 않아 소비 패키지가 풀지 못한다 — 공개 진입점에서 닿는 선언 파일에는 별칭이
+// 새지 않게 한다(2026-10-04 확인: 닿는 34개 파일에 0건, 내부 파일에만 남는다).
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "rootDir": ".",
+    "outDir": "dist/types",
+    // 빌드 정보는 배포 대상 dist 에도, lint(tsc --noEmit)의 .tsbuildinfo 에도 섞지 않는다(lib-dev 와 같은 위치).
+    "tsBuildInfoFile": "node_modules/.cache/lib-dev-dts.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "pages/**/*.ts", "pages/**/*.tsx"]
+}

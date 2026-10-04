@@ -6,9 +6,11 @@
 import { isNullOrEmpty } from "./libUtil";
 
 export const ROW_TYPE = { NORMAL: 1, INSERT: 2, UPDATE: 4, DELETE: 8 } as const;
+/** @deprecated 저장소 안 사용처 없음. */
 export type RowType = (typeof ROW_TYPE)[keyof typeof ROW_TYPE];
 
 export const ROW_STATUS = { INSERTED: "inserted", UPDATED: "updated", DELETED: "deleted" } as const;
+/** @deprecated 저장소 안 사용처 없음. */
 export type RowStatus = (typeof ROW_STATUS)[keyof typeof ROW_STATUS];
 
 type DataRow = Record<string, unknown>;
@@ -349,27 +351,51 @@ export function moveRow(dataArray: DataRow[], fromIndex: number, toIndex: number
 }
 
 // gfn_ 호환 별칭
+/** @deprecated 같은 모듈의 `findFirstRow` 을 쓴다. */
 export const gfn_findFirstRow = findFirstRow;
+/** @deprecated 같은 모듈의 `findRows` 을 쓴다. */
 export const gfn_findRows = findRows;
+/** @deprecated 같은 모듈의 `findRowsByMultiCol` 을 쓴다. */
 export const gfn_findRowsByMultiCol = findRowsByMultiCol;
+/** @deprecated 같은 모듈의 `deleteRows` 을 쓴다. */
 export const gfn_deleteRows = deleteRows;
+/** @deprecated 같은 모듈의 `deleteMultiRows` 을 쓴다. */
 export const gfn_deleteMultiRows = deleteMultiRows;
+/** @deprecated 같은 모듈의 `isDuplicationCheck` 을 쓴다. */
 export const gfn_isDuplicationCheck = isDuplicationCheck;
+/** @deprecated 같은 모듈의 `removeDuplicates` 을 쓴다. */
 export const gfn_dsDupDel = removeDuplicates;
+/** @deprecated 같은 모듈의 `isDatasetChanged` 을 쓴다. */
 export const gfn_isDatasetChanged = isDatasetChanged;
+/** @deprecated 같은 모듈의 `getChangedRows` 을 쓴다. */
 export const gfn_getChangedRows = getChangedRows;
+/** @deprecated 같은 모듈의 `findData` 을 쓴다. */
 export const gfn_findData = findData;
+/** @deprecated 같은 모듈의 `editData` 을 쓴다. */
 export const gfn_editData = editData;
+/** @deprecated 같은 모듈의 `deleteData` 을 쓴다. */
 export const gfn_deleteData = deleteData;
+/** @deprecated 같은 모듈의 `setFirstRow` 을 쓴다. */
 export const gfn_setFirstRow = setFirstRow;
+/** @deprecated 같은 모듈의 `rowcopyData` 을 쓴다. */
 export const gfn_rowcopyData = rowcopyData;
+/** @deprecated 같은 모듈의 `addRow` 을 쓴다. */
 export const gfn_addRow = addRow;
+/** @deprecated 같은 모듈의 `getColumnValues` 을 쓴다. */
 export const gfn_getColumnValues = getColumnValues;
+/** @deprecated 같은 모듈의 `sumColumn` 을 쓴다. */
 export const gfn_sumColumn = sumColumn;
+/** @deprecated 같은 모듈의 `avgColumn` 을 쓴다. */
 export const gfn_avgColumn = avgColumn;
+/** @deprecated 같은 모듈의 `maxColumn` 을 쓴다. */
 export const gfn_maxColumn = maxColumn;
+/** @deprecated 같은 모듈의 `minColumn` 을 쓴다. */
 export const gfn_minColumn = minColumn;
+/** @deprecated 같은 모듈의 `countColumn` 을 쓴다. */
 export const gfn_countColumn = countColumn;
+/** @deprecated 같은 모듈의 `groupBy` 을 쓴다. */
 export const gfn_groupBy = groupBy;
+/** @deprecated 같은 모듈의 `sortBy` 을 쓴다. */
 export const gfn_sortBy = sortBy;
+/** @deprecated 같은 모듈의 `moveRow` 을 쓴다. */
 export const gfn_moveRow = moveRow;

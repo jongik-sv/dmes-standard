@@ -28,8 +28,9 @@
 - **새 Task 부터 적용한다.** 이미 기준선을 잰 Task 는 게이트 명령을 도중에 바꾸지 않는다. 기준선 캐시 키(기점 sha + 명령 문자열)와 총수 규칙이 어긋난다.
 - 근거: `build:libs` 는 m-mdm 이 쓰지 않는 라이브러리(m-mpn·m-mpp·m-mqc·m-mls·m-analog)와 m-mdm 자신까지 빌드한다(docs/dflow-team/perf-audit-report.md P4). 2026-09-26 실측: `m-mdm^...` 빌드 37.8초·CPU 61초, `build:libs` 44.1초·CPU 87초(동시 부하 18~28, 잡음 있음).
 - 게이트가 **lint 를 돌리지 않으면** 의존 패키지 빌드에서 `.d.ts` 생성을 끌 수 있다: `TSUP_DTS=0 pnpm --filter "<패키지>^..." build`. vitest·next dev 는 `.d.ts` 를 쓰지 않는다.
-  lint(`tsc --noEmit`)는 의존 패키지의 `.d.ts`(shared 는 `dist/types/**/*.d.ts`, m-* 는 `dist/*.d.ts`)로 타입을 읽으므로, **lint 가 들어간 게이트에서는 `TSUP_DTS=0` 을 쓰지 않는다.** 기본값(환경 변수 없음)은 지금처럼 `.d.ts` 를 만든다.
+  lint(`tsc --noEmit`)는 의존 패키지의 `.d.ts`(shared·m-mdm 은 `dist/types/**/*.d.ts`, 그 밖의 m-* 는 `dist/*.d.ts`)로 타입을 읽으므로, **lint 가 들어간 게이트에서는 `TSUP_DTS=0` 을 쓰지 않는다.** 기본값(환경 변수 없음)은 지금처럼 `.d.ts` 를 만든다.
 - shared 의 `.d.ts` 는 tsup 이 아니라 tsc 가 만든다(2026-10-02): tsup 은 JS 만 묶고(`dts: false`), `scripts/lib-dev.mjs` 가 뒤이어 `tsc -p tsconfig.build.json` 으로 `dist/types/` 에 파일별 선언을 만든다. package.json exports 의 `types` 가 그쪽을 가리키며, 진입점을 추가하면 exports 의 `types` 를 `./dist/types/<src 기준 경로>.d.ts` 로 적는다(`tests/unit/package-exports.unit.test.ts` 가 tsup 진입점과 대조한다). 실측: tsup 의 dts(rollup-plugin-dts)는 RSS 3.1GB·13.5초에 4GB 힙에서 OOM, tsc 는 RSS 약 0.6GB·1.9초(dev incremental 0.9초).
+- m-mdm 도 같은 방식이다(2026-10-04). 진입점이 `src/` 와 `pages/` 둘에 있어 `tsconfig.build.json` 의 rootDir 은 패키지 폴더이고, types 는 `./dist/types/src/…`·`./dist/types/pages/…` 로 갈린다. 화면 exports 는 와일드카드(`./pages/*`) 대신 화면마다 한 줄씩 적는다 — lib-dev 의 빌드 뒤 types 파일 검사가 와일드카드를 풀지 못한다. **새 `page.tsx` 는 tsup entry 와 package.json exports 에 함께 추가한다**(`m-mdm/tests/package-exports.test.ts` 가 대조한다). `"@/*"` 별칭은 tsc 가 `.d.ts` 에서 바꾸지 않으므로 공개 진입점에서 닿는 선언(화면 props 등)에 별칭 import 타입이 새지 않게 한다.
 - vitest 워커는 m-mdm·shared 모두 기본 4개다. 동시에 도는 게이트가 많으면 `VITEST_MAX_WORKERS=<수>` 로 더 줄인다(테스트 총수는 변하지 않는다).
 - 포털 전체 기동·빌드(`fe-run.sh`, m-mcm)는 모든 모듈의 dist 가 필요하므로 지금처럼 `build:libs` 를 쓴다.
 - m-mdm 의 `test` 스크립트(`scripts/test.mjs`)는 일반 스위트(병렬)와 부하 민감 성능 스위트(`vitest.perf.config.ts`, 한 fork)를 차례로 모두 돌린다. vitest 요약이 두 번 찍히므로, **게이트 총수는 마지막 `[m-mdm test 합계]` 줄의 값을 쓴다.**
