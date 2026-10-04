@@ -50,7 +50,7 @@
   - `OasisAutoConfiguration` 의 transactional 모드 `serviceStarter` 가 `CactusConcurrentCacheService` 를 넣는다. `DefaultTxInjectingServiceProvider` 는 캐시 안쪽에 두는 순서를 그대로 유지했고 javadoc 만 고쳤다.
 - 바꾼 이유: OASIS 서비스 호출마다 거치는 캐시 적중 경로의 직렬화를 없앤다. 효과는 `perf-framework.md` P1 에서 잰다.
 - 동작 보존 근거: 4a066bc4 가 변경 전 동작을 고정했다(`CactusCachingServiceProviderCharacterizationTest`, `DefaultTxInjectingServiceProviderCharacterizationTest`, 옛 구현의 결함을 기록한 `SizeBaseCacheServiceQuirksTest`). 새 구현은 `CactusConcurrentCacheServiceTest`, `CactusCachingServiceProviderConcurrencyTest` 로 시험한다. 통과 수는 머지 요청 때 적는다.
-- 동작이 달라지는 점(CHANGELOG 「동작 변경」 참조): (1) `cactus.oasis.cache.size` 가 1 보다 작으면 `transactional=true` 일 때 기동이 `IllegalArgumentException` 으로 실패한다(전에는 0 도 기동). (2) 상한을 실제로 지켜 넘치면 FIFO 로 내보낸다. 운영 BPMN 수(mcm 35·mdm 52)가 기본 100 보다 작아 보통 일어나지 않는다. (3) 같은 키 동시 미스는 한 번만 로드한다.
+- 동작이 달라지는 점(CHANGELOG 「동작 변경」 참조): (1) `cactus.oasis.cache.size` 가 1 보다 작으면 `transactional=true` 일 때 기동이 `IllegalArgumentException` 으로 실패한다(전에는 0 도 기동). (2) 상한을 실제로 지켜 넘치면 FIFO 로 내보낸다. 운영 BPMN 수(dev 기준 mcm 35·mdm 26, 시험용 제외. 처음에 mdm 52 로 적은 것은 잘못 센 값이다)가 기본 100 보다 작아 보통 일어나지 않는다. (3) 같은 키 동시 미스는 한 번만 로드한다.
 - 영향 범위: `cactus-core` 의 `oasis/provider`·`OasisAutoConfiguration`·`OasisProperties`(javadoc). `cactus.oasis.cache.size` 를 0 이하로 둔 호스트가 있으면 기동이 실패한다. 호스트 설정 확인이 필요하다.
 - 되돌리는 방법: 8a488e0d 를 revert 한다. 특성 시험(4a066bc4)은 그대로 통과해야 한다. `CacheHitThroughputManualTest` 가 옛 구현을 직접 참조하므로 같이 되돌려도 된다.
 
@@ -130,7 +130,7 @@
 - 바꾼 이유: 화면이 필드별 오류를 받게 한다.
 - 동작 보존 근거: `errors` 가 없는 응답은 그대로다. `CactusResponseConverterJsonTest` 가 JSON 모양을 고정하고, `CactusResponseConverterBusinessErrorsTest` 와 BPMN `charBusinessErrors.bpmn`(`OasisServiceStarterCharacterizationTest` 갱신)이 새 동작을 고정한다. 통과 수는 머지 요청 때 적는다.
 - 영향 범위: `cactus-core` 의 `CactusResponseConverter` 하나. 응답에 `errors[]` 가 새로 실리는 경우가 생기므로 이를 읽는 프런트가 영향을 받는다.
-  - `src/frontend/m-mdm/src/dme/oasis-call.ts` 의 `unwrap` 은 이미 `env.errors` 를 읽어 `base` 와 같지 않은 줄을 메시지에 덧붙인다. 서버가 `errors[]` 를 채우면 `meta.message` 와 다른 줄이 추가로 보이고, 같은 문장은 `m !== base` 로 걸러진다. 중복 줄은 서버 메시지가 `meta.message` 와 다르게 같은 내용을 담을 때 생길 수 있다.
+  - (2026-10-04 갱신) 이 줄을 쓸 때 근거로 삼은 `src/frontend/m-mdm/src/dme/oasis-call.ts` 의 `unwrap` 은 프론트 레인 S5 로 없어졌다. 지금은 m-mdm 이 `@dk-oasis/shared/http` 의 `callOasisAt` 에 위임하고, `src/frontend/shared/src/http/oasis-call.ts` 가 `env.errors` 를 읽어 거부 문구에 `기본 문구\n- 항목명: 메시지` 줄로 붙인다(message 가 없거나 빈 항목은 붙이지 않고, 기본 문구에 이미 든 메시지는 뺀다. errors[] 원본은 오류 객체에 그대로 싣는다). 그래서 서버가 `errors[]` 를 채우면 shared 를 쓰는 모든 화면의 오류 문구에 줄이 늘 수 있다. 프론트 통합 확인 D-05(m-mls 공지사항)에서 이 표시를 확인했다.
   - 낡은 문서: `docs/mdm/tasks/TSK-04-04/design.md` F12 는 "`errors[]` 를 비운다" 고 적혀 있어 이 변경으로 틀려졌다. 이 커밋은 문서를 고치지 않았다. 문서 갱신은 따로 한다.
 - 성능 항목이 아니다.
 - 되돌리는 방법: d3366172 를 revert 한다. c6121f64 의 시험 28줄(`CactusResponseConverterBusinessErrorsTest`)이 이 동작을 전제하므로 같이 되돌린다.
