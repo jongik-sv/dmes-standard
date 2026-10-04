@@ -3,7 +3,7 @@ import { defineConfig } from "tsup";
 export default defineConfig((options) => ({
   entry: {
     index: "src/index.ts",
-    http: "src/http/index.ts",
+    http: "src/http/entry.ts",
     "secure-storage": "src/secure-storage/index.ts",
     snapshot: "src/snapshot/index.ts",
     "portal-shell-core": "src/portal-shell/core.ts",

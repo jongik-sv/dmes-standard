@@ -259,7 +259,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
       )}
 
       {defError && (
-        <p role="alert" style={{ color: "var(--color-danger)" }}>
+        <p role="alert" style={{ color: "var(--color-danger)", whiteSpace: "pre-line" }}>
           버전 {fmtVer(choice?.ver)} 정의를 불러오지 못했습니다: {defError}
         </p>
       )}
