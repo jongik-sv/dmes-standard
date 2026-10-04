@@ -9,7 +9,7 @@ import { Button, Input } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { ColumnPhysName } from "@/column-info";
 import { fmtVer } from "@/shell";
-import { empty, hint, row, sectionTitle } from "@/layout/styles";
+import { hint, row, sectionTitle } from "@/layout/styles";
 import type { ImpactRow } from "../types";
 
 const COLUMNS: GridColumn[] = [
@@ -48,22 +48,19 @@ export function ImpactPanel({ rows, loading, onSearch }: ImpactPanelProps) {
         <Button data-testid="impact-search" size="sm" disabled={loading} onClick={() => onSearch(keyword)}>조회</Button>
         <span style={hint}>도메인을 좁히거나 컬럼을 바꾸기 전에 그 컬럼을 쓰는 전문과 상대 시스템을 봅니다.</span>
       </div>
-      {rows != null && rows.length === 0 && !loading && (
-        <p data-testid="impact-list-empty" style={empty}>찾은 컬럼·도메인이 없습니다</p>
-      )}
-      {rows != null && rows.length > 0 && (
-        <div data-testid="impact-list">
-          <AgDataGrid
-            columnSizing="fit"
-            columns={COLUMNS}
-            data={data}
-            rowKey="ROW_KEY"
-            height={180}
-            loading={loading}
-            emptyMessage="찾은 컬럼·도메인이 없습니다"
-          />
-        </div>
-      )}
+      {/* 아직 조회 전(rows == null)이면 그리드는 마운트한 채 숨긴다 — 0건이면 빈 문구, 조회 전엔 아무것도 안 보인다. */}
+      <div data-testid="impact-list" style={rows == null ? { display: "none" } : undefined}>
+        <AgDataGrid
+          columnSizing="fit"
+          columns={COLUMNS}
+          data={data}
+          rowKey="ROW_KEY"
+          height={180}
+          loading={loading}
+          emptyMessage="찾은 컬럼·도메인이 없습니다"
+          emptyTestId="impact-list-empty"
+        />
+      </div>
     </div>
   );
 }

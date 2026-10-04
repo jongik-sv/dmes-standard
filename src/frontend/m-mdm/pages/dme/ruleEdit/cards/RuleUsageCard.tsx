@@ -44,22 +44,18 @@ export function RuleUsageCard({ view }: RuleEditCardProps) {
       <p style={{ margin: "0 0 var(--spacing-xs)" }}>
         <strong>활용처 메모</strong> {usage.usageNote ? usage.usageNote : <MutedText>없음</MutedText>}
       </p>
-      {usage.sets.length === 0 ? (
-        <MutedText>이 룰을 담은 룰 세트가 없습니다.</MutedText>
-      ) : (
-        <div data-testid="rule-usage-sets">
-          <AgDataGrid
-            columns={usageColumns}
-            data={usage.sets as unknown as Record<string, unknown>[]}
-            rowKey="setId"
-            height="auto"
-            columnSizing="fit"
-            sortable={false}
-            emptyMessage="이 룰을 담은 룰 세트가 없습니다."
-            ariaLabel="룰 세트 활용처"
-          />
-        </div>
-      )}
+      <div data-testid="rule-usage-sets">
+        <AgDataGrid
+          columns={usageColumns}
+          data={usage.sets as unknown as Record<string, unknown>[]}
+          rowKey="setId"
+          height="auto"
+          columnSizing="fit"
+          sortable={false}
+          emptyMessage="이 룰을 담은 룰 세트가 없습니다."
+          ariaLabel="룰 세트 활용처"
+        />
+      </div>
     </CardFrame>
   );
 }

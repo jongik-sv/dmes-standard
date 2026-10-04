@@ -304,25 +304,21 @@ export function BoundaryCaseModal({ session, busy, canExecute, commit, onClose }
                 오류가 줄어듭니다.
               </p>
             )}
-            {candidates.length === 0 ? (
-              <p data-testid="bc-empty" style={{ flex: "none", margin: 0, color: "var(--color-text-muted)" }}>
-                만들 후보가 없습니다
-              </p>
-            ) : (
-              <div data-testid="bc-grid" style={gridBox}>
-                <div style={gridFill}>
-                  {/* height 를 주지 않으면 AgDataGrid 는 부모 높이 100% 를 쓴다 — 절대 위치 칸을 채운다. */}
-                  <AgDataGrid
-                    columns={columns}
-                    data={rows as unknown as Record<string, unknown>[]}
-                    rowKey="key"
-                    columnSizing="fit"
-                    sortable={false}
-                    ariaLabel="경계값 후보 목록"
-                  />
-                </div>
+            <div data-testid="bc-grid" style={gridBox}>
+              <div style={gridFill}>
+                {/* height 를 주지 않으면 AgDataGrid 는 부모 높이 100% 를 쓴다 — 절대 위치 칸을 채운다. */}
+                <AgDataGrid
+                  columns={columns}
+                  data={rows as unknown as Record<string, unknown>[]}
+                  rowKey="key"
+                  columnSizing="fit"
+                  sortable={false}
+                  emptyMessage="만들 후보가 없습니다"
+                  emptyTestId="bc-empty"
+                  ariaLabel="경계값 후보 목록"
+                />
               </div>
-            )}
+            </div>
             <div data-testid="bc-count" style={{ ...note, display: "flex", alignItems: "center", gap: "var(--spacing-md)" }}>
               <span>
                 후보 {candidates.length}건 · 고른 후보 {chosen.length}건

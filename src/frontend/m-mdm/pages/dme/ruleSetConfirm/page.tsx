@@ -386,21 +386,19 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
         <Input data-testid="rsc-keyword" value={keyword} placeholder="세트 ID·이름" onChange={onKeyword} />
         <Button data-testid="rsc-search" onClick={onSearch}>조회</Button>
       </div>
-      {drafts && drafts.length === 0 ? (
-        <p data-testid="rsc-list-empty" style={{ ...mutedText, padding: "0 var(--spacing-md)" }}>확정할 DRAFT 가 없습니다</p>
-      ) : (
-        <div style={{ ...section, flex: 1, minHeight: 0 }}>
-          <AgDataGrid
-            columnSizing="fit"
-            columns={DRAFT_COLUMNS}
-            data={draftRows}
-            rowKey="rowId"
-            highlightedRowKey={selected ? draftKey(selected.setId, selected.ver) : null}
-            onRowClick={(r) => onSelect(r as unknown as PendingSetDraft)}
-            ariaLabel="확정 대기 목록"
-          />
-        </div>
-      )}
+      <div style={{ ...section, flex: 1, minHeight: 0 }}>
+        <AgDataGrid
+          columnSizing="fit"
+          columns={DRAFT_COLUMNS}
+          data={draftRows}
+          rowKey="rowId"
+          highlightedRowKey={selected ? draftKey(selected.setId, selected.ver) : null}
+          onRowClick={(r) => onSelect(r as unknown as PendingSetDraft)}
+          emptyMessage={drafts ? "확정할 DRAFT 가 없습니다" : undefined}
+          emptyTestId={drafts ? "rsc-list-empty" : undefined}
+          ariaLabel="확정 대기 목록"
+        />
+      </div>
     </div>
   );
 }

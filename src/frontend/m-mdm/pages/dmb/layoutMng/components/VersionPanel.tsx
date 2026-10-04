@@ -10,7 +10,7 @@ import { CHANGE_CLASS_TABLE, switchModeLabel } from "@/layout/change-class";
 import { snapshotJsonText } from "@/layout/snapshot-export";
 import type { LayoutVersionRow } from "@/layout/types";
 import { VersionStatusBadge, fmtVer, normVer, type MdmVersionStatus } from "@/shell";
-import { badge, empty, hint, row, sectionTitle } from "@/layout/styles";
+import { badge, hint, row, sectionTitle } from "@/layout/styles";
 import type { ExportResult } from "../types";
 
 function modeBadge(mode: unknown) {
@@ -56,22 +56,19 @@ export function VersionPanel({ versions, selectedVersion, onSelectVersion, snaps
   return (
     <div>
       <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>{`버전 이력 ${versions.length}건`}</p>
-      {versions.length === 0 ? (
-        <p data-testid="version-list-empty" style={empty}>저장된 버전이 없습니다</p>
-      ) : (
-        <div data-testid="version-list">
-          <AgDataGrid
-            columnSizing="fit"
-            columns={COLUMNS}
-            data={rows as unknown as Record<string, unknown>[]}
-            rowKey="VER_KEY"
-            height={160}
-            highlightedRowKey={normVer(selectedVersion)}
-            emptyMessage="저장된 버전이 없습니다"
-            onRowClick={(r) => onSelectVersion(String(r.VER_KEY))}
-          />
-        </div>
-      )}
+      <div data-testid="version-list">
+        <AgDataGrid
+          columnSizing="fit"
+          columns={COLUMNS}
+          data={rows as unknown as Record<string, unknown>[]}
+          rowKey="VER_KEY"
+          height={160}
+          highlightedRowKey={normVer(selectedVersion)}
+          emptyMessage="저장된 버전이 없습니다"
+          emptyTestId="version-list-empty"
+          onRowClick={(r) => onSelectVersion(String(r.VER_KEY))}
+        />
+      </div>
       <p style={{ ...sectionTitle, padding: "var(--spacing-xs) 0" }}>변경 분류</p>
       <div data-testid="change-class-table">
         <AgDataGrid
