@@ -36,8 +36,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>DB 없이 Spring {@link AbstractPlatformTransactionManager} 의 실제 커밋·롤백 규칙을 타는 가짜 매니저를 쓴다 —
  * 참여 트랜잭션이 rollback-only 를 표시하면 바깥 커밋이 진짜 {@link UnexpectedRollbackException} 을 낸다.
- * 실제 JPA·SQLite 로 응답까지 끝에서 끝으로 보는 시험은 mcm/lib {@code OasisCommitFailureSqliteTest} 다
- * (cactus-core 시험 경로에는 JDBC 드라이버가 없다).
+ * 실제 JPA·SQLite 로 응답까지 끝에서 끝으로 보는 시험은 같은 cactus-core 의
+ * {@code commitfailure.OasisCommitFailureSqliteTest} 다.
  *
  * <p>각 결함마다 oasis {@link SpringTransactionHandler} 그대로의 동작(현재 동작 고정)과 cactus 하위 클래스의 동작을 나란히 둔다.
  */

@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mcm.oasis;
+package com.dongkuk.dmes.cactus.oasis.commitfailure;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

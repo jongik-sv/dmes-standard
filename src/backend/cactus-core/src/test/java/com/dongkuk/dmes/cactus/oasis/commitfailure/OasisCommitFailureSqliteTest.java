@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mcm.oasis;
+package com.dongkuk.dmes.cactus.oasis.commitfailure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -90,9 +90,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * 각 결함마다 oasis 핸들러를 그대로 쓴 조립(현재 동작 고정 — oasis 소스는 고치지 않으므로 계속 통과)과
  * cactus 자동 설정 조립(올바른 기대)을 나란히 둔다.
  *
- * <p>cactus-core 시험 경로에는 JDBC 드라이버가 하나도 없어(h2 는 oasis-core 의 testImplementation, sqlite-jdbc 는
- * mcm/lib 의 api 에만 있다 — 빌드 파일 수정 금지) 드라이버·JPA 가 있는 mcm/lib 에 둔다. 핸들러 자체의 DB 없는 단위 시험은
- * cactus-core {@code CactusSpringTransactionHandlerTest} 다.
+ * <p>처음엔 cactus-core 시험 경로에 JDBC 드라이버가 없어 mcm/lib 에 뒀다. 빌드 레인이 cactus-core 시험 실행 범위에
+ * sqlite-jdbc·hibernate-community-dialects 를 넣은 뒤 이곳으로 옮겼다(a8 2차) — 시험 소스는 {@code org.sqlite} 를
+ * 참조하지 않고 JDBC URL·방언 문자열로만 쓴다. 핸들러 자체의 DB 없는 단위 시험은 {@code CactusSpringTransactionHandlerTest} 다.
  * BPMN 은 {@code oasis-commit-failure/} 아래 5개 — 다른 서비스와 섞이지 않게 별도 경로를 쓴다.
  *
  * <p>SQLite 방언은 유일 제약 위반을 {@code DataIntegrityViolationException} 이 아니라 {@code JpaSystemException}
