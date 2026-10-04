@@ -140,3 +140,12 @@
 - 동작 보존 근거: 입력 파일 선언만 늘었다. `src/backend/mdm` 에서 `:api:test --dry-run` 이 `BUILD SUCCESSFUL in 7s`, `:api:test` SKIPPED 였다. 두 파일은 a6 2단계 머지 뒤에 생기며 지금은 없어도 구성 단계가 실패하지 않았다. 시험 실행은 하지 않았다.
 - 영향 범위: mdm `:api:test` 의 최신 여부 판정(캐시 키). 코드 동작 변화 없음.
 - 되돌리는 방법: fa6bfec4 revert (a6 2단계 머지 뒤에는 시드 변경이 시험을 다시 돌리지 못하는 상태로 돌아간다).
+
+## S8. mcm-core 시험 입력에 mcm/api 시드 소스 세 파일 선언
+- 커밋: e08cb0f7
+- 바뀌기 전: `src/backend/mcm-core/build.gradle` 의 `test` 태스크는 `useJUnitPlatform()` 만 있었고, 시험이 직접 읽는 mcm/api 소스가 입력으로 선언돼 있지 않았다.
+- 바뀐 뒤: `test` 에 `inputs.files(...)` 로 `mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/CoreRbacSeeder.java`, `.../init/seed/ScreenUsageSchemaArtifacts.java`, `.../init/DataInitializer.java` 를 `propertyName` `mcmSeedSources`, 경로 민감도 RELATIVE 로 선언했다. 경로는 `rootProject.file('../mcm/api/...')` 로 적었다. 단독 실행과 루트 composite(includeBuild 의 rootProject 가 mcm-core)에서 모두 `src/backend/mcm/api/...` 로 풀린다.
+- 바꾼 이유: `ScreenUsageOasisContractTest`(`../mcm/api/src/main/resources/services` 와 `DataInitializer.java`)와 `ScreenUsageMssqlDdlTest`(`DataInitializer.java`)가 작업 디렉터리(mcm-core) 기준 상대 경로로 mcm/api 소스를 읽는다. 입력에 없으면 시드가 바뀌어도 시험이 UP-TO-DATE 로 건너뛴다. `ScreenUsageSchemaArtifacts.java` 와 `CoreRbacSeeder.java` 는 a6 2단계 머지 뒤 시험이 읽게 될 파일을 미리 넣은 것이다(지금 소스에는 이름으로 읽는 코드가 없고, 없는 경로는 빈 입력으로 취급한다).
+- 동작 보존 근거: 입력 선언만 늘었고 시험 코드·클래스패스는 그대로다. `test --dry-run` 이 mcm-core 단독과 루트 composite 두 곳에서 BUILD SUCCESSFUL 이었다. dry-run 은 구성 단계만 확인하므로 실제 시험은 돌리지 않았다. Test 태스크는 build.gradle 상단 주석대로 이미 캐시 대상에서 빠져 있어(`doNotCacheIf`) 이 선언은 up-to-date 판정에만 영향을 준다.
+- 영향 범위: mcm-core `:test` 의 최신 여부 판정. 코드 동작 변화 없음. 미결: `ScreenUsageOasisContractTest` 가 읽는 `mcm/api/src/main/resources/services` 폴더는 이번 선언에 없다. 이 폴더까지 입력으로 둘지는 결정 대기다.
+- 되돌리는 방법: e08cb0f7 revert (시드 변경이 mcm-core 시험을 다시 돌리지 못하는 상태로 돌아간다).
