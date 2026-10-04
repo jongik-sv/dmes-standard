@@ -25,7 +25,6 @@ export interface TermSearchPayload {
 export interface TermSavePayload {
   termId?: number;
   warnings?: string[];
-  list?: TermRow[];
 }
 
 export interface RecommendPayload {
