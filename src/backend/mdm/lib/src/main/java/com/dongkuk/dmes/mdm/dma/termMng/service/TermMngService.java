@@ -106,7 +106,10 @@ public class TermMngService {
         return new TermSearchResult(rows);
     }
 
-    /** 검색 한 행 — JSON 목록 세 칸을 한 번만 파싱해 둔다. 목록은 null 이 아니다(JSON null 리터럴도 빈 목록, D1 수정). */
+    /**
+     * 검색 한 행 — JSON 목록 세 칸을 한 번만 파싱해 둔다. 목록은 null 이 아니다(JSON null 리터럴도 빈 목록, D1 수정). 원소도 null 이
+     * 아니다(원소 null 은 파서가 버린다, D2 수정).
+     */
     private record ParsedTerm(MdmTerm term, List<String> synonyms, List<String> aliases, List<String> systems) {
         static ParsedTerm of(MdmTerm t) {
             return new ParsedTerm(t, readStrings(t.getSynonyms()), readStrings(t.getAliases()),

@@ -28,7 +28,8 @@ import org.springframework.data.jpa.domain.Specification;
  * DB 에 넣을 수 있는 입력은 api 의 {@code TermJsonListCharacterizationTest} 가 실제 SQLite 로 같은 결과를 고정한다.
  *
  * <p>두 파서는 같다: {@code new ObjectMapper().readValue(json, List<String>)}, null·공백(isBlank)·예외면 빈 목록. JSON {@code null}
- * 리터럴도 빈 목록이다(D1 수정(fix) — 예전에는 null). 숫자·불린 원소는 문자열로 바뀌고, 원소의 공백·빈 문자열·null 은 그대로 남는다.
+ * 리터럴도 빈 목록이다(D1 수정(fix) — 예전에는 null). 숫자·불린 원소는 문자열로 바뀌고, 원소의 공백·빈 문자열은 그대로 남는다. 원소
+ * null 은 버린다(D2 수정(fix) — 예전에는 null 원소로 남아 시스템 조건 검색·1차 추천이 NPE 를 냈다).
  */
 class TermJsonListParserCharacterizationTest {
 
@@ -66,7 +67,10 @@ class TermJsonListParserCharacterizationTest {
             // D1 수정(fix): JSON null 리터럴은 빈 목록이다(예전에는 null 을 돌려줘 검색·추천이 NPE 를 냈다).
             new Case("null", List.of()),
             // 원소 모양
-            new Case("[\" a \",\"\",null,\"   \"]", list(" a ", "", null, "   ")),
+            // D2 수정(fix): 원소 null 은 버린다(예전에는 null 원소로 남았다). 공백·빈 문자열 원소는 그대로 남는다.
+            new Case("[\" a \",\"\",null,\"   \"]", list(" a ", "", "   ")),
+            new Case("[null]", List.of()),
+            new Case("[\"a\",null]", list("a")),
             new Case("[1,true,1.5]", list("1", "true", "1.5")),
             new Case("[{\"name\":\"x\"}]", List.of()),
             new Case("[[\"a\"]]", List.of()),
@@ -119,6 +123,25 @@ class TermJsonListParserCharacterizationTest {
         TermSearchRequest bySystem = new TermSearchRequest();
         bySystem.setSystems("MES");
         assertEquals(List.of(), service.search(bySystem).getList());
+    }
+
+    @Test
+    void D2_원소_null_행도_시스템_조건_검색에서_NPE_없이_그_원소만_건너뛰고_판정한다() {
+        // D2 수정(fix) 재현: 예전에는 시스템 목록에 null 원소가 남아 s.equalsIgnoreCase(systemsFilter) 에서 NPE 가 났다.
+        MdmTermRepository repo = mock(MdmTermRepository.class);
+        TermEmbeddingRepository embeddings = mock(TermEmbeddingRepository.class);
+        TermMngService service = new TermMngService(repo, embeddings,
+                new TermRecommendationCache(repo, embeddings), mock(TermEmbeddingEncoder.class));
+        TermSearchRequest bySystem = new TermSearchRequest();
+        bySystem.setSystems("MES");
+
+        when(repo.findAll(any(Specification.class), any(Sort.class))).thenReturn(List.of(term("[null]")));
+        assertEquals(List.of(), service.search(bySystem).getList(), "null 원소뿐이면 시스템 조건에 안 맞아 빠진다");
+
+        when(repo.findAll(any(Specification.class), any(Sort.class))).thenReturn(List.of(term("[null,\"MES\"]")));
+        List<TermRow> rows = service.search(bySystem).getList();
+        assertEquals(1, rows.size(), "null 원소 뒤의 MES 로 찾힌다");
+        assertEquals(List.of("MES"), rows.get(0).getSystems());
     }
 
     @Test

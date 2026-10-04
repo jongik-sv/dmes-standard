@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,7 +14,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>서비스마다 따로 두던 파서를 모았다. 읽는 방식이 호출부마다 달라서 메서드를 나눠 둔다. 호출부가 쓰던 방식 그대로 고른다.
  * <ul>
- *   <li>{@link #readStrings} — 엄격 문자열 목록. 용어 관리 검색·추천 캐시가 쓴다.</li>
+ *   <li>{@link #readStrings} — 엄격 문자열 목록. 원소 null 은 버린다. 용어 관리 검색·추천 캐시가 쓴다.</li>
  *   <li>{@link #readArrayElements} — 원소 단위 관대 읽기. 원소를 어떻게 쓸지는 호출부가 정한다(용어 사전 표면형).</li>
  *   <li>{@link #readLongs} — ID 목록. 컬럼의 TERM_IDS 가 쓴다.</li>
  * </ul>
@@ -39,7 +40,12 @@ public final class MdmJsonLists {
      *       남긴다.</li>
      *   <li>JSON {@code null} 리터럴도 {@code List.of()} 다(로그 없음). 예전에는 {@code null} 을 돌려줘 호출부가 목록을 돌다 NPE 를
      *       냈다(결함 D1).</li>
-     *   <li>숫자·불린 원소는 문자열로 바뀌고, 원소의 공백·빈 문자열·null 은 그대로 남는다. 배열 뒤에 남은 글자는 무시한다.</li>
+     *   <li>숫자·불린 원소는 문자열로 바뀌고, 원소의 공백·빈 문자열은 그대로 남는다. 배열 뒤에 남은 글자는 무시한다.</li>
+     *   <li>원소 null({@code [null]}, {@code ["a",null]})은 버린다. 예전에는 null 원소로 남아 추천 1차 비교({@code TRAILING_PAREN.matcher})와
+     *       시스템 조건 비교({@code equalsIgnoreCase})가 NPE 를 냈다(결함 D2). 여기서 버리는 까닭: 이 목록은 표면형·시스템 이름의 모음이라
+     *       자리에 뜻이 없고, 저장({@code TermMngService.save})은 요청의 콤마 문자열로 새로 쓰므로 읽은 목록을 되써 원본을 보존할 경로가
+     *       없다. 자리를 지켜야 하는 ID 목록({@link #readLongs})은 null 원소를 그대로 두고, 원소를 호출부가 고르는
+     *       {@link #readArrayElements} 도 null 노드를 그대로 돌려준다.</li>
      * </ul>
      *
      * @param logLabel 파싱 실패 경고 로그 앞머리에 붙일 호출부 이름
@@ -50,7 +56,11 @@ public final class MdmJsonLists {
         }
         try {
             List<String> parsed = MAPPER.readValue(json, STRING_LIST);
-            return parsed != null ? parsed : List.of();
+            if (parsed == null) {
+                return List.of();
+            }
+            parsed.removeIf(Objects::isNull); // 결함 D2 — 원소 null 은 버린다(Jackson 은 ArrayList 를 돌려준다)
+            return parsed;
         } catch (Exception e) {
             log.warn("[{}] JSON 파싱 실패 — 빈 목록으로 대체: {}", logLabel, json, e);
             return List.of();

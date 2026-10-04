@@ -1,7 +1,6 @@
 package com.dongkuk.dmes.mdm.dma.termMng;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermRow;
@@ -333,15 +332,16 @@ class TermMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 상황_조건에_안_맞는_행도_시스템_null_원소의_NPE는_그대로_난다() {
-        // 기존 결함 고정(D2): Java 는 시스템 조건을 상황 조건보다 먼저 본다. 시스템 칸에 null 원소가 있으면 상황이 달라도 NPE.
-        // DB 1차 거르기가 시스템 원문에 null 이 든 행을 남겨야 이 동작이 지켜진다.
+    void D2_시스템_null_원소_행은_상황_조건과_무관하게_NPE_없이_빠진다() {
+        // D2 수정(fix): 예전에는 Java 가 시스템 조건을 상황 조건보다 먼저 봐서, 시스템 칸에 null 원소가 있으면 상황이 달라도 NPE 가
+        // 났다(기존 결함 고정이었다). 이제 파서가 null 원소를 버려 시스템 목록이 비므로 시스템 조건에 안 맞아 빠진다.
         seed("널원소시스템", t -> {
             t.setSystems("[null]");
             t.setContext("냉연");
         });
-        assertThrows(NullPointerException.class, () -> filter(null, "MES", "열연"));
-        assertEquals(List.of(), filter(null, null, "열연"), "시스템 조건이 없으면 NPE 없이 빈 결과");
+        assertEquals(List.of(), filter(null, "MES", "열연"));
+        assertEquals(List.of(), filter(null, "MES", "냉연"), "상황이 맞아도 시스템 조건에서 빠진다");
+        assertEquals(List.of(), filter(null, null, "열연"), "시스템 조건이 없으면 상황 조건으로 빠진다");
     }
 
     @Test
@@ -392,10 +392,13 @@ class TermMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 시스템_JSON에_null_원소가_있으면_시스템_조건_검색이_NPE로_실패한다() {
-        // 기존 결함 고정: readStringList 가 [null] 을 null 원소 목록으로 돌려주고 s.equalsIgnoreCase 가 NPE.
+    void D2_시스템_JSON에_null_원소가_있어도_시스템_조건_검색은_NPE_없이_그_원소만_건너뛴다() {
+        // D2 수정(fix) 재현: 예전에는 파서가 [null] 을 null 원소 목록으로 돌려주고 s.equalsIgnoreCase 가 NPE 를 냈다(기존 결함
+        // 고정이었다). 이제 파서가 null 원소를 버린다.
         seed("널시스템", t -> t.setSystems("[null]"));
-        assertThrows(NullPointerException.class, () -> filter(null, "MES", null));
+        Long mes = seed("널과MES", t -> t.setSystems("[null,\"MES\"]"));
+        assertEquals(List.of(mes), filter(null, "MES", null));
+        assertEquals(List.of("MES"), service.search(null).getList().get(1).getSystems(), "결과 행에도 null 원소가 없다");
     }
 
     // ── 상황 조건 ──

@@ -32,7 +32,8 @@ import org.springframework.test.context.ActiveProfiles;
  * 용어 JSON 목록 칸(SYNONYMS·ALIASES·SYSTEMS) 읽기·쓰기 특성 시험 — 파서 공통화 전에 지금 동작을 고정한다.
  *
  * <p>읽기: {@code TermMngService}(검색 결과 행)와 {@code TermRecommendationCache}(캐시 항목)는 같은 엄격한 파서다 —
- * {@code new ObjectMapper().readValue(json, List<String>)}, 실패하면 빈 목록. 두 파서를 같은 입력 행렬로 나란히 고정한다.
+ * {@code new ObjectMapper().readValue(json, List<String>)}, 실패하면 빈 목록. 원소 null 은 버린다(D2 수정). 두 파서를 같은 입력
+ * 행렬로 나란히 고정한다.
  * 쓰기: {@code TermMngService.save} 는 기본 {@code new ObjectMapper()} 로 쓴다 — 한글을 {@code \\uXXXX} 로 바꾸지 않는다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
@@ -79,7 +80,10 @@ class TermJsonListCharacterizationTest extends AbstractMdmSharedDbTest {
             new Case("\"\"", List.of()),
             new Case("3", List.of()),
             // 원소 모양
-            new Case("[\" a \",\"\",null,\"   \"]", list(" a ", "", null, "   ")),
+            // D2 수정(fix): 원소 null 은 버린다(예전에는 null 원소로 남았다). 공백·빈 문자열 원소는 그대로 남는다.
+            new Case("[\" a \",\"\",null,\"   \"]", list(" a ", "", "   ")),
+            new Case("[null]", List.of()),
+            new Case("[\"a\",null]", list("a")),
             new Case("[1,true,1.5]", list("1", "true", "1.5")),
             new Case("[{\"name\":\"x\"}]", List.of()),
             new Case("[[\"a\"]]", List.of()),
@@ -203,11 +207,34 @@ class TermJsonListCharacterizationTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void D2_원소_null_동의어_행이_캐시에_있어도_1차_추천은_NPE_없이_다른_행을_찾는다() {
+        // D2 수정(fix) 재현: 예전에는 CachedTerm.synonyms() 에 null 원소가 남아 TRAILING_PAREN.matcher(syn) 에서 NPE 가 나, 그런 행이
+        // 캐시에 하나만 있어도 모든 추천이 실패했다. 이제 파서가 null 원소를 버린다.
+        seedRaw("[null]");
+        Long withSynonym = seedRaw("[null,\"코일\"]"); // null 원소 뒤의 동의어 "코일" 은 그대로 비교된다
+        Long coil = termRepository.saveAndFlush(new MdmTerm("코일", ++senseSeq, "정의")).getTermId();
+        cache.reloadAll();
+        RecommendRequest request = new RecommendRequest();
+        request.setTermName("코일");
+
+        Map<String, Object> result = service.recommend(request);
+        @SuppressWarnings("unchecked")
+        List<RecommendCandidate> candidates = (List<RecommendCandidate>) (List<?>) result.get("candidates");
+        assertTrue(candidates.stream().anyMatch(c -> coil.equals(c.getTermId()) && c.getScore() == 1.0d),
+                candidates.toString());
+        assertTrue(candidates.stream().anyMatch(c -> withSynonym.equals(c.getTermId()) && c.getScore() == 1.0d),
+                candidates.toString());
+    }
+
+    @Test
     void 원소에_null이_있어도_키워드_검색은_그_원소만_건너뛴다() {
+        // D2 수정(fix) 뒤로는 파서가 null 원소를 버려 결과 행의 동의어에도 null 이 없다(예전에는 비교만 건너뛰고 [null, 배치] 로 실렸다).
         Long id = seedRaw("[null,\"배치\"]");
         TermSearchRequest r = new TermSearchRequest();
         r.setKeyword("배치");
-        assertEquals(List.of(id), service.search(r).getList().stream().map(TermRow::getTermId).toList());
+        List<TermRow> rows = service.search(r).getList();
+        assertEquals(List.of(id), rows.stream().map(TermRow::getTermId).toList());
+        assertEquals(List.of("배치"), rows.get(0).getSynonyms());
     }
 
     // ── 쓰기(save) — 저장 원문 모양 ──
