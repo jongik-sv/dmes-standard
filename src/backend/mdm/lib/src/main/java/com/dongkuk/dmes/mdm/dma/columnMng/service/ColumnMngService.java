@@ -40,6 +40,8 @@ import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -71,8 +73,8 @@ import org.springframework.stereotype.Service;
 public class ColumnMngService {
 
     private static final String REF_KIND_MASTER = "MASTER";
-    /** IN 목록 한 번에 넣는 최대 수. */
-    private static final int TERM_IN_CHUNK = 500;
+    /** IN 목록 한 번에 넣는 최대 수 — Oracle 의 IN 1,000 개 제한 안으로 나눠 읽는다. */
+    private static final int IN_CHUNK = 500;
 
     private final MdmColumnRepository columnRepository;
     private final MdmColumnSystemRepository columnSystemRepository;
@@ -102,9 +104,12 @@ public class ColumnMngService {
     // ── action: search ────────────────────────────────────────────────────
 
     /**
-     * 목록·시스템 목록(도메인은 콤보가 아니라 키워드 조건). 방언별 LIKE·대소문자 비교 차이와 {@code _} 와일드카드를 피하려고 Java 에서 거른다(규모 수천 행).
-     * 검색어는 논리명·표준 물리명·시스템별 실제 필드명에 대소문자 무시 부분 일치한다(I30). 도메인 조건({@code domainKeyword})은
-     * 도메인 ID·도메인명·표준명에 대소문자 무시 부분 일치한다 — 도메인 전체 목록을 응답에 싣지 않는다.
+     * 목록·시스템 목록(도메인은 콤보가 아니라 키워드 조건). 검색어는 논리명·표준 물리명·시스템별 실제 필드명에 대소문자 무시 부분 일치한다(I30).
+     * 도메인 조건({@code domainKeyword})은 도메인 ID·도메인명·표준명에 대소문자 무시 부분 일치한다 — 도메인 전체 목록을 응답에 싣지 않는다.
+     *
+     * <p>조건이 있으면 {@link ColumnSearchPrefilter} 가 DB {@code LIKE} 로 후보 컬럼과 그 매핑만 먼저 읽고(필요조건만), 최종 판정은
+     * 아래 Java 비교가 한다 — 방언별 대소문자 접기 차이와 {@code %}·{@code _} 를 글자 그대로 보는 규칙을 Java 가 지킨다. 도메인은 후보
+     * 컬럼이 가리키는 것만, 용어는 남은 컬럼의 TERM_IDS 에 든 것만 IN 으로 읽는다. 정렬도 Java({@code String.compareTo})가 한다.
      */
     public Map<String, Object> search(ColumnMngSearchRequest request) {
         String keyword = request == null || request.getKeyword() == null ? "" : request.getKeyword().trim();
@@ -119,27 +124,45 @@ public class ColumnMngService {
             options.put("systems", systems());
             return options;
         }
-        Map<Long, MdmDomain> domainById = domainRepository.findAll().stream()
-                .collect(Collectors.toMap(MdmDomain::getDomainId, Function.identity()));
-        Map<Long, MdmTerm> termById = termRepository.findAll().stream()
-                .collect(Collectors.toMap(MdmTerm::getTermId, Function.identity()));
-        Map<Long, List<MdmColumnSystem>> mappingsByColumn = columnSystemRepository.findAll().stream()
+        List<MdmColumn> candidates;
+        List<MdmColumnSystem> candidateMappings;
+        Map<Long, MdmDomain> domainById;
+        if (needle.isEmpty() && domainNeedle.isEmpty()) {
+            // 조건 없음 — 모든 컬럼이 나가므로 매핑·도메인도 전부 읽는다
+            candidates = columnRepository.findAll();
+            candidateMappings = columnSystemRepository.findAll();
+            domainById = domainRepository.findAll().stream()
+                    .collect(Collectors.toMap(MdmDomain::getDomainId, Function.identity()));
+        } else {
+            candidates = columnRepository.findAll(ColumnSearchPrefilter.columns(needle, domainNeedle));
+            candidateMappings = candidates.isEmpty() ? List.of()
+                    : columnSystemRepository.findAll(ColumnSearchPrefilter.mappingsOfColumns(needle, domainNeedle));
+            domainById = findAllInChunks(candidates.stream().map(MdmColumn::getDomainId).toList(),
+                    domainRepository::findAllById).stream()
+                    .collect(Collectors.toMap(MdmDomain::getDomainId, Function.identity()));
+        }
+        Map<Long, List<MdmColumnSystem>> mappingsByColumn = candidateMappings.stream()
                 .sorted(MAPPING_ORDER)
                 .collect(Collectors.groupingBy(MdmColumnSystem::getColumnId, LinkedHashMap::new, Collectors.toList()));
 
-        List<Map<String, Object>> list = new ArrayList<>();
-        columnRepository.findAll().stream()
+        // Java 최종 판정 — DB 조건은 필요조건일 뿐이다
+        List<MdmColumn> hits = candidates.stream()
                 .sorted(Comparator.comparing(MdmColumn::getColumnName).thenComparing(MdmColumn::getColumnId))
-                .forEach(column -> {
-                    List<MdmColumnSystem> mappings = mappingsByColumn.getOrDefault(column.getColumnId(), List.of());
-                    if (!domainNeedle.isEmpty() && !domainMatches(column.getDomainId(), domainById, domainNeedle)) {
-                        return;
-                    }
-                    if (!needle.isEmpty() && !matches(column, mappings, needle)) {
-                        return;
-                    }
-                    list.add(listRow(column, domainById.get(column.getDomainId()), mappings, termById));
-                });
+                .filter(column -> domainNeedle.isEmpty() || domainMatches(column.getDomainId(), domainById, domainNeedle))
+                .filter(column -> needle.isEmpty() || matches(column,
+                        mappingsByColumn.getOrDefault(column.getColumnId(), List.of()), needle))
+                .toList();
+        Map<MdmColumn, List<Long>> termIdsByColumn = new IdentityHashMap<>();
+        hits.forEach(column -> termIdsByColumn.put(column, parseTermIds(column.getTermIds())));
+        Map<Long, MdmTerm> termById = findAllInChunks(
+                termIdsByColumn.values().stream().flatMap(List::stream).toList(), termRepository::findAllById).stream()
+                .collect(Collectors.toMap(MdmTerm::getTermId, Function.identity()));
+
+        List<Map<String, Object>> list = new ArrayList<>();
+        for (MdmColumn column : hits) {
+            list.add(listRow(column, domainById.get(column.getDomainId()),
+                    mappingsByColumn.getOrDefault(column.getColumnId(), List.of()), termIdsByColumn.get(column), termById));
+        }
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("list", list);
@@ -193,11 +216,7 @@ public class ColumnMngService {
         // 용어는 IN 으로 한 번에 읽고 TERM_IDS 순서(중복·없는 용어 포함)대로 다시 늘어놓는다.
         List<Long> termIds = parseTermIds(column.getTermIds());
         Map<Long, MdmTerm> termById = new HashMap<>();
-        List<Long> distinctIds = termIds.stream().filter(Objects::nonNull).distinct().toList();
-        for (int from = 0; from < distinctIds.size(); from += TERM_IN_CHUNK) {
-            termRepository.findAllById(distinctIds.subList(from, Math.min(distinctIds.size(), from + TERM_IN_CHUNK)))
-                    .forEach(t -> termById.put(t.getTermId(), t));
-        }
+        findAllInChunks(termIds, termRepository::findAllById).forEach(t -> termById.put(t.getTermId(), t));
         List<Map<String, Object>> terms = new ArrayList<>();
         for (Long termId : termIds) {
             Optional<MdmTerm> term = Optional.ofNullable(termId == null ? null : termById.get(termId));
@@ -402,11 +421,16 @@ public class ColumnMngService {
         if (terms == null || terms.isEmpty()) {
             return composition.tokens().stream().map(t -> t.selected().termId()).toList();
         }
+        List<Long> requested = new ArrayList<>(terms.size());
+        for (Map<String, Object> row : terms) {
+            requested.add(row == null ? null : toLong(row.get("termId")));
+        }
+        // 행마다 existsById 하던 것을 IN 한 번으로 — 판정·메시지는 요청 행 순서 그대로다
+        Set<Long> existing = new HashSet<>(findAllInChunks(requested, termRepository::findExistingTermIds));
         List<Long> ids = new ArrayList<>(terms.size());
         List<String> missing = new ArrayList<>();
-        for (Map<String, Object> row : terms) {
-            Long id = row == null ? null : toLong(row.get("termId"));
-            if (id == null || !termRepository.existsById(id)) {
+        for (Long id : requested) {
+            if (id == null || !existing.contains(id)) {
                 missing.add(id == null ? "***" : "용어 ID " + id);
             } else {
                 ids.add(id);
@@ -509,13 +533,16 @@ public class ColumnMngService {
                 }
             }
         });
+        // 충돌 행마다 소유 컬럼을 findById 하던 것을 IN 한 번으로(충돌이 없으면 읽지 않는다)
+        Map<Long, MdmColumn> ownerById = columnsById(othersByKey.values().stream().flatMap(List::stream)
+                .map(MdmColumnSystem::getColumnId).toList());
         List<String> conflicts = new ArrayList<>();
         List<MdmCheckIssue> issues = new ArrayList<>();
         for (MdmColumnSystem want : requested) {
             List<MdmColumnSystem> others = othersByKey.getOrDefault(
                     key(want.getSystemCode(), want.getPhysName().toUpperCase(Locale.ROOT)), List.of());
             for (MdmColumnSystem other : others) {
-                String owner = columnRepository.findById(other.getColumnId())
+                String owner = Optional.ofNullable(ownerById.get(other.getColumnId()))
                         .map(MdmColumn::getColumnName).orElse(String.valueOf(other.getColumnId()));
                 String text = want.getSystemCode() + "·" + want.getPhysName() + " → 컬럼 '" + owner + "'"
                         + (other.getPhysName().equals(want.getPhysName()) ? "" : "(" + other.getPhysName() + ")");
@@ -534,6 +561,22 @@ public class ColumnMngService {
 
     private static final Comparator<MdmColumnSystem> MAPPING_ORDER = Comparator
             .comparing(MdmColumnSystem::getSystemCode).thenComparing(MdmColumnSystem::getPhysName);
+
+    /** ID 목록(null·중복 무시)을 {@link #IN_CHUNK} 개씩 나눠 IN 으로 읽는다. 빈 목록이면 읽지 않는다. */
+    private static <T> List<T> findAllInChunks(List<Long> ids, Function<List<Long>, ? extends Iterable<T>> finder) {
+        List<Long> distinct = ids.stream().filter(Objects::nonNull).distinct().toList();
+        List<T> out = new ArrayList<>();
+        for (int from = 0; from < distinct.size(); from += IN_CHUNK) {
+            finder.apply(distinct.subList(from, Math.min(distinct.size(), from + IN_CHUNK))).forEach(out::add);
+        }
+        return out;
+    }
+
+    private Map<Long, MdmColumn> columnsById(List<Long> columnIds) {
+        Map<Long, MdmColumn> byId = new HashMap<>();
+        findAllInChunks(columnIds, columnRepository::findAllById).forEach(c -> byId.put(c.getColumnId(), c));
+        return byId;
+    }
 
     private List<Map<String, Object>> systems() {
         return jdbc.queryForList(
@@ -565,7 +608,7 @@ public class ColumnMngService {
     }
 
     private static Map<String, Object> listRow(MdmColumn column, MdmDomain domain, List<MdmColumnSystem> mappings,
-                                               Map<Long, MdmTerm> termById) {
+                                               List<Long> termIds, Map<Long, MdmTerm> termById) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("columnId", column.getColumnId());
         row.put("columnName", column.getColumnName());
@@ -577,7 +620,7 @@ public class ColumnMngService {
         row.put("domainName", domain == null ? null : domain.getDomainName());
         row.put("domainStdName", domain == null ? null : domain.getStdName());
         row.put("required", column.isRequired() ? "Y" : "N");
-        row.put("termNames", parseTermIds(column.getTermIds()).stream()
+        row.put("termNames", termIds.stream()
                 .map(id -> id == null ? NamingRules.PLACEHOLDER
                         : termById.containsKey(id) ? termById.get(id).getTermName() : "?")
                 .collect(Collectors.joining(" + ")));
@@ -602,9 +645,11 @@ public class ColumnMngService {
         columnRepository.findByPhysName(composition.physName())
                 .ifPresent(c -> out.add(duplicate(c, "PHYS_NAME", null, domainById)));
         Set<String> names = new LinkedHashSet<>(List.of(input, input.toUpperCase(Locale.ROOT)));
-        columnSystemRepository.findByPhysNameIn(names).stream().sorted(MAPPING_ORDER).forEach(m ->
-                columnRepository.findById(m.getColumnId())
-                        .ifPresent(c -> out.add(duplicate(c, "SYSTEM_FIELD", m.getSystemCode(), domainById))));
+        List<MdmColumnSystem> hits = columnSystemRepository.findByPhysNameIn(names).stream().sorted(MAPPING_ORDER).toList();
+        // 매핑마다 findById 하던 것을 IN 한 번으로 — 가리키는 컬럼 행이 없는 매핑은 예전처럼 건너뛴다
+        Map<Long, MdmColumn> columnById = columnsById(hits.stream().map(MdmColumnSystem::getColumnId).toList());
+        hits.forEach(m -> Optional.ofNullable(columnById.get(m.getColumnId()))
+                .ifPresent(c -> out.add(duplicate(c, "SYSTEM_FIELD", m.getSystemCode(), domainById))));
         return out;
     }
 
