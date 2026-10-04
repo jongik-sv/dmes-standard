@@ -102,4 +102,21 @@ describe("useCurrentUserState", () => {
     });
     expect(renders).toBe(settled);
   });
+
+  it("RBAC 구독자가 없어도 화면이 다시 보일 때 다른 사용자로 바뀐 것을 잡는다", async () => {
+    const calls = stubServer("u1");
+    await act(async () => root.render(createElement(Probe)));
+    await flush();
+    expect(latest.userId).toBe("u1");
+    // 서버 세션이 다른 사용자로 바뀐 것처럼 응답을 바꾼다.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json({ authenticated: true, user: { id: "u2", name: "n" } }))
+    );
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    await act(async () => void document.dispatchEvent(new Event("visibilitychange")));
+    await flush();
+    expect(latest.userId).toBe("u2");
+    expect(calls.rbac).toBe(0);
+  });
 });

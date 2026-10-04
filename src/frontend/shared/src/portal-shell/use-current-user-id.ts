@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getCurrentUser, peekCurrentUser, subscribeCurrentUser } from "./current-user";
+import { getCurrentUser, peekCurrentUser, revalidateCurrentUser, subscribeCurrentUser } from "./current-user";
 
 /**
  * 확인된 사용자 ID 만 필요한 곳(분할 크기 저장 키 등)에 쓰는 훅 — RBAC 구독을 늘리지 않는다(K4).
@@ -61,9 +61,16 @@ export function useCurrentUserState(enabled: boolean = true): CurrentUserState {
         if (!cancelled) setState((prev) => (prev.userId === "" && !prev.isLoading ? prev : { userId: "", isLoading: false }));
       }
     );
+    // 다른 브라우저 탭에서 다른 사용자로 다시 로그인한 경우를 잡는다 — RBAC 구독자가 없는 화면(홈 등)에서도 이 훅만으로 재확인한다.
+    // 요청은 진행 중인 것을 공유하므로 인스턴스가 여럿이어도 서버 호출은 한 건이다.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void revalidateCurrentUser().catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
       unsubscribe();
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [enabled]);
   return state;
