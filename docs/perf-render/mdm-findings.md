@@ -11,6 +11,8 @@
 판정 기준**이고, 측정 뒤 **기각된 것·남은 것**을 §4.8 에 표시했다.
 각 항목은 「코드에서 직접 읽은 사실」과 「아직 확인 안 된 추측」을 구분해 적었다.
 
+> **정정(검증 f4378bef)**: 이 문서의 수치·해석 일부는 [독립 검증](mdm-findings-verification.md)에서 틀린 것으로 판정됐다. 요점: `searchToRowMs` 는 Playwright 폴링 격자 값이다(columnMng 실제 ≈380ms·termMng ≈167ms·나머지 ≈25ms). "프런트 442ms" 는 없다(응답→첫 행 ≈33ms). cold 회차가 브라우저 컨텍스트를 공유해 진입 API 27~47건·`/api/auth/me` 22회·화면 무관 호출 7건이 부풀었다(실제 메뉴 클릭 뒤 auth/me 4회, columnMng 6회, 무관 호출 secFavorite 1건). 렌더 가설 A5·A6·A8 은 "기각" 이 아니라 미측정이었다. 원문은 지우지 않고 각 자리에 `정정(검증 f4378bef, §6-N)` 블록을 덧붙였다(N 은 검증 문서 §6 의 항목 번호). 새 화면 규칙은 [새 화면 성능 가이드](../guide/FrontEnd/Screen-Performance-Guide.md) 가 정본이다.
+
 - [x] 기존 측정 자산 확인 (`docs/refactor-2026-10/perf-frontend.md`, `structure-frontend.md`, `scripts/perf/frontend/`)
 - [x] 5개 대상 화면 코드 정적 분석 — **가설 + 근거 file:line**
 - [x] 측정 하네스 작성 — 커밋 `0f6e0ab0`(결함 5건 수정 포함)
@@ -41,11 +43,11 @@
 
 ## 1. 지표와 측정 방법 (무엇을 재는가)
 
-`docs/idea.md:113` 이 정한 원 지표는 **메뉴 클릭 → 그리드 첫 행 표시** 다. 그런데 코드 확인 중
+`docs/idea.md:112`(정정 §6-14, 원문 `:113`) 이 정한 원 지표는 **메뉴 클릭 → 그리드 첫 행 표시** 다. 그런데 코드 확인 중
 중요한 사실이 하나 나왔다.
 
 > **MDM 목록 화면은 진입할 때 목록을 자동 조회하지 않는다.**
-> (`src/frontend/e2e/support/mdm-e2e.ts:66-68` 주석 — "의도된 제품 변경, cf4fbb05 2026-10-02")
+> (`src/frontend/e2e/support/mdm-e2e.ts:64-65`(정정 §6-14, 원문 `:66-68`) 주석 — "의도된 제품 변경, cf4fbb05 2026-10-02")
 
 즉 사용자가 하는 실제 동작은 `메뉴 클릭 → [조회] 클릭 → 첫 행` 이고, "메뉴 클릭 → 첫 행" 하나로 재면
 **사람이 조회 단추를 누르기까지의 대기 시간** 이 섞인다. 그래서 세 구간으로 따로 잰다.
@@ -99,6 +101,8 @@ DOM 노드·힙 증감, React 커밋 수를 함께 잰다. 화면당 3회 이상
 | `dmc/codeMng/CodeDetail.tsx` | 1 | 1 | `:331` |
 | **합계** | **11** | **11** | 전부 `"fit"` |
 
+> **정정(검증 f4378bef, §6-17)**: 이 표는 1차 후보 5개 화면 한정이다. 6번째 측정 대상 headerMng(`HeaderList.tsx` 등)는 들어 있지 않다.
+
 → 측정에서 "조회 후 autoSizeAllColumns 때문에 느리다" 는 결론이 나오면 **틀린 결론**이다. 그 경로는 없다.
 
 ### A2. 그런데 `fit` 모드에도 남는 강제 레이아웃이 있다 (5개 화면 공통)
@@ -113,6 +117,8 @@ DOM 노드·힙 증감, React 커밋 수를 함께 잰다. 화면당 3회 이상
 - 언제 도나: 데이터 갱신(`:1409`), 첫 데이터 렌더(`:1399`), 컨테이너 폭 변경(`:1431`).
   컨테이너 폭 변경은 탭이 다시 보일 때(width 0 → 양수) 매번 일어난다.
 - 크기: 힌트다(측정 대상 아님 — A1 이 무효화했으므로). 다만 **제거 비용이 거의 0** 이므로 수정안 1순위로 올린다.
+
+> **정정(검증 f4378bef, §6-15)**: 11개 그리드가 모두 `fit` 이라 `fillRemainingColumnSpace` 는 `:1309` 에서 먼저 return 한다. 그래서 K3 의 `sizeColumnsToFit(:1316)` 경로와 T5 의 "`gridWidth > 0` 가드 덕" 은 실제로 타지 않는 경로다. A2 의 리플로우 비용은 trace 상 응답 뒤 Layout 2회·UpdateLayoutTree 4회 수준이며 미판정이다.
 
 ### A3. MDM 메타가 늦게 도착하면 열 정의가 통째로 다시 만들어진다
 
@@ -172,6 +178,8 @@ DOM 노드·힙 증감, React 커밋 수를 함께 잰다. 화면당 3회 이상
 - 화면 첫 진입 시 구독자 수만큼 같은 GET 이 나간다 — layoutConfirm **3회**, dataMng **5회**, codeMng **5회**(추정).
 - ⚠️ **추측 부분**: 요청 횟수는 코드에서 읽은 것이고, 브라우저 실측 요청 수는 아직 아니다.
 
+> **정정(검증 f4378bef, §6-6)**: 실측(화면마다 새 컨텍스트) 메뉴 클릭 뒤 auth/me 는 layoutConfirm·dataMng·codeMng 모두 4회, columnMng 6회다. dataMng·codeMng 의 구독자는 진입 때 3개, 첫 행 선택 뒤 5개다 — 상세 쪽 resizable `ContentBody` 2개는 `mode==="detail"` 일 때만 붙는다. 그래서 D2·K8 의 "진입 5회" 는 첫 행 선택 뒤 값이고, D2 의 "5회 + 첫 선택 때 2회 추가" 는 같은 2개를 두 번 센 모순이다. 판정은 기각 유지이나 근거는 "진입당 4~6회, 동시 발화 1왕복, 재렌더 3~9ms" 로 바꾼다.
+
 ### A8. 셀마다 래퍼 콜백 2개
 
 - `AgDataGrid.tsx:810-825` — 커스텀 `render` 가 없는 **모든** 열에 `valueFormatter` 클로저를 단다.
@@ -203,6 +211,8 @@ DOM 노드·힙 증감, React 커밋 수를 함께 잰다. 화면당 3회 이상
 | T5 | `page.tsx:396` + `AgDataGrid.tsx:1315` | 숨은 탭은 컨테이너 폭이 0이다. `fillRemainingColumnSpace` 의 `gridWidth > 0` 가드 덕에 `sizeColumnsToFit` 은 건너뛴다. 다만 타이머·리플로우(A2)는 그대로 탄다 | 숨은 탭이 미묘하게 CPU 를 먹음 | medium |
 | T6 | `page.tsx:83-96` (deps `[filters]`), `:285-291` | `handleSearch` 가 `filters` 객체에 키'd → 매 입력 새 정체성 → `handleSave`(`:162`)·`handleDelete`(`:179`) 도 새 정체성 → A6 의 `buttons` 재계산을 유발. **추가 렌더는 없다** | 없음(정체성 churn) | high(구성)/low(비용) |
 
+> **정정(검증 f4378bef, §6-15)**: T5 의 "`gridWidth > 0` 가드 덕" 은 틀렸다. `fit` 그리드는 `:1309` 에서 먼저 return 해 그 가드까지 가지 않는다.
+
 **termMng 의 확정 사항**: `columns`(`TERM_COLUMNS` `:37-44`)·`RECO_COLUMNS_BASE`(`:47-53`)는 모듈 상수다.
 **메인 그리드의 열 정의는 안정적이다.** 불안정한 것은 추천 그리드뿐이다(T2). 조회는 단추로만 한다 — 진입 시 중복 조회 없음.
 
@@ -230,7 +240,7 @@ DOM 노드·힙 증감, React 커밋 수를 함께 잰다. 화면당 3회 이상
 
 | # | 근거 | 기전 | 예상 증상 | 신뢰도 |
 |---|---|---|---|---|
-| L1 | `page.tsx:248,298`, `shared/src/components/form/DateTimePicker.tsx:127-134` | `DateTimePicker` 가 **해석 가능한 중간 문자열마다** `onChange` 를 부른다. `2026-07-01 09:30:15` 를 입력하면 약 15~17회. `LayoutConfirmPage` 에 `useState` 11개(`:92-101`), `DraftList`(`:298`)·`ValidateArea`(`:336`) 는 **평범한 함수 컴포넌트**라 memo 경계가 없다 | 검사 후에는 입력 한 글자마다 좌측 그리드와 검사 목록(`:352-356`) 이 전부 다시 그려진다 | **high** |
+| L1 | `page.tsx:248,298`, `shared/src/components/form/DateTimePicker.tsx:127-134` | `DateTimePicker` 가 **해석 가능한 중간 문자열마다** `onChange` 를 부른다. `2026-07-01 09:30:15` 를 입력하면 약 15~17회. `LayoutConfirmPage` 에 `useState` 10개(정정 §6-14, 원문 11개)(`:92-101`), `DraftList`(`:298`)·`ValidateArea`(`:336`) 는 **평범한 함수 컴포넌트**라 memo 경계가 없다 | 검사 후에는 입력 한 글자마다 좌측 그리드와 검사 목록(`:352-356`) 이 전부 다시 그려진다 | **high** |
 | L2 | `page.tsx:214,88`, `shared/src/layout/ContentBody.tsx:171`, `PageLayout.tsx:105` | A7 — `useUserButtonRbac` 구독자 3개 → `/api/auth/me` **3회 중복** | 탭 진입이 느리고 네트워크에 같은 요청이 3개 | high(요청 수)/추측(커밋 수) |
 | L3 | `page.tsx:368`, `:374-382` | `impact={result.impact ?? []}` — 서버가 `impact` 를 안 주면 `?? []` 가 **매 렌더 새 배열** → `ImpactArea` 의 `useMemo([impact])` 깨짐 → 새 `rows` → `rowData` 재적용. `:162`, `:338` 도 같은 패턴, `:163-164` 는 `.filter()` 2회 순회 | 검사 결과가 비면 오른쪽 패널이 입력할 때마다 흔들린다(표가 비어 있어 비용은 작음) | medium |
 | L4 | `page.tsx:313-330` | `{drafts.length === 0 ? <p/> : <AgDataGrid/>}` — 조회 결과가 0건이면 **그리드 인스턴스째 unmount**된다. 다음 조회에서 처음부터 다시 만들고(`useMdmColumns`·마운트 effect `:1371` 재실행) | 검색 결과가 비었다 돌아올 때 좌측 패널에 보이는 깜빡임 | medium |
@@ -246,13 +256,17 @@ DOM 노드·힙 증감, React 커밋 수를 함께 잰다. 화면당 3회 이상
 
 | # | 근거 | 기전 | 예상 증상 | 신뢰도 |
 |---|---|---|---|---|
-| D1 | `page.tsx:235-241` → `:226-233` → `:166-177` + `:204-224` | **행 클릭 1번이 상태 갱신 4파동을 만든다.** `setSelectedId`+`setMode` → `begin()` `setPending(n+1)`(`:119`) → 응답 후 `setView`+`setForm`+`setFormAuditVer`(`:192-200`) → `end()` `setPending(n-1)`. 그 사이 `stale`(`:291`)·`busy`(`:292`) 가 뒤집히며 상세 패널이 그렸다·가렸다 다시 그려진다. 페이지 하위 컴포넌트에 memo 경계가 하나도 없다(`PageLayout.tsx:91`, `SearchArea.tsx:45`, `ContentBody.tsx:170`, `ContentPanel.tsx:18` 전부 평범한 함수) | **행 클릭마다 150~250ms 지연.** 상세 패널이 "다시 잠기는" 게 보인다 | **high**(기전)/medium(규모) |
+| D1 | `page.tsx:235-241` → `:226-233` → `:166-177` + `:204-224` | **행 클릭 1번이 상태 갱신 4파동을 만든다.** `setSelectedId`+`setMode` → `begin()` `setPending(n+1)`(`:119`) → 응답 후 `setView`+`setForm`+`setFormAuditVer`(`:192-200`) → `end()` `setPending(n-1)`. 그 사이 `stale`(`:291`)·`busy`(`:292`) 가 뒤집히며 상세 패널이 그렸다·가렸다 다시 그려진다. 페이지 하위 컴포넌트에 memo 경계가 하나도 없다(`PageLayout.tsx:91`, `SearchArea.tsx:45`, `ContentBody.tsx:119`(정정 §6-14, 원문 `:170`), `ContentPanel.tsx:18` 전부 평범한 함수) | **행 클릭마다 150~250ms 지연.** 상세 패널이 "다시 잠기는" 게 보인다 | **high**(기전)/medium(규모) |
 | D2 | `page.tsx:81`, `PageLayout.tsx:105`, `ContentBody.tsx:171`(×3) | A7 — 구독자 5개 → `/api/auth/me` **5회 중복**. 상세 분기(`:425-454`)가 리사이즈 패널 2개를 더 붙이므로 **첫 행 선택 때 2회 추가** | 첫 페인트가 느리고 네트워크에 동일 요청 5~7개 | high |
 | D3 | `page.tsx:418` + A5 | 인라인 `onRowClick` → `memo` 깨짐. `handleRowClick` 자체는 이미 `useCallback`(`:235-241`)이므로 **인라인 래퍼가 안정성을 버리는 유일한 지점** | 입력 중에 끊기지 않는 작은 CPU | medium-high |
 | D4 | `page.tsx:84-86` → `:266` → `:360-362,364,370-382` | `handleSearch` deps 에 `id`·`name`·`status` 3개 원소 → 입력마다 새 정체성. 인라인 `onKeyDown` 2개 추가 | 검색 칸 입력 지연 | high |
 | D5 | `DataDetail.tsx:179-187` + A9 | 카테고리 그리드가 `height="auto"` → `domLayout="autoHeight"`(가상화 없음). `columns.tsx:12-30` 의 `cellRenderer` 가 **셀마다 React 요소 + style 객체 + onClick 클로저**를 새로 만든다. 그리트는 첫 선택 시(`:425`) 분기 전환으로 마운트되고, 오류 때마다(`:216`) 다시 만들어진다 | 데이터의 카테고리가 많으면 상세 패널이 무거워진다 | medium |
 | D6 | `page.tsx:332-334` | 등록 후 `reloadList()` → `chooseDetail(id)` 2연속. 서로 독립 | 등록 후 지연 시간이 2배로 느껴진다 | high(기전)/low(비용) |
 | D7 | `page.tsx:347`, `DataDetail.tsx:161-162` + A6 | `canDoButton` 선형 스캔을 렌더 본문에서 1~3회. `rbac.rows` 가 크면(관리자 계정) 입력 지터에 영향을 준다 | 계정 권한이 많을수록 체감 | medium |
+
+> **정정(검증 f4378bef, §6-16)**: D5 의 `columns.tsx:12-30` 은 카테고리 그리드가 아니라 dataMng 목록 그리드의 ID 열이다.
+
+> **정정(검증 f4378bef, §6-6)**: D2 구독자 수는 진입 3·첫 행 선택 뒤 5다(A7 정정 참조).
 
 **dataMng 의 확정 사항(부정 포함)**: `columns` 는 **안정**하다. `columns.tsx` 는 팩토리지만
 `page.tsx:345` 가 `useMemo(() => buildDataMngColumns(), [])` 로 한 번만 호출한다.
@@ -266,15 +280,19 @@ render·`useMemo`·무방어 effect 에서 데이터 로드를 부르는 곳 없
 
 | # | 근거 | 기전 | 예상 증상 | 신뢰도 |
 |---|---|---|---|---|
-| K1 | `page.tsx:363` → `:545,560` | `form` 이 페이지 최상위 상태. 입력 한 글자에 `CodeHeaderCard`+`CodeLabelsCard`+`CodeVersionCard` 가 새로 그려진다. `ATTR_KEYS` 는 10개(`edit-types.ts:6`)라 `CodeDetail.tsx:219-235` 에 Input 10개. shared `Input` 은 memo 없는 Mantine `TextInput` 래퍼이고 렌더마다 `attributes`·`classNames` 를 새로 만든다(`shared/src/components/form/Input.tsx:29,57,63`) | 상세 입력 필드가 체감 없이 무겁다. 데이터가 안 바뀌어도 좌측 그리드가 "깜빡인다" | **high** |
+| K1 | `page.tsx:363` → `:545,560` | `form` 이 페이지 최상위 상태. 입력 한 글자에 `CodeHeaderCard`+`CodeLabelsCard`+`CodeVersionCard` 가 새로 그려진다. `ATTR_KEYS` 는 10개(`edit-types.ts:6`)라 `CodeDetail.tsx:219-235` 에 Input 10개. shared `Input` 은 memo 없는 Mantine `TextInput` 래퍼이고 렌더마다 `attributes`·`classNames` 를 새로 만든다(`shared/src/components/form/Input.tsx:57,63`(정정 §6-14, 원문의 `:29` 는 근거 아님)) | 상세 입력 필드가 체감 없이 무겁다. 데이터가 안 바뀌어도 좌측 그리드가 "깜빡인다" | **high** |
 | K2 | `page.tsx:270-276` → `:261-268` → `:239-259`, `AgDataGrid.tsx:1594,1712` | ↑/↓ 커서 이동이 `onRowClick` 으로 들어온다. **키 한 번에 상세 요청 1회 + 렌더 여러 번.** `begin`/`end` 렌더 2회(`:142-143`), `writeSnapshotTarget` → 포털 부모 렌더(`:145-154`), 응답 후 `apply`(`:214`) 렌더. `detailSeq` 는 응답을 버리기만 하고 요청을 취소하지 않는다 | 목록을 키보드로 내려갈 때 눈에 띄게 끊기고 버전 패널이 매 행마다 흔들린다 | **high** |
 | K3 | `CodeDetail.tsx:333` (`data={view.versions}`) + `page.tsx:223` | `view` 가 응답마다 새 서버 객체 → `versions` 배열 정체성이 **행 클릭마다** 바뀐다. 내부 파급: `sortedData` 두 번 `.filter()`(`AgDataGrid.tsx:1786-1790`) → `rowData` 재적용 → `onRowDataUpdated`(`:1402`) → `sizeColumnsToFit`(`:1316`) **강제 레이아웃** → A4 의 행 전수 순회 | 행마다 버전 목록 열이 미세하게 reflow | high(기전)/추측(ag-grid 내부 작업) |
 | K4 | `page.tsx:473,476`, `CodeDetail.tsx:284-308`(9회)·`:103-105`(3회) + A6 | `canDoButton` 선형 스캔 **12~14회/렌더**. 각 행마다 `toLowerCase()` 2회. K1 때문에 **입력 한 글자마다** 실행 | 권한이 많은 계정에서 체감 | high(기전)/medium(규모) |
 | K5 | `page.tsx:328` | `view?.versions.find(...)` 를 매 렌더 실행, memo 없음. 새 정체성 → `runDraft`(`:377`)·`handleCancelConfirm`(`:386`)·`moveTo`(`:403`) 가 전부 새 정체성 → `VersionActionBar`(memo 아님, `m-mdm/src/shell/VersionActionBar.tsx:71`) 가 `Button` 8개를 다시 그림 | 페이지가 그릴 때마다 항상 | high(기전)/medium(규모) |
-| K6 | `CodeDetail.tsx:278-282`(10키 객체), `:284-291,308`(객체 8개) | `VersionActionBar` 가 매 렌더 객체 리터럴 10개를 받는다 | K5 와 곱해짐 | high |
+| K6 | `CodeDetail.tsx:278-282`(9키 객체, 정정 §6-14, 원문 10키), `:284-292,308`(정정 §6-14, 원문 `:284-291`)(객체 8개) | `VersionActionBar` 가 매 렌더 객체 리터럴 10개를 받는다 | K5 와 곱해짐 | high |
 | K7 | `page.tsx:421-426` | 등록 후 `registerCode` → `reloadList` → `chooseDetail` 3연속. 뒤의 둘은 독립 | 등록 후 최소 대기 시간의 약 3배 | high |
 | K8 | `page.tsx:101`, `PageLayout.tsx:105`, `ContentBody.tsx:171`(×3, `:506,539,540`) | A7 — 구독자 5개 → `/api/auth/me` 5회 | 첫 페인트 지연 | high(코드상 개수)/추측(실측) |
 | K9 | `page.tsx:485-487`, `:513-516` + A6 | 인라인 `buttons` 배열 → `PageLayout` listener 재등록 매 렌더. `GridPanel`(`GridPanel.tsx:257` memo)도 깨짐 | 입력 중 숨은 CPU | high |
+
+> **정정(검증 f4378bef, §6-6)**: K8 구독자 수는 진입 3·첫 행 선택 뒤 5다(A7 정정 참조).
+
+> **정정(검증 f4378bef, §6-15)**: K3 의 `sizeColumnsToFit(:1316)` 강제 레이아웃은 `fit` 그리드에서 `:1309` 가 먼저 return 해 일어나지 않는다.
 
 **codeMng 의 확정 사항(부정 포함)**:
 - **모달은 비용이 아니다.** `NewVersionModal`(`:596-606`)·`HandoverModal`(`:607-615`)은 항상 마운트되지만
@@ -422,6 +440,8 @@ columnMng 2차에서 `RecalcStyleCount 129`·`LayoutCount 59` 로 **작은 작�
 남는 가설은 **네트워크·서버 왕복** 쪽이다. `apiCount` 가 화면마다 27~43건이고
 `apiTotalMs` 가 수백 ms 다. **1차 스캔에서 이쪽을 봐야 한다.**
 
+> **정정(검증 f4378bef, §6-12)**: "5개 화면 전부 long task 0" 은 중앙값 기준이다(원자료에 termMng R1 74ms, headerMng R2 54ms 가 있다). long task 0 은 50ms 미만 작업 여럿을 잡지 못하므로 "렌더 가설 기각" 근거가 될 수 없다. 보정은 관측기가 산다는 것만 보인다. A5·A6·A8 은 기각이 아니라 미측정이었고, 렌더 횟수 직접 측정(검증 §5)에서 동작마다 React 렌더 시간 합은 2~18ms 였다. "`apiCount` 27~43건" 은 컨텍스트 공유로 부푼 값이다(격리 시 페이지 전체 27~30건).
+
 ★보정 회차 수치는 참고만(배터리 상태라 1회). 재측정 시점은 조정자가 전원을 확인한 뒤
 「재측정 시작」을 입력할 때다.
 
@@ -475,6 +495,10 @@ load(1분) 기록: 2.03 / 2.35 / 2.73~2.80 (전 회차 5 미만 → 버린 회�
 termMng R1(315.7ms)은 나머지 두 회차(227~229ms)보다 88ms 높았다. **원인은 미확인** — 1회 편차로 보아
 중앙값만 썼다. R2·R3 편차가 1.5ms 라 R1 이 이상치일 가능성이 높지만 확인하지 않았다.
 
+> **정정(검증 f4378bef, §6-1)**: `searchToRowMs` 는 Playwright `waitFor` 폴링 격자(0·20·50·100·100·500ms)에 붙은 값이다. 같은 회차를 페이지 안 시계로 재면 columnMng 379.1 · termMng 169.8 · headerMng 25.4 · codeMng 24.8 · dataMng 24.6ms 다. 순위는 같다. api 건수 27~47 과 shell 준비 값은 6화면이 컨텍스트를 공유한 오염 값이다(격리 시 27~30건). 
+
+> **정정(검증 f4378bef, §6-10)**: layoutConfirm 40.7ms 는 무효다. 이 화면은 진입 때 자동 조회하므로(`layoutConfirm/page.tsx:149-156`) [조회] 클릭 지표가 조회 대기를 재지 않는다.
+
 ### Top 3 — 지시 4 의 2차 방향(네트워크·서버 왕복) 기준 해석
 
 ★**병목이 "조회 응답 하나" 에 있다★ 검색 API 호출 시간이 `searchToRowMs` 에서 차지하는 비율:
@@ -500,6 +524,10 @@ termMng R1(315.7ms)은 나머지 두 회차(227~229ms)보다 88ms 높았다. **�
   그런데 **화면을 열 때만 나가는 다른 API 가 api 합계 266~602ms** 를 차지한다(위젯·즐겨찾기·권한 등).
   그건 `searchToRowMs` 구간 밖이므로 1차 지표엔 들어오지 않았다. **3위 후보로 이들을 볼지
   별도 지표가 필요할 수 있다** — 2차에서 판단한다.
+
+> **정정(검증 f4378bef, §6-1)**: 위 표의 `searchToRowMs` 와 점유율은 폴링 격자 값 기준이다. 페이지 안 시계 기준으로 columnMng 조회→첫 행 ≈380ms 중 TTFB ≈345ms(≈92%), termMng ≈167ms 중 ≈130ms(≈80%)다. "나머지 API 합계" 는 대부분 메뉴 클릭 전 포털 홈 로딩 호출이다.
+
+> **정정(검증 f4378bef, §6-9)**: "headerMng 는 네트워크로 설명되지 않는 50ms" 는 하네스 바닥값(클릭 전 시각에 깔린 Playwright·CDP 왕복 ≈30ms + 폴링 격자)이다. 페이지 안 시계로 ≈26ms 이고 그중 TTFB 6ms 다.
 
 ★**기존 백엔드 측정과 맞물리는 정황★ `docs/refactor-2026-10/perf-mdm-backend.md` P4 가 이 calls를
 이미 재고 있었다. P4(컬럼 검색) 실측표:
@@ -563,14 +591,22 @@ queue(요청~sendStart)·dns·connect·`encodedDataLength` 도 함께 남긴다.
 | connect / dns | 0.0ms | — |
 | **조회 응답 → 첫 행** | **442.5ms** | **53%** |
 
+> **정정(검증 f4378bef, §6-2)**: "프런트 442ms" 는 존재하지 않는다. trace 로 응답 헤더→첫 행은 32.6ms(본문 완료→첫 행 19.1ms)이고 그중 ≈20ms 는 모든 화면 공통 바닥값이다. 442 는 폴링 5번째 시도(≈770ms)+클릭 비용 − TTFB 다. 또 제목의 826.9ms 는 1차(perf-final), 이 표의 812.6ms 는 2차(perf-2nd) 실행이라 두 실행이 섞였다.
+
 - **TTFB 371ms 는 순수 서버 시간이다.** BFF 경유가 아니라 그보다 앞 — 실제 응답을 `curl` 로 받아 보니
   `POST /api/mdm/oasis/columnMng/search` → **2,893,211B(2.89MB)**, `time_starttransfer=357ms`,
   `time_total=361ms`. `list` 길이 **7,858**건, 행당 평균 368B, 행당 키 13개.
   `bodyMs=2ms` 인 건 로컬 서버라 2.89MB 가 순식간에 온다 — **운영에선 이 2ms 가 네트워크로 잡힌다.**
+
+> **정정(검증 f4378bef, §6-13)**: TTFB 371ms 는 순수 서버 시간이 아니라 BFF(5300) 경유 값이다. WAS(8096) 직접은 318~325ms 로 ≈20~25ms 짧다. 재측정 TTFB 는 343.8~350.5ms 다.
+
 - **나머지 442ms 는 프런트다.** CDP 델타로 보면 `ScriptDuration≈100ms`, `TaskDuration≈300ms`,
   `RecalcStyleCount=129`, `LayoutCount=59`, `nodeDelta=+3,735`, `heapDeltaMB=+16.9`.
   즉 2.89MB `JSON.parse` + 7,858행 `map`(`page.tsx:203-213` — 행마다 `formatLabels` 로 3중 폴백 문자열 조합) +
   ag-grid `rowData` 적재 + 스타일 재계산.
+
+> **정정(검증 f4378bef, §6-3)**: `ScriptDuration`·`TaskDuration` 등 CDP `*Duration` 은 초 단위이고, `RecalcStyleCount 129`·`LayoutCount 59` 는 메뉴 펼침·포털 홈·shell 까지 합친 누적이다. 응답 뒤 구간만 보면 trace 상 Layout 2회·UpdateLayoutTree 4회, 50ms 넘는 task 0 이다.
+
 - **작업 대상 코드의 위치**(읽기만, 고치지 않는다)
   - `ColumnMngService.java:130-135` — 조건 없음 분기가 `columnRepository.findAll()` +
     `columnSystemRepository.findAll()` + `domainRepository.findAll()` 을 **전부** 읽는다.
@@ -593,6 +629,8 @@ queue(요청~sendStart)·dns·connect·`encodedDataLength` 도 함께 남긴다.
   합치면 수백 ms 다. **"개별 작업은 작고 개수가 많다" 는 패턴은 long task 로 검출되지 않는다.**
   이건 §4.8 판정의 한계이고, §A2(강제 리플로우)·C5(전 행 새 객체)가 기각이 아니라 **미판정**으로 내려간다.
 
+> **정정(검증 f4378bef, §6-3)**: 이 단락의 근거(RecalcStyle 129·Layout 59 가 합쳐 수백 ms)는 틀렸다. 그 값은 응답 뒤가 아니라 측정 구간 전체 누적이다. A2·C5 는 미판정을 유지하되 근거는 "응답 뒤 Layout 2·UpdateLayoutTree 4, 응답 뒤 구간 전체 ≈33ms" 로 바꾼다.
+
 ### 6.3 termMng 228.6ms — **TTFB 136ms(66%) + 프런트 68ms**
 
 | 구간 | 값 | 비중 |
@@ -601,6 +639,8 @@ queue(요청~sendStart)·dns·connect·`encodedDataLength` 도 함께 남긴다.
 | **실조회 TTFB** | **136.4ms** | **66%** |
 | 실조회 본문 | 1.7ms | — |
 | 조회 응답 → 첫 행 | 68.4ms | 33% |
+
+> **정정(검증 f4378bef, §6-4)**: 프런트는 68ms 가 아니라 ≈33ms 다(폴링 격자 값에서 TTFB 를 뺀 것이었다). 재측정 TTFB 131~134ms. **termMng 응답도 3.07MB·8,155건**이다(이 절에 크기가 빠져 있었다).
 
 - 요청 본문 `{"keyword":"","systems":"","context":""}` — **조건 없는 전체 조회.**
 - P3 대조(`perf-mdm-backend.md:100-152`): P3 은 조건 있는 검색에서 -93~-96% 개선,
@@ -634,7 +674,7 @@ queue(요청~sendStart)·dns·connect·`encodedDataLength` 도 함께 남긴다.
   - `shared/src/portal-shell/use-user-button-rbac.ts:66`
   - `m-mcm/app/portal/page.tsx:61, 147, 191, 246`
 - **`use-user-button-rbac.ts` 가 구독자마다 부른다**: `:150-183` 의 effect 안에서
-  `fetchCurrentUserId()`(`:64-72`)를 호출하고, 그 다음에야 `s.cachedState` 의 `userId` 와 비교한다(`:161-165`).
+  `fetchCurrentUserId()`(`:64-73`, 정정 §6-14, 원문 `:64-72`)를 호출하고, 그 다음에야 `s.cachedState` 의 `userId` 와 비교한다(`:161-165`).
   → **"캐시가 있는지 확인" 하려고 캐시가 없는 API 를 먼저 부른다.** 그래서 구독자가 늘면 선형으로 늘고,
   화면마다 호출자 수가 다르다:
   - 화면 쪽: `columnMng/page.tsx:116`, `codeMng/page.tsx:101`, `dataMng/page.tsx:81`,
@@ -645,12 +685,18 @@ queue(요청~sendStart)·dns·connect·`encodedDataLength` 도 함께 남긴다.
   병렬이다. 6개 화면 모두 `shellReadyMs` 63~117ms 안에 이 22건이 들어간다.
   → **"22회를 없애면 빠르겠다" 는 잘못된 기대다.** 진짜 문제는 *필요 없는 호출이 끼어 있는 것* 이다.
 
+> **정정(검증 f4378bef, §6-5)**: "진입당 22회" 는 6화면이 컨텍스트를 공유한 회차의 페이지 전체 합 평균이다(화면 순서대로 13→30회로 증가). 메뉴 클릭 뒤 실제 값은 4회(columnMng 6회)다. 호출처 목록도 고친다: `portal/page.tsx:61` 은 캐시가 있다(`:43,55-68`), `:147·191·246` 은 클릭 핸들러다, `use-portal-auth-user.ts:31` 은 `fetch` 가 아니라 `getJson` 이다, 빠진 호출처 `m-mcm/page-components/home/api.ts:65` 를 더해 10곳이다. `use-user-button-rbac.ts` 의 "캐시 확인 전에 호출" 은 재로그인 감지(다른 사용자로 다시 로그인했을 때 캐시 무효화)라는 의도가 있다(`:137-139`).
+
+> **정정(검증 f4378bef, §6-6)**: 구독자 수는 columnMng 5(ContentBody 2 + PageLayout + 화면 루트 + 팝업), dataMng·codeMng 는 진입 3·첫 행 선택 뒤 5다.
+
 #### ② 워터폴 — 구조적으로 없다
 
 6개 화면의 진입 호출을 인덱스(발생 순) 순으로 봤을 때 **32건이 모두 검색 1건보다 앞에 있고,
 그 32건끼리는 직렬 사슬이 없다.** 실측 R2 에서 실조회가 마지막(인덱스 32/32)이고,
 그전까지 모든 요청이 몇 ms 안 되는 규모였다. → **워터폴은 원인이 아니다**(§4.6 C3/K7 같은 종류는
 쓰기·등록 경로라 1차 스캔 대상이 아니었다).
+
+> **정정(검증 f4378bef, §6-8)**: "실조회가 인덱스 32/32" 는 근거가 안 된다. `apiCalls` 는 완료 순서라 송신 순서를 보이지 않는다. 진입 호출은 클릭 후 53~75ms 에 끝나고 조회 송신은 85~116ms 라 겹치지 않는 것은 맞다. 다만 진입 안에 2~3단 짧은 사슬(auth/me → secFavorite, 그리드 마운트 → `mdmMeta/columns` 404)이 있다.
 
 #### ③ 화면과 무관한 호출 — 위젯·즐겨찾기가 MDM 목록 화면에 붙어 있다
 
@@ -668,6 +714,8 @@ queue(요청~sendStart)·dns·connect·`encodedDataLength` 도 함께 남긴다.
 `shellReadyMs` 는 조회보다 앞서므로 **조회와 직렬로 더해진다.** 그 합이 `clickToRowMs` 다
 (columnMng 953.2ms = shell 117 + 조회 833.5, 실측 확인).
 
+> **정정(검증 f4378bef, §6-7)**: secWidget·widgetDef·noticeBoard·secStartPgm 은 메뉴 클릭 **전** 포털 홈 로딩에서 나간다. 메뉴 클릭 뒤 화면 무관 호출은 secFavorite 1건뿐이다. shell 비용의 주 성분은 메인 스레드 JS(탭 열기 ≈9ms + 청크 ≈10ms + 마운트 렌더 19~26ms)다. shell 과 조회가 직렬인 것은 하네스가 shell 을 본 뒤 [조회] 를 누르는 측정 구조 때문이다.
+
 ### 6.5 warm — 숨은 탭 유지 비용 (§4.7 판정)
 
 columnMng·termMng 만, 3회(지시 5-14). **탭 여러 개를 열어 둔 상태**에서 재 눌렀을 때:
@@ -683,6 +731,8 @@ columnMng·termMng 만, 3회(지시 5-14). **탭 여러 개를 열어 둔 상태
 - **판정: 숨은 탭 유지 비용은 체감 문턱 아래다.** §4.7 이 미판정으로 두었던 항목에 대한 답이다.
   포털이 탭을 마운트된 채 두는 구조(§1, `portal-shell.tsx:154`)는 **메모리·DOM 을 붙들고는 있으나
   사용자가 기다리는 시간은 만들지 않는다.** 이것을 "문제"로 취급할 근거는 없다.
+
+> **정정(검증 f4378bef, §6-11)**: warm 은 `row-at-entry`(조회하지 않음)라 "조회→첫 행" 이 아니라 탭 전환+클릭 비용이다. 재측정 clickToRow 중앙값 columnMng 39.6·termMng 45.8ms. 탭 2개 전환만 쟀으므로 "판정 완료" 가 아니라 "탭 2개 전환만 측정, 숨은 탭 유지 비용은 미판정" 이다. 공유 컨텍스트 원자료에는 복원 탭이 부팅 호출을 늘린다는 반대 증거도 있다.
 
 ## 7. 수정안
 
@@ -715,6 +765,8 @@ columnMng·termMng 만, 3회(지시 5-14). **탭 여러 개를 열어 둔 상태
 ★**B-2·B-3 은 효과 미확인이다.** 442ms 안에서 각 항목이 얼마인지는 CDP trace 로 더 쪼개야 한다.
 **지금은 "총 442ms 가 존재한다" 만 사실이고, 그 안의 배분은 모른다.**
 
+> **정정(검증 f4378bef, §6-2)**: "총 442ms" 자체가 측정 결함이다. 응답 뒤 프런트는 ≈33ms(바닥 ≈20ms 포함)이고 3MB 응답이 더하는 몫은 ≈12~15ms 다. B-2·B-3 의 효과는 많아야 10ms 대다.
+
 ### 7.3 [C안] 화면 진입 공통 비용 — 6개 화면 전체
 
 `shellReadyMs` 63~117ms. 조회와 직렬로 더해진다.
@@ -724,6 +776,10 @@ columnMng·termMng 만, 3회(지시 5-14). **탭 여러 개를 열어 둔 상태
 | **C-1 위젯·즐겨찾기·공지를 MDM 화면에서 떼어낸다** | 진입 호출 32건 중 **무관한 7건**(위젯 3·즐겨찾기 3·공지 1)이 빠진다. `shellReadyMs` 감소 예상 | **왜 붙어 있는지 확인해야 한다** — 포털 껍데이라면 화면과 무관하게 한 번만, 탭 안이라면 화면마다 다를 수 있다. **미확인 상태에서 손대면 회귀 위험** | 미확인 — 포털 shell 호출 구조를 먼저 봐야 한다 |
 | **C-2 `/api/auth/me` 중복 제거** | 22회 → 줄 수 있다. **단 체감 이득은 작다**(동시 발화라 병렬) | `use-user-button-rbac.ts:161-165` 의 "캐시 확인을 먼저 부르는" 구조를 바꿔야 한다. 권한 판정이 틀어지면 **화면이 깨진다** — 되돌리기 어려움 | `shared/src/portal-shell/use-user-button-rbac.ts`, `use-portal-menu.ts`, `use-portal-start-pages.ts`, `use-portal-favorites.ts` |
 | **C-3 아무것도 안 한다** | — | C-1·C-2 모두 위험 대비 효과가 작다. `shellReadyMs` 63~117ms 는 이미 빠르게 보인다 | — |
+
+> **정정(검증 f4378bef, §6-7)**: C-1 의 "무관한 7건" 은 대부분 메뉴 클릭 전 포털 홈 로딩 호출이라 MDM 화면에서 떼어낼 대상이 아니다. 클릭 뒤 무관 호출은 secFavorite 1건이며, 홈 바로가기 위젯이 어느 탭 활성화에도 즐겨찾기를 다시 읽는 것(`quickLinks/widget.tsx:27-31`)과 같은 계열로 보인다.
+
+> **정정(검증 f4378bef, §6-5)**: C-2 의 "22회" 는 메뉴 클릭 뒤 4~6회로 읽는다. 구조를 바꿀 때 재로그인 감지 의도(`use-user-button-rbac.ts:137-139`)를 유지해야 한다.
 
 ### 7.4 기각을 "미판정"으로 되돌리는 것
 
@@ -737,10 +793,14 @@ columnMng·termMng 만, 3회(지시 5-14). **탭 여러 개를 열어 둔 상태
 
 A1·A4·A5·A6·A7·A8 의 기각은 그대로 둔다(근거가 코드 확인 + longTask 0 으로 이중).
 
+> **정정(검증 f4378bef, §6-3)**: A2·C5 를 미판정으로 되돌린 판단은 맞지만 근거(LayoutCount 59·RecalcStyleCount 129)는 측정 구간 전체 누적이라 틀렸다. 또 A4 는 미판정(영향 상한 ≈12~15ms), A5·A6·A8 은 미측정이었다. 렌더 횟수 직접 측정은 검증 §5 에 있다.
+
 ### 7.5 warm 에 대한 답 (2026-10-04)
 
 **숨은 탭 유지 비용은 문턱 아래다**(§6.5: shell 35ms, API 0건, cold 대비 4배 빠름).
 → **조치 없음.** §4.7 미판정 항목에 대한 답이 나왔다.
+
+> **정정(검증 f4378bef, §6-11)**: 탭 2개 전환만 쟀으므로 미판정으로 되돌린다(§6.5 정정 참조).
 
 ## 8. 이 문서의 한계
 
