@@ -97,7 +97,7 @@
   - 시작 실패 때 먼저 시작한 트랜잭션이 정리되어 같은 스레드의 다음 요청이 묵은 트랜잭션에 합류하지 않는다.
   - 정상 경로(커밋 성공, 처리 중 예외의 롤백)는 바뀌지 않는다.
 - 동작 보존·재현 근거:
-  - 재현 시험은 `mcm/lib/src/test/java/com/dongkuk/dmes/mcm/oasis/OasisCommitFailureSqliteTest`(2bc8acb3, c6121f64 가 시작 실패·보조 TxMgr 사례 추가)다. SQLite 실제 트랜잭션으로 oasis 핸들러의 삼킴·스레드 누수를 고정하고 cactus 조립의 올바른 기대와 나란히 둔다. cactus-core 시험 경로에는 JDBC 드라이버가 없어 mcm 에 뒀다. 1b 가 sqlite-jdbc 를 넣으면 a8 2차에서 cactus-core 로 옮긴다.
+  - 재현 시험은 `cactus-core/src/test/java/com/dongkuk/dmes/cactus/oasis/commitfailure/OasisCommitFailureSqliteTest`(2bc8acb3, c6121f64 가 시작 실패·보조 TxMgr 사례 추가)다. BPMN 은 `cactus-core/src/test/resources/oasis-commit-failure/` 5개다. SQLite 실제 트랜잭션으로 oasis 핸들러의 삼킴·스레드 누수를 고정하고 cactus 조립의 올바른 기대와 나란히 둔다. 처음엔 cactus-core 시험 경로에 JDBC 드라이버가 없어 mcm/lib 에 뒀고, 1b 가 cactus-core 시험 실행 범위에 sqlite-jdbc·SQLite 방언을 넣은 뒤 a8 2차에서 시험 동작 그대로 옮겼다(시험 소스는 `org.sqlite` 를 참조하지 않는다).
   - 단위 시험은 cactus-core `CactusSpringTransactionHandlerTest` 다. 통과 수는 머지 요청 때 적는다.
   - 화면에 `errors[]` 가 채워지는 곳이 `BusinessException.getErrors()` 뿐임은 `CactusResponseConverterBusinessErrorsTest` 가 고정한다(c6121f64).
 - 영향 범위: `cactus-core` 의 `oasis` 패키지(핸들러 신규, `OasisAutoConfiguration`·`CactusServiceStarterFactory` 호출부)와 `com.dongkuk.oasis.transaction` 다리 클래스 2개. transactional 모드(mcm·mdm·mls)만 해당하며, 비트랜잭션 모드는 이 핸들러를 쓰지 않는다. 같은 패키지 접근은 같은 클래스 로더일 때만 되며 실행 jar·WAR 모두 그렇다. oasis 버전을 올릴 때 다리 클래스가 기대는 메서드(`getWarehouse()`·`transactionManagerAndStatusList()` 의 시작 순서·사본·`end()` 의 보관소 제거와 IDLE 복귀)를 확인한다. 이름 변경은 컴파일에서, 동작 변경은 `CactusSpringTransactionHandlerTest` 에서 드러난다. 커밋 실패 응답이 `S001` 로 바뀌므로 이를 SUCCESS 로 기대하던 호출부가 있는지 확인한다.
