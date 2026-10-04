@@ -9,6 +9,11 @@ export interface TabPageContextValue {
    * Active page 가 menu tree 의 root 직계면 빈 문자열.
    */
   serviceId: string;
+  /**
+   * 화면이 들어 있는 포털 탭 id — `portal-tab-activated` 이벤트의 `detail.tabId` 와 비교해 자기 탭이 활성화될 때만
+   * 반응할 때 쓴다(Screen-Performance-Guide R10·K5). 포털 밖이면 없다.
+   */
+  tabId?: string;
 }
 
 /**

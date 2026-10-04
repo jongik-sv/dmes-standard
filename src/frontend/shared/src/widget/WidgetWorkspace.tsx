@@ -13,7 +13,7 @@
  */
 import { IconPrinter } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { useContainerWidth } from "react-grid-layout";
+import { useVisibleContainerWidth } from "./use-visible-container-width";
 
 import { useMessage } from "../components/message-provider";
 import { today } from "../utils/libDate";
@@ -141,7 +141,7 @@ export function WidgetWorkspace({
   const [snapshot, setSnapshot] = useState<WidgetTab[] | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   // 칸 수는 서랍 자리까지 포함한 바깥 폭으로 정한다 — 서랍이 보드 폭을 줄여도 칸 수가 바뀌지 않게(D1).
-  const outer = useContainerWidth({ initialWidth: workspaceWidth ?? boardWidth ?? 1280 });
+  const outer = useVisibleContainerWidth({ initialWidth: workspaceWidth ?? boardWidth ?? 1280 });
   const cols = colsForWidth(workspaceWidth ?? boardWidth ?? outer.width);
   const wide = cols === WIDGET_COLS;
   const [saving, setSaving] = useState(false);

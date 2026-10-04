@@ -98,6 +98,8 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(([e]) => {
       const { width, height } = e.contentRect;
+      // 포털 탭이 숨겨지면 폭 0 이 온다 — 보이지 않는 본체를 다시 그리지 않게 무시한다(Screen-Performance-Guide K6).
+      if (width <= 0) return;
       setBodySize((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
     });
     ro.observe(el);
