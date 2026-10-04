@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -57,6 +58,17 @@ class MenuChangedEventPublishTest {
                 row("rowStatus", "X", "MENU_ID", "M2")));
         menuService.saveCmMenu(null);
         assertThat(events).isEmpty();
+    }
+
+    @Test
+    @DisplayName("메뉴 저장 — 있는 메뉴를 지우면 MENU 이벤트 하나를 낸다")
+    void saveCmMenuDeleteExisting() {
+        when(menuRepo.existsById("M1")).thenReturn(true);
+
+        menuService.saveCmMenu(List.of(row("rowStatus", "D", "MENU_ID", "M1")));
+
+        verify(menuRepo).deleteById("M1");
+        assertThat(events).containsExactly(new MenuChangedEvent(MenuChangedEvent.MENU));
     }
 
     @Test
@@ -99,6 +111,39 @@ class MenuChangedEventPublishTest {
         when(roleMappingRepo.findByObjectId("O2")).thenReturn(List.of());
         objService.saveCmObj(List.of(row("rowStatus", "D", "OBJECT_ID", "O2")));
         assertThat(events).isEmpty();
+    }
+
+    @Test
+    @DisplayName("OBJECT 저장 — 매핑 없는 OBJECT 를 지우면 OBJECT 이벤트만 낸다")
+    void saveCmObjDeleteWithoutMapping() {
+        when(objRepo.countMenuByObjectId("O3")).thenReturn(0L);
+        when(roleMappingRepo.findByObjectId("O3")).thenReturn(List.of());
+        when(objRepo.existsById("O3")).thenReturn(true);
+
+        objService.saveCmObj(List.of(row("rowStatus", "D", "OBJECT_ID", "O3")));
+
+        verify(objRepo).deleteById("O3");
+        assertThat(events).containsExactly(new MenuChangedEvent(MenuChangedEvent.OBJECT));
+    }
+
+    @Test
+    @DisplayName("OBJECT 저장 — SYSADMIN 매핑만 있는 OBJECT 를 지우면 매핑을 함께 지우고 역할 이벤트와 OBJECT 이벤트를 낸다")
+    void saveCmObjDeleteWithSysadminMapping() {
+        SecRoleMapping sysadmin = new SecRoleMapping();
+        sysadmin.setRoleId("SYSADMIN");
+        sysadmin.setObjectId("O4");
+        sysadmin.setPermissionId("PERM_ALL");
+        when(objRepo.countMenuByObjectId("O4")).thenReturn(0L);
+        when(roleMappingRepo.findByObjectId("O4")).thenReturn(List.of(sysadmin));
+        when(objRepo.existsById("O4")).thenReturn(true);
+
+        objService.saveCmObj(List.of(row("rowStatus", "D", "OBJECT_ID", "O4")));
+
+        verify(roleMappingRepo).deleteAll(List.of(sysadmin));
+        verify(objRepo).deleteById("O4");
+        assertThat(events).hasSize(2);
+        assertThat(events.get(0)).isInstanceOf(RoleChangedEvent.class);
+        assertThat(events.get(1)).isEqualTo(new MenuChangedEvent(MenuChangedEvent.OBJECT));
     }
 
     private static Map<String, Object> row(String... kv) {
