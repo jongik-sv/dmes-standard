@@ -44,12 +44,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
-import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -233,7 +233,8 @@ public class LogSearchController {
                                          @RequestParam @Nullable boolean byThread) throws JsonProcessingException, InterruptedException, FileNotFoundException {
 
         validateModule(module);
-        Queue<LogData> queue = new ConcurrentLinkedQueue<>();
+        // 상한 없는 대기 큐 — 렉서의 add 가 막히거나 예외를 내지 않고, 소비 쪽은 take 로 잠들었다가 바로 깬다.
+        BlockingQueue<LogData> queue = new LinkedBlockingQueue<>();
         LogProcessor logProcessor = new LogProcessor(new LogLexer(), queue, logPattern);
         logProcessor.setDebug(logDebug);
         logProcessor.getLogLexer().setLogPattern(lexPattern);

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- OasisAopAnnotationCheckerTest 용 — 같은 빈을 클래스 이름으로 부른다 (mixedByName.bpmn 은 빈 이름으로 부른다) -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_mixedByClass" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="mixedByClass" isExecutable="true">
+    <bpmn:startEvent id="start"/>
+    <bpmn:serviceTask id="t1" name="클래스 이름 참조"
+                      camunda:class="com.dongkuk.dmes.cactus.oasis.aop.OasisAopAnnotationCheckerTest$ClassTxService#search"/>
+    <bpmn:endEvent id="end"/>
+  </bpmn:process>
+</bpmn:definitions>

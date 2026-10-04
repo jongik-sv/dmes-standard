@@ -9,10 +9,11 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.util.ClassUtils;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * BPMN 이 부르는 빈에 붙은 프록시 의존 어노테이션({@code @Transactional}·{@code @Cacheable}·
@@ -24,7 +25,7 @@ import java.util.Set;
  *       가 프록시를 벗겨 원본 객체를 부르므로 오류 없이 조용히 무시된다.</li>
  *   <li>트랜잭션 모드 ({@code true}) — oasis-core {@code SpringServiceStarter} 가 컨텍스트를
  *       {@code SpringApplicationContext} 로 바꿔 끼워 프록시를 그대로 부른다. 프록시 클래스 메서드에는
- *       파라미터 이름이 없어, 파라미터가 있는 메서드는 {@code ParameterName must not be null} 로 실패한다.</li>
+ *       파라미터 이름이 없어, 파라미터가 있는 메서드는 {@code ParameterName must not be null} 로 실패할 수 있다.</li>
  * </ul>
  *
  * <p>검사 대상은 BPMN 의 {@code camunda:class} 가 가리키는 빈뿐이다. 모든 {@code @Service} 를 잡지 않는다
@@ -97,26 +98,28 @@ public class OasisAopAnnotationChecker implements SmartInitializingSingleton {
     /**
      * classpath BPMN 을 스캔해 참조 빈을 검사한다.
      *
-     * @return 위반 목록 (참조 이름순, 빈별 1건)
+     * <p>같은 빈을 BPMN 마다 빈 이름·클래스 이름으로 달리 불러도, 그 빈을 부르는 BPMN 을 모두 모아 위반 하나에 담는다.
+     *
+     * @return 위반 목록 (빈을 처음 만난 참조 이름순, 빈별 1건)
      */
     List<Violation> check() {
         BpmnServiceClassScanner.Scan scan = new BpmnServiceClassScanner(classLoader(ctx)).scan(servicePath);
-        List<Violation> violations = new ArrayList<>();
-        Set<String> beanNames = new LinkedHashSet<>();
+        Map<String, Set<String>> bpmnFilesByBean = new LinkedHashMap<>();
         for (Map.Entry<String, Set<String>> ref : scan.refs().entrySet()) {
             for (String beanName : resolveBeanNames(ref.getKey())) {
-                if (!beanNames.add(beanName)) {
-                    continue;
-                }
-                Class<?> targetClass = targetClassOf(beanName);
-                List<ProxyDependentAnnotationDetector.Finding> findings = detector.detect(targetClass);
-                if (!findings.isEmpty()) {
-                    violations.add(new Violation(beanName, targetClass, findings, ref.getValue()));
-                }
+                bpmnFilesByBean.computeIfAbsent(beanName, k -> new TreeSet<>()).addAll(ref.getValue());
+            }
+        }
+        List<Violation> violations = new ArrayList<>();
+        for (Map.Entry<String, Set<String>> bean : bpmnFilesByBean.entrySet()) {
+            Class<?> targetClass = targetClassOf(bean.getKey());
+            List<ProxyDependentAnnotationDetector.Finding> findings = detector.detect(targetClass);
+            if (!findings.isEmpty()) {
+                violations.add(new Violation(bean.getKey(), targetClass, findings, bean.getValue()));
             }
         }
         log.info("[Cactus Oasis] AOP 검사 — BPMN {}개, 참조 빈 {}개, 프록시 의존 어노테이션 위반 {}건 (mode={})",
-                scan.bpmnCount(), beanNames.size(), violations.size(), mode.name().toLowerCase());
+                scan.bpmnCount(), bpmnFilesByBean.size(), violations.size(), mode.name().toLowerCase());
         return violations;
     }
 
