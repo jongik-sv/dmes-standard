@@ -871,6 +871,12 @@ async function measureScreen(page, cdp, screen, calls, round) {
   const afterMenu = rt.menuClick === null ? [] : rt.entries.filter((e) => e.start >= rt.menuClick && (rt.searchClick === null || e.start < rt.searchClick));
   const apiAfterMenuClick = rt.menuClick === null ? "" : afterMenu.length;
   const authMeAfterMenuClick = rt.menuClick === null ? "" : afterMenu.filter((e) => e.name.includes("/api/auth/me")).length;
+  // 진입 호출 이름(경로만, 시작 순). R3 "진입 호출 목록" 과 홈 위젯 무관 재요청(K5)을 판정할 때 본다.
+  const apiAfterMenuClickNames = afterMenu
+    .slice()
+    .sort((a, b) => a.start - b.start)
+    .map((e) => new URL(e.name).pathname.replace(/^\/api\//, ""))
+    .join(",");
   const authMeAll = rt.entries.filter((e) => e.name.includes("/api/auth/me")).length;
 
   const after = await perfMetrics(cdp);
@@ -915,6 +921,7 @@ async function measureScreen(page, cdp, screen, calls, round) {
     /** 메뉴 잎 클릭 ~ [조회] 클릭 사이에 시작한 /api/ 호출 수(화면 진입 호출). 페이지 시계 기준. */
     apiAfterMenuClick,
     authMeAfterMenuClick,
+    apiAfterMenuClickNames,
     authMeAll,
     searchTtfbMs: api.searchTtfbMs ?? "",
     searchBodyMs: api.searchBodyMs ?? "",
