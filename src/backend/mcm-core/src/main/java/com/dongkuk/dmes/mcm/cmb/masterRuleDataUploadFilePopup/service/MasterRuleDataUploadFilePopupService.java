@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOfTrim;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
 
 /**
  * 일반 업무기준 등록(Excel Upload) — cmb/masterRuleDataUploadFilePopup OASIS 서비스
@@ -227,7 +229,7 @@ public class MasterRuleDataUploadFilePopupService {
                 throw new BusinessException(ErrorCode.INVALID_VALUE,
                         "[" + colId + "] 컬럼정의 COL_ID 가 식별자 형식이 아닙니다.");
             }
-            map.put(colId, strOf(d[9]));   // COL_ID → COL_TYPE
+            map.put(colId, strOfTrim(d[9]));   // COL_ID → COL_TYPE
         }
         return map;
     }
@@ -276,15 +278,8 @@ public class MasterRuleDataUploadFilePopupService {
         return auth == null || auth.getName() == null ? "system" : auth.getName();
     }
 
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s;
-    }
-
     private static String nvl(String s) {
         return s == null ? "" : s.trim();
     }
 
-    private static String strOf(Object o) {
-        return o == null ? null : String.valueOf(o).trim();
-    }
 }

@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.dma.termMng.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
+
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingCodec;
@@ -499,13 +501,5 @@ public class TermMngService {
             curr = tmp;
         }
         return prev[b.length()];
-    }
-
-    private static String trimToNull(String s) {
-        if (s == null) {
-            return null;
-        }
-        String t = s.trim();
-        return t.isEmpty() ? null : t;
     }
 }

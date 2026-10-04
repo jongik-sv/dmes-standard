@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 
 /**
  * commSyncMng — OASIS BPMN serviceTask entry point (W8 / csa 9 화면 8번째 — 동기화 관리).
@@ -378,7 +379,4 @@ public class CommSyncMngService {
         return "system";
     }
 
-    private static String strOf(Object o) {
-        return o == null ? null : String.valueOf(o);
-    }
 }

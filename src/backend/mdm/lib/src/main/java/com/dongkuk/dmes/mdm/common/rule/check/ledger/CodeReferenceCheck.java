@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.common.rule.check.ledger;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.str;
+
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
 import com.dongkuk.dmes.mdm.common.mastercode.MdmCodeLookup;
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
@@ -59,7 +61,7 @@ public class CodeReferenceCheck implements RuleSaveCheck {
             }
             String op = c.op();
             if ("CODE_IN".equals(op)) {
-                String cate = LedgerCells.str(c.cell().get("left"));
+                String cate = str(c.cell().get("left"));
                 List<String> cates = catesByCode.computeIfAbsent(codeId, id -> ledger.cates(id).stream().map(r -> r.cateId()).toList());
                 if (cate != null && !cates.contains(cate)) {
                     out.add(RuleCheckReport.cellIssue(RuleSaveIssueCode.CODE_CATE_MISSING, RuleCheckReport.ERROR, c.row().rowId(), var,

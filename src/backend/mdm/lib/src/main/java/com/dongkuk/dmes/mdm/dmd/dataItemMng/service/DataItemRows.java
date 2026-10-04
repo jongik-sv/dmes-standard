@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dmd.dataItemMng.service;
 
+import com.dongkuk.dmes.mdm.common.support.MdmStrings;
 import com.dongkuk.dmes.mdm.common.segment.DataItemValue;
 import com.dongkuk.dmes.mdm.common.segment.ItemSegmentRow;
 import com.dongkuk.dmes.mdm.common.support.MdmTemporalBinder;
@@ -23,7 +24,7 @@ public final class DataItemRows {
 
     /** 공백·null → null, 그 밖은 trim(dataItemMng·dataHistory 공용). */
     public static String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+        return MdmStrings.blankToNull(value);
     }
 
     public static DataItemRow toRow(ItemSegmentRow row) {

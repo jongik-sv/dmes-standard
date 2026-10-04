@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.common.rule.check.ledger;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.str;
+
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleAnalysisInputMapper.StoredRow;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
@@ -70,9 +72,5 @@ final class LedgerCells {
         if (s != null && !s.isBlank()) {
             out.add(s);
         }
-    }
-
-    static String str(Object o) {
-        return o == null ? null : String.valueOf(o);
     }
 }

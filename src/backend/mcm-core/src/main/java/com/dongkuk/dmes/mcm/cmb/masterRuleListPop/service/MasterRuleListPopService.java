@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNullTrim;
 
 /**
  * 업무기준 List조회 — cmb/masterRuleListPop OASIS 서비스 (Spring bean = {@code masterRuleListPopService}).
@@ -57,8 +58,8 @@ public class MasterRuleListPopService {
         if (request == null) request = new MasterRuleListPopSearchRequest();
         validateSchema(request.getSSchema());   // BR-005 / Q-002 화이트리스트 가드
 
-        String pRuleId = blankToNull(request.getPRuleId());
-        String pRuleNm = blankToNull(request.getPRuleNm());
+        String pRuleId = blankToNullTrim(request.getPRuleId());
+        String pRuleNm = blankToNullTrim(request.getPRuleNm());
 
         List<Object[]> raw = repository.searchRuleMasterListPop(pRuleId, pRuleNm);
 
@@ -94,7 +95,4 @@ public class MasterRuleListPopService {
         }
     }
 
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s.trim();
-    }
 }

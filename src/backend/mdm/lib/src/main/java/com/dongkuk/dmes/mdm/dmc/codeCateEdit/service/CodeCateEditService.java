@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dmc.codeCateEdit.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
 import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeSegments.same;
 
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeCateSaves;
@@ -419,9 +420,5 @@ public class CodeCateEditService {
 
     private static boolean isBlank(String s) {
         return s == null || s.isBlank();
-    }
-
-    private static RuntimeException invalid(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
     }
 }

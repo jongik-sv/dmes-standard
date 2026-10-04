@@ -20,6 +20,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 
 /**
  * Master Code Management - OASIS BPMN serviceTask entry point.
@@ -376,7 +377,6 @@ public class MasterCodeMngService {
         return row;
     }
 
-    private static String strOf(Object o) { return o == null ? null : String.valueOf(o); }
     private static Long longOf(Object o) {
         if (o == null) return null;
         if (o instanceof Number n) return n.longValue();

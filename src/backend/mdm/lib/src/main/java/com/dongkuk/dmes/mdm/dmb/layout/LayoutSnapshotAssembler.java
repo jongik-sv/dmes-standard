@@ -11,10 +11,12 @@ import com.dongkuk.dmes.mdm.entity.MdmLayoutItem;
 import com.dongkuk.dmes.mdm.repository.MdmEaiRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
 /**
@@ -56,13 +58,27 @@ public class LayoutSnapshotAssembler {
      * @param overridesByHeaderPhys 상수 재정의 — 키 {@code headerLayoutId + ":" + headerColumnPhys}. 그 헤더 버전의 CONST 항목에만 붙는다
      */
     public MdmLayoutSnapshot assemble(MessagePart m, List<HeaderPart> headers, Map<String, String> overridesByHeaderPhys) {
+        return assemble(m, headers, overridesByHeaderPhys, null);
+    }
+
+    /**
+     * {@link #assemble(MessagePart, List, Map)} 와 같되 컬럼 사전을 {@code columns} 로 읽는다(여러 번 조립할 때 {@link #dictionaryCache()}
+     * 로 한 번씩 읽기). null 이면 부를 때마다 사전을 읽는다.
+     */
+    public MdmLayoutSnapshot assemble(MessagePart m, List<HeaderPart> headers, Map<String, String> overridesByHeaderPhys,
+                                      Function<Collection<String>, Map<String, LayoutColumnInfo>> columns) {
         List<Row> body = new ArrayList<>();
         int headerTotal = headers.stream().mapToInt(HeaderPart::length).sum();
         for (MdmLayoutItem it : m.body()) {
             body.add(Row.of(it, headerTotal + it.getOffset())); // 저장값은 본문 기준 상대 → 계약은 절대(F23)
         }
         return build(m.layoutId(), m.layoutName(), m.ver(), m.eaiCode(), m.sndSystem(), m.rcvSystem(), headerTotal + m.ownLength(),
-                headers, overridesByHeaderPhys, body);
+                headers, overridesByHeaderPhys, body, columns == null ? dictionary::byPhysNames : columns);
+    }
+
+    /** 한 요청 범위의 컬럼 사전({@link LayoutDictionary#cache()}) — 사전을 고치지 않는 요청 안에서만 쓴다. */
+    public LayoutDictionary.Cache dictionaryCache() {
+        return dictionary.cache();
     }
 
     /**
@@ -83,7 +99,8 @@ public class LayoutSnapshotAssembler {
                     d.fillerLength(), headerTotal + draft.bodyOffsets().get(i), draft.itemLengths().get(i), false, null, null, null));
         }
         return build(draft.layoutId() == null ? 0L : draft.layoutId(), draft.layoutName(), ver == null ? VersionNumbers.FIRST : ver,
-                draft.eaiCode(), draft.sndSystem(), draft.rcvSystem(), headerTotal + draft.ownLength(), headers, overrides, body);
+                draft.eaiCode(), draft.sndSystem(), draft.rcvSystem(), headerTotal + draft.ownLength(), headers, overrides, body,
+                dictionary::byPhysNames);
     }
 
     /**
@@ -121,11 +138,12 @@ public class LayoutSnapshotAssembler {
     }
 
     private MdmLayoutSnapshot build(long layoutId, String name, BigDecimal ver, String eaiCode, String snd, String rcv, int total,
-                                    List<HeaderPart> headers, Map<String, String> overrides, List<Row> body) {
+                                    List<HeaderPart> headers, Map<String, String> overrides, List<Row> body,
+                                    Function<Collection<String>, Map<String, LayoutColumnInfo>> columns) {
         List<String> phys = new ArrayList<>();
         headers.forEach(h -> h.items().stream().map(MdmLayoutItem::getColumnPhys).filter(Objects::nonNull).forEach(phys::add));
         body.stream().map(Row::columnPhys).filter(Objects::nonNull).forEach(phys::add);
-        Map<String, LayoutColumnInfo> dict = dictionary.byPhysNames(phys);
+        Map<String, LayoutColumnInfo> dict = columns.apply(phys);
         List<MdmLayoutHeaderRef> refs = new ArrayList<>();
         int at = 0;
         for (int i = 0; i < headers.size(); i++) {

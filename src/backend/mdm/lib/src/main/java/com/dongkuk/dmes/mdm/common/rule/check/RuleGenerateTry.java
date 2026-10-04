@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.common.rule.check;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.str;
+
 import com.dongkuk.dmes.mdm.common.rule.ResolvedVar;
 import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import java.util.List;
@@ -55,9 +57,5 @@ public final class RuleGenerateTry {
         return new RuleCell(str(c.get("op")), str(c.get("left")), str(c.get("right")),
                 c.get("list") instanceof List<?> list ? list.stream().map(x -> x == null ? null : x.toString()).toList() : null,
                 str(c.get("expr")), RuleCellsCodec.ast(c.get("ast")), str(c.get("val")), null);
-    }
-
-    private static String str(Object value) {
-        return value == null ? null : value.toString();
     }
 }
