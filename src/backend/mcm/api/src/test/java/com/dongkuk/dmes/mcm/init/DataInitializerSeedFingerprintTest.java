@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.init;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.dongkuk.dmes.cactus.security.auth.PasswordEncoder;
+import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.audit.McmAuditStatementInspector;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.common.audit.SecurityIdentityHolder;
@@ -34,6 +35,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.env.MockEnvironment;
@@ -44,6 +46,7 @@ import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -90,6 +93,9 @@ class DataInitializerSeedFingerprintTest {
     private static SecurityContext prevSecurityContext;
     private static long seedStartMillis;
     private static long seedEndMillis;
+    /** 시드가 낸 이벤트와 그때 트랜잭션이 열려 있었는지 — 메뉴 카탈로그 무효화(MenuChangedEvent SEED) 확인용. */
+    private static final List<Object> publishedEvents = new ArrayList<>();
+    private static final List<Boolean> publishedInTx = new ArrayList<>();
 
     @BeforeAll
     static void seedEmptySqlite() throws Exception {
@@ -147,6 +153,10 @@ class DataInitializerSeedFingerprintTest {
         ReflectionTestUtils.setField(initializer, "secMenuNativeRepository", secMenuNativeRepository);
         ReflectionTestUtils.setField(initializer, "ruleMasterRepository", ruleMasterRepository);
         ReflectionTestUtils.setField(initializer, "initEnabled", true);
+        ReflectionTestUtils.setField(initializer, "eventPublisher", (ApplicationEventPublisher) event -> {
+            publishedEvents.add(event);
+            publishedInTx.add(TransactionSynchronizationManager.isActualTransactionActive());
+        });
         // appHostJpaRepository · consoleCaravanHubConfigJpaRepository 는 null 그대로(secondary EMF — skip).
 
         seedStartMillis = System.currentTimeMillis();
@@ -210,6 +220,13 @@ class DataInitializerSeedFingerprintTest {
      * 지문에 실행 시각이 섞이지 않았는지 지킨다 — 해시에 들어가는 값에 오늘 날짜(UTC·로컬)나 시드 시각 근처의 epoch 수가 있으면
      * 새 시각 컬럼이 생긴 것이니 {@link #TIME_COLUMNS} 에 넣어야 한다(그대로 두면 지문이 날마다·초마다 흔들린다).
      */
+    @Test
+    @DisplayName("시드 끝에 트랜잭션 안에서 MenuChangedEvent(SEED) 를 한 번 낸다 — 메뉴 카탈로그가 즉시·커밋 뒤 비워진다")
+    void seedPublishesMenuChangedEventInsideTransaction() {
+        assertThat(publishedEvents).containsExactly(new MenuChangedEvent(MenuChangedEvent.SEED));
+        assertThat(publishedInTx).containsExactly(true);
+    }
+
     @Test
     @DisplayName("해시에 들어가는 값에 실행 시각(오늘 날짜·현재 epoch)이 섞이지 않는다")
     void hashedValuesHaveNoRuntimeTimestamp() {

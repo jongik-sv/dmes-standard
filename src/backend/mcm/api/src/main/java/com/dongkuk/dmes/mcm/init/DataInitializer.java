@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mcm.init;
 import com.dongkuk.dmes.cactus.security.auth.PasswordEncoder;
 import com.dongkuk.caravan.console.host.AppHostJpaRepository;
 import com.dongkuk.caravan.console.caravanhubconfig.ConsoleCaravanHubConfigJpaRepository;
+import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.repository.RuleMasterRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.screenusage.schema.ScreenUsageMssqlDdl;
@@ -24,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,6 +70,12 @@ public class DataInitializer implements ApplicationRunner {
     // 업무기준(cmb/masterRuleList) 샘플 시드용 — primary EMF (mcm.db / MCAAPUSER). local/mssql/dev tier 한정.
     @Autowired(required = false)
     private RuleMasterRepository ruleMasterRepository;
+
+    // 2026-10-04 — 시드 끝에 MenuChangedEvent(SEED) 를 내 메뉴 카탈로그(MenuCatalog)를 비운다. ApplicationRunner 는 웹 서버가
+    //   뜬 뒤에 돌므로 시드 커밋 전에 들어온 내 메뉴 요청이 시드 전 목록을 TTL 동안 남길 수 있기 때문이다. 필드 주입·required=false
+    //   는 생성자로 만드는 기존 시험(지문·특성화·admin 잠금 해제)이 그대로 돌게 하기 위해서다(null 이면 내지 않는다).
+    @Autowired(required = false)
+    private ApplicationEventPublisher eventPublisher;
 
     private final Environment environment;
 
@@ -289,6 +297,11 @@ public class DataInitializer implements ApplicationRunner {
         // recomputeMenuFullSeq 는 mcm-core SecMenuNativeRepository 의 native @Query(MCMAPUSER. schema 접두) 이지만,
         // SQLite 에서는 McmAuditStatementInspector(JpaConfig 가 SQLite 한정 등록)가 schema 접두를 제거하므로 그대로 동작.
         menuFinalizer.recomputeMenuFullSeq();
+
+        // 메뉴 카탈로그 무효화 — 이 메서드의 @Transactional 안이므로 즉시 한 번, 커밋 뒤 한 번 더 비운다(MenuCatalog javadoc).
+        if (eventPublisher != null) {
+            eventPublisher.publishEvent(new MenuChangedEvent(MenuChangedEvent.SEED));
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

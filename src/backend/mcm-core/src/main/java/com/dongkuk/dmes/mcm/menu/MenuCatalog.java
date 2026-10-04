@@ -47,7 +47,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * </ol>
  * 두 리스너 모두 예외를 밖으로 던지지 않는다 — WARN 로그만 남긴다. 커밋 뒤 리스너의 예외가 밖으로 나가면 DB 는 이미
  * 커밋됐는데 OASIS 응답은 S001 실패로 나가기 때문이다. 이벤트는 같은 JVM 안에서만 전달되므로 다른 인스턴스·운영자의
- * 직접 SQL·DataInitializer 시드는 TTL 로만 반영된다.
+ * 직접 SQL 은 TTL 로만 반영된다. 기동 시드({@code DataInitializer}, mcm/api)는 끝에 {@link MenuChangedEvent#SEED} 를 낸다.
  *
  * <p><b>캐시된 엔티티는 읽기 전용이다.</b> 반환하는 {@link SecMenu}·{@link SecObj} 는 모든 요청이 함께 쓰는 같은
  * 인스턴스이며, 처음 읽은 요청의 영속성 컨텍스트에서 나온 것이다. 호출부는 setter 를 부르거나 {@code save} 하지 않는다
