@@ -211,13 +211,18 @@ export function tabsEqual(a: WidgetTab, b: WidgetTab): boolean {
 }
 
 const sameJson = (a: unknown, b: unknown) => a === b || JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-/** 순서·설정까지 같은 탭인지 — tabsEqual(저장 대상 판정, 순서 무시)보다 엄격하다. */
-function sameTabExact(a: WidgetTab, b: WidgetTab): boolean {
-  if (a.tabId !== b.tabId || a.name !== b.name || a.seq !== b.seq || a.locked !== b.locked || a.items.length !== b.items.length) return false;
-  return a.items.every((x, i) => {
-    const y = b.items[i];
+/** 순서·설정까지 같은 항목 목록인지 — itemsEqual(저장 대상 판정, 순서 무시)보다 엄격하다. */
+export function sameItemsExact(a: readonly WidgetItem[], b: readonly WidgetItem[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((x, i) => {
+    const y = b[i];
     return itemKey(x) === itemKey(y) && sameJson(x.config, y.config);
   });
+}
+
+function sameTabExact(a: WidgetTab, b: WidgetTab): boolean {
+  return a.tabId === b.tabId && a.name === b.name && a.seq === b.seq && a.locked === b.locked && sameItemsExact(a.items, b.items);
 }
 
 /**

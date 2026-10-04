@@ -32,6 +32,7 @@ import {
   newInstanceId,
   nextTabId,
   reuseTabs,
+  sameItemsExact,
   sanitizeLayout,
   tabsEqual,
   validateTabName,
@@ -198,7 +199,7 @@ export function WidgetWorkspace({
   const tabTouched = useRef(false);
   /**
    * 탭별 원래 배치(서버에서 받거나 저장한, 정리 전 항목)와 그것을 정리한 결과(cleaned, 화면 상태의 items 참조).
-   * 등록부가 바뀌면 화면의 items 가 아직 cleaned 그대로일 때만 원래 배치에서 다시 정리한다 — 이전 등록부로 한 번 잘린 크기를
+   * 등록부가 바뀌면 화면의 items 가 아직 cleaned 와 같은 내용일 때만 원래 배치에서 다시 정리한다 — 이전 등록부로 한 번 잘린 크기를
    * 다시 자르지 않게(새 등록부가 더 큰 크기를 허용하면 원래 크기로 돌아온다). 사용자가 바꾼 탭은 화면 값을 그대로 정리한다.
    */
   const sourceItems = useRef(new Map<string, { raw: readonly WidgetItem[]; cleaned: readonly WidgetItem[] }>());
@@ -306,12 +307,13 @@ export function WidgetWorkspace({
     const next = cur.map((t) => {
       if (t.tabId === HOME_TAB_ID && homeIsDefault.current) return { ...homeTab(sanitizeLayout(homeDefault, registry)), locked: t.locked };
       const src = sourceItems.current.get(t.tabId);
-      return { ...t, items: sanitizeLayout(src && src.cleaned === t.items ? src.raw : t.items, registry) };
+      // 내용으로 비교한다 — [배치 편집]→[취소]는 같은 내용의 사본으로 되돌리므로 참조가 달라도 손대지 않은 탭이다.
+      return { ...t, items: sanitizeLayout(src && sameItemsExact(src.cleaned, t.items) ? src.raw : t.items, registry) };
     });
     const final = reuseTabs(cur, next);
     final.forEach((t, i) => {
       const src = sourceItems.current.get(t.tabId);
-      if (src && src.cleaned === cur[i]?.items) src.cleaned = t.items;
+      if (src && cur[i] && sameItemsExact(src.cleaned, cur[i].items)) src.cleaned = t.items;
     });
     setTabs(final);
   }, [registry, homeDefault, load]);
