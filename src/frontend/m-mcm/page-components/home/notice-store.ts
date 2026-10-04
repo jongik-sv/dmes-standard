@@ -60,13 +60,31 @@ export function selectUrgentOrFirst(): void {
   set({ selectedId: noticeKey(target) });
 }
 
+function subscribe(l: () => void): () => void {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
+  };
+}
+
+const getState = () => state;
+const getNotices = () => state.notices;
+const getSelectedId = () => state.selectedId;
+
+/** 통째 상태 — 목록과 선택을 둘 다 쓰는 공지 위젯용. 행 선택만 바뀌어도 다시 그려지므로 한쪽만 쓰면 아래 필드 훅을 쓴다. */
 export function useNoticeStore(): NoticeStoreState {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    () => state,
-    () => state
-  );
+  return useSyncExternalStore(subscribe, getState, getState);
+}
+
+/**
+ * 공지 목록만 — 행 선택(selectedId)이 바뀌어도 다시 그려지지 않는다. set 이 notices 를 건드리지 않으면 같은 객체라서다.
+ * 홈 페이지(긴급 공지 띠)가 이 훅을 써서 행 클릭이 보드 전체로 번지지 않게 한다(widget-render-findings W8).
+ */
+export function useNotices(): NoticeLoadState {
+  return useSyncExternalStore(subscribe, getNotices, getNotices);
+}
+
+/** 선택한 공지 키만. */
+export function useSelectedNoticeId(): string | null {
+  return useSyncExternalStore(subscribe, getSelectedId, getSelectedId);
 }

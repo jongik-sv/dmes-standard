@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import type { PageProps } from "@dk-oasis/shared/portal-shell-core";
 import { PageLayout } from "@dk-oasis/shared/layout";
 import { Badge, Button, SegmentedControl } from "@dk-oasis/shared/form";
-import { mergeWidgetRegistry, toWidgetDefRow, WidgetWorkspace, type WidgetDefRow } from "@dk-oasis/shared/widget";
+import { mergeWidgetRegistry, toWidgetDefRow, WidgetWorkspace, type WidgetDefRow, type WidgetRegistry } from "@dk-oasis/shared/widget";
 
 import { WIDGET_REGISTRY } from "@/lib/generated/widget-registry";
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
@@ -21,7 +21,7 @@ import { onWidgetDefsChanged } from "@/lib/widget-defs-events";
 import { fetchCurrentUser, type CurrentUser } from "./api";
 import { HOME_CSS, HOME_STYLE_HREF } from "./home-styles";
 import { HOME_DEFAULT_LAYOUT } from "./home-layout";
-import { ensureNoticesLoaded, resetNoticesRequest, selectNotice, useNoticeStore } from "./notice-store";
+import { ensureNoticesLoaded, resetNoticesRequest, selectNotice, useNotices } from "./notice-store";
 import { PRODUCT_GROUPS, currentShiftLabel } from "./sample-data";
 import { firstUrgent, formatToday, noticeKey } from "./types";
 import {
@@ -40,12 +40,13 @@ export default function PortalHomePage(_props: PageProps) {
   const [now] = useState(() => new Date());
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [productGroup, setProductGroup] = useState(PRODUCT_GROUPS[0]);
-  const { notices } = useNoticeStore();
+  // 목록만 구독한다 — 통째 스토어를 구독하면 공지 행 선택 하나에 홈 페이지→보드→위젯 틀 11개가 다시 그려진다(widget-render-findings W8).
+  const notices = useNotices();
   // [PDF] 인쇄 대상 — 홈 뿌리(.mcm-home) 전체.
   const homeRef = useRef<HTMLDivElement>(null);
 
   // 위젯 정의 조회 — 응답 전·실패 동안은 코드 등록부만으로 보이고 [배치 편집]이 막힌다(정의 위젯이 사용자 배치에서 지워지지 않게).
-  // 등록부·기본 배치가 응답으로 바뀌면 WidgetWorkspace 가 탭을 다시 불러오므로(load 가 registry·homeDefault 에 의존) 따로 다시 마운트하지 않는다.
+  // 등록부·기본 배치가 응답으로 바뀌면 WidgetWorkspace 가 가진 탭을 다시 정리하므로(다시 조회하지 않는다) 따로 다시 마운트하지 않는다.
   const [defsState, dispatchDefs] = useReducer(defsReducer, INITIAL_DEFS_STATE);
   const [defsAttempt, setDefsAttempt] = useState(0);
 
@@ -91,7 +92,14 @@ export default function PortalHomePage(_props: PageProps) {
     () => defsState.rawDefs.map((raw) => toWidgetDefRow(raw)).filter((row): row is WidgetDefRow => row !== null),
     [defsState.rawDefs]
   );
-  const registry = useMemo(() => mergeWidgetRegistry(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defRows), [defRows]);
+  // 지난 등록부를 넘겨, 정의를 다시 받아도 합친 결과가 같으면 같은 객체를 쓴다(보드가 바뀐 것으로 보지 않게, W2).
+  // 렌더 중 상태 조정(파생 상태) 방식 — 행 목록이 바뀐 렌더에서만 다시 합친다.
+  const [registry, setRegistry] = useState<WidgetRegistry>(() => mergeWidgetRegistry(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defRows));
+  const [registryRows, setRegistryRows] = useState(defRows);
+  if (registryRows !== defRows) {
+    setRegistryRows(defRows);
+    setRegistry((prev) => mergeWidgetRegistry(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defRows, prev));
+  }
   const homeDefault = useMemo(() => pickHomeDefault(defsState.homeDefault, HOME_DEFAULT_LAYOUT), [defsState.homeDefault]);
 
   useEffect(() => {
