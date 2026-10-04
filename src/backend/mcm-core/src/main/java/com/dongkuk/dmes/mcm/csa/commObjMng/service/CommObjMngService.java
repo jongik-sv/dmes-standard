@@ -5,6 +5,7 @@
  */
 package com.dongkuk.dmes.mcm.csa.commObjMng.service;
 
+import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.event.RoleChangedEvent;
 import com.dongkuk.dmes.mcm.csa.commObjMng.dto.CommObjMngSearchRequest;
 import com.dongkuk.dmes.mcm.entity.SecObj;
@@ -47,6 +48,9 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
  *
  * <p>audit 9 컬럼 (C_USR_ID / C_AT / C_SVC_ID / C_PGM_ID / U_USR_ID / U_AT / U_SVC_ID / U_PGM_ID / VER) 은
  * mcm-core {@code McmAuditListener} 가 JPA PrePersist / PreUpdate 콜백으로 자동 채움 — service body 미설정.
+ *
+ * <p>메뉴 카탈로그 무효화 — OBJECT 저장·삭제에서 실제로 바뀐 행이 있으면 {@link MenuChangedEvent} 를 발행한다
+ * ({@code mcm.menu.MenuCatalog}). 본 서비스는 카탈로그로 읽지 않는다.
  *
  * <p>BPMN definition: {@code services/csa/commObjMng/commObjMng.bpmn}.
  */
@@ -220,6 +224,11 @@ public class CommObjMngService {
         if (rbacChanged) {
             // SYSADMIN 매핑 변경 → UserPermCache 즉시 무효화 (BFF 게이팅은 TTL 60s + BE 백스톱)
             eventPublisher.publishEvent(new RoleChangedEvent(Set.of("SYSADMIN")));
+        }
+        if (cnt > 0) {
+            // OBJECT 저장·삭제 → 메뉴 카탈로그(SEC_MENU·SEC_OBJ 전수 캐시) 무효화. 매핑 변화가 없어(rbacChanged=false)
+            // RoleChangedEvent 가 안 나가는 update 도 카탈로그는 비워야 한다.
+            eventPublisher.publishEvent(new MenuChangedEvent(MenuChangedEvent.OBJECT));
         }
         // 저장 후 후속 search 재조회 (As-Is xfdl:389 fn_msgSuccessSave 콜백 → fn_run("searchCmObj") 자동 재조회 정합)
         List<SecObj> rows = secObjRepository.findAll();

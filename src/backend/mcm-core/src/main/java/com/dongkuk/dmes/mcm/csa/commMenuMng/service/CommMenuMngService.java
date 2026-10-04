@@ -9,6 +9,7 @@ package com.dongkuk.dmes.mcm.csa.commMenuMng.service;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngCommonListRequest;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngSearchObjRequest;
 import com.dongkuk.dmes.mcm.csa.commMenuMng.dto.CommMenuMngSearchRequest;
+import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.entity.SecMenu;
@@ -16,6 +17,7 @@ import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
 import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -51,6 +53,9 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.parseLocalDateTime;
  * <p>audit 9 컬럼 (C_USR_ID / C_AT / C_SVC_ID / C_PGM_ID / U_USR_ID / U_AT / U_SVC_ID / U_PGM_ID / VER) 은
  * mcm-core {@code McmAuditListener} 가 JPA PrePersist / PreUpdate 콜백으로 자동 채움 — service body 미설정.
  *
+ * <p>메뉴 카탈로그 무효화 — 메뉴·메뉴 폴더 저장에서 실제로 바뀐 행이 있으면 {@link MenuChangedEvent} 를 발행한다
+ * ({@code mcm.menu.MenuCatalog} 가 받아 SEC_MENU·SEC_OBJ 전수 캐시를 비운다). 본 서비스는 카탈로그로 읽지 않는다.
+ *
  * <p>BPMN definition: {@code services/csa/commMenuMng/commMenuMng.bpmn}.
  */
 @Service("commMenuMngService")
@@ -71,11 +76,14 @@ public class CommMenuMngService {
 
     private final SecMenuRepository secMenuRepository;
     private final SecMenuNativeRepository secMenuNativeRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public CommMenuMngService(SecMenuRepository secMenuRepository,
-                              SecMenuNativeRepository secMenuNativeRepository) {
+                              SecMenuNativeRepository secMenuNativeRepository,
+                              ApplicationEventPublisher eventPublisher) {
         this.secMenuRepository = secMenuRepository;
         this.secMenuNativeRepository = secMenuNativeRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -248,6 +256,10 @@ public class CommMenuMngService {
         // 2026-06-04 사용자 지시 — FULL_SEQ 7자리 인코딩 자동 부여 (화면 + 폴더 트리 전체 멱등 재계산).
         // CRUD 직후 · 재조회 직전에 호출 → ds_menuList 가 항상 최신 FULL_SEQ 반영.
         secMenuNativeRepository.recomputeMenuFullSeq();
+        if (cnt > 0) {
+            // 메뉴 카탈로그(SEC_MENU·SEC_OBJ 전수 캐시) 무효화 — 즉시 + 트랜잭션이 끝난 뒤(커밋·롤백), MenuCatalog 리스너.
+            eventPublisher.publishEvent(new MenuChangedEvent(MenuChangedEvent.MENU));
+        }
 
         // 저장 후 후속 search 재조회 (As-Is fn_callBack saveCmMenu → fn_search 자동 재호출 정합)
         List<Map<String, Object>> rows = secMenuNativeRepository.searchCmMenu(null, null, null, null);
@@ -400,6 +412,10 @@ public class CommMenuMngService {
         log.info("[commMenuMng.saveCmMenuFld] batch insert={} update={} delete={} skip={}", cntInsert, cntUpdate, cntDelete, cntSkip);
         // 2026-06-04 사용자 지시 — 폴더(메뉴 필드) FULL_SEQ 자동 부여 (모듈 백만 / 그룹 만). 화면 FULL_SEQ 도 동시 정합.
         secMenuNativeRepository.recomputeMenuFullSeq();
+        if (cntInsert + cntUpdate + cntDelete > 0) {
+            // 폴더가 바뀌면 위 재계산이 화면(SEC_MENU) FULL_SEQ 도 바꾼다 → 메뉴 카탈로그 무효화.
+            eventPublisher.publishEvent(new MenuChangedEvent(MenuChangedEvent.MENU_FOLDER));
+        }
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cnt_insert", cntInsert);
