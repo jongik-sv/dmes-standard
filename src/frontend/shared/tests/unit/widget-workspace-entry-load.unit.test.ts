@@ -151,4 +151,49 @@ describe("WidgetWorkspace — 진입 불러오기 한 번(W1)", () => {
     expect(store.load).toHaveBeenCalledTimes(1);
     expect(host.querySelector('[data-tab-id="tab-1"] .cm-widget-tab__lock')).not.toBeNull();
   });
+
+  it("이전 등록부로 잘린 크기는 새 등록부가 허용하면 원래 배치 크기로 돌아온다(잘린 값으로 다시 정리하지 않는다)", async () => {
+    const small: WidgetRegistry = { "t.a": { meta: { id: "t.a", title: "가", defaultSize: { w: 6, h: 6 }, maxSize: { w: 24, h: 6 } }, load: loadA } };
+    const big: WidgetRegistry = { "t.a": { meta: { ...small["t.a"].meta, maxSize: { w: 24, h: 10 } }, load: loadA } };
+    const store = makeStore([
+      { tabId: "home", name: "홈", seq: 0, locked: false, items: [] },
+      { tabId: "tab-1", name: "내 생산", seq: 1, locked: false, items: [{ ...it_("a"), h: 8 }] },
+    ]);
+    const props = { ...base(store), registry: small };
+    await render(props);
+    await render({ ...props, registry: big });
+    // 보기 모드 잠금 저장은 탭 전체를 저장한다 — 저장되는 항목 크기로 화면 상태를 본다.
+    act(() => (host.querySelector('[data-tab-menu="tab-1"]') as HTMLButtonElement).click());
+    const lock = [...document.querySelectorAll(".cm-widget-menu button")].find((b) => b.textContent?.includes("탭 잠그기")) as HTMLButtonElement;
+    act(() => lock.click());
+    await flush();
+    const saved = (store.saveTab as ReturnType<typeof vi.fn>).mock.calls[0][0] as WidgetTab;
+    expect(saved.items[0].h).toBe(8);
+    expect(store.load).toHaveBeenCalledTimes(1);
+  });
+
+  it("조용한 다시 불러오기 응답 전에 편집을 시작하면 늦게 온 응답이 편집을 덮지 않는다", async () => {
+    let resolveSecond: (tabs: WidgetTab[]) => void = () => {};
+    const tabs: WidgetTab[] = [{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }];
+    const store = makeStore(tabs);
+    store.load.mockImplementationOnce(async () => tabs).mockImplementationOnce(() => new Promise<WidgetTab[]>((r) => (resolveSecond = r)));
+    const props = base(store);
+    await render(props);
+    // 편집 중 정의가 바뀌면 다시 불러오기가 미뤄지고, [취소] 뒤 조용히 다시 불러온다(응답 대기).
+    act(() => (host.querySelector('[data-action="start-edit"]') as HTMLButtonElement).click());
+    await render({ ...props, registry: { ...REG } });
+    act(() => (host.querySelector('[data-action="cancel-edit"]') as HTMLButtonElement).click());
+    await flush();
+    expect(store.load).toHaveBeenCalledTimes(2);
+    // 응답 전에 다시 편집을 시작해 위젯 하나를 뺀다.
+    act(() => (host.querySelector('[data-action="start-edit"]') as HTMLButtonElement).click());
+    act(() => (host.querySelector('.cm-widget[data-inst-id="a"] [data-action="remove"]') as HTMLButtonElement).click());
+    await act(async () => {
+      resolveSecond(tabs);
+    });
+    await flush();
+    expect(host.querySelector('[data-action="done-edit"]')).not.toBeNull();
+    expect(host.querySelector('.cm-widget[data-inst-id="a"]')).toBeNull();
+  });
 });
+

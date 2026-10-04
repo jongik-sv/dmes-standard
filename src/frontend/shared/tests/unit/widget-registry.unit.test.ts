@@ -159,4 +159,13 @@ describe("mergeWidgetRegistry — 같은 행이면 같은 entry(W2)", () => {
     expect(mergeWidgetRegistry(CODE, TYPES, [{ ...def }], a)).toBe(a);
     expect(mergeWidgetRegistry(CODE, TYPES, [], a)).not.toBe(a);
   });
+
+  it("정의 행의 제목만 바뀌고 설정이 같으면 새 entry 지만 본체 loader 는 그대로다(본체를 다시 마운트하지 않는다)", () => {
+    const a = mergeWidgetRegistry(CODE, TYPES, [def]);
+    const b = mergeWidgetRegistry(CODE, TYPES, [{ ...def, title: "새 이름" }]);
+    expect(b["def.q1"]).not.toBe(a["def.q1"]);
+    expect(b["def.q1"].meta.title).toBe("새 이름");
+    expect(b["def.q1"].load).toBe(a["def.q1"].load);
+  });
 });
+
