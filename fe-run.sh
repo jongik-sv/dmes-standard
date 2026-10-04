@@ -23,6 +23,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$ROOT_DIR/src/frontend"
 RUN_ENV_FILE="$ROOT_DIR/.run.env"
 SCRIPT_LIB_DIR="$ROOT_DIR/scripts/lib"
+if [ ! -f "$SCRIPT_LIB_DIR/log.sh" ]; then
+  printf '[error] scripts/lib 없음: %s (스크립트 파일 심볼릭 링크로 부르면 저장소 위치를 못 찾는다)\n' "$SCRIPT_LIB_DIR" >&2
+  exit 1
+fi
 # 포털 포트(PORTAL_PORT)는 모듈 카탈로그 scripts/lib/modules.conf 에서 읽는다. 종전처럼 .run.env 가 덮어쓸 수 있게 그보다 먼저 읽는다.
 . "$SCRIPT_LIB_DIR/modules.sh"
 

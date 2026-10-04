@@ -44,6 +44,10 @@ RUN_ENV_FILE="$ROOT_DIR/.run.env"
 # fe-run.sh·local-run.sh 와 함께 scripts/lib/ 에 둔다. 경로는 현재 디렉터리가 아니라 이 스크립트 위치 기준이다.
 # log.sh 는 .run.env 를 읽은 뒤에 source 한다(DEV_LOG_COLOR 를 .run.env 에 둘 수 있다).
 SCRIPT_LIB_DIR="$ROOT_DIR/scripts/lib"
+if [ ! -f "$SCRIPT_LIB_DIR/log.sh" ]; then
+  printf '[error] scripts/lib 없음: %s (스크립트 파일 심볼릭 링크로 부르면 저장소 위치를 못 찾는다)\n' "$SCRIPT_LIB_DIR" >&2
+  exit 1
+fi
 . "$SCRIPT_LIB_DIR/log.sh"
 . "$SCRIPT_LIB_DIR/proc.sh"
 . "$SCRIPT_LIB_DIR/args.sh"

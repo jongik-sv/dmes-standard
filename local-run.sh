@@ -23,14 +23,20 @@ set -u
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUN_ENV_FILE="$ROOT_DIR/.run.env"
 
-[ -f "$RUN_ENV_FILE" ] && . "$RUN_ENV_FILE"
-
 # 인자(load_default_args·has_scope_arg)·프로세스(terminate_cmdline_stragglers) 함수는 be-run.sh·fe-run.sh 와
 # 함께 scripts/lib/ 에 둔다. 경로는 현재 디렉터리가 아니라 이 스크립트 위치 기준이다.
 SCRIPT_LIB_DIR="$ROOT_DIR/scripts/lib"
+if [ ! -f "$SCRIPT_LIB_DIR/log.sh" ]; then
+  printf '[error] scripts/lib 없음: %s (스크립트 파일 심볼릭 링크로 부르면 저장소 위치를 못 찾는다)\n' "$SCRIPT_LIB_DIR" >&2
+  exit 1
+fi
+# PORTAL_PORT(안내문용)는 fe-run.sh 와 같은 순서로 .run.env 보다 먼저 읽어 .run.env 가 덮어쓸 수 있게 한다.
+. "$SCRIPT_LIB_DIR/modules.sh"
+
+[ -f "$RUN_ENV_FILE" ] && . "$RUN_ENV_FILE"
+
 . "$SCRIPT_LIB_DIR/proc.sh"
 . "$SCRIPT_LIB_DIR/args.sh"
-. "$SCRIPT_LIB_DIR/modules.sh"   # PORTAL_PORT (안내문용)
 
 for arg in "$@"; do
   case "$arg" in
