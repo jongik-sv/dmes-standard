@@ -102,6 +102,7 @@
   - 재현 시험은 `mcm/lib/src/test/java/com/dongkuk/dmes/mcm/oasis/OasisCommitFailureSqliteTest`(2bc8acb3, c6121f64 가 시작 실패·보조 TxMgr 사례 추가)다. SQLite 실제 트랜잭션으로 oasis 핸들러의 삼킴·스레드 누수를 고정하고 cactus 조립의 올바른 기대와 나란히 둔다. cactus-core 시험 경로에는 JDBC 드라이버가 없어 mcm 에 뒀다. 1b 가 sqlite-jdbc 를 넣으면 a8 2차에서 cactus-core 로 옮긴다.
   - 단위 시험은 cactus-core `CactusSpringTransactionHandlerTest` 다. 통과 수는 머지 요청 때 적는다.
   - 화면에 `errors[]` 가 채워지는 곳이 `BusinessException.getErrors()` 뿐임은 `CactusResponseConverterBusinessErrorsTest` 가 고정한다(c6121f64).
+  - 옮긴 SQLite 재현 시험(`cactus.oasis.commitfailure`)의 static 중첩 `@Configuration` 은 cactus `@ComponentScan(com.dongkuk.dmes.cactus)` 범위 안에 있다 — 지금은 전체 문맥 시험이 없어 영향 없음, 생기면 제외 필터 검토.
 - 영향 범위: `cactus-core` 의 `oasis` 패키지(핸들러 신규, `OasisAutoConfiguration`·`CactusServiceStarterFactory` 호출부)와 `com.dongkuk.oasis.transaction` 다리 클래스 2개. transactional 모드(mcm·mdm·mls)만 해당하며, 비트랜잭션 모드는 이 핸들러를 쓰지 않는다. 같은 패키지 접근은 같은 클래스 로더일 때만 되며 실행 jar·WAR 모두 그렇다. oasis 버전을 올릴 때 다리 클래스가 기대는 메서드(`getWarehouse()`·`transactionManagerAndStatusList()` 의 시작 순서·사본·`end()` 의 보관소 제거와 IDLE 복귀)를 확인한다. 이름 변경은 컴파일에서, 동작 변경은 `CactusSpringTransactionHandlerTest` 에서 드러난다. 커밋 실패 응답이 `S001` 로 바뀌므로 이를 SUCCESS 로 기대하던 호출부가 있는지 확인한다.
 - 성능 항목이 아니다. `perf-framework.md` 에 P 항목을 두지 않는다.
 - 되돌리는 방법: c6121f64, 40971db9 순서로 revert 하고(c6121f64 가 같은 핸들러·다리 클래스를 고친다) `OasisAutoConfiguration` 의 주입을 oasis `SpringTransactionHandler` 로 되돌린다. 재현 시험(2bc8acb3)은 그대로 둔다. 되돌리면 삼킴·누수 결함이 돌아온다.
@@ -166,36 +167,37 @@
 - 되돌리는 방법: 네 커밋은 서로 독립이라 각각 revert 할 수 있다. 되돌리면 해당 결함 특성 시험이 새 기대로 바뀐 상태라 같이 되돌려야 통과한다.
 
 ## S11. analog /tree 소비 루프 (2차)
-- 커밋(bb8ee036 이후 순서대로): 961a44b4(test), e9c497ff(fix), 9ce6c354(perf), d55efe02(fix), 9b6d24fb(test, 주석).
+- 커밋(bb8ee036 이후 순서대로): 07343bde(test), f17927dc(fix), 9c986091(test), 638c370c(fix), 3546bf35(perf), 6f29f84f(test, 주석). 재현 시험 → fix → perf 순서로, 어느 중간 커밋도 줄 유실을 늘리지 않는다.
 - 바뀌기 전:
   - `/tree` 는 `LogProcessor` 가 만든 줄을 `ConcurrentLinkedQueue` 에 쌓고 소비자가 100ms 간격으로 큐를 들여다보는(sleep 폴링) 루프였다. 큐가 비면 쉬었다 다시 보므로 지연이 생기고 유휴 시에도 주기적으로 깨어났다.
   - 끝 신호(EOQ)를 받으면 바로 끝나, 버퍼에 남은 마지막 논리 줄과 거기 이어진 스택 줄이 트리에서 빠졌다.
   - 1회 실행 모드에서 빈 큐를 만나면 이어 붙이지 않은 머리 메시지로 소비하고 버퍼를 버려, 뒤따르는 스택 줄이 사라졌다.
 - 바뀐 뒤:
-  - 961a44b4: EOQ 직전 줄이 트리에서 빠지는 현재 동작을 실패하는 시험(`LogProcessorEoqFlushTest`)으로 재현한다.
-  - e9c497ff(fix): EOQ 를 받으면 끝내기 전에 이어 붙인 메시지로 남은 줄을 소비한다. 위 시험을 켠다. 의도한 동작 변경이다.
-  - 9ce6c354(perf): 큐를 상한 없는 `LinkedBlockingQueue` 로 바꾸고 `take` 로 대기한다. `LogProcessor`·`LogSearchController`·시험 `ParseFixture` 를 고쳤다. 빈 큐에서 들고 있던 줄을 소비하는 동작과 `cancel(true)` 인터럽트 종료는 그대로다.
-  - d55efe02(fix): `take` 전환 뒤 더 자주 드러난 결함을 고친다. 1회 실행 모드에서 빈 큐를 만나면 소비하지 않고 다음 머리 줄이나 EOQ 에서 이어 붙인 메시지로 소비한다. 연속 모드는 이어 붙인 메시지를 적용해 소비한다. 소비자가 줄마다 큐를 따라잡게 맞물린 회귀 시험 `LogProcessorCatchUpTest` 를 더했다.
-  - 9b6d24fb(test): EOQ 에서 마지막 논리 줄도 소비하게 되어 맞지 않는 보초 줄 주석을 `ParseFixture`·`LogSearchControllerCharacterizationTest` 에서 고친다. 기대값은 그대로다.
+  - 07343bde(test): EOQ 직전 줄이 트리에서 빠지는 현재 동작을 실패하는 시험(`LogProcessorEoqFlushTest`)으로 재현한다.
+  - f17927dc(fix): EOQ 를 받으면 끝내기 전에 이어 붙인 메시지로 남은 줄을 소비한다. 위 시험을 켠다. 의도한 동작 변경이다.
+  - 9c986091(test): 소비자가 빈 큐를 볼 때마다 렉서가 한 줄씩 내보내게 맞물린 시험 `LogProcessorCatchUpTest` 로, 빈 큐를 만나면 스택 줄을 잃는 경합을 sleep 폴링 구조에서 결정적으로 재현한다(`@Disabled`). 폴링은 빈 큐를 100ms 마다 다시 보므로 `isEmpty`·`offer` 에 걸어 허가가 쌓이지 않게 했다.
+  - 638c370c(fix): 1회 실행 모드에서 빈 큐를 만나면 소비하지 않고 다음 머리 줄이나 EOQ 에서 이어 붙인 메시지로 소비한다. 연속 모드는 이어 붙인 메시지를 적용해 소비한다. 위 시험을 켠다. 의도한 동작 변경이다.
+  - 3546bf35(perf): 큐를 상한 없는 `LinkedBlockingQueue` 로 바꾸고 `take` 로 대기한다. `LogProcessor`·`LogSearchController`·시험 `ParseFixture` 를 고쳤고, `LogProcessorCatchUpTest` 의 맞물림을 `take` 로 옮겼다. 빈 큐에서 소비하지 않는 동작은 앞 fix 커밋에서 정했고, `cancel(true)` 인터럽트는 `take` 의 `InterruptedException` 으로 끝난다.
+  - 6f29f84f(test): EOQ 에서 마지막 논리 줄도 소비하게 되어 맞지 않는 보초 줄 주석을 `ParseFixture`·`LogSearchControllerCharacterizationTest` 에서 고친다. 기대값은 그대로다.
 - 바꾼 이유: 바쁜 대기(폴링)를 없애 지연과 유휴 CPU 를 줄이고, 그 과정에서 확인된 줄 유실 결함(EOQ 직전 줄·빈 큐 뒤 이어진 줄)을 바로잡는다.
 - 동작 보존 근거:
-  - perf 커밋(9ce6c354)은 대기 방식만 바꾼다. 줄 소비 순서, 빈 큐에서 줄을 소비하는 규칙, `cancel(true)` 로 끝나는 경로는 같다.
-  - fix 커밋(e9c497ff·d55efe02)은 의도한 동작 변경이다. 이전에 빠지던 줄(EOQ 직전의 마지막 논리 줄, 이어진 스택 줄)이 트리에 들어간다. 이전에 실린 줄은 그대로다.
+  - perf 커밋(3546bf35)은 대기 방식만 바꾼다. 줄 소비 순서, 빈 큐에서 줄을 소비하는 규칙(앞 fix 커밋 638c370c 에서 정함), `cancel(true)` 로 끝나는 경로는 같다.
+  - fix 커밋(f17927dc·638c370c)은 의도한 동작 변경이다. 이전에 빠지던 줄(EOQ 직전의 마지막 논리 줄, 이어진 스택 줄)이 트리에 들어간다. 이전에 실린 줄은 그대로다.
   - 시험: `LogProcessorEoqFlushTest`, `LogProcessorCatchUpTest`, `LogSearchControllerCharacterizationTest`. 통과 수는 머지 요청 때 적는다. analog 의 `LogSearchControllerTest` 3건, `LogSearchControllerModuleDirTest` 1건, `analogexpress.*` 79건은 fixture 미커밋으로 인한 기존 실패이며 이 변경과 무관하다.
 - 영향 범위: analog `core` 의 `LogProcessor` 와 `api` 의 `LogSearchController`(`/tree` 경로). 요청 응답 형식은 같고, 끝 부분 줄이 더 들어갈 수 있다. 큐가 상한 없는 구조이므로 소비가 생산을 따라가지 못하면 메모리가 늘 수 있다(이전 큐도 상한이 없었다).
 - 성능 항목: 있다. `perf-framework.md` P2 의 `/tree` 처리 중·유휴 CPU 지표로 측정한다(바쁜 대기 제거 전후).
-- 되돌리는 방법: 커밋 역순 d55efe02, 9b6d24fb, 9ce6c354, e9c497ff, 961a44b4 로 revert 한다. 성능만 되돌리려면 9ce6c354 와 d55efe02 를 되돌리되, d55efe02 의 결함 수정과 `LogProcessorCatchUpTest` 는 폴링 구조에서도 필요하므로 따로 확인한다. e9c497ff 를 되돌리면 EOQ 직전 줄 유실이 돌아온다.
+- 되돌리는 방법: 커밋 역순 6f29f84f, 3546bf35, 638c370c, 9c986091, f17927dc, 07343bde 로 revert 한다. 성능만 되돌리려면 3546bf35 하나만 되돌리면 되고(앞 fix 와 시험은 폴링 구조 위에서 만들어졌다), 638c370c 를 되돌리면 빈 큐 뒤 스택 줄 유실이, f17927dc 를 되돌리면 EOQ 직전 줄 유실이 돌아온다.
 
 ## S12. 1차 리뷰 minor 정리 (2차)
-- 커밋: 39129c62(refactor, analog), 5d2e25a8(docs, cactus), 4836e909(fix, cactus), 759bd554(test, cactus).
+- 커밋: 37f91c71(refactor, analog), 89d040ec(docs, cactus), 8eaca0d1(fix, cactus), 6b26b53b(test, cactus).
 - 바뀌기 전: 1차 리뷰에서 나온 사소한 지적들이 남아 있었다. 인터럽트 경로 경고 문구가 모호했고, `aopCheck` 설명이 트랜잭션 모드의 프록시 호출 실패를 단정했으며, AOP 검사 경고가 같은 빈을 빈 이름·클래스 이름으로 달리 부르는 BPMN 을 따로 적었고, alias 해석 fallback 분기가 시험되지 않았다.
 - 바뀐 뒤:
-  - 39129c62: `AnalogSearchExecutors` 의 인터럽트 경로 경고 문구를 다듬고 `AnalogSearchExecutorsTest` 로 고정한다.
-  - 5d2e25a8: `OasisProperties` 의 `aopCheck` 설명을 "항상 실패" 가 아니라 "실패할 수 있다" 로 완화한다.
-  - 4836e909(fix): `OasisAopAnnotationChecker` 가 빈별로 BPMN 을 모아 위반 하나에 모두 적는다. 클래스 javadoc 의 단정형 문구도 같은 커밋에서 완화했다. 경고 내용이 풍부해지는 동작 변경이며 기동 중단 여부는 바뀌지 않는다. 시험 BPMN 2개(`aopcheck-mixed`)를 더했다.
-  - 759bd554: `canonicalName` 의 `getAliases` 훑기 분기와 한계를 시험과 javadoc 으로 남긴다.
+  - 37f91c71: `AnalogSearchExecutors` 의 인터럽트 경로 경고 문구를 다듬고 `AnalogSearchExecutorsTest` 로 고정한다.
+  - 89d040ec: `OasisProperties` 의 `aopCheck` 설명을 "항상 실패" 가 아니라 "실패할 수 있다" 로 완화한다.
+  - 8eaca0d1(fix): `OasisAopAnnotationChecker` 가 빈별로 BPMN 을 모아 위반 하나에 모두 적는다. 클래스 javadoc 의 단정형 문구도 같은 커밋에서 완화했다. 경고 내용이 풍부해지는 동작 변경이며 기동 중단 여부는 바뀌지 않는다. 시험 BPMN 2개(`aopcheck-mixed`)를 더했다.
+  - 6b26b53b: `canonicalName` 의 `getAliases` 훑기 분기와 한계를 시험과 javadoc 으로 남긴다.
 - 바꾼 이유: 1차 리뷰 minor 항목을 마무리해 문구 정확성과 시험 공백을 정리한다.
-- 동작 보존 근거: 구조 변경은 없다. 문구·javadoc·시험이 대부분이고, 4836e909 만 경고 로그의 내용이 달라진다(위반 수 집계 방식은 같고 `fail` 모드의 기동 중단 조건도 같다).
+- 동작 보존 근거: 구조 변경은 없다. 문구·javadoc·시험이 대부분이고, 8eaca0d1 만 경고 로그의 내용이 달라진다(위반 수 집계 방식은 같고 `fail` 모드의 기동 중단 조건도 같다).
 - 영향 범위: analog `api` 의 `AnalogSearchExecutors`, cactus-core 의 `OasisProperties`·`OasisAopAnnotationChecker`·`CactusMultiTransactionManagerAutoConfiguration`(javadoc 만). 경고 문구를 파싱하는 호출부가 있으면 확인한다.
 - 성능 항목이 아니다.
 - 되돌리는 방법: 각 커밋을 독립적으로 revert 할 수 있다.
