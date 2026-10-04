@@ -52,7 +52,11 @@ function loadChromium() {
   throw new Error("playwright 모듈을 찾지 못했다. PLAYWRIGHT_PATH 를 준다.");
 }
 
-/** 페이지 로드 전에 심는 가짜 DevTools 훅 — count-renders.mjs 와 같은 규칙. 첫 구간을 홈 진입으로 둔다. */
+/** 페이지 로드 전에 심는 가짜 DevTools 훅 — count-renders.mjs 와 같은 규칙. 첫 구간을 홈 진입으로 둔다.
+ *  count-renders.mjs 와의 차이: 탐색에 커밋당 방문 집합(seen)과 깊이 상한(1000)을 뒀다. 홈 부팅 중 일시적
+ *  fiber 트리 상태에서 방어 없는 탐색이 폭주(렌더러 99% CPU 의 JIT 자기재귀, chrome-headless-shell SIGTRAP
+ *  크래시)하는 것을 관측했고, 방어를 넣은 판은 102커밋·깊이 152 로 유한하게 끝나는 것을 확인했다. 정상
+ *  트리(순환·공유 없음)에서는 집계 의미가 그대로다. */
 const HOOK_SCRIPT = `
 (() => {
   const COMP = new Set([0, 1, 11, 15]);
@@ -68,17 +72,22 @@ const HOOK_SCRIPT = `
     for (let p = f.return; p && out.length < 3; p = p.return) if (COMP.has(p.tag)) out.push(nameOf(p));
     return out.join("<");
   };
-  function walk(next, prev, acc) {
+  const seen = new Set();
+  function walk(next, prev, acc, depth) {
+    if (seen.has(next) || depth > 1000) return;
+    seen.add(next);
     if (COMP.has(next.tag) && (next.flags & 1) === 1) acc.push([nameOf(next), "update", next.selfBaseDuration ?? null, ownerPath(next)]);
     if (next.child === prev.child) return;
     for (let c = next.child; c; c = c.sibling) {
-      if (c.alternate) walk(c, c.alternate, acc);
-      else mount(c, acc);
+      if (c.alternate) walk(c, c.alternate, acc, depth + 1);
+      else mount(c, acc, depth + 1);
     }
   }
-  function mount(f, acc) {
+  function mount(f, acc, depth) {
+    if (seen.has(f) || depth > 1000) return;
+    seen.add(f);
     if (COMP.has(f.tag)) acc.push([nameOf(f), "mount", f.selfBaseDuration ?? null, ownerPath(f)]);
-    for (let c = f.child; c; c = f.sibling) mount(c, acc);
+    for (let c = f.child; c; c = c.sibling) mount(c, acc, depth + 1);
   }
   window.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
     renderers: new Map(),
@@ -91,9 +100,10 @@ const HOOK_SCRIPT = `
     onPostCommitFiberRoot() {},
     onCommitFiberRoot(_id, root) {
       try {
+        seen.clear();
         const cur = root.current;
         const acc = [];
-        if (cur.alternate) walk(cur, cur.alternate, acc); else mount(cur, acc);
+        if (cur.alternate) walk(cur, cur.alternate, acc, 0); else mount(cur, acc, 0);
         rc.commits.push({ seg: rc.seg, t: performance.now(), dur: cur.actualDuration ?? null, comps: acc });
       } catch (e) { rc.commits.push({ seg: rc.seg, t: performance.now(), error: String(e) }); }
     },
