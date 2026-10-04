@@ -7,10 +7,10 @@
  */
 import { useState } from "react";
 
+import { CardFrame, MutedText } from "@dk-oasis/shared/card";
 import { Button, Input } from "@dk-oasis/shared/form";
 import { badgeStyle } from "@/shell";
 
-import { CardFrame, MutedText } from "../../ruleEdit/cards/CardFrame";
 import { guide } from "../api";
 import type { GuideResult, RuleIo } from "../types";
 

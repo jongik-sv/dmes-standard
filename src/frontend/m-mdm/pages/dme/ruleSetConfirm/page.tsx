@@ -278,7 +278,7 @@ export default function RuleSetConfirmPage({ tabId, snapshot, onSnapshotChange }
         <ContentPanel>
           <div style={{ overflow: "auto", height: "100%" }}>
             {error && (
-              <div data-testid="rsc-error" role="alert" style={{ ...section, ...strongWarn, paddingTop: "var(--spacing-sm)" }}>
+              <div data-testid="rsc-error" role="alert" style={{ ...section, ...strongWarn, paddingTop: "var(--spacing-sm)", whiteSpace: "pre-line" }}>
                 {error}
               </div>
             )}

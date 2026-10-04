@@ -1,9 +1,9 @@
 # HtmlEditor
 
-설명·안내 글처럼 서식이 있는 글을 HTML 문자열로 편집할 때 쓴다. 서식 모드(도구 막대)와 HTML 원문 모드를 [HTML] 단추로 오가며 고친다.
+설명·안내 글처럼 서식이 있는 글을 HTML 문자열로 편집할 때 쓴다. 서식 모드(도구 막대)와 HTML 원문 모드를 [HTML] 단추로 오가며 고친다. 같은 칸에 일반 글과 HTML 을 함께 받으면 형식 전환 칸 `HtmlFormatField` 를 쓴다.
 
-- import: `import { HtmlEditor, HTML_EDITOR_LOSS_MESSAGE, textToHtml, htmlToText, unsupportedRichTags, type HtmlEditorProps } from "@dk-oasis/shared/html-editor";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣는다)
-- 소스: `src/frontend/shared/src/components/html-editor/` (`HtmlEditor.tsx`·`HtmlToolbar.tsx`·`extensions.ts`·`convert.ts`·`styles.tsx`)
+- import: `import { HtmlEditor, HTML_EDITOR_LOSS_MESSAGE, HtmlFormatField, HTML_TO_TEXT_MESSAGE, textToHtml, htmlToText, unsupportedRichTags, type HtmlEditorProps, type HtmlFormatFieldProps, type HtmlFormatFieldMessages, type HtmlFormat } from "@dk-oasis/shared/html-editor";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣는다)
+- 소스: `src/frontend/shared/src/components/html-editor/` (`HtmlEditor.tsx`·`HtmlFormatField.tsx`·`HtmlToolbar.tsx`·`extensions.ts`·`convert.ts`·`styles.tsx`)
 - 내부 구현: 서식 모드는 Tiptap 3(`@tiptap/react`·`starter-kit` 의 밑줄·링크·코드·코드 블록·구분선·되돌리기, 표 확장 없음), 원문 모드는 고정폭 `textarea`, 미리보기·읽기 모습은 [NoticeBodyView](notice-body-view.md) `format="HTML"`(DOMPurify 소독). 서식 모드 글 모양도 NoticeBodyView 의 `.nbv-doc` 스타일이라 편집 칸이 곧 읽기 모습이다. 도구 막대는 shared `Button`·`Input`(form)과 Tabler 아이콘. 새 의존성은 없다(markdown-editor 와 같은 Tiptap 패키지).
 - Part B 허용 목록(§1): `html-editor` SHOULD.
 
@@ -50,9 +50,47 @@ export function DescriptionSection({ row, onChange }: { row: Row; onChange: (htm
 
 ## 변형
 
-### 「글 | HTML」 형식을 고르는 칸
+### 「글 | HTML」 형식을 고르는 칸 — `HtmlFormatField`
 
-같은 칸에 일반 글과 HTML 을 함께 받으면 화면이 형식 선택([SegmentedControl](segmented-control.md))을 두고, 글 → HTML 은 `textToHtml`, HTML → 글은 확인 뒤 `htmlToText` 로 바꾼다. 형식 판별 규칙(어떤 값을 HTML 로 볼지)은 업무 규칙이라 화면 쪽에 둔다. 예: `m-mdm/pages/dma/columnMng/DescriptionField.tsx`(판별은 `@/column-info` 의 `descriptionFormat`).
+같은 칸에 일반 글과 HTML 을 함께 받으면(형식을 따로 저장하지 않고 값에서 판별) `HtmlFormatField` 를 쓴다. 형식 선택([SegmentedControl](segmented-control.md) `글 | HTML`) + 글 모드 `Textarea`(글자 수 줄) + HTML 모드 `HtmlEditor` 를 묶은 합성 부품이다.
+
+- 형식 판별 규칙(어떤 값을 HTML 로 볼지)은 업무 규칙이라 **화면이 `detectFormat` 으로 준다**(필수). 저장 뒤 툴팁·팝오버가 쓰는 판별과 같은 함수를 넘긴다. 처음 형식은 그릴 때 한 번 정한다 — 대상이 바뀌면 `key` 로 새로 그린다.
+- 글 → HTML 은 `textToHtml`(묻지 않음), HTML → 글은 확인 뒤 `htmlToText`. 빈 값(공백뿐)은 빈 값으로 두고 묻지 않는다.
+- 저장하면 다른 형식으로 보일 값(글 모드인데 판별이 HTML, HTML 모드인데 판별이 글)은 `-format-warning` 으로 미리 알린다.
+- `maxLength` 를 주면 글 모드에 `n / 상한자` 를 보이고 넘으면 경고만 한다. HTML 모드 편집기에도 같은 상한이 간다.
+
+```tsx
+import { HtmlFormatField } from "@dk-oasis/shared/html-editor";
+import { descriptionFormat } from "@/column-info"; // 화면(업무) 쪽 판별 규칙
+
+<HtmlFormatField
+  key={row.id}
+  value={row.description}
+  onChange={(v) => update({ description: v })}
+  detectFormat={descriptionFormat}
+  maxLength={20000}
+  testId="form-description"
+  ariaLabel="설명"
+  confirm={confirm}
+/>
+```
+
+예: `m-mdm/pages/dma/columnMng/DescriptionField.tsx`(이 부품을 감싸 판별 `descriptionFormat`·상한 20,000 을 넘긴다).
+
+`HtmlFormatField` props:
+
+| prop | 타입 | 기본 | 설명 |
+|---|---|---|---|
+| `value` | `string` | — | 글 또는 HTML 문자열 |
+| `onChange` | `(value: string) => void` | — | 입력·형식 전환 때 새 값 |
+| `detectFormat` | `(value: string) => "TEXT" \| "HTML"` | — (필수) | 값의 형식 판별. 처음 형식과 형식 경고에 쓴다 |
+| `confirm` | `(message: string) => Promise<boolean>` | 공용 확인창 | HTML → 글 확인, 편집기의 서식 손실 확인 |
+| `testId` | `string` | `"html-format-field"` | 뿌리 `data-testid`. 안쪽: `-format`(형식 선택)·`-text`·`-text-count`(글)·`-html`(편집기, 그 안은 HtmlEditor 접미)·`-format-warning` |
+| `ariaLabel` | `string` | `"본문"` | 칸 이름. 형식 선택 이름은 `<ariaLabel> 형식` |
+| `maxLength` | `number` | 없음 | 글자 수 상한(경고만). 없으면 글 모드 글자 수 줄을 그리지 않는다 |
+| `rows` | `number` | `2` | 글 모드 Textarea 줄 수 |
+| `minHeight` | `number \| string` | `120` | HTML 편집 칸 최소 높이 |
+| `messages` | `Partial<HtmlFormatFieldMessages>` | 기본 문구 | `textLabel`("글")·`htmlLabel`("HTML")·`toTextConfirm`(`HTML_TO_TEXT_MESSAGE`)·`textLooksHtml`·`htmlLooksText`(null 이면 그 경고를 끈다)·`overLimit(max)` |
 
 ### 읽기 전용
 
@@ -77,6 +115,7 @@ export function DescriptionSection({ row, onChange }: { row: Row; onChange: (htm
 - `htmlToText(html)` — 글자만. 블록 사이·`<br>` 은 줄바꿈, 블록 끝 `<br>` 은 줄을 더하지 않음, 표 칸은 탭, `script`·`style` 내용은 버림. `textToHtml` 결과를 되돌리면 원래 글이다(탭만 공백 4칸으로 돌아온다).
 - `unsupportedRichTags(html)` — 서식 모드가 지키지 못하는 태그 이름 목록(빈 목록이면 서식 모드로 열어도 서식이 그대로).
 - `HTML_EDITOR_LOSS_MESSAGE` — 원문 → 서식 확인 문구.
+- `HTML_TO_TEXT_MESSAGE` — `HtmlFormatField` 의 HTML → 글 확인 기본 문구.
 
 ## 흔한 실수
 
@@ -87,5 +126,6 @@ export function DescriptionSection({ row, onChange }: { row: Row; onChange: (htm
 | 열 때 `getHTML()` 과 `value` 를 비교해 다르면 저장 안 됨 표시 | 열기만 해서는 `onChange` 가 없다. Tiptap 이 다듬은 HTML 은 사용자가 고칠 때만 나간다 |
 | 다른 행으로 바꿔도 `key` 없이 같은 편집기를 씀 | `key={행 id}` — 되돌리기 기록과 처음 모드 판별이 새 값에서 시작한다 |
 | 표가 든 HTML 을 서식 모드로 강제로 엶 | 원문 모드로 연다. 서식 모드로 바꾸면 표가 사라진다는 확인을 거친다 |
+| 글·HTML 을 함께 받는 칸을 화면에서 SegmentedControl + Textarea + HtmlEditor 로 직접 조립 | `HtmlFormatField` 에 판별 함수(`detectFormat`)만 넘긴다 |
 | 마크다운 메모에 이 편집기를 씀 | 저장 형식이 마크다운이면 [MarkdownEditor](markdown-editor.md) |
 | HTML 미리보기를 `dangerouslySetInnerHTML` 로 직접 그림 | 원문 모드 [미리보기]·읽기 모습이 NoticeBodyView 로 소독해 그린다 |

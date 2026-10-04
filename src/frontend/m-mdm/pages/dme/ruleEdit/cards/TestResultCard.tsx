@@ -10,6 +10,7 @@
  */
 import { useMemo } from "react";
 
+import { CardFrame, MutedText } from "@dk-oasis/shared/card";
 import { AgDataGrid } from "@dk-oasis/shared/grid";
 import { badgeStyle, sameVer } from "@/shell";
 
@@ -22,7 +23,6 @@ import { useRuleWorkbench } from "../state/workbench-context";
 import type { ResolvedVar, RuleEditView, StoredRow, ValueTestError, ValueTestResult, ValueTestValue, VarMeta } from "../types";
 import { bodyTable, defaultRowIdOf, targetLabel, useTargetView } from "../value-test/run-request";
 import { runShownOnTable, testMarksOf } from "../value-test/test-marks";
-import { CardFrame, MutedText } from "./CardFrame";
 
 const th = { textAlign: "left", padding: "2px 6px", whiteSpace: "nowrap", verticalAlign: "top", width: 200 } as const;
 const td = { padding: "2px 6px", verticalAlign: "top" } as const;

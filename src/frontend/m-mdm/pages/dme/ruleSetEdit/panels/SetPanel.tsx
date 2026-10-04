@@ -7,10 +7,10 @@
  */
 import { useMemo } from "react";
 
+import { MutedText } from "@dk-oasis/shared/card";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Input, Textarea } from "@dk-oasis/shared/form";
 
-import { MutedText } from "../../ruleEdit/cards/CardFrame";
 import { GuideCard } from "../cards/GuideCard";
 import { SetIoTables } from "../cards/SetIoTables";
 import type { EditFlow } from "../flow-edit";

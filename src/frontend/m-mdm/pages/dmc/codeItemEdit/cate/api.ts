@@ -7,46 +7,34 @@
  * 않는다 — 코드 행 변경과 함께 codeItemEdit `save`·`validate` 한 번으로 보낸다(../api.ts saveAll·validateAll).
  * 버전은 문자열로 보낸다(JS number 는 2.000 의 소수 자릿수를 잃는다).
  */
-import { apiRequest } from "@dk-oasis/shared/http";
+import { callOasisAt, unwrapOasis, type OasisCallOptions } from "@dk-oasis/shared/http";
+
+import { MDM_OASIS_BASE, mdmFieldLabel, plainError } from "@/oasis-screen";
+
+import { CODE_ITEM_FIELD_LABELS } from "../fieldLabels";
 
 import type { PreviewResult, ViewResult } from "./types";
 
 const SERVICE = "codeCateEdit";
 
-interface CactusEnvelope {
-  meta?: { success?: boolean; message?: string | null; code?: string };
-  data?: Record<string, unknown>;
-}
+/** params 는 null·undefined 만 빼고, 성공은 `data.result` 만 펴고, 거부는 일반 Error 이고 문구는 `기본 문구 + "\n- 항목명: 메시지"`(서버 field 코드는 안 보임, 기본 문구에 든 메시지는 뺌). */
+const OASIS: OasisCallOptions = { merge: "result", fieldLabel: mdmFieldLabel(CODE_ITEM_FIELD_LABELS), errorFactory: plainError };
 
 type Rows = Record<string, unknown>[];
 
 /**
- * 봉투 해제 + 업무 거부 판정. BPMN 안에서 던진 업무 오류는 `meta.message`(서버 예외 message)만 오고 `errors[]` 는
- * 비어 있다(F11). 그래서 message 를 그대로 화면 오류 문구로 쓴다. 성공이면 `data.result` 를 펼친다(output="result").
+ * 봉투 해제 + 업무 거부 판정. BPMN 안에서 던진 업무 오류는 지금 `meta.message`(서버 예외 message)만 오고 `errors[]` 는
+ * 비어 있다(F11). 그래서 message 가 화면 오류 문구의 기본 문구다(errors[] 가 오면 항목별 상세가 뒤에 붙는다). 성공이면 `data.result` 를 펼친다(output="result").
  */
 export function unwrap<T = Record<string, unknown>>(res: unknown): T {
-  const env = res as CactusEnvelope;
-  if (env?.meta && env.meta.success === false) {
-    throw new Error(env.meta.message?.trim() || "요청이 거부되었습니다.");
-  }
-  const out: Record<string, unknown> = {};
-  const inner = env?.data?.["result"];
-  if (inner && typeof inner === "object" && !Array.isArray(inner)) {
-    Object.assign(out, inner as Record<string, unknown>);
-  }
-  return out as T;
+  return unwrapOasis<T>(res, OASIS);
 }
 
 /** params 의 null·undefined 는 뺀다 — OASIS 가 null 값의 타입을 정하지 못해 요청 전체가 실패한다(F23). */
-async function callOasis<T>(
+function callOasis<T>(
   action: string, params: Record<string, unknown>, grids?: Record<string, { rows: Rows }>,
 ): Promise<T> {
-  const cleaned = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== null && v !== undefined));
-  const res = await apiRequest<unknown>(`/api/mdm/oasis/${SERVICE}/${action}`, {
-    method: "POST",
-    body: JSON.stringify({ meta: { menuId: SERVICE }, params: cleaned, ...(grids ? { grids } : {}) }),
-  });
-  return unwrap<T>(res);
+  return callOasisAt<T>(MDM_OASIS_BASE, SERVICE, action, params, grids, OASIS);
 }
 
 export function viewCategories(maruCodeId: string, ver?: string | null): Promise<ViewResult> {
