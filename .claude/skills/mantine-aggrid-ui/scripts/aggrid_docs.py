@@ -540,6 +540,25 @@ def _enclosing_block(t: str, pos: int, opener: re.Pattern) -> str | None:
     return None
 
 
+BODY_EXCLUDE_PARAM = re.compile(r"(?:include|with)\w*(?:content|body)\w*\s*:\s*false|exclude\w*(?:content|body)\w*\s*:\s*true", re.I)
+
+
+def _list_call_drops_body(f: Path, t: str, call: re.Match) -> bool:
+    """P-R1b 오탐 제거: 목록 조회가 본문 제외 파라미터(includeContent:false 등)를 넘기면 True.
+    호출 인자에 있거나, 같은 폴더 api.ts 의 해당 search* 함수 본문에 있으면 인정한다."""
+    end = match_close(t, call.end() - 1)
+    if end > 0 and BODY_EXCLUDE_PARAM.search(t[call.end():end]):
+        return True
+    api = f.with_name("api.ts")
+    if api.exists() and api != f:
+        a = api.read_text(encoding="utf-8", errors="ignore")
+        m = re.search(r"function\s+" + re.escape(call[1]) + r"\b", a)
+        if m:
+            nxt = re.search(r"\n(?:export\s|/\*\*)", a[m.end():])
+            return bool(BODY_EXCLUDE_PARAM.search(a[m.end():m.end() + (nxt.start() if nxt else 3000)]))
+    return False
+
+
 def _p_r1_exclusion(t: str, pos: int, end: int, name: str, call_args: str) -> str | None:
     """P-R1 에서 조건 있는 조회·옵션 조회로 볼 수 있는 호출의 사유. 없으면 None. 'info:' 로 시작하면 정보성만 남긴다."""
     # 피커 검색 래퍼(IdPicker·DomainField 의 search prop) — 입력값이 조건이다. 클라이언트에서 자르면 서버 무제한이 남을 수 있어 정보성
@@ -704,7 +723,7 @@ def perf_audit(f: Path, raw: str, in_shared: bool, error, warn, info=None) -> No
         call = next((m for m in API_SEARCH_CALL.finditer(t) if not re.search(r"(function|import|as)\s*$", t[max(0, m.start() - 20):m.start()])), None)
         if call and tf.exists() and tf != f:
             cols = sorted({n for n in BIG_TEXT_FIELD.findall(tf.read_text(encoding="utf-8", errors="ignore")) if not BIG_TEXT_SKIP.search(n)})
-            if cols:
+            if cols and not _list_call_drops_body(f, t, call):
                 (info if _exception_level(f, "P-R1b") == "info" else warn)(call.start(), f"[P-R1b 경고] 목록 조회 `{call[1]}(…)` 를 쓰는 화면의 types.ts 에 본문·긴 글 열({', '.join(cols)})이 있다 "
                                    f"→ 목록 응답이 행마다 본문을 실으면 누적될 때 수 MB 가 된다. 목록에는 그리드에 보이는 열만 싣고 "
                                    f"본문은 행 선택 때 상세 조회로 받는다 ({PERF_GUIDE} R1)")
