@@ -1,44 +1,13 @@
+// 업무 모듈 공통 빌드(group·version·저장소, 하위 lib·api 의 java-library·Java 21·컴파일 옵션·공통 의존성·JUnit Platform)는
+// build-logic 의 dmes.business-module 이, Test 관례(캐시 제외·JIT)는 dmes.test-conventions 가, PC 전역 테스트 슬롯은 맨 끝 apply from 이 건다.
+// spring 두 플러그인은 여기서 apply false 로 클래스패스에만 올린다 — dmes.business-module 의 apply plugin 과 하위 lib·api 의
+// plugins {} 가 이 클래스패스에서 찾는다. 순서를 바꾸지 않는다.
 plugins {
     id 'java'
     alias(libs.plugins.spring.boot) apply false
     alias(libs.plugins.spring.dependency.management) apply false
+    id 'dmes.business-module'
     id 'dmes.test-conventions'
-}
-
-allprojects {
-    group = 'com.dongkuk.dmes'
-    version = '0.0.1-SNAPSHOT'
-
-    repositories {
-        mavenLocal()
-        mavenCentral()
-    }
-}
-
-subprojects {
-    apply plugin: 'java-library'
-    apply plugin: 'io.spring.dependency-management'
-
-    java {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
-    }
-
-    tasks.withType(JavaCompile).configureEach {
-        options.encoding = 'UTF-8'
-        options.compilerArgs.add('-parameters')
-    }
-
-    dependencies {
-        compileOnly libs.lombok.base
-        annotationProcessor libs.lombok.base
-        testImplementation libs.spring.boot.starter.test
-        testRuntimeOnly libs.junit.platform.launcher
-    }
-
-    test {
-        useJUnitPlatform()
-    }
 }
 
 // PC 전역 테스트 슬롯 — 같은 PC 에서 동시에 도는 Test 태스크를 DMES_TEST_SLOTS(기본 2)개로 묶는다(../gradle/test-slot.gradle).

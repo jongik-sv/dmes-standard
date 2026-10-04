@@ -1,0 +1,54 @@
+// dmes.business-module — 업무 모듈(mpn·mpp·mqc·mls·mcm) 루트 build.gradle 에 똑같이 있던 allprojects·subprojects 본문
+// (③ build-logic, 2026-10-04 에 옮겼다). lib·api 의 build.gradle 은 모듈마다 의존성·war 이름이 달라 각 모듈에 남긴다.
+//
+// 모듈 루트 build.gradle 에서 이렇게 쓴다(순서가 원래 스크립트 본문 실행 순서와 같다).
+//   plugins {
+//       id 'java'
+//       alias(libs.plugins.spring.boot) apply false
+//       alias(libs.plugins.spring.dependency.management) apply false   // 아래 apply plugin 이 찾는 클래스패스
+//       id 'dmes.business-module'
+//       id 'dmes.test-conventions'
+//   }
+//   … (파일 끝) apply from: file('../gradle/test-slot.gradle')   // PC 전역 테스트 슬롯 — dmes.test-conventions 머리 주석 참고
+// precompiled script plugin 에서는 버전 카탈로그 접근자(libs.…)가 생기지 않아 같은 카탈로그를 이름으로 찾는다
+// (선언되는 의존성은 libs.lombok.base 등과 같다).
+if (project != rootProject) {
+    throw new GradleException("dmes.business-module 은 모듈 루트 프로젝트에만 적용한다(${project.path} 에 적용됨).")
+}
+def catalog = extensions.getByType(VersionCatalogsExtension).named('libs')
+
+allprojects {
+    group = 'com.dongkuk.dmes'
+    version = '0.0.1-SNAPSHOT'
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+}
+
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'io.spring.dependency-management'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.compilerArgs.add('-parameters')
+    }
+
+    dependencies {
+        compileOnly catalog.findLibrary('lombok-base').get()
+        annotationProcessor catalog.findLibrary('lombok-base').get()
+        testImplementation catalog.findLibrary('spring-boot-starter-test').get()
+        testRuntimeOnly catalog.findLibrary('junit-platform-launcher').get()
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}
