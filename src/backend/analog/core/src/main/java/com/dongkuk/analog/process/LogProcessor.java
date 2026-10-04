@@ -162,6 +162,12 @@ public class LogProcessor {
             }
             LogData item = queue.poll();
             if(item.isEoq() && !logLexer.isContinuesProcessing()) {
+                // 끝 신호 직전의 마지막 논리 줄(과 이어진 줄)이 아직 버퍼에 있다 — 마저 소비하고 끝낸다.
+                if(buff != null) {
+                    buff.setMessage(sb.toString());
+                    consume(buff);
+                    buff = null;
+                }
                 log.info("버퍼처리 다 끝났으니 consumer 종료");
                 return;
             }

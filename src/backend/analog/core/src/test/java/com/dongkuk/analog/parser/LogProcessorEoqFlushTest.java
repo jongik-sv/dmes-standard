@@ -2,7 +2,6 @@ package com.dongkuk.analog.parser;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -30,7 +29,6 @@ class LogProcessorEoqFlushTest {
         return json.get(0);
     }
 
-    @Disabled("재현 — 다음 fix 커밋에서 켬")
     @Test
     void 끝_신호_직전의_예외_줄과_이어진_스택_줄이_트리에_들어간다() throws Exception {
         String log = String.join("\n",
@@ -48,7 +46,6 @@ class LogProcessorEoqFlushTest {
                 .isEqualTo("failure at the end\n\tat com.d.Foo.bar(Foo.java:10)\n\tat com.d.Main.main(Main.java:3)");
     }
 
-    @Disabled("재현 — 다음 fix 커밋에서 켬")
     @Test
     void 끝_신호_직전의_일반_메시지_줄이_트리에_들어간다() throws Exception {
         String log = String.join("\n",
