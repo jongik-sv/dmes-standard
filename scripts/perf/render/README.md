@@ -67,7 +67,7 @@
 2. **`.env` 사본을 준비한다** (지시 2-4). 메인 체크아웃의 `src/frontend/m-mcm/.env` 을 **워크트리로 복사**하고,
    사본에서 `NEXTAUTH_URL` **만** `http://localhost:5300` 으로 바꾼다. **메인 쪽 `.env` 는 고치지 않는다.**
    ```
-   cp /Users/jji/project/dmes-standard/src/frontend/m-mcm/.env <측정 워크트리>/src/frontend/m-mcm/.env
+   cp <메인 저장소>/src/frontend/m-mcm/.env <측정 워크트리>/src/frontend/m-mcm/.env
    # 사본에서 이 한 줄만 바꾼다
    #   NEXTAUTH_URL="http://localhost:5100"  →  NEXTAUTH_URL="http://localhost:5300"
    ```
