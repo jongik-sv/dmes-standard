@@ -300,30 +300,57 @@ export function toCompactDate(sDate: string): string {
 }
 
 // gfn_ 호환 별칭
+/** @deprecated 같은 모듈의 `isDate` 을 쓴다. */
 export const gfn_isDate = isDate;
+/** @deprecated 같은 모듈의 `isLeapYear` 을 쓴다. */
 export const gfn_isLeapYear = isLeapYear;
+/** @deprecated 같은 모듈의 `isTime` 을 쓴다. */
 export const gfn_isTime = isTime;
+/** @deprecated 같은 모듈의 `strToDate` 을 쓴다. */
 export const gfn_strToDate = strToDate;
+/** @deprecated 같은 모듈의 `dateToStr` 을 쓴다. */
 export const gfn_dateToStr = dateToStr;
+/** @deprecated 같은 모듈의 `today` 을 쓴다. */
 export const gfn_today = today;
+/** @deprecated 같은 모듈의 `getCurrentYear` 을 쓴다. */
 export const gfn_getCurrentYear = getCurrentYear;
+/** @deprecated 같은 모듈의 `getCurrentTime` 을 쓴다. */
 export const gfn_getCurrentTime = getCurrentTime;
+/** @deprecated 같은 모듈의 `getDateTime` 을 쓴다. */
 export const gfn_getDateTime = getDateTime;
+/** @deprecated 같은 모듈의 `getSysDate` 을 쓴다. */
 export const gfn_getSysDate = getSysDate;
+/** @deprecated 같은 모듈의 `addDays` 을 쓴다. */
 export const gfn_getDay = addDays;
+/** @deprecated 같은 모듈의 `addMonths` 을 쓴다. */
 export const gfn_getMonth = addMonths;
+/** @deprecated 같은 모듈의 `addYears` 을 쓴다. */
 export const gfn_getYear = addYears;
+/** @deprecated 같은 모듈의 `getFirstDayOfMonth` 을 쓴다. */
 export const gfn_getFastDate = getFirstDayOfMonth;
+/** @deprecated 같은 모듈의 `getLastDate` 을 쓴다. */
 export const gfn_getLastDate = getLastDate;
+/** @deprecated 같은 모듈의 `lastDateNum` 을 쓴다. */
 export const gfn_lastDateNum = lastDateNum;
+/** @deprecated 같은 모듈의 `getLastDayOfMonth` 을 쓴다. */
 export const gfn_getLastDateStr = getLastDayOfMonth;
+/** @deprecated 같은 모듈의 `getDayOfWeek` 을 쓴다. */
 export const gfn_getYoil = getDayOfWeek;
+/** @deprecated 같은 모듈의 `getDayOfWeekName` 을 쓴다. */
 export const gfn_getYoilName = getDayOfWeekName;
+/** @deprecated 같은 모듈의 `diffDays` 을 쓴다. */
 export const gfn_diffDate = diffDays;
+/** @deprecated 같은 모듈의 `diffHour` 을 쓴다. */
 export const gfn_diffHour = diffHour;
+/** @deprecated 같은 모듈의 `diffDay` 을 쓴다. */
 export const gfn_diffDay = diffDay;
+/** @deprecated 같은 모듈의 `calculateTime` 을 쓴다. */
 export const gfn_calculateTime = calculateTime;
+/** @deprecated 같은 모듈의 `totalWeek` 을 쓴다. */
 export const gfn_total_week = totalWeek;
+/** @deprecated 같은 모듈의 `chkDataRange` 을 쓴다. */
 export const gfn_chkDataRange = chkDataRange;
+/** @deprecated 같은 모듈의 `toHyphenDate` 을 쓴다. */
 export const gfn_addHyphenDate = toHyphenDate;
+/** @deprecated 같은 모듈의 `toCompactDate` 을 쓴다. */
 export const gfn_removeHyphenDate = toCompactDate;

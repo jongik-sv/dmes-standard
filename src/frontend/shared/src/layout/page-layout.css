@@ -1047,6 +1047,10 @@ button {
   padding: 12px;
 }
 
+.error-modal__body p {
+  white-space: pre-line;
+}
+
 .error-modal__footer {
   display: flex;
   justify-content: flex-end;

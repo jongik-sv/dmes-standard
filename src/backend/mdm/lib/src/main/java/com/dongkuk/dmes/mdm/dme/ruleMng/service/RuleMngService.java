@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.dme.ruleMng.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.blankToNull;
+
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.rule.RuleIdRules;
@@ -340,10 +342,6 @@ public class RuleMngService {
     /** 넘기기(action handover) — 소유자만, 받는 사람은 담당자. */
     public RuleVersionResult handover(RuleVersionRequest request) {
         return versionService.handover(request);
-    }
-
-    private static String blankToNull(String s) {
-        return s == null || s.isBlank() ? null : s.trim();
     }
 }
 

@@ -1,5 +1,8 @@
 package com.dongkuk.dmes.mdm.dmc.codeMng.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
+
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries.Header;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeVersionSegments;
@@ -177,17 +180,5 @@ public class CodeMngService {
         if (!NamingRules.STD_PHYS_NAME.matcher(id).matches()) {
             throw invalid("마루 코드 ID 는 영문 대문자로 시작하고 영문 대문자·숫자·_ 만 쓸 수 있습니다");
         }
-    }
-
-    private static RuntimeException invalid(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
-    }
-
-    private static String trimToNull(String s) {
-        if (s == null) {
-            return null;
-        }
-        String t = s.trim();
-        return t.isEmpty() ? null : t;
     }
 }

@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.common.rule;
 
+import com.dongkuk.dmes.mdm.common.support.MdmStrings;
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.security.MdmCurrentUser;
@@ -98,7 +99,7 @@ public class RuleScreenSupport {
     }
 
     public static String blankToNull(String s) {
-        return s == null || s.isBlank() ? null : s.trim();
+        return MdmStrings.blankToNull(s);
     }
 
     public String me() {

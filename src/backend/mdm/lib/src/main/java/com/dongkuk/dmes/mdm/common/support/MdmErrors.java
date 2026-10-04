@@ -70,4 +70,9 @@ public final class MdmErrors {
         }
         return new BusinessException(code.transport(), message, List.copyOf(details));
     }
+
+    /** 입력 검증 실패({@link MdmErrorCode#INVALID_INPUT}) — 서비스들이 따로 두던 {@code invalid(detail)} 의 정본. */
+    public static BusinessException invalid(String detail) {
+        return of(MdmErrorCode.INVALID_INPUT, detail, List.of());
+    }
 }

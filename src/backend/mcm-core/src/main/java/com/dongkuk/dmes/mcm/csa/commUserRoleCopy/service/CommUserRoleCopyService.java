@@ -30,6 +30,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
+import static com.dongkuk.dmes.mcm.common.util.McmValues.blankToNull;
 
 /**
  * commUserRoleCopy — OASIS BPMN serviceTask entry point (W7 / csa 9 화면 7번째).
@@ -407,13 +409,4 @@ public class CommUserRoleCopyService {
         }
     }
 
-    private static String strOf(Object o) { return o == null ? null : String.valueOf(o); }
-
-    /**
-     * 2026-06-04 — 빈 문자열("") / 공백만 있는 문자열을 null 로 정규화.
-     * FE 가 정보처리의뢰서/처리사유 UI 폐기 후 빈 문자열을 보냄 → DB nullable 컬럼에 null 적재.
-     */
-    private static String blankToNull(String s) {
-        return (s == null || s.isBlank()) ? null : s;
-    }
 }

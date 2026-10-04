@@ -11,8 +11,9 @@ import { PACKAGE_ROOT } from "./helpers/engine-paths";
 const pkg = JSON.parse(readFileSync(path.join(PACKAGE_ROOT, "package.json"), "utf8"));
 
 describe("evalex 공개 경로", () => {
-  it("package.json exports 에 ./evalex 가 dist/evalex/index.js·d.ts 를 가리키고 루트 배럴 src/index.ts 에는 ./evalex 문자열이 없다", () => {
-    expect(pkg.exports["./evalex"]).toEqual({ types: "./dist/evalex/index.d.ts", import: "./dist/evalex/index.js" });
+  it("package.json exports 에 ./evalex 가 dist/evalex/index.js 와 dist/types/src/evalex/index.d.ts 를 가리키고 루트 배럴 src/index.ts 에는 ./evalex 문자열이 없다", () => {
+    // .d.ts 는 tsc(tsconfig.build.json)가 dist/types/ 에 소스 구조 그대로 만든다(package-exports.test.ts).
+    expect(pkg.exports["./evalex"]).toEqual({ types: "./dist/types/src/evalex/index.d.ts", import: "./dist/evalex/index.js" });
     const index = readFileSync(path.join(PACKAGE_ROOT, "src/index.ts"), "utf8");
     expect(index).not.toContain("./evalex");
   });
