@@ -121,8 +121,8 @@ MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절
 ### R12. 입력 중 다시 렌더되는 영역에서 그리드 참조를 새로 만들지 않는다 — 확정(수정 적용)
 
 - **하지 말 것**: 상세 폼 state 를 화면 루트에 두는 것. 그리드 `columns`·`data` 의 deps 에 폼 객체 전체를 두는 것.
-- **할 것**: 폼 state 는 **별도 상세 폼 컴포넌트** 안에 둔다. 저장 단추는 화면 루트(`MdmPageLayout buttons`)에 있으므로 루트는 `ref` 핸들로 폼과 대화한다(React 19 이므로 `ref` 를 prop 으로 받는다). 그리드 열 정의는 폼 값이 아니라 안정값(`hasForm` 같은 불리언·고정 콜백)에만 의존시킨다. 일부 칸만 바꾸는 동작(예: 「상세에 적용」)은 핸들에 `patch(partial)` 을 둔다.
-- **근거**: 수정 전에는 상세 폼에 한 글자를 칠 때마다(profiling 번들, 재측정 §3.2) 아래가 다시 그려졌다.
+- **할 것**: 폼 state 는 **별도 상세 폼 컴포넌트** 안에 둔다. 저장 단추는 화면 루트(`MdmPageLayout buttons`)에 있으므로 루트는 `ref` 핸들로 폼과 대화한다(React 19 이므로 `ref` 를 prop 으로 받는다). 그리드 열 정의는 폼 값이 아니라 안정값(`hasForm` 같은 불리언·고정 콜백)에만 의존시킨다. 일부 칸만 바꾸는 동작(예: 「상세에 적용」)은 핸들에 `apply({ patch, ... })` 를 둔다(columnMng `ColumnDetailHandle`).
+- **근거**: 수정 전에는 상세 폼에 한 글자를 칠 때마다(profiling 번들, 재측정 §3.3 수정 전 열. 같은 조건의 §3.2 첫 측정은 7.6ms·5.4ms 로 시간만 흔들렸다) 아래가 다시 그려졌다.
   - columnMng(폼이 루트 state) — 화면 루트 아래 268개 컴포넌트. 한 글자당 1커밋·7.3ms.
   - termMng(추천 그리드 열 `recoColumns` 가 `form` 에 의존) — 루트 171개에 더해 추천 그리드 셀 렌더러가 다시 그려지고, 셀 단독 커밋이 5글자에 100회. 한 글자당 21커밋·6.4ms.
 
@@ -157,8 +157,8 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 
   | 화면 | 전 | 후 | 커밋 |
   |---|---|---|---|
-  | columnMng | 1커밋·7.3ms, 루트 268개 컴포넌트 재렌더 | 1커밋·3.4~4.3ms, 상세 폼 아래 159개만 재렌더. 화면 루트 0회, 그리드 래퍼·셀 0회 | a416187b·02e36638 |
-  | termMng | 21커밋·6.4ms, 루트 아래 + 추천 그리드 셀 단독 커밋 100회/5글자 | 1커밋·1.8~2.0ms, 상세 폼 아래 94개만 재렌더. 화면 루트 0회, 추천 그리드 셀 단독 커밋 0회 | a416187b·02e36638 |
+  | columnMng | 1커밋·7.3ms, 루트 268개 컴포넌트 재렌더 | 1커밋·3.6~4.0ms, 상세 폼 아래 159개만 재렌더. 화면 루트 0회, 그리드 래퍼·셀 0회 | a416187b·02e36638·0b9ef24b |
+  | termMng | 21커밋·6.4ms, 루트 아래 + 추천 그리드 셀 단독 커밋 100회/5글자 | 1커밋·1.7ms, 상세 폼 아래 94개만 재렌더. 화면 루트 0회, 추천 그리드 셀 단독 커밋 0회 | a416187b·02e36638·0b9ef24b |
 
 ### 신경 쓰지 않아도 되는 것 — 확정
 
@@ -226,10 +226,10 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 | 메뉴 클릭 뒤 진입 호출(조회 제외) | ≤ 3건. 공통 2건(`secUser/myButtonEndpoints`·`mdmMeta/columns`) + 화면 고유 1건 | 주 기준 | 수정 뒤 6화면 2~3건(수정 전 6~9건). 화면 고유 호출은 콤보 값(`optionsOnly`)·진입 자동 조회 등 |
 | 그중 `/api/auth/me` | 0건(페이지 전체 1건, 포털 부팅) | 주 기준 | 수정 뒤 6화면 0건·페이지 전체 1건(수정 전 4~6건·13~15건) |
 | 행 클릭 때 포털 셸 재렌더 | 0회. 선택 행 snapshot 이 요구사항이면 1회 | 주 기준 | 수정 뒤 snapshot 화면 1회·나머지 0회(수정 전 2회) |
-| 상세 폼 입력 한 글자당 | 화면 루트 렌더 0회, 그리드 셀 재렌더 0회 | 주 기준 | 현재값 columnMng·termMng 루트 0회·그리드 셀 0회(F4 수정 a416187b·02e36638 뒤 count-renders ⑤ 2회). 수정 전(재측정 §3.2)에는 columnMng·termMng 이 루트 1회, termMng 은 셀 연쇄 ≈20커밋(R12 위반 사례) |
+| 상세 폼 입력 한 글자당 | 화면 루트 렌더 0회, 그리드 셀 재렌더 0회 | 주 기준 | 현재값 columnMng·termMng 루트 0회·그리드 셀 0회(F4 수정 뒤, 재측정 §3.3). 수정 전(재측정 §3.2)에는 columnMng·termMng 이 루트 1회, termMng 은 셀 연쇄 ≈20커밋(R12 위반 사례) |
 | 조회 클릭→첫 행(`inPageSearchToRowMutMs`) | ≤ 100ms(로컬) | 참고 | 소형 화면 24~29ms, termMng 64~68ms, columnMng 126~156ms(초과, §8 F1). 값이 ≈2~3ms 크게 잡힌다(§8) |
 | 조회 서버 TTFB(`searchTtfbMs`, BFF 기준) | ≤ 50ms(로컬) | 참고 | termMng 46~47ms, columnMng 107~136ms(초과). 소형 화면 3~22ms(측정 시점 부하에 따라 흔들림, 재측정 §4) |
-| 동작당 React 렌더 시간 합(`count-renders`) | 진입 ≤ 20ms, 조회·행 클릭·입력 한 글자 ≤ 16ms(한 프레임) | 참고 | 수정 뒤 진입 8.7~19.7ms, 조회 1.2~16ms, 행 클릭 5.8~13.8ms, 입력 한 글자 5.4~7.6ms(profiling 번들) |
+| 동작당 React 렌더 시간 합(`count-renders`) | 진입 ≤ 20ms, 조회·행 클릭·입력 한 글자 ≤ 16ms(한 프레임) | 참고 | 수정 뒤 진입 8.7~19.7ms, 조회 1.2~16ms, 행 클릭 5.8~13.8ms, 입력 한 글자 수정 전 5.4~7.6ms → F4 수정 뒤 1.7~4.0ms(profiling 번들, 재측정 §3.3) |
 
 ## 6. 측정 함정
 
@@ -284,5 +284,5 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 | F1 | `ColumnMngService.java:136-144` | 조건 없는 상한 조회에서도 ID·논리명을 전부 읽어 Java 로 정렬한 뒤 1,000건을 고른다. TTFB 107~136ms 로 예산 초과(termMng 46ms) | 정렬 키 인덱스·DB 정렬로 앞쪽만 읽기(방언 콜레이션 차이 감수 여부 결정 필요) |
 | F2 | `TermMngService.java:227` | 저장마다 `search(new TermSearchRequest())` 로 상한 없는 전체 목록(≈8천 건·≈3MB)을 재구성해 돌려준다 | 저장 응답은 저장한 행·경고만, 목록은 화면이 현재 조건(상한 포함)으로 재조회 |
 | F3 | `shared/src/components/dashboard/DashboardBoard.tsx:148`, `dashboard/layout.tsx:165`, `m-mcm/widget-types/memo/memo-user.ts:24`, `unit-converter/unit-user.ts:18` | 사용자 ID 만 쓰려고 `useUserButtonRbac` 를 구독한다(K4 형태) | `useCurrentUserId()` 로 바꾼다. 요청은 이미 캐시라 늘지 않고, RBAC 인스턴스 상태만 준다 |
-| ~~F4~~ | columnMng·termMng 상세 폼 | **완료**(커밋 `a416187b·02e36638`). 입력 한 글자마다 화면 루트 렌더, termMng 은 추천 그리드 셀 연쇄(R12 위반)였다 | 상세 폼 컴포넌트 분리, `recoColumns` 를 `form` 에서 떼기. 결과는 R12 적용 사례 |
+| ~~F4~~ | columnMng·termMng 상세 폼 | **완료**(커밋 `a416187b·02e36638·0b9ef24b`). 입력 한 글자마다 화면 루트 렌더, termMng 은 추천 그리드 셀 연쇄(R12 위반)였다 | 상세 폼 컴포넌트 분리, `recoColumns` 를 `form` 에서 떼기. 결과는 R12 적용 사례 |
 | F5 | dataMng·codeMng·layoutConfirm | 행 클릭 셸 1회(선택 행 snapshot) | 선택 행 복원이 요구사항인지 사용자 결정(R8) |
