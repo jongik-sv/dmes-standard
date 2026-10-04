@@ -13,9 +13,9 @@ dependencies {
     runtimeOnly files(project(':lib').sourceSets.main.output)
 
     // 외장 WAS 배포를 전제로 내장 톰캣은 provided 처리한다.
-    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-core'
-    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-el'
-    providedRuntime 'org.apache.tomcat.embed:tomcat-embed-websocket'
+    providedRuntime libs.tomcat.embed.core
+    providedRuntime libs.tomcat.embed.el
+    providedRuntime libs.tomcat.embed.websocket
 }
 
 bootWar {

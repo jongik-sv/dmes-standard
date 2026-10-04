@@ -1,4 +1,5 @@
 rootProject.name = 'backend'
+// 버전 카탈로그: 루트 빌드는 gradle/libs.versions.toml 을 'libs' 로 자동으로 가져온다 — 여기서 다시 선언하면 중복 정의 오류다.
 
 includeBuild('mpn') {
     dependencySubstitution {

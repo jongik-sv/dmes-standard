@@ -1,7 +1,7 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.0.6' apply false
-    id 'io.spring.dependency-management' version '1.1.7' apply false
+    alias(libs.plugins.spring.boot) apply false
+    alias(libs.plugins.spring.dependency.management) apply false
 }
 
 allprojects {
@@ -29,10 +29,10 @@ subprojects {
     }
 
     dependencies {
-        compileOnly 'org.projectlombok:lombok'
-        annotationProcessor 'org.projectlombok:lombok'
-        testImplementation 'org.springframework.boot:spring-boot-starter-test'
-        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+        compileOnly libs.lombok.base
+        annotationProcessor libs.lombok.base
+        testImplementation libs.spring.boot.starter.test
+        testRuntimeOnly libs.junit.platform.launcher
     }
 
     test {

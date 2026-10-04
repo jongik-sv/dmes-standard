@@ -12,14 +12,14 @@ bootRun {
 
 dependencies {
     // ── Spring Boot ──
-    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation libs.spring.boot.starter.base
 
     // ── Embedded Kafka Broker ──
     // spring-kafka 의 EmbeddedKafkaKraftBroker 는 KRaft 모드에서 fixed port 강제가 안 됨
     // (공식 미지원, spring-kafka issue #2916). 따라서 io.github.embeddedkafka 라이브러리 사용.
     // KRaft 모드 + 9092 fixed port 가능. Scala 2.13 의존성이 transitive 로 들어옴.
-    implementation 'io.github.embeddedkafka:embedded-kafka_2.13:4.2.0'
+    implementation libs.embedded.kafka
 
     // spring-kafka 도 일부 헬퍼/테스트 유틸 위해 같이 보유
-    implementation 'org.springframework.kafka:spring-kafka'
+    implementation libs.spring.kafka.base
 }

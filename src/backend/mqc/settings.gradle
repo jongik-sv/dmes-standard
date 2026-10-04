@@ -1,5 +1,14 @@
 rootProject.name = 'mqc'
 
+// 백엔드 공용 버전 카탈로그 — 이 폴더엔 gradle/libs.versions.toml 이 없어 자동으로 읽히지 않으므로 직접 가져온다.
+dependencyResolutionManagement {
+    versionCatalogs {
+        libs {
+            from(files('../gradle/libs.versions.toml'))
+        }
+    }
+}
+
 includeBuild('../cactus-core') {
     dependencySubstitution {
         substitute module('com.dongkuk.dmes:cactus-core') using project(':')
