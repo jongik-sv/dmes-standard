@@ -69,27 +69,21 @@ public interface SecUserMappingRepository extends JpaRepository<SecUserMapping, 
      * 건별 {@code deleteById} 와 DB 결과가 같다. (파생 {@code deleteBy…} 는 행마다 읽고 지우므로 쓰지 않는다.)
      *
      * <ul>
-     *   <li>{@code flushAutomatically = true} — 같은 트랜잭션에서 앞서 저장·변경한 행을 먼저 flush 해 실행 순서를 지킨다.</li>
+     *   <li>{@code flushAutomatically} 는 쓰지 않는다 — Hibernate 가 벌크 DELETE 실행 직전에 영향 표(매핑 표)에 미뤄 둔
+     *       변경이 있으면 스스로 auto-flush 하므로({@code StandardJdbcMutationExecutor} 의 {@code autoFlushIfRequired})
+     *       같은 트랜잭션에서 앞서 저장한 매핑의 INSERT → 이 DELETE 순서가 지켜진다(SecUserServiceDeleteAutoFlushTest).
+     *       다른 표(사용자 계정 등)의 변경은 전처럼 커밋 때 flush 된다 — 옛 경로가 'D' 행마다 같은 표에 낸 JPQL SELECT 와
+     *       auto-flush 범위·횟수가 같아 관찰 가능한 DB 상태와 오류 시점이 바뀌지 않는다.</li>
      *   <li>{@code clearAutomatically} 는 쓰지 않는다 — 호출하는 {@code saveUsers}(secUser.bpmn saveTask) 는 이 삭제 뒤
      *       같은 트랜잭션에서 매핑을 다시 읽지 않고, 비우면 같은 영속성 단위의 다른 관리 엔티티(사이트 어댑터의 사용자 등)까지
-     *       분리돼 버린다. 이 메서드를 새로 쓰는 곳이 삭제 뒤 매핑 엔티티를 다시 읽는다면 그쪽에서 판단한다.</li>
+     *       분리돼 버린다. 이 메서드를 새로 쓰는 곳이 삭제 뒤 매핑 엔티티를 다시 읽는다면 그쪽에서 판단한다.
+     *       특히 같은 트랜잭션에서 이 사용자의 매핑을 미리 읽어 두었다면, 벌크 삭제 뒤 같은 PK 로 다시 저장할 때 지워진 행에
+     *       UPDATE 가 나가 {@code StaleStateException} 으로 실패하므로 그 호출부에서 {@code em.clear}·{@code detach} 를 판단한다.</li>
      * </ul>
-     *
-     * <p><b>알려진 차이(현재 호출 화면 없음).</b> {@code flushAutomatically} 때문에 같은 요청 앞 행에서 바뀐 사용자 계정(SecUser)이
-     * 커밋 때 한 번이 아니라 첫 'D' 행에서 먼저 flush 된다. 업무 컬럼과 매핑 결과는 같지만 같은 계정이 그 flush 앞뒤로
-     * 두 번 바뀌는 요청에서는 다음이 달라진다({@code CactusAuditListener} {@code @PreUpdate} 가 UPDATE 마다 VER+1·U_AT·U_USR_ID 를 채운다).
-     * <ul>
-     *   <li>{@code [C X, D Y, U X]} — 전: 최종 값으로 INSERT 1회. 지금: D 의 flush 에서 INSERT, 커밋 때 UPDATE → 같은 요청에서 만든 행이 VER=1.</li>
-     *   <li>{@code [U X, D Y, U X]} — UPDATE 가 2회 나가 VER 이 +1 대신 +2(VER 은 {@code @Version} 이 아니라 잠금 충돌은 없다).</li>
-     *   <li>앞 C·U 행에 DB 수준 오류(길이·제약)가 있고 다른 행에 검증 오류가 있으면 — 전: 행별 검증 {@code BusinessException} 후 롤백.
-     *       지금: 첫 'D' 행의 flush 에서 DB 예외가 먼저 난다.</li>
-     * </ul>
-     * 지금은 src/frontend 에서 secUser 의 save 액션을 부르는 곳이 없어 이런 요청이 들어오지 않는다.
-     * 부르는 화면이 생기면 실제 JPA 계정 저장소로 {@code [C X, D Y, U X]} 시험을 더한다(perf-mcm.md P2).
      *
      * @return 지운 행 수
      */
-    @Modifying(flushAutomatically = true)
+    @Modifying
     @Query("DELETE FROM SecUserMapping m WHERE m.userId = :userId")
     int bulkDeleteByUserId(@Param("userId") String userId);
 }

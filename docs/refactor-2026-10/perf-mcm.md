@@ -48,11 +48,8 @@
 
 - 중앙값: 해당 없음(결정적 1회)
 - 판정: 측정 전
-- 알려진 차이(현재 호출 화면 없음): `bulkDeleteByUserId` 의 `flushAutomatically=true` 때문에 같은 요청 앞 행에서 바뀐 사용자 계정이 커밋 때가 아니라 첫 'D' 행에서 flush 된다. 업무 컬럼·매핑 결과는 같고, 같은 계정이 그 flush 앞뒤로 두 번 바뀌는 요청에서만 다음이 달라진다.
-  - `[C X, D Y, U X]`: 전 INSERT 1회 → 지금 INSERT 뒤 커밋 때 UPDATE. `CactusAuditListener @PreUpdate` 때문에 같은 요청에서 만든 행이 VER=1, U_AT·U_USR_ID 가 다시 채워진다.
-  - `[U X, D Y, U X]`: UPDATE 2회로 VER 이 +1 대신 +2. VER 은 `@Version` 이 아니라 잠금 충돌은 없다.
-  - 앞 C·U 행의 DB 수준 오류(길이·제약)와 다른 행의 검증 오류가 함께 있으면, 전에는 행별 검증 오류(`BusinessException`)였고 지금은 첫 'D' 행 flush 의 DB 오류가 먼저 난다.
-  - src/frontend 에서 secUser 의 save 액션을 부르는 곳이 0건이라 지금은 이런 요청이 없다. `SecUserServiceDeleteUsersTest` 는 계정 저장소가 메모리 가짜라 이 차이를 잡지 못한다. 부르는 화면이 생기면 실제 JPA 계정 저장소로 `[C X, D Y, U X]` 시험을 더한다. `flushAutomatically` 를 뺄지는 팀장 판단으로 남긴다.
+- 알려진 차이: 없다. `bulkDeleteByUserId` 는 `@Modifying` 만 쓰고 `flushAutomatically` 를 두지 않는다. Hibernate 가 벌크 DELETE 직전에 영향 표(`TB_MCM_SEC_USER_MAPPING`)에 미뤄 둔 변경만 보고 auto-flush 하므로(`StandardJdbcMutationExecutor.execute` 첫머리의 `autoFlushIfRequired`), 같은 트랜잭션의 매핑 INSERT → DELETE 순서는 지켜지고 사용자 계정(TB_SEC_USER) 변경은 전처럼 커밋 때 flush 된다. 옛 경로도 'D' 행마다 같은 표에 JPQL SELECT 를 1회 냈으므로 auto-flush 범위·횟수가 같다. 순서는 `SecUserServiceDeleteAutoFlushTest` 가 고정한다(flush 없이 저장한 매핑이 같은 트랜잭션의 'D' 행에서 지워진다).
+  - (처음 커밋 6e5eb813 은 `flushAutomatically=true` 를 붙여 첫 'D' 행에서 계정까지 앞당겨 flush 했다. 감사 컬럼 VER·U_AT 가 한 번 더 바뀌거나 DB 오류가 행별 검증 오류보다 먼저 나는 차이가 있어 리뷰에서 뺐다.)
 
 ## P3. 메뉴 카탈로그 캐시 SELECT 수·응답 시간
 - 관련 구조 변경: S3(예정, 메뉴 카탈로그 캐시)
