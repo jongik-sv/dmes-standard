@@ -216,10 +216,6 @@ class DataInitializerSeedFingerprintTest {
                 .isEmpty();
     }
 
-    /**
-     * 지문에 실행 시각이 섞이지 않았는지 지킨다 — 해시에 들어가는 값에 오늘 날짜(UTC·로컬)나 시드 시각 근처의 epoch 수가 있으면
-     * 새 시각 컬럼이 생긴 것이니 {@link #TIME_COLUMNS} 에 넣어야 한다(그대로 두면 지문이 날마다·초마다 흔들린다).
-     */
     @Test
     @DisplayName("시드 끝에 트랜잭션 안에서 MenuChangedEvent(SEED) 를 한 번 낸다 — 메뉴 카탈로그가 즉시·커밋 뒤 비워진다")
     void seedPublishesMenuChangedEventInsideTransaction() {
@@ -227,6 +223,10 @@ class DataInitializerSeedFingerprintTest {
         assertThat(publishedInTx).containsExactly(true);
     }
 
+    /**
+     * 지문에 실행 시각이 섞이지 않았는지 지킨다 — 해시에 들어가는 값에 오늘 날짜(UTC·로컬)나 시드 시각 근처의 epoch 수가 있으면
+     * 새 시각 컬럼이 생긴 것이니 {@link #TIME_COLUMNS} 에 넣어야 한다(그대로 두면 지문이 날마다·초마다 흔들린다).
+     */
     @Test
     @DisplayName("해시에 들어가는 값에 실행 시각(오늘 날짜·현재 epoch)이 섞이지 않는다")
     void hashedValuesHaveNoRuntimeTimestamp() {
