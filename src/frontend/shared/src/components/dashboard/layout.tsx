@@ -22,7 +22,8 @@ import {
   type ReactNode,
 } from "react";
 
-import { peekLastUserId, useUserButtonRbac } from "../../portal-shell/use-user-button-rbac";
+import { useCurrentUserState } from "../../portal-shell/use-current-user-id";
+import { peekLastUserId } from "../../portal-shell/use-user-button-rbac";
 
 export interface DashboardCardLayout {
   collapsed?: boolean;
@@ -162,7 +163,7 @@ export function DashboardLayoutProvider({
   layoutKey?: string;
   children: ReactNode;
 }) {
-  const { userId } = useUserButtonRbac(Boolean(layoutKey));
+  const { userId } = useCurrentUserState(Boolean(layoutKey));
   const loadedFor = useRef("");
   const [map, setMap] = useState<DashboardLayoutMap>(() => {
     const last = peekLastUserId();
