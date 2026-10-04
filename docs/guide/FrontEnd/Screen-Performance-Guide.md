@@ -4,6 +4,7 @@
 
 - 근거: [MDM 화면 렌더링 findings 독립 검증](../../perf-render/mdm-findings-verification.md)(이하 "검증", dev f4378bef)이 정본이다. [1·2차 findings](../../perf-render/mdm-findings.md) 중 검증에서 틀린 것으로 판정된 수치(조회→첫 행 826.9ms, "프런트 442ms", `/api/auth/me` 진입당 22회, 화면 무관 호출 7건 등)는 쓰지 않는다.
 - 수정 뒤 재측정: [MDM 화면 성능 수정 후 재측정](../../perf-render/mdm-after-fix.md)(이하 "재측정", 2026-10-04 dev 9a79d1db 기준). R1·K1~K7 의 효과, R11·R12 판정, §5 예산 확정의 근거다.
+- 홈 위젯 계층: [홈 대시보드 위젯 중복 렌더·요청 분석](../../perf-render/widget-render-findings.md)(이하 "위젯 분석", 분석 dev c9b1d439, 수정 후는 §6, `perf/fix-widget` fb56fdda). R7 확장·R13~R16·§3 위젯 계층 표·§5 위젯 행의 근거다.
 - 측정 범위: MDM 6화면(termMng·columnMng·layoutConfirm·headerMng·dataMng·codeMng), 로컬 SQLite·로컬 망, 프로덕션 빌드, 2026-10-04. 운영 망·운영 DB 값이 아니다.
 - 인용한 `file:line` 은 dev f4378bef 기준이다. 다만 R1 적용 사례·R11·R12 와 §8 후속 후보(F1~F5)의 줄 번호는 dev 9a79d1db 기준이다. 줄이 바뀌었으면 검증·재측정의 절 번호(예: 검증 §5.2 C2)로 찾는다.
 - 렌더·그리드 세부 규칙 중 이미 [Local-Rules](Local-Rules.md) 에 있는 것은 여기서 다시 적지 않고 링크한다(§11 선택 전환, §16 큰 편집 그리드, §20 AgDataGrid 재렌더).
@@ -28,6 +29,10 @@ MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절
 | `fetch("/api/auth/me")` 직접 호출, 하위·팝업마다 `useUserButtonRbac()` | 구독자 수만큼 auth/me(진입당 4~6건, 수정 후 0건 목표) | R9, 3장 K3·K4 | 점검표 3, audit `P-K`(오류), `authMeAfterMenuClick` |
 | 전역 이벤트(`portal-tab-activated`)로 다시 조회, 숨은 탭(폭 0)에서 다시 그림 | 탭 전환마다 요청 1건, 홈 이탈 때 2.5~3ms | R10, 3장 K5·K6 | 점검표 8, audit `P-R10`(경고), `count-renders` ④ |
 | 상세 폼 state 를 화면 루트에 두고 그리드 열·행 deps 에 폼 객체를 넣음 | 한 글자마다 루트 171~268개 컴포넌트 재렌더, termMng 은 한 글자당 21커밋·추천 그리드 셀 연쇄 | R12 | 점검표 9, audit `P-R12`(오류)·`P-R12b`(경고), 화면 시험(루트 렌더 수), `count-renders` ⑤ |
+| 화면·보드 진입 불러오기를 마운트→사용자 확인→정의 도착마다 다시 실행, 이미 그린 보드를 스켈레톤으로 되돌림 | 홈 진입 `secWidget/search` 3회·보드 2회 구성(WidgetFrame 마운트 22 = 11×2) | R13, R7 확장 | 점검표 13, `count-renders-home` ① 요청 수·`WidgetFrame` 마운트 |
+| 같은 목록(같은 엔드포인트)을 컴포넌트·인스턴스마다 따로 요청 | 사이드바 1 + 바로가기 위젯 마운트 2 = 홈 진입 `secFavorite/search` 3회 | R15 | 점검표 14, `count-renders-home` ① 요청 수 |
+| `useSyncExternalStore` 스토어를 통째 구독해 일부 필드만 씀 | 공지 행 클릭 하나에 홈 페이지→보드→프레임 11개 재렌더(커밋 2회, 219개 컴포넌트) | R16 | 점검표 15, audit `P-R16`(경고), `count-renders-home` ② |
+| 슬라이드·`refreshSec`·`setInterval` 타이머를 탭 활성·표시 여부와 무관하게 돌림 | 현재 기본 배치는 60초 대기 커밋 0·요청 0이라 지금은 안 보임. 잠재 위치만 있음(R14) | R14 | 점검표 13, audit `P-R14`(경고) |
 
 ## 2. 설계 규칙 — 새 화면이 지킬 것
 
@@ -87,6 +92,9 @@ MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절
 - **하지 말 것**: effect·갱신 함수에서 내용이 같아도 `[]`·`{...}`·`prev.filter(...)` 결과를 그대로 넣는 것.
 - **할 것**: 같으면 `prev` 를 그대로 돌려준다. 빈 배열은 모듈 상수를 쓰거나 이전이 비었으면 건너뛴다.
 - **근거**: 포털 셸 tabOrder 동기화가 변화 없이도 새 배열을 넣어 셸 전체가 한 번 더 렌더된다(검증 §5.2 C1, `use-portal-tabs.ts:429-447`). termMng 은 진입 ≈300ms 뒤 `setCandidates([])` 로 화면 전체가 다시 렌더된다(검증 §5.2 S1, `termMng/page.tsx:182-188`).
+- **확장 — 등록부 entry·배치 참조 안정성(위젯 W2·W3)**: 병합 결과가 같으면 원래 객체를 돌려준다. 위젯 등록부(`mergeWidgetRegistry`, 지난 결과를 `prev` 로 넘긴다)는 DB 정의 행이 값을 바꾸지 않으면 기본 entry 를 그대로 돌려주고, lazy 캐시(`WidgetFrame` 의 `lazyCache`)는 entry 객체가 아니라 안정 키(`load` 함수)로 잡는다. 배치(`items`)를 정리(`sanitize`)한 결과도 내용이 같으면 이전 배열을 재사용한다. 그러지 않으면 등록부가 한 번 바뀔 때 위젯 본체가 전부 다시 마운트되고 프레임 전체가 다시 렌더된다.
+  - 근거: 수정 전 `widget-registry.ts:139` 가 값이 안 변해도 새 entry 를 만들고 `WidgetFrame.tsx:41-54` 의 캐시가 entry 기준 WeakMap 이라 본체가 리마운트됐고, `WidgetWorkspace.tsx:187` 이 매 load 마다 새 `items` 를 만들었다(위 분석 §3 W2·W3, 측정은 W1 과 같은 커밋이라 분리되지 않음).
+  - 적용 사례: 커밋 fc5dbff0(`shared/src/widget/widget-registry.ts`·`WidgetFrame.tsx`·`widget-layout.ts`·`WidgetWorkspace.tsx`), 시험 96f48639. 전후 수치는 R13 적용 사례와 같은 측정이다.
 - 그리드 `columns`·`data` 의 참조 안정 규칙은 [Local-Rules §20](Local-Rules.md#20-agdatagrid-화면--입력-한-글자셀-편집-한-번이-그리드-전체를-다시-그리지-않게-2026-10-01) 이 정본이다.
 
 ### R8. 탭 snapshot 은 탭 복귀 때 되살릴 값만 담는다 — 확정(선택 행 포함 여부는 사용자 결정)
@@ -160,6 +168,53 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
   | columnMng | 1커밋·7.3ms, 루트 268개 컴포넌트 재렌더 | 1커밋·3.6~4.0ms, 상세 폼 아래 159개만 재렌더. 화면 루트 0회, 그리드 래퍼·셀 0회 | a416187b·02e36638·0b9ef24b |
   | termMng | 21커밋·6.4ms, 루트 아래 + 추천 그리드 셀 단독 커밋 100회/5글자 | 1커밋·1.7ms, 상세 폼 아래 94개만 재렌더. 화면 루트 0회, 추천 그리드 셀 단독 커밋 0회 | a416187b·02e36638·0b9ef24b |
 
+### R13. 화면·보드 진입 불러오기는 준비 조건을 모아 한 번만 한다 — 확정(수정 적용)
+
+- **하지 말 것**: 진입 불러오기를 마운트 → 사용자 확인(`userId` null→id) → 정의(`widgetDef/list`) 도착 → 등록부 교체마다 다시 실행하는 것. 불러오기마다 상태를 `loading` 으로 돌려 이미 그린 보드를 스켈레톤으로 바꾸는 것.
+- **할 것**: 준비 조건(사용자·정의·등록부)을 모아 처음 한 번만 요청한다. 늦게 온 사용자 확인·정의는 다시 조회하지 말고 이미 가진 배치를 다시 정리한다. 이미 그린 보드는 유지하고 스켈레톤으로 되돌리지 않는다.
+- **근거**: 홈 진입에서 `secWidget/search` 가 3회 나갔다(+0.07 #1·#2 동시, +0.12 #3). 보드가 2회 구성되고(WidgetFrame 마운트 22 = 11 위젯 × 2, +0.08s 본체 없는 프레임 72마운트 → +0.19s 본체 포함 206마운트) 사용자는 스켈레톤→빈 프레임→해체→완성 보드를 본다. 코드 `WidgetWorkspace.tsx:175-225,413-431`(위 분석 §3 W1).
+- **어기면**: 중복 POST 와 보드 전체 재마운트가 진입마다 붙고, 위젯마다 가진 진입 요청(`secFavorite` 등)도 재마운트 수만큼 는다.
+- **적용 사례**: 커밋 fc5dbff0·bb672816(`shared/src/widget/WidgetWorkspace.tsx` 외, bb672816 은 리뷰 수정: 원래 배치에서 다시 정리·조용한 다시 불러오기 경합), 시험 96f48639·4bc837fa. 홈 진입 요청과 보드 구성 전 → 후, 3회 중앙값, profiling 번들, 로컬(위 분석 §6, 수정 전 dev c9b1d439 → 수정 후 fb56fdda):
+
+  | 지표 | 전 | 후 |
+  |---|---|---|
+  | `secWidget/search` | 3 | **1** |
+  | `widgetDef/list`·`noticeBoard/search`·`auth/me` | 각 1 | 각 1 |
+  | WidgetFrame 렌더/마운트 | 198 / 22 | 132 / **11**(= 위젯 수) |
+  | WidgetBoard 렌더/마운트 | 5 / 2 | 3 / 1 |
+  | 보드 계층 커밋 | 21 | 14 |
+  | 컴포넌트 렌더 총합 | 4,212 | 3,278(−22%) |
+
+  진입 전체 커밋은 103 → 96(중앙값)으로 크게 안 줄었다. 남은 ≈45~55건은 표 위젯 안 AG Grid 셀 렌더(컴포넌트 1개짜리 커밋, 합 ≈3ms)와 ProgressBar 애니메이션 커밋이라 보드 구조와 무관하다(§8).
+
+### R14. 타이머·자동 새로 고침은 탭 활성·요소 표시와 연동한다 — 확정(코드 수정 없음, 규칙·audit 로만 막음)
+
+- **하지 말 것**: 위젯의 슬라이드 타이머·`refreshSec` 자동 새로 고침·`setInterval` 반복을 탭이 숨었거나 요소가 안 보여도 돌리는 것.
+- **할 것**: 타이머는 자기 탭이 활성이고 요소가 보일 때만 돌린다(`document.visibilityState`, 탭 활성 여부, `IntersectionObserver` 등). 숨는 순간 멈추고 다시 보이면 재개한다. 포털은 숨은 탭을 언마운트하지 않으므로(R10) 타이머가 숨은 홈 탭에서 계속 돈다.
+- **근거**: 현재 기본 배치는 60초 대기 커밋 0·요청 0이다(위 분석 §0 4, ⑥). 기본 배치에 media 위젯이 없고 어떤 메타도 `refreshSec` 을 쓰지 않아 지금은 비용이 없다. 잠재 위치는 `m-mcm/widget-types/media/renderer.tsx:116-121`(슬라이드 타이머)와 `shared/src/widget/WidgetFrame.tsx` 의 `refreshSec` effect 다. 코드는 고치지 않았고 새 위젯이 이 위치를 쓰기 전에 audit `P-R14`(경고)로 잡는다.
+- **적용 사례**: 없음(수정 없음). §8 후속 W5·W6.
+
+### R15. 같은 목록(같은 엔드포인트)은 컴포넌트·인스턴스끼리 요청을 나눠 쓴다 — 확정(수정 적용)
+
+- **하지 말 것**: 같은 목록을 쓰는 컴포넌트마다(같은 위젯이 여러 번 마운트되는 경우 포함) 같은 엔드포인트를 따로 부르는 것.
+- **할 것**: 호스트가 받은 것을 올려 두는 모듈 저장소를 둔다(`portal-menu-store`·`portal-favorites-store` 방식). 호스트(포털 셸)가 받은 목록을 저장소에 올리고, 위젯은 저장소에 있으면 그것을 쓰고 없을 때만 요청한다. 자기 탭이 다시 활성화될 때의 재요청은 R10 방침대로 둔다.
+- **근거**: 홈 진입 `secFavorite/search` 가 3회였다. 셸 사이드바 1회(`app/portal/page.tsx:313`) + 바로가기 위젯 마운트 2회(`quickLinks/widget.tsx:19`, W1 재마운트에 끌려 2회). 인스턴스 사이 공유가 없었다(위 분석 §3 W4).
+- **적용 사례**: 커밋 dff10752(`m-mcm/lib/portal-favorites-store.ts` 신규, `app/portal/page.tsx`, `widgets/home/quickLinks/widget.tsx`), 시험 569c8aaf. 홈 진입 `secFavorite/search` **3 → 1**, QuickLinksWidget 렌더/마운트 15 / 2 → 9 / **1**. 탭 복귀 때 `secFavorite` 1회는 K5 방침대로 그대로다.
+
+### R16. 외부 스토어(`useSyncExternalStore`)를 통째로 구독하지 않는다 — 확정(수정 적용)
+
+- **하지 말 것**: 스토어 상태 전체를 돌려주는 훅(`useNoticeStore()`)을 구독해 구조 분해로 일부 필드만 쓰는 것. 스토어 갱신이 새 상태 객체를 만들면 쓰지도 않는 필드(`selectedId`)가 바뀔 때마다 구독자가 다시 그려진다.
+- **할 것**: 필요한 필드만 필드별 훅(`useNotices()` 등)으로 노출하고 소비자는 그 훅만 쓴다. 스냅샷은 필드 단위로 안정 참조가 되게 한다.
+- **근거**: 홈 페이지(`page-components/home/page.tsx:43`)가 공지 스토어를 통째 구독했다. 긴급 공지 띠에 `notices` 만 필요한데 행 선택(`selectedId`)만 바뀌어도 페이지→WidgetWorkspace→WidgetBoard→프레임 11개가 다시 그려졌다(위 분석 §3 W8, `notice-store.ts:21-24,52-54`).
+- **적용 사례**: 커밋 dff10752(`m-mcm/page-components/home/notice-store.ts`·`page.tsx`), 시험 569c8aaf. 공지 행 클릭 3회 중앙값, 로컬(위 분석 §6):
+
+  | 지표 | 전 | 후 |
+  |---|---|---|
+  | 커밋 | 2 | 1 |
+  | React 시간 합 | 13.7ms | 12.4ms |
+  | 렌더된 컴포넌트 수 | 219 | **46** |
+  | WidgetFrame·WidgetBoard·PortalHomePage 렌더 | 11·1·1 | **0·0·0**(NoticeWidget 만 1) |
+
 ### 신경 쓰지 않아도 되는 것 — 확정
 
 아래는 재 보니 각 ≤1ms 였다. 이것을 줄이려고 구조를 복잡하게 만들지 않는다.
@@ -182,6 +237,21 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 | K5 | 홈 바로가기 위젯이 어느 탭 활성화에도 즐겨찾기 재요청 | `quickLinks/widget.tsx:27-31` | 탭 전환마다 요청 1건 | 같은 패턴을 새 위젯·화면에 쓰지 않는다(R10) | 자기 탭(홈)이 활성화될 때만 | **수정됨**(3264529f) — `TabPageContext.tabId` 와 `portal-tab-activated` 의 `detail.tabId` 를 비교한다 | 진입 호출에서 `secFavorite` 사라짐. QuickLinksWidget 렌더 진입 3 → **0**회, 탭 복귀 2 → **0**회 |
 | K6 | 숨은 홈 위젯 보드가 폭 0 통지로 다시 렌더 | `widget/WidgetFrame.tsx:96-106`, `WidgetWorkspace.tsx:144`, `WidgetBoard.tsx:60` | 홈을 떠날 때 ≈2.5~3ms | 폭 0 통지를 무시한다(R10) | 폭 0 이면 상태를 바꾸지 않는다 | **수정됨**(3264529f) — `WidgetFrame` 은 폭 0 을 무시, `WidgetWorkspace`·`WidgetBoard` 는 `useVisibleContainerWidth`(폭 0 무시)를 쓴다 | 진입 때 WidgetBoard 렌더 1 → **0**회 |
 | K7 | 조회 단추가 RBAC 로딩 동안 비활성 | `use-user-button-rbac.ts:208`, `PageLayout.tsx:132` | 진입 뒤 ≈70ms 동안 조회 불가(1왕복) | — | K3 이 해결되면 함께 줄어든다 | **줄어듦**(75e84a2b) — 세션의 두 번째 진입부터 사용자 확인이 왕복 없이 끝난다. 첫 진입은 me→RBAC 2왕복 그대로 | 미측정(첫 진입은 그대로 2왕복). 조회 단추 대기는 하네스 구조상 재지 않았다 |
+
+### 위젯 계층 적용 사례 — W 번호(K 번호와 별개)
+
+홈 위젯 계층 결함은 K1~K7 과 번호를 섞지 않고 위젯 분석의 W 번호로 적는다. K5·K6 은 위 표대로 수정됐고, 그 뒤 위젯 분석(2026-10-05)이 같은 계층에서 W1~W8 을 판정해 W1·W2·W3·W4·W8 을 고쳤다(`perf/fix-widget`, fc5dbff0 shared·dff10752 m-mcm). 효과는 R13·R15·R16 적용 사례에 있다.
+
+| W | 결함 | 규칙 | 상태 |
+|---|---|---|---|
+| W1 | 진입 `secWidget/search` 3회·보드 2회 구성 | R13 | **수정됨**(fc5dbff0) — 요청 3 → 1, WidgetFrame 마운트 22 → 11 |
+| W2·W3 | registry 병합이 항상 새 entry, 매 load 새 `items` | R7 확장 | **수정됨**(fc5dbff0) |
+| W4 | `secFavorite/search` 진입 3회 | R15 | **수정됨**(dff10752) — 3 → 1 |
+| W5·W6 | media 슬라이드·`refreshSec` 가 표시 여부와 무관 | R14 | 코드 수정 없음(잠재). §8 |
+| W7 | `WidgetFrame` props 객체 매 렌더 신규 | — | 조치 없음(본체가 `memo` 가 아니라 무해). §8 |
+| W8 | 공지 행 클릭이 보드 전체 재렌더 | R16 | **수정됨**(dff10752) — 컴포넌트 219 → 46 |
+
+새 위젯·홈 화면은 "하지 말 것" 표의 위젯 행과 R13~R16 을 지킨다.
 
 ## 4. 새 화면 성능 확인 절차
 
@@ -229,6 +299,9 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 | 상세 폼 입력 한 글자당 | 화면 루트 렌더 0회, 그리드 셀 재렌더 0회 | 주 기준 | 현재값 columnMng·termMng 루트 0회·그리드 셀 0회(F4 수정 뒤, 재측정 §3.3). 수정 전(재측정 §3.2)에는 columnMng·termMng 이 루트 1회, termMng 은 셀 연쇄 ≈20커밋(R12 위반 사례) |
 | 조회 클릭→첫 행(`inPageSearchToRowMutMs`) | ≤ 100ms(로컬) | 참고 | 소형 화면 24~29ms, termMng 64~68ms, columnMng 126~156ms(초과, §8 F1). 값이 ≈2~3ms 크게 잡힌다(§8) |
 | 조회 서버 TTFB(`searchTtfbMs`, BFF 기준) | ≤ 50ms(로컬) | 참고 | termMng 46~47ms, columnMng 107~136ms(초과). 소형 화면 3~22ms(측정 시점 부하에 따라 흔들림, 재측정 §4) |
+| 홈 진입 목록 요청(위젯 계층) | `secWidget/search`·`secFavorite/search`·`widgetDef/list`·`noticeBoard/search` 각 1회 | 주 기준 | 수정 뒤 각 1회(수정 전 `secWidget`·`secFavorite` 각 3회, 위젯 분석 §6, R13·R15) |
+| 보드 구성 | 1회(WidgetFrame 마운트 = 위젯 수) | 주 기준 | 수정 뒤 마운트 11(11 위젯), WidgetBoard 마운트 1(수정 전 22, 2) |
+| 위젯 안 행 클릭이 보드를 다시 그림 | 0회(WidgetFrame·WidgetBoard·홈 페이지 렌더 0) | 주 기준 | 수정 뒤 공지 행 클릭 0·0·0, 컴포넌트 46개(수정 전 11·1·1, 219개, R16) |
 | 동작당 React 렌더 시간 합(`count-renders`) | 진입 ≤ 20ms, 조회·행 클릭·입력 한 글자 ≤ 16ms(한 프레임) | 참고 | 수정 뒤 진입 8.7~19.7ms, 조회 1.2~16ms, 행 클릭 5.8~13.8ms, 입력 한 글자 수정 전 5.4~7.6ms → F4 수정 뒤 1.7~4.0ms(profiling 번들, 재측정 §3.3) |
 
 ## 6. 측정 함정
@@ -265,8 +338,11 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 8. 전역 이벤트로 다시 조회하는 곳이 없고, 숨은 탭(폭 0)에서 다시 그리지 않는다(R10).
 9. 상세 폼 state 가 화면 루트에 있지 않고(별도 상세 폼 컴포넌트 + `ref` 핸들), 그리드 열·행 deps 에 폼 객체 전체가 없다(R12).
 10. 하네스에 화면을 등록해 cold 3회(`RENDER_ISOLATE=1`)를 쟀고, §5 예산 주 기준 항목 값을 PR 에 적었다.
-11. 바꾼 파일·폴더에 `python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py audit <바꾼 파일·폴더>` 를 돌렸고, 결과(오탐이면 이유)를 PR 에 적었다. 성능 항목(`P-R1`·`P-R6`·`P-R10`·`P-R12`·`P-R12b`·`P-K`)은 자동으로 잡히고, 나머지는 위 1~10 을 눈으로 확인한다.
+11. 바꾼 파일·폴더에 `python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py audit <바꾼 파일·폴더>` 를 돌렸고, 결과(오탐이면 이유)를 PR 에 적었다. 성능 항목(`P-R1`·`P-R6`·`P-R10`·`P-R12`·`P-R12b`·`P-K`·`P-R14`·`P-R16`)은 자동으로 잡히고, 나머지는 위 1~10 을 눈으로 확인한다.
 12. shared 공통 컴포넌트를 새로 만들었으면 `count-renders` 로 동작당 렌더를 보고, 기존 shared props·동작을 바꾸는 수정은 사용자 승인을 받았다.
+13. 위젯·대시보드에서 슬라이드·`refreshSec`·`setInterval` 타이머가 탭 활성·요소 표시와 연동되고(R14), 진입 불러오기가 준비 조건을 모아 한 번만 나가며 이미 그린 보드를 스켈레톤으로 되돌리지 않고(R13), 등록부 entry·배치 참조가 같은 결과면 그대로다(R7 확장).
+14. 같은 목록을 쓰는 위젯·컴포넌트가 요청을 나눠 쓰고(호스트가 올린 저장소를 먼저 본다), 홈 진입 목록 요청이 각 1회다(R15, §5).
+15. `useSyncExternalStore` 스토어는 필드별 훅으로만 구독한다. 위젯 안 행 클릭이 보드 프레임을 다시 그리지 않는다(R16, §5).
 
 ## 8. 알려진 미해결과 후속
 
@@ -275,6 +351,7 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 - **저장·등록 경로**(저장 뒤 목록·상세 연속 왕복)는 공용 DB 때문에 재지 않았다.
 - **운영 망·운영 DB(Oracle·PostgreSQL)** 값이 아니다. 상한으로 줄어든 ≈2.5MB 전송은 로컬에서 보이지 않는다.
 - **K7(조회 단추가 RBAC 로딩 동안 비활성)** 은 재지 않았다. 첫 진입은 me → RBAC 2왕복이 그대로다.
+- **위젯 계층(위젯 분석 §6)**: W5·W6(타이머 표시 연동)은 코드를 고치지 않았고, 현재 기본 배치는 60초 대기 커밋 0·요청 0이라 영향이 없다. W7(`WidgetFrame` props 객체 매 렌더 신규)은 본체가 `memo` 가 아니라 무해해 조치하지 않는다(본체를 `memo` 화할 때만 의미). 홈 진입 커밋 96건 중 ≈45~55건은 표 위젯 안 AG Grid 셀의 컴포넌트 1개짜리 커밋과 ProgressBar 애니메이션 커밋이며 이번 범위 밖이다(합 ≈3ms). 창 폭 변경은 보드 전체 재렌더(WidgetFrame 143회)이며 구조 그대로다(비용 작음).
 - **페이지 안 시계의 첫 행 판정**(`getClientRects`)이 ≈2~3ms 를 더한다(재측정 §3.1).
 
 후속 후보(재측정 §6, 아직 고치지 않음):
@@ -283,6 +360,8 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 |---|---|---|---|
 | F1 | `ColumnMngService.java:136-144` | 조건 없는 상한 조회에서도 ID·논리명을 전부 읽어 Java 로 정렬한 뒤 1,000건을 고른다. TTFB 107~136ms 로 예산 초과(termMng 46ms) | 정렬 키 인덱스·DB 정렬로 앞쪽만 읽기(방언 콜레이션 차이 감수 여부 결정 필요) |
 | F2 | `TermMngService.java:227` | 저장마다 `search(new TermSearchRequest())` 로 상한 없는 전체 목록(≈8천 건·≈3MB)을 재구성해 돌려준다 | 저장 응답은 저장한 행·경고만, 목록은 화면이 현재 조건(상한 포함)으로 재조회 |
-| F3 | `shared/src/components/dashboard/DashboardBoard.tsx:148`, `dashboard/layout.tsx:165`, `m-mcm/widget-types/memo/memo-user.ts:24`, `unit-converter/unit-user.ts:18` | 사용자 ID 만 쓰려고 `useUserButtonRbac` 를 구독한다(K4 형태) | `useCurrentUserId()` 로 바꾼다. 요청은 이미 캐시라 늘지 않고, RBAC 인스턴스 상태만 준다 |
+| F3 | `shared/src/components/dashboard/DashboardBoard.tsx:148`, `dashboard/layout.tsx:165`, `m-mcm/widget-types/memo/memo-user.ts:24`, `unit-converter/unit-user.ts:18` | 사용자 ID 만 쓰려고 `useUserButtonRbac` 를 구독한다(K4 형태) | `useCurrentUserId()` 로 바꾼다. 요청은 이미 캐시라 늘지 않고, RBAC 인스턴스 상태만 준다. 위젯 수정(`perf/fix-widget`)에서도 손대지 않았다(그대로, memo·unit-converter 는 기본 배치 밖) |
+| W5·W6 | `widget-types/media/renderer.tsx:116-121`(슬라이드), `shared/src/widget/WidgetFrame.tsx` `refreshSec` effect | 타이머가 탭 활성·표시 여부와 무관하게 돈다(잠재, 기본 배치에는 없음) | media 위젯·`refreshSec` 을 쓰기 전에 표시 연동(R14). audit `P-R14` |
+| W7 | `WidgetFrame.tsx:223-231` | props 객체가 매 렌더 새로 만들어진다(무해) | 조치 없음. 본체를 `memo` 화할 때 같이 본다 |
 | ~~F4~~ | columnMng·termMng 상세 폼 | **완료**(커밋 `a416187b·02e36638·0b9ef24b`). 입력 한 글자마다 화면 루트 렌더, termMng 은 추천 그리드 셀 연쇄(R12 위반)였다 | 상세 폼 컴포넌트 분리, `recoColumns` 를 `form` 에서 떼기. 결과는 R12 적용 사례 |
 | F5 | dataMng·codeMng·layoutConfirm | 행 클릭 셸 1회(선택 행 snapshot) | 선택 행 복원이 요구사항인지 사용자 결정(R8) |
