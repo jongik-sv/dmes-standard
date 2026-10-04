@@ -5,6 +5,7 @@ import com.dongkuk.dmes.mcm.common.event.MenuChangedEvent;
 import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.entity.SecMenu;
 import com.dongkuk.dmes.mcm.entity.SecObj;
+import com.dongkuk.dmes.mcm.entity.SecRoleMapping;
 import com.dongkuk.dmes.mcm.favorite.dto.SecFavoriteSearchRequest;
 import com.dongkuk.dmes.mcm.favorite.dto.SecFavoriteToggleRequest;
 import com.dongkuk.dmes.mcm.favorite.entity.SecUserFavorite;
@@ -36,7 +37,9 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import javax.sql.DataSource;
 import org.hibernate.resource.jdbc.spi.StatementInspector;
@@ -237,6 +240,66 @@ class MenuCatalogCallersSelectCountTest {
 
         assertThat(COUNTER.menu.get()).isZero();
         assertThat(COUNTER.obj.get()).isZero();
+    }
+
+    @Test
+    @DisplayName("브레이크글라스 없이 사용자 A·B·A 순으로 내 메뉴를 부르면 같은 스냅샷을 써도 각자 권한 메뉴만 받고, 전수 SELECT 는 한 세트다")
+    void myMenus_sharedSnapshotStillFiltersPerUser() {
+        AtomicReference<String> currentUser = new AtomicReference<>();
+        SecurityIdentity identity = mock(SecurityIdentity.class);
+        when(identity.currentUserId()).thenAnswer(inv -> currentUser.get());
+        when(identity.requireUserId()).thenAnswer(inv -> currentUser.get());
+        // hasAuthority 는 mock 기본값 false — SYSADMIN 아님
+
+        SecUserMappingRepository userMappingRepo = mock(SecUserMappingRepository.class);
+        when(userMappingRepo.findRoleGroupIdsByUserId("userA")).thenReturn(List.of("RG_A"));
+        when(userMappingRepo.findRoleGroupIdsByUserId("userB")).thenReturn(List.of("RG_B"));
+        SecRoleGroupMappingRepository roleGroupRepo = mock(SecRoleGroupMappingRepository.class);
+        when(roleGroupRepo.findRoleIdsByRoleGroupIdIn(List.of("RG_A"))).thenReturn(List.of("ROLE_A"));
+        when(roleGroupRepo.findRoleIdsByRoleGroupIdIn(List.of("RG_B"))).thenReturn(List.of("ROLE_B"));
+        SecRoleMappingRepository roleMappingRepo = mock(SecRoleMappingRepository.class);
+        when(roleMappingRepo.findByRoleIdIn(Set.of("ROLE_A"))).thenReturn(List.of(roleMapping("ROLE_A", "commUserMng")));
+        when(roleMappingRepo.findByRoleIdIn(Set.of("ROLE_B"))).thenReturn(List.of(roleMapping("ROLE_B", "commMenuMng")));
+        SecMenuFldLovRepository fldRepo = mock(SecMenuFldLovRepository.class);
+        when(fldRepo.findAllForMyMenus()).thenReturn(List.of());
+
+        SecUserService filtered = new SecUserService(
+                mock(UserAccountRepository.class),
+                userMappingRepo,
+                roleGroupRepo,
+                roleMappingRepo,
+                mock(SecPermRepository.class),
+                catalog,
+                fldRepo,
+                mock(PasswordHasher.class),
+                identity,
+                mock(AuditLogger.class),
+                mock(PasswordPolicyEvaluator.class),
+                false); // 브레이크글라스 끔 — 역할 매핑 필터를 실제로 탄다
+
+        currentUser.set("userA");
+        List<Map<String, Object>> firstA = filtered.getMyMenus(new MyMenusRequest());
+        currentUser.set("userB");
+        List<Map<String, Object>> b = filtered.getMyMenus(new MyMenusRequest());
+        currentUser.set("userA");
+        List<Map<String, Object>> secondA = filtered.getMyMenus(new MyMenusRequest());
+
+        assertThat(firstA).extracting(r -> r.get("objId")).containsExactly("commUserMng");
+        assertThat(b).extracting(r -> r.get("objId")).containsExactly("commMenuMng");
+        assertThat(secondA).isEqualTo(firstA);
+        // 사용자별 필터 결과가 공유 스냅샷으로 새어 들어가지 않았다 — 카탈로그는 여전히 전수 두 행이다.
+        assertThat(catalog.menus()).extracting(SecMenu::getMenuId).containsExactlyInAnyOrder("M_USER", "M_MENU");
+
+        assertThat(COUNTER.menu.get()).isEqualTo(1);
+        assertThat(COUNTER.obj.get()).isEqualTo(1);
+    }
+
+    static SecRoleMapping roleMapping(String roleId, String objectId) {
+        SecRoleMapping rm = new SecRoleMapping();
+        rm.setRoleId(roleId);
+        rm.setObjectId(objectId);
+        rm.setPermissionId("PERM_ALL");
+        return rm;
     }
 
     static SecMenu menu(String menuId, String parent, String objectId, String nm) {
