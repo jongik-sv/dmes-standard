@@ -44,6 +44,7 @@ let container: HTMLDivElement;
 let root: Root | null = null;
 const originalFetch = globalThis.fetch;
 let saveBodies: string[] = [];
+let candidates: unknown[] = [];
 
 const TERMS = [
   { termId: 7, termName: "코일", senseNo: 1, definition: "강판 말이", context: null, engName: "Coil", engAbbr: "COIL",
@@ -90,11 +91,12 @@ describe("TermMngPage 상세 폼 분리(R12)", () => {
     mocks.grids = {};
     mocks.layoutRenders = 0;
     saveBodies = [];
+    candidates = [];
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/oasis/termMng/search")) return jsonResponse({ data: { result: { list: TERMS } }, meta: { success: true } });
-      if (url.includes("/oasis/termMng/recommend"))
-        return jsonResponse({ data: { result: { candidates: [], stage2Enabled: false } }, meta: { success: true } });
+      if (url.includes("/oasis/termMng/compare"))
+        return jsonResponse({ data: { result: { candidates, stage2Enabled: false } }, meta: { success: true } });
       if (url.includes("/oasis/termMng/save")) {
         saveBodies.push(String(init?.body ?? ""));
         return jsonResponse({ data: { result: { termId: 7, warnings: [] } }, meta: { success: true } });
@@ -162,5 +164,31 @@ describe("TermMngPage 상세 폼 분리(R12)", () => {
     expect(detailInput("표기").value).toBe("");
     expect(detailInput("표기").disabled).toBe(true);
     expect(findButton(container.querySelector(".page-layout__header-buttons")!, "저장").disabled).toBe(true);
+  });
+
+  it("추천 후보를 동의어로 확정하고, 행을 바꿔도 새 추천이 올 때까지 후보를 둔다", async () => {
+    candidates = [{ stage: "1", termId: 9, termName: "코일재", engName: "Coil Material", systems: ["ERP"], score: 0.9 }];
+    await render();
+    await pressHeader("조회");
+    await openRow(7);
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 400)); // 추천 디바운스 300ms
+    });
+    await flush();
+    const reco = () => mocks.grids.recoKey!;
+    expect((reco().data as unknown[]).length).toBe(1);
+
+    const confirmCol = (reco().columns as { key: string; render: (v: unknown, r: Record<string, unknown>) => { props: { onClick: () => void; disabled: boolean } } }[])
+      .find((c) => c.key === "confirm")!;
+    const button = confirmCol.render(undefined, (reco().data as Record<string, unknown>[])[0]!);
+    expect(button.props.disabled).toBe(false);
+    await act(async () => button.props.onClick());
+    expect(detailInput("동의어").value).toBe("코일재(ERP)");
+
+    candidates = [];
+    await openRow(8);
+    expect((reco().data as unknown[]).length).toBe(1);
+    await pressHeader("조회");
+    expect((reco().data as unknown[]).length).toBe(0);
   });
 });

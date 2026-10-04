@@ -128,7 +128,7 @@ describe("ColumnMngPage 상세 폼 분리(R12)", () => {
       if (m?.[1] === "view") {
         const body = JSON.parse(String(init?.body ?? "{}"));
         const id = Number(body?.params?.columnId ?? body?.columnId ?? JSON.stringify(body).match(/"columnId":(\d+)/)?.[1]);
-        return jsonResponse(ok({ column: COLUMNS[id], systems: [], terms: [] }));
+        return jsonResponse(ok({ column: COLUMNS[id], systems: id === 7 ? [{ systemCode: "ERP", physName: "ERP_STL_GRD" }] : [], terms: [] }));
       }
       if (m?.[1] === "compare") return jsonResponse(ok(COMPARE));
       if (m?.[1] === "save") {
@@ -203,5 +203,26 @@ describe("ColumnMngPage 상세 폼 분리(R12)", () => {
     expect(el("form-phys-name").value).toBe("STL_WDT");
     expect(el("form-label-long").value).toBe("강판 폭");
     expect(detailInput("기본값").value).toBe("X1");
+  });
+
+  it("저장 본문에 시스템별 실제 필드명을 싣고, 저장 뒤 상세를 다시 읽는다", async () => {
+    await render();
+    await openRow(7);
+    expect((mocks.grids.__rowId!.data as unknown[]).length).toBe(1);
+    const views = () => (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(([u]) => /columnMng\/view/.test(String(u))).length;
+    const before = views();
+    await pressHeader("저장");
+    expect(saveBodies[0]).toContain("ERP_STL_GRD");
+    expect(views()).toBe(before + 1);
+  });
+
+  it("[신규] 는 상세와 시스템 그리드를 비운다", async () => {
+    await render();
+    await openRow(7);
+    await typeInto(el("form-label-long"), "고친 값");
+    await pressHeader("신규");
+    expect(el("form-column-name").value).toBe("");
+    expect(el("form-label-long").value).toBe("");
+    expect((mocks.grids.__rowId!.data as unknown[]).length).toBe(0);
   });
 });
