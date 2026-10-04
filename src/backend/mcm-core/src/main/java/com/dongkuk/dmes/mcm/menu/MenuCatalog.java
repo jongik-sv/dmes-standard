@@ -15,13 +15,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.config.TransactionManagementConfigUtils;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
@@ -60,6 +64,12 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * 두 리스너 모두 예외를 밖으로 던지지 않는다 — WARN 로그만 남긴다. 트랜잭션이 끝난 뒤(커밋·롤백) 도는 리스너의 예외가
  * 밖으로 나가면, 커밋된 경우 DB 는 이미 커밋됐는데 OASIS 응답은 S001 실패로 나가기 때문이다. 이벤트는 같은 JVM 안에서만 전달되므로 다른 인스턴스·운영자의
  * 직접 SQL 은 TTL 로만 반영된다. 기동 시드({@code DataInitializer}, mcm/api)는 끝에 {@link MenuChangedEvent#SEED} 를 낸다.
+ * <br>2번이 정말 트랜잭션 단계 리스너로 걸렸는지는 기동 로그 한 줄로 확인한다 — 컨텍스트 새로고침이 끝나면 한 번
+ * {@code [menuCatalog] 트랜잭션 끝 무효화 리스너: 트랜잭션 단계 등록=true|false} 를 남긴다. Spring 은
+ * {@code TransactionalEventListenerFactory} 빈({@link TransactionManagementConfigUtils#TRANSACTIONAL_EVENT_LISTENER_FACTORY_BEAN_NAME},
+ * Boot 는 {@code TransactionAutoConfiguration} → {@code @EnableTransactionManagement} 가 등록)이 있을 때만
+ * {@code @TransactionalEventListener} 를 트랜잭션 단계 리스너로 만든다. 없으면 {@code @EventListener} 메타 어노테이션 때문에
+ * 발행 즉시 도는 보통 리스너가 되어 커밋 전 재적재 방어가 사라진다(TTL 이 안전망) — 그때는 WARN 이다.
  *
  * <p><b>캐시된 엔티티는 읽기 전용이다.</b> 반환하는 {@link SecMenu}·{@link SecObj} 는 모든 요청이 함께 쓰는 같은
  * 인스턴스이며, 처음 읽은 요청의 영속성 컨텍스트에서 나온 것이다. 호출부는 setter 를 부르거나 {@code save} 하지 않는다
@@ -128,6 +138,8 @@ public class MenuCatalog {
      */
     final AtomicLong generation = new AtomicLong();
     private volatile Cached cached;
+    /** 트랜잭션 단계 리스너 등록 여부 로그를 이미 남겼는가 — 새로고침이 여러 번 와도(부모·자식 컨텍스트 등) 한 번만 남긴다. */
+    private final AtomicBoolean txListenerReported = new AtomicBoolean();
 
     @Autowired
     public MenuCatalog(SecMenuRepository secMenuRepository, SecObjRepository secObjRepository) {
@@ -217,6 +229,29 @@ public class MenuCatalog {
             phase = TransactionPhase.AFTER_COMPLETION, fallbackExecution = true)
     public void onChangedAfterCompletion(Object event) {
         safeInvalidate(event, "트랜잭션 끝");
+    }
+
+    /**
+     * 컨텍스트 새로고침이 끝나면 한 번 — 트랜잭션 끝 리스너({@link #onChangedAfterCompletion})가 트랜잭션 단계 리스너로
+     * 등록됐는지(= {@code TransactionalEventListenerFactory} 빈이 있는지) 로그로 남긴다. 운영(mcm 에는 actuator 가 없다)에서
+     * 기동 로그 한 줄로 확인하기 위해서다. 캐시·무효화 동작은 바꾸지 않는다.
+     */
+    @EventListener(ContextRefreshedEvent.class)
+    public void onContextRefreshed(ContextRefreshedEvent event) {
+        if (!txListenerReported.compareAndSet(false, true)) return;
+        reportTxListenerRegistration(event.getApplicationContext());
+    }
+
+    /** {@code beanFactory} 에(부모 포함) 트랜잭션 이벤트 리스너 팩토리 빈이 있으면 INFO, 없으면 WARN. */
+    void reportTxListenerRegistration(ListableBeanFactory beanFactory) {
+        boolean registered = beanFactory.containsBean(
+                TransactionManagementConfigUtils.TRANSACTIONAL_EVENT_LISTENER_FACTORY_BEAN_NAME);
+        if (registered) {
+            log.info("[menuCatalog] 트랜잭션 끝 무효화 리스너: 트랜잭션 단계 등록=true");
+        } else {
+            log.warn("[menuCatalog] 트랜잭션 끝 무효화 리스너: 트랜잭션 단계 등록=false — 발행 즉시 무효화로 동작하며"
+                    + " 커밋 전 재적재는 TTL({}m) 뒤 반영", ttl.toMinutes());
+        }
     }
 
     private void safeInvalidate(Object event, String when) {
