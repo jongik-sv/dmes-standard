@@ -7,6 +7,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
+import { FIRST_SEARCH_LIMIT } from "../../../src/oasis-screen";
 import TermMngPage from "../../../pages/dma/termMng/page";
 import { findButton, flush, installDomStorage, typeInto } from "../../dme/helpers/render";
 
@@ -16,6 +17,9 @@ let container: HTMLDivElement;
 let root: Root | null = null;
 const originalFetch = globalThis.fetch;
 let termList: unknown[] = [];
+/** 목록 조회(search) 요청 본문의 params 와 저장(save) 호출 수. */
+let searchParams: Record<string, unknown>[] = [];
+let saveCalls = 0;
 
 /** 상세 표에서 머리글이 `label` 로 시작하는 줄의 입력 칸. */
 function detailInput(label: string): HTMLInputElement {
@@ -76,9 +80,17 @@ describe("TermMngPage", () => {
   beforeEach(() => {
     installDomStorage();
     termList = [];
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+    searchParams = [];
+    saveCalls = 0;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url.includes("/oasis/termMng/save")) {
+        saveCalls += 1;
+        // 저장 응답은 목록을 싣지 않는다(F2) — 저장한 용어 번호·경고만.
+        return jsonResponse({ data: { result: { termId: 7, warnings: [] } }, meta: { success: true } });
+      }
       if (url.includes("/oasis/termMng/search")) {
+        searchParams.push((JSON.parse(String(init?.body ?? "{}")).params ?? {}) as Record<string, unknown>);
         return jsonResponse({ data: { result: { list: termList } }, meta: { success: true } });
       }
       if (url.includes("/api/auth/me")) {
@@ -149,5 +161,22 @@ describe("TermMngPage", () => {
     });
     // ErrorModal 은 Mantine Portal 로 document.body 에 렌더된다(container 의 자손이 아니다).
     expect(visibleText(document.body)).toContain("표기(한글)는 필수입니다.");
+  });
+
+  // F2 — 저장 응답에 전체 목록을 싣지 않으므로 화면이 현재 조건(첫 조회 상한 포함)으로 다시 조회한다.
+  it("저장하면 목록을 현재 조회 모드(첫 조회 상한)로 다시 조회한다", async () => {
+    termList = [{ termId: 7, termName: "코일", senseNo: 1, definition: "강판 말이", context: null, engName: "Coil",
+      engAbbr: "COIL", synonyms: [], aliases: [], systems: [], stdBasis: null }];
+    await render();
+    await pressSearch();
+    await clickListCell("코일");
+    const before = searchParams.length;
+    await typeInto(detailInput("영문명"), "Coil Strip");
+    await act(async () => findButton(container.querySelector(".page-layout__header-buttons")!, "저장").click());
+    await flush();
+    await flush();
+    expect(saveCalls).toBe(1);
+    expect(searchParams.length).toBe(before + 1);
+    expect(searchParams.at(-1)!.limit).toBe(FIRST_SEARCH_LIMIT);
   });
 });
