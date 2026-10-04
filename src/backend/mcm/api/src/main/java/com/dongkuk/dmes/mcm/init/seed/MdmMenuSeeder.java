@@ -65,7 +65,7 @@ public final class MdmMenuSeeder extends SeedSupport {
      * grep 으로 5 가 미사용임을 확인) / 그룹 만(dma=5,010,000) / 화면 백·십(5010100). MENU_SEQ
      * mdm='00000005'. 시드 후 recomputeMenuFullSeq() 가 트리 위치 기준으로 FULL_SEQ 재부여(멱등).
      * 샘플 화면이 API 를 호출하지 않아(design.md §3.3) PERMISSION_ACTION 등재는 불필요 — 실 BPMN 이
-     * 생기는 다음 화면 Task 에서 seedMcmSecRbac() 의 allActions 목록에 추가한다.
+     * 생기는 다음 화면 Task 에서 CoreRbacSeeder.seedCoreRbac() 의 allActions 목록에 추가한다.
      */
     public void seedMdmMenus() {
         // ── 기존 DB 이행 — 반드시 dma 폴더 INSERT 보다 먼저(옛 폴더 행을 이름과 함께 옮긴다) ──
