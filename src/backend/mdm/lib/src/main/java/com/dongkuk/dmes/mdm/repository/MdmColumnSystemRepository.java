@@ -5,11 +5,17 @@ import com.dongkuk.dmes.mdm.entity.MdmColumnSystemId;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/** {@code TB_MDM_COLUMN_SYSTEM} JPA Repository(TSK-04-01 design.md §2, D3 — 조립·분기 로직 없음, 선언만). */
-public interface MdmColumnSystemRepository extends JpaRepository<MdmColumnSystem, MdmColumnSystemId> {
+/**
+ * {@code TB_MDM_COLUMN_SYSTEM} JPA Repository(TSK-04-01 design.md §2, D3 — 조립·분기 로직 없음, 선언만).
+ *
+ * <p>{@link JpaSpecificationExecutor} 는 컬럼 검색이 후보 컬럼의 매핑만 읽을 때(ColumnSearchPrefilter) 쓴다.
+ */
+public interface MdmColumnSystemRepository extends JpaRepository<MdmColumnSystem, MdmColumnSystemId>,
+        JpaSpecificationExecutor<MdmColumnSystem> {
 
     /** TSK-04-04 — 컬럼 한 건의 시스템 매핑(상세·차분 저장). */
     List<MdmColumnSystem> findByColumnId(Long columnId);

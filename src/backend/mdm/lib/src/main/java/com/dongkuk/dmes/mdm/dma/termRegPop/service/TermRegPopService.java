@@ -12,7 +12,7 @@ import com.dongkuk.dmes.mdm.dma.naming.NamingRules;
 import com.dongkuk.dmes.mdm.dma.naming.SimilarTerm;
 import com.dongkuk.dmes.mdm.dma.naming.SimilarTermFinder;
 import com.dongkuk.dmes.mdm.dma.naming.TermDictionary;
-import com.dongkuk.dmes.mdm.dma.naming.TermEntry;
+import com.dongkuk.dmes.mdm.dma.support.TermDictionaryLoader;
 import com.dongkuk.dmes.mdm.dma.termRegPop.dto.TermRegPopRegRequest;
 import com.dongkuk.dmes.mdm.dma.termRegPop.dto.TermRegPopSearchRequest;
 import com.dongkuk.dmes.mdm.entity.MdmTerm;
@@ -53,7 +53,7 @@ public class TermRegPopService {
     public Map<String, Object> search(TermRegPopSearchRequest request) {
         String termName = request == null || request.getTermName() == null ? "" : request.getTermName().trim();
         String engName = request == null || request.getEngName() == null ? "" : request.getEngName().trim();
-        TermDictionary dict = loadDictionary();
+        TermDictionary dict = TermDictionaryLoader.load(termRepository);
 
         List<Map<String, Object>> similar = new ArrayList<>();
         for (SimilarTerm s : SimilarTermFinder.find(termName, engName, dict)) {
@@ -111,7 +111,7 @@ public class TermRegPopService {
             throw MdmErrors.of(MdmErrorCode.TERM_DUPLICATED, termName + " 의미 " + senseNo + " 이(가) 이미 있습니다",
                     List.of());
         }
-        TermDictionary dict = loadDictionary();
+        TermDictionary dict = TermDictionaryLoader.load(termRepository);
         if (dict.usedAbbrUpper().contains(engAbbr.toUpperCase(Locale.ROOT))) {
             AbbrSuggestion alt = AbbrSuggester.suggest(engName != null ? engName : engAbbr, dict.usedAbbrUpper());
             String detail = "약어 " + engAbbr + " 사용 중"
@@ -137,15 +137,6 @@ public class TermRegPopService {
     }
 
     // ── 보조 ──────────────────────────────────────────────────────────────
-
-    private TermDictionary loadDictionary() {
-        List<TermEntry> entries = new ArrayList<>();
-        for (MdmTerm t : termRepository.findAll()) {
-            entries.add(new TermEntry(t.getTermId(), t.getTermName(), t.getSenseNo(), t.getDefinition(), t.getContext(),
-                    t.getEngName(), t.getEngAbbr(), t.getSynonyms(), t.getAliases()));
-        }
-        return TermDictionary.of(entries);
-    }
 
     private int nextSenseNo(String termName) {
         if (termName.isEmpty()) {
