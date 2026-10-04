@@ -114,6 +114,17 @@ public class RuleSetConfirmService {
             });
         }
         Map<String, Object> result = new LinkedHashMap<>();
+        int limit = request == null || request.getLimit() == null ? 0 : request.getLimit();
+        if (limit > 0) {
+            // 조건 없음 + 상한(R1) — DRAFT 만 자바에서 거르므로 전체 건수는 거른 뒤의 크기로 정확히 세고 앞쪽 limit 건만 준다.
+            // limit 을 보낸 호출자에게만 totalCount·truncated 를 싣는다(기존 호출자의 응답 모양은 그대로).
+            int total = rows.size();
+            boolean capped = keyword == null && total > limit;
+            result.put("rows", capped ? new ArrayList<>(rows.subList(0, limit)) : rows);
+            result.put("totalCount", total);
+            result.put("truncated", capped);
+            return result;
+        }
         result.put("rows", rows);
         return result;
     }

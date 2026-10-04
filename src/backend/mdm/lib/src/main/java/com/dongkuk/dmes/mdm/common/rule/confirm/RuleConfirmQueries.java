@@ -60,13 +60,22 @@ public class RuleConfirmQueries {
      * 글자 그대로). 빈 키워드는 조건에서 뺀다. VER 정렬은 Java 에서 한다 — SQLite 가 1.000·1.001 을 INTEGER·REAL 로 섞어 저장한다(D-144).
      */
     public List<Pending> drafts(String keyword) {
+        return drafts(keyword, 0);
+    }
+
+    /**
+     * 확정 대기 목록의 앞쪽 {@code limit} 건(룰 ID 순, 화면 성능 가이드 R1). {@code limit} 이 0 이하면 {@link #drafts(String)} 와 같다.
+     * 룰 ID 정렬은 DB 가 하므로 한 룰에 DRAFT 가 둘 이상이어도 룰 단위 순서는 보존되고, 잘린 경계에서만 같은 룰 안 순서가 갈릴 수 있다.
+     */
+    public List<Pending> drafts(String keyword, int limit) {
         String kw = keyword == null || keyword.isBlank() ? null : keyword.trim().toUpperCase(Locale.ROOT);
         TypedQuery<Object[]> q = entityManager.createQuery("SELECT r, v FROM MdmRule r, MdmRuleVer v "
-                + "WHERE v.maruRuleId = r.maruRuleId AND v.status = 'DRAFT' AND r.sourceKind = 'MDM'"
-                + (kw == null ? "" : " AND (UPPER(r.maruRuleId) LIKE :kw ESCAPE '\\' OR UPPER(r.maruRuleName) LIKE :kw ESCAPE '\\')")
-                + " ORDER BY r.maruRuleId", Object[].class);
+                + draftWhere(kw) + " ORDER BY r.maruRuleId", Object[].class);
         if (kw != null) {
-            q.setParameter("kw", "%" + kw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%");
+            q.setParameter("kw", likePattern(kw));
+        }
+        if (limit > 0) {
+            q.setMaxResults(limit);
         }
         List<Pending> out = new ArrayList<>();
         for (Object[] row : q.getResultList()) {
@@ -74,5 +83,24 @@ public class RuleConfirmQueries {
         }
         out.sort(Comparator.comparing((Pending p) -> p.rule().getMaruRuleId()).thenComparing(p -> p.version().getVer()));
         return out;
+    }
+
+    /** 확정 대기 목록의 전체 건수 — {@link #drafts(String, int)} 가 자르기 전 크기다. */
+    public int countDrafts(String keyword) {
+        String kw = keyword == null || keyword.isBlank() ? null : keyword.trim().toUpperCase(Locale.ROOT);
+        TypedQuery<Long> q = entityManager.createQuery("SELECT COUNT(v) FROM MdmRule r, MdmRuleVer v " + draftWhere(kw), Long.class);
+        if (kw != null) {
+            q.setParameter("kw", likePattern(kw));
+        }
+        return Math.toIntExact(q.getSingleResult());
+    }
+
+    private static String draftWhere(String kw) {
+        return "WHERE v.maruRuleId = r.maruRuleId AND v.status = 'DRAFT' AND r.sourceKind = 'MDM'"
+                + (kw == null ? "" : " AND (UPPER(r.maruRuleId) LIKE :kw ESCAPE '\\' OR UPPER(r.maruRuleName) LIKE :kw ESCAPE '\\')");
+    }
+
+    private static String likePattern(String kw) {
+        return "%" + kw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
     }
 }
