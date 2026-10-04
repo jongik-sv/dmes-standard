@@ -1,4 +1,5 @@
-import { expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import path from "node:path";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 /**
  * e2e/*.spec.ts 공용 도우미 — 로그인·메뉴 이동·대기 시간 상수. 픽스처·조회·그리드 칸 확인은 mdm-e2e.ts, 그리드 행 찾기는 grid.ts.
@@ -122,4 +123,22 @@ export async function openMenu(page: Page, trail: RegExp[], opts: MenuOptions = 
 /** 마루 MDM > 업무기준 > leaf 를 openMenu 로 연다(룰·룰 세트 화면). */
 export function openRuleMenu(page: Page, leaf: RegExp, opts: MenuOptions = {}) {
   return openMenu(page, [/^마루 MDM$/, /^업무기준$/, leaf], opts);
+}
+
+/** 스크린샷을 dflow 작업 폴더(docs/mdm/tasks/<작업>/screens/)에 쓰게 하는 환경변수. 값이 "1" 일 때만 쓴다. */
+export const WRITE_TASK_SCREENS = process.env.E2E_WRITE_TASK_SCREENS === "1";
+
+/**
+ * 작업 화면 스크린샷 경로. 시험 안에서만 부른다(test.info()).
+ * - 기본: 이 시험의 산출물 폴더(testInfo.outputPath → src/frontend/test-results/<시험>/<name>, git 제외).
+ *   실행할 때마다 추적 중인 docs/…/screens/*.png 를 덮어쓰지 않는다. test-results 는 다음 실행 때 비워진다.
+ * - E2E_WRITE_TASK_SCREENS=1: 종전처럼 <저장소 루트>/docs/mdm/tasks/<taskId>/screens/<name> (dflow.sh taskdir 산출 경로 규칙).
+ *   승인자에게 보일 화면을 일부러 갱신할 때만 켠다 — 결과 png 는 추적 파일이라 커밋 대상이 된다.
+ */
+export function taskScreenshotPath(taskId: string, name: string): string {
+  if (WRITE_TASK_SCREENS) {
+    // __dirname = src/frontend/e2e/support → 저장소 루트까지 4단계 위.
+    return path.resolve(__dirname, "../../../..", "docs/mdm/tasks", taskId, "screens", name);
+  }
+  return test.info().outputPath(name);
 }
