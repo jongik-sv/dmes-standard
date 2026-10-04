@@ -1,78 +1,22 @@
 rootProject.name = 'backend'
+// 버전 카탈로그: 루트 빌드는 gradle/libs.versions.toml 을 'libs' 로 자동으로 가져온다 — 여기서 다시 선언하면 중복 정의 오류다.
 
-includeBuild('mpn') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:mpn') using project(':')
-    }
-}
-includeBuild('cactus-core') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:cactus-core') using project(':')
-    }
-}
-includeBuild('aps-core') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:aps-core') using project(':')
-    }
-}
-includeBuild('mcm-core') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:mcm-core') using project(':')
-    }
-}
-includeBuild('caravan-console') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.caravan:caravan-console') using project(':')
-    }
-}
-includeBuild('mpp') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:mpp') using project(':')
-    }
-}
-includeBuild('mqc') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:mqc') using project(':')
-    }
-}
-includeBuild('mls') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:mls') using project(':')
-    }
-}
-includeBuild('mcm') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:mcm') using project(':')
-    }
-}
-includeBuild('localKafka') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:localKafka') using project(':')
-    }
-}
-includeBuild('caravan-core') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.caravan:caravan-core') using project(':')
-    }
-}
-includeBuild('caravan-hub') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.caravan:caravan-hub') using project(':')
-    }
-}
-includeBuild('analog') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:analog') using project(':')
-    }
-}
-includeBuild('mdm') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:mdm') using project(':')
-    }
-}
-includeBuild('maru-mdm-engine') {
-    dependencySubstitution {
-        // D7 — group 은 06-business-rule.md 패키지표 기준(kr.dongkuk.maru.mdm), com.dongkuk.dmes 아님
-        substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')
-    }
-}
+// 이웃 모듈 included build — dmesIncludeBuild(경로, 좌표) 는 includeBuild + dependencySubstitution(좌표 → 그 빌드 루트) 이다.
+apply from: 'gradle/include-builds.settings.gradle'
+
+dmesIncludeBuild('mpn', 'com.dongkuk.dmes:mpn')
+dmesIncludeBuild('cactus-core', 'com.dongkuk.dmes:cactus-core')
+dmesIncludeBuild('aps-core', 'com.dongkuk.dmes:aps-core')
+dmesIncludeBuild('mcm-core', 'com.dongkuk.dmes:mcm-core')
+dmesIncludeBuild('caravan-console', 'com.dongkuk.caravan:caravan-console')
+dmesIncludeBuild('mpp', 'com.dongkuk.dmes:mpp')
+dmesIncludeBuild('mqc', 'com.dongkuk.dmes:mqc')
+dmesIncludeBuild('mls', 'com.dongkuk.dmes:mls')
+dmesIncludeBuild('mcm', 'com.dongkuk.dmes:mcm')
+dmesIncludeBuild('localKafka', 'com.dongkuk.dmes:localKafka')
+dmesIncludeBuild('caravan-core', 'com.dongkuk.caravan:caravan-core')
+dmesIncludeBuild('caravan-hub', 'com.dongkuk.caravan:caravan-hub')
+dmesIncludeBuild('analog', 'com.dongkuk.dmes:analog')
+dmesIncludeBuild('mdm', 'com.dongkuk.dmes:mdm')
+// D7 — group 은 06-business-rule.md 패키지표 기준(kr.dongkuk.maru.mdm), com.dongkuk.dmes 아님
+dmesIncludeBuild('maru-mdm-engine', 'kr.dongkuk.maru.mdm:maru-mdm-engine')

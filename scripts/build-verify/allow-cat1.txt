@@ -1,0 +1,14 @@
+# ① 버전 카탈로그(libs.versions.toml) 허용 차이 — compare.sh --ignore-file 용.
+# A = 레인(build, ① 직전 커밋 dd3f59e5), B = build-catalog(① 커밋 1adfcf85, 부모 dd3f59e5).
+# 형식: '<줄 정규식>' 또는 '@<경로 정규식> <줄 정규식>' (POSIX ERE, 경로는 덤프 폴더 기준 상대경로).
+# 이 파일 밖의 차이는 모두 ① 의 "해석 결과·설정 불변" 위반 후보다.
+
+# 1) settings 단계 versionCatalogs 이름 — included build 14개 settings.gradle 에 versionCatalogs { libs { from(...) } } 가 생겼다.
+#    analog 는 자기 gradle/libs.versions.toml 을 원래 가지고 있어 양쪽이 같다(맞는 줄이 있어도 양쪽 같은 값이면 무해).
+@/settings/_settings\.txt$ ^versionCatalogs = \[(libs)?\]$
+
+# 2) 프로젝트별 버전 카탈로그 확장(libs 접근자) — dump-settings 의 '## version catalog extensions' 섹션 한 줄.
+@/settings/[^/]+\.txt$ ^catalog(\.libs = [A-Za-z0-9_.$]+| = \(none\))$
+
+# 3) caravan-hub 의 ext { camelVersion = '4.20.0' } 삭제(카탈로그 versions.camel 로 옮김). caravan-hub 은 단일 프로젝트라 _root 뿐.
+@^caravan-hub/settings/_root\.txt$ ^ext\.camelVersion = 4\.20\.0$

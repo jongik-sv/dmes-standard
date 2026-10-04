@@ -1,0 +1,53 @@
+// scripts/build-verify/dump-deps.sh 가 -I 로 넘기는 init 스크립트 (1) — 의존성 해석 결과 덤프.
+//
+// - projectsEvaluated 시점에 프로젝트마다 canBeResolved=true 인 "모든" 구성을 이름순으로 열거해
+//   구성마다 DependencyReportTask 를 하나씩 등록한다(Spring Boot 가 늦게 붙이는 developmentOnly·
+//   productionRuntimeClasspath·testAndDevelopmentOnly 등도 이 시점엔 이미 있다).
+//   출력 형식은 Gradle 기본 그대로("a:b:3.45.3.0 -> 3.50.3.0" — 선언 버전 -> 해석 버전).
+// - 플러그인 클래스패스(buildscript classpath)도 같은 보고 태스크로 파일에 남긴다(buildEnvironment 대응).
+// - 묶음 태스크 dumpDepsAll 하나만 명령줄에 주면 된다. 구성 하나가 실패해도 --continue 로 나머지는 계속된다
+//   (실패 태스크 이름은 dump-deps.sh 가 stderr 에서 뽑아 _errors.txt 에 남긴다).
+// - 이 init 스크립트는 included build 에도 적용되므로 부모 있는 빌드(included build)는 건너뛴다.
+if (gradle.parent != null) return
+
+def outDir = new File(System.getProperty('dump.out'))
+def modName = System.getProperty('dump.mod')
+def modDir = new File(outDir, modName)
+
+def projName = { org.gradle.api.Project p -> p.path == ':' ? '_root' : p.path.substring(1).replace(':', '_') }
+
+gradle.allprojects { org.gradle.api.Project p ->
+    p.tasks.register('dumpDepsAll') {
+        group = 'dump'
+        description = 'build-verify: 해석 가능한 모든 구성의 dependencies 와 buildscript classpath 를 파일로 남긴다.'
+    }
+}
+
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    root.allprojects { org.gradle.api.Project p ->
+        def pn = projName(p)
+        def depDir = new File(modDir, "deps/${pn}")
+        def resolvable = p.configurations.findAll { it.canBeResolved }.collect { it.name }.sort()
+        def agg = p.tasks.named('dumpDepsAll')
+        resolvable.each { String c ->
+            def t = p.tasks.register("dumpDep_${c}", org.gradle.api.tasks.diagnostics.DependencyReportTask) {
+                configurations = [p.configurations.getByName(c)] as Set
+                outputFile = new File(depDir, "${c}.txt")
+            }
+            agg.configure { dependsOn t }
+        }
+        // 플러그인 클래스패스 — buildEnvironment 와 같은 내용(plugins{} 로 푼 플러그인도 classpath 구성에 들어간다)
+        def bt = p.tasks.register('dumpDep__buildscriptClasspath', org.gradle.api.tasks.diagnostics.DependencyReportTask) {
+            configurations = [p.buildscript.configurations.getByName('classpath')] as Set
+            outputFile = new File(modDir, "buildEnvironment/${pn}.txt")
+        }
+        agg.configure { dependsOn bt }
+        // 구성 목록(해석 가능한 것만)도 남긴다 — 구성 추가·삭제가 파일 유무뿐 아니라 이 목록 diff 로도 보이게
+        depDir.mkdirs()
+        new File(depDir, '_resolvable-configurations.txt').text = resolvable.join('\n') + '\n'
+    }
+    // 프로젝트 목록(모듈 폴더 안) — dump-deps.sh 가 최상위 _projects.txt 로 합친다
+    modDir.mkdirs()
+    new File(modDir, '_projects.txt').text = root.allprojects.collect { it.path }.sort().join('\n') + '\n'
+}

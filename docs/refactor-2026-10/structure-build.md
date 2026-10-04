@@ -3,7 +3,9 @@
 이 문서는 1b 레인(`refactor/build`)의 구조 변경을 적는다. 형식은 [README.md](./README.md) §6.1 을 따른다.
 
 - 이번 1차 머지 범위: `af572b93..HEAD` (문서를 추가한 83a14e90 자신을 포함해 15개 커밋 + 레인 내부 머지 1개).
-- E2E(8번)는 이번 머지에 들어간다(S10~S13, 범위 `af572b93..HEAD -- src/frontend/e2e src/frontend/playwright.config.ts`, 커밋 13개). 버전 카탈로그(2번)·build-logic(3번)은 다음 머지에서 이어 적는다.
+- E2E(8번)는 이번 머지에 들어간다(S10~S13, 범위 `af572b93..HEAD -- src/frontend/e2e src/frontend/playwright.config.ts`, 커밋 13개). 버전 카탈로그(2번)·build-logic(3번)은 2차에서 S18~S23 으로 이어 적었다.
+- 2차(S18~S23) 커밋 12개: ① 1adfcf85, ③ d456a866·00461248·03abab9b·d77c94d9·25b89567, ④ 01c3d678, C1 8bb30ee4, C2 5c6f2383, 주석 54e6f2ca, ② 2a95c5e7, 판정 도구 7cf41d92. 레인 내부 dev 합침은 제외했다. 모두 dev 머지 대기 중이다.
+- 2차 판정에 쓴 덤프·시험 결과 파일은 저장소 밖 작업 폴더에 있다. 같은 판정을 다시 하는 절차는 S23 의 `scripts/build-verify/README.md` 에 있다.
 - 스크립트 경로 표기: `be-run.sh`·`fe-run.sh`·`local-run.sh`·`be-run.ps1`·`dmes-up.ps1` 등은 저장소 루트에 있고, 공통 부품은 `scripts/lib/` 에 있다.
 - ps1 변경은 이 PC 에 pwsh 가 없어 구문 분석·실행 모두 미검증이다. Windows 에서 확인해야 한다(S3·S4·S5 해당).
 
@@ -26,6 +28,12 @@
 | S15 | dmes-up.ps1 -Detach 에서 백엔드가 먼저 끝나면 FE 정리(동작 변경, 미검증) |
 | S16 | Windows ps1 확인 체크리스트 문서 |
 | S17 | E2E mdm 스모크 스크린샷 기본 출력 위치 이동(동작 변경) |
+| S18 | 백엔드 버전 카탈로그 gradle/libs.versions.toml 도입(버전 불변) |
+| S19 | build-logic convention plugin(dmes.test-conventions·dmes.business-module)과 settings 헬퍼 도입 |
+| S20 | buildAll·testAll·cleanAll 에 mcm-core·mls·caravan-console·analog 추가(동작 변경) |
+| S21 | 시험 입력 정리: mdm/api 에서 DataInitializer.java 제거, mcm-core 에 BPMN 2개 선언(C1·C2) |
+| S22 | mybatis-spring-boot-starter 3.0.5 통일(동작 변경, 해석 버전 변화) |
+| S23 | 빌드 불변 판정 도구 scripts/build-verify 보관 |
 
 ## S1. restart-all.sh 를 scripts/archive 로 보관
 - 커밋: 5d893cc3
@@ -265,3 +273,119 @@
 - `bash -n be-run.sh fe-run.sh local-run.sh` 통과(이 브랜치는 셸 스크립트를 바꾸지 않았다).
 - pwsh 미검증: S15 의 dmes-up.ps1 변경과 S14·S16 이 서술한 ps1 동작은 구문 분석·실행 모두 하지 못했다.
 - gradle·서버 기동·playwright 시험 실행은 하지 않았다.
+
+## 2차 공통: 판정 방법과 기준선 (S18~S23)
+
+2차 항목의 "동작 보존 근거"는 아래 두 가지 판정을 공통으로 쓴다. 도구와 절차는 S23 이 저장소에 남겼다.
+
+- 덤프 두 종류의 diff: `src/backend` 의 includeBuild 모듈 15개(프로젝트 32개, 의존성 파일 244개)마다 Gradle 을 1회 돌려, 해석 가능한 모든 구성의 의존성 해석 결과(deps·buildEnvironment·configurations)와 설정값(플러그인·Test jvmArgs·inputs·JavaCompile 인자·jar/war 활성 여부 등)을 파일로 남기고 앞뒤를 비교한다. 비교 대상은 404개 파일이다. 허용 차이는 판정 전에 패턴 파일로 고정한다.
+- 시험: 루트 `testAll` 은 서브프로젝트 시험을 돌리지 않으므로(S20), 모듈별로 `:lib:test`·`:api:test` 같은 서브프로젝트 test 태스크를 직접 나열해 돌리고, 실행된 시험 수와 실패 목록을 기준선과 비교한다. 로그에서 `:test FROM-CACHE` 가 0건인지도 확인한다(Test 캐시 제외 유지 확인).
+- 기준선은 2차 직전 dev(`dd3f59e5`, 덤프 폴더 pre2)다. 이 기준선의 시험 수는 mcm-core 887, mcm lib 18·api 43, mls lib 8·api 50, mdm lib 1652·api 1638, mpn·mpp·mqc lib 각 2, cactus-core 853(건너뜀 1)·oasis-core 686(건너뜀 1), caravan-hub 78, aps-core 3, caravan-core 102, caravan-console 58, maru-mdm-engine 1606 이고 모두 실패 0이다. analog 는 core 158·api 30 가운데 83건(core 79, api 4)이 기준선에서도 실패한다.
+- 기존 빌드 실패 2건은 2차 이전부터 있었고 2차에서 고치지 않았다.
+  - cactus-core 를 자기 폴더에서 `build` 하면 `:oasis-core:checkstyleTest` 가 `cactus-core/config/checkstyle/checkstyle.xml` 이 없어 실패한다(2차 직전 dev 에서도 같은 실패를 확인했다). 루트 composite 의 `buildAll` 로 돌리면 이 실패는 나지 않는다.
+  - caravan-hub 는 `com.dongkuk.caravan:caravan-core:3.0.0` 을 루트 composite 의 includeBuild 치환으로만 풀기 때문에 자기 폴더에서 단독으로 빌드하거나 해석할 수 없다. 그래서 15개 전체 덤프의 오류 14줄은 항상 이 caravan-hub 단독 해석 불가이고, 기준선·2차 모든 덤프에서 `known-errors-15.txt` 와 바이트 단위로 같다. caravan-hub 시험은 루트 `src/backend` 에서 `:caravan-hub:test` 로 돌린다.
+- 리팩토링 전 기준점(`b557ccbd`, 덤프 base2)과 2차 직전 dev(`dd3f59e5`, 덤프 pre2)의 덤프는 4개 파일이 다르다. 이 차이는 2차가 아니라 1차(S6·S9, cactus-core 시험의 sqlite-jdbc·hibernate 방언)에서 생겼다. 해석 버전이 바뀐 좌표 3개는 sqlite-jdbc(선언 3.45.3.0, 해석 3.50.3.0), hibernate-community-dialects(해석 7.2.12.Final), jboss-logging(hibernate-community-dialects 아래 새로 생긴 전이 줄, 선언 3.6.1.Final, 해석 3.6.3.Final)이고, 모두 cactus-core 의 시험 런타임 클래스패스에만 나타난다. 나머지 두 파일은 S7·S8 의 시험 입력 선언 줄이다.
+
+## S18. 백엔드 버전 카탈로그 도입 (버전 불변)
+- 커밋: 1adfcf85 (43개 파일, 568줄 추가·313줄 삭제)
+- 바뀌기 전: includeBuild 모듈 14개의 `build.gradle` 이 의존성 좌표와 버전을 문자열로 직접 적고(예: `org.xerial:sqlite-jdbc:3.45.3.0`), 플러그인 `version` 도 파일마다 따로 적었다. 같은 좌표의 버전이 모듈마다 다른 곳도 있었다. 카탈로그는 analog 만 자기 것을 갖고 있었다.
+- 바뀐 뒤:
+  - `src/backend/gradle/libs.versions.toml` 을 새로 만들었다(versions 8·libraries 89·plugins 2). 버전은 `version`·`version.ref` 로만 적고(`strictly`·`enforcedPlatform` 은 쓰지 않는다), 버전을 Spring Boot BOM 이 정하던 선언은 `module` 만 둔다. BOM 은 `platform()` 그대로다. `sqlite-jdbc 3.45.3.0` 처럼 BOM 이 덮어쓰는 선언 버전도 값을 그대로 적었다.
+  - included build 14개의 `build.gradle` 선언을 `libs.*` 참조로, 플러그인 `version` 을 alias 로 바꿨다. 각 included build 의 `settings.gradle` 에 `versionCatalogs { libs { from(files('../gradle/libs.versions.toml')) } }` 를 더했다. 루트 `src/backend` 는 `gradle/libs.versions.toml` 을 자동으로 가져오므로 다시 선언하지 않는다.
+  - 모듈마다 버전이 다른 좌표 6개는 별칭을 나눠 값을 그대로 뒀다: mybatis-spring-boot-starter(`-v304`·`-v305`), cactus-core(소비판 `cactus-core-v1020` 과 자기판 `versions.cactus-core`), jackson-databind(`-managed`·`-v2182`), hibernate-community-dialects(`-managed`·`-v705`), caffeine(`-managed`·`-v320`), maru-mdm-engine(`-versioned`·`-unversioned`). 이 가운데 mybatis 만 S22 에서 하나로 합쳤고 나머지 5개는 그대로 남아 있다.
+  - analog 는 카탈로그를 쓰지 않는다. 자기 `gradlew` wrapper 와 자기 `gradle/libs.versions.toml` 을 가진 별도 빌드라서 루트 카탈로그를 가져오지 않는다. oasis 빌드 파일과 oasis 가 읽는 cactus-core 의 `ext` 값도 고치지 않았다(oasis 는 하드코딩이 남아 있다).
+  - cactus-core 는 자기 판이 `1.0.22-SNAPSHOT`, 다른 모듈이 소비하는 선언 판이 `1.0.20-SNAPSHOT` 으로 값이 둘이다. includeBuild 가 프로젝트로 치환하므로 해석에는 영향이 없다. 두 값을 맞추는 일은 이 항목의 범위 밖이라 별건으로 남겼고 S22 도 건드리지 않았다.
+- 바꾼 이유: 버전을 한 파일에서 보고 고치게 하고, 이후 build-logic(S19)과 버전 통일(S22)의 바탕을 만든다. 이 항목은 버전을 바꾸지 않는다.
+- 동작 보존 근거: 의존성 해석 덤프와 설정값 덤프를 2차 직전 dev(pre2)와 비교했다. 404개 파일이 모두 같다(허용 차이만 제외).
+  - 허용 차이는 두 가지다. 하나는 카탈로그가 생긴 표시(settings 덤프의 `versionCatalogs` 줄과 프로젝트별 `catalog.libs` 줄, 각 15줄·32줄이 양쪽에 같은 수로 걸러졌다). 다른 하나는 caravan-hub 의 `ext.camelVersion = 4.20.0` 삭제(카탈로그 `versions.camel` 로 옮겼다)이고 pre2 쪽 1줄이다.
+  - 덤프 도구가 caravan-hub 단독 해석 불가 때문에 종료코드 3(판정 불가)을 내므로, `_errors.txt` 14줄이 `known-errors-15.txt` 와 바이트 단위로 같은지를 확인해 "동일" 로 판정했다.
+  - `build -x test`: 모듈 12개가 exit 0 이고, cactus-core(checkstyle 설정 없음)와 caravan-hub(단독 빌드 불가) 2건은 기존 실패라 pre2 와 같다.
+- 영향 범위: 백엔드 빌드 파일 14개의 선언 방식. 새 의존성은 `libs.*` 로 적는다. 해석 결과·산출물은 같다. 기존 빌드 실패 2건(cactus-core 단독 빌드의 oasis checkstyle 설정 파일 없음, caravan-hub 단독 빌드 불가)은 그대로다.
+- 되돌리는 방법: 1adfcf85 revert. 단 S19 의 dmes.business-module 과 S22 가 카탈로그를 읽으므로 S22, S19, S18 순으로 역순 되돌린다.
+
+## S19. build-logic convention plugin 과 settings 헬퍼 도입
+- 커밋: d456a866(③-a), 00461248(③-b), 03abab9b(③-c), d77c94d9(③-d), 25b89567(③-e)
+- 바뀌기 전:
+  - 14개 모듈의 루트 `build.gradle` 끝에 같은 Test 관례 블록(캐시 제외 사유 `doNotCacheIf` 와 JIT 옵션 `-XX:TieredStopAtLevel=1 -XX:ReservedCodeCacheSize=240m`)이 복사돼 있었다.
+  - mpn·mpp·mqc·mls·mcm 다섯 모듈의 루트 `build.gradle` 은 diff 0 으로 같은 본문이었다(group·version·저장소, Java 21, 컴파일 인코딩·`-parameters`, lombok·시험 의존, `useJUnitPlatform()`).
+  - `settings.gradle` 마다 `includeBuild` 와 `dependencySubstitution` 블록이 반복됐다(루트 `settings.gradle` 은 includeBuild 15개분을 펼쳐 적었다).
+  - 일부 빌드 파일 주석이 사실과 달랐다.
+- 바뀐 뒤:
+  - ③-a: `src/backend/build-logic` 을 만들었다(`groovy-gradle-plugin` 의 precompiled script plugin 빌드, Gradle API·Groovy 만 쓰고 외부 의존·저장소가 없다). `dmes.test-conventions` 는 위 Test 블록을 줄 그대로 옮겼다. 적용 범위는 그대로 allprojects 이고(cactus-core 가 끌어오는 oasis-core·oasis-core-api 포함), 루트 프로젝트가 아닌 곳에 적용하면 실패하게 막았다. 14개 모듈(aps-core·caravan-core·caravan-hub·caravan-console·mcm-core·cactus-core·maru-mdm-engine·mdm·localKafka·mpn·mpp·mqc·mls·mcm)의 `plugins {}` 에 `id 'dmes.test-conventions'` 를, `settings.gradle` 맨 앞에 `pluginManagement { includeBuild('../build-logic') }` 를 더했다. 루트 `src/backend`·analog·oasis 는 바꾸지 않았다. 낡은 주석(`gradle.properties` 10개의 "각 모듈 build.gradle 에서 캐시에서 뺐다")과 `docs/guide/BackEnd/Backend-Implementation-Guide.md` 10.1.2 의 새 모듈 안내 한 줄도 이 커밋에서 고쳤다.
+  - ③-b: 다섯 업무 모듈의 같은 본문을 `dmes.business-module` 로 합쳤다(6개 파일, 79줄 추가·180줄 삭제). precompiled plugin 에는 카탈로그 접근자가 없어 같은 `libs` 카탈로그를 `findLibrary` 로 찾는다. 루트 `plugins {}` 순서는 java, spring 두 플러그인(`apply false`), `dmes.business-module`, `dmes.test-conventions` 이고 원래 스크립트 실행 순서와 같다. lib·api 서브프로젝트는 합치지 않았다(lib 는 모듈마다 의존성이 다르고 `SpringBootPlugin.BOM_COORDINATES` 를 써서 build-logic 이 spring-boot 플러그인에 의존해야 하며, api 는 war 이름과 boot·war 적용 순서에 기대기 때문이다). mdm·localKafka 루트는 본문이 달라 대상이 아니다.
+  - ③-c: `src/backend/gradle/include-builds.settings.gradle` 이 `dmesIncludeBuild(경로, 좌표)` 헬퍼를 만든다. 본문은 원래 블록(`includeBuild(경로) { dependencySubstitution { substitute module(좌표) using project(':') } }`)과 같고 치환을 늘 명시한다. 루트 `src/backend`(15개)·mpn(4)·mcm(4)·mpp·mqc·mls·mdm(각 3)·cactus-core(1)에 적용했다(9개 파일, 82줄 추가·182줄 삭제). 모듈마다 포함 대상 집합·순서와 좌표 예외(`com.dongkuk.caravan:caravan-console·caravan-core·caravan-hub`, `kr.dongkuk.maru.mdm:maru-mdm-engine`)는 그대로이고, 전후 (경로, 좌표) 목록을 스크립트로 대조해 같음을 확인했다.
+  - ③-d: mdm/build.gradle 과 cactus-core/settings.gradle 의 낡은 주석을 사실대로 고쳤다. ③-e: `dmes.test-conventions` 에 "모듈 test 블록에서 `jvmArgs` 를 `=` 로 대입하면 관례가 덮이니 추가 형태로 쓴다" 는 주석 한 줄을 더했다(지금 대입하는 곳은 analog/api 뿐이고 analog 는 이 플러그인을 쓰지 않는다).
+- 제약 한 줄: Gradle 9.3.1 에서는 precompiled script plugin 안에서 `apply from` 을 부르면 구성 단계에서 ClassLoaderScope 오류(`UnknownServiceException`)가 나므로, `test-slot.gradle` 은 플러그인으로 옮기지 못하고 각 모듈 루트 `build.gradle` 끝의 `apply from: file('../gradle/test-slot.gradle')` 로 남겼다(analog 와 함께 쓰는 단일 구현이라 `gradle/test-slot.gradle` 은 그대로다). 가이드 10.1.2 의 새 모듈 안내가 이 제약과 settings·plugins·끝 `apply from` 세 곳을 적는다.
+- 커밋 체인을 다시 썼다: 처음에는 test-slot 도 플러그인으로 옮겼으나(체인 e48a0303·7831ad2f·e57e5538·3fcbad11·044d632c) 판정에서 위 오류로 실패했다. 그래서 ③-a 를 고쳐 쓰고 뒤 커밋을 다시 얹었다. 옛 체인은 브랜치 `archive/1b-build-logic-pre-slotfix` 에 보존했다(삭제 여부는 마감 보고에서 사용자가 정한다).
+- 바꾼 이유: 같은 블록을 14곳·5곳에 복사해 두면 한 곳만 고치고 나머지를 빠뜨리기 쉽다. 의존성 없는 관례만 플러그인으로 모아 한 곳에서 고치게 한다.
+- 동작 보존 근거:
+  - 덤프 비교: ① 결과 대 ③ 결과, 그리고 pre2 대 ③ 결과 모두 404개 파일이 같다(허용 차이만 제외, pre2 대 ③ 은 A 54줄·B 80줄 걸러냄). 허용 차이는 모듈 루트의 플러그인 줄 `dmes.test-conventions` 14개·`dmes.business-module` 5개, 루트 buildEnvironment 의 build-logic 항목 14개(9+5), 루트 classpath 가 비어 있던 6개 모듈의 "No dependencies" 줄뿐이다. lib·api 서브프로젝트 파일에는 차이가 없다. 허용 패턴은 판정 전에 고정했다.
+  - test-slot 이전은 `DMES_TEST_SLOTS=2` 로 뜬 덤프 쌍(caravan-hub 제외 14개 모듈)에서 387개 파일이 같다(`requiredServices` 줄 포함).
+  - `build -x test`: analog 포함 13개 모듈과 루트 composite 의 buildAll 계획(`-m`)이 exit 0 이고, cactus-core 만 기존 실패다.
+  - 시험: 14개 모듈(S19 대상)과 analog 의 시험 수·실패 목록이 기준선과 같다(위 기준선 수치와 일치, analog 는 158+30 중 실패 83건 동일·새 실패 0). 로그에서 test 태스크 `FROM-CACHE` 0건이고 캐시 제외 사유 문구가 같다(`doNotCacheIf` 유지).
+- 영향 범위: 백엔드 빌드 파일(모듈 14개의 `build.gradle`·`settings.gradle`, 루트 `settings.gradle`), 가이드 10.1.2 한 줄(`docs/guide/BackEnd/Backend-Implementation-Guide.md`). 새 모듈을 추가하는 사람은 `pluginManagement` 와 `id 'dmes.test-conventions'` 와 끝 `apply from` 을 모두 넣어야 한다. lib·api 의 중복(③-b 에서 뺀 것)은 그대로 남아 있다. 기존 빌드 실패 2건(cactus-core 단독 빌드, caravan-hub 단독 빌드)은 영향이 없다.
+- 되돌리는 방법: 체인 역순으로 revert(25b89567 부터 d456a866 까지). ③-b 는 ③-a 의 `dmes.test-conventions` 를 쓰고 ③-c 는 settings 앞부분을 공유하므로 일부만 되돌리면 깨진다.
+
+## S20. buildAll·testAll·cleanAll 에 mcm-core·mls·caravan-console·analog 추가 (동작 변경)
+- 커밋: 01c3d678, 54e6f2ca(루트 build.gradle 주석 한 줄 포함, 나머지는 S21)
+- 바뀌기 전: 루트 `src/backend/build.gradle` 의 `includedProjectNames` 가 11개(mpn·aps-core·cactus-core·mpp·mqc·mcm·localKafka·caravan-core·caravan-hub·mdm·maru-mdm-engine)였고 `settings.gradle` 의 `dmesIncludeBuild` 는 15개였다. mcm-core·mls·caravan-console·analog 는 `buildAll`·`testAll`·`cleanAll` 에 없었다. 주석은 "5개 프로젝트" 라고 적혀 있었다.
+- 바뀐 뒤: `includedProjectNames` 를 15개로 늘려 `settings.gradle` 의 집합과 같게 했다(11줄 추가·4줄 삭제, `tasks.register` 세 블록은 그대로). 낡은 주석을 고치고, `testAll` 이 각 included build 루트의 `:test` 만 부른다는 한계를 주석으로 적었다. 54e6f2ca 는 그 한계 목록에 cactus-core 의 oasis-core·oasis-core-api 를 더했다.
+- 바꾼 이유: 루트에서 `buildAll` 을 돌려도 네 모듈이 빠져 있어 빌드 실패나 시험 회귀를 그 자리에서 못 잡았다.
+- 동작 보존 근거: 보존이 아니라 동작 변경이다. 실측 결과는 다음과 같다.
+  - `gradlew -m buildAll testAll` 태스크 목록은 pre2 와 비교해 44줄이 늘었고(analog 12·caravan-console 12·mls 12·mcm-core 8) 모두 `:analog:`·`:caravan-console:`·`:mls:`·`:mcm-core:` 접두다. 빠진 줄은 빈 줄 하나뿐이다.
+  - 설정값·의존성 덤프는 pre2 대비 허용 차이 외 diff 0 이다(S19 판정에 포함).
+  - `buildAll` 을 실제로 1회 돌렸다(1b 칸, ④ 이후 트리): BUILD SUCCESSFUL in 1m 52s, 74 actionable tasks(46 실행·21 캐시·7 최신). `:mcm-core:build`·`:mls:build`·`:caravan-console:build`·`:analog:build` 가 모두 실행되어 네 개가 포함됨을 확인했다. mcm-core·caravan-console 는 `:test` 도 실행됐고 mls·analog 의 루트 `:test` 는 NO-SOURCE 다.
+- 영향 범위: 루트에서 `buildAll`·`testAll`·`cleanAll` 을 쓰는 사람과 `.dflow-gates` 의 full 게이트(`testAll`). 빌드·시험·정리 대상이 네 모듈만큼 늘어 시간이 늘어난다. 기존 빌드 실패 2건은 루트 composite 에서는 나타나지 않았다(composite 의 `buildAll` 에서 cactus-core·caravan-hub 가 모두 성공했다).
+  - 한계(④b 후속): `testAll` 은 각 included build 루트의 `:test` 만 부른다. mpn·mpp·mqc·mcm·mls·analog 는 루트에 시험 소스도 서브프로젝트 집계도 없어 루트 `:test` 가 NO-SOURCE 이므로 lib·api 시험이 돌지 않고, 집계하는 곳은 mdm/build.gradle 한 곳뿐이다. cactus-core 의 oasis-core·oasis-core-api 도 돌지 않는다. 그래서 이 항목으로 `testAll` 에서 실제로 늘어나는 시험은 단일 프로젝트인 mcm-core(887)와 caravan-console(58)뿐이다. `.dflow-gates` 의 `:mcm:test` 등도 같은 이유로 서브프로젝트 시험을 돌리지 않는다(저장소를 읽어 정적으로 확인했고 이번 판정에서 시험 수로도 확인했다). 서브프로젝트 시험 집계(④b)는 `testAll` 시간을 크게 늘리는 동작 변경이라 넣지 않았고, 조정 세션이 후속으로 정했다.
+- 되돌리는 방법: 01c3d678 revert (목록이 11개로 돌아간다). 54e6f2ca 의 주석 부분은 한계 목록 한 줄이라 따로 되돌릴 필요가 없다.
+
+## S21. 시험 입력 정리: mdm/api 의 DataInitializer.java 제거, mcm-core 의 BPMN 2개 선언 (C1·C2)
+- 커밋: 8bb30ee4(C1, mdm), 5c6f2383(C2, mcm-core), 54e6f2ca(관련 주석 두 곳)
+- 바뀌기 전: `mdm/api/build.gradle` 의 `test` 입력 `inputs.files(…)`(propertyName `mcmDataInitializer`)에 mcm/api 의 `init/DataInitializer.java` 가 들어 있었다. mdm 시험 소스(api·lib)에는 이 파일을 읽는 곳이 0건이다. 반대로 mcm-core 의 `ScreenUsageOasisContractTest` 는 `mcm/api/src/main/resources/services/audit/screenUsage.bpmn`·`csa/screenUsageStat.bpmn` 을 읽는데 입력으로 선언되지 않았다.
+- 바뀐 뒤:
+  - C1: mdm/api 시험 입력에서 `DataInitializer.java` 한 줄을 뺐다(2줄 추가·3줄 삭제). `seed/MdmMenuSeeder.java`·`seed/CoreRbacSeeder.java` 두 개와 propertyName 은 그대로다(덤프 줄 이름과 a6 레인의 `.dflow-gates` 주석이 가리키는 이름을 유지). `MdmOasisActionVocabularyTest` 가 mcm/api `init` 아래에서 읽는 파일은 이 두 시드뿐이다.
+  - C2: mcm-core 시험에 `inputs.files(…)`(propertyName `mcmScreenUsageBpmn`, 경로 민감도 RELATIVE)로 위 BPMN 2개를 더했다(4줄 추가). 기존 `mcmSeedSources`(DataInitializer 포함)는 `ScreenUsageMssqlDdlTest` 가 읽으므로 그대로다.
+  - 54e6f2ca: `dmes.test-conventions` 의 외부 입력 예시를 C1·C2 에 맞게 고치고, mcm-core 의 "ScreenUsageSchemaArtifacts.java 가 없을 수 있다" 는 낡은 주석(a6 2단계 머지로 파일이 있다)을 지웠다.
+- 바꾼 이유: Gradle 은 선언된 입력이 바뀌지 않으면 시험을 다시 돌리지 않는다. 읽지 않는 파일을 입력에 두면 쓸데없이 다시 돌고, 읽는 파일을 입력에 안 두면 그 파일을 고쳐도 시험이 UP-TO-DATE 로 건너뛴다.
+- 동작 보존 근거: 시험 코드와 시험 수는 그대로이고 입력 선언만 바뀐다.
+  - 덤프 비교(③ 결과 대 C1·C2 이후): 404개 파일이 같고 허용 패턴 3줄만 걸러졌다(A 1줄·B 2줄). 설정 덤프에서 mdm api 의 `mcmDataInitializer` 줄에서 `DataInitializer.java` 항목만 빠지고, mcm-core 설정에 `mcmScreenUsageBpmn` 줄 한 개가 생겼다. 의존성 덤프 diff 는 0 이다.
+  - 이 트리에서 `mcm-core :test`(13초)와 `mdm :api:test`(1분 29초)를 실제로 돌려 BUILD SUCCESSFUL 이고 UP-TO-DATE 로 건너뛰지 않았다. S22 이후 시험(mcm-core 887, mdm lib 1652·api 1638)도 기준선과 같다.
+- 영향 범위: mdm `:api:test` 와 mcm-core `:test` 의 최신 여부 판정. 이제 `DataInitializer.java` 만 고쳐도 `:mdm:api:test` 는 다시 돌지 않고(읽지 않으므로 정당), 두 BPMN 만 고쳐도 `:mcm-core:test` 가 건너뛰지 않는다. `.dflow-gates` 줄의 갱신은 a6 레인이 맞춘다(C1·C2 변경은 a6 레인에 통지한다).
+- 되돌리는 방법: 8bb30ee4 또는 5c6f2383 을 각각 revert (둘은 서로 독립이다). 54e6f2ca 는 주석이라 되돌릴 필요가 없다.
+
+## S22. mybatis-spring-boot-starter 3.0.5 통일 (동작 변경)
+- 커밋: 2a95c5e7 (4개 파일, 4줄 추가·5줄 삭제)
+- 바뀌기 전: mybatis-spring-boot-starter 가 cactus-core(`api`)·mcm-core(`compileOnly`)에서는 3.0.4, caravan-hub(`implementation`)에서는 3.0.5 였다. 카탈로그에는 `-v304`·`-v305` 두 항목이 있었다(S18).
+- 바뀐 뒤: 카탈로그의 두 항목을 3.0.5 한 항목 `mybatis-spring-boot-starter` 로 합치고, 소비 3곳(cactus-core·mcm-core·caravan-hub)의 별칭을 바꿨다. 다른 통일 후보(cactus-core 1.0.20·1.0.22, jackson-databind, hibernate-community-dialects, caffeine, maru-mdm-engine, mybatis 3.5.16 선언, junit-bom)는 건드리지 않았다. oasis 쪽 시험의 mybatis-spring 3.0.4(cactus-core ext·oasis 하드코딩)도 그대로 남는다.
+- 바꾼 이유: 같은 좌표의 판이 둘이면 어느 판이 클래스패스에 올지 모듈 조합에 따라 달라진다. 가장 단순한 통일은 최신 판(3.0.5)이다.
+- 동작 보존 근거: 보존이 아니라 해석 버전이 바뀌는 변경이다. 직전 판정 덤프(C1·C2 이후)와 이 커밋 덤프를 비교했다.
+  - 다른 파일 69개이고 모두 의도한 곳이다. 해석이 바뀐 좌표는 4개다: mybatis-spring-boot-starter 3.0.4 에서 3.0.5, mybatis-spring-boot-autoconfigure 3.0.4 에서 3.0.5, mybatis-spring 3.0.4 에서 3.0.5, mybatis 3.5.17 에서 3.5.19(이미 3.5.17 에서 3.5.19 로 올라가 있던 구성은 표기만 바뀐다). 영향 모듈은 cactus-core·mcm-core 와 cactus-core 를 `api` 로 쓰는 업무 모듈 mdm·mpn·mpp·mqc·mcm·mls 이다. 설정 덤프 차이는 업무 모듈 6개의 `api` 프로젝트에서 bootJar·bootWar 에 담기는 jar 파일 목록(mybatis 판 이름)뿐이다.
+  - caravan-hub 덤프는 diff 0 이다(원래 3.0.5).
+  - mybatis 3.0.5 의 pom 이 전이로 선언하는 spring-boot-starter·spring-boot-starter-jdbc·spring-boot-autoconfigure 의 선언 버전이 3.4.0 에서 3.5.0 으로 바뀌었다. 해석 결과는 4.0.6 으로 불변이다(Spring Boot BOM 이 덮는다). 조정 세션이 org.mybatis 변경의 일부로 승인했다.
+  - 시험(이 커밋 트리): mcm-core 887, mcm lib 18·api 43, mls lib 8·api 50, mdm lib 1652·api 1638, mpn·mpp·mqc lib 각 2, cactus-core 853(건너뜀 1)·oasis-core 686(건너뜀 1), caravan-hub 78 이고 모두 실패 0 이며 기준선과 같다.
+- 영향 범위: mybatis 를 쓰는 업무 모듈(mdm·mpn·mpp·mqc·mcm·mls)과 cactus-core·mcm-core 의 런타임 클래스패스. mybatis 가 3.5.17 에서 3.5.19 로 올라간다. 운영에서는 3.0.4 를 쓰던 모듈이 3.0.5 로 바뀐다는 점을 반영 때 확인해야 한다. 기존 빌드 실패 2건은 영향이 없다.
+- 되돌리는 방법: 2a95c5e7 만 revert 한다. 이 커밋이 2차의 마지막 단독 커밋이라 회귀가 생기면 이것만 빼면 된다(카탈로그의 별칭이 `-v304`·`-v305` 로 돌아간다).
+
+## S23. 빌드 불변 판정 도구 scripts/build-verify 보관
+- 커밋: 7cf41d92 (9개 파일, 1160줄 추가)
+- 바뀌기 전: 2차 판정에 쓴 덤프·비교 도구가 작업 폴더에만 있어 같은 판정을 다시 할 수 없었다.
+- 바뀐 뒤: `scripts/build-verify/` 에 다음을 두었다. `dump-deps.sh`(모듈마다 Gradle 1회로 덤프), `dump-deps.init.gradle`(해석 가능한 모든 구성의 의존성 보고와 buildscript classpath), `dump-settings.init.gradle`(플러그인·extensions·카탈로그 확장·ext·저장소·Test·JavaCompile·jar/war 활성 여부·JavaExec·구성 선언), `compare.sh`(두 덤프 비교, 허용 패턴 거르기, `--flat`), 2차 판정에 쓴 허용 패턴 `allow-cat1.txt`·`allow-logic3.txt`·`allow-j4.txt`, 알려진 오류 `known-errors-15.txt`, 사용법 `README.md`. 저장소 위치는 스크립트 위치에서 계산하고 `JAVA_HOME`·heavy 칸 변수는 호출 환경에서만 받으며 PC 마다 다른 경로는 걷어 냈다. `compare.sh` 종료코드는 0(동일)·1(다름)·2(사용 오류)·3(내용은 같으나 판정 불가)이다.
+- 판정 절차 요약(README §3):
+  1. 같은 커밋을 두 번 떠서 diff 0 인지(결정성) 본다.
+  2. 앞뒤를 단계에 맞는 허용 패턴으로 비교해 덤프 두 종류의 diff 가 0 인지 본다. 버전을 일부러 바꾸는 단계(S22 같은 경우)는 허용 파일 없이 diff 본문이 의도한 좌표에만 있는지 읽는다.
+  3. `build -x test` 가 통과하는지 본다.
+  4. 서브프로젝트 시험을 `:lib:test`·`:api:test` 처럼 직접 나열해 돌려 시험 수와 실패 목록이 기준선과 같은지(새 실패 0) 비교한다. 실패가 기준선에도 있는 것(analog 83건)은 제외하고 비교한다.
+- 바꾼 이유: 이후 빌드 정리(버전 통일, 플러그인 이전 등)에서 같은 방법으로 "해석 결과·설정이 불변" 을 보이기 위해서다.
+- 동작 보존 근거: 앱·빌드에서 호출하지 않는 도구를 추가했을 뿐이다. 도구 자체는 다음과 같이 확인했다.
+  - 민감도: 일반 의존 버전·BOM 이 덮는 선언 버전·Test jvmArgs·저장소 순서·JavaCompile 인코딩을 일부러 바꾼 다섯 사례가 모두 종료코드 1 로 잡혔다.
+  - 결정성: 같은 트리 재덤프와 `--no-daemon` 재덤프 diff 0, 15개 전체 두 번 diff 0(404개 파일).
+  - 이식: 이 위치로 옮긴 뒤 build 워크트리의 mpn 덤프가 2차 기준 덤프와 `compare.sh` 종료코드 0(39개 파일, 원본 `diff -r` 도 0)이었다. 경고는 도구 해시(2차 판정판 `91715d590272ce22`, 이식판 `0122bb21c81e45ad`)와 `java-home` 두 줄뿐이다. 해시가 다른 이유는 init 스크립트의 첫 줄 주석과 태스크 description 문자열만 고쳤기 때문이다.
+  - `bash -n` 이 두 스크립트에서 통과했다.
+- 영향 범위: 없다(`scripts/build-verify/` 신규, 다른 코드에서 참조하지 않는다). 한계는 README §4 에 있다: caravan-hub 단독 해석 불가(§ 위 기존 실패), 루트 composite 에서만 생기는 설정(`buildAll` 등)은 덤프 대상이 아니다, macOS 에서만 확인했다.
+- 되돌리는 방법: 7cf41d92 revert (`scripts/build-verify/` 가 사라진다).
+
+### S18~S23 검증 요약
+- 덤프 판정: ① 대 pre2, ③ 대 ①·pre2, C1·C2 대 ③ 모두 404개 파일이 허용 차이 외 같다. ② 는 의도한 4좌표(와 전이 선언)에만 차이가 있다.
+- 시험: 위 기준선 수치와 ③ 뒤·② 뒤가 모두 같고 실패 0 이다(analog 기준선 실패 83건 동일, 새 실패 0). test 태스크 `FROM-CACHE` 는 0건이었다.
+- buildAll 1회 실행 성공(S20), 기존 빌드 실패 2건은 변하지 않았다.
+- 미실시: 서브프로젝트 시험을 루트 `testAll` 로 집계하는 일(④b, 후속)과 analog 시험 실패 83건 해소는 하지 않았다.

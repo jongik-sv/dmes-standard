@@ -1,0 +1,14 @@
+해석 실패/오류 표시: caravan-hub/deps/_root/compileClasspath.txt (1줄)
+    +--- com.dongkuk.caravan:caravan-core:3.0.0 FAILED
+해석 실패/오류 표시: caravan-hub/deps/_root/productionRuntimeClasspath.txt (1줄)
+    +--- com.dongkuk.caravan:caravan-core:3.0.0 FAILED
+해석 실패/오류 표시: caravan-hub/deps/_root/runtimeClasspath.txt (1줄)
+    +--- com.dongkuk.caravan:caravan-core:3.0.0 FAILED
+해석 실패/오류 표시: caravan-hub/deps/_root/testCompileClasspath.txt (1줄)
+    +--- com.dongkuk.caravan:caravan-core:3.0.0 FAILED
+해석 실패/오류 표시: caravan-hub/deps/_root/testRuntimeClasspath.txt (1줄)
+    +--- com.dongkuk.caravan:caravan-core:3.0.0 FAILED
+해석 실패/오류 표시: caravan-hub/settings/_root.txt (3줄)
+    !ERROR registered inputs: TypedResolveException: Could not resolve all files for configuration ':runtimeClasspath'. <- ModuleVersionNotFoundException: Could not find com.dongkuk.caravan:caravan-core:3.0.0.
+    !ERROR registered inputs: TypedResolveException: Could not resolve all files for configuration ':runtimeClasspath'. <- ModuleVersionNotFoundException: Could not find com.dongkuk.caravan:caravan-core:3.0.0.
+    !ERROR registered inputs: TypedResolveException: Could not resolve all files for configuration ':runtimeClasspath'. <- ModuleVersionNotFoundException: Could not find com.dongkuk.caravan:caravan-core:3.0.0.

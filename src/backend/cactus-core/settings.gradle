@@ -1,4 +1,18 @@
+// 백엔드 빌드 관례 플러그인(dmes.*, src/backend/build-logic) — Gradle 규칙상 pluginManagement 는 settings 맨 앞이어야 한다.
+pluginManagement {
+    includeBuild('../build-logic')
+}
+
 rootProject.name = 'cactus-core'
+
+// 백엔드 공용 버전 카탈로그 — 이 폴더엔 gradle/libs.versions.toml 이 없어 자동으로 읽히지 않으므로 직접 가져온다.
+dependencyResolutionManagement {
+    versionCatalogs {
+        libs {
+            from(files('../gradle/libs.versions.toml'))
+        }
+    }
+}
 
 include 'oasis-core'
 include 'oasis-core-api'
@@ -7,11 +21,11 @@ project(':oasis-core').projectDir = file('../oasis/oasis-core')
 project(':oasis-core-api').projectDir = file('../oasis/oasis-core-api')
 
 // caravan 의존 제거 (2026-05-12) — cactus-core 가 caravan 을 더 이상 transitive 노출하지 않음.
-// caravan 라이브러리는 caravan-hub 호스트에서만 직접 의존 (v4 정본). root settings.gradle 의 includeBuild('caravan-core') 만 유지.
+// caravan 라이브러리는 caravan-hub(caravan-core)·mcm/lib(caravan-console)가 직접 의존한다(v4 정본). 이 빌드는 caravan 을
+// 포함하지 않고, 루트 settings.gradle 이 caravan-core·caravan-console·caravan-hub 를, mcm/settings.gradle 이 caravan-console 을 포함한다.
+
+// 이웃 모듈 included build — dmesIncludeBuild(경로, 좌표) 는 includeBuild + dependencySubstitution(좌표 → 그 빌드 루트) 이다.
+apply from: '../gradle/include-builds.settings.gradle'
 
 // MDM 메타 캐시(2026-10-02) — cactus-core 가 엔진을 api 로 문다. group 은 kr.dongkuk.maru.mdm(엔진 D7).
-includeBuild('../maru-mdm-engine') {
-    dependencySubstitution {
-        substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')
-    }
-}
+dmesIncludeBuild('../maru-mdm-engine', 'kr.dongkuk.maru.mdm:maru-mdm-engine')

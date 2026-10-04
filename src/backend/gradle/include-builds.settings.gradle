@@ -1,0 +1,20 @@
+// 이웃 백엔드 모듈을 included build 로 끌어오는 settings 헬퍼(③ build-logic, 2026-10-04).
+//
+// settings.gradle 에서 apply from 한 뒤 이렇게 쓴다(경로는 그 settings.gradle 이 있는 폴더 기준이다).
+//   apply from: '../gradle/include-builds.settings.gradle'
+//   dmesIncludeBuild('../cactus-core', 'com.dongkuk.dmes:cactus-core')
+// 아래 블록과 똑같다. 좌표를 그 빌드의 루트 프로젝트로 바꾸는 dependencySubstitution 을 늘 명시한다 — Gradle 의 자동 치환에
+// 맡기지 않는다. 좌표 group 이 com.dongkuk.dmes 가 아닌 빌드(caravan-*, kr.dongkuk.maru.mdm:maru-mdm-engine)가 있어
+// 좌표를 그대로 받는다.
+//   includeBuild('<경로>') {
+//       dependencySubstitution {
+//           substitute module('<좌표>') using project(':')
+//       }
+//   }
+ext.dmesIncludeBuild = { String path, String coordinates ->
+    includeBuild(path) {
+        dependencySubstitution {
+            substitute module(coordinates) using project(':')
+        }
+    }
+}

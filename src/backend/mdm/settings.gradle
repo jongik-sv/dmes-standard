@@ -1,21 +1,26 @@
+// 백엔드 빌드 관례 플러그인(dmes.*, src/backend/build-logic) — Gradle 규칙상 pluginManagement 는 settings 맨 앞이어야 한다.
+pluginManagement {
+    includeBuild('../build-logic')
+}
+
 rootProject.name = 'mdm'
 
-includeBuild('../cactus-core') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:cactus-core') using project(':')
+// 백엔드 공용 버전 카탈로그 — 이 폴더엔 gradle/libs.versions.toml 이 없어 자동으로 읽히지 않으므로 직접 가져온다.
+dependencyResolutionManagement {
+    versionCatalogs {
+        libs {
+            from(files('../gradle/libs.versions.toml'))
+        }
     }
 }
-includeBuild('../mcm-core') {
-    dependencySubstitution {
-        substitute module('com.dongkuk.dmes:mcm-core') using project(':')
-    }
-}
-includeBuild('../maru-mdm-engine') {
-    dependencySubstitution {
-        // D7 — group 은 06-business-rule.md 패키지표 기준(kr.dongkuk.maru.mdm), com.dongkuk.dmes 아님
-        substitute module('kr.dongkuk.maru.mdm:maru-mdm-engine') using project(':')
-    }
-}
+
+// 이웃 모듈 included build — dmesIncludeBuild(경로, 좌표) 는 includeBuild + dependencySubstitution(좌표 → 그 빌드 루트) 이다.
+apply from: '../gradle/include-builds.settings.gradle'
+
+dmesIncludeBuild('../cactus-core', 'com.dongkuk.dmes:cactus-core')
+dmesIncludeBuild('../mcm-core', 'com.dongkuk.dmes:mcm-core')
+// D7 — group 은 06-business-rule.md 패키지표 기준(kr.dongkuk.maru.mdm), com.dongkuk.dmes 아님
+dmesIncludeBuild('../maru-mdm-engine', 'kr.dongkuk.maru.mdm:maru-mdm-engine')
 
 include 'lib'
 include 'api'

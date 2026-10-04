@@ -16,21 +16,21 @@ tasks.named('test') {
 }
 
 dependencies {
-    api 'com.dongkuk.dmes:cactus-core:1.0.20-SNAPSHOT'
-    api 'com.dongkuk.dmes:mcm-core'
-    api 'com.dongkuk.caravan:caravan-console:0.1.0-SNAPSHOT'
+    api libs.cactus.core.v1020
+    api libs.mcm.core
+    api libs.caravan.console
 
-    api 'org.springframework.boot:spring-boot-starter-actuator'
-    api 'org.springframework.boot:spring-boot-starter-data-jpa'
-    api 'org.springframework.boot:spring-boot-starter-security'
-    api 'org.springframework.boot:spring-boot-starter-web'
-    api 'org.springframework.boot:spring-boot-starter-validation'
+    api libs.spring.boot.starter.actuator
+    api libs.spring.boot.starter.data.jpa
+    api libs.spring.boot.starter.security
+    api libs.spring.boot.starter.web
+    api libs.spring.boot.starter.validation
 
-    api 'org.xerial:sqlite-jdbc:3.45.3.0'
-    api 'org.hibernate.orm:hibernate-community-dialects:7.0.5.Final'
+    api libs.sqlite.jdbc
+    api libs.hibernate.community.dialects.v705
 
     // 샘플 스키마를 Flyway 로 관리한다.
     // Spring Boot 4 부터 FlywayAutoConfiguration 이 별도 모듈(spring-boot-flyway)로 빠졌다.
-    api 'org.flywaydb:flyway-core'
-    api 'org.springframework.boot:spring-boot-flyway'
+    api libs.flyway.core
+    api libs.spring.boot.flyway
 }
