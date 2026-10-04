@@ -68,7 +68,8 @@
   - (보조) `getMyMenus` 응답 시간(ms, 비결정).
 - 측정 절차:
   1. SELECT 수(결정적, 1회): `MenuCatalogCallersSelectCountTest`(mcm-core, H2, Hibernate `StatementInspector`)가 4곳을 각 2회 부르고 전수 SELECT 문장 수를 센다. 같은 시험이 캐시를 끈 대조(TTL 0), 저장 이벤트 뒤 재적재, 즐겨찾기·기본 화면 두 토글을 센다. 폴더 표(`TB_MCM_SEC_MENU_FLD`)는 카탈로그에 넣지 않았으므로 세지 않는다(요청마다 읽는 것은 전과 같다).
-  2. 응답 시간: 로컬 SQLite 시드 DB 에서 mcm 서버를 기준·변경 각각 띄워 같은 사용자로 `getMyMenus` 를 호출한다. 기준·변경을 번갈아(A·B·A·B…) 각 3회 이상 재고, 서버를 새로 띄운 직후가 아니라 안정화 뒤 값을 쓰며 `uptime` load 를 남긴다. 결론은 중앙값이다.
+  2. 응답 시간: 서버를 띄우지 않고 저장소 밖 scratchpad 측정 하네스로 잰다(커밋 안 함). `perf-mcm-p3.sh` 와 측정 JUnit `MyMenusLatencyPerfTest` 를 임시 워크트리에 복사해 실행한다. 시험은 `AnnotationConfigApplicationContext` + SQLite 임시 파일 + `DataInitializer` 시드(메뉴 44·OBJ 52·폴더 15·SYSADMIN 매핑 52, `getMyMenus` 결과 59행)로 같은 사용자의 `getMyMenus` 를 부른다. 조건은 base=nocache(기준), after=hit(변경, 캐시 적중)·miss(변경, 매 호출 전 무효화) 셋이고, warmup 300·iters 500 회다. 기준·변경을 번갈아(A·B·A·B…) 3회 재고 회차마다 `uptime` load1 을 남기며, 결론은 중앙값이다.
+     - 주의: 시험 JVM 이 `-XX:TieredStopAtLevel=1` 이라 절대값은 실제 서버보다 비관적이다. 기준과 변경의 상대 비교로만 쓴다.
   3. 응답 시간은 이 PC(MacBook Air M5)의 편차가 크다. 반복 측정 없이 결론 내지 않는다.
 - 기준 커밋: refactor-2026-10-base(b557ccbd) / 변경 커밋: 5162f3d6, 3ab73e90, 42a8f2fe(레인 커밋 전체는 S3 참조), 최종 HEAD 는 레인 `refactor/mcm-menu`
 - 측정 환경: SELECT 수는 시험 실측(`MenuCatalogCallersSelectCountTest`, H2, 결정적, 1회). 기준 쪽 14 는 옛 코드의 호출 구조에서 계산한 값(호출마다 2·2·2·1 문장의 두 배)이다. 응답 시간의 단독 여부·전원 연결·측정 일시는 측정 때 적는다.
@@ -86,7 +87,7 @@ SELECT 수(결정적, 1회로 확정):
 - 캐시가 비었을 때는 `ScreenMenuCatalog` 도 SEC_OBJ 를 함께 읽어 비적중 1회 비용이 1문장에서 2문장이 됐다. 캐시를 끈 대조가 16 인 이유다(옛 14 보다 2 큼).
 - 결정적 지표 판정: **개선(시험 실측). 14 → 2, 1회로 확정.** 캐시를 끄면 오히려 2문장 늘어난다.
 
-응답 시간(ms) — 비결정 지표라 조정 세션 「측정 시작」 뒤에 잰다:
+응답 시간(ms, 측정 전 — 비결정 지표라 조정 세션 「측정 시작」 뒤에 잰다. 하네스 준비 단계의 시험 실행 수치는 판정 근거가 아니라 적지 않는다. 변경 열은 after=hit 을 기본으로 하고 miss 는 회차 옆에 덧붙인다):
 
 | 회차 | 기준 | 변경 | load(1분) |
 |---|---|---|---|
