@@ -45,6 +45,7 @@ async function waitUntil(what: string, cond: () => boolean) {
 }
 
 const emptyShown = () => container.querySelector('[data-testid="empty"]') !== null;
+const emptyText = () => container.querySelector('[data-testid="empty"]')?.textContent ?? null;
 const loadingShown = () => container.querySelector(".loading-spinner") !== null;
 const rowShown = (code: string) =>
   container.querySelector(`.ag-center-cols-container [row-id="${code}"]`) !== null;
@@ -80,5 +81,49 @@ describe("AgDataGrid 빈 상태 안내", () => {
     await render({ data: [{ code: "A" }] });
     await waitUntil("행 A", () => rowShown("A"));
     expect(emptyShown()).toBe(false);
+  });
+
+  it("빈 채로 emptyMessage 가 바뀌면 보이던 안내 문구가 새 문구로 바뀐다", async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await render({ data: [], emptyMessage: "조회 전" });
+    await waitUntil("처음 문구", () => emptyText() === "조회 전");
+    await render({ data: [], emptyMessage: "결과 없음" });
+    await waitUntil("바뀐 문구", () => emptyText() === "결과 없음");
+  });
+
+  it("data 가 없다가([]로 기본값) 빈 배열로 바뀌면서 문구가 같이 바뀌어도 새 문구가 보인다", async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await render({ data: undefined, emptyMessage: "조회 전" });
+    await waitUntil("처음 문구", () => emptyText() === "조회 전");
+    await render({ data: [], emptyMessage: "결과 없음" });
+    await waitUntil("바뀐 문구", () => emptyText() === "결과 없음");
+  });
+
+  it("조회 중에 바뀐 문구는 조회가 끝나 빈 목록이 될 때 새 문구로 보인다", async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await render({ data: [], loading: true, emptyMessage: "조회 전" });
+    await waitUntil("조회 중 표시", loadingShown);
+    await render({ data: [], loading: true, emptyMessage: "결과 없음" });
+    await render({ data: [], loading: false, emptyMessage: "결과 없음" });
+    await waitUntil("바뀐 문구", () => emptyText() === "결과 없음");
+    expect(loadingShown()).toBe(false);
+  });
+
+  it("행이 있는 동안 문구가 바뀌어도 안내가 행을 덮지 않고, 다시 비면 현재 문구가 보인다", async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await render({ data: [{ code: "A" }], emptyMessage: "조회 전" });
+    await waitUntil("행 A", () => rowShown("A"));
+    await render({ data: [{ code: "A" }], emptyMessage: "결과 없음" });
+    expect(emptyShown()).toBe(false);
+    await render({ data: [], emptyMessage: "결과 없음" });
+    await waitUntil("현재 문구", () => emptyText() === "결과 없음");
   });
 });
