@@ -26,6 +26,7 @@ export {
   mergeWidgetRegistry,
   toWidgetDefRow,
 } from "./widget-registry";
+export { useWidgetVisible } from "./use-widget-visible";
 export { WidgetFrame } from "./WidgetFrame";
 export type { WidgetFrameProps } from "./WidgetFrame";
 export {
