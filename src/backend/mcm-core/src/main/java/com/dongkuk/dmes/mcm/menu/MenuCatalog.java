@@ -14,7 +14,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,10 +34,16 @@ import org.springframework.transaction.event.TransactionalEventListener;
  *
  * <p><b>캐시</b> — 의존 추가 없이 {@code volatile} 불변 스냅샷(List.copyOf·수정 불가 맵) + TTL({@value #TTL_MINUTES}분)
  * ({@code widget.ext.ExchangeAllowList} 관례). 만료·무효화 뒤 첫 호출이 두 테이블을 한 번씩 읽어 다시 채운다.
- * 동시에 여러 요청이 들어와도 다시 읽기는 한 번만 한다(잠금). 읽는 도중 무효화가 오면 읽은 결과를 그 호출에만
+ * 동시에 여러 요청이 들어와도 다시 읽기는 한 번만 한다(잠금 — 아래 대기 상한 안에서). 읽는 도중 무효화가 오면 읽은 결과를 그 호출에만
  * 돌려주고 저장하지 않는다(세대 번호) — 무효화가 묻히지 않게 하기 위해서다. 무효화는 잠금을 잡지 않으므로 세대 확인과
  * 저장 사이에 끼어들 수 있다. 그래서 저장한 스냅샷에도 적재 때의 세대를 담고, 읽을 때 현재 세대와 다르면 버린다 —
  * 무효화 뒤에 늦게 써진 옛 스냅샷도 다음 읽기에서 다시 읽힌다.
+ * <br>잠금 대기에는 상한({@value #LOCK_WAIT_MILLIS}ms)이 있다. 그 안에 잠금을 못 잡으면(또는 기다리다 인터럽트되면)
+ * WARN 로그를 남기고 두 테이블을 직접 읽어 그 호출만을 위한 불변 스냅샷을 돌려준다 — 캐시에는 저장하지 않으므로 세대
+ * 확인·무효화 의미와 무관하다. 이유: 적재는 호출자의 연결로 돈다. 트랜잭션을 보류한 호출자(예: 위젯 채팅
+ * {@code NOT_SUPPORTED} → 내 메뉴 화면 찾기 → {@code getMyMenus})가 적재자가 되어 연결을 새로 얻으려 기다리는 동안,
+ * 나머지 연결을 쥔 요청들이 이 잠금에서 무한정 기다리면 연결 풀이 바닥나 {@code connectionTimeout} 까지 모두 멈출 수 있다.
+ * 상한을 두면 기다리던 요청이 자기 연결로 직접 읽고 끝나 연결을 돌려준다.
  *
  * <p><b>무효화</b> — {@link MenuChangedEvent}(메뉴·폴더·OBJECT 저장)와 {@link RoleChangedEvent} 를 받으면 비운다.
  * <ol>
@@ -67,6 +75,9 @@ public class MenuCatalog {
 
     static final long TTL_MINUTES = 5;
     static final Duration TTL = Duration.ofMinutes(TTL_MINUTES);
+    /** 적재 잠금 대기 상한(ms) — 넘으면 캐시에 저장하지 않는 직접 적재로 물러난다. */
+    static final long LOCK_WAIT_MILLIS = 2000;
+    static final Duration LOCK_WAIT = Duration.ofMillis(LOCK_WAIT_MILLIS);
 
     private static final Logger log = LoggerFactory.getLogger(MenuCatalog.class);
 
@@ -109,7 +120,8 @@ public class MenuCatalog {
     private final SecObjRepository secObjRepository;
     private final Clock clock;
     private final Duration ttl;
-    private final Object loadLock = new Object();
+    private final Duration lockWait;
+    private final ReentrantLock loadLock = new ReentrantLock();
     /**
      * 무효화할 때마다 1 증가 — 적재 중 무효화가 오면 그 적재 결과는 저장하지 않고, 이미 저장된 것도 세대가 다르면 쓰지 않는다.
      * 패키지 공개는 시험이 경쟁 뒤 상태(세대만 오르고 옛 스냅샷이 남은 상태)를 만들기 위해서다.
@@ -123,27 +135,54 @@ public class MenuCatalog {
     }
 
     MenuCatalog(SecMenuRepository secMenuRepository, SecObjRepository secObjRepository, Clock clock, Duration ttl) {
+        this(secMenuRepository, secObjRepository, clock, ttl, LOCK_WAIT);
+    }
+
+    MenuCatalog(SecMenuRepository secMenuRepository, SecObjRepository secObjRepository, Clock clock, Duration ttl,
+                Duration lockWait) {
         this.secMenuRepository = secMenuRepository;
         this.secObjRepository = secObjRepository;
         this.clock = clock;
         this.ttl = ttl;
+        this.lockWait = lockWait;
     }
 
     /** 현재 스냅샷 — 메뉴·OBJECT 를 함께 쓸 때는 이것 하나를 받아 쓴다(두 목록이 같은 적재에서 나온다). */
     public Snapshot snapshot() {
         Cached c = cached;
         if (isUsable(c, clock.instant())) return c.snapshot();
-        synchronized (loadLock) {
+        boolean locked;
+        try {
+            locked = loadLock.tryLock(lockWait.toNanos(), TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("[menuCatalog] 적재 잠금 대기 중 인터럽트 — 캐시에 저장하지 않고 직접 읽는다");
+            return loadUncached();
+        }
+        if (!locked) {
+            c = cached;
+            if (isUsable(c, clock.instant())) return c.snapshot();
+            log.warn("[menuCatalog] 적재 잠금을 {} 안에 못 잡았다 — 캐시에 저장하지 않고 직접 읽는다", lockWait);
+            return loadUncached();
+        }
+        try {
             c = cached;
             Instant now = clock.instant();
             if (isUsable(c, now)) return c.snapshot();
             long gen = generation.get();
-            Snapshot loaded = Snapshot.of(secMenuRepository.findAll(), secObjRepository.findAll());
+            Snapshot loaded = loadUncached();
             if (generation.get() == gen) {
                 cached = new Cached(loaded, now.plus(ttl), gen);
             }
             return loaded;
+        } finally {
+            loadLock.unlock();
         }
+    }
+
+    /** 두 테이블을 한 번씩 읽어 불변 스냅샷을 만든다 — 저장은 하지 않는다. */
+    private Snapshot loadUncached() {
+        return Snapshot.of(secMenuRepository.findAll(), secObjRepository.findAll());
     }
 
     /** 저장된 스냅샷이 현재 세대이고 만료 전이면 쓴다. */

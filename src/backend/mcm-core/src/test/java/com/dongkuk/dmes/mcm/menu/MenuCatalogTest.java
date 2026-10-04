@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,7 +40,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** {@link MenuCatalog} 캐시 — 적재·적중·TTL·이벤트 무효화·예외 삼킴·동시 적재·불변. */
+/** {@link MenuCatalog} 캐시 — 적재·적중·TTL·이벤트 무효화·예외 삼킴·동시 적재·잠금 대기 상한·불변. */
 class MenuCatalogTest {
 
     static final Duration TTL = Duration.ofMinutes(5);
@@ -83,6 +84,8 @@ class MenuCatalogTest {
         assertThat(first.menusById()).containsOnlyKeys("M1");
         verify(menuRepo, times(1)).findAll();
         verify(objRepo, times(1)).findAll();
+        // 정상 경로는 잠금을 바로 잡으므로 직접 적재 WARN 이 없다.
+        assertThat(logs.list).noneMatch(e -> e.getLevel() == Level.WARN);
     }
 
     @Test
@@ -169,6 +172,74 @@ class MenuCatalogTest {
         }
         verify(menuRepo, times(1)).findAll();
         verify(objRepo, times(1)).findAll();
+    }
+
+    @Test
+    @DisplayName("다른 스레드가 잠금을 쥐고 적재 중이면 대기 상한 뒤 직접 읽어 돌려주고 캐시는 바꾸지 않는다")
+    void lockWaitTimeoutFallsBackToUncachedLoad() throws Exception {
+        MenuCatalog bounded = new MenuCatalog(menuRepo, objRepo, clock, TTL, Duration.ofMillis(100));
+        CountDownLatch loading = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger calls = new AtomicInteger();
+        when(menuRepo.findAll()).thenAnswer(inv -> {
+            if (calls.incrementAndGet() == 1) {
+                loading.countDown();
+                assertThat(release.await(5, TimeUnit.SECONDS)).isTrue();
+                return List.of(menu("M1", "csa", "commMenuMng", "적재자"));
+            }
+            return List.of(menu("M1", "csa", "commMenuMng", "직접"));
+        });
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            Future<MenuCatalog.Snapshot> holder = pool.submit(bounded::snapshot);
+            assertThat(loading.await(5, TimeUnit.SECONDS)).isTrue();
+
+            long started = System.nanoTime();
+            MenuCatalog.Snapshot direct = bounded.snapshot();
+            long waitedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+
+            assertThat(direct.menus()).extracting(SecMenu::getMenuNm).containsExactly("직접");
+            assertThat(waitedMs).isGreaterThanOrEqualTo(90).isLessThan(5000);
+            assertThat(direct.menus()).isUnmodifiable();
+            List<ILoggingEvent> warns = logs.list.stream().filter(e -> e.getLevel() == Level.WARN).toList();
+            assertThat(warns).hasSize(1);
+            assertThat(warns.get(0).getFormattedMessage()).contains("적재 잠금").contains("직접 읽는다");
+
+            release.countDown();
+            MenuCatalog.Snapshot loaded = holder.get(5, TimeUnit.SECONDS);
+            assertThat(loaded.menus()).extracting(SecMenu::getMenuNm).containsExactly("적재자");
+            // 캐시에는 적재자의 결과만 남는다 — 직접 적재 결과는 저장되지 않았다.
+            assertThat(bounded.snapshot()).isSameAs(loaded);
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+        verify(menuRepo, times(2)).findAll();
+        verify(objRepo, times(2)).findAll();
+    }
+
+    @Test
+    @DisplayName("잠금을 기다리다 인터럽트되면 플래그를 되살리고 직접 읽어 돌려주며 캐시에 저장하지 않는다")
+    void interruptedWhileWaitingFallsBackAndRestoresFlag() {
+        Thread.currentThread().interrupt();
+        MenuCatalog.Snapshot direct;
+        boolean flagRestored;
+        try {
+            direct = catalog.snapshot();
+        } finally {
+            flagRestored = Thread.interrupted(); // 플래그 확인 겸 지움 — 다음 시험에 새지 않게
+        }
+        assertThat(flagRestored).isTrue();
+        assertThat(direct.menus()).extracting(SecMenu::getMenuId).containsExactly("M1");
+        assertThat(logs.list).anyMatch(e -> e.getLevel() == Level.WARN
+                && e.getFormattedMessage().contains("인터럽트"));
+
+        // 직접 적재는 저장하지 않았으므로 다음 호출이 다시 읽고, 그 결과가 캐시된다.
+        MenuCatalog.Snapshot next = catalog.snapshot();
+        assertThat(next).isNotSameAs(direct);
+        assertThat(catalog.snapshot()).isSameAs(next);
+        verify(menuRepo, times(2)).findAll();
+        verify(objRepo, times(2)).findAll();
     }
 
     @Test
