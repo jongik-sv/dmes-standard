@@ -18,8 +18,9 @@ async function callOasis<T>(action: string, params: Record<string, unknown>): Pr
   return unwrap<T>(res);
 }
 
-export function searchSetDrafts(keyword = ""): Promise<SetSearchResult> {
-  return callOasis<SetSearchResult>("search", { keyword });
+/** `limit` 은 검색어가 없을 때만 서버가 적용하는 행 수 상한이다(R1). 비우면 상한 없음. */
+export function searchSetDrafts(keyword = "", limit?: number): Promise<SetSearchResult> {
+  return callOasis<SetSearchResult>("search", { keyword, limit });
 }
 
 /** ver 를 비우면 서버가 그 세트의 DRAFT 를 고른다. */
