@@ -172,6 +172,27 @@ describe("WidgetWorkspace — 진입 불러오기 한 번(W1)", () => {
     expect(store.load).toHaveBeenCalledTimes(1);
   });
 
+  it("[배치 편집]→[취소] 뒤에 등록부가 바뀌어도 원래 배치 크기로 돌아온다(취소가 만든 사본도 손대지 않은 탭이다)", async () => {
+    const small: WidgetRegistry = { "t.a": { meta: { id: "t.a", title: "가", defaultSize: { w: 6, h: 6 }, maxSize: { w: 24, h: 6 } }, load: loadA } };
+    const big: WidgetRegistry = { "t.a": { meta: { ...small["t.a"].meta, maxSize: { w: 24, h: 10 } }, load: loadA } };
+    const store = makeStore([
+      { tabId: "home", name: "홈", seq: 0, locked: false, items: [] },
+      { tabId: "tab-1", name: "내 생산", seq: 1, locked: false, items: [{ ...it_("a"), h: 8 }] },
+    ]);
+    const props = { ...base(store), registry: small };
+    await render(props);
+    act(() => (host.querySelector('[data-action="start-edit"]') as HTMLButtonElement).click());
+    act(() => (host.querySelector('[data-action="cancel-edit"]') as HTMLButtonElement).click());
+    await flush();
+    await render({ ...props, registry: big });
+    act(() => (host.querySelector('[data-tab-menu="tab-1"]') as HTMLButtonElement).click());
+    const lock = [...document.querySelectorAll(".cm-widget-menu button")].find((b) => b.textContent?.includes("탭 잠그기")) as HTMLButtonElement;
+    act(() => lock.click());
+    await flush();
+    const saved = (store.saveTab as ReturnType<typeof vi.fn>).mock.calls[0][0] as WidgetTab;
+    expect(saved.items[0].h).toBe(8);
+  });
+
   it("조용한 다시 불러오기 응답 전에 편집을 시작하면 늦게 온 응답이 편집을 덮지 않는다", async () => {
     let resolveSecond: (tabs: WidgetTab[]) => void = () => {};
     const tabs: WidgetTab[] = [{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("a"), it_("b", 6, 0)] }];
@@ -196,4 +217,3 @@ describe("WidgetWorkspace — 진입 불러오기 한 번(W1)", () => {
     expect(host.querySelector('.cm-widget[data-inst-id="a"]')).toBeNull();
   });
 });
-
