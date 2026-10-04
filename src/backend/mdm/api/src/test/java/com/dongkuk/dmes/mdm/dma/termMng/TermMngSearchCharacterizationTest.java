@@ -320,10 +320,24 @@ class TermMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 상황_조건에_안_맞는_행도_시스템_조건의_NPE는_그대로_난다() {
-        // 기존 결함 고정: Java 는 시스템 조건을 상황 조건보다 먼저 본다. 시스템 칸이 JSON null 리터럴인 행은 상황이 달라도 NPE.
+    void D1_시스템이_null_리터럴인_행은_시스템_조건에서_NPE_없이_빠진다() {
+        // D1 수정(fix): 예전에는 시스템 칸이 JSON null 리터럴이면 목록이 null 이라, 상황이 달라도 시스템 비교에서 NPE 가 났다.
+        // 이제 빈 목록이라 시스템 조건에 안 맞아 빠진다.
         seed("널시스템", t -> {
             t.setSystems("null");
+            t.setContext("냉연");
+        });
+        assertEquals(List.of(), filter(null, "MES", "열연"));
+        assertEquals(List.of(), filter(null, "MES", "냉연"), "상황이 맞아도 시스템 조건에서 빠진다");
+        assertEquals(List.of(), filter(null, null, "열연"), "시스템 조건이 없으면 상황 조건으로 빠진다");
+    }
+
+    @Test
+    void 상황_조건에_안_맞는_행도_시스템_null_원소의_NPE는_그대로_난다() {
+        // 기존 결함 고정(D2): Java 는 시스템 조건을 상황 조건보다 먼저 본다. 시스템 칸에 null 원소가 있으면 상황이 달라도 NPE.
+        // DB 1차 거르기가 시스템 원문에 null 이 든 행을 남겨야 이 동작이 지켜진다.
+        seed("널원소시스템", t -> {
+            t.setSystems("[null]");
             t.setContext("냉연");
         });
         assertThrows(NullPointerException.class, () -> filter(null, "MES", "열연"));
@@ -331,26 +345,30 @@ class TermMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 상황_조건에_안_맞는_행도_키워드_비교의_NPE는_그대로_난다() {
-        // 기존 결함 고정: Java 는 키워드를 상황 조건보다 먼저 본다. 표기·약어가 안 맞고 동의어가 JSON null 리터럴이면 상황이 달라도 NPE.
-        seed("판", t -> {
+    void D1_동의어가_null_리터럴인_행은_키워드_비교에서_NPE_없이_빠진다() {
+        // D1 수정(fix): 예전에는 표기·약어가 안 맞고 동의어가 JSON null 리터럴이면 상황이 달라도 NPE 가 났다. 이제 빈 목록이다.
+        Long pan = seed("판", t -> {
             t.setSynonyms("null");
             t.setContext("냉연");
         });
-        assertThrows(NullPointerException.class, () -> filter("코일", null, "열연"));
-        assertThrows(NullPointerException.class, () -> filter("ss", null, "열연"), "DB 에서 거를 바늘이 없는 키워드도 같다");
+        assertEquals(List.of(), filter("코일", null, "열연"));
+        assertEquals(List.of(), filter("ss", null, "열연"), "DB 에서 거를 바늘이 없는 키워드도 같다");
+        assertEquals(List.of(), filter("코일", null, "냉연"), "상황이 맞아도 키워드에 안 맞으면 빠진다");
+        assertEquals(List.of(pan), filter("판", null, "냉연"), "표기로는 그대로 찾힌다");
     }
 
     @Test
-    void 상황_조건에_안_맞는_행도_별칭이_null_리터럴이면_키워드_비교에서_NPE가_난다() {
-        // 동의어에 안 맞으면 별칭을 본다 — 별칭이 JSON null 리터럴이면 NPE(기존 결함 고정).
-        seed("널별칭", t -> {
+    void D1_별칭이_null_리터럴인_행은_키워드_비교에서_NPE_없이_빠진다() {
+        // D1 수정(fix): 동의어에 안 맞으면 별칭을 본다 — 예전에는 별칭이 JSON null 리터럴이면 NPE 가 났다. 이제 빈 목록이다.
+        Long id = seed("널별칭", t -> {
             t.setSynonyms("[\"다른말\"]");
             t.setAliases("null");
             t.setContext("냉연");
         });
-        assertThrows(NullPointerException.class, () -> filter("코일", null, "열연"));
-        assertEquals(List.of(), filter("다른", null, "열연"), "동의어가 맞으면 별칭을 보지 않아 NPE 가 없다");
+        assertEquals(List.of(), filter("코일", null, "열연"));
+        assertEquals(List.of(), filter("코일", null, "냉연"));
+        assertEquals(List.of(), filter("다른", null, "열연"), "동의어가 맞아도 상황이 다르면 빠진다");
+        assertEquals(List.of(id), filter("다른", null, "냉연"));
     }
 
     // ── 시스템 조건 ──

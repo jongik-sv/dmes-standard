@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache.CachedTerm;
+import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermRow;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest;
@@ -19,6 +20,7 @@ import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,7 +55,7 @@ class TermJsonListCharacterizationTest extends AbstractMdmSharedDbTest {
         senseSeq = 0;
     }
 
-    /** 입력 원문 → 엄격한 파서의 기대 결과(null 이면 결과 자체가 null). */
+    /** 입력 원문 → 엄격한 파서의 기대 결과. 결과 목록 자체는 null 이 아니다(D1 수정). */
     private record Case(String raw, List<String> expected) {
     }
 
@@ -146,45 +148,58 @@ class TermJsonListCharacterizationTest extends AbstractMdmSharedDbTest {
         assertEquals(0, termRepository.count());
     }
 
-    // ── JSON null 리터럴 / 빈 문자열 리터럴 — 결과가 null 이 되는 경로 ──
+    // ── JSON null 리터럴 / 빈 문자열 리터럴 — D1 수정(fix) 뒤 둘 다 빈 목록 ──
 
     @Test
-    void JSON_null_리터럴은_빈_목록이_아니라_null이_된다() {
+    void D1_JSON_null_리터럴은_null이_아니라_빈_목록이_된다() {
+        // D1 수정(fix): 예전에는 검색 결과 행·캐시 항목의 목록이 null 이었다.
         Long nullLiteral = seedRaw("null");
         Long emptyString = seedRaw("\"\"");
         cache.reloadAll();
 
         List<TermRow> rows = service.search(null).getList();
         assertEquals(nullLiteral, rows.get(0).getTermId());
-        assertNull(rows.get(0).getSynonyms(), "검색 결과 행의 synonyms 가 빈 목록이 아니라 null");
-        assertNull(rows.get(0).getSystems());
-        assertNull(cache.get(nullLiteral).synonyms(), "캐시 항목의 synonyms 도 null");
+        assertEquals(List.of(), rows.get(0).getSynonyms(), "검색 결과 행의 synonyms 는 빈 목록");
+        assertEquals(List.of(), rows.get(0).getAliases());
+        assertEquals(List.of(), rows.get(0).getSystems());
+        assertEquals(List.of(), cache.get(nullLiteral).synonyms(), "캐시 항목의 synonyms 도 빈 목록");
+        assertEquals(List.of(), cache.get(nullLiteral).aliases());
+        assertEquals(List.of(), cache.get(nullLiteral).systems());
         assertEquals(emptyString, rows.get(1).getTermId());
-        assertEquals(List.of(), rows.get(1).getSynonyms(), "JSON 빈 문자열 리터럴 \"\" 은 빈 목록이다(null 아님)");
+        assertEquals(List.of(), rows.get(1).getSynonyms(), "JSON 빈 문자열 리터럴 \"\" 도 빈 목록이다");
         assertEquals(List.of(), cache.get(emptyString).synonyms());
     }
 
     @Test
-    void JSON_null_리터럴이_있으면_키워드_검색과_시스템_조건_검색이_NPE로_실패한다() {
-        // 기존 결함 고정: readStringList 가 null 을 돌려주고 .stream() 에서 NPE.
+    void D1_JSON_null_리터럴_행이_있어도_키워드_검색과_시스템_조건_검색은_NPE_없이_그_행을_빈_목록으로_판정한다() {
+        // D1 수정(fix) 재현: 예전에는 목록이 null 이라 .stream() 에서 NPE 가 났다. DB 1차 거르기는 원문에 null 이 든 행을 남기므로
+        // 이 행은 Java 비교까지 온다.
         seedRaw("null");
         TermSearchRequest byKeyword = new TermSearchRequest();
-        byKeyword.setKeyword("없는말");
-        assertThrows(NullPointerException.class, () -> service.search(byKeyword));
+        byKeyword.setKeyword("없는말"); // 표기·약어에 안 맞아 동의어·별칭까지 본다
+        assertEquals(List.of(), service.search(byKeyword).getList());
 
+        Long mes = seedRaw("[\"MES\"]");
         TermSearchRequest bySystem = new TermSearchRequest();
         bySystem.setSystems("MES");
-        assertThrows(NullPointerException.class, () -> service.search(bySystem));
+        assertEquals(List.of(mes), service.search(bySystem).getList().stream().map(TermRow::getTermId).toList());
     }
 
     @Test
-    void JSON_null_리터럴이_캐시에_있으면_1차_추천이_NPE로_실패한다() {
-        // 기존 결함 고정: CachedTerm.synonyms() 가 null 이라 for-each 에서 NPE.
+    void D1_JSON_null_리터럴_행이_캐시에_있어도_1차_추천은_NPE_없이_다른_행을_찾는다() {
+        // D1 수정(fix) 재현: 예전에는 CachedTerm.synonyms() 가 null 이라 for-each 에서 NPE 가 나, 그런 행이 하나만 있어도 모든 추천이
+        // 실패했다.
         seedRaw("null");
+        Long coil = termRepository.saveAndFlush(new MdmTerm("코일", ++senseSeq, "정의")).getTermId();
         cache.reloadAll();
         RecommendRequest request = new RecommendRequest();
         request.setTermName("코일");
-        assertThrows(NullPointerException.class, () -> service.recommend(request));
+
+        Map<String, Object> result = service.recommend(request);
+        @SuppressWarnings("unchecked")
+        List<RecommendCandidate> candidates = (List<RecommendCandidate>) (List<?>) result.get("candidates");
+        assertTrue(candidates.stream().anyMatch(c -> coil.equals(c.getTermId()) && c.getScore() == 1.0d),
+                candidates.toString());
     }
 
     @Test

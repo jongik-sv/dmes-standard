@@ -58,6 +58,8 @@ class TermSearchPrefilterSqliteTest extends AbstractMdmSharedDbTest {
         Long syn = seed("나", t -> t.setSynonyms("[\"코일감기\"]"));
         Long alias = seed("다", t -> t.setAliases("[\"COIL_ID\"]"));
         Long escaped = seed("라", t -> t.setSynonyms("[\"\\uBC30\"]"));
+        // 원문에 null 이 든 행은 남긴다. D1 수정(fix) 뒤로는 Java 가 null 리터럴을 빈 목록으로 보고 거르므로 남는 행만 늘 뿐이다
+        // (TermSearchPrefilter 설명 참고 — D2 를 고칠 때 함께 뺀다).
         Long nullLiteral = seed("마", t -> t.setAliases("null"));
         seed("바", t -> t.setEngName("코일"));
         seed("사", t -> t.setSynonyms("[\"판\"]"));
@@ -82,19 +84,27 @@ class TermSearchPrefilterSqliteTest extends AbstractMdmSharedDbTest {
 
     @Test
     void 상황_조건은_시스템_조건이_있을_때만_null_시스템_행을_남긴다() {
+        // 남기는 까닭은 null 원소([null], D2)다 — Java 의 시스템 비교가 NPE 를 내므로 상황 조건이 그 행을 미리 빼면 동작이 바뀐다.
+        // null 리터럴 행은 D1 수정(fix) 뒤 NPE 없이 Java 가 거르지만, 같은 LIKE 조건에 함께 걸려 남는다.
         Long hot = seed("가", t -> t.setContext("열연"));
         Long nullSystems = seed("나", t -> {
             t.setContext("냉연");
             t.setSystems("null");
         });
         seed("다", t -> t.setContext("냉연"));
+        Long nullElement = seed("라", t -> {
+            t.setContext("냉연");
+            t.setSystems("[null]");
+        });
 
         assertEquals(List.of(hot), candidates(null, "열연", false));
-        assertEquals(List.of(hot, nullSystems), candidates(null, "열연", true));
+        assertEquals(List.of(hot, nullSystems, nullElement), candidates(null, "열연", true));
     }
 
     @Test
     void 상황_조건은_키워드_조건이_있을_때만_null_동의어_별칭_행을_남긴다() {
+        // D1 수정(fix) 뒤로 이 조건은 동치에 필요 없고 남는 행만 늘린다(동의어·별칭 비교는 NPE 가 없다). 변경을 작게 두려고 남겼고,
+        // D2 를 고칠 때 함께 뺀다 — 그때 이 시험도 고친다.
         Long hot = seed("코일", t -> t.setContext("열연"));
         Long nullSynonyms = seed("가", t -> {
             t.setContext("냉연");

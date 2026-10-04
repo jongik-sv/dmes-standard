@@ -37,7 +37,8 @@ public final class MdmJsonLists {
      * <ul>
      *   <li>null·공백({@code isBlank})이면 {@code List.of()}. 파싱 예외(깨진 JSON·배열이 아닌 값)도 {@code List.of()} 이고 경고 로그를
      *       남긴다.</li>
-     *   <li>JSON {@code null} 리터럴은 {@code null} 을 돌려준다(빈 목록 아님).</li>
+     *   <li>JSON {@code null} 리터럴도 {@code List.of()} 다(로그 없음). 예전에는 {@code null} 을 돌려줘 호출부가 목록을 돌다 NPE 를
+     *       냈다(결함 D1).</li>
      *   <li>숫자·불린 원소는 문자열로 바뀌고, 원소의 공백·빈 문자열·null 은 그대로 남는다. 배열 뒤에 남은 글자는 무시한다.</li>
      * </ul>
      *
@@ -48,7 +49,8 @@ public final class MdmJsonLists {
             return List.of();
         }
         try {
-            return MAPPER.readValue(json, STRING_LIST);
+            List<String> parsed = MAPPER.readValue(json, STRING_LIST);
+            return parsed != null ? parsed : List.of();
         } catch (Exception e) {
             log.warn("[{}] JSON 파싱 실패 — 빈 목록으로 대체: {}", logLabel, json, e);
             return List.of();
