@@ -199,19 +199,36 @@ function attachNetworkCollector(cdp, sink) {
       // (0건 화면의 "조회 응답 → 빈 상태" 구간을 재려면 이 축이 필요하다).
       wallStart: e.wallTime,
       postData: e.request.postData ?? "",
+      // ★지시 5-11: resourceTiming 은 requestWillBeSent 가 아니라 **responseReceived** 에 온다.
+      //   (requestWillBeSent 에도 있으나 시점이 비어 있는 경우가 있어 responseReceived 것을 쓴다)
+      resourceTiming: null,
     });
   };
-  // ★status 는 `responseReceived` 에서 온다★ `loadingFinished` 에는 없다.
+  // ★status 와 resourceTiming 은 `responseReceived` 에서 온다★ `loadingFinished` 에는 없다.
   //   첫 실행에서 status 가 전부 0 으로 기록돼 404·500 을 구분할 수 없었다.
   const onResponse = (e) => {
     const p = pending.get(e.requestId);
-    if (p) p.status = e.response?.status ?? 0;
+    if (!p) return;
+    p.status = e.response?.status ?? 0;
+    // ★지시 5-11: TTFB 분해용. CDP `Network.responseReceived.response.timing` (단위 ms).
+    //   requestTime·proxyStart·proxyEnd 는 브라우저 시작 기준 상대 ms 라 서로 빼지 않는다.
+    //   아래에서 **sendEnd 대비** 계산한 값만 쓴다(같은 축 안에서의 구간 길이만 의미 있다).
+    if (e.response?.timing) p.resourceTiming = e.response.timing;
+    if (typeof e.response?.encodedDataLength === "number") p.encodedDataLength = e.response.encodedDataLength;
+    if (typeof e.response?.headersText === "string") p.headersTextLength = e.response.headersText.length;
   };
   const finish = (e, failed) => {
     const p = pending.get(e.requestId);
     if (!p) return;
     pending.delete(e.requestId);
     const ms = (e.timestamp - p.start) * 1000;
+    const split = splitTiming(p);
+    // bodyMs = 전체 - (헤더까지 걸린 시간). responseReceived 의 timing 만으로는 본문 구간이
+    // 분리되지 않으므로(loadingFinished 시각이 여기서야 나온다) 이렇게 뺀다.
+    if (split.ttfbMs !== null) {
+      split.bodyMs = round1(Math.max(0, ms - split.ttfbMs));
+      delete split.ttfbMissing;
+    }
     sink.push({
       url: p.url,
       method: p.method,
@@ -221,6 +238,7 @@ function attachNetworkCollector(cdp, sink) {
       // epoch 밀리초. wallTime 이 없는 경우(undefined)는 이 축을 쓰지 않는다.
       wallEndMs: typeof p.wallStart === "number" ? p.wallStart * 1000 + ms : null,
       failed,
+      ...split,
     });
   };
   const onDone = (e) => finish(e, false);
@@ -237,6 +255,46 @@ function attachNetworkCollector(cdp, sink) {
   };
 }
 
+/**
+ * ★지시 5-11: 요청 하나를 "서버 대기 / 전송 / 크기" 로 분해한다★
+ *
+ * CDP `Network.responseReceived.response.timing` 은 **단위 ms** 이고, 모든 값이 브라우저 시작 기준
+ * 절대 상대 시각이다(`requestTime`·`proxyStart` … `receiveHeadersEnd`). 그래서 **빼서 구간 길이만** 쓴다.
+ *
+ * ```
+ *   sendEnd ──── receiveHeadersEnd   ← 이 사이가 "서버가 응답을 만들기 걸린 시간"(TTFB)
+ *   receiveHeadersEnd ── loadingFinished  ← 이 사이가 본문 다운로드
+ * ```
+ *
+ * 해석상 주의 두 가지:
+ *   - `ttfbMs` 는 **헤더까지**다. 서버가 본문을 만들고 내려주는 시간은 `bodyMs` 에 들어간다.
+ *     REST+OASIS 라 한 요청이 "대기→본문" 으로 나뉘는데, 어느 쪽이 느린지 가려야 한다.
+ *   - `sendMs`(요청 본문 전송)는 로컬 서버라 거의 0 이고, 그래서 `ms`(전체) 와
+ *     `ttfbMs + bodyMs` 가 대략 맞는다. 안 맞으면 브라우저 큐 대기(연결·풀) 이 끼어 있는 것이다.
+ *
+ * @param {{resourceTiming?: object|null, encodedDataLength?: number}} p
+ */
+function splitTiming(p) {
+  const t = p?.resourceTiming;
+  if (!t || typeof t.sendEnd !== "number" || typeof t.receiveHeadersEnd !== "number") {
+    return { ttfbMs: null, bodyMs: null, queueMs: null, encodedDataLength: p?.encodedDataLength ?? null };
+  }
+  const ttfb = Math.max(0, t.receiveHeadersEnd - t.sendEnd);
+  const send = typeof t.sendStart === "number" ? Math.max(0, t.sendEnd - t.sendStart) : null;
+  const dns = typeof t.dnsEnd === "number" && typeof t.dnsStart === "number" ? Math.max(0, t.dnsEnd - t.dnsStart) : 0;
+  const conn = typeof t.connectEnd === "number" && typeof t.connectStart === "number" ? Math.max(0, t.connectEnd - t.connectStart) : 0;
+  return {
+    ttfbMs: round1(ttfb),
+    // loadingFinished 시각은 여기 없다 — finish() 가 ms 를 계산하므로 bodyMs 는 아래에서 채운다.
+    bodyMs: null,
+    sendMs: send === null ? null : round1(send),
+    dnsMs: round1(dns),
+    connectMs: round1(conn),
+    queueMs: round1(Math.max(0, t.sendStart - (typeof t.requestTime === "number" ? t.requestTime : t.sendStart))),
+    encodedDataLength: p?.encodedDataLength ?? null,
+  };
+}
+
 const isApiCall = (c) => c.url.includes("/api/") && !c.failed;
 const isSearchCall = (screen, c) =>
   screen.searchUrlPattern.test(c.url) && !(screen.searchUrlExclude?.test(c.postData) || screen.searchUrlExclude?.test(c.url));
@@ -249,8 +307,33 @@ function summarizeApi(calls) {
     apiTotalMs: round1(api.reduce((s, c) => s + c.ms, 0)),
     apiSlowestUrl: sorted[0]?.url ?? "",
     apiSlowestMs: round1(sorted[0]?.ms ?? 0),
+    // ★지시 5-11★ 검색 요청의 TTFB 분해를 최상위 지표로 올린다. 화면이 왜 느린지의 답이 여기 있다.
+    searchTtfbMs: null, // measureScreen 이 화면 단위로 채운다
     apiCalls: api,
   };
+}
+
+/**
+ * ★지시 5-11: 검색 요청 1회의 TTFB 분해★ 3회 중앙값은 summarize.mjs 가 낸다.
+ * 여기서는 "실조회"(optionsOnly 제외) 하나를 골라 그 요청의 구간 값을 노출한다.
+ *
+ * @param {object} api summarizeApi 의 결과
+ * @param {object} screen 화면 정의
+ * @param {Array} calls 전체 호출 기록
+ */
+function attachSearchTiming(api, screen, calls) {
+  const real = calls.filter((c) => isSearchCall(screen, c));
+  const s = real[real.length - 1];
+  if (!s) return api;
+  api.searchTtfbMs = s.ttfbMs ?? null;
+  api.searchBodyMs = s.bodyMs ?? null;
+  api.searchTotalMs = s.ms;
+  api.searchQueueMs = s.queueMs ?? null;
+  api.searchDnsMs = s.dnsMs ?? null;
+  api.searchConnectMs = s.connectMs ?? null;
+  api.searchEncodedBytes = s.encodedDataLength ?? null;
+  api.searchCount = real.length;
+  return api;
 }
 
 const round1 = (n) => Math.round(n * 10) / 10;
@@ -594,7 +677,7 @@ async function measureScreen(page, cdp, screen, calls, round) {
 
   const longTasks = await readLongTasks(page);
   const profiler = await readProfiler(page);
-  const api = summarizeApi(calls);
+  const api = attachSearchTiming(summarizeApi(calls), screen, calls);
 
   const row = {
     round,
@@ -617,6 +700,11 @@ async function measureScreen(page, cdp, screen, calls, round) {
     /** ★지시 3★ 조회 POST 가 실제로 나갔는지. 1 이면 정상, 1 이 아니면 이 회차의 검색 지표는 무효. */
     searchCallCount,
     searchCallMs,
+    searchTtfbMs: api.searchTtfbMs ?? "",
+    searchBodyMs: api.searchBodyMs ?? "",
+    searchQueueMs: api.searchQueueMs ?? "",
+    searchConnectMs: api.searchConnectMs ?? "",
+    searchEncodedBytes: api.searchEncodedBytes ?? "",
     invalidSearch,
     /** ★지시 3★ 보정 회차에서 주입한 바쁜 루프 실측 시간(ms). null 이면 주입 실패. */
     calibrateMs,
