@@ -652,7 +652,7 @@ public class ColumnMngService {
                 .collect(Collectors.joining(" + ")));
         row.put("systemFields", mappings.stream().map(m -> m.getSystemCode() + ":" + m.getPhysName())
                 .collect(Collectors.joining(", ")));
-        row.put("usageNote", ColumnDescriptionSanitizer.plainText(column.getUsageNote())); // 목록 칸은 글자만(D-150) — 원문은 view
+        // 활용처 메모는 목록에 싣지 않는다(그리드에 없는 칸, 최대 20,000자) — 상세는 view (Screen-Performance-Guide R1)
         return row;
     }
 
