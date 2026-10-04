@@ -99,7 +99,7 @@ E·H 를 바꾼 측정 시험 값(헤더 확정이 전문 E개 모두에 영향�
 
 ## P3. 용어 검색(TermMngService.search)의 읽는 행 수·JSON 파싱 횟수
 - 관련 구조 변경: S5
-- 커밋 내용: 키워드·상황 조건을 DB `LIKE` 로 먼저 거르고(`TermSearchPrefilter`) 남은 행의 JSON 칸을 행마다 한 번만 파싱한다(0ec7a57b). 64bcf6cc 는 NPE 행 보존 보정이라 조건이 약간 넓어진다(상황 조건에 키워드 단계 NPE 행을 OR 로 남김).
+- 커밋 내용: 키워드·상황 조건을 DB `LIKE` 로 먼저 거르고(`TermSearchPrefilter`) 남은 행의 JSON 칸을 행마다 한 번만 파싱한다(0ec7a57b). 64bcf6cc 는 NPE 행 보존 보정이라 조건이 약간 넓어진다(상황 조건에 키워드 단계 NPE 행을 OR 로 남김). D1(3e645c34)·D2(d2c7b283) 수정 뒤 90e507e5(fix/refactor-followups)에서 `%null%` 조건 세 가지를 모두 걷었다 — 상황 조건의 SYSTEMS `%null%` OR(시스템 조건이 있을 때, 0ec7a57b 부터 — `of(...)` 의 `systemsFiltered` 인자도 함께 없앰), 상황 조건의 SYNONYMS·ALIASES `%null%` OR(키워드 조건이 있을 때, 64bcf6cc), 키워드 조건(`jsonListMayContain`)의 `%null%`(0ec7a57b 부터). 아래 "참고" 후보 행 수(22·249행)는 걷기 전(0ec7a57b) 코드 기준이다. 정식 측정은 아직이므로, 변경 쪽을 잴 때 90e507e5 앞 코드인지 뒤 코드인지 측정 환경에 적는다.
 - 지표: (결정적) 검색 1회당 읽는 용어 행 수, JSON 파싱 횟수(동의어·별칭·시스템 칸 `readStrings` 호출 수). (보조) 응답 시간 ms(기준·변경 A·B 교대 3회 이상, 회차마다 `uptime` load).
 - 측정 절차: 특성 시험 `TermMngSearchCharacterizationTest`(`src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dma/termMng/`)의 시나리오(키워드·시스템·상황 조건 조합)를 바탕으로 측정용 시험을 둔다. 측정용 시험은 측정 때 임시로 만든다(커밋 여부는 조정 세션과 정한다).
   1. `spring.jpa.properties.hibernate.generate_statistics=true` 를 주고, 시나리오 직전 `Statistics s = entityManagerFactory.unwrap(SessionFactory.class).getStatistics(); s.clear();`
@@ -110,7 +110,7 @@ E·H 를 바꾼 측정 시험 값(헤더 확정이 전문 E개 모두에 영향�
   - 시간 지표: 실제 서비스 `search` 호출 구간을 `System.nanoTime()` 으로 재서 ms 로 남긴다. 기준·변경을 번갈아(A·B·A·B…) 3회 이상.
 - 참고(커밋 본문 기록, 정식 측정 전): 로컬 DB(8,152행) 기준 `코일` 키워드 1차 거름 후보 22행, `coil` 후보 249행(0ec7a57b). 변경 전 읽는 행 수는 `findAll()` 이므로 전체 행(코드 확인), → 아래 결정적 지표 표.
 - 동작 보존 한계: DB 1차 거름은 SQLite 로만 확인했다. Oracle·PostgreSQL 에서의 후보 행 수·응답 시간은 운영 DB 에서 따로 재야 한다.
-- 기준 커밋: refactor-2026-10-base / 변경 커밋: 0ec7a57b·64bcf6cc
+- 기준 커밋: refactor-2026-10-base / 변경 커밋: 0ec7a57b·64bcf6cc (본 측정의 변경 쪽 923aa9a0 은 `%null%` 조건을 걷기 전 코드다. 90e507e5 는 OR 조건만 걷으므로 1차 거름 후보 행 수는 같거나 적다. 이 표의 수치는 다시 재지 않았다)
 - 측정 환경: 단독 — 조정 세션이 다른 레인을 멈춘 상태에서 `heavy.sh --exclusive` 한 번 안에서 `run-measure.sh ab all 3 --exclusive`(기준·변경 교대) 로 쟀다. 기준 `b557ccbd`(= 태그 `refactor-2026-10-base`)·변경 `923aa9a0`(둘 다 detached 측정 워크트리), MacBook Air M5(팬 없음, 16GB), JDK 21.0.12.1, SQLite 임시 파일 DB, 도커 없음. 측정 창 전체 2026-10-04 12:33:33~12:56:20 KST, 전 실행 gradle 종료 코드 0, PC 1분 load 1.8~3.4. 전원 연결 여부는 기록하지 않았다. P3 는 2026-10-04 12:34:57~12:35:50(기준·변경 교대 3회). 데이터는 로컬 MDM DB 사본(용어 8,152행, EMBEDDING 4,096바이트 포함, sha1 `a76fd40a…` 은 결과 파일 머리에 기록).
 - 근거 파일: `results/20261004-123457-base-P3.txt`·`123508-dev`·`123515-base`·`123526-dev`·`123533-base`·`123544-dev`(`20261004-` 접두, `-P3.txt`).
 
