@@ -130,6 +130,7 @@ MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절
 - **근거**: `useUserButtonRbac` 인스턴스마다 `/api/auth/me` 를 한 번씩 부른다(`use-user-button-rbac.ts:64-73`, 재로그인 감지 의도는 `:137-139`). 구독자는 `PageLayout.tsx:105`, resizable `ContentBody` 의 `ResizableBody`(`ContentBody.tsx:171`), 화면 루트, 팝업이다. columnMng 은 구독자 5개로 진입 때 auth/me 6건이다(검증 §3.2, §5.2 C6).
 - **어기면**: 요청 수가 구독자 수만큼 는다. 동시에 나가므로 벽시계는 1왕복(조회 단추가 RBAC 로딩 동안 ≈70ms 비활성)이지만 서버 부하와 진입 사슬이 는다.
 - 사용자 확인을 한 번만 하고 공유하는 근본 수정은 §3 K3 에서 고쳤다(75e84a2b). 사용자 ID 가 필요하면 `getCurrentUser()`(비동기)·`peekCurrentUser()`(동기, 받아 둔 값만)·`useCurrentUserId()`(훅) 를 쓴다(`@dk-oasis/shared/portal-shell`). 권한 판정에는 여전히 `useUserButtonRbac` 를 화면 루트 한 곳에서 쓴다.
+  - 적용 사례(F3, 커밋 b3383077): 사용자 ID 만 쓰던 `DashboardBoard`·`dashboard/layout`·메모·단위 계산기 위젯의 `useUserButtonRbac` 구독을 `useCurrentUserState(enabled)`(ID 와 확인 진행 여부만, `portal-shell/use-current-user-id.ts`)로 바꿨다. 권한 목록이 바뀌어도 이 컴포넌트는 다시 그려지지 않고(시험 `current-user-state.unit.test.ts`), `layoutKey` 가 없으면 사용자 확인도 요청하지 않는다.
 
 ### R10. 숨은 탭에 있는 것은 자기 탭이 보일 때만 다시 읽는다 — 확정(규모 작음)
 
@@ -388,8 +389,8 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 | # | 대상 | 문제 | 방향 |
 |---|---|---|---|
 | F1 | `ColumnMngService.java:136-144` | 조건 없는 상한 조회에서도 ID·논리명을 전부 읽어 Java 로 정렬한 뒤 1,000건을 고른다. TTFB 107~136ms 로 예산 초과(termMng 46ms) | 정렬 키 인덱스·DB 정렬로 앞쪽만 읽기(방언 콜레이션 차이 감수 여부 결정 필요) |
-| F2 | `TermMngService.java:227` | 저장마다 `search(new TermSearchRequest())` 로 상한 없는 전체 목록(≈8천 건·≈3MB)을 재구성해 돌려준다 | 저장 응답은 저장한 행·경고만, 목록은 화면이 현재 조건(상한 포함)으로 재조회 |
-| F3 | `shared/src/components/dashboard/DashboardBoard.tsx:148`, `dashboard/layout.tsx:165`, `m-mcm/widget-types/memo/memo-user.ts:24`, `unit-converter/unit-user.ts:18` | 사용자 ID 만 쓰려고 `useUserButtonRbac` 를 구독한다(K4 형태) | `useCurrentUserId()` 로 바꾼다. 요청은 이미 캐시라 늘지 않고, RBAC 인스턴스 상태만 준다. 위젯 수정(`perf/fix-widget`)에서도 손대지 않았다(그대로, memo·unit-converter 는 기본 배치 밖) |
+| F2 | `TermMngService.java:227` | 저장마다 `search(new TermSearchRequest())` 로 상한 없는 전체 목록(≈8천 건·≈3MB)을 재구성해 돌려준다 | 저장 응답은 저장한 행·경고만, 목록은 화면이 현재 조건(상한 포함)으로 재조회 **완료(커밋 eab62a1c, 시험 b2d107b5)**: 저장 응답에서 `list` 를 뺐다(화면은 이미 저장 뒤 현재 모드로 재조회, 다른 호출자 없음). 적용 사례는 R1 의 noticeMgmt 와 같은 방식 |
+| F3 | `shared/src/components/dashboard/DashboardBoard.tsx:148`, `dashboard/layout.tsx:165`, `m-mcm/widget-types/memo/memo-user.ts:24`, `unit-converter/unit-user.ts:18` | 사용자 ID 만 쓰려고 `useUserButtonRbac` 를 구독한다(K4 형태) | `useCurrentUserId()` 로 바꾼다. 요청은 이미 캐시라 늘지 않고, RBAC 인스턴스 상태만 준다. 위젯 수정(`perf/fix-widget`)에서도 손대지 않았다(그대로, memo·unit-converter 는 기본 배치 밖) **완료(커밋 b3383077, 시험 311851ce)**: `useCurrentUserState` 로 교체(R9 적용 사례) |
 | ~~W5·W6~~ | `widget-types/media/renderer.tsx`(슬라이드), `shared/src/widget/WidgetFrame.tsx` `refreshSec` effect | **완료**(커밋 `ca8cce09·a831daa0`). 숨은 위젯 타이머 정지, 보일 때 밀린 1회만 | 결과는 R14 적용 사례. audit `P-R14` 는 `WidgetFrame` 에 정보 1건 남음(예외 목록) |
 | W7 | `WidgetFrame.tsx:223-231` | props 객체가 매 렌더 새로 만들어진다(무해) | 조치 없음. 본체를 `memo` 화할 때 같이 본다 |
 | ~~F4~~ | columnMng·termMng 상세 폼 | **완료**(커밋 `a416187b·02e36638·0b9ef24b`). 입력 한 글자마다 화면 루트 렌더, termMng 은 추천 그리드 셀 연쇄(R12 위반)였다 | 상세 폼 컴포넌트 분리, `recoColumns` 를 `form` 에서 떼기. 결과는 R12 적용 사례 |
