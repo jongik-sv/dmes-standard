@@ -5,9 +5,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-/** {@code TB_MDM_COLUMN} JPA Repository(TSK-04-01 design.md §2, D3 — 조립·분기 로직 없음, 선언만). */
-public interface MdmColumnRepository extends JpaRepository<MdmColumn, Long> {
+/**
+ * {@code TB_MDM_COLUMN} JPA Repository(TSK-04-01 design.md §2, D3 — 조립·분기 로직 없음, 선언만).
+ *
+ * <p>{@link JpaSpecificationExecutor} 는 컬럼 검색의 DB 1차 거르기(ColumnSearchPrefilter)가 쓴다.
+ */
+public interface MdmColumnRepository extends JpaRepository<MdmColumn, Long>, JpaSpecificationExecutor<MdmColumn> {
 
     /** TSK-04-04 — 논리명 유일성 검사(MDM019). */
     Optional<MdmColumn> findByColumnName(String columnName);

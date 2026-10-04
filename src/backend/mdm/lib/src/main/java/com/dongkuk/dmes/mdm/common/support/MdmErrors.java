@@ -15,9 +15,11 @@ import java.util.List;
  * <p>OASIS 경로는 HTTP 200 + {@code meta.code} 로 오류를 돌려주므로 의미 상태(예: MDM001 409)는 첫 detail 의
  * code 로 표현한다. 화면은 {@code errors[].code} 로 원인을 가린다. 검사 이슈는 뒤이은 detail 로 싣는다.
  *
- * <p>단, BPMN serviceTask 안에서 던진 예외는 OASIS 가 {@code meta.message}(= 예외 message)만 화면에 싣고
- * {@code errors[]} 를 비운다(TSK-04-04 design.md F12). 그래서 message 는 항상 기본 문구로 <b>시작</b>하고 상세는
- * {@link #of(MdmErrorCode, String, List)} 로 {@code ": "} 뒤에 붙인다(TSK-04-04 I25).
+ * <p>BPMN serviceTask 안에서 던진 예외는 OASIS 가 SYSTEM_ERROR 로 바꾸고 {@code meta.message}(= 예외 message)를 싣는다
+ * (TSK-04-04 design.md F12). 예전에는 이때 {@code errors[]} 를 비웠으나, cactus 의 d3366172(2026-10-04)부터
+ * {@code CactusResponseConverter} 가 원인 사슬의 {@link BusinessException} 이 가진 행 단위 상세를 {@code errors[]} 로
+ * 싣는다({@code meta} 는 그대로). 그래도 message 는 항상 기본 문구로 <b>시작</b>하고 상세는
+ * {@link #of(MdmErrorCode, String, List)} 로 {@code ": "} 뒤에 붙인다(TSK-04-04 I25) — 상세 없는 예외·옛 클라이언트도 같은 문구를 받는다.
  */
 public final class MdmErrors {
 
