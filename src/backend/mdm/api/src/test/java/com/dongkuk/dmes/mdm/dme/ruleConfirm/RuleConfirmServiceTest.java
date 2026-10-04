@@ -113,6 +113,41 @@ class RuleConfirmServiceTest extends AbstractMdmSharedDbTest {
         return r;
     }
 
+    @SuppressWarnings("unchecked")
+    @Test
+    void 조건_없는_조회에_limit_이_오면_룰_ID_앞쪽만_주고_전체_건수와_잘림을_알린다() {
+        RuleConfirmSearchRequest q = search(null);
+        q.setLimit(1);
+
+        Map<String, Object> result = service.search(q);
+
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.get("rows");
+        assertEquals(List.of(NEW), rows.stream().map(r -> r.get("maruRuleId")).toList());
+        assertEquals(2, result.get("totalCount"));
+        assertEquals(true, result.get("truncated"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void limit_이_없거나_조건이_있으면_상한_없이_전부_주고_limit_없는_응답_모양은_그대로다() {
+        RuleConfirmSearchRequest withKeyword = search("JDG");
+        withKeyword.setLimit(1);
+        RuleConfirmSearchRequest bigLimit = search("");
+        bigLimit.setLimit(1000);
+
+        Map<String, Object> noLimit = service.search(search(null));
+        Map<String, Object> keyword = service.search(withKeyword);
+        Map<String, Object> big = service.search(bigLimit);
+
+        assertEquals(2, ((List<?>) noLimit.get("rows")).size());
+        assertEquals(List.of("rows"), List.copyOf(noLimit.keySet()), "limit 을 안 보내면 응답 모양이 그대로다");
+        for (Map<String, Object> r : List.of(keyword, big)) {
+            assertEquals(2, ((List<?>) r.get("rows")).size());
+            assertEquals(2, r.get("totalCount"));
+            assertEquals(false, r.get("truncated"));
+        }
+    }
+
     private static RuleConfirmViewRequest view(String id, Integer ver) {
         RuleConfirmViewRequest r = new RuleConfirmViewRequest();
         r.setMaruRuleId(id);
