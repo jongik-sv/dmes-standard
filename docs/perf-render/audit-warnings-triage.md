@@ -128,3 +128,40 @@ audit 가 낸 화면 성능 경고를 진짜 위반과 오탐으로 가른 결�
 | 6 `&&` 조건부 렌더 P-R6 확장 | 반영 | `.length > 0 && (<AgDataGrid/>)` 를 잡되, 빈 상태 `<p>`(`.length === 0 && <p>`)가 형제로 있는 쌍만 본다. 빈 안내 없이 그리드만 `&&` 로 거는 것은 새 오탐이 많아(`DomainCheckList` 등 4곳) 넣지 않았다 |
 | 7 P-R14 잠재 위치 정보성 | 반영 | 예외 목록의 `level: info` 로 `WidgetFrame` 만 정보성 출력 |
 | 8 운영 행 수 확인 표시 | 미반영 | 운영 DB 행 수는 audit 가 얻을 수 없고, 손으로 적어 두면 낡는다. 애매 5건은 이 분류표와 조정자 확인으로 계속 관리한다 |
+
+## 2회차 수정 결과
+
+2026-10-05 dev `4345869c` 기준이다. 분류표 위반 27건과 판정을 바꾼 애매 건이 아래 커밋으로 해결됐다. 판정표 본문은 고치지 않았다.
+
+| 번호 | 대상 | 해결 | 커밋 |
+|---|---|---|---|
+| (1회차) | columnMng·termMng (P-R1) | 1회차에 해결 | `38e9a470`·`004bf672`·`0f3402ef`(병합 `eba58ab2`) |
+| 27 | noticeMgmt (P-R1b·P-R1) | 목록 본문 제외·첫 조회 상한 | `ad9d0a76`·`5cff7d25`·`cb5e4b38`(병합 `b140b670`) |
+| 14 | headerMng (P-R1) | 첫 조회 상한 | `9d743877`·`38a7ca50`(병합 `4345869c`) |
+| 15 | layoutConfirm (P-R1) | 첫 조회 상한 | 위와 같음 |
+| 16·17 | layoutMng (P-R1) | 첫 조회 상한, 헤더 고르기 팝업은 항목 제외 + 선택 때 단건 | 위와 같음, 경쟁 상태 수정 `355fa358` |
+| 23 | ruleConfirm (P-R1) | 첫 조회 상한 | `cbd208a3`·`9c227305` |
+| 25 | ruleSetConfirm (P-R1) | 첫 조회 상한 | 위와 같음 |
+| P-R6 19건 | 3항 그리드 언마운트 | 상시 마운트 + `emptyMessage` | `14231811`·`a72e2239`(병합 `5f862b97`) |
+| P-R6 `&&` 형태 | `ImpactPanel`·`ruleConfirm`·`ruleSetConfirm`·`ColumnPickModal`·`ValueTestCard` | 상시 마운트 | `ddd08bfb`·`ecceccee` |
+| 48 | 위젯 타이머 (P-R14) | 숨은 위젯 새로 고침·슬라이드 정지 | `ca8cce09`·`a831daa0`(병합 `f4a81001`) |
+| 부수 | columnMng 목록 `usageNote` 제거 | 목록 응답 슬림화 | `12b7ab5f`(병합 `f4a81001`) |
+
+애매 판정은 로컬 DB 를 읽기만 해 정했다. domainMng(`TB_MDM_DOMAIN` 171건)·codeMng(`TB_MDM_CODE` 17건)·dataMng(`TB_MDM_DATA` 18건)·codeItemEdit(코드 헤더 17건)은 업무 데이터처럼 늘지 않는 마스터 정의라 오탐으로 두었다. 마스터코드 2화면(m-mcm)은 로컬 3건·기준정보라 같은 판정이다. 운영 건수는 확인하지 못했다.
+
+### 남은 경고
+
+명령은 위와 같고 워크트리 루트에서 실행했다(1193개 파일). 성능 경고 5건, 정보 2건이다.
+
+| 구분 | 위치 | 판정 |
+|---|---|---|
+| P-R1 경고 | `m-mdm/pages/dmc/codeMng/page.tsx:173` | 마스터 정의, 오탐 유지(운영 건수 미확인) |
+| P-R1 경고 | `m-mdm/pages/dmd/dataMng/page.tsx:146` | 같음 |
+| P-R1 경고 | `m-mdm/pages/dma/domainMng/page.tsx:104` | 같음 |
+| P-R1 경고 | `m-mcm/page-components/cme/masterCodeMngList/page.tsx:124` | 같음(로컬 3건) |
+| P-R1 경고 | `m-mcm/page-components/cma/masterCodeMng/page.tsx:288` | 같음 |
+| P-R1 정보 | `m-mdm/pages/dmc/codeItemEdit/page.tsx:50` | 피커 검색 래퍼, 클라이언트 20건 상한 |
+| P-R14 정보 | `shared/src/widget/WidgetFrame.tsx:126` | 예외 목록의 정보성 위치, 표시 연동은 `refreshSec` 쪽에서 처리됨 |
+
+P-R6 경고는 0건이다. 이전 합계 37건 대비 P-R1 위반 7건·P-R1b 1건·P-R6 24건이 해소됐다.
+
