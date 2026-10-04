@@ -110,7 +110,7 @@ class MdmOasisActionVocabularyTest {
     }
 
     /**
-     * TSK-08-02 I23 — mcm {@code DataInitializer} 는 mdm lib 을 의존하지 않아 action 을 문자열로 적는다. PERM_ALL 의 allActions 에
+     * TSK-08-02 I23 — mcm 시드({@code CoreRbacSeeder}·{@code MdmMenuSeeder})는 mdm lib 을 의존하지 않아 action 을 문자열로 적는다. PERM_ALL 의 allActions 에
      * 없는 action 은 SYSADMIN 도 403 이고, PERM_MDM_EDIT 문자열이 계약과 어긋나면 역할 사용자가 403 이다. 단위 테스트가 없는
      * 모듈이라 소스 문자열을 읽어 mdm 계약·BPMN 과 대조한다.
      */
@@ -132,7 +132,7 @@ class MdmOasisActionVocabularyTest {
                 "dme BPMN 이 스캔되지 않았다: " + scanned);
         Set<String> missing = new LinkedHashSet<>(bpmnActions);
         missing.removeAll(allActions);
-        assertEquals(Set.of(), missing, "mcm DataInitializer allActions 에 없는 mdm BPMN action");
+        assertEquals(Set.of(), missing, "mcm CoreRbacSeeder allActions 에 없는 mdm BPMN action");
 
         String seederSource = Files.readString(MDM_MENU_SEEDER_SOURCE);
         java.util.regex.Matcher read = java.util.regex.Pattern.compile("String readActions = \"([^\"]*)\";").matcher(seederSource);
@@ -197,7 +197,7 @@ class MdmOasisActionVocabularyTest {
     /**
      * design.md B1 (i)-3 — BPMN 26개(`find src/main/resources/services -iname "*.bpmn"`, D-144 2단계 ruleSetConfirm·3단계 layoutConfirm·메타 캐시 metaFeed 포함) 중
      * metaFeed 를 뺀 화면 목록과 mcm
-     * {@code DataInitializer} 의 모든 {@code seedMdmObjectRbac(...)} 호출에서 뽑은 objectId 목록을 대조한다.
+     * {@code MdmMenuSeeder} 의 모든 {@code seedMdmObjectRbac(...)} 호출에서 뽑은 objectId 목록을 대조한다.
      * {@code mdmSample} 은 BPMN 없는 샘플 화면이라 예외로 둔다(원천이 원래 다르다).
      */
     @Test
@@ -263,7 +263,7 @@ class MdmOasisActionVocabularyTest {
     }
 
     /**
-     * mcm {@code DataInitializer} 의 {@code seedMdmObjectRbac(...)} 호출에서 objectId 를 모두 뽑는다(design.md B1 (i)-3,
+     * mcm {@code MdmMenuSeeder} 의 {@code seedMdmObjectRbac(...)} 호출에서 objectId 를 모두 뽑는다(design.md B1 (i)-3,
      * 세 모양). ① 리터럴 {@code seedMdmObjectRbac("codeConfirm", "dmc")} ② 배열 루프 {@code for (String objectId : new
      * String[]{"a","b"}) { ...; seedMdmObjectRbac(objectId, "dma"); }} ③ 2차원 배열 루프 {@code String[][] screens =
      * {{"a",...}, ...}; for (String[] screen : screens) { String objectId = screen[0]; ...; seedMdmObjectRbac(objectId,
