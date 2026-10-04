@@ -11,8 +11,8 @@
   - 기억 수가 512 를 넘으면 비운다.
   - 상태 검사·룰 조회·레코드 키 검사·입력 키 검사는 호출마다 그대로 한다.
   - `FlowKeys` 의 지연 목록은 판정마다 새 사본(`forRun`)에 담긴다.
-- 동작 보존 근거: `RuleSetPrepareCharacterizationTest` 9건이 바꾸기 전과 후 모두 통과한다. 이 시험은 반복 호출, 정의 변경, 파싱 실패, 가상 스레드 32개 동시 호출을 다룬다. `RuleSetPreparePlanCacheTest` 4건도 통과한다(상한·파싱 실패 비기억·사본 분리).
-  - 전체 시험: engine 1,620(건너뜀 1) · mdm lib 1,648 · api 1,613 통과, oasis-contract-check ERROR 0.
+- 동작 보존 근거: `RuleSetPrepareCharacterizationTest` 9건이 바꾸기 전과 후 모두 통과한다. 이 시험은 반복 호출, 정의 변경, 파싱 실패, 가상 스레드 32개 동시 호출을 다룬다. `RuleSetPreparePlanCacheTest` 5건도 통과한다(적중 시 같은 준비 객체(assertSame)·룰/세트 정의 교체 시 새 객체(assertNotSame)·상한·파싱 실패 비기억·사본 분리).
+  - 전체 시험: engine 1,621(건너뜀 1) · mdm lib 1,648 · api 1,613 통과, oasis-contract-check ERROR 0.
 
 ### 측정 방법 — 같은 JVM 안에서 기억 적중(A)·놓침(B)을 번갈아 잰다
 
