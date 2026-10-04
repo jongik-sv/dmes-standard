@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ContentBody, ContentPanel, PageLayout, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import {
   AgDataGrid,
+  GridLimitNotice,
   GridPanel,
   ROW_STATUS,
   getRowIdentifier,
@@ -25,6 +26,7 @@ import {
   DEFECT_TYPE_LABELS,
   DEFECT_TYPE_OPTIONS,
   EMPTY_FILTERS,
+  FIRST_SEARCH_LIMIT,
   USE_YN_LABELS,
   type DefectCodeFilters,
   type DefectCodeRow,
@@ -71,6 +73,7 @@ export default function DefectCodeMngPage() {
   const { showMessage } = useMessage();
   const [filters, setFilters] = useState<DefectCodeFilters>(EMPTY_FILTERS);
   const [isBusy, setIsBusy] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
 
   // 엑셀 머리글은 그리드에 보이는 캡션과 같게(header 를 생략한 열은 MDM 캡션) — mdm-meta 문서 참고.
   const excelColumns = useResolvedGridColumns(COLUMNS);
@@ -87,16 +90,22 @@ export default function DefectCodeMngPage() {
   });
   const { setRows, saveError, dismissSaveError } = grid;
 
-  const runSearch = useCallback(async () => {
-    setIsBusy(true);
-    try {
-      setRows(await searchDefectCodes(filters));
-    } catch (e) {
-      showMessage({ title: "오류", message: errorText(e), alertType: "error" });
-    } finally {
-      setIsBusy(false);
-    }
-  }, [filters, setRows, showMessage]);
+  /** all=true 는 [전체 보기]: 상한 없이 다시 받는다(화면 성능 가이드 R1). */
+  const runSearch = useCallback(
+    async (all = false) => {
+      setIsBusy(true);
+      try {
+        const result = await searchDefectCodes(filters, all ? undefined : FIRST_SEARCH_LIMIT);
+        setRows(result.rows);
+        setTotalCount(result.totalCount);
+      } catch (e) {
+        showMessage({ title: "오류", message: errorText(e), alertType: "error" });
+      } finally {
+        setIsBusy(false);
+      }
+    },
+    [filters, setRows, showMessage],
+  );
 
   /** 저장하지 않은 변경이 있으면 조회 전에 확인한다. */
   const handleSearch = useCallback(() => {
@@ -197,6 +206,14 @@ export default function DefectCodeMngPage() {
           <GridPanel
             title="불량코드 목록"
             count={visibleCount}
+            titleExtra={
+              <GridLimitNotice
+                shownCount={grid.rows.length}
+                totalCount={totalCount}
+                onShowAll={() => void runSearch(true)}
+                disabled={isBusy}
+              />
+            }
             showAddButton
             buttons={[
               { id: "btn_grid_delete", label: "행삭제", onClick: confirmDeleteRow, disabled: grid.selectedRowKey == null },

@@ -16,6 +16,7 @@ description: Mantine 9(@mantine/core · dates · hooks · modals · notification
 | 작업 | 진행 |
 |---|---|
 | DMES 화면(`m-*`) 새로 만들기·고치기 | [screen-patterns.md](references/screen-patterns.md) 에서 화면 유형을 고르고 `references/examples/` 예제를 복사한다 → 요소별 세부는 [components/llms.txt](references/components/llms.txt) 색인 → §3 |
+| 새 화면·상세 폼·목록 조회를 만들거나 고침 | 성능 규칙을 먼저 읽는다: [화면 성능 가이드](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) 의 「새 화면 만들 때 하지 말 것」 표 → [screen-patterns.md](references/screen-patterns.md) §성능 기본 구조(첫 조회 상한·상세 폼 분리·안정 참조 열 정의) → §4 검증의 성능 점검 |
 | 특정 shared 컴포넌트 사용법 | `U get <이름>` (예: `U get AgDataGrid`) |
 | Mantine 컴포넌트를 화면에 쓰고 싶음 | [mantine-catalog.md](references/mantine-catalog.md) 에서 대응 래퍼를 찾는다. 래퍼가 없으면 shared 에 새 래퍼를 등록한다(아래 행) |
 | 화면에 쓸 새 UI 부품(입력 칸·편집기·표시 부품·도구 막대)을 만들어야 함 | 화면 폴더에 만들지 않는다. Part B §18 절차로 shared 에 등록하고 이 스킬에 컴포넌트 문서를 더한다 → §4 검증(0번 포함) |
@@ -88,6 +89,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 0. shared 에 새 컴포넌트를 등록했다면 `references/components/<이름>.md` 를 [tabs.md](references/components/tabs.md) 형식(import·소스·언제 쓰나·표준 사용·Props·흔한 실수)으로 쓰고, `scripts/ui_docs.py` 의 분류에도 넣는다. 「언제 쓰나」 에는 비슷한 기존 래퍼와 나눠 쓰는 기준을 적는다. 이 스킬의 문서·예제를 고쳤다면 `U check-examples`(예제 타입 검사 + audit)와 `U coverage`(shared export 누락, `llms.txt`·`llms-full.txt` 최신 여부)를 돌린다. 생성물은 `U index --write`·`U full --write` 로 갱신한다.
 1. `M audit <바꾼 파일·폴더>` 와 `A audit <…>` — 옛 API, deprecated 옵션(설치본 `.d.ts` 에서 자동 추출), 금지 import, 화면(`m-*`) CSS 의 색 값 직접 사용을 잡는다. **바꾼 파일만** 넘긴다(기존 CSS 에는 이미 색 값이 남아 있다). 의심 건은 문서로 확인하고, 오탐이면 이유를 보고에 적는다.
 2. 대상 패키지 lint·build (`pnpm -C src/frontend/<앱> lint`, `build`). shared 를 고쳤다면 shared 를 먼저 build 한다.
+2a. 화면을 새로 만들거나 상세 폼·목록 조회를 바꿨다면 [화면 성능 가이드](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) §7 점검표를 훑고 결과를 보고에 적는다(해당 없는 항목은 생략 가능). 점검표 항목 중 audit 가 잡는 것은 1번의 `A audit` 결과로 확인한다.
 3. 브라우저 확인은 사용자 승인 후에만 한다(`docs/guide/FrontEnd/Local-Rules.md` §4). ag-grid 기능이 조용히 동작하지 않으면 콘솔의 `AG Grid: error #…`(모듈 미등록)을 먼저 본다.
 
 보고에는 다음을 적는다: 사용한 컴포넌트·옵션과 근거(래퍼 파일, 문서 slug, `.d.ts`), 확인하지 못한 API, 사용자에게 올린 결정 사항, audit·lint·build 결과, 확인하지 않은 런타임·시각 동작.
@@ -96,6 +98,10 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 
 | 실수 | 바로잡기 |
 |---|---|
+| 조건 없는 전체 조회를 기본 조회로 둠(7천 건 이상 응답 3MB) | 첫 조회에 `limit`(`FIRST_SEARCH_LIMIT`)을 보내고 잘리면 `GridPanel titleExtra` 에 `GridLimitNotice` + [전체 보기] — [가이드 R1](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
+| 상세 폼 state 를 화면 루트에 둠(한 글자마다 루트·그리드 전체 재렌더) | 상세 폼을 별도 컴포넌트로 분리하고 루트는 `ref` 핸들(`load`·`getForm`)로 대화 — screen-patterns.md §성능 기본 구조, 가이드 R12 |
+| 그리드 `columns` 를 `useMemo(..., [form])` 처럼 폼 객체에 의존시킴 | 모듈 상수 또는 안정값(불리언·고정 콜백)만 deps 에 둔 `useMemo` |
+| `fetch("/api/auth/me")` 직접 호출, 하위·팝업마다 `useUserButtonRbac()` | `getCurrentUser()`·`useCurrentUserId()`, 권한 훅은 화면 루트 한 곳 — 가이드 R9 |
 | 화면에서 `import { Button, Group } from "@mantine/core"` | `@dk-oasis/shared/form` · `layout` 래퍼 |
 | `PageLayout buttons` 에 `<Button>` JSX 를 넣음 | `PageButton` 객체 배열(`{ id, label, onClick, type, action }`) — [screen-patterns.md](references/screen-patterns.md) §상단 버튼 |
 | 메시지를 `useGfnMessage`·`ErrorModal`·`alert` 로 제각각 띄움 | `useMessage().showMessage` + screen-patterns.md §메시지 문구 표 |

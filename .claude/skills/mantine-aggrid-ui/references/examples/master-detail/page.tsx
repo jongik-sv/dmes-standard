@@ -7,13 +7,14 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { ContentBody, ContentPanel, PageLayout, SearchArea, SearchField } from "@dk-oasis/shared/layout";
-import { AgDataGrid, GridBadge, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GridBadge, GridLimitNotice, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { DatePicker } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { searchOpers, searchWorkOrders } from "./api";
 import { RegisterModal } from "./RegisterModal";
 import {
+  FIRST_SEARCH_LIMIT,
   WO_STATUS_LABELS,
   WO_STATUS_OPTIONS,
   emptyFilters,
@@ -32,6 +33,7 @@ const STATUS_BADGE: Record<string, { bg?: string; color?: string; muted?: boolea
   HOLD: { bg: "var(--color-warning-soft)", color: "var(--color-warning)" },
 };
 
+/** 열 정의는 모듈 상수: 렌더마다 새 참조를 만들지 않는다(화면 성능 가이드 R12). */
 const MASTER_COLUMNS: GridColumn[] = [
   { key: "woNo", header: "작업지시번호", width: 120, align: "left" },
   { key: "itemCd", header: "품번", width: 120, align: "left" },
@@ -71,24 +73,31 @@ export default function WorkOrderMngPage() {
   const { showMessage } = useMessage();
   const [filters, setFilters] = useState<WorkOrderFilters>(emptyFilters);
   const [orders, setOrders] = useState<WorkOrderRow[]>([]);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [opers, setOpers] = useState<WorkOrderOperRow[]>([]);
   const [selectedWoNo, setSelectedWoNo] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [isDetailBusy, setIsDetailBusy] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
 
-  const handleSearch = useCallback(async () => {
-    setIsBusy(true);
-    try {
-      setOrders(await searchWorkOrders(filters));
-      setSelectedWoNo("");
-      setOpers([]);
-    } catch (e) {
-      showMessage({ title: "오류", message: errorText(e), alertType: "error" });
-    } finally {
-      setIsBusy(false);
-    }
-  }, [filters, showMessage]);
+  /** all=true 는 [전체 보기]: 상한 없이 다시 받는다(화면 성능 가이드 R1). */
+  const handleSearch = useCallback(
+    async (all = false) => {
+      setIsBusy(true);
+      try {
+        const result = await searchWorkOrders(filters, all ? undefined : FIRST_SEARCH_LIMIT);
+        setOrders(result.rows);
+        setTotalCount(result.totalCount);
+        setSelectedWoNo("");
+        setOpers([]);
+      } catch (e) {
+        showMessage({ title: "오류", message: errorText(e), alertType: "error" });
+      } finally {
+        setIsBusy(false);
+      }
+    },
+    [filters, showMessage],
+  );
 
   useEffect(() => {
     void handleSearch();
@@ -139,14 +148,25 @@ export default function WorkOrderMngPage() {
 
       <ContentBody root direction="column" resizable storageKey="mpp.pwo.workOrderMng">
         <ContentPanel>
-          <GridPanel title="작업지시 목록" count={orders.length}>
+          <GridPanel
+            title="작업지시 목록"
+            count={orders.length}
+            titleExtra={
+              <GridLimitNotice
+                shownCount={orders.length}
+                totalCount={totalCount}
+                onShowAll={() => void handleSearch(true)}
+                disabled={isBusy}
+              />
+            }
+          >
             <AgDataGrid
               rowKey="woNo"
               columns={MASTER_COLUMNS}
               data={orders}
               columnSizing="fit"
               highlightedRowKey={selectedWoNo}
-              onRowClick={(row) => void handleMasterClick(row)}
+              onRowClick={handleMasterClick}
               loading={isBusy}
             />
           </GridPanel>

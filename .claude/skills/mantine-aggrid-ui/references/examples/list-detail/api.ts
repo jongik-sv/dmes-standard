@@ -4,12 +4,13 @@
  */
 import { apiRequest } from "@dk-oasis/shared/http";
 
-import type { EquipFilters, EquipForm, EquipRow } from "./types";
+import type { EquipFilters, EquipForm, EquipRow, EquipSearchResult } from "./types";
 
 const OASIS_BASE = "/api/mpp/oasis/equipMng";
 
 interface CactusEnvelope {
   meta?: { success?: boolean; message?: string };
+  params?: { totalCount?: number };
   grids?: Record<string, { rows?: unknown[] }>;
 }
 
@@ -26,9 +27,11 @@ async function callAction(
   return env;
 }
 
-export async function searchEquips(filters: EquipFilters): Promise<EquipRow[]> {
-  const env = await callAction("search", { ...filters });
-  return (env.grids?.master?.rows ?? []) as EquipRow[];
+/** `limit` 을 주면 서버가 앞쪽 limit 건만 돌려주고 `totalCount` 에 전체 건수를 싣는다. 비우면 전체([전체 보기]). */
+export async function searchEquips(filters: EquipFilters, limit?: number): Promise<EquipSearchResult> {
+  const env = await callAction("search", { ...filters, ...(limit != null ? { limit } : {}) });
+  const rows = (env.grids?.master?.rows ?? []) as EquipRow[];
+  return { rows, totalCount: env.params?.totalCount ?? rows.length };
 }
 
 export async function saveEquip(form: EquipForm, isNew: boolean): Promise<void> {

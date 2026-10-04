@@ -121,5 +121,7 @@ Build 는 design.md `## 구현 단위` 표의 단위(B1~Bn)마다 새 서브에�
 
 - 화면 작업(spec 에 `entry-point` 가 있거나 domain 이 `fullstack`·`frontend`)이면 마지막 단위와 화면 파일을 맡은 단위가
   `references/e2e.md` 를 읽는다 — E2E 시험·스크린샷·서버 띄우기.
+- 화면 구현이 `src/frontend` 의 `m-*` 화면이면 구현 전에 `.claude/skills/mantine-aggrid-ui/references/screen-patterns.md` 의
+  「성능 기본 구조」(첫 조회 상한·상세 폼 분리·안정 참조 열 정의)를 따른다. 점검표는 `docs/guide/FrontEnd/Screen-Performance-Guide.md` §7.
 - Flyway 처럼 파일명이 곧 버전인 마이그레이션 파일을 만들면 먼저 dev-discipline.md 「마이그레이션 버전(Flyway 등 파일명이 곧
   버전인 경우)」 절을 읽는다.

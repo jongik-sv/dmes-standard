@@ -13,6 +13,7 @@ const OASIS_BASE = "/api/mqc/oasis/defectCodeMng";
 interface CactusEnvelope {
   meta?: { success?: boolean; message?: string };
   data?: Record<string, unknown>;
+  params?: { totalCount?: number };
   grids?: Record<string, { rows?: unknown[] }>;
 }
 
@@ -29,9 +30,18 @@ async function callAction(
   return env;
 }
 
-export async function searchDefectCodes(filters: DefectCodeFilters): Promise<DefectCodeRow[]> {
-  const env = await callAction("search", { defectType: filters.defectType, keyword: filters.keyword });
-  return (env.grids?.master?.rows ?? []) as DefectCodeRow[];
+/** `limit` 을 주면 서버가 앞쪽 limit 건만 돌려주고 `totalCount` 에 전체 건수를 싣는다. 비우면 전체([전체 보기]). */
+export async function searchDefectCodes(
+  filters: DefectCodeFilters,
+  limit?: number,
+): Promise<{ rows: DefectCodeRow[]; totalCount: number }> {
+  const env = await callAction("search", {
+    defectType: filters.defectType,
+    keyword: filters.keyword,
+    ...(limit != null ? { limit } : {}),
+  });
+  const rows = (env.grids?.master?.rows ?? []) as DefectCodeRow[];
+  return { rows, totalCount: env.params?.totalCount ?? rows.length };
 }
 
 /** SavePayload(inserted/updated/deleted) → BE 행 상태(C/U/D) 변환은 api.ts 에서 한다(Part B §6). */
