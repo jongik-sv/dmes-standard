@@ -1,0 +1,186 @@
+# MDM 화면 렌더링 시간 측정 하네스
+
+## 용도
+`docs/perf-render/mdm-findings.md` 의 **1차 스캔** 수치를 잰다. 출발점은 `docs/idea.md` 111~115 절
+(「리팩토링 후속 → 화면 렌더링 시간 측정」)이다.
+
+이번 리팩토링 측정은 서버 쿼리 수·처리량·빌드 시간 위주였고, 사용자가 실제로 느끼는
+**메뉴 클릭 → 그리드 첫 행 표시** 시간을 아직 재지 않았다. 이 하네스가 그 빈틈을 메운다.
+
+`scripts/perf/frontend/` 는 **m-mdm 빌드 시간** 하네스다(P2). 화면 렌더링 측정은 없다.
+여기서는 그 하네스의 방법론(ABBA·load 기록·`keep` 열·저장소 밖 결과)만 빌려 썼다.
+
+| 파일 | 역할 |
+|---|---|
+| `screens.mjs` | 측정 대상 화면 정의(메뉴 경로·breadcrumb·조회 URL 패턴). **환경 의존 값은 여기 없다** |
+| `measure-screens.mjs` | 측정 본체. Playwright + CDP. login → 메뉴 이동 → 지표 수집 |
+| `summarize.mjs` | `results.json` → 중앙값 요약(마크다운 또는 `--json`) |
+| `run-measure.sh` | 실행기. 사전 확인 + `heavy.sh` 독점 슬롯 |
+| `react-profiler-instrument.example.tsx` | React `<Profiler>` 임시 계측 예제. **제품 코드에 넣지 않는다** |
+
+## 측정 창 규칙 (중요)
+- **조정 세션이 「측정 시작」을 보내기 전에는 이 하네스를 돌리지 않는다.** 시간 잰 값은
+  다른 무거운 작업이 멈춘 상태에서만 신뢰할 수 있다.
+- `run-measure.sh` 는 기본값으로 `heavy.sh --exclusive` 로 감싼다. 슬롯을 90초 안에 못 얻으면
+  `HEAVY_BUSY`(exit 75)로 끝난다 — 실패가 아니니 **같은 명령을 다시 부른다**.
+- 무거운 명령은 저장소의 `.claude/skills/dflow-dev/scripts/heavy.sh` 를 거친다.
+
+## 준비물
+- macOS, node, git. **JVM·gradle 은 쓰지 않는다.**
+- playwright 모듈이 보이는 곳에서 실행한다(저장소 안에서 돌리면 `src/frontend/node_modules` 가 보인다).
+  다른 위치라면 `PLAYWRIGHT_PATH` 로 경로를 준다.
+- **측정 대상 서버가 따로 있어야 한다.** 이 하네스는 서버를 **띄우지 않는다**(아래 §사용법 1~2단계).
+- 측정 워크트리에 `pnpm install` 이 되어 있고, `shared` 가 빌드돼 있어야 한다
+  (`next build` 로 프로덕션 번들을 만든다 — 1차 스캔 전에 1회, 무거운 일이므로 측정 창 안에서).
+
+## 환경 변수
+| 이름 | 기본값 | 뜻 |
+|---|---|---|
+| `PERF_REPO` | `git rev-parse --show-toplevel` | 저장소 경로 |
+| `PERF_OUT` | `${TMPDIR:-/tmp}/dmes-perf/render` | 결과 폴더. **저장소 밖**(원자료 trace 도 여기) |
+| `RENDER_BASE_URL` | `http://localhost:5300` | 측정 대상 포털. 5100(dev) 을 쓰면 안 된다 |
+| `RENDER_LOGIN_USER` | `admin` | 로그인 아이디 |
+| `RENDER_LOGIN_PASSWORD` | `admin123` | 로그인 비밀번호 |
+| `RENDER_ROUNDS` | `3` | 화면당 반복 횟수 |
+| `RENDER_TAB_STATE` | `cold` | `cold`(처음 마운트) 또는 `warm`(숨어 있던 탭을 다시 보기). **1차는 `cold` 만**(지시 2-2) |
+| `RENDER_SCREENS` | 전부 | comma 로 id 지정(`termMng,columnMng`). `--list` 로 목록 |
+| `RENDER_TIMEOUT_MS` | `60000` | 요소 대기 상한. 첫 진입은 지연 로딩 청크 때문에 길다 |
+| `LOAD_LIMIT` | `5` | 직전 load(1분)가 이 값을 넘으면 그 회차를 버린다(`keep=0`) |
+| `RENDER_TRACE` | `0` | `1` 이면 CDP trace json 을 `$PERF_OUT/trace/` 에 쓴다. **크므로 기본 끔** |
+| `RENDER_KEEP_OPEN` | `0` | `1` 이면 브라우저를 끝까지 열어 둔다(디버깅 전용) |
+| `RENDER_NO_EXCLUSIVE` | `0` | `1` 이면 `heavy.sh` 독점을 건너뛴다. 신뢰도 낮음 |
+| `HEAVY_SH` | `$PERF_REPO/.claude/skills/dflow-dev/scripts/heavy.sh` | 줄 세우기 경로 |
+| `PLAYWRIGHT_PATH` | (비움) | playwright 모듈이 있는 폴더. 비우면 기본 탐색 |
+
+## 사용법
+0. **기준 브랜치 갱신** (지시 2-4). 1차는 dev 만 잰다. 측정 직전에 dev 최신을 합친다.
+   ```
+   /usr/bin/git -C <측정 워크트리> merge dev
+   ```
+1. **`pnpm install` 과 `shared` 빌드** — 무거우므로 `heavy.sh` 를 거친다(지시 2-4).
+   ```
+   cd <측정 워크트리>/src/frontend
+   <저장소>/.claude/skills/dflow-dev/scripts/heavy.sh -- pnpm install --frozen-lockfile
+   <저장소>/.claude/skills/dflow-dev/scripts/heavy.sh -- pnpm --filter @dk-oasis/shared build
+   ```
+   `shared` 를 먼저 빌드해야 한다 — 번들에 shared 가 들어가기 때문이다.
+2. **`.env` 사본을 준비한다** (지시 2-4). 메인 체크아웃의 `src/frontend/m-mcm/.env` 을 **워크트리로 복사**하고,
+   사본에서 `NEXTAUTH_URL` **만** `http://localhost:5300` 으로 바꾼다. **메인 쪽 `.env` 는 고치지 않는다.**
+   ```
+   cp <메인 저장소>/src/frontend/m-mcm/.env <측정 워크트리>/src/frontend/m-mcm/.env
+   # 사본에서 이 한 줄만 바꾼다
+   #   NEXTAUTH_URL="http://localhost:5100"  →  NEXTAUTH_URL="http://localhost:5300"
+   ```
+   - `.env` 는 `.env*` 규칙으로 git 무시된다(`m-mcm/.gitignore:34`). **커밋되지 않는다.**
+   - ★`OIDC_ISSUER` 는 **5300 으로 바꾸지 않는다**(지시대로 `NEXTAUTH_URL` 만).
+     그래서 5300 주소로 인증을 요청하면서 서명 원본과 발급 대상 주소가 달라질 수 있다.
+     **인증이 막히면(OIDC_ISSUER 등) 우회하지 말고 멈추고 report.md 에 보고한다.**
+   - 로그인 쿠키는 **포트가 아니라 호스트(`localhost`) 단위**라 5300 로그인이 5100 의 세션 쿠키와
+     겹칠 수 있다. 그래서 **admin / admin123 만** 쓴다(지시 2-3). 비밀번호를 틀리면 계정이 잠긴다.
+3. **프로덕션 번들을 만든다** — 무거우므로 `heavy.sh` 를 거친다.
+   ```
+   cd <측정 워크트리>/src/frontend/m-mcm
+   LIB_DEV_FORCE_BUILD=1 <저장소>/.claude/skills/dflow-dev/scripts/heavy.sh -- pnpm build
+   ```
+4. **5300 미리보기 서버를 띄운다.** 5100 dev 서버와 백엔드는 건드리지 않는다.
+   ```
+   cd <측정 워크트리>/src/frontend/m-mcm
+   pnpm start -- --port 5300      # next start
+   ```
+   - 수치는 **프로덕션 빌드 기준**이다. dev(Turbopack) 은 "왜 다시 그려지나" 를 볼 때만 쓴다.
+   - **작업이 끝나면 5300 서버는 반드시 내린다**(지시 2-4).
+   - 끝난 뒤 **5100 에서 admin 로그인이 여전히 되는지 한 번 확인한다**(쿠키 겹침 확인, 지시 2-4).
+5. **조정 세션에 「측정 시작」을 알린 뒤** 돌린다.
+   ```
+   bash scripts/perf/render/run-measure.sh 3
+   # 특정 화면만:
+   RENDER_SCREENS=termMng,columnMng bash scripts/perf/render/run-measure.sh 5
+   # 요약만 다시:
+   node scripts/perf/render/summarize.mjs
+   ```
+   - 1차 스캔은 **`cold` 만** 돌린다(지시 2-2). `warm` 은 2차에서 느린 Top 3 에 대해서만이다.
+   - `RENDER_TAB_STATE=warm` 은 구현되어 있으니 2차에서 그대로 쓴다.
+
+## 대상 화면과 지표
+1차 스캔 후보는 `docs/idea.md:114` 에서 왔다. 우선순위 순으로 5개다.
+
+| 순 | id | 화면 | 메뉴 경로 |
+|---|---|---|---|
+| 1 | `termMng` | 용어 관리 | 마루 MDM > 용어·도메인 > 용어 관리 |
+| 2 | `columnMng` | 컬럼 사전 | 마루 MDM > 용어·도메인 > 컬럼 사전 |
+| 3 | `layoutConfirm` | 전문 헤더 정의 | 마루 MDM > 레이아웃 > 전문 헤더 정의 |
+| 4 | `dataMng` | 마루 데이터 | 마루 MDM > 마스터데이터 > 마루 데이터 |
+| 5 | `codeMng` | 마루 코드 | 마루 MDM > 마스터코드 > 마루 코드 |
+
+화면당 지표(모두 중앙값으로 낸다):
+
+| 지표 | 뜻 | 순위 |
+|---|---|---|
+| `searchToRowMs` | [조회] 클릭 → 그리드 첫 행 표시 | **★본 지표★** (1건 이상인 화면) |
+| `searchResponseToEmptyMs` | 조회 응답 → 그리드 빈 상태 표시 | **★본 지표★** (0건인 화면) |
+| `shellReadyMs` | 메뉴 잎 클릭 → 화면 틀(breadcrumb) 표시 | 함께 낸다 |
+| `clickToRowMs` | 메뉴 잎 클릭 → 그리드 첫 행 표시 | 참고값만(조회 대기 시간이 섞인다) |
+| `searchToEmptyMs` | [조회] 클릭 → 빈 상태 표시 | 참고값 |
+
+**본 지표가 `searchToRowMs` 인 이유** (지시 2-1): 사용자가 실제로 기다리는 구간이기 때문이다.
+원 지표였던 `clickToRowMs` 는 MDM 목록 화면이 진입 시 자동 조회를 하지 않으므로
+(`e2e/support/mdm-e2e.ts:66-68`, 의도된 제품 변경 cf4fbb05 2026-10-02)
+**사람이 [조회] 단추를 누르기까지의 대기 시간이 섞인다.**
+
+**0건 화면 처리** (지시 2-1): 조회 결과가 0건이면 첫 행이 없으니 `searchToRowMs` 를 낼 수 없다.
+`searchResponseToEmptyMs`(조회 응답 → `.ag-overlay-no-rows-wrapper` 표시)로 대신 잰다.
+두 시계 축이 달라서(CDP 응답 시각은 epoch, DOM 표시 시각은 `performance.now()`)
+측정 시작점에서 축을 맞추는 장치가 코드에 있다. `summarize.mjs` 는 어느 지표를 썼는지
+`row_mode` 로 명시하고, 0건 화면에는 **다른 화면과 같은 선으로 비교하지 말 것** 이라고 경고를 낸다.
+| `longTaskCount` / `SumMs` / `MaxMs` | `PerformanceObserver` `longtask`(50ms 이상) |
+| `apiCount` / `apiTotalMs` / `apiSlowestMs` | `/api/` 호출 수·합계·가장 긴 것 |
+| `scriptMs` / `taskMs` | CDP `Performance` — 스크립트 실행, 총 태스크 시간 |
+| `layoutMs` / `layoutCount` | 강제 레이아웃 비용과 횟수 |
+| `recalcStyleMs` / `recalcStyleCount` | 스타일 재계산 비용과 횟수 |
+| `nodeDelta` / `heapDeltaMB` | DOM 노드·JS 힙 증감 |
+| `renderCommits` / `renderCommitMs` / `renderTopIds` | React `<Profiler>` 커밋 수·시간 합·상위 id |
+
+**1차 스캔은 `cold` 만** 돌린다(지시 2-2). `warm` 은 2차에서 **느린 Top 3 에 대해서만** 잰다.
+- `cold` — 화면마다 새 페이지. 탭이 처음 마운트된다. 사용자가 처음 여는 화면의 비용.
+- `warm` — 이미 열었던 탭을 다시 눌렀을 때. `use-portal-tabs.ts:190-196` 이 이미 있는 탭은
+  `setActiveTabId` 만 하고(재마운트 없음), `portal-shell.tsx:154` 가 `display` 로 숨김만 한다.
+  탭을 많이 열어 둔 상태에서는 **숨어 있는 화면들이 전부 살아 있다** — 이것이 warm 측정이 필요한 이유다.
+  1차에서 이 문제를 놓치지 않으려면, `cold` 결과가 나면 곧바로 Top 3 에 `warm` 을 돌린다.
+
+## 결과 형식
+`$PERF_OUT` 아래(저장소에는 넣지 않는다).
+- `results.json`: 회차별 원자료. 위 표의 모든 지표 + `load1`, `keep`, `rc`, `error`, `apiCalls`
+- `results.csv`: 없음(1차가 라운드 구조라 json 로 충분하다. 비교 단계에서 csv 로 옮긴다)
+- `env.txt`: 시작·끝 시각, base_url, 계정, 회차, tab_state, load_limit, 대상 화면, 전원 상태
+- `trace/*.json`: `RENDER_TRACE=1` 일 때만. CDP 이벤트 원본(수백 MB 될 수 있다)
+
+문서(`docs/perf-render/mdm-findings.md`)에는 **중앙값만** 옮긴다. 회차별 편차는 `results.json` 에 남는다.
+
+## 알려진 문제·주의
+- **계정은 `admin` / `admin123` 뿐이다** (지시 2-3). 2026-10-04 15:4x 통합 확인에서 이 계정으로
+  용어 관리 "코일" 22건, 컬럼 관리 7,858건, 데이터 18건, 코드 17건이 나왔다.
+  **다른 계정은 쓰지 않는다 — 비밀번호를 틀리면 계정이 잠기고 5회 실패 시 잠긴다.**
+  로그인 실패가 한 번이라도 나면 스크립트는 **재시도하지 않고** 즉시 끝난다. 그때 `report.md` 에 보고한다.
+- **데이터 규모가 화면마다 다르다.** 컬럼 관리는 7,858건, 용어·코드·데이터는 17~22건이다(위 통합 확인 기준).
+  `searchToRowMs` 는 **데이터 건수가 많을수록 자연스럽게 커진다.** 화면 간 절대값 비교는
+  「1건 렌더 비용 + 데이터 건수」가 섞인 값이라는 점을 기억하고 읽는다.
+  건수 대비 비용을 보려면 `searchToRowMs` 를 `row_mode`·건수와 함께 본다.
+- **0건 화면이 있으면** `searchToRowMs` 가 아니라 `searchResponseToEmptyMs` 가 나온다.
+  `summarize.mjs` 가 `row_mode=empty` 라고 명시하고 경고를 낸다. **삭제하지 않고 그대로 둔다.**
+- **MDM 목록 화면은 진입 시 자동 조회를 하지 않는다**(의도된 제품 변경, cf4fbb05 2026-10-02).
+  그래서 "메뉴 클릭 → 첫 행" 을 하나로 재면 조회 버튼 대기(사람이 누르는 시간)가 섞인다.
+  하네스는 `shellReadyMs` / `searchToRowMs` / `clickToRowMs` 를 **따로** 낸다. 해석은 그 순서로 한다.
+- **첫 진입은 지연 로딩 청크 때문에 느리다.** `warm` 예열 회차가 첫 진입 비용을 흡수한다.
+- **로컬 SQLite 데이터 규모**라 운영보다 차이가 작게 나올 수 있다(`docs/idea.md:115`).
+  이 한계는 결과 문서에 그대로 적는다 — 지표를 운영 성능으로 옮겨 적지 않는다.
+- **헤드리스 + 단일 브라우저 1개.** 첫 회차가 그 뒤 회차보다 느리다(OS 파일 캐시·JIT).
+  중앙값으로 줄인다. 3회 미만이면 `summarize.mjs` 가 경고를 낸다.
+- **React `<Profiler>` 계측은 1차 시간 측정에 넣지 않는다** (지시 2-5). 계측은 측정값을 바꾼다.
+  2차(Top 3 깊게 보기)에서만 켜고, **끝나면 되돌린 뒤 `git status` 가 깨끗한지 확인한다.**
+  이 워크트리에만, 커밋하지 않은 채로 심는다.
+  - 켜는 법: `react-profiler-instrument.example.tsx` 의 `withRenderProfiler(id, Page)` 로 감싼다.
+  - 계측이 없으면 `renderCommits` 계열만 비고 **나머지 지표는 정상 동작한다.**
+- 계측을 켜면 개발자 모드 이중 렌더가 커밋 수에 들어간다. 커밋 수는 production 번들 기준으로 읽는다.
+- **trace 는 저장소에 넣지 않는다.** 용량이 커서 리포를 오염시킨다.
+- 측정 중 다른 무거운 명령을 돌리지 않는다. 브라우저·서버는 측정 대상 외에는 건드리지 않는다.
+- **저장·확정·삭제 단추를 누르지 않는다**(공용 로컬 DB). 이 하네스는 [조회] 만 누른다.
