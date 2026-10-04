@@ -33,6 +33,8 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -86,6 +88,9 @@ public class TermMngService {
      * 키워드·상황 조건은 DB 에서 {@link TermSearchPrefilter} 로 먼저 줄이고(필요조건만), 아래 Java 비교가 최종 판정한다. 비교 순서
      * (키워드 → 시스템 → 상황)는 예전 그대로다. JSON 목록 해석은 {@link MdmJsonLists#readStrings} 를 따른다(D1·D2 수정 뒤 null
      * 리터럴은 빈 목록, 원소 null 은 버림). 행마다 JSON 칸은 한 번만 파싱한다.
+     *
+     * <p>조건이 하나도 없고 {@code limit} 이 오면 앞쪽 {@code limit} 건만 돌려주고 {@code totalCount}·{@code truncated} 로 알린다
+     * (화면 성능 가이드 R1).
      */
     public TermSearchResult search(TermSearchRequest request) {
         String keyword = trimToNull(request != null ? request.getKeyword() : null);
@@ -94,6 +99,13 @@ public class TermMngService {
         String contextFilter = trimToNull(request != null ? request.getContext() : null);
         String contextUpper = contextFilter == null ? null : contextFilter.toUpperCase(Locale.ROOT);
 
+        int limit = request == null || request.getLimit() == null ? 0 : request.getLimit();
+        if (keyword == null && systemsFilter == null && contextFilter == null && limit > 0) {
+            // 조건 없음 + 상한(R1) — 정렬이 TERM_ID 숫자 순이라 DB 가 앞쪽 limit 건만 읽고 전체 건수는 COUNT 로 센다.
+            Page<MdmTerm> page = termRepository.findAll(PageRequest.of(0, limit, TermSearchPrefilter.ORDER));
+            List<TermRow> rows = page.stream().map(ParsedTerm::of).map(TermMngService::toRow).toList();
+            return new TermSearchResult(rows, Math.toIntExact(page.getTotalElements()));
+        }
         Specification<MdmTerm> prefilter = TermSearchPrefilter.of(keywordUpper, contextUpper);
         List<TermRow> rows = termRepository.findAll(prefilter, TermSearchPrefilter.ORDER).stream()
                 .map(ParsedTerm::of)

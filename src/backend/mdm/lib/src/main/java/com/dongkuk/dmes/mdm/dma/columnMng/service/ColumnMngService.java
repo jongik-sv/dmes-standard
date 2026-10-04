@@ -110,6 +110,10 @@ public class ColumnMngService {
      * <p>조건이 있으면 {@link ColumnSearchPrefilter} 가 DB {@code LIKE} 로 후보 컬럼과 그 매핑만 먼저 읽고(필요조건만), 최종 판정은
      * 아래 Java 비교가 한다 — 방언별 대소문자 접기 차이와 {@code %}·{@code _} 를 글자 그대로 보는 규칙을 Java 가 지킨다. 도메인은 후보
      * 컬럼이 가리키는 것만, 용어는 남은 컬럼의 TERM_IDS 에 든 것만 IN 으로 읽는다. 정렬도 Java({@code String.compareTo})가 한다.
+     *
+     * <p>조건이 없고 {@code limit} 이 오면 앞쪽 {@code limit} 건만 돌려준다(화면 성능 가이드 R1). {@code limit} 이 오면 조건 유무와
+     * 상관없이 {@code totalCount}(조건에 맞는 전체 건수)와 {@code truncated}(목록이 잘렸는지)를 더 싣는다. {@code limit} 을 보내지
+     * 않는 기존 호출자의 응답은 그대로다({@code ColumnMngSearchCharacterizationTest}).
      */
     public Map<String, Object> search(ColumnMngSearchRequest request) {
         String keyword = request == null || request.getKeyword() == null ? "" : request.getKeyword().trim();
@@ -124,10 +128,26 @@ public class ColumnMngService {
             options.put("systems", systems());
             return options;
         }
+        int limit = request == null || request.getLimit() == null ? 0 : request.getLimit();
         List<MdmColumn> candidates;
         List<MdmColumnSystem> candidateMappings;
         Map<Long, MdmDomain> domainById;
-        if (needle.isEmpty() && domainNeedle.isEmpty()) {
+        Integer totalCount = null;
+        if (needle.isEmpty() && domainNeedle.isEmpty() && limit > 0) {
+            // 조건 없음 + 상한(R1) — ID·논리명만 전부 읽어 화면과 같은 순서(논리명→ID, Java 비교)로 앞쪽 limit 개를 고르고, 그 컬럼과
+            // 매핑·도메인만 IN 으로 읽는다. 전체 건수는 두 칸 목록의 크기다(COUNT 를 따로 하지 않는다).
+            List<Long> orderedIds = columnRepository.findAllIdAndName().stream()
+                    .sorted(Comparator.comparing((Object[] r) -> (String) r[1]).thenComparing(r -> (Long) r[0]))
+                    .map(r -> (Long) r[0])
+                    .toList();
+            totalCount = orderedIds.size();
+            List<Long> pageIds = orderedIds.subList(0, Math.min(limit, orderedIds.size()));
+            candidates = findAllInChunks(pageIds, columnRepository::findAllById);
+            candidateMappings = findAllInChunks(pageIds, columnSystemRepository::findByColumnIdIn);
+            domainById = findAllInChunks(candidates.stream().map(MdmColumn::getDomainId).toList(),
+                    domainRepository::findAllById).stream()
+                    .collect(Collectors.toMap(MdmDomain::getDomainId, Function.identity()));
+        } else if (needle.isEmpty() && domainNeedle.isEmpty()) {
             // 조건 없음 — 모든 컬럼이 나가므로 매핑·도메인도 전부 읽는다
             candidates = columnRepository.findAll();
             candidateMappings = columnSystemRepository.findAll();
@@ -167,6 +187,12 @@ public class ColumnMngService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("list", list);
         out.put("systems", systems());
+        if (limit > 0) {
+            // limit 을 보낸 호출자에게만 싣는다 — 보내지 않는 기존 호출자의 응답 모양(list·systems 두 키)은 그대로다
+            int total = totalCount != null ? totalCount : list.size();
+            out.put("totalCount", total);
+            out.put("truncated", list.size() < total);
+        }
         return out;
     }
 

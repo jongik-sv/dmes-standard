@@ -48,15 +48,20 @@ export function callOasis<T>(
   return callOasisAt<T>(MDM_OASIS_BASE, serviceId, action, params, grids, OASIS);
 }
 
-/** 도메인 조건은 도메인 ID·도메인명·표준명에 대소문자 무시 부분 일치하는 키워드다(서버 domainKeyword). 비면 전체. */
+/**
+ * 도메인 조건은 도메인 ID·도메인명·표준명에 대소문자 무시 부분 일치하는 키워드다(서버 domainKeyword). 비면 전체.
+ * `limit` 은 조건이 없을 때만 서버가 적용하는 행 수 상한이다(R1) — 주면 응답에 totalCount·truncated 가 온다. 비우면 상한 없음.
+ */
 export function searchColumns(
   keyword: string,
   domainKeyword: string,
+  limit?: number,
 ): Promise<SearchResult> {
   const dk = domainKeyword.trim();
   return callOasis<SearchResult>("columnMng", "search", {
     keyword,
     domainKeyword: dk === "" ? null : dk,
+    limit,
   });
 }
 

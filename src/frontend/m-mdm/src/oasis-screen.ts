@@ -13,6 +13,12 @@ import { labelsFrom, type OasisErrorFactory } from "@dk-oasis/shared/http";
 
 export const MDM_OASIS_BASE = "/api/mdm/oasis";
 
+/**
+ * 조건 없는 첫 조회의 행 수 상한(화면 성능 가이드 R1·§5 예산 ≤ 1,000건). 서버는 조건이 없을 때만 이 값으로 자르고
+ * `totalCount`·`truncated` 를 함께 준다. 화면은 잘리면 `GridLimitNotice` 와 [전체 보기](상한 없이 재조회)를 보인다.
+ */
+export const FIRST_SEARCH_LIMIT = 1000;
+
 export const plainError: OasisErrorFactory = (message) => new Error(message);
 
 /**
