@@ -69,7 +69,7 @@
 - **하지 말 것**: 행 클릭·입력처럼 잦은 동작마다 `onSnapshotChange` 를 부르는 것.
 - **할 것**: 탭 복귀 때 되살려야 하는 값(조회 조건 등)이 바뀔 때만 부른다. "선택한 행을 탭 복귀 때 되살린다" 가 요구사항일 때만 선택 행 ID 를 snapshot 에 넣는다.
 - **근거**: 화면이 행 클릭 때 `onSnapshotChange` 를 부르면 셸 `setTabs`(`use-portal-tabs.ts:246-254`) → tabOrder effect(R7)로 포털 셸 전체가 2회 렌더된다. 행 클릭당 ≈3~4ms 로, 행 클릭 렌더의 30~45% 를 차지하는 이번 측정의 최대 순수 중복이다(검증 §5.2 C2. dataMng `page.tsx:121-126,225-231`, codeMng `page.tsx:143-153`, layoutConfirm `page.tsx:126-138`).
-- 셸 쪽 낭비는 §3 K1 에서 따로 다룬다. 셸이 고쳐지면 이 규칙의 비용은 셸 1회 렌더로 줄어든다.
+- 셸 쪽 낭비는 §3 K1·K2 에서 고쳤다(cf79e675). 이제 값이 바뀐 snapshot 은 셸 1회 렌더, 같은 값은 0회다. 그래도 잦은 동작마다 부르지 않는다.
 
 ### R9. 사용자 확인(`/api/auth/me`)과 RBAC 구독을 늘리지 않는다 — 확정
 
@@ -77,12 +77,12 @@
 - **할 것**: 화면에서 버튼 권한이 필요하면 화면 루트 한 곳에서 받아 props 로 내린다. 패널을 나눌 때 resizable `ContentBody` 하나마다 구독자가 하나씩 붙는다는 점을 알고 패널 수를 정한다.
 - **근거**: `useUserButtonRbac` 인스턴스마다 `/api/auth/me` 를 한 번씩 부른다(`use-user-button-rbac.ts:64-73`, 재로그인 감지 의도는 `:137-139`). 구독자는 `PageLayout.tsx:105`, resizable `ContentBody` 의 `ResizableBody`(`ContentBody.tsx:171`), 화면 루트, 팝업이다. columnMng 은 구독자 5개로 진입 때 auth/me 6건이다(검증 §3.2, §5.2 C6).
 - **어기면**: 요청 수가 구독자 수만큼 는다. 동시에 나가므로 벽시계는 1왕복(조회 단추가 RBAC 로딩 동안 ≈70ms 비활성)이지만 서버 부하와 진입 사슬이 는다.
-- 사용자 확인을 한 번만 하고 공유하는 근본 수정은 shared 동작 변경이라 §3 K3 에 둔다(사용자 승인 필요).
+- 사용자 확인을 한 번만 하고 공유하는 근본 수정은 §3 K3 에서 고쳤다(75e84a2b). 사용자 ID 가 필요하면 `getCurrentUser()`(비동기)·`peekCurrentUser()`(동기, 받아 둔 값만)·`useCurrentUserId()`(훅) 를 쓴다(`@dk-oasis/shared/portal-shell`). 권한 판정에는 여전히 `useUserButtonRbac` 를 화면 루트 한 곳에서 쓴다.
 
 ### R10. 숨은 탭에 있는 것은 자기 탭이 보일 때만 다시 읽는다 — 확정(규모 작음)
 
 - **하지 말 것**: 위젯·화면이 `portal-tab-activated` 같은 전역 이벤트를 받아 어느 탭이 활성화되든 다시 조회하는 것. 숨은 상태(폭 0)에서 크기 변경을 받아 다시 그리는 것.
-- **할 것**: 자기 탭이 활성화될 때만 다시 읽는다. ResizeObserver 는 폭 0 통지를 무시한다.
+- **할 것**: 자기 탭이 활성화될 때만 다시 읽는다 — `useTabPage().tabId` 를 `portal-tab-activated` 의 `detail.tabId` 와 비교한다(K5 수정, 3264529f). ResizeObserver 는 폭 0 통지를 무시한다.
 - **근거**: 홈 바로가기 위젯이 탭 전환마다 즐겨찾기를 다시 요청한다(`m-mcm/widgets/home/quickLinks/widget.tsx:27-31`, 검증 §5.2 C5). 홈을 떠날 때 숨은 위젯 보드가 폭 0 으로 다시 렌더된다(≈2.5~3ms, 검증 §5.2 C4).
 - 포털은 숨은 탭을 언마운트하지 않는다(`portal-shell.tsx`). 탭 복귀 때 화면 본체는 `TabPageSlot` memo 에서 멈춰 다시 렌더되지 않으므로(검증 §5.1), 이 구조를 깨는 전역 구독을 화면에 더하지 않는다.
 
@@ -107,17 +107,17 @@
 
 ## 3. 공통 계층 — 알려진 결함과 새 화면이 피할 것
 
-포털 셸·shared·홈 위젯에서 생겨 모든 화면에 붙는 낭비다. 수정은 shared·포털 동작 변경이므로 **모두 사용자 승인 뒤** 한다. 승인 전까지 새 화면은 "피할 것" 열을 지킨다.
+포털 셸·shared·홈 위젯에서 생겨 모든 화면에 붙는 낭비다. 2026-10-04 조정자 승인으로 K1~K7 을 모두 고쳤다(`perf/fix-common`, 아래 "상태" 열의 커밋). 위치 열은 고치기 전(f4378bef) 기준이다. 고친 뒤에도 새 화면은 "피할 것" 열을 지킨다 — 셸이 아끼는 것은 셸 쪽 낭비뿐이다. 수치는 코드 기준이며 측정 확인은 따로 한다.
 
-| # | 결함 | 위치(f4378bef) | 비용 | 새 화면이 피할 것 | 수정 방향(승인 필요) | 상태 |
+| # | 결함 | 위치(f4378bef) | 비용 | 새 화면이 피할 것 | 수정 방향 | 상태 |
 |---|---|---|---|---|---|---|
-| K1 | snapshot 이 같아도 셸 `setTabs` 가 새 배열을 넣는다 | `use-portal-tabs.ts:246-254`(`prev.map`) | 같은 snapshot 을 다시 보내도 셸 렌더 1회 이상 | 같은 값으로 `onSnapshotChange` 를 다시 부르지 않는다(R8) | 모든 탭이 그대로면 `prev` 를 돌려준다 | 코드 근거만(미검증) |
-| K2 | tabOrder 동기화 effect 가 변화 없이 새 배열 | `use-portal-tabs.ts:429-447` | 탭 상태가 바뀔 때마다 셸 1회 추가, 진입당 ≈2~4ms(추정) | — | 변화가 없으면 `prev` 를 돌려준다 | 확정(검증 §5.2 C1) |
-| K3 | `useUserButtonRbac` 인스턴스마다 `/api/auth/me` | `use-user-button-rbac.ts:64-73,141-185` | 진입당 auth/me 4~6건(렌더 ≤0.4ms) | 구독자를 늘리지 않는다(R9) | 사용자 확인을 진행 중 요청 공유·세션 캐시로 한 번만. 재로그인 감지(`:137-139`)는 유지 | 확정(검증 §5.2 C6) |
-| K4 | resizable `ContentBody` 마다 RBAC 구독자 | `ContentBody.tsx:171` | 패널 하나당 auth/me 1건 | 패널을 필요 이상 나누지 않는다 | K3 과 함께 | 확정(검증 §7 가-7) |
-| K5 | 홈 바로가기 위젯이 어느 탭 활성화에도 즐겨찾기 재요청 | `quickLinks/widget.tsx:27-31` | 탭 전환마다 요청 1건 | 같은 패턴을 새 위젯·화면에 쓰지 않는다(R10) | 자기 탭(홈)이 활성화될 때만 | 확정(검증 §5.2 C5) |
-| K6 | 숨은 홈 위젯 보드가 폭 0 통지로 다시 렌더 | `widget/WidgetFrame.tsx:96-106`, `WidgetWorkspace.tsx:144`, `WidgetBoard.tsx:60` | 홈을 떠날 때 ≈2.5~3ms | 폭 0 통지를 무시한다(R10) | 폭 0 이면 상태를 바꾸지 않는다 | 확정(검증 §5.2 C4) |
-| K7 | 조회 단추가 RBAC 로딩 동안 비활성 | `use-user-button-rbac.ts:208`, `PageLayout.tsx:132` | 진입 뒤 ≈70ms 동안 조회 불가(1왕복) | — | K3 이 해결되면 함께 줄어든다 | 확정(검증 §2 주장 8) |
+| K1 | snapshot 이 같아도 셸 `setTabs` 가 새 배열을 넣는다 | `use-portal-tabs.ts:246-254`(`prev.map`) | 같은 snapshot 을 다시 보내도 셸 렌더 1회 이상 | 같은 값으로 `onSnapshotChange` 를 다시 부르지 않는다(R8) | 모든 탭이 그대로면 `prev` 를 돌려준다 | **수정됨**(cf79e675) — 렌더된 값·마지막 요청과 같으면 `setTabs` 를 부르지 않고, 갱신 함수도 `prev` 를 돌려준다 |
+| K2 | tabOrder 동기화 effect 가 변화 없이 새 배열 | `use-portal-tabs.ts:429-447` | 탭 상태가 바뀔 때마다 셸 1회 추가, 진입당 ≈2~4ms(추정) | — | 변화가 없으면 `prev` 를 돌려준다 | **수정됨**(cf79e675) — 탭 구성이 그대로면 `setTabOrder` 를 부르지 않는다(같은 값 갱신 함수도 React 가 셸을 한 번 렌더한다) |
+| K3 | `useUserButtonRbac` 인스턴스마다 `/api/auth/me` | `use-user-button-rbac.ts:64-73,141-185` | 진입당 auth/me 4~6건(렌더 ≤0.4ms) | 구독자를 늘리지 않는다(R9) | 사용자 확인을 진행 중 요청 공유·세션 캐시로 한 번만. 재로그인 감지(`:137-139`)는 유지 | **수정됨**(75e84a2b) — `portal-shell/current-user.ts` `getCurrentUser`(진행 중 요청 공유·성공만 세션 캐시). 로그아웃·401·로그인 때 비우고, 다른 탭 재로그인은 화면이 다시 보일 때 재확인한다 |
+| K4 | resizable `ContentBody` 마다 RBAC 구독자 | `ContentBody.tsx:171` | 패널 하나당 auth/me 1건 | 패널을 필요 이상 나누지 않는다 | K3 과 함께 | **수정됨**(75e84a2b) — `ResizableBody` 는 `useCurrentUserId` 로 사용자 ID 만 받는다(RBAC 구독 없음) |
+| K5 | 홈 바로가기 위젯이 어느 탭 활성화에도 즐겨찾기 재요청 | `quickLinks/widget.tsx:27-31` | 탭 전환마다 요청 1건 | 같은 패턴을 새 위젯·화면에 쓰지 않는다(R10) | 자기 탭(홈)이 활성화될 때만 | **수정됨**(3264529f) — `TabPageContext.tabId` 와 `portal-tab-activated` 의 `detail.tabId` 를 비교한다 |
+| K6 | 숨은 홈 위젯 보드가 폭 0 통지로 다시 렌더 | `widget/WidgetFrame.tsx:96-106`, `WidgetWorkspace.tsx:144`, `WidgetBoard.tsx:60` | 홈을 떠날 때 ≈2.5~3ms | 폭 0 통지를 무시한다(R10) | 폭 0 이면 상태를 바꾸지 않는다 | **수정됨**(3264529f) — `WidgetFrame` 은 폭 0 을 무시, `WidgetWorkspace`·`WidgetBoard` 는 `useVisibleContainerWidth`(폭 0 무시)를 쓴다 |
+| K7 | 조회 단추가 RBAC 로딩 동안 비활성 | `use-user-button-rbac.ts:208`, `PageLayout.tsx:132` | 진입 뒤 ≈70ms 동안 조회 불가(1왕복) | — | K3 이 해결되면 함께 줄어든다 | **줄어듦**(75e84a2b) — 세션의 두 번째 진입부터 사용자 확인이 왕복 없이 끝난다. 첫 진입은 me→RBAC 2왕복 그대로 |
 
 ## 4. 새 화면 성능 확인 절차
 
@@ -157,9 +157,9 @@
 |---|---|---|---|
 | 첫 조회 응답 크기 | ≤ 500KB | 주 기준 | 소형 화면 1.2~4.5KB, columnMng 2.89MB·termMng 3.07MB(§3.1). 크기가 운영 망 전송·서버 TTFB 와 함께 는다 |
 | 첫 조회 건수 | ≤ 1,000건 | 주 기준 | 7,858·8,155건 화면만 체감이 4~15배 |
-| 메뉴 클릭 뒤 진입 호출 | 지금 ≤ 6건(조회 제외). K3 수정 뒤 다시 정한다 | 주 기준 | 현재 6~9건(§3.2) |
-| 그중 `/api/auth/me` | 지금 ≤ 4건(늘리지 않음). K3 수정 뒤 ≤ 1건 | 주 기준 | 현재 4건(columnMng 6건) |
-| 행 클릭 때 포털 셸 재렌더 | 0회(선택 행 snapshot 이 요구사항이면 K2 수정 뒤 1회) | 주 기준 | dataMng·codeMng·layoutConfirm 2회(§5.2 C2) |
+| 메뉴 클릭 뒤 진입 호출 | 지금 ≤ 6건(조회 제외). K3 수정으로 auth/me 가 빠지므로 측정 뒤 다시 정한다 | 주 기준 | 수정 전 6~9건(§3.2) |
+| 그중 `/api/auth/me` | ≤ 1건(K3 수정 뒤. 같은 세션의 두 번째 진입부터는 0건) | 주 기준 | 수정 전 4건(columnMng 6건) |
+| 행 클릭 때 포털 셸 재렌더 | 0회. 선택 행 snapshot 이 요구사항이면 ≤ 1회, 같은 값이면 0회(K1·K2 수정 뒤) | 주 기준 | 수정 전 dataMng·codeMng·layoutConfirm 2회(§5.2 C2) |
 | 조회 클릭→첫 행(`inPageSearchToRowMutMs`) | ≤ 100ms(로컬) | 참고 | 소형 응답 화면 ≈25ms, 사람이 느끼는 문턱 ≈100ms. 값이 ≈2~3ms 크게 잡힌다(§8) |
 | 조회 서버 TTFB(`searchTtfbMs`, BFF 기준) | ≤ 50ms(로컬) | 참고 | 소형 화면 3~9ms, columnMng ≈345·termMng ≈130 |
 | 동작당 React 렌더 시간 합(`count-renders`) | 진입 ≤ 20ms, 조회·행 클릭 ≤ 12ms | 참고 | 6화면 진입 11~18ms, 조회 1~10ms, 행 클릭 5.6~12.1ms(§5.1). 행 클릭 값에는 셸 재렌더(C2) ≈3~4ms 가 들어 있다 |
@@ -188,7 +188,7 @@
 
 1. 첫 조회에 조건(필수 키워드·기간·상한·페이징)이 있다. 예상 건수·응답 크기를 적었다(R1).
 2. 진입 호출 목록이 화면에 필요한 것뿐이고, 진입 자동 조회가 [조회] 와 겹치지 않는다(R3·R4).
-3. 새 코드에 `fetch("/api/auth/me")` 직접 호출이 없고, 팝업·하위 컴포넌트에서 `useUserButtonRbac()` 를 다시 부르지 않는다(R9).
+3. 새 코드에 `fetch("/api/auth/me")` 직접 호출이 없고(`getCurrentUser()` 를 쓴다), 팝업·하위 컴포넌트에서 `useUserButtonRbac()` 를 다시 부르지 않는다(R9).
 4. `onSnapshotChange` 를 행 클릭·입력마다 부르지 않는다. 선택 행을 snapshot 에 넣었다면 요구사항 근거가 있다(R8).
 5. 화면 루트에 공용 `busy` 하나를 두지 않았고, 목록 `loading` 은 목록 조회 전용이다(R5, Local-Rules §11).
 6. 0건이어도 그리드를 언마운트하지 않는다(R6).
@@ -205,4 +205,4 @@
 - **저장·등록 경로**(저장 뒤 목록·상세 연속 왕복)는 공용 DB 때문에 재지 않았다.
 - **운영 망·운영 DB(Oracle·PostgreSQL)** 값이 아니다. 응답 크기 기준(R1)은 운영 망 전송을 고려해 다시 정한다.
 - **하네스 미수정 결함**: `queueMs` 단위 혼합(늘 0), `summarize.mjs` 무효 회차 미필터, 포털 홈 로딩 대기 부족, 예열 회차 미제거(검증 §4 결함 10~13).
-- **§3 공통 계층 수정(K1~K7)** 은 사용자 승인 대기다. 수정되면 §5 예산의 auth/me·셸 재렌더 기준을 다시 정한다.
+- **§3 공통 계층 수정(K1~K7)** 은 2026-10-04 `perf/fix-common` 으로 고쳤다. §5 예산의 auth/me·셸 재렌더 기준은 코드 기준으로 바꿨고, 측정으로 확인한 값과 진입 호출 총수는 측정 세션이 채운다.
