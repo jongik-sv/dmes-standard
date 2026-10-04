@@ -477,6 +477,95 @@ class NoticeMgmtServiceTest extends MlsTestDb {
         assertThat(savedIds).doesNotContain(toDelete.getNoticeId());
     }
 
+    // ── 첫 조회 상한·본문 제외·상세 조회(화면 성능 가이드 R1) ──
+
+    @Test
+    @DisplayName("includeContent=false 면 목록 행에 CONTENT 가 없고 나머지 칸은 그대로다")
+    void 목록_요약은_본문을_싣지_않는다() {
+        create(newRow("요약 공지"));
+        NoticeMgmtSearchRequest q = new NoticeMgmtSearchRequest();
+        q.setIncludeContent(false);
+
+        Map<String, Object> full = list(service.search(null)).stream()
+                .filter(r -> "요약 공지".equals(r.get("TITLE"))).findFirst().orElseThrow();
+        Map<String, Object> summary = list(service.search(q)).stream()
+                .filter(r -> "요약 공지".equals(r.get("TITLE"))).findFirst().orElseThrow();
+
+        assertThat(full).containsKey("CONTENT");
+        assertThat(summary).doesNotContainKey("CONTENT");
+        Map<String, Object> fullWithoutContent = new HashMap<>(full);
+        fullWithoutContent.remove("CONTENT");
+        assertThat(summary).isEqualTo(fullWithoutContent);
+    }
+
+    @Test
+    @DisplayName("noticeId 상세 조회는 본문을 포함한 한 건이고, 없는 번호는 빈 목록이다")
+    void 상세_조회는_본문_포함_한_건() {
+        Notice n = create(newRow("상세 공지"));
+        NoticeMgmtSearchRequest q = new NoticeMgmtSearchRequest();
+        q.setNoticeId(n.getNoticeId());
+        NoticeMgmtSearchRequest none = new NoticeMgmtSearchRequest();
+        none.setNoticeId("NT00000000X");
+
+        List<Map<String, Object>> one = list(service.search(q));
+
+        assertThat(one).hasSize(1);
+        assertThat(one.get(0).get("CONTENT")).isEqualTo("본문");
+        assertThat(list(service.search(none))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("조건 없는 조회에 limit 이 오면 NOTICE_ID 내림차순 앞쪽만 주고 전체 건수·잘림을 알린다")
+    void 조건_없는_조회에_limit_이_오면_앞쪽만_주고_잘림을_알린다() {
+        create(newRow("공지 가"));
+        create(newRow("공지 나"));
+        create(newRow("공지 다"));
+        long total = repository.count();
+        NoticeMgmtSearchRequest q = new NoticeMgmtSearchRequest();
+        q.setLimit(2);
+        q.setIncludeContent(false);
+        List<String> expected = repository.searchAll().stream().limit(2).map(Notice::getNoticeId).toList();
+
+        Map<String, Object> out = service.search(q);
+
+        assertThat(list(out).stream().map(r -> (String) r.get("NOTICE_ID")).toList()).isEqualTo(expected);
+        assertThat(out.get("totalCount")).isEqualTo(total);
+        assertThat(out.get("truncated")).isEqualTo(true);
+    }
+
+    @Test
+    @DisplayName("limit 이 없거나 조건이 있으면 상한 없이 전부 주고, limit 이 본문 포함 조회에도 걸린다")
+    void limit_이_없거나_조건이_있으면_전부_준다() {
+        create(newRow("조건 공지 가"));
+        create(newRow("조건 공지 나"));
+        NoticeMgmtSearchRequest withTitle = new NoticeMgmtSearchRequest();
+        withTitle.setTitle("조건 공지");
+        withTitle.setLimit(1);
+        NoticeMgmtSearchRequest withContent = new NoticeMgmtSearchRequest();
+        withContent.setLimit(1);
+
+        Map<String, Object> noLimit = service.search(null);
+        Map<String, Object> conditioned = service.search(withTitle);
+        Map<String, Object> limitedWithContent = service.search(withContent);
+
+        assertThat(noLimit).doesNotContainKeys("totalCount", "truncated");
+        assertThat(list(conditioned)).hasSize(2);
+        assertThat(conditioned.get("truncated")).isEqualTo(false);
+        assertThat(list(limitedWithContent)).hasSize(1);
+        assertThat(list(limitedWithContent).get(0)).containsKey("CONTENT");
+        assertThat(limitedWithContent.get("truncated")).isEqualTo(true);
+    }
+
+    @Test
+    @DisplayName("저장·상태변경 응답의 전체 목록은 본문 없는 요약이다")
+    void 저장_응답_목록은_본문을_싣지_않는다() {
+        Map<String, Object> saved = service.save(List.of(newRow("응답 요약 공지")));
+
+        assertThat(list(saved)).isNotEmpty();
+        assertThat(list(saved)).allSatisfy(r -> assertThat(r).doesNotContainKey("CONTENT").containsKey("NOTICE_ID"));
+        assertThat(titles(saved)).contains("응답 요약 공지");
+    }
+
     private static List<Object> titles(Map<String, Object> out) {
         return list(out).stream().map(r -> r.get("TITLE")).toList();
     }
