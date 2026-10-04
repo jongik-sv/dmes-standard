@@ -97,6 +97,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *       이것이 0 이면 커밋 뒤 무효화는 fallback 으로만 돌고 있다는 뜻이다.</li>
  *   <li>커밋 직전(BEFORE_COMMIT)에 다른 스레드가 커밋 전 데이터로 카탈로그를 다시 채워도, 커밋 뒤 무효화가 그것을 비워
  *       다음 조회가 새 데이터를 보는가 — 즉시 한 번 + 커밋 뒤 한 번 두 단계가 모두 필요하고 동작한다.</li>
+ *   <li>이벤트를 낸 트랜잭션이 같은 트랜잭션에서 카탈로그를 채운 뒤 롤백돼도 트랜잭션 끝(AFTER_COMPLETION) 무효화가
+ *       커밋 전 행이 담긴 스냅샷을 비우는가.</li>
  *   <li>OBJECT 저장은 SYSADMIN 매핑을 미리 넣어 {@link RoleChangedEvent} 가 나가지 않게 한다 — 반영이 새
  *       {@link MenuChangedEvent} 때문임을 보인다.</li>
  * </ol>
@@ -198,6 +200,7 @@ class MenuCatalogOasisSaveIntegrationTest {
     void commObjMngSave_isVisibleOnNextRead() {
         Map<String, Object> before = myMenu("M_USER");
         assertThat(before).containsEntry("sysCd", "mcm").containsEntry("objNm", "사용자 관리 화면");
+        probe.refillBeforeCommit = true;
 
         Map<String, Object> row = new HashMap<>();
         row.put("rowStatus", "U");
@@ -212,6 +215,30 @@ class MenuCatalogOasisSaveIntegrationTest {
         assertThat(probe.roleEvents.get()).as("SYSADMIN 매핑이 이미 있어 역할 이벤트는 없다").isZero();
         assertThat(probe.syncActiveAtPublish).containsExactly(true);
         assertThat(probe.afterCommitStrict.get()).isEqualTo(1);
+        assertThat(probe.refilledObjectsBeforeCommit)
+                .as("커밋 직전 다른 스레드는 커밋 전(옛) OBJECT 로 캐시를 다시 채웠다 — 그래도 위 조회는 새 데이터다(커밋 뒤 무효화)")
+                .containsExactly("메뉴 관리 화면", "사용자 관리 화면");
+    }
+
+    @Test
+    @DisplayName("이벤트를 낸 트랜잭션이 같은 트랜잭션에서 카탈로그를 채운 뒤 롤백돼도, 다음 조회에 롤백된 행이 남지 않는다")
+    void rolledBackSave_doesNotLeaveUncommittedRowsInCatalog() {
+        assertThat(menuNames()).containsExactly("사용자 관리");
+        SecMenuRepository menus = ctx.getBean(SecMenuRepository.class);
+        List<String> seenInTx = new ArrayList<>();
+
+        tx.executeWithoutResult(s -> {
+            menus.save(menu("M_ROLLBACK", "롤백될 메뉴", "commMenuMng"));
+            ctx.publishEvent(new MenuChangedEvent(MenuChangedEvent.MENU));
+            catalog.menus().stream().map(SecMenu::getMenuNm).sorted().forEach(seenInTx::add);
+            s.setRollbackOnly();
+        });
+
+        assertThat(seenInTx).as("같은 트랜잭션의 적재는 커밋 전 행을 본다 — 이 스냅샷이 현재 세대로 저장된다")
+                .containsExactly("롤백될 메뉴", "사용자 관리");
+        assertThat(probe.afterCommitStrict.get()).as("롤백이라 AFTER_COMMIT 은 불리지 않는다").isZero();
+        assertThat(menuNames()).as("롤백 뒤(AFTER_COMPLETION) 무효화로 다음 조회는 커밋된 행만 본다")
+                .containsExactly("사용자 관리");
     }
 
     // ── 도우미 ──────────────────────────────────────────────────────────────────
@@ -306,6 +333,7 @@ class MenuCatalogOasisSaveIntegrationTest {
         final AtomicInteger afterCommitStrict = new AtomicInteger();
         final AtomicInteger roleEvents = new AtomicInteger();
         final List<String> refilledBeforeCommit = Collections.synchronizedList(new ArrayList<>());
+        final List<String> refilledObjectsBeforeCommit = Collections.synchronizedList(new ArrayList<>());
         volatile boolean refillBeforeCommit;
         private final MenuCatalog catalog;
 
@@ -318,6 +346,7 @@ class MenuCatalogOasisSaveIntegrationTest {
             afterCommitStrict.set(0);
             roleEvents.set(0);
             refilledBeforeCommit.clear();
+            refilledObjectsBeforeCommit.clear();
             refillBeforeCommit = false;
         }
 
@@ -340,9 +369,9 @@ class MenuCatalogOasisSaveIntegrationTest {
         public void onBeforeCommit(MenuChangedEvent e) throws Exception {
             if (!refillBeforeCommit) return;
             // 다른 요청 스레드가 커밋 전에 카탈로그를 읽는 상황 — 이 스레드의 트랜잭션 밖이라 커밋된(옛) 데이터를 본다.
-            List<String> names = CompletableFuture.supplyAsync(() -> catalog.menus().stream()
-                    .map(SecMenu::getMenuNm).sorted().toList()).get(10, TimeUnit.SECONDS);
-            refilledBeforeCommit.addAll(names);
+            MenuCatalog.Snapshot snap = CompletableFuture.supplyAsync(catalog::snapshot).get(10, TimeUnit.SECONDS);
+            refilledBeforeCommit.addAll(snap.menus().stream().map(SecMenu::getMenuNm).sorted().toList());
+            refilledObjectsBeforeCommit.addAll(snap.objects().stream().map(SecObj::getObjectNm).sorted().toList());
         }
     }
 

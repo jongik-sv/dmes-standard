@@ -100,46 +100,46 @@ class MenuCatalogTest {
     }
 
     @Test
-    @DisplayName("MenuChangedEvent 를 받으면(즉시·커밋 뒤 모두) 다음 호출이 다시 읽는다")
+    @DisplayName("MenuChangedEvent 를 받으면(즉시·트랜잭션 끝 모두) 다음 호출이 다시 읽는다")
     void menuChangedEventInvalidates() {
         catalog.snapshot();
         catalog.onChanged(new MenuChangedEvent(MenuChangedEvent.MENU));
         catalog.snapshot();
         verify(menuRepo, times(2)).findAll();
 
-        catalog.onChangedAfterCommit(new MenuChangedEvent(MenuChangedEvent.OBJECT));
+        catalog.onChangedAfterCompletion(new MenuChangedEvent(MenuChangedEvent.OBJECT));
         catalog.snapshot();
         verify(menuRepo, times(3)).findAll();
         verify(objRepo, times(3)).findAll();
     }
 
     @Test
-    @DisplayName("RoleChangedEvent 를 받으면(즉시·커밋 뒤 모두) 다음 호출이 다시 읽는다")
+    @DisplayName("RoleChangedEvent 를 받으면(즉시·트랜잭션 끝 모두) 다음 호출이 다시 읽는다")
     void roleChangedEventInvalidates() {
         catalog.snapshot();
         catalog.onChanged(new RoleChangedEvent(Set.of("SYSADMIN")));
         catalog.snapshot();
         verify(menuRepo, times(2)).findAll();
 
-        catalog.onChangedAfterCommit(new RoleChangedEvent(Set.of("SYSADMIN")));
+        catalog.onChangedAfterCompletion(new RoleChangedEvent(Set.of("SYSADMIN")));
         catalog.snapshot();
         verify(menuRepo, times(3)).findAll();
     }
 
     @Test
-    @DisplayName("커밋 뒤 리스너는 무효화 예외를 밖으로 던지지 않고 WARN 로그만 남긴다")
-    void afterCommitListenerSwallowsAndWarns() {
+    @DisplayName("트랜잭션 끝 리스너는 무효화 예외를 밖으로 던지지 않고 WARN 로그만 남긴다")
+    void afterCompletionListenerSwallowsAndWarns() {
         MenuCatalog failing = spy(new MenuCatalog(menuRepo, objRepo, clock, TTL));
         doThrow(new IllegalStateException("boom")).when(failing).invalidate();
 
-        assertThatCode(() -> failing.onChangedAfterCommit(new MenuChangedEvent(MenuChangedEvent.MENU)))
+        assertThatCode(() -> failing.onChangedAfterCompletion(new MenuChangedEvent(MenuChangedEvent.MENU)))
                 .doesNotThrowAnyException();
         assertThatCode(() -> failing.onChanged(new RoleChangedEvent(Set.of("R1"))))
                 .doesNotThrowAnyException();
 
         List<ILoggingEvent> warns = logs.list.stream().filter(e -> e.getLevel() == Level.WARN).toList();
         assertThat(warns).hasSize(2);
-        assertThat(warns.get(0).getFormattedMessage()).contains("커밋 뒤").contains("무효화 실패");
+        assertThat(warns.get(0).getFormattedMessage()).contains("트랜잭션 끝").contains("무효화 실패");
         assertThat(warns.get(0).getThrowableProxy().getMessage()).isEqualTo("boom");
         assertThat(warns.get(1).getFormattedMessage()).contains("즉시");
     }

@@ -210,7 +210,7 @@ class MenuCatalogCallersSelectCountTest {
         m.setMenuNm("사용자 관리(새)");
         menuRepo.save(m);
         catalog.onChanged(new MenuChangedEvent(MenuChangedEvent.MENU));
-        catalog.onChangedAfterCommit(new MenuChangedEvent(MenuChangedEvent.MENU));
+        catalog.onChangedAfterCompletion(new MenuChangedEvent(MenuChangedEvent.MENU));
         COUNTER.reset();
 
         assertThat(secUserService.getMyMenus(new MyMenusRequest())).extracting(r -> r.get("menuNm"))

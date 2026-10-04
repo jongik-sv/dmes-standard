@@ -40,11 +40,15 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * <p><b>무효화</b> — {@link MenuChangedEvent}(메뉴·폴더·OBJECT 저장)와 {@link RoleChangedEvent} 를 받으면 비운다.
  * <ol>
  *   <li>발행 즉시 한 번({@code @EventListener}).</li>
- *   <li>트랜잭션 커밋 뒤 한 번 더({@code @TransactionalEventListener(AFTER_COMMIT, fallbackExecution = true)}).
+ *   <li>트랜잭션이 끝난 뒤 한 번 더({@code @TransactionalEventListener(AFTER_COMPLETION, fallbackExecution = true)}).
  *       업무 서비스는 {@code @Transactional} 없이 OASIS 가 BPMN 프로세스 단위로 트랜잭션을 감싸므로 이벤트는 커밋 전에 나간다.
  *       1번과 커밋 사이에 다른 요청이 옛 데이터로 다시 채울 수 있어 커밋 뒤에 한 번 더 비운다.
- *       트랜잭션이 없으면(fallback) 발행 즉시 실행된다.</li>
+ *       커밋뿐 아니라 롤백 뒤에도 비운다 — 같은 트랜잭션이 이벤트를 낸 뒤 카탈로그를 읽으면 커밋 전 행이 현재 세대로
+ *       저장되는데, 롤백되면 그 행이 TTL 동안 남기 때문이다. 트랜잭션이 없으면(fallback) 발행 즉시 실행된다.</li>
  * </ol>
+ * 남는 한계 — 적재는 호출자의 트랜잭션 안에서 돈다. 트랜잭션 단위 스냅샷 격리(SQLite WAL, PostgreSQL REPEATABLE READ,
+ * MSSQL SNAPSHOT)에서는 무효화 뒤 시작한 적재도 그 트랜잭션이 시작될 때의 옛 스냅샷을 현재 세대로 저장할 수 있다(TTL 로만
+ * 회복). 운영 Oracle·PostgreSQL 기본(문장 단위 READ COMMITTED)과 로컬 SQLite(WAL 설정 없음)에서는 일어나지 않는다.
  * 두 리스너 모두 예외를 밖으로 던지지 않는다 — WARN 로그만 남긴다. 커밋 뒤 리스너의 예외가 밖으로 나가면 DB 는 이미
  * 커밋됐는데 OASIS 응답은 S001 실패로 나가기 때문이다. 이벤트는 같은 JVM 안에서만 전달되므로 다른 인스턴스·운영자의
  * 직접 SQL 은 TTL 로만 반영된다. 기동 시드({@code DataInitializer}, mcm/api)는 끝에 {@link MenuChangedEvent#SEED} 를 낸다.
@@ -169,11 +173,11 @@ public class MenuCatalog {
         safeInvalidate(event, "즉시");
     }
 
-    /** 같은 변경 — 커밋 뒤 한 번 더 비운다(트랜잭션이 없으면 즉시). 예외는 밖으로 던지지 않는다. */
+    /** 같은 변경 — 트랜잭션이 끝나면(커밋·롤백 모두) 한 번 더 비운다(트랜잭션이 없으면 즉시). 예외는 밖으로 던지지 않는다. */
     @TransactionalEventListener(classes = {MenuChangedEvent.class, RoleChangedEvent.class},
-            phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
-    public void onChangedAfterCommit(Object event) {
-        safeInvalidate(event, "커밋 뒤");
+            phase = TransactionPhase.AFTER_COMPLETION, fallbackExecution = true)
+    public void onChangedAfterCompletion(Object event) {
+        safeInvalidate(event, "트랜잭션 끝");
     }
 
     private void safeInvalidate(Object event, String when) {
