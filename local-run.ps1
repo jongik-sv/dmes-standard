@@ -76,7 +76,10 @@ if (-not $hasScope) {
 # FE 로 넘길 인자만 추린다. BE 모듈 플래그는 be-run.ps1 이 .run.env 에서 읽는다.
 $feAllowed = @('--all','--full','--mpn','--mpn-only','--install','--build','--clean','--no-install','--no-build','-q')
 # FE 범위 플래그와 겹치는 모듈(--mpn)은 FE 쪽으로 넘긴다 — 결과는 종전 목록(--mcm --mls --mqc --mpp --analog --keep-port)과 같다.
-$beOnly    = @($DmesBeModules.Keys | ForEach-Object { '--' + $_ } | Where-Object { $feAllowed -notcontains $_ }) + @('--keep-port')
+# $feScope 는 sh(local-run.sh·fe-run.sh)에서 FE 범위 플래그인 이름이다. modules.conf 의 mdm 줄에 ps1 을 더해도
+# --mdm 이 BE 전용으로 분류돼 조용히 버려지지 않게 여기서 뺀다(그때까지 --mdm 은 종전처럼 '알 수 없는 옵션').
+$feScope   = @('--mpn','--mdm')
+$beOnly    = @($DmesBeModules.Keys | ForEach-Object { '--' + $_ } | Where-Object { $feAllowed -notcontains $_ -and $feScope -notcontains $_ }) + @('--keep-port')
 $FeArgs    = @()
 foreach ($a in $ScriptArgs) {
     if ($feAllowed -contains $a) { $FeArgs += $a }

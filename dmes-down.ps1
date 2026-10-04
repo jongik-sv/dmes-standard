@@ -28,7 +28,14 @@ if ($victims.Count -eq 0) {
 }
 
 # portal + backend ports from scripts\lib\modules.conf (rows whose platforms include ps1)
-. (Join-Path $RootDir 'scripts\lib\modules.ps1')
+# This script has no $ErrorActionPreference = 'Stop' (the kill step above must run even without the lib),
+# so a missing lib would only be a non-terminating error and end in a false "all ports free". Fail loudly.
+$modLib = Join-Path $RootDir 'scripts\lib\modules.ps1'
+if (-not (Test-Path -LiteralPath $modLib)) {
+    Write-Host "[down] missing $modLib - cannot check ports" -ForegroundColor Red
+    exit 1
+}
+. $modLib
 $ports = @($DmesPortalPort) + @($DmesBeModules.Values)
 $still = @($ports | Where-Object {
     Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue })
