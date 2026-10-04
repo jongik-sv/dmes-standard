@@ -4,12 +4,13 @@
  */
 import { apiRequest } from "@dk-oasis/shared/http";
 
-import type { WorkOrderFilters, WorkOrderOperRow, WorkOrderRegisterForm, WorkOrderRow } from "./types";
+import type { WorkOrderFilters, WorkOrderOperRow, WorkOrderRegisterForm, WorkOrderRow, WorkOrderSearchResult } from "./types";
 
 const OASIS_BASE = "/api/mpp/oasis/workOrderMng";
 
 interface CactusEnvelope {
   meta?: { success?: boolean; message?: string };
+  params?: { totalCount?: number };
   grids?: Record<string, { rows?: unknown[] }>;
 }
 
@@ -26,9 +27,11 @@ async function callAction(
   return env;
 }
 
-export async function searchWorkOrders(filters: WorkOrderFilters): Promise<WorkOrderRow[]> {
-  const env = await callAction("search", { ...filters });
-  return (env.grids?.master?.rows ?? []) as WorkOrderRow[];
+/** `limit` 을 주면 서버가 앞쪽 limit 건만 돌려주고 `totalCount` 에 전체 건수를 싣는다. 비우면 전체([전체 보기]). */
+export async function searchWorkOrders(filters: WorkOrderFilters, limit?: number): Promise<WorkOrderSearchResult> {
+  const env = await callAction("search", { ...filters, ...(limit != null ? { limit } : {}) });
+  const rows = (env.grids?.master?.rows ?? []) as WorkOrderRow[];
+  return { rows, totalCount: env.params?.totalCount ?? rows.length };
 }
 
 export async function searchOpers(woNo: string): Promise<WorkOrderOperRow[]> {

@@ -14,6 +14,21 @@
 2. **React 렌더 비용은 작다.** 동작(진입·조회·행 클릭·탭 복귀)마다 React 렌더 시간 합은 2~18ms 였다(검증 §5.1). 그래서 화면마다 `memo`·`useCallback` 을 빠짐없이 두르는 일보다 조회 범위와 호출 수를 정하는 일이 훨씬 크다.
 3. **공통 계층 문제가 1순위다.** 포털 셸·shared·홈 위젯에서 생긴 낭비는 새 화면 전부에 똑같이 붙는다. 화면 개발자가 직접 고칠 수 없는 것이 많으므로 §3 에 따로 모으고, 고쳐질 때까지 새 화면이 피할 것을 적는다.
 
+## 새 화면 만들 때 하지 말 것
+
+MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절에 있다. 새 화면은 PR 전에 이 표를 한 번 훑는다. 확인 방법 열의 번호는 §7 점검표 번호다. audit 는 `python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py audit <바꾼 파일·폴더>` 이고, 성능 항목 코드(`P-…`)와 수준은 [README §자동 점검](README.md) 에 있다. audit 가 잡지 못하는 행은 점검표와 `count-renders` 로 확인한다.
+
+| 하지 말 것 | 증상(수치) | 규칙 | 확인 방법 |
+|---|---|---|---|
+| 조건 없는 전체 조회를 기본 조회로 둠 | 응답 2.89~3.07MB·7,858~8,155건, 조회→첫 행 167~386ms | R1 | 점검표 1, audit `P-R1`(경고), `searchEncodedBytes`·`searchRows` |
+| 진입 자동 조회가 [조회] 와 겹침 | 같은 조회가 두 번 나감(클릭보다 ≈60ms 먼저 나감) | R4 | 점검표 2, `searchAfterClick`·`searchBeforeClick` |
+| `busy` 하나를 화면 루트 state 로 둠 | 클릭 즉시 루트 261개 컴포넌트 재렌더 5.2ms | R5 | 점검표 5, `count-renders` ②③ |
+| 변화 없는데 새 배열·객체로 `setState` | 진입 ≈300ms 뒤 화면 전체 재렌더, 셸 1회 추가 | R7 | 점검표 7, `count-renders` ① |
+| 행 클릭·입력마다 `onSnapshotChange` | 행 클릭당 셸 2회 렌더 ≈3~4ms | R8, 3장 K1·K2 | 점검표 4, `count-renders` ③ 의 `PortalShell` |
+| `fetch("/api/auth/me")` 직접 호출, 하위·팝업마다 `useUserButtonRbac()` | 구독자 수만큼 auth/me(진입당 4~6건, 수정 후 0건 목표) | R9, 3장 K3·K4 | 점검표 3, audit `P-K`(오류), `authMeAfterMenuClick` |
+| 전역 이벤트(`portal-tab-activated`)로 다시 조회, 숨은 탭(폭 0)에서 다시 그림 | 탭 전환마다 요청 1건, 홈 이탈 때 2.5~3ms | R10, 3장 K5·K6 | 점검표 8, audit `P-R10`(경고), `count-renders` ④ |
+| 상세 폼 state 를 화면 루트에 두고 그리드 열·행 deps 에 폼 객체를 넣음 | 한 글자마다 루트 171~268개 컴포넌트 재렌더, termMng 은 한 글자당 21커밋·추천 그리드 셀 연쇄 | R12 | 점검표 9, audit `P-R12`(오류)·`P-R12b`(경고), 화면 시험(루트 렌더 수), `count-renders` ⑤ |
+
 ## 2. 설계 규칙 — 새 화면이 지킬 것
 
 상태 표기: **확정** = 검증·재측정의 시간 측정·trace·렌더 횟수·CPU 프로파일로 확인한 것. **기각** = 재 보니 규칙으로 둘 만큼 비용이 없었던 것. 수치 기준은 §5 예산을 따른다.
@@ -103,14 +118,47 @@
 - **근거**: columnMng [전체 보기](7,858행, 2.89MB)의 응답 뒤 CPU 32~34ms 중 행마다 라벨을 조합하는 화면 코드 몫은 **0.8ms**(2~3%)다. 나머지는 응답 본문 파싱 등 엔진 작업(1,000행 4~10ms → 전체 16~21ms)과 AG Grid 행 적재(8 → 11~12ms)로, 둘 다 응답 크기에 비례한다(재측정 §3.1, `cpu-profile-search.mjs`, profiling 번들 3회).
 - 열이 많거나 행마다 비싼 계산(정규식 다발·날짜 파싱 루프 등)을 하는 화면은 `cpu-profile-search.mjs` 로 화면 청크 몫을 한 번 본다(§4 5단계).
 
-### R12. 입력 중 다시 렌더되는 영역에서 그리드 참조를 새로 만들지 않는다 — 확정(비용 작음)
+### R12. 입력 중 다시 렌더되는 영역에서 그리드 참조를 새로 만들지 않는다 — 확정(수정 적용)
 
 - **하지 말 것**: 상세 폼 state 를 화면 루트에 두는 것. 그리드 `columns`·`data` 의 deps 에 폼 객체 전체를 두는 것.
-- **할 것**: 폼 state 는 상세 영역 컴포넌트 안에 둔다. 그리드 열이 폼 값 일부를 써야 하면 그 값만 deps 에 두거나 셀 렌더러가 ref·context 로 읽게 한다.
-- **근거**: 상세 폼에 한 글자를 칠 때마다(profiling 번들, 재측정 §3.2):
-  - columnMng(폼이 루트 state, `columnMng/page.tsx:137`) — 화면 루트 아래 268개 컴포넌트가 다시 렌더된다. 한 글자당 1커밋·5.8~9.5ms.
-  - termMng(추천 그리드 열 `recoColumns` 가 `form` 에 의존, `termMng/page.tsx:259`) — 루트 171개에 더해 추천 그리드 셀 렌더러 142개가 다시 그려지고 셀 단위 단독 커밋이 ≈19회 따른다. 한 글자당 21커밋·5.4ms.
+- **할 것**: 폼 state 는 **별도 상세 폼 컴포넌트** 안에 둔다. 저장 단추는 화면 루트(`MdmPageLayout buttons`)에 있으므로 루트는 `ref` 핸들로 폼과 대화한다(React 19 이므로 `ref` 를 prop 으로 받는다). 그리드 열 정의는 폼 값이 아니라 안정값(`hasForm` 같은 불리언·고정 콜백)에만 의존시킨다. 일부 칸만 바꾸는 동작(예: 「상세에 적용」)은 핸들에 `apply({ patch, ... })` 를 둔다(columnMng `ColumnDetailHandle`).
+- **근거**: 수정 전에는 상세 폼에 한 글자를 칠 때마다(profiling 번들, 재측정 §3.3 수정 전 열. 같은 조건의 §3.2 첫 측정은 7.6ms·5.4ms 로 시간만 흔들렸다) 아래가 다시 그려졌다.
+  - columnMng(폼이 루트 state) — 화면 루트 아래 268개 컴포넌트. 한 글자당 1커밋·7.3ms.
+  - termMng(추천 그리드 열 `recoColumns` 가 `form` 에 의존) — 루트 171개에 더해 추천 그리드 셀 렌더러가 다시 그려지고, 셀 단독 커밋이 5글자에 100회. 한 글자당 21커밋·6.4ms.
+
+올바른 구조와 잘못된 구조는 이렇게 갈린다.
+
+```tsx
+// 올바름: 입력 state 는 상세 폼 컴포넌트에만 있다. 한 글자 입력은 이 컴포넌트만 다시 그린다.
+export type TermDetailHandle = { load(form: TermForm | null): void; getForm(): TermForm | null };
+export function TermDetailPane({ ref, busy }: { ref: Ref<TermDetailHandle>; busy: boolean }) {
+  const [form, setForm] = useState<TermForm | null>(null);
+  useImperativeHandle(ref, () => ({ load: setForm, getForm: () => form }), [form]);
+  const hasForm = form != null;
+  // 그리드 열 정의는 폼 값이 아니라 안정값(hasForm·고정 콜백)에만 의존한다
+  const recoColumns = useMemo(() => buildRecoColumns(hasForm, confirm), [hasForm, confirm]);
+  ...
+}
+// 화면 루트: 폼 값을 갖지 않는다. 행 선택·신규·조회 때 load, 저장 때 getForm.
+const detailRef = useRef<TermDetailHandle>(null);
+const [hasForm, setHasForm] = useState(false); // 저장 단추 disabled 용 불리언만
+const handleSave = async () => { const form = detailRef.current?.getForm(); /* ... */ };
+<TermDetailPane ref={detailRef} busy={isBusy} />
+
+// 잘못됨(수정 전): 폼 state 가 루트에 있고 열 정의가 form 에 의존한다 → 한 글자마다 루트 전체와 추천 그리드 셀이 다시 그려진다.
+const [form, setForm] = useState<TermForm | null>(null);
+const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [form, confirm]);
+```
+
+- **함께 할 것**: 상세 폼 안의 그리드(추천·하위 목록)는 `memo` 한 하위 패널로 떼고 rows·columns 만 넘긴다. 그러지 않으면 입력마다 `GridPanel` 이 다시 그려진다(AgDataGrid 자체는 건너뜀). 루트 재렌더는 화면 시험에서 `MdmPageLayout` 호출 수로 막을 수 있다(`m-mdm/tests/dma/columnMng/detail-form.test.ts`).
 - **어기면**: 지금 크기로는 한 프레임(16ms) 안이지만 화면 컴포넌트 수·그리드 행 수에 비례해 늘어 큰 화면에서는 입력이 끊긴다. headerMng 사용 전문 그리드처럼 rowData 를 매 렌더 새로 만드는 곳(`HeaderUsagePanel.tsx:25,39`)도 같은 이유로 피한다.
+- **표준 골격**: `mantine-aggrid-ui` 스킬의 [list-detail 예제](../../../.claude/skills/mantine-aggrid-ui/references/examples/list-detail/page.tsx)가 이 구조(`EquipDetailPane` + `ref` 핸들)로 되어 있다. 새 화면은 예제를 복사해 시작한다.
+- **적용 사례**(profiling 번들 `count-renders` ⑤ 상세 폼 입력, 한 글자당):
+
+  | 화면 | 전 | 후 | 커밋 |
+  |---|---|---|---|
+  | columnMng | 1커밋·7.3ms, 루트 268개 컴포넌트 재렌더 | 1커밋·3.6~4.0ms, 상세 폼 아래 159개만 재렌더. 화면 루트 0회, 그리드 래퍼·셀 0회 | a416187b·02e36638·0b9ef24b |
+  | termMng | 21커밋·6.4ms, 루트 아래 + 추천 그리드 셀 단독 커밋 100회/5글자 | 1커밋·1.7ms, 상세 폼 아래 94개만 재렌더. 화면 루트 0회, 추천 그리드 셀 단독 커밋 0회 | a416187b·02e36638·0b9ef24b |
 
 ### 신경 쓰지 않아도 되는 것 — 확정
 
@@ -178,10 +226,10 @@
 | 메뉴 클릭 뒤 진입 호출(조회 제외) | ≤ 3건. 공통 2건(`secUser/myButtonEndpoints`·`mdmMeta/columns`) + 화면 고유 1건 | 주 기준 | 수정 뒤 6화면 2~3건(수정 전 6~9건). 화면 고유 호출은 콤보 값(`optionsOnly`)·진입 자동 조회 등 |
 | 그중 `/api/auth/me` | 0건(페이지 전체 1건, 포털 부팅) | 주 기준 | 수정 뒤 6화면 0건·페이지 전체 1건(수정 전 4~6건·13~15건) |
 | 행 클릭 때 포털 셸 재렌더 | 0회. 선택 행 snapshot 이 요구사항이면 1회 | 주 기준 | 수정 뒤 snapshot 화면 1회·나머지 0회(수정 전 2회) |
-| 상세 폼 입력 한 글자당 | 화면 루트 렌더 0회, 그리드 셀 재렌더 0회 | 주 기준 | 재측정 §3.2: 현재 columnMng·termMng 은 루트 1회, termMng 은 셀 연쇄 ≈20커밋(R12 위반 사례) |
+| 상세 폼 입력 한 글자당 | 화면 루트 렌더 0회, 그리드 셀 재렌더 0회 | 주 기준 | 현재값 columnMng·termMng 루트 0회·그리드 셀 0회(F4 수정 뒤, 재측정 §3.3). 수정 전(재측정 §3.2)에는 columnMng·termMng 이 루트 1회, termMng 은 셀 연쇄 ≈20커밋(R12 위반 사례) |
 | 조회 클릭→첫 행(`inPageSearchToRowMutMs`) | ≤ 100ms(로컬) | 참고 | 소형 화면 24~29ms, termMng 64~68ms, columnMng 126~156ms(초과, §8 F1). 값이 ≈2~3ms 크게 잡힌다(§8) |
 | 조회 서버 TTFB(`searchTtfbMs`, BFF 기준) | ≤ 50ms(로컬) | 참고 | termMng 46~47ms, columnMng 107~136ms(초과). 소형 화면 3~22ms(측정 시점 부하에 따라 흔들림, 재측정 §4) |
-| 동작당 React 렌더 시간 합(`count-renders`) | 진입 ≤ 20ms, 조회·행 클릭·입력 한 글자 ≤ 16ms(한 프레임) | 참고 | 수정 뒤 진입 8.7~19.7ms, 조회 1.2~16ms, 행 클릭 5.8~13.8ms, 입력 한 글자 5.4~7.6ms(profiling 번들) |
+| 동작당 React 렌더 시간 합(`count-renders`) | 진입 ≤ 20ms, 조회·행 클릭·입력 한 글자 ≤ 16ms(한 프레임) | 참고 | 수정 뒤 진입 8.7~19.7ms, 조회 1.2~16ms, 행 클릭 5.8~13.8ms, 입력 한 글자 수정 전 5.4~7.6ms → F4 수정 뒤 1.7~4.0ms(profiling 번들, 재측정 §3.3) |
 
 ## 6. 측정 함정
 
@@ -215,13 +263,14 @@
 6. 0건이어도 그리드를 언마운트하지 않는다(R6).
 7. effect·갱신 함수가 변화 없을 때 `prev` 를 돌려주고, `columns`·`data` 가 안정 참조다(R7, Local-Rules §20).
 8. 전역 이벤트로 다시 조회하는 곳이 없고, 숨은 탭(폭 0)에서 다시 그리지 않는다(R10).
-9. 상세 폼 state 가 화면 루트에 있지 않고, 그리드 열·행 deps 에 폼 객체 전체가 없다(R12).
+9. 상세 폼 state 가 화면 루트에 있지 않고(별도 상세 폼 컴포넌트 + `ref` 핸들), 그리드 열·행 deps 에 폼 객체 전체가 없다(R12).
 10. 하네스에 화면을 등록해 cold 3회(`RENDER_ISOLATE=1`)를 쟀고, §5 예산 주 기준 항목 값을 PR 에 적었다.
-11. shared 공통 컴포넌트를 새로 만들었으면 `count-renders` 로 동작당 렌더를 보고, 기존 shared props·동작을 바꾸는 수정은 사용자 승인을 받았다.
+11. 바꾼 파일·폴더에 `python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py audit <바꾼 파일·폴더>` 를 돌렸고, 결과(오탐이면 이유)를 PR 에 적었다. 성능 항목(`P-R1`·`P-R6`·`P-R10`·`P-R12`·`P-R12b`·`P-K`)은 자동으로 잡히고, 나머지는 위 1~10 을 눈으로 확인한다.
+12. shared 공통 컴포넌트를 새로 만들었으면 `count-renders` 로 동작당 렌더를 보고, 기존 shared props·동작을 바꾸는 수정은 사용자 승인을 받았다.
 
 ## 8. 알려진 미해결과 후속
 
-- **R1·K1~K7 효과는 확인했다**(재측정 §4 기대값 모두 충족). R11 은 "행 가공 규칙" 을 기각하고 응답 크기 규칙으로 바꿨으며, R12 는 확정했다(재측정 §3).
+- **R1·K1~K7 효과는 확인했다**(재측정 §4 기대값 모두 충족). R11 은 "행 가공 규칙" 을 기각하고 응답 크기 규칙으로 바꿨으며, R12 는 확정하고 F4 로 columnMng·termMng 에 적용했다(재측정 §3, R12 적용 사례).
 - **탭 여러 개를 열어 둔 상태의 비용**은 탭 2개 전환만 쟀다. 숨은 탭 유지 비용은 미판정이다(검증 §4-4).
 - **저장·등록 경로**(저장 뒤 목록·상세 연속 왕복)는 공용 DB 때문에 재지 않았다.
 - **운영 망·운영 DB(Oracle·PostgreSQL)** 값이 아니다. 상한으로 줄어든 ≈2.5MB 전송은 로컬에서 보이지 않는다.
@@ -235,5 +284,5 @@
 | F1 | `ColumnMngService.java:136-144` | 조건 없는 상한 조회에서도 ID·논리명을 전부 읽어 Java 로 정렬한 뒤 1,000건을 고른다. TTFB 107~136ms 로 예산 초과(termMng 46ms) | 정렬 키 인덱스·DB 정렬로 앞쪽만 읽기(방언 콜레이션 차이 감수 여부 결정 필요) |
 | F2 | `TermMngService.java:227` | 저장마다 `search(new TermSearchRequest())` 로 상한 없는 전체 목록(≈8천 건·≈3MB)을 재구성해 돌려준다 | 저장 응답은 저장한 행·경고만, 목록은 화면이 현재 조건(상한 포함)으로 재조회 |
 | F3 | `shared/src/components/dashboard/DashboardBoard.tsx:148`, `dashboard/layout.tsx:165`, `m-mcm/widget-types/memo/memo-user.ts:24`, `unit-converter/unit-user.ts:18` | 사용자 ID 만 쓰려고 `useUserButtonRbac` 를 구독한다(K4 형태) | `useCurrentUserId()` 로 바꾼다. 요청은 이미 캐시라 늘지 않고, RBAC 인스턴스 상태만 준다 |
-| F4 | columnMng·termMng 상세 폼 | 입력 한 글자마다 화면 루트 렌더, termMng 은 추천 그리드 셀 연쇄(R12 위반) | 상세 폼 컴포넌트 분리, `recoColumns` 를 `form` 에서 떼기 |
+| ~~F4~~ | columnMng·termMng 상세 폼 | **완료**(커밋 `a416187b·02e36638·0b9ef24b`). 입력 한 글자마다 화면 루트 렌더, termMng 은 추천 그리드 셀 연쇄(R12 위반)였다 | 상세 폼 컴포넌트 분리, `recoColumns` 를 `form` 에서 떼기. 결과는 R12 적용 사례 |
 | F5 | dataMng·codeMng·layoutConfirm | 행 클릭 셸 1회(선택 행 snapshot) | 선택 행 복원이 요구사항인지 사용자 결정(R8) |

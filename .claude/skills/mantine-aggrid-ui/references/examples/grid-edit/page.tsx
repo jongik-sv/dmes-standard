@@ -4,11 +4,12 @@
  * defectCodeMng — 불량코드 관리. 화면 유형 C(그리드 편집 저장형) 표준 예제.
  * 규칙 정본: .claude/skills/mantine-aggrid-ui/references/screen-patterns.md §C
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContentBody, ContentPanel, PageLayout, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import {
   AgDataGrid,
+  GridLimitNotice,
   GridPanel,
   ROW_STATUS,
   getRowIdentifier,
@@ -25,6 +26,7 @@ import {
   DEFECT_TYPE_LABELS,
   DEFECT_TYPE_OPTIONS,
   EMPTY_FILTERS,
+  FIRST_SEARCH_LIMIT,
   USE_YN_LABELS,
   type DefectCodeFilters,
   type DefectCodeRow,
@@ -71,6 +73,11 @@ export default function DefectCodeMngPage() {
   const { showMessage } = useMessage();
   const [filters, setFilters] = useState<DefectCodeFilters>(EMPTY_FILTERS);
   const [isBusy, setIsBusy] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  /** 조회로 받은 건수 — 행추가로 늘어난 grid.rows 길이와 구분해 상한 안내에 쓴다. */
+  const [loadedCount, setLoadedCount] = useState(0);
+  /** 마지막 조회가 [전체 보기]였는지 — 저장 뒤 재조회는 지금 모드를 따른다. */
+  const showAllRef = useRef(false);
 
   // 엑셀 머리글은 그리드에 보이는 캡션과 같게(header 를 생략한 열은 MDM 캡션) — mdm-meta 문서 참고.
   const excelColumns = useResolvedGridColumns(COLUMNS);
@@ -82,33 +89,41 @@ export default function DefectCodeMngPage() {
     saveHandler: saveDefectCodes,
     onSaveSuccess: async () => {
       showMessage({ message: "저장되었습니다.", alertType: "success", toast: true });
-      await runSearch();
+      await runSearch(showAllRef.current);
     },
   });
   const { setRows, saveError, dismissSaveError } = grid;
 
-  const runSearch = useCallback(async () => {
-    setIsBusy(true);
-    try {
-      setRows(await searchDefectCodes(filters));
-    } catch (e) {
-      showMessage({ title: "오류", message: errorText(e), alertType: "error" });
-    } finally {
-      setIsBusy(false);
-    }
-  }, [filters, setRows, showMessage]);
+  /** all=true 는 [전체 보기]: 상한 없이 다시 받는다(화면 성능 가이드 R1). */
+  const runSearch = useCallback(
+    async (all = false) => {
+      setIsBusy(true);
+      try {
+        const result = await searchDefectCodes(filters, all ? undefined : FIRST_SEARCH_LIMIT);
+        setRows(result.rows);
+        setTotalCount(result.totalCount);
+        setLoadedCount(result.rows.length);
+        showAllRef.current = all;
+      } catch (e) {
+        showMessage({ title: "오류", message: errorText(e), alertType: "error" });
+      } finally {
+        setIsBusy(false);
+      }
+    },
+    [filters, setRows, showMessage],
+  );
 
   /** 저장하지 않은 변경이 있으면 조회 전에 확인한다. */
-  const handleSearch = useCallback(() => {
+  const handleSearch = useCallback((all = false) => {
     if (!grid.hasChanges) {
-      void runSearch();
+      void runSearch(all);
       return;
     }
     showMessage({
       title: "확인",
       message: "저장하지 않은 변경이 있습니다. 조회하시겠습니까?",
       alertType: "confirm",
-      onConfirm: () => void runSearch(),
+      onConfirm: () => void runSearch(all),
     });
   }, [grid.hasChanges, runSearch, showMessage]);
 
@@ -169,7 +184,7 @@ export default function DefectCodeMngPage() {
       screenId={SCREEN_ID}
       objId={SCREEN_ID}
       buttons={[
-        { id: "btn_search", label: "조회", onClick: handleSearch, type: "primary", disabled: isBusy, action: "search" },
+        { id: "btn_search", label: "조회", onClick: () => handleSearch(), type: "primary", disabled: isBusy, action: "search" },
         {
           id: "btn_save",
           label: "저장",
@@ -181,7 +196,7 @@ export default function DefectCodeMngPage() {
         { id: "btn_export", label: "엑셀", onClick: handleExport, disabled: isBusy, action: "export" },
       ]}
     >
-      <SearchArea onSearch={handleSearch}>
+      <SearchArea onSearch={() => handleSearch()}>
         <SearchField
           label="불량유형"
           type="select"
@@ -197,6 +212,14 @@ export default function DefectCodeMngPage() {
           <GridPanel
             title="불량코드 목록"
             count={visibleCount}
+            titleExtra={
+              <GridLimitNotice
+                shownCount={loadedCount}
+                totalCount={totalCount}
+                onShowAll={() => handleSearch(true)}
+                disabled={isBusy}
+              />
+            }
             showAddButton
             buttons={[
               { id: "btn_grid_delete", label: "행삭제", onClick: confirmDeleteRow, disabled: grid.selectedRowKey == null },

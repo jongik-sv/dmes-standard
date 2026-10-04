@@ -14,6 +14,8 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 | D. 마스터-디테일 | 위 마스터 그리드, 아래 디테일 그리드(상하 분할) | [examples/master-detail/](examples/master-detail/page.tsx) |
 | E. 등록 팝업 | 상단 [신규] 로 여는 입력 모달 | [examples/master-detail/RegisterModal.tsx](examples/master-detail/RegisterModal.tsx) |
 
+**모든 유형에 §성능 기본 구조가 붙는다.** 첫 조회 상한, 상세 폼 분리, 안정 참조 열 정의는 예제가 이미 그 모양이므로 복사해 쓰면 지켜진다. 규칙과 근거는 [화면 성능 가이드](../../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) 가 정본이다.
+
 여러 유형이 섞이면 섞인 그대로 조합한다(예: C 의 그리드 + E 의 팝업). 예제는 `references/examples/` 에 있고, 바꾸면 §예제 검증으로 다시 확인한다.
 
 ## 공통 고정값
@@ -50,7 +52,7 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 - 텍스트: `<SearchField label="품번" value onChange />`. 선택: `type="select"` + 첫 옵션 `{ value: "", label: "전체" }`.
 - 기간: SearchField 두 개, 두 번째 `label="~"`. SearchArea 가 한 칸으로 묶는다. `div`·`span`·`className="span-2"` 로 직접 묶지 않는다.
 - 기간 기본값은 오늘-7일 ~ 오늘이다: `formatDateStr(addDays(today(), -7))`, `formatDateStr(today())` (`@dk-oasis/shared/utils`). `today()`·`addDays()` 는 `yyyyMMdd` 를 돌려주므로 `formatDateStr` 로 `yyyy-MM-dd` 로 바꾼다. `formatDate` 는 UTC 로 계산해 하루가 밀릴 수 있으니 쓰지 않는다.
-- 필수 조회조건이 없으면 진입 시 1회 자동 조회한다(`useEffect(() => { void handleSearch(); }, [])`).
+- 필수 조회조건이 없으면 진입 시 1회 자동 조회한다(`useEffect(() => { void handleSearch(); }, [])`). 단, 첫 조회에는 반드시 상한을 건다(§성능 기본 구조). 상한 없는 전체 조회를 진입 자동 조회로 두지 않는다. 자동 조회가 있는 화면은 진행 중인 같은 조건 요청을 다시 보내지 않는다(가이드 R4).
 
 ### 본문 배치
 
@@ -67,7 +69,8 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 ### 목록 그리드
 
 - 모든 목록은 `<GridPanel title="<목록명>" count={n}>` 안의 `<AgDataGrid>` 다. 작은 목록(팝업·카드 안)은 `height="auto"`.
-- 열 정의는 컴포넌트 밖 상수 `const COLUMNS: GridColumn[]`.
+- 열 정의는 컴포넌트 밖 상수 `const COLUMNS: GridColumn[]`. 열이 화면 state 에 의존해야 하면 `useMemo` 로 만들고 deps 에는 폼 객체가 아니라 안정값(불리언·고정 콜백)만 둔다(가이드 R12).
+- 목록이 상한으로 잘릴 수 있으면 `GridPanel titleExtra` 에 `GridLimitNotice` 를 둔다(§성능 기본 구조).
 - 표준 props: `rowKey` `columns` `data` `columnSizing` `highlightedRowKey` `onRowClick` `loading`. `emptyMessage`·`loadingMessage` 는 주지 않는다(기본 문구로 통일).
 - `columnSizing`: 열 8개 이하 `"fit"`, 9개 이상 `"fixed"`(가로 스크롤). 소스 기본값은 `"auto"` 다.
 
@@ -101,6 +104,7 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 
 - `DETAIL_TABLE_STYLE`·`DETAIL_LABEL_CELL`·`DETAIL_VALUE_CELL`(`@dk-oasis/shared/layout`)로 `<table><tbody><tr><th/><td/></tr></tbody></table>` 를 만든다. `<thead>` 는 없다.
 - 필수 항목은 라벨 끝에 ` *`. 입력은 form 래퍼만 쓴다(`Input`·`Select`·`DatePicker`·`Textarea`·`Radio`·`Checkbox`·`ComboBox`).
+- 상세 폼은 화면 루트가 아니라 **별도 컴포넌트**(`<이름>DetailPane.tsx`)에 둔다. 입력 state 는 그 안에만 있다(§성능 기본 구조).
 - 선택된 행이 없으면 모든 입력을 `disabled`. 수정 시 키 항목은 `readOnly` + `disabled`.
 - 안내 문구용 `<p style>` 를 넣지 않는다. 선택 전 상태는 비활성 폼으로 충분하다.
 - `FormGroup` 은 쓰지 않는다.
@@ -137,6 +141,32 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 - 래퍼에 `size`·`radius`·`color` 를 주지 않는다. 화면 CSS 파일을 만들지 않는다.
 - 인라인 `style` 은 shared 가 제공하는 `DETAIL_*` 상수만 쓴다. 필요한 모양이 없으면 화면에서 만들지 말고 사용자에게 알린다(shared 확장 대상).
 
+## 성능 기본 구조
+
+새 화면이 처음부터 느려지지 않게 하는 구조다. 세 가지 모두 예제([list-detail](examples/list-detail/page.tsx))가 이미 그 모양이다. 근거 수치와 점검표는 [화면 성능 가이드](../../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) 의 「새 화면 만들 때 하지 말 것」 표와 §7 이다.
+
+| 항목 | 기본 구조 | 가이드 |
+|---|---|---|
+| 첫 조회 상한 | 조건 없는 첫 조회는 `limit` 을 보낸다(`FIRST_SEARCH_LIMIT = 1000`). 응답의 `totalCount` 를 받아 `GridPanel titleExtra` 에 `<GridLimitNotice shownCount totalCount onShowAll />` 을 둔다. [전체 보기] 는 `limit` 없이 다시 조회한다. 조건이 있는 조회도 예상 건수·응답 크기를 설계서에 적는다. m-mdm 은 `@/oasis-screen` 의 `FIRST_SEARCH_LIMIT` 을 쓰고, 다른 모듈 예제는 `types.ts` 에 같은 상수를 둔다. 서버가 `limit`·`totalCount` 를 지원해야 한다 | R1 |
+| 상세 폼 분리 | 폼 입력 state 는 `<이름>DetailPane` 컴포넌트에만 둔다. 저장 단추가 화면 루트(`PageLayout buttons`)에 있으므로 루트는 `ref` 핸들(`load(form \| null)`·`getForm()`, 일부 칸만 바꾸면 `apply({ patch, ... })`)로 폼과 대화한다. React 19 이므로 `ref` 를 prop 으로 받는다. 루트에는 폼 값을 두지 않고 단추 활성용 불리언·모드만 둔다 | R12 |
+| 안정 참조 열 정의 | `COLUMNS` 는 모듈 상수. state 가 필요하면 `useMemo` 와 안정 deps(`hasForm` 같은 불리언·고정 콜백)만 쓴다. `useMemo(() => [...], [form])` 처럼 폼 객체를 deps 에 넣지 않는다. 목록 `loading` 은 목록 조회 전용 state 로 켠다 | R5·R12 |
+
+```tsx
+// 상세 폼: 입력 state 는 여기만 있다. 한 글자 입력은 이 컴포넌트만 다시 그린다.
+export type EquipDetailHandle = { load(form: EquipForm | null): void; getForm(): EquipForm | null };
+export function EquipDetailPane({ ref, busy, isNew }: { ref: Ref<EquipDetailHandle>; busy: boolean; isNew: boolean }) {
+  const [form, setForm] = useState<EquipForm | null>(null);
+  useImperativeHandle(ref, () => ({ load: setForm, getForm: () => form }), [form]);
+  ...
+}
+// 화면 루트: 폼 값을 갖지 않는다. 행 선택·신규·조회 때 load, 저장 때 getForm.
+const detailRef = useRef<EquipDetailHandle>(null);
+const handleSave = async () => { const form = detailRef.current?.getForm(); ... };
+<EquipDetailPane ref={detailRef} busy={isBusy} isNew={isNew} />
+```
+
+그 밖에 지킬 것: `fetch("/api/auth/me")` 를 직접 부르지 않고(`getCurrentUser()`), 권한 훅 `useUserButtonRbac()` 는 화면 루트 한 곳에서만 쓴다(R9). 0건이어도 그리드를 언마운트하지 않는다(R6). 행 클릭·입력마다 `onSnapshotChange` 를 부르지 않는다(R8). 같은 값이면 `setState` 하지 않는다(R7).
+
 ## 유형별 메모
 
 ### §A 조회
@@ -145,7 +175,7 @@ B 예제에서 오른쪽 `ContentPanel`·상세 상태·신규/저장/삭제 버
 
 ### §B 조회 + 상세
 
-- 행 클릭 → `form` 에 복사. [신규] → `selected=""` + 빈 폼. [저장] → 신규면 C, 아니면 U. [삭제] → 확인 후 서버에서 바로 삭제하고 다시 조회.
+- 행 클릭 → `detailRef.current.load(폼값)`. [신규] → `selected=""` + `load(빈 폼)`. [저장] → `getForm()` 으로 읽어 신규면 C, 아니면 U. 루트가 아는 것은 저장 단추 활성용 `mode`(none·new·edit)뿐이다. [삭제] → 확인 후 서버에서 바로 삭제하고 다시 조회.
 
 ### §C 그리드 편집 저장형
 
@@ -185,7 +215,7 @@ B 예제에서 오른쪽 `ContentPanel`·상세 상태·신규/저장/삭제 버
 
 ## 예제 검증
 
-예제를 고치면 타입 검사와 audit 를 다시 돌린다.
+예제를 고치면 타입 검사와 audit 를 다시 돌린다. 화면을 새로 만들거나 고친 뒤에는 화면 성능 가이드 §7 점검표와 `A audit <바꾼 파일·폴더>` 도 돌린다.
 
 ```bash
 python3 .claude/skills/mantine-aggrid-ui/scripts/ui_docs.py check-examples

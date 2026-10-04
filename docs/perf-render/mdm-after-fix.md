@@ -142,6 +142,23 @@ profiling 번들이고 프로파일러가 켜져 있어 절대값은 일반 번�
 - 루트 state 에 둔 폼(`columnMng/page.tsx:137` 류)은 한 글자마다 화면 전체를 다시 렌더한다. 지금 크기로는 한 프레임(16ms) 안이지만 화면이 커질수록 비례해 는다. termMng 은 그리드 열 정의가 폼에 의존해 AG Grid 셀까지 다시 그린다.
 - **R12 를 확정한다**(비용 작음, 구조 규칙).
 
+### 3.3 F4 수정 뒤 (`perf/fix-f4`, 2026-10-04~05)
+
+상세 폼을 `ColumnDetailForm`·`TermDetailPane`(+ 추천 `RecoPanel`)으로 옮기고 화면 루트는 `ref` 핸들로만 폼을 다룬다(커밋 a416187b·02e36638·0b9ef24b). 같은 조건(profiling 번들 5300, `count-renders` ⑤ "ABCDE" 150ms 간격, 저장 안 함)으로 수정 전(기준 4de0954f) 1회, 수정 뒤 4회 쟀다. 수정 뒤 값은 최종 코드(0b9ef24b) 2회의 범위다. AC 전원·lowpowermode 0·load 2.5~3.9.
+
+| 화면 | 한 글자당 | 수정 전(4de0954f) | 수정 뒤 |
+|---|---|---|---|
+| columnMng | 커밋 / 렌더 시간 | 1 / 7.3ms | 1 / 3.6~4.0ms |
+| | 다시 그려진 컴포넌트 | 268(화면 루트 포함) | 159(상세 폼 아래만) |
+| | 화면 루트 · 그리드 래퍼 · 셀 | 1회 · 8회 · 0 | **0 · 0 · 0** |
+| termMng | 커밋 / 렌더 시간 | 21 / 6.4ms | 1 / 1.7ms |
+| | 다시 그려진 컴포넌트 | 332(루트 + 추천 셀) | 94(상세 폼 아래만) |
+| | 화면 루트 · 그리드 래퍼 · 셀 단독 커밋(5글자) | 5 · 40 · 100 | **0 · 0 · 0** |
+
+- 수정 전 값은 §3.2(columnMng 7.6ms, termMng 5.4ms)와 같은 조건으로 이날 다시 잰 값이다. 커밋·컴포넌트 수는 같고 시간만 흔들린다(이 PC 는 같은 설정에서도 2배까지 흔들린다).
+- ①~④ 동작의 커밋 수는 수정 전과 같거나 ±2 안이다(termMng 조회 34→35~37 은 렌더 없는 빈 커밋).
+- 루트 재렌더는 화면 시험으로도 막는다(`m-mdm/tests/dma/columnMng/detail-form.test.ts`·`termMng/term-detail-pane.test.ts` 가 `MdmPageLayout` 호출 수를 센다. 수정 전 코드에서 실패 확인).
+
 ## 4. 기대값 판정
 
 | 기대(지시) | 결과 | 판정 |
@@ -179,7 +196,7 @@ profiling 번들이고 프로파일러가 켜져 있어 절대값은 일반 번�
 | F1 | columnMng 상한 조회 TTFB 107~136ms(예산 ≤50ms 초과, termMng 은 46ms) | `ColumnMngService.java:136-144` 가 조건 없는 상한 조회에서 ID·논리명을 **전부** 읽어 Java 로 정렬한 뒤 앞 1,000건을 고른다 | 정렬 키 인덱스·DB 정렬로 앞쪽만 읽기(방언 콜레이션 차이를 감수할지 결정 필요) |
 | F2 | `TermMngService.save` 가 저장마다 전체 목록(≈8천 건) 재구성 | `TermMngService.java:227` 이 `search(new TermSearchRequest())` 로 상한 없는 전체 목록을 돌려준다. 저장 응답이 ≈3MB 다 | 저장 응답은 저장한 행·경고만, 목록 재조회는 화면이 현재 조건(상한 포함)으로 |
 | F3 | 사용자 ID 만 쓰려고 RBAC 를 구독하는 곳(K4 형태) | `DashboardBoard.tsx:148`, `dashboard/layout.tsx:165`, `m-mcm/widget-types/memo/memo-user.ts:24`, `unit-converter/unit-user.ts:18` 이 `useUserButtonRbac` 로 `userId` 만 쓴다 | `useCurrentUserId()` 로 바꾸기(K4 와 같은 방식). auth/me 는 이미 캐시라 요청은 늘지 않고 RBAC 인스턴스 상태만 준다 |
-| F4 | 입력 한 글자마다 화면 루트 전체 렌더(R12) | §3.2 | columnMng·termMng 상세 폼을 별도 컴포넌트로, termMng 추천 그리드 열을 `form` 에서 떼기 |
+| ~~F4~~ | 입력 한 글자마다 화면 루트 전체 렌더(R12) | §3.2 | **완료**(§3.3, 커밋 a416187b·02e36638·0b9ef24b). 한 글자당 루트·그리드 셀 재렌더 0회 |
 | F5 | 행 클릭 셸 1회 | §2.5 | 선택 행 snapshot 복원이 요구사항인지 사용자 결정(가이드 R8) |
 | F6 | 소형 화면 TTFB 가 이번 측정에서 2~4배, termMng [전체 보기] TTFB +44ms | §2.2·§4 | 다음 측정 때 load 가 낮은 시점에 다시 본다. 코드 원인은 찾지 못했다(상한 없는 경로 서버 코드 무변경) |
 | F7 | 진입 때 `mdmMeta/columns` 404 | §5, 검증 §2 주장 7 | 그리드 마운트마다 404 를 받는다. 메타가 없는 화면이면 호출하지 않게 할지 확인 |

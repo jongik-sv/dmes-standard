@@ -6,30 +6,20 @@
  * 정본: docs/mdm/screens/termMng/termMng_기능설계서.md. mls `noticeMgmt` 패턴 + 새 유사어 추천 패널
  * (A-RECO, 리포에 선례가 없어 새로 만든다 — 순수 `setTimeout`+`AbortController`).
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
-import {
-  ContentBody,
-  ContentPanel,
-  DETAIL_LABEL_CELL,
-  DETAIL_TABLE_STYLE,
-  DETAIL_VALUE_CELL,
-  ErrorModal,
-  SearchArea,
-  SearchField,
-} from "@dk-oasis/shared/layout";
+import { ContentBody, ContentPanel, ErrorModal, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridLimitNotice, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
-import { Button, Input, ProgressBar, Textarea } from "@dk-oasis/shared/form";
+import { ProgressBar } from "@dk-oasis/shared/form";
 import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { MdmPageLayout } from "@/shell";
-import { useDebouncedEffect } from "@/hooks/use-debounced-effect";
 
-import { deleteTerm, reencodeBatch, recommend, saveTerm, searchTerms } from "./api";
+import { deleteTerm, reencodeBatch, saveTerm, searchTerms } from "./api";
+import { TermDetailPane, type TermDetailHandle } from "./TermDetailPane";
 import {
   emptyFilters,
   emptyTermForm,
   termFormFromRow,
-  type RecommendCandidate,
   type TermForm,
   type TermMngFilters,
   type TermRow,
@@ -44,18 +34,6 @@ const TERM_COLUMNS: GridColumn[] = [
   { key: "synonymsText", header: "동의어", width: 220, align: "left" },
 ];
 
-/** A-RECO 유사어 추천 그리드 열. 행 키는 `{stage}-{termId}`(같은 용어가 1차·2차에 함께 나올 수 있다). */
-const RECO_COLUMNS_BASE: GridColumn[] = [
-  { key: "stageText", header: "구분", width: 70, align: "center" },
-  { key: "termName", header: "표기", width: 120, align: "left" },
-  { key: "engName", header: "영문명", width: 150, align: "left" },
-  { key: "systemsText", header: "사용 시스템", width: 110, align: "left" },
-  { key: "scoreText", header: "유사도", width: 70, align: "right" },
-];
-
-/** D-002(표기)가 2자 이상이어야 1차 추천을 실행한다(I18). */
-const MIN_RECOMMEND_LENGTH = 2;
-
 export default function TermMngPage() {
   const [filters, setFilters] = useState<TermMngFilters>(emptyFilters);
   const [rows, setRows] = useState<TermRow[]>([]);
@@ -64,13 +42,12 @@ export default function TermMngPage() {
   /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
   const [showAll, setShowAll] = useState(false);
   const [selectedTermId, setSelectedTermId] = useState<number | null>(null);
-  const [form, setForm] = useState<TermForm | null>(null);
+  /** 상세 폼 — 입력 값은 TermDetailPane 이 갖고, 루트는 "폼이 있는지"만 안다(R12: 한 글자마다 루트가 다시 그려지지 않게). */
+  const detailRef = useRef<TermDetailHandle>(null);
+  const [hasForm, setHasForm] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessage, setWarningMessage] = useState<string | null>(null);
-
-  const [candidates, setCandidates] = useState<RecommendCandidate[]>([]);
-  const [stage2Enabled, setStage2Enabled] = useState(false);
 
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchStatus, setBatchStatus] = useState<string | null>(null);
@@ -85,6 +62,11 @@ export default function TermMngPage() {
     [rows],
   );
 
+  const loadForm = useCallback((next: TermForm | null, clearCandidates = true) => {
+    detailRef.current?.load(next, { clearCandidates });
+    setHasForm(next != null);
+  }, []);
+
   // [조회] 는 첫 조회 상한(R1)을 걸고, [전체 보기] 는 상한 없이 받는다. 저장·삭제 뒤 재조회는 지금 모드를 따른다.
   const handleSearch = useCallback(async (all = false) => {
     setIsBusy(true);
@@ -94,14 +76,13 @@ export default function TermMngPage() {
       setRowsTotal(payload.truncated ? (payload.totalCount ?? null) : null);
       setShowAll(all);
       setSelectedTermId(null);
-      setForm(null);
-      setCandidates([]);
+      loadForm(null);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     } finally {
       setIsBusy(false);
     }
-  }, [filters]);
+  }, [filters, loadForm]);
 
   // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청)
 
@@ -112,9 +93,8 @@ export default function TermMngPage() {
   /** B-002 등록 — A-DETAIL·A-RECO 초기화. */
   const handleNew = useCallback(() => {
     setSelectedTermId(null);
-    setForm(emptyTermForm());
-    setCandidates([]);
-  }, []);
+    loadForm(emptyTermForm());
+  }, [loadForm]);
 
   const handleRowClick = useCallback((row: Record<string, unknown>) => {
     const termId = Number(row.termId);
@@ -124,13 +104,9 @@ export default function TermMngPage() {
     setSelectedTermId(termId);
     const original = rows.find((r) => r.termId === termId);
     if (original) {
-      setForm(termFormFromRow(original));
+      loadForm(termFormFromRow(original), false);
     }
-  }, [rows, selectedTermId]);
-
-  const handleFormChange = useCallback((key: keyof TermForm, value: string) => {
-    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
-  }, []);
+  }, [rows, selectedTermId, loadForm]);
 
   const validate = useCallback((f: TermForm): string | null => {
     if (!f.termName.trim()) return "표기(한글)는 필수입니다."; // V-001
@@ -141,6 +117,7 @@ export default function TermMngPage() {
 
   /** B-003 저장. */
   const handleSave = useCallback(async () => {
+    const form = detailRef.current?.getForm() ?? null;
     if (!form) {
       setErrorMessage("저장할 내용이 없습니다. 행을 선택하거나 [등록] 을 누르세요.");
       return;
@@ -167,7 +144,7 @@ export default function TermMngPage() {
     } finally {
       setIsBusy(false);
     }
-  }, [form, validate, handleSearch, showAll]);
+  }, [validate, handleSearch, showAll]);
 
   /** B-004 삭제. */
   const handleDelete = useCallback(async () => {
@@ -185,39 +162,6 @@ export default function TermMngPage() {
       setIsBusy(false);
     }
   }, [selectedTermId, handleSearch, showAll]);
-
-  /** A-RECO — D-002·D-004·D-007 중 하나라도 바뀌고 표기가 2자 이상이면 디바운스 후 compare 1회. */
-  useDebouncedEffect(
-    async (signal) => {
-      if (!form || form.termName.trim().length < MIN_RECOMMEND_LENGTH) {
-        setCandidates([]);
-        setStage2Enabled(false);
-        return;
-      }
-      try {
-        const payload = await recommend(form.termId, form.termName, form.definition, form.engName, signal);
-        setCandidates(payload.candidates ?? []);
-        setStage2Enabled(!!payload.stage2Enabled);
-      } catch (e) {
-        if (e instanceof Error && e.name === "AbortError") return;
-        // 추천 실패는 조용히 무시한다 — 화면 핵심 흐름(저장)을 막지 않는다.
-      }
-    },
-    [form?.termName, form?.definition, form?.engName, form?.termId],
-    300,
-  );
-
-  /** B-005/GB-001 동의어로 확정 — D12(a): 후보의 termName+후보의 systems 를 "{name}({systems})" 로 붙인다. */
-  const handleConfirmSynonym = useCallback((candidate: RecommendCandidate) => {
-    const systemsPart = candidate.systems && candidate.systems.length > 0 ? `(${candidate.systems.join(",")})` : "";
-    const entry = `${candidate.termName}${systemsPart}`;
-    setForm((prev) => {
-      if (!prev) return prev;
-      const existing = prev.synonyms.split(",").map((s) => s.trim()).filter(Boolean);
-      if (existing.includes(entry)) return prev;
-      return { ...prev, synonyms: [...existing, entry].join(",") };
-    });
-  }, []);
 
   /** B-006 재인코딩 배치 — 청크 단위 폴링(D6), done=true 까지 반복 호출. */
   const handleReencodeBatch = useCallback(async () => {
@@ -243,48 +187,6 @@ export default function TermMngPage() {
     }
   }, []);
 
-  const recoRows = useMemo(
-    () =>
-      candidates
-        .filter((c) => c.stage === "1" || stage2Enabled)
-        .map((c) => ({
-          ...c,
-          recoKey: `${c.stage}-${c.termId}`,
-          stageText: c.stage === "1" ? "1차 이름" : "2차 의미",
-          systemsText: (c.systems ?? []).join(", "),
-          scoreText: c.score.toFixed(2),
-        })),
-    [candidates, stage2Enabled],
-  );
-  const recoColumns = useMemo<GridColumn[]>(
-    () => [
-      ...RECO_COLUMNS_BASE.map((col) =>
-        col.key === "termName"
-          ? {
-              ...col,
-              render: (v: unknown, r: Record<string, unknown>) => (
-                <span data-testid={`reco-candidate-${String(r.recoKey)}`}>{String(v ?? "")}</span>
-              ),
-            }
-          : col,
-      ),
-      {
-        key: "confirm",
-        header: "",
-        width: 110,
-        align: "center",
-        sortable: false,
-        tooltip: false,
-        render: (_v: unknown, r: Record<string, unknown>) => (
-          <Button size="mini" data-testid={`reco-confirm-${String(r.recoKey)}`} disabled={!form} onClick={() => handleConfirmSynonym(r as unknown as RecommendCandidate)}>
-            동의어로 확정
-          </Button>
-        ),
-      },
-    ],
-    [form, handleConfirmSynonym],
-  );
-
   return (
     <MdmPageLayout
       group="dma"
@@ -293,7 +195,7 @@ export default function TermMngPage() {
       buttons={[
         { id: "btn_search", label: "조회", onClick: () => void handleSearch(), type: "primary" as const, disabled: isBusy, action: "search" },
         { id: "btn_new", label: "등록", onClick: handleNew, disabled: isBusy, action: "save" },
-        { id: "btn_save", label: "저장", onClick: () => void handleSave(), type: "save" as const, disabled: isBusy || !form, action: "save" },
+        { id: "btn_save", label: "저장", onClick: () => void handleSave(), type: "save" as const, disabled: isBusy || !hasForm, action: "save" },
         { id: "btn_delete", label: "삭제", onClick: () => void handleDelete(), disabled: isBusy || !selectedTermId, action: "delete" },
         { id: "btn_reencode", label: "재인코딩 배치 실행", onClick: () => void handleReencodeBatch(), disabled: isBusy || batchRunning, action: "execute" },
       ]}
@@ -341,90 +243,7 @@ export default function TermMngPage() {
         </ContentPanel>
 
         <ContentBody direction="column" width={560} resizable storageKey="mdm.dma.termMng.detail">
-        <ContentPanel>
-          <table style={DETAIL_TABLE_STYLE}>
-            <tbody>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>표기 *</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input value={form?.termName ?? ""} disabled={!form || isBusy} onChange={(v) => handleFormChange("termName", v)} />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>의미 번호 *</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input value={form?.senseNo ?? ""} disabled={!form || isBusy} onChange={(v) => handleFormChange("senseNo", v)} />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>정의 *</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Textarea value={form?.definition ?? ""} rows={3} disabled={!form || isBusy} onChange={(v) => handleFormChange("definition", v)} />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>맥락</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input value={form?.context ?? ""} disabled={!form || isBusy} onChange={(v) => handleFormChange("context", v)} />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>사용 시스템</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input value={form?.systems ?? ""} placeholder="MES,ERP" disabled={!form || isBusy} onChange={(v) => handleFormChange("systems", v)} />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>영문명</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input value={form?.engName ?? ""} disabled={!form || isBusy} onChange={(v) => handleFormChange("engName", v)} />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>영문 약어</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input value={form?.engAbbr ?? ""} disabled={!form || isBusy} onChange={(v) => handleFormChange("engAbbr", v)} />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>동의어</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input value={form?.synonyms ?? ""} placeholder="배치(ERP)" disabled={!form || isBusy} onChange={(v) => handleFormChange("synonyms", v)} />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>별칭</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input value={form?.aliases ?? ""} placeholder="코일ID,COIL_ID" disabled={!form || isBusy} onChange={(v) => handleFormChange("aliases", v)} />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>표준 결정 근거</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Textarea value={form?.stdBasis ?? ""} rows={2} disabled={!form || isBusy} onChange={(v) => handleFormChange("stdBasis", v)} />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          {!form && (
-            <p style={{ padding: "var(--spacing-md)", color: "var(--color-text-muted)" }}>
-              목록에서 행을 선택하거나 [등록] 을 눌러 작성하세요.
-            </p>
-          )}
-        </ContentPanel>
-
-        <ContentPanel height={300}>
-          <GridPanel title={`유사어 추천${stage2Enabled ? "" : " (1차 이름 비교만, 임베딩 인코더 꺼짐)"}`} count={recoRows.length}>
-            <AgDataGrid
-              ariaLabel="유사어 추천"
-              columnSizing="fit"
-              columns={recoColumns}
-              data={recoRows}
-              rowKey="recoKey"
-              emptyMessage="표기를 2자 이상 입력하면 비슷한 용어를 보여 줍니다."
-            />
-          </GridPanel>
-        </ContentPanel>
+          <TermDetailPane ref={detailRef} busy={isBusy} />
         </ContentBody>
       </ContentBody>
 
