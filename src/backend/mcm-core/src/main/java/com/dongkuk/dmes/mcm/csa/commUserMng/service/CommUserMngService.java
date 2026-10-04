@@ -1,9 +1,10 @@
 /*
  * 작성자: @junhwan-park
  * 작성일: 2026-06-01
- * 내용: commUserMng OASIS BPMN serviceTask entry point — 11 action (W5)
+ * 내용: commUserMng OASIS BPMN serviceTask entry point — 12 action (W5)
  *       searchCmUser / saveCmUser / regCmUser / deleteCmUser / reRegCmUser / searchUserRoleGrp /
- *       saveUserRoleGrp / searchRoleGrp / pwdinit / saveUserRoleGrpCopy / commonUserDept
+ *       saveUserRoleGrp / searchRoleGrp / pwdinit / saveUserRoleGrpCopy / commonUserDept / searchDeptLov
+ *       2026-10-04 — 퍼사드로 바꾸고 본문을 조회·저장·비밀번호·SSO 빈으로 나눴다(이름·시그니처·반환 Map 불변).
  */
 package com.dongkuk.dmes.mcm.csa.commUserMng.service;
 
@@ -13,20 +14,17 @@ import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngRoleCopyRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchDeptLovRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngSearchRequest;
 import com.dongkuk.dmes.mcm.csa.commUserMng.dto.CommUserMngUserIdRequest;
-import com.dongkuk.dmes.mcm.repository.SecUserPwdRepository;
 import org.springframework.stereotype.Service;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 
 /**
  * commUserMng — OASIS BPMN serviceTask entry point (W5 / csa 9 화면 5번째).
  *
  * <p>Spring bean name {@code commUserMngService} → BPMN {@code <camunda:class>commUserMngService</camunda:class>}.
  *
- * <p>BPMN action 11 (As-Is 11 → To-Be 11 — 분석 §1 / §8 / BPMN설계서):
+ * <p>BPMN action 12 (As-Is 11 → To-Be 11 — 분석 §1 / §8 / BPMN설계서, 2026-06-04 searchDeptLov 추가):
  * <ol>
  *   <li>{@code searchCmUser}        → {@link #searchCmUser(CommUserMngSearchRequest)} — 메인 사용자 그리드 조회 + ds_mainAll 후속</li>
  *   <li>{@code saveCmUser}          → {@link #saveCmUser(List)} — 메인 그리드 저장 (status="updated" 분기만)</li>
@@ -44,8 +42,20 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
  *       commRoleMng round-3 의 searchObjectLov 정합 패턴.)</li>
  * </ol>
  *
- * <p>가이드 §6-B (트랜잭션 / Proxy 안티패턴) — 본 Service 에 {@code @Transactional} ✗.
- * OASIS executor {@code SpringTransactionHandler} 가 BPMN process 단위로 자동 wrap.
+ * <p>구조 (2026-10-04 분할) — 이 클래스는 BPMN 이 부르는 퍼사드다. 빈 이름·public 12개 메서드의 이름·파라미터 이름
+ * ({@code request}·{@code master} — OASIS 가 grids key 를 Java 파라미터 이름으로 묶는다)·반환 Map 은 분할 전과 같다.
+ * 본문은 같은 패키지의 빈에 위임한다:
+ * <ul>
+ *   <li>{@link CommUserMngQueryService} — searchCmUser / searchUserRoleGrp / searchRoleGrp / commonUserDept / searchDeptLov</li>
+ *   <li>{@link CommUserMngSaveService} — saveCmUser(regCmUser·deleteCmUser 도 이리로) / reRegCmUser / saveUserRoleGrp /
+ *       saveUserRoleGrpCopy (RoleChangedEvent 발행 포함)</li>
+ *   <li>{@link CommUserMngPasswordService} — pwdinit 단건 분기</li>
+ *   <li>{@link CommUserMngSsoService} — pwdinit SSO 일괄 분기</li>
+ *   <li>{@code CommUserMngPwdWriter}(패키지 private) — bcrypt 인코더·초기 비밀번호·PWD 행 upsert 공유</li>
+ * </ul>
+ *
+ * <p>가이드 §6-B (트랜잭션 / Proxy 안티패턴) — 본 Service 와 위임 빈 어디에도 {@code @Transactional} ✗.
+ * OASIS executor {@code SpringTransactionHandler} 가 BPMN process 단위로 자동 wrap 하므로 위임 빈 호출도 같은 트랜잭션이다.
  *
  * <p>To-Be 정책:
  * <ul>
@@ -64,19 +74,19 @@ import static com.dongkuk.dmes.mcm.common.util.McmValues.strOf;
 @Service("commUserMngService")
 public class CommUserMngService {
 
-    private final SecUserPwdRepository secUserPwdRepository;
     private final CommUserMngQueryService queryService;
     private final CommUserMngSaveService saveService;
-    private final CommUserMngPwdWriter pwdWriter;
+    private final CommUserMngPasswordService passwordService;
+    private final CommUserMngSsoService ssoService;
 
-    CommUserMngService(SecUserPwdRepository secUserPwdRepository,
-                       CommUserMngQueryService queryService,
-                       CommUserMngSaveService saveService,
-                       CommUserMngPwdWriter pwdWriter) {
-        this.secUserPwdRepository = secUserPwdRepository;
+    public CommUserMngService(CommUserMngQueryService queryService,
+                              CommUserMngSaveService saveService,
+                              CommUserMngPasswordService passwordService,
+                              CommUserMngSsoService ssoService) {
         this.queryService = queryService;
         this.saveService = saveService;
-        this.pwdWriter = pwdWriter;
+        this.passwordService = passwordService;
+        this.ssoService = ssoService;
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -168,63 +178,20 @@ public class CommUserMngService {
     /**
      * action {@code pwdinit} 진입점. As-Is PasswordInit.java.
      *
-     * <p>분기 (java:31):
+     * <p>분기 (java:31) 만 퍼사드가 정하고 본문은 위임한다:
      * <ul>
-     *   <li>SSO_RESET_FLAG="Y" → master(ds_main) for-loop, 각 row 별 USER_SSO_PWD=bcrypt(USER_ID+USER_EMP_NO) → updateCommonSSOPwdInit</li>
-     *   <li>그 외 → 단건 USER_ID — USER_ENC_PWD=bcrypt(DEFAULT_PASSWORD) + USER_SSO_PWD=bcrypt(USER_ID+USER_EMP_NO) → mergeCommonPwdInit</li>
+     *   <li>SSO_RESET_FLAG="Y" → {@link CommUserMngSsoService#resetSsoPwd(List)} — master(ds_main) 전 행 USER_SSO_PWD 일괄 초기화.
+     *       응답은 {@code cnt_save} 만.</li>
+     *   <li>그 외(request null 포함) → {@link CommUserMngPasswordService#initPwd(CommUserMngPwdInitRequest)} — 단건 USER_ID
+     *       USER_ENC_PWD·USER_SSO_PWD 초기화. 성공 시 {@code INIT_PWD}·{@code INIT_PWD_USER_ID} 를 함께 돌려준다(2026-09-28).</li>
      * </ul>
-     *
-     * <p><b>응답 (2026-09-28 신설)</b> — 단건 비밀번호 초기화 성공 시 발급된 평문 초기 비밀번호를
-     * {@code INIT_PWD} 로 함께 돌려준다. As-Is {@code pwdtmp} 콜백이 하단 상태바에
-     * "임시비밀번호가 [{strErrorMsg}] 로 전송되었습니다" 를 보여주던 것을 (분석 §5.5 / 기능설계서 M-032)
-     * To-Be 화면 팝업 + 클립보드 복사로 대체하기 위한 것이다 — 초기 비밀번호가 bcrypt 해시로만 남으면
-     * 관리자가 사용자에게 전달할 값 자체를 알 수 없어 "초기화는 되는데 로그인할 수 없다" 가 된다.
-     *
-     * <p>보안 주의: {@code INIT_PWD} 는 **응답으로만** 나가고 로그에는 남기지 않는다. 값이 고정
-     * 상수인 점은 {@link CommUserMngPwdWriter#DEFAULT_PASSWORD} 주석의 외부화 선행 과제(운영 적용 전 반드시 처리) 그대로다.
-     *
-     * <p>SSO 일괄 분기는 초기 비밀번호를 반환하지 않는다. 대상이 그리드 전 행이라 평문 비밀번호를
-     * 응답에 싣는 순간 프런트가 N건의 비밀번호를 화면에 펼쳐야 하고, 값 규칙(USER_ID+USER_EMP_NO)도
-     * 사용자마다 달라 그대로 노출되면 DB 사본과 동등한 정보가 된다. 필요하면 별도 내려받기 화면을 연다.
      */
     public Map<String, Object> pwdinit(CommUserMngPwdInitRequest request, List<Map<String, Object>> master) {
-        int cnt = 0;
-        String initPwdUserId = null;
         boolean ssoReset = request != null && "Y".equals(request.getSSO_RESET_FLAG());
         if (ssoReset) {
-            // SSO 전체 — ds_main for-loop
-            if (master != null) {
-                for (Map<String, Object> row : master) {
-                    if (row == null) continue;
-                    String userId = strOf(row.get("USER_ID"));
-                    String userEmpNo = strOf(row.get("USER_EMP_NO"));
-                    if (userId == null || userId.isBlank()) continue;
-                    String ssoPwd = pwdWriter.encode(userId + (userEmpNo == null ? "" : userEmpNo));
-                    int affected = secUserPwdRepository.updateSsoPwd(userId, ssoPwd);
-                    if (affected == 0) {
-                        // 행이 없으면 신규 PWD 행 upsert
-                        pwdWriter.upsertUserPwd(userId, null, ssoPwd);
-                    }
-                    cnt++;
-                }
-            }
-        } else {
-            // 단건 PWD 초기화 — request 의 USER_ID 우선
-            String userId = request != null ? request.getUSER_ID() : null;
-            String userEmpNo = request != null ? request.getUSER_EMP_NO() : null;
-            if (userId != null && !userId.isBlank()) {
-                pwdWriter.resetToInitial(userId, userEmpNo);
-                cnt = 1;
-                initPwdUserId = userId;
-            }
+            return ssoService.resetSsoPwd(master);
         }
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("cnt_save", cnt);
-        if (initPwdUserId != null) {
-            out.put("INIT_PWD", CommUserMngPwdWriter.DEFAULT_PASSWORD);
-            out.put("INIT_PWD_USER_ID", initPwdUserId);
-        }
-        return out;
+        return passwordService.initPwd(request);
     }
 
     // ────────────────────────────────────────────────────────────────
