@@ -148,7 +148,7 @@ MES 화면(`m-mpp`·`m-mqc`·`m-mls`·`m-mcm` 등)을 누가 만들어도, 어�
 | 항목 | 기본 구조 | 가이드 |
 |---|---|---|
 | 첫 조회 상한 | 조건 없는 첫 조회는 `limit` 을 보낸다(`FIRST_SEARCH_LIMIT = 1000`). 응답의 `totalCount` 를 받아 `GridPanel titleExtra` 에 `<GridLimitNotice shownCount totalCount onShowAll />` 을 둔다. [전체 보기] 는 `limit` 없이 다시 조회한다. 조건이 있는 조회도 예상 건수·응답 크기를 설계서에 적는다. m-mdm 은 `@/oasis-screen` 의 `FIRST_SEARCH_LIMIT` 을 쓰고, 다른 모듈 예제는 `types.ts` 에 같은 상수를 둔다. 서버가 `limit`·`totalCount` 를 지원해야 한다 | R1 |
-| 상세 폼 분리 | 폼 입력 state 는 `<이름>DetailPane` 컴포넌트에만 둔다. 저장 단추가 화면 루트(`PageLayout buttons`)에 있으므로 루트는 `ref` 핸들(`load(form \| null)`·`getForm()`, 일부 칸만 바꾸면 `patch(partial)`)로 폼과 대화한다. React 19 이므로 `ref` 를 prop 으로 받는다. 루트에는 폼 값을 두지 않고 단추 활성용 불리언·모드만 둔다 | R12 |
+| 상세 폼 분리 | 폼 입력 state 는 `<이름>DetailPane` 컴포넌트에만 둔다. 저장 단추가 화면 루트(`PageLayout buttons`)에 있으므로 루트는 `ref` 핸들(`load(form \| null)`·`getForm()`, 일부 칸만 바꾸면 `apply({ patch, ... })`)로 폼과 대화한다. React 19 이므로 `ref` 를 prop 으로 받는다. 루트에는 폼 값을 두지 않고 단추 활성용 불리언·모드만 둔다 | R12 |
 | 안정 참조 열 정의 | `COLUMNS` 는 모듈 상수. state 가 필요하면 `useMemo` 와 안정 deps(`hasForm` 같은 불리언·고정 콜백)만 쓴다. `useMemo(() => [...], [form])` 처럼 폼 객체를 deps 에 넣지 않는다. 목록 `loading` 은 목록 조회 전용 state 로 켠다 | R5·R12 |
 
 ```tsx

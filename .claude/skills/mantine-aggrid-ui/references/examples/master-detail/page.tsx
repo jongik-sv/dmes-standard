@@ -105,7 +105,7 @@ export default function WorkOrderMngPage() {
   }, []);
 
   /** 마스터 행을 누르면 디테일을 조회한다. 디테일 로딩은 별도 상태로 둔다. */
-  const handleMasterClick = useCallback(
+  const loadOpers = useCallback(
     async (row: Record<string, unknown>) => {
       const woNo = String(row.woNo ?? "");
       setSelectedWoNo(woNo);
@@ -120,6 +120,7 @@ export default function WorkOrderMngPage() {
     },
     [showMessage],
   );
+  const handleMasterClick = useCallback((row: Record<string, unknown>) => void loadOpers(row), [loadOpers]);
 
   const setFilter = (key: keyof WorkOrderFilters, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));

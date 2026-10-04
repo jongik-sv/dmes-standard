@@ -4,7 +4,7 @@
  * defectCodeMng — 불량코드 관리. 화면 유형 C(그리드 편집 저장형) 표준 예제.
  * 규칙 정본: .claude/skills/mantine-aggrid-ui/references/screen-patterns.md §C
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ContentBody, ContentPanel, PageLayout, SearchArea, SearchField } from "@dk-oasis/shared/layout";
 import {
@@ -74,6 +74,10 @@ export default function DefectCodeMngPage() {
   const [filters, setFilters] = useState<DefectCodeFilters>(EMPTY_FILTERS);
   const [isBusy, setIsBusy] = useState(false);
   const [totalCount, setTotalCount] = useState<number | null>(null);
+  /** 조회로 받은 건수 — 행추가로 늘어난 grid.rows 길이와 구분해 상한 안내에 쓴다. */
+  const [loadedCount, setLoadedCount] = useState(0);
+  /** 마지막 조회가 [전체 보기]였는지 — 저장 뒤 재조회는 지금 모드를 따른다. */
+  const showAllRef = useRef(false);
 
   // 엑셀 머리글은 그리드에 보이는 캡션과 같게(header 를 생략한 열은 MDM 캡션) — mdm-meta 문서 참고.
   const excelColumns = useResolvedGridColumns(COLUMNS);
@@ -85,7 +89,7 @@ export default function DefectCodeMngPage() {
     saveHandler: saveDefectCodes,
     onSaveSuccess: async () => {
       showMessage({ message: "저장되었습니다.", alertType: "success", toast: true });
-      await runSearch();
+      await runSearch(showAllRef.current);
     },
   });
   const { setRows, saveError, dismissSaveError } = grid;
@@ -98,6 +102,8 @@ export default function DefectCodeMngPage() {
         const result = await searchDefectCodes(filters, all ? undefined : FIRST_SEARCH_LIMIT);
         setRows(result.rows);
         setTotalCount(result.totalCount);
+        setLoadedCount(result.rows.length);
+        showAllRef.current = all;
       } catch (e) {
         showMessage({ title: "오류", message: errorText(e), alertType: "error" });
       } finally {
@@ -108,16 +114,16 @@ export default function DefectCodeMngPage() {
   );
 
   /** 저장하지 않은 변경이 있으면 조회 전에 확인한다. */
-  const handleSearch = useCallback(() => {
+  const handleSearch = useCallback((all = false) => {
     if (!grid.hasChanges) {
-      void runSearch();
+      void runSearch(all);
       return;
     }
     showMessage({
       title: "확인",
       message: "저장하지 않은 변경이 있습니다. 조회하시겠습니까?",
       alertType: "confirm",
-      onConfirm: () => void runSearch(),
+      onConfirm: () => void runSearch(all),
     });
   }, [grid.hasChanges, runSearch, showMessage]);
 
@@ -178,7 +184,7 @@ export default function DefectCodeMngPage() {
       screenId={SCREEN_ID}
       objId={SCREEN_ID}
       buttons={[
-        { id: "btn_search", label: "조회", onClick: handleSearch, type: "primary", disabled: isBusy, action: "search" },
+        { id: "btn_search", label: "조회", onClick: () => handleSearch(), type: "primary", disabled: isBusy, action: "search" },
         {
           id: "btn_save",
           label: "저장",
@@ -190,7 +196,7 @@ export default function DefectCodeMngPage() {
         { id: "btn_export", label: "엑셀", onClick: handleExport, disabled: isBusy, action: "export" },
       ]}
     >
-      <SearchArea onSearch={handleSearch}>
+      <SearchArea onSearch={() => handleSearch()}>
         <SearchField
           label="불량유형"
           type="select"
@@ -208,9 +214,9 @@ export default function DefectCodeMngPage() {
             count={visibleCount}
             titleExtra={
               <GridLimitNotice
-                shownCount={grid.rows.length}
+                shownCount={loadedCount}
                 totalCount={totalCount}
-                onShowAll={() => void runSearch(true)}
+                onShowAll={() => handleSearch(true)}
                 disabled={isBusy}
               />
             }

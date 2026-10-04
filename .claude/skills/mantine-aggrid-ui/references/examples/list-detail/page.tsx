@@ -54,6 +54,8 @@ export default function EquipMngPage() {
   const [filters, setFilters] = useState<EquipFilters>(emptyFilters);
   const [rows, setRows] = useState<EquipRow[]>([]);
   const [totalCount, setTotalCount] = useState<number | null>(null);
+  /** 마지막 조회가 [전체 보기]였는지 — 저장·삭제 뒤 재조회는 지금 모드를 따른다. */
+  const [showAll, setShowAll] = useState(false);
   const [selectedCd, setSelectedCd] = useState("");
   // 폼 값은 루트에 두지 않는다. 루트는 단추 활성 판단용 불리언·모드만 안다.
   const [mode, setMode] = useState<"none" | "new" | "edit">("none");
@@ -72,6 +74,7 @@ export default function EquipMngPage() {
         const result = await searchEquips(filters, all ? undefined : FIRST_SEARCH_LIMIT);
         setRows(result.rows);
         setTotalCount(result.totalCount);
+        setShowAll(all);
         setSelectedCd("");
         setMode("none");
         detailRef.current?.load(null);
@@ -120,13 +123,13 @@ export default function EquipMngPage() {
     try {
       await saveEquip(form, isNew);
       showMessage({ message: "저장되었습니다.", alertType: "success", toast: true });
-      await handleSearch();
+      await handleSearch(showAll);
     } catch (e) {
       showMessage({ title: "오류", message: errorText(e), alertType: "error" });
     } finally {
       setIsBusy(false);
     }
-  }, [isNew, handleSearch, showMessage]);
+  }, [isNew, handleSearch, showAll, showMessage]);
 
   const handleDelete = useCallback(() => {
     if (!selectedCd) return;
@@ -139,7 +142,7 @@ export default function EquipMngPage() {
         try {
           await deleteEquip(selectedCd);
           showMessage({ message: "삭제되었습니다.", alertType: "success", toast: true });
-          await handleSearch();
+          await handleSearch(showAll);
         } catch (e) {
           showMessage({ title: "오류", message: errorText(e), alertType: "error" });
         } finally {
@@ -147,7 +150,7 @@ export default function EquipMngPage() {
         }
       },
     });
-  }, [selectedCd, handleSearch, showMessage]);
+  }, [selectedCd, handleSearch, showAll, showMessage]);
 
   const setFilter = (key: keyof EquipFilters, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
