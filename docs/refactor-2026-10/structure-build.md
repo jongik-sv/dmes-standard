@@ -22,6 +22,10 @@
 | S11 | E2E 공통 헬퍼 통합(로그인·메뉴·그리드 셀렉터·대기 상수·조건 대기) |
 | S12 | dmd 소속 편집 팝업 TransferList testid 반영 |
 | S13 | E2E 기본값 결함 수정(포털 주소·기본 아이디) |
+| S14 | README 실행 안내 보강(선빌드·드라이런·이전 인스턴스 종료·.run.env 우선순위·dmes-up 옵션) |
+| S15 | dmes-up.ps1 -Detach 에서 백엔드가 먼저 끝나면 FE 정리(동작 변경, 미검증) |
+| S16 | Windows ps1 확인 체크리스트 문서 |
+| S17 | E2E mdm 스모크 스크린샷 기본 출력 위치 이동(동작 변경) |
 
 ## S1. restart-all.sh 를 scripts/archive 로 보관
 - 커밋: 5d893cc3
@@ -207,3 +211,57 @@
 - 동작 보존 근거: 보존이 아니라 결함 수정이다. 환경변수로 값을 직접 주던 실행은 그대로이고, 기본값에 기대던 실행만 바뀐다. S11 의 서버 실행에서 기본값으로 로그인이 통과했다.
 - 영향 범위: 환경변수 없이 E2E 를 돌리는 사람. 주소·계정이 다르면 환경변수로 덮어야 한다.
 - 되돌리는 방법: ad7ba83a·67610840 revert (옛 결함이 돌아온다. 되돌릴 이유가 없다).
+
+## S14. README 실행 안내 보강
+- 커밋: b14822a3, 7d384f14 (README.md 한 파일, 스크립트 동작은 바꾸지 않음)
+- 바뀌기 전: README 에 be-run 선빌드·`--dry-run`·재실행 때 이전 인스턴스 종료·`.run.env`/환경변수 우선순위·`dmes-up` 옵션이 없었다. Windows 문단은 ".run.env 는 셸 판과 동일" 이라고 적혀 있었다.
+- 바뀐 뒤: 스크립트 표에 `--dry-run`·선빌드 링크와 `dmes-up`(Windows 전용) 줄을 더하고, 절 다섯 개를 추가했다(98줄 추가).
+  - 백엔드 선빌드: 모듈 2개 이상이면 루트 `gradlew -m` 으로 계획 → Gradle 1회 선빌드 → 모듈별 bootRun. 계획·선빌드가 실패하면 아무 모듈도 띄우지 않는다(sh 종료 코드 1, ps1 은 계획 실패 1·빌드 실패 Gradle 코드). `BE_PREBUILD=0` 으로 끄고 `BE_PREBUILD_CONTINUE=1` 이면 실패해도 띄운다.
+  - 드라이런: 서버·포트를 건드리지 않고 계획만 출력하되, 선빌드 대상이면 `gradlew -m` 을 한 번 부른다. 모듈 1개나 `BE_PREBUILD=0` 이면 부르지 않는다.
+  - 모듈을 나중에 하나 더 띄울 때: 같은 체크아웃의 이전 be-run 을 TERM(최대 30초 대기 뒤 KILL)으로 끝낸다. ps1 판 `Stop-PreviousBeRuns` 는 체크아웃을 가리지 않는다. local-run 과의 상호작용은 코드를 읽어 적은 것이며 실측이 아니다.
+  - `.run.env`·환경변수 우선순위 표: sh 는 source(같은 이름은 마지막 줄, `BE_PREBUILD*` 는 `.run.env` 가 환경변수를 덮음), ps1 은 줄 파싱(첫 줄, `BE_PREBUILD*` 는 환경변수 우선, `*_RUN_ARGS` 는 `.run.env` 만).
+  - `dmes-up` 옵션 표: `-Detach`·`-Be`·`-Fe`·`-Full`·`-Clean`, `-Warmup` 은 아무 동작도 하지 않는다(`-Be` 일 때만 안내를 내고 `-Fe` 만 줄 때는 출력이 없다). 7d384f14 가 이 안내 조건과 이전 인스턴스 종료 설명을 코드에 맞게 고쳤다.
+  - Windows 문단에서 ".run.env 는 셸 판과 동일" 을 고치고 S16 체크리스트를 링크한다.
+- 바꾼 이유: 1b 1차·2차에서 바뀐 실행 동작이 문서에 없어 사용자가 선빌드 실패 중단·재실행 때 종료 같은 동작을 코드를 읽어야만 알 수 있었다.
+- 동작 보존 근거: 문서만 바꿨다. 내용은 be-run.sh·be-run.ps1·local-run.*·fe-run.*·dmes-up.ps1·scripts/lib 를 읽고 적었다.
+- 영향 범위: README 독자만. 코드·설정 변화 없음.
+- 되돌리는 방법: b14822a3·7d384f14 revert (README 만 이전으로 돌아간다).
+
+## S15. dmes-up.ps1 -Detach 에서 백엔드가 먼저 끝나면 FE 정리 (동작 변경)
+- 커밋: 4aa617fe
+- 바뀌기 전: `-Detach` 는 백엔드·프런트를 동시에 WMI 로 띄운다. be-run.ps1 선빌드가 실패해 백엔드 런처가 포트를 열기 전에 끝나면 대기 루프가 exit 1 로 빠졌지만 프런트(fe-run.ps1 → pnpm/node)는 남아 "화면은 뜨는데 백엔드는 없는" 상태가 됐다. 포그라운드 local-run.ps1 은 이때 FE 까지 정리한다.
+- 바뀐 뒤: 그 분기에서 `$Fe` 이고 프런트 pid 가 있으면 `Stop-Tree $fePid` 로 트리를 끊고, `Stop-Prior` 를 두 번 더 쓴다(`_launch-frontend.ps1` 심, 이 저장소 `src\frontend` 의 node·pnpm. 3단계의 `-Fe` 이전 실행 정리와 같은 대상). 반환 개수는 `$null` 로 받는다. 머리말도 이에 맞게 고쳤고, `BE_PREBUILD`·`BE_PREBUILD_CONTINUE` 는 `-Detach` 에서 `.run.env` 에 두라고 적었다(WMI 로 만든 프로세스가 이 창의 환경변수를 물려받지 않을 수 있다, 미검증). 14줄 추가·2줄 삭제.
+- 바꾼 이유: 포그라운드와 같게 백엔드 없이 FE 만 남지 않도록 한다(리뷰 낮은 지적 반영).
+- 동작 보존 근거: 보존이 아니라 동작 변경이다. 구문 분석·실행 모두 하지 못했다(이 PC 에 pwsh 가 없고 설치하지 않기로 했다). 확인 항목은 S16 체크리스트에 있다.
+- 영향 범위: `dmes-up.ps1 -Detach` 에서 백엔드가 포트를 열기 전에 끝난 경우. 한계: 대기 시간 초과(8분) 분기는 바꾸지 않아 FE(5100)·node 가 그대로 남는다 — 이때는 `dmes-down.cmd` 로 정리해야 한다. 파일은 ASCII·CRLF 그대로다.
+- 되돌리는 방법: 4aa617fe revert (옛 잔류 FE 문제가 돌아온다).
+
+## S16. Windows ps1 확인 체크리스트 문서
+- 커밋: 83378e9b, 7d384f14 (`docs/refactor-2026-10/windows-ps1-checklist.md` 신규 238줄, 7d384f14 가 6줄 추가·1줄 삭제)
+- 바뀌기 전: 1b 레인 1·2차에서 바뀐 ps1 동작을 Windows 에서 확인할 목록이 없었다.
+- 바뀐 뒤: be-run.ps1·fe-run.ps1·local-run.ps1·dmes-up.ps1·dmes-down.ps1·scripts/lib/modules.ps1 의 변경을 항목별로(실행 명령·기대 결과·확인 방법·관련 커밋·결과 칸) 모았다. 첫머리에 "이 PC 에 pwsh 가 없고 설치하지 않으므로 하나도 확인하지 못했다, 설치는 사용자 선택" 을 적었다. 구문 분석·인코딩, 카탈로그, be-run 드라이런·선빌드·실패 경로·종료 정리·이전 인스턴스 종료, dmes-up `-Warmup`·`-Detach`, dmes-down, fe-run 5100, local-run 인자 분류를 다룬다.
+  - 코드를 읽어 찾은 의심 항목을 확인 거리로 남겼다(고치지 않음): dmes-up 3단계 Stop-Prior 의 `^javaw?$` 가 `java.exe` 와 맞지 않을 수 있음, Stop-PreviousBeRuns 가 체크아웃을 가리지 않음, be-run.ps1 `--help` 의 도움말 키워드 부재, `-Detach` 의 환경변수 전달, `.run.env` 줄 파서.
+  - 7d384f14: 3-9 항목에 `Stop-PreviousBeRuns` 가 `/F` 없는 `taskkill /T` 후 30초 대기 뒤 `/F` 로 넘어가므로 창 B 가 30초 멈출 수 있고, 강제 종료되면 앱 JVM 이 남을 수 있다는 점을 단정하지 않는 확인 거리로 더했다. `-Detach` 항목에 8분 시간 초과 분기의 한계(S15)를 더했다.
+- 바꾼 이유: pwsh 없이 바뀐 ps1(S3·S4·S5·S15)을 Windows 에서 확인할 때 쓸 근거를 남기기 위해서다.
+- 동작 보존 근거: 문서만 추가했다.
+- 영향 범위: 없음(문서). 체크리스트 결과 칸은 비어 있다.
+- 되돌리는 방법: 83378e9b·7d384f14 의 체크리스트 부분 revert (7d384f14 는 README 도 고쳤으므로 파일 단위로 되돌린다).
+
+## S17. E2E mdm 스모크 스크린샷 기본 출력 위치 이동 (동작 변경)
+- 커밋: 32b6827b
+- 바뀌기 전: `mdm-sample-smoke.spec.ts`·`mdm-shell-rbac-smoke.spec.ts` 가 돌 때마다 추적 중인 `docs/mdm/tasks/TSK-01-02·TSK-01-03/screens/*.png` 를 덮어써 시험만 돌려도 작업 트리가 더러워졌다.
+- 바뀐 뒤: `support/common.ts` 에 `WRITE_TASK_SCREENS` 와 `taskScreenshotPath(taskId, name)` 를 더했다. 기본은 `test.info().outputPath(name)` 즉 `src/frontend/test-results/<시험>/` (`src/frontend/.gitignore` 의 `test-results/` 로 git 제외). `E2E_WRITE_TASK_SCREENS=1` 일 때만 종전 경로 `<저장소 루트>/docs/mdm/tasks/<taskId>/screens/<name>` 에 쓴다. 두 스펙이 이 도우미를 쓰고 머리말·주석에 안내를 적었다(3개 파일, 33줄 추가·16줄 삭제). 단언·시험 수는 그대로다.
+- 바꾼 이유: 시험 실행이 추적 파일을 덮어쓰는 부작용 제거. 승인용 화면을 일부러 갱신할 때만 옵트인한다.
+- 동작 보존 근거: 시험 로직은 그대로이고 저장 위치만 바뀌었다. 실제 시험 실행은 하지 않았다(서버 기동·공용 DB 를 건드리지 않음).
+  - `playwright test --list`: 175개(40 파일), `-c playwright.mdm-user.config.ts --list`: 217개(7 파일). 바꾸기 전과 목록이 같다(두 스펙의 줄 번호만 다름). `E2E_WRITE_TASK_SCREENS=1` 에서도 175개.
+  - `git check-ignore -v src/frontend/test-results/x/a.png` → `src/frontend/.gitignore:20:test-results/` 로 제외됨.
+  - 임시 옵션(tsc --noEmit --strict --module commonjs)으로 바뀐 세 파일만 타입 검사해 통과.
+- 영향 범위: 이 두 스펙을 돌리는 사람. 기본 실행으로는 docs 의 png 가 더는 갱신되지 않으므로, 승인 화면을 갱신하려면 `E2E_WRITE_TASK_SCREENS=1` 을 줘야 한다. docs/mdm/tasks 에 쓰는 다른 스펙 15개(mdm-termMng·domainMng·columnMng·codeMng 등)는 범위 밖이라 그대로다. 같은 도우미로 옮길 수 있다.
+- 되돌리는 방법: 32b6827b revert (실행마다 추적 png 를 덮어쓰는 옛 동작이 돌아온다).
+
+### S14~S17 검증 요약 (이 브랜치 5개 커밋, 범위 `dd3f59e5..HEAD`)
+- `playwright test --list` 175개·217개 불변(S17 커밋 메시지에 기록된 실행 결과).
+- `git check-ignore`: `test-results/` 제외 확인.
+- `bash -n be-run.sh fe-run.sh local-run.sh` 통과(이 브랜치는 셸 스크립트를 바꾸지 않았다).
+- pwsh 미검증: S15 의 dmes-up.ps1 변경과 S14·S16 이 서술한 ps1 동작은 구문 분석·실행 모두 하지 못했다.
+- gradle·서버 기동·playwright 시험 실행은 하지 않았다.
