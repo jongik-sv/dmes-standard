@@ -51,7 +51,7 @@ subprojects {
 // ── perf-audit P6 — 테스트가 직접 읽는 작업 트리 밖 파일·환경 변수를 Test 입력으로 선언한다 ──
 // 선언이 없으면 이 값이 바뀌어도 test 가 UP-TO-DATE 로 건너뛰어, 팀원이 --rerun-tasks 로 전 모듈을 다시 컴파일했다.
 // 파일은 내용만 보도록 RELATIVE, 환경 변수는 값 대신 SHA-256 을 넣는다(비밀값을 실행 이력에 남기지 않는다).
-// 테스트에 새 외부 입력(Path.of("../…"), System.getenv)을 더하면 여기에도 더한다. 빌드 캐시 제외(루트 파일 끝)는 그대로 둔다.
+// 테스트에 새 외부 입력(Path.of("../…"), System.getenv)을 더하면 여기에도 더한다. 빌드 캐시 제외(build-logic 의 dmes.test-conventions)는 그대로 둔다.
 ext.mdmEnvFingerprint = { String name ->
     String value = System.getenv(name)
     value == null ? '<unset>' : java.security.MessageDigest.getInstance('SHA-256').digest(value.getBytes('UTF-8')).encodeHex().toString()
