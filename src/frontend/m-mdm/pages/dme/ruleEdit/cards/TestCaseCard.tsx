@@ -483,27 +483,23 @@ export function TestCaseCard({ view, editable, canDo, busy, runWrite }: RuleEdit
         </span>
       }
     >
-      {cases.length === 0 ? (
-        <p data-testid="tc-empty" style={{ margin: 0, color: "var(--color-text-muted)" }}>
-          테스트 케이스가 없습니다
-        </p>
-      ) : (
-        <AgDataGrid
-          columns={columns}
-          data={rows as unknown as Record<string, unknown>[]}
-          rowKey="caseId"
-          height="auto"
-          columnSizing="fit"
-          selectable
-          multiSelect
-          selectedRows={selectedIds}
-          onRowSelect={(ids) => setSelection({ ruleId, ids: ids.map(Number) })}
-          rowClickCheck
-          sortable={false}
-          getRowHeight={() => 28}
-          ariaLabel="테스트 케이스 목록"
-        />
-      )}
+      <AgDataGrid
+        columns={columns}
+        data={rows as unknown as Record<string, unknown>[]}
+        rowKey="caseId"
+        height="auto"
+        columnSizing="fit"
+        selectable
+        multiSelect
+        selectedRows={selectedIds}
+        onRowSelect={(ids) => setSelection({ ruleId, ids: ids.map(Number) })}
+        rowClickCheck
+        sortable={false}
+        getRowHeight={() => 28}
+        emptyMessage="테스트 케이스가 없습니다"
+        emptyTestId="tc-empty"
+        ariaLabel="테스트 케이스 목록"
+      />
       <TestCaseEditModal
         target={editing?.c ?? null}
         initial={editing?.initial ?? null}

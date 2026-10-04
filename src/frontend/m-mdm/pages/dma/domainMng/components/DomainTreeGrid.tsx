@@ -43,23 +43,18 @@ export function DomainTreeGrid({ rows, selectedId, loading, onSelect }: DomainTr
   return (
     <GridPanel title="도메인 목록" count={rows.length}>
       <span className="domain-mng__count" style={hint}>{`도메인 ${rows.length}건`}</span>
-      {rows.length === 0 && !loading ? (
-        <p className="domain-mng__empty" style={{ padding: "var(--spacing-md)", color: "var(--color-text-muted)" }}>
-          조회된 도메인이 없습니다
-        </p>
-      ) : (
-        <AgDataGrid
-          columnSizing="fit"
-          columns={COLUMNS}
-          data={gridRows as unknown as Record<string, unknown>[]}
-          rowKey="DOMAIN_ID"
-          highlightedRowKey={selectedId}
-          loading={loading}
-          loadingMessage="조회 중..."
-          emptyMessage="조회된 도메인이 없습니다"
-          onRowClick={(row) => onSelect(row as unknown as DomainRow)}
-        />
-      )}
+      <AgDataGrid
+        columnSizing="fit"
+        columns={COLUMNS}
+        data={gridRows as unknown as Record<string, unknown>[]}
+        rowKey="DOMAIN_ID"
+        highlightedRowKey={selectedId}
+        loading={loading}
+        loadingMessage="조회 중..."
+        emptyMessage="조회된 도메인이 없습니다"
+        emptyTestId="domain-mng-empty"
+        onRowClick={(row) => onSelect(row as unknown as DomainRow)}
+      />
     </GridPanel>
   );
 }

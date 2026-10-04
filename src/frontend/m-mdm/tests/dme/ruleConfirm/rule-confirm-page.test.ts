@@ -203,6 +203,34 @@ describe("RuleConfirmPage", () => {
     expect(byTestId("rc-list-empty")?.textContent).toContain("확정할 DRAFT 가 없습니다");
   });
 
+  it("목록이 0건이 됐다가 다시 N건이 되어도 그리드를 다시 마운트하지 않는다(같은 DOM 노드 유지)", async () => {
+    const base = globalThis.fetch;
+    let empty = false;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (empty && String(input).includes("/oasis/ruleConfirm/search")) {
+        calls.push({ action: "search", params: JSON.parse(String(init?.body)).params });
+        return jsonResponse(ok({ rows: [] }));
+      }
+      return base(input, init);
+    }) as typeof fetch;
+    await render();
+    const gridRoot = () => document.body.querySelector('[data-testid="rc-list"] .ag-root-wrapper');
+    const first = gridRoot();
+    expect(first).toBeTruthy();
+    expect(byTestId("rc-row-QLTY_GRD_JDG-2.000")).not.toBeNull();
+
+    empty = true;
+    await click(byTestId("rc-search"));
+    await vi.waitFor(() => expect(byTestId("rc-list-empty")?.textContent).toContain("확정할 DRAFT 가 없습니다"));
+    expect(gridRoot()).toBe(first);
+
+    empty = false;
+    await click(byTestId("rc-search"));
+    await vi.waitFor(() => expect(byTestId("rc-row-QLTY_GRD_JDG-2.000")).not.toBeNull());
+    expect(byTestId("rc-list-empty")).toBeNull();
+    expect(gridRoot()).toBe(first);
+  });
+
   it("P1 핸드오프 {maruRuleId, ver: \"2\"} 로 열면 ver 를 \"2.000\" 으로 맞춰 view 를 부르고 snapshot 에 남긴다", async () => {
     const snapshots: unknown[] = [];
     openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: "2" });

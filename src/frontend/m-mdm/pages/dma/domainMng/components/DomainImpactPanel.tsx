@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { classificationLabel, diffValue, directionLabel } from "../change-view";
 import type { DiffRow, ImpactTable } from "../types";
-import { hint, sectionTitle } from "./styles";
+import { sectionTitle } from "./styles";
 
 const IMPACT_COLUMNS: GridColumn[] = [
   { key: "TARGET", header: "영향도 대상", width: 140 },
@@ -55,11 +55,8 @@ export function DomainImpactPanel({ impact, classification, diff }: DomainImpact
       <p style={sectionTitle}>
         변경 분류: <span className="domain-mng__classification">{classificationLabel(classification)}</span>
       </p>
-      {diff.length > 0 ? (
-        <AgDataGrid columnSizing="fit" columns={DIFF_COLUMNS} data={diff as unknown as Record<string, unknown>[]} rowKey="FIELD" height={160} />
-      ) : (
-        <p style={hint}>변경 내역이 없습니다(도메인검증 후 표시)</p>
-      )}
+      <AgDataGrid columnSizing="fit" columns={DIFF_COLUMNS} data={diff as unknown as Record<string, unknown>[]} rowKey="FIELD" height={160}
+        emptyMessage="변경 내역이 없습니다(도메인검증 후 표시)" />
     </div>
   );
 }

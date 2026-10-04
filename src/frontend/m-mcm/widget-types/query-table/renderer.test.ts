@@ -16,6 +16,8 @@ type GridProps = {
   columns: { key: string; header: string }[];
   data: Record<string, unknown>[];
   height?: string | number;
+  emptyMessage?: string;
+  emptyTestId?: string;
   excelExport?: { title?: string; fallbackName?: string; note?: string; sheetName?: string; testId?: string };
 };
 
@@ -32,7 +34,12 @@ vi.mock("@dk-oasis/shared/grid", async () => {
   return {
     AgDataGrid: (p: GridProps) => {
       h.grid.current = p;
-      return el("div", { "data-testid": "grid", "data-rows": String(p.data.length) });
+      // 실물 그리드처럼 0행이면 빈 오버레이 문구(emptyMessage)를 emptyTestId 로 보인다.
+      return el(
+        "div",
+        { "data-testid": "grid", "data-rows": String(p.data.length) },
+        p.data.length === 0 ? el("span", { "data-testid": p.emptyTestId }, p.emptyMessage) : null
+      );
     },
   };
 });
@@ -143,17 +150,28 @@ describe("쿼리 표 — 데이터 전달", () => {
 });
 
 describe("쿼리 표 — 0행", () => {
-  it("표도 아래 줄도 없고 「표시할 데이터가 없습니다」만 보인다", async () => {
+  it("그리드는 마운트한 채 빈 오버레이에 「표시할 데이터가 없습니다」가 보인다", async () => {
     await renderTable(result([]));
-    expect(q("grid")).toBeNull();
-    expect(h.grid.current).toBeNull();
+    expect(q("grid")).not.toBeNull();
+    expect(h.grid.current!.data).toEqual([]);
     expect(must("wq-empty").textContent).toBe("표시할 데이터가 없습니다");
   });
 
-  it("잘림 표시(truncated)가 켜져 있어도 0행이면 표가 없다", async () => {
+  it("잘림 표시(truncated)가 켜져 있어도 0행이면 빈 문구가 보인다", async () => {
     await renderTable(result([], { truncated: true }));
-    expect(q("grid")).toBeNull();
+    expect(q("grid")).not.toBeNull();
     expect(must("wq-empty")).not.toBeNull();
+  });
+
+  it("0행 → N행 전환 때 그리드가 다시 마운트되지 않는다(같은 DOM 노드)", async () => {
+    const props = await renderTable(result([]));
+    const before = must("grid");
+    h.useQueryData.mockReturnValue(result(sample()));
+    await act(async () => {
+      root.render(createElement(QueryTableRenderer, props as never));
+    });
+    expect(must("grid")).toBe(before);
+    expect(q("wq-empty")).toBeNull();
   });
 });
 

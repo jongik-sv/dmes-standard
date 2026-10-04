@@ -3,7 +3,6 @@
 /** 전문 목록(TSK-05-02 design.md §2, D-144 3단계) — 레이아웃 ID·전문 이름·송신→수신·헤더 구성·본문 항목 수·총 길이·현재 버전·DRAFT(소유자). */
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { lengthText } from "@/layout/layout-calc";
-import { empty } from "@/layout/styles";
 import { fmtVer } from "@/shell";
 import type { LayoutRow } from "../types";
 
@@ -29,22 +28,19 @@ export interface LayoutListProps {
 export function LayoutList({ rows, selectedId, loading, onSelect }: LayoutListProps) {
   return (
     <GridPanel title="전문 목록" count={rows.length}>
-      {rows.length === 0 && !loading ? (
-        <p data-testid="layout-list-empty" style={empty}>조회된 전문이 없습니다</p>
-      ) : (
-        <div data-testid="layout-list" style={{ position: "absolute", inset: 0 }}>
-          <AgDataGrid
-            columnSizing="fit"
-            columns={COLUMNS}
-            data={rows as unknown as Record<string, unknown>[]}
-            rowKey="LAYOUT_ID"
-            highlightedRowKey={selectedId}
-            loading={loading}
-            emptyMessage="조회된 전문이 없습니다"
-            onRowClick={(r) => onSelect(r as unknown as LayoutRow)}
-          />
-        </div>
-      )}
+      <div data-testid="layout-list" style={{ position: "absolute", inset: 0 }}>
+        <AgDataGrid
+          columnSizing="fit"
+          columns={COLUMNS}
+          data={rows as unknown as Record<string, unknown>[]}
+          rowKey="LAYOUT_ID"
+          highlightedRowKey={selectedId}
+          loading={loading}
+          emptyMessage="조회된 전문이 없습니다"
+          emptyTestId="layout-list-empty"
+          onRowClick={(r) => onSelect(r as unknown as LayoutRow)}
+        />
+      </div>
     </GridPanel>
   );
 }

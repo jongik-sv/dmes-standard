@@ -391,20 +391,18 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
         <Input data-testid="cf-keyword" value={keyword} placeholder="마루 코드 ID·이름" onChange={onKeyword} />
         <Button data-testid="cf-search" onClick={onSearch}>조회</Button>
       </div>
-      {drafts && drafts.length === 0 ? (
-        <p data-testid="cf-list-empty" style={{ ...mutedText, padding: "0 var(--spacing-md)" }}>확정할 DRAFT 가 없습니다</p>
-      ) : (
-        <div style={{ ...section, flex: 1, minHeight: 0 }}>
-          <AgDataGrid
-            columnSizing="fit"
-            columns={DRAFT_COLUMNS}
-            data={draftRows}
-            rowKey="rowId"
-            highlightedRowKey={selected ? `${selected.maruCodeId}-${selected.ver}` : null}
-            onRowClick={(r) => onSelect(r as unknown as PendingDraft)}
-          />
-        </div>
-      )}
+      <div style={{ ...section, flex: 1, minHeight: 0 }}>
+        <AgDataGrid
+          columnSizing="fit"
+          columns={DRAFT_COLUMNS}
+          data={draftRows}
+          rowKey="rowId"
+          highlightedRowKey={selected ? `${selected.maruCodeId}-${selected.ver}` : null}
+          onRowClick={(r) => onSelect(r as unknown as PendingDraft)}
+          emptyMessage="확정할 DRAFT 가 없습니다"
+          emptyTestId="cf-list-empty"
+        />
+      </div>
     </div>
   );
 }
@@ -436,18 +434,16 @@ function DiffTable({ entries }: { entries: DiffEntry[] }) {
     <div data-testid="cf-diff">
       <div style={cardTitle}>직전 RELEASED 대비 변경</div>
       <div style={section}>
-        {entries.length === 0 ? (
-          <p data-testid="cf-diff-empty" style={mutedText}>변경된 행이 없습니다</p>
-        ) : (
-          <div style={{ height: DIFF_GRID_HEIGHT }}>
-            <AgDataGrid
-              columnSizing="fit"
-              columns={DIFF_COLUMNS}
-              data={diffRows}
-              rowKey="rowId"
-            />
-          </div>
-        )}
+        <div style={{ height: DIFF_GRID_HEIGHT }}>
+          <AgDataGrid
+            columnSizing="fit"
+            columns={DIFF_COLUMNS}
+            data={diffRows}
+            rowKey="rowId"
+            emptyMessage="변경된 행이 없습니다"
+            emptyTestId="cf-diff-empty"
+          />
+        </div>
       </div>
     </div>
   );

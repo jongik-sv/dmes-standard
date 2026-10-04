@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import { AgDataGrid } from "@dk-oasis/shared/grid";
 import type { WidgetProps } from "@dk-oasis/shared/widget";
 
-import { TABLE_ROW_KEY, tableConfigOf, toColumnDefs, toGridRows, truncatedNote } from "../_query/format";
-import { QueryEmpty, QueryStyle } from "../_query/parts";
+import { QUERY_EMPTY, TABLE_ROW_KEY, tableConfigOf, toColumnDefs, toGridRows, truncatedNote } from "../_query/format";
+import { QueryStyle } from "../_query/parts";
 import { useQueryData } from "../_query/useQueryData";
 
 /** 제목이 없을 때 엑셀 파일 이름 — 「쿼리표_{yyyyMMdd}.xlsx」. */
@@ -37,20 +37,19 @@ export default function QueryTableRenderer({ definition, widgetId, refreshKey, t
   return (
     <>
       <QueryStyle />
-      {data &&
-        (data.rows.length === 0 ? (
-          <QueryEmpty />
-        ) : (
-          <AgDataGrid
-            rowKey={TABLE_ROW_KEY}
-            columns={columns}
-            data={rows}
-            columnSizing="fit"
-            height="100%"
-            ariaLabel="쿼리 결과"
-            excelExport={excelExport}
-          />
-        ))}
+      {data && (
+        <AgDataGrid
+          rowKey={TABLE_ROW_KEY}
+          columns={columns}
+          data={rows}
+          columnSizing="fit"
+          height="100%"
+          ariaLabel="쿼리 결과"
+          excelExport={rowCount > 0 ? excelExport : undefined}
+          emptyMessage={QUERY_EMPTY}
+          emptyTestId="wq-empty"
+        />
+      )}
     </>
   );
 }

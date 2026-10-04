@@ -204,23 +204,18 @@ export function DataHistoryTimeline({ result }: DataHistoryTimelineProps) {
           {result ? `${result.key ?? ""} · ${STATE_LABELS[state] ?? state} · ${rows.length}행` : "조회 전"}
         </span>
       </div>
-      {result && rows.length === 0 ? (
-        <p data-testid="history-empty" style={{ color: "var(--color-text-muted)" }}>
-          행이 없습니다
-        </p>
-      ) : (
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <AgDataGrid
-            columns={columns}
-            data={gridRows}
-            rowKey="rowId"
-            sortable={false}
-            columnSizing="fit"
-            getRowHeight={() => rowHeightOf(target)}
-            emptyMessage="행이 없습니다"
-          />
-        </div>
-      )}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <AgDataGrid
+          columns={columns}
+          data={gridRows}
+          rowKey="rowId"
+          sortable={false}
+          columnSizing="fit"
+          getRowHeight={() => rowHeightOf(target)}
+          emptyMessage="행이 없습니다"
+          emptyTestId="history-empty"
+        />
+      </div>
     </div>
   );
 }

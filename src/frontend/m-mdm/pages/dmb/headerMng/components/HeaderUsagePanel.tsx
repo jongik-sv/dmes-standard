@@ -6,7 +6,7 @@
  */
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { lengthText } from "@/layout/layout-calc";
-import { empty, hint, sectionTitle } from "@/layout/styles";
+import { hint, sectionTitle } from "@/layout/styles";
 import { versionStateLabel } from "@/layout/version-rows";
 import { fmtVer, normVer } from "@/shell";
 import type { UsedByRow } from "../types";
@@ -30,17 +30,14 @@ export function HeaderUsagePanel({ rows }: { rows: UsedByRow[] }) {
         <span style={{ ...hint, fontWeight: "normal" }}> · 헤더 변경은 확정 apply_from 부터 사용 전문에 반영됩니다(전문 버전은 생기지 않음)</span>
       </p>
       <div>
-        {rows.length === 0 ? (
-          <p style={empty}>이 헤더를 쓰는 전문이 없습니다</p>
-        ) : (
-          <AgDataGrid
-            columnSizing="fit"
-            columns={COLUMNS}
-            data={keyed as unknown as Record<string, unknown>[]}
-            rowKey="ROW_KEY"
-            height={120}
-          />
-        )}
+        <AgDataGrid
+          columnSizing="fit"
+          columns={COLUMNS}
+          data={keyed as unknown as Record<string, unknown>[]}
+          rowKey="ROW_KEY"
+          height={120}
+          emptyMessage="이 헤더를 쓰는 전문이 없습니다"
+        />
       </div>
     </div>
   );

@@ -334,6 +334,30 @@ describe("CodeConfirmPage", () => {
     expect(byTestId("cf-list-empty")?.textContent).toContain("확정할 DRAFT 가 없습니다");
   });
 
+  it("목록이 0건에서 N건으로 바뀌어도 그리드가 다시 마운트되지 않는다", async () => {
+    let searchRows: unknown[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/oasis/codeConfirm/search")) {
+        calls.push({ action: "search", params: JSON.parse(String(init?.body)).params });
+        return jsonResponse(ok({ rows: searchRows }));
+      }
+      if (url.includes("/api/auth/me")) return jsonResponse({ user: { id: "tester" } });
+      return jsonResponse({ grids: { buttons: { rows: rbacRows } } });
+    }) as typeof fetch;
+    await render();
+    await click(byTestId("cf-search"));
+    expect(byTestId("cf-list-empty")?.textContent).toContain("확정할 DRAFT 가 없습니다");
+    const gridBefore = byTestId("cf-list")!.querySelector(".ag-root-wrapper");
+    expect(gridBefore).not.toBeNull();
+
+    searchRows = [{ maruCodeId: "PROC_CD", maruCodeName: "공정 코드", ver: "2.000", verLabel: "v2.000",
+      verKind: "MAJOR", ownerId: "tester", codeStatus: "INUSE" }];
+    await click(byTestId("cf-search"));
+    expect(gridRow("cf-list", "PROC_CD-2.000")).not.toBeNull();
+    expect(byTestId("cf-list")!.querySelector(".ag-root-wrapper")).toBe(gridBefore);
+  });
+
   it("P1 핸드오프 {maruCodeId, ver} 로 열면 그 값(문자열 ver)으로 view 를 부르고 snapshot 에 남긴다", async () => {
     const snapshots: unknown[] = [];
     openMdmPage("dmc/codeConfirm", { maruCodeId: "PROC_CD", ver: "2.000" });

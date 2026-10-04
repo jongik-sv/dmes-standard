@@ -106,7 +106,7 @@ test.describe("mdm 도메인 관리", () => {
     await expect(layout.locator(".page-layout__footer-breadcrumb")).toHaveText(BREADCRUMB);
     await expect(layout.locator(".page-layout__footer-screen-id")).toHaveText("domainMng");
     await search(layout, `없음-${STAMP}`);
-    await expect(layout.locator(".domain-mng__empty")).toHaveText("조회된 도메인이 없습니다", { timeout: T.LONG });
+    await expect(layout.getByTestId("domain-mng-empty")).toHaveText("조회된 도메인이 없습니다", { timeout: T.LONG });
     await page.screenshot({ path: screenshot("dma-domainMng-empty.png"), fullPage: true });
   });
 
