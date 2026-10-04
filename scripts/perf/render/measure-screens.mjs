@@ -231,6 +231,9 @@ function attachNetworkCollector(cdp, sink) {
     // loadingFinished 의 encodedDataLength 에 온다.
     if (typeof e.encodedDataLength === "number") p.encodedDataLength = e.encodedDataLength;
     const split = splitTiming(p);
+    // 응답 헤더 도착 시각(CDP monotonic 초). cpu-profile 등 같은 축을 쓰는 도구가 구간을 자를 때 쓴다.
+    const respMono = p.resourceTiming && typeof p.resourceTiming.requestTime === "number" && typeof p.resourceTiming.receiveHeadersEnd === "number"
+      ? p.resourceTiming.requestTime + p.resourceTiming.receiveHeadersEnd / 1000 : null;
     // bodyMs = 전체 - (헤더까지 걸린 시간). responseReceived 의 timing 만으로는 본문 구간이
     // 분리되지 않으므로(loadingFinished 시각이 여기서야 나온다) 이렇게 뺀다.
     if (split.ttfbMs !== null) {
@@ -241,8 +244,11 @@ function attachNetworkCollector(cdp, sink) {
       url: p.url,
       method: p.method,
       postData: p.postData,
+      requestId: e.requestId,
       status: p.status ?? 0,
       ms,
+      monoStart: p.start,
+      monoHeaders: respMono,
       wallStart: p.wallStart,
       // epoch 밀리초. wallTime 이 없는 경우(undefined)는 이 축을 쓰지 않는다.
       wallEndMs: typeof p.wallStart === "number" ? p.wallStart * 1000 + ms : null,
@@ -299,7 +305,12 @@ function splitTiming(p) {
     sendMs: send === null ? null : round1(send),
     dnsMs: round1(dns),
     connectMs: round1(conn),
-    queueMs: round1(Math.max(0, t.sendStart - (typeof t.requestTime === "number" ? t.requestTime : t.sendStart))),
+    // 큐 대기 = 요청 생성(requestWillBeSent, monotonic 초) → 송신 시작(requestTime 초 + sendStart ms).
+    //   예전 식 `sendStart − requestTime` 은 ms 오프셋에서 초 기준값을 빼 단위가 섞여 늘 0 이었다(검증 §4 결함 10).
+    queueMs:
+      typeof t.requestTime === "number" && typeof p?.start === "number"
+        ? round1(Math.max(0, (t.requestTime - p.start) * 1000 + t.sendStart))
+        : null,
     encodedDataLength: p?.encodedDataLength ?? null,
   };
 }
