@@ -25,9 +25,14 @@ docs/	-
 .claude/	-
 src/frontend/e2e/	-
 
-# ── 테스트가 다른 모듈 파일을 직접 읽는 교차 입력(src/backend/mdm 의 Test inputs 선언과 같은 목록) ──
+# ── 테스트가 다른 모듈 파일을 직접 읽는 교차 입력 ──
+# mdm 줄은 src/backend/mdm/api/build.gradle 의 test inputs 선언과 같은 목록이다. mcm-core 줄(ScreenUsage 소스 대조 시험)은
+# mcm-core build.gradle 에 inputs 선언이 없어 이 표에만 있다.
 src/frontend/m-mdm/pages/dmd/dataItemMng/messages.ts	cd src/frontend && pnpm --filter @dk-oasis/m-mdm test && pnpm --filter @dk-oasis/m-mdm lint && cd ../backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mdm:api:test --no-daemon --console=plain
-src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mcm:test :mdm:api:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/MdmMenuSeeder.java	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mcm:test :mdm:api:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/CoreRbacSeeder.java	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mcm:test :mdm:api:test :mcm-core:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/seed/ScreenUsageSchemaArtifacts.java	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mcm:test :mcm-core:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
+src/backend/mcm/api/src/main/java/com/dongkuk/dmes/mcm/init/DataInitializer.java	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :mcm:test :mcm-core:test --no-daemon --console=plain && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
 # 엔진: mdm(lib·api)이 의존하고, m-mdm 테스트가 엔진 코퍼스·식 Java·계약 스키마를 읽는다
 src/backend/maru-mdm-engine/	cd src/backend && JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ./gradlew :maru-mdm-engine:test :mdm:test --no-daemon --console=plain && cd ../frontend && pnpm --filter @dk-oasis/m-mdm test && cd ../.. && python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .
 
