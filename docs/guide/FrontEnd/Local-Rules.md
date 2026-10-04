@@ -10,6 +10,7 @@
 - Portal 화면/메뉴/BFF 개발: [Portal-Development-Guide.md](Portal-Development-Guide.md)
 - Portal 메뉴 역할 정책: [Portal-Menu-Role-Policy.md](Portal-Menu-Role-Policy.md)
 - 화면 시각 표준(톤·토큰·셸·그리드·토스트): [UI-Visual-Standard.md](UI-Visual-Standard.md)
+- 새 화면 성능(조회 범위·진입 호출·공통 계층 재렌더·측정 절차·예산): [Screen-Performance-Guide.md](Screen-Performance-Guide.md)
 
 ## 2. 로컬 작업 규칙
 
