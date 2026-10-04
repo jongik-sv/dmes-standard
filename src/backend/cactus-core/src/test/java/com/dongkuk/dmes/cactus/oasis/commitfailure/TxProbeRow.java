@@ -1,4 +1,4 @@
-package com.dongkuk.dmes.mcm.oasis;
+package com.dongkuk.dmes.cactus.oasis.commitfailure;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

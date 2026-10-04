@@ -99,7 +99,7 @@
   - 시작 실패 때 먼저 시작한 트랜잭션이 정리되어 같은 스레드의 다음 요청이 묵은 트랜잭션에 합류하지 않는다.
   - 정상 경로(커밋 성공, 처리 중 예외의 롤백)는 바뀌지 않는다.
 - 동작 보존·재현 근거:
-  - 재현 시험은 `mcm/lib/src/test/java/com/dongkuk/dmes/mcm/oasis/OasisCommitFailureSqliteTest`(2bc8acb3, c6121f64 가 시작 실패·보조 TxMgr 사례 추가)다. SQLite 실제 트랜잭션으로 oasis 핸들러의 삼킴·스레드 누수를 고정하고 cactus 조립의 올바른 기대와 나란히 둔다. cactus-core 시험 경로에는 JDBC 드라이버가 없어 mcm 에 뒀다. 1b 가 sqlite-jdbc 를 넣으면 a8 2차에서 cactus-core 로 옮긴다.
+  - 재현 시험은 `cactus-core/src/test/java/com/dongkuk/dmes/cactus/oasis/commitfailure/OasisCommitFailureSqliteTest`(2bc8acb3, c6121f64 가 시작 실패·보조 TxMgr 사례 추가)다. BPMN 은 `cactus-core/src/test/resources/oasis-commit-failure/` 5개다. SQLite 실제 트랜잭션으로 oasis 핸들러의 삼킴·스레드 누수를 고정하고 cactus 조립의 올바른 기대와 나란히 둔다. 처음엔 cactus-core 시험 경로에 JDBC 드라이버가 없어 mcm/lib 에 뒀고, 1b 가 cactus-core 시험 실행 범위에 sqlite-jdbc·SQLite 방언을 넣은 뒤 a8 2차에서 시험 동작 그대로 옮겼다(시험 소스는 `org.sqlite` 를 참조하지 않는다).
   - 단위 시험은 cactus-core `CactusSpringTransactionHandlerTest` 다. 통과 수는 머지 요청 때 적는다.
   - 화면에 `errors[]` 가 채워지는 곳이 `BusinessException.getErrors()` 뿐임은 `CactusResponseConverterBusinessErrorsTest` 가 고정한다(c6121f64).
   - 옮긴 SQLite 재현 시험(`cactus.oasis.commitfailure`)의 static 중첩 `@Configuration` 은 cactus `@ComponentScan(com.dongkuk.dmes.cactus)` 범위 안에 있다 — 지금은 전체 문맥 시험이 없어 영향 없음, 생기면 제외 필터 검토.

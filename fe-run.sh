@@ -22,126 +22,23 @@ set -u
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$ROOT_DIR/src/frontend"
 RUN_ENV_FILE="$ROOT_DIR/.run.env"
-PORTAL_PORT=5100
+SCRIPT_LIB_DIR="$ROOT_DIR/scripts/lib"
+if [ ! -f "$SCRIPT_LIB_DIR/log.sh" ]; then
+  printf '[error] scripts/lib 없음: %s (스크립트 파일 심볼릭 링크로 부르면 저장소 위치를 못 찾는다)\n' "$SCRIPT_LIB_DIR" >&2
+  exit 1
+fi
+# 포털 포트(PORTAL_PORT)는 모듈 카탈로그 scripts/lib/modules.conf 에서 읽는다. 종전처럼 .run.env 가 덮어쓸 수 있게 그보다 먼저 읽는다.
+. "$SCRIPT_LIB_DIR/modules.sh"
 
 [ -f "$RUN_ENV_FILE" ] && . "$RUN_ENV_FILE"
 
-# ── 로그 컬러링 ──────────────────────────────────────────────
-case "${DEV_LOG_COLOR:-always}" in
-  always|1|true|yes) DEVLOG_COLOR_ENABLED=1 ;;
-  never|0|false|no) DEVLOG_COLOR_ENABLED=0 ;;
-  auto)
-    if [ -n "${NO_COLOR:-}" ] || [ "${TERM:-}" = "dumb" ]; then
-      DEVLOG_COLOR_ENABLED=0
-    else
-      DEVLOG_COLOR_ENABLED=1
-    fi
-    ;;
-  *) DEVLOG_COLOR_ENABLED=1 ;;
-esac
-
-if [ "$DEVLOG_COLOR_ENABLED" = "1" ]; then
-  DEVLOG_RESET=$'\033[0m'
-  DEVLOG_DIM=$'\033[2m'
-  DEVLOG_RED=$'\033[31m'
-  DEVLOG_GREEN=$'\033[32m'
-  DEVLOG_YELLOW=$'\033[33m'
-  DEVLOG_CYAN=$'\033[36m'
-else
-  DEVLOG_RESET=
-  DEVLOG_DIM=
-  DEVLOG_RED=
-  DEVLOG_GREEN=
-  DEVLOG_YELLOW=
-  DEVLOG_CYAN=
-fi
-
-dev_log_print() {
-  local tag="$1"
-  shift
-  printf '%b[%s]%b %s\n' "$DEVLOG_CYAN" "$tag" "$DEVLOG_RESET" "$*"
-}
-
-dev_log_error() {
-  printf '%b[error]%b %s\n' "$DEVLOG_RED" "$DEVLOG_RESET" "$*" >&2
-}
-
-dev_log_run() {
-  if [ "${DEVLOG_COLOR_ENABLED:-0}" = "1" ]; then
-    FORCE_COLOR="${FORCE_COLOR:-1}" "$@"
-  else
-    "$@"
-  fi
-}
-
-dev_log_prefix_stream() {
-  awk \
-    -v tag_color="$DEVLOG_CYAN" \
-    -v reset="$DEVLOG_RESET" \
-    -v dim="$DEVLOG_DIM" \
-    -v red="$DEVLOG_RED" \
-    -v green="$DEVLOG_GREEN" \
-    -v yellow="$DEVLOG_YELLOW" \
-    -v cyan="$DEVLOG_CYAN" '
-function paint(line, color) {
-  return color == "" ? line : color line reset
-}
-
-function colorize(line) {
-  if (line ~ /(^|[^[:alpha:]])(ERROR|ERR!|FAIL|FAILED|Failed|failed|Exception|Caused by:)([^[:alpha:]]|$)/) {
-    return paint(line, red)
-  }
-  if (line ~ /(^|[^[:alpha:]])(WARN|WARNING|Warning|warning|deprecated|Deprecated)([^[:alpha:]]|$)/) {
-    return paint(line, yellow)
-  }
-  if (line ~ /(could not|Cannot|Unable to|not found|No such file)/) {
-    return paint(line, yellow)
-  }
-  if (line ~ /(^|[^[:alpha:]])(SUCCESS|SUCCESSFUL|Successful|successful|Ready|ready|Started|started|Compiled|compiled|Listening|listening)([^[:alpha:]]|$)/) {
-    return paint(line, green)
-  }
-  if (line ~ /(Starting|Downloading|Installing|Building|Watching|> Task)/) {
-    return paint(line, cyan)
-  }
-  if (line ~ /(^|[^[:alpha:]])(INFO|Info)([^[:alpha:]]|$)/) {
-    return paint(line, cyan)
-  }
-  if (line ~ /(^|[^[:alpha:]])(DEBUG|TRACE)([^[:alpha:]]|$)/) {
-    return paint(line, dim)
-  }
-  return line
-}
-
-{
-  printf "%s[fe]%s %s\n", tag_color, reset, colorize($0)
-  fflush()
-}
-'
-}
-
-ENV_ARGS=()
-
-load_default_args() {
-  local var_name="$1"
-  local value="${!var_name:-}"
-
-  [ -n "$value" ] || return 1
-  # Options are intentionally simple whitespace-separated flags.
-  # shellcheck disable=SC2206
-  ENV_ARGS=($value)
-  [ "${#ENV_ARGS[@]}" -gt 0 ]
-}
-
-has_scope_arg() {
-  local arg
-
-  for arg in "$@"; do
-    case "$arg" in
-      --all|--full|--mpn|--mpn-only|--mdm|--mdm-only) return 0 ;;
-    esac
-  done
-  return 1
-}
+# ── 공용 함수 ────────────────────────────────────────────────
+# 로그(dev_log_*)·프로세스(terminate_pid_tree·wait_for_exit·terminate_cmdline_stragglers)·인자
+# (load_default_args·has_scope_arg) 함수는 be-run.sh·local-run.sh 와 함께 scripts/lib/ 에 둔다.
+# 경로는 현재 디렉터리가 아니라 이 스크립트 위치 기준이다. log.sh 는 .run.env 를 읽은 뒤에 source 한다.
+. "$SCRIPT_LIB_DIR/log.sh"
+. "$SCRIPT_LIB_DIR/proc.sh"
+. "$SCRIPT_LIB_DIR/args.sh"
 
 for arg in "$@"; do
   case "$arg" in
@@ -193,39 +90,6 @@ PIDS=()
 LOG_PIDS=()
 CLEANUP_DONE=0
 
-terminate_pid_tree() {
-  local signal="$1"
-  local pid="$2"
-  local child
-
-  [ -n "$pid" ] || return 0
-  kill -0 "$pid" 2>/dev/null || return 0
-
-  while IFS= read -r child; do
-    [ -n "$child" ] && terminate_pid_tree "$signal" "$child"
-  done < <(pgrep -P "$pid" 2>/dev/null || true)
-
-  kill "-$signal" "$pid" 2>/dev/null || true
-}
-
-wait_for_exit() {
-  local pid
-  local alive
-  local i
-
-  for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-    alive=0
-    for pid in "$@"; do
-      if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-        alive=1
-      fi
-    done
-    [ "$alive" = "0" ] && return 0
-    sleep 0.25
-  done
-  return 1
-}
-
 terminate_port_listeners() {
   local port="$1"
   local label="$2"
@@ -270,14 +134,7 @@ terminate_port_listeners() {
 # PIDS 트리 추적을 벗어나는 경우가 있다. 종료 시 이 저장소의 frontend 경로를 명령줄에
 # 물고 있는 프로세스만 골라 한 번 더 쓸어 담는다 (다른 프로젝트에는 영향 없음).
 terminate_frontend_stragglers() {
-  local signal="$1"
-  local pid
-
-  for pid in $(pgrep -f "$FRONTEND_DIR" 2>/dev/null || true); do
-    [ "$pid" = "$$" ] && continue
-    kill -0 "$pid" 2>/dev/null || continue
-    kill "-$signal" "$pid" 2>/dev/null || true
-  done
+  terminate_cmdline_stragglers "$1" "$FRONTEND_DIR"
 }
 
 cleanup() {
@@ -433,7 +290,7 @@ rm -f "$PID_FILE"
   CHILD_PID="$!"
   printf '%s\n' "$CHILD_PID" > "$PID_FILE"
   wait "$CHILD_PID" 2>/dev/null || true
-) | dev_log_prefix_stream &
+) | dev_log_prefix_stream fe &
 LOG_PIDS+=("$!")
 
 RUN_PID=""
