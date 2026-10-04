@@ -13,14 +13,12 @@ import com.dongkuk.dmes.mcm.favorite.entity.SecUserFavorite;
 import com.dongkuk.dmes.mcm.favorite.entity.SecUserFavoriteFold;
 import com.dongkuk.dmes.mcm.favorite.repository.SecUserFavoriteFoldRepository;
 import com.dongkuk.dmes.mcm.favorite.repository.SecUserFavoriteRepository;
-import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
-import com.dongkuk.dmes.mcm.repository.SecObjRepository;
+import com.dongkuk.dmes.mcm.menu.MenuCatalog;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,8 +49,8 @@ public class SecFavoriteService {
 
     private final SecUserFavoriteRepository favoriteRepository;
     private final SecUserFavoriteFoldRepository folderRepository;
-    private final SecMenuRepository secMenuRepository;
-    private final SecObjRepository secObjRepository;
+    /** SEC_MENU·SEC_OBJ 전수 목록 캐시 (읽기 전용 엔티티). */
+    private final MenuCatalog menuCatalog;
 
     /** IDOR 차단 — search·toggle·폴더 관리 모두 request body 의 userId 대신 인증 컨텍스트 userId 강제. */
     private final SecurityIdentity securityIdentity;
@@ -60,13 +58,11 @@ public class SecFavoriteService {
     @Autowired
     public SecFavoriteService(SecUserFavoriteRepository favoriteRepository,
                               SecUserFavoriteFoldRepository folderRepository,
-                              SecMenuRepository secMenuRepository,
-                              SecObjRepository secObjRepository,
+                              MenuCatalog menuCatalog,
                               SecurityIdentity securityIdentity) {
         this.favoriteRepository = favoriteRepository;
         this.folderRepository = folderRepository;
-        this.secMenuRepository = secMenuRepository;
-        this.secObjRepository = secObjRepository;
+        this.menuCatalog = menuCatalog;
         this.securityIdentity = securityIdentity;
     }
 
@@ -84,15 +80,10 @@ public class SecFavoriteService {
             return List.of();
         }
 
-        // 신규 SecMenu 는 복합 PK 라 findById 단일 불가 → 메모리 인덱스 (MENU_ID 기준 최초 1행).
-        Map<String, SecMenu> menuById = new HashMap<>();
-        for (SecMenu m : secMenuRepository.findAll()) {
-            menuById.putIfAbsent(m.getMenuId(), m);
-        }
-        Map<String, SecObj> objById = new HashMap<>();
-        for (SecObj o : secObjRepository.findAll()) {
-            objById.put(o.getObjectId(), o);
-        }
+        // 메모리 인덱스 (MENU_ID 기준 최초 1행 / OBJECT_ID) — 메뉴 카탈로그 캐시의 같은 스냅샷.
+        MenuCatalog.Snapshot catalog = menuCatalog.snapshot();
+        Map<String, SecMenu> menuById = catalog.menusById();
+        Map<String, SecObj> objById = catalog.objectsById();
 
         List<Map<String, Object>> result = new ArrayList<>(folders.size() + favorites.size());
 
@@ -201,8 +192,9 @@ public class SecFavoriteService {
 
     /** sysCd + componentPath({@code parentMenuId/objectId}) 로 활성 메뉴 매칭 — 기본 화면과 같은 {@link PortalPageMenuMatcher} 규칙. */
     private SecMenu findMenuByComponentPath(String targetSysCd, String targetComponentPath) {
+        MenuCatalog.Snapshot catalog = menuCatalog.snapshot();
         return PortalPageMenuMatcher.findMenuByComponentPath(
-                secMenuRepository.findAll(), secObjRepository.findAll(), targetSysCd, targetComponentPath);
+                catalog.menus(), catalog.objects(), targetSysCd, targetComponentPath);
     }
 
     /** 추가 대상 폴더: 선택(fvtFoldId) → 신규(fvtFoldNm) → 기본("즐겨찾기"). 신규/기본은 폴더 행 생성. */

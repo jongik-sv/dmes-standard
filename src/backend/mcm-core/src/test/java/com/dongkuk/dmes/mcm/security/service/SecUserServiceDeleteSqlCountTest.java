@@ -6,9 +6,8 @@ import com.dongkuk.dmes.mcm.common.security.SecurityIdentity;
 import com.dongkuk.dmes.mcm.csa.commUserMng.support.CommUserMngFixtures;
 import com.dongkuk.dmes.mcm.csa.commUserMng.support.CommUserMngJpaTestConfig;
 import com.dongkuk.dmes.mcm.csa.commUserMng.support.SqlStatementCounter;
+import com.dongkuk.dmes.mcm.menu.MenuCatalog;
 import com.dongkuk.dmes.mcm.repository.SecMenuFldLovRepository;
-import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
-import com.dongkuk.dmes.mcm.repository.SecObjRepository;
 import com.dongkuk.dmes.mcm.repository.SecPermRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleGroupMappingRepository;
 import com.dongkuk.dmes.mcm.repository.SecRoleMappingRepository;
@@ -66,9 +65,8 @@ class SecUserServiceDeleteSqlCountTest {
                 mock(SecRoleGroupMappingRepository.class),
                 mock(SecRoleMappingRepository.class),
                 mock(SecPermRepository.class),
-                mock(SecMenuRepository.class),
+                mock(MenuCatalog.class),
                 mock(SecMenuFldLovRepository.class),
-                mock(SecObjRepository.class),
                 hasher,
                 identity,
                 new AuditLogger(mock(AuditLogRepository.class), identity),

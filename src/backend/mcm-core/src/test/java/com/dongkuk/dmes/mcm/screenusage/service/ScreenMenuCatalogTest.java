@@ -1,8 +1,8 @@
 package com.dongkuk.dmes.mcm.screenusage.service;
 
 import com.dongkuk.dmes.mcm.entity.SecMenu;
+import com.dongkuk.dmes.mcm.menu.MenuCatalog;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
-import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
 import com.dongkuk.dmes.mcm.screenusage.service.ScreenMenuCatalog.MenuInfo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,7 +21,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ScreenMenuCatalogTest {
 
-    @Mock SecMenuRepository secMenuRepository;
+    @Mock MenuCatalog menuCatalog;
     @Mock SecMenuNativeRepository secMenuNativeRepository;
     @InjectMocks ScreenMenuCatalog catalog;
 
@@ -49,7 +49,7 @@ class ScreenMenuCatalogTest {
     void buildsCatalog() {
         when(secMenuNativeRepository.searchMenuFld()).thenReturn(List.of(
                 folder("mcm", "공통관리", null), folder("csa", "시스템관리", "mcm")));
-        when(secMenuRepository.findAll()).thenReturn(List.of(
+        when(menuCatalog.menus()).thenReturn(List.of(
                 menu("commUserMng", "csa", "commUserMng", "사용자 관리", "Y", "Y"),
                 menu("hidden", "csa", "hiddenScreen", "숨김 화면", "N", "Y"),
                 menu("stopped", "csa", "stoppedScreen", "중지 화면", "Y", "N"),
@@ -68,7 +68,7 @@ class ScreenMenuCatalogTest {
     @DisplayName("같은 pageId 가 둘이면 표시되는 메뉴를 고른다")
     void prefersViewableDuplicate() {
         when(secMenuNativeRepository.searchMenuFld()).thenReturn(List.of(folder("csa", "시스템관리", null)));
-        when(secMenuRepository.findAll()).thenReturn(List.of(
+        when(menuCatalog.menus()).thenReturn(List.of(
                 menu("old", "csa", "commUserMng", "옛 메뉴", "N", "Y"),
                 menu("new", "csa", "commUserMng", "사용자 관리", "Y", "Y")));
 

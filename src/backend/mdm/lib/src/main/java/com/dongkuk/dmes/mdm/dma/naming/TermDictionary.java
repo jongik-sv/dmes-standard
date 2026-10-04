@@ -1,7 +1,7 @@
 package com.dongkuk.dmes.mdm.dma.naming;
 
+import com.dongkuk.dmes.mdm.common.support.MdmJsonLists;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -26,7 +26,6 @@ import java.util.regex.Pattern;
  */
 public final class TermDictionary {
 
-    private static final ObjectMapper JSON = new ObjectMapper();
     private static final Pattern TRAILING_PAREN = Pattern.compile("\\s*\\([^()]*\\)\\s*$");
 
     /** 후보 정렬: via → senseNo → termId(불변 규칙 I6). */
@@ -132,19 +131,7 @@ public final class TermDictionary {
     /** D3 관대 파서 — 동의어·별칭 JSON 에서 표면형 문자열만 뽑는다. */
     static List<String> parseSurfaces(String json) {
         List<String> out = new ArrayList<>();
-        if (json == null || json.isBlank()) {
-            return out;
-        }
-        JsonNode root;
-        try {
-            root = JSON.readTree(json);
-        } catch (Exception e) {
-            return out;
-        }
-        if (root == null || !root.isArray()) {
-            return out;
-        }
-        for (JsonNode element : root) {
+        for (JsonNode element : MdmJsonLists.readArrayElements(json)) {
             String text = null;
             if (element.isTextual()) {
                 text = element.asText();

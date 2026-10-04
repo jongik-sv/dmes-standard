@@ -1,15 +1,15 @@
 # mcm 레인 성능 비교 기록
 
 레인은 mcm-core·mcm, 브랜치는 `refactor/mcm` 이다. README.md §6.2 형식을 따른다.
-**결정적 지표(쿼리 수)는 P1·P2 가 시험으로 확인됐다**(`CommUserMngServiceSearchSqlCountTest`·`SecUserServiceDeleteSqlCountTest`, 1회). P3 은 메뉴 카탈로그가 별도 머지라 측정 전이며 시험 근거 수치만 예상값으로 적었다.
-응답 시간 같은 비결정 지표(P3 보조 지표, P4)는 조정 세션이 「측정 시작」을 알린 뒤에 기준·변경을 번갈아 재서 채운다. 아래 표의 K=30·N=20 같은 측정 절차 규모 수치도 같은 시점에 채운다.
+**결정적 지표(쿼리 수)는 P1·P2 가 시험으로 확인됐다**(`CommUserMngServiceSearchSqlCountTest`·`SecUserServiceDeleteSqlCountTest`, 1회). P3 도 `MenuCatalogCallersSelectCountTest` 로 확정했다(14 → 2, 1회).
+P3 응답 시간은 조정 세션 「측정 시작」 뒤 2026-10-04 에 기준·변경을 번갈아 3회 재서 채웠다. P4 는 측정하지 않는다. 아래 표의 K=30·N=20 같은 P1·P2 측정 절차 규모 수치는 이번에 재지 않았으므로 측정 전으로 둔다.
 기준(before)은 태그 `refactor-2026-10-base`(b557ccbd)를 별도 워크트리로 만들어 잰다. 변경(after)은 레인 워크트리 `refactor/mcm` 이다.
 
 | 번호 | 항목 | 지표 성격 | 상태 |
 |---|---|---|---|
 | P1 | `searchCmUser` 부서명 조회 쿼리 수 | 결정적(1회) | 시험 실측 완료(4 → 1), 절차 규모(K=30)는 측정 전 |
 | P2 | 사용자 삭제 매핑 삭제 SQL 수 | 결정적(1회) | 시험 실측 완료(SELECT 8 → 0, DELETE 6 → 2), 절차 규모(N=20)는 측정 전 |
-| P3 | 메뉴 카탈로그 캐시 SELECT 수·응답 시간 | 결정적 + 시간(반복) | 측정 전(별도 머지, 시험 근거 예상값만) |
+| P3 | 메뉴 카탈로그 캐시 SELECT 수·응답 시간 | 결정적(1회) + 시간(반복) | SELECT 수 시험 실측 완료(14 → 2), 응답 시간 실측 완료(적중 약 3배 빠름, 비적중 1회 약 14% 느림) |
 | P4 | pwdinit SSO 일괄 1,000행 처리 시간 | 시간 | 측정 안 함(구현 안 함) |
 
 ## P1. `searchCmUser` 부서명 조회 쿼리 수
@@ -62,37 +62,62 @@
   - (처음 커밋 6e5eb813 은 `flushAutomatically=true` 를 붙여 첫 'D' 행에서 계정까지 앞당겨 flush 했다. VER 증가 횟수가 옛 경로와 달라지고(위 예에서 +1) DB 오류가 행별 검증 오류보다 먼저 나는 차이가 있어 리뷰에서 뺐다. 커밋 c9a2f7ee 제목의 '옛 경로와 같게' 는 'D' 1행인 경우에만 맞는다.)
 
 ## P3. 메뉴 카탈로그 캐시 SELECT 수·응답 시간
-- 관련 구조 변경: S3(메뉴 카탈로그 캐시, 별도 머지 — 이 문서에는 진행 중으로만 적는다)
+- 관련 구조 변경: S3(메뉴 카탈로그 캐시)
 - 지표
-  - (주) 호출당 `TB_MCM_SEC_MENU`·`TB_MCM_SEC_OBJ` 전수 SELECT 수(회). 대상은 `getMyMenus`·`searchFavorites`·`searchStartPgms`·`ScreenMenuCatalog.load`. 현재 호출마다 2회(MENU 1 + OBJ 1)이고, 캐시 적중 시 0, 메뉴·OBJ 저장 직후 첫 호출에 1회 재적재(2회 SELECT)를 예상한다.
-  - (보조) `getMyMenus` 응답 시간(ms).
+  - (주) 4곳(`getMyMenus`·`searchFavorites`·`searchStartPgms`·`ScreenMenuCatalog.load`)을 각 2회 부를 때 `TB_MCM_SEC_MENU`·`TB_MCM_SEC_OBJ` 전수 SELECT 문장 수(결정적). 옛 코드는 호출마다 2·2·2·1 문장이다.
+  - (보조) `getMyMenus` 응답 시간(ms, 비결정).
 - 측정 절차:
-  1. SELECT 수(결정적, 1회): 측정 시험에서 `StatementInspector` 로 위 4개 호출 각각을 연속 2회 부르고 호출별 SELECT 수를 센다. 이어 메뉴 저장(`CommMenuMngService` 저장)을 한 번 하고 같은 호출을 다시 불러 재적재 횟수를 센다. 폴더(`TB_MCM_SEC_MENU_FLD`) 조회 수는 따로 적는다.
-  2. 응답 시간: 로컬 SQLite 시드 DB 에서 mcm 서버를 기준·변경 각각 띄워 같은 사용자로 `getMyMenus` 를 호출한다. 기준·변경을 번갈아(A·B·A·B…) 각 3회 이상 재고, 회차마다 서버를 새로 띄운 직후가 아닌 안정화 뒤 값을 쓰며 `uptime` load 를 남긴다. 결론은 중앙값이다.
+  1. SELECT 수(결정적, 1회): `MenuCatalogCallersSelectCountTest`(mcm-core, H2, Hibernate `StatementInspector`)가 4곳을 각 2회 부르고 전수 SELECT 문장 수를 센다. 같은 시험이 캐시를 끈 대조(TTL 0), 저장 이벤트 뒤 재적재, 즐겨찾기·기본 화면 두 토글을 센다. 폴더 표(`TB_MCM_SEC_MENU_FLD`)는 카탈로그에 넣지 않았으므로 세지 않는다(요청마다 읽는 것은 전과 같다).
+  2. 응답 시간: 서버를 띄우지 않고 측정 하네스로 잰다(`scripts/perf/mcm/`). `perf-mcm-p3.sh` 가 측정 JUnit `MyMenusLatencyPerfTest` 를 임시 워크트리에 복사해 실행하고 끝나면 지운다. 시험은 `AnnotationConfigApplicationContext` + SQLite 임시 파일 + `DataInitializer` 시드(메뉴 44·OBJ 52·폴더 15·SYSADMIN 매핑 52, `getMyMenus` 결과 59행)로 같은 사용자의 `getMyMenus` 를 부른다. 조건은 base=nocache(기준), after=hit(변경, 캐시 적중)·miss(변경, 매 호출 전 무효화) 셋이고, warmup 300·iters 500 회다. 기준·변경을 번갈아(A·B·A·B…) 3회 재고 회차마다 `uptime` load1 을 남기며, 결론은 중앙값이다.
+     - 주의: 시험 JVM 이 `-XX:TieredStopAtLevel=1` 이라 절대값은 실제 서버보다 비관적이다. 기준과 변경의 상대 비교로만 쓴다.
   3. 응답 시간은 이 PC(MacBook Air M5)의 편차가 크다. 반복 측정 없이 결론 내지 않는다.
-- 기준 커밋: refactor-2026-10-base(b557ccbd) / 변경 커밋: 별도 머지 때 적는다
-- 측정 환경: 단독 여부·전원 연결·측정 일시는 측정 때 적는다.
-- **예상·시험 근거**(메뉴 카탈로그 구현 쪽 시험 `MenuCatalogCallersSelectCountTest`(H2, `StatementInspector`)의 값이며 이 레인 머지에는 포함되지 않는다. 아래 표는 그 값으로 채우지 않고 측정 전으로 둔다): 4곳(`getMyMenus`·`searchFavorites`·`searchStartPgms`·`ScreenMenuCatalog.load`)을 각 2회 부를 때 `TB_MCM_SEC_MENU`·`TB_MCM_SEC_OBJ` 전수 SELECT 는 **기준 14 → 변경 2**(MENU 1 + OBJ 1). 14 는 옛 코드에서 호출마다 2·2·2·1 로 계산한 값, 2 는 H2 실측이다. 캐시를 끈 대조(TTL 0)는 8 + 8 = 16, 저장 이벤트 뒤에는 한 세트(1 + 1)만 다시 읽고, 즐겨찾기·기본 화면 두 토글은 추가 SELECT 0 이다. 캐시가 비었을 때 `ScreenMenuCatalog` 도 `TB_MCM_SEC_OBJ` 를 함께 읽어 비적중 1회 비용은 1문장에서 2문장으로 늘었다.
+  4. 재현: `scripts/perf/mcm/perf-mcm-p3.sh`(README 참조)
+- 기준 커밋: refactor-2026-10-base(b557ccbd) / 변경 커밋: 5162f3d6, 3ab73e90, 42a8f2fe(레인 커밋 전체는 S3 참조), 최종 HEAD 는 레인 `refactor/mcm-menu`
+- 측정 환경: SELECT 수는 시험 실측(`MenuCatalogCallersSelectCountTest`, H2, 결정적, 1회). 기준 쪽 14 는 옛 코드의 호출 구조에서 계산한 값(호출마다 2·2·2·1 문장의 두 배)이다. 응답 시간은 2026-10-04 12:23~12:24 에 조정 세션 「측정 시작」 뒤 다른 부하 없이 단독으로 쟀다(개발 PC MacBook Air M5, 원자료의 load1 3.88~5.28). 기준은 b557ccbd(refactor-2026-10-base), 변경은 dev d529e992(3번 메뉴 캐시 머지 bfd25e48 포함)이다. 원자료 TSV 는 저장소에 넣지 않았고 아래 표에 옮겨 적었다. 스크립트는 `scripts/perf/mcm/perf-mcm-p3.sh`·`MyMenusLatencyPerfTest` 다. 전원 연결 여부는 기록하지 못했다.
 
-SELECT 수(1회):
+SELECT 수(결정적, 1회로 확정):
 
-| 호출 | 기준(연속 2회째) | 변경(적중) | 변경(저장 직후 1회째) |
-|---|---|---|---|
-| getMyMenus | | | |
-| searchFavorites | | | |
-| searchStartPgms | | | |
-| ScreenMenuCatalog.load | | | |
+| 경우 | 전수 SELECT 문장 수(4곳 각 2회, 합계) |
+|---|---|
+| 바꾸기 전(기준) | 14 |
+| 바꾼 뒤(캐시, 첫 호출 적재 뒤 적중) | 2 (MENU 1 + OBJ 1) |
+| 캐시 없는 대조(TTL 0) | 16 (8 + 8) |
+| 저장 이벤트 뒤 | 한 세트(MENU 1 + OBJ 1 = 2문장)만 재적재 |
+| 즐겨찾기·기본 화면 두 토글 | 추가 SELECT 0 |
 
-응답 시간(ms):
+- 캐시가 비었을 때는 `ScreenMenuCatalog` 도 SEC_OBJ 를 함께 읽어 비적중 1회 비용이 1문장에서 2문장이 됐다. 캐시를 끈 대조가 16 인 이유다(옛 14 보다 2 큼).
+- 결정적 지표 판정: **개선(시험 실측). 14 → 2, 1회로 확정.** 캐시를 끄면 오히려 2문장 늘어난다.
 
-| 회차 | 기준 | 변경 | load(1분) |
-|---|---|---|---|
-| 1 | | | |
-| 2 | | | |
-| 3 | | | |
+응답 시간(ms, `getMyMenus` 호출 1회, warmup 300·iters 500, 회차별 중앙값. 2026-10-04 실측, 하네스 준비 단계의 시험 실행 수치는 적지 않았다):
 
-- 중앙값: 기준 <값> → 변경 <값> (<증감 %>)
-- 판정: 측정 전(SELECT 수는 위 시험 근거 예상값, 응답 시간은 조정 세션 「측정 시작」 뒤). 다중 인스턴스·DB 직접 변경은 TTL 로만 반영되는 점(S3 에서 정리 예정)은 성능이 아니라 정합성 사항이라 여기서 판정하지 않는다.
+| 회차 | 기준(nocache) | 변경 hit(캐시 적중) | 변경 miss(매 호출 전 무효화) | load(1분) |
+|---|---|---|---|---|
+| 1 | 3.180 | 0.949 (기준의 0.30배) | 3.987 (1.25배) | 4.14 / 3.88 |
+| 2 | 3.999 | 1.234 (0.31배) | 4.413 (1.10배) | 3.98 / 4.31 |
+| 3 | 4.641 | 1.561 (0.34배) | 5.308 (1.14배) | 5.28 / 5.23 |
+| 중앙값 | 4.00 | 1.23 | 4.41 | |
+
+load 칸은 기준 / 변경 시점의 `uptime` load1 이다(변경 hit·miss 는 같은 시점).
+
+회차별 원자료(`perf-mcm-p3-results.tsv` 에서 옮김, ms):
+
+| 회차 | side | condition | median_ms | p90_ms | load1 |
+|---|---|---|---|---|---|
+| 1 | base | nocache | 3.180 | 3.581 | 4.14 |
+| 1 | after | hit | 0.949 | 1.055 | 3.88 |
+| 1 | after | miss | 3.987 | 5.919 | 3.88 |
+| 2 | base | nocache | 3.999 | 4.753 | 3.98 |
+| 2 | after | hit | 1.234 | 1.536 | 4.31 |
+| 2 | after | miss | 4.413 | 6.043 | 4.31 |
+| 3 | base | nocache | 4.641 | 5.545 | 5.28 |
+| 3 | after | hit | 1.561 | 2.119 | 5.23 |
+| 3 | after | miss | 5.308 | 6.331 | 5.23 |
+
+시드 규모는 양쪽 같다(메뉴 44·OBJ 52·폴더 15·SYSADMIN 매핑 52, 결과 59행). 모든 줄 status 는 OK 다. 시험 JVM 이 `-XX:TieredStopAtLevel=1` 이라 절대값은 실제 서버보다 비관적이므로 상대 비교로만 읽는다.
+
+- 중앙값(응답 시간): 기준 4.00 → 변경 hit 1.23(회차별 기준 대비 0.30·0.31·0.34배, 약 -69%), 변경 miss 4.41(회차별 1.25·1.10·1.14배, 회차별 비율의 중앙값 1.14배 = 약 +14%).
+- 응답 시간 판정: **캐시 적중(평상시)은 약 3배 빠르다.** 메뉴·OBJ 저장 직후 첫 조회(비적중) 1회는 약 14% 느리다. 무효화 뒤 재적재와 잠금 비용이다. load1 이 회차마다 올라 세 조건 모두 회차가 지날수록 느려졌으나, 같은 회차 안의 A·B 비율은 고르다. 이 PC 의 편차가 크므로 절대값이 아니라 같은 회차 비율로 판정했다.
+- 정합성 사항(성능이 아니라 여기서 판정하지 않는다): 다중 인스턴스·DB 직접 변경은 TTL 5분으로만 반영된다(S3 영향 범위).
 
 ## P4. pwdinit SSO 일괄 1,000행 처리 시간
 - 관련 구조 변경: 없음. 이번에는 개선안만 보고했다(`structure-mcm.md` 부록 A(2)).

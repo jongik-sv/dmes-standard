@@ -103,3 +103,13 @@
   - caravan-console 은 멈춘 모듈이 아니다(mcm 이 엔티티·서비스·대시보드를 씀). 합칠 대상은 hub 클라이언트 7파일뿐이고, console 쪽 클라이언트 사용처는 ConsoleTopicService 전송 1곳이다.
   - 권장안 A: cactus 쪽을 정본으로 둔다(테스트 있음, dmom 이 의존). console 이 cactus-core 를 compileOnly 로 의존하고 ConsoleTopicService 가 CaravanHubIntegrationClient 를 주입받게 바꾼 뒤, 7파일은 archive 로 옮긴다(caravanhubconfig 엔티티 패키지는 유지).
   - 보류 이유: console 의 "cactus 의존 0" 설계를 되돌리고, 켜고 끄는 키가 `cactus.caravan-hub.enabled` 로 바뀐다. 운영·개발계 외부 설정에서 두 prefix 의 값이 다른지 확인한 뒤 다시 다룬다(실서버 설정을 볼 수 있을 때).
+- 조정자(coordinator) 스킬 — 2026-10-04 설계 초안: [docs/superpowers/specs/2026-10-04-coordinator-skill-design.md](superpowers/specs/2026-10-04-coordinator-skill-design.md)
+  - 10-04 리팩토링 5레인 조정(업무 분해·레인 할당·머지 순서와 머지 게이트·진도 모니터링)을 스킬로 옮긴다.
+  - Gradle·시험 같은 고부하 작업은 heavy 슬롯과 측정 창(다른 레인 통지 필수)으로 조절하고, 5시간·1주일 사용량을 네 단계 띠로 나눠 레인 수·동시 agent 수·모델 수준을 낮춘다.
+  - 필요한 세션·Pane 을 열어 일을 시키고(지시는 Workflow + 단계별 model·effort 가 기본), 끝나면 정리한다. idle 은 세션 상태와 백그라운드 신호로 판정해 자동으로 일을 주고, 컨텍스트 40% 를 넘으면 정본 갱신 뒤 /compact 를 보낸다.
+  - 결정 대기: 사용률 덤프 방식, 40%·사용량 띠·load 기준값, 스킬 위치, heavy.sh 측정 창 기능, 조정자 자신의 compact 방식 등(설계 문서 §7 Q1~Q11). 끝난 세션 자동 종료(Q7)는 결정됨.
+- 화면 렌더링 시간 측정 — 2026-10-04 사용자 결정, 이번 리팩토링이 끝난 뒤 따로 시작
+  - 이유: 이번 리팩토링 측정은 서버 쿼리 수·처리량·빌드 시간 위주라, 사용자가 느끼는 화면 시간(메뉴 클릭 → 그리드 첫 행 표시)은 재지 않았다.
+  - 방법(안): 기준(`refactor-2026-10-base`)과 dev 서버를 번갈아 띄우고 같은 브라우저 자동화 스크립트로 화면별 3회 이상 재 중앙값을 낸다. 지표는 화면 준비 시간, long task 수, API 호출 수·시간.
+  - 대상 후보: 포털 로그인 뒤 메뉴 표시, MDM 레이아웃 확정, 용어·컬럼 검색, dmd 카테고리, 사용자 관리.
+  - 한계: 로컬 SQLite 데이터 규모라 운영보다 차이가 작게 나올 수 있으니 결과에 적는다.

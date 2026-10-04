@@ -7,6 +7,7 @@ import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingCodec;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
+import com.dongkuk.dmes.mdm.common.support.MdmJsonLists;
 import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache;
 import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache.CachedTerm;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate;
@@ -21,8 +22,6 @@ import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSearchRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSearchResult;
 import com.dongkuk.dmes.mdm.entity.MdmTerm;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -34,6 +33,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -52,7 +52,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class TermMngService {
 
     private static final Logger log = LoggerFactory.getLogger(TermMngService.class);
-    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() { };
+    /** JSON 목록 파싱 실패 경고 로그 앞머리. */
+    private static final String LOG_LABEL = "termMng";
     /** 동의어 표기의 "명칭(시스템)" 접미사를 잘라내는 패턴(I18). */
     private static final Pattern TRAILING_PAREN = Pattern.compile("\\s*\\([^)]*\\)\\s*$");
     private static final double MIN_STAGE1_SCORE = 0.5d;
@@ -63,11 +64,6 @@ public class TermMngService {
     private static final double CONTAIN_SPAN = 0.2d;
     private static final int TOP_N = 5;
     private static final int DEFAULT_CHUNK_SIZE = 500;
-
-    // Spring Boot 4 는 기본 JSON 스택으로 tools.jackson(Jackson 3)을 쓰고 classic
-    // com.fasterxml.jackson.databind.ObjectMapper 빈을 자동 등록하지 않는다(실측 확인) — 이 리포의
-    // 기존 관례(GridConverter, AuditLogger 등)와 같이 직접 인스턴스를 만들어 쓴다.
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final MdmTermRepository termRepository;
     private final TermEmbeddingRepository embeddingRepository;
@@ -86,29 +82,48 @@ public class TermMngService {
     // action: search
     // ────────────────────────────────────────────────────────────────
 
+    /**
+     * 키워드·상황 조건은 DB 에서 {@link TermSearchPrefilter} 로 먼저 줄이고(필요조건만), 아래 Java 비교가 최종 판정한다. 비교 순서
+     * (키워드 → 시스템 → 상황)는 예전 그대로다. JSON 목록 해석은 {@link MdmJsonLists#readStrings} 를 따른다(D1·D2 수정 뒤 null
+     * 리터럴은 빈 목록, 원소 null 은 버림). 행마다 JSON 칸은 한 번만 파싱한다.
+     */
     public TermSearchResult search(TermSearchRequest request) {
         String keyword = trimToNull(request != null ? request.getKeyword() : null);
         String keywordUpper = keyword == null ? null : keyword.toUpperCase(Locale.ROOT);
         String systemsFilter = trimToNull(request != null ? request.getSystems() : null);
         String contextFilter = trimToNull(request != null ? request.getContext() : null);
+        String contextUpper = contextFilter == null ? null : contextFilter.toUpperCase(Locale.ROOT);
 
-        List<TermRow> rows = termRepository.findAll().stream()
-                .filter(t -> keywordUpper == null || matchesKeyword(t, keywordUpper))
-                .filter(t -> systemsFilter == null || readStringList(t.getSystems()).stream()
+        Specification<MdmTerm> prefilter = TermSearchPrefilter.of(keywordUpper, contextUpper);
+        List<TermRow> rows = termRepository.findAll(prefilter, TermSearchPrefilter.ORDER).stream()
+                .map(ParsedTerm::of)
+                .filter(p -> keywordUpper == null || matchesKeyword(p, keywordUpper))
+                .filter(p -> systemsFilter == null || p.systems().stream()
                         .anyMatch(s -> s.equalsIgnoreCase(systemsFilter)))
-                .filter(t -> contextFilter == null || (t.getContext() != null
-                        && t.getContext().toUpperCase(Locale.ROOT).contains(contextFilter.toUpperCase(Locale.ROOT))))
-                .map(this::toRow)
+                .filter(p -> contextUpper == null || (p.term().getContext() != null
+                        && p.term().getContext().toUpperCase(Locale.ROOT).contains(contextUpper)))
+                .map(TermMngService::toRow)
                 .toList();
         return new TermSearchResult(rows);
     }
 
-    private boolean matchesKeyword(MdmTerm t, String keywordUpper) {
-        if (contains(t.getTermName(), keywordUpper) || contains(t.getEngAbbr(), keywordUpper)) {
+    /**
+     * 검색 한 행 — JSON 목록 세 칸을 한 번만 파싱해 둔다. 목록은 null 이 아니다(JSON null 리터럴도 빈 목록, D1 수정). 원소도 null 이
+     * 아니다(원소 null 은 파서가 버린다, D2 수정).
+     */
+    private record ParsedTerm(MdmTerm term, List<String> synonyms, List<String> aliases, List<String> systems) {
+        static ParsedTerm of(MdmTerm t) {
+            return new ParsedTerm(t, readStrings(t.getSynonyms()), readStrings(t.getAliases()),
+                    readStrings(t.getSystems()));
+        }
+    }
+
+    private static boolean matchesKeyword(ParsedTerm p, String keywordUpper) {
+        if (contains(p.term().getTermName(), keywordUpper) || contains(p.term().getEngAbbr(), keywordUpper)) {
             return true;
         }
-        return readStringList(t.getSynonyms()).stream().anyMatch(s -> contains(s, keywordUpper))
-                || readStringList(t.getAliases()).stream().anyMatch(s -> contains(s, keywordUpper));
+        return p.synonyms().stream().anyMatch(s -> contains(s, keywordUpper))
+                || p.aliases().stream().anyMatch(s -> contains(s, keywordUpper));
     }
 
     private static boolean contains(String value, String keywordUpper) {
@@ -172,9 +187,9 @@ public class TermMngService {
         entity.setContext(trimToNull(request.getContext()));
         entity.setEngName(engName);
         entity.setEngAbbr(engAbbr);
-        entity.setSynonyms(writeJson(parseCommaList(request.getSynonyms())));
-        entity.setAliases(writeJson(parseCommaList(request.getAliases())));
-        entity.setSystems(writeJson(parseCommaList(request.getSystems())));
+        entity.setSynonyms(MdmJsonLists.writeStrings(parseCommaList(request.getSynonyms())));
+        entity.setAliases(MdmJsonLists.writeStrings(parseCommaList(request.getAliases())));
+        entity.setSystems(MdmJsonLists.writeStrings(parseCommaList(request.getSystems())));
         entity.setStdBasis(trimToNull(request.getStdBasis()));
 
         // advisor 지적 — JPA insert 가 아직 flush 되지 않으면 뒤이은 네이티브 UPDATE(EMBEDDING)가 0건이 된다.
@@ -194,7 +209,7 @@ public class TermMngService {
             }
         }
 
-        afterCommitOrNow(() -> cache.refresh(termId));
+        afterCommitOrNow("refresh termId=" + termId, () -> cache.refresh(termId));
 
         log.info("[termMng] save — termId={} termName={} senseNo={} warnings={}", termId, termName, senseNo, warnings);
         return new TermSaveResult(termId, warnings, search(new TermSearchRequest()).getList());
@@ -213,7 +228,7 @@ public class TermMngService {
         // D13 — TB_MDM_COLUMN.TERM_IDS 참조 검사는 이 작업 범위 밖(TSK-04-04 인계).
         termRepository.delete(entity);
         Long termId = entity.getTermId();
-        afterCommitOrNow(() -> cache.remove(termId));
+        afterCommitOrNow("remove termId=" + termId, () -> cache.remove(termId));
         log.info("[termMng] delete — termId={}", termId);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("cntMerge", 1);
@@ -376,7 +391,7 @@ public class TermMngService {
             int updated = embeddingRepository.updateEmbedding(termId, bytes, encoder.modelId());
             if (updated == 1) {
                 processed++;
-                afterCommitOrNow(() -> cache.refresh(termId));
+                afterCommitOrNow("refresh termId=" + termId, () -> cache.refresh(termId));
             }
         }
         int remaining = total - processed;
@@ -416,21 +431,48 @@ public class TermMngService {
     /**
      * I19 — 활성 트랜잭션이 있으면(OASIS 가 BPMN process 단위로 감싼 트랜잭션) 커밋 후로 캐시 갱신을
      * 미룬다. 없으면 즉시 갱신한다. DB 가 롤백됐는데 캐시만 갱신되는 유령 항목을 막는다.
+     *
+     * <p>두 경로 모두 {@link #runCacheUpdate} 로 감싸 캐시 갱신 실패를 밖으로 내지 않는다.
+     *
+     * @param what 실패 로그에 남길 갱신 설명(예: {@code "refresh termId=7"})
      */
-    private static void afterCommitOrNow(Runnable action) {
+    private static void afterCommitOrNow(String what, Runnable action) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    action.run();
+                    runCacheUpdate(what, action);
                 }
             });
         } else {
-            action.run();
+            runCacheUpdate(what, action);
         }
     }
 
-    private TermRow toRow(MdmTerm t) {
+    /**
+     * 캐시 갱신을 실행하고 실패({@link RuntimeException})는 삼켜 경고 로그(스택 포함)만 남긴다. {@link Error} 는 잡지 않는다.
+     *
+     * <p>삼키는 이유 — Spring 은 {@code afterCommit} 예외를 {@code commit()} 호출자에게 그대로 던지고(DB 커밋은 이미 끝남),
+     * cactus {@code CactusSpringTransactionHandler.commitAll} 은 이를 커밋 실패로 보고 남은 트랜잭션을 롤백한 뒤 S001 로
+     * 응답한다. 그러면 DB 에는 반영된 저장·삭제가 화면에는 실패로 보인다. 같은 트랜잭션의 뒤쪽 {@code afterCommit}
+     * (예: {@code reencodeBatch} 의 다른 행 갱신)도 건너뛴다. 트랜잭션이 없을 때의 즉시 경로도 {@code saveAndFlush}·
+     * {@code delete} 가 이미 자기 트랜잭션으로 커밋한 뒤라 같은 처지여서 같은 정책을 따른다.
+     *
+     * <p>로그 수준은 {@code warn} 이다 — {@code ControlTopicPublisher}(DB 가 정본이라 다른 쪽이 나중에 따라잡음, warn) 쪽이고,
+     * {@code DmomDispatchSynchronization}(외부 전송분이 사라져 TC_ERROR 로 따로 메워야 함, error) 쪽이 아니다. DB 는 정상이고
+     * 잃는 데이터가 없으며 캐시만 낡는다: 저장·재인코딩 실패분은 그 용어를 다음에 저장·재인코딩할 때, 삭제 실패분(지운 용어가
+     * 추천 후보에 남음)은 다시 갱신할 길이 없어 다음 전체 재적재({@link TermRecommendationCache#reloadAll}, 부팅 시)까지 남는다.
+     */
+    private static void runCacheUpdate(String what, Runnable action) {
+        try {
+            action.run();
+        } catch (RuntimeException e) {
+            log.warn("[termMng] 캐시 갱신 실패 — {} (DB 는 반영됨, 캐시는 다음 갱신·재적재까지 낡음)", what, e);
+        }
+    }
+
+    private static TermRow toRow(ParsedTerm p) {
+        MdmTerm t = p.term();
         TermRow row = new TermRow();
         row.setTermId(t.getTermId());
         row.setTermName(t.getTermName());
@@ -439,9 +481,9 @@ public class TermMngService {
         row.setContext(t.getContext());
         row.setEngName(t.getEngName());
         row.setEngAbbr(t.getEngAbbr());
-        row.setSynonyms(readStringList(t.getSynonyms()));
-        row.setAliases(readStringList(t.getAliases()));
-        row.setSystems(readStringList(t.getSystems()));
+        row.setSynonyms(p.synonyms());
+        row.setAliases(p.aliases());
+        row.setSystems(p.systems());
         row.setStdBasis(t.getStdBasis());
         return row;
     }
@@ -460,27 +502,8 @@ public class TermMngService {
                 .toList();
     }
 
-    private String writeJson(List<String> list) {
-        if (list == null || list.isEmpty()) {
-            return null;
-        }
-        try {
-            return OBJECT_MAPPER.writeValueAsString(list);
-        } catch (Exception e) {
-            throw new IllegalStateException("JSON 직렬화 실패", e);
-        }
-    }
-
-    private List<String> readStringList(String json) {
-        if (json == null || json.isBlank()) {
-            return List.of();
-        }
-        try {
-            return OBJECT_MAPPER.readValue(json, STRING_LIST);
-        } catch (Exception e) {
-            log.warn("[termMng] JSON 파싱 실패 — 빈 목록으로 대체: {}", json, e);
-            return List.of();
-        }
+    private static List<String> readStrings(String json) {
+        return MdmJsonLists.readStrings(json, LOG_LABEL);
     }
 
     /** 자바 문자 단위 편집 거리(Levenshtein) — D9(외부 라이브러리·DB 네이티브 미사용). */

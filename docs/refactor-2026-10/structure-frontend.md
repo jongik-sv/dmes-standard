@@ -177,13 +177,14 @@
   - 화면별 항목명 맵 위치: `m-mdm/pages/<영역>/<화면>/fieldLabels.ts`(columnMng, domainMng, headerMng, layoutMng, codeItemEdit, dataItemMng 에 새로 둠. layoutConfirm 은 layoutMng 맵, codeConfirm·codeItemEdit/cate 는 codeItemEdit 맵, dataItemMng/cate 는 dataItemMng 맵을 쓴다). 공통 항목(`APPLY_FROM` 희망 적용 시작 일시)은 `m-mdm/src/oasis-screen.ts` 의 `MDM_COMMON_FIELD_LABELS` 와 `mdmFieldLabel(화면 맵)` 이 더한다(같은 키는 화면 맵이 이긴다).
   - m-mls noticeMgmt 는 기존 `FIELD_LABEL` 을 `labelsFrom` 으로 감싸 쓴다. mdm-meta 캡션을 보조로 쓰는 안은 생략했다. 이유는 `FIELD_LABEL` 이 서버가 보내는 field 11개를 모두 덮기 때문이다.
   - 화면 로컬 표시처 8곳(termRegPop, layoutConfirm, codeConfirm, dataCsvUploadPop, ruleConfirm, ValueTestCard, ruleSetConfirm, ColumnPickModal)의 오류 문단에 `white-space: pre-line` 을 적용했다(a26f736b). 줄바꿈이 줄로 나뉘어 보이게 하기 위해서다. ErrorModal 은 S4 에서 이미 했다.
-- 현재 서버는 `errors[]` 를 싣지 않으므로 화면에 보이는 문구는 그대로다. a8 8번(errors[] 보강)이 머지된 뒤에 상세 줄이 보인다.
+- 서버 쪽 상태(2026-10-04 갱신): a8 8번(errors[] 보강)이 dev 에 머지되어, 서버가 검증 실패 응답에 `errors[]` 를 싣는다. 통합 확인 D-05(m-mls 공지사항 관리)에서 제목을 비운 저장 요청이 `meta.success=false`(「입력값을 확인해주세요.」)와 `errors[0]`(field `TITLE`, message 「제목은 필수입니다.」)로 거부되었고, 화면에는 「입력값을 확인해주세요.」 다음 줄에 「- 제목: 제목은 필수입니다.」 가 보였다. 필드 코드 `TITLE` 은 보이지 않았다. 다만 같은 확인에서 MDM 단위 마스터의 거부 응답에는 `errors[]` 가 없었으므로, 서버가 errors[] 를 싣지 않는 경로에서는 기본 문구만 보인다.
 - 바꾼 이유: 필드 코드가 사용자에게 보이지 않게 하고, 화면마다 다른 문구 형식을 하나로 맞춘다.
 - 동작 보존 근거: 기본 문구는 맨 앞에 그대로이고 상세만 뒤에 붙으므로 접두 판정(`startsWith("다른 사용자가 수정했습니다")` 등)과 `includes` 판정은 유지된다. 단위 시험은 `shared/tests/unit/http-oasis-call.unit.test.ts`(fieldLabel, labelsFrom 정규화, 포함 판정, `MdmErrors.of` 모양)와 m-mdm 화면별 `api.test.ts`, m-mls `notice-api.test.ts` 에 있다.
 - e2e 변경은 없다(`rA-e2e-changes.md`). 전체 일치 단언 중 서버 문구가 걸린 것은 dmc.user.ts:1143·dme.user.ts:1400 의 "적용 시작 일시를 입력하세요" 둘뿐인데, 프론트가 같은 문구를 먼저 띄우고 서버가 같은 문구를 errors[] 로 실어도 포함 판정으로 빠진다. 부분 일치 단언은 기본 문구가 맨 앞이라 통과한다.
 - 주의: 5a435e4c 단독으로는 m-mdm 시험이 깨진다. 102c6073 까지 함께 있어야 통과하므로 중간 커밋으로 이등분할 때 유의한다.
 - 알려진 제약: 포함 판정이라 짧은 상세가 기본 문구의 일부이면 상세가 빠질 수 있다.
-- 영향 범위: m-mdm 화면 15개의 오류 문구(서버가 errors[] 를 싣기 시작하면), m-mls noticeMgmt, 위 표시처 8곳, shared/http 옵션.
+- 알려진 제약(2026-10-04 통합 확인 D-06): 서버가 `MdmErrors.of(code, detail, issues)` 로 `meta.message` 에 `<키>[<칸>] <이슈 코드> <문구>` 를 이어 붙이는 경로(코드 저장 거부 `MasterCodeRejections` 등)에서는, `errors[]` 항목이 모두 기본 문구에 포함되어 빠지고 `meta.message` 한 줄만 보인다. 그래서 서버 코드(예: `CODE_FORBIDDEN_CHAR`)와 칸 이름(`[code]`)이 그대로 보인다. 리팩토링 전에도 같은 한 줄이 보였으므로 회귀는 아니다. 서버가 `meta.message` 를 기본 문구만 두게 하거나, shared/http 가 `": "` 앞부분을 기본 문구로 가르게 하는 안 가운데 사용자 결정을 기다린다.
+- 영향 범위: m-mdm 화면 15개의 오류 문구(서버가 errors[] 를 싣는 응답에서), m-mls noticeMgmt, 위 표시처 8곳, shared/http 옵션.
 - 되돌리는 방법: bb85f89d, a26f736b, 102c6073, 5a435e4c 를 함께 revert 한다(일부만 되돌리면 시험이 깨진다).
 
 ## S8. shared 새 컴포넌트 등록과 화면 교체 (Part B §18)
@@ -221,16 +222,21 @@
   2. `>`·`<` 는 선택이 있어야 켜진다(전에는 선택 없이도 켜졌다).
   3. `>>`·`<<` 와 건수 표시가 생긴다.
 - testid 변경 3종: `transfer-query` 는 `transfer-search`, `transfer-available-{code}` 는 `transfer-item-available-{code}`, `transfer-member-{code}` 는 `transfer-item-member-{code}` 로 바뀐다. 래퍼 `transfer-list-panel`, `transfer-apply`, `transfer-move-right`, `transfer-move-left`, 열 `transfer-available`·`transfer-member` 는 그대로다.
-- e2e `e2e/mdm-user/dmd.user.ts` 는 이번에 고치지 않았다. 1b 8번 머지 뒤 dev 를 합치고 고친다(`rB-e2e-changes.md`).
+- e2e `e2e/mdm-user/dmd.user.ts` 는 이 레인에서 고치지 않았다. e2e 소유 레인(1b)이 d825e20d 로 testid 와 이동 버튼 활성 조건을 맞췄다(`rB-e2e-changes.md` 와 대조함).
   - testid 이름 16줄(1218~1237, 1412~1419)을 위 대응대로 바꾼다.
   - 1287행 `transfer-move-right` `toBeEnabled` 단언은 선택이 없으면 `>` 가 꺼지므로 실패한다. 항목 하나(`transfer-item-available-KRPUS`)를 먼저 클릭한 뒤 단언하게 바꾼다.
 - 쓰지 않게 된 dmd `TransferListPanel` 과 그 특성 시험(`transfer-list-panel.test.ts`)은 `m-mdm/archive/` 로 옮겼다. 그만큼 m-mdm 시험 수가 줄어든다(tsc·tsup·vitest 대상 밖).
 - 문서: a0d76872 가 스킬 전송 목록 문서의 dmd [적용] 흐름과 행 체크박스 선택 규칙을 바로잡았다.
-- 영향 범위: dmd CategoryTab, 단위 시험 `data-item-page.test.ts`(testid 한 곳), e2e dmd.user.ts(미수정, 위 참고).
-- 되돌리는 방법: 63b78968 을 revert 한다(archive 파일이 돌아온다). 그 전에 dmd.user.ts 를 고쳤다면 그 수정도 함께 되돌린다.
+- 영향 범위: dmd CategoryTab, 단위 시험 `data-item-page.test.ts`(testid 한 곳), e2e dmd.user.ts(1b 가 d825e20d 로 수정).
+- 되돌리는 방법: 63b78968 을 revert 한다(archive 파일이 돌아온다). 이때 d825e20d(dmd.user.ts)도 함께 되돌린다.
 
-## 진행 중 (다음 머지에 추가)
-- `e2e/mdm-user/dmd.user.ts` 수정(S10): 1b 8번 머지 뒤 dev 를 합치고 testid 16줄과 1287행 단언을 고친다.
-- P2 측정: 조정 세션이 「측정 시작」을 알린 뒤 `perf-frontend.md` 절차대로 잰다.
-- m-mcm 복사본 20개 공통화(S5 후속): 다음 단계에서 한다(대조표 `r2-mcm-table.md`).
-- 오류 문구 화면 확인(S7): a8 8번(errors[] 보강) 머지 뒤 상세 줄이 보이는지 확인한다.
+## 진행 중 (2026-10-04 12시 기준)
+- 끝난 일:
+  - `e2e/mdm-user/dmd.user.ts` 수정(S10)은 e2e 소유 레인(1b)이 d825e20d 로 처리했다. 프론트 레인이 교차 리뷰했고 후속은 없다.
+  - P2 측정은 끝났다. 결과는 `perf-frontend.md` P2 에 있다.
+  - 오류 문구 화면 확인(S7)은 통합 확인 D-05 에서 했다(위 S7 「서버 쪽 상태」).
+  - 브라우저 통합 확인(dev, 로컬 서버, 62건)은 통과 56, 실패 2, 보류 4 로 끝났다. 실패 2건은 회귀가 아닌 기존 동작이다. D-06 은 위 S7 「알려진 제약」(서버 `meta.message` 에 코드가 실림), T-06 은 dmd 소속 편집에서 행 안 [편집] 클릭이 같은 카테고리를 다시 읽어 미적용 이동을 버리는 동작이다(기준 태그와 연결이 같다). 보류 4건은 용어 추가 보류 2건(조정 세션 결정), 서버의 미등록 용어 거부 1건, 흐름도 캔버스가 필요한 룰 세트 편집 1건이다. 쓰기 시나리오는 시험 계정 CHK_STD·CHK_STW 와 CHK_ 접두 데이터로만 했고, 확정·삭제는 하지 않았다. 로컬 DB 에 남은 CHK_ 데이터의 삭제 여부는 사용자가 정한다.
+- 남은 일:
+  - D-06 고치는 방향(서버가 `meta.message` 를 기본 문구만 두게 할지, shared/http 가 `": "` 앞부분을 기본 문구로 가를지)과 T-06 처리 방향은 사용자 결정이다.
+  - m-mcm 복사본 20개 공통화(S5 후속)는 다음 단계에서 한다(대조표 `r2-mcm-table.md`).
+  - MDM 쪽 거부 응답 중 errors[] 를 싣지 않는 경로(예: 단위 마스터)는 서버 레인 몫이다. 서버가 싣기 시작하면 화면은 고치지 않아도 상세 줄이 보인다.

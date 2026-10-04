@@ -1,8 +1,8 @@
 package com.dongkuk.dmes.mcm.screenusage.service;
 
 import com.dongkuk.dmes.mcm.entity.SecMenu;
+import com.dongkuk.dmes.mcm.menu.MenuCatalog;
 import com.dongkuk.dmes.mcm.repository.SecMenuNativeRepository;
-import com.dongkuk.dmes.mcm.repository.SecMenuRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayDeque;
@@ -24,11 +24,11 @@ public class ScreenMenuCatalog {
 
     public record MenuInfo(String pageId, String menuNm, String menuPath, boolean viewable) {}
 
-    private final SecMenuRepository secMenuRepository;
+    private final MenuCatalog menuCatalog;
     private final SecMenuNativeRepository secMenuNativeRepository;
 
-    public ScreenMenuCatalog(SecMenuRepository secMenuRepository, SecMenuNativeRepository secMenuNativeRepository) {
-        this.secMenuRepository = secMenuRepository;
+    public ScreenMenuCatalog(MenuCatalog menuCatalog, SecMenuNativeRepository secMenuNativeRepository) {
+        this.menuCatalog = menuCatalog;
         this.secMenuNativeRepository = secMenuNativeRepository;
     }
 
@@ -41,7 +41,7 @@ public class ScreenMenuCatalog {
             }
         }
         Map<String, MenuInfo> out = new LinkedHashMap<>();
-        for (SecMenu m : secMenuRepository.findAll()) {
+        for (SecMenu m : menuCatalog.menus()) {
             if (isBlank(m.getParentMenuId()) || isBlank(m.getObjectId())) {
                 continue;
             }

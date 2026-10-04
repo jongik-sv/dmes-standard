@@ -1,7 +1,6 @@
-import path from "node:path";
 import { expect, test, type Page, type Response } from "@playwright/test";
 
-import { BASE_URL, LOGIN_USER, T, login, walkMenuPath } from "./support/common";
+import { BASE_URL, LOGIN_USER, T, login, taskScreenshotPath, walkMenuPath } from "./support/common";
 
 /**
  * mdm 공통 셸·RBAC smoke — TSK-01-03 design.md §3.5.
@@ -22,6 +21,9 @@ import { BASE_URL, LOGIN_USER, T, login, walkMenuPath } from "./support/common";
  * 전제(design.md §3.6): 격리 DB 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고, mcm 기동 뒤
  * e2e/fixtures/mdm-rbac-users.sql 을 격리 mcm.db 에 넣는다. be-run.sh·fe-run.sh 는 쓰지 않는다.
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
+ *
+ * 스크린샷(T1·T2·T3): 기본은 시험 산출물 폴더(src/frontend/test-results/…, git 제외)에 남는다. 승인용 화면
+ * docs/mdm/tasks/TSK-01-03/screens/*.png 를 갱신하려면 E2E_WRITE_TASK_SCREENS=1 을 붙여 돌린다.
  */
 
 const ADMIN = LOGIN_USER;
@@ -33,9 +35,8 @@ const MDM_MENU_IDS = ["mdm", "dma", "dmb", "dmc", "dmd", "dme"];
 const SAMPLE_API = "/api/mdm/oasis/mdmSample/search";
 const BREADCRUMB = "마루 MDM > 용어·도메인 > MDM 샘플";
 
-// __dirname = src/frontend/e2e → repo root 까지 3단계 위.
-const screenshot = (name: string) =>
-  path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-01-03/screens", name);
+// 기본은 시험 산출물 폴더, E2E_WRITE_TASK_SCREENS=1 이면 docs/mdm/tasks/TSK-01-03/screens/ (support/common.ts).
+const screenshot = (name: string) => taskScreenshotPath("TSK-01-03", name);
 
 function waitForMenuTree(page: Page): Promise<Response> {
   return page.waitForResponse((r) => r.url().includes("/api/mcm/oasis/secUser/myMenusTree"), {

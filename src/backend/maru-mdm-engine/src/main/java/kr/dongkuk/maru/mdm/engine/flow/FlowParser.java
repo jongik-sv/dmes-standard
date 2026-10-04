@@ -57,8 +57,27 @@ public final class FlowParser {
 
     public static FlowParse parse(FlowDefinition flow) {
         List<FlowIssue> issues = new ArrayList<>();
+        Map<String, FlowNode> byId = indexNodes(flow, issues);
+        Map<String, List<FlowNode>> catchesOf = attachedCatches(byId);
+        checkStartEnd(byId, issues);
+        Map<String, List<FlowEdge>> in = new HashMap<>();
+        Map<String, List<FlowEdge>> out = new HashMap<>();
+        linkEdges(flow, byId, issues, in, out);
+        checkNodes(byId, in, out, catchesOf, issues);
+        checkSplits(byId, out, issues);
+        checkCatchNodes(byId, issues);
+        checkCatchTargets(byId, catchesOf, issues);
+        if (!issues.isEmpty()) {
+            return new FlowParse(null, List.copyOf(issues));
+        }
+        return buildTree(byId, out, catchesOf);
+    }
+
+    // ------------------------------------------------------------------ 1단계(어긋난 것을 모두 모은다 — 호출 순서가 이슈 순서다)
+
+    /** a — 노드 ID 중복. 처음 나온 노드만 색인에 넣는다(노드 배열 순서). */
+    private static Map<String, FlowNode> indexNodes(FlowDefinition flow, List<FlowIssue> issues) {
         Map<String, FlowNode> byId = new LinkedHashMap<>();
-        // a — 노드 ID 중복
         for (FlowNode n : flow.nodes()) {
             if (byId.containsKey(n.id())) {
                 issues.add(structure(n.id(), null, "노드 ID " + n.id() + "가 겹친다"));
@@ -66,7 +85,11 @@ public final class FlowParser {
                 byId.put(n.id(), n);
             }
         }
-        // 받는 노드가 붙은 노드 → 붙은 받는 노드(노드 배열 순서). 붙임이 맞는 것만 — h 가 채우고 e·2단계가 쓴다.
+        return byId;
+    }
+
+    /** 받는 노드가 붙은 노드 → 붙은 받는 노드(노드 배열 순서). 붙임이 맞는 것만 — h 가 채우고 e·2단계가 쓴다. */
+    private static Map<String, List<FlowNode>> attachedCatches(Map<String, FlowNode> byId) {
         Map<String, List<FlowNode>> catchesOf = new LinkedHashMap<>();
         for (FlowNode n : byId.values()) {
             FlowNode target = n.kind() == NodeKind.CATCH && !blank(n.attachTo()) ? byId.get(n.attachTo()) : null;
@@ -74,7 +97,11 @@ public final class FlowParser {
                 catchesOf.computeIfAbsent(target.id(), k -> new ArrayList<>()).add(n);
             }
         }
-        // b1·b2 — 시작·끝 개수
+        return catchesOf;
+    }
+
+    /** b1·b2 — 시작·끝 개수. */
+    private static void checkStartEnd(Map<String, FlowNode> byId, List<FlowIssue> issues) {
         long starts = byId.values().stream().filter(n -> n.kind() == NodeKind.START).count();
         long ends = byId.values().stream().filter(n -> n.kind() == NodeKind.END).count();
         if (starts != 1) {
@@ -83,9 +110,11 @@ public final class FlowParser {
         if (ends != 1) {
             issues.add(structure(null, null, "끝 노드가 " + ends + "개다. 정확히 1개여야 한다"));
         }
-        // c — 없는 노드를 가리키는 선(걸린 선은 개수 계산에서 뺀다)
-        Map<String, List<FlowEdge>> in = new HashMap<>();
-        Map<String, List<FlowEdge>> out = new HashMap<>();
+    }
+
+    /** c — 없는 노드를 가리키는 선. 걸린 선은 in·out 에 넣지 않는다(개수 계산에서 뺀다). */
+    private static void linkEdges(FlowDefinition flow, Map<String, FlowNode> byId, List<FlowIssue> issues, Map<String, List<FlowEdge>> in,
+            Map<String, List<FlowEdge>> out) {
         for (FlowEdge e : flow.edges()) {
             boolean ok = true;
             if (!byId.containsKey(e.from())) {
@@ -101,7 +130,11 @@ public final class FlowParser {
                 in.computeIfAbsent(e.to(), k -> new ArrayList<>()).add(e);
             }
         }
-        // d1·d2·e·f1 — 노드별
+    }
+
+    /** d1·d2·e·f1 — 노드별 선 개수, 룰 ID, 합류의 짝 분기. */
+    private static void checkNodes(Map<String, FlowNode> byId, Map<String, List<FlowEdge>> in, Map<String, List<FlowEdge>> out,
+            Map<String, List<FlowNode>> catchesOf, List<FlowIssue> issues) {
         for (FlowNode n : byId.values()) {
             int i = in.getOrDefault(n.id(), List.of()).size();
             int o = out.getOrDefault(n.id(), List.of()).size();
@@ -119,7 +152,10 @@ public final class FlowParser {
                 }
             }
         }
-        // f2·g1..g5·f4 — 분기별
+    }
+
+    /** f2·g1..g5·f4 — 분기별. 한 분기 안 순서는 합류 개수 → 갈래 조건 → 갈래 순서 → 같은 도착 갈래다. */
+    private static void checkSplits(Map<String, FlowNode> byId, Map<String, List<FlowEdge>> out, List<FlowIssue> issues) {
         for (FlowNode n : byId.values()) {
             if (n.kind() != NodeKind.IF && n.kind() != NodeKind.PARALLEL) {
                 continue;
@@ -132,50 +168,70 @@ public final class FlowParser {
                 issues.add(structure(n.id(), null, "IF " + n.id() + "를 닫는 합류가 " + merges + "개다. IF 는 합류를 두지 않는다"));
             }
             List<FlowEdge> outs = out.getOrDefault(n.id(), List.of());
-            List<FlowEdge> ordered = new ArrayList<>();
-            if (n.kind() == NodeKind.IF) {
-                long others = outs.stream().filter(FlowEdge::otherwise).count();
-                if (others != 1) {
-                    issues.add(new FlowIssue(IF_ELSE, n.id(), null, "IF " + n.id() + "에 \"그 외\" 갈래가 " + others + "개다. 정확히 1개여야 한다"));
-                }
-                for (FlowEdge e : outs) {
-                    if (!e.otherwise() && blank(e.cond())) {
-                        issues.add(new FlowIssue(IF_ELSE, n.id(), e.id(), "IF " + n.id() + "의 갈래 " + e.id() + "에 조건식이 없다"));
-                    }
-                }
-                outs.stream().filter(e -> !e.otherwise()).forEach(ordered::add);
-            } else {
-                for (FlowEdge e : outs) {
-                    if (!blank(e.cond()) || e.otherwise()) {
-                        issues.add(structure(n.id(), e.id(), "병렬 분기 " + n.id() + "의 갈래 " + e.id() + "에는 조건을 둘 수 없다"));
-                    }
-                }
-                ordered.addAll(outs);
-            }
-            for (FlowEdge e : ordered) {
-                if (e.order() == null) {
-                    issues.add(structure(n.id(), e.id(), "분기 " + n.id() + "의 갈래 " + e.id() + "에 순서가 없다"));
-                }
-            }
-            Set<Integer> seen = new HashSet<>();
-            for (FlowEdge e : ordered) {
-                if (e.order() != null && !seen.add(e.order())) {
-                    issues.add(structure(n.id(), e.id(), "분기 " + n.id() + "의 갈래 순서 " + e.order() + "가 겹친다"));
-                }
-            }
+            List<FlowEdge> ordered = n.kind() == NodeKind.IF ? checkIfBranches(n, outs, issues) : checkParallelBranches(n, outs, issues);
+            checkBranchOrders(n, ordered, issues);
             // f4 — 새 형식 IF(짝 MERGE 없음)의 같은 도착 갈래 선(J-D7). 옛 IF·병렬은 보지 않는다.
             if (n.kind() == NodeKind.IF && merges == 0) {
-                Map<String, String> first = new HashMap<>();
-                for (FlowEdge e : outs) {
-                    String prev = first.putIfAbsent(e.to(), e.id());
-                    if (prev != null) {
-                        issues.add(structure(n.id(), e.id(), "IF " + n.id() + "의 갈래 " + e.id() + "가 갈래 " + prev + "와 같은 노드 " + e.to()
-                                + "로 간다. 같은 노드로 가는 갈래는 하나만 둔다"));
-                    }
-                }
+                checkSameTarget(n, outs, issues);
             }
         }
-        // h1..h5 — 받는 노드별(받는 노드 spec §5 FLOW_CATCH)
+    }
+
+    /** IF 의 "그 외" 갈래 개수와 조건식 없는 갈래. 순서를 볼 갈래(그 외가 아닌 것)를 돌려준다. */
+    private static List<FlowEdge> checkIfBranches(FlowNode n, List<FlowEdge> outs, List<FlowIssue> issues) {
+        long others = outs.stream().filter(FlowEdge::otherwise).count();
+        if (others != 1) {
+            issues.add(new FlowIssue(IF_ELSE, n.id(), null, "IF " + n.id() + "에 \"그 외\" 갈래가 " + others + "개다. 정확히 1개여야 한다"));
+        }
+        for (FlowEdge e : outs) {
+            if (!e.otherwise() && blank(e.cond())) {
+                issues.add(new FlowIssue(IF_ELSE, n.id(), e.id(), "IF " + n.id() + "의 갈래 " + e.id() + "에 조건식이 없다"));
+            }
+        }
+        List<FlowEdge> ordered = new ArrayList<>();
+        outs.stream().filter(e -> !e.otherwise()).forEach(ordered::add);
+        return ordered;
+    }
+
+    /** 병렬 분기 갈래에 붙은 조건·그 외 표시. 순서를 볼 갈래(전부)를 돌려준다. */
+    private static List<FlowEdge> checkParallelBranches(FlowNode n, List<FlowEdge> outs, List<FlowIssue> issues) {
+        for (FlowEdge e : outs) {
+            if (!blank(e.cond()) || e.otherwise()) {
+                issues.add(structure(n.id(), e.id(), "병렬 분기 " + n.id() + "의 갈래 " + e.id() + "에는 조건을 둘 수 없다"));
+            }
+        }
+        return new ArrayList<>(outs);
+    }
+
+    /** 갈래 순서 없음, 그 다음 갈래 순서 겹침. */
+    private static void checkBranchOrders(FlowNode n, List<FlowEdge> ordered, List<FlowIssue> issues) {
+        for (FlowEdge e : ordered) {
+            if (e.order() == null) {
+                issues.add(structure(n.id(), e.id(), "분기 " + n.id() + "의 갈래 " + e.id() + "에 순서가 없다"));
+            }
+        }
+        Set<Integer> seen = new HashSet<>();
+        for (FlowEdge e : ordered) {
+            if (e.order() != null && !seen.add(e.order())) {
+                issues.add(structure(n.id(), e.id(), "분기 " + n.id() + "의 갈래 순서 " + e.order() + "가 겹친다"));
+            }
+        }
+    }
+
+    /** f4 — 같은 노드로 가는 갈래 선이 둘 이상. */
+    private static void checkSameTarget(FlowNode n, List<FlowEdge> outs, List<FlowIssue> issues) {
+        Map<String, String> first = new HashMap<>();
+        for (FlowEdge e : outs) {
+            String prev = first.putIfAbsent(e.to(), e.id());
+            if (prev != null) {
+                issues.add(structure(n.id(), e.id(), "IF " + n.id() + "의 갈래 " + e.id() + "가 갈래 " + prev + "와 같은 노드 " + e.to()
+                        + "로 간다. 같은 노드로 가는 갈래는 하나만 둔다"));
+            }
+        }
+    }
+
+    /** h1..h5 — 받는 노드별(받는 노드 spec §5 FLOW_CATCH). */
+    private static void checkCatchNodes(Map<String, FlowNode> byId, List<FlowIssue> issues) {
         for (FlowNode n : byId.values()) {
             if (n.kind() != NodeKind.CATCH) {
                 continue;
@@ -199,7 +255,10 @@ public final class FlowParser {
                 }
             }
         }
-        // h6·h7 — 받는 노드가 붙은 노드별
+    }
+
+    /** h6·h7 — 받는 노드가 붙은 노드별. */
+    private static void checkCatchTargets(Map<String, FlowNode> byId, Map<String, List<FlowNode>> catchesOf, List<FlowIssue> issues) {
         for (Map.Entry<String, List<FlowNode>> en : catchesOf.entrySet()) {
             Map<String, String> owner = new HashMap<>();
             for (FlowNode c : en.getValue()) {
@@ -218,9 +277,10 @@ public final class FlowParser {
                 issues.add(structure(en.getKey(), null, "룰 " + en.getKey() + "로 돌아오는 합류가 " + merges + "개다. 1개까지 둔다"));
             }
         }
-        if (!issues.isEmpty()) {
-            return new FlowParse(null, List.copyOf(issues));
-        }
+    }
+
+    /** 2단계 — 블록 트리를 만든다. 첫 오류(Stop)는 이슈 1건으로 돌려준다. */
+    private static FlowParse buildTree(Map<String, FlowNode> byId, Map<String, List<FlowEdge>> out, Map<String, List<FlowNode>> catchesOf) {
         try {
             return new FlowParse(new Builder(byId, out, catchesOf).build(), List.of());
         } catch (Stop s) {
