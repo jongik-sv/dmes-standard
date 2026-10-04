@@ -88,6 +88,8 @@ const HOME_IDLE = process.env.RENDER_HOME_IDLE !== "0";
  * 서버 첫 호출(JIT·캐시·커넥션)이 첫 회차에 섞여 termMng 826.6ms(TTFB 315) 같은 값이 나왔다.
  */
 const WARMUP = process.env.RENDER_WARMUP !== "0";
+/** 1 이면 첫 조회 뒤 상한 안내 띠의 [전체 보기] 를 눌러 상한 없는 재조회도 잰다(R1 적용 화면). */
+const FULL_VIEW = process.env.RENDER_FULL_VIEW === "1";
 const HOME_IDLE_QUIET_MS = Number(process.env.RENDER_HOME_IDLE_QUIET_MS ?? 500);
 const HOME_IDLE_MAX_MS = Number(process.env.RENDER_HOME_IDLE_MAX_MS ?? 10_000);
 
@@ -707,6 +709,71 @@ async function startTrace(cdp) {
   };
 }
 
+/**
+ * 응답 본문에서 행 수·전체 건수를 뽑는다. 본문 크기만으로는 건수를 모르므로 CDP 로 본문을 한 번 읽는다
+ * (측정 구간이 끝난 뒤라 시간 값에 영향이 없다). 가장 긴 배열 길이를 행 수로, `totalCount`·`truncated` 는 있는 대로 낸다.
+ */
+async function responseRows(cdp, call) {
+  if (!call?.requestId) return { rows: null, totalCount: null, truncated: null };
+  try {
+    const { body, base64Encoded } = await cdp.send("Network.getResponseBody", { requestId: call.requestId });
+    const json = JSON.parse(base64Encoded ? Buffer.from(body, "base64").toString("utf8") : body);
+    let rows = 0;
+    let totalCount = null;
+    let truncated = null;
+    const walk = (v, depth) => {
+      if (depth > 6 || v === null || typeof v !== "object") return;
+      if (Array.isArray(v)) { rows = Math.max(rows, v.length); return; }
+      for (const [k, x] of Object.entries(v)) {
+        if (k === "totalCount" && typeof x === "number") totalCount = x;
+        else if (k === "truncated" && typeof x === "boolean") truncated = x;
+        else walk(x, depth + 1);
+      }
+    };
+    walk(json, 0);
+    return { rows, totalCount, truncated };
+  } catch {
+    return { rows: null, totalCount: null, truncated: null };
+  }
+}
+
+/**
+ * [전체 보기] 경로(R1 상한 안내 띠). 보이는 탭에 `*-limit-show-all` 단추가 있으면 누르고,
+ * 페이지 안 시계로 클릭(event.timeStamp) → 안내 띠가 사라진 순간(MutationObserver)을 잰다.
+ * 상한 없는 재조회 요청의 TTFB·크기·행 수도 함께 낸다. 단추가 없으면(잘리지 않음) fullViewShown=0.
+ */
+async function measureFullView(page, cdp, screen, calls) {
+  const btn = page.locator(`${VISIBLE_GRID}[data-testid$="-limit-show-all"]`).first();
+  if (!(await btn.isVisible().catch(() => false))) return { fullViewShown: 0 };
+  const before = calls.filter((c) => isSearchCall(screen, c)).length;
+  const tab = await page.locator(VISIBLE_GRID.trim()).first().elementHandle();
+  await page.evaluate((tab) => {
+    const st = (window.__FV__ = { click: null, gone: null });
+    document.addEventListener("click", (e) => { if (st.click === null) st.click = e.timeStamp; }, { capture: true, once: true });
+    const mo = new MutationObserver(() => {
+      if (st.click === null || st.gone !== null) return;
+      if (!tab.querySelector('[data-testid$="-limit"]')) { st.gone = performance.now(); mo.disconnect(); }
+    });
+    mo.observe(tab, { childList: true, subtree: true });
+  }, tab);
+  await btn.click();
+  await page.waitForFunction(() => window.__FV__?.gone != null, undefined, { timeout: TIMEOUT }).catch(() => {});
+  const deadline = Date.now() + TIMEOUT;
+  while (calls.filter((c) => isSearchCall(screen, c)).length <= before && Date.now() < deadline) await page.waitForTimeout(50);
+  const fv = await page.evaluate(() => window.__FV__);
+  const call = calls.filter((c) => isSearchCall(screen, c))[before] ?? null;
+  const body = await responseRows(cdp, call);
+  return {
+    fullViewShown: 1,
+    fullViewInPageMs: fv?.click != null && fv?.gone != null ? round1(fv.gone - fv.click) : "",
+    fullViewTtfbMs: call?.ttfbMs ?? "",
+    fullViewTotalMs: call ? round1(call.ms) : "",
+    fullViewEncodedBytes: call?.encodedDataLength ?? "",
+    fullViewRows: body.rows ?? "",
+    fullViewPostData: call?.postData?.slice(0, 200) ?? "",
+  };
+}
+
 // ── 한 화면 측정 ────────────────────────────────────────────────────────────
 async function measureScreen(page, cdp, screen, calls, round) {
   await clearBuffers(page);
@@ -811,7 +878,11 @@ async function measureScreen(page, cdp, screen, calls, round) {
 
   const longTasks = await readLongTasks(page);
   const profiler = await readProfiler(page);
-  const api = attachSearchTiming(summarizeApi(calls), screen, calls);
+  // 첫 조회 기준 값은 [전체 보기] 재조회 전에 굳힌다(attachSearchTiming 은 마지막 조회 요청을 고른다).
+  const api = attachSearchTiming(summarizeApi(calls.slice()), screen, calls.slice());
+  const searchCall = calls.filter((c) => isSearchCall(screen, c)).pop() ?? null;
+  const searchBody = searched ? await responseRows(cdp, searchCall) : { rows: null, totalCount: null, truncated: null };
+  const fullView = FULL_VIEW && searched && rowMode === "row" ? await measureFullView(page, cdp, screen, calls) : {};
 
   const row = {
     round,
@@ -850,6 +921,11 @@ async function measureScreen(page, cdp, screen, calls, round) {
     searchQueueMs: api.searchQueueMs ?? "",
     searchConnectMs: api.searchConnectMs ?? "",
     searchEncodedBytes: api.searchEncodedBytes ?? "",
+    searchRows: searchBody.rows ?? "",
+    searchTotalCount: searchBody.totalCount ?? "",
+    searchTruncated: searchBody.truncated === null ? "" : searchBody.truncated ? 1 : 0,
+    searchPostData: searchCall?.postData?.slice(0, 200) ?? "",
+    ...fullView,
     invalidSearch,
     /** 진입 자동 조회 화면이면 1 — 조회 지표 무효(summarize.mjs 가 뺀다). */
     autoSearchAtEntry: screen.autoSearchAtEntry ? 1 : 0,
@@ -934,6 +1010,7 @@ async function main() {
     `calibrate: ${CALIBRATE ? "1" : "0"}`,
     `isolate: ${ISOLATE ? "1" : "0"}`,
     `warmup: ${WARMUP && TAB_STATE === "cold" ? "1 (round 0 버림)" : "0"}`,
+    `full_view: ${FULL_VIEW ? "1" : "0"}`,
     `home_idle: ${HOME_IDLE ? `1 (quiet ${HOME_IDLE_QUIET_MS}ms, max ${HOME_IDLE_MAX_MS}ms)` : "0"}`,
     `screens: ${targets.map((s) => s.id).join(",")}`,
     `ac: ${acPower()}`,
