@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.feed.metaFeed.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
+
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.metarev.MetaChangeKind;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
@@ -216,9 +218,5 @@ public class MetaFeedService {
     static MetaTargetType requireType(String text) {
         return MetaTargetType.parse(text).orElseThrow(() ->
                 invalid("대상 종류(type)는 COLUMN·DOMAIN·RULE·RULE_SET·CODE·LAYOUT 중 하나여야 합니다: " + text));
-    }
-
-    static BusinessException invalid(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
     }
 }

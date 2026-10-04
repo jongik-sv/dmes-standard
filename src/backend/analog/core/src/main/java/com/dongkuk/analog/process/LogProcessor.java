@@ -2,6 +2,7 @@ package com.dongkuk.analog.process;
 
 import com.dongkuk.analog.nodes.ObjectNode;
 import com.dongkuk.analog.parser.LogParser;
+import com.dongkuk.analog.parser.LogPattern;
 import com.dongkuk.analog.repository.LogRepository;
 import com.dongkuk.analog.scanner.LogData;
 import com.dongkuk.analog.scanner.LogLexer;
@@ -25,11 +26,14 @@ public class LogProcessor {
     private LogRepository logRepository;
     private boolean eoq = false;
     private boolean debug = false;
+    // 토큰 분류에 쓸 패턴 — 프로세서마다 들고 다닌다(전역 static 갈아 끼우기 대신).
+    private final LogPattern logPattern;
 
-    public LogProcessor(LogLexer logLexer, Queue<LogData> queue) {
+    public LogProcessor(LogLexer logLexer, Queue<LogData> queue, LogPattern logPattern) {
         this.logLexer = logLexer;
         logLexer.setQueue(queue);
         this.queue = queue;
+        this.logPattern = logPattern;
     }
 
     public void init() {
@@ -76,7 +80,7 @@ public class LogProcessor {
         }
 
         if(item.getServiceTag().isEmpty()) return;
-        LogToken logToken = LogToken.parse(item);
+        LogToken logToken = LogToken.parse(item, logPattern);
         if(!parserMap.containsKey(item.getServiceTag())) {
             LogParser logParser = new LogParser(logToken);
             logParser.setDebug(debug);

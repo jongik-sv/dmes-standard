@@ -222,7 +222,7 @@ export default function LayoutConfirmPage({ tabId, snapshot, onSnapshotChange }:
         <ContentPanel>
           <div style={{ overflow: "auto", height: "100%" }}>
             {error && (
-              <div data-testid="lc-error" role="alert" style={{ ...section, ...errorText, paddingTop: "var(--spacing-sm)" }}>
+              <div data-testid="lc-error" role="alert" style={{ ...section, ...errorText, paddingTop: "var(--spacing-sm)", whiteSpace: "pre-line" }}>
                 {error}
               </div>
             )}

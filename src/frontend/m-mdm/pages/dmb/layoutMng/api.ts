@@ -2,58 +2,36 @@
  * layoutMng 화면의 OASIS BFF 호출 래퍼 — `POST /api/mdm/oasis/layoutMng/{action}`(TSK-05-02 design.md §6.1).
  *
  * TSK-04-03 B0 실측 규칙(F11): grid `headers`·`consts`·`items` 셋을 **빈 배열이라도 늘 보내고**, params 의 null·빈 값 키는
- * 뺀다. 헤더 항목을 보내는 grid 는 없다 — 전문에서 헤더 구성·길이는 잠긴다(불변 I8). 공유 헬퍼는 두지 않는다.
+ * 뺀다. 헤더 항목을 보내는 grid 는 없다 — 전문에서 헤더 구성·길이는 잠긴다(불변 I8). 요청 조립·봉투 해제는
+ * `@dk-oasis/shared/http` 공통 계약(callOasisAt)에 맡긴다.
  * TSK-05-03: validate(등록 검증 7종)·execute(샘플 전문 렌더, grid samples 추가)·export(스냅샷)·search target=IMPACT(영향 전문).
  */
-import { apiRequest } from "@dk-oasis/shared/http";
+import { callOasisAt, omitParams, type OasisCallOptions } from "@dk-oasis/shared/http";
+
+import { MDM_OASIS_BASE, mdmFieldLabel, plainError } from "@/oasis-screen";
+
+import { LAYOUT_MNG_FIELD_LABELS } from "./fieldLabels";
+
 import type { ColumnInfo, LayoutItemRow } from "@/layout/types";
 import type {
   CheckResult, ConstRow, ExportResult, HeaderOption, ImpactRow, LayoutDraft, SampleResult, SaveResult, SearchFilters, SearchResult, ViewResult,
 } from "./types";
 
-const OASIS_BASE = "/api/mdm/oasis/layoutMng";
+const SERVICE = "layoutMng";
 const ITEM_KEYS = ["SEQ", "FILL_KIND", "COLUMN_PHYS", "TRANS_UNIT", "UNIT_ITEM", "NUM_FORMAT", "DEFAULT_VALUE", "FILLER_LENGTH"] as const;
-
-interface CactusEnvelope {
-  meta?: { success?: boolean; message?: string; code?: string };
-  data?: Record<string, unknown>;
-}
 
 type Grids = Record<string, { rows: Array<Record<string, unknown>> }>;
 
-function unwrap<T>(res: unknown): T {
-  const env = res as CactusEnvelope;
-  if (env?.meta && env.meta.success === false) {
-    throw new Error(env.meta.message?.trim() || "요청이 거부되었습니다.");
-  }
-  const out: Record<string, unknown> = {};
-  if (env?.data) {
-    Object.assign(out, env.data);
-    const inner = env.data["result"];
-    if (inner && typeof inner === "object" && !Array.isArray(inner)) {
-      Object.assign(out, inner as Record<string, unknown>);
-    }
-  }
-  return out as T;
-}
+/** params 는 null·undefined·공백만 있는 문자열을 빼고, 성공은 data 전체 위에 `data.result` 를 덮고, 거부는 일반 Error 이고 문구는 `기본 문구 + "\n- 항목명: 메시지"`(서버 field 코드는 안 보임, 기본 문구에 든 메시지는 뺌). */
+const OASIS: OasisCallOptions = { omit: "nullish+blank", merge: "data+result", fieldLabel: mdmFieldLabel(LAYOUT_MNG_FIELD_LABELS), errorFactory: plainError };
 
 /** null·undefined·빈 문자열 값을 뺀다(B0 e). 숫자 0 과 false 는 남긴다. */
 export function cleanParams(params: object): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(params)) {
-    if (v === null || v === undefined) continue;
-    if (typeof v === "string" && v.trim() === "") continue;
-    out[k] = v;
-  }
-  return out;
+  return omitParams(params, "nullish+blank");
 }
 
-async function callAction<T>(action: string, params: object, grids?: Grids): Promise<T> {
-  const res = await apiRequest<unknown>(`${OASIS_BASE}/${action}`, {
-    method: "POST",
-    body: JSON.stringify({ meta: { menuId: "layoutMng" }, params: cleanParams(params), ...(grids ? { grids } : {}) }),
-  });
-  return unwrap<T>(res);
+function callAction<T>(action: string, params: object, grids?: Grids): Promise<T> {
+  return callOasisAt<T>(MDM_OASIS_BASE, SERVICE, action, params, grids, OASIS);
 }
 
 /** 전문 목록 + 조회 조건용 시스템·EAI·헤더. */

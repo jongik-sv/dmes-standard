@@ -21,11 +21,11 @@ import { ContentBody, ContentPanel } from "@dk-oasis/shared/layout";
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { Modal } from "@dk-oasis/shared/modal";
+import { TransferList } from "@dk-oasis/shared/transfer-list";
 
 import { buildDefTargetOptions } from "./defTargetOptions";
 import { CategoryAddModal } from "./components/CategoryAddModal";
 import { RegexEditPanel } from "./components/RegexEditPanel";
-import { TransferListPanel } from "./components/TransferListPanel";
 import { BASE_CATE_ID } from "./types";
 import { CategoryHistoryPanel } from "../history/CategoryHistoryPanel";
 import type { DataCategoriesState } from "./useDataCategories";
@@ -35,6 +35,10 @@ const toolbar = {
   display: "flex", alignItems: "center", gap: "var(--spacing-sm)",
   padding: "var(--spacing-sm)", borderBottom: "1px solid var(--color-border)",
 } as const;
+const transferPanel = {
+  display: "flex", flexDirection: "column", gap: "var(--spacing-xs)", padding: "var(--spacing-sm)",
+} as const;
+const transferFooter = { display: "flex", justifyContent: "flex-end" } as const;
 
 export interface CategoryTabProps {
   cate: DataCategoriesState;
@@ -61,6 +65,8 @@ export function CategoryTab({ cate, loaded, editable, canSave, onError, errorSho
   // 다른 카테고리를 고른 뒤 새 상세(view)가 올 때까지는 이전 소속 목록을 잠가 둔다 — 그 사이 [적용]하면 이전 카테고리의
   // 소속으로 낸 diff 가 새 카테고리에 저장된다(Local-Rules §11, 비웠다 다시 그리지 않고 잠근다).
   const detailCurrent = !!detail && detail.cate?.cateId === selectedRow?.cateId;
+  // 소속 편집 팝업의 이동·[적용] 조건 — 새 상세가 오기 전에는 이전 카테고리의 소속을 잠근다.
+  const transferEditable = canEdit && !!selectedRow?.open && detailCurrent;
 
   const targetOptions = useMemo(() => buildDefTargetOptions(cate.lvlCnt, cate.attrLabels), [cate.lvlCnt, cate.attrLabels]);
 
@@ -252,13 +258,20 @@ export function CategoryTab({ cate, loaded, editable, canSave, onError, errorSho
 
       <Modal open={transferOpen} onClose={() => setTransferOpen(false)} title={`소속 편집 — ${selectedRow?.cateId ?? ""}`}>
         {selectedRow && detail && (
-          <TransferListPanel
-            items={detail.items ?? []}
-            memberCodes={cate.memberCodes}
-            canEdit={canEdit && selectedRow.open && detailCurrent}
-            onChange={cate.setMemberCodes}
-            onApply={() => void cate.applyMembers()}
-          />
+          // 이동(`>`·`>>`·`<`·`<<`)은 훅의 memberCodes 를 바로 바꾸고(서버 호출 없음), 서버 저장은 아래 [적용] 만 한다.
+          <div data-testid="transfer-list-panel" style={transferPanel}>
+            <TransferList
+              items={detail.items ?? []}
+              value={cate.memberCodes}
+              onChange={cate.setMemberCodes}
+              editable={transferEditable}
+              testId="transfer"
+            />
+            <div style={transferFooter}>
+              <Button data-testid="transfer-apply" size="sm" disabled={!transferEditable}
+                onClick={() => void cate.applyMembers()}>적용</Button>
+            </div>
+          </div>
         )}
       </Modal>
     </div>

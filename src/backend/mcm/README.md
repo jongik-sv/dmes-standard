@@ -35,8 +35,8 @@ OASIS BPMN 서비스로 노출한다. Spring Boot **`lib` + `api` 2 서브프로
   `cmb`(업무기준관리 원장) · `cmz`(팝업 전용, 사이드바 숨김), 그리고 로그 분석(analog) 루트 + `anl` 그룹
 - 부서(`TB_MCM_DEPT_INFO`) 예시 7행, 업무기준 조회 검증용 샘플 데이터
 
-업무 모듈(mpn/mpp/mls/mqc)을 붙일 때는 `seedMcmSecRbac()` 안의 표시된 확장 지점에 `seed{모듈}Menus()` 를
-추가한다.
+업무 모듈(mpn/mpp/mls/mqc)을 붙일 때는 `seed/ModuleMenuSeeder` 에 `seed{모듈}Menus()` 를 만들고,
+`DataInitializer.seedMcmSecRbac()` 안의 표시된 확장 지점에서 부른다. PERM_ALL action 목록은 `seed/CoreRbacSeeder` 에 있다.
 
 ## OASIS 서비스 (BPMN)
 

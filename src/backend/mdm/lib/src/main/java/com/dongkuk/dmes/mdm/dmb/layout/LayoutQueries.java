@@ -174,6 +174,33 @@ public class LayoutQueries {
         return out;
     }
 
+    /** (전문, 버전) → 상수 재정의({@link #constsOf(Long, BigDecimal)} 순서). 재정의가 없는 키는 맵에 없다. */
+    public Map<LayoutKey, List<MdmLayoutConst>> constsOf(Collection<LayoutKey> keys) {
+        Set<LayoutKey> wanted = new HashSet<>(keys);
+        Map<LayoutKey, List<MdmLayoutConst>> out = new LinkedHashMap<>();
+        for (List<Long> chunk : chunks(keys.stream().map(LayoutKey::layoutId).distinct().toList())) {
+            for (MdmLayoutConst c : em.createQuery("SELECT c FROM MdmLayoutConst c WHERE c.layoutId IN :ids "
+                            + "ORDER BY c.layoutId, c.headerLayoutId, c.headerColumnPhys", MdmLayoutConst.class)
+                    .setParameter("ids", chunk).getResultList()) {
+                LayoutKey k = new LayoutKey(c.getLayoutId(), c.getVer());
+                if (wanted.contains(k)) {
+                    out.computeIfAbsent(k, x -> new ArrayList<>()).add(c);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** 레이아웃 행(전문·헤더, 종류 무관) — 없는 ID 는 빠진다. 순서는 정하지 않는다. */
+    public List<MdmLayout> layoutsByIds(Collection<Long> layoutIds) {
+        List<MdmLayout> out = new ArrayList<>();
+        for (List<Long> chunk : chunks(layoutIds)) {
+            out.addAll(em.createQuery("SELECT l FROM MdmLayout l WHERE l.layoutId IN :ids", MdmLayout.class)
+                    .setParameter("ids", chunk).getResultList());
+        }
+        return out;
+    }
+
     /** 중복·null 을 뺀 목록을 {@value #IN_CHUNK}개씩 자른다. 비면 빈 목록(SQLite {@code IN ()} 문법 오류를 피한다). */
     public static <T> List<List<T>> chunks(Collection<T> values) {
         List<T> all = new ArrayList<>(new LinkedHashSet<>(values));

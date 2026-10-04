@@ -18,8 +18,16 @@ import com.dongkuk.oasis.provider.ServiceProvider;
  * 중복 시 IllegalStateException). 따라서 inject 전 {@link PropertyContainer#hasProperty(String)} 가드 필수
  * (R-multi-19).
  *
- * <p>Race condition (R-multi-21): {@link CactusCachingServiceProvider} 가 정상 동작하면 cache hit 시
- * mutate 없음 → 안전. miss 시 각 thread 가 새 Process 인스턴스 받으므로 안전.
+ * <p>Race condition (R-multi-21): 이 주입기는 캐시 <em>안쪽</em>에 둔다 — 조립 순서
+ * {@code CactusCachingServiceProvider( DefaultTxInjecting( SimpleServiceProvider ) )}. 그래서
+ * <ul>
+ *   <li>cache hit 은 이 주입기를 거치지 않는다 → 이미 공유된 인스턴스를 mutate 하지 않는다.</li>
+ *   <li>miss 는 {@link CactusCachingServiceProvider} 가 키별 한 번으로 묶고, 묶이지 않는 경우(로드 실패 뒤 재시도·
+ *       evict 직후 등)에도 delegate 가 매번 새로 파싱한 새 Process 인스턴스에만 add 한다 → 두 스레드가 같은
+ *       {@link PropertyContainer} 를 고치는 일이 없다.</li>
+ * </ul>
+ * 이 주입기를 캐시 <em>바깥</em>에 두면 hit 마다 공유 인스턴스를 검사·수정하게 되어 경합이 생기므로 순서를 바꾸지 않는다.
+ * 고정 테스트: {@code DefaultTxInjectingServiceProviderCharacterizationTest}.
  */
 public class DefaultTxInjectingServiceProvider implements ServiceProvider {
 

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- OasisAopAnnotationCheckerTest 용 — 하위 폴더 BPMN 도 스캔되는지, 클래스 이름 참조가 타입 조회로 풀리는지 확인 -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_aopCheckNested" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="aopCheckNested" isExecutable="true">
+    <bpmn:startEvent id="start"/>
+    <bpmn:serviceTask id="t1" name="메서드 레벨(클래스 이름 참조)"
+                      camunda:class="com.dongkuk.dmes.cactus.oasis.aop.OasisAopAnnotationCheckerTest$MethodCacheService#find"/>
+    <bpmn:serviceTask id="t2" name="메타 어노테이션" camunda:class="metaTxService"/>
+    <bpmn:serviceTask id="t3" name="같은 빈 중복 참조" camunda:class="classTxService#save"/>
+    <bpmn:endEvent id="end"/>
+  </bpmn:process>
+</bpmn:definitions>

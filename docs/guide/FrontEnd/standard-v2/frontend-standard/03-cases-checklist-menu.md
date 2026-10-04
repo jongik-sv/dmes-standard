@@ -105,7 +105,7 @@
 - [ ] 에러 메시지가 한 곳에서만 표시되는가?
 - [ ] `useGridDataManager` 의 `SavePayload` 가 `*-api.ts` 에서 변환되었는가? (`nativeeditor_status` 필드가 body 에 유출되지 않았는가?)
 - [ ] body 는 해당 API 가 요구하는 plain DTO shape 인가?
-- [ ] 대상 업무 모듈(`m-{moduleCode}`) 의 `tsup.config.ts` 에 엔트리가 추가되었는가? (MES: `pages/{moduleGroup}/{screenId}` — suffix `-page` 금지. APS 예외: `pages/{group}/{page-name}-page` 유지)
+- [ ] 대상 업무 모듈(`m-{moduleCode}`) 의 `tsup.config.ts` 에 엔트리가 추가되었는가? (MES: `pages/{moduleGroup}/{screenId}` — suffix `-page` 금지. APS 예외: `pages/{group}/{page-name}-page` 유지) m-mdm 은 와일드카드 exports 를 쓰지 않으므로 같은 이름을 `package.json` exports 에도 함께 등록했는가? (`m-mdm/tests/package-exports.test.ts` 가 대조한다)
 - [ ] portal 재내보내기가 존재하는가? (MES: `page-components/{moduleGroup}/{screenId}/page.tsx`. APS 예외: `page-components/{group}/{page-name}/page.tsx`)
 - [ ] (MES 한정) 페이지 엔트리 파일명이 `{screenId}.tsx` (camelCase 단일 토큰) 인가? suffix `-page` / kebab-case 사용 시 ✗.
 - [ ] shared 를 수정했다면 `cd shared && pnpm build` 를 실행했는가?
@@ -216,7 +216,7 @@
 **Step R-2. 해당 단계로 복귀**
 - `types.ts` 필드 ✗ → §1-3 의 "5. types.ts 작성" 단계로 복귀
 - 그리드/검색조건/버튼 ✗ → "6. 페이지 본체 작성" 단계로 복귀
-- tsup entry 누락 ✗ → "7. tsup.config.ts 엔트리 등록" 단계로 복귀
+- tsup entry 누락 ✗ → "7. tsup.config.ts 엔트리 등록" 단계로 복귀 (m-mdm 은 `package.json` exports 항목 누락도 같은 단계로 복귀)
 - 그 외 → 해당 단계로 복귀
 
 **Step R-3. 사용자 동의 필요 여부 판단**

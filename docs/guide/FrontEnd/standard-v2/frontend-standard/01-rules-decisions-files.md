@@ -209,6 +209,7 @@ Phase 7 6 종 라우트는 **MyBatis `SqlSession` 빈을 자동 등록한 BE 모
 
 - MUST: 유형 결정은 코드 작성 전 §11 선택표에서 확정한다.
 - MUST: 대상 모듈의 엔트리는 **그 모듈의** `tsup.config.ts` 에 반드시 등록한다.
+- MUST (m-mdm): m-mdm 은 와일드카드 exports 를 쓰지 않으므로 새 화면은 tsup entry 와 `package.json` exports 에 같은 이름으로 함께 등록한다(`m-mdm/tests/package-exports.test.ts` 가 대조한다).
 
 ---
 

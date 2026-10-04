@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { CardFrame, MutedText } from "@dk-oasis/shared/card";
 import { Button, Checkbox, Input, Select } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle, fmtVer } from "@/shell";
@@ -24,7 +25,6 @@ import { useRuleWorkbench } from "../state/workbench-context";
 import { expectedFromResult } from "../value-test/case-model";
 import { bodyTable, defaultRowIdOf, prepareRun, resolveTarget, targetKey, targetOptions, useTargetView } from "../value-test/run-request";
 import { buildInputJson, inputFields, inputFromCase } from "../value-test/test-input";
-import { CardFrame, MutedText } from "./CardFrame";
 
 interface FieldRow {
   name: string;
@@ -259,7 +259,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
       )}
 
       {defError && (
-        <p role="alert" style={{ color: "var(--color-danger)" }}>
+        <p role="alert" style={{ color: "var(--color-danger)", whiteSpace: "pre-line" }}>
           버전 {fmtVer(choice?.ver)} 정의를 불러오지 못했습니다: {defError}
         </p>
       )}
