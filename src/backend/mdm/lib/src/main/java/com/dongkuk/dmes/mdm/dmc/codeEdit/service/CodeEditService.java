@@ -1,5 +1,8 @@
 package com.dongkuk.dmes.mdm.dmc.codeEdit.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
+
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeLedgerQueries.Header;
 import com.dongkuk.dmes.mdm.common.mastercode.MasterCodeRemoval;
@@ -637,17 +640,5 @@ public class CodeEditService {
 
     private static String text(LocalDateTime value) {
         return value == null ? null : TEXT.format(value);
-    }
-
-    static RuntimeException invalid(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
-    }
-
-    static String trimToNull(String s) {
-        if (s == null) {
-            return null;
-        }
-        String t = s.trim();
-        return t.isEmpty() ? null : t;
     }
 }

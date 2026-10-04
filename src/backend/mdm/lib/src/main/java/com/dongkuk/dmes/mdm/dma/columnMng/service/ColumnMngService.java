@@ -1,5 +1,8 @@
 package com.dongkuk.dmes.mdm.dma.columnMng.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
+
 import com.dongkuk.dmes.mdm.common.dictionary.ColumnDescriptionSanitizer;
 import com.dongkuk.dmes.mdm.common.metarev.MetaRevisionRecorder;
 import com.dongkuk.dmes.mdm.common.security.MdmStdAdminGuard;
@@ -343,15 +346,15 @@ public class ColumnMngService {
             column.setPhysName(physName);
             column.setDomainId(req.getDomainId());
         }
-        column.setLabelLong(blankToNull(req.getLabelLong()));
-        column.setLabelMid(blankToNull(req.getLabelMid()));
-        column.setLabelShort(blankToNull(req.getLabelShort()));
+        column.setLabelLong(trimToNull(req.getLabelLong()));
+        column.setLabelMid(trimToNull(req.getLabelMid()));
+        column.setLabelShort(trimToNull(req.getLabelShort()));
         column.setDescription(richText(req.getDescription()));
         column.setRequired(Boolean.TRUE.equals(req.getRequired()));
-        column.setDefaultValue(blankToNull(req.getDefaultValue()));
-        column.setRefKind(blankToNull(req.getRefKind()));
-        column.setRefTarget(blankToNull(req.getRefTarget()));
-        column.setRefCateId(blankToNull(req.getRefCateId()));
+        column.setDefaultValue(trimToNull(req.getDefaultValue()));
+        column.setRefKind(trimToNull(req.getRefKind()));
+        column.setRefTarget(trimToNull(req.getRefTarget()));
+        column.setRefCateId(trimToNull(req.getRefCateId()));
         column.setTermIds(termIds.stream().map(String::valueOf).collect(Collectors.joining(",", "[", "]")));
         column.setUsageNote(richText(req.getUsageNote()));
         column = columnRepository.save(column);
@@ -423,23 +426,23 @@ public class ColumnMngService {
         }
         maxLength(columnName, NamingRules.COLUMN_NAME_MAX, "논리명");
         maxLength(physName, NamingRules.CODE_MAX, "표준 물리명");
-        maxLength(blankToNull(req.getLabelLong()), NamingRules.LABEL_LONG_MAX, "표시명(긴)");
-        maxLength(blankToNull(req.getLabelMid()), NamingRules.LABEL_MID_MAX, "표시명(중간)");
-        maxLength(blankToNull(req.getLabelShort()), NamingRules.LABEL_SHORT_MAX, "표시명(짧은)");
-        maxLength(blankToNull(req.getDefaultValue()), NamingRules.CODE_MAX, "기본값");
-        maxLength(blankToNull(req.getRefTarget()), NamingRules.CODE_MAX, "참조 대상");
-        maxLength(blankToNull(req.getRefCateId()), NamingRules.CODE_MAX, "참조 카테고리");
-        maxLength(blankToNull(req.getDescription()), NamingRules.DESCRIPTION_MAX, "설명");
-        maxLength(blankToNull(req.getUsageNote()), NamingRules.DESCRIPTION_MAX, "활용처 메모");
+        maxLength(trimToNull(req.getLabelLong()), NamingRules.LABEL_LONG_MAX, "표시명(긴)");
+        maxLength(trimToNull(req.getLabelMid()), NamingRules.LABEL_MID_MAX, "표시명(중간)");
+        maxLength(trimToNull(req.getLabelShort()), NamingRules.LABEL_SHORT_MAX, "표시명(짧은)");
+        maxLength(trimToNull(req.getDefaultValue()), NamingRules.CODE_MAX, "기본값");
+        maxLength(trimToNull(req.getRefTarget()), NamingRules.CODE_MAX, "참조 대상");
+        maxLength(trimToNull(req.getRefCateId()), NamingRules.CODE_MAX, "참조 카테고리");
+        maxLength(trimToNull(req.getDescription()), NamingRules.DESCRIPTION_MAX, "설명");
+        maxLength(trimToNull(req.getUsageNote()), NamingRules.DESCRIPTION_MAX, "활용처 메모");
         if (req.getDomainId() != null && !domainRepository.existsById(req.getDomainId())) {
             throw invalid("도메인을 찾을 수 없습니다");
         }
-        String refKind = blankToNull(req.getRefKind());
-        String refTarget = blankToNull(req.getRefTarget());
+        String refKind = trimToNull(req.getRefKind());
+        String refTarget = trimToNull(req.getRefTarget());
         if (refKind != null && !REF_KIND_MASTER.equals(refKind)) {
             throw invalid("참조 종류는 비우거나 MASTER 여야 합니다");
         }
-        if (refKind == null && (refTarget != null || blankToNull(req.getRefCateId()) != null)) {
+        if (refKind == null && (refTarget != null || trimToNull(req.getRefCateId()) != null)) {
             throw invalid("참조 종류가 비면 참조 대상·참조 카테고리도 비워야 합니다");
         }
         if (REF_KIND_MASTER.equals(refKind)) {
@@ -477,7 +480,7 @@ public class ColumnMngService {
             if (!allowed.contains(system)) {
                 throw invalid("시스템 '" + system + "' 는 쓸 수 없습니다");
             }
-            String transform = blankToNull(trimToEmpty(row.get("transform")));
+            String transform = trimToNull(trimToEmpty(row.get("transform")));
             maxLength(phys, NamingRules.CODE_MAX, "실제 필드명");
             maxLength(transform, NamingRules.CODE_MAX, "변환 규칙");
             if (!seen.add(key(system, phys))) {
@@ -485,7 +488,7 @@ public class ColumnMngService {
             }
             MdmColumnSystem want = new MdmColumnSystem(selfId, system, phys);
             want.setTransform(transform);
-            want.setNote(blankToNull(trimToEmpty(row.get("note"))));
+            want.setNote(trimToNull(trimToEmpty(row.get("note"))));
             requested.add(want);
         }
         if (!repeated.isEmpty()) {
@@ -698,10 +701,6 @@ public class ColumnMngService {
         }
     }
 
-    private static RuntimeException invalid(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
-    }
-
     private static String key(String system, String phys) {
         return system + "\u0000" + phys;
     }
@@ -719,15 +718,7 @@ public class ColumnMngService {
      * 소독으로 바뀌었는지는 따로 알리지 않는다(view 가 저장된 값을 다시 정규화해 돌려준다 — 새 저장값은 그대로다).
      */
     private static String richText(String value) {
-        return blankToNull(ColumnDescriptionSanitizer.normalize(blankToNull(value)));
-    }
-
-    private static String blankToNull(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
+        return trimToNull(ColumnDescriptionSanitizer.normalize(trimToNull(value)));
     }
 
     private static Long toLong(Object value) {

@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.common.dictionary;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.blankToNull;
+
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmDomainDraft;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmEffectiveDomain;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmEffectiveDomainResolver;
@@ -79,9 +81,5 @@ public class DefaultMdmEffectiveDomainResolver implements MdmEffectiveDomainReso
         } catch (ParseException e) {
             return null;
         }
-    }
-
-    private static String blankToNull(String s) {
-        return s == null || s.isBlank() ? null : s.trim();
     }
 }

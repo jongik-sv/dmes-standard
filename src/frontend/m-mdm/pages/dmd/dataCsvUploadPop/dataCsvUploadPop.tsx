@@ -199,7 +199,7 @@ export function DataCsvUploadPopModal({
         )}
 
         {error && (
-          <p className="form-error-message" role="alert" data-testid="csv-pop-error" style={{ margin: 0 }}>
+          <p className="form-error-message" role="alert" data-testid="csv-pop-error" style={{ margin: 0, whiteSpace: "pre-line" }}>
             {error}
           </p>
         )}

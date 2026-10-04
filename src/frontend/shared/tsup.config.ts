@@ -3,7 +3,7 @@ import { defineConfig } from "tsup";
 export default defineConfig((options) => ({
   entry: {
     index: "src/index.ts",
-    http: "src/http/index.ts",
+    http: "src/http/entry.ts",
     "secure-storage": "src/secure-storage/index.ts",
     snapshot: "src/snapshot/index.ts",
     "portal-shell-core": "src/portal-shell/core.ts",
@@ -38,6 +38,8 @@ export default defineConfig((options) => ({
     "html-editor": "src/components/html-editor/index.ts",
     "detail-popover": "src/components/detail-popover/index.ts",
     "json-view": "src/components/json-view/index.ts",
+    card: "src/components/card/index.ts",
+    "transfer-list": "src/components/transfer-list/index.ts",
     dashboard: "src/components/dashboard/index.ts",
     widget: "src/widget/index.ts",
     oasis: "src/oasis/index.ts",

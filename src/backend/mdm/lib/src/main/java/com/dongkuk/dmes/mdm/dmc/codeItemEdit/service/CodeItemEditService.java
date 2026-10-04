@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dmc.codeItemEdit.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
 import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeSegments.same;
 import static com.dongkuk.dmes.mdm.common.mastercode.MasterCodeSegments.valid;
 
@@ -603,9 +604,5 @@ public class CodeItemEditService {
 
     private static boolean isBlank(String s) {
         return s == null || s.isBlank();
-    }
-
-    private static RuntimeException invalid(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
     }
 }

@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.dma.unitMng.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmStrings.trimToNull;
+
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.contract.dictionary.MdmUnitReferenceSpi;
@@ -256,13 +258,5 @@ public class UnitMngService {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "환산 계수는 0보다 큰 숫자여야 합니다."); // V-004
         }
         return factor;
-    }
-
-    private static String trimToNull(String s) {
-        if (s == null) {
-            return null;
-        }
-        String t = s.trim();
-        return t.isEmpty() ? null : t;
     }
 }
