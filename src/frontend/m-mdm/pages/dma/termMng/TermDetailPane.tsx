@@ -19,8 +19,11 @@ import type { RecommendCandidate, TermForm } from "./types";
 
 /** 루트가 상세 폼과 대화하는 핸들. */
 export type TermDetailHandle = {
-  /** 폼을 새로 채운다(행 선택·등록·조회 뒤 비우기). 추천 후보도 비운다. */
-  load(form: TermForm | null): void;
+  /**
+   * 폼을 새로 채운다(행 선택·등록·조회 뒤 비우기). 추천 후보는 `clearCandidates` 일 때만 비운다 — 행 선택은 새 추천이 올 때까지
+   * 이전 후보를 그대로 보인다(분리 전 동작).
+   */
+  load(form: TermForm | null, opts?: { clearCandidates?: boolean }): void;
   /** 지금 입력된 폼 값(저장용). */
   getForm(): TermForm | null;
 };
@@ -57,10 +60,10 @@ export const TermDetailPane = memo(function TermDetailPane({ ref, busy }: { ref:
   useImperativeHandle(
     ref,
     () => ({
-      load: (next) => {
+      load: (next, opts) => {
         setForm(next);
         // 이미 비어 있으면 그대로 둔다 — 새 빈 배열은 같은 내용으로 한 번 더 그리게 한다(R7).
-        setCandidates((prev) => (prev.length === 0 ? prev : []));
+        if (opts?.clearCandidates) setCandidates((prev) => (prev.length === 0 ? prev : []));
       },
       getForm: () => form,
     }),

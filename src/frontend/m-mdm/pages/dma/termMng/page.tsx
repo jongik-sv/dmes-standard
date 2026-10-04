@@ -62,8 +62,8 @@ export default function TermMngPage() {
     [rows],
   );
 
-  const loadForm = useCallback((next: TermForm | null) => {
-    detailRef.current?.load(next);
+  const loadForm = useCallback((next: TermForm | null, clearCandidates = true) => {
+    detailRef.current?.load(next, { clearCandidates });
     setHasForm(next != null);
   }, []);
 
@@ -104,7 +104,7 @@ export default function TermMngPage() {
     setSelectedTermId(termId);
     const original = rows.find((r) => r.termId === termId);
     if (original) {
-      loadForm(termFormFromRow(original));
+      loadForm(termFormFromRow(original), false);
     }
   }, [rows, selectedTermId, loadForm]);
 
