@@ -1,8 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { BASE_URL, LOGIN_USER, login } from "./support/common";
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin@dmes.com";
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 
 const PHASE2_PAGES = [
   { pageName: "planning/demands", title: "수요 관리" },
@@ -16,11 +14,7 @@ const PHASE2_PAGES = [
 
 test.describe("Phase 2 Planning Screens Smoke Test", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
-    await page.getByPlaceholder("아이디").fill(LOGIN_USER);
-    await page.getByPlaceholder("비밀번호").fill(LOGIN_PASSWORD);
-    await page.getByRole("button", { name: "로그인" }).click();
-    await expect(page).toHaveURL(/\/portal/, { timeout: 15000 });
+    await login(page, LOGIN_USER, { baseUrl: BASE_URL, portalTimeout: 15_000 });
   });
 
   for (const { pageName, title } of PHASE2_PAGES) {

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { BASE_URL as BASE, LOGIN_USER, PASSWORD, T } from "./support/common";
 
 /**
  * W4 리팩토링 실검증 스모크 — tsup splitting(청크 분리) dist 를 포털이 실제 로드하는지 +
@@ -15,9 +16,6 @@ import { expect, test, type Page } from "@playwright/test";
  * 각 화면의 그리드/컨테이너가 렌더되어야 한다. (데이터 유무에는 관대)
  */
 
-const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin";
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const SNAP_DIR = "test-results/w4-snap";
 // 로그인 1회화: 첫 성공 세션의 cookie 를 저장해 이후 테스트가 재사용(반복 로그인 flake 회피)
 const STATE_FILE = "test-results/w4-auth-state.json";
@@ -81,7 +79,7 @@ const SCREENS: TargetScreen[] = [
       const rowCount = await page.locator(".ag-row").count();
       if (rowCount > 0) {
         const pagination = page.locator('[class*="pagination"]').first();
-        await expect(pagination).toBeVisible({ timeout: 10_000 });
+        await expect(pagination).toBeVisible();
       } else {
         console.log("[equipDowntimeMng] 데이터 0건 — Pagination 조건부 미표시(정상)");
       }
@@ -113,7 +111,7 @@ test.describe("W4 리팩토링 스모크 (청크 dist + 이관 화면)", () => {
 
       // 폼 로그인 (phase2-planning-smoke 패턴 — 시드 dev 계정, 후보 순차 시도)
       const candidates = [
-        { id: LOGIN_USER, pw: LOGIN_PASSWORD },
+        { id: LOGIN_USER, pw: PASSWORD },
         { id: "admin@dmes.com", pw: "admin123" },
       ];
       let loggedIn = false;
@@ -145,7 +143,7 @@ test.describe("W4 리팩토링 스모크 (청크 dist + 이관 화면)", () => {
           await page.getByRole("button", { name: "로그인" }).click();
           try {
             // 첫 요청은 Next dev 의 /portal 컴파일 지연이 있어 넉넉히 대기
-            await page.waitForURL(/\/portal/, { timeout: 30_000 });
+            await page.waitForURL(/\/portal/, { timeout: T.LONG });
             loggedIn = true;
             break outer;
           } catch {

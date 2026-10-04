@@ -1,7 +1,9 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, walkMenuPath, type LoginOptions } from "./support/common";
 import { expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowById, gridRows } from "./support/grid";
 
 /**
  * mdm dmd/dataItemMng(항목 편집) smoke — TSK-07-03 design.md §3.1 + TSK-07-04 design.md §3(트리·CSV 버튼).
@@ -26,8 +28,6 @@ import { expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
  * 행은 고치지 않고 쓰기는 실행마다 새 키로 한다(같은 mdm.db 로 다시 돌려도 결과가 같다).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
 const SUFFIX = Date.now().toString(36).toUpperCase();
@@ -46,26 +46,15 @@ const HIST_KEY = `E2EH${SUFFIX}`;
 const screenshot = (name: string) => path.resolve(__dirname, "mdm-user/.out/screens", name);
 const screenshot74 = screenshot;
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openScreen(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^마스터데이터$/, /^항목 편집$/]) {
-    const node = item(name);
-    await expect(node).toBeVisible({ timeout: 20_000 });
-    await node.click();
-  }
-  await expect(page.getByTestId("item-add")).toBeVisible({ timeout: 60_000 });
+  await walkMenuPath(page, [/^마루 MDM$/, /^마스터데이터$/, /^항목 편집$/]);
+  await expect(page.getByTestId("item-add")).toBeVisible({ timeout: T.SLOW });
   // 화면은 진입하면 첫 마루 데이터(또는 snapshot)를 비동기로 자동 선택하고, 선택이 끝나면 ID 고르기 칸을 그 ID 로 맞추며
   // 열린 후보 목록을 닫는다(IdPicker currentId). 그 전에 후보를 열어 누르면 후보가 사라져 클릭이 끝나지 않으므로
   // 자동 선택이 끝난 표시(item-current)를 본 뒤 고른다.
-  await expect(page.getByTestId("item-current")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("item-current")).toBeVisible({ timeout: T.LONG });
 }
 
 /** 화면 머리 버튼([조회])은 testid 가 없어 머리 버튼 영역 안 라벨로 찾는다(카테고리 탭 이력의 [조회] 와 섞이지 않게). */
@@ -75,7 +64,7 @@ const headerButton = (page: Page, name: string) =>
 function waitAction(page: Page, action: string, service = "dataItemMng") {
   return page.waitForResponse(
     (r) => r.url().includes(`/api/mdm/oasis/${service}/${action}`) && r.status() === 200,
-    { timeout: 30_000 },
+    { timeout: T.LONG },
   );
 }
 
@@ -89,7 +78,7 @@ function waitSearchWhere(page: Page, matches: (postData: string) => boolean) {
       r.url().includes("/api/mdm/oasis/dataItemMng/search") &&
       r.status() === 200 &&
       matches(r.request().postData() ?? ""),
-    { timeout: 30_000 },
+    { timeout: T.LONG },
   );
 }
 
@@ -111,7 +100,7 @@ async function selectMaru(page: Page, id: string) {
       r.url().includes("/api/mdm/oasis/dataItemMng/search") &&
       r.status() === 200 &&
       (r.request().postData() ?? "").includes(`"maruDataId":"${id}"`),
-    { timeout: 30_000 },
+    { timeout: T.LONG },
   );
   await page.getByTestId("item-pick-keyword").fill(id);
   await page.getByTestId("item-pick-keyword").press("Enter");
@@ -127,7 +116,7 @@ async function search(page: Page) {
 }
 
 function listRow(page: Page, code: string): Locator {
-  return page.getByTestId("item-list").locator(`.ag-center-cols-container .ag-row[row-id="${code}"]`);
+  return gridRowById(page.getByTestId("item-list"), code);
 }
 
 function cell(page: Page, code: string, colId: string): Locator {
@@ -146,13 +135,13 @@ async function editCell(page: Page, code: string, colId: string, value: string) 
 
 async function errorModal(page: Page): Promise<Locator> {
   const modal = page.locator(".error-modal__body");
-  await expect(modal).toBeVisible({ timeout: 20_000 });
+  await expect(modal).toBeVisible({ timeout: T.UI });
   return modal;
 }
 
 async function closeErrorModal(page: Page) {
   await page.getByRole("button", { name: "확인" }).click();
-  await expect(page.locator(".error-modal__body")).toBeHidden({ timeout: 10_000 });
+  await expect(page.locator(".error-modal__body")).toBeHidden();
 }
 
 /**
@@ -161,7 +150,7 @@ async function closeErrorModal(page: Page) {
  */
 async function openItemTestTab(page: Page) {
   await page.getByTestId("item-right-tab-test").click();
-  await expect(page.getByTestId("item-history")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("item-history")).toBeVisible({ timeout: T.UI });
 }
 
 async function register(page: Page, fields: Record<string, string>) {
@@ -184,7 +173,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   test.beforeAll(() => loadMdmFixture("mdm-dataItem.sql", "mdm-dataMng.sql"));
 
   test("S1 메뉴 이동: 마루 MDM > 마스터데이터 > 항목 편집", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await expect(
       page.locator(".page-layout__footer-breadcrumb").filter({ hasText: /마루 MDM > 마스터데이터 > 항목 편집/ }),
@@ -192,12 +181,12 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   });
 
   test("S2 목록: 동적 열·카테고리·빈 상태·EXTERNAL 조회 전용", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
     for (const code of ["KRPUS", "KRINC", "CNSHA"]) {
-      await expect(listRow(page, code)).toBeVisible({ timeout: 20_000 });
+      await expect(listRow(page, code)).toBeVisible({ timeout: T.UI });
     }
     const headers = page.getByTestId("item-list").locator(".ag-header-cell-text");
     await expect(headers.filter({ hasText: /^1차$/ })).toHaveCount(1);
@@ -217,7 +206,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await expect(page.getByTestId("item-list").locator(".grid-panel-count")).toHaveText("0건");
 
     await selectMaru(page, CUST);
-    await expect(listRow(page, "C0001")).toBeVisible({ timeout: 20_000 });
+    await expect(listRow(page, "C0001")).toBeVisible({ timeout: T.UI });
     await expect(page.getByTestId("item-add")).toBeDisabled();
     await expect(page.getByTestId("item-close-C0001")).toHaveCount(0);
     await expect(page.getByTestId("item-readonly")).toBeVisible();
@@ -225,20 +214,20 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   });
 
   test("S3 등록·수정 1회 반영, 이력 2행, 닫힌 키 등록은 다시 열기 안내(수용 기준 3)", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
     const searched = waitAction(page, "search");
     await register(page, { code: NEW_KEY, name: "테스트항목", lvl1: "KR" });
     await searched;
-    await expect(cell(page, NEW_KEY, "name")).toHaveText("테스트항목", { timeout: 20_000 });
+    await expect(cell(page, NEW_KEY, "name")).toHaveText("테스트항목", { timeout: T.UI });
 
     await editCell(page, NEW_KEY, "name", "테스트항목수정");
     const saved = waitAction(page, "save");
     await page.getByTestId(`item-save-${NEW_KEY}`).click();
     await saved;
-    await expect(cell(page, NEW_KEY, "name")).toHaveText("테스트항목수정", { timeout: 20_000 });
+    await expect(cell(page, NEW_KEY, "name")).toHaveText("테스트항목수정", { timeout: T.UI });
 
     const history = waitAction(page, "search", "dataHistory");
     await page.getByTestId(`item-history-${NEW_KEY}`).click();
@@ -248,7 +237,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     const r1 = panel.locator('.ag-row[row-id="r1"]');
     await expect(r0).toContainText("생성");
     await expect(r1).toContainText("변경");
-    await expect(panel.locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(panel)).toHaveCount(2);
     const r0To = await r0.locator('.ag-cell[col-id="validTo"]').innerText();
     await expect(r1.locator('.ag-cell[col-id="validFrom"]')).toHaveText(r0To);
     await page.screenshot({ path: screenshot("dmd-dataItemMng-edit.png"), fullPage: true });
@@ -257,10 +246,10 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     const closed = waitAction(page, "delete");
     await page.getByTestId(`item-close-${NEW_KEY}`).click();
     await closed;
-    await expect(listRow(page, NEW_KEY)).toHaveCount(0, { timeout: 20_000 });
+    await expect(listRow(page, NEW_KEY)).toHaveCount(0, { timeout: T.UI });
     await page.getByTestId("item-search-closed").selectOption("Y");
     await search(page);
-    await expectRowCell(listRow(page, NEW_KEY), "open", "닫힘", { timeout: 20_000 });
+    await expectRowCell(listRow(page, NEW_KEY), "open", "닫힘", { timeout: T.UI });
 
     await register(page, { code: NEW_KEY, name: "다시등록" });
     await expect(await errorModal(page)).toContainText(CLOSED_KEY_REOPEN);
@@ -270,11 +259,11 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     const reopened = waitAction(page, "restore");
     await page.getByTestId(`item-reopen-${NEW_KEY}`).click();
     await reopened;
-    await expectRowCell(listRow(page, NEW_KEY), "open", "열림", { timeout: 20_000 });
+    await expectRowCell(listRow(page, NEW_KEY), "open", "열림", { timeout: T.UI });
   });
 
   test("S4 서버 오류 노출(키 패턴)과 다른 사용자 수정 충돌 재조회(수용 기준 4)", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
@@ -285,7 +274,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
 
     await page.getByTestId("item-search-code").fill(NEW_KEY);
     await search(page);
-    await expect(listRow(page, NEW_KEY)).toBeVisible({ timeout: 20_000 });
+    await expect(listRow(page, NEW_KEY)).toBeVisible({ timeout: T.UI });
 
     // 다른 사용자 수정 흉내 — 화면이 본 row_version 으로 먼저 저장한다.
     const current = await page.request.post(`${BASE_URL}/api/mdm/oasis/dataItemMng/search`, {
@@ -307,7 +296,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await saved;
     await expect(await errorModal(page)).toContainText(CONFLICT);
     await reloaded;
-    await expect(cell(page, NEW_KEY, "name")).toHaveText("뒤에서수정", { timeout: 20_000 });
+    await expect(cell(page, NEW_KEY, "name")).toHaveText("뒤에서수정", { timeout: T.UI });
     await page.screenshot({ path: screenshot("dmd-dataItemMng-error.png"), fullPage: true });
     await closeErrorModal(page);
   });
@@ -315,7 +304,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   test("S5 트리 보기: 서버 트리 데이터로 노드가 채워지고, CSV 버튼·데이터 없는 마루는 빈 상태(TSK-07-04)", async ({
     page,
   }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
@@ -340,11 +329,11 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     const emptyTreeLoaded = waitTree(page, EMPTY);
     await page.getByTestId("item-tab-tree").click();
     await emptyTreeLoaded;
-    await expect(page.getByTestId("item-tree-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("item-tree-empty")).toBeVisible({ timeout: T.UI });
   });
 
   test("S6 트리 노드 선택 → 이 노드로 보기 → 그리드 필터 칩 → 해제(TSK-07-04, I5)", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
@@ -361,7 +350,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await filtered;
 
     await expect(page.getByTestId("item-node-filter-chip")).toContainText("KR 아래");
-    await expect(listRow(page, "KRPUS")).toBeVisible({ timeout: 20_000 });
+    await expect(listRow(page, "KRPUS")).toBeVisible({ timeout: T.UI });
     await expect(listRow(page, "KRINC")).toBeVisible();
     await expect(listRow(page, "CNSHA")).toHaveCount(0);
     await page.screenshot({ path: screenshot74("dmd-dataItemMng-node-filter.png"), fullPage: true });
@@ -370,13 +359,13 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await page.getByTestId("item-node-filter-clear").click();
     await cleared;
     await expect(page.getByTestId("item-node-filter-chip")).toHaveCount(0);
-    await expect(listRow(page, "CNSHA")).toBeVisible({ timeout: 20_000 });
+    await expect(listRow(page, "CNSHA")).toBeVisible({ timeout: T.UI });
   });
 
   // ── D-104 이력: 오른쪽 열 항목 이력 패널(옛 dataHistory 화면의 대상 「항목」) ──
 
   test("S7 항목 이력 패널: 행의 [이력]을 누르면 오른쪽에 그 키의 이력(1행)이 보이고, 닫으면 안내로 돌아간다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
@@ -390,8 +379,8 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await history;
     const panel = page.getByTestId("item-history");
     await expect(panel).toContainText("이력 — KRPUS");
-    await expect(panel.getByTestId("history-state")).toHaveText("KRPUS · 열림 · 1행", { timeout: 20_000 });
-    await expect(panel.locator(".ag-center-cols-container .ag-row")).toHaveCount(1);
+    await expect(panel.getByTestId("history-state")).toHaveText("KRPUS · 열림 · 1행", { timeout: T.UI });
+    await expect(gridRows(panel)).toHaveCount(1);
     await expect(panel.locator('.ag-row[row-id="r0"]')).toContainText("생성");
     await expect(panel.locator('.ag-row[row-id="r0"]')).toContainText("열림");
     await page.screenshot({ path: screenshot("dmd-dataItemMng-history.png"), fullPage: true });
@@ -402,39 +391,39 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
   });
 
   test("S8 이력 타임라인: 생성·변경·닫혀 있던 구간·다시 열기가 화면 조작만으로 남는다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, PORT);
 
     const searched = waitAction(page, "search");
     await register(page, { code: HIST_KEY, name: "이력항목", lvl1: "KR" });
     await searched;
-    await expect(cell(page, HIST_KEY, "name")).toHaveText("이력항목", { timeout: 20_000 });
+    await expect(cell(page, HIST_KEY, "name")).toHaveText("이력항목", { timeout: T.UI });
 
     await editCell(page, HIST_KEY, "name", "이력항목변경");
     const saved = waitAction(page, "save");
     await page.getByTestId(`item-save-${HIST_KEY}`).click();
     await saved;
-    await expect(cell(page, HIST_KEY, "name")).toHaveText("이력항목변경", { timeout: 20_000 });
+    await expect(cell(page, HIST_KEY, "name")).toHaveText("이력항목변경", { timeout: T.UI });
 
     const closed = waitAction(page, "delete");
     await page.getByTestId(`item-close-${HIST_KEY}`).click();
     await closed;
-    await expect(listRow(page, HIST_KEY)).toHaveCount(0, { timeout: 20_000 });
+    await expect(listRow(page, HIST_KEY)).toHaveCount(0, { timeout: T.UI });
     await page.getByTestId("item-search-closed").selectOption("Y");
     await search(page);
-    await expectRowCell(listRow(page, HIST_KEY), "open", "닫힘", { timeout: 20_000 });
+    await expectRowCell(listRow(page, HIST_KEY), "open", "닫힘", { timeout: T.UI });
 
     const reopened = waitAction(page, "restore");
     await page.getByTestId(`item-reopen-${HIST_KEY}`).click();
     await reopened;
-    await expectRowCell(listRow(page, HIST_KEY), "open", "열림", { timeout: 20_000 });
+    await expectRowCell(listRow(page, HIST_KEY), "open", "열림", { timeout: T.UI });
 
     const history = waitAction(page, "search", "dataHistory");
     await page.getByTestId(`item-history-${HIST_KEY}`).click();
     await history;
     const panel = page.getByTestId("item-history");
-    await expect(panel.locator(".ag-center-cols-container .ag-row")).toHaveCount(4, { timeout: 20_000 });
+    await expect(gridRows(panel)).toHaveCount(4, { timeout: T.UI });
     await expect(panel.locator('.ag-row[row-id="r0"]')).toContainText("생성");
     await expect(panel.locator('.ag-row[row-id="gap2"]')).toContainText("닫혀 있던 구간");
     await expect(panel.locator('.ag-row[row-id="r2"]')).toContainText("다시 열기");
@@ -446,12 +435,12 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
 
   /** 카테고리 시험 전용 마루 데이터를 고른 뒤 오른쪽 [카테고리 편집] 탭(66f40e88)으로 들어간다. 마루 데이터 고르기는 [항목] 탭에서 한다. */
   async function openCateTab(page: Page) {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openScreen(page);
     await selectMaru(page, CATE_PORT);
     await page.getByTestId("item-right-tab-cate").click();
-    await expect(page.getByTestId("cate-tab")).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId("cate-row-BASE")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("cate-tab")).toBeVisible({ timeout: T.UI });
+    await expect(page.getByTestId("cate-row-BASE")).toBeVisible({ timeout: T.UI });
   }
 
   function waitCate(page: Page, action: string) {
@@ -467,12 +456,12 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await page.getByTestId("cate-add-kind").selectOption("REGEX");
     await page.getByTestId("cate-add-submit").click();
     await registered;
-    await expect(page.getByTestId(`cate-row-${id}`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId(`cate-row-${id}`)).toBeVisible({ timeout: T.UI });
   }
 
   /** 카테고리 표의 한 행. ID 칸 안쪽 span 이 `cate-row-{cateId}` 다. */
   function cateRow(page: Page, cateId: string): Locator {
-    return page.locator(".ag-center-cols-container .ag-row").filter({ has: page.getByTestId(`cate-row-${cateId}`) });
+    return gridRows(page).filter({ has: page.getByTestId(`cate-row-${cateId}`) });
   }
 
   /** 소속 패널(카테고리 탭 아래쪽, 제목 "소속 — {cateId}"). */
@@ -492,7 +481,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await expect(page.getByTestId("item-history")).toHaveCount(0);
 
     await page.getByTestId("cate-row-BASE").click();
-    await expect(page.getByTestId("cate-base-readonly")).toHaveText("BASE 는 예약 카테고리라 편집·닫기를 할 수 없습니다", { timeout: 20_000 });
+    await expect(page.getByTestId("cate-base-readonly")).toHaveText("BASE 는 예약 카테고리라 편집·닫기를 할 수 없습니다", { timeout: T.UI });
     await page.screenshot({ path: screenshot("dmd-dataItemMng-cate-list.png"), fullPage: true });
   });
 
@@ -503,8 +492,8 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     await page.getByTestId("cate-row-DC_GROUP").click();
 
     const cateHistory = page.getByTestId("cate-history");
-    await expect(cateHistory).toContainText("카테고리 이력 — DC_GROUP", { timeout: 20_000 });
-    await expect(cateHistory.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 20_000 });
+    await expect(cateHistory).toContainText("카테고리 이력 — DC_GROUP", { timeout: T.UI });
+    await expect(gridRows(cateHistory)).toHaveCount(1, { timeout: T.UI });
     // TABLE 은 정규식·대상이 없다 — 정의 칸에 이름과 종류만 보인다.
     const tableDef = cateHistory.locator('.ag-row[row-id="r0"] .ag-cell[col-id="cateName"]');
     await expect(tableDef).toBeVisible();
@@ -513,8 +502,8 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
 
     // 소속은 픽스처의 DCKRPUS 한 건(DCKRINC 는 소속이 아니다).
     const members = memberPanel(page, "DC_GROUP");
-    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: 20_000 });
-    await expect(members.locator(".ag-center-cols-container .ag-row")).toContainText(["DCKRPUS"]);
+    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: T.UI });
+    await expect(gridRows(members)).toContainText(["DCKRPUS"]);
     await expect(members).not.toContainText("DCKRINC");
     await page.screenshot({ path: screenshot("dmd-dataItemMng-cate-history.png"), fullPage: true });
   });
@@ -525,8 +514,8 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
 
     // 카테고리 표 바로 밑 — 등록한 카테고리를 고른 채 그 이력(생성 1행)이 보인다.
     const cateHistory = page.getByTestId("cate-history");
-    await expect(cateHistory).toContainText(`카테고리 이력 — ${NEW_CATE_ID}`, { timeout: 20_000 });
-    await expect(cateHistory.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 20_000 });
+    await expect(cateHistory).toContainText(`카테고리 이력 — ${NEW_CATE_ID}`, { timeout: T.UI });
+    await expect(gridRows(cateHistory)).toHaveCount(1, { timeout: T.UI });
     await expect(cateHistory.locator('.ag-row[row-id="r0"]')).toContainText("생성");
     // 정의(이름·종류·대상·정규식)가 가로로 밀지 않고 한 칸에 보인다(D-104 회귀).
     await expect(cateHistory.locator(".ag-header-cell-text")).toHaveText(["사건", "시작", "끝", "카테고리 정의"]);
@@ -540,19 +529,19 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
     // 처음 `^.*$` 는 픽스처의 DCKRPUS·DCKRINC 둘 다 담는다. 정규식을 `^DCKRP.*` 로 좁히면 DCKRPUS 하나만 남아야 하므로
     // 건수가 아니라 소속 행의 키로 정규식이 바뀐 것을 구별한다(미리보기 조회는 자동이라 응답을 기다리지 않고 화면 값을 본다).
     const members = memberPanel(page, NEW_CATE_ID);
-    await expect(members).toContainText("DCKRPUS", { timeout: 20_000 });
+    await expect(members).toContainText("DCKRPUS", { timeout: T.UI });
     await expect(members).toContainText("DCKRINC");
     await page.getByTestId(`cate-edit-${NEW_CATE_ID}`).click();
-    await expect(page.getByTestId("regex-edit-panel")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("regex-edit-panel")).toBeVisible({ timeout: T.UI });
     await page.getByTestId("regex-expr").fill("^DCKRP.*");
-    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: 20_000 });
+    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: T.UI });
     await expect(members).toContainText("DCKRPUS");
     await expect(members).not.toContainText("DCKRINC");
     const saved = waitCate(page, "save");
     await page.getByTestId("regex-save").click();
     await saved;
-    await expect(cateRow(page, NEW_CATE_ID).locator('.ag-cell[col-id="matchCount"]')).toHaveText("1건", { timeout: 20_000 });
-    await expect(cateHistory.locator(".ag-center-cols-container .ag-row")).toHaveCount(2, { timeout: 20_000 });
+    await expect(cateRow(page, NEW_CATE_ID).locator('.ag-cell[col-id="matchCount"]')).toHaveText("1건", { timeout: T.UI });
+    await expect(gridRows(cateHistory)).toHaveCount(2, { timeout: T.UI });
     await expect(cateHistory.locator('.ag-row[row-id="r1"]')).toContainText("변경");
     // 바뀐 정규식이 변경 행에 보인다.
     const changedDef = cateHistory.locator('.ag-row[row-id="r1"] .ag-cell[col-id="cateName"]');
@@ -562,7 +551,7 @@ test.describe("mdm dmd/dataItemMng smoke", () => {
 
     // 잘못된 문법은 소속 목록 제목이 알리고 저장도 서버가 거부한다.
     await page.getByTestId("regex-expr").fill("[");
-    await expect(page.getByTestId("cate-regex-invalid")).toHaveText("정규식 문법이 올바르지 않습니다", { timeout: 20_000 });
+    await expect(page.getByTestId("cate-regex-invalid")).toHaveText("정규식 문법이 올바르지 않습니다", { timeout: T.UI });
     await page.getByTestId("regex-save").click();
     await expect(await errorModal(page)).toContainText("카테고리 정의가 올바르지 않습니다");
     await page.screenshot({ path: screenshot("dmd-dataItemMng-cate-invalid-regex.png"), fullPage: true });

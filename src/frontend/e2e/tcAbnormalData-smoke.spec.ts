@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { BASE_URL, LOGIN_USER, login } from "./support/common";
 
 /**
  * 비정상 TC 등록 (mcm/cic tcAbnormalData) 화면 스모크.
@@ -13,17 +14,10 @@ import { expect, test } from "@playwright/test";
  *   (4) 조회 → "N건 조회 되었습니다." Footer 토스트 + 그리드 렌더
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin"; // DataInitializer 시드 (USER_ID=admin)
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 
 test.describe("비정상 TC 등록 (tcAbnormalData) Smoke", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
-    await page.getByPlaceholder("아이디").fill(LOGIN_USER);
-    await page.getByPlaceholder("비밀번호").fill(LOGIN_PASSWORD);
-    await page.getByRole("button", { name: "로그인" }).click();
-    await expect(page).toHaveURL(/\/portal/, { timeout: 15000 });
+    await login(page, LOGIN_USER, { baseUrl: BASE_URL, portalTimeout: 15_000 });
   });
 
   test("화면 렌더링 + 조회", async ({ page }) => {
@@ -33,11 +27,11 @@ test.describe("비정상 TC 등록 (tcAbnormalData) Smoke", () => {
       const child = page.getByText(path[i + 1], { exact: true }).first();
       if (!(await child.isVisible().catch(() => false))) {
         await page.getByText(path[i], { exact: true }).first().click();
-        await page.waitForTimeout(900);
+        await child.waitFor({ state: "visible", timeout: 900 }).catch(() => {});
       }
     }
     const menuItem = page.getByText(path[path.length - 1], { exact: true }).first();
-    await menuItem.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+    await menuItem.waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});
     if (!(await menuItem.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -56,7 +50,7 @@ test.describe("비정상 TC 등록 (tcAbnormalData) Smoke", () => {
 
     // 조회 → Footer 토스트 "N건 조회 되었습니다."
     await page.getByRole("button", { name: "조회" }).click();
-    await page.waitForTimeout(2000);
-    await expect(page.getByText(/건 조회 되었습니다/).first()).toBeVisible({ timeout: 8000 });
+    // 상한은 옛 쉼(2초) + 대기(8초)와 같은 설정 expect 기본 10초
+    await expect(page.getByText(/건 조회 되었습니다/).first()).toBeVisible();
   });
 });

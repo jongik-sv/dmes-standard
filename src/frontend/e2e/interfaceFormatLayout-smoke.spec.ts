@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { BASE_URL, LOGIN_USER, login } from "./support/common";
 
 /**
  * I/F Format Layout 관리 (mcm/cib interfaceFormatLayout) 화면 스모크.
@@ -13,17 +14,10 @@ import { expect, test } from "@playwright/test";
  *   (4) 행추가 (FORMAT 미선택) → "포맷 조회 후 행추가" 안내 / 저장 버튼 노출
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin@dmes.com";
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 
 test.describe("I/F Format Layout 관리 (interfaceFormatLayout) Smoke", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
-    await page.getByPlaceholder("아이디").fill(LOGIN_USER);
-    await page.getByPlaceholder("비밀번호").fill(LOGIN_PASSWORD);
-    await page.getByRole("button", { name: "로그인" }).click();
-    await expect(page).toHaveURL(/\/portal/, { timeout: 15000 });
+    await login(page, LOGIN_USER, { baseUrl: BASE_URL, portalTimeout: 15_000 });
   });
 
   test("화면 렌더링 + FORMAT 선택 팝업", async ({ page }) => {
@@ -33,11 +27,11 @@ test.describe("I/F Format Layout 관리 (interfaceFormatLayout) Smoke", () => {
       const child = page.getByText(path[i + 1], { exact: true }).first();
       if (!(await child.isVisible().catch(() => false))) {
         await page.getByText(path[i], { exact: true }).first().click();
-        await page.waitForTimeout(900);
+        await child.waitFor({ state: "visible", timeout: 900 }).catch(() => {});
       }
     }
     const menuItem = page.getByText(path[path.length - 1], { exact: true }).first();
-    await menuItem.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+    await menuItem.waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});
     if (!(await menuItem.isVisible().catch(() => false))) {
       test.skip();
       return;
@@ -55,7 +49,7 @@ test.describe("I/F Format Layout 관리 (interfaceFormatLayout) Smoke", () => {
 
     // FORMAT 선택 팝업 열기
     await page.getByRole("button", { name: "FORMAT 선택" }).click();
-    await page.waitForTimeout(1000);
-    await expect(page.getByText("FORMAT 명", { exact: false }).first()).toBeVisible();
+    // 팝업이 뜨길 기다린다(상한: 지운 1초 쉼 + 기본 10초와 같은 11초)
+    await expect(page.getByText("FORMAT 명", { exact: false }).first()).toBeVisible({ timeout: 11_000 });
   });
 });

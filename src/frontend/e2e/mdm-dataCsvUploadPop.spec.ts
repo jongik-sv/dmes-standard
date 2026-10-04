@@ -1,7 +1,9 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { T, login, walkMenuPath, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowById } from "./support/grid";
 
 /**
  * mdm dmd/dataCsvUploadPop(항목 CSV 업로드 팝업) smoke — TSK-07-04 design.md §3(e2e 스모크 넷).
@@ -20,8 +22,6 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  * 건드리지 않는다. 쓰기는 실행마다 새 키(`E2ECSV${SUFFIX}` 류)로 한다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 
 const SUFFIX = Date.now().toString(36).toUpperCase();
@@ -68,26 +68,15 @@ function csvBody(...rows: string[]): string {
   return [CSV_HEADER, ...rows].join("\r\n") + "\r\n";
 }
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openScreen(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^마스터데이터$/, /^항목 편집$/]) {
-    const node = item(name);
-    await expect(node).toBeVisible({ timeout: 20_000 });
-    await node.click();
-  }
-  await expect(page.getByTestId("item-add")).toBeVisible({ timeout: 60_000 });
+  await walkMenuPath(page, [/^마루 MDM$/, /^마스터데이터$/, /^항목 편집$/]);
+  await expect(page.getByTestId("item-add")).toBeVisible({ timeout: T.SLOW });
   // 화면은 진입하면 첫 마루 데이터(또는 snapshot)를 비동기로 자동 선택하고, 선택이 끝나면 ID 고르기 칸을 그 ID 로 맞추며
   // 열린 후보 목록을 닫는다(IdPicker currentId). 그 전에 후보를 열어 누르면 후보가 사라져 클릭이 끝나지 않으므로
   // 자동 선택이 끝난 표시(item-current)를 본 뒤 고른다.
-  await expect(page.getByTestId("item-current")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("item-current")).toBeVisible({ timeout: T.LONG });
 }
 
 async function selectMaru(page: Page, id: string) {
@@ -96,7 +85,7 @@ async function selectMaru(page: Page, id: string) {
       r.url().includes("/api/mdm/oasis/dataItemMng/search") &&
       r.status() === 200 &&
       (r.request().postData() ?? "").includes(`"maruDataId":"${id}"`),
-    { timeout: 30_000 },
+    { timeout: T.LONG },
   );
   await page.getByTestId("item-pick-keyword").fill(id);
   await page.getByTestId("item-pick-keyword").press("Enter");
@@ -108,17 +97,17 @@ async function selectMaru(page: Page, id: string) {
 function waitAction(page: Page, action: string, service = "dataItemMng") {
   return page.waitForResponse(
     (r) => r.url().includes(`/api/mdm/oasis/${service}/${action}`) && r.status() === 200,
-    { timeout: 30_000 },
+    { timeout: T.LONG },
   );
 }
 
 function listRow(page: Page, code: string): Locator {
-  return page.getByTestId("item-list").locator(`.ag-center-cols-container .ag-row[row-id="${code}"]`);
+  return gridRowById(page.getByTestId("item-list"), code);
 }
 
 /** `dataItemMng` 화면으로 이동해 마루 데이터를 고르고 "CSV 업로드" 버튼으로 팝업을 연다(C1). */
 async function openCsvPopup(page: Page, maruDataId: string) {
-  await login(page, STEWARD);
+  await login(page, STEWARD, LOGIN_OPTS);
   await openScreen(page);
   await selectMaru(page, maruDataId);
   await page.getByTestId("item-csv-upload").click();
@@ -157,7 +146,7 @@ test.describe("mdm dmd/dataCsvUploadPop smoke", () => {
     await page.getByTestId("csv-pop-validate").click();
     await expect(page.getByTestId("csv-pop-summary")).toHaveText("신규 0 · 수정 0 · 변경없음 0 · 오류 0");
     // ag-grid 는 overlay 컨테이너에도 같은 클래스명(.ag-overlay-no-rows-wrapper)을 쓴다 — 문구는 getByText 로 찾는다.
-    await expect(page.getByTestId("csv-pop-rows").getByText("결과가 없습니다.")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("csv-pop-rows").getByText("결과가 없습니다.")).toBeVisible({ timeout: T.UI });
   });
 
   test("C4 키 패턴을 어긴 행은 그 줄만 오류로 표시되고 저장이 비활성된다(I7)", async ({ page }) => {
@@ -189,8 +178,8 @@ test.describe("mdm dmd/dataCsvUploadPop smoke", () => {
     const reloaded = waitAction(page, "search");
     await page.getByTestId("csv-pop-save").click();
     await reloaded;
-    await expect(page.getByTestId("csv-pop")).toBeHidden({ timeout: 10_000 });
-    await expect(listRow(page, SAVE_CODE)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("csv-pop")).toBeHidden();
+    await expect(listRow(page, SAVE_CODE)).toBeVisible({ timeout: T.UI });
     await page.screenshot({ path: screenshot("dmd-dataCsvUploadPop-saved.png"), fullPage: true });
 
     // 같은 파일 재업로드 시 바뀐 행만 새 선분(I4) — 값이 같으면 NONE.

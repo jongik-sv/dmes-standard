@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { BASE_URL, LOGIN_USER, login } from "./support/common";
 
 /**
  * 토픽 관리 (caravanConsole/topic) CRUD 스모크.
@@ -16,17 +17,10 @@ import { expect, test } from "@playwright/test";
  * 주의: 실제 C/U/D 의 caravan fan-out(브로커/DB 반영)은 대상 caravan WAS 기동이 전제라 본 스모크 범위 밖.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
-const LOGIN_USER = process.env.SMOKE_LOGIN_USER ?? "admin@dmes.com";
-const LOGIN_PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 
 test.describe("토픽 관리 (caravanConsole/topic) CRUD Smoke", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
-    await page.getByPlaceholder("아이디").fill(LOGIN_USER);
-    await page.getByPlaceholder("비밀번호").fill(LOGIN_PASSWORD);
-    await page.getByRole("button", { name: "로그인" }).click();
-    await expect(page).toHaveURL(/\/portal/, { timeout: 15000 });
+    await login(page, LOGIN_USER, { baseUrl: BASE_URL, portalTimeout: 15_000 });
   });
 
   test("토픽 관리 렌더 + CRUD 버튼 + 행추가/행취소 + 무변경 저장 안내", async ({ page }) => {
@@ -38,7 +32,7 @@ test.describe("토픽 관리 (caravanConsole/topic) CRUD Smoke", () => {
         const rootEl = page.getByText(root, { exact: true }).first();
         if (await rootEl.isVisible().catch(() => false)) {
           await rootEl.click();
-          await page.waitForTimeout(700);
+          await group.waitFor({ state: "visible", timeout: 700 }).catch(() => {});
           if (await group.isVisible().catch(() => false)) break;
         }
       }
@@ -47,10 +41,10 @@ test.describe("토픽 관리 (caravanConsole/topic) CRUD Smoke", () => {
     if (!(await leaf.isVisible().catch(() => false))) {
       if (await group.isVisible().catch(() => false)) {
         await group.click();
-        await page.waitForTimeout(900);
+        await leaf.waitFor({ state: "visible", timeout: 900 }).catch(() => {});
       }
     }
-    await leaf.waitFor({ state: "visible", timeout: 8000 }).catch(() => {});
+    await leaf.waitFor({ state: "visible", timeout: 8_000 }).catch(() => {});
     if (!(await leaf.isVisible().catch(() => false))) {
       // 메뉴 미등록 환경 — 컴포넌트 빌드는 성공이므로 skip (기존 smoke 정합)
       test.skip();
@@ -88,6 +82,6 @@ test.describe("토픽 관리 (caravanConsole/topic) CRUD Smoke", () => {
 
     // (5) 변경 없이 저장 → 안내 메시지 (save 핸들러 + getChanges 경로 확인)
     await page.getByRole("button", { name: "저장" }).first().click();
-    await expect(page.getByText("변경된 내용이 없습니다", { exact: false }).first()).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText("변경된 내용이 없습니다", { exact: false }).first()).toBeVisible({ timeout: 8_000 });
   });
 });

@@ -2,17 +2,23 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
   RUN,
+  T,
   USERS,
   Watcher,
-  answerConfirm,
   assertAllButtonsPressed,
   breadcrumb,
   button,
   checkLayout,
+  daysAgo,
+  errorBody,
   escapeRe,
+  expectErrorModal as expectErrorModalBase,
+  expectOnly4xx,
   expectToast,
   footerScreenId,
   gridRow,
+  gridRowById,
+  gridRows,
   modal,
   openAs,
   openMenu,
@@ -20,6 +26,7 @@ import {
   screen,
   scrolledOut,
   snap,
+  snapModal,
   tid,
   uid,
   waitGridScrollbarSettled,
@@ -70,16 +77,6 @@ async function go(page: Page, id: ScreenId) {
   await openMenu(page, ["마루 MDM", "업무기준", MENU[id]], id);
 }
 
-/** 오늘에서 days 만큼 뺀 날의 0시 — 적용 시작 칸(DateTimePicker, 6e506cc9) 입력값(yyyy-MM-dd HH:mm:ss)과 서버 표기(yyyy-MM-dd). */
-function daysAgo(days: number): { input: string; date: string } {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  const p = (n: number) => String(n).padStart(2, "0");
-  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  return { input: `${date} 00:00:00`, date };
-}
-
-
 /**
  * 배치·표시 검사 기록 — 검사는 그 상태에서 바로 하되 단언은 장 끝의 "-99" 테스트가 한다(dmd 와 같은 방식).
  * serial 장에서 배치 위반 하나가 뒤의 CRUD 단계를 모두 건너뛰게 하지 않으려는 것이다.
@@ -102,30 +99,9 @@ class Findings {
   }
 }
 
-const errorBody = (page: Page) => page.locator(".error-modal__body:visible");
-
-/** 오류 모달(ErrorModal) 문구를 보고 [확인]으로 닫는다. */
-async function expectErrorModal(page: Page, text: string | RegExp, shot?: string) {
-  await expect(errorBody(page)).toContainText(text, { timeout: 20_000 });
-  if (shot) await snapModal(page, shot);
-  await answerConfirm(page, "확인");
-}
-
-/** 모달이 다 떠오른 뒤(열림 애니메이션 끝) 찍는다. */
-async function snapModal(page: Page, name: string) {
-  const m = modal(page);
-  await expect(m).toBeVisible();
-  await expect
-    .poll(() => m.evaluate((el) => Number(getComputedStyle(el).opacity) * (el.getAnimations().length ? 0 : 1)))
-    .toBe(1);
-  await snap(page, name);
-}
-
-/** 의도한 업무 오류(4xx) 직후 — 모인 문제가 4xx 콘솔 줄뿐인지 본다(5xx·페이지 예외는 남기지 않는다). */
-function expectOnly4xx(watcher: Watcher, label: string) {
-  const rest = watcher.drain().filter((p) => !/status of 4\d\d/.test(p));
-  expect(rest, `${label}: 의도한 4xx 외의 오류가 없어야 한다`).toEqual([]);
-}
+/** 오류 모달 문구를 보고 [확인]으로 닫는다 — 이 파일은 answerConfirm 으로 닫는다(가장 위 모달이 닫혔는지 본다). */
+const expectErrorModal = (page: Page, text: string | RegExp, shot?: string) =>
+  expectErrorModalBase(page, text, shot, { close: "answerConfirm" });
 
 /** 조회영역의 select(SearchField type="select") — 라벨로 찾는다. */
 const searchSelect = (page: Page, label: string) =>
@@ -145,13 +121,13 @@ const ruleCell = (page: Page, id: string, col: string) => ruleRow(page, id).loca
 /** 목록 헤더 [룰 등록] 으로 등록 팝업을 연다(열 때만 마운트, 칸은 빈 채로 시작). */
 async function openRuleRegister(page: Page) {
   await page.locator("#btn_rule_reg").click();
-  await expect(tid(page, "rule-register-form")).toBeVisible({ timeout: 20_000 });
+  await expect(tid(page, "rule-register-form")).toBeVisible({ timeout: T.UI });
 }
 
 /** 등록 팝업을 [취소]로 닫는다. */
 async function cancelRuleRegister(page: Page) {
   await tid(page, "rule-reg-cancel").click();
-  await expect(tid(page, "rule-register-form")).toHaveCount(0, { timeout: 20_000 });
+  await expect(tid(page, "rule-register-form")).toHaveCount(0, { timeout: T.UI });
 }
 
 async function searchRule(page: Page, keyword: string, opts: { kind?: string; status?: string } = {}) {
@@ -167,7 +143,7 @@ async function searchRule(page: Page, keyword: string, opts: { kind?: string; st
 const versionsCard = (page: Page) => tid(page, "rule-card-versions");
 /** 상세 ② 버전 표의 한 줄 — 행 키(row-id)는 서버 버전 표기("1.000")다(D-144). */
 const detailVerRow = (page: Page, ver: string) =>
-  tid(page, "rule-version-table").locator(`.ag-center-cols-container .ag-row[row-id="${ver}"]`);
+  gridRowById(tid(page, "rule-version-table"), ver);
 
 /**
  * ruleMng 에서 룰을 조회해 그 행을 눌러 오른쪽 상세를 연다. 룰 ID 링크는 룰 화면 탭을 열므로 룰명 칸을 누른다(기능설계서 G-001).
@@ -176,11 +152,11 @@ const detailVerRow = (page: Page, ver: string) =>
 async function openRuleDetail(page: Page, id: string) {
   await go(page, "ruleMng");
   await searchRule(page, id);
-  await expect(ruleRow(page, id)).toHaveCount(1, { timeout: 20_000 });
+  await expect(ruleRow(page, id)).toHaveCount(1, { timeout: T.UI });
   const view = page.waitForResponse((r) => r.url().includes("/oasis/ruleMng/view") && r.request().method() === "POST");
   await ruleCell(page, id, "maruRuleName").click();
   expect((await view).ok()).toBe(true);
-  await expect(tid(page, "rule-header-id")).toHaveText(id, { timeout: 30_000 });
+  await expect(tid(page, "rule-header-id")).toHaveText(id, { timeout: T.LONG });
 }
 
 /** 상세 ② 버전 표에서 한 줄을 고른다. 소유·잠금 배지는 같은 카드의 버튼 줄 끝에 있다(VersionActionBar trailing). */
@@ -195,9 +171,9 @@ async function selectDetailVer(page: Page, ver: string) {
 async function openContentEdit(page: Page, id: string, ver: string) {
   await selectDetailVer(page, ver);
   await versionsCard(page).getByRole("button", { name: "내용 편집 →", exact: true }).click();
-  await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
-  await expect(tid(page, "rule-edit-current")).toHaveText(id, { timeout: 30_000 });
-  await expect(tid(page, "rule-ver-select")).toHaveValue(ver, { timeout: 30_000 });
+  await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: T.SLOW });
+  await expect(tid(page, "rule-edit-current")).toHaveText(id, { timeout: T.LONG });
+  await expect(tid(page, "rule-ver-select")).toHaveValue(ver, { timeout: T.LONG });
   await waitIdle(page);
 }
 
@@ -213,7 +189,7 @@ async function pickRule(page: Page, id: string) {
   await tid(page, "rule-pick-keyword").fill(id);
   await topbar(page).getByRole("button", { name: "찾기", exact: true }).click();
   await tid(page, `rule-pick-${id}`).click();
-  await expect(tid(page, "rule-edit-current")).toHaveText(id, { timeout: 30_000 });
+  await expect(tid(page, "rule-edit-current")).toHaveText(id, { timeout: T.LONG });
   await waitIdle(page);
 }
 
@@ -250,7 +226,7 @@ async function gridText(grid: Locator, cell: Locator, value: string) {
   await expect(async () => {
     await cell.click();
     await expect(input).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: T.UI });
   await input.fill(value);
   await input.press("Enter");
   await expect(input).toHaveCount(0);
@@ -264,7 +240,7 @@ async function gridSelect(grid: Locator, cell: Locator, value: string) {
   await expect(async () => {
     await cell.click();
     await expect(select).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: T.UI });
   await select.selectOption(value);
   await expect(select).toHaveCount(0);
   await scrollGridLeft(grid);
@@ -275,8 +251,7 @@ const colSelect = (page: Page, key: string, field: string, value: string) => gri
 
 /** 열 설정 표의 새 열 키(`n{번호}`) 목록. */
 async function newColKeys(page: Page): Promise<string[]> {
-  const ids = await colTable(page)
-    .locator(".ag-center-cols-container .ag-row")
+  const ids = await gridRows(colTable(page))
     .evaluateAll((els) => els.map((e) => e.getAttribute("row-id") ?? ""));
   return ids.filter((i) => /^n\d+$/.test(i));
 }
@@ -361,7 +336,7 @@ async function addRowBy(page: Page, click: () => Promise<void>): Promise<number>
 /** 열 머리(dt-var-header-{varId})에서 변수의 var_id 를 읽는다. 서버가 발급하므로 화면에서 읽는다. */
 async function varIdOf(page: Page, label: string): Promise<number> {
   const head = dtGrid(page).locator('[data-testid^="dt-var-header-"]').filter({ hasText: label }).first();
-  await expect(head).toBeVisible({ timeout: 20_000 });
+  await expect(head).toBeVisible({ timeout: T.UI });
   return Number((await head.getAttribute("data-testid"))!.replace("dt-var-header-", ""));
 }
 
@@ -379,7 +354,7 @@ async function dtEqual(page: Page, rowId: number, varId: number, value: string) 
 const vtCard = (page: Page) => tid(page, "rule-card-value-test");
 const tcCard = (page: Page) => tid(page, "rule-card-test-cases");
 /** 케이스 표(AgDataGrid)의 행들. */
-const caseRows = (page: Page) => tcCard(page).locator(".ag-center-cols-container .ag-row");
+const caseRows = (page: Page) => gridRows(tcCard(page));
 /** 케이스 줄 — 이름 칸이 name 으로 시작하고 복사본("(복사)")이 아닌 줄(설명은 이름 뒤에 " · " 로 붙는다). */
 const caseRow = (page: Page, name: string) =>
   caseRows(page).filter({ has: page.locator('.ag-cell[col-id="name"]', { hasText: new RegExp(`^\\s*${escapeRe(name)}(?! \\(복사\\))`) }) });
@@ -400,7 +375,7 @@ async function deletePickedCases(page: Page, count: number) {
 }
 /** 세트 입출력 표(AgDataGrid)의 한 행 — 행 키는 변수명이다. kind: inputs(입력 변수) | results(결과 변수). */
 const ioRow = (page: Page, kind: "inputs" | "results", name: string): Locator =>
-  page.getByTestId(`set-io-${kind}`).locator(`.ag-center-cols-container .ag-row[row-id="${name}"]`);
+  gridRowById(page.getByTestId(`set-io-${kind}`), name);
 
 const resultValue = (page: Page, name: string) => tid(page, "vt-result-values").locator("tr", { hasText: name }).locator("td");
 
@@ -411,7 +386,7 @@ const vtValueCell = (page: Page, name: string): Locator =>
 /** 값 칸을 눌러 편집하고 Enter 로 확정한다(singleClickEdit). */
 async function vtInput(page: Page, name: string, value: string) {
   const c = vtValueCell(page, name);
-  await expect(c).toBeVisible({ timeout: 30_000 });
+  await expect(c).toBeVisible({ timeout: T.LONG });
   await c.click();
   const input = c.locator("input");
   await expect(input).toBeVisible({ timeout: 10_000 });
@@ -422,21 +397,21 @@ async function vtInput(page: Page, name: string, value: string) {
 
 async function vtRun(page: Page) {
   await vtCard(page).getByRole("button", { name: "실행", exact: true }).click();
-  await expect(tid(page, "vt-result-target")).toBeVisible({ timeout: 30_000 });
+  await expect(tid(page, "vt-result-target")).toBeVisible({ timeout: T.LONG });
   await waitIdle(page);
 }
 
 // ── ruleConfirm ──
 
 // 버전 확정 화면의 검사 결과·변경 표는 AgDataGrid 다 — 행은 row-id(검사 항목 / row_id)로 찾는다.
-const rcCheckRow = (page: Page, item: string) => tid(page, "rc-checks").locator(`.ag-center-cols-container .ag-row[row-id="${item}"]`);
-const rcDiffRow = (page: Page, rowId: number | string) => tid(page, "rc-diff").locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"]`);
+const rcCheckRow = (page: Page, item: string) => gridRowById(tid(page, "rc-checks"), item);
+const rcDiffRow = (page: Page, rowId: number | string) => gridRowById(tid(page, "rc-diff"), String(rowId));
 const rcDiffKind = (page: Page, rowId: number | string) => rcDiffRow(page, rowId).locator('.ag-cell[col-id="kindLabel"]');
 
 async function rcValidate(page: Page, applyFrom: string) {
   await fillDateTime(tid(page, "rc-apply-from"), applyFrom);
   await tid(page, "rc-validate").click();
-  await expect(tid(page, "rc-checks")).toBeVisible({ timeout: 30_000 });
+  await expect(tid(page, "rc-checks")).toBeVisible({ timeout: T.LONG });
 }
 
 // ── 룰 한 벌을 화면으로 만든다(장 C·D 의 준비) ──
@@ -464,8 +439,8 @@ async function buildEqualRule(page: Page, r: EqualRule) {
   await tid(page, "rule-reg-kind").selectOption("DECISION");
   await tid(page, "rule-reg-submit").click();
   // 등록하면 룰 화면(ruleEdit) 탭이 그 룰의 버전 1 DRAFT 로 열린다(RuleRegisterForm openRuleEdit).
-  await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
-  await expect(tid(page, "rule-edit-current")).toHaveText(r.id, { timeout: 30_000 });
+  await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: T.SLOW });
+  await expect(tid(page, "rule-edit-current")).toHaveText(r.id, { timeout: T.LONG });
   await expect(topbar(page)).toContainText("편집 중(나)");
   await waitIdle(page);
 
@@ -473,7 +448,7 @@ async function buildEqualRule(page: Page, r: EqualRule) {
   await addColumn(page, { kind: "RESULT", disp: "Value", ...r.result });
   await expect(tid(page, "col-reject-count")).toHaveText("거부 0건");
   await tid(page, "col-apply").click();
-  await expect(tid(page, "col-dirty")).toHaveCount(0, { timeout: 30_000 });
+  await expect(tid(page, "col-dirty")).toHaveCount(0, { timeout: T.LONG });
   const condId = await varIdOf(page, r.cond.label);
   const resId = await varIdOf(page, r.result.label);
 
@@ -486,7 +461,7 @@ async function buildEqualRule(page: Page, r: EqualRule) {
   const fb = await addRowBy(page, () => tableButton(page, "기본 행 추가").click());
   await dtEdit(page, fb, `c${resId}_val`, r.fallback);
   await tableButton(page, "표 저장").click();
-  await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: 30_000 });
+  await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: T.LONG });
   await expect(dtRows(page)).toHaveCount(r.rows.length + 1);
 }
 
@@ -499,10 +474,10 @@ async function confirmFromRuleMng(page: Page, id: string, ver: string, applyFrom
   await openRuleDetail(page, id);
   await selectDetailVer(page, ver);
   await tid(page, "rule-move-to-confirm").click();
-  await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: 60_000 });
-  await expect(tid(page, "rc-target")).toContainText(`${id} 버전 v${ver}`, { timeout: 30_000 });
+  await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: T.SLOW });
+  await expect(tid(page, "rc-target")).toContainText(`${id} 버전 v${ver}`, { timeout: T.LONG });
   await rcValidate(page, applyFrom.input);
-  await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: 20_000 });
+  await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: T.UI });
   await tid(page, "rc-confirm").click();
   await expect(modal(page)).toContainText("버전 확정");
   // Equal 조건 하나짜리 룰은 "키가 NULL 이면 맞는 행이 없다" 저장 시 검사 경고가 있어 확인란을 체크해야 [확인]이 켜진다.
@@ -511,7 +486,7 @@ async function confirmFromRuleMng(page: Page, id: string, ver: string, applyFrom
   await tid(page, "rc-ack").getByText("경고를 확인했습니다").click();
   await tid(page, "rc-modal-ok").click();
   await expectToast(page, "확정했습니다");
-  await expect(tid(page, "rc-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: 20_000 });
+  await expect(tid(page, "rc-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: T.UI });
   await expect(tid(page, "rc-released")).toContainText(`적용 구간 ${applyFrom.date} 00:00:00`);
 }
 
@@ -522,16 +497,16 @@ async function confirmFromRuleMng(page: Page, id: string, ver: string, applyFrom
  */
 async function confirmSetFromEdit(page: Page, setId: string, ver: string, applyFrom: { input: string; date: string }) {
   await tid(page, "set-ver-confirm").click();
-  await expect(footerScreenId(page)).toHaveText("ruleSetConfirm", { timeout: 60_000 });
-  await expect(tid(page, "rsc-target")).toContainText(`${setId} 버전 v${ver}`, { timeout: 30_000 });
+  await expect(footerScreenId(page)).toHaveText("ruleSetConfirm", { timeout: T.SLOW });
+  await expect(tid(page, "rsc-target")).toContainText(`${setId} 버전 v${ver}`, { timeout: T.LONG });
   await fillDateTime(tid(page, "rsc-apply-from"), applyFrom.input);
   await tid(page, "rsc-validate").click();
-  await expect(tid(page, "rsc-checks")).toBeVisible({ timeout: 30_000 });
-  await expect(tid(page, "rsc-confirm")).toBeEnabled({ timeout: 20_000 });
+  await expect(tid(page, "rsc-checks")).toBeVisible({ timeout: T.LONG });
+  await expect(tid(page, "rsc-confirm")).toBeEnabled({ timeout: T.UI });
   await tid(page, "rsc-confirm").click();
   await expect(modal(page)).toContainText("버전 확정");
   await tid(page, "rc-modal-ok").click();
-  await expect(tid(page, "rsc-released")).toBeVisible({ timeout: 30_000 });
+  await expect(tid(page, "rsc-released")).toBeVisible({ timeout: T.LONG });
 }
 
 /** 세트 버전 줄 [삭제](확인창)로 내 DRAFT 를 지운다 — 확정 버전 v1.000 이 다시 골라진다(D-144 2단계 SetVersionRow). */
@@ -542,7 +517,7 @@ async function deleteSetDraftVer(page: Page, ver: string) {
   const confirm = page.getByRole("dialog").filter({ hasText: `v${ver} DRAFT 를 지운다. 되돌릴 수 없다` });
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "확인", exact: true }).click();
-  await expect(tid(page, "set-message")).toContainText(`v${ver} 을 지웠다`, { timeout: 20_000 });
+  await expect(tid(page, "set-message")).toContainText(`v${ver} 을 지웠다`, { timeout: T.UI });
   await expect(tid(page, "set-ver-select").locator("option", { hasText: `v${ver}` })).toHaveCount(0);
   await expect(checked).toHaveText("v1.000 (RELEASED)");
 }
@@ -552,7 +527,7 @@ async function newSetVersion(page: Page, kind: "major" | "minor", ver: string) {
   const checked = tid(page, "set-ver-select").locator("option:checked");
   await expect(checked).toHaveText("v1.000 (RELEASED)");
   await tid(page, `set-ver-new-${kind}`).click();
-  await expect(tid(page, "set-message")).toContainText(`새 버전(${kind})을 만들었다`, { timeout: 20_000 });
+  await expect(tid(page, "set-message")).toContainText(`새 버전(${kind})을 만들었다`, { timeout: T.UI });
   await expect(checked).toHaveText(`v${ver} (DRAFT)`);
 }
 
@@ -646,8 +621,8 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, "rule-reg-submit").click();
 
     // 등록하면 룰 화면(ruleEdit, 내용 편집) 탭이 새 룰의 버전 1 DRAFT 로 열린다(RuleRegisterForm openRuleEdit).
-    await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
-    await expect(tid(page, "rule-edit-current")).toHaveText(RULE, { timeout: 30_000 });
+    await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: T.SLOW });
+    await expect(tid(page, "rule-edit-current")).toHaveText(RULE, { timeout: T.LONG });
     await expect(tid(page, "rule-edit-current-name")).toHaveText(NAME);
     await expect(tid(page, "rule-ver-select")).toHaveValue("1.000");
     await expect(topbar(page).locator(".mdm-status-badge")).toHaveAttribute("data-status", "DRAFT");
@@ -655,7 +630,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     // 룰 화면(ruleMng) 탭은 팝업이 닫히고 오른쪽 상세(① 헤더·② 버전, D-105)가 새 룰로 바뀌어 있다.
     await go(page, "ruleMng");
     await expect(page.getByTestId("rule-register-form")).toHaveCount(0);
-    await expect(tid(page, "rule-header-id")).toHaveText(RULE, { timeout: 30_000 });
+    await expect(tid(page, "rule-header-id")).toHaveText(RULE, { timeout: T.LONG });
     await expect(tid(page, "rule-header-name")).toHaveValue(NAME);
     await expect(detailVerRow(page, "1.000").locator(".mdm-status-badge")).toHaveAttribute("data-status", "DRAFT");
     await expect(versionsCard(page)).toContainText("편집 중(나)");
@@ -673,7 +648,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await cancelRuleRegister(page);
 
     await searchRule(page, RULE);
-    await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: 20_000 });
+    await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: T.UI });
     await expect(ruleCell(page, RULE, "maruRuleName")).toHaveText(NAME);
     await expect(ruleCell(page, RULE, "ruleKind")).toHaveText("판정(DECISION)");
     await expect(ruleCell(page, RULE, "sourceKind")).toHaveText("MDM");
@@ -686,22 +661,22 @@ test.describe("A 룰 등록·편집·확정", () => {
 
     // 종류 산출·상태 사용 중이면 빠지고, 판정·작성이면 나온다.
     await searchRule(page, RULE, { kind: "DERIVE" });
-    await expect(tid(page, "rule-list-empty")).toHaveText("조회된 룰이 없습니다.", { timeout: 20_000 });
+    await expect(tid(page, "rule-list-empty")).toHaveText("조회된 룰이 없습니다.", { timeout: T.UI });
     await searchRule(page, RULE, { status: "INUSE" });
-    await expect(tid(page, "rule-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "rule-list-empty")).toBeVisible({ timeout: T.UI });
     await searchRule(page, RULE, { kind: "DECISION", status: "CREATED" });
-    await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: 20_000 });
+    await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: T.UI });
 
     // 룰명 일부 + Enter 로도 찾는다.
     await searchSelect(page, "종류").selectOption("");
     await searchSelect(page, "상태").selectOption("");
     await tid(page, "rule-search-keyword").fill(`품질 판정 ${RUN}`);
     await tid(page, "rule-search-keyword").press("Enter");
-    await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: 20_000 });
+    await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: T.UI });
 
     // 없는 조건이면 빈 상태.
     await searchRule(page, `${RULE}_NONE`);
-    await expect(tid(page, "rule-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "rule-list-empty")).toBeVisible({ timeout: T.UI });
     await expect(panelCount(page)).toHaveText("0건");
     await layout.layout(page, "ruleMng 빈 목록");
     await snap(page, "dme-ruleMng-04-empty");
@@ -716,7 +691,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, "rule-reg-submit").click();
     // 오류창이 등록 팝업 위에 뜬다. `expectErrorModal`(answerConfirm)은 닫은 뒤 "마지막 보이는 모달"을 다시 찾아
     // 등록 팝업을 가리키게 되므로, 오류창 자체가 사라지는 것으로 본다.
-    await expect(errorBody(page)).toContainText("같은 룰 ID 가 이미 있습니다", { timeout: 20_000 });
+    await expect(errorBody(page)).toContainText("같은 룰 ID 가 이미 있습니다", { timeout: T.UI });
     await snapModal(page, "dme-ruleMng-05-dup");
     await modal(page).getByRole("button", { name: "확인", exact: true }).click();
     await expect(errorBody(page)).toHaveCount(0);
@@ -741,8 +716,8 @@ test.describe("A 룰 등록·편집·확정", () => {
   test("TC-DME-MNG-06 목록의 룰 ID 링크를 누르면 룰 화면이 그 룰로 열린다", async () => {
     await searchRule(page, RULE);
     await ruleRow(page, RULE).locator(`[data-testid="rule-link-${RULE}"]`).click();
-    await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
-    await expect(tid(page, "rule-edit-current")).toHaveText(RULE, { timeout: 30_000 });
+    await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: T.SLOW });
+    await expect(tid(page, "rule-edit-current")).toHaveText(RULE, { timeout: T.LONG });
     watcher.assertClean("ruleMng→ruleEdit");
   });
 
@@ -783,7 +758,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tid(page, "rule-header-description")).toHaveValue("E2E 사용자 여정으로 만든 판정 룰");
     await expect(tid(page, "rule-header-usage")).toHaveValue("E2E 품질 판정 화면");
     // 버전 1 DRAFT 하나 — 미적용이 있어 새 버전이 막히고 안내가 보인다. 작성 중 룰은 폐기 버튼이 없다(INUSE 만).
-    await expect(tid(page, "rule-version-table").locator(".ag-center-cols-container .ag-row")).toHaveCount(1);
+    await expect(gridRows(tid(page, "rule-version-table"))).toHaveCount(1);
     await expect(tid(page, "rule-version-table")).toContainText(STW);
     await expect(tid(page, "rule-ver-new-major")).toBeDisabled();
     await expect(tid(page, "rule-ver-new-minor")).toBeDisabled();
@@ -801,7 +776,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, "rule-header-usage").fill("E2E 품질 판정 화면 · 출하 검사");
     await save.click();
     // 저장하면 상세를 다시 읽어 바뀐 값이 기준이 된다 — 다시 바꿀 것이 없으니 저장이 꺼진다.
-    await expect(save).toBeDisabled({ timeout: 20_000 });
+    await expect(save).toBeDisabled({ timeout: T.UI });
 
     // 다시 골라도 남는다 — 목록을 다시 조회해 행을 누른다.
     await openRuleDetail(page, RULE);
@@ -819,7 +794,7 @@ test.describe("A 룰 등록·편집·확정", () => {
   test("TC-DME-EDT-03 찾기 — 없는 룰이면 안내, 룰 상세에서 버전을 골라 [내용 편집 →] 을 누르면 룰 화면이 그 버전으로 열린다", async () => {
     await tid(page, "rule-pick-keyword").fill(`${RULE}_NONE`);
     await tid(page, "rule-pick-keyword").press("Enter");
-    await expect(tid(page, "rule-pick-list")).toHaveText("찾은 룰이 없습니다.", { timeout: 20_000 });
+    await expect(tid(page, "rule-pick-list")).toHaveText("찾은 룰이 없습니다.", { timeout: T.UI });
     await pickRule(page, RULE);
     await expect(tid(page, "rule-pick-list")).toHaveCount(0);
     // 버전 고르기는 룰 상세 ② 버전 표가 맡는다(D-105). 룰 화면 상단 버전 칸은 고른 버전을 보인다.
@@ -835,7 +810,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await openRuleDetail(page, RULE);
     await selectDetailVer(page, "1.000");
     await tid(page, "rule-version-unlock").click();
-    await expect(versionsCard(page)).toContainText("선점 가능", { timeout: 20_000 });
+    await expect(versionsCard(page)).toContainText("선점 가능", { timeout: T.UI });
     await expect(tid(page, "rule-version-lock")).toBeEnabled();
     for (const b of ["rule-version-unlock", "rule-handover", "rule-version-delete"]) await expect(tid(page, b), b).toBeDisabled();
     await snap(page, "dme-ruleMng-04-unlocked");
@@ -846,7 +821,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await openRuleDetail(page, RULE);
     await selectDetailVer(page, "1.000");
     await tid(page, "rule-version-lock").click();
-    await expect(versionsCard(page)).toContainText("편집 중(나)", { timeout: 20_000 });
+    await expect(versionsCard(page)).toContainText("편집 중(나)", { timeout: T.UI });
     await openRule(page, RULE);
     await expect(tableButton(page, "행 추가")).toBeEnabled();
 
@@ -873,17 +848,17 @@ test.describe("A 룰 등록·편집·확정", () => {
       await openRuleDetail(page, RULE);
       await selectDetailVer(page, "1.000");
       await tid(page, "rule-version-unlock").click();
-      await expect(versionsCard(page)).toContainText("선점 가능", { timeout: 20_000 });
+      await expect(versionsCard(page)).toContainText("선점 가능", { timeout: T.UI });
       await go(p2, "ruleMng");
       await openRuleDetail(p2, RULE);
       await selectDetailVer(p2, "1.000");
       await tid(p2, "rule-version-lock").click();
-      await expect(versionsCard(p2)).toContainText("편집 중(나)", { timeout: 20_000 });
+      await expect(versionsCard(p2)).toContainText("편집 중(나)", { timeout: T.UI });
       await openRule(page, RULE);
       await expect(topbar(page)).toContainText(`잠김 · ${STW2} 편집 중`);
       await expect(tableButton(page, "행 추가")).toBeDisabled();
       await tid(p2, "rule-version-unlock").click();
-      await expect(versionsCard(p2)).toContainText("선점 가능", { timeout: 20_000 });
+      await expect(versionsCard(p2)).toContainText("선점 가능", { timeout: T.UI });
       other.watcher.assertClean("ruleMng·ruleEdit(stw2)");
     } finally {
       await p2.context().close();
@@ -892,7 +867,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await openRuleDetail(page, RULE);
     await selectDetailVer(page, "1.000");
     await tid(page, "rule-version-lock").click();
-    await expect(versionsCard(page)).toContainText("편집 중(나)", { timeout: 20_000 });
+    await expect(versionsCard(page)).toContainText("편집 중(나)", { timeout: T.UI });
     await openRule(page, RULE);
     await expect(topbar(page)).toContainText("편집 중(나)");
     watcher.assertClean("ruleMng·ruleEdit");
@@ -920,7 +895,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(modal(page)).toContainText("값 타입 도메인 찾기 · 새 열");
     await tid(page, `col-domain-${key}-keyword`).fill("E2E_NO_SUCH_DOMAIN");
     await tid(page, `col-domain-${key}-search`).click();
-    await expect(box).toContainText("검색 결과가 없습니다.", { timeout: 20_000 });
+    await expect(box).toContainText("검색 결과가 없습니다.", { timeout: T.UI });
     await snapModal(page, "dme-ruleEdit-COL-01-domain");
     await box.getByRole("button", { name: "닫기", exact: true }).click();
     await expect(box).toHaveCount(0);
@@ -968,7 +943,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await snap(page, "dme-ruleEdit-COL-02-draft");
 
     await tid(page, "col-apply").click();
-    await expect(tid(page, "col-dirty")).toHaveCount(0, { timeout: 30_000 });
+    await expect(tid(page, "col-dirty")).toHaveCount(0, { timeout: T.LONG });
     await expect(tid(page, "rule-edit-notice")).toContainText(`새 열 ${THK}`);
     vThk = await varIdOf(page, "두께");
     vSurf = await varIdOf(page, "표면");
@@ -996,14 +971,14 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tid(page, "dt-check-rows")).toContainText(`[ALL_NA_ROW] 행 ${id}`);
     // 결과 칸이 비었으면 미완성으로 먼저 거부된다.
     await tableButton(page, "표 저장").click();
-    await expect(tid(page, "dt-save-rejected")).toContainText("룰 저장 거부", { timeout: 30_000 });
+    await expect(tid(page, "dt-save-rejected")).toContainText("룰 저장 거부", { timeout: T.LONG });
     await expect(tid(page, "dt-save-rejected")).toContainText("INCOMPLETE_RESULT");
     await expectErrorModal(page, "INCOMPLETE_RESULT");
     // 결과를 채워도 조건이 전부 - 면 도달 불가 행으로 거부된다.
     await dtEdit(page, id, `c${vGrd}_val`, "X");
     await expect(tid(page, "dt-save-rejected")).toHaveCount(0);
     await tableButton(page, "표 저장").click();
-    await expect(tid(page, "dt-save-rejected")).toContainText("ALL_NA_ROW", { timeout: 30_000 });
+    await expect(tid(page, "dt-save-rejected")).toContainText("ALL_NA_ROW", { timeout: T.LONG });
     await expectErrorModal(page, "ALL_NA_ROW", "dme-ruleEdit-DT-01-rejected");
     expectOnly4xx(watcher, "ruleEdit 표 저장 거부");
     // 거부돼도 편집은 남는다.
@@ -1055,7 +1030,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await snap(page, "dme-ruleEdit-DT-02-editing");
 
     await tableButton(page, "표 저장").click();
-    await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: 30_000 });
+    await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: T.LONG });
     await expect(tid(page, "dt-check-same")).toHaveText("화면·서버 검사 일치");
     await expect(tid(page, "dt-check")).toContainText("검사(서버)");
     // 저장하면 새 행이 발급된 row_id 를 받는다(음수 임시 ID 가 없다).
@@ -1086,7 +1061,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await dtEdit(page, ids[1], `c${vSurf}_left`, "A");
     await expect(tid(page, "dt-check-rows")).toContainText("오류 [OVERLAP]");
     await tableButton(page, "표 저장").click();
-    await expect(tid(page, "dt-save-rejected")).toContainText("OVERLAP", { timeout: 30_000 });
+    await expect(tid(page, "dt-save-rejected")).toContainText("OVERLAP", { timeout: T.LONG });
     await expectErrorModal(page, "룰 저장 거부");
     expectOnly4xx(watcher, "ruleEdit 겹침 저장 거부");
     // FIRST 로 바꾸면 겹침은 경고다 — 저장하지 않고 되돌린다.
@@ -1104,7 +1079,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await dtEdit(page, extra, `c${vThk}_left`, "10");
     await dtEdit(page, extra, `c${vThk}_right`, "20");
     await tableButton(page, "표 저장").click();
-    await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: 30_000 });
+    await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: T.LONG });
     const five = await dtRowIds(page);
     expect(five).toHaveLength(5);
     await expect(dtCell(page, ids[0], "note")).toHaveText("E2E 중간 두께 A(수정)");
@@ -1114,7 +1089,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, `dt-del-${added}`).click();
     await expect(tid(page, `dt-row-${added}`)).toHaveCount(0);
     await tableButton(page, "표 저장").click();
-    await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: 30_000 });
+    await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: T.LONG });
     expect(await dtRowIds(page)).toEqual(ids);
     await layout.layout(page, "ruleEdit 표 저장 뒤");
     watcher.assertClean("ruleEdit");
@@ -1125,7 +1100,7 @@ test.describe("A 룰 등록·편집·확정", () => {
   // V13__drop_rule_var_axis.sql). 화면 스펙 mdm-ruleEdit C2 도 같은 근거로 지웠다(54ecd830).
 
   test("TC-DME-CTR-01 입력 계약 — 조건 변수는 ④ 값 테스트 입력 표에 보이고, 최초 버전이라 RELEASED 대비 변경 알림은 없다", async () => {
-    await expect(tid(page, `vt-field-${THK}`)).toBeVisible({ timeout: 30_000 });
+    await expect(tid(page, `vt-field-${THK}`)).toBeVisible({ timeout: T.LONG });
     await expect(tid(page, `vt-field-${SURF}`)).toBeVisible();
     await expect(tid(page, "contract-notice")).toHaveCount(0);
     await layout.layout(page, "ruleEdit 입력 계약");
@@ -1147,7 +1122,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tid(page, "vt-result-hits")).toContainText(`row_id ${ids[0]}`);
     await expect(tid(page, "vt-result-on-table")).toBeVisible();
     await expect(tid(page, "dt-test-shown")).toContainText("편집본");
-    await expect(dtGrid(page).locator(`.ag-center-cols-container .ag-row[row-id="${ids[0]}"]`)).toHaveClass(/ag-row-test-hit/);
+    await expect(gridRowById(dtGrid(page), String(ids[0]))).toHaveClass(/ag-row-test-hit/);
     await tid(page, "rule-card-test-result").scrollIntoViewIfNeeded();
     await snap(page, "dme-ruleEdit-VT-01-body");
 
@@ -1188,7 +1163,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(vtCard(page).getByRole("button", { name: "케이스로 저장", exact: true })).toBeDisabled();
     await tid(page, "vt-case-name").fill(CASE_C);
     await vtCard(page).getByRole("button", { name: "케이스로 저장", exact: true }).click();
-    await expect(caseRow(page, CASE_C)).toBeVisible({ timeout: 30_000 });
+    await expect(caseRow(page, CASE_C)).toBeVisible({ timeout: T.LONG });
     await expect(caseRow(page, CASE_C)).toContainText(`"${GRD}"`);
     await expect(tid(page, "vt-case-name")).toHaveValue("");
     await vtInput(page, THK, "2.0");
@@ -1196,16 +1171,16 @@ test.describe("A 룰 등록·편집·확정", () => {
     await vtRun(page);
     await tid(page, "vt-case-name").fill(CASE_A);
     await vtCard(page).getByRole("button", { name: "케이스로 저장", exact: true }).click();
-    await expect(caseRow(page, CASE_A)).toBeVisible({ timeout: 30_000 });
+    await expect(caseRow(page, CASE_A)).toBeVisible({ timeout: T.LONG });
     await tid(page, "vt-case-name").fill(CASE_DEL);
     await vtCard(page).getByRole("button", { name: "케이스로 저장", exact: true }).click();
-    await expect(caseRow(page, CASE_DEL)).toBeVisible({ timeout: 30_000 });
+    await expect(caseRow(page, CASE_DEL)).toBeVisible({ timeout: T.LONG });
     await expect(tid(page, "tc-empty")).toHaveCount(0);
 
     // 조회: 모두 실행 — 기대값이 맞아 통과.
     await tcCard(page).getByRole("button", { name: "모두 실행", exact: true }).click();
     for (const n of [CASE_A, CASE_C, CASE_DEL]) {
-      await expect(caseRow(page, n).locator('[data-testid^="tc-badge-"]'), n).toHaveText(/통과/, { timeout: 30_000 });
+      await expect(caseRow(page, n).locator('[data-testid^="tc-badge-"]'), n).toHaveText(/통과/, { timeout: T.LONG });
     }
     await layout.layout(page, "ruleEdit 테스트 케이스");
     await tcCard(page).scrollIntoViewIfNeeded();
@@ -1214,11 +1189,11 @@ test.describe("A 룰 등록·편집·확정", () => {
     // 한 케이스만 실행(체크 → 머리글 [실행]) — 그 케이스만 배지가 남는다.
     await pickCases(page, CASE_A);
     await tid(page, "tc-run").click();
-    await expect(caseRow(page, CASE_A).locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: 30_000 });
+    await expect(caseRow(page, CASE_A).locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: T.LONG });
     await expect(caseRow(page, CASE_C).locator('[data-testid^="tc-badge-"]')).toHaveCount(0);
     await pickCases(page, CASE_C);
     await tid(page, "tc-run").click();
-    await expect(caseRow(page, CASE_C).locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: 30_000 });
+    await expect(caseRow(page, CASE_C).locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: T.LONG });
     await expect(caseRow(page, CASE_A).locator('[data-testid^="tc-badge-"]')).toHaveCount(0);
 
     // 불러오기 — 케이스 입력이 값 테스트 칸에 채워진다.
@@ -1255,40 +1230,40 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, "tc-edit-desc").fill("기대값을 일부러 틀리게 둔다");
     await tid(page, "tc-edit-expected").fill(`{"${GRD}": "Z"}`);
     await tid(page, "tc-edit-save").click();
-    await expect(tid(page, "tc-edit-modal")).toHaveCount(0, { timeout: 20_000 });
+    await expect(tid(page, "tc-edit-modal")).toHaveCount(0, { timeout: T.UI });
     const edited = caseRow(page, `${CASE_C}(수정)`);
     await expect(edited).toContainText("기대값을 일부러 틀리게 둔다");
     await expect(edited).toContainText('"Z"');
     await tcCard(page).getByRole("button", { name: "모두 실행", exact: true }).click();
-    await expect(edited.locator('[data-testid^="tc-badge-"]')).toHaveText(/실패/, { timeout: 30_000 });
+    await expect(edited.locator('[data-testid^="tc-badge-"]')).toHaveText(/실패/, { timeout: T.LONG });
     await expect(edited).toContainText(GRD);
 
     // 기대값 갱신 — 마지막 결과(C)로 기대값을 다시 쓰면 통과로 돌아온다.
     // 수정 저장 뒤 다시 불러온 view 에도 같은 케이스(case_id)가 남아 체크가 유지된다.
     await pickCases(page, `${CASE_C}(수정)`);
     await tid(page, "tc-update-expected").click();
-    await expect(edited).not.toContainText('"Z"', { timeout: 20_000 });
+    await expect(edited).not.toContainText('"Z"', { timeout: T.UI });
     await tcCard(page).getByRole("button", { name: "모두 실행", exact: true }).click();
-    await expect(edited.locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: 30_000 });
+    await expect(edited.locator('[data-testid^="tc-badge-"]')).toHaveText(/통과/, { timeout: T.LONG });
 
     // 복사(C) — 남길 두 케이스를 함께 체크해 복사하면 "(복사)" 이름으로 같은 입력·기대값의 줄이 생긴다. 복사본은 곧 함께 지운다.
     const copied = [CASE_A, `${CASE_C}(수정)`];
     await pickCases(page, ...copied);
     await tid(page, "tc-copy").click();
     for (const n of copied) {
-      await expect(caseRow(page, `${n} (복사)`)).toBeVisible({ timeout: 20_000 });
+      await expect(caseRow(page, `${n} (복사)`)).toBeVisible({ timeout: T.UI });
       const input = (row: Locator) => row.locator('.ag-cell[col-id="inputJson"]');
       await expect(input(caseRow(page, `${n} (복사)`))).toHaveText((await input(caseRow(page, n)).textContent())!);
     }
     await expect(caseRows(page)).toHaveCount(5);
     await pickCases(page, ...copied.map((n) => `${n} (복사)`));
     await deletePickedCases(page, 2);
-    for (const n of copied) await expect(caseRow(page, `${n} (복사)`)).toHaveCount(0, { timeout: 20_000 });
+    for (const n of copied) await expect(caseRow(page, `${n} (복사)`)).toHaveCount(0, { timeout: T.UI });
 
     // 삭제(D) — 확인창에서 확인해야 지운다.
     await pickCases(page, CASE_DEL);
     await deletePickedCases(page, 1);
-    await expect(caseRow(page, CASE_DEL)).toHaveCount(0, { timeout: 20_000 });
+    await expect(caseRow(page, CASE_DEL)).toHaveCount(0, { timeout: T.UI });
     await expect(caseRows(page)).toHaveCount(2);
     watcher.assertClean("ruleEdit");
   });
@@ -1296,7 +1271,7 @@ test.describe("A 룰 등록·편집·확정", () => {
   test("TC-DME-EDT-05 카드 묶음·섹션 접기와 빈 넘기기 안내 — 룰 화면의 모든 버튼을 한 번씩 눌렀다", async () => {
     // 경계값 케이스 만들기(b3317e4d) — 팝업을 열어 본 뒤 저장하지 않고 닫는다(케이스는 그대로 둘이다).
     await tid(page, "tc-boundary").click();
-    await expect(tid(page, "bc-modal")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "bc-modal")).toBeVisible({ timeout: T.UI });
     await snapModal(page, "dme-ruleEdit-05-boundary");
     await page.getByRole("dialog").getByRole("button", { name: "닫기" }).last().click();
     await expect(page.locator('[data-testid="bc-modal"]')).toHaveCount(0);
@@ -1351,10 +1326,10 @@ test.describe("A 룰 등록·편집·확정", () => {
     // 확정 이동은 룰 상세 ② 버전 줄의 [확정] 이다(D-105, 86ec7d67). EDT-05 가 룰 상세에서 버전 1 을 골라 두었다.
     await expect(detailVerRow(page, "1.000")).toHaveClass(/ag-row-highlighted/);
     await tid(page, "rule-move-to-confirm").click();
-    await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: 60_000 });
+    await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: T.SLOW });
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 업무기준 > 버전 확정");
-    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 v1.000 · DECISION`, { timeout: 30_000 });
+    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 v1.000 · DECISION`, { timeout: T.LONG });
     await expect(tid(page, "rc-form")).toContainText(NAME2);
     await expect(tid(page, "rc-form")).toContainText("편집 중(나)");
     await expect(tid(page, "rc-previous")).toHaveText("최초 버전 — 적용 순서 검사를 하지 않습니다");
@@ -1370,25 +1345,25 @@ test.describe("A 룰 등록·편집·확정", () => {
     await tid(page, "rc-keyword").fill(RULE);
     await tid(page, "rc-search").click();
     // 확정 대기 목록은 AgDataGrid 다 — rc-row-* 는 룰 ID 칸 표지이고, 행은 row-id(룰 ID-버전, 버전은 "1.000" 표기 — D-144)로 찾는다.
-    const row = tid(page, "rc-list").locator(`.ag-center-cols-container .ag-row[row-id="${RULE}-1.000"]`);
-    await expect(row).toBeVisible({ timeout: 20_000 });
+    const row = gridRowById(tid(page, "rc-list"), `${RULE}-1.000`);
+    await expect(row).toBeVisible({ timeout: T.UI });
     await expect(row).toContainText(NAME2);
     await expect(row).toContainText("DECISION");
     await expect(row).toContainText(STW);
     await expect(tid(page, "rc-list").locator('[data-testid^="rc-row-"]')).toHaveCount(1);
     await tid(page, "rc-keyword").fill(`${RULE}_NONE`);
     await tid(page, "rc-search").click();
-    await expect(tid(page, "rc-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: 20_000 });
+    await expect(tid(page, "rc-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: T.UI });
     await layout.layout(page, "ruleConfirm 빈 목록");
     await tid(page, "rc-keyword").fill(RULE);
     await tid(page, "rc-search").click();
     await tid(page, `rc-row-${RULE}-1.000`).click();
     await expect(row).toHaveClass(/ag-row-highlighted/);
-    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 v1.000 · DECISION`, { timeout: 20_000 });
+    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 v1.000 · DECISION`, { timeout: T.UI });
     // 같은 행 보기 — 최초 버전은 모두 추가라 같은 행이 없다.
     await tid(page, "rc-diff-show-same").getByText("같은 행 보기").click();
     await expect(
-      tid(page, "rc-diff").locator(".ag-center-cols-container .ag-row")
+      gridRows(tid(page, "rc-diff"))
         .filter({ has: page.locator('.ag-cell[col-id="kindLabel"]', { hasText: /^추가$/ }) }),
     ).toHaveCount(4);
     await tid(page, "rc-diff-show-same").getByText("같은 행 보기").click();
@@ -1412,7 +1387,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await fillDateTime(tid(page, "rc-apply-from"), CONFIRM1.input);
     await expect(tid(page, "rc-confirm")).toBeDisabled();
     await tid(page, "rc-validate").click();
-    await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: 20_000 });
+    await expect(tid(page, "rc-confirm")).toBeEnabled({ timeout: T.UI });
     await layout.layout(page, "ruleConfirm 검사 결과");
     await snap(page, "dme-ruleConfirm-03-checked");
     watcher.assertClean("ruleConfirm");
@@ -1438,7 +1413,7 @@ test.describe("A 룰 등록·편집·확정", () => {
     await expect(tid(page, "rc-modal-ok")).toBeEnabled();
     await tid(page, "rc-modal-ok").click();
     await expectToast(page, "확정했습니다");
-    await expect(tid(page, "rc-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "rc-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: T.UI });
     await expect(tid(page, "rc-released")).toContainText(`적용 구간 ${CONFIRM1.date} 00:00:00 ~ 9999-12-31`);
     await expect(tid(page, "rc-released")).toContainText(`확정자 ${STW}`);
     await expect(tid(page, "rc-validate")).toBeDisabled();
@@ -1454,13 +1429,13 @@ test.describe("A 룰 등록·편집·확정", () => {
   test("TC-DME-MNG-07 확정 반영 — 목록에 사용 중·적용 버전 1·적중 정책 UNIQUE·미적용 없음으로 보이고, 룰 화면은 읽기 전용이다", async () => {
     await go(page, "ruleMng");
     await searchRule(page, RULE, { status: "INUSE" });
-    await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: 20_000 });
+    await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: T.UI });
     await expect(ruleCell(page, RULE, "status")).toHaveText("사용 중");
     await expect(ruleCell(page, RULE, "releasedVer")).toHaveText("v1.000");
     await expect(ruleCell(page, RULE, "hitPolicy")).toHaveText("UNIQUE");
     await expect(ruleCell(page, RULE, "pendingText")).toHaveText("");
     await searchRule(page, RULE, { status: "CREATED" });
-    await expect(tid(page, "rule-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "rule-list-empty")).toBeVisible({ timeout: T.UI });
 
     // 룰 상세 — 사용 중이고, 확정 버전이라 확정은 꺼지고 새 버전·폐기가 켜진다(D-105).
     await openRuleDetail(page, RULE);
@@ -1546,7 +1521,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
     await openRuleDetail(page, RULE);
     await tid(page, "rule-ver-new-major").click();
     const v2 = detailVerRow(page, "2.000");
-    await expect(v2.locator('.mdm-status-badge[data-status="DRAFT"]')).toBeVisible({ timeout: 20_000 });
+    await expect(v2.locator('.mdm-status-badge[data-status="DRAFT"]')).toBeVisible({ timeout: T.UI });
     await expect(v2.locator('.ag-cell[col-id="ownerId"]')).toHaveText(STW);
     await expect(v2.locator('.ag-cell[col-id="baseVer"]')).toHaveText("v1.000");
     await expect(tid(page, "rule-ver-new-major")).toBeDisabled();
@@ -1569,7 +1544,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
     await expect(dtCell(page, v1Rows[1], `c${vGrd}_val`)).toHaveClass(/cell-edited/);
     await tid(page, `dt-del-${v1Rows[0]}`).click();
     await tableButton(page, "표 저장").click();
-    await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: 30_000 });
+    await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: T.LONG });
     expect(await dtRowIds(page)).toEqual([v1Rows[1], v1Rows[2]]);
     await expect(tid(page, "dt-deleted-rows")).toHaveText(`base 대비 지운 행: row ${v1Rows[0]}`);
     await expect(dtCell(page, v1Rows[1], `c${vGrd}_val`)).toHaveClass(/cell-edited/);
@@ -1596,8 +1571,8 @@ test.describe("B 새 버전·삭제·폐기", () => {
     await openRuleDetail(page, RULE);
     await selectDetailVer(page, "2.000");
     await tid(page, "rule-move-to-confirm").click();
-    await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: 60_000 });
-    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 v2.000 · DECISION`, { timeout: 30_000 });
+    await expect(footerScreenId(page)).toHaveText("ruleConfirm", { timeout: T.SLOW });
+    await expect(tid(page, "rc-target")).toHaveText(`${RULE} 버전 v2.000 · DECISION`, { timeout: T.LONG });
     await expect(tid(page, "rc-previous")).toHaveText(`직전 RELEASED 버전 v1.000 · ${RELEASE1.date} 00:00:00`);
     await expect(tid(page, "rc-diff-counts")).toHaveText("추가 0 · 삭제 1 · 수정 1 · 같음 1");
     await expect(rcDiffKind(page, v1Rows[0])).toHaveText("삭제");
@@ -1629,7 +1604,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
     // 삭제는 마스터코드와 같은 확인창을 거친다(MDM 버전 버튼 규약).
     await tid(page, "rule-version-delete").click();
     await page.getByRole("dialog").getByRole("button", { name: "확인", exact: true }).last().click();
-    await expect(detailVerRow(page, "2.000")).toHaveCount(0, { timeout: 20_000 });
+    await expect(detailVerRow(page, "2.000")).toHaveCount(0, { timeout: T.UI });
     await expect(tid(page, "rule-ver-new-major")).toBeEnabled();
     await expect(screen(page).getByTestId("rule-unapplied-notice")).toHaveCount(0);
     // 룰 화면은 확정 버전 1 로 돌아온다.
@@ -1664,7 +1639,7 @@ test.describe("B 새 버전·삭제·폐기", () => {
 
     await cardButton(page, header, "폐기").click();
     await cardButton(page, header, "폐기 확인").click();
-    await expect(tid(page, header)).toContainText("폐기", { timeout: 20_000 });
+    await expect(tid(page, header)).toContainText("폐기", { timeout: T.UI });
     await expect(cardButton(page, header, "폐기")).toHaveCount(0);
     await expect(tid(page, "rule-ver-new-major")).toBeDisabled();
     await layout.layout(page, "ruleMng 폐기 뒤");
@@ -1678,11 +1653,11 @@ test.describe("B 새 버전·삭제·폐기", () => {
   test("TC-DME-VER-06 폐기 반영 — 목록 상태 폐기 조건에서만 나오고 사용 중 조건에서는 빠진다", async () => {
     await go(page, "ruleMng");
     await searchRule(page, RULE, { status: "DEPRECATED" });
-    await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: 20_000 });
+    await expect(ruleRow(page, RULE)).toHaveCount(1, { timeout: T.UI });
     await expect(ruleCell(page, RULE, "status")).toHaveText("폐기");
     await expect(ruleCell(page, RULE, "releasedVer")).toHaveText("v1.000");
     await searchRule(page, RULE, { status: "INUSE" });
-    await expect(tid(page, "rule-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "rule-list-empty")).toBeVisible({ timeout: T.UI });
     await snap(page, "dme-ruleMng-VER-06-deprecated");
     watcher.assertClean("ruleMng");
   });
@@ -1787,8 +1762,8 @@ test.describe("C 룰 세트", () => {
     await tid(page, "set-reg-name").fill(SET_NAME);
     await tid(page, "set-reg-desc").fill("E2E 표면으로 계수를 낸다");
     await tid(page, "set-reg-save").click();
-    await expect(footerScreenId(page)).toHaveText("ruleSetEdit", { timeout: 60_000 });
-    await expect(tid(page, "set-edit-current")).toHaveText(`${SET} · ${SET_NAME}`, { timeout: 30_000 });
+    await expect(footerScreenId(page)).toHaveText("ruleSetEdit", { timeout: T.SLOW });
+    await expect(tid(page, "set-edit-current")).toHaveText(`${SET} · ${SET_NAME}`, { timeout: T.LONG });
     // 새 세트는 CREATED 이고 첫 확정 때 INUSE 가 된다(D-144 2단계, MdmRuleSet.java STATUS — 화면 스펙 mdm-ruleSetMng M3 와 같다).
     await expect(tid(page, "set-status")).toHaveText("CREATED");
     // 빈 세트는 시작 → 끝만 그려진다.
@@ -1864,7 +1839,7 @@ test.describe("C 룰 세트", () => {
     // 같은 룰을 룰 목록에서 찾으면 줄에 "사용 중" 이 붙는다(다른 갈래에 두려고 다시 담을 수는 있어 막지는 않는다).
     await tid(page, "flow-rule-panel-search").fill(SA);
     await tid(page, "flow-rule-panel-find").click();
-    await expect(tid(page, `flow-rule-used-${SA}`)).toHaveText("사용 중", { timeout: 20_000 });
+    await expect(tid(page, `flow-rule-used-${SA}`)).toHaveText("사용 중", { timeout: T.UI });
     await expect.poll(setOrder).toEqual([SB, SA]);
     await layout.layout(page, "ruleSetEdit 순서 거부");
     await snap(page, "dme-ruleSetEdit-02-order-rejected");
@@ -1898,9 +1873,9 @@ test.describe("C 룰 세트", () => {
 
     await tid(page, "set-name").fill(`${SET_NAME} 수정`);
     await tid(page, "set-desc").fill("E2E 표면 → 등급 → 계수");
-    await expect(tid(page, "set-save")).toBeEnabled({ timeout: 20_000 });
+    await expect(tid(page, "set-save")).toBeEnabled({ timeout: T.UI });
     await tid(page, "set-save").click();
-    await expect(setMessage()).toContainText(/저장 · row_version \d+/, { timeout: 20_000 });
+    await expect(setMessage()).toContainText(/저장 · row_version \d+/, { timeout: T.UI });
     await expect(tid(page, "set-save")).toBeDisabled();
     // 저장하면 서버가 돌려준 흐름으로 다시 불러오되 모드와 되돌리기 이력은 그대로 둔다 — 편집 모드가 남는다
     // (ruleSetEdit 기능설계서 §7: "세트 저장·폐기·되살리기 뒤의 다시 불러오기는 모드와 되돌리기 이력을 그대로 둔다", cdcb8ea3).
@@ -1916,11 +1891,11 @@ test.describe("C 룰 세트", () => {
   test("TC-DME-SED-04 조회(R) — 세트를 찾아 다시 열면 저장한 흐름이 남고, 구성 지침은 결과 변수에서 순서를 제안하며 적용하면 캔버스가 그 순서가 된다", async () => {
     await tid(page, "set-pick-keyword").fill(`${SET}_NONE`);
     await tid(page, "set-edit-topbar").getByRole("button", { name: "찾기", exact: true }).click();
-    await expect(tid(page, "set-pick-list")).toHaveText("찾은 세트가 없습니다.", { timeout: 20_000 });
+    await expect(tid(page, "set-pick-list")).toHaveText("찾은 세트가 없습니다.", { timeout: T.UI });
     await tid(page, "set-pick-keyword").fill(SET);
     await tid(page, "set-pick-keyword").press("Enter");
     await tid(page, `set-pick-${SET}`).click();
-    await expect(tid(page, "set-edit-current")).toHaveText(`${SET} · ${SET_NAME} 수정`, { timeout: 20_000 });
+    await expect(tid(page, "set-edit-current")).toHaveText(`${SET} · ${SET_NAME} 수정`, { timeout: T.UI });
     await expect.poll(setOrder).toEqual([SA, SB]);
     await expect(tid(page, "set-desc")).toHaveValue("E2E 표면 → 등급 → 계수");
 
@@ -1932,7 +1907,7 @@ test.describe("C 룰 세트", () => {
     await clearFlowSelection(page);
     await tid(page, "set-guide-var").fill(FCT);
     await tid(page, "set-guide-run").click();
-    await expect(tid(page, "set-guide-order")).toContainText(`제안 순서 · 1. ${SA} → 2. ${SB}`, { timeout: 20_000 });
+    await expect(tid(page, "set-guide-order")).toContainText(`제안 순서 · 1. ${SA} → 2. ${SB}`, { timeout: T.UI });
     await tid(page, "set-guide-apply").click();
     await expect.poll(setOrder).toEqual([SA, SB]);
     await expect(setChecks()).toContainText("통과");
@@ -1943,7 +1918,7 @@ test.describe("C 룰 세트", () => {
     await tid(page, "set-pick-keyword").fill(SET);
     await tid(page, "set-pick-keyword").press("Enter");
     await tid(page, `set-pick-${SET}`).click();
-    await expect(tid(page, "flow-mode-view")).toHaveAttribute("aria-pressed", "true", { timeout: 20_000 });
+    await expect(tid(page, "flow-mode-view")).toHaveAttribute("aria-pressed", "true", { timeout: T.UI });
     await expect.poll(setOrder).toEqual([SA, SB]);
     watcher.assertClean("ruleSetEdit");
   });
@@ -1959,7 +1934,7 @@ test.describe("C 룰 세트", () => {
     await tid(page, "set-pick-keyword").fill(SET);
     await tid(page, "set-pick-keyword").press("Enter");
     await tid(page, `set-pick-${SET}`).click();
-    await expect(tid(page, "set-status")).toHaveText("INUSE", { timeout: 20_000 });
+    await expect(tid(page, "set-status")).toHaveText("INUSE", { timeout: T.UI });
 
     await tid(page, "set-deprecate").click();
     await expect(setMessage()).toContainText("폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.");
@@ -1969,7 +1944,7 @@ test.describe("C 룰 세트", () => {
 
     await tid(page, "set-deprecate").click();
     await tid(page, "set-deprecate-confirm").click();
-    await expect(tid(page, "set-status")).toHaveText("DEPRECATED", { timeout: 20_000 });
+    await expect(tid(page, "set-status")).toHaveText("DEPRECATED", { timeout: T.UI });
     // 세트 폐기·되살리기는 부모 행 상태만 바꿔 문구에 row_version 이 없다(45502b49, D-144 2단계 useRuleSetEdit).
     await expect(setMessage()).toContainText("폐기. 행은 남기고 되살릴 수 있다");
     await expect(tid(page, "set-name")).toBeDisabled();
@@ -1980,7 +1955,7 @@ test.describe("C 룰 세트", () => {
     await snap(page, "dme-ruleSetEdit-05-deprecated");
 
     await tid(page, "set-restore").click();
-    await expect(tid(page, "set-status")).toHaveText("INUSE", { timeout: 20_000 });
+    await expect(tid(page, "set-status")).toHaveText("INUSE", { timeout: T.UI });
     await expect(setMessage()).toContainText("되살림");
     // D-144 2단계: 확정 버전(v1.000)은 읽기 전용이다 — [편집] 모드로 바꿀 수 없다(view.editable). 고치려면 버전 줄
     // [새 버전(minor)]으로 내 DRAFT 를 만든다. 남은 버튼은 그 DRAFT 에서 누르고, 끝에서 [삭제]로 지운다.
@@ -2040,7 +2015,7 @@ test.describe("C 룰 세트", () => {
     await tid(page, "flow-section-rules-head").click();
     await tid(page, "flow-rule-panel-search").fill(SA);
     await tid(page, "flow-rule-panel-find").click();
-    await expect(tid(page, `flow-rule-row-${SA}`)).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, `flow-rule-row-${SA}`)).toBeVisible({ timeout: T.UI });
     // 노드 찾기 위젯 — 툴바 [노드 찾기] 로 열고 다음·이전·옵션 셋을 눌러 본 뒤 [닫기].
     await tid(page, "flow-find-open").click();
     await expect(tid(page, "flow-find-widget")).toBeVisible();
@@ -2065,7 +2040,7 @@ test.describe("C 룰 세트", () => {
     await tid(page, `dbg-input-${SURF}`).fill("A");
     const dbgStatus = tid(page, "dbg-status");
     await tid(page, "dbg-step").click();
-    await expect(dbgStatus).toHaveText(/^1\/\d+ · start 실행 전$/, { timeout: 30_000 });
+    await expect(dbgStatus).toHaveText(/^1\/\d+ · start 실행 전$/, { timeout: T.LONG });
     await tid(page, "dbg-step").click();
     await tid(page, "dbg-step-back").click();
     await tid(page, "dbg-continue").click();
@@ -2090,14 +2065,14 @@ test.describe("C 룰 세트", () => {
     await tid(page, "case-save-current").click();
     await tid(page, "case-modal-name").fill(`E2E 케이스 ${RUN}`);
     await tid(page, "case-modal-save").click();
-    await expect(tid(page, "case-modal")).toHaveCount(0, { timeout: 20_000 });
-    await expect(tid(page, "case-grid")).toContainText(`E2E 케이스 ${RUN}`, { timeout: 20_000 });
+    await expect(tid(page, "case-modal")).toHaveCount(0, { timeout: T.UI });
+    await expect(tid(page, "case-grid")).toContainText(`E2E 케이스 ${RUN}`, { timeout: T.UI });
     await tid(page, "case-run-all").click();
-    await expect(tid(page, "case-summary")).toHaveText("1/1 통과", { timeout: 30_000 });
+    await expect(tid(page, "case-summary")).toHaveText("1/1 통과", { timeout: T.LONG });
     // [중지](fc911d0d) — 디버그를 끝내고 실행 전으로 돌린다. 지난 실행이 없어지면 다시 꺼진다.
     await expect(tid(page, "dbg-stop")).toBeEnabled();
     await tid(page, "dbg-stop").click();
-    await expect(tid(page, "dbg-stop")).toBeDisabled({ timeout: 20_000 });
+    await expect(tid(page, "dbg-stop")).toBeDisabled({ timeout: T.UI });
     // 디버그 모드에서도 보이는 활성 단추를 다시 확인한다. 케이스 고르기·불러오기·수정·삭제·디버그로 열기는 케이스 줄을 고르기 전에는 꺼져 있어 목록에서 빠진다.
     const dynamicAllow = async (prefix: string, why: string) =>
       Object.fromEntries(
@@ -2117,10 +2092,10 @@ test.describe("C 룰 세트", () => {
     });
 
     // 만든 케이스를 지워 데이터를 남기지 않는다.
-    await tid(page, "case-grid").locator(".ag-center-cols-container .ag-row").first().click();
+    await gridRows(tid(page, "case-grid")).first().click();
     await tid(page, "case-delete").click();
     await tid(page, "case-delete-confirm").click();
-    await expect(tid(page, "case-grid")).not.toContainText(`E2E 케이스 ${RUN}`, { timeout: 20_000 });
+    await expect(tid(page, "case-grid")).not.toContainText(`E2E 케이스 ${RUN}`, { timeout: T.UI });
 
     // 보기 모드로 돌려 놓는다 — 아래 패널은 검사 결과 탭으로 돌아온다.
     await tid(page, "flow-mode-view").click();
@@ -2129,11 +2104,11 @@ test.describe("C 룰 세트", () => {
     await expect(setChecks()).toBeVisible();
     // 버전 줄 — 내 DRAFT 를 [해제]하면 소유자 없는 DRAFT 가 되어 [선점]이 켜지고, [선점]하면 다시 내 편집 중이다.
     await tid(page, "set-ver-unlock").click();
-    await expect(tid(page, "set-message")).toContainText("해제했다", { timeout: 20_000 });
+    await expect(tid(page, "set-message")).toContainText("해제했다", { timeout: T.UI });
     await expect(tid(page, "set-ver-lock")).toBeEnabled();
     await expect(tid(page, "flow-mode-edit")).toBeDisabled();
     await tid(page, "set-ver-lock").click();
-    await expect(tid(page, "set-message")).toContainText("선점했다", { timeout: 20_000 });
+    await expect(tid(page, "set-message")).toContainText("선점했다", { timeout: T.UI });
     await expect(tid(page, "set-ver-unlock")).toBeEnabled();
     await expect(tid(page, "flow-mode-edit")).toBeEnabled();
     // 위에서 만든 v1.001 DRAFT 를 [삭제](확인창)로 지우고, [새 버전(major)]도 만들었다 지운다. 확정 버전 v1.000 만 남는다.
@@ -2160,8 +2135,8 @@ test.describe("C 룰 세트", () => {
   test("TC-DME-SED-06 화면 연결 — 캔버스 룰 박스의 링크 아이콘·결과 변수 링크로 룰 화면이 열리고, 활용처 카드에 세트와 의존 룰이 보인다", async () => {
     // 룰 박스의 링크 아이콘만 룰 화면을 연다(박스 누르기는 속성 패널만 연다).
     await tid(page, `flow-rule-open-${await ruleNodeIdOf(page, SA)}`).click();
-    await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
-    await expect(tid(page, "rule-edit-current")).toHaveText(SA, { timeout: 30_000 });
+    await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: T.SLOW });
+    await expect(tid(page, "rule-edit-current")).toHaveText(SA, { timeout: T.LONG });
     const usage = tid(page, "rule-usage-sets");
     await expect(usage).toContainText(SET);
     await expect(usage).toContainText(`${SET_NAME} 수정`);
@@ -2171,26 +2146,26 @@ test.describe("C 룰 세트", () => {
     await snap(page, "dme-ruleEdit-SED-06-usage");
     // 역의존 룰 링크 → SB, SB 의 의존 룰 링크 → SA.
     await tid(page, `rule-usage-link-${SB}`).click();
-    await expect(tid(page, "rule-edit-current")).toHaveText(SB, { timeout: 30_000 });
+    await expect(tid(page, "rule-edit-current")).toHaveText(SB, { timeout: T.LONG });
     await tid(page, `rule-usage-link-${SA}`).click();
-    await expect(tid(page, "rule-edit-current")).toHaveText(SA, { timeout: 30_000 });
+    await expect(tid(page, "rule-edit-current")).toHaveText(SA, { timeout: T.LONG });
 
     // 세트 편집의 결과 변수 링크(세트 패널) → 그 변수를 만드는 룰.
     await go(page, "ruleSetEdit");
     await clearFlowSelection(page);
     await tid(page, `set-var-link-${FCT}`).click();
-    await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
-    await expect(tid(page, "rule-edit-current")).toHaveText(SB, { timeout: 30_000 });
+    await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: T.SLOW });
+    await expect(tid(page, "rule-edit-current")).toHaveText(SB, { timeout: T.LONG });
     await go(page, "ruleSetEdit");
     await tid(page, `set-var-link-${GRD}`).click();
-    await expect(tid(page, "rule-edit-current")).toHaveText(SA, { timeout: 30_000 });
+    await expect(tid(page, "rule-edit-current")).toHaveText(SA, { timeout: T.LONG });
     // 룰 박스를 누르면 오른쪽 속성 패널이 그 룰로 바뀌고, 패널의 [룰 화면 열기]로도 그 룰의 룰 화면이 열린다.
     await go(page, "ruleSetEdit");
     await ruleNodeOf(page, SB).click();
-    await expect(tid(page, "flow-prop-rule")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "flow-prop-rule")).toBeVisible({ timeout: T.UI });
     await tid(page, "flow-prop-rule-open").click();
-    await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
-    await expect(tid(page, "rule-edit-current")).toHaveText(SB, { timeout: 30_000 });
+    await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: T.SLOW });
+    await expect(tid(page, "rule-edit-current")).toHaveText(SB, { timeout: T.LONG });
     watcher.assertClean("ruleSetEdit→ruleEdit");
   });
 
@@ -2208,7 +2183,7 @@ test.describe("C 룰 세트", () => {
       await waitIdle(page);
     };
     await search({ keyword: SET });
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await expect(cell("setName")).toHaveText(`${SET_NAME} 수정`);
     await expect(cell("ruleCount")).toHaveText("2");
     await expect(cell("finalResults")).toHaveText(FCT);
@@ -2220,15 +2195,15 @@ test.describe("C 룰 세트", () => {
     await layout.layout(page, "ruleSetMng 목록 채워짐");
 
     await search({ rule: SA });
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await search({ rv: GRD });
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await search({ keyword: SET, status: "INUSE" });
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await search({ keyword: SET, status: "DEPRECATED" });
-    await expect(tid(page, "set-list-empty")).toHaveText("조건에 맞는 룰 세트가 없다", { timeout: 20_000 });
+    await expect(tid(page, "set-list-empty")).toHaveText("조건에 맞는 룰 세트가 없다", { timeout: T.UI });
     await search({ rv: `E2E_NO_SUCH_${RUN}` });
-    await expect(tid(page, "set-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "set-list-empty")).toBeVisible({ timeout: T.UI });
     await expect(panelCount(page)).toHaveText("0건");
     await layout.layout(page, "ruleSetMng 빈 목록");
     await tid(page, "set-search-var").press("Enter");
@@ -2236,8 +2211,8 @@ test.describe("C 룰 세트", () => {
 
     await search({ keyword: SET });
     await row.locator(`[data-testid="set-link-${SET}"]`).click();
-    await expect(footerScreenId(page)).toHaveText("ruleSetEdit", { timeout: 60_000 });
-    await expect(tid(page, "set-edit-current")).toContainText(SET, { timeout: 20_000 });
+    await expect(footerScreenId(page)).toHaveText("ruleSetEdit", { timeout: T.SLOW });
+    await expect(tid(page, "set-edit-current")).toContainText(SET, { timeout: T.UI });
     watcher.assertClean("ruleSetMng");
   });
 
@@ -2247,20 +2222,20 @@ test.describe("C 룰 세트", () => {
     await openRuleDetail(page, SA);
     await cardButton(page, "rule-card-header", "폐기").click();
     await cardButton(page, "rule-card-header", "폐기 확인").click();
-    await expect(tid(page, "rule-card-header")).toContainText("폐기", { timeout: 20_000 });
+    await expect(tid(page, "rule-card-header")).toContainText("폐기", { timeout: T.UI });
 
     await go(page, "ruleSetEdit");
     await tid(page, "set-pick-keyword").fill(SET);
     await tid(page, "set-pick-keyword").press("Enter");
     await tid(page, `set-pick-${SET}`).click();
-    await expect(setChecks()).toContainText(`${SA}는 DEPRECATED다`, { timeout: 20_000 });
+    await expect(setChecks()).toContainText(`${SA}는 DEPRECATED다`, { timeout: T.UI });
 
     // 세트 폐기 → 되살리기는 서버가 검사를 다시 돌려 거부한다.
     await tid(page, "set-deprecate").click();
     await tid(page, "set-deprecate-confirm").click();
-    await expect(tid(page, "set-status")).toHaveText("DEPRECATED", { timeout: 20_000 });
+    await expect(tid(page, "set-status")).toHaveText("DEPRECATED", { timeout: T.UI });
     await tid(page, "set-restore").click();
-    await expect(setMessage()).toContainText("룰 세트 저장 검사를 통과하지 못했습니다", { timeout: 20_000 });
+    await expect(setMessage()).toContainText("룰 세트 저장 검사를 통과하지 못했습니다", { timeout: T.UI });
     await expect(tid(page, "set-status")).toHaveText("DEPRECATED");
     expectOnly4xx(watcher, "ruleSetEdit 되살리기 거부");
     await snap(page, "dme-ruleSetEdit-SMN-06-restore-rejected");
@@ -2272,7 +2247,7 @@ test.describe("C 룰 세트", () => {
     await tid(page, "set-search-status").selectOption("DEPRECATED");
     await button(page, "조회").click();
     const row = gridRow(tid(page, "set-list"), SET, "setId");
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await expect(row.locator('.ag-cell[col-id="status"]')).toHaveText("DEPRECATED");
     await expect(row.locator('.ag-cell[col-id="checkText"]')).toHaveText("-");
     watcher.assertClean("ruleSetMng");
@@ -2312,8 +2287,8 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
         await tid(page, "rule-reg-id").fill(id);
         await tid(page, "rule-reg-name").fill(`E2E 연결 ${RUN}`);
         await tid(page, "rule-reg-submit").click();
-        await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: 60_000 });
-        await expect(tid(page, "rule-edit-current"), "넘겨받은 룰").toHaveText(id, { timeout: 30_000 });
+        await expect(footerScreenId(page)).toHaveText("ruleEdit", { timeout: T.SLOW });
+        await expect(tid(page, "rule-edit-current"), "넘겨받은 룰").toHaveText(id, { timeout: T.LONG });
       }
       // 룰 화면 탭은 하나뿐이다(이미 열린 탭이 대상 이벤트를 받아 룰을 바꾼다).
       await expect(page.locator(".tabs-bar .tab-item .tab-title").filter({ hasText: /^룰 화면$/ })).toHaveCount(1);
@@ -2334,10 +2309,10 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await tid(page, "rule-reg-name").fill(`E2E 넘기기 ${RUN}`);
       await tid(page, "rule-reg-submit").click();
       // 등록하면 룰 화면 탭이 열리고, 룰(ruleMng) 상세도 그 룰의 버전 1 DRAFT 로 바뀐다. 넘기기는 상세 ② 버전 줄에 있다(D-105).
-      await expect(tid(page, "rule-edit-current")).toHaveText(id, { timeout: 60_000 });
+      await expect(tid(page, "rule-edit-current")).toHaveText(id, { timeout: T.SLOW });
       await expect(topbar(page)).toContainText("편집 중(나)");
       await go(page, "ruleMng");
-      await expect(tid(page, "rule-header-id")).toHaveText(id, { timeout: 30_000 });
+      await expect(tid(page, "rule-header-id")).toHaveText(id, { timeout: T.LONG });
       await selectDetailVer(page, "1.000");
       // 넘겨받는 사람의 담당자 여부를 확인할 수단이 없어(서버가 늘 MDM005) 받는 사람 칸과 버튼을 꺼 두었다.
       await expect(tid(page, "rule-handover-target")).toBeDisabled();
@@ -2370,7 +2345,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await openRule(other.page, r.id);
       await dtEdit(other.page, ids[0], "note", "다른 창이 먼저 고침");
       await tableButton(other.page, "표 저장").click();
-      await expect(tid(other.page, "dt-dirty")).toHaveCount(0, { timeout: 30_000 });
+      await expect(tid(other.page, "dt-dirty")).toHaveCount(0, { timeout: T.LONG });
       other.watcher.assertClean("ruleEdit(다른 창)");
 
       // 이 창은 옛 row_version 을 들고 있다.
@@ -2379,7 +2354,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await expectErrorModal(page, "다른 창에서 바뀌었습니다. 다시 불러오세요", "dme-ruleEdit-CFL-01-conflict");
       expectOnly4xx(watcher, "ruleEdit 충돌");
       await topbar(page).getByRole("button", { name: "다시 불러오기", exact: true }).click();
-      await expect(topbar(page).getByRole("button", { name: "다시 불러오기", exact: true })).toHaveCount(0, { timeout: 20_000 });
+      await expect(topbar(page).getByRole("button", { name: "다시 불러오기", exact: true })).toHaveCount(0, { timeout: T.UI });
       await expect(dtCell(page, ids[0], "note")).toHaveText("다른 창이 먼저 고침");
       await expect(dtCell(page, ids[1], "note")).toHaveText("");
       await expect(tid(page, "dt-dirty")).toHaveCount(0);
@@ -2408,7 +2383,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await expect.poll(() => dtRowIds(page), { timeout: 10_000 }).toEqual([b, a, fb]);
       await expect(tid(page, "dt-dirty")).toBeVisible();
       await tableButton(page, "표 저장").click();
-      await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: 30_000 });
+      await expect(tid(page, "dt-dirty")).toHaveCount(0, { timeout: T.LONG });
       await pickRule(page, r.id);
       expect(await dtRowIds(page)).toEqual([b, a, fb]);
       await expect(tid(page, `dt-row-${b}`)).toContainText("1");
@@ -2432,12 +2407,12 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await tid(owner.page, "rule-reg-id").fill(rule);
       await tid(owner.page, "rule-reg-name").fill(`E2E 읽기전용 ${RUN}`);
       await tid(owner.page, "rule-reg-submit").click();
-      await expect(tid(owner.page, "rule-edit-current")).toHaveText(rule, { timeout: 60_000 });
+      await expect(tid(owner.page, "rule-edit-current")).toHaveText(rule, { timeout: T.SLOW });
       await go(owner.page, "ruleSetMng");
       await tid(owner.page, "set-reg-id").fill(set);
       await tid(owner.page, "set-reg-name").fill(`E2E 읽기전용 세트 ${RUN}`);
       await tid(owner.page, "set-reg-save").click();
-      await expect(tid(owner.page, "set-edit-current")).toContainText(set, { timeout: 60_000 });
+      await expect(tid(owner.page, "set-edit-current")).toContainText(set, { timeout: T.SLOW });
       await addToSetOn(owner.page, releasedRule);
       owner.watcher.assertClean("dme(stw)");
     } finally {
@@ -2448,9 +2423,9 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
     try {
       // ruleMng — 조회는 되고(권한 조회가 끝났다는 뜻) 등록은 꺼져 있다.
       await go(page, "ruleMng");
-      await expect(button(page, "조회")).toBeEnabled({ timeout: 30_000 });
+      await expect(button(page, "조회")).toBeEnabled({ timeout: T.LONG });
       await searchRule(page, rule);
-      await expect(ruleRow(page, rule)).toHaveCount(1, { timeout: 20_000 });
+      await expect(ruleRow(page, rule)).toHaveCount(1, { timeout: T.UI });
       await expect(page.locator("#btn_rule_reg")).toBeDisabled();
       await snap(page, "dme-ro-ruleMng");
 
@@ -2471,7 +2446,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await expect(tid(page, "col-readonly")).toBeVisible();
       await expect(tid(page, "col-add-cond")).toHaveCount(0);
       // 대상 정의를 받은 뒤(열 없는 룰이라 "입력 변수가 없습니다" 가 보인 뒤)에 본다 — 받기 전에는 권한과 무관하게 꺼져 있다.
-      await expect(tid(page, "vt-no-input")).toBeVisible({ timeout: 20_000 });
+      await expect(tid(page, "vt-no-input")).toBeVisible({ timeout: T.UI });
       await expect(vtCard(page).getByRole("button", { name: "실행", exact: true })).toBeDisabled();
       await snap(page, "dme-ro-ruleEdit");
 
@@ -2480,7 +2455,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await tid(page, "rc-keyword").fill(rule);
       await tid(page, "rc-search").click();
       await tid(page, `rc-row-${rule}-1.000`).click();
-      await expect(tid(page, "rc-target")).toContainText(rule, { timeout: 20_000 });
+      await expect(tid(page, "rc-target")).toContainText(rule, { timeout: T.UI });
       await expect(tid(page, "rc-validate")).toBeDisabled();
       await expect(tid(page, "rc-confirm")).toBeDisabled();
       await snap(page, "dme-ro-ruleConfirm");
@@ -2497,7 +2472,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
       await tid(page, "set-pick-keyword").fill(set);
       await tid(page, "set-pick-keyword").press("Enter");
       await tid(page, `set-pick-${set}`).click();
-      await expect(tid(page, "set-card-id")).toHaveText(set, { timeout: 20_000 });
+      await expect(tid(page, "set-card-id")).toHaveText(set, { timeout: T.UI });
       await expect(ruleNodeOf(page, releasedRule)).toBeVisible();
       await expect(tid(page, "set-name")).toBeDisabled();
       await expect(tid(page, "flow-mode-edit")).toBeDisabled();
@@ -2560,5 +2535,5 @@ async function addToSetOn(page: Page, id: string) {
   await enterFlowEdit(page);
   await addRuleToFlow(page, id);
   await tid(page, "set-save").click();
-  await expect(tid(page, "set-message")).toContainText(/저장 · row_version \d+/, { timeout: 20_000 });
+  await expect(tid(page, "set-message")).toContainText(/저장 · row_version \d+/, { timeout: T.UI });
 }

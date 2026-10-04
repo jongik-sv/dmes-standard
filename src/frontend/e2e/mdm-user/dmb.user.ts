@@ -2,21 +2,27 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
   RUN,
+  T,
   USERS,
   Watcher,
-  answerConfirm,
   assertAllButtonsPressed,
   breadcrumb,
   button,
   checkLayout,
+  errorBody,
+  expectErrorModal as expectErrorModalBase,
   expectToast,
+  gridCells,
   gridRow,
+  gridRowByIndex,
+  gridRows,
   modal,
   openAs,
   openMenu,
   resetClicks,
   screen,
   snap,
+  snapModal,
   tid,
   uid,
   type LayoutOptions,
@@ -73,22 +79,9 @@ async function layout(page: Page, label: string, opts?: LayoutOptions) {
   }
 }
 
-const errorBody = (page: Page) => page.locator(".error-modal__body:visible");
-
-async function snapModal(page: Page, name: string) {
-  const m = modal(page);
-  await expect(m).toBeVisible();
-  await expect
-    .poll(() => m.evaluate((el) => Number(getComputedStyle(el).opacity) * (el.getAnimations().length ? 0 : 1)))
-    .toBe(1);
-  await snap(page, name);
-}
-
-async function expectErrorModal(page: Page, text: string | RegExp, shot?: string) {
-  await expect(errorBody(page)).toContainText(text, { timeout: 20_000 });
-  if (shot) await snapModal(page, shot);
-  await answerConfirm(page, "확인");
-}
+/** 오류 모달 문구를 보고 [확인]으로 닫는다 — 이 파일은 answerConfirm 으로 닫는다(가장 위 모달이 닫혔는지 본다). */
+const expectErrorModal = (page: Page, text: string | RegExp, shot?: string) =>
+  expectErrorModalBase(page, text, shot, { close: "answerConfirm" });
 
 /** SearchArea 의 라벨-only(select) 조회칸 — testid 도 aria-label 도 없다(SearchField.tsx). */
 function searchField(page: Page, label: string): Locator {
@@ -106,7 +99,7 @@ const headerGrid = (page: Page) => tid(page, "header-items");
 const layoutGrid = (page: Page) => tid(page, "layout-items");
 const stackGrid = (page: Page) => tid(page, "layout-header-stack");
 const itemRow = (grid: Locator, text: string): Locator =>
-  grid.locator(".ag-center-cols-container .ag-row").filter({ hasText: text }).first();
+  gridRows(grid).filter({ hasText: text }).first();
 
 /**
  * 세로 가상화로 아직 그려지지 않은 행이면 그리드를 끝까지 스크롤해 그리게 한다 — [헤더 추가] 목록은 값이 쌓일수록
@@ -136,15 +129,15 @@ const itemDeleteButton = (page: Page, prefix: "header" | "layout") =>
  */
 async function newMinorThenDelete(page: Page, prefix: "header" | "layout") {
   const sel = tid(page, `${prefix}-ver-select`);
-  await expect(sel).toHaveValue("1.000", { timeout: 20_000 });
+  await expect(sel).toHaveValue("1.000", { timeout: T.UI });
   await tid(page, `${prefix}-ver-new-minor`).click();
-  await expect(sel).toHaveValue("1.001", { timeout: 20_000 });
+  await expect(sel).toHaveValue("1.001", { timeout: T.UI });
   await expect(sel.locator('option[value="1.001"]')).toHaveText("v1.001 작성 중"); // DRAFT 표기(versionOptions)
   await tid(page, `${prefix}-ver-delete`).click();
   const confirm = page.getByRole("dialog").filter({ hasText: "v1.001 DRAFT 를 삭제할까요?" });
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "확인", exact: true }).click();
-  await expect(sel.locator('option[value="1.001"]')).toHaveCount(0, { timeout: 20_000 });
+  await expect(sel.locator('option[value="1.001"]')).toHaveCount(0, { timeout: T.UI });
   await expect(sel).toHaveValue("1.000");
 }
 
@@ -174,14 +167,14 @@ async function pickColumn(page: Page, addTestId: string, phys: string) {
 
 /** 확정 화면(dmb/layoutConfirm)에서 적용 시작을 넣어 검사하고(경고가 있으면 확인) 확정한다. [확정] 으로 화면이 열린 직후에 부른다. */
 async function confirmOnScreen(page: Page, applyFrom: string) {
-  await expect(tid(page, "lc-target")).toBeVisible({ timeout: 60_000 });
+  await expect(tid(page, "lc-target")).toBeVisible({ timeout: T.SLOW });
   await fillDateTime(tid(page, "lc-apply-from"), applyFrom);
   await tid(page, "lc-validate").click();
-  await expect(tid(page, "lc-checks")).toBeVisible({ timeout: 30_000 });
+  await expect(tid(page, "lc-checks")).toBeVisible({ timeout: T.LONG });
   if (await tid(page, "lc-ack").count()) await tid(page, "lc-ack").getByText("경고를 확인했습니다").click();
   await expect(tid(page, "lc-confirm")).toBeEnabled();
   await tid(page, "lc-confirm").click();
-  await expect(tid(page, "lc-done")).toContainText("확정했습니다", { timeout: 30_000 });
+  await expect(tid(page, "lc-done")).toContainText("확정했습니다", { timeout: T.LONG });
 }
 
 /** 확정 적용 시작 — 과거라 곧바로 현재 버전이 된다(헤더가 먼저, 전문이 그 뒤). */
@@ -232,7 +225,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expect(tid(page, "header-search-keyword")).toBeVisible();
     await expect(tid(page, "header-list-empty")).toHaveText("조회된 헤더가 없습니다");
     await button(page, "조회").click();
-    await expect(tid(page, "header-list").locator(".ag-center-cols-container .ag-row").first()).toBeVisible({ timeout: 20_000 });
+    await expect(gridRows(tid(page, "header-list")).first()).toBeVisible({ timeout: T.UI });
     await expect(screen(page).getByText("목록에서 헤더를 선택하거나 [신규] 를 누르세요.")).toBeVisible();
     await expect(button(page, "조회")).toBeEnabled();
     await expect(button(page, "신규")).toBeEnabled();
@@ -279,20 +272,20 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "item-detail-filler-length").fill("6");
 
     const grid = headerGrid(page);
-    await expect(grid.locator(".ag-center-cols-container .ag-cell[col-id=\"OFFSET\"]")).toHaveText(["0", "8", "12", "22"]);
+    await expect(gridCells(grid, "OFFSET")).toHaveText(["0", "8", "12", "22"]);
     await expect(tid(page, "header-length")).toHaveText("28 바이트 (4항목)");
     await snap(page, "dmb-headerMng-03-editing");
     await layout(page, "headerMng 편집 중");
 
     // 드래그 — FILLER 를 맨 앞으로.
     await dragRow(page, grid, "FILLER", "TC_CD");
-    await expect(grid.locator(".ag-center-cols-container .ag-cell[col-id=\"OFFSET\"]")).toHaveText(["0", "6", "14", "18"], { timeout: 10_000 });
+    await expect(gridCells(grid, "OFFSET")).toHaveText(["0", "6", "14", "18"], { timeout: 10_000 });
     await expect(tid(page, "header-length")).toHaveText("28 바이트 (4항목)");
     await snap(page, "dmb-headerMng-03-dragged");
 
     await button(page, "저장").click();
     await expectToast(page, "저장했습니다");
-    await expect(tid(page, "header-form-name")).toHaveValue(HDR1, { timeout: 30_000 });
+    await expect(tid(page, "header-form-name")).toHaveValue(HDR1, { timeout: T.LONG });
     watcher.assertClean("headerMng");
   });
 
@@ -341,7 +334,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "header-search-keyword").fill(RUN);
     await tid(page, "header-search-keyword").press("Enter");
     const row = gridRow(list, HDR1, "LAYOUT_NAME");
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await expect(row.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("28");
     await expect(row.locator('.ag-cell[col-id="ITEM_COUNT"]')).toHaveText("4");
     await expect(row.locator('.ag-cell[col-id="EAI_CODE"]')).toHaveText(EAI1);
@@ -349,12 +342,12 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
 
     await tid(page, "header-search-keyword").fill(`${RUN}_없음`);
     await button(page, "조회").click();
-    await expect(tid(page, "header-list-empty")).toHaveText("조회된 헤더가 없습니다", { timeout: 20_000 });
+    await expect(tid(page, "header-list-empty")).toHaveText("조회된 헤더가 없습니다", { timeout: T.UI });
     await snap(page, "dmb-headerMng-05-empty");
 
     await tid(page, "header-search-keyword").fill(RUN);
     await button(page, "조회").click();
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     watcher.assertClean("headerMng");
   });
 
@@ -365,7 +358,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expectToast(page, "저장했습니다");
 
     await gridRow(tid(page, "header-list"), HDR1, "LAYOUT_NAME").click();
-    await expect(tid(page, "header-form-name")).toHaveValue(HDR1, { timeout: 20_000 });
+    await expect(tid(page, "header-form-name")).toHaveValue(HDR1, { timeout: T.UI });
     await expect(tid(page, "header-form-encoding")).toHaveValue("EUC-KR");
     await expect(tid(page, "header-form-pad-rule")).toHaveValue("숫자 왼쪽 0, 문자 오른쪽 공백(E2E 수정)");
     watcher.assertClean("headerMng");
@@ -376,13 +369,13 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     // 목록에서 "사용 전문" 열이 0 이 아닌 첫 행을 고른다.
     await tid(page, "header-search-keyword").fill("");
     await button(page, "조회").click();
-    const used = tid(page, "header-list").locator(".ag-center-cols-container .ag-row")
+    const used = gridRows(tid(page, "header-list"))
       .filter({ has: page.locator('.ag-cell[col-id="USED_BY_COUNT"]', { hasText: /[1-9]/ }) }).first();
-    await expect(used).toBeVisible({ timeout: 20_000 });
+    await expect(used).toBeVisible({ timeout: T.UI });
     await used.click();
     const usage = tid(page, "header-usage");
-    await expect(usage).not.toContainText("이 헤더를 쓰는 전문이 없습니다", { timeout: 20_000 });
-    await expect(usage.locator(".ag-center-cols-container .ag-row").first()).toBeVisible();
+    await expect(usage).not.toContainText("이 헤더를 쓰는 전문이 없습니다", { timeout: T.UI });
+    await expect(gridRows(usage).first()).toBeVisible();
     await snap(page, "dmb-headerMng-07-impact");
     // 조회만 했다 — 저장 버튼을 누르지 않는다(공용 샘플 데이터 보호).
     watcher.assertClean("headerMng");
@@ -403,19 +396,19 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "item-detail-filler-length").fill("4");
 
     const grid = headerGrid(page);
-    await expect(grid.locator(".ag-center-cols-container .ag-cell[col-id=\"OFFSET\"]")).toHaveText(["0", "2", "6"]);
+    await expect(gridCells(grid, "OFFSET")).toHaveText(["0", "2", "6"]);
     await expect(tid(page, "header-length")).toHaveText("10 바이트 (3항목)");
     await layout(page, "headerMng H2 편집 중");
     await snap(page, "dmb-headerMng-08-hdr2");
 
     await button(page, "저장").click();
     await expectToast(page, "저장했습니다");
-    await expect(tid(page, "header-form-name")).toHaveValue(HDR2, { timeout: 30_000 });
+    await expect(tid(page, "header-form-name")).toHaveValue(HDR2, { timeout: T.LONG });
 
     await tid(page, "header-search-keyword").fill(RUN);
     await button(page, "조회").click();
     const row = gridRow(tid(page, "header-list"), HDR2, "LAYOUT_NAME");
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await expect(row.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("10");
     await expect(row.locator('.ag-cell[col-id="ITEM_COUNT"]')).toHaveText("3");
     await layout(page, "headerMng 목록 H1·H2");
@@ -435,9 +428,9 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
       await tid(page, "header-search-keyword").fill(RUN);
       await button(page, "조회").click();
       await gridRow(tid(page, "header-list"), name, "LAYOUT_NAME").click();
-      await expect(tid(page, "header-form-name")).toHaveValue(name, { timeout: 20_000 });
+      await expect(tid(page, "header-form-name")).toHaveValue(name, { timeout: T.UI });
       await tid(page, "header-ver-unlock").click();
-      await expect(tid(page, "header-ver-unlock")).toBeDisabled({ timeout: 20_000 });
+      await expect(tid(page, "header-ver-unlock")).toBeDisabled({ timeout: T.UI });
     }
     await snap(page, "dmb-headerMng-09-unlocked");
     watcher.assertClean("headerMng(해제)");
@@ -450,10 +443,10 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
         await tid(steward.page, "header-search-keyword").fill(RUN);
         await button(steward.page, "조회").click();
         await gridRow(tid(steward.page, "header-list"), name, "LAYOUT_NAME").click();
-        await expect(tid(steward.page, "header-form-name")).toHaveValue(name, { timeout: 20_000 });
+        await expect(tid(steward.page, "header-form-name")).toHaveValue(name, { timeout: T.UI });
         await expect(tid(steward.page, "header-ver-confirm")).toBeDisabled(); // 소유자가 아니다
         await tid(steward.page, "header-ver-lock").click();
-        await expect(tid(steward.page, "header-ver-confirm")).toBeEnabled({ timeout: 20_000 });
+        await expect(tid(steward.page, "header-ver-confirm")).toBeEnabled({ timeout: T.UI });
         await tid(steward.page, "header-ver-confirm").click();
         await confirmOnScreen(steward.page, HEADER_APPLY_FROM);
         await snap(steward.page, `dmb-layoutConfirm-${name === HDR1 ? "h1" : "h2"}`);
@@ -464,7 +457,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
       for (const name of [HDR1, HDR2]) {
         const row = gridRow(tid(steward.page, "header-list"), name, "LAYOUT_NAME");
         // 목록 오른쪽 열(버전·상태)은 좁은 목록에서 가로 가상화로 그려지지 않을 수 있다 — 굴려 드러낸 뒤 본다(공용 expectRowCell).
-        await expectRowCell(row, "HEADER_VER", "v1.000", { timeout: 20_000 });
+        await expectRowCell(row, "HEADER_VER", "v1.000", { timeout: T.UI });
         await expectRowCell(row, "HEADER_STATE", "현재");
       }
       steward.watcher.assertClean("headerMng·layoutConfirm(stw)");
@@ -476,9 +469,9 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "header-search-keyword").fill(RUN);
     await button(page, "조회").click();
     await gridRow(tid(page, "header-list"), HDR1, "LAYOUT_NAME").click();
-    await expect(tid(page, "header-form-name")).toHaveValue(HDR1, { timeout: 20_000 });
+    await expect(tid(page, "header-form-name")).toHaveValue(HDR1, { timeout: T.UI });
     await newMinorThenDelete(page, "header");
-    await expectRowCell(gridRow(tid(page, "header-list"), HDR1, "LAYOUT_NAME"), "HEADER_VER", "v1.000", { timeout: 20_000 });
+    await expectRowCell(gridRow(tid(page, "header-list"), HDR1, "LAYOUT_NAME"), "HEADER_VER", "v1.000", { timeout: T.UI });
     watcher.assertClean("headerMng(새 버전 삭제)");
   });
 
@@ -493,7 +486,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expect(tid(page, "layout-search-keyword")).toBeVisible();
     await expect(tid(page, "layout-list-empty")).toHaveText("조회된 전문이 없습니다");
     await button(page, "조회").click();
-    await expect(tid(page, "layout-list").locator(".ag-center-cols-container .ag-row").first()).toBeVisible({ timeout: 20_000 });
+    await expect(gridRows(tid(page, "layout-list")).first()).toBeVisible({ timeout: T.UI });
     for (const t of ["layout-tab-edit", "layout-tab-check", "layout-tab-version"]) await expect(tid(page, t)).toBeVisible();
     await expect(screen(page).getByText("목록에서 전문을 선택하거나 [신규] 를 누르세요.")).toBeVisible();
     await expect(button(page, "저장")).toBeDisabled();
@@ -515,7 +508,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "layout-form-name").fill(LAYOUT_NAME);
     await tid(page, "layout-form-eai").selectOption(EAI1);
     const stack = stackGrid(page);
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRows(stack)).toHaveCount(1, { timeout: T.UI });
     await expect(stack).toContainText(HDR1);
     await expect(stack.locator('.ag-cell[col-id="TOTAL_LENGTH"]').first()).toHaveText("28");
     await expect(stack.locator('.ag-cell[col-id="POSITION"]').first()).toHaveText("1-28");
@@ -526,15 +519,15 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await expect(pick).toBeVisible();
     await expect(pick.locator(".ag-row").filter({ hasText: HDR1 })).toHaveCount(0);
     await (await revealRow(pick, HDR2)).click();
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(stack)).toHaveCount(2);
     await expect(stack).toContainText(HDR2);
 
     // 빼기 → 다시 추가(왕복 확인).
     await itemRow(stack, HDR2).getByRole("button", { name: "빼기" }).click();
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(1);
+    await expect(gridRows(stack)).toHaveCount(1);
     await tid(page, "layout-header-add").click();
     await (await revealRow(tid(page, "header-pick-modal"), HDR2)).click();
-    await expect(stack.locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(stack)).toHaveCount(2);
 
     await tid(page, "layout-form-snd").selectOption("MES");
     await tid(page, "layout-form-rcv").selectOption("ERP");
@@ -551,7 +544,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "item-detail-filler-length").fill("29");
 
     const grid = layoutGrid(page);
-    await expect(grid.locator(".ag-center-cols-container .ag-cell[col-id=\"OFFSET\"]")).toHaveText(["38", "58", "66"]);
+    await expect(gridCells(grid, "OFFSET")).toHaveText(["38", "58", "66"]);
     await expect(tid(page, "layout-total-length")).toHaveText("헤더 38 (28 + 10) + 본문 57 (20 + 8 + 29) = 95 바이트");
     await snap(page, "dmb-layoutMng-03-editing");
     await layout(page, "layoutMng 편집 중");
@@ -577,12 +570,12 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
 
     await button(page, "저장").click();
     await expectToast(page, "저장했습니다.");
-    await expect(tid(page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: 30_000 });
+    await expect(tid(page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: T.LONG });
 
     await tid(page, "layout-search-keyword").fill(RUN);
     await button(page, "조회").click();
     const row = gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME");
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await expect(row.locator('.ag-cell[col-id="TOTAL_LENGTH"]')).toHaveText("95");
     layoutId = (await row.locator('.ag-cell[col-id="LAYOUT_ID"]').textContent())!.trim();
     expect(layoutId).toMatch(/^\d+$/);
@@ -593,31 +586,31 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "layout-search-keyword").fill(RUN);
     await button(page, "조회").click();
     const row = gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME");
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
 
     await chooseSearch(page, "송신 시스템", "MES");
     await chooseSearch(page, "수신 시스템", "ERP");
     await button(page, "조회").click();
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
 
     await chooseSearch(page, "수신 시스템", "APS");
     await button(page, "조회").click();
-    await expect(tid(page, "layout-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "layout-list-empty")).toBeVisible({ timeout: T.UI });
 
     await chooseSearch(page, "수신 시스템", "");
     await chooseSearch(page, "송신 시스템", "");
     await button(page, "조회").click();
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await layout(page, "layoutMng 조회 조건");
     watcher.assertClean("layoutMng");
   });
 
   test("TC-DMB-LAY-05 등록 검증 — 7행 표에 거부가 없다", async () => {
     await gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME").click();
-    await expect(tid(page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: 20_000 });
+    await expect(tid(page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: T.UI });
     await tid(page, "layout-tab-check").click();
     await tid(page, "layout-check-run").click();
-    await expect(tid(page, "layout-check-table").locator('[data-testid^="layout-check-row-"]')).toHaveCount(7, { timeout: 20_000 });
+    await expect(tid(page, "layout-check-table").locator('[data-testid^="layout-check-row-"]')).toHaveCount(7, { timeout: T.UI });
     for (let n = 1; n <= 7; n++) await expect(tid(page, `layout-check-result-${n}`)).toHaveText(/^(통과|경고)$/);
     await layout(page, "layoutMng 검증 통과");
     await snap(page, "dmb-layoutMng-05-check");
@@ -628,7 +621,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "sample-input-COIL_ID").fill("C26E2E00001");
     await tid(page, "sample-input-PROD_DT").fill("20260928");
     await tid(page, "sample-render").click();
-    await expect(tid(page, "sample-length")).toContainText("95", { timeout: 20_000 });
+    await expect(tid(page, "sample-length")).toContainText("95", { timeout: T.UI });
     await expect(tid(page, "sample-length")).toContainText("EUC-KR");
     await expect(tid(page, "sample-line").locator('[data-testid^="sample-seg-"]').first()).toBeVisible();
     await expect(tid(page, "sample-parsed-COIL_ID")).toHaveText("C26E2E00001");
@@ -648,7 +641,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
 
     await tid(page, "layout-tab-check").click();
     await tid(page, "layout-check-run").click();
-    await expect(tid(page, "layout-check-result-4")).toHaveText("거부", { timeout: 20_000 });
+    await expect(tid(page, "layout-check-result-4")).toHaveText("거부", { timeout: T.UI });
     await expect(tid(page, "layout-check-message-4")).toContainText("표현 자리 2");
     await snap(page, "dmb-layoutMng-07-reject-check");
 
@@ -660,25 +653,25 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "item-detail-width").fill("4");
     await tid(page, "layout-tab-check").click();
     await tid(page, "layout-check-run").click();
-    for (let n = 1; n <= 7; n++) await expect(tid(page, `layout-check-result-${n}`)).toHaveText(/^(통과|경고)$/, { timeout: 20_000 });
+    for (let n = 1; n <= 7; n++) await expect(tid(page, `layout-check-result-${n}`)).toHaveText(/^(통과|경고)$/, { timeout: T.UI });
 
     await tid(page, "layout-tab-edit").click();
     await expect(tid(page, "layout-total-length")).toContainText("95");
     await button(page, "저장").click();
     await expectToast(page, "저장했습니다.");
-    await expect(tid(page, "layout-total-length")).toContainText("95", { timeout: 30_000 });
+    await expect(tid(page, "layout-total-length")).toContainText("95", { timeout: T.LONG });
 
     await expect(tid(page, "layout-ver-select")).toHaveValue("1.000");
     await tid(page, "layout-tab-version").click();
     const versions = tid(page, "version-list");
-    const vrow = (i: number) => versions.locator(`.ag-center-cols-container .ag-row[row-index="${i}"]`);
+    const vrow = (i: number) => gridRowByIndex(versions, i);
     // 저장은 버전을 만들지 않는다 — 확정 전이라 v1.000 작성 중 한 줄이고 전환 방식은 아직 없다
-    await expect(versions.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRows(versions)).toHaveCount(1, { timeout: T.UI });
     await expect(vrow(0).locator('.ag-cell[col-id="VER"]')).toHaveText("v1.000");
     await expect(vrow(0)).toContainText("작성 중");
     await expect(vrow(0).locator('.ag-cell[col-id="SWITCH_MODE"]')).toHaveText("-");
     await expect(tid(page, "change-class-table")).toContainText("여분을 쪼개 항목 추가");
-    await expect(tid(page, "snapshot-preview")).toContainText('"layoutVersion"', { timeout: 20_000 });
+    await expect(tid(page, "snapshot-preview")).toContainText('"layoutVersion"', { timeout: T.UI });
     await layout(page, "layoutMng 버전 이력");
     await snap(page, "dmb-layoutMng-07-version");
 
@@ -693,8 +686,8 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     // 버전 탭에 이미 있다(TC-DMB-LAY-07 에서 이동).
     await tid(page, "impact-keyword").fill("COIL_THK");
     await tid(page, "impact-search").click();
-    const row = tid(page, "impact-list").locator(".ag-center-cols-container .ag-row").filter({ hasText: LAYOUT_NAME }).first();
-    await expect(row).toBeVisible({ timeout: 20_000 });
+    const row = gridRows(tid(page, "impact-list")).filter({ hasText: LAYOUT_NAME }).first();
+    await expect(row).toBeVisible({ timeout: T.UI });
     await expect(row).toContainText("MES → ERP");
     // 3단계(D-148, 1d23688e)부터 본문 항목 offset 은 본문 기준 상대값이다(LayoutImpactFinder) — 전문 전체 기준 91 에서 헤더 38바이트를 뺀 53.
     await expect(row).toContainText("(본문 53 / 4)");
@@ -702,7 +695,7 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
 
     await tid(page, "impact-keyword").fill(`없음-${RUN}`);
     await tid(page, "impact-search").click();
-    await expect(tid(page, "impact-list-empty")).toHaveText("찾은 컬럼·도메인이 없습니다", { timeout: 20_000 });
+    await expect(tid(page, "impact-list-empty")).toHaveText("찾은 컬럼·도메인이 없습니다", { timeout: T.UI });
     await layout(page, "layoutMng 영향 전문");
     // 3단계(D-144) 버전 줄 — [해제]와 DRAFT [삭제]는 TC-DMB-LAY-10 에서 누른다.
     await assertAllButtonsPressed(page, "layoutMng", {
@@ -717,9 +710,9 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await tid(page, "header-search-keyword").fill(HDR1);
     await button(page, "조회").click();
     await gridRow(tid(page, "header-list"), HDR1, "LAYOUT_NAME").click();
-    await expect(tid(page, "header-form-name")).toHaveValue(HDR1, { timeout: 20_000 });
+    await expect(tid(page, "header-form-name")).toHaveValue(HDR1, { timeout: T.UI });
     const usage = tid(page, "header-usage");
-    await expect(usage).toContainText(LAYOUT_NAME, { timeout: 20_000 });
+    await expect(usage).toContainText(LAYOUT_NAME, { timeout: T.UI });
     await snap(page, "dmb-layoutMng-09-back-to-header");
     watcher.assertClean("headerMng(전문 저장 뒤)");
   });
@@ -732,10 +725,10 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME").click();
     // 앞 시험(LAY-08)이 [버전·영향도] 탭을 연 채라, 이름 칸이 있는 [편집] 탭으로 먼저 돌아간다.
     await tid(page, "layout-tab-edit").click();
-    await expect(tid(page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: 20_000 });
+    await expect(tid(page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: T.UI });
     await expect(tid(page, "layout-ver-confirm")).toBeDisabled();
     await tid(page, "layout-ver-unlock").click();
-    await expect(tid(page, "layout-ver-unlock")).toBeDisabled({ timeout: 20_000 });
+    await expect(tid(page, "layout-ver-unlock")).toBeDisabled({ timeout: T.UI });
     watcher.assertClean("layoutMng(해제)");
 
     // stw — 선점하고 확정한다(헤더는 HDR-09 에서 이미 현재 버전이다)
@@ -745,9 +738,9 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
       await tid(steward.page, "layout-search-keyword").fill(RUN);
       await button(steward.page, "조회").click();
       await gridRow(tid(steward.page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME").click();
-      await expect(tid(steward.page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: 20_000 });
+      await expect(tid(steward.page, "layout-form-name")).toHaveValue(LAYOUT_NAME, { timeout: T.UI });
       await tid(steward.page, "layout-ver-lock").click();
-      await expect(tid(steward.page, "layout-ver-confirm")).toBeEnabled({ timeout: 20_000 });
+      await expect(tid(steward.page, "layout-ver-confirm")).toBeEnabled({ timeout: T.UI });
       await tid(steward.page, "layout-ver-confirm").click();
       await confirmOnScreen(steward.page, LAYOUT_APPLY_FROM);
       await snap(steward.page, "dmb-layoutConfirm-layout");
@@ -760,16 +753,16 @@ test.describe("dmb 레이아웃 사용자 여정", () => {
     await headerSearch(page).click();
     const row = gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME");
     // 목록 오른쪽 열(현재·DRAFT 버전)은 가로 가상화로 그려지지 않을 수 있다 — 굴려 드러낸 뒤 본다(공용 expectRowCell).
-    await expectRowCell(row, "CURRENT_VER", "v1.000", { timeout: 20_000 });
+    await expectRowCell(row, "CURRENT_VER", "v1.000", { timeout: T.UI });
     await expectRowCell(row, "DRAFT_VER", "");
     await row.click();
-    await expect(tid(page, "layout-ver-select").locator('option[value="1.000"]')).toHaveText("v1.000 현재", { timeout: 20_000 });
+    await expect(tid(page, "layout-ver-select").locator('option[value="1.000"]')).toHaveText("v1.000 현재", { timeout: T.UI });
     await expect(tid(page, "layout-form-name")).toBeDisabled(); // 확정된 버전은 읽기 전용
     await snap(page, "dmb-layoutMng-10-released");
     // 확정된 전문에 [새 버전(minor)]으로 DRAFT 를 만들고 버전 줄 [삭제]로 지우면 현재 버전 v1.000 만 남는다.
     await newMinorThenDelete(page, "layout");
     await expect(tid(page, "layout-ver-select").locator('option[value="1.000"]')).toHaveText("v1.000 현재");
-    await expectRowCell(gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME"), "DRAFT_VER", "", { timeout: 20_000 });
+    await expectRowCell(gridRow(tid(page, "layout-list"), LAYOUT_NAME, "LAYOUT_NAME"), "DRAFT_VER", "", { timeout: T.UI });
     watcher.assertClean("layoutMng(확정 뒤)");
   });
 
@@ -857,7 +850,7 @@ test.describe("dmb 화면 연결·권한", () => {
         await tid(p, "header-search-keyword").fill(id);
         await button(p, "조회").click();
         await gridRow(tid(p, "header-list"), id, "LAYOUT_NAME").click();
-        await expect(tid(p, "header-form-name")).toHaveValue(id, { timeout: 20_000 });
+        await expect(tid(p, "header-form-name")).toHaveValue(id, { timeout: T.UI });
       }
       // 패딩 규칙 칸은 EAI 가 있어야 열려서(HeaderForm.tsx) 이 헤더(EAI 없음)에는 늘 disabled 다 —
       // 항상 열려 있는 "이름" 칸으로 충돌을 낸다.
@@ -874,7 +867,7 @@ test.describe("dmb 화면 연결·권한", () => {
       await tid(b.page, "header-search-keyword").fill(id);
       await button(b.page, "조회").click();
       await gridRow(tid(b.page, "header-list"), nameA, "LAYOUT_NAME").click();
-      await expect(tid(b.page, "header-form-name")).toHaveValue(nameA, { timeout: 20_000 });
+      await expect(tid(b.page, "header-form-name")).toHaveValue(nameA, { timeout: T.UI });
 
       a.watcher.assertClean("headerMng(A)");
       b.watcher.assertClean("headerMng(B)");
@@ -906,13 +899,13 @@ test.describe("dmb 화면 연결·권한", () => {
     const { page, watcher } = await openAs(browser, "stw", testInfo);
     try {
       await go(page, "headerMng");
-      await expect(button(page, "조회")).toBeEnabled({ timeout: 30_000 });
+      await expect(button(page, "조회")).toBeEnabled({ timeout: T.LONG });
       await expect(button(page, "신규")).toBeEnabled();
       await expect(button(page, "저장")).toBeDisabled(); // 고른 것이 없다
       await tid(page, "header-search-keyword").fill(hdrName);
       await button(page, "조회").click();
       await gridRow(tid(page, "header-list"), hdrName, "LAYOUT_NAME").click();
-      await expect(tid(page, "header-form-name")).toBeDisabled({ timeout: 20_000 });
+      await expect(tid(page, "header-form-name")).toBeDisabled({ timeout: T.UI });
       await expect(tid(page, "header-item-add-column")).toHaveCount(0);
       await expect(tid(page, "header-item-add-filler")).toHaveCount(0);
       await expect(button(page, "저장")).toBeDisabled();

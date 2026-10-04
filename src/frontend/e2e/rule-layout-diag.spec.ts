@@ -1,4 +1,5 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { BASE_URL as BASE, T, loginByApi } from "./support/common";
 
 /**
  * 룰 화면(ruleEdit) · 룰 세트 편집(ruleSetEdit) 레이아웃 진단.
@@ -16,28 +17,16 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
  * 전제: 5100 포털 + mcm/mdm 백엔드.
  */
 
-const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-
-async function login(page: Page, context: BrowserContext) {
-  const csrf = await context.request.get(`${BASE}/api/auth/csrf`);
-  const { csrfToken } = await csrf.json();
-  await context.request.post(`${BASE}/api/auth/callback/credentials`, {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    data: `csrfToken=${csrfToken}&userId=admin&password=admin123&callbackUrl=${encodeURIComponent(BASE + "/portal")}&json=true`,
-  });
-  await page.goto(`${BASE}/portal`, { waitUntil: "domcontentloaded" });
-}
 
 /** 마루 MDM > 업무기준 > leaf 를 순서대로 연다. 이미 펼쳐져 있으면 클릭을 무시한다. */
 async function openMenu(page: Page, leaf: RegExp) {
   for (const label of ["마루 MDM", "업무기준"]) {
     const n = page.locator(".tree-item .item-name").filter({ hasText: label }).first();
-    await expect(n).toBeVisible({ timeout: 30_000 });
+    await expect(n).toBeVisible({ timeout: T.LONG });
     await n.click().catch(() => {});
-    await page.waitForTimeout(400);
   }
   const t = page.locator(".tree-item .item-name").filter({ hasText: leaf }).first();
-  await expect(t).toBeVisible({ timeout: 20_000 });
+  await expect(t).toBeVisible({ timeout: T.UI });
   await t.click();
 }
 
@@ -90,10 +79,10 @@ async function measure(page: Page, screenId: string): Promise<Probe> {
 test("ruleSetEdit — footer 맨 아래 + 본문 미잘림", async ({ page, context }) => {
   test.setTimeout(150_000);
   page.setViewportSize({ width: 1600, height: 900 });
-  await login(page, context);
+  await loginByApi(context, { baseUrl: BASE, openPortal: page });
 
   await openMenu(page, /^룰 세트 편집$/);
-  await expect(page.getByTestId("set-pick-keyword")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("set-pick-keyword")).toBeVisible({ timeout: T.SLOW });
 
   // 본문(카드 그리드)이 다 그려진 상태를 만든다.
   // 본문(카드 그리드)이 다 그려진 상태를 만든다.
@@ -102,7 +91,7 @@ test("ruleSetEdit — footer 맨 아래 + 본문 미잘림", async ({ page, cont
   const pick = page.getByTestId("set-pick-LS_A3");
   await expect(pick, `세트 ${"LS_A3"} 픽 버튼이 안 떴다`).toBeVisible({ timeout: 15_000 });
   await pick.click();
-  await expect(page.getByTestId("set-card-id")).toHaveText("LS_A3", { timeout: 30_000 });
+  await expect(page.getByTestId("set-card-id")).toHaveText("LS_A3", { timeout: T.LONG });
   await page.waitForTimeout(1_500);
 
   const m = await measure(page, "ruleSetEdit");
@@ -119,15 +108,15 @@ test("ruleSetEdit — footer 맨 아래 + 본문 미잘림", async ({ page, cont
 test("ruleEdit — footer 맨 아래 + 본문 미잘림", async ({ page, context }) => {
   test.setTimeout(150_000);
   page.setViewportSize({ width: 1600, height: 900 });
-  await login(page, context);
+  await loginByApi(context, { baseUrl: BASE, openPortal: page });
 
   await openMenu(page, /^룰 화면$/);
-  await expect(page.getByTestId("rule-pick-keyword")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("rule-pick-keyword")).toBeVisible({ timeout: T.SLOW });
 
   await page.getByTestId("rule-pick-keyword").fill("BASE_SPD_LKP");
   await page.getByTestId("rule-edit-topbar").getByRole("button", { name: "찾기" }).click();
-  await page.waitForTimeout(2_000);
   const pick = page.getByTestId("rule-pick-BASE_SPD_LKP");
+  await pick.waitFor({ state: "visible", timeout: 2_000 }).catch(() => {});
   if (await pick.isVisible({ timeout: 5_000 }).catch(() => false)) await pick.click();
   await page.waitForTimeout(2_500);
   if (process.env.SNAP_OUT) await page.screenshot({ path: `${process.env.SNAP_OUT}-ruleEdit.png`, fullPage: false });

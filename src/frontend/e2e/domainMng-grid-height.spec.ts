@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { BASE_URL as BASE, T, loginByApi } from "./support/common";
 
 /**
  * dma/domainMng 그리드 높이 검증 — DomainTreeGrid 의 height={360} 제거 확인.
@@ -12,48 +13,35 @@ import { expect, test } from "@playwright/test";
  *       SMOKE_MCM_BASE_URL 로 자기 포털을 가리키는 편이 안전하다(기본 5100 은 메인 체크아웃).
  */
 
-const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-
-/** 로그인: CSRF 발급 → credentials 콜백 (six-screens-snap.spec.ts 와 동일 패턴) */
-async function login(page: import("@playwright/test").Page, context: import("@playwright/test").BrowserContext) {
-  const csrfResp = await context.request.get(`${BASE}/api/auth/csrf`);
-  const { csrfToken } = await csrfResp.json();
-  await context.request.post(`${BASE}/api/auth/callback/credentials`, {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    data: `csrfToken=${csrfToken}&userId=admin&password=admin123&callbackUrl=${encodeURIComponent(BASE + "/portal")}&json=true`,
-  });
-}
 
 test("도메인 목록 그리드가 패널 높이를 전부 사용한다", async ({ page, context }) => {
   test.setTimeout(120_000);
   page.setViewportSize({ width: 1600, height: 900 });
 
-  await login(page, context);
-  await page.goto(`${BASE}/portal`, { waitUntil: "domcontentloaded" });
+  await loginByApi(context, { baseUrl: BASE, openPortal: page });
 
   // 마루 MDM > 용어·도메인 > 도메인 관리
   for (const g of ["마루 MDM", "용어·도메인"]) {
     const node = page.locator(".tree-item .item-name").filter({ hasText: g }).first();
-    await expect(node).toBeVisible({ timeout: 30_000 });
+    await expect(node).toBeVisible({ timeout: T.LONG });
     await node.click();
-    await page.waitForTimeout(400);
   }
   const target = page.locator(".tree-item .item-name").filter({ hasText: "도메인 관리" }).first();
-  await expect(target).toBeVisible({ timeout: 20_000 });
+  await expect(target).toBeVisible({ timeout: T.UI });
   await target.click();
 
   // domainMng 화면 식별자로 특정 (다른 화면과 레이아웃 구조가 달라 혼동 방지)
   const layout = page.locator(".page-layout").filter({
     has: page.locator(".page-layout__footer-screen-id", { hasText: "domainMng" }),
   });
-  await expect(layout.locator(".domain-mng__count")).toBeVisible({ timeout: 60_000 });
+  await expect(layout.locator(".domain-mng__count")).toBeVisible({ timeout: T.SLOW });
 
   const grid = layout.locator(".grid-panel").filter({ has: page.locator(".grid-panel-title", { hasText: "도메인 목록" }) });
   await expect(grid).toBeVisible();
 
   // ag-grid 가 렌더링을 마칠 때까지 대기
   const agRoot = grid.locator(".ag-root-wrapper");
-  await expect(agRoot).toBeVisible({ timeout: 30_000 });
+  await expect(agRoot).toBeVisible({ timeout: T.LONG });
   await page.waitForTimeout(1_500);
 
   const m = await page.evaluate(() => {
