@@ -64,9 +64,14 @@ import org.springframework.transaction.event.TransactionalEventListenerFactory;
  * 남는 한계 — 적재는 호출자의 트랜잭션 안에서 돈다. 트랜잭션 단위 스냅샷 격리(SQLite WAL, PostgreSQL REPEATABLE READ,
  * MSSQL SNAPSHOT)에서는 무효화 뒤 시작한 적재도 그 트랜잭션이 시작될 때의 옛 스냅샷을 현재 세대로 저장할 수 있다(TTL 로만
  * 회복). 운영 Oracle·PostgreSQL 기본(문장 단위 READ COMMITTED)과 로컬 SQLite(WAL 설정 없음)에서는 일어나지 않는다.
- * 두 리스너 모두 예외를 밖으로 던지지 않는다 — WARN 로그만 남긴다. 트랜잭션이 끝난 뒤(커밋·롤백) 도는 리스너의 예외가
- * 밖으로 나가면, 커밋된 경우 DB 는 이미 커밋됐는데 OASIS 응답은 S001 실패로 나가기 때문이다. 이벤트는 같은 JVM 안에서만 전달되므로 다른 인스턴스·운영자의
- * 직접 SQL 은 TTL 로만 반영된다. 기동 시드({@code DataInitializer}, mcm/api)는 끝에 {@link MenuChangedEvent#SEED} 를 낸다.
+ * 한 트랜잭션 안에서 카탈로그를 두 번 적재하고 그 사이에 다른 요청이 커밋·무효화하면, 두 번째 적재가 같은 영속성 컨텍스트의
+ * 옛 엔티티 인스턴스를 돌려받아 현재 세대로 저장되고 TTL 동안 남을 수 있다. 지금은 BPMN 이 요청당 한 번만 부르고
+ * {@code open-in-view=false} 라 이 경로가 열리지 않는다. 근본 해결(엔티티 대신 불변 스칼라 투영 적재)은 호출부 타입 변경이
+ * 필요해 후속으로 남긴다.
+ * 두 리스너 모두 예외를 밖으로 던지지 않는다 — WARN 로그만 남긴다. 즉시 경로({@code @EventListener})에서는 무효화 실패가
+ * 메뉴 저장 롤백으로 번지지 않게, fallback 경로(트랜잭션 없음)에서는 발행자에게 전파되지 않게 잡는다. 트랜잭션 끝 경로는 Spring 이
+ * 이미 잡아 ERROR 로그만 남기므로 여기서는 WARN 으로 통일하는 의미뿐이다. 이벤트는 같은 JVM 안에서만 전달되므로 다른
+ * 인스턴스·운영자의 직접 SQL 은 TTL 로만 반영된다. 기동 시드({@code DataInitializer}, mcm/api)는 끝에 {@link MenuChangedEvent#SEED} 를 낸다.
  * <br>2번이 정말 트랜잭션 단계 리스너로 걸렸는지는 기동 로그 한 줄로 확인한다 — 이 빈이 속한 컨텍스트의 새로고침이 끝나면 한 번
  * {@code [menuCatalog] 트랜잭션 끝 무효화 리스너: 트랜잭션 단계 등록=true|false} 를 남긴다. Spring 은
  * {@link TransactionalEventListenerFactory} 빈({@link TransactionManagementConfigUtils#TRANSACTIONAL_EVENT_LISTENER_FACTORY_BEAN_NAME},
