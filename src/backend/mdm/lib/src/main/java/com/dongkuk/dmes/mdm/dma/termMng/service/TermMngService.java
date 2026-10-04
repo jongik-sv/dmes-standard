@@ -7,6 +7,7 @@ import com.dongkuk.dmes.cactus.common.ErrorCode;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingCodec;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingEncoder;
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
+import com.dongkuk.dmes.mdm.common.support.MdmJsonLists;
 import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache;
 import com.dongkuk.dmes.mdm.dma.termMng.TermRecommendationCache.CachedTerm;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.RecommendCandidate;
@@ -21,8 +22,6 @@ import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSearchRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSearchResult;
 import com.dongkuk.dmes.mdm.entity.MdmTerm;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -34,6 +33,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -52,7 +52,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class TermMngService {
 
     private static final Logger log = LoggerFactory.getLogger(TermMngService.class);
-    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() { };
+    /** JSON 목록 파싱 실패 경고 로그 앞머리. */
+    private static final String LOG_LABEL = "termMng";
     /** 동의어 표기의 "명칭(시스템)" 접미사를 잘라내는 패턴(I18). */
     private static final Pattern TRAILING_PAREN = Pattern.compile("\\s*\\([^)]*\\)\\s*$");
     private static final double MIN_STAGE1_SCORE = 0.5d;
@@ -63,11 +64,6 @@ public class TermMngService {
     private static final double CONTAIN_SPAN = 0.2d;
     private static final int TOP_N = 5;
     private static final int DEFAULT_CHUNK_SIZE = 500;
-
-    // Spring Boot 4 는 기본 JSON 스택으로 tools.jackson(Jackson 3)을 쓰고 classic
-    // com.fasterxml.jackson.databind.ObjectMapper 빈을 자동 등록하지 않는다(실측 확인) — 이 리포의
-    // 기존 관례(GridConverter, AuditLogger 등)와 같이 직접 인스턴스를 만들어 쓴다.
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final MdmTermRepository termRepository;
     private final TermEmbeddingRepository embeddingRepository;
@@ -86,29 +82,44 @@ public class TermMngService {
     // action: search
     // ────────────────────────────────────────────────────────────────
 
+    /**
+     * 키워드·상황 조건은 DB 에서 {@link TermSearchPrefilter} 로 먼저 줄이고(필요조건만), 아래 Java 비교가 최종 판정한다. 비교 순서
+     * (키워드 → 시스템 → 상황)와 JSON 목록 해석은 예전 그대로다. 행마다 JSON 칸은 한 번만 파싱한다.
+     */
     public TermSearchResult search(TermSearchRequest request) {
         String keyword = trimToNull(request != null ? request.getKeyword() : null);
         String keywordUpper = keyword == null ? null : keyword.toUpperCase(Locale.ROOT);
         String systemsFilter = trimToNull(request != null ? request.getSystems() : null);
         String contextFilter = trimToNull(request != null ? request.getContext() : null);
+        String contextUpper = contextFilter == null ? null : contextFilter.toUpperCase(Locale.ROOT);
 
-        List<TermRow> rows = termRepository.findAll().stream()
-                .filter(t -> keywordUpper == null || matchesKeyword(t, keywordUpper))
-                .filter(t -> systemsFilter == null || readStringList(t.getSystems()).stream()
+        Specification<MdmTerm> prefilter = TermSearchPrefilter.of(keywordUpper, contextUpper, systemsFilter != null);
+        List<TermRow> rows = termRepository.findAll(prefilter, TermSearchPrefilter.ORDER).stream()
+                .map(ParsedTerm::of)
+                .filter(p -> keywordUpper == null || matchesKeyword(p, keywordUpper))
+                .filter(p -> systemsFilter == null || p.systems().stream()
                         .anyMatch(s -> s.equalsIgnoreCase(systemsFilter)))
-                .filter(t -> contextFilter == null || (t.getContext() != null
-                        && t.getContext().toUpperCase(Locale.ROOT).contains(contextFilter.toUpperCase(Locale.ROOT))))
-                .map(this::toRow)
+                .filter(p -> contextUpper == null || (p.term().getContext() != null
+                        && p.term().getContext().toUpperCase(Locale.ROOT).contains(contextUpper)))
+                .map(TermMngService::toRow)
                 .toList();
         return new TermSearchResult(rows);
     }
 
-    private boolean matchesKeyword(MdmTerm t, String keywordUpper) {
-        if (contains(t.getTermName(), keywordUpper) || contains(t.getEngAbbr(), keywordUpper)) {
+    /** 검색 한 행 — JSON 목록 세 칸을 한 번만 파싱해 둔다. JSON null 리터럴이면 목록이 null 이다(기존 동작). */
+    private record ParsedTerm(MdmTerm term, List<String> synonyms, List<String> aliases, List<String> systems) {
+        static ParsedTerm of(MdmTerm t) {
+            return new ParsedTerm(t, readStrings(t.getSynonyms()), readStrings(t.getAliases()),
+                    readStrings(t.getSystems()));
+        }
+    }
+
+    private static boolean matchesKeyword(ParsedTerm p, String keywordUpper) {
+        if (contains(p.term().getTermName(), keywordUpper) || contains(p.term().getEngAbbr(), keywordUpper)) {
             return true;
         }
-        return readStringList(t.getSynonyms()).stream().anyMatch(s -> contains(s, keywordUpper))
-                || readStringList(t.getAliases()).stream().anyMatch(s -> contains(s, keywordUpper));
+        return p.synonyms().stream().anyMatch(s -> contains(s, keywordUpper))
+                || p.aliases().stream().anyMatch(s -> contains(s, keywordUpper));
     }
 
     private static boolean contains(String value, String keywordUpper) {
@@ -172,9 +183,9 @@ public class TermMngService {
         entity.setContext(trimToNull(request.getContext()));
         entity.setEngName(engName);
         entity.setEngAbbr(engAbbr);
-        entity.setSynonyms(writeJson(parseCommaList(request.getSynonyms())));
-        entity.setAliases(writeJson(parseCommaList(request.getAliases())));
-        entity.setSystems(writeJson(parseCommaList(request.getSystems())));
+        entity.setSynonyms(MdmJsonLists.writeStrings(parseCommaList(request.getSynonyms())));
+        entity.setAliases(MdmJsonLists.writeStrings(parseCommaList(request.getAliases())));
+        entity.setSystems(MdmJsonLists.writeStrings(parseCommaList(request.getSystems())));
         entity.setStdBasis(trimToNull(request.getStdBasis()));
 
         // advisor 지적 — JPA insert 가 아직 flush 되지 않으면 뒤이은 네이티브 UPDATE(EMBEDDING)가 0건이 된다.
@@ -430,7 +441,8 @@ public class TermMngService {
         }
     }
 
-    private TermRow toRow(MdmTerm t) {
+    private static TermRow toRow(ParsedTerm p) {
+        MdmTerm t = p.term();
         TermRow row = new TermRow();
         row.setTermId(t.getTermId());
         row.setTermName(t.getTermName());
@@ -439,9 +451,9 @@ public class TermMngService {
         row.setContext(t.getContext());
         row.setEngName(t.getEngName());
         row.setEngAbbr(t.getEngAbbr());
-        row.setSynonyms(readStringList(t.getSynonyms()));
-        row.setAliases(readStringList(t.getAliases()));
-        row.setSystems(readStringList(t.getSystems()));
+        row.setSynonyms(p.synonyms());
+        row.setAliases(p.aliases());
+        row.setSystems(p.systems());
         row.setStdBasis(t.getStdBasis());
         return row;
     }
@@ -460,27 +472,8 @@ public class TermMngService {
                 .toList();
     }
 
-    private String writeJson(List<String> list) {
-        if (list == null || list.isEmpty()) {
-            return null;
-        }
-        try {
-            return OBJECT_MAPPER.writeValueAsString(list);
-        } catch (Exception e) {
-            throw new IllegalStateException("JSON 직렬화 실패", e);
-        }
-    }
-
-    private List<String> readStringList(String json) {
-        if (json == null || json.isBlank()) {
-            return List.of();
-        }
-        try {
-            return OBJECT_MAPPER.readValue(json, STRING_LIST);
-        } catch (Exception e) {
-            log.warn("[termMng] JSON 파싱 실패 — 빈 목록으로 대체: {}", json, e);
-            return List.of();
-        }
+    private static List<String> readStrings(String json) {
+        return MdmJsonLists.readStrings(json, LOG_LABEL);
     }
 
     /** 자바 문자 단위 편집 거리(Levenshtein) — D9(외부 라이브러리·DB 네이티브 미사용). */

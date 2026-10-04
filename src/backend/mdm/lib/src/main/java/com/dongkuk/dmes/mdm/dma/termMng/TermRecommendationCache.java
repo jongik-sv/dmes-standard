@@ -1,10 +1,9 @@
 package com.dongkuk.dmes.mdm.dma.termMng;
 
 import com.dongkuk.dmes.mdm.common.embedding.TermEmbeddingRepository;
+import com.dongkuk.dmes.mdm.common.support.MdmJsonLists;
 import com.dongkuk.dmes.mdm.entity.MdmTerm;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -27,18 +26,14 @@ import org.springframework.stereotype.Component;
 public class TermRecommendationCache {
 
     private static final Logger log = LoggerFactory.getLogger(TermRecommendationCache.class);
-    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() { };
+    /** JSON 목록 파싱 실패 경고 로그 앞머리. */
+    private static final String LOG_LABEL = "TermRecommendationCache";
 
     /** 캐시 항목 — 1차(문자열)·2차(임베딩) 추천이 참조하는 스냅샷. */
     public record CachedTerm(
             Long termId, String termName, int senseNo, String engName,
             List<String> synonyms, List<String> aliases, List<String> systems, float[] embedding) {
     }
-
-    // Spring Boot 4 는 기본 JSON 스택으로 tools.jackson(Jackson 3)을 쓰고 classic
-    // com.fasterxml.jackson.databind.ObjectMapper 빈을 자동 등록하지 않는다(실측 확인) — 이 리포의
-    // 기존 관례(GridConverter, AuditLogger 등)와 같이 직접 인스턴스를 만들어 쓴다.
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final MdmTermRepository termRepository;
     private final TermEmbeddingRepository embeddingRepository;
@@ -89,19 +84,8 @@ public class TermRecommendationCache {
     private CachedTerm toCachedTerm(MdmTerm term, float[] embedding) {
         return new CachedTerm(
                 term.getTermId(), term.getTermName(), term.getSenseNo(), term.getEngName(),
-                readStringList(term.getSynonyms()), readStringList(term.getAliases()),
-                readStringList(term.getSystems()), embedding);
-    }
-
-    private List<String> readStringList(String json) {
-        if (json == null || json.isBlank()) {
-            return List.of();
-        }
-        try {
-            return OBJECT_MAPPER.readValue(json, STRING_LIST);
-        } catch (Exception e) {
-            log.warn("[TermRecommendationCache] JSON 파싱 실패 — 빈 목록으로 대체: {}", json, e);
-            return List.of();
-        }
+                MdmJsonLists.readStrings(term.getSynonyms(), LOG_LABEL),
+                MdmJsonLists.readStrings(term.getAliases(), LOG_LABEL),
+                MdmJsonLists.readStrings(term.getSystems(), LOG_LABEL), embedding);
     }
 }
