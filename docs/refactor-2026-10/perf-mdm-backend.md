@@ -90,7 +90,7 @@
 - 관련 구조 변경: S6
 - 커밋 내용: 검색은 `ColumnSearchPrefilter` 로 후보 컬럼·매핑·도메인·용어만 읽고, `save` 용어 존재 검사·충돌 소유 컬럼·`compare(REVERSE)` 중복의 반복문 단건 조회를 IN 조회로 묶는다(c273897e).
 - 지표: (결정적) `search` 1회당 쿼리 수·엔티티 로드 수, 반복문 단건 조회 → IN 조회로 바뀐 세 곳(`save` 용어 `existsById`·충돌 소유 컬럼 `findById`·`compare` REVERSE `findById`)의 쿼리 수.
-- 측정 절차: 특성 시험 `ColumnMngSearchCharacterizationTest`(검색)·`ColumnMngLookupCharacterizationTest`(단건 조회 세 곳)(둘 다 `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dma/columnMng/`)의 시나리오에서 Hibernate Statistics 로 센다. 두 시험은 이미 쿼리 수와 엔티티 로드 수를 기록한다(f2392a4a 본문).
+- 측정 절차: 특성 시험 `ColumnMngSearchCharacterizationTest`(검색)·`ColumnMngLookupCharacterizationTest`(단건 조회 세 곳)(둘 다 `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dma/columnMng/`)의 시나리오에서 Hibernate Statistics 로 센다. 검색 시험은 쿼리 수·엔티티 로드 수, 단건 조회 시험은 쿼리 수(Hibernate 문 수)만 기록한다(f2392a4a 본문, 코드 확인).
   1. `generate_statistics=true`, 시나리오 직전 `s.clear()`, 호출 뒤 `getPrepareStatementCount()`·`getEntityLoadCount()` 를 읽는다.
   2. 기준은 별도 워크트리에서 태그 `refactor-2026-10-base` 를 열어 같은 시험 파일(f2392a4a)만 복사해 같은 시나리오를 돌린다.
   3. 컬럼 수(예: 13·33)와 용어 행 수(`save` 용어 3·6행), 충돌 소유 컬럼 수, REVERSE 컬럼·매핑 수를 시험의 시나리오 값 그대로 쓴다. 규모를 늘려 볼 때는 시나리오를 임시로 늘린다.

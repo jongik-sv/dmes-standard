@@ -34,7 +34,7 @@
     | CodeItemEditService:593·CodeCateEditService:409 | `str(BigDecimal)` | 다름 — 버전 숫자를 `setScale(VER_SCALE).toPlainString()` 으로 만듦 | 이름만 같고 인자·용도가 달라 대상 아님 |
     | DataItemRows:26·RuleScreenSupport:101 | public `blankToNull` | `MdmStrings` 에 위임 | 시그니처 유지(위에 적음) |
 
-    남은 확정 서비스 사본 4곳(RuleConfirm·RuleSetConfirm·CodeConfirm의 `trimToNull` 둘과 `invalid`) 과 RuleSetEditService 는 본문이 같아 금지가 풀리면 기계적으로 치환할 수 있다.
+    남은 확정 서비스 사본 4곳(`trimToNull` 셋(RuleConfirm·RuleSetConfirm·CodeConfirm)과 CodeConfirm 의 `invalid`) 과 RuleSetEditService 는 본문이 같아 금지가 풀리면 기계적으로 치환할 수 있다.
 - 바꾼 이유: 같은 본문 사본 27곳이 흩어져 있어 한쪽만 고쳐지는 드리프트가 생길 수 있다. 정본 하나로 모은다.
 - 동작 보존 근거: `MdmStringsTest`(db95bc1e 에서 추가, 신규 41줄)가 세 메서드의 경계(null·빈 문자열·공백만·앞뒤 공백)를 고정한다. 리뷰에서 치환 전후 본문 동일성을 확인했고, mdm 시험이 통과했다(조정 지시 기준 기록, 시험 로그 원문은 확인 필요).
 - 영향 범위: 호출부 29개 파일(db95bc1e `--stat`: 소스 27 + 신규 `MdmStrings` + 시험 `MdmStringsTest`, 159 추가·165 삭제). 영역은 common(dictionary·rule·rule/check·rule/definition·support), dma(columnMng·termMng·termRegPop·unitMng), dmc(codeCateEdit·codeEdit·codeItemEdit·codeMng), dmd(dataCateEdit·dataEdit·dataHistory·dataItemMng·dataMng), dme(ruleMng·ruleSetMng), feed/metaFeed. BPMN 연결 이름(`camunda:class`·메서드 이름)은 그대로다. 화면·API·설정 변경 없음. 다른 레인과 겹치는 파일 없음(mdm 모듈 안).
@@ -64,14 +64,14 @@
   - `readStrings` — 엄격. JSON null 리터럴이면 null(빈 목록 아님). 깨진 JSON·배열 아님은 빈 목록 + 경고 로그
   - `readArrayElements` — 원소 단위 관대 읽기(용어 사전 표면형)
   - `readLongs` — ID 목록, null 원소 자리 유지
-  - 쓰기(`writeJson`)도 여기로 옮김. 표면형의 이름 추출·괄호 떼기는 `TermDictionary` 에 남겼다. 옛 private 파서와 클래스별 `ObjectMapper` 는 지웠다. 기본 설정의 classic `ObjectMapper` 를 쓴다(Spring Boot 4 가 이 타입 빈을 자동 등록하지 않음 — 클래스 javadoc).
+  - 쓰기(옛 `writeJson` → `MdmJsonLists.writeStrings`)도 여기로 옮김. 표면형의 이름 추출·괄호 떼기는 `TermDictionary` 에 남겼다. 옛 private 파서와 클래스별 `ObjectMapper` 는 지웠다. 기본 설정의 classic `ObjectMapper` 를 쓴다(Spring Boot 4 가 이 타입 빈을 자동 등록하지 않음 — 클래스 javadoc).
 - 바꾼 이유: 같은 일을 하는 파서가 네 곳에 흩어져 있어 한쪽만 고쳐질 수 있다.
 - 동작 보존 근거: 29a613ba 가 같은 입력 행렬로 네 파서를 먼저 고정했다 — `TermJsonListCharacterizationTest`·`TermJsonListParserCharacterizationTest`(termMng), `TermDictionaryParseSurfacesCharacterizationTest`(naming), `ColumnMngParseTermIdsCharacterizationTest`(columnMng). 저장 JSON 이 한글을 이스케이프하지 않음과 SQLite `json_valid` CHECK 도 고정한다. JSON null 리터럴·`[null]` 시스템 원소의 NPE 는 기존 결함으로 `assertThrows` 에 남겼다(고치지 않음). 커밋 본문: "특성 시험은 그대로 통과한다"(시험 로그 원문은 확인 필요).
 - 영향 범위: mdm lib 의 dma(termMng·naming·columnMng) 4개 파일 + 신규 1개(134 추가·97 삭제). 화면·API·설정·다른 레인 변경 없음.
-- 되돌리는 방법: `git revert cd6aca56`. 이후 커밋(S4·S5·S6)이 `MdmJsonLists`·`readStrings` 를 이어서 쓰므로 그 커밋들을 먼저 되돌려야 한다 — 확인 필요(호출 관계는 코드로 대조하지 않음).
+- 되돌리는 방법: `git revert cd6aca56`. S5 의 0ec7a57b 는 `ParsedTerm` 에서 `readStrings` 를 새로 부르고, S6 의 c273897e 는 `parseTermIds` 호출을 옮겼으며 이 메서드는 `MdmJsonLists.readLongs` 에 위임한다(ColumnMngService:710-711). 그래서 S5·S6 을 먼저 되돌려야 한다(S5·S6 은 코드로 확인함). S4(2153ebb7)는 `MdmJsonLists` 를 쓰지 않지만 cd6aca56 과 같은 ColumnMngService 를 고쳐 되돌릴 때 글자 충돌이 날 수 있다.
 
 ## S4. 컬럼 사전·용어 등록 팝업의 용어 사전 읽기 사본을 TermDictionaryLoader 하나로 합침
-- 커밋: 2153ebb7(변경), f2392a4a(특성 시험, 7a3e0570 완성), 7a3e0570(wip — 컬럼 검색 특성 시험을 이동 준비로 중간에 남긴 커밋. 미검증 상태였고 f2392a4a 에서 완성·검증됨. 이 커밋만 되돌리거나 단독 체크아웃하면 시험이 미완성이다)
+- 커밋: 2153ebb7(변경), f2392a4a(특성 시험, 7a3e0570 완성), 7a3e0570(wip — 컬럼 검색 특성 시험을 이동 준비로 중간에 남긴 커밋. 미검증 상태였고 f2392a4a 에서 완성·검증됨. 이 커밋을 단독 체크아웃하면 시험이 미완성이다)
 - 바뀌기 전: `ColumnMngService`·`TermRegPopService` 가 용어 표 전체를 `TermDictionary` 로 만드는 private `loadDictionary` 를 각자 가졌다. 글자 그대로 같은 코드였다(1단계 특성 시험으로 차이 없음 확인 — 커밋 본문).
 - 바뀐 뒤: `dma.support.TermDictionaryLoader.load(MdmTermRepository)`(신규 30줄) 하나. `findAll()` 순서를 그대로 넘기고 정렬하지 않는다. `dma.naming` 은 DB 에 기대지 않는 순수 패키지라 로더는 `dma.support` 에 둔다.
 - 캐시를 넣지 않은 이유: 설계 불변 규칙 I26(요청마다 새로 읽음) 때문이다(`TermDictionaryLoader` javadoc, 커밋 본문). 그래서 이 항목은 성능 항목(P)이 아니라 구조 변경이다.
@@ -93,7 +93,7 @@
   - ESCAPE: `%`·`_` 는 `ESCAPE '!'` 로 처리한다. 역슬래시를 이스케이프 문자로 쓰지 않은 것은 방언마다 문자열 리터럴의 역슬래시 해석이 달라서다. 쓰는 함수는 `UPPER`·`LIKE`·`ESCAPE` 뿐이라 Oracle·PostgreSQL·SQLite 공통 문법이라고 커밋 본문이 적었다.
   - JSON 칸: 이스케이프된 원소를 놓치지 않게 원문에 역슬래시가 든 행은 늘 남긴다.
   - 기존 결함 보존: JSON null 리터럴 NPE 동작을 바꾸지 않으려고 원문에 `null` 이 든 행도 남기고, 64bcf6cc 에서 키워드 단계 NPE 행을 상황 조건이 빼지 않도록 고쳤다(결함 수정 커밋에서 함께 뺄 조건).
-- 동작 보존 근거: `TermMngSearchCharacterizationTest`(29a613ba 354줄, 64bcf6cc 에서 2건 추가 — 옛 검색 코드에서는 통과하고 0ec7a57b 에서는 실패하던 것을 확인)·f8087cce 의 21건(옛 코드에서 통과 확인: ASCII 로 바뀌는 원본 글자·느낌표 섞인 키워드·상황 조건 뒤 시스템 NPE)·`TermSearchPrefilterTest`·`TermSearchPrefilterSqliteTest`(0ec7a57b). **SQLite 로만 확인함. Oracle·PostgreSQL 의 LIKE 대소문자 구분·ESCAPE·CLOB 비교는 정적 리뷰 결과이며 운영 DB 확인이 필요하다.** 시험 통과 로그 원문도 확인 필요.
+- 동작 보존 근거: `TermMngSearchCharacterizationTest`(29a613ba 354줄, 64bcf6cc 에서 2건 추가 — 옛 검색 코드에서는 통과하고 0ec7a57b 에서는 실패하던 것을 확인)·f8087cce 가 더한 3건(ASCII 로 바뀌는 원본 글자·느낌표·퍼센트·밑줄 섞인 키워드·상황 조건 뒤 시스템 NPE, 옛 코드에서 통과 확인. 커밋 본문의 21건은 그 시점 클래스 전체(18+3)가 옛 코드에서 통과한 수)·`TermSearchPrefilterTest`·`TermSearchPrefilterSqliteTest`(0ec7a57b). **SQLite 로만 확인함. Oracle·PostgreSQL 의 LIKE 대소문자 구분·ESCAPE·CLOB 비교는 정적 리뷰 결과이며 운영 DB 확인이 필요하다.** 시험 통과 로그 원문도 확인 필요.
 - 영향 범위: `TermMngService`·신규 `TermSearchPrefilter`·`MdmTermRepository`(0ec7a57b 6개 파일). 가짜 저장소 파서 특성 시험은 새 조회 메서드를 스텁하도록만 고쳤다. 화면·API 응답 모양 변경 없음.
 - 되돌리는 방법: 64bcf6cc 를 먼저, 이어 0ec7a57b 를 되돌린다(`git revert 64bcf6cc 0ec7a57b`). 특성 시험 29a613ba·f8087cce 는 남겨도 된다.
 
@@ -112,7 +112,7 @@
   - 하위 조회는 상관 `EXISTS` 로만 쓴다(Criteria 의 `expr.in(subquery)` 는 Hibernate 가 `IN ((select …))` 로 그려 Oracle 에서 단일 행 하위 조회로 읽힐 수 있다는 javadoc 근거). 숫자·`-` 만 있는 도메인 키워드는 CAST 없이 도메인 행 존재만 본다.
 - 동작 보존 근거: `ColumnMngSearchCharacterizationTest`(검색어·도메인 키워드 조건마다 일치·불일치·대소문자·한글·`%`·`_`·역슬래시·trim, 조건 없음, 결과 순서·건수·응답 13개 키)와 `ColumnMngLookupCharacterizationTest`(save 용어 `existsById` 경우들·충돌 소유 컬럼·REVERSE 중복)를 변경 전 코드로 먼저 고정했고(f2392a4a), `ColumnSearchPrefilterTest` 가 추가됐다. **SQLite 로만 확인함. Oracle·PostgreSQL 의 LIKE 대소문자 구분·ESCAPE·CLOB 비교는 정적 리뷰 결과이며 운영 DB 확인이 필요하다.** 시험 통과 로그 원문은 확인 필요.
 - 영향 범위: `ColumnMngService`·신규 `ColumnSearchPrefilter`·저장소 세 개(`MdmColumn`·`MdmColumnSystem`·`MdmTerm`, 371 추가·40 삭제). 응답 모양·화면·설정 변경 없음.
-- 되돌리는 방법: `git revert c273897e`. 특성 시험은 남겨도 된다(쿼리 수는 기록만 한다고 커밋 본문이 적었다 — 단언 여부는 확인 필요).
+- 되돌리는 방법: `git revert c273897e`. 특성 시험은 남겨도 된다(쿼리 수는 기록만 하고 단언하지 않음(코드 확인 — Lookup 400행·Search 355행 javadoc "단언하지 않는다 — 2단계가 바꿀 값이다")).
 
 ## 메모
 - 항목 1(마스터코드 선분 flush, a139fe07·8db3e93c·0daad719)은 구조 변경이 아니라 쓰기 시점 변경이라 S 에 넣지 않는다. 성능 기록 P1 에 있다.
