@@ -1191,26 +1191,26 @@ test.describe("C 카테고리 탭·이력", () => {
     await tid(page, "cate-edit-MAJOR").click();
     const panel = tid(page, "transfer-list-panel");
     await expect(panel).toBeVisible({ timeout: T.UI });
-    for (const code of ["KRPUS", "KRINC", "CNSHA"]) await expect(tid(page, `transfer-available-${code}`)).toBeVisible();
+    for (const code of ["KRPUS", "KRINC", "CNSHA"]) await expect(tid(page, `transfer-item-available-${code}`)).toBeVisible();
 
     // 검색어로 좁혔다가 푼다.
-    await tid(page, "transfer-query").fill("인천");
-    await expect(tid(page, "transfer-available-KRINC")).toBeVisible();
-    await expect(page.locator('[data-testid="transfer-available-KRPUS"]')).toHaveCount(0);
-    await tid(page, "transfer-query").fill("");
+    await tid(page, "transfer-search").fill("인천");
+    await expect(tid(page, "transfer-item-available-KRINC")).toBeVisible();
+    await expect(page.locator('[data-testid="transfer-item-available-KRPUS"]')).toHaveCount(0);
+    await tid(page, "transfer-search").fill("");
 
-    await tid(page, "transfer-available-KRPUS").click();
-    await tid(page, "transfer-available-CNSHA").click();
+    await tid(page, "transfer-item-available-KRPUS").click();
+    await tid(page, "transfer-item-available-CNSHA").click();
     await tid(page, "transfer-move-right").click();
-    await expect(tid(page, "transfer-member-KRPUS")).toBeVisible();
-    await expect(tid(page, "transfer-member-CNSHA")).toBeVisible();
+    await expect(tid(page, "transfer-item-member-KRPUS")).toBeVisible();
+    await expect(tid(page, "transfer-item-member-CNSHA")).toBeVisible();
     await snap(page, "dmd-dataCateEdit-04-transfer");
     // 오른쪽에서 골라 왼쪽으로 되돌린다(적용 전이라 서버에는 아무것도 가지 않는다 — 적용은 TC-DMD-CATE-08).
-    await tid(page, "transfer-member-KRPUS").click();
-    await tid(page, "transfer-member-CNSHA").click();
+    await tid(page, "transfer-item-member-KRPUS").click();
+    await tid(page, "transfer-item-member-CNSHA").click();
     await tid(page, "transfer-move-left").click();
-    await expect(tid(page, "transfer-available-KRPUS")).toBeVisible();
-    await expect(page.locator('[data-testid="transfer-member-KRPUS"]')).toHaveCount(0);
+    await expect(tid(page, "transfer-item-available-KRPUS")).toBeVisible();
+    await expect(page.locator('[data-testid="transfer-item-member-KRPUS"]')).toHaveCount(0);
     await closeDialog(page);
     await expect(cateCell(page, "MAJOR", "matchCount")).toHaveText("0건");
     await layout.layout(page, "dataCateEdit TABLE 편집 뒤");
@@ -1260,6 +1260,7 @@ test.describe("C 카테고리 탭·이력", () => {
     await expect(tid(page, "cate-close-MAJOR")).toBeVisible({ timeout: T.UI });
     await selectCate(page, "MAJOR");
     await tid(page, "cate-edit-MAJOR").click();
+    await tid(page, "transfer-item-available-KRPUS").click();
     await expect(tid(page, "transfer-move-right")).toBeEnabled({ timeout: T.UI });
     await closeDialog(page);
     // 카테고리 행의 버튼(닫기·다시 열기·편집)은 표 안에 있어 커버리지 대상이 아니다.
@@ -1385,14 +1386,14 @@ test.describe("C 카테고리 탭·이력", () => {
     await selectCate(page, "MAJOR");
     await tid(page, "cate-edit-MAJOR").click();
     await expect(tid(page, "transfer-list-panel")).toBeVisible({ timeout: T.UI });
-    await tid(page, "transfer-available-KRPUS").click();
-    await tid(page, "transfer-available-CNSHA").click();
+    await tid(page, "transfer-item-available-KRPUS").click();
+    await tid(page, "transfer-item-available-CNSHA").click();
     await tid(page, "transfer-move-right").click();
     await tid(page, "transfer-apply").click();
     await expectToast(page, "적용했습니다");
     await expect(cateCell(page, "MAJOR", "matchCount")).toHaveText("2건", { timeout: T.UI });
 
-    await tid(page, "transfer-member-CNSHA").click();
+    await tid(page, "transfer-item-member-CNSHA").click();
     await tid(page, "transfer-move-left").click();
     await tid(page, "transfer-apply").click();
     await expectToast(page, "적용했습니다");
