@@ -1,7 +1,9 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, T, clickMenuPath, login } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowByIndex, gridRows } from "./support/grid";
 
 /**
  * 컬럼 사전(columnMng) + 용어 인라인 등록 팝업(termRegPop) — TSK-04-04 design.md §3.5.
@@ -20,8 +22,6 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  * SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다(기본값 5100 은 메인 체크아웃 포털 → 거짓 통과).
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const STDADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
@@ -32,48 +32,33 @@ const SYSTEM_FIELD_ERROR = "한 시스템 안에서 필드명 하나는 컬럼 �
 // __dirname = src/frontend/e2e → repo root 까지 3단계 위.
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-04-04/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
 async function openColumnMng(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  await item(/^마루 MDM$/).click({ timeout: 20_000 });
-  await item(/^용어·도메인$/).click({ timeout: 20_000 });
-  await item(/^컬럼 사전$/).click({ timeout: 20_000 });
-  await expect(page.getByTestId("column-list")).toBeVisible({ timeout: 60_000 });
+  await clickMenuPath(page, [/^마루 MDM$/, /^용어·도메인$/, /^컬럼 사전$/]);
+  await expect(page.getByTestId("column-list")).toBeVisible({ timeout: T.SLOW });
 }
 
 async function decompose(page: Page, input: string) {
   await page.getByTestId("gen-input").fill(input);
   await page.getByTestId("gen-decompose").click();
-  await expect(page.getByTestId("token-row-1")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("token-row-1")).toBeVisible({ timeout: T.UI });
 }
 
 /** 논리명 칸이 글자 그대로 같은 목록 행(부분 문자열로 다른 행이 걸리지 않게). */
 function listRow(page: Page, columnName: string): Locator {
   const exact = new RegExp(`^${columnName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
-  return page
-    .getByTestId("column-list")
-    .locator(".ag-center-cols-container .ag-row")
+  return gridRows(page.getByTestId("column-list"))
     .filter({ has: page.locator('.ag-cell[col-id="columnName"]', { hasText: exact }) });
 }
 
 /** 시스템 그리드 n번째(0부터) 행의 셀. */
 function systemCell(page: Page, rowIndex: number, colId: string): Locator {
-  return page
-    .getByTestId("system-grid")
-    .locator(`.ag-center-cols-container .ag-row[row-index="${rowIndex}"] .ag-cell[col-id="${colId}"]`);
+  return gridRowByIndex(page.getByTestId("system-grid"), rowIndex).locator(`.ag-cell[col-id="${colId}"]`);
 }
 
 async function addSystemRow(page: Page, rowIndex: number, systemCode: string, fieldName?: string) {
   await page.getByTestId("system-grid").getByRole("button", { name: "행추가" }).click();
   const systemCellLocator = systemCell(page, rowIndex, "systemCode");
-  await expect(systemCellLocator).toBeVisible({ timeout: 10_000 });
+  await expect(systemCellLocator).toBeVisible();
   await systemCellLocator.click();
   await systemCellLocator.locator("select").selectOption(systemCode);
   await expect(systemCellLocator).toHaveText(systemCode, { timeout: 5_000 });
@@ -89,7 +74,7 @@ async function addSystemRow(page: Page, rowIndex: number, systemCode: string, fi
 
 async function errorModalText(page: Page): Promise<Locator> {
   const modal = page.locator(".error-modal__body");
-  await expect(modal).toBeVisible({ timeout: 20_000 });
+  await expect(modal).toBeVisible({ timeout: T.UI });
   return modal;
 }
 
@@ -110,7 +95,7 @@ test.describe("mdm columnMng — 컬럼 사전", () => {
     await openColumnMng(page);
 
     await expect(page.locator(".page-layout__footer-breadcrumb").filter({ hasText: BREADCRUMB })).toBeVisible();
-    await expect(page.getByTestId("column-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("column-list-empty")).toBeVisible({ timeout: T.UI });
 
     await page.screenshot({ path: screenshot("dma-columnMng-empty.png"), fullPage: true });
   });
@@ -136,18 +121,18 @@ test.describe("mdm columnMng — 컬럼 사전", () => {
     // E3 — *** 자리에서 팝업 → 유사어 확인 → 약어 제안 → 등록.
     await page.getByTestId("token-placeholder-4").click();
     const pop = page.getByTestId("term-pop");
-    await expect(pop).toBeVisible({ timeout: 20_000 });
-    await expect(pop.getByTestId("term-pop-similar")).toContainText("오차", { timeout: 20_000 });
+    await expect(pop).toBeVisible({ timeout: T.UI });
+    await expect(pop.getByTestId("term-pop-similar")).toContainText("오차", { timeout: T.UI });
     await expect(pop.getByTestId("term-pop-term-name")).toHaveValue("편차");
     await expect(pop.getByTestId("term-pop-sense-no")).toHaveValue("1");
     await pop.getByTestId("term-pop-eng-name").fill("Deviation");
     await pop.getByTestId("term-pop-abbr-suggest").click();
-    await expect(pop.getByTestId("term-pop-abbr")).toHaveValue("DEV", { timeout: 20_000 });
+    await expect(pop.getByTestId("term-pop-abbr")).toHaveValue("DEV", { timeout: T.UI });
     await pop.getByTestId("term-pop-definition").fill("기준값과 실제값의 차이");
     await page.screenshot({ path: screenshot("dma-termRegPop.png"), fullPage: true });
     await page.getByTestId("term-pop-reg").click();
-    await expect(page.getByTestId("term-pop")).toHaveCount(0, { timeout: 20_000 });
-    await expect(page.getByTestId("gen-preview")).toHaveText("RMTL_COIL_THK_DEV", { timeout: 20_000 });
+    await expect(page.getByTestId("term-pop")).toHaveCount(0, { timeout: T.UI });
+    await expect(page.getByTestId("gen-preview")).toHaveText("RMTL_COIL_THK_DEV", { timeout: T.UI });
     await expect(page.getByTestId("gen-domain").locator("option:checked")).toHaveText("두께 편차 (THK_DEV)");
 
     // E4 — 적용 → 짧은 표시명 비움 → 시스템 행 2개 → 저장.
@@ -159,9 +144,9 @@ test.describe("mdm columnMng — 컬럼 사전", () => {
     await addSystemRow(page, 1, "ERP");
     await expect(systemCell(page, 1, "physName")).toHaveText("ZZ_RMTL_COIL_THK_DEV");
     await page.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.getByText("저장했습니다")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("저장했습니다")).toBeVisible({ timeout: T.UI });
     const saved = listRow(page, "원재료 코일 두께 편차");
-    await expect(saved).toHaveCount(1, { timeout: 20_000 });
+    await expect(saved).toHaveCount(1, { timeout: T.UI });
     await expect(saved.locator('.ag-cell[col-id="labels"]')).toHaveText(
       "원재료 코일 두께 편차 / 원재료 코일 두께 편차 / 원재료 코일 두께 편차",
     );
@@ -174,7 +159,7 @@ test.describe("mdm columnMng — 컬럼 사전", () => {
     await openColumnMng(page);
     // 화면을 열어도 목록은 자동 조회되지 않는다 — [조회] 를 눌러야 앞 시나리오가 저장한 컬럼이 보인다.
     await page.getByRole("button", { name: "조회", exact: true }).click();
-    await expect(listRow(page, "원재료 코일 두께 편차")).toHaveCount(1, { timeout: 20_000 });
+    await expect(listRow(page, "원재료 코일 두께 편차")).toHaveCount(1, { timeout: T.UI });
 
     await page.getByRole("button", { name: "신규", exact: true }).click();
     await decompose(page, "코일 두께");
@@ -192,7 +177,7 @@ test.describe("mdm columnMng — 컬럼 사전", () => {
     // 실제 필드명 검색(대소문자 무시)으로 기존 컬럼을 찾는다.
     await page.getByTestId("column-search-keyword").fill("zz_rmtl_coil_thk_dev");
     await page.getByRole("button", { name: "조회", exact: true }).click();
-    await expect(page.getByTestId("column-list").locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRows(page.getByTestId("column-list"))).toHaveCount(1, { timeout: T.UI });
     await expect(listRow(page, "원재료 코일 두께 편차")).toHaveCount(1);
 
     // 역분해 — 용어로 분해가 안 되는 실제 필드명은 시스템 매핑에서 찾는다.
@@ -206,11 +191,11 @@ test.describe("mdm columnMng — 컬럼 사전", () => {
     await login(page, STEWARD);
     await openColumnMng(page);
 
-    await expect(page.getByRole("button", { name: "저장", exact: true })).toBeDisabled({ timeout: 20_000 });
+    await expect(page.getByRole("button", { name: "저장", exact: true })).toBeDisabled({ timeout: T.UI });
     await decompose(page, "코일 너비");
     await page.getByTestId("token-placeholder-2").click();
     const pop = page.getByTestId("term-pop");
-    await expect(pop).toBeVisible({ timeout: 20_000 });
+    await expect(pop).toBeVisible({ timeout: T.UI });
     await expect(page.getByTestId("term-pop-reg")).toBeDisabled();
     await expect(pop.getByTestId("term-pop-no-permission")).toHaveText(
       "용어 등록은 표준 관리자만 할 수 있습니다. 표준 관리자에게 요청하세요",

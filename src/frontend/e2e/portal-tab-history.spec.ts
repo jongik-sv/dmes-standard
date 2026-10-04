@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { BASE_URL as BASE, T } from "./support/common";
 
 /**
  * 포털 브라우저 뒤로/앞으로가기 ↔ 탭 전환 검증.
@@ -7,10 +8,9 @@ import { expect, test, type Page } from "@playwright/test";
  *  - 메뉴로 탭 A→B→C 를 열면 history.state.portalTab 이 누적되고 URL 은 /portal 고정.
  *  - 뒤로가기로 C→B→A, 앞으로가기로 복귀(시간순 MRU).
  *  - 첫 화면에서 더 뒤로가도 포털을 이탈하지 않음(sentinel trap).
- * dev 픽스처 계정(admin/admin123)은 기존 e2e(auto-search-csa)와 동일.
+ * dev 픽스처 계정(admin/admin123)은 기존 e2e(archive/auto-search-csa)와 동일.
  */
 
-const BASE = process.env.SMOKE_MCM_BASE_URL ?? "http://localhost:5100";
 
 const portalTab = (page: Page) =>
   page.evaluate(() => {
@@ -52,7 +52,7 @@ test("portal back/forward navigates tabs (MRU) and stays on /portal", async ({ p
   await page.locator("#login-user-id").fill("admin");
   await page.locator("#login-password").fill("admin123");
   await page.locator("button.login-button").click();
-  await page.waitForURL(/\/portal/, { timeout: 30_000 });
+  await page.waitForURL(/\/portal/, { timeout: T.LONG });
   await page.waitForTimeout(2_500);
   await dismissModal(page);
 

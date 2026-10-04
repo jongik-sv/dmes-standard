@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
   RUN,
+  T,
   USERS,
   Watcher,
   answerConfirm,
@@ -10,15 +11,21 @@ import {
   button,
   closeScreenTab,
   checkLayout,
+  daysAgo,
+  expectErrorModal,
   expectToast,
   footerScreenId,
   gridRow,
+  gridRowById,
+  gridRowByIndex,
+  gridRows,
   modal,
   openAs,
   openMenu,
   resetClicks,
   screen,
   snap,
+  snapModal,
   tid,
   uid,
   waitIdle,
@@ -59,15 +66,6 @@ const HANDOVER_PENDING = "넘기기는 준비 중입니다. 넘겨받는 사람�
 /** codeMng 오른쪽에 아무것도 고르지 않았을 때의 안내. */
 const DETAIL_GUIDE = "목록에서 마루 코드를 고르거나 [코드 등록] 을 누르세요";
 
-/** 오늘에서 days 만큼 뺀 날의 0시 — 적용 시작 칸(DateTimePicker, 6e506cc9) 입력값(yyyy-MM-dd HH:mm:ss)과 서버 표기(yyyy-MM-dd). */
-function daysAgo(days: number): { input: string; date: string } {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  const p = (n: number) => String(n).padStart(2, "0");
-  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  return { input: `${date} 00:00:00`, date };
-}
-
 // ─────────────────────────── 지역 부품 ───────────────────────────
 
 async function go(page: Page, id: ScreenId) {
@@ -85,45 +83,22 @@ async function layout(page: Page, label: string, opts?: LayoutOptions) {
   }
 }
 
-const errorBody = (page: Page) => page.locator(".error-modal__body:visible");
-
-/** 모달이 다 떠오른 뒤(열림 애니메이션 끝) 찍는다 — 반투명한 중간 프레임이 찍히지 않게. */
-async function snapModal(page: Page, name: string) {
-  const m = modal(page);
-  await expect(m).toBeVisible();
-  await expect
-    .poll(() => m.evaluate((el) => Number(getComputedStyle(el).opacity) * (el.getAnimations().length ? 0 : 1)))
-    .toBe(1);
-  await snap(page, name);
-}
-
-/**
- * 오류 모달 문구를 보고 [확인]으로 닫는다. 등록 팝업 위에 뜬 오류창도 다루므로, 닫힌 뒤 "마지막 보이는 모달"을 다시 찾지 않고
- * 오류창 본문이 사라졌는지로 본다(다시 찾으면 아래의 등록 팝업을 가리켜 answerConfirm 의 toBeHidden 이 실패한다).
- */
-async function expectErrorModal(page: Page, text: string | RegExp, shot?: string) {
-  await expect(errorBody(page)).toContainText(text, { timeout: 20_000 });
-  if (shot) await snapModal(page, shot);
-  await modal(page).getByRole("button", { name: "확인", exact: true }).click();
-  await expect(errorBody(page)).toHaveCount(0);
-}
-
 /** codeMng 목록 헤더 [코드 등록] 으로 등록 팝업을 연다(열 때마다 새로 마운트되어 칸이 빈 채로 시작한다). */
 async function openCodeRegister(page: Page) {
   await page.locator("#btn_code_reg").click();
-  await expect(tid(page, "code-register-form")).toBeVisible({ timeout: 20_000 });
+  await expect(tid(page, "code-register-form")).toBeVisible({ timeout: T.UI });
 }
 
 /** 등록 팝업을 [취소]로 닫는다. 고른 코드·상세는 그대로다. */
 async function cancelCodeRegister(page: Page) {
   await tid(page, "code-reg-cancel").click();
-  await expect(tid(page, "code-register-form")).toHaveCount(0, { timeout: 20_000 });
+  await expect(tid(page, "code-register-form")).toHaveCount(0, { timeout: T.UI });
 }
 
 /** 네이티브 Select 에서 값을 고른다(옵션이 채워질 때까지 기다린다). */
 async function choose(page: Page, testId: string, value: string) {
   const sel = tid(page, testId);
-  await expect(sel.locator(`option[value="${value}"]`)).toHaveCount(1, { timeout: 20_000 });
+  await expect(sel.locator(`option[value="${value}"]`)).toHaveCount(1, { timeout: T.UI });
   await sel.selectOption(value);
   await waitIdle(page);
 }
@@ -132,7 +107,7 @@ async function choose(page: Page, testId: string, value: string) {
 async function pickCode(page: Page, id: string) {
   await tid(page, "code-pick-keyword").fill(id);
   await tid(page, "code-pick-keyword").press("Enter");
-  await tid(page, `code-pick-${id}`).click({ timeout: 20_000 });
+  await tid(page, `code-pick-${id}`).click({ timeout: T.UI });
   await waitIdle(page);
 }
 
@@ -145,9 +120,9 @@ const codeListRow = (page: Page, id: string) => gridRow(tid(page, "code-list"), 
 async function expectListCell(page: Page, id: string, colId: string, text: string) {
   const grid = tid(page, "code-list");
   const row = codeListRow(page, id);
-  await expect(row).toHaveCount(1, { timeout: 20_000 });
+  await expect(row).toHaveCount(1, { timeout: T.UI });
   await revealColumn(grid, row, colId);
-  await expect(cellOf(row, colId)).toHaveText(text, { timeout: 20_000 });
+  await expect(cellOf(row, colId)).toHaveText(text, { timeout: T.UI });
   await scrollGridLeft(grid);
 }
 
@@ -160,22 +135,21 @@ async function openCode(page: Page, id: string) {
   await tid(page, "code-search-keyword").fill(id);
   await button(page, "조회").click();
   const row = codeListRow(page, id);
-  await expect(row).toHaveCount(1, { timeout: 20_000 });
+  await expect(row).toHaveCount(1, { timeout: T.UI });
   // ID 칸은 [코드 편집] 화면을 여는 링크다(d3532f39) — 상세는 행의 다른 칸(이름)을 눌러 연다.
   await row.locator('.ag-cell[col-id="maruCodeName"]').click();
   await waitIdle(page);
-  await expect(tid(page, "header-name")).toBeVisible({ timeout: 30_000 });
-  await expect(tid(page, "version-list")).toBeVisible({ timeout: 30_000 });
+  await expect(tid(page, "header-name")).toBeVisible({ timeout: T.LONG });
+  await expect(tid(page, "version-list")).toBeVisible({ timeout: T.LONG });
 }
 
 /** 확정 대기 목록·검사 결과 표는 AgDataGrid 다 — 행은 row-id(목록은 "ID-버전", 검사는 검사 번호)로 찾는다. */
-const gridRowById = (page: Page, gridTestId: string, rowId: string) =>
-  tid(page, gridTestId).locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"]`);
-const cfRow = (page: Page, id: string, ver: string) => gridRowById(page, "cf-list", `${id}-${ver}`);
-const cfCheckRow = (page: Page, no: string) => gridRowById(page, "cf-checks", no);
+const rowById = (page: Page, gridTestId: string, rowId: string) => gridRowById(tid(page, gridTestId), rowId);
+const cfRow = (page: Page, id: string, ver: string) => rowById(page, "cf-list", `${id}-${ver}`);
+const cfCheckRow = (page: Page, no: string) => rowById(page, "cf-checks", no);
 
 /** 버전 목록도 AgDataGrid 다 — 행 키(rowKey)는 버전 값이다. */
-const versionRow = (page: Page, ver: string) => gridRowById(page, "version-list", ver);
+const versionRow = (page: Page, ver: string) => rowById(page, "version-list", ver);
 
 async function selectVersion(page: Page, ver: string) {
   await versionRow(page, ver).click();
@@ -193,8 +167,8 @@ async function registerCode(page: Page, id: string, name: string, lvl = "0", des
   await tid(page, "code-reg-save").click();
   await expectToast(page, "등록했습니다");
   await expect(tid(page, "code-register-form")).toHaveCount(0);
-  await expect(tid(page, "header-name")).toHaveValue(name, { timeout: 30_000 });
-  await expect(tid(page, "version-list")).toContainText("v1.000", { timeout: 30_000 });
+  await expect(tid(page, "header-name")).toHaveValue(name, { timeout: T.LONG });
+  await expect(tid(page, "version-list")).toContainText("v1.000", { timeout: T.LONG });
   await expect(footerScreenId(page)).toHaveText("codeMng");
   await waitIdle(page);
 }
@@ -211,7 +185,7 @@ async function openTab(page: Page, tab: ItemTab) {
   const tabId = { grid: "code-tab-grid", tree: "code-tab-tree", cate: "code-right-tab-cate", test: "code-right-tab-test" }[tab];
   await tid(page, tabId).click();
   const body = { grid: "code-grid", tree: "code-tree", cate: "cate-tab", test: "code-preview-cate" }[tab];
-  await expect(tid(page, body)).toBeVisible({ timeout: 20_000 });
+  await expect(tid(page, body)).toBeVisible({ timeout: T.UI });
 }
 
 // ── [카테고리 편집] 탭(ade3851f) — 카테고리 표·소속 표·[카테고리 추가] 팝업·TABLE [편집] 팝업 ──
@@ -221,7 +195,7 @@ async function openTab(page: Page, tab: ItemTab) {
  * `:visible` 을 붙이는 tid() 로 찾으면 안을 못 보고, 그 안에 대한 toHaveCount(0) 은 늘 통과(거짓 통과)한다. 보이기 조건 없이 찾는다.
  */
 const cateList = (page: Page) => screen(page).locator('[data-testid="cate-list"]');
-const cateRows = (page: Page) => cateList(page).locator(".ag-center-cols-container .ag-row");
+const cateRows = (page: Page) => gridRows(cateList(page));
 /** 카테고리 표의 한 행 — ID 칸 안쪽 span 이 `cate-row-{cateId}` 다. */
 const cateRow = (page: Page, cateId: string) => cateRows(page).filter({ has: page.locator(`[data-testid="cate-row-${cateId}"]`) });
 const cateCell = (page: Page, cateId: string, colId: string) => cateRow(page, cateId).locator(`.ag-cell[col-id="${colId}"]`);
@@ -254,7 +228,7 @@ async function editCateText(page: Page, cateId: string, colId: string, value: st
   await expect(async () => {
     await cell.click();
     await expect(editor).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: T.UI });
   await editor.fill(value);
   await editor.press("Enter");
   await expect.poll(() => cateCellText(cell), { timeout: 5_000 }).toBe(value);
@@ -278,7 +252,7 @@ async function editCateSelect(page: Page, cateId: string, colId: string, value: 
   await expect(async () => {
     await cell.click();
     await expect(editor).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: T.UI });
   await editor.selectOption(value);
   await expect(editor).toHaveCount(0, { timeout: 5_000 });
   await expect(cell).toHaveText(label, { timeout: 5_000 });
@@ -288,7 +262,7 @@ async function editCateSelect(page: Page, cateId: string, colId: string, value: 
 async function openTransfer(page: Page, cateId: string) {
   await selectCate(page, cateId);
   await tid(page, `cate-edit-${cateId}`).click();
-  await expect(tid(page, "cate-transfer")).toBeVisible({ timeout: 20_000 });
+  await expect(tid(page, "cate-transfer")).toBeVisible({ timeout: T.UI });
 }
 
 async function closeTransfer(page: Page) {
@@ -299,7 +273,7 @@ async function closeTransfer(page: Page) {
 // ── ag-grid 셀 편집 ──
 
 const codeGrid = (page: Page) => tid(page, "code-grid");
-const newRow = (grid: Locator) => grid.locator('.ag-center-cols-container .ag-row[row-index="0"]');
+const newRow = (grid: Locator) => gridRowByIndex(grid, 0);
 const cellOf = (row: Locator, colId: string) => row.locator(`.ag-cell[col-id="${colId}"]`);
 
 /** 열 가상화로 아직 그려지지 않은 열이면 가로로 밀어 그리게 한다. */
@@ -327,7 +301,7 @@ async function editCell(grid: Locator, row: Locator, colId: string, value: strin
   await expect(async () => {
     await cell.click();
     await expect(editor).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: T.UI });
   // 사용자처럼 한 글자씩 친다(숫자 편집기는 fill 로 넣은 값을 받지 않는 경우가 있다).
   await editor.fill("");
   await editor.pressSequentially(value);
@@ -364,12 +338,12 @@ const codeRow = (page: Page, code: string) => gridRow(codeGrid(page), code, "cod
 /** 상태 줄의 "row_version = n" 값. 저장마다 늘어나는지만 본다(선점·해제도 늘리므로 절대값은 보지 않는다). */
 async function rowVersion(page: Page, testId: "code-row-version" | "cate-row-version"): Promise<number> {
   const el = tid(page, testId);
-  await expect(el).toHaveText(/^row_version = \d+$/, { timeout: 20_000 });
+  await expect(el).toHaveText(/^row_version = \d+$/, { timeout: T.UI });
   return Number((await el.textContent())!.replace(/\D+/g, ""));
 }
 
 async function expectRowVersionAbove(page: Page, testId: "code-row-version" | "cate-row-version", before: number) {
-  await expect.poll(() => rowVersion(page, testId), { timeout: 20_000 }).toBeGreaterThan(before);
+  await expect.poll(() => rowVersion(page, testId), { timeout: T.UI }).toBeGreaterThan(before);
 }
 
 // ═══════════════════════════ A. 여정 ═══════════════════════════
@@ -450,11 +424,11 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
 
     // 새 탭을 열지 않는다 — 팝업이 닫히고 같은 화면 오른쪽에 상세가 뜬다.
     await expect(tid(page, "code-register-form")).toHaveCount(0);
-    await expect(tid(page, "header-name")).toHaveValue(NAME, { timeout: 30_000 });
+    await expect(tid(page, "header-name")).toHaveValue(NAME, { timeout: T.LONG });
     await expect(footerScreenId(page)).toHaveText("codeMng");
     await expect(tid(page, "code-reg-id")).toHaveCount(0);
     const list = tid(page, "version-list");
-    await expect(list).toContainText("v1.000", { timeout: 30_000 });
+    await expect(list).toContainText("v1.000", { timeout: T.LONG });
     await expect(versionRow(page, "1.000")).toContainText("MAJOR");
     await expect(versionRow(page, "1.000")).toContainText("작성 중");
     await expect(versionRow(page, "1.000")).toContainText("편집 중(나)");
@@ -468,7 +442,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "code-search-keyword").fill(CODE);
     await button(page, "조회").click();
     const row = codeListRow(page, CODE);
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await expectListCell(page, CODE, "maruCodeName", NAME);
     await expectListCell(page, CODE, "sourceKind", "MDM");
     await expectListCell(page, CODE, "status", "CREATED");
@@ -480,32 +454,32 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     // 상태 INUSE 로 좁히면 빠진다.
     await tid(page, "code-search-status").selectOption("INUSE");
     await button(page, "조회").click();
-    await expect(tid(page, "code-list-empty")).toHaveText("조회된 마루 코드가 없습니다", { timeout: 20_000 });
+    await expect(tid(page, "code-list-empty")).toHaveText("조회된 마루 코드가 없습니다", { timeout: T.UI });
     await snap(page, "dmc-codeMng-04-empty");
 
     // DEPRECATED 도 빠진다.
     await tid(page, "code-search-status").selectOption("DEPRECATED");
     await button(page, "조회").click();
-    await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: T.UI });
 
     // CREATED 로 바꾸면 다시 나온다.
     await tid(page, "code-search-status").selectOption("CREATED");
     await button(page, "조회").click();
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
 
     // 이름 일부 + Enter, ID 소문자(대소문자 무시)로도 찾는다.
     await tid(page, "code-search-status").selectOption("");
     await tid(page, "code-search-keyword").fill(`사용자 코드 ${RUN}`);
     await tid(page, "code-search-keyword").press("Enter");
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await tid(page, "code-search-keyword").fill(CODE.toLowerCase());
     await button(page, "조회").click();
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
 
     // 없는 조건이면 빈 상태.
     await tid(page, "code-search-keyword").fill(`${CODE}_NONE`);
     await button(page, "조회").click();
-    await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: T.UI });
     // 초기화 버튼은 이 화면에 없다(보고서 참고).
     await expect(button(page, "초기화")).toHaveCount(0);
     watcher.assertClean("codeMng");
@@ -545,7 +519,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
   test("TC-DMC-MNG-06 목록 행을 누르면 오른쪽 상세가 그 코드로 바뀐다(새 탭을 열지 않는다)", async () => {
     await expect(tid(page, "code-register-form")).toHaveCount(0);
     await openCode(page, CODE);
-    await expect(tid(page, "header-name")).toHaveValue(NAME, { timeout: 30_000 });
+    await expect(tid(page, "header-name")).toHaveValue(NAME, { timeout: T.LONG });
     await expect(tid(page, "code-reg-id")).toHaveCount(0);
     await expect(footerScreenId(page)).toHaveText("codeMng");
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 마루 코드");
@@ -599,7 +573,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "header-save").click();
     await expectToast(page, "저장했습니다");
     // 저장하면 목록도 다시 읽어 새 이름이 보인다.
-    await expect(codeListRow(page, CODE)).toHaveCount(1, { timeout: 20_000 });
+    await expect(codeListRow(page, CODE)).toHaveCount(1, { timeout: T.UI });
     await expectListCell(page, CODE, "maruCodeName", NAME2);
 
     await openCode(page, CODE);
@@ -622,7 +596,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await closeScreenTab(page, "마루 코드");
     await go(page, "codeMng");
     await openCode(page, CODE);
-    await expect(tid(page, "header-name")).toHaveValue(NAME2, { timeout: 20_000 });
+    await expect(tid(page, "header-name")).toHaveValue(NAME2, { timeout: T.UI });
     watcher.assertClean("codeMng");
   });
 
@@ -664,7 +638,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
       await tid(page, "ver-unlock").click();
       await expectToast(page, "해제했습니다");
       await openCode(p2, CODE);
-      await expect(versionRow(p2, "1.000")).toContainText("선점 가능", { timeout: 20_000 });
+      await expect(versionRow(p2, "1.000")).toContainText("선점 가능", { timeout: T.UI });
       await selectVersion(p2, "1.000");
       await tid(p2, "ver-lock").click();
       await expectToast(p2, "선점했습니다");
@@ -672,7 +646,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
 
       // stw 화면에서는 stw2 가 편집 중으로 보이고 선점·확정 이동을 할 수 없다.
       await openCode(page, CODE);
-      await expect(versionRow(page, "1.000")).toContainText(`잠김 · ${STW2} 편집 중`, { timeout: 20_000 });
+      await expect(versionRow(page, "1.000")).toContainText(`잠김 · ${STW2} 편집 중`, { timeout: T.UI });
       await selectVersion(page, "1.000");
       await expect(tid(page, "ver-lock")).toBeDisabled();
       await expect(tid(page, "ver-confirm-move")).toBeDisabled();
@@ -681,7 +655,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
       await tid(p2, "ver-unlock").click();
       await expectToast(p2, "해제했습니다");
       await openCode(page, CODE);
-      await expect(versionRow(page, "1.000")).toContainText("선점 가능", { timeout: 20_000 });
+      await expect(versionRow(page, "1.000")).toContainText("선점 가능", { timeout: T.UI });
       await selectVersion(page, "1.000");
       await tid(page, "ver-lock").click();
       await expectToast(page, "선점했습니다");
@@ -712,7 +686,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "header-desc").fill("stw 가 늦게 고친 설명");
     await tid(page, "header-save").click();
     await expectErrorModal(page, "다른 사용자가 수정했습니다", "dmc-codeMng-detail-07-conflict");
-    await expect(tid(page, "header-name")).toHaveValue(`${NAME2} (stw2)`, { timeout: 20_000 });
+    await expect(tid(page, "header-name")).toHaveValue(`${NAME2} (stw2)`, { timeout: T.UI });
     await expect(tid(page, "header-desc")).toHaveValue("열연·냉연 강종 분류(E2E)");
 
     // 최신 값 위에서 다시 고친다.
@@ -740,7 +714,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
   test("TC-DMC-ITM-01 [코드 편집]으로 코드 편집 화면을 열고 마루 코드·버전을 고르면 빈 DRAFT 가 보인다", async () => {
     await selectVersion(page, "1.000");
     await tid(page, "ver-item-edit").click();
-    await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: 60_000 });
+    await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: T.SLOW });
     await waitIdle(page);
     // 여기부터 카테고리 탭(TC-DMC-CAT-05)까지 한 화면이라 버튼 커버리지를 한 번에 센다.
     await resetClicks(page);
@@ -748,14 +722,14 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     // [코드 편집]은 마루 코드·버전을 넘겨 이 화면이 그 코드를 연다(화면 인계는 TC-DMC-LNK-01 에서 따로 본다). 인계가 끝나 위 칸이
     // 그 코드를 보인 뒤 사용자가 [찾기]로 다시 고른다 — IdPicker 는 인계 때 아직 오지 않은 찾기는 살리지만 이미 열린 찾기 목록은
     // 닫는다(3ee724b4, Local-Rules §34 설계). 여기서는 칸에 넣고 [찾기] 로 찾는다 — Enter 로 찾는 길은 pickCode 가 쓴다.
-    await expect(tid(page, "code-current")).toContainText(CODE, { timeout: 20_000 });
+    await expect(tid(page, "code-current")).toContainText(CODE, { timeout: T.UI });
     await expect(tid(page, "code-pick-keyword")).toHaveValue(CODE);
     await waitIdle(page);
     await tid(page, "code-pick-keyword").fill(CODE);
     await screen(page).getByRole("button", { name: "찾기", exact: true }).click();
-    await tid(page, `code-pick-${CODE}`).click({ timeout: 20_000 });
+    await tid(page, `code-pick-${CODE}`).click({ timeout: T.UI });
     await waitIdle(page);
-    await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
+    await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: T.UI });
     await expect(tid(page, "code-ver-select").locator("option:checked")).toHaveText("v1.000 DRAFT");
     await expect(tid(page, "code-grid-empty")).toHaveText("보일 코드가 없습니다");
     await expect(screen(page).getByText(`편집 가능 · 소유자 ${STW}`)).toBeVisible();
@@ -781,7 +755,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(button(page, "저장")).toBeEnabled();
     await button(page, "저장").click();
     await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다", "dmc-codeItemEdit-02-rejected");
-    await expect(tid(page, "code-row-issue-A B")).toContainText("콤마·공백", { timeout: 20_000 });
+    await expect(tid(page, "code-row-issue-A B")).toContainText("콤마·공백", { timeout: T.UI });
     await layout(page, "codeItemEdit 오류 행");
     // 화면에서만 넣은 행은 [취소]로 뺀다.
     await codeRow(page, "A B").getByRole("button", { name: "취소" }).click();
@@ -825,7 +799,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await openTab(page, "tree");
     const tree = tid(page, "code-tree");
     const roots = tree.locator('[role="treeitem"][data-level="1"] > .tree-item .tree-item__label');
-    await expect(roots).toHaveText(["· TMP1 임시", "CR (1건)", "HR (2건)"], { timeout: 20_000 });
+    await expect(roots).toHaveText(["· TMP1 임시", "CR (1건)", "HR (2건)"], { timeout: T.UI });
     await expect(tree.getByText("· HR01 열연 1호")).toBeVisible();
     await screen(page).getByRole("button", { name: "모두 접기" }).click();
     await expect(tree.getByText("· HR01 열연 1호")).toBeHidden();
@@ -841,20 +815,20 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     // 거르기 — [이 노드로 편집]은 [코드] 탭으로 돌아온다.
     await expect(codeGrid(page)).toBeVisible();
     await expect(tid(page, "code-filter-chip")).toContainText("HR 아래");
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(codeGrid(page))).toHaveCount(2);
     // 거르는 중에 추가하면 계층 칸이 그 노드 경로로 채워진다 — 확인만 하고 취소한다.
     await tid(page, "code-add").click();
     await expect(cellOf(newRow(codeGrid(page)), "lvl1")).toHaveText("HR");
     await newRow(codeGrid(page)).getByRole("button", { name: "취소" }).click();
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(2);
+    await expect(gridRows(codeGrid(page))).toHaveCount(2);
     await tid(page, "code-filter-clear").click();
     await expect(tid(page, "code-filter-chip")).toHaveCount(0);
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(4);
+    await expect(gridRows(codeGrid(page))).toHaveCount(4);
 
     // 닫힌 코드 보기 — v1.000 은 닫힌 행이 없어 그대로다.
     await tid(page, "code-closed-toggle").getByText("닫힌 코드 보기").click();
     await expect(tid(page, "code-closed-toggle").locator("input")).toBeChecked();
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(4);
+    await expect(gridRows(codeGrid(page))).toHaveCount(4);
     await tid(page, "code-closed-toggle").getByText("닫힌 코드 보기").click();
     await expect(tid(page, "code-closed-toggle").locator("input")).not.toBeChecked();
 
@@ -866,7 +840,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "code-preview-step-1").locator("option")).toContainText(["HR01 (코드, 열연 1호)", "HR02 (코드, 열연 2호)"]);
     await tid(page, "code-preview-mode").getByText("목록·근거").click();
     const previewGrid = tid(page, "code-preview");
-    await expect(previewGrid.locator(".ag-center-cols-container .ag-row")).toHaveCount(4, { timeout: 20_000 });
+    await expect(gridRows(previewGrid)).toHaveCount(4, { timeout: T.UI });
     await expect(gridRow(previewGrid, "CR01", "code").locator('.ag-cell[col-id="path"]')).toHaveText("CR > CRA");
     await snap(page, "dmc-codeItemEdit-04-preview-list");
     await tid(page, "code-preview-mode").getByText("콤보").click();
@@ -874,7 +848,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
 
     // 조회 버튼으로 다시 읽어도 같다.
     await button(page, "조회").click();
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(4, { timeout: 20_000 });
+    await expect(gridRows(codeGrid(page))).toHaveCount(4, { timeout: T.UI });
     watcher.assertClean("codeItemEdit");
   });
 
@@ -887,7 +861,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await button(page, "저장").click();
     await expectToast(page, "저장했습니다");
     await button(page, "조회").click();
-    await expect(cellOf(codeRow(page, "HR02"), "name")).toHaveText("열연 2호 고급", { timeout: 20_000 });
+    await expect(cellOf(codeRow(page, "HR02"), "name")).toHaveText("열연 2호 고급", { timeout: T.UI });
     await expect(cellOf(codeRow(page, "HR02"), "alterName")).toHaveText("HR2");
     await expectRowVersionAbove(page, "code-row-version", before);
     watcher.assertClean("codeItemEdit");
@@ -896,8 +870,8 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
   test("TC-DMC-ITM-06 삭제(D) — DRAFT 에서 추가한 행을 [되돌리기]하면 사라진다", async () => {
     await codeRow(page, "TMP1").getByRole("button", { name: "되돌리기" }).click();
     await expectToast(page, "되돌렸습니다");
-    await expect(codeRow(page, "TMP1")).toHaveCount(0, { timeout: 20_000 });
-    await expect(codeGrid(page).locator(".ag-center-cols-container .ag-row")).toHaveCount(3);
+    await expect(codeRow(page, "TMP1")).toHaveCount(0, { timeout: T.UI });
+    await expect(gridRows(codeGrid(page))).toHaveCount(3);
     // 탭 버튼으로 [트리] 탭에 갔다가 [코드] 탭으로 돌아오고, 오른쪽은 [코드 테스트] → [카테고리 편집] 으로 둔다.
     await openTab(page, "tree");
     await openTab(page, "grid");
@@ -959,15 +933,15 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(cateCell(page, "RGX_CR", "defTarget")).toHaveText("코드");
     await selectCate(page, "RGX_CR");
     const members = memberPanel(page);
-    await expect(members.locator(".grid-panel-count")).toHaveText("3건", { timeout: 20_000 });
+    await expect(members.locator(".grid-panel-count")).toHaveText("3건", { timeout: T.UI });
 
     await editCateText(page, "RGX_CR", "defExpr", "CR.*");
-    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: 20_000 });
+    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: T.UI });
     await editCateSelect(page, "RGX_CR", "defTarget", "LVL1", "1차");
     await editCateText(page, "RGX_CR", "defExpr", "HR");
-    await expect(members.locator(".grid-panel-count")).toHaveText("2건", { timeout: 20_000 });
+    await expect(members.locator(".grid-panel-count")).toHaveText("2건", { timeout: T.UI });
     await editCateText(page, "RGX_CR", "defExpr", "CR");
-    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: 20_000 });
+    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: T.UI });
     await expect(gridRow(members, "CR01", "code")).toHaveCount(1);
     await layout(page, "codeItemEdit 카테고리 REGEX 편집");
     await snap(page, "dmc-codeItemEdit-cate-02-regex");
@@ -979,7 +953,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expectToast(page, "저장했습니다");
     // 저장하면 새 행 표시([취소])가 없어지고 [닫기] 가 선다.
     for (const c of ["TBL_HR", "RGX_CR", "TMP_EMPTY"]) {
-      await expect(tid(page, `cate-row-${c}`), c).toBeVisible({ timeout: 20_000 });
+      await expect(tid(page, `cate-row-${c}`), c).toBeVisible({ timeout: T.UI });
       await expect(tid(page, `cate-undo-${c}`), c).toHaveCount(0);
       await expect(tid(page, `cate-close-${c}`), c).toBeVisible();
     }
@@ -1041,7 +1015,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await waitIdle(page);
     await expect(tid(page, "cate-tab")).toBeVisible();
     await openTransfer(page, "TBL_HR");
-    await expect(item("member", "HR01")).toBeVisible({ timeout: 20_000 });
+    await expect(item("member", "HR01")).toBeVisible({ timeout: T.UI });
     await expect(item("member", "HR02")).toBeVisible();
     await expect(item("available", "CR01")).toBeVisible();
     await closeTransfer(page);
@@ -1058,7 +1032,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(cateList(page).getByTestId("cate-close-RGX_CR")).toHaveCount(0);
     await button(page, "저장").click();
     await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다", "dmc-codeItemEdit-cate-04-bad-regex");
-    await expect(tid(page, "cate-row-issue-RGX_CR")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "cate-row-issue-RGX_CR")).toBeVisible({ timeout: T.UI });
     await expect(tid(page, "code-right-tab-cate-issue")).toBeVisible();
 
     await tid(page, "cate-undo-RGX_CR").click();
@@ -1071,7 +1045,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expectToast(page, "저장했습니다");
     await button(page, "조회").click();
     await waitIdle(page);
-    await expect(cateCell(page, "RGX_CR", "cateName")).toHaveText("냉연 식 수정", { timeout: 20_000 });
+    await expect(cateCell(page, "RGX_CR", "cateName")).toHaveText("냉연 식 수정", { timeout: T.UI });
     watcher.assertClean("codeItemEdit");
   });
 
@@ -1107,10 +1081,10 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await openCode(page, CODE);
     await selectVersion(page, "1.000");
     await tid(page, "ver-confirm-move").click();
-    await expect(footerScreenId(page)).toHaveText("codeConfirm", { timeout: 60_000 });
+    await expect(footerScreenId(page)).toHaveText("codeConfirm", { timeout: T.SLOW });
     await resetClicks(page);
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터코드 > 버전 확정");
-    await expect(tid(page, "cf-target")).toHaveText(`${CODE} v1.000 MAJOR`, { timeout: 20_000 });
+    await expect(tid(page, "cf-target")).toHaveText(`${CODE} v1.000 MAJOR`, { timeout: T.UI });
     await expect(tid(page, "cf-form")).toContainText("편집 중(나)");
     await expect(tid(page, "cf-previous")).toHaveText("최초 버전 — 적용 순서 검사를 하지 않습니다");
     // 직전 RELEASED 가 없으니 모든 행이 추가로 보인다.
@@ -1124,12 +1098,12 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
   test("TC-DMC-CNF-02 조회(R) — 확정 대기 목록을 검색어로 좁히고 풀어 본다", async () => {
     await tid(page, "cf-keyword").fill(CODE);
     await tid(page, "cf-search").click();
-    await expect(cfRow(page, CODE, "1.000")).toBeVisible({ timeout: 20_000 });
+    await expect(cfRow(page, CODE, "1.000")).toBeVisible({ timeout: T.UI });
     await expect(cfRow(page, CODE, "1.000")).toContainText(NAME2);
     await expect(cfRow(page, CODE, "1.000")).toContainText(STW);
     await tid(page, "cf-keyword").fill(`${CODE}_NONE`);
     await tid(page, "cf-search").click();
-    await expect(tid(page, "cf-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: 20_000 });
+    await expect(tid(page, "cf-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: T.UI });
     await tid(page, "cf-keyword").fill(CODE);
     await tid(page, "cf-search").click();
     await cfRow(page, CODE, "1.000").click();
@@ -1144,7 +1118,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
 
     await fillDateTime(tid(page, "cf-apply-from"), CONFIRM1.input);
     await tid(page, "cf-validate").click();
-    await expect(tid(page, "cf-checks")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "cf-checks")).toBeVisible({ timeout: T.UI });
     await expect(tid(page, "cf-check-status-3")).toHaveText("면제");
     await expect(tid(page, "cf-check-status-4")).toHaveText("면제");
     await expect(tid(page, "cf-check-status-2-2")).toHaveText("경고");
@@ -1155,7 +1129,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await fillDateTime(tid(page, "cf-apply-from"), CONFIRM1B.input);
     await expect(tid(page, "cf-confirm")).toBeDisabled();
     await tid(page, "cf-validate").click();
-    await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: 20_000 });
+    await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: T.UI });
     await layout(page, "codeConfirm 검사 결과");
     await snap(page, "dmc-codeConfirm-03-checked");
     watcher.assertClean("codeConfirm");
@@ -1179,7 +1153,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "cf-modal-ok")).toBeEnabled();
     await tid(page, "cf-modal-ok").click();
     await expectToast(page, "확정했습니다");
-    await expect(tid(page, "cf-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "cf-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: T.UI });
     await expect(tid(page, "cf-released")).toContainText(`적용 구간 ${CONFIRM1B.date} 00:00:00 ~ 9999-12-31`);
     await expect(tid(page, "cf-released")).toContainText(`확정자 ${STW}`);
     await expect(tid(page, "cf-validate")).toBeDisabled();
@@ -1198,14 +1172,14 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "code-search-status").selectOption("INUSE");
     await button(page, "조회").click();
     const row = codeListRow(page, CODE);
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await expectListCell(page, CODE, "maruCodeName", NAME2);
     await expectListCell(page, CODE, "status", "INUSE");
     await expectListCell(page, CODE, "currentVerLabel", "v1.000");
     await expectListCell(page, CODE, "unappliedLabel", "없음");
     await tid(page, "code-search-status").selectOption("CREATED");
     await button(page, "조회").click();
-    await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: T.UI });
     watcher.assertClean("codeMng");
   });
 
@@ -1227,7 +1201,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await closeScreenTab(page, "마루 코드");
     await go(page, "codeMng");
     await openCode(page, CODE);
-    await expect(tid(page, "header-lvl")).toHaveValue("2", { timeout: 20_000 });
+    await expect(tid(page, "header-lvl")).toHaveValue("2", { timeout: T.UI });
     await expect(versionRow(page, "1.000")).toContainText("확정");
     await expect(versionRow(page, "1.000")).toContainText(`${CONFIRM1B.date} 00:00:00`);
     await selectVersion(page, "1.000");
@@ -1260,7 +1234,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "newver-number")).toHaveText("v1.001");
     await tid(page, "newver-ok").click();
     await expectToast(page, "새 버전을 만들었습니다");
-    await expect(versionRow(page, "1.001")).toContainText("MINOR", { timeout: 20_000 });
+    await expect(versionRow(page, "1.001")).toContainText("MINOR", { timeout: T.UI });
     await expect(versionRow(page, "1.001")).toContainText("작성 중");
     await expect(versionRow(page, "1.001")).toContainText("편집 중(나)");
     await expect(tid(page, "ver-new-hint")).toContainText("미적용 버전 v1.001 DRAFT");
@@ -1271,7 +1245,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
   test("TC-DMC-ITM-07 삭제(D) — 새 버전에서 이어받은 행을 고치고, 카테고리 소속 행을 확인 뒤 삭제해 저장한다", async () => {
     await selectVersion(page, "1.001");
     await tid(page, "ver-item-edit").click();
-    await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: 60_000 });
+    await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: T.SLOW });
     await resetClicks(page); // v1.001·RELEASED 구간 커버리지(ITM-08 끝에서 단언)
     await button(page, "조회").click();
     await waitIdle(page);
@@ -1311,7 +1285,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
 
     // 닫힌 코드 보기로 지운 행을 흐리게 본다.
     await tid(page, "code-closed-toggle").getByText("닫힌 코드 보기").click();
-    await expect(codeGrid(page).locator(".code-item-edit__row--closed")).toContainText("HR02", { timeout: 20_000 });
+    await expect(codeGrid(page).locator(".code-item-edit__row--closed")).toContainText("HR02", { timeout: T.UI });
     await tid(page, "code-closed-toggle").getByText("닫힌 코드 보기").click();
     watcher.assertClean("codeItemEdit");
   });
@@ -1338,7 +1312,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await snap(page, "dmc-codeItemEdit-08-patch");
     await tid(page, "patch-save").click();
     await expectToast(page, "경미 수정했습니다");
-    await expect(cellOf(codeRow(page, "HR01"), "name")).toHaveText("열연 1호 경미", { timeout: 20_000 });
+    await expect(cellOf(codeRow(page, "HR01"), "name")).toHaveText("열연 1호 경미", { timeout: T.UI });
     await expect(cellOf(codeRow(page, "HR01"), "alterName")).toHaveText("HR-1");
     await expect(cellOf(codeRow(page, "HR01"), "seq")).toHaveText("5");
 
@@ -1350,7 +1324,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
 
     // RELEASED 의 [카테고리] 탭은 목록·미리보기만 — 추가 폼·닫기가 없다.
     await openTab(page, "cate");
-    await expect(tid(page, "cate-row-TBL_HR")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "cate-row-TBL_HR")).toBeVisible({ timeout: T.UI });
     // [카테고리 추가] 버튼(추가 팝업을 여는 것, ade3851f)이 없고 닫기도 없다.
     await expect(screen(page).getByTestId("cate-add")).toHaveCount(0);
     await expect(cateList(page).locator('[data-testid^="cate-close-"]')).toHaveCount(0);
@@ -1373,7 +1347,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await rowVersion(page, "cate-row-version");
     // HR02 를 지웠으니 TBL_HR 소속은 HR01 만 남는다(소속은 [편집] 팝업에서 본다, ade3851f).
     await openTransfer(page, "TBL_HR");
-    await expect(tid(page, "cate-transfer-item-member-HR01")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "cate-transfer-item-member-HR01")).toBeVisible({ timeout: T.UI });
     await expect(page.locator('[data-testid="cate-transfer-item-member-HR02"]')).toHaveCount(0);
     await closeTransfer(page);
 
@@ -1381,7 +1355,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await expect(tid(page, "cate-undo-TMP_EMPTY")).toBeVisible();
     await button(page, "저장").click();
     await expectToast(page, "저장했습니다");
-    await expect(tid(page, "cate-row-TMP_EMPTY")).toHaveCount(0, { timeout: 20_000 });
+    await expect(tid(page, "cate-row-TMP_EMPTY")).toHaveCount(0, { timeout: T.UI });
     await expect(tid(page, "cate-row-TBL_HR")).toBeVisible();
     watcher.assertClean("codeItemEdit");
   });
@@ -1391,12 +1365,12 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await openCode(page, CODE);
     await selectVersion(page, "1.001");
     await tid(page, "ver-confirm-move").click();
-    await expect(footerScreenId(page)).toHaveText("codeConfirm", { timeout: 60_000 });
+    await expect(footerScreenId(page)).toHaveText("codeConfirm", { timeout: T.SLOW });
     // 사용자가 목록에서 고른다(이미 열린 탭으로의 인계는 TC-DMC-LNK-03 에서 따로 본다).
     await tid(page, "cf-keyword").fill(CODE);
     await tid(page, "cf-search").click();
     await cfRow(page, CODE, "1.001").click();
-    await expect(tid(page, "cf-target")).toHaveText(`${CODE} v1.001 MINOR`, { timeout: 20_000 });
+    await expect(tid(page, "cf-target")).toHaveText(`${CODE} v1.001 MINOR`, { timeout: T.UI });
     await expect(tid(page, "cf-previous")).toHaveText(`직전 RELEASED v1.000 · ${CONFIRM1B.date} 00:00:00`);
     const diff = tid(page, "cf-diff");
     await expect(diff).toContainText("HR02");
@@ -1407,7 +1381,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
 
     await fillDateTime(tid(page, "cf-apply-from"), TOO_EARLY.input);
     await tid(page, "cf-validate").click();
-    await expect(tid(page, "cf-check-status-3")).toHaveText("거부", { timeout: 20_000 });
+    await expect(tid(page, "cf-check-status-3")).toHaveText("거부", { timeout: T.UI });
     await expect(tid(page, "cf-check-status-3")).toHaveAttribute("data-rejected", "true");
     await expect(tid(page, "cf-check-status-4")).toHaveText("통과");
     await expect(tid(page, "cf-confirm")).toBeDisabled();
@@ -1431,7 +1405,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "ver-delete").click();
     await answerConfirm(page, "확인");
     await expectToast(page, "삭제했습니다");
-    await expect(versionRow(page, "1.001")).toHaveCount(0, { timeout: 20_000 });
+    await expect(versionRow(page, "1.001")).toHaveCount(0, { timeout: T.UI });
     await expect(versionRow(page, "1.000")).toBeVisible();
     await expect(tid(page, "ver-new-hint")).toHaveCount(0);
     watcher.assertClean("codeMng");
@@ -1443,14 +1417,14 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "newver-content-restore-1.000").getByText(/복원/).click();
     await tid(page, "newver-ok").click();
     await expectToast(page, "새 버전을 만들었습니다");
-    await expect(versionRow(page, "2.000")).toContainText("(v1.000 복원)", { timeout: 20_000 });
+    await expect(versionRow(page, "2.000")).toContainText("(v1.000 복원)", { timeout: T.UI });
     await expect(versionRow(page, "2.000")).toContainText("MAJOR");
 
     await selectVersion(page, "2.000");
     await tid(page, "ver-delete").click();
     await answerConfirm(page, "확인");
     await expectToast(page, "삭제했습니다");
-    await expect(versionRow(page, "2.000")).toHaveCount(0, { timeout: 20_000 });
+    await expect(versionRow(page, "2.000")).toHaveCount(0, { timeout: T.UI });
     watcher.assertClean("codeMng");
   });
 
@@ -1465,7 +1439,7 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "header-deprecate").click();
     await answerConfirm(page, "확인");
     await expectToast(page, "폐기했습니다");
-    await expect(tid(page, "header-status")).toHaveText("DEPRECATED", { timeout: 20_000 });
+    await expect(tid(page, "header-status")).toHaveText("DEPRECATED", { timeout: T.UI });
     await expect(tid(page, "ver-new-major")).toBeDisabled();
     await expect(tid(page, "ver-new-minor")).toBeDisabled();
     await expect(tid(page, "header-deprecate")).toBeDisabled();
@@ -1489,11 +1463,11 @@ test.describe("dmc 마스터코드 사용자 여정", () => {
     await tid(page, "code-search-status").selectOption("DEPRECATED");
     await button(page, "조회").click();
     const row = codeListRow(page, CODE);
-    await expect(row).toHaveCount(1, { timeout: 20_000 });
+    await expect(row).toHaveCount(1, { timeout: T.UI });
     await expectListCell(page, CODE, "status", "DEPRECATED");
     await tid(page, "code-search-status").selectOption("INUSE");
     await button(page, "조회").click();
-    await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: T.UI });
     await snap(page, "dmc-codeMng-08-deprecated");
     watcher.assertClean("codeMng");
   });
@@ -1516,10 +1490,10 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await registerCode(page, id, `E2E 인계1 ${RUN}`);
       await selectVersion(page, "1.000");
       await tid(page, "ver-item-edit").click();
-      await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: 60_000 });
+      await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: T.SLOW });
       await waitIdle(page);
       await snap(page, "dmc-link-01-codeItemEdit");
-      await expect(tid(page, "code-current"), "넘겨받은 마루 코드").toContainText(id, { timeout: 20_000 });
+      await expect(tid(page, "code-current"), "넘겨받은 마루 코드").toContainText(id, { timeout: T.UI });
       await expect(tid(page, "code-ver-select"), "넘겨받은 버전").toHaveValue("1.000");
       watcher.assertClean("codeMng→codeItemEdit");
     } finally {
@@ -1534,13 +1508,13 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await registerCode(page, id, `E2E 인계2 ${RUN}`);
       await selectVersion(page, "1.000");
       await tid(page, "ver-item-edit").click();
-      await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: 60_000 });
+      await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: T.SLOW });
       await waitIdle(page);
       await openTab(page, "cate");
       await snap(page, "dmc-link-02-codeItemEdit-cate");
-      await expect(tid(page, "code-current"), "넘겨받은 마루 코드").toContainText(id, { timeout: 20_000 });
+      await expect(tid(page, "code-current"), "넘겨받은 마루 코드").toContainText(id, { timeout: T.UI });
       await expect(tid(page, "code-ver-select"), "넘겨받은 버전").toHaveValue("1.000");
-      await expect(tid(page, "cate-row-BASE"), "넘겨받은 코드의 BASE").toBeVisible({ timeout: 20_000 });
+      await expect(tid(page, "cate-row-BASE"), "넘겨받은 코드의 BASE").toBeVisible({ timeout: T.UI });
       await expect(tid(page, "cate-row-version")).toHaveText(/^row_version = \d+$/);
       await expect(tid(page, "cate-add")).toBeVisible();
       watcher.assertClean("codeMng→codeItemEdit[카테고리]");
@@ -1557,8 +1531,8 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await registerCode(page, id, `E2E 인계3 ${RUN}`);
       await selectVersion(page, "1.000");
       await tid(page, "ver-confirm-move").click();
-      await expect(footerScreenId(page)).toHaveText("codeConfirm", { timeout: 60_000 });
-      await expect(tid(page, "cf-target"), "넘겨받은 DRAFT").toHaveText(`${id} v1.000 MAJOR`, { timeout: 20_000 });
+      await expect(footerScreenId(page)).toHaveText("codeConfirm", { timeout: T.SLOW });
+      await expect(tid(page, "cf-target"), "넘겨받은 DRAFT").toHaveText(`${id} v1.000 MAJOR`, { timeout: T.UI });
       watcher.assertClean("codeMng→codeConfirm");
     } finally {
       await page.context().close();
@@ -1586,8 +1560,8 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       // 남이 잡은 DRAFT 여도 [코드 편집]은 켜져 있다 — 코드 편집 화면이 읽기 전용으로 연다(D-101).
       await expect(tid(other.page, "ver-item-edit")).toBeEnabled();
       await tid(other.page, "ver-item-edit").click();
-      await expect(footerScreenId(other.page)).toHaveText("codeItemEdit", { timeout: 60_000 });
-      await expect(tid(other.page, "code-current")).toContainText(id, { timeout: 20_000 });
+      await expect(footerScreenId(other.page)).toHaveText("codeItemEdit", { timeout: T.SLOW });
+      await expect(tid(other.page, "code-current")).toContainText(id, { timeout: T.UI });
       await expect(screen(other.page).getByText("읽기 전용 · diff 보기")).toBeVisible();
       await expect(button(other.page, "저장")).toHaveCount(0);
       watcher.assertClean("codeMng");
@@ -1645,11 +1619,11 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await tid(page, "header-delete-code").click();
       await answerConfirm(page, "확인");
       await expectToast(page, "삭제했습니다");
-      await expect(screen(page).getByText(DETAIL_GUIDE)).toBeVisible({ timeout: 20_000 });
+      await expect(screen(page).getByText(DETAIL_GUIDE)).toBeVisible({ timeout: T.UI });
       await expect(tid(page, "header-name")).toHaveCount(0);
       await tid(page, "code-search-keyword").fill(id);
       await button(page, "조회").click();
-      await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: 20_000 });
+      await expect(tid(page, "code-list-empty")).toBeVisible({ timeout: T.UI });
       await snap(page, "dmc-codeMng-delete-code-done");
       watcher.assertClean("codeMng");
       other.watcher.assertClean("codeMng(stw2)");
@@ -1666,7 +1640,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await registerCode(page, id, `E2E 순서 ${RUN}`);
       await go(page, "codeItemEdit");
       await pickCode(page, id);
-      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
+      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: T.UI });
       await tid(page, "code-add").click();
       const row = newRow(codeGrid(page));
       await editCell(codeGrid(page), row, "code", "S1");
@@ -1678,7 +1652,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       }
       await button(page, "저장").click();
       await expectToast(page, "저장했습니다");
-      await expect(cellOf(codeRow(page, "S1"), "seq")).toHaveText("3", { timeout: 20_000 });
+      await expect(cellOf(codeRow(page, "S1"), "seq")).toHaveText("3", { timeout: T.UI });
       watcher.assertClean("codeItemEdit");
     } finally {
       await page.context().close();
@@ -1692,11 +1666,11 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await registerCode(page, id, `E2E 취소 ${RUN}`);
       await go(page, "codeItemEdit");
       await pickCode(page, id);
-      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
+      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: T.UI });
       await addCodeRow(page, { code: "U1", name: "원래 이름" });
       await button(page, "저장").click();
       await expectToast(page, "저장했습니다");
-      await expect(codeRow(page, "U1")).toHaveCount(1, { timeout: 20_000 });
+      await expect(codeRow(page, "U1")).toHaveCount(1, { timeout: T.UI });
 
       await editCell(codeGrid(page), codeRow(page, "U1"), "name", "잘못 고침");
       await snap(page, "dmc-codeItemEdit-10-edited");
@@ -1717,7 +1691,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       // v1.000 에 행 하나를 넣고 확정한다.
       await go(page, "codeItemEdit");
       await pickCode(page, id);
-      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
+      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: T.UI });
       await addCodeRow(page, { code: "D1", name: "지울 행" });
       await button(page, "저장").click();
       await expectToast(page, "저장했습니다");
@@ -1727,7 +1701,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await cfRow(page, id, "1.000").click();
       await fillDateTime(tid(page, "cf-apply-from"), daysAgo(3).input);
       await tid(page, "cf-validate").click();
-      await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: 20_000 });
+      await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: T.UI });
       await tid(page, "cf-confirm").click();
       await tid(page, "cf-modal-ok").click();
       await expectToast(page, "확정했습니다");
@@ -1761,14 +1735,14 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await registerCode(page, id, `E2E 정규식 오류 ${RUN}`);
       await go(page, "codeItemEdit");
       await pickCode(page, id);
-      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
+      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: T.UI });
       await openTab(page, "cate");
       await addCategory(page, "RGX_BAD", "정규식 오류", "REGEX");
       await selectCate(page, "RGX_BAD");
       await editCateText(page, "RGX_BAD", "defExpr", "(");
       await expect(tid(page, "cate-undo-RGX_BAD")).toBeVisible();
       await snap(page, "dmc-codeItemEdit-cate-07-invalid-regex");
-      await expect(tid(page, "cate-preview-invalid")).toHaveText("정규식 문법 오류로 해석하지 못했습니다", { timeout: 20_000 });
+      await expect(tid(page, "cate-preview-invalid")).toHaveText("정규식 문법 오류로 해석하지 못했습니다", { timeout: T.UI });
       watcher.assertClean("codeItemEdit");
     } finally {
       await page.context().close();
@@ -1782,7 +1756,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await registerCode(page, id, `E2E 탭이슈 ${RUN}`);
       await go(page, "codeItemEdit");
       await pickCode(page, id);
-      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: 20_000 });
+      await expect(tid(page, "code-ver-select")).toHaveValue("1.000", { timeout: T.UI });
       await expect(screen(page).getByTestId("code-tab-grid-issue")).toHaveCount(0);
       await expect(screen(page).getByTestId("code-right-tab-cate-issue")).toHaveCount(0);
 
@@ -1790,7 +1764,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await addCodeRow(page, { code: "A B", name: "공백 코드" });
       await button(page, "저장").click();
       await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다");
-      await expect(tid(page, "code-tab-grid-issue"), "[코드] 탭 경고 아이콘").toBeVisible({ timeout: 20_000 });
+      await expect(tid(page, "code-tab-grid-issue"), "[코드] 탭 경고 아이콘").toBeVisible({ timeout: T.UI });
       await codeRow(page, "A B").getByRole("button", { name: "취소" }).click();
 
       // 카테고리 이슈 → [카테고리 편집] 탭 아이콘과 그 행의 이슈 문구(카테고리는 오른쪽 탭, ade3851f)
@@ -1798,7 +1772,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await addCategory(page, "BAD ID", "공백 ID", "TABLE");
       await button(page, "저장").click();
       await expectErrorModal(page, "코드 저장 검사를 통과하지 못했습니다");
-      await expect(tid(page, "code-right-tab-cate-issue"), "[카테고리 편집] 탭 경고 아이콘").toBeVisible({ timeout: 20_000 });
+      await expect(tid(page, "code-right-tab-cate-issue"), "[카테고리 편집] 탭 경고 아이콘").toBeVisible({ timeout: T.UI });
       await expect(tid(page, "cate-row-issue-BAD ID"), "그 카테고리 행의 이슈 문구").toContainText("점·콤마·공백");
       await snap(page, "dmc-codeItemEdit-12-tab-issues");
       watcher.assertClean("codeItemEdit");
@@ -1821,7 +1795,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
     try {
       // codeMng — 조회는 되고(권한 조회가 끝났다는 뜻) [코드 등록]은 보이지만 꺼져 있다.
       await go(page, "codeMng");
-      await expect(button(page, "조회")).toBeEnabled({ timeout: 30_000 });
+      await expect(button(page, "조회")).toBeEnabled({ timeout: T.LONG });
       await expect(page.locator("#btn_code_reg")).toBeDisabled();
       await snap(page, "dmc-ro-codeMng");
 
@@ -1840,8 +1814,8 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
 
       // codeItemEdit — [코드 편집]으로 열면 읽기 전용, 저장·코드 추가가 없다.
       await tid(page, "ver-item-edit").click();
-      await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: 60_000 });
-      await expect(tid(page, "code-current")).toContainText(id, { timeout: 20_000 });
+      await expect(footerScreenId(page)).toHaveText("codeItemEdit", { timeout: T.SLOW });
+      await expect(tid(page, "code-current")).toContainText(id, { timeout: T.UI });
       await expect(tid(page, "code-ver-select")).toHaveValue("1.000");
       await expect(screen(page).getByText("읽기 전용 · diff 보기")).toBeVisible();
       await expect(button(page, "저장")).toHaveCount(0);
@@ -1849,7 +1823,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
 
       // [카테고리] 탭 — 목록은 보이고 추가·닫기가 없다.
       await openTab(page, "cate");
-      await expect(tid(page, "cate-row-BASE")).toBeVisible({ timeout: 20_000 });
+      await expect(tid(page, "cate-row-BASE")).toBeVisible({ timeout: T.UI });
       // [카테고리 추가] 버튼(추가 팝업을 여는 것, ade3851f)이 없고 닫기도 없다.
       await expect(screen(page).getByTestId("cate-add")).toHaveCount(0);
       await expect(cateList(page).locator('[data-testid^="cate-close-"]')).toHaveCount(0);
@@ -1860,7 +1834,7 @@ test.describe("dmc 화면 연결·넘기기·코드 삭제·읽기 전용", () =
       await tid(page, "cf-keyword").fill(id);
       await tid(page, "cf-search").click();
       await cfRow(page, id, "1.000").click();
-      await expect(tid(page, "cf-target")).toContainText(id, { timeout: 20_000 });
+      await expect(tid(page, "cf-target")).toContainText(id, { timeout: T.UI });
       await expect(tid(page, "cf-form")).toContainText(`잠김 · ${STW} 편집 중`);
       await expect(tid(page, "cf-validate")).toBeDisabled();
       await expect(tid(page, "cf-confirm")).toBeDisabled();

@@ -1,7 +1,9 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, T, login, walkMenuPath } from "./support/common";
 import { clickSearch, expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
+import { gridCells, gridRows } from "./support/grid";
 
 /**
  * 전문 헤더 정의(dmb/headerMng) 브라우저 E2E — TSK-05-02 design.md §3.5.
@@ -17,8 +19,6 @@ import { clickSearch, expectRowCell, loadMdmFixture } from "./support/mdm-e2e";
  * beforeAll 이 SMOKE_MDM_DB(워크트리 mdm.db)에 e2e/fixtures/mdm-layout-m201.sql 을 넣는다 — 컬럼 사전 스펙 뒤에 들어가야 한다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const USER = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 const API = "/api/mdm/oasis/headerMng";
 
@@ -29,26 +29,13 @@ const NEW_EAI = `X${STAMP}`;
 // __dirname = src/frontend/e2e → repo root 까지 3단계 위.
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-05-02/screens", name);
 
-async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(USER);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
 async function openScreen(page: Page): Promise<Locator> {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  for (const name of [/^마루 MDM$/, /^레이아웃$/, /^전문 헤더 정의$/]) {
-    const node = item(name);
-    await expect(node).toBeVisible({ timeout: 20_000 });
-    await node.click();
-  }
+  await walkMenuPath(page, [/^마루 MDM$/, /^레이아웃$/, /^전문 헤더 정의$/]);
   const layout = page.locator(".page-layout").filter({
     has: page.locator(".page-layout__footer-screen-id", { hasText: "headerMng" }),
   });
   // 화면은 목록을 자동 조회하지 않고 열린다(cf4fbb05) — 목록이 아니라 검색 칸이 보이면 열린 것이다.
-  await expect(layout.getByTestId("header-search-keyword")).toBeVisible({ timeout: 60_000 });
+  await expect(layout.getByTestId("header-search-keyword")).toBeVisible({ timeout: T.SLOW });
   return layout;
 }
 
@@ -63,7 +50,7 @@ function listRow(layout: Locator, text: string): Locator {
 
 async function selectHeader(layout: Locator, name: string) {
   await listRow(layout, name).click();
-  await expect(layout.getByTestId("header-form-name")).toHaveValue(name, { timeout: 30_000 });
+  await expect(layout.getByTestId("header-form-name")).toHaveValue(name, { timeout: T.LONG });
 }
 
 async function pickColumn(page: Page, layout: Locator, phys: string) {
@@ -78,7 +65,7 @@ async function pickColumn(page: Page, layout: Locator, phys: string) {
 }
 
 function offsets(layout: Locator): Locator {
-  return layout.getByTestId("header-items").locator('.ag-center-cols-container .ag-cell[col-id="OFFSET"]');
+  return gridCells(layout.getByTestId("header-items"), "OFFSET");
 }
 
 test.describe.configure({ mode: "serial" });
@@ -90,14 +77,14 @@ test.describe("mdm 전문 헤더 정의", () => {
   test.beforeAll(() => loadMdmFixture("mdm-layout-m201.sql"));
 
   test("H1 메뉴로 이동하고 목록은 서버 데이터, 결과가 없으면 빈 상태", async ({ page }) => {
-    await login(page);
+    await login(page, USER);
     const layout = await openScreen(page);
     await expect(layout.locator(".page-layout__footer-breadcrumb")).toHaveText("마루 MDM > 레이아웃 > 전문 헤더 정의");
     await expect(layout.locator(".page-layout__footer-screen-id")).toHaveText("headerMng");
     // 화면을 열어도 목록은 자동 조회되지 않는다 — [조회] 를 눌러야 픽스처 헤더가 보인다.
     await clickSearch(layout);
     const glue = listRow(layout, "GLUE 공통 헤더(E2E)");
-    await expect(glue).toBeVisible({ timeout: 30_000 });
+    await expect(glue).toBeVisible({ timeout: T.LONG });
     await expectRowCell(glue, "TOTAL_LENGTH", "100");
     await expectRowCell(glue, "ITEM_COUNT", "13");
     // 픽스처 헤더는 1.000 RELEASED(2000-01-01 부터) — 지금 적용 중이다
@@ -109,12 +96,12 @@ test.describe("mdm 전문 헤더 정의", () => {
     await page.screenshot({ path: screenshot("dmb-headerMng-list.png"), fullPage: true });
 
     await search(layout, `없음-${STAMP}`);
-    await expect(layout.getByTestId("header-list-empty")).toHaveText("조회된 헤더가 없습니다", { timeout: 30_000 });
+    await expect(layout.getByTestId("header-list-empty")).toHaveText("조회된 헤더가 없습니다", { timeout: T.LONG });
     await page.screenshot({ path: screenshot("dmb-headerMng-empty.png"), fullPage: true });
   });
 
   test("H2~H6 등록·사전 밖 항목·닫힌 칸·영향도·동시 수정", async ({ page }) => {
-    await login(page);
+    await login(page, USER);
     const layout = await openScreen(page);
 
     // ── H2 화면 조작만으로 헤더 등록 — 저장 전 즉시 재계산 ──
@@ -135,10 +122,10 @@ test.describe("mdm 전문 헤더 정의", () => {
     await expect(offsets(layout)).toHaveText(["0", "8", "12"]);
     await expect(layout.getByTestId("header-length")).toHaveText("22 바이트 (3항목)");
     await layout.getByRole("button", { name: "저장", exact: true }).click();
-    await expect(page.getByText("저장했습니다.").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("저장했습니다.").first()).toBeVisible({ timeout: T.LONG });
     await search(layout, STAMP);
     const created = listRow(layout, NEW_HEADER);
-    await expectRowCell(created, "TOTAL_LENGTH", "22", { timeout: 30_000 });
+    await expectRowCell(created, "TOTAL_LENGTH", "22", { timeout: T.LONG });
     await expectRowCell(created, "ITEM_COUNT", "3");
     await expect(created.locator('.ag-cell[col-id="EAI_CODE"]')).toHaveText(NEW_EAI);
     // 저장은 v1.000 DRAFT 를 만든다 — 확정 전이라 상태는 작성 중이다
@@ -167,7 +154,7 @@ test.describe("mdm 전문 헤더 정의", () => {
     expect(nopeBody.meta.message).toContain("L01");
 
     // ── H4 FILLER 행 — 닫힌 칸은 disabled, fill_kind 를 DATA 로 바꾸면 FILLER 길이가 비워지고 닫힌다 ──
-    await layout.getByTestId("header-items").locator(".ag-center-cols-container .ag-row").filter({ hasText: "FILLER" }).first().click();
+    await gridRows(layout.getByTestId("header-items")).filter({ hasText: "FILLER" }).first().click();
     for (const id of ["item-detail-default", "item-detail-trans-unit", "item-detail-unit-item", "item-detail-sign",
       "item-detail-zero", "item-detail-implied", "item-detail-width"]) {
       await expect(layout.getByTestId(id), id).toBeDisabled();
@@ -182,7 +169,7 @@ test.describe("mdm 전문 헤더 정의", () => {
     await search(layout, "(E2E)");
     await selectHeader(layout, "GLUE 공통 헤더(E2E)");
     const usage = layout.getByTestId("header-usage");
-    await expect(usage).toContainText("출측검사 실적 수신(E2E)", { timeout: 30_000 });
+    await expect(usage).toContainText("출측검사 실적 수신(E2E)", { timeout: T.LONG });
     await expect(usage).toContainText("187");
     // 사용 전문 표에 버전·상태 열 — 픽스처 전문은 1.000 이 지금 적용 중이다
     await expect(usage).toContainText("v1.000");
@@ -212,18 +199,18 @@ test.describe("mdm 전문 헤더 정의", () => {
     await layout.getByTestId("header-form-name").fill(`${NEW_HEADER} 화면`);
     await layout.getByRole("button", { name: "저장", exact: true }).click();
     const modal = page.locator(".error-modal__body");
-    await expect(modal).toBeVisible({ timeout: 30_000 });
+    await expect(modal).toBeVisible({ timeout: T.LONG });
     await expect(modal).toContainText("다른 사용자가 수정");
     await page.screenshot({ path: screenshot("dmb-headerMng-error.png"), fullPage: true });
     await page.getByRole("button", { name: "확인" }).click();
   });
   test("H7 확정된 헤더는 읽기 전용 — 새 버전(minor)을 만들어야 고칠 수 있다", async ({ page }) => {
-    await login(page);
+    await login(page, USER);
     const layout = await openScreen(page);
     await search(layout, "(E2E)");
     await selectHeader(layout, "L2 구간 헤더(E2E)");
     // 1.000 RELEASED 는 고를 수 있는 유일한 버전이고, 입력은 모두 잠긴다
-    await expect(layout.getByTestId("header-ver-select")).toHaveValue("1.000", { timeout: 30_000 });
+    await expect(layout.getByTestId("header-ver-select")).toHaveValue("1.000", { timeout: T.LONG });
     await expect(layout.getByTestId("header-form-name")).toBeDisabled();
     await expect(layout.getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await expect(layout.getByTestId("header-item-add-column")).toHaveCount(0);
