@@ -851,6 +851,8 @@ async function measureScreen(page, cdp, screen, calls, round) {
     searchConnectMs: api.searchConnectMs ?? "",
     searchEncodedBytes: api.searchEncodedBytes ?? "",
     invalidSearch,
+    /** 진입 자동 조회 화면이면 1 — 조회 지표 무효(summarize.mjs 가 뺀다). */
+    autoSearchAtEntry: screen.autoSearchAtEntry ? 1 : 0,
     /** ★지시 3★ 보정 회차에서 주입한 바쁜 루프 실측 시간(ms). null 이면 주입 실패. */
     calibrateMs,
     longTaskCount: longTasks.length,

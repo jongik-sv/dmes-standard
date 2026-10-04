@@ -122,6 +122,11 @@ export const SCREENS = [
     needsSearch: true,
     /** 이 화면은 조회 0건이면 그리드를 아예 만들지 않는다 → 0건이면 빈 상태 지표로 잰다(지시 2-1). */
     emptyWhenNoGrid: true,
+    /**
+     * 진입하면 자동으로 조회한다(`layoutConfirm/page.tsx:149-156`). [조회] 클릭보다 ≈60ms 먼저 나가 첫 행이
+     * 자동 조회 응답으로 그려지므로 조회→첫 행 지표가 무효다(검증 §2.1). summarize.mjs 가 조회 지표에서 뺀다.
+     */
+    autoSearchAtEntry: true,
   },
   {
     // headerMng 는 원래 1차 후보가 아니었다. layoutConfirm 메뉴 경로를 잘못 잡은 과정에서

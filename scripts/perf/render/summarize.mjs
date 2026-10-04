@@ -35,11 +35,24 @@ const round1 = (n) => (n === null || !Number.isFinite(n) ? null : Math.round(n *
  * `shellReadyMs` 는 함께 내고 `clickToRowMs` 는 참고값이다 — 그래서 뒤쪽에 두고 이름에 (참고) 를 붙였다.
  */
 const METRICS = [
-  ["searchToRowMs", "★주 지표·조회→첫 행(ms)"],
-  ["searchResponseToEmptyMs", "★주 지표(0건)·조회응답→빈 상태(ms)"],
+  ["inPageSearchToRowMutMs", "★주 지표·조회→첫 행, 페이지 안 시계(ms)", "search"],
+  ["searchTtfbMs", "조회 TTFB, BFF 기준(ms)", "search"],
+  ["searchEncodedBytes", "조회 응답 크기(B)", "search"],
+  ["searchRows", "조회 응답 행 수", "search"],
+  ["searchTotalCount", "조회 전체 건수(totalCount)", "search"],
+  ["searchQueueMs", "조회 큐 대기(ms)", "search"],
+  ["fullViewInPageMs", "[전체 보기] 클릭→안내 띠 사라짐(ms)", "full"],
+  ["fullViewTtfbMs", "[전체 보기] TTFB(ms)", "full"],
+  ["fullViewEncodedBytes", "[전체 보기] 응답 크기(B)", "full"],
+  ["fullViewRows", "[전체 보기] 응답 행 수", "full"],
+  ["apiAfterMenuClick", "메뉴 클릭 뒤 진입 호출 수"],
+  ["authMeAfterMenuClick", "그중 /api/auth/me"],
+  ["authMeAll", "페이지 전체 /api/auth/me"],
+  ["searchToRowMs", "(순위용·폴링 격자) 조회→첫 행(ms)", "search"],
+  ["searchResponseToEmptyMs", "★주 지표(0건)·조회응답→빈 상태(ms)", "search"],
   ["shellReadyMs", "shell 준비(ms)"],
   ["clickToRowMs", "(참고) 메뉴클릭→첫행(ms)"],
-  ["searchToEmptyMs", "(참고) 조회클릭→빈 상태(ms)"],
+  ["searchToEmptyMs", "(참고) 조회클릭→빈 상태(ms)", "search"],
   ["longTaskCount", "long task 수"],
   ["longTaskSumMs", "long task 합(ms)"],
   ["longTaskMaxMs", "long task 최대(ms)"],
@@ -87,8 +100,21 @@ function main() {
       enough: rows.length >= MIN_ROUNDS,
       metrics: {},
     };
-    for (const [k] of METRICS) {
-      const vals = rows.map((r) => (typeof r[k] === "number" ? r[k] : NaN)).filter(Number.isFinite);
+    // ★조회 지표는 유효한 회차만★(검증 §4 결함 11) — [조회] 가 요청을 내지 않았거나(invalidSearch, searchAfterClick=0)
+    //   진입 자동 조회 화면(screens.mjs autoSearchAtEntry, layoutConfirm)의 회차,
+    //   (searchBeforeClick 은 optionsOnly 진입 호출도 세므로 판정에 쓰지 않는다) cold 인데 진입 때 이미 행이 있던(row-at-entry) 회차는
+    //   "조회 대기" 를 재지 않았으므로 조회 지표 중앙값에서 뺀다. 진입·호출 수 지표는 모든 회차를 쓴다.
+    const validSearch = rows.filter(
+      (r) =>
+        r.invalidSearch !== 1 &&
+        r.searchAfterClick !== 0 &&
+        r.autoSearchAtEntry !== 1 &&
+        !(tab === "cold" && r.row_mode === "row-at-entry")
+    );
+    entry.rounds_valid_search = validSearch.length;
+    for (const [k, , scope] of METRICS) {
+      const src = scope ? validSearch : rows;
+      const vals = src.map((r) => (typeof r[k] === "number" ? r[k] : NaN)).filter(Number.isFinite);
       entry.metrics[k] = round1(median(vals));
     }
     // ★어느 주 지표를 썼는지 명시한다 — 0건 화면과 1건 이상 화면을 같은 표에서 읽으면 안 된다.★
@@ -104,7 +130,7 @@ function main() {
   const dropped = all.filter((r) => r.keep === 0);
   const byReason = {};
   for (const r of dropped) {
-    const k = r.rc !== 0 ? `실패(rc=${r.rc})` : "load 초과로 버림";
+    const k = r.rc !== 0 ? `실패(rc=${r.rc})` : r.warmup === 1 ? "예열 회차" : "load 초과로 버림";
     byReason[k] = (byReason[k] ?? 0) + 1;
   }
   out.dropped = { total: dropped.length, by_reason: byReason, rows: dropped.map((r) => ({ round: r.round, screen: r.screen, error: r.error ?? "" })) };
@@ -125,7 +151,10 @@ function main() {
   for (const s of out.screens) {
     const flag = s.enough ? "" : `  ⚠ kept ${s.rounds_kept}회 (< ${MIN_ROUNDS}) — 결론 근거로 쓰지 말 것`;
     console.log(`## ${s.label} (\`${s.screen}\`) · tab_state=${s.tab_state}${flag}`);
-    console.log(`\n주 지표: \`${s.primary_metric}\` · row_mode=${s.row_mode}`);
+    console.log(`\n주 지표: \`inPageSearchToRowMutMs\` · row_mode=${s.row_mode} · 조회 지표 유효 회차 ${s.rounds_valid_search}/${s.rounds_kept}`);
+    if (s.rounds_valid_search < s.rounds_kept) {
+      console.log(`\n> **조회 지표에서 뺀 회차가 있다**(진입 자동 조회·클릭 뒤 조회 없음·row-at-entry). 진입·호출 수 지표는 모든 회차 값이다.`);
+    }
     if (s.row_mode.includes("empty")) {
       console.log(`\n> **이 화면은 조회 결과가 0건이었다.** 주 지표는 "조회 응답 → 빈 상태 표시" 이다.`);
       console.log(`> "조회 → 첫 행" 과 다른 비용(데이터 렌더 없음)이므로 다른 화면과 같은 선으로 비교하지 말 것.`);
