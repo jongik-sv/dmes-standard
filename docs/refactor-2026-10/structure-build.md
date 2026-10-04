@@ -149,3 +149,12 @@
 - 동작 보존 근거: 입력 선언만 늘었고 시험 코드·클래스패스는 그대로다. `test --dry-run` 이 mcm-core 단독과 루트 composite 두 곳에서 BUILD SUCCESSFUL 이었다. dry-run 은 구성 단계만 확인하므로 실제 시험은 돌리지 않았다. Test 태스크는 build.gradle 상단 주석대로 이미 캐시 대상에서 빠져 있어(`doNotCacheIf`) 이 선언은 up-to-date 판정에만 영향을 준다.
 - 영향 범위: mcm-core `:test` 의 최신 여부 판정. 코드 동작 변화 없음. 미결: `ScreenUsageOasisContractTest` 가 읽는 `mcm/api/src/main/resources/services` 폴더는 이번 선언에 없다. 이 폴더까지 입력으로 둘지는 결정 대기다.
 - 되돌리는 방법: e08cb0f7 revert (시드 변경이 mcm-core 시험을 다시 돌리지 못하는 상태로 돌아간다).
+
+## S9. cactus-core 시험의 sqlite-jdbc 를 실행 범위로 옮기고 hibernate SQLite 방언 추가 (S6 후속)
+- 커밋: 7af5a32e
+- 바뀌기 전: `src/backend/cactus-core/build.gradle` 에 `testImplementation 'org.xerial:sqlite-jdbc:3.45.3.0'` 만 있었다(S6). SQLite 방언 의존은 없었다.
+- 바뀐 뒤: sqlite-jdbc 를 `testRuntimeOnly` 로 옮기고, `testRuntimeOnly 'org.hibernate.orm:hibernate-community-dialects'` 를 버전 없이 추가했다. 주석을 용도에 맞게 고쳤다.
+- 바꾼 이유: a8 레인의 SQLite 재현 시험이 `hibernate.dialect=org.hibernate.community.dialect.SQLiteDialect` 를 문자열로 지정한다. 다른 모듈(aps-core 등)과 같은 범위로 맞춘다.
+- 동작 보존 근거: dev 의 시험 소스 grep 에서 cactus-core 에는 `org.sqlite`·`org.hibernate.community` import 가 없다(org.sqlite import 는 mcm/lib 시험에만, 방언은 문자열 지정뿐). `testRuntimeClasspath` 해석: hibernate-community-dialects 7.2.12.Final, hibernate-core 7.2.12.Final(같은 버전), sqlite-jdbc 3.45.3.0 -> 3.50.3.0(BOM 이 올림). `testCompileClasspath` 에는 두 의존이 없다. `compileTestJava` BUILD SUCCESSFUL. 시험 실행은 하지 않았다.
+- 영향 범위: cactus-core 시험 런타임 클래스패스만. main·운영 산출물 변화 없음. S6 에서 걱정한 선언과 해석 버전 차이는 위 값으로 확인됐다(3.50.3.0).
+- 되돌리는 방법: 7af5a32e revert (a8 의 SQLite 방언 시험이 방언 클래스를 못 찾아 실패한다).
