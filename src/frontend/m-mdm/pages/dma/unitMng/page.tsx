@@ -7,24 +7,21 @@
  * mls `noticeMgmt` 패턴(좌측 read-only 그리드 + 우측 상세 폼)을 그대로 이식하고 `MdmPageLayout`(TSK-01-03)
  * 을 얹는다. 환산 계산기(A-PREVIEW)는 ConvertCalculator 가 맡는다(서버 응답 그대로 표시, 불변 규칙 I2).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ContentBody,
   ContentPanel,
-  DETAIL_LABEL_CELL,
-  DETAIL_TABLE_STYLE,
-  DETAIL_VALUE_CELL,
   ErrorModal,
   SearchArea,
   SearchField,
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
-import { ComboBox, Input } from "@dk-oasis/shared/form";
 import { MdmPageLayout } from "@/shell";
 
 import { deleteUnit, saveUnit, searchUnits, loadUnitOptions } from "./api";
 import { ConvertCalculator } from "./ConvertCalculator";
+import { UnitDetailForm, type UnitDetailHandle } from "./UnitDetailForm";
 import {
   dimensionLabel,
   emptyFilters,
@@ -50,8 +47,9 @@ export default function UnitMngPage() {
   const [dimensionOptions, setDimensionOptions] = useState<DimensionOption[]>([]);
   const [unitOptions, setUnitOptions] = useState<UnitOption[]>([]);
   const [selectedUnitCode, setSelectedUnitCode] = useState<string>("");
-  const [form, setForm] = useState<UnitForm | null>(null);
-  const [isNewDimension, setIsNewDimension] = useState(false);
+  /** 상세 폼 — 입력 값은 UnitDetailForm 이 갖고, 루트는 "폼이 있는지"만 안다(R12: 한 글자마다 루트가 다시 그려지지 않게). */
+  const detailRef = useRef<UnitDetailHandle>(null);
+  const [hasForm, setHasForm] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -65,10 +63,10 @@ export default function UnitMngPage() {
     [rows],
   );
 
-  const dimensionComboData = useMemo(
-    () => dimensionOptions.map((o) => ({ value: o.dimension, label: `${dimensionLabel(o.dimension)} (${o.dimension})` })),
-    [dimensionOptions],
-  );
+  const loadForm = useCallback((next: UnitForm | null) => {
+    detailRef.current?.load(next);
+    setHasForm(next != null);
+  }, []);
 
   const handleSearch = useCallback(async () => {
     setIsBusy(true);
@@ -78,13 +76,13 @@ export default function UnitMngPage() {
       setDimensionOptions(payload.dimensionOptions ?? []);
       setUnitOptions(payload.unitOptions ?? []);
       setSelectedUnitCode("");
-      setForm(null);
+      loadForm(null);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     } finally {
       setIsBusy(false);
     }
-  }, [filters]);
+  }, [filters, loadForm]);
 
   // 첫 진입 자동 목록 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청).
   // 진입 때 콤보 값만 받는다(optionsOnly — 서버 목록 조회 없음). 목록(rows)은 채우지 않는다.
@@ -111,9 +109,8 @@ export default function UnitMngPage() {
   /** B-002 단위 등록 — 그리드에 빈 행 추가 + A-DETAIL 초기화. 서버 호출 없음. */
   const handleNew = useCallback(() => {
     setSelectedUnitCode("");
-    setForm(emptyUnitForm());
-    setIsNewDimension(false);
-  }, []);
+    loadForm(emptyUnitForm());
+  }, [loadForm]);
 
   const handleRowClick = useCallback((row: Record<string, unknown>) => {
     const unitCode = String(row.unitCode ?? "");
@@ -121,36 +118,13 @@ export default function UnitMngPage() {
     // 고친 입력만 말없이 사라진다(2026-10-03).
     if (unitCode === selectedUnitCode) return;
     setSelectedUnitCode(unitCode);
-    setIsNewDimension(false);
-    setForm({
+    loadForm({
       unitCode,
       dimension: String(row.dimension ?? ""),
       baseUnit: String(row.baseUnit ?? ""),
       factor: String(row.factor ?? ""),
     });
-  }, [selectedUnitCode]);
-
-  const handleFormChange = useCallback((key: keyof UnitForm, value: string) => {
-    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
-  }, []);
-
-  /** D-002 기존 차원 선택 — D-003 기준 단위를 그 차원의 확립된 값으로 자동 채운다(D2, 서버 재검증). */
-  const handleDimensionSelect = useCallback(
-    (value: string) => {
-      const match = dimensionOptions.find((o) => o.dimension === value);
-      setIsNewDimension(false);
-      setForm((prev) =>
-        prev ? { ...prev, dimension: value, baseUnit: match ? match.baseUnit : prev.baseUnit } : prev,
-      );
-    },
-    [dimensionOptions],
-  );
-
-  /** D-002 새 차원 생성 — D-003 을 자기 자신(unitCode)으로, 계수는 1로 초기 제안한다(I3, D2). */
-  const handleDimensionCreateNew = useCallback((text: string) => {
-    setIsNewDimension(true);
-    setForm((prev) => (prev ? { ...prev, dimension: text, baseUnit: prev.unitCode, factor: "1" } : prev));
-  }, []);
+  }, [selectedUnitCode, loadForm]);
 
   const validate = useCallback((f: UnitForm): string | null => {
     if (!f.unitCode.trim()) return "단위 코드는 영문·숫자·밑줄 20자 이내여야 합니다."; // V-001
@@ -164,6 +138,7 @@ export default function UnitMngPage() {
 
   /** B-003 저장. */
   const handleSave = useCallback(async () => {
+    const form = detailRef.current?.getForm() ?? null;
     if (!form) {
       setErrorMessage("저장할 내용이 없습니다. 행을 선택하거나 [단위 등록] 을 누르세요.");
       return;
@@ -182,7 +157,7 @@ export default function UnitMngPage() {
     } finally {
       setIsBusy(false);
     }
-  }, [form, validate, handleSearch]);
+  }, [validate, handleSearch]);
 
   /** B-004 삭제 — I5(FK 참조·형제 단위 존재 시 서버가 거부). */
   const handleDelete = useCallback(async () => {
@@ -209,7 +184,7 @@ export default function UnitMngPage() {
       buttons={[
         { id: "btn_search", label: "조회", onClick: () => void handleSearch(), type: "primary" as const, disabled: isBusy, action: "search" },
         { id: "btn_new", label: "단위 등록", onClick: handleNew, disabled: isBusy, action: "save" },
-        { id: "btn_save", label: "저장", onClick: () => void handleSave(), type: "save" as const, disabled: isBusy || !form, action: "save" },
+        { id: "btn_save", label: "저장", onClick: () => void handleSave(), type: "save" as const, disabled: isBusy || !hasForm, action: "save" },
         { id: "btn_delete", label: "삭제", onClick: () => void handleDelete(), disabled: isBusy || !selectedUnitCode, action: "delete" },
       ]}
     >
@@ -243,55 +218,12 @@ export default function UnitMngPage() {
         </ContentPanel>
 
         <ContentPanel width={440}>
-          <table style={DETAIL_TABLE_STYLE}>
-            <tbody>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>단위 코드 *</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input
-                    value={form?.unitCode ?? ""}
-                    maxLength={20}
-                    disabled={!form || isBusy || !!selectedUnitCode}
-                    onChange={(v) => handleFormChange("unitCode", v)}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>차원 *</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <ComboBox
-                    data={dimensionComboData}
-                    value={form?.dimension ?? ""}
-                    disabled={!form || isBusy}
-                    onChange={(v) => handleDimensionSelect(v)}
-                    onCreateNew={handleDimensionCreateNew}
-                    placeholder="차원 선택 또는 새 차원 입력"
-                  />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>기준 단위</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input value={form?.baseUnit ?? ""} disabled readOnly />
-                </td>
-              </tr>
-              <tr>
-                <th style={DETAIL_LABEL_CELL}>환산 계수 *</th>
-                <td style={DETAIL_VALUE_CELL}>
-                  <Input
-                    value={form?.factor ?? ""}
-                    disabled={!form || isBusy || (isNewDimension && form?.unitCode === form?.baseUnit)}
-                    onChange={(v) => handleFormChange("factor", v)}
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          {!form && (
-            <p style={{ padding: "var(--spacing-md)", color: "var(--color-text-muted)" }}>
-              목록에서 행을 선택하거나 [단위 등록] 을 눌러 작성하세요.
-            </p>
-          )}
+          <UnitDetailForm
+            ref={detailRef}
+            busy={isBusy}
+            selectedUnitCode={selectedUnitCode}
+            dimensionOptions={dimensionOptions}
+          />
 
           <ConvertCalculator unitOptions={unitOptions} selectedUnitCode={selectedUnitCode} onError={setErrorMessage} />
         </ContentPanel>
