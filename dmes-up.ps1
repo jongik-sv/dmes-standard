@@ -14,17 +14,24 @@ Steps:
   2. seed gradle-wrapper.jar where missing (.gitignore excludes *.jar, so a
      fresh clone has none: "Unable to access jarfile")
   3. free the dev ports
-  4. serial gradle warm-up when needed - otherwise the six modules build the
-     shared included builds (oasis / cactus-core / mcm-core) concurrently and
-     delete each other's build\classes
-  5. run backend + frontend (foreground, or detached with -Detach)
+  4. run backend + frontend (foreground, or detached with -Detach)
+     be-run.ps1 first prebuilds the selected modules with ONE Gradle run from
+     the src\backend composite, so the modules no longer build the shared
+     included builds (cactus-core / mcm-core / ...) concurrently and delete
+     each other's build\classes. This replaces the old serial warm-up here.
+     If that prebuild fails, be-run.ps1 starts no module and exits non-zero:
+     in the foreground local-run.ps1 then stops the frontend too, and with
+     -Detach this script stops waiting and exits 1 (see logs\be.log).
+     Workarounds: BE_PREBUILD=0 (no prebuild, modules build themselves as
+     before) or BE_PREBUILD_CONTINUE=1 (start anyway), as environment
+     variables or in .run.env.
 
 Usage:
   .\dmes-up.cmd            # normal - Ctrl+C in this window stops everything
   .\dmes-up.cmd -Detach    # background; stop with .\dmes-down.cmd
-  .\dmes-up.cmd -Warmup    # force the serial warm-up
+  .\dmes-up.cmd -Warmup    # kept for compatibility - no-op (be-run.ps1 prebuilds every run)
   .\dmes-up.cmd -Full      # frontend re-runs pnpm install + build:libs
-  .\dmes-up.cmd -Clean     # both of the above
+  .\dmes-up.cmd -Clean     # same as -Full (-Warmup part is a no-op)
   .\dmes-up.cmd -Detach -Be   # backend only     (-Fe for frontend only)
 
 Ports: portal 5100 | mls 8092 | mqc 8093 | mpp 8094 | mpn 8095 | mcm 8100 | analog 8191
@@ -37,10 +44,11 @@ $ErrorActionPreference = 'Stop'
 $RootDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDir = Join-Path $RootDir 'src\backend'
 $LogDir     = Join-Path $RootDir 'logs'
-$Modules    = @('mcm', 'mls', 'mqc', 'mpp', 'mpn', 'analog')
-$BePorts    = [ordered]@{ mls = 8092; mqc = 8093; mpp = 8094; mpn = 8095; mcm = 8100; analog = 8191 }
-$FePort     = 5000
-if ($Clean) { $Warmup = $true; $Full = $true }
+# Module/port catalog: scripts\lib\modules.conf (rows whose platforms include ps1)
+. (Join-Path $RootDir 'scripts\lib\modules.ps1')
+$BePorts    = $DmesBeModules
+$FePort     = $DmesPortalPort
+if ($Clean) { $Full = $true }   # -Clean used to force -Warmup too; that part is now a no-op
 if (-not $Be -and -not $Fe) { $Be = $true; $Fe = $true }
 
 function Say { param([string] $Message, [string] $Color = 'Green') Write-Host '[up] ' -ForegroundColor $Color -NoNewline; Write-Host $Message }
@@ -83,7 +91,7 @@ if ($Be) {
         Copy-Item $srcJar $target
         $seeded++
     }
-    if ($seeded) { Say "seeded gradle-wrapper.jar into $seeded wrapper dir(s)" 'Yellow'; $Warmup = $true }
+    if ($seeded) { Say "seeded gradle-wrapper.jar into $seeded wrapper dir(s)" 'Yellow' }
 }
 
 # 3. stop whatever this repo already has running ------------------------------
@@ -127,40 +135,19 @@ foreach ($port in $wanted) {
 }
 if ($held.Count) { Say "reclaimed ports: $($held -join ' ')" 'Yellow'; Start-Sleep -Seconds 2 }
 
-# 4. serial warm-up ----------------------------------------------------------
-if ($Be) {
-    if (-not $Warmup) {
-        foreach ($m in $Modules) {
-            if (-not (Test-Path (Join-Path $BackendDir "$m\api\build\classes\java\main"))) {
-                Say "$m not built yet - warm-up required" 'Yellow'
-                $Warmup = $true
-                break
-            }
-        }
-    }
-    if ($Warmup) {
-        Say 'serial gradle warm-up (first run takes a few minutes)'
-        foreach ($m in $Modules) {
-            Write-Host "      warmup $m ..." -ForegroundColor DarkGray
-            Push-Location (Join-Path $BackendDir $m)
-            & (Join-Path $BackendDir 'gradlew.bat') ':api:classes' '--console=plain' | Out-Null
-            $rc = $LASTEXITCODE
-            Pop-Location
-            if ($rc -ne 0) { Say "warm-up FAILED: $m (rerun with -Clean)" 'Red'; exit $rc }
-        }
-        Say 'warm-up done - all 6 modules compiled'
-    } else {
-        Say 'warm-up skipped (all modules already built)'
-    }
-}
+# 4. run ---------------------------------------------------------------------
+# The old serial warm-up (one Gradle run per module) used to sit before this
+# step. be-run.ps1 now prebuilds all selected modules with a single Gradle run
+# from the src\backend composite before starting them, which covers the
+# fresh-clone case as well, and stops before starting anything if it fails.
+if ($Be -and $PSBoundParameters.ContainsKey('Warmup')) { Say '-Warmup is no longer needed - be-run.ps1 prebuilds on every run' 'Yellow' }
 
-# 5. run ---------------------------------------------------------------------
 $feArgs = if ($Full) { @('--all') } else { @('--all', '-q') }
 
 if (-not $Detach) {
     Write-Host ''
-    Say 'portal  http://localhost:5100    login  admin / admin123'
-    Say 'mls 8092 | mqc 8093 | mpp 8094 | mpn 8095 | mcm 8100 | analog 8191'
+    Say "portal  http://localhost:$FePort    login  admin / admin123"
+    Say (($BePorts.Keys | ForEach-Object { "$_ $($BePorts[$_])" }) -join ' | ')
     Say 'Ctrl+C stops backend and frontend together'
     Write-Host ''
     if ($Be -and $Fe) { & (Join-Path $RootDir 'local-run.ps1') @feArgs }
@@ -209,7 +196,10 @@ if ($Fe) {
 }
 
 # wait for readiness ---------------------------------------------------------
-Say 'waiting for ports (up to 8 minutes on a cold build) ...'
+# The 8 minutes include be-run.ps1's prebuild (one Gradle run for all modules).
+# If the backend launcher exits before its ports come up (prebuild failed, port
+# could not be freed, ...), stop waiting and fail right away.
+Say 'waiting for ports (up to 8 minutes, including the backend prebuild on a cold build) ...'
 $pending = @()
 if ($Be) { foreach ($k in $BePorts.Keys) { $pending += , @($k, $BePorts[$k]) } }
 if ($Fe) { $pending += , @('portal', $FePort) }
@@ -217,6 +207,15 @@ if ($Fe) { $pending += , @('portal', $FePort) }
 $deadline = (Get-Date).AddMinutes(8)
 $up       = @{}
 while ((Get-Date) -lt $deadline -and $up.Count -lt $pending.Count) {
+    if ($Be -and -not (Get-Process -Id $bePid -ErrorAction SilentlyContinue)) {
+        $beDown = @($BePorts.Keys | Where-Object { -not $up.ContainsKey($_) })
+        if ($beDown.Count) {
+            Write-Host ''
+            Say "backend exited before coming up (not up: $($beDown -join ' ')) - check logs\be.log" 'Red'
+            Say 'prebuild failed? fix the error, or rerun with BE_PREBUILD=0 / BE_PREBUILD_CONTINUE=1' 'Red'
+            exit 1
+        }
+    }
     foreach ($entry in $pending) {
         if (-not $up.ContainsKey($entry[0]) -and (Test-Listening $entry[1])) {
             $up[$entry[0]] = $true
@@ -229,7 +228,7 @@ while ((Get-Date) -lt $deadline -and $up.Count -lt $pending.Count) {
 Write-Host ''
 if ($up.Count -eq $pending.Count) {
     Say 'all services up'
-    Say 'portal  http://localhost:5100    login  admin / admin123'
+    Say "portal  http://localhost:$FePort    login  admin / admin123"
     Say 'stop with .\dmes-down.cmd'
 } else {
     $missing = @($pending | Where-Object { -not $up.ContainsKey($_[0]) } | ForEach-Object { "$($_[0]):$($_[1])" })

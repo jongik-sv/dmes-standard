@@ -23,6 +23,7 @@ param([Parameter(ValueFromRemainingArguments = $true)][string[]] $ScriptArgs)
 $ErrorActionPreference = 'Stop'
 $RootDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RunEnvFile = Join-Path $RootDir '.run.env'
+. (Join-Path $RootDir 'scripts\lib\modules.ps1')   # 모듈·포트 카탈로그(scripts\lib\modules.conf)
 
 function Write-Launcher { param([string] $Message) Write-Host '[launcher] ' -ForegroundColor Green -NoNewline; Write-Host $Message }
 
@@ -74,7 +75,11 @@ if (-not $hasScope) {
 
 # FE 로 넘길 인자만 추린다. BE 모듈 플래그는 be-run.ps1 이 .run.env 에서 읽는다.
 $feAllowed = @('--all','--full','--mpn','--mpn-only','--install','--build','--clean','--no-install','--no-build','-q')
-$beOnly    = @('--mcm','--mls','--mqc','--mpp','--analog','--keep-port')
+# FE 범위 플래그와 겹치는 모듈(--mpn)은 FE 쪽으로 넘긴다 — 결과는 종전 목록(--mcm --mls --mqc --mpp --analog --keep-port)과 같다.
+# $feScope 는 sh(local-run.sh·fe-run.sh)에서 FE 범위 플래그인 이름이다. modules.conf 의 mdm 줄에 ps1 을 더해도
+# --mdm 이 BE 전용으로 분류돼 조용히 버려지지 않게 여기서 뺀다(그때까지 --mdm 은 종전처럼 '알 수 없는 옵션').
+$feScope   = @('--mpn','--mdm')
+$beOnly    = @($DmesBeModules.Keys | ForEach-Object { '--' + $_ } | Where-Object { $feAllowed -notcontains $_ -and $feScope -notcontains $_ }) + @('--keep-port')
 $FeArgs    = @()
 foreach ($a in $ScriptArgs) {
     if ($feAllowed -contains $a) { $FeArgs += $a }
@@ -119,7 +124,7 @@ try {
         -WorkingDirectory $RootDir -NoNewWindow -PassThru
 
     Write-Launcher 'BE + FE 모두 기동. Ctrl+C 로 종료.'
-    Write-Launcher '  포털 http://localhost:5100  (초기 계정 admin / admin123)'
+    Write-Launcher "  포털 http://localhost:$DmesPortalPort  (초기 계정 admin / admin123)"
     Write-Launcher '  백엔드 기동에는 시간이 더 걸린다 — be-mcm 이 뜨기 전에는 로그인이 실패한다.'
 
     # 어느 쪽이 먼저 끝났는지 알려준다. 한쪽만 조용히 죽어 원인을 못 찾는 상황을 막는다.

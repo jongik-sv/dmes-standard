@@ -1,5 +1,6 @@
 package com.dongkuk.dmes.mdm.dmd.dataHistory.service;
 
+import static com.dongkuk.dmes.mdm.common.support.MdmErrors.invalid;
 import static com.dongkuk.dmes.mdm.dmd.dataItemMng.service.DataItemRows.blankToNull;
 import static com.dongkuk.dmes.mdm.dmd.dataItemMng.service.DataItemRows.text;
 
@@ -168,9 +169,5 @@ public class DataHistoryService {
             throw invalid("없는 마루 데이터입니다: " + md);
         }
         return header;
-    }
-
-    private static RuntimeException invalid(String detail) {
-        return MdmErrors.of(MdmErrorCode.INVALID_INPUT, detail, List.of());
     }
 }

@@ -42,11 +42,17 @@ import org.springframework.stereotype.Component;
  * 트랜잭션에서 먼저 {@code VersionWriteGuard.beginDraftWrite} 를 부른다(불변 규칙 12). 그래서 이 클래스는 버전 가드를
  * 참조하지 않는다.
  *
- * <p>쓰기는 행마다 리포지토리 {@code saveAndFlush}·{@code delete}+{@code flush} 를 명시적으로 부른다. ① 트랜잭션 밖에서 읽은
- * 엔티티는 곧바로 detached 라 세터만으로는 반영되지 않는다(§6.2). ② Hibernate 는 flush 때 INSERT 를 DELETE 보다 먼저
- * 실행하므로, 한 트랜잭션에서 같은 PK 를 지운 뒤 다시 넣으면(예: V 에서 추가한 코드를 삭제 뒤 재추가) 즉시 flush 하지
- * 않으면 PK 위반이 난다. ③ DB 오류가 커밋 시점이 아니라 serviceTask 안에서 나야 OASIS 가 {@code meta.success=false}
- * 로 싣는다(O3).
+ * <p>쓰기는 리포지토리 {@code save}·{@code saveAndFlush}·{@code delete}+{@code flush} 를 명시적으로 부른다. ① 트랜잭션
+ * 밖에서 읽은 엔티티는 곧바로 detached 라 세터만으로는 반영되지 않는다(§6.2). ② Hibernate 는 flush 때 INSERT 를 DELETE
+ * 보다 먼저 실행하므로, 한 트랜잭션에서 같은 PK 를 지운 뒤 다시 넣으면(예: V 에서 추가한 코드를 삭제 뒤 재추가) 즉시 flush
+ * 하지 않으면 PK 위반이 난다 — 그래서 지우기는 늘 {@code delete} 바로 뒤 {@code flush} 한다. ③ DB 오류가 커밋 시점이
+ * 아니라 serviceTask 안에서 나야 OASIS 가 {@code meta.success=false} 로 싣는다(O3) — 그래서 public 메서드는 돌아가기 전에
+ * 반드시 flush 를 마친다.
+ *
+ * <p>반복문 안의 갱신·추가(연쇄 닫기·다시 열기, {@link #applyItems} 의 행 쓰기)는 행마다 flush 하지 않고 {@code save} 로
+ * 모아 둔 뒤 public 메서드가 돌아가기 전에 리포지토리 {@code flush} 를 한 번 부른다(③ 유지). 행마다 PK 가 달라 ② 와
+ * 겹치지 않고, 지우기 쪽의 즉시 flush 가 그때까지 모인 쓰기도 함께 내보낸다. 끝 flush 는 예외 번역을 위해
+ * {@code EntityManager} 가 아니라 리포지토리 프록시로 부른다. 반복문이 아닌 단건 쓰기는 그대로 {@code saveAndFlush} 다.
  */
 @Component
 public class MasterCodeItemSegmentOps {
@@ -150,10 +156,11 @@ public class MasterCodeItemSegmentOps {
                 deleteCateItem(ci);
             } else {
                 ci.setToVer(v);
-                cateItemRepository.saveAndFlush(ci);
+                cateItemRepository.save(ci);
             }
             closed.add(ci.getCateId());
         }
+        cateItemRepository.flush();
         return List.copyOf(closed);
     }
 
@@ -164,8 +171,11 @@ public class MasterCodeItemSegmentOps {
      * <p>단건 메서드는 행마다 버전 행을 다시 읽고(DRAFT 확인) 그 코드의 ITEM·CATE_ITEM 을 전부 다시 읽는다. 여기서는 DRAFT
      * 확인을 첫 행에서 한 번만 하고, ITEM 은 한 번·CATE_ITEM 은 첫 삭제 행에서 한 번 읽어 메모리 목록으로 판정한다. 메모리
      * 목록은 앞 행의 쓰기(닫기·지우기·새 구간·다시 열기)를 그대로 반영한다 — 저장한 뒤 돌려받은 엔티티로 바꿔 끼우므로 트랜잭션
-     * 밖(detached, merge)에서도 다음 행이 최신 상태를 본다. 쓰기는 단건 메서드와 같은 {@code saveAndFlush}·
-     * {@code delete}+{@code flush} 다(같은 PK 를 지운 뒤 다시 넣는 경우 때문에 행마다 flush 한다, 클래스 설명 ②).
+     * 밖(detached, merge)에서도 다음 행이 최신 상태를 본다. 지우기는 단건 메서드와 같은 {@code delete}+{@code flush} 다
+     * (같은 PK 를 지운 뒤 다시 넣는 경우 때문, 클래스 설명 ②). 추가·갱신은 행마다 flush 하지 않고 {@code save} 로 모아
+     * 두며, 돌아가기 전에 한 번 flush 한다(클래스 설명 ③). 단 첫 삭제 행이 CATE_ITEM 을 읽기 직전에도 한 번 flush 한다 —
+     * 밀린 ITEM 갱신이 있는 채 조회하면 Hibernate 자동 flush 가 감사 리스너(@PreUpdate)를 먼저 불러 감사 VER 이 한 번 더
+     * 오른다.
      *
      * @return 삭제한 코드 → 그 코드 때문에 닫거나 지운 소속의 cate_id(정렬), 삭제 행 순서
      */
@@ -179,6 +189,8 @@ public class MasterCodeItemSegmentOps {
                 case ADDED -> work.add(c.code(), c.values());
             }
         }
+        itemRepository.flush();
+        cateItemRepository.flush();
         return closedCategories;
     }
 
@@ -212,7 +224,7 @@ public class MasterCodeItemSegmentOps {
             MdmCodeItem item = new MdmCodeItem(draft.objectId(), code, v);
             write(item, values);
             item.setToVer(OPEN);
-            items.add(itemRepository.saveAndFlush(item));
+            items.add(itemRepository.save(item));
         }
 
         void change(String code, MasterCodeItemValues values) {
@@ -226,22 +238,22 @@ public class MasterCodeItemSegmentOps {
                     deleteItem(r);
                     dropSame(items, r);
                     o.get().setToVer(OPEN);
-                    swap(items, o.get(), itemRepository.saveAndFlush(o.get()));
+                    swap(items, o.get(), itemRepository.save(o.get()));
                     return;
                 }
                 write(r, values);
-                swap(items, r, itemRepository.saveAndFlush(r));
+                swap(items, r, itemRepository.save(r));
                 return;
             }
             if (valuesOf(r).equals(values)) {
                 return;
             }
             r.setToVer(v);
-            swap(items, r, itemRepository.saveAndFlush(r));
+            swap(items, r, itemRepository.save(r));
             MdmCodeItem n = new MdmCodeItem(draft.objectId(), code, v);
             write(n, values);
             n.setToVer(OPEN);
-            items.add(itemRepository.saveAndFlush(n));
+            items.add(itemRepository.save(n));
         }
 
         List<String> remove(String code) {
@@ -253,9 +265,11 @@ public class MasterCodeItemSegmentOps {
                 dropSame(items, r);
             } else {
                 r.setToVer(v);
-                swap(items, r, itemRepository.saveAndFlush(r));
+                swap(items, r, itemRepository.save(r));
             }
             if (cateItems == null) {
+                // 밀린 ITEM 갱신을 먼저 내보낸다 — 조회의 자동 flush 가 감사 VER 을 한 번 더 올리지 않게(applyItems 설명).
+                itemRepository.flush();
                 cateItems = new ArrayList<>(rows.cateItems(draft.objectId()));
             }
             TreeSet<String> closed = new TreeSet<>();
@@ -268,7 +282,7 @@ public class MasterCodeItemSegmentOps {
                     dropSame(cateItems, ci);
                 } else {
                     ci.setToVer(v);
-                    swap(cateItems, ci, cateItemRepository.saveAndFlush(ci));
+                    swap(cateItems, ci, cateItemRepository.save(ci));
                 }
                 closed.add(ci.getCateId());
             }
@@ -362,9 +376,10 @@ public class MasterCodeItemSegmentOps {
                     && valid(c.getFromVer(), c.getToVer(), v));
             if (cateAlive) {
                 ci.setToVer(OPEN);
-                cateItemRepository.saveAndFlush(ci);
+                cateItemRepository.save(ci);
             }
         }
+        cateItemRepository.flush();
     }
 
     // ── 공통 ────────────────────────────────────────────────────────────

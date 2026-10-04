@@ -1,0 +1,11 @@
+{
+  "version": 0.2,
+  "tokens": [
+    {
+      "tokenName": "AnyLine",
+      "tokenType": "Message",
+      "nodeStatus": "",
+      "discard": false
+    }
+  ]
+}

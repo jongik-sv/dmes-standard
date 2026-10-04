@@ -2,14 +2,17 @@
 <#
 dmes-down.ps1 - stop every DMES server started from this repo.
 
-Kills java / node processes whose command line points inside this repo, then
-stops the Gradle daemons. Processes from other projects are left alone.
+Kills java / node processes whose command line points inside this repo.
+Processes from other projects are left alone.
+
+Gradle daemons are NOT stopped: `gradlew --stop` stops every daemon of the same
+user and Gradle version, which breaks builds/tests running in other worktrees.
+Idle daemons exit on their own after org.gradle.daemon.idletimeout (10 min).
 #>
 [CmdletBinding()]
 param()
 
 $RootDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
-$BackendDir = Join-Path $RootDir 'src\backend'
 
 $victims = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
              Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and
@@ -24,15 +27,16 @@ if ($victims.Count -eq 0) {
     foreach ($p in $victims) { & taskkill.exe /PID $p /T /F 2>&1 | Out-Null }
 }
 
-$jdk = 'C:\Users\DKSYSTEMS\.jdks\graalvm-jdk-21.0.7'
-if (Test-Path $jdk) { $env:JAVA_HOME = $jdk }
-if (Test-Path (Join-Path $BackendDir 'gradlew.bat')) {
-    Push-Location $BackendDir
-    & .\gradlew.bat --stop 2>&1 | Out-Null
-    Pop-Location
+# portal + backend ports from scripts\lib\modules.conf (rows whose platforms include ps1)
+# This script has no $ErrorActionPreference = 'Stop' (the kill step above must run even without the lib),
+# so a missing lib would only be a non-terminating error and end in a false "all ports free". Fail loudly.
+$modLib = Join-Path $RootDir 'scripts\lib\modules.ps1'
+if (-not (Test-Path -LiteralPath $modLib)) {
+    Write-Host "[down] missing $modLib - cannot check ports" -ForegroundColor Red
+    exit 1
 }
-
-$ports = 5100,8092,8093,8094,8095,8100,8191
+. $modLib
+$ports = @($DmesPortalPort) + @($DmesBeModules.Values)
 $still = @($ports | Where-Object {
     Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue })
 if ($still.Count -eq 0) { Write-Host '[down] all ports free' -ForegroundColor Green }

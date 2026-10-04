@@ -1,7 +1,9 @@
 package com.dongkuk.dmes.cactus.oasis;
 
+import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ResponseCodeAware;
 import com.dongkuk.dmes.cactus.web.response.CactusResponse;
+import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
 import com.dongkuk.dmes.cactus.web.response.GridResult;
 import com.dongkuk.dmes.cactus.web.response.ResponseMeta;
 import com.dongkuk.oasis.TypedObject;
@@ -89,6 +91,8 @@ public class CactusResponseConverter {
 
     /**
      * 에러 결과를 CactusResponse로 변환한다.
+     * 원인 사슬에 행 단위 상세를 가진 {@link BusinessException} 이 있으면 그 목록을 {@code errors} 로 더한다
+     * ({@code meta} 는 그대로). 상세가 없으면 {@code errors} 는 빠진다(NON_NULL) — 예전과 같은 JSON 이다.
      */
     private CactusResponse convertError(ServiceResult result, String txId) {
         String code = responseCode(result.exception());
@@ -99,7 +103,35 @@ public class CactusResponseConverter {
                 ? result.serviceResultMessage()
                 : "오류가 발생했습니다.";
 
-        return new CactusResponse.Builder(ResponseMeta.error(txId, code, message)).build();
+        CactusResponse.Builder builder = new CactusResponse.Builder(ResponseMeta.error(txId, code, message));
+        List<ErrorDetail> errors = errorDetails(result.exception());
+        if (errors != null) builder.errors(errors);
+        return builder.build();
+    }
+
+    /**
+     * 원인 사슬에서 행 단위 상세가 있는 가장 바깥 {@link BusinessException} 의 {@code errors} 를 찾는다(감싸인 예외까지,
+     * 순환 방지로 깊이 제한). 없거나 비었으면 null.
+     *
+     * <p>BPMN serviceTask 가 던진 예외는 {@code CoreServiceStarter} 가 SYSTEM_ERROR + message 로 바꾸지만
+     * {@link ServiceResult#exception()} 에 원래 예외를 남긴다 — 그래서 oasis 를 고치지 않고 여기서 꺼낸다
+     * (refactor/framework-tx 항목 8, TSK-04-04 design F12).
+     */
+    private static List<ErrorDetail> errorDetails(Throwable e) {
+        Throwable t = e;
+        for (int depth = 0; t != null && depth < 16; depth++) {
+            if (t instanceof BusinessException be) {
+                List<ErrorDetail> errors = be.getErrors();
+                if (errors != null && !errors.isEmpty()) {
+                    return errors;
+                }
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+            t = t.getCause();
+        }
+        return null;
     }
 
     /** 원인 사슬에서 {@link ResponseCodeAware} 예외의 코드를 찾는다(감싸인 예외까지, 순환 방지로 깊이 제한). 없으면 null. */

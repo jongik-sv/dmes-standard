@@ -18,6 +18,7 @@
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
 
+import { CardFrame, MutedText } from "@dk-oasis/shared/card";
 import { AgDataGrid } from "@dk-oasis/shared/grid";
 import { Button, Select } from "@dk-oasis/shared/form";
 import { badgeStyle, fmtVer, sameVer } from "@/shell";
@@ -29,7 +30,6 @@ import { SectionFrame } from "../sections/SectionFrame";
 
 import { saveTable } from "../api";
 import type { RuleEditCardProps, RuleTableSection } from "../cards";
-import { CardFrame, MutedText } from "../cards/CardFrame";
 import { useRuleWorkbench } from "../state/workbench-context";
 import type { HitPolicy } from "@/evalex";
 

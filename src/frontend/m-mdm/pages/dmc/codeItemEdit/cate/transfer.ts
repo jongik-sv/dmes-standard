@@ -7,7 +7,16 @@
  * 코드 편집 화면에 합친 뒤(D-101) 후보는 서버가 준 코드에 코드 탭의 미저장 변경을 겹친 것이다(`transferCandidates`) —
  * 추가만 하고 저장하지 않은 코드는 `unsaved`, 삭제 표시한 코드는 `deleted` 표시를 달고, 삭제 표시한 코드는 가능 쪽에서
  * 뺀다. 저장 diff(`memberChangesOf`)는 이 후보에 맞춰 다듬는다.
+ *
+ * 도메인과 무관한 검색·분류 필터·선택·이동·diff 집합 계산은 `@dk-oasis/shared/transfer-list` 함수를 쓴다. 이 파일에는
+ * 코드 편집 도메인(후보 겹치기·저장 diff 다듬기·미저장 배지 문구)과 옛 이름의 얇은 위임만 남는다.
  */
+
+import {
+  diffSets, groupOptions, matchesGroup, matchesQuery as matchesListQuery, moveAllVisible, moveSelected, rangeSelect,
+  removeAllVisible, removeSelected, selectAllVisible, toggleSelect, visibleList as sharedVisibleList,
+  type TransferListSide,
+} from "@dk-oasis/shared/transfer-list";
 
 /** 코드 탭의 미저장 상태 표시 — unsaved(추가만 하고 저장 전), deleted(삭제 표시). */
 export type TransferMark = "unsaved" | "deleted";
@@ -27,34 +36,36 @@ export interface CodeRowLike {
   __local: "none" | "edited" | "deleted" | "new";
 }
 
-export type TransferSide = "available" | "member";
+export type TransferSide = TransferListSide;
 
-function normalize(s: string): string {
-  return s.trim().toLowerCase();
-}
+/** 코드 탭 미저장 표시의 배지 문구·색(D-101) — 전송 목록 항목 옆에 보인다. */
+export const MARK: Record<TransferMark, { label: string; bg: string; color: string }> = {
+  unsaved: { label: "미저장", bg: "var(--color-warning-soft)", color: "var(--color-warning)" },
+  deleted: { label: "삭제 예정", bg: "var(--color-danger-soft)", color: "var(--color-danger)" },
+};
+
+/** 항목의 attr(lvl1) 값 — 전송 목록 분류 필터에 쓴다. */
+export const lvl1Of = (item: TransferItem): string | null => item.lvl1;
+
+/** 코드 탭에서 삭제 표시한 코드는 새로 소속에 넣을 수 없어 가능 쪽에 보이지 않는다(소속 쪽에는 표시를 달고 남는다). */
+export const isDeletedMark = (item: TransferItem): boolean => item.mark === "deleted";
 
 export function matchesQuery(item: TransferItem, query: string): boolean {
-  const q = normalize(query);
-  if (!q) return true;
-  return normalize(item.code).includes(q) || normalize(item.name ?? "").includes(q);
+  return matchesListQuery(item, query);
 }
 
 export function matchesLvl1(item: TransferItem, lvl1: string | null): boolean {
-  return !lvl1 || item.lvl1 === lvl1;
+  return matchesGroup(item.lvl1, lvl1);
 }
 
 /**
  * 검색·attr(lvl1) 필터 + 좌(가능)/우(소속) 분리 — 한 화면 그리기마다 배열 하나를 한 번 훑는다. 코드 탭에서 삭제 표시한
- * 코드는 새로 소속에 넣을 수 없어 가능 쪽에 보이지 않는다(소속 쪽에는 표시를 달고 남는다).
+ * 코드는 가능 쪽에 보이지 않는다(`isDeletedMark`).
  */
 export function visibleList(
   items: TransferItem[], memberCodes: ReadonlySet<string>, side: TransferSide, query: string, lvl1: string | null,
 ): TransferItem[] {
-  return items.filter((it) => {
-    const isMember = memberCodes.has(it.code);
-    if (side === "available" ? isMember || it.mark === "deleted" : !isMember) return false;
-    return matchesQuery(it, query) && matchesLvl1(it, lvl1);
-  });
+  return sharedVisibleList(items, memberCodes, side, { query, group: lvl1, getGroup: lvl1Of, hideFromAvailable: isDeletedMark });
 }
 
 const text = (v: unknown): string | null => (v === null || v === undefined || v === "" ? null : String(v));
@@ -78,65 +89,21 @@ export function transferCandidates(serverItems: TransferItem[], codeRows: CodeRo
 
 /** 목록의 lvl1 값 목록(중복 없이, 정렬) — 필터 Select 옵션으로 쓴다. */
 export function lvl1Options(items: TransferItem[]): string[] {
-  return Array.from(new Set(items.map((it) => it.lvl1).filter((v): v is string => !!v))).sort();
+  return groupOptions(items, lvl1Of);
 }
 
-/** Shift 범위 선택 — 화면에 보이는(visible) 목록 안에서 anchor 부터 target 까지 모두 담는다. */
-export function rangeSelect(visible: TransferItem[], anchorCode: string | null, targetCode: string): Set<string> {
-  if (!anchorCode) return new Set([targetCode]);
-  const anchorIndex = visible.findIndex((v) => v.code === anchorCode);
-  const targetIndex = visible.findIndex((v) => v.code === targetCode);
-  if (anchorIndex < 0 || targetIndex < 0) return new Set([targetCode]);
-  const [lo, hi] = anchorIndex <= targetIndex ? [anchorIndex, targetIndex] : [targetIndex, anchorIndex];
-  return new Set(visible.slice(lo, hi + 1).map((v) => v.code));
-}
-
-export function toggleSelect(selected: ReadonlySet<string>, code: string): Set<string> {
-  const next = new Set(selected);
-  if (next.has(code)) next.delete(code);
-  else next.add(code);
-  return next;
-}
-
-export function selectAllVisible(visible: TransferItem[]): Set<string> {
-  return new Set(visible.map((v) => v.code));
-}
-
-/** `>` — 선택된 available 코드를 member 로 옮긴다. 선택 개수에만 비례한다. */
-export function moveSelected(memberCodes: ReadonlySet<string>, selectedCodes: ReadonlySet<string>): Set<string> {
-  const next = new Set(memberCodes);
-  for (const c of selectedCodes) next.add(c);
-  return next;
-}
-
-/** `<` — 선택된 member 코드를 available 로 되돌린다. */
-export function removeSelected(memberCodes: ReadonlySet<string>, selectedCodes: ReadonlySet<string>): Set<string> {
-  const next = new Set(memberCodes);
-  for (const c of selectedCodes) next.delete(c);
-  return next;
-}
-
-/** `>>` — 지금 화면에 보이는(필터 통과) available 전부를 옮긴다. */
-export function moveAllVisible(memberCodes: ReadonlySet<string>, visibleAvailable: TransferItem[]): Set<string> {
-  const next = new Set(memberCodes);
-  for (const it of visibleAvailable) next.add(it.code);
-  return next;
-}
-
-/** `<<` — 지금 화면에 보이는(필터 통과) member 전부를 되돌린다. */
-export function removeAllVisible(memberCodes: ReadonlySet<string>, visibleMember: TransferItem[]): Set<string> {
-  const next = new Set(memberCodes);
-  for (const it of visibleMember) next.delete(it.code);
-  return next;
-}
+/* 선택·이동은 도메인과 무관해 shared 전송 목록 함수를 그대로 쓴다(이름만 이 화면의 옛 이름으로 낸다). */
+export { moveAllVisible, moveSelected, rangeSelect, removeAllVisible, removeSelected, selectAllVisible, toggleSelect };
 
 /** 저장용 diff — 원래 소속과 지금 소속을 비교해 `members` 그리드 행(ADDED·DELETED)을 만든다. */
 export function diffMembers(
   cateId: string, originalCodes: ReadonlySet<string>, memberCodes: ReadonlySet<string>,
 ): Record<string, unknown>[] {
-  const out: Record<string, unknown>[] = [];
-  for (const c of memberCodes) if (!originalCodes.has(c)) out.push({ rowStatus: "ADDED", cateId, code: c });
-  for (const c of originalCodes) if (!memberCodes.has(c)) out.push({ rowStatus: "DELETED", cateId, code: c });
+  const { added, removed } = diffSets(originalCodes, memberCodes);
+  const out: Record<string, unknown>[] = [
+    ...added.map((code) => ({ rowStatus: "ADDED", cateId, code })),
+    ...removed.map((code) => ({ rowStatus: "DELETED", cateId, code })),
+  ];
   return out.sort((a, b) => String(a.code).localeCompare(String(b.code)));
 }
 

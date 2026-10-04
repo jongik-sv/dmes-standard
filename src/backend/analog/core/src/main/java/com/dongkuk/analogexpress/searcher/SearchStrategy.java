@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 import static com.dongkuk.analogexpress.searcher.MultiThreadSearcherHelper.getRanges;
 import static com.dongkuk.analogexpress.searcher.MultiThreadSearcherHelper.getStartEndIndex;
@@ -23,15 +24,22 @@ public class SearchStrategy {
     private final SearchResult searchResult;
     private final String charsetName;
     private TextSearcher textSearcher;
+    /** 멀티스레드 검색(MultiThreadRangeSearcherRunner)이 범위 작업을 넣을 공유 실행기. null 이면 실행마다 임시 풀. */
+    private final Executor rangeExecutor;
 
     public SearchStrategy(File file) {
         this(file, "utf-8");
     }
 
     public SearchStrategy(File file, String charsetName) {
+        this(file, charsetName, null);
+    }
+
+    public SearchStrategy(File file, String charsetName, Executor rangeExecutor) {
         this.file = file;
         searchResult = new SearchResult(file);
         this.charsetName = charsetName;
+        this.rangeExecutor = rangeExecutor;
     }
 
     public File getFile() {
@@ -119,7 +127,7 @@ public class SearchStrategy {
         List<Range> ranges;
         if ((index.getEndIndex() - index.getStartIndex()) > (minMegaBytesForMultiThread * 1024 * 1024)) {
             ranges = getRanges(file, comparator, index);
-            setTextSearcher(new MultiThreadRangeSearcherRunner(getSearchResult(), logContentsFilters.toArray(new LogContentsFilter[0]), contextualNewLineInspector, ranges, charsetName));
+            setTextSearcher(new MultiThreadRangeSearcherRunner(getSearchResult(), logContentsFilters.toArray(new LogContentsFilter[0]), contextualNewLineInspector, ranges, charsetName, rangeExecutor));
             log.info("스레드별 검색 영역 설정 완료 - 멀티스래드");
         } else {
             ranges = new ArrayList<>();
@@ -151,7 +159,7 @@ public class SearchStrategy {
         List<Range> ranges;
         if ((index.getEndIndex() - index.getStartIndex()) > (minMegaBytesForMultiThread * 1024 * 1024)) {
             ranges = getRanges(file, comparator, index);
-            setTextSearcher(new MultiThreadRangeSearcherRunner(getSearchResult(), logContentsFilters.toArray(new LogContentsFilter[0]), contextualNewLineInspector, ranges, charsetName));
+            setTextSearcher(new MultiThreadRangeSearcherRunner(getSearchResult(), logContentsFilters.toArray(new LogContentsFilter[0]), contextualNewLineInspector, ranges, charsetName, rangeExecutor));
             log.info("스레드별 검색 영역 설정 완료 - 멀티스래드");
         } else {
             setTextSearcher(new FullScanTextSearcher(getSearchResult(), logContentsFilters.toArray(new LogContentsFilter[0]), contextualNewLineInspector, charsetName));
