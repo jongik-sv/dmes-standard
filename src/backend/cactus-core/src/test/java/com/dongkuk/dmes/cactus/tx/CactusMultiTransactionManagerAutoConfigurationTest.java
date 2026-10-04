@@ -4,9 +4,13 @@ import com.dongkuk.dmes.cactus.jpa.CactusMultiJpaAutoConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoUniqueBeanDefinitionException;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
+import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.core.NestedExceptionUtils;
+import org.springframework.core.SimpleAliasRegistry;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -16,6 +20,7 @@ import javax.sql.DataSource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * {@link CactusMultiTransactionManagerAutoConfiguration} 특성 테스트 — TxMgr 빈 이름·alias·기본(@Primary) 매니저 선택.
@@ -222,6 +227,52 @@ class CactusMultiTransactionManagerAutoConfigurationTest {
                     // 같은 타입 후보가 둘이어도 @Primary 로 host TxMgr 가 골라진다
                     assertThat(ctx.getBean(PlatformTransactionManager.class)).isSameAs(hostTxMgr);
                 });
+    }
+
+    /**
+     * canonicalName fallback — registry 가 {@link SimpleAliasRegistry} 가 아니면 빈 정의 이름마다 getAliases 를 훑는다.
+     * {@link GenericApplicationContext} 는 registry 이지만 SimpleAliasRegistry 가 아니고, getAliases 가 bean factory 에
+     * 위임돼 alias 사슬까지 돌려주므로 직접 alias 와 사슬 alias 가 모두 풀린다.
+     */
+    @Test
+    void canonicalName_fallback은_SimpleAliasRegistry가_아닌_registry에서도_alias를_실제_빈_이름으로_푼다() {
+        try (GenericApplicationContext registry = new GenericApplicationContext()) {
+            assertThat(registry).isNotInstanceOf(SimpleAliasRegistry.class);
+            registry.registerBeanDefinition("jpaTx", new RootBeanDefinition(Object.class));
+            registry.registerBeanDefinition("otherTx", new RootBeanDefinition(Object.class));
+            registry.registerAlias("jpaTx", "transactionManager");
+            registry.registerAlias("transactionManager", "txBiz");
+
+            assertThat(CactusMultiTransactionManagerAutoConfiguration.canonicalName(registry, "transactionManager"))
+                    .isEqualTo("jpaTx");
+            assertThat(CactusMultiTransactionManagerAutoConfiguration.canonicalName(registry, "txBiz"))
+                    .isEqualTo("jpaTx");
+            assertThat(CactusMultiTransactionManagerAutoConfiguration.canonicalName(registry, "otherTx"))
+                    .isEqualTo("otherTx");
+        }
+    }
+
+    /**
+     * canonicalName fallback 의 한계 — getAliases 가 직접 alias 만 돌려주는 registry 면 한 단계만 풀린다.
+     * 사슬 alias 나 주인을 못 찾은 alias 는 이름 그대로 돌려준다.
+     */
+    @Test
+    void canonicalName_fallback은_getAliases가_직접_alias만_주면_한_단계만_푼다() {
+        BeanDefinitionRegistry registry = mock(BeanDefinitionRegistry.class);
+        when(registry.isAlias("transactionManager")).thenReturn(true);
+        when(registry.isAlias("txBiz")).thenReturn(true);
+        when(registry.isAlias("orphan")).thenReturn(true);
+        when(registry.getBeanDefinitionNames()).thenReturn(new String[]{"jpaTx", "otherTx"});
+        // jpaTx ← transactionManager ← txBiz 사슬인데 getAliases 는 직접 alias 만 준다
+        when(registry.getAliases("jpaTx")).thenReturn(new String[]{"transactionManager"});
+        when(registry.getAliases("otherTx")).thenReturn(new String[0]);
+
+        assertThat(CactusMultiTransactionManagerAutoConfiguration.canonicalName(registry, "transactionManager"))
+                .isEqualTo("jpaTx");
+        assertThat(CactusMultiTransactionManagerAutoConfiguration.canonicalName(registry, "txBiz"))
+                .isEqualTo("txBiz");
+        assertThat(CactusMultiTransactionManagerAutoConfiguration.canonicalName(registry, "orphan"))
+                .isEqualTo("orphan");
     }
 
     @Test

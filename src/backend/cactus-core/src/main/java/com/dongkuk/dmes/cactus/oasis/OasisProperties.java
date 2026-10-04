@@ -59,7 +59,7 @@ public class OasisProperties {
     /**
      * BPMN 이 부르는 빈의 프록시 의존 어노테이션 검사 방식 ({@code warn} | {@code fail} | {@code off}).
      * OASIS 서비스 태스크 경로에서는 {@code @Transactional}·{@code @Cacheable} 등이 기대대로 동작하지 않으므로
-     * (비트랜잭션 모드는 언랩으로 무시, 트랜잭션 모드는 프록시 호출 실패) 기동 시 알린다. HTTP 로더 모드는 검사하지 못한다.
+     * (비트랜잭션 모드는 언랩으로 무시, 트랜잭션 모드는 프록시 호출이 실패할 수 있음) 기동 시 알린다. HTTP 로더 모드는 검사하지 못한다.
      * 기본 {@code warn} — 다른 모듈이 먼저 깨지지 않게 fail 을 기본으로 두지 않는다.
      */
     private OasisAopCheckMode aopCheck = OasisAopCheckMode.WARN;
