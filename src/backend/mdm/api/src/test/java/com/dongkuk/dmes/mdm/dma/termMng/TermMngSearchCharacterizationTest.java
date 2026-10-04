@@ -354,6 +354,8 @@ class TermMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
         assertEquals(List.of(), filter("코일", null, "열연"));
         assertEquals(List.of(), filter("ss", null, "열연"), "DB 에서 거를 바늘이 없는 키워드도 같다");
         assertEquals(List.of(), filter("코일", null, "냉연"), "상황이 맞아도 키워드에 안 맞으면 빠진다");
+        // DB 1차 거르기는 원문 null 행을 따로 남기지 않는다. 바늘 없는 키워드 + 맞는 상황이면 이 행이 Java 의 동의어 비교까지 온다
+        assertEquals(List.of(), filter("ss", null, "냉연"), "Java 동의어 비교까지 와도 NPE 없이 빠진다");
         assertEquals(List.of(pan), filter("판", null, "냉연"), "표기로는 그대로 찾힌다");
     }
 
@@ -368,6 +370,8 @@ class TermMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
         assertEquals(List.of(), filter("코일", null, "열연"));
         assertEquals(List.of(), filter("코일", null, "냉연"));
         assertEquals(List.of(), filter("다른", null, "열연"), "동의어가 맞아도 상황이 다르면 빠진다");
+        // DB 1차 거르기는 원문 null 행을 따로 남기지 않는다. 바늘 없는 키워드 + 맞는 상황이면 이 행이 Java 의 별칭 비교까지 온다
+        assertEquals(List.of(), filter("ss", null, "냉연"), "Java 별칭 비교까지 와도 NPE 없이 빠진다");
         assertEquals(List.of(id), filter("다른", null, "냉연"));
     }
 

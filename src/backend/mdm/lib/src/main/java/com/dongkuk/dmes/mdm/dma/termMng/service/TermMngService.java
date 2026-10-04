@@ -93,7 +93,7 @@ public class TermMngService {
         String contextFilter = trimToNull(request != null ? request.getContext() : null);
         String contextUpper = contextFilter == null ? null : contextFilter.toUpperCase(Locale.ROOT);
 
-        Specification<MdmTerm> prefilter = TermSearchPrefilter.of(keywordUpper, contextUpper, systemsFilter != null);
+        Specification<MdmTerm> prefilter = TermSearchPrefilter.of(keywordUpper, contextUpper);
         List<TermRow> rows = termRepository.findAll(prefilter, TermSearchPrefilter.ORDER).stream()
                 .map(ParsedTerm::of)
                 .filter(p -> keywordUpper == null || matchesKeyword(p, keywordUpper))

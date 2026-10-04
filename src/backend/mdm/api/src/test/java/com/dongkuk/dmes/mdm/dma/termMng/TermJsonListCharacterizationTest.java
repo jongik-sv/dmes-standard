@@ -176,11 +176,11 @@ class TermJsonListCharacterizationTest extends AbstractMdmSharedDbTest {
 
     @Test
     void D1_JSON_null_리터럴_행이_있어도_키워드_검색과_시스템_조건_검색은_NPE_없이_그_행을_빈_목록으로_판정한다() {
-        // D1 수정(fix) 재현: 예전에는 목록이 null 이라 .stream() 에서 NPE 가 났다. DB 1차 거르기는 원문에 null 이 든 행을 남기므로
-        // 이 행은 Java 비교까지 온다.
+        // D1 수정(fix) 재현: 예전에는 목록이 null 이라 .stream() 에서 NPE 가 났다. DB 1차 거르기는 원문 null 행을 따로 남기지 않으므로,
+        // 키워드를 "null" 로 둬 원문 글자(NULL)가 바늘에 걸리게 해 이 행을 Java 비교까지 오게 한다.
         seedRaw("null");
         TermSearchRequest byKeyword = new TermSearchRequest();
-        byKeyword.setKeyword("없는말"); // 표기·약어에 안 맞아 동의어·별칭까지 본다
+        byKeyword.setKeyword("null"); // 표기·약어에 안 맞아 동의어·별칭까지 본다
         assertEquals(List.of(), service.search(byKeyword).getList());
 
         Long mes = seedRaw("[\"MES\"]");

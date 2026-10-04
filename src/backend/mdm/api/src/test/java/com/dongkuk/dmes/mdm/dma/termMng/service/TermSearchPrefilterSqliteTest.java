@@ -43,33 +43,35 @@ class TermSearchPrefilterSqliteTest extends AbstractMdmSharedDbTest {
         return termRepository.saveAndFlush(t).getTermId();
     }
 
-    private List<Long> candidates(String keyword, String context, boolean systemsFiltered) {
+    private List<Long> candidates(String keyword, String context) {
         return termRepository.findAll(TermSearchPrefilter.of(
                         keyword == null ? null : keyword.toUpperCase(Locale.ROOT),
-                        context == null ? null : context.toUpperCase(Locale.ROOT), systemsFiltered),
+                        context == null ? null : context.toUpperCase(Locale.ROOT)),
                         TermSearchPrefilter.ORDER).stream()
                 .map(MdmTerm::getTermId).toList();
     }
 
     @Test
-    void 키워드는_네_칸에서_거르고_JSON_칸의_역슬래시_null_행은_남긴다() {
+    void 키워드는_네_칸에서_거르고_JSON_칸의_역슬래시_행은_남기며_null_원문_행은_따로_남기지_않는다() {
         Long name = seed("코일", t -> { });
         Long abbr = seed("가", t -> t.setEngAbbr("xcoil"));
         Long syn = seed("나", t -> t.setSynonyms("[\"코일감기\"]"));
         Long alias = seed("다", t -> t.setAliases("[\"COIL_ID\"]"));
         Long escaped = seed("라", t -> t.setSynonyms("[\"\\uBC30\"]"));
-        // 원문에 null 이 든 행은 남긴다. D1 수정(fix) 뒤로는 Java 가 null 리터럴을 빈 목록으로 보고 거르므로 남는 행만 늘 뿐이다
-        // (TermSearchPrefilter 설명 참고). D2 수정(fix)은 파서만 고쳤고 이 거르기 조건은 그대로 두었다 — 빼는 일은 다음 단계에서 정한다.
+        // 원문에 null 이 든 행도 일반 행처럼 거른다. 예전에는 Java 의 키워드 비교 NPE 를 1차 거르기 뒤에도 똑같이 내려고 남겼지만,
+        // D1·D2 수정(fix) 뒤로 파서가 null 리터럴을 빈 목록으로 읽고 원소 null 을 버려 NPE 가 없다(TermSearchPrefilter 설명 참고).
         Long nullLiteral = seed("마", t -> t.setAliases("null"));
         seed("바", t -> t.setEngName("코일"));
         seed("사", t -> t.setSynonyms("[\"판\"]"));
 
-        assertEquals(List.of(name, syn, escaped, nullLiteral), candidates("코일", null, false));
+        assertEquals(List.of(name, syn, escaped), candidates("코일", null));
         // "coil" → 안전 글자 구간 "CO"
-        assertEquals(List.of(abbr, alias, escaped, nullLiteral), candidates("coil", null, false));
+        assertEquals(List.of(abbr, alias, escaped), candidates("coil", null));
+        // 원문 글자로는 다른 행처럼 걸린다(최종 판정은 Java 가 빈 목록으로 보고 한다). 역슬래시 행은 늘 남는다
+        assertEquals(List.of(escaped, nullLiteral), candidates("null", null));
         // 안전 글자가 없으면 거르지 않는다
-        assertEquals(8, candidates("ss", null, false).size());
-        assertEquals(8, candidates(null, null, false).size());
+        assertEquals(8, candidates("ss", null).size());
+        assertEquals(8, candidates(null, null).size());
     }
 
     @Test
@@ -78,48 +80,47 @@ class TermSearchPrefilterSqliteTest extends AbstractMdmSharedDbTest {
         Long underscore = seed("A_B", t -> { });
         seed("AXB", t -> { });
 
-        assertEquals(List.of(percent), candidates("%", null, false));
-        assertEquals(List.of(underscore), candidates("_", null, false));
+        assertEquals(List.of(percent), candidates("%", null));
+        assertEquals(List.of(underscore), candidates("_", null));
     }
 
     @Test
-    void 상황_조건은_시스템_조건이_있을_때만_null_시스템_행을_남긴다() {
-        // 남긴 까닭은 null 원소([null], D2)였다 — 예전에는 Java 의 시스템 비교가 NPE 를 내므로 상황 조건이 그 행을 미리 빼면 동작이
-        // 바뀌었다. D2 수정(fix) 뒤로는 파서가 null 원소를 버려 NPE 가 없고, 이 조건은 Java 가 걸러 낼 행을 더 남길 뿐이다(결과는 같다).
-        // TermSearchPrefilter 는 이 커밋에서 바꾸지 않았다 — 조건을 빼는 일은 다음 단계에서 정하고, 그때 이 기대값도 고친다.
-        // null 리터럴 행은 D1 수정(fix) 뒤 NPE 없이 Java 가 거르지만, 같은 LIKE 조건에 함께 걸려 남는다.
+    void 상황_조건은_시스템_원문에_null_이_든_행을_따로_남기지_않는다() {
+        // 예전에는 시스템 조건이 있으면 이 행들을 남겼다 — Java 가 시스템 조건을 상황 조건보다 먼저 보는데 시스템 비교가 null 리터럴(D1)·
+        // null 원소(D2)에서 NPE 를 냈기 때문이다. D1·D2 수정(fix) 뒤로 NPE 가 없어 상황 조건만으로 거른다. 그래서 거르기는 시스템 조건이
+        // 있는지 받지 않는다.
         Long hot = seed("가", t -> t.setContext("열연"));
-        Long nullSystems = seed("나", t -> {
+        seed("나", t -> {
             t.setContext("냉연");
             t.setSystems("null");
         });
         seed("다", t -> t.setContext("냉연"));
-        Long nullElement = seed("라", t -> {
+        seed("라", t -> {
             t.setContext("냉연");
             t.setSystems("[null]");
         });
 
-        assertEquals(List.of(hot), candidates(null, "열연", false));
-        assertEquals(List.of(hot, nullSystems, nullElement), candidates(null, "열연", true));
+        assertEquals(List.of(hot), candidates(null, "열연"));
     }
 
     @Test
-    void 상황_조건은_키워드_조건이_있을_때만_null_동의어_별칭_행을_남긴다() {
-        // D1 수정(fix) 뒤로 이 조건은 동치에 필요 없고 남는 행만 늘린다(동의어·별칭 비교는 NPE 가 없다). 변경을 작게 두려고 남겼다.
-        // D2 수정(fix)은 파서만 고쳤다 — 이 조건을 빼는 일은 다음 단계에서 정하고, 그때 이 시험도 고친다.
+    void 상황_조건은_키워드_조건이_있어도_동의어_별칭_원문에_null_이_든_행을_따로_남기지_않는다() {
+        // 예전에는 키워드 조건이 있으면 이 행들을 남겼다(64bcf6cc) — 동의어·별칭이 null 리터럴이면 키워드 비교가 NPE 를 냈기 때문이다(D1).
+        // D1 수정(fix) 뒤로 NPE 가 없어 상황 조건만으로 거른다.
         Long hot = seed("코일", t -> t.setContext("열연"));
-        Long nullSynonyms = seed("가", t -> {
+        seed("가", t -> {
             t.setContext("냉연");
             t.setSynonyms("null");
         });
-        Long nullAliases = seed("나", t -> {
+        seed("나", t -> {
             t.setContext("냉연");
             t.setAliases("null");
         });
         seed("다", t -> t.setContext("냉연"));
 
-        assertEquals(List.of(hot), candidates(null, "열연", false));
-        assertEquals(List.of(hot, nullSynonyms, nullAliases), candidates("코일", "열연", false));
-        assertEquals(List.of(hot, nullSynonyms, nullAliases), candidates("ss", "열연", false), "바늘 없는 키워드도 같다");
+        assertEquals(List.of(hot), candidates(null, "열연"));
+        assertEquals(List.of(hot), candidates("코일", "열연"));
+        // 바늘 없는 키워드는 DB 에서 거르지 않으므로 상황 조건 하나만 남는다 — 상황 조건이 null 행을 빼는지는 이 사례가 가른다
+        assertEquals(List.of(hot), candidates("ss", "열연"), "바늘 없는 키워드도 같다");
     }
 }
