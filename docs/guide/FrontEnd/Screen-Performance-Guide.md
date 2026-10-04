@@ -5,7 +5,7 @@
 - 근거: [MDM 화면 렌더링 findings 독립 검증](../../perf-render/mdm-findings-verification.md)(이하 "검증", dev f4378bef)이 정본이다. [1·2차 findings](../../perf-render/mdm-findings.md) 중 검증에서 틀린 것으로 판정된 수치(조회→첫 행 826.9ms, "프런트 442ms", `/api/auth/me` 진입당 22회, 화면 무관 호출 7건 등)는 쓰지 않는다.
 - 수정 뒤 재측정: [MDM 화면 성능 수정 후 재측정](../../perf-render/mdm-after-fix.md)(이하 "재측정", 2026-10-04 dev 9a79d1db 기준). R1·K1~K7 의 효과, R11·R12 판정, §5 예산 확정의 근거다.
 - 측정 범위: MDM 6화면(termMng·columnMng·layoutConfirm·headerMng·dataMng·codeMng), 로컬 SQLite·로컬 망, 프로덕션 빌드, 2026-10-04. 운영 망·운영 DB 값이 아니다.
-- 인용한 `file:line` 은 dev f4378bef 기준이다. 줄이 바뀌었으면 검증의 절 번호(예: 검증 §5.2 C2)로 찾는다.
+- 인용한 `file:line` 은 dev f4378bef 기준이다. 다만 R1 적용 사례·R11·R12 와 §8 후속 후보(F1~F5)의 줄 번호는 dev 9a79d1db 기준이다. 줄이 바뀌었으면 검증·재측정의 절 번호(예: 검증 §5.2 C2)로 찾는다.
 - 렌더·그리드 세부 규칙 중 이미 [Local-Rules](Local-Rules.md) 에 있는 것은 여기서 다시 적지 않고 링크한다(§11 선택 전환, §16 큰 편집 그리드, §20 AgDataGrid 재렌더).
 
 ## 1. 먼저 알아 둘 것
@@ -129,7 +129,7 @@
 |---|---|---|---|---|---|---|---|
 | K1 | snapshot 이 같아도 셸 `setTabs` 가 새 배열을 넣는다 | `use-portal-tabs.ts:246-254`(`prev.map`) | 같은 snapshot 을 다시 보내도 셸 렌더 1회 이상 | 같은 값으로 `onSnapshotChange` 를 다시 부르지 않는다(R8) | 모든 탭이 그대로면 `prev` 를 돌려준다 | **수정됨**(cf79e675) — 렌더된 값·마지막 요청과 같으면 `setTabs` 를 부르지 않고, 갱신 함수도 `prev` 를 돌려준다 | 행 클릭 때 PortalShell 렌더 2 → **1**회(dataMng·codeMng·layoutConfirm, 선택 행 snapshot 값이 바뀜), 나머지 화면 0회 |
 | K2 | tabOrder 동기화 effect 가 변화 없이 새 배열 | `use-portal-tabs.ts:429-447` | 탭 상태가 바뀔 때마다 셸 1회 추가, 진입당 ≈2~4ms(추정) | — | 변화가 없으면 `prev` 를 돌려준다 | **수정됨**(cf79e675) — 탭 구성이 그대로면 `setTabOrder` 를 부르지 않는다(같은 값 갱신 함수도 React 가 셸을 한 번 렌더한다) | 진입 때 PortalShell 렌더 4 → **3**회, 탭 복귀 커밋 5 → 4 |
-| K3 | `useUserButtonRbac` 인스턴스마다 `/api/auth/me` | `use-user-button-rbac.ts:64-73,141-185` | 진입당 auth/me 4~6건(렌더 ≤0.4ms) | 구독자를 늘리지 않는다(R9) | 사용자 확인을 진행 중 요청 공유·세션 캐시로 한 번만. 재로그인 감지(`:137-139`)는 유지 | **수정됨**(75e84a2b) — `portal-shell/current-user.ts` `getCurrentUser`(진행 중 요청 공유·성공만 세션 캐시). 로그아웃·401·로그인 때 비우고, 다른 탭 재로그인은 화면이 다시 보일 때 재확인한다 | 메뉴 클릭 뒤 auth/me 4~6 → **0**건, 페이지 전체 13~15 → **1**건(포털 부팅). 같은 페이지 다른 화면·숨은 탭 복귀도 0건 |
+| K3 | `useUserButtonRbac` 인스턴스마다 `/api/auth/me` | `use-user-button-rbac.ts:64-73,141-185` | 진입당 auth/me 4~6건(렌더 ≤0.4ms) | 구독자를 늘리지 않는다(R9) | 사용자 확인을 진행 중 요청 공유·세션 캐시로 한 번만. 재로그인 감지(`:137-139`)는 유지 | **수정됨**(75e84a2b) — `portal-shell/current-user.ts` `getCurrentUser`(진행 중 요청 공유·성공만 세션 캐시). 로그아웃·401·로그인 때 비우고, 다른 탭 재로그인은 화면이 다시 보일 때 재확인한다 | 페이지 전체 13~15 → **1**건(포털 부팅), 그 뒤 메뉴 클릭 진입 4~6 → **0**건(캐시 적중), 숨은 탭 복귀 0건 |
 | K4 | resizable `ContentBody` 마다 RBAC 구독자 | `ContentBody.tsx:171` | 패널 하나당 auth/me 1건 | 패널을 필요 이상 나누지 않는다 | K3 과 함께 | **수정됨**(75e84a2b) — `ResizableBody` 는 `useCurrentUserId` 로 사용자 ID 만 받는다(RBAC 구독 없음) | K3 에 포함(ResizableBody 몫 auth/me 0건). 진입 호출 6~9 → **2~3**건 |
 | K5 | 홈 바로가기 위젯이 어느 탭 활성화에도 즐겨찾기 재요청 | `quickLinks/widget.tsx:27-31` | 탭 전환마다 요청 1건 | 같은 패턴을 새 위젯·화면에 쓰지 않는다(R10) | 자기 탭(홈)이 활성화될 때만 | **수정됨**(3264529f) — `TabPageContext.tabId` 와 `portal-tab-activated` 의 `detail.tabId` 를 비교한다 | 진입 호출에서 `secFavorite` 사라짐. QuickLinksWidget 렌더 진입 3 → **0**회, 탭 복귀 2 → **0**회 |
 | K6 | 숨은 홈 위젯 보드가 폭 0 통지로 다시 렌더 | `widget/WidgetFrame.tsx:96-106`, `WidgetWorkspace.tsx:144`, `WidgetBoard.tsx:60` | 홈을 떠날 때 ≈2.5~3ms | 폭 0 통지를 무시한다(R10) | 폭 0 이면 상태를 바꾸지 않는다 | **수정됨**(3264529f) — `WidgetFrame` 은 폭 0 을 무시, `WidgetWorkspace`·`WidgetBoard` 는 `useVisibleContainerWidth`(폭 0 무시)를 쓴다 | 진입 때 WidgetBoard 렌더 1 → **0**회 |
