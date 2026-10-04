@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 
 /**
  * {@code TB_MDM_COLUMN} JPA Repository(TSK-04-01 design.md §2, D3 — 조립·분기 로직 없음, 선언만).
@@ -25,4 +26,11 @@ public interface MdmColumnRepository extends JpaRepository<MdmColumn, Long>, Jpa
 
     /** TSK-08-03 — 룰 화면 자동완성 후보(varCandidates) 전체, 물리명 순. */
     List<MdmColumn> findAllByOrderByPhysNameAsc();
+
+    /**
+     * 컬럼 목록 첫 조회 상한(화면 성능 가이드 R1) — ID·논리명 두 칸만 전부 읽는다({@code [columnId, columnName]}). 정렬은 호출자가
+     * Java 로 한다: DB {@code ORDER BY} 는 방언·콜레이션마다 순서가 달라 잘리는 경계가 화면 정렬과 어긋날 수 있다.
+     */
+    @Query("select c.columnId, c.columnName from MdmColumn c")
+    List<Object[]> findAllIdAndName();
 }

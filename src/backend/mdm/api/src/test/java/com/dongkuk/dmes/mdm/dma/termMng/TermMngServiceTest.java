@@ -16,6 +16,8 @@ import com.dongkuk.dmes.mdm.dma.termMng.dto.TermDeleteRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermRow;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveRequest;
 import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSaveResult;
+import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSearchRequest;
+import com.dongkuk.dmes.mdm.dma.termMng.dto.TermSearchResult;
 import com.dongkuk.dmes.mdm.dma.termMng.service.TermMngService;
 import com.dongkuk.dmes.mdm.repository.MdmTermRepository;
 import java.util.ArrayList;
@@ -62,6 +64,51 @@ class TermMngServiceTest extends AbstractMdmSharedDbTest {
         r.setSenseNo(senseNo);
         r.setDefinition(definition);
         return r;
+    }
+
+    // ── 첫 조회 상한(화면 성능 가이드 R1) ──
+
+    @Test
+    void 조건_없는_조회에_limit_이_오면_TERM_ID_앞쪽만_주고_전체_건수와_잘림을_알린다() {
+        Long first = service.save(req("코일", 1, "코일 정의")).getTermId();
+        Long second = service.save(req("두께", 1, "두께 정의")).getTermId();
+        service.save(req("폭", 1, "폭 정의"));
+        TermSearchRequest q = new TermSearchRequest();
+        q.setLimit(2);
+
+        TermSearchResult result = service.search(q);
+
+        assertEquals(List.of(first, second), result.getList().stream().map(TermRow::getTermId).toList());
+        assertEquals(3, result.getTotalCount());
+        assertTrue(result.isTruncated());
+    }
+
+    @Test
+    void limit_이_없거나_조건이_있으면_상한_없이_전부_주고_잘림은_false() {
+        service.save(req("코일", 1, "코일 정의"));
+        service.save(req("코일", 2, "코일 정의2"));
+        service.save(req("두께", 1, "두께 정의"));
+        TermSearchRequest withKeyword = new TermSearchRequest();
+        withKeyword.setKeyword("코일");
+        withKeyword.setLimit(1);
+        TermSearchRequest whitespaceOnly = new TermSearchRequest();
+        whitespaceOnly.setKeyword("  ");
+        whitespaceOnly.setLimit(1);
+
+        TermSearchResult noLimit = service.search(new TermSearchRequest());
+        TermSearchResult keyword = service.search(withKeyword);
+        TermSearchResult blank = service.search(whitespaceOnly);
+
+        assertEquals(3, noLimit.getList().size());
+        assertEquals(3, noLimit.getTotalCount());
+        assertFalse(noLimit.isTruncated());
+        assertEquals(2, keyword.getList().size());
+        assertEquals(2, keyword.getTotalCount());
+        assertFalse(keyword.isTruncated());
+        // 공백만 든 검색어는 조건 없음과 같다 — 상한이 걸린다
+        assertEquals(1, blank.getList().size());
+        assertEquals(3, blank.getTotalCount());
+        assertTrue(blank.isTruncated());
     }
 
     // ── I6 ──

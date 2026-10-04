@@ -20,6 +20,9 @@ public interface MdmColumnSystemRepository extends JpaRepository<MdmColumnSystem
     /** TSK-04-04 — 컬럼 한 건의 시스템 매핑(상세·차분 저장). */
     List<MdmColumnSystem> findByColumnId(Long columnId);
 
+    /** 컬럼 목록 첫 조회 상한(R1) — 잘린 컬럼들의 매핑만 읽는다. IN 개수 제한은 호출자가 나눠 지킨다. */
+    List<MdmColumnSystem> findByColumnIdIn(Collection<Long> columnIds);
+
     /** TSK-04-04 — 역분해 폴백(시스템별 실제 필드명으로 찾기). */
     List<MdmColumnSystem> findByPhysNameIn(Collection<String> physNames);
 

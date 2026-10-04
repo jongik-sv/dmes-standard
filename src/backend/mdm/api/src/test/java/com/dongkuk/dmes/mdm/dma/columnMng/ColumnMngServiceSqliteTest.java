@@ -173,6 +173,51 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 조건_없는_조회에_limit_이_오면_화면_정렬_앞쪽만_주고_전체_건수와_잘림을_알린다() {
+        MdmColumn c = DmaTestSupport.column(columns, "코일 폭", "COIL_WTH", coilThk.getDomainId());
+        MdmColumn a = DmaTestSupport.column(columns, "코일 두께", "COIL_THK", coilThk.getDomainId());
+        MdmColumn b = DmaTestSupport.column(columns, "코일 아이디", "COIL_ID", rmtlCoilThk.getDomainId());
+        DmaTestSupport.mapping(mappings, a.getColumnId(), "ERP", "THICK", null);
+        DmaTestSupport.mapping(mappings, b.getColumnId(), "MES", "COIL_NO", null);
+        DmaTestSupport.mapping(mappings, c.getColumnId(), "L2", "WIDTH", null);
+        ColumnMngSearchRequest q = new ColumnMngSearchRequest();
+        q.setLimit(2);
+
+        Map<String, Object> result = service.search(q);
+
+        List<Map<String, Object>> list = maps(result.get("list"));
+        assertEquals(List.of("코일 두께", "코일 아이디"), list.stream().map(m -> m.get("columnName")).toList());
+        assertEquals("ERP:THICK", list.get(0).get("systemFields"));
+        assertEquals("원재료 코일 두께", list.get(1).get("domainName"));
+        assertEquals(3, result.get("totalCount"));
+        assertEquals(true, result.get("truncated"));
+        assertEquals(5, maps(result.get("systems")).size());
+    }
+
+    @Test
+    void limit_이_없거나_조건이_있으면_상한_없이_전부_준다() {
+        DmaTestSupport.column(columns, "코일 폭", "COIL_WTH", coilThk.getDomainId());
+        DmaTestSupport.column(columns, "코일 두께", "COIL_THK", coilThk.getDomainId());
+        DmaTestSupport.column(columns, "코일 아이디", "COIL_ID", coilThk.getDomainId());
+        ColumnMngSearchRequest withKeyword = search("코일", null);
+        withKeyword.setLimit(1);
+        ColumnMngSearchRequest bigLimit = new ColumnMngSearchRequest();
+        bigLimit.setLimit(1000);
+
+        Map<String, Object> noLimit = service.search(new ColumnMngSearchRequest());
+        Map<String, Object> keyword = service.search(withKeyword);
+        Map<String, Object> big = service.search(bigLimit);
+
+        assertEquals(3, maps(noLimit.get("list")).size());
+        assertEquals(List.of("list", "systems"), new ArrayList<>(noLimit.keySet()), "limit 을 안 보내면 응답 모양이 그대로다");
+        for (Map<String, Object> r : List.of(keyword, big)) {
+            assertEquals(3, maps(r.get("list")).size());
+            assertEquals(3, r.get("totalCount"));
+            assertEquals(false, r.get("truncated"));
+        }
+    }
+
+    @Test
     void 도메인_키워드는_ID_도메인명_표준명_부분_일치를_대소문자_무시로_건다() {
         DmaTestSupport.column(columns, "코일 두께", "COIL_THK", coilThk.getDomainId());
         DmaTestSupport.column(columns, "원재료 코일 두께", "RMTL_COIL_THK", rmtlCoilThk.getDomainId());
