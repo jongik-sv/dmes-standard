@@ -18,8 +18,9 @@ import {
   SearchArea,
   SearchField,
 } from "@dk-oasis/shared/layout";
-import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
+import { AgDataGrid, GridLimitNotice, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, ProgressBar, Textarea } from "@dk-oasis/shared/form";
+import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { MdmPageLayout } from "@/shell";
 import { useDebouncedEffect } from "@/hooks/use-debounced-effect";
 
@@ -58,6 +59,10 @@ const MIN_RECOMMEND_LENGTH = 2;
 export default function TermMngPage() {
   const [filters, setFilters] = useState<TermMngFilters>(emptyFilters);
   const [rows, setRows] = useState<TermRow[]>([]);
+  /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
+  const [rowsTotal, setRowsTotal] = useState<number | null>(null);
+  /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
+  const [showAll, setShowAll] = useState(false);
   const [selectedTermId, setSelectedTermId] = useState<number | null>(null);
   const [form, setForm] = useState<TermForm | null>(null);
   const [isBusy, setIsBusy] = useState(false);
@@ -80,11 +85,14 @@ export default function TermMngPage() {
     [rows],
   );
 
-  const handleSearch = useCallback(async () => {
+  // [조회] 는 첫 조회 상한(R1)을 걸고, [전체 보기] 는 상한 없이 받는다. 저장·삭제 뒤 재조회는 지금 모드를 따른다.
+  const handleSearch = useCallback(async (all = false) => {
     setIsBusy(true);
     try {
-      const payload = await searchTerms(filters.keyword, filters.systems, filters.context);
+      const payload = await searchTerms(filters.keyword, filters.systems, filters.context, all ? undefined : FIRST_SEARCH_LIMIT);
       setRows(payload.list ?? []);
+      setRowsTotal(payload.truncated ? (payload.totalCount ?? null) : null);
+      setShowAll(all);
       setSelectedTermId(null);
       setForm(null);
       setCandidates([]);
@@ -153,13 +161,13 @@ export default function TermMngPage() {
             : result.warnings.join(", "),
         );
       }
-      await handleSearch();
+      await handleSearch(showAll);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     } finally {
       setIsBusy(false);
     }
-  }, [form, validate, handleSearch]);
+  }, [form, validate, handleSearch, showAll]);
 
   /** B-004 삭제. */
   const handleDelete = useCallback(async () => {
@@ -170,13 +178,13 @@ export default function TermMngPage() {
     setIsBusy(true);
     try {
       await deleteTerm(selectedTermId);
-      await handleSearch();
+      await handleSearch(showAll);
     } catch (e) {
       setErrorMessage(e instanceof Error ? e.message : String(e));
     } finally {
       setIsBusy(false);
     }
-  }, [selectedTermId, handleSearch]);
+  }, [selectedTermId, handleSearch, showAll]);
 
   /** A-RECO — D-002·D-004·D-007 중 하나라도 바뀌고 표기가 2자 이상이면 디바운스 후 compare 1회. */
   useDebouncedEffect(
@@ -304,7 +312,19 @@ export default function TermMngPage() {
 
       <ContentBody root resizable storageKey="mdm.dma.termMng">
         <ContentPanel>
-          <GridPanel title="용어 목록" count={rows.length}>
+          <GridPanel
+            title="용어 목록"
+            count={rows.length}
+            titleExtra={
+              <GridLimitNotice
+                shownCount={rows.length}
+                totalCount={rowsTotal}
+                onShowAll={() => void handleSearch(true)}
+                disabled={isBusy}
+                testId="term-list-limit"
+              />
+            }
+          >
             <AgDataGrid
               columnSizing="fit"
               columns={TERM_COLUMNS}

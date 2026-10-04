@@ -26,6 +26,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import {
   AgDataGrid,
+  GridLimitNotice,
   GridPanel,
   getRowIdentifier,
   type GridColumn,
@@ -33,6 +34,7 @@ import {
 import { Button, Input, Select } from "@dk-oasis/shared/form";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { DomainField } from "@/domain";
+import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { MdmPageLayout, badgeStyle } from "@/shell";
 
 import { compareName, saveColumn, searchColumns, searchDomains, loadColumnOptions, viewColumn } from "./api";
@@ -145,6 +147,10 @@ export default function ColumnMngPage() {
   const [busy, setBusy] = useState(false);
   // 목록 그리드의 로딩 표시는 목록 조회만 켠다 — 상세·분해 호출까지 따라 켜면 행을 누를 때마다 목록이 깜빡인다.
   const [listLoading, setListLoading] = useState(false);
+  /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
+  const [listTotal, setListTotal] = useState<number | null>(null);
+  /** 마지막 조회가 [전체 보기](상한 없음)였는지. */
+  const [showAll, setShowAll] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fail = useCallback(
@@ -167,13 +173,16 @@ export default function ColumnMngPage() {
   );
 
   // ── 목록 ──────────────────────────────────────────────────────────────
+  // [조회] 는 첫 조회 상한(R1)을 걸고, [전체 보기] 는 상한 없이 받는다. 저장 뒤 재조회는 지금 모드를 따른다.
   const loadList = useCallback(
-    async (kw: string, domainKeyword: string) => {
+    async (kw: string, domainKeyword: string, all = false) => {
       setBusy(true);
       setListLoading(true);
       try {
-        const result = await searchColumns(kw, domainKeyword);
+        const result = await searchColumns(kw, domainKeyword, all ? undefined : FIRST_SEARCH_LIMIT);
         setList(result.list ?? []);
+        setListTotal(result.truncated ? (result.totalCount ?? null) : null);
+        setShowAll(all);
         setSystems(result.systems ?? []);
       } catch (e) {
         fail(e);
@@ -416,7 +425,7 @@ export default function ColumnMngPage() {
       const termsPayload = formTerms.map((termId) => ({ termId }));
       const result = await saveColumn(params, systemsPayload, termsPayload);
       showMessage({ message: "저장했습니다", toast: true });
-      await loadList(keyword, domainFilter);
+      await loadList(keyword, domainFilter, showAll);
       await openColumn(result.columnId);
     } catch (e) {
       fail(e);
@@ -431,6 +440,7 @@ export default function ColumnMngPage() {
     keyword,
     loadList,
     openColumn,
+    showAll,
     showMessage,
     systemRows,
   ]);
@@ -610,7 +620,19 @@ export default function ColumnMngPage() {
           >
             {/* .grid-panel 은 contain: strict + height 100% 라 부모가 높이를 정해야 한다. */}
             <div style={{ flex: 1, minHeight: 0 }}>
-              <GridPanel title="컬럼 목록" count={list.length}>
+              <GridPanel
+                title="컬럼 목록"
+                count={list.length}
+                titleExtra={
+                  <GridLimitNotice
+                    shownCount={list.length}
+                    totalCount={listTotal}
+                    onShowAll={() => void loadList(keyword, domainFilter, true)}
+                    disabled={busy}
+                    testId="column-list-limit"
+                  />
+                }
+              >
                 <AgDataGrid
                   columnSizing="fit"
                   columns={LIST_COLUMNS}

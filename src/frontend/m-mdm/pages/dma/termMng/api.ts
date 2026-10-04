@@ -16,6 +16,10 @@ const SERVICE = "termMng";
 
 export interface TermSearchPayload {
   list?: TermRow[];
+  /** 조건에 맞는 전체 건수 — 상한으로 잘렸으면 list 길이보다 크다. */
+  totalCount?: number;
+  /** 상한(limit)으로 잘렸는지. */
+  truncated?: boolean;
 }
 
 export interface TermSavePayload {
@@ -57,9 +61,14 @@ function callAction<T>(
   return callOasisAt<T>(MDM_OASIS_BASE, SERVICE, action, params, undefined, { ...OASIS, signal });
 }
 
-/** action=search — §3 S-001~S-003. */
-export async function searchTerms(keyword: string, systems: string, context: string): Promise<TermSearchPayload> {
-  return callAction<TermSearchPayload>("search", { keyword, systems, context });
+/** action=search — §3 S-001~S-003. `limit` 은 조건이 하나도 없을 때만 서버가 적용하는 행 수 상한이다(R1). 비우면 상한 없음. */
+export async function searchTerms(
+  keyword: string,
+  systems: string,
+  context: string,
+  limit?: number,
+): Promise<TermSearchPayload> {
+  return callAction<TermSearchPayload>("search", { keyword, systems, context, limit });
 }
 
 /** action=save — §4 D-001~D-011. synonyms/aliases/systems 는 콤마 구분 원본 문자열 그대로 보낸다. */
