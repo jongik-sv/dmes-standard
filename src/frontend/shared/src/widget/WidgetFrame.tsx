@@ -24,6 +24,7 @@ import {
 import { MIN_REFRESH_SEC } from "./constants";
 import { openPortalPage, WidgetFrameContext, type WidgetFrameApi, type WidgetStatus } from "./frame-context";
 import { WidgetStyle } from "./styles";
+import { useWidgetVisible } from "./use-widget-visible";
 import type { WidgetComponent, WidgetItem, WidgetMoveKey, WidgetProps, WidgetRegistryEntry } from "./types";
 
 export interface WidgetFrameProps {
@@ -109,12 +110,22 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
   }, [hasBody]);
 
   // 자동 새로 고침 — 보기 모드에서만, 최소 30초. 사용 중지 위젯은 본체가 없으므로 타이머도 걸지 않는다.
+  // 숨은 탭·화면 밖·hidden 문서에서는 멈추고, 다시 보일 때 주기가 이미 찼으면 밀린 1회만 새로 고친다(R14).
   const refreshSec = meta?.disabled ? undefined : meta?.refreshSec;
+  const visible = useWidgetVisible(bodyRef, hasBody);
+  const lastRefreshAt = useRef<number | null>(null);
   useEffect(() => {
-    if (editing || !refreshSec) return;
-    const t = window.setInterval(() => setRefreshKey((k) => k + 1), Math.max(MIN_REFRESH_SEC, refreshSec) * 1000);
+    if (editing || !refreshSec || !visible) return;
+    const periodMs = Math.max(MIN_REFRESH_SEC, refreshSec) * 1000;
+    const refresh = () => {
+      lastRefreshAt.current = Date.now();
+      setRefreshKey((k) => k + 1);
+    };
+    if (lastRefreshAt.current === null) lastRefreshAt.current = Date.now();
+    else if (Date.now() - lastRefreshAt.current >= periodMs) refresh();
+    const t = window.setInterval(refresh, periodMs);
     return () => window.clearInterval(t);
-  }, [editing, refreshSec]);
+  }, [editing, refreshSec, visible]);
 
   const widgetId = entry?.meta.id ?? item.widgetId;
   const setTitle = useCallback(
@@ -253,7 +264,7 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
         {!editing && (
           <>
             {item.locked && <span className="cm-widget__sub" title="잠김">🔒</span>}
-            <button type="button" className="cm-widget__btn" data-action="refresh" title="새로 고침" aria-label="새로 고침" onClick={() => setRefreshKey((k) => k + 1)}>
+            <button type="button" className="cm-widget__btn" data-action="refresh" title="새로 고침" aria-label="새로 고침" onClick={() => { lastRefreshAt.current = Date.now(); setRefreshKey((k) => k + 1); }}>
               ↻
             </button>
             {entry.meta.linkPageId && (

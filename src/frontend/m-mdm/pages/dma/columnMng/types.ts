@@ -85,7 +85,6 @@ export interface ColumnListRow {
   required: "Y" | "N";
   termNames: string;
   systemFields: string;
-  usageNote: string | null;
 }
 
 export interface SystemOption {
