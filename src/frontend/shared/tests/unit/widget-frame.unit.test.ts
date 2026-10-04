@@ -389,3 +389,31 @@ describe("WidgetFrame", () => {
     });
   });
 });
+
+describe("WidgetFrame — 지연 로딩 캐시는 본체 로더 기준(W2)", () => {
+  it("meta 만 바뀐 새 entry 가 같은 load 를 쓰면 본체를 다시 마운트하지 않는다", async () => {
+    const mounts = vi.fn();
+    const Body = () => {
+      useEffect(() => {
+        mounts();
+      }, []);
+      return h("p", null, "본문");
+    };
+    const load = async () => ({ default: Body });
+    const e1: WidgetRegistryEntry = { meta: { id: "t.a", title: "처음", defaultSize: { w: 6, h: 6 } }, load };
+    const e2: WidgetRegistryEntry = { meta: { ...e1.meta, title: "덮어쓴 제목" }, load };
+    act(() => root.render(h(WidgetFrame, { item: item(), entry: e1, editing: false, onToggleLock: noop, onRemove: noop })));
+    await flush();
+    await flush();
+    expect(mounts).toHaveBeenCalledTimes(1);
+    act(() => root.render(h(WidgetFrame, { item: item(), entry: e2, editing: false, onToggleLock: noop, onRemove: noop })));
+    // 스켈레톤(Suspense)으로 돌아가지 않는다 — 새 lazy 면 여기서 대체 화면이 끼어든다.
+    expect(host.querySelector(".cm-widget__body .cm-widget__skeleton")).toBeNull();
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    expect(host.querySelector(".cm-widget__title")!.textContent).toBe("덮어쓴 제목");
+    expect(host.querySelector(".cm-widget__body p")?.textContent).toBe("본문");
+    expect(mounts).toHaveBeenCalledTimes(1);
+  });
+});
