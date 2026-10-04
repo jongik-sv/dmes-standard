@@ -2,15 +2,19 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
   RUN,
+  T,
   Watcher,
   assertAllButtonsPressed,
   breadcrumb,
   button,
   checkLayout,
   escapeRe,
+  expectErrorModal,
   expectToast,
   gridRow,
+  gridRowById,
   gridRowCount,
+  gridRows,
   modal,
   openAs,
   openMenu,
@@ -18,6 +22,7 @@ import {
   screen,
   scrolledOut,
   snap,
+  snapModal,
   tid,
   uid,
 } from "./support";
@@ -65,8 +70,7 @@ type ScreenId = keyof typeof MENU;
 
 /** 테스트 케이스 표(AgDataGrid)의 n 번째 케이스 칸을 눌러 값을 넣는다 — 행 키는 1부터, 결과 칸(RESULT_TEXT)이 있는 행이 이 표의 행이다. 기대 칸은 true/false 선택이다. */
 async function editCaseCell(root: Locator, n: number, col: "VALUE" | "EXPECT" | "MEMO", value: string) {
-  const row = root
-    .locator(`.ag-center-cols-container .ag-row[row-id="${n}"]`)
+  const row = gridRowById(root, String(n))
     .filter({ has: root.page().locator('.ag-cell[col-id="RESULT_TEXT"]') });
   await row.locator(`.ag-cell[col-id="${col}"]`).click();
   if (col === "EXPECT") {
@@ -99,25 +103,6 @@ class Findings {
   }
 }
 
-const errorBody = (page: Page) => page.locator(".error-modal__body:visible");
-
-/** 모달이 다 떠오른 뒤(열림 애니메이션 끝) 찍는다. */
-async function snapModal(page: Page, name: string) {
-  const m = modal(page);
-  await expect(m).toBeVisible();
-  await expect
-    .poll(() => m.evaluate((el) => Number(getComputedStyle(el).opacity) * (el.getAnimations().length ? 0 : 1)))
-    .toBe(1);
-  await snap(page, name);
-}
-
-async function expectErrorModal(page: Page, text: string | RegExp, shot?: string) {
-  await expect(errorBody(page)).toContainText(text, { timeout: 20_000 });
-  if (shot) await snapModal(page, shot);
-  await modal(page).getByRole("button", { name: "확인", exact: true }).click();
-  await expect(errorBody(page)).toHaveCount(0);
-}
-
 /**
  * unitMng·termMng 상세 폼 — data-testid 가 없는 <tr><th>라벨</th><td><input/…></td></tr> 구조에서 입력칸을 찾는다.
  * th 전체 텍스트가 label 과 정확히 같은 행만 본다(예: "환산 계수 *" ≠ "환산 계수").
@@ -137,10 +122,10 @@ const calcValue = (page: Page): Locator => screen(page).getByLabel("환산할 �
 const calcUnit = (page: Page): Locator => screen(page).getByRole("combobox", { name: "입력 단위", exact: true });
 const calcGrid = (page: Page): Locator =>
   screen(page).locator(".ag-root-wrapper").filter({ has: page.locator(".ag-header-cell-text", { hasText: /^환산값$/ }) });
-const calcRows = (page: Page): Locator => calcGrid(page).locator(".ag-center-cols-container .ag-row");
+const calcRows = (page: Page): Locator => gridRows(calcGrid(page));
 /** 결과 표 행 — 행 키(row-id)는 단위 코드다(rowKey="unitCode"). */
 const calcRow = (page: Page, unitCode: string): Locator =>
-  calcGrid(page).locator(`.ag-center-cols-container .ag-row[row-id="${unitCode}"]`);
+  gridRowById(calcGrid(page), unitCode);
 const calcCell = (page: Page, unitCode: string): Locator => calcRow(page, unitCode).locator('.ag-cell[col-id="display"]');
 
 /** 입력 단위 콤보에서 단위를 고른다 — 칸에 코드를 쳐서 좁히고 "코드 (차원)" 항목을 누른다. */
@@ -157,7 +142,7 @@ async function chooseCalcUnit(page: Page, unitCode: string) {
  * 처리 결과(등록됨·용어 등록 버튼)는 같은 행의 처리 칸에 있다. 그래서 그 표지를 가진 행 전체로 본다.
  */
 const tokenRow = (page: Page, n: number): Locator =>
-  screen(page).locator(".ag-center-cols-container .ag-row").filter({ has: page.locator(`[data-testid="token-row-${n}"]`) });
+  gridRows(screen(page)).filter({ has: page.locator(`[data-testid="token-row-${n}"]`) });
 
 /** SearchArea 안 SearchField(label) — <table> 이 아니라 .search-field div 구조라 field() 와 다른 셀렉터를 쓴다. */
 function searchField(page: Page, label: string): Locator {
@@ -182,8 +167,7 @@ function panelByTitle(page: Page, title: string): Locator {
  */
 function domainRow(page: Page, name: string): Locator {
   const grid = panelByTitle(page, "도메인 목록");
-  return grid
-    .locator(".ag-center-cols-container .ag-row")
+  return gridRows(grid)
     .filter({ has: page.locator('.ag-cell[col-id="_NAME"]', { hasText: new RegExp(`^[\\s\\u3000]*(└ )?${escapeRe(name)}\\u200B?\\s*$`) }) });
 }
 
@@ -205,7 +189,7 @@ async function scrollGridLeft(grid: Locator) {
 async function expectSearchedRowExists(grid: Locator) {
   await expect(async () => {
     expect(await gridRowCount(grid)).toBeGreaterThanOrEqual(1);
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: T.UI });
 }
 
 /** 한글 접두 + RUN(대문자 영숫자, 밑줄 없음) — 용어 표기처럼 밑줄이 금지된 칸에 쓴다(NamingRules.TERM_NAME). */
@@ -233,7 +217,7 @@ async function verifyListedAfterSearch(page: Page, panelTitle: string, keyword: 
 async function openDimensionCombo(page: Page): Promise<Locator> {
   const dim = field(page, "차원 *");
   await dim.click();
-  await expect(dim.locator("xpath=ancestor::td[1]").getByRole("option").first()).toBeVisible({ timeout: 20_000 });
+  await expect(dim.locator("xpath=ancestor::td[1]").getByRole("option").first()).toBeVisible({ timeout: T.UI });
   return dim;
 }
 
@@ -272,7 +256,7 @@ async function registerTextDomain(page: Page, domainName: string, stdName: strin
   await screen(page).getByLabel("종류", { exact: true }).selectOption("TEXT");
   await screen(page).getByLabel("데이터 타입", { exact: true }).selectOption("STRING");
   await screen(page).getByRole("button", { name: "도메인검증" }).click();
-  await expect(screen(page).getByText(/검사 통과/)).toBeVisible({ timeout: 20_000 });
+  await expect(screen(page).getByText(/검사 통과/)).toBeVisible({ timeout: T.UI });
   await screen(page).getByRole("button", { name: "저장", exact: true }).click();
   await expectToast(page, "저장했습니다");
   await verifyListedAfterSearch(page, "도메인 목록", domainName, "_NAME");
@@ -288,7 +272,7 @@ async function registerQtyDomain(page: Page, domainName: string, stdName: string
   await screen(page).getByLabel("데이터 타입", { exact: true }).selectOption("NUMBER");
   await screen(page).getByLabel("단위", { exact: true }).fill(unitCode);
   await screen(page).getByRole("button", { name: "도메인검증" }).click();
-  await expect(screen(page).getByText(/검사 통과|검사 실패/)).toBeVisible({ timeout: 20_000 });
+  await expect(screen(page).getByText(/검사 통과|검사 실패/)).toBeVisible({ timeout: T.UI });
   await screen(page).getByRole("button", { name: "저장", exact: true }).click();
   await expectToast(page, "저장했습니다");
   await verifyListedAfterSearch(page, "도메인 목록", domainName, "_NAME");
@@ -356,7 +340,7 @@ test.describe("A 단위 마스터", () => {
     // 있다 — 검색어로 좁혀서 확실히 그 행만 보이게 한다.
     await searchField(page, "검색어").fill(U1);
     await button(page, "조회").click();
-    await expect(gridRow(panelByTitle(page, "단위 목록"), U1, "unitCode")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRow(panelByTitle(page, "단위 목록"), U1, "unitCode")).toHaveCount(1, { timeout: T.UI });
     watcher.assertClean("unitMng");
   });
 
@@ -379,7 +363,7 @@ test.describe("A 단위 마스터", () => {
     // UNT-03 이 남긴 검색어(U1) 필터를 U2 로 바꿔 방금 저장한 행만 확실히 보이게 한다.
     await searchField(page, "검색어").fill(U2);
     await button(page, "조회").click();
-    await expect(gridRow(panelByTitle(page, "단위 목록"), U2, "unitCode")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRow(panelByTitle(page, "단위 목록"), U2, "unitCode")).toHaveCount(1, { timeout: T.UI });
     watcher.assertClean("unitMng");
   });
 
@@ -387,12 +371,12 @@ test.describe("A 단위 마스터", () => {
     await searchField(page, "검색어").fill(U1);
     await button(page, "조회").click();
     const list = panelByTitle(page, "단위 목록");
-    await expect(gridRow(list, U1, "unitCode")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRow(list, U1, "unitCode")).toHaveCount(1, { timeout: T.UI });
     await expect(gridRow(list, U2, "unitCode")).toHaveCount(0);
     await searchField(page, "검색어").fill("");
     await searchField(page, "차원").selectOption(DIM1);
     await button(page, "조회").click();
-    await expect(gridRow(list, U1, "unitCode")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRow(list, U1, "unitCode")).toHaveCount(1, { timeout: T.UI });
     await expect(gridRow(list, U2, "unitCode")).toHaveCount(1);
     await searchField(page, "차원").selectOption("");
     await layoutA.layout(page, "unitMng 목록 채워짐");
@@ -408,7 +392,7 @@ test.describe("A 단위 마스터", () => {
     await field(page, "환산 계수 *").fill("2000");
     await button(page, "저장").click();
     await button(page, "조회").click();
-    await expect(gridRow(list, U2, "unitCode").locator('.ag-cell[col-id="factor"]')).toHaveText("2000", { timeout: 20_000 });
+    await expect(gridRow(list, U2, "unitCode").locator('.ag-cell[col-id="factor"]')).toHaveText("2000", { timeout: T.UI });
     watcher.assertClean("unitMng");
   });
 
@@ -423,7 +407,7 @@ test.describe("A 단위 마스터", () => {
     // 천 단위 쉼표를 받는다. U2 는 UNT-06 에서 계수 2000(1 U2 = 2000 U1)이 됐다 — 2,000 U1 = 1 U2.
     await value.fill("2,000");
     await chooseCalcUnit(page, U1);
-    await expect(calcCell(page, U1)).toHaveText("2,000", { timeout: 20_000 });
+    await expect(calcCell(page, U1)).toHaveText("2,000", { timeout: T.UI });
     await expect(calcCell(page, U2)).toHaveText("1");
     await layoutA.layout(page, "unitMng 환산 계산기");
     await snap(page, "dma-unitMng-07-preview");
@@ -432,13 +416,13 @@ test.describe("A 단위 마스터", () => {
     // 칸 값만으로는 다시 계산했는지 알 수 없다 — U2 기준 compare 응답이 오는 것까지 본다.
     const recalculated = page.waitForResponse(
       (r) => r.url().includes("/oasis/unitMng/compare") && (r.request().postData() ?? "").includes(`"fromUnitCode":"${U2}"`),
-      { timeout: 20_000 },
+      { timeout: T.UI },
     );
     await calcRow(page, U2).click();
     await recalculated;
     await expect(value).toHaveValue("1");
     await expect(calcUnit(page)).toHaveValue(new RegExp(`^${escapeRe(U2)} `));
-    await expect(calcCell(page, U1)).toHaveText("2,000", { timeout: 20_000 });
+    await expect(calcCell(page, U1)).toHaveText("2,000", { timeout: T.UI });
     await expect(calcCell(page, U2)).toHaveText("1");
     watcher.assertClean("unitMng");
   });
@@ -452,13 +436,13 @@ test.describe("A 단위 마스터", () => {
     await button(page, "저장").click();
     await searchField(page, "검색어").fill(U3);
     await button(page, "조회").click();
-    await expect(gridRow(panelByTitle(page, "단위 목록"), U3, "unitCode")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRow(panelByTitle(page, "단위 목록"), U3, "unitCode")).toHaveCount(1, { timeout: T.UI });
 
     // 환산 계산기는 입력 단위와 같은 차원의 단위만 결과로 늘어놓는다(01304edc, A-PREVIEW) — 다른 차원(DIM1)의
     // U1·U2 는 U3 기준 결과에 나오지 않는다.
     await calcValue(page).fill("1");
     await chooseCalcUnit(page, U3);
-    await expect(calcCell(page, U3)).toHaveText("1", { timeout: 20_000 });
+    await expect(calcCell(page, U3)).toHaveText("1", { timeout: T.UI });
     await expect(calcRows(page)).toHaveCount(1);
     await expect(calcRow(page, U1)).toHaveCount(0);
     await expect(calcRow(page, U2)).toHaveCount(0);
@@ -531,13 +515,13 @@ test.describe("B 용어 관리", () => {
     await searchField(page, "검색어").fill(TERM_A_NAME);
     await button(page, "조회").click();
     const list = panelByTitle(page, "용어 목록");
-    await expect(gridRow(list, TERM_A_NAME, "termName")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRow(list, TERM_A_NAME, "termName")).toHaveCount(1, { timeout: T.UI });
     await searchField(page, "검색어").fill(`${TERM_A_NAME}_없음`);
     await button(page, "조회").click();
-    await expect(gridRow(list, TERM_A_NAME, "termName")).toHaveCount(0, { timeout: 20_000 });
+    await expect(gridRow(list, TERM_A_NAME, "termName")).toHaveCount(0, { timeout: T.UI });
     await searchField(page, "검색어").fill(TERM_A_NAME);
     await button(page, "조회").click();
-    await expect(gridRow(list, TERM_A_NAME, "termName")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRow(list, TERM_A_NAME, "termName")).toHaveCount(1, { timeout: T.UI });
     watcher.assertClean("termMng");
   });
 
@@ -547,7 +531,7 @@ test.describe("B 용어 관리", () => {
     await button(page, "저장").click();
     await button(page, "조회").click();
     await gridRow(panelByTitle(page, "용어 목록"), TERM_A_NAME, "termName").click();
-    await expect(field(page, "정의 *")).toHaveValue("E2E 유사어 추천 원본 용어(수정)", { timeout: 20_000 });
+    await expect(field(page, "정의 *")).toHaveValue("E2E 유사어 추천 원본 용어(수정)", { timeout: T.UI });
     watcher.assertClean("termMng");
   });
 
@@ -576,7 +560,7 @@ test.describe("B 용어 관리", () => {
     await screen(page).getByRole("button", { name: "재인코딩 배치 실행" }).click();
     await expect(
       screen(page).getByText(/임베딩 인코더가 비활성 상태입니다|처리 \d+건, 남은 \d+건/),
-    ).toBeVisible({ timeout: 30_000 });
+    ).toBeVisible({ timeout: T.LONG });
     watcher.assertClean("termMng");
   });
 
@@ -593,7 +577,7 @@ test.describe("B 용어 관리", () => {
 
     await gridRow(panelByTitle(page, "용어 목록"), throwaway, "termName").click();
     await button(page, "삭제").click();
-    await expect(gridRow(panelByTitle(page, "용어 목록"), throwaway, "termName")).toHaveCount(0, { timeout: 20_000 });
+    await expect(gridRow(panelByTitle(page, "용어 목록"), throwaway, "termName")).toHaveCount(0, { timeout: T.UI });
     await assertAllButtonsPressed(page, "termMng");
     watcher.assertClean("termMng");
   });
@@ -653,7 +637,7 @@ test.describe("C 도메인 관리", () => {
     await expect(screen(page).getByRole("button", { name: "저장", exact: true })).toBeDisabled();
 
     await screen(page).getByRole("button", { name: "도메인검증" }).click();
-    await expect(screen(page).getByText(/검사 실패/)).toBeVisible({ timeout: 20_000 });
+    await expect(screen(page).getByText(/검사 실패/)).toBeVisible({ timeout: T.UI });
     await expect(screen(page).getByText(/도메인명 필수|표준명 필수/).first()).toBeVisible();
     await expect(screen(page).getByRole("button", { name: "저장", exact: true })).toBeDisabled();
     await layoutC.layout(page, "domainMng 검증 실패");
@@ -670,7 +654,7 @@ test.describe("C 도메인 관리", () => {
     await layoutC.layout(page, "domainMng 등록 입력 중");
 
     await screen(page).getByRole("button", { name: "도메인검증" }).click();
-    await expect(screen(page).getByText(/검사 통과/)).toBeVisible({ timeout: 20_000 });
+    await expect(screen(page).getByText(/검사 통과/)).toBeVisible({ timeout: T.UI });
     // 부모가 없는 최상위 도메인은 W01(부모와 정의가 같음) 대상이 아니라 곧바로 저장된다(하위 도메인의
     // W01 확인 모달 흐름은 DOM-05 가 다룬다).
     const saveBtn = screen(page).getByRole("button", { name: "저장", exact: true });
@@ -683,7 +667,7 @@ test.describe("C 도메인 관리", () => {
     await screen(page).getByLabel("정의", { exact: true }).fill("E2E 표준관리자 여정 — 최상위 TEXT 도메인(수정)");
     await expect(saveBtn).toBeDisabled();
     await screen(page).getByRole("button", { name: "도메인검증" }).click();
-    await expect(screen(page).getByText(/검사 통과/)).toBeVisible({ timeout: 20_000 });
+    await expect(screen(page).getByText(/검사 통과/)).toBeVisible({ timeout: T.UI });
     await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
     await expectToast(page, "저장했습니다");
@@ -693,7 +677,7 @@ test.describe("C 도메인 관리", () => {
     await domainRow(page, DOM1_NAME).click();
     await scrollGridLeft(panelByTitle(page, "도메인 목록"));
     await expect(screen(page).getByLabel("정의", { exact: true }))
-      .toHaveValue("E2E 표준관리자 여정 — 최상위 TEXT 도메인(수정)", { timeout: 20_000 });
+      .toHaveValue("E2E 표준관리자 여정 — 최상위 TEXT 도메인(수정)", { timeout: T.UI });
     watcher.assertClean("domainMng");
   });
 
@@ -704,7 +688,7 @@ test.describe("C 도메인 관리", () => {
     await expectSearchedRowExists(tree);
     await searchField(page, "종류").selectOption("QTY");
     await button(page, "조회").click();
-    await expect(domainRow(page, DOM1_NAME)).toHaveCount(0, { timeout: 20_000 });
+    await expect(domainRow(page, DOM1_NAME)).toHaveCount(0, { timeout: T.UI });
     await searchField(page, "종류").selectOption("");
     await searchField(page, "검색어").fill("");
     await button(page, "조회").click();
@@ -714,7 +698,7 @@ test.describe("C 도메인 관리", () => {
   test("TC-DMA-DOM-05 하위 도메인 등록 — 부모와 정의가 같으면 경고 확인이 뜨고, [취소]는 아무것도 바꾸지 않는다", async () => {
     await domainRow(page, DOM1_NAME).click();
     await scrollGridLeft(panelByTitle(page, "도메인 목록"));
-    await expect(screen(page).getByLabel("도메인명", { exact: true })).toHaveValue(DOM1_NAME, { timeout: 20_000 });
+    await expect(screen(page).getByLabel("도메인명", { exact: true })).toHaveValue(DOM1_NAME, { timeout: T.UI });
     await screen(page).getByRole("button", { name: "하위 도메인 등록" }).click();
     await expect(screen(page).getByText("기본 속성 — 하위 도메인 신규")).toBeVisible();
     await expect(screen(page).getByLabel("종류", { exact: true })).toBeDisabled();
@@ -723,7 +707,7 @@ test.describe("C 도메인 관리", () => {
     await screen(page).getByLabel("도메인명", { exact: true }).fill(DOM2_NAME);
     await screen(page).getByLabel("표준명", { exact: true }).fill(DOM2_STD);
     await screen(page).getByRole("button", { name: "도메인검증" }).click();
-    await expect(screen(page).getByText(/검사 통과/)).toBeVisible({ timeout: 20_000 });
+    await expect(screen(page).getByText(/검사 통과/)).toBeVisible({ timeout: T.UI });
 
     // 부모(D1)와 정의가 같아(둘 다 규칙 없음) W01 경고 — [저장] 을 누르면 "그래도 저장할까요?" 모달이 뜬다.
     const saveBtn = screen(page).getByRole("button", { name: "저장", exact: true });
@@ -766,7 +750,7 @@ test.describe("C 도메인 관리", () => {
     await snap(page, "dma-domainMng-06-qty");
 
     await screen(page).getByRole("button", { name: "도메인검증" }).click();
-    await expect(screen(page).getByText(/검사 통과|검사 실패/)).toBeVisible({ timeout: 20_000 });
+    await expect(screen(page).getByText(/검사 통과|검사 실패/)).toBeVisible({ timeout: T.UI });
     // 최상위(부모 없음) 도메인이라 W01 경고 없이 곧바로 저장된다.
     await screen(page).getByRole("button", { name: "저장", exact: true }).click();
     await expectToast(page, "저장했습니다");
@@ -837,14 +821,14 @@ test.describe("D 컬럼 사전", () => {
     await snap(page, "dma-columnMng-01-initial");
 
     await button(page, "조회").click();
-    await expect(tid(page, "column-list").locator(".ag-center-cols-container .ag-row").first()).toBeVisible({ timeout: 20_000 });
+    await expect(gridRows(tid(page, "column-list")).first()).toBeVisible({ timeout: T.UI });
     watcher.assertClean("columnMng");
   });
 
   test("TC-DMA-COL-02 분해 — 사전에 없는 한글 토큰은 UNKNOWN 으로 보이고, 인라인 팝업에서 새 용어를 등록한다", async () => {
     await tid(page, "gen-input").fill(COL_INPUT);
     await tid(page, "gen-decompose").click();
-    await expect(tid(page, "token-row-1")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "token-row-1")).toBeVisible({ timeout: T.UI });
     // FORWARD 방향 UNKNOWN 토큰은 텍스트 "미등록" 이 아니라 [*** 용어 등록] 버튼으로 보인다
     // (columnMng/page.tsx renderAction UNKNOWN 분기 — REVERSE 일 때만 STATUS_TEXT.UNKNOWN 문구를 쓴다).
     await expect(tid(page, "token-placeholder-1")).toContainText("용어 등록");
@@ -855,7 +839,7 @@ test.describe("D 컬럼 사전", () => {
     const tokenViewport = tokenRow(page, 1).locator("xpath=ancestor::div[contains(@class,'ag-center-cols-viewport')][1]");
     await expect.poll(() => tokenViewport.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
     await tid(page, "token-placeholder-1").click(); // "*** 용어 등록"
-    await expect(tid(page, "term-pop")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "term-pop")).toBeVisible({ timeout: T.UI });
     await expect(tid(page, "term-pop-term-name")).toHaveValue(COL_INPUT);
     await tid(page, "term-pop-definition").fill("E2E 컬럼 사전 인라인 등록 용어");
     await tid(page, "term-pop-eng-name").fill("JudgmentValue");
@@ -873,9 +857,9 @@ test.describe("D 컬럼 사전", () => {
     await expect(tid(page, "term-pop-abbr")).toHaveValue(COL_ABBR);
     await snapModal(page, "dma-columnMng-02-termRegPop");
     await tid(page, "term-pop-reg").click();
-    await expect(tid(page, "term-pop")).toHaveCount(0, { timeout: 20_000 });
+    await expect(tid(page, "term-pop")).toHaveCount(0, { timeout: T.UI });
 
-    await expect(tokenRow(page, 1)).toContainText("등록됨", { timeout: 20_000 });
+    await expect(tokenRow(page, 1)).toContainText("등록됨", { timeout: T.UI });
     await tid(page, "gen-apply").click();
     await expect(tid(page, "form-column-name")).not.toHaveValue("");
     await expect(tid(page, "form-phys-name")).toHaveValue(COL_ABBR);
@@ -903,10 +887,10 @@ test.describe("D 컬럼 사전", () => {
     // 내장 select 편집기 자동화가 불안정해 값은 넣지 않는다 — 보고서 관찰 항목).
     const sysGrid = tid(page, "system-grid");
     await screen(page).getByRole("button", { name: "행추가" }).click();
-    await expect(sysGrid.locator(".ag-center-cols-container .ag-row")).toHaveCount(1, { timeout: 10_000 });
+    await expect(gridRows(sysGrid)).toHaveCount(1, { timeout: 10_000 });
     await sysGrid.locator('.ag-cell[col-id="note"]').first().click();
     await screen(page).getByRole("button", { name: "행삭제" }).click();
-    await expect(sysGrid.locator(".ag-center-cols-container .ag-row")).toHaveCount(0, { timeout: 10_000 });
+    await expect(gridRows(sysGrid)).toHaveCount(0, { timeout: 10_000 });
     watcher.assertClean("columnMng");
   });
 
@@ -916,17 +900,17 @@ test.describe("D 컬럼 사전", () => {
     // 컬럼 목록도 여러 실행이 쌓이면 커진다(가상 스크롤) — 검색어로 좁혀 확실히 본다.
     await tid(page, "column-search-keyword").fill(COL_ABBR);
     await button(page, "조회").click();
-    await expect(gridRow(tid(page, "column-list"), COL_ABBR, "physName")).toHaveCount(1, { timeout: 20_000 });
+    await expect(gridRow(tid(page, "column-list"), COL_ABBR, "physName")).toHaveCount(1, { timeout: T.UI });
     watcher.assertClean("columnMng");
   });
 
   test("TC-DMA-COL-04 중복 검사 — 같은 이름을 다시 분해하면 방금 저장한 컬럼이 뜨고, [열기]로 불러온다", async () => {
     await tid(page, "gen-input").fill(COL_INPUT);
     await tid(page, "gen-decompose").click();
-    await expect(tid(page, "gen-duplicates")).toContainText(COL_ABBR, { timeout: 20_000 });
+    await expect(tid(page, "gen-duplicates")).toContainText(COL_ABBR, { timeout: T.UI });
     await snap(page, "dma-columnMng-03-duplicate");
     await tid(page, "gen-duplicates").getByRole("button", { name: "열기" }).first().click();
-    await expect(tid(page, "form-phys-name")).toHaveValue(COL_ABBR, { timeout: 20_000 });
+    await expect(tid(page, "form-phys-name")).toHaveValue(COL_ABBR, { timeout: T.UI });
     watcher.assertClean("columnMng");
   });
 
@@ -934,7 +918,7 @@ test.describe("D 컬럼 사전", () => {
     await tid(page, "gen-direction").selectOption("REVERSE");
     await tid(page, "gen-input").fill(COL_ABBR);
     await tid(page, "gen-decompose").click();
-    await expect(tokenRow(page, 1)).toContainText("등록됨", { timeout: 20_000 });
+    await expect(tokenRow(page, 1)).toContainText("등록됨", { timeout: T.UI });
     await expect(tid(page, "gen-preview")).toContainText(COL_INPUT);
     await layoutD.layout(page, "columnMng 역분해");
     await snap(page, "dma-columnMng-04-reverse");
@@ -988,7 +972,7 @@ test.describe("dma 화면 연결·권한", () => {
       await gridRow(panelByTitle(page, "단위 목록"), unitCode, "unitCode").click();
       await button(page, "삭제").click();
       await expectErrorModal(page, "다른 데이터(도메인)가 이 단위를 참조하고 있어 삭제할 수 없습니다", "dma-del-01-blocked");
-      await expect(gridRow(panelByTitle(page, "단위 목록"), unitCode, "unitCode")).toHaveCount(1, { timeout: 20_000 });
+      await expect(gridRow(panelByTitle(page, "단위 목록"), unitCode, "unitCode")).toHaveCount(1, { timeout: T.UI });
       watcher.assertClean("unitMng");
     } finally {
       await page.context().close();
@@ -1004,7 +988,7 @@ test.describe("dma 화면 연결·권한", () => {
       await button(page, "조회").click();
       await gridRow(panelByTitle(page, "단위 목록"), unitCode, "unitCode").click();
       await button(page, "삭제").click();
-      await expect(gridRow(panelByTitle(page, "단위 목록"), unitCode, "unitCode")).toHaveCount(0, { timeout: 20_000 });
+      await expect(gridRow(panelByTitle(page, "단위 목록"), unitCode, "unitCode")).toHaveCount(0, { timeout: T.UI });
       watcher.assertClean("unitMng");
     } finally {
       await page.context().close();
@@ -1036,10 +1020,10 @@ test.describe("dma 화면 연결·권한", () => {
     try {
       // unitMng — 조회는 되고 등록·저장·삭제는 막힌다.
       await openMenu(page, TRAIL(MENU.unitMng), "unitMng");
-      await expect(button(page, "조회")).toBeEnabled({ timeout: 30_000 });
+      await expect(button(page, "조회")).toBeEnabled({ timeout: T.LONG });
       await searchField(page, "검색어").fill(roUnit);
       await button(page, "조회").click();
-      await expect(gridRow(panelByTitle(page, "단위 목록"), roUnit, "unitCode")).toHaveCount(1, { timeout: 20_000 });
+      await expect(gridRow(panelByTitle(page, "단위 목록"), roUnit, "unitCode")).toHaveCount(1, { timeout: T.UI });
       await expect(button(page, "단위 등록")).toBeDisabled();
       await gridRow(panelByTitle(page, "단위 목록"), roUnit, "unitCode").click();
       await expect(button(page, "저장")).toBeDisabled();
@@ -1049,14 +1033,14 @@ test.describe("dma 화면 연결·권한", () => {
       // 목록에서 단위를 고르면 그 단위가 입력 단위로 채워진다(A-PREVIEW·B-005) — 콤보를 다시 고르지 않는다(같은 항목을 누르면 풀린다).
       await expect(calcUnit(page)).toHaveValue(new RegExp(`^${escapeRe(roUnit)} `));
       await calcValue(page).fill("1");
-      await expect(calcCell(page, roUnit)).toHaveText("1", { timeout: 20_000 });
+      await expect(calcCell(page, roUnit)).toHaveText("1", { timeout: T.UI });
       await snap(page, "dma-ro-unitMng");
 
       // termMng — 조회는 되고 등록·저장·삭제·재인코딩 배치는 막힌다.
       await openMenu(page, TRAIL(MENU.termMng), "termMng");
       await searchField(page, "검색어").fill(roTerm);
       await button(page, "조회").click();
-      await expect(gridRow(panelByTitle(page, "용어 목록"), roTerm, "termName")).toHaveCount(1, { timeout: 20_000 });
+      await expect(gridRow(panelByTitle(page, "용어 목록"), roTerm, "termName")).toHaveCount(1, { timeout: T.UI });
       await expect(button(page, "등록")).toBeDisabled();
       await expect(button(page, "저장")).toBeDisabled();
       await expect(button(page, "삭제")).toBeDisabled();
@@ -1067,10 +1051,10 @@ test.describe("dma 화면 연결·권한", () => {
       await openMenu(page, TRAIL(MENU.domainMng), "domainMng");
       await searchField(page, "검색어").fill(roDomain);
       await button(page, "조회").click();
-      await expect(domainRow(page, roDomain)).toHaveCount(1, { timeout: 20_000 });
+      await expect(domainRow(page, roDomain)).toHaveCount(1, { timeout: T.UI });
       await expect(screen(page).getByRole("button", { name: "도메인 등록", exact: true })).toBeDisabled();
       await domainRow(page, roDomain).click();
-      await expect(screen(page).getByLabel("도메인명", { exact: true })).toHaveValue(roDomain, { timeout: 20_000 });
+      await expect(screen(page).getByLabel("도메인명", { exact: true })).toHaveValue(roDomain, { timeout: T.UI });
       await expect(screen(page).getByLabel("도메인명", { exact: true })).toBeDisabled();
       await expect(screen(page).getByRole("button", { name: "도메인검증" })).toHaveCount(0);
       await expect(screen(page).getByRole("button", { name: "저장", exact: true })).toHaveCount(0);
@@ -1079,9 +1063,9 @@ test.describe("dma 화면 연결·권한", () => {
       // columnMng — 첫 진입은 조회하지 않는다(cf4fbb05). [조회]로 목록을 받아 첫 행으로 조회를 확인하고,
       // 신규·저장이 막혀 있는지 본다(분해는 READ 등급이라 켜져 있다 — 설계).
       await openMenu(page, TRAIL(MENU.columnMng), "columnMng");
-      await expect(tid(page, "column-list").locator(".ag-center-cols-container .ag-row")).toHaveCount(0);
+      await expect(gridRows(tid(page, "column-list"))).toHaveCount(0);
       await button(page, "조회").click();
-      await expect(tid(page, "column-list").locator(".ag-center-cols-container .ag-row").first()).toBeVisible({ timeout: 20_000 });
+      await expect(gridRows(tid(page, "column-list")).first()).toBeVisible({ timeout: T.UI });
       await expect(button(page, "신규")).toBeDisabled();
       await expect(button(page, "저장")).toBeDisabled();
       await tid(page, "gen-input").fill("아무값");

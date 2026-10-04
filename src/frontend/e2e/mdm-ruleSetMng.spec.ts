@@ -1,6 +1,7 @@
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
+import { T, login, openRuleMenu, type LoginOptions } from "./support/common";
 import { loadMdmFixture } from "./support/mdm-e2e";
 
 /**
@@ -15,39 +16,16 @@ import { loadMdmFixture } from "./support/mdm-e2e";
  * 목록 단언은 세트 키워드 `E2S_` 로 좁혀 다른 픽스처의 세트가 섞여도 흔들리지 않게 한다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const STDADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
 const screenshot = (name: string) => path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-08-06/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
-
-function menuItem(page: Page, text: RegExp) {
-  return page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-}
-
-/** 메뉴 트리를 따라 연다. 하위 항목이 이미 보이면 상위를 누르지 않는다(누르면 접힌다). */
-async function openMenu(page: Page, leaf: RegExp) {
-  const path = [/^마루 MDM$/, /^업무기준$/, leaf];
-  for (let i = 0; i < path.length; i++) {
-    const item = menuItem(page, path[i]);
-    await expect(item).toBeVisible({ timeout: 20_000 });
-    if (i < path.length - 1 && (await menuItem(page, path[i + 1]).isVisible())) continue;
-    await item.click();
-  }
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openRuleSetMng(page: Page) {
-  await openMenu(page, /^룰 세트$/);
-  await expect(page.getByTestId("set-register-form")).toBeVisible({ timeout: 60_000 });
+  await openRuleMenu(page, /^룰 세트$/);
+  await expect(page.getByTestId("set-register-form")).toBeVisible({ timeout: T.SLOW });
 }
 
 async function search(page: Page, filters: { keyword?: string; ruleId?: string; resultVar?: string }) {
@@ -69,18 +47,18 @@ test.describe("mdm dme/ruleSetMng", () => {
   test.beforeAll(() => loadMdmFixture("mdm-ruleSet-data.sql"));
 
   test("M1 메뉴: 마루 MDM > 업무기준 > 룰 세트 가 열리고 등록 패널이 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetMng(page);
     await expect(page.locator(".page-layout__title:visible", { hasText: /^룰 세트$/ })).toBeVisible();
   });
 
   test("M2 목록·빈 상태: 픽스처 세트가 계산 칸과 함께 보이고, 결과 변수·담은 룰로 거르며, 없는 세트면 빈 상태다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetMng(page);
     await search(page, { keyword: "E2S_" });
 
     const chain = setRow(page, "E2S_CHAIN");
-    await expect(chain).toBeVisible({ timeout: 30_000 });
+    await expect(chain).toBeVisible({ timeout: T.LONG });
     // 목록의 버전 열은 표시 버전(지금 적용 중인 RELEASED)이다 — 내 DRAFT 2.000 이 있어도 v1.000.
     await expect(chain.locator('[col-id="ver"]')).toHaveText("v1.000");
     await expect(chain.locator('[col-id="ruleCount"]')).toHaveText("3");
@@ -96,22 +74,22 @@ test.describe("mdm dme/ruleSetMng", () => {
 
     // 결과 변수는 중간 결과도 찾는다 — S_GRD 를 만드는 E2S_GRD 를 담은 세트. 편집 스펙이 다른 세트를 바꿀 수 있어 건수는 보지 않는다.
     await search(page, { keyword: "E2S_", resultVar: "S_GRD" });
-    await expect(page.getByTestId("set-link-E2S_CHAIN")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("set-link-E2S_CHAIN")).toBeVisible({ timeout: T.UI });
     await expect(page.getByTestId("set-link-E2S_BADORD")).toBeVisible();
     await expect(page.getByTestId("set-link-E2S_OLDSET")).toBeVisible();
     await expect(page.getByTestId("set-link-E2S_HASOLD")).toHaveCount(0);
 
     await search(page, { keyword: "E2S_", ruleId: "E2S_OLD" });
-    await expect(page.getByTestId("set-link-E2S_HASOLD")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("set-link-E2S_HASOLD")).toBeVisible({ timeout: T.UI });
     await expect(page.locator(".grid-panel-count")).toHaveText("1건");
 
     await search(page, { keyword: "NO_SUCH_SET" });
-    await expect(page.getByTestId("set-list-empty")).toHaveText("조건에 맞는 룰 세트가 없다", { timeout: 20_000 });
+    await expect(page.getByTestId("set-list-empty")).toHaveText("조건에 맞는 룰 세트가 없다", { timeout: T.UI });
     await expect(page.locator(".grid-panel-count")).toHaveText("0건");
   });
 
   test("M3 등록(수용 1): 저장하면 룰 세트 편집 탭이 그 빈 세트로 열리고 목록에 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetMng(page);
     await page.getByTestId("set-reg-id").fill("E2S_NEW_SET");
     await page.getByTestId("set-reg-name").fill("E2E 새 세트");
@@ -119,11 +97,11 @@ test.describe("mdm dme/ruleSetMng", () => {
     await page.getByTestId("set-reg-save").click();
 
     // 룰 세트 편집 탭 — handoff 대상(setId)을 받아 새 세트를 연다.
-    await expect(page.getByTestId("set-edit-current")).toContainText("E2S_NEW_SET", { timeout: 60_000 });
+    await expect(page.getByTestId("set-edit-current")).toContainText("E2S_NEW_SET", { timeout: T.SLOW });
     // 새 세트는 확정 전이라 CREATED 다 — 첫 확정에서 INUSE 가 된다(D-144 2단계, MdmRuleSet STATUS). 배지는 코드명을 그대로 보인다.
     await expect(page.getByTestId("set-status")).toHaveText("CREATED");
     // 등록은 1.000 DRAFT 를 함께 만든다 — 편집 화면이 그 버전으로 열린다.
-    await expect(page.getByTestId("set-ver-select")).toContainText("v1.000 (DRAFT)", { timeout: 20_000 });
+    await expect(page.getByTestId("set-ver-select")).toContainText("v1.000 (DRAFT)", { timeout: T.UI });
     // 빈 세트는 캔버스에 시작 → 끝만 그려진다(룰 노드 없음).
     await expect(page.getByTestId("flow-node-start")).toBeVisible();
     await expect(page.getByTestId("flow-canvas").locator('[data-kind="RULE"]')).toHaveCount(0);
@@ -133,22 +111,22 @@ test.describe("mdm dme/ruleSetMng", () => {
     await page.locator(".tab-item .tab-title", { hasText: /^룰 세트$/ }).click();
     await search(page, { keyword: "E2S_NEW" });
     const created = setRow(page, "E2S_NEW_SET");
-    await expect(created).toBeVisible({ timeout: 20_000 });
+    await expect(created).toBeVisible({ timeout: T.UI });
     await expect(created.locator('[col-id="ruleCount"]')).toHaveText("0");
     await expect(created.locator('[col-id="checkText"]')).toHaveText("거부 1");
   });
 
   test("M4 서버 오류: 같은 ID 로 등록하면 서버 중복 오류가 보인다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetMng(page);
     await page.getByTestId("set-reg-id").fill("E2S_CHAIN");
     await page.getByTestId("set-reg-name").fill("중복 등록");
     await page.getByTestId("set-reg-save").click();
-    await expect(page.getByRole("dialog").getByText(/이미 있는 룰 세트 ID 입니다/)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("dialog").getByText(/이미 있는 룰 세트 ID 입니다/)).toBeVisible({ timeout: T.UI });
   });
 
   test("M5 ID 규칙: 물리명 규칙 위반은 즉시 안내하고 저장을 막는다", async ({ page }) => {
-    await login(page, STEWARD);
+    await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetMng(page);
     await page.getByTestId("set-reg-id").fill("bad-id");
     await page.getByTestId("set-reg-name").fill("규칙 위반");
@@ -157,10 +135,10 @@ test.describe("mdm dme/ruleSetMng", () => {
   });
 
   test("M6 권한: 표준 관리자(READ)는 목록은 보고 등록 저장 버튼은 비활성이다", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openRuleSetMng(page);
     await search(page, { keyword: "E2S_" });
-    await expect(page.getByTestId("set-link-E2S_CHAIN")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("set-link-E2S_CHAIN")).toBeVisible({ timeout: T.LONG });
     await page.getByTestId("set-reg-id").fill("E2S_READ_SET");
     await page.getByTestId("set-reg-name").fill("권한 없음");
     await expect(page.getByTestId("set-reg-id-error")).toHaveCount(0);

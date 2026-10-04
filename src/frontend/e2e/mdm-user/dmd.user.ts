@@ -5,19 +5,26 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   OUT_DIR,
   RUN,
+  T,
   Watcher,
   answerConfirm,
   assertAllButtonsPressed,
   breadcrumb,
   button,
+  closeAllTabs,
   closeScreenTab,
   checkLayout,
+  expectErrorModal as expectErrorModalBase,
+  expectOnly4xx,
   expectToast,
   footerScreenId,
   gridRow,
+  gridRowById,
+  gridRows,
   modal,
   openAs,
   openMenu,
+  resetClicks,
   screen,
   snap,
   tid,
@@ -66,19 +73,6 @@ async function openDmd(page: Page, leaf: string, screenId: string) {
 }
 
 /**
- * 열린 MDI 탭을 모두 닫는다. 탭의 × 는 마우스를 올렸을 때만 눌리므로(TabsBar.css pointer-events) 사용자처럼
- * 탭에 먼저 올린 뒤 누른다 — support.closeAllTabs 는 올리지 않고 눌러 비활성 탭에서 막힌다.
- */
-async function closeTabs(page: Page) {
-  const tabs = page.locator(".tabs-bar .tab-item").filter({ has: page.locator(".tab-close") });
-  for (let n = await tabs.count(); n > 0; n = await tabs.count()) {
-    await tabs.first().hover();
-    await tabs.first().locator(".tab-close").click();
-    await expect(tabs).toHaveCount(n - 1);
-  }
-}
-
-/**
  * 배치·표시 검사 기록 — 검사는 그 상태에서 바로 하되 단언은 장 끝의 "-99" 테스트가 한다. serial 장에서 배치
  * 위반이나 빈 상태 안내 누락 하나가 뒤의 CRUD·권한 단계를 모두 건너뛰게 하지 않으려는 것이다(위반은 실패로 남는다).
  */
@@ -102,27 +96,9 @@ class Findings {
   }
 }
 
-/** 버튼 누름 기록을 비운다 — 화면별 assertAllButtonsPressed 가 그 화면에서 실제로 누른 것만 보게. */
-async function resetClicks(page: Page) {
-  await page.evaluate(() => {
-    (window as unknown as { __mdmClicked?: string[] }).__mdmClicked = [];
-  });
-}
-
-/** 의도한 업무 오류(4xx) 직후 — 모인 문제가 4xx 네트워크 콘솔 줄뿐인지 본다(5xx·페이지 예외는 남기지 않는다). */
-function expectOnly4xx(watcher: Watcher, label: string) {
-  const rest = watcher.drain().filter((p) => !/status of 4\d\d/.test(p));
-  expect(rest, `${label}: 의도한 4xx 외의 오류가 없어야 한다`).toEqual([]);
-}
-
-/** 오류 모달(ErrorModal)이 문구를 보이는지 확인하고 "확인" 으로 닫는다. */
-async function expectErrorModal(page: Page, text: string | RegExp, shot?: string) {
-  const m = modal(page);
-  await expect(m.locator(".error-modal__body")).toContainText(text, { timeout: 20_000 });
-  if (shot) await snap(page, shot);
-  await m.getByRole("button", { name: "확인", exact: true }).click();
-  await expect(m.locator(".error-modal__body")).toHaveCount(0);
-}
+/** 오류 모달(ErrorModal)이 문구를 보이는지 확인하고 "확인" 으로 닫는다 — 이 파일은 가장 위 모달 안의 본문을 보고 바로 찍는다(inModal). */
+const expectErrorModal = (page: Page, text: string | RegExp, shot?: string) =>
+  expectErrorModalBase(page, text, shot, { inModal: true });
 
 /** 화면 머리 버튼([조회])만 — 화면 본문 안 같은 이름 버튼(카테고리 이력의 [조회])과 섞이지 않게 한다. */
 const headerBtn = (page: Page, name: string) =>
@@ -131,13 +107,13 @@ const headerBtn = (page: Page, name: string) =>
 /** 마루 데이터 목록 헤더 [데이터 등록] 으로 등록 팝업을 연다(열 때마다 새로 마운트되어 칸이 빈다). */
 async function openRegPopup(page: Page) {
   await page.locator("#btn_data_reg").click();
-  await expect(tid(page, "data-mng-register-form")).toBeVisible({ timeout: 20_000 });
+  await expect(tid(page, "data-mng-register-form")).toBeVisible({ timeout: T.UI });
 }
 
 /** 등록 팝업을 [취소]로 닫는다 — 팝업이 떠 있는 동안에는 뒤 화면이 눌리지 않는다. */
 async function cancelRegPopup(page: Page) {
   await tid(page, "data-mng-reg-cancel").click();
-  await expect(tid(page, "data-mng-register-form")).toHaveCount(0, { timeout: 20_000 });
+  await expect(tid(page, "data-mng-register-form")).toHaveCount(0, { timeout: T.UI });
 }
 
 /**
@@ -145,7 +121,7 @@ async function cancelRegPopup(page: Page) {
  * `data-edit-id` 만 보고는 재조회 도착을 알 수 없다 — 응답을 기다리지 않으면 뒤이은 입력이 늦은 응답에 덮일 수 있다.
  */
 async function clickRowAndAwaitView(page: Page, row: Locator) {
-  const viewed = page.waitForResponse((r) => r.url().includes("/oasis/dataEdit/view"), { timeout: 20_000 });
+  const viewed = page.waitForResponse((r) => r.url().includes("/oasis/dataEdit/view"), { timeout: T.UI });
   await row.click();
   await viewed;
   await expect(tid(page, "detail-stale")).toHaveCount(0);
@@ -156,9 +132,9 @@ async function selectMng(page: Page, id: string) {
   await tid(page, "data-mng-search-id").fill(id);
   await headerBtn(page, "조회").click();
   const row = gridRow(tid(page, "data-mng-list"), id, "maruDataId");
-  await expect(row).toBeVisible({ timeout: 20_000 });
+  await expect(row).toBeVisible({ timeout: T.UI });
   await clickRowAndAwaitView(page, row);
-  await expect(tid(page, "data-edit-id")).toHaveText(id, { timeout: 20_000 });
+  await expect(tid(page, "data-edit-id")).toHaveText(id, { timeout: T.UI });
   await waitIdle(page);
 }
 
@@ -168,9 +144,9 @@ async function selectMng(page: Page, id: string) {
  */
 async function reselectMng(page: Page, id: string) {
   const row = gridRow(tid(page, "data-mng-list"), id, "maruDataId");
-  await expect(row).toBeVisible({ timeout: 20_000 });
+  await expect(row).toBeVisible({ timeout: T.UI });
   await clickRowAndAwaitView(page, row);
-  await expect(tid(page, "data-edit-id")).toHaveText(id, { timeout: 20_000 });
+  await expect(tid(page, "data-edit-id")).toHaveText(id, { timeout: T.UI });
   await waitIdle(page);
 }
 
@@ -192,9 +168,9 @@ async function registerMaruData(page: Page, d: MaruDataInput) {
   await tid(page, "data-mng-reg-lvl").selectOption(d.lvl);
   await tid(page, "data-mng-reg-save").click();
   await expectToast(page, "등록했습니다");
-  await expect(tid(page, "data-mng-register-form")).toHaveCount(0, { timeout: 20_000 });
+  await expect(tid(page, "data-mng-register-form")).toHaveCount(0, { timeout: T.UI });
   await expect(footerScreenId(page)).toHaveText("dataMng");
-  await expect(tid(page, "data-edit-id")).toHaveText(d.id, { timeout: 20_000 });
+  await expect(tid(page, "data-edit-id")).toHaveText(d.id, { timeout: T.UI });
   await expect(tid(page, "data-edit-name")).toHaveValue(d.name);
 }
 
@@ -208,7 +184,7 @@ async function saveLabels(page: Page, labels: Partial<Record<"attr01Name" | "att
 // ── 항목 편집(항목 탭) ──
 
 const itemList = (page: Page) => tid(page, "item-list");
-const itemRow = (page: Page, code: string) => itemList(page).locator(`.ag-center-cols-container .ag-row[row-id="${code}"]`);
+const itemRow = (page: Page, code: string) => gridRowById(itemList(page), code);
 const itemCell = (page: Page, code: string, col: string) => itemRow(page, code).locator(`.ag-cell[col-id="${col}"]`);
 const itemCount = (page: Page) => itemList(page).locator(".grid-panel-count").first();
 
@@ -216,11 +192,11 @@ const itemCount = (page: Page) => itemList(page).locator(".grid-panel-count").fi
 async function selectItemMaru(page: Page, id: string) {
   // 진입 때 첫 마루 데이터를 비동기로 자동 선택하고 그때 후보 목록을 닫는다(IdPicker currentId, 8cb5520c) — 그 사이 후보를 누르면
   // 요소가 사라져 클릭이 끝나지 않는다. 자동 선택이 끝난 표시(item-current)를 본 뒤 고른다(화면 스펙 mdm-dataItemMng 와 같다).
-  await expect(tid(page, "item-current")).toBeVisible({ timeout: 30_000 });
+  await expect(tid(page, "item-current")).toBeVisible({ timeout: T.LONG });
   await tid(page, "item-pick-keyword").fill(id);
   await tid(page, "item-pick-keyword").press("Enter");
-  await tid(page, `item-pick-${id}`).click({ timeout: 20_000 });
-  await expect(itemList(page).locator(".grid-panel-title")).toContainText("항목 — ", { timeout: 20_000 });
+  await tid(page, `item-pick-${id}`).click({ timeout: T.UI });
+  await expect(itemList(page).locator(".grid-panel-title")).toContainText("항목 — ", { timeout: T.UI });
   await waitIdle(page);
 }
 
@@ -235,7 +211,7 @@ async function searchItems(page: Page) {
  */
 async function openItemTestTab(page: Page) {
   await tid(page, "item-right-tab-test").click();
-  await expect(tid(page, "item-history")).toBeVisible({ timeout: 20_000 });
+  await expect(tid(page, "item-history")).toBeVisible({ timeout: T.UI });
 }
 
 /** "항목 추가" 패널에 값을 넣는다(등록은 누르지 않는다). */
@@ -252,7 +228,7 @@ async function registerItem(page: Page, fields: Record<string, string>) {
   await fillItemForm(page, fields);
   await tid(page, "item-form-submit").click();
   await expectToast(page, "등록했습니다");
-  await expect(itemRow(page, fields.code)).toBeVisible({ timeout: 20_000 });
+  await expect(itemRow(page, fields.code)).toBeVisible({ timeout: T.UI });
 }
 
 /** 그리드 칸을 한 번 눌러 편집하고 Enter 로 마친다(singleClickEdit). */
@@ -305,8 +281,8 @@ async function chooseCsv(page: Page, file: string) {
 /** 항목 편집 화면에서 마루 데이터를 고른 채 오른쪽 [카테고리 편집] 탭으로 들어간다(66f40e88 — 카테고리는 오른쪽 탭의 표다). */
 async function openCateTab(page: Page) {
   await tid(page, "item-right-tab-cate").click();
-  await expect(tid(page, "cate-tab")).toBeVisible({ timeout: 20_000 });
-  await expect(tid(page, "cate-row-BASE")).toBeVisible({ timeout: 20_000 });
+  await expect(tid(page, "cate-tab")).toBeVisible({ timeout: T.UI });
+  await expect(tid(page, "cate-row-BASE")).toBeVisible({ timeout: T.UI });
   await waitIdle(page);
 }
 
@@ -318,20 +294,20 @@ async function addCategory(page: Page, id: string, name: string, kind: "REGEX" |
   await tid(page, "cate-add-kind").selectOption(kind);
   await tid(page, "cate-add-submit").click();
   await expectToast(page, "등록했습니다");
-  await expect(tid(page, `cate-row-${id}`)).toBeVisible({ timeout: 20_000 });
+  await expect(tid(page, `cate-row-${id}`)).toBeVisible({ timeout: T.UI });
 }
 
 /** 카테고리 표의 한 행 — ID 칸 안쪽 span 이 `cate-row-{cateId}` 다(66f40e88 AgDataGrid). */
 const catePanel = (page: Page) =>
   // 제목 칸(.grid-panel-title)에는 건수도 함께 있으므로 제목 글자 span 만 본다.
   screen(page).locator(".grid-panel").filter({ has: page.locator(".grid-panel-title > span").filter({ hasText: /^카테고리$/ }) });
-const cateRows = (page: Page) => catePanel(page).locator(".ag-center-cols-container .ag-row");
+const cateRows = (page: Page) => gridRows(catePanel(page));
 const cateRow = (page: Page, cateId: string) => cateRows(page).filter({ has: page.locator(`[data-testid="cate-row-${cateId}"]`) });
 const cateCell = (page: Page, cateId: string, colId: string) => cateRow(page, cateId).locator(`.ag-cell[col-id="${colId}"]`);
 /** 카테고리를 고른다 — 행을 누른다(소속·이력이 그 카테고리로 바뀐다). */
 async function selectCate(page: Page, cateId: string) {
   await cateCell(page, cateId, "matchCount").click();
-  await expect(tid(page, "cate-history-title")).toHaveText(`카테고리 이력 — ${cateId}`, { timeout: 20_000 });
+  await expect(tid(page, "cate-history-title")).toHaveText(`카테고리 이력 — ${cateId}`, { timeout: T.UI });
 }
 /** 아래 "소속 — {cateId}" 표 — REGEX 는 서버 해석(compare) 결과가, TABLE 은 저장된 소속이 곧 목록이다(미리보기 패널은 없어졌다). */
 const memberPanel = (page: Page) =>
@@ -345,7 +321,7 @@ async function closeDialog(page: Page) {
 // ── 이력(항목 이력 패널·카테고리 이력 패널이 같은 타임라인을 쓴다) ──
 
 const timelineRows = (page: Page, panelTestId: string) =>
-  tid(page, panelTestId).locator(".ag-center-cols-container .ag-row");
+  gridRows(tid(page, panelTestId));
 
 // ═══════════════════════════ A. 마루 데이터 등록·수정 ═══════════════════════════
 
@@ -367,7 +343,7 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
   });
 
   test("TC-DMD-MNG-01 마루 데이터 화면 배치 — 메뉴 이동·breadcrumb·목록과 오른쪽 안내", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await openDmd(page, "마루 데이터", "dataMng");
     await expect(breadcrumb(page)).toContainText("마루 MDM > 마스터데이터 > 마루 데이터");
     await expect(tid(page, "data-mng-list").locator(".grid-panel-title")).toContainText("마루 데이터 목록");
@@ -433,13 +409,13 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     // 탭을 새로 열지 않는다 — 같은 dataMng 화면에서 등록 팝업이 닫히고 방금 만든 데이터의 상세가 보인다.
     await expect(footerScreenId(page)).toHaveText("dataMng");
     await expect(tid(page, "data-mng-register-form")).toHaveCount(0);
-    await expect(tid(page, "data-edit-id")).toHaveText(MD, { timeout: 20_000 });
+    await expect(tid(page, "data-edit-id")).toHaveText(MD, { timeout: T.UI });
     await expect(tid(page, "data-edit-name")).toHaveValue(NAME);
     await expect(tid(page, "data-edit-status")).toHaveText("INUSE");
     await expect(tid(page, "data-edit-lvl")).toHaveValue("2");
     await expect(tid(page, "data-edit-desc")).toHaveValue("사용자 여정 E2E 가 만든 마루 데이터");
     // 등록하면 BASE(전체) 카테고리가 함께 생긴다(카드 ③ 카테고리 요약 그리드).
-    await expect(tid(page, "data-edit-categories").locator('.ag-row[row-id="BASE"]')).toContainText("열림", { timeout: 20_000 });
+    await expect(tid(page, "data-edit-categories").locator('.ag-row[row-id="BASE"]')).toContainText("열림", { timeout: T.UI });
     await expect(tid(page, "data-edit-item-count")).toHaveText("0");
     watcher.assertClean("dataMng 등록");
   });
@@ -452,7 +428,7 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
 
     await tid(page, "data-mng-search-id").fill(MD);
     await headerBtn(page, "조회").click();
-    await expect(gridRow(list, MD, "maruDataId")).toBeVisible({ timeout: 20_000 });
+    await expect(gridRow(list, MD, "maruDataId")).toBeVisible({ timeout: T.UI });
     await expect(list.locator(".grid-panel-count")).toHaveText("1건");
     await expect(gridRow(list, MD, "maruDataId").locator('.ag-cell[col-id="maruDataName"]')).toHaveText(NAME);
     await expect(gridRow(list, MD, "maruDataId").locator('.ag-cell[col-id="sourceKind"]')).toHaveText("MDM");
@@ -464,15 +440,15 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     await tid(page, "data-mng-search-id").fill("");
     await tid(page, "data-mng-search-name").fill(NAME);
     await tid(page, "data-mng-search-name").press("Enter");
-    await expect(gridRow(list, MD, "maruDataId")).toBeVisible({ timeout: 20_000 });
+    await expect(gridRow(list, MD, "maruDataId")).toBeVisible({ timeout: T.UI });
 
     // 상태 — INUSE 면 보이고 DEPRECATED 면 빠진다.
     await tid(page, "data-mng-search-status").selectOption("INUSE");
     await headerBtn(page, "조회").click();
-    await expect(gridRow(list, MD, "maruDataId")).toBeVisible({ timeout: 20_000 });
+    await expect(gridRow(list, MD, "maruDataId")).toBeVisible({ timeout: T.UI });
     await tid(page, "data-mng-search-status").selectOption("DEPRECATED");
     await headerBtn(page, "조회").click();
-    await expect(tid(page, "data-mng-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "data-mng-list-empty")).toBeVisible({ timeout: T.UI });
     await expect(gridRow(list, MD, "maruDataId")).toHaveCount(0);
     await snap(page, "dmd-dataMng-04-empty");
 
@@ -487,7 +463,7 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     await tid(page, "data-mng-search-name").fill("");
     await tid(page, "data-mng-search-id").fill(MD);
     await headerBtn(page, "조회").click();
-    await expect(gridRow(list, MD, "maruDataId")).toBeVisible({ timeout: 20_000 });
+    await expect(gridRow(list, MD, "maruDataId")).toBeVisible({ timeout: T.UI });
     watcher.assertClean("dataMng 조회");
   });
 
@@ -508,7 +484,7 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     await expect(tid(page, "data-mng-reg-id")).toHaveValue(MD);
     // [취소] 는 팝업만 닫는다 — 보던 상세는 그대로다.
     await cancelRegPopup(page);
-    await expect(tid(page, "data-edit-id")).toHaveText(MD, { timeout: 20_000 });
+    await expect(tid(page, "data-edit-id")).toHaveText(MD, { timeout: T.UI });
     watcher.assertClean("dataMng");
   });
 
@@ -518,7 +494,7 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     await cancelRegPopup(page);
     await expect(tid(page, "data-edit-id")).toHaveText(MD);
     await gridRow(tid(page, "data-mng-list"), MD, "maruDataId").click();
-    await expect(tid(page, "data-edit-id")).toHaveText(MD, { timeout: 20_000 });
+    await expect(tid(page, "data-edit-id")).toHaveText(MD, { timeout: T.UI });
     await expect(tid(page, "data-mng-register-form")).toHaveCount(0);
     watcher.assertClean("dataMng 행 선택");
   });
@@ -549,7 +525,7 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     // 목록에도 바뀐 이름이 보인다.
     const list = tid(page, "data-mng-list");
     await expect(gridRow(list, MD, "maruDataId").locator('.ag-cell[col-id="maruDataName"]')).toHaveText(NEW_NAME, {
-      timeout: 20_000,
+      timeout: T.UI,
     });
     // 선택을 비웠다가 다시 고르면(서버에서 다시 읽는다) 저장한 값이 그대로다.
     await reselectMng(page, MD);
@@ -581,7 +557,7 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     await closeScreenTab(page, "마루 데이터");
     await openDmd(page, "마루 데이터", "dataMng");
     await selectMng(page, MD);
-    await expect(tid(page, "data-edit-pattern")).toHaveValue(KEY_PATTERN, { timeout: 20_000 });
+    await expect(tid(page, "data-edit-pattern")).toHaveValue(KEY_PATTERN, { timeout: T.UI });
     watcher.assertClean("dataMng");
   });
 
@@ -607,7 +583,7 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
     await tid(page, "data-edit-save").click();
     await expectErrorModal(page, CONFLICT, "dmd-dataMng-09-conflict");
     expectOnly4xx(watcher, "dataMng 충돌");
-    await expect(tid(page, "data-edit-desc")).toHaveValue("stw2 가 먼저 고친 설명", { timeout: 20_000 });
+    await expect(tid(page, "data-edit-desc")).toHaveValue("stw2 가 먼저 고친 설명", { timeout: T.UI });
 
     // 폐기는 D 장에서 취소·확인을 모두 누르고, [항목 편집 →] 은 바로 다음 시험에서 누른다.
     await assertAllButtonsPressed(page, "dataMng", {
@@ -620,10 +596,10 @@ test.describe("A 마루 데이터 등록·조회·수정", () => {
 
   test("TC-DMD-MNG-07 [항목 편집 →] 을 누르면 항목 편집 탭이 그 마루 데이터로 열린다", async () => {
     await tid(page, "data-edit-item-edit").click();
-    await expect(footerScreenId(page)).toHaveText("dataItemMng", { timeout: 30_000 });
-    await expect(tid(page, "item-current")).toContainText(MD, { timeout: 20_000 });
+    await expect(footerScreenId(page)).toHaveText("dataItemMng", { timeout: T.LONG });
+    await expect(tid(page, "item-current")).toContainText(MD, { timeout: T.UI });
     await expect(tid(page, "item-tab-grid")).toBeVisible();
-    await expect(itemList(page).locator(".grid-panel-title")).toContainText(`항목 — ${NEW_NAME}`, { timeout: 20_000 });
+    await expect(itemList(page).locator(".grid-panel-title")).toContainText(`항목 — ${NEW_NAME}`, { timeout: T.UI });
     await expect(itemCount(page)).toHaveText("0건");
     // 라벨을 붙였으므로 항목 편집의 동적 열에 그대로 보인다.
     await expect(itemList(page).locator(".ag-header-cell-text").filter({ hasText: /^국가명$/ })).toHaveCount(1);
@@ -654,14 +630,14 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
   });
 
   test("TC-DMD-ITEM-00 준비 — 계층 2칸·라벨 2개짜리 마루 데이터를 화면으로 만든다", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await registerMaruData(page, { id: MD, name: NAME, lvl: "2" });
     await saveLabels(page, { attr01Name: "국가명", attr02Name: "비고" });
     watcher.assertClean("준비");
   });
 
   test("TC-DMD-ITEM-01 항목 편집 화면 배치 — 동적 열(계층·라벨)과 빈 목록", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await openDmd(page, "항목 편집", "dataItemMng");
     await expect(breadcrumb(page)).toContainText(/마루 MDM > 마스터데이터 > 항목 편집/);
     await selectItemMaru(page, MD);
@@ -709,7 +685,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await tid(page, "item-form-submit").click();
     await expectToast(page, "등록했습니다");
     await expect(tid(page, "item-form")).toHaveCount(0);
-    await expect(itemCell(page, "KRPUS", "name")).toHaveText("부산항", { timeout: 20_000 });
+    await expect(itemCell(page, "KRPUS", "name")).toHaveText("부산항", { timeout: T.UI });
     await expect(itemCell(page, "KRPUS", "alterName")).toHaveText("부산");
     await expect(itemCell(page, "KRPUS", "seq")).toHaveText("10");
     await expect(itemCell(page, "KRPUS", "lvl2")).toHaveText("BUSAN");
@@ -756,7 +732,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
   test("TC-DMD-ITEM-04 조회(R) — 키·이름 조건으로 걸러지고 맞지 않으면 0건이다", async () => {
     await tid(page, "item-search-code").fill("KR");
     await searchItems(page);
-    await expect(itemRow(page, "KRPUS")).toBeVisible({ timeout: 20_000 });
+    await expect(itemRow(page, "KRPUS")).toBeVisible({ timeout: T.UI });
     await expect(itemRow(page, "KRINC")).toBeVisible();
     await expect(itemRow(page, "CNSHA")).toHaveCount(0);
     await expect(itemCount(page)).toHaveText("2건");
@@ -764,7 +740,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await tid(page, "item-search-code").fill("");
     await tid(page, "item-search-name").fill("상하이");
     await tid(page, "item-search-name").press("Enter");
-    await expect(itemRow(page, "CNSHA")).toBeVisible({ timeout: 20_000 });
+    await expect(itemRow(page, "CNSHA")).toBeVisible({ timeout: T.UI });
     await expect(itemCount(page)).toHaveText("1건");
 
     await tid(page, "item-search-name").fill(`없는이름${RUN}`);
@@ -796,7 +772,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await tid(page, "item-save-CNSHA").click();
     await expectToast(page, "저장했습니다");
     await searchItems(page);
-    await expect(itemCell(page, "CNSHA", "name")).toHaveText("상해항", { timeout: 20_000 });
+    await expect(itemCell(page, "CNSHA", "name")).toHaveText("상해항", { timeout: T.UI });
     await expect(itemCell(page, "CNSHA", "alterName")).toHaveText("상해");
     await expect(itemCell(page, "CNSHA", "seq")).toHaveText("31");
     await expect(itemCell(page, "CNSHA", "attr02")).toHaveText("환적항");
@@ -804,8 +780,8 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await tid(page, "item-history-CNSHA").click();
     const panel = tid(page, "item-history");
     await expect(panel).toContainText("이력 — CNSHA");
-    const rows = panel.locator(".ag-center-cols-container .ag-row");
-    await expect(rows).toHaveCount(2, { timeout: 20_000 });
+    const rows = gridRows(panel);
+    await expect(rows).toHaveCount(2, { timeout: T.UI });
     await expect(rows.nth(0)).toContainText("생성");
     await expect(rows.nth(1)).toContainText("변경");
     await expect(rows.nth(1)).toContainText("상해항");
@@ -817,12 +793,12 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
   test("TC-DMD-ITEM-06 닫기(D)·다시 열기 — 닫힌 항목은 숨겨지고, 같은 키 등록은 다시 열기로 안내한다", async () => {
     await tid(page, "item-close-KRINC").click();
     await expectToast(page, "닫았습니다");
-    await expect(itemRow(page, "KRINC")).toHaveCount(0, { timeout: 20_000 });
+    await expect(itemRow(page, "KRINC")).toHaveCount(0, { timeout: T.UI });
     await expect(itemCount(page)).toHaveText("2건");
 
     await tid(page, "item-search-closed").selectOption("Y");
     await searchItems(page);
-    await expect(itemCell(page, "KRINC", "open")).toHaveText("닫힘", { timeout: 20_000 });
+    await expect(itemCell(page, "KRINC", "open")).toHaveText("닫힘", { timeout: T.UI });
     await expect(tid(page, "item-reopen-KRINC")).toBeVisible();
     // 닫힌 행은 칸을 고칠 수 없다.
     await itemCell(page, "KRINC", "name").click();
@@ -835,7 +811,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
 
     await tid(page, "item-reopen-KRINC").click();
     await expectToast(page, "다시 열었습니다");
-    await expect(itemCell(page, "KRINC", "open")).toHaveText("열림", { timeout: 20_000 });
+    await expect(itemCell(page, "KRINC", "open")).toHaveText("열림", { timeout: T.UI });
     await tid(page, "item-search-closed").selectOption("N");
     await searchItems(page);
     await expect(itemCount(page)).toHaveText("3건");
@@ -865,7 +841,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await tid(page, "item-save-KRPUS").click();
     await expectErrorModal(page, CONFLICT, "dmd-dataItemMng-07-conflict");
     expectOnly4xx(watcher, "dataItemMng 충돌");
-    await expect(itemCell(page, "KRPUS", "name")).toHaveText("부산신항", { timeout: 20_000 });
+    await expect(itemCell(page, "KRPUS", "name")).toHaveText("부산신항", { timeout: T.UI });
     watcher.assertClean("dataItemMng");
   });
 
@@ -890,7 +866,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await openCsvPopup(page, NAME);
     await chooseCsv(page, file);
     await page.getByTestId("csv-pop-validate").click();
-    await expect(page.getByTestId("csv-pop-summary")).toContainText("오류 1", { timeout: 20_000 });
+    await expect(page.getByTestId("csv-pop-summary")).toContainText("오류 1", { timeout: T.UI });
     await expect(csvRow(page, 1)).toContainText("20열 고정 순서와 다릅니다");
     await expect(page.getByTestId("csv-pop-save")).toBeDisabled();
     await snap(page, "dmd-dataCsvUploadPop-02-header-error");
@@ -915,7 +891,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await openCsvPopup(page, NAME);
     await chooseCsv(page, file);
     await page.getByTestId("csv-pop-validate").click();
-    await expect(page.getByTestId("csv-pop-summary")).toContainText(/오류 [1-9]/, { timeout: 20_000 });
+    await expect(page.getByTestId("csv-pop-summary")).toContainText(/오류 [1-9]/, { timeout: T.UI });
     await expect(csvRow(page, 2).locator('.ag-cell[col-id="issues"]')).toHaveText("");
     await expect(csvRow(page, 3)).toContainText("키 패턴");
     await expect(csvRow(page, 4)).toContainText("정수");
@@ -953,13 +929,13 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await openCsvPopup(page, NAME);
     await chooseCsv(page, file);
     await page.getByTestId("csv-pop-validate").click();
-    await expect(page.getByTestId("csv-pop-summary")).toHaveText("신규 55 · 수정 1 · 변경없음 0 · 오류 0", { timeout: 20_000 });
+    await expect(page.getByTestId("csv-pop-summary")).toHaveText("신규 55 · 수정 1 · 변경없음 0 · 오류 0", { timeout: T.UI });
     await expect(page.getByTestId("csv-pop-save")).toBeEnabled();
     await snap(page, "dmd-dataCsvUploadPop-04-preview");
     await page.getByTestId("csv-pop-save").click();
     await expectToast(page, "저장했습니다");
     await expect(csvPop(page)).toBeHidden();
-    await expect(itemCount(page)).toHaveText("58건", { timeout: 20_000 });
+    await expect(itemCount(page)).toHaveText("58건", { timeout: T.UI });
     await searchItems(page);
     await expect(itemCell(page, "CNSHA", "attr02")).toHaveText("CSV 로 고친 비고");
 
@@ -967,7 +943,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await openCsvPopup(page, NAME);
     await chooseCsv(page, file);
     await page.getByTestId("csv-pop-validate").click();
-    await expect(page.getByTestId("csv-pop-summary")).toHaveText("신규 0 · 수정 0 · 변경없음 56 · 오류 0", { timeout: 20_000 });
+    await expect(page.getByTestId("csv-pop-summary")).toHaveText("신규 0 · 수정 0 · 변경없음 56 · 오류 0", { timeout: T.UI });
     await modal(page).locator(".cm-modal-footer").getByRole("button", { name: "닫기" }).click();
     await expect(csvPop(page)).toBeHidden();
     watcher.assertClean("CSV 저장");
@@ -977,7 +953,7 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
     await tid(page, "item-tab-tree").click();
     const tree = tid(page, "item-tree");
     const kr = tree.locator(".tree-item").filter({ hasText: /^KR \(\d+건\)$/ });
-    await expect(kr).toHaveText("KR (32건)", { timeout: 20_000 });
+    await expect(kr).toHaveText("KR (32건)", { timeout: T.UI });
     await expect(tree.locator(".tree-item").filter({ hasText: /^CN \(\d+건\)$/ })).toHaveText("CN (26건)");
     await expect(tid(page, "item-tree-to-grid")).toBeDisabled();
 
@@ -999,14 +975,14 @@ test.describe("B 항목 편집·CSV 업로드·트리 보기", () => {
       "item-tree-to-grid": "이 노드로 보기 — 바로 다음 줄에서 누른다(누르면 그리드로 바뀌어 이 목록에서 볼 수 없다)",
     });
     await tid(page, "item-tree-to-grid").click();
-    await expect(tid(page, "item-node-filter-chip")).toContainText("KR 아래", { timeout: 20_000 });
+    await expect(tid(page, "item-node-filter-chip")).toContainText("KR 아래", { timeout: T.UI });
     await expect(itemCount(page)).toHaveText("32건");
     await expect(itemRow(page, "CNSHA")).toHaveCount(0);
     await snap(page, "dmd-dataItemMng-09-node-filter");
 
     await tid(page, "item-node-filter-clear").click();
     await expect(tid(page, "item-node-filter-chip")).toHaveCount(0);
-    await expect(itemCount(page)).toHaveText("58건", { timeout: 20_000 });
+    await expect(itemCount(page)).toHaveText("58건", { timeout: T.UI });
     // 탭 머리로 트리에 갔다가 그리드로 돌아온다.
     await tid(page, "item-tab-tree").click();
     await expect(tid(page, "item-tree-panel")).toBeVisible();
@@ -1055,10 +1031,10 @@ test.describe("B2 항목 전체 조회", () => {
     await openCsvPopup(page, NAME);
     await chooseCsv(page, writeCsv("dmd-paging", lines));
     await page.getByTestId("csv-pop-validate").click();
-    await expect(page.getByTestId("csv-pop-summary")).toHaveText("신규 55 · 수정 0 · 변경없음 0 · 오류 0", { timeout: 20_000 });
+    await expect(page.getByTestId("csv-pop-summary")).toHaveText("신규 55 · 수정 0 · 변경없음 0 · 오류 0", { timeout: T.UI });
     await page.getByTestId("csv-pop-save").click();
     await expectToast(page, "저장했습니다");
-    await expect(itemCount(page)).toHaveText("55건", { timeout: 20_000 });
+    await expect(itemCount(page)).toHaveText("55건", { timeout: T.UI });
     watcher.assertClean("준비");
   });
 
@@ -1111,7 +1087,7 @@ test.describe("C 카테고리 탭·이력", () => {
   });
 
   test("TC-DMD-CATE-00 준비 — 계층 1칸 마루 데이터와 항목 3건을 화면으로 만든다", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await registerMaruData(page, { id: MD, name: NAME, lvl: "1" });
     await openDmd(page, "항목 편집", "dataItemMng");
     await selectItemMaru(page, MD);
@@ -1122,7 +1098,7 @@ test.describe("C 카테고리 탭·이력", () => {
   });
 
   test("TC-DMD-CATE-01 [카테고리 편집] 탭 배치 — BASE 는 닫기·편집 버튼이 없고, 카테고리 표 아래에 카테고리 이력·소속이 있다", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await openDmd(page, "항목 편집", "dataItemMng");
     await selectItemMaru(page, MD);
     await openCateTab(page);
@@ -1161,8 +1137,8 @@ test.describe("C 카테고리 탭·이력", () => {
   test("TC-DMD-CATE-03 REGEX 카테고리 — 등록·대상 후보·소속(해석 결과)·문법 오류·저장", async () => {
     await addCategory(page, "KRONLY", "한국 항구", "REGEX");
     // 등록한 카테고리가 골라진 채 카테고리 표 아래 이력에 「생성」 1행이 바로 남는다.
-    await expect(tid(page, "cate-history")).toContainText("카테고리 이력 — KRONLY", { timeout: 20_000 });
-    await expect(timelineRows(page, "cate-history")).toHaveCount(1, { timeout: 20_000 });
+    await expect(tid(page, "cate-history")).toContainText("카테고리 이력 — KRONLY", { timeout: T.UI });
+    await expect(timelineRows(page, "cate-history")).toHaveCount(1, { timeout: T.UI });
     await expect(timelineRows(page, "cate-history").first()).toContainText("생성");
     // 정의는 행의 [편집] 팝업에서 고친다(66f40e88).
     await tid(page, "cate-edit-KRONLY").click();
@@ -1176,26 +1152,26 @@ test.describe("C 카테고리 탭·이력", () => {
     // 정규식은 값 전체에 맞춘다(서버 matches) — "KR 로 시작" 은 ^KR.* 로 쓴다. 미리보기 패널 대신 아래 소속 목록이 해석 결과다.
     const members = memberPanel(page);
     await tid(page, "regex-expr").fill("^KR.*");
-    await expect(members.locator(".grid-panel-count")).toHaveText("2건", { timeout: 20_000 });
+    await expect(members.locator(".grid-panel-count")).toHaveText("2건", { timeout: T.UI });
     await expect(members).toContainText("KRPUS");
     await expect(members).not.toContainText("CNSHA");
 
     await tid(page, "regex-expr").fill("[");
-    await expect(tid(page, "cate-regex-invalid")).toHaveText("정규식 문법이 올바르지 않습니다", { timeout: 20_000 });
+    await expect(tid(page, "cate-regex-invalid")).toHaveText("정규식 문법이 올바르지 않습니다", { timeout: T.UI });
     await snap(page, "dmd-dataCateEdit-03-invalid-preview");
 
     await tid(page, "regex-expr").fill("^KR$");
     await tid(page, "regex-target").selectOption("LVL1");
-    await expect(members.locator(".grid-panel-count")).toHaveText("2건", { timeout: 20_000 });
+    await expect(members.locator(".grid-panel-count")).toHaveText("2건", { timeout: T.UI });
     await tid(page, "regex-name").fill("한국 항구(계층)");
     await tid(page, "regex-desc").fill("1차가 KR 인 항목");
     await snap(page, "dmd-dataCateEdit-03-regex");
     await tid(page, "regex-save").click();
     await expectToast(page, "저장했습니다");
-    await expect(cateCell(page, "KRONLY", "matchCount")).toHaveText("2건", { timeout: 20_000 });
+    await expect(cateCell(page, "KRONLY", "matchCount")).toHaveText("2건", { timeout: T.UI });
     await expect(cateCell(page, "KRONLY", "cateName")).toHaveText("한국 항구(계층)");
     // 저장하면 카테고리 이력에 「변경」 행이 더해진다.
-    await expect(timelineRows(page, "cate-history")).toHaveCount(2, { timeout: 20_000 });
+    await expect(timelineRows(page, "cate-history")).toHaveCount(2, { timeout: T.UI });
     await expect(timelineRows(page, "cate-history").nth(1)).toContainText("변경");
 
     // 문법 오류 정의는 저장도 거부된다.
@@ -1214,27 +1190,27 @@ test.describe("C 카테고리 탭·이력", () => {
     await selectCate(page, "MAJOR");
     await tid(page, "cate-edit-MAJOR").click();
     const panel = tid(page, "transfer-list-panel");
-    await expect(panel).toBeVisible({ timeout: 20_000 });
-    for (const code of ["KRPUS", "KRINC", "CNSHA"]) await expect(tid(page, `transfer-available-${code}`)).toBeVisible();
+    await expect(panel).toBeVisible({ timeout: T.UI });
+    for (const code of ["KRPUS", "KRINC", "CNSHA"]) await expect(tid(page, `transfer-item-available-${code}`)).toBeVisible();
 
     // 검색어로 좁혔다가 푼다.
-    await tid(page, "transfer-query").fill("인천");
-    await expect(tid(page, "transfer-available-KRINC")).toBeVisible();
-    await expect(page.locator('[data-testid="transfer-available-KRPUS"]')).toHaveCount(0);
-    await tid(page, "transfer-query").fill("");
+    await tid(page, "transfer-search").fill("인천");
+    await expect(tid(page, "transfer-item-available-KRINC")).toBeVisible();
+    await expect(page.locator('[data-testid="transfer-item-available-KRPUS"]')).toHaveCount(0);
+    await tid(page, "transfer-search").fill("");
 
-    await tid(page, "transfer-available-KRPUS").click();
-    await tid(page, "transfer-available-CNSHA").click();
+    await tid(page, "transfer-item-available-KRPUS").click();
+    await tid(page, "transfer-item-available-CNSHA").click();
     await tid(page, "transfer-move-right").click();
-    await expect(tid(page, "transfer-member-KRPUS")).toBeVisible();
-    await expect(tid(page, "transfer-member-CNSHA")).toBeVisible();
+    await expect(tid(page, "transfer-item-member-KRPUS")).toBeVisible();
+    await expect(tid(page, "transfer-item-member-CNSHA")).toBeVisible();
     await snap(page, "dmd-dataCateEdit-04-transfer");
     // 오른쪽에서 골라 왼쪽으로 되돌린다(적용 전이라 서버에는 아무것도 가지 않는다 — 적용은 TC-DMD-CATE-08).
-    await tid(page, "transfer-member-KRPUS").click();
-    await tid(page, "transfer-member-CNSHA").click();
+    await tid(page, "transfer-item-member-KRPUS").click();
+    await tid(page, "transfer-item-member-CNSHA").click();
     await tid(page, "transfer-move-left").click();
-    await expect(tid(page, "transfer-available-KRPUS")).toBeVisible();
-    await expect(page.locator('[data-testid="transfer-member-KRPUS"]')).toHaveCount(0);
+    await expect(tid(page, "transfer-item-available-KRPUS")).toBeVisible();
+    await expect(page.locator('[data-testid="transfer-item-member-KRPUS"]')).toHaveCount(0);
     await closeDialog(page);
     await expect(cateCell(page, "MAJOR", "matchCount")).toHaveText("0건");
     await layout.layout(page, "dataCateEdit TABLE 편집 뒤");
@@ -1244,7 +1220,7 @@ test.describe("C 카테고리 탭·이력", () => {
   test("TC-DMD-CATE-05 닫기·다시 열기 — 닫힌 카테고리는 소속을 바꿀 수 없다", async () => {
     await tid(page, "cate-close-MAJOR").click();
     await expectToast(page, "닫았습니다");
-    await expect(tid(page, "cate-reopen-MAJOR")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "cate-reopen-MAJOR")).toBeVisible({ timeout: T.UI });
     await expect(page.locator('[data-testid="cate-close-MAJOR"]')).toHaveCount(0);
     // 닫힌 카테고리의 [편집] 팝업은 옮기기·적용이 꺼져 있다.
     await selectCate(page, "MAJOR");
@@ -1281,10 +1257,11 @@ test.describe("C 카테고리 탭·이력", () => {
 
     await tid(page, "cate-reopen-MAJOR").click();
     await expectToast(page, "다시 열었습니다");
-    await expect(tid(page, "cate-close-MAJOR")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "cate-close-MAJOR")).toBeVisible({ timeout: T.UI });
     await selectCate(page, "MAJOR");
     await tid(page, "cate-edit-MAJOR").click();
-    await expect(tid(page, "transfer-move-right")).toBeEnabled({ timeout: 20_000 });
+    await tid(page, "transfer-item-available-KRPUS").click();
+    await expect(tid(page, "transfer-move-right")).toBeEnabled({ timeout: T.UI });
     await closeDialog(page);
     // 카테고리 행의 버튼(닫기·다시 열기·편집)은 표 안에 있어 커버리지 대상이 아니다.
     await assertAllButtonsPressed(page, "항목 편집 [카테고리 편집] 탭", {
@@ -1302,7 +1279,7 @@ test.describe("C 카테고리 탭·이력", () => {
   test("TC-DMD-CATE-06 항목 편집의 카테고리 조건 — REGEX 카테고리로 걸러진다", async () => {
     // 카테고리 탭에서 [항목] 탭으로 돌아온다(같은 마루 데이터). 카테고리를 쓴 뒤라 조회조건의 카테고리 목록도 새로 만들어졌다.
     await tid(page, "item-tab-grid").click();
-    await expect(itemList(page).locator(".grid-panel-title")).toContainText("항목 — ", { timeout: 20_000 });
+    await expect(itemList(page).locator(".grid-panel-title")).toContainText("항목 — ", { timeout: T.UI });
     await searchItems(page);
     await expect(tid(page, "item-search-cate").locator("option")).toHaveText([
       "전체",
@@ -1311,7 +1288,7 @@ test.describe("C 카테고리 탭·이력", () => {
     ]);
     await tid(page, "item-search-cate").selectOption("KRONLY");
     await searchItems(page);
-    await expect(itemRow(page, "KRPUS")).toBeVisible({ timeout: 20_000 });
+    await expect(itemRow(page, "KRPUS")).toBeVisible({ timeout: T.UI });
     await expect(itemRow(page, "KRINC")).toBeVisible();
     await expect(itemRow(page, "CNSHA")).toHaveCount(0);
     await expect(itemCount(page)).toHaveText("2건");
@@ -1328,7 +1305,7 @@ test.describe("C 카테고리 탭·이력", () => {
     await searchItems(page);
     await tid(page, "item-reopen-KRINC").click();
     await expectToast(page, "다시 열었습니다");
-    await expect(itemCell(page, "KRINC", "open")).toHaveText("열림", { timeout: 20_000 });
+    await expect(itemCell(page, "KRINC", "open")).toHaveText("열림", { timeout: T.UI });
     watcher.assertClean("dataItemMng 카테고리 조건");
   });
 
@@ -1347,8 +1324,8 @@ test.describe("C 카테고리 탭·이력", () => {
 
   test("TC-DMD-HIST-02 항목 이력 — 생성·변경, 닫혀 있던 구간·다시 열기, 이력 닫기", async () => {
     await tid(page, "item-history-KRPUS").click();
-    await expect(tid(page, "item-history")).toContainText("이력 — KRPUS", { timeout: 20_000 });
-    await expect(tid(page, "item-history").getByTestId("history-state")).toHaveText("KRPUS · 열림 · 2행", { timeout: 20_000 });
+    await expect(tid(page, "item-history")).toContainText("이력 — KRPUS", { timeout: T.UI });
+    await expect(tid(page, "item-history").getByTestId("history-state")).toHaveText("KRPUS · 열림 · 2행", { timeout: T.UI });
     await expect(timelineRows(page, "item-history").nth(0)).toContainText("생성");
     await expect(timelineRows(page, "item-history").nth(0)).toContainText("지난 행");
     await expect(timelineRows(page, "item-history").nth(1)).toContainText("변경");
@@ -1357,8 +1334,8 @@ test.describe("C 카테고리 탭·이력", () => {
     await snap(page, "dmd-itemHistory-02-item");
 
     await tid(page, "item-history-KRINC").click();
-    await expect(tid(page, "item-history")).toContainText("이력 — KRINC", { timeout: 20_000 });
-    await expect(tid(page, "item-history").getByTestId("history-state")).toHaveText("KRINC · 열림 · 2행", { timeout: 20_000 });
+    await expect(tid(page, "item-history")).toContainText("이력 — KRINC", { timeout: T.UI });
+    await expect(tid(page, "item-history").getByTestId("history-state")).toHaveText("KRINC · 열림 · 2행", { timeout: T.UI });
     await expect(tid(page, "item-history").getByTestId("history-timeline")).toContainText("닫혀 있던 구간");
     await expect(tid(page, "item-history").getByTestId("history-timeline")).toContainText("다시 열기");
     await snap(page, "dmd-itemHistory-02-gap");
@@ -1371,8 +1348,8 @@ test.describe("C 카테고리 탭·이력", () => {
   test("TC-DMD-HIST-03 카테고리 이력 — 정의 변경·닫혀 있던 구간이 남는다", async () => {
     await openCateTab(page);
     await selectCate(page, "KRONLY");
-    await expect(tid(page, "cate-history")).toContainText("카테고리 이력 — KRONLY", { timeout: 20_000 });
-    await expect(tid(page, "cate-history").getByTestId("history-state")).toContainText("KRONLY · 열림", { timeout: 20_000 });
+    await expect(tid(page, "cate-history")).toContainText("카테고리 이력 — KRONLY", { timeout: T.UI });
+    await expect(tid(page, "cate-history").getByTestId("history-state")).toContainText("KRONLY · 열림", { timeout: T.UI });
     await expect(timelineRows(page, "cate-history").first()).toContainText("생성");
     await expect(tid(page, "cate-history").getByTestId("history-timeline")).toContainText("변경");
     // 좁은 오른쪽 열에서도 가로로 밀지 않고 정의 변경(이름·종류·대상·정규식)이 보인다 — 한 칸에 세 줄로 쌓는다(D-104 회귀).
@@ -1391,7 +1368,7 @@ test.describe("C 카테고리 탭·이력", () => {
     expect(overflow, "카테고리 이력 그리드에 가로 스크롤이 없다").toBeLessThanOrEqual(0);
 
     await selectCate(page, "MAJOR");
-    await expect(tid(page, "cate-history").getByTestId("history-timeline")).toContainText("닫혀 있던 구간", { timeout: 20_000 });
+    await expect(tid(page, "cate-history").getByTestId("history-timeline")).toContainText("닫혀 있던 구간", { timeout: T.UI });
     await snap(page, "dmd-cateHistory-03-cate");
     // 옛 소속 이력 조회(대상 「소속」·항목 키·[조회])는 지웠다 — 66f40e88 이 이 패널을 "고른 카테고리 하나가 곧 조건" 으로 줄여
     // 대상·키·[조회] 를 두지 않는다(CategoryHistoryPanel 머리 주석, 화면 스펙 mdm-dataItemMng S12 도 같은 근거로 지웠다 — 9eb26b78).
@@ -1408,24 +1385,24 @@ test.describe("C 카테고리 탭·이력", () => {
     // 이 시점에는 [카테고리 편집] 탭이 열려 있다 — MAJOR 를 고르고 [편집] 으로 소속 transfer-list 팝업을 연다(66f40e88).
     await selectCate(page, "MAJOR");
     await tid(page, "cate-edit-MAJOR").click();
-    await expect(tid(page, "transfer-list-panel")).toBeVisible({ timeout: 20_000 });
-    await tid(page, "transfer-available-KRPUS").click();
-    await tid(page, "transfer-available-CNSHA").click();
+    await expect(tid(page, "transfer-list-panel")).toBeVisible({ timeout: T.UI });
+    await tid(page, "transfer-item-available-KRPUS").click();
+    await tid(page, "transfer-item-available-CNSHA").click();
     await tid(page, "transfer-move-right").click();
     await tid(page, "transfer-apply").click();
     await expectToast(page, "적용했습니다");
-    await expect(cateCell(page, "MAJOR", "matchCount")).toHaveText("2건", { timeout: 20_000 });
+    await expect(cateCell(page, "MAJOR", "matchCount")).toHaveText("2건", { timeout: T.UI });
 
-    await tid(page, "transfer-member-CNSHA").click();
+    await tid(page, "transfer-item-member-CNSHA").click();
     await tid(page, "transfer-move-left").click();
     await tid(page, "transfer-apply").click();
     await expectToast(page, "적용했습니다");
-    await expect(cateCell(page, "MAJOR", "matchCount")).toHaveText("1건", { timeout: 20_000 });
+    await expect(cateCell(page, "MAJOR", "matchCount")).toHaveText("1건", { timeout: T.UI });
     await closeDialog(page);
 
     // 아래 소속 목록이 저장된 소속을 보인다(옛 소속 이력 조회는 66f40e88 로 없어졌다 — TC-DMD-HIST-03 주석).
     const members = memberPanel(page);
-    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: 20_000 });
+    await expect(members.locator(".grid-panel-count")).toHaveText("1건", { timeout: T.UI });
     await expect(members).toContainText("KRPUS");
     await expect(members).not.toContainText("CNSHA");
     await snap(page, "dmd-cateHistory-08-member");
@@ -1435,7 +1412,7 @@ test.describe("C 카테고리 탭·이력", () => {
     await tid(page, "item-search-closed").selectOption("N");
     await tid(page, "item-search-cate").selectOption("MAJOR");
     await searchItems(page);
-    await expect(itemCount(page)).toHaveText("1건", { timeout: 20_000 });
+    await expect(itemCount(page)).toHaveText("1건", { timeout: T.UI });
     await expect(itemRow(page, "KRPUS")).toBeVisible();
     watcher.assertClean("소속 적용");
   });
@@ -1498,7 +1475,7 @@ test.describe("D 계층 축소 거부·폐기", () => {
   });
 
   test("TC-DMD-DEL-00 준비 — 계층 2칸 마루 데이터와 2차 값이 있는 항목을 만든다", async () => {
-    await closeTabs(page);
+    await closeAllTabs(page);
     await registerMaruData(page, { id: MD, name: NAME, lvl: "2" });
     await openDmd(page, "항목 편집", "dataItemMng");
     await selectItemMaru(page, MD);
@@ -1520,7 +1497,7 @@ test.describe("D 계층 축소 거부·폐기", () => {
     await closeScreenTab(page, "마루 데이터");
     await openDmd(page, "마루 데이터", "dataMng");
     await selectMng(page, MD);
-    await expect(tid(page, "data-edit-lvl")).toHaveValue("2", { timeout: 20_000 });
+    await expect(tid(page, "data-edit-lvl")).toHaveValue("2", { timeout: T.UI });
     watcher.assertClean("dataMng");
   });
 
@@ -1531,7 +1508,7 @@ test.describe("D 계층 축소 거부·폐기", () => {
     await snap(page, "dmd-dataMng-deprecate-confirm");
     await answerConfirm(page, "취소");
     await reselectMng(page, MD);
-    await expect(tid(page, "data-edit-status")).toHaveText("INUSE", { timeout: 20_000 });
+    await expect(tid(page, "data-edit-status")).toHaveText("INUSE", { timeout: T.UI });
     await expect(tid(page, "data-edit-save")).toBeEnabled();
     await expect(tid(page, "data-edit-deprecate")).toBeEnabled();
     watcher.assertClean("폐기 취소");
@@ -1541,7 +1518,7 @@ test.describe("D 계층 축소 거부·폐기", () => {
     await tid(page, "data-edit-deprecate").click();
     await answerConfirm(page, "확인");
     await expectToast(page, "폐기했습니다");
-    await expect(tid(page, "data-edit-status")).toHaveText("DEPRECATED", { timeout: 20_000 });
+    await expect(tid(page, "data-edit-status")).toHaveText("DEPRECATED", { timeout: T.UI });
     await expect(tid(page, "data-edit-name")).toBeDisabled();
     await expect(tid(page, "data-edit-pattern")).toBeDisabled();
     await expect(tid(page, "data-edit-lvl")).toBeDisabled();
@@ -1564,11 +1541,11 @@ test.describe("D 계층 축소 거부·폐기", () => {
     await tid(page, "data-mng-search-status").selectOption("DEPRECATED");
     await headerBtn(page, "조회").click();
     await expect(gridRow(list, MD, "maruDataId").locator('.ag-cell[col-id="status"]')).toHaveText("DEPRECATED", {
-      timeout: 20_000,
+      timeout: T.UI,
     });
     await tid(page, "data-mng-search-status").selectOption("INUSE");
     await headerBtn(page, "조회").click();
-    await expect(tid(page, "data-mng-list-empty")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "data-mng-list-empty")).toBeVisible({ timeout: T.UI });
     watcher.assertClean("dataMng 폐기 조회");
   });
 
@@ -1629,26 +1606,26 @@ test.describe("E 표준관리자(std) 읽기 전용", () => {
       // 목록은 보이지만 [데이터 등록] 은 숨기지 않고 비활성이며(등록 권한 없음), 행을 누르면 상세는 보이되 저장·폐기가 막힌다.
       await tid(page, "data-mng-search-id").fill(MD);
       await headerBtn(page, "조회").click();
-      await expect(gridRow(tid(page, "data-mng-list"), MD, "maruDataId")).toBeVisible({ timeout: 20_000 });
+      await expect(gridRow(tid(page, "data-mng-list"), MD, "maruDataId")).toBeVisible({ timeout: T.UI });
       await expect(page.locator("#btn_data_reg")).toBeVisible();
       await expect(page.locator("#btn_data_reg")).toBeDisabled();
       await snap(page, "dmd-std-dataMng");
 
       await gridRow(tid(page, "data-mng-list"), MD, "maruDataId").click();
-      await expect(tid(page, "data-edit-id")).toHaveText(MD, { timeout: 20_000 });
+      await expect(tid(page, "data-edit-id")).toHaveText(MD, { timeout: T.UI });
       await expect(tid(page, "data-edit-status")).toHaveText("INUSE");
       await expect(tid(page, "data-edit-save")).toBeDisabled();
       await expect(tid(page, "data-edit-deprecate")).toBeDisabled();
 
       await openDmd(page, "항목 편집", "dataItemMng");
       // 마루 데이터는 칸에 넣고 [찾기] 단추로 찾는다(다른 장은 Enter 로 찾는다 — 두 길을 다 누른다).
-      await expect(tid(page, "item-current")).toBeVisible({ timeout: 30_000 });
+      await expect(tid(page, "item-current")).toBeVisible({ timeout: T.LONG });
       await tid(page, "item-pick-keyword").fill(MD);
       await screen(page).getByRole("button", { name: "찾기", exact: true }).click();
-      await tid(page, `item-pick-${MD}`).click({ timeout: 20_000 });
-      await expect(itemList(page).locator(".grid-panel-title")).toContainText("항목 — ", { timeout: 20_000 });
+      await tid(page, `item-pick-${MD}`).click({ timeout: T.UI });
+      await expect(itemList(page).locator(".grid-panel-title")).toContainText("항목 — ", { timeout: T.UI });
       await waitIdle(page);
-      await expect(itemRow(page, "KRPUS")).toBeVisible({ timeout: 20_000 });
+      await expect(itemRow(page, "KRPUS")).toBeVisible({ timeout: T.UI });
       await expect(button(page, "항목 추가")).toBeDisabled();
       await expect(button(page, "CSV 업로드")).toBeDisabled();
       const close = tid(page, "item-close-KRPUS");
@@ -1658,7 +1635,7 @@ test.describe("E 표준관리자(std) 읽기 전용", () => {
       // 오른쪽 [코드 테스트] 탭의 이력은 조회 권한만으로 본다(66f40e88).
       await openItemTestTab(page);
       await tid(page, "item-history-KRPUS").click();
-      await expect(tid(page, "item-history").getByTestId("history-state")).toHaveText("KRPUS · 열림 · 1행", { timeout: 20_000 });
+      await expect(tid(page, "item-history").getByTestId("history-state")).toHaveText("KRPUS · 열림 · 1행", { timeout: T.UI });
 
       // [카테고리 편집] 탭 — 목록은 보이지만 [카테고리 추가]·닫기·[편집](소속 팝업)이 없어 소속을 바꿀 수 없다(66f40e88).
       await openCateTab(page);

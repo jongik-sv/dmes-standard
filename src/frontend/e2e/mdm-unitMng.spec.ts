@@ -1,6 +1,8 @@
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
+import { T, login, walkMenuPath, type LoginOptions } from "./support/common";
+
 /**
  * mdm dma/unitMng(단위 마스터) smoke — TSK-04-02 design.md §3.1.
  *
@@ -15,8 +17,6 @@ import { expect, test, type Page } from "@playwright/test";
  * 둘 다 옮겨 격리). SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STDADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
 // 실행마다 다른 접미사(36진수, 약 8자) — 재실행 안전성.
@@ -29,30 +29,12 @@ const UNIT_DERIVED = `TESTKG${SUFFIX}`.toUpperCase();
 const screenshot = (name: string) =>
   path.resolve(__dirname, "../../..", "docs/mdm/tasks/TSK-04-02/screens", name);
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 60_000 });
-}
+const LOGIN_OPTS: LoginOptions = { portalTimeout: T.SLOW };
 
 async function openUnitMng(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
+  await walkMenuPath(page, [/^마루 MDM$/, /^용어·도메인$/, /^단위 마스터$/]);
 
-  const moduleFolder = item(/^마루 MDM$/);
-  await expect(moduleFolder).toBeVisible({ timeout: 20_000 });
-  await moduleFolder.click();
-
-  const groupFolder = item(/^용어·도메인$/);
-  await expect(groupFolder).toBeVisible({ timeout: 20_000 });
-  await groupFolder.click();
-
-  const leaf = item(/^단위 마스터$/);
-  await expect(leaf).toBeVisible({ timeout: 20_000 });
-  await leaf.click();
-
-  await expect(page.getByRole("button", { name: "단위 등록" })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("button", { name: "단위 등록" })).toBeVisible({ timeout: T.SLOW });
 }
 
 function searchField(page: Page, label: string) {
@@ -82,7 +64,7 @@ async function clickSearchAndWait(page: Page) {
       r.request().method() === "POST" &&
       !(r.request().postData() ?? "").includes("optionsOnly") &&
       r.status() === 200,
-    { timeout: 20_000 },
+    { timeout: T.UI },
   );
   await page.getByRole("button", { name: "조회" }).click();
   await response;
@@ -94,30 +76,30 @@ test.describe("mdm dma/unitMng smoke", () => {
   test.setTimeout(150_000);
 
   test("T1 메뉴 이동: 단위 마스터 화면이 열린다", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openUnitMng(page);
     await page.screenshot({ path: screenshot("dma-unitMng-open.png"), fullPage: true });
   });
 
   test("T2 빈 상태: 없는 키워드로 검색하면 빈 상태가 보인다", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openUnitMng(page);
 
     await searchField(page, "검색어").locator("input").fill(NOMATCH_KEYWORD);
     await clickSearchAndWait(page);
-    await expect(unitListCount(page)).toHaveText("0건", { timeout: 20_000 });
+    await expect(unitListCount(page)).toHaveText("0건", { timeout: T.UI });
 
     await page.screenshot({ path: screenshot("dma-unitMng-empty.png"), fullPage: true });
   });
 
   test("T3 등록: 새 차원 첫 단위 + 파생 단위를 등록하면 그리드에 반영된다", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openUnitMng(page);
 
     // 필터를 지우고 전체 조회.
     await searchField(page, "검색어").locator("input").fill("");
     await clickSearchAndWait(page);
-    await expect(unitListCount(page)).toHaveText(/^\d+건$/, { timeout: 20_000 });
+    await expect(unitListCount(page)).toHaveText(/^\d+건$/, { timeout: T.UI });
 
     // 새 차원의 첫 단위 — 자기 자신이 기준 단위(I3).
     await page.getByRole("button", { name: "단위 등록" }).click();
@@ -129,7 +111,7 @@ test.describe("mdm dma/unitMng smoke", () => {
     // 새 차원 첫 등록은 화면이 계수를 1로 자동 고정하고 잠근다(I3) — 다시 채우지 않는다.
     await expect(detailRow(page, "환산 계수").locator("input")).toHaveValue("1");
     await page.getByRole("button", { name: "저장" }).click();
-    await expect(page.getByText(UNIT_BASE).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(UNIT_BASE).first()).toBeVisible({ timeout: T.UI });
 
     // 같은 차원의 파생 단위 — 화면이 기준 단위를 UNIT_BASE 로 자동 고정해 보여준다(D2).
     await page.getByRole("button", { name: "단위 등록" }).click();
@@ -146,14 +128,14 @@ test.describe("mdm dma/unitMng smoke", () => {
     await detailRow(page, "환산 계수").locator("input").fill("500");
     await page.getByRole("button", { name: "저장" }).click();
 
-    await expect(page.getByText(UNIT_BASE).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(UNIT_DERIVED).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(UNIT_BASE).first()).toBeVisible({ timeout: T.UI });
+    await expect(page.getByText(UNIT_DERIVED).first()).toBeVisible({ timeout: T.UI });
 
     await page.screenshot({ path: screenshot("dma-unitMng-registered.png"), fullPage: true });
   });
 
   test("T4 서버 오류 노출: 금지 단위 코드(MONTH) 등록은 오류가 뜬다", async ({ page }) => {
-    await login(page, STDADMIN);
+    await login(page, STDADMIN, LOGIN_OPTS);
     await openUnitMng(page);
 
     await page.getByRole("button", { name: "단위 등록" }).click();
@@ -165,7 +147,7 @@ test.describe("mdm dma/unitMng smoke", () => {
     await page.getByRole("button", { name: "저장" }).click();
 
     await expect(page.getByText("월·년·영업일·근무시간처럼 고정 계수가 없는 단위는 등록할 수 없습니다.")).toBeVisible({
-      timeout: 20_000,
+      timeout: T.UI,
     });
 
     await page.screenshot({ path: screenshot("dma-unitMng-error.png"), fullPage: true });

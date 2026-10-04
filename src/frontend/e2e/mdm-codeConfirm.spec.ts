@@ -1,7 +1,9 @@
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { BASE_URL, T, clickMenuPath, login } from "./support/common";
 import { fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
+import { gridRowById } from "./support/grid";
 
 /**
  * 마루 코드 버전 확정(codeConfirm) — TSK-06-05 design.md §3.4 화면 스모크 넷 + 수용 기준.
@@ -19,8 +21,6 @@ import { fillDateTime, loadMdmFixture } from "./support/mdm-e2e";
  * E2E_CF_RACE 를 확정하므로 **같은 mdm.db 로 다시 돌릴 수 없다**. SMOKE_MCM_BASE_URL 로 반드시 자기 포털을 가리킨다.
  */
 
-const BASE_URL = process.env.SMOKE_MCM_BASE_URL ?? "http://127.0.0.1:5100";
-const PASSWORD = process.env.SMOKE_LOGIN_PASSWORD ?? "admin123";
 const STEWARD = process.env.SMOKE_MDM_STEWARD_USER ?? "e2e_mdm_steward";
 const STD_ADMIN = process.env.SMOKE_MDM_STDADMIN_USER ?? "e2e_mdm_stdadmin";
 
@@ -34,41 +34,30 @@ function tid(page: Page, id: string): Locator {
   return page.getByTestId(id);
 }
 
-async function login(page: Page, user: string) {
-  await page.goto(`${BASE_URL}/login`);
-  await page.getByPlaceholder("아이디").fill(user);
-  await page.getByPlaceholder("비밀번호").fill(PASSWORD);
-  await page.getByRole("button", { name: "로그인" }).click();
-  await expect(page).toHaveURL(/\/portal/, { timeout: 30_000 });
-}
-
 /** 확정 대기 목록·검사 결과 표는 AgDataGrid 다 — 행은 row-id(목록은 "ID-버전", 검사는 검사 번호)로 찾는다. */
 function gridRow(page: Page, gridTestId: string, rowId: string): Locator {
-  return tid(page, gridTestId).locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"]`);
+  return gridRowById(tid(page, gridTestId), rowId);
 }
 const listRow = (page: Page, id: string, ver: string) => gridRow(page, "cf-list", `${id}-${ver}`);
 const checkRow = (page: Page, no: string) => gridRow(page, "cf-checks", no);
 
 async function openCodeConfirm(page: Page) {
-  const item = (text: RegExp) => page.locator(".tree-item .item-name").filter({ hasText: text }).first();
-  await item(/^마루 MDM$/).click({ timeout: 20_000 });
-  await item(/^마스터코드$/).click({ timeout: 20_000 });
-  await item(/^버전 확정$/).click({ timeout: 20_000 });
-  await expect(tid(page, "cf-list")).toBeVisible({ timeout: 60_000 });
+  await clickMenuPath(page, [/^마루 MDM$/, /^마스터코드$/, /^버전 확정$/]);
+  await expect(tid(page, "cf-list")).toBeVisible({ timeout: T.SLOW });
 }
 
 async function choose(page: Page, id: string, ver: string) {
   const row = listRow(page, id, ver);
-  await expect(row).toBeVisible({ timeout: 20_000 });
+  await expect(row).toBeVisible({ timeout: T.UI });
   await row.click();
-  await expect(tid(page, "cf-target")).toContainText(id, { timeout: 20_000 });
+  await expect(tid(page, "cf-target")).toContainText(id, { timeout: T.UI });
 }
 
 /** 적용 시작(shared DateTimePicker — 6e506cc9 에서 datetime-local 을 바꿨다)에 `yyyy-MM-dd HH:mm:ss` 로 넣고 검사한다. */
 async function validate(page: Page, applyFrom: string) {
   await fillDateTime(tid(page, "cf-apply-from"), applyFrom);
   await tid(page, "cf-validate").click();
-  await expect(tid(page, "cf-checks")).toBeVisible({ timeout: 20_000 });
+  await expect(tid(page, "cf-checks")).toBeVisible({ timeout: T.UI });
 }
 
 test.describe.configure({ mode: "serial" });
@@ -90,7 +79,7 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
     await login(page, STEWARD);
     await openCodeConfirm(page);
 
-    await expect(listRow(page, "E2E_CF_OK", "1.000")).toBeVisible({ timeout: 20_000 });
+    await expect(listRow(page, "E2E_CF_OK", "1.000")).toBeVisible({ timeout: T.UI });
     await expect(listRow(page, "E2E_CF_NOCHG", "1.001")).toBeVisible();
     await expect(listRow(page, "E2E_CF_RACE", "1.000")).toBeVisible();
     // RELEASED 1.000 은 확정 대기 목록에 없다
@@ -99,7 +88,7 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
 
     await tid(page, "cf-keyword").fill("NO_SUCH");
     await tid(page, "cf-search").click();
-    await expect(tid(page, "cf-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: 20_000 });
+    await expect(tid(page, "cf-list-empty")).toHaveText("확정할 DRAFT 가 없습니다", { timeout: T.UI });
   });
 
   test("T3 담당자: 변경 없는 DRAFT 는 4항 거부로 확정 버튼이 꺼진다", async ({ page }) => {
@@ -131,9 +120,9 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
     await expect(tid(page, "cf-check-status-2-2")).toHaveText("경고");
     await expect(checkRow(page, "2-2")).toContainText("CATE:EMPTYC");
 
-    await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: 20_000 });
+    await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: T.UI });
     await tid(page, "cf-confirm").click();
-    await expect(tid(page, "cf-modal-warnings")).toBeVisible({ timeout: 20_000 });
+    await expect(tid(page, "cf-modal-warnings")).toBeVisible({ timeout: T.UI });
     // 과거 일시라 미래 적용 경고는 없다(서버 futureApplyFrom=false)
     await expect(tid(page, "cf-future-warning")).toHaveCount(0);
     await expect(tid(page, "cf-modal-ok")).toBeDisabled();
@@ -141,13 +130,13 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
     await expect(tid(page, "cf-modal-ok")).toBeEnabled();
     await tid(page, "cf-modal-ok").click();
 
-    await expect(page.getByText("확정했습니다").first()).toBeVisible({ timeout: 20_000 });
-    await expect(tid(page, "cf-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("확정했습니다").first()).toBeVisible({ timeout: T.UI });
+    await expect(tid(page, "cf-form").locator('.mdm-status-badge[data-status="RELEASED"]')).toBeVisible({ timeout: T.UI });
     await expect(tid(page, "cf-released")).toContainText("적용 구간 2026-01-01 00:00:00 ~ 9999-12-31 00:00:00");
     await expect(tid(page, "cf-released")).toContainText(`확정자 ${STEWARD}`);
     await expect(listRow(page, "E2E_CF_OK", "1.000")).toHaveCount(0);
     await expect(listRow(page, "E2E_CF_RACE", "1.000")).toBeVisible();
-    await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 }); // 닫히는 대화상자가 스크린샷을 가리지 않게
+    await expect(page.getByRole("dialog")).toHaveCount(0); // 닫히는 대화상자가 스크린샷을 가리지 않게
     await page.screenshot({ path: screenshot("dmc-codeConfirm-confirmed.png"), fullPage: true });
   });
 
@@ -156,7 +145,7 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
     await openCodeConfirm(page);
     await choose(page, "E2E_CF_RACE", "1.000");
     await validate(page, "2026-02-01 00:00:00");
-    await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: 20_000 });
+    await expect(tid(page, "cf-confirm")).toBeEnabled({ timeout: T.UI });
 
     const res = await page.request.post(`${BASE_URL}/api/mdm/oasis/codeConfirm/confirm`, {
       data: {
@@ -172,17 +161,17 @@ test.describe("mdm codeConfirm — 마루 코드 버전 확정", () => {
     expect(body.meta?.success, JSON.stringify(body.meta)).not.toBe(false);
 
     await tid(page, "cf-confirm").click();
-    await expect(tid(page, "cf-modal-ok")).toBeEnabled({ timeout: 20_000 });
+    await expect(tid(page, "cf-modal-ok")).toBeEnabled({ timeout: T.UI });
     await tid(page, "cf-modal-ok").click();
-    await expect(tid(page, "cf-error")).toContainText(RACE_REJECTED, { timeout: 20_000 });
-    await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
+    await expect(tid(page, "cf-error")).toContainText(RACE_REJECTED, { timeout: T.UI });
+    await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.screenshot({ path: screenshot("dmc-codeConfirm-error.png"), fullPage: true });
   });
 
   test("T6 표준 관리자: 검사·확정 버튼이 비활성이다", async ({ page }) => {
     // 권한 조회가 끝나기 전에는 버튼이 늘 꺼져 있으므로, 조회 응답을 받은 뒤에 단언한다(무조건 통과 방지).
     const rbacLoaded = page.waitForResponse((r) => r.url().includes("/secUser/myButtonEndpoints") && r.ok(), {
-      timeout: 60_000,
+      timeout: T.SLOW,
     });
     await login(page, STD_ADMIN);
     await openCodeConfirm(page);
