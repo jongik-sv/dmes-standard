@@ -8,7 +8,7 @@
 ## 지금 상태·다음 단계
 - srv:3 dev 머지 끝(2b638315, 머지 뒤 :api 마이그레이션 시험 15클래스 88건 통과).
 - srv:5 구현·코퍼스 끝(b89509f3·80d0a74b, 아래 「srv:5」). ui:5t 가 이 브랜치를 합쳐 TS 초록을 알리면 머지 요청한다(짝 머지).
-- srv:6 묶음 A 끝(아래 「srv:6」). 다음: 묶음 B(확정 검사 연결)·C(편집 서비스) — A 의 상수·읽기기를 읽기만 한다. ui 에 코퍼스 111건(`MIN_CASES` 111)을 알린다.
+- srv:6 묶음 A·B 끝(아래 「srv:6」). 다음: 묶음 C(편집 서비스 — 되살리기·폐기 포함) — A 의 상수·읽기기를 읽기만 한다. ui 에 코퍼스 111건(`MIN_CASES` 111)을 알린다.
 - srv:5 리뷰(opus/high 1회) clean, 낮음 3건은 srv:6 으로 넘긴다:
   1. `RuleSetPathState.before` 3인자는 SET always 출력만 defined 로 센다. always=false 출력을 maybe 에 넣는 분석기와 갈린다. srv:6 이 `RuleSetOrderCheck` 에 연결할 때 partial 출력도 받게 넓히고 사례를 더한다(예: SET G(P always=false) → IF [R1 이 P 만듦][R2 가 P 읽음]).
   2. 코퍼스 보강: setId `""` SET 노드 + 받는 노드, PARALLEL 형제 SET 출력 읽기(PAR_SIBLING), SET 이 낀 CYCLE 문구, `RuleSetInterfaceTest` 구조 오류 흐름. 더하면 Java·TS `MIN_CASES` 를 함께 올리고 ui 에 알린다.
@@ -45,7 +45,8 @@
   - `RuleSetPathState.before` 3인자의 setProduces 형을 `Function<String, Set<String>>` → `Function<String, SetOut>` 로 바꿨다(호출자는 시험뿐이었다).
   - `RuleSetCallerCheck`·`RuleSetCallIoResult`·`RuleSetOrderCheck` 연결은 B·C 로 둔다.
 
-### 묶음 B — 확정·되살리기 검사 연결 (끝)
+### 묶음 B — 확정 검사 연결 (끝)
+- 범위 메모: 되살리기(`restore`)의 `CALL_CODES` 거부·그래프 검사와 폐기 거부는 `RuleSetEditService` 라 C 몫이다. B 는 손대지 않았다.
 - 커밋:
   - 8f236d63 `RuleSetConfirmChecks.report` — `SetCallIoReader` 스냅샷 하나로 SET 노드 겉모양(apply_from, 경계 시각은 그 시각)을 분석기 4인자에 넘기고, 항목 1(FLOW_STRUCTURE)에 호출 그래프(`edges(applyFrom)` 의 이 세트 자리를 확정하려는 흐름의 SET 목록으로 덮음)·연쇄 재검사(`SetCallerRecheck`, 새 경고 부모가 있으면 `CALLER_WARN` 한 건)를 더한다. `RuleSetConfirmReport` 는 apply_from 검사의 `CALL_CODES` 를 수준과 상관없이 ERROR 로 올린다(`rejects`). 시험 `RuleSetSubsetConfirmSqliteTest` 5건.
   - ae61e370 `RuleSetCallerCheck`(@Order(9), TABLE·COLUMNS·STORED, `SET_CALLER_BROKEN` — STORED 는 ERROR, TABLE·COLUMNS 는 WARNING), 시험 `RuleSetCallerCheckTest` 5건(열 저장 경고·겉모양 그대로면 없음·룰 확정 보고서 ERROR·부르는 세트 폐기면 없음·적용 지점별 수준). `RuleConfirmQueryCountTest` 상한 36 → 37.
