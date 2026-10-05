@@ -79,6 +79,8 @@ export type FlowNodeData = {
   call?: SetCallIo;
   /** 캔버스가 겉모양 맵을 받았는가 — 거짓이면(디버거 하위 프레임) 겉모양이 없어도 "받는 중" 이 아니라 세트 ID 만 보인다. */
   callsGiven?: boolean;
+  /** SET 노드의 겉모양 받기에 실패했다 — 작은 줄이 "받는 중" 대신 "받지 못했다" 다(흐름을 고치거나 다시 불러오면 다시 묻는다). */
+  callFailed?: boolean;
   /** SET 노드 링크 아이콘 — 하위 세트를 같은 화면의 탭으로 연다(spec §10.3). 없으면 아이콘을 그리지 않는다. */
   onOpenSet?: (setId: string) => void;
 };
@@ -320,19 +322,29 @@ function TaskBody({ data }: { data: FlowNodeData }) {
 
 /** 하위 세트 이름을 받지 못했을 때 SET 노드 작은 줄(겉모양 응답 전). */
 export const SET_LOADING_TEXT = "세트 정보를 받는 중";
+/** 겉모양 받기에 실패했을 때 SET 노드 작은 줄 — 흐름을 고치거나 다시 불러오면 다시 묻는다. */
+export const SET_FAILED_TEXT = "세트 정보를 받지 못했다";
 /** 기준 시각에 RELEASED 가 없거나 없는 세트(겉모양 exists=false). */
 export const SET_MISSING_TEXT = "없는 세트(확정 버전 없음)";
 
 /**
  * 룰 세트(SET) 노드(하위 세트 spec §9) — 굵은 테두리(BPMN call activity, styles/set.ts)·세트 아이콘·제목(라벨 → 세트명 → 세트 ID)·
- * 작은 줄(세트 ID 또는 받는 중·없는 세트)·입력·출력 개수 칩·링크 아이콘(같은 화면의 탭으로 연다). 외관(`view.styles`)은 열지 않는다.
+ * 작은 줄(세트 ID 또는 받는 중·받지 못함·없는 세트)·입력·출력 개수 칩·링크 아이콘(같은 화면의 탭으로 연다). 외관(`view.styles`)은 열지 않는다.
  */
 function SetBody({ data }: { data: FlowNodeData }) {
   const { node, call, mark, onOpenSet } = data;
   const setId = node.setId ?? "";
   const known = !!call && call.exists;
   const title = node.label ?? (known ? (call.setName ?? setId) : setId || "(세트 없음)");
-  const sub = !call ? (data.callsGiven ? SET_LOADING_TEXT : `룰 세트 ${setId}`) : !call.exists ? SET_MISSING_TEXT : `룰 세트 ${setId}`;
+  const sub = !call
+    ? !data.callsGiven
+      ? `룰 세트 ${setId}`
+      : data.callFailed
+        ? SET_FAILED_TEXT
+        : SET_LOADING_TEXT
+    : !call.exists
+      ? SET_MISSING_TEXT
+      : `룰 세트 ${setId}`;
   const open = (e: MouseEvent) => {
     e.stopPropagation();
     if (setId) onOpenSet?.(setId);

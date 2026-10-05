@@ -29,7 +29,8 @@
  * 하위 세트 겉모양(하위 세트 spec §8·§10.4, 계획 Task 8): 흐름의 SET 노드가 부르는 세트의 겉모양 맵 `calls` 를 둔다. 열 때 `view.calls` 로 채우고,
  * 흐름에 아직 모르는 세트 ID 가 생기면(놓기·붙여넣기·되돌리기) `search CALL_IO` 로 그것만 받는다 — 한 번 물은 ID 는 다시 묻지 않고(빈 응답도),
  * 세트를 다시 불러오면 늦은 응답을 버린다(Local-Rules §11). 다른 탭이 세트 S 를 썼다는 알림(`written`)이 오면 흐름에 S 를 부르는 SET 노드가 있을 때
- * S 를 다시 받는다(앞선 요청의 응답은 버린다). 검사는 `flowChecks(flow, rules, condIo, calls)` 다.
+ * S 를 다시 받는다(앞선 요청의 응답은 버린다). 받기에 실패한 ID 는 `callsFailed` 에 두어 노드·속성 패널이 「받지 못했다」 로 보이고,
+ * 세트 ID 목록이 바뀌거나 실행에 영향을 주는 편집(flowVersion)이 있거나 다시 불러오면 다시 묻는다. 검사는 `flowChecks(flow, rules, condIo, calls)` 다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -47,6 +48,15 @@ import type { CondIo, RuleIo, RuleSetCheck, RuleSetSaveResult, RuleSetView, SetC
 export { CONFLICT_MESSAGE };
 const DIRTY_CONFIRM = "저장하지 않은 변경이 있습니다. 버리고 이동할까요?";
 const NO_FLOW = "세트를 먼저 연다";
+/** 겉모양 받기에 실패한 ID 가 없다 — 같은 참조라 캔버스 노드를 다시 만들지 않는다. */
+const NO_FAILED: ReadonlySet<string> = new Set();
+/** 집합에서 ids 를 뺀다(바뀐 것이 없으면 같은 참조). */
+function withoutIds(cur: ReadonlySet<string>, ids: readonly string[]): ReadonlySet<string> {
+  if (!ids.some((id) => cur.has(id))) return cur;
+  const next = new Set(cur);
+  for (const id of ids) next.delete(id);
+  return next.size === 0 ? NO_FAILED : next;
+}
 /** 조건식을 고친 뒤 validate 를 부르기까지 기다리는 시간(ms). */
 export const COND_IO_DEBOUNCE_MS = 400;
 
@@ -94,6 +104,8 @@ export interface RuleSetEditState {
   condIoPending: boolean;
   /** 흐름의 SET 노드가 부르는 세트의 겉모양(세트 ID →, 하위 세트 spec §8). 아직 받지 않은 ID 는 키가 없다(검사는 CALL_MISSING, Ruling 8). */
   calls: Record<string, SetCallIo>;
+  /** 겉모양 받기에 실패한 세트 ID(하위 세트 spec §9) — 다시 묻는 동안·받으면 빠진다. 노드 작은 줄·속성 패널이 「받는 중」 대신 「받지 못했다」 로 보인다. */
+  callsFailed: ReadonlySet<string>;
   /** flowChecks(flow, rules, condIo, calls) — flow·rules·condIo·calls 가 바뀔 때만 다시 계산한다. */
   checks: RuleSetCheck[];
   mode: FlowMode;
@@ -251,6 +263,7 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
   const [flowVersion, setFlowVersion] = useState(0);
   const [viewEpoch, setViewEpoch] = useState(0);
   const [calls, setCalls] = useState<Record<string, SetCallIo>>({});
+  const [callsFailed, setCallsFailed] = useState<ReadonlySet<string>>(NO_FAILED);
 
   const flowRef = useRef<EditFlow | null>(null);
   const setIdRef = useRef<string | null>(null);
@@ -333,6 +346,7 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
       asked.add(id);
       latest.set(id, mine);
     }
+    setCallsFailed((cur) => withoutIds(cur, want)); // 다시 묻는 동안은 「받는 중」 이다
     callIo(want).then(
       (res) => {
         if (epoch !== callEpoch.current) return; // 그사이 세트를 다시 불러왔다 — 늦은 응답은 버린다(Local-Rules §11)
@@ -347,8 +361,11 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
       },
       (e: unknown) => {
         if (epoch !== callEpoch.current) return;
-        // 다음에 흐름이 바뀌면 다시 묻는다(그동안 그 SET 노드는 CALL_MISSING 경고로 보인다)
-        for (const id of want) if (latest.get(id) === mine) asked.delete(id);
+        // 이 요청이 마지막으로 물은 ID 만 「받지 못했다」 로 둔다. 세트 ID 목록이 바뀌거나 실행에 영향을 주는 편집(flowVersion)이 있거나
+        // 다시 불러오면 아래 효과가 다시 묻는다(그동안 그 SET 노드는 「받지 못했다」 작은 줄과 CALL_MISSING 경고로 보인다).
+        const lost = want.filter((id) => latest.get(id) === mine);
+        for (const id of lost) asked.delete(id);
+        if (lost.length > 0) setCallsFailed((cur) => new Set([...cur, ...lost]));
         setError(errorText(e));
       },
     );
@@ -382,12 +399,13 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
   }, [flow, rules, condIo, calls]);
 
   // 흐름에 아직 모르는 세트 ID 가 생기면(SET 노드 놓기·붙여넣기·되돌리기, 겉모양이 없는 옛 응답) 그것만 받는다.
-  // 키는 ID 목록 글자라 위치만 바뀌는 편집(끌기)에는 다시 돌지 않는다.
+  // 키는 ID 목록 글자라 위치만 바뀌는 편집(끌기)에는 다시 돌지 않는다. flowVersion(실행에 영향을 주는 편집)에도 다시 돌아
+  // 받기에 실패한 ID(물은 집합에서 빠졌다)를 다시 묻는다 — 받는 중·받은 ID 는 fetchCalls 가 건너뛴다.
   const setIdsKey = useMemo(() => JSON.stringify(nodeSetIds(flow)), [flow]);
   useEffect(() => {
     const missing = (JSON.parse(setIdsKey) as string[]).filter((id) => !hasOwn(calls, id));
     if (missing.length > 0) fetchCalls(missing, false);
-  }, [setIdsKey, calls, fetchCalls]);
+  }, [setIdsKey, calls, fetchCalls, flowVersion]);
 
   const refreshCalls = useCallback((ids: readonly string[]) => fetchCalls(ids, true), [fetchCalls]);
 
@@ -408,6 +426,7 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
     }
     callAsked.current.delete(w.setId);
     callLatest.current.set(w.setId, ++callSeq.current); // 떠나 있는 요청의 응답도 쓰지 않는다
+    setCallsFailed((cur) => withoutIds(cur, [w.setId]));
     setCalls((cur) => {
       if (!hasOwn(cur, w.setId)) return cur;
       const next = { ...cur };
@@ -461,6 +480,7 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
         callAsked.current = new Set();
         callLatest.current = new Map();
         setCalls(next.calls ?? {});
+        setCallsFailed(NO_FAILED);
         setSetName(next.set.setName ?? "");
         setDescription(next.set.description ?? "");
         if (opts.keepHistory && goneVer === null) {
@@ -749,6 +769,7 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
     condIo,
     condIoPending,
     calls,
+    callsFailed,
     checks,
     mode,
     setName,

@@ -8,7 +8,8 @@
  * - 룰·빈 단계: 편집 모드면 「외관」 섹션(S1, NodeStylePanel)
  * - 룰·빈 단계·분기·시작·끝: 「설명」 여러 줄 입력 칸(`view.descs`, 최대 1000자). 보기 모드는 읽기 전용, 입력하는 동안은 되돌리기 한 칸으로 묶는다. 합류는 없다.
  * - 받는 노드: 제목·붙은 룰·CATCH_* 안내, 받을 예외 체크(붙은 노드 종류의 목록 `catchKindsFor` — 같은 룰의 다른 받는 노드가 받는 종류는 꺼짐)·CATCH_NEVER 경고, [지우기].
- *   목록 밖인데 저장된 종류(예: 룰에 붙은 SUBSET_ENDED)도 체크된 칸으로 보여 풀 수 있다(분석기는 FLOW_CATCH 로 알린다). 설명 칸은 없다.
+ *   목록 밖인데 저장된 종류(예: 룰에 붙은 SUBSET_ENDED)도 체크된 칸으로 보여 풀 수 있다(분석기는 FLOW_CATCH 로 알린다). 그 종류가 유일한 받을 종류면
+ *   풀 수 없으므로(빈 목록 거부) 칸을 끄고 「받을 종류를 먼저 켜거나 [지우기]」 를 안내한다. 설명 칸은 없다.
  * - 룰 세트(SET) 노드(하위 세트 spec §9): 이름(라벨)·세트 ID·세트명·상태, 검사 문구, [세트 탭으로 열기]·[지우기], 겉모양(입력, 출력과 항상·일부 경로),
  *   이 세트를 부르는 세트(search CALLERS — 누르면 그 세트를 탭으로 연다).
  * - 합류·시작·끝: 종류 설명. 메모: 글(마크다운 — 편집 모드면 처음부터 서식 편집기, 보기 모드면 읽기 모습. shared MarkdownField fill). 그룹: 제목.
@@ -77,6 +78,8 @@ export interface PropertyPanelProps {
   onOpenRule: (ruleId: string) => void;
   /** 하위 세트 겉모양(세트 ID →) — 룰 세트 노드의 세트명·상태·입출력(하위 세트 spec §9). */
   calls?: SetCallIoMap;
+  /** 겉모양 받기에 실패한 세트 ID — 세트명·상태 칸이 「받는 중」 대신 「받지 못했다」 다. */
+  callsFailed?: ReadonlySet<string>;
   /** 하위 세트를 같은 화면의 탭으로 연다(spec §10.3). 없으면 [세트 탭으로 열기]·부르는 세트 링크가 꺼진다. */
   onOpenSet?: (setId: string) => void;
   /** 섹션 펼침 기억(종류별, 화면 메모리). */
@@ -528,6 +531,12 @@ const CATCH_NOTE_RULE =
   "붙은 룰이 받는 예외로 실패하면(결과 없음은 받을 때만) 룰 결과를 쓰지 않고 처리 갈래를 실행한다. 처리 갈래에서 CATCH_KIND·CATCH_RULE·CATCH_CODE·CATCH_MSG·CATCH_SET 를 읽을 수 있다";
 /** 붙은 노드 종류의 목록 밖인데 저장된 종류 — 풀기만 할 수 있다. */
 export const CATCH_KIND_OUTSIDE = "이 노드에는 받을 수 없는 종류다. 풀어서 지운다";
+/** 목록 밖 종류가 유일한 받을 종류다 — 받을 종류가 하나도 없게 풀 수 없으므로(CATCH_KINDS_EMPTY) 칸을 끄고 할 일을 안내한다. */
+export const CATCH_KIND_OUTSIDE_LAST = "이 노드에는 받을 수 없는 종류다. 유일한 종류라 풀 수 없다 — 받을 종류를 먼저 켜고 풀거나 [지우기]로 받는 노드를 지운다";
+/** 붙은 노드에 받을 수 있는 종류가 없는데(목록이 빔) 목록 밖 종류만 저장돼 있다 — 받는 노드를 지우는 수밖에 없다. */
+export const CATCH_KIND_OUTSIDE_ONLY_DELETE = "이 노드에는 받을 수 없는 종류다. [지우기]로 받는 노드를 지운다";
+/** 겉모양 받기에 실패한 SET 노드의 세트명·상태 칸 — 흐름을 고치거나 다시 불러오면 다시 묻는다. */
+export const SET_FAILED_NOTE = "세트 정보를 받지 못했다 — 흐름을 고치거나 다시 불러오면 다시 묻는다";
 
 /** 받는 노드(받는 노드 spec §8): 제목·붙은 룰·CATCH_* 안내, 받을 예외 체크(목록 밖 저장 종류 포함), 종류 옆 CATCH_NEVER 경고, 검사 문구·[지우기]. */
 function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }) {
@@ -591,20 +600,27 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
             const owner = owners.get(k);
             const never = neverOf(k);
             const outside = !allowed.includes(k);
+            // 유일한 받을 종류는 풀 수 없다(setCatchKinds 가 빈 목록을 거부한다) — 칸을 끄고 다른 길을 안내한다(ui:8 리뷰).
+            const lastOutside = outside && mine.length === 1 && mine[0] === k;
+            const outsideNote = !lastOutside
+              ? CATCH_KIND_OUTSIDE
+              : allowed.some((a) => !owners.has(a))
+                ? CATCH_KIND_OUTSIDE_LAST
+                : CATCH_KIND_OUTSIDE_ONLY_DELETE;
             return (
               <div key={k} className="rsf-catch-kind" data-testid={`flow-prop-catch-kind-${k}`} data-outside={outside ? "true" : undefined}>
                 <Checkbox
                   label={CATCH_KIND_LABEL[k]}
                   aria-label={`${CATCH_KIND_LABEL[k]} 받기`}
                   checked={mine.includes(k)}
-                  // 목록 밖 종류는 풀기만 — 다시 켤 수 없다(풀면 칸이 사라진다).
-                  disabled={!editable || owner != null || (outside && !mine.includes(k))}
+                  // 목록 밖 종류는 풀기만 — 다시 켤 수 없다(풀면 칸이 사라진다). 유일한 종류면 풀 수도 없다.
+                  disabled={!editable || owner != null || (outside && !mine.includes(k)) || lastOutside}
                   onChange={(on) => onEdit((f) => setCatchKinds(f, node.id, on ? [...mine, k] : mine.filter((x) => x !== k)))}
                 />
                 {owner && <span className="rsf-muted" data-testid={`flow-prop-catch-owner-${k}`}>{`${owner}가 받는다`}</span>}
                 {outside && (
                   <p className="rsf-panel-note" data-testid={`flow-prop-catch-outside-${k}`} style={badgeStyle("warning")}>
-                    {CATCH_KIND_OUTSIDE}
+                    {outsideNote}
                   </p>
                 )}
                 {never && (
@@ -639,6 +655,7 @@ function SetProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }
   const { checks, editable, onEdit, sections, onOpenSet } = props;
   const setId = node.setId ?? "";
   const call = setId ? props.calls?.[setId] : undefined;
+  const failed = !!setId && !!props.callsFailed?.has(setId);
   const mine = checks.filter((c) => c.nodeId === node.id);
   const [who, setWho] = useState<CallerList | null>(null);
   // 부르는 세트는 이 세트를 부르는 「다른」 세트들이다 — 어느 탭이든 세트를 저장·폐기·되살리거나 버전을 조작하면(쓰기 알림, spec §10.4)
@@ -689,7 +706,11 @@ function SetProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }
             <tr>
               <th style={DETAIL_LABEL_CELL}>세트명·상태</th>
               <td style={DETAIL_VALUE_CELL} data-testid="flow-prop-set-name">
-                {!call ? (
+                {!call && failed ? (
+                  <span data-testid="flow-prop-set-failed" style={badgeStyle("warning")}>
+                    {SET_FAILED_NOTE}
+                  </span>
+                ) : !call ? (
                   <span className="rsf-muted">세트 정보를 받는 중</span>
                 ) : !call.exists ? (
                   <span style={badgeStyle("warning")}>없는 세트(확정 버전 없음)</span>

@@ -146,6 +146,7 @@ const PALETTE_ITEMS: readonly string[] = ["rule", "set", "if", "par", "note", "g
 const BREAKABLE = new Set(["RULE", "TASK", "SET", "IF", "PARALLEL", "MERGE"]);
 /** SET 노드 겉모양이 없을 때 넘기는 빈 맵 — 참조가 렌더마다 바뀌지 않게 모듈 상수(Local-Rules §16). */
 const NO_CALLS: SetCallIoMap = {};
+const NO_FAILED_CALLS: ReadonlySet<string> = new Set();
 /** 룰 목록 줄을 놓아 룰을 지정할 노드 종류(4단계 T1). */
 const ASSIGN_DROP_KINDS: ReadonlySet<string> = new Set(["TASK", "RULE"]);
 /** [+] 단추를 선 이름표 오른쪽에 둘 때의 거리(px). */
@@ -272,6 +273,8 @@ export interface FlowCanvasProps {
    * 넘기지 않으면(디버거 하위 프레임 — 겉모양을 받지 않는다) 세트 ID 만 그린다.
    */
   calls?: SetCallIoMap;
+  /** 겉모양 받기에 실패한 세트 ID — 그 SET 노드는 "받는 중" 대신 "받지 못했다" 로 그린다. 없으면 실패한 것이 없다. */
+  callsFailed?: ReadonlySet<string>;
   /** SET 노드 링크 아이콘 — 하위 세트를 같은 화면의 탭으로 연다(spec §10.3). 없으면 링크 아이콘이 없다. */
   onOpenSet?: (setId: string) => void;
   /**
@@ -1130,6 +1133,7 @@ function Inner(props: FlowCanvasProps) {
   } = props;
   const callMap = props.calls ?? NO_CALLS;
   const callsGiven = props.calls !== undefined;
+  const callsFailed = props.callsFailed ?? NO_FAILED_CALLS;
   const editable = mode === "edit";
   const debugging = mode === "debug";
   /** [손] 도구 — 빈 곳 끌기가 화면 이동이다(4단계 P1). */
@@ -1295,7 +1299,7 @@ function Inner(props: FlowCanvasProps) {
         selected: selectedId === n.id || rfSel.has(n.id),
         flash: flashId === n.id,
         onOpenRule,
-        ...(n.kind === "SET" ? { call: n.setId ? callMap[n.setId] : undefined, callsGiven, onOpenSet } : {}),
+        ...(n.kind === "SET" ? { call: n.setId ? callMap[n.setId] : undefined, callsGiven, callFailed: !!n.setId && callsFailed.has(n.setId), onOpenSet } : {}),
         breakpoint: breakpoints.has(n.id),
         canBreak: debugging && BREAKABLE.has(n.kind),
         collapsed: block ? blockInfo(flow, block, n.id, overlay) : null,
@@ -1326,7 +1330,7 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     return out;
-  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, nodeSizeDrag, noteSizeDrag, catchMoveDrag, dropNode, onRenameTask, props.onCatchSpotChange, callMap, callsGiven, onOpenSet]);
+  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, nodeSizeDrag, noteSizeDrag, catchMoveDrag, dropNode, onRenameTask, props.onCatchSpotChange, callMap, callsGiven, callsFailed, onOpenSet]);
   /**
    * 내용이 같은 노드는 이전 객체를 그대로 넘긴다(구조적 공유, `reuse.ts`) — 끌기 프레임·선택마다 위 memo 가 모든 노드를 새로 만들어도
    * React Flow 는 바뀐 노드만 다시 그린다. 잰 크기(measured)도 견주므로 화면 맞춤(fitView) 동작은 그대로다.

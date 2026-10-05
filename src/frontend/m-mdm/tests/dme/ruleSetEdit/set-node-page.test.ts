@@ -8,8 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/dme/rule-handoff", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/dme/rule-handoff")>()) }));
 
-import { SET_LOADING_TEXT, SET_MISSING_TEXT } from "../../../pages/dme/ruleSetEdit/canvas/nodes";
-import { CATCH_KIND_OUTSIDE } from "../../../pages/dme/ruleSetEdit/panels/PropertyPanel";
+import { SET_FAILED_TEXT, SET_LOADING_TEXT, SET_MISSING_TEXT } from "../../../pages/dme/ruleSetEdit/canvas/nodes";
+import { CATCH_KIND_OUTSIDE, CATCH_KIND_OUTSIDE_LAST, SET_FAILED_NOTE } from "../../../pages/dme/ruleSetEdit/panels/PropertyPanel";
 import type { RuleIo, RuleSetView, SetCallIo } from "../../../pages/dme/ruleSetEdit/types";
 import { findButton, flush, typeInto, visibleText } from "../helpers/render";
 import { byTestId, calls, click, inDoc, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
@@ -117,6 +117,15 @@ describe("SET 노드 화면", () => {
     await openSet("PARENT", viewOf("PARENT", PARENT_FLOW), { tabId: "T1" });
     expect(byTestId("flow-set-sub-s1").textContent).toBe(SET_LOADING_TEXT);
     expect(callIoAsks()).toEqual(['["CHILD"]']);
+  });
+
+  it("겉모양 받기에 실패하면 노드 작은 줄·속성 패널이 받는 중이 아니라 받지 못했다로 보인다(ui:8 리뷰)", async () => {
+    srv.replies["search:CALL_IO"] = { meta: { success: false, message: "서버 오류" } };
+    await openSet("PARENT", viewOf("PARENT", PARENT_FLOW), { tabId: "T1" });
+    await settle();
+    expect(byTestId("flow-set-sub-s1").textContent).toBe(SET_FAILED_TEXT);
+    await click("flow-node-s1");
+    expect(byTestId("flow-prop-set-failed").textContent).toBe(SET_FAILED_NOTE);
   });
 
   it("링크 아이콘은 같은 화면의 새 탭으로 열고, 이미 열린 탭이면 그 탭으로 간다(새 view 요청 없음)", async () => {
@@ -358,6 +367,22 @@ describe("SET 노드 화면", () => {
     await press(input);
     expect(q("flow-prop-catch-kind-SUBSET_ENDED")).toBeNull();
     expect((byTestId("flow-prop-catch-kind-EVAL_ERROR").querySelector('input[type="checkbox"]') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("목록 밖 종류가 유일한 받을 종류면 풀 수 없어 칸을 끄고 다른 길을 안내하며, 받을 종류를 켜면 풀 수 있다(ui:8 리뷰)", async () => {
+    const only = { ...RULE_CATCH_FLOW, nodes: RULE_CATCH_FLOW.nodes.map((n) => (n.id === "c1" ? { ...n, catches: ["SUBSET_ENDED"] } : n)) };
+    await openSet("RC", viewOf("RC", only, undefined, [rule("R_A", "X", "Y")]), { tabId: "T1" });
+    await click("flow-mode-edit");
+    await click("flow-node-c1");
+    const outsideInput = () => byTestId("flow-prop-catch-kind-SUBSET_ENDED").querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(byTestId("flow-prop-catch-outside-SUBSET_ENDED").textContent).toBe(CATCH_KIND_OUTSIDE_LAST);
+    expect(outsideInput().checked).toBe(true);
+    expect(outsideInput().disabled).toBe(true);
+    await press(byTestId("flow-prop-catch-kind-EVAL_ERROR").querySelector('input[type="checkbox"]') as HTMLInputElement);
+    expect(byTestId("flow-prop-catch-outside-SUBSET_ENDED").textContent).toBe(CATCH_KIND_OUTSIDE);
+    expect(outsideInput().disabled).toBe(false);
+    await press(outsideInput());
+    expect(q("flow-prop-catch-kind-SUBSET_ENDED")).toBeNull();
   });
 
   it("디버그 모드 — SET 노드에 중단점을 걸 수 있고, 입력 폼은 하위 세트의 입력도 받는다", async () => {

@@ -16,7 +16,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("../../../pages/dme/ruleSetEdit/api", () => api);
 
-import { flowJsonOf, insertSet, setPositions, toEditFlow, type EditFlow, type EditResult } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { flowJsonOf, insertSet, insertTask, setPositions, toEditFlow, type EditFlow, type EditResult } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { useRuleSetEdit, type RuleSetEditState } from "../../../pages/dme/ruleSetEdit/state/useRuleSetEdit";
 import type { RuleIo, RuleSetCallIoResult, RuleSetView, SetCallIo } from "../../../pages/dme/ruleSetEdit/types";
 import { installDomStorage } from "../helpers/render";
@@ -225,6 +225,37 @@ describe("겉모양 맵(calls) 채우기", () => {
     await flushAll();
     expect(asked()).toEqual([["S_A"], ["S_A", "S_C"]]);
     expect(Object.keys(h.current.calls).sort()).toEqual(["S_A", "S_C"]);
+  });
+
+  it("받기에 실패한 ID 는 callsFailed 에 두고, 세트 ID 가 그대로인 편집(빈 단계 넣기)에도 다시 묻는다 — 위치만 바꾸면 묻지 않는다(ui:8 리뷰)", async () => {
+    api.callIo.mockRejectedValueOnce(new Error("서버 오류"));
+    await openWith(viewOf(setFlow()));
+    await flushAll();
+    expect([...h.current.callsFailed]).toEqual(["S_A"]);
+    await run((s) => s.edit((f) => setPositions(f, { s1: { x: 10, y: 10 } })));
+    await flushAll();
+    expect(asked()).toEqual([["S_A"]]);
+    const e = h.current.flow!.edges.find((x) => x.to === "end")!;
+    const d = deferred<RuleSetCallIoResult>();
+    api.callIo.mockReturnValueOnce(d.promise);
+    await run((s) => s.edit((f) => insertTask(f, e.id)));
+    await flushAll();
+    expect(asked()).toEqual([["S_A"], ["S_A"]]);
+    expect(h.current.callsFailed.size).toBe(0); // 다시 묻는 동안은 받는 중이다
+    await run(() => d.resolve({ calls: [callOf("S_A")] }));
+    expect(h.current.calls.S_A?.exists).toBe(true);
+    expect(h.current.callsFailed.size).toBe(0);
+  });
+
+  it("받기에 실패한 ID 는 다시 불러오면 비운다", async () => {
+    api.callIo.mockRejectedValueOnce(new Error("서버 오류"));
+    await openWith(viewOf(setFlow()));
+    await flushAll();
+    expect(h.current.callsFailed.has("S_A")).toBe(true);
+    api.viewSet.mockResolvedValue(viewOf(setFlow(), { S_A: callOf("S_A") }));
+    await run((s) => s.reload());
+    await flushAll();
+    expect(h.current.callsFailed.size).toBe(0);
   });
 });
 

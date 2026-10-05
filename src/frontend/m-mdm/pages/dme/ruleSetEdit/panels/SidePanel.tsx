@@ -76,6 +76,8 @@ export interface SidePanelProps {
   layoutSource?: () => NodeLayoutSource | null;
   /** 하위 세트 겉모양(세트 ID →) — 룰 세트 노드 머리글·속성 패널, 세트 입출력 표(하위 세트 spec §9). */
   calls?: SetCallIoMap;
+  /** 겉모양 받기에 실패한 세트 ID — 룰 세트 노드 속성 패널이 「받는 중」 대신 「받지 못했다」 로 보인다. */
+  callsFailed?: ReadonlySet<string>;
   /** 하위 세트를 같은 화면의 탭으로 연다(룰 세트 노드 속성 패널의 링크, spec §10.3). */
   onOpenSet?: (setId: string) => void;
 }
@@ -153,6 +155,7 @@ export function SidePanel(p: SidePanelProps) {
         onEdit={p.onEdit}
         onOpenRule={p.onOpenRule}
         calls={p.calls}
+        callsFailed={p.callsFailed}
         onOpenSet={p.onOpenSet}
         sections={sections}
       />
