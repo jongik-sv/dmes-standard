@@ -2,7 +2,7 @@
 
 - 레인: widget-dock (업무 화면 도구 창) / 브랜치 `feat/widget-dock` / 워크트리 `/Users/jji/project/dmes-standard-wt/widget-dock`
 - 기준: dev `a4848de8` + floatable 메타(6bd18da2)
-- 머리 순서: widget-meta 의 비공개(10)가 dev 에 들어간 뒤 머지(README §4-1).
+- 상태: **완료**(2026-10-05). dev 머지 20d88f29, 조정 세션 브라우저 확인 통과(메모는 정의 행을 만들면 메뉴에 오름 — 결정 12), 후속은 아래 「남은 일」. 선행 조건(widget-meta 10)은 조정 세션이 풀었다.
 
 ## 진행
 
