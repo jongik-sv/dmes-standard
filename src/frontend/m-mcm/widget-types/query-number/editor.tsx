@@ -5,7 +5,8 @@ import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oa
 import { MdmFieldLabel, MdmMetaProvider } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
-import { configText, MAX_NUMBER_TILES, NUMBER_FORMAT_OPTIONS, numberConfigOf } from "../_query/format";
+import { configText, MAX_NUMBER_TILES, NUMBER_FORMAT_OPTIONS, numberConfigOf, paramsOf } from "../_query/format";
+import { ParamsEditorRow } from "../_query/ParamsEditor";
 import { FIELD_INPUT_PLACEHOLDER, QueryStyle } from "../_query/parts";
 import { SqlEditor } from "../_query/SqlEditor";
 import { useConfigEditor } from "../_query/useConfigEditor";
@@ -27,6 +28,7 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
             <td style={DETAIL_VALUE_CELL}>
               <SqlEditor
                 sql={cfg.sql}
+                params={paramsOf(props.value)}
                 preview={preview}
                 onSqlChange={(sql) => patch({ sql })}
                 onPreview={(result) => patch({ __preview: result ?? undefined })}
@@ -34,6 +36,7 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
               <span className="wq-hint">결과 행마다 타일 하나를 그립니다(최대 {MAX_NUMBER_TILES}개).</span>
             </td>
           </tr>
+          <ParamsEditorRow value={props.value} patch={patch} />
           <tr>
             <th style={DETAIL_LABEL_CELL}>
               <MdmFieldLabel name="labelField" label="라벨 필드" required />

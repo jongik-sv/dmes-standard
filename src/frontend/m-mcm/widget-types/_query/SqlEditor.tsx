@@ -4,10 +4,12 @@ import { Fragment, useState } from "react";
 import { Button, Textarea } from "@dk-oasis/shared/form";
 
 import { previewWidgetQuery } from "./api";
-import { summarizeResult, SYSTEM_VARIABLES, type QueryResult } from "./format";
+import { summarizeResult, SYSTEM_VARIABLES, type QueryParam, type QueryResult } from "./format";
 
 export interface SqlEditorProps {
   sql: string;
+  /** 입력 조건 정의 — [쿼리 시험] 이 정의 배열 전체를 서버에 보낸다(서버가 각 기본값으로 시험한다). 없거나 비면 보내지 않는다. */
+  params?: QueryParam[];
   /** 마지막 [쿼리 시험] 결과(정의 설정의 `__preview`). */
   preview: QueryResult | null;
   onSqlChange: (sql: string) => void;
@@ -19,7 +21,7 @@ export interface SqlEditorProps {
  * 쿼리 유형 편집기 공용 SQL 칸(스펙 §6 끝·§10.1) — 고정폭 입력 칸 + 시스템 변수 안내 + [쿼리 시험](commWidgetMng/previewQuery, 행 상한 50).
  * 시험이 실패하면 서버 메시지(「쿼리 오류: …」 등)를 그대로 보인다(관리자 SQL 작성 도움 — §7.3).
  */
-export function SqlEditor({ sql, preview, onSqlChange, onPreview }: SqlEditorProps) {
+export function SqlEditor({ sql, params, preview, onSqlChange, onPreview }: SqlEditorProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +33,7 @@ export function SqlEditor({ sql, preview, onSqlChange, onPreview }: SqlEditorPro
     setBusy(true);
     setError(null);
     try {
-      onPreview(await previewWidgetQuery("mcm", sql));
+      onPreview(await previewWidgetQuery("mcm", sql, params));
     } catch (e) {
       // 이전 시험 결과가 남으면 미리보기·필드 고르기가 지금 SQL 과 어긋난다.
       onPreview(null);
@@ -53,7 +55,7 @@ export function SqlEditor({ sql, preview, onSqlChange, onPreview }: SqlEditorPro
         aria-label="SQL"
       />
       <div className="wq-hint">
-        조회문(SELECT·WITH) 한 문장만 쓸 수 있습니다. 시스템 변수:{" "}
+        조회문(SELECT·WITH) 한 문장만 쓸 수 있습니다. 사용자가 넣는 값은 아래 「조회 조건」 에 선언한 <code>:이름</code> 으로 씁니다. 시스템 변수:{" "}
         {SYSTEM_VARIABLES.map((v, i) => (
           <Fragment key={v.name}>
             {i > 0 && " · "}

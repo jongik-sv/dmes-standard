@@ -18,11 +18,26 @@ interface PieProps {
 
 const h = vi.hoisted(() => ({
   useQueryData: vi.fn(),
+  /** useQueryData 가 돌려줄 조건 — 기본은 조건 없음. */
+  condition: { current: null as null | Record<string, unknown> },
   /** PieChart 가 받은 props — 마지막 그림. 그려지지 않았으면 null. */
   pie: { current: null as PieProps | null },
 }));
 
 vi.mock("../_query/useQueryData", () => ({ useQueryData: h.useQueryData }));
+
+// 조건 줄이 쓰는 shared 입력 부품 — 간단한 대역(실제 부품은 shared 시험이 본다).
+vi.mock("@dk-oasis/shared/form", async () => {
+  const { createElement: el } = await import("react");
+  return {
+    Button: (p: { children?: unknown; onClick?: () => void; "data-testid"?: string }) =>
+      el("button", { type: "button", onClick: p.onClick, "data-testid": p["data-testid"] }, p.children as never),
+    Input: (p: { value?: string; onChange?: (v: string) => void; "data-testid"?: string }) =>
+      el("input", { value: p.value ?? "", onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value), "data-testid": p["data-testid"] }),
+    Select: (p: { value?: string; "data-testid"?: string }) => el("select", { value: p.value ?? "", onChange: () => {}, "data-testid": p["data-testid"] }),
+    DatePicker: (p: { value?: string }) => el("input", { value: p.value ?? "", onChange: () => {}, "data-testid": "date" }),
+  };
+});
 
 vi.mock("@dk-oasis/shared/widget", () => ({
   useWidgetBodySize: () => ({ width: 400, height: 300 }),
@@ -49,6 +64,7 @@ let root: Root;
 
 beforeEach(() => {
   h.useQueryData.mockReset();
+  h.condition.current = { ...NO_COND };
   h.pie.current = null;
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -59,6 +75,8 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
 });
+
+const NO_COND = { params: [], draft: {}, setDraft: () => {}, search: () => {}, needInput: false };
 
 const q = (testId: string) => container.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
 
@@ -79,7 +97,7 @@ const pieDefinition = (series: { field: string; label?: string }[], over: Record
 });
 
 async function renderChart(data: QueryResult | null, definition: unknown, refreshKey = 5) {
-  h.useQueryData.mockReturnValue(data);
+  h.useQueryData.mockReturnValue({ data, condition: h.condition.current });
   const props = {
     instanceId: "inst-1",
     widgetId: "def.chart123",
@@ -176,5 +194,40 @@ describe("쿼리 차트 — 원 차트가 아닐 때·그릴 값이 없을 때",
     await renderChart(null, pieDefinition([{ field: "QTY" }], { unit: "건" }));
     expect(h.pie.current).toBeNull();
     expect(q("wq-empty")).toBeNull();
+  });
+});
+
+describe("쿼리 차트 — 조회 조건 줄", () => {
+  const cond = (over: Record<string, unknown> = {}) => ({
+    ...NO_COND,
+    params: [{ name: "dept", label: "부서", type: "text" }],
+    draft: { dept: "" },
+    ...over,
+  });
+
+  it("조건이 없으면 틀로 감싸지 않는다", async () => {
+    await renderChart(result(sample()), pieDefinition([{ field: "QTY" }]));
+    expect(q("wq-shell")).toBeNull();
+    expect(h.pie.current?.size).toBe(192);
+  });
+
+  it("조건 줄이 차지한 높이만큼 뺀 본문 높이로 그림 크기를 정한다", async () => {
+    const spy = vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ height: 200 } as DOMRect);
+    try {
+      h.condition.current = cond();
+      await renderChart(result(sample()), pieDefinition([{ field: "QTY" }]));
+      expect(q("wq-cond-bar")).not.toBeNull();
+      // 본문 300 - 줄 200 = 100 → 지름 min(92, 192) 를 최소 100 으로 맞춘다.
+      expect(h.pie.current?.size).toBe(100);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("필수 값이 비어 있으면 차트 대신 안내를 보인다", async () => {
+    h.condition.current = cond({ needInput: true });
+    await renderChart(null, pieDefinition([{ field: "QTY" }]));
+    expect(q("wq-need-input")).not.toBeNull();
+    expect(h.pie.current).toBeNull();
   });
 });

@@ -23,6 +23,14 @@ export const QUERY_CSS = `
 .wq-hint code { font-family: var(--font-family-mono); color: var(--color-text); }
 .wq-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-sm); }
 .wq-summary { font-size: var(--font-size-xs); color: var(--color-text-muted); overflow-wrap: anywhere; }
+.wq-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.wq-main { flex: 1 1 0; min-height: 0; overflow: auto; }
+.wq-cond-bar { flex: none; display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--spacing-sm); padding-bottom: var(--spacing-sm); }
+.wq-cond { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wq-cond__label { font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.wq-cond__req { margin-left: 2px; color: var(--color-danger); }
+.wq-cond__ctl { width: 150px; max-width: 100%; }
+.wq-params-hint { color: var(--color-danger); }
 `;
 
 export function QueryStyle() {

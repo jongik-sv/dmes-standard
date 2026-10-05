@@ -23,11 +23,26 @@ type GridProps = {
 
 const h = vi.hoisted(() => ({
   useQueryData: vi.fn(),
+  /** useQueryData 가 돌려줄 조건 — 기본은 조건 없음. */
+  condition: { current: null as null | Record<string, unknown> },
   /** 마지막으로 그리드에 넘어간 props. */
   grid: { current: null as null | GridProps },
 }));
 
 vi.mock("../_query/useQueryData", () => ({ useQueryData: h.useQueryData }));
+
+// 조건 줄이 쓰는 shared 입력 부품 — 간단한 대역(실제 부품은 shared 시험이 본다).
+vi.mock("@dk-oasis/shared/form", async () => {
+  const { createElement: el } = await import("react");
+  return {
+    Button: (p: { children?: unknown; onClick?: () => void; "data-testid"?: string }) =>
+      el("button", { type: "button", onClick: p.onClick, "data-testid": p["data-testid"] }, p.children as never),
+    Input: (p: { value?: string; onChange?: (v: string) => void; "data-testid"?: string }) =>
+      el("input", { value: p.value ?? "", onChange: (e: { currentTarget: { value: string } }) => p.onChange?.(e.currentTarget.value), "data-testid": p["data-testid"] }),
+    Select: (p: { value?: string; "data-testid"?: string }) => el("select", { value: p.value ?? "", onChange: () => {}, "data-testid": p["data-testid"] }),
+    DatePicker: (p: { value?: string }) => el("input", { value: p.value ?? "", onChange: () => {}, "data-testid": "date" }),
+  };
+});
 
 vi.mock("@dk-oasis/shared/grid", async () => {
   const { createElement: el } = await import("react");
@@ -53,6 +68,7 @@ let root: Root;
 
 beforeEach(() => {
   h.useQueryData.mockReset();
+  h.condition.current = { ...NO_COND };
   h.grid.current = null;
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -63,6 +79,8 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
 });
+
+const NO_COND = { params: [], draft: {}, setDraft: () => {}, search: () => {}, needInput: false };
 
 const q = (testId: string) => container.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
 const must = (testId: string) => {
@@ -85,7 +103,7 @@ const sample = () => [
 ];
 
 async function renderTable(data: QueryResult | null, over: { definition?: unknown; title?: string | undefined } = {}) {
-  h.useQueryData.mockReturnValue(data);
+  h.useQueryData.mockReturnValue({ data, condition: h.condition.current });
   const definition = over.definition ?? { sql: "select 1", columns: [] };
   const props = {
     instanceId: "inst-1",
@@ -166,7 +184,7 @@ describe("쿼리 표 — 0행", () => {
   it("0행 → N행 전환 때 그리드가 다시 마운트되지 않는다(같은 DOM 노드)", async () => {
     const props = await renderTable(result([]));
     const before = must("grid");
-    h.useQueryData.mockReturnValue(result(sample()));
+    h.useQueryData.mockReturnValue({ data: result(sample()), condition: h.condition.current });
     await act(async () => {
       root.render(createElement(QueryTableRenderer, props as never));
     });
@@ -216,5 +234,59 @@ describe("쿼리 표 — excelExport", () => {
     expect(h.grid.current!.excelExport).toBe(first);
     await renderTable(data, { title: "다른 제목" });
     expect(h.grid.current!.excelExport).not.toBe(first);
+  });
+});
+
+describe("쿼리 표 — 조회 조건 줄", () => {
+  const withParams = (over: Record<string, unknown> = {}) => ({
+    ...NO_COND,
+    params: [{ name: "dept", label: "부서", type: "text", required: true }],
+    draft: { dept: "A" },
+    ...over,
+  });
+
+  it("조건이 없으면 틀(wq-shell)로 감싸지 않고 조건 줄도 없다 — 모습이 이전과 같다", async () => {
+    await renderTable(result(sample()));
+    expect(q("wq-shell")).toBeNull();
+    expect(q("wq-cond-bar")).toBeNull();
+    expect(q("grid")).not.toBeNull();
+  });
+
+  it("조건이 있으면 위(조건 줄)와 아래(표)로 나눠 그린다", async () => {
+    h.condition.current = withParams();
+    await renderTable(result(sample()));
+    const shell = must("wq-shell");
+    expect(shell.firstElementChild).toBe(must("wq-cond-bar"));
+    expect(must("wq-cond-dept")).not.toBeNull();
+    expect(must("wq-cond-search").textContent).toBe("검색");
+    expect(shell.querySelector(".wq-main [data-testid=grid]")).not.toBeNull();
+  });
+
+  it("필수 값이 비어 서버를 부르지 않는 중이면 표 대신 「조건을 입력하고 검색하세요」", async () => {
+    h.condition.current = withParams({ needInput: true });
+    await renderTable(null);
+    expect(must("wq-need-input").textContent).toBe("조건을 입력하고 검색하세요");
+    expect(q("grid")).toBeNull();
+    expect(q("wq-cond-bar")).not.toBeNull();
+  });
+
+  it("[검색] 단추는 search 를 부른다", async () => {
+    const search = vi.fn();
+    h.condition.current = withParams({ search });
+    await renderTable(result(sample()));
+    await act(async () => {
+      must("wq-cond-search").click();
+    });
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
+  it("글자 칸 Enter 는 검색한다", async () => {
+    const search = vi.fn();
+    h.condition.current = withParams({ search });
+    await renderTable(result(sample()));
+    await act(async () => {
+      must("wq-cond-dept-input").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    });
+    expect(search).toHaveBeenCalledTimes(1);
   });
 });
