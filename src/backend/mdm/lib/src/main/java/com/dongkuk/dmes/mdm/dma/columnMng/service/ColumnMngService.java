@@ -53,6 +53,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -111,7 +112,9 @@ public class ColumnMngService {
      * 아래 Java 비교가 한다 — 방언별 대소문자 접기 차이와 {@code %}·{@code _} 를 글자 그대로 보는 규칙을 Java 가 지킨다. 도메인은 후보
      * 컬럼이 가리키는 것만, 용어는 남은 컬럼의 TERM_IDS 에 든 것만 IN 으로 읽는다. 정렬도 Java({@code String.compareTo})가 한다.
      *
-     * <p>조건이 없고 {@code limit} 이 오면 앞쪽 {@code limit} 건만 돌려준다(화면 성능 가이드 R1). {@code limit} 이 오면 조건 유무와
+     * <p>조건이 없고 {@code limit} 이 오면 앞쪽 {@code limit} 건만 돌려준다(화면 성능 가이드 R1). 이때는 DB 가 {@code ORDER BY
+     * 논리명, ID} 로 앞쪽 ID 만 고르고 행 순서도 그 DB 순서를 따른다 — DB 콜레이션 순서라 방언(SQLite·Oracle·PostgreSQL)마다
+     * 한글·영문 대소문자 순서가 Java 비교와 다를 수 있다(2026-10-05 사용자 결정으로 받아들임). {@code limit} 이 오면 조건 유무와
      * 상관없이 {@code totalCount}(조건에 맞는 전체 건수)와 {@code truncated}(목록이 잘렸는지)를 더 싣는다. {@code limit} 을 보내지
      * 않는 기존 호출자의 응답은 그대로다({@code ColumnMngSearchCharacterizationTest}).
      */
@@ -133,15 +136,16 @@ public class ColumnMngService {
         List<MdmColumnSystem> candidateMappings;
         Map<Long, MdmDomain> domainById;
         Integer totalCount = null;
+        Map<Long, Integer> dbOrder = null; // 상한 조회일 때 DB 가 정한 행 순서(ID→자리)
         if (needle.isEmpty() && domainNeedle.isEmpty() && limit > 0) {
-            // 조건 없음 + 상한(R1) — ID·논리명만 전부 읽어 화면과 같은 순서(논리명→ID, Java 비교)로 앞쪽 limit 개를 고르고, 그 컬럼과
-            // 매핑·도메인만 IN 으로 읽는다. 전체 건수는 두 칸 목록의 크기다(COUNT 를 따로 하지 않는다).
-            List<Long> orderedIds = columnRepository.findAllIdAndName().stream()
-                    .sorted(Comparator.comparing((Object[] r) -> (String) r[1]).thenComparing(r -> (Long) r[0]))
-                    .map(r -> (Long) r[0])
-                    .toList();
-            totalCount = orderedIds.size();
-            List<Long> pageIds = orderedIds.subList(0, Math.min(limit, orderedIds.size()));
+            // 조건 없음 + 상한(R1) — DB 가 논리명→ID 순서로 앞쪽 limit 개 ID 만 골라 주고(유일 인덱스 순서 읽기), 그 컬럼과
+            // 매핑·도메인만 IN 으로 읽는다. 전체 건수는 COUNT 로 따로 센다(조건이 없어 싸다).
+            List<Long> pageIds = columnRepository.findIdsOrderByColumnName(PageRequest.of(0, limit));
+            totalCount = Math.toIntExact(columnRepository.count());
+            dbOrder = new HashMap<>();
+            for (int i = 0; i < pageIds.size(); i++) {
+                dbOrder.put(pageIds.get(i), i);
+            }
             candidates = findAllInChunks(pageIds, columnRepository::findAllById);
             candidateMappings = findAllInChunks(pageIds, columnSystemRepository::findByColumnIdIn);
             domainById = findAllInChunks(candidates.stream().map(MdmColumn::getDomainId).toList(),
@@ -166,8 +170,12 @@ public class ColumnMngService {
                 .collect(Collectors.groupingBy(MdmColumnSystem::getColumnId, LinkedHashMap::new, Collectors.toList()));
 
         // Java 최종 판정 — DB 조건은 필요조건일 뿐이다
+        Map<Long, Integer> pageOrder = dbOrder;
+        Comparator<MdmColumn> rowOrder = pageOrder == null
+                ? Comparator.comparing(MdmColumn::getColumnName).thenComparing(MdmColumn::getColumnId)
+                : Comparator.comparing(column -> pageOrder.get(column.getColumnId()));
         List<MdmColumn> hits = candidates.stream()
-                .sorted(Comparator.comparing(MdmColumn::getColumnName).thenComparing(MdmColumn::getColumnId))
+                .sorted(rowOrder)
                 .filter(column -> domainNeedle.isEmpty() || domainMatches(column.getDomainId(), domainById, domainNeedle))
                 .filter(column -> needle.isEmpty() || matches(column,
                         mappingsByColumn.getOrDefault(column.getColumnId(), List.of()), needle))

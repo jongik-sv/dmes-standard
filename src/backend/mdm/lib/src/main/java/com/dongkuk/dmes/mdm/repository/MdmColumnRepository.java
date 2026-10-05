@@ -4,6 +4,7 @@ import com.dongkuk.dmes.mdm.entity.MdmColumn;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -28,9 +29,11 @@ public interface MdmColumnRepository extends JpaRepository<MdmColumn, Long>, Jpa
     List<MdmColumn> findAllByOrderByPhysNameAsc();
 
     /**
-     * 컬럼 목록 첫 조회 상한(화면 성능 가이드 R1) — ID·논리명 두 칸만 전부 읽는다({@code [columnId, columnName]}). 정렬은 호출자가
-     * Java 로 한다: DB {@code ORDER BY} 는 방언·콜레이션마다 순서가 달라 잘리는 경계가 화면 정렬과 어긋날 수 있다.
+     * 컬럼 목록 첫 조회 상한(화면 성능 가이드 R1) — 논리명→ID 순서로 앞쪽 {@code pageable} 크기만큼의 ID 만 DB 가 골라 준다.
+     * 정렬 키(COLUMN_NAME)는 유일 인덱스 {@code UX_TB_MDM_COLUMN_NAME} 이 덮어 인덱스 순서대로 앞쪽만 읽는다(SQLite 실행 계획
+     * {@code SCAN ... USING COVERING INDEX}). 순서는 DB 콜레이션을 따르므로 방언마다 한글·영문 대소문자 순서가 다를 수 있다
+     * (2026-10-05 사용자 결정 — 받아들인다).
      */
-    @Query("select c.columnId, c.columnName from MdmColumn c")
-    List<Object[]> findAllIdAndName();
+    @Query("select c.columnId from MdmColumn c order by c.columnName asc, c.columnId asc")
+    List<Long> findIdsOrderByColumnName(Pageable pageable);
 }
