@@ -121,6 +121,7 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
 
 ## ui:8. SET 노드 화면
 - 상태: 1단계(모델·상태)·2단계(화면·e2e 시나리오) 끝. e2e E19 는 `--list` 까지만 했다(실행은 사용자 승인 뒤 조정 세션).
+- 리뷰 반영(`cb51cc01`): major 1(구성 지침이 SET 노드를 지움 → 결정 9)·minor 2(세트 검색 잘림 안내 → 결정 10, 부르는 세트 다시 묻기 → 결정 11) 모두 고쳤다. 시험: `vitest run tests/dme/ruleSetEdit` → 103파일 1941 통과·0 실패(새 시험 5 = set-node-model 1·rule-set-edit-page 1·set-node-canvas 1·set-node-page 2), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건.
 - 커밋(1단계): `7209d80e`(types·api), `243e189f`(flow-edit·flow-vars·caller-links, 시험 `set-node-model.test.ts`), `eb3375f7`(useRuleSetEdit·편집기 한 줄, 시험 `set-calls-state.test.ts`·이 절)
 - 커밋(2단계): `2898a285`(캔버스 — SET 노드 그리기·도구 상자·메뉴·세트 검색 팝업·`styles/set.ts`·편집 동작), `48c47800`(오른쪽 패널 — 머리글 CALL·SET 속성·받는 노드 SET 종류·목록 밖 종류 풀기·입출력 표 세트 키, 시험 `set-node-canvas.test.ts`), `33b305e0`(편집기·툴바·디버거 연결, 시험 `set-node-page.test.ts`·`debug-subset.test.ts` 한 줄), `5f678e29`(e2e E19·고정 데이터), `e8947b7f`(다른 세트를 열면 편집 모드여도 팝업 닫기)
 - 시험 결과(1단계): `vitest run tests/dme/ruleSetEdit` → 101파일 1911 통과·0 실패(새 시험 27 = set-node-model 13 + set-calls-state 14), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건. `vitest run tests/dme tests/ui-meta-lock.test.ts` → 135파일 2549 통과·0 실패.
@@ -185,6 +186,15 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
      - 풀면 칸이 사라지고 다시 켤 수 없다.
      - 받는 노드 안내 문구는 붙은 노드가 SET 이면 하위 세트 문장, 아니면 기존 문장이다. 둘 다 CATCH_SET 을 적는다.
   8. **SET 노드 설명(`view.descs`)은 이번에 열지 않았다** — `DESC_KINDS` 에 SET 이 없다. 외관을 열지 않는 스펙 §9 와 같은 판단이고, 필요하면 후속으로 한다.
+  9. **구성 지침은 SET 노드가 있는 흐름에 적용하지 않는다**(리뷰 major) — 적용은 흐름을 `linearFlow(order)`(룰 ID 만)로 통째로 바꾸므로 SET 노드가 말없이 사라지고, 저장하면 CALL_SET_IDS 가 비워진다. `guideBlockReason` 에 「룰 세트 노드가 있는 흐름에는 적용하지 않는다」 를 더했다(받는 노드 판정 뒤). 분기·빈 단계·받는 노드와 같은 불변식이다.
+  10. **세트 검색 팝업의 잘림 안내**(리뷰 minor) — 서버 `search target SET` 은 거르기 전에 20건(`PICK_LIMIT`)에서 자른다. 화면이 INUSE·지금 세트가 아닌 것만 남기면 줄이 20건보다 적어 `IdPicker` 의 「20건까지」 안내가 뜨지 않는다. 그러면 21번째 뒤의 사용 중 세트가 말없이 빠진다.
+     - 서버 건수가 20건에 닿았는데 거르며 줄이 빠졌으면(`pickCut`) 팝업이 칸 위에 「앞 20건에서 사용 중이 아니거나 지금 세트인 줄을 뺐다 … 더 좁혀 검색하세요」(`set-pick-modal-cut`)를 보인다. 찾기 목록이 칸 아래에 겹쳐 뜨므로 칸 위에 둔다.
+     - 빠진 줄이 없으면(20건 그대로) `IdPicker` 가 스스로 안내하므로 겹쳐 알리지 않는다. 거른 뒤 0건이어도 안내가 뜬다(「찾은 세트가 없습니다」 만 보이면 오해한다).
+     - `IdPicker`(`src/shell`, 다른 화면도 쓴다)의 limit 판정은 고치지 않았다. limit 를 거른 건수로 바꿔 넘기는 방법은 0건일 때 안내가 안 뜨고 숫자가 20 이 아니어서 쓰지 않았다.
+     - 늦은 찾기 응답은 찾기 순번으로 버리고, 글자를 바꾸면(`IdPicker` 가 목록을 닫는다) 안내도 거둔다. 팝업 본문(`SetPickBody`)은 열 때마다 새로 그려 지난 안내가 남지 않는다.
+  11. **부르는 세트(CALLERS)는 쓰기 알림마다 다시 묻는다**(리뷰 minor, 결정 6 보탬) — 속성 패널이 열린 동안 어느 탭이든 세트를 쓰면(탭 틀 `written.seq`) 다시 묻는다. 그동안은 지난 목록을 보이고, 늦은 응답은 `alive` 로 버린다.
+     - 리뷰 제안은 「그 하위 세트에 쓰기 알림이 오면」 이었다. 하지만 목록은 그 세트를 부르는 **다른** 세트(부모)의 RELEASED 행·상태(`SetCallIoReader.callers`)라, 바뀌는 쪽은 부모다. 그래서 알림의 세트 ID 로 거르지 않는다.
+     - 패널은 탭 틀 문맥(`RuleSetTabsContext`)에서 seq 를 읽는다 — `SidePanel`·편집기 prop 을 늘리지 않는다.
 - 남은 일(조정 세션)
   - e2e E19 실행: 새 mcm.db·mdm.db, 고정 데이터 적재, 서버 기동이 필요하다(사용자 승인 뒤).
   - 브라우저 확인: SET 노드 굵은 테두리와 칩 줄바꿈, 세트 검색 팝업 목록이 모달 안에서 잘리지 않는지(`IdPicker` 목록은 절대 위치 560px), 메시지 줄 링크 모양.
