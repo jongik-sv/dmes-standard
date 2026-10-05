@@ -7,7 +7,7 @@ import { keyLabel } from "../../../pages/dme/ruleSetEdit/cards/SetIoTables";
 import { buildMenu, type CanvasActions, type MenuContext } from "../../../pages/dme/ruleSetEdit/canvas/context-menu";
 import { MENU_PROVIDERS } from "../../../pages/dme/ruleSetEdit/canvas/menus";
 import { CATCH_HANDLE, handlesOf } from "../../../pages/dme/ruleSetEdit/canvas/nodes";
-import { setPickRows } from "../../../pages/dme/ruleSetEdit/canvas/SetPickModal";
+import { pickCut, setPickRows } from "../../../pages/dme/ruleSetEdit/canvas/SetPickModal";
 import { addCatch, insertSet, toEditFlow, type EditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { NODE_SIZE, autoArrange, autoLayout, catchSlots, catchSpot, clearLayoutCache } from "../../../pages/dme/ruleSetEdit/flow-layout";
 import { panelTargetOf } from "../../../pages/dme/ruleSetEdit/panels/PanelHeader";
@@ -147,5 +147,12 @@ describe("SET 노드 패널·표", () => {
       "ME",
     );
     expect(rows).toEqual([{ id: "B", name: "비", status: "INUSE" }]);
+  });
+
+  it("잘림 안내는 서버가 20건에 닿았고 거르며 줄이 빠졌을 때만이다(IdPicker 안내와 겹치지 않게)", () => {
+    expect(pickCut(20, 15)).toBe(true);
+    expect(pickCut(20, 0)).toBe(true);
+    expect(pickCut(20, 20)).toBe(false);
+    expect(pickCut(19, 10)).toBe(false);
   });
 });

@@ -11,7 +11,7 @@ vi.mock("@/dme/rule-handoff", async (importOriginal) => ({ ...(await importOrigi
 import { SET_LOADING_TEXT, SET_MISSING_TEXT } from "../../../pages/dme/ruleSetEdit/canvas/nodes";
 import { CATCH_KIND_OUTSIDE } from "../../../pages/dme/ruleSetEdit/panels/PropertyPanel";
 import type { RuleIo, RuleSetView, SetCallIo } from "../../../pages/dme/ruleSetEdit/types";
-import { findButton, flush, visibleText } from "../helpers/render";
+import { findButton, flush, typeInto, visibleText } from "../helpers/render";
 import { byTestId, calls, click, inDoc, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
 import { activeKey, clickIn, inPanel, qPanel, tabKeys } from "./set-tabs-helpers";
 
@@ -184,6 +184,27 @@ describe("SET 노드 화면", () => {
     expect(q("flow-node-s1")).toBeNull();
   });
 
+  it("서버가 20건에서 잘랐는데 거르며 줄이 빠지면 팝업이 더 좁혀 검색하라고 알리고, 글자를 바꾸면 거둔다(ui:8 리뷰)", async () => {
+    const twenty = Array.from({ length: 20 }, (_, i) => ({ setId: `S${String(i).padStart(2, "0")}`, setName: `세트 ${i}`, status: i < 5 ? "CREATED" : "INUSE" }));
+    srv.replies["search:SET"] = ok({ sets: twenty });
+    await openSet("PARENT", viewOf("PARENT", null, undefined, [rule("R_A", "X", "Y")]), { tabId: "T1" });
+    await click("flow-mode-edit");
+    await click("flow-add-set");
+    expect(document.querySelector('[data-testid="set-pick-modal-cut"]')).toBeNull();
+    await findInModal();
+    expect(document.querySelectorAll('[data-testid^="set-pick-modal-pick-S"]')).toHaveLength(15);
+    expect(visibleText(inDoc("set-pick-modal"))).not.toContain("20건까지 보입니다"); // IdPicker 는 거른 건수로 판정해 안내하지 않는다
+    expect(inDoc("set-pick-modal-cut").textContent).toContain("더 좁혀 검색하세요");
+    await typeInto(inDoc<HTMLInputElement>("set-pick-modal-pick-keyword"), "S1");
+    expect(document.querySelector('[data-testid="set-pick-modal-cut"]')).toBeNull();
+
+    // 거르기로 빠진 줄이 없으면 IdPicker 가 스스로 안내하므로 겹쳐 알리지 않는다.
+    srv.replies["search:SET"] = ok({ sets: twenty.map((x) => ({ ...x, status: "INUSE" })) });
+    await findInModal();
+    expect(visibleText(inDoc("set-pick-modal"))).toContain("20건까지 보입니다");
+    expect(document.querySelector('[data-testid="set-pick-modal-cut"]')).toBeNull();
+  });
+
   it("선 우클릭 「룰 세트 넣기」 는 그 선에 끼우고, [닫기]·편집 모드 나가기는 아무것도 끼우지 않고 팝업을 닫는다", async () => {
     srv.replies["search:SET"] = ok({ sets: [{ setId: "CHILD", setName: "하위", status: "INUSE" }] });
     srv.replies["search:CALL_IO"] = ok({ calls: [callOf("CHILD", [["P", true]])] });
@@ -257,6 +278,30 @@ describe("SET 노드 화면", () => {
     await settle();
     expect(searchTargets(before)).toContain("CALL_IO");
     expect(visibleText(inPanel(parentKey, "flow-set-io-s1"))).toContain("출력 2");
+  });
+
+  it("속성 패널이 열린 동안 다른 탭이 세트를 쓰면 부르는 세트(CALLERS)를 다시 묻는다(ui:8 리뷰)", async () => {
+    srv.replies["search:CALLERS"] = ok({ sets: [{ setId: "GP", setName: "조부모", status: "INUSE" }] });
+    await openSet("PARENT", viewOf("PARENT", PARENT_FLOW, { CHILD: callOf("CHILD", [["P", true]]) }), { tabId: "T1" });
+    await click("flow-node-s1");
+    await settle(50);
+    expect(q("flow-prop-set-caller-GP")).not.toBeNull();
+    srv.views.CHILD = viewOf("CHILD", null, undefined, [rule("R_C", "X", "Y")]);
+    await click("flow-set-open-s1");
+    await settle();
+    const [parentKey, childKey] = tabKeys();
+    srv.replies.save = ok({ setId: "CHILD", rowVersion: 1, checks: [] });
+    srv.replies["search:CALL_IO"] = ok({ calls: [callOf("CHILD", [["P", true]])] });
+    srv.replies["search:CALLERS"] = ok({ sets: [{ setId: "GP2", setName: "새 부모", status: "INUSE" }] });
+    const askedCallers = () => calls("search").filter((r) => (r.body.params as Record<string, string>).target === "CALLERS").length;
+    const before = askedCallers();
+    await clickIn(childKey, "flow-mode-edit");
+    await clickIn(childKey, "flow-add-note");
+    await clickIn(childKey, "set-save");
+    await settle(50);
+    expect(askedCallers()).toBe(before + 1);
+    expect(qPanel(parentKey, "flow-prop-set-caller-GP")).toBeNull();
+    expect(qPanel(parentKey, "flow-prop-set-caller-GP2")).not.toBeNull();
   });
 
   it("저장 경고의 부르는 세트(CALLER_WARN·CALLER_BROKEN 사본)는 메시지 아래 링크 단추이고 누르면 그 세트 탭을 연다", async () => {

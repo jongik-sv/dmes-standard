@@ -206,12 +206,13 @@ const hasEmptyStep = (f: EditFlow) => f.nodes.some((n) => n.kind === "TASK");
 
 /**
  * 구성 지침(한 줄 순서 제안)을 적용할 수 없는 흐름이면 그 이유(화면 안내 문구), 아니면 null. 적용은 흐름을 `linearFlow(order)` 로 통째로 바꾸므로
- * 분기·빈 단계·받는 노드(R19)를 잃는다.
+ * 분기·빈 단계·받는 노드(R19)·룰 세트 노드(하위 세트 호출 — 저장하면 CALL_SET_IDS 가 비워진다)를 잃는다.
  */
 export function guideBlockReason(f: EditFlow): string | null {
   if (hasSplit(f)) return "분기가 있는 흐름에는 적용하지 않는다";
   if (hasEmptyStep(f)) return "빈 단계가 있는 흐름에는 적용하지 않는다";
   if (f.nodes.some((n) => n.kind === "CATCH")) return "받는 노드가 있는 흐름에는 적용하지 않는다";
+  if (f.nodes.some((n) => n.kind === "SET")) return "룰 세트 노드가 있는 흐름에는 적용하지 않는다";
   return null;
 }
 const isEditResult = (r: EditResult | EditFlow): r is EditResult => typeof (r as EditResult).ok === "boolean";

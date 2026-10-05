@@ -19,6 +19,7 @@ import {
 } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import { edgeChips } from "../../../pages/dme/ruleSetEdit/flow-vars";
 import { CATCH_NAMES } from "../../../pages/dme/ruleSetEdit/flow-model";
+import { guideBlockReason } from "../../../pages/dme/ruleSetEdit/state/useRuleSetEdit";
 import type { SetCallIo } from "../../../pages/dme/ruleSetEdit/types";
 
 const ok = (r: EditResult): EditFlow => {
@@ -95,6 +96,11 @@ describe("SET 노드 편집 연산", () => {
     expect(g.edges.find((e) => e.id === "e1")!.to).toBe("s1");
     expect(g.edges.some((e) => e.from === "s1" && e.to === "r1")).toBe(true);
     expect(g.edges.some((e) => e.from === "r1" && e.to === "end")).toBe(true);
+  });
+
+  it("SET 노드가 있는 흐름에는 구성 지침을 적용하지 않는다(통째로 바꾸면 하위 세트 호출을 말없이 잃는다)", () => {
+    expect(guideBlockReason(ok(insertSet(base(), "e2", "QD_S_PRICE")))).toBe("룰 세트 노드가 있는 흐름에는 적용하지 않는다");
+    expect(guideBlockReason(base())).toBeNull();
   });
 
   it("SET 노드의 외관은 바꾸지 못한다(하위 세트 spec §9 — 외관은 룰·빈 단계만)", () => {

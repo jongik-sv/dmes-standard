@@ -15,7 +15,7 @@
  * 갈래는 머리행 있는 표가 아니라 칸 묶음으로 쌓는다(입력 요소를 그리드 칸에 두지 않는다, Local-Rules §12).
  * 4단계 Task 8: 머리글(이름)은 `SidePanel`, 각 소제목은 접는 섹션(`Section`) — testid 는 그대로.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 
 import { IconArrowDown, IconArrowUp, IconExternalLink, IconGripVertical, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
@@ -51,6 +51,7 @@ import { CATCH_KIND_LABEL, catchTitle } from "../catch-text";
 import { storeKeys } from "../debugger/local-store";
 import { MAX_DESC } from "../node-desc";
 import { restyleNode, type NodeLayoutSource } from "../flow-layout";
+import { RuleSetTabsContext } from "../tabs-context";
 import { catchKindsFor, catchesOf, endingBranches, parseFlow, type FlowTree } from "../flow-model";
 import type { NodeStylePatch } from "../node-style";
 import type { IoName, RuleIo, RuleIoMap, RuleSetCheck, RuleSetPick, SetCallIoMap } from "../types";
@@ -640,6 +641,10 @@ function SetProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }
   const call = setId ? props.calls?.[setId] : undefined;
   const mine = checks.filter((c) => c.nodeId === node.id);
   const [who, setWho] = useState<CallerList | null>(null);
+  // 부르는 세트는 이 세트를 부르는 「다른」 세트들이다 — 어느 탭이든 세트를 저장·폐기·되살리거나 버전을 조작하면(쓰기 알림, spec §10.4)
+  // 목록·상태가 바뀔 수 있으므로 알림마다 다시 묻는다. 알림의 세트 ID 로 거르지 않는다 — 바뀌는 쪽은 하위 세트가 아니라 부르는 세트다(ui:8 리뷰).
+  // 다시 묻는 동안에는 지난 목록을 그대로 보인다.
+  const writtenSeq = useContext(RuleSetTabsContext).written?.seq ?? 0;
   useEffect(() => {
     if (!setId) return;
     let alive = true;
@@ -652,9 +657,9 @@ function SetProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }
       },
     );
     return () => {
-      alive = false; // 다른 노드·세트로 옮겼다 — 늦은 응답은 버린다
+      alive = false; // 다른 노드·세트로 옮겼거나 새 쓰기 알림이 왔다 — 늦은 응답은 버린다
     };
-  }, [setId]);
+  }, [setId, writtenSeq]);
   const list = who?.setId === setId ? who : null;
   const inputs = call?.inputs ?? [];
   const outputs = call?.outputs ?? [];
