@@ -254,6 +254,7 @@ shared·m-mcm 의 Prettier 는 `prettier-plugin-tailwindcss` 를 쓴다. 이 플
 포털(m-mcm `app/globals.css`)이 싣는 Tailwind v4 preflight 가 `ol, ul, menu { list-style: none }`(layer base)을 건다. 화면에 글머리 점·번호가 필요하면 그 요소의 CSS 에 `list-style: disc`(중첩 `circle`)·`decimal` 과 왼쪽 들여쓰기를 직접 준다. 레이어 밖 규칙이라 preflight 를 이긴다. 단위 테스트(happy-dom)에는 preflight 가 없어 이 문제가 보이지 않는다.
 
 - 마크다운 글(메모·설명)은 `@dk-oasis/shared/markdown-editor` 가 이미 명시한다 — 화면에서 다시 그리지 않는다.
+- 읽기 화면(`MarkdownView`·`MarkdownDocViewer`·공지 본문 등)은 ```` ```mermaid ```` 코드 블록을 도식으로 그린다(기본 켬, `mermaid={false}` 로 끔, 구문 오류면 코드 블록 유지, 편집 화면은 코드 블록 그대로). 화면에서 따로 그리지 않는다.
 
 ## 23. 편집기 칸 — 남는 높이를 채우게 한다 (2026-10-02)
 

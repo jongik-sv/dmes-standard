@@ -3,7 +3,7 @@
 /**
  * 목차가 있는 마크다운 문서 보기 — 왼쪽 목차(##·###)와 오른쪽 본문. 목차를 누르면 그 절로 이동하고, 본문을 내리면 목차의 현재 절이 따라 바뀐다.
  * 본문은 MarkdownView(읽기 전용)로 절마다 그린다. 모달·서랍 안에 넣어 쓰도록 높이를 부모에서 받는다(height:100%).
- * 마크다운 표는 MarkdownView 가 그리지 않으므로 문서에 쓰지 않는다.
+ * 마크다운 표는 MarkdownView 가 그리지 않으므로 문서에 쓰지 않는다. ```mermaid 코드 블록은 MarkdownView 가 도식으로 그린다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -22,6 +22,26 @@ export interface MarkdownDocViewerProps {
   /** 본문·목차 영역의 접근 이름(기본 "문서"). */
   ariaLabel?: string;
 }
+
+/**
+ * 문서 읽기용 간격 — 이 부품 범위(.cm-doc-body)에서만 MarkdownView 의 촘촘한 기본 간격을 넓힌다(다른 부품 공용 스타일은 그대로).
+ * 절 사이 여백은 절(section) 위 padding 으로 준다: 절마다 MarkdownView 가 따로라 첫 요소 위 여백이 0 으로 접히기 때문이다.
+ */
+const DOC_STYLE = `
+.cm-doc-body { line-height: 1.7; }
+.cm-doc-body-inner { max-width: 820px; }
+.cm-doc-body .cm-md-view { line-height: 1.7; }
+.cm-doc-body section[data-level="2"] { padding-top: 30px; }
+.cm-doc-body section[data-level="3"] { padding-top: 18px; }
+.cm-doc-body section[data-first="true"] { padding-top: 0; }
+.cm-doc-body .cm-md-view h2 { margin: 0 0 12px; padding-bottom: 6px; font-size: 1.25rem; font-weight: 700; line-height: 1.4; border-bottom: 1px solid var(--color-border); }
+.cm-doc-body .cm-md-view h3 { margin: 0 0 8px; font-size: 1.05rem; font-weight: 700; line-height: 1.4; }
+.cm-doc-body .cm-md-view p + p { margin-top: 10px; }
+.cm-doc-body .cm-md-view > p + ul, .cm-doc-body .cm-md-view > p + ol, .cm-doc-body .cm-md-view > ul + p, .cm-doc-body .cm-md-view > ol + p { margin-top: 10px; }
+.cm-doc-body .cm-md-view ul, .cm-doc-body .cm-md-view ol { margin: 10px 0; }
+.cm-doc-body .cm-md-view li + li { margin-top: 5px; }
+.cm-doc-body .cm-md-view pre { margin: 12px 0; }
+`;
 
 /** 목차를 눌러 부드럽게 이동하는 동안 스크롤 이벤트가 현재 절을 되돌리지 않게 막는 시간(ms). */
 const JUMP_LOCK_MS = 700;
@@ -100,6 +120,7 @@ export function MarkdownDocViewer({
         style={{
           flex: `0 0 ${tocWidth}px`,
           overflowY: "auto",
+          overflowX: "hidden",
           padding: "8px 0",
           borderRight: "1px solid var(--color-border)",
           background: "var(--color-bg-light)",
@@ -119,10 +140,12 @@ export function MarkdownDocViewer({
                 display: "block",
                 width: "100%",
                 textAlign: "left",
-                padding: s.level === 3 ? "3px 12px 3px 26px" : "5px 12px",
+                padding: s.level === 3 ? "4px 12px 4px 28px" : "6px 12px",
+                whiteSpace: "normal",
+                overflowWrap: "anywhere",
                 fontSize: s.level === 3 ? "var(--font-size-sm)" : "var(--font-size-md)",
                 fontWeight: s.level === 2 || active ? 600 : 400,
-                lineHeight: 1.4,
+                lineHeight: 1.45,
                 border: 0,
                 background: active ? "var(--color-primary-soft)" : "transparent",
                 color: active ? "var(--color-primary)" : "inherit",
@@ -140,12 +163,17 @@ export function MarkdownDocViewer({
         aria-label={ariaLabel}
         tabIndex={0}
         data-testid={`${testId}-body`}
-        style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "8px 20px 24px", position: "relative" }}
+        className="cm-doc-body"
+        style={{ flex: 1, minWidth: 0, overflowY: "auto", padding: "16px 28px 32px", position: "relative" }}
       >
-        {sections.map((s) => (
+        <style>{DOC_STYLE}</style>
+        <div className="cm-doc-body-inner">
+        {sections.map((s, idx) => (
           <section
             key={s.id}
             id={s.id}
+            data-level={s.level}
+            data-first={idx === 0 ? "true" : undefined}
             tabIndex={-1}
             style={{ outline: "none" }}
             ref={(el) => {
@@ -155,6 +183,7 @@ export function MarkdownDocViewer({
             <MarkdownView value={s.markdown} testId={`${testId}-${s.id}`} />
           </section>
         ))}
+        </div>
       </div>
     </div>
   );
