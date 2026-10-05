@@ -2,7 +2,22 @@
 import { describe, expect, it } from "vitest";
 
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
-import { catchesOf, endingBranches, flowRuleIds, handlerTarget, joinOf, linearFlow, parseFlow, returnOf, type FlowIssue } from "../../../pages/dme/ruleSetEdit/flow-model";
+import {
+  CATCHABLE,
+  CATCH_KINDS,
+  CATCH_NAMES,
+  catchKindsFor,
+  catchesOf,
+  endingBranches,
+  flowRuleIds,
+  flowSetIds,
+  handlerTarget,
+  joinOf,
+  linearFlow,
+  parseFlow,
+  returnOf,
+  type FlowIssue,
+} from "../../../pages/dme/ruleSetEdit/flow-model";
 
 const node = (id: string, kind: FlowNodeKind, over: Partial<FlowNode> = {}): FlowNode => ({
   id,
@@ -626,5 +641,124 @@ describe("모이는 자리·돌아오는 자리(implicit-join spec §2) — Java
     // 받는 노드가 붙은 노드가 없거나 나가는 선이 없으면 null.
     expect(handlerTarget(flow([node("start", "START"), catchN("c9", "zz", "NO_RESULT"), node("end", "END")], [edge("e1", "start", "end")]), "c9")).toBeNull();
     expect(returnOf(f, "n")).toBeNull();
+  });
+});
+
+// 하위 세트 계획 Task 2(TS 짝, ui:5t) — 엔진 `FlowParser`·`FlowTree` 의 SET 처리와 같은지. 문구·순서의 서버 동치 전체는 코퍼스 러너가 본다.
+describe("parseFlow — SET 노드(하위 세트 호출)", () => {
+  const set = (id: string, setId: string | null | undefined) => node(id, "SET", setId === undefined ? {} : { setId });
+  const cat = (id: string, attachTo: string, catches: string[]) => node(id, "CATCH", { attachTo, catches });
+
+  it("한 줄 흐름의 SET 은 SetStep 이고 setSteps·setIds·relation 이 SET 을 다룬다(ruleSteps·ruleIds 는 RULE 만)", () => {
+    const f = flow(
+      [node("start", "START"), node("r1", "RULE", { ruleId: "R1" }), set("s1", "SP"), set("s2", "SP"), node("end", "END")],
+      [edge("e1", "start", "r1"), edge("e2", "r1", "s1"), edge("e3", "s1", "s2"), edge("e4", "s2", "end")],
+    );
+    const { tree, issues } = parseFlow(f);
+    expect(issues).toEqual([]);
+    expect(tree!.root.items).toEqual([
+      { type: "RULE", nodeId: "r1", ruleId: "R1" },
+      { type: "SET", nodeId: "s1", setId: "SP" },
+      { type: "SET", nodeId: "s2", setId: "SP" },
+    ]);
+    expect(tree!.setSteps().map((s) => s.nodeId)).toEqual(["s1", "s2"]);
+    expect(tree!.setIds()).toEqual(["SP"]);
+    expect(tree!.ruleIds()).toEqual(["R1"]);
+    expect(flowRuleIds(f)).toEqual(["R1"]);
+    expect(flowSetIds(f)).toEqual(["SP"]);
+    expect(tree!.relation("r1", "s1")).toBe("BEFORE");
+    expect(tree!.relation("s2", "s1")).toBe("AFTER");
+  });
+
+  it("빈·빠진 setId 는 구조 오류가 아니다 — SetStep.setId 는 null·공백 그대로, setIds 는 뺀다", () => {
+    const f = flow(
+      [node("start", "START"), set("s1", undefined), set("s2", "  "), set("s3", "SQ"), node("end", "END")],
+      [edge("e1", "start", "s1"), edge("e2", "s1", "s2"), edge("e3", "s2", "s3"), edge("e4", "s3", "end")],
+    );
+    const { tree, issues } = parseFlow(f);
+    expect(issues).toEqual([]);
+    expect(tree!.setSteps()).toEqual([
+      { type: "SET", nodeId: "s1", setId: null },
+      { type: "SET", nodeId: "s2", setId: "  " },
+      { type: "SET", nodeId: "s3", setId: "SQ" },
+    ]);
+    expect(tree!.setIds()).toEqual(["SQ"]);
+  });
+
+  it("IF 두 갈래가 SET 으로 모인다 — SET 의 들어오는 선 2개는 정상(d1 은 1개 이상)", () => {
+    const f = flow(
+      [node("start", "START"), node("if1", "IF"), node("r1", "RULE", { ruleId: "R1" }), node("r2", "RULE", { ruleId: "R2" }), set("s1", "SP"), node("end", "END")],
+      [
+        edge("e1", "start", "if1"),
+        edge("e2", "if1", "r1", { order: 1, cond: "A = 1" }),
+        edge("e3", "if1", "r2", { otherwise: true }),
+        edge("e4", "r1", "s1"),
+        edge("e5", "r2", "s1"),
+        edge("e6", "s1", "end"),
+      ],
+    );
+    const { tree, issues } = parseFlow(f);
+    expect(issues).toEqual([]);
+    expect(tree!.relation("r1", "s1")).toBe("BEFORE");
+    expect(tree!.relation("r1", "r2")).toBe("EXCLUSIVE");
+  });
+
+  it("d1 — SET 의 들어오는 선이 0개면 1개 이상이어야 한다, 나가는 선은 1개여야 한다", () => {
+    const f = flow(
+      [node("start", "START"), node("r1", "RULE", { ruleId: "R1" }), set("s1", "SP"), node("end", "END")],
+      [edge("e1", "start", "r1"), edge("e2", "r1", "end"), edge("e3", "s1", "end"), edge("e4", "s1", "r1")],
+    );
+    expect(parseFlow(f).issues).toEqual([
+      S("s1", "s1의 들어오는 선이 0개다. 1개 이상이어야 한다"),
+      S("s1", "s1의 나가는 선이 2개다. 1개여야 한다"),
+    ]);
+  });
+
+  it("받는 노드는 SET 에도 붙고(SUBSET_ENDED 는 아는 종류) Guarded.step 이 SetStep 이다", () => {
+    const f = flow(
+      [node("start", "START"), set("s1", "SP"), cat("c1", "s1", ["SUBSET_ENDED", "INPUT_ERROR"]), node("r1", "RULE", { ruleId: "R1" }), node("end", "END")],
+      [edge("e1", "start", "s1"), edge("e2", "s1", "r1"), edge("e3", "c1", "end"), edge("e4", "r1", "end")],
+    );
+    const { tree, issues } = parseFlow(f);
+    expect(issues).toEqual([]);
+    const g = tree!.root.items[0];
+    expect(g.type).toBe("GUARDED");
+    if (g.type !== "GUARDED") return;
+    expect(g.step).toEqual({ type: "SET", nodeId: "s1", setId: "SP" });
+    expect(g.handlers).toEqual([{ catchNodeId: "c1", kinds: ["SUBSET_ENDED", "INPUT_ERROR"], body: { type: "SEQ", items: [] }, ends: true }]);
+    expect(tree!.setSteps().map((s) => s.nodeId)).toEqual(["s1"]);
+    expect(catchesOf(f, "s1").map((c) => c.id)).toEqual(["c1"]);
+    expect(handlerTarget(f, "c1")).toBe("end");
+  });
+
+  it("h2 — 받는 노드를 붙일 수 없는 노드면 엔진 FlowParser 와 같은 문구(룰·빈 단계·룰 세트)", () => {
+    const f = flow(
+      [node("start", "START"), cat("c1", "start", ["INPUT_ERROR"]), node("r1", "RULE", { ruleId: "R1" }), node("end", "END")],
+      [edge("e1", "start", "r1"), edge("e2", "r1", "end"), edge("e3", "c1", "end")],
+    );
+    expect(parseFlow(f).issues).toContainEqual({ code: "FLOW_CATCH", nodeId: "c1", edgeId: null, message: "받는 노드 c1는 룰·빈 단계·룰 세트 노드에만 붙일 수 있다(start는 START)" });
+  });
+
+  it("옛 형식 돌아오는 MERGE 의 splitId 가 SET 이면 짝 분기가 없다(implicit-join spec §13 — SET 은 옛 형식이 없다)", () => {
+    const f = flow(
+      [node("start", "START"), set("s1", "SP"), cat("c1", "s1", ["INPUT_ERROR"]), node("r9", "RULE", { ruleId: "R9" }), node("m1", "MERGE", { splitId: "s1" }), node("end", "END")],
+      [edge("e1", "start", "s1"), edge("e2", "s1", "m1"), edge("e3", "c1", "r9"), edge("e4", "r9", "m1"), edge("e5", "m1", "end")],
+    );
+    expect(parseFlow(f).issues).toContainEqual(S("m1", "합류 m1의 짝 분기 s1가 없다"));
+  });
+
+  it("flowSetIds — 구조 오류면 SET 노드의 세트 ID 를 노드 배열 순서로 중복 없이(빈 ID 제외, 겹친 노드 ID 는 첫 노드)", () => {
+    const f = flow([set("s1", "SB"), set("s2", ""), set("s3", "SA"), set("s1", "SC"), set("s4", "SB")], []);
+    expect(parseFlow(f).tree).toBeNull();
+    expect(flowSetIds(f)).toEqual(["SB", "SA"]);
+  });
+
+  it("상수 — CATCHABLE 은 RULE·TASK·SET, CATCH_NAMES 는 CATCH_SET 까지 다섯, CATCH_KINDS 끝에 SUBSET_ENDED, 고를 수 있는 종류는 노드 종류별", () => {
+    expect([...CATCHABLE]).toEqual(["RULE", "TASK", "SET"]);
+    expect(CATCH_NAMES).toEqual(["CATCH_KIND", "CATCH_RULE", "CATCH_CODE", "CATCH_MSG", "CATCH_SET"]);
+    expect(CATCH_KINDS).toEqual(["NO_RESULT", "INPUT_ERROR", "EVAL_ERROR", "HIT_CONFLICT", "SUBSET_ENDED"]);
+    expect(catchKindsFor("RULE")).toEqual(["NO_RESULT", "INPUT_ERROR", "EVAL_ERROR", "HIT_CONFLICT"]);
+    expect(catchKindsFor("TASK")).toEqual(["NO_RESULT", "INPUT_ERROR", "EVAL_ERROR", "HIT_CONFLICT"]);
+    expect(catchKindsFor("SET")).toEqual(["INPUT_ERROR", "EVAL_ERROR", "HIT_CONFLICT", "SUBSET_ENDED"]);
   });
 });

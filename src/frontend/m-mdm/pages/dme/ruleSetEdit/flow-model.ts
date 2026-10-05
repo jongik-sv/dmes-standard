@@ -37,8 +37,18 @@ export interface TaskStep {
   nodeId: string;
 }
 
-/** 한 칸짜리 단계 — 엔진 `flow.Step`(RULE·TASK, 하위 세트 호출 스펙이 SET 을 더한다). */
-export type Step = RuleStep | TaskStep;
+/**
+ * 하위 세트를 부르는 SET 노드 하나(하위 세트 spec §1) — 엔진 `flow.SetStep` 의 짝. setId 는 비어 있어도(null·공백) 구조 오류가 아니다 —
+ * 분석기 CALL_MISSING 이 알린다. 받는 노드가 붙으면 `Guarded.step` 이 된다.
+ */
+export interface SetStep {
+  type: "SET";
+  nodeId: string;
+  setId: string | null;
+}
+
+/** 한 칸짜리 단계 — 엔진 `flow.Step`(RULE·TASK·SET). */
+export type Step = RuleStep | TaskStep | SetStep;
 
 /** 갈래 하나. ends = 끝내는 IF 갈래(본문은 END 앞까지, implicit-join spec §2.2). 이어지는 갈래·병렬 갈래·옛 IF 갈래는 false. */
 export interface Branch {
@@ -83,12 +93,23 @@ export interface Guarded {
 
 export type Block = Seq | Step | Split | Guarded;
 
-/** 받는 종류의 저장 순서(엔진 `CatchKind` 선언 순서). */
-export const CATCH_KINDS: readonly CatchKind[] = ["NO_RESULT", "INPUT_ERROR", "EVAL_ERROR", "HIT_CONFLICT"];
-/** 받는 노드를 붙일 수 있는 노드 종류(엔진 `FlowParser.catchable` — RULE·TASK). 하위 세트 호출 스펙이 SET 을 더한다. */
-export const CATCHABLE: ReadonlySet<FlowNodeKind> = new Set<FlowNodeKind>(["RULE", "TASK"]);
-/** 처리 갈래 안에서만 있는 예약 이름(엔진 `ReservedNames.CATCH_NAMES`, 받는 노드 spec §4). */
-export const CATCH_NAMES: readonly string[] = ["CATCH_KIND", "CATCH_RULE", "CATCH_CODE", "CATCH_MSG"];
+/** 받는 종류의 저장 순서(엔진 `CatchKind` 선언 순서). 구조 검사가 아는 키 전부다 — 노드 종류에 맞는지는 분석기 FLOW_CATCH(하위 세트 Ruling 9)가 본다. */
+export const CATCH_KINDS: readonly CatchKind[] = ["NO_RESULT", "INPUT_ERROR", "EVAL_ERROR", "HIT_CONFLICT", "SUBSET_ENDED"];
+/**
+ * 받는 노드가 고를 수 있는 종류(하위 세트 spec §9) — 붙은 노드 종류별, 순서는 CATCH_KINDS 와 같다. RULE·TASK 는 하위 세트 예외 끝이 없고,
+ * SET 은 결과 없음 대신 하위 세트 예외 끝이다. 편집(addCatch)·속성 패널이 쓴다.
+ */
+export const CATCH_KINDS_FOR: Readonly<Record<"RULE" | "TASK" | "SET", readonly CatchKind[]>> = {
+  RULE: ["NO_RESULT", "INPUT_ERROR", "EVAL_ERROR", "HIT_CONFLICT"],
+  TASK: ["NO_RESULT", "INPUT_ERROR", "EVAL_ERROR", "HIT_CONFLICT"],
+  SET: ["INPUT_ERROR", "EVAL_ERROR", "HIT_CONFLICT", "SUBSET_ENDED"],
+};
+/** 붙은 노드 종류의 고를 수 있는 종류 — SET 이 아니면(모름 포함) RULE 목록. */
+export const catchKindsFor = (kind: FlowNodeKind | null | undefined): readonly CatchKind[] => (kind === "SET" ? CATCH_KINDS_FOR.SET : CATCH_KINDS_FOR.RULE);
+/** 받는 노드를 붙일 수 있는 노드 종류(엔진 `FlowParser.catchable` — RULE·TASK·SET). */
+export const CATCHABLE: ReadonlySet<FlowNodeKind> = new Set<FlowNodeKind>(["RULE", "TASK", "SET"]);
+/** 처리 갈래 안에서만 있는 예약 이름(엔진 `ReservedNames.CATCH_NAMES` 다섯, 받는 노드 spec §4·하위 세트 Ruling 3). */
+export const CATCH_NAMES: readonly string[] = ["CATCH_KIND", "CATCH_RULE", "CATCH_CODE", "CATCH_MSG", "CATCH_SET"];
 const isCatchKind = (k: string): k is CatchKind => (CATCH_KINDS as readonly string[]).includes(k);
 
 /** nodeId 에 붙은 받는 노드(노드 배열 순서, 겹친 ID 는 첫 노드만). 붙은 노드가 받을 수 있는 종류인지는 보지 않는다. */
@@ -205,7 +226,8 @@ export function parseFlow(flow: RuleSetFlow): FlowParse {
     if (n.kind === "MERGE") {
       const splitId = orNull(n.splitId);
       const s = splitId == null ? undefined : byId.get(splitId);
-      if (!s || (!isSplit(s.kind) && !catchMap.has(s.id))) issues.push(issue("FLOW_STRUCTURE", n.id, null, `합류 ${n.id}의 짝 분기 ${splitId ?? "-"}가 없다`));
+      // 옛 형식 돌아오는 MERGE(splitId = 받는 노드가 붙은 노드)는 RULE·TASK 만 받는다 — SET 은 옛 형식이 없다(implicit-join spec §13).
+      if (!s || (!isSplit(s.kind) && (s.kind === "SET" || !catchMap.has(s.id)))) issues.push(issue("FLOW_STRUCTURE", n.id, null, `합류 ${n.id}의 짝 분기 ${splitId ?? "-"}가 없다`));
     }
   }
 
@@ -253,7 +275,7 @@ export function parseFlow(flow: RuleSetFlow): FlowParse {
     const at = orNull(n.attachTo);
     const target = isBlankJava(at) ? undefined : byId.get(at as string);
     if (!target) issues.push(issue("FLOW_CATCH", n.id, null, `받는 노드 ${n.id}가 붙은 노드 ${isBlankJava(at) ? "-" : at}가 없다`));
-    else if (!CATCHABLE.has(target.kind)) issues.push(issue("FLOW_CATCH", n.id, null, `받는 노드 ${n.id}는 룰·빈 단계 노드에만 붙일 수 있다(${target.id}는 ${target.kind})`));
+    else if (!CATCHABLE.has(target.kind)) issues.push(issue("FLOW_CATCH", n.id, null, `받는 노드 ${n.id}는 룰·빈 단계·룰 세트 노드에만 붙일 수 있다(${target.id}는 ${target.kind})`));
     const keys = n.catches ?? [];
     if (keys.length === 0) issues.push(issue("FLOW_CATCH", n.id, null, `받는 노드 ${n.id}에 받을 예외 종류가 없다`));
     const seenKeys = new Set<string>();
@@ -424,8 +446,13 @@ function build(
       throw new ParseStop(issue("FLOW_STRUCTURE", cur, null, `${notClosed}${cur}로 나간다`));
     }
     visited.add(cur);
-    if (node.kind === "RULE" || node.kind === "TASK") {
-      const s: Step = node.kind === "RULE" ? { type: "RULE", nodeId: cur, ruleId: node.ruleId as string } : { type: "TASK", nodeId: cur };
+    if (node.kind === "RULE" || node.kind === "TASK" || node.kind === "SET") {
+      const s: Step =
+        node.kind === "RULE"
+          ? { type: "RULE", nodeId: cur, ruleId: node.ruleId as string }
+          : node.kind === "SET"
+            ? { type: "SET", nodeId: cur, setId: orNull(node.setId) }
+            : { type: "TASK", nodeId: cur };
       const cs = catchMap.get(cur) ?? [];
       if (cs.length === 0) {
         items.push(s);
@@ -517,7 +544,7 @@ function build(
 interface Position {
   /** 루트에서 이 노드까지 지나는 (분기 또는 받는 룰, 갈래 번호). 받는 룰은 0 = 정상 갈래, k+1 = k번째 처리 갈래(Ruling R8). */
   chain: ReadonlyArray<{ split: string; kind: "IF" | "PARALLEL" | "GUARD"; branch: number }>;
-  /** 깊이 우선 순번(RULE·TASK·분기 노드). */
+  /** 깊이 우선 순번(RULE·TASK·SET·분기 노드). */
   order: number;
 }
 
@@ -525,6 +552,7 @@ interface Position {
 export class FlowTree {
   private readonly positions = new Map<string, Position>();
   private readonly steps: RuleStep[] = [];
+  private readonly sets: SetStep[] = [];
   private hasSplit = false;
 
   constructor(
@@ -538,11 +566,15 @@ export class FlowTree {
         if (b.type === "RULE") {
           this.positions.set(b.nodeId, { chain, order: counter++ });
           this.steps.push(b);
+        } else if (b.type === "SET") {
+          this.positions.set(b.nodeId, { chain, order: counter++ });
+          this.sets.push(b);
         } else if (b.type === "TASK") {
           this.positions.set(b.nodeId, { chain, order: counter++ });
         } else if (b.type === "GUARDED") {
           this.positions.set(b.step.nodeId, { chain, order: counter++ });
           if (b.step.type === "RULE") this.steps.push(b.step);
+          else if (b.step.type === "SET") this.sets.push(b.step);
           walk(b.normal, [...chain, { split: b.step.nodeId, kind: "GUARD", branch: 0 }]);
           b.handlers.forEach((h, i) => walk(h.body, [...chain, { split: b.step.nodeId, kind: "GUARD", branch: i + 1 }]));
         } else if (b.type === "SPLIT") {
@@ -565,6 +597,16 @@ export class FlowTree {
   /** ruleSteps 의 룰 ID 를 처음 나온 순서로 중복 없이 = RULE_IDS 로 저장할 목록. */
   ruleIds(): string[] {
     return [...new Set(this.steps.map((s) => s.ruleId))];
+  }
+
+  /** 모든 SET 노드, 깊이 우선(엔진 `FlowTree.setSteps`). */
+  setSteps(): SetStep[] {
+    return [...this.sets];
+  }
+
+  /** setSteps 의 세트 ID 를 처음 나온 순서로 중복 없이, 빈 ID 는 뺀다(엔진 `FlowTree.setIds` = CALL_SET_IDS). */
+  setIds(): string[] {
+    return [...new Set(this.sets.filter((s) => !isBlankJava(s.setId)).map((s) => s.setId as string))];
   }
 
   branched(): boolean {
@@ -609,6 +651,19 @@ export function flowRuleIds(flow: RuleSetFlow, parsed: FlowParse = parseFlow(flo
     if (seenNodes.has(n.id)) continue;
     seenNodes.add(n.id);
     if (n.kind === "RULE" && !isBlankJava(n.ruleId) && !out.includes(n.ruleId as string)) out.push(n.ruleId as string);
+  }
+  return out;
+}
+
+/** 흐름이 부르는 세트 목록 — 트리가 있으면 `tree.setIds()`, 구조 오류면 SET 노드의 세트 ID 를 노드 배열 순서로 중복 없이(빈 ID 제외). 서버 `RuleSetFlowJson.setIds` 짝. */
+export function flowSetIds(flow: RuleSetFlow, parsed: FlowParse = parseFlow(flow)): string[] {
+  if (parsed.tree) return parsed.tree.setIds();
+  const out: string[] = [];
+  const seenNodes = new Set<string>();
+  for (const n of flow.nodes ?? []) {
+    if (seenNodes.has(n.id)) continue;
+    seenNodes.add(n.id);
+    if (n.kind === "SET" && !isBlankJava(n.setId) && !out.includes(n.setId as string)) out.push(n.setId as string);
   }
   return out;
 }

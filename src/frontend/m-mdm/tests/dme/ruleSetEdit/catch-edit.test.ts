@@ -62,9 +62,22 @@ describe("받는 노드 편집 연산(받는 노드 spec §8)", () => {
     let f = base();
     for (let i = 0; i < 4; i++) f = ok(addCatch(f, "r1", null));
     expect(reason(addCatch(f, "r1", null))).toBe(CATCH_FULL);
-    expect(reason(addCatch(base(), "end", null))).toBe("룰·빈 단계 노드에만 예외 받기를 붙인다");
+    expect(reason(addCatch(base(), "end", null))).toBe("룰·빈 단계·룰 세트 노드에만 예외 받기를 붙인다");
     expect(reason(addCatch(base(), "r1", "start"))).toBe(CATCH_BAD_TARGET);
     expect(reason(addCatch(base(), "r1", "r1"))).toBe(CATCH_BAD_TARGET);
+  });
+
+  it("SET 노드에 붙이면 SET 이 고를 수 있는 종류(결과 없음 없이 하위 세트 예외 끝까지) 가운데 첫 빈 종류를 받는다", () => {
+    const f0: EditFlow = {
+      ...base(),
+      nodes: [n("start", "START"), { ...n("s1", "SET"), setId: "SP" }, n("end", "END")],
+      edges: [e("e1", "start", "s1"), e("e2", "s1", "end")],
+    };
+    let f = ok(addCatch(f0, "s1", null));
+    expect(catchOf(f, "c1").catches).toEqual(["INPUT_ERROR"]);
+    for (let i = 0; i < 3; i++) f = ok(addCatch(f, "s1", null));
+    expect(f.nodes.filter((x) => x.kind === "CATCH").map((x) => x.catches)).toEqual([["INPUT_ERROR"], ["EVAL_ERROR"], ["HIT_CONFLICT"], ["SUBSET_ENDED"]]);
+    expect(reason(addCatch(f, "s1", null))).toBe(CATCH_FULL);
   });
 
   it("정규 JSON 은 CATCH 노드에만 attachTo·catches 를 label 뒤에 쓰고 다시 읽어도 같다", () => {
