@@ -23,7 +23,8 @@ public record CollectItem(String key, BigDecimal num, String txt) {
     private static final Pattern NUMERIC_TEXT = Pattern.compile("^[+-]?[0-9]+(\\.[0-9]+)?$");
 
     /**
-     * 원천에서 읽은 값을 항목으로. null·빈 글자·객체·배열·크기가 한도를 넘는 십진수이면 null(건너뜀). 숫자·숫자 글자는 숫자, 불리언·그 밖 글자는 글자.
+     * 원천에서 읽은 값을 항목으로. null·빈 글자·객체·배열이거나 크기가 한도를 넘는 십진수 값(BigDecimal·지수 증폭 입력)이면 null(건너뜀).
+     * 크기가 한도를 넘는 숫자 모양 <b>글자</b>는 원문 글자로 저장한다. 숫자·숫자 글자는 숫자, 불리언·그 밖 글자는 글자.
      * key 는 호출자가 1~100자로 맞춘다.
      */
     public static CollectItem of(String key, Object value) {
@@ -41,7 +42,11 @@ public record CollectItem(String key, BigDecimal num, String txt) {
         String s = value.toString();
         if (s.isBlank()) return null;
         String trimmed = s.strip();
-        if (trimmed.length() <= NUMERIC_TEXT_MAX && NUMERIC_TEXT.matcher(trimmed).matches()) return numeric(key, new BigDecimal(trimmed));
+        if (trimmed.length() <= NUMERIC_TEXT_MAX && NUMERIC_TEXT.matcher(trimmed).matches()) {
+            CollectItem n = numeric(key, new BigDecimal(trimmed));
+            if (n != null) return n;
+            // 글자로 온 숫자 모양이 크기 한도를 넘으면(101~120자 등) 원문 글자로 저장한다 — 121자 이상이 글자가 되는 것과 같게.
+        }
         return text(key, s);
     }
 

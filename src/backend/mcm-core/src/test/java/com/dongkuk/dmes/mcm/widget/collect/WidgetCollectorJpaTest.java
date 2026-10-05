@@ -445,8 +445,29 @@ class WidgetCollectorJpaTest {
 
         WidgetCollectRunRepository dup = mock(WidgetCollectRunRepository.class);
         when(dup.saveAndFlush(any(WidgetCollectRun.class))).thenThrow(new DataIntegrityViolationException("pk"));
-        assertThat(new WidgetCollectWriter(dup, data).tryStart("def.d0000001", SLOT0, T0)).isFalse();
-        verify(dup, times(1)).saveAndFlush(any(WidgetCollectRun.class)); // PK 위반은 다시 해 보지 않는다
+        when(dup.existsById(new WidgetCollectRunId("def.d0000001", SLOT0))).thenReturn(true);
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(WidgetCollectWriter.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> logs = new ch.qos.logback.core.read.ListAppender<>();
+        logs.start();
+        logger.addAppender(logs);
+        try {
+            // PK 중복(그 행이 이미 있다)은 정상 건너뜀 — 로그 없음, 다시 해 보지 않는다
+            assertThat(new WidgetCollectWriter(dup, data).tryStart("def.d0000001", SLOT0, T0)).isFalse();
+            verify(dup, times(1)).saveAndFlush(any(WidgetCollectRun.class));
+            assertThat(logs.list).isEmpty();
+
+            // 행이 없는데 무결성 위반(NOT NULL·길이·CHECK)이면 warn(예외 종류만) 후 false
+            WidgetCollectRunRepository other = mock(WidgetCollectRunRepository.class);
+            when(other.saveAndFlush(any(WidgetCollectRun.class))).thenThrow(new DataIntegrityViolationException("value too long for column MSG secret=abc"));
+            assertThat(new WidgetCollectWriter(other, data).tryStart("def.e0000001", SLOT0, T0)).isFalse();
+            verify(other, times(1)).saveAndFlush(any(WidgetCollectRun.class));
+            assertThat(logs.list).hasSize(1);
+            assertThat(logs.list.get(0).getLevel()).isEqualTo(ch.qos.logback.classic.Level.WARN);
+            assertThat(logs.list.get(0).getFormattedMessage()).contains("def.e0000001").contains("DataIntegrityViolationException")
+                    .doesNotContain("secret=abc").doesNotContain("too long");
+        } finally {
+            logger.detachAppender(logs);
+        }
     }
 
     // ── 인덱스·덩어리 삭제 ───────────────────────────────────────────

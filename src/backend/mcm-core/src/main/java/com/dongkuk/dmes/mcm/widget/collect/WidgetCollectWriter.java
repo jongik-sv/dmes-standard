@@ -52,6 +52,10 @@ public class WidgetCollectWriter {
                 runRepository.saveAndFlush(WidgetCollectRun.start(widgetId, slot, startedAt));
                 return true;
             } catch (DataIntegrityViolationException e) {
+                // PK 중복이면 다른 인스턴스·이전 시도가 이미 잡은 시각이라 정상 건너뜀(로그 없음). 행이 없는데 위반이면 다른 제약(NOT NULL·길이·CHECK)이다.
+                if (!runRepository.existsById(new WidgetCollectRunId(widgetId, slot))) {
+                    log.warn("정시 수집 회차 잡기 무결성 오류(PK 중복 아님) defId={} 원인={}", widgetId, e.getClass().getSimpleName());
+                }
                 return false;
             } catch (DataAccessException | PersistenceException e) {
                 if (attempt >= START_RETRIES) {

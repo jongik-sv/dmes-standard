@@ -590,6 +590,20 @@ class CollectSourcesTest {
         assertThat(CollectItem.of("k", new BigDecimal("1e100"))).isNotNull();
         assertThat(CollectItem.of("k", new BigDecimal("1e-100")).num()).isEqualByComparingTo("0");
         assertThat(CollectItem.of("k", new BigDecimal("1".repeat(101)))).isNull();
+        // 글자로 온 숫자 모양은 한도(100자리·scale ±100)를 넘어도 건너뛰지 않고 원문 글자로 저장한다 — 101~120자·121자 이상 모두
+        for (int len : List.of(16, 17, 100, 101, 110, 120, 121, 150)) {
+            CollectItem it = CollectItem.of("k", "9".repeat(len));
+            assertThat(it).as("len " + len).isNotNull();
+            if (len <= 16) { // 정수부 16자리 이하는 숫자
+                assertThat(it.num()).isNotNull();
+            } else { // 17자리 이상은 원문 글자(한도 100자리 안쪽도 바깥쪽도 같다)
+                assertThat(it.num()).as("len " + len).isNull();
+                assertThat(it.txt()).isEqualTo("9".repeat(len));
+            }
+        }
+        assertThat(CollectItem.of("k", "0." + "0".repeat(110) + "1").txt()).isEqualTo("0." + "0".repeat(110) + "1"); // scale 111 → 글자
+        assertThat(CollectItem.of("k", "9".repeat(250)).txt()).hasSize(200); // 글자는 200자로 자른다
+        assertThat(CollectItem.of("k", "1e999999999").txt()).isEqualTo("1e999999999"); // 지수 모양 글자는 원래 글자
         assertThat(Duration.ofNanos(System.nanoTime() - start).toMillis()).isLessThan(1000);
         assertThat(CollectItem.of("k", null)).isNull();
         assertThat(CollectItem.of("k", "   ")).isNull();
