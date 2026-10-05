@@ -45,6 +45,7 @@ import {
   DatePicker,
   ComboBox,
 } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { searchCommObjMng, saveCommObjMng, loadLov, searchSystemLov } from "./api";
 import type {
@@ -670,7 +671,7 @@ function DetailForm({
         {/* D-001 OBJECT ID — 신규 행 (inserted) 만 편집 가능 (PK). 기존 행 readOnly.
             V-502 (MENU_ID + ID 자동 조합) 도 신규 행에서 그대로 동작 — 자동 조합 결과를 사용자가 덮어쓸 수도 있음. */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>OBJECT ID *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="OBJECT_ID" label="OBJECT ID" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.OBJECT_ID ?? "")}
@@ -681,7 +682,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>SYSTEM</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="SYSTEM_CODE" label="SYSTEM" /></th>
           <td style={DETAIL_VALUE_CELL}>
             {/* 2026-06-05 — Input → Select. options source = TB_MCM_SEC_MENU_FLD root (PARENT_MENU_ID IS NULL).
                 현 시점 시드는 'mcm' 1행. 추후 다른 모듈(mpn/mqc 등) root 추가 시 자동 노출. */}
@@ -694,7 +695,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>MENU ID</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PARENT_MENU_ID" label="MENU ID" /></th>
           <td style={DETAIL_VALUE_CELL}>
             {/* 2026-06-05 — BE searchCmObj 응답의 MENU_ID 는 OBJECT_ID 와 동일한 redundant alias.
                 실제 그룹 토큰 (csa/cma/cme) source 는 PARENT_MENU_ID 필드 → value/onChange 모두 PARENT_MENU_ID 로 binding.
@@ -710,7 +711,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>ID *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ID" meta={false} label="ID" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.ID ?? "")}
@@ -720,7 +721,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>OBJECT명</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="OBJECT_NM" label="OBJECT명" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.OBJECT_NM ?? "")}
@@ -730,7 +731,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>프로그램 설명</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PROGRAM_DESC" label="프로그램 설명" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.PROGRAM_DESC ?? "")}
@@ -740,7 +741,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>OBJECT TYPE</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="OBJECT_TYPE" label="OBJECT TYPE" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.OBJECT_TYPE ?? "")}
@@ -750,7 +751,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>SERVICE</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="SERVICE" meta={false} label="SERVICE" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.SERVICE ?? "")}
@@ -760,7 +761,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>접속 경로 *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ACCESS_TP" label="접속 경로" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Select
               value={String(selected.ACCESS_TP ?? "")}
@@ -771,7 +772,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>FORM URL</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="computedFormUrl" meta={false} label="FORM URL" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={computedFormUrl}
@@ -783,7 +784,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>외부 접속 주소</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="OUT_ACCESS_IP" label="외부 접속 주소" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.OUT_ACCESS_IP ?? "")}
@@ -794,7 +795,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>사용 여부</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USE_TP" label="사용 여부" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Radio
               name="USE_TP"
@@ -805,7 +806,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>파라메터</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PARAM" meta={false} label="파라메터" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.PARAM ?? "")}
@@ -815,7 +816,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>유효 개시일</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="START_ACTIVE_DATE" label="유효 개시일" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <DatePicker
               value={toDateInputValue(selected.START_ACTIVE_DATE)}
@@ -824,7 +825,7 @@ function DetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>유효 기한일</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="END_ACTIVE_DATE" label="유효 기한일" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <DatePicker
               value={toDateInputValue(selected.END_ACTIVE_DATE)}

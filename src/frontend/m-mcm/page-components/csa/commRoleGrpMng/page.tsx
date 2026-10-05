@@ -67,6 +67,7 @@ import {
   DatePicker,
   Radio,
 } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import {
   searchCmRoleGrp as apiSearchCmRoleGrp,
@@ -819,7 +820,7 @@ export default function CommRoleGrpMngPage() {
                       <tbody>
                         {/* D-001 역할 그룹 ID — 신규 행만 편집 (PK / V-004 필수 / xfdl:238 maxlength=90) */}
                         <tr>
-                          <th style={DETAIL_LABEL_CELL}>역할 그룹 ID *</th>
+                          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ROLE_GROUP_ID" label="역할 그룹 ID" required /></th>
                           <td style={DETAIL_VALUE_CELL}>
                             <Input
                               value={String(selected.ROLE_GROUP_ID ?? "")}
@@ -832,7 +833,7 @@ export default function CommRoleGrpMngPage() {
                         {/* D-002 BIZ SYSTEM 콤보 폐기 (정책 #1) */}
                         {/* D-003 역할 그룹명 (xfdl:240 maxlength=100) */}
                         <tr>
-                          <th style={DETAIL_LABEL_CELL}>역할 그룹명</th>
+                          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ROLE_GROUP_NM" label="역할 그룹명" /></th>
                           <td style={DETAIL_VALUE_CELL}>
                             <Input
                               value={String(selected.ROLE_GROUP_NM ?? "")}
@@ -843,7 +844,7 @@ export default function CommRoleGrpMngPage() {
                         </tr>
                         {/* D-004 역할 그룹 설명 (xfdl:260 maxlength=100) */}
                         <tr>
-                          <th style={DETAIL_LABEL_CELL}>역할 그룹 설명</th>
+                          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ROLE_GROUP_DESC" label="역할 그룹 설명" /></th>
                           <td style={DETAIL_VALUE_CELL}>
                             <Input
                               value={String(selected.ROLE_GROUP_DESC ?? "")}
@@ -854,7 +855,7 @@ export default function CommRoleGrpMngPage() {
                         </tr>
                         {/* D-005 사용 여부 — Radio (xfdl:241~258 Y=Yes / N=No / direction=vertical) */}
                         <tr>
-                          <th style={DETAIL_LABEL_CELL}>사용 여부</th>
+                          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USE_TP" label="사용 여부" /></th>
                           <td style={DETAIL_VALUE_CELL}>
                             <Radio
                               name="USE_TP"
@@ -866,7 +867,7 @@ export default function CommRoleGrpMngPage() {
                         </tr>
                         {/* D-006 유효 개시일 — DatePicker (xfdl:259 cal_start_active_date) */}
                         <tr>
-                          <th style={DETAIL_LABEL_CELL}>유효 개시일</th>
+                          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="START_ACTIVE_DATE" label="유효 개시일" /></th>
                           <td style={DETAIL_VALUE_CELL}>
                             <DatePicker
                               value={toIsoDate(selected.START_ACTIVE_DATE)}
@@ -876,7 +877,7 @@ export default function CommRoleGrpMngPage() {
                         </tr>
                         {/* D-007 유효 기한일 — DatePicker (xfdl:239 cal_end_active_date) */}
                         <tr>
-                          <th style={DETAIL_LABEL_CELL}>유효 기한일</th>
+                          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="END_ACTIVE_DATE" label="유효 기한일" /></th>
                           <td style={DETAIL_VALUE_CELL}>
                             <DatePicker
                               value={toIsoDate(selected.END_ACTIVE_DATE)}

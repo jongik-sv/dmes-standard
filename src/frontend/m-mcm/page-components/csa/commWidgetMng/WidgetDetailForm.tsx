@@ -13,6 +13,7 @@ import { lazy, Suspense, type LazyExoticComponent, type ReactNode } from "react"
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Input, Radio, Select, Textarea } from "@dk-oasis/shared/form";
 import { ErrorBoundary } from "@dk-oasis/shared/error-boundary";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import {
   WIDGET_DEFAULT_MIN_SIZE,
   type WidgetMeta,
@@ -126,7 +127,7 @@ export function WidgetDetailForm({
     <table style={DETAIL_TABLE_STYLE}>
       <tbody>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>ID</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="widgetId" label="ID" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Input
               value={form ? form.widgetId || "(저장할 때 만들어집니다)" : ""}
@@ -136,25 +137,25 @@ export function WidgetDetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>구분</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="widgetKind" meta={false} label="구분" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             {kindText}
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>이름{isDef ? " *" : ""}</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="title" meta={false} label="이름" required={isDef} /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Input value={text("title")} maxLength={50} placeholder={ph.title} disabled={off} onChange={set("title")} />
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>부제</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="subtitle" label="부제" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Input value={text("subtitle")} maxLength={100} placeholder={ph.subtitle} disabled={off} onChange={set("subtitle")} />
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>설명</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Textarea
               rows={2}
@@ -174,7 +175,7 @@ export function WidgetDetailForm({
           ] as const
         ).map(([label, wKey, hKey, wPh, hPh]) => (
           <tr key={wKey}>
-            <th style={DETAIL_LABEL_CELL}>{label}</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name={wKey} meta={false} label={label} /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 type="number"
@@ -200,7 +201,7 @@ export function WidgetDetailForm({
           </tr>
         ))}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>새로 고침(초)</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="refreshSec" label="새로 고침(초)" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Input
               type="number"
@@ -213,7 +214,7 @@ export function WidgetDetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>화면 열기 pageId</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="linkPageId" label="화면 열기 pageId" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Input
               value={text("linkPageId")}
@@ -225,7 +226,7 @@ export function WidgetDetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>여러 번 놓기</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="multipleYn" label="여러 번 놓기" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Select
               value={form?.multipleYn ?? ""}
@@ -237,7 +238,7 @@ export function WidgetDetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>사용</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="useYn" label="사용" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Radio
               name="useYn"
@@ -250,7 +251,7 @@ export function WidgetDetailForm({
         </tr>
         {isQuery && (
           <tr>
-            <th style={DETAIL_LABEL_CELL}>실행 모듈</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="dataSrc" label="실행 모듈" /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={2}>
               <Select
                 value={form?.dataSrc || "mcm"}
@@ -264,7 +265,7 @@ export function WidgetDetailForm({
         {isDef && (
           <tr>
             <th style={DETAIL_LABEL_CELL} colSpan={3}>
-              유형 설정
+              <MdmFieldLabel name="typeConfig" meta={false} label="유형 설정" />
             </th>
           </tr>
         )}
@@ -290,7 +291,7 @@ export function WidgetDetailForm({
         )}
         {form && errors.length > 0 && (
           <tr>
-            <th style={DETAIL_LABEL_CELL}>저장할 수 없음</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="formErrors" meta={false} label="저장할 수 없음" /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={2} role="alert" data-testid="widget-admin-errors">
               {errors.map((m, i) => (
                 <span key={m} className="form-error-message">
@@ -304,7 +305,7 @@ export function WidgetDetailForm({
         {form && preview && (
           <tr>
             <th style={DETAIL_LABEL_CELL} colSpan={3}>
-              미리보기(기본 크기)
+              <MdmFieldLabel name="preview" meta={false} label="미리보기(기본 크기)" />
             </th>
           </tr>
         )}

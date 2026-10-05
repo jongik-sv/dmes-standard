@@ -49,6 +49,7 @@ import {
   DatePicker,
   Radio,
 } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import {
   searchCmUser as apiSearchCmUser,
   saveCmUser as apiSaveCmUser,
@@ -975,7 +976,7 @@ export default function CommUserMngPage() {
               <tbody>
                 {/* D-001 사용자ID (Essential, 신규 행에서만 편집 — As-Is xfdl:1211 readonly 룰) */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>사용자ID *</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USER_ID" label="사용자ID" required /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Input
                       type="text"
@@ -988,7 +989,7 @@ export default function CommUserMngPage() {
                 </tr>
                 {/* D-002 사번 (Essential, maxlength=10, digit+alpha) */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>사번 *</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USER_EMP_NO" label="사번" required /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Input
                       type="text"
@@ -1000,7 +1001,7 @@ export default function CommUserMngPage() {
                 </tr>
                 {/* D-003 SSO ID — displaynulltext="UNI DOS 연동" */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>SSO ID</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="SSO_ID" label="SSO ID" /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Input
                       type="text"
@@ -1013,7 +1014,7 @@ export default function CommUserMngPage() {
                 </tr>
                 {/* D-004 사용자명 (Essential, maxlength=90) */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>사용자명 *</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USER_NM" label="사용자명" required /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Input
                       type="text"
@@ -1025,7 +1026,7 @@ export default function CommUserMngPage() {
                 </tr>
                 {/* D-005 유효개시일 — Calendar (yyyy-MM-dd) */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>유효개시일</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="START_ACTIVE_DATE" label="유효개시일" /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <DatePicker
                       value={toDateInputValue(selected.START_ACTIVE_DATE)}
@@ -1035,7 +1036,7 @@ export default function CommUserMngPage() {
                 </tr>
                 {/* D-006 유효기한일 — Calendar (yyyy-MM-dd) */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>유효기한일</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="END_ACTIVE_DATE" label="유효기한일" /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <DatePicker
                       value={toDateInputValue(selected.END_ACTIVE_DATE)}
@@ -1048,7 +1049,7 @@ export default function CommUserMngPage() {
                     → 선택 시 DEPT_CD + DEPT_NM 자동 세트. commRoleMng round-3 searchObjectLov 정합 패턴.
                     레이아웃: 코드(100px readOnly) + 검색버튼(50px) + 부서명(flex:1 readOnly). */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>부서코드 *</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="DEPT_CD" label="부서코드" required /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
                       <div style={{ width: 100, flexShrink: 0 }}>
@@ -1081,7 +1082,7 @@ export default function CommUserMngPage() {
                 </tr>
                 {/* D-008 사용자분류코드 */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>사용자분류코드</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USER_CATEGORY_CD" label="사용자분류코드" /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Input
                       type="text"
@@ -1093,7 +1094,7 @@ export default function CommUserMngPage() {
                 </tr>
                 {/* D-009 이메일 (Essential, maxlength=300) */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>이메일 *</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="EMAIL" label="이메일" required /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Input
                       type="email"
@@ -1105,7 +1106,7 @@ export default function CommUserMngPage() {
                 </tr>
                 {/* D-010 전화 번호 (maxlength=90, digit) */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>전화 번호</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="TEL_NO" label="전화 번호" /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Input
                       type="text"
@@ -1117,7 +1118,7 @@ export default function CommUserMngPage() {
                 </tr>
                 {/* D-011 모바일번호 (maxlength=90, digit) */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>모바일번호</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MOBILE_TEL_NO" label="모바일번호" /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Input
                       type="text"
@@ -1129,7 +1130,7 @@ export default function CommUserMngPage() {
                 </tr>
                 {/* D-012 내부 외부 구분 (Essential, Combo ds_inOutEmpTp) */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>내부 외부 구분 *</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="IN_OUT_EMP_TP" label="내부 외부 구분" required /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Select
                       value={selected.IN_OUT_EMP_TP ?? ""}
@@ -1143,7 +1144,7 @@ export default function CommUserMngPage() {
                     2026-06-02 iter#3 — AsIs 정합 + 사용자 검수 J-009 (3 행 정렬 통일):
                       입력 영역 flex:1 (좌측 정렬) + 우측 버튼 width=110px 고정 (3 행 모두 동일 너비, 우측 정렬). */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>사용자 역할그룹 복사</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="roleCopyUserId" meta={false} label="사용자 역할그룹 복사" /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ flex: 1 }}>
@@ -1169,7 +1170,7 @@ export default function CommUserMngPage() {
                 {/* D-016 비밀번호 초기화 Radio (Y/N) + B-013 버튼 (xfdl:143~161).
                     2026-06-02 iter#3 — 좌측 Radio (flex:1) + 우측 버튼 (width=110, 3 행 동일 정렬). */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>비밀번호 초기화</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="pwdResetFlag" meta={false} label="비밀번호 초기화" /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ flex: 1 }}>
@@ -1199,7 +1200,7 @@ export default function CommUserMngPage() {
                     2026-06-02 iter#3 — 3 행 (역할그룹복사 / 비밀번호초기화 / SSO초기화) 동일 정렬:
                       좌측 Radio (flex:1) + 우측 버튼 (width=110). */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>SSO 초기화</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ssoResetFlag" meta={false} label="SSO 초기화" /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ flex: 1 }}>
@@ -1230,7 +1231,7 @@ export default function CommUserMngPage() {
                 {/* B-016 계정 재생성 (As-Is enable=false 기본 / USE_TP=Y 면 비활성화 — xfdl:1218~1222).
                     2026-06-02 — AsIs row-state 기반 비활성 (USE_TP=Y) 유지. 버튼 너비 110px 정렬 + 텍스트 wrap. */}
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>계정 재생성</th>
+                  <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="reRegister" meta={false} label="계정 재생성" /></th>
                   <td style={DETAIL_VALUE_CELL}>
                     <div style={{ width: 110 }}>
                       <Button
@@ -1396,11 +1397,11 @@ export default function CommUserMngPage() {
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>사용자 ID</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USER_ID" label="사용자 ID" /></th>
               <td style={DETAIL_VALUE_CELL}>{initPwd?.userId}</td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>초기 비밀번호</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="initPassword" meta={false} label="초기 비밀번호" /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <code
                   data-testid="init-pwd-value"
