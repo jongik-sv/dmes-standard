@@ -158,3 +158,55 @@ export interface WidgetStore {
 }
 
 export type WidgetMoveKey = "left" | "right" | "up" | "down";
+
+/* ── 기본 탭·공유·내보내기(widget-tabs 2026-10-05, 설계 design-widget-tabs §4) — 위 WidgetTab·WidgetStore 에 덧붙인다(인터페이스 병합). ── */
+
+export interface WidgetTab {
+  /** 관리자가 둔 기본 탭(def-N)인가. 「홈」처럼 고정 탭이다 — 지우기·이름 바꾸기·옮기기 불가, 홈 다음에 관리자 순서로. */
+  defaultTab?: boolean;
+  /** 기본 탭을 사용자가 개인화했는가(사용자 재정의 행 있음). 「기본으로 되돌리기」는 이때만 켜진다. */
+  customized?: boolean;
+}
+
+/** 공유 받는 사람 검색 결과 한 줄(secWidget/searchUsers). */
+export interface WidgetShareUser {
+  userId: string;
+  userNm: string;
+  deptNm: string;
+}
+
+/** 공유 결과 한 줄(secWidget/shareTab results[]) — 받는 사람마다 성공·실패와 만든 탭 이름·사유. */
+export interface WidgetShareResult {
+  userId: string;
+  ok: boolean;
+  tabNm: string;
+  message: string;
+}
+
+export interface WidgetStore {
+  /** 기본 탭(def-N)의 내 배치를 지운다(다음부터 관리자 기본 배치). 없으면 기본 탭의 「기본으로 되돌리기」 메뉴가 없다. */
+  resetTab?(tabId: string): Promise<void>;
+  /** 탭 사본을 받는 사람들에게 새 탭으로 보낸다. searchUsers 와 함께 있어야 「공유」 메뉴가 보인다. */
+  shareTab?(tabId: string, userIds: string[]): Promise<WidgetShareResult[]>;
+  /** 공유 받는 사람 검색(SHARE_KEYWORD_MIN 자 이상, 활성 사용자만). */
+  searchUsers?(keyword: string): Promise<WidgetShareUser[]>;
+}
+
+/** 탭 내보내기 파일의 위젯 한 줄 — 넓은 화면(24칸) 좌표. instId 는 싣지 않는다(가져올 때 새로 만든다). */
+export interface WidgetTabExportItem {
+  widgetId: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  locked: boolean;
+  config: unknown | null;
+}
+
+/** 탭 내보내기 파일(JSON) — `{ version: 1, kind: "dmes-widget-tab", name, items }`. */
+export interface WidgetTabExportFile {
+  version: 1;
+  kind: "dmes-widget-tab";
+  name: string;
+  items: WidgetTabExportItem[];
+}

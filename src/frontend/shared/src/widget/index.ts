@@ -20,6 +20,17 @@ export {
   validateWidgetMeta,
 } from "./widget-layout";
 export {
+  buildTabExport,
+  fixedTabCount,
+  isFixedTab,
+  orderTabs,
+  parseTabImport,
+  shareResultMessage,
+  tabImportMessage,
+  uniqueTabName,
+} from "./widget-layout";
+export type { TabImportContext, TabImportDrop, TabImportResult } from "./widget-layout";
+export {
   applyWidgetOverride,
   defWidgetLoader,
   defWidgetMeta,
