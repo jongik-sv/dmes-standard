@@ -505,6 +505,43 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       expect(portal()?.getAttribute("data-tip-interactive")).toBe("true");
     });
 
+    it("머리글 칸 전체가 트리거다 — 글자 밖(칸 빈 곳·아이콘 둘레)에 올려도 지연 뒤 카드가 뜨고, 칸을 떠나면 닫힌다", async () => {
+      stub();
+      await render(grid());
+      placeLabel();
+      const cell = headerCell("noticeBody");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      // 라벨이 아니라 칸 자체(글자 밖)에 올린다.
+      over(cell);
+      advance(GRID_TOOLTIP_SHOW_DELAY_MS - 1);
+      expect(portal()).toBeNull();
+      advance(1);
+      expect(portal()?.getAttribute("data-tip-interactive")).toBe("true");
+      // 칸 안에서 라벨 ↔ 칸 빈 곳으로 옮겨도(칸을 떠나지 않으므로) 닫히지 않는다.
+      act(() => {
+        label("noticeBody")!.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: cell }));
+      });
+      advance(500);
+      expect(portal()).not.toBeNull();
+      // 칸을 떠나면 유예 뒤 닫힌다.
+      out(cell);
+      advance(1000);
+      expect(portal()).toBeNull();
+    });
+
+    it("칸 안 아무 곳이나 누르면(정렬·메뉴·끌기 시작) 대기를 취소하고 닫는다", async () => {
+      stub();
+      await render(grid());
+      placeLabel();
+      const cell = headerCell("noticeBody");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      over(cell);
+      advance(GRID_TOOLTIP_SHOW_DELAY_MS);
+      expect(portal()).not.toBeNull();
+      pointerDown(cell);
+      expect(portal()).toBeNull();
+    });
+
     it("화면이 tooltipShowDelay 를 주면 그 값 뒤에 뜬다", async () => {
       stub();
       await render(grid({ tooltipShowDelay: 900 }));

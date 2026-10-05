@@ -20,6 +20,9 @@
       <bpmn:outgoing>flow_deleteTab</bpmn:outgoing>
       <bpmn:outgoing>flow_reorderTabs</bpmn:outgoing>
       <bpmn:outgoing>flow_resetHome</bpmn:outgoing>
+      <bpmn:outgoing>flow_resetTab</bpmn:outgoing>
+      <bpmn:outgoing>flow_shareTab</bpmn:outgoing>
+      <bpmn:outgoing>flow_searchUsers</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
     <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
@@ -85,5 +88,45 @@
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="flow_resetHome_end" sourceRef="resetHomeTask" targetRef="endResetHome" />
     <bpmn:endEvent id="endResetHome"><bpmn:incoming>flow_resetHome_end</bpmn:incoming></bpmn:endEvent>
+
+    <!-- 기본 탭·공유(docs/widget-2026-10/design-widget-tabs.md §3.1, 2026-10-05). -->
+    <bpmn:sequenceFlow id="flow_resetTab" name="resetTab" sourceRef="actionGateway" targetRef="resetTabTask" />
+    <bpmn:serviceTask id="resetTabTask" name="탭 기본으로 되돌리기(홈·기본 탭)" camunda:class="secWidgetService">
+      <bpmn:extensionElements><camunda:properties>
+        <camunda:property name="method" value="resetTab" />
+        <camunda:property name="output" value="result" />
+        <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.dto.SecWidgetTabRequest" />
+      </camunda:properties></bpmn:extensionElements>
+      <bpmn:incoming>flow_resetTab</bpmn:incoming>
+      <bpmn:outgoing>flow_resetTab_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_resetTab_end" sourceRef="resetTabTask" targetRef="endResetTab" />
+    <bpmn:endEvent id="endResetTab"><bpmn:incoming>flow_resetTab_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_shareTab" name="shareTab" sourceRef="actionGateway" targetRef="shareTabTask" />
+    <bpmn:serviceTask id="shareTabTask" name="탭 공유(사본 전달)" camunda:class="secWidgetService">
+      <bpmn:extensionElements><camunda:properties>
+        <camunda:property name="method" value="shareTab" />
+        <camunda:property name="output" value="result" />
+        <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.dto.SecWidgetTabRequest" />
+      </camunda:properties></bpmn:extensionElements>
+      <bpmn:incoming>flow_shareTab</bpmn:incoming>
+      <bpmn:outgoing>flow_shareTab_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_shareTab_end" sourceRef="shareTabTask" targetRef="endShareTab" />
+    <bpmn:endEvent id="endShareTab"><bpmn:incoming>flow_shareTab_end</bpmn:incoming></bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="flow_searchUsers" name="searchUsers" sourceRef="actionGateway" targetRef="searchUsersTask" />
+    <bpmn:serviceTask id="searchUsersTask" name="공유 받는 사람 찾기" camunda:class="secWidgetService">
+      <bpmn:extensionElements><camunda:properties>
+        <camunda:property name="method" value="searchUsers" />
+        <camunda:property name="output" value="result" />
+        <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.dto.SecWidgetUserSearchRequest" />
+      </camunda:properties></bpmn:extensionElements>
+      <bpmn:incoming>flow_searchUsers</bpmn:incoming>
+      <bpmn:outgoing>flow_searchUsers_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="flow_searchUsers_end" sourceRef="searchUsersTask" targetRef="endSearchUsers" />
+    <bpmn:endEvent id="endSearchUsers"><bpmn:incoming>flow_searchUsers_end</bpmn:incoming></bpmn:endEvent>
   </bpmn:process>
 </bpmn:definitions>

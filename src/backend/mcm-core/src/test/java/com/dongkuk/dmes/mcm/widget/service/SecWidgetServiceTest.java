@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,10 +20,15 @@ import com.dongkuk.dmes.mcm.widget.entity.SecUserWidget;
 import com.dongkuk.dmes.mcm.widget.entity.SecUserWidgetTab;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetRepository;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetTabRepository;
+import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
+import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultLayoutRepository;
+import com.dongkuk.dmes.mcm.widget.layout.service.WidgetDefaultTabs;
+import com.dongkuk.dmes.mcm.widget.repository.WidgetUserLookupRepository;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,8 +45,18 @@ class SecWidgetServiceTest {
     @Mock SecUserWidgetRepository widgetRepository;
     @Mock SecWidgetTabWriter writer;
     @Mock SecurityIdentity securityIdentity;
+    @Mock WidgetDefaultTabs defaultTabs;
+    @Mock WidgetDefaultLayoutRepository layoutRepository;
+    @Mock WidgetUserContextResolver userContextResolver;
+    @Mock WidgetUserLookupRepository userLookup;
 
     @InjectMocks SecWidgetService service;
+
+    /** 이 시험들은 기본 탭이 없는 사용자다(기본 탭 동작은 SecWidgetDefaultTabTest). */
+    @BeforeEach
+    void noDefaultTabs() {
+        lenient().when(defaultTabs.resolve(any())).thenReturn(WidgetDefaultTabs.Resolved.EMPTY);
+    }
 
     private static SecWidgetTabSaveRequest save(String tabId, String tabNm) {
         SecWidgetTabSaveRequest r = new SecWidgetTabSaveRequest();

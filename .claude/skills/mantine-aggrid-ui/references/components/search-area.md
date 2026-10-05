@@ -56,7 +56,7 @@ import { DatePicker } from "@dk-oasis/shared/form";
 
 ### MDM 라벨 툴팁(name·meta)
 
-`name` 을 주면 라벨에 마우스를 올릴 때 MDM 컬럼 사전 카드 툴팁이 뜬다([mdm-meta](mdm-meta.md) 의 `MdmFieldLabel` 과 같은 규칙: `name` → 물리명, `meta` 문자열이 `name` 보다 우선, `meta={false}` 면 끔). `name` 이 없으면 예전과 DOM·요청이 같다. 필터 키(`edt_`·`cbo_`)에서 이름을 추론하지 않으므로 업무 키를 직접 적는다. 라벨 글자는 기본(explicit)에서 `label` 그대로이고 Radio `name`·최근 입력값 키도 `label` 을 쓴다.
+`name` 을 주면 라벨에 마우스를 올릴 때 MDM 컬럼 사전 카드 툴팁이 뜬다([mdm-meta](mdm-meta.md) 의 `MdmFieldLabel` 과 같은 규칙: `name` → 물리명, `meta` 문자열이 `name` 보다 우선, `meta={false}` 면 끔). `name` 이 없으면 사전을 찾지 않고 포털 탭 안에서는 라벨 글자 툴팁만 뜬다(공급자 밖은 예전과 DOM 이 같다). 사전에 없는 `name`·`meta={false}` 는 라벨 + 흐린 글자 `name` 툴팁이다. 필터 키(`edt_`·`cbo_`)에서 이름을 추론하지 않으므로 업무 키를 직접 적는다. 라벨 글자는 기본(explicit)에서 `label` 그대로이고 Radio `name`·최근 입력값 키도 `label` 을 쓴다.
 
 ```tsx
 <SearchField label="제목" name="title" value={f.title} onChange={(v) => set("title", v)} />

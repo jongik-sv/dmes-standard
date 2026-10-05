@@ -42,6 +42,7 @@ import {
 } from "../../mdm-meta";
 import { GRID_SIZE_CHANGE_SETTLE_MS, resolveGridSizeChangeAction } from "./grid-size-change";
 import { GRID_TOOLTIP_SHOW_DELAY_MS } from "./grid-tooltip";
+import { useGridTooltipOutside } from "./grid-tooltip-parent";
 import { AgDataGridExcelFrame, type AgDataGridExcelExport } from "./AgDataGridExcel";
 import { MdmHeaderLabel, type MdmHeaderLabelParams } from "./MdmHeaderLabel";
 
@@ -1036,6 +1037,8 @@ function AgDataGridComponent({
 }: AgDataGridProps) {
   const gridRef = useRef<AgGridReact>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // 툴팁은 그리드 밖(body)에 띄워 좁은 그리드에서 잘리지 않게 한다 — 툴팁이 뜰 수 있는 동안에만 popupParent 를 바꾼다.
+  useGridTooltipOutside(containerRef, gridRef);
   const [gridReady, setGridReady] = useState(false);
   const userResizedRef = useRef(false);
   const autoSizeTimerRef = useRef<number | null>(null);

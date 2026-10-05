@@ -11,10 +11,12 @@ import {
   appendMissingFields,
   FORMAT_LABELS,
   intCell,
+  paramsOf,
   tableConfigOf,
   textCell,
   type TableColumnConfig,
 } from "../_query/format";
+import { ParamsEditorRow } from "../_query/ParamsEditor";
 import { QueryStyle } from "../_query/parts";
 import { SqlEditor } from "../_query/SqlEditor";
 import { useConfigEditor } from "../_query/useConfigEditor";
@@ -84,12 +86,14 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
             <td style={DETAIL_VALUE_CELL}>
               <SqlEditor
                 sql={cfg.sql}
+                params={paramsOf(props.value)}
                 preview={preview}
                 onSqlChange={(sql) => patch({ sql })}
                 onPreview={(result) => patch({ __preview: result ?? undefined })}
               />
             </td>
           </tr>
+          <ParamsEditorRow value={props.value} patch={patch} />
           <tr>
             <th style={DETAIL_LABEL_CELL}>
               <MdmFieldLabel name="columns" label="표시 컬럼" />

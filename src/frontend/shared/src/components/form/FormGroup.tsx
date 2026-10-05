@@ -14,7 +14,8 @@ import { Input } from "@mantine/core";
 // 배럴(../../mdm-meta)을 거치지 않는다 — 배럴의 화면 값 검증(validate.ts)이 식 평가기(evalex·decimal.js)를 form 묶음에 끌어들인다.
 import { MdmMetaCard, mdmCardTipOptions } from "../../mdm-meta/MdmMetaCard";
 import { resolveCaption } from "../../mdm-meta/caption";
-import { useMdmCaptionPriority, useMdmColumn } from "../../mdm-meta/context";
+import { useMdmCaptionPriority, useMdmColumn, useMdmMetaActive } from "../../mdm-meta/context";
+import { LabelNameTip } from "./LabelNameTip";
 import { HoverTipPortal, useHoverTip } from "./useHoverTip";
 
 export interface FormGroupProps {
@@ -36,7 +37,10 @@ export interface FormGroupProps {
   labelWidth?: number;
   style?: CSSProperties;
   error?: string;
-  /** 라벨 hover·필드 focus 시 표시되는 툴팁(글자 또는 React 노드). 없고 MDM 메타가 있으면 MdmMetaCard 를 띄운다. */
+  /**
+   * 라벨 hover·필드 focus 시 표시되는 툴팁(글자 또는 React 노드). 없고 MDM 메타가 있으면 MdmMetaCard 를 띄운다.
+   * 둘 다 없어도 포털 탭(MDM 공급자) 안이면 라벨 hover 때 라벨 글자 + 흐린 글자 `name` 툴팁을 띄운다(필드 focus·스크린리더 설명은 없다).
+   */
   tip?: string | ReactNode;
 }
 
@@ -65,7 +69,12 @@ export function FormGroup({
   const label = name ? resolveCaption(mdm.column, "form", labelProp, captionPriority, name) : labelProp;
   const tip: ReactNode =
     tipProp ?? (mdm.column ? <MdmMetaCard column={mdm.column} domain={mdm.domain} /> : undefined);
-  const tipIsText = typeof tip === "string";
+  // 사전에 없는 라벨(name 이 없거나 사전 결과가 없음) — 공급자 안에서만 라벨 글자 툴팁. 받는 중(loading)에는 띄우지 않아 카드로 바뀔 때 깜박이지 않는다.
+  const inMdmScope = useMdmMetaActive();
+  const fallbackTip: ReactNode =
+    !tip && !mdm.loading && inMdmScope && label ? <LabelNameTip label={label} name={name} /> : undefined;
+  const hoverTip = tip || fallbackTip;
+  const tipIsText = typeof tip === "string" || (!tip && !!fallbackTip);
   // MDM HTML 설명 카드(화면이 tip 을 주지 않았을 때만): 마우스가 들어갈 수 있는 넓은 툴팁으로 띄우고, 스크린리더 사본은 글자 설명으로 둔다
   // (HTML 의 링크가 보이지 않는 채 Tab 순서에 들지 않게). 그 밖의 tip 은 예전 그대로다.
   const htmlTipOptions = tipProp == null ? mdmCardTipOptions(mdm.column) : undefined;
@@ -116,12 +125,12 @@ export function FormGroup({
         ref={labelRef}
         id={labelId}
         htmlFor={resolvedControlId}
-        className={`form-group-label${tip ? " has-tip" : ""}`}
+        className={`form-group-label${hoverTip ? " has-tip" : ""}`}
         style={{ width: labelWidth, minWidth: labelWidth }}
       >
         {/* 라벨 박스는 labelWidth 고정폭이라 텍스트 밖 여백까지 hover 로 잡힌다.
             트리거를 텍스트 span 으로 좁혀 "라벨 위에 정확히 올렸을 때" 만 뜨게 한다. */}
-        {tip ? (
+        {hoverTip ? (
           <span className="form-tip-trigger" onMouseEnter={showTip} onMouseLeave={hideTip}>
             {required && <span className="form-required">*</span>}
             {label}
@@ -153,9 +162,9 @@ export function FormGroup({
           </span>
         )}
       </div>
-      {tip && (
+      {hoverTip && (
         <HoverTipPortal tipPos={tipPos} box={box}>
-          {tip}
+          {hoverTip}
         </HoverTipPortal>
       )}
     </div>

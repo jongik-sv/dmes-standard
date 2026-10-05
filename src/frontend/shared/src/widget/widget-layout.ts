@@ -7,14 +7,26 @@ import { verticalCompactor, type Layout, type LayoutItem } from "react-grid-layo
 import {
   HOME_TAB_ID,
   HOME_TAB_NAME,
+  MAX_TABS,
   MAX_WIDGETS_PER_TAB,
+  TAB_EXPORT_KIND,
+  TAB_EXPORT_VERSION,
   TAB_NAME_MAX,
   WIDGET_COLS,
   WIDGET_DEFAULT_MIN_SIZE,
   WIDGET_MEDIUM_MIN_WIDTH,
   WIDGET_WIDE_MIN_WIDTH,
 } from "./constants";
-import type { WidgetItem, WidgetMeta, WidgetMoveKey, WidgetRegistry, WidgetSize, WidgetTab } from "./types";
+import type {
+  WidgetItem,
+  WidgetMeta,
+  WidgetMoveKey,
+  WidgetRegistry,
+  WidgetShareResult,
+  WidgetSize,
+  WidgetTab,
+  WidgetTabExportFile,
+} from "./types";
 
 const WIDGET_ID_RE = /^[a-z][a-zA-Z0-9]*\.[a-zA-Z][a-zA-Z0-9]*$/;
 
@@ -222,7 +234,16 @@ export function sameItemsExact(a: readonly WidgetItem[], b: readonly WidgetItem[
 }
 
 function sameTabExact(a: WidgetTab, b: WidgetTab): boolean {
-  return a.tabId === b.tabId && a.name === b.name && a.seq === b.seq && a.locked === b.locked && sameItemsExact(a.items, b.items);
+  return (
+    a.tabId === b.tabId &&
+    a.name === b.name &&
+    a.seq === b.seq &&
+    a.locked === b.locked &&
+    // 기본 탭 표시·개인화 여부도 본다 — 되돌리기 뒤 조용한 재조회에서 옛 객체(customized)가 남지 않게.
+    Boolean(a.defaultTab) === Boolean(b.defaultTab) &&
+    Boolean(a.customized) === Boolean(b.customized) &&
+    sameItemsExact(a.items, b.items)
+  );
 }
 
 /**
@@ -259,4 +280,180 @@ export function newInstanceId(): string {
 
 export function homeTab(items: readonly WidgetItem[]): WidgetTab {
   return { tabId: HOME_TAB_ID, name: HOME_TAB_NAME, seq: 0, locked: false, items: [...items] };
+}
+
+/* ── 고정 탭·내보내기·가져오기·공유 결과(widget-tabs 2026-10-05, 설계 design-widget-tabs §4) ── */
+
+/** 「홈」과 기본 탭(defaultTab)은 고정 탭이다 — 지우기·이름 바꾸기·옮기기 불가, 탭 줄 앞쪽에 고정. */
+export function isFixedTab(tab: Pick<WidgetTab, "tabId" | "defaultTab">): boolean {
+  return tab.tabId === HOME_TAB_ID || tab.defaultTab === true;
+}
+
+const tabRank = (t: WidgetTab) => (t.tabId === HOME_TAB_ID ? 0 : t.defaultTab ? 1 : 2);
+
+/**
+ * 탭 줄 순서 — 「홈」, 기본 탭(seq 순), 일반 탭(seq 순). 같은 자리·seq 면 입력 순서를 지킨다.
+ * 서버는 기본 탭 tabSeq 를 100+관리자 순서로 주므로 seq 만으로 정렬하면 기본 탭이 일반 탭 뒤로 간다.
+ */
+export function orderTabs(tabs: readonly WidgetTab[]): WidgetTab[] {
+  return [...tabs].sort((a, b) => tabRank(a) - tabRank(b) || a.seq - b.seq);
+}
+
+/** 앞에서부터 이어진 고정 탭 수 — 일반 탭은 이 자리보다 앞으로 옮길 수 없다. */
+export function fixedTabCount(tabs: readonly WidgetTab[]): number {
+  let n = 0;
+  while (n < tabs.length && isFixedTab(tabs[n])) n += 1;
+  return n;
+}
+
+/**
+ * 다른 탭과 겹치지 않는 이름 — 앞뒤 공백을 지우고 TAB_NAME_MAX 자로 자른 뒤, 겹치면 「 2」「 3」… 꼬리를 붙인다
+ * (꼬리까지 TAB_NAME_MAX 자 안에 들도록 앞부분을 줄인다). 비면 fallback.
+ */
+export function uniqueTabName(name: string, tabs: readonly WidgetTab[], fallback = "가져온 탭"): string {
+  const base = name.trim().slice(0, TAB_NAME_MAX).trim() || fallback;
+  const used = new Set(tabs.map((t) => t.name));
+  if (!used.has(base)) return base;
+  for (let n = 2; ; n += 1) {
+    const tail = ` ${n}`;
+    const candidate = `${base.slice(0, TAB_NAME_MAX - tail.length).trimEnd()}${tail}`;
+    if (!used.has(candidate)) return candidate;
+  }
+}
+
+/** 탭 내보내기 파일 내용 — instId 는 빼고 넓은 화면 좌표·잠금·설정만 싣는다. */
+export function buildTabExport(tab: WidgetTab): WidgetTabExportFile {
+  return {
+    version: TAB_EXPORT_VERSION,
+    kind: TAB_EXPORT_KIND,
+    name: tab.name,
+    items: tab.items.map((i) => ({ widgetId: i.widgetId, x: i.x, y: i.y, w: i.w, h: i.h, locked: i.locked, config: i.config ?? null })),
+  };
+}
+
+/** 가져오면서 뺀 위젯 — missing: 등록부에 없음, disabled: 사용 중지, duplicate: 한 번만 놓는 위젯(multiple:false)의 두 번째부터. */
+export interface TabImportDrop {
+  widgetId: string;
+  reason: "missing" | "disabled" | "duplicate";
+}
+
+export type TabImportResult = { ok: true; tab: WidgetTab; dropped: TabImportDrop[] } | { ok: false; error: string };
+
+export interface TabImportContext {
+  registry: WidgetRegistry;
+  /** 지금 탭 목록 — 탭 한도·이름 겹침·새 탭 ID 를 정한다. */
+  tabs: readonly WidgetTab[];
+  /** 탭 한도(기본 MAX_TABS). */
+  maxTabs?: number;
+  /** 인스턴스 ID 만들기(기본 newInstanceId) — 시험이 고정값으로 바꾼다. */
+  newId?: () => string;
+}
+
+const SHAPE_ERROR = "위젯 탭 파일 모양이 아닙니다.";
+/** 가져오기 위젯 ID 최대 길이(서버 WIDGET_ID 칸과 같다). */
+const IMPORT_WIDGET_ID_MAX = 100;
+/** 가져오기 위젯 설정(config) JSON 최대 길이. */
+const IMPORT_CONFIG_JSON_MAX = 4000;
+const isRecord = (v: unknown): v is Record<string, unknown> => v != null && typeof v === "object" && !Array.isArray(v);
+const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+/** 등록부의 자기 항목만 본다 — "__proto__"·"constructor" 같은 ID 가 Object 원형을 집지 않게. */
+const ownEntry = (registry: WidgetRegistry, id: string) => (Object.prototype.hasOwnProperty.call(registry, id) ? registry[id] : undefined);
+
+/**
+ * 탭 가져오기 — 파일 글을 검사해 새 일반 탭을 만든다(서버 저장은 호출자 몫).
+ * 거절: 탭 한도, JSON 아님, 모양 틀림, version 이 TAB_EXPORT_VERSION 이 아님, 위젯 MAX_WIDGETS_PER_TAB 개 초과.
+ * 등록부에 없거나 사용 중지인 위젯, 한 번만 놓는 위젯의 두 번째부터는 빼고 dropped 로 알린다.
+ * 새 탭은 tab-N ID·새 instId·겹치지 않는 이름(uniqueTabName)·잠금 없음이고, 항목은 sanitizeLayout 으로 정리한다.
+ */
+export function parseTabImport(text: string, ctx: TabImportContext): TabImportResult {
+  const maxTabs = ctx.maxTabs ?? MAX_TABS;
+  if (ctx.tabs.length >= maxTabs) return { ok: false, error: `탭은 최대 ${maxTabs}개까지 둘 수 있습니다. 탭을 지운 뒤 가져와 주세요.` };
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return { ok: false, error: "JSON 파일이 아닙니다." };
+  }
+  if (!isRecord(data)) return { ok: false, error: SHAPE_ERROR };
+  if (data.version !== TAB_EXPORT_VERSION) {
+    return { ok: false, error: `지원하지 않는 파일 버전입니다(version ${JSON.stringify(data.version ?? null)}). version ${TAB_EXPORT_VERSION} 파일만 가져올 수 있습니다.` };
+  }
+  if (data.kind !== TAB_EXPORT_KIND || typeof data.name !== "string" || !Array.isArray(data.items)) return { ok: false, error: SHAPE_ERROR };
+  const rawItems: unknown[] = data.items;
+  if (rawItems.length > MAX_WIDGETS_PER_TAB) {
+    return { ok: false, error: `위젯이 ${rawItems.length}개라 가져올 수 없습니다(탭당 최대 ${MAX_WIDGETS_PER_TAB}개).` };
+  }
+  const newId = ctx.newId ?? newInstanceId;
+  const kept: WidgetItem[] = [];
+  const dropped: TabImportDrop[] = [];
+  for (let n = 0; n < rawItems.length; n += 1) {
+    const r = rawItems[n];
+    if (
+      !isRecord(r) ||
+      typeof r.widgetId !== "string" ||
+      !r.widgetId ||
+      r.widgetId.length > IMPORT_WIDGET_ID_MAX ||
+      !isNum(r.x) ||
+      !isNum(r.y) ||
+      !isNum(r.w) ||
+      !isNum(r.h) ||
+      (r.locked !== undefined && typeof r.locked !== "boolean") ||
+      // 설정은 객체이거나 없음(null)이다.
+      (r.config != null && !isRecord(r.config))
+    ) {
+      return { ok: false, error: `${n + 1}번째 위젯의 모양이 틀립니다.` };
+    }
+    if (r.config != null && JSON.stringify(r.config).length > IMPORT_CONFIG_JSON_MAX) {
+      return { ok: false, error: `${n + 1}번째 위젯의 설정이 너무 깁니다(${IMPORT_CONFIG_JSON_MAX}자 이하).` };
+    }
+    const meta = ownEntry(ctx.registry, r.widgetId)?.meta;
+    if (!meta) dropped.push({ widgetId: r.widgetId, reason: "missing" });
+    else if (meta.disabled) dropped.push({ widgetId: r.widgetId, reason: "disabled" });
+    else if (meta.multiple === false && kept.some((k) => k.widgetId === r.widgetId)) dropped.push({ widgetId: r.widgetId, reason: "duplicate" });
+    else kept.push({ instId: newId(), widgetId: r.widgetId, x: r.x, y: r.y, w: r.w, h: r.h, locked: r.locked === true, config: r.config ?? null });
+  }
+  const tab: WidgetTab = {
+    tabId: nextTabId(ctx.tabs),
+    name: uniqueTabName(data.name, ctx.tabs),
+    seq: ctx.tabs.length,
+    locked: false,
+    items: sanitizeLayout(kept, ctx.registry),
+  };
+  return { ok: true, tab, dropped };
+}
+
+/** 가져오기 알림 — 뺀 위젯이 있으면 사유별로 덧붙인다. */
+export function tabImportMessage(tabName: string, dropped: readonly TabImportDrop[]): string {
+  const head = `「${tabName}」 탭을 가져왔습니다.`;
+  if (dropped.length === 0) return head;
+  // 파일에 적힌 ID 는 길 수 있다 — 알림에는 40자까지만 보인다.
+  const shortId = (id: string) => (id.length > 40 ? `${id.slice(0, 40)}…` : id);
+  const ids = (reason: TabImportDrop["reason"]) => [...new Set(dropped.filter((d) => d.reason === reason).map((d) => shortId(d.widgetId)))];
+  const groups: [string, string[]][] = [
+    ["없는 위젯", ids("missing")],
+    ["사용 중지 위젯", ids("disabled")],
+    ["한 번만 놓는 위젯의 중복", ids("duplicate")],
+  ];
+  const parts = groups.filter(([, list]) => list.length > 0).map(([label, list]) => `${label}(${list.join(", ")})`);
+  return `${head} ${parts.join(", ")}은(는) 빼고 가져왔습니다.`;
+}
+
+/**
+ * 공유 결과 알림 — 모두 성공이면 success, 하나라도 실패면 error 와 실패 사유. names 는 userId → 표시 이름.
+ * 받는 사람마다 탭 이름 꼬리(「(공유) 이름 2」)가 다를 수 있어 성공 문구에는 탭 이름 대신 사람 수만 적는다.
+ */
+export function shareResultMessage(
+  results: readonly WidgetShareResult[],
+  names: Readonly<Record<string, string>> = {}
+): { kind: "success" | "error"; text: string } {
+  const who = (id: string) => names[id] || id;
+  const ok = results.filter((r) => r.ok);
+  const failed = results.filter((r) => !r.ok);
+  if (results.length === 0) return { kind: "error", text: "공유한 사람이 없습니다." };
+  if (failed.length === 0) return { kind: "success", text: `${ok.length}명에게 공유했습니다.` };
+  const reasons = failed.map((f) => `${who(f.userId)}: ${f.message || "보내지 못했습니다"}`).join(" / ");
+  return {
+    kind: "error",
+    text: ok.length > 0 ? `${ok.length}명에게 공유했고 ${failed.length}명은 보내지 못했습니다. ${reasons}` : `공유하지 못했습니다. ${reasons}`,
+  };
 }

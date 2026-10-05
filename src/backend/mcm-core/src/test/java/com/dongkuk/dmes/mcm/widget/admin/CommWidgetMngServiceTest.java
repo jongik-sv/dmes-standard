@@ -17,6 +17,7 @@ import com.dongkuk.dmes.mcm.widget.admin.dto.CommWidgetMngRequest;
 import com.dongkuk.dmes.mcm.widget.admin.dto.WidgetDefSaveRequest;
 import com.dongkuk.dmes.mcm.widget.admin.repository.WidgetUsageRepository;
 import com.dongkuk.dmes.mcm.widget.admin.service.CommWidgetMngService;
+import com.dongkuk.dmes.mcm.widget.collect.WidgetCollectProperties;
 import com.dongkuk.dmes.mcm.widget.def.WidgetDefSavedEvent;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
@@ -26,12 +27,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -43,6 +46,7 @@ class CommWidgetMngServiceTest {
     @Mock WidgetUsageRepository usageRepository;
     @Mock WidgetQueryRunner queryRunner;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Spy WidgetCollectProperties collectProperties = new WidgetCollectProperties();
 
     @InjectMocks CommWidgetMngService service;
 
@@ -349,6 +353,99 @@ class CommWidgetMngServiceTest {
     }
 
     @Test
+    @DisplayName("입력 조건이 있으면 선언 이름을 넘겨 검사하고, 선언한 조건이 SQL 에 쓰이면 저장한다")
+    void querySaveWithParams() {
+        when(defRepository.existsById(anyString())).thenReturn(false);
+        String sql = "select a from t where plant = :plant and dt >= :from_dt";
+        when(queryRunner.validateSql(sql, Set.of("plant", "from_dt"))).thenReturn(List.of("plant", "from_dt"));
+        WidgetDefSaveRequest r = defReq("query-table", "{\"sql\":\"" + sql + "\",\"params\":["
+                + "{\"name\":\"plant\",\"type\":\"select\",\"options\":[{\"value\":\"P1\"}],\"default\":\"P1\"},"
+                + "{\"name\":\"from_dt\",\"type\":\"date\",\"label\":\"시작일\",\"required\":true,\"default\":\"2026-10-01\"}]}");
+        r.setDataSrc("mcm");
+
+        service.save(r);
+
+        verify(queryRunner).validateSql(sql, Set.of("plant", "from_dt"));
+        verify(queryRunner, never()).validateSql(anyString());
+    }
+
+    @Test
+    @DisplayName("선언했지만 SQL 에 없는 조건은 거절한다")
+    void queryUnusedParamRejected() {
+        String sql = "select a from t where plant = :plant";
+        when(queryRunner.validateSql(sql, Set.of("plant", "extra"))).thenReturn(List.of("plant"));
+        WidgetDefSaveRequest r = defReq("query-table", "{\"sql\":\"" + sql + "\",\"params\":["
+                + "{\"name\":\"plant\",\"type\":\"text\"},{\"name\":\"extra\",\"type\":\"text\"}]}");
+        r.setDataSrc("mcm");
+
+        assertRejected(r, "조건 :extra 는 SQL 에서 쓰이지 않습니다");
+    }
+
+    @Test
+    @DisplayName("params 모양 위반은 SQL 검사 전에 거절한다 — 이름 형식·시스템 이름·중복·형·개수·default·select options")
+    void queryParamShapeRejected() {
+        String head = "{\"sql\":\"select 1\",\"params\":";
+        assertRejected(queryReq(head + "{\"name\":\"a\"}}"), "배열");
+        assertRejected(queryReq(head + "[{\"name\":\"1bad\",\"type\":\"text\"}]}"), "이름은 영문자로 시작");
+        assertRejected(queryReq(head + "[{\"name\":\"a.b\",\"type\":\"text\"}]}"), "이름은 영문자로 시작");
+        assertRejected(queryReq(head + "[{\"name\":\"" + "a".repeat(31) + "\",\"type\":\"text\"}]}"), "30자 이하");
+        assertRejected(queryReq(head + "[{\"name\":\"userId\",\"type\":\"text\"}]}"), "시스템 변수 이름");
+        assertRejected(queryReq(head + "[{\"name\":\"now\",\"type\":\"text\"}]}"), "시스템 변수 이름");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"text\"},{\"name\":\"a\",\"type\":\"number\"}]}"), "겹칩니다");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"bool\"}]}"), "text·number·date·select");
+        assertRejected(queryReq(head + "[{\"name\":\"a\"}]}"), "text·number·date·select");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"text\",\"label\":\"" + "가".repeat(51) + "\"}]}"), "50자 이하");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"text\",\"default\":\"" + "x".repeat(201) + "\"}]}"), "200자 이하");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"text\",\"default\":5}]}"), "문자열");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"number\",\"default\":\"abc\"}]}"), "숫자");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"date\",\"default\":\"2026-02-30\"}]}"), "실제 날짜");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"text\",\"required\":\"yes\"}]}"), "true 또는 false");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"select\"}]}"), "선택지");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"select\",\"options\":[]}]}"), "선택지");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"select\",\"options\":[{\"value\":\"x\"},{\"value\":\"x\"}]}]}"), "겹칩니다");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"select\",\"options\":[{\"value\":\"x\"}],\"default\":\"y\"}]}"), "선택지 중 하나");
+        assertRejected(queryReq(head + "[{\"name\":\"a\",\"type\":\"select\",\"options\":[{\"value\":\" x\"}]}]}"), "앞뒤에 공백");
+        StringBuilder eleven = new StringBuilder(head).append('[');
+        for (int i = 0; i < 11; i++) eleven.append(i == 0 ? "" : ",").append("{\"name\":\"p").append(i).append("\",\"type\":\"text\"}");
+        assertRejected(queryReq(eleven.append("]}").toString()), "최대 10개");
+        verifyNoInteractions(queryRunner);
+    }
+
+    private static WidgetDefSaveRequest queryReq(String configJson) {
+        WidgetDefSaveRequest r = defReq("query-table", configJson);
+        r.setDataSrc("mcm");
+        return r;
+    }
+
+    private static final String COLLECT_HTTP = "{\"schedule\":{\"mode\":\"interval\",\"everyMin\":10},\"source\":{\"kind\":\"http\","
+            + "\"url\":\"https://Api.Example.com:8443/q\",\"items\":[{\"key\":\"a\",\"path\":\"x\"}]}}";
+
+    @Test
+    @DisplayName("정시 수집 http 원천은 허용 호스트(대소문자 무시·포트 허용)만 저장한다 — 목록에 없거나 목록이 비면 한국어 한 문장으로 거절")
+    void collectHttpHostMustBeAllowedAtSave() {
+        assertRejected(defReq("collect", COLLECT_HTTP), "허용 목록(dmes.widget.collect.allowed-hosts)에 없습니다: Api.Example.com");
+        collectProperties.setAllowedHosts(List.of("other.example.com"));
+        assertRejected(defReq("collect", COLLECT_HTTP), "허용 목록");
+
+        when(defRepository.existsById(anyString())).thenReturn(false);
+        collectProperties.setAllowedHosts(List.of("api.example.com"));
+        service.save(defReq("collect", COLLECT_HTTP));
+        assertThat(savedRow().getTypeId()).isEqualTo("collect");
+        assertThat(savedRow().getDataSrc()).isNull();
+        verifyNoInteractions(queryRunner);
+    }
+
+    @Test
+    @DisplayName("정시 수집 sql 원천은 수집 SQL 검사(validateCollectSql)를 거치고, 호스트 목록과 무관하게 저장한다")
+    void collectSqlSourceValidated() {
+        when(defRepository.existsById(anyString())).thenReturn(false);
+        String config = "{\"schedule\":{\"mode\":\"daily\",\"at\":[\"09:00\"]},\"source\":{\"kind\":\"sql\","
+                + "\"sql\":\"select 1 v from t\",\"valueField\":\"V\"}}";
+        service.save(defReq("collect", config));
+        verify(queryRunner).validateCollectSql("select 1 v from t");
+    }
+
+    @Test
     @DisplayName("SQL 검사가 던지면 저장하지 않고 이벤트도 내지 않는다")
     void querySqlRejectedNotSaved() {
         doThrow(new BusinessException(ErrorCode.INVALID_VALUE, "쓸 수 없는 낱말이 있습니다: UPDATE"))
@@ -558,10 +655,10 @@ class CommWidgetMngServiceTest {
     }
 
     @Test
-    @DisplayName("previewQuery 는 queryRunner.preview(dataSrc, sql, 50) 결과를 columns·rows·truncated 로 돌려준다")
+    @DisplayName("previewQuery 는 queryRunner.preview(dataSrc, sql, 50, 조건 정의) 결과를 columns·rows·truncated 로 돌려준다")
     void previewDelegates() {
         WidgetQueryResult qr = new WidgetQueryResult(List.of("A"), List.of(Map.of("A", 1)), true);
-        when(queryRunner.preview("mcm", "select 1 a", 50)).thenReturn(qr);
+        when(queryRunner.preview("mcm", "select 1 a", 50, null)).thenReturn(qr);
         CommWidgetMngRequest r = new CommWidgetMngRequest();
         r.setDataSrc("mcm");
         r.setSql("select 1 a");
@@ -570,6 +667,27 @@ class CommWidgetMngServiceTest {
 
         assertThat(result).containsEntry("columns", List.of("A")).containsEntry("rows", List.of(Map.of("A", 1)))
                 .containsEntry("truncated", true);
+    }
+
+    @Test
+    @DisplayName("previewQuery 는 요청의 paramsJson(조건 정의)을 그대로 실행기에 전달한다 — 빈 글자는 없음으로")
+    void previewPassesParamDefs() {
+        String defs = "[{\"name\":\"plant\",\"type\":\"text\",\"default\":\"P1\"}]";
+        WidgetQueryResult qr = new WidgetQueryResult(List.of("A"), List.of(), false);
+        when(queryRunner.preview("mcm", "select 1 a where :plant = 'x'", 50, defs)).thenReturn(qr);
+        CommWidgetMngRequest r = new CommWidgetMngRequest();
+        r.setDataSrc("mcm");
+        r.setSql("select 1 a where :plant = 'x'");
+        r.setParamsJson(defs);
+
+        assertThat(service.previewQuery(r)).containsEntry("truncated", false);
+        verify(queryRunner).preview("mcm", "select 1 a where :plant = 'x'", 50, defs);
+
+        when(queryRunner.preview("mcm", "select 1 a", 50, null)).thenReturn(qr);
+        r.setSql("select 1 a");
+        r.setParamsJson("   ");
+        service.previewQuery(r);
+        verify(queryRunner).preview("mcm", "select 1 a", 50, null);
     }
 
     @Test

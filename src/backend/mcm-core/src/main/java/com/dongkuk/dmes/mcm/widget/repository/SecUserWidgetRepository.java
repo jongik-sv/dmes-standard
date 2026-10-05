@@ -11,6 +11,8 @@ public interface SecUserWidgetRepository extends JpaRepository<SecUserWidget, Se
 
     List<SecUserWidget> findByUserId(String userId);
 
+    List<SecUserWidget> findByUserIdAndTabId(String userId, String tabId);
+
     @Modifying
     @Transactional
     void deleteByUserIdAndTabId(String userId, String tabId);

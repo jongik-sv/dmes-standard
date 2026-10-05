@@ -7,7 +7,8 @@ import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oa
 import { MdmFieldLabel, MdmMetaProvider } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
-import { CHART_TYPE_OPTIONS, chartConfigOf, configText, PIE_UNIT_MAX, textCell, type ChartSeriesConfig } from "../_query/format";
+import { CHART_TYPE_OPTIONS, chartConfigOf, configText, paramsOf, PIE_UNIT_MAX, textCell, type ChartSeriesConfig } from "../_query/format";
+import { ParamsEditorRow } from "../_query/ParamsEditor";
 import { FIELD_INPUT_PLACEHOLDER, QueryStyle } from "../_query/parts";
 import { SqlEditor } from "../_query/SqlEditor";
 import { useConfigEditor } from "../_query/useConfigEditor";
@@ -48,12 +49,14 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
             <td style={DETAIL_VALUE_CELL}>
               <SqlEditor
                 sql={cfg.sql}
+                params={paramsOf(props.value)}
                 preview={preview}
                 onSqlChange={(sql) => patch({ sql })}
                 onPreview={(result) => patch({ __preview: result ?? undefined })}
               />
             </td>
           </tr>
+          <ParamsEditorRow value={props.value} patch={patch} />
           <tr>
             <th style={DETAIL_LABEL_CELL}>
               <MdmFieldLabel name="chartType" label="차트 종류" required />

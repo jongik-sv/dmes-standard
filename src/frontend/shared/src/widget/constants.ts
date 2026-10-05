@@ -13,3 +13,16 @@ export const MAX_TABS = 10;
 export const MAX_WIDGETS_PER_TAB = 30;
 export const TAB_NAME_MAX = 20;
 export const MIN_REFRESH_SEC = 30;
+/** 틀 제목 줄에서 바꾸는 위젯 이름의 최대 글자 수(코드 포인트 기준 — 개인 메모장 제목 한도와 같다). */
+export const WIDGET_TITLE_MAX = 40;
+
+/* 기본 탭·공유·내보내기(widget-tabs 2026-10-05, 설계 design-widget-tabs §3·§4). */
+/** 관리자 기본 탭 한도(배치 키당). 관리자 화면 탭 수는 홈 + 이 값. */
+export const MAX_DEFAULT_TABS = 5;
+/** 한 번에 공유할 수 있는 받는 사람 수. */
+export const MAX_SHARE_USERS = 10;
+/** 공유 받는 사람 검색어 최소 글자 수(서버 searchUsers 와 같다). */
+export const SHARE_KEYWORD_MIN = 2;
+/** 탭 내보내기 파일의 version·kind. 가져올 때 둘 다 같아야 한다. */
+export const TAB_EXPORT_VERSION = 1;
+export const TAB_EXPORT_KIND = "dmes-widget-tab";

@@ -3,6 +3,7 @@
  * MdmFieldLabel — th·라벨 자리에 넣는 인라인 라벨(spec 2026-10-03-mdm-screen-meta-validation §2 B1·B2·B3·B6·B8, §4).
  *  - 공급자 밖이거나 메타가 없으면 `label ?? name` 글자 그대로(DOM 이 단순 텍스트와 같다), 툴팁·요청 없음.
  *  - 캡션 우선순위: 적은 label 이 이긴다(explicit), captionPriority="mdm" 이면 MDM 이 이긴다. kind 로 그리드·폼 캡션 칸을 고른다.
+ *  - 공급자 안에서 사전에 없거나(meta=false 포함) 오류면 라벨 글자 + 흐린 글자 name 툴팁을 띄운다(받는 중에는 단순 텍스트).
  *  - 메타가 있으면 hover·focus 때 FormGroup 과 같은 포털 툴팁(.form-tip-text--portal)에 MdmMetaCard 를 띄우고, 스크린리더 설명은 aria-describedby 로 잇는다.
  */
 import { readFileSync } from "node:fs";
@@ -144,27 +145,70 @@ describe("공급자 안 — 캡션 우선순위(B1·B2)", () => {
   });
 });
 
-describe("공급자 안 — 메타가 없을 때", () => {
-  it("사전에 없으면(missing) label ?? name 이고 툴팁이 없다", async () => {
+describe("공급자 안 — 메타가 없을 때(글자 툴팁)", () => {
+  /** 트리거에 마우스를 올려 연 글자 툴팁 상자. */
+  function openTip() {
+    placeTrigger({ left: 100, top: 400, bottom: 420 });
+    hover(true);
+    return portal();
+  }
+
+  it("사전에 없으면(missing) 글자는 label 이고 둘째 줄에 흐린 글자 name 을 띄운다(스크린리더 사본은 없다)", async () => {
     vi.stubGlobal("fetch", fakeMetaFetch({ columns: {} }).fn);
-    await show(inProvider(inTh({ name: "TITLE", label: "제목", required: true }), "mdm"));
-    expect(th().innerHTML).toBe("제목 *");
-    expect(trigger()).toBeNull();
+    await show(inProvider(inTh({ name: "noticeTitle", label: "공지 제목", required: true }), "mdm"));
+    expect(th().textContent).toBe("공지 제목 *");
+    expect(trigger()).not.toBeNull();
+    expect(trigger()!.hasAttribute("aria-describedby")).toBe(false);
+    expect(document.querySelector(".form-sr-only")).toBeNull();
+    expect(portal()).toBeNull(); // 올리기 전에는 상자가 없다
+    const tip = openTip()!;
+    expect(tip.className).toBe("form-tip-text form-tip-text--portal");
+    expect(tip.firstChild?.textContent).toBe("공지 제목"); // 별표 없는 라벨 글자
+    expect(tip.querySelector("span")?.textContent).toBe("noticeTitle");
+    hover(false);
+    expect(portal()).toBeNull();
   });
 
-  it("MDM 이 오류(HTTP 500)여도 글자만 보이고 툴팁이 없다", async () => {
+  it("name 이 라벨 글자와 같으면 라벨만 띄운다", async () => {
+    vi.stubGlobal("fetch", fakeMetaFetch({ columns: {} }).fn);
+    await show(inProvider(inTh({ name: "TITLE" })));
+    const tip = openTip()!;
+    expect(tip.textContent).toBe("TITLE");
+    expect(tip.querySelector("span")).toBeNull();
+  });
+
+  it("MDM 이 오류(HTTP 500)여도 글자 툴팁은 뜬다", async () => {
     vi.stubGlobal("fetch", fakeMetaFetch({ status: 500 }).fn);
     await show(inProvider(inTh({ name: "TITLE" })));
-    expect(th().innerHTML).toBe("TITLE");
-    expect(trigger()).toBeNull();
+    expect(th().textContent).toBe("TITLE");
+    expect(openTip()!.textContent).toBe("TITLE");
   });
 
-  it("meta={false} 면 부르지 않고 글자만 보인다", async () => {
+  it("meta={false} 면 부르지 않고 글자 툴팁만 뜬다", async () => {
     const f = fakeMetaFetch({ columns: { TITLE } });
     vi.stubGlobal("fetch", f.fn);
-    await show(inProvider(inTh({ name: "TITLE", label: "제목", meta: false }), "mdm"));
-    expect(th().innerHTML).toBe("제목");
+    await show(inProvider(inTh({ name: "noticeTitle", label: "제목", meta: false }), "mdm"));
+    expect(th().textContent).toBe("제목");
     expect(f.calls).toHaveLength(0);
+    const tip = openTip()!;
+    expect(tip.firstChild?.textContent).toBe("제목");
+    expect(tip.querySelector("span")?.textContent).toBe("noticeTitle");
+  });
+
+  it("공급자가 꺼져 있으면(disabled — 위젯 편집기 등) 공급자 밖과 같다: 요청·툴팁 없이 단순 텍스트", async () => {
+    const f = fakeMetaFetch({ columns: { TITLE } });
+    vi.stubGlobal("fetch", f.fn);
+    await show(createElement(MdmMetaProvider, { module: "mls", disabled: true }, inTh({ name: "noticeTitle", label: "공지 제목" })));
+    expect(th().innerHTML).toBe("공지 제목");
+    expect(trigger()).toBeNull();
+    expect(f.calls).toHaveLength(0);
+  });
+
+  it("받는 중(loading)에는 단순 텍스트로 두어 카드로 바뀔 때 깜박이지 않는다", async () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {})); // 끝나지 않는 요청
+    await act(async () => root!.render(inProvider(inTh({ name: "TITLE", label: "제목" }))));
+    expect(th().innerHTML).toBe("제목");
+    expect(trigger()).toBeNull();
   });
 });
 
