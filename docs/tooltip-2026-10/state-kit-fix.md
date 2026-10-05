@@ -12,7 +12,7 @@
 | E2 term-send-safe.sh | 구현·고정 화면 시험 8건 통과·리뷰 반영 | d4573552, a88a5561 | 시험 tests/term-send-safe-input-state.sh |
 | E3 deps.sh | 구현·픽스처 시험 32건 통과·3차 리뷰 반영 | e5cba4f8, f09be591, e6359e39, 3차 반영 커밋 | 구조 기록 S2, 시험 tests/deps-sh-no-main-write.sh |
 | E4 apply_mdm_self.py | 경고만 | 4c2b911b, a88a5561 | META_REV 직접 삽입은 하지 않음 |
-| E5 마감 | 재리뷰 중 | c5d5487e(구조 기록) | 1차 리뷰: deps.sh 높음 1·중간 2·낮음 1, 나머지 중간 1·낮음 다수 → 반영. 재리뷰(opus/sonnet) → 머지 요청 |
+| E5 마감 | 완료 | c5d5487e(구조 기록), 머지 5f703b45 | 리뷰: deps.sh opus 3회, 나머지 sonnet 2회 → 모두 반영 |
 
 ## E2 원인 (실제 화면으로 확인)
 `claude -n <이름>` 으로 띄우면 입력창 위 가로줄에 세션 이름이 붙는다(`─────── kitfix-probe ─`). `input_state` 의 `is_rule` 은 「─ 만 남는 줄」 만 가로줄로 봐서 입력창을 못 찾았다(`unknown` → 「판정이 애매하다」). 안내 문구 `Try "…"` 처리는 이미 있었다. 줄 맨 앞이 ─ 이고 ─ 가 10개 이상이면 가로줄로 보도록 고쳤다. 한계: 사용자가 `Try "…"` 모양으로 시작하는 글을 쳐 두면 안내 문구와 구별하지 못해 빈 입력창으로 본다.
@@ -34,7 +34,7 @@
 - term-send-safe: `Try "x" 로 다시 해 줘` 같은 글 오판 → 안내문 전체 모양(`Try "…"` 로 끝남)일 때만 빈 입력창.
 - 바꾸지 않은 것(낮음): `worktree list` 한도 확인, opencode 의 cd 실패 감지, `search.sh` 의 `--worktree active`·spawn.md 의 `worker-start --worktree current` 안내(조정자 폴더가 Orca 에 등록돼 있으면 문제 없음).
 
-## 남은 일
-1. 리뷰 결과 반영
-2. 머지 요청 → 허가 → dev 머지 → 정리
-3. 시험 탭 2개(kitfix-probe·kitfix-spawn-test)는 이미 닫았다
+## 상태: 완료 (2026-10-05)
+- dev 머지 5f703b45(트리 2cde57ab, 지시 kit-fix-2). 워크트리 `kit-fix`·브랜치 `fix/coord-kit-followup` 정리(force 없이).
+- 남은 일 없음. 알려진 한계: 워크트리에 문제의 `node_modules` 심링크를 처음 만든 주체를 못 찾았다(재발하면 `DEPS_UNLINKED` 줄이 단서). `search.sh` 의 `--worktree active`·spawn.md 의 `worker-start --worktree current` 안내는 조정자 폴더를 Orca 가 모르면 실패한다(손대지 않음). 3차 리뷰 반영분은 4차 리뷰 없이 시험 32건으로 확인했다.
+- 시험 탭 2개(kitfix-probe·kitfix-spawn-test)는 닫았다.
