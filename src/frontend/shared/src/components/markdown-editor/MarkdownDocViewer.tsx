@@ -3,7 +3,7 @@
 /**
  * 목차가 있는 마크다운 문서 보기 — 왼쪽 목차(##·###)와 오른쪽 본문. 목차를 누르면 그 절로 이동하고, 본문을 내리면 목차의 현재 절이 따라 바뀐다.
  * 본문은 MarkdownView(읽기 전용)로 절마다 그린다. 모달·서랍 안에 넣어 쓰도록 높이를 부모에서 받는다(height:100%).
- * 마크다운 표는 MarkdownView 가 그리지 않으므로 문서에 쓰지 않는다. ```mermaid 코드 블록은 MarkdownView 가 도식으로 그린다.
+ * 마크다운 표(GFM)는 MarkdownView 가 `<table>` 로 그리므로 문서에 쓸 수 있다. ```mermaid 코드 블록은 MarkdownView 가 도식으로 그린다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -41,6 +41,7 @@ const DOC_STYLE = `
 .cm-doc-body .cm-md-view ul, .cm-doc-body .cm-md-view ol { margin: 10px 0; }
 .cm-doc-body .cm-md-view li + li { margin-top: 5px; }
 .cm-doc-body .cm-md-view pre { margin: 12px 0; }
+.cm-doc-body .cm-md-view .cm-md-table { margin: 12px 0; }
 `;
 
 /** 목차를 눌러 부드럽게 이동하는 동안 스크롤 이벤트가 현재 절을 되돌리지 않게 막는 시간(ms). */

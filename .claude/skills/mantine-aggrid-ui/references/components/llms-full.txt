@@ -4821,7 +4821,7 @@ export function SendButton({ selfUserId }: { selfUserId: string }) {
 
 - 쓴다: 서식이 필요한 메모·설명·안내 글. 폼·패널 칸은 `MarkdownField`(고칠 수 있으면 처음부터 도구 막대 + 편집 칸), 여닫기를 화면이 정하는 편집기(캔버스 노드 등)는 `MarkdownEditor`, 읽기만 하면 `MarkdownView`.
 - 쓰지 않는다: 서식 없는 여러 줄 입력(비고·사유·검증식) → [Textarea](textarea.md). 한 줄 입력 → [Input](input.md). 저장 형식이 HTML 인 글 → [HtmlEditor](html-editor.md).
-- 저장 형식: **마크다운 문자열**이다. HTML 은 받지 않는다(`<b>` 같은 태그는 글자 그대로 보인다). 표·그림·HTML 문법은 글자로 남는다. 링크는 `http://`·`https://` 만 링크가 된다(`javascript:` 등은 글자). 열기만 해서는 `onChange` 가 불리지 않는다.
+- 저장 형식: **마크다운 문자열**이다. HTML 은 받지 않는다(`<b>` 같은 태그는 글자 그대로 보인다). 그림·HTML 문법은 글자로 남는다. **표(GFM)** 는 읽기 전용 `MarkdownView`·`MarkdownDocViewer` 만 `<table>` 로 그린다(머리글 thead·본문 tbody, `:---:` 정렬, 칸 안 굵게·기울임·코드·링크·취소선, `\|`, 가로로 넘치면 표 틀 안 스크롤). 편집기(`MarkdownEditor`)·`MarkdownField` 의 편집 칸에는 표 노드가 없어 표가 글자로 남고 저장 때 그대로 돌아간다. 링크는 `http://`·`https://` 만 링크가 된다(`javascript:` 등은 글자). 열기만 해서는 `onChange` 가 불리지 않는다.
 - 번들 크기: Tiptap·ProseMirror·marked 가 약 1MB 다. 이 서브패스를 import 한 화면 모듈만 그 크기를 진다(다른 shared 서브패스와 섞지 않는다). 글자 몇 줄이면 Textarea 로 충분하다.
 
 ## 표준 사용
@@ -4910,7 +4910,7 @@ import { MarkdownDocViewer } from "@dk-oasis/shared/markdown-editor";
 
 - Props: `markdown`(원문, 필수), `testId`(기본 `md-doc-viewer`), `tocWidth`(목차 폭 px, 기본 220), `skipTitle`(문서 제목 `#` 절을 그리지 않음, 모달 제목에 이미 보일 때), `ariaLabel`(본문·목차 영역 접근 이름, 기본 `문서`).
 - 접근성: 본문은 `role=region`·`tabIndex=0` 이고 목차를 누르면 그 절로 초점이 옮겨진다. `prefers-reduced-motion` 이면 부드러운 이동을 끈다. 색·글자 크기는 `--color-*`·`--font-size-*` 토큰만 쓴다.
-- 문서 규칙: 제목은 `#`(문서 제목) + `##`(장) + `###`(절)까지만 목차가 된다. 코드 블록 안의 `#` 줄은 제목이 아니다. 표·그림·HTML 은 `MarkdownView` 가 그리지 않으므로 목록으로 쓴다.
+- 문서 규칙: 제목은 `#`(문서 제목) + `##`(장) + `###`(절)까지만 목차가 된다. 코드 블록 안의 `#` 줄은 제목이 아니다. GFM 표는 `MarkdownView` 가 `<table>` 로 그리므로 써도 된다(문서 읽기 간격 안에서 위아래 여백 12px). 그림·HTML 은 그리지 않으므로 쓰지 않는다.
 - 도식: ` ```mermaid ` 코드 블록은 mermaid 도식(SVG)으로 그린다(공통 `MarkdownView` 가 그림 — `MermaidDiagram`, 도식이 있는 문서에서만 mermaid 를 동적으로 불러온다). 구문 오류면 원래 코드를 그대로 보인다. 기본(맞춤)은 자연 크기 100% 이고 본문 폭을 넘을 때만 폭에 맞춰 줄이며(작은 도식은 키우지 않고 높이로는 줄이지 않음), 글자는 모든 도식 14px 로 같다. 세로로 긴 도식은 틀(최대 높이 480px·60vh 중 작은 값) 안에서 세로 스크롤한다. 도식마다 [−] [배율] [+] [맞춤] 도구 막대(aria-label 「도식 축소」·「도식 확대」·「도식 크기 맞춤」, 25·50·75·100·125·150·200%, 배율 표시는 실제 적용 배율)로 조절하고 틀보다 커지면 가로·세로 스크롤한다. 어두운 모드면 테마를 맞춰 다시 그리고 인쇄 때는 도구 막대를 숨기고 폭에 맞춘다.
 - 도식 크게 보기: 도구 막대 [크게 보기](aria-label·title 「도식 크게 보기」)나 도식 더블클릭으로 화면 거의 전체(96vw × 92dvh) 오버레이 창(`MermaidViewer`, `document.body` 포털·z-index 9000 이라 Mantine 모달·팝오버 위, 위젯 도움말 같은 모달 안 도식에서도 위에 뜸)에 같은 도식을 연다. 기본은 가로·세로가 모두 창 안에 들어오는 맞춤(작은 도식은 100% 를 넘겨 키우지 않음)이고 창 안에도 [−] [배율] [+] [맞춤]·닫기(10~400%)가 있다. 넘치면 창 안에서 스크롤하고, 끌어서 이동(pan)·Ctrl/⌘+휠 확대 축소를 지원한다. Esc·닫기·어두운 배경 누름으로 닫히고 Tab 초점은 창 안에서만 돌며 닫으면 [크게 보기] 단추로 초점이 돌아온다. Esc·클릭·휠 이벤트는 바깥 모달로 새지 않는다. 창 쪽 svg 의 id·marker 이름은 `-zoom` 을 붙여 본문과 겹치지 않게 하고(`retargetSvgIds`), 인쇄 때는 창을 숨긴다. 크기 계산 순수 함수는 `mermaid-zoom.ts`(`naturalSizeOf`·`fitScaleOf`·`fitBoxScaleOf`·`nextZoom`·`retargetSvgIds`).
 - 절을 직접 나눠야 하면 `splitMarkdownSections(markdown)`(순수 함수, `DocSection[]`)과 `tocOf(sections)` 를 쓴다.
@@ -4965,13 +4965,13 @@ import { MarkdownDocViewer } from "@dk-oasis/shared/markdown-editor";
 | 화면 CSS 로 `ul { list-style: none }` 을 되돌리거나 목록 기호를 다시 그린다 | 컴포넌트가 이미 명시한다. 화면에서 덮지 않는다 |
 | `onChange` 가 열기만 해도 불릴 거라 보고 저장 안 됨 표시를 따로 끈다 | 열기·밖에서 바뀐 값 맞추기에는 `onChange` 가 불리지 않는다 |
 | `MarkdownDocViewer` 를 높이 없는 부모에 넣어 본문이 안 접히고 목차만 길어진다 | 부모에 높이(예: 모달 본문 `calc(100vh - …)`)를 준다. 뿌리가 `height:100%` 라 그 높이 안에서 목차·본문이 따로 스크롤된다 |
-| 긴 문서에 마크다운 표를 쓴다 | 표는 그려지지 않는다. 목록으로 바꾼다 |
+| 표가 들어간 마크다운을 `MarkdownEditor`·`MarkdownField` 편집 칸에서 고치면 표가 그려질 거라 본다 | 표는 읽기 전용(`MarkdownView`·`MarkdownDocViewer`)에서만 그려진다. 편집 칸에서는 표가 글자 그대로 보인다(저장 때도 그대로) |
 
 ## 실제 사용 예
 
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/canvas/nodes.tsx` `NoteNodeView`: 흐름도 메모 — `MarkdownEditor toolbar="floating"`, `editingClassName="nodrag nowheel nopan nokey"`, `linkClassName="nodrag nopan"`, `modeStorageKey="rsf:noteEditMode"`, 읽기 모습은 `MarkdownView`. 넘침 풀기·z-index 는 `styles/note-editor.ts`.
 - `src/frontend/m-mdm/pages/dme/ruleSetEdit/panels/PropertyPanel.tsx`: 오른쪽 패널 「메모」 칸 — `MarkdownField fill`(캔버스와 같은 키). 패널 쪽 세로 flex 사슬은 `styles/note-editor.ts` 의 `.rsf-panel-fill` 규칙.
-- `src/frontend/m-mls/pages/lsh/noticeMgmt/NoticeBodyEditor.tsx`: 공지 본문 형식이 마크다운일 때 `MarkdownField fill`(`modeStorageKey="mls:noticeBodyEditMode"`, 공지마다 `key`, 세로 flex 사슬은 `notice-styles.ts` 의 `.nm-editor*`). 미리보기는 [NoticeBodyView](notice-body-view.md). MD 는 표를 지원하지 않아 화면 안내 문구가 HTML 형식을 권한다.
+- `src/frontend/m-mls/pages/lsh/noticeMgmt/NoticeBodyEditor.tsx`: 공지 본문 형식이 마크다운일 때 `MarkdownField fill`(`modeStorageKey="mls:noticeBodyEditMode"`, 공지마다 `key`, 세로 flex 사슬은 `notice-styles.ts` 의 `.nm-editor*`). 미리보기는 [NoticeBodyView](notice-body-view.md). MD 편집 칸은 표를 글자로 두므로(미리보기는 표를 그린다) 화면 안내 문구가 표가 필요하면 HTML 형식을 권한다.
 
 
 <!-- ===== html-editor.md ===== -->
@@ -5124,7 +5124,7 @@ import { descriptionFormat } from "@/column-info"; // 화면(업무) 쪽 판별 
 
 - 쓴다: 포털 홈 공지 카드, 공지 관리 화면의 미리보기처럼 형식이 섞인 공지 본문을 읽기만 할 때.
 - 쓰지 않는다: 마크다운 한 형식만 보이거나 편집이 필요할 때 → [MarkdownEditor](markdown-editor.md)(`MarkdownView`·`MarkdownField`). HTML 편집 → [HtmlEditor](html-editor.md)(원문 모드 미리보기·읽기 모습이 이 컴포넌트다). 서식 없는 입력 → [Textarea](textarea.md).
-- MD 형식은 `MarkdownView` 의 문법 범위를 따른다: 제목·굵게·기울임·취소선·목록·**할 일 목록**·인용·코드·링크는 되고, **GFM 표는 지원하지 않아 글자로 남는다**. 표가 필요하면 HTML 형식을 쓴다.
+- MD 형식은 `MarkdownView` 의 문법 범위를 따른다: 제목·굵게·기울임·취소선·목록·**할 일 목록**·인용·코드·링크·**GFM 표**(`<table>`, 정렬·칸 안 인라인 서식 포함)는 되고, 그림·HTML 문법은 글자로 남는다.
 - HTML 소독 규칙: script·style·iframe·object·embed·form(입력 계열)·svg·math 태그, `on*` 속성, 인라인 `style` 속성, http/https 가 아닌 링크·이미지 주소(`a[href]`·`img[src]`, 상대 주소·`data:`·`javascript:` 포함)를 지운다. 링크는 `target="_blank" rel="noopener noreferrer"` 로 연다. 이미지 주소 규칙은 서버 소독(mls `NoticeHtmlSanitizer`, `img[src]` http·https 만)과 같아서 미리보기가 저장 결과와 같게 보인다. 붙여 넣은 `data:` 이미지는 미리보기에서도 빈 그림이 된다.
 - 표·긴 코드는 이 컴포넌트 안에서만 가로로 스크롤하고 부모 폭을 늘리지 않는다.
 
@@ -5155,7 +5155,7 @@ export function NoticeCardBody({ body, format }: { body: string; format: "TEXT" 
 | 실수 | 바로잡기 |
 |---|---|
 | 공지 HTML 을 `dangerouslySetInnerHTML` 로 직접 넣음 | 이 컴포넌트로 보인다(소독 포함) |
-| MD 본문에서 표가 안 보인다고 `marked` 를 직접 씀 | 표는 HTML 형식으로 저장한다. `MarkdownView` 는 표를 지원하지 않는다 |
+| MD 본문에서 표가 안 보인다고 `marked` 를 직접 씀 | `MarkdownView` 가 GFM 표를 그린다. 머리글 아래 구분 줄(`\|---\|---\|`)이 있는지 본다. 그림·HTML 이 필요하면 HTML 형식으로 저장한다 |
 | 부모 폭이 늘어남을 화면 CSS 로 덮음 | 이 컴포넌트가 표·코드를 안에서 스크롤한다. 부모에 `min-width: 0` 만 확인한다 |
 
 

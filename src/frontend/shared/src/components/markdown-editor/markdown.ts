@@ -8,6 +8,8 @@
  *   글자 그대로의 `&lt;` 는 `\&lt;` 로 써서 다시 읽어도 `&lt;` 다.
  *   마크다운 기호(`*`·`_`·`[` 등)는 Tiptap 그대로 `\` 를 붙여 글자로 남긴다.
  * - marked 는 이 편집기 전용 인스턴스를 쓴다(전역 `marked` 설정을 바꾸지 않는다).
+ * - GFM 표는 읽기 전용 경로(`parseMarkdownView`·`viewMarkdownManager`, MarkdownView 가 쓴다)만 table 노드로 읽는다. 편집기·MarkdownField 파서
+ *   (`parseMarkdown`·`createMarkdownManager()` 기본)는 표 토큰을 만들지 않아 표가 글자로 남고 저장 때 그대로 돌아간다.
  * - 빈 줄 수를 그대로 지킨다(예전 일반 글의 줄 간격). 맨 위 블록 사이 줄바꿈 k 개(k≥2)는 빈 문단 k-2 개, 글 끝 줄바꿈 k 개는 빈 문단 k 개,
  *   글 앞 줄바꿈 k 개는 빈 문단 k-1 개다(빈 줄만 있는 글은 k+1 개). 빈 문단은 <br> 하나라
  *   한 줄 높이의 빈 줄로 보이고, 문단 사이 간격은 읽기 모습·서식 편집 칸 모두 줄 간격 수준으로 좁다(styles.tsx PARAGRAPH_GAP). Tiptap 기본(빈 문단 = 줄바꿈 둘,
@@ -18,18 +20,23 @@ import { MarkdownManager } from "@tiptap/markdown";
 import StarterKit from "@tiptap/starter-kit";
 import HardBreak from "@tiptap/extension-hard-break";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
-import type { AnyExtension, JSONContent } from "@tiptap/react";
+import { Node as TiptapNode, type AnyExtension, type JSONContent } from "@tiptap/react";
 
 import { isSafeHref } from "./md-ops";
 
 /**
  * 이 편집기가 다루지 않는 문법은 토큰으로 만들지 않는다 — undefined 면 marked 가 다음 규칙(문단·글자)으로 넘어가 글자로 남는다.
- * HTML 블록·태그(받지 않음), 표(편집기에 표가 없어 통째로 사라진다), 맨 주소 자동 링크(저장할 때 `[주소](주소)` 로 바뀐다).
+ * HTML 블록·태그(받지 않음), 표(편집기에 표가 없어 통째로 사라진다 — 읽기 전용 경로만 `tables` 로 표 토큰을 만든다), 맨 주소 자동 링크(저장할 때 `[주소](주소)` 로 바뀐다).
  * 그림 `![글](주소)` 은 편집기에 그림이 없으므로 글자 그대로 둔다.
  * 링크 참조 정의(`[TODO]: 내일`)는 정의로 읽으면 줄이 통째로 사라진다 — 예전 일반 글에 흔한 모양이라 글자로 둔다.
  * 들여쓴 코드 블록(줄 앞 공백 4칸·탭)도 만들지 않는다 — 들여쓴 예전 글·서식 모드에서 공백으로 시작한 문단이 코드 모양으로 바뀌지 않게(``` 코드는 그대로).
  */
 class SafeTokenizer extends Tokenizer {
+  private readonly tables: boolean;
+  constructor(tables = false) {
+    super();
+    this.tables = tables;
+  }
   override def(): undefined {
     return undefined;
   }
@@ -42,8 +49,8 @@ class SafeTokenizer extends Tokenizer {
   override tag(): undefined {
     return undefined;
   }
-  override table(): undefined {
-    return undefined;
+  override table(src: string): ReturnType<Tokenizer["table"]> {
+    return this.tables ? super.table(src) : undefined;
   }
   override url(): undefined {
     return undefined;
@@ -60,11 +67,43 @@ class SafeTokenizer extends Tokenizer {
  * 편집기 전용 marked 인스턴스. MarkdownManager 는 `typeof marked`(전역 함수 모양)를 받지만 쓰는 것은 Lexer·defaults·setOptions·use 뿐이라
  * 인스턴스(`new Marked()`)도 그대로 돈다 — 타입만 맞춘다.
  */
-function createSafeMarked(): typeof marked {
+function createSafeMarked(tables = false): typeof marked {
   const m = new Marked();
-  m.setOptions({ gfm: true, breaks: true, tokenizer: new SafeTokenizer() });
+  m.setOptions({ gfm: true, breaks: true, tokenizer: new SafeTokenizer(tables) });
   return m as unknown as typeof marked;
 }
+
+/** marked 표 토큰(GFM) — 칸 수는 marked 가 머리글 칸 수에 맞춘다(모자라면 빈 칸, 넘치면 버림). `\|` 는 칸 안 글자 `|` 로 읽힌다. */
+type TableCellToken = { tokens?: unknown[]; align?: "left" | "center" | "right" | null };
+type TableToken = { header?: TableCellToken[]; rows?: TableCellToken[][]; align?: (string | null)[] };
+
+/**
+ * 읽기 전용 경로 전용 표 노드. 편집기에는 표 노드가 없으므로 편집기 확장(markdownExtensions)에는 넣지 않고,
+ * view 파서(viewMarkdownManager)에만 더한다. 칸 안은 문단 없이 인라인 노드(굵게·기울임·코드·링크·취소선)를 바로 담는다.
+ * 읽기만 하므로 렌더(renderMarkdown)는 두지 않는다 — 이 문서를 마크다운으로 되돌려 쓰지 않는다.
+ */
+const ViewTable = TiptapNode.create({
+  name: "table",
+  group: "block",
+  content: "tableRow+",
+  markdownTokenName: "table",
+  parseMarkdown: (token, helpers) => {
+    const t = token as unknown as TableToken;
+    const cell = (c: TableCellToken, type: "tableHeader" | "tableCell"): JSONContent => ({
+      type,
+      attrs: { align: c.align ?? null },
+      content: helpers.parseInline((c.tokens ?? []) as never),
+    });
+    const rows: JSONContent[] = [
+      { type: "tableRow", content: (t.header ?? []).map((c) => cell(c, "tableHeader")) },
+      ...(t.rows ?? []).map((r) => ({
+        type: "tableRow",
+        content: r.map((c) => cell(c, "tableCell")),
+      })),
+    ];
+    return { type: "table", content: rows };
+  },
+});
 
 /** 줄바꿈 하나를 `\n` 으로 쓴다(읽기가 `breaks` 라 같은 뜻). */
 const NewlineHardBreak = HardBreak.extend({
@@ -135,12 +174,16 @@ function atLineStart(node: JSONContent, parent?: JSONContent): boolean {
   return i === 0 || (i > 0 && siblings[i - 1]?.type === "hardBreak");
 }
 
-/** 편집기용 MarkdownManager. 편집기마다 새로 만든다(marked 인스턴스에 확장이 토크나이저를 더하므로 공유하지 않는다). */
+/**
+ * 편집기용 MarkdownManager. 편집기마다 새로 만든다(marked 인스턴스에 확장이 토크나이저를 더하므로 공유하지 않는다).
+ * `tables` 는 읽기 전용(view) 경로만 켠다 — 기본(편집기·MarkdownField)은 표를 토큰으로 만들지 않고 글자로 둔다.
+ */
 export function createMarkdownManager(
-  extensions: AnyExtension[] = markdownExtensions()
+  extensions: AnyExtension[] = markdownExtensions(),
+  options: { tables?: boolean } = {}
 ): MarkdownManager {
   const manager = new MarkdownManager({
-    marked: createSafeMarked(),
+    marked: createSafeMarked(options.tables === true),
     extensions,
   });
   // 글자 쓰기: Tiptap 은 HTML 실체(&lt;)로 바꾼 뒤 마크다운 기호를 이스케이프한다. 이 편집기는 HTML 을 읽지 않으므로 기호만 지키고,
@@ -276,6 +319,17 @@ export function parseMarkdown(
 ): JSONContent {
   const doc = manager.parse(md ?? "");
   return { type: "doc", content: doc.content ?? [] };
+}
+
+let sharedView: MarkdownManager | null = null;
+/** 읽기 전용(MarkdownView) 전용 변환기 — 편집기와 같되 GFM 표를 table 노드로 만든다. 읽기만 하므로 serializeMarkdown 에 넘기지 않는다. */
+export function viewMarkdownManager(): MarkdownManager {
+  return (sharedView ??= createMarkdownManager([...markdownExtensions(), ViewTable], { tables: true }));
+}
+
+/** 마크다운 → Tiptap JSON 문서(읽기 전용 경로: 표 포함). 편집기는 `parseMarkdown` 을 쓴다. */
+export function parseMarkdownView(md: string): JSONContent {
+  return parseMarkdown(md, viewMarkdownManager());
 }
 
 /** Tiptap JSON 문서 → 마크다운. 빈 문서는 "". */
