@@ -3,7 +3,7 @@
 // 기본은 dry-run(읽기 전용 조회만)이고, --apply 를 줄 때만 save 한다. 자세한 설명은 README.md.
 //
 // 사용: node scripts/mdm-meta/register-columns.mjs [--file F] [--base URL] [--client-key K] [--user ID]
-//                                                  [--role MDM_STD_ADMIN] [--only terms,columns,aliases] [--allow-no-domain] [--apply]
+//                                                  [--role MDM_STD_ADMIN] [--only terms,columns,aliases,descriptions] [--allow-no-domain] [--apply]
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +16,7 @@ const opt = {
   clientKey: process.env.BACKEND_CLIENT_KEY || "dmes-bff-local-client-key-2026",
   user: "",
   role: "MDM_STD_ADMIN",
-  only: new Set(["terms", "columns", "aliases"]),
+  only: new Set(["terms", "columns", "aliases", "descriptions"]),
   apply: false,
   allowNoDomain: false,
 };
@@ -38,12 +38,12 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === "-h" || a === "--help") usage();
   else usage(`알 수 없는 인자: ${a}`);
 }
-for (const s of opt.only) if (!["terms", "columns", "aliases"].includes(s)) usage(`--only 값이 올바르지 않습니다: ${s}`);
+for (const s of opt.only) if (!["terms", "columns", "aliases", "descriptions"].includes(s)) usage(`--only 값이 올바르지 않습니다: ${s}`);
 if (opt.apply && !opt.user) usage("--apply 에는 --user(기록에 남을 표준관리자 사번)가 필요합니다");
 
 function usage(err) {
   if (err) console.error(`오류: ${err}`);
-  console.error("사용: node scripts/mdm-meta/register-columns.mjs [--file F] [--base URL] [--client-key K] [--user ID] [--role R] [--only terms,columns,aliases] [--allow-no-domain] [--apply]");
+  console.error("사용: node scripts/mdm-meta/register-columns.mjs [--file F] [--base URL] [--client-key K] [--user ID] [--role R] [--only terms,columns,aliases,descriptions] [--allow-no-domain] [--apply]");
   process.exit(err ? 2 : 0);
 }
 
@@ -157,16 +157,49 @@ async function addAliases(kind, physName, wanted, columnName, viewed) {
   const conflicts = await aliasConflicts(missing, physName);
   if (conflicts.length) return report("FAIL", kind, physName, `별칭이 다른 컬럼에 있습니다: ${conflicts.join(", ")}`);
   if (!opt.apply) return report("PLAN", kind, physName, `별칭 추가 ${names}`);
+  await resaveColumn(v, [...have, ...missing]);
+  report("OK", kind, physName, `별칭 추가 ${names}`);
+}
+
+/** view 로 읽은 값을 그대로 다시 보내 저장한다 — {@code description} 만 바꿀 수 있고, 시스템 매핑은 넘긴 목록으로 차분 저장한다. */
+async function resaveColumn(v, systemRows, description) {
   const c = v.column;
-  const systems = [...have, ...missing].map((s) => compact({ systemCode: s.systemCode, physName: s.physName, transform: s.transform, note: s.note }));
+  const systems = systemRows.map((s) => compact({ systemCode: s.systemCode, physName: s.physName, transform: s.transform, note: s.note }));
   await oasis("columnMng", "save", {
     columnId: c.columnId, columnName: c.columnName, physName: c.physName,
     labelLong: c.labelLong, labelMid: c.labelMid, labelShort: c.labelShort,
-    description: c.description, domainId: c.domainId, required: c.required === true,
+    description: description ?? c.description, domainId: c.domainId, required: c.required === true,
     defaultValue: c.defaultValue, refKind: c.refKind, refTarget: c.refTarget, refCateId: c.refCateId,
     usageNote: c.usageNote,
   }, { systems: { rows: systems }, terms: { rows: v.terms.map((t) => ({ termId: t.termId })) } });
-  report("OK", kind, physName, `별칭 추가 ${names}`);
+}
+
+const clip = (t) => (t == null ? "(없음)" : t.length > 80 ? `${t.slice(0, 80)}…(${t.length}자)` : t);
+
+/**
+ * 기존 컬럼의 설명만 바꾼다 — 다른 필드·시스템 매핑·용어는 view 값 그대로 다시 보낸다.
+ * {@code columnName} 이 대상 컬럼의 논리명과 다르면 건드리지 않는다(같은 물리명의 다른 뜻 컬럼 보호).
+ */
+async function updateDescription(d) {
+  const v = await viewColumn(d.physName);
+  if (!v) return report("FAIL", "description", d.physName, "대상 표준 컬럼이 없습니다");
+  if (d.columnName && v.column.columnName !== d.columnName) {
+    return report("FAIL", "description", d.physName, `같은 물리명의 컬럼 논리명이 다릅니다: 기대 '${d.columnName}', 서버 '${v.column.columnName}'`);
+  }
+  if ((v.column.description ?? "") === d.description) return report("SKIP", "description", d.physName, "설명이 이미 같습니다");
+  if (!v.terms?.length || v.terms.some((t) => t.missing || t.termId == null)) {
+    return report("FAIL", "description", d.physName, "용어가 비거나 빠진 컬럼이라 다시 저장할 수 없습니다");
+  }
+  const allowed = await saveableSystems();
+  const have = v.systems ?? [];
+  const unsaveable = have.filter((h) => !allowed.has(h.systemCode));
+  if (unsaveable.length) {
+    return report("FAIL", "description", d.physName, `save 로 다시 보낼 수 없는 시스템 매핑이 있습니다(${unsaveable.map((h) => `${h.systemCode}:${h.physName}`).join(",")})`);
+  }
+  const change = `전: ${clip(v.column.description)} → 후: ${clip(d.description)}`;
+  if (!opt.apply) return report("PLAN", "description", d.physName, change);
+  await resaveColumn(v, have, d.description);
+  report("OK", "description", d.physName, change);
 }
 
 async function registerTerm(t) {
@@ -235,6 +268,7 @@ try {
   if (opt.only.has("terms")) await each("term", bundle.terms, registerTerm, (t) => `${t.termName}#${t.senseNo}`);
   if (opt.only.has("columns")) await each("column", bundle.columns, registerColumn, (c) => c.physName);
   if (opt.only.has("aliases")) await each("alias", bundle.aliases, (a) => addAliases("alias", a.physName, a.aliases, a.columnName), (a) => a.physName);
+  if (opt.only.has("descriptions")) await each("description", bundle.descriptions, updateDescription, (d) => d.physName);
 } catch (e) {
   if (!(e instanceof UnreachableError)) throw e;
   console.error("서버에 닿지 못해 멈춥니다 — 남은 항목은 돌리지 않았습니다");
