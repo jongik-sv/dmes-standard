@@ -1,8 +1,8 @@
 /** @vitest-environment happy-dom */
 /**
  * SearchField × MDM 컬럼 사전 라벨(2026-10-05 tooltip-shared A2).
- *  - `name` 을 주지 않으면 예전과 DOM·동작이 같다: 공급자 안이어도 요청이 없고, 라벨은 글자 그대로다(필터 키 edt_·cbo_ 로 이름을 추론하지 않는다).
- *  - `name` 을 주면 라벨을 MdmFieldLabel 로 그려 사전에 있을 때 MDM 카드 툴팁을 띄운다(name → 물리명, meta 문자열 우선, meta=false 끔).
+ *  - `name` 을 주지 않으면 요청이 없고(필터 키 edt_·cbo_ 로 이름을 추론하지 않는다) 공급자 밖 DOM 은 예전과 같다. 공급자 안에서는 라벨 글자 툴팁만 뜬다.
+ *  - `name` 을 주면 사전에 있을 때 MDM 카드 툴팁을, 없으면 라벨 + 흐린 글자 name 툴팁을 띄운다(name → 물리명, meta 문자열 우선, meta=false 는 사전만 끔).
  */
 import { act, createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -51,15 +51,28 @@ const plainFields = () => [
 ];
 
 describe("SearchField — name 없음(예전과 같다)", () => {
-  it("공급자 안이어도 요청이 없고 DOM 이 공급자 밖과 같다", async () => {
+  it("공급자 안이어도 요청이 없다(라벨은 글자 툴팁 트리거가 될 뿐 입력 DOM 은 공급자 밖과 같다)", async () => {
     const outside = bodyHtml(await show(plainFields()));
     rendered?.unmount();
     resetMdmMetaStore();
     const f = fakeMetaFetch({ columns: { TITLE } });
     vi.stubGlobal("fetch", f.fn);
     const inside = bodyHtml(await show(inProvider(plainFields())));
-    expect(inside).toBe(outside);
+    // 공급자 안은 라벨마다 툴팁 트리거 span 이 하나씩 더 있다 — 그것만 벗기면 같다.
+    expect(inside.replace(/<span class="form-tip-trigger">([^<]*)<\/span>/g, "$1")).toBe(outside);
     expect(f.calls).toHaveLength(0);
+  });
+
+  it("공급자 안에서 라벨에 마우스를 올리면 라벨 글자 툴팁만 뜬다(name 줄 없음)", async () => {
+    const host = await show(inProvider(field({ label: "제목", value: "" })));
+    const trigger = host.querySelector(".search-field__label .form-tip-trigger") as HTMLElement;
+    expect(trigger.textContent).toBe("제목");
+    act(() => {
+      trigger.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    });
+    const tip = document.querySelector(".form-tip-text--portal") as HTMLElement;
+    expect(tip.textContent).toBe("제목");
+    expect(tip.querySelector("span")).toBeNull();
   });
 
   it("라벨은 Text(.search-field__label) 안의 글자 하나다", async () => {
@@ -91,13 +104,19 @@ describe("SearchField — name·meta", () => {
     expect(host.querySelector(".search-field__label .form-tip-trigger")).not.toBeNull();
   });
 
-  it("meta=false 면 요청도 툴팁도 없다", async () => {
+  it("meta=false 면 요청이 없고 글자 툴팁만 뜬다(name 줄 포함)", async () => {
     const f = fakeMetaFetch({ columns: { TITLE } });
     vi.stubGlobal("fetch", f.fn);
     const host = await show(inProvider(field({ label: "제목", name: "title", meta: false, value: "" })));
     expect(f.calls).toHaveLength(0);
-    expect(host.querySelector(".form-tip-trigger")).toBeNull();
     expect(host.querySelector(".search-field__label")?.textContent).toBe("제목");
+    const trigger = host.querySelector(".search-field__label .form-tip-trigger") as HTMLElement;
+    act(() => {
+      trigger.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    });
+    const tip = document.querySelector(".form-tip-text--portal") as HTMLElement;
+    expect(tip.firstChild?.textContent).toBe("제목");
+    expect(tip.querySelector("span")?.textContent).toBe("title");
   });
 
   it("name 없이 meta 만 주면 연결하지 않는다(meta 는 name 이 있을 때만 쓴다)", async () => {
@@ -105,15 +124,23 @@ describe("SearchField — name·meta", () => {
     vi.stubGlobal("fetch", f.fn);
     const host = await show(inProvider(field({ label: "제목", meta: "TITLE", value: "" })));
     expect(f.calls).toHaveLength(0);
-    expect(host.querySelector(".form-tip-trigger")).toBeNull();
+    // 메타 카드는 없고 라벨 글자 트리거만 있다.
+    expect(host.querySelector(".form-tip-trigger")?.textContent).toBe("제목");
+    expect(host.querySelector(".form-sr-only")).toBeNull();
   });
 
-  it("사전에 없는 name 은 라벨 글자 그대로다", async () => {
+  it("사전에 없는 name 은 글자는 라벨 그대로이고 툴팁에 라벨 + 흐린 글자 name 이 뜬다", async () => {
     const f = fakeMetaFetch({ columns: {} });
     vi.stubGlobal("fetch", f.fn);
     const host = await show(inProvider(field({ label: "분류", name: "category", value: "" })));
-    expect(host.querySelector(".form-tip-trigger")).toBeNull();
     expect(host.querySelector(".search-field__label")?.textContent).toBe("분류");
+    const trigger = host.querySelector(".search-field__label .form-tip-trigger") as HTMLElement;
+    act(() => {
+      trigger.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    });
+    const tip = document.querySelector(".form-tip-text--portal") as HTMLElement;
+    expect(tip.firstChild?.textContent).toBe("분류");
+    expect(tip.querySelector("span")?.textContent).toBe("category");
   });
 
   it("radio name 은 name 이 아니라 label 그대로다", async () => {

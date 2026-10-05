@@ -84,6 +84,10 @@
   --ag-range-selection-border-color: var(--color-focus);
   --ag-checkbox-checked-background-color: var(--color-primary);
   --ag-invalid-color: var(--color-danger);
+  /* 툴팁(머리글·셀·MDM 검증 오류): 폼 라벨 툴팁(.form-tip-text)과 같은 어두운 바탕. 어두운 테마에서도 경계가 보이게 실제 테두리를 둔다. */
+  --ag-tooltip-background-color: var(--shell-header-bg);
+  --ag-tooltip-text-color: var(--shell-header-fg);
+  --ag-tooltip-border: 1px solid var(--color-border-strong);
   --cm-grid-row-selected-color: var(--color-selection);
   --cm-grid-row-selected-hover-color: var(--color-selection-hover);
   font-family: var(--font-family);
