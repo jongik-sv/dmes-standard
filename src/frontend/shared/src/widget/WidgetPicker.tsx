@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * [위젯 추가] 서랍 — 이름·설명 검색, 눌러서 맨 아래에 추가, 끌어서 원하는 자리에 놓기(스펙 §3.4).
+ * [위젯 추가] 서랍 — 이름·설명 검색, 눌러서 첫 빈 자리에 추가, 끌어서 원하는 자리에 놓기(스펙 §3.4).
  * 사용 중지 위젯은 보이지 않고, 정의 위젯(kind "def")은 제목 아래에 유형 이름을 작은 글씨로 보인다(스펙 widget-admin-generic §2).
  */
 import { useMemo, useState } from "react";
@@ -152,7 +152,7 @@ export function WidgetPicker({ registry, items, onAdd, typeTitles, categoryTitle
             ))
           : list.map(renderItem)}
       </div>
-      <div className="cm-widget-picker__foot">눌러서 맨 아래에 추가하거나, 끌어서 원하는 자리에 놓습니다.</div>
+      <div className="cm-widget-picker__foot">눌러서 첫 빈 자리에 추가하거나, 끌어서 원하는 자리에 놓습니다.</div>
     </aside>
   );
 }

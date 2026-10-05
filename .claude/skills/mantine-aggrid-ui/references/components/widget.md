@@ -129,6 +129,7 @@ function Home({ store, rawDefs, status, retry }: Props) {
 
 - [배치 편집]은 24칸(≥960px, 서랍 자리를 포함한 작업 공간 폭 기준)에서만 켜진다. 좁은 화면·잠긴 탭·불러오기 실패·정의 목록 불러오는 중(「위젯 목록을 불러오는 중입니다」)·정의 목록 실패(「위젯 정의를 불러오지 못했습니다」)면 비활성이고 안내 제목이 붙는다. 정의 목록이 불러오는 중·실패면 (+) 새 탭도 비활성이고 탭 메뉴(⋯)는 숨는다((+)도 편집 모드로 들어가는 길이라서다. 불러오기 실패 때와 같은 모양). 정의 목록 실패면 탭 줄 위에 띠와 [다시 시도](`onRetryRegistry` 가 있을 때)가 보이고, 편집 중에 정의 목록이 준비 상태가 아니게 되면 [완료]가 막힌다.
 - [완료]는 편집을 시작한 뒤 바뀐 탭만 `store.saveTab` 한다. 저장이 실패하면 편집 모드와 변경을 유지하고 알린다(탭 여러 개면 저장된 탭은 [취소]로 되돌리지 않고, 다시 [완료]하면 실패한 탭만 저장한다). 불러오기가 끝나지 않았거나 실패한 상태에서는 [완료]가 막힌다. [취소]는 바뀐 것이 있으면 확인 뒤 되돌린다. 편집 중 Escape 는 [취소]와 같다. 저장하는 동안에는 보드 편집·서랍·[취소]·Escape·(+) 새 탭·탭 메뉴(이름 바꾸기)가 멈춘다(입력 칸·메뉴·확인 창 안의 Escape 는 각자 처리한다). 서랍에서 눌러 추가한 위젯으로는 스크롤한다.
+- 미리 배치: 서랍 항목에 마우스를 올리면 보드의 첫 빈 자리(`firstFreeSpot` — y 0 부터 행 우선·x 0 부터, 잠긴 위젯도 점유, 꽉 차면 맨 아래 왼쪽)에 그 위젯의 제목·크기(w × h)·스켈레톤이 점선 자리 표시로 미리 보이고, 클릭해야 같은 자리에 실제로 놓인다. 마우스가 벗어나거나 끌기 시작·탭 전환·편집 종료·취소·서랍이 사라지면 미리 보기도 사라진다. 놓을 수 없는 위젯(이미 놓인 `multiple: false`·탭 한도)은 미리 보이지 않는다. 크기는 `placedSizeOf(meta)`(defaultSize 를 최소·최대·24칸으로 자른 값)다.
 - 보기 모드 탭 메뉴 작업(이름 바꾸기·잠금·왼쪽/오른쪽·지우기·홈 기본 배치로 되돌리기)은 바로 저장하며, 실패하면 화면을 원래대로 되돌린다.
 - (+) 새 탭은 편집 모드로 들어가고 [취소]하면 사라진다. 그래서 [배치 편집]처럼 저장 중·불러오기 실패·정의 목록 불러오는 중·실패면 막힌다.
 - [PDF](`pdfTarget` 을 줄 때)는 편집 중에 자리를 지킨 채 비활성이다. 인쇄 창에서 대상을 「PDF로 저장」으로 골라야 한 장으로 나온다(프린터는 A4 로 자른다). 보드는 한 장에 다 나오지만 그리드·메모처럼 위젯 안쪽에 스크롤이 있는 부분은 지금 보이는 만큼만 찍힌다. 외부 웹 주소 위젯은 그 사이트의 인쇄 스타일을 따른다.
@@ -151,17 +152,18 @@ WidgetWorkspaceProps
 | registryStatus | `"ready" \| "loading" \| "error"` | `"ready"` | 정의 위젯 목록(`widgetDef/list`) 상태. loading·error 면 [배치 편집]·(+) 새 탭만 막고(⋯ 탭 메뉴는 보기 모드에서 그대로), error 면 탭 줄(또는 단일 탭 제목) 위에 「위젯 정의를 불러오지 못했습니다」 띠 |
 | onRetryRegistry | `() => void` | - | 띠의 [다시 시도](`data-action="retry-registry"`). 없으면 버튼을 그리지 않는다 |
 | typeTitles | `Readonly<Record<string, string>>` | - | 유형 ID → 이름. 서랍이 정의 위젯 제목 아래에 유형 이름을 보인다(서랍 검색도 유형 이름으로 찾는다) |
+| categoryTitles | `Readonly<Record<string, string>>` | - | 위젯 분류 코드 → 이름. 서랍이 분류별로 묶이고 분류 칩 필터가 생긴다(순서가 묶음 순서, 분류 없는 위젯은 「기타」). 없으면 분류 없이 보인다 |
 | singleTab | `{ title: string }` | - | 탭 줄을 숨기고 「홈」 하나만 다룬다(관리자 기본 배치 편집). 인라인 객체로 넘겨도 다시 불러오지 않는다 |
 | pdfTarget | `RefObject<HTMLElement \| null>` | - | 주면 도구 줄의 [배치 편집] 앞에 [PDF] 단추(`data-action="print-pdf"`)를 그린다. 누르면 대상 요소(ref 가 비면 작업 공간)를 [printElementAsPage](print-element-as-page.md) 로 한 장짜리 페이지로 인쇄하고, 기본 파일 이름은 「{지금 탭 이름}_{yyyyMMdd}」(못 쓰는 글자는 `_`, 80글자까지, 끝 공백·마침표 제거)다. 편집 중에는 비활성(title 「편집 중에는 사용할 수 없습니다」)이고 잠긴 탭·불러오기 실패·좁은 화면에서는 켜져 있다. 인쇄 창을 열지 못하면(`print()` 예외) 「인쇄 창을 열지 못했습니다.」 알림을 보인다. 없으면 단추가 없다 |
 | mode | `"user" \| "admin"` | `"user"` | `"admin"` 이면 잠그기·홈 되돌리기·공유·내보내기·가져오기를 숨기고 탭 한도를 홈 + 5 로 둔다([기본 탭·공유](#기본-탭공유내보내기가져오기2026-10-05)) |
 
-WidgetBoardProps: `items`·`registry`·`editing`·`tabLocked`(필수), `onChange(items)`(필수), `onWideChange?(wide)`(안정된 함수를 넘긴다 — effect 의존성에 들어간다), `cols?: 24 | 12 | 1`(칸 수를 바깥에서 정함, 없으면 보드 자기 폭으로 판정), `width?`(고정 폭), `testId?`.
+WidgetBoardProps: `items`·`registry`·`editing`·`tabLocked`(필수), `onChange(items)`(필수), `onWideChange?(wide)`(안정된 함수를 넘긴다 — effect 의존성에 들어간다), `cols?: 24 | 12 | 1`(칸 수를 바깥에서 정함, 없으면 보드 자기 폭으로 판정), `width?`(고정 폭), `testId?`, `preview?: { meta, x, y, w, h } | null`(놓일 자리를 미리 보이는 static 스켈레톤 항목 `__preview__`. 편집할 수 있을 때만 그리고 `onChange` 배치에는 섞이지 않는다).
 
 WidgetFrameProps: `item`·`entry`(`undefined` 면 「없는 위젯」 칸, `entry.meta.disabled` 면 사용 중지 칸)·`editing`·`onToggleLock`·`onRemove`(필수), `sizeLabel?`·`onKeyMove?`. 제목 줄(제목·부제·새로 고침·화면 열기·잠금·빼기), 로딩 틀, 오류 경계를 그린다. 관리 화면 미리보기처럼 보드 밖에서 단독으로 그려도 된다.
 
 WidgetTabsProps: `tabs`·`activeTabId`·`editing`·`renamingTabId`·`onSelect`·`onAdd`·`onRenameStart`·`onRenameCommit`(오류 문구를 돌려주면 입력 칸 유지)·`onRenameCancel`·`onToggleLock`·`onMove`·`onDelete`·`onResetHome`, 선택 `menuDisabled`(⋯ 메뉴와 (+) 모두 막음)·`addDisabled`(⋯ 는 두고 (+) 만 막음)·`addTitle`((+) 의 title, 막은 이유를 알릴 때)·`trailing`, 그리고 2026-10-05 추가 `mode`(`"admin"` 이면 잠그기·홈 되돌리기 숨김)·`maxTabs`(기본 10)·`onResetTab`·`onShare`·`onExport`·`onImport(file)`·`importDisabled`·`importTitle` — 핸들러가 없으면 그 항목·단추를 그리지 않는다.
 
-WidgetPickerProps: `registry`·`items`·`onAdd(widgetId)`, 선택 `typeTitles`(유형 ID → 이름, 정의 위젯 제목 아래 작은 글씨). [위젯 추가] 서랍 — 검색·눌러 추가·격자로 끌어 놓기. 사용 중지 위젯은 보이지 않고, 이미 놓인 위젯(`multiple: false`)과 탭 한도(30개)는 막는다.
+WidgetPickerProps: `registry`·`items`·`onAdd(widgetId)`, 선택 `typeTitles`(유형 ID → 이름, 정의 위젯 제목 아래 작은 글씨)·`categoryTitles`(분류 코드 → 이름, 분류별 묶음·칩 필터)·`onPreview(meta | null)`(항목에 마우스 진입/이탈). [위젯 추가] 서랍 — 검색·눌러 추가·격자로 끌어 놓기. 사용 중지 위젯은 보이지 않고, 이미 놓인 위젯(`multiple: false`)과 탭 한도(30개)는 막는다.
 
 WidgetMeta: `id`(`"{모듈}.{이름}"` 또는 `def.{key}`, 저장 키)·`title`·`defaultSize`(필수), `subtitle`·`description`·`minSize`(기본 `{ w: 4, h: 6 }`)·`maxSize`·`refreshSec`(30 미만이면 30)·`linkPageId`·`multiple`(기본 true)·`bodyPadding`(기본 true)·`disabled`(관리자 사용 중지)·`kind`(`"code"` | `"def"`, 없으면 code)·`typeId`(정의 위젯의 유형 ID).
 

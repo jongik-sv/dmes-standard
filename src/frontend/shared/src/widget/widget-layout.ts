@@ -141,6 +141,33 @@ export function canAddWidget(items: readonly WidgetItem[], meta: WidgetMeta): bo
   return true;
 }
 
+/** 새로 놓을 때의 크기 — meta.defaultSize 를 최소·최대와 격자 폭(24칸)으로 자른 값. addItem 이 놓는 크기와 같다. */
+export function placedSizeOf(meta: WidgetMeta): WidgetSize {
+  const min = minSizeOf(meta);
+  const max = maxSizeOf(meta);
+  return {
+    w: clamp(toInt(meta.defaultSize.w, min.w), Math.min(min.w, WIDGET_COLS), Math.min(max.w, WIDGET_COLS)),
+    h: clamp(toInt(meta.defaultSize.h, min.h), min.h, max.h),
+  };
+}
+
+/**
+ * 크기 size 위젯이 들어갈 첫 빈 자리 — y 0 부터 행 우선, 같은 행에서는 x 0 부터 훑는다(잠긴 위젯도 점유로 본다).
+ * 빈 자리가 없으면 맨 아래 왼쪽(addItem 이 at 없이 놓는 자리). size.w 는 격자 폭(cols)으로 자른다.
+ */
+export function firstFreeSpot(items: readonly WidgetItem[], size: WidgetSize, cols: number = WIDGET_COLS): { x: number; y: number } {
+  const w = clamp(toInt(size.w, 1), 1, cols);
+  const h = Math.max(1, toInt(size.h, 1));
+  const bottom = items.reduce((acc, i) => Math.max(acc, i.y + i.h), 0);
+  const overlaps = (x: number, y: number) => items.some((i) => x < i.x + i.w && i.x < x + w && y < i.y + i.h && i.y < y + h);
+  for (let y = 0; y < bottom; y += 1) {
+    for (let x = 0; x + w <= cols; x += 1) {
+      if (!overlaps(x, y)) return { x, y };
+    }
+  }
+  return { x: 0, y: bottom };
+}
+
 /** 위젯을 놓는다 — at 이 없으면 맨 아래 왼쪽, 있으면 그 자리(겹친 위젯은 밀려난다). */
 export function addItem(
   items: readonly WidgetItem[],

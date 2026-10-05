@@ -20,7 +20,7 @@ import {
 import { getDraggingWidget, setDraggingWidget } from "./widget-dnd";
 import { WidgetFrame } from "./WidgetFrame";
 import { WidgetStyle } from "./styles";
-import type { WidgetItem, WidgetMoveKey, WidgetRegistry } from "./types";
+import type { WidgetItem, WidgetMeta, WidgetMoveKey, WidgetRegistry } from "./types";
 import {
   addItem,
   canAddWidget,
@@ -33,6 +33,18 @@ import {
   removeItem,
   toggleLock,
 } from "./widget-layout";
+
+/** 서랍 항목에 마우스를 올렸을 때 보드에 미리 보이는 자리 표시 — 저장 대상 items 에는 섞이지 않는다. */
+export interface WidgetBoardPreview {
+  meta: WidgetMeta;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** 미리 보기 격자 항목의 id — instId 와 겹치지 않는다. */
+const PREVIEW_ID = "__preview__";
 
 export interface WidgetBoardProps {
   items: readonly WidgetItem[];
@@ -47,6 +59,8 @@ export interface WidgetBoardProps {
   /** 고정 폭(px). 없으면 컨테이너 폭을 잰다. */
   width?: number;
   testId?: string;
+  /** 놓일 자리를 미리 보이는 스켈레톤(끌기·크기 조절 불가). 편집할 수 있을 때만 그린다. onChange 로 올라가는 배치에는 들어가지 않는다. */
+  preview?: WidgetBoardPreview | null;
 }
 
 function applyLayout(layout: Layout, items: readonly WidgetItem[]): WidgetItem[] {
@@ -57,7 +71,7 @@ function applyLayout(layout: Layout, items: readonly WidgetItem[]): WidgetItem[]
   });
 }
 
-export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onWideChange, cols: colsOverride, width: fixedWidth, testId }: WidgetBoardProps) {
+export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onWideChange, cols: colsOverride, width: fixedWidth, testId, preview }: WidgetBoardProps) {
   const measured = useVisibleContainerWidth({ initialWidth: fixedWidth ?? 1280 });
   const width = fixedWidth ?? measured.width;
   const cols = colsOverride ?? colsForWidth(width);
@@ -75,30 +89,38 @@ export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onW
   );
   const shown = useMemo(() => (wide ? visible : reflowLayout(visible, cols)), [visible, wide, cols]);
 
-  const layout = useMemo<LayoutItem[]>(
-    () =>
-      shown.map((it) => {
-        const meta = registry[it.widgetId]?.meta;
-        const min = meta ? minSizeOf(meta) : { w: 1, h: 1 };
-        const max = meta ? maxSizeOf(meta) : { w: cols, h: Number.POSITIVE_INFINITY };
-        return {
-          i: it.instId,
-          x: it.x,
-          y: it.y,
-          w: it.w,
-          h: it.h,
-          minW: Math.min(min.w, cols),
-          minH: min.h,
-          maxW: Math.min(max.w, cols),
-          maxH: max.h,
-          // 등록부에 없는 칸은 잠겨 있어도 뺄 수 있어야 하므로 잠금으로 굳히지 않는다.
-          static: (it.locked && Boolean(registry[it.widgetId])) || !canEdit,
-          // react-grid-layout 은 손잡이를 항상 그리고 CSS 로만 숨기므로, 편집할 수 없으면 아예 넘기지 않는다.
-          resizeHandles: (it.locked && Boolean(registry[it.widgetId])) || !canEdit ? [] : [...WIDGET_RESIZE_HANDLES],
-        };
-      }),
-    [shown, registry, cols, canEdit]
-  );
+  const previewShown = canEdit ? preview : null;
+  const pvOn = Boolean(previewShown);
+  const pvX = previewShown?.x ?? 0;
+  const pvY = previewShown?.y ?? 0;
+  const pvW = previewShown?.w ?? 0;
+  const pvH = previewShown?.h ?? 0;
+
+  const layout = useMemo<LayoutItem[]>(() => {
+    const placed: LayoutItem[] = shown.map((it) => {
+      const meta = registry[it.widgetId]?.meta;
+      const min = meta ? minSizeOf(meta) : { w: 1, h: 1 };
+      const max = meta ? maxSizeOf(meta) : { w: cols, h: Number.POSITIVE_INFINITY };
+      return {
+        i: it.instId,
+        x: it.x,
+        y: it.y,
+        w: it.w,
+        h: it.h,
+        minW: Math.min(min.w, cols),
+        minH: min.h,
+        maxW: Math.min(max.w, cols),
+        maxH: max.h,
+        // 등록부에 없는 칸은 잠겨 있어도 뺄 수 있어야 하므로 잠금으로 굳히지 않는다.
+        static: (it.locked && Boolean(registry[it.widgetId])) || !canEdit,
+        // react-grid-layout 은 손잡이를 항상 그리고 CSS 로만 숨기므로, 편집할 수 없으면 아예 넘기지 않는다.
+        resizeHandles: (it.locked && Boolean(registry[it.widgetId])) || !canEdit ? [] : [...WIDGET_RESIZE_HANDLES],
+      };
+    });
+    if (!pvOn) return placed;
+    // 미리 보기는 맨 뒤에 static 으로 둔다 — 끌기·크기 조절이 안 되고 다른 위젯의 자리를 바꾸지 않는다.
+    return [...placed, { i: PREVIEW_ID, x: pvX, y: pvY, w: pvW, h: pvH, static: true, resizeHandles: [] }];
+  }, [shown, registry, cols, canEdit, pvOn, pvX, pvY, pvW, pvH]);
 
   const commit = (next: Layout) => onChange(applyLayout(next, items));
   const onKeyMove = (instId: string, key: WidgetMoveKey, mode: "move" | "resize") =>
@@ -161,6 +183,23 @@ export function WidgetBoard({ items, registry, editing, tabLocked, onChange, onW
             />
           </div>
         ))}
+        {previewShown && (
+          <div key={PREVIEW_ID} data-testid={testId ? `${testId}-preview` : undefined} data-preview="true">
+            <div className="cm-widget__preview" aria-hidden="true">
+              <div className="cm-widget__preview-head">
+                <span className="cm-widget__preview-title">{previewShown.meta.title}</span>
+                <span className="cm-widget__preview-size">
+                  {previewShown.w} × {previewShown.h}
+                </span>
+              </div>
+              <div className="cm-widget__skeleton">
+                <i style={{ width: "40%" }} />
+                <i />
+                <i style={{ width: "70%" }} />
+              </div>
+            </div>
+          </div>
+        )}
       </ReactGridLayout>
     </div>
   );

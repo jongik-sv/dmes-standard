@@ -23,7 +23,7 @@ import { useMessage } from "../components/message-provider";
 import { today } from "../utils/libDate";
 import { printElementAsPage } from "../utils/libPrint";
 import { HOME_TAB_ID, MAX_DEFAULT_TABS, MAX_TABS, WIDGET_COLS } from "./constants";
-import { WidgetBoard } from "./WidgetBoard";
+import { WidgetBoard, type WidgetBoardPreview } from "./WidgetBoard";
 import { WidgetPicker } from "./WidgetPicker";
 import { WidgetShareDialog } from "./WidgetShareDialog";
 import { WidgetStyle } from "./styles";
@@ -35,6 +35,7 @@ import {
   buildTabExport,
   canAddWidget,
   colsForWidth,
+  firstFreeSpot,
   fixedTabCount,
   homeTab,
   isFixedTab,
@@ -42,6 +43,7 @@ import {
   nextTabId,
   orderTabs,
   parseTabImport,
+  placedSizeOf,
   reuseTabs,
   sameItemsExact,
   sanitizeLayout,
@@ -75,6 +77,8 @@ export interface WidgetWorkspaceProps {
   onRetryRegistry?: () => void;
   /** 위젯 유형 ID → 이름("query-table" → "쿼리 표"). [위젯 추가] 서랍이 정의 위젯 옆에 작은 글씨로 보인다. */
   typeTitles?: Readonly<Record<string, string>>;
+  /** 위젯 분류 코드 → 이름. 주면 [위젯 추가] 서랍이 분류별로 묶이고 분류 칩 필터가 생긴다(없으면 기존처럼 분류 없이 보인다). */
+  categoryTitles?: Readonly<Record<string, string>>;
   /** 탭 줄을 숨기고 「홈」 탭 하나만 다룬다 — 관리자 기본 배치 편집용. title 은 보드 위 제목. */
   singleTab?: { title: string };
   /**
@@ -149,6 +153,7 @@ export function WidgetWorkspace({
   registryStatus = "ready",
   onRetryRegistry,
   typeTitles,
+  categoryTitles,
   singleTab,
   pdfTarget,
   mode = "user",
@@ -172,6 +177,8 @@ export function WidgetWorkspace({
   const wide = cols === WIDGET_COLS;
   const [saving, setSaving] = useState(false);
   const loadSeq = useRef(0);
+  // 서랍 항목에 마우스를 올린 위젯 — 보드의 첫 빈 자리에 스켈레톤으로 미리 보이고, 클릭해야 실제로 놓인다.
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   const ask = useCallback(
     (title: string, text: string): Promise<boolean> => {
@@ -409,6 +416,22 @@ export function WidgetWorkspace({
   };
 
   const active = tabs.find((t) => t.tabId === activeTabId) ?? tabs[0];
+  const activeItems = active?.items;
+  const pickerOpen = editing && !saving && wide && active != null && !active.locked;
+
+  // 서랍이 사라지거나(편집 종료·취소·저장 중·좁은 화면·잠긴 탭) 탭이 바뀌면 마우스 이탈 이벤트가 오지 않으므로 미리 보기를 비운다.
+  const activeTabKey = active?.tabId;
+  useEffect(() => {
+    setPreviewId(null);
+  }, [pickerOpen, activeTabKey]);
+
+  const preview = useMemo<WidgetBoardPreview | null>(() => {
+    // 등록부에서 지금 메타를 다시 찾는다 — 정의가 사라졌거나 사용 중지로 바뀌었으면 미리 보기도 없다.
+    const meta = previewId ? registry[previewId]?.meta : undefined;
+    if (!meta || !pickerOpen || !activeItems || !canAddWidget(activeItems, meta)) return null;
+    const size = placedSizeOf(meta);
+    return { meta, ...firstFreeSpot(activeItems, size), ...size };
+  }, [previewId, registry, pickerOpen, activeItems]);
   const setActiveItems = (items: WidgetItem[]) =>
     setTabs((prev) => prev.map((t) => (t.tabId === active?.tabId ? { ...t, items } : t)));
 
@@ -696,7 +719,9 @@ export function WidgetWorkspace({
     if (!active || !meta || !canAddWidget(active.items, meta)) return;
     const instId = newInstanceId();
     scrollToRef.current = instId;
-    setActiveItems(addItem(active.items, widgetId, meta, instId));
+    setPreviewId(null);
+    // 미리 보인 자리(첫 빈 자리)에 그대로 놓는다.
+    setActiveItems(addItem(active.items, widgetId, meta, instId, firstFreeSpot(active.items, placedSizeOf(meta))));
   };
 
   if (status === "loading" || !active) {
@@ -851,7 +876,16 @@ export function WidgetWorkspace({
           selfUserId={userId}
         />
       )}
-      <div className="cm-widget-ws__body">
+      {/* 서랍에서 끌기를 시작하면 마우스 이탈 이벤트가 오지 않으므로 미리 보기를 비운다. */}
+      <div
+        className="cm-widget-ws__body"
+        onDragStartCapture={() => setPreviewId(null)}
+        // 올려 둔 서랍 항목이 검색으로 사라지면 마우스 이탈 이벤트가 오지 않는다 — 서랍 항목 밖으로 마우스가 움직이거나 검색어를 입력하면 비운다.
+        onMouseOver={(e) => {
+          if (previewId && !(e.target as HTMLElement).closest?.(".cm-widget-picker__item:not(:disabled)")) setPreviewId(null);
+        }}
+        onInput={() => setPreviewId(null)}
+      >
         <div className="cm-widget-ws__board">
           <WidgetBoard
             items={active.items}
@@ -861,10 +895,18 @@ export function WidgetWorkspace({
             onChange={setActiveItems}
             cols={cols}
             width={boardWidth}
+            preview={preview}
           />
         </div>
-        {editing && !saving && wide && !active.locked && (
-          <WidgetPicker registry={registry} items={active.items} onAdd={addFromPicker} typeTitles={typeTitles} />
+        {pickerOpen && (
+          <WidgetPicker
+            registry={registry}
+            items={active.items}
+            onAdd={addFromPicker}
+            typeTitles={typeTitles}
+            categoryTitles={categoryTitles}
+            onPreview={(meta) => setPreviewId(meta?.id ?? null)}
+          />
         )}
       </div>
     </div>

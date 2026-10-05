@@ -63,6 +63,11 @@ export const WIDGET_CSS = `
 .cm-widget__disabled { flex: 1 1 0; min-height: 0; margin: var(--spacing-sm); display: flex; align-items: center; justify-content: center; padding: var(--spacing-sm); border: 1px dashed var(--color-border); border-radius: var(--radius-sm); background: var(--color-bg-light); color: var(--color-text-muted); font-size: var(--font-size-sm); text-align: center; }
 .cm-widget__skeleton { padding: var(--spacing-lg); display: flex; flex-direction: column; gap: var(--spacing-sm); }
 .cm-widget__skeleton i { display: block; height: 12px; border-radius: var(--radius-sm); background: var(--color-bg-hover); }
+/* 서랍 항목에 마우스를 올렸을 때 보드에 미리 보이는 자리 표시(미리 배치) */
+.cm-widget__preview { display: flex; flex-direction: column; height: 100%; box-sizing: border-box; border: 1px dashed var(--color-primary); border-radius: var(--radius-md); background: var(--color-primary-soft); overflow: hidden; pointer-events: none; user-select: none; }
+.cm-widget__preview-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 34px; padding: 0 12px; border-bottom: 1px dashed var(--color-primary); }
+.cm-widget__preview-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-lg); font-weight: 700; color: var(--color-text); }
+.cm-widget__preview-size { flex-shrink: 0; font-size: var(--font-size-xs); color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
 
 /* ── 보드·탭·서랍·작업 공간(뒤 작업에서 쓰는 클래스도 여기 둔다) ── */
 .cm-widget-board { position: relative; min-height: 120px; }
