@@ -86,7 +86,7 @@ export function DocTabs({ docs, onCloseDoc }: { docs: OpenDoc[]; onCloseDoc: (id
 ### 키보드
 
 - 탭 단추에서 ←/→ 를 누르면 이웃 탭을 고르고 초점도 옮긴다. 끝에서 누르면 반대쪽 끝으로 간다. 지금 탭만 `tabIndex=0` 이다(roving tabindex).
-- 닫을 수 있는 탭에서는 Delete 키로 `onClose` 를 부른다. 닫기 단추는 `tabIndex=-1` 이라 Tab 키로 멈추지 않는다.
+- 닫기 단추도 같은 규칙이다 — 지금 탭의 닫기 단추만 `tabIndex=0`, 나머지는 -1. Tab 으로 지금 탭 단추 다음에 그 닫기 단추로 가 Enter·Space 로 닫는다(키보드만으로 닫을 수 있다). Delete 키 닫기는 없다.
 
 ## Props
 
@@ -95,7 +95,7 @@ export function DocTabs({ docs, onCloseDoc }: { docs: OpenDoc[]; onCloseDoc: (id
 | items | `ClosableTabItem[]` | 필수 | 열린 탭 목록 |
 | activeKey | `string` | 필수 | 지금 탭 key. 목록에 없으면 어떤 패널도 보이지 않고, 첫 탭이 Tab 초점을 받는다 |
 | onSelect | `(key: string) => void` | 필수 | 탭을 누르거나 ←/→ 로 옮길 때 호출한다. 이미 고른 탭을 누르면 부르지 않는다 |
-| onClose | `(key: string) => void` | - | 닫기 단추·Delete 키로 호출한다. 없으면 닫기 단추를 그리지 않는다 |
+| onClose | `(key: string) => void` | - | 닫기 단추를 누르면 호출한다. 없으면 닫기 단추를 그리지 않는다 |
 | renderPanel | `(item: ClosableTabItem) => ReactNode` | 필수 | 탭마다 패널 내용을 그린다. 모든 탭에 대해 늘 호출한다 |
 | message | `ReactNode` | - | 머리 줄 끝 상태 메시지(`role="status"`) |
 | keepLast | `boolean` | `true` | 탭이 하나뿐이면 닫기 단추를 숨긴다 |
