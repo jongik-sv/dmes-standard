@@ -7,12 +7,12 @@
 
 | 쌍 | 대상 | A(기준) | B(변경) | 보는 것 |
 |---|---|---|---|---|
-| `mcm` | `POST {MCM_BASE}/api/mcm/mdmMeta/columns` | 표준 물리명 177개(`names-std.txt`) | 별칭 이름 138개(`names-alias.txt`) | 표준 경로와 별칭 경로의 응답 시간·크기 |
-| `feed` | `POST {MDM_BASE}/api/mdm/oasis/metaFeed/view`(COLUMN) | 별칭 이름 138개, `systemCode=MES` | 같은 이름, `systemCode=MES,MDM` | 시스템 코드 목록(C1b)이 피드에 더하는 비용과 피드 크기 |
+| `mcm` | `POST {MCM_BASE}/api/mcm/mdmMeta/columns` | 표준 물리명 175개(`names-std.txt`) | 별칭 이름 136개(`names-alias.txt`) | 표준 경로와 별칭 경로의 응답 시간·크기 |
+| `feed` | `POST {MDM_BASE}/api/mdm/oasis/metaFeed/view`(COLUMN) | 별칭 이름 136개, `systemCode=MES` | 같은 이름, `systemCode=MES,MDM` | 시스템 코드 목록(C1b)이 피드에 더하는 비용과 피드 크기 |
 | `screen` | mcm 메타 조회 | 화면 키 417개(`scripts/mdm-meta/keys-2026-10-05.txt`) | A 와 같은 요청 | 같은 요청의 흔들림 폭(A·B 차이가 잡음 크기) |
 
 - `names-std.txt`: 분류표의 사전에 있음·신규·별칭·MDM 별칭 행이 가리키는 표준 물리명.
-- `names-alias.txt`: 같은 행들 중 화면 키가 표준 물리명과 다른 것(MES 별칭 71 + MDM 별칭 67).
+- `names-alias.txt`: 같은 행들 중 화면 키가 표준 물리명과 다른 것(MES 별칭 69 + MDM 별칭 67).
 - 등록 전에는 별칭 이름이 대부분 missing 이라 `mcm` B·`feed` 의 hit 가 작다. 등록·C1b 뒤 hit 가 늘어난 상태로 다시 잰다.
 
 ## 방법

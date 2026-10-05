@@ -12,11 +12,12 @@
 //   label  : <MdmFieldLabel name="X" meta=...>
 //   search : <SearchField value={filters.pX}> — 검색 조건 키의 p 접두어를 떼어 X 로 본다.
 //   th     : 상세 표 <th> 다음 몇 줄 안에서 처음 바인딩한 데이터 키(item.X·row.X·closed("X") 등).
-// 물리명 변환은 shared mdm-meta/names.ts·cactus MdmNames 와 같은 규칙이다.
-import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+// 물리명 변환은 src/frontend/shared/src/mdm-meta/names.ts·cactus-core mdm/MdmNames.java 와 같은 규칙이다(바꾸면 셋을 함께 바꾼다).
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const REPO = new URL("../../", import.meta.url).pathname;
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_ROOTS = [
   "src/frontend/m-mcm/page-components",
   "src/frontend/m-mcm/widget-types",
@@ -30,12 +31,18 @@ let jsonOut = null;
 let namesOnly = false;
 const roots = [];
 for (let i = 0; i < args.length; i++) {
-  if (args[i] === "--json") jsonOut = args[++i];
+  if (args[i] === "--json") {
+    jsonOut = args[++i];
+    if (!jsonOut) {
+      console.error("--json 에 파일 경로가 없습니다");
+      process.exit(2);
+    }
+  }
   else if (args[i] === "--names") namesOnly = true;
   else roots.push(args[i]);
 }
 
-export function toPhysName(name) {
+function toPhysName(name) {
   if (name == null) return null;
   const t = String(name).trim();
   if (!t) return null;
@@ -55,7 +62,7 @@ export function toPhysName(name) {
 function walk(dir, out = []) {
   for (const e of readdirSync(dir)) {
     if (e === "node_modules" || e.startsWith(".")) continue;
-    const p = join(dir, e);
+    const p = resolve(dir, e);
     const st = statSync(p);
     if (st.isDirectory()) walk(p, out);
     else if (/\.tsx?$/.test(e) && !/\.(test|spec)\.tsx?$/.test(e) && !/\.d\.ts$/.test(e)) out.push(p);
@@ -130,7 +137,14 @@ function scanFile(abs) {
   return hits;
 }
 
-const files = (roots.length ? roots : DEFAULT_ROOTS).flatMap((r) => walk(join(REPO, r)));
+const files = (roots.length ? roots : DEFAULT_ROOTS).flatMap((r) => {
+  const dir = resolve(REPO, r); // 절대 경로면 그대로
+  if (!existsSync(dir)) {
+    console.error(`루트가 없습니다: ${dir}`);
+    process.exit(2);
+  }
+  return walk(dir);
+});
 const hits = files.flatMap(scanFile).map((h) => ({
   ...h,
   phys: h.meta === false ? null : toPhysName(typeof h.meta === "string" && h.meta.trim() ? h.meta : h.key),
