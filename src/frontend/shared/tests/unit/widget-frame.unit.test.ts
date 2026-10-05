@@ -3,7 +3,7 @@ import { act, createElement as h, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { WidgetFrame, WidgetHeaderActions, useWidgetBodySize, useWidgetStatus, useWidgetTitle } from "../../src/widget";
+import { WidgetFrame, WidgetHeaderActions, useWidgetBodySize, useWidgetRename, useWidgetStatus, useWidgetTitle } from "../../src/widget";
 import type { WidgetItem, WidgetRegistryEntry } from "../../src/widget";
 
 let host: HTMLDivElement;
@@ -430,5 +430,275 @@ describe("WidgetFrame — 지연 로딩 캐시는 본체 로더 기준(W2)", () 
     expect(host.querySelector(".cm-widget__title")!.textContent).toBe("덮어쓴 제목");
     expect(host.querySelector(".cm-widget__body p")?.textContent).toBe("본문");
     expect(mounts).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("WidgetFrame 이름 바꾸기(useWidgetRename)", () => {
+  // 같은 본체를 다시 그릴 때(편집 모드 전환 등) 본체가 새로 마운트되지 않도록 본체마다 등록부 항목을 한 번만 만든다.
+  const entries = new WeakMap<object, WidgetRegistryEntry>();
+  const frame = (Body: unknown, editing = false) => {
+    let e = entries.get(Body as object);
+    if (!e) entries.set(Body as object, (e = entry(Body)));
+    return h(WidgetFrame, { item: item(), entry: e, editing, onToggleLock: noop, onRemove: noop });
+  };
+  /** 이름을 저장하는 처리기(onRename)를 등록하고, 저장이 끝나면 저장된 값을 틀 제목으로 쓰는 본체 — 개인 메모장과 같은 모양이다. */
+  const renamable = (onRename: (title: string) => Promise<void>) => () => {
+    const [saved, setSaved] = useState<string | null>(null);
+    useWidgetTitle(saved);
+    useWidgetRename(async (title) => {
+      await onRename(title);
+      setSaved(title);
+    });
+    return h("p", null, "본문");
+  };
+  const title = () => host.querySelector(".cm-widget__title");
+  const pencil = () => host.querySelector<HTMLButtonElement>('[data-action="rename"]');
+  const input = () => host.querySelector<HTMLInputElement>("input.cm-widget__rename");
+  const type = (text: string) =>
+    act(() => {
+      const el = input()!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(el, text);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  const key = async (k: string, init: KeyboardEventInit = {}) => {
+    await act(async () => {
+      input()!.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true, ...init }));
+    });
+    await flush();
+  };
+
+  it("연필 버튼을 누르면 제목 자리에 현재 제목이 선택된 입력칸이 열리고, Enter 로 저장하면 닫혀 새 제목이 보인다", async () => {
+    const onRename = vi.fn(async () => {});
+    act(() => root.render(frame(renamable(onRename))));
+    await flush();
+    expect(pencil()!.getAttribute("aria-label")).toBe("이름 바꾸기");
+    act(() => pencil()!.click());
+    expect(title()).toBeNull();
+    expect(input()!.value).toBe("샘플 위젯");
+    expect(input()!.getAttribute("aria-label")).toBe("위젯 이름");
+    expect(document.activeElement).toBe(input());
+    expect(pencil()).toBeNull(); // 입력 중에는 연필이 없다
+    await type("  새 이름  ");
+    await key("Enter");
+    expect(onRename).toHaveBeenCalledTimes(1);
+    expect(onRename).toHaveBeenCalledWith("새 이름"); // 앞뒤 공백은 자른다
+    expect(input()).toBeNull();
+    expect(title()!.textContent).toBe("새 이름");
+    expect(host.querySelector(".cm-widget")!.getAttribute("aria-label")).toBe("새 이름");
+  });
+
+  it("키보드(Enter·Esc)로 닫으면 포커스가 연필 버튼으로 돌아가고, 칸을 벗어나(blur) 닫으면 포커스를 빼앗지 않는다", async () => {
+    act(() => root.render(frame(renamable(async () => {}))));
+    await flush();
+    act(() => pencil()!.click());
+    await type("새 이름");
+    await key("Enter");
+    expect(input()).toBeNull();
+    expect(document.activeElement).toBe(pencil());
+    act(() => pencil()!.click());
+    await key("Escape");
+    expect(document.activeElement).toBe(pencil());
+    const other = document.createElement("button");
+    host.appendChild(other);
+    act(() => pencil()!.click());
+    await type("블러 이름");
+    await act(async () => {
+      other.focus();
+    });
+    await flush();
+    expect(input()).toBeNull();
+    expect(document.activeElement).toBe(other);
+  });
+
+  it("제목을 더블클릭해도 입력칸이 열린다", async () => {
+    act(() => root.render(frame(renamable(async () => {}))));
+    await flush();
+    act(() => {
+      title()!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    });
+    expect(input()!.value).toBe("샘플 위젯");
+  });
+
+  it("Esc 는 저장하지 않고 닫아 원래 제목을 그대로 둔다", async () => {
+    const onRename = vi.fn(async () => {});
+    act(() => root.render(frame(renamable(onRename))));
+    await flush();
+    act(() => pencil()!.click());
+    await type("버릴 이름");
+    await key("Escape");
+    expect(input()).toBeNull();
+    expect(title()!.textContent).toBe("샘플 위젯");
+    expect(onRename).not.toHaveBeenCalled();
+  });
+
+  it("제목을 바꾸지 않고 확정하면 저장하지 않고 닫는다", async () => {
+    const onRename = vi.fn(async () => {});
+    act(() => root.render(frame(renamable(onRename))));
+    await flush();
+    act(() => pencil()!.click());
+    await key("Enter");
+    expect(input()).toBeNull();
+    expect(onRename).not.toHaveBeenCalled();
+  });
+
+  it("칸을 벗어나면(blur) 저장한다", async () => {
+    const onRename = vi.fn(async () => {});
+    act(() => root.render(frame(renamable(onRename))));
+    await flush();
+    act(() => pencil()!.click());
+    await type("블러 이름");
+    await act(async () => {
+      input()!.blur();
+    });
+    await flush();
+    expect(onRename).toHaveBeenCalledWith("블러 이름");
+    expect(input()).toBeNull();
+  });
+
+  it("비우고 확정하면 빈 이름을 보내 등록부 제목으로 되돌린다", async () => {
+    const onRename = vi.fn(async () => {});
+    act(() => root.render(frame(renamable(onRename))));
+    await flush();
+    act(() => pencil()!.click());
+    await type("먼저 정한 이름");
+    await key("Enter");
+    expect(title()!.textContent).toBe("먼저 정한 이름");
+    act(() => pencil()!.click());
+    await type("   ");
+    await key("Enter");
+    expect(onRename).toHaveBeenLastCalledWith("");
+    expect(title()!.textContent).toBe("샘플 위젯");
+  });
+
+  it("40자(코드 포인트)를 넘겨 쓰거나 붙여 넣으면 잘린다 — 이모지는 쌍 가운데서 잘리지 않고, 제어 문자는 공백이 된다", async () => {
+    act(() => root.render(frame(renamable(async () => {}))));
+    await flush();
+    act(() => pencil()!.click());
+    await type("가".repeat(50));
+    expect(input()!.value).toBe("가".repeat(40));
+    await type("😀".repeat(50));
+    expect(input()!.value).toBe("😀".repeat(40));
+    await type("가\t나");
+    expect(input()!.value).toBe("가 나");
+    await type("  " + "가".repeat(50)); // 앞 공백은 저장 때 잘리므로 세지 않는다
+    expect(input()!.value).toBe("  " + "가".repeat(40));
+  });
+
+  it("한글 조합 중의 Enter 는 글자 확정이라 저장하지 않는다", async () => {
+    const onRename = vi.fn(async () => {});
+    act(() => root.render(frame(renamable(onRename))));
+    await flush();
+    act(() => pencil()!.click());
+    await type("한");
+    await key("Enter", { isComposing: true });
+    expect(onRename).not.toHaveBeenCalled();
+    expect(input()).not.toBeNull();
+  });
+
+  it("저장하는 동안 입력칸이 잠기고 Enter 를 연달아 눌러도 한 번만 저장한다", async () => {
+    let finish!: () => void;
+    const onRename = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    act(() => root.render(frame(renamable(onRename))));
+    await flush();
+    act(() => pencil()!.click());
+    await type("느린 이름");
+    await key("Enter");
+    await key("Enter");
+    await act(async () => {
+      input()!.blur();
+    });
+    expect(onRename).toHaveBeenCalledTimes(1);
+    expect(input()!.readOnly).toBe(true);
+    await act(async () => {
+      finish();
+    });
+    await flush();
+    expect(input()).toBeNull();
+    expect(title()!.textContent).toBe("느린 이름");
+  });
+
+  it("저장이 실패하면 입력칸을 열어 둔 채 오류를 알리고, 칸을 벗어나도 다시 보내지 않으며 Enter 로 다시 시도할 수 있다", async () => {
+    const onRename = vi.fn<(t: string) => Promise<void>>().mockRejectedValueOnce(new Error("서버가 거절했습니다.")).mockResolvedValue(undefined);
+    act(() => root.render(frame(renamable(onRename))));
+    await flush();
+    act(() => pencil()!.click());
+    await type("실패할 이름");
+    await key("Enter");
+    expect(input()!.value).toBe("실패할 이름");
+    expect(input()!.readOnly).toBe(false);
+    expect(host.querySelector('[role="alert"]')!.textContent).toBe("서버가 거절했습니다.");
+    expect(title()).toBeNull();
+    await act(async () => {
+      input()!.blur();
+    });
+    await flush();
+    expect(onRename).toHaveBeenCalledTimes(1);
+    expect(input()).not.toBeNull();
+    await key("Enter");
+    expect(onRename).toHaveBeenCalledTimes(2);
+    expect(input()).toBeNull();
+    expect(title()!.textContent).toBe("실패할 이름");
+  });
+
+  it("글을 고치면 오류 알림이 사라진다", async () => {
+    const onRename = vi.fn(async () => {
+      throw new Error("거절");
+    });
+    act(() => root.render(frame(renamable(onRename))));
+    await flush();
+    act(() => pencil()!.click());
+    await type("이름");
+    await key("Enter");
+    expect(host.querySelector('[role="alert"]')).not.toBeNull();
+    await type("이름2");
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("처리기를 등록하지 않은 위젯에는 연필 버튼도 더블클릭 입력칸도 없다", async () => {
+    act(() => root.render(frame(() => h("p", null, "본문"))));
+    await flush();
+    expect(pencil()).toBeNull();
+    act(() => {
+      title()!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    });
+    expect(input()).toBeNull();
+    expect(title()!.textContent).toBe("샘플 위젯");
+  });
+
+  it("편집 모드에서는 연필이 숨고 잠금·빼기만 보이며, 입력 중에 편집 모드로 바뀌면 입력칸도 닫힌다 — 보기로 돌아오면 다시 연필이 나온다", async () => {
+    const Body = renamable(async () => {});
+    act(() => root.render(frame(Body)));
+    await flush();
+    act(() => pencil()!.click());
+    expect(input()).not.toBeNull();
+    act(() => root.render(frame(Body, true)));
+    expect(input()).toBeNull();
+    expect(pencil()).toBeNull();
+    expect(host.querySelector('[data-action="lock"]')).not.toBeNull();
+    expect(host.querySelector('[data-action="remove"]')).not.toBeNull();
+    act(() => {
+      title()!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    });
+    expect(input()).toBeNull(); // 더블클릭도 막힌다
+    act(() => root.render(frame(Body, false)));
+    expect(input()).toBeNull(); // 닫힌 입력칸이 되살아나지 않는다
+    expect(pencil()).not.toBeNull();
+  });
+
+  it("본체가 처리기를 거두면(null) 연필이 사라지고 다시 등록하면 돌아온다", async () => {
+    let setOn!: (on: boolean) => void;
+    const Body = () => {
+      const [on, set] = useState(true);
+      setOn = set;
+      useWidgetRename(on ? async () => {} : null);
+      return h("p", null, "본문");
+    };
+    act(() => root.render(frame(Body)));
+    await flush();
+    expect(pencil()).not.toBeNull();
+    act(() => setOn(false));
+    expect(pencil()).toBeNull();
+    act(() => setOn(true));
+    expect(pencil()).not.toBeNull();
   });
 });

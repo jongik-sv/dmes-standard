@@ -22,8 +22,9 @@ import {
 } from "react";
 
 import { MIN_REFRESH_SEC } from "./constants";
-import { openPortalPage, WidgetFrameContext, type WidgetFrameApi, type WidgetStatus } from "./frame-context";
+import { openPortalPage, WidgetFrameContext, type WidgetFrameApi, type WidgetRenameHandler, type WidgetStatus } from "./frame-context";
 import { WidgetStyle } from "./styles";
+import { WidgetTitleRename } from "./WidgetTitleRename";
 import { useWidgetVisible } from "./use-widget-visible";
 import type { WidgetComponent, WidgetItem, WidgetMoveKey, WidgetProps, WidgetRegistryEntry } from "./types";
 
@@ -92,6 +93,12 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
   // 본체가 useWidgetTitle 로 덮어쓴 제목. 위젯 ID 와 함께 기억해 렌더 중에 걸러 쓴다 — 다른 위젯이 같은 칸에 오면 effect 없이 풀린다
   // (부모 effect 로 초기화하면 이미 불러온 본체의 자식 effect 가 먼저 정한 제목을 지운다).
   const [titleOverride, setTitleOverride] = useState<{ widgetId: string; title: string } | null>(null);
+  // 본체가 useWidgetRename 으로 등록한 이름 바꾸기 처리기 — 제목 덮어쓰기와 같은 이유로 위젯 ID 와 함께 기억한다(함수를 state 에 넣으려 객체로 감싼다).
+  const [renameReg, setRenameReg] = useState<{ widgetId: string; handler: WidgetRenameHandler } | null>(null);
+  const [renaming, setRenaming] = useState(false);
+  /** 키보드로 이름 바꾸기를 마치면 포커스를 연필 버튼으로 돌려준다 — 입력칸이 사라지며 포커스가 body 로 떨어지지 않게. */
+  const restoreFocusRef = useRef(false);
+  const pencilRef = useRef<HTMLButtonElement>(null);
   const [bodySize, setBodySize] = useState<{ width: number; height: number | null }>({ width: 0, height: null });
   const bodyRef = useRef<HTMLDivElement>(null);
   const meta = entry?.meta;
@@ -134,10 +141,25 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
     (title: string | null) => setTitleOverride(title && title.trim() ? { widgetId, title } : null),
     [widgetId]
   );
-  const api = useMemo<WidgetFrameApi>(
-    () => ({ setStatus, setTitle, bodySize, actionsSlot, titleSlot }),
-    [setTitle, bodySize, actionsSlot, titleSlot]
+  const setRenameHandler = useCallback(
+    (handler: WidgetRenameHandler | null) => setRenameReg(handler ? { widgetId, handler } : null),
+    [widgetId]
   );
+  const api = useMemo<WidgetFrameApi>(
+    () => ({ setStatus, setTitle, setRenameHandler, bodySize, actionsSlot, titleSlot }),
+    [setTitle, setRenameHandler, bodySize, actionsSlot, titleSlot]
+  );
+  // 이름 바꾸기는 보기 모드에서만 — 편집 모드의 잠금·빼기·끌기와 겹치지 않는다. 처리기를 등록한 위젯에서만 켠다.
+  const renameHandler = !editing && renameReg && renameReg.widgetId === widgetId ? renameReg.handler : null;
+  const showRename = renaming && renameHandler !== null;
+  useEffect(() => {
+    if (renaming && renameHandler === null) setRenaming(false);
+  }, [renaming, renameHandler]);
+  useEffect(() => {
+    if (showRename || !restoreFocusRef.current) return;
+    restoreFocusRef.current = false;
+    pencilRef.current?.focus();
+  }, [showRename]);
   const shownTitle = titleOverride && titleOverride.widgetId === widgetId ? titleOverride.title : (entry?.meta.title ?? "");
 
   const retryLoad = useCallback(() => {
@@ -258,7 +280,25 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
     >
       <WidgetStyle />
       <div className="cm-widget__head" tabIndex={editing ? 0 : -1} onKeyDown={onHeadKeyDown}>
-        {!hideTitle && <h3 className="cm-widget__title">{shownTitle}</h3>}
+        {!hideTitle &&
+          (showRename ? (
+            <WidgetTitleRename initial={shownTitle} onCommit={renameHandler!} onClose={(restoreFocus) => {
+                restoreFocusRef.current = restoreFocus;
+                setRenaming(false);
+              }}
+            />
+          ) : (
+            <>
+              <h3 className="cm-widget__title" onDoubleClick={renameHandler ? () => setRenaming(true) : undefined}>
+                {shownTitle}
+              </h3>
+              {renameHandler && (
+                <button ref={pencilRef} type="button" className="cm-widget__btn" data-action="rename" title="이름 바꾸기" aria-label="이름 바꾸기" onClick={() => setRenaming(true)}>
+                  ✎
+                </button>
+              )}
+            </>
+          ))}
         {!hideTitle && entry.meta.subtitle && <span className="cm-widget__sub">{entry.meta.subtitle}</span>}
         <span className="cm-widget__title-extra" ref={setTitleSlot} />
         <span className="cm-widget__spacer" />

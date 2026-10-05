@@ -23,7 +23,8 @@ import org.w3c.dom.NodeList;
 
 /**
  * {@code services/roleManagement/secWidget.bpmn} 의 OASIS 계약 — 스프링 없이 XML 만 파싱한다(mls NoticeBpmnActionTest 와 같은 방식).
- * saveTab 은 dto(params) + grids.widgets.rows 두 파라미터(mdm headerMng.save 와 같은 모양), reorderTabs 는 grids.tabs.rows 하나.
+ * saveTab 은 dto(params) + grids.widgets.rows 두 파라미터(mdm headerMng.save 와 같은 모양), reorderTabs 는 grids.tabs.rows 하나,
+ * shareTab 은 dto(params) + grids.targets.rows 두 파라미터.
  */
 class SecWidgetBpmnActionTest {
 
@@ -31,15 +32,16 @@ class SecWidgetBpmnActionTest {
     private static final String CAMUNDA = "http://camunda.org/schema/1.0/bpmn";
 
     @Test
-    void secWidget_는_다섯_분기이고_서비스_메서드와_대응한다() throws Exception {
+    void secWidget_는_여덟_분기이고_서비스_메서드와_대응한다() throws Exception {
         Document doc = parse("services/roleManagement/secWidget.bpmn");
 
         assertEquals("secWidget", processId(doc));
         Map<String, Element> byAction = tasksByAction(doc);
-        assertEquals(List.of("deleteTab", "reorderTabs", "resetHome", "saveTab", "search"), List.copyOf(byAction.keySet()));
+        assertEquals(List.of("deleteTab", "reorderTabs", "resetHome", "resetTab", "saveTab", "search", "searchUsers", "shareTab"),
+                List.copyOf(byAction.keySet()));
 
         NodeList tasks = doc.getElementsByTagNameNS(BPMN, "serviceTask");
-        assertEquals(5, tasks.getLength());
+        assertEquals(8, tasks.getLength());
         for (Map.Entry<String, Element> e : byAction.entrySet()) {
             Element task = e.getValue();
             Map<String, String> props = properties(task);
@@ -55,6 +57,14 @@ class SecWidgetBpmnActionTest {
         assertDto(byAction, "deleteTab", "com.dongkuk.dmes.mcm.widget.dto.SecWidgetTabRequest");
         assertDto(byAction, "saveTab", "com.dongkuk.dmes.mcm.widget.dto.SecWidgetTabSaveRequest");
         assertFalse(properties(byAction.get("reorderTabs")).containsKey("dto"), "reorderTabs 는 grids.tabs 만");
+        // 기본 탭·공유(docs/widget-2026-10/design-widget-tabs.md §3.1)
+        assertDto(byAction, "resetTab", "com.dongkuk.dmes.mcm.widget.dto.SecWidgetTabRequest");
+        assertDto(byAction, "shareTab", "com.dongkuk.dmes.mcm.widget.dto.SecWidgetTabRequest");
+        assertDto(byAction, "searchUsers", "com.dongkuk.dmes.mcm.widget.dto.SecWidgetUserSearchRequest");
+        Method share = method(SecWidgetService.class, "shareTab");
+        assertEquals(2, share.getParameterCount());
+        assertEquals("targets", share.getParameters()[1].getName(), "grids.targets.rows ↔ 파라미터 이름 (§6-E-3)");
+        assertEquals(List.class, share.getParameterTypes()[1]);
 
         Method save = method(SecWidgetService.class, "saveTab");
         assertEquals(2, save.getParameterCount());

@@ -10,6 +10,10 @@
  * - singleTab 이면 탭 줄 대신 제목을 보이고 「홈」 하나만 다룬다(관리자 기본 배치 편집, 스펙 §10.2).
  * - pdfTarget 을 주면 도구 줄에 [PDF] 단추를 그린다 — 대상 요소를 한 장짜리 페이지로 인쇄(printElementAsPage)하고, 편집 중에는 막는다.
  *   인쇄 창을 열지 못하면(print() 예외) 알림을 보인다. 잠금·불러오기 실패·좁은 화면에서도 켜져 있다(보기 기능이라 편집 가능 여부와 무관).
+ * - 고정 탭(widget-tabs 설계 §4): 「홈」과 기본 탭(defaultTab)은 탭 줄 앞에 고정이고 지우기·이름 바꾸기·옮기기를 막는다. 기본 탭 편집은
+ *   일반 탭처럼 [배치 편집]→[완료] 로 saveTab 하고, 「기본으로 되돌리기」(store.resetTab)는 조용히 다시 불러온다.
+ * - 공유(store.shareTab+searchUsers)·내보내기(JSON 파일)·가져오기(JSON 파일 → 새 탭 바로 저장)는 user 모드에서만 보인다.
+ * - mode="admin"(관리자 기본 탭 편집)은 잠그기·홈 되돌리기·공유·내보내기·가져오기를 숨기고, 탭 한도는 홈 + MAX_DEFAULT_TABS 다.
  */
 import { IconPrinter } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
@@ -18,22 +22,31 @@ import { useVisibleContainerWidth } from "./use-visible-container-width";
 import { useMessage } from "../components/message-provider";
 import { today } from "../utils/libDate";
 import { printElementAsPage } from "../utils/libPrint";
-import { HOME_TAB_ID, MAX_TABS, WIDGET_COLS } from "./constants";
+import { HOME_TAB_ID, MAX_DEFAULT_TABS, MAX_TABS, WIDGET_COLS } from "./constants";
 import { WidgetBoard } from "./WidgetBoard";
 import { WidgetPicker } from "./WidgetPicker";
+import { WidgetShareDialog } from "./WidgetShareDialog";
 import { WidgetStyle } from "./styles";
 import { WidgetTabs } from "./WidgetTabs";
 import type { WidgetItem, WidgetRegistry, WidgetStore, WidgetTab } from "./types";
+import { readFileText, saveJsonFile } from "./widget-file";
 import {
   addItem,
+  buildTabExport,
   canAddWidget,
   colsForWidth,
+  fixedTabCount,
   homeTab,
+  isFixedTab,
   newInstanceId,
   nextTabId,
+  orderTabs,
+  parseTabImport,
   reuseTabs,
   sameItemsExact,
   sanitizeLayout,
+  shareResultMessage,
+  tabImportMessage,
   tabsEqual,
   validateTabName,
   validateWidgetMeta,
@@ -70,9 +83,17 @@ export interface WidgetWorkspaceProps {
    * 기본 파일 이름은 「{지금 탭 이름}_{yyyyMMdd}」다. ref 가 비어 있으면 작업 공간 자체를 찍는다. 편집 중에는 막는다.
    */
   pdfTarget?: RefObject<HTMLElement | null>;
+  /**
+   * "admin" — 관리자 기본 탭 편집(위젯관리 「기본 배치」). 잠그기·홈 되돌리기·공유·내보내기·가져오기를 숨기고 탭 한도는 홈 + MAX_DEFAULT_TABS.
+   * 탭 이름 바꾸기·옮기기·지우기는 「홈」 외 탭에 된다. 기본 "user".
+   */
+  mode?: "user" | "admin";
 }
 
 type LoadStatus = "loading" | "ready" | "error";
+
+/** 탭 가져오기 파일 최대 크기(1MB) — 읽기 전에 거절한다. */
+const IMPORT_FILE_MAX_BYTES = 1024 * 1024;
 
 /** MessageProvider 밖(시험 등)이면 null. useMessage 는 Provider 밖에서 던진다. */
 function useOptionalMessage() {
@@ -130,8 +151,11 @@ export function WidgetWorkspace({
   typeTitles,
   singleTab,
   pdfTarget,
+  mode = "user",
 }: WidgetWorkspaceProps) {
   const message = useOptionalMessage();
+  const admin = mode === "admin";
+  const maxTabs = admin ? 1 + MAX_DEFAULT_TABS : MAX_TABS;
   // singleTab 은 화면이 렌더마다 새 객체로 넘기기 쉬우므로 불러오기 의존성에는 있고 없음만 쓴다.
   const single = singleTab != null;
   // 단일 탭(관리자 기본 배치)은 마지막 탭을 기억하지 않는다.
@@ -231,7 +255,8 @@ export function WidgetWorkspace({
         const home = cleaned.find((t) => t.tabId === HOME_TAB_ID);
         homeIsDefault.current = !home;
         // 단일 탭이면 「홈」만 다룬다 — 다른 탭은 상태에 두지 않으므로 저장되지도 않는다.
-        const others = single ? [] : cleaned.filter((t) => t.tabId !== HOME_TAB_ID).sort((a, b) => a.seq - b.seq);
+        // 기본 탭(서버 tabSeq 100+)이 일반 탭보다 앞에 오게 고정 탭 순서로 정렬한다.
+        const others = single ? [] : orderTabs(cleaned.filter((t) => t.tabId !== HOME_TAB_ID));
         const next = [home ? { ...home, name: homeTab([]).name, seq: 0 } : homeTab(sanitizeLayout(homeDefaultRef.current, reg)), ...others];
         const final = reuseTabs(tabsRef.current, next);
         sourceItems.current = new Map(
@@ -332,12 +357,55 @@ export function WidgetWorkspace({
     []
   );
 
-  /** 탭 하나 저장 — 「홈」을 저장하면 더는 기본 배치가 아니다. */
-  const persistTab = async (tab: WidgetTab) => {
-    await store.saveTab(tab);
+  /**
+   * 탭 하나 저장 — 「홈」을 저장하면 더는 기본 배치가 아니다. 저장된 탭 ID 를 돌려준다.
+   * 새 탭(fresh)을 저장소가 다른 ID 로 옮겨 저장했으면(화면이 연 뒤 같은 tab-N 으로 공유 사본이 생긴 경우) 탭 상태·고른 탭·
+   * 편집 기준(snapshot)·원래 배치·마지막 탭 기억을 새 ID 로 바꾼다. 위젯 instId 는 그대로다.
+   * 옮긴 ID 를 같은 [완료]에서 아직 저장하지 않은 다른 새 탭(batch.pending)이 쓰고 있으면 그 탭을 먼저 빈 ID 로 비켜 준다
+   * (한 화면에 같은 ID 탭이 둘이 되지 않게). 비켜 준 탭은 aside 로 돌려준다 — doneEdit 이 이어서 그 ID 로 저장한다.
+   */
+  const persistTab = async (
+    tab: WidgetTab,
+    batch?: { pending: readonly string[]; known: readonly string[] }
+  ): Promise<{ id: string; aside?: { from: string; to: string } }> => {
+    const res = (await store.saveTab(tab)) as { tabId?: string } | undefined;
+    const savedId = typeof res?.tabId === "string" && res.tabId ? res.tabId : tab.tabId;
+    const moved = savedId !== tab.tabId;
+    let aside: { from: string; to: string } | undefined;
+    if (moved && batch?.pending.includes(savedId)) {
+      // 화면의 탭·이번 저장에서 쓰인 ID·서버가 준 ID 와 겹치지 않는 번호.
+      const used = new Set([...tabsRef.current.map((t) => t.tabId), ...batch.known, savedId, tab.tabId]);
+      let n = 1;
+      while (used.has(`tab-${n}`)) n += 1;
+      aside = { from: savedId, to: `tab-${n}` };
+    }
+    // 한 번에 같은 순서로 바꾼다: 겹친 새 탭 → 빈 ID, 저장한 탭 → 서버 ID.
+    const rename = (id: string) => (id === tab.tabId ? savedId : aside && id === aside.from ? aside.to : id);
     if (tab.tabId === HOME_TAB_ID) homeIsDefault.current = false;
     // 저장한 배치가 새 원래 배치다.
-    sourceItems.current.set(tab.tabId, { raw: tab.items, cleaned: tab.items });
+    if (moved) sourceItems.current.delete(tab.tabId);
+    sourceItems.current.set(savedId, { raw: tab.items, cleaned: tab.items });
+    // 첫 저장이 끝난 새 탭은 더는 새 탭이 아니다(다음 저장에 newYn 을 다시 보내지 않게).
+    // 기본 탭을 저장하면 사용자 재정의 행이 생긴다 — 다시 불러오지 않아도 「기본으로 되돌리기」가 켜지게.
+    if (moved || tab.fresh || (tab.defaultTab && !tab.customized)) {
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.tabId === tab.tabId
+            ? { ...t, tabId: savedId, fresh: false, ...(t.defaultTab ? { customized: true } : {}) }
+            : aside && t.tabId === aside.from && t.fresh
+              ? { ...t, tabId: aside.to }
+              : t
+        )
+      );
+    }
+    if (moved) {
+      setActiveTabId((cur) => rename(cur));
+      setRenamingTabId((cur) => (cur == null ? cur : rename(cur)));
+      setSnapshot((prev) => (prev ? prev.map((s) => (s.tabId === tab.tabId ? { ...s, tabId: savedId } : s)) : prev));
+      const last = readLastTab(memoUserId);
+      if (last && rename(last) !== last) writeLastTab(memoUserId, rename(last));
+    }
+    return { id: savedId, aside };
   };
 
   const active = tabs.find((t) => t.tabId === activeTabId) ?? tabs[0];
@@ -376,13 +444,28 @@ export function WidgetWorkspace({
   const doneEdit = async () => {
     if (status !== "ready" || !registryReady) return;
     setSaving(true);
+    // admin 은 기본 탭을 먼저, 「홈」을 마지막에 저장한다 — 빈 「홈」 거절(서버)이 기본 탭 저장을 막지 않게.
+    const ordered = admin ? [...changedTabs.filter((t) => t.tabId !== HOME_TAB_ID), ...changedTabs.filter((t) => t.tabId === HOME_TAB_ID)] : changedTabs;
+    // 이번 [완료]에서 각 탭의 지금 ID — 저장소가 새 탭을 옮겨 다른 새 탭을 비켜 주면 바뀐다.
+    const idOf = new Map(ordered.map((t) => [t, t.tabId] as const));
+    const done = new Set<WidgetTab>();
     try {
-      for (const t of changedTabs) {
+      for (const t of ordered) {
+        const id = idOf.get(t)!;
         const seq = tabs.indexOf(t);
-        const saved = { ...t, seq };
-        await persistTab(saved);
+        const pending = ordered.filter((o) => o !== t && o.fresh && !done.has(o)).map((o) => idOf.get(o)!);
+        const { id: savedId, aside } = await persistTab({ ...t, tabId: id, seq }, { pending, known: [...idOf.values()] });
+        done.add(t);
+        idOf.set(t, savedId);
+        if (aside) {
+          const other = ordered.find((o) => o !== t && !done.has(o) && idOf.get(o) === aside.from);
+          if (other) idOf.set(other, aside.to);
+        }
         // 저장된 탭은 되돌릴 기준(snapshot)도 새 값으로 — 뒤 탭이 실패해도 [취소]가 저장된 탭을 되돌리지 않는다.
-        setSnapshot((prev) => (prev ? (prev.some((s) => s.tabId === saved.tabId) ? prev.map((s) => (s.tabId === saved.tabId ? saved : s)) : [...prev, saved]) : prev));
+        // 기본 탭은 저장으로 개인화됐으므로 [취소] 뒤에도 되돌리기가 켜져 있게 한다.
+        const saved: WidgetTab = { ...t, seq, tabId: savedId, fresh: false, ...(t.defaultTab ? { customized: true } : {}) };
+        const same = (s: WidgetTab) => s.tabId === id || s.tabId === savedId;
+        setSnapshot((prev) => (prev ? (prev.some(same) ? prev.map((s) => (same(s) ? saved : s)) : [...prev, saved]) : prev));
       }
       finishEdit();
       if (changedTabs.length > 0) tell("배치를 저장했습니다.", "success");
@@ -419,21 +502,22 @@ export function WidgetWorkspace({
   /* ── 탭 작업 ── */
   // (+) 새 탭도 편집 모드로 들어가는 길이다 — 정의 목록이 준비되지 않았으면 [배치 편집]처럼 막는다(W-D19).
   const addTab = () => {
-    if (saving || tabs.length >= MAX_TABS || !registryReady) return;
+    if (saving || tabs.length >= maxTabs || !registryReady) return;
     const tabId = nextTabId(tabs);
     let name = "새 탭";
     for (let n = 2; tabs.some((t) => t.name === name); n += 1) name = `새 탭 ${n}`;
     if (!editing) startEdit();
     tabTouched.current = true;
-    setTabs((prev) => [...prev, { tabId, name, seq: prev.length, locked: false, items: [] }]);
+    setTabs((prev) => [...prev, { tabId, name, seq: prev.length, locked: false, items: [], fresh: true }]);
     setActiveTabId(tabId);
     setRenamingTabId(tabId);
   };
 
   /** 보기 모드 즉시 저장 — 먼저 화면에 반영하고 실패하면 되돌린다. */
-  const saveNow = async (next: WidgetTab[], persist: () => Promise<void>): Promise<boolean> => {
+  const saveNow = async (next: WidgetTab[], persist: () => Promise<unknown>): Promise<boolean> => {
     cancelPendingLoad();
-    const before = tabs;
+    // 비동기 흐름(가져오기)에서도 지금 화면 값으로 되돌리게 ref 로 읽는다.
+    const before = tabsRef.current;
     setTabs(next);
     try {
       await persist();
@@ -447,6 +531,12 @@ export function WidgetWorkspace({
 
   const renameCommit = (tabId: string, name: string): string | null => {
     if (saving) return null; // 저장 중 바뀐 이름은 저장 대상에서 빠지므로 반영하지 않는다.
+    const target = tabs.find((t) => t.tabId === tabId);
+    // 고정 탭(홈·기본 탭) 이름은 바꾸지 않는다 — 기본 탭 이름은 관리자 값이다.
+    if (!target || isFixedTab(target)) {
+      setRenamingTabId(null);
+      return null;
+    }
     const error = validateTabName(name, tabs, tabId);
     if (error) return error;
     const value = name.trim();
@@ -466,18 +556,20 @@ export function WidgetWorkspace({
     void saveNow(next, () => persistTab({ ...tab, seq: next.indexOf(tab) }));
   };
 
+  // 고정 탭(홈·기본 탭)은 옮기지 않고, 일반 탭도 고정 탭 자리로는 못 간다. 순서 저장에는 일반 탭만 넘긴다(서버가 기본 탭 순서를 정한다).
   const moveTab = (tabId: string, dir: -1 | 1) => {
+    const fixed = fixedTabCount(tabs);
     const i = tabs.findIndex((t) => t.tabId === tabId);
     const j = i + dir;
-    if (i <= 0 || j <= 0 || j >= tabs.length) return;
+    if (i < fixed || j < fixed || j >= tabs.length) return;
     const next = [...tabs];
     [next[i], next[j]] = [next[j], next[i]];
-    void saveNow(next, () => store.reorderTabs(next.filter((t) => t.tabId !== HOME_TAB_ID).map((t) => t.tabId)));
+    void saveNow(next, () => store.reorderTabs(next.filter((t) => !isFixedTab(t)).map((t) => t.tabId)));
   };
 
   const deleteTab = async (tabId: string) => {
     const tab = tabs.find((t) => t.tabId === tabId);
-    if (!tab || tabId === HOME_TAB_ID) return;
+    if (!tab || isFixedTab(tab)) return;
     if (!(await ask("탭을 지울까요?", `「${tab.name}」 탭과 위젯 ${tab.items.length}개를 지웁니다.`))) return;
     const next = tabs.filter((t) => t.tabId !== tabId);
     if (activeTabId === tabId) selectTab(HOME_TAB_ID);
@@ -488,6 +580,95 @@ export function WidgetWorkspace({
     if (!(await ask("기본 배치로 되돌릴까요?", "「홈」 탭의 내 배치를 지우고 기본 배치로 돌아갑니다."))) return;
     const next = tabs.map((t) => (t.tabId === HOME_TAB_ID ? defaultHome() : t));
     if (await saveNow(next, () => store.resetHome())) homeIsDefault.current = true;
+  };
+
+  /** 기본 탭 「기본으로 되돌리기」 — 내 재정의를 지운 뒤 관리자 배치를 조용히 다시 불러온다(스켈레톤으로 되돌리지 않는다). */
+  const resetTab = async (tabId: string) => {
+    const tab = tabs.find((t) => t.tabId === tabId);
+    if (!tab || !tab.defaultTab || !tab.customized || !store.resetTab) return;
+    if (!(await ask("기본으로 되돌릴까요?", `「${tab.name}」 탭의 내 배치를 지우고 관리자가 정한 기본 배치로 돌아갑니다.`))) return;
+    cancelPendingLoad();
+    // 되돌리는 동안 [배치 편집]·(+)·탭 메뉴를 막는다 — 그 사이 편집한 내용이 곧 올 재조회에 버려지지 않게.
+    setSaving(true);
+    try {
+      await store.resetTab(tabId);
+    } catch (e) {
+      tell(errMsg(e), "error");
+      return;
+    } finally {
+      setSaving(false);
+    }
+    await load({ silent: true });
+  };
+
+  /* ── 공유·내보내기·가져오기(user 모드) ── */
+  const [shareTabId, setShareTabId] = useState<string | null>(null);
+  const shareTarget = shareTabId ? tabs.find((t) => t.tabId === shareTabId) : undefined;
+  const canShare = !admin && !single && store.shareTab != null && store.searchUsers != null;
+
+  /** 공유 — 모두 성공하면 알리고 창을 닫는다. 일부·전부 실패하면 사유를 알리고 실패한 사람만 고른 채 창을 둔다. */
+  const shareTo = async (userIds: string[], names: Record<string, string>): Promise<string[] | void> => {
+    if (!shareTarget || !store.shareTab) return;
+    const results = await store.shareTab(shareTarget.tabId, userIds).catch((e: unknown) => {
+      tell(errMsg(e), "error");
+      throw e; // 창을 고른 사람 그대로 열어 둔다.
+    });
+    const { kind, text } = shareResultMessage(results, names);
+    tell(text, kind);
+    const done = new Set(results.filter((r) => r.ok).map((r) => r.userId));
+    const failed = userIds.filter((id) => !done.has(id));
+    if (failed.length === 0) {
+      setShareTabId(null);
+      return;
+    }
+    return failed;
+  };
+
+  const exportTab = (tabId: string) => {
+    const tab = tabs.find((t) => t.tabId === tabId);
+    if (!tab || editing) return;
+    try {
+      saveJsonFile(`${pdfTitle(tab.name)}.json`, buildTabExport(tab));
+    } catch {
+      tell("파일을 내려받지 못했습니다.", "error");
+    }
+  };
+
+  // 정의 목록이 준비되기 전에는 정의 위젯이 「없는 위젯」으로 걸러지므로 막는다(W-D19 와 같은 이유).
+  const importBlocked = editing || saving || !registryReady;
+  const importTab = async (file: File) => {
+    if (importBlocked || status !== "ready") return;
+    if (file.size > IMPORT_FILE_MAX_BYTES) {
+      tell("파일이 너무 큽니다(최대 1MB).", "error");
+      return;
+    }
+    let text: string;
+    try {
+      text = await readFileText(file);
+    } catch {
+      tell("파일을 읽지 못했습니다.", "error");
+      return;
+    }
+    // 읽는 동안 편집을 시작했으면 버린다. 탭 목록은 읽은 뒤의 화면 값(ref)으로 계산한다.
+    if (editingRef.current) return;
+    const current = tabsRef.current;
+    const result = parseTabImport(text, { registry: registryRef.current, tabs: current, maxTabs });
+    if (!result.ok) {
+      tell(result.error, "error");
+      return;
+    }
+    const { dropped } = result;
+    // 새 탭 표시 — 첫 저장에서 같은 ID 가 서버에 있으면 저장소가 다른 ID 로 옮긴다.
+    const tab: WidgetTab = { ...result.tab, fresh: true };
+    let savedId = tab.tabId;
+    if (
+      await saveNow([...current, tab], async () => {
+        savedId = (await persistTab(tab)).id;
+      })
+    ) {
+      selectTab(savedId);
+      tell(tabImportMessage(tab.name, dropped), "success");
+    }
   };
 
   // 서랍에서 눌러 추가한 위젯으로 스크롤한다(스펙 §3.4). 격자가 칸을 그리는 시점이 한 박자 늦을 수 있어 찾을 때까지 몇 프레임 다시 본다.
@@ -595,7 +776,7 @@ export function WidgetWorkspace({
         className="cm-widget-ws__btn"
         data-action="start-edit"
         data-print-hide={pdfTarget ? "" : undefined}
-        disabled={editBlockedReason != null}
+        disabled={editBlockedReason != null || saving}
         title={editBlockedReason ?? "위젯을 옮기고 크기를 바꿉니다"}
         onClick={startEdit}
       >
@@ -650,6 +831,24 @@ export function WidgetWorkspace({
           onDelete={(id) => void deleteTab(id)}
           onResetHome={() => void resetHome()}
           trailing={trailing}
+          mode={mode}
+          maxTabs={maxTabs}
+          onResetTab={!admin && store.resetTab ? (id) => void resetTab(id) : undefined}
+          onShare={canShare ? setShareTabId : undefined}
+          onExport={admin ? undefined : exportTab}
+          onImport={admin ? undefined : (file) => void importTab(file)}
+          importDisabled={importBlocked}
+          importTitle={registryStatus === "loading" ? "위젯 목록을 불러오는 중입니다" : registryStatus === "error" ? "위젯 정의를 불러오지 못했습니다" : undefined}
+        />
+      )}
+      {/* 공유 창은 열 때만 마운트한다 — MantineProvider 가 없는 곳에서 닫힌 창을 그리지 않게. */}
+      {shareTarget && store.searchUsers && (
+        <WidgetShareDialog
+          tabName={shareTarget.name}
+          searchUsers={store.searchUsers.bind(store)}
+          onShare={shareTo}
+          onClose={() => setShareTabId(null)}
+          selfUserId={userId}
         />
       )}
       <div className="cm-widget-ws__body">

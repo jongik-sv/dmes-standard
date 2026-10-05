@@ -48,9 +48,9 @@ vi.mock("@dk-oasis/shared/widget", async () => {
   const { WidgetBoardModeContext } = await import("@/lib/widget-board-mode");
   return {
     // 이 자리의 맥락 값을 그대로 드러낸다 — 실제 위젯 본체(WidgetFrame → 개인 메모)가 읽는 값과 같다.
-    WidgetWorkspace: function WorkspaceDouble(p: { testId?: string }) {
+    WidgetWorkspace: function WorkspaceDouble(p: { testId?: string; mode?: string; singleTab?: unknown }) {
       const mode = useContext(WidgetBoardModeContext);
-      return el("div", { "data-testid": p.testId, "data-board-mode": mode });
+      return el("div", { "data-testid": p.testId, "data-board-mode": mode, "data-mode": p.mode, "data-single": p.singleTab ? "Y" : "N" });
     },
     mergeWidgetRegistry: () => ({}),
     toWidgetDefRow: (r: unknown) => r,
@@ -109,5 +109,15 @@ describe("LayoutTab — 기본 배치 보드의 보드 맥락", () => {
     const board = container.querySelector<HTMLElement>('[data-testid="widget-layout-board"]');
     expect(board).not.toBeNull();
     expect(board!.getAttribute("data-board-mode")).toBe("preview");
+  });
+
+  it("보드는 singleTab 이 아니라 다중 탭 mode=\"admin\" 이다(홈 + 기본 탭, widget-tabs 2026-10-05)", async () => {
+    await act(async () => {
+      root.render(createElement(LayoutTab));
+    });
+    await flush();
+    const board = container.querySelector<HTMLElement>('[data-testid="widget-layout-board"]');
+    expect(board!.getAttribute("data-mode")).toBe("admin");
+    expect(board!.getAttribute("data-single")).toBe("N");
   });
 });

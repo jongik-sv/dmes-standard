@@ -19,7 +19,9 @@ import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetLayoutRequest;
 import com.dongkuk.dmes.mcm.widget.layout.entity.WidgetDefaultLayout;
 import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultLayoutRepository;
+import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultTabRepository;
 import com.dongkuk.dmes.mcm.widget.layout.service.CommWidgetLayoutService;
+import com.dongkuk.dmes.mcm.widget.layout.service.WidgetDefaultTabWriter;
 import com.dongkuk.dmes.mcm.widget.layout.service.WidgetLayoutWriter;
 import com.dongkuk.dmes.mcm.widget.layout.service.WidgetLayoutWriter.LayoutItem;
 import java.util.ArrayList;
@@ -42,6 +44,8 @@ class CommWidgetLayoutTest {
     @Mock WidgetLayoutWriter writer;
     @Mock DeptInfoRepository deptRepository;
     @Mock WidgetUserContextResolver userContextResolver;
+    @Mock WidgetDefaultTabRepository tabRepository;
+    @Mock WidgetDefaultTabWriter tabWriter;
 
     @InjectMocks CommWidgetLayoutService service;
 
@@ -243,7 +247,7 @@ class CommWidgetLayoutTest {
     // ── searchLayouts·deleteLayout·searchDepts ─────────────────────
 
     @Test
-    @DisplayName("배치 목록은 전사(「전사」) 먼저, 그다음 부서 이름 순")
+    @DisplayName("배치 목록은 전사(「전사」) 먼저, 그다음 부서 이름 순 — 기본 탭이 없으면 tabCount=0")
     void searchLayoutsCompanyFirst() {
         List<Object[]> counts = new ArrayList<>();
         counts.add(new Object[] {"D200", 3L});
@@ -258,17 +262,39 @@ class CommWidgetLayoutTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> layouts = (List<Map<String, Object>>) result.get("layouts");
         assertThat(layouts).containsExactly(
-                Map.of("layoutKey", "*", "deptNm", "전사", "count", 2L),
-                Map.of("layoutKey", "D200", "deptNm", "가공팀", "count", 3L),
-                Map.of("layoutKey", "D100", "deptNm", "생산팀", "count", 1L));
+                Map.of("layoutKey", "*", "deptNm", "전사", "count", 2L, "tabCount", 0L),
+                Map.of("layoutKey", "D200", "deptNm", "가공팀", "count", 3L, "tabCount", 0L),
+                Map.of("layoutKey", "D100", "deptNm", "생산팀", "count", 1L, "tabCount", 0L));
     }
 
     @Test
-    @DisplayName("deleteLayout 은 그 키의 배치를 지운다")
+    @DisplayName("기본 탭만 있는 키도 목록에 나온다(count=0) — 부서 이름도 함께 찾는다")
+    void searchLayoutsWithTabOnlyKey() {
+        List<Object[]> counts = new ArrayList<>();
+        counts.add(new Object[] {"*", 2L});
+        when(layoutRepository.countGroupByLayoutKey()).thenReturn(counts);
+        List<Object[]> tabCounts = new ArrayList<>();
+        tabCounts.add(new Object[] {"*", 1L});
+        tabCounts.add(new Object[] {"D300", 2L});
+        when(tabRepository.countGroupByLayoutKey()).thenReturn(tabCounts);
+        when(deptRepository.findAllById(List.of("D300"))).thenReturn(List.of(dept("D300", "품질팀", null)));
+
+        Map<String, Object> result = service.searchLayouts(new CommWidgetLayoutRequest());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> layouts = (List<Map<String, Object>>) result.get("layouts");
+        assertThat(layouts).containsExactly(
+                Map.of("layoutKey", "*", "deptNm", "전사", "count", 2L, "tabCount", 1L),
+                Map.of("layoutKey", "D300", "deptNm", "품질팀", "count", 0L, "tabCount", 2L));
+    }
+
+    @Test
+    @DisplayName("deleteLayout 은 그 키의 「홈」 기본 배치와 기본 탭을 한 트랜잭션(기본 탭 Writer)으로 지운다")
     void deleteLayout() {
         Map<String, Object> result = service.deleteLayout(key("D100"));
 
-        verify(writer).delete("D100");
+        verify(tabWriter).deleteKey("D100");
+        verify(writer, never()).delete(anyString());
         assertThat(result).containsEntry("layoutKey", "D100");
     }
 

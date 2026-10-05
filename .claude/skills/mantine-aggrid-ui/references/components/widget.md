@@ -2,7 +2,7 @@
 
 사용자가 위젯(조각 프로그램)을 24칸 격자에서 자유롭게 옮기고 크기를 바꾸며, 탭으로 나눠 서버에 저장하게 하는 홈 화면을 만들 때 쓴다(관리자 정의 위젯·사용 중지·기본 배치 편집 포함). 행 단위 대시보드가 필요하면 [dashboard](dashboard.md), 사용자가 자유 배치·탭·서버 저장을 쓰면 widget 을 고른다.
 
-- import: `import { WidgetWorkspace, WidgetBoard, WidgetFrame, WidgetTabs, WidgetPicker, WidgetStyle, useWidgetStatus, useWidgetBodySize, useWidgetTitle, WidgetHeaderActions, WidgetTitleExtra, mergeWidgetRegistry, toWidgetDefRow, type WidgetWorkspaceProps, type WidgetBoardProps, type WidgetFrameProps, type WidgetTabsProps, type WidgetPickerProps, type WidgetMeta, type WidgetProps, type WidgetItem, type WidgetTab, type WidgetStore, type WidgetRegistry, type WidgetRegistryEntry, type WidgetStatus, type WidgetDefRow, type WidgetTypeRegistry, type WidgetTypeMeta, type WidgetTypeEditorProps } from "@dk-oasis/shared/widget";` (CSS import 없음 — 컴포넌트가 `<WidgetStyle />` 로 자기 스타일을 넣는다)
+- import: `import { WidgetWorkspace, WidgetBoard, WidgetFrame, WidgetTabs, WidgetPicker, WidgetStyle, useWidgetStatus, useWidgetBodySize, useWidgetTitle, useWidgetRename, WidgetHeaderActions, WidgetTitleExtra, mergeWidgetRegistry, toWidgetDefRow, type WidgetWorkspaceProps, type WidgetBoardProps, type WidgetFrameProps, type WidgetTabsProps, type WidgetPickerProps, type WidgetMeta, type WidgetProps, type WidgetItem, type WidgetTab, type WidgetStore, type WidgetRegistry, type WidgetRegistryEntry, type WidgetStatus, type WidgetRenameHandler, type WidgetDefRow, type WidgetTypeRegistry, type WidgetTypeMeta, type WidgetTypeEditorProps } from "@dk-oasis/shared/widget";` (CSS import 없음 — 컴포넌트가 `<WidgetStyle />` 로 자기 스타일을 넣는다)
 - 소스: `src/frontend/shared/src/widget/` (`WidgetWorkspace.tsx`·`WidgetBoard.tsx`·`WidgetFrame.tsx`·`WidgetTabs.tsx`·`WidgetPicker.tsx`·`frame-context.ts`·`widget-layout.ts`(순수 함수)·`widget-registry.ts`(등록부 합치기 순수 함수)·`types.ts`·`constants.ts`·`styles.tsx`)
 - 내부 구현: 격자는 react-grid-layout 2.x, 나머지는 일반 `div`/`button`. Mantine 을 쓰지 않는다. 색·간격은 공통 토큰만 쓴다
 - Part B 허용 목록(§1): `widget` SHOULD.
@@ -105,6 +105,26 @@ function Home({ store, rawDefs, status, retry }: Props) {
 />
 ```
 
+## 기본 탭·공유·내보내기·가져오기(2026-10-05)
+
+- **고정 탭**: 「홈」과 기본 탭(`WidgetTab.defaultTab: true`, 관리자가 둔 `def-N`)은 탭 줄 앞(홈 → 기본 탭 → 일반 탭)에 고정이고 지우기·이름 바꾸기·옮기기가 없다. 일반 탭도 고정 탭 앞으로는 못 간다. 서버가 기본 탭 `seq` 를 100+ 로 줘도 `orderTabs` 가 앞에 둔다. 순서 저장(`reorderTabs`)에는 일반 탭 ID 만 넘긴다.
+- **기본 탭 메뉴**: 잠그기 / 기본으로 되돌리기(`store.resetTab` 이 있을 때, `customized` 일 때만 켜짐) / 공유… / 내보내기. 되돌리기는 확인 → `resetTab(tabId)` → 스켈레톤 없이 조용히 다시 불러온다. 기본 탭 편집은 일반 탭처럼 [배치 편집]→[완료] 로 `saveTab` 하고, 저장·잠금 뒤에는 다시 불러오지 않아도 `customized` 가 켜진다. 「홈」 되돌리기는 예전처럼 `resetHome`.
+- **공유**: `store.shareTab`·`store.searchUsers` 가 둘 다 있으면 모든 탭 메뉴에 「공유…」 — [LookupMultiModal](lookup-multi-modal.md) 공유 창(2자 이상 검색, 최대 10명, `userId` 본인 제외)을 열 때만 마운트한다. 결과는 `shareResultMessage`(「n명에게 공유했습니다.」)로 한 번 알리고, 모두 성공이면 닫는다. 일부·전부 실패면 사유를 알리고 실패한 사람만 고른 채 창을 둔다. 호출이 던지면 알리고 창을 둔다.
+- **내보내기·가져오기**: user 모드면 늘 보인다. 내보내기는 탭을 `{ version: 1, kind: "dmes-widget-tab", name, items[] }`(instId 없음) JSON 파일 「{탭 이름}_{yyyyMMdd}.json」 으로 내려받는다. 가져오기(탭 줄 (+) 옆, `data-action="import-tab"`)는 파일을 `parseTabImport` 로 검사해(버전·모양·위젯 30개·탭 한도) 없는·사용 중지 위젯을 빼고 새 `tab-N` 탭(새 instId, 이름이 겹치면 숫자 꼬리)으로 **바로 저장**한 뒤 고르고 알린다. 편집 중·저장 중·정의 목록 준비 전에는 막히고, 1MB 넘는 파일·widgetId 100자 초과·객체가 아닌 config·config JSON 4000자 초과는 거절한다.
+- **새 탭 ID(fresh)**: (+)·가져오기로 만든 탭은 `fresh: true` 로 첫 `saveTab` 을 한다. 저장소가 다른 ID 를 `{ tabId }` 로 돌려주면(화면이 연 뒤 같은 `tab-N` 공유 사본이 생긴 경우 서버가 옮겨 저장) 작업 공간이 탭·고른 탭·편집 기준·마지막 탭 기억을 그 ID 로 바꾸고, 저장에 성공하면 `fresh` 를 끈다. admin 모드 어댑터는 `fresh` 를 쓰지 않는다.
+- **`mode="admin"`**(위젯관리 「기본 배치」): 잠그기·홈 되돌리기·공유·내보내기·가져오기가 없고 「홈」에는 ⋯ 가 없다. 「홈」 외 탭은 이름 바꾸기·옮기기·지우기가 되며 탭 한도는 홈 + `MAX_DEFAULT_TABS`(5). 저장소 어댑터가 「홈」은 기본 배치 저장, 다른 탭은 기본 탭 저장으로 보낸다(새 탭 임시 ID `tab-N` → 서버 `def-N` 매핑은 어댑터가 기억한다).
+
+```tsx
+<WidgetWorkspace
+  key={layoutKey} // 배치 키가 바뀌면 다시 마운트
+  mode="admin"
+  registry={registry}
+  homeDefault={HOME_DEFAULT_LAYOUT}
+  store={layoutStore} // createLayoutStore(layoutKey, …)
+  typeTitles={TYPE_TITLES}
+/>
+```
+
 ## 편집 흐름
 
 - [배치 편집]은 24칸(≥960px, 서랍 자리를 포함한 작업 공간 폭 기준)에서만 켜진다. 좁은 화면·잠긴 탭·불러오기 실패·정의 목록 불러오는 중(「위젯 목록을 불러오는 중입니다」)·정의 목록 실패(「위젯 정의를 불러오지 못했습니다」)면 비활성이고 안내 제목이 붙는다. 정의 목록이 불러오는 중·실패면 (+) 새 탭도 비활성이고 탭 메뉴(⋯)는 숨는다((+)도 편집 모드로 들어가는 길이라서다. 불러오기 실패 때와 같은 모양). 정의 목록 실패면 탭 줄 위에 띠와 [다시 시도](`onRetryRegistry` 가 있을 때)가 보이고, 편집 중에 정의 목록이 준비 상태가 아니게 되면 [완료]가 막힌다.
@@ -133,12 +153,13 @@ WidgetWorkspaceProps
 | typeTitles | `Readonly<Record<string, string>>` | - | 유형 ID → 이름. 서랍이 정의 위젯 제목 아래에 유형 이름을 보인다(서랍 검색도 유형 이름으로 찾는다) |
 | singleTab | `{ title: string }` | - | 탭 줄을 숨기고 「홈」 하나만 다룬다(관리자 기본 배치 편집). 인라인 객체로 넘겨도 다시 불러오지 않는다 |
 | pdfTarget | `RefObject<HTMLElement \| null>` | - | 주면 도구 줄의 [배치 편집] 앞에 [PDF] 단추(`data-action="print-pdf"`)를 그린다. 누르면 대상 요소(ref 가 비면 작업 공간)를 [printElementAsPage](print-element-as-page.md) 로 한 장짜리 페이지로 인쇄하고, 기본 파일 이름은 「{지금 탭 이름}_{yyyyMMdd}」(못 쓰는 글자는 `_`, 80글자까지, 끝 공백·마침표 제거)다. 편집 중에는 비활성(title 「편집 중에는 사용할 수 없습니다」)이고 잠긴 탭·불러오기 실패·좁은 화면에서는 켜져 있다. 인쇄 창을 열지 못하면(`print()` 예외) 「인쇄 창을 열지 못했습니다.」 알림을 보인다. 없으면 단추가 없다 |
+| mode | `"user" \| "admin"` | `"user"` | `"admin"` 이면 잠그기·홈 되돌리기·공유·내보내기·가져오기를 숨기고 탭 한도를 홈 + 5 로 둔다([기본 탭·공유](#기본-탭공유내보내기가져오기2026-10-05)) |
 
 WidgetBoardProps: `items`·`registry`·`editing`·`tabLocked`(필수), `onChange(items)`(필수), `onWideChange?(wide)`(안정된 함수를 넘긴다 — effect 의존성에 들어간다), `cols?: 24 | 12 | 1`(칸 수를 바깥에서 정함, 없으면 보드 자기 폭으로 판정), `width?`(고정 폭), `testId?`.
 
 WidgetFrameProps: `item`·`entry`(`undefined` 면 「없는 위젯」 칸, `entry.meta.disabled` 면 사용 중지 칸)·`editing`·`onToggleLock`·`onRemove`(필수), `sizeLabel?`·`onKeyMove?`. 제목 줄(제목·부제·새로 고침·화면 열기·잠금·빼기), 로딩 틀, 오류 경계를 그린다. 관리 화면 미리보기처럼 보드 밖에서 단독으로 그려도 된다.
 
-WidgetTabsProps: `tabs`·`activeTabId`·`editing`·`renamingTabId`·`onSelect`·`onAdd`·`onRenameStart`·`onRenameCommit`(오류 문구를 돌려주면 입력 칸 유지)·`onRenameCancel`·`onToggleLock`·`onMove`·`onDelete`·`onResetHome`, 선택 `menuDisabled`(⋯ 메뉴와 (+) 모두 막음)·`addDisabled`(⋯ 는 두고 (+) 만 막음)·`addTitle`((+) 의 title, 막은 이유를 알릴 때)·`trailing`.
+WidgetTabsProps: `tabs`·`activeTabId`·`editing`·`renamingTabId`·`onSelect`·`onAdd`·`onRenameStart`·`onRenameCommit`(오류 문구를 돌려주면 입력 칸 유지)·`onRenameCancel`·`onToggleLock`·`onMove`·`onDelete`·`onResetHome`, 선택 `menuDisabled`(⋯ 메뉴와 (+) 모두 막음)·`addDisabled`(⋯ 는 두고 (+) 만 막음)·`addTitle`((+) 의 title, 막은 이유를 알릴 때)·`trailing`, 그리고 2026-10-05 추가 `mode`(`"admin"` 이면 잠그기·홈 되돌리기 숨김)·`maxTabs`(기본 10)·`onResetTab`·`onShare`·`onExport`·`onImport(file)`·`importDisabled`·`importTitle` — 핸들러가 없으면 그 항목·단추를 그리지 않는다.
 
 WidgetPickerProps: `registry`·`items`·`onAdd(widgetId)`, 선택 `typeTitles`(유형 ID → 이름, 정의 위젯 제목 아래 작은 글씨). [위젯 추가] 서랍 — 검색·눌러 추가·격자로 끌어 놓기. 사용 중지 위젯은 보이지 않고, 이미 놓인 위젯(`multiple: false`)과 탭 한도(30개)는 막는다.
 
@@ -150,18 +171,26 @@ WidgetProps(위젯 본체가 받는 값): `instanceId`·`size`·`config`(인스�
 
 등록부 순수 함수(`widget-registry.ts`): `mergeWidgetRegistry(code, types, defs, prev?)`(실행 시 등록부. 선택 `prev` 는 지난번 결과 — 합친 결과의 항목이 모두 같은 객체면 `prev` 를 그대로 돌려줘 화면이 같은 등록부를 새것으로 보지 않게 한다), `toWidgetDefRow(raw)`(서버 응답 한 줄 → `WidgetDefRow`, `configJson` 문자열 파싱, srcTp 가 C·D 가 아니면 `null`), `applyWidgetOverride(meta, row)`(코드 메타 + 덮어쓰기 행), `defWidgetMeta(row, type)`(정의 위젯 메타), `defWidgetLoader(type, definition)`(유형 렌더러에 `definition` 을 끼운 본체 로더). 관리 화면 미리보기는 저장 전 폼 값으로 `applyWidgetOverride`·`defWidgetMeta`·`defWidgetLoader` 를 불러 `WidgetFrame` 에 넘긴다.
 
-틀 훅: `useWidgetStatus()` → `(status: WidgetStatus) => void`, `useWidgetBodySize()` → `{ width, height }`, `<WidgetHeaderActions>`(제목 줄 오른쪽 버튼 자리), `<WidgetTitleExtra>`(제목 옆 동적 부제·배지), `useWidgetTitle(title: string | null | undefined)` → `void`(칸마다 제목이 다른 위젯이 틀 제목을 바꾼다).
+틀 훅: `useWidgetStatus()` → `(status: WidgetStatus) => void`, `useWidgetBodySize()` → `{ width, height }`, `<WidgetHeaderActions>`(제목 줄 오른쪽 버튼 자리), `<WidgetTitleExtra>`(제목 옆 동적 부제·배지), `useWidgetTitle(title: string | null | undefined)` → `void`(칸마다 제목이 다른 위젯이 틀 제목을 바꾼다), `useWidgetRename(handler: WidgetRenameHandler | null | undefined)` → `void`(틀 제목 줄에서 바로 이름을 바꾸게 한다).
 - `useWidgetTitle`: 제목 줄 `h3` 와 틀의 `aria-label` 만 덮어쓴다. 본체가 받는 `props.title`(등록부 이름)·`WidgetFrameApi` 의 다른 값은 그대로다. `null`·`undefined`·공백뿐인 값은 덮어쓰지 않아 등록부 제목이 보이고, 값이 바뀌거나 본체가 사라지면 이전 덮어쓰기를 되돌린다(틀 밖에서는 아무 일도 하지 않는다). 틀은 덮어쓴 값을 위젯 ID 와 함께 기억하므로 같은 칸에 다른 위젯이 오면 저절로 풀린다. 사용 중지·없는 위젯 칸의 제목은 바꾸지 않는다. 이 훅을 부르지 않는 위젯의 DOM·동작은 이전과 같다. **틀 하나에 한 곳에서만 부른다** — 둘 이상이면 나중에 정한 값이 이기고, 한쪽이 사라지면 남은 쪽 값까지 지워져 정의 이름으로 돌아간다. 쓸 때는 저장된 값만 넘기고(편집 중 입력은 미리 보이지 않는다), 실제 칸이 아닌 곳(관리 화면 미리보기·기본 배치 보드)에서는 `null` 을 넘긴다. 예: 개인 메모장(m-mcm `widget-types/memo`) `useWidgetTitle(live ? memo?.title ?? null : null)`.
+- `useWidgetRename`: 처리기(`WidgetRenameHandler = (title: string) => Promise<void>`)를 등록한 위젯에서만 틀이 **보기 모드**의 제목 줄에 연필 버튼(`data-action="rename"`)을 붙이고 제목(`h3`) 더블클릭도 켠다. 편집 모드(배치 편집)에서는 연필·더블클릭이 모두 없고 잠금·빼기만 있으며, 입력 중에 편집 모드로 바뀌면 입력칸이 저장 없이 닫힌다. 제목 자리가 입력칸(`aria-label="위젯 이름"`)으로 바뀌어 Enter 저장·Esc 취소·칸을 벗어나면 저장이고, 이름은 40자(`WIDGET_TITLE_MAX`, 코드 포인트·앞 공백 제외)까지만 담기며 한글 조합 중 Enter 는 저장하지 않는다. 처리기는 앞뒤 공백을 자른 새 이름(비우면 `""` = 등록부 제목으로 되돌림)을 받아 저장하고, 실패하면 사용자에게 보일 문장을 담은 `Error` 를 던진다 — 틀은 입력칸을 열어 둔 채 그 문장을 알리고(칸을 벗어나도 다시 보내지 않는다, Enter 로만 재시도) 저장 중에는 칸을 잠가 중복 호출을 막는다. 키보드(Enter·Esc)로 닫으면 포커스가 연필 버튼으로 돌아온다. 지금 제목과 같게 확정하면 처리기를 부르지 않는다. **저장이 성공했을 때 틀 제목을 바꾸는 일은 처리기 쪽 몫**이다(저장된 값을 `useWidgetTitle` 에 넘기는 기존 경로). `null`·`undefined` 를 넘기면 꺼지므로 저장할 수 없는 상태(불러오기 전·편집 중·미리보기)에서는 `null` 을 넘긴다. 처리기 함수가 렌더마다 새로 만들어져도 등록은 다시 하지 않는다(최신 함수를 부른다). 틀 하나에 한 곳에서만 부른다. 예: 개인 메모장 `useWidgetRename(live && loaded && mode === "view" ? renameTitle : null)` — 저장 직전에 서버 메모를 다시 읽어 그 형식·내용에 제목만 바꿔 기존 `saveMemo` 로 보낸다(제목만 보내는 경로가 없어, 화면의 옛 글을 보내면 다른 곳의 수정을 덮는다).
 
 WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Error(message)` 로 던진다)
 
 | 메서드 | 역할 |
 |---|---|
 | `load(): Promise<WidgetTab[]>` | 사용자 탭 전체. 「홈」을 저장한 적 없으면 결과에 `home` 이 없다 |
-| `saveTab(tab)` | 탭 하나를 통째로 바꾼다(없으면 만든다) |
+| `saveTab(tab)` | 탭 하나를 통째로 바꾼다(없으면 만든다). `Promise<void \| { tabId?: string }>` — `tab.fresh` 첫 저장을 다른 ID 로 옮겼으면 그 ID 를 돌려준다 |
 | `deleteTab(tabId)` | 탭을 지운다 |
 | `reorderTabs(tabIds)` | 「홈」을 뺀 탭 ID 를 새 순서로 |
 | `resetHome()` | 사용자 「홈」 배치를 지운다(다음부터 기본 배치) |
+| `resetTab?(tabId)` | 선택. 기본 탭의 내 재정의를 지운다. 없으면 「기본으로 되돌리기」가 없다 |
+| `shareTab?(tabId, userIds)` | 선택. 사본을 받는 사람들에게 새 탭으로 보내고 `WidgetShareResult[]`(`userId`·`ok`·`tabNm`·`message`)를 돌려준다 |
+| `searchUsers?(keyword)` | 선택. 공유 받는 사람 검색 → `WidgetShareUser[]`(`userId`·`userNm`·`deptNm`). `shareTab` 과 둘 다 있어야 「공유…」가 보인다 |
+
+`WidgetTab` 의 선택 칸: `defaultTab`(관리자 기본 탭 — 고정 탭), `customized`(기본 탭을 개인화함 — 되돌리기 활성). 내보내기 파일 타입은 `WidgetTabExportFile`·`WidgetTabExportItem`.
+
+탭 파일·공유 순수 함수(`widget-layout.ts`): `isFixedTab`·`orderTabs`·`fixedTabCount`(고정 탭 판정·정렬·앞쪽 고정 수), `uniqueTabName(name, tabs)`(20자로 자르고 겹치면 숫자 꼬리), `buildTabExport(tab)`(내보내기 내용), `parseTabImport(text, { registry, tabs, maxTabs?, newId? })`(가져오기 검사 → `{ ok, tab, dropped }` 또는 `{ ok: false, error }`), `tabImportMessage(name, dropped)`, `shareResultMessage(results, names)`(알림 문구와 종류).
 
 순수 함수(`widget-layout.ts`, 화면이 직접 부를 일은 드물다): `sanitizeLayout`·`reflowLayout`·`colsForWidth`·`minSizeOf`·`maxSizeOf`(격자 정리·칸 수·크기 범위), `addItem`·`removeItem`·`toggleLock`·`canAddWidget`(위젯 추가·빼기·잠금·한도·사용 중지 거절), `itemsEqual`·`tabsEqual`(변경 비교), `validateTabName`·`nextTabId`·`homeTab`·`newInstanceId`(탭·ID), `validateWidgetMeta`(등록부 메타 검사). `openPortalPage(pageId)` 는 `portal-open-tab` 이벤트로 포털 탭을 여는 함수이며 틀의 「화면 열기」가 쓴다.
 
@@ -178,7 +207,7 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 ## 표준값: 모든 화면 동일
 
 - 격자: 넓은 화면(≥960px) 24칸, 중간(≥768px) 12칸, 좁은 화면 1칸. 세로 한 칸 20px, 간격 8px. 저장은 넓은 화면 배치 하나뿐이고 중간·좁은 화면은 다시 흘린 배치를 보기 전용으로 보인다.
-- 한도: 탭 사용자당 10개, 위젯 탭당 30개, 탭 이름 1~20자(사용자 안 중복 금지). 「홈」 탭은 ID `home`, 늘 첫 자리이고 지우기·이름 바꾸기가 안 된다.
+- 한도: 탭 사용자당 10개(홈·기본 탭 포함), 위젯 탭당 30개, 탭 이름 1~20자(사용자 안 중복 금지), 관리자 기본 탭 키당 5개, 공유 한 번에 10명. 「홈」 탭은 ID `home`, 늘 첫 자리이고 지우기·이름 바꾸기가 안 된다. 기본 탭 ID 는 `def-N`.
 - 위젯 최소 크기 기본 `{ w: 4, h: 6 }`, 크기 조절 손잡이 8방향.
 - 편집 모드의 보드(`.cm-widget-board[data-editing="true"]`)에서는 shared 위젯 스타일이 안의 `iframe` 에 `pointer-events: none` 을 건다(iframe 이 마우스를 삼켜 끌기·크기 조절이 끊기는 것을 막는다). 위젯 유형마다 따로 막지 않는다.
 - 서버에서 받은 배치는 `sanitizeLayout` 이 정리한다(격자 밖·겹침·최소 크기 미만·중복 instId). 등록부에 없는 위젯 ID 는 보기 모드에서 숨기고 편집 모드에서 「없는 위젯」 칸으로 보여 준다. 없는 위젯 칸은 잠겨 있어도 ✕ 로 뺄 수 있다(`removeItem(items, instId, force)`).
@@ -192,9 +221,10 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 | 사용 중지 위젯을 등록부에서 빼 버린다 | 「없는 위젯」이 되어 저장할 때 사용자 배치에서 사라진다. `meta.disabled: true` 로 남긴다(`mergeWidgetRegistry` 가 그렇게 한다) |
 | `onWideChange` 에 렌더마다 새 화살표 함수를 넘긴다 | 보드가 effect 의존성으로 쓴다. `useCallback` 이나 `setState` 함수를 넘긴다 |
 | 위젯 본체가 자기 제목 줄을 그린다 | 틀(`WidgetFrame`)이 그린다. 고유 버튼은 `WidgetHeaderActions`, 부제는 `WidgetTitleExtra`, 사용자가 붙인 제목은 `useWidgetTitle` |
+| 위젯 본체가 제목 줄에 자기 이름 바꾸기 연필·입력칸을 그린다 | `useWidgetRename` 으로 처리기만 등록한다. 연필·더블클릭·입력칸·Enter/Esc·중복 방지·오류 알림은 틀이 맡는다 |
 | 칸마다 다른 제목을 `WidgetTitleExtra` 로 제목 옆에 덧붙이거나 본문 첫 줄에 그린다 | 등록부 이름과 겹쳐 두 제목이 보인다. `useWidgetTitle` 로 틀 제목 자체를 바꾼다 |
 | 위젯 `id` 를 나중에 바꾼다 | 저장 키라서 사용자 배치에서 그 위젯이 빠진다. 새 ID 로 만들고 옛 것은 한동안 둔다 |
-| shared `widget` 소스에 Mantine 컴포넌트를 import 한다 | 시험에 MantineProvider 가 없다. `<button>` + `WIDGET_CSS` 클래스로 만든다(위젯 본체를 만드는 화면은 shared 래퍼를 쓴다) |
+| shared `widget` 소스에 Mantine 컴포넌트를 import 한다 | 시험에 MantineProvider 가 없다. `<button>` + `WIDGET_CSS` 클래스로 만든다(위젯 본체를 만드는 화면은 shared 래퍼를 쓴다). 공유 창처럼 팝업이 꼭 필요하면 열 때만 조건부로 마운트하고(`WidgetShareDialog`), 그 시험만 `renderWithMantine` 으로 그린다 |
 | 화면이 `key={...}` 로 `WidgetWorkspace` 를 등록부·기본 배치·사용자 확인이 바뀔 때마다 다시 마운트한다 | 진입 조회가 다시 일어나고 그린 보드가 스켈레톤으로 돌아간다. 작업 공간이 늦게 온 값을 다시 조회 없이 정리하므로 `key` 는 배치 출처가 진짜 바뀔 때만 쓴다([성능 규칙](#성능-규칙)) |
 | 위젯 본체가 숨은 탭에서도 `setInterval` 로 조회하고, 사이드바가 받은 목록을 위젯마다 또 조회하고, 스토어를 통째 구독한다 | [성능 규칙](#성능-규칙) — 표시 연동 타이머·호스트 저장소 재사용·필드 훅 |
 | `WidgetStore.load` 가 실패를 빈 배열로 돌려준다 | 던져야 한다. 빈 배열이면 작업 공간이 빈 상태를 저장해 사용자 배치를 지울 수 있다(던지면 [배치 편집]이 막힌다) |
@@ -206,4 +236,5 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 - `src/frontend/m-mcm/page-components/home/`: `WidgetWorkspace` 에 `WIDGET_REGISTRY`(`lib/generated/widget-registry.ts`)·`HOME_DEFAULT_LAYOUT`(`home-layout.ts`)·`secWidget` 저장소(`widget-store.ts`)를 넘기는 포털 홈. `pdfTarget` 으로 홈 뿌리 `.mcm-home`(인사말·공지 띠·탭 줄·보드)을 넘겨 [PDF] 를 켠다.
 - `src/frontend/m-mcm/widgets/home/{이름}/`: `widget.meta.ts` + `widget.tsx` 로 이루어진 홈 위젯 11개.
 - `src/frontend/m-mcm/widget-types/{typeId}/`: 정의 위젯 유형(`type.meta.ts` + `renderer.tsx` + `editor.tsx`), 생성물 `lib/generated/widget-type-registry.ts`.
-- `src/frontend/m-mcm/page-components/csa/commWidgetMng/`: 위젯관리 화면 — 미리보기는 `WidgetFrame` 단독, 기본 배치 탭은 `WidgetWorkspace singleTab` + 관리자 어댑터 저장소.
+- `src/frontend/m-mcm/page-components/csa/commWidgetMng/`: 위젯관리 화면 — 미리보기는 `WidgetFrame` 단독, 기본 배치 탭은 `WidgetWorkspace mode="admin"`(홈 + 기본 탭 여러 개) + 관리자 어댑터 저장소(`layout-store.ts`, 홈 → saveLayout, 기본 탭 → saveDefaultTab, `tab-N`→`def-N` 매핑).
+- `src/frontend/m-mcm/page-components/home/widget-store.ts`: `secWidget` 저장소 — `defaultYn`·`customYn` → `defaultTab`·`customized`, `resetTab`·`shareTab`·`searchUsers` 구현.

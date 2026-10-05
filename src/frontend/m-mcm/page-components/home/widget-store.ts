@@ -2,9 +2,11 @@
  * secWidget(mcm OASIS)을 부르는 WidgetStore — 사용자 위젯 탭·배치 저장(스펙 §4.2).
  * 요청 본문은 CactusRequest 표준(params 는 평평한 값, 목록은 grids.{파라미터명}.rows — BackEnd 표준 §6-E).
  * 응답은 data.result(Map) — api.ts unwrap 이 풀어 준다. 실패(meta.success=false)는 Error(message) 로 던진다.
+ * 기본 탭·공유(widget-tabs 2026-10-05, 설계 design-widget-tabs §3.1): search 줄의 defaultYn·customYn → defaultTab·customized,
+ * resetTab(기본 탭 재정의 지우기)·shareTab(사본 보내기, 받는 사람은 grids.targets.rows)·searchUsers(2자 이상).
  */
 import { apiRequest } from "@dk-oasis/shared/http";
-import type { WidgetItem, WidgetStore, WidgetTab } from "@dk-oasis/shared/widget";
+import type { WidgetItem, WidgetShareResult, WidgetShareUser, WidgetStore, WidgetTab } from "@dk-oasis/shared/widget";
 
 import { unwrap } from "./api";
 
@@ -17,7 +19,13 @@ async function call(action: string, params: Record<string, unknown> = {}, grids?
   return unwrap(res);
 }
 
-interface TabRow { tabId: string; tabNm: string; tabSeq: number; lockYn: string }
+const records = (v: unknown): Record<string, unknown>[] =>
+  Array.isArray(v) ? v.filter((r): r is Record<string, unknown> => r != null && typeof r === "object" && !Array.isArray(r)) : [];
+const text = (v: unknown) => (v == null ? "" : String(v));
+/** 서버가 boolean 또는 "Y"/"N" 으로 줄 수 있다. */
+const yes = (v: unknown) => v === true || v === "Y" || v === "true";
+
+interface TabRow { tabId: string; tabNm: string; tabSeq: number; lockYn: string; defaultYn?: unknown; customYn?: unknown }
 interface WidgetRow { tabId: string; instId: string; widgetId: string; posX: number; posY: number; sizeW: number; sizeH: number; lockYn: string; configJson: string | null }
 
 function parseConfig(raw: string | null): unknown | null {
@@ -39,6 +47,8 @@ export const secWidgetStore: WidgetStore = {
       name: t.tabNm,
       seq: Number(t.tabSeq) || 0,
       locked: t.lockYn === "Y",
+      // 기본 탭이 아닌 줄에는 칸을 싣지 않는다(기존 탭 모양 그대로).
+      ...(yes(t.defaultYn) ? { defaultTab: true, customized: yes(t.customYn) } : {}),
       items: widgets
         .filter((w) => w.tabId === t.tabId)
         .map<WidgetItem>((w) => ({
@@ -53,10 +63,12 @@ export const secWidgetStore: WidgetStore = {
         })),
     }));
   },
+  // 새 탭(fresh)의 첫 저장에만 newYn=Y — 서버는 같은 tab-N 이 이미 있으면(화면이 연 뒤 생긴 공유 사본) 덮어쓰지 않고
+  // 다음 빈 번호로 저장해 result.tabId 로 돌려준다. 작업 공간이 그 ID 로 탭을 바꾼다.
   async saveTab(tab) {
-    await call(
+    const out = await call(
       "saveTab",
-      { tabId: tab.tabId, tabNm: tab.name, tabSeq: tab.seq, lockYn: tab.locked ? "Y" : "N" },
+      { tabId: tab.tabId, tabNm: tab.name, tabSeq: tab.seq, lockYn: tab.locked ? "Y" : "N", ...(tab.fresh ? { newYn: "Y" } : {}) },
       {
         widgets: tab.items.map((i) => ({
           instId: i.instId,
@@ -70,6 +82,7 @@ export const secWidgetStore: WidgetStore = {
         })),
       }
     );
+    return { tabId: text(out.tabId) || tab.tabId };
   },
   async deleteTab(tabId) {
     await call("deleteTab", { tabId });
@@ -79,5 +92,18 @@ export const secWidgetStore: WidgetStore = {
   },
   async resetHome() {
     await call("resetHome");
+  },
+  async resetTab(tabId) {
+    await call("resetTab", { tabId });
+  },
+  async shareTab(tabId, userIds): Promise<WidgetShareResult[]> {
+    const out = await call("shareTab", { tabId }, { targets: userIds.map((userId) => ({ userId })) });
+    return records(out.results).map((r) => ({ userId: text(r.userId), ok: yes(r.ok), tabNm: text(r.tabNm), message: text(r.message) }));
+  },
+  async searchUsers(keyword): Promise<WidgetShareUser[]> {
+    const out = await call("searchUsers", { keyword: keyword.trim() });
+    return records(out.users)
+      .filter((r) => text(r.userId) !== "")
+      .map((r) => ({ userId: text(r.userId), userNm: text(r.userNm), deptNm: text(r.deptNm) }));
   },
 };
