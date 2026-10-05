@@ -19,7 +19,7 @@
 #    쓰므로, 패키지 node_modules 가 메인 체크아웃을 가리키는 심링크면 메인의 `node_modules/@dk-oasis/*` 링크가 워크트리 경로로
 #    다시 써져 메인 포털이 깨진다. 링크를 지운 폴더 쪽 설치 폴더는 루트 node_modules 가 이미 있어도 건너뛰지 않고 다시 설치한다
 #    (지운 자리를 설치가 워크트리 안에 독립된 node_modules 로 새로 만든다). 다시 부르는 경우(DEPS_BUSY 75)를 위해 지운 경로를
-#    git 디렉터리의 dflow-deps-relink 에 남겼다가 그 설치가 성공하면 지운다. 설치할 폴더 자신이 워크트리 밖으로 가는 심링크이면
+#    git 디렉터리의 dflow-deps-relink 에 남겼다가, 그 경로를 맡은 설치 폴더(위로 올라가며 처음 만나는 lockfile 폴더)의 설치가 성공하면 지운다. 설치할 폴더 자신이 워크트리 밖으로 가는 심링크이면
 #    설치하지 않고 `DEPS_FAILED outside-worktree <폴더>` 로 끝낸다. 이 스크립트는 워크트리 밖 파일을 쓰지 않는다.
 # 2) JS 의존성 설치. 루트뿐 아니라 하위 폴더의 lockfile 도 찾아 각각 설치한다(예 src/frontend/pnpm-lock.yaml)
 #    — node_modules·.git·.claude(워크트리 포함) 는 제외하고 깊이는 DEPS_MAXDEPTH(기본 4)로 제한한다. 폴더마다
@@ -132,29 +132,40 @@ link_target_any() {
   l="$(readlink "$1" 2>/dev/null)"; [ -n "$l" ] || return 0
   case "$l" in /*) abs="$l" ;; *) abs="$(dirname "$1")/$l" ;; esac
   if [ -d "$abs" ]; then ( cd "$abs" 2>/dev/null && pwd -P ); return 0; fi
-  d="$(cd "$(dirname "$abs")" 2>/dev/null && pwd -P)" || return 0
+  d="$(cd "$(dirname "$abs")" 2>/dev/null && pwd -P)" || { printf '%s' "$abs"; return 0; }   # 부모까지 없으면 글자 그대로 비교한다
   [ -n "$d" ] && printf '%s/%s' "$d" "$(basename "$abs")"
 }
 # 지운 링크를 품은 설치 폴더는 이미 node_modules 가 있어도 다시 설치해야 한다(지운 자리를 설치가 새로 만든다).
 # 다시 부르는 경우(DEPS_BUSY 75)를 위해 표식을 작업 트리 밖 git 디렉터리에 남기고, 설치가 성공하면 지운다.
 RELINK=""; _gd="$(git rev-parse --absolute-git-dir 2>/dev/null)" && [ -n "$_gd" ] && RELINK="$_gd/dflow-deps-relink"
-relink_wanted() {  # relink_wanted <설치 폴더(루트는 .)> → 그 아래 지운 링크가 남아 있으면 0
+# 표식 줄(<패키지>/node_modules)을 맡는 설치 폴더 = 그 패키지에서 위로 올라가며 처음 만나는 lockfile 폴더(없으면 루트 ".").
+relink_owner() {
+  local d; d="$(dirname "$(dirname "$1")")"
+  while [ "$d" != "." ] && [ "$d" != "/" ]; do
+    # install_dir 안(cd 한 뒤)에서도 부르므로 워크트리 루트 기준 절대경로로 본다
+    { [ -f "$TOP_PHYS/$d/pnpm-lock.yaml" ] || [ -f "$TOP_PHYS/$d/package-lock.json" ] || [ -f "$TOP_PHYS/$d/yarn.lock" ]; } && { printf '%s' "$d"; return 0; }
+    d="$(dirname "$d")"
+  done
+  printf '.'
+}
+relink_wanted() {  # relink_wanted <설치 폴더(루트는 .)> → 그 폴더가 맡은 지운 링크가 남아 있으면 0
   [ -n "$RELINK" ] && [ -s "$RELINK" ] || return 1
   local u
   while IFS= read -r u; do
-    case "$1" in .) return 0 ;; *) case "$u" in "$1"/*) return 0 ;; esac ;; esac
+    [ "$(relink_owner "$u")" = "$1" ] && return 0
   done < "$RELINK"
   return 1
 }
-relink_done() {  # relink_done <설치 폴더> → 그 아래 줄을 표식에서 뺀다
+relink_done() {  # relink_done <설치 폴더> → 그 폴더가 맡은 줄을 표식에서 뺀다(실제로 설치한 뒤에만 부른다)
   [ -n "$RELINK" ] && [ -s "$RELINK" ] || return 0
   local u keep=""
   while IFS= read -r u; do
-    case "$1" in .) continue ;; *) case "$u" in "$1"/*) continue ;; esac ;; esac
+    [ "$(relink_owner "$u")" = "$1" ] && continue
     keep="$keep$u
 "
   done < "$RELINK"
-  if [ -n "$keep" ]; then printf '%s' "$keep" > "$RELINK"; else rm -f "$RELINK"; fi
+  if [ -n "$keep" ]; then printf '%s' "$keep" > "$RELINK" 2>/dev/null || :; else rm -f "$RELINK" 2>/dev/null || :; fi
+  return 0
 }
 # 깊이를 제한하지 않는다: 실제 node_modules 폴더는 파고들지 않아 싸고, 제한하면 더 깊은 패키지의 링크를 놓친다.
 unlinked="$(find . \( -name .git -o -path ./.claude \) -prune -o \( -name node_modules -type d \) -prune -o \( -name node_modules -type l \) -print 2>/dev/null |
@@ -245,16 +256,21 @@ install_dir() (
   under_top "$(pwd -P)" || { echo "DEPS_FAILED outside-worktree $dir exit 1"; exit 1; }
 
   [ -f package.json ] || { echo "DEPS_SKIP package.json 없음$suffix"; exit 0; }
-  if [ -e node_modules ] && ! relink_wanted "$dir"; then echo "DEPS_SKIP node_modules 있음$suffix"; exit 0; fi
+  forced=0   # 지운 링크 때문에 node_modules 가 있어도 다시 설치하는 경우 — 캐시·메인 복제는 쓰지 않는다(기존 폴더 안으로 들어간다)
+  if [ -e node_modules ]; then
+    relink_wanted "$dir" || { echo "DEPS_SKIP node_modules 있음$suffix"; exit 0; }
+    forced=1
+  fi
 
   if [ -f package-lock.json ]; then
     key=$( { cksum < package-lock.json; node -v 2>/dev/null || echo nonode; uname -sm; printf '%s' "$dir"; } | cksum | cut -d' ' -f1)
     C="$(git rev-parse --path-format=absolute --git-common-dir)/dflow-deps"
     E="$C/$key"
-    if [ -f "$E/ok" ]; then
+    if [ "$forced" = 0 ] && [ -f "$E/ok" ]; then
       t="node_modules.dflow-tmp.$$"; rm -rf "$t"
       if clone_dir "$E/node_modules" "$t" && mv "$t" node_modules; then
         touch "$E"   # 최근 사용 표시(정리 순서)
+        relink_done "$dir"
         echo "DEPS_CLONED $key$suffix"; exit 0
       fi
       rm -rf "$t" node_modules
@@ -263,6 +279,7 @@ install_dir() (
     heavy_install npm ci; rc=$?
     [ "$HBUSY" = 1 ] && { echo "DEPS_BUSY $dir"; exit "$BUSY_RC"; }
     [ "$rc" -eq 0 ] || { echo "DEPS_FAILED npm ci exit $rc$suffix"; exit "$rc"; }
+    relink_done "$dir"
     echo "DEPS_INSTALLED npm ci$suffix"
     # 캐시 채우기. mkdir 에 성공한 한 팀원만 쓰고, 다 쓴 뒤 ok 를 남긴다. 실패해도 설치 결과는 유효하다.
     mkdir -p "$C" 2>/dev/null
@@ -283,7 +300,7 @@ install_dir() (
   elif [ -f pnpm-lock.yaml ]; then
     # 2-b) 메인 체크아웃의 설치본을 복제한 뒤 이 워크트리의 lockfile 로 바로잡는다(머리 주석).
     src_root="$MAIN/$dir"
-    if [ "${DFLOW_DEPS_MAIN_CLONE:-0}" = 1 ] && [ -n "$MAIN" ] && [ -d "$src_root/node_modules" ] && [ ! -L "$src_root/node_modules" ]; then
+    if [ "$forced" = 0 ] && [ "${DFLOW_DEPS_MAIN_CLONE:-0}" = 1 ] && [ -n "$MAIN" ] && [ -d "$src_root/node_modules" ] && [ ! -L "$src_root/node_modules" ]; then
       cloned=""; ok=1
       t="node_modules.dflow-tmp.$$"; rm -rf "$t"
       if clone_dir "$src_root/node_modules" "$t" && mv "$t" node_modules; then
@@ -315,7 +332,7 @@ EOF
         if [ "$HBUSY" = 1 ]; then
           :   # 아래에서 복제본을 지우고 DEPS_BUSY 로 끝낸다(다시 부르면 처음부터 — 멱등)
         elif [ "$rc" -eq 0 ]; then
-          echo "DEPS_SYNCED pnpm 메인 복제 + frozen install$suffix"; exit 0
+          relink_done "$dir"; echo "DEPS_SYNCED pnpm 메인 복제 + frozen install$suffix"; exit 0
         else
           echo "DEPS_SYNC_FAILED pnpm install exit $rc, 복제본을 지우고 새로 설치한다$suffix"
         fi
@@ -331,11 +348,13 @@ EOF
     heavy_install pnpm install $PNPM_FLAGS; rc=$?
     [ "$HBUSY" = 1 ] && { echo "DEPS_BUSY $dir"; exit "$BUSY_RC"; }
     [ "$rc" -eq 0 ] || { echo "DEPS_FAILED pnpm install --frozen-lockfile exit $rc$suffix"; exit "$rc"; }
+    relink_done "$dir"
     echo "DEPS_INSTALLED pnpm$suffix"
   elif [ -f yarn.lock ]; then
     heavy_install yarn install --frozen-lockfile; rc=$?
     [ "$HBUSY" = 1 ] && { echo "DEPS_BUSY $dir"; exit "$BUSY_RC"; }
     [ "$rc" -eq 0 ] || { echo "DEPS_FAILED yarn install --frozen-lockfile exit $rc$suffix"; exit "$rc"; }
+    relink_done "$dir"
     echo "DEPS_INSTALLED yarn$suffix"
   else
     echo "DEPS_SKIP lockfile 없음$suffix"
@@ -344,7 +363,7 @@ EOF
 
 status=0
 # 설치 슬롯을 못 얻은 폴더(DEPS_BUSY, exit 75)가 나오면 거기서 멈추고 75 로 끝난다 — 다시 부르면 이어서 진행한다
-install_dir . && relink_done . || status=$?
+install_dir . || status=$?
 [ "$status" -eq "$BUSY_RC" ] && exit "$BUSY_RC"
 
 # 하위 폴더의 lockfile 도 찾는다(루트 자신은 제외). node_modules·.git·.claude(워크트리 포함) 는 배제한다.
@@ -356,7 +375,7 @@ sub_dirs=$(find . -maxdepth "$MAXDEPTH" \( -name node_modules -o -name .git -o -
 if [ -n "$sub_dirs" ]; then
   while IFS= read -r d; do
     [ -z "$d" ] && continue
-    install_dir "$d" && relink_done "$d" || { rc=$?; [ "$rc" -eq "$BUSY_RC" ] && exit "$BUSY_RC"; [ "$status" -eq 0 ] && status=$rc; }
+    install_dir "$d" || { rc=$?; [ "$rc" -eq "$BUSY_RC" ] && exit "$BUSY_RC"; [ "$status" -eq 0 ] && status=$rc; }
   done <<EOF
 $sub_dirs
 EOF

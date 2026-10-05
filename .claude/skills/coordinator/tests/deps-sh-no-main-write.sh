@@ -4,6 +4,7 @@
 # 시나리오(2026-10-05 tooltip-screens 사고): 워크트리의 패키지 node_modules 가 메인 체크아웃의 node_modules 로 가는 심링크일 때
 #   pnpm install 이 링크를 따라 메인의 workspace 링크(b/node_modules/a)를 워크트리 경로로 다시 쓴다.
 #   기대: 심링크만 지워지고(DEPS_UNLINKED) 메인 픽스처 파일은 하나도 안 바뀌며 워크트리에 독립 node_modules 가 생긴다.
+#   E 루트에 lockfile 이 없고 하위 워크스페이스만 설치돼 있는 배치(링크를 지운 하위 폴더가 다시 설치돼야 한다)
 #   A 평면 배치 · B 깊이 4 를 넘는 배치(src/fe/packages/*) · C 루트는 실제 폴더이고 패키지만 심링크(공백·한글 경로, 상대 링크)
 #   · D 메인 안 파일을 가리키는 gitignore 심링크는 복제하지 않는다(DEPS_LINK_SKIP)
 set -uo pipefail
@@ -30,6 +31,7 @@ mk_main() {
     echo '{"name":"root","private":true,"version":"1.0.0"}' > "$ws/package.json"
     echo '{"name":"a","version":"1.0.0"}' > "$ws/packages/a/package.json"
     echo '{"name":"b","version":"1.0.0","dependencies":{"a":"workspace:*"}}' > "$ws/packages/b/package.json"
+    [ "$ws" = . ] || echo '{"name":"top","private":true,"version":"1.0.0"}' > package.json   # E: 루트에는 lockfile 없는 package.json 만
     printf 'node_modules\nx.yml\n' > .gitignore
     echo real > real.yml
     ln -s real.yml x.yml                      # D: 메인 안 파일을 가리키는 ignore 된 심링크
@@ -62,6 +64,9 @@ scenario() {  # scenario <이름> <루트 폴더 이름> <ws> <변형: abs|rel|m
     mixed) ( cd "$wt/$ws" && pnpm install --offline >/dev/null 2>&1 )   # 루트 node_modules 는 실제 폴더
            rm -rf "$wt/$pk/b/node_modules"
            ln -s "../../../main/$pk/b/node_modules" "$wt/$pk/b/node_modules" ;;   # 상대 링크
+    mixed-abs) ( cd "$wt/$ws" && pnpm install --offline >/dev/null 2>&1 )   # 워크스페이스 node_modules 는 실제 폴더, 패키지 b 만 링크
+           rm -rf "$wt/$pk/b/node_modules"
+           ln -s "$main/$pk/b/node_modules" "$wt/$pk/b/node_modules" ;;
   esac
   before="$(fingerprint "$main")"
   out="$(run_deps "$wt" "$main")"; rc=$?
@@ -81,4 +86,5 @@ mkdir -p "$tmp/heavy"
 scenario A  a  .          abs
 scenario B  b  src/fe     abs     # node_modules 경로 깊이 5 (DEPS_MAXDEPTH 기본 4 를 넘는다)
 scenario C  "c 한글 경로" .  mixed   # 공백·한글 경로 + 상대 링크 + 루트 node_modules 는 실제 폴더
+scenario E  e  src/fe     mixed-abs  # 루트는 lockfile 없는 package.json, 하위 src/fe 워크스페이스는 node_modules 가 있고 패키지 b 만 링크(dmes-standard 배치)
 exit "$fail"
