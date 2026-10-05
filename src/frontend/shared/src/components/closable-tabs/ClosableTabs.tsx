@@ -9,7 +9,7 @@
  *   여기서는 고르지 않은 패널을 `hidden` 속성 + 인라인 `display:none` 으로만 숨기고 마운트·효과를 그대로 둔다.
  * - 닫기 확인(저장 안 한 변경 등)은 호출자가 `onClose` 안에서 한다. 이 부품은 탭 목록을 바꾸지 않는다.
  * - 키보드: 탭 단추에서 ←/→ 로 이웃 탭을 고른다(끝에서 반대 끝으로 돈다). 지금 탭만 tabIndex 0(roving tabindex).
- *   닫을 수 있는 탭은 Delete 키로도 닫는다(닫기 단추는 tabIndex -1 — Tab 정지를 늘리지 않는다).
+ *   닫기 단추도 같은 규칙이다 — 지금 탭의 닫기 단추만 tabIndex 0(Tab 정지는 지금 탭 단추 + 그 닫기 단추 둘). Tab 으로 닫기 단추에 가 Enter·Space 로 닫는다.
  * 스타일은 컴포넌트가 직접 넣는다(포털이 원격 모듈의 CSS 파일을 싣지 않는다 — Part B §18-3).
  */
 import { IconX } from "@tabler/icons-react";
@@ -124,14 +124,6 @@ export function ClosableTabs({
       const next = items[(index + step + items.length) % items.length];
       tabRefs.current.get(next.key)?.focus();
       select(next.key);
-      return;
-    }
-    if (e.key === "Delete") {
-      const it = items[index];
-      if (canClose(it)) {
-        e.preventDefault();
-        onClose?.(it.key);
-      }
     }
   };
 
@@ -187,7 +179,7 @@ export function ClosableTabs({
                 {canClose(it) ? (
                   <button
                     type="button"
-                    tabIndex={-1}
+                    tabIndex={focusable ? 0 : -1}
                     aria-label={closeLabel(it)}
                     title={closeLabel(it)}
                     className="cm-closable-tabs__close"

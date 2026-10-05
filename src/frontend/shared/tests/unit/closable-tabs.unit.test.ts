@@ -198,13 +198,18 @@ describe("ClosableTabs", () => {
     expect(onSelect).toHaveBeenLastCalledWith("a");
   });
 
-  it("Delete 키는 닫을 수 있는 탭에서만 onClose 를 부른다", () => {
+  it("Delete 키로는 닫지 않고, 지금 탭의 닫기 단추만 Tab 초점을 받으며 누르면 onClose 를 부른다", () => {
     const onClose = vi.fn();
-    render({ onClose, items: [ITEMS[0], { ...ITEMS[1], closable: false }] });
-    keydown(q("closable-tab-b")!, "Delete");
-    expect(onClose).not.toHaveBeenCalled();
+    render({ onClose });
     keydown(q("closable-tab-a")!, "Delete");
-    expect(onClose).toHaveBeenCalledWith("a");
+    expect(onClose).not.toHaveBeenCalled();
+    expect(q("closable-tab-close-a")!.tabIndex).toBe(0);
+    expect(q("closable-tab-close-b")!.tabIndex).toBe(-1);
+    render({ onClose, activeKey: "b" });
+    expect(q("closable-tab-close-a")!.tabIndex).toBe(-1);
+    expect(q("closable-tab-close-b")!.tabIndex).toBe(0);
+    act(() => q("closable-tab-close-b")!.click());
+    expect(onClose).toHaveBeenCalledWith("b");
   });
 
   it("activeKey 가 목록에 없으면 첫 탭이 Tab 초점을 받는다", () => {
