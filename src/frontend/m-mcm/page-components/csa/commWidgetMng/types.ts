@@ -21,6 +21,10 @@ export interface AdminRow extends Record<string, unknown> {
   useYn: "Y" | "N";
   /** 기본 크기 "w×h" (모르면 "-"). */
   defaultSize: string;
+  /** 분류 코드(WIDGET_CTG). 코드 위젯은 덮어쓰기 값 ?? 코드 메타 값. 없으면 "". */
+  categoryCd: string;
+  /** 분류 이름 — 코드 → 이름 목록(LoV)에 없으면 코드 그대로. */
+  category: string;
   userCount: number;
   /** 코드 위젯에 덮어쓰기 행이 있다(「덮어씀」 표시·[코드 값으로 되돌리기] 대상). */
   overridden: boolean;
@@ -80,6 +84,8 @@ export interface DefForm {
   linkPageId: string;
   /** "" = 코드 값(코드 위젯만). */
   multipleYn: "" | "Y" | "N";
+  /** 분류(WIDGET_CTG 코드값). "" = 코드 값(코드 위젯)·분류 없음(정의 위젯). */
+  categoryCd: string;
   useYn: "Y" | "N";
   /** 쿼리 유형의 실행 모듈(지금은 mcm 만). 그 밖 유형·코드 위젯은 null. */
   dataSrc: string | null;
@@ -104,6 +110,7 @@ export interface WidgetSaveParams {
   refreshSec: number | null;
   linkPageId: string | null;
   multipleYn: "Y" | "N" | null;
+  categoryCd: string | null;
   useYn: "Y" | "N";
   dataSrc: string | null;
   configJson: string | null;

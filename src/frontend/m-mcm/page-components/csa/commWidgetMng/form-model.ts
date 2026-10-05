@@ -56,6 +56,8 @@ export function buildAdminRows(
         unknownType: false,
         useYn: c ? c.useYn : "Y",
         defaultSize: sizeText(c?.defW ?? meta.defaultSize.w, c?.defH ?? meta.defaultSize.h),
+        categoryCd: c?.categoryCd ?? meta.category ?? "",
+        category: "",
         userCount: usage[widgetId] ?? 0,
         overridden: Boolean(c),
       };
@@ -75,6 +77,8 @@ export function buildAdminRows(
       unknownType: !type,
       useYn: d.useYn,
       defaultSize: sizeText(d.defW ?? type?.defaultSize.w, d.defH ?? type?.defaultSize.h),
+      categoryCd: d.categoryCd ?? "",
+      category: "",
       userCount: usage[d.widgetId] ?? 0,
       overridden: false,
       def: d,
@@ -131,6 +135,7 @@ export function rowToForm(row: WidgetDefRow): DefForm {
     refreshSec: numText(row.refreshSec),
     linkPageId: row.linkPageId ?? "",
     multipleYn: row.multipleYn ?? (isDef ? "Y" : ""),
+    categoryCd: row.categoryCd ?? "",
     useYn: row.useYn,
     dataSrc: isDef ? row.dataSrc : null,
     config: isDef ? row.config : null,
@@ -156,6 +161,7 @@ export function codeForm(widgetId: string, row?: WidgetDefRow): DefForm {
     refreshSec: "",
     linkPageId: "",
     multipleYn: "",
+    categoryCd: "",
     useYn: "Y",
     dataSrc: null,
     config: null,
@@ -196,6 +202,7 @@ export function formToRow(form: DefForm): WidgetDefRow {
     refreshSec: intOrNull(form.refreshSec),
     linkPageId: blank(form.linkPageId),
     multipleYn: form.multipleYn === "" ? null : form.multipleYn,
+    categoryCd: blank(form.categoryCd),
     useYn: form.useYn,
     // 쿼리 유형의 실행 모듈은 지금 mcm 만 — 값이 비어도 mcm 으로 보낸다(스펙 §5.3).
     dataSrc: isDef && isQueryType(form.typeId) ? form.dataSrc || "mcm" : null,
@@ -236,6 +243,7 @@ const LENGTH_LIMITS = [
   ["subtitle", 100, "부제는 100자 이하여야 합니다."],
   ["description", 400, "설명은 400자 이하여야 합니다."],
   ["linkPageId", 200, "화면 열기 pageId 는 200자 이하여야 합니다."],
+  ["categoryCd", 20, "분류는 20자 이하여야 합니다."],
 ] as const;
 
 const utf8Bytes = (s: string): number => new TextEncoder().encode(s).length;

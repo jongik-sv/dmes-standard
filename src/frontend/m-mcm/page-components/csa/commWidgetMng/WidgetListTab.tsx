@@ -48,6 +48,7 @@ import {
 } from "./types";
 import { WidgetDetailForm } from "./WidgetDetailForm";
 import { WidgetPreview } from "./WidgetPreview";
+import { useWidgetCategories } from "./use-widget-categories";
 
 const COLUMNS: GridColumn[] = uiCols([
   { key: "widgetId", header: "ID", width: 3, minWidth: 120, align: "left" },
@@ -73,6 +74,7 @@ const COLUMNS: GridColumn[] = uiCols([
     align: "left",
     cellClassRules: { "cell-warning": (r: Record<string, unknown>) => r.unknownType === true },
   },
+  { key: "category", header: "분류", width: 1, minWidth: 64, align: "center" },
   {
     key: "useYn",
     header: "사용",
@@ -123,6 +125,8 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
   const rbac = useUserButtonRbac();
   const canSave = canDoButton(rbac, SCREEN_ID, "save");
   const canDelete = canDoButton(rbac, SCREEN_ID, "delete");
+  // 분류(WIDGET_CTG) — 목록 칸 이름·상세 선택지가 함께 쓴다.
+  const { options: categoryOptions, titles: categoryTitles } = useWidgetCategories();
 
   const [defs, setDefs] = useState<WidgetDefRow[]>([]);
   const [usage, setUsage] = useState<Record<string, number>>({});
@@ -146,10 +150,14 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
   const [loaded, setLoaded] = useState(false);
   const loadFailed = !loaded && !isBusy;
 
-  const rows = useMemo(
-    () => (loaded ? buildAdminRows(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defs, usage) : []),
-    [loaded, defs, usage]
-  );
+  const rows = useMemo(() => {
+    if (!loaded) return [];
+    // 분류 칸 표시값 — LoV 이름(없으면 코드 그대로).
+    return buildAdminRows(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defs, usage).map((r) => ({
+      ...r,
+      category: categoryTitles[r.categoryCd] ?? r.categoryCd,
+    }));
+  }, [loaded, defs, usage, categoryTitles]);
   const visibleRows = useMemo(() => filterAdminRows(rows, filters), [rows, filters]);
   const selectedRow = useMemo(() => (selectedId ? (rows.find((r) => r.widgetId === selectedId) ?? null) : null), [rows, selectedId]);
   const dirty = isFormDirty(baseline, form);
@@ -468,6 +476,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
                 form={form}
                 codeMeta={codeEntry?.meta}
                 typeEntry={typeEntry}
+                categoryOptions={categoryOptions}
                 editorKey={String(openSeq)}
                 disabled={!editable}
                 errors={shownErrors}

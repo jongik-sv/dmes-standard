@@ -11,7 +11,7 @@ import java.util.Map;
 
 /**
  * 위젯 정의 행 → 응답 Map(스펙 2026-10-02-widget-admin-generic §5). 키는 {@code widgetId, srcTp, typeId, title, subtitle,
- * description, defW, defH, minW, minH, maxW, maxH, refreshSec, linkPageId, multipleYn, useYn, dataSrc, configJson}(문자열).
+ * description, defW, defH, minW, minH, maxW, maxH, refreshSec, linkPageId, multipleYn, useYn, dataSrc, categoryCd, configJson}(문자열).
  * 사용자용 목록(widgetDef/list)은 모든 사용자가 부르므로 서버 전용 설정 키를 지운다(Review Focus 3).
  * <b>화면 목록에서 숨길 뿐 비밀 보장은 아니다</b> — chat 의 systemPrompt 와 고른 쿼리 위젯의 제목·설명은 매 요청 LLM 지시문·도구
  * 설명으로 들어가 대화로 드러날 수 있다(2026-10-03 보안 지적, 스펙 §5.1). 편집기가 비밀을 넣지 말라고 안내한다.
@@ -86,6 +86,7 @@ public final class WidgetDefMaps {
         m.put("multipleYn", r[14]);
         m.put("useYn", r[15] == null ? "Y" : r[15]);
         m.put("dataSrc", r[16]);
+        m.put("categoryCd", r[17]);
         return m;
     }
 
@@ -108,6 +109,7 @@ public final class WidgetDefMaps {
         m.put("multipleYn", d.getMultipleYn());
         m.put("useYn", d.getUseYn() == null ? "Y" : d.getUseYn());
         m.put("dataSrc", d.getDataSrc());
+        m.put("categoryCd", d.getCategoryCd());
         m.put("configJson", configJson);
         return m;
     }

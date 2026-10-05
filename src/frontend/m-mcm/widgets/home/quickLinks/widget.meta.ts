@@ -5,6 +5,7 @@ export const meta: WidgetMeta = {
   title: "바로가기",
   subtitle: "즐겨찾기 메뉴",
   description: "즐겨찾기한 메뉴",
+  category: "COMMON",
   defaultSize: { w: 7, h: 16 },
   minSize: { w: 5, h: 6 },
   multiple: false,

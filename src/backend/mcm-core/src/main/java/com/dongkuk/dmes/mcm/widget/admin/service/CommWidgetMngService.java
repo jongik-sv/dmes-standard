@@ -124,6 +124,8 @@ public class CommWidgetMngService {
             throw invalid("새로 고침 주기는 " + REFRESH_MIN + "~" + REFRESH_MAX + "초로 정합니다(비우면 없음).");
         }
         String multipleYn = yn(request.getMultipleYn(), "여러 번 허용(multipleYn)");
+        // 분류 — 공통코드 그룹 WIDGET_CTG 값. 화면이 옵션을 내려주므로 여기서는 길이만 본다.
+        String categoryCd = text(request.getCategoryCd(), "분류(categoryCd)", 20, false);
         String useYn = yn(request.getUseYn(), "사용(useYn)");
 
         String typeId = null;
@@ -169,6 +171,7 @@ public class CommWidgetMngService {
         row.setRefreshSec(refreshSec);
         row.setLinkPageId(linkPageId);
         row.setMultipleYn(multipleYn);
+        row.setCategoryCd(categoryCd);
         row.setUseYn(useYn == null ? "Y" : useYn);
         row.setDataSrc(dataSrc);
         row.setConfigJson(configJson);

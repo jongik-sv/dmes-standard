@@ -25,15 +25,23 @@ const entry = (meta: Partial<WidgetMeta> & { id: string; title: string }) => ({
 });
 
 const REG: WidgetRegistry = {
-  "home.notice": entry({ id: "home.notice", title: "공지사항", description: "최근 공지" }),
+  "home.notice": entry({ id: "home.notice", title: "공지사항", description: "최근 공지", category: "COMMON" }),
   "home.old": entry({ id: "home.old", title: "옛 위젯", disabled: true }),
-  "def.k3x9q2ab": entry({ id: "def.k3x9q2ab", title: "생산 실적표", kind: "def", typeId: "query-table", description: "어제 생산" }),
+  "def.k3x9q2ab": entry({ id: "def.k3x9q2ab", title: "생산 실적표", kind: "def", typeId: "query-table", description: "어제 생산", category: "PROD" }),
   "def.m2p8x0cd": entry({ id: "def.m2p8x0cd", title: "알 수 없는 유형 위젯", kind: "def", typeId: "unknown-type" }),
   "def.zz00off1": entry({ id: "def.zz00off1", title: "꺼진 정의", kind: "def", typeId: "query-table", disabled: true }),
 };
 const TYPE_TITLES = { "query-table": "쿼리 표", markdown: "글(md)" };
 
-function render(props: { registry?: WidgetRegistry; items?: WidgetItem[]; typeTitles?: Readonly<Record<string, string>> } = {}) {
+function render(
+  props: {
+    registry?: WidgetRegistry;
+    items?: WidgetItem[];
+    typeTitles?: Readonly<Record<string, string>>;
+    categoryTitles?: Readonly<Record<string, string>>;
+    onPreview?: (meta: WidgetMeta | null) => void;
+  } = {},
+) {
   const onAdd = vi.fn();
   act(() => root.render(h(WidgetPicker, { registry: REG, items: [], onAdd, ...props })));
   return { onAdd };
@@ -95,5 +103,39 @@ describe("WidgetPicker", () => {
   it("canAddWidget 은 사용 중지 위젯을 거절한다(서랍 밖 끌어 놓기·추가 경로 방어)", () => {
     expect(canAddWidget([], REG["home.old"].meta)).toBe(false);
     expect(canAddWidget([], REG["home.notice"].meta)).toBe(true);
+  });
+
+  it("categoryTitles 를 주면 분류별 묶음 머리글과 칩을 보인다(분류 없음은 맨 끝 「기타」)", () => {
+    render({ typeTitles: TYPE_TITLES, categoryTitles: { COMMON: "공통", PROD: "생산" } });
+    const labels = [...host.querySelectorAll(".cm-widget-picker__group")].map((e) => e.textContent);
+    expect(labels).toEqual(["공통", "생산", "기타"]);
+    const chips = [...host.querySelectorAll(".cm-widget-picker__cat")].map((e) => e.textContent);
+    expect(chips).toEqual(["전체", "공통", "생산"]); // 목록에 위젯이 있는 분류만 칩이 된다.
+    // 순서: 공통 묶음에 공지, 기타 묶음에 분류 없는 위젯.
+    expect(itemEl("home.notice")!.closest(".cm-widget-picker__section")!.querySelector(".cm-widget-picker__group")!.textContent).toBe("공통");
+    expect(itemEl("def.m2p8x0cd")!.closest(".cm-widget-picker__section")!.querySelector(".cm-widget-picker__group")!.textContent).toBe("기타");
+  });
+
+  it("분류 칩을 누르면 그 분류의 위젯만 보인다(다시 누르면 전체)", () => {
+    render({ typeTitles: TYPE_TITLES, categoryTitles: { COMMON: "공통", PROD: "생산" } });
+    const chip = (label: string) =>
+      [...host.querySelectorAll(".cm-widget-picker__cat")].find((e) => e.textContent === label) as HTMLButtonElement;
+    act(() => chip("생산").click());
+    expect(ids()).toEqual(["def.k3x9q2ab"]);
+    act(() => chip("생산").click());
+    expect(ids()).toHaveLength(3);
+  });
+
+  it("categoryTitles 가 없으면 묶음 머리글·칩이 없다(기존 서랍 그대로)", () => {
+    render({ typeTitles: TYPE_TITLES });
+    expect(host.querySelector(".cm-widget-picker__group")).toBeNull();
+    expect(host.querySelector(".cm-widget-picker__cat")).toBeNull();
+  });
+
+  it("onPreview 는 항목에 마우스를 올린 위젯 메타를 전달한다", () => {
+    const onPreview = vi.fn();
+    render({ typeTitles: TYPE_TITLES, onPreview });
+    act(() => itemEl("def.k3x9q2ab")!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
+    expect(onPreview).toHaveBeenCalledWith(REG["def.k3x9q2ab"].meta);
   });
 });
