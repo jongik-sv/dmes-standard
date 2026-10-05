@@ -2,7 +2,7 @@
 # 사용법: office.sh lead-up | lane-up <레인> | lane-state <레인> <상태|auto> | lane-down <레인> | beat | finish
 #   조정 세션(팀장)과 레인(팀원)을 wbs-web 에이전트 오피스에 「표시 전용」으로 보인다(정본: ../references/contract.md §4).
 #   표시 경로는 `dflow.sh watch`(POST /api/v1/agent/watch) 하나뿐이다. WBS 데이터(작업·lease·진도율)는 건드리지 않는다.
-#   lead-up              팀장 등록: agent `<신원>/<host>/coord`, slots=살아 있는(closed 아닌) 레인 수, busy=작업 중(머지 중 포함) 레인 수
+#   lead-up              팀장 등록: agent `<신원>/<host>/coord:<run-id>`, slots=살아 있는(closed 아닌) 레인 수, busy=작업 중(머지 중 포함) 레인 수
 #   lane-up <레인>       팀원 등록(같은 키여도 늘 보낸다): agent `<신원>/<host>/임시:<레인>·<지시 요약>`, until=상태 라벨. 이어 팀장 갱신
 #   lane-state <레인> <상태>  상태 라벨(작업 중|대기|머지 중|끝|auto) 갱신. auto = state.json 에서 판정. 같은 값이면 보내지 않는다
 #   lane-down <레인>     기록된 키로 `watch --stop` 하고 기록을 지운다. 이어 팀장 갱신
@@ -39,7 +39,9 @@ esac
 coord_has_run || exit 0
 SF="$(coord_state_file)"
 # 마감(finish)한 회차는 이후 report·hold 훅이 오피스에 다시 등록하지 않게 한다.
-[ "$sub" = finish ] || [ "$(jq -r '.office.finished // false' "$SF" 2>/dev/null)" != true ] || exit 0
+# finish·beat 만 통과한다 — beat 는 마감 뒤에도 .office.sent 에 남은 키(finish 때 stop 이 실패한 것)만 마저 내린다.
+FINISHED=0; [ "$(jq -r '.office.finished // false' "$SF" 2>/dev/null)" = true ] && FINISHED=1
+[ "$FINISHED" = 0 ] || case "$sub" in finish|beat) ;; *) exit 0 ;; esac
 REPO="$(coord_repo 2>/dev/null)" || exit 0
 
 DFLOW="$(coord_cfg .office.dflow_script)"
@@ -61,13 +63,22 @@ trap 'rm -rf "$TMPD"; exit "${OFFICE_RC:-0}"' EXIT
 
 # ---- dflow.sh 호출(5초 제한, timeout 명령 없이) ----------------------------------
 # 반환: 0 성공 · 124 시간 초과 · 그 밖 dflow.sh 종료 코드. 출력은 $TMPD/out 에 둔다(파이프를 쓰면 남은 자식이 붙잡는다).
-ABORT=0   # 1 이면 이번 호출의 남은 전송을 건너뛴다(시간 초과·설정 없음·네트워크 오류)
+ABORT=0   # 1 이면 이번 호출의 남은 전송을 건너뛴다(시간 초과·설정 없음·네트워크 오류·인증 거절)
+# pid 와 모든 후손(재귀). `x=$(sleep 47)` 처럼 서브셸 아래 손자도 포함한다.
+descendants() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do descendants "$c"; echo "$c"; done; }
+kill_tree() {  # kill_tree <pid> — 후손부터 TERM, 잠깐 뒤 남은 것은 KILL
+  local all p; all="$(descendants "$1"; echo "$1")"
+  for p in $all; do kill -TERM "$p" 2>/dev/null; done
+  sleep 0.3
+  for p in $all; do kill -0 "$p" 2>/dev/null && kill -KILL "$p" 2>/dev/null; done
+  return 0
+}
 dfl() {
   local pid wd rc
-  : > "$TMPD/out"; rm -f "$TMPD/timeout" "$TMPD/done"
+  : > "$TMPD/out"; : > "$TMPD/err"; rm -f "$TMPD/timeout" "$TMPD/done"
   ( cd "$REPO" 2>/dev/null && DFLOW_CONFIG_DIR="$DCD" exec bash "$DFLOW" "$@" ) >"$TMPD/out" 2>"$TMPD/err" </dev/null &
   pid=$!
-  ( sleep "$OFFICE_TIMEOUT_S"; [ -f "$TMPD/done" ] && exit 0; : > "$TMPD/timeout"; pkill -TERM -P "$pid" 2>/dev/null; kill -TERM "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+  ( sleep "$OFFICE_TIMEOUT_S"; [ -f "$TMPD/done" ] && exit 0; : > "$TMPD/timeout"; kill_tree "$pid" ) >/dev/null 2>&1 &
   wd=$!
   wait "$pid" 2>/dev/null; rc=$?
   : > "$TMPD/done"   # 감시자가 sleep 을 잃고 깨어나도 시간 초과로 오인하지 않게
@@ -75,15 +86,20 @@ dfl() {
   [ -f "$TMPD/timeout" ] && rc=124
   return "$rc"
 }
-# 전송 한 건. 실패하면 stderr 한 줄(설정 없음 rc 2 는 무출력). 성공 0.
+# dflow.sh 종료 코드 2 는 두 가지다: 설정 없음(PAT 미설정·.dflow 없음, stderr 가 글)과 API 4xx 거절(stderr 가 JSON 본문).
+dfl_rejected() { [ "$(head -c 1 "$TMPD/err" 2>/dev/null)" = "{" ]; }
+# 전송 한 건. 성공 0. 실패하면 1 — 설정 없음(무출력)·시간 초과·네트워크·인증(3·5·7) 오류는 ABORT 로 남은 전송까지 건너뛰고,
+# API 4xx 거절(rc 2 + JSON)·그 밖은 이 건만 실패로 둔다. ABORT 이면 호출하지 않는다(호출당 5초 계약).
 watch_call() {  # watch_call <설명> <dflow watch 인자…>
   local what="$1" rc; shift
+  [ "$ABORT" = 0 ] || return 1
   dfl watch "$@"; rc=$?
   case "$rc" in
     0) return 0 ;;
-    2) ABORT=1; return 1 ;;   # D'Flow 설정(PAT) 없음 — 조용히 건너뛴다
+    2) if dfl_rejected; then warn "서버가 거절함(4xx): $what"; else ABORT=1; fi ;;   # 설정 없음은 조용히
     124) ABORT=1; warn "시간 초과(${OFFICE_TIMEOUT_S}초): $what" ;;
     6) ABORT=1; warn "네트워크 오류: $what" ;;
+    3|5|7) ABORT=1; warn "인증·권한·경로 오류 rc=$rc: $what" ;;
     *) warn "watch 실패 rc=$rc: $what" ;;
   esac
   return 1
@@ -109,11 +125,19 @@ slug() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g';
 IDENT=""
 need_ident() {  # 서브셸 없이 부른다(IDENT·ABORT 를 호출자에 남긴다). 실패하면 rc 1
   [ -n "$IDENT" ] && return 0
+  [ "$ABORT" = 0 ] || return 1
   local user host email rc
   user="$(st '.office.user // empty')"
   if [ -z "$user" ]; then
     dfl me; rc=$?
-    [ "$rc" = 0 ] || { case "$rc" in 2|124|6) ABORT=1 ;; esac; [ "$rc" != 2 ] && warn "신원 조회 실패 rc=$rc"; return 1; }
+    if [ "$rc" != 0 ]; then
+      case "$rc" in
+        2) if dfl_rejected; then warn "신원 조회 거절(4xx)"; else ABORT=1; fi ;;   # 설정 없음은 조용히
+        124|6|3|5|7) ABORT=1; warn "신원 조회 실패 rc=$rc" ;;
+        *) warn "신원 조회 실패 rc=$rc" ;;
+      esac
+      return 1
+    fi
     email="$(jq -r '.user_email // empty' "$TMPD/out" 2>/dev/null)"
     [ -n "$email" ] || { warn "신원 조회 응답에 user_email 없음"; return 1; }
     user="$(slug "${email%%@*}")"
@@ -123,70 +147,84 @@ need_ident() {  # 서브셸 없이 부른다(IDENT·ABORT 를 호출자에 남�
   IDENT="$user/$host"
 }
 
-# 팀원 agent 키. 전체 120자 이내, 요약은 label_max 자 이내.
+# 키 길이는 서버가 JS .length(UTF-16 코드 유닛)로 잰다(상한 120). 코드포인트가 아니라 UTF-16 단위로 세고 자른다(이모지는 2).
+KEY_MAX=120
+LANE_NAME_MAX=40
+U16_JQ='def u16: explode | map(if . > 65535 then 2 else 1 end) | add // 0;
+  def trunc16($n): explode | reduce .[] as $c ({u: 0, o: [], stop: false};
+    if .stop then . elif (.u + (if $c > 65535 then 2 else 1 end)) <= $n then .u += (if $c > 65535 then 2 else 1 end) | .o += [$c] else .stop = true end)
+    | .o | implode;'
+# 팀장 agent 키: <신원>/<host>/coord:<run-id>. run-id 의 슬래시·개행·공백은 뺀다. 전체 120(UTF-16) 이내.
+lead_key() {  # lead_key <ident>
+  jq -rn --arg id "$1" --argjson max "$KEY_MAX" --slurpfile s "$SF" "$U16_JQ"'
+    ($s[0].run.id // "" | tostring | gsub("[/\r\n\t ]"; "")) as $rid
+    | ($id + "/coord" + (if $rid == "" then "" else ":" + $rid end)) | trunc16($max)'
+}
+# 팀원 agent 키: <신원>/<host>/임시:<레인>·<지시 요약>. 요약은 label_max 자 이내, 키 전체와 머리 부분은 120 이내.
 lane_key() {  # lane_key <ident> <레인>
-  jq -rn --arg id "$1" --arg lane "$2" --argjson max "$LABEL_MAX" --slurpfile s "$SF" '
+  jq -rn --arg id "$1" --arg lane "$2" --argjson max "$LABEL_MAX" --argjson kmax "$KEY_MAX" --argjson lmax "$LANE_NAME_MAX" \
+    --slurpfile s "$SF" "$U16_JQ"'
     ($s[0].lanes[$lane] // {}) as $l
     | ([$l.brief, $l.goal, $l.title, (($l.memo // "") | split("\n")[0])]
        | map(select(. != null and . != "") | tostring) | .[0] // "") as $raw
     | ($raw | gsub("[\r\n\t]+"; " ") | gsub("/"; "") | gsub("^ +| +$"; "") | gsub(" +"; " ")) as $sum
-    | ($id + "/임시:" + $lane) as $head
-    | if $sum == "" then $head
-      else (([$max, (120 - ($head | length) - 1)] | min) as $room
-            | ($sum | .[0:(if $room < 0 then 0 else $room end)]) as $cut
-            | if $cut == "" then $head else $head + "·" + $cut end)
-      end'
+    | (($id + "/임시:" + ($lane | trunc16($lmax))) | trunc16($kmax)) as $head
+    | (([$max, ($kmax - ($head | u16) - 1)] | min) as $room
+       | if $sum == "" or $room <= 0 then $head
+         else ($sum | trunc16($room) | gsub(" +$"; "")) as $cut | if $cut == "" then $head else $head + "·" + $cut end end)'
 }
 
 # 팀장 갱신. 인자: [제외할 레인]. 같은 slots/busy 이면 force 가 아닐 때 보내지 않는다.
 FORCE=0
 send_lead() {
-  local excl="${1:-}" id key slots busy sig
+  local excl="${1:-}" id key slots busy sig old
   [ "$ABORT" = 0 ] || return 1
   need_ident || return 1
-  id="$IDENT"; key="$id/coord"
+  id="$IDENT"; key="$(lead_key "$id")"
   read -r slots busy < <(st --arg x "$excl" "$LABEL_JQ"'
     . as $r | [$r.lanes | keys[] | select(. != $x) | . as $k | {k: $k, l: ($r | lbl($k))}] as $A
     | [$A[] | select(.l != "끝")] as $alive
     | "\($alive | length) \([$alive[] | select(.l == "작업 중" or .l == "머지 중")] | length)"')
   sig="$slots,$busy"
-  if [ "$FORCE" = 0 ] && [ "$(sent_key _lead)" = "$key" ] && [ "$(st '.office.lead // empty')" = "$sig" ]; then return 0; fi
+  old="$(sent_key _lead)"
+  if [ "$FORCE" = 0 ] && [ "$old" = "$key" ] && [ "$(st '.office.lead // empty')" = "$sig" ]; then return 0; fi
   local args=(--agent "$key" --slots "${slots:-0}" --busy "${busy:-0}")
   [ -n "$PROJECT" ] && args+=(--project "$PROJECT")
-  # 키가 바뀌었으면(신원·host) 옛 키를 먼저 내린다.
-  local old; old="$(sent_key _lead)"
-  [ -n "$old" ] && [ "$old" != "$key" ] && watch_call "stop $old" --agent "$old" --stop
+  # 키가 바뀌었으면(회차·신원·host 또는 옛 형식) 옛 키를 먼저 내린다. 못 내렸으면 새 키를 보내지 않고 옛 기록을 둔다(서버 stop 은 멱등).
+  if [ -n "$old" ] && [ "$old" != "$key" ]; then watch_call "stop $old" --agent "$old" --stop || return 1; fi
   watch_call "팀장 $key" "${args[@]}" || return 1
   rec '.office.sent["_lead"]' "$(jq -nc --arg k "$key" '$k')"
   rec '.office.lead' "$(jq -nc --arg s "$sig" '$s')"
 }
 
+# 기록된 키로 stop 하고 기록을 지운다. 인자: <레인>. 기록이 없으면 0.
+stop_lane() {
+  local lane="$1" old; old="$(sent_key "$lane")"
+  [ -n "$old" ] || return 0
+  watch_call "stop $old" --agent "$old" --stop || return 1
+  rec ".office.sent[$(jq -nc --arg l "$lane" '$l')]" null
+  rec ".office.label[$(jq -nc --arg l "$lane" '$l')]" null
+}
+
 # 팀원 한 명 보내기. 인자: <레인> <라벨>. 같은 키·라벨이면 force 가 아닐 때 건너뛴다.
+# 라벨이 끝이거나 레인이 closed 이면 올리지 않고 내린다(lane-down 뒤 늦은 report 가 행을 다시 만들지 않게).
 send_lane() {
   local lane="$1" label="$2" id key old oldlbl
   [ "$ABORT" = 0 ] || return 1
   case "$lane" in _lead) return 0 ;; esac
+  if [ "$label" = "끝" ] || [ "$(auto_label "$lane")" = "끝" ]; then stop_lane "$lane"; return; fi
   need_ident || return 1
   id="$IDENT"; key="$(lane_key "$id" "$lane")"
   old="$(sent_key "$lane")"; oldlbl="$(sent_label "$lane")"
   if [ "$FORCE" = 0 ] && [ "$old" = "$key" ] && [ "$oldlbl" = "$label" ]; then return 0; fi
   # 지시 요약이 바뀌어 키가 달라졌으면 옛 키를 먼저 내린다(안 내리면 화면에 같은 레인이 둘 보인다).
-  if [ -n "$old" ] && [ "$old" != "$key" ]; then watch_call "stop $old" --agent "$old" --stop; fi
+  # stop 이 실패하면 새 키를 보내지 않고 옛 기록을 둔다(다음 beat 가 다시 시도, 서버 stop 은 멱등).
+  if [ -n "$old" ] && [ "$old" != "$key" ]; then watch_call "stop $old" --agent "$old" --stop || return 1; fi
   local args=(--agent "$key" --until "$label")
   [ -n "$PROJECT" ] && args+=(--project "$PROJECT")
   watch_call "팀원 $key" "${args[@]}" || return 1
   rec ".office.sent[$(jq -nc --arg l "$lane" '$l')]" "$(jq -nc --arg k "$key" '$k')"
   rec ".office.label[$(jq -nc --arg l "$lane" '$l')]" "$(jq -nc --arg s "$label" '$s')"
-}
-
-# 기록된 키로 stop 하고 기록을 지운다. 인자: <레인>
-stop_lane() {
-  local lane="$1" old; old="$(sent_key "$lane")"
-  [ -n "$old" ] || return 0
-  [ "$ABORT" = 0 ] || return 1
-  watch_call "stop $old" --agent "$old" --stop || return 1
-  rec ".office.sent[$(jq -nc --arg l "$lane" '$l')]" null
-  rec ".office.label[$(jq -nc --arg l "$lane" '$l')]" null
 }
 
 valid_label() { case "$1" in "작업 중"|"대기"|"머지 중"|"끝") return 0 ;; *) return 1 ;; esac; }
@@ -195,16 +233,24 @@ case "$sub" in
   lead-up) FORCE=1; send_lead ;;
   lane-up)
     lane_exists "$1" || exit 0
+    [ "$(auto_label "$1")" != "끝" ] || { stop_lane "$1"; exit 0; }   # 끝난 레인은 올리지 않는다
     FORCE=1
-    send_lane "$1" "$(auto_label "$1")" && send_lead ;;
+    send_lane "$1" "$(auto_label "$1")"
+    [ "$ABORT" = 0 ] && send_lead ;;
   lane-state)
     lane_exists "$1" || exit 0
     lab="$2"; [ "$lab" = auto ] && lab="$(auto_label "$1")"
     valid_label "$lab" || { coord_log "상태 라벨은 작업 중|대기|머지 중|끝|auto: $2"; exit 0; }
-    send_lane "$1" "$lab" && send_lead ;;
+    send_lane "$1" "$lab"; [ "$ABORT" = 0 ] && send_lead ;;
   lane-down)
     stop_lane "$1" && send_lead "$1" ;;
   beat)
+    if [ "$FINISHED" = 1 ]; then   # 마감 뒤: 남은 키만 내린다
+      for L in $(st '(.office.sent // {}) | to_entries[] | select(.value != null and .key != "_lead") | .key'); do stop_lane "$L"; done
+      old="$(sent_key _lead)"
+      if [ -n "$old" ] && watch_call "stop $old" --agent "$old" --stop; then rec '.office.sent["_lead"]' null; rec '.office.lead' null; fi
+      exit 0
+    fi
     FORCE=1
     send_lead
     for L in $(st '.lanes | keys[]'); do
@@ -214,7 +260,9 @@ case "$sub" in
     # state 에서 사라진 레인의 남은 키
     for L in $(st '(.office.sent // {}) as $s | (.lanes // {}) as $ln | $s | keys[] | select(. != "_lead") | select($ln[.] == null)'); do stop_lane "$L"; done ;;
   finish)
-    for L in $(st '(.office.sent // {}) | to_entries[] | select(.value != null and .key != "_lead") | .key'); do stop_lane "$L"; done
+    # 레인마다 ABORT 를 초기화해 모든 stop 을 시도한다(한 건의 시간 초과가 나머지를 막지 않게). 마감 표식은 늘 남기고,
+    # stop 이 실패한 키는 기록에 남아 이후 beat 가 마저 내린다.
+    for L in $(st '(.office.sent // {}) | to_entries[] | select(.value != null and .key != "_lead") | .key'); do ABORT=0; stop_lane "$L"; done
     ABORT=0
     old="$(sent_key _lead)"
     if [ -n "$old" ] && watch_call "stop $old" --agent "$old" --stop; then
