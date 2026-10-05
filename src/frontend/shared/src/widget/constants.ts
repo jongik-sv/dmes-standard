@@ -12,7 +12,8 @@ export const HOME_TAB_NAME = "홈";
 export const MAX_TABS = 10;
 export const MAX_WIDGETS_PER_TAB = 30;
 export const TAB_NAME_MAX = 20;
-export const MIN_REFRESH_SEC = 30;
+/** 자동 새로 고침 하한(초) — 위젯 정의 저장 검사(CommWidgetMngService REFRESH_MIN)·관리 화면 검사와 같다. 실행 때도 이보다 짧은 저장값은 이 값으로 올려 쓴다. */
+export const MIN_REFRESH_SEC = 600;
 /** 틀 제목 줄에서 바꾸는 위젯 이름의 최대 글자 수(코드 포인트 기준 — 개인 메모장 제목 한도와 같다). */
 export const WIDGET_TITLE_MAX = 40;
 

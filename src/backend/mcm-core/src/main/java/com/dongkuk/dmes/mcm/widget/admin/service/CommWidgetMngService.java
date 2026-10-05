@@ -36,7 +36,7 @@ public class CommWidgetMngService {
     static final String MCM_DATA_SRC = "mcm";
     private static final int GRID_COLS = 24;
     private static final int TITLE_MAX = 50;
-    private static final int REFRESH_MIN = 30;
+    private static final int REFRESH_MIN = 600;
     private static final int REFRESH_MAX = 86_400;
     private static final int ID_ATTEMPTS = 10;
     /** shared validateWidgetMeta 의 위젯 ID 정규식 — 코드 위젯 ID 형식. */
