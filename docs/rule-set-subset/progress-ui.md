@@ -20,7 +20,8 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9
   3. 편차 6 대신 탭 머리·닫기 단추·dirty 점·숨김 패널(`display:none` 마운트 유지)을 shared 새 컴포넌트 `closable-tabs` 로 등록하고 화면 `RuleSetTabs` 가 감싼다(Part B §18). 기존 shared `Tabs` 는 고치지 않는다. Part B §1 표 한 줄 추가는 조정 세션 승인.
   4. `SetVersionRow`·`useAutoSave`·`ViewportGuard` 는 훅·컴포넌트 인스턴스 상태라 편집기로 그대로 옮기면 탭마다 독립한다.
   5. 새 시험 도우미(`activateTab`·`inPanel`)는 소유 밖인 `tests/dme/helpers/rule-set-page.ts` 대신 `tests/dme/ruleSetEdit/` 아래 새 파일에 둔다.
-- 커밋: `965c1b26`(tabs-model), `e507a2b7`(탭 틀·편집기·숨은 탭 처리·시험), 리뷰 후속 `67d91a13`(shared Delete 제거)·`c07d1f82`(실패 탭·포털 대화 상자·고르기 칸)·`b3f56e1c`(스킬 문서) — 결정 14
+- 커밋: `965c1b26`(tabs-model), `e507a2b7`(탭 틀·편집기·숨은 탭 처리·시험), 리뷰 후속 `67d91a13`(shared Delete 제거)·`c07d1f82`(실패 탭·포털 대화 상자·고르기 칸)·`b3f56e1c`(스킬 문서) — 결정 14. shared 는 `d735c02e`(closable-tabs 등록)·`464fda75`(스킬 문서·색인)
+- 시험 결과(dev `8192debe`·`14ec1124` 합친 `a779f8a4` 위): m-mdm `node scripts/test.mjs` 235파일 3636 통과·0 실패(기준선 3602+1 실패 → ui-meta-lock 은 dev 갱신으로 통과, 새 시험 +34), m-mdm `tsc --noEmit` 0, shared `vitest run tests/unit` 136파일 1883 통과, shared `tsc --noEmit` 0, mantine·aggrid audit 0. shared 는 기존 export·props 변경 없음(package.json exports·tsup entry 에 `closable-tabs` 추가만)
 - 결정:
   1. **파일 나눔** — `page.tsx`(얇은 기본 내보내기) → `RuleSetTabs.tsx`(`<style>`·`MdmPageLayout`·shared `ClosableTabs`·포털 파라미터) → `RuleSetEditor.tsx`(옛 page 본문). 탭 사이 연동 틀은 `tabs-context.ts` 에 두고 `RuleSetTabs.tsx` 가 다시 내보낸다(편집기·탭 틀이 서로 import 하지 않게). `styles/tabs.ts` 는 만들지 않았다(탭 틀 스타일은 shared 가 가진다).
   2. **`TabStatus`·`SetTab` 에 `ver` 를 더했다** — "포털 파라미터가 다른 버전을 넘기면 그 탭에서 다시 연다" 를 가리려면 탭이 연 버전이 필요하다. 비교는 `sameVer`(`@/shell/version-format`, 순수 함수). 알림 전 탭은 마지막 요청의 버전과 견준다. `draft` 는 버전 줄과 같이 `versions` 의 선택 버전 상태(없으면 `set.verStatus`)가 `DRAFT` 인가.
