@@ -139,6 +139,30 @@ class RuleSetPathStateTest {
         assertEquals(at(Set.of(), Set.of()), b.get("r1"));
         assertEquals(at(CATCH, Set.of()), b.get("r2"), "실패한 룰 결과(Y,Z)는 없다");
         assertEquals(at(Set.of("Y"), Set.of("Z")), b.get("r3"), "Y 는 정상·돌아오는 처리 갈래 모두, Z 는 정상 갈래에서만");
+        // 엔진(eng:4)은 RULE 받는 노드에도 CATCH_SET(값 = 지금 세트 ID)을 넣는다 — 룰 처리 갈래도 다섯 이름을 정의로 본다.
+        assertTrue(b.get("r2").defined().containsAll(Set.of(ReservedNames.CATCH_KIND, ReservedNames.CATCH_RULE, ReservedNames.CATCH_CODE,
+                ReservedNames.CATCH_MSG, ReservedNames.CATCH_SET)), "룰 처리 갈래의 CATCH_* 다섯(CATCH_SET 포함)");
+    }
+
+    @Test
+    void 룰_받는_노드_처리_갈래에서_CATCH_SET_을_읽어도_분석기는_모르는_입력으로_보지_않는다() {
+        // start → r1(R_A) → end, c1(r1, EVAL_ERROR) → r2(R_H: CATCH_SET·CATCH_RULE 를 읽는다) → end. 엔진은 RULE 받는 노드에도 CATCH_SET 을 넣는다.
+        EDGES.clear();
+        String e = String.join(",", edge("start", "r1", ""), edge("r1", "end", ""), edge("c1", "r2", ""), edge("r2", "end", ""));
+        String json = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"}," + String.join(",", rule("r1", "R_A"),
+                catchNode("c1", "r1", "\"EVAL_ERROR\""), rule("r2", "R_H")) + ",{\"id\":\"end\",\"kind\":\"END\"}],\"edges\":[" + e + "]}";
+        RuleIo.IoName in = new RuleIo.IoName("A", RuleIo.NONE, null, null, null, false, null);
+        Map<String, RuleIo> rules = Map.of(
+                "R_A", new RuleIo("R_A", null, "DECISION", "INUSE", true, "1.000", "FIRST", List.of(in),
+                        List.of(new RuleIo.IoName("Y", null, null, null, null, false, null))),
+                "R_H", new RuleIo("R_H", null, "DECISION", "INUSE", true, "1.000", "FIRST",
+                        List.of(new RuleIo.IoName("CATCH_SET", RuleIo.NONE, null, null, null, false, null),
+                                new RuleIo.IoName("CATCH_RULE", RuleIo.NONE, null, null, null, false, null)),
+                        List.of(new RuleIo.IoName("H", null, null, null, null, false, null))));
+
+        List<RuleSetCheck> checks = RuleSetAnalyzer.checks(RuleSetFlowJson.parse(json), rules, Map.of(), Map.of());
+
+        assertTrue(checks.stream().noneMatch(k -> "CATCH_SET".equals(k.varName()) || "CATCH_RULE".equals(k.varName())), checks.toString());
     }
 
     @Test
