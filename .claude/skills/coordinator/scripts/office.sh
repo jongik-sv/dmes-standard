@@ -2,13 +2,13 @@
 # 사용법: office.sh lead-up | lane-up <레인> | lane-state <레인> <상태|auto> | lane-down <레인> | beat | finish
 #   조정 세션(팀장)과 레인(팀원)을 wbs-web 에이전트 오피스에 「표시 전용」으로 보인다(정본: ../references/contract.md §4).
 #   표시 경로는 `dflow.sh watch`(POST /api/v1/agent/watch) 하나뿐이다. WBS 데이터(작업·lease·진도율)는 건드리지 않는다.
-#   lead-up              팀장 등록: agent `<신원>/<host>/coord`, slots=살아 있는 레인 수, busy=작업 중(머지 중 포함) 레인 수
-#   lane-up <레인>       팀원 등록: agent `<신원>/<host>/임시:<레인>·<지시 요약>`, until=상태 라벨. 이어 팀장 갱신
+#   lead-up              팀장 등록: agent `<신원>/<host>/coord`, slots=살아 있는(closed 아닌) 레인 수, busy=작업 중(머지 중 포함) 레인 수
+#   lane-up <레인>       팀원 등록(같은 키여도 늘 보낸다): agent `<신원>/<host>/임시:<레인>·<지시 요약>`, until=상태 라벨. 이어 팀장 갱신
 #   lane-state <레인> <상태>  상태 라벨(작업 중|대기|머지 중|끝|auto) 갱신. auto = state.json 에서 판정. 같은 값이면 보내지 않는다
 #   lane-down <레인>     기록된 키로 `watch --stop` 하고 기록을 지운다. 이어 팀장 갱신
 #   beat                 하트비트: 팀장과 살아 있는 레인 전원을 state.json 기준으로 다시 보낸다(키가 바뀌었으면 옛 키 stop 뒤 새 키).
 #                        끝난(closed) 레인·state 에서 사라진 레인은 stop. tick.sh 끝에서 부른다
-#   finish               팀장·팀원 키를 모두 stop 하고 기록을 비운다(회차 마감)
+#   finish               팀장·팀원 키를 모두 stop 하고 기록을 비운다(회차 마감). 이후 이 회차의 다른 호출은 무시한다(.office.finished)
 #   키 기록: state.json `.office.sent["<레인>"]`(마지막에 보낸 agent 키), 팀장은 `.office.sent["_lead"]`.
 #   설정: office.enabled · office.project_id · office.label_max · office.dflow_script (contract §1.2)
 #   실패 정책: 어떤 실패도 종료 코드 0(사용법 오류만 2). 경고는 stderr 한 줄, 호출당 5초 제한.
@@ -38,6 +38,8 @@ esac
 [ "${COORD_DRY:-0}" = 1 ] && { coord_log "DRY office.sh $sub $*"; exit 0; }
 coord_has_run || exit 0
 SF="$(coord_state_file)"
+# 마감(finish)한 회차는 이후 report·hold 훅이 오피스에 다시 등록하지 않게 한다.
+[ "$sub" = finish ] || [ "$(jq -r '.office.finished // false' "$SF" 2>/dev/null)" != true ] || exit 0
 REPO="$(coord_repo 2>/dev/null)" || exit 0
 
 DFLOW="$(coord_cfg .office.dflow_script)"
@@ -125,7 +127,7 @@ need_ident() {  # 서브셸 없이 부른다(IDENT·ABORT 를 호출자에 남�
 lane_key() {  # lane_key <ident> <레인>
   jq -rn --arg id "$1" --arg lane "$2" --argjson max "$LABEL_MAX" --slurpfile s "$SF" '
     ($s[0].lanes[$lane] // {}) as $l
-    | ([$l.brief, $l.goal, (($l.items // []) | map(select(.done != true)) | .[0].title)]
+    | ([$l.brief, $l.goal, $l.title, (($l.memo // "") | split("\n")[0])]
        | map(select(. != null and . != "") | tostring) | .[0] // "") as $raw
     | ($raw | gsub("[\r\n\t]+"; " ") | gsub("/"; "") | gsub("^ +| +$"; "") | gsub(" +"; " ")) as $sum
     | ($id + "/임시:" + $lane) as $head
@@ -149,8 +151,7 @@ send_lead() {
     | "\($alive | length) \([$alive[] | select(.l == "작업 중" or .l == "머지 중")] | length)"')
   sig="$slots,$busy"
   if [ "$FORCE" = 0 ] && [ "$(sent_key _lead)" = "$key" ] && [ "$(st '.office.lead // empty')" = "$sig" ]; then return 0; fi
-  local args=(--agent "$key")
-  [ "${slots:-0}" -gt 0 ] && args+=(--slots "$slots" --busy "$busy")
+  local args=(--agent "$key" --slots "${slots:-0}" --busy "${busy:-0}")
   [ -n "$PROJECT" ] && args+=(--project "$PROJECT")
   # 키가 바뀌었으면(신원·host) 옛 키를 먼저 내린다.
   local old; old="$(sent_key _lead)"
@@ -194,6 +195,7 @@ case "$sub" in
   lead-up) FORCE=1; send_lead ;;
   lane-up)
     lane_exists "$1" || exit 0
+    FORCE=1
     send_lane "$1" "$(auto_label "$1")" && send_lead ;;
   lane-state)
     lane_exists "$1" || exit 0
@@ -217,6 +219,7 @@ case "$sub" in
     old="$(sent_key _lead)"
     if [ -n "$old" ] && watch_call "stop $old" --agent "$old" --stop; then
       rec '.office.sent["_lead"]' null; rec '.office.lead' null
-    fi ;;
+    fi
+    rec '.office.finished' true ;;
 esac
 exit 0

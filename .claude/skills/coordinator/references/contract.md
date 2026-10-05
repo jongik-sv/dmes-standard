@@ -232,16 +232,16 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 
 | 대상 | 키 | 비고 |
 |---|---|---|
-| 팀장 | `<신원>/<host>/coord` | `slots` = 살아 있는 레인 수(state 가 closed 가 아닌 레인), `busy` = 그중 작업 중·머지 중 레인 수. 레인이 0 이면 둘 다 생략 |
+| 팀장 | `<신원>/<host>/coord` | `slots` = 살아 있는 레인 수(state 가 closed 가 아닌 레인), `busy` = 그중 작업 중·머지 중 레인 수. |
 | 팀원 | `<신원>/<host>/임시:<레인>·<지시 요약>` | `until` 칸에 상태 라벨. `slots`·`busy` 는 보내지 않는다 |
 
 - `<신원>/<host>` 는 `dflow.sh` 의 `watcher_id_default`(`<신원>/<host>/poll`)에서 마지막 토막만 뗀 값이다(신원 = `/me` 의 user_email 로컬 파트, host = hostname 첫 토막, 둘 다 소문자 `[a-z0-9-]` 슬러그). 킷에 PC별 이름을 박지 않는다. 신원은 `state.json` 의 `.office.user` 에 캐시한다.
 - **팀원 슬롯 토큰(화면 파싱 규칙)**: 마지막 `/` 뒤 토막이 `임시:` 로 시작하면 팀원이다. `임시:` 뒤가 `<레인>·<요약>` 이고 **첫 `·` 가 레인과 요약의 경계**다(요약 안에는 `·` 가 있어도 된다). 지시 요약이 비면 `·` 없이 `임시:<레인>` 만 온다. 레인 이름에는 `·`·`/` 가 없다(`[A-Za-z0-9._-]`).
-- **지시 요약** = 레인 `brief`(`coord-state.sh lane-add <레인> '{"brief":"한 줄"}'`) → 없으면 레인 `goal` → 없으면 첫 미완 항목 `title`. 개행·탭은 공백 하나로, 슬래시는 제거, 앞뒤 공백 제거 뒤 `office.label_max`(기본 40)자로 자른다. 키 전체는 120자 이내라 레인 이름이 길면 요약이 더 줄어든다.
+- **지시 요약** = 레인 `brief`(`coord-state.sh lane-add <레인> '{"brief":"한 줄"}'`) → 없으면 레인 `goal` → `title` → `memo` 첫 줄. 모두 비면 요약 없음. 항목 제목은 쓰지 않는다(항목을 끝낼 때마다 키가 바뀌어 슬롯이 새로 생긴다). 이미 올라간 레인에 `lane-add` 로 `brief` 를 바꾸면 바로 반영하고, 그 밖의 경로는 다음 beat 에서 반영된다. 개행·탭은 공백 하나로, 슬래시는 제거, 앞뒤 공백 제거 뒤 `office.label_max`(기본 40)자로 자른다. 키 전체는 120자 이내라 레인 이름이 길면 요약이 더 줄어든다.
 - **상태 라벨(until, 16자 이내)**: `작업 중`·`대기`·`머지 중`·`끝` 중 하나. `auto` 판정은 state.json 에서 한다: 레인 `state=closed` → `끝`, `merge.in_flight.lane` → `머지 중`, `hold` 가 있거나 `state=closing` → `대기`, 그 밖 `작업 중`.
 - 오피스는 키가 같으면 갱신, 다르면 새 슬롯으로 본다. 그래서 요약이 바뀌어 키가 달라지면 옛 키를 먼저 `--stop` 한 뒤 새 키를 등록한다.
 
-**state.json 기록**: `.office.sent["<레인>"]` = 마지막에 보낸 키(팀장은 `["_lead"]`), `.office.label["<레인>"]` = 마지막에 보낸 라벨, `.office.lead` = 팀장에 마지막으로 보낸 `<slots>,<busy>`, `.office.user` = 신원 캐시. `office.sh` 가 `coord-state.sh set` 으로만 쓴다.
+**state.json 기록**: `.office.sent["<레인>"]` = 마지막에 보낸 키(팀장은 `["_lead"]`), `.office.label["<레인>"]` = 마지막에 보낸 라벨, `.office.lead` = 팀장에 마지막으로 보낸 `<slots>,<busy>`, `.office.user` = 신원 캐시, `.office.finished` = 마감 표식. 서버 TTL 은 70분이라 틱(기본 20분) 하트비트로 충분하다. `office.sh` 가 `coord-state.sh set` 으로만 쓴다.
 
 **호출 연결**(모두 `office.sh … >/dev/null 2>&1 || true`, stdout 계약 불변):
 
@@ -249,11 +249,11 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 |---|---|
 | `coord-state.sh init` | `lead-up` |
 | `spawn-lane.sh` 세션 확인 뒤(`record_lane`) | `lane-up <레인>` |
-| `coord-state.sh report`·`item-done`·`hold` | `lane-state <레인> auto` |
+| `coord-state.sh lane-add`(이미 올라간 레인만)·`report`·`item-done`·`hold` | `lane-state <레인> auto` |
 | `coord-state.sh set '.merge…'` 로 `in_flight` 레인이 바뀔 때(머지 허가·완료) | 이전·새 레인에 `lane-state <레인> auto` |
 | `close-lane.sh` 가 레인을 closed 로 쓴 뒤 | `lane-down <레인>` |
 | `tick.sh` 끝(`--dry-run` 제외) | `beat` — 팀장과 살아 있는 레인 전원을 같은 키로 재전송(하트비트). 끝난 레인·state 에서 사라진 레인은 stop. 개별 호출이 빠져도 beat 가 state.json 기준으로 바로잡는다 |
-| `coord-state.sh event run-closed`(`closing.md` §6) | `finish` — 팀장·팀원 키를 모두 stop |
+| `coord-state.sh event run-closed`(`closing.md` §6) | `finish` — 팀장·팀원 키를 모두 stop 하고 `.office.finished=true` 를 남긴다. 이후 그 회차의 `office.sh` 호출은 무시한다 |
 
 `lane-state`·`lane-up` 은 키·라벨이 기록과 같으면 보내지 않는다(beat·lead-up 은 늘 보낸다). 사용자가 띄운 세션처럼 `lane-up` 을 거치지 않은 레인은 다음 beat 에서 등록된다.
 

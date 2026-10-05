@@ -143,6 +143,8 @@ cmd_lane_add() {
   st_update --arg l "$1" --argjson j "$2" --argjson sk "$LANE_SKEL" '.lanes[$l] = ($sk * (.lanes[$l] // {}) * $j)' || exit 4
   mkdir -p "$(run_dir)/lanes/$1"
   ev_append "$(run_dir)" lane-add "$1"
+  # 이미 오피스에 올라간 레인이면 지시 요약(brief)이 바뀐 것을 바로 반영한다(처음 올리는 일은 spawn-lane·beat 몫)
+  [ -z "$(jq -r --arg l "$1" '.office.sent[$l] // empty' "$(state_file_checked)" 2>/dev/null)" ] || office lane-state "$1" auto
   echo OK
 }
 

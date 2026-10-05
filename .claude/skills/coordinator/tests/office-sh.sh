@@ -43,8 +43,8 @@ sent() { $CS get ".office.sent[\"$1\"] // \"\""; }
 # --- 1. init → 팀장 등록 ------------------------------------------------------
 : > "$FAKE_LOG"
 $CS init t1 --goal "시험 회차" >/dev/null
-eq "init: 팀장 키 $ID/coord" "$(log | grep -c -- "--agent $ID/coord --project proj-1")" 1
-eq "init: 레인이 없으면 slots 를 보내지 않는다" "$(log | grep -c -- '--slots')" 0
+eq "init: 팀장 키 $ID/coord" "$(log | grep -c -- "--agent $ID/coord --slots 0 --busy 0 --project proj-1")" 1
+eq "init: 레인이 없으면 slots 0 busy 0" "$(log | grep -c -- "--agent $ID/coord --slots 0 --busy 0")" 1
 eq "init: dflow 는 리포 루트에서 설정 폴더 지정 후 실행" "$(log | grep -c "cwd=$repo cfg=$repo")" 1
 eq "init: 팀장 키 기록(._lead)" "$(sent _lead)" "$ID/coord"
 eq "init: 신원 /me 는 한 번만(state 캐시)" "$(log | grep -c '^ME$')" 1
@@ -57,6 +57,9 @@ eq "lane-up: 종료 코드 0·무출력" "$(wc -c < "$tmp/o.out" | tr -d ' ')$(w
 eq "lane-up: 팀원 키·until·project" "$(log | grep -c -- "--agent $ID/임시:a1·툴팁 사전 정리 --until 작업 중 --project proj-1")" 1
 eq "lane-up: 팀장 slots=1 busy=1" "$(log | grep -c -- "--agent $ID/coord --slots 1 --busy 1")" 1
 eq "lane-up: 기록(.office.sent.a1)" "$(sent a1)" "$ID/임시:a1·툴팁 사전 정리"
+reset
+$OFF lane-up a1
+eq "lane-up: 같은 키여도 stop 없이 다시 보낸다(하트비트)" "$(log | grep -c -- '--stop')$(log | grep -c -- "임시:a1·툴팁 사전 정리 --until 작업 중")" "01"
 $CS lane-add a2 '{"goal":"두 번째 레인 목표"}' >/dev/null
 $OFF lane-up a2
 eq "lane-up: brief 없으면 레인 목표" "$(sent a2)" "$ID/임시:a2·두 번째 레인 목표"
@@ -82,9 +85,8 @@ eq "label_max 를 줄이면 a4 키도 다시 짧아진다" "$(sent a4 | jq -Rr '
 
 # --- 4. 요약이 바뀌면 옛 키 stop → 새 키 ------------------------------------------
 old="$(sent a1)"
-$CS lane-add a1 '{"brief":"툴팁 마무리 점검"}' >/dev/null
 reset
-$OFF lane-up a1
+$CS lane-add a1 '{"brief":"툴팁 마무리 점검"}' >/dev/null   # 이미 올라간 레인이라 lane-add 훅이 바로 반영한다
 first="$(log | head -1)"
 eq "키 변경: 첫 호출이 옛 키 stop" "${first%% |*}" "watch --agent $old --stop"
 eq "키 변경: 다음이 새 키 등록" "$(log | sed -n 2p | cut -d' ' -f1-3)" "watch --agent $ID/임시:a1·툴팁"
@@ -138,16 +140,7 @@ $OFF beat
 eq "beat: closed 레인은 stop" "$(log | grep -c -- "--agent $k3 --stop")" 1
 eq "beat: closed 레인 기록 삭제" "$(sent a3)" ""
 
-# --- 8. finish ----------------------------------------------------------------
-reset
-$CS event run-closed - '{}' >/dev/null; cp "$FAKE_LOG" "$tmp/fin.log"
-# a2 는 state 에 active 로 남아 있어 앞 beat 가 다시 등록했다(lane-down 은 state 를 바꾸지 않는다 — close-lane.sh 가 closed 로 먼저 쓴다)
-eq "run-closed 이벤트 → finish: 팀원 a1·a2·a4 와 팀장 stop" "$(log | grep -c -- '--stop')" 4
-eq "finish: 팀장 stop" "$(log | grep -c -- "--agent $ID/coord --stop")" 1
-eq "finish: 기록 비움" "$($CS get '[.office.sent[]? | select(. != null)] | length')" 0
-
 # --- 9. 실패 정책 ---------------------------------------------------------------
-$OFF lane-up a1   # 다시 등록해 둔다(기록 있음)
 reset
 out="$(FAKE_MODE=fail $OFF beat 2>"$tmp/e.err")"; rc=$?
 eq "dflow 실패(rc 1): 종료 코드 0" "$rc" 0
@@ -185,10 +178,34 @@ reset
 DFLOW_CONFIG_DIR="$tmp/cfgdir" $OFF lane-state a1 "대기"
 eq "DFLOW_CONFIG_DIR 지정 시 그대로 쓴다" "$(log | grep -c "cfg=$tmp/cfgdir")" 1
 
+# --- 12a. finish(마감 표식이 서면 뒤 시험이 막히므로 마지막 쪽에 둔다) ----------------------------------------------------------------
+reset
+$CS event run-closed - '{}' >/dev/null; cp "$FAKE_LOG" "$tmp/fin.log"
+# a2 는 state 에 active 로 남아 있어 앞 beat 가 다시 등록했다(lane-down 은 state 를 바꾸지 않는다 — close-lane.sh 가 closed 로 먼저 쓴다)
+eq "run-closed 이벤트 → finish: 팀원 a1·a2·a4 와 팀장 stop" "$(log | grep -c -- '--stop')" 4
+eq "finish: 팀장 stop" "$(log | grep -c -- "--agent $ID/coord --stop")" 1
+eq "finish: 기록 비움" "$($CS get '[.office.sent[]? | select(. != null)] | length')" 0
+
 # --- 12. 연결 지점이 실제로 불러지는지(소스 대조) ----------------------------------
 has() { grep -q "$2" "$SD/$1" && echo yes; }
 eq "tick.sh 끝에서 beat" "$(has tick.sh 'office.sh" beat')" yes
 eq "spawn-lane.sh 에서 lane-up" "$(has spawn-lane.sh 'office.sh" lane-up')" yes
 eq "close-lane.sh 에서 lane-down" "$(has close-lane.sh 'office.sh" lane-down')" yes
+
+# --- 13. 마감 뒤에는 훅이 다시 등록하지 않는다 ------------------------------------
+eq "finish: 마감 표식" "$($CS get '.office.finished')" true
+reset
+$CS report a1 "마감 뒤 보고" >/dev/null; $CS hold a1 user-wait >/dev/null; $OFF lane-up a1; $OFF beat
+eq "마감 뒤 report·hold·lane-up·beat 는 아무것도 보내지 않는다" "$(lines)" 0
+
+# --- 14. 워크트리에서 부르면 메인 체크아웃 루트에서 설정을 읽는다(COORD_REPO 없이) ----
+GIT=/usr/bin/git; [ -x "$GIT" ] || GIT=git
+main="$tmp/main"; mkdir -p "$main" && ( cd "$main" && $GIT init -q -b main . && $GIT -c user.email=t@t -c user.name=t commit -q --allow-empty -m init && $GIT worktree add -q "$tmp/wt" -b feat ) >/dev/null 2>&1
+jq -n --arg st "$tmp/state2" --arg ds "$tmp/fake-dflow.sh" '{state_dir:$st, office:{dflow_script:$ds}}' > "$main/.coord.local.json"
+( cd "$tmp/wt" && env -u COORD_REPO COORD_RUN=w1 bash "$SD/coord-state.sh" init w1 >/dev/null )
+reset
+( cd "$tmp/wt" && env -u COORD_REPO -u DFLOW_CONFIG_DIR COORD_RUN=w1 bash "$SD/office.sh" lead-up )
+eq "워크트리에서: 메인 루트 설정(.coord.local.json) 사용" "$(log | grep -c -- "--agent $ID/coord")" 1
+eq "워크트리에서: cwd·DFLOW_CONFIG_DIR 이 메인 체크아웃 루트" "$(log | grep -c "cwd=$main cfg=$main")" 1
 
 exit "$fail"

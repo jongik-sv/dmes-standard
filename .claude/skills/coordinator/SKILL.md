@@ -36,10 +36,9 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 1. 설정 확인: `<repo>/.coord.json`(공용)·`.coord.local.json`(PC 전용). `launch.claude`·`integration_check`·`git_bin` 처럼 PC마다 다른 값은 사용자에게 한 번 확인한다.
 2. `scripts/coord-state.sh init <run-id> --goal "<목표>" [--rules-doc <경로>]`
 3. 분해: `references/decompose.md`(초안은 판단 올리기). 사용자에게 확정받는다. 레인 공통 규칙 문서는 `templates/lane-rules-README.md`.
-4. 레인 확보: `references/spawn.md`. 사용자 세션은 신원 보고로 연결, 스킬이 띄우는 세션은 `spawn-lane.sh`. 띄운 세션에는 `Monitor` 로 `prompt-watch.sh <레인> --follow 1200` 을 붙인다. 각 레인은 `coord-state.sh lane-add`.
+4. 레인 확보: `references/spawn.md`. 사용자 세션은 신원 보고로 연결, 스킬이 띄우는 세션은 `spawn-lane.sh`. 띄운 세션에는 `Monitor` 로 `prompt-watch.sh <레인> --follow 1200` 을 붙인다. 각 레인은 `coord-state.sh lane-add`(에이전트 오피스 슬롯 이름이 될 지시 한 줄은 `"brief"` 로 함께 넣는다. 오피스 표시는 `init`·`spawn-lane.sh`·틱이 자동으로 보내고, 표시 전용이라 실패해도 무시한다. 키 규칙은 `references/contract.md` §4).
 5. 착수 지시: `templates/brief.md` 에 `protocol.md` 템플릿과 `workflow.md` 블록을 채워 SendMessage 로 보낸다. 번호는 `coord-state.sh instr <레인> start`, 원문은 `lanes/<레인>/brief.md`.
-6. 에이전트 오피스 표시: `init` 이 팀장을, `spawn-lane.sh` 가 레인을 자동 등록하고 틱이 하트비트를 보낸다(표시 전용, 실패해도 무시). 레인에는 `lane-add` 때 `"brief":"<지시 한 줄>"` 을 넣으면 오피스 슬롯 이름이 된다. 키 규칙·실패 정책은 `references/contract.md` §4.
-7. `CronCreate`(`tick.cron`, 위 고정 문구) → `coord-state.sh set '.run.cron_id' '"<id>"'`, `.run.coordinator` 에 자기 이름·주소·핸들·session_id.
+6. `CronCreate`(`tick.cron`, 위 고정 문구) → `coord-state.sh set '.run.cron_id' '"<id>"'`, `.run.coordinator` 에 자기 이름·주소·핸들·session_id.
 
 ## 틱 절차
 
