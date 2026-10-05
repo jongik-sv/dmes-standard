@@ -82,9 +82,10 @@ function applyRange(v: RuleVersionInfo): string {
 }
 
 const versionColumns: GridColumn[] = [
-  { key: "ver", header: "버전", width: 70, tooltip: false, render: (value) => fmtVer(value as string | null) },
+  { key: "ver", meta: false, header: "버전", width: 70, tooltip: false, render: (value) => fmtVer(value as string | null) },
   {
     key: "status",
+    meta: false,
     header: "상태",
     width: 120,
     tooltip: false,

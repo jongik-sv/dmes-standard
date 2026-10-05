@@ -56,7 +56,7 @@ const DRAFT_COLUMNS: GridColumn[] = [
   },
   { key: "maruRuleName", header: "이름", width: 130, minWidth: 60 },
   { key: "ruleKind", header: "종류", width: 90, minWidth: 50 },
-  { key: "ver", header: "버전", width: 60, minWidth: 40, render: (v) => fmtVer(v as string | null) },
+  { key: "ver", meta: false, header: "버전", width: 60, minWidth: 40, render: (v) => fmtVer(v as string | null) },
   { key: "ownerId", header: "소유자", width: 90, minWidth: 50, render: (v) => (v as string | null | undefined) ?? "—" },
 ];
 
@@ -75,7 +75,7 @@ function checkRowHeight(r: CheckRow): number {
 
 const CHECK_COLUMNS: GridColumn[] = [
   {
-    key: "item", header: "검사", width: 200, tooltip: false,
+    key: "item", meta: false, header: "검사", width: 200, tooltip: false,
     render: (_v, row) => {
       const r = row as unknown as CheckRow;
       return (
@@ -87,7 +87,7 @@ const CHECK_COLUMNS: GridColumn[] = [
     },
   },
   {
-    key: "status", header: "결과", width: 80, tooltip: false,
+    key: "status", meta: false, header: "결과", width: 80, tooltip: false,
     render: (_v, row) => {
       const r = row as unknown as CheckRow;
       const rejected = r.status === "REJECTED";

@@ -1020,21 +1020,18 @@ export default function CommMenuMngPage() {
         <SearchField
           label="메뉴 ID"
           name="MENU_ID"
-          meta="MENU_ID"
           value={filters.edt_MENU_ID}
           onChange={(v) => handleFilterChange("edt_MENU_ID", v)}
         />
         <SearchField
           label="메뉴 명"
           name="MENU_NM"
-          meta="MENU_NM"
           value={filters.edt_MENU_NM}
           onChange={(v) => handleFilterChange("edt_MENU_NM", v)}
         />
         <SearchField
           label="사용 유무"
           name="USE_TP"
-          meta="USE_TP"
           type="select"
           options={USE_TP_SEARCH_OPTIONS}
           value={filters.cbo_USE_TP}

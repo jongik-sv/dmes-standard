@@ -580,7 +580,6 @@ export default function CommPermMngPage() {
         <SearchField
           label="사용 여부"
           name="USE_TP"
-          meta="USE_TP"
           type="select"
           options={USE_TP_SEARCH_OPTIONS}
           value={filters.cbo_USE_TP}

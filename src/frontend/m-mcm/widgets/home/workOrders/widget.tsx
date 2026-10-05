@@ -26,6 +26,7 @@ const WORK_ORDER_COLUMNS: GridColumn[] = [
   {
     key: "status",
     header: "상태",
+    meta: false,
     width: 70,
     align: "center",
     render: (v) =>

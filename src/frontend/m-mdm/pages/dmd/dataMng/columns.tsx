@@ -31,6 +31,6 @@ export function buildDataMngColumns(): GridColumn[] {
     },
     { key: "maruDataName", header: "이름", width: 150, align: "left" },
     { key: "sourceKind", header: "원천", width: 70, align: "center" },
-    { key: "status", header: "상태", width: 90, align: "center" },
+    { key: "status", meta: false, header: "상태", width: 90, align: "center" },
   ];
 }

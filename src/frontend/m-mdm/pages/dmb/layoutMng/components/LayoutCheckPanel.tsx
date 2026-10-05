@@ -15,7 +15,7 @@ const RESULT_COLOR: Record<string, string> = { PASS: "var(--color-success)", FAI
 
 // 행·결과·메시지 testid 는 render 결과에 둔다(행 요소는 그리드가 그린다).
 const COLUMNS: GridColumn[] = [
-  { key: "NO", header: "#", width: 40, align: "right", render: (v) => <span data-testid={`layout-check-row-${v}`}>{String(v)}</span> },
+  { key: "NO", meta: false, header: "#", width: 40, align: "right", render: (v) => <span data-testid={`layout-check-row-${v}`}>{String(v)}</span> },
   { key: "CONDITION", meta: false, header: "거부 조건", width: 260 },
   { key: "CODE", meta: false, header: "코드", width: 60 },
   {

@@ -47,7 +47,7 @@ export function HeaderStackGrid({ rows, readOnly, onAdd, onRemove, onEditConst, 
   const actions = useRef({ onRemove, onEditConst });
   actions.current = { onRemove, onEditConst };
   const columns = useMemo<GridColumn[]>(() => [
-    { key: "SEQ", header: "순서", width: 70, align: "center", rowDrag: !readOnly },
+    { key: "SEQ", meta: false, header: "순서", width: 70, align: "center", rowDrag: !readOnly },
     { key: "HEADER_NAME", meta: false, header: "헤더", width: 160 },
     { key: "EAI_CODE", header: "EAI", width: 90 },
     { key: "HEADER_VER", meta: false, header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },

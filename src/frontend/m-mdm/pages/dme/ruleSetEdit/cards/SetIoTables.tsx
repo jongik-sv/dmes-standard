@@ -60,12 +60,13 @@ function Caption({ children }: { children: ReactNode }) {
 const INPUT_COLUMNS: GridColumn[] = [
   {
     key: "name",
+    meta: false,
     header: "변수",
     width: 120,
     tooltip: false,
     render: (_v, row) => <VarName name={String(row.name)} target={row.target as VarTarget} />,
   },
-  { key: "label", header: "표시명", width: 100 },
+  { key: "label", meta: false, header: "표시명", width: 100 },
   { key: "type", meta: false, header: "타입", width: 90 },
   {
     key: "source",
@@ -81,6 +82,7 @@ const INPUT_COLUMNS: GridColumn[] = [
 const RESULT_COLUMNS: GridColumn[] = [
   {
     key: "name",
+    meta: false,
     header: "변수",
     width: 120,
     tooltip: false,
@@ -89,6 +91,7 @@ const RESULT_COLUMNS: GridColumn[] = [
   { key: "type", meta: false, header: "타입", width: 90 },
   {
     key: "kind",
+    meta: false,
     header: "구분",
     width: 70,
     tooltip: false,

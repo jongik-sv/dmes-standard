@@ -14,7 +14,7 @@ const IMPACT_COLUMNS: GridColumn[] = [
 ];
 
 const DIFF_COLUMNS: GridColumn[] = [
-  { key: "LABEL", header: "필드", width: 150 },
+  { key: "LABEL", header: "필드", meta: false, width: 150 },
   { key: "BEFORE", header: "이전", meta: false, width: 180, render: (v) => diffValue(v) },
   { key: "AFTER", header: "이후", meta: false, width: 180, render: (v) => diffValue(v) },
   { key: "DIRECTION", header: "방향", meta: false, width: 100, render: (v) => directionLabel(String(v ?? "")) },

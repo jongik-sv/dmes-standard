@@ -396,7 +396,7 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
     });
   }
   cols.push(
-    { key: "label", header: "표시명", width: 110, editable: can, cellClassRules: edited("label"), render: textCell("col-label") },
+    { key: "label", meta: false, header: "표시명", width: 110, editable: can, cellClassRules: edited("label"), render: textCell("col-label") },
     {
       key: "dataType",
       header: "값 타입",
@@ -522,7 +522,7 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
     });
   }
   cols.push(
-    { key: "description", header: "설명", width: 140, editable: can, cellClassRules: edited("description"), render: textCell("col-desc") },
+    { key: "description", meta: false, header: "설명", width: 140, editable: can, cellClassRules: edited("description"), render: textCell("col-desc") },
     { key: "exprInfo", meta: false, header: "식 결과", width: 220, render: (_v, row) => exprInfoCell(g(row).__exprs) },
     { key: "check", meta: false, header: "검사", width: 170, pinned: "right", render: (_v, row) => checkCell(g(row)) },
     {

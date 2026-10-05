@@ -20,7 +20,7 @@ export interface RunCompareProps {
 export const NO_PREVIOUS_NOTE = "이전 실행이 없다. 흐름을 고친 뒤 같은 입력으로 다시 돌리면 차이가 보인다";
 
 const COLUMNS: GridColumn[] = [
-  { key: "name", header: "이름", width: 140 },
+  { key: "name", meta: false, header: "이름", width: 140 },
   { key: "before", meta: false, header: "이전", width: 120 },
   { key: "after", meta: false, header: "지금", width: 120 },
   {

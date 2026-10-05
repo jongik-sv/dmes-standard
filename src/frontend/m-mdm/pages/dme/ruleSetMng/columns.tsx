@@ -51,10 +51,11 @@ export function buildRuleSetColumns(onOpenSet: (setId: string) => void): GridCol
       },
     },
     { key: "inputCount", meta: false, header: "입력 변수 수", width: 90, minWidth: 80, align: "center" },
-    { key: "description", header: "설명", width: 200, minWidth: 90 },
+    { key: "description", meta: false, header: "설명", width: 200, minWidth: 90 },
     { key: "checkText", meta: false, header: "세트 검사", width: 130, minWidth: 60, align: "center" },
     {
       key: "ver",
+      meta: false,
       header: "버전",
       width: 70,
       minWidth: 50,
@@ -63,6 +64,7 @@ export function buildRuleSetColumns(onOpenSet: (setId: string) => void): GridCol
     },
     {
       key: "status",
+      meta: false,
       header: "상태",
       width: 100,
       minWidth: 70,

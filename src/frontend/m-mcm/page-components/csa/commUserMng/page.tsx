@@ -882,7 +882,6 @@ export default function CommUserMngPage() {
         <SearchField
           label="사용자"
           name="USER_ID"
-          meta="USER_ID"
           value={filters.edt_USER_ID}
           onChange={(v) => handleFilterChange("edt_USER_ID", v)}
           placeholder="ID / 사번 / 이름"
@@ -901,7 +900,6 @@ export default function CommUserMngPage() {
         <SearchField
           label="사용 여부"
           name="USE_TP"
-          meta="USE_TP"
           type="select"
           value={filters.cbo_USE_TP}
           onChange={(v) => handleFilterChange("cbo_USE_TP", v)}

@@ -504,7 +504,7 @@ export function buildTableColumns(ctx: TableColumnContext): GridColumn[] {
     },
   ];
   if (cond.length > 0) cols.push({ key: "grp_cond", header: "조건", ...BLOCK_HEAD.cond, children: cond.map((v) => varGroup(ctx, v)) });
-  if (result.length > 0) cols.push({ key: "grp_result", meta: false, header: "결과", ...BLOCK_HEAD.result, children: resultColumns(ctx, result) });
+  if (result.length > 0) cols.push({ key: "grp_result", header: "결과", ...BLOCK_HEAD.result, children: resultColumns(ctx, result) });
   cols.push(
     {
       key: "note",

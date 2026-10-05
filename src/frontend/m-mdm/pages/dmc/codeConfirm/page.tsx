@@ -57,7 +57,7 @@ const DRAFT_COLUMNS: GridColumn[] = [
 ];
 
 const CHECK_COLUMNS: GridColumn[] = [
-  { key: "no", header: "번호", width: 60 },
+  { key: "no", meta: false, header: "번호", width: 60 },
   {
     key: "item", header: "검사", meta: false, width: 240,
     render: (_v, row) => {
@@ -95,7 +95,7 @@ const CHECK_COLUMNS: GridColumn[] = [
 const DIFF_COLUMNS: GridColumn[] = [
   { key: "table", header: "테이블", meta: false, width: 110 },
   { key: "key", header: "키", meta: false, width: 130 },
-  { key: "kind", header: "변경", width: 70, render: (v) => DIFF_KIND_LABELS[String(v)] ?? String(v) },
+  { key: "kind", meta: false, header: "변경", width: 70, render: (v) => DIFF_KIND_LABELS[String(v)] ?? String(v) },
   {
     key: "oldValues", header: "이전", meta: false, width: 200,
     render: (_v, row) => {

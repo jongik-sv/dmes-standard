@@ -122,7 +122,7 @@ const COLUMNS: GridColumn[] = [
   { key: "inputJson", header: "입력", width: 260, minWidth: 140, render: (v) => <code>{String(v)}</code> },
   { key: "result", meta: false, header: "실행 결과", width: 240, minWidth: 140, render: (v) => (v ? <code>{String(v)}</code> : <MutedText>-</MutedText>) },
   {
-    key: "status", header: "상태", width: 140, minWidth: 100,
+    key: "status", meta: false, header: "상태", width: 140, minWidth: 100,
     render: (v) => <span style={{ color: statusColor(String(v)) }}>{String(v)}</span>,
   },
 ];

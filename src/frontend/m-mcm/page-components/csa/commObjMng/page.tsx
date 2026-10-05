@@ -522,14 +522,12 @@ export default function CommObjMngPage() {
         <SearchField
           label="OBJECT"
           name="OBJECT_ID"
-          meta="OBJECT_ID"
           value={filters.edt_OBJECT_ID}
           onChange={(v) => handleFilterChange("edt_OBJECT_ID", v)}
         />
         <SearchField
           label="사용 여부"
           name="USE_TP"
-          meta="USE_TP"
           type="select"
           options={USE_TP_SEARCH_OPTIONS}
           value={filters.cbo_USE_TP}

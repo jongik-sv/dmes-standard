@@ -101,11 +101,12 @@ function varColumns(actions: { current: VarActions }): GridColumn[] {
           <IconPin size={14} aria-label={`${String(row.name)} 조사식에 고정`} style={{ color: "var(--color-text-muted)" }} />
         ),
     },
-    { key: "name", header: "이름", width: 110 },
+    { key: "name", meta: false, header: "이름", width: 110 },
     // 값 칸 — 고칠 수 있는 줄만 AG Grid 기본 글자 편집기로 연다(두 번 누르기). 표시는 typedText 글자 그대로다.
-    { key: "value", header: "값", width: 100, editable: (row) => row.canEdit === true && row.editKind != null },
+    { key: "value", meta: false, header: "값", width: 100, editable: (row) => row.canEdit === true && row.editKind != null },
     {
       key: "state",
+      meta: false,
       header: "상태",
       width: 72,
       tooltip: false,

@@ -194,6 +194,7 @@ export default function RuleMngPage() {
       { key: "sourceKind", header: "원천", width: 70, minWidth: 50, align: "center" },
       {
         key: "status",
+        meta: false,
         header: "상태",
         width: 80,
         minWidth: 60,

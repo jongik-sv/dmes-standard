@@ -70,7 +70,7 @@ function caseColumns(resultLabel: string): GridColumn[] {
   return [
     { key: "caseId", header: "case_id", width: 70, minWidth: 60 },
     {
-      key: "name", header: "이름", width: 160, minWidth: 100,
+      key: "name", meta: false, header: "이름", width: 160, minWidth: 100,
       render: (_v, row) => {
         const r = row as unknown as CaseRow;
         return (
@@ -87,7 +87,7 @@ function caseColumns(resultLabel: string): GridColumn[] {
       render: (v) => (v ? <code>{String(v)}</code> : <MutedText>(기대값 없음)</MutedText>),
     },
     {
-      key: "result", header: `결과(${resultLabel})`, width: 260, minWidth: 140,
+      key: "result", meta: false, header: `결과(${resultLabel})`, width: 260, minWidth: 140,
       render: (_v, row) => {
         const r = row as unknown as CaseRow;
         if (!r.badge) return <MutedText>-</MutedText>;

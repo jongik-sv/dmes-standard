@@ -47,7 +47,7 @@ interface FieldActions {
 function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
   return [
     {
-      key: "name", header: "변수", width: 200, minWidth: 140,
+      key: "name", meta: false, header: "변수", width: 200, minWidth: 140,
       render: (_v, row) => {
         const r = row as unknown as FieldRow;
         return (
@@ -78,7 +78,7 @@ function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
       },
     },
     {
-      key: "value", header: "값", width: 220, minWidth: 140,
+      key: "value", meta: false, header: "값", width: 220, minWidth: 140,
       editable: (row) => (row as unknown as FieldRow).sent,
       cellClassRules: { "cell-input": (row) => (row as unknown as FieldRow).sent },
       render: (_v, row) => {

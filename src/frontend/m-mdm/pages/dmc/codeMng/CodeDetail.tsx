@@ -51,7 +51,7 @@ function versionColumns(currentUserId: string | null): GridColumn[] {
     },
     { key: "verKind", header: "종류", width: 80 },
     {
-      key: "status", header: "상태", width: 110,
+      key: "status", meta: false, header: "상태", width: 110,
       render: (_v, row) => {
         const v = row as unknown as CodeEditView["versions"][number];
         return <VersionStatusBadge status={v.status as MdmVersionStatus} applyFrom={v.applyFrom} />;

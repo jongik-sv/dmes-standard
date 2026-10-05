@@ -26,6 +26,7 @@ export const durationCol = (key: string, header: string): GridColumn => ({
 export const ymdCol = (key: string, header: string): GridColumn => ({
   key,
   header,
+  meta: false,
   width: 100,
   align: "center",
   render: (v) => formatYmd(v),
