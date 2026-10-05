@@ -112,7 +112,7 @@ const MERMAID_CSS = `
 .md-mermaid-btn:focus-visible{outline:2px solid var(--color-primary);outline-offset:1px}
 .md-mermaid-btn[aria-disabled="true"]{opacity:.4;cursor:default}
 .md-mermaid-scale{min-width:44px;text-align:center;font-size:var(--font-size-sm);color:var(--color-text);font-variant-numeric:tabular-nums}
-.md-mermaid-frame{box-sizing:border-box;overflow:auto;scrollbar-gutter:stable;border:1px solid var(--color-border)}
+.md-mermaid-frame{box-sizing:border-box;width:100%;min-width:0;overflow:auto;scrollbar-gutter:stable;border:1px solid var(--color-border)}
 .md-mermaid-frame:focus-visible{outline:2px solid var(--color-primary);outline-offset:1px}
 @media print{
 .md-mermaid-toolbar{display:none}

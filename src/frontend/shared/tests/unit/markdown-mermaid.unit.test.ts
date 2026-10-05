@@ -226,7 +226,7 @@ describe("MermaidDiagram 크기 조절 도구 막대", () => {
     const frame = host.querySelector<HTMLElement>(".md-mermaid-frame")!;
     expect(frame.getAttribute("role")).toBe("img");
     expect(frame.style.maxHeight).toBe("min(480px, 60vh)");
-    expect(host.querySelector("style")?.textContent).toContain(".md-mermaid-frame{box-sizing:border-box;overflow:auto");
+    expect(host.querySelector("style")?.textContent).toContain(".md-mermaid-frame{box-sizing:border-box;width:100%;min-width:0;overflow:auto");
   });
 
   it("세로로 긴 도식도 높이로 줄이지 않고 100% 자연 크기로 그리며 틀 안에서 스크롤한다", async () => {
@@ -292,6 +292,36 @@ describe("MermaidDiagram 크기 조절 도구 막대", () => {
     const svg = host.querySelector<SVGElement>('[role="img"] svg')!;
     expect(svg.style.width).toBe("");
     expect(host.querySelector('[role="toolbar"]')).toBeNull();
+  });
+
+  it("틀 폭보다 넓은 도식은 폭에 맞춰 줄이고 라벨·svg 폭이 일치하며 다시 그려도 유지된다", async () => {
+    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const w = this.classList.contains("md-mermaid-frame") ? 700 : 0;
+      return { width: w, height: 0, top: 0, left: 0, right: w, bottom: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    try {
+      mermaidMock.render.mockResolvedValue({ svg: '<svg width="100%" viewBox="0 0 1000 200"><g></g></svg>' });
+      await mount(SRC);
+      const svg = () => host.querySelector<SVGElement>('[role="img"] svg')!;
+      expect(host.querySelector('[data-testid="md-view-mermaid-0-scale"]')?.textContent).toBe("70%");
+      expect(svg().style.width).toBe("700px");
+      expect(svg().style.height).toBe("140px");
+      // 부모가 같은 값으로 다시 그려도 크기가 풀리지 않는다.
+      await act(async () => {
+        root.render(createElement(MarkdownView, { value: SRC }));
+      });
+      expect(svg().style.width).toBe("700px");
+      expect(host.querySelector('[data-testid="md-view-mermaid-0"]')?.getAttribute("data-scale")).toBe("70");
+      // 맞춤 아래로 [−] 는 한 단계(50%), [+] 는 75% 로 한 방향씩 움직인다.
+      await click(btn("도식 확대"));
+      expect(host.querySelector('[data-testid="md-view-mermaid-0-scale"]')?.textContent).toBe("75%");
+      await click(btn("도식 크기 맞춤"));
+      await click(btn("도식 축소"));
+      expect(host.querySelector('[data-testid="md-view-mermaid-0-scale"]')?.textContent).toBe("50%");
+      expect(svg().style.width).toBe("500px");
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("그리기에 실패하면 도구 막대 없이 코드 블록이 남는다", async () => {
