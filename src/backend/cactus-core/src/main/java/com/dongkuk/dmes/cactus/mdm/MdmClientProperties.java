@@ -17,7 +17,8 @@ public class MdmClientProperties {
     private String clientKey;
     /**
      * 이 모듈이 쓰는 MDM 시스템 코드(MES 등). 있으면 COLUMN 조회에 {@code params.systemCode} 로 실어 표준 물리명으로 못 찾은 이름을 그 시스템의 별칭으로 찾게
-     * 한다. 기본 없음 = 별칭 매칭 끔(spec 2026-10-03-mdm-column-system-alias-design L2).
+     * 한다. 쉼표로 이은 목록({@code MES,MDM})이면 MDM 이 앞 코드부터 별칭을 찾는다 — 앞 코드에서 맞거나 모호한 이름은 뒤 코드에서 찾지 않는다(2026-10-05).
+     * 기본 없음 = 별칭 매칭 끔(spec 2026-10-03-mdm-column-system-alias-design L2).
      */
     private String systemCode;
     private Duration pollInterval = Duration.ofSeconds(10);
