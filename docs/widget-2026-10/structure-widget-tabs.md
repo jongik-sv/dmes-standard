@@ -62,3 +62,52 @@
 - saveTab 의 일반 탭 이름 중복 검사는 해석된 기본 탭 이름도 본다.
 - searchUsers 는 본인을 빼고, 검색어 30자 초과도 거절한다. 아이디·이름 포함 일치(대소문자 무시)다.
 - deleteDefaultTab 응답에 `layoutKey`·`tabId` 를 더 넣었다.
+
+---
+
+# 구조 변경 기록 — widget-tabs (프런트, 2026-10-05)
+
+설계 정본은 [design-widget-tabs.md](design-widget-tabs.md) §4 이다. 시험 명령은 shared `npx vitest run --maxWorkers=2 tests/unit/widget- tests/unit/lookup-multi-modal.unit.test.ts`, m-mcm `npx vitest run --maxWorkers=2 page-components/csa/commWidgetMng page-components/home`(둘 다 heavy.sh 경유).
+
+## S1. shared 위젯 — 고정 탭·mode·탭 파일·공유
+- 커밋: 4843a13d(순수 함수), c673aa53(WidgetTabs·WidgetWorkspace·공유 창·파일)
+- 바뀌기 전: 「홈」만 고정. 탭 순서는 seq 만으로 정렬. 관리자 편집은 `singleTab` 단일 탭. 탭 메뉴는 이름·잠금·옮기기·지우기·홈 되돌리기.
+- 바뀐 뒤: `types.ts` 끝에 인터페이스 병합으로 `WidgetTab.defaultTab?·customized?`, `WidgetStore.resetTab?·shareTab?·searchUsers?`, `WidgetShareUser`·`WidgetShareResult`·`WidgetTabExportFile`·`WidgetTabExportItem` 을 덧붙였다(기존 선언 변경 없음). `widget-layout.ts` 에 `isFixedTab`·`orderTabs`·`fixedTabCount`·`uniqueTabName`·`buildTabExport`·`parseTabImport`·`tabImportMessage`·`shareResultMessage` 를 더했고, `reuseTabs` 비교에 `defaultTab`·`customized` 를 넣었다. `constants.ts` 에 `MAX_DEFAULT_TABS`(5)·`MAX_SHARE_USERS`(10)·`SHARE_KEYWORD_MIN`(2)·`TAB_EXPORT_VERSION`·`TAB_EXPORT_KIND`. `WidgetTabs` 새 선택 props(`mode`·`maxTabs`·`onResetTab`·`onShare`·`onExport`·`onImport`·`importDisabled`·`importTitle`) — 핸들러가 없으면 항목을 그리지 않는다. `WidgetWorkspace` 새 prop `mode`("user"|"admin"). 새 파일 `WidgetShareDialog.tsx`(공유 창, 열 때만 마운트), `widget-file.ts`(JSON 내려받기·파일 읽기).
+- 바꾼 이유: 관리자 기본 탭(고정 탭)·기본으로 되돌리기·공유·내보내기·가져오기(사용자 결정 2026-10-05 §0-1·0-2)와 관리자 다중 탭 편집.
+- 동작 보존 근거: 기존 위젯 시험 12개 파일 192건 통과(widget-workspace·entry-load·pdf·tabs 포함, 시험 파일 수정 없음). 새 시험 `widget-tab-io`(24)·`widget-tabs-default`(12)·`widget-workspace-tabs`(18).
+- 영향 범위: 사용자 홈(m-mcm home) 탭 줄에 (+) 옆 「가져오기」 단추와 탭 메뉴 「내보내기」가 새로 보인다. store 에 shareTab·searchUsers 가 있으면 「공유…」. `singleTab` 은 그대로 남아 있다(지금 쓰는 곳 없음).
+- 되돌리는 방법: c673aa53 → 4843a13d 순으로 revert. m-mcm 커밋(ee2dc912·59b10c7a)이 새 타입·mode 를 쓰므로 먼저 되돌린다.
+
+## S2. shared 공통 부품 — LookupMultiModal
+- 커밋: 9bbe00a9, 문서 d8118a4a
+- 바뀌기 전: 검색 팝업은 한 행만 고르는 `LookupModal` 뿐.
+- 바뀐 뒤: `components/lookup/LookupMultiModal.tsx`(검색어 최소 글자·체크 목록·고른 칩·최대 개수·제외 코드, [확인]은 닫지 않음)를 `@dk-oasis/shared/lookup` 으로 내보낸다(새 서브패스 없음). 위젯 공유 창은 이 파일을 직접 import 한다(lookup index 를 거치면 AgDataGrid 가 위젯 묶음에 딸려 온다). mantine-aggrid-ui 스킬 `references/components/lookup-multi-modal.md`·`widget.md`·`ui_docs.py` 분류·`llms.txt`·`llms-full.txt` 갱신.
+- 바꾼 이유: 받는 사람 여러 명 검색·선택은 도메인과 무관한 부품이라 CLAUDE.md 「공통 컴포넌트 행동강령」·Part B §18 대로 등록.
+- 동작 보존 근거: 기존 lookup 부품 변경 없음. 새 시험 `lookup-multi-modal`(7). `ui_docs.py check-examples` 통과, `coverage` 는 기존 `useWidgetVisible` 미등재 1건만 남음(이번 변경 전부터).
+- 영향 범위: 새 부품만 추가.
+- 되돌리는 방법: 9bbe00a9 revert(그 전에 c673aa53 의 WidgetShareDialog 를 되돌린다).
+
+## S3. m-mcm 홈 저장소
+- 커밋: ee2dc912
+- 바뀌기 전: secWidget search·saveTab·deleteTab·reorderTabs·resetHome.
+- 바뀐 뒤: search 줄 `defaultYn`·`customYn` → `defaultTab`·`customized`(기본 탭 줄에만 칸을 싣는다), 새 `resetTab`·`shareTab`(grids `targets.rows`)·`searchUsers`. 응답 `ok` 는 boolean·"Y" 모두 받는다. `page.tsx` 는 바꾸지 않았다(작업 공간이 store 메서드 유무로 메뉴를 정한다). 「홈」 되돌리기는 resetHome, 홈 기본 배치는 widgetDef/list 그대로.
+- 바꾼 이유: 설계 §3.1 호출부.
+- 동작 보존 근거: 홈 시험 전부 통과, 새 `widget-store.test.ts`(5).
+- 영향 범위: 사용자 홈.
+- 되돌리는 방법: ee2dc912 revert.
+
+## S4. 위젯관리 「기본 배치」 — 다중 탭 admin 보드
+- 커밋: 59b10c7a
+- 바뀌기 전: `LayoutTab` 이 `WidgetWorkspace singleTab` + 어댑터(load=loadLayout, saveTab=saveLayout, 나머지 거절).
+- 바뀐 뒤: `WidgetWorkspace mode="admin"`(홈 + 기본 탭 최대 5개). `layout-store` 어댑터: load = 홈(미리 받은 배치 또는 loadLayout) + `loadDefaultTabs`, saveTab 은 홈 → saveLayout·그 밖 → `saveDefaultTab`, deleteTab → `deleteDefaultTab`, reorderTabs → `reorderDefaultTabs`, 새 탭 `tab-N` → 서버 `def-N` 매핑을 기억(load 때·지울 때 비움, 저장 안 한 탭 지우기·순서는 서버를 부르지 않음). 기본 탭 API 가 없는 api 를 주면 예전처럼 홈만 다룬다. `layout-api` 에 4개 action, `searchLayouts` 의 `tabCount`(응답에 있을 때만). `layout-model` 에 `LoadedDefaultTab`·`defaultTabsFromRows`·`tabsFromBoard`·`MAX_DEFAULT_TABS`, 목록 이름에 「기본 탭 n개」, 지우기 확인 문구에 기본 탭도 지워진다는 문장. 보드 제목은 GridPanel 제목(「전사 기본 배치」)으로 옮기고 보드 위에 홈·기본 탭 안내 한 줄.
+- 바꾼 이유: 설계 §3.2·§4.
+- 동작 보존 근거: 기존 commWidgetMng 시험(layout-store 8·layout-model 26·layout-api 16·board-mode 1) 통과. 새 `layout-default-tabs.test.ts`(17), board-mode 에 admin 모드 단언 1건 추가.
+- 영향 범위: 위젯관리 화면 「기본 배치」 탭. 서버 action 은 wt-backend 가 같은 계약으로 만든다.
+- 되돌리는 방법: 59b10c7a revert.
+
+## 프런트가 가정한 점·남은 위험
+- 사용자 탭 정렬은 클라이언트가 홈 → 기본 탭(seq 순) → 일반 탭으로 다시 한다(서버 tabSeq 100+ 에 기대지 않는다).
+- 가져오기는 파일을 검사한 뒤 새 일반 탭을 **바로 저장**한다(편집 모드로 열지 않는다). 탭 한도·이름 중복·없는/사용 중지 위젯 거르기는 클라이언트가 먼저 하고, 서버 한도 거절은 알림으로 보인다.
+- 공유는 편집 중이면 막는다(서버는 저장된 배치를 복사한다).
+- 관리자 보드에서 새 탭을 만든 뒤 [완료] 에서 저장이 일부 실패하면 저장된 탭만 `def-N` 매핑이 남는다. 그 상태에서 [취소] 하면 저장된 탭은 남는다(기존 [완료] 실패 규칙과 같다).
+- 브라우저 확인은 하지 않았다(조정 세션 몫).
