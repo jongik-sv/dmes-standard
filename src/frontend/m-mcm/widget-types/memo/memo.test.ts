@@ -49,6 +49,7 @@ import {
   restorableDraft,
   saveRequest,
   serializeDraft,
+  syncDraftAfterRename,
   unwrapMemo,
   titleLength,
   validateDraft,
@@ -557,6 +558,45 @@ describe("임시 저장(쓰다 만 글) 순수 로직", () => {
     expect(() => removeDraft("k")).not.toThrow();
     expect(readDraft(null)).toBeNull();
     expect(() => writeDraft(null, draft())).not.toThrow();
+  });
+});
+
+describe("틀 제목 줄 이름 바꾸기 뒤 임시본 따라가기(syncDraftAfterRename)", () => {
+  const rec = (title: string | null): MemoRecord => ({ instId: "i", defId: "d", format: "text", content: "글", title, updatedAt: null });
+  const draftOf = (before: MemoRecord | null, over: Partial<MemoDraft> = {}): MemoDraft => ({
+    format: "text",
+    content: "쓰던 글",
+    baseHash: memoBaseHash(before),
+    savedAt: 1,
+    ...over,
+  });
+
+  it("임시본이 없거나 바꾸기 전 메모가 아닌 다른 메모를 기준으로 했으면 건드리지 않는다", () => {
+    expect(syncDraftAfterRename(null, rec("옛"), rec("새"))).toBeNull();
+    expect(syncDraftAfterRename(draftOf(rec("다른 곳")), rec("옛"), rec("새"))).toBeNull();
+  });
+
+  it("바꾸기 전 제목 그대로인 임시본은 제목과 기준 해시를 새 메모로 옮긴다(글·시각은 그대로)", () => {
+    const next = syncDraftAfterRename(draftOf(rec("옛"), { title: "옛" }), rec("옛"), rec("새"));
+    expect(next).toEqual({ format: "text", content: "쓰던 글", title: "새", baseHash: memoBaseHash(rec("새")), savedAt: 1 });
+  });
+
+  it("사용자가 임시본에서 제목을 직접 고쳤으면 그 제목은 두고 기준 해시만 옮긴다", () => {
+    const next = syncDraftAfterRename(draftOf(rec("옛"), { title: "쓰던 제목" }), rec("옛"), rec("새"));
+    expect(next).toMatchObject({ title: "쓰던 제목", baseHash: memoBaseHash(rec("새")) });
+  });
+
+  it("제목 키가 없는 옛 임시본은 제목 키를 만들지 않고 기준 해시만 옮긴다 — 지운 제목(null)도 같다", () => {
+    const next = syncDraftAfterRename(draftOf(rec("옛")), rec("옛"), rec(null));
+    expect(next).not.toHaveProperty("title");
+    expect(next!.baseHash).toBe(memoBaseHash(rec(null)));
+    const cleared = syncDraftAfterRename(draftOf(rec("옛"), { title: "옛" }), rec("옛"), rec(null));
+    expect(cleared!.title).toBe("");
+  });
+
+  it("메모가 아직 없던 칸(none)의 임시본도 따라간다", () => {
+    const next = syncDraftAfterRename(draftOf(null, { title: "" }), null, rec("첫"));
+    expect(next).toMatchObject({ title: "첫", baseHash: memoBaseHash(rec("첫")) });
   });
 });
 

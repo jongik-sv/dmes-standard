@@ -42,13 +42,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent }
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { MarkdownField } from "@dk-oasis/shared/markdown-editor";
 import { NoticeBodyView } from "@dk-oasis/shared/notice-body-view";
-import { useWidgetStatus, useWidgetTitle, type WidgetProps } from "@dk-oasis/shared/widget";
+import { useWidgetRename, useWidgetStatus, useWidgetTitle, type WidgetProps } from "@dk-oasis/shared/widget";
 
 import { useWidgetBoardMode } from "@/lib/widget-board-mode";
 
 import { ContentStyle } from "../_content/styles";
 import { fetchMemo, saveMemo } from "./api";
-import { readDraft, removeDraft, sweepDrafts } from "./memo-draft-storage";
+import { readDraft, removeDraft, sweepDrafts, writeDraft } from "./memo-draft-storage";
 import {
   canSave,
   clampTitle,
@@ -75,6 +75,7 @@ import {
   normalizeTitle,
   readMemoConfig,
   restorableDraft,
+  syncDraftAfterRename,
   validateDraft,
   validateTitle,
   viewFormat,
@@ -141,12 +142,14 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey, title: def
   const [draftTitle, setDraftTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  /** 틀 제목 줄에서 이름을 바꾸는 저장이 진행 중이다 — 이때는 [편집]을 열지 않고 이름 바꾸기를 한 번 더 받지 않는다. */
+  const [renaming, setRenaming] = useState(false);
 
   // 임시 저장(쓰다 만 글) — 사용자를 모르거나(확인 전·확인 실패) live 가 아니면 키가 null 이라 읽지도 쓰지도 않는다.
   const { userId, status: userStatus } = useConfirmedUser(live);
   const draftKey = live ? memoDraftKey(userId, instanceId) : null;
   /** [편집]을 열 수 있는가 — 실제 칸이고 불러왔고 사용자 확인이 끝났다(성공이든 실패든. 확인 중에 열면 도중에 키가 생겨 입력이 잠긴다). */
-  const canEdit = live && loaded && userStatus !== "pending";
+  const canEdit = live && loaded && userStatus !== "pending" && !renaming;
   const writer = useMemoDraftWriter();
   // 틀 제목 — 저장된 제목이 있을 때만 정의 이름 대신 쓴다(실제 칸이 아니면 늘 정의 이름). 값이 바뀌거나 위젯이 사라지면 틀이 되돌린다.
   useWidgetTitle(live ? (memo?.title ?? null) : null);
@@ -323,6 +326,43 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey, title: def
       setSaving(false);
     }
   };
+
+  /**
+   * 틀 제목 줄의 이름 바꾸기(2026-10-05) — 편집 모드 없이 제목만 바꾼다. 보기 모드에서만 켜고(편집 모드는 자기 제목 입력칸이 있다),
+   * 지금 서버 메모의 형식·내용을 그대로 실어 기존 saveMemo 로 보낸다. 저장이 성공하면 setMemo → useWidgetTitle 경로로 틀 제목이 바뀐다.
+   * 실패하면 던진 문장을 틀이 입력칸 아래에 알린다. 저장 동안 새로 고침이 응답을 가로채지 않게 lockRef 를 건다(편집 저장과 같다).
+   */
+  const renameTitle = async (raw: string) => {
+    if (!live || !loaded || mode !== "view" || lockRef.current) throw new Error(MEMO_SAVE_ERROR);
+    const title = normalizeTitle(raw);
+    const problem = validateTitle(title);
+    if (problem) throw new Error(problem);
+    const before = memo;
+    const gen = ++genRef.current; // 진행 중이던 새로 고침 응답은 버린다
+    lockRef.current = true;
+    setStatus({ kind: "ready" }); // 버린 불러오기가 남긴 「불러오는 중」 표시를 풀지 못하므로 여기서 푼다
+    setRenaming(true);
+    try {
+      const saved = await saveMemo({
+        instId: instanceId,
+        defId: widgetId,
+        format: before?.format ?? initialFormat,
+        content: before?.content ?? "",
+        title: title || null,
+      });
+      if (gen !== genRef.current) return;
+      setMemo(saved);
+      // 쓰다 만 글의 제목·기준이 옛 제목에 묶여 있으면 새 제목으로 따라가게 한다(이어 쓰기가 제목을 되돌리지 않도록).
+      const synced = syncDraftAfterRename(readDraft(draftKey), before, saved);
+      if (synced) writeDraft(draftKey, synced);
+    } catch (e) {
+      throw new Error(memoErrorMessage(e, MEMO_SAVE_ERROR));
+    } finally {
+      lockRef.current = false;
+      setRenaming(false);
+    }
+  };
+  useWidgetRename(live && loaded && mode === "view" ? renameTitle : null);
 
   const over = validateDraft(draftContent) !== null;
   /** 제목 오류 — clampTitle 이 입력을 정리하므로 보통 null 이다(남는 경우의 안전망). 있으면 [저장]도 막힌다(canSave). */
