@@ -3,12 +3,15 @@
 -- mdm-ruleEdit-data.sql 에 기대지 않고, 같은 mdm.db 에 둘 다 넣어도 ID·물리명이 겹치지 않는다(E2S_·SET_·S_ 접두).
 -- mdm 기동(Flyway 적용) 뒤 한 번만 넣는다. INSERT 만(DELETE 없음). 스펙이 세트를 만들고 고치므로 같은 mdm.db 로 다시 돌릴 수 없다(새 mdm.db 로 시작).
 --   도메인 3 · 컬럼 3(SET_THK NUMBER scale 2, SET_WID NUMBER scale 0, SET_SURF STRING)
---   룰 8 — 모두 VER 1 RELEASED(FIRST), 조건 열 DISP '1'(이름 변수) · 결과 열 DISP 'Value', NORMAL 행 1 + DEFAULT 행 1
+--   룰 9 — 모두 VER 1 RELEASED(FIRST), 조건 열 DISP '1'(이름 변수) · 결과 열 DISP 'Value', NORMAL 행 1 + DEFAULT 행 1
 --     E2S_GRD(SET_THK, SET_SURF → S_GRD) · E2S_FCT(S_GRD, SET_WID → S_FCT) · E2S_SPD(S_FCT → S_SPD) · E2S_DUP(SET_WID → S_GRD)
 --     E2S_CYA(S_CYB → S_CYA) · E2S_CYB(S_CYA → S_CYB) 순환 짝 · E2S_OLD(SET_THK → S_OLD, 룰 STATUS DEPRECATED)
 --     · E2S_NODEF(SET_THK → S_NOD, 기본 행 없음 — 받는 노드 결과 없음 e2e E16)
+--     · E2S_TAG(SET_THK → S_TAG — 하위 세트 e2e E19, 파일 끝 문장)
 --   세트 10 — E2S_CHAIN · E2S_CONFIRM(확정 스펙 전용, E2S_CHAIN 과 같은 사슬) · E2S_BADORD · E2S_HASOLD · E2S_OLDSET(DEPRECATED) · E2S_CYCSET · E2S_GUIDESET(빈 목록) · E2S_FLOW(분기 흐름, FLOW_JSON) · E2S_CATCHSET(E2S_NODEF 한 줄) · E2S_IFEND(새 형식 IF — 합류 없음, e2e E18) (D-144 2단계: 부모 + 1.000 RELEASED)
 --     FLOW_JSON 은 NULL(한 줄 흐름 = RULE_IDS 순서)이 기본이고 E2S_FLOW 만 P2 정규 JSON 을 갖는다(캔버스·디버거 e2e E11).
+--   하위 세트 세트 3(e2e E19, 파일 끝 문장 — 위 세트 10 의 임시 표·DRAFT 문장과 따로 넣는다) — E2S_SUBA(부모가 될 한 줄 세트 [E2S_GRD], 담당자 DRAFT 2.000)
+--     · E2S_SUBB(하위 세트 [E2S_GRD], 담당자 DRAFT 2.000) · E2S_SUBP(E2S_SUBB 를 부르는 확정된 부모 — SET 노드 흐름, CALL_SET_IDS ["E2S_SUBB"], RELEASED 1.000 만)
 
 INSERT INTO TB_MDM_DOMAIN (DOMAIN_NAME, STD_NAME, DOMAIN_KIND, DATA_TYPE, LENGTH, SCALE, DESCRIPTION, C_USR_ID, C_PGM_ID, VER) VALUES
     ('E2S 세트 두께', 'SET_THK', 'QTY', 'NUMBER', 5, 2, '세트 스펙용 두께(mm)', 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
@@ -124,3 +127,40 @@ INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, VER_KIND, STATUS, BASE_V
     FROM TB_MDM_RULE_SET_VER
     WHERE MARU_RULE_SET_ID IN ('E2S_CHAIN', 'E2S_CONFIRM', 'E2S_FLOW', 'E2S_CATCHSET', 'E2S_IFEND', 'E2S_CYCSET', 'E2S_GUIDESET') AND VER = 1;
 
+-- ───────────────────────── 하위 세트 e2e E19(하위 세트 spec §12, 계획 Task 8) ─────────────────────────
+-- 겉모양(SetCallIo)은 기준 시각의 RELEASED 로 계산하고, 부르는 세트(CALLERS·연쇄 재검사)는 부모 RELEASED 행의 CALL_SET_IDS 만 센다(Ruling 24·25).
+-- 그래서 E2S_SUBB 를 부르는 확정된 부모 E2S_SUBP 를 고정 데이터로 둔다 — E2S_SUBB 의 DRAFT 를 E2S_TAG 를 더해 저장하면 겉모양 출력에 S_TAG 가 생기고,
+-- E2S_SUBP 흐름(SET 노드 뒤 E2S_TAG)에 S_TAG 중복 대입 경고가 새로 생겨 저장 응답에 CALLER_WARN "부르는 세트에 경고가 생겼다: E2S_SUBP" 가 온다.
+-- 기존 행은 고치지 않고 새 문장으로만 넣는다(룰 1 · 세트 3 · RELEASED 3 · DRAFT 2).
+INSERT INTO TB_MDM_RULE (MARU_RULE_ID, MARU_RULE_NAME, RULE_KIND, STATUS, SOURCE_KIND, DESCRIPTION, USAGE_NOTE,
+                         LAST_VAR_ID, LAST_ROW_ID, LAST_CASE_ID, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2S_TAG', 'E2S 꼬리표', 'DECISION', 'INUSE', 'MDM', '두께로 꼬리표를 정한다(하위 세트 e2e E19)', NULL, 2, 2, 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0);
+INSERT INTO TB_MDM_RULE_VER (MARU_RULE_ID, VER, STATUS, BASE_VER, OWNER_ID, HIT_POLICY, APPLY_FROM, APPLY_TO, RELEASED_AT,
+                             ROW_VERSION, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
+    ('E2S_TAG', 1, 'RELEASED', NULL, NULL, 'FIRST', '2026-01-01 00:00:00', '9999-12-31 00:00:00', '2026-01-01 00:00:00', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0);
+INSERT INTO TB_MDM_RULE_VAR (MARU_RULE_ID, VER, VAR_ID, VAR_KIND, DISP_TYPE, VAR_NAME, DATA_TYPE, SEQ, LABEL, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
+    ('E2S_TAG', 1, 1, 'COND', '1', 'SET_THK', NULL, 1, '두께', 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_TAG', 1, 2, 'RESULT', 'Value', 'S_TAG', 'STRING', 1, '꼬리표', 'e2e-fixture', 'mdm-ruleSet-data.sql', 0);
+INSERT INTO TB_MDM_RULE_ROW (MARU_RULE_ID, VER, ROW_ID, SEQ, ROW_KIND, CELLS, NOTE, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
+    ('E2S_TAG', 1, 1, 1, 'NORMAL', '{"1":{"op":"NA"},"2":{"val":"T"}}', NULL, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_TAG', 1, 2, 0, 'DEFAULT', '{"2":{"val":"-"}}', NULL, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0);
+
+INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, DESCRIPTION, STATUS, C_USR_ID, C_PGM_ID, VER) VALUES
+    ('E2S_SUBA', 'E2E 하위 세트 부모', '하위 세트 e2e E19 — 시나리오가 E2S_SUBB 를 SET 노드로 넣는다', 'INUSE', 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_SUBB', 'E2E 하위 세트', '하위 세트 e2e E19 — 부르는 세트가 있는 하위 세트', 'INUSE', 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_SUBP', 'E2E 하위 세트 확정 부모', '하위 세트 e2e E19 — E2S_SUBB 를 부르는 확정된 세트', 'INUSE', 'e2e-fixture', 'mdm-ruleSet-data.sql', 0);
+-- E2S_SUBP 흐름: start → s1(SET E2S_SUBB) → r1(E2S_TAG) → end. FLOW_JSON 은 서버 정규 JSON(RuleSetFlowJson.canonical — setId 는 SET 노드에만, label 뒤)과 글자가 같다.
+INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, VER_KIND, STATUS, APPLY_FROM, APPLY_TO, RULE_IDS, FLOW_JSON, CALL_SET_IDS,
+    RELEASED_AT, ROW_VERSION, C_USR_ID, C_PGM_ID, AUD_VER) VALUES
+    ('E2S_SUBA', 1, 'MAJOR', 'RELEASED', '2000-01-01 00:00:00', '9999-12-31 00:00:00', '["E2S_GRD"]', NULL, '[]',
+     '2000-01-01 00:00:00', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_SUBB', 1, 'MAJOR', 'RELEASED', '2000-01-01 00:00:00', '9999-12-31 00:00:00', '["E2S_GRD"]', NULL, '[]',
+     '2000-01-01 00:00:00', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_SUBP', 1, 'MAJOR', 'RELEASED', '2000-01-01 00:00:00', '9999-12-31 00:00:00', '["E2S_TAG"]',
+     '{"version":1,"nodes":[{"id":"start","kind":"START","ruleId":null,"splitId":null,"label":null},{"id":"s1","kind":"SET","ruleId":null,"splitId":null,"label":null,"setId":"E2S_SUBB"},{"id":"r1","kind":"RULE","ruleId":"E2S_TAG","splitId":null,"label":null},{"id":"end","kind":"END","ruleId":null,"splitId":null,"label":null}],"edges":[{"id":"e1","from":"start","to":"s1","order":null,"cond":null,"otherwise":false,"label":null},{"id":"e2","from":"s1","to":"r1","order":null,"cond":null,"otherwise":false,"label":null},{"id":"e3","from":"r1","to":"end","order":null,"cond":null,"otherwise":false,"label":null}],"view":{"positions":{},"notes":[],"groups":[]}}',
+     '["E2S_SUBB"]', '2000-01-01 00:00:00', 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 0);
+-- 편집 시나리오가 고치는 두 세트에 담당자 소유 DRAFT 2.000(RELEASED 1.000 의 흐름 그대로).
+INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, VER_KIND, STATUS, BASE_VER, OWNER_ID, RULE_IDS, FLOW_JSON, ROW_VERSION,
+    C_USR_ID, C_PGM_ID, U_USR_ID, U_PGM_ID, AUD_VER) VALUES
+    ('E2S_SUBA', 2, 'MAJOR', 'DRAFT', 1, 'e2e_mdm_steward', '["E2S_GRD"]', NULL, 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 'e2e-fixture', 'mdm-ruleSet-data.sql', 0),
+    ('E2S_SUBB', 2, 'MAJOR', 'DRAFT', 1, 'e2e_mdm_steward', '["E2S_GRD"]', NULL, 0, 'e2e-fixture', 'mdm-ruleSet-data.sql', 'e2e-fixture', 'mdm-ruleSet-data.sql', 0);
