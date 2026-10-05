@@ -106,6 +106,46 @@ describe("LookupMultiModal", () => {
     expect(rowBox("u1").checked).toBe(true);
   });
 
+  it("검색 중 Enter·[조회]는 무시한다(리뷰 11)", async () => {
+    let release!: (rows: LookupMultiRow[]) => void;
+    const search = vi.fn(() => new Promise<LookupMultiRow[]>((res) => (release = res)));
+    mount({ search });
+    typeKeyword("김철");
+    act(() => input().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    act(() => input().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(search).toHaveBeenCalledTimes(1);
+    await act(async () => release(ROWS));
+    act(() => input().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(search).toHaveBeenCalledTimes(2);
+  });
+
+  it("[확인]을 두 번 눌러도 onConfirm 은 한 번이다", async () => {
+    let done!: () => void;
+    const onConfirm = vi.fn(() => new Promise<void>((res) => (done = res)));
+    mount({ onConfirm });
+    await searchFor("팀");
+    act(() => rowBox("u1").click());
+    await act(async () => {
+      confirmBtn().click();
+      confirmBtn().click();
+    });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    await act(async () => done());
+  });
+
+  it("onConfirm 이 행 목록을 돌려주면 고른 것을 그 목록으로 바꾼다(창은 열린 채)", async () => {
+    const onConfirm = vi.fn(async (rows: LookupMultiRow[]) => rows.filter((r) => r.code === "u2"));
+    const p = mount({ onConfirm });
+    await searchFor("팀");
+    act(() => rowBox("u1").click());
+    act(() => rowBox("u2").click());
+    await act(async () => confirmBtn().click());
+    expect(rowBox("u1").checked).toBe(false);
+    expect(rowBox("u2").checked).toBe(true);
+    expect(body().textContent).toContain("고른 항목 1");
+    expect(p.onClose).not.toHaveBeenCalled();
+  });
+
   it("다시 열면 검색어·결과·고른 것을 비운다", async () => {
     const p = mount();
     await searchFor("팀");

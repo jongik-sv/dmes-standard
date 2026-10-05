@@ -5,13 +5,15 @@
  * - 검색은 [조회] 또는 Enter 로만 한다(입력마다 부르지 않는다). minKeywordLength 보다 짧으면 부르지 않고 안내한다.
  * - 늦게 온 응답은 버린다(마지막 검색만 반영). 검색이 실패하면 목록 아래에 문구를 보인다.
  * - maxSelect 에 닿으면 고르지 않은 행의 체크가 막힌다. excludeCodes 의 행은 결과에서 뺀다(예: 나 자신).
- * - [확인]은 onConfirm(고른 행)만 부르고 스스로 닫지 않는다 — 호출자가 저장·알림 뒤 open 을 내린다. onConfirm 이 Promise 면 끝날 때까지 단추를 막는다.
+ * - [확인]은 onConfirm(고른 행)만 부르고 스스로 닫지 않는다 — 호출자가 저장·알림 뒤 open 을 내린다. onConfirm 이 Promise 면 끝날 때까지 단추를 막는다
+ *   (두 번 눌러도 한 번만 부른다). onConfirm 이 행 목록을 돌려주면 고른 것을 그 목록으로 바꾼다(일부 실패한 것만 남겨 다시 시도하게).
+ * - 검색 중에는 [조회]·Enter 를 무시한다.
  * - 열릴 때마다 검색어·결과·고른 것을 비운다.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Checkbox, TextInput } from "@mantine/core";
+import { TextInput } from "@mantine/core";
 
-import { Button } from "../form";
+import { Button, Checkbox } from "../form";
 import { Modal } from "../modal";
 
 export interface LookupMultiRow {
@@ -26,8 +28,8 @@ export interface LookupMultiModalProps {
   title: string;
   /** 검색어 → 결과 행. 실패는 Error(message) 로 던진다. */
   search: (keyword: string) => Promise<LookupMultiRow[]>;
-  /** [확인] — 고른 행(고른 순서). 닫기는 호출자가 한다. */
-  onConfirm: (rows: LookupMultiRow[]) => void | Promise<void>;
+  /** [확인] — 고른 행(고른 순서). 닫기는 호출자가 한다. 행 목록을 돌려주면 고른 것을 그것으로 바꾼다. */
+  onConfirm: (rows: LookupMultiRow[]) => void | readonly LookupMultiRow[] | Promise<void | readonly LookupMultiRow[]>;
   /** 취소·닫기 단추·Escape·바깥 누름. */
   onClose: () => void;
   /** 고를 수 있는 최대 개수(기본 제한 없음). */
@@ -52,7 +54,7 @@ const CSS = `
 .cm-lookup-multi__hint { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .cm-lookup-multi__hint[data-error="true"] { color: var(--color-danger); }
 .cm-lookup-multi__list { flex: 1; min-height: 160px; max-height: 260px; overflow: auto; margin: 0; padding: 4px; list-style: none; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
-.cm-lookup-multi__row { padding: 4px 6px; border-radius: var(--radius-sm); }
+.cm-lookup-multi__row { display: flex; align-items: center; padding: 4px 6px; border-radius: var(--radius-sm); }
 .cm-lookup-multi__row:hover { background: var(--color-bg-hover); }
 .cm-lookup-multi__detail { margin-left: 6px; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .cm-lookup-multi__picked { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-height: 26px; }
@@ -85,9 +87,13 @@ export function LookupMultiModal({
   const searchRef = useRef(search);
   searchRef.current = search;
   const generation = useRef(0);
+  // 같은 렌더 안의 두 번째 Enter·클릭도 막도록 상태와 함께 ref 로 본다.
+  const loadingRef = useRef(false);
+  const busyRef = useRef(false);
 
   useEffect(() => {
     generation.current += 1;
+    loadingRef.current = false;
     if (!open) return;
     setKeyword("");
     setRows(null);
@@ -95,15 +101,18 @@ export function LookupMultiModal({
     setLoading(false);
     setPicked([]);
     setBusy(false);
+    busyRef.current = false;
   }, [open]);
 
   const runSearch = useCallback(async () => {
+    if (loadingRef.current) return;
     const kw = keyword.trim();
     if (kw.length < minKeywordLength) {
       setHint({ text: `${minKeywordLength}자 이상 입력해 주세요.`, error: false });
       return;
     }
     const gen = ++generation.current;
+    loadingRef.current = true;
     setLoading(true);
     setHint(null);
     try {
@@ -118,7 +127,10 @@ export function LookupMultiModal({
       setRows([]);
       setHint({ text: e instanceof Error && e.message ? e.message : "검색하지 못했습니다.", error: true });
     } finally {
-      if (gen === generation.current) setLoading(false);
+      if (gen === generation.current) {
+        loadingRef.current = false;
+        setLoading(false);
+      }
     }
   }, [keyword, minKeywordLength, excludeCodes]);
 
@@ -127,13 +139,16 @@ export function LookupMultiModal({
     setPicked((prev) => (prev.some((p) => p.code === row.code) ? prev.filter((p) => p.code !== row.code) : full ? prev : [...prev, row]));
 
   const confirm = async () => {
-    if (picked.length === 0 || busy) return;
+    if (picked.length === 0 || busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
-      await onConfirm(picked);
+      const keep = await onConfirm(picked);
+      if (keep) setPicked([...keep]);
     } catch {
       /* 알림은 호출자 몫 — 고른 것을 그대로 두고 다시 시도할 수 있게 한다 */
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
@@ -182,17 +197,9 @@ export function LookupMultiModal({
             const checked = picked.some((p) => p.code === r.code);
             return (
               <li key={r.code} className="cm-lookup-multi__row" data-code={r.code}>
-                <Checkbox
-                  checked={checked}
-                  disabled={!checked && full}
-                  onChange={() => toggle(r)}
-                  label={
-                    <>
-                      {r.name}
-                      {r.detail && <span className="cm-lookup-multi__detail">{r.detail}</span>}
-                    </>
-                  }
-                />
+                {/* shared form Checkbox 의 label 은 문자열뿐이라 보조 글(부서명)은 옆에 따로 그린다. */}
+                <Checkbox checked={checked} disabled={!checked && full} onChange={() => toggle(r)} label={r.name} />
+                {r.detail && <span className="cm-lookup-multi__detail">{r.detail}</span>}
               </li>
             );
           })}

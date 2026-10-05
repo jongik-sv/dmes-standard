@@ -15,8 +15,11 @@ import type { WidgetShareUser } from "./types";
 export interface WidgetShareDialogProps {
   tabName: string;
   searchUsers: (keyword: string) => Promise<WidgetShareUser[]>;
-  /** 고른 사람들에게 보낸다. 실패를 던지면 창이 고른 것을 둔 채 열려 있다. */
-  onShare: (userIds: string[], names: Record<string, string>) => Promise<void>;
+  /**
+   * 고른 사람들에게 보낸다. 실패를 던지면 창이 고른 것을 둔 채 열려 있다.
+   * 일부만 실패하면 실패한 사람 ID 를 돌려준다 — 창은 열린 채 그 사람만 고른 상태로 남는다.
+   */
+  onShare: (userIds: string[], names: Record<string, string>) => Promise<void | string[]>;
   onClose: () => void;
   /** 로그인 사용자 — 검색 결과에서 뺀다(서버도 본인을 뺀다). */
   selfUserId?: string | null;
@@ -30,7 +33,10 @@ export function WidgetShareDialog({ tabName, searchUsers, onShare, onClose, self
   );
   const exclude = useMemo(() => (selfUserId ? [selfUserId] : undefined), [selfUserId]);
   const confirm = useCallback(
-    (rows: LookupMultiRow[]) => onShare(rows.map((r) => r.code), Object.fromEntries(rows.map((r) => [r.code, r.name]))),
+    async (rows: LookupMultiRow[]) => {
+      const failed = await onShare(rows.map((r) => r.code), Object.fromEntries(rows.map((r) => [r.code, r.name])));
+      return failed ? rows.filter((r) => failed.includes(r.code)) : undefined;
+    },
     [onShare]
   );
   return (
