@@ -28,7 +28,7 @@ MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절
 | 진입 자동 조회가 [조회] 와 겹침 | 같은 조회가 두 번 나감(클릭보다 ≈60ms 먼저 나감) | R4 | 점검표 2, `searchAfterClick`·`searchBeforeClick` |
 | `busy` 하나를 화면 루트 state 로 둠 | 클릭 즉시 루트 261개 컴포넌트 재렌더 5.2ms | R5 | 점검표 5, `count-renders` ②③ |
 | 변화 없는데 새 배열·객체로 `setState` | 진입 ≈300ms 뒤 화면 전체 재렌더, 셸 1회 추가 | R7 | 점검표 7, `count-renders` ① |
-| 행 클릭·입력마다 `onSnapshotChange` | 행 클릭당 셸 2회 렌더 ≈3~4ms | R8, 3장 K1·K2 | 점검표 4, `count-renders` ③ 의 `PortalShell` |
+| 행 클릭·입력마다 `onSnapshotChange`, 선택 행 ID 를 snapshot 에 넣음 | 행 클릭당 셸 2회 렌더 ≈3~4ms | R8, 3장 K1·K2 | 점검표 4, audit `P-R8`(오류), `count-renders` ③ 의 `PortalShell` |
 | `fetch("/api/auth/me")` 직접 호출, 하위·팝업마다 `useUserButtonRbac()` | 구독자 수만큼 auth/me(진입당 4~6건, 수정 후 0건 목표) | R9, 3장 K3·K4 | 점검표 3, audit `P-K`(오류), `authMeAfterMenuClick` |
 | 전역 이벤트(`portal-tab-activated`)로 다시 조회, 숨은 탭(폭 0)에서 다시 그림 | 탭 전환마다 요청 1건, 홈 이탈 때 2.5~3ms | R10, 3장 K5·K6 | 점검표 8, audit `P-R10`(경고), `count-renders` ④ |
 | 상세 폼 state 를 화면 루트에 두고 그리드 열·행 deps 에 폼 객체를 넣음 | 한 글자마다 루트 171~268개 컴포넌트 재렌더, termMng 은 한 글자당 21커밋·추천 그리드 셀 연쇄 | R12 | 점검표 9, audit `P-R12`(오류)·`P-R12b`(경고), 화면 시험(루트 렌더 수), `count-renders` ⑤ |
@@ -117,10 +117,11 @@ MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절
   - 적용 사례: 커밋 fc5dbff0(`shared/src/widget/widget-registry.ts`·`WidgetFrame.tsx`·`widget-layout.ts`·`WidgetWorkspace.tsx`), 시험 96f48639. 전후 수치는 R13 적용 사례와 같은 측정이다.
 - 그리드 `columns`·`data` 의 참조 안정 규칙은 [Local-Rules §20](Local-Rules.md#20-agdatagrid-화면--입력-한-글자셀-편집-한-번이-그리드-전체를-다시-그리지-않게-2026-10-01) 이 정본이다.
 
-### R8. 탭 snapshot 은 탭 복귀 때 되살릴 값만 담는다 — 확정(선택 행 포함 여부는 사용자 결정)
+### R8. 탭 snapshot 은 탭 복귀 때 되살릴 값만 담는다 — 확정(선택 행은 snapshot 에 넣지 않는다, 2026-10-05 사용자 결정)
 
-- **하지 말 것**: 행 클릭·입력처럼 잦은 동작마다 `onSnapshotChange` 를 부르는 것.
-- **할 것**: 탭 복귀 때 되살려야 하는 값(조회 조건 등)이 바뀔 때만 부른다. "선택한 행을 탭 복귀 때 되살린다" 가 요구사항일 때만 선택 행 ID 를 snapshot 에 넣는다.
+- **하지 말 것**: 행 클릭·선택·입력처럼 잦은 동작마다 `onSnapshotChange` 를 부르는 것. 선택 행(ID·버전)을 snapshot 에 넣는 것. 탭 복귀 때 선택 행을 되살리는 기능은 요구사항이 아니다(2026-10-05 사용자 결정 "F5 는 복원 빼").
+- **할 것**: 탭 복귀 때 되살려야 하는 값(조회 조건 등)이 바뀔 때만 부른다. 선택 행은 snapshot 에 담지 않는다. 다른 화면이 handoff(`openMdmPage`)로 열어 줄 때만 그 값을 받아 쓴다.
+- **적용 사례**: dataMng·codeMng·layoutConfirm·codeConfirm·ruleConfirm·ruleSetConfirm 에서 선택 행 쓰기·복원을 걷어 냈다. 행 클릭의 `onSnapshotChange` 호출은 0회이며, 셸 렌더 1회가 사라진다. 탭 복귀 때 선택만 풀린다(목록·조회 조건 복원은 이 화면들에 없었다). audit `P-R8`(오류)이 행 처리 함수 안의 `onSnapshotChange` 를 정적으로 잡는다. 조회 조건 선택(dataItemMng 의 마루 데이터 고르기)은 행 클릭이 아니라 대상이 아니다.
 - **근거**: 화면이 행 클릭 때 `onSnapshotChange` 를 부르면 셸 `setTabs`(`use-portal-tabs.ts:246-254`) → tabOrder effect(R7)로 포털 셸 전체가 2회 렌더된다. 행 클릭당 ≈3~4ms 로, 행 클릭 렌더의 30~45% 를 차지하는 이번 측정의 최대 순수 중복이다(검증 §5.2 C2. dataMng `page.tsx:121-126,225-231`, codeMng `page.tsx:143-153`, layoutConfirm `page.tsx:126-138`).
 - 셸 쪽 낭비는 §3 K1·K2 에서 고쳤다(cf79e675). 이제 값이 바뀐 snapshot 은 셸 1회 렌더, 같은 값은 0회다. 그래도 잦은 동작마다 부르지 않는다.
 
@@ -352,7 +353,7 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 1. 첫 조회에 조건(필수 키워드·기간·상한·페이징)이 있다. 예상 건수·응답 크기를 적었다(R1).
 2. 진입 호출 목록이 화면에 필요한 것뿐이고, 진입 자동 조회가 [조회] 와 겹치지 않는다(R3·R4).
 3. 새 코드에 `fetch("/api/auth/me")` 직접 호출이 없고(`getCurrentUser()` 를 쓴다), 팝업·하위 컴포넌트에서 `useUserButtonRbac()` 를 다시 부르지 않는다(R9).
-4. `onSnapshotChange` 를 행 클릭·입력마다 부르지 않는다. 선택 행을 snapshot 에 넣었다면 요구사항 근거가 있다(R8).
+4. `onSnapshotChange` 를 행 클릭·선택·입력마다 부르지 않고, 선택 행(ID·버전)을 snapshot 에 넣지 않는다(R8, 2026-10-05 확정).
 5. 화면 루트에 공용 `busy` 하나를 두지 않았고, 목록 `loading` 은 목록 조회 전용이다(R5, Local-Rules §11).
 6. 0건이어도 그리드를 언마운트하지 않는다. 3항뿐 아니라 `&&` 조건부 렌더도 같다(R6).
 7. effect·갱신 함수가 변화 없을 때 `prev` 를 돌려주고, `columns`·`data` 가 안정 참조다(R7, Local-Rules §20).
@@ -395,5 +396,5 @@ const recoColumns = useMemo<GridColumn[]>(() => [/* form 을 읽는 셀 */], [fo
 | ~~W5·W6~~ | `widget-types/media/renderer.tsx`(슬라이드), `shared/src/widget/WidgetFrame.tsx` `refreshSec` effect | **완료**(커밋 `ca8cce09·a831daa0`). 숨은 위젯 타이머 정지, 보일 때 밀린 1회만 | 결과는 R14 적용 사례. audit `P-R14` 는 `WidgetFrame` 에 정보 1건 남음(예외 목록) |
 | W7 | `WidgetFrame.tsx:223-231` | props 객체가 매 렌더 새로 만들어진다(무해) | 조치 없음. 본체를 `memo` 화할 때 같이 본다 |
 | ~~F4~~ | columnMng·termMng 상세 폼 | **완료**(커밋 `a416187b·02e36638·0b9ef24b`). 입력 한 글자마다 화면 루트 렌더, termMng 은 추천 그리드 셀 연쇄(R12 위반)였다 | 상세 폼 컴포넌트 분리, `recoColumns` 를 `form` 에서 떼기. 결과는 R12 적용 사례 |
-| F5 | dataMng·codeMng·layoutConfirm | 행 클릭 셸 1회(선택 행 snapshot) | 선택 행 복원이 요구사항인지 사용자 결정(R8) |
+| ~~F5~~ | dataMng·codeMng·layoutConfirm(+ codeConfirm·ruleConfirm·ruleSetConfirm) | **완료**(브랜치 `perf/f5-no-row-snapshot`). 행 클릭 셸 1회(선택 행 snapshot) | 사용자 결정 "F5 는 복원 빼"(2026-10-05): 선택 행을 snapshot 에 넣지 않는다. 결과는 R8 적용 사례, audit `P-R8` |
 | ~~F7~~ | m-mdm·analog 포털 탭 진입 `mdmMeta/columns` | **완료**(커밋 `e6dd175d`, 시험 `73831d0c`). MDM 서버는 `mdmMeta` 를 켜지 않아(설계상) 세션마다 그 모듈 첫 탭 진입에서 404 를 받았다(mdm-after-fix §F7) | 엔드포인트 없는 모듈(`MDM_META_UNSUPPORTED_MODULES`) 탭은 portal-shell 이 공급자를 미리 꺼 요청 0. 경로는 모듈별 그대로 둔다 |

@@ -374,6 +374,10 @@ INPUT_TAG = re.compile(r"<(Input|Textarea|TextInput|NumberInput|InputNumber|Sele
 API_SEARCH_CALL = re.compile(r"(?<![\w.$])(search[A-Z]\w*)\s*\(")
 AUTH_ME_FETCH = re.compile(r"\bfetch\s*\(\s*[`'\"][^`'\"\n]*/auth/me\b")
 WIDGET_TIMER = re.compile(r"(?<![\w.$])(?:window\.)?(setInterval)\s*\(|(?<![\w.$])(?:window\.)?(setTimeout)\s*\(")
+# P-R8: 행 클릭·선택 처리 함수 이름(handleRowClick·chooseDetail·selectRow·pickXxx 등)과 행 이벤트 props
+ROW_HANDLER_NAME = re.compile(r"(?i)^(?:handle|on)?(?:row(?:click|select)\w*|choose\w*|pick\w*|select(?:row|item)\w*)$")
+ROW_EVENT_PROP = re.compile(r"\bon(?:RowClicked|RowSelected|SelectionChanged|RowClick|RowSelect)\s*=\s*\{")
+FN_DEF = re.compile(r"(?:\bconst\s+(\w+)\s*=\s*(?:async\s+)?useCallback\s*\(|\bfunction\s+(\w+)\s*\()")
 VISIBILITY_TRACE = re.compile(r"visibilityState|visibilitychange|IntersectionObserver|useTabPage|\bisActive\b")
 SYNC_STORE = re.compile(r"useSyncExternalStore\s*\(\s*[\w.$]+\s*,\s*(\(\s*\)\s*=>\s*[\w.$()]+|[\w$]+)")
 TAB_ACTIVATED = re.compile(r"addEventListener\s*\(\s*[`'\"]portal-tab-activated")
@@ -595,6 +599,34 @@ def _p_r1_exclusion(t: str, pos: int, end: int, name: str, call_args: str) -> st
     return None
 
 
+def _row_snapshot_write(t: str):
+    """행 클릭·선택 처리 함수(이름 규칙 또는 행 이벤트 props)에서 onSnapshotChange 로 이어지는 위치. 없으면 None.
+    onSnapshotChange 를 부르는 함수를 불러 내려가며(헬퍼 → 처리 함수, 최대 4단) 찾는다."""
+    bodies: dict[str, tuple[int, str]] = {}
+    for m in FN_DEF.finditer(t):
+        name = m[1] or m[2]
+        p = m.end() - 1
+        end = match_close(t, p)
+        if end > 0:
+            bodies[name] = (m.start(), t[p:end])
+    touching = {n for n, (_, b) in bodies.items() if "onSnapshotChange" in b}
+    for _ in range(4):
+        grown = {n for n, (_, b) in bodies.items() if n not in touching
+                 and any(re.search(rf"\b{re.escape(x)}\b", b) for x in touching)}
+        if not grown:
+            break
+        touching |= grown
+    for n in sorted(touching):
+        if ROW_HANDLER_NAME.match(n):
+            return bodies[n][0]
+    for m in ROW_EVENT_PROP.finditer(t):
+        end = match_close(t, m.end() - 1)
+        body = t[m.end():end] if end > 0 else ""
+        if "onSnapshotChange" in body or any(re.search(rf"\b{re.escape(x)}\b", body) for x in touching):
+            return m.start()
+    return None
+
+
 def perf_audit(f: Path, raw: str, in_shared: bool, error, warn, info=None) -> None:
     """화면 성능 가이드에서 정적으로 잡히는 항목. error(pos, msg)·warn(pos, msg)·info(pos, msg) 로 낸다."""
     info = info or warn
@@ -631,6 +663,13 @@ def perf_audit(f: Path, raw: str, in_shared: bool, error, warn, info=None) -> No
     if whole and not fields and re.search(r"export\s+(?:function|const)\s+use\w+", t):
         warn(whole[0][0], f"[P-R16 경고] useSyncExternalStore 가 상태 객체 전체(`{whole[0][1]}`)만 돌려주고 필드 단위 훅이 없다 "
                           f"→ 한 필드만 바뀌어도 구독자가 모두 다시 그려진다. 필드별 훅(getSnapshot 이 그 필드만 돌려줌)을 내보낸다 ({PERF_GUIDE} R16)")
+
+    # P-R8: 행 클릭·선택 처리가 onSnapshotChange 를 부른다 — 선택 행은 snapshot 에 넣지 않는다(R8, 2026-10-05 사용자 결정)
+    if "onSnapshotChange" in t:
+        pos = _row_snapshot_write(t)
+        if pos is not None:
+            error(pos, f"[P-R8] 행 클릭·선택 처리에서 onSnapshotChange 를 부른다 → 클릭마다 포털 셸이 다시 렌더된다. "
+                       f"선택 행은 탭 snapshot 에 넣지 않는다(조회 조건이 바뀔 때만 부른다) ({PERF_GUIDE} R8)")
 
     if in_shared:
         return

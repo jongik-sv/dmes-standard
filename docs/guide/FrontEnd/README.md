@@ -49,6 +49,7 @@ python3 $D/aggrid_docs.py audit <바꾼 파일·폴더>
 | `[P-R6]` `rows.length === 0 ? (…) : (<AgDataGrid…/>)` 처럼 0건이면 그리드를 내림, 또는 `{rows.length > 0 && (<AgDataGrid…/>)}` 와 `{rows.length === 0 && <p>}` 를 짝으로 둠 → `emptyMessage` | [성능 가이드 R6](Screen-Performance-Guide.md) | 경고 |
 | `[P-R10]` `portal-tab-activated` 를 받으면서 파일에 `tabId` 비교가 없음 | [성능 가이드 R10·K5](Screen-Performance-Guide.md) | 경고 |
 | `[P-R14]` 위젯 파일(경로에 `widgets/`·`widget-types/`, 파일명에 `widget`·`renderer`)에 `setInterval(` 또는 자기 자신을 다시 거는 `setTimeout(` 이 있는데 `visibilityState`·`visibilitychange`·`IntersectionObserver`·`useTabPage`·`isActive` 가 없음 | [성능 가이드 R14](Screen-Performance-Guide.md) | 경고 |
+| `[P-R8]` 행 클릭·선택 처리 함수(이름 `handleRowClick`·`onRowClick`·`choose*`·`pick*`·`selectRow*` 또는 `onRowClicked`·`onSelectionChanged` props)가 `onSnapshotChange` 를 부름(그 함수가 부르는 헬퍼를 거쳐도 잡는다) | [성능 가이드 R8](Screen-Performance-Guide.md) | 오류 |
 | `[P-R16]` `useSyncExternalStore` 의 getSnapshot 이 상태 객체 전체(`() => state`)뿐이고 같은 파일에 필드 단위 getSnapshot(`() => state.field`) 훅이 없음 | [성능 가이드 R16](Screen-Performance-Guide.md) | 경고 |
 
 성능 항목(`[P-…]`)은 `aggrid_docs.py audit` 가 함께 낸다. 오류는 종료 코드 1, 경고는 종료 코드에 영향이 없다(설계상 정상일 수 있으므로 해당 규칙을 읽고 판단한다). 테스트 파일(`tests/`·`*.test.*`)은 성능 점검에서 뺀다.
@@ -60,6 +61,7 @@ python3 $D/aggrid_docs.py audit <바꾼 파일·폴더>
 - `[P-R1b]` 는 같은 폴더 `types.ts` 의 필드 이름만 본다. 목록 행 타입이 다른 파일에 있거나 이름이 다르면 놓친다. 서버가 실제로 목록에 본문을 싣는지는 응답 크기(`searchEncodedBytes`)로 확인한다.
 - `[P-R6]` 의 `&&` 형태는 빈 상태 `<p>`(`.length === 0 && <p>`) 가 형제로 있는 쌍만 잡는다. 빈 안내 없이 `{rows.length > 0 && <AgDataGrid/>}` 만 두는 것은 놓친다. 짝 판정은 같은 파일의 `.length === 0 && <p>` 존재만 보므로 빈 안내와 그리드가 서로 다른 배열을 보는 경우(`ruleConfirm`)도 걸린다. `.length > 0 && 단순식 && (…)` 까지는 따라가지만 함수 호출이 낀 조건은 놓친다.
 - `[P-R14]` 는 같은 파일에 표시 확인 흔적이 한 군데라도 있으면 통과시킨다(타이머별로 연결을 따지지 않는다). 효과 재실행으로 도는 타이머(deps 가 바뀔 때마다 `setTimeout` 을 다시 거는 슬라이드쇼 등)와 틀 밖 파일에서 만든 타이머는 놓친다. 일회성·디바운스 `setTimeout` 은 대상이 아니다.
+- `[P-R8]` 은 같은 파일 안에서 `onSnapshotChange` 를 부르는 함수를 호출 사슬(최대 4단)로 따라가 이름이 행 처리 규칙에 맞는 함수를 찾는다. 다른 이름의 핸들러나 다른 파일에서 부르는 경우는 놓치므로 점검표 4 와 `count-renders` ③ 으로 확인한다. 조회 조건 고르기처럼 행 클릭이 아닌 선택 함수(`selectMaruData` 등)는 이름이 규칙 밖이라 대상이 아니다.
 - `[P-R16]` 은 스토어 정의 파일만 본다. 다른 파일에서 `const { a } = useXxxStore()` 로 일부 필드만 쓰는 호출은 파일 간 추적이 어려워 잡지 않는다(그런 사용은 필드 훅을 내보내라는 신호로 직접 확인한다).
 - 경고도 오류와 같은 `경로:줄:` 형식으로 찍힌다. 줄 수로 세지 말고 `[P-…]` 코드와 수준으로 나눈다.
 
