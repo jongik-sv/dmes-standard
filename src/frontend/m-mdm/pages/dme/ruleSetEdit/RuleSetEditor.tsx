@@ -1,0 +1,924 @@
+"use client";
+
+/**
+ * ruleSetEdit 세트 탭 하나의 편집기(하위 세트 spec §10.2, C-D14) — 탭 틀(`RuleSetTabs`)이 탭마다 하나씩 그린다. 세트 상태·되돌리기·모드·선택·디버거는 탭마다 따로다.
+ * 정본: docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md, 스펙 §7(TSK-08-06, 2단계 계획 Task 10, 3단계 계획 Task 0).
+ *
+ * 열 세트는 탭 틀이 request 로 넘긴다(seq 가 바뀔 때만 연다 — 포털 파라미터·링크). 툴바 줄 맨 앞의 세트 고르기(`IdPicker`)는 탭 틀에 고르기를
+ * 맡긴다(`pickSet` — 그 세트가 다른 탭에 열려 있으면 그 탭으로, 아니면 이 탭에서 연다).
+ * 숨은 탭(active 거짓, 패널 display:none)은 포털로 그리는 오류 창을 그리지 않고(오류는 상태로 남아 탭을 고르면 보인다) 우클릭 메뉴를 닫는다.
+ * 단축키는 캔버스 감싸개가 보일 때만 받는다(`isShown`).
+ * 세트 고르기와 흐름 툴바(`FlowToolbar`)는 한 줄이다(세트 고르기를 `lead` 로 넘긴다). 디버그 모드면 그 아래 줄에 `DebugToolbar`,
+ * 본문 3단(왼쪽 | 흐름 캔버스 | 오른쪽), 아래 패널을 둔다.
+ * 한 줄 세트와 분기 세트 모두 캔버스로 편집하고 흐름(`flowJson`)으로 저장한다(P-D5).
+ *
+ * 모드(3단계 P1) — 세트를 열면 보기 모드다. 편집 모드는 서버 판정(`editable`)·폐기 아님·RBAC(save)일 때만 켠다(P10). 디버그 모드는 누구나 들어간다.
+ * 편집 모드는 선택 버전이 내 DRAFT 일 때만(D-144 2단계). 버전 줄(`SetVersionRow`)이 흐름 툴바 위에 있다.
+ * - 왼쪽: 디버그 모드만 입력 패널(`DebugInputs`). 보기·편집 모드는 왼쪽 칸이 없고 캔버스 안 왼쪽 위에 도구 상자(`FlowToolbox`)가 뜬다(4단계 P1)
+ * - 오른쪽: 보기·편집 = 머리글 + 접는 섹션(`SidePanel` — 속성·세트 섹션과 「룰 목록」/「룰 지정」 섹션), 디버그 = 변수 패널(`VariablePanel`)
+ * - 아래 탭: 보기·편집 = 검사 결과 하나, 디버그 = 값 표·실행 비교·검사 결과. 디버그로 들고 날 때 그 모드의 첫 탭으로 간다
+ *   (보기↔편집은 탭이 같아 그대로 둔다). 디버그 모드에 들어가면 [변수 흐름]을 켜고 나오면 들어가기 전 값으로 돌린다(P-D16).
+ * 단축키(P3)는 캔버스 감싸개(`rsf-canvas-host`)의 onKeyDown 에서만 디스패처로 받는다 — 손잡이 표는 모드별로 여기서 만든다.
+ * 노드 찾기(2026-10-01): Ctrl/Cmd+F·툴바 [노드 찾기] 가 감싸개 안 오른쪽 위에 찾기 위젯(`FindWidget`)을 연다. 열려 있는 동안 감싸개에 `data-find-open` 을
+ * 붙여 미니맵을 위젯 아래로 내린다(styles/menu.ts). Esc·[닫기] 는 초점을 캔버스로 돌리고 닫는다. 글자·옵션은 `useFind` 가 들고 있어 닫아도 남는다.
+ * 우클릭·[+] 메뉴(P4)는 제공자(`canvas/menus`)가 항목을 만들고 `ContextMenu` 가 그린다. 항목이 0개면 열지 않는다.
+ * 분할 골격(`ContentBody`/`ContentPanel`)은 이 파일의 직접 자식으로 둔다(Part B §4-3 — 드래그 막대가 직접 자식에만 붙는다).
+ * 디버그 모드 밖에서는 왼쪽 칸을 그리지 않는다 — 너비는 shared 가 key(`left`)로 기억하므로 디버그로 돌아오면 사용자가 끈 너비 그대로다.
+ */
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+
+import { ContentBody, ContentPanel, ErrorModal, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
+import { IdPicker, sameVer, type IdPickRow } from "@/shell";
+
+import { searchSets } from "./api";
+import { ContextMenu } from "./canvas/ContextMenu";
+import { alignNodes, distributeNodes, nudgeNodes, type AlignKind, type DistributeAxis } from "./canvas/align";
+import { buildMenu, type CanvasActions, type MenuItem, type MenuTarget } from "./canvas/context-menu";
+import { FindWidget } from "./canvas/FindWidget";
+import { FlowCanvas, type AlignSource, type MoveShift, type PaletteItem } from "./canvas/FlowCanvas";
+import { FlowToolbar } from "./canvas/FlowToolbar";
+import { FlowToolbox, defaultTool, type CanvasTool } from "./canvas/FlowToolbox";
+import { MENU_PROVIDERS } from "./canvas/menus";
+import { UNHANDLED, dispatchShortcut, isMacPlatform, isShown, isTypingTarget, shortcutOf, type ShortcutHandlers } from "./canvas/shortcuts";
+import { DebugInputs } from "./debugger/DebugInputs";
+import { DebugToolbar } from "./debugger/DebugToolbar";
+import { varLabelsOf } from "./set-model";
+import { loadFlag, loadVarDisplay, saveFlag, saveVarDisplay, storeKeys } from "./debugger/local-store";
+import { RunCompare } from "./debugger/RunCompare";
+import { useSimulation } from "./debugger/useSimulation";
+import { useTestCases } from "./debugger/useTestCases";
+import { ValuesTab } from "./debugger/ValuesTab";
+import { VariablePanel } from "./debugger/VariablePanel";
+import {
+  addCatch, connect, flowJsonOf, setCatchSpot, reconnectEdge, setGroupPad, setGroupsColor, setLabelOffset, setNodesColor, setPositions, setRoute, shiftRoutes, nextId, updateEdge, updateNodeLabel, updateNote,
+  type CatchSpot, type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
+} from "./flow-edit";
+import { autoArrange, restyleNode, shiftSpace, type NodeLayoutSource, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
+import type { NodeColor, NodeSize } from "./node-style";
+import { openRule } from "./links";
+import { BottomPanel, type BottomTab } from "./panels/BottomPanel";
+import { ChecksPanel } from "./panels/ChecksPanel";
+import { useSectionMemory } from "./panels/Section";
+import { SetVersionRow } from "./panels/SetVersionRow";
+import { SidePanel } from "./panels/SidePanel";
+import { useCollapse } from "./state/useCollapse";
+import { useDragActions } from "./state/useDragActions";
+import { useEditActions } from "./state/useEditActions";
+import { useFind } from "./state/useFind";
+import { useRuleSearch } from "./state/useRuleSearch";
+import { useAutoSave } from "./state/useAutoSave";
+import { guideBlockReason, useRuleSetEdit, type FlowMode } from "./state/useRuleSetEdit";
+import { RuleSetTabsContext } from "./tabs-context";
+import type { OpenRequest, TabStatus } from "./tabs-model";
+import { debugOverlay } from "./trace-view";
+import type { RuleIo, RuleSetCaseView, RuleSetView, VarDisplay } from "./types";
+
+/** 버튼 RBAC 판정 화면 ID(`canDoButton`). 화면 틀(`MdmPageLayout`)은 탭 틀이 그린다. */
+const SCREEN_ID = "ruleSetEdit";
+/** 분할 크기 저장 키 — 탭끼리 같은 키를 쓴다(보는 사람 설정, 새로 여는 탭이 따른다). */
+const STORAGE_KEY = "mdm.dme.ruleSetEdit";
+/** 서버 `RuleSetEditService.PICK_LIMIT` 과 같다. */
+const SET_PICK_LIMIT = 20;
+const COPY_NEEDS_NODE = "복사할 노드를 먼저 고른다";
+const PASTE_NEEDS_EDGE = "붙여 넣을 선을 먼저 고른다";
+/**
+ * 아래 패널 기본 높이(px, 사용자가 끌어 바꾼 값은 storageKey 로 남는다). 220 → 280: 탭 머리(약 36)와 고정 버튼 줄(따라가기 상태 포함 약 60)을 빼고도
+ * 입력 칸 4~5줄이 보이게. 1030px 높이 화면에서 캔버스 쪽은 minSize 200 보다 넉넉히 남는다.
+ */
+const BOTTOM_HEIGHT = 280;
+/** 모드별 아래 패널 첫 탭. */
+const FIRST_TAB: Record<"debug" | "other", string> = { debug: "values", other: "checks" };
+const NO_CASES: RuleSetCaseView[] = [];
+const NO_ITEMS: MenuItem[] = [];
+
+async function searchSetPicks(keyword: string): Promise<IdPickRow[]> {
+  const res = await searchSets(keyword);
+  return (res.sets ?? []).map((s) => ({ id: s.setId, name: s.setName, status: s.status }));
+}
+
+const fail = (reason: string): EditResult => ({ ok: false, reason });
+
+/** 지금 연 버전이 DRAFT 인가 — 버전 줄(`SetVersionRow`)과 같이 버전 목록의 선택 버전 상태로 보고, 목록이 없으면 view 의 버전 상태로 본다. */
+function isDraftView(v: RuleSetView): boolean {
+  const ver = v.set.ver ?? null;
+  const selected = (v.versions ?? []).find((x) => sameVer(x.ver, ver));
+  return (selected?.status ?? v.set.verStatus ?? null) === "DRAFT";
+}
+
+export interface RuleSetEditorProps {
+  tabKey: string;
+  /** 열 세트 — seq 가 바뀔 때만 연다(고르기·링크·포털 파라미터). */
+  request: OpenRequest | null;
+  /** 세트를 불러오거나 dirty·버전이 바뀌면 탭 틀에 알린다(탭 머리·닫기 확인·디버거 경고). */
+  onStatus(tabKey: string, status: TabStatus): void;
+  /** 고른 탭인가(기본 true). 거짓이면 패널이 display:none 으로 숨어 있다 — 포털 UI(오류 창)를 그리지 않고 메뉴를 닫는다. */
+  active?: boolean;
+}
+
+export function RuleSetEditor({ tabKey, request, onStatus, active = true }: RuleSetEditorProps) {
+  const tabsApi = useContext(RuleSetTabsContext);
+  const rbac = useUserButtonRbac();
+  const state = useRuleSetEdit({ onWritten: tabsApi.notifyWritten });
+  const { open, edit, view, flow } = state;
+
+  const requestSeq = request?.seq ?? null;
+  useEffect(() => {
+    if (request) void open(request.setId, request.ver);
+    // seq 가 바뀔 때만 연다 — 같은 요청을 다시 그려도 다시 열지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestSeq]);
+
+  const statusSetId = view?.set.setId ?? null;
+  const statusSetName = view?.set.setName ?? null;
+  const statusVer = view?.set.ver ?? null;
+  const statusDraft = !!view && isDraftView(view);
+  useEffect(() => {
+    onStatus(tabKey, { setId: statusSetId, setName: statusSetName, ver: statusVer, dirty: state.dirty, draft: statusDraft });
+  }, [onStatus, tabKey, statusSetId, statusSetName, statusVer, state.dirty, statusDraft]);
+
+  const canDo = useCallback((action: string) => canDoButton(rbac, SCREEN_ID, action), [rbac]);
+  const canEdit = !!view && view.editable && view.set.status !== "DEPRECATED" && canDo("save"); // D-144 2단계 — CREATED 세트도 편집
+  /**
+   * 테스트 케이스 쓰기(Ruling P2-18) — 케이스는 세트에 딸리므로 고른 버전과 무관하게 서버 `flags.canEditCases`(담당자 ∧ 폐기 아님)와 저장 권한을 본다.
+   * 버전 플래그가 없는 옛 응답이면 편집 판정과 같게 본다.
+   */
+  const canEditCases =
+    !!view && (view.flags?.canEditCases ?? (view.editable && view.set.status !== "DEPRECATED")) && canDo("save");
+  /** 화면 모드 — 편집할 수 없는데 편집 모드로 남아 있으면 보기로 본다. */
+  const mode: FlowMode = state.mode === "edit" && !canEdit ? "view" : state.mode;
+  const editing = mode === "edit";
+  const debugging = mode === "debug";
+  const canRun = canDo("execute");
+  /** 자동 저장(켜고 끄기) — 편집 모드(편집할 수 있을 때)에서만 저장한다. */
+  const autoSave = useAutoSave(state, editing);
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  /** 캔버스 다중 선택(흐름 노드 ID, 흐름 순서) — [그룹]·[선택 노드 더하기] 가 쓴다. */
+  const [multiSel, setMultiSel] = useState<string[]>([]);
+  /**
+   * 캔버스 도구(4단계 P1) — [손]·[영역 선택]·[공간]. 저장하지 않는다. 모드를 바꾸거나 다른 세트를 열면 그 모드의 기본 도구(`defaultTool`)로 돌아가고,
+   * [공간] 은 한 번 쓰면(캔버스가 `onSpaceToolChange(false)` 로 알린다) 영역 선택으로 돌아간다. [공간] 은 편집 모드에서만 뜻이 있다.
+   */
+  const [tool, setTool] = useState<CanvasTool>(() => defaultTool(mode));
+  const spaceOn = editing && tool === "space";
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const [focus, setFocus] = useState<{ id: string | null; seq: number }>({ id: null, seq: 0 });
+  const [fitSignal, setFitSignal] = useState(0);
+  const [varDisplay, setVarDisplay] = useState<VarDisplay>(loadVarDisplay);
+  /** 마지막으로 쓴 켜진 표시 — 디버그에 들어갈 때 꺼져 있으면 이걸로 켠다(처음이면 ID). */
+  const lastVarOn = useRef<Exclude<VarDisplay, "off">>(varDisplay === "name" ? "name" : "id");
+  const [showMiniMap, setShowMiniMap] = useState(() => loadFlag(storeKeys.miniMap, true));
+  const [bottomTab, setBottomTab] = useState<string>(FIRST_TAB.other);
+  const [bottomCollapsed, setBottomCollapsed] = useState(false);
+  /** 우클릭·[+] 메뉴를 연 대상과 화면 좌표. */
+  const [menu, setMenu] = useState<{ target: MenuTarget; at: { x: number; y: number }; selection: string[] } | null>(null);
+  /** 즉석 조건식 편집 중인 선(B10, Task 7 이 입력 칸을 그린다). */
+  const [editingCond, setEditingCond] = useState<string | null>(null);
+  /** 선 라벨 즉석 편집 중인 선(Task 9) — 우클릭 메뉴 「라벨 편집」이 연다. */
+  const [editingLabel, setEditingLabel] = useState<string | null>(null);
+  /** 찾기 위젯(`FindWidget`)의 입력 칸. */
+  const findInputRef = useRef<HTMLInputElement | null>(null);
+  /** 찾기 위젯이 열려 있는가 — 닫아도 글자·옵션은 `useFind` 에 남는다. */
+  const [findOpen, setFindOpen] = useState(false);
+  /** 올릴 때마다 위젯이 입력 칸에 초점을 두고 전체 선택한다(Ctrl/Cmd+F·툴바 [노드 찾기]). */
+  const [findFocusSeq, setFindFocusSeq] = useState(0);
+  const openFind = useCallback(() => {
+    setFindOpen(true);
+    setFindFocusSeq((s) => s + 1);
+  }, []);
+  const flowRef = useRef<EditFlow | null>(flow);
+  flowRef.current = flow;
+
+  // 다른 세트를 열면 선택·이동 요청·메뉴를 비운다.
+  const setId = view?.set.setId ?? null;
+  // 디버거 상태는 모드를 바꾸거나 탭이 언마운트돼도 남도록 여기서 부른다. 다른 세트를 열거나 흐름 구조가 바뀌면 훅이 실행 표시를 지운다.
+  const sim = useSimulation(flow, state.rules, state.flowVersion, setId);
+  // 케이스 목록은 세트를 열거나 [다시 불러오기] 했을 때만 새 참조로 넘긴다(F25) — 자기 쓰기 뒤 다시 불러오기·케이스 쓰기는 목록을 바꾸지 않는다(P-D11).
+  const viewEpoch = state.viewEpoch;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const initialCases = useMemo(() => view?.cases ?? NO_CASES, [viewEpoch, setId]);
+  const flowJson = useCallback(() => (flowRef.current ? flowJsonOf(flowRef.current) : ""), []);
+  const tests = useTestCases(setId, initialCases, state.flowVersion, flowJson);
+  const collapse = useCollapse(flow, setId);
+  const drag = useDragActions(state);
+
+  useEffect(() => {
+    setSelectedId(null);
+    setSelectedEdgeId(null);
+    setMultiSel([]);
+    setFocus((f) => ({ id: null, seq: f.seq }));
+    setMenu(null);
+    setEditingCond(null);
+    setEditingLabel(null);
+    setTool(defaultTool(modeRef.current));
+  }, [setId]);
+
+  // 편집으로 없어진 노드·메모·그룹·선의 선택은 푼다(속성 패널이 없는 노드를 읽지 않게).
+  useEffect(() => {
+    if (!flow) return;
+    if (selectedId && !flow.nodes.some((n) => n.id === selectedId) && !flow.view.notes.some((n) => n.id === selectedId) && !flow.view.groups.some((g) => g.id === selectedId)) {
+      setSelectedId(null);
+    }
+    if (selectedEdgeId && !flow.edges.some((e) => e.id === selectedEdgeId)) setSelectedEdgeId(null);
+  }, [flow, selectedId, selectedEdgeId]);
+
+  // 모드가 바뀌면 — 디버그로 들고 날 때 [변수 흐름]을 켜고 되돌리며(P-D16), 아래 패널은 그 모드의 첫 탭으로 간다. 메뉴·즉석 편집은 닫는다.
+  const varDisplayRef = useRef(varDisplay);
+  varDisplayRef.current = varDisplay;
+  const varsBeforeDebug = useRef<VarDisplay>("off");
+  const prevMode = useRef<FlowMode>(mode);
+  useEffect(() => {
+    const prev = prevMode.current;
+    if (prev === mode) return;
+    prevMode.current = mode;
+    if (mode === "debug") {
+      varsBeforeDebug.current = varDisplayRef.current;
+      setVarDisplay(varDisplayRef.current === "off" ? lastVarOn.current : varDisplayRef.current);
+      setBottomTab(FIRST_TAB.debug);
+    } else if (prev === "debug") {
+      setVarDisplay(varsBeforeDebug.current);
+      setBottomTab(FIRST_TAB.other);
+    }
+    setTool(defaultTool(mode)); // 도구는 모드마다 기본으로(4단계 P1)
+    setMenu(null);
+    setEditingCond(null);
+    setEditingLabel(null);
+  }, [mode]);
+
+  const select = useCallback((id: string | null) => {
+    setSelectedId(id);
+    if (id) setSelectedEdgeId(null);
+  }, []);
+  const selectEdge = useCallback((id: string | null) => {
+    setSelectedEdgeId(id);
+    if (id) setSelectedId(null);
+  }, []);
+  const clearSelection = useCallback(() => {
+    setSelectedId(null);
+    setSelectedEdgeId(null);
+  }, []);
+
+  /** 섹션 펼침 기억(종류별, 화면 메모리 — 4단계 Task 8). 모드를 바꿔도 남게 page 에 둔다. */
+  const sections = useSectionMemory();
+  /** 룰 지정 섹션 열기 신호 — 올릴 때마다 오른쪽 패널이 「룰 지정」 섹션을 펴고 찾기 칸에 초점을 둔다. */
+  const [assignSignal, setAssignSignal] = useState(0);
+  /** 룰 지정 섹션 열기(4단계 Task 8 입구 — 우클릭 [룰 바꾸기…], Task 9 의 빈 단계 놓기·[룰 지정…]). 그 노드를 고르고 신호를 올린다. */
+  const openRuleAssign = useCallback(
+    (nodeId: string) => {
+      select(nodeId);
+      setAssignSignal((s) => s + 1);
+    },
+    [select],
+  );
+
+  /** 노드로 옮기기 — 접힌 블록 안이면 먼저 펴고, 고르고, 캔버스를 옮긴다(검사 항목·찾기). */
+  const reveal = useCallback(
+    (nodeId: string) => {
+      collapse.expandFor(nodeId);
+      select(nodeId);
+      setFocus((f) => ({ id: nodeId, seq: f.seq + 1 }));
+    },
+    [collapse, select],
+  );
+  const find = useFind(flow, state.rules, reveal);
+
+  const fit = useCallback(() => setFitSignal((s) => s + 1), []);
+  /** 메뉴가 열려 있는가 — 항목이 0개면 연 것으로 보지 않는다(Esc 가 선택 해제로 간다). 렌더마다 적는다. */
+  const menuOpenRef = useRef(false);
+  const closeMenu = useCallback((): boolean => {
+    const was = menuOpenRef.current;
+    setMenu(null);
+    return was;
+  }, []);
+  const onCloseMenu = useCallback(() => setMenu(null), []);
+
+  const editActions = useEditActions({
+    state,
+    flow,
+    editing,
+    selectedId,
+    selectedEdgeId,
+    multiSel,
+    collapsed: collapse.collapsed,
+    select,
+    selectEdge,
+    openRuleAssign,
+    fit,
+    setEditingCond,
+    setEditingLabel,
+    closeMenu,
+    clearSelection,
+  });
+
+  const onMove = useCallback(
+    (pos: Record<string, FlowPos>, notes: Record<string, FlowPos> = {}, shift?: MoveShift) =>
+      editing &&
+      edit((f) => {
+        const g = Object.entries(notes).reduce((h, [id, p]) => updateNote(h, id, p), setPositions(f, pos));
+        return shift ? shiftRoutes(g, new Set(shift.ids), shift.dx, shift.dy) : g; // 함께 옮긴 노드 사이 선의 꺾는 점도 같은 만큼
+      }),
+    [editing, edit],
+  );
+  // 공간 넓히기(S1) — 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸). 모든 노드 위치를 그린 위치로 적는다(shiftSpace).
+  const onShiftSpace = useCallback(
+    (axis: SpaceAxis, at: number, delta: number, drawn: Record<string, FlowPos>, blocks: SpaceBlocks) =>
+      editing && edit((f) => shiftSpace(f, axis, at, delta, drawn, blocks)),
+    [editing, edit],
+  );
+  const onRouteChange = useCallback((edgeId: string, points: FlowPos[]) => editing && edit((f) => setRoute(f, edgeId, points)), [editing, edit]);
+  // 조건 라벨·변수 칩 끌어 옮기기(L1) — 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸).
+  const onLabelOffsetChange = useCallback(
+    (edgeId: string, part: LabelPart, off: LabelOffset | null) => editing && edit((f) => setLabelOffset(f, edgeId, part, off)),
+    [editing, edit],
+  );
+  // 그룹 크기(G2) — 손잡이를 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸).
+  const onGroupPadChange = useCallback(
+    (id: string, pad: GroupPad) => editing && edit((f) => setGroupPad(f, id, pad)),
+    [editing, edit],
+  );
+  // 노드 크기(S1) — 손잡이를 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸). 그린 위치 전부를 함께 적는다(S-D6, restyleNode).
+  const onNodeSizeChange = useCallback(
+    (id: string, size: NodeSize, drawn: Record<string, FlowPos>, blocks: SpaceBlocks) =>
+      editing && edit((f) => restyleNode(f, id, { w: size.w, h: size.h }, drawn, blocks)),
+    [editing, edit],
+  );
+  // 받는 노드 자리(D-142) — 룰 테두리를 따라 끌어 놓을 때 한 번 = 편집 한 번(되돌리기 한 칸).
+  const onCatchSpotChange = useCallback(
+    (catchId: string, spot: CatchSpot) => editing && edit((f) => setCatchSpot(f, catchId, spot)),
+    [editing, edit],
+  );
+  // 노드 색(S1, 우클릭 「색상」) — 여러 노드여도 편집 한 번. 크기가 안 바뀌므로 위치는 건드리지 않는다. 이미 그 색이면 편집을 만들지 않는다.
+  const onNodeColor = useCallback(
+    (nodeIds: readonly string[], color: NodeColor) =>
+      editing && edit((f) => setNodesColor(f, nodeIds, color)),
+    [editing, edit],
+  );
+  // 그룹 색(그룹 우클릭 「색상」) — 노드 색과 같이 여러 그룹이어도 편집 한 번. 이미 그 색이면 편집을 만들지 않는다.
+  const onGroupColor = useCallback(
+    (groupIds: readonly string[], color: NodeColor) =>
+      editing && edit((f) => setGroupsColor(f, groupIds, color)),
+    [editing, edit],
+  );
+  const onMoveNode = useCallback(
+    (nodeId: string, edgeId: string, pos: Record<string, FlowPos>) => {
+      if (editing) drag.moveNodeTo(nodeId, edgeId, pos);
+    },
+    [editing, drag],
+  );
+  const onConnect = useCallback((from: string, to: string) => editing && edit((f) => connect(f, from, to)), [editing, edit]);
+  // 예외 연결점 끌기(받는 노드 spec §8) — 받는 노드와 처리 갈래 첫 선을 편집 한 번으로 만들고 새 받는 노드를 고른다(속성 패널이 열린다).
+  const onAddCatch = useCallback(
+    (ruleNodeId: string, to: string) => {
+      const cur = flowRef.current; // 흐름을 의존성에 넣지 않는다 — 콜백 참조가 바뀌면 캔버스 memo 가 다시 돈다(Local-Rules §19)
+      if (!editing || !cur) return;
+      const id = nextId(cur, "c");
+      if (edit((f) => addCatch(f, ruleNodeId, to)) === null) select(id);
+    },
+    [editing, edit, select],
+  );
+  // 선 끝 옮기기(R1) — 한 번이 되돌리기 한 칸. 거부(같은 선이 이미 있음·자기 잇기)는 edit 가 실패 알림으로 알리고 흐름은 그대로다.
+  const onReconnect = useCallback(
+    (edgeId: string, end: { from?: string; to?: string }) => editing && edit((f) => reconnectEdge(f, edgeId, end)),
+    [editing, edit],
+  );
+  // 메모 글 입력은 되돌리기 기록을 합친다(P5 note:{id}). 위치 끌기는 놓을 때 한 번이라 합치지 않는다.
+  const onNoteChange = useCallback(
+    (id: string, patch: Partial<FlowNote>) =>
+      editing && edit((f) => updateNote(f, id, patch), patch.text !== undefined ? { mergeKey: `note:${id}` } : undefined),
+    [editing, edit],
+  );
+  const onRules = useCallback((ios: RuleIo[]) => ios.forEach(state.addRuleIo), [state.addRuleIo]);
+  const ruleSearch = useRuleSearch(onRules, state.reportError);
+  /** 룰 목록 두 번 누르기 — 고른 선(없으면 END 앞 선)에 끼운다. */
+  const onInsertListRule = useCallback((io: RuleIo) => editActions.insertListRule(selectedEdgeId, io), [editActions, selectedEdgeId]);
+  /** [지정]·두 번 누르기(룰 지정) — 빈 단계는 룰 노드가 되고 룰 노드는 룰만 바뀐다(4단계 T1). */
+  const onAssignRule = useCallback((nodeId: string, io: RuleIo) => editActions.assignRule(nodeId, io), [editActions]);
+  /** 룰 줄을 빈 단계·룰 노드 위에 놓음(4단계 T1) — 찾을 때 룰 맵에 넣은 IO 로 지정한다. */
+  const onAssignDrop = useCallback(
+    (nodeId: string, ruleId: string) => {
+      const io = state.rules[ruleId];
+      if (io) editActions.assignRule(nodeId, io);
+    },
+    [state.rules, editActions],
+  );
+  /** 빈 단계 제목 두 번 눌러 고치기(4단계 T1) — 편집 한 번. */
+  const onRenameTask = useCallback(
+    (nodeId: string, label: string | null) => editing && edit((f) => updateNodeLabel(f, nodeId, label)),
+    [editing, edit],
+  );
+  const onEditCond = useCallback(
+    (id: string, cond: string) => {
+      if (editing) edit((f) => updateEdge(f, id, { cond }), { mergeKey: `cond:${id}` });
+      setEditingCond(null);
+    },
+    [editing, edit],
+  );
+  const onEditCondClose = useCallback(() => setEditingCond(null), []);
+  /** 선 라벨 즉석 편집 확정(Task 9) — 빈 값은 지움(null), 같은 값이면 편집 없음. */
+  const onEditLabel = useCallback(
+    (id: string, text: string) => {
+      const next = text.trim() === "" ? null : text;
+      if (editing) {
+        edit((f) => ((f.edges.find((e) => e.id === id)?.label ?? null) === next ? f : updateEdge(f, id, { label: next })), { mergeKey: `elabel:${id}` });
+      }
+      setEditingLabel(null);
+    },
+    [editing, edit],
+  );
+  const onEditLabelClose = useCallback(() => setEditingLabel(null), []);
+  const onAutoLayout = useCallback(() => editing && edit((f) => autoArrange(f)), [editing, edit]);
+  // 정렬·옮기기(A1) — 캔버스가 채우는 "고른 것과 그린 위치" 함수. 메뉴는 열 때 고른 ID 를 적어 둔다(정렬 메뉴 조건).
+  const alignSourceRef = useRef<(() => AlignSource) | null>(null);
+  /** 외관 크기 바꾸기(S-D6)가 쓸 그린 위치 — 캔버스가 채운 정렬 출처에서 꺼낸다. 캔버스가 없으면 null(위치를 적지 않는다). */
+  const layoutSource = useCallback((): NodeLayoutSource | null => {
+    const s = alignSourceRef.current?.();
+    return s ? { drawn: s.drawn, blocks: s.blocks } : null;
+  }, []);
+  /** 캔버스가 채우는 "React Flow 로 고른 것(흐름 노드·메모·그룹)" — Delete 가 여럿 지우기에 쓴다(M2). */
+  const canvasSelectionRef = useRef<(() => string[]) | null>(null);
+  /** 캔버스가 채우는 "고른 것으로 이동(Shift+2)" — 고른 것이 없으면 false. */
+  const canvasFitSelectionRef = useRef<(() => boolean) | null>(null);
+  const onContextMenu = useCallback(
+    (target: MenuTarget, at: { x: number; y: number }) => setMenu({ target, at, selection: alignSourceRef.current?.().ids ?? [] }),
+    [],
+  );
+  // 할 일이 없으면(고른 것 모자람·이미 맞음) UNHANDLED — 키를 쓰지 않아 브라우저 단축키(Alt+D 등)를 막지 않는다.
+  const runEdit = useCallback(
+    (make: (f: EditFlow, src: AlignSource) => EditFlow, mergeKey?: (src: AlignSource) => string) => {
+      const src = alignSourceRef.current?.();
+      if (!editing || !src || !flow || make(flow, src) === flow) return UNHANDLED;
+      edit((f) => make(f, src), mergeKey ? { mergeKey: mergeKey(src) } : undefined);
+      return undefined;
+    },
+    [editing, edit, flow],
+  );
+  const onAlign = useCallback(
+    (kind: AlignKind) => runEdit((f, s) => alignNodes(f, s.ids, kind, s.drawn, s.blocks)),
+    [runEdit],
+  );
+  const onDistribute = useCallback(
+    (axis: DistributeAxis) => runEdit((f, s) => distributeNodes(f, s.ids, axis, s.drawn, s.blocks)),
+    [runEdit],
+  );
+  /** 화살표 옮기기 — 연속 입력은 같은 대상이면 1초 안에 한 칸으로 합친다. */
+  const onNudge = useCallback(
+    (dx: number, dy: number) => runEdit((f, s) => nudgeNodes(f, s.ids, dx, dy, s.drawn, s.blocks), (s) => `nudge:${s.ids.join(",")}`),
+    [runEdit],
+  );
+  const varLabels = useMemo(() => varLabelsOf(state.rules), [state.rules]);
+  /** 보는 사람 설정 알림(Ruling 22) — 탭 틀의 함수는 참조가 바뀌지 않는다(탭 상태가 바뀌어도 아래 콜백을 다시 만들지 않게 따로 꺼낸다). */
+  const publishPrefs = tabsApi.publishPrefs;
+  const onToggleVars = useCallback(() => {
+    const next: VarDisplay = varDisplayRef.current === "off" ? "id" : varDisplayRef.current === "id" ? "name" : "off";
+    if (next !== "off") lastVarOn.current = next;
+    setVarDisplay(next);
+    saveVarDisplay(next);
+    publishPrefs({ varDisplay: next });
+  }, [publishPrefs]);
+  const onToggleMiniMap = useCallback(() => {
+    const next = !showMiniMap;
+    setShowMiniMap(next);
+    saveFlag(storeKeys.miniMap, next);
+    publishPrefs({ miniMap: next });
+  }, [showMiniMap, publishPrefs]);
+  // 다른 탭이 바꾼 보는 사람 설정을 따른다(Ruling 22). 디버그 모드에서는 그 모드의 자동 켜기·되돌리기(P-D16)를 지키려고 변수 표시는 따르지 않는다.
+  const prefSeq = tabsApi.prefs.seq;
+  useEffect(() => {
+    if (prefSeq === 0) return;
+    setShowMiniMap(tabsApi.prefs.miniMap);
+    if (modeRef.current !== "debug") {
+      setVarDisplay(tabsApi.prefs.varDisplay);
+      if (tabsApi.prefs.varDisplay !== "off") lastVarOn.current = tabsApi.prefs.varDisplay;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefSeq]);
+
+  // 메뉴 동작 — 편집 훅 + 접기·디버거 훅.
+  const runTo = sim.runTo;
+  const canvasActions = useMemo<CanvasActions>(
+    () => ({
+      ...editActions.actions,
+      toggleCollapse: collapse.toggle,
+      toggleBreakpoint: sim.toggleBreakpoint,
+      runTo: (id: string) => void runTo(id),
+      align: onAlign,
+      distribute: onDistribute,
+      setNodeColor: onNodeColor,
+      setGroupColor: onGroupColor,
+    }),
+    [editActions.actions, collapse.toggle, sim.toggleBreakpoint, runTo, onAlign, onDistribute, onNodeColor, onGroupColor],
+  );
+  const menuItems = useMemo(
+    () =>
+      menu && flow
+        ? buildMenu(MENU_PROVIDERS, menu.target, {
+            flow,
+            rules: state.rules,
+            mode,
+            hasClipboard: editActions.hasClipboard,
+            selectedEdgeId,
+            collapsed: collapse.collapsed,
+            breakpoints: sim.breakpoints,
+            canRun,
+            selection: menu.selection,
+            act: canvasActions,
+          })
+        : NO_ITEMS,
+    [menu, flow, state.rules, mode, editActions.hasClipboard, selectedEdgeId, collapse.collapsed, sim.breakpoints, canRun, canvasActions],
+  );
+  menuOpenRef.current = !!menu && menuItems.length > 0;
+
+  // 단축키(P3) — 캔버스에 초점이 있을 때만. 손잡이 표는 모드별이다(손잡이가 없는 키는 브라우저·포털 동작 그대로).
+  const mac = useMemo(() => isMacPlatform(), []);
+  /** 고른 것이 흐름 노드인가(메모·그룹 아님) — 복사·중단점 단축키와 디버그 툴바 [여기까지] 가 쓴다. */
+  const isFlowNode = !!flow && !!selectedId && flow.nodes.some((n) => n.id === selectedId);
+  const removeRoutePointRef = useRef<(() => boolean) | null>(null);
+  /** 캔버스 감싸개 — 도움말을 Esc 로 닫으면 그 안의 캔버스(`flow-canvas`, tabIndex 0)로 초점을 돌린다(브라우저 확인 8번 단서). */
+  const canvasHostRef = useRef<HTMLDivElement>(null);
+  const focusCanvas = useCallback(() => canvasHostRef.current?.querySelector<HTMLElement>(".rsf-canvas")?.focus({ preventScroll: true }), []);
+  /**
+   * 단축키로 편집한 뒤 — 초점을 가진 요소(누른 선·노드)가 지워지면 초점이 문서(body)로 빠져 다음 단축키(Ctrl+Z 등)가 캔버스에 닿지 않는다.
+   * 다시 그린 뒤 초점이 body·없음·떨어져 나간 요소면 캔버스로 돌린다(U3, 도움말 Esc·메뉴 닫힘과 같은 규칙). 초점이 다른 곳(입력 칸 등)에 있으면 두지 않는다.
+   */
+  /** 찾기 위젯 닫기(Esc·[닫기]) — 입력 칸이 사라지며 초점이 body 로 빠지지 않게 캔버스로 먼저 옮긴 뒤 닫는다. */
+  const closeFind = useCallback(() => {
+    focusCanvas();
+    setFindOpen(false);
+  }, [focusCanvas]);
+  const keepCanvasFocus = useCallback(() => {
+    setTimeout(() => {
+      const a = document.activeElement;
+      if (!a || a === document.body || !a.isConnected) focusCanvas();
+    }, 0);
+  }, [focusCanvas]);
+  /**
+   * 도구 고르기(4단계 P1) — [공간] 을 다시 누르면 영역 선택으로 돌아간다. 고른 뒤 초점을 캔버스로 옮긴다
+   * (단추에 초점이 남으면 Esc 가 캔버스 디스패처에 닿지 않고 스페이스+끌기의 스페이스가 단추를 다시 누른다 — S1 리뷰 Important 2).
+   */
+  const onTool = useCallback(
+    (t: CanvasTool) => {
+      setTool((cur) => (t === "space" && cur === "space" ? "select" : t));
+      focusCanvas();
+    },
+    [focusCanvas],
+  );
+  /** 도구 상자 요소 누르기 — 끼운 뒤 초점을 캔버스로 옮긴다(마우스로 누르면 단추가 초점을 놓아 body 로 빠져 이어지는 Esc 가 캔버스에 닿지 않는다). */
+  const onPickElement = useCallback(
+    (item: PaletteItem) => {
+      editActions.pickPalette(item);
+      focusCanvas();
+    },
+    [editActions, focusCanvas],
+  );
+  /** 캔버스가 공간 넓히기를 한 번 끝내면 false 로 부른다 — 영역 선택으로 돌아간다. */
+  const onSpaceToolChange = useCallback((on: boolean) => {
+    if (!on) setTool("select");
+  }, []);
+  /** 캔버스가 "React Flow 선택(노드·선·메모·그룹 selected) 비우기" 를 채우는 ref — Esc 가 부른다(내장 키 처리를 껐으므로). */
+  const clearCanvasSelectionRef = useRef<(() => void) | null>(null);
+  const onEscape = () => {
+    const menuWasOpen = menuOpenRef.current; // 메뉴가 열려 있었으면 메뉴만 닫는다
+    // 기본 도구가 아니면(편집 [손]·[공간], 보기·디버그 [영역 선택]) 기본 도구로만 돌린다(선택은 그대로 — 메뉴 규칙과 같다). 메뉴가 열려 있으면 메뉴가 먼저다.
+    const home = defaultTool(mode);
+    if (!menuWasOpen && tool !== home) {
+      setTool(home);
+      return;
+    }
+    editActions.escape();
+    if (!menuWasOpen) clearCanvasSelectionRef.current?.();
+  };
+  const onCanvasKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    // 숨은 세트 탭 안에 초점이 남아 있어도(다른 탭을 코드로 고른 경우) 키를 받지 않는다 — 보이는 탭만 단축키에 반응한다.
+    if (!isShown(canvasHostRef.current)) return;
+    const common: ShortcutHandlers = {
+      escape: onEscape,
+      find: openFind,
+      fitView: fit,
+      // 고른 것이 없으면 키를 쓰지 않는다(브라우저 기본 동작 그대로).
+      fitSelection: () => (canvasFitSelectionRef.current?.() ? undefined : UNHANDLED),
+    };
+    let handlers: ShortcutHandlers = common;
+    if (editing) {
+      handlers = {
+        ...common,
+        undo: state.undo,
+        redo: state.redo,
+        // 고른 꺾는 점이 있으면 그것만 빼고(C14), 없으면 캔버스로 여럿 고른 것 전부(M2) 또는 단일 선택을 지운다. 지울 것이 없으면 키를 쓰지 않는다.
+        delete: () => {
+          if (removeRoutePointRef.current?.()) return undefined;
+          return editActions.deleteSelection(canvasSelectionRef.current?.() ?? []) ? undefined : UNHANDLED;
+        },
+        copy: () => (isFlowNode ? canvasActions.copy(selectedId!) : edit(() => fail(COPY_NEEDS_NODE))),
+        paste: () => (selectedEdgeId ? canvasActions.paste(selectedEdgeId) : edit(() => fail(PASTE_NEEDS_EDGE))),
+        duplicate: () => (isFlowNode ? canvasActions.duplicate(selectedId!) : edit(() => fail(COPY_NEEDS_NODE))),
+        // 정렬·간격·화살표 옮기기(A1) — 고른 것이 모자라면 조용히 아무 일 없다(ID 는 캔버스에서 읽는다).
+        alignLeft: () => onAlign("left"),
+        alignHCenter: () => onAlign("hcenter"),
+        alignRight: () => onAlign("right"),
+        alignTop: () => onAlign("top"),
+        alignVCenter: () => onAlign("vcenter"),
+        alignBottom: () => onAlign("bottom"),
+        distributeH: () => onDistribute("x"),
+        distributeV: () => onDistribute("y"),
+        nudgeLeft: () => onNudge(-1, 0),
+        nudgeRight: () => onNudge(1, 0),
+        nudgeUp: () => onNudge(0, -1),
+        nudgeDown: () => onNudge(0, 1),
+        nudgeLeftBig: () => onNudge(-10, 0),
+        nudgeRightBig: () => onNudge(10, 0),
+        nudgeUpBig: () => onNudge(0, -10),
+        nudgeDownBig: () => onNudge(0, 10),
+      };
+    } else if (debugging) {
+      handlers = {
+        ...common,
+        // 실행을 부르는 단축키(계속·한 단계)는 실행 권한이 있을 때만 — 없으면 손잡이가 없어 F5·F10 은 브라우저 동작 그대로다.
+        continue: canRun ? () => void sim.resume() : undefined,
+        // 중지(Shift+F5)는 실행을 부르지 않으므로 권한과 무관하고 늘 받는다 — 브라우저 강력 새로 고침으로 편집 중인 흐름을 잃지 않게.
+        stop: sim.stop,
+        step: canRun ? () => void sim.next() : undefined,
+        stepBack: sim.prev,
+        breakpoint: isFlowNode ? () => sim.toggleBreakpoint(selectedId!) : undefined,
+      };
+    }
+    if (dispatchShortcut(e, handlers, mac)) keepCanvasFocus();
+  };
+
+  // 숨은 탭이 되면 우클릭 메뉴를 닫는다 — 열린 메뉴의 document keydown·pointerdown 리스너가 보이는 탭의 키·누르기에 반응하지 않게.
+  useEffect(() => {
+    if (!active) setMenu(null);
+  }, [active]);
+
+  // 되돌리기·다시 하기만 캔버스 밖(오른쪽 패널·툴바 단추·body)에서도 받는다. 입력 칸·캔버스 안·대화 상자/메뉴 안·보기·디버그 모드는 건드리지 않는다.
+  // 되돌릴 것이 없거나 바쁜 중이어도 입력 칸 밖이므로 브라우저 기본 되돌리기가 초점을 옮기지 않게 preventDefault 는 한다. 최신 값은 ref 로 읽는다.
+  // 화면이 보이지 않으면(포털이 고르지 않은 탭을 display:none 으로 숨긴다) 아무것도 하지 않는다 — 다른 탭에서 누른 ⌘Z 가 숨은 흐름을 되돌리지 않게.
+  const outsideUndoRef = useRef<(e: globalThis.KeyboardEvent) => void>(() => undefined);
+  outsideUndoRef.current = (e) => {
+    if (!editing || e.defaultPrevented) return;
+    if (!isShown(canvasHostRef.current)) return;
+    const t = e.target as Element | null;
+    if (isTypingTarget(t)) return;
+    if (canvasHostRef.current?.contains(t as Node | null)) return;
+    if (t?.closest?.('[role="dialog"], [role="menu"]')) return;
+    const id = shortcutOf(e, mac);
+    if (id !== "undo" && id !== "redo") return;
+    e.preventDefault();
+    if (state.loading) return;
+    if (id === "undo") {
+      if (state.canUndo) state.undo();
+    } else if (state.canRedo) state.redo();
+  };
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => outsideUndoRef.current(e);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // 캔버스 겹침 — 기록·흐름 사본·단계(커서)가 바뀔 때만 다시 만든다(Local-Rules §16).
+  // 디버그 모드는 새 기록일 때만 커서 겹침을 그리고 낡은 기록이면 그리지 않는다(P-D9). 보기·편집 모드는 겹침이 없다.
+  const last = sim.last;
+  const fresh = !!last && !sim.stale;
+  const overlay = useMemo(() => (debugging && fresh && last ? debugOverlay(last.trace, last.flow, sim.cursor) : null), [debugging, fresh, last, sim.cursor]);
+
+  // 단계·커서를 옮기거나 새 기록을 받으면 그 노드로 캔버스를 옮긴다. 기록이 사라지면 이동 표시를 끈다.
+  // 디버그 모드는 커서 노드(k = n 이면 마지막 노드)로, 이미 화면 안이면 옮기지 않고 깜빡이기만 한다(focusReveal).
+  const focusRecord = debugging && fresh ? last : null;
+  const focusNodeId = (() => {
+    if (!focusRecord) return null;
+    const nodes = focusRecord.trace.nodes;
+    if (sim.cursor < 0 || nodes.length === 0) return null;
+    return nodes[Math.min(sim.cursor, nodes.length - 1)]?.nodeId ?? null;
+  })();
+  useEffect(() => {
+    setFocus((f) => (focusNodeId ? { id: focusNodeId, seq: f.seq + 1 } : f.id === null ? f : { id: null, seq: f.seq }));
+  }, [focusNodeId, focusRecord]);
+
+  const usedRuleIds = useMemo(() => new Set((flow?.nodes ?? []).map((n) => n.ruleId).filter((x): x is string => !!x)), [flow]);
+
+  const guideBlock = flow ? guideBlockReason(flow) : null;
+  const guideHint = !editing ? "편집 모드에서 적용한다" : (guideBlock ?? undefined);
+
+  const checksTab: BottomTab = {
+    key: "checks",
+    label: `검사 결과 ${state.checks.length}`,
+    testId: "flow-tab-checks",
+    content: <ChecksPanel checks={state.checks} onFocus={reveal} />,
+    scroll: true,
+  };
+  const bottomTabs: BottomTab[] = debugging
+    ? [
+        { key: "values", label: "값 표", testId: "flow-tab-values", content: <ValuesTab sim={sim} />, scroll: true },
+        { key: "compare", label: "실행 비교", testId: "flow-tab-compare", content: <RunCompare sim={sim} />, scroll: true },
+        checksTab,
+      ]
+    : [
+        checksTab,
+      ];
+
+  const bottom = (
+    <BottomPanel
+      tabs={bottomTabs}
+      tab={bottomTab}
+      onTab={setBottomTab}
+      collapsed={bottomCollapsed}
+      onToggle={() => setBottomCollapsed((c) => !c)}
+    />
+  );
+
+  // 세트 고르기 — 흐름 툴바 줄 맨 앞에 둔다(세트를 열기 전에는 이것만 있는 줄). set-edit-topbar 는 [찾기] 를 찾는 테스트 기준이다.
+  const picker = (
+    <span data-testid="set-edit-topbar" className="rsf-toolbar-group">
+      <IdPicker
+        placeholder="세트 ID·세트명"
+        noun="세트"
+        testId="set-pick"
+        search={searchSetPicks}
+        limit={SET_PICK_LIMIT}
+        inputWidth={150}
+        currentId={view?.set.setId ?? null}
+        onPick={(id) => tabsApi.pickSet(tabKey, id)}
+        onError={state.reportError}
+      />
+    </span>
+  );
+
+  return (
+    <>
+      {!view || !flow ? (
+        <>
+          <div className="rsf-toolbar">
+            <div className="rsf-toolbar-row">
+              {picker}
+              {view && (
+                <>
+                  <span className="rsf-toolbar-sep" aria-hidden />
+                  <span data-testid="set-edit-current" className="rsf-toolbar-title" style={{ fontWeight: 600 }}>
+                    {`${view.set.setId} · ${view.set.setName}`}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+          <p data-testid="set-edit-empty" style={{ padding: "var(--spacing-lg) var(--spacing-md)", color: "var(--color-text-muted)" }}>
+            세트를 골라 편집한다. 새 세트는 룰 세트 화면에서 등록한다
+          </p>
+        </>
+      ) : (
+        <>
+          <SetVersionRow state={state} canDo={canDo} />
+          <FlowToolbar
+            lead={picker}
+            state={state}
+            canDo={canDo}
+            canEdit={canEdit}
+            mode={mode}
+            onMode={state.setMode}
+            varDisplay={varDisplay}
+            onToggleVars={onToggleVars}
+            onAutoLayout={onAutoLayout}
+            onFit={fit}
+            showMiniMap={showMiniMap}
+            onToggleMiniMap={onToggleMiniMap}
+            onOpenFind={openFind}
+            findOpen={findOpen}
+            onHelpEscape={focusCanvas}
+            autoSave={autoSave}
+          />
+          {debugging && <DebugToolbar sim={sim} canRun={canRun} selectedId={isFlowNode ? selectedId : null} />}
+          <ContentBody root direction="column" resizable storageKey={STORAGE_KEY}>
+            <ContentBody key="main" resizable storageKey={`${STORAGE_KEY}.main`} flex="1 1 0" minSize={200}>
+              {debugging && (
+                <ContentPanel key="left" width={280} minSize={200}>
+                  <DebugInputs sim={sim} tests={tests} setId={setId} canEditCases={canEditCases} canRun={canRun} onError={state.reportError} />
+                </ContentPanel>
+              )}
+              <ContentPanel key="canvas" flex="1 1 0" minSize={320}>
+                <div className="rsf-body">
+                  <div ref={canvasHostRef} className="rsf-canvas-host" data-find-open={findOpen ? "" : undefined} onKeyDown={onCanvasKeyDown}>
+                    <FlowCanvas
+                      flow={flow}
+                      rules={state.rules}
+                      checks={state.checks}
+                      mode={mode}
+                      varDisplay={varDisplay}
+                      varLabels={varLabels}
+                      selectedId={selectedId}
+                      selectedEdgeId={selectedEdgeId}
+                      overlay={overlay}
+                      focusId={focus.id}
+                      focusSeq={focus.seq}
+                      focusReveal={debugging}
+                      fitSignal={fitSignal}
+                      fitKey={setId}
+                      breakpoints={sim.breakpoints}
+                      collapsed={collapse.collapsed}
+                      showMiniMap={showMiniMap}
+                      valueAt={debugging && !sim.stale ? sim.valueAt : undefined}
+                      editingCondEdgeId={editingCond}
+                      editingLabelEdgeId={editingLabel}
+                      onEditLabel={onEditLabel}
+                      onEditLabelClose={onEditLabelClose}
+                      onSelect={select}
+                      onSelectEdge={selectEdge}
+                      onOpenRule={openRule}
+                      onMove={onMove}
+                      onRouteChange={onRouteChange}
+                      onLabelOffsetChange={onLabelOffsetChange}
+                      onGroupPadChange={onGroupPadChange}
+                      onNodeSizeChange={onNodeSizeChange}
+                      onCatchSpotChange={onCatchSpotChange}
+                      removeRoutePointRef={removeRoutePointRef}
+                      clearSelectionRef={clearCanvasSelectionRef}
+                      alignSourceRef={alignSourceRef}
+                      selectionRef={canvasSelectionRef}
+                      fitSelectionRef={canvasFitSelectionRef}
+                      fitKeyLabel={mac ? "⇧1" : "Shift+1"}
+                      onMoveNode={onMoveNode}
+                      onConnect={onConnect}
+                      onAddCatch={onAddCatch}
+                      onReconnect={onReconnect}
+                      onDropPalette={editActions.dropPalette}
+                      onDropRule={editActions.dropRule}
+                      onAssignDrop={onAssignDrop}
+                      onRenameTask={onRenameTask}
+                      onNoteChange={onNoteChange}
+                      onContextMenu={onContextMenu}
+                      onEditCond={onEditCond}
+                      onEditCondClose={onEditCondClose}
+                      onToggleBreakpoint={sim.toggleBreakpoint}
+                      onSelectionChange={setMultiSel}
+                      dragTool={tool === "hand" ? "hand" : "select"}
+                      spaceTool={spaceOn}
+                      onSpaceToolChange={onSpaceToolChange}
+                      onShiftSpace={onShiftSpace}
+                    />
+                    <FlowToolbox mode={mode} tool={tool} onTool={onTool} onPick={onPickElement} disabled={state.loading} />
+                    {findOpen && <FindWidget find={find} inputRef={findInputRef} focusSeq={findFocusSeq} onClose={closeFind} mac={mac} />}
+                    <ContextMenu items={menuItems} at={menu?.at ?? null} onClose={onCloseMenu} />
+                  </div>
+                </div>
+              </ContentPanel>
+              <ContentPanel key="right" width={360} minSize={280}>
+                <div className="rsf-props" data-testid="flow-props">
+                  {debugging ? (
+                    <VariablePanel
+                      sim={sim}
+                      setId={setId}
+                      flow={flow}
+                      rules={state.rules}
+                      selectedId={selectedId}
+                      canParse={canDo("validate")}
+                      onOpenRule={openRule}
+                    />
+                  ) : (
+                    <SidePanel
+                      flow={flow}
+                      rules={state.rules}
+                      checks={state.checks}
+                      mode={mode}
+                      loading={state.loading}
+                      selectedId={selectedId}
+                      selectedEdgeId={selectedEdgeId}
+                      selectedNodeIds={multiSel}
+                      setName={state.setName}
+                      description={state.description}
+                      onSetName={state.setSetName}
+                      onDescription={state.setDescription}
+                      canApplyGuide={editing && !guideBlock && !state.loading}
+                      guideHint={guideHint}
+                      onApplyGuide={state.applyGuide}
+                      onError={state.reportError}
+                      onEdit={edit}
+                      onOpenRule={openRule}
+                      sections={sections}
+                      ruleSearch={ruleSearch}
+                      assignSignal={assignSignal}
+                      onInsertRule={onInsertListRule}
+                      onAssignRule={onAssignRule}
+                      usedRuleIds={usedRuleIds}
+                      layoutSource={layoutSource}
+                    />
+                  )}
+                </div>
+              </ContentPanel>
+            </ContentBody>
+            {bottomCollapsed ? (
+              <div key="bottom-bar" className="rsf-bottom-bar">
+                {bottom}
+              </div>
+            ) : (
+              <ContentPanel key="bottom" height={BOTTOM_HEIGHT} minSize={120}>
+                {bottom}
+              </ContentPanel>
+            )}
+          </ContentBody>
+        </>
+      )}
+
+      {/* 오류 창은 body 로 포털되어 패널 display:none 을 따르지 않는다 — 숨은 탭의 오류(자동 저장·조건식 확인 실패 등)는 상태로 두었다가 탭을 고르면 보인다. */}
+      {active && state.error && <ErrorModal message={state.error} onClose={state.clearError} />}
+    </>
+  );
+}

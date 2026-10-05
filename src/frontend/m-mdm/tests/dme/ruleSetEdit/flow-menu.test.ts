@@ -25,7 +25,8 @@ vi.mock("../../../pages/dme/ruleSetEdit/state/useCollapse", () => {
 import { NODE_LIMIT_MESSAGE, insertRule, insertSplit, toEditFlow, type EditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, typeInto, visibleText } from "../helpers/render";
-import { byTestId, canvasNodeIds, click, handoff, hoverEdge, inDoc, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
+import { byTestId, canvasNodeIds, click, hoverEdge, inDoc, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
+import { pickInActive } from "./set-tabs-helpers";
 
 const ioName = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const rule = (ruleId: string, cond: string, result: string, name = `${ruleId} 이름`): RuleIo => ({
@@ -191,13 +192,9 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     expect(canvasNodeIds()).toHaveLength(6); // start + r1..r3 + 새 룰 + end
     expect(canvasNodeIds()).toContain("r4");
 
+    // 이 탭에서 다른 세트를 연다(툴바 세트 고르기) — 클립보드는 탭(편집기)마다 있다. 세트 탭(하위 세트 spec §10.3, ui:7) 뒤로 포털 넘김은 새 탭으로 연다.
     window.confirm = vi.fn(() => true);
-    handoff("E2S_OTHER");
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent("portal-tab-activated", { detail: { tabId: "tab-1" } }));
-    });
-    await flush();
-    await settle(100);
+    await pickInActive("E2S_OTHER");
     expect(byTestId("set-edit-current").textContent).toContain("E2S_OTHER");
     await click("flow-mode-edit");
     await ctxEdge("e2");
