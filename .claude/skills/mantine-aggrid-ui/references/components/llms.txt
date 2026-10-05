@@ -58,6 +58,11 @@
 
 - [위젯 (WidgetWorkspace · WidgetBoard · WidgetFrame · WidgetTabs · WidgetPicker)](widget.md): 사용자가 위젯(조각 프로그램)을 24칸 격자에서 자유롭게 옮기고 크기를 바꾸며, 탭으로 나눠 서버에 저장하게 하는 홈 화면을 만들 때 쓴다(관리자 정의 위젯·사용 중지·기본 배치 편집 포함). 행 단위 대시보드가 필요하면 [dashboard](dashboard.md), 사용자가 자유 배치·탭·서버 저장을 쓰면 widget 을 고른다.
 
+## 위젯 도크·떠 있는 창 (`@dk-oasis/shared/portal-shell`)
+
+- [위젯 도크 (PortalShell widgetDock · WidgetDockLayer · DockToolsMenu · useWidgetDock)](widget-dock.md): 포털 머리 「도구」 버튼으로 `floatable` 위젯(계산기·단위 변환·메모)을 업무 화면 위 떠 있는 창으로 띄울 때 쓴다. 창은 여러 개·이동·크기 조절·접기(아이콘)가 되고, 탭을 바꿔도 남으며 사용자별로 저장한다. 화면(m-*)은 이 부품을 직접 쓰지 않는다 — 포털 호스트가 `PortalShell` 에 `widgetDock` 을 넘기면 셸이 그린다.
+- [FloatingWindow](floating-window.md): 업무 화면 위에 떠 있는 작은 창 하나를 그릴 때 쓴다. 창 막대(끌기 손잡이·제목·접기·닫기)로 옮기고, 오른쪽 아래 손잡이로 크기를 바꾸며, 접으면 같은 자리에 둥근 아이콘만 남는다. 업무 도메인과 무관한 범용 부품이다.
+
 ## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)
 
 - [MDM 화면 메타 (MdmMetaProvider · useMdmColumn · MdmMetaCard · MdmFieldLabel · useMdmValidation)](mdm-meta.md): 그리드 머리글·폼 라벨·상세 표(th) 라벨의 캡션과 툴팁을 MDM 컬럼 사전에서 가져오고, 입력값을 MDM 정의(필수·형식·길이·허용 코드·표준식)로 즉시 검사할 때 쓴다. 포털 탭이 공급자를 자동으로 씌우므로 캡션·툴팁은 화면이 아무것도 하지 않아도 붙는다. 값 검사는 화면이 켠다.
@@ -85,6 +90,10 @@
 - `WIDGET_CSS`: WidgetStyle 내부용 CSS 문자열
 - `getDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수
 - `setDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수
+- `FLOATING_WINDOW_CSS`: FloatingWindowStyle 내부용 CSS 문자열
+- `FloatingWindowStyle`: FloatingWindow 가 스스로 넣는 스타일
+- `WIDGET_DOCK_CSS`: WidgetDockStyle 내부용 CSS 문자열
+- `WidgetDockStyle`: WidgetDockLayer·DockToolsMenu 가 스스로 넣는 스타일
 - `DataGrid`: AgDataGrid 의 별칭. 새 코드는 AgDataGrid
 - `useRowStateManager`: 옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager
 - `ResizableFormPanel`: Part B §4-3 이 새 화면 사용 금지. ContentBody resizable
