@@ -94,7 +94,8 @@ public class MetaFeedService {
 
     /**
      * action view(= 스펙 columns·domains·rules·ruleSets·codes·layouts) — {@code {items:[{key, value}], failed:[{key, message}]}}.
-     * COLUMN 은 선택 {@code params.systemCode} 를 받아 시스템 별칭으로도 찾는다(spec 2026-10-03-mdm-column-system-alias-design §3). 다른 type 은 무시한다.
+     * COLUMN 은 선택 {@code params.systemCode} 를 받아 시스템 별칭으로도 찾는다(spec 2026-10-03-mdm-column-system-alias-design §3). 쉼표로 이은 목록이면
+     * 앞 코드부터 찾는다({@link MetaFeedDictionary#columns(java.util.Collection, String)}). 다른 type 은 무시한다.
      */
     public Map<String, Object> view(MetaFeedViewRequest request, List<Map<String, Object>> keys) {
         MetaTargetType type = requireType(request == null ? null : request.getType());
