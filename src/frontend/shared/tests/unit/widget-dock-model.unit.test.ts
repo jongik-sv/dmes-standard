@@ -20,6 +20,7 @@ import {
   listDockableEntries,
   moveDockWindow,
   openDockWindow,
+  placeDockWindow,
   resizeDockWindow,
   sanitizeDockWindows,
   stableDockWindowId,
@@ -154,16 +155,32 @@ describe("dock-model — 열기", () => {
     expect(r.windows).toBe(ws);
   });
 
-  it("좁은 화면에서도 새 창이 화면 안에 들어온다", () => {
-    const r = openDockWindow([], entry("def.calc", { defaultSize: { w: 20, h: 30 } }), {
-      width: 500,
-      height: 400,
-    });
+  it("좁은 화면에서도 새 창이 화면 안에 들어오고, 저장 크기는 메타 기본 크기 그대로다(표시만 자른다)", () => {
+    const narrow = { width: 500, height: 400 };
+    const r = openDockWindow([], entry("def.calc", { defaultSize: { w: 20, h: 30 } }), narrow);
     const w = r.windows[0];
-    expect(w.w).toBe(500);
-    expect(w.h).toBe(400);
+    expect(w.w).toBe(800);
+    expect(w.h).toBe(900);
     expect(w.x).toBe(0);
     expect(w.y).toBe(0);
+    expect(clampDockWindow(w, narrow)).toMatchObject({ w: 500, h: 400, x: 0, y: 0 });
+  });
+
+  it("multiple===false 위젯이 이미 펼쳐져 맨 앞이고 자리도 그대로면 같은 배열 참조를 돌려준다", () => {
+    const e = entry("def.calc", { multiple: false });
+    const id = stableDockWindowId("def.calc");
+    const ws = [win("other", { widgetId: "def.memo", z: 1 }), win(id, { z: 2 })];
+    const r = openDockWindow(ws, e, VP);
+    expect(r.kind).toBe("focused");
+    expect(r.windows).toBe(ws);
+    // 맨 앞이 아니거나 접혀 있거나 화면 밖이면 바뀐 새 배열이다.
+    expect(openDockWindow([win(id, { z: 1 }), win("o", { widgetId: "def.memo", z: 2 })], e, VP).windows[0].z).toBe(2);
+    const collapsed = [win(id, { collapsed: true, z: 2 })];
+    expect(openDockWindow(collapsed, e, VP).windows).not.toBe(collapsed);
+    const outside = [win(id, { x: 5000, z: 1 })];
+    const moved = openDockWindow(outside, e, VP);
+    expect(moved.windows).not.toBe(outside);
+    expect(moved.windows[0].x).toBe(VP.width - 300);
   });
 });
 
@@ -215,6 +232,39 @@ describe("dock-model — 자르기·앞으로·접기·닫기·옮기기", () =>
     expect(moveDockWindow(ws, "a", 100, 100, VP)).toBe(ws);
     expect(moveDockWindow(ws, "a", -10, -10, VP)[0]).toMatchObject({ x: 0, y: 0 });
     expect(resizeDockWindow(ws, "a", 50, 9999, VP)[0]).toMatchObject({ w: 220, h: VP.height });
+  });
+});
+
+describe("dock-model — 저장 크기 보존(좁은 화면을 거쳐도 w·h 가 줄지 않는다)", () => {
+  const NARROW = { width: 500, height: 400 };
+
+  it("placeDockWindow 는 위치만 맞추고 w·h 는 그대로이며, 바뀐 게 없으면 같은 객체다", () => {
+    const big = win("a", { w: 800, h: 600, x: 300, y: 300 });
+    const placed = placeDockWindow(big, NARROW);
+    expect(placed).toMatchObject({ w: 800, h: 600, x: 0, y: 0 });
+    const ok = win("a", { x: 0, y: 0 });
+    expect(placeDockWindow(ok, VP)).toBe(ok);
+  });
+
+  it("옮기기·접기·펼치기·재열기는 좁은 화면에서도 저장 w·h 를 줄이지 않는다", () => {
+    let ws = [win("a", { w: 800, h: 600, x: 100, y: 100 })];
+    ws = moveDockWindow(ws, "a", 400, 300, NARROW);
+    expect(ws[0]).toMatchObject({ w: 800, h: 600 });
+    ws = toggleDockCollapse(ws, "a", NARROW);
+    expect(ws[0]).toMatchObject({ w: 800, h: 600, collapsed: true });
+    ws = toggleDockCollapse(ws, "a", NARROW);
+    expect(ws[0]).toMatchObject({ w: 800, h: 600, collapsed: false });
+    const r = openDockWindow([{ ...ws[0], collapsed: true }], entry("def.calc", { multiple: false }), NARROW);
+    expect(r.windows[0]).toMatchObject({ w: 800, h: 600, collapsed: false });
+    // 화면이 다시 넓어지면 원래 크기로 보인다.
+    expect(clampDockWindow(ws[0], VP)).toMatchObject({ w: 800, h: 600 });
+    expect(clampDockWindow(ws[0], NARROW)).toMatchObject({ w: 500, h: 400 });
+  });
+
+  it("크기 바꾸기는 사용자가 조절한 값이라 저장 w·h 가 바뀐다(최소·뷰포트로 자른다)", () => {
+    const ws = [win("a", { w: 800, h: 600, x: 0, y: 0 })];
+    expect(resizeDockWindow(ws, "a", 400, 300, NARROW)[0]).toMatchObject({ w: 400, h: 300 });
+    expect(resizeDockWindow(ws, "a", 9000, 9000, NARROW)[0]).toMatchObject({ w: 500, h: 400 });
   });
 });
 

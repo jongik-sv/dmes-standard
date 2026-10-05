@@ -383,6 +383,21 @@ describe("useWidgetDock", () => {
     Object.assign(window, { innerWidth: 1024, innerHeight: 768 });
   });
 
+  it("한 번만 놓는 위젯이 이미 펼쳐져 맨 앞이면 열기가 아무것도 바꾸지 않아 저장도 하지 않는다", async () => {
+    vi.useFakeTimers();
+    const store = memoryStore([win("a")]);
+    const registry: WidgetRegistry = { "def.calc": entry("def.calc", { multiple: false }) };
+    act(() => root.render(h(Harness, { userId: "u1", store, registry, onApi })));
+    await flush();
+    const before = api.windows;
+    let kind = "";
+    act(() => void (kind = api.open("def.calc")));
+    expect(kind).toBe("focused");
+    expect(api.windows).toBe(before);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(store.save).not.toHaveBeenCalled();
+  });
+
   it("언마운트 때 남은 저장을 보낸다", async () => {
     vi.useFakeTimers();
     const store = memoryStore();

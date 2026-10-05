@@ -80,21 +80,48 @@ export function stableDockWindowId(widgetId: string): string {
 const clamp = (v: number, min: number, max: number) =>
   Math.min(Math.max(v, min), Math.max(min, max));
 
+/** 뷰포트에 맞춘 창 크기 — 최소(뷰포트가 작으면 뷰포트)~뷰포트. */
+function fitSize(w: number, h: number, viewport: DockViewport): { w: number; h: number } {
+  const vw = Math.max(0, viewport.width);
+  const vh = Math.max(0, viewport.height);
+  return {
+    w: Math.round(clamp(w, Math.min(DOCK_MIN_SIZE.w, vw), vw)),
+    h: Math.round(clamp(h, Math.min(DOCK_MIN_SIZE.h, vh), vh)),
+  };
+}
+
 /**
- * 창을 뷰포트 안으로 자른다. 크기는 최소(뷰포트가 작으면 뷰포트)~뷰포트, 위치는 보이는 크기(접혔으면 아이콘)가 다 들어오게.
+ * 창을 뷰포트 안으로 자른 **표시용** 값 — 크기는 최소(뷰포트가 작으면 뷰포트)~뷰포트, 위치는 보이는 크기(접혔으면 아이콘)가 다 들어오게.
+ * 그릴 때만 쓴다. 상태·저장값은 이 값으로 바꾸지 않는다(좁은 화면을 한 번 거쳤다고 저장 크기가 영구히 줄지 않게 — placeDockWindow).
  * 바뀐 것이 없으면 같은 객체를 돌려준다.
  */
 export function clampDockWindow(win: DockWindow, viewport: DockViewport): DockWindow {
   const vw = Math.max(0, viewport.width);
   const vh = Math.max(0, viewport.height);
-  const w = Math.round(clamp(win.w, Math.min(DOCK_MIN_SIZE.w, vw), vw));
-  const h = Math.round(clamp(win.h, Math.min(DOCK_MIN_SIZE.h, vh), vh));
+  const { w, h } = fitSize(win.w, win.h, viewport);
   const shownW = win.collapsed ? DOCK_ICON_SIZE : w;
   const shownH = win.collapsed ? DOCK_ICON_SIZE : h;
   const x = Math.round(clamp(win.x, 0, vw - shownW));
   const y = Math.round(clamp(win.y, 0, vh - shownH));
   if (x === win.x && y === win.y && w === win.w && h === win.h) return win;
   return { ...win, x, y, w, h };
+}
+
+/**
+ * 위치만 화면 안으로 맞춘다 — 저장 w·h 는 그대로 둔다. 위치는 뷰포트로 줄인 표시 크기 기준이라 지금 화면에서 창이 다 보인다.
+ * 저장 크기가 바뀌는 때는 사용자가 크기를 조절할 때(resizeDockWindow)와 새 창의 메타 기본 크기뿐이다.
+ * 바뀐 것이 없으면 같은 객체를 돌려준다.
+ */
+export function placeDockWindow(win: DockWindow, viewport: DockViewport): DockWindow {
+  const vw = Math.max(0, viewport.width);
+  const vh = Math.max(0, viewport.height);
+  const { w, h } = fitSize(win.w, win.h, viewport);
+  const shownW = win.collapsed ? DOCK_ICON_SIZE : w;
+  const shownH = win.collapsed ? DOCK_ICON_SIZE : h;
+  const x = Math.round(clamp(win.x, 0, vw - shownW));
+  const y = Math.round(clamp(win.y, 0, vh - shownH));
+  if (x === win.x && y === win.y) return win;
+  return { ...win, x, y };
 }
 
 function topZ(windows: readonly DockWindow[]): number {
@@ -136,9 +163,9 @@ export function openDockWindow(
   if (entry.meta.multiple === false) {
     const open = windows.find((w) => w.widgetId === widgetId);
     if (open) {
-      const expanded = windows.map((w) =>
-        w.id === open.id ? clampDockWindow({ ...w, collapsed: false }, viewport) : w
-      );
+      const placed = placeDockWindow(open.collapsed ? { ...open, collapsed: false } : open, viewport);
+      // 이미 펼쳐져 맨 앞에 있고 자리도 그대로면 바뀐 것이 없다 — 같은 배열을 돌려준다(상태·저장이 움직이지 않게).
+      const expanded = placed === open ? windows : windows.map((w) => (w === open ? placed : w));
       return { kind: "focused", windows: bringDockWindowToFront(expanded, open.id), id: open.id };
     }
   }
@@ -150,7 +177,7 @@ export function openDockWindow(
   const id = dockWindowSlotId(widgetId, slot);
   const size = windowSizeFor(entry.meta);
   const k = windows.length;
-  const win = clampDockWindow(
+  const win = placeDockWindow(
     {
       id,
       widgetId,
@@ -171,7 +198,7 @@ export function closeDockWindow(windows: DockWindow[], id: string): DockWindow[]
   return windows.some((w) => w.id === id) ? windows.filter((w) => w.id !== id) : windows;
 }
 
-/** 접기 ↔ 펼치기. 펼치면 펼친 크기로 다시 자르고 맨 앞으로 가져온다. */
+/** 접기 ↔ 펼치기. 펼치면 펼친 크기로 위치를 맞추고 맨 앞으로 가져온다(저장 크기는 그대로). */
 export function toggleDockCollapse(
   windows: DockWindow[],
   id: string,
@@ -179,12 +206,12 @@ export function toggleDockCollapse(
 ): DockWindow[] {
   const target = windows.find((w) => w.id === id);
   if (!target) return windows;
-  const next = clampDockWindow({ ...target, collapsed: !target.collapsed }, viewport);
+  const next = placeDockWindow({ ...target, collapsed: !target.collapsed }, viewport);
   const replaced = windows.map((w) => (w.id === id ? next : w));
   return next.collapsed ? replaced : bringDockWindowToFront(replaced, id);
 }
 
-/** 창 옮기기(뷰포트 안으로 자른다). */
+/** 창 옮기기(위치만 뷰포트 안으로 맞춘다 — 저장 크기는 그대로). */
 export function moveDockWindow(
   windows: DockWindow[],
   id: string,
@@ -192,10 +219,10 @@ export function moveDockWindow(
   y: number,
   viewport: DockViewport
 ): DockWindow[] {
-  return patch(windows, id, (w) => clampDockWindow({ ...w, x, y }, viewport));
+  return patch(windows, id, (w) => placeDockWindow({ ...w, x, y }, viewport));
 }
 
-/** 창 크기 바꾸기(최소 크기·뷰포트 안으로 자른다). */
+/** 창 크기 바꾸기 — 사용자가 조절한 값이므로 저장 크기가 바뀐다(최소 크기·뷰포트 안으로 자르고, 커진 만큼 위치도 맞춘다). */
 export function resizeDockWindow(
   windows: DockWindow[],
   id: string,
@@ -203,7 +230,10 @@ export function resizeDockWindow(
   h: number,
   viewport: DockViewport
 ): DockWindow[] {
-  return patch(windows, id, (win) => clampDockWindow({ ...win, w, h }, viewport));
+  return patch(windows, id, (win) => {
+    const size = fitSize(w, h, viewport);
+    return placeDockWindow({ ...win, w: size.w, h: size.h }, viewport);
+  });
 }
 
 function patch(windows: DockWindow[], id: string, fn: (w: DockWindow) => DockWindow): DockWindow[] {
