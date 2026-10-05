@@ -32,6 +32,7 @@ const KIND_TEXT: Record<NodeTrace["kind"], string> = {
   PARALLEL: "병렬 분기",
   MERGE: "합류",
   CATCH: "받는 노드",
+  SET: "룰 세트",
 };
 
 const OUTCOME: Record<BranchOutcome, { text: string; style: () => React.CSSProperties }> = {
