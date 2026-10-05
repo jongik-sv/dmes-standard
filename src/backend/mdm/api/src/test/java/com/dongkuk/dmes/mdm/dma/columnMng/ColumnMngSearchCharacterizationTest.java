@@ -1,8 +1,8 @@
 package com.dongkuk.dmes.mdm.dma.columnMng;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
-import com.dongkuk.dmes.mdm.common.dictionary.ColumnDescriptionSanitizer;
 import com.dongkuk.dmes.mdm.common.perf.QueryCountProbe;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.security.MdmRoles;
@@ -62,7 +62,7 @@ class ColumnMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
             "Ärger", "가나", "경로\\구분", "매핑 컬럼", "코일 두께", "코일ID");
 
     private static final List<String> ROW_KEYS = List.of("columnId", "columnName", "physName", "labelLong", "labelMid",
-            "labelShort", "domainId", "domainName", "domainStdName", "required", "termNames", "systemFields", "usageNote");
+            "labelShort", "domainId", "domainName", "domainStdName", "required", "termNames", "systemFields");
 
     private static final String USAGE_HTML = "<p>메모 <b>굵게</b></p>";
 
@@ -174,7 +174,7 @@ class ColumnMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 목록_행은_13개_키를_고정_순서로_싣고_값_형식이_정해져_있다() {
+    void 목록_행은_12개_키를_고정_순서로_싣고_값_형식이_정해져_있다() {
         List<Map<String, Object>> list = maps(service.search(new ColumnMngSearchRequest()).get("list"));
         for (Map<String, Object> row : list) {
             assertEquals(ROW_KEYS, new ArrayList<>(row.keySet()), "행 " + row.get("columnName"));
@@ -194,14 +194,13 @@ class ColumnMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
         assertEquals("Y", thk.get("required"));
         assertEquals("원재료 + *** + ? + 원재료", thk.get("termNames"), "null 자리는 ***, 없는 용어는 ?, 반복은 그대로");
         assertEquals("ERP:ZZ_HIT1, MES:ZZ_HIT2", thk.get("systemFields"));
-        assertEquals("메모전용", thk.get("usageNote"));
+        assertFalse(thk.containsKey("usageNote"), "목록 행에는 활용처 메모 칸이 없다(12b7ab5f)");
 
         Map<String, Object> map = row(list, "매핑 컬럼");
         assertEquals("N", map.get("required"));
         assertEquals("", map.get("termNames"), "TERM_IDS 가 null 이면 빈 문자열");
         assertEquals("APS:z, ERP:AMB, ERP:MatNr, ERP:amb, MES:Amb", map.get("systemFields"),
                 "매핑은 시스템 코드 → 실제 필드명(대문자 먼저) 순서");
-        assertEquals(ColumnDescriptionSanitizer.plainText(USAGE_HTML), map.get("usageNote"), "목록의 활용처 메모는 글자만");
         assertEquals(dLabel.getDomainId(), map.get("domainId"));
         assertEquals("ONLYDOM", map.get("domainStdName"));
 
@@ -211,7 +210,6 @@ class ColumnMngSearchCharacterizationTest extends AbstractMdmSharedDbTest {
         assertEquals(null, none.get("domainStdName"));
         assertEquals("", none.get("termNames"), "TERM_IDS 가 [] 이면 빈 문자열");
         assertEquals("", none.get("systemFields"));
-        assertEquals(null, none.get("usageNote"));
     }
 
     // ── 검색어(keyword) ───────────────────────────────────────────────────
