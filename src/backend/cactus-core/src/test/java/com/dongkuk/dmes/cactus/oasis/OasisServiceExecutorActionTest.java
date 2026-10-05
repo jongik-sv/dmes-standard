@@ -9,7 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.common.ErrorCode;
+import com.dongkuk.dmes.cactus.common.ResponseCodeAware;
 import com.dongkuk.dmes.cactus.web.request.CactusRequest;
 import com.dongkuk.dmes.cactus.web.request.GridData;
 import com.dongkuk.dmes.cactus.web.request.RequestMeta;
@@ -94,5 +96,27 @@ class OasisServiceExecutorActionTest {
         verify(starter).start(eq("commWidgetMng"), sc.capture());
         assertThat(sc.getValue().serviceInput("action").getObject()).isEqualTo("search");
         assertThat(sc.getValue().serviceInput("widgetId").getObject()).isEqualTo("W1");
+    }
+
+    static final class CodedException extends BusinessException implements ResponseCodeAware {
+        CodedException() {
+            super(ErrorCode.ACCESS_DENIED, "시스템 관리자만 할 수 있습니다");
+        }
+
+        @Override
+        public String responseCode() {
+            return "MDM027";
+        }
+    }
+
+    @Test
+    void BPMN_밖에서_잡힌_업무_예외도_변환기와_같은_코드를_싣는다() {
+        when(starter.start(eq("metaFeed"), any(ServiceContext.class))).thenThrow(new CodedException());
+
+        CactusResponse res = executor.execute("metaFeed", "save", request(new HashMap<>(), null));
+
+        assertThat(res.getMeta().success()).isFalse();
+        assertThat(res.getMeta().code()).isEqualTo("MDM027");
+        assertThat(res.getMeta().message()).isEqualTo("시스템 관리자만 할 수 있습니다");
     }
 }

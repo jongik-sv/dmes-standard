@@ -156,10 +156,11 @@ class DomainMngOasisFlowTest {
         JsonNode missing = post("view", json.createObjectNode().put("domainId", 987654), null);
         assertFalse(missing.path("meta").path("success").asBoolean(true), missing.toString());
         assertTrue(missing.path("meta").path("message").asText().contains("S06"), missing.toString());
+        assertEquals("MDM015", missing.path("meta").path("code").asText(), missing.toString());
         ObjectNode bad = draft(uniq("B"), "TEXT", "STRING");
         bad.put("stdRule", "value > OTHER_COL");
         JsonNode rejected = post("save", bad, grids());
-        assertEquals("S001", rejected.path("meta").path("code").asText(), rejected.toString());
+        assertEquals("MDM015", rejected.path("meta").path("code").asText(), rejected.toString());
         assertTrue(rejected.path("meta").path("message").asText().contains("R04"), rejected.toString());
     }
 

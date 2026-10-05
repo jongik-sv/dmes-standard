@@ -12,8 +12,9 @@ import java.util.List;
 /**
  * {@link MdmErrorCode} 를 cactus {@link BusinessException} 으로 싣는 한 곳(TSK-01-03 B5, D5).
  *
- * <p>OASIS 경로는 HTTP 200 + {@code meta.code} 로 오류를 돌려주므로 의미 상태(예: MDM001 409)는 첫 detail 의
- * code 로 표현한다. 화면은 {@code errors[].code} 로 원인을 가린다. 검사 이슈는 뒤이은 detail 로 싣는다.
+ * <p>OASIS 경로는 HTTP 200 + {@code meta.code} 로 오류를 돌려주므로 의미 상태(예: MDM001 409)는 {@code meta.code} 와 첫 detail 의
+ * code 로 표현한다 — 여기서 만든 예외는 모두 cactus {@link ResponseCodeAware} 라서 {@code meta.code} 가 {@code MDMnnn} 이다(2026-10-05,
+ * 예전에는 {@link #coded} 만 그랬고 나머지는 {@code S001}). 화면은 {@code meta.code} 로 원인을 가린다. 검사 이슈는 뒤이은 detail 로 싣는다.
  *
  * <p>BPMN serviceTask 안에서 던진 예외는 OASIS 가 SYSTEM_ERROR 로 바꾸고 {@code meta.message}(= 예외 message)를 싣는다
  * (TSK-04-04 design.md F12). 예전에는 이때 {@code errors[]} 를 비웠으나, cactus 의 d3366172(2026-10-04)부터
@@ -35,15 +36,14 @@ public final class MdmErrors {
     }
 
     /**
-     * {@link #of(MdmErrorCode)} 와 같되, BPMN 안에서 던져도 OASIS {@code meta.code} 에 {@code MDMnnn} 을 싣는다(cactus {@link ResponseCodeAware}).
-     * 다른 MDM 오류는 BPMN 경로의 기본 {@code S001} + 문구 관례(TSK-04-04 F12)를 그대로 두고, 계약이 코드를 약속한 경로만 이것을 쓴다 —
-     * 지금은 {@code metaFeed/save} 권한 거부(MDM027, 계획 Ruling R10) 하나다.
+     * {@link #of(MdmErrorCode)} 와 같다. 처음에는 {@code metaFeed/save} 권한 거부(MDM027)만 {@code meta.code} 에 {@code MDMnnn} 을
+     * 싣던 팩토리였으나 2026-10-05 부터 {@code of} 계열도 같아져 호환으로 남긴다.
      */
     public static BusinessException coded(MdmErrorCode code) {
-        return new Coded(code.transport(), code.defaultMessage(), List.of(ErrorDetail.of(code.code(), code.defaultMessage())), code.code());
+        return of(code);
     }
 
-    /** meta.code 를 스스로 정하는 MDM 오류. 나머지는 {@link BusinessException} 그대로다. */
+    /** meta.code 를 스스로 정하는 MDM 오류({@code MDMnnn}). 운반용 {@link ErrorCode}·message·details 는 {@link BusinessException} 그대로다. */
     static final class Coded extends BusinessException implements ResponseCodeAware {
 
         private static final long serialVersionUID = 1L;
@@ -70,7 +70,15 @@ public final class MdmErrors {
         for (MdmCheckIssue issue : issues) {
             details.add(ErrorDetail.ofGrid(null, issue.itemKey(), issue.field(), issue.code(), issue.message()));
         }
-        return new BusinessException(code.transport(), message, List.copyOf(details));
+        return raw(code, message, List.copyOf(details));
+    }
+
+    /**
+     * message·details 를 호출자가 다 짠 MDM 오류(예: {@code DomainRejections}·{@code RuleSaveRejections} 의 이슈 요약 문구).
+     * {@code meta.code} 는 {@code code.code()} 다.
+     */
+    public static BusinessException raw(MdmErrorCode code, String message, List<ErrorDetail> details) {
+        return new Coded(code.transport(), message, details, code.code());
     }
 
     /** 입력 검증 실패({@link MdmErrorCode#INVALID_INPUT}) — 서비스들이 따로 두던 {@code invalid(detail)} 의 정본. */

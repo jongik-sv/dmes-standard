@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mdm.common.rule.check;
 
 import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.cactus.web.response.ErrorDetail;
+import com.dongkuk.dmes.mdm.common.support.MdmErrors;
 import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +12,7 @@ import java.util.stream.Collectors;
 /**
  * 룰 저장 거부 예외(TSK-08-04 design D2). OASIS 서비스 예외는 {@code meta.message} 만 화면에 가므로 메시지 본문에 ERROR 이슈의 코드와
  * 요약을 잇는다. details 는 {@code DomainRejections} 모양(첫 행 MDM 코드, 뒤 행 이슈)이다. 새 MDM 코드를 만들지 않고
- * {@code MDM021 INVALID_INPUT} 을 쓴다(D-096 원칙 — 공유 파일 {@code MdmErrorCode}·{@code MdmErrors} 는 고치지 않는다).
+ * {@code MDM021 INVALID_INPUT} 을 쓴다(D-096 원칙). {@code MdmErrors.raw} 를 거쳐 {@code meta.code} 가 MDM021 이다(2026-10-05).
  */
 public final class RuleSaveRejections {
 
@@ -33,6 +34,6 @@ public final class RuleSaveRejections {
             String field = i.get("varId") == null ? null : "var:" + i.get("varId");
             details.add(ErrorDetail.ofGrid(null, rowKey, field, String.valueOf(i.get("code")), String.valueOf(i.get("message"))));
         }
-        return new BusinessException(code.transport(), PREFIX + summary, List.copyOf(details));
+        return MdmErrors.raw(code, PREFIX + summary, List.copyOf(details));
     }
 }

@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * TSK-01-03 design.md §3.1 L4 — "row_version 409" 의 표현(D5): cactus {@code BusinessException} 의 운반 코드는
- * {@code transport()}, 첫 detail code 가 MDMnnn. 검사 이슈는 뒤이은 detail 로 싣는다.
+ * {@code transport()}, 첫 detail code 가 MDMnnn. 검사 이슈는 뒤이은 detail 로 싣는다. OASIS {@code meta.code} 는 MDMnnn 이다(2026-10-05).
  */
 class MdmErrorsTest {
 
@@ -34,8 +34,25 @@ class MdmErrorsTest {
         assertEquals("시스템 관리자만 할 수 있습니다", e.getMessage());
         assertEquals("MDM027", e.getErrors().get(0).code());
         assertEquals("MDM027", ((com.dongkuk.dmes.cactus.common.ResponseCodeAware) e).responseCode());
-        // 다른 MDM 오류는 BPMN 경로 기본 코드(S001) 관례 그대로 — 응답 코드를 스스로 정하지 않는다.
-        assertEquals(false, MdmErrors.of(MdmErrorCode.SYSADMIN_ROLE_REQUIRED) instanceof com.dongkuk.dmes.cactus.common.ResponseCodeAware);
+    }
+
+    @Test
+    void 모든_MDM_오류는_OASIS_meta_code_로_MDMnnn_을_싣는다() {
+        // 2026-10-05 — of·invalid·raw 도 coded 와 같이 ResponseCodeAware 다(예전에는 coded 만, 나머지는 BPMN 경로 S001).
+        assertEquals("MDM001", responseCode(MdmErrors.of(MdmErrorCode.ROW_VERSION_CONFLICT)));
+        assertEquals("MDM010", responseCode(MdmErrors.of(MdmErrorCode.CONFIRM_CHECK_FAILED,
+                List.of(new MdmCheckIssue("C1", "첫 이슈", null, null)))));
+        assertEquals("MDM021", responseCode(MdmErrors.invalid("길이")));
+        BusinessException raw = MdmErrors.raw(MdmErrorCode.DOMAIN_SAVE_REJECTED, "도메인 저장 거부: R04",
+                List.of(ErrorDetail.of("MDM015", "도메인 저장 검사를 통과하지 못했습니다")));
+        assertEquals("MDM015", responseCode(raw));
+        assertEquals(ErrorCode.BUSINESS_ERROR, raw.getErrorCode());
+        assertEquals("도메인 저장 거부: R04", raw.getMessage());
+        assertEquals("MDM015", raw.getErrors().get(0).code());
+    }
+
+    private static String responseCode(BusinessException e) {
+        return ((com.dongkuk.dmes.cactus.common.ResponseCodeAware) e).responseCode();
     }
 
     @Test

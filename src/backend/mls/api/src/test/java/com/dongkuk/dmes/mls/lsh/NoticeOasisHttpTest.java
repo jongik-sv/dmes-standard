@@ -211,6 +211,31 @@ class NoticeOasisHttpTest {
         jdbc.update("DELETE FROM TB_MLS_NOTICE WHERE NOTICE_ID = ?", id);
     }
 
+    /**
+     * 업무 오류의 meta.code 는 던진 ErrorCode 의 코드다(2026-10-05 — 예전에는 모두 S001 이었다). 필수값 위반 저장은 E001,
+     * 허용 밖 게시상태는 E002 이고, errors[] 와 HTTP 200 은 그대로다.
+     */
+    @Test
+    void noticeMgmt_업무_오류의_meta_code_는_ErrorCode_의_코드다() throws Exception {
+        ObjectNode row = json.createObjectNode().put("rowStatus", "C").put("TITLE", "").put("CONTENT", "본문")
+                .put("NOTICE_STATUS", "DRAFT");
+        ObjectNode body = envelope("noticeMgmt", json.createObjectNode());
+        body.putObject("grids").putObject("master").putArray("rows").add(row);
+
+        JsonNode required = post("noticeMgmt", "save", body);
+
+        assertEquals(false, required.path("meta").path("success").asBoolean(true), required.toString());
+        assertEquals("E001", required.path("meta").path("code").asText(), required.toString());
+        assertThat(required.path("errors").size()).as(required.toString()).isPositive();
+
+        insert("NTHTTP0001", "HTTP 상태", "DRAFT", "NORMAL", "N", "TEXT", "본문");
+        JsonNode invalid = post("noticeMgmt", "changeStatus", envelope("noticeMgmt",
+                json.createObjectNode().put("noticeId", "NTHTTP0001").put("noticeStatus", "NOPE")));
+
+        assertEquals(false, invalid.path("meta").path("success").asBoolean(true), invalid.toString());
+        assertEquals("E002", invalid.path("meta").path("code").asText(), invalid.toString());
+    }
+
     private List<String> httpIds(String roleHeader) throws Exception {
         JsonNode res = post("noticeBoard", "search", envelope("noticeBoard", json.createObjectNode()), roleHeader);
         assertEquals(true, res.path("meta").path("success").asBoolean(false), res.toString());

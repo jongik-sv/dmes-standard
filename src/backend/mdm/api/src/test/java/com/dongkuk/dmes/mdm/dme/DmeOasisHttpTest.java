@@ -201,6 +201,7 @@ class DmeOasisHttpTest {
             assertFalse(body.path("meta").path("success").asBoolean(true), label + " " + body);
             assertTrue(body.path("meta").path("message").asText().startsWith(MdmErrorCode.NOT_DRAFT_OWNER.defaultMessage()),
                     label + " " + body);
+            assertEquals("MDM003", body.path("meta").path("code").asText(), label + " " + body);
         }
         assertEquals(1L, DmeTestSupport.rowVersion(jdbc, "HTTP_JDG", 1));
         assertEquals("HTTP 판정", jdbc.queryForObject("SELECT MARU_RULE_NAME FROM TB_MDM_RULE WHERE MARU_RULE_ID = 'HTTP_JDG'", String.class));
@@ -229,6 +230,20 @@ class DmeOasisHttpTest {
         JsonNode copy = post("ruleMng", "copy", "lee", versionBody(2));
         assertFalse(copy.path("meta").path("success").asBoolean(true), "미적용 버전이 있어 새 버전은 거부(MDM006): " + copy);
         assertTrue(copy.path("meta").path("message").asText().startsWith(MdmErrorCode.UNAPPLIED_VERSION_EXISTS.defaultMessage()), copy.toString());
+        assertEquals("MDM006", copy.path("meta").path("code").asText(), copy.toString());
+    }
+
+    /** row_version 충돌은 OASIS 응답 meta.code 가 MDM001 이다(2026-10-05 — 예전에는 S001 이라 화면이 문구로 판정했다). */
+    @Test
+    void row_version_충돌은_meta_code_MDM001_로_온다() throws Exception {
+        registerByKim();
+
+        JsonNode stale = post("ruleMng", "unlock", "kim", versionBody(7));
+
+        assertFalse(stale.path("meta").path("success").asBoolean(true), stale.toString());
+        assertEquals("MDM001", stale.path("meta").path("code").asText(), stale.toString());
+        assertTrue(stale.path("meta").path("message").asText().startsWith(MdmErrorCode.ROW_VERSION_CONFLICT.defaultMessage()), stale.toString());
+        assertEquals("MDM001", stale.path("errors").path(0).path("code").asText(), stale.toString());
     }
 
     /** 새 버전의 verKind 가 BPMN dto 바인딩을 거쳐 서비스까지 닿는다(바인딩이 빠지면 minor 가 조용히 major 가 된다). */
@@ -259,6 +274,7 @@ class DmeOasisHttpTest {
 
         assertFalse(unlock.path("meta").path("success").asBoolean(true), unlock.toString());
         assertTrue(unlock.path("meta").path("message").asText().startsWith(MdmErrorCode.INVALID_INPUT.defaultMessage()), unlock.toString());
+        assertEquals("MDM021", unlock.path("meta").path("code").asText(), unlock.toString());
     }
 
     /** TSK-08-03 — COLUMNS 저장의 배열(prioList)·boolean(deleted) 이 grids.rows.rows 안에서 바인딩되는지(B4 류 오류를 E2E 전에 잡는다). */

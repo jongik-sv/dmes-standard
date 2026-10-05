@@ -212,5 +212,6 @@ class RuleSaveValidatorTest {
         assertEquals("row:-1", e.getErrors().get(1).rowKey());
         assertEquals("var:1", e.getErrors().get(1).field());
         assertEquals("row:1,2", e.getErrors().get(2).rowKey());
+        assertEquals("MDM021", ((com.dongkuk.dmes.cactus.common.ResponseCodeAware) e).responseCode());
     }
 }
