@@ -2,6 +2,7 @@
 
 /** A-RULE 검증식 두 칸(D-013·D-014)과 유효 식(D-015·D-016)·요구 변수(L-011~L-013). */
 import { Textarea } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import type { DomainDraft, RequiredVarRow } from "../types";
 import { badge, hint, row as rowStyle } from "./styles";
@@ -22,7 +23,7 @@ export function DomainRuleEditor({ draft, readOnly, effStdExpr, effBizExpr, requ
       <tbody>
         <tr>
           <th style={DETAIL_LABEL_CELL}>
-            표준 검증식 <span style={badge}>화면·서버</span>
+            <MdmFieldLabel name="stdRule" label="표준 검증식" /> <span style={badge}>화면·서버</span>
           </th>
           <td style={DETAIL_VALUE_CELL}>
             <Textarea aria-label="표준 검증식" rows={2} value={draft.stdRule ?? ""} disabled={readOnly || isCode}
@@ -31,7 +32,7 @@ export function DomainRuleEditor({ draft, readOnly, effStdExpr, effBizExpr, requ
         </tr>
         <tr>
           <th style={DETAIL_LABEL_CELL}>
-            비즈니스 검증식 <span style={badge}>서버 전용</span>
+            <MdmFieldLabel name="bizRule" label="비즈니스 검증식" /> <span style={badge}>서버 전용</span>
           </th>
           <td style={DETAIL_VALUE_CELL}>
             <Textarea aria-label="비즈니스 검증식" rows={2} value={draft.bizRule ?? ""} disabled={readOnly}
@@ -40,14 +41,14 @@ export function DomainRuleEditor({ draft, readOnly, effStdExpr, effBizExpr, requ
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>유효 표준식</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="effStdExpr" meta={false} label="유효 표준식" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <div className="domain-mng__eff-std" style={{ fontFamily: "var(--font-family-mono, monospace)" }}>{effStdExpr ?? "-"}</div>
             <span style={hint}>저장하지 않음 · 조립</span>
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>유효 비즈니스식</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="effBizExpr" meta={false} label="유효 비즈니스식" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={{ fontFamily: "var(--font-family-mono, monospace)" }}>{effBizExpr ?? "-"}</div>
             {requiredVars.length > 0 && (

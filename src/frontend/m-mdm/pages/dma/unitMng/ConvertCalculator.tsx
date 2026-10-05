@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { ComboBox, Input } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 import { convertPreview } from "./api";
 import { formatConvertedValue, fromUnitComboData, parseCalcValue, sameDimensionUnits, type UnitOption } from "./types";
@@ -98,7 +99,7 @@ export function ConvertCalculator({ unitOptions, selectedUnitCode, onError }: Co
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>값</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="valueText" meta={false} label="값" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 value={valueText}
@@ -111,7 +112,7 @@ export function ConvertCalculator({ unitOptions, selectedUnitCode, onError }: Co
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>입력 단위</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="fromUnitCode" meta={false} label="입력 단위" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <ComboBox
                 data={fromUnitComboItems}

@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { EditableRowList, type GridColumn } from "@dk-oasis/shared/grid";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
 import {
@@ -77,7 +78,9 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>SQL *</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="sql" label="SQL" required meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <SqlEditor
                 sql={cfg.sql}
@@ -88,7 +91,9 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>표시 컬럼</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="columns" label="표시 컬럼" meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <div className="wq-editor">
                 <EditableRowList<TableColumnConfig>

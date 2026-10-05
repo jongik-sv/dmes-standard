@@ -22,6 +22,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridBadge, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { JsonView } from "@dk-oasis/shared/json-view";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { describeForceFailure, fetchAllStatus, fetchAppliedSeq, fetchEntries, fetchEntry, forceByType, groupByType } from "./api";
@@ -495,7 +496,7 @@ export default function MdmCacheMngPage() {
               <table style={DETAIL_TABLE_STYLE}>
                 <tbody>
                   <tr>
-                    <th style={DETAIL_LABEL_CELL}>항목</th>
+                    <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="cacheEntry" meta={false} label="항목" /></th>
                     <td style={DETAIL_VALUE_CELL}>
                       {TARGET_TYPE_LABELS[detailTarget.type] ?? detailTarget.type} {detailTarget.key}{" "}
                       <DetailStateBadge busy={isEntryBusy} error={detailError} lookup={detailLookup} />
@@ -503,7 +504,7 @@ export default function MdmCacheMngPage() {
                   </tr>
                   {detailError ? (
                     <tr>
-                      <th style={DETAIL_LABEL_CELL}>오류</th>
+                      <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="detailError" meta={false} label="오류" /></th>
                       <td style={DETAIL_VALUE_CELL} className="form-error-message">
                         {detailError}
                       </td>
@@ -513,18 +514,18 @@ export default function MdmCacheMngPage() {
                     <>
                       {entryKindLabel(detailLookup.detail.part, detailLookup.detail.current) ? (
                         <tr>
-                          <th style={DETAIL_LABEL_CELL}>구분</th>
+                          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="entryKind" meta={false} label="구분" /></th>
                           <td style={DETAIL_VALUE_CELL}>{entryKindLabel(detailLookup.detail.part, detailLookup.detail.current)}</td>
                         </tr>
                       ) : null}
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>적재</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="loadedAt" meta={false} label="적재" /></th>
                         <td style={DETAIL_VALUE_CELL} title={`추정 크기: ${ESTIMATED_SIZE_HELP}`}>
                           {`${detailLookup.detail.loadedAt} · 순번 ${detailLookup.detail.loadSeq} · 추정 크기 ${formatBytes(detailLookup.detail.bytes)}`}
                         </td>
                       </tr>
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>조회</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="hits" meta={false} label="조회" /></th>
                         <td style={DETAIL_VALUE_CELL} title={lifetimeHelpOf(detailTarget.module) || undefined}>
                           {`${detailLookup.detail.hits}회 · 마지막 ${detailLookup.detail.lastAccessAt || "-"} · 남은 수명 ${detailLookup.detail.remainingSeconds}초`}
                         </td>

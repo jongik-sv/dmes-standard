@@ -2,6 +2,7 @@
 
 import { Input, Select, SelectOrInput } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
 import { configText, MAX_NUMBER_TILES, NUMBER_FORMAT_OPTIONS, numberConfigOf } from "../_query/format";
@@ -20,7 +21,9 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>SQL *</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="sql" label="SQL" required meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <SqlEditor
                 sql={cfg.sql}
@@ -32,7 +35,9 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>라벨 필드 *</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="labelField" label="라벨 필드" required meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <SelectOrInput
                 value={configText(props.value, "labelField")}
@@ -44,7 +49,9 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>값 필드 *</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="valueField" label="값 필드" required meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <SelectOrInput
                 value={configText(props.value, "valueField")}
@@ -56,7 +63,9 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>단위 필드</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="unitField" label="단위 필드" meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <SelectOrInput
                 value={configText(props.value, "unitField")}
@@ -69,7 +78,9 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>단위</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="unit" label="단위" meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 value={configText(props.value, "unit")}
@@ -80,7 +91,9 @@ export default function QueryNumberEditor(props: WidgetTypeEditorProps) {
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>값 형식</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="format" label="값 형식" meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <Select
                 value={cfg.format}

@@ -2,6 +2,7 @@
 
 /** A-DETAIL 기본 속성(기능설계서 §4 D-001~D-012). 고정·좁히기·대체 표시는 §7.3 편집 가능 표를 따른다. */
 import { Input, Select, Textarea } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { DomainField, matchExactDomain, type DomainSearchFn } from "@/domain";
 import type { DomainDraft, DomainRow } from "../types";
@@ -47,21 +48,21 @@ export function DomainBasicForm(props: DomainBasicFormProps) {
     <table style={DETAIL_TABLE_STYLE}>
       <tbody>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>도메인명 *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="domainName" label="도메인명" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input aria-label="도메인명" value={draft.domainName ?? ""} disabled={readOnly}
               onChange={(v) => onChange({ domainName: v })} />
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>표준명 *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="stdName" label="표준명" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input aria-label="표준명" value={draft.stdName ?? ""} maxLength={50} disabled={readOnly}
               onChange={(v) => onChange({ stdName: v.toUpperCase() })} />
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>부모 도메인</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="parentDomainId" label="부모 도메인" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={rowStyle}>
               <DomainField testId="domain-parent" ariaLabel="부모 도메인" autoPick={matchExactDomain} domainId={draft.parentDomainId}
@@ -73,7 +74,7 @@ export function DomainBasicForm(props: DomainBasicFormProps) {
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>종류 *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="domainKind" label="종류" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={rowStyle}>
               <Select aria-label="종류" value={draft.domainKind ?? ""} placeholder="선택" options={KIND_OPTIONS}
@@ -83,7 +84,7 @@ export function DomainBasicForm(props: DomainBasicFormProps) {
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>데이터 타입 *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="dataType" label="데이터 타입" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={rowStyle}>
               <Select aria-label="데이터 타입" value={draft.dataType ?? ""} placeholder="선택" options={TYPE_OPTIONS}
@@ -93,7 +94,7 @@ export function DomainBasicForm(props: DomainBasicFormProps) {
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>길이 / 소수 자리</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="length" meta={false} label="길이 / 소수 자리" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={rowStyle}>
               <Input aria-label="길이" style={{ width: 90 }} value={draft.length ?? ""} disabled={readOnly}
@@ -106,7 +107,7 @@ export function DomainBasicForm(props: DomainBasicFormProps) {
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>단위</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="unitCode" label="단위" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={rowStyle}>
               <Input aria-label="단위" style={{ width: 120 }} value={draft.unitCode ?? ""}
@@ -117,7 +118,7 @@ export function DomainBasicForm(props: DomainBasicFormProps) {
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>코드 참조</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="maruCodeId" label="코드 참조" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={rowStyle}>
               <Input aria-label="마루 코드" style={{ width: 140 }} value={draft.maruCodeId ?? ""} disabled={readOnly || !isCode}
@@ -131,14 +132,14 @@ export function DomainBasicForm(props: DomainBasicFormProps) {
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>정의</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="정의" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Textarea aria-label="정의" rows={2} value={draft.description ?? ""} disabled={readOnly}
               onChange={(v) => onChange({ description: v })} />
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>예시 값</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="examplesText" meta={false} label="예시 값" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input aria-label="예시 값" value={props.examplesText} placeholder="쉼표로 구분" disabled={readOnly}
               onChange={props.onExamplesChange} />
