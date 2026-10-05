@@ -6,16 +6,24 @@ import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.setNode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.dongkuk.dmes.mdm.common.rule.RuleIo.IoName;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
+import com.dongkuk.dmes.mdm.contract.version.VersionKind;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
+import com.dongkuk.dmes.mdm.entity.MdmRuleSetVer;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -42,6 +50,10 @@ class SetCallIoReaderSqliteTest extends AbstractMdmSharedDbTest {
     SetCallIoReader reader;
     @Autowired
     RuleIoReader ioReader;
+    @Autowired
+    RuleQueries queries;
+    @Autowired
+    RuleSetVersionQueries setVersions;
     @Autowired
     JdbcTemplate jdbc;
 
@@ -179,6 +191,49 @@ class SetCallIoReaderSqliteTest extends AbstractMdmSharedDbTest {
 
         assertEquals(List.of(), outputs(reader.read(List.of("D0"), NOW).get("D0")));
         assertEquals(List.of("S_GRD:true"), outputs(reader.read(List.of("D2"), NOW).get("D2")), "D2 에서는 D7 이 다섯 단계 아래다");
+    }
+
+    @Test
+    void 깊이_방어가_걸린_하위_트리는_다시_쓰지_않고_다른_자리에서_다시_계산한다() {
+        // D0 → D1 → … → D7. read(D0) 안에서 D2 는 D6 에서 깊이 방어가 걸려 출력이 없다. 같은 read 의 D2 자체는 다섯 단계 아래 D7 까지 닿는다.
+        for (int i = 0; i < 7; i++) {
+            set(jdbc, "D" + i, "[]", "[\"D" + (i + 1) + "\"]", line(setNode("s1", "D" + (i + 1))));
+        }
+        set(jdbc, "D7", "[\"R_GRD\"]", "[]", line(ruleNode("r1", "R_GRD")));
+
+        Map<String, SetCallIo> r = reader.read(List.of("D0", "D2"), NOW);
+
+        assertEquals(List.of(), outputs(r.get("D0")));
+        assertEquals(reader.read(List.of("D2"), NOW).get("D2"), r.get("D2"), "D0 아래에서 잘린 D2 를 memo 로 다시 쓰면 안 된다");
+        assertEquals(List.of("S_GRD:true"), outputs(r.get("D2")));
+    }
+
+    @Test
+    void 한_read_안에서_세트마다_한_번만_계산한다() {
+        // 다이아몬드 DIA → SET C, SET M(→ SET C). C 의 룰 입출력은 한 번만 읽는다.
+        set(jdbc, "DIA", "[]", "[\"C\",\"M\"]", line(setNode("s1", "C"), setNode("s2", "M")));
+        RuleIoReader spy = Mockito.spy(ioReader);
+        SetCallIoReader counting = new SetCallIoReader(queries, setVersions, spy);
+
+        SetCallIo dia = counting.read(List.of("DIA", "M", "C"), NOW).get("DIA");
+
+        assertEquals(List.of("S_GRD:true"), outputs(dia));
+        verify(spy, times(1)).readAt(eq(List.of("R_GRD")), any(), any());
+    }
+
+    @Test
+    void CALL_SET_IDS_가_깨진_행은_아무것도_부르지_않는다() {
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET CALL_SET_IDS = '{}' WHERE MARU_RULE_SET_ID = 'P'"); // JSON 이지만 배열이 아니다
+
+        assertEquals(List.of("M 1.000"), callers(reader.callers("C", NOW)));
+        assertFalse(reader.edges(NOW).containsKey("P"));
+        assertEquals(List.of("S_FCT:true"), outputs(reader.read(List.of("P"), NOW).get("P")), "겉모양은 FLOW_JSON 으로 계산한다");
+
+        MdmRuleSetVer v = new MdmRuleSetVer("X", BigDecimal.ONE, VersionKind.MAJOR, null, "[]");
+        v.setCallSetIds("[bad");
+        assertEquals(List.of(), SetCallIoReader.callIds(v), "JSON 이 아니어도 던지지 않는다");
+        v.setCallSetIds("[null, \"\", \"A\", \" \"]");
+        assertEquals(List.of("A"), SetCallIoReader.callIds(v), "null·빈 값은 뺀다");
     }
 
     @Test

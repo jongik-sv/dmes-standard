@@ -24,9 +24,11 @@ import org.springframework.stereotype.Component;
  *   <li>겉모양({@link #read}) — 그 세트의 {@code at} 에 적용 중인 RELEASED 버전({@link RuleVersions#currentReleased})의 흐름(FLOW_JSON, 없으면 RULE_IDS
  *       한 줄)·룰 입출력({@link RuleIoReader#readAt} — 같은 시각)·손주 세트(재귀)로 {@link RuleSetInterface} 를 부른다. 그 버전이 없으면(DRAFT 만 있음
  *       포함) 없는 세트다. 상태는 {@link RuleVersions#effectiveStatus}. 한 번의 read 안에서 세트마다 한 번만 계산한다. 순환·깊이 초과로 더 내려갈 수
- *       없는 세트는 없는 세트로 본다(호출 그래프 검사가 먼저 막는다). FLOW_JSON 이 깨진 세트는 입출력이 빈 겉모양이다.</li>
+ *       없는 세트는 없는 세트로 본다(호출 그래프 검사가 먼저 막는다) — 그 방어가 걸린 하위 트리의 결과는 부른 자리마다 다르므로 다시 쓰지 않는다.
+ *       FLOW_JSON 이 깨진 세트는 입출력이 빈 겉모양이다.</li>
  *   <li>부르는 쪽({@link #callers}·{@link #edges}) — 폐기하지 않은 부모의 {@code at} 이후에도 유효한 RELEASED 행
- *       ({@link RuleVersions#releasedValidFrom})의 CALL_SET_IDS 만 센다(Ruling 25). DRAFT 행은 세지 않는다.</li>
+ *       ({@link RuleVersions#releasedValidFrom})의 CALL_SET_IDS 만 센다(Ruling 25). DRAFT 행은 세지 않는다. CALL_SET_IDS 가 깨진 행은 FLOW_JSON 과
+ *       같은 정책으로 아무것도 부르지 않는 행이다({@link #callIds}).</li>
  * </ul>
  * 원장 읽기는 {@link Snapshot} 하나가 세트 전부·세트 버전 전부를 두 문장으로 읽어 두고 그 안에서 고른다. 빈 입력의 {@link #read} 는 원장을 읽지 않는다.
  */
@@ -84,13 +86,22 @@ public class SetCallIoReader {
         return snapshot().edges(at);
     }
 
-    /** 버전 행의 CALL_SET_IDS(저장 순서). 비었거나 null 이면 빈 목록. */
+    /**
+     * 버전 행의 CALL_SET_IDS(저장 순서). 비었거나 null 이면 빈 목록. 깨진 값(JSON 배열이 아님)은 FLOW_JSON 이 깨진 세트와 같은 정책으로 빈 목록이다 — 그 행은
+     * 아무 세트도 부르지 않는 것으로 보고 던지지 않는다(한 행 때문에 모든 질의가 실패하지 않게). 배열 안의 null·빈 값은 뺀다.
+     */
     public static List<String> callIds(MdmRuleSetVer v) {
         String json = v.getCallSetIds();
         if (json == null || json.isBlank()) {
             return List.of();
         }
-        return DomainJson.readList(json).stream().map(String::valueOf).toList();
+        List<Object> raw;
+        try {
+            raw = DomainJson.readList(json);
+        } catch (IllegalArgumentException e) {
+            return List.of();
+        }
+        return raw.stream().filter(o -> o != null).map(String::valueOf).filter(SetCallIoReader::notBlank).toList();
     }
 
     private static boolean notBlank(String s) {
@@ -124,6 +135,18 @@ public class SetCallIoReader {
             versions = sets.isEmpty() ? Map.of() : setVersions.versionsOf(sets.keySet());
         }
 
+        /** 세트 전부(폐기 포함, 세트 ID 순). 룰 쪽 연쇄 재검사가 같은 원장 읽기로 담은 세트를 찾는다. */
+        public Collection<MdmRuleSet> sets() {
+            load();
+            return sets.values();
+        }
+
+        /** 한 세트의 버전 전부(VER 내림차순, 없으면 빈 목록). */
+        public List<MdmRuleSetVer> versions(String setId) {
+            load();
+            return versions.getOrDefault(setId, List.of());
+        }
+
         /** {@link SetCallIoReader#read} 와 같다. */
         public Map<String, SetCallIo> read(Collection<String> setIds, LocalDateTime at) {
             Map<String, SetCallIo> out = new LinkedHashMap<>();
@@ -131,7 +154,7 @@ public class SetCallIoReader {
             for (String id : setIds) {
                 if (notBlank(id) && !out.containsKey(id)) {
                     load();
-                    out.put(id, compute(id, at, memo, List.of()));
+                    out.put(id, compute(id, at, memo, List.of()).io());
                 }
             }
             return out;
@@ -178,15 +201,20 @@ public class SetCallIoReader {
             return out;
         }
 
-        /** 세트 하나의 겉모양. stack 은 이 read 안에서 지금 계산 중인 위쪽 세트들(순환·깊이 방어). 방어로 돌려준 없는 세트는 memo 에 넣지 않는다. */
-        private SetCallIo compute(String setId, LocalDateTime at, Map<String, SetCallIo> memo, List<String> stack) {
+        /**
+         * 세트 하나의 겉모양. stack 은 이 read 안에서 지금 계산 중인 위쪽 세트들(순환·깊이 방어). 방어가 걸린 결과 — 방어로 돌려준 없는 세트와, 그 아래
+         * 어디선가 방어가 걸린 위쪽 세트들 — 는 부른 자리(stack)에 따라 달라지므로 memo 에 넣지 않는다(다른 자리에서 다시 계산한다). 방어가 걸리지 않은
+         * 세트는 한 read 안에서 한 번만 계산한다.
+         */
+        private Computed compute(String setId, LocalDateTime at, Map<String, SetCallIo> memo, List<String> stack) {
             SetCallIo done = memo.get(setId);
             if (done != null) {
-                return done;
+                return new Computed(done, false);
             }
             if (stack.contains(setId) || stack.size() > RuleSetCallGraph.MAX_DEPTH) {
-                return SetCallIo.missing(setId);
+                return new Computed(SetCallIo.missing(setId), true);
             }
+            boolean cut = false;
             MdmRuleSet s = sets.get(setId);
             List<MdmRuleSetVer> vers = versions.getOrDefault(setId, List.of());
             Optional<MdmRuleSetVer> cur = s == null ? Optional.empty() : RuleVersions.currentReleased(vers, at);
@@ -208,14 +236,22 @@ public class SetCallIoReader {
                     next.add(setId);
                     Map<String, SetCallIo> calls = new LinkedHashMap<>();
                     for (String c : RuleSetFlowJson.setIds(flow)) {
-                        calls.put(c, compute(c, at, memo, List.copyOf(next)));
+                        Computed sub = compute(c, at, memo, List.copyOf(next));
+                        calls.put(c, sub.io());
+                        cut |= sub.cut();
                     }
                     Map<String, RuleIo> rules = ioReader.readAt(RuleSetFlowJson.ruleIds(flow), at, scope());
                     io = RuleSetInterface.of(setId, s.getMaruRuleSetName(), true, status, flow, rules, calls);
                 }
             }
-            memo.put(setId, io);
-            return io;
+            if (!cut) {
+                memo.put(setId, io);
+            }
+            return new Computed(io, cut);
         }
+    }
+
+    /** 겉모양 하나와, 그 계산 아래에서 순환·깊이 방어가 걸렸는지. */
+    private record Computed(SetCallIo io, boolean cut) {
     }
 }
