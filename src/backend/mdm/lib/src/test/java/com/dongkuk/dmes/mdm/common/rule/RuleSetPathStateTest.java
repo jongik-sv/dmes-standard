@@ -191,4 +191,50 @@ class RuleSetPathStateTest {
         assertEquals(at(Set.of(), Set.of()), b.get("r2"), "끝내는 갈래(r1)의 Y·Z 는 블록 뒤에 없다");
         assertEquals(at(Set.of("Y"), Set.of()), b.get("r3"));
     }
+
+    private static Map<String, At> beforeWithSets(String nodes, String edges, Map<String, Set<String>> setOutputs) {
+        String json = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"}," + nodes + ",{\"id\":\"end\",\"kind\":\"END\"}],\"edges\":[" + edges + "]}";
+        FlowParse p = FlowParser.parse(RuleSetFlowJson.parse(json));
+        assertTrue(p.issues().isEmpty(), p.issues().toString());
+        return RuleSetPathState.before(p.tree(), id -> PRODUCES.getOrDefault(id, Set.of()), setId -> setOutputs.getOrDefault(setId, Set.of()));
+    }
+
+    private static String set(String node, String setId) {
+        return "{\"id\":\"" + node + "\",\"kind\":\"SET\",\"setId\":\"" + setId + "\"}";
+    }
+
+    @Test
+    void SET_노드는_setProduces_가_준_출력을_정의된_이름으로_센다() {
+        EDGES.clear();
+        // start → s1(G: P) → r1(R_C) → end
+        String e = String.join(",", edge("start", "s1", ""), edge("s1", "r1", ""), edge("r1", "end", ""));
+        Map<String, At> b = beforeWithSets(String.join(",", set("s1", "G"), rule("r1", "R_C")), e, Map.of("G", Set.of("P")));
+
+        assertEquals(List.of("r1"), List.copyOf(b.keySet()), "SET 노드는 키로 적지 않는다");
+        assertEquals(at(Set.of("P"), Set.of()), b.get("r1"));
+    }
+
+    @Test
+    void 받는_노드가_붙은_SET_은_정상_갈래가_출력_뒤에서_시작하고_처리_갈래는_SET_직전_상태다() {
+        EDGES.clear();
+        // start → s1(G: P) → r2(R_B: Y) → r3(R_C) → end. c1(s1, INPUT_ERROR) → r4(R_D: W) → r3(돌아오는 자리).
+        String e = String.join(",", edge("start", "s1", ""), edge("s1", "r2", ""), edge("r2", "r3", ""), edge("c1", "r4", ""), edge("r4", "r3", ""),
+                edge("r3", "end", ""));
+        Map<String, At> b = beforeWithSets(String.join(",", set("s1", "G"), rule("r2", "R_B"), catchNode("c1", "s1", "\"INPUT_ERROR\""), rule("r4", "R_D"),
+                rule("r3", "R_C")), e, Map.of("G", Set.of("P")));
+
+        assertEquals(List.of("r2", "r4", "r3"), List.copyOf(b.keySet()), "정상 갈래 → 처리 갈래 → 돌아오는 자리");
+        assertEquals(at(Set.of("P"), Set.of()), b.get("r2"), "정상 갈래는 SET 의 always 출력 뒤에서 시작한다");
+        assertEquals(at(CATCH, Set.of()), b.get("r4"), "처리 갈래는 SET 직전 상태 + CATCH_*(CATCH_SET 포함)");
+        assertEquals(at(Set.of(), Set.of("P", "Y", "W")), b.get("r3"), "P·Y 는 정상 갈래에서만, W 는 처리 갈래에서만");
+    }
+
+    @Test
+    void 두_인자_before_는_SET_출력을_더하지_않는다() {
+        EDGES.clear();
+        String e = String.join(",", edge("start", "s1", ""), edge("s1", "r1", ""), edge("r1", "end", ""));
+        Map<String, At> b = before(String.join(",", set("s1", "G"), rule("r1", "R_C")), e);
+
+        assertEquals(at(Set.of(), Set.of()), b.get("r1"));
+    }
 }

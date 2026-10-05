@@ -14,6 +14,7 @@ import kr.dongkuk.maru.mdm.engine.flow.FlowTree;
 import kr.dongkuk.maru.mdm.engine.flow.Guarded;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
+import kr.dongkuk.maru.mdm.engine.flow.SetStep;
 import kr.dongkuk.maru.mdm.engine.flow.Split;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
 
@@ -44,11 +45,19 @@ public final class RuleSetPathState {
 
     /**
      * 트리를 깊이 우선으로 돌며 RULE 노드마다 직전 상태를 적는다. produces 는 룰 ID → 만드는 이름. 키는 RULE 노드 ID(깊이 우선 순서), 값은 수정할 수
-     * 없는 사본이다.
+     * 없는 사본이다. SET 노드는 아무것도 더하지 않는다(세트 출력은 3인자 겹정의).
      */
     public static Map<String, At> before(FlowTree tree, Function<String, Set<String>> produces) {
+        return before(tree, produces, setId -> Set.of());
+    }
+
+    /**
+     * {@link #before(FlowTree, Function)} 와 같되 SET 노드(하위 세트 호출)를 지나면 setProduces(세트 ID → 그 세트의 always 출력, 하위 세트 spec §2)를
+     * 정의된 이름에 더한다. 키에는 SET 노드를 적지 않는다(RULE 노드만). 세트 ID 가 빈 SET 노드는 아무것도 더하지 않는다.
+     */
+    public static Map<String, At> before(FlowTree tree, Function<String, Set<String>> produces, Function<String, Set<String>> setProduces) {
         Map<String, At> out = new LinkedHashMap<>();
-        new Walk(produces, out).seq(tree.root(), new At(new HashSet<>(), new HashSet<>()));
+        new Walk(produces, setProduces, out).seq(tree.root(), new At(new HashSet<>(), new HashSet<>()));
         return out;
     }
 
@@ -92,13 +101,23 @@ public final class RuleSetPathState {
     }
 
     /** 깊이 우선 걷기 — st 는 가변 집합을 가진 상태다. */
-    private record Walk(Function<String, Set<String>> produces, Map<String, At> out) {
+    private record Walk(Function<String, Set<String>> produces, Function<String, Set<String>> setProduces, Map<String, At> out) {
+
+        /** SET 노드가 정의하는 이름(always 출력). 세트 ID 가 비면 null. */
+        Set<String> setMade(SetStep s) {
+            return s.setId() == null || s.setId().isBlank() ? null : setProduces.apply(s.setId());
+        }
 
         void seq(Seq s, At st) {
             for (Block b : s.items()) {
                 if (b instanceof RuleStep r) {
                     out.putIfAbsent(r.nodeId(), new At(Set.copyOf(st.defined()), Set.copyOf(st.maybe())));
                     Set<String> made = produces.apply(r.ruleId());
+                    if (made != null) {
+                        st.defined().addAll(made);
+                    }
+                } else if (b instanceof SetStep set) {
+                    Set<String> made = setMade(set);
                     if (made != null) {
                         st.defined().addAll(made);
                     }
@@ -124,14 +143,14 @@ public final class RuleSetPathState {
             }
         }
 
-        /** 받는 룰 — 받는 룰·정상 갈래 룰·처리 갈래 룰을 모두 적는다(룰 확정 형제 판정이 노드마다 직전 상태를 읽는다). */
+        /** 받는 노드 블록 — 받는 룰·정상 갈래 룰·처리 갈래 룰을 모두 적는다(룰 확정 형제 판정이 노드마다 직전 상태를 읽는다). SET 이면 정상 갈래가 always 출력 뒤에서 시작한다. */
         void guarded(Guarded g, At st) {
             At before = new At(new HashSet<>(st.defined()), new HashSet<>(st.maybe()));
             if (g.step() instanceof RuleStep r) {
                 out.putIfAbsent(r.nodeId(), new At(Set.copyOf(st.defined()), Set.copyOf(st.maybe())));
             }
             At normal = new At(new HashSet<>(st.defined()), new HashSet<>(st.maybe()));
-            Set<String> made = g.step() instanceof RuleStep r ? produces.apply(r.ruleId()) : null;
+            Set<String> made = g.step() instanceof RuleStep r ? produces.apply(r.ruleId()) : g.step() instanceof SetStep s ? setMade(s) : null;
             if (made != null) {
                 normal.defined().addAll(made);
             }
