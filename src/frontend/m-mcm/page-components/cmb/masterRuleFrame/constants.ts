@@ -33,9 +33,9 @@ export const MAX_LEN = {
  * 개발체크리스트 ITEM-FE-04 비고 참조).
  */
 export const FRAME_COLUMNS: GridColumn[] = [
-  { key: "no", header: "순번", width: 60, editable: false, align: "center" },
+  { key: "no", header: "순번", meta: false, width: 60, editable: false, align: "center" },
   { key: "colNm", header: "한글항목명 *", width: 150, editable: true, align: "left" },
-  { key: "colId", header: "영문항목명 *", width: 150, editable: true, align: "left" },
+  { key: "colId", header: "영문항목명 *", meta: "COLUMN_ID", width: 150, editable: true, align: "left" },
   { key: "masterCodeDiv", header: "코드여부 *", width: 90, editable: true, cellEditor: "select", cellEditorValues: [...DIV_VALUES] },
   { key: "colType", header: "유형 *", width: 110, editable: true, cellEditor: "select", cellEditorValues: [...COL_TYPE_VALUES] },
   { key: "colLen", header: "총길이 *", width: 90, editable: true, align: "right" },   // 정수 강제는 clampCellValue(BR-009) — number 에디터는 초기값 ""(text 추론)와 충돌해 커밋 null

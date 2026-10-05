@@ -194,6 +194,7 @@ export default function RuleMngPage() {
       { key: "sourceKind", header: "원천", width: 70, minWidth: 50, align: "center" },
       {
         key: "status",
+        meta: false,
         header: "상태",
         width: 80,
         minWidth: 60,
@@ -206,6 +207,7 @@ export default function RuleMngPage() {
       },
       {
         key: "releasedVer",
+        meta: false,
         header: "적용 버전",
         width: 80,
         minWidth: 60,
@@ -213,7 +215,7 @@ export default function RuleMngPage() {
         render: (value) => fmtVer(value as string | null),
       },
       { key: "hitPolicy", header: "적중 정책", width: 90, minWidth: 70, align: "center" },
-      { key: "pendingText", header: "미적용 버전", width: 180, minWidth: 90 },
+      { key: "pendingText", meta: false, header: "미적용 버전", width: 180, minWidth: 90 },
     ],
     [],
   );
@@ -231,7 +233,7 @@ export default function RuleMngPage() {
       ]}
     >
       <SearchArea onSearch={handleSearch}>
-        <SearchField label="룰 ID·명">
+        <SearchField label="룰 ID·명" name="keyword" meta={false}>
           <Input
             data-testid="rule-search-keyword"
             value={filters.keyword}
@@ -244,6 +246,7 @@ export default function RuleMngPage() {
         </SearchField>
         <SearchField
           label="종류"
+          name="ruleKind"
           type="select"
           value={filters.ruleKind}
           options={KIND_FILTER_OPTIONS}
@@ -251,6 +254,8 @@ export default function RuleMngPage() {
         />
         <SearchField
           label="상태"
+          name="status"
+          meta={false}
           type="select"
           value={filters.status}
           options={STATUS_FILTER_OPTIONS}

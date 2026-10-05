@@ -35,10 +35,10 @@ import {
 
 const UNIT_COLUMNS: GridColumn[] = [
   { key: "unitCode", header: "단위 코드", width: 140, align: "left" },
-  { key: "dimensionLabel", header: "차원", width: 120, align: "left" },
+  { key: "dimensionLabel", header: "차원", meta: "DIM", width: 120, align: "left" },
   { key: "baseUnit", header: "기준 단위", width: 120, align: "left" },
   { key: "factor", header: "환산 계수", width: 140, align: "right" },
-  { key: "baseUnitBadge", header: "기준 단위 여부", width: 120, align: "center" },
+  { key: "baseUnitBadge", header: "기준 단위 여부", meta: false, width: 120, align: "center" },
 ];
 
 export default function UnitMngPage() {
@@ -192,6 +192,7 @@ export default function UnitMngPage() {
         <SearchField label="검색어" value={filters.unitCode} onChange={(v) => handleFilterChange("unitCode", v)} />
         <SearchField
           label="차원"
+          name="dimension"
           type="select"
           value={filters.dimension}
           options={[{ value: "", label: "전체" }, ...dimensionOptions.map((o) => ({ value: o.dimension, label: dimensionLabel(o.dimension) }))]}

@@ -184,7 +184,7 @@ function RuleProps({ node, io, tree, props }: { node: FlowNode; io: RuleIo | und
             </tr>
             <tr>
               <th style={DETAIL_LABEL_CELL}>
-                <MdmFieldLabel name="ruleId" label="룰 ID" />
+                <MdmFieldLabel name="ruleId" label="룰 ID" meta="MARU_RULE_ID" />
               </th>
               <td style={DETAIL_VALUE_CELL}>
                 <code>{ruleId}</code> <span className="rsf-muted">{`(노드 ${node.id})`}</span>

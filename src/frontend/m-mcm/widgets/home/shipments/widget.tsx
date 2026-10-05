@@ -11,11 +11,12 @@ import { toneBadge } from "../_shared/grid-badge";
 const SHIPMENT_COLUMNS: GridColumn[] = [
   { key: "shipDate", header: "출하일", width: 70, align: "center" },
   { key: "customer", header: "고객사", width: 130 },
-  { key: "item", header: "품목", width: 140 },
+  { key: "item", meta: false, header: "품목", width: 140 },
   { key: "qty", header: "수량(t)", width: 80, align: "right", type: "number" },
   {
     key: "status",
     header: "상태",
+    meta: false,
     width: 90,
     align: "center",
     render: (v) =>

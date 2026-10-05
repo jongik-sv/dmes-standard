@@ -182,6 +182,7 @@ function buildDetailColumns(
     {
       key: "CHK",
       header: "선택",
+      meta: false,
       width: 50,
       editable: false,
       align: "center",
@@ -198,6 +199,7 @@ function buildDetailColumns(
     {
       key: "STATUS",
       header: "상태",
+      meta: false,
       width: 50,
       editable: false,
       align: "center",
@@ -214,6 +216,7 @@ function buildDetailColumns(
     {
       key: "CODE_VAL",
       header: "코드 값 *",
+      meta: "CD_V",
       width: 100,
       editable: (r: Record<string, unknown>) => (r as GridRow).nativeeditor_status === "inserted",
     },
@@ -833,11 +836,13 @@ export default function MasterCodeMngPage() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="코드ID"
+          name="codeId"
           value={filters.pCodeId}
           onChange={(v) => handleFilterChange("pCodeId", v)}
         />
         <SearchField
           label="코드명"
+          name="codeNm"
           value={filters.pCodeNm}
           onChange={(v) => handleFilterChange("pCodeNm", v)}
         />

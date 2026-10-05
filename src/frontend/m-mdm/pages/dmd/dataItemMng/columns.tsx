@@ -25,10 +25,10 @@ export function isRowEditable(header: DataItemHeader | null | undefined, row: Re
 export function buildItemColumns(header: DataItemHeader | null, handlers: ItemColumnHandlers = {}): GridColumn[] {
   const editable = (row: Record<string, unknown>) => isRowEditable(header, row);
   const cols: GridColumn[] = [
-    { key: "code", header: "키", width: 120, minWidth: 100, align: "left", pinned: "left" },
-    { key: "name", header: "이름", width: 150, minWidth: 100, align: "left", editable },
+    { key: "code", meta: false, header: "키", width: 120, minWidth: 100, align: "left", pinned: "left" },
+    { key: "name", meta: false, header: "이름", width: 150, minWidth: 100, align: "left", editable },
     { key: "alterName", header: "약칭", width: 100, minWidth: 70, align: "left", editable },
-    { key: "seq", header: "순서", width: 60, minWidth: 50, align: "right", editable, cellEditor: "number" },
+    { key: "seq", meta: false, header: "순서", width: 60, minWidth: 50, align: "right", editable, cellEditor: "number" },
   ];
   const lvlCnt = Math.max(0, Math.min(5, header?.lvlCnt ?? 0));
   LVL_FIELDS.slice(0, lvlCnt).forEach((field, i) => {
@@ -43,6 +43,7 @@ export function buildItemColumns(header: DataItemHeader | null, handlers: ItemCo
     {
       key: "open",
       header: "상태",
+      meta: false,
       width: 60,
       minWidth: 56,
       align: "center",
@@ -56,6 +57,7 @@ export function buildItemColumns(header: DataItemHeader | null, handlers: ItemCo
     cols.push({
       key: "actions",
       header: "작업",
+      meta: false,
       width: 150,
       minWidth: 150,
       align: "center",

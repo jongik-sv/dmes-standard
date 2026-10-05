@@ -47,7 +47,7 @@ interface FieldActions {
 function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
   return [
     {
-      key: "name", header: "변수", width: 200, minWidth: 140,
+      key: "name", meta: false, header: "변수", width: 200, minWidth: 140,
       render: (_v, row) => {
         const r = row as unknown as FieldRow;
         return (
@@ -58,16 +58,16 @@ function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
         );
       },
     },
-    { key: "typeBadge", header: "타입", width: 90, minWidth: 80, align: "center", render: (v) => <span style={badgeStyle("neutral")}>{String(v)}</span> },
+    { key: "typeBadge", meta: false, header: "타입", width: 90, minWidth: 80, align: "center", render: (v) => <span style={badgeStyle("neutral")}>{String(v)}</span> },
     {
-      key: "contractBadge", header: "계약", width: 110, minWidth: 100, align: "center",
+      key: "contractBadge", meta: false, header: "계약", width: 110, minWidth: 100, align: "center",
       render: (_v, row) => {
         const r = row as unknown as FieldRow;
         return r.contractBadge ? <span style={badgeStyle(r.always ? "info" : "muted")}>{r.contractBadge}</span> : null;
       },
     },
     {
-      key: "sent", header: "키 보냄", width: 70, minWidth: 64, align: "center", tooltip: false,
+      key: "sent", meta: false, header: "키 보냄", width: 70, minWidth: 64, align: "center", tooltip: false,
       render: (_v, row) => {
         const r = row as unknown as FieldRow;
         return (
@@ -78,7 +78,7 @@ function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
       },
     },
     {
-      key: "value", header: "값", width: 220, minWidth: 140,
+      key: "value", meta: false, header: "값", width: 220, minWidth: 140,
       editable: (row) => (row as unknown as FieldRow).sent,
       cellClassRules: { "cell-input": (row) => (row as unknown as FieldRow).sent },
       render: (_v, row) => {
@@ -87,7 +87,7 @@ function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
         return r.value === "" ? <MutedText>NULL</MutedText> : r.value;
       },
     },
-    { key: "note", header: "설명", width: 260, minWidth: 100, render: (v) => (v ? <MutedText>{String(v)}</MutedText> : null) },
+    { key: "note", meta: false, header: "설명", width: 260, minWidth: 100, render: (v) => (v ? <MutedText>{String(v)}</MutedText> : null) },
   ];
 }
 

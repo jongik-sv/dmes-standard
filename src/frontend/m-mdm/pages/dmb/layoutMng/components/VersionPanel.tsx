@@ -21,9 +21,9 @@ function modeBadge(mode: unknown) {
 }
 
 const COLUMNS: GridColumn[] = [
-  { key: "VER", header: "버전", width: 70, render: (v) => fmtVer(v as string) },
+  { key: "VER", meta: false, header: "버전", width: 70, render: (v) => fmtVer(v as string) },
   { key: "VER_KIND", header: "종류", width: 55, render: (v) => (v === "MINOR" ? "minor" : "major") },
-  { key: "STATUS", header: "상태", width: 90,
+  { key: "STATUS", meta: false, header: "상태", width: 90,
     render: (v, r) => <VersionStatusBadge status={v as MdmVersionStatus} applyFrom={(r.APPLY_FROM as string) ?? null} /> },
   { key: "APPLY_FROM", header: "적용 시작", width: 130 },
   { key: "APPLY_TO", header: "적용 끝", width: 130 },
@@ -35,9 +35,9 @@ const COLUMNS: GridColumn[] = [
 ];
 
 const CHANGE_CLASS_COLUMNS: GridColumn[] = [
-  { key: "change", header: "변경", width: 220 },
-  { key: "lengthOffset", header: "총 길이·기존 오프셋", width: 110 },
-  { key: "mode", header: "전환", width: 280, tooltip: false, render: (v, r) => <>{modeBadge(v)} {String(r.note ?? "")}</> },
+  { key: "change", meta: false, header: "변경", width: 220 },
+  { key: "lengthOffset", meta: false, header: "총 길이·기존 오프셋", width: 110 },
+  { key: "mode", meta: false, header: "전환", width: 280, tooltip: false, render: (v, r) => <>{modeBadge(v)} {String(r.note ?? "")}</> },
 ];
 
 export interface VersionPanelProps {

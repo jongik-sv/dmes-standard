@@ -59,6 +59,7 @@ const GRID_COLUMNS: GridColumn[] = [
   {
     key: "__no",
     header: "NO",
+    meta: false,
     width: 50,
     align: "center",
     headerAlign: "center",
@@ -71,7 +72,7 @@ const GRID_COLUMNS: GridColumn[] = [
   },
   { key: "CATEGORY_ID",   header: "카테고리 ID",   width: 100, sortable: true },
   { key: "CATEGORY_NM",   header: "카테고리명",     width: 120, sortable: true },
-  { key: "CODE_VAL",      header: "코드값",         width: 160, sortable: true },
+  { key: "CODE_VAL",      header: "코드값",         meta: "CD_V", width: 160, sortable: true },
   { key: "CODE_VAL_MEAN", header: "코드의미",       width: 200, sortable: true },
 ];
 

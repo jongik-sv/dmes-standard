@@ -86,7 +86,7 @@ export default function RuleSetMngPage() {
       ]}
     >
       <SearchArea onSearch={handleSearch}>
-        <SearchField label="세트">
+        <SearchField label="세트" name="keyword" meta={false}>
           <Input
             data-testid="set-search-keyword"
             value={filters.keyword}
@@ -119,7 +119,7 @@ export default function RuleSetMngPage() {
             }}
           />
         </SearchField>
-        <SearchField label="상태">
+        <SearchField label="상태" name="status" meta={false}>
           <Select
             data-testid="set-search-status"
             value={filters.status}

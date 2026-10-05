@@ -107,7 +107,7 @@ export default function MasterRuleDataListPage() {
   // ── 동적 그리드 컬럼 빌드 (BR-005 — Q-003. 정적 1컬럼(순번) + 컬럼정의 기반 동적, 읽기 전용) ──
   const gridColumns = useMemo<GridColumn[]>(() => {
     const cols: GridColumn[] = [
-      { key: "SEQ", header: "순번", width: 70, editable: false, align: "center" },
+      { key: "SEQ", header: "순번", meta: false, width: 70, editable: false, align: "center" },
     ];
     for (const d of colDefs) {
       const isCode = d.CODE_YN === "Y";
@@ -271,10 +271,10 @@ export default function MasterRuleDataListPage() {
     >
       <SearchArea onSearch={handleSearch}>
         {/* S-001~S-005 — 업무기준 (readonly + P-001) */}
-        <SearchField label="업무기준 ID">
+        <SearchField label="업무기준 ID" name="ruleId">
           <input className="form-input" value={filters.pRuleId} readOnly />
         </SearchField>
-        <SearchField label="업무기준명">
+        <SearchField label="업무기준명" name="ruleNm">
           <input className="form-input" value={filters.pRuleNm} readOnly style={{ width: 180 }} />
         </SearchField>
         {/* 팝업을 여는 버튼 — 팝업 단위 RBAC(팝업 OBJECT_ID x "popup"). SearchArea 안의 raw button 은

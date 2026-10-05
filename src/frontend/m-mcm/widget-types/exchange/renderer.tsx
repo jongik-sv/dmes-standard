@@ -31,15 +31,17 @@ const COLUMNS: GridColumn[] = [
   {
     key: "label",
     header: "통화",
+    meta: false,
     width: 3,
     minWidth: 70,
     align: "left",
     render: (v) => <span className="mcm-ext-cur">{String(v)}</span>,
   },
-  { key: "rateText", header: "환율(원)", width: 3, minWidth: 72, align: "right" },
+  { key: "rateText", header: "환율(원)", meta: false, width: 3, minWidth: 72, align: "right" },
   {
     key: "diffText",
     header: "전일 대비",
+    meta: false,
     width: 3,
     minWidth: 76,
     align: "right",
@@ -48,6 +50,7 @@ const COLUMNS: GridColumn[] = [
   {
     key: "spark",
     header: "추이",
+    meta: false,
     width: 3,
     minWidth: 68,
     align: "center",

@@ -62,11 +62,11 @@ const MASTER_COLUMNS: GridColumn[] = [
   { key: "CODE_NM", header: "코드명 *", width: 160, editable: false },
   { key: "CODE_DESC", header: "설명", width: 200, editable: false },
   { key: "MASTER_CODE", header: "마스터코드", width: 160, editable: false },
-  { key: "MASTER_CODE_REF1_NM", header: "참조1", width: 120, editable: false },
-  { key: "MASTER_CODE_REF2_NM", header: "참조2", width: 120, editable: false },
-  { key: "MASTER_CODE_REF3_NM", header: "참조3", width: 120, editable: false },
-  { key: "MASTER_CODE_REF4_NM", header: "참조4", width: 120, editable: false },
-  { key: "MASTER_CODE_REF5_NM", header: "참조5", width: 120, editable: false },
+  { key: "MASTER_CODE_REF1_NM", header: "참조1", meta: "MST_CD_REF", width: 120, editable: false },
+  { key: "MASTER_CODE_REF2_NM", header: "참조2", meta: "MST_CD_REF", width: 120, editable: false },
+  { key: "MASTER_CODE_REF3_NM", header: "참조3", meta: "MST_CD_REF", width: 120, editable: false },
+  { key: "MASTER_CODE_REF4_NM", header: "참조4", meta: "MST_CD_REF", width: 120, editable: false },
+  { key: "MASTER_CODE_REF5_NM", header: "참조5", meta: "MST_CD_REF", width: 120, editable: false },
   { key: "USE_TP", header: "사용여부 *", width: 80, editable: false, align: "center" },
 ];
 
@@ -76,17 +76,17 @@ const MASTER_COLUMNS: GridColumn[] = [
  * GE-008~012 는 SQL nested scalar subquery + NVL fallback 결과 (CODE_VAL_REF{N}_MN) 표시.
  */
 const DETAIL_COLUMNS: GridColumn[] = [
-  { key: "CODE_VAL", header: "코드 값 *", width: 120, editable: false },
+  { key: "CODE_VAL", header: "코드 값 *", meta: "CD_V", width: 120, editable: false },
   { key: "CODE_VAL_MEAN", header: "코드 의미 *", width: 200, editable: false },
   { key: "CATEGORY_ID", header: "카테고리ID *", width: 100, editable: false },
   { key: "CATEGORY_NM", header: "카테고리명", width: 120, editable: false },
   { key: "SORT_SEQ", header: "정렬순서", width: 80, editable: false, type: "number", align: "right" },
   { key: "CODE_VAL_DESC", header: "설명", width: 180, editable: false },
-  { key: "CODE_VAL_REF1_MN", header: "참조1", width: 100, editable: false },
-  { key: "CODE_VAL_REF2_MN", header: "참조2", width: 100, editable: false },
-  { key: "CODE_VAL_REF3_MN", header: "참조3", width: 100, editable: false },
-  { key: "CODE_VAL_REF4_MN", header: "참조4", width: 100, editable: false },
-  { key: "CODE_VAL_REF5_MN", header: "참조5", width: 100, editable: false },
+  { key: "CODE_VAL_REF1_MN", header: "참조1", meta: "CD_V_REF", width: 100, editable: false },
+  { key: "CODE_VAL_REF2_MN", header: "참조2", meta: "CD_V_REF", width: 100, editable: false },
+  { key: "CODE_VAL_REF3_MN", header: "참조3", meta: "CD_V_REF", width: 100, editable: false },
+  { key: "CODE_VAL_REF4_MN", header: "참조4", meta: "CD_V_REF", width: 100, editable: false },
+  { key: "CODE_VAL_REF5_MN", header: "참조5", meta: "CD_V_REF", width: 100, editable: false },
 ];
 
 export default function MasterCodeMngListPage() {
@@ -264,11 +264,13 @@ export default function MasterCodeMngListPage() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="코드ID"
+          name="codeId"
           value={filters.pCodeId}
           onChange={(v) => handleFilterChange("pCodeId", v)}
         />
         <SearchField
           label="코드명"
+          name="codeNm"
           value={filters.pCodeNm}
           onChange={(v) => handleFilterChange("pCodeNm", v)}
         />

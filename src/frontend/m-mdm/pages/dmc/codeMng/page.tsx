@@ -416,9 +416,9 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
       },
       { key: "maruCodeName", header: "이름", width: 150, align: "left" },
       { key: "sourceKind", header: "원천", width: 70, align: "center" },
-      { key: "currentVerLabel", header: "현재", width: 80, align: "left" },
-      { key: "status", header: "상태", width: 70, align: "center" },
-      { key: "unappliedLabel", header: "미적용", width: 80, align: "left" },
+      { key: "currentVerLabel", header: "현재", meta: false, width: 80, align: "left" },
+      { key: "status", meta: false, header: "상태", width: 70, align: "center" },
+      { key: "unappliedLabel", header: "미적용", meta: false, width: 80, align: "left" },
     ],
     [],
   );
@@ -440,7 +440,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
       ]}
     >
       <SearchArea onSearch={handleSearch}>
-        <SearchField label="마루 코드">
+        <SearchField label="마루 코드" name="keyword" meta={false}>
           <Input
             data-testid="code-search-keyword"
             value={keyword}
@@ -451,7 +451,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
             }}
           />
         </SearchField>
-        <SearchField label="상태">
+        <SearchField label="상태" name="status" meta={false}>
           <Select data-testid="code-search-status" value={status} options={STATUS_OPTIONS} onChange={setStatus} />
         </SearchField>
       </SearchArea>

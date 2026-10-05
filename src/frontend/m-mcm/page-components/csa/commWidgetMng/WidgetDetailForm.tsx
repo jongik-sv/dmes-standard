@@ -143,7 +143,7 @@ export function WidgetDetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="title" meta={false} label="이름" required={isDef} /></th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="title" label="이름" required={isDef} /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Input value={text("title")} maxLength={50} placeholder={ph.title} disabled={off} onChange={set("title")} />
           </td>

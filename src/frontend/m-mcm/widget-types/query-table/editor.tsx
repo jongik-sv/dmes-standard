@@ -38,15 +38,17 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
       {
         key: "field",
         header: "필드 *",
+        meta: false,
         width: 130,
         editable: true,
         ...(columns.length > 0 ? { cellEditor: "select" as const, cellEditorValues: columns } : {}),
       },
-      { key: "header", header: "머리글", width: 130, editable: true },
-      { key: "width", header: "폭", width: 60, align: "right", editable: true, cellEditor: "number" },
+      { key: "header", header: "머리글", meta: false, width: 130, editable: true },
+      { key: "width", header: "폭", meta: false, width: 60, align: "right", editable: true, cellEditor: "number" },
       {
         key: "align",
         header: "정렬",
+        meta: false,
         width: 70,
         align: "center",
         editable: true,
@@ -58,6 +60,7 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
       {
         key: "format",
         header: "형식",
+        meta: false,
         width: 70,
         align: "center",
         editable: true,

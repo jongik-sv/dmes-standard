@@ -49,11 +49,11 @@ export function PreviewPanel(props: PreviewPanelProps) {
   const steps = useMemo(() => comboSteps(hitRows, path).filter((s) => s.length > 0), [hitRows, path]);
 
   const listColumns = useMemo<GridColumn[]>(() => [
-    { key: "code", header: "코드", width: 140 },
-    { key: "name", header: "이름", width: 160 },
-    ...(lvlCnt > 0 ? [{ key: "path", header: "경로", width: 200 }] : []),
-    { key: "hitMark", header: "해당", width: 60, align: "center" as const },
-    { key: "reasonText", header: "근거", width: 260 },
+    { key: "code", header: "코드", meta: false, width: 140 },
+    { key: "name", header: "이름", meta: false, width: 160 },
+    ...(lvlCnt > 0 ? [{ key: "path", header: "경로", meta: false as const, width: 200 }] : []),
+    { key: "hitMark", header: "해당", meta: false, width: 60, align: "center" as const },
+    { key: "reasonText", header: "근거", meta: false, width: 260 },
   ], [lvlCnt]);
   const listRows = useMemo(() => (result?.rows ?? []).map((r) => ({
     ...r,

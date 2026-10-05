@@ -57,7 +57,7 @@ import type {
 const GRID_COLS: GridColumn[] = [
   { key: "MASTER_CODE",   header: "코드ID",     width: 100, align: "left" },
   { key: "CATEGORY_ID",   header: "카테고리ID", width: 110, align: "left" },
-  { key: "CODE_VAL",      header: "코드값",     width: 90,  align: "left" },
+  { key: "CODE_VAL",      header: "코드값",     meta: "CD_V", width: 90,  align: "left" },
   { key: "CODE_VAL_MEAN", header: "코드의미",   width: 140, align: "left" },
   { key: "CODE_VAL_DESC", header: "코드설명",   width: 180, align: "left" },
   { key: "SORT_SEQ",      header: "정렬순서",   width: 80,  align: "right" },

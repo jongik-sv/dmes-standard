@@ -381,6 +381,7 @@ function varGroup(ctx: TableColumnContext, v: ResolvedVar, meta?: VarMeta): Grid
     children: leafKeys(v).map(({ key, header }) => {
       const col: GridColumn = {
         key: fieldOf(v.varId, key),
+        meta: false,
         header,
         width: key === "op" ? 110 : key === "na" ? 56 : key === "expr" ? 260 : 96,
         // Number 변수의 값 칸(값·하한·상한·결과값)은 오른쪽 정렬 — OP·식 칸은 글이라 왼쪽.
@@ -507,14 +508,16 @@ export function buildTableColumns(ctx: TableColumnContext): GridColumn[] {
   cols.push(
     {
       key: "note",
+      meta: false,
       header: "행 설명",
       width: 180,
       editable: () => ctx.editable,
       cellClassRules: { "cell-edited": (row) => row.__noteChanged === true },
     },
-    { key: "check", header: "검사", width: 130 },
+    { key: "check", meta: false, header: "검사", width: 130 },
     {
       key: "del",
+      meta: false,
       header: "삭제",
       width: 56,
       align: "center",

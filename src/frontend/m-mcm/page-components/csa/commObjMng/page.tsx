@@ -139,7 +139,7 @@ const MASTER_COLUMNS: GridColumn[] = [
   { key: "PROGRAM_DESC", header: "프로그램 설명", width: 180, editable: false, align: "left" },
   { key: "SYSTEM_CODE", header: "SYSTEM", width: 90, editable: false, align: "center" },
   { key: "OBJECT_TYPE", header: "OBJECT TYPE", width: 100, editable: false, align: "center" },
-  { key: "SERVICE", header: "SERVICE", width: 160, editable: false, align: "left" },
+  { key: "SERVICE", header: "SERVICE", meta: false, width: 160, editable: false, align: "left" },
   {
     key: "USE_TP",
     header: "사용여부 *",
@@ -160,7 +160,7 @@ const MASTER_COLUMNS: GridColumn[] = [
   },
   { key: "FORM_URL", header: "FORM URL", width: 200, editable: false, align: "left" },
   { key: "OUT_ACCESS_IP", header: "외부 접속 주소", width: 180, editable: false, align: "left" },
-  { key: "PARAM", header: "PARAM", width: 140, editable: false, align: "left" },
+  { key: "PARAM", header: "PARAM", meta: false, width: 140, editable: false, align: "left" },
   {
     key: "START_ACTIVE_DATE",
     header: "유효개시일",
@@ -521,11 +521,13 @@ export default function CommObjMngPage() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="OBJECT"
+          name="OBJECT_ID"
           value={filters.edt_OBJECT_ID}
           onChange={(v) => handleFilterChange("edt_OBJECT_ID", v)}
         />
         <SearchField
           label="사용 여부"
+          name="USE_TP"
           type="select"
           options={USE_TP_SEARCH_OPTIONS}
           value={filters.cbo_USE_TP}

@@ -15,8 +15,8 @@ import type { LayoutItemRow } from "@/layout/types";
 export function itemColumns(readOnly: boolean): GridColumn[] {
   return [
     ...baseItemColumns(readOnly),
-    { key: "DERIVED", header: "도메인(파생)", width: 140 },
-    { key: "SETTING", header: "설정", width: 200 },
+    { key: "DERIVED", meta: false, header: "도메인(파생)", width: 140 },
+    { key: "SETTING", meta: false, header: "설정", width: 200 },
   ];
 }
 

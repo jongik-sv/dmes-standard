@@ -122,11 +122,11 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
     {
       // matchCount 는 서버가 categories 에 넣어 준다(CodeCateEditService.categoryMap — REGEX 는 정규식 매칭 수,
       // TABLE 은 저장된 소속 수, 닫힌 카테고리는 0). 목록 한 번으로 전부 온다.
-      key: "matchCount", header: "해당", width: 70, align: "center", tooltip: false,
+      key: "matchCount", header: "해당", meta: false, width: 70, align: "center", tooltip: false,
       render: (value) => `${value ?? 0}건`,
     },
     {
-      key: "__action", header: "동작", width: 150, align: "center",
+      key: "__action", header: "동작", meta: false, width: 150, align: "center",
       render: (_v, row) => {
         const r = row as { cateId: string; defKind: string; __local: string };
         if (r.cateId === BASE_CATE_ID) return null;
@@ -161,9 +161,9 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
   ], [editable, canEdit, cate.rows, issuesByCate, undoCate, removeCate, targetOptions, selectedRow?.cateId]);
 
   const memberColumns = useMemo<GridColumn[]>(() => [
-    { key: "code", header: "코드", width: 120 },
-    { key: "name", header: "이름", width: 150 },
-    { key: "mark", header: "상태", width: 100, align: "center" },
+    { key: "code", header: "코드", meta: false, width: 120 },
+    { key: "name", header: "이름", meta: false, width: 150 },
+    { key: "mark", header: "상태", meta: false, width: 100, align: "center" },
   ], []);
 
   const regexInvalid = isRegexInvalid(selectedRow, cate.preview);

@@ -63,6 +63,7 @@ const CASE_COLUMNS: GridColumn[] = [
   { key: "caseName", header: "이름", width: 130 },
   {
     key: "mark",
+    meta: false,
     header: "마지막 결과",
     width: 90,
     tooltip: false,
@@ -71,13 +72,13 @@ const CASE_COLUMNS: GridColumn[] = [
       return <span style={m.style()}>{m.text}</span>;
     },
   },
-  { key: "description", header: "설명", width: 140 },
+  { key: "description", meta: false, header: "설명", width: 140 },
 ];
 
 const DIFF_COLUMNS: GridColumn[] = [
-  { key: "key", header: "키", width: 110 },
-  { key: "expected", header: "기대", width: 100 },
-  { key: "actual", header: "실제", width: 100 },
+  { key: "key", meta: false, header: "키", width: 110 },
+  { key: "expected", meta: false, header: "기대", width: 100 },
+  { key: "actual", meta: false, header: "실제", width: 100 },
 ];
 
 /** 케이스 저장 → 입력 묶음. */

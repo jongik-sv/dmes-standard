@@ -90,6 +90,7 @@ export function timelineColumns(target: HistoryTarget, header: DataHistoryResult
     {
       key: "eventLabel",
       header: "사건",
+      meta: false,
       width: 74,
       minWidth: 70,
       align: "center",
@@ -113,6 +114,7 @@ export function timelineColumns(target: HistoryTarget, header: DataHistoryResult
     cols.push({
       key: "name",
       header: "이름",
+      meta: false,
       width: 140,
       minWidth: 80,
       tooltip: false,
@@ -124,7 +126,7 @@ export function timelineColumns(target: HistoryTarget, header: DataHistoryResult
       },
     });
     // 덜 중요한 칸은 뒤에 둔다 — 좁은 패널에서는 가로로 밀어 본다.
-    cols.push({ key: "seq", header: "순서", width: 60, align: "right" });
+    cols.push({ key: "seq", header: "순서", meta: false, width: 60, align: "right" });
     const lvlCnt = Math.max(0, Math.min(5, header?.lvlCnt ?? 0));
     for (let i = 1; i <= lvlCnt; i++) {
       cols.push({ key: `lvl${i}`, header: `${i}차`, width: 80, align: "left" });
@@ -160,6 +162,7 @@ export function timelineColumns(target: HistoryTarget, header: DataHistoryResult
     cols.push({
       key: "memberKey",
       header: "항목 키",
+      meta: false,
       headerTooltip: "항목 키",
       width: 120,
       minWidth: 56,

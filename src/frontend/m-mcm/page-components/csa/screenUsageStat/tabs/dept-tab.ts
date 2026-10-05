@@ -9,10 +9,10 @@ import { toExportColumns, type StatTabModule } from "./tab-contract";
 export const DEPT_COLUMNS: GridColumn[] = [
   { key: "deptCd", header: "부서코드", width: 120, align: "left" },
   { key: "deptNm", header: "부서명", width: 180, align: "left" },
-  countCol("userCnt", "이용자 수"),
+  { ...countCol("userCnt", "이용자 수"), meta: false },
   countCol("openCnt", "열람 횟수"),
   durationCol("durationMs", "이용 시간"),
-  { key: "topMenuNm", header: "최다 이용 화면", width: 100, minWidth: 180, align: "left" },
+  { key: "topMenuNm", header: "최다 이용 화면", meta: false, width: 100, minWidth: 180, align: "left" },
 ];
 
 const EXPORT_COLUMNS = toExportColumns(DEPT_COLUMNS);

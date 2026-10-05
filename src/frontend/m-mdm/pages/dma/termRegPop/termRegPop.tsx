@@ -172,10 +172,11 @@ export function TermRegPopModal({
       { key: "senseNo", header: "의미", width: 60, align: "center" },
       { key: "definition", header: "정의", width: 220 },
       { key: "engAbbr", header: "약어", width: 90 },
-      { key: "reasonLabel", header: "근거", width: 110 },
+      { key: "reasonLabel", header: "근거", meta: false, width: 110 },
       {
         key: "use",
         header: "선택",
+        meta: false,
         width: 110,
         align: "center",
         render: (_value, row) => (
@@ -272,7 +273,7 @@ export function TermRegPopModal({
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="definition" meta={false} label="정의" required /></th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="definition" label="정의" required /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <Textarea
                   data-testid="term-pop-definition"
@@ -283,7 +284,7 @@ export function TermRegPopModal({
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="context" meta={false} label="맥락" /></th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="context" label="맥락" /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <Input
                   data-testid="term-pop-context"

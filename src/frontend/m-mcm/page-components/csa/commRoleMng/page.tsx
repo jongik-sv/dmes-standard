@@ -203,7 +203,7 @@ const ROLE_MAP_COLUMNS: GridColumn[] = [
   { key: "POPUP_BTN", header: "POPUP 버튼", width: 130, editable: false, align: "left" },
   { key: "OBJECT_NM", header: "OBJECT 명", width: 110, editable: false, align: "left" },
   { key: "SYSTEM_CODE", header: "SYSTEM", width: 70, editable: false, align: "center" },
-  { key: "SERVICE", header: "SERVICE", width: 90, editable: false, align: "left" },
+  { key: "SERVICE", header: "SERVICE", meta: false, width: 90, editable: false, align: "left" },
   { key: "ROLE_ID", header: "역할 ID", width: 90, editable: false, align: "left" },
 ];
 
@@ -871,16 +871,19 @@ export default function CommRoleMngPage() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="역할 ID"
+          name="ROLE_ID"
           value={filters.edt_ROLE_ID}
           onChange={(v) => handleFilterChange("edt_ROLE_ID", v)}
         />
         <SearchField
           label="역할명"
+          name="ROLE_NM"
           value={filters.edt_ROLE_NM}
           onChange={(v) => handleFilterChange("edt_ROLE_NM", v)}
         />
         <SearchField
           label="사용 여부"
+          name="USE_TP"
           type="select"
           options={USE_TP_SEARCH_OPTIONS}
           value={filters.cbo_USE_TP}

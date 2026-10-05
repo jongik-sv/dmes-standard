@@ -291,9 +291,9 @@ export default function DomainMngPage() {
       ]}
     >
       <SearchArea onSearch={() => void runSearch(filters)}>
-        <SearchField label="검색어" value={filters.keyword} placeholder="도메인명·표준명"
+        <SearchField label="검색어" name="keyword" meta={false} value={filters.keyword} placeholder="도메인명·표준명"
           onChange={(v) => setFilters((f) => ({ ...f, keyword: v }))} />
-        <SearchField label="종류" type="select" value={filters.domainKind} options={KIND_FILTER}
+        <SearchField label="종류" name="domainKind" type="select" value={filters.domainKind} options={KIND_FILTER}
           onChange={(v) => setFilters((f) => ({ ...f, domainKind: v }))} />
       </SearchArea>
 

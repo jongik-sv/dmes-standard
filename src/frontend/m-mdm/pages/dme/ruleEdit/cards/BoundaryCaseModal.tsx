@@ -107,7 +107,7 @@ interface CandidateRow {
 function candidateColumns(toggle: { current: (key: string, on: boolean) => void }): GridColumn[] {
   return [
     {
-      key: "checked", header: "고름", width: 56, minWidth: 56, tooltip: false,
+      key: "checked", meta: false, header: "고름", width: 56, minWidth: 56, tooltip: false,
       render: (v, row) => {
         const key = String((row as Record<string, unknown>).key);
         return <Checkbox aria-label={`${key} 고름`} checked={v === true} onChange={(on) => toggle.current(key, on)} />;
@@ -120,9 +120,9 @@ function candidateColumns(toggle: { current: (key: string, on: boolean) => void 
 const COLUMNS: GridColumn[] = [
   { key: "caseName", header: "이름", width: 180, minWidth: 120 },
   { key: "inputJson", header: "입력", width: 260, minWidth: 140, render: (v) => <code>{String(v)}</code> },
-  { key: "result", header: "실행 결과", width: 240, minWidth: 140, render: (v) => (v ? <code>{String(v)}</code> : <MutedText>-</MutedText>) },
+  { key: "result", meta: false, header: "실행 결과", width: 240, minWidth: 140, render: (v) => (v ? <code>{String(v)}</code> : <MutedText>-</MutedText>) },
   {
-    key: "status", header: "상태", width: 140, minWidth: 100,
+    key: "status", meta: false, header: "상태", width: 140, minWidth: 100,
     render: (v) => <span style={{ color: statusColor(String(v)) }}>{String(v)}</span>,
   },
 ];

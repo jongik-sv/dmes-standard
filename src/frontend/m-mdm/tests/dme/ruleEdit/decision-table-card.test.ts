@@ -734,8 +734,9 @@ describe("DecisionTableCard 렌더", () => {
   });
 });
 
-// 포털 탭은 화면을 React StrictMode(개발 모드)와 MDM 메타 공급자(MdmMetaProvider) 아래에 그린다. mdm 모듈은 mdmMeta 가 404 라 모듈이 꺼지지만
-// (2026-10-05 부터 실제 mdm 포털 탭은 공급자를 미리 꺼 요청·loading 이 없다. 이 시험은 module "mdm" + 404 로 지원 모듈 탭의 loading → 없음 전환을 재현한다)
+// 포털 탭은 화면을 React StrictMode(개발 모드)와 MDM 메타 공급자(MdmMetaProvider) 아래에 그린다. 실제 mdm 포털 탭은 `mdm → mcm` 별칭(MDM_META_TAB_MODULES)으로
+// mcm 의 mdmMeta 를 받아 칸 메타가 loading → 카드 있음(또는 없음)으로 바뀐다. 이 시험은 공급자에 module "mdm" 을 직접 주고 404 로 답해
+// 같은 loading → 없음 전환을 재현한다(별칭을 거치지 않으므로 응답 내용은 시험이 정한다)
 // 새 열 목록마다 칸 메타가 loading → 없음으로 한 번 바뀐다 — 그때 그리드가 같은 열 정의를 다시 넣어, 머리 그룹 칸이 처음 붙는 커밋에서
 // `getProvidedColumnGroup of null` 로 화면이 깨졌다(2026-10-03, 열 없는 룰에 첫 열 적용). 그리드 열(그룹 머리·변수 머리·칸)까지 그린다.
 describe("DecisionTableCard — 포털 탭(StrictMode·MDM 메타 공급자)에서 열 구조 바꾸기", () => {

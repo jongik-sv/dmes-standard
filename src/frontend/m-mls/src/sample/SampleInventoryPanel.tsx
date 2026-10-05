@@ -21,9 +21,9 @@ const SAMPLE_ROWS: SampleRow[] = [
 ];
 
 const COLUMNS: GridColumn[] = [
-  { key: "code", header: "코드", width: 140, align: "left" },
-  { key: "name", header: "명칭", width: 260, align: "left" },
-  { key: "status", header: "상태", width: 120, align: "left" },
+  { key: "code", header: "코드", meta: false, width: 140, align: "left" },
+  { key: "name", header: "명칭", meta: false, width: 260, align: "left" },
+  { key: "status", header: "상태", meta: false, width: 120, align: "left" },
 ];
 
 /**

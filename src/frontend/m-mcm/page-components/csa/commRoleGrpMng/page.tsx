@@ -715,16 +715,21 @@ export default function CommRoleGrpMngPage() {
         {/* S-001 BIZ SYSTEM 콤보 폐기 (정책 #1) */}
         <SearchField
           label="역할 그룹 ID"
+          name="ROLE_GROUP_ID"
+          meta="ROLE_GRP_ID"
           value={filters.edt_ROLE_GROUP_ID}
           onChange={(v) => handleFilterChange("edt_ROLE_GROUP_ID", v)}
         />
         <SearchField
           label="역할 그룹명"
+          name="ROLE_GROUP_NM"
+          meta="ROLE_GRP_NM"
           value={filters.edt_ROLE_GROUP_NM}
           onChange={(v) => handleFilterChange("edt_ROLE_GROUP_NM", v)}
         />
         <SearchField
           label="사용 여부"
+          name="USE_TP"
           type="select"
           options={USE_TP_SEARCH_OPTIONS}
           value={filters.cbo_USE_TP}

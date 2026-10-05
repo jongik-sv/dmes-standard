@@ -56,7 +56,7 @@ const DRAFT_COLUMNS: GridColumn[] = [
   },
   { key: "maruRuleName", header: "이름", width: 130, minWidth: 60 },
   { key: "ruleKind", header: "종류", width: 90, minWidth: 50 },
-  { key: "ver", header: "버전", width: 60, minWidth: 40, render: (v) => fmtVer(v as string | null) },
+  { key: "ver", meta: false, header: "버전", width: 60, minWidth: 40, render: (v) => fmtVer(v as string | null) },
   { key: "ownerId", header: "소유자", width: 90, minWidth: 50, render: (v) => (v as string | null | undefined) ?? "—" },
 ];
 
@@ -75,7 +75,7 @@ function checkRowHeight(r: CheckRow): number {
 
 const CHECK_COLUMNS: GridColumn[] = [
   {
-    key: "item", header: "검사", width: 200, tooltip: false,
+    key: "item", meta: false, header: "검사", width: 200, tooltip: false,
     render: (_v, row) => {
       const r = row as unknown as CheckRow;
       return (
@@ -87,7 +87,7 @@ const CHECK_COLUMNS: GridColumn[] = [
     },
   },
   {
-    key: "status", header: "결과", width: 80, tooltip: false,
+    key: "status", meta: false, header: "결과", width: 80, tooltip: false,
     render: (_v, row) => {
       const r = row as unknown as CheckRow;
       const rejected = r.status === "REJECTED";
@@ -100,7 +100,7 @@ const CHECK_COLUMNS: GridColumn[] = [
   },
   {
     // 칸 값은 줄을 이은 글자(detailText)다 — 배열을 칸 값으로 두면 ag-grid 가 object 형 칸으로 보고 오류(#48)를 낸다.
-    key: "detailText", header: "상세", width: 320, tooltip: false,
+    key: "detailText", meta: false, header: "상세", width: 320, tooltip: false,
     render: (_v, row) => (
       <div style={{ lineHeight: `${CHECK_LINE_HEIGHT}px` }}>
         {(row as unknown as CheckRow).details.map((d, idx) => <div key={idx}>{d}</div>)}
@@ -112,11 +112,11 @@ const CHECK_COLUMNS: GridColumn[] = [
 // 직전 RELEASED 대비 변경 행. 표시 칸은 행 데이터에 글자로 넣는다(셀 툴팁도 같은 글자를 보인다).
 const DIFF_COLUMNS: GridColumn[] = [
   { key: "rowId", header: "행 번호", width: 70 },
-  { key: "kindLabel", header: "변경", width: 60 },
-  { key: "seqText", header: "순서", width: 70 },
-  { key: "changedText", header: "바뀐 칸", width: 140, minWidth: 80 },
-  { key: "oldCells", header: "이전 셀", width: 220, minWidth: 120 },
-  { key: "newCells", header: "이후 셀", width: 220, minWidth: 120 },
+  { key: "kindLabel", meta: false, header: "변경", width: 60 },
+  { key: "seqText", meta: false, header: "순서", width: 70 },
+  { key: "changedText", meta: false, header: "바뀐 칸", width: 140, minWidth: 80 },
+  { key: "oldCells", meta: false, header: "이전 셀", width: 220, minWidth: 120 },
+  { key: "newCells", meta: false, header: "이후 셀", width: 220, minWidth: 120 },
 ];
 
 export const CONTRACT_BLOCKED_TEXT = "저장 시 검사 오류가 있어 계약 변경을 보지 못했습니다";

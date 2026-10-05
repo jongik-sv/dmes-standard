@@ -323,8 +323,8 @@ function buildMenuTree(rows: CommMenuMngTreeRow[]): {
 /** OBJECT 그리드 컬럼 — GO-001~GO-009 (To-Be 8 컬럼, GO-008 BIZ_SYSTEM_CODE 폐기). 디자인 §4.3. */
 const OBJ_COLUMNS: GridColumn[] = [
   { key: "FORM_URL", header: "FORM URL", width: 160, editable: false, align: "left" },
-  { key: "SERVICE", header: "SERVICE", width: 120, editable: false, align: "left" },
-  { key: "PARAM", header: "PARAM", width: 120, editable: false, align: "left" },
+  { key: "SERVICE", header: "SERVICE", meta: false, width: 120, editable: false, align: "left" },
+  { key: "PARAM", header: "PARAM", meta: false, width: 120, editable: false, align: "left" },
   {
     key: "USE_TP",
     header: "사용 유무",
@@ -1019,16 +1019,19 @@ export default function CommMenuMngPage() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="메뉴 ID"
+          name="MENU_ID"
           value={filters.edt_MENU_ID}
           onChange={(v) => handleFilterChange("edt_MENU_ID", v)}
         />
         <SearchField
           label="메뉴 명"
+          name="MENU_NM"
           value={filters.edt_MENU_NM}
           onChange={(v) => handleFilterChange("edt_MENU_NM", v)}
         />
         <SearchField
           label="사용 유무"
+          name="USE_TP"
           type="select"
           options={USE_TP_SEARCH_OPTIONS}
           value={filters.cbo_USE_TP}

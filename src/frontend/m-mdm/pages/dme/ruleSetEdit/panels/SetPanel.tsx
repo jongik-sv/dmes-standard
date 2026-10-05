@@ -45,7 +45,7 @@ export function SetPanel(props: SetPanelProps) {
           <tbody>
             <tr>
               <th style={DETAIL_LABEL_CELL}>
-                <MdmFieldLabel name="setName" label="세트명" required />
+                <MdmFieldLabel name="setName" meta="MARU_RULE_SETS_NM" label="세트명" required />
               </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input data-testid="set-name" value={setName} disabled={!editable} onChange={props.onSetName} />

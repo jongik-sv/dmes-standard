@@ -97,9 +97,9 @@ export function CategoryTab({ cate, loaded, editable, canSave, onError, errorSho
       },
     },
     // matchCount 는 서버 `dataCateEdit.search` 가 카테고리마다 계산해 준다(REGEX 정규식 매칭 수 · TABLE 저장된 소속 수).
-    { key: "matchCount", header: "해당", width: 70, align: "center", tooltip: false, render: (value) => `${value ?? 0}건` },
+    { key: "matchCount", header: "해당", meta: false, width: 70, align: "center", tooltip: false, render: (value) => `${value ?? 0}건` },
     {
-      key: "__action", header: "동작", width: 170, align: "center",
+      key: "__action", header: "동작", meta: false, width: 170, align: "center",
       render: (_v, row) => {
         const r = row as { cateId: string; defKind: string; open: boolean };
         if (!canEdit || r.cateId === BASE_CATE_ID) return null;
@@ -123,8 +123,8 @@ export function CategoryTab({ cate, loaded, editable, canSave, onError, errorSho
   ], [canEdit, closeCate, reopenCate, targetOptions]);
 
   const memberColumns = useMemo<GridColumn[]>(() => [
-    { key: "code", header: "코드", width: 120 },
-    { key: "name", header: "이름", width: 150 },
+    { key: "code", header: "코드", meta: false, width: 120 },
+    { key: "name", header: "이름", meta: false, width: 150 },
   ], []);
 
   // REGEX 는 소속을 저장하지 않고 정규식이 정한다 — compare(서버 Pattern) 가 건 코드가 곧 소속 목록이라

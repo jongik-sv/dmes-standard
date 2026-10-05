@@ -22,20 +22,20 @@ export interface ConstEditModalProps {
 // 재정의 배지는 OVERRIDDEN 칸으로 둔다 — 행 키(SEQ)로 갱신하는 그리드는 값이 바뀐 칸만 다시 그리기 때문이다.
 function constColumns(readOnly: boolean): GridColumn[] {
   return [
-    { key: "ITEM", header: "항목", width: 200 },
+    { key: "ITEM", meta: false, header: "항목", width: 200 },
     {
       key: "DEFAULT_VALUE", header: "헤더 기본값", width: 110,
       render: (v, r) => <span data-testid={`const-default-${r.PHYS}`}>{String(v ?? "")}</span>,
     },
     {
-      key: "VALUE", header: "이 전문의 값", width: 140, editable: !readOnly, tooltip: false,
+      key: "VALUE", meta: false, header: "이 전문의 값", width: 140, editable: !readOnly, tooltip: false,
       render: (v, r) => (
         <span data-testid={`const-input-${r.PHYS}`}>
           {String(v ?? "") !== "" ? String(v) : <span style={hint}>{String(r.DEFAULT_VALUE ?? "")}</span>}
         </span>
       ),
     },
-    { key: "OVERRIDDEN", header: "재정의", width: 70, tooltip: false, render: (v) => (v ? <span style={badge}>재정의</span> : null) },
+    { key: "OVERRIDDEN", meta: false, header: "재정의", width: 70, tooltip: false, render: (v) => (v ? <span style={badge}>재정의</span> : null) },
   ];
 }
 
