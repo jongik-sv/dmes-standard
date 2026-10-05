@@ -6,19 +6,20 @@ import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { classificationLabel, diffValue, directionLabel } from "../change-view";
 import type { DiffRow, ImpactTable } from "../types";
 import { sectionTitle } from "./styles";
+import { uiCols } from "@/ui-meta";
 
-const IMPACT_COLUMNS: GridColumn[] = [
-  { key: "TARGET", header: "영향도 대상", meta: false, width: 140 },
-  { key: "COUNT", header: "건수", meta: false, width: 70, align: "right" },
-  { key: "DETAIL", header: "내용", meta: false, width: 320 },
-];
+const IMPACT_COLUMNS: GridColumn[] = uiCols([
+  { key: "TARGET", header: "영향도 대상", width: 140 },
+  { key: "COUNT", header: "건수", width: 70, align: "right" },
+  { key: "DETAIL", header: "내용", width: 320 },
+]);
 
-const DIFF_COLUMNS: GridColumn[] = [
-  { key: "LABEL", header: "필드", meta: false, width: 150 },
-  { key: "BEFORE", header: "이전", meta: false, width: 180, render: (v) => diffValue(v) },
-  { key: "AFTER", header: "이후", meta: false, width: 180, render: (v) => diffValue(v) },
-  { key: "DIRECTION", header: "방향", meta: false, width: 100, render: (v) => directionLabel(String(v ?? "")) },
-];
+const DIFF_COLUMNS: GridColumn[] = uiCols([
+  { key: "LABEL", header: "필드", width: 150 },
+  { key: "BEFORE", header: "이전", width: 180, render: (v) => diffValue(v) },
+  { key: "AFTER", header: "이후", width: 180, render: (v) => diffValue(v) },
+  { key: "DIRECTION", header: "방향", width: 100, render: (v) => directionLabel(String(v ?? "")) },
+]);
 
 export function impactRows(impact: ImpactTable | null | undefined): Record<string, unknown>[] {
   if (!impact) return [];

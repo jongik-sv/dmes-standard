@@ -28,6 +28,7 @@ import { DraftLockBadge, VersionActionBar, VersionStatusBadge, type MdmVersionSt
 import type { VersionButtons } from "./buttons";
 import type { VerKind } from "./NewVersionModal";
 import { ATTR_KEYS, LVL_CNT_OPTIONS, type CodeEditFlags, type CodeEditView, type CodeHeaderView, type HeaderForm } from "./edit-types";
+import { DESCRIPTION_LABEL } from "@/ui-meta";
 
 export const mutedText = { color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" } as const;
 const cardTitle = { padding: "var(--spacing-sm) var(--spacing-md) 0", fontWeight: 600 } as const;
@@ -157,7 +158,7 @@ export function CodeHeaderCard({
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel {...DESCRIPTION_LABEL} /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={3}>
               <Textarea
                 data-testid="header-desc"

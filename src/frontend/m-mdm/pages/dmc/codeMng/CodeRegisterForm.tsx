@@ -12,6 +12,7 @@ import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 import { emptyRegForm, LVL_CNT_OPTIONS, type CodeRegForm } from "./types";
+import { DESCRIPTION_LABEL, SOURCE_LABEL } from "@/ui-meta";
 
 export interface CodeRegisterFormProps {
   /** 등록(action reg) 권한. 없으면 버튼을 숨기지 않고 비활성으로 둔다. */
@@ -58,7 +59,7 @@ export function CodeRegisterForm({ canRegister, busy, onSubmit, onCancel }: Code
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel {...DESCRIPTION_LABEL} /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Textarea data-testid="code-reg-desc" value={form.description} disabled={busy} onChange={(v) => set("description", v)} />
             </td>
@@ -70,7 +71,7 @@ export function CodeRegisterForm({ canRegister, busy, onSubmit, onCancel }: Code
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="source" meta={false} label="원천" /></th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel {...SOURCE_LABEL} /></th>
             <td style={DETAIL_VALUE_CELL}>
               <span data-testid="code-reg-source">MDM</span>
             </td>

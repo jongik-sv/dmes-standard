@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { Input, Select, SelectOrInput } from "@dk-oasis/shared/form";
 import { EditableRowList, type GridColumn } from "@dk-oasis/shared/grid";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
-import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { MdmFieldLabel, MdmMetaProvider } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
 import { CHART_TYPE_OPTIONS, chartConfigOf, configText, PIE_UNIT_MAX, textCell, type ChartSeriesConfig } from "../_query/format";
@@ -27,24 +27,23 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
       {
         key: "field",
         header: "필드 *",
-        meta: false,
         width: 140,
         editable: true,
         ...(columns.length > 0 ? { cellEditor: "select" as const, cellEditorValues: columns } : {}),
       },
-      { key: "label", header: "이름(범례)", meta: false, width: 160, editable: true },
+      { key: "label", header: "이름(범례)", width: 160, editable: true },
     ],
     [columns]
   );
 
   return (
-    <>
+    <MdmMetaProvider disabled>
       <QueryStyle />
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="sql" label="SQL" required meta={false} />
+              <MdmFieldLabel name="sql" label="SQL" required />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <SqlEditor
@@ -57,7 +56,7 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
           </tr>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="chartType" label="차트 종류" required meta={false} />
+              <MdmFieldLabel name="chartType" label="차트 종류" required />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <Select
@@ -70,7 +69,7 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
           </tr>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="xField" label="가로축 필드" required meta={false} />
+              <MdmFieldLabel name="xField" label="가로축 필드" required />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <SelectOrInput
@@ -84,7 +83,7 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
           </tr>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="series" label="값 계열" required meta={false} />
+              <MdmFieldLabel name="series" label="값 계열" required />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <div className="wq-editor">
@@ -108,7 +107,7 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
           </tr>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="unit" label="단위(원 차트)" meta={false} />
+              <MdmFieldLabel name="unit" label="단위(원 차트)" />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <div className="wq-editor">
@@ -126,6 +125,6 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
           </tr>
         </tbody>
       </table>
-    </>
+    </MdmMetaProvider>
   );
 }

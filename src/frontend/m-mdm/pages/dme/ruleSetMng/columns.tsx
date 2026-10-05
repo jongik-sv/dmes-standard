@@ -4,9 +4,10 @@
  */
 import type { GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle, fmtVer } from "@/shell";
+import { uiCols } from "@/ui-meta";
 
 export function buildRuleSetColumns(onOpenSet: (setId: string) => void): GridColumn[] {
-  return [
+  return uiCols([
     {
       key: "setId",
       meta: "MARU_RULE_SETS_ID",
@@ -33,10 +34,9 @@ export function buildRuleSetColumns(onOpenSet: (setId: string) => void): GridCol
       ),
     },
     { key: "setName", meta: "MARU_RULE_SETS_NM", header: "세트명", width: 180, minWidth: 90 },
-    { key: "ruleCount", meta: false, header: "룰 수", width: 70, minWidth: 50, align: "center" },
+    { key: "ruleCount", header: "룰 수", width: 70, minWidth: 50, align: "center" },
     {
       key: "finalResults",
-      meta: false,
       header: "최종 결과 변수",
       width: 180,
       minWidth: 100,
@@ -50,12 +50,11 @@ export function buildRuleSetColumns(onOpenSet: (setId: string) => void): GridCol
         ));
       },
     },
-    { key: "inputCount", meta: false, header: "입력 변수 수", width: 90, minWidth: 80, align: "center" },
-    { key: "description", meta: false, header: "설명", width: 200, minWidth: 90 },
-    { key: "checkText", meta: false, header: "세트 검사", width: 130, minWidth: 60, align: "center" },
+    { key: "inputCount", header: "입력 변수 수", width: 90, minWidth: 80, align: "center" },
+    { key: "description", header: "설명", width: 200, minWidth: 90 },
+    { key: "checkText", header: "세트 검사", width: 130, minWidth: 60, align: "center" },
     {
       key: "ver",
-      meta: false,
       header: "버전",
       width: 70,
       minWidth: 50,
@@ -64,7 +63,6 @@ export function buildRuleSetColumns(onOpenSet: (setId: string) => void): GridCol
     },
     {
       key: "status",
-      meta: false,
       header: "상태",
       width: 100,
       minWidth: 70,
@@ -73,5 +71,5 @@ export function buildRuleSetColumns(onOpenSet: (setId: string) => void): GridCol
         <span style={badgeStyle(value === "INUSE" ? "success" : value === "DEPRECATED" ? "muted" : "neutral")}>{String(value ?? "")}</span>
       ),
     },
-  ];
+  ]);
 }

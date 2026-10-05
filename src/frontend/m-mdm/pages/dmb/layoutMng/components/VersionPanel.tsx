@@ -12,6 +12,7 @@ import type { LayoutVersionRow } from "@/layout/types";
 import { VersionStatusBadge, fmtVer, normVer, type MdmVersionStatus } from "@/shell";
 import { badge, hint, row, sectionTitle } from "@/layout/styles";
 import type { ExportResult } from "../types";
+import { uiCols } from "@/ui-meta";
 
 function modeBadge(mode: unknown) {
   const label = switchModeLabel(mode as string | null);
@@ -34,11 +35,11 @@ const COLUMNS: GridColumn[] = [
   { key: "SWITCH_MODE", header: "전환 방식", width: 90, render: (v) => modeBadge(v) },
 ];
 
-const CHANGE_CLASS_COLUMNS: GridColumn[] = [
-  { key: "change", meta: false, header: "변경", width: 220 },
-  { key: "lengthOffset", meta: false, header: "총 길이·기존 오프셋", width: 110 },
-  { key: "mode", meta: false, header: "전환", width: 280, tooltip: false, render: (v, r) => <>{modeBadge(v)} {String(r.note ?? "")}</> },
-];
+const CHANGE_CLASS_COLUMNS: GridColumn[] = uiCols([
+  { key: "change", header: "변경", width: 220 },
+  { key: "lengthOffset", header: "총 길이·기존 오프셋", width: 110 },
+  { key: "mode", header: "전환", width: 280, tooltip: false, render: (v, r) => <>{modeBadge(v)} {String(r.note ?? "")}</> },
+]);
 
 export interface VersionPanelProps {
   versions: LayoutVersionRow[];

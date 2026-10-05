@@ -11,6 +11,7 @@ import { useState } from "react";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { DESCRIPTION_LABEL, SOURCE_LABEL } from "@/ui-meta";
 import { openRuleEdit } from "@/dme/rule-handoff";
 
 import { registerRule } from "../api";
@@ -100,7 +101,7 @@ export function RuleRegisterForm({ canRegister, onRegistered, onCancel, onError 
           </tr>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="source" label="원천" meta={false} />
+              <MdmFieldLabel {...SOURCE_LABEL} />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <span data-testid="rule-reg-source">MDM (등록은 MDM 원천만 받는다)</span>
@@ -108,7 +109,7 @@ export function RuleRegisterForm({ canRegister, onRegistered, onCancel, onError 
           </tr>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="description" label="설명" meta={false} />
+              <MdmFieldLabel {...DESCRIPTION_LABEL} />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <Textarea

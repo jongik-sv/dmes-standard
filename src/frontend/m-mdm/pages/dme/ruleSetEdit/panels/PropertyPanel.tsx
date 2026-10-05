@@ -21,6 +21,7 @@ import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oa
 import { Button, Checkbox, Input, Textarea } from "@dk-oasis/shared/form";
 import { MarkdownField } from "@dk-oasis/shared/markdown-editor";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { DESCRIPTION_LABEL } from "@/ui-meta";
 import { badgeStyle, fmtVer } from "@/shell";
 
 import { SOURCE_LABEL, SOURCE_TONE, typeText } from "../cards/SetIoTables";
@@ -176,7 +177,7 @@ function RuleProps({ node, io, tree, props }: { node: FlowNode; io: RuleIo | und
             </tr>
             <tr>
               <th style={DETAIL_LABEL_CELL}>
-                <MdmFieldLabel name="description" label="설명" meta={false} />
+                <MdmFieldLabel {...DESCRIPTION_LABEL} />
               </th>
               <td style={DETAIL_VALUE_CELL}>
                 <DescField node={node} props={props} />
@@ -305,7 +306,7 @@ function TaskProps({ node, props }: { node: FlowNode; props: PropertyPanelProps 
             </tr>
             <tr>
               <th style={DETAIL_LABEL_CELL}>
-                <MdmFieldLabel name="description" label="설명" meta={false} />
+                <MdmFieldLabel {...DESCRIPTION_LABEL} />
               </th>
               <td style={DETAIL_VALUE_CELL}>
                 <DescField node={node} props={props} />
@@ -381,7 +382,7 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
             </tr>
             <tr>
               <th style={DETAIL_LABEL_CELL}>
-                <MdmFieldLabel name="description" label="설명" meta={false} />
+                <MdmFieldLabel {...DESCRIPTION_LABEL} />
               </th>
               <td style={DETAIL_VALUE_CELL}>
                 <DescField node={node} props={props} />

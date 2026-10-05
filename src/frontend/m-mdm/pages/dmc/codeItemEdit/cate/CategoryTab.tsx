@@ -22,6 +22,7 @@ import { buildDefTargetOptions, type AttrLabel } from "./defTargetOptions";
 import { hint, issueText, toolbar } from "./components/styles";
 import { isRegexInvalid } from "./regexInvalid";
 import { BASE_CATE_ID } from "./types";
+import { uiCols } from "@/ui-meta";
 
 export interface CategoryTabProps {
   cate: CategoryEditState;
@@ -160,11 +161,11 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
     // cate.rows: [취소]/[닫기] 는 칸 값이 아닌 행 상태(__local)로 갈리므로 행이 바뀌면 열 정의를 다시 만든다.
   ], [editable, canEdit, cate.rows, issuesByCate, undoCate, removeCate, targetOptions, selectedRow?.cateId]);
 
-  const memberColumns = useMemo<GridColumn[]>(() => [
-    { key: "code", header: "코드", meta: false, width: 120 },
-    { key: "name", header: "이름", meta: false, width: 150 },
-    { key: "mark", header: "상태", meta: false, width: 100, align: "center" },
-  ], []);
+  const memberColumns = useMemo<GridColumn[]>(() => uiCols([
+    { key: "code", header: "코드", width: 120 },
+    { key: "name", header: "이름", width: 150 },
+    { key: "mark", header: "상태", width: 100, align: "center" },
+  ]), []);
 
   const regexInvalid = isRegexInvalid(selectedRow, cate.preview);
 

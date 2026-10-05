@@ -17,6 +17,7 @@ import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { ATTR_KEYS, LVL_CNT_OPTIONS, type CategorySummaryRow, type AttrKey, type DataEditView, type HeaderForm } from "./edit-types";
+import { DESCRIPTION_LABEL } from "@/ui-meta";
 
 export const mutedText = { color: "var(--color-text-muted)", fontSize: "var(--font-size-sm)" } as const;
 const cardTitle = { padding: "var(--spacing-sm) var(--spacing-md) 0", fontWeight: 600 } as const;
@@ -83,7 +84,7 @@ export function DataHeaderCard({ view, form, disabled, onFieldChange }: DataHead
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel {...DESCRIPTION_LABEL} /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={3}>
               <Input
                 data-testid="data-edit-desc"

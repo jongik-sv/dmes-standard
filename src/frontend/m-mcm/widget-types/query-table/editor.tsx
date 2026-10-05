@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { EditableRowList, type GridColumn } from "@dk-oasis/shared/grid";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
-import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { MdmFieldLabel, MdmMetaProvider } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
 import {
@@ -38,17 +38,15 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
       {
         key: "field",
         header: "필드 *",
-        meta: false,
         width: 130,
         editable: true,
         ...(columns.length > 0 ? { cellEditor: "select" as const, cellEditorValues: columns } : {}),
       },
-      { key: "header", header: "머리글", meta: false, width: 130, editable: true },
-      { key: "width", header: "폭", meta: false, width: 60, align: "right", editable: true, cellEditor: "number" },
+      { key: "header", header: "머리글", width: 130, editable: true },
+      { key: "width", header: "폭", width: 60, align: "right", editable: true, cellEditor: "number" },
       {
         key: "align",
         header: "정렬",
-        meta: false,
         width: 70,
         align: "center",
         editable: true,
@@ -60,7 +58,6 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
       {
         key: "format",
         header: "형식",
-        meta: false,
         width: 70,
         align: "center",
         editable: true,
@@ -76,13 +73,13 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
   const setColumns = (next: TableColumnConfig[]) => patch({ columns: next });
 
   return (
-    <>
+    <MdmMetaProvider disabled>
       <QueryStyle />
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="sql" label="SQL" required meta={false} />
+              <MdmFieldLabel name="sql" label="SQL" required />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <SqlEditor
@@ -95,7 +92,7 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
           </tr>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="columns" label="표시 컬럼" meta={false} />
+              <MdmFieldLabel name="columns" label="표시 컬럼" />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <div className="wq-editor">
@@ -127,6 +124,6 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
           </tr>
         </tbody>
       </table>
-    </>
+    </MdmMetaProvider>
   );
 }

@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Checkbox, Input, MultiSelectComboBox, Textarea } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
-import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { MdmFieldLabel, MdmMetaProvider } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
 import { searchQueryWidgetDefs } from "./api";
@@ -66,73 +66,75 @@ export default function ChatEditor({ value, onChange, onValidate }: WidgetTypeEd
   const patch = (p: Partial<ChatConfig>) => onChange({ ...cfg, ...p });
 
   return (
-    <div data-testid="chat-editor">
-      <table style={DETAIL_TABLE_STYLE}>
-        <tbody>
-          <tr>
-            <th style={LABEL_TOP}>
-              <MdmFieldLabel name="systemPrompt" label="시스템 프롬프트" meta={false} />
-            </th>
-            <td style={DETAIL_VALUE_CELL}>
-              <Textarea
-                value={cfg.systemPrompt}
-                rows={6}
-                placeholder="예: 생산·품질 담당자에게 간결한 존댓말로 답한다."
-                aria-label="시스템 프롬프트"
-                onChange={(v) => patch({ systemPrompt: v })}
-              />
-              <p style={NOTE}>{CHAT_SYSTEM_PROMPT_NOTE}</p>
-            </td>
-          </tr>
-          <tr>
-            <th style={LABEL}>
-              <MdmFieldLabel name="welcome" label="첫 인사" meta={false} />
-            </th>
-            <td style={DETAIL_VALUE_CELL}>
-              <Input
-                value={cfg.welcome}
-                placeholder="무엇을 도와드릴까요?"
-                aria-label="첫 인사"
-                onChange={(v) => patch({ welcome: v })}
-              />
-              <p style={NOTE}>대화 기록이 없을 때 도우미 말풍선으로 보입니다. 비우면 인사를 보이지 않습니다.</p>
-            </td>
-          </tr>
-          <tr>
-            <th style={LABEL}>
-              <MdmFieldLabel name="pageGuide" label="포털 화면 안내" meta={false} />
-            </th>
-            <td style={DETAIL_VALUE_CELL}>
-              <Checkbox
-                label="사용자가 볼 수 있는 화면을 찾아 안내"
-                checked={cfg.pageGuide}
-                onChange={(checked) => patch({ pageGuide: checked })}
-              />
-            </td>
-          </tr>
-          <tr>
-            <th style={LABEL_TOP}>
-              <MdmFieldLabel name="dataQueryDefIds" label="데이터 질의에 쓸 쿼리 위젯" meta={false} />
-            </th>
-            <td style={DETAIL_VALUE_CELL}>
-              <MultiSelectComboBox
-                data={options}
-                value={cfg.dataQueryDefIds}
-                placeholder="쿼리 위젯 선택"
-                aria-label="데이터 질의에 쓸 쿼리 위젯"
-                onChange={(ids) => patch({ dataQueryDefIds: ids })}
-              />
-              <p style={NOTE}>고른 쿼리 위젯의 결과만 도우미가 조회할 수 있습니다. 도우미가 SQL 을 직접 만들어 실행하지는 않습니다.</p>
-              {loadFailed && (
-                <p style={NOTE_ERROR} role="alert">
-                  쿼리 위젯 목록을 불러오지 못했습니다. 지금 선택한 값은 그대로 저장됩니다.
-                </p>
-              )}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <p style={NOTE}>AI 연결(공급자·키)은 서버 설정(dmes.widget.llm.*)에서 정합니다.</p>
-    </div>
+    <MdmMetaProvider disabled>
+      <div data-testid="chat-editor">
+        <table style={DETAIL_TABLE_STYLE}>
+          <tbody>
+            <tr>
+              <th style={LABEL_TOP}>
+                <MdmFieldLabel name="systemPrompt" label="시스템 프롬프트" />
+              </th>
+              <td style={DETAIL_VALUE_CELL}>
+                <Textarea
+                  value={cfg.systemPrompt}
+                  rows={6}
+                  placeholder="예: 생산·품질 담당자에게 간결한 존댓말로 답한다."
+                  aria-label="시스템 프롬프트"
+                  onChange={(v) => patch({ systemPrompt: v })}
+                />
+                <p style={NOTE}>{CHAT_SYSTEM_PROMPT_NOTE}</p>
+              </td>
+            </tr>
+            <tr>
+              <th style={LABEL}>
+                <MdmFieldLabel name="welcome" label="첫 인사" />
+              </th>
+              <td style={DETAIL_VALUE_CELL}>
+                <Input
+                  value={cfg.welcome}
+                  placeholder="무엇을 도와드릴까요?"
+                  aria-label="첫 인사"
+                  onChange={(v) => patch({ welcome: v })}
+                />
+                <p style={NOTE}>대화 기록이 없을 때 도우미 말풍선으로 보입니다. 비우면 인사를 보이지 않습니다.</p>
+              </td>
+            </tr>
+            <tr>
+              <th style={LABEL}>
+                <MdmFieldLabel name="pageGuide" label="포털 화면 안내" />
+              </th>
+              <td style={DETAIL_VALUE_CELL}>
+                <Checkbox
+                  label="사용자가 볼 수 있는 화면을 찾아 안내"
+                  checked={cfg.pageGuide}
+                  onChange={(checked) => patch({ pageGuide: checked })}
+                />
+              </td>
+            </tr>
+            <tr>
+              <th style={LABEL_TOP}>
+                <MdmFieldLabel name="dataQueryDefIds" label="데이터 질의에 쓸 쿼리 위젯" />
+              </th>
+              <td style={DETAIL_VALUE_CELL}>
+                <MultiSelectComboBox
+                  data={options}
+                  value={cfg.dataQueryDefIds}
+                  placeholder="쿼리 위젯 선택"
+                  aria-label="데이터 질의에 쓸 쿼리 위젯"
+                  onChange={(ids) => patch({ dataQueryDefIds: ids })}
+                />
+                <p style={NOTE}>고른 쿼리 위젯의 결과만 도우미가 조회할 수 있습니다. 도우미가 SQL 을 직접 만들어 실행하지는 않습니다.</p>
+                {loadFailed && (
+                  <p style={NOTE_ERROR} role="alert">
+                    쿼리 위젯 목록을 불러오지 못했습니다. 지금 선택한 값은 그대로 저장됩니다.
+                  </p>
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p style={NOTE}>AI 연결(공급자·키)은 서버 설정(dmes.widget.llm.*)에서 정합니다.</p>
+      </div>
+    </MdmMetaProvider>
   );
 }

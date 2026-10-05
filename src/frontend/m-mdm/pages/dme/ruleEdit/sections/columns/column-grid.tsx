@@ -12,6 +12,7 @@ import { IconArrowBackUp, IconArrowDown, IconArrowUp, IconSearch, IconTrash, Ico
 
 import type { GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
+import { uiCols } from "@/ui-meta";
 
 import type { PreviewOutcome, ParseStatus } from "../../expr/parse-expr";
 import type { HitPolicyCode, ResolvedVar } from "../../types";
@@ -522,26 +523,27 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
     });
   }
   cols.push(
-    { key: "description", meta: false, header: "설명", width: 140, editable: can, cellClassRules: edited("description"), render: textCell("col-desc") },
-    { key: "exprInfo", meta: false, header: "식 결과", width: 220, render: (_v, row) => exprInfoCell(g(row).__exprs) },
-    { key: "check", meta: false, header: "검사", width: 170, pinned: "right", render: (_v, row) => checkCell(g(row)) },
-    {
-      key: "del",
-      meta: false,
-      header: "삭제",
-      width: 48,
-      align: "center",
-      pinned: "right",
-      render: (_v, row) => {
-        const r = g(row);
-        const del = r.__row.deleted;
-        return (
-          <IconBtn label={`${name(r)} ${del ? "삭제 취소" : "삭제"}`} testId={`col-del-${r.rowKey}`} disabled={!r.__canEdit} onClick={() => h().remove(r.__row)}>
-            {del ? <IconArrowBackUp size={ICON} /> : <IconTrash size={ICON} />}
-          </IconBtn>
-        );
+    ...uiCols([
+      { key: "description", header: "설명", width: 140, editable: can, cellClassRules: edited("description"), render: textCell("col-desc") },
+      { key: "exprInfo", header: "식 결과", width: 220, render: (_v, row) => exprInfoCell(g(row).__exprs) },
+      { key: "check", header: "검사", width: 170, pinned: "right", render: (_v, row) => checkCell(g(row)) },
+      {
+        key: "del",
+        header: "삭제",
+        width: 48,
+        align: "center",
+        pinned: "right",
+        render: (_v, row) => {
+          const r = g(row);
+          const del = r.__row.deleted;
+          return (
+            <IconBtn label={`${name(r)} ${del ? "삭제 취소" : "삭제"}`} testId={`col-del-${r.rowKey}`} disabled={!r.__canEdit} onClick={() => h().remove(r.__row)}>
+              {del ? <IconArrowBackUp size={ICON} /> : <IconTrash size={ICON} />}
+            </IconBtn>
+          );
+        },
       },
-    },
+    ]),
   );
   return cols;
 }

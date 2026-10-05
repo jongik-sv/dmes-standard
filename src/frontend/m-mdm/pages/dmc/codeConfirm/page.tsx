@@ -26,6 +26,7 @@ import { confirmDraft, searchDrafts, validateDraft, viewDraft } from "./api";
 import { canConfirm, checkStatusLabel, checkTitle, toServerDateTime, warningLines } from "./checks";
 import { ConfirmModal } from "./ConfirmModal";
 import type { CategoryChange, CheckRow, DiffEntry, PendingDraft, ViewResult } from "./types";
+import { uiCols } from "@/ui-meta";
 
 export interface CodeConfirmPageProps {
   tabId?: string;
@@ -56,10 +57,10 @@ const DRAFT_COLUMNS: GridColumn[] = [
   { key: "ownerId", header: "소유자", width: 90, render: (v) => (v as string | null | undefined) ?? "—" },
 ];
 
-const CHECK_COLUMNS: GridColumn[] = [
-  { key: "no", meta: false, header: "번호", width: 60 },
+const CHECK_COLUMNS: GridColumn[] = uiCols([
+  { key: "no", header: "번호", width: 60 },
   {
-    key: "item", header: "검사", meta: false, width: 240,
+    key: "item", header: "검사", width: 240,
     render: (_v, row) => {
       const r = row as unknown as CheckRow;
       return (
@@ -70,7 +71,7 @@ const CHECK_COLUMNS: GridColumn[] = [
     },
   },
   {
-    key: "status", header: "결과", meta: false, width: 80,
+    key: "status", header: "결과", width: 80,
     render: (_v, row) => {
       const r = row as unknown as CheckRow;
       const rejected = r.status === "REJECTED";
@@ -83,34 +84,34 @@ const CHECK_COLUMNS: GridColumn[] = [
   },
   {
     // 한 줄 행 높이에 맞춰 상세 메시지를 이어 붙이고, 전체 문구는 마우스오버(title)로 본다.
-    key: "issues", header: "상세", meta: false, width: 300,
+    key: "issues", header: "상세", width: 300,
     render: (_v, row) => {
       const text = ((row as unknown as CheckRow).issues ?? [])
         .map((i) => (i.itemKey ? `${i.message} (${i.itemKey})` : i.message)).join(" / ");
       return <span title={text}>{text}</span>;
     },
   },
-];
+]);
 
-const DIFF_COLUMNS: GridColumn[] = [
-  { key: "table", header: "테이블", meta: false, width: 110 },
-  { key: "key", header: "키", meta: false, width: 130 },
-  { key: "kind", meta: false, header: "변경", width: 70, render: (v) => DIFF_KIND_LABELS[String(v)] ?? String(v) },
+const DIFF_COLUMNS: GridColumn[] = uiCols([
+  { key: "table", header: "테이블", width: 110 },
+  { key: "key", header: "키", width: 130 },
+  { key: "kind", header: "변경", width: 70, render: (v) => DIFF_KIND_LABELS[String(v)] ?? String(v) },
   {
-    key: "oldValues", header: "이전", meta: false, width: 200,
+    key: "oldValues", header: "이전", width: 200,
     render: (_v, row) => {
       const d = row as unknown as DiffEntry;
       return valuesText(d.oldValues, d.kind === "CHANGED" ? d.newValues : null);
     },
   },
   {
-    key: "newValues", header: "이후", meta: false, width: 200,
+    key: "newValues", header: "이후", width: 200,
     render: (_v, row) => {
       const d = row as unknown as DiffEntry;
       return valuesText(d.newValues, d.kind === "CHANGED" ? d.oldValues : null);
     },
   },
-];
+]);
 
 interface Target {
   maruCodeId: string;

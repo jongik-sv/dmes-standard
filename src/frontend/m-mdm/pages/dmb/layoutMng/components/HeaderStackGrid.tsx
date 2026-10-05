@@ -13,6 +13,7 @@ import { hint, sectionTitle } from "@/layout/styles";
 import type { HeaderStackRow } from "@/layout/types";
 import { versionStateLabel } from "@/layout/version-rows";
 import { fmtVer } from "@/shell";
+import { uiCols } from "@/ui-meta";
 
 /** 판정 시각 T 에 확정 헤더가 없을 때의 상태 표기. */
 export const HEADER_MISSING_LABEL = "확정 헤더 없음";
@@ -46,24 +47,24 @@ export function HeaderStackGrid({ rows, readOnly, onAdd, onRemove, onEditConst, 
   // 셀 버튼 콜백은 ref 로 — 열 정의를 렌더마다 새로 만들지 않는다
   const actions = useRef({ onRemove, onEditConst });
   actions.current = { onRemove, onEditConst };
-  const columns = useMemo<GridColumn[]>(() => [
-    { key: "SEQ", meta: false, header: "순서", width: 70, align: "center", rowDrag: !readOnly },
-    { key: "HEADER_NAME", meta: false, header: "헤더", width: 160 },
+  const columns = useMemo<GridColumn[]>(() => uiCols([
+    { key: "SEQ", header: "순서", width: 70, align: "center", rowDrag: !readOnly },
+    { key: "HEADER_NAME", header: "헤더", width: 160 },
     { key: "EAI_CODE", header: "EAI", width: 90 },
-    { key: "HEADER_VER", meta: false, header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },
-    { key: "HEADER_STATE", meta: false, header: "상태", width: 90,
+    { key: "HEADER_VER", header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },
+    { key: "HEADER_STATE", header: "상태", width: 90,
       render: (v) => (v === "MISSING" ? <span style={{ color: "var(--color-danger, #b91c1c)" }}>{HEADER_MISSING_LABEL}</span> : headerStateLabel(v)) },
     { key: "TOTAL_LENGTH", header: "길이", width: 70, align: "right", render: (v) => lengthText(v as number | null) },
-    { key: "POSITION", meta: false, header: "위치", width: 90, align: "center" },
-    { key: "OVERRIDES", meta: false, header: "재정의한 상수", width: 160, render: (v) => (v ? String(v) : <span style={hint}>없음</span>) },
-    { key: "ACTIONS", meta: false, header: "", width: 150,
+    { key: "POSITION", header: "위치", width: 90, align: "center" },
+    { key: "OVERRIDES", header: "재정의한 상수", width: 160, render: (v) => (v ? String(v) : <span style={hint}>없음</span>) },
+    { key: "ACTIONS", header: "", width: 150,
       render: (_v, r) => (
         <span style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
           <Button size="mini" data-testid={`const-edit-open-${r.SEQ}`} onClick={() => actions.current.onEditConst(String(r.KEY))}>상수 편집</Button>
           {!readOnly && <Button size="mini" onClick={() => actions.current.onRemove(String(r.KEY))}>빼기</Button>}
         </span>
       ) },
-  ], [readOnly]);
+  ], ["EAI_CODE", "TOTAL_LENGTH"]), [readOnly]);
   // 계산 칸은 행 데이터에 넣는다 — ag-grid 는 필드 값이 바뀐 셀만 다시 그린다
   const data = useMemo(() => rows.map((r) => ({
     ...r, POSITION: positionLabel(r.OFFSET, r.TOTAL_LENGTH), OVERRIDES: overrideSummary(r), ACTIONS: `${r.KEY}:${r.SEQ}`,
