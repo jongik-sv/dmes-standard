@@ -2,7 +2,7 @@
 
 - 레인: widget-dock (업무 화면 도구 창) / 브랜치 `feat/widget-dock` / 워크트리 `/Users/jji/project/dmes-standard-wt/widget-dock`
 - 기준: dev `a4848de8` + floatable 메타(6bd18da2)
-- 머리 순서: widget-meta 의 비공개(10)가 dev 에 들어간 뒤 머지(README §4-1).
+- 상태: **완료**(2026-10-05). dev 머지 20d88f29, 조정 세션 브라우저 확인 통과(메모는 정의 행을 만들면 메뉴에 오름 — 결정 12), 후속은 아래 「남은 일」. 선행 조건(widget-meta 10)은 조정 세션이 풀었다.
 
 ## 진행
 
@@ -58,4 +58,5 @@
 8. **후속 — 사용자 확인 실패 시 메뉴 재시도**(리뷰 11): `/api/auth/me` 가 실패하면 사용자 ID 가 비어 「도구」 메뉴가 계속 불러오는 중으로 남는다. 실패를 알리고 다시 시도하는 길이 없다.
 9. (처리 끝) **제목 이중 표시**(리뷰 12): `hideTitle` 로 해소. 같은 aria-label 이 dialog section 과 틀 section 에 두 번 붙는 점은 남아 있다.
 10. (처리 끝) **스킬 문서 갱신**: `.claude/skills/mantine-aggrid-ui/references/components/widget-dock.md`·`floating-window.md` 에 이번 변경(훅 `viewport` 제거·`WidgetDockLayer viewport` 선택 prop·`DockToolsMenu triggerRef`·`dockStackOrder`·`placeDockWindow`·사이드바 z 150)을 반영해야 한다.
+12. **「도구」 메뉴에 메모가 없는 원인(코드 결함 아님, 데이터)**: 계산기·단위 계산기·메모는 모두 정의 위젯 유형이라 「도구」 목록에는 `widgetDef/list` 가 돌려주는 정의 행(TB_MCM_WIDGET_DEF, SRC_TP=D, TYPE_ID)이 있어야 오른다. 유형 등록부의 `floatable: true` 는 생성 등록부(`lib/generated/widget-type-registry.ts`)에 그대로 들어 있다. 2026-10-05 로컬 mcm.db 에는 calculator·unit-converter 정의 행만 있고 memo 정의 행이 없다(위젯 관리에서 메모 정의를 만들지 않았다). **조치**: 위젯 관리(commWidgetMng)에서 유형 「메모장」 정의를 만들면(개인 메모, 사용 Y) 메뉴에 오른다. 운영 이행 때도 세 유형의 정의 행이 있어야 한다. 정의 없이 유형만으로 띄우는 대안은 위젯 ID 규칙·메모 서버 저장 키와 얽혀 이번 회차에 넣지 않았다.
 11. **기존 문제(이 레인 아님)**: mantine-aggrid-ui `ui_docs.py coverage` 의 `useWidgetVisible` 미등재 1건.
