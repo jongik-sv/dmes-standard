@@ -534,6 +534,37 @@ describe("하위 세트(SET 노드) 분석", () => {
     expect(flowDeps(f, {}, calls)).toEqual({ "set:SP": [] });
   });
 
+  it("폐기된 세트(겉모양 exists=true, status DEPRECATED)는 CALL_MISSING 경고 \"{id}는 폐기된 세트다\"다", () => {
+    const f: RuleSetFlow = { version: 1, nodes: [fnode("start", "START"), setNode("s1", "SP"), fnode("end", "END")], edges: [fedge("e1", "start", "s1"), fedge("e2", "s1", "end")] };
+    expect(flowChecks(f, {}, {}, { SP: call("SP", { status: "DEPRECATED" }) })).toEqual([
+      { code: "CALL_MISSING", severity: "WARN", ruleId: "SP", otherRuleId: null, varName: null, message: "SP는 폐기된 세트다", nodeId: "s1", edgeId: null },
+    ]);
+  });
+
+  it("RULE 에 붙은 SUBSET_ENDED 받는 노드의 FLOW_CATCH 는 룰이 없거나 RELEASED 가 없어도 나온다(존재 검사로 빠지기 전에 낸다)", () => {
+    const f: RuleSetFlow = {
+      version: 1,
+      nodes: [
+        fnode("start", "START"),
+        fnode("r1", "RULE", "R9"),
+        { ...fnode("c1", "CATCH"), attachTo: "r1", catches: ["SUBSET_ENDED"] },
+        { ...fnode("m1", "MERGE"), splitId: "r1" },
+        fnode("end", "END"),
+      ],
+      edges: [fedge("e1", "start", "r1"), fedge("e2", "r1", "m1"), fedge("e3", "c1", "m1"), fedge("e4", "m1", "end")],
+    };
+    const flowCatch = { code: "FLOW_CATCH", severity: "REJECT", ruleId: null, otherRuleId: null, varName: null, message: "받는 노드 c1: 룰 노드에는 하위 세트 예외 끝(SUBSET_ENDED)을 붙일 수 없다", nodeId: "c1", edgeId: null };
+    // 없는 룰 — RULE_NOT_FOUND 바로 뒤에 FLOW_CATCH 하나
+    expect(flowChecks(f, {}, {})).toEqual([
+      { code: "RULE_NOT_FOUND", severity: "REJECT", ruleId: "R9", otherRuleId: null, varName: null, message: "R9는 없는 룰이다", nodeId: "r1", edgeId: null },
+      flowCatch,
+    ]);
+    // RELEASED 없는 룰 — NO_RELEASED 바로 뒤에 FLOW_CATCH 하나
+    const noReleased = flowChecks(f, byId(rule("R9", [], [], { releasedVer: null })), {});
+    expect(noReleased.map((c) => c.code)).toEqual(["NO_RELEASED", "FLOW_CATCH"]);
+    expect(noReleased[1]).toEqual(flowCatch);
+  });
+
   it("RULE 만 있는 흐름은 calls 를 넘겨도 결과가 같다(기존 문구·순서 불변)", () => {
     const rules = byId(rule("R1", [n("A", "DICT")], [n("P")]), rule("R2", [n("P"), n("Q")], [n("R")]));
     const f = linearFlow(["R1", "R2"]);
