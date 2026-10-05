@@ -253,12 +253,16 @@ describe("validateDefForm", () => {
     expect(validateDefForm({ ...codeForm("home.notice"), minW: "25" })).toContain("최소 너비는 24 이하여야 합니다.");
   });
 
-  it("새로 고침 주기 10 은 거절, 30~86400 만", () => {
-    const msg = "새로 고침 주기는 30~86400초여야 합니다.";
+  it("새로 고침 주기 599 이하는 거절, 600~86400 만(빈 칸은 없음)", () => {
+    const msg = "새로 고침 주기는 600~86400초여야 합니다.";
     expect(validateDefForm(dForm({ refreshSec: "10" }))).toContain(msg);
+    expect(validateDefForm(dForm({ refreshSec: "30" }))).toContain(msg);
+    expect(validateDefForm(dForm({ refreshSec: "599" }))).toContain(msg);
     expect(validateDefForm(dForm({ refreshSec: "86401" }))).toContain(msg);
-    expect(validateDefForm(dForm({ refreshSec: "30" }))).toEqual([]);
+    expect(validateDefForm(dForm({ refreshSec: "600" }))).toEqual([]);
     expect(validateDefForm(dForm({ refreshSec: "86400" }))).toEqual([]);
+    expect(validateDefForm(dForm({ refreshSec: "" }))).toEqual([]);
+    expect(validateDefForm({ ...codeForm("home.notice"), refreshSec: "60" })).toContain(msg);
   });
 
   it("문자열 길이는 컬럼 길이 이하", () => {
@@ -428,7 +432,7 @@ describe("복사해서 만들기", () => {
         minH: 4,
         maxW: 24,
         maxH: 20,
-        refreshSec: 60,
+        refreshSec: 600,
         linkPageId: "mls:lsh/noticeMgmt",
         multipleYn: "N",
         categoryCd: "PROD",
@@ -455,7 +459,7 @@ describe("복사해서 만들기", () => {
       minH: "4",
       maxW: "24",
       maxH: "20",
-      refreshSec: "60",
+      refreshSec: "600",
       linkPageId: "mls:lsh/noticeMgmt",
       multipleYn: "N",
       categoryCd: "PROD",
