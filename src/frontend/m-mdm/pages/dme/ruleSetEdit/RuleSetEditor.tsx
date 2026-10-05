@@ -138,7 +138,8 @@ export interface RuleSetEditorProps {
 export function RuleSetEditor({ tabKey, request, onStatus, active = true }: RuleSetEditorProps) {
   const tabsApi = useContext(RuleSetTabsContext);
   const rbac = useUserButtonRbac();
-  const state = useRuleSetEdit({ onWritten: tabsApi.notifyWritten });
+  // written — 다른 탭이 쓴 세트를 이 흐름이 부르면 그 겉모양을 다시 받는다(하위 세트 spec §10.4, 훅이 판정한다)
+  const state = useRuleSetEdit({ onWritten: tabsApi.notifyWritten, written: tabsApi.written });
   const { open, edit, view, flow } = state;
 
   const requestSeq = request?.seq ?? null;

@@ -118,3 +118,22 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
   2. `flow` 의 `view.positions` 가 오면 하위 캔버스가 저장된 배치로 그려지는지(목은 `flow: null`·빈 view 뿐), 옛 형식 하위 흐름의 기록 노드와 변환 흐름이 어긋나는 자리(결정 5).
   3. 하위 `RuleIo`(`rules`)로 룰 노드 제목·칩이 나오는지, 하위 세트 안 오류·CAUGHT·끝내는 IF 갈래 끝의 상태 줄 문구를 엔진 실제 기록으로 본다.
   4. 브라우저 확인(조정 세션, 사용자 승인 뒤): 경로 줄 모양·좁은 폭 줄바꿈, 프레임 전환 때 화면 맞춤(`fitKey`), 경고 줄 색.
+
+## ui:8. SET 노드 화면
+- 상태: 1단계(모델·상태) 끝. 캔버스·패널·팝업·툴바 링크·받는 노드 UI·e2e 는 다음 단계.
+- 커밋(1단계): `7209d80e`(types·api), `243e189f`(flow-edit·flow-vars·caller-links, 시험 `set-node-model.test.ts`), 훅 커밋(useRuleSetEdit·편집기 한 줄, 시험 `set-calls-state.test.ts`·이 절)
+- 시험 결과(1단계): `vitest run tests/dme/ruleSetEdit` → 101파일 1911 통과·0 실패(새 시험 27 = set-node-model 13 + set-calls-state 14), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건.
+- 계획 조정(본문과 다르게 한 것):
+  1. **`node()` 는 그대로, setId 는 SET 노드에만** — 조정 확정(모든 노드 `setId: null` 방식 안 씀). `copyNode`(ui:9)와 같이 label 뒤에 둔다. 본문이 놓친 붙여넣기(`instantiate`)도 SET 이면 setId 를 옮긴다(안 하면 붙여 넣은 SET 이 세트를 잃는다).
+  2. **`caller-links.ts` 정규식** — 본문은 `CALLER_BROKEN 세트 {P}:` 만 봤다. 서버를 읽어 보니 (a) 저장의 CALLER_BROKEN 은 거부가 아니라 WARN 사본(`callWarnings`)이라 경고 줄로 오고, 화면 경고 줄(`warnLines`)은 코드 없이 문구만이라 `세트 P: …` 꼴이다. (b) 부르는 행이 여럿이면 `세트 P v1.001: …`(`SetCallerRecheck`). 그래서 문구(거부) 쪽은 `CALLER_BROKEN 세트 P( vN.NNN)?: `·`CALLER_BROKEN 사용 중인 세트 P1, P2가 `(폐기 거부), 줄 쪽은 `^세트 P( vN.NNN)?: `·`^부르는 세트에 경고가 생겼다: P1, P2$` 를 본다. ID 는 서버 `STD_PHYS_NAME` 이 대문자로 시작하므로 `세트 호출이 순환한다`·`세트 노드 s1에` 같은 다른 경고는 걸리지 않는다(시험 고정). 이 화면에서 문구 쪽 CALLER_BROKEN 이 실제로 나는 길은 폐기 거부뿐이다(저장은 경고, 되살리기는 연쇄 재검사를 하지 않는다).
+  3. **늦은 응답 판정** — 본문 `setIdRef` 비교 대신 겉모양 맵 세대(`callEpoch`, 불러오기 성공마다 1 증가)로 버린다. 같은 세트를 다시 불러와도(다시 불러오기·자기 쓰기 뒤) 떠나 있던 응답이 서버 새 값(`view.calls`)을 덮지 않는다. 불러올 때 물은 ID 집합·요청 번호 맵을 새 객체로 바꿔 옛 요청이 새 세대를 건드리지 않게 했다.
+  4. **한 번 물은 ID 는 다시 묻지 않는다(빈 응답 포함)** — 본문은 받는 중인 ID 만 걸러 맵에 키가 없으면 다시 묻는다. 서버가 그 ID 를 주지 않거나(목 서버의 빈 응답 `ok({})`) 다른 ID 응답으로 맵이 바뀌면 되풀이해 묻는다. 그래서 이번 세대에 물은 ID 는 다시 묻지 않고(그 SET 노드는 CALL_MISSING 경고로 남는다), 실패하면 그 ID 만 풀어 다음 흐름 변경 때 다시 묻는다. 빈 응답이면 맵을 새 객체로 바꾸지 않는다.
+  5. **모르는 ID 고르기는 노드 훑기** — 본문 `flowSetIds(flow)` 는 흐름 해석(parseFlow)을 해 끌기마다 돈다. 훅은 노드를 한 번 훑어(SET·공백 아닌 setId, 중복 없음) ID 목록 글자를 효과 키로 쓴다 — 위치만 바뀌는 편집에는 효과가 다시 돌지 않는다.
+  6. **`written` 반응은 훅 안에** — 본문은 편집기 효과(`flowSetIds(flowRef.current)`). 훅 옵션 `written`(탭 틀의 `RuleSetTabsApi.written`)을 받아 seq 가 바뀌면 판정한다(편집기는 넘기기만, 한 줄). 마운트 때 값은 새 알림이 아니다. 자기 세트 알림은 무시. 흐름이 부르면 이미 받았거나 받는 중이어도 다시 묻고(`refreshCalls` 와 같은 강제), 앞 요청의 응답은 그 ID 에 쓰지 않는다(ID 별 마지막 요청 번호). 흐름이 부르지 않으면 들고 있던 그 세트의 겉모양을 버린다(되돌리기로 SET 노드가 돌아오면 새로 묻게).
+  7. **`checks`** — 본문의 plain `useMemo` 대신 기존 같은-참조 캐시(`checksMemo`)를 두고 비교에 `calls` 를 더했다.
+  8. **`sim-dirty-subsets` 는 만들지 않는다** — ui:9 결정 4 의 `dbg-subset-unconfirmed`(C-D18 문구·조건)가 대신한다(조정 확정).
+- 결정:
+  1. **새 API(다음 단계가 쓴다)** — `api.callIo(setIds)`·`api.callers(setId)`, `RuleSetEditState.calls`·`refreshCalls(ids)`, 훅 옵션 `written`, `flow-edit.insertSet(f, edgeId, setId, label?)`, `flow-vars.edgeChips(f, rules, calls?)`, `caller-links.callerSetIds(text, lines?)`, `types.RuleSetCallIoResult`·`RuleSetView.calls?`·`"CALLER_WARN"`.
+  2. **SET 노드 = 단계** — `isStep` 에 SET: 지우기(붙은 받는 노드 같이)·옮기기·복사·복제·붙여넣기(접두어 `s`)·돌아오는 자리 걷기가 RULE·TASK 와 같다. 룰 지정(`assignRule`)은 그대로 빈 단계·룰만. 외관(`setNodeStyle`·`setNodesColor`)은 `STYLED_KINDS`(RULE·TASK)만이라 SET 은 거부·건너뜀(스펙 §9).
+  3. **겉모양 받기 실패** — 오류 창(`state.error`, 조건식 IO 실패와 같은 길). 숨은 탭이면 탭을 고를 때 뜬다(ui:7 결정 6).
+- 확인만 한 것: 확정 보고서의 CALLER_WARN·CALLER_BROKEN 항목 키 `SET:<setId>` 는 확정 화면(`ruleSetConfirm`) 몫이다. 이 화면이 받는 서버 응답(view·save·restore·delete·search)에는 그 키가 없다(Java 대조) — 이 레인은 다른 화면 폴더를 고치지 않으므로 조정 세션이 확정 화면 쪽에 넘긴다.

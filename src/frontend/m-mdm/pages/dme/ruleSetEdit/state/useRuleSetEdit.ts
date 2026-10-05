@@ -25,18 +25,23 @@
  * 확인을 받는다. 버전 조작(`versionWrite`)은 저장하지 않은 변경·자동 저장 중에는 보내지 않고, 끝나면 정한 버전(새 버전·지금 버전·서버 기본)으로 다시 부른다.
  * 자동 저장이 MDM002·MDM003(다른 곳에서 확정·넘기기·삭제)으로 거부되면 `stale` 을 돌려주고 지금 버전을 다시 불러 읽기 전용으로 내린다(Review Focus 1).
  * 수동 [저장] 도 같은 거부면 오류창 대신 같은 경로(`reloadDraftGone`)로 읽기 전용 다시 불러오기를 한다(Ruling P2-22 M-6).
+ *
+ * 하위 세트 겉모양(하위 세트 spec §8·§10.4, 계획 Task 8): 흐름의 SET 노드가 부르는 세트의 겉모양 맵 `calls` 를 둔다. 열 때 `view.calls` 로 채우고,
+ * 흐름에 아직 모르는 세트 ID 가 생기면(놓기·붙여넣기·되돌리기) `search CALL_IO` 로 그것만 받는다 — 한 번 물은 ID 는 다시 묻지 않고(빈 응답도),
+ * 세트를 다시 불러오면 늦은 응답을 버린다(Local-Rules §11). 다른 탭이 세트 S 를 썼다는 알림(`written`)이 오면 흐름에 S 를 부르는 SET 노드가 있을 때
+ * S 를 다시 받는다(앞선 요청의 응답은 버린다). 검사는 `flowChecks(flow, rules, condIo, calls)` 다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CONFLICT_MESSAGE, isDraftGone, isRowVersionConflict } from "@/dme/oasis-call";
 import { fmtVer, sameVer } from "@/shell";
 
-import { deprecateSet, restoreSet, saveSet, validateFlow, viewSet } from "../api";
+import { callIo, deprecateSet, restoreSet, saveSet, validateFlow, viewSet } from "../api";
 import { EditHistory } from "./edit-history";
 import { UPGRADE_NOTICE, flowJsonOf, toEditFlow, toEditFlowCounted, type EditFlow, type EditResult } from "../flow-edit";
-import { linearFlow } from "../flow-model";
+import { isBlankJava, linearFlow } from "../flow-model";
 import { flowChecks } from "../set-model";
-import type { CondIo, RuleIo, RuleSetCheck, RuleSetSaveResult, RuleSetView } from "../types";
+import type { CondIo, RuleIo, RuleSetCheck, RuleSetSaveResult, RuleSetView, SetCallIo } from "../types";
 
 // 충돌 문구는 룰 화면·룰 상세와 같은 것을 쓴다 — 이 모듈에서 가져가던 곳(useTestCases·시험)을 위해 다시 내보낸다.
 export { CONFLICT_MESSAGE };
@@ -87,7 +92,9 @@ export interface RuleSetEditState {
   rules: Record<string, RuleIo>;
   condIo: Record<string, CondIo>;
   condIoPending: boolean;
-  /** flowChecks(flow, rules, condIo) — flow·rules·condIo 가 바뀔 때만 다시 계산한다. */
+  /** 흐름의 SET 노드가 부르는 세트의 겉모양(세트 ID →, 하위 세트 spec §8). 아직 받지 않은 ID 는 키가 없다(검사는 CALL_MISSING, Ruling 8). */
+  calls: Record<string, SetCallIo>;
+  /** flowChecks(flow, rules, condIo, calls) — flow·rules·condIo·calls 가 바뀔 때만 다시 계산한다. */
   checks: RuleSetCheck[];
   mode: FlowMode;
   setName: string;
@@ -143,6 +150,8 @@ export interface RuleSetEditState {
   saveQuiet(): Promise<QuietSaveResult>;
   deprecate(): Promise<void>;
   restore(): Promise<void>;
+  /** 그 세트들의 겉모양을 다시 받는다 — 이미 받았거나 받는 중이어도 새로 묻고 앞선 요청의 응답은 버린다(하위 세트 spec §10.4). */
+  refreshCalls(setIds: readonly string[]): void;
   /** 쓰기 밖(찾기 등) 오류를 오류 창으로 보인다. */
   reportError(e: unknown): void;
   clearError(): void;
@@ -158,13 +167,14 @@ function toMap(ios: readonly RuleIo[] | null | undefined, base: Record<string, R
 }
 
 /**
- * 실행에 영향을 주는 칸만의 비교 키 — flowVersion 판정(Ruling 12). 노드 id·kind·ruleId·splitId, 선 id·from·to·order·cond·otherwise.
+ * 실행에 영향을 주는 칸만의 비교 키 — flowVersion 판정(Ruling 12). 노드 id·kind·ruleId·splitId·setId, 선 id·from·to·order·cond·otherwise.
  * 라벨·위치·메모·그룹은 실행 결과를 바꾸지 않으므로 넣지 않는다(디버거 표시가 이름 고치기로 지워지지 않게).
  */
 const structKey = (f: EditFlow | null) =>
   f
     ? JSON.stringify([
-        f.nodes.map((n) => [n.id, n.kind, n.ruleId, n.splitId]),
+        // setId — SET 노드의 세트를 바꾸면 낡은 실행 표시를 지운다(하위 세트 계획 Task 8)
+        f.nodes.map((n) => [n.id, n.kind, n.ruleId, n.splitId, n.setId ?? null]),
         f.edges.map((e) => [e.id, e.from, e.to, e.order, e.cond, e.otherwise]),
       ])
     : "";
@@ -175,6 +185,20 @@ function condKey(f: EditFlow | null): string {
   const ifs = new Set(f.nodes.filter((n) => n.kind === "IF").map((n) => n.id));
   return JSON.stringify(f.edges.filter((e) => ifs.has(e.from) && !e.otherwise).map((e) => [e.id, e.cond]));
 }
+
+/**
+ * 흐름의 SET 노드가 부르는 세트 ID(공백 ID 제외, 중복 없음, 노드 순서). 겉모양을 받을 ID 를 고르는 데만 쓰므로 흐름 해석(`flowSetIds`)을 하지 않는다 —
+ * 끌기처럼 흐름이 자주 바뀌어도 노드를 한 번 훑을 뿐이다.
+ */
+function nodeSetIds(f: EditFlow | null): string[] {
+  const out: string[] = [];
+  for (const n of f?.nodes ?? []) {
+    if (n.kind === "SET" && !isBlankJava(n.setId) && !out.includes(n.setId as string)) out.push(n.setId as string);
+  }
+  return out;
+}
+
+const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 
 const hasSplit = (f: EditFlow) => f.nodes.some((n) => n.kind === "IF" || n.kind === "PARALLEL");
 /** 구성 지침은 룰 ID 만으로 흐름을 갈아 끼우므로, 분기나 빈 단계가 있으면 적용하지 않는다(빈 단계를 말없이 지우지 않는다). */
@@ -199,6 +223,11 @@ export interface RuleSetEditOptions {
    * 자동 저장(`saveQuiet`)은 부르지 않는다 — DRAFT 저장은 겉모양(지금 유효한 RELEASED 기준)을 바꾸지 않는다(ui:7 결정).
    */
   onWritten?: (setId: string) => void;
+  /**
+   * 다른 탭의 마지막 쓰기 알림(`RuleSetTabsApi.written`, 하위 세트 spec §10.4). seq 가 바뀌면 흐름에 그 세트를 부르는 SET 노드가 있을 때
+   * 그 세트의 겉모양을 다시 받는다. 자기 세트 알림은 보지 않는다. 처음 받은 값(마운트 때)은 새 알림으로 보지 않는다.
+   */
+  written?: { setId: string; seq: number } | null;
 }
 
 export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState {
@@ -220,6 +249,7 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
   const [error, setError] = useState<string | null>(null);
   const [flowVersion, setFlowVersion] = useState(0);
   const [viewEpoch, setViewEpoch] = useState(0);
+  const [calls, setCalls] = useState<Record<string, SetCallIo>>({});
 
   const flowRef = useRef<EditFlow | null>(null);
   const setIdRef = useRef<string | null>(null);
@@ -242,6 +272,13 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
   const [, setHistTick] = useState(0);
   const bumpHist = useCallback(() => setHistTick((t) => t + 1), []);
   const modeRef = useRef<FlowMode>("view");
+  /** 겉모양 맵을 새로 채운 횟수(불러오기 성공마다 1 증가) — 그 전에 떠난 CALL_IO 요청의 응답은 버린다. */
+  const callEpoch = useRef(0);
+  /** 이번 맵에서 이미 물었거나 묻는 중인 세트 ID — 다시 묻지 않는다. 맵을 새로 채울 때 새 집합으로 바꾼다(옛 요청이 새 집합을 건드리지 않게). */
+  const callAsked = useRef(new Set<string>());
+  /** 세트 ID → 그 ID 를 마지막으로 물은 요청 번호 — 다시 물었으면 앞 요청의 응답은 그 ID 에 쓰지 않는다. */
+  const callLatest = useRef(new Map<string, number>());
+  const callSeq = useRef(0);
 
   /** 진행 중인 조건식 IO 요청·대기를 모두 버린다. */
   const cancelCondIo = useCallback(() => {
@@ -283,6 +320,39 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
     }, COND_IO_DEBOUNCE_MS);
   }, []);
 
+  /** 세트들의 겉모양을 받는다. force 가 거짓이면 이번 맵에서 이미 물은 ID 는 건너뛴다. */
+  const fetchCalls = useCallback((ids: readonly string[], force: boolean) => {
+    const asked = callAsked.current;
+    const latest = callLatest.current;
+    const want = [...new Set(ids)].filter((id) => !isBlankJava(id) && (force || !asked.has(id)));
+    if (want.length === 0) return;
+    const mine = ++callSeq.current;
+    const epoch = callEpoch.current;
+    for (const id of want) {
+      asked.add(id);
+      latest.set(id, mine);
+    }
+    callIo(want).then(
+      (res) => {
+        if (epoch !== callEpoch.current) return; // 그사이 세트를 다시 불러왔다 — 늦은 응답은 버린다(Local-Rules §11)
+        const got = new Map((res.calls ?? []).map((c) => [c.setId, c] as const));
+        const mineIds = want.filter((id) => latest.get(id) === mine && got.has(id));
+        if (mineIds.length === 0) return;
+        setCalls((cur) => {
+          const next = { ...cur };
+          for (const id of mineIds) next[id] = got.get(id)!;
+          return next;
+        });
+      },
+      (e: unknown) => {
+        if (epoch !== callEpoch.current) return;
+        // 다음에 흐름이 바뀌면 다시 묻는다(그동안 그 SET 노드는 CALL_MISSING 경고로 보인다)
+        for (const id of want) if (latest.get(id) === mine) asked.delete(id);
+        setError(errorText(e));
+      },
+    );
+  }, []);
+
   const baseJson = useMemo(() => (view ? flowJsonOf(toEditFlow(view.set.flow, view.set.ruleIds ?? [])) : ""), [view]);
   const flowJson = useMemo(() => (flow ? flowJsonOf(flow) : ""), [flow]);
   const dirty =
@@ -293,16 +363,57 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
 
   // flowChecks 는 노드·선만 읽는다(view 를 읽지 않는다). 위치·경로·메모·외관만 바꾼 편집은 노드·선 내용이 같으므로 이전 결과(같은 참조)를 쓴다 —
   // 362노드에서 약 4ms 이고, 같은 참조라 캔버스의 표시(marks)도 다시 계산하지 않는다.
-  const checksMemo = useRef<{ key: string; rules: Record<string, RuleIo>; condIo: Record<string, CondIo>; checks: RuleSetCheck[] } | null>(null);
+  const checksMemo = useRef<{
+    key: string;
+    rules: Record<string, RuleIo>;
+    condIo: Record<string, CondIo>;
+    calls: Record<string, SetCallIo>;
+    checks: RuleSetCheck[];
+  } | null>(null);
   const checks = useMemo(() => {
     if (!flow) return [];
     const key = JSON.stringify([flow.nodes, flow.edges]);
     const last = checksMemo.current;
-    if (last && last.key === key && last.rules === rules && last.condIo === condIo) return last.checks;
-    const next = flowChecks(flow, rules, condIo);
-    checksMemo.current = { key, rules, condIo, checks: next };
+    if (last && last.key === key && last.rules === rules && last.condIo === condIo && last.calls === calls) return last.checks;
+    const next = flowChecks(flow, rules, condIo, calls);
+    checksMemo.current = { key, rules, condIo, calls, checks: next };
     return next;
-  }, [flow, rules, condIo]);
+  }, [flow, rules, condIo, calls]);
+
+  // 흐름에 아직 모르는 세트 ID 가 생기면(SET 노드 놓기·붙여넣기·되돌리기, 겉모양이 없는 옛 응답) 그것만 받는다.
+  // 키는 ID 목록 글자라 위치만 바뀌는 편집(끌기)에는 다시 돌지 않는다.
+  const setIdsKey = useMemo(() => JSON.stringify(nodeSetIds(flow)), [flow]);
+  useEffect(() => {
+    const missing = (JSON.parse(setIdsKey) as string[]).filter((id) => !hasOwn(calls, id));
+    if (missing.length > 0) fetchCalls(missing, false);
+  }, [setIdsKey, calls, fetchCalls]);
+
+  const refreshCalls = useCallback((ids: readonly string[]) => fetchCalls(ids, true), [fetchCalls]);
+
+  // 다른 탭이 세트 S 를 저장·폐기·되살렸거나 버전을 조작했다(하위 세트 spec §10.4) — 흐름이 S 를 부르면 다시 받는다.
+  // 흐름에 없으면 들고 있던 S 의 겉모양을 버린다 — 되돌리기로 SET 노드가 돌아오면 그때 새로 묻는다.
+  const writtenRef = useRef(opts.written ?? null);
+  writtenRef.current = opts.written ?? null;
+  const writtenSeq = opts.written?.seq ?? 0;
+  const seenWritten = useRef(writtenSeq);
+  useEffect(() => {
+    if (writtenSeq === seenWritten.current) return;
+    seenWritten.current = writtenSeq;
+    const w = writtenRef.current;
+    if (!w || isBlankJava(w.setId) || w.setId === setIdRef.current) return;
+    if (nodeSetIds(flowRef.current).includes(w.setId)) {
+      fetchCalls([w.setId], true);
+      return;
+    }
+    callAsked.current.delete(w.setId);
+    callLatest.current.set(w.setId, ++callSeq.current); // 떠나 있는 요청의 응답도 쓰지 않는다
+    setCalls((cur) => {
+      if (!hasOwn(cur, w.setId)) return cur;
+      const next = { ...cur };
+      delete next[w.setId];
+      return next;
+    });
+  }, [writtenSeq, fetchCalls]);
 
   /** 새 흐름으로 바꾼다. nodes·edges 가 바뀌었으면 flowVersion 을 올리고, 조건식이 바뀌었으면 조건식 IO 를 다시 받는다. */
   const replaceFlow = useCallback(
@@ -344,6 +455,11 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
         replaceFlow(loaded.flow, { refetchCond: false });
         setRules(toMap(next.rules));
         setCondIo(next.condIo ?? {});
+        // 겉모양 맵을 서버 값으로 새로 채운다 — 앞서 떠난 CALL_IO 응답은 버린다(흐름에 있는데 맵에 없는 ID 는 위 효과가 묻는다).
+        callEpoch.current += 1;
+        callAsked.current = new Set();
+        callLatest.current = new Map();
+        setCalls(next.calls ?? {});
         setSetName(next.set.setName ?? "");
         setDescription(next.set.description ?? "");
         if (opts.keepHistory && goneVer === null) {
@@ -631,6 +747,7 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
     rules,
     condIo,
     condIoPending,
+    calls,
     checks,
     mode,
     setName,
@@ -662,6 +779,7 @@ export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState 
     saveQuiet,
     deprecate,
     restore,
+    refreshCalls,
     reportError,
     clearError,
   };
