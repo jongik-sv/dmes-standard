@@ -11,6 +11,8 @@
  *   (`className`·`style` 을 줬을 때만 그 값을 가진 `<span>` 으로 감싼다).
  * - 공급자 안에서 사전에 없거나(`meta={false}` 포함) 받은 결과가 없으면 라벨 글자 툴팁을 띄운다 — 첫 줄 라벨, 둘째 줄 흐린 글자 `name`(`name` 이 라벨과 같으면 생략).
  *   트리거는 같은 `span.form-tip-trigger` 이지만 스크린리더 사본(`aria-describedby`)은 두지 않는다(라벨과 같은 글자라 중복이다).
+ * - hover 트리거 범위(2026-10-05)는 글자 span 이 아니라 **라벨 칸 전체**다 — span 에서 가장 가까운 `th, td, .search-field__label`(없으면 span 만). 칸 안 이동은 닫지 않고(relatedTarget),
+ *   칸 안을 누르면(pointerdown) 닫는다. 카드 위치는 계속 글자 기준이다. 입력칸은 라벨 글자가 든 칸이 아니면 걸리지 않는다(`useTipArea`). 칸에 입력칸까지 함께 든 td 에 라벨을 두면 그 td 전체가 트리거다.
  * - 사전에 있으면 글자가 `span.form-tip-trigger` 가 된다. 이 span 은 Tab 순서에 들지 않고(tabIndex -1 — 입력 화면에서 Tab 이 라벨마다 멈추지 않게) hover·focus 때 `.form-tip-text--portal` 을
  *   document.body 에 띄운다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두므로 th 의 글자·접근 이름은 늘지 않는다.
  * - 툴팁 모양은 form.css(`.form-tip-text`)가 정한다 — 호스트 앱이 `@dk-oasis/shared/form.css` 를 싣는다(포털은 이미 싣는다).
@@ -22,10 +24,14 @@ import { useId, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { LabelNameTip } from "../components/form/LabelNameTip";
 import { HoverTipPortal, useHoverTip } from "../components/form/useHoverTip";
+import { useTipArea } from "../components/form/useTipArea";
 import { MdmMetaCard, mdmCardTipOptions } from "./MdmMetaCard";
 import { resolveCaption } from "./caption";
 import { useMdmCaptionPriority, useMdmColumn, useMdmMetaActive } from "./context";
 import type { MdmCaptionKind } from "./types";
+
+/** 라벨 칸 찾기 — 글자 span 에서 가장 가까운 th·td(상세 표 라벨 칸)·`.search-field__label`(조회 영역 라벨). 입력칸 쪽은 걸지 않는다. 없으면 null(span 만). */
+const findLabelCell = (anchor: HTMLElement) => anchor.closest<HTMLElement>("th, td, .search-field__label");
 
 export interface MdmFieldLabelProps {
   /** 화면 키 — 물리명으로 바꿔(`noticeTitle` → `NOTICE_TITLE`, `TITLE`) 사전에서 찾는다(D7). 사전에 없을 때 `label` 도 없으면 이 값이 글자로 보인다. */
@@ -62,10 +68,12 @@ export function MdmFieldLabel({
   // 사전에 없거나(missing)·meta=false 인 라벨은 공급자(포털 탭) 안에서만 글자 툴팁을 띄운다. 아직 받는 중이면 띄우지 않는다 —
   // 받은 뒤에 사전에 있으면 카드로 바뀌므로 글자 툴팁이 먼저 떴다 사라지는 깜박임을 막는다.
   const fallbackTip = !column && !loading && inMdmScope && caption !== "";
-  const { anchorRef, tipPos, showTip, hideTip, box } = useHoverTip<HTMLSpanElement>(
+  const { anchorRef, tipPos, showTip, hideTip, closeTip, box } = useHoverTip<HTMLSpanElement>(
     fallbackTip,
     htmlTipOptions
   );
+  // hover 는 글자 span 이 아니라 라벨 칸 전체에서 받는다(앵커 위치는 글자 기준 그대로). focus 는 span 에 그대로 둔다.
+  useTipArea(anchorRef, fallbackTip || !!column, { showTip, hideTip, closeTip }, findLabelCell);
 
   if (fallbackTip) {
     return (
@@ -74,8 +82,6 @@ export function MdmFieldLabel({
           ref={anchorRef}
           className={className ? `form-tip-trigger ${className}` : "form-tip-trigger"}
           style={style}
-          onMouseEnter={showTip}
-          onMouseLeave={hideTip}
         >
           {text}
         </span>
@@ -108,8 +114,6 @@ export function MdmFieldLabel({
         style={style}
         tabIndex={-1}
         aria-describedby={descId}
-        onMouseEnter={showTip}
-        onMouseLeave={hideTip}
         onFocus={showTip}
         onBlur={hideTip}
       >

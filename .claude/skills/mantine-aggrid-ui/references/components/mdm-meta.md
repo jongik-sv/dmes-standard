@@ -79,7 +79,7 @@ const issue = column ? validateMdmValue(column, v) : null;   // 같은 column �
 - 저장 전 `validateRow(row, names)` 로 막을 칸은 서버 `MdmValidator.columns(...)` 와 같게 둔다.
 - 훅은 공급자(포털 탭) 밖이면 아무것도 부르지 않고 늘 통과다 — 포털 밖 단독 실행에서도 같은 코드가 돈다.
 - 빈 칸은 입력 중에는 검사하지 않는다(필수는 저장 때). 예: `m-mls/pages/lsh/noticeMgmt/NoticeTitleRow.tsx`.
-- 라벨 글자가 툴팁 트리거지만 Tab 순서에는 들지 않는다(`tabIndex` -1). 입력 화면에서 Tab 이 라벨마다 멈추지 않게 하려는 것이다. 툴팁은 마우스 hover 로 연다.
+- 툴팁은 라벨 글자 span 이 아니라 **라벨 칸 전체**에서 마우스 hover 로 뜬다(2026-10-05): span 에서 가장 가까운 `th, td, .search-field__label`(없으면 span 만)의 빈 곳에 올려도 뜨고, 칸 안 이동은 닫지 않으며, 칸 안을 누르면 닫는다. 카드 위치는 글자 기준 그대로다. 입력칸이 따로 있는 td 에는 걸리지 않는다(라벨 글자가 든 칸만). 글자 span 은 Tab 순서에 들지 않는다(`tabIndex` -1 — 입력 화면에서 Tab 이 라벨마다 멈추지 않게).
 
 ### HTML 설명·상호작용 툴팁(2026-10-03)
 
@@ -179,7 +179,7 @@ th 안이나 아무 라벨 자리에 넣는 인라인 라벨(`FormGroup` 을 쓰
 | className | `string` | 없음 | 라벨 글자 span 에 붙는다. 메타가 없을 때도 값이 있으면 span 으로 감싼다 |
 | style | `CSSProperties` | 없음 | 위와 같다 |
 
-툴팁(메타가 있을 때. 사전에 없는 공급자 안 라벨은 위 글자 툴팁): 글자 `span.form-tip-trigger` 에 마우스를 올리거나 포커스가 들어오면 `document.body` 에 `.form-tip-text.form-tip-text--portal`(position: fixed, 최상단)로 `MdmMetaCard` 가 뜬다. 위치·위/아래 판정·가장자리 보정은 `FormGroup` 과 같고, 앵커는 라벨 글자다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두어 th 글자와 접근 이름을 늘리지 않는다. 상자 폭은 form.css 의 `.form-tip-text`(최소 220px·최대 320px, 위치는 오른쪽 가장자리에서 안쪽으로 당겨 최대 폭을 확보)가 정한다. HTML 설명 카드만 예외로 최대 폭 640px 의 상호작용 툴팁이다(§HTML 설명·상호작용 툴팁).
+툴팁(메타가 있을 때. 사전에 없는 공급자 안 라벨은 위 글자 툴팁): 글자 `span.form-tip-trigger` 가 든 라벨 칸(th·td·`.search-field__label`) 전체에 마우스를 올리거나 글자 span 에 포커스가 들어오면 `document.body` 에 `.form-tip-text.form-tip-text--portal`(position: fixed, 최상단)로 `MdmMetaCard` 가 뜬다. 위치·위/아래 판정·가장자리 보정은 `FormGroup` 과 같고, 앵커는 라벨 글자다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두어 th 글자와 접근 이름을 늘리지 않는다. 상자 폭은 form.css 의 `.form-tip-text`(최소 220px·최대 320px, 위치는 오른쪽 가장자리에서 안쪽으로 당겨 최대 폭을 확보)가 정한다. HTML 설명 카드만 예외로 최대 폭 640px 의 상호작용 툴팁이다(§HTML 설명·상호작용 툴팁).
 
 ## 표준값: 모든 화면 동일
 

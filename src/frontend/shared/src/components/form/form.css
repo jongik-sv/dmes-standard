@@ -228,10 +228,10 @@
   cursor: help;
 }
 
-/* FormGroup 라벨 박스는 labelWidth 고정폭이라, 텍스트 밖 여백까지 hover 로 잡으면 오작동으로 보인다.
-   트리거와 help 커서를 라벨 텍스트 span (.form-tip-trigger) 으로만 좁힌다. */
+/* FormGroup 툴팁은 라벨 박스(labelWidth 고정폭) 전체에서 뜬다(2026-10-05 — 예전에는 빈 곳 hover 오작동이라 글자로 좁혔으나
+   사용자가 칸 전체를 명시 요청). help 커서도 칸 전체(.has-tip). 입력칸(.form-group-field)에는 걸지 않는다. */
 .form-group-label.has-tip {
-  cursor: default;
+  cursor: help;
 }
 
 .form-tip-trigger {
