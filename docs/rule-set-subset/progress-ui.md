@@ -122,7 +122,8 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
 ## ui:8. SET 노드 화면
 - 상태: 1단계(모델·상태) 끝. 캔버스·패널·팝업·툴바 링크·받는 노드 UI·e2e 는 다음 단계.
 - 커밋(1단계): `7209d80e`(types·api), `243e189f`(flow-edit·flow-vars·caller-links, 시험 `set-node-model.test.ts`), `eb3375f7`(useRuleSetEdit·편집기 한 줄, 시험 `set-calls-state.test.ts`·이 절)
-- 시험 결과(1단계): `vitest run tests/dme/ruleSetEdit` → 101파일 1911 통과·0 실패(새 시험 27 = set-node-model 13 + set-calls-state 14), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건.
+- 시험 결과(1단계): `vitest run tests/dme/ruleSetEdit` → 101파일 1911 통과·0 실패(새 시험 27 = set-node-model 13 + set-calls-state 14), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건. `vitest run tests/dme tests/ui-meta-lock.test.ts` → 135파일 2549 통과·0 실패.
+- 다음 단계 넘김(1단계 grep 으로 본 자리): `FlowCanvas` 의 `edgeChips(vflow, rules)` 에 `calls`·memo 의존성, `BREAKABLE` 세 곳(FlowCanvas·debug-menu·useSimulation)에 SET, `nodes.tsx` 받는 노드 연결점·메뉴 조건(RULE·TASK)에 SET, `FlowCanvas` 이동 한계 종류 목록(RULE·TASK·IF·PARALLEL)에 SET, `flow-layout` 자동 배치(D-140)·받는 노드 자리(D-142·D-143)에서 SET 단계 확인, ui:5t 리뷰 넘김(목록 밖 저장 종류 칩 해제). `ASSIGNABLE_KINDS` 는 SET 을 빼는 것이 맞다.
 - 계획 조정(본문과 다르게 한 것):
   1. **`node()` 는 그대로, setId 는 SET 노드에만** — 조정 확정(모든 노드 `setId: null` 방식 안 씀). `copyNode`(ui:9)와 같이 label 뒤에 둔다. 본문이 놓친 붙여넣기(`instantiate`)도 SET 이면 setId 를 옮긴다(안 하면 붙여 넣은 SET 이 세트를 잃는다).
   2. **`caller-links.ts` 정규식** — 본문은 `CALLER_BROKEN 세트 {P}:` 만 봤다. 서버를 읽어 보니 (a) 저장의 CALLER_BROKEN 은 거부가 아니라 WARN 사본(`callWarnings`)이라 경고 줄로 오고, 화면 경고 줄(`warnLines`)은 코드 없이 문구만이라 `세트 P: …` 꼴이다. (b) 부르는 행이 여럿이면 `세트 P v1.001: …`(`SetCallerRecheck`). 그래서 문구(거부) 쪽은 `CALLER_BROKEN 세트 P( vN.NNN)?: `·`CALLER_BROKEN 사용 중인 세트 P1, P2가 `(폐기 거부), 줄 쪽은 `^세트 P( vN.NNN)?: `·`^부르는 세트에 경고가 생겼다: P1, P2$` 를 본다. ID 는 서버 `STD_PHYS_NAME` 이 대문자로 시작하므로 `세트 호출이 순환한다`·`세트 노드 s1에` 같은 다른 경고는 걸리지 않는다(시험 고정). 이 화면에서 문구 쪽 CALLER_BROKEN 이 실제로 나는 길은 폐기 거부뿐이다(저장은 경고, 되살리기는 연쇄 재검사를 하지 않는다).
