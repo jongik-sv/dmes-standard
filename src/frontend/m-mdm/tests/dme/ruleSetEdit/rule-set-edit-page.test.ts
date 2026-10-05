@@ -61,6 +61,7 @@ import {
   uninstallServer,
   unmountPage,
 } from "../helpers/rule-set-page";
+import { activateTab, activeKey, inPanel, tabKeys } from "./set-tabs-helpers";
 
 type Src = "DICT" | "PROG" | "NONE";
 
@@ -637,7 +638,8 @@ describe("RuleSetEditPage", () => {
     expect(canvasNodeIds()).toHaveLength(200);
   });
 
-  it("탭이 다시 활성화될 때 넘겨받은 세트로 바꾸고, 저장하지 않은 변경이 있으면 확인을 받는다", async () => {
+  it("탭이 다시 활성화될 때 넘겨받은 다른 세트는 새 세트 탭으로 열고(확인 없음, 원래 탭의 변경은 그대로), 이미 열린 세트면 그 탭으로 간다", async () => {
+    // 세트 탭(하위 세트 spec §10.3, ui:7) — 포털 넘김은 링크와 같다. 세트 없는 탭 하나뿐일 때만 그 탭에서 연다.
     srv.views.E2S_CHAIN = chainView();
     srv.views.E2S_OTHER = chainView({ set: { ...chainView().set, setId: "E2S_OTHER", setName: "다른 세트" } });
     handoff("E2S_CHAIN");
@@ -649,23 +651,25 @@ describe("RuleSetEditPage", () => {
 
     window.confirm = vi.fn(() => false);
     handoff("E2S_OTHER");
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent("portal-tab-activated", { detail: { tabId: "tab-9" } }));
-    });
-    await flush();
-    expect(window.confirm).toHaveBeenCalledWith("저장하지 않은 변경이 있습니다. 버리고 이동할까요?");
-    expect(calls("view").map((r) => r.body.params)).toEqual([{ setId: "E2S_CHAIN" }]);
+    await activateTab("tab-9");
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(calls("view").map((r) => r.body.params)).toEqual([{ setId: "E2S_CHAIN" }, { setId: "E2S_OTHER" }]);
+    const second = activeKey();
+    expect(tabKeys()).toEqual(["t1", second]);
+    expect(inPanel("t1", "set-edit-current").textContent).toContain("E2S_CHAIN");
+    expect(inPanel<HTMLInputElement>("t1", "set-name").value).toBe("사슬(고침)");
+    expect(q("set-tab-dirty-t1")).not.toBeNull();
+    expect(inPanel(second, "set-edit-current").textContent).toContain("E2S_OTHER");
+    expect(inPanel<HTMLInputElement>(second, "set-pick-keyword").value).toBe("E2S_OTHER");
+    expect(inPanel(second, "flow-canvas").getAttribute("data-mode")).toBe("view");
 
-    window.confirm = vi.fn(() => true);
-    handoff("E2S_OTHER");
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent("portal-tab-activated", { detail: { tabId: "tab-9" } }));
-    });
-    await flush();
-    expect(calls("view").at(-1)!.body.params).toEqual({ setId: "E2S_OTHER" });
-    expect(byTestId("set-edit-current").textContent).toContain("E2S_OTHER");
-    expect(byTestId<HTMLInputElement>("set-pick-keyword").value).toBe("E2S_OTHER");
-    expect(byTestId("flow-canvas").getAttribute("data-mode")).toBe("view");
+    // 이미 열린 세트를 다시 넘기면 새로 부르지 않고 그 탭으로 간다.
+    handoff("E2S_CHAIN");
+    await activateTab("tab-9");
+    expect(activeKey()).toBe("t1");
+    expect(tabKeys()).toHaveLength(2);
+    expect(calls("view")).toHaveLength(2);
+    expect(window.confirm).not.toHaveBeenCalled();
   });
 
   it("서버가 저장을 거부하면 meta.message 를 보이고 편집 중 흐름을 그대로 둔다", async () => {

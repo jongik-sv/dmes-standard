@@ -40,6 +40,7 @@ Mantine 문서 조회: `python3 .claude/skills/mantine-aggrid-ui/scripts/mantine
 | `CopyButton` | `CopyTextButton`·`copyText` (`form`, 자체 구현 — `ErrorModal`·`MessageModal` 도 사용) | [button](components/button.md) |
 | `Popover`·`HoverCard` (큰 상세 설명) | `DetailPopover` (`detail-popover`, 자체 구현 — 클릭으로 여는 큰 패널, 그리드 셀·머리 안 사용 가능) | [detail-popover](components/detail-popover.md) |
 | `JsonInput`(읽기 전용 값 보기)·`Code` 블록에 JSON 덤프 | `JsonView` (`json-view`, 자체 구현 — 접고 펴는 JSON 트리·종류별 색·복사) | [json-view](components/json-view.md) |
+| `Tabs keepMounted`(닫을 수 있는 탭·숨은 패널 유지) | `ClosableTabs` (`closable-tabs`, 자체 구현 — 닫기 단추·저장 안 한 변경 점, 숨은 패널도 마운트·효과 유지) | [closable-tabs](components/closable-tabs.md) |
 | `@mantine/tiptap` `RichTextEditor` | **쓰지 않는다** → `MarkdownEditor`·`MarkdownView`·`MarkdownField` (`markdown-editor`, Tiptap 직접 사용) | [markdown-editor](components/markdown-editor.md) |
 
 Mantine 이 아닌 shared 공통 요소: `AgDataGrid`·`GridPanel`·`useGridDataManager`(ag-grid-community), `MatrixTable`, `charts`(자체 SVG), `exportToExcel`(xlsx).

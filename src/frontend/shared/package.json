@@ -122,6 +122,10 @@
       "types": "./dist/types/components/tabs/index.d.ts",
       "import": "./dist/tabs.js"
     },
+    "./closable-tabs": {
+      "types": "./dist/types/components/closable-tabs/index.d.ts",
+      "import": "./dist/closable-tabs.js"
+    },
     "./charts": {
       "types": "./dist/types/components/charts/index.d.ts",
       "import": "./dist/charts.js"

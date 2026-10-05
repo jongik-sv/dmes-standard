@@ -6,12 +6,13 @@
  * 저장 전에 입력·기대 JSON 을 `parseObject` 로 확인하고 판정 시각 형식을 본다(칸 아래 오류). 기대를 비우면 "실행만" 케이스다(P-D4).
  * 저장이 실패하면(MDM001 등) 팝업을 닫지 않고 훅의 오류 문구를 아래에 보인다.
  */
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 
 import { Button, Input, Textarea } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
 
 import { parseObject } from "../../ruleEdit/value-test/case-form";
+import { EditorActiveContext } from "../tabs-context";
 import type { CaseDraft } from "../types";
 import { EVAL_TS_MESSAGE, EVAL_TS_PATTERN } from "./useSimulation";
 
@@ -55,6 +56,8 @@ const label = { display: "block", margin: "var(--spacing-sm) 0 2px", fontSize: "
 const mono = { fontFamily: "var(--font-family-mono)" } as const;
 
 export function CaseEditModal({ draft, busy, error, onSave, onClose }: CaseEditModalProps) {
+  // 팝업은 body 로 포털되어 숨은 세트 탭(패널 display:none)을 따라 숨지 않는다 — 고른 탭일 때만 그린다. 작성 중인 칸(f)은 이 부품에 남아 탭을 다시 고르면 이어진다.
+  const active = useContext(EditorActiveContext);
   const [f, setF] = useState<CaseDraft | null>(draft);
   const [errors, setErrors] = useState<FieldErrors>({});
   /** 서버에 저장을 보냈는가 — 보낸 뒤에만 훅의 오류 문구를 보인다(앞선 다른 실패 문구를 이 팝업의 것으로 보이지 않게). */
@@ -83,7 +86,7 @@ export function CaseEditModal({ draft, busy, error, onSave, onClose }: CaseEditM
 
   return (
     <Modal
-      open={draft != null}
+      open={draft != null && active}
       title={title}
       size="lg"
       onClose={onClose}

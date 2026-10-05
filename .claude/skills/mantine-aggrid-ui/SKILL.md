@@ -66,6 +66,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 화면 한 영역을 잘림 없는 PDF 한 장으로(iframe 포함) | `utils`: `printElementAsPage`(브라우저 인쇄 — 인쇄 창에서 「PDF로 저장」, [문서](references/components/print-element-as-page.md)). 홈 위젯 화면은 `WidgetWorkspace` 의 `pdfTarget` |
 | 메시지·토스트 | `message-provider` (Part B §9, UI-Visual-Standard §8) |
 | 모달·트리·탭·룩업 | `modal`, `tree`, `tabs`, `lookup` |
+| 여러 문서를 열어 두고 오가는 닫을 수 있는 탭(숨은 탭 상태·효과 유지) | `closable-tabs`: `ClosableTabs`(탭 머리 제목·● 변경 점·닫기 단추, 모든 패널 마운트 유지, ←/→·Delete, 닫기 확인은 화면이 `onClose` 에서). 닫지 않는 고정 보기 전환이면 `tabs` |
 | 모양이 정해지지 않은 JSON 값 보기(캐시 값·설정·응답 본문) | `json-view`: `JsonView`(읽기 전용 접는 트리, `fill` 로 패널 남은 높이 채움) |
 | 편집 화면에 카드 여러 장 쌓기(제목 줄 카드·함께 접는 묶음·흐린 보조 글) | `card`: `CardFrame`(제목 줄 + 본문), `CardGroup`(접어도 본문을 내리지 않음, `columns` 격자·`testIdPrefix`), `MutedText`. 그리드 툴바면 `GridPanel`, 대시보드면 `dashboard` |
 | 후보에서 골라 묶음에 넣고 빼기(좌 가능·우 소속 전송 목록) | `transfer-list`: `TransferList`(제어형 `value`·`onChange`, 검색·분류 필터·Shift 범위·`>`/`>>`/`<`/`<<`, 배지·숨김·문구·testId 접두어는 props), 순수 함수 `visibleList`·`diffSets` 등. 한 건 고르기면 `lookup`·`ComboBox` |
