@@ -47,6 +47,7 @@ const row = (extra: Partial<WidgetDefRow>): WidgetDefRow => ({
   linkPageId: null,
   multipleYn: null,
   categoryCd: null,
+  privateYn: null,
   useYn: "Y",
   dataSrc: null,
   config: null,
@@ -96,6 +97,26 @@ describe("mergeWidgetRegistry", () => {
       row({ widgetId: "def.c1", srcTp: "D", typeId: "query-table", title: "x", categoryCd: "QUAL" }),
     ]);
     expect(out["def.c1"].meta.category).toBe("QUAL");
+  });
+
+  it("비공개(privateYn): 행 Y 면 meta.private, 덮어쓰기 N·빈값은 코드 값을 둔다", () => {
+    const code: WidgetRegistry = {
+      "home.a": { meta: meta("home.a", { private: true }), load: codeLoad },
+      "home.b": { meta: meta("home.b"), load: codeLoad },
+    };
+    const out = mergeWidgetRegistry(code, TYPES, [
+      row({ widgetId: "home.a", privateYn: "N" }),
+      row({ widgetId: "home.b", privateYn: "Y" }),
+      row({ widgetId: "def.c1", srcTp: "D", typeId: "query-table", title: "x", privateYn: "Y" }),
+    ]);
+    expect(out["home.a"].meta.private).toBe(false);
+    expect(out["home.b"].meta.private).toBe(true);
+    expect(out["def.c1"].meta.private).toBe(true);
+  });
+
+  it("toWidgetDefRow 은 privateYn Y·N 만 살리고 그 밖은 null", () => {
+    expect(toWidgetDefRow({ widgetId: "a", srcTp: "C", privateYn: "Y" })!.privateYn).toBe("Y");
+    expect(toWidgetDefRow({ widgetId: "a", srcTp: "C", privateYn: "" })!.privateYn).toBeNull();
   });
 
   it("코드에서 사라진 위젯의 덮어쓰기 행은 무시한다", () => {

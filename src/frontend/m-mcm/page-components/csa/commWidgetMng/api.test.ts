@@ -42,6 +42,7 @@ const PARAMS: WidgetSaveParams = {
   linkPageId: null,
   multipleYn: "Y",
   categoryCd: null,
+  privateYn: "N",
   useYn: "Y",
   dataSrc: null,
   configJson: '{"markdown":""}',
@@ -116,6 +117,7 @@ describe("saveWidgetDef", () => {
         defH: 10,
         multipleYn: "Y",
         useYn: "Y",
+        privateYn: "N",
         configJson: '{"markdown":""}',
       },
     });

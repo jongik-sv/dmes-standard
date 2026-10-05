@@ -264,6 +264,27 @@ class CommWidgetMngServiceTest {
         assertThat(savedBlank).containsEntry("categoryCd", null);
     }
 
+    @Test
+    @DisplayName("비공개(privateYn)는 Y·N 만, 비우면 NULL 로 저장된다")
+    void privateYnRules() {
+        WidgetDefSaveRequest bad = defReq("markdown", "{}");
+        bad.setPrivateYn("X");
+        assertRejected(bad, "비공개");
+
+        when(defRepository.existsById(anyString())).thenReturn(false);
+        WidgetDefSaveRequest r = defReq("markdown", "{}");
+        r.setPrivateYn("Y");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> saved = (Map<String, Object>) service.save(r).get("def");
+        assertThat(saved).containsEntry("privateYn", "Y");
+
+        WidgetDefSaveRequest blank = defReq("markdown", "{}");
+        blank.setPrivateYn(" ");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> savedBlank = (Map<String, Object>) service.save(blank).get("def");
+        assertThat(savedBlank).containsEntry("privateYn", null);
+    }
+
     // ── save: 크기·새로 고침 ─────────────────────────────────────────
 
     @Test
@@ -592,8 +613,8 @@ class CommWidgetMngServiceTest {
     @Test
     @DisplayName("search includeConfig=false 는 요약 조회로 configJson 키 없이 userCount·usage 를 돌려준다")
     void searchWithoutConfig() {
-        Object[] q = {"def.q1", "D", "query-table", "쿼리", null, null, 8, 6, null, null, null, null, null, null, null, null, "mcm", "QUAL"};
-        Object[] c = {"home.notice", "C", null, null, null, null, null, null, null, null, null, null, null, null, null, "N", null, null};
+        Object[] q = {"def.q1", "D", "query-table", "쿼리", null, null, 8, 6, null, null, null, null, null, null, null, null, "mcm", "QUAL", "Y"};
+        Object[] c = {"home.notice", "C", null, null, null, null, null, null, null, null, null, null, null, null, null, "N", null, null, null};
         when(defRepository.findAllSummaryOrderByWidgetIdAsc()).thenReturn(List.of(q, c));
         List<Object[]> usageRows = new ArrayList<>();
         usageRows.add(new Object[] {"home.notice", 4L});
@@ -608,8 +629,8 @@ class CommWidgetMngServiceTest {
         assertThat(defs).hasSize(2);
         assertThat(defs.get(0)).doesNotContainKey("configJson").containsEntry("widgetId", "def.q1")
                 .containsEntry("typeId", "query-table").containsEntry("defW", 8).containsEntry("useYn", "Y")
-                .containsEntry("userCount", 0L);
-        assertThat(defs.get(1)).doesNotContainKey("configJson").containsEntry("useYn", "N").containsEntry("userCount", 4L);
+                .containsEntry("privateYn", "Y").containsEntry("userCount", 0L);
+        assertThat(defs.get(1)).doesNotContainKey("configJson").containsEntry("useYn", "N").containsEntry("privateYn", null).containsEntry("userCount", 4L);
         assertThat(result.get("usage")).isEqualTo(Map.of("home.notice", 4L));
         verify(defRepository, never()).findAllByOrderByWidgetIdAsc();
     }
