@@ -330,7 +330,8 @@ class RuleSetRunnerTest extends AbstractMdmSharedDbTest {
         assertEquals("c1", out.getEndedBy());
         assertEquals(1, out.getCaught().size());
         Map<String, Object> c = out.getCaught().get(0);
-        assertEquals(List.of("ruleNodeId", "ruleId", "catchNodeId", "kind", "code", "message"), List.copyOf(c.keySet()));
+        assertEquals(List.of("ruleNodeId", "ruleId", "catchNodeId", "kind", "code", "message", "setPath"), List.copyOf(c.keySet()));
+        assertEquals(List.of(), c.get("setPath"), "이 세트에서 받았으면 빈 목록(하위 세트 spec §4.3)");
         assertEquals("r1", c.get("ruleNodeId"));
         assertEquals("QLTY_GRD_JDG", c.get("ruleId"));
         assertEquals("INPUT_ERROR", c.get("kind"));
