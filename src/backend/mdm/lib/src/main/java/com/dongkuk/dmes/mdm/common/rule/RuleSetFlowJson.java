@@ -64,6 +64,10 @@ public final class RuleSetFlowJson {
                     n.catches().forEach(cs::add);
                 }
             }
+            // setId 는 SET 노드에만 쓴다 — SET 없는 세트의 정규 문자열이 그대로여야 한다(편차 5, 저장 흐름 dirty 기준).
+            if (n.setId() != null) {
+                o.put("setId", n.setId());
+            }
         }
         ArrayNode es = out.putArray("edges");
         for (FlowEdge e : f.edges()) {
@@ -184,7 +188,7 @@ public final class RuleSetFlowJson {
                 throw new IllegalArgumentException("노드 종류 " + kind + " 를 모른다");
             }
             nodes.add(new FlowNode(id, k, text(n, "ruleId", where), text(n, "splitId", where), text(n, "label", where),
-                    text(n, "attachTo", where), strings(n, "catches", where)));
+                    text(n, "attachTo", where), strings(n, "catches", where), text(n, "setId", where)));
         }
         List<FlowEdge> edges = new ArrayList<>();
         for (int i = 0; i < es.size(); i++) {

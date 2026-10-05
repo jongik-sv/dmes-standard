@@ -29,16 +29,16 @@ final class RecordKeys {
             byUpper.computeIfAbsent(upper, k -> new ArrayList<>()).add(key);
             if (ReservedNames.CONSTANTS.contains(upper)) {
                 out.add(new Violation(stage, Code.CONSTANT_KEY, ruleId, null, key,
-                        "레코드 키 '" + key + "' 는 EvalEx 상수 이름이다"));
+                        "레코드 키 '" + key + "' 는 EvalEx 상수 이름이다", List.of()));
             } else if (key.equalsIgnoreCase(ReservedNames.EVAL_TS)) {
                 out.add(new Violation(stage, Code.EVAL_TS_KEY, ruleId, null, key,
-                        "레코드 키 '" + key + "' 는 평가 시각 예약 키다"));
+                        "레코드 키 '" + key + "' 는 평가 시각 예약 키다", List.of()));
             } else if (ReservedNames.CATCH_NAMES.contains(upper)) {
                 out.add(new Violation(stage, Code.RESERVED_KEY, ruleId, null, key,
-                        "레코드 키 '" + key + "' 는 받는 노드 예약 이름이다"));
+                        "레코드 키 '" + key + "' 는 받는 노드 예약 이름이다", List.of()));
             } else if (key.startsWith(ReservedNames.RESERVED_PREFIX)) {
                 out.add(new Violation(stage, Code.RESERVED_KEY, ruleId, null, key,
-                        "레코드 키 '" + key + "' 는 '" + ReservedNames.RESERVED_PREFIX + "' 로 시작한다"));
+                        "레코드 키 '" + key + "' 는 '" + ReservedNames.RESERVED_PREFIX + "' 로 시작한다", List.of()));
             }
         }
         for (List<String> group : byUpper.values()) {
@@ -47,7 +47,7 @@ final class RecordKeys {
                 sorted.sort(null);
                 String name = String.join(",", sorted);
                 out.add(new Violation(stage, Code.RESERVED_KEY, ruleId, null, name,
-                        "대소문자만 다른 레코드 키가 둘 이상이다: " + name));
+                        "대소문자만 다른 레코드 키가 둘 이상이다: " + name, List.of()));
             }
         }
         return out;

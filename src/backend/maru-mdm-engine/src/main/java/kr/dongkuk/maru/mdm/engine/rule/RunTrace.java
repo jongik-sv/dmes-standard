@@ -31,6 +31,7 @@ public record RunTrace(String setId, Instant evalTs, Map<String, Object> input, 
      * MERGE: splitId(짝 PARALLEL, 옛 형식이면 IF·받는 노드가 붙은 노드)·merged(병렬 합류에서 합친 결과 이름). TASK: 칸 없이 status 만. ERROR 노드: violations.
      * CAUGHT RULE(받는 노드로 넘긴 룰): ruleId·ver·reads·violations(결과 없음이면 빈 목록), result 는 null.
      * CATCH: ruleId(실패한 룰 ID)·catchKind·code·message, status 는 OK. 세 칸은 CATCH 가 아니면 null 이고 JSON 에서 키를 뺀다.
+     * SET: setId 는 ruleId 칸이 아니라 sub.setId 로 본다. reads(부모 ctx 에서 하위 입력 이름의 값)·outputs(넘겨받은 이름 → 값)·sub(하위 세트 기록).
      *
      * @param seq 1부터
      */
@@ -38,7 +39,8 @@ public record RunTrace(String setId, Instant evalTs, Map<String, Object> input, 
             @Nullable String ruleId, @Nullable BigDecimal ver, @Nullable Map<String, Object> reads, @Nullable RuleResult result,
             @Nullable List<BranchTrace> branches, @Nullable String chosenEdgeId,
             @Nullable List<String> order, @Nullable String splitId, @Nullable List<String> merged,
-            @Nullable List<Violation> violations, @Nullable CatchKind catchKind, @Nullable String code, @Nullable String message) {}
+            @Nullable List<Violation> violations, @Nullable CatchKind catchKind, @Nullable String code, @Nullable String message,
+            @Nullable Map<String, Object> outputs, @Nullable RunTrace sub) {}
 
     /** IF 갈래 선 하나의 평가. {@code message} 는 ERROR 일 때 원인. */
     public record BranchTrace(String edgeId, BranchOutcome outcome, @Nullable String message) {}

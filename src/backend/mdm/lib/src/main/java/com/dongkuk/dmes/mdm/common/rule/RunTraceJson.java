@@ -26,6 +26,7 @@ import kr.dongkuk.maru.mdm.engine.rule.RunTrace;
  *   <li>{@code edits}: null 이면 키를 뺀다(4단계 spec §2.3). 있으면 violations 뒤에 {@code {beforeSeq, nodeId, values}}, values 는 TypedValue.</li>
  *   <li>{@code endedBy}: null 이면 키를 뺀다(받는 노드 spec §6). 있으면 마지막 키.</li>
  *   <li>NodeTrace 의 {@code catchKind}·{@code code}·{@code message}: null 이면 키를 뺀다. 있으면 violations 뒤 그 순서.</li>
+ *   <li>NodeTrace 의 {@code outputs}·{@code sub}: SET 노드에만, null 이면 키를 뺀다. 위반의 {@code setPath} 는 비었으면 키를 뺀다(하위 세트 spec §3.2·§4.1).</li>
  * </ul>
  * 키 순서는 스키마 속성 순서다(골든 파일이 사람이 읽는 순서).
  */
@@ -92,6 +93,12 @@ public final class RunTraceJson {
         if (n.message() != null) {
             m.put("message", n.message());
         }
+        if (n.outputs() != null) {
+            m.put("outputs", values(n.outputs()));
+        }
+        if (n.sub() != null) {
+            m.put("sub", toMap(n.sub()));
+        }
         return m;
     }
 
@@ -157,6 +164,9 @@ public final class RunTraceJson {
             m.put("rowId", v.rowId());
             m.put("name", v.name());
             m.put("message", v.message());
+            if (!v.setPath().isEmpty()) {
+                m.put("setPath", List.copyOf(v.setPath()));
+            }
             out.add(m);
         }
         return out;

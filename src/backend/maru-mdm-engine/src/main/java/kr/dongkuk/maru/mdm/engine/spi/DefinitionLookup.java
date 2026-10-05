@@ -175,10 +175,11 @@ public interface DefinitionLookup {
      * TASK(빈 단계, 4단계 spec §1.1)는 {@code label} 만 쓰고 실행 때 아무것도 읽거나 만들지 않고 지나간다.
      * CATCH(받는 노드, 받는 노드 spec §2)는 {@code attachTo}(붙은 룰 노드 ID)·{@code catches}(받을 종류 키)를 쓴다. {@code splitId} 는 짝 PARALLEL
      * (옛 형식은 IF·받는 노드가 붙은 노드)이고, IF 와 처리 갈래는 합류 없이 모이는 자리·돌아오는 자리로 바로 간다(D-136).
-     * {@code attachTo} 는 RULE·TASK. 두 칸은 CATCH 가 아니면 null 이다.
+     * {@code attachTo} 는 RULE·TASK·SET. 두 칸은 CATCH 가 아니면 null 이다.
+     * SET(하위 세트 호출, 하위 세트 spec §1)은 {@code setId}(부르는 세트 ID)와 {@code label} 만 쓴다. {@code setId} 는 SET 이 아니면 null 이다.
      */
     record FlowNode(String id, NodeKind kind, @Nullable String ruleId, @Nullable String splitId, @Nullable String label,
-            @Nullable String attachTo, @Nullable List<String> catches) {}
+            @Nullable String attachTo, @Nullable List<String> catches, @Nullable String setId) {}
 
     /**
      * {@code order}·{@code cond}·{@code otherwise} 는 IF·PARALLEL 에서 나가는 선만 쓴다. {@code otherwise=true} 는 IF 의
@@ -187,5 +188,5 @@ public interface DefinitionLookup {
     record FlowEdge(String id, String from, String to, @Nullable Integer order, @Nullable String cond, boolean otherwise,
             @Nullable String label) {}
 
-    enum NodeKind { START, END, RULE, TASK, IF, PARALLEL, MERGE, CATCH }
+    enum NodeKind { START, END, RULE, TASK, IF, PARALLEL, MERGE, CATCH, SET }
 }

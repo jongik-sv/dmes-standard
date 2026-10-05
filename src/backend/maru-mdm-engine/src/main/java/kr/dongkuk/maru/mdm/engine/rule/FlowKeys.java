@@ -149,7 +149,7 @@ final class FlowKeys {
                             }
                             if (reported.add(name)) {
                                 out.add(new Violation(Stage.SET_CHECK, Code.MISSING_KEY, null, null, name,
-                                        "세트 입력 키가 레코드에 없다: " + name + " (IF " + s.nodeId() + ")"));
+                                        "세트 입력 키가 레코드에 없다: " + name + " (IF " + s.nodeId() + ")", List.of()));
                             }
                         }
                     }
@@ -381,7 +381,7 @@ final class FlowKeys {
 
     static Violation missing(String ruleId, String name) {
         return new Violation(Stage.SET_CHECK, Code.MISSING_KEY, ruleId, null, name,
-                "세트 입력 키가 레코드에 없다: " + name + " (룰 " + ruleId + ")");
+                "세트 입력 키가 레코드에 없다: " + name + " (룰 " + ruleId + ")", List.of());
     }
 
     private static <T> List<T> nonNull(List<T> list) {

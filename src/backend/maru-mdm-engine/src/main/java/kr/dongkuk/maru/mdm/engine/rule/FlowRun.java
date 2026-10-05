@@ -148,7 +148,7 @@ final class FlowRun {
     /** 처리 중이던 노드의 ERROR 기록. */
     NodeTrace failed(List<Violation> violations) {
         return new NodeTrace(nodes.size() + 1, curNodeId, curKind, NodeStatus.ERROR, curRuleId, curVer, curReads, null,
-                curBranches == null ? null : List.copyOf(curBranches), curChosen, null, null, null, List.copyOf(violations), null, null, null);
+                curBranches == null ? null : List.copyOf(curBranches), curChosen, null, null, null, List.copyOf(violations), null, null, null, null, null);
     }
 
     /** 정상 완료 뒤 쓰이지 않은 고친 값마다 위반 하나(없으면 빈 목록). 실행 중 오류로 멈춘 경우에는 부르지 않는다. 끝냄(R5)은 정상 완료다. */
@@ -208,7 +208,7 @@ final class FlowRun {
     }
 
     private static Violation editViolation(TraceEdit e, String message) {
-        return new Violation(Stage.INPUT_CHECK, Code.EDIT_POINT_MISMATCH, null, null, e.nodeId(), message);
+        return new Violation(Stage.INPUT_CHECK, Code.EDIT_POINT_MISMATCH, null, null, e.nodeId(), message, List.of());
     }
 
     /** 칸 없는 노드(START·END·TASK). */
@@ -220,10 +220,10 @@ final class FlowRun {
 
     /** 칸 없는 노드의 path·기록. */
     private void record(String nodeId, NodeKind kind) {
-        path.add(new PathStep(nodeId, kind, null, null));
+        path.add(new PathStep(nodeId, kind, null, null, null));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, nodeId, kind, NodeStatus.OK, null, null, null, null, null, null, null,
-                    null, null, null, null, null, null));
+                    null, null, null, null, null, null, null, null));
         }
     }
 
@@ -280,10 +280,10 @@ final class FlowRun {
             RecordKeys.putReplacing(ctx, e.getKey(), e.getValue());
             RecordKeys.putReplacing(made, e.getKey(), e.getValue());
         }
-        path.add(new PathStep(r.nodeId(), NodeKind.RULE, null, index));
+        path.add(new PathStep(r.nodeId(), NodeKind.RULE, null, index, null));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, r.nodeId(), NodeKind.RULE, NodeStatus.OK, curRuleId, curVer, curReads, result,
-                    null, null, null, null, null, null, null, null, null));
+                    null, null, null, null, null, null, null, null, null, null, null));
         }
     }
 
@@ -308,10 +308,10 @@ final class FlowRun {
             if (g.mergeId() != null) { // 옛 형식 돌아오는 MERGE 만 기록한다
                 begin(g.mergeId(), NodeKind.MERGE);
                 edit(ctx, made);
-                path.add(new PathStep(g.mergeId(), NodeKind.MERGE, null, null));
+                path.add(new PathStep(g.mergeId(), NodeKind.MERGE, null, null, null));
                 if (tracing) {
                     nodes.add(new NodeTrace(nodes.size() + 1, g.mergeId(), NodeKind.MERGE, NodeStatus.OK, null, null, null, null, null,
-                            null, null, g.nodeId(), null, null, null, null, null));
+                            null, null, g.nodeId(), null, null, null, null, null, null, null));
                 }
             }
         }
@@ -388,11 +388,11 @@ final class FlowRun {
 
     /** 받은 룰 — path(stepIndex 없음)·caught·CAUGHT 기록(R2). begin 은 startRule 이 이미 했다. */
     private void caughtRule(RuleStep r, Caught c) {
-        path.add(new PathStep(r.nodeId(), NodeKind.RULE, null, null));
-        caught.add(new CaughtException(r.nodeId(), r.ruleId(), c.handler.catchNodeId(), c.kind, c.code, c.message));
+        path.add(new PathStep(r.nodeId(), NodeKind.RULE, null, null, null));
+        caught.add(new CaughtException(r.nodeId(), r.ruleId(), c.handler.catchNodeId(), c.kind, c.code, c.message, List.of()));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, r.nodeId(), NodeKind.RULE, NodeStatus.CAUGHT, curRuleId, curVer, curReads, null,
-                    null, null, null, null, null, List.copyOf(c.violations), null, null, null));
+                    null, null, null, null, null, List.copyOf(c.violations), null, null, null, null, null));
         }
     }
 
@@ -410,10 +410,10 @@ final class FlowRun {
         if (!missing.isEmpty()) {
             throw new EngineEvaluationException(missing);
         }
-        path.add(new PathStep(id, NodeKind.CATCH, null, null));
+        path.add(new PathStep(id, NodeKind.CATCH, null, null, null));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, id, NodeKind.CATCH, NodeStatus.OK, r.ruleId(), null, null, null, null, null, null,
-                    null, null, null, c.kind, c.code, c.message));
+                    null, null, null, c.kind, c.code, c.message, null, null));
         }
     }
 
@@ -465,7 +465,7 @@ final class FlowRun {
                     curBranches.add(new BranchTrace(rest.edgeId(), BranchOutcome.NOT_EVALUATED, null));
                 }
                 throw new EngineEvaluationException(List.of(new Violation(Stage.BRANCH_SELECT, Code.BRANCH_EVAL_ERROR, null, null,
-                        br.edgeId(), "IF " + s.nodeId() + " 갈래 " + br.edgeId() + " 조건식을 평가하지 못했다: " + c.message)));
+                        br.edgeId(), "IF " + s.nodeId() + " 갈래 " + br.edgeId() + " 조건식을 평가하지 못했다: " + c.message, List.of())));
             }
         }
         Branch other = s.branches().get(s.branches().size() - 1); // 그 외는 늘 마지막(plan C3)
@@ -478,10 +478,10 @@ final class FlowRun {
         if (!missing.isEmpty()) {
             throw new EngineEvaluationException(missing);
         }
-        path.add(new PathStep(s.nodeId(), NodeKind.IF, chosen.edgeId(), null));
+        path.add(new PathStep(s.nodeId(), NodeKind.IF, chosen.edgeId(), null, null));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, s.nodeId(), NodeKind.IF, NodeStatus.OK, null, null, null, null,
-                    List.copyOf(curBranches), curChosen, null, null, null, null, null, null, null));
+                    List.copyOf(curBranches), curChosen, null, null, null, null, null, null, null, null, null));
         }
         seq(chosen.body(), ctx, made);
         if (chosen.ends()) {
@@ -495,10 +495,10 @@ final class FlowRun {
     private void parallel(Split s, Map<String, Object> ctx, Map<String, Object> made) {
         begin(s.nodeId(), NodeKind.PARALLEL);
         edit(ctx, made);
-        path.add(new PathStep(s.nodeId(), NodeKind.PARALLEL, null, null));
+        path.add(new PathStep(s.nodeId(), NodeKind.PARALLEL, null, null, null));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, s.nodeId(), NodeKind.PARALLEL, NodeStatus.OK, null, null, null, null, null,
-                    null, s.branches().stream().map(Branch::edgeId).toList(), null, null, null, null, null, null));
+                    null, s.branches().stream().map(Branch::edgeId).toList(), null, null, null, null, null, null, null, null));
         }
         Map<String, Object> base = new LinkedHashMap<>(ctx);
         List<Map<String, Object>> outs = new ArrayList<>();
@@ -537,10 +537,10 @@ final class FlowRun {
     private void merge(Split s, List<String> merged, Map<String, Object> ctx, Map<String, Object> made) {
         begin(s.mergeId(), NodeKind.MERGE);
         edit(ctx, made);
-        path.add(new PathStep(s.mergeId(), NodeKind.MERGE, null, null));
+        path.add(new PathStep(s.mergeId(), NodeKind.MERGE, null, null, null));
         if (tracing) {
             nodes.add(new NodeTrace(nodes.size() + 1, s.mergeId(), NodeKind.MERGE, NodeStatus.OK, null, null, null, null, null,
-                    null, null, s.nodeId(), merged == null ? null : List.copyOf(merged), null, null, null, null));
+                    null, null, s.nodeId(), merged == null ? null : List.copyOf(merged), null, null, null, null, null, null));
         }
     }
 }

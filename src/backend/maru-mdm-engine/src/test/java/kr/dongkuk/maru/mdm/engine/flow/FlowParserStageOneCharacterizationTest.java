@@ -43,8 +43,8 @@ class FlowParserStageOneCharacterizationTest {
     void 일단계_검사_단계가_모두_함께_나면_a_b_c_노드별_분기별_받는_노드별_붙은_노드별_순서다() {
         FlowDefinition f = flow(List.of(
                         start(),
-                        new FlowNode("start", NodeKind.START, null, null, null, null, null), // a — 겹친 ID(개수에서 빠진다)
-                        new FlowNode("s2", NodeKind.START, null, null, null, null, null), // b1 — 시작 2개
+                        new FlowNode("start", NodeKind.START, null, null, null, null, null, null), // a — 겹친 ID(개수에서 빠진다)
+                        new FlowNode("s2", NodeKind.START, null, null, null, null, null, null), // b1 — 시작 2개
                         rule("r", "R_A"),
                         ifNode("if1"),
                         par("p1"),
@@ -53,7 +53,7 @@ class FlowParserStageOneCharacterizationTest {
                         task("t1"),
                         catchNode("c1", "t1", "NO_RESULT"),
                         catchNode("c2", "t1", "NO_RESULT", "NO_RESULT"), // h5 — 한 받는 노드 안 겹침, h6 — c1 과 함께 받음
-                        new FlowNode("c3", NodeKind.CATCH, null, null, null, " ", null), // h1 — 빈 붙임('-'), h3 — 종류 null
+                        new FlowNode("c3", NodeKind.CATCH, null, null, null, " ", null, null), // h1 — 빈 붙임('-'), h3 — 종류 null
                         catchNode("c4", "if1", "BOOM"), // h2 — 붙일 수 없는 종류, h4 — 모르는 키
                         guardMerge("gm1", "t1"),
                         guardMerge("gm2", "t1")), // h7 — 돌아오는 합류 2개
@@ -105,7 +105,7 @@ class FlowParserStageOneCharacterizationTest {
 
     @Test
     void 받는_노드의_빈_붙임은_대시로_쓰고_종류가_null_이면_빈_목록과_같다() {
-        FlowDefinition f = flow(List.of(start(), rule("r1", "R_A"), new FlowNode("c1", NodeKind.CATCH, null, null, null, null, null), end()),
+        FlowDefinition f = flow(List.of(start(), rule("r1", "R_A"), new FlowNode("c1", NodeKind.CATCH, null, null, null, null, null, null), end()),
                 List.of(e("e1", "start", "r1"), e("e2", "r1", "end"), e("e3", "c1", "end")));
         assertEquals(List.of(
                 "FLOW_CATCH|c1|null|받는 노드 c1가 붙은 노드 -가 없다",

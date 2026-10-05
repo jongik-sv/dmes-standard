@@ -339,7 +339,7 @@ class RuleSetFlowEvaluationTest {
                 List.of(e("e0", "start", "if1"), br("b1", "if1", "a1", 1, "X > 0"), other("bo", "if1", "a2"),
                         e("e1", "a1", "m1"), e("e2", "a2", "m1"), e("ee", "m1", "end")));
         RuleSetResult r = run(f, rec("X", new BigDecimal("-1")));
-        assertEquals(List.of(new PathStep("a2", NodeKind.RULE, null, 0)),
+        assertEquals(List.of(new PathStep("a2", NodeKind.RULE, null, 0, null)),
                 r.path().stream().filter(p -> p.kind() == NodeKind.RULE).toList());
         assertEquals(1, lookup.ruleCalls().stream().filter("R_A"::equals).count());
     }

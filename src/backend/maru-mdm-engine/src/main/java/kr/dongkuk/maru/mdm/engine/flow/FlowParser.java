@@ -42,15 +42,15 @@ public final class FlowParser {
     public static FlowDefinition linear(List<String> ruleIds) {
         List<FlowNode> nodes = new ArrayList<>();
         List<FlowEdge> edges = new ArrayList<>();
-        nodes.add(new FlowNode("start", NodeKind.START, null, null, null, null, null));
+        nodes.add(new FlowNode("start", NodeKind.START, null, null, null, null, null, null));
         String prev = "start";
         for (int i = 0; i < ruleIds.size(); i++) {
             String id = "r" + (i + 1);
-            nodes.add(new FlowNode(id, NodeKind.RULE, ruleIds.get(i), null, null, null, null));
+            nodes.add(new FlowNode(id, NodeKind.RULE, ruleIds.get(i), null, null, null, null, null));
             edges.add(new FlowEdge("e" + (i + 1), prev, id, null, null, false, null));
             prev = id;
         }
-        nodes.add(new FlowNode("end", NodeKind.END, null, null, null, null, null));
+        nodes.add(new FlowNode("end", NodeKind.END, null, null, null, null, null, null));
         edges.add(new FlowEdge("e" + (ruleIds.size() + 1), prev, "end", null, null, false, null));
         return new FlowDefinition(1, List.copyOf(nodes), List.copyOf(edges));
     }

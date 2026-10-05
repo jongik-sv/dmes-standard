@@ -85,7 +85,7 @@ class EngineContractSchemaTest {
             // 받는 노드 종류(받는 노드 spec §1) — flow 패키지라 expr·rule 전수 검사 밖이지만 스키마 짝은 맞춘다.
             new EnumPair("E12", "CatchKind", () -> enumNames(CatchKind.class), () -> enumOf("CatchKind")));
 
-    /** R1-R20 — Java record ↔ 스키마 객체 정의(유니온이면 유니온 뷰). */
+    /** R1-R21 — Java record ↔ 스키마 객체 정의(유니온이면 유니온 뷰). */
     private static final Map<String, RecordPair> RECORDS = orderedMap(
             // params: Java 는 빈 목록(null 아님), JSON 은 자식이 없으면 키를 뺀다(AstExporter 규칙) — 표지 대조에서 뺀다.
             new RecordPair("R1", AstNode.class, "AstNode", Set.of(), Set.of("params")),
@@ -94,7 +94,8 @@ class EngineContractSchemaTest {
             new RecordPair("R3", DefinitionLookup.VarType.class, "VarType", Set.of(), Set.of()),
             new RecordPair("R4", DefinitionLookup.RowContract.class, "RowContract", Set.of(), Set.of()),
             new RecordPair("R5", DefinitionLookup.InputContract.class, "InputContract", Set.of(), Set.of()),
-            new RecordPair("R6", EngineEvaluationException.Violation.class, "Violation", Set.of(), Set.of()),
+            // setPath: Java 는 빈 목록(null 아님), JSON 은 이 세트에서 난 위반이면 키를 뺀다(하위 세트 spec §4.1) — 표지 대조에서 뺀다.
+            new RecordPair("R6", EngineEvaluationException.Violation.class, "Violation", Set.of(), Set.of("setPath")),
             new RecordPair("R7", EngineWarning.class, "EngineWarning", Set.of(), Set.of()),
             new RecordPair("R8", RuleResult.class, "RuleResult", Set.of(), Set.of()),
             new RecordPair("R9", RuleResult.Hit.class, "RuleHit", Set.of(), Set.of()),
@@ -112,7 +113,10 @@ class EngineContractSchemaTest {
             // 4단계 E4 — 디버거에서 고친 값(4단계 spec §2.2). RunTrace.edits 는 JSON 에서 선택 칸이다(없으면 키를 뺀다).
             new RecordPair("R19", RunTrace.TraceEdit.class, "TraceEdit", Set.of(), Set.of()),
             // 받는 노드가 받아 처리한 exception(받는 노드 spec §6).
-            new RecordPair("R20", RuleSetResult.CaughtException.class, "CaughtException", Set.of(), Set.of()));
+            // setPath: Violation 과 같다 — 이 세트에서 받았으면 JSON 은 키를 뺀다(하위 세트 spec §4.3).
+            new RecordPair("R20", RuleSetResult.CaughtException.class, "CaughtException", Set.of(), Set.of("setPath")),
+            // 하위 세트 호출 결과(하위 세트 spec §3.1).
+            new RecordPair("R21", RuleSetResult.SetCall.class, "SetCall", Set.of(), Set.of()));
 
     /** Java 대응이 없는 $defs 와 그 사유. */
     private static final Set<String> SCHEMA_ONLY = Set.of(
@@ -240,7 +244,7 @@ class EngineContractSchemaTest {
 
     @Test
     void expr_rule_패키지의_record_enum_은_스키마_대응이_있거나_Java_전용_목록에_있다() {
-        // E1·E4-E8·E10-E11 의 Java enum 과 R1-R20 record 중 expr·rule 에 있는 것(spi 의 대응 타입은 검사 범위 밖이다).
+        // E1·E4-E8·E10-E11 의 Java enum 과 R1-R21 record 중 expr·rule 에 있는 것(spi 의 대응 타입은 검사 범위 밖이다).
         Set<String> mapped = Stream.concat(
                         RECORDS.values().stream().map(RecordPair::type),
                         Stream.of(AstNode.Type.class, DefinitionLookup.DataType.class, EngineEvaluationException.Code.class,
