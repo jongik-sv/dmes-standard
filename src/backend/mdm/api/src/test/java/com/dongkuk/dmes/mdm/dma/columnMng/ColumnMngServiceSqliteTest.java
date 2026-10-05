@@ -200,17 +200,34 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
         DmaTestSupport.column(columns, "alpha", "ALPHA_L", coilThk.getDomainId());
         DmaTestSupport.column(columns, "Zeta", "ZETA", coilThk.getDomainId());
         DmaTestSupport.column(columns, "Beta", "BETA", coilThk.getDomainId());
+        // DB(SQLite BINARY = UTF-8 바이트)와 Java(String.compareTo = UTF-16) 순서가 갈리는 쌍: DB 는 전각 A(U+FF21)를,
+        // Java 는 이모지(U+1F600, 서로게이트 D83D)를 앞에 둔다
+        DmaTestSupport.column(columns, "\uD83D\uDE00", "EMOJI", coilThk.getDomainId());
+        DmaTestSupport.column(columns, "\uFF21", "FULL_A", coilThk.getDomainId());
         ColumnMngSearchRequest q = new ColumnMngSearchRequest();
-        q.setLimit(3);
+        q.setLimit(5);
 
         Map<String, Object> result = service.search(q);
 
         List<String> dbOrder = jdbc.queryForList(
-                "SELECT COLUMN_NAME FROM TB_MDM_COLUMN ORDER BY COLUMN_NAME, COLUMN_ID LIMIT 3", String.class);
+                "SELECT COLUMN_NAME FROM TB_MDM_COLUMN ORDER BY COLUMN_NAME, COLUMN_ID LIMIT 5", String.class);
         assertEquals(dbOrder, names(result), "잘리는 경계와 행 순서 모두 DB 정렬을 따른다");
-        assertEquals(List.of("Beta", "Zeta", "alpha"), names(result), "SQLite BINARY — 대문자가 소문자보다, 영문이 한글보다 앞");
-        assertEquals(4, result.get("totalCount"));
+        assertEquals(List.of("Beta", "Zeta", "alpha", "코일", "\uFF21"), names(result),
+                "SQLite BINARY — 대문자가 소문자보다, 영문이 한글보다, 전각 A 가 이모지보다 앞(Java 비교였다면 이모지가 한글 뒤 5번째)");
+        assertEquals(6, result.get("totalCount"));
         assertEquals(true, result.get("truncated"));
+    }
+
+    @Test
+    void 빈_테이블에_limit_이_오면_빈_목록과_전체_0건을_준다() {
+        ColumnMngSearchRequest q = new ColumnMngSearchRequest();
+        q.setLimit(1000);
+
+        Map<String, Object> result = service.search(q);
+
+        assertEquals(List.of(), names(result));
+        assertEquals(0, result.get("totalCount"));
+        assertEquals(false, result.get("truncated"));
     }
 
     @Test
