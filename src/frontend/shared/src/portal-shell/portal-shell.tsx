@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ComponentType, memo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@mantine/core";
 import { signOut } from "next-auth/react";
 import { readSecureJson, writeSecureJson } from "../secure-storage";
@@ -36,6 +36,14 @@ import {
   type UsageSegment,
 } from "./usage-tracker";
 import { installUsageActivity } from "./usage-activity";
+import { useCurrentUserState } from "./use-current-user-id";
+import type { WidgetRegistry } from "../widget/types";
+import type { WidgetFrameProps } from "../widget/WidgetFrame";
+import { isDockableEntry } from "../widget-dock/dock-model";
+import { DockToolsMenu } from "../widget-dock/DockToolsMenu";
+import type { DockRegistryStatus, WidgetDockStore } from "../widget-dock/types";
+import { useDockableEntries, useWidgetDock } from "../widget-dock/use-widget-dock";
+import { WidgetDockLayer } from "../widget-dock/WidgetDockLayer";
 
 /** 로그아웃 때 화면 사용 구간 전송을 기다리는 최대 시간(ms). 넘기면 기다리지 않고 signOut 한다. */
 const USAGE_LOGOUT_WAIT_MS = 1500;
@@ -46,6 +54,23 @@ const DEFAULT_STORAGE_KEY = "oasis.portal.tabs.v1";
 const RECENT_MENU_STORAGE_SUFFIX = ".recent-menu";
 
 type NavigationViewMode = SidebarNavigationViewMode;
+
+/** 위젯 도크(업무 화면 도구 창) 설정 — {@link PortalShellProps.widgetDock}. */
+export interface PortalShellWidgetDock {
+  /** 실행 시 위젯 등록부(코드 + 유형 + 정의). floatable·사용 중지 아님 위젯만 「도구」 메뉴에 나온다. */
+  registry: WidgetRegistry;
+  /** 등록부 준비 상태. ready 일 때만 저장된 창 중 없는·사용 중지 위젯 창을 정리한다. */
+  registryStatus: DockRegistryStatus;
+  /**
+   * 창 본문 위젯 틀 — `@dk-oasis/shared/widget` 의 `WidgetFrame` 을 넘긴다. shared 는 진입점마다 따로 묶여(tsup splitting:false)
+   * 셸이 틀을 직접 import 하면 틀의 컨텍스트가 위젯 본체(useWidgetTitle·useWidgetStatus 등)가 읽는 것과 달라진다.
+   */
+  frame: ComponentType<WidgetFrameProps>;
+  /** 사용자별 창 배치 저장소. 없으면 브라우저 저장(사용자 ID 키). */
+  store?: WidgetDockStore;
+}
+
+const EMPTY_WIDGET_REGISTRY: WidgetRegistry = {};
 
 function flattenMenuLeaves(items: PortalShellMenuItem[]): PortalShellMenuItem[] {
   return items.flatMap((item) => {
@@ -103,6 +128,12 @@ export interface PortalShellProps {
     segments: UsageSegment[],
     info: { reason: UsageEmitReason }
   ) => void | Promise<void>;
+  /**
+   * 업무 화면 도구 창 — 지정하면 머리 사용자 메뉴 앞에 「도구」 버튼, 셸 최상위에 떠 있는 창 층을 그린다.
+   * 창은 탭 화면 바깥에 있어 탭을 바꿔도 유지되고, 사용자별로 저장한다(사용자 확인 전·로그아웃 중에는 저장하지 않음).
+   * 미지정이면 기존 동작·DOM 그대로다(사용자 확인 요청·리스너도 추가하지 않는다).
+   */
+  widgetDock?: PortalShellWidgetDock;
 }
 
 /**
@@ -181,6 +212,7 @@ export function PortalShell({
   isStartPagesLoaded = true,
   onToggleStartPage,
   onUsageSegments,
+  widgetDock,
 }: PortalShellProps) {
   const [navigationViewMode, setNavigationViewMode] = useState<NavigationViewMode>("menu");
   const [isSideNavigationExpanded, setIsSideNavigationExpanded] = useState<boolean>(true);
@@ -295,6 +327,7 @@ export function PortalShell({
   // 3) 탭 훅 — 메뉴 색인·최근 메뉴 뒤. 안쪽에서 복원 → 기본 화면 → … → 저장 순서를 지킨다.
   // 4) 전체 화면 훅 — 활성 탭(activeTab)이 필요하므로 탭 훅 뒤.
   // 5) 즐겨찾기 훅 — effect 없음. 6) F3 · 화면 사용 effect.
+  // 7) 위젯 도크 — 화면 사용 effect 뒤(사용자 확인은 1)의 진행 중 요청을 함께 쓴다). widgetDock 이 없으면 아무 effect 도 하지 않는다.
   const { displayUserName, displayLoginId } = usePortalAuthUser({ userName, userLoginId });
 
   useEffect(() => {
@@ -581,6 +614,29 @@ export function PortalShell({
     }
   }, [tabs]);
 
+  // 7) 위젯 도크 — 사용자별 창 배치. 로그아웃 중(loggingOutRef)에는 저장하지 않는다.
+  const isWidgetDockEnabled = widgetDock != null;
+  const dockRegistry = widgetDock?.registry ?? EMPTY_WIDGET_REGISTRY;
+  const dockRegistryStatus = widgetDock?.registryStatus ?? "loading";
+  const { userId: dockUserId } = useCurrentUserState(isWidgetDockEnabled);
+  const isDockSaveBlocked = useCallback(() => loggingOutRef.current, []);
+  const dock = useWidgetDock({
+    enabled: isWidgetDockEnabled,
+    userId: dockUserId,
+    registry: dockRegistry,
+    registryStatus: dockRegistryStatus,
+    store: widgetDock?.store,
+    isSaveBlocked: isDockSaveBlocked,
+  });
+  const dockEntries = useDockableEntries(dockRegistry);
+  // 그릴 수 있는 창만 센다(정의 조회 전이라 아직 등록부에 없는 창은 상태에만 있다).
+  const dockShownWindows = useMemo(
+    () => dock.windows.filter((w) => isDockableEntry(dockRegistry[w.widgetId])),
+    [dock.windows, dockRegistry]
+  );
+  const openDockWidget = dock.open;
+  const handleOpenDockWidget = useCallback((widgetId: string) => void openDockWidget(widgetId), [openDockWidget]);
+
   return (
     <AppShell
       className={isTabFullscreen ? "portal-shell portal-shell--tab-fullscreen" : "portal-shell"}
@@ -596,6 +652,17 @@ export function PortalShell({
           onGoHome={() => {
             if (homeTabId && resolvedHomePageId) navigateToTab(homeTabId, resolvedHomePageId);
           }}
+          toolsSlot={
+            isWidgetDockEnabled ? (
+              <DockToolsMenu
+                entries={dockEntries}
+                windows={dockShownWindows}
+                loaded={dock.loaded}
+                registryStatus={dockRegistryStatus}
+                onOpen={handleOpenDockWidget}
+              />
+            ) : undefined
+          }
         />
       </AppShell.Header>
       <AppShell.Main className="portal-shell__main-area">
@@ -680,6 +747,20 @@ export function PortalShell({
         onOpenPage={openPageTab}
         onClose={() => setIsMenuSearchOpen(false)}
       />
+      {/* 업무 화면 도구 창 — 탭 슬롯 바깥이라 탭을 바꿔도 유지된다. */}
+      {widgetDock && (
+        <WidgetDockLayer
+          windows={dock.windows}
+          registry={dockRegistry}
+          frame={widgetDock.frame}
+          viewport={dock.viewport}
+          onMove={dock.move}
+          onResize={dock.resize}
+          onToggleCollapse={dock.toggleCollapse}
+          onClose={dock.close}
+          onFocus={dock.focus}
+        />
+      )}
     </AppShell>
   );
 }
