@@ -258,6 +258,78 @@ class SecWidgetDefaultTabTest {
                 .isInstanceOf(BusinessException.class).hasMessageContaining("10");
     }
 
+    // ── saveTab newYn(화면이 연 뒤 생긴 공유 사본과 같은 tab-N) ─────
+
+    private static SecWidgetTabSaveRequest saveNew(String tabId, String tabNm, String newYn) {
+        SecWidgetTabSaveRequest r = save(tabId, tabNm, 5, "N");
+        r.setNewYn(newYn);
+        return r;
+    }
+
+    private String savedTabId() {
+        ArgumentCaptor<SecWidgetTabWriter.TabValues> cap = ArgumentCaptor.forClass(SecWidgetTabWriter.TabValues.class);
+        verify(writer).replaceTab(eq("userA"), cap.capture(), anyList());
+        return cap.getValue().tabId();
+    }
+
+    @Test
+    @DisplayName("newYn=Y 이고 같은 tab-N 이 있으면 기존 행을 덮어쓰지 않고 최대 번호+1 로 새 탭 저장, 응답 tabId 도 새 ID")
+    void saveNewMovesWhenIdTaken() {
+        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(List.of(
+                tab("userA", "home", "홈", 0, "N"), tab("userA", "tab-1", "a", 1, "N"), tab("userA", "tab-3", "(공유) a", 2, "N")));
+
+        Map<String, Object> result = service.saveTab(saveNew("tab-3", "새 탭", "Y"), List.of(widget("i1")));
+
+        assertThat(savedTabId()).isEqualTo("tab-4");
+        assertThat(result).containsEntry("tabId", "tab-4").containsEntry("savedCount", 1);
+        verify(writer, never()).replaceTab(eq("userA"), eq(new SecWidgetTabWriter.TabValues("tab-3", "새 탭", 5, "N")), anyList());
+    }
+
+    @Test
+    @DisplayName("newYn=Y 여도 같은 ID 가 없으면 요청 ID 그대로")
+    void saveNewKeepsFreeId() {
+        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(List.of(tab("userA", "tab-1", "a", 1, "N")));
+
+        assertThat(service.saveTab(saveNew("tab-5", "새 탭", "Y"), List.of())).containsEntry("tabId", "tab-5");
+        assertThat(savedTabId()).isEqualTo("tab-5");
+    }
+
+    @Test
+    @DisplayName("newYn 이 없으면 같은 ID 는 기존 탭 저장(덮어쓰기) 그대로")
+    void saveWithoutNewYnOverwrites() {
+        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(List.of(tab("userA", "tab-3", "a", 1, "N")));
+
+        assertThat(service.saveTab(saveNew("tab-3", "a2", null), List.of())).containsEntry("tabId", "tab-3");
+        assertThat(savedTabId()).isEqualTo("tab-3");
+    }
+
+    @Test
+    @DisplayName("newYn=Y 로 옮긴 새 탭에도 탭 한도(기본 탭 포함 10)와 이름 중복 검사를 다시 적용한다")
+    void saveNewMovedStillChecksLimitAndName() {
+        List<SecUserWidgetTab> rows = new ArrayList<>();
+        rows.add(tab("userA", "home", "홈", 0, "N"));
+        for (int i = 1; i <= 7; i++) rows.add(tab("userA", "tab-" + i, "t" + i, i, "N"));
+        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(rows);
+
+        // 일반 7 + 기본 2 = 9 → 기존 tab-3 저장이 아니라 새 탭이므로 거절
+        assertThatThrownBy(() -> service.saveTab(saveNew("tab-3", "새 탭", "Y"), List.of()))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("10");
+        rows.remove(rows.size() - 1);
+        // 옮긴 새 탭의 이름이 원래 tab-3 이름과 같으면 중복으로 거절
+        assertThatThrownBy(() -> service.saveTab(saveNew("tab-3", "t3", "Y"), List.of()))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("같은 이름");
+        verify(writer, never()).replaceTab(anyString(), any(), anyList());
+    }
+
+    @Test
+    @DisplayName("home 은 newYn=Y 여도 무시하고 home 으로 저장한다")
+    void saveNewIgnoredForHome() {
+        when(tabRepository.findByUserIdOrderByTabSeqAsc("userA")).thenReturn(List.of(tab("userA", "home", "홈", 0, "N")));
+
+        assertThat(service.saveTab(saveNew("home", "홈", "Y"), List.of())).containsEntry("tabId", "home");
+        assertThat(savedTabId()).isEqualTo("home");
+    }
+
     // ── deleteTab·reorderTabs·resetTab ─────────────────────────────
 
     @Test

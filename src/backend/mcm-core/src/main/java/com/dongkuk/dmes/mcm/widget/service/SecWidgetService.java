@@ -62,6 +62,7 @@ public class SecWidgetService {
     private static final int USER_ID_MAX = 30;
     private static final Pattern TAB_ID = Pattern.compile("^(home|tab-\\d{1,6}|def-\\d{1,6})$");
     private static final Pattern USER_TAB_ID = Pattern.compile("^tab-(\\d{1,6})$");
+    private static final String TAB_PREFIX = "tab-";
 
     private final SecUserWidgetTabRepository tabRepository;
     private final SecUserWidgetRepository widgetRepository;
@@ -145,11 +146,16 @@ public class SecWidgetService {
 
     /**
      * 탭 하나를 통째로 바꾼다. 위젯 목록은 grids.widgets.rows. 기본 탭({@code def-N})은 해석 집합에 있을 때만 받고(재정의 행 저장),
-     * 이름은 관리자 이름으로 덮어쓰며 요청 순서는 쓰지 않는다.
+     * 이름은 관리자 이름으로 덮어쓰며 요청 순서는 쓰지 않는다. newYn=Y 인 {@code tab-N} 이 이미 있으면(화면이 연 뒤 공유 사본이 그 번호로
+     * 생긴 경우) 덮어쓰지 않고 사용자 탭 최대 번호 + 1 로 옮겨 새 탭으로 저장하며, 응답 tabId 에 실제 ID 를 돌려준다.
      */
     public Map<String, Object> saveTab(SecWidgetTabSaveRequest request, List<Map<String, Object>> widgets) {
         String userId = requireUser();
-        String tabId = requireTabId(request.getTabId());
+        String requestedId = requireTabId(request.getTabId());
+        List<SecUserWidgetTab> existing = tabRepository.findByUserIdOrderByTabSeqAsc(userId);
+        String tabId = "Y".equals(request.getNewYn()) && USER_TAB_ID.matcher(requestedId).matches()
+                && existing.stream().anyMatch(t -> t.getTabId().equals(requestedId))
+                ? TAB_PREFIX + (maxUserTabNo(existing) + 1) : requestedId;
         boolean home = HOME_TAB_ID.equals(tabId);
         boolean def = WidgetDefaultTabs.isDefaultTabId(tabId);
         WidgetDefaultTabs.Resolved resolved = resolvedFor(userId);
@@ -161,7 +167,6 @@ public class SecWidgetService {
         if (!def && tabNm.length() > TAB_NM_MAX) {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "탭 이름은 " + TAB_NM_MAX + "자 이하로 정합니다.");
         }
-        List<SecUserWidgetTab> existing = tabRepository.findByUserIdOrderByTabSeqAsc(userId);
         boolean isNew = existing.stream().noneMatch(t -> t.getTabId().equals(tabId));
         // 「홈」 포함 MAX_TABS 개: home 은 한도 검사에서 늘 빼고, 새 일반 탭만 (일반 탭 수 + 해석된 기본 탭 수)로 센다.
         // 기본 탭 재정의 행(def-*)은 해석된 기본 탭 수에 이미 들어 있으므로 일반 탭 수에서 뺀다.
@@ -448,6 +453,16 @@ public class SecWidgetService {
     private static WidgetDefaultTab requireResolved(WidgetDefaultTabs.Resolved resolved, String tabId) {
         return resolved.find(tabId).orElseThrow(
                 () -> new BusinessException(ErrorCode.BUSINESS_ERROR, "쓸 수 없는 기본 탭입니다: " + tabId));
+    }
+
+    /** 사용자 일반 탭({@code tab-N}) 중 가장 큰 N. 없으면 0. */
+    private static int maxUserTabNo(List<SecUserWidgetTab> rows) {
+        int max = 0;
+        for (SecUserWidgetTab t : rows) {
+            Matcher m = USER_TAB_ID.matcher(t.getTabId());
+            if (m.matches()) max = Math.max(max, Integer.parseInt(m.group(1)));
+        }
+        return max;
     }
 
     /** 「홈」과 기본 탭 재정의 행(def-*)을 뺀 사용자 일반 탭 수. */
