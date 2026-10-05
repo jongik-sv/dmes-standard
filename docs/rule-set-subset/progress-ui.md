@@ -212,3 +212,7 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
 - e2e 고정 데이터(조정 답 ui-8 조건): 기존 행 변경 없음(삭제 줄 0), 새 행은 `E2S_TAG`·`E2S_SUBA`·`E2S_SUBB`·`E2S_SUBP`(E2S_ 접두·파일 끝 자체 완결 문장), 머리 주석 세트 목록에 적음. `mdm-ruleSetMng.spec` 의 건수 단언(키워드 `E2S_`+룰 `E2S_OLD` → 1건, `NO_SUCH_SET` → 0건)은 새 세트와 겹치지 않는다(grep 확인).
 - 시험: m-mdm `node scripts/test.mjs` 241파일 3758 통과·0 실패, m-mdm `tsc --noEmit` 0, `playwright test --list mdm-ruleSetEdit mdm-ruleSetMng mdm-ruleSetConfirm` 27건(E19 포함). e2e 실제 실행·브라우저 확인은 머지 뒤 조정 세션.
 - 확정 보고 itemKey `SET:<setId>` 는 확정 화면(ruleSetConfirm) 몫이라 이 화면 응답에는 없다(ui:8 1단계에서 Java 대조). CALLERS 자기 행 제외는 서버가 하므로 화면 변경 없음.
+
+## fin(화면 몫). Task 10 문서 — 조정 지시 ui-10
+- 커밋: `580186ed` — `docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md`(§2.1 세트 탭, §3.2 SET 행·CATCH_SET 칩, §5.6 저장소 키, §5.7 SET 노드, §5.8 디버거 안으로 들어가기, §9 연동, §11 N-33~N-35), `docs/guide/FrontEnd/Local-Rules.md`(§36 탭마다 편집기를 마운트해 두는 화면, §37 불러오기 세대 번호로 늦은 응답 버리기)
+- 시험: 문서만 바꿨다(코드 변경 없음). 서버만 내는 CALL_CYCLE·CALL_DEPTH·CALLER_BROKEN 문구는 확정 화면 몫이라 이 설계서에는 대표 문구만 적었다.
