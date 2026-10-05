@@ -83,6 +83,16 @@ class RuleSetConfirmReportTest {
     }
 
     @Test
+    void callerCodesUseSetItemKeyBeforeNodeAndEdge() {
+        RuleSetConfirmReport.Report r = report(List.of(
+                check(RuleSetCheck.CALLER_WARN, RuleSetCheck.WARN, "S", null, null),
+                check(RuleSetCheck.CALLER_BROKEN, RuleSetCheck.REJECT, "P", "n9", null),
+                check(RuleSetCheck.CALL_MISSING, RuleSetCheck.WARN, "OLD", "s1", null)), List.of());
+        assertThat(item(r, MdmRuleSetConfirmCheckItem.FLOW_STRUCTURE).issues()).extracting(i -> i.issue().itemKey())
+                .containsExactly("SET:S", "SET:P", "NODE:s1");
+    }
+
+    @Test
     void futureBoundaryIssuesAreWarningsWithTimeAndCauseAndAreNotRepeated() {
         RuleSetCheck order = check(RuleSetCheck.ORDER, RuleSetCheck.REJECT, "R_X", "r1", null);
         RuleSetCheck dup = check(RuleSetCheck.DUP_RESULT, RuleSetCheck.REJECT, "R_Y", "r2", null);

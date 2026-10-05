@@ -192,7 +192,14 @@ public final class RuleSetConfirmReport {
         return "판정 오류";
     }
 
+    /**
+     * 화면이 이슈를 짚는 키. 부르는 세트 쪽 두 코드({@code CALLER_WARN}·{@code CALLER_BROKEN})의 ruleId 는 세트 ID(이 세트·부르는 부모)라
+     * {@code SET:<세트 ID>} 다(srv:6 E1 조정 기본안) — 노드·선보다 먼저 본다.
+     */
     private static String itemKey(RuleSetCheck c) {
+        if ((RuleSetCheck.CALLER_WARN.equals(c.code()) || RuleSetCheck.CALLER_BROKEN.equals(c.code())) && c.ruleId() != null) {
+            return "SET:" + c.ruleId();
+        }
         if (c.nodeId() != null) {
             return "NODE:" + c.nodeId();
         }

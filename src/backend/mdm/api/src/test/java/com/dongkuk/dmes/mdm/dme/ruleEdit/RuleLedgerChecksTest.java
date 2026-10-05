@@ -27,6 +27,8 @@ import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetAnalyzer;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
+import com.dongkuk.dmes.mdm.common.rule.SetCallIo;
+import com.dongkuk.dmes.mdm.common.rule.SetCallIoReader;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveContext;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
 import com.dongkuk.dmes.mdm.common.rule.check.ledger.RuleSetOrderCheck;
@@ -99,6 +101,8 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
     RuleQueries queries;
     @Autowired
     RuleConfirmChecks confirmChecks;
+    @Autowired
+    SetCallIoReader callReader;
 
     @BeforeEach
     void seed() {
@@ -441,6 +445,32 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
                 + "{\"id\":\"e2\",\"from\":\"s1\",\"to\":\"r1\",\"order\":1,\"cond\":\"COIL_THK > 1\"},{\"id\":\"e3\",\"from\":\"s1\",\"to\":\"r2\",\"otherwise\":true},"
                 + "{\"id\":\"e4\",\"from\":\"r1\",\"to\":\"m1\"},{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m1\"},{\"id\":\"e6\",\"from\":\"m1\",\"to\":\"end\"}]}");
         DmeTestSupport.ruleSetCalls(jdbc, "S_IFSET", "[\"S_SUB\"]");
+
+        RuleEditSaveResult r = save(sample());
+
+        assertTrue(issues(r, "SET_IF_SIBLING").isEmpty(), r.getIssues().toString());
+    }
+
+    /**
+     * srv:5 넘김 1 — IF 앞 SET 노드가 부르는 하위 세트가 COIL_WID 를 IF 한 갈래에서만 만들면(always=false) 그 이름은 IF 갈래 직전 경로에 maybe 로 들어가
+     * 형제 읽기가 아니다(분석기와 같은 경로 상태). SET 노드가 없거나 maybe 를 빼면 SET_IF_SIBLING 이다(위 시험).
+     */
+    @Test
+    void IF_앞_SET_노드가_일부_갈래에서만_만드는_이름도_형제_읽기가_아니다() {
+        otherRule("R_WID", "X_IN", "COIL_WID");
+        otherRule("R_ZZ", "X_IN", "ZZ_OUT");
+        branchSet("S_PSUB", "IF", "R_WID", "R_ZZ");
+        SetCallIo sub = callReader.read(List.of("S_PSUB"), DmeTestSupport.NOW).get("S_PSUB");
+        assertTrue(sub.outputs().stream().anyMatch(o -> "COIL_WID".equals(o.name()) && !o.always()), sub.toString());
+        ruleSet("S_IFPART", "INUSE", "QLTY_GRD_JDG", "R_WID");
+        DmeTestSupport.ruleSetFlow(jdbc, "S_IFPART", "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},"
+                + DmeTestSupport.setNode("c1", "S_PSUB") + ",{\"id\":\"s1\",\"kind\":\"IF\"},"
+                + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"QLTY_GRD_JDG\"},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"R_WID\"},"
+                + "{\"id\":\"m1\",\"kind\":\"MERGE\",\"splitId\":\"s1\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e0\",\"from\":\"start\",\"to\":\"c1\"},{\"id\":\"e1\",\"from\":\"c1\",\"to\":\"s1\"},"
+                + "{\"id\":\"e2\",\"from\":\"s1\",\"to\":\"r1\",\"order\":1,\"cond\":\"COIL_THK > 1\"},{\"id\":\"e3\",\"from\":\"s1\",\"to\":\"r2\",\"otherwise\":true},"
+                + "{\"id\":\"e4\",\"from\":\"r1\",\"to\":\"m1\"},{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m1\"},{\"id\":\"e6\",\"from\":\"m1\",\"to\":\"end\"}]}");
+        DmeTestSupport.ruleSetCalls(jdbc, "S_IFPART", "[\"S_PSUB\"]");
 
         RuleEditSaveResult r = save(sample());
 

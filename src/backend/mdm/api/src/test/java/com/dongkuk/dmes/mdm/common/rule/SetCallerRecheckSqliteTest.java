@@ -4,6 +4,7 @@ import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.line;
 import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.ruleNode;
 import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.setNode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
@@ -113,6 +114,42 @@ class SetCallerRecheckSqliteTest extends AbstractMdmSharedDbTest {
         SetCallerRecheck.Outcome o = recheck.recheck("C", newC(line(ruleNode("r1", "R_OTH"))), NOW);
 
         assertTrue(o.isEmpty(), "P 는 폐기, M 은 NOW 전에 끝나 G 까지 이어지지 않는다: " + o);
+    }
+
+    @Test
+    void 기준_시각에_적용_중인_행이_없는_부모는_검사하되_위로_잇지_않는다() {
+        // P 는 미래 RELEASED 만 있다 — H 의 read(NOW) 에서 P 는 없는 세트라 C 가 바뀌어도 H 가 보는 P 는 그대로다.
+        jdbc.update("DELETE FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID IN ('M', 'G')");
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET APPLY_FROM = '2027-01-01 00:00:00' WHERE MARU_RULE_SET_ID = 'P'");
+        SetCallIoReaderSqliteTest.set(jdbc, "H", "[\"R_OTH\"]", "[\"P\"]", line(setNode("s1", "P"), ruleNode("r2", "R_OTH")));
+
+        SetCallerRecheck.Outcome o = recheck.recheck("C", newC(line(ruleNode("r1", "R_OTH"))), NOW);
+
+        assertEquals(List.of("CALLER_BROKEN REJECT P 세트 P: " + UNKNOWN_S_GRD), rejects(o), "H 는 다시 검사하지 않는다");
+        assertEquals(List.of(), o.warnedCallers());
+    }
+
+    @Test
+    void 다이아몬드에서는_아래_세트가_모두_바뀐_뒤에_부모를_한_번_검사한다() {
+        // Q2 = SET C, P2 = SET C → SET Q2, H = SET P2 → R_FCT(S_GRD 를 읽음). C 가 S_GRD 대신 S_OTH 를 내면 P2 도 Q2 도 S_GRD 를 내지 않는다.
+        // P2 를 C 만 바뀐 중간 상태(Q2 는 아직 S_GRD 를 냄)로 위로 넘기면 H 의 깨짐을 놓친다.
+        SetCallIoReaderSqliteTest.set(jdbc, "Q2", "[]", "[\"C\"]", line(setNode("s1", "C")));
+        SetCallIoReaderSqliteTest.set(jdbc, "P2", "[]", "[\"C\",\"Q2\"]", line(setNode("s1", "C"), setNode("s2", "Q2")));
+        SetCallIoReaderSqliteTest.set(jdbc, "H", "[\"R_FCT\"]", "[\"P2\"]", line(setNode("s1", "P2"), ruleNode("r2", "R_FCT")));
+
+        SetCallerRecheck.Outcome o = recheck.recheck("C", newC(line(ruleNode("r1", "R_OTH"))), NOW);
+
+        assertTrue(rejects(o).contains("CALLER_BROKEN REJECT H 세트 H: " + UNKNOWN_S_GRD), rejects(o).toString());
+    }
+
+    @Test
+    void endsEarly_만_달라도_겉모양이_바뀐_것으로_본다() {
+        SetCallIo c = reader.read(List.of("C"), NOW).get("C");
+        SetCallIo early = new SetCallIo(c.setId(), c.setName(), c.exists(), c.status(), c.inputs(), c.outputs(), !c.endsEarly());
+
+        assertTrue(c.sameShape(early), "sameShape 는 그대로 입출력만 본다");
+        assertTrue(SetCallerRecheck.shapeChanged(c, early));
+        assertFalse(SetCallerRecheck.shapeChanged(c, c));
     }
 
     @Test

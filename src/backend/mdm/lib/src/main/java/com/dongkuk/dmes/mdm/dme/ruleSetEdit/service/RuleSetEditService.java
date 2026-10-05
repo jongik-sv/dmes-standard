@@ -215,12 +215,12 @@ public class RuleSetEditService {
 
     /**
      * 이 세트를 부르는 세트(속성 패널, spec §8) — 폐기하지 않은 세트의 지금 이후 유효한 RELEASED 행이 부르는 것(Ruling 25). 세트 ID 순, 한 세트는 한 번.
-     * 상태는 {@link #searchSets} 와 같은 계산 상태다.
+     * 자기 자신을 부르는 행은 뺀다(폐기 거부 {@link #rejectIfCalled} 와 같다). 상태는 {@link #searchSets} 와 같은 계산 상태다.
      */
     private RuleSetPickResult callers(String setId) {
         LocalDateTime now = now();
         Map<String, MdmRuleSet> parents = new LinkedHashMap<>();
-        callReader.callers(setId, now).forEach(c -> parents.putIfAbsent(c.setId(), c.parent()));
+        callReader.callers(setId, now).stream().filter(c -> !c.setId().equals(setId)).forEach(c -> parents.putIfAbsent(c.setId(), c.parent()));
         if (parents.isEmpty()) {
             return new RuleSetPickResult(List.of());
         }
@@ -529,6 +529,9 @@ public class RuleSetEditService {
      * 세지 않는다(같이 폐기된다).
      */
     private void rejectIfCalled(String setId) {
+        if (!setVersions.mayBeCalled(setId)) {
+            return; // 이 세트를 부르는 RELEASED 행이 없다 — 원장 전체를 읽지 않는다
+        }
         Set<String> callers = new java.util.LinkedHashSet<>();
         callReader.callers(setId, now()).stream().filter(c -> !c.setId().equals(setId)).forEach(c -> callers.add(c.setId()));
         if (!callers.isEmpty()) {
@@ -880,7 +883,8 @@ public class RuleSetEditService {
 
     /**
      * DRAFT 저장의 하위 세트 호출 검사(spec §6.2, srv:6 조정 ④) — 세트 확정 검사({@code RuleSetConfirmChecks})와 같은 계산을 지금 기준으로 돌려 네 코드
-     * ({@link RuleSetCheck#CALL_CODES})를 WARN 사본으로 돌려준다. 저장은 막지 않는다.
+     * ({@link RuleSetCheck#CALL_CODES})를 WARN 사본으로 돌려준다. 저장은 막지 않는다. 흐름에 SET 노드가 없고 이 세트를 부르는 RELEASED 행도 없으면
+     * ({@link RuleSetVersionQueries#mayBeCalled}) 두 검사 모두 낼 것이 없어 원장을 읽지 않는다.
      * <ol>
      *   <li>호출 그래프({@link #graphChecks}).</li>
      *   <li>연쇄 재검사 — 확정 검사와 같은 조건: 분석기·그래프에 네 코드가 없고, 이 세트를 부르는 쪽 행이 있고, 지금 겉모양(지금 적용 중인 RELEASED)이
@@ -894,7 +898,11 @@ public class RuleSetEditService {
      */
     private List<RuleSetCheck> callWarnings(SetCallIoReader.Snapshot snap, String setId, FlowDefinition flow, List<String> ids,
             Map<String, SetCallIo> calls, LocalDateTime now, List<RuleSetCheck> before) {
-        List<RuleSetCheck> graph = graphChecks(snap, setId, RuleSetFlowJson.setIds(flow), now);
+        List<String> callSetIds = RuleSetFlowJson.setIds(flow);
+        if (callSetIds.isEmpty() && !setVersions.mayBeCalled(setId)) {
+            return List.of(); // 부르지도 불리지도 않는다 — 그래프에 이 세트를 지나는 선이 없고 연쇄 재검사할 부모도 없다. 원장 전체를 읽지 않는다.
+        }
+        List<RuleSetCheck> graph = graphChecks(snap, setId, callSetIds, now);
         List<RuleSetCheck> out = new ArrayList<>();
         graph.forEach(c -> out.add(c.asWarn()));
         if (!graph.isEmpty() || before.stream().anyMatch(c -> RuleSetCheck.CALL_CODES.contains(c.code())) || snap.callers(setId, now).isEmpty()) {
@@ -905,10 +913,10 @@ public class RuleSetEditService {
             return out;
         }
         SetCallIo next = RuleSetInterface.of(setId, current.setName(), true, current.status(), flow, ioReader.readAt(ids, now, snap.scope()), calls);
-        if (current.sameShape(next)) {
+        if (!SetCallerRecheck.shapeChanged(current, next)) {
             return out;
         }
-        SetCallerRecheck.Outcome o = recheck.recheck(setId, next, now);
+        SetCallerRecheck.Outcome o = recheck.recheck(snap, setId, next, now);
         o.rejects().forEach(c -> out.add(c.asWarn()));
         if (!o.warnedCallers().isEmpty()) {
             out.add(new RuleSetCheck(RuleSetCheck.CALLER_WARN, RuleSetCheck.WARN, setId, null, null,

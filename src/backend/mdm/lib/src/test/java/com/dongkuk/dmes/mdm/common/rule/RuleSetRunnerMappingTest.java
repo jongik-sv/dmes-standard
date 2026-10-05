@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 /**
  * 실행 응답 매핑(하위 세트 spec §4.1·§4.3·§8, srv:6 묶음 D) — 엔진 결과 객체를 손으로 만들어 {@link RuleSetRunner#result}·
  * {@link RuleSetRunner#engineWarnings}·{@link RuleSetRunner#pathText}·{@link RuleSetRunner#violationText} 를 본다. SET 노드를 엔진이 실제로
- * 실행하는 시험(RuleSetRunnerSubsetTest)은 eng:4 뒤에 둔다.
+ * 실행하는 끝에서 끝 시험은 api 의 {@code RuleSetRunnerSubsetTest}(srv:6 묶음 E1).
  */
 class RuleSetRunnerMappingTest {
 
@@ -130,6 +130,20 @@ class RuleSetRunnerMappingTest {
                 "노드를 못 찾으면 그 뒤 단계는 흐름을 모른다");
         assertEquals("", RuleSetRunner.pathText("RS_TOP", List.of(), f::get));
         assertEquals("", RuleSetRunner.pathText("RS_TOP", null, f::get));
+    }
+
+    @Test
+    void 흐름_조회가_런타임_예외로_실패해도_던지지_않고_그_단계부터_노드_ID_만_쓴다() {
+        Map<String, FlowDefinition> f = flows();
+        assertEquals("세트 RS_TOP › s1 › s2 › ", RuleSetRunner.pathText("RS_TOP", List.of("s1", "s2"), id -> {
+            throw new UnsupportedOperationException("DB 끊김");
+        }), "문구 만들기가 원래 위반을 가리지 않는다(D 리뷰)");
+        assertEquals("세트 RS_TOP › 품질 판정(s1) › s2 › ", RuleSetRunner.pathText("RS_TOP", List.of("s1", "s2"), id -> {
+            if ("RS_MID".equals(id)) {
+                throw new IllegalMonitorStateException("둘째 단계만 실패");
+            }
+            return f.get(id);
+        }));
     }
 
     @Test
