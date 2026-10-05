@@ -331,30 +331,34 @@
   "col|label|false"
  ],
  "m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx": [
-  "label|(식:wKey)|(식:label)|false",
-  "label|dataSrc|실행 모듈|false",
-  "label|description|설명|false",
+  "label|(식:wKey)|(식:label)|(식:sizeMeta[wKey])",
+  "label|categoryCd|분류|\"CATEGORY_CD\"",
+  "label|dataSrc|실행 모듈|\"WIDGET_DATA_SRC\"",
+  "label|description|설명|\"WIDGET_DESCRIPTION\"",
   "label|formErrors|저장할 수 없음|false",
   "label|linkPageId|화면 열기 pageId|-",
   "label|multipleYn|여러 번 놓기|-",
   "label|preview|미리보기(기본 크기)|false",
+  "label|privateYn|비공개|\"WIDGET_PRIVATE_YN\"",
   "label|refreshSec|새로 고침(초)|-",
-  "label|subtitle|부제|-",
-  "label|title|이름|-",
-  "label|typeConfig|유형 설정|false",
-  "label|useYn|사용|-",
+  "label|subtitle|부제|\"WIDGET_SUBTITLE\"",
+  "label|title|이름|\"WIDGET_TITLE\"",
+  "label|typeConfig|유형 설정|\"WIDGET_TYPE_CONFIG\"",
+  "label|useYn|사용|\"WIDGET_USE_YN\"",
   "label|widgetId|ID|-",
-  "label|widgetKind|구분|false"
+  "label|widgetKind|구분|\"WIDGET_KIND\""
  ],
  "m-mcm/page-components/csa/commWidgetMng/WidgetListTab.tsx": [
-  "col|defaultSize|false",
-  "col|kind|false",
-  "col|overridden|false",
-  "col|title|-",
-  "col|typeTitle|false",
-  "col|useYn|-",
-  "col|userCount|false",
-  "col|widgetId|-"
+  "col|category|\"CATEGORY_CD\"",
+  "col|defaultSize|\"WIDGET_DEFAULT_SIZE\"",
+  "col|kind|\"WIDGET_KIND\"",
+  "col|overridden|\"WIDGET_OVERRIDDEN\"",
+  "col|privateYn|\"WIDGET_PRIVATE_YN\"",
+  "col|title|\"WIDGET_TITLE\"",
+  "col|typeTitle|\"WIDGET_TYPE_TITLE\"",
+  "col|useYn|\"WIDGET_USE_YN\"",
+  "col|userCount|\"WIDGET_USER_COUNT\"",
+  "col|widgetId|\"WIDGET_ID\""
  ],
  "m-mcm/page-components/csa/mdmCacheMng/RegisterModal.tsx": [
   "label|keysText|키|false",
@@ -404,6 +408,13 @@
  ],
  "m-mcm/widget-types/chat/chat-model.ts": [
   "col|welcome|-"
+ ],
+ "m-mcm/widget-types/collect/editor.tsx": [
+  "col|at|false",
+  "col|key|false",
+  "col|path|false",
+  "col||-",
+  "label|(식:name)|(식:label)|-"
  ],
  "m-mcm/widget-types/exchange/renderer.tsx": [
   "col|diffText|false",
