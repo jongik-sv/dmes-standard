@@ -24,6 +24,7 @@ import {
 
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
 
+import { REFRESH_MIN_SEC } from "./form-model";
 import { MULTIPLE_OPTIONS, USE_YN_OPTIONS, type DefForm } from "./types";
 
 function lazyEditor(type: WidgetTypeRegistryEntry): LazyExoticComponent<WidgetTypeEditorComponent> {
@@ -217,12 +218,15 @@ export function WidgetDetailForm({
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Input
               type="number"
-              min={30}
+              min={REFRESH_MIN_SEC}
               value={text("refreshSec")}
               placeholder={ph.refreshSec}
               disabled={off}
               onChange={set("refreshSec")}
             />
+            <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
+              {REFRESH_MIN_SEC}초(10분) 이상의 값을 입력합니다. 비워 두면 자동으로 새로 고치지 않고, [새로 고침] 단추를 눌렀을 때만 갱신됩니다.
+            </span>
           </td>
         </tr>
         <tr>

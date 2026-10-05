@@ -307,11 +307,17 @@ class CommWidgetMngServiceTest {
     }
 
     @Test
-    @DisplayName("새로 고침 주기는 NULL 또는 30~86400초 — 10초는 거절")
+    @DisplayName("새로 고침 주기는 NULL 또는 600~86400초 — 10·30·599초는 거절")
     void refreshSecRule() {
         WidgetDefSaveRequest r = defReq("markdown", "{}");
         r.setRefreshSec(10);
         assertRejected(r, "새로 고침");
+        WidgetDefSaveRequest thirty = defReq("markdown", "{}");
+        thirty.setRefreshSec(30);
+        assertRejected(thirty, "새로 고침");
+        WidgetDefSaveRequest justBelow = defReq("markdown", "{}");
+        justBelow.setRefreshSec(599);
+        assertRejected(justBelow, "새로 고침");
         WidgetDefSaveRequest tooLong = defReq("markdown", "{}");
         tooLong.setRefreshSec(86401);
         assertRejected(tooLong, "새로 고침");

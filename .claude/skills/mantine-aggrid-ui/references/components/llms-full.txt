@@ -3892,7 +3892,7 @@ WidgetTabsProps: `tabs`·`activeTabId`·`editing`·`renamingTabId`·`onSelect`·
 
 WidgetPickerProps: `registry`·`items`·`onAdd(widgetId)`, 선택 `typeTitles`(유형 ID → 이름, 정의 위젯 제목 아래 작은 글씨)·`categoryTitles`(분류 코드 → 이름, 분류별 묶음·칩 필터)·`onPreview(meta | null)`(항목에 마우스 진입/이탈). [위젯 추가] 서랍 — 검색·눌러 추가·격자로 끌어 놓기. 사용 중지 위젯은 보이지 않고, 이미 놓인 위젯(`multiple: false`)과 탭 한도(30개)는 막는다.
 
-WidgetMeta: `id`(`"{모듈}.{이름}"` 또는 `def.{key}`, 저장 키)·`title`·`defaultSize`(필수), `subtitle`·`description`·`minSize`(기본 `{ w: 4, h: 6 }`)·`maxSize`·`refreshSec`(30 미만이면 30)·`linkPageId`·`multiple`(기본 true)·`bodyPadding`(기본 true)·`disabled`(관리자 사용 중지)·`kind`(`"code"` | `"def"`, 없으면 code)·`typeId`(정의 위젯의 유형 ID).
+WidgetMeta: `id`(`"{모듈}.{이름}"` 또는 `def.{key}`, 저장 키)·`title`·`defaultSize`(필수), `subtitle`·`description`·`minSize`(기본 `{ w: 4, h: 6 }`)·`maxSize`·`refreshSec`(600 미만이면 600, 비우면 자동 새로 고침 없음)·`linkPageId`·`multiple`(기본 true)·`bodyPadding`(기본 true)·`disabled`(관리자 사용 중지)·`kind`(`"code"` | `"def"`, 없으면 code)·`typeId`(정의 위젯의 유형 ID).
 
 WidgetProps(위젯 본체가 받는 값): `instanceId`·`size`·`config`(인스턴스 설정 — 지금은 늘 `null`)·`refreshKey`(바뀌면 다시 조회)·`definition`(정의 위젯의 정의 설정, 코드 위젯은 `null`)·`widgetId`(정의 위젯이 자기 defId 로 서버를 부를 때).
 
@@ -4911,7 +4911,8 @@ import { MarkdownDocViewer } from "@dk-oasis/shared/markdown-editor";
 - Props: `markdown`(원문, 필수), `testId`(기본 `md-doc-viewer`), `tocWidth`(목차 폭 px, 기본 220), `skipTitle`(문서 제목 `#` 절을 그리지 않음, 모달 제목에 이미 보일 때), `ariaLabel`(본문·목차 영역 접근 이름, 기본 `문서`).
 - 접근성: 본문은 `role=region`·`tabIndex=0` 이고 목차를 누르면 그 절로 초점이 옮겨진다. `prefers-reduced-motion` 이면 부드러운 이동을 끈다. 색·글자 크기는 `--color-*`·`--font-size-*` 토큰만 쓴다.
 - 문서 규칙: 제목은 `#`(문서 제목) + `##`(장) + `###`(절)까지만 목차가 된다. 코드 블록 안의 `#` 줄은 제목이 아니다. GFM 표는 `MarkdownView` 가 `<table>` 로 그리므로 써도 된다(문서 읽기 간격 안에서 위아래 여백 12px). 그림·HTML 은 그리지 않으므로 쓰지 않는다.
-- 도식: ` ```mermaid ` 코드 블록은 mermaid 도식(SVG)으로 그린다(공통 `MarkdownView` 가 그림 — `MermaidDiagram`, 도식이 있는 문서에서만 mermaid 를 동적으로 불러온다). 구문 오류면 원래 코드를 그대로 보인다. 기본 크기는 자연 크기이되 본문 폭·최대 높이(480px·60vh 중 작은 값)를 넘으면 비율을 지켜 줄이고(작은 도식은 키우지 않음), 도식마다 [−] [배율] [+] [맞춤] 도구 막대(aria-label 「도식 축소」·「도식 확대」·「도식 크기 맞춤」, 50·75·100·125·150·200%)로 조절하며 틀보다 커지면 틀 안에서 가로·세로 스크롤한다. 어두운 모드면 테마를 맞춰 다시 그리고 인쇄 때는 도구 막대를 숨기고 폭에 맞춘다.
+- 도식: ` ```mermaid ` 코드 블록은 mermaid 도식(SVG)으로 그린다(공통 `MarkdownView` 가 그림 — `MermaidDiagram`, 도식이 있는 문서에서만 mermaid 를 동적으로 불러온다). 구문 오류면 원래 코드를 그대로 보인다. 기본(맞춤)은 자연 크기 100% 이고 본문 폭을 넘을 때만 폭에 맞춰 줄이며(작은 도식은 키우지 않고 높이로는 줄이지 않음), 글자는 모든 도식 14px 로 같다. 세로로 긴 도식은 틀(최대 높이 480px·60vh 중 작은 값) 안에서 세로 스크롤한다. 도식마다 [−] [배율] [+] [맞춤] 도구 막대(aria-label 「도식 축소」·「도식 확대」·「도식 크기 맞춤」, 25·50·75·100·125·150·200%, 배율 표시는 실제 적용 배율)로 조절하고 틀보다 커지면 가로·세로 스크롤한다. 어두운 모드면 테마를 맞춰 다시 그리고 인쇄 때는 도구 막대를 숨기고 폭에 맞춘다.
+- 도식 크게 보기: 도구 막대 [크게 보기](aria-label·title 「도식 크게 보기」)나 도식 더블클릭으로 화면 거의 전체(96vw × 92dvh) 오버레이 창(`MermaidViewer`, `document.body` 포털·z-index 9000 이라 Mantine 모달·팝오버 위, 위젯 도움말 같은 모달 안 도식에서도 위에 뜸)에 같은 도식을 연다. 기본은 가로·세로가 모두 창 안에 들어오는 맞춤(작은 도식은 100% 를 넘겨 키우지 않음)이고 창 안에도 [−] [배율] [+] [맞춤]·닫기(10~400%)가 있다. 넘치면 창 안에서 스크롤하고, 끌어서 이동(pan)·Ctrl/⌘+휠 확대 축소를 지원한다. Esc·닫기·어두운 배경 누름으로 닫히고 Tab 초점은 창 안에서만 돌며 닫으면 [크게 보기] 단추로 초점이 돌아온다. Esc·클릭·휠 이벤트는 바깥 모달로 새지 않는다. 창 쪽 svg 의 id·marker 이름은 `-zoom` 을 붙여 본문과 겹치지 않게 하고(`retargetSvgIds`), 인쇄 때는 창을 숨긴다. 크기 계산 순수 함수는 `mermaid-zoom.ts`(`naturalSizeOf`·`fitScaleOf`·`fitBoxScaleOf`·`nextZoom`·`retargetSvgIds`).
 - 절을 직접 나눠야 하면 `splitMarkdownSections(markdown)`(순수 함수, `DocSection[]`)과 `tocOf(sections)` 를 쓴다.
 
 ## Props

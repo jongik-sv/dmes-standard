@@ -20,6 +20,10 @@ const ROW_MARGIN = 8;
 
 export const UNKNOWN_TYPE_TITLE = "알 수 없는 유형";
 
+/** 새로 고침 주기 범위(초) — 서버 CommWidgetMngService REFRESH_MIN·REFRESH_MAX, shared MIN_REFRESH_SEC 와 같다. */
+export const REFRESH_MIN_SEC = 600;
+export const REFRESH_MAX_SEC = 86400;
+
 /** CONFIG_JSON 상한(스펙 §5.3 — 200KB). */
 const CONFIG_MAX_BYTES = 200 * 1024;
 
@@ -312,7 +316,7 @@ const utf8Bytes = (s: string): number => new TextEncoder().encode(s).length;
 /**
  * 상세 폼 검사 — 서버 §5.3 과 같은 규칙의 화면 판. 오류 문구 목록(빈 배열이면 저장 가능).
  * 공통: 이름 1~50자(정의 위젯 필수), 크기는 비우거나 1 이상 정수·같은 축 MIN ≤ DEF ≤ MAX·기본·최소 너비 ≤ 24,
- * 새로 고침 30~86400초, 문자열은 컬럼 길이 이하. 정의 위젯: 유형 필수, 정의 설정 200KB 이하.
+ * 새로 고침 600~86400초, 문자열은 컬럼 길이 이하. 정의 위젯: 유형 필수, 정의 설정 200KB 이하.
  */
 export function validateDefForm(form: DefForm): string[] {
   const errors: string[] = [];
@@ -353,8 +357,8 @@ export function validateDefForm(form: DefForm): string[] {
   }
 
   const refresh = form.refreshSec.trim();
-  if (refresh !== "" && (!/^\d+$/.test(refresh) || Number(refresh) < 30 || Number(refresh) > 86400)) {
-    errors.push("새로 고침 주기는 30~86400초여야 합니다.");
+  if (refresh !== "" && (!/^\d+$/.test(refresh) || Number(refresh) < REFRESH_MIN_SEC || Number(refresh) > REFRESH_MAX_SEC)) {
+    errors.push(`새로 고침 주기는 ${REFRESH_MIN_SEC}~${REFRESH_MAX_SEC}초여야 합니다.`);
   }
 
   if (isDef) {
