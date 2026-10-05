@@ -152,7 +152,8 @@ class RuleSetEditQueryCountTest extends AbstractMdmSharedDbTest {
             r.setSetName("부하 세트");
             r.setFlowJson(flow);
             long saveCount = count("save", () -> service.save(r));
-            // 2026-10-06 측정: 원장 전체 읽기를 걸러내기 전 14, 뒤 13(세트 목록·버전 전부 2문 → 불릴 수 있는지 1문, 읽는 행도 버전 전부 → 많아야 1행).
+            // 2026-10-06 측정: 13. 걸러내기 결과를 무시하고 원장을 읽게 하면 15(걸러내기 1문 포함) — 걸러내기가 없던 때로 치면 14다
+            // (세트 목록·버전 전부 2문 → 불릴 수 있는지 1문, 읽는 행도 버전 전부 → 많아야 1행).
             assertTrue(saveCount <= 13, "save SQL 문 " + saveCount);
         } finally {
             AuditHolder.remove();

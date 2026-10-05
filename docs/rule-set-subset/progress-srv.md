@@ -144,8 +144,9 @@
   - cefd3d8a 시험 보강 — `RuleSetCallerCheckTest` +1(`RuleConfirmService.confirm` MDM010·v2 DRAFT 유지, 보고서 ERROR 는 SET_CALLER_BROKEN 뿐), `RuleLedgerChecksTest` +1(always=false 하위 세트 출력은 maybe — SET_IF_SIBLING 아님), `DmeOasisHttpTest` +1(search CALL_IO·CALLERS).
 - 시험(src/backend/mdm, JDK 21, `--max-workers=2`):
   - 묶음 시험마다 고친 클래스를 돌렸다. 새 시험이 헛돌지 않는지 변이로 확인하고 되돌렸다: memo 를 늘 넣으면 깊이 방어 memo 시험 1건 실패, `orElse(null)` → 첫 행·준비 조건 없앰·`shapeChanged` 에서 endsEarly 뺌을 한꺼번에 넣으면 새 시험 4건 모두 실패, `SetOut.of` 가 partial 을 버리면 새 형제 읽기 시험 실패.
-  - save SQL 문 수: 걸러내기 전 14, 뒤 13(`mayBeCalled` 를 끈 채 같은 시험으로 쟀다). `RuleConfirmQueryCountTest` validate2 = 37 그대로(상한 37).
+  - save SQL 문 수: 13. 걸러내기 결과를 무시하고 원장을 읽게 바꿔 같은 시험으로 재면 15(`mayBeCalled` 1문 포함) — 걸러내기가 없던 때로 치면 14다. `RuleConfirmQueryCountTest` validate2 = 37 그대로(상한 37).
   - 마지막: `../gradlew :lib:test :api:test --tests 'com.dongkuk.dmes.mdm.common.rule.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleSetEdit.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleSetConfirm.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleEdit.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleConfirm.*' --tests '*DmeOasisHttpTest' --continue` → lib 118클래스 2058건, api 45클래스 475건 통과, 실패·오류·건너뜀 0(BUILD SUCCESSFUL, 쿼리 수 시험 `RuleSetEditQueryCountTest`·`RuleConfirmQueryCountTest` 포함).
+  - 전체(생성자·폐기·search 가 바뀌어 넓혀 돌림): `../gradlew :lib:test :api:test --continue` → lib 118클래스 2058건, api 187클래스 1818건 통과, 실패·오류·건너뜀 0(BUILD SUCCESSFUL, 결과 파일 모두 이번 실행 것).
 - 결정:
   - **위로 잇기(A 결정 바꿈)**: 부모의 행 가운데 기준 시각에 적용 중인 행이 없으면(미래 RELEASED 만) 그 부모 행들은 검사하되 위로 잇지 않는다 — 조부모의 `read(at)` 에서 그 부모는 없는 세트라 겉모양이 바뀌지 않는다. A 의 "없으면 첫 행" 은 조부모에 헛 깨짐을 냈다.
   - **endsEarly**: `SetCallerRecheck.shapeChanged(before, after)` = `!sameShape || endsEarly 다름`(`sameShape` 는 그대로). 분석기는 SET 노드의 SUBSET_ENDED 받는 노드를 endsEarly 로 판정(CATCH_NEVER)하므로 확정 검사·DRAFT 저장 경고·룰 저장 검사의 진입 조건과 위로 잇기 네 곳 모두 이것을 쓴다(위로 잇기만 바꾸면 첫 단계에서 재검사가 아예 돌지 않는다). endsEarly 는 흐름 구조로만 정해져 하위 세트가 바뀌어도 부모의 endsEarly 는 그대로라, 실제로 차이가 나는 곳은 진입 조건이다.
