@@ -22,6 +22,7 @@ import kr.dongkuk.maru.mdm.engine.flow.FlowTree;
 import kr.dongkuk.maru.mdm.engine.flow.Guarded;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
+import kr.dongkuk.maru.mdm.engine.flow.SetStep;
 import kr.dongkuk.maru.mdm.engine.flow.Split;
 import kr.dongkuk.maru.mdm.engine.flow.TaskStep;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult.CaughtException;
@@ -232,6 +233,7 @@ final class FlowRun {
             switch (b) {
                 case RuleStep r -> rule(r, ctx, made);
                 case TaskStep t -> plain(t.nodeId(), NodeKind.TASK, ctx, made);
+                case SetStep s -> throw setNotYet(s); // SEAM(T4) — SET 노드 실행은 하위 세트 계획 Task 4(eng:4)가 넣는다
                 case Guarded g -> guarded(g, ctx, made);
                 case Split s when s.kind() == NodeKind.IF -> ifSplit(s, ctx, made);
                 case Split s -> parallel(s, ctx, made);
@@ -300,6 +302,8 @@ final class FlowRun {
             }
             record(t.nodeId(), NodeKind.TASK);
             seq(g.normal(), ctx, made);
+        } else if (g.step() instanceof SetStep s) {
+            throw setNotYet(s); // SEAM(T4) — SET 받는 노드 실행은 하위 세트 계획 Task 4(eng:4)가 넣는다
         } else {
             guardedRule((RuleStep) g.step(), g, ctx, made);
         }
@@ -315,6 +319,11 @@ final class FlowRun {
                 }
             }
         }
+    }
+
+    /** SET 노드 실행은 아직 없다(eng:4). 준비 단계가 SET 흐름을 막기 전까지 실행 경로에 오면 분명히 던진다. */
+    private static IllegalStateException setNotYet(SetStep s) {
+        return new IllegalStateException("SET 노드 실행은 하위 세트 계획 Task 4 가 넣는다: " + s.nodeId());
     }
 
     /** 룰이 받는 노드 블록의 단계일 때 — 받기 판정·정상 갈래·처리 갈래. */

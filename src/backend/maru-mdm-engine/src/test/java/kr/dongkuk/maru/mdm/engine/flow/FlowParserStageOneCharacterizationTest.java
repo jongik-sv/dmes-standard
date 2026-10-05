@@ -95,7 +95,7 @@ class FlowParserStageOneCharacterizationTest {
                 "FLOW_CATCH|c2|null|받는 노드 c2에 예외 종류 NO_RESULT가 겹친다",
                 "FLOW_CATCH|c3|null|받는 노드 c3가 붙은 노드 -가 없다",
                 "FLOW_CATCH|c3|null|받는 노드 c3에 받을 예외 종류가 없다",
-                "FLOW_CATCH|c4|null|받는 노드 c4는 룰·빈 단계 노드에만 붙일 수 있다(if1는 IF)",
+                "FLOW_CATCH|c4|null|받는 노드 c4는 룰·빈 단계·룰 세트 노드에만 붙일 수 있다(if1는 IF)",
                 "FLOW_CATCH|c4|null|받는 노드 c4의 예외 종류 BOOM를 모른다",
                 // h6 — c2 안의 둘째 NO_RESULT 도 c1 과 견주어 같은 문구가 한 번 더 난다(현재 동작 그대로 고정).
                 "FLOW_CATCH|c2|null|룰 노드 t1에서 예외 종류 NO_RESULT를 c1와 c2가 함께 받는다",
@@ -119,9 +119,9 @@ class FlowParserStageOneCharacterizationTest {
                 List.of(e("e0", "start", "if1"), br("b1", "if1", "a", 1, "X > 0"), other("bo", "if1", "m1"), e("ea", "a", "m1"),
                         e("em", "m1", "end"), e("ec1", "c1", "end"), e("ec2", "c2", "end"), e("ec3", "c3", "end")));
         assertEquals(List.of(
-                "FLOW_CATCH|c1|null|받는 노드 c1는 룰·빈 단계 노드에만 붙일 수 있다(if1는 IF)",
-                "FLOW_CATCH|c2|null|받는 노드 c2는 룰·빈 단계 노드에만 붙일 수 있다(start는 START)",
-                "FLOW_CATCH|c3|null|받는 노드 c3는 룰·빈 단계 노드에만 붙일 수 있다(c1는 CATCH)"), issues(f));
+                "FLOW_CATCH|c1|null|받는 노드 c1는 룰·빈 단계·룰 세트 노드에만 붙일 수 있다(if1는 IF)",
+                "FLOW_CATCH|c2|null|받는 노드 c2는 룰·빈 단계·룰 세트 노드에만 붙일 수 있다(start는 START)",
+                "FLOW_CATCH|c3|null|받는 노드 c3는 룰·빈 단계·룰 세트 노드에만 붙일 수 있다(c1는 CATCH)"), issues(f));
     }
 
     @Test

@@ -21,6 +21,7 @@ import kr.dongkuk.maru.mdm.engine.flow.CatchKind;
 import kr.dongkuk.maru.mdm.engine.flow.Guarded;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
+import kr.dongkuk.maru.mdm.engine.flow.SetStep;
 import kr.dongkuk.maru.mdm.engine.flow.Split;
 import kr.dongkuk.maru.mdm.engine.flow.Step;
 import kr.dongkuk.maru.mdm.engine.flow.TaskStep;
@@ -137,6 +138,9 @@ final class FlowKeys {
                 case RuleStep r -> ruleKeys(r, false, available, sure, maybe, reported, out);
                 case TaskStep t -> {
                     // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
+                }
+                case SetStep s -> {
+                    // SEAM(T4) — 하위 세트 입력·출력은 Task 4(eng:4)가 넣는다.
                 }
                 case Split s when s.kind() == NodeKind.IF -> {
                     for (Branch br : s.branches()) {
@@ -287,6 +291,9 @@ final class FlowKeys {
                 case TaskStep t -> {
                     // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
                 }
+                case SetStep s -> {
+                    // SEAM(T4) — 하위 세트 입력·출력은 Task 4(eng:4)가 넣는다.
+                }
                 case Split s when s.kind() == NodeKind.IF -> {
                     Set<String> inter = null;
                     for (Branch br : s.branches()) {
@@ -325,6 +332,9 @@ final class FlowKeys {
                 }
                 case TaskStep t -> {
                     // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
+                }
+                case SetStep s -> {
+                    // SEAM(T4) — 하위 세트 입력·출력은 Task 4(eng:4)가 넣는다.
                 }
                 case Split s when s.kind() == NodeKind.IF ->
                         s.branches().stream().filter(br -> !br.ends()).forEach(br -> out.addAll(allProduced(br.body())));

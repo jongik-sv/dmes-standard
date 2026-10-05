@@ -33,9 +33,9 @@ public final class FlowParser {
 
     private FlowParser() {}
 
-    /** 받는 노드를 붙일 수 있는 노드 종류(implicit-join spec §2.7 — RULE·TASK). 하위 세트 호출 스펙이 SET 을 더한다. */
+    /** 받는 노드를 붙일 수 있는 노드 종류(implicit-join spec §2.7·§13 — RULE·TASK·SET). */
     public static boolean catchable(NodeKind k) {
-        return k == NodeKind.RULE || k == NodeKind.TASK;
+        return k == NodeKind.RULE || k == NodeKind.TASK || k == NodeKind.SET;
     }
 
     /** ruleIds 순서의 한 줄 흐름. 노드 "start", "r1".."rN", "end", 선 "e1".."e(N+1)". */
@@ -146,7 +146,8 @@ public final class FlowParser {
             if (n.kind() == NodeKind.MERGE) {
                 FlowNode s = n.splitId() == null ? null : byId.get(n.splitId());
                 boolean split = s != null && (s.kind() == NodeKind.IF || s.kind() == NodeKind.PARALLEL);
-                boolean guard = s != null && catchesOf.containsKey(s.id());
+                // 옛 형식 돌아오는 MERGE(splitId = 받는 노드가 붙은 노드)는 RULE·TASK 만 받는다 — SET 은 옛 형식이 없다(implicit-join spec §13).
+                boolean guard = s != null && s.kind() != NodeKind.SET && catchesOf.containsKey(s.id());
                 if (!split && !guard) {
                     issues.add(structure(n.id(), null, "합류 " + n.id() + "의 짝 분기 " + (n.splitId() == null ? "-" : n.splitId()) + "가 없다"));
                 }
@@ -240,7 +241,7 @@ public final class FlowParser {
             if (target == null) {
                 issues.add(new FlowIssue(CATCH, n.id(), null, "받는 노드 " + n.id() + "가 붙은 노드 " + (blank(n.attachTo()) ? "-" : n.attachTo()) + "가 없다"));
             } else if (!catchable(target.kind())) {
-                issues.add(new FlowIssue(CATCH, n.id(), null, "받는 노드 " + n.id() + "는 룰·빈 단계 노드에만 붙일 수 있다(" + target.id() + "는 " + target.kind() + ")"));
+                issues.add(new FlowIssue(CATCH, n.id(), null, "받는 노드 " + n.id() + "는 룰·빈 단계·룰 세트 노드에만 붙일 수 있다(" + target.id() + "는 " + target.kind() + ")"));
             }
             List<String> keys = n.catches() == null ? List.of() : n.catches();
             if (keys.isEmpty()) {
@@ -314,6 +315,7 @@ public final class FlowParser {
         final Map<String, String> mergeOf = new HashMap<>();
         final Set<String> visited = new HashSet<>();
         final List<RuleStep> steps = new ArrayList<>();
+        final List<SetStep> sets = new ArrayList<>();
         final Map<String, Position> positions = new HashMap<>();
         final Map<String, NodeKind> splitKinds = new HashMap<>();
         /** IF ID → 모이는 자리(§2.2 6 — 해석 한 번 동안 기억한다). */
@@ -348,7 +350,7 @@ public final class FlowParser {
                     throw new Stop(structure(n.id(), null, n.id() + "에 도달할 수 없다"));
                 }
             }
-            return new FlowTree(root, start.id(), endId, steps, positions, splitKinds);
+            return new FlowTree(root, start.id(), endId, steps, sets, positions, splitKinds);
         }
 
         Seq seq(String cur, String stop, List<Frame> chain) {
@@ -381,7 +383,7 @@ public final class FlowParser {
             visited.add(cur);
             positions.put(cur, new Position(chain, order++));
             return switch (n.kind()) {
-                case RULE, TASK -> stepNode(n, stop, items, chain);
+                case RULE, TASK, SET -> stepNode(n, stop, items, chain);
                 case IF -> ifBlock(n, items, chain);
                 default -> parallelBlock(n, items, chain);
             };
@@ -394,6 +396,10 @@ public final class FlowParser {
                 RuleStep r = new RuleStep(id, n.ruleId());
                 steps.add(r);
                 s = r;
+            } else if (n.kind() == NodeKind.SET) {
+                SetStep st = new SetStep(id, n.setId());
+                sets.add(st);
+                s = st;
             } else {
                 s = new TaskStep(id);
             }

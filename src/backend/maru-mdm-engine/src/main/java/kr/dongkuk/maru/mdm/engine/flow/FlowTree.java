@@ -25,15 +25,17 @@ public final class FlowTree {
     private final String startId;
     private final String endId;
     private final List<RuleStep> ruleSteps;
+    private final List<SetStep> setSteps;
     private final Map<String, Position> positions;
     private final Map<String, NodeKind> splitKinds;
 
-    FlowTree(Seq root, String startId, String endId, List<RuleStep> ruleSteps, Map<String, Position> positions,
+    FlowTree(Seq root, String startId, String endId, List<RuleStep> ruleSteps, List<SetStep> setSteps, Map<String, Position> positions,
             Map<String, NodeKind> splitKinds) {
         this.root = root;
         this.startId = startId;
         this.endId = endId;
         this.ruleSteps = List.copyOf(ruleSteps);
+        this.setSteps = List.copyOf(setSteps);
         this.positions = Map.copyOf(positions);
         this.splitKinds = Map.copyOf(splitKinds);
     }
@@ -62,13 +64,29 @@ public final class FlowTree {
         return List.copyOf(ids);
     }
 
+    /** 모든 SET 노드(하위 세트 호출), 깊이 우선(갈래 실행 순서, 받는 노드가 붙은 SET 은 정상 갈래 다음 처리 갈래) 순서. */
+    public List<SetStep> setSteps() {
+        return setSteps;
+    }
+
+    /** setSteps 의 setId 를 처음 나온 순서로 중복 없이(빈 ID 는 뺀다) — CALL_SET_IDS 로 저장할 목록(하위 세트 spec §1.1). */
+    public List<String> setIds() {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        for (SetStep s : setSteps) {
+            if (s.setId() != null && !s.setId().isBlank()) {
+                ids.add(s.setId());
+            }
+        }
+        return List.copyOf(ids);
+    }
+
     /** 분기가 하나라도 있으면 true. */
     public boolean branched() {
         return !splitKinds.isEmpty();
     }
 
     /**
-     * 두 노드(RULE·TASK·IF·PARALLEL)의 관계. 두 ID 가 같으면(a==b) 노드를 찾지 않고 바로 SAME 을 낸다. 지나온 분기 목록을 앞에서부터 비교해 같은 분기에서 갈래 번호가
+     * 두 노드(RULE·SET·TASK·IF·PARALLEL)의 관계. 두 ID 가 같으면(a==b) 노드를 찾지 않고 바로 SAME 을 낸다. 지나온 분기 목록을 앞에서부터 비교해 같은 분기에서 갈래 번호가
      * 처음 달라지면 그 분기가 PARALLEL 이면 PARALLEL, 그 밖(IF, 받는 룰의 정상 갈래·처리 갈래 — 받는 노드 spec §3)이면 EXCLUSIVE 를 낸다. 달라지는 곳이 없으면
      * 같은 경로이고 깊이 우선 순번으로 BEFORE·AFTER 다.
      *
