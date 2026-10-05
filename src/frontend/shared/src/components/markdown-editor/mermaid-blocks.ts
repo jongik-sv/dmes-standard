@@ -1,5 +1,5 @@
 /**
- * 절 마크다운에서 ```mermaid 펜스 블록을 갈라낸다 — MarkdownDocViewer 가 쓰는 순수 함수.
+ * 절 마크다운에서 ```mermaid 펜스 블록을 갈라낸다 — MarkdownView 가 쓰는 순수 함수(독립 모듈).
  * 펜스 판정은 doc-sections.ts 와 같다(``` 또는 ~~~, 들여쓰기 3칸 이하). 닫는 펜스는 같은 글자를 같거나 더 길게 쓴 줄이다.
  * mermaid 가 아닌 코드 블록 안의 ```mermaid 글자는 도식으로 보지 않고, 닫히지 않은 mermaid 블록은 일반 글로 남긴다.
  */

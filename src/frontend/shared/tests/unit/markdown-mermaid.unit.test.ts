@@ -14,6 +14,7 @@ vi.mock("mermaid", () => {
   return { default: { initialize: mermaidMock.initialize, render: mermaidMock.render } };
 });
 
+import { MarkdownView } from "../../src/components/markdown-editor/MarkdownView";
 import { MarkdownDocViewer } from "../../src/components/markdown-editor/MarkdownDocViewer";
 import { splitMermaidBlocks } from "../../src/components/markdown-editor/mermaid-blocks";
 
@@ -104,5 +105,50 @@ describe("MarkdownDocViewer mermaid 그리기", () => {
     expect(mermaidMock.initialize).not.toHaveBeenCalled();
     expect(mermaidMock.render).not.toHaveBeenCalled();
     expect(host.querySelector('[data-testid="md-doc-viewer-doc-sec-0"]')).not.toBeNull();
+  });
+});
+
+describe("MarkdownView mermaid 기본 지원", () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    mermaidMock.initialize.mockReset();
+    mermaidMock.render.mockReset();
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  const mount = async (props: { value: string; mermaid?: boolean }) => {
+    await act(async () => {
+      root.render(createElement(MarkdownView, props));
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  };
+
+  it("기본으로 mermaid 블록을 도식으로 그리고 앞뒤 글은 그대로 그린다", async () => {
+    mermaidMock.render.mockResolvedValue({ svg: "<svg data-x=\"v\"></svg>" });
+    await mount({ value: "앞글\n\n```mermaid\ngraph TD\n  A-->B\n```\n\n뒷글" });
+    expect(host.querySelector('[role="img"] svg[data-x="v"]')).not.toBeNull();
+    expect(host.textContent).toContain("앞글");
+    expect(host.textContent).toContain("뒷글");
+  });
+
+  it("mermaid={false} 면 코드 블록 그대로 두고 mermaid 를 부르지 않는다", async () => {
+    await mount({ value: "```mermaid\ngraph TD\n```", mermaid: false });
+    expect(host.querySelector('[role="img"]')).toBeNull();
+    expect(host.querySelector("pre code")?.textContent).toContain("graph TD");
+    expect(mermaidMock.render).not.toHaveBeenCalled();
+  });
+
+  it("그리기 실패 시 코드 블록이 남는다", async () => {
+    mermaidMock.render.mockRejectedValue(new Error("x"));
+    await mount({ value: "```mermaid\ngraph TD\n```" });
+    expect(host.querySelector("pre code")?.textContent).toBe("graph TD");
   });
 });

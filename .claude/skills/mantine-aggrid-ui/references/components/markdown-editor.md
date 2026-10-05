@@ -101,7 +101,7 @@ import { MarkdownDocViewer } from "@dk-oasis/shared/markdown-editor";
 - Props: `markdown`(원문, 필수), `testId`(기본 `md-doc-viewer`), `tocWidth`(목차 폭 px, 기본 220), `skipTitle`(문서 제목 `#` 절을 그리지 않음, 모달 제목에 이미 보일 때), `ariaLabel`(본문·목차 영역 접근 이름, 기본 `문서`).
 - 접근성: 본문은 `role=region`·`tabIndex=0` 이고 목차를 누르면 그 절로 초점이 옮겨진다. `prefers-reduced-motion` 이면 부드러운 이동을 끈다. 색·글자 크기는 `--color-*`·`--font-size-*` 토큰만 쓴다.
 - 문서 규칙: 제목은 `#`(문서 제목) + `##`(장) + `###`(절)까지만 목차가 된다. 코드 블록 안의 `#` 줄은 제목이 아니다. 표·그림·HTML 은 `MarkdownView` 가 그리지 않으므로 목록으로 쓴다.
-- 도식: ` ```mermaid ` 코드 블록은 mermaid 도식(SVG)으로 그린다(`MermaidDiagram`, 도식이 있는 문서에서만 mermaid 를 동적으로 불러온다). 구문 오류면 원래 코드를 그대로 보인다. 큰 도식은 가로 스크롤, 어두운 모드면 테마를 맞춰 다시 그린다.
+- 도식: ` ```mermaid ` 코드 블록은 mermaid 도식(SVG)으로 그린다(공통 `MarkdownView` 가 그림 — `MermaidDiagram`, 도식이 있는 문서에서만 mermaid 를 동적으로 불러온다). 구문 오류면 원래 코드를 그대로 보인다. 큰 도식은 가로 스크롤, 어두운 모드면 테마를 맞춰 다시 그린다.
 - 절을 직접 나눠야 하면 `splitMarkdownSections(markdown)`(순수 함수, `DocSection[]`)과 `tocOf(sections)` 를 쓴다.
 
 ## Props
@@ -125,7 +125,7 @@ import { MarkdownDocViewer } from "@dk-oasis/shared/markdown-editor";
 
 `MarkdownField`: `value`·`onChange`·`editable`(필수), `testId`(`"md-editor"`, editable 일 때 편집기 뿌리), `viewTestId`(`"md-field-view"`, editable=false 일 때 읽기 상자), `ariaLabel`(`"메모"`), `emptyText`(`"메모 없음"`, 빈 글·고칠 수 없음), `fill`(`false`), `modeStorageKey`, `linkClassName`. 도구 막대는 늘 `inline`.
 
-`MarkdownView`: `value`(필수), `className`(`cm-md-view` 뒤에 더함), `linkClassName`, `testId`(`"md-view"`).
+`MarkdownView`: `value`(필수), `className`(`cm-md-view` 뒤에 더함), `linkClassName`, `testId`(`"md-view"`), `mermaid`(기본 true — ` ```mermaid ` 블록을 도식으로 그림, 있을 때만 동적 import·실패 시 코드 블록, 편집 화면은 코드 블록 그대로).
 
 `MarkdownEditMode`: `"wysiwyg" | "markdown"`.
 
