@@ -5,6 +5,7 @@
  * 스펙 2026-10-02-widget-admin-generic §10.1, 계획 Task 4.
  * - 목록은 commWidgetMng/search 를 한 번 받아 buildAdminRows(코드 등록부·유형 등록부와 합치기)로 만들고, 검색·구분·사용은 화면에서 거른다.
  * - [새 위젯](유형 고르기) → 빈 상세(newDefForm). [저장] → toSaveParams(화면 전용 `__*` 키 제거) → save → 다시 조회·그 행 선택.
+ * - [복사](정의 위젯) → 같은 유형·설정의 「새 위젯」 작성 상태(ID 빈 값·이름 「… (사본)」). 저장 전에는 서버에 아무것도 만들지 않는다.
  * - [삭제](정의 위젯, 사용자 수 0)·[코드 값으로 되돌리기](덮어쓰기 행이 있을 때) → 확인 후 delete.
  * - 바뀐 값이 있는데 다른 행·새 위젯을 고르면 「저장하지 않은 변경을 버릴까요?」.
  * - 첫 조회가 실패하면(목록을 한 번도 못 받으면) 목록을 비우고 편집을 막는다(계획 Review Focus 1 과 같은 부류). [조회]로 다시 받는다.
@@ -29,6 +30,9 @@ import {
   buildAdminRows,
   canSaveForm,
   codeForm,
+  copyBlockReason,
+  copyDataNotice,
+  copyDefForm,
   filterAdminRows,
   isFormDirty,
   newDefForm,
@@ -151,6 +155,8 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
   const [editorReady, setEditorReady] = useState(false);
   /** 상세를 새로 열 때마다 올린다 — 유형 편집기·미리보기를 다시 마운트한다. */
   const [openSeq, setOpenSeq] = useState(0);
+  /** [복사] 로 연 사본 폼의 안내(사용자 데이터가 따로 있는 유형). 상세를 새로 열면 지운다. */
+  const [copyNotice, setCopyNotice] = useState<string | null>(null);
   /** 첫 조회 중으로 시작한다(첫 조회 effect 가 setState 를 동기로 부르지 않게). */
   const [isBusy, setIsBusy] = useState(true);
   /**
@@ -188,6 +194,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
     setBaseline(next);
     setEditorErrors([]);
     setEditorReady(false);
+    setCopyNotice(null);
     setOpenSeq((n) => n + 1);
   }, []);
 
@@ -314,6 +321,16 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
     [loaded, guard, openForm]
   );
 
+  /** [복사] — 저장된 정의 위젯(baseline)을 새 위젯 폼으로 연다. 바뀐 내용이 있으면 버릴지 먼저 묻는다(그 변경은 사본에 넣지 않는다). */
+  const handleCopy = useCallback(() => {
+    const source = baseline;
+    if (!source || !loaded || copyBlockReason(source, WIDGET_TYPE_REGISTRY[source.typeId ?? ""] !== undefined)) return;
+    guard("저장하지 않은 변경을 버리고 복사할까요?", () => {
+      openForm(copyDefForm(source, selectedRow?.title), "");
+      setCopyNotice(copyDataNotice(source));
+    });
+  }, [baseline, loaded, guard, openForm, selectedRow]);
+
   const handleFormChange = useCallback((patch: Partial<DefForm>) => {
     setForm((prev) => (prev ? { ...prev, ...patch } : prev));
   }, []);
@@ -396,6 +413,8 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
   const inUse = (selectedRow?.userCount ?? 0) > 0;
   /** 목록을 받았고 처리 중이 아니다 — 상세 칸·[새 위젯]·[삭제] 를 쓸 수 있다. */
   const editable = loaded && !isBusy;
+  const copyBlocked = copyBlockReason(form, !!typeEntry);
+  const copyEnabled = editable && canSave && copyBlocked === null;
   const deleteEnabled =
     editable && canDelete && !!selectedRow?.def && (isCodeRow ? selectedRow.overridden : !inUse);
   const saveEnabled = canSaveForm({
@@ -501,7 +520,21 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
                 onEditorValidate={handleEditorValidate}
               />
             </div>
-            <div style={{ flex: "0 0 auto", display: "flex", gap: "var(--spacing-sm)", justifyContent: "flex-end", padding: "var(--spacing-sm)" }}>
+            <div style={{ flex: "0 0 auto", display: "flex", gap: "var(--spacing-sm)", justifyContent: "flex-end", alignItems: "center", padding: "var(--spacing-sm)" }}>
+              {copyNotice && form?.widgetId === "" && (
+                <span role="status" data-testid="widget-admin-copy-notice" style={{ marginRight: "auto" }}>
+                  {copyNotice}
+                </span>
+              )}
+              <Button
+                variant="default"
+                disabled={!copyEnabled}
+                title={copyBlocked ?? "같은 유형·설정의 새 위젯 작성 상태로 바꿉니다(저장해야 만들어집니다)"}
+                data-testid="widget-admin-copy"
+                onClick={handleCopy}
+              >
+                복사
+              </Button>
               <Button
                 variant="primary"
                 disabled={!saveEnabled}
