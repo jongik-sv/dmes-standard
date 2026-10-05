@@ -273,7 +273,7 @@ export function TermRegPopModal({
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="definition" meta={false} label="정의" required /></th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="definition" label="정의" required /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <Textarea
                   data-testid="term-pop-definition"
@@ -284,7 +284,7 @@ export function TermRegPopModal({
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="context" meta={false} label="맥락" /></th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="context" label="맥락" /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <Input
                   data-testid="term-pop-context"

@@ -182,8 +182,8 @@ export const TermDetailPane = memo(function TermDetailPane({ ref, busy }: { ref:
           <tbody>
             <Row name="termName" label="표기" required>{field("termName")}</Row>
             <Row name="senseNo" label="의미 번호" required>{field("senseNo")}</Row>
-            <Row name="definition" meta={false} label="정의" required>{area("definition", 3)}</Row>
-            <Row name="context" meta={false} label="맥락">{field("context")}</Row>
+            <Row name="definition" label="정의" required>{area("definition", 3)}</Row>
+            <Row name="context" label="맥락">{field("context")}</Row>
             <Row name="systems" label="사용 시스템">{field("systems", "MES,ERP")}</Row>
             <Row name="engName" label="영문명">{field("engName")}</Row>
             <Row name="engAbbr" label="영문 약어">{field("engAbbr")}</Row>
