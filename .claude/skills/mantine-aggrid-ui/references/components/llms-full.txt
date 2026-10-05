@@ -307,7 +307,7 @@ import { DatePicker } from "@dk-oasis/shared/form";
 
 ### MDM 라벨 툴팁(name·meta)
 
-`name` 을 주면 라벨에 마우스를 올릴 때 MDM 컬럼 사전 카드 툴팁이 뜬다([mdm-meta](mdm-meta.md) 의 `MdmFieldLabel` 과 같은 규칙: `name` → 물리명, `meta` 문자열이 `name` 보다 우선, `meta={false}` 면 끔). `name` 이 없으면 사전을 찾지 않고 포털 탭 안에서는 라벨 글자 툴팁만 뜬다(공급자 밖은 예전과 DOM 이 같다). 사전에 없는 `name`·`meta={false}` 는 라벨 + 흐린 글자 `name` 툴팁이다. 필터 키(`edt_`·`cbo_`)에서 이름을 추론하지 않으므로 업무 키를 직접 적는다. 라벨 글자는 기본(explicit)에서 `label` 그대로이고 Radio `name`·최근 입력값 키도 `label` 을 쓴다.
+`name` 을 주면 라벨 영역 전체(`.search-field__label`, 글자 밖 포함)에 마우스를 올릴 때 MDM 컬럼 사전 카드 툴팁이 뜬다([mdm-meta](mdm-meta.md) 의 `MdmFieldLabel` 과 같은 규칙: `name` → 물리명, `meta` 문자열이 `name` 보다 우선, `meta={false}` 면 끔). `name` 이 없으면 사전을 찾지 않고 포털 탭 안에서는 라벨 글자 툴팁만 뜬다(공급자 밖은 예전과 DOM 이 같다). 사전에 없는 `name`·`meta={false}` 는 라벨 + 흐린 글자 `name` 툴팁이다. 필터 키(`edt_`·`cbo_`)에서 이름을 추론하지 않으므로 업무 키를 직접 적는다. 라벨 글자는 기본(explicit)에서 `label` 그대로이고 Radio `name`·최근 입력값 키도 `label` 을 쓴다.
 
 ```tsx
 <SearchField label="제목" name="title" value={f.title} onChange={(v) => set("title", v)} />
@@ -539,7 +539,7 @@ import { DatePicker, Input, Textarea } from "@dk-oasis/shared/form";
 
 ### MDM 컬럼 사전과 맞는 입력
 
-입력이 MDM 컬럼 사전의 칸과 맞으면(물리명 같음) 라벨 글자 대신 `MdmFieldLabel` 을 th 안에 둔다. 캡션(적은 `label` 또는 MDM 폼 캡션)과 라벨에 올릴 때 뜨는 MDM 컬럼·도메인 툴팁이 함께 붙는다. 포털 밖이거나 받는 중이면 `label` 글자 그대로이고 DOM 도 단순 텍스트와 같다. 포털 탭 안에서 사전에 없으면(`meta={false}` 포함) 라벨에 올릴 때 라벨 글자 + 흐린 글자 `name` 툴팁이 뜬다. 필수 표시는 `required`(라벨 뒤 " *").
+입력이 MDM 컬럼 사전의 칸과 맞으면(물리명 같음) 라벨 글자 대신 `MdmFieldLabel` 을 th 안에 둔다. 캡션(적은 `label` 또는 MDM 폼 캡션)과 라벨 칸(th) 전체에 올릴 때 뜨는 MDM 컬럼·도메인 툴팁이 함께 붙는다(글자 밖 빈 곳 포함, 입력 td 는 제외). 포털 밖이거나 받는 중이면 `label` 글자 그대로이고 DOM 도 단순 텍스트와 같다. 포털 탭 안에서 사전에 없으면(`meta={false}` 포함) 라벨에 올릴 때 라벨 글자 + 흐린 글자 `name` 툴팁이 뜬다. 필수 표시는 `required`(라벨 뒤 " *").
 
 ```tsx
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
@@ -1680,7 +1680,7 @@ import { Input } from "@dk-oasis/shared/form";
 
 ### MDM 캡션·툴팁(2026-10-03)
 
-`name`(화면 필드 이름)을 주면 포털 탭 안에서 MDM 컬럼 사전 메타를 찾는다([mdm-meta](mdm-meta.md)). `label` 을 생략하면 폼 캡션(`labelMid` → `labelLong` → `labelShort` → `columnName`), `tip` 을 생략하면 `MdmMetaCard` 가 라벨 툴팁이 된다. 적은 `label`·`tip` 이 이긴다(공급자 `captionPriority="mdm"` 이면 라벨은 MDM 이 이긴다). FormGroup 은 입력값을 보지 않는다 — 값 검사는 화면이 하고 결과를 `error` 로 준다. `tip` 도 MDM 카드도 없는 라벨(`name` 이 없거나 사전에 없음)도 포털 탭 안에서는 라벨에 올릴 때 라벨 글자 + 흐린 글자 `name` 툴팁이 뜬다(`name` 이 라벨과 같거나 없으면 라벨만. 필드 focus 로는 열리지 않고 스크린리더 설명은 없다. 사전을 받는 중에는 띄우지 않는다). 포털 밖은 예전 DOM 그대로다. `FormGroup` 을 쓰지 않는 th/td 상세 표의 라벨은 같은 캡션·툴팁을 주는 `MdmFieldLabel`([mdm-meta](mdm-meta.md))을 쓴다.
+`name`(화면 필드 이름)을 주면 포털 탭 안에서 MDM 컬럼 사전 메타를 찾는다([mdm-meta](mdm-meta.md)). `label` 을 생략하면 폼 캡션(`labelMid` → `labelLong` → `labelShort` → `columnName`), `tip` 을 생략하면 `MdmMetaCard` 가 라벨 툴팁이 된다. 적은 `label`·`tip` 이 이긴다(공급자 `captionPriority="mdm"` 이면 라벨은 MDM 이 이긴다). FormGroup 은 입력값을 보지 않는다 — 값 검사는 화면이 하고 결과를 `error` 로 준다. `tip` 도 MDM 카드도 없는 라벨(`name` 이 없거나 사전에 없음)도 포털 탭 안에서는 라벨 칸 전체(`.form-group-label` 고정폭 박스 — 글자 밖 빈 곳 포함, 입력칸은 제외, help 커서도 칸 전체)에 올릴 때 라벨 글자 + 흐린 글자 `name` 툴팁이 뜬다(`name` 이 라벨과 같거나 없으면 라벨만. 필드 focus 로는 열리지 않고 스크린리더 설명은 없다. 사전을 받는 중에는 띄우지 않는다). 포털 밖은 예전 DOM 그대로다. `FormGroup` 을 쓰지 않는 th/td 상세 표의 라벨은 같은 캡션·툴팁을 주는 `MdmFieldLabel`([mdm-meta](mdm-meta.md))을 쓴다.
 
 MDM 설명이 HTML(`descriptionHtml`)이면 라벨 툴팁은 넓은 카드(최대 640px, 떠나도 150ms 유예, Escape 로 닫힘)가 되고, 마우스로 열었을 때만 카드 안으로 마우스가 들어갈 수 있다(필드 focus 로 연 카드는 예전처럼 마우스를 통과시키고 blur 에 닫힌다). 모달 안에서는 카드가 열려 있을 때 누른 Escape 가 focus 위치와 상관없이 카드만 닫고, 다음 Escape 가 모달을 닫는다(필드의 ComboBox 드롭다운이 열려 있으면 그 Escape 는 드롭다운도 함께 닫는다). 스크린리더 사본은 글자 설명이다. `tip` 을 주면 예전 툴팁 그대로다 — [mdm-meta](mdm-meta.md) §HTML 설명·상호작용 툴팁.
 
@@ -4238,7 +4238,7 @@ const issue = column ? validateMdmValue(column, v) : null;   // 같은 column �
 - 저장 전 `validateRow(row, names)` 로 막을 칸은 서버 `MdmValidator.columns(...)` 와 같게 둔다.
 - 훅은 공급자(포털 탭) 밖이면 아무것도 부르지 않고 늘 통과다 — 포털 밖 단독 실행에서도 같은 코드가 돈다.
 - 빈 칸은 입력 중에는 검사하지 않는다(필수는 저장 때). 예: `m-mls/pages/lsh/noticeMgmt/NoticeTitleRow.tsx`.
-- 라벨 글자가 툴팁 트리거지만 Tab 순서에는 들지 않는다(`tabIndex` -1). 입력 화면에서 Tab 이 라벨마다 멈추지 않게 하려는 것이다. 툴팁은 마우스 hover 로 연다.
+- 툴팁은 라벨 글자 span 이 아니라 **라벨 칸 전체**에서 마우스 hover 로 뜬다(2026-10-05): span 에서 가장 가까운 `th, td, .search-field__label`(없으면 span 만)의 빈 곳에 올려도 뜨고, 칸 안 이동은 닫지 않으며, 칸 안을 누르면 닫는다. 카드 위치는 글자 기준 그대로다. 입력칸이 따로 있는 td 에는 걸리지 않는다(라벨 글자가 든 칸만). 글자 span 은 Tab 순서에 들지 않는다(`tabIndex` -1 — 입력 화면에서 Tab 이 라벨마다 멈추지 않게).
 
 ### HTML 설명·상호작용 툴팁(2026-10-03)
 
@@ -4338,7 +4338,7 @@ th 안이나 아무 라벨 자리에 넣는 인라인 라벨(`FormGroup` 을 쓰
 | className | `string` | 없음 | 라벨 글자 span 에 붙는다. 메타가 없을 때도 값이 있으면 span 으로 감싼다 |
 | style | `CSSProperties` | 없음 | 위와 같다 |
 
-툴팁(메타가 있을 때. 사전에 없는 공급자 안 라벨은 위 글자 툴팁): 글자 `span.form-tip-trigger` 에 마우스를 올리거나 포커스가 들어오면 `document.body` 에 `.form-tip-text.form-tip-text--portal`(position: fixed, 최상단)로 `MdmMetaCard` 가 뜬다. 위치·위/아래 판정·가장자리 보정은 `FormGroup` 과 같고, 앵커는 라벨 글자다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두어 th 글자와 접근 이름을 늘리지 않는다. 상자 폭은 form.css 의 `.form-tip-text`(최소 220px·최대 320px, 위치는 오른쪽 가장자리에서 안쪽으로 당겨 최대 폭을 확보)가 정한다. HTML 설명 카드만 예외로 최대 폭 640px 의 상호작용 툴팁이다(§HTML 설명·상호작용 툴팁).
+툴팁(메타가 있을 때. 사전에 없는 공급자 안 라벨은 위 글자 툴팁): 글자 `span.form-tip-trigger` 가 든 라벨 칸(th·td·`.search-field__label`) 전체에 마우스를 올리거나 글자 span 에 포커스가 들어오면 `document.body` 에 `.form-tip-text.form-tip-text--portal`(position: fixed, 최상단)로 `MdmMetaCard` 가 뜬다. 위치·위/아래 판정·가장자리 보정은 `FormGroup` 과 같고, 앵커는 라벨 글자다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두어 th 글자와 접근 이름을 늘리지 않는다. 상자 폭은 form.css 의 `.form-tip-text`(최소 220px·최대 320px, 위치는 오른쪽 가장자리에서 안쪽으로 당겨 최대 폭을 확보)가 정한다. HTML 설명 카드만 예외로 최대 폭 640px 의 상호작용 툴팁이다(§HTML 설명·상호작용 툴팁).
 
 ## 표준값: 모든 화면 동일
 
@@ -4911,7 +4911,7 @@ import { MarkdownDocViewer } from "@dk-oasis/shared/markdown-editor";
 - Props: `markdown`(원문, 필수), `testId`(기본 `md-doc-viewer`), `tocWidth`(목차 폭 px, 기본 220), `skipTitle`(문서 제목 `#` 절을 그리지 않음, 모달 제목에 이미 보일 때), `ariaLabel`(본문·목차 영역 접근 이름, 기본 `문서`).
 - 접근성: 본문은 `role=region`·`tabIndex=0` 이고 목차를 누르면 그 절로 초점이 옮겨진다. `prefers-reduced-motion` 이면 부드러운 이동을 끈다. 색·글자 크기는 `--color-*`·`--font-size-*` 토큰만 쓴다.
 - 문서 규칙: 제목은 `#`(문서 제목) + `##`(장) + `###`(절)까지만 목차가 된다. 코드 블록 안의 `#` 줄은 제목이 아니다. 표·그림·HTML 은 `MarkdownView` 가 그리지 않으므로 목록으로 쓴다.
-- 도식: ` ```mermaid ` 코드 블록은 mermaid 도식(SVG)으로 그린다(공통 `MarkdownView` 가 그림 — `MermaidDiagram`, 도식이 있는 문서에서만 mermaid 를 동적으로 불러온다). 구문 오류면 원래 코드를 그대로 보인다. 큰 도식은 가로 스크롤, 어두운 모드면 테마를 맞춰 다시 그린다.
+- 도식: ` ```mermaid ` 코드 블록은 mermaid 도식(SVG)으로 그린다(공통 `MarkdownView` 가 그림 — `MermaidDiagram`, 도식이 있는 문서에서만 mermaid 를 동적으로 불러온다). 구문 오류면 원래 코드를 그대로 보인다. 기본 크기는 자연 크기이되 본문 폭·최대 높이(480px·60vh 중 작은 값)를 넘으면 비율을 지켜 줄이고(작은 도식은 키우지 않음), 도식마다 [−] [배율] [+] [맞춤] 도구 막대(aria-label 「도식 축소」·「도식 확대」·「도식 크기 맞춤」, 50·75·100·125·150·200%)로 조절하며 틀보다 커지면 틀 안에서 가로·세로 스크롤한다. 어두운 모드면 테마를 맞춰 다시 그리고 인쇄 때는 도구 막대를 숨기고 폭에 맞춘다.
 - 절을 직접 나눠야 하면 `splitMarkdownSections(markdown)`(순수 함수, `DocSection[]`)과 `tocOf(sections)` 를 쓴다.
 
 ## Props
