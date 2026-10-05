@@ -17,6 +17,7 @@ vi.mock("mermaid", () => {
 import { MarkdownView } from "../../src/components/markdown-editor/MarkdownView";
 import { MarkdownDocViewer } from "../../src/components/markdown-editor/MarkdownDocViewer";
 import { splitMermaidBlocks } from "../../src/components/markdown-editor/mermaid-blocks";
+import { fitScaleOf, naturalSizeOf, nextZoom } from "../../src/components/markdown-editor/MermaidDiagram";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -150,5 +151,144 @@ describe("MarkdownView mermaid 기본 지원", () => {
     mermaidMock.render.mockRejectedValue(new Error("x"));
     await mount({ value: "```mermaid\ngraph TD\n```" });
     expect(host.querySelector("pre code")?.textContent).toBe("graph TD");
+  });
+});
+
+describe("mermaid 도식 크기 계산", () => {
+  it("viewBox 에서 자연 크기를 읽고 없으면 null 이다", () => {
+    expect(naturalSizeOf('<svg id="a" width="100%" style="max-width: 300px;" viewBox="0 0 300 640"><g/></svg>')).toEqual({ w: 300, h: 640 });
+    expect(naturalSizeOf('<svg viewBox="-8 -8 200.5 100"></svg>')).toEqual({ w: 200.5, h: 100 });
+    expect(naturalSizeOf("<svg><g/></svg>")).toBeNull();
+  });
+
+  it("작은 도식은 키우지 않고 폭·최대 높이를 넘으면 비율을 지켜 줄인다", () => {
+    expect(fitScaleOf({ w: 200, h: 100 }, 800, 480)).toBe(1);
+    expect(fitScaleOf({ w: 1000, h: 100 }, 500, 480)).toBe(0.5); // 폭 기준
+    expect(fitScaleOf({ w: 300, h: 960 }, 800, 480)).toBe(0.5); // 높이 기준
+    expect(fitScaleOf({ w: 1000, h: 1000 }, 500, 400)).toBe(0.4); // 둘 중 더 작은 쪽
+    expect(fitScaleOf({ w: 300, h: 960 }, 0, 480)).toBe(0.5); // 폭을 모르면 높이만 본다
+  });
+
+  it("단추 배율은 50·75·100·125·150·200% 단계를 오르내리고 끝에서 멈춘다", () => {
+    expect(nextZoom(1, 1)).toBe(1.25);
+    expect(nextZoom(1, -1)).toBe(0.75);
+    expect(nextZoom(0.4, 1)).toBe(0.5); // 맞춤 배율이 단계 사이에 있으면 가까운 위 단계로
+    expect(nextZoom(0.6, -1)).toBe(0.5);
+    expect(nextZoom(2, 1)).toBe(2);
+    expect(nextZoom(0.5, -1)).toBe(0.5);
+  });
+});
+
+describe("MermaidDiagram 크기 조절 도구 막대", () => {
+  let host: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    mermaidMock.initialize.mockReset();
+    mermaidMock.render.mockReset();
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  const mount = async (value: string) => {
+    await act(async () => {
+      root.render(createElement(MarkdownView, { value }));
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  };
+  const btn = (label: string) => host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!;
+  const click = async (b: HTMLButtonElement) => {
+    await act(async () => {
+      b.click();
+    });
+  };
+  const SRC = "```mermaid\ngraph TD\n  A-->B\n```";
+  const SVG = '<svg width="100%" style="max-width: 300px;" viewBox="0 0 300 200"><g></g></svg>';
+
+  it("작은 도식은 100% 로 그려지고 svg 가 자연 크기 픽셀로 잡힌다", async () => {
+    mermaidMock.render.mockResolvedValue({ svg: SVG });
+    await mount(SRC);
+    const svg = host.querySelector<SVGElement>('[role="img"] svg')!;
+    expect(svg.style.width).toBe("300px");
+    expect(svg.style.height).toBe("200px");
+    expect(svg.style.maxWidth).toBe("none");
+    expect(host.querySelector('[data-testid="md-view-mermaid-0-scale"]')?.textContent).toBe("100%");
+  });
+
+  it("도식 틀에 최대 높이(480px·60vh 중 작은 값)와 스크롤이 걸린다", async () => {
+    mermaidMock.render.mockResolvedValue({ svg: SVG });
+    await mount(SRC);
+    const frame = host.querySelector<HTMLElement>(".md-mermaid-frame")!;
+    expect(frame.getAttribute("role")).toBe("img");
+    expect(frame.style.maxHeight).toBe("min(480px, 60vh)");
+    expect(host.querySelector("style")?.textContent).toContain(".md-mermaid-frame{box-sizing:border-box;overflow:auto");
+  });
+
+  it("세로로 긴 도식은 최대 높이 안에 들어오게 줄어 그려진다", async () => {
+    mermaidMock.render.mockResolvedValue({ svg: '<svg viewBox="0 0 300 1000"><g></g></svg>' });
+    await mount(SRC);
+    const svg = host.querySelector<SVGElement>('[role="img"] svg')!;
+    const h = parseFloat(svg.style.height);
+    expect(h).toBeLessThanOrEqual(480);
+    expect(h).toBeGreaterThan(0);
+    expect(parseFloat(svg.style.width) / h).toBeCloseTo(0.3, 2); // 비율 유지
+  });
+
+  it("축소·확대 단추가 배율을 바꾸고 맞춤이 처음 배율로 되돌린다", async () => {
+    mermaidMock.render.mockResolvedValue({ svg: SVG });
+    await mount(SRC);
+    const scale = () => host.querySelector('[data-testid="md-view-mermaid-0-scale"]')?.textContent;
+    const svg = () => host.querySelector<SVGElement>('[role="img"] svg')!;
+
+    await click(btn("도식 확대"));
+    expect(scale()).toBe("125%");
+    expect(svg().style.width).toBe("375px");
+    await click(btn("도식 확대"));
+    await click(btn("도식 확대"));
+    await click(btn("도식 확대"));
+    expect(scale()).toBe("200%");
+    expect(btn("도식 확대").getAttribute("aria-disabled")).toBe("true");
+    await click(btn("도식 확대"));
+    expect(scale()).toBe("200%"); // 끝에서는 눌려도 그대로
+
+    await click(btn("도식 크기 맞춤"));
+    expect(scale()).toBe("100%");
+    await click(btn("도식 축소"));
+    await click(btn("도식 축소"));
+    await click(btn("도식 축소"));
+    expect(scale()).toBe("50%");
+    expect(svg().style.width).toBe("150px");
+    expect(btn("도식 축소").getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("단추는 button 이고 접근 가능한 이름과 도구 막대 역할을 가진다", async () => {
+    mermaidMock.render.mockResolvedValue({ svg: SVG });
+    await mount(SRC);
+    for (const name of ["도식 축소", "도식 확대", "도식 크기 맞춤"]) {
+      const b = btn(name);
+      expect(b.tagName).toBe("BUTTON");
+      expect(b.getAttribute("type")).toBe("button");
+    }
+    expect(host.querySelector('[role="toolbar"]')).not.toBeNull();
+  });
+
+  it("viewBox 가 없는 svg 는 건드리지 않고 도구 막대도 두지 않는다", async () => {
+    mermaidMock.render.mockResolvedValue({ svg: '<svg data-x="nv"><g></g></svg>' });
+    await mount(SRC);
+    const svg = host.querySelector<SVGElement>('[role="img"] svg')!;
+    expect(svg.style.width).toBe("");
+    expect(host.querySelector('[role="toolbar"]')).toBeNull();
+  });
+
+  it("그리기에 실패하면 도구 막대 없이 코드 블록이 남는다", async () => {
+    mermaidMock.render.mockRejectedValue(new Error("x"));
+    await mount(SRC);
+    expect(host.querySelector('[role="toolbar"]')).toBeNull();
+    expect(host.querySelector("pre code")?.textContent).toBe("graph TD\n  A-->B");
   });
 });
