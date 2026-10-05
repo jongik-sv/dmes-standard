@@ -14,7 +14,7 @@
 ## S2. PortalShell `widgetDock`·Header `toolsSlot`, portal-shell 진입점 재노출
 - 커밋: 55415464
 - 바뀌기 전: `PortalShellProps` 에 도구 창 설정이 없고, 머리 오른쪽에는 사용자 메뉴만 있었다.
-- 바뀐 뒤: `PortalShellProps.widgetDock?: { registry; registryStatus; frame; store? }`. 있으면 `Header toolsSlot` 에 `DockToolsMenu`, AppShell 최상위(탭 슬롯 바깥)에 `WidgetDockLayer`(z-index 160). 사용자 ID 는 `useCurrentUserState(enabled)`(셸 요청 공유), 로그아웃 중(`loggingOutRef`)·사용자 없음은 저장 안 함. `portal-shell/index.ts` 가 `export * from "../widget-dock"` 로 공개 API 를 낸다(package.json·tsup 진입점은 그대로).
+- 바뀐 뒤: `PortalShellProps.widgetDock?: { registry; registryStatus; frame; store? }`. 있으면 `Header toolsSlot` 에 `DockToolsMenu`, AppShell 최상위(탭 슬롯 바깥)에 `WidgetDockLayer`(z-index 160, 사이드바는 `.sidebar-container` z 150 쌓임 맥락으로 손잡이 1002 를 가둔다). 사용자 ID 는 `useCurrentUserState(enabled)`(셸 요청 공유), 로그아웃 중(`loggingOutRef`)·사용자 없음은 저장 안 함. `portal-shell/index.ts` 가 `export * from "../widget-dock"` 로 공개 API 를 낸다(package.json·tsup 진입점은 그대로).
 - 바꾼 이유: 창을 탭 화면 바깥에 두면 탭 전환에도 저절로 유지된다. 틀(`WidgetFrame`)은 호스트가 `frame` 으로 넘긴다 — tsup `splitting:false` 라 셸 진입점이 틀을 직접 묶으면 `WidgetFrameContext`(globalThis 캐시 없음)가 위젯 본체가 읽는 것과 다른 객체가 되어 `useWidgetTitle`·`useWidgetStatus` 등이 조용히 동작하지 않는다. 빌드 결과 `dist/portal-shell.js` 에 `WidgetFrameContext`·`cm-widget__head` 가 없음을 확인했다.
 - 동작 보존 근거: `widgetDock` 미지정이면 새 훅은 enabled=false 로 요청·리스너를 만들지 않고 DOM 도 그대로. 기존 셸 시험 9파일 90건 통과(portal-shell-characterization·mantine-portal-shell·portal-shell-usage·tab-order·tab-error·start-pages·menu-search·mdm-meta·module), `widget-dock-portal`(6) 통과(미지정 시 도구 버튼·창 층 없음, 지정해도 `/api/auth/me` 호출 수 같음).
 - 영향 범위: `PortalShell` 을 쓰는 모든 포털(m-mcm 만 `widgetDock` 을 넘긴다). Header 를 직접 쓰는 곳 없음(셸 내부).

@@ -23,7 +23,15 @@ export const FLOATING_WINDOW_CSS = `
 .cm-float-win__icon[data-dragging="true"] { cursor: grabbing; }
 `;
 
-/** 창 층 — 탭 화면 위(사이드바 손잡이 150 위), Mantine 모달(200)·팝오버(300) 아래. */
+/**
+ * 창 층의 쌓임 높이 — 셸 쌓임 맥락(AppShell 루트)에서 다른 층과 이렇게 겹친다.
+ * - 아래: 탭 화면 일반 요소(1~2)·AppShell 머리(100)·사이드바(.sidebar-container 150, 폭 조절 손잡이 1002 와 펼침 손잡이는 그 안에 갇힌다)·
+ *   전체 화면 슬라이딩 사이드바(140).
+ * - 위: Mantine 모달(200)·Menu/Popover/Select 드롭다운(300, 「도구」 메뉴 포함 — 새 창이 놓이는 머리 오른쪽 아래를 가리지 않는다)·
+ *   공용 Modal(9999)·MessageModal·알림(10000)·DetailPopover(9000).
+ * - 탭 화면 안에서 연 드롭다운(TabsBar 탭 목록·page-layout·ComboBox 1000)은 셸 쌓임에 그대로 참여해 창 위에 보인다 — 방금 연 메뉴가 창에 가리지 않는 쪽이 낫다.
+ * 도크 층 값만 1002 위로 올리면 모달(200)·팝오버(300)가 창 뒤로 깔려 위 목록이 뒤집힌다. 그래서 손잡이를 사이드바 안에 가둔다(Sidebar.css).
+ */
 export const WIDGET_DOCK_Z_INDEX = 160;
 
 export const WIDGET_DOCK_CSS = `

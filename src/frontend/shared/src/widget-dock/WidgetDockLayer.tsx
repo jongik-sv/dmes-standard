@@ -2,7 +2,7 @@
 
 /**
  * 위젯 도크 창 층 — 화면 전체를 덮는 fixed 층(pointer-events 없음) 위에 창만 눌리게 놓는다.
- * 포털 셸이 탭 슬롯 바깥(AppShell 최상위)에 두므로 탭을 바꿔도 창이 그대로 남는다. z-index 는 탭 화면 위, Mantine 모달 아래.
+ * 포털 셸이 탭 슬롯 바깥(AppShell 최상위)에 두므로 탭을 바꿔도 창이 그대로 남는다. z-index 는 사이드바·머리 위, Mantine 모달·팝오버 아래(styles.tsx WIDGET_DOCK_Z_INDEX).
  * 창 본문은 위젯 틀(WidgetFrame, 보기 모드)을 그대로 쓴다 — 지연 로딩·오류 경계·제목 줄·새로 고침은 틀이 맡는다.
  * 틀 컴포넌트는 호스트가 `@dk-oasis/shared/widget` 의 WidgetFrame 을 frame 으로 넘긴다. shared 는 진입점마다 따로 묶여(tsup splitting:false)
  * 이 층(portal-shell 진입점)이 틀을 직접 import 하면 틀의 WidgetFrameContext 가 위젯 본체(widget 진입점)가 읽는 것과 다른 객체가 된다.

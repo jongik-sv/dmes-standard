@@ -2,6 +2,8 @@
 /**
  * 포털 셸 위젯 도크 연결 — widgetDock 이 없으면 기존 DOM·요청 그대로, 있으면 머리 「도구」 버튼과 셸 최상위 창 층.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,7 +12,7 @@ import type { PortalShellPageComponent } from "../../src/portal-shell/types";
 import { readSecureJson, writeSecureJson } from "../../src/secure-storage";
 import { WidgetFrame } from "../../src/widget";
 import type { WidgetRegistry } from "../../src/widget";
-import { DOCK_STORAGE_PREFIX, dockStorageKey } from "../../src/widget-dock";
+import { DOCK_STORAGE_PREFIX, dockStorageKey, WIDGET_DOCK_Z_INDEX } from "../../src/widget-dock";
 import { renderWithMantine, type Rendered } from "./mantine-test-utils";
 
 for (const name of ["localStorage", "sessionStorage"] as const) {
@@ -92,6 +94,32 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   document.body.innerHTML = "";
+});
+
+/** CSS 규칙 하나의 z-index 를 읽는다(happy-dom 은 css 파일을 적용하지 않으므로 원문에서 읽는다). */
+function cssZIndex(file: string, selector: string): number | null {
+  const css = readFileSync(resolve(__dirname, "../../src/portal-shell", file), "utf8");
+  const start = css.indexOf(`${selector} {`);
+  if (start < 0) return null;
+  const body = css.slice(start, css.indexOf("}", start));
+  const m = /z-index:\s*(\d+)/.exec(body);
+  return m ? Number(m[1]) : null;
+}
+
+describe("위젯 도크 쌓임 순서(z-index)", () => {
+  it("사이드바는 자기 쌓임 맥락(z-index)을 가져 폭 조절 손잡이(1002)가 도구 창 층 위로 새지 않는다", () => {
+    const sidebar = cssZIndex("sidebar/Sidebar.css", ".sidebar-container");
+    expect(sidebar).not.toBeNull();
+    expect(sidebar!).toBeLessThan(WIDGET_DOCK_Z_INDEX);
+    expect(cssZIndex("sidebar/Sidebar.css", ".sidebar-resize-handle")).toBe(1002);
+  });
+
+  it("탭 전체 화면의 슬라이딩 사이드바(140)와 도구 창 층(160) 모두 Mantine 모달(200) 아래다", () => {
+    const sliding = cssZIndex("portal-shell.css", ".portal-shell--tab-fullscreen .sidebar-container");
+    expect(sliding).not.toBeNull();
+    expect(sliding!).toBeLessThan(WIDGET_DOCK_Z_INDEX);
+    expect(WIDGET_DOCK_Z_INDEX).toBeLessThan(200);
+  });
 });
 
 describe("PortalShell widgetDock", () => {

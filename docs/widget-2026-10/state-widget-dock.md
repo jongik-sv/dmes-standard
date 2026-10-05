@@ -26,7 +26,9 @@
    - 위젯 본체는 탭 맥락(TabPageContext·MdmMetaProvider) 밖에서 그려진다. 계산기·단위 변환·메모 본체와 `_content`·`lib/http` 는 탭 맥락을 읽지 않는다(메모 요청 menuId 는 고정 "HOME") — grep 으로 확인.
 3. **틀 주입(frame)**: `PortalShellWidgetDock.frame` 을 필수로 더했다(착수 지시의 `{registry, registryStatus, store?}` 에 추가). shared 가 진입점마다 따로 묶여(tsup `splitting:false`) 셸이 `WidgetFrame` 을 직접 쓰면 `WidgetFrameContext` 가 위젯 본체와 갈리기 때문이다.
 4. **크기·배치**: 칸당 40×30px, 최소 220×160, 창 8개 한도, 새 창은 오른쪽 위(오른쪽 32px·위 72px)에서 28px 계단식, 접힌 아이콘 44px(제목 첫 글자), 끌기 임계 4px, 저장 지연 400ms.
-5. **z-index 160**: 탭 화면·사이드바 펼침 손잡이(150) 위, Mantine 모달(200)·팝오버(300)·알림(10000) 아래. 위젯이 body 로 띄우는 팝오버는 창 위에 보인다.
+5. **z-index 160**: 셸 쌓임 맥락에서 탭 화면 일반 요소(1~2)·AppShell 머리(100)·사이드바 위, Mantine 모달(200)·Menu/Popover/Select 드롭다운(300)·공용 Modal(9999)·알림(10000) 아래. 위젯·「도구」 메뉴가 body 로 띄우는 팝오버는 창 위에 보인다.
+   - 사이드바 폭 조절 손잡이(z 1002)가 창 위에서 마우스를 가로채던 결함(리뷰 1)은 도크 값을 1002 위로 올리지 않고 **`.sidebar-container` 에 `z-index: 150`**(자기 쌓임 맥락)을 줘 손잡이를 사이드바 안에 가두는 것으로 고쳤다. 도크만 1002 위로 올리면 Mantine 모달(200)·팝오버(300)가 창 뒤로 깔리고 「도구」 메뉴가 새 창 뒤에 열린다. 탭 전체 화면의 슬라이딩 사이드바(z 140)는 원래 같은 방식이다. 전체 화면은 문서 전체(`documentElement`)를 올리므로 창이 그대로 보인다.
+   - 탭 화면 안에서 연 드롭다운(탭 목록·page-layout·ComboBox, z 1000)은 셸 쌓임에 참여해 창 위에 보인다 — 방금 연 메뉴가 창에 가려지지 않는 쪽이 맞아 그대로 둔다.
 6. **접힘**: 본문(WidgetFrame)을 마운트한 채 `display:none` — 계산기 값·편집 중 메모가 남는다. 틀이 폭 0 을 무시하고 숨은 동안 자동 새로 고침을 멈춘다.
 7. **정리 시점**: 등록부가 `ready` 일 때만 없는·사용 중지·floatable 아닌 위젯 창과 multiple=false 중복 창을 지우고 저장한다. 정의 조회 전(loading)·실패(error)에는 지우지 않고 그리지만 않는다.
 8. **창 막대 제목**: 막대에 `meta.title` 을 보이고 WidgetFrame 제목 줄은 그대로 둔다(제목이 두 번 보인다). 메모 이름(useWidgetTitle)은 틀 제목 줄에만 나타나므로 틀 제목을 숨기지 않았다 — 아래 요청 1.
