@@ -148,6 +148,23 @@ class WidgetQueryReadOnlyTest {
         assertPooledConnectionRestoredAndWritable();
     }
 
+    @Test
+    @DisplayName("입력 조건(SQLite): \\:userId·@x·$x·$1 자리 밀기 SQL 은 거절하고, 10·1E+1·10.0 은 같은 값으로 같은 결과를 낸다")
+    void userParamsPlaceholderShiftAndNumberNormalizationOnSqlite() {
+        admin.execute("CREATE TABLE P (ID INTEGER PRIMARY KEY, QTY NUMERIC, OWNER TEXT)");
+        admin.update("INSERT INTO P (ID, QTY, OWNER) VALUES (1, 5, 'u1'), (2, 10, 'u2'), (3, 20, 'u3')");
+        for (String leak : List.of("\\:userId", "@userId", "$userId", "$1")) {
+            def("def.leak", "SELECT ID FROM P WHERE OWNER = " + leak + " OR QTY = :p", "[{\"name\":\"p\",\"type\":\"number\"}]");
+            assertThatThrownBy(() -> executor.runDefinition("def.leak", 500, Map.of("p", "10")))
+                    .as(leak).isInstanceOf(BusinessException.class).hasMessage(SqlGuard.MSG_DB_PLACEHOLDER);
+        }
+        def("def.norm", "SELECT ID FROM P WHERE QTY >= :min ORDER BY ID", "[{\"name\":\"min\",\"type\":\"number\"}]");
+        for (String text : List.of("10", "1E+1", "10.0", "1e1", "100E-1")) {
+            assertThat(ids("def.norm", Map.of("min", text))).as(text).containsExactly(2, 3);
+        }
+        assertThat(executor.cacheSize()).isEqualTo(1);
+    }
+
     private List<Integer> ids(String defId, Map<String, String> values) {
         return executor.runDefinition(defId, 500, values).rows().stream().map(r -> ((Number) r.get("ID")).intValue()).toList();
     }

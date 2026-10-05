@@ -51,6 +51,7 @@ import org.springframework.jdbc.core.PreparedStatementCreator;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterUtils;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.support.JdbcUtils;
 import org.springframework.stereotype.Component;
@@ -69,7 +70,7 @@ import org.springframework.stereotype.Component;
  *       SQL 의 {@code :name} 중 시스템 변수가 아닌 것은 선언된 것만 허락한다. 값은 서버가 형별로 해석한 스칼라(BigDecimal·String·null)로
  *       <b>바인드 변수로만</b> 넣는다 — 문자열 이어붙이기는 없다.</li>
  *   <li>결과 캐시: 키 (defId, 행 상한, 쓰인 시스템 변수 값들 — {@code :now} 는 30초 구간 시작 — 과 해석을 마친 사용자 조건 값들), 30초.
- *       정의 저장 이벤트가 오면 그 defId 캐시를 비운다. 조건 값 조합이 끝없이 늘어도 정의 하나가 캐시 전체를 채우지 못하게 정의별 상한을 둔다.</li>
+ *       정의 저장 이벤트가 오면 그 defId 캐시를 비운다. 키가 끝없이 늘어도(조건 값 조합·사용자별 :userId) 정의 하나가 캐시 전체를 채우지 못하게 정의별 상한을 둔다.</li>
  *   <li>DB 오류: 사용자에게는 고정 문구, 서버 로그에는 defId·원인. 관리자 미리보기만 DB 메시지를 보여 준다.</li>
  * </ul>
  * <b>운영 주의</b>: SQL Server 에는 읽기 전용 트랜잭션이 없고({@code readOnly} 는 힌트일 뿐), {@code ;} 없이도 한 배치에 문장을
@@ -92,7 +93,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     static final Duration CACHE_TTL = Duration.ofSeconds(30);
     /** 캐시 항목 상한 — 사용자마다 키가 다른 SQL(:userId 등)이 많아도 메모리가 끝없이 늘지 않게. 넘으면 그 결과는 캐시하지 않는다. */
     static final int CACHE_MAX_ENTRIES = 1000;
-    /** 사용자 입력 조건이 있는 정의 하나가 차지할 수 있는 캐시 항목 상한 — 값 조합마다 키가 달라 한 정의가 전체 상한을 채우지 못하게. */
+    /** 정의 하나가 차지할 수 있는 캐시 항목 상한 — 입력 조건 값 조합·사용자(:userId)마다 키가 달라 한 정의가 전체 상한을 채우지 못하게. 이름은 옛 이름 그대로. */
     static final int CACHE_MAX_ENTRIES_PER_PARAM_DEF = 50;
     static final int CLOB_MAX_CHARS = 4000;
 
@@ -185,8 +186,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, MSG_LOAD_FAILED);
         }
         cache.entrySet().removeIf(entry -> !now.isBefore(entry.getValue().expiresAt()));
-        boolean roomForDef = userBinds.isEmpty()
-                || cache.keySet().stream().filter(k -> k.defId().equals(id)).count() < CACHE_MAX_ENTRIES_PER_PARAM_DEF;
+        boolean roomForDef = cache.keySet().stream().filter(k -> k.defId().equals(id)).count() < CACHE_MAX_ENTRIES_PER_PARAM_DEF;
         if (roomForDef && cache.size() < CACHE_MAX_ENTRIES) cache.put(key, new CachedResult(result, now.plus(CACHE_TTL)));
         return result;
     }
@@ -409,7 +409,11 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     private SqlGuard.Validated validate(String sql, Set<String> declaredNames) {
         SqlGuard.checkDeclared(sql, declaredNames);
         WidgetReadOnlyJdbc.Dialect dialect = requireRunnableDialect();
-        return SqlGuard.check(sql, dialect, declaredNames);
+        SqlGuard.Validated validated = SqlGuard.check(sql, dialect, declaredNames);
+        // 사후 검사 — Spring 이 이름 붙은 변수를 ? 로 바꾼 SQL 에 DB 가 따로 읽을 자리표시자가 남지 않았는지.
+        SqlGuard.requireNoLeftoverPlaceholders(NamedParameterUtils.substituteNamedParameters(
+                NamedParameterUtils.parseSqlStatement(validated.sql()), new MapSqlParameterSource()));
+        return validated;
     }
 
     private WidgetReadOnlyJdbc.Dialect requireRunnableDialect() {

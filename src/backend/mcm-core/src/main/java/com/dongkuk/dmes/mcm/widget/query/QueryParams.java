@@ -32,6 +32,8 @@ import java.util.regex.Pattern;
  *   <li>사용자가 보낸 값은 <b>바인드 변수로만</b> SQL 에 들어간다. 이 클래스는 SQL 글자를 만지지 않고, 값을 {@link BigDecimal}·{@link String}·null
  *       (스칼라)로만 돌려준다 — {@code NamedParameterJdbcTemplate} 이 펼치는 컬렉션·배열은 만들 수 없다.</li>
  *   <li>정의({@code params})는 저장 때도 실행 때마다도 {@link #parse} 로 다시 검사한다(저장된 값을 믿지 않는다).</li>
+ *   <li>값은 바인드되지만 값 안의 특수문자는 DB 가 쓰이는 자리대로 해석한다 — {@code LIKE} 의 {@code %}·{@code _} 와일드카드나 정규식 인자로 쓰면
+ *       그대로 패턴으로 읽힌다(이스케이프하지 않는다. 와일드카드가 문제인 SQL 은 정의 작성자가 {@code ESCAPE} 등으로 다룬다).</li>
  *   <li>값은 모두 글자로 오며(200자 이하) 형별로 서버가 해석한다: text=그대로, number=BigDecimal, date=yyyyMMdd 로 정규화한 글자,
  *       select=선언된 선택지 중 하나. 해석에 실패하면 거절한다. 빈 값(공백만 포함)은 값이 없는 것이다 — 기본값 → 필수면 거절 → 형 붙은 null.</li>
  * </ul>
@@ -72,9 +74,9 @@ public final class QueryParams {
      */
     public record Bound(Object value, int sqlType) {
 
-        /** 캐시 키에 넣을 값 — 같은 수가 다른 글자(1.0·1)로 와도 한 항목이 되게 정규화한다. */
+        /** 캐시 키에 넣을 값 — 바인드 값과 같다(number 는 {@link QueryParams#coerce} 에서 이미 정규화했다). */
         public Object cacheValue() {
-            return value instanceof BigDecimal n ? n.stripTrailingZeros() : value;
+            return value;
         }
     }
 
@@ -234,8 +236,8 @@ public final class QueryParams {
     }
 
     /**
-     * SQL 이 쓰는 사용자 입력 조건(usedNames)의 값을 해석한다. 값은 given 에서, 비었으면(공백만 포함) 기본값, 그래도 없으면 필수면 거절·
-     * 아니면 형을 붙인 null. 선언되지 않은 이름의 given 은 읽지 않는다. lenient(관리자 미리보기)면 필수 누락도 거절하지 않고 null 로 둔다.
+     * SQL 이 쓰는 사용자 입력 조건(usedNames)의 값을 해석한다. given 에 키가 없으면(JSON null 도 같다) 기본값, 그래도 없거나 키는 있는데
+     * 값이 비었으면(공백만 포함) 값 없음 — 필수면 거절·아니면 형을 붙인 null. 선언되지 않은 이름의 given 은 읽지 않는다. lenient(관리자 미리보기)면 필수 누락도 거절하지 않고 null 로 둔다.
      *
      * @return 이름 → 해석한 바인드 값(usedNames 순서)
      */
@@ -248,8 +250,9 @@ public final class QueryParams {
         for (String name : usedNames) {
             QueryParam p = byName.get(name);
             if (p == null) throw invalid("SQL 의 :" + name + " 조건이 정의에 선언되어 있지 않습니다.");
+            // 기본값은 키가 없을 때만 쓴다. 키가 있고 값이 비면(공백만 포함) 값 없음 — 필수면 거절, 아니면 형 붙은 null(전체 조회용).
             String value = raw.get(name);
-            if (value == null || value.isBlank()) value = p.defaultValue();
+            if (value == null) value = p.defaultValue();
             int sqlType = sqlType(p);
             if (value == null || value.isBlank()) {
                 if (p.required() && !lenient) {
@@ -286,16 +289,27 @@ public final class QueryParams {
         };
     }
 
+    /**
+     * 숫자는 정규화해 바인드한다 — {@code 1.0}·{@code 1}·{@code 1E+1}·{@code 10} 이 같은 글자로 DB 에 가야 한다(SQLite 처럼 십진수를 글자로
+     * 바인드하는 드라이버에서 같은 캐시 항목이 다른 결과를 내지 않게). 끝의 0 을 지우고, 지수 표기(scale&lt;0)는 정수로 편다.
+     */
     private static BigDecimal toNumber(QueryParam p, String s) {
+        BigDecimal parsed;
         try {
-            BigDecimal n = new BigDecimal(s);
-            if (n.precision() > NUMBER_MAX_PRECISION || n.scale() > NUMBER_MAX_SCALE || n.scale() < -NUMBER_MAX_SCALE) {
-                throw invalid("입력 조건 " + p.display() + " 의 숫자가 너무 크거나 자릿수가 많습니다.");
-            }
-            return n;
+            parsed = new BigDecimal(s);
         } catch (NumberFormatException e) {
             throw invalid("입력 조건 " + p.display() + " 의 값은 숫자여야 합니다.");
         }
+        // 자릿수를 펴기(setScale) 전에 지수 크기부터 막는다 — 1e999999999 를 펴면 메모리가 터진다.
+        if (parsed.scale() > NUMBER_MAX_SCALE || parsed.scale() < -NUMBER_MAX_SCALE) throw tooBig(p);
+        BigDecimal n = parsed.stripTrailingZeros();
+        if (n.scale() < 0) n = n.setScale(0);
+        if (n.precision() > NUMBER_MAX_PRECISION) throw tooBig(p);
+        return n;
+    }
+
+    private static BusinessException tooBig(QueryParam p) {
+        return invalid("입력 조건 " + p.display() + " 의 숫자가 너무 크거나 자릿수가 많습니다.");
     }
 
     /** yyyy-MM-dd 또는 yyyyMMdd → 실제 날짜인지 검사해 yyyyMMdd 글자(시스템 변수 :today 와 같은 형)로. */

@@ -66,6 +66,8 @@ public final class SqlGuard {
     static final String MSG_LONE_CR = "줄 주석 안에 줄바꿈 없는 캐리지 리턴을 쓸 수 없습니다(DB 마다 주석이 끝나는 자리를 다르게 읽습니다)";
     static final String MSG_NESTED_COMMENT = "주석 안에 /* 를 다시 쓸 수 없습니다(DB 마다 겹친 주석을 다르게 읽습니다)";
     static final String MSG_FORBIDDEN_FUNCTION = "쓸 수 없는 함수가 있습니다: ";
+    static final String MSG_DB_PLACEHOLDER =
+            "DB 고유 자리표시자(\\:이름, @이름, $이름, $숫자)는 쓸 수 없습니다. 조건은 :이름 으로만 씁니다";
 
     /**
      * 식별자를 이루는 글자(Oracle 의 $·# 포함) — 낱말 경계 판단용. 거절 낱말·함수 패턴은 {@code UNICODE_CASE} 로 대소문자를 유니코드 규칙으로
@@ -164,6 +166,17 @@ public final class SqlGuard {
      */
     private static final Pattern VARIABLE = Pattern.compile("((?<!:):|&)([^\\s\"':&,;()|=+\\-*%/\\\\<>^\\]]+)");
 
+    /**
+     * Spring 이 바꾸지 않고 DB 로 넘기는 자리표시자. {@code \:이름}·{@code \&이름} 은 Spring 이 {@code \} 만 지우고 {@code :이름} 을 남기며,
+     * SQLite 는 {@code :이름}·{@code @이름}·{@code $이름} 을 자기 이름 붙은 자리표시자로, {@code $숫자} 도 자리로 읽어 Spring 이 채운 {@code ?}
+     * 의 번호가 밀려 사용자 값이 시스템 변수 자리({@code :userId})에 들어간다(2026-10-05 실측). 앞이 낱말 글자인 {@code @}·{@code $}
+     * (Oracle DB 링크 {@code F@LINK}, 식별자 {@code A$B})와 뒤가 낱말 글자가 아닌 {@code @}(PostgreSQL {@code @>}·{@code @@})는 자리표시자가 아니다.
+     */
+    private static final Pattern ESCAPED_PLACEHOLDER = Pattern.compile("\\\\[:&]");
+    private static final Pattern DB_PLACEHOLDER = Pattern.compile("(?<![\\p{L}\\p{N}_$#@])[@$][\\p{L}\\p{N}_]");
+    /** Spring 이 이름 붙은 변수를 {@code ?} 로 바꾼 뒤에도 남은 {@code :이름}({@code ::} 캐스트 제외). */
+    private static final Pattern LEFTOVER_COLON = Pattern.compile("(?<![:\\p{L}\\p{N}_]):[\\p{L}\\p{N}_]");
+
     /** PostgreSQL 달러 따옴표 시작($$ 또는 $tag$). */
     private static final Pattern DOLLAR_QUOTE = Pattern.compile("\\$(?:[A-Za-z_][A-Za-z0-9_]*)?\\$");
 
@@ -231,6 +244,17 @@ public final class SqlGuard {
         return new Validated(executable.strip(), asExpression.variables(), asExpression.userVariables());
     }
 
+    /**
+     * 사후 검사 — Spring 이 이름 붙은 변수를 {@code ?} 로 바꾼 SQL 에 DB 가 따로 읽을 자리표시자({@code :이름}·{@code @이름}·{@code $이름}·
+     * {@code $숫자})가 남았으면 거절한다. 검사 앞 단계가 놓친 Spring 과 DB 의 해석 차이를 마지막으로 막는다.
+     */
+    public static void requireNoLeftoverPlaceholders(String substitutedSql) {
+        for (boolean bracket : new boolean[] {false, true}) {
+            String masked = mask(substitutedSql, bracket);
+            if (LEFTOVER_COLON.matcher(masked).find() || DB_PLACEHOLDER.matcher(masked).find()) throw invalid(MSG_DB_PLACEHOLDER);
+        }
+    }
+
     /** 가린 사본 하나에 대한 2~5단계 결과. semicolon 은 끝 ; 자리(없으면 -1). */
     private record Inspection(int semicolon, List<String> variables, List<String> userVariables) {}
 
@@ -249,6 +273,9 @@ public final class SqlGuard {
         // 4. 금지 낱말
         Matcher forbidden = FORBIDDEN.matcher(masked);
         if (forbidden.find()) throw invalid(forbiddenWord(forbidden.group(1).toUpperCase(Locale.ROOT)));
+
+        // 4-2. Spring 이 바꾸지 않는 DB 고유 자리표시자(\:이름·@이름·$이름·$숫자)
+        if (ESCAPED_PLACEHOLDER.matcher(masked).find() || DB_PLACEHOLDER.matcher(masked).find()) throw invalid(MSG_DB_PLACEHOLDER);
 
         // 5. 시스템 변수와 선언된 사용자 입력 조건만(:name·&name) — 이름은 정확히 일치해야 한다
         Set<String> used = new LinkedHashSet<>();

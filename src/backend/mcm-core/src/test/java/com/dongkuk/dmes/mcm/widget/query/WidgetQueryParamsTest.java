@@ -47,6 +47,7 @@ class WidgetQueryParamsTest {
     private DriverManagerDataSource dataSource;
     private JdbcTemplate jdbc;
     private WidgetDefRepository defRepository;
+    private WidgetUserContextResolver resolver;
     private TestClock clock;
     private WidgetQueryExecutor executor;
 
@@ -62,7 +63,8 @@ class WidgetQueryParamsTest {
         jdbc.update("INSERT INTO WIDGET_T (ID, NM, AMT, DT, PLANT) VALUES (11, ?, 0, '20261011', 'P1')", INJECTION);
         defRepository = mock(WidgetDefRepository.class);
         clock = new TestClock(T0);
-        executor = new WidgetQueryExecutor(defRepository, mock(WidgetUserContextResolver.class),
+        resolver = mock(WidgetUserContextResolver.class);
+        executor = new WidgetQueryExecutor(defRepository, resolver,
                 WidgetQueryDataSource.dedicated(dataSource, null), clock);
     }
 
@@ -118,13 +120,25 @@ class WidgetQueryParamsTest {
     }
 
     @Test
-    @DisplayName("값이 비면 기본값을 쓴다 — 요청 값이 있으면 요청 값이 이긴다")
-    void defaultFallback() {
-        def("def.dflt", "SELECT ID FROM WIDGET_T WHERE PLANT = :plant AND ID <= 10 ORDER BY ID",
-                "[{\"name\":\"plant\",\"type\":\"text\",\"default\":\"P2\",\"required\":true}]");
-        assertThat(ids("def.dflt", Map.of())).containsExactly(2, 4, 6, 8, 10);
-        assertThat(ids("def.dflt", Map.of("plant", "   "))).containsExactly(2, 4, 6, 8, 10);
+    @DisplayName("기본값은 키가 없을 때만 쓴다 — 키가 있고 값이 비면(공백 포함) 값 없음: 필수면 거절, 아니면 형 붙은 null(전체 조회)")
+    void defaultOnlyWhenKeyAbsent() {
+        def("def.dflt", "SELECT ID FROM WIDGET_T WHERE (:plant IS NULL OR PLANT = :plant) AND ID <= 10 ORDER BY ID",
+                "[{\"name\":\"plant\",\"type\":\"text\",\"default\":\"P2\"}]");
+        assertThat(ids("def.dflt", Map.of())).containsExactly(2, 4, 6, 8, 10);              // 키 없음 → 기본값
+        assertThat(ids("def.dflt", Map.of("plant", ""))).hasSize(10);                       // 빈 글자 → 값 없음(전체)
+        assertThat(ids("def.dflt", Map.of("plant", "   "))).hasSize(10);
+        Map<String, String> jsonNull = new HashMap<>();
+        jsonNull.put("plant", null);
+        assertThat(ids("def.dflt", jsonNull)).containsExactly(2, 4, 6, 8, 10);              // null 은 키 없음과 같다
         assertThat(ids("def.dflt", Map.of("plant", "P1"))).containsExactly(1, 3, 5, 7, 9);
+
+        def("def.dflt2", "SELECT ID FROM WIDGET_T WHERE PLANT = :plant AND ID <= 10 ORDER BY ID",
+                "[{\"name\":\"plant\",\"type\":\"text\",\"default\":\"P2\",\"required\":true}]");
+        assertThat(ids("def.dflt2", Map.of())).containsExactly(2, 4, 6, 8, 10);              // 키 없음 → 기본값
+        assertMessage(() -> executor.runDefinition("def.dflt2", 500, Map.of("plant", "  ")), "입력 조건 plant 의 값을 입력해 주세요.");
+        assertThatThrownBy(() -> executor.runDefinition("def.dflt2", 500, Map.of("plant", "")))
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.REQUIRED_VALUE));
+        assertThat(ids("def.dflt2", Map.of("plant", "P1"))).containsExactly(1, 3, 5, 7, 9);
     }
 
     @Test
@@ -366,9 +380,9 @@ class WidgetQueryParamsTest {
                 + "{\"name\":\"t\",\"type\":\"text\"},{\"name\":\"s\",\"type\":\"select\",\"options\":[{\"value\":\"A\"}]},{\"name\":\"z\",\"type\":\"number\"}]");
         Map<String, QueryParams.Bound> bound = QueryParams.resolve(defs, List.of("n", "d", "t", "s", "z"),
                 Map.of("n", "10.50", "d", "2026-10-05", "t", "  keep  ", "s", " A ", "extra", "[1,2]"), false);
-        assertThat(bound.get("n").value()).isEqualTo(new BigDecimal("10.50"));
+        assertThat(bound.get("n").value()).isEqualTo(new BigDecimal("10.5"));
         assertThat(bound.get("n").sqlType()).isEqualTo(Types.NUMERIC);
-        assertThat(bound.get("n").cacheValue()).isEqualTo(new BigDecimal("10.5"));
+        assertThat(bound.get("n").cacheValue()).isEqualTo(bound.get("n").value());
         assertThat(bound.get("d").value()).isEqualTo("20261005");
         assertThat(bound.get("d").sqlType()).isEqualTo(Types.VARCHAR);
         assertThat(bound.get("t").value()).isEqualTo("  keep  ");
@@ -392,6 +406,92 @@ class WidgetQueryParamsTest {
                     .isInstanceOf(BusinessException.class)
                     .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_VALUE));
         }
+    }
+
+    @Test
+    @DisplayName("number 는 정규화한 값을 바인드하고 키에도 쓴다 — 10·1E+1·10.0 은 한 항목, 1.0·1 도 한 항목")
+    void numberNormalizedForBindAndKey() {
+        List<QueryParam> defs = QueryParams.fromDefsJson("[{\"name\":\"n\",\"type\":\"number\"}]");
+        for (String text : List.of("10", "1E+1", "1e1", "10.0", "100E-1", "+10", " 10 ")) {
+            Object v = QueryParams.resolve(defs, List.of("n"), Map.of("n", text), false).get("n").value();
+            assertThat(v).as(text).isEqualTo(new BigDecimal("10")).isEqualTo(BigDecimal.TEN);
+            assertThat(((BigDecimal) v).scale()).as(text).isZero();
+            assertThat(((BigDecimal) v).toString()).as(text).isEqualTo("10");
+        }
+        assertThat(QueryParams.resolve(defs, List.of("n"), Map.of("n", "0.00"), false).get("n").value()).isEqualTo(BigDecimal.ZERO);
+        assertThat(QueryParams.resolve(defs, List.of("n"), Map.of("n", "1E+37"), false).get("n").value()).isEqualTo(new BigDecimal("1" + "0".repeat(37)));
+        assertThatThrownBy(() -> QueryParams.resolve(defs, List.of("n"), Map.of("n", "1E+38"), false)).isInstanceOf(BusinessException.class);
+
+        def("def.nn", "SELECT COUNT(*) AS CNT FROM WIDGET_T WHERE AMT > :min", "[{\"name\":\"min\",\"type\":\"number\"}]");
+        long first = count("def.nn", Map.of("min", "1"));
+        jdbc.update("INSERT INTO WIDGET_T (ID, NM, AMT, DT, PLANT) VALUES (12, 'N12', 18, '20261012', 'P1')");
+        assertThat(count("def.nn", Map.of("min", "1.0"))).isEqualTo(first);   // 한 항목 — 옛 결과
+        assertThat(count("def.nn", Map.of("min", "10"))).isEqualTo(5L);        // 새 조회: AMT 10.5·12·13.5·15·18 (ID 7·8·9·10·12)
+        assertThat(count("def.nn", Map.of("min", "1E+1"))).isEqualTo(5L);      // 같은 항목
+        assertThat(executor.cacheSize()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("결과 캐시 정의별 상한(50)은 조건 없는 정의에도 적용된다 — :userId 만 쓰는 정의가 사용자마다 항목을 만들어도")
+    void cacheBoundedPerDefinitionWithoutParams() {
+        def("def.users", "SELECT COUNT(*) AS CNT FROM WIDGET_T WHERE NM <> :userId", null);
+        def("def.other2", "SELECT COUNT(*) AS CNT FROM WIDGET_T", null);
+        for (int i = 0; i < 80; i++) {
+            when(resolver.current()).thenReturn(new com.dongkuk.dmes.mcm.widget.common.WidgetUserContext("u" + i, "u" + i, "D1", null, List.of("D1")));
+            executor.runDefinition("def.users", 500, Map.of());
+        }
+        assertThat(executor.cacheSize()).isEqualTo(WidgetQueryExecutor.CACHE_MAX_ENTRIES_PER_PARAM_DEF);
+        executor.runDefinition("def.other2", 500, Map.of());   // 다른 정의는 여전히 캐시된다(전체 상한 1000 안)
+        assertThat(executor.cacheSize()).isEqualTo(WidgetQueryExecutor.CACHE_MAX_ENTRIES_PER_PARAM_DEF + 1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "SELECT ID FROM T WHERE USER_ID = \\:userId OR N = :p",
+            "SELECT ID FROM T WHERE USER_ID = \\&userId OR N = :p",
+            "SELECT ID FROM T WHERE USER_ID = @userId OR N = :p",
+            "SELECT ID FROM T WHERE USER_ID = $userId OR N = :p",
+            "SELECT ID FROM T WHERE USER_ID = $1 OR N = :p",
+            "SELECT ID FROM T WHERE (USER_ID=@x) AND N = :p",
+            "SELECT ID FROM T WHERE N = :p AND USER_ID IN ($2, $3)"})
+    @DisplayName("SqlGuard: Spring 이 바꾸지 않는 DB 고유 자리표시자(\\:x·@x·$x·$1)는 거절한다 — 자리가 밀려 값이 :userId 자리로 들어가는 것을 막는다")
+    void dbPlaceholdersRejected(String sql) {
+        assertThatThrownBy(() -> SqlGuard.checkDeclared(sql, Set.of("p")))
+                .isInstanceOf(BusinessException.class).hasMessage(SqlGuard.MSG_DB_PLACEHOLDER);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "SELECT A FROM T@LINK WHERE N = :p",
+            "SELECT A$B, F@LINK FROM T WHERE N = :p",
+            "SELECT ID FROM T WHERE TAGS @> ARRAY[1] AND N = :p",
+            "SELECT ID FROM T WHERE DOC @@ QUERY AND N = :p",
+            "SELECT ID FROM T WHERE N = :p AND X = '\\:userId @x $1'",
+            "SELECT CAST(N AS INT)::TEXT FROM T WHERE N = :p"})
+    @DisplayName("SqlGuard: 자리표시자가 아닌 @·$·\\(DB 링크·식별자·연산자·문자열 리터럴 안·캐스트)는 통과한다")
+    void nonPlaceholdersAccepted(String sql) {
+        assertThat(SqlGuard.checkDeclared(sql, Set.of("p")).userVariables()).containsExactly("p");
+    }
+
+    @Test
+    @DisplayName("사후 검사: Spring 이 바꾼 SQL 에 :이름·@이름·$숫자 가 남으면 거절하고, ? 만 남으면 통과한다")
+    void leftoverPlaceholders() {
+        SqlGuard.requireNoLeftoverPlaceholders("SELECT ID FROM T WHERE A = ? AND B = ? AND C::INT = 1 AND D = ':x'");
+        for (String bad : List.of("SELECT ID FROM T WHERE A = :userId", "SELECT ID FROM T WHERE A = @x", "SELECT ID FROM T WHERE A = $1")) {
+            assertThatThrownBy(() -> SqlGuard.requireNoLeftoverPlaceholders(bad)).isInstanceOf(BusinessException.class)
+                    .hasMessage(SqlGuard.MSG_DB_PLACEHOLDER);
+        }
+    }
+
+    @Test
+    @DisplayName("저장·실행 경로(실행기)도 \\:userId 같은 자리 밀기 SQL 을 거절한다")
+    void executorRejectsEscapedPlaceholder() {
+        assertThatThrownBy(() -> executor.validateSql("SELECT ID FROM WIDGET_T WHERE NM = \\:userId OR NM = :p", Set.of("p")))
+                .isInstanceOf(BusinessException.class).hasMessage(SqlGuard.MSG_DB_PLACEHOLDER);
+        def("def.esc", "SELECT ID FROM WIDGET_T WHERE NM = \\:userId OR NM = :p", "[{\"name\":\"p\",\"type\":\"text\"}]");
+        assertMessage(() -> executor.runDefinition("def.esc", 500, Map.of("p", "N1")), SqlGuard.MSG_DB_PLACEHOLDER);
+        assertThatThrownBy(() -> executor.preview("mcm", "SELECT ID FROM WIDGET_T WHERE NM = @x OR NM = :p", 50,
+                "[{\"name\":\"p\",\"type\":\"text\"}]")).isInstanceOf(BusinessException.class).hasMessage(SqlGuard.MSG_DB_PLACEHOLDER);
     }
 
     // ── helpers ──────────────────────────────────────────────────────
