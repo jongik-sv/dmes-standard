@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import kr.dongkuk.maru.mdm.engine.rule.SetShape;
 
 /**
  * 세트 호출 그래프 검사(하위 세트 spec §5 CALL_CYCLE·CALL_DEPTH, C-D10, Ruling 10 문구) — 스프링·DB 없는 순수 함수. 부르는 쪽 행
@@ -15,8 +16,11 @@ import java.util.Set;
  */
 public final class RuleSetCallGraph {
 
-    /** 최상위 세트에서 하위로 들어가는 단계 상한. */
-    public static final int MAX_DEPTH = 5;
+    /**
+     * 최상위 세트에서 하위로 들어가는 단계 상한 — 엔진 상수를 그대로 쓴다(엔진은 부르는 사슬 {@code chain.size() > MAX_CALL_DEPTH} 로 거부, 여기는 선 수
+     * {@code depth > MAX_DEPTH} 로 거부 — 둘 다 5단계까지 부른다).
+     */
+    public static final int MAX_DEPTH = SetShape.MAX_CALL_DEPTH;
 
     private RuleSetCallGraph() {
     }

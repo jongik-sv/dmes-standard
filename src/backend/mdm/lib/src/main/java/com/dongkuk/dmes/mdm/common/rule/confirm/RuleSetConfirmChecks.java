@@ -161,7 +161,7 @@ public class RuleSetConfirmChecks {
      *   <li>호출 그래프: 부르는 쪽 행({@link SetCallIoReader.Snapshot#edges})에서 이 세트 자리를 확정하려는 흐름의 SET 목록으로 덮어(빈 목록도) 순환·깊이를
      *       본다(CALL_CYCLE·CALL_DEPTH).</li>
      *   <li>연쇄 재검사: 앞(흐름 검사·그래프)에 확정을 막는 검사가 없고, 이 세트를 부르는 쪽 행이 있고, 지금 겉모양(apply_from 에 적용 중인 RELEASED)이
-     *       있으며 확정하려는 겉모양과 다르면 {@link SetCallerRecheck} — 새 거부는 CALLER_BROKEN, 새 경고가 생긴 부모가 있으면 CALLER_WARN 한 건
+     *       있으며 확정하려는 겉모양과 다르면({@link SetCallerRecheck#shapeChanged} — 입출력 또는 endsEarly) 같은 원장 읽기로 {@link SetCallerRecheck} — 새 거부는 CALLER_BROKEN, 새 경고가 생긴 부모가 있으면 CALLER_WARN 한 건
      *       ("부르는 세트에 경고가 생겼다: P1, P2", Ruling 10). 첫 확정(지금 겉모양 없음)은 하지 않는다.</li>
      * </ol>
      * 네 코드의 수준은 보고서가 ERROR 로 올린다({@link RuleSetConfirmReport#rejects}).
@@ -183,10 +183,10 @@ public class RuleSetConfirmChecks {
             return out;
         }
         SetCallIo next = RuleSetInterface.of(setId, current.setName(), true, current.status(), flow, io, calls);
-        if (current.sameShape(next)) {
+        if (!SetCallerRecheck.shapeChanged(current, next)) {
             return out;
         }
-        SetCallerRecheck.Outcome o = recheck.recheck(setId, next, applyFrom);
+        SetCallerRecheck.Outcome o = recheck.recheck(snap, setId, next, applyFrom);
         out.addAll(o.rejects());
         if (!o.warnedCallers().isEmpty()) {
             out.add(new RuleSetCheck(RuleSetCheck.CALLER_WARN, RuleSetCheck.WARN, setId, null, null,

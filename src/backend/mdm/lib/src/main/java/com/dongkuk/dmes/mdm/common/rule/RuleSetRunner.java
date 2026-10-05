@@ -287,12 +287,14 @@ public class RuleSetRunner {
 
     /**
      * 응답 경고 — 폐기 룰 경고(판정에 쓴 세트 버전 흐름에서 룰 ID 가 처음 나온 순서) 다음에 엔진 경고({@link #engineWarnings}).
-     * 폐기 룰이라도 판정은 막지 않는다(효력 시각이 없어 과거 시각 재판정까지 깨지므로). 룰 헤더는 한 번에 읽는다. 폐기 룰 경고는 최상위 세트의 룰만 본다.
+     * 폐기 룰이라도 판정은 막지 않는다(효력 시각이 없어 과거 시각 재판정까지 깨지므로). 룰 헤더는 한 번에 읽는다. 폐기 룰 경고는 최상위 세트의 룰
+     * 다음에 부른 하위 세트({@code calls}, 손주까지 깊이 우선)의 판정 시각 버전 룰을 본다(srv:6 E1 조정 기본안). 같은 룰은 한 번만.
      */
     private List<Map<String, Object>> warnings(String setId, RuleSetResult r) {
         LocalDateTime at = LocalDateTime.ofInstant(r.evalTs(), MdmClockConfig.KST);
-        List<String> ids = RuleVersions.currentReleased(setVersions.versions(setId), at).map(RuleSetRunner::ruleIdsOf).orElse(List.of());
-        List<Map<String, Object>> out = new ArrayList<>(deprecatedWarnings(ids));
+        List<String> ids = new ArrayList<>();
+        collectRuleIds(setId, r, at, new HashMap<>(), ids);
+        List<Map<String, Object>> out = new ArrayList<>(deprecatedWarnings(ids.stream().distinct().toList()));
         if (!out.isEmpty()) {
             log.warn("폐기된 룰이 든 세트를 판정했다 setId={} ruleIds={}", setId, out.stream().map(w -> w.get("ruleId")).toList());
         }
@@ -300,6 +302,15 @@ public class RuleSetRunner {
             out.add(warning(w.code().name(), w.ruleId(), w.message()));
         }
         return out;
+    }
+
+    /** 이 세트의 판정 시각 버전 룰 ID 를 더하고, 부른 하위 세트 결과마다({@code calls} 순서) 재귀한다. 세트 버전 목록은 세트마다 한 번 읽는다. */
+    private void collectRuleIds(String setId, RuleSetResult r, LocalDateTime at, Map<String, List<String>> bySet, List<String> out) {
+        out.addAll(bySet.computeIfAbsent(setId,
+                id -> RuleVersions.currentReleased(setVersions.versions(id), at).map(RuleSetRunner::ruleIdsOf).orElse(List.of())));
+        for (RuleSetResult.SetCall c : r.calls()) {
+            collectRuleIds(c.setId(), c.result(), at, bySet, out);
+        }
     }
 
     /**
@@ -334,7 +345,7 @@ public class RuleSetRunner {
         StringBuilder sb = new StringBuilder("세트 ").append(setId).append(" › ");
         String cur = setId;
         for (String nodeId : setPath) {
-            FlowDefinition flow = cur == null ? null : flows.apply(cur);
+            FlowDefinition flow = cur == null ? null : flowOrNull(flows, cur);
             FlowNode n = flow == null ? null : flow.nodes().stream().filter(x -> nodeId.equals(x.id())).findFirst().orElse(null);
             String label = n == null ? null : n.label() != null && !n.label().isBlank() ? n.label() : n.setId();
             sb.append(label == null ? nodeId : label + "(" + nodeId + ")").append(" › ");
@@ -343,12 +354,25 @@ public class RuleSetRunner {
         return sb.toString();
     }
 
-    /** 판정 시각에 적용되는 세트 버전의 흐름(위반 문구의 세트 경로용). 버전이 없거나 저장값을 읽지 못하면 null(문구만 만들므로 던지지 않는다). */
+    /** 문구 만들기 중 흐름 조회가 어떤 런타임 예외로 실패해도 원래 위반을 가리지 않게 null(그 단계부터 노드 ID 만)로 본다. */
+    private static FlowDefinition flowOrNull(Function<String, FlowDefinition> flows, String setId) {
+        try {
+            return flows.apply(setId);
+        } catch (RuntimeException e) {
+            log.warn("위반 문구의 세트 경로를 읽지 못했다 setId={}: {}", setId, e.toString());
+            return null;
+        }
+    }
+
+    /**
+     * 판정 시각에 적용되는 세트 버전의 흐름(위반 문구의 세트 경로용). 버전이 없거나 저장값을 읽지 못하면 null — 문구만 만들므로 어떤 런타임 예외
+     * (DB 접근 실패 포함)도 던지지 않는다. 던지면 원래 판정 위반 대신 그 예외가 응답으로 나간다.
+     */
     FlowDefinition flowAt(String setId, Instant at) {
         LocalDateTime t = LocalDateTime.ofInstant(at, MdmClockConfig.KST);
         try {
             return RuleVersions.currentReleased(setVersions.versions(setId), t).map(RuleSetVersionQueries::flow).orElse(null);
-        } catch (IllegalArgumentException | IllegalStateException e) {
+        } catch (RuntimeException e) {
             return null;
         }
     }
@@ -360,11 +384,20 @@ public class RuleSetRunner {
     private String userText(Violation v) {
         if (v.code() == Code.SET_NOT_FOUND) {
             String id = RuleErrorText.missingSetId(v.message());
-            if (id != null && !sets.existsById(id)) {
+            if (id != null && !setExists(id)) {
                 return RuleErrorText.setAbsent(id);
             }
         }
         return RuleErrorText.describe(v.stage().name(), v.code().name(), v.rowId(), v.name(), v.message());
+    }
+
+    /** 세트 원장에 있는가 — 문구 만들기용이라 조회가 실패하면 있다고 보고(엔진 원문 문구를 쓴다) 던지지 않는다. */
+    private boolean setExists(String id) {
+        try {
+            return sets.existsById(id);
+        } catch (RuntimeException e) {
+            return true;
+        }
     }
 
     /** 룰 헤더를 한 번에 읽어 {@link #deprecatedWarnings(List, Map)} 를 만든다(저장 세트 {@link #execute}·저장 전 흐름 기록 실행이 같이 쓴다). */

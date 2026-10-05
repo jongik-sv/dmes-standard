@@ -57,6 +57,17 @@ public class RuleSetVersionQueries {
         return out;
     }
 
+    /**
+     * 이 세트를 부르는 RELEASED 행이 있을 수 있는가 — CALL_SET_IDS(서버가 쓰는 JSON 배열)에 따옴표로 감싼 세트 ID 가 든 행이 하나라도 있으면 true. 부르는 쪽
+     * 원장 전체 읽기({@link SetCallIoReader#snapshot})를 건너뛸지 정하는 값싼 걸러내기다(한 문장, 한 행만). LIKE 의 {@code _} 는 다른 글자와도 맞아 거짓
+     * 양성이 있을 수 있지만 그때는 전체 읽기가 정확히 가린다. false 면 이 세트를 부르는 행(Ruling 25 — 폐기 안 한 부모의 RELEASED 행)은 하나도 없다.
+     */
+    public boolean mayBeCalled(String setId) {
+        return !entityManager.createQuery("SELECT v.maruRuleSetId FROM MdmRuleSetVer v WHERE v.status = 'RELEASED' AND v.callSetIds LIKE :p",
+                        String.class)
+                .setParameter("p", "%\"" + setId + "\"%").setMaxResults(1).getResultList().isEmpty();
+    }
+
     public Optional<MdmRuleSetVer> find(String setId, BigDecimal ver) {
         return versions(setId).stream().filter(v -> VersionNumbers.same(v.getVer(), ver)).findFirst();
     }

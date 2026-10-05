@@ -20,7 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * 실행 응답의 세트 경로 문구·새 칸(하위 세트 spec §4.1·§8, srv:6 묶음 D) — 위반 문구의 경로는 판정 시각에 적용된 세트 버전 흐름의 SET 노드 label 로
- * 읽는다. SET 노드를 엔진으로 실제 실행해 하위 세트 위반을 내는 시험(RuleSetRunnerSubsetTest)은 eng:4 뒤에 둔다(SEAM T4).
+ * 읽는다. SET 노드를 엔진으로 실제 실행해 하위 세트 위반을 내는 시험은 {@code RuleSetRunnerSubsetTest}(srv:6 E1).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")

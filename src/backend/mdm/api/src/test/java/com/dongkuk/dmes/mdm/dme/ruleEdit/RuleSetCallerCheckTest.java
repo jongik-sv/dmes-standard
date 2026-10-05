@@ -8,7 +8,9 @@ import static com.dongkuk.dmes.mdm.dme.ruleEdit.RuleColumnsServiceTest.columns;
 import static com.dongkuk.dmes.mdm.dme.ruleEdit.RuleColumnsServiceTest.qCols;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.dongkuk.dmes.cactus.common.BusinessException;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveContext;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleSaveTarget;
@@ -17,12 +19,16 @@ import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmChecks;
 import com.dongkuk.dmes.mdm.common.rule.confirm.RuleConfirmReport;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.contract.common.MdmCheckIssue;
+import com.dongkuk.dmes.mdm.contract.common.MdmErrorCode;
 import com.dongkuk.dmes.mdm.contract.version.VersionRef;
 import com.dongkuk.dmes.mdm.contract.version.VersionTarget;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleEditSaveResult;
+import com.dongkuk.dmes.mdm.dme.ruleConfirm.dto.RuleConfirmRequest;
+import com.dongkuk.dmes.mdm.dme.ruleConfirm.service.RuleConfirmService;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleColumnsService;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +58,8 @@ class RuleSetCallerCheckTest extends AbstractMdmSharedDbTest {
     RuleColumnsService columnsService;
     @Autowired
     RuleConfirmChecks confirmChecks;
+    @Autowired
+    RuleConfirmService confirmService;
     @Autowired
     RuleSetCallerCheck check;
     @Autowired
@@ -115,6 +123,30 @@ class RuleSetCallerCheckTest extends AbstractMdmSharedDbTest {
 
         assertEquals(List.of(BROKEN), errors.stream().filter(i -> "SET_CALLER_BROKEN".equals(i.code())).map(MdmCheckIssue::message).toList(),
                 errors.toString());
+    }
+
+    /** 확정 서비스 경로 — 보고서의 ERROR 가 SET_CALLER_BROKEN 하나뿐인 상태에서 확정은 MDM010 으로 거부되고 v2 는 DRAFT 그대로다. */
+    @Test
+    void 룰_확정_서비스는_부르는_세트를_깨면_MDM010_으로_거부하고_DRAFT_를_둔다() {
+        jdbc.update("UPDATE TB_MDM_RULE_VAR SET VAR_NAME = 'QLTY_X' WHERE MARU_RULE_ID = ? AND VER = 2 AND VAR_ID = 4", ID);
+        LocalDateTime applyFrom = LocalDateTime.of(2026, 7, 1, 0, 0);
+        VersionRef ref = new VersionRef(VersionTarget.BUSINESS_RULE, ID, DmeTestSupport.v(2));
+        List<MdmCheckIssue> errors = RuleConfirmReport.flatten(confirmChecks.report(ref, applyFrom)).errors();
+        assertEquals(List.of("SET_CALLER_BROKEN"), errors.stream().map(MdmCheckIssue::code).distinct().toList(), errors.toString());
+
+        RuleConfirmRequest r = new RuleConfirmRequest();
+        r.setMaruRuleId(ID);
+        r.setVer(DmeTestSupport.verText(2));
+        r.setRowVersion(0L);
+        r.setApplyFrom("2026-07-01 00:00:00");
+        r.setWarningsAcknowledged(true);
+        BusinessException e = assertThrows(BusinessException.class, () -> confirmService.confirm(r));
+
+        String code = e.getErrors() == null || e.getErrors().isEmpty() ? e.getErrorCode().name() : e.getErrors().get(0).code();
+        assertEquals(MdmErrorCode.CONFIRM_CHECK_FAILED.code(), code, e.getMessage());
+        assertEquals("DRAFT", jdbc.queryForObject("SELECT STATUS FROM TB_MDM_RULE_VER WHERE MARU_RULE_ID = ? AND VER = 2", String.class, ID));
+        assertEquals("QLTY_X", jdbc.queryForObject("SELECT VAR_NAME FROM TB_MDM_RULE_VAR WHERE MARU_RULE_ID = ? AND VER = 2 AND VAR_ID = 4",
+                String.class, ID));
     }
 
     @Test

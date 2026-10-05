@@ -31,7 +31,7 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * 하위 세트 spec §5·§6.1, srv:6 조정 ② — 세트 확정 검사가 SET 노드 겉모양(apply_from 기준)·호출 그래프·연쇄 재검사를 보고, 네 코드(CALL_MISSING·
  * CALL_CYCLE·CALL_DEPTH·CALLER_BROKEN)를 수준과 상관없이 거부(FLOW_STRUCTURE ERROR)로 본다. DRAFT 의 흐름·CALL_SET_IDS 는 저장 서비스(srv:6 C)를 거치지
- * 않고 직접 넣는다. SET 노드가 든 흐름은 엔진으로 실행하지 않는다(SEAM T4 — 케이스를 두지 않는다). 시계 NOW = 2026-06-15 09:00.
+ * 않고 직접 넣는다. SET 노드가 든 흐름은 여기서 엔진으로 실행하지 않는다(케이스를 두지 않는다 — 실행은 RuleSetRunnerSubsetTest). 시계 NOW = 2026-06-15 09:00.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @ActiveProfiles("local")

@@ -45,7 +45,7 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * 하위 세트 spec §5·§6.2·§6.3·§8, srv:6 조정 ①④ — 편집 서비스의 DRAFT 저장(CALL_SET_IDS 쓰기, 네 코드는 경고), 폐기 거부, 되살리기 거부(네 코드), 조회
  * (view.calls·search CALL_IO·CALLERS). 기준 시각은 모두 지금(시계 NOW = 2026-06-15 09:00). 필수 시험(Task 6 갱신 메모)의 저장 쪽은 확정까지 서비스로
- * 이어 본다(확정 쪽 단독 시험은 ruleSetConfirm/RuleSetSubsetConfirmSqliteTest). SET 노드가 든 흐름은 엔진으로 실행하지 않는다(SEAM T4).
+ * 이어 본다(확정 쪽 단독 시험은 ruleSetConfirm/RuleSetSubsetConfirmSqliteTest). SET 노드가 든 흐름은 여기서 엔진으로 실행하지 않는다(실행은 RuleSetRunnerSubsetTest).
  *
  * <p>룰(모두 1.000 RELEASED, 조건 하나·결과 하나): R_A(IN_A → OUT_A), R_B(IN_A → OUT_B), R_C1(IN_A → OUT_X), R_C2(IN_A → OUT_Y),
  * R_P(OUT_X → OUT_P — OUT_X 는 컬럼 사전에 없어 하위 세트가 만들어야 읽는다).
@@ -288,6 +288,28 @@ class RuleSetSubsetServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 입출력이_같아도_endsEarly_가_바뀌면_부르는_세트를_다시_검사한다() {
+        // C 1.000: r1(R_C1) → end, 처리 갈래 c1(r1) → rh(R_C3) → END — endsEarly. 2.000 은 한 줄 R_C1 — 입출력(IN_A → OUT_X always)은 같다.
+        // P 는 SET C 에 SUBSET_ENDED 를 받는다 — C 가 더는 일찍 끝나지 않으면 CATCH_NEVER 경고가 새로 생긴다.
+        rule("R_C3", "IN_A", "OUT_X");
+        String early = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"}," + ruleNode("r1", "R_C1")
+                + ",{\"id\":\"c1\",\"kind\":\"CATCH\",\"attachTo\":\"r1\",\"catches\":[\"EVAL_ERROR\"]}," + ruleNode("rh", "R_C3")
+                + ",{\"id\":\"end\",\"kind\":\"END\"}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"end\"},"
+                + "{\"id\":\"e3\",\"from\":\"c1\",\"to\":\"rh\"},{\"id\":\"e4\",\"from\":\"rh\",\"to\":\"end\"}]}";
+        releasedFlow("C", "INUSE", "[\"R_C1\",\"R_C3\"]", early, "[]");
+        DmeTestSupport.ruleSetDraft(jdbc, "C", "2.000", "kim", "[\"R_C1\",\"R_C3\"]", 0);
+        String catching = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"}," + setNode("s1", "C")
+                + ",{\"id\":\"c1\",\"kind\":\"CATCH\",\"attachTo\":\"s1\",\"catches\":[\"SUBSET_ENDED\"]}," + ruleNode("r1", "R_P")
+                + ",{\"id\":\"end\",\"kind\":\"END\"}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"s1\"},{\"id\":\"e2\",\"from\":\"s1\",\"to\":\"r1\"},"
+                + "{\"id\":\"e3\",\"from\":\"r1\",\"to\":\"end\"},{\"id\":\"e4\",\"from\":\"c1\",\"to\":\"end\"}]}";
+        releasedFlow("P", "INUSE", "[\"R_P\"]", catching, "[\"C\"]");
+
+        RuleSetSaveResult r = saveFlow("C", 0, line(ruleNode("r1", "R_C1")));
+
+        assertThat(callLines(r.getChecks())).containsExactly("WARN CALLER_WARN 부르는 세트에 경고가 생겼다: P");
+    }
+
+    @Test
     void 겉모양이_그대로거나_부르는_세트가_폐기됐으면_연쇄_경고가_없다() {
         setWithDraft("C", "INUSE", "[\"R_C1\"]");
         parentP("DEPRECATED");
@@ -436,6 +458,12 @@ class RuleSetSubsetServiceTest extends AbstractMdmSharedDbTest {
 
         who.setSetId("M");
         assertThat(((RuleSetPickResult) service.search(who)).getSets()).isEmpty();
+
+        releasedFlow("G", "INUSE", "[]", line(setNode("s1", "G"), setNode("s2", "C")), "[\"G\",\"C\"]");    // 자기 자신을 부르는 행(저장된 순환)
+        releasedFlow("H", "INUSE", "[]", line(setNode("s1", "G")), "[\"G\"]");
+        who.setSetId("G");
+        assertThat(((RuleSetPickResult) service.search(who)).getSets()).extracting(RuleSetPickResult.Pick::getSetId)
+                .containsExactly("H");                                                    // 폐기 거부와 같게 자기 행은 뺀다
         who.setTarget("NOPE");
         assertThatThrownBy(() -> service.search(who)).hasMessageContaining("SET·RULE·GUIDE·CALL_IO·CALLERS");
     }

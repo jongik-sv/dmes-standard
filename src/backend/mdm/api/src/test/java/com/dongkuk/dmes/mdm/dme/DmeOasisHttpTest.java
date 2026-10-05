@@ -403,6 +403,37 @@ class DmeOasisHttpTest {
         assertEquals("HTTP_GRD", view.path("data").path("result").path("rules").path(0).path("ruleId").asText(), view.toString());
     }
 
+    /** 하위 세트 spec §8(srv:6) — search target CALL_IO(하위 세트 겉모양)·CALLERS(부르는 세트)가 OASIS 를 거쳐 응답 모양 그대로 나온다. */
+    @Test
+    void 세트_search_는_CALL_IO_로_겉모양을_CALLERS_로_부르는_세트를_준다() throws Exception {
+        releasedRule("HTTP_GRD", "COIL_THK", "HTTP_G");
+        DmeTestSupport.ruleSet(jdbc, "HTTP_SUB", "하위 세트", "[\"HTTP_GRD\"]", "INUSE", 0);
+        DmeTestSupport.ruleSet(jdbc, "HTTP_TOP", "부르는 세트", "[]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "HTTP_TOP", DmeTestSupport.line(DmeTestSupport.setNode("s1", "HTTP_SUB")));
+        DmeTestSupport.ruleSetCalls(jdbc, "HTTP_TOP", "[\"HTTP_SUB\"]");
+
+        JsonNode io = post("ruleSetEdit", "search", "lee", envelope("ruleSetEdit",
+                json.createObjectNode().put("target", "CALL_IO").put("setIdsJson", "[\"HTTP_SUB\",\"NOPE\"]")));
+        assertTrue(io.path("meta").path("success").asBoolean(false), io.toString());
+        JsonNode calls = io.path("data").path("result").path("calls");
+        assertEquals(2, calls.size(), io.toString());
+        assertEquals("HTTP_SUB", calls.path(0).path("setId").asText(), io.toString());
+        assertTrue(calls.path(0).path("exists").asBoolean(false), io.toString());
+        assertEquals("COIL_THK", calls.path(0).path("inputs").path(0).path("name").asText(), io.toString());
+        assertEquals("HTTP_G", calls.path(0).path("outputs").path(0).path("name").asText(), io.toString());
+        assertTrue(calls.path(0).path("outputs").path(0).path("always").asBoolean(false), io.toString());
+        assertEquals("NOPE", calls.path(1).path("setId").asText(), io.toString());
+        assertFalse(calls.path(1).path("exists").asBoolean(true), io.toString());
+
+        JsonNode who = post("ruleSetEdit", "search", "lee", envelope("ruleSetEdit",
+                json.createObjectNode().put("target", "CALLERS").put("setId", "HTTP_SUB")));
+        assertTrue(who.path("meta").path("success").asBoolean(false), who.toString());
+        JsonNode sets = who.path("data").path("result").path("sets");
+        assertEquals(1, sets.size(), who.toString());
+        assertEquals("HTTP_TOP", sets.path(0).path("setId").asText(), who.toString());
+        assertEquals("INUSE", sets.path(0).path("status").asText(), who.toString());
+    }
+
     /** 흐름도 2단계 Task 1 — 화면 모양 그대로 params.flowJson 문자열만 싣는다(Map 은 OASIS 가 S999 로 거부한다, D-111). */
     @Test
     void 흐름은_flowJson_문자열_하나로_저장되고_정규_JSON_이_남는다() throws Exception {
