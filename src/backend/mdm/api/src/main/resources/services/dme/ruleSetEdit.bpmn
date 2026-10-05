@@ -6,7 +6,7 @@
 
 action=search  -&gt; searchTask  (ruleSetEditService.search)  READ — target SET(세트 고르기)·RULE(룰 추가 후보 + 입출력)·GUIDE(구성 지침)·CALL_IO(params.setIdsJson 하위 세트 겉모양)·CALLERS(params.setId 부르는 세트)
 action=view    -&gt; viewTask    (ruleSetEditService.view)    READ — 세트·멤버 입출력·검사·editable·restorable (cases 포함)
-action=save    -&gt; saveTask    (ruleSetEditService.save)    EDIT — 서버 재계산 검사 통과 시 세트명·설명·룰 목록 저장(거부 MDM024) (part=CASE 케이스 저장·caseDeleted 삭제)
+action=save    -&gt; saveTask    (ruleSetEditService.save)    EDIT — 서버 재계산 검사를 돌려 세트명·설명·룰 목록 저장(거부 검사가 있어도 저장하고 응답 checks 에 싣는다) (part=CASE 케이스 저장·caseDeleted 삭제)
 action=delete  -&gt; deleteTask  (ruleSetEditService.delete)  EDIT — target SET(폐기 INUSE -&gt; DEPRECATED, 부르는 세트가 있으면 거부 MDM024)·VERSION(DRAFT 삭제)·CONFIRM(확정 취소, ADR-0002 D8)
 action=restore -&gt; restoreTask (ruleSetEditService.restore) EDIT — 되살리기(검사 통과 시 DEPRECATED -&gt; INUSE)
 action=validate -&gt; validateTask (ruleSetEditService.condIo)   EDIT — 편집 중 흐름의 IF 갈래 조건식 입력(params.flowJson, 원장에 쓰지 않음) (exprText 면 식 파싱)

@@ -1844,8 +1844,8 @@ test.describe("C 룰 세트", () => {
     await layout.layout(page, "ruleSetEdit 순서 거부");
     await snap(page, "dme-ruleSetEdit-02-order-rejected");
 
-    // 거부(REJECT) 검사가 있으면 저장 버튼이 꺼진다 — 서버의 저장 거부(MDM024)는 서버 테스트가 맡는다.
-    await expect(tid(page, "set-save")).toBeDisabled();
+    // 거부(REJECT) 검사가 있어도 DRAFT 저장은 허용한다(2026-10-06) — 확정·되살리기 거부는 서버 테스트가 맡는다.
+    await expect(tid(page, "set-save")).toBeEnabled();
     watcher.assertClean("ruleSetEdit");
   });
 
