@@ -25,6 +25,7 @@ import com.dongkuk.dmes.mcm.widget.layout.service.WidgetLayoutWriter.LayoutItem;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetRepository;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetTabRepository;
 import com.dongkuk.dmes.mcm.widget.repository.WidgetUserLookupRepository;
+import com.dongkuk.dmes.mcm.widget.service.SecWidgetTabWriter;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.time.LocalDateTime;
@@ -54,6 +55,7 @@ class WidgetDefaultTabJpaTest {
     @Autowired WidgetDefaultTabs defaultTabs;
     @Autowired WidgetDefaultTabWriter writer;
     @Autowired WidgetUserLookupRepository userLookup;
+    @Autowired SecWidgetTabWriter shareWriter;
     @Autowired PlatformTransactionManager txManager;
     @PersistenceContext EntityManager em;
 
@@ -197,6 +199,28 @@ class WidgetDefaultTabJpaTest {
         assertThat(itemRepository.count()).isZero();
         assertThat(userTabRepository.findByUserIdOrderByTabSeqAsc("userA")).extracting(SecUserWidgetTab::getTabId)
                 .containsExactly(s);
+    }
+
+    // ── ⑥ 공유 사본 쓰기 ───────────────────────────────────────────
+
+    @Test
+    @DisplayName("copyTabs — 정해 둔 tab-N 이 그사이 생겼으면 받는 사람 탭을 덮어쓰지 않고 다음 빈 번호로 넣는다")
+    void copyTabsNeverOverwrites() {
+        userTab("userB", "tab-3");
+        userTab("userB", "tab-4");
+        SecWidgetTabWriter.WidgetValues w =
+                new SecWidgetTabWriter.WidgetValues("s1", "home.notice", 0, 0, 6, 6, "N", "{\"c\":1}");
+
+        shareWriter.copyTabs(List.of(new SecWidgetTabWriter.TabCopy("userB",
+                new SecWidgetTabWriter.TabValues("tab-3", "(공유) 내 탭", 9, "N"), List.of(w))));
+
+        assertThat(userTabRepository.findByUserIdOrderByTabSeqAsc("userB"))
+                .extracting(SecUserWidgetTab::getTabId, SecUserWidgetTab::getTabNm)
+                .containsExactlyInAnyOrder(org.assertj.core.groups.Tuple.tuple("tab-3", "재정의"),
+                        org.assertj.core.groups.Tuple.tuple("tab-4", "재정의"),
+                        org.assertj.core.groups.Tuple.tuple("tab-5", "(공유) 내 탭"));
+        assertThat(userWidgetRepository.findByUserIdAndTabId("userB", "tab-5"))
+                .singleElement().satisfies(r -> assertThat(r.getConfigJson()).isEqualTo("{\"c\":1}"));
     }
 
     // ── ⑦ 사용자 찾기 쿼리 ─────────────────────────────────────────

@@ -15,6 +15,7 @@ import com.dongkuk.dmes.mcm.widget.layout.service.WidgetDefaultTabs;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetRepository;
 import com.dongkuk.dmes.mcm.widget.repository.SecUserWidgetTabRepository;
 import com.dongkuk.dmes.mcm.widget.repository.WidgetUserLookupRepository;
+import com.dongkuk.dmes.mcm.widget.service.SecWidgetTabWriter;
 import jakarta.persistence.EntityManagerFactory;
 import java.util.List;
 import java.util.Properties;
@@ -82,6 +83,12 @@ public class WidgetTabsJpaTestConfig {
                                                          WidgetDefaultLayoutRepository layoutRepository,
                                                          SecUserWidgetTabRepository userTabRepository) {
         return new WidgetDefaultTabWriter(tabRepository, itemRepository, layoutRepository, userTabRepository);
+    }
+
+    /** 공유 사본 쓰기 트랜잭션. */
+    @Bean
+    public SecWidgetTabWriter secWidgetTabWriter(SecUserWidgetTabRepository tabRepository, SecUserWidgetRepository widgetRepository) {
+        return new SecWidgetTabWriter(tabRepository, widgetRepository);
     }
 
     @Bean
