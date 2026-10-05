@@ -132,10 +132,9 @@ function LayoutBoard({ layoutKey, rows, registry, registryStatus, onRetryRegistr
     () =>
       state.status === "ready"
         ? createLayoutStore(layoutKey, state.layout, {
-            onSaved: (key) => {
-              setSaved(true);
-              onSaved(key);
-            },
+            onSaved,
+            // 상속 안내 띠는 「홈」을 저장했을 때만 거둔다(기본 탭 저장으로는 이 키의 홈 배치가 생기지 않는다).
+            onHomeSaved: () => setSaved(true),
           })
         : null,
     [layoutKey, state, onSaved]

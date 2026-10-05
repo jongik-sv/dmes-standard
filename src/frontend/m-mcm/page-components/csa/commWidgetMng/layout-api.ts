@@ -124,9 +124,12 @@ export async function saveDefaultTab(
   const params: Record<string, unknown> = { layoutKey, tabNm: tab.tabNm, tabSeq: tab.tabSeq };
   if (tab.tabId) params.tabId = tab.tabId;
   const out = await call(SCREEN_ID, "saveDefaultTab", params, { widgets: layoutItemsToRows(items) });
+  const savedId = out.tabId == null ? "" : String(out.tabId);
+  // 새 탭인데 채번한 ID 가 없으면 화면이 서버 탭을 가리킬 수 없다 — 다시 저장할 때마다 탭이 하나씩 더 생긴다.
+  if (!tab.tabId && !savedId) throw new Error("서버가 새 기본 탭 ID 를 돌려주지 않았습니다.");
   return {
     layoutKey: out.layoutKey == null ? layoutKey : String(out.layoutKey),
-    tabId: out.tabId == null ? (tab.tabId ?? "") : String(out.tabId),
+    tabId: savedId || (tab.tabId ?? ""),
     count: Number(out.count) || 0,
   };
 }

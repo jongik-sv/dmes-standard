@@ -35,6 +35,8 @@ export interface LayoutStoreOptions {
   api?: LayoutStoreApi;
   /** 저장(홈·기본 탭)·기본 탭 지우기가 성공한 뒤 부른다 — 화면이 배치 목록을 새로 받는다. */
   onSaved?: (layoutKey: string) => void;
+  /** 「홈」 기본 배치 저장이 성공한 뒤에만 부른다 — 화면이 홈 상속 안내 띠를 거둔다(기본 탭 저장으로는 홈이 생기지 않는다). */
+  onHomeSaved?: (layoutKey: string) => void;
 }
 
 const unsupported = (what: string) => new Error(`기본 배치 편집에서는 ${what}을(를) 쓰지 않습니다.`);
@@ -56,10 +58,11 @@ export function createLayoutStore(
   /** 작업 공간 탭 ID(tab-N) → 서버 기본 탭 ID(def-N). */
   const ids = new Map<string, string>();
   const serverId = (tabId: string) => ids.get(tabId) ?? (isServerTabId(tabId) ? tabId : undefined);
+  let loadSeq = 0;
 
   return {
     async load(): Promise<WidgetTab[]> {
-      ids.clear();
+      const seq = ++loadSeq;
       const homePromise = preloaded ? Promise.resolve(preloaded) : api.loadLayout(layoutKey, "Y");
       preloaded = null;
       // 실패는 던진다 — 빈 배열이면 작업 공간이 빈 상태를 저장해 배치를 지울 수 있다.
@@ -67,11 +70,14 @@ export function createLayoutStore(
         homePromise,
         typeof api.loadDefaultTabs === "function" ? api.loadDefaultTabs(layoutKey) : Promise.resolve([]),
       ]);
+      // 매핑은 마지막 불러오기가 성공한 뒤에만 비운다 — 실패하거나 더 새 불러오기에 밀린 응답이면 작업 공간은 아직 tab-N 을 들고 있다.
+      if (seq === loadSeq) ids.clear();
       return tabsFromBoard(layout, defaultTabs);
     },
     async saveTab(tab: WidgetTab): Promise<void> {
       if (tab.tabId === HOME_TAB_ID) {
         await api.saveLayout(layoutKey, tab.items);
+        options.onHomeSaved?.(layoutKey);
       } else {
         if (typeof api.saveDefaultTab !== "function") throw unsupported("기본 탭 저장");
         const saved = await api.saveDefaultTab(layoutKey, { tabId: serverId(tab.tabId), tabNm: tab.name, tabSeq: tab.seq }, tab.items);

@@ -69,6 +69,13 @@ describe("layout-api — 기본 탭", () => {
     expect(sent(1).body.grids).toEqual({ widgets: { rows: [] } });
   });
 
+  it("새 탭 저장 응답에 tabId 가 없으면 던진다(리뷰 3) — 기존 탭이면 요청 ID 를 쓴다", async () => {
+    reply({ layoutKey: "*", count: 0 });
+    await expect(saveDefaultTab("*", { tabNm: "새 탭", tabSeq: 1 }, [])).rejects.toThrow("새 기본 탭 ID");
+    reply({ layoutKey: "*", count: 0 });
+    expect((await saveDefaultTab("*", { tabId: "def-3", tabNm: "생산", tabSeq: 1 }, [])).tabId).toBe("def-3");
+  });
+
   it("deleteDefaultTab·reorderDefaultTabs 호출 모양", async () => {
     reply({ deleted: 1 });
     await deleteDefaultTab("*", "def-3");
@@ -189,6 +196,41 @@ describe("createLayoutStore — 기본 탭", () => {
     await store.load();
     await store.saveTab(tab("tab-1", "다른 새 탭", 3));
     expect(api.saveDefaultTab).toHaveBeenLastCalledWith("*", { tabId: undefined, tabNm: "다른 새 탭", tabSeq: 3 }, [ITEM]);
+  });
+
+  it("다시 불러오기가 실패하면 매핑을 지킨다(리뷰 2)", async () => {
+    const api = fakeApi();
+    const store = createLayoutStore("*", null, { api });
+    await store.saveTab(tab("tab-1", "새 탭", 2));
+    api.loadDefaultTabs.mockRejectedValueOnce(new Error("조회 실패"));
+    await expect(store.load()).rejects.toThrow("조회 실패");
+    await store.saveTab(tab("tab-1", "새 탭", 2));
+    expect(api.saveDefaultTab).toHaveBeenLastCalledWith("*", { tabId: "def-21", tabNm: "새 탭", tabSeq: 2 }, [ITEM]);
+  });
+
+  it("앞선 불러오기가 나중에 끝나도 더 새 불러오기 뒤에 생긴 매핑을 지우지 않는다", async () => {
+    const api = fakeApi();
+    let slow!: (v: LoadedDefaultTab[]) => void;
+    api.loadDefaultTabs.mockImplementationOnce(() => new Promise<LoadedDefaultTab[]>((r) => (slow = r)));
+    const store = createLayoutStore("*", null, { api });
+    const first = store.load();
+    await store.load();
+    await store.saveTab(tab("tab-1", "새 탭", 2));
+    slow([]);
+    await first;
+    await store.saveTab(tab("tab-1", "새 탭", 2));
+    expect(api.saveDefaultTab).toHaveBeenLastCalledWith("*", { tabId: "def-21", tabNm: "새 탭", tabSeq: 2 }, [ITEM]);
+  });
+
+  it("onHomeSaved 는 「홈」 저장 때만 부른다(리뷰 4)", async () => {
+    const onHomeSaved = vi.fn();
+    const onSaved = vi.fn();
+    const store = createLayoutStore("*", null, { api: fakeApi(), onSaved, onHomeSaved });
+    await store.saveTab(tab("def-3", "생산", 1));
+    expect(onHomeSaved).not.toHaveBeenCalled();
+    await store.saveTab(tab("home", "홈", 0));
+    expect(onHomeSaved).toHaveBeenCalledWith("*");
+    expect(onSaved).toHaveBeenCalledTimes(2);
   });
 
   it("한 번도 저장하지 않은 새 탭 지우기·순서는 서버를 부르지 않는다", async () => {
