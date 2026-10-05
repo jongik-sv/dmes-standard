@@ -45,3 +45,37 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9
       - c. **고르기 칸 잔여** — `pickSet` 이 고른 뒤 지금 탭의 key 를 돌려주고(탭 틀 밖 기본값은 null), 편집기는 그 key 가 자기 탭이 아니면 `IdPicker` 를 `key` 로 다시 마운트한다(props 를 바꾸지 않음) — 시작한 탭의 칸이 그 탭의 세트 ID 로 돌아온다.
       - d. **ClosableTabs Delete 제거** — 정본 API 에 없어 Delete 키 닫기를 뺐다. 키보드만으로 닫을 수 있게 지금 탭의 닫기 단추만 `tabIndex=0`(나머지 -1, roving)으로 두어 Tab 으로 지금 탭 단추 다음에 닫기 단추에 가 Enter·Space 로 닫는다(Tab 정지는 지금 탭 기준 하나 늘 뿐이다). `closable-tabs.md`·`llms-full.txt`·단위 시험도 맞췄고 Mantine 대응표에 `Tabs keepMounted` 줄을 이었다.
       - e. **시험** — `tabs-model.test.ts`(처리 중·실패·불러온 세트 우선·알림 같은 값), `set-tabs.test.ts`(첫 빈 탭 실패·두 번째 탭 실패·고르기 칸 되돌림·DRAFT 탭이 `unconfirmedSetIds`·`dirtySetIds` 에 드는 화면 경로 — `ChecksPanel` 을 감싼 소비자로 컨텍스트를 읽음), `set-tabs-dialog.test.ts`(케이스 편집 창), shared `closable-tabs.unit.test.ts`.
+
+## ui:5t. TS 흐름·분석기 짝
+- 상태: 구현 끝, TS 코퍼스 러너 초록(srv:5 `10fb5284` 를 합친 `dae06a22` 위). srv:5 와 짝 머지 대기.
+- 커밋: `6d4f04ca`(흐름 해석 — `flow-model.ts`·`flow-edit.ts` addCatch 종류·`PropertyPanel.tsx` 받을 예외 목록·`trace-view.ts`, 시험 `flow-model.test.ts`·`catch-edit.test.ts`·`catch-panel.test.ts`), `7aff5fed`(분석기 — `set-model.ts`·`types.ts`, 시험 `set-model.test.ts`·`rule-set-corpus.test.ts`)
+- 시험 결과(m-mdm, workers 2):
+  - 착수 때 `vitest run tests/dme/ruleSetEdit/rule-set-corpus.test.ts` → 하위 세트 사례 18건 실패(SET 사례 17 + h2 문구 1).
+  - 구현 뒤 같은 명령 → 310 통과·0 실패(코퍼스 108·퍼즈 200·머리 2).
+  - `vitest run tests/dme/ruleSetEdit` → 97파일 1855 통과·0 실패.
+  - `vitest run tests/dme` → 130파일 2488 통과·0 실패.
+  - `tsc --noEmit` → 0.
+  - `node scripts/test.mjs`(m-mdm 전체)는 무거워 돌리지 않았다(조정 지시).
+- 조정 메모에서 옮긴 규칙(srv:5 원문·조정 ui-2·ui-4 알림, Ruling 9 합의) — TS 가 서버와 같게 한 것:
+  1. **RULE·SET 단계 모으기** — 루트 `Seq` 부터 깊이 우선. RULE·SET 은 담고 TASK 는 건너뛴다. `Guarded` 는 자기 step(RULE·SET 일 때만) → normal → handlers 배열 순서로 각 body, `Split` 은 branches 순서. 같은 노드는 한 번만. TS 는 `set-model.ts` `callSteps(tree)`(서버 `RuleSetAnalyzer.callSteps`, 엔진·TS `FlowTree` 에 callSteps 를 두지 않는다).
+  2. **never 분기 순서 SET → TASK → RULE** — TASK·RULE 은 SUBSET_ENDED 를 받는 처리 갈래마다 `FLOW_CATCH`(REJECT, ruleId null, nodeId = 받는 노드)를 먼저 모두 낸 뒤 기존 `CATCH_NEVER`. 문구 RULE "받는 노드 {catchId}: 룰 노드에는 하위 세트 예외 끝(SUBSET_ENDED)을 붙일 수 없다", TASK "받는 노드 {catchId}: 빈 단계 노드에는 하위 세트 예외 끝(SUBSET_ENDED)을 붙일 수 없다". RULE 의 FLOW_CATCH 는 룰 존재·RELEASED 검사(조기 return) 앞에서 낸다. SET 은 처리 갈래 → 받는 종류 저장 순서로 NO_RESULT `FLOW_CATCH` "받는 노드 {c}: 세트 노드에는 결과 없음(NO_RESULT)을 붙일 수 없다", SUBSET_ENDED + 겉모양 있음 + `endsEarly=false` 면 `CATCH_NEVER`(ruleId = setId) "받는 노드 {c}: 세트 {setId}에는 END 로 가는 처리 갈래가 없어 하위 세트 예외 끝이 일어나지 않는다".
+  3. **CALL_MISSING 은 WARN**(편차 13) — 룰 존재 검사 바로 뒤·EMPTY 앞, 노드 배열 순서, 같은 세트 ID 는 첫 노드에만, 빈 ID 는 노드마다. `callRuleIo` 의 releasedVer 는 문자열 `"1.000"`(서버 `SetCallIo.RELEASED_MARK`).
+  4. **flow-model.ts** — `CATCH_NAMES` 다섯(`CATCH_SET` 포함), `CATCHABLE` 에 SET, h2 문구 "받는 노드 {c}는 룰·빈 단계·룰 세트 노드에만 붙일 수 있다({t}는 {KIND})"(엔진 `FlowParser.checkCatchNodes` 와 글자 대조).
+  5. **`SetCallIo.inputs` 는 예약 이름 `CATCH_*` 를 뺀다**(편차 11) — 서버가 계산해 주는 값이고 화면은 받기만 한다(TS 는 계산하지 않음, 타입 주석에 적음).
+  6. **구조 d1** — SET 들어오는 선은 0개일 때만 오류(1개 이상 정상, 모이는 자리·돌아오는 자리 2개도 정상). SET 나가는 선 1. (`IN_DEGREE.SET = AT_LEAST_ONE`·`OUT_DEGREE.SET = ONE` 은 eng:1 이 넣었다.)
+  7. 그 밖에 서버와 같게 한 것: SET 노드는 키 `set:{setId}` 의 룰 입출력으로 돈다(Ruling 6 — 입출력 표 `users`·`by`·`readers` 와 `deps` 키에 그대로, 문구는 "세트 {setId}", 칸은 세트 ID). always=false 출력은 이미 defined 가 아니면 maybe(Ruling 7, prodBy 는 always 와 무관하게 갱신). EMPTY 는 RULE·TASK·SET 이 하나도 없을 때(Ruling 18). COND_UNTYPED 선언 이름은 이 세트의 룰만(Ruling 20). R13(받는 노드 예약 이름) ORDER 는 SET 에도 같은 갈래로(문구 이름 `disp`, 칸 세트 ID). 옛 형식 돌아오는 MERGE 의 splitId 가 SET 이면 "합류 {m}의 짝 분기 {s}가 없다"(implicit-join spec §13). 빈·공백 setId 는 구조 오류가 아니다.
+- 결정:
+  1. **새 TS 이름** — `flow-model.ts`: `SetStep { type: "SET"; nodeId; setId: string | null }`(`Step` 합에), `FlowTree.setSteps()`·`setIds()`, `flowSetIds(flow, parsed?)`(서버 `RuleSetFlowJson.setIds` 짝), `CATCH_KINDS_FOR`·`catchKindsFor(kind)`. `set-model.ts`: `setKey`·`isSetKey`·`setIdOfKey`·`keyOf`·`callRuleIo`·`callSteps`·`flowCallKeys`·`CallStep`, `flowIo`·`flowDeps`·`flowChecks` 끝 인자 `calls: SetCallIoMap = {}`. `types.ts`: `SetCallOutput`·`SetCallIo`·`SetCallIoMap`, `RuleSetCheckCode` 에 `CALL_MISSING`·`CALL_CYCLE`·`CALL_DEPTH`·`CALLER_BROKEN`.
+  2. **calls 를 넘기지 않으면** SET 노드는 모두 없는 세트(CALL_MISSING WARN)다 — Ruling 8 "화면은 callIo 응답이 오기 전에도 같은 규칙". 지금 화면(`useRuleSetEdit`)은 calls 를 넘기지 않는다 — callIo 조회·전달은 ui:8. RULE 만 있는 흐름은 calls 가 있어도 결과가 같다(시험 고정).
+  3. **`CATCH_KINDS` 는 다섯(구조 검사가 아는 키 전부), 고르기는 노드 종류별** — 계획 Task 2 의 `CATCH_KINDS_FOR` 에 TASK 를 더해(RULE 과 같은 넷) `addCatch` 와 속성 패널 받을 예외 목록이 `catchKindsFor(붙은 노드 종류)` 를 쓴다. RULE·TASK 의 화면·편집 동작은 그대로다. SET 에 붙이면 INPUT_ERROR → EVAL_ERROR → HIT_CONFLICT → SUBSET_ENDED 순으로 고른다(시험). `setCatchKinds` 정렬은 `CATCH_KINDS` 그대로.
+  4. **`CATCH_ONLY_RULE` 문구** — `CATCHABLE` 이 SET 을 받으므로 "룰·빈 단계·룰 세트 노드에만 예외 받기를 붙인다" 로 바꿨다(eng:2 가 넘긴 TS 문구 일).
+  5. **trace-view** — `scopePaths` 가 SET 단계에 경로를 적고, 받는 노드가 붙은 SET 단계 직전 CATCH_* 를 적어(outerCatch) 돌아오는 자리에서 되돌린다. `debug-model` 은 `CATCH_NAMES` 를 쓰므로 `CATCH_SET` 도 "받는 노드가 넣는 값" 으로 고치지 않게 된다(코드 변경 없음). `Record<FlowNodeKind|CatchKind>` 맵 누락은 없었다(eng:1 이 `catch-text`·`NODE_SIZE`·차수표·KIND_TEXT 를 채웠다, tsc 0).
+- 계획 조정(본문과 다르게 한 것):
+  1. 본문 `FlowTree.callSteps()`·`CallStep`(flow-model) → 엔진·srv 와 같이 `FlowTree` 에 두지 않고 `set-model.ts` `callSteps(tree)` 로 분석기 안에서 모은다(`CallStep` 타입도 set-model 에). 순서 단언은 `set-model.test.ts` 가 코퍼스·퍼즈 전체로(RULE 부분 = `ruleSteps()`, SET 부분 = `setSteps()`, 세트 키를 뺀 `flowCallKeys` = `flowRuleIds`) 한다 — srv `RuleSetCorpusTest` 단언과 같다. 본문의 새 시험 파일 `flow-model-set.test.ts` 대신 `flow-model.test.ts` 끝에 SET 묶음을 더했다.
+  2. 본문 `CALL_MISSING` 수준 REJECT → WARN(편차 13·서버·코퍼스), 본문 `callRuleIo.releasedVer: 1` → `"1.000"`, 본문 `step()` 에 없던 R13 예약 이름 처리를 되살렸다(srv 와 같음), 본문 `never` 의 RULE 캐스트 대신 SET → TASK → RULE 분기.
+  3. 본문 `CATCH_KINDS_FOR` 는 RULE·SET 두 키 → TASK 키를 더했다(TASK 받는 노드도 지금 네 종류를 고른다).
+  4. **기존 시험 2건 기대값을 바꿨다**(소유 시험, 동작이 정본대로 바뀐 것): `catch-panel.test.ts`「처리 갈래 첫 선의 변수 칩」 넷 → 다섯(`CATCH_SET`, Ruling 3·4 — RULE 처리 갈래에도 CATCH_SET 이 있다), `catch-edit.test.ts` 의 `CATCH_ONLY_RULE` 문구(결정 4).
+  5. **`trace-view.catchValues` 는 넷 그대로** — `NodeTrace` 에 CATCH_SET 값을 읽을 칸이 없다. CATCH 노드 기록의 CATCH_SET 표시·값 흐름은 엔진 실행(eng:4)과 디버거(ui:9, Task 9 의 `frames`·`chipOf`·`valueTable` SET 갈래)에서 정한다. `frames`·`valueTable` 의 SET `outputs` 반영도 Task 9 몫이라 하지 않았다.
+  6. 속성 패널 안내 문구("CATCH_KIND·CATCH_RULE·CATCH_CODE·CATCH_MSG 를 읽을 수 있다")·"붙은 룰" 라벨·SET 노드 그리기·속성 패널·flow-edit SET 붙여넣기(`isStep`·`NODE_PREFIX`)는 화면 표시라 ui:8 에 남긴다.
+  7. `tests/helpers/engine-paths.ts` 는 고치지 않았다(코퍼스 경로가 이미 있다).
+- 넘긴 일: srv:6 묶음 A 코퍼스 사례(setId "" + 받는 노드, PARALLEL 형제 SET, SET 낀 CYCLE)가 머지되면 TS 러너를 다시 돌린다(조정 ui-4).
