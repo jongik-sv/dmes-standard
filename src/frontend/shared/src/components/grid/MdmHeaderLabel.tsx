@@ -8,7 +8,7 @@
  * 화면 안 위치 보정, 화면 높이 상한, 150ms 유예, Escape). 정렬·필터 아이콘·끌기·누름 정렬은 ag-grid 기본 머리글 그대로다
  * (tests/unit/aggrid-inner-header-capability.unit.test.ts).
  *
- * - 표시 지연: ag-grid 머리글 툴팁과 같게 그리드의 `tooltipShowDelay`(없으면 ag-grid 기본 2000ms, 최소 200ms) 뒤에 연다. 머리글에서 행으로
+ * - 표시 지연: ag-grid 머리글 툴팁과 같게 그리드의 `tooltipShowDelay`(AgDataGrid 기본 500ms, 최소 200ms) 뒤에 연다. 머리글에서 행으로
  *   지나가기만 할 때 큰 카드가 첫 행을 덮지 않게 하려는 것이다. 라벨을 누르면(정렬·끌기 시작) 대기를 취소하고 열린 카드를 닫는다.
  *   버튼을 누른 채 들어오면(열 끌기 중) 열지 않는다. 터치로 누르면(태블릿에서 캡션을 탭해 정렬) 브라우저가 뒤따라 보내는 흉내 mouseenter 로는
  *   열지 않는다(터치 pointer 이벤트 뒤 1초).
@@ -51,8 +51,11 @@ export interface MdmHeaderLabelProps extends Partial<MdmHeaderLabelParams> {
 
 /** 라벨 감싸개에 다는 클래스 — 이 부품이 싣는 규칙이 display:contents 로 둔다. */
 export const MDM_HEADER_LABEL_HOST_CLASS = "mdm-header-label-host";
-/** 그리드가 tooltipShowDelay 를 정하지 않았을 때의 표시 지연(ag-grid 기본값과 같다). */
-export const MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS = 2000;
+/**
+ * 그리드가 tooltipShowDelay 를 정하지 않았을 때의 표시 지연. AgDataGrid 의 기본값(`GRID_TOOLTIP_SHOW_DELAY_MS`)과 같다 — AgDataGrid 는 늘 값을
+ * 넘기므로 이 값은 다른 ag-grid 에 이 라벨을 달 때만 쓰인다(AgDataGrid 를 가져오면 순환 import 라 값을 따로 둔다).
+ */
+export const MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS = 500;
 /** ag-grid 는 tooltipShowDelay 를 200ms 아래로 내리지 않는다(TooltipStateManager). */
 const MIN_SHOW_DELAY_MS = 200;
 /** 터치 pointer 이벤트 뒤 이 시간 안의 mouseenter 는 브라우저가 흉내 낸 것으로 보고 거른다. */

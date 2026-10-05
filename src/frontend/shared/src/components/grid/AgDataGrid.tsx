@@ -159,6 +159,11 @@ const SelectCellEditor = function SelectCellEditor(props: {
 };
 
 const DEFAULT_FIXED_COLUMN_WIDTH = 120;
+/**
+ * 그리드 툴팁(머리글·셀) 기본 표시 지연. ag-grid 기본 2000ms 는 머리글 이름·설명을 확인하기에 너무 늦어 500ms 로 둔다(2026-10-05).
+ * 화면이 `tooltipShowDelay` 를 주면 그 값이다. MdmHeaderLabel 의 기본값(`MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS`)과 같아야 한다.
+ */
+export const GRID_TOOLTIP_SHOW_DELAY_MS = 500;
 
 function toColumnWidth(width: number | string | undefined): number | undefined {
   if (width == null || width === "") return undefined;
@@ -406,6 +411,11 @@ export interface AgDataGridProps {
   wrapHeaderText?: boolean;
   /** 헤더 높이를 헤더 내용(줄바꿈 포함)에 맞춰 자동 계산. wrapHeaderText 와 함께 사용. */
   autoHeaderHeight?: boolean;
+  /**
+   * 머리글·셀 툴팁이 뜨기까지의 지연(ms, ag-grid tooltipShowDelay). 비우면 `GRID_TOOLTIP_SHOW_DELAY_MS`(500).
+   * HTML 설명 머리글 카드(MdmHeaderLabel)도 이 값을 따른다. ag-grid 는 200 아래로 내리지 않는다.
+   */
+  tooltipShowDelay?: number;
   /**
    * 행 드래그 손잡이를 둘 열의 key — `GridColumn.rowDrag` 대신 그리드에서 지정한다. 지정하면 정렬(sortable)을 끈다
    * (ag-grid managed row drag 는 정렬 중 동작하지 않는다). `onRowOrderChange` 와 함께 쓴다.
@@ -1018,6 +1028,7 @@ function AgDataGridComponent({
   onRowExpandCollapse,
   wrapHeaderText = false,
   autoHeaderHeight = false,
+  tooltipShowDelay = GRID_TOOLTIP_SHOW_DELAY_MS,
   rowDragField,
   isRowDraggable,
   onRowOrderChange,
@@ -1879,6 +1890,7 @@ function AgDataGridComponent({
         noRowsOverlayComponent={noRowsOverlayComponent}
         loadingOverlayComponent={loadingOverlayComponent}
         animateRows={false}
+        tooltipShowDelay={tooltipShowDelay}
         suppressCellFocus={!hasEditableColumns}
         /*
          * ★셀 텍스트 드래그 선택·복사는 항상 허용(2026-08-07 사용자 요구).

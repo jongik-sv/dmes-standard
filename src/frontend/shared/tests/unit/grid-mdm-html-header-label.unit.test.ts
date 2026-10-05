@@ -16,6 +16,7 @@ import type { ColDef, ColGroupDef, GridApi } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import {
   AgDataGrid,
+  GRID_TOOLTIP_SHOW_DELAY_MS,
   MdmGridTooltip,
   buildColumnDefs,
   type GridColumn,
@@ -494,14 +495,27 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       expect(portal()).toBeNull();
     });
 
-    it("지연이 지나면 카드가 뜬다 — 그리드 기본 tooltipShowDelay(2000ms)와 같다", async () => {
-      expect(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS).toBe(2000);
+    it("지연이 지나면 카드가 뜬다 — AgDataGrid 기본 tooltipShowDelay(500ms)와 같다", async () => {
+      expect(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS).toBe(500);
+      expect(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS).toBe(GRID_TOOLTIP_SHOW_DELAY_MS);
       stub();
       await render(grid());
       const el = placeLabel();
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       over(el);
       advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS - 1);
+      expect(portal()).toBeNull();
+      advance(1);
+      expect(portal()?.getAttribute("data-tip-interactive")).toBe("true");
+    });
+
+    it("화면이 tooltipShowDelay 를 주면 그 값 뒤에 뜬다", async () => {
+      stub();
+      await render(grid({ tooltipShowDelay: 900 }));
+      const el = placeLabel();
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      over(el);
+      advance(899);
       expect(portal()).toBeNull();
       advance(1);
       expect(portal()?.getAttribute("data-tip-interactive")).toBe("true");
@@ -605,6 +619,15 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       expect(inst?.api, "그리드 api").toBeTruthy();
       return inst.api!;
     }
+
+    it("그리드 tooltipShowDelay 는 기본 500ms, 화면이 주면 그 값이다", async () => {
+      const renderSpy = vi.spyOn(AgGridReact.prototype, "render");
+      stub();
+      await render(grid());
+      expect(gridApi(renderSpy).getGridOption("tooltipShowDelay")).toBe(GRID_TOOLTIP_SHOW_DELAY_MS);
+      await render(grid({ tooltipShowDelay: 1200 }));
+      expect(gridApi(renderSpy).getGridOption("tooltipShowDelay")).toBe(1200);
+    });
 
     it("HTML 열이 없는 그리드는 메타 도착 전후로 refreshHeader 를 부르지 않는다", async () => {
       const renderSpy = vi.spyOn(AgGridReact.prototype, "render");
