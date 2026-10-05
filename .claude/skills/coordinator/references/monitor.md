@@ -1,0 +1,101 @@
+# 모니터링: 틱, 진도율, idle 감시와 자동 배정
+
+설계 절: §3.c(주기 점검·진도율), §3.i(idle 감시·배정·반복 방지).
+
+## 1. 주기 수단
+
+| 수단 | 쓰는 곳 |
+|---|---|
+| `CronCreate`(세션 한정 cron) | **기본 감시 틱**(`tick.cron`, 기본 `7,27,47 * * * *` = 20분). 세션이 바쁘면 다음 턴에 들어간다. compact 뒤에도 남는지 `CronList` 로 확인한다(`resume.md`) |
+| `ScheduleWakeup` | 정해진 시각 한 번(측정 창 끝 확인, 이동 전 점검, 한도 초기화 뒤 재개) |
+| `Monitor` | 짧은 동안 특정 조건 대기(다른 세션 compact 끝, 측정 레인 heavy 잡 끝) |
+| 셸 타이머 | Claude 토큰을 안 쓰는 보조(한도 초기화 뒤 깨우기, `wake_targets`) |
+
+머지·측정처럼 바쁜 구간에는 메시지가 오면 그 턴에 처리하므로 틱을 줄이지 않는다. 측정 창 동안에는 측정 레인만 5분 간격 Monitor 로 본다.
+
+## 2. 틱 절차(SKILL.md 1~8 의 상세)
+
+1. `coord-status.sh` 로 상태표를 얻는다. 출력 칸:
+   - `LANE <레인> name=<세션> status=<busy|idle|gone> for=<분>m report=<HH:MM|-> commit=<HH:MM|-> ahead=<n|-> bg=<목록|-> ctx=<n|->% hold=<사유|->`
+   - `PC load1=<f> cpus=<n> per_core=<f> heavy=<held>/<waiting>/<K> swap_mb=<n|-> five=<n|-> week=<n|-> band=<띠>`
+   - `UNLINKED <이름> pid=<pid> cwd=<경로>`: state 에 없는 Claude 세션. 신원 보고를 요청할지 사용자에게 묻는다.
+   - `WINDOW <kind> lane=<레인|-> until=<iso>`: 열린 창.
+   - `status=gone` 은 세션이 사라진 것이다. 핸들 stale 이면 `protocol.md` 3.10 으로 신원을 다시 요청한다. 세션 자체가 죽었으면 사용자에게 알린다.
+2. 처리 안 한 메시지를 먼저 처리한다(SKILL.md 「메시지 분기표」).
+3. idle 판정과 배정(아래 3~5).
+4. `stall-check.sh`(`stall.md`), ctx 임계값(`compact.md`), 사용량 띠(`usage.md`), 창 끝(`heavy.md`), 확인 창(`approvals.md`).
+5. 바뀐 것이 없으면 아무 말 없이 끝낸다. 있으면 `coord-state.sh summary`.
+
+## 3. 판정 신호와 규칙
+
+`scripts/idle-check.sh` 가 신호를 모아 판정한다. 조정자가 신호를 직접 모으지 않는다. 참고용 신호표:
+
+| 신호 | 읽는 법 | 의미·한계 |
+|---|---|---|
+| S1 세션 상태 | 세션 json 의 `status`·`statusUpdatedAt` | 1차 신호. 백그라운드 Workflow·Bash 가 도는 동안의 값은 idle 로 보일 수 있다 |
+| S2 ListAgents | 도구 호출 | S1 과 같은 출처 |
+| S3 TUI 상태 | `tui-idle` 짧게 대기 | opencode 는 일하는 중에도 먼저 끝난다(믿지 않는다) |
+| S4 화면 | 화면 읽기 | 「esc to interrupt」·「Compacting」·선택 창·확인 창 판별 |
+| S5 터미널 출력 시각 | `lastOutputAt` | 스피너도 출력이라 보조로만 |
+| S7 백그라운드 | heavy RUN·WAIT cwd, 살아 있는 잡, tasks 출력 mtime, 워크트리를 cwd 로 둔 gradle·vitest·playwright·tsc | mtime 이 `idle.bg_recent_min`(기본 10분) 안이면 실행 중 |
+| S8 마지막 보고 시각 | state `last_report_at` | 보고가 끊긴 시간 |
+| S9 브랜치 활동 | 마지막 커밋·워크트리 변경 | 변화가 있으면 일하는 중 |
+| S10 의도된 대기 | state `hold = {reason, until}` | 조정자가 일부러 세운 상태 |
+
+판정 규칙(스크립트 구현):
+
+```text
+후보 = S1 idle 이고 statusUpdatedAt 이후 ≥ idle.idle_min(기본 5분)
+거부 하나라도 맞으면 idle 아님:
+  S7 어느 하나가 그 레인 것 · S4 에 선택 창·질문 창·권한 확인 · S4 에 Compacting
+  S10 hold 가 있고 until 이 안 지남(지났으면 hold 를 풀고 다시 판정)
+  마지막 지시 후 idle.cooldown_min(기본 15분) 안 · 사용량 띠 R
+확정 = 후보이고 거부가 없고, 연속 2틱(또는 idle.confirm_gap_min 간격 두 관측) 같은 결과
+```
+
+## 4. idle-check.sh 출력별 행동
+
+| 출력 | 뜻 | 조정자 행동 |
+|---|---|---|
+| `IDLE <레인> since=<iso>` | 확정 idle | 아래 5 배정 절차 |
+| `CANDIDATE <레인>` | 첫 관측, 확정 전 | 아무것도 하지 않는다. 다음 틱(또는 `idle.confirm_gap_min` 뒤)에 다시 본다 |
+| `BUSY <레인> <사유>` | 일하는 중(백그라운드 포함) | 아무것도 하지 않는다. 지시를 넣지 않는다 |
+| `HOLD <레인> <사유>` | 조정자가 세운 대기(측정 대기·머지 허가 대기·no-work·usage-band 등) | `until` 이 지났으면 `coord-state.sh hold <레인> -` 로 풀고 다음 틱에 재판정한다. 안 지났으면 그대로 둔다 |
+| `WAIT_USER <레인> <창 종류>` | 사용자 입력 대기(선택 창·질문 창) | **지시를 덮어 보내지 않는다**(입력창에 남은 질문 위에 덮으면 사용자 답이 섞인다). 사용자에게 한 줄 알린다: `<레인> 이 사용자 입력을 기다린다(<창 종류>)`. `permission` 은 `approvals.md` 로 간다. 같은 알림은 반복하지 않는다 |
+| `COMPACTING <레인>` | compact 중 | 아무것도 하지 않는다 |
+| `STALL? <레인> bg=<분>m` | 백그라운드 거부가 `idle.stall_max_min`(기본 90분) 넘음 | idle 이 아니라 **정체 의심**이다. 그 레인에 `상태 한 줄 보고` 만 요청하고 `stall-check.sh <레인>` 을 돌린다(`stall.md`) |
+| `GONE <레인>` | 세션이 없다 | 핸들·pid 를 확인하고 신원을 다시 요청한다. 정말 죽었으면 사용자에게 알린다 |
+
+## 5. 배정
+
+`IDLE` 확정 레인에 순서대로:
+
+1. 레인의 `queue` 첫 항목이 있고 의존(`deps`)이 풀렸으면 그 일을 `protocol.md` 3.2 로 지시한다(`workflow.md` 블록 포함).
+2. 없으면 `backlog` 에서 그 레인 범위(`fits`)에 맞고 `taken_by` 가 비어 있는 것을 `protocol.md` 3.3 으로 준다. 풀의 예: 다른 레인 머지 전 교차 리뷰, 기록 문서와 커밋 대조, 통합 확인 체크리스트 작성, 레인 범위 안 기존 결함 정리(동작 변경 없는 것), SUMMARY 초안. **범위 밖 일은 자동 배정하지 않는다.** 읽기 위주 대기 작업만 준다.
+3. 풀도 비면 `protocol.md` 3.4 「쉬어라」를 **한 번만** 보내고 `coord-state.sh hold <레인> no-work` 를 건다. 이 레인을 닫을지는 마감 단계에서 정한다.
+4. 배정 때마다 `coord-state.sh instr <레인> <kind>` 로 번호를 받고 이벤트를 남긴다.
+
+사용량 띠와의 관계:
+
+| 띠 | 배정 |
+|---|---|
+| G | 1·2 모두 |
+| Y | 1 만(대기 작업 자동 배정 중단) |
+| O | 1 중 머지 임박·측정 항목만 |
+| R | 배정 없음 |
+
+띠 때문에 일을 안 준 레인은 `coord-state.sh hold <레인> usage-band` 로 표시해 다음 틱에 같은 판단을 반복하지 않는다. load 때문에 보류한 착수 지시(`heavy.load_soft` 초과)도 같다(`heavy.md`).
+
+## 6. 반복 지시 방지
+
+- 지시마다 `instr_id` 를 발급하고(`coord-state.sh instr`), 상태에 `{id, sent_at, kind, ack_at, nudges}` 로 남는다.
+- 같은 레인에 같은 종류 지시를 cooldown 안에 다시 보내지 않는다.
+- ack 가 없는 지시가 있으면 새 지시 대신 「`<instr_id>` 받았는지 한 줄 답」만 보낸다(`nudges` 최대 2회). 그 뒤는 화면을 읽어 원인을 확인하고 사용자에게 알린다.
+- 지시는 늘 SendMessage 로 보낸다. Workflow 가 도는 중이면 보내지 않는다.
+
+## 7. 진도율
+
+- 출처는 레인의 `진행 보고` 의 「끝난 항목/전체(가중치)」다. 보고를 받을 때마다 `coord-state.sh item-done <레인> <항목id>` 로 갱신하고(`PROGRESS <레인> <pct>%`), `coord-state.sh progress` 로 전체를 낸다(`PROGRESS <레인> <pct>% <끝난가중치>/<전체가중치>`, 마지막 `PROGRESS ALL <pct>%`).
+- 보고 뒤 들어온 커밋으로 보정할 수 있다. 보정한 값은 「추정」이라고 적는다.
+- 사용자가 진도율을 물으면 이 표로 즉시 답한다. 레인에 다시 묻는 것은 마지막 보고가 1시간보다 오래됐을 때만이다.
+- 마감 단계(측정·SUMMARY·정리)도 항목이라 「코드 100%, 측정·정리 남음」 이 구분된다.

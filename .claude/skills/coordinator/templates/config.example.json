@@ -1,0 +1,183 @@
+{
+  "integration_branch": "dev",
+  "git_bin": "git",
+  "state_dir": "~/.coord",
+  "terminal_backend": "orca",
+  "coordinator": {
+    "model": "opus",
+    "effort": "medium"
+  },
+  "launch": {
+    "claude": "claude",
+    "glm": "glm",
+    "opencode": "opencode --standalone"
+  },
+  "heavy": {
+    "script": null,
+    "measure_dir": "~/.dflow/locks/heavy-measure",
+    "load_soft": 1.2,
+    "load_hard": 2.0,
+    "load_release": 0.8,
+    "measure_quiet": 0.5
+  },
+  "usage": {
+    "sources": [
+      {
+        "kind": "cache",
+        "path": "/tmp/claude-usage-cache.json"
+      },
+      {
+        "kind": "coord-dump",
+        "path": "~/.coord/ctx"
+      },
+      {
+        "kind": "limits-dir",
+        "path": "~/.dflow/limits"
+      }
+    ],
+    "max_age_min": 30,
+    "bands": {
+      "Y": {
+        "five": 60,
+        "week": 70
+      },
+      "O": {
+        "five": 80,
+        "week": 85
+      },
+      "R": {
+        "five": 95,
+        "week": 95
+      }
+    },
+    "week_pace": true
+  },
+  "compact": {
+    "threshold_pct": 40,
+    "threshold_tokens": null,
+    "by_window": {
+      "1000000": {
+        "pct": 40
+      },
+      "200000": {
+        "pct": 70
+      }
+    },
+    "hard_pct": 70,
+    "cooldown_min": 30,
+    "default_window": 200000,
+    "wait_max_min": 10
+  },
+  "idle": {
+    "idle_min": 5,
+    "cooldown_min": 15,
+    "confirm_gap_min": 2,
+    "bg_recent_min": 10,
+    "stall_max_min": 90
+  },
+  "stall": {
+    "quiet_min": 20
+  },
+  "tick": {
+    "cron": "7,27,47 * * * *"
+  },
+  "workflow": {
+    "agents_by_band": {
+      "G": 3,
+      "Y": 2,
+      "O": 1,
+      "R": 0
+    },
+    "model_table": [
+      {
+        "stage": "단순 시험 실행·결과 확인·기계적 치환",
+        "size": "*",
+        "model": "haiku",
+        "effort": "low"
+      },
+      {
+        "stage": "조사·위치 찾기·문서 갱신",
+        "size": "*",
+        "model": "sonnet",
+        "effort": "medium"
+      },
+      {
+        "stage": "구현·수정·특성 테스트 작성",
+        "size": "S/M",
+        "model": "sonnet",
+        "effort": "high"
+      },
+      {
+        "stage": "구현·수정·특성 테스트 작성",
+        "size": "L·동시성·트랜잭션·원인 모를 결함",
+        "model": "opus",
+        "effort": "high"
+      },
+      {
+        "stage": "리뷰(동작 보존 판정)",
+        "size": "S",
+        "model": "sonnet",
+        "effort": "high"
+      },
+      {
+        "stage": "리뷰(동작 보존 판정)",
+        "size": "M/L",
+        "model": "opus",
+        "effort": "high"
+      },
+      {
+        "stage": "보안·트랜잭션 정합성 판정",
+        "size": "*",
+        "model": "opus",
+        "effort": "xhigh"
+      }
+    ],
+    "escalation": {
+      "ladder": [
+        {
+          "model": "sonnet",
+          "effort": "medium"
+        },
+        {
+          "model": "sonnet",
+          "effort": "high"
+        },
+        {
+          "model": "opus",
+          "effort": "high"
+        }
+      ],
+      "allow_xhigh": false,
+      "max_attempts": 3,
+      "env_retry": 1
+    }
+  },
+  "glm": {
+    "max_sessions": 1,
+    "timeout_s": 10
+  },
+  "search": {
+    "command": "agy -p {prompt} --print-timeout {timeout}s --disable-slash-commands",
+    "timeout_s": 240
+  },
+  "approvals": {
+    "auto_allow": [
+      "read",
+      "status"
+    ],
+    "auto_allow_spawned": [
+      "read",
+      "status",
+      "edit-own",
+      "commit-own",
+      "heavy-build"
+    ]
+  },
+  "restart_rules": [],
+  "records_check": false,
+  "integration_check": "",
+  "claude_projects_dir": "~/.claude/projects",
+  "sessions_dir": "~/.claude/sessions",
+  "tasks_root": null,
+  "wake_targets": null
+}
