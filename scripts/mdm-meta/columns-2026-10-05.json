@@ -1476,6 +1476,39 @@
       ]
     },
     {
+      "physName": "RENEWAL_CYCLE_SS",
+      "columnName": "갱신 주기 초",
+      "labelLong": "갱신 주기 초",
+      "labelMid": "갱신 주기 초",
+      "labelShort": "갱신주기초",
+      "description": "갱신 주기 초 값을 담는 컬럼이다. (대표 테이블 TB_MCM_WIDGET_DEF)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "갱신",
+          "senseNo": 1
+        },
+        {
+          "termName": "주기",
+          "senseNo": 1
+        },
+        {
+          "termName": "초",
+          "senseNo": 2
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "REFRESH_SEC"
+        }
+      ],
+      "screenKeys": [
+        "REFRESH_SEC"
+      ]
+    },
+    {
       "physName": "ROLE_DESC",
       "columnName": "직무 설명",
       "labelLong": "직무 설명",

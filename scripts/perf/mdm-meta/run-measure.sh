@@ -3,9 +3,9 @@
 #
 # 사용:
 #   scripts/perf/mdm-meta/run-measure.sh [--pair mcm|feed|all] [--rounds N] [--reps R] [--out DIR] [--tag 이름]
-#   --pair    mcm  : mcm /api/mcm/mdmMeta/columns — A 표준 물리명 175개(names-std.txt), B 별칭 이름 136개(names-alias.txt)
-#             feed : MDM /api/mdm/oasis/metaFeed/view(COLUMN) — 별칭 이름 136개를 A systemCode=MES, B systemCode=MES,MDM 으로
-#             screen: mcm 화면 키 417개(scripts/mdm-meta/keys-2026-10-05.txt) 한 묶음 — A·B 같은 요청(흔들림 폭 확인용)
+#   --pair    mcm  : mcm /api/mcm/mdmMeta/columns — A 표준 물리명 176개(names-std.txt), B 별칭 이름 137개(names-alias.txt)
+#             feed : MDM /api/mdm/oasis/metaFeed/view(COLUMN) — 별칭 이름 137개를 A systemCode=MES, B systemCode=MES,MDM 으로
+#             screen: mcm 화면 키 416개(scripts/mdm-meta/keys-2026-10-05.txt) 한 묶음 — A·B 같은 요청(흔들림 폭 확인용)
 #             all  : 셋 다(기본)
 #   --rounds  회차 수(기본 5). 회차마다 uptime load 를 남기고, A·B 순서를 회차마다 뒤집는다(홀수 회차 A→B, 짝수 회차 B→A).
 #   --reps    회차 안에서 한 쪽을 연달아 부르는 횟수(기본 7). 회차 값은 그 중앙값이다. 첫 회차 앞에 양쪽을 한 번씩 부르는 워밍업은 결과에서 뺀다.

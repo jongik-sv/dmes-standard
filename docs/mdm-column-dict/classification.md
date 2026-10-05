@@ -9,16 +9,17 @@ m-mcm·m-mls·m-mdm 화면이 MDM 메타(머리글 툴팁)를 찾는 키를 모�
 |---|---:|---|
 | 사전에 있음 (EXIST) | 45 | 그대로 둔다 |
 | 사전에 있음 — MDM 별칭 (MDM) | 67 | 등록하지 않는다. C1b(mcm 조회 시스템 코드 `MES,MDM`) 뒤 hit 된다 |
-| 새 표준 컬럼 등록 (NEW) | 69 | 표준 컬럼 59개를 새로 만들고, 화면 키가 표준 물리명과 다르면 같은 save 에 MES 별칭으로 넣는다(별칭 59개). WIDGET_ID 는 용어 「위젯」 을 먼저 등록한다 |
+| 새 표준 컬럼 등록 (NEW) | 70 | 표준 컬럼 60개를 새로 만들고, 화면 키가 표준 물리명과 다르면 같은 save 에 MES 별칭으로 넣는다(별칭 60개). WIDGET_ID 는 용어 「위젯」 을 먼저 등록한다 |
 | MES 별칭 등록 (ALIAS) | 10 | 같은 뜻의 기존 표준 컬럼 10개에 MES 별칭을 더한다 |
 | 표시용 (DISPLAY) | 32 | 화면에서 `meta="표준 물리명"` 으로 원 컬럼에 연결한다(등록 없음) |
-| 범용 키 (GENERIC) | 106 | 화면에서 `meta={false}` 로 끈다(사전에 새로 넣지 않는다) |
-| UI 전용 (UI) | 94 | 등록하지 않는다 |
-| 합계 | 423 | 물리명 417개 + 화면이 이미 meta=false 로 둔 키 6개 |
+| 범용 키 (GENERIC) | 105 | 화면에서 `meta={false}` 로 끈다(사전에 새로 넣지 않는다) |
+| UI 전용 (UI) | 145 | 등록하지 않는다(화면이 모든 위치에서 이미 meta=false 로 둔 칸 포함) |
+| 합계 | 474 | 화면 키의 물리명 기준. 그중 메타를 요청하는 키는 416개다(나머지는 화면이 모든 위치에서 meta=false) |
 
-- 등록 전 기준: 수집한 물리명 417개 중 mcm 메타 hit 62, missing 355, unavailable 0(`scripts/mdm-meta/check-meta.sh`, 2026-10-05 12시 로컬).
+- 등록 전 기준(dev d1028256 을 합친 뒤): 메타를 요청하는 물리명 416개 중 mcm 메타 hit 61, missing 355, unavailable 0(`scripts/mdm-meta/check-meta.sh`, 2026-10-05 로컬). 합치기 전(e00a3c7c)에는 417개 중 hit 62 였다.
 - 조정자 실측(메뉴 관리 화면 키 18개 중 5개 hit)은 같은 결과로 재현된다. 이 표의 메뉴 관리 키는 검색 조건·상세 칸까지 넣어 24개다.
-- 등록과 C1b 가 끝나면 NEW·ALIAS 79행과 MDM 67행(합 146)이 hit 으로 바뀌어야 한다. 범용 키 중 지금 hit 인 16개는 화면이 meta 를 끄면 요청에서 빠진다.
+- 등록과 C1b 가 끝나면 NEW·ALIAS 80행과 MDM 67행(합 147)이 hit 으로 바뀌어야 한다. 범용 키 중 지금 hit 인 15개는 화면이 meta 를 끄면 요청에서 빠진다.
+- dev 를 합친 뒤(화면 레인의 th → MdmFieldLabel·meta=false 반영) 다시 만들었다. 새 키 REFRESH_SEC(신규)·BIZ_RULE(MDM 별칭)·STD_RULE(사전에 있음)이 생겼고, 화면이 모든 위치에서 끈 키는 UI 전용으로 둔다(DATA_SRC·LABEL_LONG 등).
 - 2026-10-05 조정자 결정(지시 mdm-column-dict-2)을 반영했다: MDM 별칭 키는 MES 별칭으로 겹쳐 넣지 않는다, WIDGET_ID 는 용어를 등록해 신규로 넣는다, TITLE 은 사전에 있음으로 둔다.
 
 ## 2. 방법
@@ -27,7 +28,8 @@ m-mcm·m-mls·m-mdm 화면이 MDM 메타(머리글 툴팁)를 찾는 키를 모�
 
 - 대상: `m-mcm/page-components`·`m-mcm/widget-types`·`m-mls/pages`·`m-mdm/pages`·`m-mdm/src`(시험 파일 제외).
 - 그리드 열: `{ key, header }` 객체의 `key`, 같은 객체의 `meta`(문자열이면 그 이름, `false` 면 제외).
-- `FormGroup`·`MdmFieldLabel` 의 `name`·`meta`. 지금 화면에서 `name` 을 쓰는 곳은 `NoticeTitleRow.tsx` 의 `MdmFieldLabel name={NAME}`(상수 `TITLE`) 하나이고, 같은 키가 상세 칸에서도 잡힌다.
+- `FormGroup`·`MdmFieldLabel` 의 `name`·`meta`. 화면 레인이 상세 `<th>` 를 `MdmFieldLabel` 로 바꾼 뒤(dev d1028256)에는 대부분 이 규칙으로 잡힌다. `name={상수}` 처럼 상수로 준 이름은 잡지 못한다(`NoticeTitleRow.tsx` 의 `TITLE` 은 다른 칸에서 잡힌다).
+- 화면이 `meta={false}` 로 끈 위치도 그 키의 행에 묶고, 몇 곳을 껐는지 근거 칸에 적는다. 모든 위치를 끈 키는 메타 요청에 들어가지 않는다.
 - `SearchField` 의 `name`, 없으면 `value={filters.pX}` 바인딩에서 `p` 접두어를 뗀 이름.
 - 상세 표 `<th>`: 다음 8줄 안에서 처음 바인딩한 데이터 키(`item.X`·`row.X`·`closed("X")` 등). 바인딩이 없는 정적 칸은 키 없이 빠진다.
 - 물리명 변환은 shared `mdm-meta/names.ts`·cactus `MdmNames.toPhysName` 과 같은 규칙이다(camelCase → UPPER_SNAKE).
@@ -86,19 +88,13 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 
 ## 6. 분류별 목록
 
-### 범용 키 — 화면에서 `meta={false}` (106)
+### 범용 키 — 화면에서 `meta={false}` (105)
 
 | 키 | 모듈 | 머리글 | 근거 | 첫 위치 |
 |---|---|---|---|---|
-| (CATEGORY_LABEL) | m-mls | 분류 | 화면에서 이미 meta=false | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:47 |
-| (FORMAT_LABEL) | m-mls | 형식 | 화면에서 이미 meta=false | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:61 |
-| (STATUS_LABEL) | m-mls | 게시상태 | 화면에서 이미 meta=false | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:71 |
-| (POST_PERIOD) | m-mls | 게시기간 | 화면에서 이미 meta=false | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:85 |
-| (PIN_LABEL) | m-mls | 고정 | 화면에서 이미 meta=false | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:99 |
-| (TARGET_LABEL) | m-mls | 대상 | 화면에서 이미 meta=false | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:108 |
-| ABSENT | m-mcm | 값 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:118 |
+| ABSENT | m-mcm | 값 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:119 |
 | ACT | m-mdm |  | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleSetEdit/debugger/VariablePanel.tsx:115 |
-| ACTION | m-mdm | 처리 / 동작 | 사전 hit(ACTION)이지만 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/columnMng/page.tsx:437 |
+| ACTION | m-mdm | 처리 / 동작 | 사전 hit(ACTION)이지만 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/columnMng/page.tsx:438 |
 | ACTUAL | m-mdm | 실제 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleSetEdit/debugger/TestCasePanel.tsx:80 |
 | AFTER | m-mdm | 이후 / 지금 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainImpactPanel.tsx:19 |
 | BEFORE | m-mdm | 이전 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainImpactPanel.tsx:18 |
@@ -109,91 +105,96 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | CHK | m-mcm | 선택 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/cma/masterCodeMng/page.tsx:183 |
 | CODE | m-mdm | 규칙 / 코드 / 키 | 사전 hit(CD@MES)이지만 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainCheckList.tsx:11 |
 | CONDITION | m-mdm | 거부 조건 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/LayoutCheckPanel.tsx:19 |
-| CONFIRM | m-mdm |  | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/termMng/TermDetailPane.tsx:138 |
+| CONFIRM | m-mdm |  | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/termMng/TermDetailPane.tsx:153 |
 | COUNT | m-mdm | 건수 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainImpactPanel.tsx:12 |
 | DEL | m-mdm | 삭제 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:517 |
 | DELETE | m-mdm |  | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainTestCaseGrid.tsx:49 |
-| DESCRIPTION | m-mdm | 설명 | 사전 hit(DESC@MES)이지만 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmc/codeMng/CodeDetail.tsx:74 |
+| DESCRIPTION | m-mcm,m-mdm | 설명 / 정의 | 사전 hit(DESC@MES)이지만 화면마다 뜻이 다른 범용 키 (화면 14/18 위치는 이미 meta=false) | m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:158 |
 | DETAIL | m-mdm | 내용 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainImpactPanel.tsx:13 |
 | DIRECTION | m-mdm | 방향 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainImpactPanel.tsx:20 |
-| DISPLAY | m-mdm | 환산값 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/unitMng/ConvertCalculator.tsx:23 |
-| DOMAIN | m-mdm | 도메인 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/columnMng/page.tsx:72 |
+| DISPLAY | m-mdm | 환산값 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/unitMng/ConvertCalculator.tsx:24 |
+| DOMAIN | m-mdm | 도메인 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/columnMng/page.tsx:73 |
 | EVALUATED | m-mdm | 평가 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleSetEdit/debugger/TraceDetail.tsx:75 |
 | EXPECT | m-mdm | 기대 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainCheckList.tsx:20 |
 | EXPECTED | m-mdm | 기대 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleSetEdit/debugger/TestCasePanel.tsx:79 |
 | EXPR | m-mdm | 식 / 결과 식 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:96 |
-| FIELD | m-mcm,m-mdm | 필드 | 화면마다 뜻이 다른 범용 키 | m-mcm/widget-types/query-chart/editor.tsx:27 |
+| FIELD | m-mcm,m-mdm | 필드 | 화면마다 뜻이 다른 범용 키 | m-mcm/widget-types/query-chart/editor.tsx:28 |
 | FIRST_FALSE | m-mdm | 처음 거짓 열 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleSetEdit/debugger/TraceDetail.tsx:77 |
-| FORMAT | m-mcm | 형식 | 화면마다 뜻이 다른 범용 키 | m-mcm/widget-types/query-table/editor.tsx:58 |
-| HEADER | m-mcm | 머리글 | 화면마다 뜻이 다른 범용 키 | m-mcm/widget-types/query-table/editor.tsx:44 |
+| FORMAT | m-mcm | 값 형식 / 형식 | 화면마다 뜻이 다른 범용 키 (화면 1/2 위치는 이미 meta=false) | m-mcm/widget-types/query-number/editor.tsx:95 |
+| HEADER | m-mcm | 머리글 | 화면마다 뜻이 다른 범용 키 | m-mcm/widget-types/query-table/editor.tsx:45 |
 | HIT | m-mdm | 적중 | 사전 hit(HIT)이지만 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleSetEdit/debugger/TraceDetail.tsx:76 |
-| ID | m-mcm | ID | 사전 hit(ID)이지만 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/commObjMng/page.tsx:713 |
+| ID | m-mcm | ID | 화면마다 뜻이 다른 범용 키 (화면 2/2 위치는 이미 meta=false) | m-mcm/page-components/csa/commObjMng/page.tsx:714 |
 | IMPACT | m-mdm | 영향 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/ImpactPanel.tsx:23 |
 | ISSUES | m-mdm | 문제 / 상세 / 오류 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutConfirm/page.tsx:60 |
 | ITEM | m-mdm | 항목 / 검사 | 사전 hit(ITEM)이지만 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/ConstEditModal.tsx:25 |
-| KEY | m-mcm,m-mdm | 키 / 노드·선 | 사전 hit(KEY)이지만 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:109 |
+| KEY | m-mcm,m-mdm | 키 / 노드·선 | 사전 hit(KEY)이지만 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:110 |
 | KEYWORD | m-mcm,m-mdm | 검색 / 검색어 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/commWidgetMng/WidgetListTab.tsx:395 |
 | KIND | m-mcm,m-mdm | 구분 / 변경 | 사전 hit(KND@MES)이지만 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/commWidgetMng/WidgetListTab.tsx:55 |
-| LABEL | m-mcm,m-mdm | 배치 / 통화 / 이름(범례) | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/commWidgetMng/LayoutTab.tsx:74 |
-| LABELS | m-mdm | 표시명(긴/중간/짧은) | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/columnMng/page.tsx:71 |
+| LABEL | m-mcm,m-mdm | 배치 / 통화 / 이름(범례) | 화면마다 뜻이 다른 범용 키 (화면 3/8 위치는 이미 meta=false) | m-mcm/page-components/csa/commWidgetMng/LayoutTab.tsx:74 |
+| LABELS | m-mdm | 표시명(긴/중간/짧은) | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/columnMng/page.tsx:72 |
 | LEFT | m-mdm | 하한 / 값 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:101 |
-| LENGTH | m-mdm | 타입·길이 / 길이 | 사전 hit(LENGTH)이지만 화면마다 뜻이 다른 범용 키 | m-mdm/src/layout/ColumnPickModal.tsx:20 |
+| LENGTH | m-mdm | 길이 / 소수 자리 / 타입·길이 / 길이 | 사전 hit(LENGTH)이지만 화면마다 뜻이 다른 범용 키 (화면 1/4 위치는 이미 meta=false) | m-mdm/pages/dma/domainMng/components/DomainBasicForm.tsx:97 |
 | LEVEL | m-mdm | 수준 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainCheckList.tsx:12 |
 | LINE_NO | m-mdm | 줄 | 지금 hit(LINE_NO '라인 번호')은 뜻이 다르다 — CSV 줄 번호라 meta=false | m-mdm/pages/dmd/dataCsvUploadPop/dataCsvUploadPop.tsx:38 |
 | MARK | m-mdm | 상태 / 마지막 결과 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmc/codeItemEdit/cate/CategoryTab.tsx:166 |
 | MEMO | m-mdm | 메모 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainTestCaseGrid.tsx:43 |
 | MESSAGE | m-mdm | 메시지 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainCheckList.tsx:14 |
 | MODE | m-mdm | 전환 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/VersionPanel.tsx:40 |
-| MODULE | m-mcm | 모듈 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:71 |
+| MODULE | m-mcm | 모듈 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:72 |
 | NA | m-mdm | 무관 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:106 |
-| NAME | m-mdm | 항목 / 이름 / 변수 | 사전 hit(NM@MES)이지만 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/SampleMessagePanel.tsx:21 |
+| NAME | m-mdm | 항목 / 이름 / 변수 | 사전 hit(NM@MES)이지만 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/SampleMessagePanel.tsx:22 |
 | NO | m-mcm,m-mdm | 순번 / NO / # | 사전 hit(NO)이지만 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/cmb/masterRuleFrame/constants.ts:36 |
-| NOTE | m-mdm | note / 설명 / 행 설명 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:305 |
+| NOTE | m-mdm | note / 설명 / 행 설명 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:306 |
 | OP | m-mdm | OP | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:100 |
 | OPEN | m-mdm | 상태 / 열림 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmd/dataItemMng/columns.tsx:44 |
 | ORDER | m-mdm | 순서 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleEdit/sections/columns/column-grid.tsx:348 |
-| PARAM | m-mcm | PARAM / 파라메터 | TB_MCM_SEC_OBJ.PARAM — 한 단어 범용 키(사전 PARAMETER 가 있으나 화면마다 뜻이 다를 수 있음) | m-mcm/page-components/csa/commMenuMng/page.tsx:326 |
+| PARAM | m-mcm | PARAM / 파라메터 | TB_MCM_SEC_OBJ.PARAM — 한 단어 범용 키(사전 PARAMETER 가 있으나 화면마다 뜻이 다를 수 있음) (화면 1/3 위치는 이미 meta=false) | m-mcm/page-components/csa/commMenuMng/page.tsx:327 |
 | PATH | m-mdm | 경로 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmc/codeItemEdit/components/PreviewPanel.tsx:54 |
 | PIN | m-mdm |  | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleSetEdit/debugger/VariablePanel.tsx:91 |
 | POSITION | m-mdm | 위치 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/HeaderStackGrid.tsx:57 |
-| Q | m-mcm | 키 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:452 |
-| RANGE | m-mdm | 적용 구간 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleMng/RuleDetailPanel.tsx:92 |
+| Q | m-mcm | 키 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:453 |
+| RANGE | m-mdm | 적용 구간 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleMng/RuleDetailPanel.tsx:93 |
 | RESULT | m-mdm | 결과 / 실행 결과 / 결과(${resultLabel}) | 사전 hit(RST@MES)이지만 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainCheckList.tsx:21 |
 | RIGHT | m-mdm | 상한 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:102 |
 | ROW | m-mdm | 행 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleSetEdit/debugger/TraceDetail.tsx:74 |
 | SAME | m-mdm | 같음/다름 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleSetEdit/debugger/RunCompare.tsx:27 |
 | SENT | m-mdm | 키 보냄 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleEdit/cards/ValueTestCard.tsx:70 |
 | SEQ | m-mcm,m-mdm | 순번 / 순서 | 사전 hit(SEQUENCE_NO@MES)이지만 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/cmb/masterRuleData/page.tsx:87 |
-| SERVICE | m-mcm | SERVICE | TB_MCM_SEC_OBJ.SERVICE — 한 단어 범용 키 | m-mcm/page-components/csa/commMenuMng/page.tsx:325 |
+| SERVICE | m-mcm | SERVICE | TB_MCM_SEC_OBJ.SERVICE — 한 단어 범용 키 (화면 1/4 위치는 이미 meta=false) | m-mcm/page-components/csa/commMenuMng/page.tsx:326 |
 | SETTING | m-mdm | 설정 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/BodyItemGrid.tsx:19 |
-| SORT | m-mcm | 정렬 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:453 |
-| SOURCE | m-mdm | 출처 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleSetEdit/cards/SetIoTables.tsx:71 |
+| SORT | m-mcm | 정렬 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:454 |
+| SOURCE | m-mdm | 원천 / 출처 | 화면마다 뜻이 다른 범용 키 (화면 4/5 위치는 이미 meta=false) | m-mdm/pages/dmc/codeMng/CodeRegisterForm.tsx:73 |
 | SPARK | m-mcm | 추이 | 화면마다 뜻이 다른 범용 키 | m-mcm/widget-types/exchange/renderer.tsx:49 |
-| STATE | m-mcm,m-mdm | 상태 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:73 |
-| STATUS | m-mcm,m-mdm | 상태 / 결과 | 사전 hit(STS@MES)이지만 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/cma/masterCodeMng/page.tsx:199 |
-| SURFACE | m-mdm | 토큰 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/columnMng/page.tsx:433 |
+| STATE | m-mcm,m-mdm | 상태 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:74 |
+| STATUS | m-mcm,m-mdm | 상태 / 결과 | 사전 hit(STS@MES)이지만 화면마다 뜻이 다른 범용 키 (화면 2/16 위치는 이미 meta=false) | m-mcm/page-components/cma/masterCodeMng/page.tsx:199 |
+| SURFACE | m-mdm | 토큰 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/columnMng/page.tsx:434 |
 | TABLE | m-mdm | 테이블 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmc/codeConfirm/page.tsx:96 |
 | TARGET | m-mdm | 영향도 대상 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainImpactPanel.tsx:11 |
-| TEXT | m-mdm | 값 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/SampleMessagePanel.tsx:23 |
-| TOTAL | m-mcm | 항목 수 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:84 |
-| TYPE | m-mcm,m-mdm | 대상 / 대상 종류 / 타입 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:108 |
-| USE | m-mdm | 선택 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/termRegPop/termRegPop.tsx:176 |
+| TEXT | m-mdm | 값 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/SampleMessagePanel.tsx:24 |
+| TOTAL | m-mcm | 항목 수 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:85 |
+| TYPE | m-mcm,m-mdm | 대상 / 대상 종류 / 타입 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:109 |
+| USE | m-mdm | 선택 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/termRegPop/termRegPop.tsx:177 |
 | USERS | m-mdm | 읽는 룰 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleSetEdit/cards/SetIoTables.tsx:77 |
 | VAL | m-mdm | 값 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:96 |
 | VALUE | m-mdm | 입력 / 이 전문의 값 / 값 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainCheckList.tsx:19 |
 | VARS | m-mdm | 변수(JSON) | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainTestCaseGrid.tsx:42 |
 | VER | m-mdm | 버전 | 사전 hit(VER)이지만 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/headerMng/components/HeaderUsagePanel.tsx:19 |
-| WIDTH | m-mcm | 폭 | 화면마다 뜻이 다른 범용 키 | m-mcm/widget-types/query-table/editor.tsx:45 |
-| ZONE | m-mdm | 구역 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/SampleMessagePanel.tsx:20 |
+| WIDTH | m-mcm | 폭 | 화면마다 뜻이 다른 범용 키 | m-mcm/widget-types/query-table/editor.tsx:46 |
+| ZONE | m-mdm | 구역 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/SampleMessagePanel.tsx:21 |
 | CHECK_TEXT | m-mdm | 세트 검사 | 표시용 파생 키(원 컬럼 CHECK) | m-mdm/pages/dme/ruleSetMng/columns.tsx:53 |
 | DETAIL_TEXT | m-mdm | 상세 | 표시용 파생 키(원 컬럼 DETAIL) | m-mdm/pages/dme/ruleConfirm/page.tsx:103 |
+| FORMAT_LABEL | m-mls | 형식 | 표시용 파생 키(원 컬럼 FORMAT) (화면 1/1 위치는 이미 meta=false) | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:61 |
 | KIND_LABEL | m-mdm | 변경 | 표시용 파생 키(원 컬럼 KIND) | m-mdm/pages/dme/ruleConfirm/page.tsx:115 |
 | KIND_TEXT | m-mdm | 종류 | 표시용 파생 키(원 컬럼 KIND) | m-mdm/pages/dmb/layoutConfirm/page.tsx:48 |
 | LENGTH_TEXT | m-mdm | 총 길이(전 → 후) | 표시용 파생 키(원 컬럼 LENGTH) | m-mdm/pages/dmb/layoutConfirm/page.tsx:59 |
+| PIN_LABEL | m-mls | 고정 | 표시용 파생 키(원 컬럼 PIN) (화면 1/1 위치는 이미 meta=false) | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:99 |
 | RESULT_TEXT | m-mdm | 결과 | 표시용 파생 키(원 컬럼 RESULT) | m-mdm/pages/dma/domainMng/components/DomainTestCaseGrid.tsx:45 |
 | SEQ_TEXT | m-mdm | 순서 | 표시용 파생 키(원 컬럼 SEQ) | m-mdm/pages/dme/ruleConfirm/page.tsx:116 |
+| STATUS_LABEL | m-mls | 게시상태 | 표시용 파생 키(원 컬럼 STATUS) (화면 1/1 위치는 이미 meta=false) | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:71 |
+| TARGET_LABEL | m-mls | 대상 | 표시용 파생 키(원 컬럼 TARGET) (화면 1/1 위치는 이미 meta=false) | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:108 |
 | TYPE_BADGE | m-mdm | 타입 | 표시용 파생 키(원 컬럼 TYPE) | m-mdm/pages/dme/ruleEdit/cards/ValueTestCard.tsx:61 |
 | TYPE_TITLE | m-mcm | 유형 | 표시용 파생 키(원 컬럼 TYPE) | m-mcm/page-components/csa/commWidgetMng/WidgetListTab.tsx:68 |
+| VALUE_TEXT | m-mdm | 값 | 표시용 파생 키(원 컬럼 VALUE) (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/unitMng/ConvertCalculator.tsx:102 |
 | VER_LABEL | m-mdm | 버전 | 표시용 파생 키(원 컬럼 VER) | m-mdm/pages/dmc/codeConfirm/page.tsx:54 |
 | VER_TEXT | m-mdm | 버전 | 표시용 파생 키(원 컬럼 VER) | m-mdm/pages/dmb/layoutConfirm/page.tsx:49 |
 
@@ -201,8 +202,8 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 
 | 키 | meta 대상 | 머리글 | 근거 | 첫 위치 |
 |---|---|---|---|---|
-| EDT_PERMISSION_ID | AUT_ID | PERMISSION ID | 검색 조건 키 | m-mcm/page-components/csa/commPermMng/page.tsx:565 |
-| EDT_PERMISSION_NM | AUT_NM | PERMISSION 명 | 검색 조건 키 | m-mcm/page-components/csa/commPermMng/page.tsx:570 |
+| EDT_PERMISSION_ID | AUT_ID | PERMISSION ID | 검색 조건 키 | m-mcm/page-components/csa/commPermMng/page.tsx:566 |
+| EDT_PERMISSION_NM | AUT_NM | PERMISSION 명 | 검색 조건 키 | m-mcm/page-components/csa/commPermMng/page.tsx:571 |
 | CODE_VAL | CD_V | 코드 값 / 코드값 | TB_MCM_CODE_DETAIL.CODE_VAL — 같은 용어 집합(코드 값). CD_V 에 MDM(자기 시스템) 매핑이 있어 columnMng save 로 MES 별칭을 더할 수 없다 — 화면 meta 로 연결 | m-mcm/page-components/cma/masterCodeMng/page.tsx:215 |
 | CODE_VAL_REF1_MN | CD_V_REF | 참조1 | CODE_VAL_REF1 참조값의 이름(SQL 계산 칸) | m-mcm/page-components/cme/masterCodeMngList/page.tsx:85 |
 | CODE_VAL_REF2_MN | CD_V_REF | 참조2 | CODE_VAL_REF2 참조값의 이름(SQL 계산 칸) | m-mcm/page-components/cme/masterCodeMngList/page.tsx:86 |
@@ -211,30 +212,30 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | CODE_VAL_REF5_MN | CD_V_REF | 참조5 | CODE_VAL_REF5 참조값의 이름(SQL 계산 칸) | m-mcm/page-components/cme/masterCodeMngList/page.tsx:89 |
 | COL_ID | COLUMN_ID | 영문항목명 | TB_MCA_RULE_COL_LIST.COL_ID — 같은 용어 집합(컬럼 아이디). COLUMN_ID 에 MDM(자기 시스템) 매핑이 있어 columnMng save 로 MES 별칭을 더할 수 없다 — 화면 meta 로 연결 | m-mcm/page-components/cmb/masterRuleFrame/constants.ts:38 |
 | DIMENSION_LABEL | DIM | 차원 | TB_MDM_UNIT.DIMENSION 의 표시 이름 | m-mdm/pages/dma/unitMng/page.tsx:38 |
-| CBO_IN_OUT_EMP_TP | INTL_EXT_EMP_TP | 내부 외부 구분 | 검색 조건 키(내부 외부 사원 구분) | m-mcm/page-components/csa/commUserMng/page.tsx:888 |
+| CBO_IN_OUT_EMP_TP | INTL_EXT_EMP_TP | 내부 외부 구분 | 검색 조건 키(내부 외부 사원 구분) | m-mcm/page-components/csa/commUserMng/page.tsx:889 |
 | SET_ID | MARU_RULE_SETS_ID | 룰 세트 / 세트 ID | 룰 세트 ID(TB_MDM_RULE_SET.MARU_RULE_SET_ID 의 화면 키) | m-mdm/pages/dme/ruleEdit/cards/RuleUsageCard.tsx:33 |
 | SET_NAME | MARU_RULE_SETS_NM | 이름 / 세트명 | 룰 세트 이름(TB_MDM_RULE_SET.MARU_RULE_SET_NAME 의 화면 키) | m-mdm/pages/dme/ruleEdit/cards/RuleUsageCard.tsx:34 |
-| EDT_MENU_ID | MENU_ID | 메뉴 ID | 검색 조건 키 | m-mcm/page-components/csa/commMenuMng/page.tsx:1019 |
-| EDT_MENU_NM | MENU_NM | 메뉴 명 | 검색 조건 키 | m-mcm/page-components/csa/commMenuMng/page.tsx:1024 |
+| EDT_MENU_ID | MENU_ID | 메뉴 ID | 검색 조건 키 | m-mcm/page-components/csa/commMenuMng/page.tsx:1020 |
+| EDT_MENU_NM | MENU_NM | 메뉴 명 | 검색 조건 키 | m-mcm/page-components/csa/commMenuMng/page.tsx:1025 |
 | MASTER_CODE_REF1_NM | MST_CD_REF | 참조1 | MASTER_CODE_REF1 의 이름(SQL 계산 칸) | m-mcm/page-components/cme/masterCodeMngList/page.tsx:65 |
 | MASTER_CODE_REF2_NM | MST_CD_REF | 참조2 | MASTER_CODE_REF2 의 이름(SQL 계산 칸) | m-mcm/page-components/cme/masterCodeMngList/page.tsx:66 |
 | MASTER_CODE_REF3_NM | MST_CD_REF | 참조3 | MASTER_CODE_REF3 의 이름(SQL 계산 칸) | m-mcm/page-components/cme/masterCodeMngList/page.tsx:67 |
 | MASTER_CODE_REF4_NM | MST_CD_REF | 참조4 | MASTER_CODE_REF4 의 이름(SQL 계산 칸) | m-mcm/page-components/cme/masterCodeMngList/page.tsx:68 |
 | MASTER_CODE_REF5_NM | MST_CD_REF | 참조5 | MASTER_CODE_REF5 의 이름(SQL 계산 칸) | m-mcm/page-components/cme/masterCodeMngList/page.tsx:69 |
-| EDT_OBJECT_ID | OBJECT_ID | OBJECT | 검색 조건 키 | m-mcm/page-components/csa/commObjMng/page.tsx:521 |
+| EDT_OBJECT_ID | OBJECT_ID | OBJECT | 검색 조건 키 | m-mcm/page-components/csa/commObjMng/page.tsx:522 |
 | OBJ_ID | OBJECT_ID | OBJECT ID | 오브젝트 고르기 팝업의 OBJECT ID | m-mcm/page-components/access-management/ObjectPickerModal.tsx:22 |
 | OBJ_NM | OBJECT_NM | 객체명 | 지금 hit(OBJ_NM '목적 명')은 뜻이 다르다 — 오브젝트 명으로 연결 | m-mcm/page-components/access-management/ObjectPickerModal.tsx:23 |
-| EDT_ROLE_GROUP_ID | ROLE_GRP_ID | 역할 그룹 ID | 검색 조건 키 | m-mcm/page-components/csa/commRoleGrpMng/page.tsx:715 |
-| EDT_ROLE_GROUP_NM | ROLE_GRP_NM | 역할 그룹명 | 검색 조건 키 | m-mcm/page-components/csa/commRoleGrpMng/page.tsx:720 |
-| EDT_ROLE_ID | ROLE_ID | 역할 ID | 검색 조건 키 | m-mcm/page-components/csa/commRoleMng/page.tsx:871 |
-| EDT_ROLE_NM | ROLE_NM | 역할명 | 검색 조건 키 | m-mcm/page-components/csa/commRoleMng/page.tsx:876 |
+| EDT_ROLE_GROUP_ID | ROLE_GRP_ID | 역할 그룹 ID | 검색 조건 키 | m-mcm/page-components/csa/commRoleGrpMng/page.tsx:716 |
+| EDT_ROLE_GROUP_NM | ROLE_GRP_NM | 역할 그룹명 | 검색 조건 키 | m-mcm/page-components/csa/commRoleGrpMng/page.tsx:721 |
+| EDT_ROLE_ID | ROLE_ID | 역할 ID | 검색 조건 키 | m-mcm/page-components/csa/commRoleMng/page.tsx:872 |
+| EDT_ROLE_NM | ROLE_NM | 역할명 | 검색 조건 키 | m-mcm/page-components/csa/commRoleMng/page.tsx:877 |
 | SYNONYMS_TEXT | SYNONYMOUS_LIST | 동의어 | TB_MDM_TERM.SYNONYMS 를 글자로 보인 칸 | m-mdm/pages/dma/termMng/page.tsx:34 |
-| SYSTEMS_TEXT | SYS_LIST | 사용 시스템 | TB_MDM_TERM.SYSTEMS 를 글자로 보인 칸 | m-mdm/pages/dma/termMng/TermDetailPane.tsx:36 |
-| CBO_USE_TP | USE_TP | 사용 유무 / 사용 여부 | 검색 조건 키(사용 구분) | m-mcm/page-components/csa/commMenuMng/page.tsx:1029 |
-| EDT_USER_ID | USER_ID | 사용자 | 검색 조건 키 | m-mcm/page-components/csa/commUserMng/page.tsx:881 |
+| SYSTEMS_TEXT | SYS_LIST | 사용 시스템 | TB_MDM_TERM.SYSTEMS 를 글자로 보인 칸 | m-mdm/pages/dma/termMng/TermDetailPane.tsx:37 |
+| CBO_USE_TP | USE_TP | 사용 유무 / 사용 여부 | 검색 조건 키(사용 구분) | m-mcm/page-components/csa/commMenuMng/page.tsx:1030 |
+| EDT_USER_ID | USER_ID | 사용자 | 검색 조건 키 | m-mcm/page-components/csa/commUserMng/page.tsx:882 |
 | FILTER_USER_ID | USER_ID | 권한 부여 source 사용자 ID/사번 | 검색 조건 키(복사 원본 사용자) | m-mcm/page-components/csa/commUserRoleCopy/page.tsx:419 |
 
-### UI 전용 — 등록 안 함 (94)
+### UI 전용 — 등록 안 함 (145)
 
 | 키 | 모듈 | 머리글 | 근거 | 첫 위치 |
 |---|---|---|---|---|
@@ -247,91 +248,142 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | _STD | m-mdm | 자신의 표준식 | 밑줄로 시작하는 화면 내부 키 | m-mdm/pages/dma/domainMng/components/DomainTreeGrid.tsx:29 |
 | _TYPE | m-mdm | 타입 | 밑줄로 시작하는 화면 내부 키 | m-mdm/pages/dma/domainMng/components/DomainTreeGrid.tsx:27 |
 | _UNIT | m-mdm | 단위 | 밑줄로 시작하는 화면 내부 키 | m-mdm/pages/dma/domainMng/components/DomainTreeGrid.tsx:28 |
-| ABBR_TEXT | m-mdm | 약어 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/columnMng/page.tsx:435 |
+| ABBR_TEXT | m-mdm | 약어 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/columnMng/page.tsx:436 |
 | ACTIONS | m-mdm | 작업 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutMng/components/HeaderStackGrid.tsx:59 |
-| ALIGN | m-mcm | 정렬 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/widget-types/query-table/editor.tsx:47 |
-| APPLIED_SEQ | m-mcm | 적용 순번 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:80 |
+| ALIGN | m-mcm | 정렬 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/widget-types/query-table/editor.tsx:48 |
+| APPLIED_SEQ | m-mcm | 적용 순번 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:81 |
+| AS_OF | m-mdm | 시각 T | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dmb/layoutMng/components/LayoutBasicForm.tsx:62 |
+| ATTACH_TO | m-mdm |  | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dme/ruleSetEdit/panels/PropertyPanel.tsx:550 |
 | BASE_UNIT_BADGE | m-mdm | 기준 단위 여부 | 기준 단위 여부 배지(값의 뜻이 원 컬럼과 다름) | m-mdm/pages/dma/unitMng/page.tsx:41 |
-| BYTES | m-mcm | 추정 크기 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:137 |
+| BRANCH_NAME | m-mdm | 분기 이름 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dme/ruleSetEdit/panels/PropertyPanel.tsx:371 |
+| BYTES | m-mcm | 추정 크기 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:138 |
+| C_USR_ID | m-mls | 등록 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mls/pages/lsh/noticeMgmt/page.tsx:634 |
+| CACHE_ENTRY | m-mcm | 항목 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/mdmCacheMng/page.tsx:499 |
+| CATEGORY_LABEL | m-mls | 분류 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:47 |
 | CHANGED_TEXT | m-mdm | 바뀐 칸 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleConfirm/page.tsx:117 |
-| CONSECUTIVE_FAILURES | m-mcm | 연속 실패 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:83 |
+| CHART_TYPE | m-mcm | 차트 종류 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/query-chart/editor.tsx:59 |
+| COLUMNS | m-mcm | 표시 컬럼 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/query-table/editor.tsx:95 |
+| COMPUTED_FORM_URL | m-mcm | FORM URL | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commObjMng/page.tsx:775 |
+| CONSECUTIVE_FAILURES | m-mcm | 연속 실패 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:84 |
 | CONTRACT_BADGE | m-mdm | 계약 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleEdit/cards/ValueTestCard.tsx:63 |
 | CURRENT_VER | m-mdm | 현재 버전 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutMng/components/LayoutList.tsx:17 |
-| CURRENT_VER_LABEL | m-mdm | 현재 | 현재 버전 표시 글자 | m-mdm/pages/dmc/codeMng/page.tsx:419 |
+| CURRENT_VER_LABEL | m-mdm | 현재 버전 / 현재 | 현재 버전 표시 글자 (화면 1/2 위치는 이미 meta=false) | m-mdm/pages/dmc/codeMng/CodeDetail.tsx:142 |
+| DATA_QUERY_DEF_IDS | m-mcm | 데이터 질의에 쓸 쿼리 위젯 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/chat/editor.tsx:115 |
+| DATA_SRC | m-mcm | 실행 모듈 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:254 |
 | DEFAULT_SIZE | m-mcm | 기본 크기 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commWidgetMng/WidgetListTab.tsx:88 |
 | DEPENDED_BY | m-mdm | 역의존 룰 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleEdit/cards/RuleUsageCard.tsx:37 |
 | DEPENDS_ON | m-mdm | 의존 룰 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleEdit/cards/RuleUsageCard.tsx:36 |
-| DERIVED | m-mdm | 도메인(파생) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutMng/components/BodyItemGrid.tsx:18 |
+| DERIVED | m-mdm | 도메인(파생) / 파생 타입·길이 / 단위 / 도메인 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 (화면 1/2 위치는 이미 meta=false) | m-mdm/pages/dmb/layoutMng/components/BodyItemGrid.tsx:18 |
+| DETAIL_ERROR | m-mcm | 오류 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/mdmCacheMng/page.tsx:507 |
 | DIFF_TEXT | m-mcm | 전일 대비 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/widget-types/exchange/renderer.tsx:41 |
 | DRAFT_VER | m-mdm | DRAFT | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutMng/components/LayoutList.tsx:18 |
 | EDT_TARGET | m-mcm | 처리대상 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commSyncMng/page.tsx:265 |
-| EFF_STD_EXPR | m-mdm | 유효 식(조립) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/domainMng/components/DomainTreeGrid.tsx:30 |
+| EFF_BIZ_EXPR | m-mdm | 유효 비즈니스식 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/domainMng/components/DomainRuleEditor.tsx:51 |
+| EFF_STD_EXPR | m-mdm | 유효 표준식 / 유효 식(조립) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 (화면 1/2 위치는 이미 meta=false) | m-mdm/pages/dma/domainMng/components/DomainRuleEditor.tsx:44 |
+| ENCODING_PAD_RULE | m-mdm | 인코딩 / 패딩 규칙 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dmb/headerMng/components/HeaderForm.tsx:98 |
+| ENTRY_KIND | m-mcm | 구분 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/mdmCacheMng/page.tsx:517 |
 | EVALUATED_AT | m-mdm | 평가 시각 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutConfirm/page.tsx:58 |
 | EVENT_LABEL | m-mdm | 사건 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmd/dataItemMng/history/DataHistoryTimeline.tsx:91 |
 | EXPR_INFO | m-mdm | 식 결과 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleEdit/sections/columns/column-grid.tsx:523 |
 | FINAL_RESULTS | m-mdm | 최종 결과 변수 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleSetMng/columns.tsx:37 |
+| FORM_ERRORS | m-mcm | 저장할 수 없음 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:294 |
+| FROM | m-mdm | 출발 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dme/ruleSetEdit/panels/EdgePanel.tsx:39 |
+| FROM_UNIT_CODE | m-mdm | 입력 단위 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/unitMng/ConvertCalculator.tsx:115 |
 | FROM1 | m-mcm | FROM (서버) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commSyncMng/page.tsx:77 |
 | FROM2 | m-mcm | FROM (구분) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commSyncMng/page.tsx:78 |
 | FROM3 | m-mcm | FROM (인스턴스) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commSyncMng/page.tsx:79 |
 | FROM4 | m-mcm | FROM (스키마) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commSyncMng/page.tsx:80 |
+| GEN_DOMAIN | m-mdm | 추천 도메인 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/columnMng/page.tsx:654 |
+| GEN_DUPLICATES | m-mdm | 중복 검사 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/columnMng/page.tsx:677 |
+| GEN_PREVIEW | m-mdm |  | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/columnMng/page.tsx:637 |
 | GRP_RESULT | m-mdm | 결과 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:506 |
+| GUIDE | m-mdm | 안내 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/domainMng/components/ParentLinkModal.tsx:161 |
+| HEADER_LENGTH | m-mdm | 헤더 길이 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dmb/headerMng/components/HeaderForm.tsx:112 |
 | HEADER_NAME | m-mdm | 헤더 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutMng/components/HeaderStackGrid.tsx:51 |
 | HEADER_STATE | m-mdm | 상태 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/headerMng/components/HeaderList.tsx:19 |
 | HEADER_SUMMARY | m-mdm | 헤더 구성 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutMng/components/LayoutList.tsx:15 |
 | HEADER_VER | m-mdm | 버전 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/headerMng/components/HeaderList.tsx:18 |
-| HEAP_USED | m-mcm | 힙 사용/최대 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:96 |
+| HEAP_USED | m-mcm | 힙 사용/최대 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:97 |
 | HIT_MARK | m-mdm | 해당 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmc/codeItemEdit/cate/components/PreviewPanel.tsx:23 |
-| HITS | m-mcm | 조회 수 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:127 |
+| HITS | m-mcm | 조회 수 / 조회 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 (화면 1/2 위치는 이미 meta=false) | m-mcm/page-components/csa/mdmCacheMng/page.tsx:128 |
+| INIT_PASSWORD | m-mcm | 초기 비밀번호 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commUserMng/page.tsx:1404 |
 | INPUT_COUNT | m-mdm | 입력 변수 수 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleSetMng/columns.tsx:51 |
-| INSTANCE_ID | m-mcm | 인스턴스 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:79 |
+| INSTANCE_ID | m-mcm | 인스턴스 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:80 |
 | ITEM_COUNT | m-mdm | 항목 / 본문 항목 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/headerMng/components/HeaderList.tsx:16 |
 | ITEM_NAME | m-mdm | 항목명 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/src/layout/item-rows.ts:16 |
-| LAST_ACCESS_AT | m-mcm | 마지막 조회 / 조회 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:126 |
-| LAST_SUCCESS_AT | m-mcm | 마지막 확인 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:82 |
+| KEYS_TEXT | m-mcm | 키 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/mdmCacheMng/RegisterModal.tsx:90 |
+| LABEL_FIELD | m-mcm | 라벨 필드 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/query-number/editor.tsx:39 |
+| LAST_ACCESS_AT | m-mcm | 마지막 조회 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:127 |
+| LAST_SUCCESS_AT | m-mcm | 마지막 확인 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:83 |
 | LAST_USED_DT | m-mcm | 마지막 이용일 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/screenUsageStat/tabs/unused-tab.ts:16 |
-| LATEST_SEQ | m-mcm | MDM 순번 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:81 |
+| LATEST_SEQ | m-mcm | MDM 순번 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:82 |
 | LENGTH_OFFSET | m-mdm | 총 길이·기존 오프셋 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutMng/components/VersionPanel.tsx:39 |
-| LOADED_AT | m-mcm | 적재 시각 / 적재 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:125 |
+| LOADED_AT | m-mcm | 적재 시각 / 적재 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 (화면 1/2 위치는 이미 meta=false) | m-mcm/page-components/csa/mdmCacheMng/page.tsx:126 |
 | MATCH_COUNT | m-mdm | 해당 / 매칭 건수 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmc/codeItemEdit/cate/CategoryTab.tsx:125 |
-| MATCH_TEXT | m-mdm | 매칭 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/columnMng/page.tsx:434 |
+| MATCH_TEXT | m-mdm | 매칭 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/columnMng/page.tsx:435 |
 | MEMBER_KEY | m-mdm | 항목 키 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmd/dataItemMng/history/DataHistoryTimeline.tsx:161 |
 | MENU_PATH | m-mcm | 메뉴 경로 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/screenUsageStat/tabs/columns.ts:38 |
 | NEW_CELLS | m-mdm | 이후 셀 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleConfirm/page.tsx:119 |
 | NEW_VALUES | m-mdm | 이후 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmc/codeConfirm/page.tsx:107 |
+| NODE_ID | m-mdm | 노드 ID | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dme/ruleSetEdit/panels/PropertyPanel.tsx:316 |
+| OFFSET_LENGTH | m-mdm | 오프셋 / 길이 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/src/layout/LayoutItemDetail.tsx:143 |
 | OLD_CELLS | m-mdm | 이전 셀 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleConfirm/page.tsx:118 |
 | OLD_VALUES | m-mdm | 이전 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmc/codeConfirm/page.tsx:100 |
 | OVERRIDDEN | m-mcm,m-mdm | 덮어씀 / 재정의 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commWidgetMng/WidgetListTab.tsx:91 |
 | OVERRIDES | m-mdm | 재정의한 상수 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutMng/components/HeaderStackGrid.tsx:58 |
 | OWNER_TEXT | m-mdm | 소유자 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutConfirm/page.tsx:50 |
+| PAGE_GUIDE | m-mcm | 포털 화면 안내 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/chat/editor.tsx:103 |
 | PENDING_TEXT | m-mdm | 미적용 버전 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleMng/page.tsx:216 |
+| POST_PERIOD | m-mls | 게시기간 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mls/pages/lsh/noticeMgmt/notice-columns.tsx:85 |
+| PREVIEW | m-mcm | 미리보기(기본 크기) | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:308 |
+| PWD_RESET_FLAG | m-mcm | 비밀번호 초기화 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commUserMng/page.tsx:1173 |
 | RATE_TEXT | m-mcm | 환율(원) | 환율 위젯 표시 글자 | m-mcm/widget-types/exchange/renderer.tsx:39 |
+| RE_REGISTER | m-mcm | 계정 재생성 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commUserMng/page.tsx:1234 |
 | READERS | m-mdm | 읽는 룰 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleSetEdit/cards/SetIoTables.tsx:108 |
-| REASON_LABEL | m-mdm | 근거 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/termRegPop/termRegPop.tsx:174 |
+| REASON_LABEL | m-mdm | 근거 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/termRegPop/termRegPop.tsx:175 |
 | REASON_TEXT | m-mdm | 근거 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmc/codeItemEdit/components/PreviewPanel.tsx:56 |
-| RELEASED_VER | m-mdm | 적용 버전 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleMng/page.tsx:208 |
-| REMAINING_SECONDS | m-mcm | 남은 수명(초) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:129 |
+| RELEASED_VER | m-mdm | 적용 버전 / 확정 버전 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 (화면 1/2 위치는 이미 meta=false) | m-mdm/pages/dme/ruleMng/page.tsx:208 |
+| REMAINING_SECONDS | m-mcm | 남은 수명(초) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:130 |
+| ROLE_COPY_USER_ID | m-mcm | 사용자 역할그룹 복사 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commUserMng/page.tsx:1147 |
 | ROW_STATUS | m-mcm | 상태 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/cmb/masterRuleData/page.tsx:89 |
 | RULE_COUNT | m-mdm | 룰 수 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleSetMng/columns.tsx:35 |
-| SCORE_TEXT | m-mdm | 유사도 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/termMng/TermDetailPane.tsx:37 |
+| RULE_KIND_POLICY | m-mdm | 종류·정책 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dme/ruleSetEdit/panels/PropertyPanel.tsx:195 |
+| SCORE_TEXT | m-mdm | 유사도 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/termMng/TermDetailPane.tsx:38 |
+| SERIES | m-mcm | 값 계열 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/query-chart/editor.tsx:86 |
 | SND_RCV | m-mdm | 송수신 / 송신 → 수신 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutConfirm/page.tsx:55 |
-| STAGE_TEXT | m-mdm | 구분 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/termMng/TermDetailPane.tsx:33 |
+| SND_RCV_SYSTEM | m-mdm | 송신 / 수신 시스템 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dmb/layoutMng/components/LayoutBasicForm.tsx:94 |
+| SQL | m-mcm | SQL | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 3/3 위치는 이미 meta=false) | m-mcm/widget-types/query-chart/editor.tsx:46 |
+| SSO_RESET_FLAG | m-mcm | SSO 초기화 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commUserMng/page.tsx:1203 |
+| STAGE_TEXT | m-mdm | 구분 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/termMng/TermDetailPane.tsx:34 |
 | SYNC_TARGET | m-mcm | 처리유형 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commSyncMng/page.tsx:255 |
-| SYSTEM_FIELDS | m-mdm | 시스템 필드 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/columnMng/page.tsx:75 |
-| TARGET_ROLES | m-mls | 대상 역할{isRoleScope ? " *" : ""} | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mls/pages/lsh/noticeMgmt/page.tsx:724 |
+| SYSTEM_FIELDS | m-mdm | 시스템 필드 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/columnMng/page.tsx:76 |
+| SYSTEM_PROMPT | m-mcm | 시스템 프롬프트 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/chat/editor.tsx:74 |
+| TARGET_ROLES | m-mls | 대상 역할 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mls/pages/lsh/noticeMgmt/page.tsx:749 |
+| TARGET_TYPE | m-mcm | 대상 종류 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/mdmCacheMng/RegisterModal.tsx:84 |
 | TARGET_VALUE | m-mdm | 대상 값 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmc/codeItemEdit/cate/components/PreviewPanel.tsx:22 |
-| TERM_NAMES | m-mdm | 구성 용어 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/columnMng/page.tsx:74 |
+| TERM_NAMES | m-mdm | 구성 용어 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dma/columnMng/page.tsx:75 |
+| TO | m-mdm | 도착 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dme/ruleSetEdit/panels/EdgePanel.tsx:47 |
 | TO1 | m-mcm | TO (서버) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commSyncMng/page.tsx:81 |
 | TO2 | m-mcm | TO (구분) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commSyncMng/page.tsx:82 |
 | TO3 | m-mcm | TO (인스턴스) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commSyncMng/page.tsx:83 |
 | TO4 | m-mcm | TO (스키마) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commSyncMng/page.tsx:84 |
 | TOP_MENU_NM | m-mcm | 최다 이용 화면 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/screenUsageStat/tabs/dept-tab.ts:15 |
-| TOTAL_BYTES | m-mcm | 캐시 추정 크기 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:87 |
+| TOTAL_BYTES | m-mcm | 캐시 추정 크기 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:88 |
+| TYPE_CONFIG | m-mcm | 유형 설정 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:268 |
 | UNAPPLIED_LABEL | m-mdm | 미적용 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmc/codeMng/page.tsx:421 |
+| UNIT | m-mcm | 단위(원 차트) / 단위 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 2/2 위치는 이미 meta=false) | m-mcm/widget-types/query-chart/editor.tsx:110 |
+| UNIT_FIELD | m-mcm | 단위 필드 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/query-number/editor.tsx:67 |
 | UNUSED_DAYS | m-mcm | 미사용 기준(일) | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/screenUsageStat/page.tsx:171 |
 | USED_BY_COUNT | m-mdm | 사용 전문 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/headerMng/components/HeaderList.tsx:17 |
 | USER_CNT | m-mcm | 이용자 수 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/screenUsageStat/tabs/overview-tab.ts:14 |
 | USER_COUNT | m-mcm | 사용자 수 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commWidgetMng/WidgetListTab.tsx:89 |
+| VALUE_FIELD | m-mcm | 값 필드 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/query-number/editor.tsx:53 |
 | VER_STATE | m-mdm | 버전 상태 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutMng/components/ImpactPanel.tsx:19 |
+| WELCOME | m-mcm | 첫 인사 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/chat/editor.tsx:89 |
+| WIDGET_KIND | m-mcm | 구분 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:140 |
+| X_FIELD | m-mcm | 가로축 필드 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/query-chart/editor.tsx:72 |
+| EXAMPLES_TEXT | m-mdm | 예시 값 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/domainMng/components/DomainBasicForm.tsx:142 |
+| LABEL_LONG | m-mdm | 표시명 긴/중간/짧은 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:139 |
 
 ### MES 별칭 등록 — 기존 표준 컬럼에 별칭 추가 (10)
 
@@ -357,6 +409,7 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | APPLY_TO | APL_END_DH | 적용 끝 | MDM 별칭 APPLY_TO→APL_END_DH(적용 종료 일시) 있음, 실제 컬럼 mdm.TB_MDM_CODE_VER,mdm.TB_MDM_RULE_VER |
 | APPLY_FROM | APL_STR_DH | 적용 시작 / 적용 구간 | MDM 별칭 APPLY_FROM→APL_STR_DH(적용 시작 일시) 있음, 실제 컬럼 mdm.TB_MDM_CODE_VER,mdm.TB_MDM_RULE_VER |
 | BASE_UNIT | BAS_UNIT | 기준 단위 | MDM 별칭 BASE_UNIT→BAS_UNIT(기준 단위) 있음, 실제 컬럼 mdm.TB_MDM_UNIT |
+| BIZ_RULE | BUSINESS_RULE | 비즈니스 검증식 | MDM 별칭 BIZ_RULE→BUSINESS_RULE(업무 규칙) 있음, 실제 컬럼 mdm.TB_MDM_DOMAIN |
 | CASE_NAME | CASE_NM | 이름 | MDM 별칭 CASE_NAME→CASE_NM(케이스 명) 있음, 실제 컬럼 mdm.TB_MDM_RULE_TEST_CASE,mdm.TB_MDM_RULE_SET_TEST_CASE |
 | CATE_ID | CATEGORY_ID | ID / 카테고리 ID | MDM 별칭 CATE_ID→CATEGORY_ID(카테고리 아이디) 있음, 실제 컬럼 mdm.TB_MDM_CODE_CATE,mdm.TB_MDM_CODE_CATE_ITEM |
 | CATE_NAME | CATEGORY_NM | 이름 / 카테고리 정의 | MDM 별칭 CATE_NAME→CATEGORY_NM(카테고리 명) 있음, 실제 컬럼 mdm.TB_MDM_CODE_CATE,mdm.TB_MDM_DATA_CATE |
@@ -373,14 +426,14 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | DISP_TYPE | DISP_KND | 표시 타입 | MDM 별칭 DISP_TYPE→DISP_KND(표시 유형) 있음, 실제 컬럼 mdm.TB_MDM_RULE_VAR |
 | DOMAIN_KIND | DOMAIN_KND | 종류 | MDM 별칭 DOMAIN_KIND→DOMAIN_KND(도메인 유형) 있음, 실제 컬럼 mdm.TB_MDM_DOMAIN |
 | DOMAIN_NAME | DOMAIN_NM | 도메인명 / 하위 도메인 / 도메인 | MDM 별칭 DOMAIN_NAME→DOMAIN_NM(도메인 명) 있음, 실제 컬럼 mdm.TB_MDM_DOMAIN |
-| EAI_CODE | EAI_CD | EAI 코드 / 인코딩 / 패딩 규칙 / EAI | MDM 별칭 EAI_CODE→EAI_CD(EAI 코드) 있음, 실제 컬럼 mdm.TB_MDM_EAI,mdm.TB_MDM_LAYOUT_VER |
+| EAI_CODE | EAI_CD | EAI 코드 / EAI | MDM 별칭 EAI_CODE→EAI_CD(EAI 코드) 있음, 실제 컬럼 mdm.TB_MDM_EAI,mdm.TB_MDM_LAYOUT_VER |
 | EAI_NAME | EAI_NM | EAI 이름 | MDM 별칭 EAI_NAME→EAI_NM(EAI 명) 있음, 실제 컬럼 mdm.TB_MDM_EAI |
 | VALID_TO | END_VLD_DD | 끝 | MDM 별칭 VALID_TO→END_VLD_DD(종료 유효 일자) 있음, 실제 컬럼 mdm.TB_MDM_DATA_ITEM,mdm.TB_MDM_DATA_CATE |
 | ENG_NAME | ENG_NM | 영문명 | MDM 별칭 ENG_NAME→ENG_NM(영문 명) 있음, 실제 컬럼 mdm.TB_MDM_TERM |
 | REQUIRED | ESSEN | 필수 | MDM 별칭 REQUIRED→ESSEN(필수) 있음, 실제 컬럼 mdm.TB_MDM_COLUMN |
 | FACTOR | EXC_COEFF | 환산 계수 | MDM 별칭 FACTOR→EXC_COEFF(환산 계수) 있음, 실제 컬럼 mdm.TB_MDM_UNIT |
 | EXPECTED_JSON | EXPCT_RST_JSON | 기대 | MDM 별칭 EXPECTED_JSON→EXPCT_RST_JSON(기대 결과 JSON) 있음, 실제 컬럼 mdm.TB_MDM_RULE_TEST_CASE,mdm.TB_MDM_RULE_SET_TEST_CASE |
-| FILL_KIND | FILL_KND | fill_kind / 채움 | MDM 별칭 FILL_KIND→FILL_KND(채움 유형) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
+| FILL_KIND | FILL_KND | fill_kind / 채움 방식 / 채움 | MDM 별칭 FILL_KIND→FILL_KND(채움 유형) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
 | GRP_COND | GRP_CDN | 조건 / 열 조건 | MDM 별칭 GRP_COND→GRP_CDN(그룹 조건) 있음, 실제 컬럼 mdm.TB_MDM_RULE_VAR |
 | LAYOUT_NAME | LAYOUT_NM | 헤더 이름 / 전문 이름 / 이름 | MDM 별칭 LAYOUT_NAME→LAYOUT_NM(레이아웃 명) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT |
 | LVL_CNT | LEVEL_CNT | 계층 칸 수 | MDM 별칭 LVL_CNT→LEVEL_CNT(수준 수) 있음, 실제 컬럼 mdm.TB_MDM_CODE,mdm.TB_MDM_DATA |
@@ -390,11 +443,11 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | MARU_DATA_NAME | MARU_DATA_NM | 이름 | MDM 별칭 MARU_DATA_NAME→MARU_DATA_NM(마루 데이터 명) 있음, 실제 컬럼 mdm.TB_MDM_DATA |
 | MARU_RULE_NAME | MARU_RULE_NM | 이름 / 룰명 | MDM 별칭 MARU_RULE_NAME→MARU_RULE_NM(마루 규칙 명) 있음, 실제 컬럼 mdm.TB_MDM_RULE |
 | SENSE_NO | MEANING_NO | 의미 / 의미 번호 | MDM 별칭 SENSE_NO→MEANING_NO(의미 번호) 있음, 실제 컬럼 mdm.TB_MDM_TERM |
-| NUM_FORMAT | NUM_FMT | 숫자 형식 | MDM 별칭 NUM_FORMAT→NUM_FMT(수치 형식) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
-| OFFSET | OFST | 오프셋 / 길이 / 오프셋 | MDM 별칭 OFFSET→OFST(오프셋) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
-| COLUMN_PHYS | PHYS_NM | 컬럼 / 표준 물리명 | MDM 별칭 COLUMN_PHYS→PHYS_NM(물리 명) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
+| NUM_FORMAT | NUM_FMT | 숫자 표현 / 숫자 형식 | MDM 별칭 NUM_FORMAT→NUM_FMT(수치 형식) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
+| OFFSET | OFST | 오프셋 | MDM 별칭 OFFSET→OFST(오프셋) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
+| COLUMN_PHYS | PHYS_NM | 컬럼 / 표준 물리명 | MDM 별칭 COLUMN_PHYS→PHYS_NM(물리 명) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM (화면 1/4 위치는 이미 meta=false) |
 | PHYS_NAME | PHYS_NM | 실제 필드명 / 표준 물리명 | MDM 별칭 PHYS_NAME→PHYS_NM(물리 명) 있음, 실제 컬럼 mdm.TB_MDM_COLUMN_SYSTEM,mdm.TB_MDM_COLUMN |
-| PARENT_DOMAIN_ID | PRN_DOMAIN_ID | 부모 도메인 / 지금 부모 | MDM 별칭 PARENT_DOMAIN_ID→PRN_DOMAIN_ID(상위 도메인 아이디) 있음, 실제 컬럼 mdm.TB_MDM_DOMAIN |
+| PARENT_DOMAIN_ID | PRN_DOMAIN_ID | 부모 도메인 / 지금 부모 / 새 부모 도메인 | MDM 별칭 PARENT_DOMAIN_ID→PRN_DOMAIN_ID(상위 도메인 아이디) 있음, 실제 컬럼 mdm.TB_MDM_DOMAIN |
 | RCV_SYSTEM | RCV_SYS_CD | 수신 시스템 | MDM 별칭 RCV_SYSTEM→RCV_SYS_CD(수신 시스템 코드) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT |
 | REF_CATE_ID | REF_CATEGORY_ID | 참조 카테고리 | MDM 별칭 REF_CATE_ID→REF_CATEGORY_ID(참조 카테고리 아이디) 있음, 실제 컬럼 mdm.TB_MDM_COLUMN |
 | REF_KIND | REF_KND | 참조 종류 | MDM 별칭 REF_KIND→REF_KND(참조 유형) 있음, 실제 컬럼 mdm.TB_MDM_COLUMN |
@@ -402,25 +455,24 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | ROW_VERSION | ROW_VER | 행 버전 | MDM 별칭 ROW_VERSION→ROW_VER(행 버전) 있음, 실제 컬럼 mdm.TB_MDM_RULE_TEST_CASE,mdm.TB_MDM_CODE_VER |
 | RES_GRP | RST_GRP | 그룹 | MDM 별칭 RES_GRP→RST_GRP(결과 그룹) 있음, 실제 컬럼 mdm.TB_MDM_RULE_VAR |
 | RULE_KIND | RULE_KND | 종류 | MDM 별칭 RULE_KIND→RULE_KND(규칙 유형) 있음, 실제 컬럼 mdm.TB_MDM_RULE |
-| SND_SYSTEM | SND_SYS_CD | 송신→수신 / 송신 / 수신 시스템 / 송신 시스템 | MDM 별칭 SND_SYSTEM→SND_SYS_CD(송신 시스템 코드) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT |
-| TOTAL_LENGTH | SNT_LTH | 길이 / 총 길이 | MDM 별칭 TOTAL_LENGTH→SNT_LTH(전문 총 길이)가 이미 있음 |
+| SND_SYSTEM | SND_SYS_CD | 송신→수신 / 송신 시스템 | MDM 별칭 SND_SYSTEM→SND_SYS_CD(송신 시스템 코드) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT |
+| TOTAL_LENGTH | SNT_LTH | 길이 / 총 길이 | MDM 별칭 TOTAL_LENGTH→SNT_LTH(전문 총 길이)가 이미 있음 (화면 1/6 위치는 이미 meta=false) |
 | FILLER_LENGTH | SPR_LEN | FILLER 길이 | MDM 별칭 FILLER_LENGTH→SPR_LEN(예비 길이) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
 | SOURCE_KIND | SRC_KND | 원천 | MDM 별칭 SOURCE_KIND→SRC_KND(출처 유형) 있음, 실제 컬럼 mdm.TB_MDM_RULE,mdm.TB_MDM_CODE |
 | STD_NAME | STD_NM | 표준명 | MDM 별칭 STD_NAME→STD_NM(표준 명) 있음, 실제 컬럼 mdm.TB_MDM_DOMAIN |
 | VALID_FROM | STR_VLD_DD | 시작 일시 / 시작 | MDM 별칭 VALID_FROM→STR_VLD_DD(시작 유효 일자) 있음, 실제 컬럼 mdm.TB_MDM_DATA_ITEM,mdm.TB_MDM_DATA_CATE |
 | SYSTEM_CODE | SYS_CD | SYSTEM / 시스템 | MDM 별칭 SYSTEM_CODE→SYS_CD(시스템 코드) 있음, 실제 컬럼 mcm.TB_MCM_SEC_OBJ,mdm.TB_MDM_SYSTEM |
 | SYSTEMS | SYS_LIST | 사용 시스템 | MDM 별칭 SYSTEMS→SYS_LIST(시스템 리스트) 있음, 실제 컬럼 mdm.TB_MDM_TERM |
-| DEFINITION | TERM_DESC | 정의 | MDM 별칭 DEFINITION→TERM_DESC(용어 설명) 있음, 실제 컬럼 mdm.TB_MDM_TERM |
+| DEFINITION | TERM_DESC | 정의 | MDM 별칭 DEFINITION→TERM_DESC(용어 설명) 있음, 실제 컬럼 mdm.TB_MDM_TERM (화면 1/2 위치는 이미 meta=false) |
 | TERM_NAME | TERM_NM | 표기 | MDM 별칭 TERM_NAME→TERM_NM(용어 명) 있음, 실제 컬럼 mdm.TB_MDM_TERM |
-| UNIT_CODE | UNIT_CD | 단위 / 단위 코드 / 환산 계수 | MDM 별칭 UNIT_CODE→UNIT_CD(단위 코드) 있음, 실제 컬럼 mdm.TB_MDM_UNIT,mdm.TB_MDM_DOMAIN |
+| UNIT_CODE | UNIT_CD | 단위 / 단위 코드 / 검색어 | MDM 별칭 UNIT_CODE→UNIT_CD(단위 코드) 있음, 실제 컬럼 mdm.TB_MDM_UNIT,mdm.TB_MDM_DOMAIN |
 | USAGE_NOTE | USE_RMK | 활용처 메모 | MDM 별칭 USAGE_NOTE→USE_RMK(사용 비고) 있음, 실제 컬럼 mdm.TB_MDM_RULE,mdm.TB_MDM_COLUMN |
 | VAR_KIND | VAR_KND | 구분 | MDM 별칭 VAR_KIND→VAR_KND(변수 유형) 있음, 실제 컬럼 mdm.TB_MDM_RULE_VAR |
 | VAR_NAME | VAR_NM | 변수 | MDM 별칭 VAR_NAME→VAR_NM(변수 명) 있음, 실제 컬럼 mdm.TB_MDM_RULE_VAR |
 | VER_KIND | VER_KND | 종류 | MDM 별칭 VER_KIND→VER_KND(버전 유형) 있음, 실제 컬럼 mdm.TB_MDM_CODE_VER,mdm.TB_MDM_RULE_VER |
-| LABEL_LONG | WIDE_DISP_NM | 표시명 긴/중간/짧은 | MDM 별칭 LABEL_LONG→WIDE_DISP_NM(넓은 표시 명) 있음, 실제 컬럼 mdm.TB_MDM_COLUMN |
 | TRANS_UNIT | XMIT_UNIT | 전송 단위 / 단위 항목 / 전송 단위 | MDM 별칭 TRANS_UNIT→XMIT_UNIT(전송 단위) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
 
-### 새 표준 컬럼 등록 (69)
+### 새 표준 컬럼 등록 (70)
 
 | 화면 키 | 표준 물리명 | 논리명 | MES 별칭 | 도메인 | 용어(의미 번호) | 근거 |
 |---|---|---|---|---|---|---|
@@ -480,6 +532,7 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | PARENT_MENU_ID | PRN_MENU_ID | 상위 메뉴 아이디 | PARENT_MENU_ID | 168 | 상위#1 메뉴#1 아이디#1 | TB_MCM_SEC_MENU.PARENT_MENU_ID |
 | PARENT_ROLE_ID | PRN_ROLE_ID | 상위 직무 아이디 | PARENT_ROLE_ID | 168 | 상위#1 직무#1 아이디#1 | TB_MCM_SEC_ROLE.PARENT_ROLE_ID — ROLE 은 용어 '직무'(사용자의 업무 역할) |
 | POPUP_BTN | PU_BTN_AUT | 팝업 버튼 권한 | POPUP_BTN |  | 팝업#1 버튼#1 권한#1 | TB_MCM_SEC_PERM.POPUP_BTN |
+| REFRESH_SEC | RENEWAL_CYCLE_SS | 갱신 주기 초 | REFRESH_SEC |  | 갱신#1 주기#1 초#2 | TB_MCM_WIDGET_DEF.REFRESH_SEC(새로 고침 주기, 초) — '새로고침' 용어가 없어 '갱신 주기 초'로 분해(dev 합친 뒤 새 키) |
 | ROLE_DESC | ROLE_DESC | 직무 설명 | (물리명과 같음) | 183 | 직무#1 설명#1 | TB_MCM_SEC_ROLE.ROLE_DESC |
 | ROLE_GROUP_DESC | ROLE_GRP_DESC | 직무 그룹 설명 | ROLE_GROUP_DESC | 183 | 직무#1 그룹#1 설명#1 | TB_MCM_SEC_ROLEGROUP.ROLE_GROUP_DESC |
 | ROLE_GROUP_ID | ROLE_GRP_ID | 직무 그룹 아이디 | ROLE_GROUP_ID | 168 | 직무#1 그룹#1 아이디#1 | TB_MCM_SEC_ROLEGROUP.ROLE_GROUP_ID |
@@ -503,9 +556,8 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | CATEGORY_ID | CATEGORY_ID | 사전 hit |
 | CATEGORY_NM | CATEGORY_NM | 사전 hit |
 | CLIENT_IP | CLIENT_IP | 사전 hit |
-| CONTEXT | CONTEXT | 사전 hit |
+| CONTEXT | CONTEXT | 사전 hit (화면 1/3 위치는 이미 meta=false) |
 | DATA_TYPE | DATA_KND | 사전 hit(MES 별칭 DATA_TYPE→DATA_KND) |
-| DATA_SRC | DATA_SRC | 사전 hit |
 | DEPT_CD | DEPT_CD | 사전 hit |
 | DISPLAY_NAME | DISP_NM | 사전 hit(MES 별칭 DISPLAY_NAME→DISP_NM) |
 | DOMAIN_ID | DOMAIN_ID | 사전 hit |
@@ -519,7 +571,7 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | INPUT_JSON | INPUT_JSON | 사전 hit |
 | LAST_UPDATE_TIMESTAMP | LAST_CHG_DH | 사전 hit(MES 별칭 LAST_UPDATE_TIMESTAMP→LAST_CHG_DH) |
 | LAST_UPDATED_OBJECT_ID | LAST_CHG_OBJECT_ID | 사전 hit(MES 별칭 LAST_UPDATED_OBJECT_ID→LAST_CHG_OBJECT_ID) |
-| LAYOUT_ID | LAYOUT_ID | 사전 hit |
+| LAYOUT_ID | LAYOUT_ID | 사전 hit (화면 2/5 위치는 이미 meta=false) |
 | MARU_DATA_ID | MARU_DATA_ID | 사전 hit |
 | MARU_RULE_ID | MARU_RULE_ID | 사전 hit |
 | MENU_ID | MENU_ID | 사전 hit |
@@ -532,10 +584,11 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | ROLE_ID | ROLE_ID | 사전 hit |
 | ROW_ID | ROW_ID | 사전 hit |
 | SORT_SEQ | SORT_SEQ | 사전 hit |
+| STD_RULE | STD_RULE | 사전 hit |
 | START_ACTIVE_DATE | STR_VLD_DD | 사전 hit(MES 별칭 START_ACTIVE_DATE→STR_VLD_DD) |
 | SYS_CD | SYS_CD | 사전 hit |
 | TEL_NO | TEL_NO | 사전 hit |
-| TITLE | TITLE | 사전 TITLE(제목) — 공지·위젯 제목과 같은 뜻(조정자 결정 mdm-column-dict-2) |
+| TITLE | TITLE | 사전 TITLE(제목) — 공지·위젯 제목과 같은 뜻(조정자 결정 mdm-column-dict-2) (화면 4/7 위치는 이미 meta=false) |
 | UNIT_ITEM | UNIT_ITEM | 사전 hit |
 | USE_TP | USE_TP | 사전 hit |
 | USE_YN | USE_YN | 사전 hit |

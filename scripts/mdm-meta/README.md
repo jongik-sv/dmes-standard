@@ -7,11 +7,11 @@
 |---|---|
 | `collect-keys.mjs` | m-mcm·m-mls·m-mdm 화면이 메타를 찾는 키를 모은다(`--names` 물리명 목록, `--json` 위치 포함). |
 | `check-meta.sh` | 키 목록으로 `/api/{module}/mdmMeta/columns` 를 불러 hit·missing·unavailable 수를 낸다. `--baseline`·`--expect` 로 전후 비교. 읽기 전용. |
-| `columns-2026-10-05.json` | 등록 묶음 — 용어 1(위젯), 새 표준 컬럼 59(MES 별칭 59), 기존 컬럼 별칭 10. |
+| `columns-2026-10-05.json` | 등록 묶음 — 용어 1(위젯), 새 표준 컬럼 60(MES 별칭 60), 기존 컬럼 별칭 10. |
 | `register-columns.mjs` | 등록 묶음을 MDM OASIS `termMng`·`columnMng` 로 보낸다. 기본 dry-run, `--apply` 일 때만 save. |
-| `keys-2026-10-05.txt` | 2026-10-05 화면 키 고정 목록(물리명 417개). 전후 비교는 늘 이 목록으로 한다. |
-| `baseline-2026-10-05.json` | 등록 전 mcm 응답(hit 62·missing 355, 로컬 2026-10-05 12시). |
-| `expected-gain-2026-10-05.txt` | 등록과 C1b 뒤 hit 돼야 할 키 146개(분류 NEW 69·ALIAS 10·MDM 67). |
+| `keys-2026-10-05.txt` | 2026-10-05 화면 키 고정 목록(메타를 요청하는 물리명 416개, dev d1028256 합친 뒤). 전후 비교는 늘 이 목록으로 한다. |
+| `baseline-2026-10-05.json` | 등록 전 mcm 응답(hit 61·missing 355, 로컬 2026-10-05). |
+| `expected-gain-2026-10-05.txt` | 등록과 C1b 뒤 hit 돼야 할 키 147개(분류 NEW 70·ALIAS 10·MDM 67). |
 
 ## 1. 표준관리자 인증
 
@@ -37,7 +37,7 @@ MDM BE 를 BFF 없이 직접 부를 때 역할이 들어가는 길은 다음과 
    ```bash
    node scripts/mdm-meta/register-columns.mjs --base http://localhost:8096
    ```
-   2026-10-05 로컬 결과: PLAN 70·SKIP 0·FAIL 0. `WIDGET_ID` 는 용어 「위젯」 이 아직 없어 「용어 등록 뒤 가능」 으로 나오는데, `--apply` 한 번에 용어를 먼저 저장하므로 같은 실행에서 이어 저장된다. 이 항목은 dry-run 에서 도메인·별칭·중복 검사를 건너뛰므로 적용 결과로 확인한다.
+   2026-10-05 로컬 결과: PLAN 71·SKIP 0·FAIL 0. `WIDGET_ID` 는 용어 「위젯」 이 아직 없어 「용어 등록 뒤 가능」 으로 나오는데, `--apply` 한 번에 용어를 먼저 저장하므로 같은 실행에서 이어 저장된다. 이 항목은 dry-run 에서 도메인·별칭·중복 검사를 건너뛰므로 적용 결과로 확인한다.
 3. **적용**: 용어 → 새 컬럼 → 기존 컬럼 별칭 순서로 저장한다.
    ```bash
    node scripts/mdm-meta/register-columns.mjs --base http://localhost:8096 --user <표준관리자 사번> --apply
@@ -47,7 +47,7 @@ MDM BE 를 BFF 없이 직접 부를 때 역할이 들어가는 길은 다음과 
    scripts/mdm-meta/check-meta.sh --names scripts/mdm-meta/keys-2026-10-05.txt \
      --baseline scripts/mdm-meta/baseline-2026-10-05.json --expect scripts/mdm-meta/expected-gain-2026-10-05.txt
    ```
-   기대값: `gained=146 lost=0`, `not_yet=0`(exit 0). `lost` 가 있거나 `not_yet` 이 남으면 exit 1 이다. 그 키의 분류 행과 등록 결과를 대조한다.
+   기대값: `gained=147 lost=0`, `not_yet=0`(exit 0). `lost` 가 있거나 `not_yet` 이 남으면 exit 1 이다. 그 키의 분류 행과 등록 결과를 대조한다.
    mcm 메타 조회는 mcm 캐시에 있음·없음을 채운다. 배포 순서가 어긋난 상태(1번)에서는 돌리지 않는다.
 
 ## 3. 스크립트 동작

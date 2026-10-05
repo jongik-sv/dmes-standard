@@ -17,6 +17,6 @@
 - 바뀌기 전: 화면 키가 사전에 있는지 확인하거나 컬럼을 일괄 등록하는 도구가 없었다.
 - 바뀐 뒤: 키 수집(`collect-keys.mjs`), mcm 메타 hit 확인·전후 비교(`check-meta.sh`), OASIS 등록(`register-columns.mjs`, 기본 dry-run), BE 측정(`scripts/perf/mdm-meta/run-measure.sh`)을 둔다. 등록은 피드 기록이 남는 OASIS save 로만 한다.
 - 바꾼 이유: 툴팁이 붙지 않는 키를 운영 DB 에도 같은 절차로 등록하기 위해서다(사용자 결정: 등록 JSON 과 스크립트를 리포에 남긴다).
-- 동작 보존 근거: 제품 코드 변경 없음. dry-run 로컬 결과 PLAN 70·FAIL 0, check-meta 로컬 결과 hit 62(조정자 실측과 같음).
+- 동작 보존 근거: 제품 코드 변경 없음. dry-run 로컬 결과 PLAN 71·FAIL 0, check-meta 로컬 결과 hit 61(dev 합친 뒤. 합치기 전 62 는 조정자 실측과 같음).
 - 영향 범위: 없음(스크립트만). `--apply` 는 조정 세션만 돌린다.
 - 되돌리는 방법: 해당 커밋을 revert 한다.

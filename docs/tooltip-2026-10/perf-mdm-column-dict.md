@@ -7,7 +7,7 @@
 
 - 관련 구조 변경: S1
 - 지표(단위): 응답 시간 중앙값(ms), 응답 크기(bytes), hit 수
-- 측정 절차: `scripts/perf/mdm-meta/run-measure.sh --pair mcm --rounds 5 --tag <before|after>` — A 표준 물리명 175개, B 별칭 이름 136개. 워밍업 뒤 캐시 적중 경로다.
+- 측정 절차: `scripts/perf/mdm-meta/run-measure.sh --pair mcm --rounds 5 --tag <before|after>` — A 표준 물리명 176개, B 별칭 이름 137개. 워밍업 뒤 캐시 적중 경로다.
 - 기준: 등록·C1b 전(로컬 2026-10-05) / 변경: 등록·C1b 뒤
 - 측정 환경: 조정 세션 측정 창(다른 레인 조용할 때), 전원 연결
 
@@ -24,7 +24,7 @@
 
 - 관련 구조 변경: S1
 - 지표(단위): 응답 시간 중앙값(ms), 피드 크기(bytes), hit 수
-- 측정 절차: `scripts/perf/mdm-meta/run-measure.sh --pair feed --rounds 5 --tag after` — 별칭 이름 136개를 A `MES`, B `MES,MDM` 으로. MDM 이 C1b 로 재기동된 뒤에만 B 가 의미 있다.
+- 측정 절차: `scripts/perf/mdm-meta/run-measure.sh --pair feed --rounds 5 --tag after` — 별칭 이름 137개를 A `MES`, B `MES,MDM` 으로. MDM 이 C1b 로 재기동된 뒤에만 B 가 의미 있다.
 - 기준 커밋: e00a3c7c(코드 하나) / 변경 커밋: ee705168
 - 측정 환경: 위와 같음
 
