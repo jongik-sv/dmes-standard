@@ -195,6 +195,25 @@ class ColumnMngServiceSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 상한_조회의_행_순서는_DB_ORDER_BY_논리명_ID_를_따르고_전체_건수는_COUNT_다() {
+        DmaTestSupport.column(columns, "코일", "COIL", coilThk.getDomainId());
+        DmaTestSupport.column(columns, "alpha", "ALPHA_L", coilThk.getDomainId());
+        DmaTestSupport.column(columns, "Zeta", "ZETA", coilThk.getDomainId());
+        DmaTestSupport.column(columns, "Beta", "BETA", coilThk.getDomainId());
+        ColumnMngSearchRequest q = new ColumnMngSearchRequest();
+        q.setLimit(3);
+
+        Map<String, Object> result = service.search(q);
+
+        List<String> dbOrder = jdbc.queryForList(
+                "SELECT COLUMN_NAME FROM TB_MDM_COLUMN ORDER BY COLUMN_NAME, COLUMN_ID LIMIT 3", String.class);
+        assertEquals(dbOrder, names(result), "잘리는 경계와 행 순서 모두 DB 정렬을 따른다");
+        assertEquals(List.of("Beta", "Zeta", "alpha"), names(result), "SQLite BINARY — 대문자가 소문자보다, 영문이 한글보다 앞");
+        assertEquals(4, result.get("totalCount"));
+        assertEquals(true, result.get("truncated"));
+    }
+
+    @Test
     void limit_이_없거나_조건이_있으면_상한_없이_전부_준다() {
         DmaTestSupport.column(columns, "코일 폭", "COIL_WTH", coilThk.getDomainId());
         DmaTestSupport.column(columns, "코일 두께", "COIL_THK", coilThk.getDomainId());
