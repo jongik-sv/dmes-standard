@@ -195,6 +195,7 @@ final class FlowKeys {
                 case Guarded g -> {
                     Set<String> sureBefore = new HashSet<>(sure);
                     Set<String> maybeBefore = new HashSet<>(maybe);
+                    // SEAM(T4) — 받는 노드가 붙은 SET 의 하위 세트 입력 키는 여기서 채운다(지금은 RULE 만).
                     if (g.step() instanceof RuleStep r) {
                         ruleKeys(r, g.handlerFor(CatchKind.INPUT_ERROR) != null, available, sure, maybe, reported, out);
                     }
@@ -246,6 +247,7 @@ final class FlowKeys {
 
     /** 단계 결과 이름 — 빈 단계·정의 없는 룰은 빈 집합. */
     private Set<String> produced(Step s) {
+        // SEAM(T4) — 받는 노드가 붙은 SET 의 하위 세트 출력 이름은 여기서 채운다(지금은 빈 집합).
         if (!(s instanceof RuleStep r)) {
             return new HashSet<>();
         }
