@@ -52,8 +52,8 @@ export interface MdmHeaderLabelProps extends Partial<MdmHeaderLabelParams> {
 /** 라벨 감싸개에 다는 클래스 — 이 부품이 싣는 규칙이 display:contents 로 둔다. */
 export const MDM_HEADER_LABEL_HOST_CLASS = "mdm-header-label-host";
 /**
- * 그리드가 tooltipShowDelay 를 정하지 않았을 때의 표시 지연. AgDataGrid 의 기본값(`GRID_TOOLTIP_SHOW_DELAY_MS`)과 같다 — AgDataGrid 는 늘 값을
- * 넘기므로 이 값은 다른 ag-grid 에 이 라벨을 달 때만 쓰인다(AgDataGrid 를 가져오면 순환 import 라 값을 따로 둔다).
+ * 그리드가 tooltipShowDelay 를 정하지 않았을 때의 표시 지연. AgDataGrid 의 기본값(`GRID_TOOLTIP_SHOW_DELAY_MS`)이 이 값을 그대로 쓴다 —
+ * AgDataGrid 는 늘 값을 넘기므로 라벨이 이 값을 직접 쓰는 것은 다른 ag-grid 에 달 때뿐이다.
  */
 export const MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS = 500;
 /** ag-grid 는 tooltipShowDelay 를 200ms 아래로 내리지 않는다(TooltipStateManager). */

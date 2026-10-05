@@ -42,7 +42,7 @@ import {
 } from "../../mdm-meta";
 import { GRID_SIZE_CHANGE_SETTLE_MS, resolveGridSizeChangeAction } from "./grid-size-change";
 import { AgDataGridExcelFrame, type AgDataGridExcelExport } from "./AgDataGridExcel";
-import { MdmHeaderLabel, type MdmHeaderLabelParams } from "./MdmHeaderLabel";
+import { MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS, MdmHeaderLabel, type MdmHeaderLabelParams } from "./MdmHeaderLabel";
 
 /** `rowNumber` 로 넣는 행번호 열의 colId — 테스트·화면이 이 칸을 집을 때 쓴다. */
 export const ROW_NUMBER_COL_ID = "__rowNo";
@@ -160,10 +160,10 @@ const SelectCellEditor = function SelectCellEditor(props: {
 
 const DEFAULT_FIXED_COLUMN_WIDTH = 120;
 /**
- * 그리드 툴팁(머리글·셀) 기본 표시 지연. ag-grid 기본 2000ms 는 머리글 이름·설명을 확인하기에 너무 늦어 500ms 로 둔다(2026-10-05).
- * 화면이 `tooltipShowDelay` 를 주면 그 값이다. MdmHeaderLabel 의 기본값(`MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS`)과 같아야 한다.
+ * 그리드 툴팁(머리글·셀) 기본 표시 지연(500ms). ag-grid 기본 2000ms 는 머리글 이름·설명을 확인하기에 너무 늦다(2026-10-05).
+ * 화면이 `tooltipShowDelay` 를 주면 그 값이다. 값은 HTML 설명 머리글 카드의 기본값과 한 곳(MdmHeaderLabel)에 둔다.
  */
-export const GRID_TOOLTIP_SHOW_DELAY_MS = 500;
+export const GRID_TOOLTIP_SHOW_DELAY_MS = MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS;
 
 function toColumnWidth(width: number | string | undefined): number | undefined {
   if (width == null || width === "") return undefined;
@@ -1132,8 +1132,8 @@ function AgDataGridComponent({
     return [noCol, ...defs];
   }, [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable, rowNumber, mdm, issuesEnabled, cellIssue]);
 
-  // 셀 텍스트가 컬럼 폭 초과로 잘려서 ... 으로 표시될 때 마우스오버 시 전체 값을 tooltip 으로 표시.
-  // tooltipValueGetter 는 ag-grid 의 browser-native title 속성 사용 (별도 라이브러리 불필요).
+  // 셀 툴팁 — 말줄임된 긴 값을 확인하도록 셀 값을 ag-grid 툴팁으로 띄운다. 잘림 여부는 보지 않아 짧은 값도 뜬다.
+  // 지연은 그리드 tooltipShowDelay(기본 GRID_TOOLTIP_SHOW_DELAY_MS), 열에서 끄려면 GridColumn.tooltip=false.
   const defaultColDef = useMemo<ColDef>(
     () => ({
       sortable: effectiveSortable,
