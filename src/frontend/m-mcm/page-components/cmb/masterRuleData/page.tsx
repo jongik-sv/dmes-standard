@@ -84,9 +84,9 @@ export default function MasterRuleDataPage() {
   // ── 동적 그리드 컬럼 빌드 (BR-005/006/007 — Q-003) ──
   const gridColumns = useMemo<GridColumn[]>(() => {
     const cols: GridColumn[] = [
-      { key: "SEQ", header: "순번", width: 70, editable: false, align: "center" },
+      { key: "SEQ", header: "순번", meta: false, width: 70, editable: false, align: "center" },
       {
-        key: "rowStatus", header: "상태", width: 70, editable: false, align: "center",
+        key: "rowStatus", header: "상태", meta: false, width: 70, editable: false, align: "center",
         render: (v) => STATUS_LABEL[String(v ?? "")] ?? "",
       },
     ];

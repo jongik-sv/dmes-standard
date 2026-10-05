@@ -19,8 +19,8 @@ interface Props {
 }
 
 const COLUMNS: GridColumn[] = [
-  { key: "objId", header: "OBJECT ID", width: 200, align: "left" },
-  { key: "objNm", header: "객체명", width: 260, align: "left" },
+  { key: "objId", header: "OBJECT ID", meta: "OBJECT_ID", width: 200, align: "left" },
+  { key: "objNm", header: "객체명", meta: "OBJECT_NM", width: 260, align: "left" },
   { key: "sysCd", header: "모듈", width: 80, align: "left" },
 ];
 

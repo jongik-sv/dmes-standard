@@ -59,6 +59,7 @@ const GRID_COLUMNS: GridColumn[] = [
   {
     key: "__no",
     header: "NO",
+    meta: false,
     width: 50,
     align: "center",
     headerAlign: "center",

@@ -74,14 +74,14 @@ import {
  * 등가물 = onRowSelect callback 으로 selectedKeys 추적 (W6 commRoleMng / W7 commUserRoleCopy 정본 패턴).
  */
 const SYNC_COLUMNS: GridColumn[] = [
-  { key: "from1", header: "FROM (서버)", width: 90, editable: false, align: "left" },
-  { key: "from2", header: "FROM (구분)", width: 90, editable: false, align: "left" },
-  { key: "from3", header: "FROM (인스턴스)", width: 130, editable: false, align: "left" },
-  { key: "from4", header: "FROM (스키마)", width: 130, editable: false, align: "left" },
-  { key: "to1", header: "TO (서버)", width: 90, editable: false, align: "left" },
-  { key: "to2", header: "TO (구분)", width: 90, editable: false, align: "left" },
-  { key: "to3", header: "TO (인스턴스)", width: 130, editable: false, align: "left" },
-  { key: "to4", header: "TO (스키마)", width: 130, editable: false, align: "left" },
+  { key: "from1", header: "FROM (서버)", meta: false, width: 90, editable: false, align: "left" },
+  { key: "from2", header: "FROM (구분)", meta: false, width: 90, editable: false, align: "left" },
+  { key: "from3", header: "FROM (인스턴스)", meta: false, width: 130, editable: false, align: "left" },
+  { key: "from4", header: "FROM (스키마)", meta: false, width: 130, editable: false, align: "left" },
+  { key: "to1", header: "TO (서버)", meta: false, width: 90, editable: false, align: "left" },
+  { key: "to2", header: "TO (구분)", meta: false, width: 90, editable: false, align: "left" },
+  { key: "to3", header: "TO (인스턴스)", meta: false, width: 130, editable: false, align: "left" },
+  { key: "to4", header: "TO (스키마)", meta: false, width: 130, editable: false, align: "left" },
 ];
 
 /**

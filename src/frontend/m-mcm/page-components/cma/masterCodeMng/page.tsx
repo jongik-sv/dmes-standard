@@ -182,6 +182,7 @@ function buildDetailColumns(
     {
       key: "CHK",
       header: "선택",
+      meta: false,
       width: 50,
       editable: false,
       align: "center",
@@ -198,6 +199,7 @@ function buildDetailColumns(
     {
       key: "STATUS",
       header: "상태",
+      meta: false,
       width: 50,
       editable: false,
       align: "center",

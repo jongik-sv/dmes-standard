@@ -749,6 +749,7 @@ function NoticeMgmtScreen() {
                     <MdmFieldLabel
                       name="TARGET_ROLES"
                       label="대상 역할"
+                      meta={false}
                       required={isRoleScope}
                     />
                   </th>

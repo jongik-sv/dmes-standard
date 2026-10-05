@@ -54,6 +54,7 @@ const COLUMNS: GridColumn[] = [
   {
     key: "kind",
     header: "구분",
+    meta: false,
     width: 1,
     minWidth: 56,
     align: "center",
@@ -67,6 +68,7 @@ const COLUMNS: GridColumn[] = [
   {
     key: "typeTitle",
     header: "유형",
+    meta: false,
     width: 2,
     minWidth: 90,
     align: "left",
@@ -85,11 +87,12 @@ const COLUMNS: GridColumn[] = [
         <GridBadge label="사용" bg="var(--color-success-soft)" color="var(--color-success)" />
       ),
   },
-  { key: "defaultSize", header: "기본 크기", width: 1, minWidth: 72, align: "center" },
-  { key: "userCount", header: "사용자 수", width: 1, minWidth: 72, align: "right" },
+  { key: "defaultSize", header: "기본 크기", meta: false, width: 1, minWidth: 72, align: "center" },
+  { key: "userCount", header: "사용자 수", meta: false, width: 1, minWidth: 72, align: "right" },
   {
     key: "overridden",
     header: "덮어씀",
+    meta: false,
     width: 1,
     minWidth: 60,
     align: "center",

@@ -11,10 +11,11 @@ export const lastUsedText = (v: unknown): string => formatYmd(v) || "기록 없�
 export const UNUSED_COLUMNS: GridColumn[] = [
   { key: "menuNm", header: "화면명", width: 180, align: "left" },
   { key: "pageId", header: "화면 ID", width: 120, align: "left" },
-  { key: "menuPath", header: "메뉴 경로", width: 100, minWidth: 180, align: "left" },
+  { key: "menuPath", header: "메뉴 경로", meta: false, width: 100, minWidth: 180, align: "left" },
   {
     key: "lastUsedDt",
     header: "마지막 이용일",
+    meta: false,
     width: 100,
     align: "center",
     render: (v) => lastUsedText(v),

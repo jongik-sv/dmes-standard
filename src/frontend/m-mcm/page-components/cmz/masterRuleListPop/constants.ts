@@ -14,7 +14,7 @@ export const DEFAULT_FILTERS: PopFilters = {
  * As-Is editmaxlength/editimemode 는 편집 핸들러 없는 잔재 → To-Be 읽기 전용 (BR-008, 분석 §12).
  */
 export const POP_COLUMNS: GridColumn[] = [
-  { key: "no", header: "NO", width: 60, editable: false, align: "center" },
+  { key: "no", header: "NO", meta: false, width: 60, editable: false, align: "center" },
   { key: "ruleId", header: "업무기준 ID", width: 120, editable: false },
   { key: "ruleNm", header: "업무기준 명", width: 240, editable: false, align: "left" },
 ];

@@ -71,7 +71,7 @@ const NOTICE_STYLE = {
 const isBoardEditing = () =>
   typeof document !== "undefined" && document.querySelector(`[data-testid="${BOARD_TEST_ID}"] [data-action="cancel-edit"]`) != null;
 
-const LIST_COLUMNS: GridColumn[] = [{ key: "label", header: "배치", width: 100, minWidth: 160, align: "left" }];
+const LIST_COLUMNS: GridColumn[] = [{ key: "label", header: "배치", meta: false, width: 100, minWidth: 160, align: "left" }];
 
 /** 서랍이 정의 위젯 옆에 보이는 유형 이름 — 유형 등록부는 생성물이라 한 번만 만든다. */
 const TYPE_TITLES = buildTypeTitles(WIDGET_TYPE_REGISTRY);

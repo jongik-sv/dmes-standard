@@ -26,10 +26,10 @@ export const MAX_LEN = {
  *  - 헤더 내장 IN/OUT 일괄 콤보(E-001) → 그리드 상단 콤보+적용 버튼으로 대체 (기능 등가)
  */
 export const COL_LIST_COLUMNS: GridColumn[] = [
-  { key: "no", header: "순번", width: 60, editable: false, align: "center" },
+  { key: "no", header: "순번", meta: false, width: 60, editable: false, align: "center" },
   { key: "colId", header: "영문항목명 *", width: 150, editable: true, align: "left" },
   { key: "colNm", header: "한글항목명 *", width: 150, editable: true, align: "left" },
-  { key: "chk", header: "선택", width: 70, editable: true, cellEditor: "select", cellEditorValues: ["Y", "N"], align: "center" },
+  { key: "chk", header: "선택", meta: false, width: 70, editable: true, cellEditor: "select", cellEditorValues: ["Y", "N"], align: "center" },
   { key: "ioFlag", header: "IN/OUT *", width: 90, editable: true, cellEditor: "select", cellEditorValues: [...IN_OUT_VALUES] },
   { key: "masterCodeDiv", header: "코드여부 *", width: 90, editable: true, cellEditor: "select", cellEditorValues: [...DIV_VALUES] },
   { key: "colType", header: "유형 *", width: 110, editable: true, cellEditor: "select", cellEditorValues: [...COL_TYPE_VALUES] },

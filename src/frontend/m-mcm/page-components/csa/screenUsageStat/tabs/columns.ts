@@ -35,9 +35,9 @@ export const ymdCol = (key: string, header: string): GridColumn => ({
 export const SCREEN_COLUMNS: GridColumn[] = [
   { key: "menuNm", header: "화면명", width: 180, align: "left" },
   { key: "pageId", header: "화면 ID", width: 120, align: "left" },
-  { key: "menuPath", header: "메뉴 경로", width: 100, minWidth: 180, align: "left" },
+  { key: "menuPath", header: "메뉴 경로", meta: false, width: 100, minWidth: 180, align: "left" },
   countCol("openCnt", "열람 횟수"),
-  countCol("userCnt", "이용자 수"),
+  { ...countCol("userCnt", "이용자 수"), meta: false },
   durationCol("durationMs", "총 이용 시간"),
   durationCol("avgDurationMs", "평균 이용 시간"),
   ymdCol("lastUsedDt", "마지막 이용일"),

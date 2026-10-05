@@ -323,8 +323,8 @@ function buildMenuTree(rows: CommMenuMngTreeRow[]): {
 /** OBJECT 그리드 컬럼 — GO-001~GO-009 (To-Be 8 컬럼, GO-008 BIZ_SYSTEM_CODE 폐기). 디자인 §4.3. */
 const OBJ_COLUMNS: GridColumn[] = [
   { key: "FORM_URL", header: "FORM URL", width: 160, editable: false, align: "left" },
-  { key: "SERVICE", header: "SERVICE", width: 120, editable: false, align: "left" },
-  { key: "PARAM", header: "PARAM", width: 120, editable: false, align: "left" },
+  { key: "SERVICE", header: "SERVICE", meta: false, width: 120, editable: false, align: "left" },
+  { key: "PARAM", header: "PARAM", meta: false, width: 120, editable: false, align: "left" },
   {
     key: "USE_TP",
     header: "사용 유무",

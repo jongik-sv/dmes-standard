@@ -107,7 +107,7 @@ export default function MasterRuleDataListPage() {
   // ── 동적 그리드 컬럼 빌드 (BR-005 — Q-003. 정적 1컬럼(순번) + 컬럼정의 기반 동적, 읽기 전용) ──
   const gridColumns = useMemo<GridColumn[]>(() => {
     const cols: GridColumn[] = [
-      { key: "SEQ", header: "순번", width: 70, editable: false, align: "center" },
+      { key: "SEQ", header: "순번", meta: false, width: 70, editable: false, align: "center" },
     ];
     for (const d of colDefs) {
       const isCode = d.CODE_YN === "Y";
