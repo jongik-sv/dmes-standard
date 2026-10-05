@@ -3825,8 +3825,9 @@ function Home({ store, rawDefs, status, retry }: Props) {
 
 - **고정 탭**: 「홈」과 기본 탭(`WidgetTab.defaultTab: true`, 관리자가 둔 `def-N`)은 탭 줄 앞(홈 → 기본 탭 → 일반 탭)에 고정이고 지우기·이름 바꾸기·옮기기가 없다. 일반 탭도 고정 탭 앞으로는 못 간다. 서버가 기본 탭 `seq` 를 100+ 로 줘도 `orderTabs` 가 앞에 둔다. 순서 저장(`reorderTabs`)에는 일반 탭 ID 만 넘긴다.
 - **기본 탭 메뉴**: 잠그기 / 기본으로 되돌리기(`store.resetTab` 이 있을 때, `customized` 일 때만 켜짐) / 공유… / 내보내기. 되돌리기는 확인 → `resetTab(tabId)` → 스켈레톤 없이 조용히 다시 불러온다. 기본 탭 편집은 일반 탭처럼 [배치 편집]→[완료] 로 `saveTab` 하고, 저장·잠금 뒤에는 다시 불러오지 않아도 `customized` 가 켜진다. 「홈」 되돌리기는 예전처럼 `resetHome`.
-- **공유**: `store.shareTab`·`store.searchUsers` 가 둘 다 있으면 모든 탭 메뉴에 「공유…」 — [LookupMultiModal](lookup-multi-modal.md) 공유 창(2자 이상 검색, 최대 10명, `userId` 본인 제외)을 열 때만 마운트한다. 결과는 `shareResultMessage` 로 한 번 알리고 닫는다. 호출이 던지면 알리고 창을 둔다.
-- **내보내기·가져오기**: user 모드면 늘 보인다. 내보내기는 탭을 `{ version: 1, kind: "dmes-widget-tab", name, items[] }`(instId 없음) JSON 파일 「{탭 이름}_{yyyyMMdd}.json」 으로 내려받는다. 가져오기(탭 줄 (+) 옆, `data-action="import-tab"`)는 파일을 `parseTabImport` 로 검사해(버전·모양·위젯 30개·탭 한도) 없는·사용 중지 위젯을 빼고 새 `tab-N` 탭(새 instId, 이름이 겹치면 숫자 꼬리)으로 **바로 저장**한 뒤 고르고 알린다. 편집 중·저장 중·정의 목록 준비 전에는 막힌다.
+- **공유**: `store.shareTab`·`store.searchUsers` 가 둘 다 있으면 모든 탭 메뉴에 「공유…」 — [LookupMultiModal](lookup-multi-modal.md) 공유 창(2자 이상 검색, 최대 10명, `userId` 본인 제외)을 열 때만 마운트한다. 결과는 `shareResultMessage`(「n명에게 공유했습니다.」)로 한 번 알리고, 모두 성공이면 닫는다. 일부·전부 실패면 사유를 알리고 실패한 사람만 고른 채 창을 둔다. 호출이 던지면 알리고 창을 둔다.
+- **내보내기·가져오기**: user 모드면 늘 보인다. 내보내기는 탭을 `{ version: 1, kind: "dmes-widget-tab", name, items[] }`(instId 없음) JSON 파일 「{탭 이름}_{yyyyMMdd}.json」 으로 내려받는다. 가져오기(탭 줄 (+) 옆, `data-action="import-tab"`)는 파일을 `parseTabImport` 로 검사해(버전·모양·위젯 30개·탭 한도) 없는·사용 중지 위젯을 빼고 새 `tab-N` 탭(새 instId, 이름이 겹치면 숫자 꼬리)으로 **바로 저장**한 뒤 고르고 알린다. 편집 중·저장 중·정의 목록 준비 전에는 막히고, 1MB 넘는 파일·widgetId 100자 초과·객체가 아닌 config·config JSON 4000자 초과는 거절한다.
+- **새 탭 ID(fresh)**: (+)·가져오기로 만든 탭은 `fresh: true` 로 첫 `saveTab` 을 한다. 저장소가 다른 ID 를 `{ tabId }` 로 돌려주면(화면이 연 뒤 같은 `tab-N` 공유 사본이 생긴 경우 서버가 옮겨 저장) 작업 공간이 탭·고른 탭·편집 기준·마지막 탭 기억을 그 ID 로 바꾸고, 저장에 성공하면 `fresh` 를 끈다. admin 모드 어댑터는 `fresh` 를 쓰지 않는다.
 - **`mode="admin"`**(위젯관리 「기본 배치」): 잠그기·홈 되돌리기·공유·내보내기·가져오기가 없고 「홈」에는 ⋯ 가 없다. 「홈」 외 탭은 이름 바꾸기·옮기기·지우기가 되며 탭 한도는 홈 + `MAX_DEFAULT_TABS`(5). 저장소 어댑터가 「홈」은 기본 배치 저장, 다른 탭은 기본 탭 저장으로 보낸다(새 탭 임시 ID `tab-N` → 서버 `def-N` 매핑은 어댑터가 기억한다).
 
 ```tsx
@@ -3894,7 +3895,7 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 | 메서드 | 역할 |
 |---|---|
 | `load(): Promise<WidgetTab[]>` | 사용자 탭 전체. 「홈」을 저장한 적 없으면 결과에 `home` 이 없다 |
-| `saveTab(tab)` | 탭 하나를 통째로 바꾼다(없으면 만든다) |
+| `saveTab(tab)` | 탭 하나를 통째로 바꾼다(없으면 만든다). `Promise<void \| { tabId?: string }>` — `tab.fresh` 첫 저장을 다른 ID 로 옮겼으면 그 ID 를 돌려준다 |
 | `deleteTab(tabId)` | 탭을 지운다 |
 | `reorderTabs(tabIds)` | 「홈」을 뺀 탭 ID 를 새 순서로 |
 | `resetHome()` | 사용자 「홈」 배치를 지운다(다음부터 기본 배치) |
@@ -4501,7 +4502,7 @@ LookupIconButton: `onClick`(필수), `disabled`(`false`), `ariaLabel`(`"상세 �
 
 - import: `import { LookupMultiModal, type LookupMultiRow, type LookupMultiModalProps } from "@dk-oasis/shared/lookup";` (CSS import 없음, 컴포넌트가 자기 `<style>` 을 넣는다)
 - 소스: `src/frontend/shared/src/components/lookup/LookupMultiModal.tsx`
-- 내부 구현: shared `Modal`·`Button` + Mantine `TextInput`·`Checkbox`. 그리드(AgDataGrid)·페이지 나누기는 없다. 결과는 한 번에 받은 목록을 그대로 보인다
+- 내부 구현: shared `Modal`·`Button`·`Checkbox`(form 래퍼, label 이 문자열뿐이라 `detail` 은 옆에 따로 그린다) + Mantine `TextInput`. 그리드(AgDataGrid)·페이지 나누기는 없다. 결과는 한 번에 받은 목록을 그대로 보인다
 - Part B 허용 목록(§1)에 `lookup` 서브패스가 없다. 사용 전 확인이 필요한 항목이다(ASK). 위젯 탭 공유 창(2026-10-05)이 첫 사용처라 2026-10-05 등록했다.
 
 ## 언제 쓰나
@@ -4562,7 +4563,7 @@ export function SendButton({ selfUserId }: { selfUserId: string }) {
 }
 ```
 
-검색은 [조회] 또는 Enter 로만 한다(입력마다 부르지 않는다). 늦게 온 응답은 버리고 마지막 검색만 보인다. 열릴 때마다 검색어·결과·고른 것을 비운다.
+검색은 [조회] 또는 Enter 로만 한다(입력마다 부르지 않고, 검색 중에는 둘 다 무시한다). 늦게 온 응답은 버리고 마지막 검색만 보인다. 열릴 때마다 검색어·결과·고른 것을 비운다.
 
 ## Props
 
@@ -4571,7 +4572,7 @@ export function SendButton({ selfUserId }: { selfUserId: string }) {
 | open | `boolean` | 필수 | 열림 |
 | title | `string` | 필수 | 창 제목 |
 | search | `(keyword: string) => Promise<LookupMultiRow[]>` | 필수 | 앞뒤 공백을 지운 검색어로 부른다. 실패는 Error(message) 로 던지면 목록 아래 빨간 문구로 보인다 |
-| onConfirm | `(rows: LookupMultiRow[]) => void \| Promise<void>` | 필수 | [확인] — 고른 순서대로. 스스로 닫지 않는다. Promise 면 끝날 때까지 단추를 막고, 던지면 고른 것을 둔다 |
+| onConfirm | `(rows) => void \| readonly LookupMultiRow[] \| Promise<…>` | 필수 | [확인] — 고른 순서대로. 스스로 닫지 않는다. Promise 면 끝날 때까지 단추를 막고(두 번 눌러도 한 번), 던지면 고른 것을 둔다. 행 목록을 돌려주면 고른 것을 그 목록으로 바꾼다(일부 실패한 것만 남겨 다시 보내기) |
 | onClose | `() => void` | 필수 | 취소·× 단추·Escape·바깥 누름(처리 중에는 막힌다) |
 | maxSelect | `number` | 제한 없음 | 닿으면 고르지 않은 행의 체크가 막힌다. 「고른 항목 n/max」 로 보인다 |
 | minKeywordLength | `number` | `1` | 이보다 짧으면 부르지 않고 「n자 이상 입력해 주세요.」 |

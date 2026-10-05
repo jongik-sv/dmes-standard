@@ -109,8 +109,9 @@ function Home({ store, rawDefs, status, retry }: Props) {
 
 - **고정 탭**: 「홈」과 기본 탭(`WidgetTab.defaultTab: true`, 관리자가 둔 `def-N`)은 탭 줄 앞(홈 → 기본 탭 → 일반 탭)에 고정이고 지우기·이름 바꾸기·옮기기가 없다. 일반 탭도 고정 탭 앞으로는 못 간다. 서버가 기본 탭 `seq` 를 100+ 로 줘도 `orderTabs` 가 앞에 둔다. 순서 저장(`reorderTabs`)에는 일반 탭 ID 만 넘긴다.
 - **기본 탭 메뉴**: 잠그기 / 기본으로 되돌리기(`store.resetTab` 이 있을 때, `customized` 일 때만 켜짐) / 공유… / 내보내기. 되돌리기는 확인 → `resetTab(tabId)` → 스켈레톤 없이 조용히 다시 불러온다. 기본 탭 편집은 일반 탭처럼 [배치 편집]→[완료] 로 `saveTab` 하고, 저장·잠금 뒤에는 다시 불러오지 않아도 `customized` 가 켜진다. 「홈」 되돌리기는 예전처럼 `resetHome`.
-- **공유**: `store.shareTab`·`store.searchUsers` 가 둘 다 있으면 모든 탭 메뉴에 「공유…」 — [LookupMultiModal](lookup-multi-modal.md) 공유 창(2자 이상 검색, 최대 10명, `userId` 본인 제외)을 열 때만 마운트한다. 결과는 `shareResultMessage` 로 한 번 알리고 닫는다. 호출이 던지면 알리고 창을 둔다.
-- **내보내기·가져오기**: user 모드면 늘 보인다. 내보내기는 탭을 `{ version: 1, kind: "dmes-widget-tab", name, items[] }`(instId 없음) JSON 파일 「{탭 이름}_{yyyyMMdd}.json」 으로 내려받는다. 가져오기(탭 줄 (+) 옆, `data-action="import-tab"`)는 파일을 `parseTabImport` 로 검사해(버전·모양·위젯 30개·탭 한도) 없는·사용 중지 위젯을 빼고 새 `tab-N` 탭(새 instId, 이름이 겹치면 숫자 꼬리)으로 **바로 저장**한 뒤 고르고 알린다. 편집 중·저장 중·정의 목록 준비 전에는 막힌다.
+- **공유**: `store.shareTab`·`store.searchUsers` 가 둘 다 있으면 모든 탭 메뉴에 「공유…」 — [LookupMultiModal](lookup-multi-modal.md) 공유 창(2자 이상 검색, 최대 10명, `userId` 본인 제외)을 열 때만 마운트한다. 결과는 `shareResultMessage`(「n명에게 공유했습니다.」)로 한 번 알리고, 모두 성공이면 닫는다. 일부·전부 실패면 사유를 알리고 실패한 사람만 고른 채 창을 둔다. 호출이 던지면 알리고 창을 둔다.
+- **내보내기·가져오기**: user 모드면 늘 보인다. 내보내기는 탭을 `{ version: 1, kind: "dmes-widget-tab", name, items[] }`(instId 없음) JSON 파일 「{탭 이름}_{yyyyMMdd}.json」 으로 내려받는다. 가져오기(탭 줄 (+) 옆, `data-action="import-tab"`)는 파일을 `parseTabImport` 로 검사해(버전·모양·위젯 30개·탭 한도) 없는·사용 중지 위젯을 빼고 새 `tab-N` 탭(새 instId, 이름이 겹치면 숫자 꼬리)으로 **바로 저장**한 뒤 고르고 알린다. 편집 중·저장 중·정의 목록 준비 전에는 막히고, 1MB 넘는 파일·widgetId 100자 초과·객체가 아닌 config·config JSON 4000자 초과는 거절한다.
+- **새 탭 ID(fresh)**: (+)·가져오기로 만든 탭은 `fresh: true` 로 첫 `saveTab` 을 한다. 저장소가 다른 ID 를 `{ tabId }` 로 돌려주면(화면이 연 뒤 같은 `tab-N` 공유 사본이 생긴 경우 서버가 옮겨 저장) 작업 공간이 탭·고른 탭·편집 기준·마지막 탭 기억을 그 ID 로 바꾸고, 저장에 성공하면 `fresh` 를 끈다. admin 모드 어댑터는 `fresh` 를 쓰지 않는다.
 - **`mode="admin"`**(위젯관리 「기본 배치」): 잠그기·홈 되돌리기·공유·내보내기·가져오기가 없고 「홈」에는 ⋯ 가 없다. 「홈」 외 탭은 이름 바꾸기·옮기기·지우기가 되며 탭 한도는 홈 + `MAX_DEFAULT_TABS`(5). 저장소 어댑터가 「홈」은 기본 배치 저장, 다른 탭은 기본 탭 저장으로 보낸다(새 탭 임시 ID `tab-N` → 서버 `def-N` 매핑은 어댑터가 기억한다).
 
 ```tsx
@@ -178,7 +179,7 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 | 메서드 | 역할 |
 |---|---|
 | `load(): Promise<WidgetTab[]>` | 사용자 탭 전체. 「홈」을 저장한 적 없으면 결과에 `home` 이 없다 |
-| `saveTab(tab)` | 탭 하나를 통째로 바꾼다(없으면 만든다) |
+| `saveTab(tab)` | 탭 하나를 통째로 바꾼다(없으면 만든다). `Promise<void \| { tabId?: string }>` — `tab.fresh` 첫 저장을 다른 ID 로 옮겼으면 그 ID 를 돌려준다 |
 | `deleteTab(tabId)` | 탭을 지운다 |
 | `reorderTabs(tabIds)` | 「홈」을 뺀 탭 ID 를 새 순서로 |
 | `resetHome()` | 사용자 「홈」 배치를 지운다(다음부터 기본 배치) |

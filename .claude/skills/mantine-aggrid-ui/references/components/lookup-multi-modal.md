@@ -4,7 +4,7 @@
 
 - import: `import { LookupMultiModal, type LookupMultiRow, type LookupMultiModalProps } from "@dk-oasis/shared/lookup";` (CSS import 없음, 컴포넌트가 자기 `<style>` 을 넣는다)
 - 소스: `src/frontend/shared/src/components/lookup/LookupMultiModal.tsx`
-- 내부 구현: shared `Modal`·`Button` + Mantine `TextInput`·`Checkbox`. 그리드(AgDataGrid)·페이지 나누기는 없다. 결과는 한 번에 받은 목록을 그대로 보인다
+- 내부 구현: shared `Modal`·`Button`·`Checkbox`(form 래퍼, label 이 문자열뿐이라 `detail` 은 옆에 따로 그린다) + Mantine `TextInput`. 그리드(AgDataGrid)·페이지 나누기는 없다. 결과는 한 번에 받은 목록을 그대로 보인다
 - Part B 허용 목록(§1)에 `lookup` 서브패스가 없다. 사용 전 확인이 필요한 항목이다(ASK). 위젯 탭 공유 창(2026-10-05)이 첫 사용처라 2026-10-05 등록했다.
 
 ## 언제 쓰나
@@ -65,7 +65,7 @@ export function SendButton({ selfUserId }: { selfUserId: string }) {
 }
 ```
 
-검색은 [조회] 또는 Enter 로만 한다(입력마다 부르지 않는다). 늦게 온 응답은 버리고 마지막 검색만 보인다. 열릴 때마다 검색어·결과·고른 것을 비운다.
+검색은 [조회] 또는 Enter 로만 한다(입력마다 부르지 않고, 검색 중에는 둘 다 무시한다). 늦게 온 응답은 버리고 마지막 검색만 보인다. 열릴 때마다 검색어·결과·고른 것을 비운다.
 
 ## Props
 
@@ -74,7 +74,7 @@ export function SendButton({ selfUserId }: { selfUserId: string }) {
 | open | `boolean` | 필수 | 열림 |
 | title | `string` | 필수 | 창 제목 |
 | search | `(keyword: string) => Promise<LookupMultiRow[]>` | 필수 | 앞뒤 공백을 지운 검색어로 부른다. 실패는 Error(message) 로 던지면 목록 아래 빨간 문구로 보인다 |
-| onConfirm | `(rows: LookupMultiRow[]) => void \| Promise<void>` | 필수 | [확인] — 고른 순서대로. 스스로 닫지 않는다. Promise 면 끝날 때까지 단추를 막고, 던지면 고른 것을 둔다 |
+| onConfirm | `(rows) => void \| readonly LookupMultiRow[] \| Promise<…>` | 필수 | [확인] — 고른 순서대로. 스스로 닫지 않는다. Promise 면 끝날 때까지 단추를 막고(두 번 눌러도 한 번), 던지면 고른 것을 둔다. 행 목록을 돌려주면 고른 것을 그 목록으로 바꾼다(일부 실패한 것만 남겨 다시 보내기) |
 | onClose | `() => void` | 필수 | 취소·× 단추·Escape·바깥 누름(처리 중에는 막힌다) |
 | maxSelect | `number` | 제한 없음 | 닿으면 고르지 않은 행의 체크가 막힌다. 「고른 항목 n/max」 로 보인다 |
 | minKeywordLength | `number` | `1` | 이보다 짧으면 부르지 않고 「n자 이상 입력해 주세요.」 |
