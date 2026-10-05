@@ -45,6 +45,11 @@ public enum RuleSaveIssueCode {
     SET_DUP_RESULT,
     SET_IF_SIBLING,
     SET_PAR_SIBLING,
+    /**
+     * 이 룰 정의로 그 룰을 담은 세트의 겉모양이 바뀌어 그 세트를 부르는 세트에 없던 거부가 생긴다(하위 세트 spec §6.3, Ruling 11 문구
+     * "세트 {S} 를 부르는 세트 {P}: …"). 룰 DRAFT 저장은 WARNING, 룰 확정 검사는 ERROR.
+     */
+    SET_CALLER_BROKEN,
     CONTRACT_CHANGED,
     EXPR_TYPE_BY_CASE,
     /**

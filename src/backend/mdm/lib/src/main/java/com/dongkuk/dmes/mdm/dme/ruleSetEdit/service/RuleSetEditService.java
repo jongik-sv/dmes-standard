@@ -11,11 +11,16 @@ import com.dongkuk.dmes.mdm.common.rule.RuleIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleIoReader;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetAnalyzer;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetCallGraph;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCaseJudge;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetGuide;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetInterface;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetRunner;
+import com.dongkuk.dmes.mdm.common.rule.SetCallIo;
+import com.dongkuk.dmes.mdm.common.rule.SetCallIoReader;
+import com.dongkuk.dmes.mdm.common.rule.SetCallerRecheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
@@ -37,6 +42,7 @@ import com.dongkuk.dmes.mdm.contract.version.VersionWriteGuard;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseRequest;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.dto.RuleExprParseResult;
 import com.dongkuk.dmes.mdm.dme.ruleEdit.service.RuleEditService;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCallIoResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetEditSearchRequest;
@@ -76,6 +82,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
+import kr.dongkuk.maru.mdm.engine.flow.FlowParser;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
 import org.springframework.stereotype.Service;
@@ -98,6 +105,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * <p><b>{@code @Transactional} 을 붙이지 않는다(MUST)</b> — OASIS 파라미터 이름 바인딩이 깨진다. 쓰기는 {@link TransactionTemplate}.
  * 흐름 세트(FLOW_JSON)는 흐름 기준으로 검사하고 RULE_IDS 는 서버가 흐름에서 펼친다(흐름도 계획 Task 10). 흐름이 저장된 세트를 목록으로 저장하면
  * FLOW_READONLY 로 거부한다. 담당자 역할 판단은 {@link RuleStewardCheck} 한 곳으로만 한다(I19).
+ *
+ * <p>하위 세트(spec §5·§6.2·§6.3·§8, srv:6 조정 ①④) — 기준 시각은 모두 지금이다. SET 노드는 {@link SetCallIoReader} 의 겉모양으로 검사한다. 저장은
+ * 흐름의 SET 목록을 CALL_SET_IDS 로 쓰고, 기존 거부 뒤에 호출 그래프·연쇄 재검사를 돌려 네 코드({@link RuleSetCheck#CALL_CODES})를 경고로만
+ * 돌려준다. 폐기는 부르는 세트가 있으면 거부하고, 되살리기는 네 코드를 거부로 본다. search 는 target CALL_IO(겉모양)·CALLERS(부르는 세트)도 가른다.
  */
 @Service("ruleSetEditService")
 public class RuleSetEditService {
@@ -128,6 +139,9 @@ public class RuleSetEditService {
     private final RuleSetVersionService versionService;
     private final Clock clock;
     private final MetaRevisionRecorder recorder;
+    private final SetCallIoReader callReader;
+    private final SetCallerRecheck recheck;
+    private final RuleSetCalledFlows calledFlows;
     private final TransactionTemplate tx;
 
     public RuleSetEditService(MdmRuleSetRepository setRepository, RuleQueries queries, RuleIoReader ioReader,
@@ -136,7 +150,11 @@ public class RuleSetEditService {
                               RuleSetVersionQueries setVersions, VersionWriteGuard writeGuard, VersionRowStore versionStore,
                               MdmNativeAuditSupport audit, MdmCurrentUser currentUser, RuleSetVersionService versionService,
                               Clock clock, PlatformTransactionManager transactionManager,
-                              MetaRevisionRecorder recorder) {
+                              MetaRevisionRecorder recorder, SetCallIoReader callReader, SetCallerRecheck recheck,
+                              RuleSetCalledFlows calledFlows) {
+        this.calledFlows = calledFlows;
+        this.callReader = callReader;
+        this.recheck = recheck;
         this.currentUser = currentUser;
         this.versionService = versionService;
         this.setVersions = setVersions;
@@ -173,7 +191,44 @@ public class RuleSetEditService {
         if ("GUIDE".equals(target)) {
             return guide(blankToNull(r.getResultVar()));
         }
-        throw new BusinessException(ErrorCode.INVALID_VALUE, "search target 은 SET·RULE·GUIDE 중 하나여야 합니다: " + target);
+        if ("CALL_IO".equals(target)) {
+            return callIo(r.getSetIdsJson());
+        }
+        if ("CALLERS".equals(target)) {
+            return callers(requireSetId(r.getSetId()));
+        }
+        throw new BusinessException(ErrorCode.INVALID_VALUE, "search target 은 SET·RULE·GUIDE·CALL_IO·CALLERS 중 하나여야 합니다: " + target);
+    }
+
+    /**
+     * 하위 세트 겉모양(spec §8, 기준 시각 = 지금) — 팔레트로 SET 노드를 놓을 때·다른 탭이 저장했을 때 화면이 부른다. 요청 순서, 중복·빈 ID 는 뺀다.
+     * 지금 적용 중인 RELEASED 가 없는 세트는 {@code exists=false}.
+     */
+    private RuleSetCallIoResult callIo(String setIdsJson) {
+        List<Object> ids = setIdsJson == null || setIdsJson.isBlank() ? List.of() : RuleCaseJudge.array(setIdsJson);
+        if (ids == null) {
+            throw new BusinessException(ErrorCode.INVALID_VALUE, "세트 ID 목록 JSON 은 배열이어야 합니다: " + setIdsJson);
+        }
+        List<String> setIds = ids.stream().filter(o -> o != null).map(String::valueOf).toList();
+        return new RuleSetCallIoResult(List.copyOf(callReader.read(setIds, now()).values()));
+    }
+
+    /**
+     * 이 세트를 부르는 세트(속성 패널, spec §8) — 폐기하지 않은 세트의 지금 이후 유효한 RELEASED 행이 부르는 것(Ruling 25). 세트 ID 순, 한 세트는 한 번.
+     * 상태는 {@link #searchSets} 와 같은 계산 상태다.
+     */
+    private RuleSetPickResult callers(String setId) {
+        LocalDateTime now = now();
+        Map<String, MdmRuleSet> parents = new LinkedHashMap<>();
+        callReader.callers(setId, now).forEach(c -> parents.putIfAbsent(c.setId(), c.parent()));
+        if (parents.isEmpty()) {
+            return new RuleSetPickResult(List.of());
+        }
+        Map<String, List<MdmRuleSetVer>> byId = setVersions.versionsOf(parents.keySet());
+        List<RuleSetPickResult.Pick> picks = new ArrayList<>(parents.size());
+        parents.forEach((id, s) -> picks.add(new RuleSetPickResult.Pick(id, s.getMaruRuleSetName(),
+                RuleVersions.effectiveStatus(s.getStatus(), byId.getOrDefault(id, List.of()), now))));
+        return new RuleSetPickResult(picks);
     }
 
     /**
@@ -248,7 +303,9 @@ public class RuleSetEditService {
         Map<String, RuleIo> io = ioReader.read(ruleIds, scope);
         FlowDefinition flow = storedFlow(setId, flowJson);
         Map<String, CondIo> condIo = flow == null ? Map.of() : ioReader.condIo(flow, scope);
-        List<RuleSetCheck> checks = flowChecks(ruleIds, io, flow, condIo);
+        // SET 노드가 없으면 원장을 읽지 않는다(RuleSetEditQueryCountTest 의 view 상한).
+        Map<String, SetCallIo> calls = flow == null ? Map.of() : callReader.callsOf(flow, now);
+        List<RuleSetCheck> checks = flowChecks(ruleIds, io, flow, condIo, calls);
         boolean steward = stewardCheck.isSteward();
         boolean myDraft = selected.filter(v -> isMyDraft(v, me)).isPresent();
 
@@ -270,6 +327,7 @@ public class RuleSetEditService {
         result.setVersions(versionRows(versions, now, me));
         result.setFlags(flags(status, versions, now, steward));
         result.setMe(me);
+        result.setCalls(calls);
         return result;
     }
 
@@ -369,22 +427,32 @@ public class RuleSetEditService {
         List<String> ids;
         List<RuleSetCheck> checks;
         String flowJson;
+        FlowDefinition shapeFlow;
+        Map<String, SetCallIo> calls;
+        LocalDateTime now = now();
+        SetCallIoReader.Snapshot snap = callReader.snapshot();
         if (request.getFlowJson() != null && !request.getFlowJson().isBlank()) {
             FlowDefinition flow = requestFlow(request.getFlowJson());
             ids = RuleSetFlowJson.ruleIds(flow);
             ids.forEach(RuleIdRules::validateRuleId);
             stewardCheck.requireSteward();
-            RuleVarTypeResolver.Scope scope = ioReader.scope();
-            checks = RuleSetAnalyzer.checks(flow, ioReader.read(ids, scope), ioReader.condIo(flow, scope));
+            RuleVarTypeResolver.Scope scope = snap.scope();
+            calls = snap.callsOf(flow, now);
+            checks = new ArrayList<>(RuleSetAnalyzer.checks(flow, ioReader.read(ids, scope), ioReader.condIo(flow, scope), calls));
             flowJson = requestFlowJson(request.getFlowJson());
+            shapeFlow = flow;
         } else {
             ids = requestRuleIds(request.getRules());
             stewardCheck.requireSteward();
             rejectListSaveOverFlow(setId, ver);
-            checks = RuleSetAnalyzer.checks(ids, ioReader.read(ids));
+            checks = new ArrayList<>(RuleSetAnalyzer.checks(ids, ioReader.read(ids)));
             flowJson = null;
+            calls = Map.of();
+            shapeFlow = FlowParser.linear(ids);
         }
         rejectIfAny(checks);
+        checks.addAll(callWarnings(snap, setId, shapeFlow, ids, calls, now, checks));
+        List<String> callSetIds = RuleSetFlowJson.setIds(shapeFlow);
         String description = blankToNull(request.getDescription());
         String me = currentUser.userId();
         long next = tx.execute(status -> {
@@ -394,8 +462,8 @@ public class RuleSetEditService {
                 throw deprecatedSet(setId);
             }
             long bumped = writeGuard.beginDraftWrite(new VersionRef(VersionTarget.RULE_SET, setId, ver), rv, me); // MDM003·001·002·007
-            // SEAM(T6) — Task 6 이 흐름에서 계산한 CALL_SET_IDS 로 바꾼다.
-            if (writes.updateDraft(setId, ver, DomainJson.write(ids), flowJson, "[]") == 0) {
+            // CALL_SET_IDS = 흐름의 SET 노드가 부르는 세트(깊이 우선, 중복 없음, spec §1.1). 목록 저장은 빈 목록이다.
+            if (writes.updateDraft(setId, ver, DomainJson.write(ids), flowJson, DomainJson.write(callSetIds)) == 0) {
                 throw MdmErrors.of(MdmErrorCode.NOT_DRAFT);
             }
             if (writes.updateHeader(setId, name, description) == 0) {
@@ -431,7 +499,10 @@ public class RuleSetEditService {
         throw new BusinessException(ErrorCode.INVALID_VALUE, "삭제 대상은 SET·VERSION·CONFIRM 중 하나여야 합니다: " + target);
     }
 
-    /** 폐기 — 계산 상태 INUSE → DEPRECATED. 검사를 돌리지 않는다(I14). 행 버전을 보지 않는다(J2). */
+    /**
+     * 폐기 — 계산 상태 INUSE → DEPRECATED. 경로 검사는 돌리지 않는다(I14). 행 버전을 보지 않는다(J2). 폐기하지 않은 세트의 지금 이후 유효한 RELEASED
+     * 행이 이 세트를 부르면 거부한다(MDM024 CALLER_BROKEN, 문구에 부르는 세트 목록 — spec §6.3, C-D12).
+     */
     private RuleSetStatusResult deprecate(String setId) {
         stewardCheck.requireSteward();
         tx.executeWithoutResult(status -> {
@@ -441,6 +512,7 @@ public class RuleSetEditService {
                 throw transition("사용 중(INUSE)인 룰 세트만 폐기할 수 있습니다: " + setId);
             }
             writeGuard.checkCanCreateVersion(VersionTarget.RULE_SET, setId); // 미적용 버전이 있으면 MDM006
+            rejectIfCalled(setId);
             if (RuleVersions.needsInUsePromotion(stored, versions, now())) {
                 versionStore.markParentInUse(VersionTarget.RULE_SET, setId, audit.currentStamp());
             }
@@ -450,6 +522,19 @@ public class RuleSetEditService {
             recorder.ruleSet(setId); // 메타 캐시 무효화(spec 2026-10-02 §3.3)
         });
         return new RuleSetStatusResult(setId, DEPRECATED, null, List.of());
+    }
+
+    /**
+     * 부르는 세트가 있으면 폐기 거부(Ruling 10 문구 — 화면이 세트 목록을 이 문구에서 읽는다). 한 세트의 여러 행은 한 번만 적는다. 자기 자신을 부르는 행은
+     * 세지 않는다(같이 폐기된다).
+     */
+    private void rejectIfCalled(String setId) {
+        Set<String> callers = new java.util.LinkedHashSet<>();
+        callReader.callers(setId, now()).stream().filter(c -> !c.setId().equals(setId)).forEach(c -> callers.add(c.setId()));
+        if (!callers.isEmpty()) {
+            throw RuleSetRejections.saveRejected(List.of(new RuleSetCheck(RuleSetCheck.CALLER_BROKEN, RuleSetCheck.REJECT, setId, null, null,
+                    "사용 중인 세트 " + String.join(", ", callers) + "가 이 세트를 불러 폐기할 수 없다. 부르는 세트를 먼저 고치거나 폐기한다")));
+        }
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -495,13 +580,21 @@ public class RuleSetEditService {
             if (!DEPRECATED.equals(stored)) {
                 throw transition(NOT_DEPRECATED_MESSAGE + setId);
             }
-            MdmRuleSetVer shown = RuleSetVersionQueries.display(setVersions.versions(setId), now()).orElse(null);
+            LocalDateTime now = now();
+            MdmRuleSetVer shown = RuleSetVersionQueries.display(setVersions.versions(setId), now).orElse(null);
             List<String> ids = shown == null ? List.of() : ruleIdsOf(shown.getRuleIds());
             FlowDefinition flow = shown == null ? null : storedFlow(setId, shown.getFlowJson());
-            RuleVarTypeResolver.Scope scope = ioReader.scope();
+            SetCallIoReader.Snapshot snap = callReader.snapshot();
+            RuleVarTypeResolver.Scope scope = snap.scope();
             Map<String, RuleIo> io = ioReader.read(ids, scope);
-            List<RuleSetCheck> checks = flowChecks(ids, io, flow, flow == null ? Map.of() : ioReader.condIo(flow, scope));
-            rejectIfAny(checks);
+            Map<String, SetCallIo> calls = flow == null ? Map.of() : snap.callsOf(flow, now);
+            List<RuleSetCheck> checks = new ArrayList<>(flowChecks(ids, io, flow, flow == null ? Map.of() : ioReader.condIo(flow, scope), calls));
+            // 되살리기는 지금 바로 실행에 닿는다 — 호출 그래프도 보고 네 코드를 거부로 본다(spec §6.3). 연쇄 재검사는 하지 않는다.
+            checks.addAll(graphChecks(snap, setId, flow == null ? List.of() : RuleSetFlowJson.setIds(flow), now));
+            List<RuleSetCheck> rejects = blocking(checks);
+            if (!rejects.isEmpty()) {
+                throw RuleSetRejections.saveRejected(rejects);
+            }
             if (writes.restore(setId) == 0) {
                 throw transition(NOT_DEPRECATED_MESSAGE + setId);
             }
@@ -537,6 +630,7 @@ public class RuleSetEditService {
      * 흐름·판정 오류는 던지지 않고 기록에 담는다(흐름을 읽지 못하면 {@code nodes=[]}·FLOW_INVALID). 저장된 룰 정의가 깨졌으면 MDM026(P-D9).
      * 경고는 폐기 룰(흐름에서 처음 나온 순서) → IF 갈래 조건식 NULL(기록 순서) → 룰 경고(RULE 노드 seq 순)다.
      * 고친 값({@code editsJson}, 4단계 E4)이 있으면 끼워 처음부터 다시 실행하고 기록 {@code edits} 로 되돌려 준다.
+     * 응답 {@code calledFlows} 는 실행 중 부른 세트의 흐름({@link RuleSetCalledFlows}, 하위 세트 spec §8)이다.
      */
     public RuleSetSimulateResult simulate(RuleSetSimulateRequest request) {
         String flowJson = requireFlowJson(request == null ? null : request.getFlowJson());
@@ -558,7 +652,9 @@ public class RuleSetEditService {
             throw MdmErrors.of(MdmErrorCode.STORED_DEFINITION_CORRUPT, "룰 세트 흐름의 저장된 룰 정의를 읽을 수 없어 실행하지 않습니다 — " + e.getMessage(),
                     List.of());
         }
-        return new RuleSetSimulateResult(RunTraceJson.toMap(trace), simulateWarnings(session, flowJson, trace));
+        RuleSetSimulateResult result = new RuleSetSimulateResult(RunTraceJson.toMap(trace), simulateWarnings(session, flowJson, trace));
+        result.setCalledFlows(calledFlows.of(trace));
+        return result;
     }
 
     /**
@@ -766,9 +862,64 @@ public class RuleSetEditService {
         return DomainJson.readList(json).stream().map(String::valueOf).toList();
     }
 
-    /** 흐름이 있으면 흐름 기준(조건식 IO {@code condIo}), 없으면 목록 기준 검사. */
-    private static List<RuleSetCheck> flowChecks(List<String> ids, Map<String, RuleIo> io, FlowDefinition flow, Map<String, CondIo> condIo) {
-        return flow == null ? RuleSetAnalyzer.checks(ids, io) : RuleSetAnalyzer.checks(flow, io, condIo);
+    /** 흐름이 있으면 흐름 기준(조건식 IO {@code condIo}, SET 노드는 {@code calls} 의 겉모양), 없으면 목록 기준 검사. */
+    private static List<RuleSetCheck> flowChecks(List<String> ids, Map<String, RuleIo> io, FlowDefinition flow, Map<String, CondIo> condIo,
+            Map<String, SetCallIo> calls) {
+        return flow == null ? RuleSetAnalyzer.checks(ids, io) : RuleSetAnalyzer.checks(flow, io, condIo, calls);
+    }
+
+    /**
+     * 호출 그래프 검사(spec §5 CALL_CYCLE·CALL_DEPTH) — 부르는 쪽 행({@link SetCallIoReader.Snapshot#edges}, Ruling 25)에서 이 세트 자리를 흐름의
+     * SET 목록으로 덮는다(빈 목록도). 수준은 그래프가 낸 REJECT 그대로이고 쓰는 자리가 정한다.
+     */
+    private static List<RuleSetCheck> graphChecks(SetCallIoReader.Snapshot snap, String setId, List<String> callSetIds, LocalDateTime at) {
+        Map<String, List<String>> edges = new LinkedHashMap<>(snap.edges(at));
+        edges.put(setId, callSetIds);
+        return RuleSetCallGraph.check(setId, edges);
+    }
+
+    /**
+     * DRAFT 저장의 하위 세트 호출 검사(spec §6.2, srv:6 조정 ④) — 세트 확정 검사({@code RuleSetConfirmChecks})와 같은 계산을 지금 기준으로 돌려 네 코드
+     * ({@link RuleSetCheck#CALL_CODES})를 WARN 사본으로 돌려준다. 저장은 막지 않는다.
+     * <ol>
+     *   <li>호출 그래프({@link #graphChecks}).</li>
+     *   <li>연쇄 재검사 — 확정 검사와 같은 조건: 분석기·그래프에 네 코드가 없고, 이 세트를 부르는 쪽 행이 있고, 지금 겉모양(지금 적용 중인 RELEASED)이
+     *       있으며 저장하려는 겉모양과 다를 때만 {@link SetCallerRecheck}. 저장하려는 겉모양의 룰은 지금 적용 중인 RELEASED({@link RuleIoReader#readAt})
+     *       로 읽는다 — 지금 겉모양과 같은 기준이라야 미래 RELEASED 룰 버전이 겉모양 차이로 잡히지 않는다. 새 거부는 CALLER_BROKEN(WARN 사본), 새 경고가
+     *       생긴 부모가 있으면 CALLER_WARN 한 건(문구·ruleId 는 확정 검사와 같다).</li>
+     * </ol>
+     *
+     * @param flow   저장하려는 흐름(목록 저장이면 RULE_IDS 한 줄 흐름 — 목록 세트도 SET 노드로 불릴 수 있다)
+     * @param before 저장하려는 정의의 분석기 검사(거부는 이미 걸렀다)
+     */
+    private List<RuleSetCheck> callWarnings(SetCallIoReader.Snapshot snap, String setId, FlowDefinition flow, List<String> ids,
+            Map<String, SetCallIo> calls, LocalDateTime now, List<RuleSetCheck> before) {
+        List<RuleSetCheck> graph = graphChecks(snap, setId, RuleSetFlowJson.setIds(flow), now);
+        List<RuleSetCheck> out = new ArrayList<>();
+        graph.forEach(c -> out.add(c.asWarn()));
+        if (!graph.isEmpty() || before.stream().anyMatch(c -> RuleSetCheck.CALL_CODES.contains(c.code())) || snap.callers(setId, now).isEmpty()) {
+            return out;
+        }
+        SetCallIo current = snap.read(List.of(setId), now).get(setId);
+        if (current == null || !current.exists()) {
+            return out;
+        }
+        SetCallIo next = RuleSetInterface.of(setId, current.setName(), true, current.status(), flow, ioReader.readAt(ids, now, snap.scope()), calls);
+        if (current.sameShape(next)) {
+            return out;
+        }
+        SetCallerRecheck.Outcome o = recheck.recheck(setId, next, now);
+        o.rejects().forEach(c -> out.add(c.asWarn()));
+        if (!o.warnedCallers().isEmpty()) {
+            out.add(new RuleSetCheck(RuleSetCheck.CALLER_WARN, RuleSetCheck.WARN, setId, null, null,
+                    "부르는 세트에 경고가 생겼다: " + String.join(", ", o.warnedCallers())));
+        }
+        return out;
+    }
+
+    /** 되살리기·확정이 막는 검사 — 거부(REJECT)와 수준과 상관없는 네 코드(spec §5·§6.3, 조정 ②). 거부 사본으로 돌려준다. */
+    private static List<RuleSetCheck> blocking(List<RuleSetCheck> checks) {
+        return checks.stream().filter(c -> c.rejected() || RuleSetCheck.CALL_CODES.contains(c.code())).map(RuleSetCheck::asReject).toList();
     }
 
     /**

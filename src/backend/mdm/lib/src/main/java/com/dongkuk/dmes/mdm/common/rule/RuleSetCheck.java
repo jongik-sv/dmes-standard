@@ -1,5 +1,7 @@
 package com.dongkuk.dmes.mdm.common.rule;
 
+import java.util.Set;
+
 /**
  * 룰 세트 저장 시 검사 한 건(TSK-08-06 design §6.3, 흐름도 계획 C4). 서버 {@link RuleSetAnalyzer#checks} 와 화면 {@code set-model.ts} 가 같은
  * 코드·문구·순서로 만든다.
@@ -51,6 +53,13 @@ public record RuleSetCheck(String code, String severity, String ruleId, String o
     public static final String CALL_DEPTH = "CALL_DEPTH";
     /** 이 버전으로 겉모양이 바뀌어 부르는 세트에 없던 거부가 생긴다(하위 세트 spec §6, 서버만). DRAFT 저장은 경고, 확정·되살리기는 거부(편차 13). */
     public static final String CALLER_BROKEN = "CALLER_BROKEN";
+    /**
+     * 하위 세트 호출 네 코드(편차 13, srv:6 조정 ②). 분석기·그래프·연쇄가 내는 수준과 상관없이 확정·되살리기는 거부, DRAFT 저장은 경고로 본다 —
+     * 쓰는 자리가 {@link #asReject()}·{@link #asWarn()} 로 수준을 맞춘다.
+     */
+    public static final Set<String> CALL_CODES = Set.of(CALL_MISSING, CALL_CYCLE, CALL_DEPTH, CALLER_BROKEN);
+    /** 이 버전으로 부르는 세트에 없던 경고가 생겼다(WARN, 서버만, 하위 세트 spec §6.1-5, Ruling 10 문구 "부르는 세트에 경고가 생겼다: P1, P2"). 막지 않는다. */
+    public static final String CALLER_WARN = "CALLER_WARN";
 
     /** 노드 위치 없는 검사(목록 입력·세트 단위 거부). */
     public RuleSetCheck(String code, String severity, String ruleId, String otherRuleId, String varName, String message) {
@@ -59,6 +68,16 @@ public record RuleSetCheck(String code, String severity, String ruleId, String o
 
     public boolean rejected() {
         return REJECT.equals(severity);
+    }
+
+    /** 같은 검사의 경고(WARN) 사본 — 위치(nodeId·edgeId)는 그대로다. DRAFT 저장이 {@link #CALL_CODES} 를 경고로 돌려줄 때 쓴다. */
+    public RuleSetCheck asWarn() {
+        return new RuleSetCheck(code, WARN, ruleId, otherRuleId, varName, message, nodeId, edgeId);
+    }
+
+    /** 같은 검사의 거부(REJECT) 사본 — 위치는 그대로다. 확정·되살리기가 {@link #CALL_CODES} 를 수준과 상관없이 거부로 볼 때 쓴다. */
+    public RuleSetCheck asReject() {
+        return new RuleSetCheck(code, REJECT, ruleId, otherRuleId, varName, message, nodeId, edgeId);
     }
 
     RuleSetCheck withoutLocation() {

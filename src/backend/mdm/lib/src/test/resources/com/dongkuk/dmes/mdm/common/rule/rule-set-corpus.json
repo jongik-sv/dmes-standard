@@ -8927,6 +8927,82 @@
           { "code": "CATCH_NEVER", "severity": "WARN", "message": "t1는 빈 단계라 c1가 받는 예외가 일어나지 않는다", "nodeId": "c1" },
           { "code": "CATCH_NEVER", "severity": "WARN", "message": "t1는 빈 단계라 c2가 받는 예외가 일어나지 않는다", "nodeId": "c2" }]
       }
+    },
+    {
+      "name": "하위 세트 — 세트 ID 가 빈 SET 노드에 받는 노드를 붙이면 CALL_MISSING 경고와 NO_RESULT FLOW_CATCH 만, SUBSET_ENDED 는 판정하지 않고 처리 갈래는 CATCH_SET 을 읽는다",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "s1", "kind": "SET", "setId": "" }, { "id": "r1", "kind": "RULE", "ruleId": "R_A" },
+                  { "id": "c1", "kind": "CATCH", "attachTo": "s1", "catches": ["SUBSET_ENDED", "NO_RESULT"] }, { "id": "r2", "kind": "RULE", "ruleId": "R_H" },
+                  { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "s1" }, { "id": "e2", "from": "s1", "to": "r1" }, { "id": "e3", "from": "r1", "to": "end" },
+                  { "id": "e4", "from": "c1", "to": "r2" }, { "id": "e5", "from": "r2", "to": "end" }] },
+      "ids": ["R_H", "R_A"],
+      "rules": {
+        "R_A": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "X", "source": "DICT" }], "results": [{ "name": "RA" }] },
+        "R_H": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "CATCH_SET", "source": "NONE" }], "results": [{ "name": "RH" }] }
+      },
+      "calls": {},
+      "expect": {
+        "io": {
+          "inputs": [{ "name": "CATCH_SET", "source": "NONE", "users": ["R_H"] }, { "name": "X", "source": "DICT", "users": ["R_A"] }],
+          "results": [{ "name": "RH", "by": ["R_H"], "readers": [] }, { "name": "RA", "by": ["R_A"], "readers": [] }]
+        },
+        "deps": { "R_H": [], "R_A": [] },
+        "checks": [
+          { "code": "CALL_MISSING", "severity": "WARN", "message": "세트 노드 s1에 세트 ID가 없다", "nodeId": "s1" },
+          { "code": "FLOW_CATCH", "severity": "REJECT", "message": "받는 노드 c1: 세트 노드에는 결과 없음(NO_RESULT)을 붙일 수 없다", "nodeId": "c1" }]
+      }
+    },
+    {
+      "name": "하위 세트 — PARALLEL 형제 갈래끼리 SET 출력과 룰 결과를 서로 읽으면 PAR_SIBLING 둘",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "p1", "kind": "PARALLEL" }, { "id": "s1", "kind": "SET", "setId": "SP" },
+                  { "id": "r2", "kind": "RULE", "ruleId": "R_USE" }, { "id": "m1", "kind": "MERGE", "splitId": "p1" }, { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "p1" }, { "id": "b1", "from": "p1", "to": "s1", "order": 1 }, { "id": "b2", "from": "p1", "to": "r2", "order": 2 },
+                  { "id": "e2", "from": "s1", "to": "m1" }, { "id": "e3", "from": "r2", "to": "m1" }, { "id": "e4", "from": "m1", "to": "end" }] },
+      "ids": ["R_USE"],
+      "rules": {
+        "R_USE": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "P", "source": "NONE" }], "results": [{ "name": "Q" }] }
+      },
+      "calls": {
+        "SP": { "exists": true, "status": "INUSE", "inputs": [{ "name": "Q", "source": "NONE" }], "outputs": [{ "name": "P", "always": true }], "endsEarly": false }
+      },
+      "expect": {
+        "io": {
+          "inputs": [{ "name": "Q", "source": "NONE", "users": ["set:SP"] }],
+          "results": [{ "name": "P", "by": ["set:SP"], "readers": ["R_USE"] }, { "name": "Q", "by": ["R_USE"], "readers": [] }]
+        },
+        "deps": { "set:SP": ["R_USE"], "R_USE": ["set:SP"] },
+        "checks": [
+          { "code": "PAR_SIBLING", "severity": "REJECT", "ruleId": "SP", "otherRuleId": "R_USE", "varName": "Q",
+            "message": "세트 SP가 병렬 형제 갈래의 R_USE가 만드는 Q를 읽는다. 병렬 갈래끼리는 결과를 읽을 수 없다", "nodeId": "s1" },
+          { "code": "PAR_SIBLING", "severity": "REJECT", "ruleId": "R_USE", "otherRuleId": "SP", "varName": "P",
+            "message": "R_USE가 병렬 형제 갈래의 세트 SP가 만드는 P를 읽는다. 병렬 갈래끼리는 결과를 읽을 수 없다", "nodeId": "r2" }]
+      }
+    },
+    {
+      "name": "하위 세트 — SET 이 뒤 룰의 결과를 읽고 그 룰이 SET 출력을 읽으면 CYCLE(문구는 세트 SP)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "s1", "kind": "SET", "setId": "SP" }, { "id": "r2", "kind": "RULE", "ruleId": "R_B" },
+                  { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "s1" }, { "id": "e2", "from": "s1", "to": "r2" }, { "id": "e3", "from": "r2", "to": "end" }] },
+      "ids": ["R_B"],
+      "rules": {
+        "R_B": { "exists": true, "status": "INUSE", "releasedVer": "1.000", "conds": [{ "name": "A", "source": "NONE" }], "results": [{ "name": "B" }] }
+      },
+      "calls": {
+        "SP": { "exists": true, "status": "INUSE", "inputs": [{ "name": "B", "source": "NONE" }], "outputs": [{ "name": "A", "always": true }], "endsEarly": false }
+      },
+      "expect": {
+        "io": {
+          "inputs": [{ "name": "B", "source": "NONE", "users": ["set:SP"] }],
+          "results": [{ "name": "A", "by": ["set:SP"], "readers": ["R_B"] }, { "name": "B", "by": ["R_B"], "readers": [] }]
+        },
+        "deps": { "set:SP": ["R_B"], "R_B": ["set:SP"] },
+        "checks": [
+          { "code": "CYCLE", "severity": "REJECT", "ruleId": "SP", "otherRuleId": "R_B", "varName": "B",
+            "message": "세트 SP와 R_B가 서로의 결과 변수를 읽는다(순환). 순서를 바꿔서는 풀리지 않는다", "nodeId": "s1" }]
+      }
     }
   ]
 }

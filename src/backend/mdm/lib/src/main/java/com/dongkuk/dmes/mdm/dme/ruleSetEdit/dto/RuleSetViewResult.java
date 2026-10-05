@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto;
 import com.dongkuk.dmes.mdm.common.rule.CondIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
+import com.dongkuk.dmes.mdm.common.rule.SetCallIo;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +28,8 @@ public class RuleSetViewResult {
     private List<VersionRow> versions = List.of();
     private Flags flags = new Flags();
     private String me;
+    /** 흐름의 SET 노드가 부르는 세트의 겉모양(세트 ID →, 깊이 우선, 기준 시각 = 지금, 하위 세트 spec §8). 흐름이 없거나 SET 노드가 없으면 빈 맵. */
+    private Map<String, SetCallIo> calls = Map.of();
 
     public RuleSetViewResult() {
     }
@@ -57,6 +60,7 @@ public class RuleSetViewResult {
     public List<VersionRow> getVersions() { return versions; }
     public Flags getFlags() { return flags; }
     public String getMe() { return me; }
+    public Map<String, SetCallIo> getCalls() { return calls; }
 
     public void setSet(Header v) { this.set = v; }
     public void setRules(List<RuleIo> v) { this.rules = v; }
@@ -68,6 +72,7 @@ public class RuleSetViewResult {
     public void setVersions(List<VersionRow> v) { this.versions = v; }
     public void setFlags(Flags v) { this.flags = v; }
     public void setMe(String v) { this.me = v; }
+    public void setCalls(Map<String, SetCallIo> v) { this.calls = v; }
 
     /** 버전 목록 한 행(VER 내림차순). 룰 {@code RuleMngViewResult.VersionRow} 와 같은 칸 이름. 버전·일시는 문자열({@code "1.000"}·KST). */
     public static class VersionRow {

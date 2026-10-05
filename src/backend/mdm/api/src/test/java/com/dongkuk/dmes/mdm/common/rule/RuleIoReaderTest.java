@@ -8,6 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.dongkuk.dmes.mdm.common.rule.RuleIo.IoName;
 import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
+import com.dongkuk.dmes.mdm.entity.MdmRule;
+import com.dongkuk.dmes.mdm.repository.MdmRuleRepository;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +30,10 @@ class RuleIoReaderTest extends AbstractMdmSharedDbTest {
 
     @Autowired
     RuleIoReader reader;
+    @Autowired
+    RuleQueries queries;
+    @Autowired
+    MdmRuleRepository ruleRepository;
     @Autowired
     JdbcTemplate jdbc;
 
@@ -93,6 +100,19 @@ class RuleIoReaderTest extends AbstractMdmSharedDbTest {
         assertEquals("FIRST", io.hitPolicy());
         assertEquals(List.of("COIL_THK", "X", "Y_IN", "P_IN", "G_IN", "C_IN", "R_IN"), names(io.conds()));
         assertEquals(List.of("OUT_A", "GRP", "OUT_E"), names(io.results()));
+    }
+
+    @Test
+    void 저장하려는_정의의_입출력은_같은_정의를_원장에서_읽은_것과_같다() {
+        // 하위 세트 spec §6.3 — 룰 저장 검사가 쓰는 draft 는 원장 읽기(read)와 같은 규칙이다. R_MAIN 은 Expression 셀·그룹·기본 행을 모두 가진다.
+        BigDecimal ver = new BigDecimal("1.000");
+        MdmRule rule = ruleRepository.findById("R_MAIN").orElseThrow();
+        List<RuleAnalysisInputMapper.StoredRow> rows = queries.rows("R_MAIN", ver).stream()
+                .map(r -> new RuleAnalysisInputMapper.StoredRow(r.getRowId(), r.getSeq(), r.getRowKind(), r.getCells())).toList();
+        RuleIo draft = reader.draft(rule, ver, "FIRST", queries.vars("R_MAIN", ver), rows, reader.scope());
+
+        assertEquals(reader.read(List.of("R_MAIN")).get("R_MAIN"), draft);
+        assertTrue(draft.hasDefault());
     }
 
     @Test

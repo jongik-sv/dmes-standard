@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mdm.common.rule.RuleSetPathState.At;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetPathState.SetOut;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -192,11 +193,18 @@ class RuleSetPathStateTest {
         assertEquals(at(Set.of("Y"), Set.of()), b.get("r3"));
     }
 
+    /** setOutputs 는 always 출력만(SetOut.always). */
     private static Map<String, At> beforeWithSets(String nodes, String edges, Map<String, Set<String>> setOutputs) {
+        Map<String, SetOut> outs = new java.util.HashMap<>();
+        setOutputs.forEach((id, names) -> outs.put(id, new SetOut(names, Set.of())));
+        return beforeWithSetOuts(nodes, edges, outs);
+    }
+
+    private static Map<String, At> beforeWithSetOuts(String nodes, String edges, Map<String, SetOut> setOutputs) {
         String json = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"}," + nodes + ",{\"id\":\"end\",\"kind\":\"END\"}],\"edges\":[" + edges + "]}";
         FlowParse p = FlowParser.parse(RuleSetFlowJson.parse(json));
         assertTrue(p.issues().isEmpty(), p.issues().toString());
-        return RuleSetPathState.before(p.tree(), id -> PRODUCES.getOrDefault(id, Set.of()), setId -> setOutputs.getOrDefault(setId, Set.of()));
+        return RuleSetPathState.before(p.tree(), id -> PRODUCES.getOrDefault(id, Set.of()), setId -> setOutputs.getOrDefault(setId, SetOut.NONE));
     }
 
     private static String set(String node, String setId) {
@@ -227,6 +235,57 @@ class RuleSetPathStateTest {
         assertEquals(at(Set.of("P"), Set.of()), b.get("r2"), "정상 갈래는 SET 의 always 출력 뒤에서 시작한다");
         assertEquals(at(CATCH, Set.of()), b.get("r4"), "처리 갈래는 SET 직전 상태 + CATCH_*(CATCH_SET 포함)");
         assertEquals(at(Set.of(), Set.of("P", "Y", "W")), b.get("r3"), "P·Y 는 정상 갈래에서만, W 는 처리 갈래에서만");
+    }
+
+    @Test
+    void SET_의_always_false_출력은_maybe_라_IF_형제가_만들어도_이미_만들어졌을_수_있는_이름이다() {
+        EDGES.clear();
+        // srv:5 넘김 1 — start → s1(G: X always=false) → if1 [b1 → r1(R_P: X)] [그 외 → r2(R_C, X 를 읽는다고 하자)] → m1 → r3(R_C) → end.
+        // 분석기는 r2 가 읽는 X 를 FLOW_PARTIAL(maybe)로 보고 IF_SIBLING 으로 보지 않는다 — 룰 확정 순서 검사도 before(r2) 에서 X 를 이미 본 이름으로 센다.
+        String e = String.join(",", edge("start", "s1", ""), edge("s1", "if1", ""), edge("if1", "r1", "\"order\":1,\"cond\":\"A > 0\""),
+                edge("if1", "r2", "\"otherwise\":true"), edge("r1", "m1", ""), edge("r2", "m1", ""), edge("m1", "r3", ""), edge("r3", "end", ""));
+        Map<String, At> b = beforeWithSetOuts(String.join(",", set("s1", "G"), split("if1", "IF"), rule("r1", "R_P"), rule("r2", "R_C"), merge("m1", "if1"),
+                rule("r3", "R_C")), e, Map.of("G", new SetOut(Set.of(), Set.of("X"))));
+
+        assertEquals(at(Set.of(), Set.of("X")), b.get("r1"));
+        assertEquals(at(Set.of(), Set.of("X")), b.get("r2"), "형제 r1 이 만드는 X 는 SET 이 일부 경로에서 이미 만들었을 수 있다");
+        assertTrue(b.get("r2").seen("X"));
+        assertEquals(at(Set.of(), Set.of("X")), b.get("r3"), "r1 갈래에서만 반드시 만들어지므로 합류 뒤에도 maybe");
+    }
+
+    @Test
+    void SET_의_always_false_출력이_이미_defined_면_defined_로_남는다() {
+        EDGES.clear();
+        // start → r0(R_P: X) → s1(G: X always=false, Y always) → r1(R_C) → end
+        String e = String.join(",", edge("start", "r0", ""), edge("r0", "s1", ""), edge("s1", "r1", ""), edge("r1", "end", ""));
+        Map<String, At> b = beforeWithSetOuts(String.join(",", rule("r0", "R_P"), set("s1", "G"), rule("r1", "R_C")), e,
+                Map.of("G", new SetOut(Set.of("Y"), Set.of("X"))));
+
+        assertEquals(at(Set.of("X", "Y"), Set.of()), b.get("r1"));
+    }
+
+    @Test
+    void 받는_노드가_붙은_SET_의_정상_갈래도_always_false_출력을_maybe_로_시작한다() {
+        EDGES.clear();
+        // start → s1(G: P always, Q always=false) → r2(R_C) → r3(R_C) → end. c1(s1, INPUT_ERROR) → r4(R_C) → r3(돌아오는 자리).
+        String e = String.join(",", edge("start", "s1", ""), edge("s1", "r2", ""), edge("r2", "r3", ""), edge("c1", "r4", ""), edge("r4", "r3", ""),
+                edge("r3", "end", ""));
+        Map<String, At> b = beforeWithSetOuts(String.join(",", set("s1", "G"), rule("r2", "R_C"), catchNode("c1", "s1", "\"INPUT_ERROR\""),
+                rule("r4", "R_C"), rule("r3", "R_C")), e, Map.of("G", new SetOut(Set.of("P"), Set.of("Q"))));
+
+        assertEquals(at(Set.of("P"), Set.of("Q")), b.get("r2"));
+        assertEquals(at(CATCH, Set.of()), b.get("r4"));
+        assertEquals(at(Set.of(), Set.of("P", "Q")), b.get("r3"));
+    }
+
+    @Test
+    void SetOut_of_는_겉모양의_출력을_always_로_가르고_없는_세트는_아무것도_만들지_않는다() {
+        SetCallIo io = new SetCallIo("G", "지", true, "DEPRECATED", List.of(), List.of(
+                new SetCallIo.OutputName("P", null, null, false, null, true),
+                new SetCallIo.OutputName("Q", null, null, false, null, false)), false);
+        assertEquals(new SetOut(Set.of("P"), Set.of("Q")), SetOut.of(io), "상태는 보지 않는다(분석기 asRuleIo 와 같다)");
+        assertEquals(SetOut.NONE, SetOut.of(SetCallIo.missing("G")));
+        assertEquals(SetOut.NONE, SetOut.of(null));
     }
 
     @Test

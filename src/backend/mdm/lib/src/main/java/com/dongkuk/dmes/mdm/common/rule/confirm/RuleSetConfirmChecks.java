@@ -8,10 +8,15 @@ import com.dongkuk.dmes.mdm.common.rule.RuleIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleIoReader;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetAnalyzer;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetCallGraph;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCaseJudge;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetInterface;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetRunner;
+import com.dongkuk.dmes.mdm.common.rule.SetCallIo;
+import com.dongkuk.dmes.mdm.common.rule.SetCallIoReader;
+import com.dongkuk.dmes.mdm.common.rule.SetCallerRecheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetTestCaseQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVarTypeResolver;
@@ -54,20 +59,25 @@ public class RuleSetConfirmChecks {
     private final RuleIoReader ioReader;
     private final RuleSetTestCaseQueries caseQueries;
     private final RuleSetRunner runner;
+    private final SetCallIoReader callReader;
+    private final SetCallerRecheck recheck;
 
     public RuleSetConfirmChecks(RuleSetVersionQueries setVersions, RuleQueries ruleQueries, RuleIoReader ioReader,
-                                RuleSetTestCaseQueries caseQueries, RuleSetRunner runner) {
+                                RuleSetTestCaseQueries caseQueries, RuleSetRunner runner, SetCallIoReader callReader, SetCallerRecheck recheck) {
         this.setVersions = setVersions;
         this.ruleQueries = ruleQueries;
         this.ioReader = ioReader;
         this.caseQueries = caseQueries;
         this.runner = runner;
+        this.callReader = callReader;
+        this.recheck = recheck;
     }
 
     /**
      * 4항목 보고서. 1·3 은 applyFrom 시점 RELEASED 룰 버전의 입출력으로, 4 는 케이스 EVAL_TS(없으면 applyFrom)로 판정한다(J7·J8). 1·3 은 applyFrom
      * 뒤 경계 시각(멤버 룰 RELEASED 의 APPLY_FROM)마다 다시 돌려 새로 나온 이슈를 WARNING 으로 더한다(Ruling P2-14 — 예약된 미래 룰 버전이 세트를
-     * 깨는 경우).
+     * 깨는 경우). SET 노드는 apply_from 기준 하위 세트 겉모양({@link SetCallIoReader})으로 보고(경계 시각은 그 시각 겉모양), 항목 1 에 호출 그래프·연쇄
+     * 재검사({@link #callChecks})를 더한다(하위 세트 spec §5·§6.1, srv:6 조정 ②).
      *
      * @param applyFrom 확정 적용 시각 — 필수. null 을 "지금"으로 읽지 않는다(룰 {@code RuleConfirmChecks.report} 와 다르다). 호출자(공통 확정 서비스·
      *                  확정 화면)가 먼저 검증한다
@@ -85,13 +95,16 @@ public class RuleSetConfirmChecks {
             return RuleSetConfirmReport.storedFlowCorrupt(draft, e.getMessage());
         }
         List<String> ids = stored == null ? RuleSetVersionQueries.members(v) : RuleSetFlowJson.ruleIds(stored);
-        RuleVarTypeResolver.Scope scope = ioReader.scope();
+        SetCallIoReader.Snapshot snap = callReader.snapshot();
+        RuleVarTypeResolver.Scope scope = snap.scope();
         Map<String, CondIo> condIo = stored == null ? null : ioReader.condIo(stored, scope);
         Map<String, RuleIo> io = ioReader.readAt(ids, applyFrom, scope);
-        List<RuleSetCheck> checks = flowChecks(stored, ids, io, condIo);
+        Map<String, SetCallIo> calls = stored == null ? Map.of() : snap.callsOf(stored, applyFrom);
+        List<RuleSetCheck> checks = new ArrayList<>(flowChecks(stored, ids, io, condIo, calls));
+        checks.addAll(callChecks(snap, setId, stored == null ? FlowParser.linear(ids) : stored, io, calls, applyFrom, checks));
         List<RuleSetConfirmReport.FutureChecks> future = new ArrayList<>();
-        boundaries(ids, applyFrom).forEach((at, causes) ->
-                future.add(new RuleSetConfirmReport.FutureChecks(at, causes, flowChecks(stored, ids, ioReader.readAt(ids, at, scope), condIo))));
+        boundaries(ids, applyFrom).forEach((at, causes) -> future.add(new RuleSetConfirmReport.FutureChecks(at, causes,
+                flowChecks(stored, ids, ioReader.readAt(ids, at, scope), condIo, stored == null ? Map.of() : snap.callsOf(stored, at)))));
         List<String> notReleased = ids.stream().filter(id -> io.get(id) != null && io.get(id).exists() && io.get(id).releasedVer() == null).toList();
         List<Map<String, Object>> cases = List.of();
         String caseFailure = null;
@@ -136,9 +149,50 @@ public class RuleSetConfirmChecks {
         }
     }
 
-    /** 검사 1·3 — FLOW_JSON 이 없으면 목록 입력, 있으면 흐름 입력. */
-    private static List<RuleSetCheck> flowChecks(FlowDefinition stored, List<String> ids, Map<String, RuleIo> io, Map<String, CondIo> condIo) {
-        return stored == null ? RuleSetAnalyzer.checks(ids, io) : RuleSetAnalyzer.checks(stored, io, condIo);
+    /** 검사 1·3 — FLOW_JSON 이 없으면 목록 입력, 있으면 흐름 입력(SET 노드는 calls 의 겉모양으로, 하위 세트 spec §5). */
+    private static List<RuleSetCheck> flowChecks(FlowDefinition stored, List<String> ids, Map<String, RuleIo> io, Map<String, CondIo> condIo,
+            Map<String, SetCallIo> calls) {
+        return stored == null ? RuleSetAnalyzer.checks(ids, io) : RuleSetAnalyzer.checks(stored, io, condIo, calls);
+    }
+
+    /**
+     * 하위 세트 호출 검사(하위 세트 spec §5·§6.1, srv:6 조정 ②) — 기준 시각은 확정하려는 apply_from.
+     * <ol>
+     *   <li>호출 그래프: 부르는 쪽 행({@link SetCallIoReader.Snapshot#edges})에서 이 세트 자리를 확정하려는 흐름의 SET 목록으로 덮어(빈 목록도) 순환·깊이를
+     *       본다(CALL_CYCLE·CALL_DEPTH).</li>
+     *   <li>연쇄 재검사: 앞(흐름 검사·그래프)에 확정을 막는 검사가 없고, 이 세트를 부르는 쪽 행이 있고, 지금 겉모양(apply_from 에 적용 중인 RELEASED)이
+     *       있으며 확정하려는 겉모양과 다르면 {@link SetCallerRecheck} — 새 거부는 CALLER_BROKEN, 새 경고가 생긴 부모가 있으면 CALLER_WARN 한 건
+     *       ("부르는 세트에 경고가 생겼다: P1, P2", Ruling 10). 첫 확정(지금 겉모양 없음)은 하지 않는다.</li>
+     * </ol>
+     * 네 코드의 수준은 보고서가 ERROR 로 올린다({@link RuleSetConfirmReport#rejects}).
+     *
+     * @param flow   확정하려는 흐름(FLOW_JSON 이 없으면 RULE_IDS 한 줄 흐름 — 목록 세트도 SET 노드로 불릴 수 있다)
+     * @param before 이미 낸 흐름 검사(연쇄 재검사를 할지 정한다)
+     */
+    private List<RuleSetCheck> callChecks(SetCallIoReader.Snapshot snap, String setId, FlowDefinition flow, Map<String, RuleIo> io,
+            Map<String, SetCallIo> calls, LocalDateTime applyFrom, List<RuleSetCheck> before) {
+        Map<String, List<String>> edges = new LinkedHashMap<>(snap.edges(applyFrom));
+        edges.put(setId, RuleSetFlowJson.setIds(flow));
+        List<RuleSetCheck> out = new ArrayList<>(RuleSetCallGraph.check(setId, edges));
+        if (out.stream().anyMatch(RuleSetConfirmReport::rejects) || before.stream().anyMatch(RuleSetConfirmReport::rejects)
+                || snap.callers(setId, applyFrom).isEmpty()) {
+            return out;
+        }
+        SetCallIo current = snap.read(List.of(setId), applyFrom).get(setId);
+        if (current == null || !current.exists()) {
+            return out;
+        }
+        SetCallIo next = RuleSetInterface.of(setId, current.setName(), true, current.status(), flow, io, calls);
+        if (current.sameShape(next)) {
+            return out;
+        }
+        SetCallerRecheck.Outcome o = recheck.recheck(setId, next, applyFrom);
+        out.addAll(o.rejects());
+        if (!o.warnedCallers().isEmpty()) {
+            out.add(new RuleSetCheck(RuleSetCheck.CALLER_WARN, RuleSetCheck.WARN, setId, null, null,
+                    "부르는 세트에 경고가 생겼다: " + String.join(", ", o.warnedCallers())));
+        }
+        return out;
     }
 
     /**

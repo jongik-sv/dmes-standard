@@ -3,6 +3,7 @@ package com.dongkuk.dmes.mdm.common.rule;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,7 +41,39 @@ public final class RuleSetPathState {
         }
     }
 
+    /**
+     * SET 노드가 만드는 이름(하위 세트 spec §2, Ruling 7) — always 출력과 always=false 출력. 분석기({@link RuleSetAnalyzer})가 SET 출력을 경로 상태에
+     * 넣는 규칙과 한 벌이다({@link #define}).
+     */
+    public record SetOut(Set<String> always, Set<String> partial) {
+
+        public static final SetOut NONE = new SetOut(Set.of(), Set.of());
+
+        /** 겉모양의 출력을 always 로 가른다. 겉모양이 없거나 exists=false 면 아무것도 만들지 않는다(분석기 asRuleIo 와 같다 — 상태는 보지 않는다). */
+        public static SetOut of(SetCallIo io) {
+            if (io == null || !io.exists()) {
+                return NONE;
+            }
+            Set<String> always = new LinkedHashSet<>();
+            Set<String> partial = new LinkedHashSet<>();
+            io.outputs().forEach(o -> (o.always() ? always : partial).add(o.name()));
+            return new SetOut(Set.copyOf(always), Set.copyOf(partial));
+        }
+    }
+
     private RuleSetPathState() {
+    }
+
+    /**
+     * 단계 하나가 이름 하나를 만들었을 때 경로 상태 갱신(하위 세트 Ruling 7) — partial(SET 의 always=false 출력)이고 이미 반드시 정의된 이름이 아니면
+     * maybe, 아니면 defined. maybe 에서 빼지는 않는다. 분석기와 이 걷기가 같이 쓴다.
+     */
+    static void define(Set<String> defined, Set<String> maybe, String name, boolean partial) {
+        if (partial && !defined.contains(name)) {
+            maybe.add(name);
+        } else {
+            defined.add(name);
+        }
     }
 
     /**
@@ -48,14 +81,15 @@ public final class RuleSetPathState {
      * 없는 사본이다. SET 노드는 아무것도 더하지 않는다(세트 출력은 3인자 겹정의).
      */
     public static Map<String, At> before(FlowTree tree, Function<String, Set<String>> produces) {
-        return before(tree, produces, setId -> Set.of());
+        return before(tree, produces, setId -> SetOut.NONE);
     }
 
     /**
-     * {@link #before(FlowTree, Function)} 와 같되 SET 노드(하위 세트 호출)를 지나면 setProduces(세트 ID → 그 세트의 always 출력, 하위 세트 spec §2)를
-     * 정의된 이름에 더한다. 키에는 SET 노드를 적지 않는다(RULE 노드만). 세트 ID 가 빈 SET 노드는 아무것도 더하지 않는다.
+     * {@link #before(FlowTree, Function)} 와 같되 SET 노드(하위 세트 호출)를 지나면 setProduces(세트 ID → 그 세트의 출력, 하위 세트 spec §2)를 더한다 —
+     * always 출력은 defined, always=false 출력은 이미 defined 가 아니면 maybe(분석기와 한 벌, srv:5 넘김 1). 키에는 SET 노드를 적지 않는다(RULE
+     * 노드만). 세트 ID 가 빈 SET 노드는 아무것도 더하지 않는다. setProduces 가 null 을 주면 아무것도 만들지 않는 세트로 본다.
      */
-    public static Map<String, At> before(FlowTree tree, Function<String, Set<String>> produces, Function<String, Set<String>> setProduces) {
+    public static Map<String, At> before(FlowTree tree, Function<String, Set<String>> produces, Function<String, SetOut> setProduces) {
         Map<String, At> out = new LinkedHashMap<>();
         new Walk(produces, setProduces, out).seq(tree.root(), new At(new HashSet<>(), new HashSet<>()));
         return out;
@@ -101,11 +135,19 @@ public final class RuleSetPathState {
     }
 
     /** 깊이 우선 걷기 — st 는 가변 집합을 가진 상태다. */
-    private record Walk(Function<String, Set<String>> produces, Function<String, Set<String>> setProduces, Map<String, At> out) {
+    private record Walk(Function<String, Set<String>> produces, Function<String, SetOut> setProduces, Map<String, At> out) {
 
-        /** SET 노드가 정의하는 이름(always 출력). 세트 ID 가 비면 null. */
-        Set<String> setMade(SetStep s) {
-            return s.setId() == null || s.setId().isBlank() ? null : setProduces.apply(s.setId());
+        /** SET 노드가 만드는 이름을 st 에 더한다({@link #define}). 세트 ID 가 비면 아무것도 하지 않는다. */
+        void setMade(SetStep s, At st) {
+            if (s.setId() == null || s.setId().isBlank()) {
+                return;
+            }
+            SetOut made = setProduces.apply(s.setId());
+            if (made == null) {
+                return;
+            }
+            made.always().forEach(n -> define(st.defined(), st.maybe(), n, false));
+            made.partial().forEach(n -> define(st.defined(), st.maybe(), n, true));
         }
 
         void seq(Seq s, At st) {
@@ -117,10 +159,7 @@ public final class RuleSetPathState {
                         st.defined().addAll(made);
                     }
                 } else if (b instanceof SetStep set) {
-                    Set<String> made = setMade(set);
-                    if (made != null) {
-                        st.defined().addAll(made);
-                    }
+                    setMade(set, st);
                 } else if (b instanceof Guarded g) {
                     guarded(g, st);
                 } else if (b instanceof Split sp) {
@@ -143,16 +182,20 @@ public final class RuleSetPathState {
             }
         }
 
-        /** 받는 노드 블록 — 받는 룰·정상 갈래 룰·처리 갈래 룰을 모두 적는다(룰 확정 형제 판정이 노드마다 직전 상태를 읽는다). SET 이면 정상 갈래가 always 출력 뒤에서 시작한다. */
+        /** 받는 노드 블록 — 받는 룰·정상 갈래 룰·처리 갈래 룰을 모두 적는다(룰 확정 형제 판정이 노드마다 직전 상태를 읽는다). SET 이면 정상 갈래가 SET 출력 뒤에서 시작한다. */
         void guarded(Guarded g, At st) {
             At before = new At(new HashSet<>(st.defined()), new HashSet<>(st.maybe()));
             if (g.step() instanceof RuleStep r) {
                 out.putIfAbsent(r.nodeId(), new At(Set.copyOf(st.defined()), Set.copyOf(st.maybe())));
             }
             At normal = new At(new HashSet<>(st.defined()), new HashSet<>(st.maybe()));
-            Set<String> made = g.step() instanceof RuleStep r ? produces.apply(r.ruleId()) : g.step() instanceof SetStep s ? setMade(s) : null;
-            if (made != null) {
-                normal.defined().addAll(made);
+            if (g.step() instanceof RuleStep r) {
+                Set<String> made = produces.apply(r.ruleId());
+                if (made != null) {
+                    normal.defined().addAll(made);
+                }
+            } else if (g.step() instanceof SetStep s) {
+                setMade(s, normal);
             }
             seq(g.normal(), normal);
             List<At> back = new ArrayList<>(List.of(normal));

@@ -296,6 +296,34 @@ public final class DmeTestSupport {
                 callSetIdsJson, setId, new BigDecimal(ver).setScale(3));
     }
 
+    /** 흐름 JSON 의 룰 노드 하나(하위 세트 픽스처, {@link #line}). */
+    public static String ruleNode(String id, String ruleId) {
+        return "{\"id\":\"" + id + "\",\"kind\":\"RULE\",\"ruleId\":\"" + ruleId + "\"}";
+    }
+
+    /** 흐름 JSON 의 SET 노드 하나(하위 세트 픽스처, {@link #line}). */
+    public static String setNode(String id, String setId) {
+        return "{\"id\":\"" + id + "\",\"kind\":\"SET\",\"setId\":\"" + setId + "\"}";
+    }
+
+    /** start → 노드들 → end 한 줄 흐름 JSON(선 e1…). 노드 문자열은 {@link #ruleNode}·{@link #setNode}(첫 "id" 가 노드 ID). */
+    public static String line(String... nodes) {
+        StringBuilder ns = new StringBuilder("{\"id\":\"start\",\"kind\":\"START\"}");
+        StringBuilder es = new StringBuilder();
+        String prev = "start";
+        int e = 1;
+        for (String n : nodes) {
+            ns.append(',').append(n);
+            String id = n.replaceFirst("^\\{\"id\":\"([^\"]+)\".*$", "$1");
+            es.append(es.length() == 0 ? "" : ",").append("{\"id\":\"e").append(e++).append("\",\"from\":\"").append(prev).append("\",\"to\":\"")
+                    .append(id).append("\"}");
+            prev = id;
+        }
+        ns.append(",{\"id\":\"end\",\"kind\":\"END\"}");
+        es.append(es.length() == 0 ? "" : ",").append("{\"id\":\"e").append(e).append("\",\"from\":\"").append(prev).append("\",\"to\":\"end\"}");
+        return "{\"version\":1,\"nodes\":[" + ns + "],\"edges\":[" + es + "]}";
+    }
+
     /** 세트 버전 행의 칼럼 하나(글자). 칼럼 이름은 아래 목록만 받는다. */
     public static String setVerValue(JdbcTemplate jdbc, String setId, String ver, String column) {
         if (!Set.of("RULE_IDS", "FLOW_JSON", "CALL_SET_IDS", "ROW_VERSION", "STATUS", "OWNER_ID", "APPLY_FROM", "APPLY_TO", "VER_KIND", "BASE_VER")
