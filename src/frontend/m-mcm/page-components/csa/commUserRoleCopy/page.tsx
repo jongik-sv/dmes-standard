@@ -418,6 +418,8 @@ export default function CommUserRoleCopyPage() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="권한 부여 source 사용자 ID/사번"
+          name="filterUserId"
+          meta="USER_ID"
           value={filterUserId}
           onChange={(v: string) => setFilterUserId(v)}
           placeholder="USER_ID 또는 사번"

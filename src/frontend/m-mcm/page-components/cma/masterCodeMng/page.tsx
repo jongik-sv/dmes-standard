@@ -835,11 +835,13 @@ export default function MasterCodeMngPage() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="코드ID"
+          name="codeId"
           value={filters.pCodeId}
           onChange={(v) => handleFilterChange("pCodeId", v)}
         />
         <SearchField
           label="코드명"
+          name="codeNm"
           value={filters.pCodeNm}
           onChange={(v) => handleFilterChange("pCodeNm", v)}
         />

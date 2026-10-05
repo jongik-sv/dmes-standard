@@ -351,21 +351,25 @@ export default function MasterCategoryMngPage() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="코드ID"
+          name="codeId"
           value={filters.pCodeId}
           onChange={(v) => handleFilterChange("pCodeId", v)}
         />
         <SearchField
           label="코드명"
+          name="codeNm"
           value={filters.pCodeNm}
           onChange={(v) => handleFilterChange("pCodeNm", v)}
         />
         <SearchField
           label="카테고리ID"
+          name="categoryId"
           value={filters.pCategoryId}
           onChange={(v) => handleFilterChange("pCategoryId", v)}
         />
         <SearchField
           label="카테고리명"
+          name="categoryNm"
           value={filters.pCategoryNm}
           onChange={(v) => handleFilterChange("pCategoryNm", v)}
         />

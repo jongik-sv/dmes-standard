@@ -283,11 +283,13 @@ export default function MasterRuleListPage() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="업무기준 ID"
+          name="ruleId"
           value={filters.pRuleId}
           onChange={(v) => handleFilterChange("pRuleId", v)}
         />
         <SearchField
           label="업무기준명"
+          name="ruleNm"
           value={filters.pRuleNm}
           onChange={(v) => handleFilterChange("pRuleNm", v)}
         />

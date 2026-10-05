@@ -151,18 +151,21 @@ export default function ScreenUsageStatPage() {
         </SearchField>
         <SearchField
           label="부서코드"
+          name="deptCd"
           value={filters.deptCd}
           onChange={(v) => setFilter("deptCd", v)}
           placeholder="정확히 입력 (부서 없음: -)"
         />
         <SearchField
           label="사용자"
+          name="userId"
           value={filters.userId}
           onChange={(v) => setFilter("userId", v)}
           placeholder="사용자 ID 정확히 입력"
         />
         <SearchField
           label="화면"
+          name="pageId"
           value={filters.pageId}
           onChange={(v) => setFilter("pageId", v)}
           placeholder="화면 ID 정확히 입력 (예: csa/commUserMng)"
@@ -170,6 +173,8 @@ export default function ScreenUsageStatPage() {
         {(tab === "overview" || tab === "unused") && (
           <SearchField
             label="미사용 기준(일)"
+            name="unusedDays"
+            meta={false}
             value={filters.unusedDays}
             onChange={(v) => setFilter("unusedDays", v)}
             placeholder={String(DEFAULT_UNUSED_DAYS)}

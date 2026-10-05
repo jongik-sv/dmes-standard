@@ -397,6 +397,8 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
       <SearchArea onSearch={requestReload}>
         <SearchField
           label="검색"
+          name="keyword"
+          meta={false}
           value={filters.keyword}
           onChange={(v) => setFilter("keyword", v)}
           placeholder="이름·ID"
@@ -404,6 +406,8 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
         />
         <SearchField
           label="구분"
+          name="kind"
+          meta={false}
           type="select"
           options={KIND_OPTIONS}
           value={filters.kind}
@@ -411,6 +415,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
         />
         <SearchField
           label="사용"
+          name="useYn"
           type="select"
           options={USE_FILTER_OPTIONS}
           value={filters.useYn}

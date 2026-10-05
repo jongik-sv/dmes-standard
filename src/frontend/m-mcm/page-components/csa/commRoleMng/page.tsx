@@ -871,16 +871,22 @@ export default function CommRoleMngPage() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="역할 ID"
+          name="ROLE_ID"
+          meta="ROLE_ID"
           value={filters.edt_ROLE_ID}
           onChange={(v) => handleFilterChange("edt_ROLE_ID", v)}
         />
         <SearchField
           label="역할명"
+          name="ROLE_NM"
+          meta="ROLE_NM"
           value={filters.edt_ROLE_NM}
           onChange={(v) => handleFilterChange("edt_ROLE_NM", v)}
         />
         <SearchField
           label="사용 여부"
+          name="USE_TP"
+          meta="USE_TP"
           type="select"
           options={USE_TP_SEARCH_OPTIONS}
           value={filters.cbo_USE_TP}

@@ -565,16 +565,22 @@ export default function CommPermMngPage() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="PERMISSION ID"
+          name="PERMISSION_ID"
+          meta="AUT_ID"
           value={filters.edt_PERMISSION_ID}
           onChange={(v) => handleFilterChange("edt_PERMISSION_ID", v)}
         />
         <SearchField
           label="PERMISSION 명"
+          name="PERMISSION_NM"
+          meta="AUT_NM"
           value={filters.edt_PERMISSION_NM}
           onChange={(v) => handleFilterChange("edt_PERMISSION_NM", v)}
         />
         <SearchField
           label="사용 여부"
+          name="USE_TP"
+          meta="USE_TP"
           type="select"
           options={USE_TP_SEARCH_OPTIONS}
           value={filters.cbo_USE_TP}

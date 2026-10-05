@@ -308,10 +308,10 @@ export default function MasterRuleFramePage() {
     >
       <SearchArea onSearch={handleSearch}>
         {/* S-001~S-004 — readonly (P-001 콜백으로만 설정, 분석 §3.2) */}
-        <SearchField label="업무기준 ID">
+        <SearchField label="업무기준 ID" name="ruleId">
           <input className="form-input" value={filters.pRuleId} readOnly />
         </SearchField>
-        <SearchField label="업무기준명">
+        <SearchField label="업무기준명" name="ruleNm">
           <input className="form-input" value={filters.pRuleNm} readOnly style={{ width: 220 }} />
         </SearchField>
         {/* B-003 업무기준 (P-001) / B-004 기초데이터등록 (P-002).

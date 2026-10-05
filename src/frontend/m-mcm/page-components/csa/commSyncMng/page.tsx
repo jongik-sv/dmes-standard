@@ -254,6 +254,8 @@ export default function CommSyncMngPage() {
       <SearchArea onSearch={() => void handleSync()}>
         <SearchField
           label="처리유형"
+          name="syncTarget"
+          meta={false}
           type="select"
           value={pSyncTarget}
           onChange={(v: string) => handleSyncTargetChange(v)}
@@ -264,6 +266,8 @@ export default function CommSyncMngPage() {
         />
         <SearchField
           label="처리대상"
+          name="target"
+          meta={false}
           value={edtTarget}
           onChange={(v: string) => setEdtTarget(v)}
           placeholder="예: USD,JPY (OBJECT 시 csa::CommSyncMng)"

@@ -881,6 +881,8 @@ export default function CommUserMngPage() {
         {/* S-001 사용자 (USER_ID / USER_EMP_NO / USER_NM OR LIKE) — As-Is xfdl:275 TextBox. */}
         <SearchField
           label="사용자"
+          name="USER_ID"
+          meta="USER_ID"
           value={filters.edt_USER_ID}
           onChange={(v) => handleFilterChange("edt_USER_ID", v)}
           placeholder="ID / 사번 / 이름"
@@ -888,6 +890,8 @@ export default function CommUserMngPage() {
         {/* S-003 내부/외부 — As-Is xfdl:271 Combo (LV-002 ds_inOutEmpTp). */}
         <SearchField
           label="내부 외부 구분"
+          name="IN_OUT_EMP_TP"
+          meta="INTL_EXT_EMP_TP"
           type="select"
           value={filters.cbo_IN_OUT_EMP_TP}
           onChange={(v) => handleFilterChange("cbo_IN_OUT_EMP_TP", v)}
@@ -896,6 +900,8 @@ export default function CommUserMngPage() {
         {/* S-002 사용 여부 — As-Is xfdl:273 Combo (LV-001 ds_useTp, default "Y"). */}
         <SearchField
           label="사용 여부"
+          name="USE_TP"
+          meta="USE_TP"
           type="select"
           value={filters.cbo_USE_TP}
           onChange={(v) => handleFilterChange("cbo_USE_TP", v)}

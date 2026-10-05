@@ -456,9 +456,9 @@ export default function MdmCacheMngPage() {
       ]}
     >
       <SearchArea onSearch={() => void handleSearch()}>
-        <SearchField label="대상 종류" type="select" options={TARGET_TYPE_OPTIONS} value={filters.type} onChange={(v) => setFilter("type", v)} />
-        <SearchField label="키" value={filters.q} onChange={(v) => setFilter("q", v)} />
-        <SearchField label="정렬" type="select" options={ENTRY_SORT_OPTIONS} value={filters.sort} onChange={(v) => setFilter("sort", v)} />
+        <SearchField label="대상 종류" name="type" meta={false} type="select" options={TARGET_TYPE_OPTIONS} value={filters.type} onChange={(v) => setFilter("type", v)} />
+        <SearchField label="키" name="q" meta={false} value={filters.q} onChange={(v) => setFilter("q", v)} />
+        <SearchField label="정렬" name="sort" meta={false} type="select" options={ENTRY_SORT_OPTIONS} value={filters.sort} onChange={(v) => setFilter("sort", v)} />
       </SearchArea>
 
       <ContentBody root direction="column" resizable storageKey="mcm.csa.mdmCacheMng">
