@@ -271,11 +271,21 @@ class SetCallIoEngineAgreementTest extends AbstractMdmSharedDbTest {
             + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"if1\"},{\"id\":\"b1\",\"from\":\"if1\",\"to\":\"end\",\"order\":1,\"cond\":\"COIL_THK > 100\"},"
             + "{\"id\":\"bo\",\"from\":\"if1\",\"to\":\"r1\",\"otherwise\":true},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"end\"}]}";
 
+    /** 처리 갈래 안 IF 의 한 갈래가 END, 나머지는 정상 경로 j 로 돌아온다(N11 의 RULE 판). */
+    private static final String END_BY_HANDLER_IF = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},"
+            + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"QLTY_GRD_JDG\"},{\"id\":\"c1\",\"kind\":\"CATCH\",\"attachTo\":\"r1\",\"catches\":[\"INPUT_ERROR\"]},"
+            + "{\"id\":\"if2\",\"kind\":\"IF\"},{\"id\":\"j\",\"kind\":\"TASK\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+            + "\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"j\"},{\"id\":\"e3\",\"from\":\"j\",\"to\":\"end\"},"
+            + "{\"id\":\"e4\",\"from\":\"c1\",\"to\":\"if2\"},{\"id\":\"b1\",\"from\":\"if2\",\"to\":\"end\",\"order\":1,\"cond\":\"COIL_WID > 1000\"},"
+            + "{\"id\":\"bo\",\"from\":\"if2\",\"to\":\"j\",\"otherwise\":true}]}";
+
     private RuleSetRunResult runParentOf(String childId, String recordJson) {
         String parentId = "RS_P_" + childId;
-        DmeTestSupport.ruleSet(jdbc, parentId, "부모", "[]", "INUSE", 0);
-        DmeTestSupport.ruleSetFlow(jdbc, parentId, line(setNode("s1", childId)));
-        DmeTestSupport.ruleSetCalls(jdbc, parentId, "[\"" + childId + "\"]");
+        if (jdbc.queryForObject("SELECT COUNT(*) FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", Integer.class, parentId) == 0) {
+            DmeTestSupport.ruleSet(jdbc, parentId, "부모", "[]", "INUSE", 0);
+            DmeTestSupport.ruleSetFlow(jdbc, parentId, line(setNode("s1", childId)));
+            DmeTestSupport.ruleSetCalls(jdbc, parentId, "[\"" + childId + "\"]");
+        }
         RuleSetRunRequest req = new RuleSetRunRequest();
         req.setSetId(parentId);
         req.setRecordJson(recordJson);
@@ -289,11 +299,21 @@ class SetCallIoEngineAgreementTest extends AbstractMdmSharedDbTest {
         DmeTestSupport.ruleSetFlow(jdbc, "RS_END", END_BY_HANDLER);
         DmeTestSupport.ruleSet(jdbc, "RS_IFEND", "IF 끝냄", "[\"QLTY_GRD_JDG\"]", "INUSE", 0);
         DmeTestSupport.ruleSetFlow(jdbc, "RS_IFEND", END_BY_IF);
+        DmeTestSupport.ruleSet(jdbc, "RS_HIF", "처리 갈래 안 IF 끝냄", "[\"QLTY_GRD_JDG\"]", "INUSE", 0);
+        DmeTestSupport.ruleSetFlow(jdbc, "RS_HIF", END_BY_HANDLER_IF);
 
-        Map<String, SetCallIo> io = reader.read(List.of("RS_END", "RS_IFEND", "RS_LINE"), AT);
+        Map<String, SetCallIo> io = reader.read(List.of("RS_END", "RS_IFEND", "RS_LINE", "RS_HIF"), AT);
         assertTrue(io.get("RS_END").endsEarly());
         assertFalse(io.get("RS_IFEND").endsEarly());
         assertFalse(io.get("RS_LINE").endsEarly());
+        assertTrue(io.get("RS_HIF").endsEarly(), "처리 갈래 안 IF 갈래의 END 도 끝냄이다(편차 10)");
+
+        // 처리 갈래 안 IF 갈래가 END — 엔진은 받는 노드의 끝냄으로 바꾼다(eng:4 J-D18). 돌아오는 갈래면 끝냄이 없다.
+        RuleSetRunResult hifEnded = runParentOf("RS_HIF", "{\"COIL_WID\":\"1200\",\"SURF_GRD\":\"A\"}");
+        assertEquals("c1", hifEnded.getCalls().get(0).get("endedBy"));
+        RuleSetRunResult hifBack = runParentOf("RS_HIF", "{\"COIL_WID\":\"500\",\"SURF_GRD\":\"A\"}");
+        assertTrue(hifBack.getCalls().get(0).containsKey("endedBy"));
+        assertNull(hifBack.getCalls().get(0).get("endedBy"));
 
         // 처리 갈래가 END 로 끝냄 — 하위 입력이 모자라 r1 이 INPUT_ERROR(받는 단계의 입력은 사전 검사에서 빠진다) → c1 → END.
         RuleSetRunResult ended = runParentOf("RS_END", "{\"SURF_GRD\":\"A\"}");
