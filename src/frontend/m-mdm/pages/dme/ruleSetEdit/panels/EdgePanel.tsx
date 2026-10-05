@@ -7,6 +7,7 @@
  */
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Input } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 import { updateEdge, type EditFlow, type EditResult } from "../flow-edit";
 import type { RuleIoMap } from "../types";
@@ -34,19 +35,25 @@ export function EdgePanel({ flow, rules, edgeId, editable, onEdit, sections }: E
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>출발</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="from" label="출발" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL} data-testid="flow-prop-edge-from">
                 {nameOf(e.from)}
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>도착</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="to" label="도착" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL} data-testid="flow-prop-edge-to">
                 {nameOf(e.to)}
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>라벨</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="label" label="라벨" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   data-testid="flow-prop-edge-label"

@@ -11,6 +11,7 @@ import { memo, useCallback, useImperativeHandle, useMemo, useState, type Ref } f
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { ComboBox, Input } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 import { dimensionLabel, type DimensionOption, type UnitForm } from "./types";
 
@@ -80,7 +81,7 @@ export const UnitDetailForm = memo(function UnitDetailForm({ ref, busy, selected
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>단위 코드 *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="unitCode" label="단위 코드" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 value={form?.unitCode ?? ""}
@@ -91,7 +92,7 @@ export const UnitDetailForm = memo(function UnitDetailForm({ ref, busy, selected
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>차원 *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="dimension" label="차원" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <ComboBox
                 data={dimensionComboData}
@@ -104,13 +105,13 @@ export const UnitDetailForm = memo(function UnitDetailForm({ ref, busy, selected
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>기준 단위</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="baseUnit" label="기준 단위" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input value={form?.baseUnit ?? ""} disabled readOnly />
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>환산 계수 *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="factor" label="환산 계수" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 value={form?.factor ?? ""}

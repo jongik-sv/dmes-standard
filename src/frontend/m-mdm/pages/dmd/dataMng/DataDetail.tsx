@@ -13,6 +13,7 @@ import { useCallback } from "react";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { ATTR_KEYS, LVL_CNT_OPTIONS, type CategorySummaryRow, type AttrKey, type DataEditView, type HeaderForm } from "./edit-types";
@@ -47,19 +48,19 @@ export function DataHeaderCard({ view, form, disabled, onFieldChange }: DataHead
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>마루 데이터 ID</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="maruDataId" label="마루 데이터 ID" /></th>
             <td style={DETAIL_VALUE_CELL} data-testid="data-edit-id">{view.maruDataId}</td>
-            <th style={DETAIL_LABEL_CELL}>원천</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="sourceKind" label="원천" /></th>
             <td style={DETAIL_VALUE_CELL}>{view.sourceKind}</td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>상태</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="status" meta={false} label="상태" /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={3}>
               <span data-testid="data-edit-status">{view.status}</span>
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>이름 *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="maruDataName" label="이름" required /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={3}>
               <Input
                 data-testid="data-edit-name"
@@ -71,7 +72,7 @@ export function DataHeaderCard({ view, form, disabled, onFieldChange }: DataHead
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>키 패턴 *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="codePattern" label="키 패턴" required /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={3}>
               <Input
                 data-testid="data-edit-pattern"
@@ -82,7 +83,7 @@ export function DataHeaderCard({ view, form, disabled, onFieldChange }: DataHead
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>설명</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={3}>
               <Input
                 data-testid="data-edit-desc"
@@ -93,7 +94,7 @@ export function DataHeaderCard({ view, form, disabled, onFieldChange }: DataHead
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>계층 칸 수</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="lvlCnt" label="계층 칸 수" /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={3}>
               <Select
                 data-testid="data-edit-lvl"
@@ -126,7 +127,7 @@ export function DataLabelsCard({ form, disabled, onFieldChange }: DataLabelsCard
         <tbody>
           {ATTR_KEYS.map((key: AttrKey, i) => (
             <tr key={key}>
-              <th style={DETAIL_LABEL_CELL}>{`attr${String(i + 1).padStart(2, "0")}`}</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name={key} meta={false} label={`attr${String(i + 1).padStart(2, "0")}`} /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   data-testid={`data-edit-${key}`}

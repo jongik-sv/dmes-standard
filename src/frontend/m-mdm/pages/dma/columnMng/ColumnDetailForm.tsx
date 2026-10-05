@@ -13,6 +13,7 @@ import { memo, useCallback, useImperativeHandle, useMemo, useState, type Ref } f
 import { ContentPanel, DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, getRowIdentifier, type GridColumn } from "@dk-oasis/shared/grid";
 import { Input, Select } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { DomainField } from "@/domain";
 
 import { searchDomains } from "./api";
@@ -102,7 +103,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>논리명 *</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="columnName" label="논리명" required /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <Input
                   data-testid="form-column-name"
@@ -113,7 +114,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>표준 물리명 *</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="physName" label="표준 물리명" required /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <Input
                   data-testid="form-phys-name"
@@ -135,7 +136,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>표시명 긴/중간/짧은</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="labelLong" meta={false} label="표시명 긴/중간/짧은" /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <div style={rowStyle}>
                   <Input
@@ -167,7 +168,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>도메인</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="domainId" label="도메인" /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <DomainField
                   testId="form-domain"
@@ -180,7 +181,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
                   }}
                 />
               </td>
-              <th style={DETAIL_LABEL_CELL}>필수</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="required" label="필수" /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <Select
                   data-testid="form-required"
@@ -191,7 +192,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>기본값</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="defaultValue" label="기본값" /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   value={form.defaultValue}
@@ -199,7 +200,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
                   onChange={(v) => change("defaultValue", v)}
                 />
               </td>
-              <th style={DETAIL_LABEL_CELL}>참조 종류</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="refKind" label="참조 종류" /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <Select
                   value={form.refKind}
@@ -212,7 +213,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>참조 대상</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="refTarget" label="참조 대상" /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   value={form.refTarget}
@@ -220,7 +221,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
                   onChange={(v) => change("refTarget", v)}
                 />
               </td>
-              <th style={DETAIL_LABEL_CELL}>참조 카테고리</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="refCateId" label="참조 카테고리" /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   value={form.refCateId}
@@ -230,7 +231,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>설명</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <DescriptionField
                   key={`description-${formSeq}`}
@@ -243,7 +244,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>활용처 메모</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="usageNote" label="활용처 메모" /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <DescriptionField
                   key={`usage-note-${formSeq}`}

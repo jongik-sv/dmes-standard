@@ -7,6 +7,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { Modal } from "@dk-oasis/shared/modal";
@@ -135,16 +136,16 @@ export function ParentLinkModal({ open, mode, rows, domain, dirty, onClose, onCh
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>도메인</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="DOMAIN_NAME" label="도메인" /></th>
               <td style={DETAIL_VALUE_CELL}>{`${domain.DOMAIN_NAME} (${domain.STD_NAME})`}</td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>지금 부모</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PARENT_DOMAIN_ID" label="지금 부모" /></th>
               <td style={DETAIL_VALUE_CELL}>{nameOf(rows, domain.PARENT_DOMAIN_ID ?? null)}</td>
             </tr>
             {mode === "link" && (
               <tr>
-                <th style={DETAIL_LABEL_CELL}>새 부모 도메인 *</th>
+                <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PARENT_DOMAIN_ID" label="새 부모 도메인" required /></th>
                 <td style={DETAIL_VALUE_CELL}>
                   <DomainField testId="domain-parent-link-field" ariaLabel="부모 도메인" autoPick={matchExactDomain}
                     onPopupChange={setFinding} domainId={parentId} label={parentLabel}
@@ -157,7 +158,7 @@ export function ParentLinkModal({ open, mode, rows, domain, dirty, onClose, onCh
               </tr>
             )}
             <tr>
-              <th style={DETAIL_LABEL_CELL}>안내</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="guide" meta={false} label="안내" /></th>
               <td style={DETAIL_VALUE_CELL}>
                 {mode === "unlink"
                   ? "상속받던 값(단위·길이·소수·코드 참조·검증식)을 이 도메인에 복사해 같은 정의를 유지합니다."

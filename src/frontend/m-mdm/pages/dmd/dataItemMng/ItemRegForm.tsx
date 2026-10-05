@@ -13,6 +13,7 @@ import { memo, useCallback, useImperativeHandle, useState, type Ref } from "reac
 
 import { ContentPanel, DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Button, Input } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 import type { DataItemForm } from "./types";
 
@@ -66,7 +67,7 @@ export const ItemRegForm = memo(function ItemRegForm({ ref, hidden, busy, canReg
           <tbody>
             {fields.map((f) => (
               <tr key={f.key}>
-                <th style={DETAIL_LABEL_CELL}>{f.label}</th>
+                <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name={f.key} meta={false} label={f.label} /></th>
                 <td style={DETAIL_VALUE_CELL}>
                   <Input
                     data-testid={`item-form-${f.key}`}

@@ -8,6 +8,7 @@ import { useState } from "react";
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Button, Select, Textarea } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
@@ -80,13 +81,13 @@ export function RegisterModal({ open, module, onClose, onRegistered }: RegisterM
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>대상 종류 *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="targetType" meta={false} label="대상 종류" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Select value={type} options={REGISTER_TYPE_OPTIONS} disabled={isBusy} onChange={(v) => setType(v as MdmTargetType)} />
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>키 *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="keysText" meta={false} label="키" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Textarea value={keysText} disabled={isBusy} onChange={setKeysText} />
             </td>

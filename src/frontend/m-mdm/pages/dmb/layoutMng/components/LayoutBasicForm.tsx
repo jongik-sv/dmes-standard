@@ -6,6 +6,7 @@
  */
 import { DateTimePicker, Input, Select } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { hint } from "@/layout/styles";
 import type { LayoutVersionRow } from "@/layout/types";
 import { versionOptions } from "@/layout/version-rows";
@@ -40,7 +41,9 @@ export function LayoutBasicForm({
     <table style={DETAIL_TABLE_STYLE}>
       <tbody>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>레이아웃 ID / 버전</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="layoutId" label="레이아웃 ID / 버전" meta={false} />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center", flexWrap: "wrap" }}>
               <span>{draft.layoutId ?? "(신규)"}</span>
@@ -55,7 +58,9 @@ export function LayoutBasicForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>시각 T</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="asOf" label="시각 T" meta={false} />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center", flexWrap: "wrap" }}>
               <DateTimePicker data-testid="layout-asof" aria-label="시각 T" value={asOf ?? ""} placeholder="지금"
@@ -65,14 +70,18 @@ export function LayoutBasicForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>전문 이름 *</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="layoutName" label="전문 이름" required />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             <Input data-testid="layout-form-name" aria-label="전문 이름" value={draft.layoutName} disabled={readOnly}
               onChange={(v) => onChange({ layoutName: v })} />
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>EAI</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="eaiCode" label="EAI" />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             <Select data-testid="layout-form-eai" aria-label="EAI" value={draft.eaiCode ?? ""} placeholder="(없음)"
               disabled={readOnly} options={eais.map((e) => ({ value: e.EAI_CODE, label: `${e.EAI_NAME} (${e.EAI_CODE})` }))}
@@ -81,7 +90,9 @@ export function LayoutBasicForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>송신 / 수신 시스템 *</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="sndRcvSystem" label="송신 / 수신 시스템" required meta={false} />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             <Select data-testid="layout-form-snd" aria-label="송신 시스템" value={draft.sndSystem ?? ""} placeholder="송신"
               disabled={readOnly} options={systemOptions} onChange={(v) => onChange({ sndSystem: v || null })} />
@@ -91,7 +102,9 @@ export function LayoutBasicForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>총 길이</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="totalLength" label="총 길이" meta={false} />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             <span data-testid="layout-total-length">{totalText}</span>
             <span style={hint}> · 계산값(저장 시 서버가 다시 계산)</span>

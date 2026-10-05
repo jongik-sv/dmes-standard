@@ -46,6 +46,7 @@ import {
   Textarea,
   Button,
 } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { Modal } from "@dk-oasis/shared/modal";
 import { Tree, type TreeNode } from "@dk-oasis/shared/tree";
 import "@dk-oasis/shared/tree.css";
@@ -1426,7 +1427,7 @@ function MenuDetailForm({
       <tbody>
         {/* D-002 메뉴 ID (Essential, 신규 행에서만 편집 — AsIs xfdl D-002 PK readonly 룰) */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>메뉴 ID *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_ID" label="메뉴 ID" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.MENU_ID ?? "")}
@@ -1439,7 +1440,7 @@ function MenuDetailForm({
         {/* D-004 메뉴 순서 (Essential, PK#2) — 2026-06-05 사용자 지시:
               숫자만 입력 + 저장 시 BE 가 '0' LPAD 8자리 ("12" → "00000012"). 신규 행만 LPAD (PK 안정성). */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>메뉴 순서 *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_SEQ" label="메뉴 순서" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.MENU_SEQ ?? "")}
@@ -1451,7 +1452,7 @@ function MenuDetailForm({
         </tr>
         {/* D-006 메뉴명 (Essential) */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>메뉴명 *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_NM" label="메뉴명" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.MENU_NM ?? "")}
@@ -1465,7 +1466,7 @@ function MenuDetailForm({
               2026-06-04 round 5 (사용자 결정): readOnly=true 강제 — 직접 타이핑 금지, 검색 버튼으로만 채움.
               OBJECT LoV 선택 시 OBJECT_ID + PARENT_MENU_ID (상위 폴더) 동시 자동 세트. */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>OBJECT ID *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="OBJECT_ID" label="OBJECT ID" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
               <div style={{ flex: 1 }}>
@@ -1500,7 +1501,7 @@ function MenuDetailForm({
               비어 있으면 BE 가 자기참조로 저장해 복구 불가능한 행이 됐다.
               옵션은 좌측 트리와 같은 원천(treeRows = TB_MCM_SEC_MENU_FLD)이라 목록이 어긋나지 않는다. */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>상위 폴더 *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PARENT_MENU_ID" label="상위 폴더" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Select
               value={String(selected.PARENT_MENU_ID ?? "")}
@@ -1513,7 +1514,7 @@ function MenuDetailForm({
         {/* D-009 FULL SEQ — 2026-06-04 사용자 지시: 자동 부여 (모듈 백만 / 그룹 만 / 화면 100+10 인코딩)
               → 보기 전용(readOnly). 저장 시 BE recomputeMenuFullSeq() 가 트리 위치 기준으로 자동 산출. */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>FULL SEQ</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="FULL_SEQ" label="FULL SEQ" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.FULL_SEQ ?? "")}
@@ -1524,7 +1525,7 @@ function MenuDetailForm({
         </tr>
         {/* D-010 사용 구분 (Radio Y/N) */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>사용 구분</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USE_TP" label="사용 구분" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Radio
               name="USE_TP"
@@ -1536,7 +1537,7 @@ function MenuDetailForm({
         </tr>
         {/* D-011 메뉴 타입 (Select WEB/MOBIL) */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>메뉴 타입</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_TP" label="메뉴 타입" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Select
               value={String(selected.MENU_TP ?? "")}
@@ -1548,7 +1549,7 @@ function MenuDetailForm({
         </tr>
         {/* D-012 유효개시일 (DatePicker yyyy-MM-dd) */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>유효개시일</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="START_ACTIVE_DATE" label="유효개시일" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <DatePicker
               value={toDateInputValue(selected.START_ACTIVE_DATE)}
@@ -1558,7 +1559,7 @@ function MenuDetailForm({
         </tr>
         {/* D-013 유효기한일 (DatePicker yyyy-MM-dd) */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>유효기한일</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="END_ACTIVE_DATE" label="유효기한일" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <DatePicker
               value={toDateInputValue(selected.END_ACTIVE_DATE)}
@@ -1568,7 +1569,7 @@ function MenuDetailForm({
         </tr>
         {/* D-014 표시 여부 (Radio Y/N) */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>표시 여부</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_VIEW_YN" label="표시 여부" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Radio
               name="MENU_VIEW_YN"
@@ -1580,7 +1581,7 @@ function MenuDetailForm({
         </tr>
         {/* D-015 메뉴 설명 (Textarea) */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>메뉴 설명</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_DESC" label="메뉴 설명" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Textarea
               value={String(selected.MENU_DESC ?? "")}
@@ -1592,7 +1593,7 @@ function MenuDetailForm({
         </tr>
         {/* D-016 PARAM1 */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>PARAM1</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_PARAM1" label="PARAM1" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.MENU_PARAM1 ?? "")}
@@ -1603,7 +1604,7 @@ function MenuDetailForm({
         </tr>
         {/* D-017 PARAM2 */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>PARAM2</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_PARAM2" label="PARAM2" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.MENU_PARAM2 ?? "")}
@@ -1614,7 +1615,7 @@ function MenuDetailForm({
         </tr>
         {/* D-018 PARAM3 */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>PARAM3</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_PARAM3" label="PARAM3" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.MENU_PARAM3 ?? "")}

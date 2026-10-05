@@ -31,6 +31,7 @@ import {
   type GridColumn,
 } from "@dk-oasis/shared/grid";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { FIRST_SEARCH_LIMIT } from "@/oasis-screen";
 import { MdmPageLayout, badgeStyle } from "@/shell";
@@ -633,9 +634,15 @@ export default function ColumnMngPage() {
                     <tbody>
                       <tr>
                         <th style={DETAIL_LABEL_CELL}>
-                          {gen.direction === "FORWARD"
-                            ? "물리명 미리보기"
-                            : "논리명"}
+                          <MdmFieldLabel
+                            name="genPreview"
+                            meta={false}
+                            label={
+                              gen.direction === "FORWARD"
+                                ? "물리명 미리보기"
+                                : "논리명"
+                            }
+                          />
                         </th>
                         <td style={DETAIL_VALUE_CELL} data-testid="gen-preview">
                           {gen.direction === "FORWARD"
@@ -644,7 +651,7 @@ export default function ColumnMngPage() {
                         </td>
                       </tr>
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>추천 도메인</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="genDomain" meta={false} label="추천 도메인" /></th>
                         <td style={DETAIL_VALUE_CELL}>
                           <Select
                             data-testid="gen-domain"
@@ -667,7 +674,7 @@ export default function ColumnMngPage() {
                         </td>
                       </tr>
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>중복 검사</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="genDuplicates" meta={false} label="중복 검사" /></th>
                         <td
                           style={DETAIL_VALUE_CELL}
                           data-testid="gen-duplicates"

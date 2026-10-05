@@ -51,6 +51,7 @@ import {
   Radio,
   DatePicker,
 } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { Modal } from "@dk-oasis/shared/modal";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { searchCommPermMng, saveCommPermMng } from "./api";
@@ -789,7 +790,7 @@ function DetailForm({
       <tbody>
         {/* D-001 / D-002 — PERMISSION ID */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>PERMISSION ID *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PERMISSION_ID" label="PERMISSION ID" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.PERMISSION_ID ?? "")}
@@ -802,7 +803,7 @@ function DetailForm({
 
         {/* D-003 / D-004 — PERMISSION명 */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>PERMISSION명</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PERMISSION_NM" label="PERMISSION명" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.PERMISSION_NM ?? "")}
@@ -814,7 +815,7 @@ function DetailForm({
 
         {/* D-005 / D-006 — PERMISSION 설명 */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>PERMISSION 설명</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PERMISSION_DESC" label="PERMISSION 설명" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Input
               value={String(selected.PERMISSION_DESC ?? "")}
@@ -826,7 +827,7 @@ function DetailForm({
 
         {/* D-009 / D-010 — 사용 여부 Radio */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>사용 여부 *</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USE_TP" label="사용 여부" required /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Radio
               name="USE_TP"
@@ -839,7 +840,7 @@ function DetailForm({
 
         {/* D-011 / D-012 — 유효 개시일 */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>유효 개시일</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="START_ACTIVE_DATE" label="유효 개시일" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <DatePicker
               value={toIsoDate(selected.START_ACTIVE_DATE)}
@@ -850,7 +851,7 @@ function DetailForm({
 
         {/* D-013 / D-014 — 유효 기한일 */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>유효 기한일</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="END_ACTIVE_DATE" label="유효 기한일" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <DatePicker
               value={toIsoDate(selected.END_ACTIVE_DATE)}
@@ -866,7 +867,7 @@ function DetailForm({
               - 버튼은 alignSelf:flex-start + width:80 (textarea 하단 좌측). */}
         <tr>
           <th style={DETAIL_LABEL_CELL}>
-            공통 버튼 권한
+            <MdmFieldLabel name="PERMISSION_COMMON" label="공통 버튼 권한" />
             <br />
             <span style={{ fontWeight: 400, fontSize: 11, color: "#666" }}>
               (commonTop, commonTopCustom, commonRight)
@@ -893,7 +894,7 @@ function DetailForm({
 
         {/* D-018 / D-019 / D-020 — CUSTOM 버튼 권한 Textarea + Find Button (round3 동일 정합). */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>CUSTOM 버튼 권한</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PERMISSION_CUSTOM" label="CUSTOM 버튼 권한" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <Textarea
@@ -915,7 +916,7 @@ function DetailForm({
 
         {/* D-021 / D-022 — POPUP 버튼 Textarea (round3 — ACTION 과 동일 rows=5 균형) */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>POPUP 버튼</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="POPUP_BTN" label="POPUP 버튼" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Textarea
               value={String(selected.POPUP_BTN ?? "")}
@@ -931,7 +932,7 @@ function DetailForm({
               - rows: 5 → 7 (Detail 하단 빈 공간을 ACTION 권한 textarea 가 채우도록 확장).
               - wrapper overflow:hidden 유지 (스크롤바 발생 ✗ — wrapper height: calc(100% - 32px) 안에서 흡수). */}
         <tr>
-          <th style={DETAIL_LABEL_CELL}>ACTION 권한</th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="PERMISSION_ACTION" label="ACTION 권한" /></th>
           <td style={DETAIL_VALUE_CELL}>
             <Textarea
               value={String(selected.PERMISSION_ACTION ?? "")}

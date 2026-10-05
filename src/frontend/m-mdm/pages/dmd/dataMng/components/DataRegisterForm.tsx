@@ -8,6 +8,7 @@ import { useState } from "react";
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Button, Input, Select } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 import { mutedText } from "../DataDetail";
 import { LVL_CNT_OPTIONS, emptyRegForm, type DataMngRegForm } from "../types";
@@ -30,7 +31,7 @@ export function DataRegisterForm({ busy, canRegister, onSubmit, onCancel }: Data
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>마루 데이터 ID *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="maruDataId" label="마루 데이터 ID" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 data-testid="data-mng-reg-id"
@@ -43,7 +44,7 @@ export function DataRegisterForm({ busy, canRegister, onSubmit, onCancel }: Data
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>이름 *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="maruDataName" label="이름" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 data-testid="data-mng-reg-name"
@@ -55,7 +56,7 @@ export function DataRegisterForm({ busy, canRegister, onSubmit, onCancel }: Data
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>키 패턴 *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="codePattern" label="키 패턴" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 data-testid="data-mng-reg-pattern"
@@ -67,7 +68,7 @@ export function DataRegisterForm({ busy, canRegister, onSubmit, onCancel }: Data
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>설명</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 data-testid="data-mng-reg-desc"
@@ -78,7 +79,7 @@ export function DataRegisterForm({ busy, canRegister, onSubmit, onCancel }: Data
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>계층 칸 수</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="lvlCnt" label="계층 칸 수" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Select
                 data-testid="data-mng-reg-lvl"
@@ -90,7 +91,7 @@ export function DataRegisterForm({ busy, canRegister, onSubmit, onCancel }: Data
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>원천</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="source" meta={false} label="원천" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <span data-testid="data-mng-reg-source">MDM</span>
             </td>

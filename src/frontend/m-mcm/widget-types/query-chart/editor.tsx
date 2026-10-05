@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Input, Select, SelectOrInput } from "@dk-oasis/shared/form";
 import { EditableRowList, type GridColumn } from "@dk-oasis/shared/grid";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
 import { CHART_TYPE_OPTIONS, chartConfigOf, configText, PIE_UNIT_MAX, textCell, type ChartSeriesConfig } from "../_query/format";
@@ -41,7 +42,9 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>SQL *</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="sql" label="SQL" required meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <SqlEditor
                 sql={cfg.sql}
@@ -52,7 +55,9 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>차트 종류 *</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="chartType" label="차트 종류" required meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <Select
                 value={cfg.chartType}
@@ -63,7 +68,9 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>가로축 필드 *</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="xField" label="가로축 필드" required meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <SelectOrInput
                 value={configText(props.value, "xField")}
@@ -75,7 +82,9 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>값 계열 *</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="series" label="값 계열" required meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <div className="wq-editor">
                 <EditableRowList<ChartSeriesConfig>
@@ -97,7 +106,9 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>단위(원 차트)</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="unit" label="단위(원 차트)" meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <div className="wq-editor">
                 <Input

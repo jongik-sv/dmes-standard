@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Checkbox, Input, MultiSelectComboBox, Textarea } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
 import { searchQueryWidgetDefs } from "./api";
@@ -69,7 +70,9 @@ export default function ChatEditor({ value, onChange, onValidate }: WidgetTypeEd
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={LABEL_TOP}>시스템 프롬프트</th>
+            <th style={LABEL_TOP}>
+              <MdmFieldLabel name="systemPrompt" label="시스템 프롬프트" meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <Textarea
                 value={cfg.systemPrompt}
@@ -82,7 +85,9 @@ export default function ChatEditor({ value, onChange, onValidate }: WidgetTypeEd
             </td>
           </tr>
           <tr>
-            <th style={LABEL}>첫 인사</th>
+            <th style={LABEL}>
+              <MdmFieldLabel name="welcome" label="첫 인사" meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 value={cfg.welcome}
@@ -94,7 +99,9 @@ export default function ChatEditor({ value, onChange, onValidate }: WidgetTypeEd
             </td>
           </tr>
           <tr>
-            <th style={LABEL}>포털 화면 안내</th>
+            <th style={LABEL}>
+              <MdmFieldLabel name="pageGuide" label="포털 화면 안내" meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <Checkbox
                 label="사용자가 볼 수 있는 화면을 찾아 안내"
@@ -104,7 +111,9 @@ export default function ChatEditor({ value, onChange, onValidate }: WidgetTypeEd
             </td>
           </tr>
           <tr>
-            <th style={LABEL_TOP}>데이터 질의에 쓸 쿼리 위젯</th>
+            <th style={LABEL_TOP}>
+              <MdmFieldLabel name="dataQueryDefIds" label="데이터 질의에 쓸 쿼리 위젯" meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <MultiSelectComboBox
                 data={options}

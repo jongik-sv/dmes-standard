@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 import { emptyRegForm, LVL_CNT_OPTIONS, type CodeRegForm } from "./types";
 
@@ -32,7 +33,7 @@ export function CodeRegisterForm({ canRegister, busy, onSubmit, onCancel }: Code
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>마루 코드 ID *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="maruCodeId" label="마루 코드 ID" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 data-testid="code-reg-id"
@@ -45,7 +46,7 @@ export function CodeRegisterForm({ canRegister, busy, onSubmit, onCancel }: Code
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>이름 *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="maruCodeName" label="이름" required /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 data-testid="code-reg-name"
@@ -57,19 +58,19 @@ export function CodeRegisterForm({ canRegister, busy, onSubmit, onCancel }: Code
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>설명</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Textarea data-testid="code-reg-desc" value={form.description} disabled={busy} onChange={(v) => set("description", v)} />
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>계층 칸 수</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="lvlCnt" label="계층 칸 수" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Select data-testid="code-reg-lvl" value={form.lvlCnt} options={LVL_CNT_OPTIONS} disabled={busy} onChange={(v) => set("lvlCnt", v)} />
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>원천</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="source" meta={false} label="원천" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <span data-testid="code-reg-source">MDM</span>
             </td>
