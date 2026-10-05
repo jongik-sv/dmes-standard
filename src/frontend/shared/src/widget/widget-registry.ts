@@ -108,6 +108,7 @@ export function defWidgetMeta(row: WidgetDefRow, type: WidgetTypeRegistryEntry):
   if (row.refreshSec !== null) meta.refreshSec = row.refreshSec;
   if (row.linkPageId) meta.linkPageId = row.linkPageId;
   if (t.bodyPadding !== undefined) meta.bodyPadding = t.bodyPadding;
+  if (t.floatable) meta.floatable = true;
   return meta;
 }
 

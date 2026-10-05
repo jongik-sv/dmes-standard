@@ -37,6 +37,8 @@ export interface WidgetFrameProps {
   onToggleLock: (instId: string) => void;
   onRemove: (instId: string) => void;
   onKeyMove?: (instId: string, key: WidgetMoveKey, mode: "move" | "resize") => void;
+  /** 제목 줄의 제목·부제를 그리지 않는다(기본 false). 도구 창처럼 바깥 틀이 제목을 따로 보이는 곳용 — aria-label 은 그대로다. */
+  hideTitle?: boolean;
 }
 
 // 지연 로딩 캐시는 entry 객체가 아니라 본체 로더(entry.load) 기준이다 — 덮어쓰기 행으로 meta 만 바뀐 새 entry 가 와도
@@ -81,7 +83,7 @@ class WidgetErrorBoundary extends Component<{ onRetry: () => void; children: Rea
 
 const KEY_MAP: Record<string, WidgetMoveKey> = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" };
 
-export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onRemove, onKeyMove }: WidgetFrameProps) {
+export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onRemove, onKeyMove, hideTitle = false }: WidgetFrameProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<WidgetStatus>({ kind: "ready" });
@@ -256,8 +258,8 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
     >
       <WidgetStyle />
       <div className="cm-widget__head" tabIndex={editing ? 0 : -1} onKeyDown={onHeadKeyDown}>
-        <h3 className="cm-widget__title">{shownTitle}</h3>
-        {entry.meta.subtitle && <span className="cm-widget__sub">{entry.meta.subtitle}</span>}
+        {!hideTitle && <h3 className="cm-widget__title">{shownTitle}</h3>}
+        {!hideTitle && entry.meta.subtitle && <span className="cm-widget__sub">{entry.meta.subtitle}</span>}
         <span className="cm-widget__title-extra" ref={setTitleSlot} />
         <span className="cm-widget__spacer" />
         <span className="cm-widget__actions" ref={setActionsSlot} />
