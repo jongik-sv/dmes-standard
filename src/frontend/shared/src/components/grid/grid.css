@@ -90,9 +90,9 @@
 }
 
 /* 툴팁(머리글·셀·MDM 검증 오류): 폼 라벨 툴팁(.form-tip-text)과 같은 어두운 바탕. 어두운 테마에서도 경계가 보이게 실제 테두리를 둔다.
-   툴팁은 그리드 밖(body)의 .ag-popup 감싸개에 뜨므로(grid-tooltip-parent.ts) 그 감싸개에도 같은 변수를 준다. 글꼴·모서리도 같이 맞춘다. */
+   툴팁은 그리드 밖(body)의 .ag-popup 감싸개에 뜨므로(grid-tooltip-parent.ts) 그 감싸개에도 같은 변수를 준다. 감싸개에는 ag-theme-alpine 이 아니라 Theming API 의 ag-theme-params-N 클래스만 붙으므로 body 의 직계 자식(`body > .ag-popup`)으로 고른다(2026-10-05 브라우저 확인). 글꼴·모서리도 같이 맞춘다. */
 .cm-data-grid.ag-theme-alpine,
-.ag-popup.ag-theme-alpine {
+body > .ag-popup {
   --ag-tooltip-background-color: var(--shell-header-bg);
   --ag-tooltip-text-color: var(--shell-header-fg);
   --ag-tooltip-border: 1px solid var(--color-border-strong);

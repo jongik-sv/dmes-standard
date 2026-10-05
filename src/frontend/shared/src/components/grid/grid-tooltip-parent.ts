@@ -14,7 +14,10 @@ import type { AgGridReact } from "ag-grid-react";
  * 팝업은 만들어질 때의 부모에 붙고 그 부모에서 지워지므로 되돌려도 떠 있는 툴팁은 그대로다.
  * 편집·열 끌기·열 메뉴는 눌림이나 키 입력으로 시작하므로 그 팝업은 늘 그리드 안에 붙는다.
  *
- * 툴팁 바탕·글자 변수는 grid.css 의 `.ag-popup.ag-theme-alpine` 규칙이 body 쪽 팝업 감싸개에도 준다(테마 클래스는 ag-grid 가 감싸개에 붙인다).
+ * 툴팁 바탕·글자 변수는 grid.css 의 `body > .ag-popup` 규칙이 body 쪽 팝업 감싸개에 준다. 감싸개에는 `ag-theme-alpine` 이 아니라 Theming API 의
+ * `ag-theme-params-N` 클래스만 붙으므로 테마 클래스가 아니라 위치로 고른다.
+ *
+ * 호출자가 `popupParent` 를 따로 주는 그리드와는 함께 쓰지 않는다 — 그 값이 body 가 아니면 이 훅은 건드리지 않는다(켤 때 건너뛴다).
  */
 export function useGridTooltipOutside(
   containerRef: RefObject<HTMLElement | null>,
@@ -30,6 +33,9 @@ export function useGridTooltipOutside(
       if (outside === on) return;
       const api = gridRef.current?.api;
       if (!api || api.isDestroyed()) return;
+      // 호출자가 popupParent 를 줬으면(body 가 아님) 그 값을 지키려고 건드리지 않는다.
+      const given = api.getGridOption("popupParent");
+      if (on && given && given !== document.body) return;
       if (hideListenerApi !== api) {
         hideListenerApi = api;
         api.addEventListener("tooltipHide", () => set(false));

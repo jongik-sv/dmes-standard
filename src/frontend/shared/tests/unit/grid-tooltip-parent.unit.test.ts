@@ -4,6 +4,8 @@
  * 머리글·셀 위에 마우스가 오르면 popupParent 를 body 로 바꾸고, 눌림·키 입력·그리드를 떠남·tooltipHide 에서 되돌린다.
  * 그 밖의 자리(머리글·셀이 아닌 곳)에서는 건드리지 않는다.
  */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, createElement, createRef, type RefObject } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -30,6 +32,7 @@ function setup() {
   const listeners: Record<string, () => void> = {};
   const api = {
     isDestroyed: () => false,
+    getGridOption: vi.fn((): unknown => undefined),
     addEventListener: vi.fn((name: string, fn: () => void) => {
       listeners[name] = fn;
     }),
@@ -89,6 +92,22 @@ describe("useGridTooltipOutside", () => {
       expect(api.setGridOption).toHaveBeenLastCalledWith("popupParent", undefined);
     }
     expect(api.addEventListener).toHaveBeenCalledTimes(1); // tooltipHide 구독은 api 마다 한 번
+  });
+
+  it("호출자가 popupParent 를 줬으면(body 가 아님) 건드리지 않는다", () => {
+    const { api, q, fire } = setup();
+    api.getGridOption.mockReturnValue(document.createElement("div"));
+    fire(q("cell"), "mouseover");
+    expect(api.setGridOption).not.toHaveBeenCalled();
+  });
+
+  it("툴팁 감싸개 변수는 grid.css 의 body > .ag-popup 선택자로 준다(ag-theme-alpine 클래스에 기대지 않는다)", () => {
+    const css = readFileSync(resolve(process.cwd(), "src/components/grid/grid.css"), "utf8");
+    const block = /\.cm-data-grid\.ag-theme-alpine,\s*body > \.ag-popup\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(block).toMatch(/--ag-tooltip-background-color:\s*var\(--shell-header-bg\)/);
+    expect(block).toMatch(/--ag-tooltip-text-color:\s*var\(--shell-header-fg\)/);
+    expect(block).toMatch(/--ag-font-family:/);
+    expect(block).toMatch(/--ag-font-size:/);
   });
 
   it("언마운트하면 문서 이벤트를 더 듣지 않는다", () => {
