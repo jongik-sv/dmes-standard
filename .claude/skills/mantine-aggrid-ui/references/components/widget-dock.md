@@ -34,7 +34,7 @@ import { WidgetFrame } from "@dk-oasis/shared/widget";
 - 사용자 확인: `useCurrentUserState(enabled)` — 셸의 `/api/auth/me` 요청을 함께 쓴다. 사용자 없음·로그아웃 중(`loggingOutRef`)에는 불러오지도 저장하지도 않는다.
 - 상태: `useWidgetDock({ enabled, userId, registry, registryStatus, store, isSaveBlocked })` — 불러오기, 조작 뒤 `DOCK_SAVE_DELAY_MS`(400ms) 디바운스 저장, 언마운트·사용자 바뀜·`pagehide` 때 남은 저장. 등록부가 `ready` 면 `sanitizeDockWindows` 로 없는·사용 중지·floatable 아닌 위젯 창을 정리해 저장한다.
 - 머리: `Header toolsSlot` 에 `DockToolsMenu`(목록은 `useDockableEntries(registry)` = `listDockableEntries`, 제목순).
-- 창 층: `WidgetDockLayer` 를 AppShell 최상위(탭 슬롯 바깥)에 둔다. `position: fixed; inset: 0; pointer-events: none`, z-index `WIDGET_DOCK_Z_INDEX`(160 — 사이드바 손잡이 150 위, Mantine 모달 200·팝오버 300 아래). 등록부에 아직 없는 창은 그리지 않고 상태에만 남긴다.
+- 창 층: `WidgetDockLayer` 를 AppShell 최상위(탭 슬롯 바깥)에 둔다. `position: fixed; inset: 0; pointer-events: none`, z-index `WIDGET_DOCK_Z_INDEX`(160 — 사이드바 컨테이너가 z 150 쌓임 맥락이라 폭 조절 손잡이가 창 위로 새지 않고, Mantine 모달 200·팝오버 300 아래. 탭 화면 안 드롭다운은 z 1000 이라 창 위에 보인다). 접힌 아이콘은 `dockStackOrder` 로 펼친 창들보다 항상 위에 그린다. 화면 크기는 창이 있을 때만 층이 rAF 로 구독한다. 등록부에 아직 없는 창은 그리지 않고 상태에만 남긴다.
 
 ### 순수 함수(dock-model)
 
@@ -46,7 +46,10 @@ import { WidgetFrame } from "@dk-oasis/shared/widget";
 | `dockItemSize(win)` | 창 px → 위젯 본체 `size`(칸) |
 | `openDockWindow(windows, entry, viewport)` | 새 창(오른쪽 위 계단식, 맨 앞) → `{ kind: "opened" }`. `multiple === false` 이고 열려 있으면 펼쳐 앞으로 → `"focused"`. 창 `DOCK_MAX_WINDOWS`(8)개면 `"limit"` |
 | `stableDockWindowId(widgetId)` · `dockWindowSlotId(widgetId, slot)` | 창 ID 는 위젯·자리마다 고정 — 첫 창 `dk-{위젯ID}-{해시}`, 같은 위젯 두 번째부터 `…-2`~`…-8`(빈 첫 자리). 모두 `DOCK_WINDOW_ID_PATTERN`(`[A-Za-z0-9_-]{1,40}`) |
-| `clampDockWindow(win, viewport)` | 크기·위치를 화면 안으로(접혔으면 `DOCK_ICON_SIZE` 44 기준) |
+| `clampDockWindow(win, viewport)` | 그릴 때만 쓰는 표시용 자르기 — 크기·위치를 화면 안으로(접혔으면 `DOCK_ICON_SIZE` 44 기준). 저장 w·h 는 줄이지 않는다 |
+| `placeDockWindow(win, viewport)` | 옮기기·접기·열기에 쓰는 위치 맞춤 — 저장 w·h 는 그대로 두고 x·y 만 화면 안으로 |
+| `dockStackOrder(windows)` | 그리는 순서 — 접힌 아이콘이 펼친 창 위 |
+| `readDockViewport()` · `useDockViewport()` | 화면 크기 읽기. 앞은 조작 순간에 한 번 읽고, 뒤는 rAF 로 묶어 구독하는 훅(창 층 안에서만 쓴다 — 셸에서 구독하면 Header·Sidebar 가 다시 그려진다) |
 | `bringDockWindowToFront` · `toggleDockCollapse` · `closeDockWindow` · `moveDockWindow` · `resizeDockWindow` | 맨 앞(쌓임 1..n 재번호)·접기 토글(펼치면 앞으로)·닫기·옮기기·크기 |
 | `sanitizeDockWindows(windows, registry, status)` | ID 겹침·한도는 늘, 등록부 판단은 `ready` 일 때만 |
 

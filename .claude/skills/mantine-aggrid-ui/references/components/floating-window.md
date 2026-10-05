@@ -79,7 +79,7 @@ export function ToolWindow({ onClose }: { onClose: () => void }) {
 |---|---|
 | 접을 때 본문을 언마운트하려고 `collapsed` 면 children 을 빼서 넘김 | 그대로 넘긴다. 창이 숨기기만 해서 입력 중인 값이 남는다 |
 | 부모 층에 `pointer-events: none` 없이 화면 전체를 덮음 | 층은 `pointer-events: none`, 창만 눌린다 |
-| `onMove` 에서 받은 값을 다시 자르지 않고 저장 | 창은 `bounds` 로 자르지만 화면 크기가 바뀌면 부모가 다시 자른다(위젯 도크는 `clampDockWindow`) |
+| `onMove` 에서 받은 값을 다시 자르지 않고 저장 | 창은 `bounds` 로 자르지만 화면 크기가 바뀌면 부모가 다시 자른다(위젯 도크는 그릴 때 `clampDockWindow`, 저장은 `placeDockWindow`) |
 | 렌더마다 `children` 을 새로 만들어 끌 때 본문이 다시 그려짐 | 본문 요소를 `useMemo` 로 고정한다(`WidgetDockLayer` 참고) |
 | 모달처럼 쓰려 함 | 배경을 막지 않는 비모달 창(`role="dialog" aria-modal="false"`)이다. 답을 받아야 하면 [Modal](modal.md) |
 

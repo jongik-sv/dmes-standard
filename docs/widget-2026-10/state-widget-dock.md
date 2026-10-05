@@ -57,5 +57,5 @@
 7. **후속 — 「도구」 메뉴 한도 계산**(리뷰 10): 항목마다 `countOf` 가 창 목록을 훑고 한도(atLimit)도 렌더마다 다시 센다. 위젯별 개수를 한 번에 모은 맵으로 바꾼다(창 8개 한도라 지금은 비용이 작다).
 8. **후속 — 사용자 확인 실패 시 메뉴 재시도**(리뷰 11): `/api/auth/me` 가 실패하면 사용자 ID 가 비어 「도구」 메뉴가 계속 불러오는 중으로 남는다. 실패를 알리고 다시 시도하는 길이 없다.
 9. **후속 — 제목 이중 표시**(리뷰 12): 창 막대 제목과 위젯 틀 제목 줄이 겹친다(결정 8, 소유 밖 요청 1 의 `WidgetFrame` prop 이 들어오면 함께 정리).
-10. **소유 밖 확인 대기 — 스킬 문서**: `.claude/skills/mantine-aggrid-ui/references/components/widget-dock.md`·`floating-window.md` 에 이번 변경(훅 `viewport` 제거·`WidgetDockLayer viewport` 선택 prop·`DockToolsMenu triggerRef`·`dockStackOrder`·`placeDockWindow`·사이드바 z 150)을 반영해야 한다.
+10. (처리 끝) **스킬 문서 갱신**: `.claude/skills/mantine-aggrid-ui/references/components/widget-dock.md`·`floating-window.md` 에 이번 변경(훅 `viewport` 제거·`WidgetDockLayer viewport` 선택 prop·`DockToolsMenu triggerRef`·`dockStackOrder`·`placeDockWindow`·사이드바 z 150)을 반영해야 한다.
 11. **기존 문제(이 레인 아님)**: mantine-aggrid-ui `ui_docs.py coverage` 의 `useWidgetVisible` 미등재 1건.
