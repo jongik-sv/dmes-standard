@@ -61,21 +61,20 @@ function hash36(text: string): string {
 }
 
 /**
- * 위젯마다 고정된 첫 창 ID. 메모처럼 instanceId 로 서버에 저장하는 위젯이 닫았다 다시 열어도 같은 내용을 보이게 한다
- * (창마다 새 ID 면 다시 열 때마다 빈 메모가 되고 서버에 쓰레기 행이 쌓인다). 끝의 해시로 다른 위젯 ID 와 겹치지 않게 한다.
+ * 위젯·자리(slot)마다 고정된 창 ID — 첫 창은 `dk-{위젯ID}-{해시}`, 같은 위젯 두 번째부터 `…-2`~`…-8`.
+ * 메모처럼 instanceId 로 서버에 저장하는 위젯이 닫았다 다시 열어도 같은 내용을 보이고, 서버 행이 위젯당 최대 8개로 묶인다
+ * (창마다 새 ID 면 다시 열 때마다 빈 메모가 되고 메모 수 한도(사용자당 100)를 갉아먹는다). 해시로 다른 위젯 ID 와 겹치지 않게 한다.
+ * 길이는 최대 38자 — 메모 서버 키 규칙 `[A-Za-z0-9_-]{1,40}` 안이다.
  */
-export function stableDockWindowId(widgetId: string): string {
-  const safe = widgetId.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 28);
-  return `dk-${safe}-${hash36(widgetId)}`;
+export function dockWindowSlotId(widgetId: string, slot: number): string {
+  const safe = widgetId.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 25);
+  const base = `dk-${safe}-${hash36(widgetId)}`;
+  return slot <= 1 ? base : `${base}-${slot}`;
 }
 
-/** 같은 위젯의 두 번째 이후 창 ID(multiple 위젯). */
-export function randomDockWindowId(): string {
-  const rand =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID().replace(/-/g, "").slice(0, 10)
-      : Math.random().toString(36).slice(2, 12);
-  return `dk-${Date.now().toString(36)}-${rand}`;
+/** 위젯의 첫 창 ID(자리 1). */
+export function stableDockWindowId(widgetId: string): string {
+  return dockWindowSlotId(widgetId, 1);
 }
 
 const clamp = (v: number, min: number, max: number) =>
@@ -126,13 +125,12 @@ export type OpenDockResult =
 
 /**
  * 위젯 창을 연다. multiple===false 이고 이미 열려 있으면 새로 만들지 않고 펼쳐서 앞으로 가져온다.
- * 새 창은 메타 크기로 오른쪽 위에서 계단식으로 놓고 맨 앞에 둔다. 첫 창 ID 는 위젯마다 고정(stableDockWindowId).
+ * 새 창은 메타 크기로 오른쪽 위에서 계단식으로 놓고 맨 앞에 둔다. 창 ID 는 비어 있는 첫 자리의 고정 ID(dockWindowSlotId).
  */
 export function openDockWindow(
   windows: DockWindow[],
   entry: WidgetRegistryEntry,
-  viewport: DockViewport,
-  makeRandomId: () => string = randomDockWindowId
+  viewport: DockViewport
 ): OpenDockResult {
   const widgetId = entry.meta.id;
   if (entry.meta.multiple === false) {
@@ -145,9 +143,11 @@ export function openDockWindow(
     }
   }
   if (windows.length >= DOCK_MAX_WINDOWS) return { kind: "limit", windows };
-  const stable = stableDockWindowId(widgetId);
-  let id = windows.some((w) => w.id === stable) ? makeRandomId() : stable;
-  while (windows.some((w) => w.id === id)) id = makeRandomId();
+  // 창이 8개 미만이므로 1~8 자리 중 빈 자리가 늘 있다.
+  const used = new Set(windows.map((w) => w.id));
+  let slot = 1;
+  while (used.has(dockWindowSlotId(widgetId, slot))) slot += 1;
+  const id = dockWindowSlotId(widgetId, slot);
   const size = windowSizeFor(entry.meta);
   const k = windows.length;
   const win = clampDockWindow(

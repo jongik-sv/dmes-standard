@@ -15,6 +15,7 @@ import {
   DOCK_MAX_WINDOWS,
   DOCK_WINDOW_ID_PATTERN,
   dockItemSize,
+  dockWindowSlotId,
   isDockableEntry,
   listDockableEntries,
   moveDockWindow,
@@ -105,15 +106,31 @@ describe("dock-model — 열기", () => {
     expect(w.y).toBe(72);
   });
 
-  it("두 번째 창은 계단식으로 비켜 놓이고 같은 위젯이면 무작위 ID 를 쓴다", () => {
+  it("두 번째 창은 계단식으로 비켜 놓이고 같은 위젯이면 자리 2 의 고정 ID 를 쓴다", () => {
     const first = openDockWindow([], entry("def.calc"), VP);
-    const second = openDockWindow(first.windows, entry("def.calc"), VP, () => "dk-rand-1");
+    const second = openDockWindow(first.windows, entry("def.calc"), VP);
     expect(second.kind).toBe("opened");
     const [a, b] = second.windows;
-    expect(b.id).toBe("dk-rand-1");
+    expect(b.id).toBe(dockWindowSlotId("def.calc", 2));
+    expect(b.id).toBe(`${stableDockWindowId("def.calc")}-2`);
     expect(b.x).toBe(a.x - 28);
     expect(b.y).toBe(a.y + 28);
     expect(b.z).toBeGreaterThan(a.z);
+  });
+
+  it("자리 2 창을 닫고 다시 열면 같은 자리 2 ID 다(메모 서버 행이 늘지 않는다)", () => {
+    let ws = openDockWindow([], entry("def.memo"), VP).windows;
+    ws = openDockWindow(ws, entry("def.memo"), VP).windows;
+    ws = openDockWindow(ws, entry("def.memo"), VP).windows;
+    const slot2 = dockWindowSlotId("def.memo", 2);
+    ws = closeDockWindow(ws, slot2);
+    const r = openDockWindow(ws, entry("def.memo"), VP);
+    expect(r.kind === "opened" && r.id).toBe(slot2);
+  });
+
+  it("자리 ID 는 긴 위젯 ID 의 마지막 자리(8)도 메모 서버 키 규칙(40자) 안이다", () => {
+    const id = dockWindowSlotId(`def.${"가".repeat(10)}${"x".repeat(80)}`, 8);
+    expect(DOCK_WINDOW_ID_PATTERN.test(id)).toBe(true);
   });
 
   it("multiple===false 위젯이 이미 열려 있으면 새로 만들지 않고 펼쳐서 앞으로 가져온다", () => {

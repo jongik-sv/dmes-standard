@@ -17,12 +17,13 @@
 | 구조 기록·정본 메모 | (이 커밋) | 끝 |
 | 브라우저 확인(포털 5100) | — | 조정 세션 요청 대기 |
 
-시험: `pnpm exec vitest run tests/unit/widget-dock-*.unit.test.ts --maxWorkers=2`(shared) 54건 통과, 기존 portal-shell 시험 9파일 90건 통과. shared `tsc --noEmit` 0건.
+시험: `pnpm exec vitest run tests/unit/widget-dock-*.unit.test.ts --maxWorkers=2`(shared) 56건 통과, 기존 portal-shell 시험 9파일 90건 통과. shared `tsc --noEmit` 0건.
 
 ## 결정(이 레인에서 정한 것)
 
 1. **저장**: `WidgetDockStore { load(); save(windows) }` 계약. 1차는 브라우저 저장 `createBrowserDockStore(userId)` — 키 `oasis.widget-dock.v1.{userId}`, 값 `{ version: 1, windows }`, 모양 검사로 손상값 무시, 읽기·쓰기 실패 무시. **서버 저장은 후속**(같은 계약을 구현해 `widgetDock.store` 로 넘기면 된다).
-2. **창 ID = 위젯 본체 instanceId**. 메모는 (사용자, instId)로 서버에 저장하고 instId 규칙이 `[A-Za-z0-9_-]{1,40}`·사용자당 100개라, 첫 창 ID 를 위젯마다 고정(`dk-{위젯ID 정리}-{해시}`)했다 — 닫았다 다시 열어도 같은 메모, 서버 행이 쌓이지 않는다. 같은 위젯 두 번째 창부터는 무작위 ID.
+2. **창 ID = 위젯 본체 instanceId**. 메모는 (사용자, instId)로 서버에 저장하고 instId 규칙이 `[A-Za-z0-9_-]{1,40}`·사용자당 100개이며 서버는 메모를 지우지 않는다(배치 저장과 무관 — secWidget 탭 저장은 SEC_USER_WIDGET 만 지운다, 임시본 정리는 7일 TTL 만). 그래서 창 ID 를 위젯·자리마다 고정했다 — 첫 창 `dk-{위젯ID 정리 25자}-{해시}`, 같은 위젯 두 번째부터 빈 첫 자리 `…-2`~`…-8`(최대 38자). 닫았다 다시 열어도 같은 메모, 서버 행은 위젯당 최대 8개.
+   - 위젯 본체는 탭 맥락(TabPageContext·MdmMetaProvider) 밖에서 그려진다. 계산기·단위 변환·메모 본체와 `_content`·`lib/http` 는 탭 맥락을 읽지 않는다(메모 요청 menuId 는 고정 "HOME") — grep 으로 확인.
 3. **틀 주입(frame)**: `PortalShellWidgetDock.frame` 을 필수로 더했다(착수 지시의 `{registry, registryStatus, store?}` 에 추가). shared 가 진입점마다 따로 묶여(tsup `splitting:false`) 셸이 `WidgetFrame` 을 직접 쓰면 `WidgetFrameContext` 가 위젯 본체와 갈리기 때문이다.
 4. **크기·배치**: 칸당 40×30px, 최소 220×160, 창 8개 한도, 새 창은 오른쪽 위(오른쪽 32px·위 72px)에서 28px 계단식, 접힌 아이콘 44px(제목 첫 글자), 끌기 임계 4px, 저장 지연 400ms.
 5. **z-index 160**: 탭 화면·사이드바 펼침 손잡이(150) 위, Mantine 모달(200)·팝오버(300)·알림(10000) 아래. 위젯이 body 로 띄우는 팝오버는 창 위에 보인다.
@@ -39,4 +40,5 @@
 4. **소유 밖 요청(shared/src/widget)**:
    - 요청 1: `WidgetFrame` 에 제목 줄 제목을 숨기는 prop 또는 제목 변경 콜백(`onTitleChange`) — 도크 창 막대와 틀 제목이 겹치지 않게, 메모 이름을 막대에 보이게.
    - 요청 2: `WidgetFrameContext` 를 TabPageContext·MdmMeta 처럼 `globalThis` 캐시로 — 그러면 `frame` 주입 없이 셸이 틀을 직접 써도 된다.
-5. **기존 문제(이 레인 아님)**: mantine-aggrid-ui `ui_docs.py coverage` 의 `useWidgetVisible` 미등재 1건.
+5. **후속 — 셸 다시 그리기**: 도크 상태가 `PortalShell` 에 있어 창 놓기·접기·닫기·앞으로 가져오기마다 Header·Sidebar·TabsBar(memo 아님)가 다시 그려진다(탭 화면 슬롯은 memo 라 그대로). 끄는 동안은 창 안에서만 그리므로 이벤트당 한 번이다. 줄이려면 도크 상태를 작은 외부 저장소로 옮기고 「도구」 메뉴·창 층 두 곳만 구독하게 한다.
+6. **기존 문제(이 레인 아님)**: mantine-aggrid-ui `ui_docs.py coverage` 의 `useWidgetVisible` 미등재 1건.

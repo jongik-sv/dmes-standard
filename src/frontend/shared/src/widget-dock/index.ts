@@ -13,7 +13,7 @@ export {
   listDockableEntries,
   moveDockWindow,
   openDockWindow,
-  randomDockWindowId,
+  dockWindowSlotId,
   resizeDockWindow,
   sanitizeDockWindows,
   stableDockWindowId,

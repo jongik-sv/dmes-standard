@@ -3,11 +3,11 @@
 업무 화면 도구 창(포털 머리 「도구」 → floatable 위젯을 떠 있는 창으로). 형식은 `.claude/skills/coordinator/templates/lane-rules-README.md` §6.1.
 
 ## S1. shared `widget-dock` 모듈 신설
-- 커밋: df2321d7, 8af9df37(시험)
+- 커밋: df2321d7, 8af9df37(시험), 자리 고정 창 ID 보완(마지막 커밋)
 - 바뀌기 전: 위젯은 홈 보드(`WidgetWorkspace`) 안에서만 그려졌다. 떠 있는 창 부품이 없었다.
 - 바뀐 뒤: `src/frontend/shared/src/widget-dock/` — `types.ts`(DockWindow·WidgetDockStore), `dock-model.ts`(순수 함수: 열기·계단식 배치·칸→px·자르기·앞으로·접기·닫기·8개 한도·ready 정리·multiple=false 재사용·고정 창 ID), `browser-dock-store.ts`(사용자 ID 키 브라우저 저장, 손상값 무시), `use-widget-dock.ts`(불러오기·400ms 디바운스·언마운트/사용자 바뀜/pagehide 저장), `FloatingWindow.tsx`(범용 떠 있는 창), `WidgetDockLayer.tsx`(창 층), `DockToolsMenu.tsx`(「도구」 메뉴), `styles.tsx`(`<style href precedence>`).
 - 바꾼 이유: 사용자 결정 3(2026-10-05) — 계산기·단위 변환·메모를 업무 화면 위에 띄운다. 범용 부품은 Part B §18 에 따라 shared 에 둔다.
-- 동작 보존 근거: 새 모듈이라 기존 호출부가 없다. `widget-dock-model`(20)·`widget-dock-store`(8)·`widget-dock-window`(20) 시험 통과.
+- 동작 보존 근거: 새 모듈이라 기존 호출부가 없다. `widget-dock-model`(22)·`widget-dock-store`(8)·`widget-dock-window`(20) 시험 통과.
 - 영향 범위: 없음(새 파일). shared/src/widget 은 타입·`WidgetFrame` 을 import 만 한다.
 - 되돌리는 방법: df2321d7·8af9df37 revert. S2·S3 이 이 모듈을 쓰므로 S3 → S2 → S1 순서로 되돌린다.
 

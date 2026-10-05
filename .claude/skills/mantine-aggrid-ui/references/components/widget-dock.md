@@ -45,7 +45,7 @@ import { WidgetFrame } from "@dk-oasis/shared/widget";
 | `windowSizeFor(meta)` | `defaultSize` 칸 → px(`DOCK_CELL_PX` 가로 40·세로 30), 최소 `DOCK_MIN_SIZE` 220×160 |
 | `dockItemSize(win)` | 창 px → 위젯 본체 `size`(칸) |
 | `openDockWindow(windows, entry, viewport)` | 새 창(오른쪽 위 계단식, 맨 앞) → `{ kind: "opened" }`. `multiple === false` 이고 열려 있으면 펼쳐 앞으로 → `"focused"`. 창 `DOCK_MAX_WINDOWS`(8)개면 `"limit"` |
-| `stableDockWindowId(widgetId)` · `randomDockWindowId()` | 첫 창 ID 는 위젯마다 고정, 같은 위젯 두 번째부터 무작위. 모두 `DOCK_WINDOW_ID_PATTERN`(`[A-Za-z0-9_-]{1,40}`) |
+| `stableDockWindowId(widgetId)` · `dockWindowSlotId(widgetId, slot)` | 창 ID 는 위젯·자리마다 고정 — 첫 창 `dk-{위젯ID}-{해시}`, 같은 위젯 두 번째부터 `…-2`~`…-8`(빈 첫 자리). 모두 `DOCK_WINDOW_ID_PATTERN`(`[A-Za-z0-9_-]{1,40}`) |
 | `clampDockWindow(win, viewport)` | 크기·위치를 화면 안으로(접혔으면 `DOCK_ICON_SIZE` 44 기준) |
 | `bringDockWindowToFront` · `toggleDockCollapse` · `closeDockWindow` · `moveDockWindow` · `resizeDockWindow` | 맨 앞(쌓임 1..n 재번호)·접기 토글(펼치면 앞으로)·닫기·옮기기·크기 |
 | `sanitizeDockWindows(windows, registry, status)` | ID 겹침·한도는 늘, 등록부 판단은 `ready` 일 때만 |
@@ -69,7 +69,7 @@ import { WidgetFrame } from "@dk-oasis/shared/widget";
 
 - 창 8개 한도, 칸당 40×30px, 최소 220×160, 아이콘 44px, 저장 지연 400ms, z-index 160.
 - 「도구」 메뉴 문구: 머리 「도구」, 메뉴 머리 「업무 화면 위에 띄우기」, 한도 안내 「창은 8개까지 띄울 수 있습니다.」.
-- 창 ID = 위젯 본체 `instanceId`. 메모처럼 instanceId 로 서버에 저장하는 위젯은 첫 창 ID 가 고정이라 닫았다 다시 열어도 같은 내용이다.
+- 창 ID = 위젯 본체 `instanceId`. 메모처럼 instanceId 로 서버에 저장하는 위젯은 자리 ID 가 고정이라 닫았다 다시 열어도 같은 내용이고, 서버 행은 위젯당 최대 8개다.
 
 ## 흔한 실수
 
@@ -77,7 +77,7 @@ import { WidgetFrame } from "@dk-oasis/shared/widget";
 |---|---|
 | `frame` 을 빼거나 셸 안에서 `WidgetFrame` 을 직접 import | shared 는 진입점마다 따로 묶여(tsup `splitting: false`) 틀 컨텍스트가 위젯 본체와 갈린다 — 본체의 `useWidgetTitle`·`useWidgetStatus` 가 동작하지 않는다. 호스트가 `@dk-oasis/shared/widget` 의 것을 넘긴다 |
 | 정의 조회 전에 `registryStatus: "ready"` 를 넘김 | 계산기·메모 창이 「없는 위젯」으로 정리돼 저장값에서 사라진다. 조회 상태를 그대로 넘긴다 |
-| 창마다 무작위 ID 로 새로 만듦 | 메모가 다시 열 때마다 빈 칸이 되고 서버 행이 쌓인다. `openDockWindow` 를 쓴다(첫 창 고정 ID) |
+| 창마다 무작위 ID 로 새로 만듦 | 메모가 다시 열 때마다 빈 칸이 되고 서버 행이 쌓인다(사용자당 100개 한도). `openDockWindow` 를 쓴다(자리 고정 ID) |
 | 사용자 확인 전·로그아웃 중에도 저장 | 셸이 `userId` 가 비면 끄고 `isSaveBlocked` 로 막는다. 따로 저장 코드를 두지 않는다 |
 | 화면 모듈에서 `FloatingWindow` 로 위젯을 직접 띄움 | 위젯은 셸 도크가 띄운다. 화면은 위젯 메타 `floatable` 만 정한다 |
 
