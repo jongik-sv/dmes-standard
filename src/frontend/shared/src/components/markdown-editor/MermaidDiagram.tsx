@@ -7,9 +7,15 @@
  * 크기: 기본(맞춤)은 자연 크기(100%)이고 본문 폭을 넘을 때만 폭에 맞춰 줄인다(작은 도식은 키우지 않고, 높이에 맞춰 줄이지도 않는다).
  * 세로로 긴 도식은 틀(최대 높이 480px·60vh 중 작은 값) 안에서 세로로 스크롤한다. 글자 크기는 모든 도식이 같도록 mermaid 글자를 본문 크기(14px)에 맞춘다.
  * 도식마다 [−] [배율] [+] [맞춤] 도구 막대로 25~200% 로 조절한다. 배율 표시는 실제 적용 배율과 같다.
+ * [크게 보기] 단추·도식 더블클릭은 MermaidViewer(화면 거의 전체 오버레이)에 같은 도식을 연다.
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { IconMinus, IconPlus, IconZoomReset } from "@tabler/icons-react";
+import { IconArrowsMaximize, IconMinus, IconPlus, IconZoomReset } from "@tabler/icons-react";
+import { MermaidViewer } from "./MermaidViewer";
+import { fitScaleOf, MERMAID_ZOOM_STEPS, naturalSizeOf, nextZoom, ZOOM_EPS as EPS } from "./mermaid-zoom";
+
+// 크기 계산은 mermaid-zoom.ts 에 있다 — 기존 import 경로(MermaidDiagram)를 지키려고 다시 내보낸다.
+export { fitScaleOf, MERMAID_ZOOM_STEPS, naturalSizeOf, nextZoom };
 
 export interface MermaidDiagramProps {
   /** mermaid 코드(펜스 안쪽 글). */
@@ -98,9 +104,6 @@ let seq = 0;
 
 /** 도식 틀의 최대 높이(CSS). 이보다 긴 도식은 틀 안에서 세로로 스크롤한다. */
 const FRAME_MAX_HEIGHT_CSS = "min(480px, 60vh)";
-/** 단추로 고르는 배율 단계. */
-export const MERMAID_ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2] as const;
-const EPS = 0.001;
 
 /** 도구 막대 표시·인쇄 규칙. 단추는 마우스를 올리거나 초점이 있을 때 또렷해진다(터치 기기에서도 흐리게나마 늘 보인다). */
 const MERMAID_CSS = `
@@ -121,27 +124,6 @@ const MERMAID_CSS = `
 }
 `;
 
-/** mermaid SVG 문자열에서 자연 크기(viewBox 의 너비·높이)를 읽는다. 없으면 null. */
-export function naturalSizeOf(svg: string): { w: number; h: number } | null {
-  const tag = /<svg\b[^>]*>/i.exec(svg)?.[0];
-  const vb = tag && /viewBox\s*=\s*["']\s*([-\d.eE]+)[\s,]+([-\d.eE]+)[\s,]+([-\d.eE]+)[\s,]+([-\d.eE]+)\s*["']/.exec(tag);
-  if (!vb) return null;
-  const w = Number(vb[3]);
-  const h = Number(vb[4]);
-  return w > 0 && h > 0 ? { w, h } : null;
-}
-
-/** 맞춤 배율 — 자연 크기(1)로 두되 본문 폭(frameW, 0 이면 모름)을 넘을 때만 폭에 맞춰 줄인다. 1 보다 커지지 않는다. */
-export function fitScaleOf(nat: { w: number; h: number }, frameW: number): number {
-  const k = frameW > 0 ? Math.min(1, frameW / nat.w) : 1;
-  return Math.max(0.05, Math.floor(k * 1000) / 1000);
-}
-
-export function nextZoom(current: number, dir: 1 | -1): number {
-  if (dir > 0) return MERMAID_ZOOM_STEPS.find((z) => z > current + EPS) ?? MERMAID_ZOOM_STEPS[MERMAID_ZOOM_STEPS.length - 1];
-  return [...MERMAID_ZOOM_STEPS].reverse().find((z) => z < current - EPS) ?? MERMAID_ZOOM_STEPS[0];
-}
-
 /** 그려진 도식 — 자연 크기를 기준으로 맞춤 배율과 사용자가 고른 배율을 적용한다. */
 function DiagramView({ svg, code, testId }: { svg: string; code: string; testId: string }) {
   const frameRef = useRef<HTMLDivElement>(null);
@@ -150,6 +132,15 @@ function DiagramView({ svg, code, testId }: { svg: string; code: string; testId:
   const natH = nat?.h;
   const [zoom, setZoom] = useState<number | null>(null); // null = 맞춤
   const [frameW, setFrameW] = useState(0);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+
+  // 크게 보기를 닫으면 [크게 보기] 단추로 초점을 돌려준다.
+  useEffect(() => {
+    if (wasOpen.current && !viewerOpen) openerRef.current?.focus();
+    wasOpen.current = viewerOpen;
+  }, [viewerOpen]);
 
   // 다른 도식(코드)이 오면 맞춤으로 돌아간다.
   useEffect(() => setZoom(null), [code]);
@@ -236,6 +227,18 @@ function DiagramView({ svg, code, testId }: { svg: string; code: string; testId:
           >
             <IconZoomReset size={14} aria-hidden="true" focusable="false" />
           </button>
+          <button
+            ref={openerRef}
+            type="button"
+            className="md-mermaid-btn"
+            aria-label="도식 크게 보기"
+            title="도식 크게 보기"
+            aria-haspopup="dialog"
+            data-testid={`${testId}-open-viewer`}
+            onClick={() => setViewerOpen(true)}
+          >
+            <IconArrowsMaximize size={14} aria-hidden="true" focusable="false" />
+          </button>
         </div>
       )}
       <div
@@ -245,8 +248,10 @@ function DiagramView({ svg, code, testId }: { svg: string; code: string; testId:
         aria-label="mermaid 도식"
         tabIndex={0}
         style={{ maxHeight: FRAME_MAX_HEIGHT_CSS }}
+        onDoubleClick={nat ? () => setViewerOpen(true) : undefined}
         dangerouslySetInnerHTML={html}
       />
+      {viewerOpen && nat && <MermaidViewer svg={svg} testId={`${testId}-viewer`} onClose={() => setViewerOpen(false)} />}
     </div>
   );
 }
