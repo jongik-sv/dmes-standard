@@ -93,7 +93,7 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
 ## ui:9. 디버거 안으로 들어가기
 - 상태: 화면 쪽 구현(일부) 끝. srv:6(`execute` 응답의 `calledFlows`·연쇄 재검사)이 아직 dev 에 없어 서버가 `calledFlows` 를 주지 않아도 깨지지 않게 했다(아래 결정 3). 계획 Task 9 와 Task 8 의 디버거 경고 몫(조정 지시)을 했다.
 - 커밋: `e08b2e20`(순수 함수 `call-stack.ts`·`trace-view` SET 값 흐름·`types.CalledFlow`, 시험 `call-stack.test.ts`), `c4e48c89`(훅·패널·편집기 연결·경로 표시 줄, 시험 `debug-subset.test.ts`), `fca4a865`(확정 안 한 하위 세트 경고·`copyNode` setId)
-- 시험 결과: `vitest run tests/dme/ruleSetEdit` → 99파일 1880 통과·0 실패(착수 전 97파일 1855 + 새 시험 23 + 그사이 dev 합류분), m-mdm `tsc --noEmit` 0, 바꾼 화면 파일 mantine·aggrid audit 0건.
+- 시험 결과: `vitest run tests/dme/ruleSetEdit` → 99파일 1880 통과·0 실패(기준 = ui:5t 기록 97파일 1855 + ui:5t 리뷰 반영 `98b68f3d` 의 2건 = 1857 — 이 세션에서 기준을 다시 돌리지는 않았다. 새 시험 23 = call-stack 10 + debug-subset 13, 새 파일 2), m-mdm `tsc --noEmit` 0, 바꾼 화면 파일 mantine·aggrid audit 0건.
 - 계획 조정(본문과 다르게 한 것):
   1. **`SEAM(T9)`** — `grep -rn "SEAM(T9)" src/frontend/m-mdm/pages` 가 착수 때 이미 0건이었다(ui:5t 가 `scopePaths`·`frames` 에 SET 을 넣었다). 바꿀 것 없음.
   2. **`enterFrame` 은 `calledFlows` 에 그 세트 항목이 없으면 null** — 본문은 항목이 없으면 `toEditFlow(null, [])`(START→END) 로 들어갔다. 서버가 아직 주지 않는 지금 빈 흐름을 그리면 틀린 그림이라 들어가지 않는다. 항목이 있고 `flow` 가 null 이면 본문대로 `ruleIds` 한 줄 흐름. 라벨은 SET 노드 라벨(공백이면 없음으로 봄) → 세트명 → 세트 ID.
