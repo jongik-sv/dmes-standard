@@ -3,9 +3,10 @@
 업무 화면 도구 창(포털 머리 「도구」 → floatable 위젯을 떠 있는 창으로). 형식은 `.claude/skills/coordinator/templates/lane-rules-README.md` §6.1.
 
 ## S1. shared `widget-dock` 모듈 신설
-- 커밋: df2321d7, 8af9df37(시험), 자리 고정 창 ID 보완(마지막 커밋)
+- 커밋: df2321d7, 8af9df37(시험), 자리 고정 창 ID 보완(d95c10ea), 리뷰 수정 22be2b01·3feab983·e94aa958·edfae642·5446f5c1
 - 바뀌기 전: 위젯은 홈 보드(`WidgetWorkspace`) 안에서만 그려졌다. 떠 있는 창 부품이 없었다.
-- 바뀐 뒤: `src/frontend/shared/src/widget-dock/` — `types.ts`(DockWindow·WidgetDockStore), `dock-model.ts`(순수 함수: 열기·계단식 배치·칸→px·자르기·앞으로·접기·닫기·8개 한도·ready 정리·multiple=false 재사용·고정 창 ID), `browser-dock-store.ts`(사용자 ID 키 브라우저 저장, 손상값 무시), `use-widget-dock.ts`(불러오기·400ms 디바운스·언마운트/사용자 바뀜/pagehide 저장), `FloatingWindow.tsx`(범용 떠 있는 창), `WidgetDockLayer.tsx`(창 층), `DockToolsMenu.tsx`(「도구」 메뉴), `styles.tsx`(`<style href precedence>`).
+- 바뀐 뒤: `src/frontend/shared/src/widget-dock/` — `types.ts`(DockWindow·WidgetDockStore), `dock-model.ts`(순수 함수: 열기·계단식 배치·칸→px·자르기·앞으로·접기·닫기·8개 한도·ready 정리·multiple=false 재사용·고정 창 ID), `browser-dock-store.ts`(사용자 ID 키 브라우저 저장, 손상값 무시), `use-widget-dock.ts`(불러오기·400ms 디바운스·언마운트/사용자 바뀜/pagehide 저장), `FloatingWindow.tsx`(범용 떠 있는 창), `WidgetDockLayer.tsx`(창 층), `DockToolsMenu.tsx`(「도구」 메뉴), `styles.tsx`(`<style href precedence>`), `use-dock-viewport.ts`(창 층이 쓰는 화면 크기 — 창이 있을 때만 rAF 로 묶어 구독).
+  - 리뷰 수정: 위치만 맞추는 `placeDockWindow`(저장 w·h 보존)·그릴 때 접힌 아이콘을 위로 두는 `dockStackOrder`·바뀐 것 없는 `openDockWindow` 는 같은 배열·훅의 `viewport` 상태 제거(조작 순간 `readDockViewport()`)·`FloatingWindow` 접기/펼치기 포커스 이동.
 - 바꾼 이유: 사용자 결정 3(2026-10-05) — 계산기·단위 변환·메모를 업무 화면 위에 띄운다. 범용 부품은 Part B §18 에 따라 shared 에 둔다.
 - 동작 보존 근거: 새 모듈이라 기존 호출부가 없다. `widget-dock-model`(22)·`widget-dock-store`(8)·`widget-dock-window`(20) 시험 통과.
 - 영향 범위: 없음(새 파일). shared/src/widget 은 타입·`WidgetFrame` 을 import 만 한다.
@@ -16,6 +17,7 @@
 - 바뀌기 전: `PortalShellProps` 에 도구 창 설정이 없고, 머리 오른쪽에는 사용자 메뉴만 있었다.
 - 바뀐 뒤: `PortalShellProps.widgetDock?: { registry; registryStatus; frame; store? }`. 있으면 `Header toolsSlot` 에 `DockToolsMenu`, AppShell 최상위(탭 슬롯 바깥)에 `WidgetDockLayer`(z-index 160, 사이드바는 `.sidebar-container` z 150 쌓임 맥락으로 손잡이 1002 를 가둔다). 사용자 ID 는 `useCurrentUserState(enabled)`(셸 요청 공유), 로그아웃 중(`loggingOutRef`)·사용자 없음은 저장 안 함. `portal-shell/index.ts` 가 `export * from "../widget-dock"` 로 공개 API 를 낸다(package.json·tsup 진입점은 그대로).
 - 바꾼 이유: 창을 탭 화면 바깥에 두면 탭 전환에도 저절로 유지된다. 틀(`WidgetFrame`)은 호스트가 `frame` 으로 넘긴다 — tsup `splitting:false` 라 셸 진입점이 틀을 직접 묶으면 `WidgetFrameContext`(globalThis 캐시 없음)가 위젯 본체가 읽는 것과 다른 객체가 되어 `useWidgetTitle`·`useWidgetStatus` 등이 조용히 동작하지 않는다. 빌드 결과 `dist/portal-shell.js` 에 `WidgetFrameContext`·`cm-widget__head` 가 없음을 확인했다.
+- 리뷰 수정: 화면 크기 상태를 셸에서 뺐고(`viewport` prop 은 창 층이 직접 구독), 창을 닫으면 「도구」 버튼(`DockToolsMenu triggerRef`)으로 포커스를 돌린다. `Sidebar.css` `.sidebar-container` 에 `z-index: 150`(쌓임 맥락)을 줘 폭 조절 손잡이(1002)가 도구 창 위를 가로채지 않게 했다 — 사이드바 시각·동작 변화 없음(손잡이·펼침 손잡이는 이전과 같은 상대 위치).
 - 동작 보존 근거: `widgetDock` 미지정이면 새 훅은 enabled=false 로 요청·리스너를 만들지 않고 DOM 도 그대로. 기존 셸 시험 9파일 90건 통과(portal-shell-characterization·mantine-portal-shell·portal-shell-usage·tab-order·tab-error·start-pages·menu-search·mdm-meta·module), `widget-dock-portal`(6) 통과(미지정 시 도구 버튼·창 층 없음, 지정해도 `/api/auth/me` 호출 수 같음).
 - 영향 범위: `PortalShell` 을 쓰는 모든 포털(m-mcm 만 `widgetDock` 을 넘긴다). Header 를 직접 쓰는 곳 없음(셸 내부).
 - 되돌리는 방법: 55415464 revert(S3 를 먼저 되돌린다 — m-mcm 이 `widgetDock` prop 을 넘긴다).
