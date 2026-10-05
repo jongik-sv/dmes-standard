@@ -18,7 +18,10 @@ const OASIS: OasisCallOptions = { fieldLabel: mdmFieldLabel() };
 /** MDM001(row_version 충돌)의 기본 문구 — BPMN 경로에서 meta.message 는 이 문구로 시작한다. */
 const ROW_VERSION_CONFLICT_MESSAGE = "다른 사용자가 수정했습니다";
 
-/** row_version 충돌(MDM001)인가. 코드가 오지 않는 경로도 있어 문구로도 본다. */
+/**
+ * row_version 충돌(MDM001)인가. 서버 meta.code(2026-10-05 부터 MDMnnn)로 먼저 보고, 문구는 예비다 — 코드가 오지 않는 경로(HTTP 오류
+ * 본문)와 meta.code 가 S001 이던 옛 서버가 남아 있어도 안내가 사라지지 않게 한다.
+ */
 export function isRowVersionConflict(e: unknown): boolean {
   if (!(e instanceof Error)) return false;
   if (isOasisCallError(e) && e.code === "MDM001") return true;
@@ -37,7 +40,7 @@ export function writeFailure(e: unknown): { conflict: boolean; message: string }
   return { conflict: false, message: e instanceof Error ? e.message : String(e) };
 }
 
-/** DRAFT 가 아니거나(MDM002) 내 DRAFT 가 아니다(MDM003) — 다른 곳에서 확정·넘기기·삭제됐다(D-144 2단계). 코드가 없는 경로는 문구로 본다. */
+/** DRAFT 가 아니거나(MDM002) 내 DRAFT 가 아니다(MDM003) — 다른 곳에서 확정·넘기기·삭제됐다(D-144 2단계). 코드 1순위, 문구는 예비(위와 같다). */
 export function isDraftGone(e: unknown): boolean {
   if (!(e instanceof Error)) return false;
   if (isOasisCallError(e) && (e.code === "MDM002" || e.code === "MDM003")) return true;
