@@ -1,0 +1,290 @@
+#!/usr/bin/env bash
+# 사용법: coord-state.sh <하위명령> …   (정본: ../references/contract.md §2·§3.4)
+#   init <run-id> [--goal 글] [--rules-doc 경로]   회차 폴더·빈 state.json 생성, current 지정 · `RUN <run-id> <폴더>`
+#   use <run-id>                                   current 바꾸기 · `OK`
+#   get [jq식]                                     state.json 에 jq 적용 결과
+#   set <jq경로> <json값>                          값 쓰기 · `OK`
+#   lane-add <레인> <json>                         기본 레인 골격 * 기존 값 * json 병합 · `OK`
+#   event <kind> [레인|-] [json]                   events.jsonl 에 한 줄 · `OK`
+#   instr <레인> <kind>                            다음 지시 번호 발급·기록 · `<레인>-<n>`
+#   ack <instr-id>                                 ack 시각 기록 · `OK`
+#   report <레인> [요약 글]                        last_report_at 갱신, reports.md 에 한 줄 · `OK`
+#   item-done <레인> <항목id>                      항목 완료 · `PROGRESS <레인> <pct>%`
+#   progress                                       레인마다 `PROGRESS <레인> <pct>% <끝>/<전체>`, 끝에 `PROGRESS ALL <pct>%`
+#   hold <레인> <사유|-> [until-iso]               hold 세우기(`-` 는 풀기) · `OK`
+#   summary                                        summary.md 재생성 · 경로
+# state.json 은 이 스크립트만 쓴다. 쓰기는 mkdir 잠금(<회차>/.lock) 아래에서 임시 파일 → mv 로 원자적으로 한다.
+# 회차는 COORD_RUN 환경 변수 → <state_dir>/current 순으로 정한다(init 은 인자의 run-id).
+set -uo pipefail
+# shellcheck source=lib/common.sh
+. "$(dirname "$0")/lib/common.sh"
+coord_default_repo
+
+usage() { coord_die 2 "사용법: coord-state.sh init|use|get|set|lane-add|event|instr|ack|report|item-done|progress|hold|summary … (contract §3.4)"; }
+
+LANE_SKEL='{"session":{"name":"","addr":"","session_id":"","pid":0,"handle":"","kind":"claude","window":null,"spawned_by":"user"},
+ "branch":"","worktree":"","owned":[],"forbidden":[],"heavy_env":null,"priority":2,"items":[],"queue":[],"hold":null,
+ "last_report_at":null,"last_instr_at":null,"ctx":null,
+ "compact":{"pending":false,"last_at":null,"pre_compact":null,"history":[]},"memo":"","state":"active"}'
+
+_LOCKED=""
+trap '[ -n "$_LOCKED" ] && coord_unlock "$_LOCKED"' EXIT
+
+# stdin → <파일> 원자적 쓰기(같은 폴더 임시 파일 → mv).
+atomic_write() {
+  local f="$1" t; t="$1.tmp.$$"
+  if cat > "$t" && [ -s "$t" ]; then mv -f "$t" "$f"; else rm -f "$t"; return 1; fi
+}
+run_dir() { coord_run_dir; }
+state_file_checked() {
+  local f; f="$(run_dir)/state.json"
+  [ -f "$f" ] || coord_die 3 "state.json 없음: $f (coord-state.sh init 먼저)"
+  printf '%s' "$f"
+}
+st_lock() { coord_lock "$1/" || coord_die 4 "잠금 실패: $1/.lock"; _LOCKED="$1/"; }
+st_unlock() { coord_unlock "$1/"; _LOCKED=""; }
+# 잠금을 쥔 채로 state.json 에 jq 필터 적용(인자 = jq 인자들). 실패하면 원본 그대로, rc 4.
+st_apply() {
+  local f="$1"; shift
+  jq "$@" "$f" | atomic_write "$f" || { coord_log "state.json 쓰기 실패(jq $*)"; return 4; }
+}
+# 잠금 → 적용 → 해제. 인자 = jq 인자들.
+st_update() {
+  local dir f rc
+  f="$(state_file_checked)"; dir="$(dirname "$f")"
+  st_lock "$dir"; st_apply "$f" "$@"; rc=$?; st_unlock "$dir"
+  return "$rc"
+}
+# events.jsonl 한 줄. 인자: <회차폴더> <kind> <레인|-> [json]
+ev_append() {
+  local dir="$1" kind="$2" lane="${3:--}" data="${4:-}"
+  [ -n "$data" ] || data='{}'
+  printf '%s' "$data" | jq -e . >/dev/null 2>&1 || coord_die 2 "event json 오류: $data"
+  local line; line="$(jq -nc --arg at "$(coord_now_iso)" --arg k "$kind" --arg l "$lane" --argjson d "$data" \
+    '{at:$at, kind:$k, lane:(if $l == "-" or $l == "" then null else $l end), data:$d}')"
+  st_lock "$dir"; printf '%s\n' "$line" >> "$dir/events.jsonl"; st_unlock "$dir"
+}
+lane_name_ok() { case "$1" in ""|*[!A-Za-z0-9._-]*) coord_die 2 "레인 이름 형식 오류: '$1'" ;; esac; }
+lane_exists() {
+  local f; f="$(state_file_checked)"
+  [ "$(jq -r --arg l "$1" '.lanes | has($l)' "$f")" = true ] || coord_die 2 "없는 레인: $1"
+}
+json_ok() { printf '%s' "$1" | jq empty >/dev/null 2>&1 && [ -n "$1" ] || coord_die 2 "json 오류: $1"; }
+
+cmd_init() {
+  local id="${1:-}" goal="" rules="" root dir
+  [ -n "$id" ] || usage; shift
+  case "$id" in */*|.*|current|ctx|*[!A-Za-z0-9._-]*) coord_die 2 "run-id 형식 오류: $id" ;; esac
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --goal) goal="${2:-}"; shift ;;
+      --rules-doc) rules="${2:-}"; shift ;;
+      *) usage ;;
+    esac
+    shift
+  done
+  root="$(coord_state_root)"; dir="$root/$id"
+  [ -f "$dir/state.json" ] && coord_die 2 "이미 있는 회차: $dir (이어 쓰려면 use $id)"
+  mkdir -p "$dir/lanes" "$dir/ticks" || coord_die 4 "폴더 생성 실패: $dir"
+  jq -n --arg id "$id" --arg goal "$goal" --arg rules "$rules" --arg ib "$(coord_cfg .integration_branch)" \
+    --arg now "$(coord_now_iso)" '{
+      schema: 1,
+      run: {id: $id, goal: $goal, rules_doc: $rules, integration_branch: $ib, created_at: $now,
+            coordinator: {name: "", addr: "", session_id: "", handle: "", pid: 0},
+            cron_id: null, usage_band_notified: null},
+      lanes: {}, deps: [],
+      merge: {in_flight: null, queue: [], history: []},
+      windows: [],
+      usage: {band: "UNKNOWN", five: null, week: null, src: null, at: null},
+      load: {soft_ticks: 0, hard_ticks: 0, release_ticks: 0, banned: []},
+      instrs: [], backlog: [], approvals: [],
+      glm: {status: null, at: null, detail: null},
+      decisions: [], pending_user: []}' | atomic_write "$dir/state.json" || coord_die 4 "state.json 생성 실패"
+  [ -f "$dir/events.jsonl" ] || : > "$dir/events.jsonl"
+  printf '%s\n' "$id" | atomic_write "$root/current" || coord_die 4 "current 쓰기 실패"
+  ev_append "$dir" init - "$(jq -nc --arg g "$goal" '{goal:$g}')"
+  echo "RUN $id $dir"
+}
+
+cmd_use() {
+  local id="${1:-}" root
+  [ -n "$id" ] || usage
+  root="$(coord_state_root)"
+  [ -f "$root/$id/state.json" ] || coord_die 3 "없는 회차: $root/$id"
+  printf '%s\n' "$id" | atomic_write "$root/current" || coord_die 4 "current 쓰기 실패"
+  echo OK
+}
+
+cmd_get() { local f; f="$(state_file_checked)"; jq -r "${1:-.}" "$f" || exit 2; }
+
+cmd_set() {
+  [ $# -eq 2 ] || usage
+  case "$1" in .*) ;; *) coord_die 2 "jq 경로는 . 으로 시작한다: $1" ;; esac
+  json_ok "$2"
+  st_update --argjson v "$2" "$1 = \$v" || exit 4
+  echo OK
+}
+
+cmd_lane_add() {
+  [ $# -eq 2 ] || usage
+  lane_name_ok "$1"; json_ok "$2"
+  st_update --arg l "$1" --argjson j "$2" --argjson sk "$LANE_SKEL" '.lanes[$l] = ($sk * (.lanes[$l] // {}) * $j)' || exit 4
+  mkdir -p "$(run_dir)/lanes/$1"
+  ev_append "$(run_dir)" lane-add "$1"
+  echo OK
+}
+
+cmd_event() {
+  [ $# -ge 1 ] || usage
+  state_file_checked >/dev/null
+  ev_append "$(run_dir)" "$1" "${2:--}" "${3:-}"
+  echo OK
+}
+
+cmd_instr() {
+  [ $# -eq 2 ] || usage
+  lane_exists "$1"
+  local f dir id now
+  f="$(state_file_checked)"; dir="$(dirname "$f")"; now="$(coord_now_iso)"
+  st_lock "$dir"
+  id="$(jq -r --arg l "$1" '$l + "-" + ((([.instrs[]? | select(.lane == $l) | .id | ltrimstr($l + "-") | tonumber?] | max) // 0) + 1 | tostring)' "$f")"
+  if ! st_apply "$f" --arg id "$id" --arg l "$1" --arg k "$2" --arg now "$now" \
+      '.instrs += [{id: $id, lane: $l, kind: $k, sent_at: $now, ack_at: null, nudges: 0}] | .lanes[$l].last_instr_at = $now'; then
+    st_unlock "$dir"; exit 4
+  fi
+  st_unlock "$dir"
+  ev_append "$dir" instr "$1" "$(jq -nc --arg id "$id" --arg k "$2" '{id:$id, kind:$k}')"
+  echo "$id"
+}
+
+cmd_ack() {
+  [ $# -eq 1 ] || usage
+  local f; f="$(state_file_checked)"
+  [ "$(jq -r --arg id "$1" '[.instrs[]? | select(.id == $id)] | length' "$f")" -gt 0 ] || coord_die 2 "없는 지시: $1"
+  st_update --arg id "$1" --arg now "$(coord_now_iso)" '(.instrs[] | select(.id == $id) | .ack_at) = $now' || exit 4
+  echo OK
+}
+
+cmd_report() {
+  [ $# -ge 1 ] || usage
+  lane_exists "$1"
+  local now dir; now="$(coord_now_iso)"; dir="$(run_dir)"
+  st_update --arg l "$1" --arg now "$now" '.lanes[$l].last_report_at = $now' || exit 4
+  mkdir -p "$dir/lanes/$1"
+  printf -- '- %s %s\n' "$now" "${2:-}" >> "$dir/lanes/$1/reports.md"
+  ev_append "$dir" report "$1" "$(jq -nc --arg t "${2:-}" '{text:$t}')"
+  echo OK
+}
+
+PCT_DEF='def wsum: map(.weight // 1) | add // 0;
+         def lpct: (.items // []) as $it | ($it | wsum) as $t | ($it | map(select(.done == true)) | wsum) as $d
+                   | {d: $d, t: $t, p: (if $t > 0 then ($d * 100 / $t | floor) else 0 end)};'
+
+cmd_item_done() {
+  [ $# -eq 2 ] || usage
+  lane_exists "$1"
+  local f; f="$(state_file_checked)"
+  [ "$(jq -r --arg l "$1" --arg i "$2" '[.lanes[$l].items[]? | select((.id | tostring) == $i)] | length' "$f")" -gt 0 ] \
+    || coord_die 2 "없는 항목: $1 $2"
+  st_update --arg l "$1" --arg i "$2" '(.lanes[$l].items[] | select((.id | tostring) == $i) | .done) = true' || exit 4
+  ev_append "$(run_dir)" item-done "$1" "$(jq -nc --arg i "$2" '{item:$i}')"
+  jq -r --arg l "$1" "$PCT_DEF"' .lanes[$l] | lpct | "PROGRESS \($l) \(.p)%"' "$f"
+}
+
+cmd_progress() {
+  local f; f="$(state_file_checked)"
+  jq -r "$PCT_DEF"' [.lanes | to_entries[] | {k: .key} + (.value | lpct)] as $L
+    | ($L[] | "PROGRESS \(.k) \(.p)% \(.d)/\(.t)"),
+      (($L | map(.d) | add // 0) as $d | ($L | map(.t) | add // 0) as $t
+       | "PROGRESS ALL \(if $t > 0 then ($d * 100 / $t | floor) else 0 end)%")' "$f"
+}
+
+cmd_hold() {
+  [ $# -ge 2 ] || usage
+  lane_exists "$1"
+  if [ "$2" = "-" ]; then
+    st_update --arg l "$1" '.lanes[$l].hold = null' || exit 4
+    ev_append "$(run_dir)" hold-release "$1"
+  else
+    if [ -n "${3:-}" ] && [ -z "$(coord_iso_to_epoch_loose "$3")" ]; then coord_die 2 "until 시각 형식 오류: $3"; fi
+    st_update --arg l "$1" --arg r "$2" --arg u "${3:-}" '.lanes[$l].hold = {reason: $r, until: (if $u == "" then null else $u end)}' || exit 4
+    ev_append "$(run_dir)" hold "$1" "$(jq -nc --arg r "$2" --arg u "${3:-}" '{reason:$r, until:(if $u == "" then null else $u end)}')"
+  fi
+  echo OK
+}
+
+cmd_summary() {
+  local f dir out
+  f="$(state_file_checked)"; dir="$(dirname "$f")"; out="$dir/summary.md"
+  jq -r --arg now "$(coord_now_iso)" "$PCT_DEF"'
+    def v: if . == null or . == "" then "-" else tostring end;
+    def hm: if . == null or . == "" then "-" else (tostring | capture("T(?<h>[0-9]{2}:[0-9]{2})").h // tostring) end;
+    def holdtxt: if . == null then "-" else (.reason + (if .until then " (~" + (.until | hm) + ")" else "" end)) end;
+    [.lanes | to_entries[] | {k: .key} + (.value | lpct)] as $L
+    | ($L | map(.d) | add // 0) as $D | ($L | map(.t) | add // 0) as $T
+    | "# 조정 회차 \(.run.id) 요약",
+      "",
+      "- 갱신: \($now) (coord-state.sh summary 자동 생성)",
+      "- 목표: \(.run.goal | v)",
+      "- 규칙 문서: \(.run.rules_doc | v)",
+      "- 통합 브랜치: \(.run.integration_branch | v)",
+      "- 조정자: \(.run.coordinator.name | v) (session \(.run.coordinator.session_id | v))",
+      "- 전체 진도: \(if $T > 0 then ($D * 100 / $T | floor) else 0 end)% (\($D)/\($T))",
+      "",
+      "## 레인",
+      "",
+      "| 레인 | 세션 | 상태 | 진도 | hold | 마지막 보고 | 마지막 지시 | ctx |",
+      "|---|---|---|---|---|---|---|---|",
+      (.lanes | to_entries[] | .key as $k | .value as $l | ($l | lpct) as $p
+        | "| \($k) | \($l.session.name | v) | \($l.state | v) | \($p.p)% (\($p.d)/\($p.t)) | \($l.hold | holdtxt) | \($l.last_report_at | hm) | \($l.last_instr_at | hm) | \(if $l.ctx then "\($l.ctx.pct)%" else "-" end) |"),
+      "",
+      "## 레인별 항목",
+      (.lanes | to_entries[] | .key as $k | .value as $l
+        | "", "### \($k) — \($l.branch | v) · \($l.worktree | v)",
+          (if ($l.items // []) == [] then "- (항목 없음)" else ($l.items[] | "- [\(if .done then "x" else " " end)] \(.id) \(.title // "") (가중치 \(.weight // 1))") end),
+          (if ($l.queue // []) != [] then "- 다음 할 일: \($l.queue | map(tostring) | join(", "))" else empty end)),
+      "",
+      "## 머지",
+      "",
+      "- 진행 중: \(if .merge.in_flight then "\(.merge.in_flight.lane) \(.merge.in_flight.branch | v) (허가 \(.merge.in_flight.granted_at | hm))" else "없음" end)",
+      "- 대기열: \(if (.merge.queue // []) == [] then "없음" else (.merge.queue | map(if type == "object" then (.lane // tostring) else tostring end) | join(", ")) end)",
+      (if (.merge.history // []) == [] then "- 이력: 없음" else ("- 이력(최근 5):", (.merge.history[-5:][] | "  - \(.lane // "-") \(.branch // "") merged=\(.merged | v) cleaned=\(.cleaned | v)")) end),
+      "",
+      "## 창",
+      "",
+      (if (.windows // []) == [] then "- 없음" else (.windows[] | "- \(.kind) lane=\(.lane | v) until=\(.until | v)") end),
+      "",
+      "## 사용량 띠",
+      "",
+      "- \(.usage.band | v) (5시간 \(.usage.five | v)% · 1주 \(.usage.week | v)%, 출처 \(.usage.src | v), \(.usage.at | v))",
+      "",
+      "## 사용자 결정 대기",
+      "",
+      (if (.pending_user // []) == [] then "- 없음" else (.pending_user[] | "- \(.at | v) \(.text)") end),
+      "",
+      "## 최근 결정",
+      "",
+      (if (.decisions // []) == [] then "- 없음" else (.decisions[-10:][] | "- \(.at | v) \(.text)") end)
+  ' "$f" | atomic_write "$out" || coord_die 4 "summary.md 쓰기 실패"
+  echo "$out"
+}
+
+[ $# -ge 1 ] || usage
+sub="$1"; shift
+case "$sub" in
+  init) cmd_init "$@" ;;
+  use) cmd_use "$@" ;;
+  get) cmd_get "$@" ;;
+  set) cmd_set "$@" ;;
+  lane-add) cmd_lane_add "$@" ;;
+  event) cmd_event "$@" ;;
+  instr) cmd_instr "$@" ;;
+  ack) cmd_ack "$@" ;;
+  report) cmd_report "$@" ;;
+  item-done) cmd_item_done "$@" ;;
+  progress) cmd_progress ;;
+  hold) cmd_hold "$@" ;;
+  summary) cmd_summary ;;
+  -h|--help|help) sed -n '2,16p' "$0" >&2; exit 0 ;;
+  *) usage ;;
+esac
