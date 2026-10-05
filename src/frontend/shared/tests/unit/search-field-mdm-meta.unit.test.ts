@@ -100,6 +100,14 @@ describe("SearchField — name·meta", () => {
     expect(host.querySelector(".search-field__label")?.textContent).toBe("제목");
   });
 
+  it("name 없이 meta 만 주면 연결하지 않는다(meta 는 name 이 있을 때만 쓴다)", async () => {
+    const f = fakeMetaFetch({ columns: { TITLE } });
+    vi.stubGlobal("fetch", f.fn);
+    const host = await show(inProvider(field({ label: "제목", meta: "TITLE", value: "" })));
+    expect(f.calls).toHaveLength(0);
+    expect(host.querySelector(".form-tip-trigger")).toBeNull();
+  });
+
   it("사전에 없는 name 은 라벨 글자 그대로다", async () => {
     const f = fakeMetaFetch({ columns: {} });
     vi.stubGlobal("fetch", f.fn);

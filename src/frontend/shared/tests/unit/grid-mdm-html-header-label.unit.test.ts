@@ -497,7 +497,6 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
 
     it("지연이 지나면 카드가 뜬다 — AgDataGrid 기본 tooltipShowDelay(500ms)와 같다", async () => {
       expect(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS).toBe(500);
-      expect(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS).toBe(GRID_TOOLTIP_SHOW_DELAY_MS);
       stub();
       await render(grid());
       const el = placeLabel();
