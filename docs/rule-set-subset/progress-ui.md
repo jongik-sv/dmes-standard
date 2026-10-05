@@ -121,7 +121,7 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
 
 ## ui:8. SET 노드 화면
 - 상태: 1단계(모델·상태)·2단계(화면·e2e 시나리오) 끝. e2e E19 는 `--list` 까지만 했다(실행은 사용자 승인 뒤 조정 세션).
-- 리뷰 반영(`cb51cc01`): major 1(구성 지침이 SET 노드를 지움 → 결정 9)·minor 2(세트 검색 잘림 안내 → 결정 10, 부르는 세트 다시 묻기 → 결정 11) 모두 고쳤다. 시험: `vitest run tests/dme/ruleSetEdit` → 103파일 1941 통과·0 실패(새 시험 5 = set-node-model 1·rule-set-edit-page 1·set-node-canvas 1·set-node-page 2), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건.
+- 리뷰 반영(`cb51cc01`): major 1(구성 지침이 SET 노드를 지움 → 결정 9)·minor 2(세트 검색 잘림 안내 → 결정 10, 부르는 세트 다시 묻기 → 결정 11) 모두 고쳤다. 시험: `vitest run tests/dme/ruleSetEdit tests/ui-meta-lock.test.ts` → 104파일 1946 통과·0 실패(새 시험 5 = set-node-model 1·rule-set-edit-page 1·set-node-canvas 1·set-node-page 2), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건.
 - 커밋(1단계): `7209d80e`(types·api), `243e189f`(flow-edit·flow-vars·caller-links, 시험 `set-node-model.test.ts`), `eb3375f7`(useRuleSetEdit·편집기 한 줄, 시험 `set-calls-state.test.ts`·이 절)
 - 커밋(2단계): `2898a285`(캔버스 — SET 노드 그리기·도구 상자·메뉴·세트 검색 팝업·`styles/set.ts`·편집 동작), `48c47800`(오른쪽 패널 — 머리글 CALL·SET 속성·받는 노드 SET 종류·목록 밖 종류 풀기·입출력 표 세트 키, 시험 `set-node-canvas.test.ts`), `33b305e0`(편집기·툴바·디버거 연결, 시험 `set-node-page.test.ts`·`debug-subset.test.ts` 한 줄), `5f678e29`(e2e E19·고정 데이터), `e8947b7f`(다른 세트를 열면 편집 모드여도 팝업 닫기)
 - 시험 결과(1단계): `vitest run tests/dme/ruleSetEdit` → 101파일 1911 통과·0 실패(새 시험 27 = set-node-model 13 + set-calls-state 14), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건. `vitest run tests/dme tests/ui-meta-lock.test.ts` → 135파일 2549 통과·0 실패.
