@@ -33,7 +33,8 @@ import { useRuleSetEdit, type RuleSetEditState } from "../../../pages/dme/ruleSe
 import { addNote, toEditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, typeInto, visibleText } from "../helpers/render";
-import { byTestId, calls, canvasNodeIds, click, handoff, hoverEdge, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
+import { byTestId, calls, canvasNodeIds, click, hoverEdge, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
+import { pickInActive } from "./set-tabs-helpers";
 
 type Src = "DICT" | "PROG" | "NONE";
 const ioName = (n: string, source: Src | null) => ({ name: n, source, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
@@ -191,13 +192,10 @@ describe("룰 세트 편집 이음새(3단계 Task 0)", () => {
     expect(del.defaultPrevented).toBe(true);
     expect(edgeEl("e2")).toBeNull();
 
-    // dirty — 다른 세트를 열려 하면 확인을 받는다.
+    // dirty — 이 탭에서 다른 세트를 열려 하면(툴바 세트 고르기) 확인을 받는다.
+    // 세트 탭(하위 세트 spec §10.3, ui:7) 뒤로 포털 넘김은 새 탭으로 열므로 이 탭에서 바꾸는 길은 고르기다.
     window.confirm = vi.fn(() => false);
-    handoff("E2S_OTHER");
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent("portal-tab-activated", { detail: { tabId: "tab-1" } }));
-    });
-    await flush();
+    await pickInActive("E2S_OTHER");
     expect(window.confirm).toHaveBeenCalledWith("저장하지 않은 변경이 있습니다. 버리고 이동할까요?");
   });
 

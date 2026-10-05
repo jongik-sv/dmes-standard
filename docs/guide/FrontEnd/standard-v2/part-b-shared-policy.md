@@ -42,6 +42,7 @@ UI(폼·모달·메시지·탭·트리·레이아웃·portal-shell·로그인 �
 | `@dk-oasis/shared/transfer-list`              | SHOULD                 | 좌(가능)·우(소속) 전송 목록과 집합 함수 | §18              |
 | `@dk-oasis/shared/dashboard`                  | SHOULD                 | 대시보드 격자·카드·KPI 타일·추이 선  | §18              |
 | `@dk-oasis/shared/tabs`                       | SHOULD                 | 영역 안 밑줄형 탭 머리줄(본문 전환은 화면) | —                |
+| `@dk-oasis/shared/closable-tabs`              | SHOULD                 | 닫을 수 있는 탭 머리 + 마운트 유지 패널 | §18              |
 | `@dk-oasis/shared/widget`                     | SHOULD                 | 위젯 자유 배치(탭·보드·틀·서랍·작업 공간) | §18              |
 | `@dk-oasis/shared/mdm-meta`                   | MAY                    | MDM 컬럼 사전 캡션·툴팁 메타(포털 탭이 공급자를 자동으로 씌운다), th/td 상세 표 라벨 `MdmFieldLabel`, 화면 값 검증 `useMdmValidation`·`validateMdmValue` | §18              |
 | `@dk-oasis/shared/modal`                      | MUST (모달 페이지)     | Modal 시스템                         | §11 E            |

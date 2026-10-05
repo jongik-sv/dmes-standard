@@ -23,6 +23,7 @@ import { useRuleSetEdit } from "../../../pages/dme/ruleSetEdit/state/useRuleSetE
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, typeInto } from "../helpers/render";
 import { byTestId, canvasNodeIds, click, clickFake, installServer, ok, openSet, settle, srv, uninstallServer, unmountPage } from "../helpers/rule-set-page";
+import { pickInActive } from "./set-tabs-helpers";
 
 const ioName = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const rule = (ruleId: string, cond: string, result: string): RuleIo => ({
@@ -145,13 +146,8 @@ describe("편집 되돌리기·다시 하기(3단계 Task 3)", () => {
     await click("set-save");
     await settle(0);
     expect(undoBtn().disabled).toBe(false);
-    // 다른 세트 열기(portal 탭 활성화 넘김)
-    const g = globalThis as Record<string, unknown>;
-    ((g.__mdmPageHandoff__ ??= {}) as Record<string, Record<string, string>>)["mdm:dme/ruleSetEdit"] = { setId: "E2S_OTHER" };
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent("portal-tab-activated", { detail: { tabId: "tab-1" } }));
-    });
-    await flush();
+    // 이 탭에서 다른 세트 열기(툴바 세트 고르기) — 세트 탭(하위 세트 spec §10.3, ui:7) 뒤로 포털 넘김은 새 탭으로 연다.
+    await pickInActive("E2S_OTHER");
     await click("flow-mode-edit");
     expect(undoBtn().disabled).toBe(true);
   });

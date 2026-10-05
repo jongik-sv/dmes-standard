@@ -22,6 +22,7 @@ import { useEffect, useState } from "react";
 
 import { keepFocusOffButtons } from "./FlowToolbar";
 import { useStore, useStoreApi, type ReactFlowState } from "./react-flow";
+import { isShown } from "./shortcuts";
 import {
   NO_EXTENT, allOutside, boundsOfRects, insideExtent, panExtentOf, sameExtent, visibleRect, type FlowRect, type PanExtent,
 } from "./viewport-guard";
@@ -62,8 +63,13 @@ const selectBusy = (s: ReactFlowState): boolean => {
   return false;
 };
 
-/** 지금 화면이 이동 한계 밖이면 한계 안으로 한 번 맞춘다(d3-zoom constrain — 휠·끌기가 쓰는 것과 같은 계산). */
+/**
+ * 지금 화면이 이동 한계 밖이면 한계 안으로 한 번 맞춘다(d3-zoom constrain — 휠·끌기가 쓰는 것과 같은 계산).
+ * 캔버스가 숨어 있으면(고르지 않은 세트 탭·포털 탭 — display:none) 건너뛴다. 숨은 동안 React Flow 는 0 크기를 500×500 으로 바꿔 적으므로
+ * 그 크기로 맞추면 화면이 엉뚱하게 옮겨진다. 다시 보이면 크기가 바뀌어(geometry) 그때 다시 본다.
+ */
 function recheck(s: ReactFlowState): void {
+  if (!isShown(s.domNode)) return;
   const extent = selectExtent(s);
   if (!extent || insideExtent(visibleRect(s.transform, s.width, s.height), extent)) return;
   const [x, y, zoom] = s.transform;

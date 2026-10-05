@@ -192,7 +192,18 @@ export function guideBlockReason(f: EditFlow): string | null {
 }
 const isEditResult = (r: EditResult | EditFlow): r is EditResult => typeof (r as EditResult).ok === "boolean";
 
-export function useRuleSetEdit(): RuleSetEditState {
+export interface RuleSetEditOptions {
+  /**
+   * 세트를 바꾼 쓰기가 성공해 다시 불러온 뒤 그 세트 ID 로 한 번 부른다(하위 세트 spec §10.4) — 저장·폐기·되살리기(`runWrite`)와
+   * 버전 조작(`versionWrite` — 새 버전·DRAFT 삭제·확정 취소·선점·해제·넘기기). 다시 불러오기가 실패해도 쓰기는 성공했으므로 부른다.
+   * 자동 저장(`saveQuiet`)은 부르지 않는다 — DRAFT 저장은 겉모양(지금 유효한 RELEASED 기준)을 바꾸지 않는다(ui:7 결정).
+   */
+  onWritten?: (setId: string) => void;
+}
+
+export function useRuleSetEdit(opts: RuleSetEditOptions = {}): RuleSetEditState {
+  const onWrittenRef = useRef(opts.onWritten);
+  onWrittenRef.current = opts.onWritten;
   const [view, setView] = useState<RuleSetView | null>(null);
   const [flow, setFlow] = useState<EditFlow | null>(null);
   const [rules, setRules] = useState<Record<string, RuleIo>>({});
@@ -426,6 +437,7 @@ export function useRuleSetEdit(): RuleSetEditState {
       await load(id, { keepHistory: true, ver: verRef.current });
       editFailShown.current = false;
       setMessage(done(result));
+      onWrittenRef.current?.(id);
     },
     [fail, load],
   );
@@ -446,7 +458,9 @@ export function useRuleSetEdit(): RuleSetEditState {
       setLoading(false);
       const ver = opts.next === "result" ? result.ver ?? null : opts.next === "same" ? verRef.current : null;
       const before = verRef.current;
-      if (!(await load(id, { keepHistory: false, ver }))) return; // 다시 불러오기 실패 — 오류창만 보인다(완료 문구를 함께 띄우지 않는다)
+      const reloaded = await load(id, { keepHistory: false, ver });
+      onWrittenRef.current?.(id); // 버전 조작 자체는 성공했다 — 다시 불러오기 결과와 무관하게 알린다(하위 세트 spec §10.4)
+      if (!reloaded) return; // 다시 불러오기 실패 — 오류창만 보인다(완료 문구를 함께 띄우지 않는다)
       editFailShown.current = false;
       // 고른 버전이 없어져 기본 버전으로 다시 불러왔으면(same 인데 버전이 바뀜) 그 안내를 남긴다.
       if (opts.next === "same" && before && !sameVer(before, verRef.current)) return;
