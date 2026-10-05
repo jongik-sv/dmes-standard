@@ -16,6 +16,6 @@
 - 바뀌기 전: 워크트리에 이미 있는 `node_modules` 심링크(대상이 메인 체크아웃)를 점검하지 않고 pnpm install 을 돌렸다. 설치가 심링크를 따라 메인의 workspace 링크를 다시 썼다.
 - 바뀐 뒤: 설치 전에 워크트리 안의 `node_modules` 심링크를 깊이 제한 없이 찾아 대상이 워크트리(`git rev-parse --show-toplevel` 물리 경로) 밖이거나 끊어졌으면 링크만 지운다(`DEPS_UNLINKED <경로> -> <대상>`). 설치할 폴더가 워크트리 밖이면 `DEPS_FAILED outside-worktree` 로 멈춘다. 1-1 단계의 심링크 복제는 대상(폴더·파일·끊어진 링크)이 메인 체크아웃 안이면 건너뛴다(`DEPS_LINK_SKIP`). 링크를 지운 설치 폴더는 루트 `node_modules` 가 있어도 다시 설치하고, 지운 경로를 git 디렉터리의 `dflow-deps-relink` 에 남겨 `DEPS_BUSY` 재호출에도 이어간다.
 - 바꾼 이유: 2026-10-05 12:05 tooltip-screens 레인에서 메인 포털이 `Can't resolve '@dk-oasis/shared/auth-cookies'` 로 깨졌다. 재현과 근거는 `state-kit-fix.md` E3.
-- 동작 보존 근거: 심링크가 없는 정상 워크트리의 출력·exit 는 그대로다(이 레인 워크트리에서 실제 `deps.sh` 실행: `DEPS_INSTALLED pnpm src/frontend`, 이어 `DEPS_PREPARE_PENDING` exit 75). 소형 픽스처 시험 `.claude/skills/coordinator/tests/deps-sh-no-main-write.sh`(평면·깊이 5 배치·루트 실제 폴더+상대 링크·파일 링크 17건): 수정 전 스크립트는 메인 링크가 바뀌어 실패하고 수정 후는 통과한다. macOS 기본 bash 3.2 에서도 통과.
+- 동작 보존 근거: 심링크가 없는 정상 워크트리의 출력·exit 는 그대로다(이 레인 워크트리에서 실제 `deps.sh` 실행: `DEPS_INSTALLED pnpm src/frontend`, 이어 `DEPS_PREPARE_PENDING` exit 75). 소형 픽스처 시험 `.claude/skills/coordinator/tests/deps-sh-no-main-write.sh`(평면·깊이 5 배치·루트 실제 폴더+상대 링크·파일 링크 32건): 수정 전 스크립트는 메인 링크가 바뀌어 실패하고 수정 후는 통과한다. macOS 기본 bash 3.2 에서도 통과.
 - 영향 범위: dflow-dev 행 H 와 dflow-team 이 deps.sh 를 부르는 곳. 새 출력 첫 단어 `DEPS_UNLINKED`·`DEPS_LINK_SKIP` 은 exit 0 이고, 새 실패 `DEPS_FAILED outside-worktree` 만 호출부의 「failed deps」 경로로 간다.
 - 되돌리는 방법: e5cba4f8 revert. 되돌리면 심링크 node_modules 를 가진 워크트리에서 설치가 메인에 쓴다.

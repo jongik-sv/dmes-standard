@@ -10,7 +10,7 @@
 |---|---|---|---|
 | E1 spawn-lane.sh | 구현·실기동 확인·리뷰 반영 | 34ace0e1, a88a5561 | 구조 기록 S1 |
 | E2 term-send-safe.sh | 구현·고정 화면 시험 8건 통과·리뷰 반영 | d4573552, a88a5561 | 시험 tests/term-send-safe-input-state.sh |
-| E3 deps.sh | 구현·픽스처 시험 17건 통과·1차 리뷰 반영 | e5cba4f8, f09be591 | 구조 기록 S2, 시험 tests/deps-sh-no-main-write.sh |
+| E3 deps.sh | 구현·픽스처 시험 32건 통과·3차 리뷰 반영 | e5cba4f8, f09be591, e6359e39, 3차 반영 커밋 | 구조 기록 S2, 시험 tests/deps-sh-no-main-write.sh |
 | E4 apply_mdm_self.py | 경고만 | 4c2b911b, a88a5561 | META_REV 직접 삽입은 하지 않음 |
 | E5 마감 | 재리뷰 중 | c5d5487e(구조 기록) | 1차 리뷰: deps.sh 높음 1·중간 2·낮음 1, 나머지 중간 1·낮음 다수 → 반영. 재리뷰(opus/sonnet) → 머지 요청 |
 

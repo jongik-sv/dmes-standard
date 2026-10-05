@@ -82,7 +82,7 @@
 # 출력 첫 단어: DEPS_GRADLE_JAR · DEPS_GRADLE_JAR_MISSING · DEPS_LINK · DEPS_LINK_SKIP · DEPS_UNLINKED · DEPS_SKIP · DEPS_CLONED · DEPS_CLONE_FAILED ·
 #   DEPS_CACHED · DEPS_SYNCED · DEPS_SYNC_FAILED · DEPS_INSTALLED · DEPS_FAILED(exit 는 설치 명령의 exit) ·
 #   DEPS_BUSY(exit 75, 다시 부른다) · DEPS_PREPARE · DEPS_PREPARED · DEPS_PREPARE_SKIP · DEPS_PREPARE_PENDING(exit 75, 다시
-#   부르면 준비만 돈다) · DEPS_PREPARE_FAIL(경고, exit 0)
+#   부르면 준비만 돈다) · DEPS_PREPARE_FAIL(경고, exit 0) · DEPS_WARN(경고, exit 0)
 set -u
 
 MAXDEPTH="${DEPS_MAXDEPTH:-4}"
@@ -140,7 +140,7 @@ link_target_any() {
 RELINK=""; _gd="$(git rev-parse --absolute-git-dir 2>/dev/null)" && [ -n "$_gd" ] && RELINK="$_gd/dflow-deps-relink"
 # 표식 줄(<패키지>/node_modules)을 맡는 설치 폴더 = 그 패키지에서 위로 올라가며 처음 만나는 lockfile 폴더(없으면 루트 ".").
 relink_owner() {
-  local d; d="$(dirname "$(dirname "$1")")"
+  local d; d="$(dirname "$1")"   # 패키지 폴더 자신부터 본다(lockfile 폴더 자신의 node_modules 링크도 그 폴더가 맡는다)
   while [ "$d" != "." ] && [ "$d" != "/" ]; do
     # install_dir 안(cd 한 뒤)에서도 부르므로 워크트리 루트 기준 절대경로로 본다
     { [ -f "$TOP_PHYS/$d/pnpm-lock.yaml" ] || [ -f "$TOP_PHYS/$d/package-lock.json" ] || [ -f "$TOP_PHYS/$d/yarn.lock" ]; } && { printf '%s' "$d"; return 0; }
@@ -148,18 +148,22 @@ relink_owner() {
   done
   printf '.'
 }
+UNLINKED_NOW=""   # 이번 호출에서 지운 경로(줄 구분). 표식 파일을 못 읽거나 써도 이번 호출의 재설치 판정은 이것으로 한다
 relink_wanted() {  # relink_wanted <설치 폴더(루트는 .)> → 그 폴더가 맡은 지운 링크가 남아 있으면 0
-  [ -n "$RELINK" ] && [ -s "$RELINK" ] || return 1
   local u
   while IFS= read -r u; do
-    [ "$(relink_owner "$u")" = "$1" ] && return 0
-  done < "$RELINK"
+    [ -n "$u" ] && [ "$(relink_owner "$u")" = "$1" ] && return 0
+  done <<EOF
+$UNLINKED_NOW
+$([ -n "$RELINK" ] && [ -s "$RELINK" ] && cat "$RELINK" 2>/dev/null)
+EOF
   return 1
 }
 relink_done() {  # relink_done <설치 폴더> → 그 폴더가 맡은 줄을 표식에서 뺀다(실제로 설치한 뒤에만 부른다)
   [ -n "$RELINK" ] && [ -s "$RELINK" ] || return 0
   local u keep=""
   while IFS= read -r u; do
+    [ -n "$u" ] || continue
     [ "$(relink_owner "$u")" = "$1" ] && continue
     keep="$keep$u
 "
@@ -178,7 +182,10 @@ while IFS= read -r nm; do
 done)"
 if [ -n "$unlinked" ]; then
   printf '%s\n' "$unlinked" | grep -v '^RELINK '
-  if [ -n "$RELINK" ]; then printf '%s\n' "$unlinked" | sed -n 's/^RELINK //p' >> "$RELINK"; fi
+  UNLINKED_NOW="$(printf '%s\n' "$unlinked" | sed -n 's/^RELINK //p')"
+  if [ -n "$RELINK" ]; then
+    printf '%s\n' "$UNLINKED_NOW" >> "$RELINK" 2>/dev/null || echo "DEPS_WARN 재설치 표식을 쓰지 못했다($RELINK) — 이번 호출 안에서만 재설치한다"
+  fi
 fi
 
 # ---- 1) gradle-wrapper.jar ----
@@ -351,7 +358,8 @@ EOF
     relink_done "$dir"
     echo "DEPS_INSTALLED pnpm$suffix"
   elif [ -f yarn.lock ]; then
-    heavy_install yarn install --frozen-lockfile; rc=$?
+    ycheck=""; [ "$forced" = 1 ] && ycheck="--check-files"   # 무결성 기록이 맞으면 지운 패키지 폴더를 다시 만들지 않고 끝날 수 있다
+    heavy_install yarn install --frozen-lockfile $ycheck; rc=$?
     [ "$HBUSY" = 1 ] && { echo "DEPS_BUSY $dir"; exit "$BUSY_RC"; }
     [ "$rc" -eq 0 ] || { echo "DEPS_FAILED yarn install --frozen-lockfile exit $rc$suffix"; exit "$rc"; }
     relink_done "$dir"
