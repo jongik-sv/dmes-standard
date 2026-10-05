@@ -66,6 +66,10 @@
 | `approvals.auto_allow` | `["read","status"]` | 사용자가 띄운 세션의 확인 창 자동 승인 범주. 가능한 값: `read`·`status`·`edit-own`·`commit-own`·`heavy-build`. 기본은 가장 좁게 |
 | `approvals.auto_allow_spawned` | `["read","status","edit-own","commit-own","heavy-build"]` | 조정자가 띄운 세션(`spawned_by=coordinator`)의 자동 승인 범주. 거부 칸은 여기에 넣어도 늘 거부 |
 | `restart_rules` | `[]` | `[{"glob":"src/backend/**","note":"세 서버 내린 뒤 jar 빌드·재기동"}]` |
+| `office.enabled` | `true` | 에이전트 오피스 표시(§4). false 면 `office.sh` 는 아무것도 하지 않는다 |
+| `office.project_id` | `null` | 오피스에 표시할 D'Flow 프로젝트 UUID. 있으면 `watch --project` 로 넘기고, 비면 생략(`dflow.sh` 가 `.dflow` 의 기본값을 쓴다) |
+| `office.label_max` | `40` | 팀원 키에 넣는 지시 요약의 최대 글자 수(키 전체는 늘 120자 이내) |
+| `office.dflow_script` | `null` | `dflow.sh` 경로(리포 기준 상대 허용). null 이면 킷 기준 `../../dflow-work/scripts/dflow.sh` |
 | `records_check` | `false` | 머지 게이트에서 레인 기록 문서 확인 |
 | `integration_check` | `""` | 통합 확인 방법 문장(서버 기동·화면 확인). 킷에 도구 이름을 넣지 않는다 |
 | `claude_projects_dir` | `"~/.claude/projects"` | transcript 뿌리 |
@@ -218,3 +222,41 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 | `measure-window.sh` | `open <kind> [--lane <레인>] --until <iso> [--hold-heavy]` · `close` · `status` · `quiet-check` | `WINDOW_OPEN <kind> until=<iso> hold_job=<id|->` · `WINDOW_CLOSED <kind>` · `WINDOW <kind> lane=… until=…`/`WINDOW none` · `QUIET yes|no run=<n> per_core=<f> procs=<n>` |
 | `auto-answer.sh` | `--lane <레인>` \| `--handle <h>` | `NONE <h>` · `ANSWER <h> <kind> <키> <사유>` · `DENY <h> <kind> <사유>`(Esc) · `ESCALATE <h> <kind> <사유>`(아무것도 안 보냄, 조정자가 판단 올리기 또는 사용자에게). 판정표는 `references/approvals.md` §5. 보내기 직전에 같은 창인지 다시 읽어 확인한다 |
 | `statusline-dump.sh` | stdin = statusLine JSON | `<state_dir>/ctx/<session_id>.json` 에 `{at,session_id,context_window,rate_limits}` 저장 뒤 `COORD_STATUSLINE_NEXT` 명령이 있으면 같은 stdin 으로 실행해 그 출력을 그대로 낸다 |
+| `office.sh` | `lead-up` \| `lane-up <레인>` \| `lane-state <레인> <작업 중\|대기\|머지 중\|끝\|auto>` \| `lane-down <레인>` \| `beat` \| `finish` | 없음(늘 종료 코드 0, 사용법 오류만 2). 경고는 stderr 한 줄. 정본 §4 |
+
+## 4. 에이전트 오피스 표시 계약
+
+조정 세션(팀장)과 레인(팀원)을 wbs-web 의 에이전트 오피스에 **표시 전용**으로 보인다. WBS 데이터(작업·lease·진도율)는 건드리지 않는다. 표시 경로는 `dflow.sh watch`(POST `/api/v1/agent/watch`, `agent_watchers`) 하나뿐이다. 구현은 `scripts/office.sh`, 화면(wbs-web)은 아래 규칙으로 읽는다.
+
+**agent 키**
+
+| 대상 | 키 | 비고 |
+|---|---|---|
+| 팀장 | `<신원>/<host>/coord` | `slots` = 살아 있는 레인 수(state 가 closed 가 아닌 레인), `busy` = 그중 작업 중·머지 중 레인 수. 레인이 0 이면 둘 다 생략 |
+| 팀원 | `<신원>/<host>/임시:<레인>·<지시 요약>` | `until` 칸에 상태 라벨. `slots`·`busy` 는 보내지 않는다 |
+
+- `<신원>/<host>` 는 `dflow.sh` 의 `watcher_id_default`(`<신원>/<host>/poll`)에서 마지막 토막만 뗀 값이다(신원 = `/me` 의 user_email 로컬 파트, host = hostname 첫 토막, 둘 다 소문자 `[a-z0-9-]` 슬러그). 킷에 PC별 이름을 박지 않는다. 신원은 `state.json` 의 `.office.user` 에 캐시한다.
+- **팀원 슬롯 토큰(화면 파싱 규칙)**: 마지막 `/` 뒤 토막이 `임시:` 로 시작하면 팀원이다. `임시:` 뒤가 `<레인>·<요약>` 이고 **첫 `·` 가 레인과 요약의 경계**다(요약 안에는 `·` 가 있어도 된다). 지시 요약이 비면 `·` 없이 `임시:<레인>` 만 온다. 레인 이름에는 `·`·`/` 가 없다(`[A-Za-z0-9._-]`).
+- **지시 요약** = 레인 `brief`(`coord-state.sh lane-add <레인> '{"brief":"한 줄"}'`) → 없으면 레인 `goal` → 없으면 첫 미완 항목 `title`. 개행·탭은 공백 하나로, 슬래시는 제거, 앞뒤 공백 제거 뒤 `office.label_max`(기본 40)자로 자른다. 키 전체는 120자 이내라 레인 이름이 길면 요약이 더 줄어든다.
+- **상태 라벨(until, 16자 이내)**: `작업 중`·`대기`·`머지 중`·`끝` 중 하나. `auto` 판정은 state.json 에서 한다: 레인 `state=closed` → `끝`, `merge.in_flight.lane` → `머지 중`, `hold` 가 있거나 `state=closing` → `대기`, 그 밖 `작업 중`.
+- 오피스는 키가 같으면 갱신, 다르면 새 슬롯으로 본다. 그래서 요약이 바뀌어 키가 달라지면 옛 키를 먼저 `--stop` 한 뒤 새 키를 등록한다.
+
+**state.json 기록**: `.office.sent["<레인>"]` = 마지막에 보낸 키(팀장은 `["_lead"]`), `.office.label["<레인>"]` = 마지막에 보낸 라벨, `.office.lead` = 팀장에 마지막으로 보낸 `<slots>,<busy>`, `.office.user` = 신원 캐시. `office.sh` 가 `coord-state.sh set` 으로만 쓴다.
+
+**호출 연결**(모두 `office.sh … >/dev/null 2>&1 || true`, stdout 계약 불변):
+
+| 지점 | 호출 |
+|---|---|
+| `coord-state.sh init` | `lead-up` |
+| `spawn-lane.sh` 세션 확인 뒤(`record_lane`) | `lane-up <레인>` |
+| `coord-state.sh report`·`item-done`·`hold` | `lane-state <레인> auto` |
+| `coord-state.sh set '.merge…'` 로 `in_flight` 레인이 바뀔 때(머지 허가·완료) | 이전·새 레인에 `lane-state <레인> auto` |
+| `close-lane.sh` 가 레인을 closed 로 쓴 뒤 | `lane-down <레인>` |
+| `tick.sh` 끝(`--dry-run` 제외) | `beat` — 팀장과 살아 있는 레인 전원을 같은 키로 재전송(하트비트). 끝난 레인·state 에서 사라진 레인은 stop. 개별 호출이 빠져도 beat 가 state.json 기준으로 바로잡는다 |
+| `coord-state.sh event run-closed`(`closing.md` §6) | `finish` — 팀장·팀원 키를 모두 stop |
+
+`lane-state`·`lane-up` 은 키·라벨이 기록과 같으면 보내지 않는다(beat·lead-up 은 늘 보낸다). 사용자가 띄운 세션처럼 `lane-up` 을 거치지 않은 레인은 다음 beat 에서 등록된다.
+
+**실패 정책**: 어떤 실패도 조정자 동작을 막지 않는다(종료 코드 0, 경고는 stderr 한 줄). 호출당 5초 제한(`timeout` 명령이 없어 백그라운드 + kill 로 구현). 시간 초과·네트워크 오류·설정 없음이면 그 호출의 남은 전송을 건너뛴다. `enabled=false`, `dflow.sh` 없음, D'Flow 설정(PAT) 미로드(`dflow.sh` 종료 코드 2)는 아무 출력 없이 건너뛴다. `COORD_DRY=1` 이면 보내지 않는다.
+
+**D'Flow 설정 로드**: 스킬 폴더(심링크) 경로에서 설정을 읽으면 다른 리포의 PAT 로 404 가 난다. `dflow.sh` 는 항상 리포 루트(`coord_repo`, 곧 `git rev-parse --git-common-dir` 의 부모인 메인 체크아웃)를 cwd 로, 환경 변수 `DFLOW_CONFIG_DIR` 를 지정해 실행한다. 이미 `DFLOW_CONFIG_DIR` 가 있으면 그 값을 쓴다.

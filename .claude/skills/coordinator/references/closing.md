@@ -45,5 +45,5 @@ dev 로 서버를 재기동하고 주요 화면을 확인한다(조정자만). �
 
 ## 6. 닫기
 
-- 마지막으로 `coord-state.sh event run-closed - '{}'` 를 남긴다.
+- 마지막으로 `coord-state.sh event run-closed - '{}'` 를 남긴다. 이 이벤트가 `office.sh finish` 를 불러 에이전트 오피스의 팀장·팀원 표시를 내린다(`contract.md` §4).
 - 조정자 자신의 세션은 사용자가 닫는다. state 폴더는 지우지 않는다(다음 회차 근거).

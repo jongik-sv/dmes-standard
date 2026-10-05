@@ -135,6 +135,7 @@ done
 if [ -n "$lane" ]; then
   coord_state_call set ".lanes[\"$lane\"].state" '"closed"'
   coord_state_call event lane-closed "$lane" "$(jq -cn --arg h "$h" --argjson v "$ok" '{handle:$h, verified:($v == 1)}')"
+  bash "$(dirname "$0")/office.sh" lane-down "$lane" >/dev/null 2>&1 || true   # 에이전트 오피스에서 내린다(실패해도 무시)
 fi
 [ -n "$(coord_cfg .wake_targets)" ] && coord_log "wake_targets($(coord_cfg .wake_targets)) 갱신 필요 — 닫은 세션을 빼라"
 echo "CLOSED $label handle=$h"
