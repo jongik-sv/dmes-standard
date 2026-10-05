@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@dk-oasis/shared/modal";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Textarea } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import {
   DETAIL_LABEL_CELL,
   DETAIL_TABLE_STYLE,
@@ -251,7 +252,7 @@ export function TermRegPopModal({
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>표기 *</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="termName" label="표기" required /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   data-testid="term-pop-term-name"
@@ -260,7 +261,7 @@ export function TermRegPopModal({
                   onChange={(v) => change("termName", v)}
                 />
               </td>
-              <th style={DETAIL_LABEL_CELL}>의미 번호 *</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="senseNo" label="의미 번호" required /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   data-testid="term-pop-sense-no"
@@ -271,7 +272,7 @@ export function TermRegPopModal({
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>정의 *</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="definition" meta={false} label="정의" required /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <Textarea
                   data-testid="term-pop-definition"
@@ -282,7 +283,7 @@ export function TermRegPopModal({
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>맥락</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="context" meta={false} label="맥락" /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <Input
                   data-testid="term-pop-context"
@@ -293,7 +294,7 @@ export function TermRegPopModal({
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>영문명</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="engName" label="영문명" /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <div
                   style={{
@@ -318,7 +319,7 @@ export function TermRegPopModal({
                   </Button>
                 </div>
               </td>
-              <th style={DETAIL_LABEL_CELL}>영문 약어 *</th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="engAbbr" label="영문 약어" required /></th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   data-testid="term-pop-abbr"

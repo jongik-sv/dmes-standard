@@ -7,6 +7,7 @@
  */
 import { Input, Select } from "@dk-oasis/shared/form";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { hint } from "@/layout/styles";
 import type { LayoutVersionRow } from "@/layout/types";
 import { versionOptions } from "@/layout/version-rows";
@@ -41,7 +42,9 @@ export function HeaderForm({ draft, versions, selectedVer, onSelectVersion, lega
     <table style={DETAIL_TABLE_STYLE}>
       <tbody>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>헤더 ID / 버전</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="layoutId" label="헤더 ID / 버전" meta={false} />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             {/* 버전 선택은 보기 대상을 고르는 칸이라 읽기 전용이어도 쓸 수 있다 */}
             <div style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center", flexWrap: "wrap" }}>
@@ -57,14 +60,18 @@ export function HeaderForm({ draft, versions, selectedVer, onSelectVersion, lega
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>헤더 이름 *</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="layoutName" label="헤더 이름" required />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             <Input data-testid="header-form-name" aria-label="헤더 이름" value={draft.layoutName} disabled={readOnly}
               onChange={(v) => onChange({ layoutName: v })} />
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>EAI 코드</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="eaiCode" label="EAI 코드" />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             <Input data-testid="header-form-eai" aria-label="EAI 코드" style={{ width: 160 }} value={draft.eaiCode ?? ""} maxLength={20}
               placeholder="기존 코드 또는 새 코드" disabled={readOnly} list="header-form-eai-list" onChange={changeCode} />
@@ -78,14 +85,18 @@ export function HeaderForm({ draft, versions, selectedVer, onSelectVersion, lega
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>EAI 이름</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="eaiName" label="EAI 이름" />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             <Input data-testid="header-form-eai-name" aria-label="EAI 이름" value={draft.eaiName ?? ""}
               disabled={readOnly || !draft.eaiCode} onChange={(v) => onChange({ eaiName: v })} />
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>인코딩 / 패딩 규칙</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="encodingPadRule" label="인코딩 / 패딩 규칙" meta={false} />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             <div style={{ display: "flex", gap: "var(--spacing-sm)", alignItems: "center", flexWrap: "wrap" }}>
               <Select data-testid="header-form-encoding" aria-label="인코딩" value={draft.encoding ?? ""} placeholder="인코딩"
@@ -97,7 +108,9 @@ export function HeaderForm({ draft, versions, selectedVer, onSelectVersion, lega
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}>헤더 길이</th>
+          <th style={DETAIL_LABEL_CELL}>
+            <MdmFieldLabel name="headerLength" label="헤더 길이" meta={false} />
+          </th>
           <td style={DETAIL_VALUE_CELL}>
             <span data-testid="header-length">{lengthText}</span>
             <span style={hint}> · 계산값(저장 시 서버가 다시 계산)</span>

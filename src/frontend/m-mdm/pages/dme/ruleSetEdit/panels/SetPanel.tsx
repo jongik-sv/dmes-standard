@@ -10,6 +10,7 @@ import { useMemo } from "react";
 import { MutedText } from "@dk-oasis/shared/card";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Input, Textarea } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 import { GuideCard } from "../cards/GuideCard";
 import { SetIoTables } from "../cards/SetIoTables";
@@ -43,13 +44,17 @@ export function SetPanel(props: SetPanelProps) {
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>세트명 *</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="setName" label="세트명" required />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input data-testid="set-name" value={setName} disabled={!editable} onChange={props.onSetName} />
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>설명</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="description" label="설명" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Textarea data-testid="set-desc" value={description} rows={2} disabled={!editable} onChange={props.onDescription} />
               </td>

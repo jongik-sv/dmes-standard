@@ -21,6 +21,7 @@ import { useCallback, useMemo } from "react";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { DraftLockBadge, VersionActionBar, VersionStatusBadge, type MdmVersionStatus } from "@/shell";
 
@@ -128,23 +129,23 @@ export function CodeHeaderCard({
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>마루 코드 ID</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="maruCodeId" label="마루 코드 ID" /></th>
             <td style={DETAIL_VALUE_CELL} data-testid="header-code-id">{header.maruCodeId}</td>
-            <th style={DETAIL_LABEL_CELL}>원천</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="sourceKind" label="원천" /></th>
             <td style={DETAIL_VALUE_CELL}>{header.sourceKind}</td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>상태</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="status" meta={false} label="상태" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <span data-testid="header-status">{header.status}</span>
             </td>
-            <th style={DETAIL_LABEL_CELL}>현재 버전</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="currentVerLabel" meta={false} label="현재 버전" /></th>
             <td style={DETAIL_VALUE_CELL}>
               {header.currentVerLabel} · 미적용 {header.unappliedLabel}
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>이름 *</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="maruCodeName" label="이름" required /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={3}>
               <Input
                 data-testid="header-name"
@@ -156,7 +157,7 @@ export function CodeHeaderCard({
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>설명</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={3}>
               <Textarea
                 data-testid="header-desc"
@@ -167,7 +168,7 @@ export function CodeHeaderCard({
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>계층 칸 수</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="lvlCnt" label="계층 칸 수" /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={3}>
               <Select
                 data-testid="header-lvl"
@@ -220,7 +221,7 @@ export function CodeLabelsCard({ form, editable, busy, onFieldChange }: CodeLabe
             const no = String(i + 1).padStart(2, "0");
             return (
               <tr key={key}>
-                <th style={DETAIL_LABEL_CELL}>attr{no}</th>
+                <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name={key} meta={false} label={`attr${no}`} /></th>
                 <td style={DETAIL_VALUE_CELL}>
                   <Input
                     data-testid={`label-attr${no}`}

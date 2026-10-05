@@ -12,6 +12,7 @@ import { memo, useCallback, useImperativeHandle, useMemo, useState, type Ref } f
 import { ContentPanel, DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Textarea } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useDebouncedEffect } from "@/hooks/use-debounced-effect";
 
 import { recommend } from "./api";
@@ -42,11 +43,25 @@ const MIN_RECOMMEND_LENGTH = 2;
 
 type TextField = Exclude<keyof TermForm, "termId">;
 
-/** 상세 표 한 줄. */
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+/** 상세 표 한 줄. `name` 은 칸이 바인딩한 폼 키 — 라벨 툴팁이 MDM 컬럼 사전에서 찾는다(`meta={false}` 면 끈다). */
+function Row({
+  name,
+  meta,
+  label,
+  required,
+  children,
+}: {
+  name: string;
+  meta?: false;
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <tr>
-      <th style={DETAIL_LABEL_CELL}>{label}</th>
+      <th style={DETAIL_LABEL_CELL}>
+        <MdmFieldLabel name={name} meta={meta} label={label} required={required} />
+      </th>
       <td style={DETAIL_VALUE_CELL}>{children}</td>
     </tr>
   );
@@ -164,16 +179,16 @@ export const TermDetailPane = memo(function TermDetailPane({ ref, busy }: { ref:
       <ContentPanel>
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
-            <Row label="표기 *">{field("termName")}</Row>
-            <Row label="의미 번호 *">{field("senseNo")}</Row>
-            <Row label="정의 *">{area("definition", 3)}</Row>
-            <Row label="맥락">{field("context")}</Row>
-            <Row label="사용 시스템">{field("systems", "MES,ERP")}</Row>
-            <Row label="영문명">{field("engName")}</Row>
-            <Row label="영문 약어">{field("engAbbr")}</Row>
-            <Row label="동의어">{field("synonyms", "배치(ERP)")}</Row>
-            <Row label="별칭">{field("aliases", "코일ID,COIL_ID")}</Row>
-            <Row label="표준 결정 근거">{area("stdBasis", 2)}</Row>
+            <Row name="termName" label="표기" required>{field("termName")}</Row>
+            <Row name="senseNo" label="의미 번호" required>{field("senseNo")}</Row>
+            <Row name="definition" meta={false} label="정의" required>{area("definition", 3)}</Row>
+            <Row name="context" meta={false} label="맥락">{field("context")}</Row>
+            <Row name="systems" label="사용 시스템">{field("systems", "MES,ERP")}</Row>
+            <Row name="engName" label="영문명">{field("engName")}</Row>
+            <Row name="engAbbr" label="영문 약어">{field("engAbbr")}</Row>
+            <Row name="synonyms" label="동의어">{field("synonyms", "배치(ERP)")}</Row>
+            <Row name="aliases" label="별칭">{field("aliases", "코일ID,COIL_ID")}</Row>
+            <Row name="stdBasis" label="표준 결정 근거">{area("stdBasis", 2)}</Row>
           </tbody>
         </table>
         {!form && (

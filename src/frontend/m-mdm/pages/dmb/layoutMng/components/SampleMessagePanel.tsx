@@ -7,6 +7,7 @@
 import { Button, Input } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { ZONE_LEGEND, ruler, segmentTitle, visibleText, zoneColor, zoneKey } from "@/layout/sample-line";
 import { hint, row, sectionTitle } from "@/layout/styles";
 import type { LayoutItemRow } from "@/layout/types";
@@ -105,7 +106,9 @@ export function SampleMessagePanel({ items, values, onChange, result, busy, canR
             <tbody>
               {(result?.parsed ?? []).map((p) => (
                 <tr key={p.COLUMN_PHYS}>
-                  <th style={DETAIL_LABEL_CELL}>{p.NAME ?? p.COLUMN_PHYS}</th>
+                  <th style={DETAIL_LABEL_CELL}>
+                    <MdmFieldLabel name={p.COLUMN_PHYS} label={p.NAME ?? p.COLUMN_PHYS} meta={false} />
+                  </th>
                   <td style={DETAIL_VALUE_CELL} data-testid={`sample-parsed-${p.COLUMN_PHYS}`}>{p.VALUE ?? ""}</td>
                 </tr>
               ))}

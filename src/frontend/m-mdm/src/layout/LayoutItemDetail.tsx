@@ -6,6 +6,7 @@
  * 숫자 표현 형식(부호·0 채움·암묵 소수점·표현 자리수)은 숫자 도메인에만 열리고 NUM_FORMAT 문자열로 담긴다(D3).
  */
 import { Input, Select } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { ColumnInfoPopover } from "@/column-info";
 import { AUTO_KINDS, FILL_KINDS, cell, clearClosedFields } from "./fill-kind";
@@ -54,7 +55,7 @@ export function LayoutItemDetail({ item, units, readOnly, onChange }: LayoutItem
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>채움 방식</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="FILL_KIND" label="채움 방식" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Select data-testid="item-detail-fill-kind" aria-label="채움 방식" value={kind} disabled={readOnly}
                 options={FILL_KINDS.map((k) => ({ value: k, label: k }))}
@@ -62,7 +63,7 @@ export function LayoutItemDetail({ item, units, readOnly, onChange }: LayoutItem
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>컬럼</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="COLUMN_PHYS" meta={false} label="컬럼" /></th>
             <td style={DETAIL_VALUE_CELL}>
               {item.COLUMN_PHYS ? (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -75,14 +76,14 @@ export function LayoutItemDetail({ item, units, readOnly, onChange }: LayoutItem
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>파생 타입·길이 / 단위 / 도메인</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="derived" meta={false} label="파생 타입·길이 / 단위 / 도메인" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <span data-testid="item-detail-derived">{derivedLabel(item)}</span>
               {item.DOMAIN_NAME && <span style={hint}>{` · ${item.DOMAIN_NAME}`}</span>}
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>전송 단위 / 단위 항목</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="TRANS_UNIT" label="전송 단위 / 단위 항목" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <div style={rowStyle}>
                 <Select data-testid="item-detail-trans-unit" aria-label="전송 단위" value={item.TRANS_UNIT ?? ""}
@@ -97,7 +98,7 @@ export function LayoutItemDetail({ item, units, readOnly, onChange }: LayoutItem
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>숫자 표현</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="NUM_FORMAT" label="숫자 표현" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <div style={rowStyle}>
                 <Select data-testid="item-detail-sign" aria-label="부호 자리" value={fmt?.sign ? "Y" : "N"} disabled={fmtClosed}
@@ -116,7 +117,7 @@ export function LayoutItemDetail({ item, units, readOnly, onChange }: LayoutItem
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>기본값</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="DEFAULT_VALUE" label="기본값" /></th>
             <td style={DETAIL_VALUE_CELL}>
               {kind === "AUTO" ? (
                 <Select data-testid="item-detail-default" aria-label="기본값" value={item.DEFAULT_VALUE ?? ""}
@@ -131,7 +132,7 @@ export function LayoutItemDetail({ item, units, readOnly, onChange }: LayoutItem
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>FILLER 길이</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="FILLER_LENGTH" label="FILLER 길이" /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input data-testid="item-detail-filler-length" aria-label="FILLER 길이" style={{ width: 80 }}
                 value={item.FILLER_LENGTH ?? ""} disabled={closed("FILLER_LENGTH")}
@@ -139,7 +140,7 @@ export function LayoutItemDetail({ item, units, readOnly, onChange }: LayoutItem
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>오프셋 / 길이</th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="offsetLength" meta={false} label="오프셋 / 길이" /></th>
             <td style={DETAIL_VALUE_CELL}>
               {`${item.OFFSET === null ? "-" : item.OFFSET ?? 0} / ${item.LENGTH ?? 0}`}
               <span style={hint}>{` · 위치 ${item.OFFSET === null ? "-" : positionLabel(item.OFFSET ?? 0, item.LENGTH ?? 0)} (계산값)`}</span>
