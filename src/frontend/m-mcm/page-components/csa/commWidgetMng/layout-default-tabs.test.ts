@@ -208,6 +208,18 @@ describe("createLayoutStore — 기본 탭", () => {
     await expect(store.resetHome()).rejects.toThrow(Error);
   });
 
+  it("지우기가 실패하면 매핑을 지키고, 다시 저장·지우기에 기억한 def-N 을 쓴다", async () => {
+    const api = fakeApi();
+    const store = createLayoutStore("*", null, { api });
+    await store.saveTab(tab("tab-1", "새 탭", 2));
+    api.deleteDefaultTab.mockRejectedValueOnce(new Error("지우지 못했습니다."));
+    await expect(store.deleteTab("tab-1")).rejects.toThrow("지우지 못했습니다.");
+    await store.saveTab(tab("tab-1", "새 탭", 2));
+    expect(api.saveDefaultTab).toHaveBeenLastCalledWith("*", { tabId: "def-21", tabNm: "새 탭", tabSeq: 2 }, [ITEM]);
+    await store.deleteTab("tab-1");
+    expect(api.deleteDefaultTab).toHaveBeenLastCalledWith("*", "def-21");
+  });
+
   it("기본 탭 저장이 실패하면 던지고 매핑·알림을 남기지 않는다", async () => {
     const api = fakeApi();
     api.saveDefaultTab.mockRejectedValueOnce(new Error("같은 이름의 기본 탭이 있습니다."));

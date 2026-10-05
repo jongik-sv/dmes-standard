@@ -82,10 +82,11 @@ export function createLayoutStore(
     async deleteTab(tabId: string): Promise<void> {
       if (tabId === HOME_TAB_ID || typeof api.deleteDefaultTab !== "function") throw unsupported("탭 지우기");
       const target = serverId(tabId);
-      ids.delete(tabId);
       // 한 번도 저장하지 않은 새 탭은 서버에 없다.
       if (!target) return;
       await api.deleteDefaultTab(layoutKey, target);
+      // 성공한 뒤에만 매핑을 지운다 — 실패하면 작업 공간이 탭을 되살리므로 다음 저장·지우기가 같은 def-N 을 써야 한다.
+      ids.delete(tabId);
       options.onSaved?.(layoutKey);
     },
     async reorderTabs(tabIds: string[]): Promise<void> {
