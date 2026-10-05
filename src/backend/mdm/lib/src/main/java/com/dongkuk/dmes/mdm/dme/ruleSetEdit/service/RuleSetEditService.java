@@ -141,6 +141,7 @@ public class RuleSetEditService {
     private final MetaRevisionRecorder recorder;
     private final SetCallIoReader callReader;
     private final SetCallerRecheck recheck;
+    private final RuleSetCalledFlows calledFlows;
     private final TransactionTemplate tx;
 
     public RuleSetEditService(MdmRuleSetRepository setRepository, RuleQueries queries, RuleIoReader ioReader,
@@ -149,7 +150,9 @@ public class RuleSetEditService {
                               RuleSetVersionQueries setVersions, VersionWriteGuard writeGuard, VersionRowStore versionStore,
                               MdmNativeAuditSupport audit, MdmCurrentUser currentUser, RuleSetVersionService versionService,
                               Clock clock, PlatformTransactionManager transactionManager,
-                              MetaRevisionRecorder recorder, SetCallIoReader callReader, SetCallerRecheck recheck) {
+                              MetaRevisionRecorder recorder, SetCallIoReader callReader, SetCallerRecheck recheck,
+                              RuleSetCalledFlows calledFlows) {
+        this.calledFlows = calledFlows;
         this.callReader = callReader;
         this.recheck = recheck;
         this.currentUser = currentUser;
@@ -627,6 +630,7 @@ public class RuleSetEditService {
      * 흐름·판정 오류는 던지지 않고 기록에 담는다(흐름을 읽지 못하면 {@code nodes=[]}·FLOW_INVALID). 저장된 룰 정의가 깨졌으면 MDM026(P-D9).
      * 경고는 폐기 룰(흐름에서 처음 나온 순서) → IF 갈래 조건식 NULL(기록 순서) → 룰 경고(RULE 노드 seq 순)다.
      * 고친 값({@code editsJson}, 4단계 E4)이 있으면 끼워 처음부터 다시 실행하고 기록 {@code edits} 로 되돌려 준다.
+     * 응답 {@code calledFlows} 는 실행 중 부른 세트의 흐름({@link RuleSetCalledFlows}, 하위 세트 spec §8)이다.
      */
     public RuleSetSimulateResult simulate(RuleSetSimulateRequest request) {
         String flowJson = requireFlowJson(request == null ? null : request.getFlowJson());
@@ -648,7 +652,9 @@ public class RuleSetEditService {
             throw MdmErrors.of(MdmErrorCode.STORED_DEFINITION_CORRUPT, "룰 세트 흐름의 저장된 룰 정의를 읽을 수 없어 실행하지 않습니다 — " + e.getMessage(),
                     List.of());
         }
-        return new RuleSetSimulateResult(RunTraceJson.toMap(trace), simulateWarnings(session, flowJson, trace));
+        RuleSetSimulateResult result = new RuleSetSimulateResult(RunTraceJson.toMap(trace), simulateWarnings(session, flowJson, trace));
+        result.setCalledFlows(calledFlows.of(trace));
+        return result;
     }
 
     /**
