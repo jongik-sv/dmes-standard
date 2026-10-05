@@ -13,7 +13,7 @@
 
 ## S2. 화면 키 컬럼 사전 도구 추가 (scripts/mdm-meta, scripts/perf/mdm-meta)
 
-- 커밋: ec4ff90a, 1d4720e5, c40c1cd9, ccefc1e8
+- 커밋: ec4ff90a, 1d4720e5, c40c1cd9, ccefc1e8, c9596a7a, 3e61044d(리뷰 수정)
 - 바뀌기 전: 화면 키가 사전에 있는지 확인하거나 컬럼을 일괄 등록하는 도구가 없었다.
 - 바뀐 뒤: 키 수집(`collect-keys.mjs`), mcm 메타 hit 확인·전후 비교(`check-meta.sh`), OASIS 등록(`register-columns.mjs`, 기본 dry-run), BE 측정(`scripts/perf/mdm-meta/run-measure.sh`)을 둔다. 등록은 피드 기록이 남는 OASIS save 로만 한다.
 - 바꾼 이유: 툴팁이 붙지 않는 키를 운영 DB 에도 같은 절차로 등록하기 위해서다(사용자 결정: 등록 JSON 과 스크립트를 리포에 남긴다).
