@@ -106,14 +106,15 @@ describe("WidgetWorkspace 미리 배치", () => {
   }
   async function mount(items: WidgetItem[], extra: Record<string, unknown> = {}) {
     const { store, saved } = makeStore(HOME(items));
-    act(() =>
-      root.render(
-        h(WidgetWorkspace, { registry: REG, homeDefault: [], store, confirm: vi.fn(async () => true), notify: vi.fn(), boardWidth: 1440, ...extra })
-      )
-    );
+    const props = { registry: REG, homeDefault: [], store, confirm: vi.fn(async () => true), notify: vi.fn(), boardWidth: 1440, ...extra };
+    act(() => root.render(h(WidgetWorkspace, props)));
     await flush();
     act(() => (host.querySelector('[data-action="start-edit"]') as HTMLButtonElement).click());
-    return { saved };
+    const rerender = async (more: Record<string, unknown>) => {
+      act(() => root.render(h(WidgetWorkspace, { ...props, ...more })));
+      await flush();
+    };
+    return { saved, rerender };
   }
   const pickerItem = (id: string) => host.querySelector(`.cm-widget-picker__item[data-widget-id="${id}"]`) as HTMLElement;
   const enter = (id: string) => act(() => pickerItem(id).dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
@@ -167,10 +168,70 @@ describe("WidgetWorkspace 미리 배치", () => {
     expect({ x: added.x, y: added.y }).toEqual({ x: 0, y: 6 });
   });
 
-  it("추가할 수 없는 위젯(이미 놓인 한 번만 위젯)은 미리 보이지 않는다", async () => {
+  it("추가할 수 없는 위젯(이미 놓인 한 번만 위젯)은 서랍이 막아 미리 보이지 않는다", async () => {
     await mount([it_("o", "t.once", 0, 0)]);
     enter("t.once");
     expect(previewEl()).toBeNull();
+  });
+
+  it("올려 둔 사이 등록부가 바뀌어 이미 놓인 한 번만 위젯이 되면 미리 보기가 사라진다", async () => {
+    // t.b 가 이미 놓여 있지만 처음엔 여러 개 허용이라 서랍에서 올릴 수 있다.
+    const { rerender } = await mount([it_("b1", "t.b", 0, 0)]);
+    enter("t.b");
+    expect(previewEl()).not.toBeNull();
+    await rerender({ registry: { ...REG, "t.b": entry("t.b", "나", { multiple: false }) } });
+    expect(previewEl()).toBeNull();
+  });
+
+  it("올려 둔 위젯이 등록부에서 사용 중지로 바뀌어 다시 그려지면 미리 보기가 사라진다", async () => {
+    const { rerender } = await mount([it_("a", "t.a", 0, 0)]);
+    enter("t.b");
+    expect(previewEl()).not.toBeNull();
+    await rerender({ registry: { ...REG, "t.b": entry("t.b", "나", { disabled: true }) } });
+    expect(previewEl()).toBeNull();
+  });
+
+  it("올려 둔 위젯이 등록부에서 없어져도 미리 보기가 사라진다", async () => {
+    const { rerender } = await mount([it_("a", "t.a", 0, 0)]);
+    enter("t.b");
+    expect(previewEl()).not.toBeNull();
+    const { "t.b": _gone, ...rest } = REG;
+    await rerender({ registry: rest });
+    expect(previewEl()).toBeNull();
+  });
+
+  it("검색어로 올려 둔 항목이 목록에서 빠지면 미리 보기가 사라진다", async () => {
+    await mount([it_("a", "t.a", 0, 0)]);
+    enter("t.b");
+    expect(previewEl()).not.toBeNull();
+    const input = host.querySelector(".cm-widget-picker__search") as HTMLInputElement;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "하나만");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(pickerItem("t.b")).toBeNull();
+    expect(previewEl()).toBeNull();
+  });
+
+  it("서랍 항목 밖으로 마우스가 움직이면(mouseout 이 없어도) 미리 보기가 사라진다", async () => {
+    await mount([it_("a", "t.a", 0, 0)]);
+    enter("t.b");
+    expect(previewEl()).not.toBeNull();
+    act(() => host.querySelector(".cm-widget-picker__title")!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
+    expect(previewEl()).toBeNull();
+  });
+
+  it("미리 보기가 있어도 다른 위젯의 자리(transform)는 그대로다", async () => {
+    await mount([it_("a", "t.a", 0, 0), it_("c", "t.a", 12, 0, 12, 6)]);
+    const transforms = () =>
+      [...host.querySelectorAll(".cm-widget")].map((w) => (w.closest(".react-grid-item") as HTMLElement).style.transform);
+    const before = transforms();
+    expect(before).toHaveLength(2);
+    enter("t.b");
+    expect(previewEl()).not.toBeNull();
+    expect(transforms()).toEqual(before);
+    leave("t.b");
+    expect(transforms()).toEqual(before);
   });
 
   it("미리 보기는 편집 종료·취소·서랍 사라짐과 함께 정리된다", async () => {

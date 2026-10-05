@@ -28,7 +28,7 @@ import { WidgetPicker } from "./WidgetPicker";
 import { WidgetShareDialog } from "./WidgetShareDialog";
 import { WidgetStyle } from "./styles";
 import { WidgetTabs } from "./WidgetTabs";
-import type { WidgetItem, WidgetMeta, WidgetRegistry, WidgetStore, WidgetTab } from "./types";
+import type { WidgetItem, WidgetRegistry, WidgetStore, WidgetTab } from "./types";
 import { readFileText, saveJsonFile } from "./widget-file";
 import {
   addItem,
@@ -178,7 +178,7 @@ export function WidgetWorkspace({
   const [saving, setSaving] = useState(false);
   const loadSeq = useRef(0);
   // 서랍 항목에 마우스를 올린 위젯 — 보드의 첫 빈 자리에 스켈레톤으로 미리 보이고, 클릭해야 실제로 놓인다.
-  const [previewMeta, setPreviewMeta] = useState<WidgetMeta | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
   const ask = useCallback(
     (title: string, text: string): Promise<boolean> => {
@@ -422,14 +422,16 @@ export function WidgetWorkspace({
   // 서랍이 사라지거나(편집 종료·취소·저장 중·좁은 화면·잠긴 탭) 탭이 바뀌면 마우스 이탈 이벤트가 오지 않으므로 미리 보기를 비운다.
   const activeTabKey = active?.tabId;
   useEffect(() => {
-    setPreviewMeta(null);
+    setPreviewId(null);
   }, [pickerOpen, activeTabKey]);
 
   const preview = useMemo<WidgetBoardPreview | null>(() => {
-    if (!previewMeta || !pickerOpen || !activeItems || !canAddWidget(activeItems, previewMeta)) return null;
-    const size = placedSizeOf(previewMeta);
-    return { meta: previewMeta, ...firstFreeSpot(activeItems, size), ...size };
-  }, [previewMeta, pickerOpen, activeItems]);
+    // 등록부에서 지금 메타를 다시 찾는다 — 정의가 사라졌거나 사용 중지로 바뀌었으면 미리 보기도 없다.
+    const meta = previewId ? registry[previewId]?.meta : undefined;
+    if (!meta || !pickerOpen || !activeItems || !canAddWidget(activeItems, meta)) return null;
+    const size = placedSizeOf(meta);
+    return { meta, ...firstFreeSpot(activeItems, size), ...size };
+  }, [previewId, registry, pickerOpen, activeItems]);
   const setActiveItems = (items: WidgetItem[]) =>
     setTabs((prev) => prev.map((t) => (t.tabId === active?.tabId ? { ...t, items } : t)));
 
@@ -717,7 +719,7 @@ export function WidgetWorkspace({
     if (!active || !meta || !canAddWidget(active.items, meta)) return;
     const instId = newInstanceId();
     scrollToRef.current = instId;
-    setPreviewMeta(null);
+    setPreviewId(null);
     // 미리 보인 자리(첫 빈 자리)에 그대로 놓는다.
     setActiveItems(addItem(active.items, widgetId, meta, instId, firstFreeSpot(active.items, placedSizeOf(meta))));
   };
@@ -875,7 +877,15 @@ export function WidgetWorkspace({
         />
       )}
       {/* 서랍에서 끌기를 시작하면 마우스 이탈 이벤트가 오지 않으므로 미리 보기를 비운다. */}
-      <div className="cm-widget-ws__body" onDragStartCapture={() => setPreviewMeta(null)}>
+      <div
+        className="cm-widget-ws__body"
+        onDragStartCapture={() => setPreviewId(null)}
+        // 올려 둔 서랍 항목이 검색으로 사라지면 마우스 이탈 이벤트가 오지 않는다 — 서랍 항목 밖으로 마우스가 움직이거나 검색어를 입력하면 비운다.
+        onMouseOver={(e) => {
+          if (previewId && !(e.target as HTMLElement).closest?.(".cm-widget-picker__item:not(:disabled)")) setPreviewId(null);
+        }}
+        onInput={() => setPreviewId(null)}
+      >
         <div className="cm-widget-ws__board">
           <WidgetBoard
             items={active.items}
@@ -895,7 +905,7 @@ export function WidgetWorkspace({
             onAdd={addFromPicker}
             typeTitles={typeTitles}
             categoryTitles={categoryTitles}
-            onPreview={setPreviewMeta}
+            onPreview={(meta) => setPreviewId(meta?.id ?? null)}
           />
         )}
       </div>
