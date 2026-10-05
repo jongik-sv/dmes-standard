@@ -56,7 +56,7 @@
 - **자기 레인의 소유 파일만 고친다.** 금지 파일을 고쳐야 하면 먼저 조정 세션에 묻는다.
 - 소유 레인이 하나뿐인 공용 파일:
   - 공개 엔진 계약(스키마·Java 계약 타입·`RunTraceJson`)의 모양 — eng(eng:1)만.
-  - 생성 TS 두 벌(`shared/src/evalex/engine-contract.generated.ts`·`m-mdm/src/contract/engine-contract.generated.ts`)과 `flow-edit.ts`·`flow-layout.ts`·`flow-model.ts` — eng:1 동안 eng, eng:1 머지 뒤 ui.
+  - 생성 TS 두 벌(`shared/src/evalex/engine-contract.generated.ts`·`m-mdm/src/contract/engine-contract.generated.ts`)과 `flow-edit.ts`·`flow-layout.ts`·`flow-model.ts`·`catch-text.ts`·`tests/dme/ruleSetEdit/catch-canvas.test.ts` — eng:1 동안 eng, eng:1 머지 뒤 ui(`CatchKind` 에 `SUBSET_ENDED` 가 더해지면 `catch-text.ts` 의 `Record<CatchKind, …>` 가 깨지므로 eng:1 이 함께 고친다).
   - 코퍼스 JSON `rule-set-corpus.json` — srv. ui 는 TS 시험에서 읽기만 한다.
   - DB 마이그레이션 — srv.
   - `docs/mdm/decisions.md` — 조정 세션(Task 10)만.
@@ -74,6 +74,7 @@
    - srv:3 → srv:6, srv:5 → srv:6, eng:4 → srv:6
    - ui:7 → ui:8, ui:5t → ui:8, srv:6 → ui:8
    - ui:8 → ui:9, srv:6 → ui:9
+   - **srv:5 와 ui:5t 는 짝 머지다.** TS 코퍼스 시험이 srv 소유 코퍼스 JSON 을 직접 읽어서, srv:5 만 들어가면 dev 의 m-mdm 시험이 빨개진다. ui:5t 가 srv:5 브랜치를 합쳐 초록을 만든 뒤 알리고, srv:5 는 그 뒤에 머지 요청을 보낸다. 조정 세션은 srv:5 → ui:5t 를 잇달아 머지하고 둘 다 들어간 뒤 m-mdm 게이트를 돌린다.
    - 처음 바로 시작할 수 있는 항목: eng:1, srv:3, ui:7. 다른 레인 항목이 필요하면 그 항목이 dev 에 들어간 뒤 dev 를 자기 브랜치에 합친다.
    - srv:3 의 마이그레이션 번호(V23)는 머지 요청 직전에 dev 의 마지막 번호를 다시 확인한다(`outOfOrder=false`). 겹치면 다음 빈 번호로 옮긴다.
    - 머지 요청 직전에 `dev` 최신을 자기 브랜치에 합치고 빌드·시험을 다시 돌린다.

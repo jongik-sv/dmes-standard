@@ -86,9 +86,10 @@ plan:0(이 갱신)과 Task 10(문서·결정 D-135)은 조정 세션이 한다.
 처음 바로 시작할 수 있는 항목: eng:1, srv:3, ui:7.
 
 파일 소유(겹침 방지):
-- 생성 TS 두 벌(`shared/src/evalex/engine-contract.generated.ts`·`m-mdm/src/contract/engine-contract.generated.ts`)과 `flow-edit.ts`·`flow-layout.ts`·`flow-model.ts` 는 **eng:1 동안 eng 소유**, eng:1 머지 뒤로는 **ui 소유**다. 그래서 Task 2·5 의 TS 부분(`flow-model.ts` 의 `SetStep`·`CATCHABLE`·h2 문구, `set-model.ts`·`types.ts`, TS 시험)은 ui:5t 가 한다. eng:2 는 Java 만 한다.
+- 생성 TS 두 벌(`shared/src/evalex/engine-contract.generated.ts`·`m-mdm/src/contract/engine-contract.generated.ts`)과 `flow-edit.ts`·`flow-layout.ts`·`flow-model.ts`·`catch-text.ts`·시험 `catch-canvas.test.ts` 는 **eng:1 동안 eng 소유**, eng:1 머지 뒤로는 **ui 소유**다(`catch-text.ts` 의 `Record<CatchKind, …>` 가 `SUBSET_ENDED` 로 깨지므로 eng:1 이 함께 고친다). 그래서 Task 2·5 의 TS 부분(`flow-model.ts` 의 `SetStep`·`CATCHABLE`·h2 문구, `set-model.ts`·`types.ts`, TS 시험)은 ui:5t 가 한다. eng:2 는 Java 만 한다.
 - 코퍼스 JSON(`mdm/lib/src/test/resources/…/rule-set-corpus.json`)은 **srv 소유**다. Task 2 의 구조 코퍼스 사례와 Task 5 의 분석 사례를 srv:5 가 넣는다. `MIN_CASES`(Java `RuleSetCorpusTest`·TS `rule-set-corpus.test.ts`, 지금 둘 다 90)는 srv:5 가 Java 쪽을, ui:5t 가 TS 쪽을 같은 값으로 올린다.
 - `src/frontend/m-mdm/tests/helpers/engine-paths.ts` 는 어느 레인 소유 목록에도 없다. ui:5t 가 고치되 조정 세션에 먼저 알린다.
+- **srv:5 와 ui:5t 는 짝 머지다.** TS `rule-set-corpus.test.ts` 가 srv 소유 코퍼스 JSON(`mdm/lib` test resources)을 직접 읽으므로, srv:5 만 dev 에 들어가면 새 SET 사례 때문에 dev 의 m-mdm 시험이 빨개진다. 그래서 ui:5t 는 srv:5 브랜치를 자기 브랜치에 합쳐 초록을 만든 뒤 알리고, srv:5 는 그 알림을 받은 뒤 머지 요청을 보낸다. 조정 세션은 srv:5 → ui:5t 를 잇달아 머지하고, 둘 다 들어간 뒤 m-mdm 게이트를 돌린다.
 
 ---
 
@@ -224,6 +225,7 @@ Expected: 대조표와 같다. 다르면 지금 이름을 쓰고 `progress-<레�
 > - 생성 TS 정본은 `shared/src/evalex/engine-contract.generated.ts`(`f057bdb8`), `m-mdm/src/contract/engine-contract.generated.ts` 는 재내보내기다. `gen:contract` 뒤 shared 를 다시 빌드한다.
 > - `Record<FlowNodeKind, …>` 맵은 `flow-edit.ts`·`flow-layout.ts`·`flow-model.ts` 세 파일에 있다. SET 항목을 더한다(동작은 RULE·TASK 와 같은 단계로).
 > - `new FlowNode(` 호출 파일은 5개다(Task 0). `ReservedNames.CATCH_NAMES` 는 지금 넷 → 다섯.
+> - 생성 TS 의 `CatchKind` 에 `SUBSET_ENDED` 가 더해지면 `pages/dme/ruleSetEdit/catch-text.ts` 의 `CATCH_KIND_LABEL: Record<CatchKind, string>` 이 tsc 오류가 나고 `tests/dme/ruleSetEdit/catch-canvas.test.ts` 의 `toEqual` 이 깨진다. 그래서 이 두 파일도 eng:1 동안 eng 가 고친다(라벨 `SUBSET_ENDED: "하위 세트 예외 끝"`). 그 밖에 `Record<CatchKind|FlowNodeKind, …>` 가 더 생겼는지 `grep -rnE "Record<(CatchKind|FlowNodeKind)" src/frontend/m-mdm src/frontend/shared/src` 로 다시 보고, eng:1 머지 때 m-mdm lint·test 가 초록이어야 한다.
 
 **모델:** sonnet — 네 벌(Java·스키마·생성 TS·`RunTraceJson`)과 코덱을 같은 이름으로 맞추고 호출부를 기계적으로 고치는 다파일 작업이다. 실행 의미는 Task 4 가 맡는다.
 
