@@ -264,15 +264,24 @@ public class SecWidgetService {
     public Map<String, Object> shareTab(SecWidgetTabRequest request, List<Map<String, Object>> targets) {
         String userId = requireUser();
         String tabId = requireTabId(request.getTabId());
+        // 받는 사람 → 입력 오류 문구(null 이면 정상). 빈 ID·너무 긴 ID 도 조용히 빼지 않고 실패 줄로 돌려준다.
+        Map<String, String> requested = new LinkedHashMap<>();
         Set<String> targetIds = new LinkedHashSet<>();
         for (Map<String, Object> row : targets == null ? List.<Map<String, Object>>of() : targets) {
-            String id = row == null || row.get("userId") == null ? null : trim(String.valueOf(row.get("userId")));
-            if (id != null && !id.isEmpty() && id.length() <= USER_ID_MAX) targetIds.add(id);
+            String id = row == null || row.get("userId") == null ? "" : trim(String.valueOf(row.get("userId")));
+            if (id == null || id.isEmpty()) {
+                requested.putIfAbsent("", "사용자 ID 가 비었습니다.");
+            } else if (id.length() > USER_ID_MAX) {
+                requested.putIfAbsent(id, "사용자 ID 가 너무 깁니다.");
+            } else {
+                requested.putIfAbsent(id, null);
+                targetIds.add(id);
+            }
         }
-        if (targetIds.isEmpty()) {
+        if (requested.isEmpty()) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "공유할 사용자를 골라 주세요.");
         }
-        if (targetIds.size() > MAX_SHARE_TARGETS) {
+        if (requested.size() > MAX_SHARE_TARGETS) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "한 번에 " + MAX_SHARE_TARGETS + "명까지 공유할 수 있습니다.");
         }
         ShareSource source = shareSource(userId, tabId);
@@ -282,7 +291,12 @@ public class SecWidgetService {
 
         List<Map<String, Object>> results = new ArrayList<>();
         List<SecWidgetTabWriter.TabCopy> copies = new ArrayList<>();
-        for (String target : targetIds) {
+        for (Map.Entry<String, String> req : requested.entrySet()) {
+            String target = req.getKey();
+            if (req.getValue() != null) {
+                results.add(shareResult(target, false, null, req.getValue()));
+                continue;
+            }
             if (target.equals(userId)) {
                 results.add(shareResult(target, false, null, "본인에게는 공유할 수 없습니다."));
                 continue;

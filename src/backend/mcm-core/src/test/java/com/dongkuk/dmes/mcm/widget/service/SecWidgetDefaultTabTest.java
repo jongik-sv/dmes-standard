@@ -383,8 +383,13 @@ class SecWidgetDefaultTabTest {
         ownTab1("내 탭");
         when(userLookup.findActiveUserIds(eq(Set.of("ghost")), any())).thenReturn(List.of());
 
-        Map<String, Object> result = service.shareTab(tabReq("tab-1"), targets("userA", "ghost"));
-        assertThat(list(result, "results")).extracting(r -> r.get("ok")).containsExactly(false, false);
+        String tooLong = "u".repeat(31);
+        Map<String, Object> result = service.shareTab(tabReq("tab-1"), targets("userA", " ", "ghost", tooLong));
+        List<Map<String, Object>> results = list(result, "results");
+        assertThat(results).extracting(r -> r.get("userId")).containsExactly("userA", "", "ghost", tooLong);
+        assertThat(results).extracting(r -> r.get("ok")).containsExactly(false, false, false, false);
+        assertThat((String) results.get(1).get("message")).contains("비었");
+        assertThat((String) results.get(3).get("message")).contains("너무 깁니다");
         verify(writer, never()).copyTabs(anyList());
 
         assertThatThrownBy(() -> service.shareTab(tabReq("tab-1"), List.of())).isInstanceOf(BusinessException.class);
@@ -455,6 +460,9 @@ class SecWidgetDefaultTabTest {
         SecWidgetUserSearchRequest one = new SecWidgetUserSearchRequest();
         one.setKeyword(" a ");
         assertThatThrownBy(() -> service.searchUsers(one)).isInstanceOf(BusinessException.class).hasMessageContaining("2자");
+        SecWidgetUserSearchRequest tooLong = new SecWidgetUserSearchRequest();
+        tooLong.setKeyword("가".repeat(31));
+        assertThatThrownBy(() -> service.searchUsers(tooLong)).isInstanceOf(BusinessException.class).hasMessageContaining("30자");
         verify(userLookup, never()).searchActive(anyString(), anyString(), any(), anyInt());
 
         when(userLookup.searchActive(eq("김_"), eq("userA"), any(), eq(20)))

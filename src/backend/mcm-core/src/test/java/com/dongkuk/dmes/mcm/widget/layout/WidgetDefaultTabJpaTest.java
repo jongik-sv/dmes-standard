@@ -12,6 +12,7 @@ import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.def.dto.WidgetDefListRequest;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 import com.dongkuk.dmes.mcm.widget.def.service.WidgetDefService;
+import com.dongkuk.dmes.mcm.widget.entity.SecUserWidget;
 import com.dongkuk.dmes.mcm.widget.entity.SecUserWidgetTab;
 import com.dongkuk.dmes.mcm.widget.layout.entity.WidgetDefaultLayout;
 import com.dongkuk.dmes.mcm.widget.layout.entity.WidgetDefaultTab;
@@ -28,6 +29,7 @@ import com.dongkuk.dmes.mcm.widget.repository.WidgetUserLookupRepository;
 import com.dongkuk.dmes.mcm.widget.service.SecWidgetTabWriter;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.PersistenceException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -223,6 +225,35 @@ class WidgetDefaultTabJpaTest {
                 .singleElement().satisfies(r -> assertThat(r.getConfigJson()).isEqualTo("{\"c\":1}"));
     }
 
+    @Test
+    @DisplayName("copyTabs — 사본 하나가 PK 충돌로 실패하면 오류가 드러나고 같은 호출의 다른 받는 사람 사본도 함께 롤백된다")
+    void copyTabsRollsBackTogether() {
+        // userC 에 탭 행 없이 남은 위젯 행(tab-1/s1) — 탭 ID 는 비어 보이지만 위젯 persist 가 PK 충돌한다.
+        SecUserWidget orphan = new SecUserWidget();
+        orphan.setUserId("userC");
+        orphan.setTabId("tab-1");
+        orphan.setInstId("s1");
+        orphan.setWidgetId("home.notice");
+        orphan.setPosX(0);
+        orphan.setPosY(0);
+        orphan.setSizeW(6);
+        orphan.setSizeH(6);
+        orphan.setLockYn("N");
+        userWidgetRepository.saveAndFlush(orphan);
+        SecWidgetTabWriter.WidgetValues w = new SecWidgetTabWriter.WidgetValues("s1", "home.notice", 0, 0, 6, 6, "N", null);
+
+        assertThatThrownBy(() -> shareWriter.copyTabs(List.of(
+                new SecWidgetTabWriter.TabCopy("userB", new SecWidgetTabWriter.TabValues("tab-1", "(공유) a", 1, "N"), List.of(w)),
+                new SecWidgetTabWriter.TabCopy("userC", new SecWidgetTabWriter.TabValues("tab-1", "(공유) a", 1, "N"), List.of(w)))))
+                .isInstanceOf(PersistenceException.class);
+
+        assertThat(userTabRepository.findByUserIdOrderByTabSeqAsc("userB")).isEmpty();
+        assertThat(userWidgetRepository.findByUserId("userB")).isEmpty();
+        assertThat(userTabRepository.findByUserIdOrderByTabSeqAsc("userC")).isEmpty();
+        assertThat(userWidgetRepository.findByUserId("userC")).singleElement()
+                .satisfies(r -> assertThat(r.getTabId()).isEqualTo("tab-1"));
+    }
+
     // ── ⑦ 사용자 찾기 쿼리 ─────────────────────────────────────────
 
     private void user(String userId, String userNm, String deptCd, String useTp, LocalDateTime end) {
@@ -276,6 +307,24 @@ class WidgetDefaultTabJpaTest {
         assertThat(userLookup.findDeptCd("u1")).isEqualTo("D100");
         assertThat(userLookup.findDeptCd("u3")).isNull();
         assertThat(userLookup.findDeptCd("ghost")).isNull();
+    }
+
+    @Test
+    @DisplayName("searchActive — 이스케이프 문자 '!' 자체도 글자로 찾는다(!·!%·!_ 가 와일드카드나 이스케이프로 새지 않는다)")
+    void searchActiveEscapeCharItself() {
+        user("e1", "김!수", null, "Y", null);
+        user("e2", "김수", null, "Y", null);
+        user("e3", "김!%수", null, "Y", null);
+        user("e4", "김!x수", null, "Y", null);
+        LocalDateTime now = LocalDateTime.now();
+
+        assertThat(userLookup.searchActive("김!수", "me", now, 20)).extracting(WidgetUserLookupRepository.UserRow::userId)
+                .containsExactly("e1");
+        assertThat(userLookup.searchActive("!%", "me", now, 20)).extracting(WidgetUserLookupRepository.UserRow::userId)
+                .containsExactly("e3");
+        assertThat(userLookup.searchActive("김!_수", "me", now, 20)).isEmpty();
+        assertThat(userLookup.searchActive("!", "me", now, 20)).extracting(WidgetUserLookupRepository.UserRow::userId)
+                .containsExactlyInAnyOrder("e1", "e3", "e4");
     }
 
     @Test
