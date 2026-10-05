@@ -10,7 +10,7 @@
 - Mantine 9.6.0 `Tabs`: `keepMounted?: boolean`, `keepMountedMode?: 'activity' | 'display-none'`(기본 `'activity'`) — 계획 Task 7 Step 1 과 같다. 기본 `'activity'` 는 숨은 패널의 효과를 내리므로 쓰지 않는다
 
 ## 남은 순서
-ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9
+ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (ui:9 화면 몫은 srv:6 전에 먼저 했다 — 아래 ui:9)
 
 ## ui:7. 편집 화면 안 세트 탭
 - 상태: 구현·리뷰 완료(리뷰 2회 clean), 결정 12 는 조정 세션이 스펙 §10.3 대로 승인(2026-10-06, ui-3)
@@ -89,3 +89,31 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9
 ## 머지 2 — srv:5 + ui:5t 짝 머지(조정 지시 ui-6)
 - ui 브랜치에 srv:5(10fb5284)가 들어 있어 한 머지로 넣는다. dev 최신 `136ec85b`(eng:4·eng:c·문서)를 합쳤다(충돌 없음, 프론트 소스 변경 없음).
 - 시험: m-mdm `node scripts/test.mjs` 235파일 3670 중 3669 통과·1 실패 — 실패는 `tests/dma/domainMng/page-render.test.ts`「행이 있으면 들여쓴 이름이 보인다」로, 단독 3회 재실행에서 1회 실패·2회 통과한 간헐 실패(타이밍, ruleSetEdit 무관, 이번 합치기의 프론트 변경 없음). m-mdm `tsc --noEmit` 0. `src/backend/mdm` 에서 `heavy.sh ../gradlew :lib:test --max-workers=2` → 116 클래스 2027건 통과·0 실패.
+
+## ui:9. 디버거 안으로 들어가기
+- 상태: 화면 쪽 구현(일부) 끝. srv:6(`execute` 응답의 `calledFlows`·연쇄 재검사)이 아직 dev 에 없어 서버가 `calledFlows` 를 주지 않아도 깨지지 않게 했다(아래 결정 3). 계획 Task 9 와 Task 8 의 디버거 경고 몫(조정 지시)을 했다.
+- 커밋: `e08b2e20`(순수 함수 `call-stack.ts`·`trace-view` SET 값 흐름·`types.CalledFlow`, 시험 `call-stack.test.ts`), `c4e48c89`(훅·패널·편집기 연결·경로 표시 줄, 시험 `debug-subset.test.ts`), `fca4a865`(확정 안 한 하위 세트 경고·`copyNode` setId)
+- 시험 결과: `vitest run tests/dme/ruleSetEdit` → 99파일 1880 통과·0 실패(착수 전 97파일 1855 + 새 시험 23 + 그사이 dev 합류분), m-mdm `tsc --noEmit` 0, 바꾼 화면 파일 mantine·aggrid audit 0건.
+- 계획 조정(본문과 다르게 한 것):
+  1. **`SEAM(T9)`** — `grep -rn "SEAM(T9)" src/frontend/m-mdm/pages` 가 착수 때 이미 0건이었다(ui:5t 가 `scopePaths`·`frames` 에 SET 을 넣었다). 바꿀 것 없음.
+  2. **`enterFrame` 은 `calledFlows` 에 그 세트 항목이 없으면 null** — 본문은 항목이 없으면 `toEditFlow(null, [])`(START→END) 로 들어갔다. 서버가 아직 주지 않는 지금 빈 흐름을 그리면 틀린 그림이라 들어가지 않는다. 항목이 있고 `flow` 가 null 이면 본문대로 `ruleIds` 한 줄 흐름. 라벨은 SET 노드 라벨(공백이면 없음으로 봄) → 세트명 → 세트 ID.
+  3. **`TraceDetail` 에 `calledFlows` prop** — 본문은 `onEnter` 만. 하위 기록(`sub`)이 있는데 그 세트 흐름을 받지 못했으면 [안으로 들어가기](`sim-detail-enter`)를 끄고 `sim-detail-enter-off` "하위 세트 흐름을 받지 못해 안으로 들어갈 수 없다" 를 보인다(`ENTER_OFF_NOTE`). 세트 ID 칸은 `sub` 가 없으면(하위 세트 전에 멈춤) 흐름 노드의 `setId` 로.
+  4. **`useCallStack` 은 프레임을 만든 기록(`owner`)에 묶는다** — 본문은 `useEffect(() => setFrames([]), [last])`. 효과로 지우면 새 기록 첫 렌더에 옛 프레임이 보이므로 `owner !== last` 면 같은 렌더에서 빈 목록으로 본다. 돌려주는 객체는 `useMemo`.
+  5. **`FrameDetail`** — 본문의 기록 상세 위에 프레임 상태 한 줄(`frame-detail-status`, `debugStatus(하위 기록, 프레임 커서, 0, 하위 흐름)`)을 두었다 — 끝내는 IF 갈래로 끝난 하위 기록의 "IF {제목}의 「{갈래}」 갈래에서 끝냈다"(스펙 §11)가 여기 보인다. END 상세에도 `endedBranchText(하위 기록, 하위 흐름)` 을 넘긴다. 고른 노드가 프레임 커서 뒤면 변수 패널과 같은 "아직 실행하지 않은 노드다". 손주 세트 들어가기를 위해 `calledFlows` prop(최상위 실행 응답 것, 서버가 재귀로 모은다).
+  6. **`RunCompare`** — 경로 키를 글자로 묶어 메모(본문 eslint 끄기 대신). 이전 실행에 같은 경로의 하위 기록이 없으면 `NO_PREVIOUS_SUB_NOTE` "이전 실행에는 이 하위 세트 기록이 없다".
+  7. **편집기 연결(`RuleSetEditor.tsx`)** — 본문의 넘기는 값에 더해: 선택 정리 효과가 프레임 안이면 하위 흐름으로 본다(아니면 하위 노드를 고르자마자 풀린다). `isFlowNode` 는 프레임 안이면 거짓(노드 ID 가 부모·하위에서 겹친다 — 툴바 [여기까지]·F9 가 부모 노드에 닿지 않게). 프레임 안이면 `onContextMenu`·`onToggleBreakpoint` 가 아무것도 하지 않고 중단점 점은 CSS(`.rsf-body[data-frame] .rsf-bp`)로 숨긴다. 변수 칩 라벨은 하위 룰 입출력(`varLabelsOf(top.rules)`). 들어가기·경로로 돌아가기는 선택을 푼다.
+  8. **경로 표시 줄** — 본문 `.rsf-link` 는 캔버스 손잡이 클래스와 이름이 겹쳐 `.rsf-callpath-link`·`.rsf-callpath-sep`·`.rsf-callpath-crumbs` 를 새로 썼다. `.rsf-body` 가 가로 flex 라 프레임일 때 `data-frame` 으로 세로로 쌓는다. 마지막 조각은 `aria-current="location"`.
+  9. **값 표 탭(`ValuesTab`)** — 프레임이면 실행 경고(`SimWarnings`)는 최상위 실행 것이라 보이지 않는다.
+  10. **`flow-edit.copyNode` 가 SET 노드의 `setId` 를 버렸다** — 편집 흐름(`toEditFlow`)에서 `setId` 가 사라져 `flowSetIds(편집 흐름)` 이 비고, 실행 요청(`flowJsonOf`)에도 `setId` 가 빠졌다. 경고에 필요한 최소로 SET 노드에만 label 뒤 `setId` 를 남긴다(다른 종류에는 칸을 더하지 않는다 — 기존 흐름 JSON 은 한 글자도 안 바뀜). 계획 Task 8 은 `node()` 에 `setId` 를 더해 모든 노드에 `setId: null` 을 싣는 방식이다 — ui:8 이 서버 정규 JSON 키 순서와 맞춰 고를 일로 넘긴다.
+- 결정:
+  1. **툴바·단축키 단계 실행(Ruling 21)** — 프레임 안에서 [한 단계]·[이전]·F10 등을 쓰면 최상위 기록의 커서가 움직이므로, 최상위 커서(`sim.cursor`)가 바뀌면 최상위로 돌아온다(`backTo(0)`). 새 기록·[중지]도 기록이 바뀌어 프레임이 비워진다. 프레임 커서는 경로 줄 ‹ ›(`dbg-frame-prev`·`dbg-frame-next`, `dbg-frame-status` = `{커서}/{n}`)만 옮긴다.
+  2. **디버그 모드를 나가면** 편집기 효과가 `backTo(0)` — 다시 들어와도 최상위.
+  3. **`calledFlows` 가 없을 때** — `RuleSetSimulateResult.calledFlows?`(선택), `SimResult.calledFlows` 는 늘 있고 없으면 빈 객체(모듈 상수). SET 노드 상세·칩·값 흐름·값 표는 `outputs`·`sub` 만 쓰므로 그대로 보이고, 들어가기만 꺼진다(결정 위 계획 조정 3).
+  4. **확정 안 한 하위 세트 경고(C-D18, 조정 지시)** — 계획 Task 8 의 `sim-dirty-subsets`("저장된 정의로 한다", `dirtySetIds`)를 대신한다. 조건: 디버그 모드 ∧ 편집 흐름의 `flowSetIds` 가운데 자기 세트가 아니고 `tabsApi.unconfirmedSetIds`(저장 안 함 또는 DRAFT 를 엶, ui:7)에 든 세트. 자리: `DebugToolbar` 바로 아래 줄(`.rsf-dbg-subset-warn`, `role="status"`). **세트마다 한 줄** — 묶음 `dbg-subset-unconfirmed` 안에 `dbg-subset-unconfirmed-{setId}` 마다 "하위 세트 {S}에 확정하지 않은 변경이 있다. 실행은 판정 시각의 RELEASED 로 한다."(`subsetUnconfirmedText`). 문구의 {S} 가 하나라 쉼표로 묶지 않았다. 순서는 흐름 순서. 손주 세트(하위 흐름 안의 SET)는 세지 않는다(이 탭 흐름의 SET 노드만). ui:8 은 `sim-dirty-subsets` 를 따로 더하지 않는다.
+  5. **하위 흐름 그리기** — `toEditFlow` 를 거치므로 옛 형식 IF 합류는 D-136 새 형식으로 바뀐다(시험). 이때 엔진은 저장된 옛 흐름으로 돌았으므로 하위 기록에 없어진 합류 노드 기록이 있을 수 있다 — 겹침은 흐름에 없는 노드 기록을 무시한다(남은 위험: 그 합류 단계에서 프레임 커서가 "지금" 표시 없이 한 칸 지나간다).
+- 시험: 새 `call-stack.test.ts`(10 — 들어가기·없는 흐름·라벨·옛 형식 변환·경로·커서 값·받은 예외 수·setId 보존·값 흐름·칩·오류 SET), 새 `debug-subset.test.ts`(13 — SET 상세·칩, 들어가기·경로·‹ ›·돌아오기, 중지·새 실행에 비움, 툴바 단계에 최상위로, 모드 나가기, calledFlows 없음 안내, 프레임 실행 비교, 손주 세트·가운데 조각, 우클릭·F9·중단점 점이 부모에 닿지 않음, 프레임 값 표, 경고 — 저장 안 함·탭 닫기·모드 밖·DRAFT·부르지 않는 세트).
+- srv:6 머지 뒤 남은 일(실제 `calledFlows` 로 확인):
+  1. 서버 `calledFlows` 키·모양이 `CalledFlow`(`setId·setName·flow(view 포함)·ruleIds·rules`)와 같은지, 손주 세트까지 재귀로 모으는지 — `debug-subset.test.ts` 의 목 응답을 실제 응답 한 건과 대조한다.
+  2. `flow` 의 `view.positions` 가 오면 하위 캔버스가 저장된 배치로 그려지는지(목은 `flow: null`·빈 view 뿐), 옛 형식 하위 흐름의 기록 노드와 변환 흐름이 어긋나는 자리(결정 5).
+  3. 하위 `RuleIo`(`rules`)로 룰 노드 제목·칩이 나오는지, 하위 세트 안 오류·CAUGHT·끝내는 IF 갈래 끝의 상태 줄 문구를 엔진 실제 기록으로 본다.
+  4. 브라우저 확인(조정 세션, 사용자 승인 뒤): 경로 줄 모양·좁은 폭 줄바꿈, 프레임 전환 때 화면 맞춤(`fitKey`), 경고 줄 색.
