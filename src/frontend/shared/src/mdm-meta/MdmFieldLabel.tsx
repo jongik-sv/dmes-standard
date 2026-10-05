@@ -7,7 +7,7 @@
  * 상세 영역을 th/td 표로 그리는 화면(`DETAIL_LABEL_CELL`)은 `FormGroup` 을 쓰지 않아 라벨 툴팁이 없었다. 그 자리에 이 부품을 둔다.
  * `FormGroup name` 과 같은 규칙(`name` → 물리명 D7, `meta`, 캡션 우선순위, 툴팁 모양·위치·aria)을 따른다.
  *
- * - 공급자(포털 탭) 밖이거나 아직 못 받았으면 `label ?? name` 글자 그대로이고 요청·툴팁이 없다. 값은 단순 텍스트와 같은 DOM 이다
+ * - 공급자(포털 탭) 밖이거나 공급자가 꺼져 있거나(`disabled` — 위젯 편집기 등 사전과 이어지지 않는 하위 트리) 아직 못 받았으면 `label ?? name` 글자 그대로이고 요청·툴팁이 없다. 값은 단순 텍스트와 같은 DOM 이다
  *   (`className`·`style` 을 줬을 때만 그 값을 가진 `<span>` 으로 감싼다).
  * - 공급자 안에서 사전에 없거나(`meta={false}` 포함) 받은 결과가 없으면 라벨 글자 툴팁을 띄운다 — 첫 줄 라벨, 둘째 줄 흐린 글자 `name`(`name` 이 라벨과 같으면 생략).
  *   트리거는 같은 `span.form-tip-trigger` 이지만 스크린리더 사본(`aria-describedby`)은 두지 않는다(라벨과 같은 글자라 중복이다).
@@ -24,7 +24,7 @@ import { LabelNameTip } from "../components/form/LabelNameTip";
 import { HoverTipPortal, useHoverTip } from "../components/form/useHoverTip";
 import { MdmMetaCard, mdmCardTipOptions } from "./MdmMetaCard";
 import { resolveCaption } from "./caption";
-import { useMdmCaptionPriority, useMdmColumn, useMdmMetaScope } from "./context";
+import { useMdmCaptionPriority, useMdmColumn, useMdmMetaActive } from "./context";
 import type { MdmCaptionKind } from "./types";
 
 export interface MdmFieldLabelProps {
@@ -53,7 +53,7 @@ export function MdmFieldLabel({
 }: MdmFieldLabelProps) {
   const { column, domain, loading } = useMdmColumn(name, meta);
   const captionPriority = useMdmCaptionPriority();
-  const inMdmScope = useMdmMetaScope() !== null;
+  const inMdmScope = useMdmMetaActive();
   const descId = `${useId()}-tip`;
   // 카드는 글자 툴팁보다 크다 — 위쪽 공간 판정이 노드 툴팁 높이를 쓴다. HTML 설명 카드면 상호작용 툴팁이다.
   const htmlTipOptions = mdmCardTipOptions(column);

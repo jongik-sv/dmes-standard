@@ -172,6 +172,18 @@ describe("FormGroup 포털 툴팁", () => {
     expect(portal()).toBeNull();
   });
 
+  it("공급자가 꺼져 있으면(disabled) 툴팁 없는 라벨은 공급자 밖과 같다 — has-tip·트리거가 없다", async () => {
+    vi.stubGlobal("fetch", fakeMetaFetch({ columns: {} }).fn);
+    r = renderWithMantine(
+      createElement(MdmMetaProvider, { module: "mls", disabled: true }, createElement(FormGroup, { label: "분류", name: "category" }, input()))
+    );
+    await act(async () => {
+      await settle(60);
+    });
+    expect(r.host.querySelector("label")?.className).not.toContain("has-tip");
+    expect(r.host.querySelector(".form-tip-trigger")).toBeNull();
+  });
+
   it("공급자 안에서 name 이 없는 라벨은 라벨 글자만 뜬다", async () => {
     vi.stubGlobal("fetch", fakeMetaFetch({ columns: {} }).fn);
     r = renderWithMantine(createElement(MdmMetaProvider, { module: "mls" }, createElement(FormGroup, { label: "제목" }, input())));

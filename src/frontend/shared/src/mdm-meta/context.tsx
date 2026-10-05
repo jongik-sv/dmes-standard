@@ -85,6 +85,15 @@ export function useMdmMetaScope(): MdmMetaScope | null {
 }
 
 /** 캡션 우선순위. 공급자 밖이면 "explicit". */
+/**
+ * 사전 연결이 켜져 있는가 — 공급자(포털 탭) 안이고 모듈이 있고 `disabled` 가 아니다(`useMdmColumns` 의 active 와 같은 판정).
+ * 사전에 없는 라벨의 글자 툴팁은 이때만 띄운다: 끈 하위 트리(위젯 편집기 등)는 공급자 밖처럼 단순 텍스트다.
+ */
+export function useMdmMetaActive(): boolean {
+  const scope = useContext(MdmMetaContext);
+  return !!scope && !!scope.module && !scope.disabled;
+}
+
 export function useMdmCaptionPriority(): MdmCaptionPriority {
   return useContext(MdmMetaContext)?.captionPriority ?? "explicit";
 }

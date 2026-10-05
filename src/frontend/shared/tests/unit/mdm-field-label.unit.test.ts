@@ -195,6 +195,15 @@ describe("공급자 안 — 메타가 없을 때(글자 툴팁)", () => {
     expect(tip.querySelector("span")?.textContent).toBe("noticeTitle");
   });
 
+  it("공급자가 꺼져 있으면(disabled — 위젯 편집기 등) 공급자 밖과 같다: 요청·툴팁 없이 단순 텍스트", async () => {
+    const f = fakeMetaFetch({ columns: { TITLE } });
+    vi.stubGlobal("fetch", f.fn);
+    await show(createElement(MdmMetaProvider, { module: "mls", disabled: true }, inTh({ name: "noticeTitle", label: "공지 제목" })));
+    expect(th().innerHTML).toBe("공지 제목");
+    expect(trigger()).toBeNull();
+    expect(f.calls).toHaveLength(0);
+  });
+
   it("받는 중(loading)에는 단순 텍스트로 두어 카드로 바뀔 때 깜박이지 않는다", async () => {
     vi.stubGlobal("fetch", () => new Promise(() => {})); // 끝나지 않는 요청
     await act(async () => root!.render(inProvider(inTh({ name: "TITLE", label: "제목" }))));
