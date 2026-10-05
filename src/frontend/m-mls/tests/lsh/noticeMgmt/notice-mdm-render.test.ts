@@ -191,11 +191,13 @@ describe("상세 표 제목 줄", () => {
     expect(tipPortal()).toBeNull();
   });
 
-  it("MDM 에 TITLE 이 없으면 라벨은 단순 글자 '제목 *' 이고 툴팁 트리거가 없다", async () => {
+  it("MDM 에 TITLE 이 없으면 라벨 글자는 '제목 *' 그대로이고 글자 툴팁 트리거만 있다(메타 카드·스크린리더 사본 없음)", async () => {
     vi.stubGlobal("fetch", fakeMdmFetch({ knowsTitle: false }).fn);
     await show(inNoticeScreen(titleRow()));
-    expect(host.querySelector("th")?.innerHTML).toBe("제목 *");
-    expect(host.querySelector(".form-tip-trigger")).toBeNull();
+    expect(host.querySelector("th")?.textContent).toBe("제목 *");
+    const trigger = host.querySelector("th .form-tip-trigger") as HTMLElement;
+    expect(trigger).not.toBeNull();
+    expect(trigger.hasAttribute("aria-describedby")).toBe(false);
   });
 
   it("공급자 밖: 예전 라벨 '제목' 그대로이고 MDM 을 부르지 않는다", async () => {
