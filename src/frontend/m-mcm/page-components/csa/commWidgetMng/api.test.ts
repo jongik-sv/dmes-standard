@@ -41,6 +41,7 @@ const PARAMS: WidgetSaveParams = {
   refreshSec: null,
   linkPageId: null,
   multipleYn: "Y",
+  categoryCd: null,
   useYn: "Y",
   dataSrc: null,
   configJson: '{"markdown":""}',

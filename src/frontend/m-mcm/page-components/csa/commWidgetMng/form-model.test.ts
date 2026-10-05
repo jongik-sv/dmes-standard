@@ -61,6 +61,7 @@ function defRow(p: Partial<WidgetDefRow> & Pick<WidgetDefRow, "widgetId" | "srcT
     refreshSec: null,
     linkPageId: null,
     multipleYn: null,
+    categoryCd: null,
     useYn: "Y",
     dataSrc: null,
     config: null,
@@ -97,6 +98,27 @@ describe("buildAdminRows", () => {
     const notice = rows.find((r) => r.widgetId === "home.notice")!;
     expect(notice).toMatchObject({ title: "사내 공지", defaultSize: "12×10", overridden: true });
     expect(notice.def).toBe(c);
+  });
+
+  it("분류(categoryCd) — 덮어쓰기 값 > 코드 메타 값 > 빈 칸, 정의 위젯은 행 값", () => {
+    const code: WidgetRegistry = {
+      "home.notice": { meta: { id: "home.notice", title: "공지", defaultSize: { w: 8, h: 10 }, category: "COMMON" }, load },
+      "home.kpi": { meta: { id: "home.kpi", title: "주요 지표", defaultSize: { w: 24, h: 7 }, category: "PROD" }, load },
+      "home.old": { meta: { id: "home.old", title: "분류 없는 위젯", defaultSize: { w: 6, h: 6 } }, load },
+    };
+    const rows = buildAdminRows(
+      code,
+      TYPES,
+      [
+        defRow({ widgetId: "home.notice", srcTp: "C", categoryCd: "PROD" }),
+        defRow({ widgetId: "def.a0000001", srcTp: "D", typeId: "markdown", title: "안내", categoryCd: "TOOL" }),
+      ],
+      {}
+    );
+    expect(rows.find((r) => r.widgetId === "home.notice")!.categoryCd).toBe("PROD");
+    expect(rows.find((r) => r.widgetId === "home.kpi")!.categoryCd).toBe("PROD");
+    expect(rows.find((r) => r.widgetId === "home.old")!.categoryCd).toBe("");
+    expect(rows.find((r) => r.widgetId === "def.a0000001")!.categoryCd).toBe("TOOL");
   });
 
   it("사용 중지 — 코드 덮어쓰기·정의 모두 useYn N 을 그대로 보인다", () => {
@@ -304,12 +326,13 @@ describe("폼 ↔ 행 변환", () => {
       refreshSec: 300,
       linkPageId: "mls:lsh/noticeMgmt",
       multipleYn: "N",
+      categoryCd: "QUAL",
       useYn: "N",
       dataSrc: "mcm",
       config: { sql: "select 1" },
     });
     const form = rowToForm(d);
-    expect(form).toMatchObject({ defW: "12", refreshSec: "300", multipleYn: "N", useYn: "N", title: "출하" });
+    expect(form).toMatchObject({ defW: "12", refreshSec: "300", multipleYn: "N", categoryCd: "QUAL", useYn: "N", title: "출하" });
     expect(formToRow(form)).toEqual(d);
   });
 
@@ -380,6 +403,7 @@ describe("toSaveParams", () => {
       refreshSec: null,
       linkPageId: null,
       multipleYn: "Y",
+      categoryCd: null,
       useYn: "Y",
       dataSrc: "mcm",
       configJson: '{"sql":"select 1"}',

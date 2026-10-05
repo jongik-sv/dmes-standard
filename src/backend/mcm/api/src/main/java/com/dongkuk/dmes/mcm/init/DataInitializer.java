@@ -231,6 +231,7 @@ public class DataInitializer implements ApplicationRunner {
 
         // 2026-10-02 — 위젯관리(csa/commWidgetMng) 메뉴. 시스템관리(csa) 아래 leaf 1 — 사이드바 "시스템관리 > 위젯 관리".
         moduleMenus.seedWidgetAdminMenus();
+        new com.dongkuk.dmes.mcm.init.seed.WidgetCategoryCodeSeeder(support).seedWidgetCategoryCodes();
 
         // 확장 지점 — 신규 업무 모듈을 추가할 때 여기에 seed{Module}Menus() 를 호출한다.
 

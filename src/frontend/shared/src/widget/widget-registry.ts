@@ -57,6 +57,7 @@ export function toWidgetDefRow(raw: Record<string, unknown>): WidgetDefRow | nul
     refreshSec: num(raw.refreshSec),
     linkPageId: str(raw.linkPageId),
     multipleYn: yn(raw.multipleYn),
+    categoryCd: str(raw.categoryCd),
     useYn: raw.useYn === "N" ? "N" : "Y",
     dataSrc: str(raw.dataSrc),
     config: "config" in raw ? (raw.config ?? null) : parseConfig(raw.configJson),
@@ -83,6 +84,7 @@ export function applyWidgetOverride(base: WidgetMeta, row: WidgetDefRow): Widget
   if (row.refreshSec !== null) meta.refreshSec = row.refreshSec;
   if (row.linkPageId) meta.linkPageId = row.linkPageId;
   if (row.multipleYn) meta.multiple = row.multipleYn === "Y";
+  if (row.categoryCd) meta.category = row.categoryCd;
   meta.disabled = row.useYn === "N";
   return meta;
 }
@@ -100,6 +102,7 @@ export function defWidgetMeta(row: WidgetDefRow, type: WidgetTypeRegistryEntry):
     typeId: t.id,
   };
   if (row.subtitle) meta.subtitle = row.subtitle;
+  if (row.categoryCd) meta.category = row.categoryCd;
   meta.description = row.description ?? t.description;
   const min = size(row.minW, row.minH, t.minSize);
   if (min) meta.minSize = min;

@@ -46,6 +46,7 @@ const row = (extra: Partial<WidgetDefRow>): WidgetDefRow => ({
   refreshSec: null,
   linkPageId: null,
   multipleYn: null,
+  categoryCd: null,
   useYn: "Y",
   dataSrc: null,
   config: null,
@@ -75,6 +76,26 @@ describe("mergeWidgetRegistry", () => {
   it("코드 위젯 사용 중지: 등록부에 남고 disabled", () => {
     const out = mergeWidgetRegistry(CODE, TYPES, [row({ useYn: "N" })]);
     expect(out["home.a"].meta.disabled).toBe(true);
+  });
+
+  it("분류(categoryCd): 덮어쓰기 값이 코드 메타 값을 이기고, 비었으면 코드 값을 쓴다", () => {
+    const code: WidgetRegistry = {
+      "home.a": { meta: meta("home.a", { category: "COMMON" }), load: codeLoad },
+      "home.b": { meta: meta("home.b", { category: "PROD" }), load: codeLoad },
+    };
+    const out = mergeWidgetRegistry(code, TYPES, [
+      row({ widgetId: "home.a", categoryCd: "PROD" }),
+      row({ widgetId: "home.b", categoryCd: null }),
+    ]);
+    expect(out["home.a"].meta.category).toBe("PROD");
+    expect(out["home.b"].meta.category).toBe("PROD");
+  });
+
+  it("정의 위젯의 분류는 행 categoryCd 값을 그대로 쓴다", () => {
+    const out = mergeWidgetRegistry(CODE, TYPES, [
+      row({ widgetId: "def.c1", srcTp: "D", typeId: "query-table", title: "x", categoryCd: "QUAL" }),
+    ]);
+    expect(out["def.c1"].meta.category).toBe("QUAL");
   });
 
   it("코드에서 사라진 위젯의 덮어쓰기 행은 무시한다", () => {

@@ -37,6 +37,8 @@ export interface WidgetMeta {
   kind?: "code" | "def";
   /** 정의 위젯의 유형 ID(예: "query-table"). 코드 위젯은 없음. */
   typeId?: string;
+  /** 분류 — 공통코드 그룹 WIDGET_CTG 값(예: "PROD"). 서랍에서 같은 분류끼리 묶는다(2026-10-05 위젯 개선 §6). */
+  category?: string;
   /** 업무 화면 위에 떠 있는 도구 창(포털 머리 「도구」)으로 띄울 수 있는 도구형 위젯인지(기본 false). */
   floatable?: boolean;
 }
@@ -115,6 +117,8 @@ export interface WidgetDefRow {
   refreshSec: number | null;
   linkPageId: string | null;
   multipleYn: "Y" | "N" | null;
+  /** 분류(WIDGET_CTG 코드값). null = 코드 위젯은 코드 메타 값. */
+  categoryCd: string | null;
   useYn: "Y" | "N";
   dataSrc: string | null;
   config: unknown | null;

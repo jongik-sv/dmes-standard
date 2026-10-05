@@ -103,7 +103,13 @@ export const WIDGET_CSS = `
 .cm-widget-picker__name { display: flex; justify-content: space-between; gap: 6px; font-weight: 600; font-size: var(--font-size-md); color: var(--color-text); }
 .cm-widget-picker__size { font-weight: 400; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .cm-widget-picker__type { display: block; margin-top: 1px; font-size: var(--font-size-xs); color: var(--color-text-secondary); }
-.cm-widget-picker__desc { margin: 2px 0 0; font-size: var(--font-size-xs); color: var(--color-text-muted); }
+.cm-widget-picker__desc { margin: 2px 0 0; font-size: var(--font-size-xs); color: var(--color-text-muted); white-space: normal; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow-wrap: anywhere; }
+.cm-widget-picker__cats { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.cm-widget-picker__cat { height: 22px; padding: 0 8px; border: 1px solid var(--color-border); border-radius: 11px; background: var(--color-bg); color: var(--color-text-secondary); font-size: var(--font-size-xs); cursor: pointer; white-space: nowrap; }
+.cm-widget-picker__cat:hover { border-color: var(--color-primary); }
+.cm-widget-picker__cat[aria-pressed="true"] { border-color: var(--color-primary); background: var(--color-primary-soft); color: var(--color-primary); font-weight: 600; }
+.cm-widget-picker__section { display: flex; flex-direction: column; gap: 4px; }
+.cm-widget-picker__group { margin: 4px 2px 0; font-size: var(--font-size-xs); font-weight: 700; color: var(--color-text-secondary); }
 .cm-widget-picker__foot { padding: 8px 12px; border-top: 1px solid var(--color-border-light); font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .cm-widget-ws { display: flex; flex-direction: column; gap: var(--spacing-sm); min-width: 0; }
 .cm-widget-ws__body { display: flex; gap: 10px; align-items: flex-start; }

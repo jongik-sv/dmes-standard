@@ -5,6 +5,7 @@ export const meta: WidgetMeta = {
   title: "불량 유형 (이번 주)",
   subtitle: "발생 건수",
   description: "불량 유형별 발생 건수(샘플)",
+  category: "QUAL",
   defaultSize: { w: 10, h: 7 },
   minSize: { w: 6, h: 6 },
 };

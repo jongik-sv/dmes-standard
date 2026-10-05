@@ -70,6 +70,10 @@ public class WidgetDef extends McmAuditEntity {
     @Column(name = "MULTIPLE_YN", length = 1)
     private String multipleYn;
 
+    /** 분류 — 공통코드 그룹 WIDGET_CTG 값. NULL 이면 코드 위젯은 코드 메타 값, 정의 위젯은 분류 없음. */
+    @Column(name = "CATEGORY_CD", length = 20)
+    private String categoryCd;
+
     @Column(name = "USE_YN", length = 1, nullable = false)
     private String useYn = "Y";
 
@@ -117,6 +121,8 @@ public class WidgetDef extends McmAuditEntity {
     public void setLinkPageId(String linkPageId) { this.linkPageId = linkPageId; }
     public String getMultipleYn() { return multipleYn; }
     public void setMultipleYn(String multipleYn) { this.multipleYn = multipleYn; }
+    public String getCategoryCd() { return categoryCd; }
+    public void setCategoryCd(String categoryCd) { this.categoryCd = categoryCd; }
     public String getUseYn() { return useYn; }
     public void setUseYn(String useYn) { this.useYn = useYn; }
     public String getDataSrc() { return dataSrc; }

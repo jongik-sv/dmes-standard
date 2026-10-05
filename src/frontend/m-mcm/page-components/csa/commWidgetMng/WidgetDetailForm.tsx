@@ -55,11 +55,18 @@ interface Placeholders {
   refreshSec: string;
   linkPageId: string;
   multiple: string;
+  category: string;
 }
 
-function placeholdersOf(codeMeta: WidgetMeta | undefined, type: WidgetTypeRegistryEntry | undefined): Placeholders {
+function placeholdersOf(
+  codeMeta: WidgetMeta | undefined,
+  type: WidgetTypeRegistryEntry | undefined,
+  categoryOptions?: readonly { value: string; label: string }[]
+): Placeholders {
   const base = codeMeta ?? type?.meta;
   const min = base?.minSize ?? WIDGET_DEFAULT_MIN_SIZE;
+  const categoryLabel = (cd?: string) =>
+    cd ? (categoryOptions?.find((o) => o.value === cd)?.label ?? cd) : "";
   return {
     title: base?.title ?? "",
     subtitle: codeMeta?.subtitle ?? "",
@@ -73,6 +80,7 @@ function placeholdersOf(codeMeta: WidgetMeta | undefined, type: WidgetTypeRegist
     refreshSec: codeMeta?.refreshSec ? String(codeMeta.refreshSec) : "없음",
     linkPageId: codeMeta?.linkPageId ?? "",
     multiple: codeMeta?.multiple === false ? "코드 값(허용 안 함)" : "코드 값(허용)",
+    category: categoryLabel(codeMeta?.category),
   };
 }
 
@@ -83,6 +91,8 @@ export interface WidgetDetailFormProps {
   codeMeta?: WidgetMeta;
   /** 정의 위젯의 유형(없으면 알 수 없는 유형). */
   typeEntry?: WidgetTypeRegistryEntry;
+  /** 분류 선택지(공통코드 WIDGET_CTG, useWidgetCategories). 없으면 분류칸이 자유 입력이 아닌 빈 선택지가 된다. */
+  categoryOptions?: readonly { value: string; label: string }[];
   /** 선택이 바뀔 때마다 바뀌는 값 — 유형 편집기를 다시 마운트한다. */
   editorKey: string;
   disabled: boolean;
@@ -99,6 +109,7 @@ export function WidgetDetailForm({
   form,
   codeMeta,
   typeEntry,
+  categoryOptions,
   editorKey,
   disabled,
   errors,
@@ -108,7 +119,7 @@ export function WidgetDetailForm({
   onEditorValidate,
 }: WidgetDetailFormProps) {
   const isDef = form?.srcTp === "D";
-  const ph = placeholdersOf(isDef ? undefined : codeMeta, isDef ? typeEntry : undefined);
+  const ph = placeholdersOf(isDef ? undefined : codeMeta, isDef ? typeEntry : undefined, categoryOptions);
   const off = disabled || !form;
   const text = (key: keyof DefForm) => {
     const v = form?.[key];
@@ -235,6 +246,19 @@ export function WidgetDetailForm({
               placeholder={isDef || !form ? undefined : ph.multiple}
               disabled={off}
               onChange={(v) => onChange({ multipleYn: v as DefForm["multipleYn"] })}
+            />
+          </td>
+        </tr>
+        <tr>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="categoryCd" label="분류" /></th>
+          <td style={DETAIL_VALUE_CELL} colSpan={2}>
+            <Select
+              value={form?.categoryCd ?? ""}
+              options={[{ value: "", label: isDef ? "없음" : "코드 값" }, ...(categoryOptions ?? [])]}
+              placeholder={isDef || !form ? undefined : ph.category || "코드 값(없음)"}
+              disabled={off}
+              data-testid="widget-admin-category"
+              onChange={(v) => onChange({ categoryCd: v })}
             />
           </td>
         </tr>

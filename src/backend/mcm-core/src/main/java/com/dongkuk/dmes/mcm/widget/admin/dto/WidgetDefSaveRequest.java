@@ -21,6 +21,7 @@ public class WidgetDefSaveRequest {
     private Integer refreshSec;
     private String linkPageId;
     private String multipleYn;
+    private String categoryCd;
     private String useYn;
     private String dataSrc;
     private String configJson;
@@ -57,6 +58,8 @@ public class WidgetDefSaveRequest {
     public void setLinkPageId(String linkPageId) { this.linkPageId = linkPageId; }
     public String getMultipleYn() { return multipleYn; }
     public void setMultipleYn(String multipleYn) { this.multipleYn = multipleYn; }
+    public String getCategoryCd() { return categoryCd; }
+    public void setCategoryCd(String categoryCd) { this.categoryCd = categoryCd; }
     public String getUseYn() { return useYn; }
     public void setUseYn(String useYn) { this.useYn = useYn; }
     public String getDataSrc() { return dataSrc; }

@@ -242,6 +242,28 @@ class CommWidgetMngServiceTest {
         assertRejected(longDesc, "설명");
     }
 
+    @Test
+    @DisplayName("분류(categoryCd)는 저장되고(공백 → NULL), 20자 이하만 허용")
+    void categoryCdRules() {
+        // 거절 검사를 먼저 — assertRejected 는 save 가 한 번도 없었음을 본다.
+        WidgetDefSaveRequest longCd = defReq("markdown", "{}");
+        longCd.setCategoryCd("C".repeat(21));
+        assertRejected(longCd, "분류");
+
+        when(defRepository.existsById(anyString())).thenReturn(false);
+        WidgetDefSaveRequest r = defReq("markdown", "{}");
+        r.setCategoryCd(" PROD ");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> saved = (Map<String, Object>) service.save(r).get("def");
+        assertThat(saved).containsEntry("categoryCd", "PROD");
+
+        WidgetDefSaveRequest blank = defReq("markdown", "{}");
+        blank.setCategoryCd(" ");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> savedBlank = (Map<String, Object>) service.save(blank).get("def");
+        assertThat(savedBlank).containsEntry("categoryCd", null);
+    }
+
     // ── save: 크기·새로 고침 ─────────────────────────────────────────
 
     @Test
@@ -570,8 +592,8 @@ class CommWidgetMngServiceTest {
     @Test
     @DisplayName("search includeConfig=false 는 요약 조회로 configJson 키 없이 userCount·usage 를 돌려준다")
     void searchWithoutConfig() {
-        Object[] q = {"def.q1", "D", "query-table", "쿼리", null, null, 8, 6, null, null, null, null, null, null, null, null, "mcm"};
-        Object[] c = {"home.notice", "C", null, null, null, null, null, null, null, null, null, null, null, null, null, "N", null};
+        Object[] q = {"def.q1", "D", "query-table", "쿼리", null, null, 8, 6, null, null, null, null, null, null, null, null, "mcm", "QUAL"};
+        Object[] c = {"home.notice", "C", null, null, null, null, null, null, null, null, null, null, null, null, null, "N", null, null};
         when(defRepository.findAllSummaryOrderByWidgetIdAsc()).thenReturn(List.of(q, c));
         List<Object[]> usageRows = new ArrayList<>();
         usageRows.add(new Object[] {"home.notice", 4L});
