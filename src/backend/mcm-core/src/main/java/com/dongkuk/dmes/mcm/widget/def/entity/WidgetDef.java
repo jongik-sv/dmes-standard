@@ -74,6 +74,10 @@ public class WidgetDef extends McmAuditEntity {
     @Column(name = "CATEGORY_CD", length = 20)
     private String categoryCd;
 
+    /** 비공개 — Y 면 서랍 목록에 안 보이고 검색어가 위젯 ID 와 전부 같을 때만 보인다(2026-10-05 위젯 개선 §10). */
+    @Column(name = "PRIVATE_YN", length = 1)
+    private String privateYn;
+
     @Column(name = "USE_YN", length = 1, nullable = false)
     private String useYn = "Y";
 
@@ -123,6 +127,8 @@ public class WidgetDef extends McmAuditEntity {
     public void setMultipleYn(String multipleYn) { this.multipleYn = multipleYn; }
     public String getCategoryCd() { return categoryCd; }
     public void setCategoryCd(String categoryCd) { this.categoryCd = categoryCd; }
+    public String getPrivateYn() { return privateYn; }
+    public void setPrivateYn(String privateYn) { this.privateYn = privateYn; }
     public String getUseYn() { return useYn; }
     public void setUseYn(String useYn) { this.useYn = useYn; }
     public String getDataSrc() { return dataSrc; }

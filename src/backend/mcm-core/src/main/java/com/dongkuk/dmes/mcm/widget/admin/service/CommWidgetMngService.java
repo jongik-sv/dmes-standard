@@ -130,6 +130,8 @@ public class CommWidgetMngService {
         String multipleYn = yn(request.getMultipleYn(), "여러 번 허용(multipleYn)");
         // 분류 — 공통코드 그룹 WIDGET_CTG 값. 화면이 옵션을 내려주므로 여기서는 길이만 본다.
         String categoryCd = text(request.getCategoryCd(), "분류(categoryCd)", 20, false);
+        // 비공개 — Y 면 서랍에 안 보인다(2026-10-05 위젯 개선 §10).
+        String privateYn = yn(request.getPrivateYn(), "비공개(privateYn)");
         String useYn = yn(request.getUseYn(), "사용(useYn)");
 
         String typeId = null;
@@ -177,6 +179,7 @@ public class CommWidgetMngService {
         row.setLinkPageId(linkPageId);
         row.setMultipleYn(multipleYn);
         row.setCategoryCd(categoryCd);
+        row.setPrivateYn(privateYn);
         row.setUseYn(useYn == null ? "Y" : useYn);
         row.setDataSrc(dataSrc);
         row.setConfigJson(configJson);

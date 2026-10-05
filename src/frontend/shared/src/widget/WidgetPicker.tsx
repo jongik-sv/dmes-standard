@@ -40,18 +40,27 @@ export function WidgetPicker({ registry, items, onAdd, typeTitles, categoryTitle
     return Object.values(registry)
       .map((e) => e.meta)
       .filter((m) => !m.disabled)
+      // 비공개는 검색어가 위젯 ID 와 전부 같을 때만 보인다(2026-10-05 위젯 개선 §10) — 이때는 이름 검색을 우회한다.
+      .filter((m) => !m.private || q === m.id)
       .filter((m) => !categoryTitles || !activeCat || m.category === activeCat)
-      .filter((m) => !q || m.title.includes(q) || (m.description ?? "").includes(q) || (typeTitleOf(m, typeTitles) ?? "").includes(q))
+      .filter(
+        (m) =>
+          !q ||
+          (m.private && q === m.id) ||
+          m.title.includes(q) ||
+          (m.description ?? "").includes(q) ||
+          (typeTitleOf(m, typeTitles) ?? "").includes(q),
+      )
       .sort((a, b) => a.title.localeCompare(b.title, "ko"));
   }, [registry, query, typeTitles, categoryTitles, activeCat]);
 
-  // 분류 칩: 검색어를 뺀 사용 중 위젯에 실제로 있는 분류만(categoryTitles 순서).
+  // 분류 칩: 검색어를 뺀 사용 중 위젯에 실제로 있는 분류만(categoryTitles 순서, 비공개 제외).
   const chipCats = useMemo(() => {
     if (!categoryTitles) return [];
     const present = new Set(
       Object.values(registry)
         .map((e) => e.meta)
-        .filter((m) => !m.disabled && m.category)
+        .filter((m) => !m.disabled && !m.private && m.category)
         .map((m) => m.category as string),
     );
     return Object.keys(categoryTitles).filter((c) => present.has(c));

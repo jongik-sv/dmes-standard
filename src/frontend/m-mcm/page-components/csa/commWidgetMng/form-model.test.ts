@@ -62,6 +62,7 @@ function defRow(p: Partial<WidgetDefRow> & Pick<WidgetDefRow, "widgetId" | "srcT
     linkPageId: null,
     multipleYn: null,
     categoryCd: null,
+    privateYn: null,
     useYn: "Y",
     dataSrc: null,
     config: null,
@@ -300,7 +301,7 @@ describe("폼 ↔ 행 변환", () => {
       multipleYn: "",
     });
     expect(row).toEqual(
-      defRow({ widgetId: "home.notice", srcTp: "C", title: "사내 공지", defW: 12, refreshSec: 60 })
+      defRow({ widgetId: "home.notice", srcTp: "C", title: "사내 공지", defW: 12, refreshSec: 60, privateYn: "N" })
     );
   });
 
@@ -327,13 +328,36 @@ describe("폼 ↔ 행 변환", () => {
       linkPageId: "mls:lsh/noticeMgmt",
       multipleYn: "N",
       categoryCd: "QUAL",
+      privateYn: "Y",
       useYn: "N",
       dataSrc: "mcm",
       config: { sql: "select 1" },
     });
     const form = rowToForm(d);
-    expect(form).toMatchObject({ defW: "12", refreshSec: "300", multipleYn: "N", categoryCd: "QUAL", useYn: "N", title: "출하" });
+    expect(form).toMatchObject({ defW: "12", refreshSec: "300", multipleYn: "N", categoryCd: "QUAL", privateYn: "Y", useYn: "N", title: "출하" });
     expect(formToRow(form)).toEqual(d);
+  });
+
+  it("비공개(privateYn) — 덮어쓰기·코드 메타·정의 행·폼 기본값", () => {
+    const rows = buildAdminRows(
+      {
+        "home.notice": { meta: { id: "home.notice", title: "공지", defaultSize: { w: 8, h: 10 }, private: true }, load },
+        "home.kpi": { meta: { id: "home.kpi", title: "지표", defaultSize: { w: 8, h: 10 } }, load },
+      },
+      TYPES,
+      [
+        defRow({ widgetId: "home.notice", srcTp: "C", privateYn: "N" }),
+        defRow({ widgetId: "def.a0000001", srcTp: "D", typeId: "markdown", title: "안내", privateYn: "Y" }),
+      ],
+      {}
+    );
+    // 덮어쓰기 N 은 코드 메타의 비공개를 끄고, 코드 값(없음)은 "N", 정의 행 Y 는 "Y".
+    expect(rows.find((r) => r.widgetId === "home.notice")!.privateYn).toBe("N");
+    expect(rows.find((r) => r.widgetId === "home.kpi")!.privateYn).toBe("N");
+    expect(rows.find((r) => r.widgetId === "def.a0000001")!.privateYn).toBe("Y");
+    // 폼 기본값은 공개(N), 저장은 Y·N 그대로 보낸다.
+    expect(rowToForm(defRow({ widgetId: "def.x", srcTp: "D", typeId: "markdown" })).privateYn).toBe("N");
+    expect(formToRow({ ...codeForm("home.kpi"), privateYn: "Y" }).privateYn).toBe("Y");
   });
 
   it("정의 위젯의 multipleYn NULL 은 폼에서 Y(기본 허용)", () => {
@@ -404,6 +428,7 @@ describe("toSaveParams", () => {
       linkPageId: null,
       multipleYn: "Y",
       categoryCd: null,
+      privateYn: "N",
       useYn: "Y",
       dataSrc: "mcm",
       configJson: '{"sql":"select 1"}',

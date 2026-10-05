@@ -72,8 +72,8 @@ const issue = column ? validateMdmValue(column, v) : null;   // 같은 column �
 ```
 
 - `MdmFieldLabel` 은 `label`(적은 캡션)과 MDM 캡션 중 우선순위로 글자를 고르고(`FormGroup label` 과 같다: 기본 적은 값이 이기고, 화면이 `captionPriority="mdm"` 이면 MDM 이 이긴다), 사전에 있으면 라벨에 마우스를 올리거나 포커스가 들어올 때 `MdmMetaCard` 를 `FormGroup` 과 같은 포털 툴팁으로 띄운다.
-- 공급자(포털 탭) 밖이거나 사전 응답을 받는 중(loading)이면 `label ?? name` 글자 그대로이고 툴팁은 없다. DOM 도 단순 텍스트와 같다(`th` 안이 글자뿐). 받는 중에 글자 툴팁을 먼저 띄우면 카드로 바뀔 때 깜박이므로 받은 뒤에 정한다.
-- 공급자 안에서 사전에 없거나(missing)·`meta={false}`·MDM 오류면 글자는 그대로이고 라벨에 올릴 때 글자 툴팁이 뜬다: 첫 줄 라벨 글자(필수 별표 제외), 둘째 줄 흐린 글자 화면 키(`name`). `name` 이 라벨과 같으면 라벨만 보인다. 트리거는 같은 `span.form-tip-trigger` 이고 마우스 hover 로만 열며 스크린리더 사본(`aria-describedby`)은 두지 않는다(라벨과 같은 글자라 중복). 내용은 내부 `LabelNameTip`.
+- 공급자(포털 탭) 밖이거나 공급자가 꺼져 있거나(`disabled` — 위젯 편집기처럼 사전과 이어지지 않는 하위 트리) 사전 응답을 받는 중(loading)이면 `label ?? name` 글자 그대로이고 툴팁은 없다. DOM 도 단순 텍스트와 같다(`th` 안이 글자뿐). 받는 중에 글자 툴팁을 먼저 띄우면 카드로 바뀔 때 깜박이므로 받은 뒤에 정한다.
+- 켜진 공급자 안에서 사전에 없거나(missing)·`meta={false}`·MDM 오류면 글자는 그대로이고 라벨에 올릴 때 글자 툴팁이 뜬다: 첫 줄 라벨 글자(필수 별표 제외), 둘째 줄 흐린 글자 화면 키(`name`). `name` 이 라벨과 같으면 라벨만 보인다. 트리거는 같은 `span.form-tip-trigger` 이고 마우스 hover 로만 열며 스크린리더 사본(`aria-describedby`)은 두지 않는다(라벨과 같은 글자라 중복). 내용은 내부 `LabelNameTip`.
 - 입력의 `aria-label` 도 보이는 라벨과 같아야 하면 `resolveCaption(column, "form", "제목", useMdmCaptionPriority(), "TITLE")` 로 같은 글자를 구한다.
 - 서버 오류(`toFieldErrors(e, grid)` 결과)는 칸별 상태에 담아 `error` 로 준다. 그 칸을 고치거나 다른 행을 열면 지운다.
 - 저장 전 `validateRow(row, names)` 로 막을 칸은 서버 `MdmValidator.columns(...)` 와 같게 둔다.

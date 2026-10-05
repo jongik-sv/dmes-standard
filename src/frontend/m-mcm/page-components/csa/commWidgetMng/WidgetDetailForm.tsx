@@ -11,7 +11,7 @@
 import { lazy, Suspense, type LazyExoticComponent, type ReactNode } from "react";
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
-import { Input, Radio, Select, Textarea } from "@dk-oasis/shared/form";
+import { Checkbox, Input, Radio, Select, Textarea } from "@dk-oasis/shared/form";
 import { ErrorBoundary } from "@dk-oasis/shared/error-boundary";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { DESCRIPTION_LABEL } from "@/lib/ui-meta";
@@ -272,6 +272,19 @@ export function WidgetDetailForm({
               disabled={off}
               onChange={(v) => onChange({ useYn: v === "N" ? "N" : "Y" })}
             />
+          </td>
+        </tr>
+        <tr>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="privateYn" meta={false} label="비공개" /></th>
+          <td style={DETAIL_VALUE_CELL} colSpan={2}>
+            <span data-testid="widget-admin-private">
+              <Checkbox
+                checked={form?.privateYn === "Y"}
+                label="서랍에 숨기기(ID를 정확히 검색해야 보임)"
+                disabled={off}
+                onChange={(checked) => onChange({ privateYn: checked ? "Y" : "N" })}
+              />
+            </span>
           </td>
         </tr>
         {isQuery && (

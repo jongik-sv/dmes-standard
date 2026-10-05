@@ -14,7 +14,7 @@ import { Input } from "@mantine/core";
 // 배럴(../../mdm-meta)을 거치지 않는다 — 배럴의 화면 값 검증(validate.ts)이 식 평가기(evalex·decimal.js)를 form 묶음에 끌어들인다.
 import { MdmMetaCard, mdmCardTipOptions } from "../../mdm-meta/MdmMetaCard";
 import { resolveCaption } from "../../mdm-meta/caption";
-import { useMdmCaptionPriority, useMdmColumn, useMdmMetaScope } from "../../mdm-meta/context";
+import { useMdmCaptionPriority, useMdmColumn, useMdmMetaActive } from "../../mdm-meta/context";
 import { LabelNameTip } from "./LabelNameTip";
 import { HoverTipPortal, useHoverTip } from "./useHoverTip";
 
@@ -70,7 +70,7 @@ export function FormGroup({
   const tip: ReactNode =
     tipProp ?? (mdm.column ? <MdmMetaCard column={mdm.column} domain={mdm.domain} /> : undefined);
   // 사전에 없는 라벨(name 이 없거나 사전 결과가 없음) — 공급자 안에서만 라벨 글자 툴팁. 받는 중(loading)에는 띄우지 않아 카드로 바뀔 때 깜박이지 않는다.
-  const inMdmScope = useMdmMetaScope() !== null;
+  const inMdmScope = useMdmMetaActive();
   const fallbackTip: ReactNode =
     !tip && !mdm.loading && inMdmScope && label ? <LabelNameTip label={label} name={name} /> : undefined;
   const hoverTip = tip || fallbackTip;

@@ -138,4 +138,35 @@ describe("WidgetPicker", () => {
     act(() => itemEl("def.k3x9q2ab")!.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })));
     expect(onPreview).toHaveBeenCalledWith(REG["def.k3x9q2ab"].meta);
   });
+
+  it("비공개 위젯은 목록에 없고 부분 검색어로도 안 보인다", () => {
+    const reg: WidgetRegistry = {
+      ...REG,
+      "def.secret1": entry({ id: "def.secret1", title: "비밀 위젯", kind: "def", typeId: "query-table", private: true }),
+    };
+    render({ registry: reg, typeTitles: TYPE_TITLES });
+    expect(ids()).not.toContain("def.secret1");
+    const input = host.querySelector(".cm-widget-picker__search") as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    act(() => {
+      setter.call(input, "비밀");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(ids()).not.toContain("def.secret1");
+  });
+
+  it("비공개 위젯은 검색어가 위젯 ID 와 전부 같을 때만 보인다", () => {
+    const reg: WidgetRegistry = {
+      ...REG,
+      "def.secret1": entry({ id: "def.secret1", title: "비밀 위젯", kind: "def", typeId: "query-table", private: true }),
+    };
+    render({ registry: reg, typeTitles: TYPE_TITLES });
+    const input = host.querySelector(".cm-widget-picker__search") as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    act(() => {
+      setter.call(input, "def.secret1");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(ids()).toContain("def.secret1");
+  });
 });

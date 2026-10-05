@@ -76,6 +76,17 @@ const COLUMNS: GridColumn[] = uiCols([
   },
   { key: "category", header: "분류", width: 1, minWidth: 64, align: "center" },
   {
+    key: "privateYn",
+    header: "비공개",
+    width: 1,
+    minWidth: 60,
+    align: "center",
+    render: (v) =>
+      v === "Y" ? (
+        <GridBadge label="비공개" bg="var(--color-warning-soft)" color="var(--color-warning)" />
+      ) : null,
+  },
+  {
     key: "useYn",
     header: "사용",
     width: 1,
