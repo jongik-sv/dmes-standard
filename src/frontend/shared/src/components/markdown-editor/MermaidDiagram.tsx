@@ -4,10 +4,11 @@
  * mermaid 도식 그리기 — 코드(```mermaid 안의 글)를 SVG 도식으로 그린다. MarkdownDocViewer 가 도식이 있는 절에서만 쓴다.
  * mermaid 는 동적 import 라 도식이 있는 문서를 열 때에만 내려받는다(첫 화면 번들에 넣지 않는다).
  * securityLevel "strict" 로 그리므로 결과 SVG 는 mermaid 가 정화한 것이다. 그리는 중·실패 때는 원래 코드를 <pre><code> 로 보인다.
- * 크기: 기본은 자연 크기이고, 본문 폭이나 최대 높이(480px·60vh 중 작은 값)를 넘으면 비율을 지켜 줄여 맞춘다(작은 도식은 키우지 않는다).
- * 도식마다 [−] [배율] [+] [맞춤] 도구 막대로 50~200% 로 조절하고, 틀보다 커지면 틀 안에서 가로·세로로 스크롤한다.
+ * 크기: 기본(맞춤)은 자연 크기(100%)이고 본문 폭을 넘을 때만 폭에 맞춰 줄인다(작은 도식은 키우지 않고, 높이에 맞춰 줄이지도 않는다).
+ * 세로로 긴 도식은 틀(최대 높이 480px·60vh 중 작은 값) 안에서 세로로 스크롤한다. 글자 크기는 모든 도식이 같도록 mermaid 글자를 본문 크기(14px)에 맞춘다.
+ * 도식마다 [−] [배율] [+] [맞춤] 도구 막대로 25~200% 로 조절한다. 배율 표시는 실제 적용 배율과 같다.
  */
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { IconMinus, IconPlus, IconZoomReset } from "@tabler/icons-react";
 
 export interface MermaidDiagramProps {
@@ -50,9 +51,29 @@ function cssColor(name: string, fallback: string): string {
   }
 }
 
+/** 도식 글자 크기 — 본문 글자(약 14px)에 맞춰, 도식마다 글자가 같아 보이게 한다. */
+const DIAGRAM_FONT_SIZE = "14px";
+
+/** 폭에 맞춰 늘어나는 동작(svg width="100%"·max-width)을 끈다 — 크기는 이 부품이 자연 크기 기준으로 정한다. */
+const NO_MAX_WIDTH = { useMaxWidth: false };
+
 function mermaidConfig(scheme: Scheme) {
-  const base = { startOnLoad: false, securityLevel: "strict" as const, suppressErrorRendering: true };
-  if (scheme === "dark") return { ...base, theme: "dark" as const };
+  const base = {
+    startOnLoad: false,
+    securityLevel: "strict" as const,
+    suppressErrorRendering: true,
+    flowchart: NO_MAX_WIDTH,
+    sequence: NO_MAX_WIDTH,
+    class: NO_MAX_WIDTH,
+    state: NO_MAX_WIDTH,
+    er: NO_MAX_WIDTH,
+    gantt: NO_MAX_WIDTH,
+    journey: NO_MAX_WIDTH,
+    pie: NO_MAX_WIDTH,
+    mindmap: NO_MAX_WIDTH,
+    timeline: NO_MAX_WIDTH,
+  };
+  if (scheme === "dark") return { ...base, theme: "dark" as const, themeVariables: { fontSize: DIAGRAM_FONT_SIZE } };
   const primary = cssColor("--color-primary", "#0b62d6");
   const border = cssColor("--color-border", "#cbd5e1");
   const bg = cssColor("--color-bg-light", "#f8fafc");
@@ -60,6 +81,7 @@ function mermaidConfig(scheme: Scheme) {
     ...base,
     theme: "base" as const,
     themeVariables: {
+      fontSize: DIAGRAM_FONT_SIZE,
       primaryColor: bg,
       primaryBorderColor: primary,
       primaryTextColor: cssColor("--color-text", "#0f172a"),
@@ -74,12 +96,10 @@ function mermaidConfig(scheme: Scheme) {
 
 let seq = 0;
 
-/** 도식 틀의 최대 높이(CSS). 자바스크립트 계산(maxFrameHeight)과 같은 값이어야 한다. */
+/** 도식 틀의 최대 높이(CSS). 이보다 긴 도식은 틀 안에서 세로로 스크롤한다. */
 const FRAME_MAX_HEIGHT_CSS = "min(480px, 60vh)";
-const FRAME_MAX_HEIGHT_PX = 480;
-const FRAME_MAX_HEIGHT_VH = 0.6;
 /** 단추로 고르는 배율 단계. */
-export const MERMAID_ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+export const MERMAID_ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 const EPS = 0.001;
 
 /** 도구 막대 표시·인쇄 규칙. 단추는 마우스를 올리거나 초점이 있을 때 또렷해진다(터치 기기에서도 흐리게나마 늘 보인다). */
@@ -92,7 +112,7 @@ const MERMAID_CSS = `
 .md-mermaid-btn:focus-visible{outline:2px solid var(--color-primary);outline-offset:1px}
 .md-mermaid-btn[aria-disabled="true"]{opacity:.4;cursor:default}
 .md-mermaid-scale{min-width:44px;text-align:center;font-size:var(--font-size-sm);color:var(--color-text);font-variant-numeric:tabular-nums}
-.md-mermaid-frame{box-sizing:border-box;overflow:auto;border:1px solid var(--color-border)}
+.md-mermaid-frame{box-sizing:border-box;width:100%;min-width:0;overflow:auto;scrollbar-gutter:stable;border:1px solid var(--color-border)}
 .md-mermaid-frame:focus-visible{outline:2px solid var(--color-primary);outline-offset:1px}
 @media print{
 .md-mermaid-toolbar{display:none}
@@ -111,22 +131,15 @@ export function naturalSizeOf(svg: string): { w: number; h: number } | null {
   return w > 0 && h > 0 ? { w, h } : null;
 }
 
-/** 본문 폭(frameW, 0 이면 모름)과 최대 높이 안에 비율을 지켜 들어가는 배율. 1(자연 크기) 보다 커지지 않는다. */
-export function fitScaleOf(nat: { w: number; h: number }, frameW: number, maxH: number): number {
-  let k = 1;
-  if (frameW > 0) k = Math.min(k, frameW / nat.w);
-  if (maxH > 0) k = Math.min(k, maxH / nat.h);
+/** 맞춤 배율 — 자연 크기(1)로 두되 본문 폭(frameW, 0 이면 모름)을 넘을 때만 폭에 맞춰 줄인다. 1 보다 커지지 않는다. */
+export function fitScaleOf(nat: { w: number; h: number }, frameW: number): number {
+  const k = frameW > 0 ? Math.min(1, frameW / nat.w) : 1;
   return Math.max(0.05, Math.floor(k * 1000) / 1000);
 }
 
 export function nextZoom(current: number, dir: 1 | -1): number {
   if (dir > 0) return MERMAID_ZOOM_STEPS.find((z) => z > current + EPS) ?? MERMAID_ZOOM_STEPS[MERMAID_ZOOM_STEPS.length - 1];
   return [...MERMAID_ZOOM_STEPS].reverse().find((z) => z < current - EPS) ?? MERMAID_ZOOM_STEPS[0];
-}
-
-function maxFrameHeight(): number {
-  const vh = typeof window === "undefined" ? 0 : window.innerHeight * FRAME_MAX_HEIGHT_VH;
-  return vh > 0 ? Math.min(FRAME_MAX_HEIGHT_PX, vh) : FRAME_MAX_HEIGHT_PX;
 }
 
 /** 그려진 도식 — 자연 크기를 기준으로 맞춤 배율과 사용자가 고른 배율을 적용한다. */
@@ -136,17 +149,17 @@ function DiagramView({ svg, code, testId }: { svg: string; code: string; testId:
   const natW = nat?.w;
   const natH = nat?.h;
   const [zoom, setZoom] = useState<number | null>(null); // null = 맞춤
-  const [limit, setLimit] = useState({ w: 0, h: maxFrameHeight() });
+  const [frameW, setFrameW] = useState(0);
 
   // 다른 도식(코드)이 오면 맞춤으로 돌아간다.
   useEffect(() => setZoom(null), [code]);
 
   const measure = useCallback(() => {
-    // clientWidth 는 정수로 반올림되어 틀을 넘칠 수 있으므로 실제 폭에서 테두리를 빼고 내린다.
-    const rect = frameRef.current?.getBoundingClientRect().width ?? 0;
-    const w = rect > 2 ? Math.floor(rect - 2) : 0;
-    const h = maxFrameHeight();
-    setLimit((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    // 안쪽 폭 = 실제 폭 − (테두리·스크롤바 자리). clientWidth 는 정수로 반올림되어 틀을 넘칠 수 있어 실제 폭에서 내린다.
+    const el = frameRef.current;
+    const rect = el?.getBoundingClientRect().width ?? 0;
+    const w = el && rect > 0 ? Math.max(0, Math.floor(rect - (el.offsetWidth - el.clientWidth))) : 0;
+    setFrameW((prev) => (prev === w ? prev : w));
   }, []);
 
   useLayoutEffect(() => {
@@ -164,11 +177,11 @@ function DiagramView({ svg, code, testId }: { svg: string; code: string; testId:
     };
   }, [measure]);
 
-  // 최대 높이에서 틀 테두리(위·아래 2px)를 뺀 안쪽에 맞춘다.
-  const fit = natW && natH ? fitScaleOf({ w: natW, h: natH }, limit.w, limit.h - 2) : 1;
+  const fit = natW && natH ? fitScaleOf({ w: natW, h: natH }, frameW) : 1;
   const scale = zoom ?? fit;
 
   // mermaid 가 넣은 width="100%"·max-width 를 걷고 자연 크기에 배율을 곱한 픽셀 크기로 둔다.
+  // 매 렌더 뒤에 적용한다 — 부모가 다시 그리면서 svg 를 새로 넣어도(innerHTML 재설정) 크기가 풀리지 않게.
   useLayoutEffect(() => {
     const el = frameRef.current?.querySelector("svg");
     if (!el || !natW || !natH) return;
@@ -179,8 +192,9 @@ function DiagramView({ svg, code, testId }: { svg: string; code: string; testId:
     el.style.height = `${natH * scale}px`;
     el.setAttribute("width", String(natW * scale));
     el.setAttribute("height", String(natH * scale));
-  }, [svg, natW, natH, scale]);
+  });
 
+  const html = useMemo(() => ({ __html: svg }), [svg]); // 같은 svg 면 같은 객체 — React 가 innerHTML 을 다시 쓰지 않게
   const pct = Math.round(scale * 100);
   const canOut = scale > MERMAID_ZOOM_STEPS[0] + EPS;
   const canIn = scale < MERMAID_ZOOM_STEPS[MERMAID_ZOOM_STEPS.length - 1] - EPS;
@@ -231,7 +245,7 @@ function DiagramView({ svg, code, testId }: { svg: string; code: string; testId:
         aria-label="mermaid 도식"
         tabIndex={0}
         style={{ maxHeight: FRAME_MAX_HEIGHT_CSS }}
-        dangerouslySetInnerHTML={{ __html: svg }}
+        dangerouslySetInnerHTML={html}
       />
     </div>
   );

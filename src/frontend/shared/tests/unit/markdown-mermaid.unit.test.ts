@@ -161,21 +161,21 @@ describe("mermaid 도식 크기 계산", () => {
     expect(naturalSizeOf("<svg><g/></svg>")).toBeNull();
   });
 
-  it("작은 도식은 키우지 않고 폭·최대 높이를 넘으면 비율을 지켜 줄인다", () => {
-    expect(fitScaleOf({ w: 200, h: 100 }, 800, 480)).toBe(1);
-    expect(fitScaleOf({ w: 1000, h: 100 }, 500, 480)).toBe(0.5); // 폭 기준
-    expect(fitScaleOf({ w: 300, h: 960 }, 800, 480)).toBe(0.5); // 높이 기준
-    expect(fitScaleOf({ w: 1000, h: 1000 }, 500, 400)).toBe(0.4); // 둘 중 더 작은 쪽
-    expect(fitScaleOf({ w: 300, h: 960 }, 0, 480)).toBe(0.5); // 폭을 모르면 높이만 본다
+  it("맞춤은 자연 크기이고 본문 폭을 넘을 때만 폭에 맞춰 줄인다(높이로는 줄이지 않는다)", () => {
+    expect(fitScaleOf({ w: 200, h: 100 }, 800)).toBe(1); // 작은 도식은 키우지 않는다
+    expect(fitScaleOf({ w: 1000, h: 100 }, 500)).toBe(0.5); // 폭 기준
+    expect(fitScaleOf({ w: 300, h: 1600 }, 800)).toBe(1); // 세로로 길어도 100%
+    expect(fitScaleOf({ w: 300, h: 1600 }, 0)).toBe(1); // 폭을 모르면 자연 크기
   });
 
-  it("단추 배율은 50·75·100·125·150·200% 단계를 오르내리고 끝에서 멈춘다", () => {
+  it("단추 배율은 25·50·75·100·125·150·200% 단계를 오르내리고 끝에서 멈춘다", () => {
     expect(nextZoom(1, 1)).toBe(1.25);
     expect(nextZoom(1, -1)).toBe(0.75);
-    expect(nextZoom(0.4, 1)).toBe(0.5); // 맞춤 배율이 단계 사이에 있으면 가까운 위 단계로
+    expect(nextZoom(0.29, 1)).toBe(0.5); // 맞춤 배율이 단계 사이에 있으면 가까운 위 단계로
+    expect(nextZoom(0.29, -1)).toBe(0.25); // 아래 단계로
     expect(nextZoom(0.6, -1)).toBe(0.5);
     expect(nextZoom(2, 1)).toBe(2);
-    expect(nextZoom(0.5, -1)).toBe(0.5);
+    expect(nextZoom(0.25, -1)).toBe(0.25);
   });
 });
 
@@ -226,17 +226,25 @@ describe("MermaidDiagram 크기 조절 도구 막대", () => {
     const frame = host.querySelector<HTMLElement>(".md-mermaid-frame")!;
     expect(frame.getAttribute("role")).toBe("img");
     expect(frame.style.maxHeight).toBe("min(480px, 60vh)");
-    expect(host.querySelector("style")?.textContent).toContain(".md-mermaid-frame{box-sizing:border-box;overflow:auto");
+    expect(host.querySelector("style")?.textContent).toContain(".md-mermaid-frame{box-sizing:border-box;width:100%;min-width:0;overflow:auto");
   });
 
-  it("세로로 긴 도식은 최대 높이 안에 들어오게 줄어 그려진다", async () => {
-    mermaidMock.render.mockResolvedValue({ svg: '<svg viewBox="0 0 300 1000"><g></g></svg>' });
+  it("세로로 긴 도식도 높이로 줄이지 않고 100% 자연 크기로 그리며 틀 안에서 스크롤한다", async () => {
+    mermaidMock.render.mockResolvedValue({ svg: '<svg viewBox="0 0 300 1600"><g></g></svg>' });
     await mount(SRC);
     const svg = host.querySelector<SVGElement>('[role="img"] svg')!;
-    const h = parseFloat(svg.style.height);
-    expect(h).toBeLessThanOrEqual(480);
-    expect(h).toBeGreaterThan(0);
-    expect(parseFloat(svg.style.width) / h).toBeCloseTo(0.3, 2); // 비율 유지
+    expect(svg.style.width).toBe("300px");
+    expect(svg.style.height).toBe("1600px");
+    expect(host.querySelector('[data-testid="md-view-mermaid-0-scale"]')?.textContent).toBe("100%");
+    expect(host.querySelector<HTMLElement>(".md-mermaid-frame")!.style.maxHeight).toBe("min(480px, 60vh)");
+  });
+
+  it("mermaid 를 폭에 늘어나지 않게(useMaxWidth false) 글자 14px 로 초기화한다", async () => {
+    mermaidMock.render.mockResolvedValue({ svg: SVG });
+    await mount(SRC);
+    const cfg = mermaidMock.initialize.mock.calls[0][0];
+    expect(cfg.flowchart).toEqual({ useMaxWidth: false });
+    expect(cfg.themeVariables.fontSize).toBe("14px");
   });
 
   it("축소·확대 단추가 배율을 바꾸고 맞춤이 처음 배율로 되돌린다", async () => {
@@ -261,8 +269,9 @@ describe("MermaidDiagram 크기 조절 도구 막대", () => {
     await click(btn("도식 축소"));
     await click(btn("도식 축소"));
     await click(btn("도식 축소"));
-    expect(scale()).toBe("50%");
-    expect(svg().style.width).toBe("150px");
+    await click(btn("도식 축소"));
+    expect(scale()).toBe("25%");
+    expect(svg().style.width).toBe("75px");
     expect(btn("도식 축소").getAttribute("aria-disabled")).toBe("true");
   });
 
@@ -283,6 +292,36 @@ describe("MermaidDiagram 크기 조절 도구 막대", () => {
     const svg = host.querySelector<SVGElement>('[role="img"] svg')!;
     expect(svg.style.width).toBe("");
     expect(host.querySelector('[role="toolbar"]')).toBeNull();
+  });
+
+  it("틀 폭보다 넓은 도식은 폭에 맞춰 줄이고 라벨·svg 폭이 일치하며 다시 그려도 유지된다", async () => {
+    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const w = this.classList.contains("md-mermaid-frame") ? 700 : 0;
+      return { width: w, height: 0, top: 0, left: 0, right: w, bottom: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    try {
+      mermaidMock.render.mockResolvedValue({ svg: '<svg width="100%" viewBox="0 0 1000 200"><g></g></svg>' });
+      await mount(SRC);
+      const svg = () => host.querySelector<SVGElement>('[role="img"] svg')!;
+      expect(host.querySelector('[data-testid="md-view-mermaid-0-scale"]')?.textContent).toBe("70%");
+      expect(svg().style.width).toBe("700px");
+      expect(svg().style.height).toBe("140px");
+      // 부모가 같은 값으로 다시 그려도 크기가 풀리지 않는다.
+      await act(async () => {
+        root.render(createElement(MarkdownView, { value: SRC }));
+      });
+      expect(svg().style.width).toBe("700px");
+      expect(host.querySelector('[data-testid="md-view-mermaid-0"]')?.getAttribute("data-scale")).toBe("70");
+      // 맞춤 아래로 [−] 는 한 단계(50%), [+] 는 75% 로 한 방향씩 움직인다.
+      await click(btn("도식 확대"));
+      expect(host.querySelector('[data-testid="md-view-mermaid-0-scale"]')?.textContent).toBe("75%");
+      await click(btn("도식 크기 맞춤"));
+      await click(btn("도식 축소"));
+      expect(host.querySelector('[data-testid="md-view-mermaid-0-scale"]')?.textContent).toBe("50%");
+      expect(svg().style.width).toBe("500px");
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("그리기에 실패하면 도구 막대 없이 코드 블록이 남는다", async () => {
