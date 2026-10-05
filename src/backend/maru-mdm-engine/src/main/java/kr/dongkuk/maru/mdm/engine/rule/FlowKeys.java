@@ -44,10 +44,15 @@ import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.VarType;
  * <p>받는 룰(받는 노드 spec §4): 룰 자신의 입력은 보통 룰처럼 보되 INPUT_ERROR 를 받는 룰이면 없는 이름을 사전 검사에서 빼고 지연 목록에
  * 넣는다(실행 직전 검사). 정상 갈래·처리 갈래는 IF 갈래처럼 들어갈 때 본다. 뒤로는 (룰 결과 ∪ 정상 갈래) ∩ 돌아오는 처리 갈래가 반드시 있고,
  * 끝내는 처리 갈래는 세지 않는다. IF 의 반드시·있을 수 있는 이름은 이어지는 갈래만 센다 — 끝내는 IF 갈래는 블록 뒤로 이어지지 않는다(implicit-join spec §5).
+ *
+ * <p>SET 노드(하위 세트 spec §3): 하위 세트 겉모양({@link SetShape})으로 RULE 처럼 본다 — 읽는 이름은 반드시 읽는 입력(mustInputs), 반드시 만드는
+ * 이름은 always 출력, 만들 수 있는 이름은 모든 출력. INPUT_ERROR 를 받는 SET 노드의 입력은 사전 검사에서 빼 지연 목록에 넣는다.
  */
 final class FlowKeys {
 
     private final Map<String, RuleDefinition> defs;
+    /** SET 노드 ID → 하위 세트 겉모양(하위 세트 계획 Task 4). 준비에 실패한 노드는 없다 — 그 위반은 준비 단계가 이미 모았다. */
+    private final Map<String, SetShape> shapes;
     private final MdmEvaluator expressions;
     /** 판정 한 번의 지연 목록 — {@link #check} 가 레코드 키에 따라 채운다. 판정마다 {@link #forRun} 으로 새로 받는다. */
     private final Map<String, List<String>> deferred = new HashMap<>();
@@ -57,8 +62,20 @@ final class FlowKeys {
      */
     private final Map<String, DataType> declared;
 
+    /** SET 노드가 없는(또는 하위 겉모양을 보지 않는) 검사기. */
     FlowKeys(Map<String, RuleDefinition> defs, MdmEvaluator expressions) {
+        this(defs, Map.of(), expressions);
+    }
+
+    /**
+     * SET 노드를 RULE 처럼 보는 검사기(하위 세트 spec §3) — 읽는 이름 = 하위 세트의 반드시 읽는 입력(mustInputs), 반드시 만드는 이름 = always 출력,
+     * 만들 수 있는 이름 = 모든 출력.
+     *
+     * @param shapes SET 노드 ID → 하위 세트 겉모양
+     */
+    FlowKeys(Map<String, RuleDefinition> defs, Map<String, SetShape> shapes, MdmEvaluator expressions) {
         this.defs = defs;
+        this.shapes = shapes;
         this.expressions = expressions;
         this.declared = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
         for (RuleDefinition def : defs.values()) {
@@ -68,6 +85,7 @@ final class FlowKeys {
 
     private FlowKeys(FlowKeys template) {
         this.defs = template.defs;
+        this.shapes = template.shapes;
         this.expressions = template.expressions;
         this.declared = template.declared;
     }
@@ -139,9 +157,7 @@ final class FlowKeys {
                 case TaskStep t -> {
                     // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
                 }
-                case SetStep s -> {
-                    // SEAM(T4) — 하위 세트 입력·출력은 Task 4(eng:4)가 넣는다.
-                }
+                case SetStep s -> setKeys(s, false, available, sure, maybe, reported, out);
                 case Split s when s.kind() == NodeKind.IF -> {
                     for (Branch br : s.branches()) {
                         if (br.otherwise()) {
@@ -195,11 +211,13 @@ final class FlowKeys {
                 case Guarded g -> {
                     Set<String> sureBefore = new HashSet<>(sure);
                     Set<String> maybeBefore = new HashSet<>(maybe);
-                    // SEAM(T4) — 받는 노드가 붙은 SET 의 하위 세트 입력 키는 여기서 채운다(지금은 RULE 만).
+                    boolean late = g.handlerFor(CatchKind.INPUT_ERROR) != null;
                     if (g.step() instanceof RuleStep r) {
-                        ruleKeys(r, g.handlerFor(CatchKind.INPUT_ERROR) != null, available, sure, maybe, reported, out);
+                        ruleKeys(r, late, available, sure, maybe, reported, out);
+                    } else if (g.step() instanceof SetStep s) {
+                        setKeys(s, late, available, sure, maybe, reported, out);
                     }
-                    // ruleKeys 가 룰 결과를 sure 에 넣었다 — 받는 룰은 갈래 합류 규칙으로 다시 정한다.
+                    // ruleKeys·setKeys 가 결과를 sure 에 넣었다 — 받는 단계는 갈래 합류 규칙으로 다시 정한다.
                     sure.clear();
                     sure.addAll(sureBefore);
                     maybe.clear();
@@ -245,14 +263,60 @@ final class FlowKeys {
         maybe.removeAll(results);
     }
 
-    /** 단계 결과 이름 — 빈 단계·정의 없는 룰은 빈 집합. */
-    private Set<String> produced(Step s) {
-        // SEAM(T4) — 받는 노드가 붙은 SET 의 하위 세트 출력 이름은 여기서 채운다(지금은 빈 집합).
-        if (!(s instanceof RuleStep r)) {
-            return new HashSet<>();
+    /** SET 노드의 입력 키 — 하위 세트의 반드시 읽는 입력(mustInputs)을 RULE 의 needed 처럼 본다. 출력은 always 를 sure 에, 나머지를 maybe 에. */
+    private void setKeys(SetStep s, boolean late, Set<String> available, Set<String> sure, Set<String> maybe, Set<String> reported,
+            List<Violation> out) {
+        SetShape shape = shapes.get(s.nodeId());
+        if (shape == null) {
+            return; // 준비 실패 — 위반은 준비 단계가 이미 모았다
         }
-        RuleDefinition def = defs.get(r.ruleId());
-        return def == null ? new HashSet<>() : new HashSet<>(RuleEvaluator.resultNames(def));
+        List<String> later = new ArrayList<>();
+        for (String name : shape.mustInputs()) {
+            if (available.contains(name) || sure.contains(name)) {
+                continue;
+            }
+            if (maybe.contains(name) || late) {
+                if (!later.contains(name)) {
+                    later.add(name);
+                }
+                continue;
+            }
+            if (reported.add(name)) {
+                out.add(missingForSet(s.setId(), name));
+            }
+        }
+        if (!later.isEmpty()) {
+            deferred.put(s.nodeId(), List.copyOf(later));
+        }
+        sure.addAll(shape.always());
+        maybe.removeAll(shape.always());
+        for (String o : shape.outputs()) {
+            if (!sure.contains(o)) {
+                maybe.add(o);
+            }
+        }
+    }
+
+    /** 단계가 반드시 만드는 이름 — RULE 은 결과 이름, SET 은 하위 always 출력. 빈 단계·정의·겉모양이 없으면 빈 집합. */
+    private Set<String> produced(Step s) {
+        if (s instanceof RuleStep r) {
+            RuleDefinition def = defs.get(r.ruleId());
+            return def == null ? new HashSet<>() : new HashSet<>(RuleEvaluator.resultNames(def));
+        }
+        if (s instanceof SetStep st) {
+            SetShape sh = shapes.get(st.nodeId());
+            return sh == null ? new HashSet<>() : new HashSet<>(sh.always());
+        }
+        return new HashSet<>();
+    }
+
+    /** 단계가 만들 수 있는 이름 — RULE 은 결과 이름, SET 은 하위 모든 출력. */
+    private Set<String> producible(Step s) {
+        if (s instanceof SetStep st) {
+            SetShape sh = shapes.get(st.nodeId());
+            return sh == null ? new HashSet<>() : new HashSet<>(sh.outputs());
+        }
+        return produced(s);
     }
 
     /** 받는 룰 뒤에 반드시 있는 이름 — (룰 결과 ∪ 정상 갈래) ∩ 돌아오는 처리 갈래(끝내는 갈래는 세지 않는다). */
@@ -269,7 +333,7 @@ final class FlowKeys {
 
     /** 받는 룰 뒤에 있을 수 있는 이름 — 룰 결과·정상 갈래·돌아오는 처리 갈래가 만들 수 있는 모든 이름. */
     private Set<String> guardAll(Guarded g) {
-        Set<String> any = produced(g.step());
+        Set<String> any = producible(g.step());
         any.addAll(allProduced(g.normal()));
         for (Guarded.Handler h : g.handlers()) {
             if (!h.ends()) {
@@ -294,7 +358,10 @@ final class FlowKeys {
                     // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
                 }
                 case SetStep s -> {
-                    // SEAM(T4) — 하위 세트 입력·출력은 Task 4(eng:4)가 넣는다.
+                    SetShape sh = shapes.get(s.nodeId());
+                    if (sh != null) {
+                        out.addAll(sh.always());
+                    }
                 }
                 case Split s when s.kind() == NodeKind.IF -> {
                     Set<String> inter = null;
@@ -336,7 +403,10 @@ final class FlowKeys {
                     // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
                 }
                 case SetStep s -> {
-                    // SEAM(T4) — 하위 세트 입력·출력은 Task 4(eng:4)가 넣는다.
+                    SetShape sh = shapes.get(s.nodeId());
+                    if (sh != null) {
+                        out.addAll(sh.outputs());
+                    }
                 }
                 case Split s when s.kind() == NodeKind.IF ->
                         s.branches().stream().filter(br -> !br.ends()).forEach(br -> out.addAll(allProduced(br.body())));
@@ -394,6 +464,12 @@ final class FlowKeys {
     static Violation missing(String ruleId, String name) {
         return new Violation(Stage.SET_CHECK, Code.MISSING_KEY, ruleId, null, name,
                 "세트 입력 키가 레코드에 없다: " + name + " (룰 " + ruleId + ")", List.of());
+    }
+
+    /** SET 노드의 반드시 읽는 입력이 모자람(하위 세트 spec §3). */
+    static Violation missingForSet(String setId, String name) {
+        return new Violation(Stage.SET_CHECK, Code.MISSING_KEY, null, null, name,
+                "세트 입력 키가 레코드에 없다: " + name + " (세트 " + setId + ")", List.of());
     }
 
     private static <T> List<T> nonNull(List<T> list) {

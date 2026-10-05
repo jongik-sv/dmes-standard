@@ -6,6 +6,8 @@
 // 흐름 사례(`flow`)는 노드·선의 빠진 칸을 null(`otherwise` 는 false)로 채우고, `ids` 가 흐름을 펼친 룰 목록과 같은지 먼저 본다. `checks` 의 `nodeId`·`edgeId` 도 비교한다.
 // 같은 형식의 퍼즈 파일 `rule-set-fuzz.json`(코퍼스 옆, Java `RuleSetFlowFuzz` 가 시드로 만들고 expect 는 Java 분석기 결과)도 돌린다 — 두 언어 차분.
 // 퍼즈 사례가 어긋나면 작은 흐름으로 줄여 코퍼스 사례로 옮기고 원인을 고친다.
+// 하위 세트(계획 Task 5): `calls`(세트 ID → 겉모양)의 빠진 칸은 false·null·빈 목록(`exists` 를 빠뜨리면 없는 세트), 키가 없는 세트 ID 도 없는 세트다.
+// 겉모양은 입력 이름·출처, 출력 이름·always, endsEarly 만 읽고 타입·표시명은 null 이다(Java `RuleSetCorpusTest.call` 과 같다). SET 노드는 `setId` 를 읽는다.
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -13,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import type { FlowEdge, FlowNode, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
 import { flowRuleIds } from "../../../pages/dme/ruleSetEdit/flow-model";
 import { flowChecks, flowDeps, flowIo, setChecks, setDeps, setIo } from "../../../pages/dme/ruleSetEdit/set-model";
-import type { CondIo, IoName, IoSource, RuleIo } from "../../../pages/dme/ruleSetEdit/types";
+import type { CondIo, IoName, IoSource, RuleIo, SetCallIo } from "../../../pages/dme/ruleSetEdit/types";
 import { PACKAGE_ROOT, RULE_SET_CORPUS_PATH } from "../../helpers/engine-paths";
 
 /** Java `RuleSetCorpusTest.MIN_CASES` 와 같아야 한다(I9). 사례를 더하면 두 러너를 함께 올린다. */
@@ -35,6 +37,14 @@ interface CorpusRule {
   results?: Array<{ name: string }>;
 }
 
+interface CorpusCall {
+  exists?: boolean;
+  status?: string | null;
+  inputs?: Array<{ name: string; source?: IoSource | null }>;
+  outputs?: Array<{ name: string; always?: boolean }>;
+  endsEarly?: boolean;
+}
+
 interface CorpusFlowNode {
   id: string;
   kind: FlowNode["kind"];
@@ -43,6 +53,7 @@ interface CorpusFlowNode {
   label?: string | null;
   attachTo?: string | null;
   catches?: string[] | null;
+  setId?: string | null;
 }
 
 interface CorpusFlowEdge {
@@ -67,6 +78,7 @@ interface CorpusCase {
   flow?: { version: number; nodes: CorpusFlowNode[]; edges: CorpusFlowEdge[] };
   condIo?: Record<string, CorpusCondIo>;
   rules?: Record<string, CorpusRule>;
+  calls?: Record<string, CorpusCall>;
   expect: {
     io: {
       inputs: Array<{ name: string; source?: string | null; users: string[] }>;
@@ -83,7 +95,8 @@ interface CorpusCase {
 function flowOf(f: NonNullable<CorpusCase["flow"]>): RuleSetFlow {
   const nodes: FlowNode[] = f.nodes.map((n) => {
     const base: FlowNode = { id: n.id, kind: n.kind, ruleId: n.ruleId ?? null, splitId: n.splitId ?? null, label: n.label ?? null };
-    return n.kind === "CATCH" ? { ...base, attachTo: n.attachTo ?? null, catches: n.catches ?? null } : base;
+    if (n.kind === "CATCH") return { ...base, attachTo: n.attachTo ?? null, catches: n.catches ?? null };
+    return n.kind === "SET" ? { ...base, setId: n.setId ?? null } : base;
   });
   const edges: FlowEdge[] = f.edges.map((e) => ({
     id: e.id,
@@ -130,6 +143,18 @@ function rule(id: string, r: CorpusRule): RuleIo {
   };
 }
 
+function call(id: string, c: CorpusCall): SetCallIo {
+  return {
+    setId: id,
+    setName: null,
+    exists: c.exists ?? false,
+    status: c.status ?? null,
+    inputs: (c.inputs ?? []).map((i) => ioName(i.name, i.source ?? null)),
+    outputs: (c.outputs ?? []).map((o) => ({ name: o.name, dataType: null, scale: null, dateString: false, maruCodeId: null, always: o.always ?? false })),
+    endsEarly: c.endsEarly ?? false,
+  };
+}
+
 const corpus = JSON.parse(fs.readFileSync(RULE_SET_CORPUS_PATH, "utf8")) as { version: number; cases: CorpusCase[] };
 const fuzz = JSON.parse(fs.readFileSync(RULE_SET_FUZZ_PATH, "utf8")) as { version: number; cases: CorpusCase[] };
 
@@ -146,10 +171,12 @@ describe("세트 계산 코퍼스 동치(TS)", () => {
   it.each([...corpus.cases, ...fuzz.cases].map((c) => [c.name, c] as const))("%s", (name, c) => {
     const rules: Record<string, RuleIo> = {};
     for (const [id, r] of Object.entries(c.rules ?? {})) rules[id] = rule(id, r);
+    const calls: Record<string, SetCallIo> = {};
+    for (const [id, x] of Object.entries(c.calls ?? {})) calls[id] = call(id, x);
     const flow = c.flow ? flowOf(c.flow) : null;
     if (flow) expect(flowRuleIds(flow), `${name} ids = 흐름을 펼친 룰 목록`).toEqual(c.ids);
 
-    const io = flow ? flowIo(flow, rules) : setIo(c.ids, rules);
+    const io = flow ? flowIo(flow, rules, calls) : setIo(c.ids, rules);
     expect(
       io.inputs.map((i) => ({ name: i.name, source: i.source, users: i.users })),
       `${name} io.inputs`,
@@ -159,10 +186,10 @@ describe("세트 계산 코퍼스 동치(TS)", () => {
       `${name} io.results`,
     ).toEqual(c.expect.io.results.map((r) => ({ name: r.name, by: r.by, readers: r.readers })));
 
-    const deps = flow ? flowDeps(flow, rules) : setDeps(c.ids, rules);
+    const deps = flow ? flowDeps(flow, rules, calls) : setDeps(c.ids, rules);
     expect(Object.entries(deps), `${name} deps`).toEqual(Object.entries(c.expect.deps));
 
-    const checks = flow ? flowChecks(flow, rules, condIoOf(c.condIo)) : setChecks(c.ids, rules);
+    const checks = flow ? flowChecks(flow, rules, condIoOf(c.condIo), calls) : setChecks(c.ids, rules);
     expect(checks, `${name} checks`).toStrictEqual(
       c.expect.checks.map((k) => ({
         code: k.code ?? null,

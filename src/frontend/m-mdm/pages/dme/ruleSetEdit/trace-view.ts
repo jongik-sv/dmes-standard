@@ -99,7 +99,10 @@ function restoreCatch(ctx: Ctx, saved: Ctx): void {
   Object.assign(ctx, saved);
 }
 
-/** CATCH 노드 기록이 넣는 네 값(엔진 `FlowRun.catchNode` 순서 — CATCH_NAMES 와 같다). 노드 상세(TraceDetail)도 쓴다. */
+/**
+ * CATCH 노드 기록이 넣는 네 값(엔진 `FlowRun.catchNode` 순서 — CATCH_NAMES 의 앞 넷). 노드 상세(TraceDetail)도 쓴다.
+ * CATCH_SET(하위 세트 Ruling 4)은 기록(NodeTrace)에 값을 읽을 칸이 없어 넣지 않는다 — 엔진 실행(eng:4)·디버거(ui:9)가 정한다.
+ */
 export function catchValues(node: NodeTrace): Record<string, TypedValue> {
   return {
     CATCH_KIND: { type: "STRING", value: node.catchKind ?? "" },
@@ -127,7 +130,7 @@ function scopePaths(flow: RuleSetFlow): {
   branchEdges: Map<string, string[]>;
   /** 돌아오는 자리(옛 형식이면 돌아오는 합류) → 그 자리를 끝으로 하는 받는 노드 블록의 단계 ID(안쪽 블록이 먼저). */
   guardJoins: Map<string, string[]>;
-  /** 받는 노드가 붙은 단계 ID(RULE·TASK). */
+  /** 받는 노드가 붙은 단계 ID(RULE·TASK·SET). */
   guardSteps: Set<string>;
 } {
   const paths = new Map<string, ScopePath>();
@@ -138,7 +141,7 @@ function scopePaths(flow: RuleSetFlow): {
   if (!tree) return { paths, branchEdges, guardJoins, guardSteps };
   const walk = (s: Seq, path: ScopePath) => {
     for (const b of s.items) {
-      if (b.type === "RULE" || b.type === "TASK") paths.set(b.nodeId, path);
+      if (b.type === "RULE" || b.type === "TASK" || b.type === "SET") paths.set(b.nodeId, path);
       else if (b.type === "SEQ") walk(b, path);
       else if (b.type === "GUARDED") {
         paths.set(b.step.nodeId, path);
@@ -225,7 +228,7 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
       outerCatch.delete(step);
     }
     // 새 형식은 돌아오는 자리가 받는 노드가 붙은 단계일 수 있다 — 엔진은 앞 블록을 닫은(되돌린) 뒤 다음 블록의 outer 를 적으므로 되돌림 뒤에 적는다.
-    if ((node.kind === "RULE" || node.kind === "TASK") && guardSteps.has(node.nodeId)) outerCatch.set(node.nodeId, pickCatch(scope.ctx));
+    if ((node.kind === "RULE" || node.kind === "TASK" || node.kind === "SET") && guardSteps.has(node.nodeId)) outerCatch.set(node.nodeId, pickCatch(scope.ctx));
     if (node.kind === "END") restoreCatch(scope.ctx, {});
     // 4단계 E4 — 노드를 시작하기 직전에 그 노드 범위에 고친 값을 넣는다. 같은 이름이 그 범위 made 에 있으면 made 도 바꾼다(스펙 §2.2).
     const edited: string[] = [];

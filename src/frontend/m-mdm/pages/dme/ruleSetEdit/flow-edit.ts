@@ -18,7 +18,7 @@
  */
 import type { CatchKind, FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "@/contract/engine-contract.generated";
 
-import { CATCHABLE, CATCH_KINDS, catchesOf, endingBranches, handlerTarget, joinOf, linearFlow, returnOf } from "./flow-model";
+import { CATCHABLE, CATCH_KINDS, catchKindsFor, catchesOf, endingBranches, handlerTarget, joinOf, linearFlow, returnOf } from "./flow-model";
 import { descsFor, normalizeDesc, trimDesc } from "./node-desc";
 import { mergeNodeStyle, normalizeNodeStyle, paintedColor, stylesFor, type NodeColor, type NodeStyle, type NodeStylePatch } from "./node-style";
 
@@ -1596,7 +1596,7 @@ export function updateNodeDesc(f: EditFlow, nodeId: string, text: string | null)
 const CATCH_PREFIX = "c";
 export const CATCH_FULL = "이 룰의 예외 종류 네 가지를 모두 받고 있다";
 export const CATCH_KINDS_EMPTY = "받을 예외 종류를 하나 이상 고른다";
-export const CATCH_ONLY_RULE = "룰·빈 단계 노드에만 예외 받기를 붙인다";
+export const CATCH_ONLY_RULE = "룰·빈 단계·룰 세트 노드에만 예외 받기를 붙인다";
 export const CATCH_BAD_TARGET = "처리 갈래는 시작·받는 노드·자기 룰로 갈 수 없다";
 export const NO_COPY_CATCH = "받는 노드가 든 블록은 복사하지 않는다";
 export const NO_COPY_CATCH_NODE = "받는 노드는 복사하지 않는다";
@@ -1608,8 +1608,8 @@ export const CATCH_ONE_OUT = "받는 노드에서 나가는 선은 하나다";
 export const CATCH_TAKEN = (kind: CatchKind, owner: string) => `예외 종류 ${kind}는 ${owner}가 이미 받는다`;
 
 /**
- * 룰·빈 단계 노드에 받는 노드를 붙인다(연결점 끌기·우클릭 「예외 받기 추가」, Ruling R14). to 는 처리 갈래 첫 노드(null 이면 END).
- * 받는 종류는 그 룰에서 아직 아무도 받지 않는 첫 종류, label 은 null. 노드는 그 룰의 마지막 받는 노드(없으면 룰) 바로 뒤, 선은 끝에 넣는다.
+ * 룰·빈 단계·룰 세트 노드에 받는 노드를 붙인다(연결점 끌기·우클릭 「예외 받기 추가」, Ruling R14). to 는 처리 갈래 첫 노드(null 이면 END).
+ * 받는 종류는 그 노드 종류가 고를 수 있는 종류(`catchKindsFor`) 가운데 아직 아무도 받지 않는 첫 종류, label 은 null. 노드는 그 룰의 마지막 받는 노드(없으면 룰) 바로 뒤, 선은 끝에 넣는다.
  * 정상 다음 노드로 놓으면 빈 돌아오는 갈래다.
  */
 export function addCatch(f: EditFlow, ruleNodeId: string, to: string | null): EditResult & { id?: string } {
@@ -1620,7 +1620,7 @@ export function addCatch(f: EditFlow, ruleNodeId: string, to: string | null): Ed
   if (g.nodes.length >= MAX_NODES) return fail(NODE_LIMIT_MESSAGE);
   const siblings = catchesOf(g, ruleNodeId);
   const taken = new Set(siblings.flatMap((c) => c.catches ?? []));
-  const kind = CATCH_KINDS.find((k) => !taken.has(k));
+  const kind = catchKindsFor(r.kind).find((k) => !taken.has(k));
   if (!kind) return fail(CATCH_FULL);
   const targetId = to ?? g.nodes.find((n) => n.kind === "END")?.id ?? null;
   const t = targetId == null ? undefined : findNode(g, targetId);

@@ -2,6 +2,7 @@ package kr.dongkuk.maru.mdm.engine.rule;
 
 import static kr.dongkuk.maru.mdm.engine.rule.fixture.FlowRules.calc;
 import static kr.dongkuk.maru.mdm.engine.rule.fixture.RuleFixtures.rec;
+import static kr.dongkuk.maru.mdm.engine.rule.fixture.SubsetFlows.line;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.br;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.e;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.end;
@@ -10,6 +11,7 @@ import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.ifNode;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.merge;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.other;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.rule;
+import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.set;
 import static kr.dongkuk.maru.mdm.engine.testsupport.FlowFixtures.start;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -204,5 +206,71 @@ class RuleSetPreparePlanCacheTest {
         assertEquals(List.of(), second.deferred("d"));
         assertEquals(List.of("A"), first.deferred("d"));
         assertEquals(List.of(), template.deferred("d"));
+    }
+
+    @Test
+    void 하위_세트나_손주_세트_정의가_바뀌면_부모_준비를_다시_만들고_결과도_바뀐다() {
+        // P: s1(C) / C: s2(G) / G: g(R_G: G = X + 1) — 부모 준비는 손주 세트 정의·손주 룰 정의의 동일성까지 본다(하위 세트 계획 Task 4).
+        MapLookup l = new MapLookup();
+        l.rules.put("R_G", calc("R_G", "G", "X + 1", "X"));
+        l.sets.put("G", subset("G", line(rule("g", "R_G"))));
+        l.sets.put("C", subset("C", line(set("s2", "G"))));
+        l.sets.put("P", subset("P", line(set("s1", "C"))));
+        MdmRuleEngine engine = new MdmRuleEngine(evaluator, l);
+        assertEquals(0, new BigDecimal("2").compareTo((BigDecimal) engine.evaluateSet("P", rec("X", BigDecimal.ONE), TS).finalValues().get("G")));
+        FlowTree tree1 = engine.cachedTree("P");
+        FlowKeys keys1 = engine.cachedKeys("P");
+        engine.evaluateSet("P", rec("X", BigDecimal.ONE), TS);
+        assertSame(keys1, engine.cachedKeys("P"), "하위 정의가 그대로면 적중");
+
+        // 손주 세트 재등록(새 정의 객체, 다른 룰) — 부모 흐름 트리는 그대로, 준비는 새로.
+        l.rules.put("R_G2", calc("R_G2", "G", "X + 100", "X"));
+        l.sets.put("G", subset("G", line(rule("g", "R_G2"))));
+        RuleSetResult r = engine.evaluateSet("P", rec("X", BigDecimal.ONE), TS);
+        assertEquals(0, new BigDecimal("101").compareTo((BigDecimal) r.finalValues().get("G")));
+        assertSame(tree1, engine.cachedTree("P"));
+        FlowKeys keys2 = engine.cachedKeys("P");
+        assertNotSame(keys1, keys2);
+
+        // 손주 세트의 룰만 재등록 — 역시 새로 준비한다.
+        l.rules.put("R_G2", calc("R_G2", "G", "X + 1000", "X"));
+        r = engine.evaluateSet("P", rec("X", BigDecimal.ONE), TS);
+        assertEquals(0, new BigDecimal("1001").compareTo((BigDecimal) r.finalValues().get("G")));
+        assertNotSame(keys2, engine.cachedKeys("P"));
+        assertSame(tree1, engine.cachedTree("P"));
+
+        // 손주 세트를 폐기하면 다음 판정이 준비 단계에서 멈추고, 되살리면 다시 돈다.
+        RuleSetDefinition live = l.sets.get("G");
+        l.sets.put("G", new RuleSetDefinition("G", live.ver(), live.applyFrom(), live.applyTo(), live.ruleIds(), SetStatus.DEPRECATED, live.flow()));
+        EngineEvaluationException ex = assertThrows(EngineEvaluationException.class, () -> engine.evaluateSet("P", rec("X", BigDecimal.ONE), TS));
+        assertEquals(List.of(Code.SET_DEPRECATED, List.of("s1")), List.of(ex.violations().get(0).code(), ex.violations().get(0).setPath()));
+        l.sets.put("G", live);
+        assertEquals(0, new BigDecimal("1001").compareTo((BigDecimal) engine.evaluateSet("P", rec("X", BigDecimal.ONE), TS).finalValues().get("G")));
+        assertEquals(1, engine.cachedPlans(), "기억은 최상위 세트 ID 마다 하나다");
+    }
+
+    private static RuleSetDefinition subset(String id, FlowDefinition f) {
+        return new RuleSetDefinition(id, BigDecimal.ONE.setScale(3), FlowRules.FROM, FOREVER, List.of(), SetStatus.INUSE, f);
+    }
+
+    /** 룰·세트 정의를 ID 마다 새 객체로 바꿔 끼울 수 있는 조회기(평가 시각은 보지 않는다). */
+    private static final class MapLookup implements DefinitionLookup {
+        final Map<String, RuleDefinition> rules = new LinkedHashMap<>();
+        final Map<String, RuleSetDefinition> sets = new LinkedHashMap<>();
+
+        @Override
+        public Optional<ColumnDefinition> column(String table, String column) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<RuleDefinition> rule(String ruleId, Instant evalTs) {
+            return Optional.ofNullable(rules.get(ruleId));
+        }
+
+        @Override
+        public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
+            return Optional.ofNullable(sets.get(setId));
+        }
     }
 }

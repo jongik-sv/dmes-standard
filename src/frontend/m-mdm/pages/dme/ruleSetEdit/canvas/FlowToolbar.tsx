@@ -50,7 +50,7 @@ import { badgeStyle } from "@/shell";
 import type { VarDisplay } from "../types";
 import type { AutoSave } from "../state/useAutoSave";
 import type { FlowMode, RuleSetEditState, RuleSetMessage } from "../state/useRuleSetEdit";
-import { SHORTCUT_HELP, isMacPlatform } from "./shortcuts";
+import { SHORTCUT_HELP, isMacPlatform, isShown } from "./shortcuts";
 import { ToolButton } from "./ToolButton";
 
 /** [변수 흐름] 단추 이름 — 지금 상태를 보인다(aria-label·툴팁). */
@@ -134,6 +134,8 @@ export function FlowToolbar(props: FlowToolbarProps) {
     if (!helpOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      // 숨은 세트 탭(하위 세트 spec §10.2)·고르지 않은 포털 탭의 도움말은 Esc 를 가로채지 않는다 — 보이는 탭의 Esc 가 막히지 않게.
+      if (!isShown(helpAnchorRef.current)) return;
       e.stopPropagation();
       setHelpOpen(false);
       const a = document.activeElement;
