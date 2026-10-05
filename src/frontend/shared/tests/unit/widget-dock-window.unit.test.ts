@@ -125,6 +125,44 @@ describe("FloatingWindow", () => {
     expect(p.onMove).toHaveBeenCalledWith(BOUNDS.width - 300, 0);
   });
 
+  it("pointercancel 은 옮기기·크기 조절을 확정하지 않고 창을 제자리로 돌린다", () => {
+    const p = renderWindow();
+    const section = q<HTMLElement>(".cm-float-win");
+    const bar = q(".cm-float-win__bar");
+    pointer(bar, "pointerdown", 200, 90);
+    pointer(bar, "pointermove", 300, 190);
+    expect(section.style.left).toBe("200px");
+    pointer(bar, "pointercancel", 300, 190);
+    expect(p.onMove).not.toHaveBeenCalled();
+    expect(section.style.left).toBe("100px");
+    expect(section.style.top).toBe("80px");
+    expect(section.getAttribute("data-dragging")).toBeNull();
+
+    const handle = q(".cm-float-win__resize");
+    pointer(handle, "pointerdown", 400, 320);
+    pointer(handle, "pointermove", 500, 400);
+    expect(section.style.width).toBe("400px");
+    pointer(handle, "pointercancel", 500, 400);
+    expect(p.onResize).not.toHaveBeenCalled();
+    expect(section.style.width).toBe("300px");
+    expect(section.style.height).toBe("240px");
+    // 취소 뒤 다시 정상으로 끌 수 있다.
+    drag(bar, [200, 90], [250, 120]);
+    expect(p.onMove).toHaveBeenCalledWith(150, 110);
+  });
+
+  it("접힌 아이콘을 끌다 pointercancel 이 오면 옮기지 않지만, 뒤따르는 click 은 펼치기로 오인하지 않는다", () => {
+    const p = renderWindow({ collapsed: true });
+    const icon = q<HTMLButtonElement>(".cm-float-win__icon");
+    pointer(icon, "pointerdown", 110, 90);
+    pointer(icon, "pointermove", 160, 140);
+    pointer(icon, "pointercancel", 160, 140);
+    expect(p.onMove).not.toHaveBeenCalled();
+    expect(icon.style.left).toBe("100px");
+    act(() => icon.click());
+    expect(p.onToggleCollapse).not.toHaveBeenCalled();
+  });
+
   it("4px 미만 움직임은 끌기가 아니다", () => {
     const p = renderWindow();
     drag(q(".cm-float-win__bar"), [200, 90], [203, 92]);
@@ -534,6 +572,45 @@ describe("useWidgetDock", () => {
     act(() => vi.advanceTimersByTime(400));
     expect(store.saves.at(-1)!.map((w) => w.id)).toEqual(["a"]);
   });
+
+  it("사용자가 바뀔 때 남은 저장은 앞 사용자 저장소로만 가고 새 사용자 저장소에는 가지 않는다", async () => {
+    vi.useFakeTimers();
+    const a = memoryStore();
+    const b = memoryStore();
+    act(() => root.render(h(Harness, { userId: "u1", store: a, onApi })));
+    await flush();
+    act(() => void api.open("def.calc"));
+    expect(a.save).not.toHaveBeenCalled();
+    // 400ms 디바운스가 끝나기 전에 사용자가 바뀐다.
+    act(() => root.render(h(Harness, { userId: "u2", store: b, onApi })));
+    await flush();
+    expect(a.saves).toHaveLength(1);
+    expect(a.saves[0].map((w) => w.widgetId)).toEqual(["def.calc"]);
+    act(() => vi.advanceTimersByTime(1000));
+    await flush();
+    expect(b.save).not.toHaveBeenCalled();
+    expect(a.saves).toHaveLength(1);
+    expect(api.windows).toEqual([]);
+  });
+
+  it.each(["loading", "error"] as const)(
+    "등록부가 %s 인 동안은 저장된 창을 지우지도 다시 저장하지도 않는다",
+    async (status) => {
+      vi.useFakeTimers();
+      const stored = [win("a"), win("gone", { widgetId: "def.gone" })];
+      const store = memoryStore(stored);
+      act(() => root.render(h(Harness, { userId: "u1", store, status, registry: {}, onApi })));
+      await flush();
+      act(() => vi.advanceTimersByTime(1000));
+      await flush();
+      expect(api.windows.map((w) => w.id)).toEqual(["a", "gone"]);
+      expect(store.save).not.toHaveBeenCalled();
+      // 언마운트 때도 바뀐 게 없으니 저장하지 않는다.
+      act(() => root.unmount());
+      expect(store.save).not.toHaveBeenCalled();
+      root = createRoot(host);
+    }
+  );
 
   it("창을 끝까지 쓰면 열기가 limit 을 돌려준다", async () => {
     const store = memoryStore(
