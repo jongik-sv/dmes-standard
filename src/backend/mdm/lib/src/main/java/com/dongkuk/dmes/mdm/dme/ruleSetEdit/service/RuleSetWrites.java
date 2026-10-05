@@ -32,11 +32,12 @@ public class RuleSetWrites {
         this.temporal = temporal;
     }
 
-    /** DRAFT 의 흐름·룰 목록. row_version 은 호출 직전 공통 가드({@code beginDraftWrite})가 올렸다. DRAFT 가 아니면 0행. */
-    public int updateDraft(String setId, BigDecimal ver, String ruleIdsJson, String flowJson) {
-        NativeQuery<?> q = audited("UPDATE TB_MDM_RULE_SET_VER SET RULE_IDS = :ids, FLOW_JSON = :flow, " + AUDIT_SET
+    /** DRAFT 의 흐름·룰 목록·부르는 세트 목록. row_version 은 호출 직전 공통 가드({@code beginDraftWrite})가 올렸다. DRAFT 가 아니면 0행. */
+    public int updateDraft(String setId, BigDecimal ver, String ruleIdsJson, String flowJson, String callSetIdsJson) {
+        NativeQuery<?> q = audited("UPDATE TB_MDM_RULE_SET_VER SET RULE_IDS = :ids, FLOW_JSON = :flow, CALL_SET_IDS = :calls, " + AUDIT_SET
                 + ", AUD_VER = COALESCE(AUD_VER, 0) + 1 WHERE MARU_RULE_SET_ID = :id AND VER = :ver AND STATUS = 'DRAFT'")
-                .setParameter("id", setId).setParameter("ver", VersionNumbers.scaled(ver)).setParameter("ids", ruleIdsJson);
+                .setParameter("id", setId).setParameter("ver", VersionNumbers.scaled(ver)).setParameter("ids", ruleIdsJson)
+                .setParameter("calls", callSetIdsJson);
         q.setParameter("flow", flowJson, String.class);
         return q.executeUpdate();
     }
