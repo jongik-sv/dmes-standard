@@ -128,6 +128,47 @@ class WidgetQueryReadOnlyTest {
         assertPooledConnectionRestoredAndWritable();
     }
 
+    // ── 사용자 입력 조건(SQLite) ─────────────────────────────────────
+
+    @Test
+    @DisplayName("입력 조건: 값 없는 선택 조건은 (:x IS NULL OR COL = :x) 로 전체를 돌려주고, 값이 있으면(text·number) 거르며, 인젝션 문자열은 값일 뿐이다")
+    void userParamsOnSqlite() {
+        admin.execute("CREATE TABLE P (ID INTEGER PRIMARY KEY, NM TEXT, QTY NUMERIC)");
+        admin.update("INSERT INTO P (ID, NM, QTY) VALUES (1, 'a', 5), (2, 'b', 10.5), (3, 'c', 20), (4, ?, 1)", "' OR 1=1 --");
+        def("def.opt", "SELECT ID FROM P WHERE (:nm IS NULL OR NM = :nm) AND (:min IS NULL OR QTY >= :min) ORDER BY ID",
+                "[{\"name\":\"nm\",\"type\":\"text\"},{\"name\":\"min\",\"type\":\"number\"}]");
+
+        assertThat(ids("def.opt", Map.of())).containsExactly(1, 2, 3, 4);
+        assertThat(ids("def.opt", Map.of("nm", "  ", "min", ""))).containsExactly(1, 2, 3, 4);
+        assertThat(ids("def.opt", Map.of("nm", "b"))).containsExactly(2);
+        assertThat(ids("def.opt", Map.of("min", "10.5"))).containsExactly(2, 3);
+        assertThat(ids("def.opt", Map.of("nm", "' OR 1=1 --"))).containsExactly(4);
+        assertThat(ids("def.opt", Map.of("nm", "x' OR '1'='1"))).isEmpty();
+        assertThat(admin.queryForObject("SELECT COUNT(*) FROM P", Long.class)).isEqualTo(4L);
+        assertPooledConnectionRestoredAndWritable();
+    }
+
+    @Test
+    @DisplayName("입력 조건(SQLite): \\:userId·@x·$x·$1 자리 밀기 SQL 은 거절하고, 10·1E+1·10.0 은 같은 값으로 같은 결과를 낸다")
+    void userParamsPlaceholderShiftAndNumberNormalizationOnSqlite() {
+        admin.execute("CREATE TABLE P (ID INTEGER PRIMARY KEY, QTY NUMERIC, OWNER TEXT)");
+        admin.update("INSERT INTO P (ID, QTY, OWNER) VALUES (1, 5, 'u1'), (2, 10, 'u2'), (3, 20, 'u3')");
+        for (String leak : List.of("\\:userId", "@userId", "$userId", "$1")) {
+            def("def.leak", "SELECT ID FROM P WHERE OWNER = " + leak + " OR QTY = :p", "[{\"name\":\"p\",\"type\":\"number\"}]");
+            assertThatThrownBy(() -> executor.runDefinition("def.leak", 500, Map.of("p", "10")))
+                    .as(leak).isInstanceOf(BusinessException.class).hasMessage(SqlGuard.MSG_DB_PLACEHOLDER);
+        }
+        def("def.norm", "SELECT ID FROM P WHERE QTY >= :min ORDER BY ID", "[{\"name\":\"min\",\"type\":\"number\"}]");
+        for (String text : List.of("10", "1E+1", "10.0", "1e1", "100E-1")) {
+            assertThat(ids("def.norm", Map.of("min", text))).as(text).containsExactly(2, 3);
+        }
+        assertThat(executor.cacheSize()).isEqualTo(1);
+    }
+
+    private List<Integer> ids(String defId, Map<String, String> values) {
+        return executor.runDefinition(defId, 500, values).rows().stream().map(r -> ((Number) r.get("ID")).intValue()).toList();
+    }
+
     // ── 풀 연결 복원 ─────────────────────────────────────────────────
 
     @Test
@@ -406,6 +447,10 @@ class WidgetQueryReadOnlyTest {
     }
 
     private void def(String id, String sql) {
+        def(id, sql, null);
+    }
+
+    private void def(String id, String sql, String paramsJson) {
         WidgetDef d = new WidgetDef();
         d.setWidgetId(id);
         d.setSrcTp(WidgetDef.SRC_DEF);
@@ -413,7 +458,10 @@ class WidgetQueryReadOnlyTest {
         d.setUseYn("Y");
         d.setDataSrc("mcm");
         try {
-            d.setConfigJson(JSON.writeValueAsString(Map.of("sql", sql)));
+            com.fasterxml.jackson.databind.node.ObjectNode config = JSON.createObjectNode();
+            config.put("sql", sql);
+            if (paramsJson != null) config.set("params", JSON.readTree(paramsJson));
+            d.setConfigJson(JSON.writeValueAsString(config));
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

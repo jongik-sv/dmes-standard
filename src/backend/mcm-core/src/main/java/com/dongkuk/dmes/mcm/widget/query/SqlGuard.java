@@ -7,6 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -21,7 +22,9 @@ import java.util.regex.Pattern;
  *       SQL Server 가 {@code ;} 없이 이어 쓸 수 있는 서버 문장({@code WAITFOR}·{@code KILL}·{@code SHUTDOWN} 등)과 T-SQL 흐름·세션 문장
  *       ({@code USE}·{@code DECLARE}·{@code WHILE}·{@code BEGIN} 등)도 여기서 막는다. {@code SET}·{@code IF} 는 Oracle {@code SET()}·SQLite
  *       {@code if()} 함수와 겹쳐 실행 DB 가 SQL Server 일 때만 막는다({@link #check(String, WidgetReadOnlyJdbc.Dialect)}).</li>
- *   <li>이름 붙은 변수({@code :name}·{@code &name}, PostgreSQL {@code ::} 캐스트 제외)는 §7.2 시스템 변수만.
+ *   <li>이름 붙은 변수({@code :name}·{@code &name}, PostgreSQL {@code ::} 캐스트 제외)는 §7.2 시스템 변수만. 단 호출자가 정의에 선언한
+ *       사용자 입력 조건 이름(declaredNames, 스펙 2026-10-02-widget-admin-generic 입력 조건)은 <b>정확히 일치할 때만</b> 사용자 바인드로 통과시킨다
+ *       ({@code :plant.x} 같은 덩어리 이름은 선언과 달라 걸린다). 시스템 변수 이름은 선언 여부와 관계없이 늘 시스템 변수다.
  *       Spring {@code NamedParameterJdbcTemplate} 은 {@code &name} 도 변수로 바꾸므로 같은 규칙으로 본다.</li>
  * </ol>
  * <b>대괄호 {@code […]} 는 방언마다 뜻이 다르다</b> — SQLite·MSSQL 은 식별자, PostgreSQL·Oracle·H2 와 Spring 변수 해석은
@@ -63,6 +66,8 @@ public final class SqlGuard {
     static final String MSG_LONE_CR = "줄 주석 안에 줄바꿈 없는 캐리지 리턴을 쓸 수 없습니다(DB 마다 주석이 끝나는 자리를 다르게 읽습니다)";
     static final String MSG_NESTED_COMMENT = "주석 안에 /* 를 다시 쓸 수 없습니다(DB 마다 겹친 주석을 다르게 읽습니다)";
     static final String MSG_FORBIDDEN_FUNCTION = "쓸 수 없는 함수가 있습니다: ";
+    static final String MSG_DB_PLACEHOLDER =
+            "DB 고유 자리표시자(\\:이름, @이름, $이름, $숫자)는 쓸 수 없습니다. 조건은 :이름 으로만 씁니다";
 
     /**
      * 식별자를 이루는 글자(Oracle 의 $·# 포함) — 낱말 경계 판단용. 거절 낱말·함수 패턴은 {@code UNICODE_CASE} 로 대소문자를 유니코드 규칙으로
@@ -161,6 +166,17 @@ public final class SqlGuard {
      */
     private static final Pattern VARIABLE = Pattern.compile("((?<!:):|&)([^\\s\"':&,;()|=+\\-*%/\\\\<>^\\]]+)");
 
+    /**
+     * Spring 이 바꾸지 않고 DB 로 넘기는 자리표시자. {@code \:이름}·{@code \&이름} 은 Spring 이 {@code \} 만 지우고 {@code :이름} 을 남기며,
+     * SQLite 는 {@code :이름}·{@code @이름}·{@code $이름} 을 자기 이름 붙은 자리표시자로, {@code $숫자} 도 자리로 읽어 Spring 이 채운 {@code ?}
+     * 의 번호가 밀려 사용자 값이 시스템 변수 자리({@code :userId})에 들어간다(2026-10-05 실측). 앞이 낱말 글자인 {@code @}·{@code $}
+     * (Oracle DB 링크 {@code F@LINK}, 식별자 {@code A$B})와 뒤가 낱말 글자가 아닌 {@code @}(PostgreSQL {@code @>}·{@code @@})는 자리표시자가 아니다.
+     */
+    private static final Pattern ESCAPED_PLACEHOLDER = Pattern.compile("\\\\[:&]");
+    private static final Pattern DB_PLACEHOLDER = Pattern.compile("(?<![\\p{L}\\p{N}_$#@])[@$][\\p{L}\\p{N}_]");
+    /** Spring 이 이름 붙은 변수를 {@code ?} 로 바꾼 뒤에도 남은 {@code :이름}({@code ::} 캐스트 제외). */
+    private static final Pattern LEFTOVER_COLON = Pattern.compile("(?<![:\\p{L}\\p{N}_]):[\\p{L}\\p{N}_]");
+
     /** PostgreSQL 달러 따옴표 시작($$ 또는 $tag$). */
     private static final Pattern DOLLAR_QUOTE = Pattern.compile("\\$(?:[A-Za-z_][A-Za-z0-9_]*)?\\$");
 
@@ -169,8 +185,14 @@ public final class SqlGuard {
      *
      * @param sql       실행할 SQL — 원문에서 끝 {@code ;} 를 지우고 앞뒤 공백을 정리한 것
      * @param variables SQL 이 쓰는 시스템 변수 이름(처음 나온 순서, 중복 없음)
+     * @param userVariables SQL 이 쓰는 사용자 입력 조건 이름(declaredNames 중 쓰인 것, 처음 나온 순서, 중복 없음)
      */
-    public record Validated(String sql, List<String> variables) {}
+    public record Validated(String sql, List<String> variables, List<String> userVariables) {
+        /** 사용자 입력 조건이 없는 검사 결과(기존 호출처 호환). */
+        public Validated(String sql, List<String> variables) {
+            this(sql, variables, List.of());
+        }
+    }
 
     private SqlGuard() {}
 
@@ -179,7 +201,12 @@ public final class SqlGuard {
      * {@link #check(String)} 와 같다. SQL Server 는 대괄호를 식별자로 읽으므로 대괄호 식별자를 가린 사본으로 본다({@code [SET]} 열은 통과).
      */
     public static Validated check(String sql, WidgetReadOnlyJdbc.Dialect dialect) {
-        Validated validated = check(sql);
+        return check(sql, dialect, Set.of());
+    }
+
+    /** {@link #check(String, WidgetReadOnlyJdbc.Dialect)} + 선언된 사용자 입력 조건 이름을 사용자 바인드로 통과시킨다. */
+    public static Validated check(String sql, WidgetReadOnlyJdbc.Dialect dialect, Set<String> declaredNames) {
+        Validated validated = checkDeclared(sql, declaredNames);
         if (dialect == WidgetReadOnlyJdbc.Dialect.SQLSERVER) {
             Matcher m = SQLSERVER_FORBIDDEN.matcher(mask(sql, true));
             if (m.find()) throw invalid(forbiddenWord(m.group(1).toUpperCase(Locale.ROOT)));
@@ -189,11 +216,20 @@ public final class SqlGuard {
 
     /** §7.1 검사(어느 DB 에나 적용하는 규칙). 어기면 {@code BusinessException(INVALID_VALUE, 사람이 읽을 메시지)}. */
     public static Validated check(String sql) {
+        return checkDeclared(sql, Set.of());
+    }
+
+    /**
+     * §7.1 검사 + 선언된 사용자 입력 조건 이름 허용. declaredNames 가 비면 {@link #check(String)} 와 같다(시스템 변수 외는 거절).
+     * 선언 이름 중 시스템 변수와 같은 것은 시스템 변수로만 읽는다(호출 전에 걸러지지만 여기서도 사용자 바인드로 바꾸지 않는다).
+     */
+    public static Validated checkDeclared(String sql, Set<String> declaredNames) {
+        Set<String> declared = declaredNames == null ? Set.of() : declaredNames;
         if (sql == null || sql.isBlank()) throw invalid(MSG_EMPTY);
 
         // 대괄호를 식(배열 첨자)으로 읽는 쪽(PostgreSQL·Oracle·H2·Spring 변수 해석)과 식별자로 읽는 쪽(SQLite·MSSQL)을 모두 본다.
-        Inspection asExpression = inspect(mask(sql, false));
-        Inspection asIdentifier = inspect(mask(sql, true));
+        Inspection asExpression = inspect(mask(sql, false), declared);
+        Inspection asIdentifier = inspect(mask(sql, true), declared);
         // 두 해석이 지울 끝 ; 자리가 다르면 어느 쪽 문장인지 정할 수 없다 — 여러 문장으로 보고 거절한다.
         if (asExpression.semicolon() != asIdentifier.semicolon()) throw invalid(MSG_MULTI);
 
@@ -205,14 +241,25 @@ public final class SqlGuard {
         int semicolon = asExpression.semicolon();
         String executable = semicolon >= 0 ? sql.substring(0, semicolon) + sql.substring(semicolon + 1) : sql;
         // 바인딩할 변수는 Spring 과 같은 해석에서 얻는다(대괄호 안 :name 도 Spring 은 변수로 바꾼다).
-        return new Validated(executable.strip(), asExpression.variables());
+        return new Validated(executable.strip(), asExpression.variables(), asExpression.userVariables());
+    }
+
+    /**
+     * 사후 검사 — Spring 이 이름 붙은 변수를 {@code ?} 로 바꾼 SQL 에 DB 가 따로 읽을 자리표시자({@code :이름}·{@code @이름}·{@code $이름}·
+     * {@code $숫자})가 남았으면 거절한다. 검사 앞 단계가 놓친 Spring 과 DB 의 해석 차이를 마지막으로 막는다.
+     */
+    public static void requireNoLeftoverPlaceholders(String substitutedSql) {
+        for (boolean bracket : new boolean[] {false, true}) {
+            String masked = mask(substitutedSql, bracket);
+            if (LEFTOVER_COLON.matcher(masked).find() || DB_PLACEHOLDER.matcher(masked).find()) throw invalid(MSG_DB_PLACEHOLDER);
+        }
     }
 
     /** 가린 사본 하나에 대한 2~5단계 결과. semicolon 은 끝 ; 자리(없으면 -1). */
-    private record Inspection(int semicolon, List<String> variables) {}
+    private record Inspection(int semicolon, List<String> variables, List<String> userVariables) {}
 
     /** §7.1 2~5단계 — 가린 사본 하나로 판단한다. */
-    private static Inspection inspect(String masked) {
+    private static Inspection inspect(String masked, Set<String> declared) {
         // 2. 첫 낱말
         if (!FIRST_WORD.matcher(masked.strip()).find()) throw invalid(MSG_NOT_SELECT);
 
@@ -227,18 +274,26 @@ public final class SqlGuard {
         Matcher forbidden = FORBIDDEN.matcher(masked);
         if (forbidden.find()) throw invalid(forbiddenWord(forbidden.group(1).toUpperCase(Locale.ROOT)));
 
-        // 5. 시스템 변수만(:name·&name)
+        // 4-2. Spring 이 바꾸지 않는 DB 고유 자리표시자(\:이름·@이름·$이름·$숫자)
+        if (ESCAPED_PLACEHOLDER.matcher(masked).find() || DB_PLACEHOLDER.matcher(masked).find()) throw invalid(MSG_DB_PLACEHOLDER);
+
+        // 5. 시스템 변수와 선언된 사용자 입력 조건만(:name·&name) — 이름은 정확히 일치해야 한다
         Set<String> used = new LinkedHashSet<>();
+        Set<String> usedUser = new LinkedHashSet<>();
         Matcher variable = VARIABLE.matcher(masked);
         while (variable.find()) {
             String name = variable.group(2);
-            if (!SYSTEM_VARIABLES.contains(name)) {
-                throw invalid("알 수 없는 변수입니다: " + variable.group(1) + name
-                        + " (쓸 수 있는 변수: :" + String.join(", :", SYSTEM_VARIABLES) + ")");
+            if (SYSTEM_VARIABLES.contains(name)) {
+                used.add(name);
+            } else if (declared.contains(name)) {
+                usedUser.add(name);
+            } else {
+                String allowed = ":" + String.join(", :", SYSTEM_VARIABLES);
+                if (!declared.isEmpty()) allowed += " / 선언한 조건: :" + String.join(", :", new TreeSet<>(declared));
+                throw invalid("알 수 없는 변수입니다: " + variable.group(1) + name + " (쓸 수 있는 변수: " + allowed + ")");
             }
-            used.add(name);
         }
-        return new Inspection(semicolon, List.copyOf(new ArrayList<>(used)));
+        return new Inspection(semicolon, List.copyOf(new ArrayList<>(used)), List.copyOf(new ArrayList<>(usedUser)));
     }
 
     /**

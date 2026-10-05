@@ -5,6 +5,7 @@ import { AgDataGrid } from "@dk-oasis/shared/grid";
 import type { WidgetProps } from "@dk-oasis/shared/widget";
 
 import { QUERY_EMPTY, TABLE_ROW_KEY, tableConfigOf, toColumnDefs, toGridRows, truncatedNote } from "../_query/format";
+import { QueryShell } from "../_query/ConditionBar";
 import { QueryStyle } from "../_query/parts";
 import { useQueryData } from "../_query/useQueryData";
 
@@ -17,7 +18,7 @@ const QUERY_TABLE_EXCEL_FALLBACK = "쿼리표";
  * 보이는 행·컬럼 그대로 「{위젯 제목}_{yyyyMMdd}.xlsx」 로 내려받는다.
  */
 export default function QueryTableRenderer({ definition, widgetId, refreshKey, title }: WidgetProps) {
-  const data = useQueryData(definition, widgetId, refreshKey);
+  const { data, condition } = useQueryData(definition, widgetId, refreshKey);
   const cfg = useMemo(() => tableConfigOf(definition), [definition]);
   const columns = useMemo(() => (data ? toColumnDefs(data.columns, cfg, data.rows) : []), [data, cfg]);
   const rows = useMemo(() => (data ? toGridRows(data.rows) : []), [data]);
@@ -37,19 +38,21 @@ export default function QueryTableRenderer({ definition, widgetId, refreshKey, t
   return (
     <>
       <QueryStyle />
-      {data && (
-        <AgDataGrid
-          rowKey={TABLE_ROW_KEY}
-          columns={columns}
-          data={rows}
-          columnSizing="fit"
-          height="100%"
-          ariaLabel="쿼리 결과"
-          excelExport={rowCount > 0 ? excelExport : undefined}
-          emptyMessage={QUERY_EMPTY}
-          emptyTestId="wq-empty"
-        />
-      )}
+      <QueryShell condition={condition}>
+        {data && (
+          <AgDataGrid
+            rowKey={TABLE_ROW_KEY}
+            columns={columns}
+            data={rows}
+            columnSizing="fit"
+            height="100%"
+            ariaLabel="쿼리 결과"
+            excelExport={rowCount > 0 ? excelExport : undefined}
+            emptyMessage={QUERY_EMPTY}
+            emptyTestId="wq-empty"
+          />
+        )}
+      </QueryShell>
     </>
   );
 }
