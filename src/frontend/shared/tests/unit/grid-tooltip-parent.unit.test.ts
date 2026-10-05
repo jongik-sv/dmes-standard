@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 /**
  * 그리드 툴팁을 그리드 밖(body)에 띄우는 훅(useGridTooltipOutside, 2026-10-05).
- * 머리글·셀 위에 마우스가 오르면 popupParent 를 body 로 바꾸고, 눌림·키 입력·그리드를 떠남·tooltipHide 에서 되돌린다.
+ * 머리글·셀 위에 마우스가 오르면 popupParent 를 body 로 바꾸고, 눌림·키 입력·그리드를 떠남에서 되돌린다. tooltipHide 에서는 되돌리지 않는다(tts-7).
  * 그 밖의 자리(머리글·셀이 아닌 곳)에서는 건드리지 않는다.
  */
 import { readFileSync } from "node:fs";
@@ -81,17 +81,25 @@ describe("useGridTooltipOutside", () => {
     expect(api.setGridOption).toHaveBeenLastCalledWith("popupParent", undefined);
   });
 
-  it("키 입력과 그리드를 떠남과 tooltipHide 도 되돌린다", () => {
-    const { api, q, fire, listeners, container } = setup();
-    for (const how of ["keydown", "mouseleave", "tooltipHide"]) {
+  it("키 입력과 그리드를 떠남도 되돌린다", () => {
+    const { api, q, fire, container } = setup();
+    for (const how of ["keydown", "mouseleave"]) {
       api.setGridOption.mockClear();
       fire(q("cell"), "mouseover");
       expect(api.setGridOption).toHaveBeenLastCalledWith("popupParent", document.body);
-      if (how === "tooltipHide") act(() => listeners.tooltipHide());
-      else fire(how === "keydown" ? q("cell") : container.current!, how, how === "mouseleave" ? {} : { bubbles: true });
+      fire(how === "keydown" ? q("cell") : container.current!, how, how === "mouseleave" ? {} : { bubbles: true });
       expect(api.setGridOption).toHaveBeenLastCalledWith("popupParent", undefined);
     }
-    expect(api.addEventListener).toHaveBeenCalledTimes(1); // tooltipHide 구독은 api 마다 한 번
+  });
+
+  it("tooltipHide 는 구독하지 않는다 — 이전 칸의 늦은 숨김 이벤트가 새 칸의 body 설정을 되돌리지 않는다(둘째 툴팁부터 잘리던 경합)", () => {
+    const { api, q, fire } = setup();
+    fire(q("hc"), "mouseover"); // 칸 A 에 오름 → body
+    fire(q("cell"), "mouseover"); // 칸 B 로 이동(A 의 tooltipHide 는 아직 안 옴)
+    expect(api.addEventListener).not.toHaveBeenCalled();
+    // 어떤 늦은 hide 가 와도 되돌릴 경로가 없다 — 눌림·키·떠남 전까지 popupParent 는 body 그대로다.
+    expect(api.setGridOption).toHaveBeenCalledTimes(1);
+    expect(api.setGridOption).toHaveBeenLastCalledWith("popupParent", document.body);
   });
 
   it("호출자가 popupParent 를 줬으면(body 가 아님) 건드리지 않는다", () => {
