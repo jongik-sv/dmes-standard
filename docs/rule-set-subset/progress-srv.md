@@ -8,10 +8,12 @@
 ## 지금 상태·다음 단계
 - srv:3 구현·시험 끝, 리뷰 중.
 - 다음: srv:5(eng:2 dev 반영 뒤 구현, 그 전에는 설계·시험 초안) → srv:6(srv:3·srv:5·eng:4 뒤).
+- 메모: dev c12e99a4 의 m-mdm `tests/ui-meta-lock.test.ts` 1건 실패는 기존 실패이고 dev 14ec1124 에서 고쳐졌다. 머지 요청 전에 dev 를 합친다.
 - 메모: eng:1 이 `RuleSetRunner` 의 `new Violation(…FLOW_INVALID…)` 에 `List.of()` 인자를 더한다. srv:6 은 그 뒤 모양을 기준으로 고친다.
 
 ## srv:3. DB — `TB_MDM_RULE_SET_VER.CALL_SET_IDS`(V23)
-- 커밋: (커밋 뒤 적는다)
+- 커밋: 83dfe81b(구현), 리뷰 지적 수정 커밋(ERD 문서 `docs/mdm/erd/06-business-rule.{sqlite.sql,mmd}`·`verify/expected-columns.json` 에 칸 추가, 시험 띄어쓰기)
+- 리뷰: sonnet/high 1회 — 낮음 3건(ERD 문서 미반영·기록 커밋 칸·띄어쓰기) 모두 고침, 그 밖 clean(V18 대조·FK/인덱스 없음·호출부 1곳·운영 방언 폴더 없음 확인)
 - 시험 결과: `../gradlew :api:test --max-workers=2 --tests '*MdmBusinessRuleMigrationTest' --tests '*MdmRuleSetVerCallSetIdsMigrationTest' --tests '*MdmSharedContractMigrationTest' --tests '*MdmLocalSample*' --tests '*RuleSetEdit*' --tests '*RuleSetMng*' --tests '*RuleSetVersion*'` → 12 클래스 104건 통과, 실패 0.
 - 결정:
   - 새 버전 복사 단언은 `RuleSetVersionOpsSqliteTest.minorCopiesLatestReleasedFlowAndRecordsKindAndOwner` 에 더했다(시드에서 1.000 에 `["S_B"]` 를 넣고 1.001 을 읽는다). 이를 위해 `DmeTestSupport.setVerValue` 의 허용 칼럼에 `CALL_SET_IDS` 를 더했다.

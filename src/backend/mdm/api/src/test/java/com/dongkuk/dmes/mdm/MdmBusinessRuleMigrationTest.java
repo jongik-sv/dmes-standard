@@ -268,7 +268,7 @@ class MdmBusinessRuleMigrationTest {
             case "VAR_AST", "PRIO_LIST", "GRP_COND_AST", "CELLS" -> new Object[] {ruleId, n, json, n};
             case "INPUT_JSON" -> new Object[] {ruleId, n, json, "케이스"};
             case "EXPECTED_JSON" -> new Object[] {ruleId, n, json};
-            case "RULE_IDS", "FLOW_JSON", "CALL_SET_IDS" ->new Object[] {ruleId, n, json};
+            case "RULE_IDS", "FLOW_JSON", "CALL_SET_IDS" -> new Object[] {ruleId, n, json};
             default -> throw new IllegalArgumentException(column);
         };
     }
