@@ -6,15 +6,19 @@ import type { RuleSetFlow } from "@/contract/engine-contract.generated";
 import { blockMembers, moveExcludedEdges, type EditFlow, type FlowPos } from "./flow-edit";
 import { nodeSizeOf, type StyledFlow } from "./flow-layout";
 import { CATCH_NAMES } from "./flow-model";
-import type { RuleIoMap, RuleSetCheck } from "./types";
+import type { RuleIoMap, RuleSetCheck, SetCallIoMap } from "./types";
 
-/** RULE 노드에서 나가는 선 → 그 룰 결과 이름(순서대로). 받는 노드에서 나가는 선은 처리 갈래가 읽는 CATCH_* 넷. 이름이 없으면 키를 만들지 않는다. */
-export function edgeChips(f: RuleSetFlow, rules: RuleIoMap): Record<string, string[]> {
-  const ruleOf = new Map<string, string>();
+/**
+ * RULE 노드에서 나가는 선 → 그 룰 결과 이름, SET 노드에서 나가는 선 → 하위 세트 출력 이름(겉모양 순서, 하위 세트 spec §9).
+ * 받는 노드에서 나가는 선은 처리 갈래가 읽는 CATCH_* 예약 이름. 이름이 없으면(겉모양을 아직 받지 않음 포함) 키를 만들지 않는다.
+ */
+export function edgeChips(f: RuleSetFlow, rules: RuleIoMap, calls: SetCallIoMap = {}): Record<string, string[]> {
+  const namesOf = new Map<string, string[]>();
   const catches = new Set<string>();
   for (const n of f.nodes ?? []) {
-    if (n.kind === "RULE" && n.ruleId) ruleOf.set(n.id, n.ruleId);
-    if (n.kind === "CATCH") catches.add(n.id);
+    if (n.kind === "RULE" && n.ruleId) namesOf.set(n.id, (rules[n.ruleId]?.results ?? []).map((r) => r.name));
+    else if (n.kind === "SET" && n.setId) namesOf.set(n.id, (calls[n.setId]?.outputs ?? []).map((o) => o.name));
+    else if (n.kind === "CATCH") catches.add(n.id);
   }
   const out: Record<string, string[]> = {};
   for (const e of f.edges ?? []) {
@@ -23,10 +27,8 @@ export function edgeChips(f: RuleSetFlow, rules: RuleIoMap): Record<string, stri
       out[e.id] = [...CATCH_NAMES];
       continue;
     }
-    const rid = ruleOf.get(e.from);
-    if (rid === undefined) continue;
-    const names = (rules[rid]?.results ?? []).map((r) => r.name);
-    if (names.length > 0) out[e.id] = names;
+    const names = namesOf.get(e.from);
+    if (names && names.length > 0) out[e.id] = names;
   }
   return out;
 }
