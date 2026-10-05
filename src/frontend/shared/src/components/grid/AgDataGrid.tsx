@@ -740,7 +740,7 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
       }
     : null;
   const headerName = columnCaption(col, opts.mdm);
-  // MDM 머리글 툴팁 — 메타가 있고 화면이 headerTooltip·headerComponent 를 직접 주지 않았을 때만. 그 밖에는 키를 더하지 않는다(예전 열 정의 그대로).
+  // MDM 머리글 툴팁 — 메타가 있고 화면이 headerTooltip·headerComponent 를 직접 주지 않았을 때만. 메타가 없는 열은 아래 기본 머리글 툴팁(표시 이름)이다.
   // HTML 설명 카드 열은 ag-grid 머리글 툴팁 대신 기본 머리글의 안쪽 라벨(MdmHeaderLabel)이 포털 카드를 띄운다(화면이 innerHeaderComponent 를
   // 이미 줬으면 손대지 않고 글자 머리글 툴팁). 셀 툴팁(MdmGridTooltip 셀 분기)은 어느 쪽이든 같다.
   const mdmInfo = opts.mdm?.infoByKey.get(col.key);
@@ -767,6 +767,11 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
         tooltipComponentParams: tooltipParams,
       }
     : null;
+  // 기본 머리글 툴팁 — 화면이 주지 않았고 메타 카드도 없는 열은 표시 이름을 띄운다(좁은 열에서 말줄임된 머리글 확인, 2026-10-05).
+  // 빈 이름 열과 화면이 headerComponent 를 준 열은 두지 않는다. 화면이 headerTooltip: "" 를 주면 끈다.
+  const headerTooltip =
+    col.headerTooltip ??
+    (!tooltipParams && col.headerComponent == null && headerName.trim() !== "" ? headerName : undefined);
   return {
     field: col.key,
     headerName,
@@ -796,7 +801,7 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
     cellClass: cellClassProp,
     cellClassRules: issueClassRules,
     headerClass: col.headerAlign ? `header-${col.headerAlign}` : "header-center",
-    headerTooltip: col.headerTooltip,
+    headerTooltip,
     headerStyle: col.headerStyle,
     rowDrag,
     ...(mdmTooltip ?? {}),

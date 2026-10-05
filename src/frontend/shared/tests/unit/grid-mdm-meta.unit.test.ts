@@ -60,6 +60,29 @@ describe("buildColumnDefs — MDM 없음(공급자 밖)", () => {
     const defs = buildColumnDefs([{ key: "btn", header: "" }], OPTS);
     expect((defs[0] as ColDef).headerName).toBe("");
   });
+
+  // 메타 없는 열도 머리글에 올리면 표시 이름을 툴팁으로 띄운다(2026-10-05, 좁은 열의 말줄임 머리글 확인).
+  it("잎 열의 기본 머리글 툴팁은 표시 이름이다 — 빈 이름·화면 headerTooltip·headerComponent 열은 두지 않는다", () => {
+    const Header = () => null;
+    const defs = buildColumnDefs(
+      [
+        { key: "a", header: "제품코드" },
+        { key: "codeNm" },
+        { key: "btn", header: "" },
+        { key: "c", header: "C", headerTooltip: "화면 툴팁" },
+        { key: "d", header: "D", headerTooltip: "" },
+        { key: "e", header: "E", headerComponent: Header },
+      ],
+      OPTS
+    ) as ColDef[];
+    expect(defs.map((d) => d.headerTooltip)).toEqual(["제품코드", "codeNm", undefined, "화면 툴팁", "", undefined]);
+  });
+
+  it("열 그룹 머리는 기본 툴팁을 두지 않고 그 안 잎 열은 둔다", () => {
+    const [g] = buildColumnDefs([{ key: "g", header: "묶음", children: [{ key: "b", header: "B" }] }], OPTS) as ColGroupDef[];
+    expect(g.headerTooltip).toBeUndefined();
+    expect((g.children[0] as ColDef).headerTooltip).toBe("B");
+  });
 });
 
 describe("buildColumnDefs — MDM 있음", () => {
@@ -94,6 +117,8 @@ describe("buildColumnDefs — MDM 있음", () => {
     expect(defs[0].tooltipComponentParams).toEqual({ mdmColumn: TITLE, mdmDomain: TEXT_DOMAIN });
     expect(defs[1].tooltipComponent).toBeUndefined();
     expect(Object.keys(defs[1])).toEqual(LEAF_KEYS);
+    // 사전에 없는 열은 기본 머리글 툴팁(표시 이름).
+    expect(defs[1].headerTooltip).toBe("분류");
   });
 
   it("화면이 headerTooltip·headerComponent 를 주면 그대로 둔다", () => {
