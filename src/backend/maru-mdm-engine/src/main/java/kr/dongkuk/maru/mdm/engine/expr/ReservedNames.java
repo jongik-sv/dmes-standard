@@ -28,7 +28,10 @@ public final class ReservedNames {
     public static final String CATCH_RULE = "CATCH_RULE";
     public static final String CATCH_CODE = "CATCH_CODE";
     public static final String CATCH_MSG = "CATCH_MSG";
-    public static final Set<String> CATCH_NAMES = Set.of(CATCH_KIND, CATCH_RULE, CATCH_CODE, CATCH_MSG);
+    /** 위반이 난 가장 안쪽 세트 ID(하위 세트 spec §4.1, C-D7). 처리 갈래 안에서만 ctx 에 있다. */
+    public static final String CATCH_SET = "CATCH_SET";
+    /** 처리 갈래가 읽는 예약 이름 다섯. 레코드 키로 오면 RESERVED_KEY 이고 하위 세트 입력으로 넘기지 않는다. */
+    public static final Set<String> CATCH_NAMES = Set.of(CATCH_KIND, CATCH_RULE, CATCH_CODE, CATCH_MSG, CATCH_SET);
 
     private ReservedNames() {}
 }

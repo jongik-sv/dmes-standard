@@ -10,7 +10,7 @@ import { generateEngineContract, OUTPUT_PATH, SCHEMA_PATH } from "../scripts/gen
  */
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 
-/** design §6.4 「생성 TS export 목록」(52개). 스키마 $defs 이름 + 루트 EngineContract. */
+/** design §6.4 「생성 TS export 목록」(53개). 스키마 $defs 이름 + 루트 EngineContract. */
 const EXPECTED_EXPORTS = [
   "EngineContract",
   "AstNode",
@@ -48,6 +48,7 @@ const EXPECTED_EXPORTS = [
   "EngineWarning",
   "EngineWarningCode",
   "RuleSetResult",
+  "SetCall",
   "EngineError",
   "Violation",
   "ViolationStage",

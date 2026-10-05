@@ -501,7 +501,7 @@ final class RuleEvaluator {
         }
 
         private Violation violation(Stage stage, Code code, Integer rowId, String name, String message) {
-            return new Violation(stage, code, ruleId, rowId, name, "rule " + ruleId + ": " + message);
+            return new Violation(stage, code, ruleId, rowId, name, "rule " + ruleId + ": " + message, List.of());
         }
 
         private void throwIfViolated() {

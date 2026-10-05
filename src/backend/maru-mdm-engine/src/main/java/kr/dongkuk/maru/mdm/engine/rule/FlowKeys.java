@@ -21,6 +21,7 @@ import kr.dongkuk.maru.mdm.engine.flow.CatchKind;
 import kr.dongkuk.maru.mdm.engine.flow.Guarded;
 import kr.dongkuk.maru.mdm.engine.flow.RuleStep;
 import kr.dongkuk.maru.mdm.engine.flow.Seq;
+import kr.dongkuk.maru.mdm.engine.flow.SetStep;
 import kr.dongkuk.maru.mdm.engine.flow.Split;
 import kr.dongkuk.maru.mdm.engine.flow.Step;
 import kr.dongkuk.maru.mdm.engine.flow.TaskStep;
@@ -138,6 +139,9 @@ final class FlowKeys {
                 case TaskStep t -> {
                     // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
                 }
+                case SetStep s -> {
+                    // SEAM(T4) — 하위 세트 입력·출력은 Task 4(eng:4)가 넣는다.
+                }
                 case Split s when s.kind() == NodeKind.IF -> {
                     for (Branch br : s.branches()) {
                         if (br.otherwise()) {
@@ -149,7 +153,7 @@ final class FlowKeys {
                             }
                             if (reported.add(name)) {
                                 out.add(new Violation(Stage.SET_CHECK, Code.MISSING_KEY, null, null, name,
-                                        "세트 입력 키가 레코드에 없다: " + name + " (IF " + s.nodeId() + ")"));
+                                        "세트 입력 키가 레코드에 없다: " + name + " (IF " + s.nodeId() + ")", List.of()));
                             }
                         }
                     }
@@ -191,6 +195,7 @@ final class FlowKeys {
                 case Guarded g -> {
                     Set<String> sureBefore = new HashSet<>(sure);
                     Set<String> maybeBefore = new HashSet<>(maybe);
+                    // SEAM(T4) — 받는 노드가 붙은 SET 의 하위 세트 입력 키는 여기서 채운다(지금은 RULE 만).
                     if (g.step() instanceof RuleStep r) {
                         ruleKeys(r, g.handlerFor(CatchKind.INPUT_ERROR) != null, available, sure, maybe, reported, out);
                     }
@@ -242,6 +247,7 @@ final class FlowKeys {
 
     /** 단계 결과 이름 — 빈 단계·정의 없는 룰은 빈 집합. */
     private Set<String> produced(Step s) {
+        // SEAM(T4) — 받는 노드가 붙은 SET 의 하위 세트 출력 이름은 여기서 채운다(지금은 빈 집합).
         if (!(s instanceof RuleStep r)) {
             return new HashSet<>();
         }
@@ -287,6 +293,9 @@ final class FlowKeys {
                 case TaskStep t -> {
                     // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
                 }
+                case SetStep s -> {
+                    // SEAM(T4) — 하위 세트 입력·출력은 Task 4(eng:4)가 넣는다.
+                }
                 case Split s when s.kind() == NodeKind.IF -> {
                     Set<String> inter = null;
                     for (Branch br : s.branches()) {
@@ -325,6 +334,9 @@ final class FlowKeys {
                 }
                 case TaskStep t -> {
                     // 빈 단계 — 읽는 이름도 만드는 이름도 없다(4단계 spec §1.1).
+                }
+                case SetStep s -> {
+                    // SEAM(T4) — 하위 세트 입력·출력은 Task 4(eng:4)가 넣는다.
                 }
                 case Split s when s.kind() == NodeKind.IF ->
                         s.branches().stream().filter(br -> !br.ends()).forEach(br -> out.addAll(allProduced(br.body())));
@@ -381,7 +393,7 @@ final class FlowKeys {
 
     static Violation missing(String ruleId, String name) {
         return new Violation(Stage.SET_CHECK, Code.MISSING_KEY, ruleId, null, name,
-                "세트 입력 키가 레코드에 없다: " + name + " (룰 " + ruleId + ")");
+                "세트 입력 키가 레코드에 없다: " + name + " (룰 " + ruleId + ")", List.of());
     }
 
     private static <T> List<T> nonNull(List<T> list) {

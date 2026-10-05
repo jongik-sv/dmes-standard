@@ -64,6 +64,10 @@ public final class RuleSetFlowJson {
                     n.catches().forEach(cs::add);
                 }
             }
+            // setId 는 SET 노드에만 쓴다 — SET 없는 세트의 정규 문자열이 그대로여야 한다(편차 5, 저장 흐름 dirty 기준).
+            if (n.setId() != null) {
+                o.put("setId", n.setId());
+            }
         }
         ArrayNode es = out.putArray("edges");
         for (FlowEdge e : f.edges()) {
@@ -150,6 +154,32 @@ public final class RuleSetFlowJson {
         return List.copyOf(out);
     }
 
+    /**
+     * 하위 세트 spec §1.1 — CALL_SET_IDS. 트리가 있으면 {@code tree.setIds()}, 없으면 SET 노드의 setId 를 노드 배열 순서로 중복 없이(빈 ID 는
+     * 뺀다). 노드 ID 가 겹치면 그 ID 의 첫 노드만 본다({@link #ruleIds(FlowDefinition)} 와 같다).
+     */
+    public static List<String> setIds(FlowDefinition flow) {
+        return setIds(flow, FlowParser.parse(flow));
+    }
+
+    /** {@link #setIds(FlowDefinition)} 와 같되 이미 파싱한 결과를 쓴다(분석기가 두 번 파싱하지 않게). */
+    static List<String> setIds(FlowDefinition flow, FlowParse p) {
+        if (p.tree() != null) {
+            return p.tree().setIds();
+        }
+        Set<String> seenNodes = new HashSet<>();
+        Set<String> out = new LinkedHashSet<>();
+        for (FlowNode n : flow.nodes()) {
+            if (!seenNodes.add(n.id())) {
+                continue;
+            }
+            if (n.kind() == NodeKind.SET && n.setId() != null && !n.setId().isBlank()) {
+                out.add(n.setId());
+            }
+        }
+        return List.copyOf(out);
+    }
+
     private static FlowDefinition read(JsonNode root) {
         if (root == null || !root.isObject()) {
             throw new IllegalArgumentException("흐름은 JSON 객체여야 한다");
@@ -184,7 +214,7 @@ public final class RuleSetFlowJson {
                 throw new IllegalArgumentException("노드 종류 " + kind + " 를 모른다");
             }
             nodes.add(new FlowNode(id, k, text(n, "ruleId", where), text(n, "splitId", where), text(n, "label", where),
-                    text(n, "attachTo", where), strings(n, "catches", where)));
+                    text(n, "attachTo", where), strings(n, "catches", where), text(n, "setId", where)));
         }
         List<FlowEdge> edges = new ArrayList<>();
         for (int i = 0; i < es.size(); i++) {

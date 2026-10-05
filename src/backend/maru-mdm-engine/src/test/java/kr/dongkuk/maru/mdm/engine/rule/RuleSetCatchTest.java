@@ -119,7 +119,7 @@ class RuleSetCatchTest {
         RuleSetResult r = run(returning("R_G", "R_FILL", "NO_RESULT"), rec("X", new BigDecimal("5")));
         assertNum("0", r.finalValues().get("G"));
         assertNum("10", r.finalValues().get("Z"));
-        assertEquals(List.of(new CaughtException("r1", "R_G", "c1", CatchKind.NO_RESULT, "NO_RESULT", "맞는 행과 기본 행이 없다")), r.caught());
+        assertEquals(List.of(new CaughtException("r1", "R_G", "c1", CatchKind.NO_RESULT, "NO_RESULT", "맞는 행과 기본 행이 없다", List.of())), r.caught());
         assertNull(r.endedBy());
         assertEquals(List.of("start:START:null", "r1:RULE:null", "c1:CATCH:null", "h:RULE:0", "mr:MERGE:null", "after:RULE:1", "end:END:null"), path(r));
         assertEquals(List.of("R_FILL", "R_AFTER"), r.steps().stream().map(RuleResult::ruleId).toList());

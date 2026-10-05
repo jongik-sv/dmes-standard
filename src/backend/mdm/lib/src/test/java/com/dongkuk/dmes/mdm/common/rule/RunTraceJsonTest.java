@@ -60,9 +60,9 @@ class RunTraceJsonTest {
     @SuppressWarnings("unchecked")
     void CATCH_노드_기록은_violations_뒤에_catchKind_code_message_를_싣고_다른_노드는_싣지_않는다() {
         RunTrace.NodeTrace caught = new RunTrace.NodeTrace(2, "r1", NodeKind.RULE, RunTrace.NodeStatus.CAUGHT, "R1", new BigDecimal("1.000"), Map.of(), null,
-                null, null, null, null, null, List.of(), null, null, null);
+                null, null, null, null, null, List.of(), null, null, null, null, null);
         RunTrace.NodeTrace c = new RunTrace.NodeTrace(3, "c1", NodeKind.CATCH, RunTrace.NodeStatus.OK, "R1", null, null, null,
-                null, null, null, null, null, null, CatchKind.NO_RESULT, "NO_RESULT", "맞는 행과 기본 행이 없다");
+                null, null, null, null, null, null, CatchKind.NO_RESULT, "NO_RESULT", "맞는 행과 기본 행이 없다", null, null);
         Map<String, Object> m = RunTraceJson.toMap(new RunTrace("S", TS, Map.of(), List.of(caught, c), Map.of(), null, null, null));
         List<Map<String, Object>> nodes = (List<Map<String, Object>>) m.get("nodes");
         assertEquals("CAUGHT", nodes.get(0).get("status"));
@@ -71,5 +71,43 @@ class RunTraceJsonTest {
                 "violations", "catchKind", "code", "message"), List.copyOf(nodes.get(1).keySet()));
         assertEquals("NO_RESULT", nodes.get(1).get("catchKind"));
         assertTrue(nodes.get(1).containsKey("message"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void SET_노드는_reads_뒤_CATCH_칸들_뒤에_outputs_sub_를_싣고_RULE_노드에는_싣지_않는다() {
+        RunTrace sub = new RunTrace("QD_S_PRICE", TS, Map.of("X", BigDecimal.ONE), List.of(), Map.of("P", BigDecimal.TEN), null, null, null);
+        RunTrace.NodeTrace set = new RunTrace.NodeTrace(2, "s1", NodeKind.SET, RunTrace.NodeStatus.OK, null, null, Map.of("X", BigDecimal.ONE),
+                null, null, null, null, null, null, null, null, null, null, Map.of("P", BigDecimal.TEN), sub);
+        RunTrace.NodeTrace rule = new RunTrace.NodeTrace(1, "r1", NodeKind.RULE, RunTrace.NodeStatus.OK, "R1", null, Map.of(), null,
+                null, null, null, null, null, null, null, null, null, null, null);
+        Map<String, Object> m = RunTraceJson.toMap(new RunTrace("S", TS, Map.of(), List.of(rule, set), Map.of(), null, null, null));
+
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) m.get("nodes");
+        assertFalse(nodes.get(0).containsKey("outputs"));
+        assertFalse(nodes.get(0).containsKey("sub"));
+        List<String> keys = List.copyOf(nodes.get(1).keySet());
+        assertEquals("sub", keys.get(keys.size() - 1));
+        assertEquals("outputs", keys.get(keys.size() - 2));
+        assertEquals(Map.of("P", Map.of("type", "NUMBER", "value", "10")), nodes.get(1).get("outputs"));
+        Map<String, Object> subMap = (Map<String, Object>) nodes.get(1).get("sub");
+        assertEquals("QD_S_PRICE", subMap.get("setId"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 위반의_setPath_는_비었으면_키를_빼고_있으면_message_뒤에_싣는다() {
+        var here = new kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation(
+                kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Stage.INPUT_CHECK,
+                kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code.MISSING_KEY, "R1", null, "X", "없다", List.of());
+        var deep = new kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Violation(
+                kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Stage.INPUT_CHECK,
+                kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code.MISSING_KEY, "R1", null, "X", "없다", List.of("s1", "s9"));
+        Map<String, Object> m = RunTraceJson.toMap(new RunTrace("S", TS, Map.of(), List.of(), Map.of(), List.of(here, deep), null, null));
+
+        List<Map<String, Object>> vs = (List<Map<String, Object>>) m.get("violations");
+        assertFalse(vs.get(0).containsKey("setPath"));
+        assertEquals(List.of("stage", "code", "ruleId", "rowId", "name", "message", "setPath"), List.copyOf(vs.get(1).keySet()));
+        assertEquals(List.of("s1", "s9"), vs.get(1).get("setPath"));
     }
 }

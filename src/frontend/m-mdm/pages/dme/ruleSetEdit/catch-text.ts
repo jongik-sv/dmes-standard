@@ -9,6 +9,7 @@ export const CATCH_KIND_LABEL: Readonly<Record<CatchKind, string>> = {
   INPUT_ERROR: "입력 오류",
   EVAL_ERROR: "계산 오류",
   HIT_CONFLICT: "판정 충돌",
+  SUBSET_ENDED: "하위 세트 예외 끝",
 };
 
 /** 결과 없음 문구 — 엔진 `CatchKind.NO_RESULT_MESSAGE` 와 같은 글. 받은 룰(CAUGHT)의 위반 목록이 비면(결과 없음) 노드 상세가 이 한 줄을 보인다. */
