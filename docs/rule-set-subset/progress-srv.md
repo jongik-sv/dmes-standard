@@ -68,7 +68,8 @@
 ### 묶음 C — 편집 서비스(저장·폐기·되살리기·조회) (끝)
 - 커밋: baf800fd `RuleSetEditService`(생성자에 `SetCallIoReader`·`SetCallerRecheck`, save·delete(SET)·restore·search·view)·DTO(`RuleSetEditSearchRequest` 에 `setId`·`setIdsJson`, `RuleSetViewResult.calls`, 새 `RuleSetCallIoResult`)·`ruleSetEdit.bpmn` documentation 두 줄(target CALL_IO·CALLERS, 폐기 거부 — dto·action 은 그대로). 시험 `dme/ruleSetEdit/RuleSetSubsetServiceTest` 15건.
 - 시험(src/backend/mdm, JDK 21, `--max-workers=2`):
-  - `../gradlew :api:test --tests '*RuleSetSubsetServiceTest'` → 15건 통과, 실패 0(첫 실행부터 통과).
+  - `../gradlew :api:test --tests '*RuleSetSubsetServiceTest'` → 15건 통과, 실패 0(첫 실행부터 통과). 뒤 커밋에서 `readAt` 결정을 묶는 시험 1건을 더해 16건 통과(`readAt` 을 `read` 로 바꾸면 그 시험만 실패하는 것을 확인하고 되돌렸다).
+  - ruleSetEdit 를 부르는 다른 시험 `../gradlew :api:test --tests '*MdmOasisActionVocabularyTest' --tests '*DmeOasisHttpTest' --tests '*RuleSetLifecycleOasisFlowTest'` → 15·18·1건 통과, 실패 0.
   - `../gradlew :lib:test :api:test --tests 'com.dongkuk.dmes.mdm.dme.ruleSetEdit.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleSetMng.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleSetConfirm.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleEdit.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleConfirm.*' --tests 'com.dongkuk.dmes.mdm.common.rule.*' --tests '*DmeBpmnActionTest'` → lib 117클래스 2045건, api 42클래스 445건 통과, 실패 0(`RuleSetEditQueryCountTest` view·execute 상한 그대로 통과).
   - `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` → ERROR 0 / WARN 0(INFO 42 는 기존 baseline).
 - 필수 시험(저장 쪽): `두_DRAFT_가_순환을_반씩_만들면_각자_저장은_경고로_통과하고_먼저_확정은_통과하고_나중_확정이_CALL_CYCLE_로_막힌다` — A(→B)·B(→A) 저장은 통과(지금 RELEASED 행만 세어 순환 경고도 없음)·CALL_SET_IDS `["B"]`·`["A"]` → A 확정 통과 → B 다시 저장은 `WARN CALL_CYCLE 세트 호출이 순환한다: B › A › B` 로 저장됨 → B 확정 거부(DRAFT 유지). `부르는_세트를_깨는_저장은_CALLER_BROKEN_경고로_통과하고_확정은_거부한다` — 목록 세트 C 저장은 `WARN CALLER_BROKEN 세트 P: …` 로 저장, 확정 검사는 같은 문구 ERROR·확정 거부. 둘 다 저장 서비스 → 확정 서비스로 이어 본다.

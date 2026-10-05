@@ -297,6 +297,23 @@ class RuleSetSubsetServiceTest extends AbstractMdmSharedDbTest {
         assertThat(callLines(saveList("C", 1, "R_C1").getChecks())).isEmpty();          // 지금 겉모양과 같다
     }
 
+    /**
+     * 저장하려는 겉모양의 룰은 지금 적용 중인 RELEASED 로 읽는다 — 멤버 룰의 미래 RELEASED(결과가 OUT_X → OUT_Y)는 지금 겉모양을 바꾸지 않으므로 같은
+     * 목록을 다시 저장해도 헛 CALLER_BROKEN 이 나지 않는다(최신 RELEASED 로 읽으면 난다).
+     */
+    @Test
+    void 멤버_룰의_미래_RELEASED_는_저장_겉모양을_바꾸지_않는다() {
+        BigDecimal v2 = new BigDecimal("2.000");
+        jdbc.update("UPDATE TB_MDM_RULE_VER SET APPLY_TO = '2026-09-01 00:00:00' WHERE MARU_RULE_ID = 'R_C1'");
+        DmeTestSupport.released(jdbc, "R_C1", v2, "MAJOR", "FIRST", "2026-09-01 00:00:00", null);
+        DmeTestSupport.var(jdbc, "R_C1", v2, 1, "COND", "1", "IN_A", 1, null);
+        DmeTestSupport.var(jdbc, "R_C1", v2, 2, "RESULT", "Value", "OUT_Y", 1, "STRING");
+        setWithDraft("C", "INUSE", "[\"R_C1\"]");
+        parentP("INUSE");
+
+        assertThat(callLines(saveList("C", 0, "R_C1").getChecks())).isEmpty();
+    }
+
     // ── 폐기·되살리기 ──
 
     /** 폐기 거부(spec §6.3, Ruling 10 문구) — 부르는 세트 목록은 세트 ID 순·한 번씩. P 는 지금 행과 미래 행 둘이 C 를 부른다. DRAFT 만 부르면 세지 않는다. */
