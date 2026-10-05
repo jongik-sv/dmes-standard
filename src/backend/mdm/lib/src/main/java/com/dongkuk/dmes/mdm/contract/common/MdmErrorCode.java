@@ -5,8 +5,8 @@ import com.dongkuk.dmes.cactus.common.ErrorCode;
 /**
  * mdm 공통 오류 코드(design.md D7). 코드 {@code MDMnnn}, 의미 HTTP 상태, 운반용 cactus {@link ErrorCode}, 기본 메시지.
  *
- * <p>던질 때는 cactus {@code BusinessException(code.transport(), msg, List.of(ErrorDetail(... code.code() ...)))}
- * 으로 싣는다. OASIS 경로는 HTTP 상태 대신 {@code meta.code} 로 돌려주므로 httpStatus 는 의미 상태다 —
+ * <p>던질 때는 {@code MdmErrors.of}·{@code raw}·{@code invalid} 를 거친다 — OASIS {@code meta.code} 가 {@code MDMnnn} 이 된다
+ * (2026-10-05). {@code BusinessException(code.transport(), …)} 를 직접 만들면 {@code meta.code} 가 운반용 코드(E010 등)가 된다. OASIS 경로는 HTTP 상태 대신 {@code meta.code} 로 돌려주므로 httpStatus 는 의미 상태다 —
  * 표현 방식은 TSK-01-03 이 확정한다. 원천 인용 메시지(MDM001 04:305, MDM007 04:299)는 원천 문구 그대로다.
  */
 public enum MdmErrorCode {

@@ -88,7 +88,7 @@ class CactusResponseConverterJsonTest {
         BusinessException e = new BusinessException(ErrorCode.ACCESS_DENIED, "거부");
 
         assertThat(json(failed(ServiceResultCode.SYSTEM_ERROR, e))).isEqualTo(
-                "{\"meta\":{\"txId\":\"tx\",\"success\":false,\"code\":\"S001\",\"message\":\"거부\"}}");
+                "{\"meta\":{\"txId\":\"tx\",\"success\":false,\"code\":\"A010\",\"message\":\"거부\"}}");
     }
 
     @Test

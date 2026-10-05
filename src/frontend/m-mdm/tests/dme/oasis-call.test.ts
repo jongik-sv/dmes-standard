@@ -1,7 +1,7 @@
 // 쓰기 실패 안내 공용 판정(writeFailure) — 룰 화면(useRuleEdit)과 룰 상세(ruleMng RuleDetailPanel)가 같이 쓴다(ruleEdit 기능설계서 §6.2).
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CONFLICT_MESSAGE, OasisCallError, callOasis, omitNullish, writeFailure } from "../../src/dme/oasis-call";
+import { CONFLICT_MESSAGE, OasisCallError, callOasis, isDraftGone, omitNullish, writeFailure } from "../../src/dme/oasis-call";
 import {
   NOISY_PARAMS, NOISY_SENT, REJECT_ENVELOPE, SUCCESS_ENVELOPE, SUCCESS_OUT, rejectionOf, stubOasis,
 } from "../helpers/oasis-envelope";
@@ -23,6 +23,45 @@ describe("writeFailure", () => {
       message: "룰명은 100자 이하여야 합니다",
     });
     expect(writeFailure("network down")).toEqual({ conflict: false, message: "network down" });
+  });
+});
+
+// 2026-10-05 — 서버가 MDM 업무 오류의 meta.code 를 MDMnnn 으로 낸다(예전에는 S001). 판정은 코드 1순위, 문구는 예비다.
+describe("MDM 업무 코드 판정 — 서버 meta.code 경로", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("meta.code=MDM001 이면 문구가 달라도 충돌로 본다", async () => {
+    stubOasis({ meta: { success: false, code: "MDM001", message: "바뀐 서버 문구" }, errors: [{ code: "MDM001", message: "바뀐 서버 문구" }] });
+    const e = await rejectionOf(callOasis("ruleMng", "unlock", {}));
+    expect((e as OasisCallError).code).toBe("MDM001");
+    expect(writeFailure(e)).toEqual({ conflict: true, message: CONFLICT_MESSAGE });
+  });
+
+  it("meta.code=MDM002·MDM003 이면 문구가 달라도 DRAFT 가 사라진 것으로 본다", async () => {
+    for (const code of ["MDM002", "MDM003"]) {
+      stubOasis({ meta: { success: false, code, message: "바뀐 서버 문구" } });
+      expect(isDraftGone(await rejectionOf(callOasis("ruleMng", "save", {})))).toBe(true);
+    }
+  });
+
+  it("옛 서버(meta.code=S001)도 문구 예비로 충돌·DRAFT 사라짐을 판정한다", async () => {
+    stubOasis({ meta: { success: false, code: "S001", message: "다른 사용자가 수정했습니다. 다시 불러오세요" } });
+    expect(writeFailure(await rejectionOf(callOasis("ruleMng", "unlock", {})))).toEqual({ conflict: true, message: CONFLICT_MESSAGE });
+    stubOasis({ meta: { success: false, code: "S001", message: "DRAFT 소유자만 할 수 있습니다" } });
+    expect(isDraftGone(await rejectionOf(callOasis("ruleMng", "save", {})))).toBe(true);
+  });
+
+  it("다른 MDM 코드는 문구가 충돌·DRAFT 문구와 겹쳐도 충돌도 DRAFT 사라짐도 아니다", async () => {
+    stubOasis({ meta: { success: false, code: "MDM021", message: "입력값이 올바르지 않습니다" } });
+    const e = await rejectionOf(callOasis("ruleMng", "save", {}));
+    expect(writeFailure(e).conflict).toBe(false);
+    expect(isDraftGone(e)).toBe(false);
+    stubOasis({ meta: { success: false, code: "MDM021", message: "다른 사용자가 수정했습니다 MDM001" } });
+    expect(writeFailure(await rejectionOf(callOasis("ruleMng", "save", {}))).conflict).toBe(false);
+    stubOasis({ meta: { success: false, code: "MDM021", message: "DRAFT 소유자만 할 수 있습니다" } });
+    expect(isDraftGone(await rejectionOf(callOasis("ruleMng", "save", {})))).toBe(false);
   });
 });
 

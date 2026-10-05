@@ -82,7 +82,7 @@ class CactusResponseConverterBusinessErrorsTest {
                 new BusinessException(ErrorCode.INVALID_VALUE, "검증 실패", DETAILS)), "tx");
 
         assertThat(new ObjectMapper().writeValueAsString(r)).isEqualTo(
-                "{\"meta\":{\"txId\":\"tx\",\"success\":false,\"code\":\"S001\",\"message\":\"검증 실패\"},"
+                "{\"meta\":{\"txId\":\"tx\",\"success\":false,\"code\":\"E002\",\"message\":\"검증 실패\"},"
                         + "\"errors\":["
                         + "{\"grid\":null,\"rowKey\":null,\"rowIndex\":null,\"field\":null,\"code\":\"MDM001\",\"message\":\"기본 문구\"},"
                         + "{\"grid\":\"master\",\"rowKey\":\"r1\",\"rowIndex\":null,\"field\":\"termName\",\"code\":\"MDM005\",\"message\":\"용어명이 비었습니다\"}]}");
@@ -94,7 +94,7 @@ class CactusResponseConverterBusinessErrorsTest {
                 new BusinessException(ErrorCode.INVALID_VALUE, "검증 실패", List.of())), "tx");
 
         assertThat(r.getErrors()).isNull();
-        assertThat(r.getMeta().code()).isEqualTo("S001");
+        assertThat(r.getMeta().code()).isEqualTo("E002");
     }
 
     @Test
@@ -166,6 +166,8 @@ class CactusResponseConverterBusinessErrorsTest {
 
         assertThat(r.getErrors()).containsExactlyElementsOf(DETAILS);
         assertThat(r.getErrors()).extracting(ErrorDetail::message).noneMatch(m -> m.contains("UNIQUE"));
+        // 커밋 실패(트랜잭션 예외가 바깥)는 안쪽 업무 예외가 있어도 시스템 오류다 — E 코드로 새지 않는다.
+        assertThat(r.getMeta().code()).isEqualTo("S001");
     }
 
     // ── 실제 BPMN 경로(OasisServiceExecutor → CoreServiceStarter → serviceTask) ─────────
@@ -176,7 +178,7 @@ class CactusResponseConverterBusinessErrorsTest {
         CactusResponse r = executor(biz).execute("charBusinessErrors", "save", request());
 
         assertThat(r.getMeta().success()).isFalse();
-        assertThat(r.getMeta().code()).isEqualTo("S001");
+        assertThat(r.getMeta().code()).isEqualTo("E002");
         assertThat(r.getMeta().message()).isEqualTo("검증 실패");
         assertThat(r.getErrors()).containsExactlyElementsOf(DETAILS);
         assertThat(biz.events).containsExactly("begin", "rollback");

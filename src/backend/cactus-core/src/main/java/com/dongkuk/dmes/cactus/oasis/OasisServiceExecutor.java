@@ -112,8 +112,10 @@ public class OasisServiceExecutor {
 
         } catch (BusinessException e) {
             log.warn("[{}] BusinessException: {}", txId, e.getMessage());
+            // BPMN 안쪽 경로(변환기)와 같은 판정 — ResponseCodeAware(MDMnnn) 가 운반용 코드에 가려지지 않는다.
+            String code = CactusResponseConverter.businessCode(e);
             return new CactusResponse.Builder(
-                    ResponseMeta.error(txId, e.getErrorCode().getCode(), e.getMessage()))
+                    ResponseMeta.error(txId, code != null ? code : ErrorCode.INTERNAL_ERROR.getCode(), e.getMessage()))
                     .errors(e.getErrors())
                     .build();
 

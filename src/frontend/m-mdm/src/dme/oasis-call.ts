@@ -15,13 +15,22 @@ export { OasisCallError };
 
 const OASIS: OasisCallOptions = { fieldLabel: mdmFieldLabel() };
 
+/** 서버가 MDM 업무 코드(MDMnnn)를 실어 보냈으면 그 코드, 아니면 null — 코드가 있으면 문구 판정을 하지 않는다. */
+function mdmCode(e: Error): string | null {
+  return isOasisCallError(e) && typeof e.code === "string" && e.code.startsWith("MDM") ? e.code : null;
+}
+
 /** MDM001(row_version 충돌)의 기본 문구 — BPMN 경로에서 meta.message 는 이 문구로 시작한다. */
 const ROW_VERSION_CONFLICT_MESSAGE = "다른 사용자가 수정했습니다";
 
-/** row_version 충돌(MDM001)인가. 코드가 오지 않는 경로도 있어 문구로도 본다. */
+/**
+ * row_version 충돌(MDM001)인가. 서버 meta.code(2026-10-05 부터 MDMnnn)가 있으면 그것만으로 정하고, 문구는 MDM 코드가 없을 때의
+ * 예비다 — 코드가 오지 않는 경로(HTTP 오류 본문)와 meta.code 가 S001 이던 옛 서버가 남아 있어도 안내가 사라지지 않게 한다.
+ */
 export function isRowVersionConflict(e: unknown): boolean {
   if (!(e instanceof Error)) return false;
-  if (isOasisCallError(e) && e.code === "MDM001") return true;
+  const code = mdmCode(e);
+  if (code !== null) return code === "MDM001";
   return e.message.includes("MDM001") || e.message.startsWith(ROW_VERSION_CONFLICT_MESSAGE);
 }
 
@@ -37,10 +46,11 @@ export function writeFailure(e: unknown): { conflict: boolean; message: string }
   return { conflict: false, message: e instanceof Error ? e.message : String(e) };
 }
 
-/** DRAFT 가 아니거나(MDM002) 내 DRAFT 가 아니다(MDM003) — 다른 곳에서 확정·넘기기·삭제됐다(D-144 2단계). 코드가 없는 경로는 문구로 본다. */
+/** DRAFT 가 아니거나(MDM002) 내 DRAFT 가 아니다(MDM003) — 다른 곳에서 확정·넘기기·삭제됐다(D-144 2단계). 코드 1순위, 문구는 예비(위와 같다). */
 export function isDraftGone(e: unknown): boolean {
   if (!(e instanceof Error)) return false;
-  if (isOasisCallError(e) && (e.code === "MDM002" || e.code === "MDM003")) return true;
+  const code = mdmCode(e);
+  if (code !== null) return code === "MDM002" || code === "MDM003";
   return e.message.startsWith("DRAFT 상태에서만") || e.message.startsWith("DRAFT 소유자만");
 }
 
