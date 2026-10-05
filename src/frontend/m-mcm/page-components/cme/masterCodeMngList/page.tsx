@@ -76,7 +76,7 @@ const MASTER_COLUMNS: GridColumn[] = [
  * GE-008~012 는 SQL nested scalar subquery + NVL fallback 결과 (CODE_VAL_REF{N}_MN) 표시.
  */
 const DETAIL_COLUMNS: GridColumn[] = [
-  { key: "CODE_VAL", header: "코드 값 *", width: 120, editable: false },
+  { key: "CODE_VAL", header: "코드 값 *", meta: "CD_V", width: 120, editable: false },
   { key: "CODE_VAL_MEAN", header: "코드 의미 *", width: 200, editable: false },
   { key: "CATEGORY_ID", header: "카테고리ID *", width: 100, editable: false },
   { key: "CATEGORY_NM", header: "카테고리명", width: 120, editable: false },

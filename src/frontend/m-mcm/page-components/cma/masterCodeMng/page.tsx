@@ -216,6 +216,7 @@ function buildDetailColumns(
     {
       key: "CODE_VAL",
       header: "코드 값 *",
+      meta: "CD_V",
       width: 100,
       editable: (r: Record<string, unknown>) => (r as GridRow).nativeeditor_status === "inserted",
     },

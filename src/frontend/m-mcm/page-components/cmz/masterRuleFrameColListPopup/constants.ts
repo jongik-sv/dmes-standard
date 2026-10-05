@@ -27,7 +27,7 @@ export const MAX_LEN = {
  */
 export const COL_LIST_COLUMNS: GridColumn[] = [
   { key: "no", header: "순번", meta: false, width: 60, editable: false, align: "center" },
-  { key: "colId", header: "영문항목명 *", width: 150, editable: true, align: "left" },
+  { key: "colId", header: "영문항목명 *", meta: "COLUMN_ID", width: 150, editable: true, align: "left" },
   { key: "colNm", header: "한글항목명 *", width: 150, editable: true, align: "left" },
   { key: "chk", header: "선택", meta: false, width: 70, editable: true, cellEditor: "select", cellEditorValues: ["Y", "N"], align: "center" },
   { key: "ioFlag", header: "IN/OUT *", width: 90, editable: true, cellEditor: "select", cellEditorValues: [...IN_OUT_VALUES] },
