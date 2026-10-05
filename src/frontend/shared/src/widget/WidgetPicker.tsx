@@ -78,7 +78,7 @@ export function WidgetPicker({ registry, items, onAdd, typeTitles }: WidgetPicke
                 </span>
               </span>
               {typeTitle && <span className="cm-widget-picker__type">{typeTitle}</span>}
-              {m.description && <p className="cm-widget-picker__desc">{m.description}</p>}
+              {m.description && <p className="cm-widget-picker__desc" title={m.description}>{m.description}</p>}
             </button>
           );
         })}
