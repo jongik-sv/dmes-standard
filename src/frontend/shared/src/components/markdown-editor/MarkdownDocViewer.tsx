@@ -3,12 +3,14 @@
 /**
  * 목차가 있는 마크다운 문서 보기 — 왼쪽 목차(##·###)와 오른쪽 본문. 목차를 누르면 그 절로 이동하고, 본문을 내리면 목차의 현재 절이 따라 바뀐다.
  * 본문은 MarkdownView(읽기 전용)로 절마다 그린다. 모달·서랍 안에 넣어 쓰도록 높이를 부모에서 받는다(height:100%).
- * 마크다운 표는 MarkdownView 가 그리지 않으므로 문서에 쓰지 않는다.
+ * 마크다운 표는 MarkdownView 가 그리지 않으므로 문서에 쓰지 않는다. ```mermaid 코드 블록은 도식(MermaidDiagram)으로 그린다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { splitMarkdownSections, tocOf } from "./doc-sections";
+import { splitMermaidBlocks } from "./mermaid-blocks";
 import { MarkdownView } from "./MarkdownView";
+import { MermaidDiagram } from "./MermaidDiagram";
 
 export interface MarkdownDocViewerProps {
   /** 문서 원문(마크다운). */
@@ -38,7 +40,10 @@ export function MarkdownDocViewer({
   ariaLabel = "문서",
 }: MarkdownDocViewerProps) {
   const sections = useMemo(
-    () => splitMarkdownSections(markdown).filter((s) => !(skipTitle && s.level === 1)),
+    () =>
+      splitMarkdownSections(markdown)
+        .filter((s) => !(skipTitle && s.level === 1))
+        .map((s) => ({ ...s, pieces: splitMermaidBlocks(s.markdown) })),
     [markdown, skipTitle]
   );
   const toc = useMemo(() => tocOf(sections), [sections]);
@@ -152,7 +157,17 @@ export function MarkdownDocViewer({
               sectionRefs.current[s.id] = el;
             }}
           >
-            <MarkdownView value={s.markdown} testId={`${testId}-${s.id}`} />
+            {s.pieces.length === 1 && s.pieces[0].kind === "md" ? (
+              <MarkdownView value={s.markdown} testId={`${testId}-${s.id}`} />
+            ) : (
+              s.pieces.map((p, i) =>
+                p.kind === "mermaid" ? (
+                  <MermaidDiagram key={i} code={p.code} testId={`${testId}-${s.id}-mermaid-${i}`} />
+                ) : (
+                  <MarkdownView key={i} value={p.text} testId={`${testId}-${s.id}-p${i}`} />
+                )
+              )
+            )}
           </section>
         ))}
       </div>
