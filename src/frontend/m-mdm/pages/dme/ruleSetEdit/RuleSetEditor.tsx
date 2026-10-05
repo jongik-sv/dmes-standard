@@ -370,7 +370,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   // 편집 모드를 나가거나 다른 세트를 열면 팝업을 닫는다 — 다시 편집 모드가 되어도 저절로 뜨지 않게.
   useEffect(() => {
     if (!editing) setPickEdge(undefined);
-  }, [editing, setId]);
+  }, [editing]);
+  useEffect(() => setPickEdge(undefined), [setId]);
 
   const editActions = useEditActions({
     state,
