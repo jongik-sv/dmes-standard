@@ -8,7 +8,7 @@
 ## 지금 상태·다음 단계
 - srv:3 dev 머지 끝(2b638315, 머지 뒤 :api 마이그레이션 시험 15클래스 88건 통과).
 - srv:5 구현·코퍼스 끝(b89509f3·80d0a74b, 아래 「srv:5」). ui:5t 가 이 브랜치를 합쳐 TS 초록을 알리면 머지 요청한다(짝 머지).
-- srv:6 묶음 A·B·C 끝(아래 「srv:6」). 다음: 묶음 D(실행 응답 매핑 — `RuleSetRunner`·`simulate` calledFlows). ui 에 코퍼스 111건(`MIN_CASES` 111)과 C 응답 모양(`search CALL_IO/CALLERS`·`view.calls`·`save.checks` WARN 네 코드·폐기 거부 문구)을 알린다.
+- srv:6 묶음 A·B·C·D 끝(아래 「srv:6」). ui 에 코퍼스 111건(`MIN_CASES` 111), C 응답 모양(`search CALL_IO/CALLERS`·`view.calls`·`save.checks` WARN 네 코드·폐기 거부 문구), D 응답 모양(`execute` 의 `calls`·`path.callIndex`·`caught.setPath`, 디버거 `calledFlows`)을 알린다. eng:4 뒤 남은 시험: SET 실행·SetShape 일치(묶음 D 절).
 - srv:5 리뷰(opus/high 1회) clean, 낮음 3건은 srv:6 으로 넘긴다:
   1. `RuleSetPathState.before` 3인자는 SET always 출력만 defined 로 센다. always=false 출력을 maybe 에 넣는 분석기와 갈린다. srv:6 이 `RuleSetOrderCheck` 에 연결할 때 partial 출력도 받게 넓히고 사례를 더한다(예: SET G(P always=false) → IF [R1 이 P 만듦][R2 가 P 읽음]).
   2. 코퍼스 보강: setId `""` SET 노드 + 받는 노드, PARALLEL 형제 SET 출력 읽기(PAR_SIBLING), SET 이 낀 CYCLE 문구, `RuleSetInterfaceTest` 구조 오류 흐름. 더하면 Java·TS `MIN_CASES` 를 함께 올리고 ui 에 알린다.
@@ -16,7 +16,7 @@
 - 메모: dev c12e99a4 의 m-mdm `tests/ui-meta-lock.test.ts` 1건 실패는 기존 실패이고 dev 14ec1124 에서 고쳐졌다. 머지 요청 전에 dev 를 합친다.
 - 메모: eng:1 이 `RuleSetRunner` 의 `new Violation(…FLOW_INVALID…)` 에 `List.of()` 인자를 더한다. srv:6 은 그 뒤 모양을 기준으로 고친다.
 
-## srv:6. 서비스·연쇄 재검사 (진행 중)
+## srv:6. 서비스·연쇄 재검사 (구현 끝 — eng:4 뒤 SET 실행 시험 남음)
 - 기준선: srv:5 기록의 `:lib:test` 2027건 통과(HEAD 10fb5284 는 그 뒤 문서 커밋뿐이라 다시 돌리지 않았다).
 - 조정 세션이 준 판단 ①~⑤(srv6-adapt 메모)를 따른다. 묶음 A → (B ∥ C) → D.
 
@@ -86,6 +86,30 @@
   - 본문 시험 본문은 옮기지 않았다: 저장 거부 단언(CALL_MISSING·CALL_CYCLE·CALLER_BROKEN)은 경고 단언으로, 부모 표의 `ROW_VERSION`·`CALL_SET_IDS` 는 VER 행(`setVerValue`)으로, 폐기 요청은 `RuleSetStatusRequest` 가 아니라 `RuleSetVersionRequest(target SET)` 로 바꿨다. 연쇄로 조부모까지·부모에 원래 있던 거부는 A 의 `SetCallerRecheckSqliteTest` 가 이미 보므로 서비스 시험에서는 빼고, 폐기 통과(부르는 세트 폐기)·되살리기 통과·CALL_MISSING 되살리기 거부·DRAFT 만 있는 세트 CALL_IO·DRAFT 행은 부르는 쪽이 아님을 더했다.
   - 본문 `simulate` calledFlows 는 D 몫으로 남겼다.
 - 절차: `RuleSetViewResult` 칸 추가 한 번을 지시와 달리 python heredoc 으로 고쳤다(그 밖은 Edit·Write). 결과는 diff 로 확인했다.
+
+### 묶음 D — 실행 응답 매핑(조정 ⑤) (끝)
+- 커밋:
+  - c442a805 `RuleSetRunner.execute` — 매핑을 `result(RuleSetResult)` 로 떼어 경로 맵 `callIndex`, 응답 `calls`(`{nodeId, setId, endedBy}`), `caught` 맵 끝 `setPath` 를 싣는다. 엔진 경고는 `engineWarnings` 가 세트 경고 → 룰 경고 → `calls` 순서로 하위 결과를 재귀해 모은다. 위반 문구는 `violationText(pathText(…), v, userText(v))` — `setPath` 가 있으면 `"세트 {최상위} › {label 또는 세트 ID}({노드 ID}) › "` 를 앞에 붙인다. `RuleErrorText.withSetPath`, `SET_CALL_CYCLE`·`SET_CALL_DEPTH` 문구. `RuleSetRunResult.calls`. 시험 `RuleSetRunnerMappingTest`(lib, 엔진 결과 객체를 손으로 만든 6건)·`RuleErrorTextTest` +2·`RuleSetRunnerSetPathSqliteTest`(api 2건)·`RuleSetRunnerTest` caught 키 목록에 `setPath`.
+  - 38d1e7cc 새 `RuleSetCalledFlows`(스프링 빈)·`RuleSetSimulateResult.calledFlows`·`RuleSetEditService.simulate` 연결. 시험 `RuleSetCalledFlowsSqliteTest` 3건(손으로 만든 기록 — 중첩 sub·중복·판정 시각에 적용 전인 세트·한 줄 세트, SET 없는 디버거 실행은 빈 맵).
+- 시험(src/backend/mdm, JDK 21, `--max-workers=2`):
+  - 묶음 시험: `../gradlew :lib:test --tests '*RuleSetRunnerMappingTest' --tests '*RuleErrorTextTest'` → 6·17건 통과. `../gradlew :api:test --tests '*RuleSetCalledFlowsSqliteTest' --tests '*RuleSetRunnerSetPathSqliteTest' --tests '*RuleSetRunnerTest' --tests '*RuleSetEditQueryCountTest' --tests '*RuleSetRunnerOasisTest'` → 3·2·22·3·4건 통과, 실패 0(`RuleSetEditQueryCountTest` execute 상한 그대로).
+  - 전체(마지막 묶음): `../gradlew :lib:test :api:test --continue` → lib 118클래스 2053건(2045 + 매핑 6 + 문구 2), api 185클래스 1791건 통과, 실패·오류·건너뜀 0(BUILD SUCCESSFUL, 결과 파일 모두 이번 실행 것).
+  - `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` → ERROR 0 / WARN 0(INFO 42 는 기존 baseline). BPMN·action·dto 이름은 바꾸지 않았다(응답 칸만 늘었다).
+- 결정:
+  - `calls` 는 이 세트의 SET 노드만 싣는다(손주는 `calls` 에 없고 엔진 하위 결과 안에 있다). `endedBy` 가 null 이어도 키를 둔다. 하위 세트의 `endedBy` 는 `calls[i].endedBy` 에만 있고 최상위 `endedBy` 와 섞지 않는다(spec §4.3). `caught` 의 `setPath` 는 엔진 값 사본, 이 세트에서 받았으면 빈 목록.
+  - 위반 문구 경로는 위반 시점에 결과가 없으므로 `execute` 가 판정 시각을 먼저 정하고(`ts(...)`, 전과 같은 값) 단계마다 그 시각에 적용된 세트 버전의 흐름(`RuleVersions.currentReleased` + `RuleSetVersionQueries.flow`)에서 노드를 찾는다. label 이 비면(공백 포함) 세트 ID. 흐름·노드를 못 찾거나 저장값을 읽지 못하면 그 단계부터 노드 ID 만 쓰고 던지지 않는다(문구 만들기가 원래 위반을 가리지 않게). 위반 하나에 단계마다 버전 목록 1문 — 실패 경로라 캐시하지 않았다.
+  - 폐기 룰 경고(`RULE_DEPRECATED`)는 지금처럼 최상위 세트의 룰만 본다(하위 세트 룰까지 넓힐지는 본문·스펙에 없다 — 넓히려면 조정 세션 결정). 엔진 경고만 하위까지 모은다.
+  - `SET_CALL_CYCLE`·`SET_CALL_DEPTH` 사용자 문구는 엔진 원문을 괄호 안에 그대로 둔다(원문 모양은 eng:4 가 정한다). 하위 세트 폐기·없음 코드(`SET_NOT_FOUND`·`SET_DEPRECATED`)는 기존 문구 그대로.
+  - `calledFlows` 는 버전 행을 직접 읽는다 — 엔진 정의(`RuleSetDefinition.flow`)는 화면 `view` 를 버리고 스펙 §8 은 "view 포함" 이라서 `Session.ruleSet` 노출 대신 `versionsOf`·`findAllById` 각 1문 + 모든 세트 룰의 `readAt` 한 번. `rules` 는 판정 시각에 적용된 룰 버전(`readAt`, 실행한 버전과 맞는 노드 제목) — `view` 의 `rules` 는 최신 RELEASED(`read`)라 다르다. 부른 세트가 없으면 읽지 않는다. 판정 시각에 RELEASED 가 없는 세트는 뺀다. FLOW_JSON 을 읽지 못한 버전은 `flow=null`·읽을 수 있는 `ruleIds`.
+  - `calledFlows` 는 단건 실행만 채운다. 케이스 일괄 실행(`runCases`)은 빈 맵이다.
+- 계획 조정(본문과 다르게 한 것):
+  - 본문 `pathText` 의 `sets.findById(cur).getFlowJson()`(부모 행) → 판정 시각 버전 행의 흐름. 본문 `calledFlows` 의 `setRepository.findById(id)` 의 `getFlowJson()`·`getRuleIds()` → 판정 시각 버전 행, `ioReader.read` → `readAt`. 서비스 안 private 도우미 대신 따로 빈 `RuleSetCalledFlows` 로 두어 손으로 만든 기록으로 시험한다(`RuleSetEditService` 생성자에 한 인자 — 직접 new 하는 곳 없음).
+  - 본문 `StoredDefinitionLookup` 세트 캐시는 D-144 2단계가 이미 (세트, 판정 시각) 캐시를 두어 고칠 것이 없다.
+  - 본문 시험 `RuleSetRunnerSubsetTest`·`SetCallIoEngineAgreementTest` 는 만들지 않았다(조정 ⑤). 대신 매핑 단위 시험(위 커밋).
+- **eng:4 뒤 남은 시험: SET 실행·SetShape 일치** — `RuleSetRunnerSubsetTest`(SET 이 든 세트를 엔진으로 실행해 `calls`·`path.callIndex`·하위 위반 문구 `"세트 RS_PARENT › 품질 판정(s1) › [QLTY_GRD_JDG] "` 확인), `SetCallIoEngineAgreementTest`(서버 `SetCallIo` 입출력 = 엔진 `SetShape`, 입력에서 `CATCH_*` 제외 — srv:5 결정), 디버거 `calledFlows` 를 실제 실행 기록으로 확인. 하위 세트 폐기·없음 위반 코드가 eng:4 에서 새로 생기면 `RuleErrorText` 케이스도 그때.
+- ui 에 알릴 응답 모양(ui:8·ui:9):
+  - `execute`(ruleSetRunner) 응답: `path[].callIndex`(SET 만 정수), `calls[{nodeId, setId, endedBy}]`, `caught[].setPath`(바깥부터 SET 노드 ID, 이 세트면 `[]`). 오류 문구 머리 `"세트 A › 단가 결정(s1) › "`.
+  - `ruleSetEdit` action `execute`(디버거) 응답: `calledFlows: {[setId]: {setId, setName, flow: object|null, ruleIds: string[], rules: RuleIo[]}}`(부른 세트가 없으면 `{}`).
 
 ## srv:5. 서버 분석기·코퍼스 (구현 끝 — ui:5t 짝 머지 대기)
 - 커밋: b89509f3(분석기 `SetCallIo`·`RuleSetInterface`·`RuleSetAnalyzer`·`RuleSetPathState`·`RuleSetCheck` 상수 넷, 시험 `RuleSetInterfaceTest`·`RuleSetPathStateTest` 3건), 80d0a74b(코퍼스 18건·`RuleSetCorpusTest` calls 읽기·단계 순서 단언, TS `MIN_CASES` 한 줄).
