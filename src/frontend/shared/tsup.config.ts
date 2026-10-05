@@ -30,6 +30,7 @@ export default defineConfig((options) => ({
     grid: "src/components/grid/index.ts",
     tree: "src/components/tree/index.ts",
     tabs: "src/components/tabs/index.ts",
+    "closable-tabs": "src/components/closable-tabs/index.ts",
     charts: "src/components/charts/index.ts",
     "matrix-table": "src/components/matrix-table/index.ts",
     lookup: "src/components/lookup/index.ts",
