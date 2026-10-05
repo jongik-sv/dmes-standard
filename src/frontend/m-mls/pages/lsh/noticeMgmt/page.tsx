@@ -94,20 +94,11 @@ import {
 } from "./types";
 
 /**
- * 화면 진입점 — 포털 탭 공급자 안쪽에 `captionPriority="mdm"` 만 바꿔 둔다(module 은 지정하지 않아 바깥 포털 공급자를 따른다).
- * 그러면 MDM 컬럼 사전에 있는 칸(목록 TITLE 열·상세 제목 라벨)은 MDM 이 있을 때 표준 캡션, 없거나 받지 못하면 적어 둔 "제목" 이 보인다.
- * 기존 화면을 표준 캡션으로 바꿀 때 header 를 지우지 않는 이유다(프런트 Local-Rules 의 "MDM 캡션·툴팁·값 검증" 절). 화면 안의 훅(useMdmValidation 등)도
- * 이 범위 안에서 돈다.
+ * 화면 진입점. MDM 표준 캡션(`captionPriority="mdm"`)은 제목에만 적용한다: 목록 TITLE 열(`MdmMetaProvider` 로 그리드를 감싼다)과 상세 제목 줄(`NoticeTitleRow` 를 감싼다).
+ * 그러면 MDM 컬럼 사전에 있는 TITLE 은 MDM 이 있을 때 표준 캡션, 없거나 받지 못하면 적어 둔 "제목" 이 보인다. 기존 화면을 표준 캡션으로 바꿀 때 header 를 지우지 않는 이유다
+ * (프런트 Local-Rules 의 "MDM 캡션·툴팁·값 검증" 절). 나머지 상세 라벨·검색 칸은 우선순위를 바꾸지 않아(explicit) 사전에 등록돼도 화면 글자가 그대로다.
  */
-export default function NoticeMgmtPage() {
-  return (
-    <MdmMetaProvider captionPriority="mdm">
-      <NoticeMgmtScreen />
-    </MdmMetaProvider>
-  );
-}
-
-function NoticeMgmtScreen() {
+export default function NoticeMgmtScreen() {
   const { showMessage } = useMessage();
   const [filters, setFilters] = useState<NoticeMgmtFilters>(emptyFilters);
   const [rows, setRows] = useState<NoticeRow[]>([]);
@@ -598,20 +589,22 @@ function NoticeMgmtScreen() {
               />
             }
           >
-            <AgDataGrid
-              rowKey="NOTICE_ID"
-              columns={NOTICE_COLUMNS}
-              // 목록은 읽기 전용이라 지금은 켜 둔 것만으로 검사할 칸이 없다 — 편집 열을 더하면 MDM 연결 칸이 바로 검사된다.
-              mdmValidate
-              data={gridRows}
-              columnSizing="fit"
-              sortable
-              highlightedRowKey={selectedId}
-              onRowClick={(row) =>
-                handleRowClick(row as Record<string, unknown>)
-              }
-              loading={listLoading}
-            />
+            <MdmMetaProvider captionPriority="mdm">
+              <AgDataGrid
+                rowKey="NOTICE_ID"
+                columns={NOTICE_COLUMNS}
+                // 목록은 읽기 전용이라 지금은 켜 둔 것만으로 검사할 칸이 없다 — 편집 열을 더하면 MDM 연결 칸이 바로 검사된다.
+                mdmValidate
+                data={gridRows}
+                columnSizing="fit"
+                sortable
+                highlightedRowKey={selectedId}
+                onRowClick={(row) =>
+                  handleRowClick(row as Record<string, unknown>)
+                }
+                loading={listLoading}
+              />
+            </MdmMetaProvider>
           </GridPanel>
         </ContentPanel>
 
@@ -653,13 +646,15 @@ function NoticeMgmtScreen() {
                     />
                   </td>
                 </tr>
-                <NoticeTitleRow
-                  key={editorKey}
-                  value={form?.TITLE ?? ""}
-                  disabled={formDisabled}
-                  error={fieldErrors.TITLE}
-                  onChange={(v) => setField("TITLE", v)}
-                />
+                <MdmMetaProvider captionPriority="mdm">
+                  <NoticeTitleRow
+                    key={editorKey}
+                    value={form?.TITLE ?? ""}
+                    disabled={formDisabled}
+                    error={fieldErrors.TITLE}
+                    onChange={(v) => setField("TITLE", v)}
+                  />
+                </MdmMetaProvider>
                 <tr>
                   <th style={DETAIL_LABEL_CELL}>
                     <MdmFieldLabel name="NOTICE_CATEGORY" label="분류" />
