@@ -6,6 +6,7 @@
  * - 상단 [조회] 는 위젯 목록 탭에서만 — 목록을 다시 받는다. 기본 배치 탭은 보드 안 [배치 편집]·[완료] 가 맡는다.
  * - 화면은 메뉴 RBAC(objId commWidgetMng)로 보호한다(W-D22). 서버 action 도 같은 권한으로 막는다.
  */
+import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
 
 import { Button } from "@dk-oasis/shared/form";
@@ -13,10 +14,12 @@ import { PageLayout, type PageButton } from "@dk-oasis/shared/layout";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { Tabs, type TabItem } from "@dk-oasis/shared/tabs";
 
-import { WidgetHelpModal } from "./help/WidgetHelpModal";
 import { LayoutTab } from "./LayoutTab";
 import { SCREEN_ID } from "./types";
 import { WidgetListTab } from "./WidgetListTab";
+
+/** 도움말 문서(약 86KB)는 열 때만 내려받는다 — 위젯 관리 첫 화면 번들에 싣지 않는다. */
+const WidgetHelpModal = dynamic(() => import("./help/WidgetHelpModal").then((m) => m.WidgetHelpModal), { ssr: false });
 
 type AdminTab = "list" | "layout";
 
@@ -88,7 +91,7 @@ export default function CommWidgetMngPage() {
         {/* 도움말은 업무 권한(PageButton action)과 무관한 안내라 페이지 버튼이 아니라 탭 줄 오른쪽에 둔다(권한 없는 사용자도 읽는다). */}
         <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
           <Tabs items={TAB_ITEMS} activeKey={tab} onChange={handleTabChange} style={{ flex: 1 }} />
-          <Button size="sm" onClick={() => setHelpOpen(true)} data-testid="widget-admin-help-btn">
+          <Button size="sm" onClick={() => setHelpOpen(true)} aria-haspopup="dialog" data-testid="widget-admin-help-btn">
             도움말
           </Button>
         </div>

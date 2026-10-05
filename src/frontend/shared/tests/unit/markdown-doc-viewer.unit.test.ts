@@ -79,12 +79,26 @@ describe("MarkdownDocViewer", () => {
     expect(text).toContain("다음 본문");
   });
 
+  it("skipTitle 이면 문서 제목(#) 절을 그리지 않는다", () => {
+    act(() => root.render(createElement(MarkdownDocViewer, { markdown: DOC, skipTitle: true })));
+    const text = host.querySelector("[data-testid='md-doc-viewer-body']")?.textContent ?? "";
+    expect(text).not.toContain("문서 제목");
+    expect(text).toContain("개요 본문");
+  });
+
+  it("본문은 키보드로 초점을 받고 영역 이름이 있다", () => {
+    act(() => root.render(createElement(MarkdownDocViewer, { markdown: DOC, ariaLabel: "가이드" })));
+    const body = host.querySelector("[data-testid='md-doc-viewer-body']") as HTMLElement;
+    expect(body.getAttribute("tabindex")).toBe("0");
+    expect(body.getAttribute("aria-label")).toBe("가이드");
+  });
+
   it("목차를 누르면 그 항목이 현재 절로 표시된다", () => {
     act(() => root.render(createElement(MarkdownDocViewer, { markdown: DOC })));
     const buttons = Array.from(host.querySelectorAll("[data-testid^='md-doc-viewer-toc-doc-sec-']")) as HTMLButtonElement[];
     (host.querySelector("[data-testid='md-doc-viewer-body']") as HTMLElement).scrollTo = () => {};
     act(() => buttons[2].click());
-    expect(buttons[2].getAttribute("aria-current")).toBe("true");
+    expect(buttons[2].getAttribute("aria-current")).toBe("location");
     expect(buttons[0].getAttribute("aria-current")).toBeNull();
   });
 });

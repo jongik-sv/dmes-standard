@@ -18,8 +18,9 @@ export interface WidgetHelpModalProps {
 export function WidgetHelpModal({ open, onClose }: WidgetHelpModalProps) {
   return (
     <Modal open={open} onClose={onClose} title="위젯 만드는 여러 가지 방법" size="xl">
-      <div style={{ height: "calc(100vh - 200px)", minHeight: 320 }} data-testid="widget-help-body">
-        <MarkdownDocViewer markdown={WIDGET_GUIDE_MARKDOWN} testId="widget-help-doc" />
+      {/* 모달 최대 높이(90dvh)에서 머리·본문 여백(약 125px)을 뺀 높이 — 뷰포트가 커도 모달 안에서 이중 스크롤이 생기지 않는다. */}
+      <div style={{ height: "calc(90dvh - 140px)", minHeight: 320 }} data-testid="widget-help-body">
+        <MarkdownDocViewer markdown={WIDGET_GUIDE_MARKDOWN} testId="widget-help-doc" skipTitle ariaLabel="위젯 만드는 방법" />
       </div>
     </Modal>
   );
