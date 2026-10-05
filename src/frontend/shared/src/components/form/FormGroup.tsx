@@ -17,6 +17,7 @@ import { resolveCaption } from "../../mdm-meta/caption";
 import { useMdmCaptionPriority, useMdmColumn, useMdmMetaActive } from "../../mdm-meta/context";
 import { LabelNameTip } from "./LabelNameTip";
 import { HoverTipPortal, useHoverTip } from "./useHoverTip";
+import { useTipArea } from "./useTipArea";
 
 export interface FormGroupProps {
   /**
@@ -92,7 +93,10 @@ export function FormGroup({
   const resolvedControlId =
     singleChild && typeof singleChild.props.id === "string" ? singleChild.props.id : controlId;
   // 툴팁은 라벨 박스 기준으로 document.body 포털(position:fixed)에 띄운다 — 위치 판정·포털·Mantine Tooltip 비채택 사유는 useHoverTip.tsx.
-  const { anchorRef: labelRef, tipPos, showTip, hideTip, box } = useHoverTip<HTMLLabelElement>(tipIsText, htmlTipOptions);
+  const { anchorRef: labelRef, tipPos, showTip, hideTip, closeTip, box } = useHoverTip<HTMLLabelElement>(tipIsText, htmlTipOptions);
+
+  // hover 는 글자가 아니라 라벨 박스(.form-group-label, labelWidth 고정폭) 전체에서 받는다 — 입력칸(.form-group-field)은 걸지 않는다.
+  useTipArea(labelRef, !!hoverTip, { showTip, hideTip, closeTip });
 
   const enhancedChildren = (() => {
     if (!singleChild) {
@@ -128,10 +132,9 @@ export function FormGroup({
         className={`form-group-label${hoverTip ? " has-tip" : ""}`}
         style={{ width: labelWidth, minWidth: labelWidth }}
       >
-        {/* 라벨 박스는 labelWidth 고정폭이라 텍스트 밖 여백까지 hover 로 잡힌다.
-            트리거를 텍스트 span 으로 좁혀 "라벨 위에 정확히 올렸을 때" 만 뜨게 한다. */}
+        {/* hover 트리거는 라벨 박스 전체다(useTipArea, 2026-10-05 — 사용자가 칸 전체를 명시 요청, 예전의 "글자로 좁힘" 폐기). 글자 span 은 스타일 표지다. */}
         {hoverTip ? (
-          <span className="form-tip-trigger" onMouseEnter={showTip} onMouseLeave={hideTip}>
+          <span className="form-tip-trigger">
             {required && <span className="form-required">*</span>}
             {label}
           </span>
