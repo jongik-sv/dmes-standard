@@ -225,7 +225,7 @@ export function WidgetDetailForm({
               onChange={set("refreshSec")}
             />
             <span style={{ fontSize: "var(--font-size-xs)", color: "var(--color-text-muted)" }}>
-              {REFRESH_MIN_SEC}초(10분) 이상. 비우면 자동 새로 고침이 없습니다.
+              {REFRESH_MIN_SEC}초(10분) 이상의 값을 입력합니다. 비워 두면 자동으로 새로 고치지 않고, [새로 고침] 단추를 눌렀을 때만 갱신됩니다.
             </span>
           </td>
         </tr>
