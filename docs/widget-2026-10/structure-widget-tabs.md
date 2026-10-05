@@ -128,3 +128,24 @@
 - 영향 범위: 개인 메모 위젯 틀(보기 모드). 서버 변경 없음.
 - 되돌리는 방법: d2ecbd23, 9bdfbd44 순으로 revert.
 - 남은 위험: 서버에 제목만 갱신하는 경로가 없어 다시 읽기와 저장 사이의 짧은 틈에 다른 곳에서 고친 내용은 여전히 덮일 수 있다(서버 titleOnly 갱신은 후속). 브라우저 확인은 하지 않았다.
+
+## 항목 8. [위젯 추가] 서랍 미리 배치
+- 커밋: 1d85d8d7(shared), 62bc5b71(홈 categoryTitles), 문서는 이 절을 넣은 커밋.
+- 바뀌기 전: 서랍 항목을 누르면 `addItem` 이 at 없이 맨 아래 왼쪽에 놓았고, 놓이기 전에는 자리를 알 수 없었다.
+- 바뀐 뒤: 서랍 항목에 마우스를 올리면(`WidgetPicker.onPreview`, widget-meta 가 넣은 계약) 보드의 첫 빈 자리에 그 위젯의 제목·크기(w × h)·스켈레톤이 점선 자리 표시로 미리 보이고, 클릭해야 같은 자리에 놓인다. 벗어나면 사라진다.
+- 바뀐 파일과 계약:
+  - `widget-layout.ts`: `firstFreeSpot(items, size, cols = 24)`(y 0 부터 행 우선·x 0 부터 훑고, 잠긴 위젯도 점유, 빈 자리가 없으면 `{ x: 0, y: 맨 아래 }`), `placedSizeOf(meta)`(defaultSize 를 min·max·24칸으로 자른 값, `addItem` 이 놓는 크기와 같다). `index.ts` 에 두 함수와 `WidgetBoardPreview` 타입을 내보냈다.
+  - `WidgetBoard.tsx`: 선택 `preview?: { meta, x, y, w, h } | null`. 있으면 격자에 static 항목 `__preview__`(`data-preview="true"`, 끌기·손잡이 없음, `aria-hidden`)를 맨 뒤에 그린다. 편집할 수 있을 때(`canEdit`)만 그리고, `applyLayout`·`commit`·`onChange` 는 `items` 만 보므로 미리 보기는 저장 대상에 섞이지 않는다. preview 가 없으면 DOM 이 그대로다.
+  - `styles.tsx`: `.cm-widget__preview*` 최소 추가(의미 토큰, 점선 테두리·옅은 배경, `pointer-events: none`). 스켈레톤 줄은 기존 `.cm-widget__skeleton` 재사용.
+  - `WidgetWorkspace.tsx`: `previewMeta` 상태 → `firstFreeSpot`·`placedSizeOf` 로 계산한 preview 를 보드에 넘긴다. `canAddWidget` 이 false 인 위젯은 미리 보이지 않는다. 클릭 추가(`addFromPicker`)는 같은 `firstFreeSpot` 결과를 `addItem` 의 at 으로 넘긴다. 서랍이 사라질 때(편집 종료·취소·저장 중·좁은 화면·잠긴 탭)와 탭 전환 때 effect 로, 클릭·끌기 시작(`onDragStartCapture`) 때 바로 비운다. 선택 prop `categoryTitles` 를 서랍에 그대로 넘긴다(기존 props 불변).
+  - `m-mcm/page-components/home/page.tsx`: `useWidgetCategories().titles` 를 `categoryTitles` 로 넘긴다. 비어 있으면(조회 전·실패) `undefined` 라 서랍이 분류 없이 보인다. 관리자 `LayoutTab` 은 건드리지 않았다.
+  - 문서: mantine-aggrid-ui `references/components/widget.md`(미리 배치 동작, `categoryTitles`, 보드 `preview`, 서랍 `onPreview`)와 재생성한 `llms-full.txt`.
+- 동작 보존 근거: 기존 `widget-*` 시험 20개 파일 389건 통과(고치지 않음). m-mcm `home`·`commWidgetMng` 13개 파일 173건 통과. shared `tsc --noEmit` 통과. `ui_docs.py check-examples` 통과.
+- 같은 자리 검증: `widget-first-free-spot.unit.test.ts` 가 7가지 배치 × 4가지 크기에서 `addItem(…, firstFreeSpot)` 결과가 미리 본 자리와 같고 기존 위젯이 밀리지 않음을 확인한다. `compactPreferring` 이 위로 끌어올려 자리가 달라지는 경우는 찾지 못했다(첫 빈 자리가 행 우선이라, 같은 열에서 더 위가 비어 있으면 그 자리가 먼저 뽑히기 때문). 작업 공간 시험은 미리 보기 요소와 실제 놓인 위젯의 `transform` 이 같음도 확인한다.
+- 영향 범위: 편집 모드의 서랍·보드(사용자 홈, 관리자 보드가 `WidgetWorkspace mode="admin"` 이면 같이 적용). 서버 변경 없음.
+- 되돌리는 방법: 62bc5b71, 1d85d8d7 순으로 revert.
+- 남은 위험:
+  - 썸네일은 하지 않았다(`WidgetMeta` 에 칸이 없다). 지금은 제목 + 크기 + 스켈레톤만 보인다.
+  - 보드가 위젯 아래로 길어지는 경우(꽉 찬 보드의 맨 아래 미리 보기) 미리 보기가 화면 밖에 있어 보이지 않을 수 있다. 클릭 뒤에는 기존처럼 추가된 위젯으로 스크롤한다.
+  - m-mcm 의 `tsc` 는 shared `dist` 타입이 오래돼 `categoryTitles` prop 을 모른다고 나온다(shared 를 다시 빌드하면 사라진다). 이 워크트리의 `tsc` 는 다른 이유(옛 dist·m-mdm 모듈)로도 이미 실패하는 상태다.
+  - 브라우저 확인은 하지 않았다(조정 세션 몫). 실제 마우스로 서랍 항목에서 보드로 빠르게 이동할 때의 깜빡임, 미리 보기 항목의 200ms 이동 애니메이션은 눈으로 확인되지 않았다.
