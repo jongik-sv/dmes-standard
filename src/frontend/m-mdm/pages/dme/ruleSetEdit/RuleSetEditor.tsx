@@ -26,6 +26,12 @@
  * 우클릭·[+] 메뉴(P4)는 제공자(`canvas/menus`)가 항목을 만들고 `ContextMenu` 가 그린다. 항목이 0개면 열지 않는다.
  * 분할 골격(`ContentBody`/`ContentPanel`)은 이 파일의 직접 자식으로 둔다(Part B §4-3 — 드래그 막대가 직접 자식에만 붙는다).
  * 디버그 모드 밖에서는 왼쪽 칸을 그리지 않는다 — 너비는 shared 가 key(`left`)로 기억하므로 디버그로 돌아오면 사용자가 끈 너비 그대로다.
+ * 하위 세트 "안으로 들어가기"(하위 세트 spec §11, 계획 Task 9): SET 노드 상세의 단추로 들어가면 같은 캔버스가 하위 흐름(`calledFlows`)을 읽기 전용으로 그리고
+ * 겹침은 그 하위 기록의 프레임 커서로 그린다. 캔버스 위 경로 표시 줄(`dbg-callpath`)의 앞 조각을 누르면 돌아가고 ‹ › 가 프레임 커서를 옮긴다.
+ * 프레임 안에서는 검사 표시·접기·중단점·우클릭 메뉴·값 고치기(오른쪽은 `FrameDetail`)가 꺼지고, 툴바·단축키의 단계 실행은 최상위 기록에만 쓴다(Ruling 21) —
+ * 최상위 커서가 움직이면 최상위로 돌아온다. 새 기록이 오거나 디버그 모드를 나가면 프레임을 비운다.
+ * 디버그 모드에서 흐름의 SET 노드가 부르는 세트가 다른 탭에서 확정하지 않은 변경(저장 안 함·DRAFT 를 엶)을 갖고 있으면 디버그 툴바 아래에 세트마다 한 줄 경고를 보인다
+ * (`dbg-subset-unconfirmed`, 하위 세트 spec §10.4, C-D18 — 실행은 하위 세트의 DRAFT 를 쓰지 않는다).
  */
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
@@ -40,13 +46,17 @@ import { FindWidget } from "./canvas/FindWidget";
 import { FlowCanvas, type AlignSource, type MoveShift, type PaletteItem } from "./canvas/FlowCanvas";
 import { FlowToolbar } from "./canvas/FlowToolbar";
 import { FlowToolbox, defaultTool, type CanvasTool } from "./canvas/FlowToolbox";
+import { SetPickModal } from "./canvas/SetPickModal";
 import { MENU_PROVIDERS } from "./canvas/menus";
 import { UNHANDLED, dispatchShortcut, isMacPlatform, isShown, isTypingTarget, shortcutOf, type ShortcutHandlers } from "./canvas/shortcuts";
+import { callPath, frameValueAt, type CallFrame } from "./debugger/call-stack";
 import { DebugInputs } from "./debugger/DebugInputs";
 import { DebugToolbar } from "./debugger/DebugToolbar";
+import { FrameDetail } from "./debugger/FrameDetail";
 import { varLabelsOf } from "./set-model";
 import { loadFlag, loadVarDisplay, saveFlag, saveVarDisplay, storeKeys } from "./debugger/local-store";
 import { RunCompare } from "./debugger/RunCompare";
+import { useCallStack } from "./debugger/useCallStack";
 import { useSimulation } from "./debugger/useSimulation";
 import { useTestCases } from "./debugger/useTestCases";
 import { ValuesTab } from "./debugger/ValuesTab";
@@ -55,6 +65,7 @@ import {
   addCatch, connect, flowJsonOf, setCatchSpot, reconnectEdge, setGroupPad, setGroupsColor, setLabelOffset, setNodesColor, setPositions, setRoute, shiftRoutes, nextId, updateEdge, updateNodeLabel, updateNote,
   type CatchSpot, type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
 } from "./flow-edit";
+import { flowSetIds } from "./flow-model";
 import { autoArrange, restyleNode, shiftSpace, type NodeLayoutSource, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
 import type { NodeColor, NodeSize } from "./node-style";
 import { openRule } from "./links";
@@ -73,7 +84,7 @@ import { guideBlockReason, useRuleSetEdit, type FlowMode } from "./state/useRule
 import { EditorActiveContext, RuleSetTabsContext } from "./tabs-context";
 import type { OpenRequest, TabStatus } from "./tabs-model";
 import { debugOverlay } from "./trace-view";
-import type { RuleIo, RuleSetCaseView, RuleSetView, VarDisplay } from "./types";
+import type { CalledFlow, RuleIo, RuleSetCaseView, RuleSetCheck, RuleSetView, VarDisplay } from "./types";
 
 /** 버튼 RBAC 판정 화면 ID(`canDoButton`). 화면 틀(`MdmPageLayout`)은 탭 틀이 그린다. */
 const SCREEN_ID = "ruleSetEdit";
@@ -92,6 +103,14 @@ const BOTTOM_HEIGHT = 280;
 const FIRST_TAB: Record<"debug" | "other", string> = { debug: "values", other: "checks" };
 const NO_CASES: RuleSetCaseView[] = [];
 const NO_ITEMS: MenuItem[] = [];
+/** 하위 프레임 캔버스에 넘기는 빈 값 — 참조가 렌더마다 바뀌지 않게 모듈 상수로 둔다(Local-Rules §16). */
+const NO_CHECKS: RuleSetCheck[] = [];
+const NO_SET: ReadonlySet<string> = new Set<string>();
+const NO_CALLED: Readonly<Record<string, CalledFlow>> = {};
+const noop = () => undefined;
+
+/** 디버거 경고(하위 세트 spec §10.4, C-D18) — 부르는 하위 세트가 다른 탭에서 확정하지 않은 변경을 갖고 있다. */
+export const subsetUnconfirmedText = (setId: string) => `하위 세트 ${setId}에 확정하지 않은 변경이 있다. 실행은 판정 시각의 RELEASED 로 한다.`;
 
 async function searchSetPicks(keyword: string): Promise<IdPickRow[]> {
   const res = await searchSets(keyword);
@@ -120,7 +139,8 @@ export interface RuleSetEditorProps {
 export function RuleSetEditor({ tabKey, request, onStatus, active = true }: RuleSetEditorProps) {
   const tabsApi = useContext(RuleSetTabsContext);
   const rbac = useUserButtonRbac();
-  const state = useRuleSetEdit({ onWritten: tabsApi.notifyWritten });
+  // written — 다른 탭이 쓴 세트를 이 흐름이 부르면 그 겉모양을 다시 받는다(하위 세트 spec §10.4, 훅이 판정한다)
+  const state = useRuleSetEdit({ onWritten: tabsApi.notifyWritten, written: tabsApi.written });
   const { open, edit, view, flow } = state;
 
   const requestSeq = request?.seq ?? null;
@@ -202,7 +222,14 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   // 다른 세트를 열면 선택·이동 요청·메뉴를 비운다.
   const setId = view?.set.setId ?? null;
   // 디버거 상태는 모드를 바꾸거나 탭이 언마운트돼도 남도록 여기서 부른다. 다른 세트를 열거나 흐름 구조가 바뀌면 훅이 실행 표시를 지운다.
-  const sim = useSimulation(flow, state.rules, state.flowVersion, setId);
+  const sim = useSimulation(flow, state.rules, state.flowVersion, setId, state.calls);
+  /** 들어간 하위 세트 프레임(하위 세트 spec §11) — 디버그 모드에서만 본다. 새 기록이 오면 훅이 비운다. */
+  const stack = useCallStack(sim.last);
+  const top: CallFrame | null = debugging ? stack.top : null;
+  /** 캔버스가 지금 그리는 흐름 — 프레임 안이면 하위 흐름. 선택 정리·노드 판정이 쓴다. */
+  const shownFlow = top ? top.flow : flow;
+  /** 찾기 위젯을 보이는가 — 찾기는 최상위 흐름(`useFind(flow)`)만 찾으므로 하위 프레임 안에서는 숨기고 열지 않는다(우클릭·F9 를 막은 것과 같은 규칙). 돌아오면 열린 채로 다시 보인다. */
+  const findShown = findOpen && !top;
   // 케이스 목록은 세트를 열거나 [다시 불러오기] 했을 때만 새 참조로 넘긴다(F25) — 자기 쓰기 뒤 다시 불러오기·케이스 쓰기는 목록을 바꾸지 않는다(P-D11).
   const viewEpoch = state.viewEpoch;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -223,14 +250,15 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
     setTool(defaultTool(modeRef.current));
   }, [setId]);
 
-  // 편집으로 없어진 노드·메모·그룹·선의 선택은 푼다(속성 패널이 없는 노드를 읽지 않게).
+  // 편집으로 없어진 노드·메모·그룹·선의 선택은 푼다(속성 패널이 없는 노드를 읽지 않게). 하위 프레임 안이면 하위 흐름으로 본다.
   useEffect(() => {
-    if (!flow) return;
-    if (selectedId && !flow.nodes.some((n) => n.id === selectedId) && !flow.view.notes.some((n) => n.id === selectedId) && !flow.view.groups.some((g) => g.id === selectedId)) {
+    const f = shownFlow;
+    if (!f) return;
+    if (selectedId && !f.nodes.some((n) => n.id === selectedId) && !f.view.notes.some((n) => n.id === selectedId) && !f.view.groups.some((g) => g.id === selectedId)) {
       setSelectedId(null);
     }
-    if (selectedEdgeId && !flow.edges.some((e) => e.id === selectedEdgeId)) setSelectedEdgeId(null);
-  }, [flow, selectedId, selectedEdgeId]);
+    if (selectedEdgeId && !f.edges.some((e) => e.id === selectedEdgeId)) setSelectedEdgeId(null);
+  }, [shownFlow, selectedId, selectedEdgeId]);
 
   // 모드가 바뀌면 — 디버그로 들고 날 때 [변수 흐름]을 켜고 되돌리며(P-D16), 아래 패널은 그 모드의 첫 탭으로 간다. 메뉴·즉석 편집은 닫는다.
   const varDisplayRef = useRef(varDisplay);
@@ -268,6 +296,36 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
     setSelectedEdgeId(null);
   }, []);
 
+  // ── 하위 세트 들어가기(하위 세트 spec §11) ──
+  const { enter: stackEnter, backTo: stackBackTo } = stack;
+  /** SET 노드로 들어간다 — 고른 노드는 부모 흐름의 것이라 푼다. */
+  const enterSet = useCallback(
+    (nodeId: string) => {
+      stackEnter(nodeId);
+      clearSelection();
+    },
+    [stackEnter, clearSelection],
+  );
+  /** 경로 표시 줄의 앞 조각 — 그 깊이로 돌아간다(0 은 최상위). 고른 노드는 하위 흐름의 것이라 푼다. */
+  const backToFrame = useCallback(
+    (depth: number) => {
+      stackBackTo(depth);
+      clearSelection();
+    },
+    [stackBackTo, clearSelection],
+  );
+  const inFrame = stack.frames.length > 0;
+  // 디버그 모드를 나가면 들어간 프레임을 비운다(디버그로 돌아와도 최상위에서 시작).
+  useEffect(() => {
+    if (!debugging) stackBackTo(0);
+  }, [debugging, stackBackTo]);
+  // 툴바·단축키의 단계 실행은 최상위 기록에만 쓴다(Ruling 21) — 최상위 커서가 움직이면 그 자리를 보이도록 최상위로 돌아온다.
+  const inFrameRef = useRef(inFrame);
+  inFrameRef.current = inFrame;
+  useEffect(() => {
+    if (inFrameRef.current) backToFrame(0);
+  }, [sim.cursor, backToFrame]);
+
   /** 섹션 펼침 기억(종류별, 화면 메모리 — 4단계 Task 8). 모드를 바꿔도 남게 page 에 둔다. */
   const sections = useSectionMemory();
   /** 룰 지정 섹션 열기 신호 — 올릴 때마다 오른쪽 패널이 「룰 지정」 섹션을 펴고 찾기 칸에 초점을 둔다. */
@@ -302,6 +360,19 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   }, []);
   const onCloseMenu = useCallback(() => setMenu(null), []);
 
+  /**
+   * 세트 검색 팝업(하위 세트 spec §9) — 열려 있으면 끼울 선(null = 고른 선, 없으면 END 앞 선), 닫혀 있으면 undefined.
+   * 고르면 `placeSet` 이 그 선에 SET 노드를 끼운다. 팝업은 body 로 포털되므로 고르지 않은 탭이면 그리지 않는다(SetPickModal).
+   */
+  const [pickEdge, setPickEdge] = useState<string | null | undefined>(undefined);
+  const openSetPick = useCallback((edgeId: string | null) => setPickEdge(edgeId), []);
+  const closeSetPick = useCallback(() => setPickEdge(undefined), []);
+  // 편집 모드를 나가거나 다른 세트를 열면 팝업을 닫는다 — 다시 편집 모드가 되어도 저절로 뜨지 않게.
+  useEffect(() => {
+    if (!editing) setPickEdge(undefined);
+  }, [editing]);
+  useEffect(() => setPickEdge(undefined), [setId]);
+
   const editActions = useEditActions({
     state,
     flow,
@@ -313,6 +384,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
     select,
     selectEdge,
     openRuleAssign,
+    openSetPick,
+    openSet: tabsApi.openSet,
     fit,
     setEditingCond,
     setEditingLabel,
@@ -540,8 +613,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
 
   // 단축키(P3) — 캔버스에 초점이 있을 때만. 손잡이 표는 모드별이다(손잡이가 없는 키는 브라우저·포털 동작 그대로).
   const mac = useMemo(() => isMacPlatform(), []);
-  /** 고른 것이 흐름 노드인가(메모·그룹 아님) — 복사·중단점 단축키와 디버그 툴바 [여기까지] 가 쓴다. */
-  const isFlowNode = !!flow && !!selectedId && flow.nodes.some((n) => n.id === selectedId);
+  /** 고른 것이 흐름 노드인가(메모·그룹 아님) — 복사·중단점 단축키와 디버그 툴바 [여기까지] 가 쓴다. 하위 프레임 안의 노드는 최상위 흐름 노드가 아니다(ID 가 겹칠 수 있다). */
+  const isFlowNode = !top && !!flow && !!selectedId && flow.nodes.some((n) => n.id === selectedId);
   const removeRoutePointRef = useRef<(() => boolean) | null>(null);
   /** 캔버스 감싸개 — 도움말을 Esc 로 닫으면 그 안의 캔버스(`flow-canvas`, tabIndex 0)로 초점을 돌린다(브라우저 확인 8번 단서). */
   const canvasHostRef = useRef<HTMLDivElement>(null);
@@ -602,7 +675,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
     if (!isShown(canvasHostRef.current)) return;
     const common: ShortcutHandlers = {
       escape: onEscape,
-      find: openFind,
+      // 하위 프레임 안에서는 키를 쓰지 않는다(찾기는 최상위 흐름만 찾는다 — findShown).
+      find: top ? undefined : openFind,
       fitView: fit,
       // 고른 것이 없으면 키를 쓰지 않는다(브라우저 기본 동작 그대로).
       fitSelection: () => (canvasFitSelectionRef.current?.() ? undefined : UNHANDLED),
@@ -688,7 +762,14 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   // 디버그 모드는 새 기록일 때만 커서 겹침을 그리고 낡은 기록이면 그리지 않는다(P-D9). 보기·편집 모드는 겹침이 없다.
   const last = sim.last;
   const fresh = !!last && !sim.stale;
-  const overlay = useMemo(() => (debugging && fresh && last ? debugOverlay(last.trace, last.flow, sim.cursor) : null), [debugging, fresh, last, sim.cursor]);
+  // 하위 프레임 안이면 그 하위 기록·하위 흐름·프레임 커서로 그린다(하위 세트 spec §11).
+  const overlay = useMemo(
+    () => (top ? debugOverlay(top.trace, top.flow, top.cursor) : debugging && fresh && last ? debugOverlay(last.trace, last.flow, sim.cursor) : null),
+    [top, debugging, fresh, last, sim.cursor],
+  );
+  const frameValue = useMemo(() => (top ? frameValueAt(top) : null), [top]);
+  const frameVarLabels = useMemo(() => (top ? varLabelsOf(top.rules) : null), [top]);
+  const framePath = useMemo(() => stack.frames.map((f) => f.nodeId), [stack.frames]);
 
   // 단계·커서를 옮기거나 새 기록을 받으면 그 노드로 캔버스를 옮긴다. 기록이 사라지면 이동 표시를 끈다.
   // 디버그 모드는 커서 노드(k = n 이면 마지막 노드)로, 이미 화면 안이면 옮기지 않고 깜빡이기만 한다(focusReveal).
@@ -702,6 +783,10 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   useEffect(() => {
     setFocus((f) => (focusNodeId ? { id: focusNodeId, seq: f.seq + 1 } : f.id === null ? f : { id: null, seq: f.seq }));
   }, [focusNodeId, focusRecord]);
+
+  /** 이 흐름의 SET 노드가 부르는 세트 가운데 다른 탭에서 확정하지 않은 것(흐름 순서). 흐름 해석은 흐름이 바뀔 때만 한다(Local-Rules §16). */
+  const calledSetIds = useMemo(() => (flow ? flowSetIds(flow) : []), [flow]);
+  const unconfirmedSubsets = debugging ? calledSetIds.filter((id) => id !== setId && tabsApi.unconfirmedSetIds.has(id)) : [];
 
   const usedRuleIds = useMemo(() => new Set((flow?.nodes ?? []).map((n) => n.ruleId).filter((x): x is string => !!x)), [flow]);
 
@@ -717,8 +802,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   };
   const bottomTabs: BottomTab[] = debugging
     ? [
-        { key: "values", label: "값 표", testId: "flow-tab-values", content: <ValuesTab sim={sim} />, scroll: true },
-        { key: "compare", label: "실행 비교", testId: "flow-tab-compare", content: <RunCompare sim={sim} />, scroll: true },
+        { key: "values", label: "값 표", testId: "flow-tab-values", content: <ValuesTab sim={sim} frame={top} />, scroll: true },
+        { key: "compare", label: "실행 비교", testId: "flow-tab-compare", content: <RunCompare sim={sim} framePath={top ? framePath : undefined} />, scroll: true },
         checksTab,
       ]
     : [
@@ -795,11 +880,22 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
             showMiniMap={showMiniMap}
             onToggleMiniMap={onToggleMiniMap}
             onOpenFind={openFind}
-            findOpen={findOpen}
+            findOpen={findShown}
+            findDisabled={!!top}
             onHelpEscape={focusCanvas}
             autoSave={autoSave}
+            onOpenSet={tabsApi.openSet}
           />
           {debugging && <DebugToolbar sim={sim} canRun={canRun} selectedId={isFlowNode ? selectedId : null} />}
+          {unconfirmedSubsets.length > 0 && (
+            <div className="rsf-dbg-subset-warn" data-testid="dbg-subset-unconfirmed" role="status">
+              {unconfirmedSubsets.map((id) => (
+                <p key={id} data-testid={`dbg-subset-unconfirmed-${id}`}>
+                  {subsetUnconfirmedText(id)}
+                </p>
+              ))}
+            </div>
+          )}
           <ContentBody root direction="column" resizable storageKey={STORAGE_KEY}>
             <ContentBody key="main" resizable storageKey={`${STORAGE_KEY}.main`} flex="1 1 0" minSize={200}>
               {debugging && (
@@ -808,27 +904,63 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                 </ContentPanel>
               )}
               <ContentPanel key="canvas" flex="1 1 0" minSize={320}>
-                <div className="rsf-body">
-                  <div ref={canvasHostRef} className="rsf-canvas-host" data-find-open={findOpen ? "" : undefined} onKeyDown={onCanvasKeyDown}>
+                <div className="rsf-body" data-frame={top ? "" : undefined}>
+                  {top && (
+                    <div className="rsf-callpath" data-testid="dbg-callpath" role="navigation" aria-label="하위 세트 경로">
+                      <span className="rsf-callpath-crumbs">
+                        {callPath(setId ?? "", stack.frames).map((t, i, all) => (
+                          <span key={i}>
+                            {i > 0 && <span className="rsf-callpath-sep" aria-hidden>{" › "}</span>}
+                            {i < all.length - 1 ? (
+                              <button type="button" className="rsf-callpath-link" data-testid={`dbg-callpath-${i}`} onClick={() => backToFrame(i)}>
+                                {t}
+                              </button>
+                            ) : (
+                              <strong data-testid={`dbg-callpath-${i}`} aria-current="location">
+                                {t}
+                              </strong>
+                            )}
+                          </span>
+                        ))}
+                      </span>
+                      <span className="rsf-callpath-step">
+                        <button type="button" data-testid="dbg-frame-prev" aria-label="하위 기록 이전 단계" title="하위 기록 이전 단계" disabled={top.cursor <= 0} onClick={() => stack.step(-1)}>
+                          ‹
+                        </button>
+                        <span data-testid="dbg-frame-status">{`${top.cursor}/${top.trace.nodes.length}`}</span>
+                        <button
+                          type="button"
+                          data-testid="dbg-frame-next"
+                          aria-label="하위 기록 다음 단계"
+                          title="하위 기록 다음 단계"
+                          disabled={top.cursor >= top.trace.nodes.length}
+                          onClick={() => stack.step(1)}
+                        >
+                          ›
+                        </button>
+                      </span>
+                    </div>
+                  )}
+                  <div ref={canvasHostRef} className="rsf-canvas-host" data-find-open={findShown ? "" : undefined} onKeyDown={onCanvasKeyDown}>
                     <FlowCanvas
-                      flow={flow}
-                      rules={state.rules}
-                      checks={state.checks}
+                      flow={top ? top.flow : flow}
+                      rules={top ? top.rules : state.rules}
+                      checks={top ? NO_CHECKS : state.checks}
                       mode={mode}
                       varDisplay={varDisplay}
-                      varLabels={varLabels}
+                      varLabels={frameVarLabels ?? varLabels}
                       selectedId={selectedId}
                       selectedEdgeId={selectedEdgeId}
                       overlay={overlay}
-                      focusId={focus.id}
+                      focusId={top ? null : focus.id}
                       focusSeq={focus.seq}
                       focusReveal={debugging}
                       fitSignal={fitSignal}
-                      fitKey={setId}
-                      breakpoints={sim.breakpoints}
-                      collapsed={collapse.collapsed}
+                      fitKey={top ? `${setId ?? ""}>${framePath.join(">")}` : setId}
+                      breakpoints={top ? NO_SET : sim.breakpoints}
+                      collapsed={top ? NO_SET : collapse.collapsed}
                       showMiniMap={showMiniMap}
-                      valueAt={debugging && !sim.stale ? sim.valueAt : undefined}
+                      valueAt={frameValue ?? (debugging && !sim.stale ? sim.valueAt : undefined)}
                       editingCondEdgeId={editingCond}
                       editingLabelEdgeId={editingLabel}
                       onEditLabel={onEditLabel}
@@ -836,6 +968,9 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                       onSelect={select}
                       onSelectEdge={selectEdge}
                       onOpenRule={openRule}
+                      calls={top ? undefined : state.calls}
+                      callsFailed={top ? undefined : state.callsFailed}
+                      onOpenSet={tabsApi.openSet}
                       onMove={onMove}
                       onRouteChange={onRouteChange}
                       onLabelOffsetChange={onLabelOffsetChange}
@@ -857,10 +992,10 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                       onAssignDrop={onAssignDrop}
                       onRenameTask={onRenameTask}
                       onNoteChange={onNoteChange}
-                      onContextMenu={onContextMenu}
+                      onContextMenu={top ? noop : onContextMenu}
                       onEditCond={onEditCond}
                       onEditCondClose={onEditCondClose}
-                      onToggleBreakpoint={sim.toggleBreakpoint}
+                      onToggleBreakpoint={top ? noop : sim.toggleBreakpoint}
                       onSelectionChange={setMultiSel}
                       dragTool={tool === "hand" ? "hand" : "select"}
                       spaceTool={spaceOn}
@@ -868,14 +1003,16 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                       onShiftSpace={onShiftSpace}
                     />
                     <FlowToolbox mode={mode} tool={tool} onTool={onTool} onPick={onPickElement} disabled={state.loading} />
-                    {findOpen && <FindWidget find={find} inputRef={findInputRef} focusSeq={findFocusSeq} onClose={closeFind} mac={mac} />}
+                    {findShown && <FindWidget find={find} inputRef={findInputRef} focusSeq={findFocusSeq} onClose={closeFind} mac={mac} />}
                     <ContextMenu items={menuItems} at={menu?.at ?? null} onClose={onCloseMenu} />
                   </div>
                 </div>
               </ContentPanel>
               <ContentPanel key="right" width={360} minSize={280}>
                 <div className="rsf-props" data-testid="flow-props">
-                  {debugging ? (
+                  {top ? (
+                    <FrameDetail frame={top} selectedId={selectedId} calledFlows={last?.calledFlows ?? NO_CALLED} onOpenRule={openRule} onEnter={enterSet} />
+                  ) : debugging ? (
                     <VariablePanel
                       sim={sim}
                       setId={setId}
@@ -884,6 +1021,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                       selectedId={selectedId}
                       canParse={canDo("validate")}
                       onOpenRule={openRule}
+                      onEnterSet={enterSet}
+                      calls={state.calls}
                     />
                   ) : (
                     <SidePanel
@@ -905,6 +1044,9 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                       onError={state.reportError}
                       onEdit={edit}
                       onOpenRule={openRule}
+                      calls={state.calls}
+                      callsFailed={state.callsFailed}
+                      onOpenSet={tabsApi.openSet}
                       sections={sections}
                       ruleSearch={ruleSearch}
                       assignSignal={assignSignal}
@@ -930,6 +1072,17 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
         </>
       )}
 
+      <SetPickModal
+        open={pickEdge !== undefined && editing}
+        currentSetId={setId}
+        onPick={(id) => {
+          const e = pickEdge ?? null;
+          closeSetPick();
+          editActions.placeSet(e, id);
+        }}
+        onClose={closeSetPick}
+        onError={state.reportError}
+      />
       {/* 오류 창은 body 로 포털되어 패널 display:none 을 따르지 않는다 — 숨은 탭의 오류(자동 저장·조건식 확인 실패 등)는 상태로 두었다가 탭을 고르면 보인다. */}
       {active && state.error && <ErrorModal message={state.error} onClose={state.clearError} />}
     </EditorActiveContext.Provider>

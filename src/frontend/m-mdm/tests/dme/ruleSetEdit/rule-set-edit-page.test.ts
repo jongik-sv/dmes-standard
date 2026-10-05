@@ -877,6 +877,32 @@ describe("useRuleSetEdit", () => {
     expect(state!.dirty).toBe(false);
   });
 
+  it("룰 세트(SET) 노드가 있는 흐름에는 applyGuide 가 흐름을 바꾸지 않는다(하위 세트 호출을 말없이 지우지 않는다)", async () => {
+    const setFlow: RuleSetFlow = {
+      version: 1,
+      nodes: [
+        { id: "start", kind: "START", ruleId: null, splitId: null, label: null },
+        { id: "s1", kind: "SET", ruleId: null, splitId: null, label: null, setId: "E2S_SUB" },
+        { id: "r1", kind: "RULE", ruleId: "E2S_GRD", splitId: null, label: null },
+        { id: "end", kind: "END", ruleId: null, splitId: null, label: null },
+      ],
+      edges: [
+        { id: "e1", from: "start", to: "s1", order: null, cond: null, otherwise: false, label: null },
+        { id: "e2", from: "s1", to: "r1", order: null, cond: null, otherwise: false, label: null },
+        { id: "e3", from: "r1", to: "end", order: null, cond: null, otherwise: false, label: null },
+      ],
+    };
+    srv.views.E2S_CHAIN = chainView({ set: { ...chainView().set, flow: setFlow } });
+    await mountProbe("E2S_CHAIN");
+    const before = state!.flow;
+    expect(before!.nodes.find((n) => n.kind === "SET")?.setId).toBe("E2S_SUB");
+    await act(async () => {
+      state!.applyGuide(["E2S_GRD"], [GRD]);
+    });
+    expect(state!.flow).toBe(before);
+    expect(state!.dirty).toBe(false);
+  });
+
   it("flowVersion 은 nodes·edges 가 바뀔 때만 오르고, 위치만 바꾸면 그대로다(dirty 는 된다)", async () => {
     srv.views.E2S_CHAIN = chainView();
     await mountProbe("E2S_CHAIN");

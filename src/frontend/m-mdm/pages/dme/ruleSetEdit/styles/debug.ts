@@ -88,6 +88,19 @@ const DEBUG_MODE_CSS = `
 .rsf-run-compare .ag-row.rsf-cmp-diff { background-color: var(--color-warning-soft); }
 .rsf-cmp-path { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .rsf-cmp-path code { overflow-wrap: anywhere; }
+
+/* 하위 세트(하위 세트 spec §10.4·§11) — 확정 안 한 하위 세트 경고 줄, 들어간 프레임의 경로 표시 줄(캔버스 위, 본문을 세로로 쌓는다) */
+.rsf-dbg-subset-warn { display: flex; flex-direction: column; gap: 2px; padding: var(--spacing-xs) var(--spacing-md); border-bottom: 1px solid var(--color-border-light); background: var(--color-warning-soft); }
+.rsf-dbg-subset-warn p { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.rsf-body[data-frame] { flex-direction: column; }
+.rsf-body[data-frame] .rsf-bp { display: none; } /* 하위 프레임은 중단점을 쓰지 않는다(Ruling 21) */
+.rsf-callpath { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-xs); padding: var(--spacing-xs) var(--spacing-md); border-bottom: 1px solid var(--color-border-light); background: var(--color-bg); font-size: var(--font-size-sm); min-width: 0; }
+.rsf-callpath-crumbs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.rsf-callpath-sep { color: var(--color-text-muted); }
+.rsf-callpath-link { padding: 0; border: 0; background: none; color: var(--color-primary); font: inherit; cursor: pointer; text-decoration: underline; }
+.rsf-callpath-step { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; }
+.rsf-callpath-step button { min-width: 24px; padding: 0 4px; border: 1px solid var(--color-border-light); border-radius: var(--radius-sm); background: var(--color-bg); color: inherit; font: inherit; cursor: pointer; }
+.rsf-callpath-step button:disabled { color: var(--color-text-muted); cursor: default; }
 `;
 
 export const DEBUG_CSS = DEBUG_MODE_CSS;

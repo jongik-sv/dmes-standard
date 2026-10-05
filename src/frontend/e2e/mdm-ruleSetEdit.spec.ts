@@ -15,7 +15,9 @@ import { gridRowById, gridRows } from "./support/grid";
  * E10 속성 패널의 룰 편집 열기, E11 디버그 모드(단계 실행·중단점·계속·끝까지·값 표), E12 룰 박스 링크 아이콘과 박스 누르기,
  * E13 편집기(룰 목록에서 선으로 끌어 넣기·되돌리기·다시 하기·[+] 메뉴로 IF 넣기·분기 종류 바꾸기·Ctrl+Z),
  * E14 테스트 케이스(현재 입력 저장 → 모두 실행 1/1 통과 → 삭제), E15 찾기·블록 접기(접힌 블록 안 노드를 찾으면 펼쳐진다), E16 받는 노드(룰 우클릭 「예외 받기 추가」 → 저장 → 디버그에서 결과 없음 처리 갈래로 끝냄),
- * E17 옛 형식 열기(E2S_FLOW 를 열면 합류 없이 그려지고 알림, dirty 아님, 저장 뒤 다시 열면 알림 없음), E18 끝내는 갈래(갈래 마지막 선을 끝으로 옮겨 저장 → 디버그에서 그 갈래로 끝냄).
+ * E17 옛 형식 열기(E2S_FLOW 를 열면 합류 없이 그려지고 알림, dirty 아님, 저장 뒤 다시 열면 알림 없음), E18 끝내는 갈래(갈래 마지막 선을 끝으로 옮겨 저장 → 디버그에서 그 갈래로 끝냄),
+ * E19 하위 세트(도구 상자 [룰 세트] → 검색 팝업으로 SET 노드 넣기·겉모양으로 검사 바뀜·저장 → 링크로 하위 세트 탭 → 하위 세트를 고쳐 저장하면 부모 탭이 겉모양을
+ * 다시 묻고 확정된 부모(E2S_SUBP)의 경고가 메시지 링크로 와 그 탭을 연다).
  *
  * 전제(design.md 「E2E 서버 절차」): 새 mcm.db·mdm.db 로 mcm·mdm 백엔드와 포털을 빈 포트에 직접 띄우고,
  * mcm 기동 뒤 e2e/fixtures/mdm-rbac-users.sql, beforeAll 이 e2e/fixtures/mdm-ruleSet-data.sql 을 넣는다.
@@ -660,5 +662,92 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("dbg-status")).toHaveText("완료 · 5단계 · 결과 변수 2개 · IF 등급 확인의 「등급 A」 갈래에서 끝냈다", { timeout: T.LONG });
     await expect(page.getByTestId("flow-node-r2")).toHaveAttribute("data-state", "run");
     await expect(page.getByTestId("flow-node-r3")).toHaveAttribute("data-state", "dim");
+  });
+
+  /**
+   * 하위 세트(spec §9·§10.3·§10.4·§12). 겉모양은 기준 시각의 RELEASED 로 계산하고 부르는 세트는 부모 RELEASED 행만 센다(Ruling 24·25) — 그래서
+   * 하위 세트 DRAFT 저장만으로는 부모 탭 겉모양·검사가 바뀌지 않는다. 시나리오는 확정된 고정 데이터를 쓴다: E2S_SUBB 의 RELEASED 겉모양(출력 S_GRD)이
+   * E2S_SUBA 검사를 바꾸는 것을 SET 노드를 넣을 때 보고, E2S_SUBB 를 고쳐 저장하면 부모 탭이 겉모양을 다시 묻고(쓰기 알림), E2S_SUBB 를 부르는
+   * 확정된 E2S_SUBP 에 새 경고가 생겨 저장 메시지의 부르는 세트 링크로 그 탭을 연다.
+   * 탭이 둘 이상이면 같은 testid 가 여러 패널에 있다 — Playwright 로케이터는 엄격 모드라 탭 패널(`set-tab-panel-{key}`)로 좁힌다. 팝업은 body 포털이라 page 에서 찾는다.
+   */
+  test("E19 하위 세트: SET 노드를 넣으면 겉모양으로 검사가 바뀌고, 링크로 연 하위 세트를 고쳐 저장하면 부모 탭이 겉모양을 다시 묻고 확정된 부모 경고 링크가 그 탭을 연다", async ({ page }) => {
+    await login(page, STEWARD, LOGIN_OPTS);
+    await openRuleSetEdit(page);
+    await pickSet(page, "E2S_SUBA");
+    await expect(page.getByTestId("set-ver-select")).toHaveValue("2.000", { timeout: T.UI });
+    await expect(page.getByTestId("flow-tab-checks")).toHaveText("검사 결과 0", { timeout: T.UI });
+    await enterEditMode(page);
+
+    // 도구 상자 [룰 세트] → 검색 팝업 — 사용 중인 세트만, 지금 세트(E2S_SUBA)는 뺀다. 고른 선이 없으면 END 앞 선에 끼운다.
+    await page.getByTestId("flow-add-set").click();
+    const modal = page.getByTestId("set-pick-modal");
+    await expect(modal).toBeVisible();
+    await page.getByTestId("set-pick-modal-pick-keyword").fill("E2S_SUB");
+    await modal.getByRole("button", { name: "찾기" }).click();
+    await expect(page.getByTestId("set-pick-modal-pick-E2S_SUBB")).toBeVisible({ timeout: T.UI });
+    await expect(page.getByTestId("set-pick-modal-pick-E2S_SUBA")).toHaveCount(0);
+    await page.getByTestId("set-pick-modal-pick-E2S_SUBB").click();
+    await expect(modal).toHaveCount(0);
+
+    // 새 SET 노드 s1 — 서버 겉모양(E2S_SUBB RELEASED: 입력 2 · 출력 S_GRD)으로 그리고, 오른쪽은 「하위 세트」 속성 패널이다.
+    await expect(page.getByTestId("flow-set-title-s1")).toHaveText("E2E 하위 세트", { timeout: T.UI });
+    await expect(page.getByTestId("flow-set-io-s1")).toContainText("출력 1");
+    await expect(page.getByTestId("flow-panel-kind")).toHaveText("하위 세트");
+    await expect(page.getByTestId("flow-prop-set-output-S_GRD")).toContainText("항상");
+    // E2S_GRD 와 하위 세트가 같은 S_GRD 에 대입한다 — 겉모양을 받아 검사가 바뀐다(경고라 저장은 된다).
+    await expect(page.getByTestId("flow-tab-checks")).toHaveText("검사 결과 1", { timeout: T.UI });
+    await expect(page.getByTestId("set-checks")).toContainText("E2S_GRD와 세트 E2S_SUBB가 같은 결과 변수 S_GRD에 대입한다");
+    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: T.UI });
+    await page.getByTestId("set-save").click();
+    await expect(page.getByTestId("set-message")).toContainText("저장 · row_version 1", { timeout: T.LONG });
+
+    // SET 노드 링크 아이콘 → 같은 화면의 새 탭(E2S_SUBB).
+    await page.getByTestId("flow-set-open-s1").click();
+    const tabs = page.getByTestId("set-tabs").getByRole("tab");
+    await expect(tabs).toHaveCount(2);
+    await expect(tabs.nth(1)).toHaveAttribute("aria-selected", "true");
+    const keyB = (await tabs.nth(1).getAttribute("data-testid"))!.replace("set-tab-", "");
+    const panelA = page.getByTestId("set-tab-panel-t1");
+    const panelB = page.getByTestId(`set-tab-panel-${keyB}`);
+    await expect(panelB.getByTestId("set-card-id")).toHaveText("E2S_SUBB", { timeout: T.LONG });
+    await expect(panelB.getByTestId("set-ver-select")).toHaveValue("2.000", { timeout: T.UI });
+    await expect(panelB.getByTestId("flow-node-r1")).toContainText("E2S_GRD");
+
+    // E2S_SUBB 끝에 E2S_TAG 를 더해 저장 — 겉모양 출력에 S_TAG 가 생겨 확정된 부모 E2S_SUBP(SET 노드 뒤 E2S_TAG)에 중복 대입 경고가 새로 생긴다.
+    await panelB.getByTestId("flow-mode-edit").click();
+    await panelB.getByTestId("flow-add-rule").click();
+    await expect(panelB.getByTestId("flow-panel-kind")).toHaveText("빈 단계");
+    await panelB.getByTestId("flow-rule-panel-search").fill("E2S_TAG");
+    await panelB.getByTestId("flow-rule-panel-find").click();
+    await panelB.getByTestId("flow-rule-assign-E2S_TAG").click();
+    await expect(panelB.getByTestId("flow-panel-kind")).toHaveText("룰");
+    await expect(panelB.getByTestId("set-save")).toBeEnabled({ timeout: T.UI });
+    // 저장 알림(notifyWritten)을 받은 부모 탭이 E2S_SUBB 겉모양을 다시 묻는다.
+    const reask = page.waitForRequest((r) => {
+      if (!r.url().includes("/api/mdm/oasis/ruleSetEdit/search")) return false;
+      const params = (r.postDataJSON() as { params?: Record<string, string> } | null)?.params;
+      return params?.target === "CALL_IO" && (params.setIdsJson ?? "").includes("E2S_SUBB");
+    });
+    await panelB.getByTestId("set-save").click();
+    const message = panelB.getByTestId("set-message");
+    await expect(message).toContainText("저장 · row_version 1", { timeout: T.LONG });
+    await expect(message).toContainText("부르는 세트에 경고가 생겼다: E2S_SUBP");
+    await reask;
+    // 부모 탭의 겉모양은 RELEASED 기준이라 그대로다(Ruling 24) — 검사도 그대로 하나.
+    await expect(panelA.getByTestId("flow-tab-checks")).toHaveText("검사 결과 1");
+
+    // 메시지 아래 부르는 세트 링크 → 세 번째 탭(E2S_SUBP). 그 흐름의 SET 노드 속성 패널에 부르는 세트로 자기 자신이 보인다.
+    await panelB.getByTestId("set-message-caller-E2S_SUBP").click();
+    await expect(tabs).toHaveCount(3);
+    await expect(tabs.nth(2)).toHaveAttribute("aria-selected", "true");
+    const keyP = (await tabs.nth(2).getAttribute("data-testid"))!.replace("set-tab-", "");
+    const panelP = page.getByTestId(`set-tab-panel-${keyP}`);
+    await expect(panelP.getByTestId("set-card-id")).toHaveText("E2S_SUBP", { timeout: T.LONG });
+    await expect(panelP.getByTestId("flow-set-title-s1")).toHaveText("E2E 하위 세트", { timeout: T.UI });
+    await panelP.getByTestId("flow-node-s1").click();
+    await expect(panelP.getByTestId("flow-panel-kind")).toHaveText("하위 세트");
+    await expect(panelP.getByTestId("flow-prop-set-caller-E2S_SUBP")).toBeVisible({ timeout: T.UI });
+    await page.screenshot({ path: screenshot("dme-ruleSetEdit-subset.png"), fullPage: true });
   });
 });

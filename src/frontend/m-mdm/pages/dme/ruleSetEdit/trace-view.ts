@@ -2,7 +2,7 @@
  * 실행 기록 해석(2단계 계획 P9) — 서버 기록 실행(`execute`) 의 RunTrace 를 단계별 프레임·캔버스 겹침·값 표로 푼다.
  * 디버거(Task 11)가 쓴다. React 의존 없는 순수 함수이고, 무거운 계산은 호출자가 useMemo 로 한 번만 부른다(Local-Rules §16).
  *
- * ctx 는 엔진 `FlowRun` 을 따라간다: 처음은 input, RULE(OK) 는 지금 범위의 ctx 에 결과를 덮어쓴다(이름은 대소문자 무시로
+ * ctx 는 엔진 `FlowRun` 을 따라간다: 처음은 input, RULE(OK) 는 지금 범위의 ctx 에 결과를, SET(OK) 은 넘겨받은 출력(`outputs`)을 덮어쓴다(이름은 대소문자 무시로
  * 바꿔 넣는다 — `RecordKeys.putReplacing`). PARALLEL 은 갈래마다 분기 직전 ctx 의 사본을 범위로 두고, 짝 MERGE 에서
  * 갈래를 기록의 `order`(실행 순서)대로 돌며 **그 갈래가 쓴 이름**만 바깥 범위에 덮어쓴다(뒤 갈래가 이긴다). IF 는 범위를 만들지 않는다.
  * 4단계 E4: 기록의 `edits` 를 노드 seq 직전에 그 노드 범위에 넣는다(엔진 `FlowRun` 퍼짐 규칙 — 스펙 §2.2).
@@ -253,6 +253,12 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
           note(name, lookup(scope.ctx, name), value);
           put(scope, name, value);
         }
+      } else if (node.kind === "SET" && node.outputs) {
+        // 하위 세트 spec §3 — 넘겨받은 출력(하위 최종 결과)은 RULE 결과처럼 지금 범위에 덮어쓴다(값이 NULL 이어도, Ruling 17).
+        for (const [name, value] of Object.entries(node.outputs)) {
+          note(name, lookup(scope.ctx, name), value);
+          put(scope, name, value);
+        }
       } else if (node.kind === "CATCH") {
         for (const [name, value] of Object.entries(catchValues(node))) {
           note(name, lookup(scope.ctx, name), value);
@@ -285,13 +291,17 @@ export function frames(trace: RunTrace, flow: RuleSetFlow): TraceFrame[] {
 
 // ── 캔버스 겹침 ────────────────────────────────────────────────────────────────
 
-/** 칩 — 오류 코드, 받은 룰은 바로 뒤 CATCH 기록의 종류 이름, CATCH 노드는 자기 종류 이름(R16), 룰은 첫 결과. */
+/** 칩 — 오류 코드, 받은 룰은 바로 뒤 CATCH 기록의 종류 이름, CATCH 노드는 자기 종류 이름(R16), 룰은 첫 결과, 세트 노드는 넘겨받은 첫 출력(하위 세트 spec §11). */
 function chipOf(node: NodeTrace, next?: NodeTrace): string | null {
   if (node.status === "ERROR") return node.violations?.[0]?.code ?? null;
   if (node.status === "CAUGHT") return next?.kind === "CATCH" && next.catchKind ? CATCH_KIND_LABEL[next.catchKind as CatchKind] : null;
   if (node.kind === "CATCH" && node.catchKind) return CATCH_KIND_LABEL[node.catchKind as CatchKind];
   if (node.kind === "RULE" && node.result) {
     const first = Object.entries(node.result.results)[0];
+    return first ? `${first[0]}=${typedText(first[1])}` : null;
+  }
+  if (node.kind === "SET" && node.outputs) {
+    const first = Object.entries(node.outputs)[0];
     return first ? `${first[0]}=${typedText(first[1])}` : null;
   }
   return null;
@@ -375,24 +385,27 @@ function debugOverlayAt(trace: RunTrace, flow: RuleSetFlow, cursor: number): Ove
 
 // ── 값 표 ──────────────────────────────────────────────────────────────────────
 
-/** 변수 × 단계 표. 열은 RULE(OK) 프레임과 병렬 합류 프레임, 칸은 그 프레임 범위의 값. */
+/** 변수 × 단계 표. 열은 RULE(OK)·SET(OK, 넘겨받은 출력이 있음) 프레임과 병렬 합류 프레임, 칸은 그 프레임 범위의 값. */
 export function valueTable(trace: RunTrace, flow: RuleSetFlow): ValueTable {
   const fr = frames(trace, flow);
   const kindOf = new Map(flow.nodes.map((fn) => [fn.id, fn.kind]));
   const isParallelMerge = (t: NodeTrace) =>
     t.kind === "MERGE" && (t.merged != null || (t.splitId != null && kindOf.get(t.splitId) === "PARALLEL"));
-  const colFrames = fr.filter((f) => f.node.status === "OK" && ((f.node.kind === "RULE" && f.node.result) || isParallelMerge(f.node)));
+  const colFrames = fr.filter(
+    (f) => f.node.status === "OK" && ((f.node.kind === "RULE" && f.node.result) || (f.node.kind === "SET" && f.node.outputs) || isParallelMerge(f.node)),
+  );
 
   const vars = Object.keys(trace.input);
   for (const f of fr) {
-    if (f.node.status !== "OK" || !f.node.result) continue;
-    for (const name of Object.keys(f.node.result.results)) if (!vars.includes(name)) vars.push(name);
+    if (f.node.status !== "OK") continue;
+    // SET 노드는 result 가 없고 넘겨받은 출력(outputs)이 결과다(하위 세트 spec §11).
+    for (const name of [...Object.keys(f.node.result?.results ?? {}), ...Object.keys(f.node.outputs ?? {})]) if (!vars.includes(name)) vars.push(name);
   }
 
   const cols = colFrames.map((f) => ({
     index: f.index,
     nodeId: f.node.nodeId,
-    label: f.node.kind === "RULE" ? (f.node.ruleId ?? f.node.nodeId) : `합류 ${f.node.nodeId}`,
+    label: f.node.kind === "RULE" ? (f.node.ruleId ?? f.node.nodeId) : f.node.kind === "SET" ? `세트 ${f.node.sub?.setId ?? f.node.nodeId}` : `합류 ${f.node.nodeId}`,
   }));
   const cells = vars.map((v) => colFrames.map((f) => lookup(f.ctx, v) ?? null));
   const changed = vars.map((v, i) => {

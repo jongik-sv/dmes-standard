@@ -89,7 +89,7 @@ import { STYLED_KINDS, type NodeSize } from "../node-style";
 import { typedText } from "../trace-view";
 import { blockDragPositions, dropTargetAt, edgeChips, edgeMarks, nodeAtPoint, nodeMarks, resolveNodeDrop } from "../flow-vars";
 import type { FlowMode } from "../state/useRuleSetEdit";
-import type { RuleIoMap, RuleSetCheck, VarDisplay } from "../types";
+import type { RuleIoMap, RuleSetCheck, SetCallIoMap, VarDisplay } from "../types";
 import { FOLD_EDGE_PREFIX, collapseView } from "./collapse";
 import { boundsOf, snapHitIn, snapIndex, snapThreshold, type Box, type Guide, type SnapIndex } from "./snap";
 import {
@@ -132,7 +132,8 @@ import {
 
 export type { CollapsedBlockInfo } from "./nodes";
 
-export type PaletteItem = "rule" | "if" | "par" | "note" | "group";
+/** 도구 상자 요소 — "set" 은 세트 검색 팝업을 거쳐 SET 노드를 끼운다(하위 세트 spec §9). */
+export type PaletteItem = "rule" | "set" | "if" | "par" | "note" | "group";
 export const PALETTE_MIME = "application/x-rsf-palette";
 /** 룰 목록 줄 끌기(A4). 값 = ruleId. */
 export const RULE_MIME = "application/x-rsf-rule";
@@ -140,9 +141,12 @@ export const RULE_MIME = "application/x-rsf-rule";
 export const DROP_RADIUS_PX = 80;
 /** 흐름 좌표 반경 — `nearestEdge` 의 max 는 흐름 좌표라 확대 배율로 나눈다. */
 export const dropRadius = (zoom: number) => DROP_RADIUS_PX / (zoom > 0 ? zoom : 1);
-const PALETTE_ITEMS: readonly string[] = ["rule", "if", "par", "note", "group"];
-/** 중단점을 걸 수 있는 노드 종류(E2). */
-const BREAKABLE = new Set(["RULE", "TASK", "IF", "PARALLEL", "MERGE"]);
+const PALETTE_ITEMS: readonly string[] = ["rule", "set", "if", "par", "note", "group"];
+/** 중단점을 걸 수 있는 노드 종류(E2, 하위 세트 spec §9 — SET 은 RULE·TASK 와 같은 단계). */
+const BREAKABLE = new Set(["RULE", "TASK", "SET", "IF", "PARALLEL", "MERGE"]);
+/** SET 노드 겉모양이 없을 때 넘기는 빈 맵 — 참조가 렌더마다 바뀌지 않게 모듈 상수(Local-Rules §16). */
+const NO_CALLS: SetCallIoMap = {};
+const NO_FAILED_CALLS: ReadonlySet<string> = new Set();
 /** 룰 목록 줄을 놓아 룰을 지정할 노드 종류(4단계 T1). */
 const ASSIGN_DROP_KINDS: ReadonlySet<string> = new Set(["TASK", "RULE"]);
 /** [+] 단추를 선 이름표 오른쪽에 둘 때의 거리(px). */
@@ -264,6 +268,15 @@ export interface FlowCanvasProps {
   onSelect: (id: string | null) => void;
   onSelectEdge: (edgeId: string | null) => void;
   onOpenRule: (ruleId: string) => void; // 링크 아이콘만
+  /**
+   * 하위 세트 겉모양(세트 ID →, 하위 세트 spec §9) — SET 노드 제목·입출력 칩·나가는 선의 변수 칩. 맵에 없는 세트는 "받는 중" 으로 그린다.
+   * 넘기지 않으면(디버거 하위 프레임 — 겉모양을 받지 않는다) 세트 ID 만 그린다.
+   */
+  calls?: SetCallIoMap;
+  /** 겉모양 받기에 실패한 세트 ID — 그 SET 노드는 "받는 중" 대신 "받지 못했다" 로 그린다. 없으면 실패한 것이 없다. */
+  callsFailed?: ReadonlySet<string>;
+  /** SET 노드 링크 아이콘 — 하위 세트를 같은 화면의 탭으로 연다(spec §10.3). 없으면 링크 아이콘이 없다. */
+  onOpenSet?: (setId: string) => void;
   /**
    * 선 밖에 놓은 끌기 끝(편집 모드만). 끈 메모 위치도 함께 올려 이력이 한 칸으로 남는다(B5).
    * 흐름 노드 둘 이상(그룹 포함)을 같은 만큼 옮겼으면 `shift` 에 옮긴 노드와 이동량을 담는다 — 두 끝이 모두 든 선의 꺾는 점을 같이 옮긴다.
@@ -1116,8 +1129,11 @@ function Inner(props: FlowCanvasProps) {
     breakpoints, collapsed, valueAt, showMiniMap, editingCondEdgeId, editingLabelEdgeId, onEditLabel, onEditLabelClose,
     onSelect, onSelectEdge, onOpenRule, onMove, onMoveNode, onConnect, onAddCatch, onReconnect, onDropPalette, onDropRule, onAssignDrop, onRenameTask, onNoteChange, onContextMenu, onToggleBreakpoint,
     onEditCond, onRouteChange, onLabelOffsetChange, removeRoutePointRef, clearSelectionRef, alignSourceRef, selectionRef, fitSelectionRef, fitKeyLabel, onEditCondClose, onSelectionChange,
-    spaceTool, onSpaceToolChange, onShiftSpace, dragTool,
+    spaceTool, onSpaceToolChange, onShiftSpace, dragTool, onOpenSet,
   } = props;
+  const callMap = props.calls ?? NO_CALLS;
+  const callsGiven = props.calls !== undefined;
+  const callsFailed = props.callsFailed ?? NO_FAILED_CALLS;
   const editable = mode === "edit";
   const debugging = mode === "debug";
   /** [손] 도구 — 빈 곳 끌기가 화면 이동이다(4단계 P1). */
@@ -1233,7 +1249,7 @@ function Inner(props: FlowCanvasProps) {
   }, [editable]);
   const marks = useMemo(() => nodeMarks(checks), [checks]);
   const eMarks = useMemo(() => edgeMarks(checks), [checks]);
-  const chips = useMemo(() => edgeChips(vflow as RuleSetFlow, rules), [vflow, rules]);
+  const chips = useMemo(() => edgeChips(vflow as RuleSetFlow, rules, callMap), [vflow, rules, callMap]);
 
   // 그룹 크기 끌기(G2) — 끄는 동안의 여백. 구독 값이 바뀌면 Inner 가 다시 그려 nodes memo 가 다시 돈다(공간 넓히기 미리보기와 같은 방식 — page·dagre 는 그대로다).
   const groupStore = useMemo(createGroupPadStore, []);
@@ -1283,6 +1299,7 @@ function Inner(props: FlowCanvasProps) {
         selected: selectedId === n.id || rfSel.has(n.id),
         flash: flashId === n.id,
         onOpenRule,
+        ...(n.kind === "SET" ? { call: n.setId ? callMap[n.setId] : undefined, callsGiven, callFailed: !!n.setId && callsFailed.has(n.setId), onOpenSet } : {}),
         breakpoint: breakpoints.has(n.id),
         canBreak: debugging && BREAKABLE.has(n.kind),
         collapsed: block ? blockInfo(flow, block, n.id, overlay) : null,
@@ -1313,7 +1330,7 @@ function Inner(props: FlowCanvasProps) {
       });
     }
     return out;
-  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, nodeSizeDrag, noteSizeDrag, catchMoveDrag, dropNode, onRenameTask, props.onCatchSpotChange]);
+  }, [flow, vflow, view, pos, drag, space, rules, marks, overlay, selectedId, flashId, editable, debugging, breakpoints, onOpenRule, onToggleBreakpoint, onNoteChange, rfSel, measured, varDisplay, groupDrag, nodeSizeDrag, noteSizeDrag, catchMoveDrag, dropNode, onRenameTask, props.onCatchSpotChange, callMap, callsGiven, callsFailed, onOpenSet]);
   /**
    * 내용이 같은 노드는 이전 객체를 그대로 넘긴다(구조적 공유, `reuse.ts`) — 끌기 프레임·선택마다 위 memo 가 모든 노드를 새로 만들어도
    * React Flow 는 바뀐 노드만 다시 그린다. 잰 크기(measured)도 견주므로 화면 맞춤(fitView) 동작은 그대로다.
@@ -1458,9 +1475,9 @@ function Inner(props: FlowCanvasProps) {
     return { x: splitAt.x + fold - fullAt.x, y: splitAt.y - fullAt.y };
   };
 
-  /** 흐름 노드(룰·IF·병렬)만 선 위에 놓아 옮길 수 있다. */
+  /** 흐름 노드(룰·빈 단계·룰 세트·IF·병렬)만 선 위에 놓아 옮길 수 있다. */
   const isMovable = (n: Node) =>
-    n.type === "rsfFlow" && !viewRef.current.blocks[n.id] && ["RULE", "TASK", "IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === n.id)?.kind ?? "");
+    n.type === "rsfFlow" && !viewRef.current.blocks[n.id] && ["RULE", "TASK", "SET", "IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === n.id)?.kind ?? "");
   const isSplit = (id: string) => ["IF", "PARALLEL"].includes(flowRef.current.nodes.find((x) => x.id === id)?.kind ?? "");
   /**
    * 분기를 끄는 동안 블록 멤버가 같은 만큼 움직인 위치. 분기가 아니면 빈 맵.

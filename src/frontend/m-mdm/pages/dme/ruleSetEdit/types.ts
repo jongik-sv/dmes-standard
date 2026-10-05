@@ -124,7 +124,9 @@ export type RuleSetCheckCode =
   /** 하위 세트 spec §5 — 서버만 낸다(세트 호출 순환·깊이 초과·부르는 세트가 깨짐). */
   | "CALL_CYCLE"
   | "CALL_DEPTH"
-  | "CALLER_BROKEN";
+  | "CALLER_BROKEN"
+  /** 부르는 세트에 새 경고가 생겼다(WARN, 서버만 — 저장 결과, 문구 "부르는 세트에 경고가 생겼다: P1, P2"). 막지 않는다. */
+  | "CALLER_WARN";
 
 /**
  * 저장 시 검사 한 건(§6.3, 계획 C4). 없는 칸은 null — EMPTY 는 ruleId 도 null, 1단계는 otherRuleId·varName 이 null.
@@ -212,6 +214,11 @@ export interface RuleSetPickResult {
   sets?: RuleSetPick[] | null;
 }
 
+/** search target CALL_IO 응답(서버 `RuleSetCallIoResult`) — 요청 순서의 겉모양, 중복·빈 ID 는 뺐다. RELEASED 가 없는 세트도 `exists=false` 로 온다. */
+export interface RuleSetCallIoResult {
+  calls?: SetCallIo[] | null;
+}
+
 /** search target RULE — 룰 20건과 그 IO. */
 export interface RuleSetRuleSearchResult {
   rules?: RuleIo[] | null;
@@ -274,6 +281,8 @@ export interface RuleSetView {
   versions?: RuleSetVersionRow[];
   flags?: RuleSetVersionFlags;
   me?: string | null;
+  /** 저장된 흐름의 SET 노드가 부르는 세트의 겉모양(세트 ID →, 하위 세트 spec §8, 기준 시각 = 지금). 흐름이 없으면 빈 맵, 옛 응답에는 없을 수 있다. */
+  calls?: Record<string, SetCallIo>;
 }
 
 /** 룰 세트 테스트 케이스 한 건(3단계 P8, `TB_MDM_RULE_SET_TEST_CASE`). evalTs 는 KST `yyyy-MM-dd HH:mm:ss` 문자열(P-D6). */
@@ -374,8 +383,23 @@ export interface SimWarning {
   message: string;
 }
 
+/**
+ * 실행 중 부른 하위 세트의 저장된 흐름(하위 세트 spec §8·§11, 계획 Task 6·8) — 서버가 기록의 `sub` 를 따라 모아 `execute` 응답에 싣는다(판정 시각의 RELEASED 버전).
+ * 디버거 "안으로 들어가기"가 하위 흐름을 같은 캔버스에 그릴 때 쓴다. `flow` 가 null(FLOW_JSON 없음)이면 `ruleIds` 한 줄 흐름으로 그린다.
+ */
+export interface CalledFlow {
+  setId: string;
+  setName: string | null;
+  flow: (RuleSetFlow & { view?: unknown }) | null;
+  ruleIds: string[];
+  /** 하위 흐름 룰들의 입출력 — 들어간 캔버스의 룰 노드 제목·칩. */
+  rules: RuleIo[];
+}
+
 /** execute(기록 실행) 응답(P6). */
 export interface RuleSetSimulateResult {
   trace: RunTrace;
   warnings: SimWarning[];
+  /** 실행 중 부른 세트 ID → 저장된 흐름(하위 세트 spec §8). 서버(srv:6)가 아직 주지 않으면 없다 — 디버거는 [안으로 들어가기]를 끈다. */
+  calledFlows?: Record<string, CalledFlow>;
 }

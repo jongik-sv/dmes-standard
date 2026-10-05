@@ -8,6 +8,8 @@
  *  - 오류 노드: 위반마다 한국어 문장. 단계·코드·이름은 `title`, 원문은 접힌 `<details>` 에 둔다(Local-Rules §13, TestResultCard 와 같은 방식).
  *  - 받는 노드(spec §9): CATCH 노드는 종류·코드·메시지와 처리 갈래가 읽는 CATCH_* 값(`sim-detail-catch`). 받은 룰(CAUGHT)은 "받음" 배지와 받은 위반,
  *    위반이 비면(결과 없음) `NO_RESULT_MESSAGE` 한 줄. 룰 블록을 그대로 타므로 [룰 편집 열기]·읽은 입력값이 보이고 결과 표는 없다.
+ *  - 세트 노드(하위 세트 spec §11, `sim-detail-set`): 세트 ID, [안으로 들어가기](`sim-detail-enter` — 하위 기록이 있을 때, 하위 흐름을 받지 못했으면 꺼지고 안내),
+ *    읽은 입력값, 넘겨받은 출력(`sim-detail-outputs`), 하위 세트가 끝난 방식과 받아 처리한 예외 건수(`sim-detail-sub-summary`).
  */
 import { useMemo, type ReactNode } from "react";
 
@@ -21,6 +23,8 @@ import { badgeStyle, fmtVer, normVer } from "@/shell";
 import { CATCH_KIND_LABEL, NO_RESULT_MESSAGE } from "../catch-text";
 import { REJECT_BADGE } from "../panels/ChecksPanel";
 import { catchValues } from "../trace-view";
+import type { CalledFlow } from "../types";
+import { caughtCount } from "./call-stack";
 import { cellText } from "./ValueTable";
 
 const KIND_TEXT: Record<NodeTrace["kind"], string> = {
@@ -101,9 +105,16 @@ export interface TraceDetailProps {
   onOpenRule: (ruleId: string) => void;
   /** END 노드에 보일 끝낸 갈래 문장(R18). */
   endedBranch?: string | null;
+  /** SET 노드 [안으로 들어가기](하위 세트 spec §11). 없으면 단추를 그리지 않는다. */
+  onEnter?: (nodeId: string) => void;
+  /** 실행 응답의 하위 세트 흐름(`calledFlows`) — 그 세트 항목이 없으면 [안으로 들어가기]를 끄고 안내한다. */
+  calledFlows?: Readonly<Record<string, CalledFlow | undefined>>;
 }
 
-export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenRule, endedBranch }: TraceDetailProps) {
+/** 실행 응답에 하위 세트 흐름이 없을 때(서버가 아직 주지 않음) [안으로 들어가기] 자리 안내. */
+export const ENTER_OFF_NOTE = "하위 세트 흐름을 받지 못해 안으로 들어갈 수 없다";
+
+export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenRule, endedBranch, onEnter, calledFlows }: TraceDetailProps) {
   const edges = useMemo(() => new Map(flow.edges.map((e) => [e.id, e] as const)), [flow]);
   const edgeName = (id: string) => edges.get(id)?.label ?? id;
   const flowNode = flow.nodes.find((n) => n.id === nodeId);
@@ -171,6 +182,40 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
           <Sub>처리 갈래가 읽는 값</Sub>
           <Pairs testId="sim-detail-catch-values" values={catchValues(node)} empty="값이 없다" />
         </div>
+      )}
+      {node.kind === "SET" && (
+        <>
+          <p className="rsf-panel-note" data-testid="sim-detail-set">
+            <code>{node.sub?.setId ?? flowNode?.setId ?? "-"}</code>
+          </p>
+          {node.sub && onEnter && (
+            <>
+              <Button
+                size="sm"
+                data-testid="sim-detail-enter"
+                disabled={!calledFlows?.[node.sub.setId]}
+                title={calledFlows?.[node.sub.setId] ? "같은 캔버스에서 하위 세트 기록을 따라간다" : ENTER_OFF_NOTE}
+                onClick={() => onEnter(node.nodeId)}
+              >
+                안으로 들어가기
+              </Button>
+              {!calledFlows?.[node.sub.setId] && (
+                <p className="rsf-muted" data-testid="sim-detail-enter-off">
+                  {ENTER_OFF_NOTE}
+                </p>
+              )}
+            </>
+          )}
+          <Sub>읽은 입력값</Sub>
+          <Pairs testId="sim-detail-reads" values={node.reads} empty="읽은 값이 없다" />
+          <Sub>넘겨받은 출력</Sub>
+          <Pairs testId="sim-detail-outputs" values={node.outputs} empty="넘겨받은 값이 없다" />
+          {node.sub && (
+            <p className="rsf-muted" data-testid="sim-detail-sub-summary">
+              {`하위 세트 끝: ${node.sub.endedBy ? `받는 노드 ${node.sub.endedBy}` : "정상"} · 받아 처리한 예외 ${caughtCount(node.sub)}건`}
+            </p>
+          )}
+        </>
       )}
       {node.kind === "RULE" && (
         <>

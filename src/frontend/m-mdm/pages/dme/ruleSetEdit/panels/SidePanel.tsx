@@ -17,7 +17,7 @@ import type { EditFlow } from "../flow-edit";
 import type { NodeLayoutSource } from "../flow-layout";
 import type { RuleSearch } from "../state/useRuleSearch";
 import type { FlowMode } from "../state/useRuleSetEdit";
-import type { RuleIo, RuleIoMap, RuleSetCheck } from "../types";
+import type { RuleIo, RuleIoMap, RuleSetCheck, SetCallIoMap } from "../types";
 import { EdgePanel } from "./EdgePanel";
 import { PanelHeader, panelTargetOf } from "./PanelHeader";
 import { PropertyPanel, type PropertyPanelProps } from "./PropertyPanel";
@@ -29,8 +29,11 @@ export const RULES_SECTION = "rules";
 /** 「룰 지정」 대상 노드 종류 — 빈 단계(TASK)·룰(RULE). */
 export const ASSIGNABLE_KINDS: ReadonlySet<string> = new Set(["RULE", "TASK"]);
 
-/** 룰 목록을 쓸 데가 없는 선택 — 시작·끝·IF·병렬·합류·받는 노드·메모·그룹. 이때는 섹션을 그리지 않는다(룰 끼우기는 선·고른 것 없음, 룰 지정은 룰·빈 단계). */
-export const NO_RULE_LIST_KINDS: ReadonlySet<string> = new Set(["START", "END", "IF", "PARALLEL", "MERGE", "CATCH", "NOTE", "GROUP"]);
+/**
+ * 룰 목록을 쓸 데가 없는 선택 — 시작·끝·룰 세트 노드(CALL)·IF·병렬·합류·받는 노드·메모·그룹. 이때는 섹션을 그리지 않는다
+ * (룰 끼우기는 선·고른 것 없음, 룰 지정은 룰·빈 단계 — 룰 세트 노드에는 룰을 지정하지 않는다).
+ */
+export const NO_RULE_LIST_KINDS: ReadonlySet<string> = new Set(["START", "END", "CALL", "IF", "PARALLEL", "MERGE", "CATCH", "NOTE", "GROUP"]);
 
 export function ruleListMode(flow: EditFlow, selectedId: string | null, editing: boolean): RuleListMode {
   if (!editing) return "view";
@@ -71,12 +74,18 @@ export interface SidePanelProps {
   onAssignRule(nodeId: string, io: RuleIo): void;
   /** 외관 크기를 바꿀 때 그린 위치(S-D6) — PropertyPanel 로 넘긴다. */
   layoutSource?: () => NodeLayoutSource | null;
+  /** 하위 세트 겉모양(세트 ID →) — 룰 세트 노드 머리글·속성 패널, 세트 입출력 표(하위 세트 spec §9). */
+  calls?: SetCallIoMap;
+  /** 겉모양 받기에 실패한 세트 ID — 룰 세트 노드 속성 패널이 「받는 중」 대신 「받지 못했다」 로 보인다. */
+  callsFailed?: ReadonlySet<string>;
+  /** 하위 세트를 같은 화면의 탭으로 연다(룰 세트 노드 속성 패널의 링크, spec §10.3). */
+  onOpenSet?: (setId: string) => void;
 }
 
 export function SidePanel(p: SidePanelProps) {
   const editing = p.mode === "edit";
   const editable = editing && !p.loading;
-  const target = panelTargetOf(p.flow, p.rules, p.selectedId, p.selectedEdgeId, p.setName);
+  const target = panelTargetOf(p.flow, p.rules, p.selectedId, p.selectedEdgeId, p.setName, p.calls);
   const listMode = ruleListMode(p.flow, p.selectedId, editing);
   const { sections, assignSignal } = p;
 
@@ -118,6 +127,7 @@ export function SidePanel(p: SidePanelProps) {
         key="props"
         flow={p.flow}
         rules={p.rules}
+        calls={p.calls}
         setName={p.setName}
         description={p.description}
         editable={editable}
@@ -144,6 +154,9 @@ export function SidePanel(p: SidePanelProps) {
         layoutSource={p.layoutSource}
         onEdit={p.onEdit}
         onOpenRule={p.onOpenRule}
+        calls={p.calls}
+        callsFailed={p.callsFailed}
+        onOpenSet={p.onOpenSet}
         sections={sections}
       />
     );

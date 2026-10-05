@@ -17,12 +17,14 @@ import { GuideCard } from "../cards/GuideCard";
 import { SetIoTables } from "../cards/SetIoTables";
 import type { EditFlow } from "../flow-edit";
 import { flowIo } from "../set-model";
-import type { RuleIo, RuleIoMap } from "../types";
+import type { RuleIo, RuleIoMap, SetCallIoMap } from "../types";
 import { Section, type SectionMemory } from "./Section";
 
 export interface SetPanelProps {
   flow: EditFlow;
   rules: RuleIoMap;
+  /** 하위 세트 겉모양 — 입출력 표가 SET 노드의 입력·출력을 "세트 {ID}" 로 센다(하위 세트 spec §9). */
+  calls?: SetCallIoMap;
   setName: string;
   description: string;
   /** 편집 모드이고 쓰는 중이 아님 — 세트명·설명을 고칠 수 있다. */
@@ -36,9 +38,11 @@ export interface SetPanelProps {
   sections: SectionMemory;
 }
 
+const NO_CALLS: SetCallIoMap = {};
+
 export function SetPanel(props: SetPanelProps) {
-  const { flow, rules, setName, description, editable, sections } = props;
-  const io = useMemo(() => flowIo(flow, rules), [flow, rules]);
+  const { flow, rules, calls = NO_CALLS, setName, description, editable, sections } = props;
+  const io = useMemo(() => flowIo(flow, rules, calls), [flow, rules, calls]);
   return (
     <div className="rsf-panel" data-testid="flow-prop-set">
       <Section kind="SET" id="set-basic" title="기본 정보" memory={sections}>

@@ -3,6 +3,7 @@
 /**
  * 캔버스 편집 동작(3단계 계획 P4·A1·A4) — 팔레트 누르기·끌어 놓기, 빈 단계 놓기, 선택 지우기, Esc, 메뉴 항목이 부르는 편집(`CanvasActions`).
  * 팔레트 [룰]·[+] 「룰 넣기」 는 빈 단계를 끼우고 「룰 지정」 섹션을 연다(4단계 T1). 룰은 거기서 [지정]·끌어 놓기로 고른다.
+ * 팔레트 [룰 세트]·[+] 「룰 세트 넣기」 는 세트 검색 팝업을 열고(`openSetPick`), 팝업에서 고르면 `placeSet` 이 그 선에 SET 노드를 끼운다(하위 세트 spec §9, 되돌리기 한 칸).
  * 2단계 page 의 `insertAt`·`pick`·`onPickRule` 를 옮겼다. 편집은 모두 `state.edit` 로 하고, 실패 사유는 메시지 줄에 보인다.
  *
  * 끌어 놓기(A1)는 캔버스가 놓은 자리의 선(없으면 null)을 계산해 넘긴다 — 룰·IF·병렬은 선 위에 놓아야 한다(2단계의 "선택된 선에 넣기"는 없앴다).
@@ -27,6 +28,7 @@ import {
   dissolveSplit,
   duplicateNode,
   insertRule,
+  insertSet,
   insertSplit,
   insertTask,
   pasteFragment,
@@ -69,6 +71,13 @@ export interface EditActionsDeps {
   selectEdge(id: string | null): void;
   /** 룰 지정 섹션 열기(4단계 Task 8) — 노드를 고르고 섹션을 펴 찾기 칸에 초점. */
   openRuleAssign(nodeId: string): void;
+  /**
+   * 세트 검색 팝업 열기(하위 세트 spec §9) — 고르면 page 가 `placeSet(edgeId, 세트 ID)` 를 부른다. edgeId 는 끼울 선(null 이면 고른 선,
+   * 없으면 END 앞 선 — 팔레트 누르기와 같은 규칙). 없으면 팔레트 [룰 세트]·「룰 세트 넣기」 가 아무것도 하지 않는다.
+   */
+  openSetPick?(edgeId: string | null): void;
+  /** 하위 세트를 같은 화면의 탭으로 연다(우클릭 「세트 탭으로 열기」, spec §10.3). */
+  openSet?(setId: string): void;
   fit(): void;
   setEditingCond(edgeId: string | null): void;
   /** 선 라벨 즉석 편집 칸 열기·닫기(Task 9). */
@@ -95,9 +104,12 @@ export interface EditActions {
   hasClipboard: boolean;
   /** 룰 지정 — [지정]·두 번 누르기·노드 위 끌어 놓기(4단계 T1). */
   assignRule(nodeId: string, io: RuleIo): void;
+  /** 세트 검색 팝업에서 고른 세트를 선(null 이면 고른 선, 없으면 END 앞 선)에 SET 노드로 끼우고 그 노드를 고른다(편집 한 번 = 되돌리기 한 칸). */
+  placeSet(edgeId: string | null, setId: string): void;
 }
 
 const fail = (reason: string): EditResult => ({ ok: false, reason });
+const noop = () => undefined;
 const NO_COLLAPSED: ReadonlySet<string> = new Set();
 
 /**
@@ -155,6 +167,8 @@ function centerOf(f: EditFlow, collapsed: ReadonlySet<string>): FlowPos {
 export function useEditActions(deps: EditActionsDeps): EditActions {
   const { state, flow, editing, selectedId, selectedEdgeId, multiSel, select, selectEdge, openRuleAssign, fit, setEditingCond, setEditingLabel, closeMenu, clearSelection } = deps;
   const collapsed = deps.collapsed ?? NO_COLLAPSED;
+  const openSetPick = deps.openSetPick ?? noop;
+  const openSet = deps.openSet ?? noop;
   const { edit, addRuleIo } = state;
   /** 복사한 조각(B9) — 화면이 살아 있는 동안 남고 세트를 바꿔도 유지한다. */
   const [clipboard, setClipboard] = useState<{ frag: Fragment; ios: RuleIo[] } | null>(null);
@@ -235,11 +249,12 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
     (item: PaletteItem) => {
       if (!flow || !editing) return;
       if (item === "rule") placeTask(selectedEdgeId);
+      else if (item === "set") openSetPick(selectedEdgeId);
       else if (item === "if" || item === "par") insertAt(selectedEdgeId, 2, (f, e) => insertSplit(f, e, item === "if" ? "IF" : "PARALLEL"));
       else if (item === "note") placeNote(undefined);
       else makeGroup();
     },
-    [flow, editing, selectedEdgeId, placeTask, insertAt, placeNote, makeGroup],
+    [flow, editing, selectedEdgeId, placeTask, openSetPick, insertAt, placeNote, makeGroup],
   );
 
   const dropPalette = useCallback(
@@ -252,9 +267,19 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         return;
       }
       if (item === "rule") placeTask(edgeId);
+      else if (item === "set") openSetPick(edgeId);
       else insertAt(edgeId, 2, (f, e) => insertSplit(f, e, item === "if" ? "IF" : "PARALLEL"));
     },
-    [flow, editing, edit, placeNote, makeGroup, placeTask, insertAt],
+    [flow, editing, edit, placeNote, makeGroup, placeTask, openSetPick, insertAt],
+  );
+
+  /** 팝업에서 고른 세트를 끼운다(하위 세트 spec §9) — 팝업이 떠 있는 동안 편집 모드를 나갔으면 아무것도 하지 않는다. */
+  const placeSet = useCallback(
+    (edgeId: string | null, setId: string) => {
+      if (!editing) return;
+      insertAt(edgeId, 1, (f, e) => insertSet(f, e, setId));
+    },
+    [editing, insertAt],
   );
 
   const dropRule = useCallback(
@@ -361,6 +386,10 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
       pickRuleFor: (edgeId: string) => {
         if (editing) placeTask(edgeId);
       },
+      pickSetFor: (edgeId: string) => {
+        if (editing) openSetPick(edgeId);
+      },
+      openSet,
       insertSplitAt: (edgeId: string, kind: "IF" | "PARALLEL") => {
         if (editing) insertAt(edgeId, 2, (f, e) => insertSplit(f, e, kind));
       },
@@ -403,7 +432,7 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
         if (editing) edit((f) => dissolveSplit(f, splitId, keepEdgeId));
       },
     }),
-    [editing, edit, fit, placeNote, placeTask, insertAt, setEditingCond, setEditingLabel, copy, paste, openRuleAssign],
+    [editing, edit, fit, placeNote, placeTask, openSetPick, openSet, insertAt, setEditingCond, setEditingLabel, copy, paste, openRuleAssign],
   );
 
   return {
@@ -416,5 +445,6 @@ export function useEditActions(deps: EditActionsDeps): EditActions {
     escape,
     hasClipboard: clipboard !== null,
     assignRule: assignRuleTo,
+    placeSet,
   };
 }

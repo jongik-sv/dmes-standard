@@ -20,7 +20,7 @@ import type { CatchKind, FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "@
 
 import { CATCHABLE, CATCH_KINDS, catchKindsFor, catchesOf, endingBranches, handlerTarget, joinOf, linearFlow, returnOf } from "./flow-model";
 import { descsFor, normalizeDesc, trimDesc } from "./node-desc";
-import { mergeNodeStyle, normalizeNodeStyle, paintedColor, stylesFor, type NodeColor, type NodeStyle, type NodeStylePatch } from "./node-style";
+import { STYLED_KINDS, mergeNodeStyle, normalizeNodeStyle, paintedColor, stylesFor, type NodeColor, type NodeStyle, type NodeStylePatch } from "./node-style";
 
 export interface FlowPos {
   x: number;
@@ -143,8 +143,8 @@ const int = (v: unknown): number | null => (typeof v === "number" && Number.isFi
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isSplitKind = (k: FlowNodeKind): k is "IF" | "PARALLEL" => k === "IF" || k === "PARALLEL";
-/** 룰처럼 선 하나 들어오고 하나 나가는 단계(4단계 T1 — 빈 단계 포함). */
-const isStep = (k: FlowNodeKind): boolean => k === "RULE" || k === "TASK";
+/** 룰처럼 선 하나 들어오고 하나 나가는 단계(4단계 T1 — 빈 단계, 하위 세트 spec §1 — SET 포함). 지우기·옮기기·복사·붙여넣기가 같은 규칙이다. */
+const isStep = (k: FlowNodeKind): boolean => k === "RULE" || k === "TASK" || k === "SET";
 
 /** 모든 칸을 채운 노드. */
 function node(id: string, kind: FlowNodeKind, ruleId: string | null = null, splitId: string | null = null, label: string | null = null): FlowNode {
@@ -156,9 +156,13 @@ function edge(id: string, from: string, to: string, extra: Partial<Pick<FlowEdge
   return { id, from, to, order: extra.order ?? null, cond: extra.cond ?? null, otherwise: extra.otherwise === true, label: extra.label ?? null };
 }
 
-/** 모든 칸을 채운 노드 복사. 받는 노드(CATCH)만 attachTo·catches 를 label 뒤에 둔다(서버 정규 JSON 과 같은 키 순서, Ruling R11). */
+/**
+ * 모든 칸을 채운 노드 복사. 받는 노드(CATCH)만 attachTo·catches 를 label 뒤에 둔다(서버 정규 JSON 과 같은 키 순서, Ruling R11).
+ * 세트 노드(SET)는 setId 를 label 뒤에 남긴다(하위 세트 spec §1 — setId 는 SET 만 쓴다). 디버거 경고·들어가기(ui:9)가 편집 흐름의 setId 를 읽는다.
+ */
 const copyNode = (n: FlowNode): FlowNode => {
   const base = node(n.id, n.kind, str(n.ruleId), str(n.splitId), str(n.label));
+  if (n.kind === "SET") return { ...base, setId: str(n.setId) };
   if (n.kind !== "CATCH") return base;
   return { ...base, attachTo: str(n.attachTo), catches: Array.isArray(n.catches) ? n.catches.filter((k): k is string => typeof k === "string") : null };
 };
@@ -689,6 +693,29 @@ export function insertTask(f: EditFlow, edgeId: string, label: string = TASK_LAB
 }
 
 /**
+ * 선 e(A→B) 위에 SET 노드(하위 세트 spec §1·§9)를 끼운다 — insertTask 와 같은 자리·선 규칙, ID 접두어 `s`. setId 는 SET 노드에만 싣는다
+ * (copyNode 와 같이 label 뒤 — SET 없는 세트의 저장 글자는 그대로다). label 이 없으면 노드 제목은 세트명(겉모양)으로 그린다.
+ */
+export function insertSet(f: EditFlow, edgeId: string, setId: string, label: string | null = null): EditResult {
+  if (setId.trim() === "") return fail("세트 ID 가 비었다");
+  const g = clone(f);
+  const ei = g.edges.findIndex((e) => e.id === edgeId);
+  if (ei < 0) return fail(`선 ${edgeId}를 찾지 못했다`);
+  const e = g.edges[ei];
+  const taken = takenIds(g);
+  const s: FlowNode = { ...node(fresh(taken, "s"), "SET", null, null, label), setId };
+  const out = edge(fresh(taken, "e"), s.id, e.to);
+  insertAfter(
+    g.nodes,
+    g.nodes.findIndex((n) => n.id === e.from),
+    s,
+  );
+  e.to = s.id;
+  insertAfter(g.edges, ei, out);
+  return done(g);
+}
+
+/**
  * 선 e(A→B) 위에 분기를 끼운다. IF 는 합류 없이 갈래 `{s→t, 갈래 1}`·`{s→B, 그 외}`·선 `{t→B}`(t = 새 빈 단계)를 e 바로 뒤에, 노드는 A 뒤에 s, t.
  * B 가 END 면 모이는 자리 빈 단계 j 를 하나 더 두어 `{s→t}`·`{s→j, 그 외}`·`{t→j}`·`{j→END}`, 노드는 A 뒤에 s, t, j 다 — 「그 외」 가 끝내는 갈래가
  * 되지 않고 블록이 j 에서 닫혀 지우기·풀기·종류 바꾸기·갈래 더하기·옮기기·접기가 END 아닌 자리와 같게 된다(J-D10 과 같은 근거, 수정 1회차 판정).
@@ -1126,7 +1153,7 @@ export interface Fragment {
 }
 
 /** 붙여 넣을 때 새 ID 접두어(종류별). START·END 는 조각에 들지 않는다. */
-const NODE_PREFIX: Partial<Record<FlowNodeKind, string>> = { RULE: "r", TASK: "r", IF: SPLIT_PREFIX.IF, PARALLEL: SPLIT_PREFIX.PARALLEL, MERGE: "m" };
+const NODE_PREFIX: Partial<Record<FlowNodeKind, string>> = { RULE: "r", TASK: "r", SET: "s", IF: SPLIT_PREFIX.IF, PARALLEL: SPLIT_PREFIX.PARALLEL, MERGE: "m" };
 const KIND_NAME: Record<"IF" | "PARALLEL", string> = { IF: "IF", PARALLEL: "병렬" };
 const MOVE_FIXED: Partial<Record<FlowNodeKind, string>> = {
   START: "시작 노드는 옮길 수 없다",
@@ -1355,7 +1382,10 @@ function instantiate(g: EditFlow, frag: Fragment, nodeIndex: number, tailTo: str
   const endId = endIdOf(g) ?? "";
   const tails = new Set(frag.tails ?? []);
   const endTails = new Set(frag.endTails ?? []);
-  const nodes = frag.nodes.map((n) => node(nid(n.id), n.kind, str(n.ruleId), n.kind === "MERGE" ? nid(n.splitId!) : str(n.splitId), str(n.label)));
+  const nodes = frag.nodes.map((n) => {
+    const m = node(nid(n.id), n.kind, str(n.ruleId), n.kind === "MERGE" ? nid(n.splitId!) : str(n.splitId), str(n.label));
+    return n.kind === "SET" ? { ...m, setId: str(n.setId) } : m; // setId 는 SET 노드에만(copyNode 와 같은 키 순서)
+  });
   const edges = frag.edges.map((e) =>
     edge(fresh(taken, "e"), nid(e.from), tails.has(e.id) ? tailTo : endTails.has(e.id) ? endId : nid(e.to), {
       order: int(e.order), cond: str(e.cond), otherwise: e.otherwise === true, label: str(e.label),
@@ -1544,7 +1574,7 @@ export function reorderBranches(f: EditFlow, splitId: string, edgeIds: readonly 
 export function setNodeStyle(f: EditFlow, nodeId: string, patch: NodeStylePatch | null): EditResult {
   const n = findNode(f, nodeId);
   if (!n) return fail(notFound(nodeId));
-  if (!isStep(n.kind)) return fail("룰·빈 단계 노드만 외관을 바꾼다");
+  if (!STYLED_KINDS.has(n.kind)) return fail("룰·빈 단계 노드만 외관을 바꾼다"); // SET 노드는 외관을 열지 않는다(하위 세트 spec §9)
   if (patch && [patch.w, patch.h].some((v) => v != null && !finite(v))) return fail("노드 크기가 올바르지 않다");
   const g = clone(f);
   const styles: Record<string, NodeStyle> = { ...g.view.styles };
@@ -1563,7 +1593,7 @@ export function setNodesColor(f: EditFlow, nodeIds: readonly string[], color: No
   let cur = f;
   for (const id of nodeIds) {
     const n = findNode(cur, id);
-    if (!n || !isStep(n.kind) || (cur.view.styles?.[id]?.color ?? "default") === color) continue;
+    if (!n || !STYLED_KINDS.has(n.kind) || (cur.view.styles?.[id]?.color ?? "default") === color) continue;
     const r = setNodeStyle(cur, id, { color: color === "default" ? null : color });
     if (r.ok) cur = r.flow;
   }

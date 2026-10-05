@@ -11,7 +11,7 @@ import { badgeStyle } from "@/shell";
 import { uiCols } from "@/ui-meta";
 
 import { NO_LINK_TITLE, condTarget, openVar, resultTarget, type VarTarget } from "../links";
-import { isFinalResult } from "../set-model";
+import { isFinalResult, isSetKey, setIdOfKey } from "../set-model";
 import type { IoSource, SetIo } from "../types";
 
 export const SOURCE_LABEL: Record<IoSource, string> = { DICT: "컬럼 사전", PROG: "프로그램 변수", NONE: "어디에도 없음" };
@@ -30,6 +30,9 @@ const LINK_STYLE: CSSProperties = {
   textDecoration: "underline",
   font: "inherit",
 };
+
+/** 쓰는·만드는·읽는 쪽 이름 — 룰 ID 그대로, 룰 세트 노드(키 `set:{setId}`, 하위 세트 Ruling 6)는 "세트 {setId}". */
+export const keyLabel = (k: string): string => (isSetKey(k) ? `세트 ${setIdOfKey(k)}` : k);
 
 /** 타입 표시 — NUMBER 는 `Number(scale)`, 일자 String·코드 String, 그 밖은 dataType, 없으면 "-". */
 export function typeText(t: { dataType: string | null; scale: number | null; dateString: boolean; maruCodeId: string | null }): string {
@@ -120,7 +123,7 @@ export function SetIoTables({ io }: { io: SetIo }) {
         label: r.label ?? "-",
         type: typeText(r),
         source: r.source ?? "NONE",
-        users: r.users.join(", "),
+        users: r.users.map(keyLabel).join(", "),
       })),
     [io.inputs],
   );
@@ -128,13 +131,14 @@ export function SetIoTables({ io }: { io: SetIo }) {
     () =>
       [...finals, ...middles].map((r) => ({
         name: r.name,
-        target: resultTarget(r.by),
+        // 첫 생산자가 룰 세트 노드면 룰 화면이 없어 링크를 두지 않는다.
+        target: isSetKey(r.by[0]) ? null : resultTarget(r.by),
         type: typeText(r),
         kind: isFinalResult(r) ? "최종" : "중간",
         final: isFinalResult(r),
-        by: r.by.join(", "),
+        by: r.by.map(keyLabel).join(", "),
         overwritten: r.by.length > 1,
-        readers: r.readers.length ? r.readers.join(", ") : "-",
+        readers: r.readers.length ? r.readers.map(keyLabel).join(", ") : "-",
       })),
     [io.results],
   );
