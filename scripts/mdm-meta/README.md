@@ -8,7 +8,8 @@
 | `collect-keys.mjs` | m-mcm·m-mls·m-mdm 화면이 메타를 찾는 키를 모은다(`--names` 물리명 목록, `--json` 위치 포함). |
 | `check-meta.sh` | 키 목록으로 `/api/{module}/mdmMeta/columns` 를 불러 hit·missing·unavailable 수를 낸다. `--baseline`·`--expect` 로 전후 비교. 읽기 전용. |
 | `columns-2026-10-05.json` | 등록 묶음 — 용어 1(위젯), 새 표준 컬럼 60(MES 별칭 60), 기존 컬럼 별칭 10. |
-| `register-columns.mjs` | 등록 묶음을 MDM OASIS `termMng`·`columnMng` 로 보낸다. 기본 dry-run, `--apply` 일 때만 save. |
+| `register-columns.mjs` | 등록 묶음을 MDM OASIS `termMng`·`columnMng` 로 보낸다. 기본 dry-run, `--apply` 일 때만 save. 묶음의 `descriptions` 구역은 기존 컬럼의 설명만 바꾼다(§3). |
+| `columns-widget-2026-10-05.json` | 위젯 관리 화면 칸 설명 묶음 — 용어 1(비공개), 새 표준 컬럼 15(위젯 전용 이름), 기존 위젯 전용 컬럼 4개 설명 갱신. |
 | `keys-2026-10-05.txt` | 2026-10-05 화면 키 고정 목록(메타를 요청하는 물리명 416개, dev d1028256 합친 뒤). 전후 비교는 늘 이 목록으로 한다. |
 | `baseline-2026-10-05.json` | 등록 전 mcm 응답(hit 61·missing 355, 로컬 2026-10-05). |
 | `expected-gain-2026-10-05.txt` | 등록과 C1b 뒤 hit 돼야 할 키 147개(분류 NEW 70·ALIAS 10·MDM 67). |
@@ -59,6 +60,7 @@ MDM BE 를 BFF 없이 직접 부를 때 역할이 들어가는 길은 다음과 
 - **기존 컬럼 별칭 추가**: `columnMng` save 는 필드 전체를 덮어쓰고 시스템 매핑을 차분으로 저장한다(빠진 매핑은 지운다). 그래서 스크립트는 상세(view)의 필드·용어·매핑을 그대로 다시 보내고 별칭만 더한다. 용어가 비거나 빠진 컬럼(빈 용어로 보내면 서버가 논리명을 다시 분해해 채운다)과, save 가 받지 않는 시스템(자기 시스템 MDM, `SELF_YN='Y'`) 매핑이 있는 컬럼은 다시 저장할 수 없어 `FAIL` 로 둔다. 그래서 CD_V·COLUMN_ID 에 붙일 `CODE_VAL`·`COL_ID` 는 묶음에서 빼고 화면 meta 로 연결했다.
 - **알려진 한계**: view 와 save 사이(1초 미만)에 다른 관리자가 같은 컬럼을 고치면 그 변경을 덮는다(save 에 낙관적 잠금이 없다). 공용 DB 에서는 등록하는 동안 사전 편집을 멈춘다.
 - **별칭 충돌**: 같은 시스템·이름(대소문자 무시)의 별칭이 다른 컬럼에 있으면 서버가 거부한다. 미리 REVERSE 분해 중복(입력 그대로·대문자 이름)으로 확인해 `FAIL` 로 알린다. 섞인 대소문자로 저장된 별칭은 미리 못 잡고 save 가 거부한다.
+- **기존 컬럼 설명 갱신(`descriptions`)**: 묶음 `descriptions` 항목(`physName`·`columnName`·`description`)마다 상세(view)의 필드·용어·매핑을 그대로 다시 보내고 `description` 만 바꾼다. 논리명이 묶음과 다르거나, 용어가 빠졌거나, save 가 받지 않는 시스템 매핑이 있으면 `FAIL` 로 둔다. dry-run 의 `PLAN` 줄에 「전: … → 후: …」 로 앞뒤 설명을 80자까지 보여 준다. 설명이 이미 같으면 `SKIP` 이다. 범용 이름(TITLE·KIND·USE_YN·CATEGORY 등)은 다른 화면이 같이 쓰므로 이 구역에 넣지 않는다.
 - 실패가 하나라도 있으면 exit 1. 서버에 닿지 못하면(연결 거부·30초 초과) 그 자리에서 멈춘다. 출력은 탭 구분 `상태 종류 이름 설명` 한 줄씩이고 요약은 stderr 로 낸다.
 
 ## 4. 인자
@@ -70,6 +72,6 @@ MDM BE 를 BFF 없이 직접 부를 때 역할이 들어가는 길은 다음과 
 | `--client-key` | 환경변수 `BACKEND_CLIENT_KEY`, 없으면 로컬 기본값 | `X-Client-Key` |
 | `--user` | 없음(`--apply` 에 필수) | `X-Authenticated-User` — 표준관리자 사번 |
 | `--role` | `MDM_STD_ADMIN` | `X-Authenticated-Role` |
-| `--only` | `terms,columns,aliases` | 일부만 돌린다(순서는 늘 용어 → 컬럼 → 별칭) |
+| `--only` | `terms,columns,aliases,descriptions` | 일부만 돌린다(순서는 늘 용어 → 컬럼 → 별칭) |
 | `--allow-no-domain` | 끔 | 추천에서 도메인을 못 찾은 새 컬럼도 도메인 없이 저장한다 |
 | `--apply` | 끔 | 실제로 저장한다 |

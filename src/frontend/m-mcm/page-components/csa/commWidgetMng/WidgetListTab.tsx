@@ -55,7 +55,7 @@ import { WidgetPreview } from "./WidgetPreview";
 import { useWidgetCategories } from "./use-widget-categories";
 
 const COLUMNS: GridColumn[] = uiCols([
-  { key: "widgetId", header: "ID", width: 3, minWidth: 120, align: "left" },
+  { key: "widgetId", header: "ID", meta: "WIDGET_ID", width: 3, minWidth: 120, align: "left" },
   { key: "title", header: "이름", meta: "WIDGET_TITLE", width: 4, minWidth: 120, align: "left" },
   {
     key: "kind",

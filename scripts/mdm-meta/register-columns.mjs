@@ -181,6 +181,9 @@ const clip = (t) => (t == null ? "(없음)" : t.length > 80 ? `${t.slice(0, 80)}
  * {@code columnName} 이 대상 컬럼의 논리명과 다르면 건드리지 않는다(같은 물리명의 다른 뜻 컬럼 보호).
  */
 async function updateDescription(d) {
+  if (typeof d.description !== "string" || !d.description.trim()) {
+    return report("FAIL", "description", d.physName, "묶음의 description 이 비었습니다");
+  }
   const v = await viewColumn(d.physName);
   if (!v) return report("FAIL", "description", d.physName, "대상 표준 컬럼이 없습니다");
   if (d.columnName && v.column.columnName !== d.columnName) {
