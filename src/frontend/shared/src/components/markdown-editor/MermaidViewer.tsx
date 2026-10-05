@@ -5,6 +5,8 @@
  * 기본은 가로·세로가 모두 창 안에 들어오는 맞춤(작은 도식은 100% 를 넘겨 키우지 않는다). [−][배율][+][맞춤]·닫기가 있고, 넘치면 창 안에서 스크롤한다.
  * 끌어서 이동(pan)·Ctrl/⌘+휠 확대 축소를 지원한다. Esc·닫기·바깥(어두운 배경) 누름으로 닫고, 열린 동안 Tab 초점이 창 안에서만 돈다.
  * document.body 로 포털하고 z-index 가 Mantine 모달(200)보다 높아 모달 안 도식에서도 위에 뜬다. Esc·클릭·휠 이벤트는 바깥(위젯 도움말 모달 등)으로 새지 않게 막는다.
+
+ * 어두운 모드(<html data-mantine-color-scheme="dark">)에서는 창 안 색 변수를 어둡게 덮어, 어두운 테마로 그려진 도식과 짝을 맞춘다(shared 전역 변수에는 어두운 값이 없다).
  * 같은 svg 를 본문과 창에 함께 넣으므로 창 쪽 svg 의 id·marker 이름은 retargetSvgIds 로 바꿔 겹치지 않게 한다.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
@@ -37,6 +39,7 @@ const VIEWER_CSS = `
 .md-mermaid-viewer-scroll[data-dragging="true"]{cursor:grabbing;user-select:none}
 .md-mermaid-viewer-scroll:focus-visible{outline:2px solid var(--color-primary);outline-offset:-2px}
 .md-mermaid-viewer-inner{flex:none;margin:auto;padding:${PAD}px}
+:root[data-mantine-color-scheme="dark"] .md-mermaid-viewer{--color-bg:#1a1b1e;--color-bg-light:#2c2e33;--color-text:#e5e7eb;--color-text-secondary:#a1a1aa;--color-border:#4b4d55;--color-primary:#74a7ff}
 @media print{.md-mermaid-viewer-overlay{display:none!important}}
 `;
 

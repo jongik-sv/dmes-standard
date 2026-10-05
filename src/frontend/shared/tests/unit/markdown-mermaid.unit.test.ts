@@ -512,6 +512,15 @@ describe("MermaidDiagram 크게 보기", () => {
     expect(document.activeElement).toBe(opener());
   });
 
+  it("어두운 모드에서는 창 배경·글자 색 변수를 어둡게 덮는 규칙이 있고 인쇄 때는 창을 숨긴다", async () => {
+    mermaidMock.render.mockResolvedValue({ svg: SVG });
+    await mount();
+    await open();
+    const css = Array.from(document.body.querySelectorAll("style")).map((n) => n.textContent).join("");
+    expect(css).toContain(':root[data-mantine-color-scheme="dark"] .md-mermaid-viewer{--color-bg:#1a1b1e');
+    expect(css).toMatch(/@media print\{\.md-mermaid-viewer-overlay\{display:none!important\}\}/);
+  });
+
   it("Tab 초점이 창 안에서만 돈다", async () => {
     mermaidMock.render.mockResolvedValue({ svg: SVG });
     await mount();
