@@ -5,8 +5,8 @@ package com.dongkuk.dmes.mdm.common.rule;
  * 코드·문구·순서로 만든다.
  *
  * @param severity    {@link #REJECT}(저장·되살리기 거부) 또는 {@link #WARN}
- * @param ruleId      검사가 걸린 룰. {@link #EMPTY}·구조·조건식 검사는 null
- * @param otherRuleId 상대 룰(ORDER·CYCLE·DUP_RESULT·IF_SIBLING·PAR_SIBLING). 그 밖은 null
+ * @param ruleId      검사가 걸린 룰(SET 노드면 세트 ID — 하위 세트 Ruling 6). {@link #EMPTY}·구조·조건식 검사는 null
+ * @param otherRuleId 상대 룰·세트 ID(ORDER·CYCLE·DUP_RESULT·IF_SIBLING·PAR_SIBLING). 그 밖은 null
  * @param varName     걸린 변수 이름(2단계 검사). 1단계·EMPTY·구조는 null
  * @param nodeId      흐름 노드 ID(룰 노드·분기 노드). 목록 입력으로 계산하면 늘 null(D8)
  * @param edgeId      흐름 선 ID(조건식·갈래 검사). 그 밖은 null
@@ -40,6 +40,17 @@ public record RuleSetCheck(String code, String severity, String ruleId, String o
     public static final String FLOW_CATCH = "FLOW_CATCH";
     /** 받는 노드가 받는 종류가 그 룰에서 일어날 수 없다(WARN, 받는 노드 spec §5) — 결과 없음인데 기본 행이 있음, 판정 충돌인데 UNIQUE·ANY 가 아님. */
     public static final String CATCH_NEVER = "CATCH_NEVER";
+    /**
+     * SET 노드의 세트 ID 가 없거나, 기준 시각에 RELEASED 가 없거나, 폐기 세트다(하위 세트 spec §5, Ruling 8). 분석기 두 벌(서버·화면)은 WARN 으로 낸다
+     * (편차 13) — DRAFT 저장은 막지 않고, 확정·되살리기 검사가 수준과 상관없이 거부로 본다.
+     */
+    public static final String CALL_MISSING = "CALL_MISSING";
+    /** 세트 호출 그래프에 순환이 있다(하위 세트 spec §5, 서버만). DRAFT 저장은 경고, 확정·되살리기는 거부(편차 13). */
+    public static final String CALL_CYCLE = "CALL_CYCLE";
+    /** 세트 호출 단계가 5 를 넘는다(하위 세트 spec §5, 서버만). DRAFT 저장은 경고, 확정·되살리기는 거부(편차 13). */
+    public static final String CALL_DEPTH = "CALL_DEPTH";
+    /** 이 버전으로 겉모양이 바뀌어 부르는 세트에 없던 거부가 생긴다(하위 세트 spec §6, 서버만). DRAFT 저장은 경고, 확정·되살리기는 거부(편차 13). */
+    public static final String CALLER_BROKEN = "CALLER_BROKEN";
 
     /** 노드 위치 없는 검사(목록 입력·세트 단위 거부). */
     public RuleSetCheck(String code, String severity, String ruleId, String otherRuleId, String varName, String message) {
