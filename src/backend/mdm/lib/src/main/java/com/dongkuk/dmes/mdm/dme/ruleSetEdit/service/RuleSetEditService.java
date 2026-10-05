@@ -450,7 +450,7 @@ public class RuleSetEditService {
             calls = Map.of();
             shapeFlow = FlowParser.linear(ids);
         }
-        rejectIfAny(checks);
+        // 거부(REJECT) 검사가 있어도 DRAFT 저장은 허용한다(2026-10-06 사용자 결정). 확정·되살리기만 거부로 막고, 저장 응답 checks 에는 거부도 싣는다.
         checks.addAll(callWarnings(snap, setId, shapeFlow, ids, calls, now, checks));
         List<String> callSetIds = RuleSetFlowJson.setIds(shapeFlow);
         String description = blankToNull(request.getDescription());
@@ -471,7 +471,7 @@ public class RuleSetEditService {
             }
             return bumped;
         });
-        return new RuleSetSaveResult(setId, next, warnings(checks));
+        return new RuleSetSaveResult(setId, next, checks);
     }
 
     // ────────────────────────────────────────────────────────────────
@@ -894,7 +894,7 @@ public class RuleSetEditService {
      * </ol>
      *
      * @param flow   저장하려는 흐름(목록 저장이면 RULE_IDS 한 줄 흐름 — 목록 세트도 SET 노드로 불릴 수 있다)
-     * @param before 저장하려는 정의의 분석기 검사(거부는 이미 걸렀다)
+     * @param before 저장하려는 정의의 분석기 검사(거부가 섞여 있을 수 있다 — 저장은 거부로 막지 않는다)
      */
     private List<RuleSetCheck> callWarnings(SetCallIoReader.Snapshot snap, String setId, FlowDefinition flow, List<String> ids,
             Map<String, SetCallIo> calls, LocalDateTime now, List<RuleSetCheck> before) {
@@ -984,13 +984,6 @@ public class RuleSetEditService {
             throw RuleSetRejections.saveRejected(List.of(new RuleSetCheck(RuleSetCheck.FLOW_READONLY, RuleSetCheck.REJECT, null, null,
                     null, branched ? FLOW_READONLY_MESSAGE : FLOW_LIST_SAVE_MESSAGE)));
         });
-    }
-
-    private static void rejectIfAny(List<RuleSetCheck> checks) {
-        List<RuleSetCheck> rejects = checks.stream().filter(RuleSetCheck::rejected).toList();
-        if (!rejects.isEmpty()) {
-            throw RuleSetRejections.saveRejected(rejects);
-        }
     }
 
     private static List<RuleSetCheck> warnings(List<RuleSetCheck> checks) {

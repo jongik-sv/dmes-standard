@@ -4,6 +4,7 @@ import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.STD_ADMIN;
 import static com.dongkuk.dmes.mdm.dme.DmeTestSupport.STEWARD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -253,6 +254,15 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
         return checks.stream().map(RuleSetCheck::code).toList();
     }
 
+    /** 응답 checks 중 거부(REJECT) 검사 — 저장은 거부로 막지 않고 응답에 싣는다(2026-10-06). */
+    private static List<RuleSetCheck> rejects(RuleSetSaveResult r) {
+        return r.getChecks().stream().filter(RuleSetCheck::rejected).toList();
+    }
+
+    private static String rejectText(RuleSetSaveResult r) {
+        return rejects(r).stream().map(c -> c.code() + " " + c.message()).reduce("", (a, b) -> a + "; " + b);
+    }
+
     // ── view ──
 
     @Test
@@ -335,33 +345,41 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     // ── save 거부 — 서버가 요청 목록으로 다시 계산한다(I12) ──
 
     @Test
-    void 순환이면_MDM024_로_거부하고_메시지에_CYCLE_과_순환을_싣는다() {
-        BusinessException e = refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_CYA", "R_CYB")));
-        assertEquals("MDM024", code(e));
-        assertEquals("룰 세트 저장 검사를 통과하지 못했습니다: R_CYA[S_CYB] CYCLE "
-                + "R_CYA와 R_CYB가 서로의 결과 변수를 읽는다(순환). 순서를 바꿔서는 풀리지 않는다", e.getMessage());
-        assertEquals("CYCLE", e.getErrors().get(1).code());
+    void 순환이면_저장하되_응답_checks_에_CYCLE_거부를_싣는다() {
+        RuleSetSaveResult r = service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_CYA", "R_CYB"));
+
+        assertEquals(4L, r.getRowVersion());
+        assertEquals("[\"R_CYA\",\"R_CYB\"]", draftRow("S_CHAIN").get("RULE_IDS"));
+        assertTrue(codes(rejects(r)).contains("CYCLE"), r.getChecks().toString());
+        assertTrue(rejectText(r).contains("R_CYA와 R_CYB가 서로의 결과 변수를 읽는다(순환)"), rejectText(r));
     }
 
     @Test
-    void 순서_빈_목록_없는_룰_DEPRECATED_룰_알_수_없는_입력은_각각_MDM024_다() {
-        BusinessException order = refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_FCT", "R_GRD")));
-        assertEquals("MDM024", code(order));
-        assertTrue(order.getMessage().contains("R_FCT[S_GRD] ORDER R_FCT가 뒤에 도는 R_GRD의 결과 변수 S_GRD를 읽는다"), order.getMessage());
+    void 순서_빈_목록_없는_룰_DEPRECATED_룰_알_수_없는_입력도_저장하고_거부_검사를_싣는다() {
+        long rv = 3L;
+        RuleSetSaveResult order = service.save(saveReq("S_CHAIN", "사슬 세트", null, rv, "R_FCT", "R_GRD"));
+        rv = order.getRowVersion();
+        assertTrue(rejectText(order).contains("ORDER R_FCT가 뒤에 도는 R_GRD의 결과 변수 S_GRD를 읽는다"), rejectText(order));
 
-        BusinessException empty = refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L)));
-        assertEquals("룰 세트 저장 검사를 통과하지 못했습니다: -[-] EMPTY 룰이 하나도 없다", empty.getMessage());
-        RuleSetSaveRequest noRows = saveReq("S_CHAIN", "사슬 세트", null, 3L);
+        RuleSetSaveResult empty = service.save(saveReq("S_CHAIN", "사슬 세트", null, rv));
+        rv = empty.getRowVersion();
+        assertEquals(List.of("EMPTY"), codes(rejects(empty)));
+        assertEquals("[]", draftRow("S_CHAIN").get("RULE_IDS"));
+        RuleSetSaveRequest noRows = saveReq("S_CHAIN", "사슬 세트", null, rv);
         noRows.setRules(null);
-        assertTrue(refuse(() -> service.save(noRows)).getMessage().contains("EMPTY"));
+        RuleSetSaveResult none = service.save(noRows);
+        rv = none.getRowVersion();
+        assertTrue(codes(rejects(none)).contains("EMPTY"));
 
-        assertTrue(refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_GRD", "NO_SUCH")))
-                .getMessage().contains("NO_SUCH[-] RULE_NOT_FOUND"));
-        assertTrue(refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_OLD")))
-                .getMessage().contains("R_OLD[-] RULE_DEPRECATED"));
-        BusinessException unknown = refuse(() -> service.save(saveReq("S_CHAIN", "사슬 세트", null, 3L, "R_UNK")));
-        assertEquals("MDM024", code(unknown));
-        assertTrue(unknown.getMessage().contains("R_UNK[X_UNKNOWN] UNKNOWN_INPUT"), unknown.getMessage());
+        RuleSetSaveResult missing = service.save(saveReq("S_CHAIN", "사슬 세트", null, rv, "R_GRD", "NO_SUCH"));
+        rv = missing.getRowVersion();
+        assertTrue(rejectText(missing).contains("RULE_NOT_FOUND"), rejectText(missing));
+        RuleSetSaveResult old = service.save(saveReq("S_CHAIN", "사슬 세트", null, rv, "R_OLD"));
+        rv = old.getRowVersion();
+        assertTrue(codes(rejects(old)).contains("RULE_DEPRECATED"), old.getChecks().toString());
+        RuleSetSaveResult unknown = service.save(saveReq("S_CHAIN", "사슬 세트", null, rv, "R_UNK"));
+        assertTrue(rejectText(unknown).contains("UNKNOWN_INPUT"), rejectText(unknown));
+        assertEquals("[\"R_UNK\"]", draftRow("S_CHAIN").get("RULE_IDS"));
     }
 
     @Test
@@ -562,35 +580,31 @@ class RuleSetEditServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
-    void 흐름_검사가_거부하면_MDM024_이고_행은_그대로다() {
-        BusinessException e = refuse(() -> service.save(flowReq("S_CHAIN", 3L, SIBLING_FLOW)));
+    void 흐름_검사가_거부해도_저장하고_응답에_거부를_싣는다() {
+        RuleSetSaveResult r = service.save(flowReq("S_CHAIN", 3L, SIBLING_FLOW));
 
-        assertEquals("MDM024", code(e));
-        assertTrue(e.getMessage().contains("IF_SIBLING"), e.getMessage());
+        assertEquals(4L, r.getRowVersion());
+        assertTrue(rejectText(r).contains("IF_SIBLING"), rejectText(r));
         Map<String, Object> row = draftRow("S_CHAIN");
-        assertNull(row.get("FLOW_JSON"));
-        assertEquals("[\"R_GRD\",\"R_FCT\",\"R_SPD\"]", row.get("RULE_IDS"));
-        assertEquals(3L, ((Number) row.get("ROW_VERSION")).longValue());
-    }
-
-    private static List<String> issueCodes(BusinessException e) {
-        return e.getErrors().stream().map(i -> i.code()).toList();
+        assertNotNull(row.get("FLOW_JSON"));
+        assertEquals(4L, ((Number) row.get("ROW_VERSION")).longValue());
     }
 
     @Test
-    void IF_선_조건식_문법이_틀리면_FLOW_COND_로_거부한다() {
-        BusinessException e = refuse(() -> service.save(flowReq("S_CHAIN", 3L, IF_FLOW.replace("SET_THK > 1", "SET_THK >"))));
+    void IF_선_조건식_문법이_틀려도_저장하고_FLOW_COND_거부를_싣는다() {
+        RuleSetSaveResult r = service.save(flowReq("S_CHAIN", 3L, IF_FLOW.replace("SET_THK > 1", "SET_THK >")));
 
-        assertEquals("MDM024", code(e));
-        assertTrue(issueCodes(e).contains("FLOW_COND"), e.getMessage());
+        assertEquals(4L, r.getRowVersion());
+        assertTrue(codes(rejects(r)).contains("FLOW_COND"), r.getChecks().toString());
     }
 
     @Test
-    void 사전에_없는_변수는_NONE_이라_정의되지_않았다며_거부한다() {
-        BusinessException e = refuse(() -> service.save(flowReq("S_CHAIN", 3L, IF_FLOW.replace("SET_THK > 1", "NOPE_VAR > 1"))));
+    void 사전에_없는_변수는_NONE_이라_정의되지_않았다며_거부_검사로_싣는다() {
+        RuleSetSaveResult r = service.save(flowReq("S_CHAIN", 3L, IF_FLOW.replace("SET_THK > 1", "NOPE_VAR > 1")));
 
-        assertTrue(issueCodes(e).contains("FLOW_COND"), e.getMessage());
-        assertTrue(e.getMessage().contains("e2 갈래 조건식이 읽는 NOPE_VAR는 이 지점에서 정의되지 않았다"), e.getMessage());
+        assertEquals(4L, r.getRowVersion());
+        assertTrue(codes(rejects(r)).contains("FLOW_COND"), r.getChecks().toString());
+        assertTrue(rejectText(r).contains("e2 갈래 조건식이 읽는 NOPE_VAR는 이 지점에서 정의되지 않았다"), rejectText(r));
     }
 
     @Test

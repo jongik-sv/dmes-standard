@@ -380,12 +380,18 @@ class DmeOasisHttpTest {
         assertEquals("kim", jdbc.queryForObject("SELECT U_USR_ID FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'HTTP_SET'", String.class));
 
         JsonNode cycle = post("ruleSetEdit", "save", "kim", setSaveBody("HTTP_SET", 1, "HTTP_CYA", "HTTP_CYB"));
-        assertFalse(cycle.path("meta").path("success").asBoolean(true), cycle.toString());
-        String message = cycle.path("meta").path("message").asText();
-        assertTrue(message.startsWith(MdmErrorCode.RULE_SET_SAVE_REJECTED.defaultMessage()), message);
-        assertTrue(message.contains("CYCLE") && message.contains("순환"), message);
-        assertEquals(1L, Long.parseLong(DmeTestSupport.setVerValue(jdbc, "HTTP_SET", "1.000", "ROW_VERSION")));
-        assertEquals(List.of("HTTP_GRD", "HTTP_FCT"), List.of(json.readValue(setRuleIds("HTTP_SET"), String[].class)));
+        // 거부(REJECT) 검사가 있어도 DRAFT 저장은 허용한다(2026-10-06) — 저장되고 응답 checks 에 CYCLE 거부가 실린다.
+        assertTrue(cycle.path("meta").path("success").asBoolean(false), cycle.toString());
+        assertEquals(2L, cycle.path("data").path("result").path("rowVersion").asLong(), cycle.toString());
+        String checks = cycle.path("data").path("result").path("checks").toString();
+        assertTrue(checks.contains("\"REJECT\"") && checks.contains("CYCLE") && checks.contains("순환"), checks);
+        assertEquals(2L, Long.parseLong(DmeTestSupport.setVerValue(jdbc, "HTTP_SET", "1.000", "ROW_VERSION")));
+        assertEquals(List.of("HTTP_CYA", "HTTP_CYB"), List.of(json.readValue(setRuleIds("HTTP_SET"), String[].class)));
+
+        // 순환을 고쳐 다시 저장하면 거부 검사가 사라진다 — 아래 search·view 는 이 목록을 본다.
+        JsonNode fixed = post("ruleSetEdit", "save", "kim", setSaveBody("HTTP_SET", 2, "HTTP_GRD", "HTTP_FCT"));
+        assertTrue(fixed.path("meta").path("success").asBoolean(false), fixed.toString());
+        assertFalse(fixed.path("data").path("result").path("checks").toString().contains("REJECT"), fixed.toString());
 
         JsonNode search = post("ruleSetMng", "search", "lee", envelope("ruleSetMng",
                 json.createObjectNode().put("keyword", "HTTP").put("page", 0).put("size", 20)));

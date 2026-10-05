@@ -245,6 +245,26 @@ class RuleSetSubsetServiceTest extends AbstractMdmSharedDbTest {
         assertThat(ver("C", "STATUS")).isEqualTo("DRAFT");
     }
 
+    /**
+     * 거부(REJECT) 검사가 있어도 DRAFT 저장은 허용한다(2026-10-06 사용자 결정) — 부르는 세트가 있어 호출 검사가 도는 저장도 거부를 응답에 싣고 저장한다.
+     * 확정은 그 DRAFT 를 같은 거부로 막는다.
+     */
+    @Test
+    void 거부_검사가_있어도_부르는_세트의_DRAFT_저장은_통과하고_확정은_거부한다() {
+        setWithDraft("C", "INUSE", "[\"R_C1\"]");
+        parentP("INUSE");
+
+        RuleSetSaveResult r = saveList("C", 0, "R_C1", "NO_SUCH");
+        assertThat(r.getChecks()).anyMatch(c -> c.rejected() && RuleSetCheck.RULE_NOT_FOUND.equals(c.code()));
+        assertThat(ver("C", "RULE_IDS")).isEqualTo("[\"R_C1\",\"NO_SUCH\"]");
+        assertThat(ver("C", "ROW_VERSION")).isEqualTo("1");
+
+        RuleSetConfirmRequest c = confirm("C", r.getRowVersion());
+        c.setWarningsAcknowledged(true);
+        assertThatThrownBy(() -> confirmService.confirm(c)).hasMessageContaining("확정 검사");
+        assertThat(ver("C", "STATUS")).isEqualTo("DRAFT");
+    }
+
     // ── 저장: 그 밖 ──
 
     @Test
