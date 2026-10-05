@@ -27,3 +27,15 @@
 
 1. 실서버 화면 확인(조정 세션 요청): 정의 위젯 선택 → [복사] → 저장 → 새 ID 발급.
 2. 머지는 조정 세션 허가 뒤.
+
+## widget-copy-2: 새로 고침 최소 600초 (사용자 요청)
+
+| 위치 | 변경 |
+|---|---|
+| 관리 화면 검사 | `form-model.ts` `REFRESH_MIN_SEC=600`(30 → 600), 입력 칸 `min`·안내 문구 |
+| 서버 저장 검사 | `CommWidgetMngService.REFRESH_MIN` 30 → 600 (이 항목에 한해 백엔드 수정 허가) |
+| 실행 주기 | shared `MIN_REFRESH_SEC` 30 → 600(`WidgetFrame` 의 `max(MIN_REFRESH_SEC, refreshSec)`) — 저장된 600 미만 값도 실행 때 600 으로 올려 쓴다. 빈 값·0 은 새로 고침 없음 유지 |
+| 코드 위젯 meta | `refreshSec` 를 둔 코드 위젯 0건 → 올릴 목록 없음 |
+| 이미 저장된 600 미만 정의 | 실행은 600 으로 동작, 관리 화면에서 그 위젯을 저장하려면 600 이상으로 고쳐야 한다(복사도 같음) |
+| 문서 | 가이드 2.2·예시·오류 문구, 스킬 `widget.md`·`llms-full.txt` WidgetMeta 한 줄, `gen:widget-guide` 재생성 |
+| 미갱신(소유 밖) | `docs/superpowers/specs/2026-10-02-widget-admin-generic-design.md:300` 「30~86400」 — 조정 세션이 마감에 정리 |
