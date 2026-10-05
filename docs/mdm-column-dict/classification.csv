@@ -120,7 +120,7 @@ MDM,MARU_RULE_NAME,maruRuleName,m-mdm,"grid,label",이름 / 룰명,MARU_RULE_NM,
 MDM,SENSE_NO,senseNo,m-mdm,"grid,label",의미 / 의미 번호,MEANING_NO,,,,,,,,"MDM 별칭 SENSE_NO→MEANING_NO(의미 번호) 있음, 실제 컬럼 mdm.TB_MDM_TERM",m-mdm/pages/dma/termRegPop/termRegPop.tsx:172 m-mdm/pages/dma/termRegPop/termRegPop.tsx:264
 MDM,NUM_FORMAT,NUM_FORMAT,m-mdm,"label,grid",숫자 표현 / 숫자 형식,NUM_FMT,,,,,,,,"MDM 별칭 NUM_FORMAT→NUM_FMT(수치 형식) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM",m-mdm/src/layout/LayoutItemDetail.tsx:101 m-mdm/src/layout/snapshot-export.ts:68
 MDM,OFFSET,OFFSET,m-mdm,grid,오프셋,OFST,,,,,,,,"MDM 별칭 OFFSET→OFST(오프셋) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM",m-mdm/src/layout/item-rows.ts:20 m-mdm/src/layout/snapshot-export.ts:62
-MDM,COLUMN_PHYS,COLUMN_PHYS,m-mdm,"grid,label",컬럼 / 표준 물리명,PHYS_NM,,,,,,,,"MDM 별칭 COLUMN_PHYS→PHYS_NM(물리 명) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM (화면 1/4 위치는 이미 meta=false)",m-mdm/pages/dmb/layoutMng/components/ImpactPanel.tsx:16 m-mdm/src/layout/LayoutItemDetail.tsx:66 m-mdm/src/layout/item-rows.ts:18 외 1
+MDM,COLUMN_PHYS,COLUMN_PHYS,m-mdm,"grid,label",컬럼 / 표준 물리명,PHYS_NM,,,,,,,,"MDM 별칭 COLUMN_PHYS→PHYS_NM(물리 명) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM — LayoutItemDetail 의 '컬럼' 칸 1곳은 ColumnInfoPopover 가 이미 있어 화면 레인이 meta=false(예외, 지시 mdm-column-dict-3) — 그리드는 그대로",m-mdm/pages/dmb/layoutMng/components/ImpactPanel.tsx:16 m-mdm/src/layout/LayoutItemDetail.tsx:66 m-mdm/src/layout/item-rows.ts:18 외 1
 MDM,PHYS_NAME,"physName,PHYS_NAME",m-mdm,"grid,label",실제 필드명 / 표준 물리명,PHYS_NM,,,,,,,,"MDM 별칭 PHYS_NAME→PHYS_NM(물리 명) 있음, 실제 컬럼 mdm.TB_MDM_COLUMN_SYSTEM,mdm.TB_MDM_COLUMN",m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:304 m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:117 m-mdm/pages/dma/columnMng/page.tsx:71 외 1
 MDM,PARENT_DOMAIN_ID,"parentDomainId,PARENT_DOMAIN_ID",m-mdm,label,부모 도메인 / 지금 부모 / 새 부모 도메인,PRN_DOMAIN_ID,,,,,,,,"MDM 별칭 PARENT_DOMAIN_ID→PRN_DOMAIN_ID(상위 도메인 아이디) 있음, 실제 컬럼 mdm.TB_MDM_DOMAIN",m-mdm/pages/dma/domainMng/components/DomainBasicForm.tsx:65 m-mdm/pages/dma/domainMng/components/ParentLinkModal.tsx:143 m-mdm/pages/dma/domainMng/components/ParentLinkModal.tsx:148
 MDM,RCV_SYSTEM,rcvSystem,m-mdm,search,수신 시스템,RCV_SYS_CD,,,,,,,,"MDM 별칭 RCV_SYSTEM→RCV_SYS_CD(수신 시스템 코드) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT",m-mdm/pages/dmb/layoutMng/page.tsx:469
@@ -178,6 +178,9 @@ DISPLAY,SYSTEMS_TEXT,systemsText,m-mdm,grid,사용 시스템,SYS_LIST,,,,SYS_LIS
 DISPLAY,CBO_USE_TP,cbo_USE_TP,m-mcm,search,사용 유무 / 사용 여부,USE_TP,,,,USE_TP,,,,검색 조건 키(사용 구분),m-mcm/page-components/csa/commMenuMng/page.tsx:1030 m-mcm/page-components/csa/commObjMng/page.tsx:527 m-mcm/page-components/csa/commPermMng/page.tsx:576 외 3
 DISPLAY,EDT_USER_ID,edt_USER_ID,m-mcm,search,사용자,USER_ID,,,,USER_ID,,,,검색 조건 키,m-mcm/page-components/csa/commUserMng/page.tsx:882
 DISPLAY,FILTER_USER_ID,filterUserId,m-mcm,search,권한 부여 source 사용자 ID/사번,USER_ID,,,,USER_ID,,,,검색 조건 키(복사 원본 사용자),m-mcm/page-components/csa/commUserRoleCopy/page.tsx:419
+OFF,DATA_SRC,dataSrc,m-mcm,label,실행 모듈,,,,,false,,,,commWidgetMng 의 '실행 모듈' 라벨 — 사전 DATA_SRC(데이터 출처)와 뜻이 달라 화면 레인이 meta=false(조정자 지시 mdm-column-dict-3) (화면 1/1 위치는 이미 meta=false),m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:254
+OFF,LABEL_LONG,labelLong,m-mdm,label,표시명 긴/중간/짧은,,,,,false,,,,columnMng '표시명 긴/중간/짧은' — 한 라벨에 입력 3개가 묶여 화면 레인이 meta=false(조정자 지시 mdm-column-dict-3) (화면 1/1 위치는 이미 meta=false),m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:139
+OFF,LINE_NO,lineNo,m-mdm,grid,줄,,,,,false,,,,지금 hit(LINE_NO '라인 번호')은 뜻이 다르다 — CSV 줄 번호라 meta=false,m-mdm/pages/dmd/dataCsvUploadPop/dataCsvUploadPop.tsx:38
 GENERIC,ABSENT,absent,m-mcm,grid,값,,,,,false,,,,화면마다 뜻이 다른 범용 키,m-mcm/page-components/csa/mdmCacheMng/page.tsx:119
 GENERIC,ACT,act,m-mdm,grid,,,,,,false,,,,화면마다 뜻이 다른 범용 키,m-mdm/pages/dme/ruleSetEdit/debugger/VariablePanel.tsx:115
 GENERIC,ACTION,"ACTION,action",m-mdm,grid,처리 / 동작,,,,,false,,,,사전 hit(ACTION)이지만 화면마다 뜻이 다른 범용 키,m-mdm/pages/dma/columnMng/page.tsx:438 m-mdm/pages/dmd/dataCsvUploadPop/dataCsvUploadPop.tsx:40
@@ -221,7 +224,6 @@ GENERIC,LABELS,labels,m-mdm,grid,표시명(긴/중간/짧은),,,,,false,,,,화�
 GENERIC,LEFT,left,m-mdm,grid,하한 / 값,,,,,false,,,,화면마다 뜻이 다른 범용 키,m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:101 m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:107 m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:117
 GENERIC,LENGTH,"length,LENGTH",m-mdm,"label,grid",길이 / 소수 자리 / 타입·길이 / 길이,,,,,false,,,,사전 hit(LENGTH)이지만 화면마다 뜻이 다른 범용 키 (화면 1/4 위치는 이미 meta=false),m-mdm/pages/dma/domainMng/components/DomainBasicForm.tsx:97 m-mdm/src/layout/ColumnPickModal.tsx:20 m-mdm/src/layout/item-rows.ts:21 외 1
 GENERIC,LEVEL,LEVEL,m-mdm,grid,수준,,,,,false,,,,화면마다 뜻이 다른 범용 키,m-mdm/pages/dma/domainMng/components/DomainCheckList.tsx:12
-GENERIC,LINE_NO,lineNo,m-mdm,grid,줄,,,,,false,,,,지금 hit(LINE_NO '라인 번호')은 뜻이 다르다 — CSV 줄 번호라 meta=false,m-mdm/pages/dmd/dataCsvUploadPop/dataCsvUploadPop.tsx:38
 GENERIC,MARK,mark,m-mdm,grid,상태 / 마지막 결과,,,,,false,,,,화면마다 뜻이 다른 범용 키,m-mdm/pages/dmc/codeItemEdit/cate/CategoryTab.tsx:166 m-mdm/pages/dme/ruleSetEdit/debugger/TestCasePanel.tsx:65
 GENERIC,MEMO,MEMO,m-mdm,grid,메모,,,,,false,,,,화면마다 뜻이 다른 범용 키,m-mdm/pages/dma/domainMng/components/DomainTestCaseGrid.tsx:43
 GENERIC,MESSAGE,MESSAGE,m-mdm,grid,메시지,,,,,false,,,,화면마다 뜻이 다른 범용 키,m-mdm/pages/dma/domainMng/components/DomainCheckList.tsx:14 m-mdm/pages/dmb/layoutMng/components/LayoutCheckPanel.tsx:29
@@ -313,7 +315,6 @@ UI,CONTRACT_BADGE,contractBadge,m-mdm,grid,계약,,,,,,,,,실제 DB 컬럼 없�
 UI,CURRENT_VER,CURRENT_VER,m-mdm,grid,현재 버전,,,,,,,,,실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값,m-mdm/pages/dmb/layoutMng/components/LayoutList.tsx:17
 UI,CURRENT_VER_LABEL,currentVerLabel,m-mdm,"label,grid",현재 버전 / 현재,,,,,,,,,현재 버전 표시 글자 (화면 1/2 위치는 이미 meta=false),m-mdm/pages/dmc/codeMng/CodeDetail.tsx:142 m-mdm/pages/dmc/codeMng/page.tsx:419
 UI,DATA_QUERY_DEF_IDS,dataQueryDefIds,m-mcm,label,데이터 질의에 쓸 쿼리 위젯,,,,,,,,,화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false),m-mcm/widget-types/chat/editor.tsx:115
-UI,DATA_SRC,dataSrc,m-mcm,label,실행 모듈,,,,,,,,,화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false),m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:254
 UI,DEFAULT_SIZE,defaultSize,m-mcm,grid,기본 크기,,,,,,,,,실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값,m-mcm/page-components/csa/commWidgetMng/WidgetListTab.tsx:88
 UI,DEPENDED_BY,dependedBy,m-mdm,grid,역의존 룰,,,,,,,,,실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값,m-mdm/pages/dme/ruleEdit/cards/RuleUsageCard.tsx:37
 UI,DEPENDS_ON,dependsOn,m-mdm,grid,의존 룰,,,,,,,,,실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값,m-mdm/pages/dme/ruleEdit/cards/RuleUsageCard.tsx:36
@@ -427,7 +428,6 @@ UI,WELCOME,welcome,m-mcm,label,첫 인사,,,,,,,,,화면이 모든 위치에서 
 UI,WIDGET_KIND,widgetKind,m-mcm,label,구분,,,,,,,,,화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false),m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:140
 UI,X_FIELD,xField,m-mcm,label,가로축 필드,,,,,,,,,화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false),m-mcm/widget-types/query-chart/editor.tsx:72
 UI,EXAMPLES_TEXT,examplesText,m-mdm,label,예시 값,EXAMPLES,,,,,,,,화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false),m-mdm/pages/dma/domainMng/components/DomainBasicForm.tsx:142
-UI,LABEL_LONG,labelLong,m-mdm,label,표시명 긴/중간/짧은,WIDE_DISP_NM,,,,,,,,화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false),m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:139
 EXIST,BASE_VER,baseVer,m-mdm,grid,base,BASE_VER,,,,,,,,사전 hit,m-mdm/pages/dme/ruleMng/RuleDetailPanel.tsx:95
 EXIST,CASE_ID,caseId,m-mdm,grid,case_id,CASE_ID,,,,,,,,사전 hit,m-mdm/pages/dme/ruleEdit/cards/TestCaseCard.tsx:71
 EXIST,CATEGORY_ID,"categoryId,CategoryId,CATEGORY_ID",m-mcm,"grid,search",카테고리 ID / 카테고리ID,CATEGORY_ID,,,,,,,,사전 hit,m-mcm/page-components/cma/masterCategoryMng/constants.ts:37 m-mcm/page-components/cma/masterCategoryMng/page.tsx:362 m-mcm/page-components/cma/masterCodeMng/page.tsx:222 외 3
@@ -448,7 +448,7 @@ EXIST,HIT_POLICY,hitPolicy,m-mdm,grid,적중 정책,HIT_POLICY,,,,,,,,사전 hit
 EXIST,INPUT_JSON,inputJson,m-mdm,grid,입력,INPUT_JSON,,,,,,,,사전 hit,m-mdm/pages/dme/ruleEdit/cards/BoundaryCaseModal.tsx:122 m-mdm/pages/dme/ruleEdit/cards/TestCaseCard.tsx:84
 EXIST,LAST_UPDATE_TIMESTAMP,lastUpdateTimestamp,m-mcm,grid,최종수정일,LAST_CHG_DH,,,,,,,,사전 hit(MES 별칭 LAST_UPDATE_TIMESTAMP→LAST_CHG_DH),m-mcm/page-components/cmb/masterRuleList/constants.ts:38
 EXIST,LAST_UPDATED_OBJECT_ID,lastUpdatedObjectId,m-mcm,grid,최종수정자,LAST_CHG_OBJECT_ID,,,,,,,,사전 hit(MES 별칭 LAST_UPDATED_OBJECT_ID→LAST_CHG_OBJECT_ID),m-mcm/page-components/cmb/masterRuleList/constants.ts:37
-EXIST,LAYOUT_ID,"layoutId,LAYOUT_ID",m-mdm,"label,grid",헤더 ID / 버전 / 헤더 ID / 레이아웃 ID / 버전,LAYOUT_ID,,,,,,,,사전 hit (화면 2/5 위치는 이미 meta=false),m-mdm/pages/dmb/headerMng/components/HeaderForm.tsx:46 m-mdm/pages/dmb/headerMng/components/HeaderList.tsx:11 m-mdm/pages/dmb/layoutMng/components/HeaderPickModal.tsx:10 외 2
+EXIST,LAYOUT_ID,"layoutId,LAYOUT_ID",m-mdm,"label,grid",헤더 ID / 버전 / 헤더 ID / 레이아웃 ID / 버전,LAYOUT_ID,,,,,,,,"사전 hit — headerMng·layoutMng 폼의 'ID / 버전' 라벨 2곳은 두 값이 묶여 화면 레인이 meta=false(예외, 지시 mdm-column-dict-3) — 그리드 3곳은 그대로 hit",m-mdm/pages/dmb/headerMng/components/HeaderForm.tsx:46 m-mdm/pages/dmb/headerMng/components/HeaderList.tsx:11 m-mdm/pages/dmb/layoutMng/components/HeaderPickModal.tsx:10 외 2
 EXIST,MARU_DATA_ID,maruDataId,m-mdm,"label,grid",마루 데이터 ID,MARU_DATA_ID,,,,,,,,사전 hit,m-mdm/pages/dmd/dataMng/DataDetail.tsx:51 m-mdm/pages/dmd/dataMng/columns.tsx:8 m-mdm/pages/dmd/dataMng/components/DataRegisterForm.tsx:34
 EXIST,MARU_RULE_ID,maruRuleId,m-mdm,"grid,label",룰 ID,MARU_RULE_ID,,,,,,,,사전 hit,m-mdm/pages/dme/ruleConfirm/page.tsx:54 m-mdm/pages/dme/ruleMng/RuleDetailPanel.tsx:292 m-mdm/pages/dme/ruleMng/components/RuleRegisterForm.tsx:60 외 1
 EXIST,MENU_ID,MENU_ID,m-mcm,"grid,label",메뉴 ID / MENU_ID / MENU ID,MENU_ID,,,,,,,,사전 hit,m-mcm/page-components/csa/commMenuMng/page.tsx:187 m-mcm/page-components/csa/commMenuMng/page.tsx:1328 m-mcm/page-components/csa/commMenuMng/page.tsx:1356 외 4

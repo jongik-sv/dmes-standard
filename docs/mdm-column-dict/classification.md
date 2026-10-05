@@ -12,8 +12,9 @@ m-mcm·m-mls·m-mdm 화면이 MDM 메타(머리글 툴팁)를 찾는 키를 모�
 | 새 표준 컬럼 등록 (NEW) | 70 | 표준 컬럼 60개를 새로 만들고, 화면 키가 표준 물리명과 다르면 같은 save 에 MES 별칭으로 넣는다(별칭 60개). WIDGET_ID 는 용어 「위젯」 을 먼저 등록한다 |
 | MES 별칭 등록 (ALIAS) | 10 | 같은 뜻의 기존 표준 컬럼 10개에 MES 별칭을 더한다 |
 | 표시용 (DISPLAY) | 32 | 화면에서 `meta="표준 물리명"` 으로 원 컬럼에 연결한다(등록 없음) |
-| 범용 키 (GENERIC) | 105 | 화면에서 `meta={false}` 로 끈다(사전에 새로 넣지 않는다) |
-| UI 전용 (UI) | 145 | 등록하지 않는다(화면이 모든 위치에서 이미 meta=false 로 둔 칸 포함) |
+| 화면 예외 (OFF) | 3 | 뜻이 다르거나 한 라벨에 여러 키가 묶여 화면에서 `meta={false}` 로 끈다(DATA_SRC·LABEL_LONG·LINE_NO) |
+| 범용 키 (GENERIC) | 104 | 화면에서 `meta={false}` 로 끈다(사전에 새로 넣지 않는다) |
+| UI 전용 (UI) | 143 | 등록하지 않는다(화면이 모든 위치에서 이미 meta=false 로 둔 칸 포함) |
 | 합계 | 474 | 화면 키의 물리명 기준. 그중 메타를 요청하는 키는 416개다(나머지는 화면이 모든 위치에서 meta=false) |
 
 - 등록 전 기준(dev d1028256 을 합친 뒤): 메타를 요청하는 물리명 416개 중 mcm 메타 hit 61, missing 355, unavailable 0(`scripts/mdm-meta/check-meta.sh`, 2026-10-05 로컬). 합치기 전(e00a3c7c)에는 417개 중 hit 62 였다.
@@ -54,7 +55,8 @@ m-mcm·m-mls·m-mdm 화면이 MDM 메타(머리글 툴팁)를 찾는 키를 모�
    - 범용 키에서 파생된 표시 키(`KIND_LABEL`·`VER_TEXT`·`TYPE_BADGE` 등)도 범용으로 본다.
    - 예외로 뜻이 고정된 한 단어(ENCODING·EMAIL·CONTEXT·DIMENSION·FACTOR·OFFSET·REQUIRED·DEFINITION·SYSTEMS·TRANSFORM)는 범용으로 보지 않는다.
    - `TITLE` 은 범용에서 뺀다. 공지·위젯 제목이 사전 TITLE(제목)과 뜻이 같아 「사전에 있음」 으로 둔다(m-mls `NoticeTitleRow` 의 `MdmFieldLabel` 유지, 조정자 결정).
-   - hit 이지만 뜻이 다른 `LINE_NO`(사전: 생산 라인 번호, 화면: CSV 줄 번호)도 `meta={false}` 로 둔다.
+   - hit 이지만 뜻이 다른 `LINE_NO`(사전: 생산 라인 번호, 화면: CSV 줄 번호)는 「화면 예외」 로 `meta={false}` 를 둔다.
+   - 「화면 예외」(조정자 지시 mdm-column-dict-3): 화면 레인이 끈 칸 중 사전 판정과 엇갈리는 것이다. `DATA_SRC`(위젯 「실행 모듈」, 사전은 데이터 출처)·`LABEL_LONG`(표시명 긴/중간/짧은 입력 3개 묶음)을 이 분류로 둔다. `LAYOUT_ID`(폼의 「ID / 버전」 묶음 라벨 2곳)·`COLUMN_PHYS`(ColumnInfoPopover 가 있는 칸 1곳)는 그리드에서 계속 메타를 찾으므로 분류는 그대로 두고 예외 위치를 근거에 적었다.
 2. **UI 전용**: 밑줄로 시작하는 키, 실제 DB 컬럼이 없고 화면이 계산하거나 서버 응답에만 있는 값(캐시 상태·건수·비교 결과·이전/이후 값 등).
 3. **표시용**: `*_LABEL`·`*_TEXT`·`*_NM`(SQL 계산 이름)·검색 조건 키(`CBO_*`·`EDT_*`·`FILTER_*`)처럼 원 컬럼이 따로 있는 키. 화면에서 `meta` 에 표준 물리명을 적는다. 신규 컬럼을 가리키는 행은 등록 뒤에 연결된다.
    - `OBJ_NM` 은 지금 hit 이지만 사전 OBJ_NM 은 「목적 명」(목적지)이라 뜻이 다르다. `meta="OBJECT_NM"` 으로 바로잡는다.
@@ -88,7 +90,7 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 
 ## 6. 분류별 목록
 
-### 범용 키 — 화면에서 `meta={false}` (105)
+### 범용 키 — 화면에서 `meta={false}` (104)
 
 | 키 | 모듈 | 머리글 | 근거 | 첫 위치 |
 |---|---|---|---|---|
@@ -135,7 +137,6 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | LEFT | m-mdm | 하한 / 값 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dme/ruleEdit/decision-table/columns.ts:101 |
 | LENGTH | m-mdm | 길이 / 소수 자리 / 타입·길이 / 길이 | 사전 hit(LENGTH)이지만 화면마다 뜻이 다른 범용 키 (화면 1/4 위치는 이미 meta=false) | m-mdm/pages/dma/domainMng/components/DomainBasicForm.tsx:97 |
 | LEVEL | m-mdm | 수준 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainCheckList.tsx:12 |
-| LINE_NO | m-mdm | 줄 | 지금 hit(LINE_NO '라인 번호')은 뜻이 다르다 — CSV 줄 번호라 meta=false | m-mdm/pages/dmd/dataCsvUploadPop/dataCsvUploadPop.tsx:38 |
 | MARK | m-mdm | 상태 / 마지막 결과 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmc/codeItemEdit/cate/CategoryTab.tsx:166 |
 | MEMO | m-mdm | 메모 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainTestCaseGrid.tsx:43 |
 | MESSAGE | m-mdm | 메시지 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainCheckList.tsx:14 |
@@ -235,7 +236,15 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | EDT_USER_ID | USER_ID | 사용자 | 검색 조건 키 | m-mcm/page-components/csa/commUserMng/page.tsx:882 |
 | FILTER_USER_ID | USER_ID | 권한 부여 source 사용자 ID/사번 | 검색 조건 키(복사 원본 사용자) | m-mcm/page-components/csa/commUserRoleCopy/page.tsx:419 |
 
-### UI 전용 — 등록 안 함 (145)
+### 화면 예외 — 뜻이 다르거나 여러 키가 묶여 `meta={false}` (3)
+
+| 키 | 모듈 | 머리글 | 근거 | 첫 위치 |
+|---|---|---|---|---|
+| DATA_SRC | m-mcm | 실행 모듈 | commWidgetMng 의 '실행 모듈' 라벨 — 사전 DATA_SRC(데이터 출처)와 뜻이 달라 화면 레인이 meta=false(조정자 지시 mdm-column-dict-3) (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:254 |
+| LABEL_LONG | m-mdm | 표시명 긴/중간/짧은 | columnMng '표시명 긴/중간/짧은' — 한 라벨에 입력 3개가 묶여 화면 레인이 meta=false(조정자 지시 mdm-column-dict-3) (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:139 |
+| LINE_NO | m-mdm | 줄 | 지금 hit(LINE_NO '라인 번호')은 뜻이 다르다 — CSV 줄 번호라 meta=false | m-mdm/pages/dmd/dataCsvUploadPop/dataCsvUploadPop.tsx:38 |
+
+### UI 전용 — 등록 안 함 (143)
 
 | 키 | 모듈 | 머리글 | 근거 | 첫 위치 |
 |---|---|---|---|---|
@@ -269,7 +278,6 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | CURRENT_VER | m-mdm | 현재 버전 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutMng/components/LayoutList.tsx:17 |
 | CURRENT_VER_LABEL | m-mdm | 현재 버전 / 현재 | 현재 버전 표시 글자 (화면 1/2 위치는 이미 meta=false) | m-mdm/pages/dmc/codeMng/CodeDetail.tsx:142 |
 | DATA_QUERY_DEF_IDS | m-mcm | 데이터 질의에 쓸 쿼리 위젯 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/chat/editor.tsx:115 |
-| DATA_SRC | m-mcm | 실행 모듈 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:254 |
 | DEFAULT_SIZE | m-mcm | 기본 크기 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commWidgetMng/WidgetListTab.tsx:88 |
 | DEPENDED_BY | m-mdm | 역의존 룰 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleEdit/cards/RuleUsageCard.tsx:37 |
 | DEPENDS_ON | m-mdm | 의존 룰 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dme/ruleEdit/cards/RuleUsageCard.tsx:36 |
@@ -383,7 +391,6 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | WIDGET_KIND | m-mcm | 구분 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:140 |
 | X_FIELD | m-mcm | 가로축 필드 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mcm/widget-types/query-chart/editor.tsx:72 |
 | EXAMPLES_TEXT | m-mdm | 예시 값 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/domainMng/components/DomainBasicForm.tsx:142 |
-| LABEL_LONG | m-mdm | 표시명 긴/중간/짧은 | 화면이 모든 위치에서 meta=false 로 둔 칸(입력·설정·표시 칸) — 이번 등록 대상 아님 (화면 1/1 위치는 이미 meta=false) | m-mdm/pages/dma/columnMng/ColumnDetailForm.tsx:139 |
 
 ### MES 별칭 등록 — 기존 표준 컬럼에 별칭 추가 (10)
 
@@ -445,7 +452,7 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | SENSE_NO | MEANING_NO | 의미 / 의미 번호 | MDM 별칭 SENSE_NO→MEANING_NO(의미 번호) 있음, 실제 컬럼 mdm.TB_MDM_TERM |
 | NUM_FORMAT | NUM_FMT | 숫자 표현 / 숫자 형식 | MDM 별칭 NUM_FORMAT→NUM_FMT(수치 형식) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
 | OFFSET | OFST | 오프셋 | MDM 별칭 OFFSET→OFST(오프셋) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
-| COLUMN_PHYS | PHYS_NM | 컬럼 / 표준 물리명 | MDM 별칭 COLUMN_PHYS→PHYS_NM(물리 명) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM (화면 1/4 위치는 이미 meta=false) |
+| COLUMN_PHYS | PHYS_NM | 컬럼 / 표준 물리명 | MDM 별칭 COLUMN_PHYS→PHYS_NM(물리 명) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM — LayoutItemDetail 의 '컬럼' 칸 1곳은 ColumnInfoPopover 가 이미 있어 화면 레인이 meta=false(예외, 지시 mdm-column-dict-3) — 그리드는 그대로 |
 | PHYS_NAME | PHYS_NM | 실제 필드명 / 표준 물리명 | MDM 별칭 PHYS_NAME→PHYS_NM(물리 명) 있음, 실제 컬럼 mdm.TB_MDM_COLUMN_SYSTEM,mdm.TB_MDM_COLUMN |
 | PARENT_DOMAIN_ID | PRN_DOMAIN_ID | 부모 도메인 / 지금 부모 / 새 부모 도메인 | MDM 별칭 PARENT_DOMAIN_ID→PRN_DOMAIN_ID(상위 도메인 아이디) 있음, 실제 컬럼 mdm.TB_MDM_DOMAIN |
 | RCV_SYSTEM | RCV_SYS_CD | 수신 시스템 | MDM 별칭 RCV_SYSTEM→RCV_SYS_CD(수신 시스템 코드) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT |
@@ -571,7 +578,7 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | INPUT_JSON | INPUT_JSON | 사전 hit |
 | LAST_UPDATE_TIMESTAMP | LAST_CHG_DH | 사전 hit(MES 별칭 LAST_UPDATE_TIMESTAMP→LAST_CHG_DH) |
 | LAST_UPDATED_OBJECT_ID | LAST_CHG_OBJECT_ID | 사전 hit(MES 별칭 LAST_UPDATED_OBJECT_ID→LAST_CHG_OBJECT_ID) |
-| LAYOUT_ID | LAYOUT_ID | 사전 hit (화면 2/5 위치는 이미 meta=false) |
+| LAYOUT_ID | LAYOUT_ID | 사전 hit — headerMng·layoutMng 폼의 'ID / 버전' 라벨 2곳은 두 값이 묶여 화면 레인이 meta=false(예외, 지시 mdm-column-dict-3) — 그리드 3곳은 그대로 hit |
 | MARU_DATA_ID | MARU_DATA_ID | 사전 hit |
 | MARU_RULE_ID | MARU_RULE_ID | 사전 hit |
 | MENU_ID | MENU_ID | 사전 hit |
