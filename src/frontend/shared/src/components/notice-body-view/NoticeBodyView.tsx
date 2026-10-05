@@ -3,7 +3,7 @@
 /**
  * 공지 본문 읽기 전용 뷰어 — TEXT·MD·HTML 세 형식을 같은 문서 서식(제목·목록·인용·코드·표·링크)으로 그린다.
  * - TEXT: React 가 글자를 이스케이프하고 줄바꿈을 보존한다(white-space: pre-wrap).
- * - MD: markdown-editor 의 MarkdownView 를 그대로 쓴다(표는 MarkdownView 가 지원하지 않아 글자로 남는다).
+ * - MD: markdown-editor 의 MarkdownView 를 그대로 쓴다(GFM 표도 MarkdownView 가 그린다).
  * - HTML: DOMPurify 로 소독해 넣는다(sanitize.ts). 서버 렌더에서는 비워 두고 마운트 뒤에 채워 하이드레이션 불일치를 피한다.
  * 스타일은 컴포넌트가 직접 넣는다(포털이 원격 모듈의 CSS 파일을 싣지 않는다 — Part B §18-3). 색·간격은 공통 토큰만 쓴다.
  * 표·긴 코드는 이 컴포넌트 안에서만 가로로 스크롤하고 부모 폭을 늘리지 않는다.

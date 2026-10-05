@@ -11,7 +11,7 @@
 
 - 쓴다: 포털 홈 공지 카드, 공지 관리 화면의 미리보기처럼 형식이 섞인 공지 본문을 읽기만 할 때.
 - 쓰지 않는다: 마크다운 한 형식만 보이거나 편집이 필요할 때 → [MarkdownEditor](markdown-editor.md)(`MarkdownView`·`MarkdownField`). HTML 편집 → [HtmlEditor](html-editor.md)(원문 모드 미리보기·읽기 모습이 이 컴포넌트다). 서식 없는 입력 → [Textarea](textarea.md).
-- MD 형식은 `MarkdownView` 의 문법 범위를 따른다: 제목·굵게·기울임·취소선·목록·**할 일 목록**·인용·코드·링크는 되고, **GFM 표는 지원하지 않아 글자로 남는다**. 표가 필요하면 HTML 형식을 쓴다.
+- MD 형식은 `MarkdownView` 의 문법 범위를 따른다: 제목·굵게·기울임·취소선·목록·**할 일 목록**·인용·코드·링크·**GFM 표**(`<table>`, 정렬·칸 안 인라인 서식 포함)는 되고, 그림·HTML 문법은 글자로 남는다.
 - HTML 소독 규칙: script·style·iframe·object·embed·form(입력 계열)·svg·math 태그, `on*` 속성, 인라인 `style` 속성, http/https 가 아닌 링크·이미지 주소(`a[href]`·`img[src]`, 상대 주소·`data:`·`javascript:` 포함)를 지운다. 링크는 `target="_blank" rel="noopener noreferrer"` 로 연다. 이미지 주소 규칙은 서버 소독(mls `NoticeHtmlSanitizer`, `img[src]` http·https 만)과 같아서 미리보기가 저장 결과와 같게 보인다. 붙여 넣은 `data:` 이미지는 미리보기에서도 빈 그림이 된다.
 - 표·긴 코드는 이 컴포넌트 안에서만 가로로 스크롤하고 부모 폭을 늘리지 않는다.
 
@@ -42,5 +42,5 @@ export function NoticeCardBody({ body, format }: { body: string; format: "TEXT" 
 | 실수 | 바로잡기 |
 |---|---|
 | 공지 HTML 을 `dangerouslySetInnerHTML` 로 직접 넣음 | 이 컴포넌트로 보인다(소독 포함) |
-| MD 본문에서 표가 안 보인다고 `marked` 를 직접 씀 | 표는 HTML 형식으로 저장한다. `MarkdownView` 는 표를 지원하지 않는다 |
+| MD 본문에서 표가 안 보인다고 `marked` 를 직접 씀 | `MarkdownView` 가 GFM 표를 그린다. 머리글 아래 구분 줄(`\|---\|---\|`)이 있는지 본다. 그림·HTML 이 필요하면 HTML 형식으로 저장한다 |
 | 부모 폭이 늘어남을 화면 CSS 로 덮음 | 이 컴포넌트가 표·코드를 안에서 스크롤한다. 부모에 `min-width: 0` 만 확인한다 |

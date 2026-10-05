@@ -12,10 +12,9 @@ describe("위젯 도움말 문서 번들", () => {
     expect(WIDGET_GUIDE_MARKDOWN).toBe(readFileSync(SOURCE, "utf8"));
   });
 
-  it("목차가 될 장(##)이 충분하고 표(table) 문법을 쓰지 않는다", () => {
+  it("목차가 될 장(##)이 충분하다", () => {
+    // 표(GFM)는 MarkdownView 가 그리므로 문서에 써도 된다 — 표 문법 금지 단언은 두지 않는다.
     const chapters = WIDGET_GUIDE_MARKDOWN.split("\n").filter((l) => /^## /.test(l));
     expect(chapters.length).toBeGreaterThanOrEqual(8);
-    // MarkdownView 는 표를 그리지 않는다 — 구분 줄(|---|)이 있으면 글자로 샌다.
-    expect(WIDGET_GUIDE_MARKDOWN).not.toMatch(/^\|?\s*:?-{3,}:?\s*\|/m);
   });
 });
