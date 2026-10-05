@@ -5,6 +5,7 @@ import { Text } from "@mantine/core";
 import { Input } from "../components/form/Input";
 import { Radio } from "../components/form/Radio";
 import { Select } from "../components/form/Select";
+import { MdmFieldLabel } from "../mdm-meta/MdmFieldLabel";
 import { useTabPage } from "../portal-shell/tab-page-context";
 import { SearchHistoryInput } from "./SearchHistoryInput";
 import { isSearchHistoryPage } from "./search-history-store";
@@ -16,6 +17,14 @@ export interface SearchFieldOption {
 
 export interface SearchFieldProps {
   label: string;
+  /**
+   * MDM 컬럼 사전 키(화면 키 → 물리명, `MdmFieldLabel` 과 같은 규칙). 주면 사전에 있을 때 라벨에 마우스를 올리면 MDM 카드 툴팁이 뜬다.
+   * 비우면 예전과 DOM·동작이 같다. 필터 키(`edt_`·`cbo_`)에서 이름을 추론하지 않으므로 화면이 업무 키로 적는다.
+   * 라벨 글자는 기본(`explicit`)에서 `label` 그대로이고, Radio name·최근 입력값 키도 `label` 을 쓴다.
+   */
+  name?: string;
+  /** 명시 물리명(`name` 보다 우선). `false` 면 MDM 연결을 끈다. `name` 이 있을 때만 쓴다. */
+  meta?: string | false;
   type?: "text" | "select" | "radio";
   value?: string;
   onChange?: (value: string) => void;
@@ -37,6 +46,8 @@ export interface SearchFieldProps {
 
 export function SearchField({
   label,
+  name,
+  meta,
   type = "text",
   value,
   onChange,
@@ -122,7 +133,7 @@ export function SearchField({
   return (
     <div className={`search-field ${spanClass} ${className}`.replace(/\s+/g, " ").trim()}>
       <Text size="xs" className="search-field__label">
-        {label}
+        {name ? <MdmFieldLabel name={name} meta={meta} label={label} /> : label}
       </Text>
       {renderInput()}
     </div>
