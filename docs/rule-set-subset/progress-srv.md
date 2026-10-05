@@ -8,7 +8,7 @@
 ## 지금 상태·다음 단계
 - srv:3 dev 머지 끝(2b638315, 머지 뒤 :api 마이그레이션 시험 15클래스 88건 통과).
 - srv:5 구현·코퍼스 끝(b89509f3·80d0a74b, 아래 「srv:5」). ui:5t 가 이 브랜치를 합쳐 TS 초록을 알리면 머지 요청한다(짝 머지).
-- srv:6 묶음 A·B 끝(아래 「srv:6」). 다음: 묶음 C(편집 서비스 — 되살리기·폐기 포함) — A 의 상수·읽기기를 읽기만 한다. ui 에 코퍼스 111건(`MIN_CASES` 111)을 알린다.
+- srv:6 묶음 A·B·C 끝(아래 「srv:6」). 다음: 묶음 D(실행 응답 매핑 — `RuleSetRunner`·`simulate` calledFlows). ui 에 코퍼스 111건(`MIN_CASES` 111)과 C 응답 모양(`search CALL_IO/CALLERS`·`view.calls`·`save.checks` WARN 네 코드·폐기 거부 문구)을 알린다.
 - srv:5 리뷰(opus/high 1회) clean, 낮음 3건은 srv:6 으로 넘긴다:
   1. `RuleSetPathState.before` 3인자는 SET always 출력만 defined 로 센다. always=false 출력을 maybe 에 넣는 분석기와 갈린다. srv:6 이 `RuleSetOrderCheck` 에 연결할 때 partial 출력도 받게 넓히고 사례를 더한다(예: SET G(P always=false) → IF [R1 이 P 만듦][R2 가 P 읽음]).
   2. 코퍼스 보강: setId `""` SET 노드 + 받는 노드, PARALLEL 형제 SET 출력 읽기(PAR_SIBLING), SET 이 낀 CYCLE 문구, `RuleSetInterfaceTest` 구조 오류 흐름. 더하면 Java·TS `MIN_CASES` 를 함께 올리고 ui 에 알린다.
@@ -64,6 +64,27 @@
 - 계획 조정(본문과 다르게 한 것):
   - 본문 `RuleSetCallerCheck` 의 `MdmRuleSet.getRuleIds()`·`"INUSE"`·`reader.callers(sid)`·`ioReader.read` → 폐기 안 한 부모의 적용 중 VER 행 `members`, `snap.callers(sid, at)`, `readAt(at)`. 본문 시험(`RuleSaveContext` 직접 호출만)에 열 저장·룰 확정 보고서 경로 시험을 더했다. 시험은 C 의 `RuleSetSubsetServiceTest` 와 겹치지 않게 `ruleSetConfirm/RuleSetSubsetConfirmSqliteTest` 로 따로 두었다.
   - `RuleConfirmQueryCountTest` 의 validate 상한을 36 → 37 로 올렸다(새 검사의 세트 목록 1문, 변수 수와 무관 — n 당 증가 6×4 는 그대로).
+
+### 묶음 C — 편집 서비스(저장·폐기·되살리기·조회) (끝)
+- 커밋: baf800fd `RuleSetEditService`(생성자에 `SetCallIoReader`·`SetCallerRecheck`, save·delete(SET)·restore·search·view)·DTO(`RuleSetEditSearchRequest` 에 `setId`·`setIdsJson`, `RuleSetViewResult.calls`, 새 `RuleSetCallIoResult`)·`ruleSetEdit.bpmn` documentation 두 줄(target CALL_IO·CALLERS, 폐기 거부 — dto·action 은 그대로). 시험 `dme/ruleSetEdit/RuleSetSubsetServiceTest` 15건.
+- 시험(src/backend/mdm, JDK 21, `--max-workers=2`):
+  - `../gradlew :api:test --tests '*RuleSetSubsetServiceTest'` → 15건 통과, 실패 0(첫 실행부터 통과).
+  - `../gradlew :lib:test :api:test --tests 'com.dongkuk.dmes.mdm.dme.ruleSetEdit.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleSetMng.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleSetConfirm.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleEdit.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleConfirm.*' --tests 'com.dongkuk.dmes.mdm.common.rule.*' --tests '*DmeBpmnActionTest'` → lib 117클래스 2045건, api 42클래스 445건 통과, 실패 0(`RuleSetEditQueryCountTest` view·execute 상한 그대로 통과).
+  - `python3 .claude/skills/oasis-contract-check/scripts/check_oasis_contract.py --root .` → ERROR 0 / WARN 0(INFO 42 는 기존 baseline).
+- 필수 시험(저장 쪽): `두_DRAFT_가_순환을_반씩_만들면_각자_저장은_경고로_통과하고_먼저_확정은_통과하고_나중_확정이_CALL_CYCLE_로_막힌다` — A(→B)·B(→A) 저장은 통과(지금 RELEASED 행만 세어 순환 경고도 없음)·CALL_SET_IDS `["B"]`·`["A"]` → A 확정 통과 → B 다시 저장은 `WARN CALL_CYCLE 세트 호출이 순환한다: B › A › B` 로 저장됨 → B 확정 거부(DRAFT 유지). `부르는_세트를_깨는_저장은_CALLER_BROKEN_경고로_통과하고_확정은_거부한다` — 목록 세트 C 저장은 `WARN CALLER_BROKEN 세트 P: …` 로 저장, 확정 검사는 같은 문구 ERROR·확정 거부. 둘 다 저장 서비스 → 확정 서비스로 이어 본다.
+- 결정:
+  - DRAFT 저장 순서: 기존 분석기 검사(SET 노드는 지금 기준 겉모양 = 4인자) → `rejectIfAny`(다른 흐름 거부만) → 호출 그래프(`edges(지금)` 에서 이 세트 자리를 흐름의 SET 목록으로 덮음, 목록 저장은 빈 목록)·연쇄 재검사 결과를 `asWarn()` 사본으로 `checks` 에 더함 → CALL_SET_IDS 쓰기. 연쇄 재검사 조건은 B 의 확정 검사와 같다(분석기·그래프에 네 코드가 없음, 부르는 쪽 행 있음, 지금 겉모양 있음, 겉모양 다름). 목록 저장은 `FlowParser.linear(ids)` 로 겉모양을 계산한다. 원장 읽기는 저장 한 번에 `Snapshot` 하나(재검사기는 자기 스냅샷을 따로 연다).
+  - 저장하려는 겉모양의 룰 입출력은 `readAt(ids, 지금)` 로 읽는다. 지금 겉모양(`read(at)`)과 같은 기준이라야 미래 RELEASED 룰 버전이 겉모양 차이(헛 CALLER_BROKEN)로 잡히지 않는다. 화면에 돌려주는 분석기 검사의 룰 입출력은 지금처럼 `read`(최신 RELEASED) 그대로 둔다(기존 저장 동작을 바꾸지 않는다). 부르는 쪽 행이 없으면 `readAt` 을 하지 않는다.
+  - `CALLER_WARN` 은 B 와 같이 ruleId = 세트 ID(계획 본문은 null), 문구 "부르는 세트에 경고가 생겼다: P1, P2".
+  - 폐기 거부: 트랜잭션 안 INUSE·MDM006 검사 뒤, 쓰기 전에 `callers(setId, 지금)`. 한 부모의 여러 행(지금 + 미래 RELEASED)은 한 번만, 세트 ID 순. 자기 자신을 부르는 행은 세지 않는다(같이 폐기된다). DRAFT 행·폐기된 부모는 세지 않는다. 문구는 Ruling 10 그대로 `"사용 중인 세트 M, P가 이 세트를 불러 폐기할 수 없다. 부르는 세트를 먼저 고치거나 폐기한다"`(MDM024, ruleId = 세트 ID — ui 가 `C[-] CALLER_BROKEN 사용 중인 세트 …` 에서 목록을 읽는다). "사용 중인" 은 CREATED 부모도 포함한다(폐기 안 한 부모).
+  - 되살리기: 표시 버전(지금 적용 중 RELEASED, 없으면 VER 최대)의 흐름을 분석기 4인자 + 호출 그래프(지금)로 보고, 거부와 네 코드를 `asReject()` 로 모아 MDM024 로 던진다. 연쇄 재검사는 하지 않는다(spec §6.3). 돌려주는 경고에는 네 코드가 남지 않는다(있으면 거부라서).
+  - `search CALL_IO`: `setIdsJson` 을 `RuleCaseJudge.array` 로 읽고(배열이 아니면 INVALID_VALUE, 비면 빈 결과) `read(ids, 지금)` — 요청 순서·중복/빈 ID 제외·지금 RELEASED 없으면 `exists=false`. `search CALLERS`: `callers(setId, 지금)` 를 부모당 한 번·세트 ID 순으로, 상태는 `searchSets` 와 같은 계산 상태(`effectiveStatus`, 부모 버전 1문 더 읽음 — 부르는 세트가 있을 때만).
+  - `view.calls`: 흐름이 있으면 `callsOf(flow, 지금)`(SET 노드 없으면 원장을 읽지 않는다), 목록 세트는 빈 맵. 검사도 같은 겉모양으로 4인자.
+- 계획 조정(본문과 다르게 한 것):
+  - 본문 save 는 네 코드를 거부(`rejectIfAny` 에 그래프·연쇄 포함)했으나 U2·조정 ④로 경고 사본이다. 본문 `writes.update` 7인자·`rv + 1`·`writeMissed(setId, rv, INUSE)` 는 D-144 뒤 모양(`writeGuard.beginDraftWrite` + `updateDraft` 5인자)을 그대로 쓴다. 본문 `callIoReader.read(ids)`·`callers(setId): List<MdmRuleSet>`·`inuseEdges()` → `at` 인자·`Caller`·`edges(at)`.
+  - 본문 시험 본문은 옮기지 않았다: 저장 거부 단언(CALL_MISSING·CALL_CYCLE·CALLER_BROKEN)은 경고 단언으로, 부모 표의 `ROW_VERSION`·`CALL_SET_IDS` 는 VER 행(`setVerValue`)으로, 폐기 요청은 `RuleSetStatusRequest` 가 아니라 `RuleSetVersionRequest(target SET)` 로 바꿨다. 연쇄로 조부모까지·부모에 원래 있던 거부는 A 의 `SetCallerRecheckSqliteTest` 가 이미 보므로 서비스 시험에서는 빼고, 폐기 통과(부르는 세트 폐기)·되살리기 통과·CALL_MISSING 되살리기 거부·DRAFT 만 있는 세트 CALL_IO·DRAFT 행은 부르는 쪽이 아님을 더했다.
+  - 본문 `simulate` calledFlows 는 D 몫으로 남겼다.
+- 절차: `RuleSetViewResult` 칸 추가 한 번을 지시와 달리 python heredoc 으로 고쳤다(그 밖은 Edit·Write). 결과는 diff 로 확인했다.
 
 ## srv:5. 서버 분석기·코퍼스 (구현 끝 — ui:5t 짝 머지 대기)
 - 커밋: b89509f3(분석기 `SetCallIo`·`RuleSetInterface`·`RuleSetAnalyzer`·`RuleSetPathState`·`RuleSetCheck` 상수 넷, 시험 `RuleSetInterfaceTest`·`RuleSetPathStateTest` 3건), 80d0a74b(코퍼스 18건·`RuleSetCorpusTest` calls 읽기·단계 순서 단언, TS `MIN_CASES` 한 줄).
