@@ -68,13 +68,13 @@ let nextValidate: () => unknown;
 let nextView: () => unknown;
 let confirmResponse: unknown;
 
-async function render() {
+async function render(props: Record<string, unknown> = {}) {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => {
     root!.render(createElement(DmesUiProvider, null,
-      createElement(RuleSetConfirmPage, { tabId: "t1", snapshot: null, onSnapshotChange: () => {} })));
+      createElement(RuleSetConfirmPage, { tabId: "t1", snapshot: null, onSnapshotChange: () => {}, ...props })));
   });
   await flush();
   await flush();
@@ -155,6 +155,18 @@ describe("RuleSetConfirmPage", () => {
     expect(byTestId("rsc-target")?.textContent).toBe("S_C 버전 v2.000 · 확정 세트");
     expect(visibleText(byTestId("rsc-previous")!)).toContain("v1.000");
     expect(byTestId("rsc-diff-counts")?.textContent).toBe("추가 0 · 삭제 0 · 수정 1 · 같음 1");
+  });
+
+  it("1-0. handoff 로 열어도 onSnapshotChange 를 부르지 않고, snapshot 의 선택 값은 복원하지 않는다(R8)", async () => {
+    const snapshots: unknown[] = [];
+    openMdmPage("dme/ruleSetConfirm", { setId: "S_C", ver: "2" });
+    await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
+    expect(snapshots).toHaveLength(0);
+    await act(async () => root!.unmount());
+    root = null;
+    calls.length = 0;
+    await render({ snapshot: { setId: "S_C", ver: "2.000" } });
+    expect(actions("view")).toHaveLength(0);
   });
 
   it("1-1. 흐름이 손상돼 diffError 가 오면 diff 표 대신 그 문구를 보이고 검사는 그대로 부를 수 있다", async () => {

@@ -241,6 +241,12 @@ describe("RuleConfirmPage", () => {
     expect(visibleText(byTestId("rc-previous")!)).toContain("버전 v1.000 · 2026-01-01 00:00:00");
   });
 
+  it("P1 숫자 ver(2)로 넘겨받아도 \"2.000\" 으로 맞춰 view 를 부른다", async () => {
+    openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: 2 as unknown as string });
+    await render();
+    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: "2.000" }]);
+  });
+
   it("P1 minor 버전(ver \"1.001\")을 넘겨받으면 소수부를 지키고 대상 버전을 v1.001 로 보인다(D-144)", async () => {
     nextView = () => viewResult({}, { ver: "1.001", baseVer: "1.000" });
     openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: "1.001" });

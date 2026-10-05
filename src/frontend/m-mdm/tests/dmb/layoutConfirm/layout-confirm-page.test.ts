@@ -75,13 +75,25 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-async function mount() {
+async function mount(props: Record<string, unknown> = {}) {
   root = createRoot(container);
-  await act(async () => root!.render(createElement(DmesUiProvider, null, createElement(LayoutConfirmPage, { tabId: "t1", snapshot: null, onSnapshotChange: () => {} }))));
+  await act(async () => root!.render(createElement(DmesUiProvider, null, createElement(LayoutConfirmPage, { tabId: "t1", snapshot: null, onSnapshotChange: () => {}, ...props }))));
   await flush();
 }
 
 describe("layoutConfirm page", () => {
+  it("handoff 로 열어도 onSnapshotChange 를 부르지 않고, snapshot 의 선택 값은 복원하지 않는다(R8)", async () => {
+    const snapshots: unknown[] = [];
+    openMdmPage("dmb/layoutConfirm", { layoutId: "110", ver: "1.001" });
+    await mount({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
+    expect(snapshots).toHaveLength(0);
+    await act(async () => root!.unmount());
+    root = null;
+    calls.length = 0;
+    await mount({ snapshot: { layoutId: 110, ver: "1.001" } });
+    expect(calls.filter((c) => c.action === "view")).toHaveLength(0);
+  });
+
   it("handoff opens the minor version as a string and shows header impact with simultaneous emphasis", async () => {
     openMdmPage("dmb/layoutConfirm", { layoutId: "110", ver: "1.001" });
     await mount();
