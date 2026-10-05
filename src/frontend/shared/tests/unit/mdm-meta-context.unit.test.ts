@@ -14,6 +14,7 @@ import {
   useMdmColumns,
   useMdmMetaScope,
 } from "../../src/mdm-meta";
+import { isMdmMetaUnsupportedPage, mdmMetaModuleOfPage } from "../../src/mdm-meta/context";
 import { TabPageContext } from "../../src/portal-shell/tab-page-context";
 import { TEXT_DOMAIN, TITLE, column, fakeMetaFetch, settle } from "./mdm-meta-fixtures";
 
@@ -180,5 +181,21 @@ describe("공급자 안", () => {
     expect(probe().dataset.domain).toBe("D_TEXT");
     expect(probe().dataset.loading).toBe("false");
     expect(f.calls).toHaveLength(2);
+  });
+});
+
+describe("포털 탭 모듈 → 메타 모듈", () => {
+  it("대체 표에 있는 모듈만 다른 모듈을 낸다(mdm → mcm), 나머지는 undefined", () => {
+    expect(mdmMetaModuleOfPage("mdm:dme/ruleEdit")).toBe("mcm");
+    expect(mdmMetaModuleOfPage("mls:lsh/noticeMgmt")).toBeUndefined();
+    expect(mdmMetaModuleOfPage("analog:anl/logViewer")).toBeUndefined();
+    expect(mdmMetaModuleOfPage("noColon")).toBeUndefined();
+    expect(mdmMetaModuleOfPage("")).toBeUndefined();
+  });
+
+  it("엔드포인트가 없는 모듈은 analog 뿐이다(mdm 은 끄지 않는다)", () => {
+    expect(isMdmMetaUnsupportedPage("analog:anl/logViewer")).toBe(true);
+    expect(isMdmMetaUnsupportedPage("mdm:dme/ruleEdit")).toBe(false);
+    expect(isMdmMetaUnsupportedPage("mls:lsh/noticeMgmt")).toBe(false);
   });
 });
