@@ -154,6 +154,32 @@ public final class RuleSetFlowJson {
         return List.copyOf(out);
     }
 
+    /**
+     * 하위 세트 spec §1.1 — CALL_SET_IDS. 트리가 있으면 {@code tree.setIds()}, 없으면 SET 노드의 setId 를 노드 배열 순서로 중복 없이(빈 ID 는
+     * 뺀다). 노드 ID 가 겹치면 그 ID 의 첫 노드만 본다({@link #ruleIds(FlowDefinition)} 와 같다).
+     */
+    public static List<String> setIds(FlowDefinition flow) {
+        return setIds(flow, FlowParser.parse(flow));
+    }
+
+    /** {@link #setIds(FlowDefinition)} 와 같되 이미 파싱한 결과를 쓴다(분석기가 두 번 파싱하지 않게). */
+    static List<String> setIds(FlowDefinition flow, FlowParse p) {
+        if (p.tree() != null) {
+            return p.tree().setIds();
+        }
+        Set<String> seenNodes = new HashSet<>();
+        Set<String> out = new LinkedHashSet<>();
+        for (FlowNode n : flow.nodes()) {
+            if (!seenNodes.add(n.id())) {
+                continue;
+            }
+            if (n.kind() == NodeKind.SET && n.setId() != null && !n.setId().isBlank()) {
+                out.add(n.setId());
+            }
+        }
+        return List.copyOf(out);
+    }
+
     private static FlowDefinition read(JsonNode root) {
         if (root == null || !root.isObject()) {
             throw new IllegalArgumentException("흐름은 JSON 객체여야 한다");

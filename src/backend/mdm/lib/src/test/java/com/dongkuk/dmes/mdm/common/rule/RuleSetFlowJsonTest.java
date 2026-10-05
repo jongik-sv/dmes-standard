@@ -66,6 +66,21 @@ class RuleSetFlowJsonTest {
     }
 
     @Test
+    void setIds_는_트리가_있으면_깊이_우선_중복_없이_구조_오류면_노드_순서이고_빈_ID_는_뺀다() {
+        String ok = """
+                {"version":1,"nodes":[{"id":"start","kind":"START"},{"id":"s1","kind":"SET","setId":"B"},{"id":"s2","kind":"SET","setId":"A"},
+                 {"id":"s3","kind":"SET","setId":"B"},{"id":"s4","kind":"SET"},{"id":"end","kind":"END"}],
+                 "edges":[{"id":"e1","from":"start","to":"s1"},{"id":"e2","from":"s1","to":"s2"},{"id":"e3","from":"s2","to":"s3"},
+                 {"id":"e4","from":"s3","to":"s4"},{"id":"e5","from":"s4","to":"end"}]}""";
+        assertEquals(List.of("B", "A"), RuleSetFlowJson.setIds(RuleSetFlowJson.parse(ok)));
+        String broken = """
+                {"version":1,"nodes":[{"id":"s2","kind":"SET","setId":"A"},{"id":"s1","kind":"SET","setId":"B"},{"id":"s9","kind":"SET","setId":" "},
+                 {"id":"s1","kind":"SET","setId":"C"},{"id":"r1","kind":"RULE","ruleId":"R"}],"edges":[]}""";
+        assertEquals(List.of("A", "B"), RuleSetFlowJson.setIds(RuleSetFlowJson.parse(broken)), "겹친 노드 ID 는 첫 노드만 본다");
+        assertEquals(List.of(), RuleSetFlowJson.setIds(RuleSetFlowJson.parse(IF_FLOW)));
+    }
+
+    @Test
     void 노드_ID_가_겹치면_첫_노드만_룰_목록에_넣는다() {
         String dup = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"A\"},"
                 + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"B\"},{\"id\":\"end\",\"kind\":\"END\"}],"
