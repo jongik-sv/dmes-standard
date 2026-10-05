@@ -122,7 +122,7 @@ MDM 화면들에서 실제로 나온 문제만 모았다. 설명은 해당 R 절
 - **하지 말 것**: 행 클릭·선택·입력처럼 잦은 동작마다 `onSnapshotChange` 를 부르는 것. 선택 행(ID·버전)을 snapshot 에 넣는 것. 탭 복귀 때 선택 행을 되살리는 기능은 요구사항이 아니다(2026-10-05 사용자 결정 "F5 는 복원 빼").
 - **할 것**: 탭 복귀 때 되살려야 하는 값(조회 조건 등)이 바뀔 때만 부른다. 선택 행은 snapshot 에 담지 않는다. 다른 화면이 handoff(`openMdmPage`)로 열어 줄 때만 그 값을 받아 쓴다.
 - **적용 사례**: dataMng·codeMng·layoutConfirm·codeConfirm·ruleConfirm·ruleSetConfirm 에서 선택 행 쓰기·복원을 걷어 냈다. 행 클릭의 `onSnapshotChange` 호출은 0회이며, 셸 렌더 1회가 사라진다. 탭 복귀 때 선택만 풀린다(목록·조회 조건 복원은 이 화면들에 없었다). audit `P-R8`(오류)이 행 처리 함수 안의 `onSnapshotChange` 를 정적으로 잡는다. 조회 조건 선택(dataItemMng 의 마루 데이터 고르기)은 행 클릭이 아니라 대상이 아니다.
-- **근거**: 화면이 행 클릭 때 `onSnapshotChange` 를 부르면 셸 `setTabs`(`use-portal-tabs.ts:246-254`) → tabOrder effect(R7)로 포털 셸 전체가 2회 렌더된다. 행 클릭당 ≈3~4ms 로, 행 클릭 렌더의 30~45% 를 차지하는 이번 측정의 최대 순수 중복이다(검증 §5.2 C2. dataMng `page.tsx:121-126,225-231`, codeMng `page.tsx:143-153`, layoutConfirm `page.tsx:126-138`).
+- **근거**: 화면이 행 클릭 때 `onSnapshotChange` 를 부르면 셸 `setTabs`(`use-portal-tabs.ts:246-254`) → tabOrder effect(R7)로 포털 셸 전체가 2회 렌더된다. 행 클릭당 ≈3~4ms 로, 행 클릭 렌더의 30~45% 를 차지하는 이번 측정의 최대 순수 중복이다(검증 §5.2 C2. 아래 줄 번호는 수정 전 dev 0047c849 기준: dataMng `page.tsx:121-126,225-231`, codeMng `page.tsx:143-153`, layoutConfirm `page.tsx:126-138`).
 - 셸 쪽 낭비는 §3 K1·K2 에서 고쳤다(cf79e675). 이제 값이 바뀐 snapshot 은 셸 1회 렌더, 같은 값은 0회다. 그래도 잦은 동작마다 부르지 않는다.
 
 ### R9. 사용자 확인(`/api/auth/me`)과 RBAC 구독을 늘리지 않는다 — 확정

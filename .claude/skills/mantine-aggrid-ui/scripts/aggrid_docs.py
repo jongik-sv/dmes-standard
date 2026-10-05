@@ -375,9 +375,11 @@ API_SEARCH_CALL = re.compile(r"(?<![\w.$])(search[A-Z]\w*)\s*\(")
 AUTH_ME_FETCH = re.compile(r"\bfetch\s*\(\s*[`'\"][^`'\"\n]*/auth/me\b")
 WIDGET_TIMER = re.compile(r"(?<![\w.$])(?:window\.)?(setInterval)\s*\(|(?<![\w.$])(?:window\.)?(setTimeout)\s*\(")
 # P-R8: 행 클릭·선택 처리 함수 이름(handleRowClick·chooseDetail·selectRow·pickXxx 등)과 행 이벤트 props
-ROW_HANDLER_NAME = re.compile(r"(?i)^(?:handle|on)?(?:row(?:click|select)\w*|choose\w*|pick\w*|select(?:row|item)\w*)$")
+ROW_HANDLER_NAME = re.compile(r"(?i)^(?:handle|on)?(?:row(?:click|select)\w*|choose\w*|select(?:row|item)\w*)$")
 ROW_EVENT_PROP = re.compile(r"\bon(?:RowClicked|RowSelected|SelectionChanged|RowClick|RowSelect)\s*=\s*\{")
-FN_DEF = re.compile(r"(?:\bconst\s+(\w+)\s*=\s*(?:async\s+)?useCallback\s*\(|\bfunction\s+(\w+)\s*\()")
+FN_DEF = re.compile(
+    r"\bconst\s+(\w+)\s*(?::[^=\n]+)?=\s*(?:async\s+)?(?:(?:React\.)?useCallback\s*(?:<[^\n]*?>)?\s*\(|\([^)]*\)\s*(?::[^=\n]+)?=>|\w+\s*=>)"
+    r"|\bfunction\s+(\w+)\s*\(")
 VISIBILITY_TRACE = re.compile(r"visibilityState|visibilitychange|IntersectionObserver|useTabPage|\bisActive\b")
 SYNC_STORE = re.compile(r"useSyncExternalStore\s*\(\s*[\w.$]+\s*,\s*(\(\s*\)\s*=>\s*[\w.$()]+|[\w$]+)")
 TAB_ACTIVATED = re.compile(r"addEventListener\s*\(\s*[`'\"]portal-tab-activated")
@@ -605,10 +607,32 @@ def _row_snapshot_write(t: str):
     bodies: dict[str, tuple[int, str]] = {}
     for m in FN_DEF.finditer(t):
         name = m[1] or m[2]
-        p = m.end() - 1
-        end = match_close(t, p)
-        if end > 0:
-            bodies[name] = (m.start(), t[p:end])
+        text = m.group(0)
+        if text.rstrip().endswith("(") and (m[2] or "useCallback" in text):
+            p = m.end() - 1
+            end = match_close(t, p)
+            if end < 0:
+                continue
+            body = t[p:end]
+            if m[2]:  # function 선언: 매개변수 뒤의 { } 가 본문
+                q = t.find("{", end)
+                qe = match_close(t, q) if q >= 0 else -1
+                if qe < 0:
+                    continue
+                body = t[q:qe]
+            else:  # useCallback: 끝의 의존성 배열은 본문이 아니다
+                body = re.sub(r",\s*\[[^\[\]]*\]\s*$", "", body)
+        else:  # 화살표 함수
+            q = m.end()
+            while q < len(t) and t[q].isspace():
+                q += 1
+            if q < len(t) and t[q] == "{":
+                qe = match_close(t, q)
+                body = t[q:qe] if qe > 0 else ""
+            else:
+                semi = t.find(";", q)
+                body = t[q:semi if semi > 0 else q + 400]
+        bodies[name] = (m.start(), body)
     touching = {n for n, (_, b) in bodies.items() if "onSnapshotChange" in b}
     for _ in range(4):
         grown = {n for n, (_, b) in bodies.items() if n not in touching
