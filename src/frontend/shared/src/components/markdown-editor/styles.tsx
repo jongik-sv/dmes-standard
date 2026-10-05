@@ -13,6 +13,8 @@ const CONTENT = `
 .cm-md { position: relative; box-sizing: border-box; width: 100%; height: 100%; display: flex; flex-direction: column; min-height: 0; }
 .cm-md-view, .cm-md-rich { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
 .cm-md-view { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+/* 표(읽기 모습 전용) 틀 — 아래 첫·끝 요소 여백 0 규칙보다 앞에 둬서 같은 우선순위에서 그 규칙이 이긴다. 문서 읽기(.cm-doc-body)는 더 넓힌다. */
+.cm-md-view .cm-md-table { margin: 4px 0; }
 .cm-md-view > :first-child, .cm-md-rich > :first-child { margin-top: 0; }
 .cm-md-view > :last-child, .cm-md-rich > :last-child { margin-bottom: 0; }
 .cm-md-view p, .cm-md-rich p { margin: 0; }
@@ -47,6 +49,20 @@ const CONTENT = `
 .cm-md-view pre, .cm-md-rich pre { margin: 2px 0; padding: 4px var(--spacing-xs); background: var(--color-bg-light); border-radius: var(--radius-sm); overflow: auto; }
 .cm-md-view pre code, .cm-md-rich pre code { padding: 0; background: transparent; }
 .cm-md-view hr, .cm-md-rich hr { border: 0; border-top: 1px solid var(--color-border); margin: 4px 0; }
+/* 표 — 틀(.cm-md-table)이 가로로 넘치면 안에서 스크롤한다. 칸은 줄바꿈을 접고(white-space: normal) 긴 낱말은 break-word 로만 꺾어
+   (anywhere 는 최소 폭을 줄여 스크롤이 생기지 않는다) 표가 넓어지면 틀 안 스크롤이 된다. 색은 공통 토큰이라 어두운 테마에서도 읽힌다. */
+.cm-md-view .cm-md-table { max-width: 100%; overflow-x: auto; white-space: normal; }
+.cm-md-view table { border-collapse: collapse; min-width: 100%; font-size: inherit; line-height: 1.5; }
+.cm-md-view th, .cm-md-view td {
+  padding: 3px var(--spacing-sm); border: 1px solid var(--color-border); text-align: left; vertical-align: top;
+  white-space: normal; overflow-wrap: break-word; color: var(--color-text);
+}
+.cm-md-view th { font-weight: 700; background: var(--color-bg-light); }
+@media print {
+  .cm-md-view .cm-md-table { overflow: visible; }
+  .cm-md-view tr { break-inside: avoid; }
+  .cm-md-view th { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
 `;
 
 const EDITING = `

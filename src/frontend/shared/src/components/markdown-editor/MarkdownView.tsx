@@ -4,13 +4,14 @@
  * 마크다운 읽기 전용 모습 — 마크다운을 편집기와 같은 변환(markdown.ts)으로 읽어 React 요소로 그린다(HTML 문자열을 넣지 않는다).
  * 글마다 ProseMirror 편집기를 띄우지 않으려고 따로 그린다. 링크는 http/https 만 새 탭으로 열고, 누름이 바깥(고르기·편집 열기)으로
  * 올라가지 않는다. 할 일 체크박스는 바꿀 수 없다(편집 중에만 바꾼다). 스타일은 컴포넌트가 직접 넣는다(styles.tsx).
+ * GFM 표는 `<table>` 로 그린다(머리글 thead·본문 tbody, `:---:` 정렬, 칸 안 인라인 서식). 표는 이 읽기 전용 경로에서만 읽힌다 — 편집 화면은 표를 글자로 둔다(markdown.ts).
  * ```mermaid 코드 블록은 도식(MermaidDiagram)으로 그린다 — 있을 때만 mermaid 를 동적으로 불러오고, 그리기에 실패하면 코드 블록으로 남는다.
  * 편집 화면(MarkdownEditor 의 tiptap)은 이 부품이 아니라 코드 블록 그대로다. 끄려면 `mermaid={false}`.
  */
 import { Fragment, useMemo, type ReactNode, type SyntheticEvent } from "react";
 import type { JSONContent } from "@tiptap/react";
 
-import { parseMarkdown } from "./markdown";
+import { parseMarkdownView } from "./markdown";
 import { splitMermaidBlocks } from "./mermaid-blocks";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { isSafeHref } from "./md-ops";
@@ -135,6 +136,38 @@ function renderNode(node: JSONContent, key: number, linkClass: string | undefine
       );
     case "horizontalRule":
       return <hr key={key} />;
+    case "table": {
+      // 머리글 행(tableHeader 로만 된 첫 행)은 thead, 나머지는 tbody. 넘치면 감싸는 틀 안에서 가로로 스크롤한다(styles.tsx .cm-md-table).
+      const rows = node.content ?? [];
+      const isHead = (r: JSONContent | undefined) =>
+        !!r?.content?.length && r.content.every((c) => c.type === "tableHeader");
+      const head = isHead(rows[0]) ? rows[0] : undefined;
+      const body = head ? rows.slice(1) : rows;
+      return (
+        <div key={key} className="cm-md-table">
+          <table>
+            {head ? <thead>{renderNode(head, 0, linkClass)}</thead> : null}
+            {body.length ? <tbody>{body.map((r, i) => renderNode(r, i, linkClass))}</tbody> : null}
+          </table>
+        </div>
+      );
+    }
+    case "tableRow":
+      return <tr key={key}>{kids()}</tr>;
+    case "tableHeader":
+    case "tableCell": {
+      const align = node.attrs?.align;
+      const style = align === "left" || align === "center" || align === "right" ? { textAlign: align } : undefined;
+      return node.type === "tableHeader" ? (
+        <th key={key} scope="col" style={style}>
+          {kids()}
+        </th>
+      ) : (
+        <td key={key} style={style}>
+          {kids()}
+        </td>
+      );
+    }
     default:
       // 모르는 종류 — 안쪽이 있으면 안쪽을, 글자면 글자를 그린다(내용을 잃지 않는다).
       if (node.content) return <span key={key}>{kids()}</span>;
@@ -156,7 +189,7 @@ export function MarkdownView({
     if (!split.some((p) => p.kind === "mermaid")) return [{ kind: "md" as const, text }];
     return split;
   }, [value, mermaid]);
-  const docs = useMemo(() => pieces.map((p) => (p.kind === "md" ? parseMarkdown(p.text) : null)), [pieces]);
+  const docs = useMemo(() => pieces.map((p) => (p.kind === "md" ? parseMarkdownView(p.text) : null)), [pieces]);
   return (
     <div className={className ? `cm-md-view ${className}` : "cm-md-view"} data-testid={testId}>
       <MarkdownEditorStyle />
