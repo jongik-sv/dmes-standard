@@ -67,6 +67,7 @@ import {
   DatePicker,
   Radio,
 } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import {
   searchCmRole as apiSearchCmRole,
@@ -978,7 +979,7 @@ export default function CommRoleMngPage() {
                   <table style={DETAIL_TABLE_STYLE}>
                     <tbody>
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>역할 ID *</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ROLE_ID" label="역할 ID" required /></th>
                         <td style={DETAIL_VALUE_CELL}>
                           {/* AsIs xfdl:243 readonly="true" — ROLE_ID 는 항상 자동 합성값.
                               2026-09-04 fix: 신규 행에서 직접 입력이 열려 있어 메뉴 ID 없이
@@ -993,7 +994,7 @@ export default function CommRoleMngPage() {
                       </tr>
 
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>메뉴 ID *</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="MENU_ID" label="메뉴 ID" required /></th>
                         <td style={DETAIL_VALUE_CELL}>
                           {isNewRow ? (
                             /* 메뉴 ID = 메뉴 폴더(csa/cma/...). 선택 즉시 ID 와 합쳐져
@@ -1019,7 +1020,7 @@ export default function CommRoleMngPage() {
                       </tr>
 
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>ID *</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ID" meta={false} label="ID" required /></th>
                         <td style={DETAIL_VALUE_CELL}>
                           <Input
                             value={String(selected.ID ?? "")}
@@ -1031,7 +1032,7 @@ export default function CommRoleMngPage() {
                       </tr>
 
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>역할명</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ROLE_NM" label="역할명" /></th>
                         <td style={DETAIL_VALUE_CELL}>
                           <Input
                             value={String(selected.ROLE_NM ?? "")}
@@ -1042,7 +1043,7 @@ export default function CommRoleMngPage() {
                       </tr>
 
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>역할 설명</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="ROLE_DESC" label="역할 설명" /></th>
                         <td style={DETAIL_VALUE_CELL}>
                           <Input
                             value={String(selected.ROLE_DESC ?? "")}
@@ -1053,7 +1054,7 @@ export default function CommRoleMngPage() {
                       </tr>
 
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>사용 여부</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="USE_TP" label="사용 여부" /></th>
                         <td style={DETAIL_VALUE_CELL}>
                           <Radio
                             name="USE_TP"
@@ -1065,7 +1066,7 @@ export default function CommRoleMngPage() {
                       </tr>
 
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>유효 개시일</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="START_ACTIVE_DATE" label="유효 개시일" /></th>
                         <td style={DETAIL_VALUE_CELL}>
                           <DatePicker
                             value={toDateInputValue(selected.START_ACTIVE_DATE)}
@@ -1075,7 +1076,7 @@ export default function CommRoleMngPage() {
                       </tr>
 
                       <tr>
-                        <th style={DETAIL_LABEL_CELL}>유효 기한일</th>
+                        <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="END_ACTIVE_DATE" label="유효 기한일" /></th>
                         <td style={DETAIL_VALUE_CELL}>
                           <DatePicker
                             value={toDateInputValue(selected.END_ACTIVE_DATE)}

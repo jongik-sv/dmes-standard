@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Button, Input, Textarea } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { openMdmPage } from "@/shell";
 
 import { registerSet } from "../api";
@@ -53,7 +54,9 @@ export function RuleSetRegisterForm({ canRegister, onRegistered, onError }: Rule
       <table style={DETAIL_TABLE_STYLE}>
         <tbody>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>세트 ID *</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="setId" label="세트 ID" required />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 data-testid="set-reg-id"
@@ -75,7 +78,9 @@ export function RuleSetRegisterForm({ canRegister, onRegistered, onError }: Rule
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>세트명 *</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="setName" label="세트명" required />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 data-testid="set-reg-name"
@@ -87,7 +92,9 @@ export function RuleSetRegisterForm({ canRegister, onRegistered, onError }: Rule
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}>설명</th>
+            <th style={DETAIL_LABEL_CELL}>
+              <MdmFieldLabel name="description" label="설명" meta={false} />
+            </th>
             <td style={DETAIL_VALUE_CELL}>
               <Textarea
                 data-testid="set-reg-desc"

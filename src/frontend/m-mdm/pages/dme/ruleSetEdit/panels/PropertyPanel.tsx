@@ -20,6 +20,7 @@ import type { CatchKind, FlowEdge, FlowNode } from "@/contract/engine-contract.g
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, Input, Textarea } from "@dk-oasis/shared/form";
 import { MarkdownField } from "@dk-oasis/shared/markdown-editor";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { badgeStyle, fmtVer } from "@/shell";
 
 import { SOURCE_LABEL, SOURCE_TONE, typeText } from "../cards/SetIoTables";
@@ -160,7 +161,9 @@ function RuleProps({ node, io, tree, props }: { node: FlowNode; io: RuleIo | und
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>이름</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="label" label="이름" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   data-testid="flow-prop-rule-label"
@@ -172,23 +175,31 @@ function RuleProps({ node, io, tree, props }: { node: FlowNode; io: RuleIo | und
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>설명</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="description" label="설명" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <DescField node={node} props={props} />
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>룰 ID</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="ruleId" label="룰 ID" />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <code>{ruleId}</code> <span className="rsf-muted">{`(노드 ${node.id})`}</span>
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>종류·정책</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="ruleKindPolicy" label="종류·정책" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>{missing ? "-" : [io.ruleKind ?? "-", io.hitPolicy ?? "-"].join(" · ")}</td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>확정 버전</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="releasedVer" label="확정 버전" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 {missing ? "-" : io.releasedVer != null ? fmtVer(io.releasedVer) : <span style={badgeStyle("warning")}>RELEASED 없음</span>}
                 {!missing && io.status && <span style={{ ...badgeStyle("neutral"), marginLeft: 4 }}>{io.status}</span>}
@@ -279,7 +290,9 @@ function TaskProps({ node, props }: { node: FlowNode; props: PropertyPanelProps 
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>제목</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="title" label="제목" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   data-testid="flow-prop-task-title"
@@ -291,13 +304,17 @@ function TaskProps({ node, props }: { node: FlowNode; props: PropertyPanelProps 
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>설명</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="description" label="설명" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <DescField node={node} props={props} />
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>노드 ID</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="nodeId" label="노드 ID" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <code>{node.id}</code>
               </td>
@@ -350,7 +367,9 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>분기 이름</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="branchName" label="분기 이름" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   data-testid="flow-prop-label"
@@ -361,7 +380,9 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>설명</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="description" label="설명" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <DescField node={node} props={props} />
               </td>
@@ -511,7 +532,9 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>제목</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="title" label="제목" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   data-testid="flow-prop-catch-title"
@@ -523,7 +546,9 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>{onTask ? "붙은 노드" : "붙은 룰"}</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="attachTo" label={onTask ? "붙은 노드" : "붙은 룰"} meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <code>{node.attachTo ?? "-"}</code>
               </td>
@@ -649,7 +674,9 @@ export function PropertyPanel(props: PropertyPanelProps) {
           <table style={DETAIL_TABLE_STYLE}>
             <tbody>
               <tr>
-                <th style={DETAIL_LABEL_CELL}>제목</th>
+                <th style={DETAIL_LABEL_CELL}>
+                  <MdmFieldLabel name="title" label="제목" meta={false} />
+                </th>
                 <td style={DETAIL_VALUE_CELL}>
                   <Input
                     data-testid="flow-prop-group-title"

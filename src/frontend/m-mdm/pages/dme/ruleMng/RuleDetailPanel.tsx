@@ -29,6 +29,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
+import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { DraftLockBadge, HANDOVER_AVAILABLE, VersionActionBar, VersionStatusBadge, fmtVer, openMdmPage, sameVer } from "@/shell";
 import { CONFLICT_MESSAGE, writeFailure } from "@/dme/oasis-call";
 
@@ -287,13 +288,17 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
         <table style={DETAIL_TABLE_STYLE}>
           <tbody>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>룰 ID</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="maruRuleId" label="룰 ID" />
+              </th>
               <td style={DETAIL_VALUE_CELL} data-testid="rule-header-id">
                 {id}
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>룰명 *</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="maruRuleName" label="룰명" required />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Input
                   data-testid="rule-header-name"
@@ -304,7 +309,9 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>설명</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="description" label="설명" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Textarea
                   data-testid="rule-header-description"
@@ -316,7 +323,9 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>활용처 메모</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="usageNote" label="활용처 메모" />
+              </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Textarea
                   data-testid="rule-header-usage"
@@ -328,7 +337,9 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}>원천</th>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="source" label="원천" meta={false} />
+              </th>
               <td style={DETAIL_VALUE_CELL} data-testid="rule-header-source">
                 {external ? `EXTERNAL · ${header.sourceSystem ?? ""}` : "MDM"}
               </td>

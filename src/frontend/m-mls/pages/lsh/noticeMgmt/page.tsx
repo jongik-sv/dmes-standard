@@ -32,7 +32,11 @@ import {
 } from "@dk-oasis/shared/form";
 import { toFieldErrors } from "@dk-oasis/shared/http";
 import { useMessage } from "@dk-oasis/shared/message-provider";
-import { MdmMetaProvider, useMdmValidation } from "@dk-oasis/shared/mdm-meta";
+import {
+  MdmFieldLabel,
+  MdmMetaProvider,
+  useMdmValidation,
+} from "@dk-oasis/shared/mdm-meta";
 
 import {
   changeNoticeStatus,
@@ -612,7 +616,9 @@ function NoticeMgmtScreen() {
             <table style={DETAIL_TABLE_STYLE}>
               <tbody>
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>공지번호</th>
+                  <th style={DETAIL_LABEL_CELL}>
+                    <MdmFieldLabel name="NOTICE_ID" label="공지번호" />
+                  </th>
                   <td style={DETAIL_VALUE_CELL}>
                     {/* D-001 — 서버 채번값. 신규 시 공란 */}
                     <Input
@@ -624,7 +630,9 @@ function NoticeMgmtScreen() {
                   </td>
                 </tr>
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>등록</th>
+                  <th style={DETAIL_LABEL_CELL}>
+                    <MdmFieldLabel name="C_USR_ID" label="등록" meta={false} />
+                  </th>
                   <td style={DETAIL_VALUE_CELL}>
                     {/* audit C_USR_ID · C_AT(현지 시각) — 표시 전용 */}
                     <Input
@@ -649,7 +657,9 @@ function NoticeMgmtScreen() {
                   onChange={(v) => setField("TITLE", v)}
                 />
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>분류</th>
+                  <th style={DETAIL_LABEL_CELL}>
+                    <MdmFieldLabel name="NOTICE_CATEGORY" label="분류" />
+                  </th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Select
                       options={NOTICE_CATEGORY_FORM_OPTIONS}
@@ -662,7 +672,9 @@ function NoticeMgmtScreen() {
                   </td>
                 </tr>
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>상단 고정</th>
+                  <th style={DETAIL_LABEL_CELL}>
+                    <MdmFieldLabel name="PIN_YN" label="상단 고정" />
+                  </th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Checkbox
                       label="홈 목록 맨 위에 둔다"
@@ -675,7 +687,13 @@ function NoticeMgmtScreen() {
                   </td>
                 </tr>
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>게시상태 *</th>
+                  <th style={DETAIL_LABEL_CELL}>
+                    <MdmFieldLabel
+                      name="NOTICE_STATUS"
+                      label="게시상태"
+                      required
+                    />
+                  </th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Select
                       options={NOTICE_STATUS_FORM_OPTIONS}
@@ -686,7 +704,9 @@ function NoticeMgmtScreen() {
                   </td>
                 </tr>
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>게시시작일</th>
+                  <th style={DETAIL_LABEL_CELL}>
+                    <MdmFieldLabel name="POST_START_DT" label="게시시작일" />
+                  </th>
                   <td style={DETAIL_VALUE_CELL}>
                     <DatePicker
                       value={form?.POST_START_DT ?? ""}
@@ -696,7 +716,9 @@ function NoticeMgmtScreen() {
                   </td>
                 </tr>
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>게시종료일</th>
+                  <th style={DETAIL_LABEL_CELL}>
+                    <MdmFieldLabel name="POST_END_DT" label="게시종료일" />
+                  </th>
                   <td style={DETAIL_VALUE_CELL}>
                     <DatePicker
                       value={form?.POST_END_DT ?? ""}
@@ -706,7 +728,9 @@ function NoticeMgmtScreen() {
                   </td>
                 </tr>
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>게시 대상</th>
+                  <th style={DETAIL_LABEL_CELL}>
+                    <MdmFieldLabel name="TARGET_SCOPE" label="게시 대상" />
+                  </th>
                   <td style={DETAIL_VALUE_CELL}>
                     <Radio
                       name="noticeTargetScope"
@@ -722,7 +746,11 @@ function NoticeMgmtScreen() {
                 </tr>
                 <tr>
                   <th style={DETAIL_LABEL_CELL}>
-                    대상 역할{isRoleScope ? " *" : ""}
+                    <MdmFieldLabel
+                      name="TARGET_ROLES"
+                      label="대상 역할"
+                      required={isRoleScope}
+                    />
                   </th>
                   <td style={DETAIL_VALUE_CELL}>
                     <MultiSelectComboBox
@@ -742,7 +770,9 @@ function NoticeMgmtScreen() {
                   </td>
                 </tr>
                 <tr>
-                  <th style={DETAIL_LABEL_CELL}>본문 형식</th>
+                  <th style={DETAIL_LABEL_CELL}>
+                    <MdmFieldLabel name="CONTENT_FORMAT" label="본문 형식" />
+                  </th>
                   <td style={DETAIL_VALUE_CELL}>
                     <SegmentedControl
                       value={form?.CONTENT_FORMAT ?? "TEXT"}
