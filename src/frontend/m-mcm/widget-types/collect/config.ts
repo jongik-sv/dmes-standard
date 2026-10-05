@@ -64,6 +64,13 @@ export const SHOW_DAYS_MAX = 90;
 export const SHOW_DAYS_DEFAULT = 7;
 export const UNIT_MAX = 10;
 export const CURRENCIES_MAX = 10;
+/** 환율 원천의 interval 주기 하한(분) — 외부 호출이 잦지 않게 서버가 60분 미만을 저장 때 거절한다(daily 는 제한 없음). */
+export const EXCHANGE_EVERY_MIN_FLOOR = 60;
+export const FIELD_MAX = 100;
+export const URL_MAX = 500;
+export const PATH_MAX = 200;
+export const PATH_DEPTH_MAX = 20;
+export const PATH_INDEX_MAX = 9999;
 
 export const SCHEDULE_MODE_LABELS: Readonly<Record<string, string>> = { interval: "주기마다", daily: "매일 정해진 시각" };
 export const SOURCE_KIND_LABELS: Readonly<Record<string, string>> = { sql: "SQL", http: "HTTP JSON", exchange: "환율" };
@@ -75,8 +82,8 @@ export function everyMinLabel(min: number): string {
 
 const AT_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const CUR_RE = /^[A-Z]{3}$/;
-/** 점·대괄호 경로 — `data.items[0].price`. 공백·빈 마디·숫자 아닌 인덱스는 거절한다. */
-const PATH_RE = /^(?:\[\d+\]|[^\s.[\]]+)(?:\.[^\s.[\]]+|\[\d+\])*$/;
+/** 값 위치 이름 조각 — 유니코드 글자·숫자와 `_`·`$`·`-` 만(서버 PATH_NAME 과 같다). */
+const PATH_NAME_RE = /^[\p{L}\p{N}_$-]+$/u;
 
 /* ── 읽기 ── */
 
@@ -133,7 +140,8 @@ export function readCollectConfig(raw: unknown): CollectConfig {
       items,
       currencies,
     },
-    show: { days: numberOf(show.days) ?? SHOW_DAYS_DEFAULT, unit: text(show.unit).trim() },
+    // 단위는 원래 글자를 그대로 둔다(입력 중 끝 공백이 지워지면 「a b」 를 칠 수 없다). 길이 검사는 받은 값 길이로, 칸을 벗어날 때 편집기가 다듬는다.
+    show: { days: numberOf(show.days) ?? SHOW_DAYS_DEFAULT, unit: text(show.unit) },
   };
 }
 
@@ -143,9 +151,9 @@ export function showDaysOf(raw: unknown): number {
   return Number.isInteger(d) && d >= SHOW_DAYS_MIN && d <= SHOW_DAYS_MAX ? d : SHOW_DAYS_DEFAULT;
 }
 
-/** 값 단위 — 앞뒤 공백을 지우고 UNIT_MAX 자까지. */
+/** 화면에 붙일 값 단위 — 앞뒤 공백을 지우고 UNIT_MAX 자까지. */
 export function unitOf(raw: unknown): string {
-  return readCollectConfig(raw).show.unit.slice(0, UNIT_MAX);
+  return readCollectConfig(raw).show.unit.trim().slice(0, UNIT_MAX);
 }
 
 /* ── 편집 도우미(저장 모양으로 되돌린다) ── */
@@ -180,90 +188,189 @@ export function sourceOfKind(kind: SourceKind, prev: CollectSource): CollectSour
   return empty;
 }
 
-/* ── 검사 ── */
+/* ── 검사(원래 설정 값을 서버 규칙과 같게 본다 — 읽기 기본값으로 가리지 않는다) ── */
 
-function validateSchedule(s: CollectSchedule, raw: unknown): string[] {
-  const rawMode = isRecord(raw) && isRecord(raw.schedule) ? raw.schedule.mode : undefined;
+const PATH_HINT = "data.items[0].price 처럼 점·대괄호 경로로 적으세요(이름은 글자·숫자와 _ $ - 만, 첨자는 0~9999, 200자·20조각 이하)";
+
+/**
+ * 값 위치 검사 — 서버 CollectConfigs.parsePath 와 같은 규칙. 오류가 있으면 문구(「…」 앞에 붙일 사유 없이 PATH_HINT 포함), 없으면 null.
+ * 빈 조각·연속 점·`]` 뒤에 바로 붙은 이름·숫자 아닌 첨자·허용 밖 글자(`/`·`@`·`:`·공백 등) 거절.
+ */
+export function pathError(path: string): string | null {
+  if (path === "" || path.trim() === "") return "값 위치를 입력하세요";
+  const bad = `값 위치는 ${PATH_HINT}`;
+  if (path.length > PATH_MAX) return bad;
+  let parts = 0;
+  let i = 0;
+  let expectName = true;
+  const n = path.length;
+  while (i < n) {
+    const c = path[i];
+    if (c === "[") {
+      const close = path.indexOf("]", i);
+      if (close < 0 || close === i + 1) return bad;
+      const digits = path.slice(i + 1, close);
+      if (!/^[0-9]{1,4}$/.test(digits) || Number(digits) > PATH_INDEX_MAX) return bad;
+      parts++;
+      i = close + 1;
+      expectName = false;
+    } else if (c === ".") {
+      if (expectName) return bad;
+      i++;
+      if (i >= n) return bad;
+      expectName = true;
+    } else {
+      if (!expectName && parts > 0) return bad;
+      let end = i;
+      while (end < n && path[end] !== "." && path[end] !== "[") end++;
+      if (!PATH_NAME_RE.test(path.slice(i, end))) return bad;
+      parts++;
+      i = end;
+      expectName = false;
+    }
+    if (parts > PATH_DEPTH_MAX) return bad;
+  }
+  return parts === 0 ? bad : null;
+}
+
+/** java.net.URI 가 받는 글자인지 — 공백·제어문자·`"<>\^`{|}` 와 `%` 뒤 16진 두 자리가 아닌 `%` 는 거절(영문 외 글자는 URI 가 받는다). */
+const URI_ILLEGAL_RE = /[\u0000-\u0020\u007f"<>\\^`{|}]|%(?![0-9A-Fa-f]{2})/;
+/** 호스트 이름 마디 — 영문·숫자·`-`, 처음·끝은 영문·숫자(밑줄·한글은 java.net.URI 가 호스트로 읽지 못한다). */
+const HOST_LABEL_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/;
+
+/** 호스트 글자가 java.net.URI 의 호스트 규칙(이름·IPv4·[IPv6])에 맞는지 — 맞지 않으면 URI.getHost() 가 null 이라 서버가 거절한다. */
+function hostOk(host: string): boolean {
+  if (host.startsWith("[")) return /^\[[0-9A-Fa-f:.]+\]$/.test(host);
+  const labels = host.endsWith(".") ? host.slice(0, -1).split(".") : host.split(".");
+  if (labels.length === 0 || labels.some((l) => !HOST_LABEL_RE.test(l))) return false;
+  // 마지막 마디(toplabel)는 영문으로 시작한다. IPv4(숫자 4마디)는 따로 받는다.
+  if (/^\d+$/.test(labels[labels.length - 1])) return labels.length === 4 && labels.every((l) => Number(l) <= 255);
+  return /^[A-Za-z]/.test(labels[labels.length - 1]);
+}
+
+/** 주소 검사 — 서버 CollectConfigs.parseUrl(java.net.URI)에 가깝게. 오류 문구, 없으면 null. 허용 호스트 목록은 서버만 안다. */
+export function urlError(url: string): string | null {
+  const u = url.trim();
+  if (u === "") return "주소를 입력하세요";
+  if (url.length > URL_MAX) return `주소는 ${URL_MAX}자 이하로 입력하세요`;
+  if (URI_ILLEGAL_RE.test(u)) return "주소에 쓸 수 없는 글자가 있습니다(공백·\" < > \\ ^ ` { | } 와 % 뒤 16진 두 자리가 아닌 %)";
+  const m = /^([A-Za-z][A-Za-z0-9+.-]*):(\/\/)?([^/?#]*)/.exec(u);
+  const scheme = m ? m[1].toLowerCase() : "";
+  if (scheme !== "http" && scheme !== "https") return "주소는 http:// 또는 https:// 로 시작하는 절대 주소여야 합니다";
+  const authority = m && m[2] ? m[3] : "";
+  if (authority.includes("@")) return "주소에 사용자 정보(user:pw@)를 넣을 수 없습니다";
+  const hp = /^(.*?)(?::(\d*))?$/.exec(authority);
+  const host = hp ? hp[1] : "";
+  if (host === "" || !hostOk(host)) return "주소에 올바른 호스트가 있어야 합니다(영문·숫자·점·하이픈 호스트만, 밑줄·한글 호스트는 쓸 수 없습니다)";
+  return null;
+}
+
+function isIntegerNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isInteger(v);
+}
+
+function validateSchedule(raw: unknown, sourceKind: unknown): string[] {
+  if (!isRecord(raw)) return ["수집 일정이 아직 설정되지 않았습니다. 방식(주기마다·매일 정해진 시각)을 다시 골라 주세요"];
   const errors: string[] = [];
-  if (rawMode !== undefined && rawMode !== "interval" && rawMode !== "daily") errors.push("수집 방식을 주기마다 또는 매일 정해진 시각 중에서 고르세요");
-  if (s.mode === "interval") {
-    if (!EVERY_MIN_OPTIONS.includes(s.everyMin)) errors.push(`수집 주기는 ${EVERY_MIN_OPTIONS.join("·")}분 중에서 고르세요`);
+  if (raw.mode === "interval") {
+    if (!isIntegerNumber(raw.everyMin) || !EVERY_MIN_OPTIONS.includes(raw.everyMin)) {
+      errors.push(`수집 주기는 ${EVERY_MIN_OPTIONS.join("·")}분 중에서 고르세요`);
+    } else if (sourceKind === "exchange" && raw.everyMin < EXCHANGE_EVERY_MIN_FLOOR) {
+      errors.push(`환율 원천은 주기마다 수집할 때 ${EXCHANGE_EVERY_MIN_FLOOR}분 이상으로 고르세요(더 자주 모으려면 매일 정해진 시각을 쓰세요)`);
+    }
     return errors;
   }
-  if (s.at.length === 0) errors.push(`수집 시각을 1~${DAILY_AT_MAX}개 넣으세요`);
-  else if (s.at.length > DAILY_AT_MAX) errors.push(`수집 시각은 최대 ${DAILY_AT_MAX}개까지 둘 수 있습니다`);
+  if (raw.mode !== "daily") return ["수집 방식을 주기마다 또는 매일 정해진 시각 중에서 고르세요"];
+  const at = Array.isArray(raw.at) ? raw.at : [];
+  if (at.length === 0) errors.push(`수집 시각을 1~${DAILY_AT_MAX}개 넣으세요`);
+  else if (at.length > DAILY_AT_MAX) errors.push(`수집 시각은 최대 ${DAILY_AT_MAX}개까지 둘 수 있습니다`);
   const seen = new Set<string>();
-  for (const a of s.at) {
-    if (!AT_RE.test(a)) errors.push(`수집 시각 「${a}」 은 HH:mm(00:00~23:59) 형식이어야 합니다`);
+  for (const a of at) {
+    const t = typeof a === "string" ? a : String(a);
+    if (typeof a !== "string" || !AT_RE.test(a)) errors.push(`수집 시각 「${t}」 은 HH:mm(00:00~23:59) 형식이어야 합니다`);
     else if (seen.has(a)) errors.push(`수집 시각 「${a}」 이 중복됩니다`);
-    seen.add(a);
+    seen.add(t);
   }
   return errors;
 }
 
-function validateHttpUrl(url: string): string | null {
-  const u = url.trim();
-  if (u === "") return "주소를 입력하세요";
-  let parsed: URL;
-  try {
-    parsed = new URL(u);
-  } catch {
-    return "주소는 http 또는 https 절대 주소여야 합니다";
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "주소는 http 또는 https 절대 주소여야 합니다";
-  if (parsed.username !== "" || parsed.password !== "") return "주소에 사용자 정보(user:pw@)를 넣을 수 없습니다";
-  return null;
-}
-
-function validateSource(s: CollectSource): string[] {
+function validateSource(raw: unknown): string[] {
+  if (!isRecord(raw)) return ["수집 원천이 아직 설정되지 않았습니다. 원천 종류를 다시 골라 주세요"];
   const errors: string[] = [];
-  if (s.kind === "sql") {
-    if (s.sql.trim() === "") errors.push("SQL 을 입력하세요");
+  if (raw.kind === "sql") {
+    const sql = typeof raw.sql === "string" ? raw.sql : "";
+    if (sql.trim() === "") errors.push("SQL 을 입력하세요");
     else {
-      const names = extractAllBindNames(s.sql);
+      const names = extractAllBindNames(sql);
       const system = names.filter((n) => n === "userId" || n === "deptCd");
       const user = names.filter((n) => !RESERVED_PARAM_NAMES.includes(n));
       if (system.length > 0) errors.push(`수집에는 사용자가 없어 ${system.map((n) => `:${n}`).join("·")} 를 쓸 수 없습니다`);
       if (user.length > 0) errors.push(`수집 SQL 에는 사용자 입력 조건(${user.map((n) => `:${n}`).join(", ")})을 쓸 수 없습니다`);
     }
-    if (s.valueField === "") errors.push("값 컬럼을 입력하세요");
-  } else if (s.kind === "http") {
-    const urlError = validateHttpUrl(s.url);
-    if (urlError) errors.push(urlError);
-    if (s.items.length === 0) errors.push(`수집 항목을 1~${HTTP_ITEMS_MAX}개 넣으세요`);
-    else if (s.items.length > HTTP_ITEMS_MAX) errors.push(`수집 항목은 최대 ${HTTP_ITEMS_MAX}개까지 둘 수 있습니다`);
-    s.items.forEach((item, i) => {
-      const at = `수집 항목 ${i + 1}번`;
-      if (item.key === "") errors.push(`${at}의 이름을 입력하세요`);
-      else if (item.key.length > ITEM_KEY_MAX) errors.push(`${at}의 이름은 ${ITEM_KEY_MAX}자 이하로 입력하세요`);
-      if (item.path === "") errors.push(`${at}의 값 위치를 입력하세요`);
-      else if (!PATH_RE.test(item.path)) errors.push(`${at}의 값 위치는 data.items[0].price 처럼 점·대괄호로 적으세요`);
-    });
-  } else {
-    if (s.currencies.length === 0) errors.push(`통화를 1~${CURRENCIES_MAX}개 고르세요`);
-    else if (s.currencies.length > CURRENCIES_MAX) errors.push(`통화는 최대 ${CURRENCIES_MAX}개까지 고를 수 있습니다`);
-    for (const c of s.currencies) {
-      if (c === "KRW") errors.push("기준 통화(KRW)는 대상 통화로 고를 수 없습니다");
-      else if (!CUR_RE.test(c)) errors.push(`통화 코드가 올바르지 않습니다: ${c}`);
+    const value = typeof raw.valueField === "string" ? raw.valueField : "";
+    if (value.trim() === "") errors.push("값 컬럼을 입력하세요");
+    else if (value.length > FIELD_MAX) errors.push(`값 컬럼은 ${FIELD_MAX}자 이하로 입력하세요`);
+    const key = raw.keyField;
+    if (key !== undefined && key !== null && (typeof key !== "string" || key.length > FIELD_MAX)) {
+      errors.push(`항목 컬럼은 ${FIELD_MAX}자 이하로 입력하세요`);
     }
+  } else if (raw.kind === "http") {
+    const url = typeof raw.url === "string" ? raw.url : "";
+    const e = urlError(url);
+    if (e) errors.push(e);
+    const items = Array.isArray(raw.items) ? raw.items : [];
+    if (items.length === 0) errors.push(`수집 항목을 1~${HTTP_ITEMS_MAX}개 넣으세요`);
+    else if (items.length > HTTP_ITEMS_MAX) errors.push(`수집 항목은 최대 ${HTTP_ITEMS_MAX}개까지 둘 수 있습니다`);
+    const keys = new Set<string>();
+    items.forEach((item, i) => {
+      const at = `수집 항목 ${i + 1}번`;
+      const rec = isRecord(item) ? item : {};
+      const key = typeof rec.key === "string" ? rec.key : "";
+      if (key.trim() === "") errors.push(`${at}의 이름을 입력하세요`);
+      else if (key.length > ITEM_KEY_MAX) errors.push(`${at}의 이름은 ${ITEM_KEY_MAX}자 이하로 입력하세요`);
+      else if (keys.has(key)) errors.push(`${at}의 이름 「${key}」 이 중복됩니다`);
+      if (key !== "") keys.add(key);
+      const pe = pathError(typeof rec.path === "string" ? rec.path : "");
+      if (pe) errors.push(`${at}의 ${pe}`);
+    });
+  } else if (raw.kind === "exchange") {
+    const list = Array.isArray(raw.currencies) ? raw.currencies : [];
+    if (list.length === 0) errors.push(`통화를 1~${CURRENCIES_MAX}개 고르세요`);
+    else if (list.length > CURRENCIES_MAX) errors.push(`통화는 최대 ${CURRENCIES_MAX}개까지 고를 수 있습니다`);
+    const seen = new Set<string>();
+    for (const c of list) {
+      const t = typeof c === "string" ? c : String(c);
+      if (t === "KRW") errors.push("기준 통화(KRW)는 대상 통화로 고를 수 없습니다");
+      else if (typeof c !== "string" || !CUR_RE.test(c)) errors.push(`통화 코드가 올바르지 않습니다: ${t}`);
+      else if (seen.has(c)) errors.push(`통화 ${c} 가 중복됩니다`);
+      seen.add(t);
+    }
+  } else {
+    errors.push("원천 종류를 SQL·HTTP JSON·환율 중에서 고르세요");
   }
   return errors;
 }
 
-function validateShow(s: CollectShow, raw: unknown): string[] {
+function validateShow(raw: unknown): string[] {
+  if (raw === undefined || raw === null) return [];
+  if (!isRecord(raw)) return ["표시 설정 형식이 올바르지 않습니다"];
   const errors: string[] = [];
-  const rawShow = isRecord(raw) && isRecord(raw.show) ? raw.show : {};
-  if (rawShow.days !== undefined && (numberOf(rawShow.days) === undefined || !Number.isInteger(s.days) || s.days < SHOW_DAYS_MIN || s.days > SHOW_DAYS_MAX)) {
+  const days = raw.days;
+  if (days !== undefined && days !== null && (!isIntegerNumber(days) || days < SHOW_DAYS_MIN || days > SHOW_DAYS_MAX)) {
     errors.push(`표시 기간은 ${SHOW_DAYS_MIN}~${SHOW_DAYS_MAX}일의 정수로 입력하세요`);
   }
-  if (typeof rawShow.unit === "string" && rawShow.unit.trim().length > UNIT_MAX) errors.push(`단위는 ${UNIT_MAX}자 이하로 입력하세요`);
+  const unit = raw.unit;
+  if (unit !== undefined && unit !== null && (typeof unit !== "string" || unit.length > UNIT_MAX)) {
+    errors.push(`단위는 공백을 포함해 ${UNIT_MAX}자 이하로 입력하세요`);
+  }
   return errors;
 }
 
 /** 칸 묶음별 검사 — 편집기가 각 칸 아래에 보인다. */
 export function collectErrors(raw: unknown): CollectErrors {
-  const cfg = readCollectConfig(raw);
-  return { schedule: validateSchedule(cfg.schedule, raw), source: validateSource(cfg.source), show: validateShow(cfg.show, raw) };
+  const c = isRecord(raw) ? raw : {};
+  const kind = isRecord(c.source) ? c.source.kind : undefined;
+  return { schedule: validateSchedule(c.schedule, kind), source: validateSource(c.source), show: validateShow(c.show) };
 }
 
 /** 편집기 검사(저장 막기용) — 빈 배열이면 저장 가능. 서버 규칙(스펙 §2)과 같은 한도. */

@@ -6,6 +6,8 @@ import {
   defaultSelection,
   deltaOf,
   formatCollectedAt,
+  formatCollectValue,
+  numericValue,
   readLastRun,
   shouldRunCollect,
   toCollectTiles,
@@ -112,8 +114,11 @@ describe("서식", () => {
     expect(deltaOf(undefined, p(1))).toBeNull();
     expect(deltaOf(p("A"), p(1))).toBeNull();
     expect(deltaOf(p(1), p("B"))).toBeNull();
-    // 부동소수 잔재가 보이지 않는다(0.1 + 0.2 류).
+    // 부동소수 잔재가 보이지 않는다(0.1 + 0.2 류) — 소수 8자리로 맞춘 차이로 방향을 정한다.
     expect(deltaOf(p(0.1), p(0.3))?.text.startsWith("▲ 0.2 ")).toBe(true);
+    expect(deltaOf(p(0.1 + 0.2), p(0.3))).toEqual({ text: "― 0", dir: "flat" });
+    expect(deltaOf(p(1), p(1.000000004))).toEqual({ text: "― 0", dir: "flat" });
+    expect(deltaOf(p(1), p(1.00000001))).toEqual({ text: "▲ 0.00000001 (+0.0%)", dir: "up" });
   });
 });
 
@@ -131,9 +136,9 @@ describe("toCollectTiles", () => {
   it("최신 값·단위(숫자만)·전 회차 대비·수집 시각", () => {
     const tiles = toCollectTiles(data.items, "건");
     expect(tiles.map((t) => t.key)).toEqual(["라인1", "상태", "신규"]);
-    expect(tiles[0]).toEqual({ key: "라인1", value: "1,030", unit: "건", delta: "▲ 30 (+3.0%)", deltaDir: "up", collectedAt: "2026-10-05 09:10", chartable: true });
+    expect(tiles[0]).toEqual({ key: "라인1", value: "1,030", isText: false, unit: "건", delta: "▲ 30 (+3.0%)", deltaDir: "up", collectedAt: "2026-10-05 09:10", chartable: true });
     // 글자 값에는 단위·증감이 없다.
-    expect(tiles[1]).toEqual({ key: "상태", value: "점검", collectedAt: "2026-10-05 09:10", chartable: false });
+    expect(tiles[1]).toEqual({ key: "상태", value: "점검", isText: true, collectedAt: "2026-10-05 09:10", chartable: false });
     // 회차가 하나뿐이면 증감·추이가 없다.
     expect(tiles[2]).toMatchObject({ value: "5", unit: "건", chartable: false });
     expect(tiles[2].delta).toBeUndefined();
@@ -141,6 +146,41 @@ describe("toCollectTiles", () => {
 
   it("단위가 없으면 unit 키가 없다", () => {
     expect(toCollectTiles(data.items, "")[0]).not.toHaveProperty("unit");
+  });
+});
+
+describe("숫자 읽기·서식", () => {
+  it("numericValue — JSON 숫자와 서버 NUMERIC_TEXT 글자만 숫자", () => {
+    expect(numericValue(12.5)).toBe(12.5);
+    expect(numericValue("12.50")).toBe(12.5);
+    expect(numericValue(" -3 ")).toBe(-3);
+    expect(numericValue("+7")).toBe(7);
+    for (const text of ["1,234", "1e3", ".5", "5.", "0x10", "12abc", "", "  ", "NaN", "Infinity", "1 2"]) expect(numericValue(text), text).toBeNull();
+    expect(numericValue(NaN)).toBeNull();
+    expect(numericValue(Infinity)).toBeNull();
+    expect(numericValue(null)).toBeNull();
+    expect(numericValue(true)).toBeNull();
+  });
+
+  it("쉼표·지수 글자 값은 글자로 남는다", () => {
+    const d = collectDataOf(resp([row("2026-10-05T09:00:00", "A", "1,234"), row("2026-10-05T09:00:00", "B", "1e3")]));
+    expect(d.items.map((i) => i.points[0].value)).toEqual(["1,234", "1e3"]);
+  });
+
+  it("formatCollectValue — 소수 8자리까지, 끝의 0 없음, 천 단위 구분", () => {
+    expect(formatCollectValue(1234.5)).toBe("1,234.5");
+    expect(formatCollectValue(0.12345678)).toBe("0.12345678");
+    expect(formatCollectValue(0.123456789)).toBe("0.12345679");
+    expect(formatCollectValue(1.5)).toBe("1.5");
+    expect(formatCollectValue(10)).toBe("10");
+    expect(formatCollectValue(-0.00000001)).toBe("-0.00000001");
+  });
+
+  it("타일 값은 소수 8자리까지 보인다(환율 같은 작은 값이 잘리지 않는다)", () => {
+    const d = collectDataOf(resp([row("2026-10-05T09:00:00", "JPY", 0.00912345), row("2026-10-05T09:10:00", "JPY", 0.00912399)]));
+    const t = toCollectTiles(d.items, "")[0];
+    expect(t.value).toBe("0.00912399");
+    expect(t.delta).toBe("▲ 0.00000054 (+0.0%)");
   });
 });
 
@@ -169,7 +209,7 @@ describe("추이·선택", () => {
   });
 
   it("defaultSelection — 추이를 그릴 수 있는 첫 항목, 없으면 첫 항목, 없으면 null", () => {
-    const tile = (key: string, chartable: boolean) => ({ key, value: "1", collectedAt: "", chartable });
+    const tile = (key: string, chartable: boolean) => ({ key, value: "1", isText: false, collectedAt: "", chartable });
     expect(defaultSelection([tile("a", false), tile("b", true)])).toBe("b");
     expect(defaultSelection([tile("a", false)])).toBe("a");
     expect(defaultSelection([])).toBeNull();

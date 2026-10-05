@@ -36,10 +36,10 @@ vi.mock("@dk-oasis/shared/dashboard", async () => {
   const { createElement: el } = await import("react");
   return {
     KpiTileGroup: (p: { children?: unknown; testId?: string }) => el("div", { "data-testid": p.testId }, p.children as never),
-    KpiTile: (p: { label: string; value: string; unit?: string; delta?: unknown; target?: string; testId?: string }) =>
+    KpiTile: (p: { label: string; value: unknown; unit?: string; delta?: unknown; target?: string; testId?: string }) =>
       el("div", { "data-testid": p.testId }, [
         el("b", { key: "l" }, p.label),
-        el("i", { key: "v", "data-role": "value" }, `${p.value}${p.unit ? ` ${p.unit}` : ""}`),
+        el("i", { key: "v", "data-role": "value" }, p.value as never, p.unit ? ` ${p.unit}` : null),
         el("span", { key: "d", "data-role": "delta" }, p.delta as never),
         el("em", { key: "t", "data-role": "target" }, p.target),
       ]),
@@ -111,7 +111,6 @@ describe("정시 수집 렌더러", () => {
     const t = must("wc-tile-생산량");
     expect(t.querySelector("[data-role=value]")!.textContent).toBe("1,030 건");
     expect(t.querySelector("[data-role=delta]")!.textContent).toBe("▲ 30 (+3.0%)");
-    expect(t.querySelector("[data-role=delta] span")!.className).toBe("wc-delta--up");
     expect(t.querySelector("[data-role=target]")!.textContent).toBe("수집 2026-10-05 09:10");
     const s = must("wc-tile-상태");
     expect(s.querySelector("[data-role=value]")!.textContent).toBe("점검");

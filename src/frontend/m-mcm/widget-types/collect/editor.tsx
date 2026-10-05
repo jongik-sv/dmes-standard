@@ -22,6 +22,7 @@ import {
   CURRENCIES_MAX,
   DAILY_AT_MAX,
   EVERY_MIN_OPTIONS,
+  EXCHANGE_EVERY_MIN_FLOOR,
   everyMinLabel,
   HTTP_ITEMS_MAX,
   readCollectConfig,
@@ -54,11 +55,12 @@ const ITEM_COLUMNS: GridColumn[] = [
 /** 칸 값 정리 — 공백만 지운다(빈 칸은 검사가 잡는다). */
 const trimmed = (_field: string, value: unknown): unknown => textCell(value) ?? "";
 
+/** 칸 아래 오류 문구 — 읽어 주기는 편집기 맨 아래의 aria-live 한 곳이 맡는다(문구마다 alert 로 읽히지 않게). */
 function Errors({ list, id }: { list: readonly string[]; id: string }) {
   return (
     <>
       {list.map((m, i) => (
-        <span key={`${i}-${m}`} className="form-error-message" role="alert" data-testid={`wc-err-${id}`}>
+        <span key={`${i}-${m}`} className="form-error-message" data-testid={`wc-err-${id}`}>
           {m}
         </span>
       ))}
@@ -87,7 +89,8 @@ function rawShowDays(value: unknown): string {
 export default function CollectEditor({ value, onChange, onValidate }: WidgetTypeEditorProps) {
   const cfg = useMemo(() => readCollectConfig(value), [value]);
   const errors = useMemo(() => collectErrors(value), [value]);
-  useReportErrors([...errors.schedule, ...errors.source, ...errors.show], onValidate);
+  const allErrors = [...errors.schedule, ...errors.source, ...errors.show];
+  useReportErrors(allErrors, onValidate);
   const preview = useMemo(() => previewOf(value), [value]);
   const columns = preview?.columns ?? [];
 
@@ -110,10 +113,13 @@ export default function CollectEditor({ value, onChange, onValidate }: WidgetTyp
   const setSource = (p: Partial<CollectSource>) => patch({ source: sourceToJson({ ...current().source, ...p }) });
   const setShow = (p: Partial<CollectShow>) => patch({ show: showToJson({ ...current().show, ...p }) });
 
+  // 환율 원천은 60분 미만 주기를 고를 수 없다(서버 저장 규칙) — 선택지에서 뺀다. 옛 설정의 현재 값은 남겨 오류와 함께 보인다.
+  const exchange = cfg.source.kind === "exchange";
   const everyOptions = useMemo(() => {
-    const list = EVERY_MIN_OPTIONS.includes(cfg.schedule.everyMin) ? [...EVERY_MIN_OPTIONS] : [cfg.schedule.everyMin, ...EVERY_MIN_OPTIONS];
+    const allowed = EVERY_MIN_OPTIONS.filter((n) => !exchange || n >= EXCHANGE_EVERY_MIN_FLOOR);
+    const list = allowed.includes(cfg.schedule.everyMin) ? [...allowed] : [cfg.schedule.everyMin, ...allowed];
     return list.map((n) => ({ value: String(n), label: everyMinLabel(n) }));
-  }, [cfg.schedule.everyMin]);
+  }, [cfg.schedule.everyMin, exchange]);
 
   const currencyOptions = useMemo(() => {
     const known = EXCHANGE_CURRENCIES as readonly string[];
@@ -129,7 +135,13 @@ export default function CollectEditor({ value, onChange, onValidate }: WidgetTyp
   const changeKind = (kind: string) => {
     const prev = current().source;
     const next = sourceOfKind(kind as SourceKind, prev);
-    patch({ source: sourceToJson(next), ...(next.kind === "sql" ? {} : { __preview: undefined }) });
+    const sched = current().schedule;
+    // 환율로 바꾸면서 주기가 60분 미만이면 하한(60분)으로 올린다.
+    const schedule =
+      next.kind === "exchange" && sched.mode === "interval" && sched.everyMin < EXCHANGE_EVERY_MIN_FLOOR
+        ? { schedule: scheduleToJson({ ...sched, everyMin: EXCHANGE_EVERY_MIN_FLOOR }) }
+        : {};
+    patch({ source: sourceToJson(next), ...schedule, ...(next.kind === "sql" ? {} : { __preview: undefined }) });
   };
 
   return (
@@ -157,7 +169,10 @@ export default function CollectEditor({ value, onChange, onValidate }: WidgetTyp
                         data-testid="wc-every"
                       />
                     </div>
-                    <span className="wq-hint">자정부터 이 간격으로 모읍니다(예: 10분 → 0:00, 0:10, 0:20 …)</span>
+                    <span className="wq-hint">
+                      자정부터 이 간격으로 모읍니다(예: 10분 → 0:00, 0:10, 0:20 …).
+                      {exchange && ` 환율 원천은 외부 호출이 잦지 않게 ${EXCHANGE_EVERY_MIN_FLOOR}분 이상만 고를 수 있습니다.`}
+                    </span>
                   </>
                 )}
               </div>
@@ -312,6 +327,11 @@ export default function CollectEditor({ value, onChange, onValidate }: WidgetTyp
                     id="wc-unit"
                     value={cfg.show.unit}
                     onChange={(unit) => setShow({ unit })}
+                    onBlur={() => {
+                      // 칸을 벗어나면 앞뒤 공백을 지워 저장한다(서버는 받은 값 길이로 검사한다).
+                      const u = current().show.unit;
+                      if (u !== u.trim()) setShow({ unit: u.trim() });
+                    }}
                     placeholder="예: 건, 원, %"
                     aria-label="값 단위"
                     data-testid="wc-unit"
@@ -326,6 +346,9 @@ export default function CollectEditor({ value, onChange, onValidate }: WidgetTyp
           </Row>
         </tbody>
       </table>
+      <div className="wc-sr" aria-live="polite" data-testid="wc-live">
+        {allErrors.join(". ")}
+      </div>
     </MdmMetaProvider>
   );
 }

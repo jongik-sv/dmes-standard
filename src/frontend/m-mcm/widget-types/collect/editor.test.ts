@@ -103,7 +103,7 @@ describe("정시 수집 편집기", () => {
     expect(must("wc-err-schedule").textContent).toContain("수집 주기는");
     expect([...host.querySelectorAll('[data-testid="wc-err-source"]')].map((e) => e.textContent)).toEqual(["SQL 을 입력하세요", "값 컬럼을 입력하세요"]);
     expect([...host.querySelectorAll('[data-testid="wc-err-show"]')]).toHaveLength(2);
-    expect(onValidate).toHaveBeenLastCalledWith(expect.arrayContaining(["SQL 을 입력하세요", "값 컬럼을 입력하세요", "단위는 10자 이하로 입력하세요"]));
+    expect(onValidate).toHaveBeenLastCalledWith(expect.arrayContaining(["SQL 을 입력하세요", "값 컬럼을 입력하세요", "단위는 공백을 포함해 10자 이하로 입력하세요"]));
     expect(onValidate.mock.lastCall![0]).toHaveLength(5);
   });
 
@@ -134,7 +134,8 @@ describe("정시 수집 편집기", () => {
     const next = onChange.mock.lastCall![0];
     expect(next.source).toEqual({ kind: "exchange", currencies: ["USD", "EUR", "JPY", "CNY"] });
     expect(next.__preview).toBeUndefined();
-    expect(next.schedule).toEqual(VALID_SQL.schedule);
+    // 주기 10분은 환율 하한(60분)으로 올라간다.
+    expect(next.schedule).toEqual({ mode: "interval", everyMin: 60 });
   });
 
   it("HTTP 원천은 주소·항목 칸을, 환율은 통화 칸을 보이고 SQL 시험 단추는 SQL 에만 있다", async () => {
@@ -181,5 +182,61 @@ describe("정시 수집 편집기", () => {
     expect(out.days).toBeUndefined();
     // 부모가 값을 다시 내려 주지 않는 시험이라 앞서 고친 단위(원)가 최신 값으로 남아 있다.
     expect(out.unit).toBe("원");
+  });
+
+  it("단위 칸을 벗어나면 앞뒤 공백을 지워 저장한다(입력 중에는 공백을 지키고, 길이는 받은 값 기준)", async () => {
+    const { onChange } = await show({ ...VALID_SQL, show: { days: 7, unit: " 건 " } });
+    const unit = must("wc-unit") as HTMLInputElement;
+    expect(unit.value).toBe(" 건 ");
+    await act(async () => {
+      unit.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+    expect(onChange.mock.lastCall![0].show).toEqual({ days: 7, unit: "건" });
+  });
+
+  it("오류는 문구마다 alert 로 읽히지 않고 맨 아래 aria-live 한 곳이 합쳐 알린다", async () => {
+    await show({ ...VALID_SQL, schedule: { mode: "interval", everyMin: 7 }, source: { kind: "sql", sql: "", valueField: "" } });
+    expect(host.querySelectorAll('[role="alert"]')).toHaveLength(0);
+    const live = must("wc-live");
+    expect(live.getAttribute("aria-live")).toBe("polite");
+    expect(live.textContent).toContain("수집 주기는");
+    expect(live.textContent).toContain("SQL 을 입력하세요");
+    expect(host.querySelectorAll("[aria-live]")).toHaveLength(1);
+  });
+
+  it("방식·종류 값이 없는 옛 설정도 오류로 알린다(읽기 기본값으로 가리지 않는다)", async () => {
+    const { onValidate } = await show({});
+    expect(must("wc-err-schedule").textContent).toContain("아직 설정되지 않았습니다");
+    expect(must("wc-err-source").textContent).toContain("아직 설정되지 않았습니다");
+    expect(onValidate.mock.lastCall![0]).toHaveLength(2);
+  });
+
+  it("환율 원천에서는 60분 미만 주기를 선택지에서 뺀다", async () => {
+    await show({ ...VALID_SQL, schedule: { mode: "interval", everyMin: 60 }, source: { kind: "exchange", currencies: ["USD"] } });
+    const options = [...must("wc-every").querySelectorAll("option")].map((o) => (o as HTMLOptionElement).value);
+    expect(options).toEqual(["60", "120", "180", "240", "360", "480", "720", "1440"]);
+    expect(host.textContent).toContain("60분 이상만 고를 수 있습니다");
+    // SQL 원천이면 5분부터 모두 보인다.
+    await show(VALID_SQL);
+    expect([...must("wc-every").querySelectorAll("option")]).toHaveLength(13);
+  });
+
+  it("옛 설정의 60분 미만 주기는 오류로 알리고 현재 값을 선택지에 남긴다", async () => {
+    const { onValidate } = await show({ ...VALID_SQL, source: { kind: "exchange", currencies: ["USD"] } });
+    expect(must("wc-err-schedule").textContent).toContain("60분 이상");
+    expect(onValidate.mock.lastCall![0]).toHaveLength(1);
+    expect((must("wc-every") as HTMLSelectElement).value).toBe("10");
+  });
+
+  it("원천을 환율로 바꾸면 60분 미만 주기를 60분으로 올린다(매일 방식은 그대로)", async () => {
+    const a = await show(VALID_SQL);
+    await choose("wc-kind", "exchange");
+    expect(a.onChange.mock.lastCall![0].schedule).toEqual({ mode: "interval", everyMin: 60 });
+    const b = await show({ ...VALID_SQL, schedule: { mode: "daily", at: ["09:00"] } });
+    await choose("wc-kind", "exchange");
+    expect(b.onChange.mock.lastCall![0].schedule).toEqual({ mode: "daily", at: ["09:00"] });
+    const c = await show({ ...VALID_SQL, schedule: { mode: "interval", everyMin: 120 } });
+    await choose("wc-kind", "exchange");
+    expect(c.onChange.mock.lastCall![0].schedule).toEqual({ mode: "interval", everyMin: 120 });
   });
 });

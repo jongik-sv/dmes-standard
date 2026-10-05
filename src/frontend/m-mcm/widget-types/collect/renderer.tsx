@@ -58,25 +58,33 @@ export default function CollectRenderer({ definition, widgetId, refreshKey }: Wi
             <>
               <KpiTileGroup ariaLabel="정시 수집 최신 값" testId="wc-tiles">
                 {tiles.map((t) => (
+                  <KpiTile
+                    key={t.key}
+                    label={t.key}
+                    value={t.isText ? <span className="wc__text" title={t.value}>{t.value}</span> : t.value}
+                    unit={t.unit}
+                    delta={t.delta}
+                    target={`수집 ${t.collectedAt}`}
+                    testId={`wc-tile-${t.key}`}
+                  />
+                ))}
+              </KpiTileGroup>
+              {/* 항목 고르기 — 타일 밖 별도 줄(많으면 줄바꿈하고 넘치면 세로 스크롤) */}
+              <div className="wc__picks" role="group" aria-label="추이를 볼 항목" data-testid="wc-picks">
+                {tiles.map((t) => (
                   <button
                     key={t.key}
                     type="button"
                     className="wc__pick"
+                    title={t.key}
                     aria-pressed={t.key === selected}
                     onClick={() => setPicked(t.key)}
                     data-testid={`wc-pick-${t.key}`}
                   >
-                    <KpiTile
-                      label={t.key}
-                      value={t.value}
-                      unit={t.unit}
-                      delta={t.delta ? <span className={`wc-delta--${t.deltaDir}`}>{t.delta}</span> : undefined}
-                      target={`수집 ${t.collectedAt}`}
-                      testId={`wc-tile-${t.key}`}
-                    />
+                    {t.key}
                   </button>
                 ))}
-              </KpiTileGroup>
+              </div>
               {trend.length >= 2 ? (
                 <div className="wc__chart" data-testid="wc-chart">
                   <p className="wc__chart-title">{selected} 추이</p>

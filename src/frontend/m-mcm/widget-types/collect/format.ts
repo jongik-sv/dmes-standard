@@ -3,7 +3,7 @@
  * 응답: columns [COLLECTED_AT, ITEM_KEY, VALUE], rows(SLOT 오름차순 → ITEM_KEY 오름차순), truncated, lastRun.
  * 값 서식은 _query/format.ts 의 formatNumber·toNumber 를 쓴다. @dk-oasis/shared 를 import 하지 않는다.
  */
-import { formatNumber, normalizeQueryResult, toNumber } from "../_query/format";
+import { normalizeQueryResult } from "../_query/format";
 
 /* ── 문구 ── */
 
@@ -43,6 +43,8 @@ export interface CollectData {
 export interface CollectTile {
   key: string;
   value: string;
+  /** 값이 글자인지 — 긴 글자는 화면이 말줄임+title 로 보인다. */
+  isText: boolean;
   unit?: string;
   /** 전 회차 대비 증감 문구(숫자 두 개가 있을 때만) — 「▲ 12 (+3.2%)」. */
   delta?: string;
@@ -51,6 +53,24 @@ export interface CollectTile {
   collectedAt: string;
   /** 추이 선을 그릴 수 있는지(숫자 값이 2개 이상). */
   chartable: boolean;
+}
+
+/* ── 숫자 읽기·서식 ── */
+
+/** 서버 CollectItem.NUMERIC_TEXT — 이 모양의 글자만 숫자로 본다(쉼표·지수·앞뒤 점은 글자). */
+const NUMERIC_TEXT_RE = /^[+-]?[0-9]+(\.[0-9]+)?$/;
+
+/** 값 칸 읽기 — JSON 숫자 또는 NUMERIC_TEXT 글자만 숫자, 그 밖은 null(글자로 둔다). */
+export function numericValue(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  return NUMERIC_TEXT_RE.test(t) ? Number(t) : null;
+}
+
+/** 수집 값 서식 — 천 단위 구분, 소수는 8자리까지(저장 정밀도 NUMERIC(24,8)), 불필요한 0 은 뺀다. */
+export function formatCollectValue(n: number): string {
+  return n.toLocaleString("ko-KR", { maximumFractionDigits: 8 });
 }
 
 /* ── 읽기 ── */
@@ -82,7 +102,7 @@ export function collectDataOf(raw: unknown): CollectData {
     const at = row.COLLECTED_AT == null ? "" : String(row.COLLECTED_AT);
     const v = row.VALUE;
     if (key === "" || at === "" || v === null || v === undefined) continue;
-    const n = typeof v === "string" && v.trim() === "" ? null : toNumber(v);
+    const n = numericValue(v);
     const point: CollectPoint = { at, value: n !== null ? n : String(v) };
     const list = byKey.get(key);
     if (list) list.push(point);
@@ -117,14 +137,17 @@ export function axisLabel(at: string, multiDay: boolean): string {
   return multiDay ? `${m[1]} ${m[2]}` : m[2];
 }
 
-/** 전 회차 대비 증감 — 두 값이 모두 숫자일 때만. 「▲ 12 (+3.2%)」·「▼ 0.5 (-1.0%)」·「― 0」. 전 값이 0 이면 백분율은 뺀다. */
+/**
+ * 전 회차 대비 증감 — 두 값이 모두 숫자일 때만. 「▲ 12 (+3.2%)」·「▼ 0.5 (-1.0%)」·「― 0」. 전 값이 0 이면 백분율은 뺀다.
+ * 소수 8자리(저장 정밀도)로 먼저 맞춘 차이로 방향을 정한다 — 부동소수 잔재(0.1+0.2-0.3)가 ▲ 0 으로 보이지 않게.
+ */
 export function deltaOf(prev: CollectPoint | undefined, last: CollectPoint): { text: string; dir: "up" | "down" | "flat" } | null {
   if (!prev || typeof prev.value !== "number" || typeof last.value !== "number") return null;
-  const diff = last.value - prev.value;
+  const diff = Number((last.value - prev.value).toFixed(8));
   if (diff === 0) return { text: "― 0", dir: "flat" };
   const dir = diff > 0 ? "up" : "down";
   const arrow = diff > 0 ? "▲" : "▼";
-  const abs = formatNumber(Math.abs(Number(diff.toFixed(8))));
+  const abs = formatCollectValue(Math.abs(diff));
   if (prev.value === 0) return { text: `${arrow} ${abs}`, dir };
   const pct = (diff / Math.abs(prev.value)) * 100;
   const pctText = `${pct > 0 ? "+" : ""}${pct.toLocaleString("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
@@ -136,10 +159,12 @@ export function toCollectTiles(items: readonly CollectItem[], unit: string): Col
   return items.map((item) => {
     const last = item.points[item.points.length - 1];
     const prev = item.points.length >= 2 ? item.points[item.points.length - 2] : undefined;
-    const isNum = typeof last.value === "number";
+    const num = typeof last.value === "number" ? last.value : null;
+    const isNum = num !== null;
     const tile: CollectTile = {
       key: item.key,
-      value: isNum ? formatNumber(last.value) : String(last.value),
+      value: num !== null ? formatCollectValue(num) : String(last.value),
+      isText: !isNum,
       collectedAt: formatCollectedAt(last.at),
       chartable: item.points.filter((p) => typeof p.value === "number").length >= 2,
     };
