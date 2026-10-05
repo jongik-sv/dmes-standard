@@ -44,7 +44,7 @@ function viewOf(setId: string): RuleSetView {
 }
 const NAMES: Record<string, string> = {
   "flow-tool-hand": "손", "flow-tool-select": "영역 선택", "flow-space-tool": "공간",
-  "flow-add-rule": "룰", "flow-add-if": "IF 분기", "flow-add-par": "병렬 분기", "flow-add-note": "메모", "flow-add-group": "그룹",
+  "flow-add-rule": "룰", "flow-add-set": "룰 세트", "flow-add-if": "IF 분기", "flow-add-par": "병렬 분기", "flow-add-note": "메모", "flow-add-group": "그룹",
 };
 const lastRf = () => mocks.rfProps[mocks.rfProps.length - 1];
 const pressed = (id: string) => byTestId(id).getAttribute("aria-pressed");
@@ -78,7 +78,7 @@ describe("도구 상자(단위)", () => {
     });
   const inHost = (id: string) => host.querySelector<HTMLElement>(`[data-testid="${id}"]`);
 
-  it("편집 모드 — 도구 셋·구분선·요소 다섯. 아이콘만 있고 이름은 aria-label 과 오른쪽 툴팁(data-tip)이 같다", async () => {
+  it("편집 모드 — 도구 셋·구분선·요소 여섯. 아이콘만 있고 이름은 aria-label 과 오른쪽 툴팁(data-tip)이 같다", async () => {
     await draw("edit", "select");
     for (const [id, name] of Object.entries(NAMES)) {
       const b = inHost(id);

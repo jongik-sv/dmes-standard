@@ -96,6 +96,15 @@ export const editMenu: MenuProvider = (t, ctx) => {
         { id: "delete", label: "삭제", danger: true, run: () => act.removeNode(id) },
       ];
     }
+    if (n.kind === "SET") {
+      // 룰 세트 노드(하위 세트 spec §9) — 룰과 같은 단계라 복사·복제·예외 받기·삭제. 외관(색상)은 열지 않는다. 「세트 탭으로 열기」는 보기 메뉴가 잇는다.
+      return [
+        { id: "copy", label: "복사", run: () => act.copy(id) },
+        { id: "duplicate", label: "복제", run: () => act.duplicate(id) },
+        { id: "catch-add", label: "예외 받기 추가", run: () => act.addCatch(id) },
+        { id: "delete", label: "삭제", danger: true, run: () => act.removeNode(id) },
+      ];
+    }
     if (isSplit(n.kind)) {
       const toParallel = n.kind === "IF";
       return [
@@ -119,6 +128,7 @@ export const editMenu: MenuProvider = (t, ctx) => {
     const id = e.id;
     const items: MenuItem[] = [
       { id: "insert-rule", label: "룰 넣기", run: () => act.pickRuleFor(id) },
+      { id: "insert-set", label: "룰 세트 넣기", run: () => act.pickSetFor(id) },
       { id: "insert-if", label: "IF 넣기", run: () => act.insertSplitAt(id, "IF") },
       { id: "insert-par", label: "병렬 넣기", run: () => act.insertSplitAt(id, "PARALLEL") },
     ];

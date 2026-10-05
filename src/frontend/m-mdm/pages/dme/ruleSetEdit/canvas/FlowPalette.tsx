@@ -7,7 +7,7 @@
  */
 import type { DragEvent, MouseEvent } from "react";
 
-import { IconArrowsSplit, IconBoxMultiple, IconGitBranch, IconListDetails, IconNote } from "@tabler/icons-react";
+import { IconArrowsSplit, IconBoxMultiple, IconGitBranch, IconListDetails, IconNote, IconStack2 } from "@tabler/icons-react";
 
 import { PALETTE_MIME, type PaletteItem } from "./FlowCanvas";
 
@@ -16,9 +16,10 @@ export interface FlowPaletteProps {
   disabled: boolean;
 }
 
-/** 요소 — 아이콘은 오른쪽 패널 머리글(Task 8)도 같은 것을 쓴다. */
+/** 요소 — 아이콘은 오른쪽 패널 머리글(Task 8)도 같은 것을 쓴다. 「룰 세트」는 세트 검색 팝업을 연다(하위 세트 spec §9). */
 export const PALETTE_ITEMS: { item: PaletteItem; testId: string; label: string; icon: typeof IconNote }[] = [
   { item: "rule", testId: "flow-add-rule", label: "룰", icon: IconListDetails },
+  { item: "set", testId: "flow-add-set", label: "룰 세트", icon: IconStack2 },
   { item: "if", testId: "flow-add-if", label: "IF 분기", icon: IconGitBranch },
   { item: "par", testId: "flow-add-par", label: "병렬 분기", icon: IconArrowsSplit },
   { item: "note", testId: "flow-add-note", label: "메모", icon: IconNote },

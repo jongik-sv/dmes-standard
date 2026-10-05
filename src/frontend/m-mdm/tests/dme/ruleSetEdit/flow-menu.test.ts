@@ -169,15 +169,15 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     const cond = f.edges.find((e) => e.from === "if1" && !e.otherwise)!;
     const other = f.edges.find((e) => e.from === "if1" && e.otherwise)!;
     await ctxEdge(cond.id);
-    expect(menuIds()).toEqual(["insert-rule", "insert-if", "insert-par", "edit-cond", "edit-label", "edge-delete"]);
+    expect(menuIds()).toEqual(["insert-rule", "insert-set", "insert-if", "insert-par", "edit-cond", "edit-label", "edge-delete"]);
     await key(byTestId("flow-menu"), { key: "Escape" });
     await ctxEdge(other.id); // "그 외" 갈래는 조건 편집이 없다
-    expect(menuIds()).toEqual(["insert-rule", "insert-if", "insert-par", "edit-label", "edge-delete"]);
+    expect(menuIds()).toEqual(["insert-rule", "insert-set", "insert-if", "insert-par", "edit-label", "edge-delete"]);
     await key(byTestId("flow-menu"), { key: "Escape" });
 
     await hoverEdge(cond.id);
     await click(`flow-edge-add-${cond.id}`);
-    expect(menuIds()).toEqual(["insert-rule", "insert-if", "insert-par"]);
+    expect(menuIds()).toEqual(["insert-rule", "insert-set", "insert-if", "insert-par"]);
   });
 
   it("5. 룰 복사 뒤 선 우클릭에 붙여넣기가 생기고 누르면 새 룰 노드가 들어간다. 다른 세트를 열어도 클립보드가 남는다", async () => {
@@ -187,7 +187,7 @@ describe("흐름 우클릭 메뉴·편집(3단계 Task 8)", () => {
     await ctxMenu("flow-node-r1");
     await click("flow-menu-item-copy");
     await ctxEdge("e3");
-    expect(menuIds()).toEqual(["insert-rule", "insert-if", "insert-par", "paste", "edit-label", "edge-delete"]);
+    expect(menuIds()).toEqual(["insert-rule", "insert-set", "insert-if", "insert-par", "paste", "edit-label", "edge-delete"]);
     await click("flow-menu-item-paste");
     expect(canvasNodeIds()).toHaveLength(6); // start + r1..r3 + 새 룰 + end
     expect(canvasNodeIds()).toContain("r4");

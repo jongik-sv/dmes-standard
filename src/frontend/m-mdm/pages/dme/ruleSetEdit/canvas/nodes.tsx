@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 캔버스 노드 8종(2단계 계획 Task 9, 4단계 빈 단계 더함) — 시작·끝(TerminalNode)·룰·IF·병렬·합류·메모·그룹. 표시만 하고 상태를 갖지 않는다.
+ * 캔버스 노드 8종(2단계 계획 Task 9, 4단계 빈 단계 더함, 하위 세트 spec §9 룰 세트 더함) — 시작·끝(TerminalNode)·룰·빈 단계·룰 세트·IF·병렬·합류·메모·그룹. 표시만 하고 상태를 갖지 않는다.
  * testid·data-state 는 노드 루트 요소에 둔다. 한 변 색 바는 쓰지 않는다(Local-Rules §8) — 선택·실행·오류는 전체 테두리·배경·배지로 보인다.
  *
  * 연결점(추가 Task C1, Ruling 28) — 세 가지를 둔다. 모두 `handlesOf` 에도 같은 id·종류·자리로 적는다(React Flow 는 노드 객체가 바뀔 때마다
@@ -14,7 +14,7 @@
  */
 import { useContext, useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type MouseEvent, type ReactNode } from "react";
 
-import { IconBolt, IconExternalLink, IconInfoCircle, IconPencil } from "@tabler/icons-react";
+import { IconBolt, IconExternalLink, IconInfoCircle, IconPencil, IconStack2 } from "@tabler/icons-react";
 import { MarkdownEditor, MarkdownView } from "@dk-oasis/shared/markdown-editor";
 
 import type { FlowNode } from "@/contract/engine-contract.generated";
@@ -23,8 +23,9 @@ import { catchTitle } from "../catch-text";
 import { storeKeys } from "../debugger/local-store";
 import { TASK_LABEL, type CatchSide, type FlowNote } from "../flow-edit";
 import { NODE_SIZE } from "../flow-layout";
+import { CATCHABLE } from "../flow-model";
 import { NODE_H_MIN, NODE_ICON_LABEL, type NodeSize, type NodeStyle } from "../node-style";
-import type { RuleIo, VarDisplay } from "../types";
+import type { RuleIo, SetCallIo, VarDisplay } from "../types";
 import { CatchMoveContext } from "./catch-move";
 import { GROUP_GRIPS, GroupSizeContext, type GroupGrip } from "./group-size";
 import { NOTE_GRIPS, NoteSizeContext } from "./note-size";
@@ -74,6 +75,12 @@ export type FlowNodeData = {
   catchSide?: CatchSide;
   /** 편집 모드 받는 노드 — 원을 끌어 룰 테두리의 다른 자리로 옮긴다(D-142). */
   catchMovable?: boolean;
+  /** SET 노드의 하위 세트 겉모양(하위 세트 spec §9). 아직 받지 않았으면 undefined. */
+  call?: SetCallIo;
+  /** 캔버스가 겉모양 맵을 받았는가 — 거짓이면(디버거 하위 프레임) 겉모양이 없어도 "받는 중" 이 아니라 세트 ID 만 보인다. */
+  callsGiven?: boolean;
+  /** SET 노드 링크 아이콘 — 하위 세트를 같은 화면의 탭으로 연다(spec §10.3). 없으면 아이콘을 그리지 않는다. */
+  onOpenSet?: (setId: string) => void;
 };
 export type NoteNodeData = { note: FlowNote; selected: boolean; editable: boolean; /** 편집 모드이고 고른 메모 — 크기 손잡이. */ resizable: boolean; onChange: (id: string, patch: Partial<FlowNote>) => void };
 export type GroupNodeData = {
@@ -95,6 +102,7 @@ const KIND_CLASS: Record<string, string> = {
   END: "rsf-terminal",
   RULE: "rsf-rule",
   TASK: "rsf-task",
+  SET: "rsf-set",
   IF: "rsf-if",
   PARALLEL: "rsf-par",
   MERGE: "rsf-merge",
@@ -310,6 +318,53 @@ function TaskBody({ data }: { data: FlowNodeData }) {
   );
 }
 
+/** 하위 세트 이름을 받지 못했을 때 SET 노드 작은 줄(겉모양 응답 전). */
+export const SET_LOADING_TEXT = "세트 정보를 받는 중";
+/** 기준 시각에 RELEASED 가 없거나 없는 세트(겉모양 exists=false). */
+export const SET_MISSING_TEXT = "없는 세트(확정 버전 없음)";
+
+/**
+ * 룰 세트(SET) 노드(하위 세트 spec §9) — 굵은 테두리(BPMN call activity, styles/set.ts)·세트 아이콘·제목(라벨 → 세트명 → 세트 ID)·
+ * 작은 줄(세트 ID 또는 받는 중·없는 세트)·입력·출력 개수 칩·링크 아이콘(같은 화면의 탭으로 연다). 외관(`view.styles`)은 열지 않는다.
+ */
+function SetBody({ data }: { data: FlowNodeData }) {
+  const { node, call, mark, onOpenSet } = data;
+  const setId = node.setId ?? "";
+  const known = !!call && call.exists;
+  const title = node.label ?? (known ? (call.setName ?? setId) : setId || "(세트 없음)");
+  const sub = !call ? (data.callsGiven ? SET_LOADING_TEXT : `룰 세트 ${setId}`) : !call.exists ? SET_MISSING_TEXT : `룰 세트 ${setId}`;
+  const open = (e: MouseEvent) => {
+    e.stopPropagation();
+    if (setId) onOpenSet?.(setId);
+  };
+  return (
+    <>
+      <div className="rsf-title-row">
+        <span className="rsf-node-icon" aria-hidden="true">
+          <IconStack2 size={16} />
+        </span>
+        <div className="rsf-title" data-testid={`flow-set-title-${node.id}`} title={title}>
+          {title}
+        </div>
+        <DescIcon nodeId={node.id} desc={data.desc} />
+      </div>
+      <div className="rsf-sub" data-testid={`flow-set-sub-${node.id}`}>{sub}</div>
+      {known && (
+        <div className="rsf-set-io" data-testid={`flow-set-io-${node.id}`}>
+          <span className="rsf-set-chip">{`입력 ${call.inputs.length}`}</span>
+          <span className="rsf-set-chip">{`출력 ${call.outputs.length}`}</span>
+        </div>
+      )}
+      {setId && onOpenSet && (
+        <button type="button" className="rsf-open nodrag" data-testid={`flow-set-open-${node.id}`} aria-label="세트 탭으로 열기" title="세트 탭으로 열기" onClick={open}>
+          <IconExternalLink size={12} />
+        </button>
+      )}
+      {mark && <span className="rsf-mark" data-severity={mark} data-testid={`flow-node-mark-${node.id}`} title={mark === "REJECT" ? "거부 검사 있음" : "경고 검사 있음"} />}
+    </>
+  );
+}
+
 /** 겹침 상태 → 모양 클래스(디버그 커서 겹침 — current 굵은 테두리·next 점선·pending 회색, caught 받는 노드로 넘긴 룰). */
 const STATE_CLASS: Partial<Record<string, string>> = { current: "rsf-node-current", next: "rsf-node-next", pending: "rsf-node-pending", caught: "rsf-node-caught" };
 
@@ -407,7 +462,7 @@ function LinkHandles({ node, isConnectable }: { node: FlowNode; isConnectable: b
   );
 }
 
-/** 룰·빈 단계 노드 오른쪽 아래 "예외" 연결점(편집 모드만, 받는 노드 spec §8). 노드에 마우스를 올리면 보인다. */
+/** 룰·빈 단계·룰 세트 노드(`CATCHABLE`) 오른쪽 아래 "예외" 연결점(편집 모드만, 받는 노드 spec §8·하위 세트 spec §9). 노드에 마우스를 올리면 보인다. */
 function CatchHandle({ node, isConnectable }: { node: FlowNode; isConnectable: boolean }) {
   return (
     <Handle
@@ -463,6 +518,7 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
       {!collapsed && (kind === "START" || kind === "END") && <DescIcon nodeId={node.id} desc={data.desc} />}
       {!collapsed && kind === "RULE" && <RuleBody data={data} />}
       {!collapsed && kind === "TASK" && <TaskBody data={data} />}
+      {!collapsed && kind === "SET" && <SetBody data={data} />}
       {!collapsed && kind === "IF" && (
         <>
           <span className="rsf-diamond" aria-hidden="true" />
@@ -502,7 +558,7 @@ export function FlowNodeView({ data, isConnectable }: NodeProps<FlowRfNode>) {
         />
       )}
       {data.linkable && kind !== "CATCH" && <LinkHandles node={node} isConnectable={isConnectable} />}
-      {data.linkable && (kind === "RULE" || kind === "TASK") && !collapsed && <CatchHandle node={node} isConnectable={isConnectable} />}
+      {data.linkable && CATCHABLE.has(kind) && !collapsed && <CatchHandle node={node} isConnectable={isConnectable} />}
       {data.resizable &&
         sizing &&
         NODE_GRIPS.map((g) => (
@@ -675,7 +731,7 @@ export function handlesOf(kind: FlowNode["kind"], size: NodeSize = NODE_SIZE[kin
     const at: Record<CatchSide, { x: number; y: number }> = { top: { x: w / 2, y: 0 }, right: { x: w, y: h / 2 }, bottom: { x: w / 2, y: h }, left: { x: 0, y: h / 2 } };
     return [{ ...out, position: SIDE_POSITION[catchSide], x: at[catchSide].x - s / 2, y: at[catchSide].y - s / 2 }];
   }
-  if (kind === "RULE" || kind === "TASK") {
+  if (CATCHABLE.has(kind)) {
     const catchHandle = { id: CATCH_HANDLE, type: "source" as const, position: Position.Bottom, x: w - g * 2, y: h - g / 2, width: g, height: g };
     return [into, body, out, ...sides, catchHandle];
   }

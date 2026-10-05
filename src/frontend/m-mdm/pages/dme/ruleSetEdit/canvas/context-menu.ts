@@ -55,6 +55,10 @@ export interface CanvasActions {
   addNote(at: FlowPos): void;
   /** 그 선에 빈 단계를 끼우고 「룰 지정」 섹션을 연다(4단계 T1). */
   pickRuleFor(edgeId: string): void;
+  /** 그 선에 SET 노드를 끼우려고 세트 검색 팝업을 연다(하위 세트 spec §9). 고르면 그 선에 끼운다. */
+  pickSetFor(edgeId: string): void;
+  /** 하위 세트를 같은 화면의 탭으로 연다(하위 세트 spec §10.3 — 열린 탭이 있으면 그리로). */
+  openSet(setId: string): void;
   insertSplitAt(edgeId: string, kind: "IF" | "PARALLEL"): void;
   removeNode(nodeId: string): void;
   removeEdge(edgeId: string): void;
@@ -68,7 +72,7 @@ export interface CanvasActions {
   copy(nodeId: string): void;
   paste(edgeId: string): void;
   duplicate(nodeId: string): void;
-  /** 룰 노드에 받는 노드를 붙인다 — 끝으로 가는 처리 갈래(받는 노드 spec §8, R14). */
+  /** 룰·빈 단계·룰 세트 노드에 받는 노드를 붙인다 — 끝으로 가는 처리 갈래(받는 노드 spec §8, R14). */
   addCatch(ruleNodeId: string): void;
   /** 끝내는 처리 갈래를 룰의 돌아오는 자리(정상 줄기 위 노드)로 옮긴다(받는 노드 우클릭 「흐름으로 돌아오기」). */
   returnCatch(catchId: string): void;
