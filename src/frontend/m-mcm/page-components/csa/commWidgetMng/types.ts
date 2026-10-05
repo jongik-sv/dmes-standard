@@ -25,6 +25,8 @@ export interface AdminRow extends Record<string, unknown> {
   categoryCd: string;
   /** 분류 이름 — 코드 → 이름 목록(LoV)에 없으면 코드 그대로. */
   category: string;
+  /** 비공개 — Y 면 서랍 목록에 안 보인다(검색어가 위젯 ID 와 전부 같을 때만 보임). */
+  privateYn: "Y" | "N";
   userCount: number;
   /** 코드 위젯에 덮어쓰기 행이 있다(「덮어씀」 표시·[코드 값으로 되돌리기] 대상). */
   overridden: boolean;
@@ -86,6 +88,8 @@ export interface DefForm {
   multipleYn: "" | "Y" | "N";
   /** 분류(WIDGET_CTG 코드값). "" = 코드 값(코드 위젯)·분류 없음(정의 위젯). */
   categoryCd: string;
+  /** 비공개 — Y 면 서랍에 안 보인다. 체크칸이라 늘 Y·N. */
+  privateYn: "Y" | "N";
   useYn: "Y" | "N";
   /** 쿼리 유형의 실행 모듈(지금은 mcm 만). 그 밖 유형·코드 위젯은 null. */
   dataSrc: string | null;
@@ -111,6 +115,7 @@ export interface WidgetSaveParams {
   linkPageId: string | null;
   multipleYn: "Y" | "N" | null;
   categoryCd: string | null;
+  privateYn: "Y" | "N" | null;
   useYn: "Y" | "N";
   dataSrc: string | null;
   configJson: string | null;

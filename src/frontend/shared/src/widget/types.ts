@@ -39,6 +39,8 @@ export interface WidgetMeta {
   typeId?: string;
   /** 분류 — 공통코드 그룹 WIDGET_CTG 값(예: "PROD"). 서랍에서 같은 분류끼리 묶는다(2026-10-05 위젯 개선 §6). */
   category?: string;
+  /** 비공개 — true 면 서랍 목록에 안 보이고 검색어가 위젯 ID 와 전부 같을 때만 보인다(2026-10-05 위젯 개선 §10). */
+  private?: boolean;
 }
 
 export interface WidgetProps {
@@ -115,6 +117,8 @@ export interface WidgetDefRow {
   multipleYn: "Y" | "N" | null;
   /** 분류(WIDGET_CTG 코드값). null = 코드 위젯은 코드 메타 값. */
   categoryCd: string | null;
+  /** 비공개(PRIVATE_YN). Y 면 서랍에 안 보인다. */
+  privateYn: "Y" | "N" | null;
   useYn: "Y" | "N";
   dataSrc: string | null;
   config: unknown | null;
