@@ -141,6 +141,127 @@ class MetaFeedColumnAliasSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 시스템_코드_목록이면_앞_코드의_별칭이_이긴다() {
+        long mes = column("MES_COL", "MES 쪽 컬럼");
+        long mdm = column("MDM_COL", "MDM 쪽 컬럼");
+        alias(mes, "MES", "DUAL_KEY");
+        alias(mdm, "MDM", "DUAL_KEY");
+
+        Map<String, Object> v = value(view("MES,MDM", "DUAL_KEY"), "DUAL_KEY");
+        assertEquals("MES_COL", v.get("physName"));
+        assertEquals("MES", v.get("matchedSystem"));
+
+        Map<String, Object> reversed = value(view("MDM,MES", "DUAL_KEY"), "DUAL_KEY");
+        assertEquals("MDM_COL", reversed.get("physName"), "순서를 바꾸면 결과도 바뀐다(순서가 우선순위)");
+        assertEquals("MDM", reversed.get("matchedSystem"));
+    }
+
+    @Test
+    void 앞_코드에_없는_키는_다음_코드의_별칭으로_찾는다() {
+        long mes = column("MES_ONLY_COL", "MES 컬럼");
+        long mdm = column("MDM_ONLY_COL", "MDM 컬럼");
+        alias(mes, "MES", "MES_KEY");
+        alias(mdm, "MDM", "MDM_KEY");
+
+        Map<String, Object> r = view("MES,MDM", "MDM_KEY", "MES_KEY", "NO_SUCH");
+
+        assertEquals(List.of("MDM_KEY", "MES_KEY"), items(r).stream().map(i -> i.get("key")).toList(), "응답은 요청 키 순서");
+        assertEquals("MDM_ONLY_COL", value(r, "MDM_KEY").get("physName"));
+        assertEquals("MDM", value(r, "MDM_KEY").get("matchedSystem"));
+        assertEquals("MES", value(r, "MES_KEY").get("matchedSystem"));
+    }
+
+    @Test
+    void 앞_코드에서_모호한_키는_다음_코드로_넘어가지_않고_없음이다() {
+        long a = column("AMB_A", "모호 A");
+        long b = column("AMB_B", "모호 B");
+        long c = column("AMB_C", "MDM 쪽");
+        alias(a, "MES", "AMB");
+        alias(b, "MES", "AMB");
+        alias(c, "MDM", "AMB");
+
+        Map<String, Object> r = view("MES,MDM", "AMB");
+
+        assertTrue(items(r).isEmpty(), "모호한 MES 이름을 MDM 별칭으로 바꿔 답하지 않는다: " + r);
+        assertTrue(failed(r).isEmpty(), r.toString());
+    }
+
+    @Test
+    void 코드_목록이어도_표준_물리명이_두_코드의_별칭을_이긴다() {
+        column("STD_KEY", "표준 컬럼");
+        long mes = column("MES_COL", "MES 쪽 컬럼");
+        long mdm = column("MDM_COL", "MDM 쪽 컬럼");
+        alias(mes, "MES", "STD_KEY");
+        alias(mdm, "MDM", "STD_KEY");
+
+        Map<String, Object> v = value(view("MES,MDM", "STD_KEY"), "STD_KEY");
+        assertEquals("STD_KEY", v.get("physName"));
+        assertNull(v.get("matchedSystem"));
+    }
+
+    @Test
+    void 뒤_코드_안에서만_모호한_키도_없음이다() {
+        long a = column("MDM_A", "MDM A");
+        long b = column("MDM_B", "MDM B");
+        alias(a, "MDM", "AMB2");
+        alias(b, "MDM", "AMB2");
+
+        assertTrue(items(view("MES,MDM", "AMB2")).isEmpty());
+    }
+
+    @Test
+    void 앞_코드에서_모호한_키와_뒤_코드에서_맞는_키가_섞여도_키마다_갈린다() {
+        long a = column("AMB_A", "모호 A");
+        long b = column("AMB_B", "모호 B");
+        long c = column("AMB_C", "MDM 쪽");
+        long d = column("OK_COL", "MDM 정상");
+        alias(a, "MES", "AMB");
+        alias(b, "MES", "AMB");
+        alias(c, "MDM", "AMB");
+        alias(d, "MDM", "OK_KEY");
+
+        Map<String, Object> r = view("MES,MDM", "AMB", "OK_KEY");
+
+        assertEquals(List.of("OK_KEY"), items(r).stream().map(i -> i.get("key")).toList(), r.toString());
+        assertEquals("OK_COL", value(r, "OK_KEY").get("physName"));
+    }
+
+    @Test
+    void 코드_목록의_공백_빈_항목_중복은_무시한다() {
+        long mdm = column("MDM_COL", "MDM 쪽 컬럼");
+        alias(mdm, "MDM", "MDM_KEY");
+
+        Map<String, Object> v = value(view(" MES , ,MDM,MES ", "MDM_KEY"), "MDM_KEY");
+        assertEquals("MDM", v.get("matchedSystem"));
+        assertTrue(items(view(" , ", "MDM_KEY")).isEmpty(), "코드가 하나도 없으면 별칭을 보지 않는다");
+    }
+
+    @Test
+    void 코드_목록_조회의_SQL_문_수도_별칭_키_수와_무관하다() {
+        QueryCountProbe probe = new QueryCountProbe(tm, em, emf, "metaFeedAliasList");
+        probe.start();
+        try {
+            Map<Integer, Long> counts = new LinkedHashMap<>();
+            for (int n : new int[] {3, 10}) {
+                DmeTestSupport.clearDictionary(jdbc);
+                List<String> keys = new ArrayList<>();
+                for (int i = 0; i < n; i++) {
+                    long id = column("STD_" + n + "_" + i, "표준 " + n + "_" + i);
+                    alias(id, i % 2 == 0 ? "MES" : "MDM", "ALS_" + n + "_" + i);
+                    keys.add("ALS_" + n + "_" + i);
+                }
+                QueryCountProbe.Measured<Map<String, Object>> m =
+                        probe.measureInTx("aliasList" + n, () -> view("MES,MDM", keys.toArray(String[]::new)));
+                assertEquals(n, items(m.result()).size(), m.result().toString());
+                counts.put(n, m.count());
+            }
+            assertEquals(counts.get(3), counts.get(10), counts::toString);
+        } finally {
+            probe.stop();
+        }
+    }
+
+    @Test
     void 키_묶음_조회의_SQL_문_수는_별칭_키_수와_무관하다() {
         QueryCountProbe probe = new QueryCountProbe(tm, em, emf, "metaFeedAlias");
         probe.start();
