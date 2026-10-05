@@ -192,6 +192,7 @@ export default function UnitMngPage() {
         <SearchField label="검색어" value={filters.unitCode} onChange={(v) => handleFilterChange("unitCode", v)} />
         <SearchField
           label="차원"
+          name="dimension"
           type="select"
           value={filters.dimension}
           options={[{ value: "", label: "전체" }, ...dimensionOptions.map((o) => ({ value: o.dimension, label: dimensionLabel(o.dimension) }))]}

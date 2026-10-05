@@ -201,9 +201,9 @@ export default function TermMngPage() {
       ]}
     >
       <SearchArea onSearch={() => void handleSearch()}>
-        <SearchField label="검색어" value={filters.keyword} onChange={(v) => handleFilterChange("keyword", v)} />
-        <SearchField label="사용 시스템" value={filters.systems} onChange={(v) => handleFilterChange("systems", v)} />
-        <SearchField label="맥락" value={filters.context} onChange={(v) => handleFilterChange("context", v)} />
+        <SearchField label="검색어" name="keyword" meta={false} value={filters.keyword} onChange={(v) => handleFilterChange("keyword", v)} />
+        <SearchField label="사용 시스템" name="systems" value={filters.systems} onChange={(v) => handleFilterChange("systems", v)} />
+        <SearchField label="맥락" name="context" value={filters.context} onChange={(v) => handleFilterChange("context", v)} />
       </SearchArea>
 
       {batchStatus && (

@@ -455,18 +455,18 @@ export default function LayoutMngPage() {
       ]}
     >
       <SearchArea onSearch={() => void runSearch(filters)}>
-        <SearchField label="검색어">
+        <SearchField label="검색어" name="keyword" meta={false}>
           <Input data-testid="layout-search-keyword" aria-label="검색어" placeholder="전문 이름" value={filters.keyword}
             onChange={(v) => setFilters((f) => ({ ...f, keyword: v }))}
             onKeyDown={(e) => {
               if (e.key === "Enter") void runSearch(filters);
             }} />
         </SearchField>
-        <SearchField label="헤더" type="select" value={filters.headerLayoutId} options={headerOptions}
+        <SearchField label="헤더" name="headerLayoutId" type="select" value={filters.headerLayoutId} options={headerOptions}
           onChange={(v) => setFilters((f) => ({ ...f, headerLayoutId: v }))} />
-        <SearchField label="송신 시스템" type="select" value={filters.sndSystem} options={systemOptions}
+        <SearchField label="송신 시스템" name="sndSystem" type="select" value={filters.sndSystem} options={systemOptions}
           onChange={(v) => setFilters((f) => ({ ...f, sndSystem: v }))} />
-        <SearchField label="수신 시스템" type="select" value={filters.rcvSystem} options={systemOptions}
+        <SearchField label="수신 시스템" name="rcvSystem" type="select" value={filters.rcvSystem} options={systemOptions}
           onChange={(v) => setFilters((f) => ({ ...f, rcvSystem: v }))} />
       </SearchArea>
 

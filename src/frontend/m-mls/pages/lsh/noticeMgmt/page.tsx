@@ -541,11 +541,13 @@ function NoticeMgmtScreen() {
       <SearchArea onSearch={handleSearch}>
         <SearchField
           label="제목"
+          name="title"
           value={filters.title}
           onChange={(v) => setFilter("title", v)}
         />
         <SearchField
           label="게시상태"
+          name="noticeStatus"
           type="select"
           options={NOTICE_STATUS_OPTIONS}
           value={filters.noticeStatus}
@@ -553,6 +555,7 @@ function NoticeMgmtScreen() {
         />
         <SearchField
           label="분류"
+          name="noticeCategory"
           type="select"
           options={NOTICE_CATEGORY_OPTIONS}
           value={filters.noticeCategory}
@@ -560,6 +563,7 @@ function NoticeMgmtScreen() {
         />
         <SearchField
           label="형식"
+          name="contentFormat"
           type="select"
           options={CONTENT_FORMAT_OPTIONS}
           value={filters.contentFormat}

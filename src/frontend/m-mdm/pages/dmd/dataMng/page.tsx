@@ -347,7 +347,7 @@ export default function DataMngPage({ tabId }: DataMngPageProps) {
             }}
           />
         </SearchField>
-        <SearchField label="상태">
+        <SearchField label="상태" name="status" meta={false}>
           <Select data-testid="data-mng-search-status" value={status} options={STATUS_OPTIONS} onChange={setStatus} />
         </SearchField>
       </SearchArea>

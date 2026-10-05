@@ -440,7 +440,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
       ]}
     >
       <SearchArea onSearch={handleSearch}>
-        <SearchField label="마루 코드">
+        <SearchField label="마루 코드" name="keyword" meta={false}>
           <Input
             data-testid="code-search-keyword"
             value={keyword}
@@ -451,7 +451,7 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
             }}
           />
         </SearchField>
-        <SearchField label="상태">
+        <SearchField label="상태" name="status" meta={false}>
           <Select data-testid="code-search-status" value={status} options={STATUS_OPTIONS} onChange={setStatus} />
         </SearchField>
       </SearchArea>
