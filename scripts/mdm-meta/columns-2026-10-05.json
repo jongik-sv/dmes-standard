@@ -1,0 +1,1982 @@
+{
+  "version": "2026-10-05",
+  "source": "docs/mdm-column-dict/classification.json",
+  "note": "용어·도메인은 ID 대신 이름으로 적는다. register-columns.mjs 가 실행 시점에 대상 서버에서 ID 를 찾고, 논리명 분해 결과가 physName·terms 와 다르면 그 항목을 건너뛴다.",
+  "terms": [
+    {
+      "termName": "위젯",
+      "senseNo": 1,
+      "definition": "포털 홈 화면에 배치해 정보를 보여 주는 작은 화면 부품이다.",
+      "context": "공통(시스템)",
+      "engName": "Widget",
+      "engAbbr": "WIDGET",
+      "synonyms": "",
+      "aliases": "",
+      "systems": "MES",
+      "stdBasis": "2026-10-05 화면 키 컬럼 사전 등록(docs/mdm-column-dict/classification.md)"
+    }
+  ],
+  "columns": [
+    {
+      "physName": "ACCESS_TP",
+      "columnName": "접근 구분",
+      "labelLong": "접근 구분",
+      "labelMid": "접근 구분",
+      "labelShort": "접근 구분",
+      "description": "접근 구분 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_OBJ)",
+      "usageNote": null,
+      "domainName": "구분",
+      "terms": [
+        {
+          "termName": "접근",
+          "senseNo": 1
+        },
+        {
+          "termName": "구분",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [],
+      "screenKeys": [
+        "ACCESS_TP"
+      ]
+    },
+    {
+      "physName": "ACTION_BTN_AUT",
+      "columnName": "실행작업 버튼 권한",
+      "labelLong": "실행작업 버튼 권한",
+      "labelMid": "실행작업 버튼 권한",
+      "labelShort": "버튼권한",
+      "description": "실행작업 버튼 권한 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_PERM)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "실행작업",
+          "senseNo": 1
+        },
+        {
+          "termName": "버튼",
+          "senseNo": 1
+        },
+        {
+          "termName": "권한",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "PERMISSION_ACTION"
+        }
+      ],
+      "screenKeys": [
+        "PERMISSION_ACTION"
+      ]
+    },
+    {
+      "physName": "ALL_SEQ",
+      "columnName": "전체 순번",
+      "labelLong": "전체 순번",
+      "labelMid": "전체 순번",
+      "labelShort": "전체 순번",
+      "description": "전체 순번 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_MENU, TB_MCM_SEC_MENU_FLD)",
+      "usageNote": null,
+      "domainName": "순번",
+      "terms": [
+        {
+          "termName": "전체",
+          "senseNo": 1
+        },
+        {
+          "termName": "순번",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "FULL_SEQ"
+        }
+      ],
+      "screenKeys": [
+        "FULL_SEQ"
+      ]
+    },
+    {
+      "physName": "AUT_DESC",
+      "columnName": "권한 설명",
+      "labelLong": "권한 설명",
+      "labelMid": "권한 설명",
+      "labelShort": "권한 설명",
+      "description": "권한 설명 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_PERM)",
+      "usageNote": null,
+      "domainName": "설명",
+      "terms": [
+        {
+          "termName": "권한",
+          "senseNo": 1
+        },
+        {
+          "termName": "설명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "PERMISSION_DESC"
+        }
+      ],
+      "screenKeys": [
+        "PERMISSION_DESC"
+      ]
+    },
+    {
+      "physName": "AUT_ID",
+      "columnName": "권한 아이디",
+      "labelLong": "권한 아이디",
+      "labelMid": "권한 아이디",
+      "labelShort": "권한 아이디",
+      "description": "권한 아이디 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_PERM, TB_MCM_SEC_ROLE_MAPPING)",
+      "usageNote": null,
+      "domainName": "아이디",
+      "terms": [
+        {
+          "termName": "권한",
+          "senseNo": 1
+        },
+        {
+          "termName": "아이디",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "PERMISSION_ID"
+        }
+      ],
+      "screenKeys": [
+        "PERMISSION_ID"
+      ]
+    },
+    {
+      "physName": "AUT_NM",
+      "columnName": "권한 명",
+      "labelLong": "권한 명",
+      "labelMid": "권한 명",
+      "labelShort": "권한 명",
+      "description": "권한 명 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_PERM)",
+      "usageNote": null,
+      "domainName": "명",
+      "terms": [
+        {
+          "termName": "권한",
+          "senseNo": 1
+        },
+        {
+          "termName": "명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "PERMISSION_NM"
+        }
+      ],
+      "screenKeys": [
+        "PERMISSION_NM"
+      ]
+    },
+    {
+      "physName": "AUX_TITLE",
+      "columnName": "보조 제목",
+      "labelLong": "보조 제목",
+      "labelMid": "보조 제목",
+      "labelShort": "보조 제목",
+      "description": "보조 제목 값을 담는 컬럼이다. (대표 테이블 TB_MCM_WIDGET_DEF)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "보조",
+          "senseNo": 1
+        },
+        {
+          "termName": "제목",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "SUBTITLE"
+        }
+      ],
+      "screenKeys": [
+        "SUBTITLE"
+      ]
+    },
+    {
+      "physName": "BUSINESS_BAS_CHR_EMP_NO",
+      "columnName": "업무 기준 담당자 사원 번호",
+      "labelLong": "업무 기준 담당자 사원 번호",
+      "labelMid": "업무기준담당자사원번호",
+      "labelShort": "사원번호",
+      "description": "업무 기준 담당자 사원 번호 값을 담는 컬럼이다. (대표 테이블 TB_MCA_RULE_MASTER)",
+      "usageNote": null,
+      "domainName": "번호",
+      "terms": [
+        {
+          "termName": "업무",
+          "senseNo": 1
+        },
+        {
+          "termName": "기준",
+          "senseNo": 1
+        },
+        {
+          "termName": "담당자",
+          "senseNo": 1
+        },
+        {
+          "termName": "사원",
+          "senseNo": 1
+        },
+        {
+          "termName": "번호",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "RULE_OWNER_EMP_NO"
+        }
+      ],
+      "screenKeys": [
+        "RULE_OWNER_EMP_NO"
+      ]
+    },
+    {
+      "physName": "BUSINESS_BAS_DESC",
+      "columnName": "업무 기준 설명",
+      "labelLong": "업무 기준 설명",
+      "labelMid": "업무 기준 설명",
+      "labelShort": "업무기준설명",
+      "description": "업무 기준 설명 값을 담는 컬럼이다. (대표 테이블 TB_MCA_RULE_MASTER)",
+      "usageNote": null,
+      "domainName": "설명",
+      "terms": [
+        {
+          "termName": "업무",
+          "senseNo": 1
+        },
+        {
+          "termName": "기준",
+          "senseNo": 1
+        },
+        {
+          "termName": "설명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "RULE_DESC"
+        }
+      ],
+      "screenKeys": [
+        "RULE_DESC"
+      ]
+    },
+    {
+      "physName": "BUSINESS_BAS_ID",
+      "columnName": "업무 기준 아이디",
+      "labelLong": "업무 기준 아이디",
+      "labelMid": "업무 기준 아이디",
+      "labelShort": "기준아이디",
+      "description": "업무 기준 아이디 값을 담는 컬럼이다. (대표 테이블 TB_MCA_RULE_COL_LIST, TB_MCA_RULE_MASTER)",
+      "usageNote": null,
+      "domainName": "아이디",
+      "terms": [
+        {
+          "termName": "업무",
+          "senseNo": 1
+        },
+        {
+          "termName": "기준",
+          "senseNo": 1
+        },
+        {
+          "termName": "아이디",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "RULE_ID"
+        }
+      ],
+      "screenKeys": [
+        "RULE_ID"
+      ]
+    },
+    {
+      "physName": "BUSINESS_BAS_NM",
+      "columnName": "업무 기준 명",
+      "labelLong": "업무 기준 명",
+      "labelMid": "업무 기준 명",
+      "labelShort": "업무기준명",
+      "description": "업무 기준 명 값을 담는 컬럼이다. (대표 테이블 TB_MCA_RULE_MASTER)",
+      "usageNote": null,
+      "domainName": "명",
+      "terms": [
+        {
+          "termName": "업무",
+          "senseNo": 1
+        },
+        {
+          "termName": "기준",
+          "senseNo": 1
+        },
+        {
+          "termName": "명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "RULE_NM"
+        }
+      ],
+      "screenKeys": [
+        "RULE_NM"
+      ]
+    },
+    {
+      "physName": "BUSINESS_BAS_VER",
+      "columnName": "업무 기준 버전",
+      "labelLong": "업무 기준 버전",
+      "labelMid": "업무 기준 버전",
+      "labelShort": "업무기준버전",
+      "description": "업무 기준 버전 값을 담는 컬럼이다. (대표 테이블 TB_MCA_RULE_COL_LIST, TB_MCA_RULE_MASTER)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "업무",
+          "senseNo": 1
+        },
+        {
+          "termName": "기준",
+          "senseNo": 1
+        },
+        {
+          "termName": "버전",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "RULE_VER"
+        }
+      ],
+      "screenKeys": [
+        "RULE_VER"
+      ]
+    },
+    {
+      "physName": "CD_TP_NM",
+      "columnName": "코드 구분 명",
+      "labelLong": "코드 구분 명",
+      "labelMid": "코드 구분 명",
+      "labelShort": "코드구분명",
+      "description": "코드 구분 명 값을 담는 컬럼이다. (대표 테이블 TB_MCM_CODE_MASTER)",
+      "usageNote": null,
+      "domainName": "명",
+      "terms": [
+        {
+          "termName": "코드",
+          "senseNo": 1
+        },
+        {
+          "termName": "구분",
+          "senseNo": 1
+        },
+        {
+          "termName": "명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "CODE_NM"
+        }
+      ],
+      "screenKeys": [
+        "CODE_NM"
+      ]
+    },
+    {
+      "physName": "CD_V_REF",
+      "columnName": "코드 값 참조",
+      "labelLong": "코드 값 참조",
+      "labelMid": "코드 값 참조",
+      "labelShort": "코드값참조",
+      "description": "코드 값 참조 값을 담는 컬럼이다. (대표 테이블 TB_MCM_CODE_DETAIL)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "코드",
+          "senseNo": 1
+        },
+        {
+          "termName": "값",
+          "senseNo": 1
+        },
+        {
+          "termName": "참조",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "CODE_VAL_REF1"
+        },
+        {
+          "systemCode": "MES",
+          "physName": "CODE_VAL_REF2"
+        },
+        {
+          "systemCode": "MES",
+          "physName": "CODE_VAL_REF3"
+        },
+        {
+          "systemCode": "MES",
+          "physName": "CODE_VAL_REF4"
+        },
+        {
+          "systemCode": "MES",
+          "physName": "CODE_VAL_REF5"
+        }
+      ],
+      "screenKeys": [
+        "CODE_VAL_REF1",
+        "CODE_VAL_REF2",
+        "CODE_VAL_REF3",
+        "CODE_VAL_REF4",
+        "CODE_VAL_REF5"
+      ]
+    },
+    {
+      "physName": "CMN_BTN_AUT",
+      "columnName": "공통 버튼 권한",
+      "labelLong": "공통 버튼 권한",
+      "labelMid": "공통 버튼 권한",
+      "labelShort": "공통버튼권한",
+      "description": "공통 버튼 권한 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_PERM)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "공통",
+          "senseNo": 1
+        },
+        {
+          "termName": "버튼",
+          "senseNo": 1
+        },
+        {
+          "termName": "권한",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "PERMISSION_COMMON"
+        }
+      ],
+      "screenKeys": [
+        "PERMISSION_COMMON"
+      ]
+    },
+    {
+      "physName": "COLUMN_DECIMAL_LTH",
+      "columnName": "컬럼 소수점 길이",
+      "labelLong": "컬럼 소수점 길이",
+      "labelMid": "컬럼 소수점 길이",
+      "labelShort": "소수점길이",
+      "description": "컬럼 소수점 길이 값을 담는 컬럼이다. (대표 테이블 TB_MCA_RULE_COL_LIST)",
+      "usageNote": null,
+      "domainName": "길이",
+      "terms": [
+        {
+          "termName": "컬럼",
+          "senseNo": 1
+        },
+        {
+          "termName": "소수점",
+          "senseNo": 1
+        },
+        {
+          "termName": "길이",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "COL_PREC_LEN"
+        }
+      ],
+      "screenKeys": [
+        "COL_PREC_LEN"
+      ]
+    },
+    {
+      "physName": "COLUMN_KND",
+      "columnName": "컬럼 유형",
+      "labelLong": "컬럼 유형",
+      "labelMid": "컬럼 유형",
+      "labelShort": "컬럼 유형",
+      "description": "컬럼 유형 값을 담는 컬럼이다. (대표 테이블 TB_MCA_RULE_COL_LIST)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "컬럼",
+          "senseNo": 1
+        },
+        {
+          "termName": "유형",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "COL_TYPE"
+        }
+      ],
+      "screenKeys": [
+        "COL_TYPE"
+      ]
+    },
+    {
+      "physName": "COLUMN_LTH",
+      "columnName": "컬럼 길이",
+      "labelLong": "컬럼 길이",
+      "labelMid": "컬럼 길이",
+      "labelShort": "컬럼 길이",
+      "description": "컬럼 길이 값을 담는 컬럼이다. (대표 테이블 TB_MCA_RULE_COL_LIST)",
+      "usageNote": null,
+      "domainName": "길이",
+      "terms": [
+        {
+          "termName": "컬럼",
+          "senseNo": 1
+        },
+        {
+          "termName": "길이",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "COL_LEN"
+        }
+      ],
+      "screenKeys": [
+        "COL_LEN"
+      ]
+    },
+    {
+      "physName": "CTT_FMT",
+      "columnName": "내용 형식",
+      "labelLong": "내용 형식",
+      "labelMid": "내용 형식",
+      "labelShort": "내용 형식",
+      "description": "내용 형식 값을 담는 컬럼이다. (대표 테이블 TB_MLS_NOTICE)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "내용",
+          "senseNo": 1
+        },
+        {
+          "termName": "형식",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "CONTENT_FORMAT"
+        }
+      ],
+      "screenKeys": [
+        "CONTENT_FORMAT"
+      ]
+    },
+    {
+      "physName": "DEPT_NM",
+      "columnName": "부서 명",
+      "labelLong": "부서 명",
+      "labelMid": "부서 명",
+      "labelShort": "부서 명",
+      "description": "부서 명 값을 담는 컬럼이다. (대표 테이블 TB_MCM_DEPT_INFO)",
+      "usageNote": null,
+      "domainName": "명",
+      "terms": [
+        {
+          "termName": "부서",
+          "senseNo": 1
+        },
+        {
+          "termName": "명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [],
+      "screenKeys": [
+        "DEPT_NM"
+      ]
+    },
+    {
+      "physName": "EXT_ACCESS_IP",
+      "columnName": "외부 접근 IP",
+      "labelLong": "외부 접근 IP",
+      "labelMid": "외부 접근 IP",
+      "labelShort": "외부접근IP",
+      "description": "외부 접근 IP 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_OBJ)",
+      "usageNote": null,
+      "domainName": "IP",
+      "terms": [
+        {
+          "termName": "외부",
+          "senseNo": 2
+        },
+        {
+          "termName": "접근",
+          "senseNo": 1
+        },
+        {
+          "termName": "IP",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "OUT_ACCESS_IP"
+        }
+      ],
+      "screenKeys": [
+        "OUT_ACCESS_IP"
+      ]
+    },
+    {
+      "physName": "INPUT_OTPUT_TP",
+      "columnName": "입력 출력 구분",
+      "labelLong": "입력 출력 구분",
+      "labelMid": "입력 출력 구분",
+      "labelShort": "입력출력구분",
+      "description": "입력 출력 구분 값을 담는 컬럼이다. (대표 테이블 TB_MCA_RULE_COL_LIST)",
+      "usageNote": null,
+      "domainName": "구분",
+      "terms": [
+        {
+          "termName": "입력",
+          "senseNo": 1
+        },
+        {
+          "termName": "출력",
+          "senseNo": 1
+        },
+        {
+          "termName": "구분",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "IO_FLAG"
+        }
+      ],
+      "screenKeys": [
+        "IO_FLAG"
+      ]
+    },
+    {
+      "physName": "INQUIRY_CNT",
+      "columnName": "조회 수",
+      "labelLong": "조회 수",
+      "labelMid": "조회 수",
+      "labelShort": "조회 수",
+      "description": "조회 수 값을 담는 컬럼이다. (대표 테이블 TB_SEC_SCREEN_USAGE_DAY)",
+      "usageNote": null,
+      "domainName": "수",
+      "terms": [
+        {
+          "termName": "조회",
+          "senseNo": 1
+        },
+        {
+          "termName": "수",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "OPEN_CNT"
+        }
+      ],
+      "screenKeys": [
+        "OPEN_CNT"
+      ]
+    },
+    {
+      "physName": "INTL_EXT_EMP_TP",
+      "columnName": "내부 외부 사원 구분",
+      "labelLong": "내부 외부 사원 구분",
+      "labelMid": "내부 외부 사원 구분",
+      "labelShort": "외부사원구분",
+      "description": "내부 외부 사원 구분 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_USER)",
+      "usageNote": null,
+      "domainName": "구분",
+      "terms": [
+        {
+          "termName": "내부",
+          "senseNo": 1
+        },
+        {
+          "termName": "외부",
+          "senseNo": 2
+        },
+        {
+          "termName": "사원",
+          "senseNo": 1
+        },
+        {
+          "termName": "구분",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "IN_OUT_EMP_TP"
+        }
+      ],
+      "screenKeys": [
+        "IN_OUT_EMP_TP"
+      ]
+    },
+    {
+      "physName": "LNK_PAGE_ID",
+      "columnName": "연결 페이지 아이디",
+      "labelLong": "연결 페이지 아이디",
+      "labelMid": "연결 페이지 아이디",
+      "labelShort": "페이지아이디",
+      "description": "연결 페이지 아이디 값을 담는 컬럼이다. (대표 테이블 TB_MCM_WIDGET_DEF)",
+      "usageNote": null,
+      "domainName": "아이디",
+      "terms": [
+        {
+          "termName": "연결",
+          "senseNo": 1
+        },
+        {
+          "termName": "페이지",
+          "senseNo": 1
+        },
+        {
+          "termName": "아이디",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "LINK_PAGE_ID"
+        }
+      ],
+      "screenKeys": [
+        "LINK_PAGE_ID"
+      ]
+    },
+    {
+      "physName": "MENU_DESC",
+      "columnName": "메뉴 설명",
+      "labelLong": "메뉴 설명",
+      "labelMid": "메뉴 설명",
+      "labelShort": "메뉴 설명",
+      "description": "메뉴 설명 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_MENU)",
+      "usageNote": null,
+      "domainName": "설명",
+      "terms": [
+        {
+          "termName": "메뉴",
+          "senseNo": 1
+        },
+        {
+          "termName": "설명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [],
+      "screenKeys": [
+        "MENU_DESC"
+      ]
+    },
+    {
+      "physName": "MENU_DISP_YN",
+      "columnName": "메뉴 표시 여부",
+      "labelLong": "메뉴 표시 여부",
+      "labelMid": "메뉴 표시 여부",
+      "labelShort": "메뉴표시여부",
+      "description": "메뉴 표시 여부 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_MENU, TB_MCM_SEC_MENU_FLD)",
+      "usageNote": null,
+      "domainName": "여부",
+      "terms": [
+        {
+          "termName": "메뉴",
+          "senseNo": 1
+        },
+        {
+          "termName": "표시",
+          "senseNo": 1
+        },
+        {
+          "termName": "여부",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "MENU_VIEW_YN"
+        }
+      ],
+      "screenKeys": [
+        "MENU_VIEW_YN"
+      ]
+    },
+    {
+      "physName": "MENU_PARAMETER",
+      "columnName": "메뉴 파라미터",
+      "labelLong": "메뉴 파라미터",
+      "labelMid": "메뉴 파라미터",
+      "labelShort": "메뉴파라미터",
+      "description": "메뉴 파라미터 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_MENU)",
+      "usageNote": null,
+      "domainName": "파라미터",
+      "terms": [
+        {
+          "termName": "메뉴",
+          "senseNo": 1
+        },
+        {
+          "termName": "파라미터",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "MENU_PARAM1"
+        },
+        {
+          "systemCode": "MES",
+          "physName": "MENU_PARAM2"
+        },
+        {
+          "systemCode": "MES",
+          "physName": "MENU_PARAM3"
+        }
+      ],
+      "screenKeys": [
+        "MENU_PARAM1",
+        "MENU_PARAM2",
+        "MENU_PARAM3"
+      ]
+    },
+    {
+      "physName": "MENU_SEQ",
+      "columnName": "메뉴 순번",
+      "labelLong": "메뉴 순번",
+      "labelMid": "메뉴 순번",
+      "labelShort": "메뉴 순번",
+      "description": "메뉴 순번 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_MENU, TB_MCM_SEC_MENU_FLD, TB_MCM_SEC_USER_FAVORITE, TB_MCM_SEC_USER_START_PGM)",
+      "usageNote": null,
+      "domainName": "순번",
+      "terms": [
+        {
+          "termName": "메뉴",
+          "senseNo": 1
+        },
+        {
+          "termName": "순번",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [],
+      "screenKeys": [
+        "MENU_SEQ"
+      ]
+    },
+    {
+      "physName": "MLT_YN",
+      "columnName": "복수 여부",
+      "labelLong": "복수 여부",
+      "labelMid": "복수 여부",
+      "labelShort": "복수 여부",
+      "description": "복수 여부 값을 담는 컬럼이다. (대표 테이블 TB_MCM_WIDGET_DEF)",
+      "usageNote": null,
+      "domainName": "여부",
+      "terms": [
+        {
+          "termName": "복수",
+          "senseNo": 1
+        },
+        {
+          "termName": "여부",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "MULTIPLE_YN"
+        }
+      ],
+      "screenKeys": [
+        "MULTIPLE_YN"
+      ]
+    },
+    {
+      "physName": "MST_CD_REF",
+      "columnName": "마스터 코드 참조",
+      "labelLong": "마스터 코드 참조",
+      "labelMid": "마스터 코드 참조",
+      "labelShort": "코드참조",
+      "description": "마스터 코드 참조 값을 담는 컬럼이다. (대표 테이블 TB_MCM_CODE_MASTER)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "마스터",
+          "senseNo": 1
+        },
+        {
+          "termName": "코드",
+          "senseNo": 1
+        },
+        {
+          "termName": "참조",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "MASTER_CODE_REF1"
+        },
+        {
+          "systemCode": "MES",
+          "physName": "MASTER_CODE_REF2"
+        },
+        {
+          "systemCode": "MES",
+          "physName": "MASTER_CODE_REF3"
+        },
+        {
+          "systemCode": "MES",
+          "physName": "MASTER_CODE_REF4"
+        },
+        {
+          "systemCode": "MES",
+          "physName": "MASTER_CODE_REF5"
+        }
+      ],
+      "screenKeys": [
+        "MASTER_CODE_REF1",
+        "MASTER_CODE_REF2",
+        "MASTER_CODE_REF3",
+        "MASTER_CODE_REF4",
+        "MASTER_CODE_REF5"
+      ]
+    },
+    {
+      "physName": "MST_CD_TP",
+      "columnName": "마스터 코드 구분",
+      "labelLong": "마스터 코드 구분",
+      "labelMid": "마스터 코드 구분",
+      "labelShort": "코드구분",
+      "description": "마스터 코드 구분 값을 담는 컬럼이다. (대표 테이블 TB_MCA_RULE_COL_LIST)",
+      "usageNote": null,
+      "domainName": "구분",
+      "terms": [
+        {
+          "termName": "마스터",
+          "senseNo": 1
+        },
+        {
+          "termName": "코드",
+          "senseNo": 1
+        },
+        {
+          "termName": "구분",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "MASTER_CODE_DIV"
+        }
+      ],
+      "screenKeys": [
+        "MASTER_CODE_DIV"
+      ]
+    },
+    {
+      "physName": "NTC_CLSF",
+      "columnName": "공지 분류",
+      "labelLong": "공지 분류",
+      "labelMid": "공지 분류",
+      "labelShort": "공지 분류",
+      "description": "공지 분류 값을 담는 컬럼이다. (대표 테이블 TB_MLS_NOTICE)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "공지",
+          "senseNo": 1
+        },
+        {
+          "termName": "분류",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "NOTICE_CATEGORY"
+        }
+      ],
+      "screenKeys": [
+        "NOTICE_CATEGORY"
+      ]
+    },
+    {
+      "physName": "NTC_DEST_RNG",
+      "columnName": "공지 대상 범위",
+      "labelLong": "공지 대상 범위",
+      "labelMid": "공지 대상 범위",
+      "labelShort": "공지대상범위",
+      "description": "공지 대상 범위 값을 담는 컬럼이다. (대표 테이블 TB_MLS_NOTICE)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "공지",
+          "senseNo": 1
+        },
+        {
+          "termName": "대상",
+          "senseNo": 1
+        },
+        {
+          "termName": "범위",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "TARGET_SCOPE"
+        }
+      ],
+      "screenKeys": [
+        "TARGET_SCOPE"
+      ]
+    },
+    {
+      "physName": "NTC_END_DT",
+      "columnName": "공지 종료 일자",
+      "labelLong": "공지 종료 일자",
+      "labelMid": "공지 종료 일자",
+      "labelShort": "공지종료일자",
+      "description": "공지 종료 일자 값을 담는 컬럼이다. (대표 테이블 TB_MLS_NOTICE)",
+      "usageNote": null,
+      "domainName": "일자",
+      "terms": [
+        {
+          "termName": "공지",
+          "senseNo": 1
+        },
+        {
+          "termName": "종료",
+          "senseNo": 1
+        },
+        {
+          "termName": "일자",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "POST_END_DT"
+        }
+      ],
+      "screenKeys": [
+        "POST_END_DT"
+      ]
+    },
+    {
+      "physName": "NTC_ID",
+      "columnName": "공지 아이디",
+      "labelLong": "공지 아이디",
+      "labelMid": "공지 아이디",
+      "labelShort": "공지 아이디",
+      "description": "공지 아이디 값을 담는 컬럼이다. (대표 테이블 TB_MLS_NOTICE, TB_MLS_NOTICE_TARGET)",
+      "usageNote": null,
+      "domainName": "아이디",
+      "terms": [
+        {
+          "termName": "공지",
+          "senseNo": 1
+        },
+        {
+          "termName": "아이디",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "NOTICE_ID"
+        }
+      ],
+      "screenKeys": [
+        "NOTICE_ID"
+      ]
+    },
+    {
+      "physName": "NTC_STR_DT",
+      "columnName": "공지 시작 일자",
+      "labelLong": "공지 시작 일자",
+      "labelMid": "공지 시작 일자",
+      "labelShort": "공지시작일자",
+      "description": "공지 시작 일자 값을 담는 컬럼이다. (대표 테이블 TB_MLS_NOTICE)",
+      "usageNote": null,
+      "domainName": "일자",
+      "terms": [
+        {
+          "termName": "공지",
+          "senseNo": 1
+        },
+        {
+          "termName": "시작",
+          "senseNo": 1
+        },
+        {
+          "termName": "일자",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "POST_START_DT"
+        }
+      ],
+      "screenKeys": [
+        "POST_START_DT"
+      ]
+    },
+    {
+      "physName": "NTC_STS",
+      "columnName": "공지 상태",
+      "labelLong": "공지 상태",
+      "labelMid": "공지 상태",
+      "labelShort": "공지 상태",
+      "description": "공지 상태 값을 담는 컬럼이다. (대표 테이블 TB_MLS_NOTICE)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "공지",
+          "senseNo": 1
+        },
+        {
+          "termName": "상태",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "NOTICE_STATUS"
+        }
+      ],
+      "screenKeys": [
+        "NOTICE_STATUS"
+      ]
+    },
+    {
+      "physName": "OBJECT_ID",
+      "columnName": "오브젝트 아이디",
+      "labelLong": "오브젝트 아이디",
+      "labelMid": "오브젝트 아이디",
+      "labelShort": "아이디",
+      "description": "오브젝트 아이디 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_MENU, TB_MCM_SEC_OBJ, TB_MCM_SEC_ROLE_MAPPING)",
+      "usageNote": null,
+      "domainName": "아이디",
+      "terms": [
+        {
+          "termName": "오브젝트",
+          "senseNo": 1
+        },
+        {
+          "termName": "아이디",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [],
+      "screenKeys": [
+        "OBJECT_ID"
+      ]
+    },
+    {
+      "physName": "OBJECT_KND",
+      "columnName": "오브젝트 유형",
+      "labelLong": "오브젝트 유형",
+      "labelMid": "오브젝트 유형",
+      "labelShort": "오브젝트유형",
+      "description": "오브젝트 유형 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_OBJ)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "오브젝트",
+          "senseNo": 1
+        },
+        {
+          "termName": "유형",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "OBJECT_TYPE"
+        }
+      ],
+      "screenKeys": [
+        "OBJECT_TYPE"
+      ]
+    },
+    {
+      "physName": "OBJECT_NM",
+      "columnName": "오브젝트 명",
+      "labelLong": "오브젝트 명",
+      "labelMid": "오브젝트 명",
+      "labelShort": "오브젝트 명",
+      "description": "오브젝트 명 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_OBJ)",
+      "usageNote": null,
+      "domainName": "명",
+      "terms": [
+        {
+          "termName": "오브젝트",
+          "senseNo": 1
+        },
+        {
+          "termName": "명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [],
+      "screenKeys": [
+        "OBJECT_NM"
+      ]
+    },
+    {
+      "physName": "PEC_LTH",
+      "columnName": "고유 길이",
+      "labelLong": "고유 길이",
+      "labelMid": "고유 길이",
+      "labelShort": "고유 길이",
+      "description": "고유 길이 값을 담는 컬럼이다. (대표 테이블 TB_MDM_LAYOUT_VER)",
+      "usageNote": null,
+      "domainName": "길이",
+      "terms": [
+        {
+          "termName": "고유",
+          "senseNo": 1
+        },
+        {
+          "termName": "길이",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "OWN_LENGTH"
+        }
+      ],
+      "screenKeys": [
+        "OWN_LENGTH"
+      ]
+    },
+    {
+      "physName": "PGM_DESC",
+      "columnName": "프로그램 설명",
+      "labelLong": "프로그램 설명",
+      "labelMid": "프로그램 설명",
+      "labelShort": "프로그램설명",
+      "description": "프로그램 설명 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_OBJ)",
+      "usageNote": null,
+      "domainName": "설명",
+      "terms": [
+        {
+          "termName": "프로그램",
+          "senseNo": 1
+        },
+        {
+          "termName": "설명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "PROGRAM_DESC"
+        }
+      ],
+      "screenKeys": [
+        "PROGRAM_DESC"
+      ]
+    },
+    {
+      "physName": "PRN_MENU_ID",
+      "columnName": "상위 메뉴 아이디",
+      "labelLong": "상위 메뉴 아이디",
+      "labelMid": "상위 메뉴 아이디",
+      "labelShort": "메뉴아이디",
+      "description": "상위 메뉴 아이디 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_MENU, TB_MCM_SEC_MENU_FLD)",
+      "usageNote": null,
+      "domainName": "아이디",
+      "terms": [
+        {
+          "termName": "상위",
+          "senseNo": 1
+        },
+        {
+          "termName": "메뉴",
+          "senseNo": 1
+        },
+        {
+          "termName": "아이디",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "PARENT_MENU_ID"
+        }
+      ],
+      "screenKeys": [
+        "PARENT_MENU_ID"
+      ]
+    },
+    {
+      "physName": "PRN_ROLE_ID",
+      "columnName": "상위 직무 아이디",
+      "labelLong": "상위 직무 아이디",
+      "labelMid": "상위 직무 아이디",
+      "labelShort": "직무아이디",
+      "description": "상위 직무 아이디 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_ROLE)",
+      "usageNote": null,
+      "domainName": "아이디",
+      "terms": [
+        {
+          "termName": "상위",
+          "senseNo": 1
+        },
+        {
+          "termName": "직무",
+          "senseNo": 1
+        },
+        {
+          "termName": "아이디",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "PARENT_ROLE_ID"
+        }
+      ],
+      "screenKeys": [
+        "PARENT_ROLE_ID"
+      ]
+    },
+    {
+      "physName": "PU_BTN_AUT",
+      "columnName": "팝업 버튼 권한",
+      "labelLong": "팝업 버튼 권한",
+      "labelMid": "팝업 버튼 권한",
+      "labelShort": "팝업버튼권한",
+      "description": "팝업 버튼 권한 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_PERM)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "팝업",
+          "senseNo": 1
+        },
+        {
+          "termName": "버튼",
+          "senseNo": 1
+        },
+        {
+          "termName": "권한",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "POPUP_BTN"
+        }
+      ],
+      "screenKeys": [
+        "POPUP_BTN"
+      ]
+    },
+    {
+      "physName": "ROLE_DESC",
+      "columnName": "직무 설명",
+      "labelLong": "직무 설명",
+      "labelMid": "직무 설명",
+      "labelShort": "직무 설명",
+      "description": "직무 설명 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_ROLE)",
+      "usageNote": null,
+      "domainName": "설명",
+      "terms": [
+        {
+          "termName": "직무",
+          "senseNo": 1
+        },
+        {
+          "termName": "설명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [],
+      "screenKeys": [
+        "ROLE_DESC"
+      ]
+    },
+    {
+      "physName": "ROLE_GRP_DESC",
+      "columnName": "직무 그룹 설명",
+      "labelLong": "직무 그룹 설명",
+      "labelMid": "직무 그룹 설명",
+      "labelShort": "직무그룹설명",
+      "description": "직무 그룹 설명 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_ROLEGROUP)",
+      "usageNote": null,
+      "domainName": "설명",
+      "terms": [
+        {
+          "termName": "직무",
+          "senseNo": 1
+        },
+        {
+          "termName": "그룹",
+          "senseNo": 1
+        },
+        {
+          "termName": "설명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "ROLE_GROUP_DESC"
+        }
+      ],
+      "screenKeys": [
+        "ROLE_GROUP_DESC"
+      ]
+    },
+    {
+      "physName": "ROLE_GRP_ID",
+      "columnName": "직무 그룹 아이디",
+      "labelLong": "직무 그룹 아이디",
+      "labelMid": "직무 그룹 아이디",
+      "labelShort": "그룹아이디",
+      "description": "직무 그룹 아이디 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_ROLEGROUP, TB_MCM_SEC_ROLEGROUP_MAPPING, TB_MCM_SEC_USER_MAPPING, TB_MCM_SEC_USER_ROLL_HIS)",
+      "usageNote": null,
+      "domainName": "아이디",
+      "terms": [
+        {
+          "termName": "직무",
+          "senseNo": 1
+        },
+        {
+          "termName": "그룹",
+          "senseNo": 1
+        },
+        {
+          "termName": "아이디",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "ROLE_GROUP_ID"
+        }
+      ],
+      "screenKeys": [
+        "ROLE_GROUP_ID"
+      ]
+    },
+    {
+      "physName": "ROLE_GRP_NM",
+      "columnName": "직무 그룹 명",
+      "labelLong": "직무 그룹 명",
+      "labelMid": "직무 그룹 명",
+      "labelShort": "직무그룹명",
+      "description": "직무 그룹 명 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_ROLEGROUP, TB_MCM_SEC_USER_ROLL_HIS)",
+      "usageNote": null,
+      "domainName": "명",
+      "terms": [
+        {
+          "termName": "직무",
+          "senseNo": 1
+        },
+        {
+          "termName": "그룹",
+          "senseNo": 1
+        },
+        {
+          "termName": "명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "ROLE_GROUP_NM"
+        }
+      ],
+      "screenKeys": [
+        "ROLE_GROUP_NM"
+      ]
+    },
+    {
+      "physName": "ROLE_NM",
+      "columnName": "직무 명",
+      "labelLong": "직무 명",
+      "labelMid": "직무 명",
+      "labelShort": "직무 명",
+      "description": "직무 명 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_ROLE)",
+      "usageNote": null,
+      "domainName": "명",
+      "terms": [
+        {
+          "termName": "직무",
+          "senseNo": 1
+        },
+        {
+          "termName": "명",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [],
+      "screenKeys": [
+        "ROLE_NM"
+      ]
+    },
+    {
+      "physName": "SSO_ID",
+      "columnName": "SSO 아이디",
+      "labelLong": "SSO 아이디",
+      "labelMid": "SSO 아이디",
+      "labelShort": "SSO아이디",
+      "description": "SSO 아이디 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_USER)",
+      "usageNote": null,
+      "domainName": "아이디",
+      "terms": [
+        {
+          "termName": "SSO",
+          "senseNo": 1
+        },
+        {
+          "termName": "아이디",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [],
+      "screenKeys": [
+        "SSO_ID"
+      ]
+    },
+    {
+      "physName": "STR_TP",
+      "columnName": "시작 구분",
+      "labelLong": "시작 구분",
+      "labelMid": "시작 구분",
+      "labelShort": "시작 구분",
+      "description": "시작 구분 값을 담는 컬럼이다. (대표 테이블 TB_SEC_SCREEN_USAGE_LOG)",
+      "usageNote": null,
+      "domainName": "구분",
+      "terms": [
+        {
+          "termName": "시작",
+          "senseNo": 1
+        },
+        {
+          "termName": "구분",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "START_KIND"
+        }
+      ],
+      "screenKeys": [
+        "START_KIND"
+      ]
+    },
+    {
+      "physName": "UI_URL",
+      "columnName": "화면 URL",
+      "labelLong": "화면 URL",
+      "labelMid": "화면 URL",
+      "labelShort": "화면 URL",
+      "description": "화면 URL 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_OBJ)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "화면",
+          "senseNo": 1
+        },
+        {
+          "termName": "URL",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "FORM_URL"
+        }
+      ],
+      "screenKeys": [
+        "FORM_URL"
+      ]
+    },
+    {
+      "physName": "USER_CLSF_CD",
+      "columnName": "사용자 분류 코드",
+      "labelLong": "사용자 분류 코드",
+      "labelMid": "사용자 분류 코드",
+      "labelShort": "분류코드",
+      "description": "사용자 분류 코드 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_USER)",
+      "usageNote": null,
+      "domainName": "코드",
+      "terms": [
+        {
+          "termName": "사용자",
+          "senseNo": 1
+        },
+        {
+          "termName": "분류",
+          "senseNo": 1
+        },
+        {
+          "termName": "코드",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "USER_CATEGORY_CD"
+        }
+      ],
+      "screenKeys": [
+        "USER_CATEGORY_CD"
+      ]
+    },
+    {
+      "physName": "USER_DEFINE_BTN_AUT",
+      "columnName": "사용자 정의 버튼 권한",
+      "labelLong": "사용자 정의 버튼 권한",
+      "labelMid": "사용자 정의 버튼 권한",
+      "labelShort": "정의버튼권한",
+      "description": "사용자 정의 버튼 권한 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_PERM)",
+      "usageNote": null,
+      "domainName": null,
+      "terms": [
+        {
+          "termName": "사용자",
+          "senseNo": 1
+        },
+        {
+          "termName": "정의",
+          "senseNo": 1
+        },
+        {
+          "termName": "버튼",
+          "senseNo": 1
+        },
+        {
+          "termName": "권한",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "PERMISSION_CUSTOM"
+        }
+      ],
+      "screenKeys": [
+        "PERMISSION_CUSTOM"
+      ]
+    },
+    {
+      "physName": "USE_DT",
+      "columnName": "이용 일자",
+      "labelLong": "이용 일자",
+      "labelMid": "이용 일자",
+      "labelShort": "이용 일자",
+      "description": "이용 일자 값을 담는 컬럼이다. (대표 테이블 TB_SEC_SCREEN_USAGE_DAY)",
+      "usageNote": null,
+      "domainName": "일자",
+      "terms": [
+        {
+          "termName": "이용",
+          "senseNo": 1
+        },
+        {
+          "termName": "일자",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "USAGE_DT"
+        }
+      ],
+      "screenKeys": [
+        "USAGE_DT"
+      ]
+    },
+    {
+      "physName": "USE_TIM",
+      "columnName": "이용 시간",
+      "labelLong": "이용 시간",
+      "labelMid": "이용 시간",
+      "labelShort": "이용 시간",
+      "description": "이용 시간 값을 담는 컬럼이다. (대표 테이블 TB_SEC_SCREEN_USAGE_DAY, TB_SEC_SCREEN_USAGE_LOG)",
+      "usageNote": "값의 단위는 밀리초(ms)다(TB_SEC_SCREEN_USAGE_*.DURATION_MS).",
+      "domainName": "시간",
+      "terms": [
+        {
+          "termName": "이용",
+          "senseNo": 1
+        },
+        {
+          "termName": "시간",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "DURATION_MS"
+        }
+      ],
+      "screenKeys": [
+        "DURATION_MS"
+      ]
+    },
+    {
+      "physName": "WIDGET_ID",
+      "columnName": "위젯 아이디",
+      "labelLong": "위젯 아이디",
+      "labelMid": "위젯아이디",
+      "labelShort": "위젯ID",
+      "description": "위젯 아이디 값을 담는 컬럼이다. (대표 테이블 TB_MCM_SEC_USER_WIDGET, TB_MCM_WIDGET_DEF, TB_MCM_WIDGET_DEFAULT_LAYOUT)",
+      "usageNote": null,
+      "domainName": "아이디",
+      "terms": [
+        {
+          "termName": "위젯",
+          "senseNo": 1
+        },
+        {
+          "termName": "아이디",
+          "senseNo": 1
+        }
+      ],
+      "aliases": [],
+      "screenKeys": [
+        "WIDGET_ID"
+      ]
+    }
+  ],
+  "aliases": [
+    {
+      "physName": "CD_TP_DESC",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "CODE_DESC"
+        }
+      ],
+      "evidence": "TB_MCM_CODE_MASTER.CODE_DESC — CD_TP_* 군"
+    },
+    {
+      "physName": "CD_TP_ID",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "CODE_ID"
+        }
+      ],
+      "evidence": "TB_MCM_CODE_MASTER(코드 구분 정의) — 사전 CD_TP_* 군(CD_TP_CHARACTER·CD_TP_VER·CD_TP_OWNER_EMP_NO)과 같은 테이블 구성"
+    },
+    {
+      "physName": "CD_V",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "CODE_VAL"
+        }
+      ],
+      "evidence": "TB_MCM_CODE_DETAIL.CODE_VAL — 같은 용어 집합(코드 값)"
+    },
+    {
+      "physName": "CD_V_DESC",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "CODE_VAL_DESC"
+        }
+      ],
+      "evidence": "TB_MCM_CODE_DETAIL — 같은 용어 집합(코드 값 설명)"
+    },
+    {
+      "physName": "CD_V_MEANING",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "CODE_VAL_MEAN"
+        }
+      ],
+      "evidence": "TB_MCM_CODE_DETAIL — 같은 용어 집합(코드 값 의미)"
+    },
+    {
+      "physName": "COLUMN_ID",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "COL_ID"
+        }
+      ],
+      "evidence": "TB_MCA_RULE_COL_LIST.COL_ID — 같은 용어 집합(컬럼 아이디)"
+    },
+    {
+      "physName": "COLUMN_NM",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "COL_NM"
+        }
+      ],
+      "evidence": "TB_MCA_RULE_COL_LIST.COL_NM — 같은 용어 집합(컬럼 명)"
+    },
+    {
+      "physName": "END_DH",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "ENDED_AT"
+        }
+      ],
+      "evidence": "TB_SEC_SCREEN_USAGE_LOG.ENDED_AT — 같은 용어 집합(종료 일시)"
+    },
+    {
+      "physName": "FIX_YN",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "PIN_YN"
+        }
+      ],
+      "evidence": "TB_MLS_NOTICE.PIN_YN — 같은 용어 집합(고정 여부)"
+    },
+    {
+      "physName": "MENU_KND",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "MENU_TP"
+        }
+      ],
+      "evidence": "TB_MCM_SEC_MENU.MENU_TP — 메뉴 유형(구분↔유형 동의어), 기존 MES 별칭 MENU_TYPE"
+    },
+    {
+      "physName": "MOBILE_TEL",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "MOBILE_TEL_NO"
+        }
+      ],
+      "evidence": "TB_MCM_SEC_USER.MOBILE_TEL_NO — 기존 '모바일 전화'(MES 별칭 MOBILE_PHONE)"
+    },
+    {
+      "physName": "STR_DH",
+      "aliases": [
+        {
+          "systemCode": "MES",
+          "physName": "STARTED_AT"
+        }
+      ],
+      "evidence": "TB_SEC_SCREEN_USAGE_LOG.STARTED_AT — 같은 용어 집합(시작 일시)"
+    }
+  ]
+}
