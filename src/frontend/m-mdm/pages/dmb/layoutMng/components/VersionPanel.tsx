@@ -21,10 +21,10 @@ function modeBadge(mode: unknown) {
   return <span style={{ ...badge, color }}>{label}</span>;
 }
 
-const COLUMNS: GridColumn[] = uiCols([
-  { key: "VER", header: "버전", width: 70, render: (v) => fmtVer(v as string) },
+const COLUMNS: GridColumn[] = [
+  { key: "VER", meta: false, header: "버전", width: 70, render: (v) => fmtVer(v as string) },
   { key: "VER_KIND", header: "종류", width: 55, render: (v) => (v === "MINOR" ? "minor" : "major") },
-  { key: "STATUS", header: "상태", width: 90,
+  { key: "STATUS", meta: false, header: "상태", width: 90,
     render: (v, r) => <VersionStatusBadge status={v as MdmVersionStatus} applyFrom={(r.APPLY_FROM as string) ?? null} /> },
   { key: "APPLY_FROM", header: "적용 시작", width: 130 },
   { key: "APPLY_TO", header: "적용 끝", width: 130 },
@@ -33,7 +33,7 @@ const COLUMNS: GridColumn[] = uiCols([
     render: (v, r) => (r.LEGACY === "Y" ? `(이행 전 스냅샷) ${(v as string | null) ?? ""}` : ((v as string | null) ?? "")) },
   { key: "OWN_LENGTH", header: "자기 길이", width: 70, align: "right" },
   { key: "SWITCH_MODE", header: "전환 방식", width: 90, render: (v) => modeBadge(v) },
-], ["VER_KIND", "APPLY_FROM", "APPLY_TO", "OWNER_ID", "CHANGE_SUMMARY", "OWN_LENGTH", "SWITCH_MODE"]);
+];
 
 const CHANGE_CLASS_COLUMNS: GridColumn[] = uiCols([
   { key: "change", header: "변경", width: 220 },

@@ -49,13 +49,13 @@ const DIFF_KIND_LABELS: Record<string, string> = { ADDED: "추가", REMOVED: "�
 const DIFF_GRID_HEIGHT = 320;
 
 // 확정 대기 목록. 행 클릭은 PendingDraft 원본 행을 그대로 넘긴다.
-const DRAFT_COLUMNS: GridColumn[] = uiCols([
+const DRAFT_COLUMNS: GridColumn[] = [
   { key: "maruCodeId", header: "ID", width: 130 },
   { key: "maruCodeName", header: "이름", width: 130 },
-  { key: "verLabel", header: "버전", width: 80 },
+  { key: "verLabel", header: "버전", meta: false, width: 80 },
   { key: "verKind", header: "종류", width: 80 },
   { key: "ownerId", header: "소유자", width: 90, render: (v) => (v as string | null | undefined) ?? "—" },
-], ["maruCodeId", "maruCodeName", "verKind", "ownerId"]);
+];
 
 const CHECK_COLUMNS: GridColumn[] = uiCols([
   { key: "no", header: "번호", width: 60 },

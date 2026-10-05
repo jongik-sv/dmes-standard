@@ -55,7 +55,7 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
   // 행별 저장 검사 이슈는 `useCategoryEdit` 가 cateId 별로 모아 둔다(소속 코드 이슈는 탭 위 목록으로 간다).
   const issuesOf = (cateId: string) => issuesByCate[cateId] ?? [];
 
-  const categoryColumns = useMemo<GridColumn[]>(() => uiCols([
+  const categoryColumns = useMemo<GridColumn[]>(() => [
     {
       key: "cateId", header: "ID", width: 120,
       editable: () => editable && canEdit,
@@ -123,11 +123,11 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
     {
       // matchCount 는 서버가 categories 에 넣어 준다(CodeCateEditService.categoryMap — REGEX 는 정규식 매칭 수,
       // TABLE 은 저장된 소속 수, 닫힌 카테고리는 0). 목록 한 번으로 전부 온다.
-      key: "matchCount", header: "해당", width: 70, align: "center", tooltip: false,
+      key: "matchCount", header: "해당", meta: false, width: 70, align: "center", tooltip: false,
       render: (value) => `${value ?? 0}건`,
     },
     {
-      key: "__action", header: "동작", width: 150, align: "center",
+      key: "__action", header: "동작", meta: false, width: 150, align: "center",
       render: (_v, row) => {
         const r = row as { cateId: string; defKind: string; __local: string };
         if (r.cateId === BASE_CATE_ID) return null;
@@ -159,7 +159,7 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // cate.rows: [취소]/[닫기] 는 칸 값이 아닌 행 상태(__local)로 갈리므로 행이 바뀌면 열 정의를 다시 만든다.
-  ], ["cateId", "cateName", "defKind", "defExpr", "defTarget"]), [editable, canEdit, cate.rows, issuesByCate, undoCate, removeCate, targetOptions, selectedRow?.cateId]);
+  ], [editable, canEdit, cate.rows, issuesByCate, undoCate, removeCate, targetOptions, selectedRow?.cateId]);
 
   const memberColumns = useMemo<GridColumn[]>(() => uiCols([
     { key: "code", header: "코드", width: 120 },

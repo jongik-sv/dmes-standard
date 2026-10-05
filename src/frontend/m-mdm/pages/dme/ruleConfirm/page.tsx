@@ -50,16 +50,16 @@ const DIFF_GRID_HEIGHT = 320;
 // 확정 대기 목록. 행 클릭은 PendingDraft 원본 행을 그대로 넘긴다. 룰 ID 칸의 rc-row-* 는 E2E 가 행을 찾아 누르는 표지다.
 // fit 모드의 width 는 비율 가중치다. 30% 패널(1280 폭에서 약 300px)에 들어오게 minWidth 를 따로 작게 준다 — 열 합이 패널보다
 // 넓으면 ag-grid 가 가로로 보이지 않는 오른쪽 열을 그리지 않는다(RuleListGrid 선례).
-const DRAFT_COLUMNS: GridColumn[] = uiCols([
+const DRAFT_COLUMNS: GridColumn[] = [
   {
     key: "maruRuleId", header: "룰 ID", width: 130, minWidth: 80,
     render: (v, row) => <span data-testid={`rc-row-${String(row.rowId)}`}>{String(v)}</span>,
   },
   { key: "maruRuleName", header: "이름", width: 130, minWidth: 60 },
   { key: "ruleKind", header: "종류", width: 90, minWidth: 50 },
-  { key: "ver", header: "버전", width: 60, minWidth: 40, render: (v) => fmtVer(v as string | null) },
+  { key: "ver", meta: false, header: "버전", width: 60, minWidth: 40, render: (v) => fmtVer(v as string | null) },
   { key: "ownerId", header: "소유자", width: 90, minWidth: 50, render: (v) => (v as string | null | undefined) ?? "—" },
-], ["maruRuleId", "maruRuleName", "ruleKind", "ownerId"]);
+];
 
 interface CheckRow {
   item: string;

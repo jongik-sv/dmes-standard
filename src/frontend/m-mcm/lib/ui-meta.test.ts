@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GridColumn } from "@dk-oasis/shared/grid";
 
-import { DESCRIPTION_LABEL, SOURCE_LABEL, uiCols } from "./ui-meta";
+import { DESCRIPTION_LABEL, uiCols } from "./ui-meta";
 
 describe("uiCols", () => {
   it("meta 를 적지 않은 열에 false 를 채우고, 적은 열·사전 key 열은 그대로 둔다", () => {
@@ -36,8 +36,7 @@ describe("uiCols", () => {
 });
 
 describe("라벨 상수", () => {
-  it("설명·원천 라벨은 사전 카드를 끈다", () => {
+  it("설명 라벨은 사전 카드를 끈다", () => {
     expect(DESCRIPTION_LABEL).toEqual({ name: "description", label: "설명", meta: false });
-    expect(SOURCE_LABEL).toEqual({ name: "source", label: "원천", meta: false });
   });
 });

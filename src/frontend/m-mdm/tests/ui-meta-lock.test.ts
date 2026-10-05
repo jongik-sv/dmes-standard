@@ -26,6 +26,11 @@ describe("meta 추출 규칙", () => {
     expect(metaEntriesOf(src)).toEqual(['col|a|false', "col|b|-", 'col|c|"C_COL"', "col|d|false"]);
   });
 
+  it("uiCols 인자가 리터럴이 아니면 멈춘다", () => {
+    expect(() => metaEntriesOf(`const A = uiCols(BASE, ["b"]);`)).toThrow(/uiCols/);
+    expect(() => metaEntriesOf(`const A = uiCols([{ key: "a" }], DICT);`)).toThrow(/uiCols/);
+  });
+
   it("라벨 — 명시·상수 펼침", () => {
     const src = `const A = <><MdmFieldLabel name="x" label="엑스" meta={false} /><MdmFieldLabel {...DESCRIPTION_LABEL} /><MdmFieldLabel name="y" /></>;`;
     expect(metaEntriesOf(src, "a.tsx")).toEqual([

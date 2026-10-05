@@ -16,6 +16,6 @@ export function uiCols(cols: GridColumn[], dictKeys: readonly string[] = []): Gr
   });
 }
 
-/** 뜻이 화면마다 다른 일반 키 `description`·`source` 의 라벨 — 사전 카드는 끈다(범용 키라 어느 컬럼 설명인지 정할 수 없다). */
+/** 뜻이 화면마다 다른 일반 키 `description`·`source` 의 라벨 — 사전 카드는 끈다(범용 키라 어느 컬럼 설명인지 정할 수 없다). 모듈마다 두는 사본이라 m-mcm/lib/ui-meta.ts 와 함께 고친다. */
 export const DESCRIPTION_LABEL = { name: "description", label: "설명", meta: false } as const;
 export const SOURCE_LABEL = { name: "source", label: "원천", meta: false } as const;

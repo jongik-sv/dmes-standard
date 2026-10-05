@@ -70,6 +70,13 @@ export function metaEntriesOf(source: string, fileName = "x.tsx"): string[] {
         if (!explicit && dict && !dict.has(keyText)) meta = "false";
         out.push(`col|${keyText}|${meta}`);
       }
+    } else if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "uiCols") {
+      // 추출기는 열 배열·사전 key 목록이 리터럴일 때만 효과 meta 를 정확히 안다 — 변수·펼침이면 소리 내어 멈춘다(조용히 어긋나지 않게).
+      const [cols, dict] = node.arguments;
+      const literalDict = !dict || (ts.isArrayLiteralExpression(dict) && dict.elements.every((e) => ts.isStringLiteralLike(e)));
+      if (!cols || !ts.isArrayLiteralExpression(cols) || !literalDict) {
+        throw new Error(`${fileName}: uiCols 의 인자는 배열 리터럴(열)·문자열 리터럴 배열(사전 key)이어야 한다 — ${node.getText().slice(0, 60)}`);
+      }
     } else if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "cell") {
       const keyText = literalText(node.arguments[0]);
       if (keyText != null) {
@@ -108,12 +115,15 @@ export function metaEntriesOf(source: string, fileName = "x.tsx"): string[] {
 
 const SKIP_DIRS = new Set(["node_modules", "dist", ".next", "tests", "archive", "scripts", ".turbo"]);
 
-/** 도우미 시험 대상이 아닌 파일 — D2 로 공급자가 meta 를 끈 편집기(별도 렌더 시험이 고정한다). */
+/** 추출 대상이 아닌 파일 — D2 로 공급자가 meta 를 끈 편집기(별도 렌더 시험이 고정한다)와 도우미 정의. */
 const EXCLUDED = new Set([
   "m-mcm/widget-types/chat/editor.tsx",
   "m-mcm/widget-types/query-chart/editor.tsx",
   "m-mcm/widget-types/query-number/editor.tsx",
   "m-mcm/widget-types/query-table/editor.tsx",
+  // 도우미 정의 자신(안쪽 재귀 호출은 인자가 변수다).
+  "m-mcm/lib/ui-meta.ts",
+  "m-mdm/src/ui-meta.ts",
 ]);
 
 function walk(dir: string, out: string[]) {

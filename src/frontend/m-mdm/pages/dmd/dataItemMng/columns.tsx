@@ -41,30 +41,30 @@ export function buildItemColumns(header: DataItemHeader | null, handlers: ItemCo
     }
   }
   cols.push(
-    ...uiCols([
-      {
-        key: "open",
-        header: "상태",
-        width: 60,
-        minWidth: 56,
-        align: "center",
-        render: (value) => (value === true ? "열림" : "닫힘"),
-      },
-      { key: "validFrom", header: "시작 일시", width: 140, minWidth: 130, align: "center" },
-    ], ["validFrom"]),
+    {
+      key: "open",
+      header: "상태",
+      meta: false,
+      width: 60,
+      minWidth: 56,
+      align: "center",
+      render: (value) => (value === true ? "열림" : "닫힘"),
+    },
+    { key: "validFrom", header: "시작 일시", width: 140, minWidth: 130, align: "center" },
   );
   if (handlers.renderActions) {
     const render = handlers.renderActions;
     // 키·작업 열은 고정한다 — 동적 열이 많아 가로로 밀려도 어느 행의 버튼인지 보인다.
-    cols.push(...uiCols([{
+    cols.push({
       key: "actions",
       header: "작업",
+      meta: false,
       width: 150,
       minWidth: 150,
       align: "center",
       pinned: "right",
       render: (_v, row) => render(row),
-    }]));
+    });
   }
   return cols;
 }
