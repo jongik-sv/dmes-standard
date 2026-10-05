@@ -31,6 +31,7 @@ OUT=""
 LIST=0
 BASELINE=""
 EXPECT=""
+RC=0   # --baseline·--expect 검사를 끝까지 다 보여 준 뒤 하나라도 어긋나면 1
 need() { [ $# -ge 2 ] && [ -n "$2" ] || { echo "$1 에 값이 없습니다" >&2; exit 2; }; }
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -90,7 +91,7 @@ if [ -n "$BASELINE" ]; then
     | "baseline_hit=\($was | length) gained=\($gained | length) lost=\($lost | length)",
       ($gained | map("gained\t" + .)[]),
       ($lost | map("lost\t" + .)[])' "$TMP/resp.json" | tee "$TMP/baseline.out"
-  head -1 "$TMP/baseline.out" | grep -q ' lost=0$' || exit 1
+  head -1 "$TMP/baseline.out" | grep -q ' lost=0$' || RC=1
 fi
 
 if [ -n "$EXPECT" ]; then
@@ -101,5 +102,6 @@ if [ -n "$EXPECT" ]; then
     | ($want - $now) as $miss
     | "expected=\($want | length) not_yet=\($miss | length)",
       ($miss | map("not_yet\t" + .)[])' "$TMP/resp.json" | tee "$TMP/expect.out"
-  head -1 "$TMP/expect.out" | grep -q ' not_yet=0$' || exit 1
+  head -1 "$TMP/expect.out" | grep -q ' not_yet=0$' || RC=1
 fi
+exit "$RC"

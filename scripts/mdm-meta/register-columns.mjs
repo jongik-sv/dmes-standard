@@ -64,6 +64,7 @@ class UnreachableError extends Error {}
 
 async function oasis(service, action, params, grids) {
   let res;
+  let text;
   try {
     res = await fetch(`${opt.base}/api/mdm/oasis/${service}/${action}`, {
       method: "POST",
@@ -76,10 +77,10 @@ async function oasis(service, action, params, grids) {
       },
       body: JSON.stringify({ meta: { menuId: service }, params: compact(params), ...(grids ? { grids } : {}) }),
     });
+    text = await res.text(); // 본문 읽기도 같은 시간 제한 안에서
   } catch (e) {
     throw new UnreachableError(`${opt.base} 에 닿지 못했습니다(${service}/${action}): ${e.cause?.code ?? e.name} ${e.message}`);
   }
-  const text = await res.text();
   let body;
   try {
     body = JSON.parse(text);
@@ -200,9 +201,9 @@ async function registerColumn(c) {
   if (c.domainName) {
     const d = (f.domains ?? []).find((x) => x.domainName === c.domainName);
     if (d) domainId = d.domainId;
-    else if (opt.apply && !opt.allowNoDomain) {
+    else if (!opt.allowNoDomain) {
       return report("FAIL", "column", c.physName, `도메인 '${c.domainName}' 을 추천에서 찾지 못했습니다 — 도메인 없이 넣으려면 --allow-no-domain`);
-    } else domainNote = ` 도메인 '${c.domainName}' 을 추천에서 찾지 못했습니다(--apply 에는 --allow-no-domain 필요)`;
+    } else domainNote = ` 도메인 '${c.domainName}' 을 추천에서 찾지 못해 비웁니다(--allow-no-domain)`;
   }
   const conflicts = await aliasConflicts(c.aliases, c.physName);
   if (conflicts.length) return report("FAIL", "column", c.physName, `별칭이 다른 컬럼에 있습니다: ${conflicts.join(", ")}`);

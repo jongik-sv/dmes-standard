@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# MDM 메타 BE 응답 시간·크기 반복 측정(C4) — curl 로 기준(A)·변경(B)을 회차마다 번갈아 잰다. 서버·DB 는 읽기만 한다.
+# MDM 메타 BE 응답 시간·크기 반복 측정(C4) — curl 로 기준(A)·변경(B)을 회차마다 번갈아 잰다.
+# DB 는 쓰지 않지만 mcm 메타 조회가 mcm 캐시에 있음·없음을 채우므로, C1b 배포 순서(MDM 먼저)를 확인하기 전에는 돌리지 않는다.
 #
 # 사용:
-#   scripts/perf/mdm-meta/run-measure.sh [--pair mcm|feed|all] [--rounds N] [--reps R] [--out DIR] [--tag 이름]
+#   scripts/perf/mdm-meta/run-measure.sh [--pair mcm|feed|screen|all] [--rounds N] [--reps R] [--out DIR] [--tag 이름]
 #   --pair    mcm  : mcm /api/mcm/mdmMeta/columns — A 표준 물리명 176개(names-std.txt), B 별칭 이름 137개(names-alias.txt)
 #             feed : MDM /api/mdm/oasis/metaFeed/view(COLUMN) — 별칭 이름 137개를 A systemCode=MES, B systemCode=MES,MDM 으로
 #             screen: mcm 화면 키 416개(scripts/mdm-meta/keys-2026-10-05.txt) 한 묶음 — A·B 같은 요청(흔들림 폭 확인용)
@@ -30,11 +31,14 @@ while [ $# -gt 0 ]; do
     --reps) REPS="${2:?--reps 값}"; shift 2 ;;
     --out) OUT="${2:?--out 값}"; shift 2 ;;
     --tag) TAG="${2:?--tag 값}"; shift 2 ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
     *) echo "알 수 없는 인자: $1" >&2; exit 2 ;;
   esac
 done
 case "$PAIR" in mcm|feed|screen|all) ;; *) echo "--pair 는 mcm|feed|screen|all" >&2; exit 2 ;; esac
+for v in "$ROUNDS" "$REPS"; do
+  case "$v" in ''|*[!0-9]*|0) echo "--rounds·--reps 는 1 이상의 정수여야 합니다: $v" >&2; exit 2 ;; esac
+done
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 KEYS_SCREEN="$HERE/../../mdm-meta/keys-2026-10-05.txt"
@@ -45,7 +49,7 @@ mkdir -p "$OUT"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-names_json() { grep -v '^[[:space:]]*\(#\|$\)' "$1" | jq -R -s 'split("\n") | map(select(length > 0))'; }
+names_json() { tr -d '\r' < "$1" | { grep -v '^[[:space:]]*\(#\|$\)' || true; } | jq -R -s 'split("\n") | map(select(length > 0))'; }
 
 # 요청 본문 파일: <pair>-<A|B>.json, 그리고 대상 URL
 build() {
@@ -88,7 +92,7 @@ side_run() {
   local pair="$1" side="$2" i
   : > "$TMP/ms.txt"
   for ((i = 0; i < REPS; i++)); do
-    once "$pair" "$side" > "$TMP/one.txt"
+    once "$pair" "$side" > "$TMP/one.txt" || return 1
     cut -d' ' -f1 "$TMP/one.txt" >> "$TMP/ms.txt"
   done
   echo "$(median < "$TMP/ms.txt") $(cut -d' ' -f2,3 "$TMP/one.txt")"
@@ -113,7 +117,10 @@ for ((r = 1; r <= ROUNDS; r++)); do
   if ((r % 2)); then order=(A B); else order=(B A); fi
   for p in "${pairs[@]}"; do
     for s in "${order[@]}"; do
-      read -r ms bytes hit <<< "$(side_run "$p" "$s")"
+      # $(…) 안에서는 errexit 가 꺼지므로 파일로 받아 실패를 직접 본다 — HTTP 오류면 측정을 멈춘다
+      side_run "$p" "$s" > "$TMP/side.txt" || { echo "측정 중단: $p-$s 요청 실패(회차 $r)" >&2; exit 1; }
+      read -r ms bytes hit < "$TMP/side.txt"
+      [ -n "$ms" ] || { echo "측정 중단: $p-$s 값이 비었습니다(회차 $r)" >&2; exit 1; }
       printf '%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$TAG" "$r" "$at" "$l1" "$l5" "$l15" "$p" "$s" "$ms" "$bytes" "$hit" >> "$ROUNDS_TSV"
     done
   done
