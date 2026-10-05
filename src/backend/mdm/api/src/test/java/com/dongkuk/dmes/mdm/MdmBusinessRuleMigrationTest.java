@@ -202,7 +202,7 @@ class MdmBusinessRuleMigrationTest {
     // ── §3.1-5: JSON CHECK ──
 
     @Test
-    void JSON_CHECK_는_10칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다() throws SQLException {
+    void JSON_CHECK_는_11칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다() throws SQLException {
         try (Connection c = dataSource.getConnection()) {
             c.setAutoCommit(false);
             try {
@@ -228,6 +228,7 @@ class MdmBusinessRuleMigrationTest {
                         + "VALUES (?, ?, '{}', ?)");
                 inserts.put("RULE_IDS", "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS) VALUES (?, ?, ?)");
                 inserts.put("FLOW_JSON", "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS, FLOW_JSON) VALUES (?, ?, '[]', ?)");
+                inserts.put("CALL_SET_IDS", "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS, CALL_SET_IDS) VALUES (?, ?, '[]', ?)");
 
                 int checked = 0;
                 for (Map.Entry<String, List<String>> e : JSON_COLUMNS.entrySet()) {
@@ -249,7 +250,7 @@ class MdmBusinessRuleMigrationTest {
                         checked++;
                     }
                 }
-                assertEquals(10, checked, "JSON 칼럼은 정확히 10개다(F5 + FLOW_JSON + 세트 케이스 2개)");
+                assertEquals(11, checked, "JSON 칼럼은 정확히 11개다(F5 + FLOW_JSON + CALL_SET_IDS + 세트 케이스 2개)");
 
                 // 대조군: RULE_RECV.BODY 는 요청 원문이라 JSON CHECK 가 없다(파싱 실패 요청도 남긴다, 06:1104).
                 exec(c, "INSERT INTO TB_MDM_RULE_RECV (SOURCE_SYSTEM, REQ_KIND, RECEIVED_AT, BODY) "
@@ -267,7 +268,7 @@ class MdmBusinessRuleMigrationTest {
             case "VAR_AST", "PRIO_LIST", "GRP_COND_AST", "CELLS" -> new Object[] {ruleId, n, json, n};
             case "INPUT_JSON" -> new Object[] {ruleId, n, json, "케이스"};
             case "EXPECTED_JSON" -> new Object[] {ruleId, n, json};
-            case "RULE_IDS", "FLOW_JSON" -> new Object[] {ruleId, n, json};
+            case "RULE_IDS", "FLOW_JSON", "CALL_SET_IDS" -> new Object[] {ruleId, n, json};
             default -> throw new IllegalArgumentException(column);
         };
     }
@@ -436,8 +437,8 @@ class MdmBusinessRuleMigrationTest {
                 exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME) VALUES (?, '세트')", set);
                 assertEquals("CREATED", one(c, "SELECT STATUS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", set));
                 exec(c, "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS) VALUES (?, 1, '[]')", set);
-                assertEquals("DRAFT|0|MAJOR", one(c,
-                        "SELECT STATUS || '|' || ROW_VERSION || '|' || VER_KIND FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID = ?", set));
+                assertEquals("DRAFT|0|MAJOR|[]", one(c,
+                        "SELECT STATUS || '|' || ROW_VERSION || '|' || VER_KIND || '|' || CALL_SET_IDS FROM TB_MDM_RULE_SET_VER WHERE MARU_RULE_SET_ID = ?", set));
             } finally {
                 c.rollback();
                 c.setAutoCommit(true);

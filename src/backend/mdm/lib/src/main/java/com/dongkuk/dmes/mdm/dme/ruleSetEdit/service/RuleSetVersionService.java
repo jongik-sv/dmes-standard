@@ -117,6 +117,7 @@ public class RuleSetVersionService {
             source.ifPresent(s -> {
                 created.setBaseVer(s.getVer());
                 created.setFlowJson(s.getFlowJson());
+                created.setCallSetIds(s.getCallSetIds());
             });
             verRepository.saveAndFlush(created);
             if (promote) {

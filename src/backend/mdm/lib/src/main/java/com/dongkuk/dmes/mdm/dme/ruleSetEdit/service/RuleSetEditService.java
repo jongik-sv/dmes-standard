@@ -394,7 +394,8 @@ public class RuleSetEditService {
                 throw deprecatedSet(setId);
             }
             long bumped = writeGuard.beginDraftWrite(new VersionRef(VersionTarget.RULE_SET, setId, ver), rv, me); // MDM003·001·002·007
-            if (writes.updateDraft(setId, ver, DomainJson.write(ids), flowJson) == 0) {
+            // SEAM(T6) — Task 6 이 흐름에서 계산한 CALL_SET_IDS 로 바꾼다.
+            if (writes.updateDraft(setId, ver, DomainJson.write(ids), flowJson, "[]") == 0) {
                 throw MdmErrors.of(MdmErrorCode.NOT_DRAFT);
             }
             if (writes.updateHeader(setId, name, description) == 0) {
