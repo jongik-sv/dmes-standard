@@ -105,7 +105,8 @@ export function InspList({ rows, selectedId, isBusy, onSelect }: {
   열 `key` 를 물리명으로 바꿔(`noticeTitle` → `NOTICE_TITLE`, 대문자는 그대로) 찾는다. 다른 물리명이면 `meta: "TITLE"`, 끄려면 `meta: false`.
 - `header` 를 적은 열은 그대로다. 공급자가 `captionPriority="mdm"` 이면 MDM 캡션이 이긴다. `header: ""` 는 일부러 비운 머리글로 그대로 둔다.
 - MDM 메타가 있는 열은 머리글에 마우스를 올리면 `MdmMetaCard`(형식·필수·도메인·허용 코드 등) 툴팁이 뜬다. 화면이 `headerTooltip`·`headerComponent` 를 주면 그대로 둔다.
-- 설명이 HTML(`descriptionHtml`)인 열은 머리글 캡션 글자(안쪽 라벨)에 마우스를 올리면 HTML 카드(최대 폭 640px, 마우스가 들어갈 수 있음, 150ms 유예·Escape 로 닫힘)가 ag-grid 머리글 툴팁과 같은 지연(기본 2000ms) 뒤 body 포털로 뜨고, 라벨을 누르면 닫힌다. 그리드 `tooltipInteraction` 은 쓰지 않아 셀 툴팁과 HTML 설명 열이 없는 그리드는 예전과 같다 — [mdm-meta](mdm-meta.md) §HTML 설명·상호작용 툴팁.
+- MDM 메타가 없는 잎 열도 머리글 툴팁에 표시 머리글 이름이 기본으로 뜬다. 빈 이름(공백만 포함) 열·화면이 `headerTooltip`·`headerComponent` 를 준 열·메타 카드 열(글자·HTML 카드)은 제외한다. 끄려면 열에 `headerTooltip: ""`. 열 그룹 머리·No 열은 기본 툴팁이 없다.
+- 설명이 HTML(`descriptionHtml`)인 열은 머리글 캡션 글자(안쪽 라벨)에 마우스를 올리면 HTML 카드(최대 폭 640px, 마우스가 들어갈 수 있음, 150ms 유예·Escape 로 닫힘)가 ag-grid 머리글 툴팁과 같은 지연(`tooltipShowDelay`, 기본 500ms) 뒤 body 포털로 뜨고, 라벨을 누르면 닫힌다. 그리드 `tooltipInteraction` 은 쓰지 않아 셀 툴팁과 HTML 설명 열이 없는 그리드는 예전과 같다 — [mdm-meta](mdm-meta.md) §HTML 설명·상호작용 툴팁.
 - 포털 밖(단독 실행·시험)에서는 예전과 똑같다. 단 `header` 를 비우면 `key` 가 머리글이다.
 - 엑셀 내보내기처럼 화면이 `header` 를 직접 읽으면 `useResolvedGridColumns(columns)` 로 그리드와 같은 캡션을 받는다.
 
@@ -219,6 +220,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | autoSizeColumns · autoSizeOnDataUpdate | `boolean` | `undefined` · `true` | auto 방식에서 내용 기반 폭을 끔 · 데이터가 바뀔 때 폭을 다시 잼 |
 | onRowExpandCollapse | `(rowKey, expand) => void` | - | 트리형 목록에서 ←→ 로 펼침·접힘 |
 | ariaLabel · emptyTestId · className | `string` | `"데이터 목록"` · - · `""` | 접근성 라벨 · 빈 상태 문구의 `data-testid` · 루트 클래스 |
+| tooltipShowDelay | `number` | `GRID_TOOLTIP_SHOW_DELAY_MS`(500) | 머리글 툴팁·MDM 글자 카드·셀 값 툴팁·HTML 설명 머리글 카드가 뜨기까지의 지연(ms). 예전 ag-grid 기본은 2000. ag-grid 하한 200. 상수는 `@dk-oasis/shared/grid` 에서 export. 셀 값 툴팁은 잘림과 상관없이 모든 셀 값을 띄우므로 0.5초 머물면 뜬다 — 열에서 끄려면 `GridColumn.tooltip: false`, 그리드 전체를 늦추려면 이 prop |
 | sizeToFit | `boolean` | 효과 없음 | 폐기됨. 선언만 있고 구현이 읽지 않는다 |
 
 ### GridColumn
@@ -245,7 +247,7 @@ export function OrderTable({ rows, title }: { rows: Record<string, unknown>[]; t
 | pinned | `"left" \| "right"` | - | 틀고정 |
 | cellClass | `string \| string[] \| (row) => …` | - | 셀 상시 클래스 |
 | cellClassRules | `Record<string, (row) => boolean>` | - | 조건부 셀 클래스 |
-| rowDrag · headerTooltip | `boolean` · `string` | - | 이 열에 행 드래그 손잡이(`onRowOrderChange` 필요) · 머리 툴팁(주면 MDM 툴팁 대신 이것) |
+| rowDrag · headerTooltip | `boolean` · `string` | - | 이 열에 행 드래그 손잡이(`onRowOrderChange` 필요) · 머리 툴팁(주면 MDM 툴팁 대신 이것. 생략하면 표시 머리글 이름이 기본, `""` 면 끔) |
 | headerStyle · headerComponent · headerComponentParams | ag-grid 패스스루 | - | 머리 인라인 스타일(색은 의미 토큰만) · 커스텀 머리 컴포넌트 |
 | children | `GridColumn[]` | - | 있으면 열 그룹. `groupId` 는 `key` |
 
