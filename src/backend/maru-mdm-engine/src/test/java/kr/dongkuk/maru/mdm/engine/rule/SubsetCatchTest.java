@@ -162,6 +162,24 @@ class SubsetCatchTest {
     }
 
     @Test
+    void 룰의_처리_갈래가_SET_노드로_돌아온다() {
+        // C2: a(K_X: X2 = Y*10) → b(K_Z: Z = X2+1). P: start → r1(R_ERR) → s1(C2) → end, c1(r1, EVAL_ERROR) → h(NINE) → s1(돌아오는 자리)
+        lookup.addSet(inuse("C2", line(rule("a", "K_X"), rule("b", "K_Z"))));
+        lookup.addSet(inuse("P", flow(List.of(start(), rule("r1", "R_ERR"), set("s1", "C2"), catchNode("c1", "r1", "EVAL_ERROR"),
+                        rule("h", "R_9"), end()),
+                List.of(e("e1", "start", "r1"), e("e2", "r1", "s1"), e("e3", "s1", "end"), e("e4", "c1", "h"), e("e5", "h", "s1")))));
+
+        RuleSetResult r = run("P", rec("X", "1", "Y", "1"));
+
+        assertNum("9", r.finalValues().get("NINE"));
+        assertNum("11", r.finalValues().get("Z"));
+        assertEquals(List.of("start", "r1", "c1", "h", "s1", "end"), r.path().stream().map(RuleSetResult.PathStep::nodeId).toList(),
+                "SET 노드는 돌아오는 자리로 한 번만 돈다");
+        assertEquals(1, r.calls().size());
+        assertNull(r.endedBy());
+    }
+
+    @Test
     void 처리_갈래_안의_SET_노드는_CATCH_이름을_넘기지_않고_하위_받는_노드는_새_CATCH_를_쓰고_돌아오면_부모_CATCH_가_그대로다() {
         // K2: start → x(K_X) → z(K_Z) → q(R_Q) → end, cq(q, INPUT_ERROR) → if7 [CATCH_SET == "K2" && CATCH_CODE == "MISSING_KEY" → n9(NINE)]
         //     [그 외 → n0(NO)] → j7(빈 단계) → end — 처리 갈래로 끝난다.
