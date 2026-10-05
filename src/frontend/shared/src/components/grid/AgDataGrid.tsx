@@ -41,6 +41,7 @@ import {
   type MdmScreenColumn,
 } from "../../mdm-meta";
 import { GRID_SIZE_CHANGE_SETTLE_MS, resolveGridSizeChangeAction } from "./grid-size-change";
+import { GRID_TOOLTIP_SHOW_DELAY_MS } from "./grid-tooltip";
 import { AgDataGridExcelFrame, type AgDataGridExcelExport } from "./AgDataGridExcel";
 import { MdmHeaderLabel, type MdmHeaderLabelParams } from "./MdmHeaderLabel";
 
@@ -159,6 +160,7 @@ const SelectCellEditor = function SelectCellEditor(props: {
 };
 
 const DEFAULT_FIXED_COLUMN_WIDTH = 120;
+export { GRID_TOOLTIP_SHOW_DELAY_MS };
 
 function toColumnWidth(width: number | string | undefined): number | undefined {
   if (width == null || width === "") return undefined;
@@ -251,7 +253,10 @@ export interface GridColumn {
    * 그리드에 `onRowOrderChange` 가 있을 때만 의미가 있다(TSK-05-02 D6).
    */
   rowDrag?: boolean;
-  /** 머리 툴팁 (ag-grid ColDef/ColGroupDef.headerTooltip 패스스루). */
+  /**
+   * 머리 툴팁 (ag-grid ColDef/ColGroupDef.headerTooltip 패스스루). 잎 열은 비우면 MDM 메타 카드, 메타가 없으면 표시 머리글 이름이 기본이다
+   * (메타 없는 빈 이름 열·headerComponent 열 제외). `""` 를 주면 끈다.
+   */
   headerTooltip?: string;
   /** 머리 칸 인라인 스타일 (ag-grid ColDef/ColGroupDef.headerStyle 패스스루). 색은 의미 토큰(var(--color-*))만 쓴다. */
   headerStyle?: ColDef["headerStyle"];
@@ -403,6 +408,11 @@ export interface AgDataGridProps {
   wrapHeaderText?: boolean;
   /** 헤더 높이를 헤더 내용(줄바꿈 포함)에 맞춰 자동 계산. wrapHeaderText 와 함께 사용. */
   autoHeaderHeight?: boolean;
+  /**
+   * 머리글·셀 툴팁이 뜨기까지의 지연(ms, ag-grid tooltipShowDelay). 비우면 `GRID_TOOLTIP_SHOW_DELAY_MS`(500).
+   * HTML 설명 머리글 카드(MdmHeaderLabel)는 머리글을 그릴 때의 이 값을 쓴다(실행 중에 바꾸면 이미 그린 카드는 예전 값). ag-grid 는 200 아래로 내리지 않는다.
+   */
+  tooltipShowDelay?: number;
   /**
    * 행 드래그 손잡이를 둘 열의 key — `GridColumn.rowDrag` 대신 그리드에서 지정한다. 지정하면 정렬(sortable)을 끈다
    * (ag-grid managed row drag 는 정렬 중 동작하지 않는다). `onRowOrderChange` 와 함께 쓴다.
@@ -740,7 +750,7 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
       }
     : null;
   const headerName = columnCaption(col, opts.mdm);
-  // MDM 머리글 툴팁 — 메타가 있고 화면이 headerTooltip·headerComponent 를 직접 주지 않았을 때만. 그 밖에는 키를 더하지 않는다(예전 열 정의 그대로).
+  // MDM 머리글 툴팁 — 메타가 있고 화면이 headerTooltip·headerComponent 를 직접 주지 않았을 때만. 메타가 없는 열은 아래 기본 머리글 툴팁(표시 이름)이다.
   // HTML 설명 카드 열은 ag-grid 머리글 툴팁 대신 기본 머리글의 안쪽 라벨(MdmHeaderLabel)이 포털 카드를 띄운다(화면이 innerHeaderComponent 를
   // 이미 줬으면 손대지 않고 글자 머리글 툴팁). 셀 툴팁(MdmGridTooltip 셀 분기)은 어느 쪽이든 같다.
   const mdmInfo = opts.mdm?.infoByKey.get(col.key);
@@ -760,13 +770,19 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
           },
         }
       : null;
-  const mdmTooltip = tooltipParams
-    ? {
-        ...(htmlLabel ? {} : { headerTooltip: headerName || tooltipParams.mdmColumn.physName }),
-        tooltipComponent: MdmGridTooltip,
-        tooltipComponentParams: tooltipParams,
-      }
-    : null;
+  const mdmTooltip = tooltipParams ? { tooltipComponent: MdmGridTooltip, tooltipComponentParams: tooltipParams } : null;
+  // 머리글 툴팁 글자(ag-grid 는 빈 문자열이면 띄우지 않는다). 화면이 준 값이 이긴다(""면 끈다). HTML 카드 열은 라벨이 카드를 띄우므로 없고,
+  // 글자 카드 열은 이름(빈 이름이면 물리명)으로 MdmGridTooltip 을 띄운다. 메타가 없는 열은 표시 이름을 기본으로 띄운다(말줄임된 머리글 확인,
+  // 2026-10-05) — 빈 이름 열과 화면이 headerComponent 를 준 열은 두지 않는다.
+  const headerTooltip =
+    col.headerTooltip ??
+    (htmlLabel
+      ? undefined
+      : tooltipParams
+        ? headerName || tooltipParams.mdmColumn.physName
+        : col.headerComponent == null && headerName.trim() !== ""
+          ? headerName
+          : undefined);
   return {
     field: col.key,
     headerName,
@@ -796,7 +812,7 @@ function leafColDef(col: GridColumn, opts: BuildColumnDefsOptions): ColDef {
     cellClass: cellClassProp,
     cellClassRules: issueClassRules,
     headerClass: col.headerAlign ? `header-${col.headerAlign}` : "header-center",
-    headerTooltip: col.headerTooltip,
+    headerTooltip,
     headerStyle: col.headerStyle,
     rowDrag,
     ...(mdmTooltip ?? {}),
@@ -1010,6 +1026,7 @@ function AgDataGridComponent({
   onRowExpandCollapse,
   wrapHeaderText = false,
   autoHeaderHeight = false,
+  tooltipShowDelay = GRID_TOOLTIP_SHOW_DELAY_MS,
   rowDragField,
   isRowDraggable,
   onRowOrderChange,
@@ -1113,8 +1130,8 @@ function AgDataGridComponent({
     return [noCol, ...defs];
   }, [columns, effectiveSortable, shouldAutoSizeColumns, resolvedColumnSizing, rowDragField, stableIsRowDraggable, rowNumber, mdm, issuesEnabled, cellIssue]);
 
-  // 셀 텍스트가 컬럼 폭 초과로 잘려서 ... 으로 표시될 때 마우스오버 시 전체 값을 tooltip 으로 표시.
-  // tooltipValueGetter 는 ag-grid 의 browser-native title 속성 사용 (별도 라이브러리 불필요).
+  // 셀 툴팁 — 말줄임된 긴 값을 확인하도록 셀 값을 ag-grid 툴팁으로 띄운다. 잘림 여부는 보지 않아 짧은 값도 뜬다(값 검증 오류 칸은 열 정의의 getter 가 오류 문구를 먼저 띄운다).
+  // 지연은 그리드 tooltipShowDelay(기본 GRID_TOOLTIP_SHOW_DELAY_MS), 열에서 끄려면 GridColumn.tooltip=false.
   const defaultColDef = useMemo<ColDef>(
     () => ({
       sortable: effectiveSortable,
@@ -1871,6 +1888,7 @@ function AgDataGridComponent({
         noRowsOverlayComponent={noRowsOverlayComponent}
         loadingOverlayComponent={loadingOverlayComponent}
         animateRows={false}
+        tooltipShowDelay={tooltipShowDelay}
         suppressCellFocus={!hasEditableColumns}
         /*
          * ★셀 텍스트 드래그 선택·복사는 항상 허용(2026-08-07 사용자 요구).

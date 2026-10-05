@@ -60,38 +60,8 @@ describe("PortalShell 탭 MDM 메타 공급자", () => {
     vi.restoreAllMocks();
   });
 
-  it("탭 화면이 pageId 모듈(mls)로 메타를 받는다", async () => {
-    const Page: PortalShellPageComponent = () => {
-      const scope = useMdmMetaScope();
-      const info = useMdmColumn("title");
-      return createElement("div", { "data-testid": "page" }, `${scope?.module}|${info.column?.labelShort ?? ""}`);
-    };
-    rendered = renderWithMantine(
-      createElement(PortalShell, {
-        appName: "TEST",
-        menu: { items: [] },
-        resolvePage: async () => Page,
-        homePageId: "mls:lsh/noticeMgmt",
-        storageKey: `portal-shell-mdm-meta-${Math.random()}`,
-      })
-    );
-    await act(async () => {
-      await settle(80);
-    });
-    await act(async () => {
-      await settle(80);
-    });
-    expect(document.querySelector('[data-testid="page"]')?.textContent).toBe("mls|제목");
-    expect(urls).toContain("/api/mls/mdmMeta/columns");
-  });
-
-  // mdmMeta 엔드포인트가 없는 모듈(MDM 서버·analog)은 첫 404 를 기다리지 않고 미리 끈다(2026-10-05 F7 — /api/mdm/mdmMeta/columns 404).
-  it.each(["mdm:dme/ruleEdit", "analog:anl/logViewer"])("엔드포인트가 없는 모듈 탭(%s)은 mdmMeta 를 부르지 않는다", async (homePageId) => {
-    const Page: PortalShellPageComponent = () => {
-      const scope = useMdmMetaScope();
-      const info = useMdmColumn("title");
-      return createElement("div", { "data-testid": "page" }, `${scope?.disabled}|${info.loading}|${info.column?.labelShort ?? ""}`);
-    };
+  /** 홈 탭 하나를 연 포털을 그리고 메타 요청이 끝날 때까지 기다린다. */
+  async function openTab(homePageId: string, Page: PortalShellPageComponent) {
     rendered = renderWithMantine(
       createElement(PortalShell, {
         appName: "TEST",
@@ -107,7 +77,42 @@ describe("PortalShell 탭 MDM 메타 공급자", () => {
     await act(async () => {
       await settle(80);
     });
+  }
+
+  it("탭 화면이 pageId 모듈(mls)로 메타를 받는다", async () => {
+    const Page: PortalShellPageComponent = () => {
+      const scope = useMdmMetaScope();
+      const info = useMdmColumn("title");
+      return createElement("div", { "data-testid": "page" }, `${scope?.module}|${info.column?.labelShort ?? ""}`);
+    };
+    await openTab("mls:lsh/noticeMgmt", Page);
+    expect(document.querySelector('[data-testid="page"]')?.textContent).toBe("mls|제목");
+    expect(urls).toContain("/api/mls/mdmMeta/columns");
+  });
+
+  // mdmMeta 엔드포인트가 없는 모듈(analog)은 첫 404 를 기다리지 않고 미리 끈다(2026-10-05 F7).
+  it("엔드포인트가 없는 모듈 탭(analog)은 mdmMeta 를 부르지 않는다", async () => {
+    const Page: PortalShellPageComponent = () => {
+      const scope = useMdmMetaScope();
+      const info = useMdmColumn("title");
+      return createElement("div", { "data-testid": "page" }, `${scope?.disabled}|${info.loading}|${info.column?.labelShort ?? ""}`);
+    };
+    await openTab("analog:anl/logViewer", Page);
     expect(document.querySelector('[data-testid="page"]')?.textContent).toBe("true|false|");
     expect(urls.filter((u) => u.includes("/mdmMeta/"))).toEqual([]);
+  });
+
+  // MDM 서버는 mdmMeta 가 없고(/api/mdm/mdmMeta 404) mcm 이 같은 컬럼 사전을 준다 — mdm 탭은 끄지 않고 mcm 으로 부른다(2026-10-05).
+  it("mdm 탭은 메타를 mcm 모듈로 받는다", async () => {
+    const Page: PortalShellPageComponent = () => {
+      const scope = useMdmMetaScope();
+      const info = useMdmColumn("title");
+      return createElement("div", { "data-testid": "page" }, `${scope?.module}|${scope?.disabled}|${info.column?.labelShort ?? ""}`);
+    };
+    await openTab("mdm:dme/ruleEdit", Page);
+    expect(document.querySelector('[data-testid="page"]')?.textContent).toBe("mcm|false|제목");
+    const metaUrls = urls.filter((u) => u.includes("/mdmMeta/"));
+    expect(metaUrls).toContain("/api/mcm/mdmMeta/columns");
+    expect(metaUrls.some((u) => u.startsWith("/api/mdm/"))).toBe(false);
   });
 });

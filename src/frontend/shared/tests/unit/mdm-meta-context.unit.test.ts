@@ -14,6 +14,7 @@ import {
   useMdmColumns,
   useMdmMetaScope,
 } from "../../src/mdm-meta";
+import { mdmMetaTabProps } from "../../src/mdm-meta/context";
 import { TabPageContext } from "../../src/portal-shell/tab-page-context";
 import { TEXT_DOMAIN, TITLE, column, fakeMetaFetch, settle } from "./mdm-meta-fixtures";
 
@@ -180,5 +181,15 @@ describe("공급자 안", () => {
     expect(probe().dataset.domain).toBe("D_TEXT");
     expect(probe().dataset.loading).toBe("false");
     expect(f.calls).toHaveLength(2);
+  });
+});
+
+describe("포털 탭 모듈 → 공급자 값", () => {
+  it("mdm 은 mcm 으로 받고 analog 는 끄며, 나머지는 빈 객체(pageId 모듈 그대로)", () => {
+    expect(mdmMetaTabProps("mdm:dme/ruleEdit")).toEqual({ module: "mcm" });
+    expect(mdmMetaTabProps("analog:anl/logViewer")).toEqual({ disabled: true });
+    expect(mdmMetaTabProps("mls:lsh/noticeMgmt")).toEqual({});
+    expect(mdmMetaTabProps("noColon")).toEqual({});
+    expect(mdmMetaTabProps("")).toEqual({});
   });
 });
