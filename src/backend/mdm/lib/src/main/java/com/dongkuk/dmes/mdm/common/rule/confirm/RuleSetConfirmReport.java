@@ -60,7 +60,8 @@ public final class RuleSetConfirmReport {
     }
 
     /**
-     * @param checks  apply_from 시점 룰 버전으로 돌린 흐름 검사 — REJECT 는 ERROR, WARN 은 WARNING
+     * @param checks  apply_from 시점 룰 버전으로 돌린 흐름 검사·호출 그래프·연쇄 재검사 — REJECT 와 {@link RuleSetCheck#CALL_CODES}(수준 무관)는 ERROR,
+     *                나머지 WARN 은 WARNING
      * @param future  apply_from 뒤 경계 시각마다 돌린 흐름 검사(시각 오름차순, Ruling P2-14). 심각도와 무관하게 WARNING 이고 문구 머리에 시각과
      *                원인 룰 버전을 붙인다. apply_from 시점이나 앞 경계에서 이미 낸 이슈(같은 코드·위치)는 다시 내지 않는다
      */
@@ -74,7 +75,7 @@ public final class RuleSetConfirmReport {
             }
             seen.add(sameIssue(c));
             MdmRuleSetConfirmCheckItem item = itemOf(c);
-            issues.get(item).add(new Issue(c.rejected() ? ERROR : WARNING, new MdmCheckIssue(c.code(), c.message(), item.name(), itemKey(c))));
+            issues.get(item).add(new Issue(rejects(c) ? ERROR : WARNING, new MdmCheckIssue(c.code(), c.message(), item.name(), itemKey(c))));
         }
         for (FutureChecks f : future) {
             String head = TEXT.format(f.at()) + " 부터 " + String.join("·", f.causes()) + " 적용 시: ";
@@ -163,6 +164,11 @@ public final class RuleSetConfirmReport {
 
     private static Issue error(String code, String message, MdmRuleSetConfirmCheckItem item, String itemKey) {
         return new Issue(ERROR, new MdmCheckIssue(code, message, item.name(), itemKey));
+    }
+
+    /** 확정을 막는 검사 — REJECT 이거나 하위 세트 호출 네 코드({@link RuleSetCheck#CALL_CODES}, 수준과 상관없이 거부, 편차 13·srv:6 조정 ②). */
+    static boolean rejects(RuleSetCheck c) {
+        return c.rejected() || RuleSetCheck.CALL_CODES.contains(c.code());
     }
 
     private static MdmRuleSetConfirmCheckItem itemOf(RuleSetCheck c) {
