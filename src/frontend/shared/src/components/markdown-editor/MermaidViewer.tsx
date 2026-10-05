@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { IconMinus, IconPlus, IconX, IconZoomReset } from "@tabler/icons-react";
+import { installHoverTipEscapeGuard } from "../hover-tip-escape-guard";
 import { fitBoxScaleOf, MERMAID_VIEWER_ZOOM_STEPS, naturalSizeOf, nextZoom, retargetSvgIds, ZOOM_EPS } from "./mermaid-zoom";
 
 export interface MermaidViewerProps {
@@ -39,6 +40,9 @@ const VIEWER_CSS = `
 @media print{.md-mermaid-viewer-overlay{display:none!important}}
 `;
 
+/** Mantine Modal 은 window 캡처 keydown 에서 Esc 로 닫되 대상에 이 표지가 있으면 건너뛴다 — 창 안 초점 요소마다 달아 Esc 가 아래 모달을 닫지 않게 한다. */
+const NO_MODAL_ESC = { "data-mantine-stop-propagation": "true" } as const;
+
 /** 창 안에서 초점을 받을 수 있는 요소(Tab 순환용). */
 const FOCUSABLE = 'button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -47,6 +51,7 @@ export function MermaidViewer({ svg, onClose, testId = "md-mermaid-viewer" }: Me
   const dialogRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
+  const downOnBackdrop = useRef(false);
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const [zoom, setZoom] = useState<number | null>(null); // null = 맞춤
   const [box, setBox] = useState({ w: 0, h: 0 });
@@ -97,6 +102,15 @@ export function MermaidViewer({ svg, onClose, testId = "md-mermaid-viewer" }: Me
     el.setAttribute("height", String(natH * scale));
   });
 
+  // 초점이 body 로 빠진 채 누른 Esc 도 아래 모달이 닫지 않게, 열려 있는 동안 상호작용 카드 가드에 한 자리를 더한다(가드는 Esc 대상에 표지를 달아 준다).
+  useEffect(() => {
+    const guard = installHoverTipEscapeGuard();
+    if (guard) guard.open += 1;
+    return () => {
+      if (guard) guard.open -= 1;
+    };
+  }, []);
+
   // 열릴 때 창으로 초점을 옮긴다(닫은 뒤 복귀는 연 쪽이 맡는다).
   useEffect(() => {
     dialogRef.current?.focus();
@@ -108,6 +122,8 @@ export function MermaidViewer({ svg, onClose, testId = "md-mermaid-viewer" }: Me
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.stopPropagation();
+      // 스크롤 영역 밖(배경·머리줄)의 휠은 뒤 화면이 스크롤되지 않게 막는다.
+      if (!scrollRef.current?.contains(e.target as Node)) e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         if (e.deltaY !== 0) setZoom(nextZoom(scaleRef.current, e.deltaY < 0 ? 1 : -1, MERMAID_VIEWER_ZOOM_STEPS));
@@ -155,6 +171,10 @@ export function MermaidViewer({ svg, onClose, testId = "md-mermaid-viewer" }: Me
     }
   };
 
+  function endDrag() {
+    drag.current = null;
+    setDragging(false);
+  }
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     const el = scrollRef.current;
     if (!el || e.button !== 0) return;
@@ -173,12 +193,12 @@ export function MermaidViewer({ svg, onClose, testId = "md-mermaid-viewer" }: Me
     const d = drag.current;
     const el = scrollRef.current;
     if (!d || !el) return;
+    if (e.buttons === 0) {
+      endDrag(); // 포인터 캡처를 못 한 채 창 밖에서 놓은 경우
+      return;
+    }
     el.scrollLeft = d.left - (e.clientX - d.x);
     el.scrollTop = d.top - (e.clientY - d.y);
-  };
-  const endDrag = () => {
-    drag.current = null;
-    setDragging(false);
   };
 
   const pct = Math.round(scale * 100);
@@ -191,19 +211,26 @@ export function MermaidViewer({ svg, onClose, testId = "md-mermaid-viewer" }: Me
       ref={overlayRef}
       className="md-mermaid-viewer-overlay"
       data-testid={`${testId}-overlay`}
+      {...NO_MODAL_ESC}
       onMouseDown={(e) => {
         e.stopPropagation();
-        if (e.target === e.currentTarget) onClose();
+        downOnBackdrop.current = e.button === 0 && e.target === e.currentTarget;
       }}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        // 어두운 배경에서 누르고 뗀 경우만 닫는다(창 안에서 끌다 배경에서 놓은 것은 제외).
+        if (downOnBackdrop.current && e.target === e.currentTarget) onClose();
+        downOnBackdrop.current = false;
+      }}
       onKeyDown={onKeyDown}
     >
       <style>{VIEWER_CSS}</style>
-      <div ref={dialogRef} className="md-mermaid-viewer" role="dialog" aria-modal="true" aria-label="도식 크게 보기" tabIndex={-1} data-testid={testId} data-scale={pct}>
+      <div ref={dialogRef} className="md-mermaid-viewer" role="dialog" aria-modal="true" aria-label="도식 크게 보기" tabIndex={-1} data-testid={testId} {...NO_MODAL_ESC} data-scale={pct}>
         <div className="md-mermaid-viewer-head" role="toolbar" aria-label="도식 크기">
           <span className="md-mermaid-viewer-title">도식 크게 보기</span>
           <button
             type="button"
+            {...NO_MODAL_ESC}
             className="md-mermaid-btn"
             aria-label="도식 축소"
             title="도식 축소"
@@ -217,6 +244,7 @@ export function MermaidViewer({ svg, onClose, testId = "md-mermaid-viewer" }: Me
           </span>
           <button
             type="button"
+            {...NO_MODAL_ESC}
             className="md-mermaid-btn"
             aria-label="도식 확대"
             title="도식 확대"
@@ -225,10 +253,10 @@ export function MermaidViewer({ svg, onClose, testId = "md-mermaid-viewer" }: Me
           >
             <IconPlus size={14} aria-hidden="true" focusable="false" />
           </button>
-          <button type="button" className="md-mermaid-btn" aria-label="도식 크기 맞춤" title="도식 크기 맞춤" onClick={() => setZoom(null)}>
+          <button type="button" {...NO_MODAL_ESC} className="md-mermaid-btn" aria-label="도식 크기 맞춤" title="도식 크기 맞춤" onClick={() => setZoom(null)}>
             <IconZoomReset size={14} aria-hidden="true" focusable="false" />
           </button>
-          <button type="button" className="md-mermaid-btn" aria-label="도식 크게 보기 닫기" title="닫기 (Esc)" data-testid={`${testId}-close`} onClick={onClose}>
+          <button type="button" {...NO_MODAL_ESC} className="md-mermaid-btn" aria-label="도식 크게 보기 닫기" title="닫기 (Esc)" data-testid={`${testId}-close`} onClick={onClose}>
             <IconX size={14} aria-hidden="true" focusable="false" />
           </button>
         </div>
@@ -238,6 +266,7 @@ export function MermaidViewer({ svg, onClose, testId = "md-mermaid-viewer" }: Me
           role="img"
           aria-label="mermaid 도식 크게 보기"
           tabIndex={0}
+          {...NO_MODAL_ESC}
           data-dragging={dragging}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}

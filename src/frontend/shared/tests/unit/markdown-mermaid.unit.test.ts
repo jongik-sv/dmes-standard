@@ -448,18 +448,32 @@ describe("MermaidDiagram 크게 보기", () => {
     mermaidMock.render.mockResolvedValue({ svg: SVG });
     await mount();
     const leaked = vi.fn();
+    // Mantine 9.6 Modal 흉내 — window 캡처 단계에서 Esc 로 닫되 대상에 data-mantine-stop-propagation 이 있으면 건너뛴다.
+    const modalClose = vi.fn();
+    const mantineEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && (e.target as Element | null)?.getAttribute?.("data-mantine-stop-propagation") !== "true") modalClose();
+    };
     window.addEventListener("keydown", leaked);
+    window.addEventListener("keydown", mantineEsc, true);
     try {
       await open();
       await key("Escape");
       expect(viewer()).toBeNull();
       expect(document.activeElement).toBe(opener());
       expect(leaked).not.toHaveBeenCalled();
+      expect(modalClose).not.toHaveBeenCalled(); // 아래 모달은 닫히지 않는다
+      // 단추·스크롤 영역에 초점이 있어도 같다.
+      await open();
+      document.body.querySelector<HTMLElement>(".md-mermaid-viewer-scroll")!.focus();
+      await key("Escape");
+      document.body.querySelector<HTMLElement>("button")?.blur();
+      expect(modalClose).not.toHaveBeenCalled();
       // 닫힌 뒤의 Esc 는 평소처럼 바깥으로 간다.
       await key("Escape");
       expect(leaked).toHaveBeenCalledTimes(1);
     } finally {
       window.removeEventListener("keydown", leaked);
+      window.removeEventListener("keydown", mantineEsc, true);
     }
   });
 
@@ -471,8 +485,21 @@ describe("MermaidDiagram 크게 보기", () => {
       viewer()!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
     });
     expect(viewer()).not.toBeNull();
+    const backdrop = () => document.body.querySelector<HTMLElement>('[data-testid="md-view-mermaid-0-viewer-overlay"]')!;
     await act(async () => {
-      document.body.querySelector<HTMLElement>('[data-testid="md-view-mermaid-0-viewer-overlay"]')!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      // 창 안에서 누르고 배경에서 뗀 것은 닫지 않는다.
+      viewer()!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      backdrop().dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(viewer()).not.toBeNull();
+    await act(async () => {
+      backdrop().dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 2 })); // 오른쪽 단추는 닫지 않는다
+      backdrop().dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(viewer()).not.toBeNull();
+    await act(async () => {
+      backdrop().dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      backdrop().dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(viewer()).toBeNull();
     expect(document.activeElement).toBe(opener());
