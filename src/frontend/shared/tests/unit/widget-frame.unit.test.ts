@@ -472,6 +472,29 @@ describe("WidgetFrame 이름 바꾸기(useWidgetRename)", () => {
     expect(host.querySelector(".cm-widget")!.getAttribute("aria-label")).toBe("새 이름");
   });
 
+  it("키보드(Enter·Esc)로 닫으면 포커스가 연필 버튼으로 돌아가고, 칸을 벗어나(blur) 닫으면 포커스를 빼앗지 않는다", async () => {
+    act(() => root.render(frame(renamable(async () => {}))));
+    await flush();
+    act(() => pencil()!.click());
+    await type("새 이름");
+    await key("Enter");
+    expect(input()).toBeNull();
+    expect(document.activeElement).toBe(pencil());
+    act(() => pencil()!.click());
+    await key("Escape");
+    expect(document.activeElement).toBe(pencil());
+    const other = document.createElement("button");
+    host.appendChild(other);
+    act(() => pencil()!.click());
+    await type("블러 이름");
+    await act(async () => {
+      other.focus();
+    });
+    await flush();
+    expect(input()).toBeNull();
+    expect(document.activeElement).toBe(other);
+  });
+
   it("제목을 더블클릭해도 입력칸이 열린다", async () => {
     act(() => root.render(frame(renamable(async () => {}))));
     await flush();

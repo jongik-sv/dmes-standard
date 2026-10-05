@@ -30,7 +30,8 @@ export interface WidgetTitleRenameProps {
   initial: string;
   /** 앞뒤 공백을 자른 새 이름을 저장한다. 실패하면 사용자에게 보일 문장을 담은 Error 를 던진다. */
   onCommit: (title: string) => Promise<void>;
-  onClose: () => void;
+  /** 입력칸을 닫는다. restoreFocus: 키보드(Enter·Esc)로 닫았으니 틀이 포커스를 연필 버튼으로 돌려준다(칸을 벗어나 닫을 때는 아님). */
+  onClose: (restoreFocus: boolean) => void;
 }
 
 export function WidgetTitleRename({ initial, onCommit, onClose }: WidgetTitleRenameProps) {
@@ -51,12 +52,12 @@ export function WidgetTitleRename({ initial, onCommit, onClose }: WidgetTitleRen
     };
   }, []);
 
-  const commit = async () => {
+  const commit = async (restoreFocus: boolean) => {
     if (doneRef.current) return;
     const next = value.trim();
     if (next === initial.trim()) {
       doneRef.current = true;
-      onClose();
+      onClose(restoreFocus);
       return;
     }
     doneRef.current = true;
@@ -64,7 +65,7 @@ export function WidgetTitleRename({ initial, onCommit, onClose }: WidgetTitleRen
     setError(null);
     try {
       await onCommit(next);
-      if (aliveRef.current) onClose();
+      if (aliveRef.current) onClose(restoreFocus);
     } catch (e) {
       if (!aliveRef.current) return;
       doneRef.current = false;
@@ -94,18 +95,18 @@ export function WidgetTitleRename({ initial, onCommit, onClose }: WidgetTitleRen
           if (e.nativeEvent.isComposing || e.keyCode === 229) return;
           if (e.key === "Enter") {
             e.preventDefault();
-            void commit();
+            void commit(true);
           } else if (e.key === "Escape") {
             e.preventDefault();
             e.stopPropagation();
             if (doneRef.current) return;
             doneRef.current = true;
-            onClose();
+            onClose(true);
           }
         }}
         onBlur={() => {
           if (error) return;
-          void commit();
+          void commit(false);
         }}
       />
       {error && (

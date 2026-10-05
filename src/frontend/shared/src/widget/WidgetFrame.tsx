@@ -94,6 +94,9 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
   // 본체가 useWidgetRename 으로 등록한 이름 바꾸기 처리기 — 제목 덮어쓰기와 같은 이유로 위젯 ID 와 함께 기억한다(함수를 state 에 넣으려 객체로 감싼다).
   const [renameReg, setRenameReg] = useState<{ widgetId: string; handler: WidgetRenameHandler } | null>(null);
   const [renaming, setRenaming] = useState(false);
+  /** 키보드로 이름 바꾸기를 마치면 포커스를 연필 버튼으로 돌려준다 — 입력칸이 사라지며 포커스가 body 로 떨어지지 않게. */
+  const restoreFocusRef = useRef(false);
+  const pencilRef = useRef<HTMLButtonElement>(null);
   const [bodySize, setBodySize] = useState<{ width: number; height: number | null }>({ width: 0, height: null });
   const bodyRef = useRef<HTMLDivElement>(null);
   const meta = entry?.meta;
@@ -150,6 +153,11 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
   useEffect(() => {
     if (renaming && renameHandler === null) setRenaming(false);
   }, [renaming, renameHandler]);
+  useEffect(() => {
+    if (showRename || !restoreFocusRef.current) return;
+    restoreFocusRef.current = false;
+    pencilRef.current?.focus();
+  }, [showRename]);
   const shownTitle = titleOverride && titleOverride.widgetId === widgetId ? titleOverride.title : (entry?.meta.title ?? "");
 
   const retryLoad = useCallback(() => {
@@ -271,14 +279,18 @@ export function WidgetFrame({ item, entry, editing, sizeLabel, onToggleLock, onR
       <WidgetStyle />
       <div className="cm-widget__head" tabIndex={editing ? 0 : -1} onKeyDown={onHeadKeyDown}>
         {showRename ? (
-          <WidgetTitleRename initial={shownTitle} onCommit={renameHandler!} onClose={() => setRenaming(false)} />
+          <WidgetTitleRename initial={shownTitle} onCommit={renameHandler!} onClose={(restoreFocus) => {
+              restoreFocusRef.current = restoreFocus;
+              setRenaming(false);
+            }}
+          />
         ) : (
           <>
             <h3 className="cm-widget__title" onDoubleClick={renameHandler ? () => setRenaming(true) : undefined}>
               {shownTitle}
             </h3>
             {renameHandler && (
-              <button type="button" className="cm-widget__btn" data-action="rename" title="이름 바꾸기" aria-label="이름 바꾸기" onClick={() => setRenaming(true)}>
+              <button ref={pencilRef} type="button" className="cm-widget__btn" data-action="rename" title="이름 바꾸기" aria-label="이름 바꾸기" onClick={() => setRenaming(true)}>
                 ✎
               </button>
             )}
