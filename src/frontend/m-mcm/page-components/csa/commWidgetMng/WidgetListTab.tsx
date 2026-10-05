@@ -55,11 +55,12 @@ import { WidgetPreview } from "./WidgetPreview";
 import { useWidgetCategories } from "./use-widget-categories";
 
 const COLUMNS: GridColumn[] = uiCols([
-  { key: "widgetId", header: "ID", width: 3, minWidth: 120, align: "left" },
-  { key: "title", header: "이름", width: 4, minWidth: 120, align: "left" },
+  { key: "widgetId", header: "ID", meta: "WIDGET_ID", width: 3, minWidth: 120, align: "left" },
+  { key: "title", header: "이름", meta: "WIDGET_TITLE", width: 4, minWidth: 120, align: "left" },
   {
     key: "kind",
     header: "구분",
+    meta: "WIDGET_KIND",
     width: 1,
     minWidth: 56,
     align: "center",
@@ -73,15 +74,17 @@ const COLUMNS: GridColumn[] = uiCols([
   {
     key: "typeTitle",
     header: "유형",
+    meta: "WIDGET_TYPE_TITLE",
     width: 2,
     minWidth: 90,
     align: "left",
     cellClassRules: { "cell-warning": (r: Record<string, unknown>) => r.unknownType === true },
   },
-  { key: "category", header: "분류", width: 1, minWidth: 64, align: "center" },
+  { key: "category", header: "분류", meta: "CATEGORY_CD", width: 1, minWidth: 64, align: "center" },
   {
     key: "privateYn",
     header: "비공개",
+    meta: "WIDGET_PRIVATE_YN",
     width: 1,
     minWidth: 60,
     align: "center",
@@ -93,6 +96,7 @@ const COLUMNS: GridColumn[] = uiCols([
   {
     key: "useYn",
     header: "사용",
+    meta: "WIDGET_USE_YN",
     width: 1,
     minWidth: 56,
     align: "center",
@@ -103,11 +107,12 @@ const COLUMNS: GridColumn[] = uiCols([
         <GridBadge label="사용" bg="var(--color-success-soft)" color="var(--color-success)" />
       ),
   },
-  { key: "defaultSize", header: "기본 크기", width: 1, minWidth: 72, align: "center" },
-  { key: "userCount", header: "사용자 수", width: 1, minWidth: 72, align: "right" },
+  { key: "defaultSize", header: "기본 크기", meta: "WIDGET_DEFAULT_SIZE", width: 1, minWidth: 72, align: "center" },
+  { key: "userCount", header: "사용자 수", meta: "WIDGET_USER_COUNT", width: 1, minWidth: 72, align: "right" },
   {
     key: "overridden",
     header: "덮어씀",
+    meta: "WIDGET_OVERRIDDEN",
     width: 1,
     minWidth: 60,
     align: "center",
@@ -443,7 +448,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
         <SearchField
           label="구분"
           name="kind"
-          meta={false}
+          meta="WIDGET_KIND"
           type="select"
           options={KIND_OPTIONS}
           value={filters.kind}
@@ -452,6 +457,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
         <SearchField
           label="사용"
           name="useYn"
+          meta="WIDGET_USE_YN"
           type="select"
           options={USE_FILTER_OPTIONS}
           value={filters.useYn}

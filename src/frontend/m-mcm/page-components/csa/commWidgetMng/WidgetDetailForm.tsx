@@ -14,7 +14,6 @@ import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oa
 import { Checkbox, Input, Radio, Select, Textarea } from "@dk-oasis/shared/form";
 import { ErrorBoundary } from "@dk-oasis/shared/error-boundary";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
-import { DESCRIPTION_LABEL } from "@/lib/ui-meta";
 import {
   WIDGET_DEFAULT_MIN_SIZE,
   type WidgetMeta,
@@ -39,6 +38,9 @@ function lazyEditor(type: WidgetTypeRegistryEntry): LazyExoticComponent<WidgetTy
 const EDITORS: Readonly<Record<string, LazyExoticComponent<WidgetTypeEditorComponent>>> = Object.fromEntries(
   Object.values(WIDGET_TYPE_REGISTRY).map((t) => [t.meta.id, lazyEditor(t)])
 );
+
+/** 크기 칸 라벨의 사전 키 — 가로·세로 두 칸이 한 라벨을 쓴다. */
+const sizeMeta = { defW: "WIDGET_DEFAULT_SIZE", minW: "WIDGET_MIN_SIZE", maxW: "WIDGET_MAX_SIZE" } as const;
 
 const DATA_SRC_OPTIONS = [{ value: "mcm", label: "mcm (공통관리)" }];
 
@@ -150,25 +152,25 @@ export function WidgetDetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="widgetKind" meta={false} label="구분" /></th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="widgetKind" meta="WIDGET_KIND" label="구분" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             {kindText}
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="title" label="이름" required={isDef} /></th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="title" meta="WIDGET_TITLE" label="이름" required={isDef} /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Input value={text("title")} maxLength={50} placeholder={ph.title} disabled={off} onChange={set("title")} />
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="subtitle" label="부제" /></th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="subtitle" meta="WIDGET_SUBTITLE" label="부제" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Input value={text("subtitle")} maxLength={100} placeholder={ph.subtitle} disabled={off} onChange={set("subtitle")} />
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel {...DESCRIPTION_LABEL} /></th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta="WIDGET_DESCRIPTION" label="설명" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Textarea
               rows={2}
@@ -188,7 +190,7 @@ export function WidgetDetailForm({
           ] as const
         ).map(([label, wKey, hKey, wPh, hPh]) => (
           <tr key={wKey}>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name={wKey} meta={false} label={label} /></th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name={wKey} meta={sizeMeta[wKey]} label={label} /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 type="number"
@@ -254,7 +256,7 @@ export function WidgetDetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="categoryCd" label="분류" /></th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="categoryCd" meta="CATEGORY_CD" label="분류" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Select
               value={form?.categoryCd ?? ""}
@@ -267,7 +269,7 @@ export function WidgetDetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="useYn" label="사용" /></th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="useYn" meta="WIDGET_USE_YN" label="사용" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Radio
               name="useYn"
@@ -279,7 +281,7 @@ export function WidgetDetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="privateYn" meta={false} label="비공개" /></th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="privateYn" meta="WIDGET_PRIVATE_YN" label="비공개" /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <span data-testid="widget-admin-private">
               <Checkbox
@@ -293,7 +295,7 @@ export function WidgetDetailForm({
         </tr>
         {isQuery && (
           <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="dataSrc" label="실행 모듈" meta={false} /></th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="dataSrc" label="실행 모듈" meta="WIDGET_DATA_SRC" /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={2}>
               <Select
                 value={form?.dataSrc || "mcm"}
@@ -307,7 +309,7 @@ export function WidgetDetailForm({
         {isDef && (
           <tr>
             <th style={DETAIL_LABEL_CELL} colSpan={3}>
-              <MdmFieldLabel name="typeConfig" meta={false} label="유형 설정" />
+              <MdmFieldLabel name="typeConfig" meta="WIDGET_TYPE_CONFIG" label="유형 설정" />
             </th>
           </tr>
         )}
