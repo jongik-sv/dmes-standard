@@ -27,7 +27,7 @@ import { uiCols } from "@/ui-meta";
 import type { EditFlow } from "../flow-edit";
 import { flowIo } from "../set-model";
 import { typedText } from "../trace-view";
-import type { RuleIoMap } from "../types";
+import type { RuleIoMap, SetCallIoMap } from "../types";
 import { LIST_REJECT, NULL_VALUE, catchEditText, editKindOfVar, endedBranchText, parseEditText, reservedKeyText, type EditKind } from "./debug-model";
 import { declaredTypes, FALLBACK_TEXT, SERVER_JUDGES_TEXT, type ExprResult } from "./expr-eval";
 import { loadStrings, saveStrings, storeKeys } from "./local-store";
@@ -46,7 +46,11 @@ export interface VariablePanelProps {
   onOpenRule(ruleId: string): void;
   /** SET 노드 상세의 [안으로 들어가기](하위 세트 spec §11) — 노드 상세(`TraceDetail`)로 넘긴다. */
   onEnterSet?: (nodeId: string) => void;
+  /** 하위 세트 겉모양 — 조사식 "없는 변수" 판정이 SET 노드의 입력·출력 이름도 흐름 이름으로 센다(하위 세트 spec §9). */
+  calls?: SetCallIoMap;
 }
+
+const NO_CALLS: SetCallIoMap = {};
 
 export const NO_RECORD_NOTE = "실행하면 커서 시점 값이 보인다";
 export const NOT_RUN_NOTE = "아직 실행하지 않은 노드다";
@@ -147,7 +151,7 @@ function clickedColumn(ev: Event): string | null {
   return t?.closest?.("[col-id]")?.getAttribute("col-id") ?? null;
 }
 
-export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, onOpenRule, onEnterSet }: VariablePanelProps) {
+export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, onOpenRule, onEnterSet, calls = NO_CALLS }: VariablePanelProps) {
   const last = sim.last;
 
   // ── 조사식 ──
@@ -166,9 +170,9 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
   };
   /** 흐름 입력·결과 이름(소문자) — 조사식 "없는 변수" 판정. 구조가 같으면 다시 풀지 않도록 흐름·룰이 바뀔 때만. */
   const known = useMemo(() => {
-    const io = flowIo(flow, rules);
+    const io = flowIo(flow, rules, calls);
     return new Set([...io.inputs.map((r) => r.name), ...io.results.map((r) => r.name)].map((x) => x.toLowerCase()));
-  }, [flow, rules]);
+  }, [flow, rules, calls]);
 
   const types = useMemo(() => declaredTypes(flow, rules), [flow, rules]);
 

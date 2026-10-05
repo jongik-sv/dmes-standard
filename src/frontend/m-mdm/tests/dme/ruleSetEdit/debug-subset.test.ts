@@ -203,6 +203,8 @@ describe("디버거 하위 세트", () => {
     });
     await click("sim-detail-enter");
     expect(canvasNodeIds()).toContain("s2");
+    // 하위 프레임은 겉모양을 받지 않는다 — 손주 SET 노드는 "받는 중" 이 아니라 세트 ID 줄이다(ui:8).
+    expect(byTestId("flow-set-sub-s2").textContent).toBe("룰 세트 GRAND");
     await click("flow-node-s2");
     expect(byTestId("sim-detail-set").textContent).toBe("GRAND");
     await click("sim-detail-enter");

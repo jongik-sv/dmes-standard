@@ -26,7 +26,7 @@ import { simulate } from "../api";
 import type { EditFlow } from "../flow-edit";
 import { flowJsonOf } from "../flow-edit";
 import { flowIo } from "../set-model";
-import type { CalledFlow, InputRow, RuleIoMap, SimWarning } from "../types";
+import type { CalledFlow, InputRow, RuleIoMap, SetCallIoMap, SimWarning } from "../types";
 import { validEdits } from "../trace-view";
 import {
   applyPending,
@@ -123,7 +123,7 @@ export interface Simulation {
   stop(): void;
   setCursor(n: number): void;
   breakpoints: ReadonlySet<string>;
-  /** RULE·TASK·IF·PARALLEL·MERGE 만, 세트별 localStorage. */
+  /** RULE·TASK·SET·IF·PARALLEL·MERGE 만, 세트별 localStorage. */
   toggleBreakpoint(nodeId: string): void;
   /** 한 줄 알림(여기까지 실행 등). 다음 동작에서 지운다. */
   notice: string | null;
@@ -151,7 +151,7 @@ const joinNotice = (a: string | null, b: string | null) => (a && b ? `${a} · ${
 /** 최근 입력 개수(세트별). */
 export const RECENT_LIMIT = 10;
 /** 중단점을 걸 수 있는 노드 종류(P9). */
-const BREAKABLE: ReadonlySet<FlowNodeKind> = new Set<FlowNodeKind>(["RULE", "TASK", "IF", "PARALLEL", "MERGE"]);
+const BREAKABLE: ReadonlySet<FlowNodeKind> = new Set<FlowNodeKind>(["RULE", "TASK", "SET", "IF", "PARALLEL", "MERGE"]);
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const DEFAULT_ROW = (key: string): CaseFormRow => ({ key, value: "", on: true, extra: false });
@@ -228,7 +228,14 @@ const sameList = (a: readonly string[], b: readonly string[]) => a.length === b.
 type Pick = (trace: RunTrace) => { cursor: number; notice: string | null };
 const at = (cursor: number) => ({ cursor, notice: null });
 
-export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersion: number, setId: string | null): Simulation {
+/** 하위 세트 겉모양이 없을 때 — 참조가 렌더마다 바뀌지 않게 모듈 상수. */
+const NO_CALLS: SetCallIoMap = {};
+
+/**
+ * calls(하위 세트 겉모양, 하위 세트 spec §9)는 입력 폼 이름(`flowIo`)에만 쓴다 — SET 노드가 부르는 세트의 입력도 부모 입력으로 받는다
+ * (엔진이 부모 입력 사전 검사에 하위 입력을 넣는다, spec §12). 없으면 RULE 만으로 센다.
+ */
+export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersion: number, setId: string | null, calls: SetCallIoMap = NO_CALLS): Simulation {
   const [rec, setRecState] = useState<Rec>(() => emptyRec(setId, flowVersion));
   const recRef = useRef(rec);
   const [inputs, setInputsState] = useState<Inputs>({ rows: [], json: "", evalTs: "" });
@@ -324,10 +331,10 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
 
   const io = useMemo(() => {
     const f = flowRef.current;
-    return f ? flowIo(f, rules) : null;
+    return f ? flowIo(f, rules, calls) : null;
     // flowVersion: 구조가 바뀔 때만 다시 푼다(위치·메모만 바뀔 때 다시 계산하지 않는다, Local-Rules §16).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flowVersion, rules]);
+  }, [flowVersion, rules, calls]);
 
   // P-D8: 폼은 DICT·PROG 출처 이름만. NONE 은 검사가 이미 거부한다.
   const metas = useMemo(() => (io?.inputs ?? []).filter((r) => r.source === "DICT" || r.source === "PROG"), [io]);

@@ -46,6 +46,7 @@ import { FindWidget } from "./canvas/FindWidget";
 import { FlowCanvas, type AlignSource, type MoveShift, type PaletteItem } from "./canvas/FlowCanvas";
 import { FlowToolbar } from "./canvas/FlowToolbar";
 import { FlowToolbox, defaultTool, type CanvasTool } from "./canvas/FlowToolbox";
+import { SetPickModal } from "./canvas/SetPickModal";
 import { MENU_PROVIDERS } from "./canvas/menus";
 import { UNHANDLED, dispatchShortcut, isMacPlatform, isShown, isTypingTarget, shortcutOf, type ShortcutHandlers } from "./canvas/shortcuts";
 import { callPath, frameValueAt, type CallFrame } from "./debugger/call-stack";
@@ -221,7 +222,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   // 다른 세트를 열면 선택·이동 요청·메뉴를 비운다.
   const setId = view?.set.setId ?? null;
   // 디버거 상태는 모드를 바꾸거나 탭이 언마운트돼도 남도록 여기서 부른다. 다른 세트를 열거나 흐름 구조가 바뀌면 훅이 실행 표시를 지운다.
-  const sim = useSimulation(flow, state.rules, state.flowVersion, setId);
+  const sim = useSimulation(flow, state.rules, state.flowVersion, setId, state.calls);
   /** 들어간 하위 세트 프레임(하위 세트 spec §11) — 디버그 모드에서만 본다. 새 기록이 오면 훅이 비운다. */
   const stack = useCallStack(sim.last);
   const top: CallFrame | null = debugging ? stack.top : null;
@@ -359,6 +360,18 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   }, []);
   const onCloseMenu = useCallback(() => setMenu(null), []);
 
+  /**
+   * 세트 검색 팝업(하위 세트 spec §9) — 열려 있으면 끼울 선(null = 고른 선, 없으면 END 앞 선), 닫혀 있으면 undefined.
+   * 고르면 `placeSet` 이 그 선에 SET 노드를 끼운다. 팝업은 body 로 포털되므로 고르지 않은 탭이면 그리지 않는다(SetPickModal).
+   */
+  const [pickEdge, setPickEdge] = useState<string | null | undefined>(undefined);
+  const openSetPick = useCallback((edgeId: string | null) => setPickEdge(edgeId), []);
+  const closeSetPick = useCallback(() => setPickEdge(undefined), []);
+  // 편집 모드를 나가거나 다른 세트를 열면 팝업을 닫는다 — 다시 편집 모드가 되어도 저절로 뜨지 않게.
+  useEffect(() => {
+    if (!editing) setPickEdge(undefined);
+  }, [editing, setId]);
+
   const editActions = useEditActions({
     state,
     flow,
@@ -370,6 +383,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
     select,
     selectEdge,
     openRuleAssign,
+    openSetPick,
+    openSet: tabsApi.openSet,
     fit,
     setEditingCond,
     setEditingLabel,
@@ -868,6 +883,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
             findDisabled={!!top}
             onHelpEscape={focusCanvas}
             autoSave={autoSave}
+            onOpenSet={tabsApi.openSet}
           />
           {debugging && <DebugToolbar sim={sim} canRun={canRun} selectedId={isFlowNode ? selectedId : null} />}
           {unconfirmedSubsets.length > 0 && (
@@ -951,6 +967,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                       onSelect={select}
                       onSelectEdge={selectEdge}
                       onOpenRule={openRule}
+                      calls={top ? undefined : state.calls}
+                      onOpenSet={tabsApi.openSet}
                       onMove={onMove}
                       onRouteChange={onRouteChange}
                       onLabelOffsetChange={onLabelOffsetChange}
@@ -1002,6 +1020,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                       canParse={canDo("validate")}
                       onOpenRule={openRule}
                       onEnterSet={enterSet}
+                      calls={state.calls}
                     />
                   ) : (
                     <SidePanel
@@ -1023,6 +1042,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                       onError={state.reportError}
                       onEdit={edit}
                       onOpenRule={openRule}
+                      calls={state.calls}
+                      onOpenSet={tabsApi.openSet}
                       sections={sections}
                       ruleSearch={ruleSearch}
                       assignSignal={assignSignal}
@@ -1048,6 +1069,17 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
         </>
       )}
 
+      <SetPickModal
+        open={pickEdge !== undefined && editing}
+        currentSetId={setId}
+        onPick={(id) => {
+          const e = pickEdge ?? null;
+          closeSetPick();
+          editActions.placeSet(e, id);
+        }}
+        onClose={closeSetPick}
+        onError={state.reportError}
+      />
       {/* 오류 창은 body 로 포털되어 패널 display:none 을 따르지 않는다 — 숨은 탭의 오류(자동 저장·조건식 확인 실패 등)는 상태로 두었다가 탭을 고르면 보인다. */}
       {active && state.error && <ErrorModal message={state.error} onClose={state.clearError} />}
     </EditorActiveContext.Provider>

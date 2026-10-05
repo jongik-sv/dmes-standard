@@ -19,6 +19,9 @@
  * 단추는 [미니맵]·[변수 흐름] 과 같은 `aria-pressed` 토글이다 — 체크박스 입력은 눌러도 초점을 가져가 스페이스+끌기의 스페이스가
  * 값을 뒤집는다(`keepFocusOffButtons` 는 단추만 막는다). 자동 저장이 진행 중이면 수동 쓰기([세트 저장]·폐기·되살리기)를 막는다(같은 row_version
  * 으로 두 요청이 나가지 않게). 편집·되돌리기는 막지 않는다.
+ *
+ * 부르는 세트 링크(하위 세트 spec §10.4): 메시지 문구(저장·폐기 거부의 CALLER_BROKEN)와 경고 줄(저장의 CALLER_BROKEN 사본·CALLER_WARN)에서 세트 ID 를 뽑아
+ * 메시지 아래에 링크 단추(`set-message-caller-{id}`)로 보인다 — 누르면 그 세트를 같은 화면의 탭으로 연다. 문구 안을 링크로 바꾸지 않는다(문구는 서버가 정한다).
  */
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
@@ -47,6 +50,7 @@ import {
 
 import { badgeStyle } from "@/shell";
 
+import { callerSetIds } from "../caller-links";
 import type { VarDisplay } from "../types";
 import type { AutoSave } from "../state/useAutoSave";
 import type { FlowMode, RuleSetEditState, RuleSetMessage } from "../state/useRuleSetEdit";
@@ -62,6 +66,7 @@ const VAR_DISPLAY_ICON: Record<VarDisplay, ReactNode> = {
   id: <IconId size={14} aria-hidden="true" />,
   name: <IconTag size={14} aria-hidden="true" />,
 };
+const NO_CALLERS: readonly string[] = [];
 const MAC_FN_NOTE = "F9·F10·F5 는 fn 과 함께 누른다";
 const DEPRECATE_WARNING = "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다.";
 /** 상태 배지 title — D-144 2단계부터 세트도 버전이 있다. 저장은 내 DRAFT 버전에 쓰고, 확정해야 판정에 쓰인다. */
@@ -103,6 +108,8 @@ export interface FlowToolbarProps {
   onHelpEscape?: () => void;
   /** 자동 저장 켜고 끄기·상태 글(편집 모드에서만 보인다). */
   autoSave: AutoSave;
+  /** 메시지 줄의 부르는 세트 링크 — 그 세트를 같은 화면의 탭으로 연다(하위 세트 spec §10.4). 없으면 링크를 그리지 않는다. */
+  onOpenSet?: (setId: string) => void;
 }
 
 /** 단추 위 mousedown 의 기본 동작(초점 옮기기)을 막는다. 누르기(click)는 그대로 온다. */
@@ -112,7 +119,7 @@ export function keepFocusOffButtons(e: MouseEvent<HTMLElement>): void {
 
 export function FlowToolbar(props: FlowToolbarProps) {
   const { state, canDo, canEdit, mode, onMode, varDisplay, onToggleVars, onAutoLayout, onFit, showMiniMap, onToggleMiniMap } = props;
-  const { lead, onOpenFind, findOpen, findDisabled, onHelpEscape, autoSave } = props;
+  const { lead, onOpenFind, findOpen, findDisabled, onHelpEscape, autoSave, onOpenSet } = props;
   const [helpOpen, setHelpOpen] = useState(false);
   const view = state.view!;
   const set = view.set;
@@ -166,6 +173,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
   const autoStatus = autoSave.status;
 
   const message: RuleSetMessage | null = confirmDeprecate ? { kind: "error", text: DEPRECATE_WARNING } : state.message;
+  const callers = message ? callerSetIds(message.text, message.lines ?? []) : NO_CALLERS;
 
   const editTip = canEdit ? "편집" : "편집 — 담당자이고 고른 버전이 내 DRAFT 이며 저장 권한이 있어야 편집한다";
 
@@ -410,6 +418,16 @@ export function FlowToolbar(props: FlowToolbarProps) {
               <span style={badgeStyle("warning")}>경고</span> {l}
             </p>
           ))}
+          {onOpenSet && callers.length > 0 && (
+            <p className="rsf-set-links" data-testid="set-message-callers">
+              <span>부르는 세트:</span>
+              {callers.map((id) => (
+                <button key={id} type="button" className="rsf-set-link" data-testid={`set-message-caller-${id}`} title={`세트 ${id}를 탭으로 연다`} onClick={() => onOpenSet(id)}>
+                  {id}
+                </button>
+              ))}
+            </p>
+          )}
         </div>
       )}
     </div>
