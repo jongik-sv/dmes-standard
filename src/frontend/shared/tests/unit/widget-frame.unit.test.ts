@@ -44,6 +44,21 @@ describe("WidgetFrame", () => {
     expect(host.querySelector(".cm-widget")!.getAttribute("data-widget-id")).toBe("t.a");
   });
 
+  it("hideTitle 이면 제목·부제를 그리지 않고 새로 고침 버튼·aria-label 은 그대로다", async () => {
+    const Body = () => h("p", { "data-testid": "body" }, "본문");
+    act(() =>
+      root.render(
+        h(WidgetFrame, { item: item(), entry: entry(Body, { subtitle: "전일 기준" }), editing: false, onToggleLock: noop, onRemove: noop, hideTitle: true })
+      )
+    );
+    await flush();
+    expect(host.querySelector(".cm-widget__title")).toBeNull();
+    expect(host.textContent).not.toContain("전일 기준");
+    expect(host.querySelector('[data-action="refresh"]')).not.toBeNull();
+    expect(host.querySelector(".cm-widget")!.getAttribute("aria-label")).toBe("샘플 위젯");
+    expect(host.querySelector('[data-testid="body"]')!.textContent).toBe("본문");
+  });
+
   it("본체가 렌더 중 예외를 던져도 틀 안에 안내와 [다시 시도]만 보인다", async () => {
     const Broken = () => {
       throw new Error("boom");

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Group, Menu, Text, UnstyledButton } from "@mantine/core";
 import { IconChevronDown, IconLogout, IconUser } from "@tabler/icons-react";
 import "./Header.css";
@@ -10,9 +11,11 @@ export interface HeaderProps {
   loginId: string;
   onLogout: () => void;
   onGoHome?: () => void;
+  /** 사용자 메뉴 앞에 그릴 도구 자리(예: 위젯 도크 「도구」 버튼). 없으면 아무것도 그리지 않는다. */
+  toolsSlot?: ReactNode;
 }
 
-export function Header({ appName, userName, loginId, onLogout, onGoHome }: HeaderProps) {
+export function Header({ appName, userName, loginId, onLogout, onGoHome, toolsSlot }: HeaderProps) {
   return (
     <Group className="portal-header" h={44} px="md" justify="space-between" wrap="nowrap">
       <Group className="portal-header__left" gap="xs" wrap="nowrap">
@@ -26,6 +29,7 @@ export function Header({ appName, userName, loginId, onLogout, onGoHome }: Heade
       </Group>
 
       <Group className="portal-header__right" gap={4} wrap="nowrap">
+        {toolsSlot}
         <Menu
           shadow="md"
           width={240}

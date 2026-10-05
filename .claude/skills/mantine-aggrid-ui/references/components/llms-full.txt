@@ -58,6 +58,11 @@
 
 - [위젯 (WidgetWorkspace · WidgetBoard · WidgetFrame · WidgetTabs · WidgetPicker)](widget.md): 사용자가 위젯(조각 프로그램)을 24칸 격자에서 자유롭게 옮기고 크기를 바꾸며, 탭으로 나눠 서버에 저장하게 하는 홈 화면을 만들 때 쓴다(관리자 정의 위젯·사용 중지·기본 배치 편집 포함). 행 단위 대시보드가 필요하면 [dashboard](dashboard.md), 사용자가 자유 배치·탭·서버 저장을 쓰면 widget 을 고른다.
 
+## 위젯 도크·떠 있는 창 (`@dk-oasis/shared/portal-shell`)
+
+- [위젯 도크 (PortalShell widgetDock · WidgetDockLayer · DockToolsMenu · useWidgetDock)](widget-dock.md): 포털 머리 「도구」 버튼으로 `floatable` 위젯(계산기·단위 변환·메모)을 업무 화면 위 떠 있는 창으로 띄울 때 쓴다. 창은 여러 개·이동·크기 조절·접기(아이콘)가 되고, 탭을 바꿔도 남으며 사용자별로 저장한다. 화면(m-*)은 이 부품을 직접 쓰지 않는다 — 포털 호스트가 `PortalShell` 에 `widgetDock` 을 넘기면 셸이 그린다.
+- [FloatingWindow](floating-window.md): 업무 화면 위에 떠 있는 작은 창 하나를 그릴 때 쓴다. 창 막대(끌기 손잡이·제목·접기·닫기)로 옮기고, 오른쪽 아래 손잡이로 크기를 바꾸며, 접으면 같은 자리에 둥근 아이콘만 남는다. 업무 도메인과 무관한 범용 부품이다.
+
 ## MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)
 
 - [MDM 화면 메타 (MdmMetaProvider · useMdmColumn · MdmMetaCard · MdmFieldLabel · useMdmValidation)](mdm-meta.md): 그리드 머리글·폼 라벨·상세 표(th) 라벨의 캡션과 툴팁을 MDM 컬럼 사전에서 가져오고, 입력값을 MDM 정의(필수·형식·길이·허용 코드·표준식)로 즉시 검사할 때 쓴다. 포털 탭이 공급자를 자동으로 씌우므로 캡션·툴팁은 화면이 아무것도 하지 않아도 붙는다. 값 검사는 화면이 켠다.
@@ -86,6 +91,10 @@
 - `WIDGET_CSS`: WidgetStyle 내부용 CSS 문자열
 - `getDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수
 - `setDraggingWidget`: WidgetPicker·WidgetBoard 끌기 공유용 내부 함수
+- `FLOATING_WINDOW_CSS`: FloatingWindowStyle 내부용 CSS 문자열
+- `FloatingWindowStyle`: FloatingWindow 가 스스로 넣는 스타일
+- `WIDGET_DOCK_CSS`: WidgetDockStyle 내부용 CSS 문자열
+- `WidgetDockStyle`: WidgetDockLayer·DockToolsMenu 가 스스로 넣는 스타일
 - `DataGrid`: AgDataGrid 의 별칭. 새 코드는 AgDataGrid
 - `useRowStateManager`: 옛 행 상태 훅(_rowState). 새 화면은 useGridDataManager
 - `ResizableFormPanel`: Part B §4-3 이 새 화면 사용 금지. ContentBody resizable
@@ -3954,6 +3963,192 @@ WidgetStore 계약(화면이 서버 서비스로 구현해 주입, 실패는 `Er
 - `src/frontend/m-mcm/widget-types/{typeId}/`: 정의 위젯 유형(`type.meta.ts` + `renderer.tsx` + `editor.tsx`), 생성물 `lib/generated/widget-type-registry.ts`.
 - `src/frontend/m-mcm/page-components/csa/commWidgetMng/`: 위젯관리 화면 — 미리보기는 `WidgetFrame` 단독, 기본 배치 탭은 `WidgetWorkspace mode="admin"`(홈 + 기본 탭 여러 개) + 관리자 어댑터 저장소(`layout-store.ts`, 홈 → saveLayout, 기본 탭 → saveDefaultTab, `tab-N`→`def-N` 매핑).
 - `src/frontend/m-mcm/page-components/home/widget-store.ts`: `secWidget` 저장소 — `defaultYn`·`customYn` → `defaultTab`·`customized`, `resetTab`·`shareTab`·`searchUsers` 구현.
+
+
+<!-- ===== widget-dock.md ===== -->
+
+# 위젯 도크 (PortalShell widgetDock · WidgetDockLayer · DockToolsMenu · useWidgetDock)
+
+포털 머리 「도구」 버튼으로 `floatable` 위젯(계산기·단위 변환·메모)을 업무 화면 위 떠 있는 창으로 띄울 때 쓴다. 창은 여러 개·이동·크기 조절·접기(아이콘)가 되고, 탭을 바꿔도 남으며 사용자별로 저장한다. 화면(m-*)은 이 부품을 직접 쓰지 않는다 — 포털 호스트가 `PortalShell` 에 `widgetDock` 을 넘기면 셸이 그린다.
+
+- import: `import { PortalShell, WidgetDockLayer, DockToolsMenu, useWidgetDock, useDockableEntries, createBrowserDockStore, type PortalShellWidgetDock, type DockWindow, type WidgetDockStore, type DockRegistryStatus, type DockViewport, type WidgetDockApi, type UseWidgetDockOptions, type WidgetDockLayerProps, type DockToolsMenuProps, type OpenDockResult } from "@dk-oasis/shared/portal-shell";` (CSS import 없음 — 부품이 `<WidgetDockStyle />` 로 자기 스타일을 넣는다)
+- 소스: `src/frontend/shared/src/widget-dock/` (`types.ts`·`dock-model.ts`(순수 함수)·`browser-dock-store.ts`·`use-widget-dock.ts`·`FloatingWindow.tsx`·`WidgetDockLayer.tsx`·`DockToolsMenu.tsx`·`styles.tsx`), 셸 연결 `src/frontend/shared/src/portal-shell/portal-shell.tsx`(`widgetDock`)·`header/Header.tsx`(`toolsSlot`)
+- 내부 구현: 창은 [FloatingWindow](floating-window.md), 본문은 위젯 틀(`WidgetFrame`, 보기 모드), 「도구」 메뉴는 Mantine `Menu`. 색·간격은 공통 토큰만 쓴다
+- 진입점: 별도 서브패스 없이 `portal-shell` 진입점으로 낸다(2026-10-05 위젯 도크 회차).
+
+## 언제 쓰나
+
+- 쓴다: 포털 호스트(m-mcm `app/portal/page.tsx`)가 도구 창 기능을 켤 때. 위젯 메타(코드 위젯 `meta.floatable` 또는 유형 `type.meta.ts` 의 `floatable: true`)로 띄울 위젯을 정한다.
+- 쓰지 않는다: 홈 보드에 위젯을 놓기 → [widget](widget.md) 의 `WidgetWorkspace`. 위젯이 아닌 아무 내용의 떠 있는 창 → [FloatingWindow](floating-window.md).
+
+## 표준 사용
+
+호스트는 홈과 같은 방식으로 실행 시 등록부를 만들고, 틀(`WidgetFrame`)을 **`@dk-oasis/shared/widget` 에서 가져와** 함께 넘긴다.
+
+```tsx
+import { PortalShell } from "@dk-oasis/shared/portal-shell";
+import { WidgetFrame } from "@dk-oasis/shared/widget";
+
+<PortalShell
+  /* …기존 props… */
+  widgetDock={{ registry, registryStatus, frame: WidgetFrame }} // store 를 빼면 브라우저 저장(사용자 ID 키)
+/>
+```
+
+- `registry`·`registryStatus` 는 `mergeWidgetRegistry(WIDGET_REGISTRY, WIDGET_TYPE_REGISTRY, defRows, prev)` 와 widgetDef/list 조회 상태다(m-mcm `app/portal/use-dock-registry.ts`). 계산기·메모 같은 유형 기반 정의 위젯은 정의 조회가 끝나야 등록부에 생기므로, 그 전에는 `"loading"` 을 넘겨야 저장된 창이 지워지지 않는다.
+- 저장소를 서버로 바꿀 때는 `WidgetDockStore`(`load(): Promise<DockWindow[]>`, `save(windows)`)를 구현해 `store` 로 넘긴다. 1차 구현은 `createBrowserDockStore(userId)`(키 `dockStorageKey(userId)` = `${DOCK_STORAGE_PREFIX}.${userId}`, 값은 `{ version: 1, windows }`, 읽기는 `parseDockWindows` 로 검사).
+
+### 셸이 하는 일
+
+- 사용자 확인: `useCurrentUserState(enabled)` — 셸의 `/api/auth/me` 요청을 함께 쓴다. 사용자 없음·로그아웃 중(`loggingOutRef`)에는 불러오지도 저장하지도 않는다.
+- 상태: `useWidgetDock({ enabled, userId, registry, registryStatus, store, isSaveBlocked })` — 불러오기, 조작 뒤 `DOCK_SAVE_DELAY_MS`(400ms) 디바운스 저장, 언마운트·사용자 바뀜·`pagehide` 때 남은 저장. 등록부가 `ready` 면 `sanitizeDockWindows` 로 없는·사용 중지·floatable 아닌 위젯 창을 정리해 저장한다.
+- 머리: `Header toolsSlot` 에 `DockToolsMenu`(목록은 `useDockableEntries(registry)` = `listDockableEntries`, 제목순).
+- 창 층: `WidgetDockLayer` 를 AppShell 최상위(탭 슬롯 바깥)에 둔다. `position: fixed; inset: 0; pointer-events: none`, z-index `WIDGET_DOCK_Z_INDEX`(160 — 사이드바 컨테이너가 z 150 쌓임 맥락이라 폭 조절 손잡이가 창 위로 새지 않고, Mantine 모달 200·팝오버 300 아래. 탭 화면 안 드롭다운은 z 1000 이라 창 위에 보인다). 접힌 아이콘은 `dockStackOrder` 로 펼친 창들보다 항상 위에 그린다. 화면 크기는 창이 있을 때만 층이 rAF 로 구독한다. 등록부에 아직 없는 창은 그리지 않고 상태에만 남긴다.
+
+### 순수 함수(dock-model)
+
+| 함수 | 하는 일 |
+|---|---|
+| `isDockableEntry(entry)` | floatable 이고 사용 중지가 아님 |
+| `listDockableEntries(registry)` | 띄울 수 있는 위젯을 제목순(한국어) |
+| `windowSizeFor(meta)` | `defaultSize` 칸 → px(`DOCK_CELL_PX` 가로 40·세로 30), 최소 `DOCK_MIN_SIZE` 220×160 |
+| `dockItemSize(win)` | 창 px → 위젯 본체 `size`(칸) |
+| `openDockWindow(windows, entry, viewport)` | 새 창(오른쪽 위 계단식, 맨 앞) → `{ kind: "opened" }`. `multiple === false` 이고 열려 있으면 펼쳐 앞으로 → `"focused"`. 창 `DOCK_MAX_WINDOWS`(8)개면 `"limit"` |
+| `stableDockWindowId(widgetId)` · `dockWindowSlotId(widgetId, slot)` | 창 ID 는 위젯·자리마다 고정 — 첫 창 `dk-{위젯ID}-{해시}`, 같은 위젯 두 번째부터 `…-2`~`…-8`(빈 첫 자리). 모두 `DOCK_WINDOW_ID_PATTERN`(`[A-Za-z0-9_-]{1,40}`) |
+| `clampDockWindow(win, viewport)` | 그릴 때만 쓰는 표시용 자르기 — 크기·위치를 화면 안으로(접혔으면 `DOCK_ICON_SIZE` 44 기준). 저장 w·h 는 줄이지 않는다 |
+| `placeDockWindow(win, viewport)` | 옮기기·접기·열기에 쓰는 위치 맞춤 — 저장 w·h 는 그대로 두고 x·y 만 화면 안으로 |
+| `dockStackOrder(windows)` | 그리는 순서 — 접힌 아이콘이 펼친 창 위 |
+| `readDockViewport()` · `useDockViewport()` | 화면 크기 읽기. 앞은 조작 순간에 한 번 읽고, 뒤는 rAF 로 묶어 구독하는 훅(창 층 안에서만 쓴다 — 셸에서 구독하면 Header·Sidebar 가 다시 그려진다) |
+| `bringDockWindowToFront` · `toggleDockCollapse` · `closeDockWindow` · `moveDockWindow` · `resizeDockWindow` | 맨 앞(쌓임 1..n 재번호)·접기 토글(펼치면 앞으로)·닫기·옮기기·크기 |
+| `sanitizeDockWindows(windows, registry, status)` | ID 겹침·한도는 늘, 등록부 판단은 `ready` 일 때만 |
+
+바뀐 것이 없으면 모두 들어온 배열·객체를 그대로 돌려준다.
+
+## Props
+
+`PortalShellWidgetDock`(`PortalShell` 의 `widgetDock`):
+
+| Prop | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| registry | `WidgetRegistry` | 필수 | 실행 시 위젯 등록부 |
+| registryStatus | `"loading" \| "ready" \| "error"` | 필수 | 등록부 준비 상태. `ready` 일 때만 저장된 창을 정리 |
+| frame | `ComponentType<WidgetFrameProps>` | 필수 | `@dk-oasis/shared/widget` 의 `WidgetFrame` |
+| store | `WidgetDockStore` | 브라우저 저장 | 사용자별 창 배치 저장소 |
+
+`DockWindow`: `id`(본체 `instanceId`)·`widgetId`·`x`·`y`·`w`·`h`(px)·`collapsed`·`z`.
+
+## 표준값: 모든 화면 동일
+
+- 창 8개 한도, 칸당 40×30px, 최소 220×160, 아이콘 44px, 저장 지연 400ms, z-index 160.
+- 「도구」 메뉴 문구: 머리 「도구」, 메뉴 머리 「업무 화면 위에 띄우기」, 한도 안내 「창은 8개까지 띄울 수 있습니다.」.
+- 창 ID = 위젯 본체 `instanceId`. 메모처럼 instanceId 로 서버에 저장하는 위젯은 자리 ID 가 고정이라 닫았다 다시 열어도 같은 내용이고, 서버 행은 위젯당 최대 8개다.
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| `frame` 을 빼거나 셸 안에서 `WidgetFrame` 을 직접 import | shared 는 진입점마다 따로 묶여(tsup `splitting: false`) 틀 컨텍스트가 위젯 본체와 갈린다 — 본체의 `useWidgetTitle`·`useWidgetStatus` 가 동작하지 않는다. 호스트가 `@dk-oasis/shared/widget` 의 것을 넘긴다 |
+| 정의 조회 전에 `registryStatus: "ready"` 를 넘김 | 계산기·메모 창이 「없는 위젯」으로 정리돼 저장값에서 사라진다. 조회 상태를 그대로 넘긴다 |
+| 창마다 무작위 ID 로 새로 만듦 | 메모가 다시 열 때마다 빈 칸이 되고 서버 행이 쌓인다(사용자당 100개 한도). `openDockWindow` 를 쓴다(자리 고정 ID) |
+| 사용자 확인 전·로그아웃 중에도 저장 | 셸이 `userId` 가 비면 끄고 `isSaveBlocked` 로 막는다. 따로 저장 코드를 두지 않는다 |
+| 화면 모듈에서 `FloatingWindow` 로 위젯을 직접 띄움 | 위젯은 셸 도크가 띄운다. 화면은 위젯 메타 `floatable` 만 정한다 |
+
+## 실제 사용 예
+
+- `src/frontend/m-mcm/app/portal/use-dock-registry.ts`: 홈과 같은 등록부 합치기 + `onWidgetDefsChanged` 재조회, `frame: WidgetFrame`.
+- `src/frontend/m-mcm/app/portal/page.tsx`: `PortalShell widgetDock={useDockRegistry()}`.
+
+
+<!-- ===== floating-window.md ===== -->
+
+# FloatingWindow
+
+업무 화면 위에 떠 있는 작은 창 하나를 그릴 때 쓴다. 창 막대(끌기 손잡이·제목·접기·닫기)로 옮기고, 오른쪽 아래 손잡이로 크기를 바꾸며, 접으면 같은 자리에 둥근 아이콘만 남는다. 업무 도메인과 무관한 범용 부품이다.
+
+- import: `import { FloatingWindow, FLOATING_DRAG_THRESHOLD, type FloatingWindowProps } from "@dk-oasis/shared/portal-shell";` (CSS import 없음 — 컴포넌트가 `<FloatingWindowStyle />` 로 자기 스타일을 넣는다)
+- 소스: `src/frontend/shared/src/widget-dock/FloatingWindow.tsx`, 스타일 `styles.tsx`(`FLOATING_WINDOW_CSS`)
+- 내부 구현: 일반 `section`/`button` + 포인터 이벤트·포인터 캡처. 아이콘은 `@tabler/icons-react`. Mantine 을 쓰지 않는다. 색·간격은 공통 토큰만 쓴다
+- 진입점: 별도 서브패스 없이 `portal-shell` 진입점으로 낸다(2026-10-05 위젯 도크 회차). 지금 쓰는 곳은 위젯 도크([widget-dock](widget-dock.md)) 하나다.
+
+## 언제 쓰나
+
+- 쓴다: 업무 화면을 가리지 않고 옆에 띄워 두는 도구 창(계산기·메모 등), 여러 개를 동시에 두고 옮기거나 접어 두는 창.
+- 쓰지 않는다: 사용자의 답을 기다리는 대화 상자 → [Modal](modal.md)(배경을 막는다). 칸 옆에 잠깐 뜨는 설명 → [DetailPopover](detail-popover.md). 위젯을 띄우는 일 자체 → [widget-dock](widget-dock.md) 의 `WidgetDockLayer` 가 이 부품을 감싸 쓴다.
+
+## 표준 사용
+
+위치·크기·접힘은 부모가 소유하고, 창은 끌기·크기 조절이 끝났을 때 한 번만 알린다. 부모는 `position` 이 있는 층(예: `position: fixed; inset: 0; pointer-events: none`) 안에 창을 놓는다. 창 자신은 `pointer-events: auto` 다.
+
+```tsx
+import { useState } from "react";
+import { FloatingWindow } from "@dk-oasis/shared/portal-shell";
+
+export function ToolWindow({ onClose }: { onClose: () => void }) {
+  const [rect, setRect] = useState({ x: 80, y: 80, w: 320, h: 240 });
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 160 }}>
+      <FloatingWindow
+        title="계산기"
+        x={rect.x}
+        y={rect.y}
+        width={rect.w}
+        height={rect.h}
+        collapsed={collapsed}
+        bounds={{ width: window.innerWidth, height: window.innerHeight }}
+        onMove={(x, y) => setRect((r) => ({ ...r, x, y }))}
+        onResize={(w, h) => setRect((r) => ({ ...r, w, h }))}
+        onToggleCollapse={() => setCollapsed((c) => !c)}
+        onClose={onClose}
+      >
+        {/* 본문 */}
+      </FloatingWindow>
+    </div>
+  );
+}
+```
+
+## Props
+
+| Prop | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| title | `string` | 필수 | 막대 제목·`aria-label`·접힌 아이콘 기본 글자(첫 글자) |
+| x, y | `number` | 필수 | 왼쪽 위 모서리(px, 부모 기준). 접힌 아이콘도 같은 자리 |
+| width, height | `number` | 필수 | 펼친 창 크기(px) |
+| collapsed | `boolean` | 필수 | 접힘. 접혀도 본문은 마운트한 채 숨긴다 |
+| zIndex | `number` | - | 쌓임 순서(부모 층 안에서) |
+| bounds | `{ width; height }` | 필수 | 끌기·크기 조절을 자를 영역(px) |
+| minWidth, minHeight | `number` | `220`, `160` | 크기 조절 최소값(영역이 더 작으면 영역) |
+| iconSize | `number` | `44` | 접힌 아이콘 한 변(px) |
+| icon | `ReactNode` | 제목 첫 글자 | 접힌 아이콘 내용 |
+| onMove | `(x, y) => void` | 필수 | 막대·아이콘 끌기를 놓을 때 한 번 |
+| onResize | `(w, h) => void` | 필수 | 크기 손잡이를 놓을 때 한 번 |
+| onToggleCollapse | `() => void` | 필수 | 막대 [접기]·아이콘 클릭 |
+| onClose | `() => void` | 필수 | 막대 [닫기] |
+| onFocus | `() => void` | - | 창 안을 누르거나 포커스가 들어올 때(맨 앞으로 가져오기) |
+| children | `ReactNode` | 필수 | 본문(높이를 채우려면 `height: 100%`) |
+| testId | `string` | - | 창 `data-testid`, 접힌 아이콘은 `{testId}-icon` |
+| className | `string` | - | 창 루트에 덧붙일 클래스(`cm-float-win` 은 늘 붙는다) |
+
+## 표준값: 모든 화면 동일
+
+- 끌기 판정 거리 `FLOATING_DRAG_THRESHOLD` = 4px. 접힌 아이콘은 4px 미만이면 클릭(펼치기), 넘으면 옮기기만 한다.
+- 막대 26px, 아이콘 44px 원, 그림자 `--shadow-modal`. 접기·닫기 버튼은 `aria-label` 「접기」·「닫기」, 아이콘은 「{제목} 펼치기」.
+- 끄는 동안은 창 안에서만 위치를 그리고(부모를 다시 그리지 않는다), 놓을 때 부모에 알린다. 본문 `children` 이 같은 객체면 끄는 동안 본문은 다시 그려지지 않는다.
+
+## 흔한 실수
+
+| 실수 | 바로잡기 |
+|---|---|
+| 접을 때 본문을 언마운트하려고 `collapsed` 면 children 을 빼서 넘김 | 그대로 넘긴다. 창이 숨기기만 해서 입력 중인 값이 남는다 |
+| 부모 층에 `pointer-events: none` 없이 화면 전체를 덮음 | 층은 `pointer-events: none`, 창만 눌린다 |
+| `onMove` 에서 받은 값을 다시 자르지 않고 저장 | 창은 `bounds` 로 자르지만 화면 크기가 바뀌면 부모가 다시 자른다(위젯 도크는 그릴 때 `clampDockWindow`, 저장은 `placeDockWindow`) |
+| 렌더마다 `children` 을 새로 만들어 끌 때 본문이 다시 그려짐 | 본문 요소를 `useMemo` 로 고정한다(`WidgetDockLayer` 참고) |
+| 모달처럼 쓰려 함 | 배경을 막지 않는 비모달 창(`role="dialog" aria-modal="false"`)이다. 답을 받아야 하면 [Modal](modal.md) |
+
+## 실제 사용 예
+
+- `src/frontend/shared/src/widget-dock/WidgetDockLayer.tsx`: 위젯 틀(`WidgetFrame`)을 본문으로 넣고 창 ID 를 묶은 콜백을 `useCallback` 으로 고정한다.
 
 
 <!-- ===== mdm-meta.md ===== -->

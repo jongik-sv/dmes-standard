@@ -60,7 +60,7 @@ import { DatePicker, Input, Textarea } from "@dk-oasis/shared/form";
 
 ### MDM 컬럼 사전과 맞는 입력
 
-입력이 MDM 컬럼 사전의 칸과 맞으면(물리명 같음) 라벨 글자 대신 `MdmFieldLabel` 을 th 안에 둔다. 캡션(적은 `label` 또는 MDM 폼 캡션)과 라벨에 올릴 때 뜨는 MDM 컬럼·도메인 툴팁이 함께 붙는다. 사전에 없거나 포털 밖이면 `label` 글자 그대로이고 DOM 도 단순 텍스트와 같다. 필수 표시는 `required`(라벨 뒤 " *").
+입력이 MDM 컬럼 사전의 칸과 맞으면(물리명 같음) 라벨 글자 대신 `MdmFieldLabel` 을 th 안에 둔다. 캡션(적은 `label` 또는 MDM 폼 캡션)과 라벨에 올릴 때 뜨는 MDM 컬럼·도메인 툴팁이 함께 붙는다. 포털 밖이거나 받는 중이면 `label` 글자 그대로이고 DOM 도 단순 텍스트와 같다. 포털 탭 안에서 사전에 없으면(`meta={false}` 포함) 라벨에 올릴 때 라벨 글자 + 흐린 글자 `name` 툴팁이 뜬다. 필수 표시는 `required`(라벨 뒤 " *").
 
 ```tsx
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";

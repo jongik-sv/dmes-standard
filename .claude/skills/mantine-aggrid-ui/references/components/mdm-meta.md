@@ -13,7 +13,7 @@
 - 쓴다: 그리드 `header`·폼 `label` 을 표준 용어(MDM)로 맞추고 싶을 때 — 새 화면은 그냥 비운다. 기존 화면을 표준 캡션으로 바꿀 때는 header 를 지우지 말고 `captionPriority="mdm"` 을 쓴다(대체 캡션 유지). 화면이 직접 메타를 읽어 표시할 때 `useMdmColumn`. 화면 고유 위치에 MDM 정보 카드를 띄울 때 `MdmMetaCard`. **상세 표(th/td)의 라벨은 `MdmFieldLabel`** — 캡션과 hover·focus 툴팁이 함께 붙는다.
 - 쓴다(값 검사): 폼은 `useMdmValidation()` 결과를 `FormGroup error` 로, 그리드는 `mdmValidate`, 저장 전 전체 검사는 `validateRows`, 저장 실패는 `toFieldErrors` → 그리드 `fieldErrors`·폼 `error`.
 - 쓰지 않는다: 값 검사에 `useMdmColumn` 으로 메타를 읽어 길이·필수를 손으로 비교하지 않는다 — `useMdmValidation` 이나 `validateMdmValue(column, value)`(같은 판정)가 서버와 같은 판정·문구를 낸다. 비즈니스식(업무 규칙)은 화면에서 검사하지 않는다(서버 `MdmValidator` 몫).
-- [ag-data-grid](ag-data-grid.md)·[form-group](form-group.md) 은 이 공급자를 스스로 읽는다. 조회 영역 [SearchField](search-area.md) 도 `name`(필요하면 `meta`)을 주면 같은 `MdmFieldLabel` 규칙으로 라벨 카드 툴팁을 띄운다(`name` 이 없으면 메타를 부르지 않는다). 메타 라벨 요청은 store 가 같은 틱 요청을 묶는다. 머리글·라벨에는 이 문서의 훅을 따로 쓰지 않는다. `FormGroup` 을 쓰지 않는 상세 표(th/td) 라벨만 `MdmFieldLabel` 로 잇는다.
+- [ag-data-grid](ag-data-grid.md)·[form-group](form-group.md) 은 이 공급자를 스스로 읽는다. 조회 영역 [SearchField](search-area.md) 도 `name`(필요하면 `meta`)을 주면 같은 `MdmFieldLabel` 규칙으로 라벨 카드 툴팁을 띄운다(`name` 이 없으면 메타를 부르지 않고 라벨 글자 툴팁만 뜬다). 메타 라벨 요청은 store 가 같은 틱 요청을 묶는다. 머리글·라벨에는 이 문서의 훅을 따로 쓰지 않는다. `FormGroup` 을 쓰지 않는 상세 표(th/td) 라벨만 `MdmFieldLabel` 로 잇는다.
 
 ## 표준 사용
 
@@ -72,7 +72,8 @@ const issue = column ? validateMdmValue(column, v) : null;   // 같은 column �
 ```
 
 - `MdmFieldLabel` 은 `label`(적은 캡션)과 MDM 캡션 중 우선순위로 글자를 고르고(`FormGroup label` 과 같다: 기본 적은 값이 이기고, 화면이 `captionPriority="mdm"` 이면 MDM 이 이긴다), 사전에 있으면 라벨에 마우스를 올리거나 포커스가 들어올 때 `MdmMetaCard` 를 `FormGroup` 과 같은 포털 툴팁으로 띄운다.
-- 사전에 없거나·못 받았거나·공급자(포털 탭) 밖이면 `label ?? name` 글자 그대로이고 툴팁은 없다. DOM 도 단순 텍스트와 같다(`th` 안이 글자뿐).
+- 공급자(포털 탭) 밖이거나 사전 응답을 받는 중(loading)이면 `label ?? name` 글자 그대로이고 툴팁은 없다. DOM 도 단순 텍스트와 같다(`th` 안이 글자뿐). 받는 중에 글자 툴팁을 먼저 띄우면 카드로 바뀔 때 깜박이므로 받은 뒤에 정한다.
+- 공급자 안에서 사전에 없거나(missing)·`meta={false}`·MDM 오류면 글자는 그대로이고 라벨에 올릴 때 글자 툴팁이 뜬다: 첫 줄 라벨 글자(필수 별표 제외), 둘째 줄 흐린 글자 화면 키(`name`). `name` 이 라벨과 같으면 라벨만 보인다. 트리거는 같은 `span.form-tip-trigger` 이고 마우스 hover 로만 열며 스크린리더 사본(`aria-describedby`)은 두지 않는다(라벨과 같은 글자라 중복). 내용은 내부 `LabelNameTip`.
 - 입력의 `aria-label` 도 보이는 라벨과 같아야 하면 `resolveCaption(column, "form", "제목", useMdmCaptionPriority(), "TITLE")` 로 같은 글자를 구한다.
 - 서버 오류(`toFieldErrors(e, grid)` 결과)는 칸별 상태에 담아 `error` 로 준다. 그 칸을 고치거나 다른 행을 열면 지운다.
 - 저장 전 `validateRow(row, names)` 로 막을 칸은 서버 `MdmValidator.columns(...)` 와 같게 둔다.
@@ -178,7 +179,7 @@ th 안이나 아무 라벨 자리에 넣는 인라인 라벨(`FormGroup` 을 쓰
 | className | `string` | 없음 | 라벨 글자 span 에 붙는다. 메타가 없을 때도 값이 있으면 span 으로 감싼다 |
 | style | `CSSProperties` | 없음 | 위와 같다 |
 
-툴팁(메타가 있을 때): 글자 `span.form-tip-trigger` 에 마우스를 올리거나 포커스가 들어오면 `document.body` 에 `.form-tip-text.form-tip-text--portal`(position: fixed, 최상단)로 `MdmMetaCard` 가 뜬다. 위치·위/아래 판정·가장자리 보정은 `FormGroup` 과 같고, 앵커는 라벨 글자다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두어 th 글자와 접근 이름을 늘리지 않는다. 상자 폭은 form.css 의 `.form-tip-text`(최소 220px·최대 320px, 위치는 오른쪽 가장자리에서 안쪽으로 당겨 최대 폭을 확보)가 정한다. HTML 설명 카드만 예외로 최대 폭 640px 의 상호작용 툴팁이다(§HTML 설명·상호작용 툴팁).
+툴팁(메타가 있을 때. 사전에 없는 공급자 안 라벨은 위 글자 툴팁): 글자 `span.form-tip-trigger` 에 마우스를 올리거나 포커스가 들어오면 `document.body` 에 `.form-tip-text.form-tip-text--portal`(position: fixed, 최상단)로 `MdmMetaCard` 가 뜬다. 위치·위/아래 판정·가장자리 보정은 `FormGroup` 과 같고, 앵커는 라벨 글자다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두어 th 글자와 접근 이름을 늘리지 않는다. 상자 폭은 form.css 의 `.form-tip-text`(최소 220px·최대 320px, 위치는 오른쪽 가장자리에서 안쪽으로 당겨 최대 폭을 확보)가 정한다. HTML 설명 카드만 예외로 최대 폭 640px 의 상호작용 툴팁이다(§HTML 설명·상호작용 툴팁).
 
 ## 표준값: 모든 화면 동일
 
