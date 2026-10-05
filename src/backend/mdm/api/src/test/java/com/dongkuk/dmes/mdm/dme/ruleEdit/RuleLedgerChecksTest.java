@@ -424,6 +424,29 @@ class RuleLedgerChecksTest extends AbstractMdmSharedDbTest {
         assertTrue(e.getMessage().contains("S_IF") && e.getMessage().contains("COIL_WID"), e.getMessage());
     }
 
+    /**
+     * srv:6 — IF 앞 SET 노드가 부르는 하위 세트가 COIL_WID 를 반드시 만들면(always) IF 갈래의 직전 경로에 이미 정의돼 있어 형제 읽기가 아니다
+     * ({@code RuleSetPathState.before} 3인자에 기준 시각의 하위 세트 겉모양을 넘긴다). 같은 흐름에서 SET 노드가 빠지면 SET_IF_SIBLING 이다(위 시험).
+     */
+    @Test
+    void IF_앞_SET_노드가_반드시_만드는_이름은_형제_읽기가_아니다() {
+        otherRule("R_WID", "X_IN", "COIL_WID");
+        ruleSet("S_SUB", "INUSE", "R_WID");
+        ruleSet("S_IFSET", "INUSE", "QLTY_GRD_JDG", "R_WID");
+        DmeTestSupport.ruleSetFlow(jdbc, "S_IFSET", "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},"
+                + DmeTestSupport.setNode("c1", "S_SUB") + ",{\"id\":\"s1\",\"kind\":\"IF\"},"
+                + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"QLTY_GRD_JDG\"},{\"id\":\"r2\",\"kind\":\"RULE\",\"ruleId\":\"R_WID\"},"
+                + "{\"id\":\"m1\",\"kind\":\"MERGE\",\"splitId\":\"s1\"},{\"id\":\"end\",\"kind\":\"END\"}],"
+                + "\"edges\":[{\"id\":\"e0\",\"from\":\"start\",\"to\":\"c1\"},{\"id\":\"e1\",\"from\":\"c1\",\"to\":\"s1\"},"
+                + "{\"id\":\"e2\",\"from\":\"s1\",\"to\":\"r1\",\"order\":1,\"cond\":\"COIL_THK > 1\"},{\"id\":\"e3\",\"from\":\"s1\",\"to\":\"r2\",\"otherwise\":true},"
+                + "{\"id\":\"e4\",\"from\":\"r1\",\"to\":\"m1\"},{\"id\":\"e5\",\"from\":\"r2\",\"to\":\"m1\"},{\"id\":\"e6\",\"from\":\"m1\",\"to\":\"end\"}]}");
+        DmeTestSupport.ruleSetCalls(jdbc, "S_IFSET", "[\"S_SUB\"]");
+
+        RuleEditSaveResult r = save(sample());
+
+        assertTrue(issues(r, "SET_IF_SIBLING").isEmpty(), r.getIssues().toString());
+    }
+
     @Test
     void 병렬_형제_갈래의_결과를_읽으면_SET_PAR_SIBLING_으로_거부한다() {
         otherRule("R_WID", "X_IN", "COIL_WID");
