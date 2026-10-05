@@ -92,6 +92,24 @@ class CactusResponseConverterErrorCodeTest {
     }
 
     @Test
+    void 사슬_가운데의_트랜잭션_예외도_경계라_안쪽_업무_예외는_S001_이다() {
+        CactusResponse r = converter.convert(failed(ServiceResultCode.SYSTEM_ERROR, new RuntimeException("감쌈",
+                new TransactionException("커밋 실패", new BusinessException(ErrorCode.INVALID_VALUE, "검증")))), "tx");
+        CactusResponse coded = converter.convert(failed(ServiceResultCode.SYSTEM_ERROR, new RuntimeException("감쌈",
+                new TransactionException("커밋 실패", new CodedException()))), "tx");
+
+        assertThat(r.getMeta().code()).isEqualTo("S001");
+        assertThat(coded.getMeta().code()).isEqualTo("S001");
+    }
+
+    @Test
+    void ErrorCode_가_없는_업무_예외는_S001_이다() {
+        CactusResponse r = converter.convert(failed(ServiceResultCode.SYSTEM_ERROR, new BusinessException(null, "코드 없음")), "tx");
+
+        assertThat(r.getMeta().code()).isEqualTo("S001");
+    }
+
+    @Test
     void 바깥이_업무_예외면_원인이_트랜잭션_예외여도_업무_코드다() {
         BusinessException rethrown = new BusinessException(ErrorCode.DUPLICATE_DATA, "이미 있습니다");
         rethrown.initCause(new TransactionException("커밋 실패", new IllegalStateException("UNIQUE")));

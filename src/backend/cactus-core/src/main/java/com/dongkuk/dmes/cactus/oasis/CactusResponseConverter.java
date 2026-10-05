@@ -148,6 +148,8 @@ public class CactusResponseConverter {
      * 원인 사슬에서 업무 코드를 찾는다 — {@link ResponseCodeAware} 코드, 아니면 cactus {@link BusinessException} 의
      * {@link ErrorCode} 코드. 바깥부터 걸어 트랜잭션 예외(커밋 실패)를 먼저 만나면 시스템 오류라 null 이다
      * (안쪽 업무 예외가 {@code E}·{@code A} 코드로 새지 않게). 업무 예외가 트랜잭션 예외를 원인으로 감싼 재포장은 업무 코드다.
+     * 트랜잭션 예외가 아닌 래퍼(리플렉션·{@code DataAccessException} 등)는 경계로 보지 않고 지나간다 — 안쪽 업무 예외의 코드를 쓴다
+     * ({@code meta.message} 는 바깥 문구라 어긋날 수 있으나, 2026-10-05 기준 운영 코드에 그런 경로는 없다).
      * {@link OasisServiceExecutor} 의 BPMN 밖 catch 도 이것으로 정한다.
      */
     static String businessCode(Throwable e) {

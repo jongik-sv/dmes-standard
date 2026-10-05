@@ -53,11 +53,15 @@ describe("MDM 업무 코드 판정 — 서버 meta.code 경로", () => {
     expect(isDraftGone(await rejectionOf(callOasis("ruleMng", "save", {})))).toBe(true);
   });
 
-  it("다른 업무 코드는 충돌도 DRAFT 사라짐도 아니다", async () => {
+  it("다른 MDM 코드는 문구가 충돌·DRAFT 문구와 겹쳐도 충돌도 DRAFT 사라짐도 아니다", async () => {
     stubOasis({ meta: { success: false, code: "MDM021", message: "입력값이 올바르지 않습니다" } });
     const e = await rejectionOf(callOasis("ruleMng", "save", {}));
     expect(writeFailure(e).conflict).toBe(false);
     expect(isDraftGone(e)).toBe(false);
+    stubOasis({ meta: { success: false, code: "MDM021", message: "다른 사용자가 수정했습니다 MDM001" } });
+    expect(writeFailure(await rejectionOf(callOasis("ruleMng", "save", {}))).conflict).toBe(false);
+    stubOasis({ meta: { success: false, code: "MDM021", message: "DRAFT 소유자만 할 수 있습니다" } });
+    expect(isDraftGone(await rejectionOf(callOasis("ruleMng", "save", {})))).toBe(false);
   });
 });
 
