@@ -107,7 +107,7 @@ export function MermaidDiagram({ code, testId = "md-mermaid" }: MermaidDiagramPr
         aria-label="mermaid 도식"
         data-testid={testId}
         data-state="done"
-        style={{ overflowX: "auto", margin: "8px 0" }}
+        style={{ overflowX: "auto", margin: "16px 0" }}
         dangerouslySetInnerHTML={{ __html: draw.svg }}
       />
     );
@@ -119,7 +119,7 @@ export function MermaidDiagram({ code, testId = "md-mermaid" }: MermaidDiagramPr
       aria-busy={draw.status === "loading" ? true : undefined}
       style={{
         overflowX: "auto",
-        margin: "8px 0",
+        margin: "16px 0",
         padding: "8px 12px",
         fontSize: "var(--font-size-sm)",
         border: "1px solid var(--color-border)",
