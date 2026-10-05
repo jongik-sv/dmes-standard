@@ -121,7 +121,7 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
 
 ## ui:8. SET 노드 화면
 - 상태: 1단계(모델·상태) 끝. 캔버스·패널·팝업·툴바 링크·받는 노드 UI·e2e 는 다음 단계.
-- 커밋(1단계): `7209d80e`(types·api), `243e189f`(flow-edit·flow-vars·caller-links, 시험 `set-node-model.test.ts`), 훅 커밋(useRuleSetEdit·편집기 한 줄, 시험 `set-calls-state.test.ts`·이 절)
+- 커밋(1단계): `7209d80e`(types·api), `243e189f`(flow-edit·flow-vars·caller-links, 시험 `set-node-model.test.ts`), `eb3375f7`(useRuleSetEdit·편집기 한 줄, 시험 `set-calls-state.test.ts`·이 절)
 - 시험 결과(1단계): `vitest run tests/dme/ruleSetEdit` → 101파일 1911 통과·0 실패(새 시험 27 = set-node-model 13 + set-calls-state 14), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건.
 - 계획 조정(본문과 다르게 한 것):
   1. **`node()` 는 그대로, setId 는 SET 노드에만** — 조정 확정(모든 노드 `setId: null` 방식 안 씀). `copyNode`(ui:9)와 같이 label 뒤에 둔다. 본문이 놓친 붙여넣기(`instantiate`)도 SET 이면 setId 를 옮긴다(안 하면 붙여 넣은 SET 이 세트를 잃는다).
