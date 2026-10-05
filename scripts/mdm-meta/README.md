@@ -75,3 +75,12 @@ MDM BE 를 BFF 없이 직접 부를 때 역할이 들어가는 길은 다음과 
 | `--only` | `terms,columns,aliases,descriptions` | 일부만 돌린다(순서는 늘 용어 → 컬럼 → 별칭) |
 | `--allow-no-domain` | 끔 | 추천에서 도메인을 못 찾은 새 컬럼도 도메인 없이 저장한다 |
 | `--apply` | 끔 | 실제로 저장한다 |
+
+## 5. 등록 기록
+
+### 2026-10-06 위젯 관리 칸 설명(`columns-widget-2026-10-05.json`)
+
+- 적용: 로컬 MDM 8096, `--apply --user 41000132`. 결과 OK=20(용어 「비공개」 termId 8214, 새 컬럼 15 columnId 7932~7946, 기존 컬럼 4개 설명 갱신), FAIL 0.
+- 재실행(dry-run): SKIP=20 — 멱등 확인.
+- 화면 키 19개(`collect-keys.mjs` 17 + 크기 최소·최대 2) 전후 mcm 메타 비교: 전 hit 9·missing 6 → 후 hit 19·missing 0, 19개 모두 `descriptionHtml` 있음. 전에 hit 이던 TITLE·KIND·USE_YN·CATEGORY 는 뜻이 달라 위젯 전용 이름(WIDGET_TITLE·WIDGET_KIND·WIDGET_USE_YN·CATEGORY_CD)으로 갈아탔고 범용 컬럼은 건드리지 않았다.
+- 다른 DB(개발·운영)에는 같은 묶음을 같은 순서(용어 → 컬럼 → 설명)로 적용한다. 용어 「비공개」 가 먼저 있어야 WIDGET_PRIVATE_YN 이 저장된다.

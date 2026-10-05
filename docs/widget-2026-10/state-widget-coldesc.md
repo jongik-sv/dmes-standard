@@ -10,8 +10,8 @@
 | 1 조사 | 끝 — 키 28곳, 시작 hit 9 / missing 6 |
 | 2 설명 작성 | 끝 — `scripts/mdm-meta/columns-widget-2026-10-05.json` (새 컬럼 15·용어 1·기존 4 설명 갱신) |
 | 3 화면 meta 키 | 끝 — WidgetListTab·WidgetDetailForm (LayoutTab 은 칸이 「배치」 목록 머리글 하나뿐이라 변경 없음) |
-| 4 등록 | dry-run 끝(PLAN 20·FAIL 0), `--apply` 는 조정 허가 대기 |
-| 5 확인 | tsc 통과, commWidgetMng vitest 145 통과, 리뷰 1회 지적 반영. 전후 hit 비교는 apply 뒤 |
+| 4 등록 | 끝 — 로컬 MDM `--apply` OK=20·FAIL 0, 재실행 SKIP=20 |
+| 5 확인 | tsc 통과, vitest 145 통과, 리뷰 반영, 키 19개 hit 9→19·missing 0 |
 
 ## 키 정리
 
@@ -21,6 +21,5 @@
 
 ## 남은 일
 
-1. 조정 허가 뒤 `register-columns.mjs --file scripts/mdm-meta/columns-widget-2026-10-05.json --user <표준관리자 사번> --apply`.
-2. 10초 뒤 `check-meta.sh` 로 전후 hit 비교, 같은 명령을 다시 돌려 SKIP 확인.
-3. README §4 형식 머지 요청.
+1. 조정에 머지 요청 → 허가 뒤 dev 머지. 브라우저 툴팁 확인은 머지 뒤 조정이 한다.
+2. 개발·운영 DB 에는 묶음을 같은 순서로 적용해야 한다(README §5).
