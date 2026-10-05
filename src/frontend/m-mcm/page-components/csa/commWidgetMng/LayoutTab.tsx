@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * 위젯관리 「기본 배치」 탭 — 전사(*)·부서별 「홈」 기본 배치 편집(스펙 2026-10-02-widget-admin-generic §10.2).
- * - 왼쪽: 배치 목록(searchLayouts). 전사는 행이 없어도 첫 줄, [부서 추가]로 고른 부서는 저장 전 줄로 끼운다.
- * - 오른쪽: 고른 키의 보드 = WidgetWorkspace singleTab + 관리자 어댑터 store(layout-store). [완료] 가 saveLayout, [기본 배치 지우기] 가 deleteLayout.
+ * 위젯관리 「기본 배치」 탭 — 전사(*)·부서별 「홈」 기본 배치와 기본 탭 편집(스펙 2026-10-02-widget-admin-generic §10.2, widget-tabs 설계 §4).
+ * - 왼쪽: 배치 목록(searchLayouts). 전사는 행이 없어도 첫 줄, [부서 추가]로 고른 부서는 저장 전 줄로 끼운다. 기본 탭 수(tabCount)도 보인다.
+ * - 오른쪽: 고른 키의 보드 = 다중 탭 WidgetWorkspace mode="admin" + 관리자 어댑터 store(layout-store). 「홈」 [완료] 는 saveLayout,
+ *   그 밖의 탭(기본 탭, 키당 5개)은 saveDefaultTab·deleteDefaultTab·reorderDefaultTabs. [기본 배치 지우기] 는 deleteLayout(홈과 기본 탭 모두).
  * - 등록부는 코드 등록부 + 유형 등록부 + widgetDef/list 를 mergeWidgetRegistry 로 합친다. 정의 조회 전에는 보드를 마운트하지 않고(정의 위젯이 「없는 위젯」으로
  *   보이는 상태의 저장은 배치에서 지운다 — W-D19), 실패하면 코드 등록부로 마운트하되 registryStatus="error" 로 편집을 막는다.
  * - 보드는 WidgetBoardModeContext("preview")로 감싼다 — 실제 칸을 그리므로 개인 메모 위젯이 관리자 본인 메모를 불러오거나 저장하지 않게 미리보기처럼
@@ -35,6 +36,7 @@ import { DeptPicker } from "./DeptPicker";
 import { deleteLayout, fetchWidgetDefRows, loadLayout, searchLayouts } from "./layout-api";
 import {
   COMPANY_LAYOUT_KEY,
+  MAX_DEFAULT_TABS,
   addPendingDept,
   boardTitle,
   buildLayoutList,
@@ -52,6 +54,14 @@ import { createLayoutStore } from "./layout-store";
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 const BOARD_TEST_ID = "widget-layout-board";
+
+/** 보드 위 도움말 — 홈과 기본 탭의 차이(색은 의미 토큰만). */
+const HELP_STYLE = {
+  margin: 0,
+  color: "var(--color-text-secondary)",
+  fontSize: "var(--font-size-sm)",
+  lineHeight: 1.4,
+} as const;
 
 /** 상속 안내 띠 — 긴 문장이 줄바꿈되게 알약이 아닌 블록으로 그린다(색은 의미 토큰만). */
 const NOTICE_STYLE = {
@@ -85,7 +95,6 @@ type BoardState =
 
 interface LayoutBoardProps {
   layoutKey: string;
-  title: string;
   rows: readonly LayoutListRow[];
   registry: WidgetRegistry;
   registryStatus: "ready" | "error";
@@ -95,10 +104,10 @@ interface LayoutBoardProps {
 }
 
 /**
- * 한 키의 보드. 배치를 먼저 받아(상속이면 sourceKey 를 알아야 안내 띠를 보인다) store 의 첫 load 에 넘기고,
- * 키·재시도가 바뀌면 부모가 key 로 다시 마운트한다.
+ * 한 키의 보드. 「홈」 배치를 먼저 받아(상속이면 sourceKey 를 알아야 안내 띠를 보인다) store 의 첫 load 에 넘기고,
+ * 기본 탭은 store 의 load 가 받는다. 키·재시도가 바뀌면 부모가 key 로 다시 마운트한다.
  */
-function LayoutBoard({ layoutKey, title, rows, registry, registryStatus, onRetryRegistry, onSaved }: LayoutBoardProps) {
+function LayoutBoard({ layoutKey, rows, registry, registryStatus, onRetryRegistry, onSaved }: LayoutBoardProps) {
   const [state, setState] = useState<BoardState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   // 저장하면 이 키의 배치가 생긴다 — 상속 안내 띠를 거둔다.
@@ -153,6 +162,9 @@ function LayoutBoard({ layoutKey, title, rows, registry, registryStatus, onRetry
   const notice = saved ? null : inheritNotice(layoutKey, state.layout.sourceKey, rows);
   return (
     <>
+      <p style={HELP_STYLE}>
+        「홈」은 사용자 홈 탭의 기본 배치입니다. (+) 로 더한 탭은 사용자에게 고정으로 보이는 기본 탭이며(최대 {MAX_DEFAULT_TABS}개) 다음 접속 때 생깁니다.
+      </p>
       {notice && (
         <div style={NOTICE_STYLE} data-testid="widget-layout-inherit-notice">
           {notice}
@@ -160,10 +172,10 @@ function LayoutBoard({ layoutKey, title, rows, registry, registryStatus, onRetry
       )}
       <WidgetBoardModeContext.Provider value="preview">
         <WidgetWorkspace
+          mode="admin"
           registry={registry}
           homeDefault={HOME_DEFAULT_LAYOUT}
           store={store}
-          singleTab={{ title }}
           typeTitles={TYPE_TITLES}
           registryStatus={registryStatus}
           onRetryRegistry={onRetryRegistry}
@@ -338,7 +350,7 @@ export function LayoutTab() {
 
         <ContentPanel minSize={320}>
           <GridPanel
-            title="기본 배치 보드"
+            title={boardTitle(selected.layoutKey, rows)}
             loading={deleting}
             buttons={[
               {
@@ -355,7 +367,6 @@ export function LayoutTab() {
               <LayoutBoard
                 key={`${selected.layoutKey}:${boardNonce}`}
                 layoutKey={selected.layoutKey}
-                title={boardTitle(selected.layoutKey, rows)}
                 rows={rows}
                 registry={registry}
                 registryStatus={defs.status}

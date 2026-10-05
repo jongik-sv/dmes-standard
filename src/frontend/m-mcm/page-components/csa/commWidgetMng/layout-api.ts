@@ -10,10 +10,12 @@ import type { WidgetItem } from "@dk-oasis/shared/widget";
 import { createJsonApiClient } from "@/lib/http/json-api-client";
 
 import {
+  defaultTabsFromRows,
   layoutItemsFromRows,
   layoutItemsToRows,
   type DeptRow,
   type LayoutSummary,
+  type LoadedDefaultTab,
   type LoadedLayout,
 } from "./layout-model";
 
@@ -65,12 +67,17 @@ async function call(
 const records = (v: unknown): Record<string, unknown>[] =>
   Array.isArray(v) ? v.filter((r): r is Record<string, unknown> => r != null && typeof r === "object" && !Array.isArray(r)) : [];
 
-/** 기본 배치가 저장된 키 목록(전사 먼저는 서버가 정하지만 화면이 다시 정렬한다). */
+/** 기본 배치나 기본 탭이 저장된 키 목록(전사 먼저는 서버가 정하지만 화면이 다시 정렬한다). tabCount 는 응답에 있을 때만 싣는다. */
 export async function searchLayouts(): Promise<LayoutSummary[]> {
   const out = await call(SCREEN_ID, "searchLayouts");
   return records(out.layouts)
     .filter((r) => r.layoutKey != null && String(r.layoutKey) !== "")
-    .map((r) => ({ layoutKey: String(r.layoutKey), deptNm: r.deptNm == null ? "" : String(r.deptNm), count: Number(r.count) || 0 }));
+    .map((r) => ({
+      layoutKey: String(r.layoutKey),
+      deptNm: r.deptNm == null ? "" : String(r.deptNm),
+      count: Number(r.count) || 0,
+      ...(r.tabCount != null ? { tabCount: Number(r.tabCount) || 0 } : {}),
+    }));
 }
 
 /**
@@ -92,8 +99,45 @@ export async function saveLayout(layoutKey: string, items: readonly WidgetItem[]
   return { layoutKey: out.layoutKey == null ? layoutKey : String(out.layoutKey), count: Number(out.count) || 0 };
 }
 
+/** 그 키의 「홈」 기본 배치와 기본 탭을 모두 지운다. */
 export async function deleteLayout(layoutKey: string): Promise<void> {
   await call(SCREEN_ID, "deleteLayout", { layoutKey });
+}
+
+/* ── 관리자 기본 탭(widget-tabs 2026-10-05, 설계 design-widget-tabs §3.2) ── */
+
+/** 그 키의 기본 탭(def-N)만, 순서대로. 물려받지 않는다. */
+export async function loadDefaultTabs(layoutKey: string): Promise<LoadedDefaultTab[]> {
+  const out = await call(SCREEN_ID, "loadDefaultTabs", { layoutKey });
+  return defaultTabsFromRows(out.tabs);
+}
+
+/**
+ * 기본 탭 하나를 통째로 저장한다(빈 목록 허용). tabId 가 없거나 서버에 없는 def-N 이면 서버가 새 ID 를 채번해 돌려준다.
+ * 서버 거절: 키당 5개 초과, 같은 키 안 이름 중복, 이름 20자 초과.
+ */
+export async function saveDefaultTab(
+  layoutKey: string,
+  tab: { tabId?: string; tabNm: string; tabSeq: number },
+  items: readonly WidgetItem[]
+): Promise<{ layoutKey: string; tabId: string; count: number }> {
+  const params: Record<string, unknown> = { layoutKey, tabNm: tab.tabNm, tabSeq: tab.tabSeq };
+  if (tab.tabId) params.tabId = tab.tabId;
+  const out = await call(SCREEN_ID, "saveDefaultTab", params, { widgets: layoutItemsToRows(items) });
+  return {
+    layoutKey: out.layoutKey == null ? layoutKey : String(out.layoutKey),
+    tabId: out.tabId == null ? (tab.tabId ?? "") : String(out.tabId),
+    count: Number(out.count) || 0,
+  };
+}
+
+export async function deleteDefaultTab(layoutKey: string, tabId: string): Promise<void> {
+  await call(SCREEN_ID, "deleteDefaultTab", { layoutKey, tabId });
+}
+
+/** 기본 탭 순서(def-N 목록). */
+export async function reorderDefaultTabs(layoutKey: string, tabIds: readonly string[]): Promise<void> {
+  await call(SCREEN_ID, "reorderDefaultTabs", { layoutKey }, { tabs: tabIds.map((tabId) => ({ tabId })) });
 }
 
 /** 부서 고르기 — 코드·이름 앞부분 일치, 서버가 최대 50건. */
