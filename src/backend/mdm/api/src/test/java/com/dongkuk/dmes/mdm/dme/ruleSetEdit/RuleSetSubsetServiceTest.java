@@ -458,6 +458,12 @@ class RuleSetSubsetServiceTest extends AbstractMdmSharedDbTest {
 
         who.setSetId("M");
         assertThat(((RuleSetPickResult) service.search(who)).getSets()).isEmpty();
+
+        releasedFlow("G", "INUSE", "[]", line(setNode("s1", "G"), setNode("s2", "C")), "[\"G\",\"C\"]");    // 자기 자신을 부르는 행(저장된 순환)
+        releasedFlow("H", "INUSE", "[]", line(setNode("s1", "G")), "[\"G\"]");
+        who.setSetId("G");
+        assertThat(((RuleSetPickResult) service.search(who)).getSets()).extracting(RuleSetPickResult.Pick::getSetId)
+                .containsExactly("H");                                                    // 폐기 거부와 같게 자기 행은 뺀다
         who.setTarget("NOPE");
         assertThatThrownBy(() -> service.search(who)).hasMessageContaining("SET·RULE·GUIDE·CALL_IO·CALLERS");
     }

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.dongkuk.dmes.cactus.audit.CactusAudit;
 import com.dongkuk.dmes.mdm.common.rule.RuleCaseJudge;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCaseJudge;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetRunner;
@@ -12,10 +13,12 @@ import com.dongkuk.dmes.mdm.common.testdb.AbstractMdmSharedDbTest;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport;
 import com.dongkuk.dmes.mdm.dme.DmeTestSupport.MutableCurrentUser;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetCondIoRequest;
+import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSaveRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSimulateRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetSimulateResult;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.dto.RuleSetViewRequest;
 import com.dongkuk.dmes.mdm.dme.ruleSetEdit.service.RuleSetEditService;
+import com.dongkuk.oasis.audit.AuditHolder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManagerFactory;
 import java.io.IOException;
@@ -36,7 +39,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * 룰 세트 편집 서버 부하 가드 — view·validate(조건식 IO)·execute(기록 실행)·execute runCases 가 내는 SQL 문 수(Hibernate
+ * 룰 세트 편집 서버 부하 가드 — view·validate(조건식 IO)·execute(기록 실행)·execute runCases·save 가 내는 SQL 문 수(Hibernate
  * {@code prepareStatementCount})의 상한과, 케이스 사이에 룰 정의를 같이 쓰는 runCases 가 케이스마다 새로 실행한 결과와 같은지 본다.
  *
  * <p>테스트는 OASIS 트랜잭션 밖에서 서비스를 부르므로 영속성 컨텍스트 1차 캐시 이득이 없는 상한값이다. 측정한 응답은
@@ -131,6 +134,29 @@ class RuleSetEditQueryCountTest extends AbstractMdmSharedDbTest {
         assertTrue(condCount <= 1, "validate SQL 문 " + condCount);
         assertTrue(simCount <= 9, "execute SQL 문 " + simCount);
         assertTrue(casesCount <= 10, "runCases SQL 문 " + casesCount);
+    }
+
+    /**
+     * 저장(save) — SET 노드가 없고 이 세트를 부르는 세트도 없는 흔한 저장은 세트 원장 전체(세트 전부·버전 전부)를 읽지 않는다(srv:6 E2, 불릴 수 있는지는
+     * CALL_SET_IDS 한 문장으로 가린다). 룰 4개 흐름 기준 상한이다.
+     */
+    @Test
+    void save_SQL_문_수() throws IOException {
+        DmeTestSupport.ruleSetDraft(jdbc, SET, "2.000", "kim", "[\"GT_GRADE\",\"GT_FAST\",\"GT_SLOW\",\"GT_SAME1\"]", 0);
+        AuditHolder.setAudit(new CactusAudit("kim", "ruleSetEditMenu", "ruleSetEdit"));
+        try {
+            RuleSetSaveRequest r = new RuleSetSaveRequest();
+            r.setSetId(SET);
+            r.setVer("2.000");
+            r.setRowVersion(0L);
+            r.setSetName("부하 세트");
+            r.setFlowJson(flow);
+            long saveCount = count("save", () -> service.save(r));
+            // 2026-10-06 측정: 원장 전체 읽기를 걸러내기 전 14, 뒤 13(세트 목록·버전 전부 2문 → 불릴 수 있는지 1문, 읽는 행도 버전 전부 → 많아야 1행).
+            assertTrue(saveCount <= 13, "save SQL 문 " + saveCount);
+        } finally {
+            AuditHolder.remove();
+        }
     }
 
     /** 케이스 수가 늘어도 같은 판정 시각이면 룰 정의를 다시 읽지 않는다 — 케이스 1건과 5건의 SQL 문 수가 같다. */

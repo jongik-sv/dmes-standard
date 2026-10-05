@@ -285,6 +285,23 @@ class SetCallIoReaderSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 불릴_수_있는지는_RELEASED_행의_CALL_SET_IDS_로_값싸게_가린다() {
+        assertTrue(setVersions.mayBeCalled("C"));
+        assertTrue(setVersions.mayBeCalled("M"));
+        assertFalse(setVersions.mayBeCalled("G"), "G 를 부르는 행이 없다");
+        assertFalse(setVersions.mayBeCalled("R_GRD"), "RULE_IDS 는 보지 않는다");
+
+        DmeTestSupport.ruleSetDraft(jdbc, "P", "2.000", "kim", "[]", 0);
+        DmeTestSupport.ruleSetCalls(jdbc, "P", "2.000", "[\"G\"]");
+        assertFalse(setVersions.mayBeCalled("G"), "DRAFT 행은 부르는 쪽이 아니다(Ruling 25)");
+
+        set(jdbc, "AXB", "[]", "[]", line(ruleNode("r1", "R_GRD")));
+        DmeTestSupport.ruleSetCalls(jdbc, "G", "[\"M\",\"AXB\"]");
+        assertTrue(setVersions.mayBeCalled("A_B"), "LIKE 의 _ 는 거짓 양성일 수 있다 — 정확한 판정은 원장 읽기가 한다");
+        assertEquals(List.of(), callers(reader.callers("A_B", NOW)));
+    }
+
+    @Test
     void 호출_그래프는_부르는_쪽_행의_합집합이다() {
         splitAt(jdbc, "P", "[\"R_FCT\"]", "[\"M\"]", line(setNode("s1", "M"), ruleNode("r2", "R_FCT")));
         jdbc.update("UPDATE TB_MDM_RULE_SET SET STATUS = 'DEPRECATED' WHERE MARU_RULE_SET_ID = 'G'");
