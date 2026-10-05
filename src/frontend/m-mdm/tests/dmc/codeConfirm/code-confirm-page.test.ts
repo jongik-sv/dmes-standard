@@ -358,12 +358,12 @@ describe("CodeConfirmPage", () => {
     expect(byTestId("cf-list")!.querySelector(".ag-root-wrapper")).toBe(gridBefore);
   });
 
-  it("P1 핸드오프 {maruCodeId, ver} 로 열면 그 값(문자열 ver)으로 view 를 부르고 snapshot 에 남긴다", async () => {
+  it("P1 핸드오프 {maruCodeId, ver} 로 열면 그 값(문자열 ver)으로 view 를 부르고 snapshot 은 건드리지 않는다", async () => {
     const snapshots: unknown[] = [];
     openMdmPage("dmc/codeConfirm", { maruCodeId: "PROC_CD", ver: "2.000" });
-    await render({ snapshot: { maruCodeId: "OTHER", ver: "9.000" }, onSnapshotChange: (s: unknown) => snapshots.push(s) });
+    await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
     expect(actions("view").map((c) => c.params)).toEqual([{ maruCodeId: "PROC_CD", ver: "2.000" }]);
-    expect(snapshots).toContainEqual({ maruCodeId: "PROC_CD", ver: "2.000" });
+    expect(snapshots).toHaveLength(0);
     const form = byTestId("cf-form")!;
     expect(visibleText(form)).toContain("PROC_CD");
     expect(visibleText(form)).toContain("v2.000");
@@ -378,9 +378,9 @@ describe("CodeConfirmPage", () => {
     expect("ver" in params).toBe(false);
   });
 
-  it("핸드오프가 없으면 snapshot 의 코드·버전을 불러온다", async () => {
+  it("snapshot 에 선택 코드가 있어도 복원하지 않는다(R8, 2026-10-05)", async () => {
     await render({ snapshot: { maruCodeId: "PROC_CD", ver: "2.000" } });
-    expect(actions("view").map((c) => c.params)).toEqual([{ maruCodeId: "PROC_CD", ver: "2.000" }]);
+    expect(actions("view")).toHaveLength(0);
   });
 
   it("diff 표와 바뀐 카테고리 요약(줄어듦 강조)을 보인다", async () => {
