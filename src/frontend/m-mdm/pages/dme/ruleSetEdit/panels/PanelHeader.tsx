@@ -5,15 +5,18 @@
  * 보기·편집 모드에서 늘 맨 위다. 디버그 모드 오른쪽은 변수 패널이라 없다.
  */
 import {
-  IconBolt, IconArrowRight, IconArrowsSplit, IconBoxMultiple, IconGitBranch, IconGitMerge, IconListDetails, IconNote, IconPlayerPlay, IconPlayerStop, IconSitemap,
+  IconBolt, IconArrowRight, IconArrowsSplit, IconBoxMultiple, IconGitBranch, IconGitMerge, IconListDetails, IconNote, IconPlayerPlay, IconPlayerStop, IconSitemap, IconStack2,
 } from "@tabler/icons-react";
 
 import { TASK_LABEL, type EditFlow } from "../flow-edit";
 import { catchTitle } from "../catch-text";
-import type { RuleIoMap } from "../types";
+import type { RuleIoMap, SetCallIoMap } from "../types";
 
-/** 머리글·섹션 기억의 종류. 흐름 노드 종류는 이름 그대로다(TASK 는 Task 9 가 흐름에 더한다 — 여기서는 자기 유니온의 문자열일 뿐이다). */
-export type PanelKind = "SET" | "EDGE" | "START" | "END" | "RULE" | "TASK" | "IF" | "PARALLEL" | "MERGE" | "CATCH" | "NOTE" | "GROUP";
+/**
+ * 머리글·섹션 기억의 종류. 흐름 노드 종류는 이름 그대로다(TASK 는 Task 9 가 흐름에 더한다 — 여기서는 자기 유니온의 문자열일 뿐이다).
+ * 단, 룰 세트(SET) 노드는 `CALL`(라벨 "하위 세트") 이다 — `SET` 은 이미 세트 전체 패널이다(하위 세트 계획 Ruling 23).
+ */
+export type PanelKind = "SET" | "EDGE" | "START" | "END" | "RULE" | "TASK" | "CALL" | "IF" | "PARALLEL" | "MERGE" | "CATCH" | "NOTE" | "GROUP";
 
 /** 종류 이름·아이콘 — 룰·빈 단계·IF·병렬·메모·그룹은 도구 상자(`PALETTE_ITEMS`)와 같은 아이콘이다(빈 단계는 [룰] 단추가 놓는다). */
 export const PANEL_KIND: Readonly<Record<PanelKind, { label: string; icon: typeof IconNote }>> = {
@@ -23,6 +26,7 @@ export const PANEL_KIND: Readonly<Record<PanelKind, { label: string; icon: typeo
   END: { label: "끝", icon: IconPlayerStop },
   RULE: { label: "룰", icon: IconListDetails },
   TASK: { label: "빈 단계", icon: IconListDetails },
+  CALL: { label: "하위 세트", icon: IconStack2 },
   IF: { label: "IF 분기", icon: IconGitBranch },
   PARALLEL: { label: "병렬 분기", icon: IconArrowsSplit },
   MERGE: { label: "병렬 합류", icon: IconGitMerge },
@@ -38,14 +42,28 @@ export interface PanelTarget {
   name: string;
 }
 
-/** 고른 것(노드·메모·그룹, 없으면 선, 없으면 세트)의 머리글 대상. 흐름에 없는 ID 는 고르지 않은 것으로 본다. */
-export function panelTargetOf(flow: EditFlow, rules: RuleIoMap, selectedId: string | null, selectedEdgeId: string | null, setName: string): PanelTarget {
+/**
+ * 고른 것(노드·메모·그룹, 없으면 선, 없으면 세트)의 머리글 대상. 흐름에 없는 ID 는 고르지 않은 것으로 본다.
+ * 룰 세트 노드는 종류 `CALL`, 이름은 라벨 → 세트명(겉모양이 있을 때) → 세트 ID 다(calls 는 하위 세트 겉모양).
+ */
+export function panelTargetOf(
+  flow: EditFlow,
+  rules: RuleIoMap,
+  selectedId: string | null,
+  selectedEdgeId: string | null,
+  setName: string,
+  calls: SetCallIoMap = {},
+): PanelTarget {
   if (selectedId) {
     const n = flow.nodes.find((x) => x.id === selectedId);
     if (n) {
       if (n.kind === "RULE") {
         const io = n.ruleId ? rules[n.ruleId] : undefined;
         return { kind: "RULE", id: n.id, name: n.label ?? (io && io.exists ? (io.ruleName ?? n.ruleId ?? n.id) : "(없는 룰)") };
+      }
+      if (n.kind === "SET") {
+        const c = n.setId ? calls[n.setId] : undefined;
+        return { kind: "CALL", id: n.id, name: n.label ?? (c && c.exists ? (c.setName ?? n.setId ?? n.id) : (n.setId || "(세트 없음)")) };
       }
       const fallback = n.kind === "TASK" ? TASK_LABEL : n.kind === "CATCH" ? catchTitle({ label: null, catches: n.catches }) : n.kind === "MERGE" ? `병렬 ${n.splitId ?? n.id} 합류` : n.kind === "START" || n.kind === "END" ? PANEL_KIND[n.kind].label : n.id;
       return { kind: n.kind as PanelKind, id: n.id, name: n.label ?? fallback };

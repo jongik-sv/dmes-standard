@@ -7,12 +7,15 @@
  * - IF: 분기 이름, 갈래(order 순, "그 외" 마지막)의 이름·조건식·▲▼✕·검사 문구, [갈래 더하기]. 병렬: 갈래 이름·▲▼✕·[갈래 더하기].
  * - 룰·빈 단계: 편집 모드면 「외관」 섹션(S1, NodeStylePanel)
  * - 룰·빈 단계·분기·시작·끝: 「설명」 여러 줄 입력 칸(`view.descs`, 최대 1000자). 보기 모드는 읽기 전용, 입력하는 동안은 되돌리기 한 칸으로 묶는다. 합류는 없다.
- * - 받는 노드: 제목·붙은 룰·CATCH_* 안내, 받을 예외 네 개 체크(같은 룰의 다른 받는 노드가 받는 종류는 꺼짐)·CATCH_NEVER 경고, [지우기]. 설명 칸은 없다.
+ * - 받는 노드: 제목·붙은 룰·CATCH_* 안내, 받을 예외 체크(붙은 노드 종류의 목록 `catchKindsFor` — 같은 룰의 다른 받는 노드가 받는 종류는 꺼짐)·CATCH_NEVER 경고, [지우기].
+ *   목록 밖인데 저장된 종류(예: 룰에 붙은 SUBSET_ENDED)도 체크된 칸으로 보여 풀 수 있다(분석기는 FLOW_CATCH 로 알린다). 설명 칸은 없다.
+ * - 룰 세트(SET) 노드(하위 세트 spec §9): 이름(라벨)·세트 ID·세트명·상태, 검사 문구, [세트 탭으로 열기]·[지우기], 겉모양(입력, 출력과 항상·일부 경로),
+ *   이 세트를 부르는 세트(search CALLERS — 누르면 그 세트를 탭으로 연다).
  * - 합류·시작·끝: 종류 설명. 메모: 글(마크다운 — 편집 모드면 처음부터 서식 편집기, 보기 모드면 읽기 모습. shared MarkdownField fill). 그룹: 제목.
  * 갈래는 머리행 있는 표가 아니라 칸 묶음으로 쌓는다(입력 요소를 그리드 칸에 두지 않는다, Local-Rules §12).
  * 4단계 Task 8: 머리글(이름)은 `SidePanel`, 각 소제목은 접는 섹션(`Section`) — testid 는 그대로.
  */
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { IconArrowDown, IconArrowUp, IconExternalLink, IconGripVertical, IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 
@@ -24,6 +27,7 @@ import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 import { DESCRIPTION_LABEL } from "@/ui-meta";
 import { badgeStyle, fmtVer } from "@/shell";
 
+import { callers } from "../api";
 import { SOURCE_LABEL, SOURCE_TONE, typeText } from "../cards/SetIoTables";
 import {
   addBranch,
@@ -49,7 +53,7 @@ import { MAX_DESC } from "../node-desc";
 import { restyleNode, type NodeLayoutSource } from "../flow-layout";
 import { catchKindsFor, catchesOf, endingBranches, parseFlow, type FlowTree } from "../flow-model";
 import type { NodeStylePatch } from "../node-style";
-import type { IoName, RuleIo, RuleIoMap, RuleSetCheck } from "../types";
+import type { IoName, RuleIo, RuleIoMap, RuleSetCheck, RuleSetPick, SetCallIoMap } from "../types";
 import { CheckBadge } from "./ChecksPanel";
 import type { PanelKind } from "./PanelHeader";
 import { NodeStylePanel } from "./NodeStylePanel";
@@ -70,6 +74,10 @@ export interface PropertyPanelProps {
   layoutSource?: () => NodeLayoutSource | null;
   onEdit: (fn: (f: EditFlow) => EditResult | EditFlow, opts?: { mergeKey?: string }) => string | null;
   onOpenRule: (ruleId: string) => void;
+  /** 하위 세트 겉모양(세트 ID →) — 룰 세트 노드의 세트명·상태·입출력(하위 세트 spec §9). */
+  calls?: SetCallIoMap;
+  /** 하위 세트를 같은 화면의 탭으로 연다(spec §10.3). 없으면 [세트 탭으로 열기]·부르는 세트 링크가 꺼진다. */
+  onOpenSet?: (setId: string) => void;
   /** 섹션 펼침 기억(종류별, 화면 메모리). */
   sections: SectionMemory;
 }
@@ -512,7 +520,15 @@ function SplitProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
   );
 }
 
-/** 받는 노드(받는 노드 spec §8): 제목·붙은 룰·CATCH_* 안내, 받을 예외 네 개 체크, 종류 옆 CATCH_NEVER 경고, 검사 문구·[지우기]. */
+/** 받는 노드 안내 — 붙은 노드 종류마다(하위 세트 spec §4 — CATCH_SET 은 위반이 난 가장 안쪽 세트 ID). */
+const CATCH_NOTE_SET =
+  "붙은 하위 세트가 받는 예외로 실패하거나 처리 갈래로 끝나면(하위 세트 예외 끝은 받을 때만) 하위 세트 출력을 넘기지 않고 처리 갈래를 실행한다. 처리 갈래에서 CATCH_KIND·CATCH_RULE·CATCH_CODE·CATCH_MSG·CATCH_SET 를 읽을 수 있다";
+const CATCH_NOTE_RULE =
+  "붙은 룰이 받는 예외로 실패하면(결과 없음은 받을 때만) 룰 결과를 쓰지 않고 처리 갈래를 실행한다. 처리 갈래에서 CATCH_KIND·CATCH_RULE·CATCH_CODE·CATCH_MSG·CATCH_SET 를 읽을 수 있다";
+/** 붙은 노드 종류의 목록 밖인데 저장된 종류 — 풀기만 할 수 있다. */
+export const CATCH_KIND_OUTSIDE = "이 노드에는 받을 수 없는 종류다. 풀어서 지운다";
+
+/** 받는 노드(받는 노드 spec §8): 제목·붙은 룰·CATCH_* 안내, 받을 예외 체크(목록 밖 저장 종류 포함), 종류 옆 CATCH_NEVER 경고, 검사 문구·[지우기]. */
 function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }) {
   const { flow, checks, editable, onEdit, sections } = props;
   const mine = (node.catches ?? []) as CatchKind[];
@@ -523,7 +539,11 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
   }
   const own = checks.filter((c) => c.nodeId === node.id);
   const host = node.attachTo ? flow.nodes.find((n) => n.id === node.attachTo) : undefined;
-  const onTask = host?.kind === "TASK";
+  /** 붙은 노드가 룰이 아니다(빈 단계·룰 세트) — 라벨을 「붙은 노드」로 쓴다(ui-meta 잠금 기록의 식 이름 그대로 둔다). */
+  const onTask = host?.kind === "TASK" || host?.kind === "SET";
+  const allowed = catchKindsFor(host?.kind);
+  /** 고를 수 있는 종류 + 목록 밖인데 저장된 종류(ui:5t 리뷰 넘김 — 칩이 없으면 풀 수 없다). */
+  const shownKinds: CatchKind[] = [...allowed, ...mine.filter((k) => !allowed.includes(k))];
   /** 빈 단계에 붙은 받는 노드 경고(implicit-join spec §6) — 종류 이름이 없어 종류 옆이 아니라 섹션 머리에 한 줄씩 보인다(R19). */
   const taskNever = own.filter((c) => c.code === "CATCH_NEVER" && c.ruleId == null);
   // CATCH_NEVER 는 한 코드를 두 종류가 나눠 쓰므로 종류는 문구의 종류 이름으로만 가른다(R12).
@@ -557,9 +577,7 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
             </tr>
           </tbody>
         </table>
-        <p className="rsf-panel-note">
-          붙은 룰이 받는 예외로 실패하면(결과 없음은 받을 때만) 룰 결과를 쓰지 않고 처리 갈래를 실행한다. 처리 갈래에서 CATCH_KIND·CATCH_RULE·CATCH_CODE·CATCH_MSG 를 읽을 수 있다
-        </p>
+        <p className="rsf-panel-note">{host?.kind === "SET" ? CATCH_NOTE_SET : CATCH_NOTE_RULE}</p>
       </Section>
       <Section kind="CATCH" id="catch-kinds" title="받을 예외" memory={sections}>
         {taskNever.map((c) => (
@@ -568,19 +586,26 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
           </p>
         ))}
         <div className="rsf-catch-kinds">
-          {catchKindsFor(host?.kind).map((k) => {
+          {shownKinds.map((k) => {
             const owner = owners.get(k);
             const never = neverOf(k);
+            const outside = !allowed.includes(k);
             return (
-              <div key={k} className="rsf-catch-kind" data-testid={`flow-prop-catch-kind-${k}`}>
+              <div key={k} className="rsf-catch-kind" data-testid={`flow-prop-catch-kind-${k}`} data-outside={outside ? "true" : undefined}>
                 <Checkbox
                   label={CATCH_KIND_LABEL[k]}
                   aria-label={`${CATCH_KIND_LABEL[k]} 받기`}
                   checked={mine.includes(k)}
-                  disabled={!editable || owner != null}
+                  // 목록 밖 종류는 풀기만 — 다시 켤 수 없다(풀면 칸이 사라진다).
+                  disabled={!editable || owner != null || (outside && !mine.includes(k))}
                   onChange={(on) => onEdit((f) => setCatchKinds(f, node.id, on ? [...mine, k] : mine.filter((x) => x !== k)))}
                 />
                 {owner && <span className="rsf-muted" data-testid={`flow-prop-catch-owner-${k}`}>{`${owner}가 받는다`}</span>}
+                {outside && (
+                  <p className="rsf-panel-note" data-testid={`flow-prop-catch-outside-${k}`} style={badgeStyle("warning")}>
+                    {CATCH_KIND_OUTSIDE}
+                  </p>
+                )}
                 {never && (
                   <p className="rsf-panel-note" data-testid={`flow-prop-catch-never-${k}`} style={badgeStyle("warning")}>
                     {never.message}
@@ -595,6 +620,151 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
           <div className="rsf-panel-actions">
             <DeleteButton onClick={() => onEdit((f) => removeNode(f, node.id))} />
           </div>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+/** 부르는 세트 목록 — 고른 세트 ID 와 함께 둔다(다른 SET 노드를 고르면 옛 목록을 보이지 않는다). */
+type CallerList = { setId: string; sets: RuleSetPick[] | null; failed: boolean };
+
+/**
+ * 룰 세트(SET) 노드(하위 세트 spec §9) — 이름(라벨)·세트 ID·세트명·상태, 검사 문구, [세트 탭으로 열기]·[지우기], 겉모양(입력·출력과 항상/일부 경로),
+ * 이 세트를 부르는 세트(누르면 탭으로). 부르는 세트는 세트 ID 가 바뀔 때마다 서버에 묻고, 다른 노드로 옮긴 뒤 온 늦은 응답은 버린다(Local-Rules §11).
+ * 외관 섹션은 없다(스펙 §9 — SET 은 view.styles 를 열지 않는다).
+ */
+function SetProps({ node, props }: { node: FlowNode; props: PropertyPanelProps }) {
+  const { checks, editable, onEdit, sections, onOpenSet } = props;
+  const setId = node.setId ?? "";
+  const call = setId ? props.calls?.[setId] : undefined;
+  const mine = checks.filter((c) => c.nodeId === node.id);
+  const [who, setWho] = useState<CallerList | null>(null);
+  useEffect(() => {
+    if (!setId) return;
+    let alive = true;
+    callers(setId).then(
+      (r) => {
+        if (alive) setWho({ setId, sets: r.sets ?? [], failed: false });
+      },
+      () => {
+        if (alive) setWho({ setId, sets: null, failed: true });
+      },
+    );
+    return () => {
+      alive = false; // 다른 노드·세트로 옮겼다 — 늦은 응답은 버린다
+    };
+  }, [setId]);
+  const list = who?.setId === setId ? who : null;
+  const inputs = call?.inputs ?? [];
+  const outputs = call?.outputs ?? [];
+  return (
+    <div className="rsf-panel" data-testid="flow-prop-set-node">
+      <Section kind="CALL" id="call-basic" title="하위 세트" memory={sections}>
+        <table style={DETAIL_TABLE_STYLE}>
+          <tbody>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>이름</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <Input
+                  data-testid="flow-prop-set-label"
+                  value={node.label ?? ""}
+                  placeholder={call?.setName ?? setId}
+                  readOnly={!editable}
+                  onChange={(v) => onEdit((f) => updateNodeLabel(f, node.id, blankToNull(v)), { mergeKey: `nlabel:${node.id}` })}
+                />
+              </td>
+            </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>세트 ID</th>
+              <td style={DETAIL_VALUE_CELL}>
+                <code data-testid="flow-prop-set-id">{setId || "-"}</code> <span className="rsf-muted">{`(노드 ${node.id})`}</span>
+              </td>
+            </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>세트명·상태</th>
+              <td style={DETAIL_VALUE_CELL} data-testid="flow-prop-set-name">
+                {!call ? (
+                  <span className="rsf-muted">세트 정보를 받는 중</span>
+                ) : !call.exists ? (
+                  <span style={badgeStyle("warning")}>없는 세트(확정 버전 없음)</span>
+                ) : (
+                  <>
+                    {call.setName ?? "-"}
+                    {call.status && <span style={{ ...badgeStyle("neutral"), marginLeft: 4 }}>{call.status}</span>}
+                  </>
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <CheckLines checks={mine} />
+        <div className="rsf-panel-actions">
+          <Button data-testid="flow-prop-set-open" size="sm" disabled={!setId || !onOpenSet} onClick={() => onOpenSet?.(setId)}>
+            <IconExternalLink size={14} aria-hidden="true" style={{ marginRight: "var(--spacing-xs)" }} />
+            세트 탭으로 열기
+          </Button>
+          {editable && <DeleteButton onClick={() => onEdit((f) => removeNode(f, node.id))} />}
+        </div>
+      </Section>
+
+      <Section kind="CALL" id="call-inputs" title={`입력 ${inputs.length}개`} memory={sections}>
+        {inputs.length === 0 ? (
+          <p className="rsf-muted">없음</p>
+        ) : (
+          <ul className="rsf-vars">
+            {inputs.map((v) => (
+              <li key={v.name} data-testid={`flow-prop-set-input-${v.name}`}>
+                <div className="rsf-var-row">
+                  <code>{v.name}</code>
+                  {v.source && <span style={badgeStyle(SOURCE_TONE[v.source])}>{SOURCE_LABEL[v.source]}</span>}
+                  <span className="rsf-muted">{typeText(v)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section kind="CALL" id="call-outputs" title={`출력 ${outputs.length}개`} memory={sections}>
+        {outputs.length === 0 ? (
+          <p className="rsf-muted">없음</p>
+        ) : (
+          <ul className="rsf-vars">
+            {outputs.map((o) => (
+              <li key={o.name} data-testid={`flow-prop-set-output-${o.name}`}>
+                <div className="rsf-var-row">
+                  <code>{o.name}</code>
+                  <span style={badgeStyle(o.always ? "neutral" : "warning")} title={o.always ? "끝에서 늘 정해진다" : "일부 경로에서만 정해진다"}>
+                    {o.always ? "항상" : "일부 경로"}
+                  </span>
+                  <span className="rsf-muted">{typeText(o)}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section kind="CALL" id="call-callers" title="이 세트를 부르는 세트" memory={sections}>
+        {!setId ? (
+          <p className="rsf-muted">-</p>
+        ) : !list ? (
+          <p className="rsf-muted" data-testid="flow-prop-set-callers-loading">불러오는 중</p>
+        ) : list.failed ? (
+          <p className="rsf-muted" data-testid="flow-prop-set-callers-failed">부르는 세트를 받지 못했다</p>
+        ) : (list.sets ?? []).length === 0 ? (
+          <p className="rsf-muted" data-testid="flow-prop-set-callers-empty">없음(확정 버전 기준)</p>
+        ) : (
+          <ul className="rsf-vars" data-testid="flow-prop-set-callers">
+            {(list.sets ?? []).map((p) => (
+              <li key={p.setId}>
+                <button type="button" className="rsf-set-link" data-testid={`flow-prop-set-caller-${p.setId}`} disabled={!onOpenSet} onClick={() => onOpenSet?.(p.setId)}>
+                  {`${p.setId} · ${p.setName}`}
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </Section>
     </div>
@@ -622,6 +792,7 @@ export function PropertyPanel(props: PropertyPanelProps) {
   if (node) {
     if (node.kind === "TASK") return <TaskProps node={node} props={props} />;
     if (node.kind === "CATCH") return <CatchProps node={node} props={props} />;
+    if (node.kind === "SET") return <SetProps node={node} props={props} />;
     if (node.kind === "RULE") return <RuleProps node={node} io={node.ruleId ? rules[node.ruleId] : undefined} tree={tree} props={props} />;
     if (node.kind === "IF" || node.kind === "PARALLEL") return <SplitProps node={node} props={props} />;
     return <PlainNodeProps node={node} props={props} />;
