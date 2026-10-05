@@ -45,6 +45,25 @@
   - `RuleSetPathState.before` 3인자의 setProduces 형을 `Function<String, Set<String>>` → `Function<String, SetOut>` 로 바꿨다(호출자는 시험뿐이었다).
   - `RuleSetCallerCheck`·`RuleSetCallIoResult`·`RuleSetOrderCheck` 연결은 B·C 로 둔다.
 
+### 묶음 B — 확정·되살리기 검사 연결 (끝)
+- 커밋:
+  - 8f236d63 `RuleSetConfirmChecks.report` — `SetCallIoReader` 스냅샷 하나로 SET 노드 겉모양(apply_from, 경계 시각은 그 시각)을 분석기 4인자에 넘기고, 항목 1(FLOW_STRUCTURE)에 호출 그래프(`edges(applyFrom)` 의 이 세트 자리를 확정하려는 흐름의 SET 목록으로 덮음)·연쇄 재검사(`SetCallerRecheck`, 새 경고 부모가 있으면 `CALLER_WARN` 한 건)를 더한다. `RuleSetConfirmReport` 는 apply_from 검사의 `CALL_CODES` 를 수준과 상관없이 ERROR 로 올린다(`rejects`). 시험 `RuleSetSubsetConfirmSqliteTest` 5건.
+  - ae61e370 `RuleSetCallerCheck`(@Order(9), TABLE·COLUMNS·STORED, `SET_CALLER_BROKEN` — STORED 는 ERROR, TABLE·COLUMNS 는 WARNING), 시험 `RuleSetCallerCheckTest` 5건(열 저장 경고·겉모양 그대로면 없음·룰 확정 보고서 ERROR·부르는 세트 폐기면 없음·적용 지점별 수준). `RuleConfirmQueryCountTest` 상한 36 → 37.
+  - e0a2a328 `RuleSetOrderCheck` 에 `SetCallIoReader` 주입, `RuleSetPathState.before` 3인자(`id -> SetOut.of(calls.get(id))`, 기준 시각 `at`). 시험 `RuleLedgerChecksTest` +1(IF 앞 SET 노드가 반드시 만드는 이름은 SET_IF_SIBLING 이 아니다 — 연결을 `SetOut.NONE` 으로 되돌리면 실패하는 것을 확인했다).
+- 시험(src/backend/mdm, JDK 21, `--max-workers=2`):
+  - `../gradlew :lib:test` → 2045건 통과, 실패 0(lib 시험은 더하지 않았다).
+  - `../gradlew :api:test --tests 'com.dongkuk.dmes.mdm.dme.ruleConfirm.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleSetConfirm.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleEdit.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleSetEdit.*' --tests 'com.dongkuk.dmes.mdm.common.rule.*' --tests 'com.dongkuk.dmes.mdm.common.version.*'` → 43클래스 517건 통과, 실패 0. (상한 수정 전 첫 실행은 `RuleConfirmQueryCountTest` 1건 실패 — validate2=37.)
+- 필수 시험(확정 쪽): `두_DRAFT_가_순환을_반씩_만들면_먼저_확정은_통과하고_나중_확정이_CALL_CYCLE_로_막힌다`(A·B DRAFT 에 흐름·CALL_SET_IDS 를 직접 넣는다 — C 의 저장 전이라서), `부르는_세트를_깨는_확정은_CALLER_BROKEN_으로_막힌다`(목록 세트 C 가 OUT_X 를 더 내지 않으면 P 의 R_P 가 못 읽음). 저장 쪽 짝(같은 상황이 DRAFT 저장에서는 경고)은 C 몫이다. 룰 쪽은 열 저장 WARNING·룰 확정 ERROR 를 서비스·보고서 경로로 확인했다.
+- 결정:
+  - 세트 확정 연쇄 재검사는 앞에 확정을 막는 검사(흐름 검사 REJECT·`CALL_CODES`·그래프)가 없고, 이 세트를 부르는 쪽 행이 있고, apply_from 에 적용 중인 겉모양이 있으며(첫 확정이면 하지 않는다), 확정하려는 겉모양과 다를 때만 돈다. FLOW_JSON 이 없는 세트는 `FlowParser.linear(ids)` 로 겉모양을 계산한다. **C 의 DRAFT 저장 경고도 같은 조건으로 맞춘다.**
+  - `CALLER_WARN` 은 세트 ID 를 ruleId 로 둔 WARN 한 건, 문구 "부르는 세트에 경고가 생겼다: P1, P2". 확정은 경고 확인(`warningsAcknowledged`)을 요구한다.
+  - 경계 시각(멤버 룰 RELEASED 시작) 검사는 그 시각의 하위 세트 겉모양으로 돌리고 지금처럼 모두 WARNING 이다(`CALL_CODES` 승격은 apply_from 검사에만).
+  - 룰 쪽 `RuleSetCallerCheck` 는 룰을 담은 세트의 **기준 시각에 적용 중인** RELEASED 버전만 본다(부르는 세트가 `read(at)` 으로 보는 겉모양과 견줘야 버전 차이가 깨짐으로 잡히지 않는다). 부르는 쪽 행이 없으면 저장하려는 정의의 입출력(`RuleIoReader.draft`)을 계산하지 않는다. 문구는 "세트 S 를 부르는 세트 P: …", 같은 문구는 한 번. 새 경고만 생긴 부모는 룰 쪽에서 내지 않는다.
+  - 룰 쪽 기준 시각 = `referenceTime`(룰 확정의 apply_from), 없으면 지금(초 단위, `RuleSetOrderCheck` 와 같은 식).
+- 계획 조정(본문과 다르게 한 것):
+  - 본문 `RuleSetCallerCheck` 의 `MdmRuleSet.getRuleIds()`·`"INUSE"`·`reader.callers(sid)`·`ioReader.read` → 폐기 안 한 부모의 적용 중 VER 행 `members`, `snap.callers(sid, at)`, `readAt(at)`. 본문 시험(`RuleSaveContext` 직접 호출만)에 열 저장·룰 확정 보고서 경로 시험을 더했다. 시험은 C 의 `RuleSetSubsetServiceTest` 와 겹치지 않게 `ruleSetConfirm/RuleSetSubsetConfirmSqliteTest` 로 따로 두었다.
+  - `RuleConfirmQueryCountTest` 의 validate 상한을 36 → 37 로 올렸다(새 검사의 세트 목록 1문, 변수 수와 무관 — n 당 증가 6×4 는 그대로).
+
 ## srv:5. 서버 분석기·코퍼스 (구현 끝 — ui:5t 짝 머지 대기)
 - 커밋: b89509f3(분석기 `SetCallIo`·`RuleSetInterface`·`RuleSetAnalyzer`·`RuleSetPathState`·`RuleSetCheck` 상수 넷, 시험 `RuleSetInterfaceTest`·`RuleSetPathStateTest` 3건), 80d0a74b(코퍼스 18건·`RuleSetCorpusTest` calls 읽기·단계 순서 단언, TS `MIN_CASES` 한 줄).
 - 시험(src/backend/mdm, JDK 21):
