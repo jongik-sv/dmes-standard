@@ -7,6 +7,8 @@ public class SecWidgetTabSaveRequest {
     private String tabNm;
     private Integer tabSeq;
     private String lockYn;
+    /** Y 면 화면이 새로 만든 탭 — 같은 tab-N 이 이미 있으면 덮어쓰지 않고 새 번호로 옮긴다. home·def-* 에는 쓰지 않는다. */
+    private String newYn;
 
     public SecWidgetTabSaveRequest() {}
 
@@ -18,4 +20,6 @@ public class SecWidgetTabSaveRequest {
     public void setTabSeq(Integer tabSeq) { this.tabSeq = tabSeq; }
     public String getLockYn() { return lockYn; }
     public void setLockYn(String lockYn) { this.lockYn = lockYn; }
+    public String getNewYn() { return newYn; }
+    public void setNewYn(String newYn) { this.newYn = newYn; }
 }

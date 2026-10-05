@@ -32,12 +32,13 @@ export type { WidgetFrameProps } from "./WidgetFrame";
 export {
   openPortalPage,
   useWidgetBodySize,
+  useWidgetRename,
   useWidgetStatus,
   useWidgetTitle,
   WidgetHeaderActions,
   WidgetTitleExtra,
 } from "./frame-context";
-export type { WidgetStatus } from "./frame-context";
+export type { WidgetRenameHandler, WidgetStatus } from "./frame-context";
 export { WIDGET_CSS, WidgetStyle } from "./styles";
 export { WidgetBoard } from "./WidgetBoard";
 export type { WidgetBoardProps } from "./WidgetBoard";
@@ -48,3 +49,15 @@ export { WidgetPicker } from "./WidgetPicker";
 export type { WidgetPickerProps } from "./WidgetPicker";
 export { WidgetWorkspace } from "./WidgetWorkspace";
 export type { WidgetWorkspaceProps } from "./WidgetWorkspace";
+// 기본 탭·공유·탭 파일(widget-tabs 2026-10-05)
+export {
+  buildTabExport,
+  fixedTabCount,
+  isFixedTab,
+  orderTabs,
+  parseTabImport,
+  shareResultMessage,
+  tabImportMessage,
+  uniqueTabName,
+} from "./widget-layout";
+export type { TabImportContext, TabImportDrop, TabImportResult } from "./widget-layout";

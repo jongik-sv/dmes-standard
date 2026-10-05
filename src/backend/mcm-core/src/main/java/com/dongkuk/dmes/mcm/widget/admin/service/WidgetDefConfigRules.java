@@ -2,7 +2,11 @@ package com.dongkuk.dmes.mcm.widget.admin.service;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
+import com.dongkuk.dmes.mcm.widget.collect.CollectConfig;
+import com.dongkuk.dmes.mcm.widget.collect.CollectConfigs;
 import com.dongkuk.dmes.mcm.widget.memo.service.WidgetMemoService;
+import com.dongkuk.dmes.mcm.widget.query.QueryParam;
+import com.dongkuk.dmes.mcm.widget.query.QueryParams;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -13,6 +17,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /**
@@ -31,9 +36,18 @@ final class WidgetDefConfigRules {
 
     /**
      * 설정을 검사하고 저장할 DATA_SRC 를 돌려준다(쿼리 유형만 값, 그 밖은 null).
-     * 쿼리 유형은 config.sql 을 {@link WidgetQueryRunner#validateSql} 로 저장 때도 검사한다(§7.1).
+     * 쿼리 유형은 config.sql 을 {@link WidgetQueryRunner#validateSql} 로 저장 때도 검사하고, config.params(입력 조건)도 함께 본다(§7.1).
      */
     static String check(String typeId, String rawDataSrc, String configJson, WidgetQueryRunner queryRunner) {
+        return check(typeId, rawDataSrc, configJson, queryRunner, null);
+    }
+
+    /**
+     * {@link #check(String, String, String, WidgetQueryRunner)} + 정시 수집(collect) http 원천의 호스트 허용 판정. hostAllowed 가 null 이면 저장 때는
+     * 호스트 허용 목록을 보지 않는다(수집기가 실행 때마다 거절한다).
+     */
+    static String check(String typeId, String rawDataSrc, String configJson, WidgetQueryRunner queryRunner,
+                        Predicate<String> hostAllowed) {
         if (configJson.getBytes(StandardCharsets.UTF_8).length > CONFIG_MAX_BYTES) {
             throw invalid("위젯 설정은 200KB 이하로 정합니다.");
         }
@@ -51,7 +65,7 @@ final class WidgetDefConfigRules {
             if (sql == null || !sql.isTextual() || sql.asText().isBlank()) {
                 throw new BusinessException(ErrorCode.REQUIRED_VALUE, "SQL 을 입력해 주세요.");
             }
-            queryRunner.validateSql(sql.asText());
+            checkQuery(sql.asText(), config.get("params"), queryRunner);
             return dataSrc;
         }
         switch (typeId) {
@@ -83,6 +97,8 @@ final class WidgetDefConfigRules {
                     }
                 }
             }
+            case CollectConfig.TYPE_ID -> // 정시 수집 — 스펙 2026-10-05 정시 수집 §2 의 규칙을 모두 서버가 판정한다
+                    CollectConfigs.check(config, queryRunner::validateCollectSql, hostAllowed);
             case "html" -> {
                 JsonNode allowScript = config.get("allowScript");
                 if (allowScript != null && !allowScript.isNull() && !allowScript.isBoolean()) {
@@ -111,6 +127,25 @@ final class WidgetDefConfigRules {
             }
         }
         return null;
+    }
+
+    /**
+     * 쿼리 유형의 SQL·입력 조건(params) 검사. 조건이 없으면 지금과 같다(SQL 에 사용자 바인드가 있으면 알 수 없는 변수로 거절). 조건이 있으면
+     * params 모양을 {@link QueryParams#parse} 로 보고, SQL 의 사용자 바인드는 모두 선언되어 있어야 하며(실행기 검사), 선언했지만 SQL 이 쓰지 않는
+     * 이름도 거절한다.
+     */
+    private static void checkQuery(String sql, JsonNode paramsNode, WidgetQueryRunner queryRunner) {
+        List<QueryParam> params = QueryParams.parse(paramsNode);
+        if (params.isEmpty()) {
+            queryRunner.validateSql(sql);
+            return;
+        }
+        List<String> used = queryRunner.validateSql(sql, QueryParams.names(params));
+        for (QueryParam param : params) {
+            if (used == null || !used.contains(param.name())) {
+                throw invalid("조건 :" + param.name() + " 는 SQL 에서 쓰이지 않습니다. SQL 에 쓰거나 조건을 지워 주세요.");
+            }
+        }
     }
 
     /** 쿼리 실행 모듈 — 지금은 mcm 만(§0 사용자 결정, W-D24). */

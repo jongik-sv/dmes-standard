@@ -472,6 +472,277 @@ export function toNumberTiles(rows: readonly Record<string, unknown>[], cfg: Que
   });
 }
 
+/* ── 입력 조건(정의 설정의 `params`) ── */
+
+export type QueryParamType = "text" | "number" | "date" | "select";
+
+export interface QueryParamOption {
+  value: string;
+  label?: string;
+}
+
+/** 입력 조건 하나 — SQL 의 `:name` 바인드에 들어갈 값을 사용자가 위젯 위 줄에서 넣는다. */
+export interface QueryParam {
+  name: string;
+  label?: string;
+  type: QueryParamType;
+  default?: string;
+  required?: boolean;
+  options?: QueryParamOption[];
+}
+
+export const PARAM_TYPES: readonly QueryParamType[] = ["text", "number", "date", "select"];
+export const PARAM_TYPE_LABELS: Readonly<Record<string, string>> = { text: "글자", number: "숫자", date: "날짜", select: "선택" };
+/** 서버와 합의한 이름 형식·개수·값 길이. */
+export const PARAM_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,29}$/;
+export const PARAM_MAX = 10;
+export const PARAM_VALUE_MAX = 200;
+/** 선택 형 선택지 개수·라벨 길이 상한(서버와 같다). 값은 PARAM_VALUE_MAX. */
+export const PARAM_OPTION_MAX = 50;
+export const PARAM_OPTION_LABEL_MAX = 50;
+/** 조건 이름으로 쓸 수 없는 시스템 변수 이름(콜론 뺀 것). */
+export const RESERVED_PARAM_NAMES: readonly string[] = SYSTEM_VARIABLES.map((v) => v.name.slice(1));
+
+/** 필수인데 값이 없을 때 본문에 보이는 안내(서버를 부르지 않는다). */
+export const QUERY_NEED_INPUT = "조건을 입력하고 검색하세요";
+
+/** 글자·숫자만 글자로 읽는다(그 밖·빈 글자는 undefined). 앞뒤 공백은 그대로 둔다. */
+function scalarText(v: unknown): string | undefined {
+  if (typeof v === "string") return v === "" ? undefined : v;
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  return undefined;
+}
+
+/** 정의 설정의 `params` 를 모양을 믿지 않고 정리해 읽는다 — 이름이 빈 항목도 남긴다(편집기가 고치게). 길이·형식 검사는 validateParams. */
+export function paramsOf(definition: unknown): QueryParam[] {
+  const raw = isRecord(definition) ? definition.params : undefined;
+  if (!Array.isArray(raw)) return [];
+  const out: QueryParam[] = [];
+  for (const p of raw) {
+    if (!isRecord(p)) continue;
+    const item: QueryParam = { name: str(p.name), type: pick(p.type, PARAM_TYPES) ?? "text" };
+    const label = str(p.label);
+    if (label) item.label = label;
+    const def = scalarText(p.default);
+    if (def !== undefined) item.default = def;
+    if (p.required === true) item.required = true;
+    if (Array.isArray(p.options)) {
+      const options: QueryParamOption[] = [];
+      for (const o of p.options) {
+        if (!isRecord(o)) continue;
+        const value = scalarText(o.value);
+        if (value === undefined) continue;
+        const opt: QueryParamOption = { value };
+        const optLabel = str(o.label);
+        if (optLabel) opt.label = optLabel;
+        options.push(opt);
+      }
+      if (options.length > 0) item.options = options;
+    }
+    out.push(item);
+  }
+  return out;
+}
+
+/** 위젯 위 줄에 그릴 수 있는 조건 — 이름 형식이 맞고 처음 나온 것만(저장 때 검사가 막으므로 평소엔 전부 남는다). */
+export function usableParams(params: readonly QueryParam[]): QueryParam[] {
+  const seen = new Set<string>();
+  const out: QueryParam[] = [];
+  for (const p of params) {
+    if (!PARAM_NAME_RE.test(p.name) || seen.has(p.name)) continue;
+    seen.add(p.name);
+    out.push(p);
+  }
+  return out;
+}
+
+/** 조건 입력 값 모음 — 이름 → 글자. */
+export type ParamValues = Record<string, string>;
+
+/** 실제 있는 날짜인지(2026-02-30 같은 값은 아니다). */
+function isRealDate(y: number, m: number, d: number): boolean {
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
+}
+
+/** date 형 기본값 읽기 — yyyy-MM-dd 또는 yyyyMMdd(실제 날짜일 때만)를 yyyy-MM-dd 로. 그 밖은 null. */
+export function normalizeDateDefault(v: string): string | null {
+  const m = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(v);
+  if (!m || (v.includes("-") && !/^\d{4}-\d{2}-\d{2}$/.test(v))) return null;
+  return isRealDate(Number(m[1]), Number(m[2]), Number(m[3])) ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
+/** 처음 보이는 값 — 기본값(200자까지), 없으면 빈 글자. date 형의 yyyyMMdd 는 날짜 입력 칸이 읽는 yyyy-MM-dd 로 바꾼다(실제 날짜일 때만). */
+export function initialValues(params: readonly QueryParam[]): ParamValues {
+  const out: ParamValues = {};
+  for (const p of params) {
+    const def = (p.default ?? "").slice(0, PARAM_VALUE_MAX);
+    out[p.name] = p.type === "date" ? (normalizeDateDefault(def) ?? def) : def;
+  }
+  return out;
+}
+
+/** 서버로 보낼 값 — 선언된 이름만, 앞뒤 공백을 지우고 200자까지. 빈 값도 빈 글자로 둔다. */
+export function cleanValues(params: readonly QueryParam[], values: Readonly<Record<string, string | undefined>>): ParamValues {
+  const out: ParamValues = {};
+  for (const p of params) out[p.name] = (values[p.name] ?? "").trim().slice(0, PARAM_VALUE_MAX);
+  return out;
+}
+
+/** 필수인데 값이 빈 조건의 이름 목록(입력 순서). */
+export function missingRequired(params: readonly QueryParam[], values: Readonly<Record<string, string | undefined>>): string[] {
+  return params.filter((p) => p.required && (values[p.name] ?? "").trim() === "").map((p) => p.name);
+}
+
+export type RunPlan = { run: true; values?: ParamValues } | { run: false; missing: string[] };
+
+/**
+ * 확정한(검색을 누른) 값으로 서버를 부를지 정한다 — 조건이 없으면 값 없이 부른다(paramsJson 을 싣지 않는다),
+ * 필수가 비었으면 부르지 않는다(서버 거절이 오류 띠로 뜨지 않게 「조건을 입력하고 검색하세요」 를 보인다).
+ */
+export function planRun(params: readonly QueryParam[], applied: Readonly<Record<string, string | undefined>>): RunPlan {
+  if (params.length === 0) return { run: true };
+  const missing = missingRequired(params, applied);
+  if (missing.length > 0) return { run: false, missing };
+  return { run: true, values: cleanValues(params, applied) };
+}
+
+/**
+ * SQL 에서 사용자 바인드 이름을 근사해 뽑는다 — 문자열 리터럴·따옴표 식별자·주석 제외, `::` 캐스트 제외, 시스템 변수 제외, 처음 나온 순서·중복 제거.
+ * 정식 판정은 서버가 한다(저장 때 SQL 의 바인드와 선언을 맞춰 본다).
+ */
+export function extractBindNames(sql: string): string[] {
+  return extractAllBindNames(sql).filter((name) => !RESERVED_PARAM_NAMES.includes(name));
+}
+
+/** extractBindNames 와 같되 시스템 변수 이름(userId·today …)도 포함한다 — 수집 SQL 이 쓸 수 없는 변수를 알아볼 때 쓴다. */
+export function extractAllBindNames(sql: string): string[] {
+  let code = "";
+  let i = 0;
+  const n = sql.length;
+  while (i < n) {
+    const c = sql[i];
+    const next = sql[i + 1];
+    if (c === "-" && next === "-") {
+      while (i < n && sql[i] !== "\n") i++;
+      code += " ";
+    } else if (c === "/" && next === "*") {
+      const end = sql.indexOf("*/", i + 2);
+      i = end < 0 ? n : end + 2;
+      code += " ";
+    } else if (c === "'" || c === '"') {
+      // 같은 따옴표가 두 번 겹치면 따옴표 글자(이스케이프)다.
+      i++;
+      while (i < n) {
+        if (sql[i] === c) {
+          if (sql[i + 1] === c) i += 2;
+          else break;
+        } else i++;
+      }
+      i++;
+      code += " ";
+    } else {
+      code += c;
+      i++;
+    }
+  }
+  const names: string[] = [];
+  const re = /(?<![:\w]):([A-Za-z][A-Za-z0-9_]*)/g;
+  for (let m = re.exec(code); m; m = re.exec(code)) {
+    if (!names.includes(m[1])) names.push(m[1]);
+  }
+  return names;
+}
+
+/** 입력 조건 검사(저장 막기용) — 원래 설정 값으로 한다. 메시지는 사람이 읽는 한 문장. */
+export function validateParams(cfg: unknown): string[] {
+  if (!isRecord(cfg) || cfg.params === undefined || cfg.params === null) return [];
+  const raw = cfg.params;
+  if (!Array.isArray(raw)) return ["조회 조건 설정 형식이 올바르지 않습니다"];
+  const errors: string[] = [];
+  if (raw.length > PARAM_MAX) errors.push(`조회 조건은 최대 ${PARAM_MAX}개까지 둘 수 있습니다`);
+  const seen = new Set<string>();
+  raw.forEach((p, idx) => {
+    const at = `조회 조건 ${idx + 1}번`;
+    if (!isRecord(p)) {
+      errors.push(`${at}의 형식이 올바르지 않습니다`);
+      return;
+    }
+    const name = typeof p.name === "string" ? p.name.trim() : "";
+    if (name === "") errors.push(`${at}의 이름을 입력하세요`);
+    else if (!PARAM_NAME_RE.test(name)) errors.push(`${at}의 이름은 영문자로 시작하는 영문·숫자·밑줄 30자 이하로 입력하세요`);
+    else if (RESERVED_PARAM_NAMES.includes(name)) errors.push(`${at}의 이름 「${name}」 은 시스템 변수 이름이라 쓸 수 없습니다`);
+    else if (seen.has(name)) errors.push(`${at}의 이름 「${name}」 이 중복됩니다`);
+    if (name !== "") seen.add(name);
+    const type = pick(p.type, PARAM_TYPES);
+    if (!type) errors.push(`${at}의 형을 고르세요`);
+    if (typeof p.default === "string" && p.default.length > PARAM_VALUE_MAX) {
+      errors.push(`${at}의 기본값은 ${PARAM_VALUE_MAX}자 이하로 입력하세요`);
+    }
+    const def = typeof p.default === "string" ? p.default : "";
+    if (type === "number" && def !== "" && !PLAIN_NUMBER_RE.test(def.trim())) {
+      errors.push(`${at}의 기본값은 숫자로 입력하세요`);
+    }
+    if (type === "date" && def !== "" && normalizeDateDefault(def) === null) {
+      errors.push(`${at}의 기본값은 yyyy-MM-dd 또는 yyyyMMdd 형식의 실제 날짜로 입력하세요`);
+    }
+    if (type === "select") {
+      const options = Array.isArray(p.options) ? p.options.filter(isRecord) : [];
+      if (options.length === 0) errors.push(`${at}은 선택 형이라 선택지를 하나 이상 넣어야 합니다`);
+      else {
+        const values = options.map((o) => scalarText(o.value));
+        if (values.some((v) => v === undefined)) errors.push(`${at}에 값이 빈 선택지가 있습니다`);
+        if (options.length > PARAM_OPTION_MAX) errors.push(`${at}의 선택지는 최대 ${PARAM_OPTION_MAX}개까지 둘 수 있습니다`);
+        if (values.some((v) => v !== undefined && v.length > PARAM_VALUE_MAX)) {
+          errors.push(`${at}의 선택지 값은 ${PARAM_VALUE_MAX}자 이하로 입력하세요`);
+        }
+        if (new Set(values.filter((v) => v !== undefined)).size < values.filter((v) => v !== undefined).length) {
+          errors.push(`${at}에 값이 겹치는 선택지가 있습니다`);
+        }
+        if (options.some((o) => typeof o.label === "string" && o.label.length > PARAM_OPTION_LABEL_MAX)) {
+          errors.push(`${at}의 선택지 라벨은 ${PARAM_OPTION_LABEL_MAX}자 이하로 입력하세요`);
+        }
+        if (def !== "" && !values.includes(def)) errors.push(`${at}의 기본값은 선택지 값 중 하나여야 합니다`);
+      }
+    }
+  });
+  return errors;
+}
+
+/** [선택지] 칸 글자 → 선택지 목록. `값:라벨,값:라벨`(라벨은 생략 가능, 첫 콜론에서 나눈다). 값이 빈 조각은 버린다. */
+export function parseOptionsText(text: string): QueryParamOption[] {
+  const out: QueryParamOption[] = [];
+  for (const piece of text.split(",")) {
+    const at = piece.indexOf(":");
+    const value = (at < 0 ? piece : piece.slice(0, at)).trim();
+    const label = at < 0 ? "" : piece.slice(at + 1).trim();
+    if (value === "") continue;
+    out.push(label ? { value, label } : { value });
+  }
+  return out;
+}
+
+/** 선택지 목록 → [선택지] 칸 글자(parseOptionsText 의 거꾸로). */
+export function optionsToText(options: readonly QueryParamOption[] | undefined): string {
+  return (options ?? []).map((o) => (o.label ? `${o.value}:${o.label}` : o.value)).join(",");
+}
+
+/** [SQL 에서 가져오기] — SQL 의 바인드 이름 중 아직 선언 안 된 것을 글자 형 조건으로 뒤에 붙인다. */
+export function appendUndeclaredParams(list: readonly QueryParam[], sql: string): QueryParam[] {
+  const have = new Set(list.map((p) => p.name));
+  return [...list, ...extractBindNames(sql).filter((name) => !have.has(name)).map((name): QueryParam => ({ name, type: "text" }))];
+}
+
+/** 편집기 안내 — SQL 의 바인드 중 선언 안 된 이름·선언했지만 SQL 에 없는 이름(근사, 저장 때 서버가 정식으로 판정). */
+export function paramUsageNotes(sql: string, params: readonly QueryParam[]): { undeclared: string[]; unused: string[] } {
+  const used = extractBindNames(sql);
+  const declared = new Set(params.map((p) => p.name).filter((n) => n !== ""));
+  return {
+    undeclared: used.filter((name) => !declared.has(name)),
+    unused: [...declared].filter((name) => !used.includes(name)),
+  };
+}
+
 /* ── 편집기 ── */
 
 /** 편집기 검사(저장 막기용) — 빈 배열이면 저장 가능. */
@@ -479,6 +750,7 @@ export function validateQueryConfig(typeId: string, cfg: unknown): string[] {
   const errors: string[] = [];
   const sql = isRecord(cfg) && typeof cfg.sql === "string" ? cfg.sql : "";
   if (sql.trim() === "") errors.push("SQL 을 입력하세요");
+  errors.push(...validateParams(cfg));
   if (typeId === "query-table") {
     if (tableConfigOf(cfg).columns.some((c) => c.field === "")) errors.push("필드가 빈 컬럼이 있습니다");
   } else if (typeId === "query-chart") {

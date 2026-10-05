@@ -23,6 +23,7 @@ import "@dk-oasis/shared/grid.css";
 import "@dk-oasis/shared/form.css";
 import "@dk-oasis/shared/modal.css";
 import { resolvePortalPage } from "./registered-modules";
+import { useDockRegistry } from "./use-dock-registry";
 import { publishPortalMenu } from "@/lib/portal-menu-store";
 import { publishPortalFavorites } from "@/lib/portal-favorites-store";
 
@@ -129,6 +130,8 @@ function PortalShellWithMessage({
 }) {
   const gfn_message = useGfnMessage();
   const { onUsageSegments, flushUsageForLogout } = usePortalUsageReporter();
+  // 포털 머리 「도구」 — floatable 위젯(계산기·단위 변환·메모)을 업무 화면 위 떠 있는 창으로 띄운다(사용자별 브라우저 저장).
+  const widgetDock = useDockRegistry();
 
   const handleBeforeLogout = useCallback(
     (doLogout: () => void) => {
@@ -290,6 +293,7 @@ function PortalShellWithMessage({
       isStartPagesLoaded={isStartPagesLoaded}
       onToggleStartPage={handleToggleStartPage}
       onUsageSegments={onUsageSegments}
+      widgetDock={widgetDock}
     />
   );
 }

@@ -11,6 +11,8 @@ public class CommWidgetMngRequest {
     private String dataSrc;
     /** previewQuery 시험 SQL — 관리자 전용 action 이라 받는다(사용자용 widgetData/run 은 SQL 을 받지 않는다). */
     private String sql;
+    /** previewQuery 입력 조건 정의 — CONFIG_JSON 의 params 배열을 담은 JSON 글자. 시험 실행은 각 조건의 default 를 값으로 쓴다. */
+    private String paramsJson;
 
     public CommWidgetMngRequest() {}
 
@@ -22,4 +24,6 @@ public class CommWidgetMngRequest {
     public void setDataSrc(String dataSrc) { this.dataSrc = dataSrc; }
     public String getSql() { return sql; }
     public void setSql(String sql) { this.sql = sql; }
+    public String getParamsJson() { return paramsJson; }
+    public void setParamsJson(String paramsJson) { this.paramsJson = paramsJson; }
 }

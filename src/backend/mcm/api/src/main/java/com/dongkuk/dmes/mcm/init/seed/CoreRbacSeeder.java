@@ -129,6 +129,9 @@ public final class CoreRbacSeeder extends SeedSupport {
                 // 2026-10-02 — mcm 위젯관리(services/csa/commWidgetMng.bpmn) action 과 미디어 올리기(REST upload).
                 //   search·save·delete 는 위에 있다. 사용자용 widgetDef·widgetData·widgetExt·widgetChat·widgetMemo·widgetMedia 는 AUTH_ONLY 라 넣지 않는다.
                 "previewQuery", "searchLayouts", "loadLayout", "saveLayout", "deleteLayout", "searchDepts", "upload",
+                // 2026-10-05 — 위젯관리 기본 탭 action(docs/widget-2026-10/design-widget-tabs.md §3.2). 이미 시드된 DB 는
+                //   ensurePermAllActions 가 덧붙인다. 사용자용 secWidget 의 resetTab·shareTab·searchUsers 는 AUTH_ONLY 라 넣지 않는다.
+                "loadDefaultTabs", "saveDefaultTab", "deleteDefaultTab", "reorderDefaultTabs",
                 // 2026-10-02 — MDM 캐시 관리(csa/mdmCacheMng) 재등록 버튼. 이미 시드된 DB 는 ensurePermAllActions 가 덧붙인다.
                 "reload"
 

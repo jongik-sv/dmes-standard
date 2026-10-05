@@ -8,6 +8,7 @@ import com.dongkuk.dmes.mcm.widget.common.WidgetUserContextResolver;
 import com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetLayoutRequest;
 import com.dongkuk.dmes.mcm.widget.layout.entity.WidgetDefaultLayout;
 import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultLayoutRepository;
+import com.dongkuk.dmes.mcm.widget.layout.repository.WidgetDefaultTabRepository;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -41,23 +42,38 @@ public class CommWidgetLayoutService {
     private final WidgetLayoutWriter writer;
     private final DeptInfoRepository deptRepository;
     private final WidgetUserContextResolver userContextResolver;
+    private final WidgetDefaultTabRepository tabRepository;
+    private final WidgetDefaultTabWriter tabWriter;
 
     @Autowired
     public CommWidgetLayoutService(WidgetDefaultLayoutRepository layoutRepository,
                                    WidgetLayoutWriter writer,
                                    DeptInfoRepository deptRepository,
-                                   WidgetUserContextResolver userContextResolver) {
+                                   WidgetUserContextResolver userContextResolver,
+                                   WidgetDefaultTabRepository tabRepository,
+                                   WidgetDefaultTabWriter tabWriter) {
         this.layoutRepository = layoutRepository;
         this.writer = writer;
         this.deptRepository = deptRepository;
         this.userContextResolver = userContextResolver;
+        this.tabRepository = tabRepository;
+        this.tabWriter = tabWriter;
     }
 
-    /** 기본 배치가 있는 키 목록 {@code [{layoutKey, deptNm, count}]} — 전사(「전사」) 먼저, 그다음 부서 이름 순. */
+    /**
+     * 기본 배치나 기본 탭이 있는 키 목록 {@code [{layoutKey, deptNm, count, tabCount}]} — 전사(「전사」) 먼저, 그다음 부서 이름 순.
+     * count 는 「홈」 기본 배치 위젯 수(없으면 0), tabCount 는 기본 탭 수(design-widget-tabs.md §3.2).
+     */
     public Map<String, Object> searchLayouts(CommWidgetLayoutRequest request) {
         Map<String, Long> counts = new LinkedHashMap<>();
         for (Object[] row : layoutRepository.countGroupByLayoutKey()) {
             counts.put(String.valueOf(row[0]), ((Number) row[1]).longValue());
+        }
+        Map<String, Long> tabCounts = new LinkedHashMap<>();
+        for (Object[] row : tabRepository.countGroupByLayoutKey()) {
+            String key = String.valueOf(row[0]);
+            tabCounts.put(key, ((Number) row[1]).longValue());
+            counts.putIfAbsent(key, 0L);
         }
         List<String> deptKeys = counts.keySet().stream().filter(k -> !WidgetDefaultLayout.COMPANY_KEY.equals(k)).toList();
         Map<String, String> deptNames = new HashMap<>();
@@ -71,6 +87,7 @@ public class CommWidgetLayoutService {
             m.put("layoutKey", e.getKey());
             m.put("deptNm", company ? COMPANY_NM : deptNames.get(e.getKey()));
             m.put("count", e.getValue());
+            m.put("tabCount", tabCounts.getOrDefault(e.getKey(), 0L));
             layouts.add(m);
         }
         layouts.sort(Comparator
@@ -133,10 +150,13 @@ public class CommWidgetLayoutService {
         return result;
     }
 
-    /** 그 키의 배치를 지운다(없으면 아무것도 하지 않는다). 부서가 사라진 뒤 남은 배치도 지울 수 있게 부서 존재는 보지 않는다. */
+    /**
+     * 그 키의 「홈」 기본 배치와 기본 탭을 한 트랜잭션으로 지운다(없으면 아무것도 하지 않는다). 부서가 사라진 뒤 남은 배치도
+     * 지울 수 있게 부서 존재는 보지 않는다.
+     */
     public Map<String, Object> deleteLayout(CommWidgetLayoutRequest request) {
         String layoutKey = requireLayoutKey(request.getLayoutKey());
-        writer.delete(layoutKey);
+        tabWriter.deleteKey(layoutKey);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("layoutKey", layoutKey);
         return result;
@@ -171,7 +191,8 @@ public class CommWidgetLayoutService {
         return value != null && value.toUpperCase(Locale.ROOT).startsWith(upperPrefix);
     }
 
-    private static String requireLayoutKey(String raw) {
+    /** 기본 탭 action({@link CommWidgetDefaultTabService})도 같은 키 검사를 쓴다. */
+    static String requireLayoutKey(String raw) {
         String key = trim(raw);
         if (key == null || key.isEmpty()) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "기본 배치 키(layoutKey)가 없습니다.");
@@ -206,7 +227,8 @@ public class CommWidgetLayoutService {
         throw new BusinessException(ErrorCode.INVALID_VALUE, key + " 는 정수여야 합니다: " + instId);
     }
 
-    private static WidgetLayoutWriter.LayoutItem toItem(Map<String, Object> row) {
+    /** 기본 탭 action({@link CommWidgetDefaultTabService})도 같은 위젯 검사를 쓴다. */
+    static WidgetLayoutWriter.LayoutItem toItem(Map<String, Object> row) {
         String instId = text(row, "instId");
         String widgetId = text(row, "widgetId");
         if (instId == null || !INST_ID.matcher(instId).matches()) {

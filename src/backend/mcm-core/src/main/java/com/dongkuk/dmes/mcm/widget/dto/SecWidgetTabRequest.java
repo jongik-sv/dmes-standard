@@ -1,6 +1,6 @@
 package com.dongkuk.dmes.mcm.widget.dto;
 
-/** secWidget deleteTab 요청. */
+/** secWidget deleteTab·resetTab·shareTab 요청(shareTab 받는 사람은 grids.targets.rows). */
 public class SecWidgetTabRequest {
 
     private String tabId;

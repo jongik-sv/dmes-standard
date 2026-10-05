@@ -5,6 +5,7 @@ import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
 import com.dongkuk.dmes.mcm.widget.admin.dto.CommWidgetMngRequest;
 import com.dongkuk.dmes.mcm.widget.admin.dto.WidgetDefSaveRequest;
 import com.dongkuk.dmes.mcm.widget.admin.repository.WidgetUsageRepository;
+import com.dongkuk.dmes.mcm.widget.collect.WidgetCollectProperties;
 import com.dongkuk.dmes.mcm.widget.def.WidgetDefSavedEvent;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
@@ -49,17 +50,20 @@ public class CommWidgetMngService {
     private final WidgetUsageRepository usageRepository;
     private final WidgetQueryRunner queryRunner;
     private final ApplicationEventPublisher eventPublisher;
+    private final WidgetCollectProperties collectProperties;
     private final SecureRandom random = new SecureRandom();
 
     @Autowired
     public CommWidgetMngService(WidgetDefRepository defRepository,
                                 WidgetUsageRepository usageRepository,
                                 WidgetQueryRunner queryRunner,
-                                ApplicationEventPublisher eventPublisher) {
+                                ApplicationEventPublisher eventPublisher,
+                                WidgetCollectProperties collectProperties) {
         this.defRepository = defRepository;
         this.usageRepository = usageRepository;
         this.queryRunner = queryRunner;
         this.eventPublisher = eventPublisher;
+        this.collectProperties = collectProperties;
     }
 
     /**
@@ -139,7 +143,8 @@ public class CommWidgetMngService {
             }
             configJson = blankToNull(request.getConfigJson());
             if (configJson == null) configJson = "{}";
-            dataSrc = WidgetDefConfigRules.check(typeId, request.getDataSrc(), configJson, queryRunner);
+            dataSrc = WidgetDefConfigRules.check(typeId, request.getDataSrc(), configJson, queryRunner,
+                    collectProperties::isAllowedHost); // 정시 수집 http 원천은 허용 호스트만 저장
             if (widgetId == null) {
                 row = new WidgetDef();
                 widgetId = newDefinitionId();
@@ -201,12 +206,12 @@ public class CommWidgetMngService {
         return result;
     }
 
-    /** 저장 전 SQL 시험 실행 — 관리자 본인 시스템 변수로, 행 상한 50(§5.2). 검사·실행 오류는 실행기가 던진다. */
+    /** 저장 전 SQL 시험 실행 — 관리자 본인 시스템 변수·입력 조건 기본값으로, 행 상한 50(§5.2). 검사·실행 오류는 실행기가 던진다. */
     public Map<String, Object> previewQuery(CommWidgetMngRequest request) {
         String dataSrc = WidgetDefConfigRules.requireDataSrc(request.getDataSrc());
         String sql = blankToNull(request.getSql());
         if (sql == null) throw new BusinessException(ErrorCode.REQUIRED_VALUE, "SQL 을 입력해 주세요.");
-        WidgetQueryResult r = queryRunner.preview(dataSrc, sql, PREVIEW_MAX_ROWS);
+        WidgetQueryResult r = queryRunner.preview(dataSrc, sql, PREVIEW_MAX_ROWS, blankToNull(request.getParamsJson()));
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("columns", r.columns());
         result.put("rows", r.rows());
