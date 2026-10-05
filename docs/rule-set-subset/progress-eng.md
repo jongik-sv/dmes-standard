@@ -3,8 +3,8 @@
 조정 세션: dmes-standard-90 · 회차 rule-set-subset-call-2026-10-06 · 브랜치 `feat/rule-set-subset-engine` · 워크트리 `/Users/jji/project/dmes-standard-wt/rssc-eng`
 
 ## 지금 상태
-- eng:1·eng:2 완료(dev 합침 be56cdf7), eng:4 완료
-- 남은 순서: eng:4 리뷰·머지 → eng:c
+- eng:1·eng:2 dev 머지 `8192debe`, eng:4 dev 머지 `3efb56fe`, eng:c 완료(머지 요청 준비)
+- 남은 순서: eng:c 머지 → 레인 정리(조정 지시 뒤)
 
 ## 기준선
 - 착수 커밋: dev `c12e99a4`
@@ -75,6 +75,17 @@
   - `assertNum` 은 2인자라 본문의 설명 인자는 주석으로 옮겼다.
   - 본문 밖 시험을 더했다: 하위 세트 안 RULE_NOT_FOUND·FLOW_INVALID 의 setPath, 하위 always 가 부모 사전 검사의 반드시 만드는 이름, SET 이 IF 모이는 자리·병렬 갈래·룰 처리 갈래의 돌아오는 자리, 받은 하위 위반의 기록(SET CAUGHT·CATCH), 끝내는 IF 갈래로 끝난 하위 세트는 SUBSET_ENDED 가 아님, 하위 받는 노드의 새 CATCH_*·부모 CATCH_* 유지, always 의 끝내는 IF 갈래·끝내는 처리 갈래·돌아오는 처리 갈래·손주 겉모양, 손주 세트·손주 룰 교체와 폐기·되살리기의 준비 캐시 무효화.
 - 절차 메모: `e2b8455b` 커밋 명령에 셸 변수를 썼다(규칙 위반, 이력은 고치지 않음). 각 커밋이 혼자 컴파일되는지는 파일 내용으로 판단했고 따로 빌드하지 않았다(마지막 커밋에서 전체 시험).
+
+## eng:c. cactus 저장 검증 미리 받기 — 하위 세트 재귀(깊이 5, U3)
+- 실행 수단: D4 Workflow(구현 sonnet/high → 리뷰 opus/high, 지적 없음)
+- 커밋: `df613e4a`(`MdmExprRefs.setIds`·`MdmValidator.prefetchSubsets`·`MdmValidatorSubsetTest`)
+- 시험 결과: cactus-core 868 통과·1 건너뜀·실패 0(기준 861 대비 +7)
+- 결정:
+  - 단계마다 아직 안 받은 하위 세트 ID 를 한 번 묶어 `lookupAt(RULE_SET, ids, ts)` 하고 `SetShape.MAX_CALL_DEPTH`(5) 단계까지만 되풀이한다(최상위 + 5 단계 = 세트 6개, 엔진 `chain.size() > 5` 거부와 같은 경계).
+  - 순환 방지는 최상위 세트마다 `seen` 집합, 같은 ID 는 전역으로 한 번만 받고 부른 최상위마다 룰·flowCodes·flowMasterAt 를 각자 더한다.
+  - 하위 세트 unavailable → 부른 최상위 항목만 skip, 그 가지는 더 따라가지 않는다. missing·적용 버전 없음 → 빼지 않는다(엔진 `SET_NOT_FOUND` 행 오류).
+  - `MdmExprRefs.setIds` 는 `kind == SET` 이고 `setId` 가 비지 않은 것만, 첫 등장 순서·중복 없이.
+- 계획 조정: 「하위 세트의 룰 unavailable」 사례를 하위 룰 unavailable·하위 세트 unavailable 두 시험으로 나눴다(캐시가 첫 호출을 기억). 미리 받기 확장은 새 private 메서드 `prefetchSubsets` 로 뽑았다. 깊이 상한은 엔진 공개 상수를 쓴다.
 
 ## 결정
 - eng:2 이름(조정 eng-2 알림): `SetStep(nodeId, setId)`·`FlowTree.setSteps()`·`FlowTree.setIds()` 를 만든다. `callSteps()` 는 만들지 않는다(srv:5 가 분석기 안에서 steps 를 거른다). 이름을 바꾸면 진행 보고에 적는다.
