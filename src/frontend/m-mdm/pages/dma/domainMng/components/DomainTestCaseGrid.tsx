@@ -9,6 +9,7 @@ import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { resultLabel } from "../change-view";
 import type { TestCaseRow, TestResultRow } from "../types";
+import { uiCols } from "@/ui-meta";
 
 export interface DomainTestCaseGridProps {
   cases: TestCaseRow[];
@@ -36,22 +37,22 @@ export function DomainTestCaseGrid({ cases, results, readOnly, showVars, onChang
         RESULT_TEXT: r ? resultLabel(r.RESULT) : "-", RESULT_MESSAGE: r?.MESSAGE ?? "" };
     });
   }, [cases, results]);
-  const columns = useMemo<GridColumn[]>(() => [
-    { key: "VALUE", header: "입력", meta: false, width: 140, editable: !readOnly },
-    { key: "EXPECT", header: "기대", meta: false, width: 70, editable: !readOnly, cellEditor: "select", cellEditorValues: ["true", "false"] },
-    { key: "VARS", header: "변수(JSON)", meta: false, width: 140, editable: !readOnly, hide: !showVars },
-    { key: "MEMO", header: "메모", meta: false, width: 140, editable: !readOnly },
+  const columns = useMemo<GridColumn[]>(() => uiCols([
+    { key: "VALUE", header: "입력", width: 140, editable: !readOnly },
+    { key: "EXPECT", header: "기대", width: 70, editable: !readOnly, cellEditor: "select", cellEditorValues: ["true", "false"] },
+    { key: "VARS", header: "변수(JSON)", width: 140, editable: !readOnly, hide: !showVars },
+    { key: "MEMO", header: "메모", width: 140, editable: !readOnly },
     {
-      key: "RESULT_TEXT", header: "결과", meta: false, width: 70, tooltip: false,
+      key: "RESULT_TEXT", header: "결과", width: 70, tooltip: false,
       render: (v, r) => <span title={String(r.RESULT_MESSAGE ?? "") || undefined}>{String(v ?? "")}</span>,
     },
     {
-      key: "DELETE", header: "", meta: false, width: 60, tooltip: false, hide: readOnly,
+      key: "DELETE", header: "", width: 60, tooltip: false, hide: readOnly,
       render: (_v, r) => (
         <Button size="mini" onClick={() => onChange(casesRef.current.filter((_, idx) => idx !== Number(r.ROW_KEY) - 1))}>삭제</Button>
       ),
     },
-  ], [readOnly, showVars, onChange]);
+  ]), [readOnly, showVars, onChange]);
   return (
     <div>
       <AgDataGrid

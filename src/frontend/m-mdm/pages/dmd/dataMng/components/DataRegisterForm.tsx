@@ -12,6 +12,7 @@ import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
 
 import { mutedText } from "../DataDetail";
 import { LVL_CNT_OPTIONS, emptyRegForm, type DataMngRegForm } from "../types";
+import { DESCRIPTION_LABEL, SOURCE_LABEL } from "@/ui-meta";
 
 export interface DataRegisterFormProps {
   /** 다른 쓰기가 진행 중이면 입력과 버튼을 잠근다. */
@@ -68,7 +69,7 @@ export function DataRegisterForm({ busy, canRegister, onSubmit, onCancel }: Data
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel {...DESCRIPTION_LABEL} /></th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
                 data-testid="data-mng-reg-desc"
@@ -91,7 +92,7 @@ export function DataRegisterForm({ busy, canRegister, onSubmit, onCancel }: Data
             </td>
           </tr>
           <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="source" meta={false} label="원천" /></th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel {...SOURCE_LABEL} /></th>
             <td style={DETAIL_VALUE_CELL}>
               <span data-testid="data-mng-reg-source">MDM</span>
             </td>

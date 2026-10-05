@@ -7,6 +7,7 @@ import type { GridColumn } from "@dk-oasis/shared/grid";
 
 import { CLOSED_KEY_REOPEN, ROW_VERSION_CONFLICT_PREFIX } from "./messages";
 import { ATTR_FIELDS, LVL_FIELDS, type DataItemHeader } from "./types";
+import { uiCols } from "@/ui-meta";
 
 export interface ItemColumnHandlers {
   /** 행 버튼 칸(저장·취소·닫기·다시 열기·이력). */
@@ -24,12 +25,12 @@ export function isRowEditable(header: DataItemHeader | null | undefined, row: Re
  */
 export function buildItemColumns(header: DataItemHeader | null, handlers: ItemColumnHandlers = {}): GridColumn[] {
   const editable = (row: Record<string, unknown>) => isRowEditable(header, row);
-  const cols: GridColumn[] = [
-    { key: "code", meta: false, header: "키", width: 120, minWidth: 100, align: "left", pinned: "left" },
-    { key: "name", meta: false, header: "이름", width: 150, minWidth: 100, align: "left", editable },
+  const cols: GridColumn[] = uiCols([
+    { key: "code", header: "키", width: 120, minWidth: 100, align: "left", pinned: "left" },
+    { key: "name", header: "이름", width: 150, minWidth: 100, align: "left", editable },
     { key: "alterName", header: "약칭", width: 100, minWidth: 70, align: "left", editable },
-    { key: "seq", meta: false, header: "순서", width: 60, minWidth: 50, align: "right", editable, cellEditor: "number" },
-  ];
+    { key: "seq", header: "순서", width: 60, minWidth: 50, align: "right", editable, cellEditor: "number" },
+  ], ["alterName"]);
   const lvlCnt = Math.max(0, Math.min(5, header?.lvlCnt ?? 0));
   LVL_FIELDS.slice(0, lvlCnt).forEach((field, i) => {
     cols.push({ key: field, header: `${i + 1}차`, width: 80, minWidth: 60, align: "left", editable });
@@ -40,30 +41,30 @@ export function buildItemColumns(header: DataItemHeader | null, handlers: ItemCo
     }
   }
   cols.push(
-    {
-      key: "open",
-      header: "상태",
-      meta: false,
-      width: 60,
-      minWidth: 56,
-      align: "center",
-      render: (value) => (value === true ? "열림" : "닫힘"),
-    },
-    { key: "validFrom", header: "시작 일시", width: 140, minWidth: 130, align: "center" },
+    ...uiCols([
+      {
+        key: "open",
+        header: "상태",
+        width: 60,
+        minWidth: 56,
+        align: "center",
+        render: (value) => (value === true ? "열림" : "닫힘"),
+      },
+      { key: "validFrom", header: "시작 일시", width: 140, minWidth: 130, align: "center" },
+    ], ["validFrom"]),
   );
   if (handlers.renderActions) {
     const render = handlers.renderActions;
     // 키·작업 열은 고정한다 — 동적 열이 많아 가로로 밀려도 어느 행의 버튼인지 보인다.
-    cols.push({
+    cols.push(...uiCols([{
       key: "actions",
       header: "작업",
-      meta: false,
       width: 150,
       minWidth: 150,
       align: "center",
       pinned: "right",
       render: (_v, row) => render(row),
-    });
+    }]));
   }
   return cols;
 }

@@ -21,6 +21,7 @@ import { DescriptionField } from "./DescriptionField";
 import { resolveLabels } from "./labels";
 import { mutedText, panelScrollStyle, panelTitleStyle, rowStyle } from "./styles";
 import { emptyForm, type ColumnForm, type SystemOption } from "./types";
+import { DESCRIPTION_LABEL } from "@/ui-meta";
 
 export const SYSTEM_ROW_KEY = "__rowId";
 
@@ -231,7 +232,7 @@ export const ColumnDetailForm = memo(function ColumnDetailForm({ ref, systems, c
               </td>
             </tr>
             <tr>
-              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
+              <th style={DETAIL_LABEL_CELL}><MdmFieldLabel {...DESCRIPTION_LABEL} /></th>
               <td style={DETAIL_VALUE_CELL} colSpan={3}>
                 <DescriptionField
                   key={`description-${formSeq}`}

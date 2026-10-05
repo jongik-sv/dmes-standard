@@ -63,18 +63,19 @@ import {
   type SystemOption,
 } from "./types";
 import { TermRegPopModal } from "../termRegPop";
+import { uiCols } from "@/ui-meta";
 
 const SCREEN_ID = "columnMng";
 
-const LIST_COLUMNS: GridColumn[] = [
+const LIST_COLUMNS: GridColumn[] = uiCols([
   { key: "columnName", header: "논리명", width: 170 },
   { key: "physName", header: "표준 물리명", width: 170 },
-  { key: "labels", header: "표시명(긴/중간/짧은)", meta: false, width: 240 },
-  { key: "domain", header: "도메인", meta: false, width: 190 },
+  { key: "labels", header: "표시명(긴/중간/짧은)", width: 240 },
+  { key: "domain", header: "도메인", width: 190 },
   { key: "required", header: "필수", width: 60, align: "center" },
-  { key: "termNames", header: "구성 용어", meta: false, width: 200 },
-  { key: "systemFields", header: "시스템 필드", meta: false, width: 220 },
-];
+  { key: "termNames", header: "구성 용어", width: 200 },
+  { key: "systemFields", header: "시스템 필드", width: 220 },
+], ["columnName", "physName", "required"]);
 
 const STATUS_TEXT: Record<NameToken["status"], string> = {
   MATCHED: "등록됨",
@@ -423,22 +424,20 @@ export default function ColumnMngPage() {
     [genTokens, genDirection],
   );
   const tokenColumns = useMemo<GridColumn[]>(
-    () => [
+    () => uiCols([
       {
         key: "seq",
         header: "순서",
-        meta: false,
         ...TOKEN_COLUMN_SIZES.seq,
         align: "right",
         render: (v) => <span data-testid={`token-row-${v}`}>{String(v)}</span>,
       },
-      { key: "surface", header: "토큰", meta: false, ...TOKEN_COLUMN_SIZES.surface },
-      { key: "MATCH_TEXT", header: "매칭", meta: false, ...TOKEN_COLUMN_SIZES.MATCH_TEXT },
-      { key: "ABBR_TEXT", header: "약어", meta: false, ...TOKEN_COLUMN_SIZES.ABBR_TEXT },
+      { key: "surface", header: "토큰", ...TOKEN_COLUMN_SIZES.surface },
+      { key: "MATCH_TEXT", header: "매칭", ...TOKEN_COLUMN_SIZES.MATCH_TEXT },
+      { key: "ABBR_TEXT", header: "약어", ...TOKEN_COLUMN_SIZES.ABBR_TEXT },
       {
         key: "ACTION",
         header: "처리",
-        meta: false,
         ...TOKEN_COLUMN_SIZES.ACTION,
         tooltip: false,
         editable: (row) => row.status === "AMBIGUOUS",
@@ -453,7 +452,7 @@ export default function ColumnMngPage() {
           return t ? renderAction(t) : null;
         },
       },
-    ],
+    ]),
     // renderAction 은 gen 방향·후보 선택 처리기를 읽는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [genTokens, genDirection, handlePickCandidate],

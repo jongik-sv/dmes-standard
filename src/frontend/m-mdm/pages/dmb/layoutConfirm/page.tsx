@@ -18,6 +18,7 @@ import { DraftLockBadge, MdmPageLayout, VersionStatusBadge, fmtVer, normVer, use
 import { confirmDraft, searchDrafts, validateDraft, viewDraft } from "./api";
 import { canConfirmLayout, toServerDateTime } from "./checks";
 import type { CheckRow, DraftRow, ImpactRow, ValidateResult, ViewResult } from "./types";
+import { uiCols } from "@/ui-meta";
 
 export interface LayoutConfirmPageProps {
   tabId?: string;
@@ -43,22 +44,22 @@ const KIND_LABELS: Record<string, string> = { MESSAGE: "전문", HEADER: "헤더
 const kindLabel = (kind: string) => KIND_LABELS[kind] ?? kind;
 
 // 목록 칸 폭은 비율 가중치다. 30% 패널에 들어오게 minWidth 를 따로 작게 준다(ruleConfirm 선례).
-const DRAFT_COLUMNS: GridColumn[] = [
+const DRAFT_COLUMNS: GridColumn[] = uiCols([
   { key: "LAYOUT_NAME", header: "이름", width: 150, minWidth: 70 },
-  { key: "kindText", meta: false, header: "종류", width: 60, minWidth: 40 },
-  { key: "verText", meta: false, header: "버전", width: 70, minWidth: 50 },
-  { key: "ownerText", meta: false, header: "소유자", width: 90, minWidth: 50 },
-];
+  { key: "kindText", header: "종류", width: 60, minWidth: 40 },
+  { key: "verText", header: "버전", width: 70, minWidth: 50 },
+  { key: "ownerText", header: "소유자", width: 90, minWidth: 50 },
+], ["LAYOUT_NAME"]);
 
-const IMPACT_COLUMNS: GridColumn[] = [
+const IMPACT_COLUMNS: GridColumn[] = uiCols([
   { key: "LAYOUT_NAME", header: "전문", width: 160, minWidth: 80 },
-  { key: "SND_RCV", meta: false, header: "송수신", width: 90, minWidth: 60 },
-  { key: "verText", meta: false, header: "버전", width: 70, minWidth: 50 },
-  { key: "STATE", meta: false, header: "상태", width: 80, minWidth: 50 },
-  { key: "EVALUATED_AT", meta: false, header: "평가 시각", width: 150, minWidth: 100 },
-  { key: "lengthText", meta: false, header: "총 길이(전 → 후)", width: 110, minWidth: 80 },
-  { key: "ISSUES", meta: false, header: "문제", width: 200, minWidth: 80 },
-];
+  { key: "SND_RCV", header: "송수신", width: 90, minWidth: 60 },
+  { key: "verText", header: "버전", width: 70, minWidth: 50 },
+  { key: "STATE", header: "상태", width: 80, minWidth: 50 },
+  { key: "EVALUATED_AT", header: "평가 시각", width: 150, minWidth: 100 },
+  { key: "lengthText", header: "총 길이(전 → 후)", width: 110, minWidth: 80 },
+  { key: "ISSUES", header: "문제", width: 200, minWidth: 80 },
+], ["LAYOUT_NAME"]);
 
 interface Target {
   layoutId: number;
