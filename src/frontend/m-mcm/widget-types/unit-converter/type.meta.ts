@@ -12,4 +12,5 @@ export const meta: WidgetTypeMeta = {
   defaultSize: { w: 8, h: 12 },
   minSize: { w: 5, h: 10 }, // 5×8 은 좁은(쌓인) 배치에서 환산 목록이 거의 안 보인다(본문 약 165px < 필요 약 186px)
   initialConfig: { categories: [], defaultCategory: "length" },
+  floatable: true,
 };

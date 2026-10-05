@@ -17,7 +17,7 @@ description: Mantine 9(@mantine/core · dates · hooks · modals · notification
 |---|---|
 | DMES 화면(`m-*`) 새로 만들기·고치기 | [screen-patterns.md](references/screen-patterns.md) 에서 화면 유형을 고르고 `references/examples/` 예제를 복사한다 → 요소별 세부는 [components/llms.txt](references/components/llms.txt) 색인 → §3 |
 | 새 화면·상세 폼·목록 조회를 만들거나 고침 | 성능 규칙을 먼저 읽는다: [화면 성능 가이드](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) 의 「새 화면 만들 때 하지 말 것」 표 → [screen-patterns.md](references/screen-patterns.md) §성능 기본 구조(첫 조회 상한·상세 폼 분리·안정 참조 열 정의) → §4 검증의 성능 점검 |
-| 홈 위젯(`WidgetWorkspace`)·위젯 본체(`m-mcm/widgets/`)·위젯 유형(`widget-types/`)을 만들거나 고침 | [components/widget.md](references/components/widget.md)(§성능 규칙 포함) → 행 단위 현황판이면 [dashboard.md](references/components/dashboard.md). 위젯 본체도 화면과 같은 성능 규칙을 따른다: [가이드 R13~R16·R7](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
+| 홈 위젯(`WidgetWorkspace`)·위젯 본체(`m-mcm/widgets/`)·위젯 유형(`widget-types/`)을 만들거나 고침 | [components/widget.md](references/components/widget.md)(§성능 규칙 포함) → 행 단위 현황판이면 [dashboard.md](references/components/dashboard.md). 위젯 본체도 화면과 같은 성능 규칙을 따른다: [가이드 R13~R16·R7](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md). 포털 머리 「도구」 로 띄우는 업무 화면 도구 창은 [widget-dock.md](references/components/widget-dock.md)(위젯 메타 `floatable`), 범용 떠 있는 창은 [floating-window.md](references/components/floating-window.md) |
 | 특정 shared 컴포넌트 사용법 | `U get <이름>` (예: `U get AgDataGrid`) |
 | Mantine 컴포넌트를 화면에 쓰고 싶음 | [mantine-catalog.md](references/mantine-catalog.md) 에서 대응 래퍼를 찾는다. 래퍼가 없으면 shared 에 새 래퍼를 등록한다(아래 행) |
 | 화면에 쓸 새 UI 부품(입력 칸·편집기·표시 부품·도구 막대)을 만들어야 함 | 화면 폴더에 만들지 않는다. Part B §18 절차로 shared 에 등록하고 이 스킬에 컴포넌트 문서를 더한다 → §4 검증(0번 포함) |

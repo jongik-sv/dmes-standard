@@ -12,3 +12,5 @@ export * from "./usage-sender";
 export * from "./usage-activity";
 export * from "./current-user";
 export * from "./use-current-user-id";
+// 위젯 도크(업무 화면 도구 창) — 별도 진입점 없이 포털 셸 진입점으로 낸다.
+export * from "../widget-dock";

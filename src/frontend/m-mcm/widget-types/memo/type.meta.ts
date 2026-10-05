@@ -11,4 +11,5 @@ export const meta: WidgetTypeMeta = {
   defaultSize: { w: 8, h: 10 },
   minSize: { w: 4, h: 6 },
   initialConfig: { scope: "personal", format: "text", content: "" },
+  floatable: true,
 };

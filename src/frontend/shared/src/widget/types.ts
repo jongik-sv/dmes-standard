@@ -37,6 +37,8 @@ export interface WidgetMeta {
   kind?: "code" | "def";
   /** 정의 위젯의 유형 ID(예: "query-table"). 코드 위젯은 없음. */
   typeId?: string;
+  /** 업무 화면 위에 떠 있는 도구 창(포털 머리 「도구」)으로 띄울 수 있는 도구형 위젯인지(기본 false). */
+  floatable?: boolean;
 }
 
 export interface WidgetProps {
@@ -71,6 +73,8 @@ export interface WidgetTypeMeta {
   bodyPadding?: boolean;
   /** 새 정의를 만들 때 넣는 초기 정의 설정. */
   initialConfig: unknown;
+  /** 이 유형의 정의 위젯을 도구 창으로 띄울 수 있는지(기본 false). 정의 위젯 meta.floatable 로 전달된다. */
+  floatable?: boolean;
 }
 
 /** 관리 화면이 유형 편집기(editor.tsx default export)에 넘기는 props. */
