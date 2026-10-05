@@ -38,7 +38,9 @@ kind="$(printf '%s\n' "$screen" | coord_screen_prompt_kind)"
 bottom="$(printf '%s\n' "$screen" | tail -30)"
 
 # 선택지 번호 찾기: 패턴에 맞는 첫 「N. 글」 줄의 N
-opt_num() { printf '%s\n' "$bottom" | grep -E "^[[:space:]]*(❯|>)?[[:space:]]*[0-9]+\.[[:space:]].*($1)" | head -1 | sed -E 's/^[^0-9]*([0-9]+)\..*/\1/'; }
+opt_num() { # <포함 패턴> [제외 패턴]
+  printf '%s\n' "$bottom" | grep -E "^[[:space:]]*(❯|>)?[[:space:]]*[0-9]+\.[[:space:]].*($1)" \
+    | { if [ -n "${2:-}" ]; then grep -viE "$2"; else cat; fi; } | head -1 | sed -E 's/^[^0-9]*([0-9]+)\..*/\1/'; }
 
 record() { # decision category cmd why
   coord_has_run || return 0
@@ -84,29 +86,61 @@ case "$kind" in
     [ -n "$cmd" ] || cmd="$(printf '%s\n' "$bottom" | grep -v -E 'Do you want|❯|^[[:space:]]*[0-9]\.|Esc to cancel' | tail -8)"
     if [ "$spawned" = 1 ]; then allow="$(coord_cfg_json '.approvals.auto_allow_spawned // []')"; else allow="$(coord_cfg_json '.approvals.auto_allow // []')"; fi
     flat="$(printf '%s' "$cmd" | tr '\n' ' ')"
-    # 거부 칸
-    if printf '%s' "$flat" | grep -qiE '(^|[^a-z])rm[[:space:]]+-[a-z]*[rf]|git[[:space:]]+(branch[[:space:]]+-D|push|reset[[:space:]]+--hard|clean[[:space:]]+-[a-z]*f)|worktree[[:space:]]+remove[[:space:]]+.*--force|--force-with-lease|(^|[^a-z])(DROP|TRUNCATE)[[:space:]]|DELETE[[:space:]]+FROM|(^|[^a-z])(kill|pkill|killall|shutdown|reboot)[[:space:]]|chmod|chown|sudo|settings(\.local)?\.json|\.coord(\.local)?\.json|(ANTHROPIC|API|AUTH)_?(KEY|TOKEN)|security[[:space:]]+find-generic-password|curl[[:space:]].*-X[[:space:]]*(POST|PUT|DELETE|PATCH)|bootRun|local-run\.sh'; then
+    # 거부 칸: 삭제·되돌리기·push·공용 DB·프로세스 종료·권한·비밀값·쓰기 리다이렉션
+    nodevnull="$(printf '%s' "$flat" | sed -E 's/[0-9]?>>?[[:space:]]*\/dev\/null//g; s/2>&1//g; s/>&2//g')"
+    if printf '%s' "$flat" | grep -qiE '(^|[^a-z0-9_-])(rm|rmdir|unlink|shred|truncate)([[:space:]]|$)|-delete([[:space:]]|$)|-exec([[:space:]]|dir)|(^|[^a-z])xargs[[:space:]]|git[[:space:]]+(branch[[:space:]]+-[dD]|push|reset|clean|checkout[[:space:]]+--|restore|stash[[:space:]]+(drop|clear|pop)|rebase|filter-branch|update-ref[[:space:]]+-d)|worktree[[:space:]]+remove|--force|(^|[^a-z])(DROP|TRUNCATE)[[:space:]]|DELETE[[:space:]]+FROM|UPDATE[[:space:]].*[[:space:]]SET[[:space:]]|(^|[^a-z])(kill|pkill|killall|shutdown|reboot|launchctl)[[:space:]]|chmod|chown|sudo|settings(\.local)?\.json|\.coord(\.local)?\.json|(ANTHROPIC|API|AUTH)_?(KEY|TOKEN)|security[[:space:]]+find-generic-password|curl[[:space:]].*-X[[:space:]]*(POST|PUT|DELETE|PATCH)|bootRun|local-run\.sh|(yarn|pnpm|npm)[[:space:]]+(remove|uninstall|rm|dlx|exec)|npx[[:space:]]+-y' \
+       || printf '%s' "$nodevnull" | grep -qE '>'; then
       send_key esc && { record deny deny-table "$flat" "거부 칸"; out "DENY $h permission deny-table"; }
       exit 0
     fi
-    # 범주 판정: 조각마다 범주를 매기고, 하나라도 허용 밖·모름이면 올린다
-    cats=""; unknown=0
+    # 경로가 레인 워크트리·임시 폴더 안인지(edit-own 판정)
+    wt_abs=""; [ -n "$wt" ] && [ "$wt" != null ] && wt_abs="$(coord_wt_abs "$wt" 2>/dev/null)"
+    path_ok() {
+      local a
+      for a in "$@"; do
+        case "$a" in -*) continue ;; esac
+        case "$a" in
+          /private/tmp/*|/tmp/*|"${TMPDIR:-/nonexistent}"*) ;;
+          /*|~*|..*|*/../*) [ -n "$wt_abs" ] && case "$a" in "$wt_abs"/*) ;; *) return 1 ;; esac || return 1 ;;
+          *) [ -n "$wt_abs" ] || return 1 ;;  # 상대 경로는 레인 워크트리를 알 때만
+        esac
+      done
+      return 0
+    }
+    # 범주 판정: 조각마다 첫 단어(실행 파일)로 범주를 매긴다. 하나라도 허용 밖·모름이면 올린다
+    cats=""; unknown=0; c=""
     while IFS= read -r seg; do
-      seg="$(printf '%s' "$seg" | sed 's/^[[:space:](]*//')"; [ -n "$seg" ] || continue
+      seg="$(printf '%s' "$seg" | sed -E 's/^[[:space:](]*//; s/^([A-Z_]+=[^[:space:]]*[[:space:]]+)+//')"; [ -n "$seg" ] || continue
+      read -r -a w <<<"$seg"
       c=""
-      case "$seg" in
-        git\ status*|git\ log*|git\ diff*|git\ show*|git\ branch\ --list*|git\ worktree\ list*|git\ rev-parse*|*--version*|ps\ *|uptime*|orca\ terminal\ list*|orca\ terminal\ read*|orca\ terminal\ show*|*heavy.sh\ status*|*heavy.sh\ snapshot*|date*|pwd*|echo\ *|which\ *) c=status ;;
-        cat\ *|head\ *|tail\ *|ls*|grep\ *|rg\ *|find\ *|wc\ *|sed\ -n*|jq\ *|stat\ *|file\ *|sort*|uniq*|awk\ *|cut\ *|diff\ *) c=read ;;
-        git\ add*|git\ commit*) c=commit-own ;;
-        sed\ -i*|perl\ -i*|tee\ *|mkdir\ *|touch\ *|cp\ *|mv\ *) c=edit-own ;;
-        *heavy.sh*|*gradlew*|*gradle\ *|npm\ test*|npm\ run\ test*|npm\ run\ build*|npx\ vitest*|npx\ tsc*|npx\ tsup*|pnpm\ *|yarn\ *|*vitest*|*playwright\ test*) c=heavy-build ;;
+      case "${w[0]}" in
+        git)
+          case "${w[1]:-}" in
+            status|log|diff|show|rev-parse|merge-base|ls-files|blame) c=status ;;
+            branch) case "${w[2]:-}" in --list|-a|-v|--show-current|"") c=status ;; esac ;;
+            worktree) [ "${w[2]:-}" = list ] && c=status ;;
+            add|commit) c=commit-own ;;
+          esac ;;
+        ps|uptime|date|pwd|echo|which|whoami|uname|printf) c=status ;;
+        orca) case "${w[1]:-} ${w[2]:-}" in "terminal list"|"terminal read"|"terminal show") c=status ;; esac ;;
+        cat|head|tail|ls|grep|rg|find|wc|jq|stat|file|sort|uniq|cut|diff|tree|du) c=read ;;
+        sed) [ "${w[1]:-}" = -n ] && c=read
+             case "${w[1]:-}" in -i|-i*) path_ok "${w[@]:2}" && c=edit-own ;; esac ;;
+        awk) c=read ;;
+        mkdir|touch|cp|mv|tee) path_ok "${w[@]:1}" && c=edit-own ;;
+        ./gradlew|gradlew) c=heavy-build ;;
+        bash|sh) case "${w[1]:-}" in */heavy.sh) [ "${w[2]:-}" = status ] || [ "${w[2]:-}" = snapshot ] && c=status || c=heavy-build ;; esac ;;
+        */heavy.sh) case "${w[1]:-}" in status|snapshot) c=status ;; *) c=heavy-build ;; esac ;;
+        npx) case "${w[1]:-}" in vitest|tsc|tsup|playwright|eslint|prettier) c=heavy-build ;; esac ;;
+        npm|pnpm|yarn) case "${w[1]:-} ${w[2]:-}" in "test "*|"run test"*|"run build"*|"run lint"*|"run typecheck"*|"exec vitest"*) c=heavy-build ;; esac ;;
       esac
-      if [ -z "$c" ]; then unknown=1; break; fi
+      if [ -z "$c" ]; then unknown=1; c="unknown:${w[0]}"; break; fi
       printf '%s' "$allow" | jq -e --arg c "$c" 'index($c) != null' >/dev/null || { unknown=1; c="$c(허용 밖)"; break; }
       cats="$cats $c"
     done < <(printf '%s\n' "$cmd" | sed -E 's/(&&|\|\||;|\|)/\n/g')
     if [ "$unknown" = 0 ] && [ -n "$cats" ]; then
-      n="$(opt_num 'Yes')"; [ -n "$n" ] || n=1
+      n="$(opt_num 'Yes' "don't ask|do not ask|allow all|always|this session")"
+      [ -n "$n" ] || { record user permission "$flat" "1회 승인 선택지 못 찾음"; echo "ESCALATE $h permission no-yes-option"; exit 0; }
       send_key "$n" && { record allow "${cats# }" "$flat" "판단표 허용 범주"; out "ANSWER $h permission $n ${cats# }"; }
     else
       record user "${c:-unknown}" "$flat" "판단표에 확실히 들지 않음"

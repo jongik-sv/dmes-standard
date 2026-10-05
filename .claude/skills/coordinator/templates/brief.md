@@ -32,10 +32,10 @@
 ## 작업 방식
 
 [작업 방식] 시간·토큰·성능이 최적이 되게 진행한다. 모든 일은 최소 충분 등급에서 시작하고, 실패·막힘 근거가 있을 때만 한 칸 올린다.
-항목마다 실행 수단을 업무 크기로 고른다(영향·범위·단계·시간 → D0 직접 · D1 검색 워커 · D2 agent 하나 · D3 병렬 agent · D4 Workflow, 기준표 {sizing_doc}). 낮은 단계부터 맞춰 보고 부족하다는 근거가 나올 때만 올린다. 진행 보고에 고른 단계를 적는다(예: 실행: D2).
+지시를 시작하기 전에 핵심 수정이 몇 파일·몇 줄인가를 먼저 적고, 모든 단계를 그 크기에 비례시킨다. 항목마다 실행 수단을 업무 크기로 고른다(영향·범위·단계·시간 → D0 직접 · D1 검색 워커 · D2 agent 하나 · D3 병렬 agent · D4 Workflow, 기준표 {sizing_doc}). 낮은 단계부터 맞춰 보고 부족하다는 근거가 나올 때만 올린다. 진행 보고에 고른 단계를 적는다(예: 실행: D2).
 Workflow(D4)는 구현 → 리뷰 → 수정이 필요한 M/L 항목이나 같은 흐름을 여러 항목에 반복할 때만 쓴다(먼저 workflow-authoring 스킬을 읽는다). 단순 시험·조회·한 파일 수정은 Workflow 없이 직접 한다.
 모든 agent() 에 model 과 effort 를 적는다(크기 S/M/L 은 착수 지시의 항목 표 기준):
-{workflow.model_table 의 각 항목을 한 줄씩: - {stage} [{size}]: {model} / {effort}}
+{workflow.model_table 의 각 항목을 한 줄씩: - {stage} [{size}]: {model} / {effort}. model 이 search 면 「검색 워커({search_cmd}), 실패 시 sonnet/medium」 으로 적는다}
 시험이 실패하면 실패 사다리를 탄다: {workflow.escalation.ladder 를 「model/effort → …」 로}. 시간 초과·부하 연쇄 실패는 load 를 확인한 뒤 같은 등급으로 한 번만 다시 돌린다. 같은 원인으로 두 번 연속 실패하면 한 칸 건너뛴다. 사다리 끝에서도 실패하면(항목당 수정 시도 최대 {workflow.escalation.max_attempts}회) 멈추고 blocked 로 보고한다.
 조사는 영향에 비례해서 한다. 값 하나 확인·위치 찾기 같은 작은 조사는 Workflow·agent 없이 {search_cmd} 한 번이나 grep 한 번으로 끝낸다. 검색·조사 질의는 {search_cmd} 를 먼저 쓰고, 실패하면 grep 이나 sonnet/medium agent 로 대신한다.
 단순 시험(단일 시험 파일·클래스, tsc, lint)은 heavy.sh 없이 바로 돌리고, 바뀐 모듈 시험부터 돌린다. 전체 시험은 머지 요청 직전에 한 번만 heavy.sh 를 거쳐 돌린다. 무거운 작업 금지 통지 중에는 단순 시험도 미룬다.

@@ -96,7 +96,13 @@
         "effort": "low"
       },
       {
-        "stage": "조사·위치 찾기·문서 갱신",
+        "stage": "조사·위치 찾기·영향 범위·사용처 목록",
+        "size": "*",
+        "model": "search",
+        "effort": "-"
+      },
+      {
+        "stage": "문서 갱신",
         "size": "*",
         "model": "sonnet",
         "effort": "medium"
@@ -157,7 +163,9 @@
     "timeout_s": 10
   },
   "search": {
+    "mode": "tab",
     "command": "agy -p {prompt} --print-timeout {timeout}s --disable-slash-commands",
+    "tab_command": "agy -i {prompt}",
     "timeout_s": 240
   },
   "approvals": {

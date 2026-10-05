@@ -11,7 +11,7 @@
 | 명령 | 설명 |
 |---|---|
 | `/coordinator start <run-id> [목표]` | 새 회차를 시작한다. 설정 확인, 상태 폴더 생성, 업무 분해, 레인 확보, 착수 지시, 감시 cron 생성까지 한다. `<run-id>` 는 상태 폴더 이름(예: `refactor-2026-10`) |
-| `/coordinator tick` | 감시 틱을 한 번 돌린다. 감시 cron(`tick.cron`, 기본 `7,27,47 * * * *`)은 이 명령 대신 고정 문구 `[조정자 틱] coordinator 틱 절차 실행` 을 넣는다. 바뀐 것이 없으면 말 없이 끝난다 |
+| `/coordinator tick` | 감시 틱을 한 번 돌린다. 감시 cron(`tick.cron`, 기본 `7,27,47 * * * *`)은 이 명령 대신 고정 문구 `[조정자 틱] .claude/skills/coordinator/SKILL.md 의 「틱 절차」 절만 읽고 실행(Skill 재호출 금지)` 을 넣는다. 바뀐 것이 없으면 말 없이 끝난다 |
 | `/coordinator status` | 레인별 상태표(busy/idle, 마지막 보고, ctx %)와 진도율, PC 부하, 사용량 띠를 보여 준다. 레인에 다시 묻지 않는다 |
 | `/coordinator merge <레인>` | 그 레인의 머지 요청을 게이트(`merge-gate.sh`)로 검사하고 허가 또는 대기를 보낸다 |
 | `/coordinator measure <레인> <분>` | 측정 창을 연다: 나머지 레인에 무거운 작업 금지 통지, 정숙 확인, 측정 시작 통지. 창은 `<분>` 뒤 닫는다 |

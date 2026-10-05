@@ -167,6 +167,8 @@ logs/
 # 조정자 스킬(여러 세션 조정). 설계: docs/superpowers/specs/2026-10-04-coordinator-skill-design.md
 !.claude/skills/coordinator/
 !.claude/skills/coordinator/**
+# 조정자 스킬 PC 전용 설정(공용은 .coord.json)
+.coord.local.json
 .claude/skills/dflow-*/**/__pycache__/
 .claude/skills/dflow-*/**/.pytest_cache/
 

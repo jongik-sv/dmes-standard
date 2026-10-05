@@ -9,7 +9,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 
 > **컨텍스트 압축 뒤에는 Skill 도구로 `/coordinator` 를 다시 부르지 않는다**(스킬 전체가 다시 실린다).
 > `references/resume.md` 의 재독 세트(state.json, summary.md, 정본 메모, resume.md)만 Bash `cat` 으로 읽는다.
-> 감시 cron 은 슬래시 명령이 아닌 고정 문구 `[조정자 틱] coordinator 틱 절차 실행` 을 넣는다(슬래시 명령이면 틱마다 스킬 전체가 다시 실려 토큰이 샌다). 이 문구를 받으면 Skill 을 부르지 않고 아래 「틱 절차」만 따른다.
+> 감시 cron 은 슬래시 명령이 아닌 고정 문구 `[조정자 틱] .claude/skills/coordinator/SKILL.md 의 「틱 절차」 절만 읽고 실행(Skill 재호출 금지)` 을 넣는다(슬래시 명령이면 틱마다 스킬 전체가 다시 실려 토큰이 샌다). 이 문구를 받으면 Skill 을 부르지 않고 아래 「틱 절차」만 따른다.
 >
 > **조정자 세션은 effort medium 이 기본이다**(`coordinator.effort`, 띄울 때 `--effort medium` 또는 `/model` 에서 변경).
 > 틱의 수집·판정은 스크립트가 하므로 medium 으로 충분하다. 무거운 판단은 직접 하지 않고 「판단 올리기」 절의 서브에이전트에 올린다.
@@ -68,10 +68,10 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 3. **업무 분해**: `references/decompose.md` 를 읽고 항목 표·레인 묶기·의존 그래프를 만든다(초안은 「판단 올리기」). 사용자에게 분해 결과를 보이고 확정받는다. 레인 공통 규칙 문서는 `templates/lane-rules-README.md` 로 만든다.
 4. **레인 확보**: `references/spawn.md` 를 읽는다. 사용자가 이미 띄운 세션은 착수 지시에 신원 보고 요청을 넣어 `신원:` 메시지로 연결하고, 스킬이 띄우는 세션은 `scripts/spawn-lane.sh` 의 결과 handle 을 기록한다. 등급(Fable·Opus·Sonnet·GLM·Haiku)은 `spawn.md` 표로 정한다. 각 레인은 `coord-state.sh lane-add <레인> <json>` 으로 state 에 넣는다.
 5. **착수 지시**: `references/protocol.md` 의 착수 지시 템플릿과 `references/workflow.md` 의 Workflow 블록을 `templates/brief.md` 로 채워 보낸다. 지시 번호는 `coord-state.sh instr <레인> start` 로 받고, 지시 원문은 `lanes/<레인>/brief.md` 에 남긴다. 보내는 길은 늘 SendMessage 이고, 터미널 입력이 필요하면 `term-send-safe.sh` 만 쓴다.
-6. **감시 cron 생성**: `CronCreate` 로 `tick.cron`(기본 `7,27,47 * * * *`) 주기에 프롬프트 `[조정자 틱] coordinator 틱 절차 실행` 을 넣는다(슬래시 명령 금지). 정각을 피한 분을 쓴다.
+6. **감시 cron 생성**: `CronCreate` 로 `tick.cron`(기본 `7,27,47 * * * *`) 주기에 프롬프트 `[조정자 틱] .claude/skills/coordinator/SKILL.md 의 「틱 절차」 절만 읽고 실행(Skill 재호출 금지)` 을 넣는다(슬래시 명령 금지). 정각을 피한 분을 쓴다.
 7. **state 에 기록**: `coord-state.sh set '.run.cron_id' '"<id>"'`, 조정자 자신의 이름·주소·핸들도 `.run.coordinator` 에 적는다. `coord-state.sh summary` 로 summary.md 를 만든다.
 
-## 틱 절차 (`[조정자 틱] coordinator 틱 절차 실행` 또는 `/coordinator tick`)
+## 틱 절차 (`[조정자 틱] .claude/skills/coordinator/SKILL.md 의 「틱 절차」 절만 읽고 실행(Skill 재호출 금지)` 또는 `/coordinator tick`)
 
 감시 cron 이 20분마다 이 프롬프트를 넣는다. 아래 1~8 을 순서대로 하고, 바뀐 것이 없으면 **아무 말 없이 턴을 끝낸다**(사용자 화면을 어지럽히지 않는다).
 

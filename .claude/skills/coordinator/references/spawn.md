@@ -13,6 +13,7 @@
 | **Sonnet** | 일반 작업: 구현·수정, 시험 작성, 조사·위치 찾기, 문서 갱신 | `claude-sonnet-5-5` | Claude Code 세션 / `agent({model:'sonnet'})` |
 | **GLM** | 일반 작업 중 **쉬운 일**: 본보기가 이미 있는 같은 패턴 반복 적용, 정해진 형식의 문서·표 정리, 범위가 좁고 시험으로 바로 검증되는 수정 | GLM-5.3(Z.ai) | **새 탭**의 Claude Code 세션(`launch.glm`, 아래 3). Claude Code 이므로 SendMessage·머지 요청 절차가 같다 |
 | **Haiku** | 쉬운 일: 기계적 치환, 결과 확인·집계, 상태 읽기, 형식 검사 | `claude-haiku-4-5-20251001` | `agent({model:'haiku'})` 위주 |
+| **조사(검색 워커)** | 조사·위치 찾기·영향 범위·사용처 목록(읽기 전용) | 설정 `search.*`(기본 agy) | `scripts/search.sh`(기본 새 탭 대화형 `agy -i`, `--print` 는 화면 없는 단발 `agy -p`). 감독·병렬·이력이 필요할 때만 `orca orchestration worker-start --agent antigravity --timeout-ms 240000`. agy 는 SendMessage 를 못 하므로 결과는 파일로 받는다. 실패하면 sonnet/medium |
 
 - 경계가 애매하면 한 등급 위를 고른다.
 - GLM 에 맡긴 일이 같은 문제에 20분 넘게 막히거나 방향이 틀어지면, 막힌 단계만 Sonnet·Opus Claude 세션(새 탭)에 넘기고 나머지는 GLM 이 계속한다.
