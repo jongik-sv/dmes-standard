@@ -11,6 +11,10 @@
 - 메모: dev c12e99a4 의 m-mdm `tests/ui-meta-lock.test.ts` 1건 실패는 기존 실패이고 dev 14ec1124 에서 고쳐졌다. 머지 요청 전에 dev 를 합친다.
 - 메모: eng:1 이 `RuleSetRunner` 의 `new Violation(…FLOW_INVALID…)` 에 `List.of()` 인자를 더한다. srv:6 은 그 뒤 모양을 기준으로 고친다.
 
+## 머지 1 — srv:3 단독(조정 지시 srv-2, V23 번호 선점)
+- 머지 전: dev 14ec1124 합침, 마지막 마이그레이션 V22 확인(V23 겹침 없음).
+- 시험: `heavy.sh ../gradlew :lib:test :api:test --max-workers=2`(src/backend/mdm) → lib 1684건·api 1740건 통과, 실패 0.
+
 ## srv:3. DB — `TB_MDM_RULE_SET_VER.CALL_SET_IDS`(V23)
 - 커밋: 83dfe81b(구현), 리뷰 지적 수정 커밋(ERD 문서 `docs/mdm/erd/06-business-rule.{sqlite.sql,mmd}`·`verify/expected-columns.json` 에 칸 추가, 시험 띄어쓰기)
 - 리뷰: sonnet/high 1회 — 낮음 3건(ERD 문서 미반영·기록 커밋 칸·띄어쓰기) 모두 고침, 그 밖 clean(V18 대조·FK/인덱스 없음·호출부 1곳·운영 방언 폴더 없음 확인)
