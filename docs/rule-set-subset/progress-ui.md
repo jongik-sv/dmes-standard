@@ -122,6 +122,7 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
 ## ui:8. SET 노드 화면
 - 상태: 1단계(모델·상태)·2단계(화면·e2e 시나리오) 끝. e2e E19 는 `--list` 까지만 했다(실행은 사용자 승인 뒤 조정 세션).
 - 리뷰 반영(`cb51cc01`): major 1(구성 지침이 SET 노드를 지움 → 결정 9)·minor 2(세트 검색 잘림 안내 → 결정 10, 부르는 세트 다시 묻기 → 결정 11) 모두 고쳤다. 시험: `vitest run tests/dme/ruleSetEdit tests/ui-meta-lock.test.ts` → 104파일 1946 통과·0 실패(새 시험 5 = set-node-model 1·rule-set-edit-page 1·set-node-canvas 1·set-node-page 2), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건.
+- 리뷰 2차 반영: minor 2(목록 밖 종류가 유일한 종류 → 결정 7 보탬, CALL_IO 실패 표시·다시 묻기 → 계획 조정 4 고침·결정 12) 모두 고쳤다. 시험: `vitest run tests/dme/ruleSetEdit tests/ui-meta-lock.test.ts` → 104파일 1950 통과·0 실패(새 시험 4 = set-node-page 2·set-calls-state 2), m-mdm `tsc --noEmit` 0, 바꾼 파일 6개 mantine·aggrid audit 0건. e2e 는 바꾸지 않았다.
 - 커밋(1단계): `7209d80e`(types·api), `243e189f`(flow-edit·flow-vars·caller-links, 시험 `set-node-model.test.ts`), `eb3375f7`(useRuleSetEdit·편집기 한 줄, 시험 `set-calls-state.test.ts`·이 절)
 - 커밋(2단계): `2898a285`(캔버스 — SET 노드 그리기·도구 상자·메뉴·세트 검색 팝업·`styles/set.ts`·편집 동작), `48c47800`(오른쪽 패널 — 머리글 CALL·SET 속성·받는 노드 SET 종류·목록 밖 종류 풀기·입출력 표 세트 키, 시험 `set-node-canvas.test.ts`), `33b305e0`(편집기·툴바·디버거 연결, 시험 `set-node-page.test.ts`·`debug-subset.test.ts` 한 줄), `5f678e29`(e2e E19·고정 데이터), `e8947b7f`(다른 세트를 열면 편집 모드여도 팝업 닫기)
 - 시험 결과(1단계): `vitest run tests/dme/ruleSetEdit` → 101파일 1911 통과·0 실패(새 시험 27 = set-node-model 13 + set-calls-state 14), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건. `vitest run tests/dme tests/ui-meta-lock.test.ts` → 135파일 2549 통과·0 실패.
@@ -131,7 +132,8 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
   1. **`node()` 는 그대로, setId 는 SET 노드에만** — 조정 확정(모든 노드 `setId: null` 방식 안 씀). `copyNode`(ui:9)와 같이 label 뒤에 둔다. 본문이 놓친 붙여넣기(`instantiate`)도 SET 이면 setId 를 옮긴다(안 하면 붙여 넣은 SET 이 세트를 잃는다).
   2. **`caller-links.ts` 정규식** — 본문은 `CALLER_BROKEN 세트 {P}:` 만 봤다. 서버를 읽어 보니 (a) 저장의 CALLER_BROKEN 은 거부가 아니라 WARN 사본(`callWarnings`)이라 경고 줄로 오고, 화면 경고 줄(`warnLines`)은 코드 없이 문구만이라 `세트 P: …` 꼴이다. (b) 부르는 행이 여럿이면 `세트 P v1.001: …`(`SetCallerRecheck`). 그래서 문구(거부) 쪽은 `CALLER_BROKEN 세트 P( vN.NNN)?: `·`CALLER_BROKEN 사용 중인 세트 P1, P2가 `(폐기 거부), 줄 쪽은 `^세트 P( vN.NNN)?: `·`^부르는 세트에 경고가 생겼다: P1, P2$` 를 본다. ID 는 서버 `STD_PHYS_NAME` 이 대문자로 시작하므로 `세트 호출이 순환한다`·`세트 노드 s1에` 같은 다른 경고는 걸리지 않는다(시험 고정). 이 화면에서 문구 쪽 CALLER_BROKEN 이 실제로 나는 길은 폐기 거부뿐이다(저장은 경고, 되살리기는 연쇄 재검사를 하지 않는다).
   3. **늦은 응답 판정** — 본문 `setIdRef` 비교 대신 겉모양 맵 세대(`callEpoch`, 불러오기 성공마다 1 증가)로 버린다. 같은 세트를 다시 불러와도(다시 불러오기·자기 쓰기 뒤) 떠나 있던 응답이 서버 새 값(`view.calls`)을 덮지 않는다. 불러올 때 물은 ID 집합·요청 번호 맵을 새 객체로 바꿔 옛 요청이 새 세대를 건드리지 않게 했다.
-  4. **한 번 물은 ID 는 다시 묻지 않는다(빈 응답 포함)** — 본문은 받는 중인 ID 만 걸러 맵에 키가 없으면 다시 묻는다. 서버가 그 ID 를 주지 않거나(목 서버의 빈 응답 `ok({})`) 다른 ID 응답으로 맵이 바뀌면 되풀이해 묻는다. 그래서 이번 세대에 물은 ID 는 다시 묻지 않고(그 SET 노드는 CALL_MISSING 경고로 남는다), 실패하면 그 ID 만 풀어 다음 흐름 변경 때 다시 묻는다. 빈 응답이면 맵을 새 객체로 바꾸지 않는다.
+  4. **한 번 물은 ID 는 다시 묻지 않는다(빈 응답 포함)** — 본문은 받는 중인 ID 만 걸러 맵에 키가 없으면 다시 묻는다. 서버가 그 ID 를 주지 않거나(목 서버의 빈 응답 `ok({})`) 다른 ID 응답으로 맵이 바뀌면 되풀이해 묻는다. 그래서 이번 세대에 물은 ID 는 다시 묻지 않고(그 SET 노드는 CALL_MISSING 경고로 남는다), 빈 응답이면 맵을 새 객체로 바꾸지 않는다.
+     - 받기에 실패하면(리뷰 2차 minor 고침 — 결정 12) 그 ID 를 물은 집합에서 풀고 `callsFailed` 에 둔다. 다시 묻는 계기는 세트 ID 목록 변경, 실행에 영향을 주는 편집(`flowVersion` — 노드·선 구조, 위치·라벨·메모만 바꾸면 아니다), 다시 불러오기·다른 탭 쓰기 알림이다. 처음 적은 「다음 흐름 변경 때」 는 효과 의존성이 `[setIdsKey, calls]` 뿐이라 실제로는 세트 ID 목록이 바뀔 때만이었다.
   5. **모르는 ID 고르기는 노드 훑기** — 본문 `flowSetIds(flow)` 는 흐름 해석(parseFlow)을 해 끌기마다 돈다. 훅은 노드를 한 번 훑어(SET·공백 아닌 setId, 중복 없음) ID 목록 글자를 효과 키로 쓴다 — 위치만 바뀌는 편집에는 효과가 다시 돌지 않는다.
   6. **`written` 반응은 훅 안에** — 본문은 편집기 효과(`flowSetIds(flowRef.current)`). 훅 옵션 `written`(탭 틀의 `RuleSetTabsApi.written`)을 받아 seq 가 바뀌면 판정한다(편집기는 넘기기만, 한 줄). 마운트 때 값은 새 알림이 아니다. 자기 세트 알림은 무시. 흐름이 부르면 이미 받았거나 받는 중이어도 다시 묻고(`refreshCalls` 와 같은 강제), 앞 요청의 응답은 그 ID 에 쓰지 않는다(ID 별 마지막 요청 번호). 흐름이 부르지 않으면 들고 있던 그 세트의 겉모양을 버린다(되돌리기로 SET 노드가 돌아오면 새로 묻게).
   7. **`checks`** — 본문의 plain `useMemo` 대신 기존 같은-참조 캐시(`checksMemo`)를 두고 비교에 `calls` 를 더했다.
@@ -184,6 +186,7 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
      - 확정 버전 기준이라 빈 목록은 「없음(확정 버전 기준)」 이다.
   7. **받는 노드의 목록 밖 종류** — `catchKindsFor(붙은 노드 종류)` 밖인데 저장된 종류는 체크된 칸으로 보인다. 옆에 「이 노드에는 받을 수 없는 종류다. 풀어서 지운다」(`flow-prop-catch-outside-{k}`)를 단다.
      - 풀면 칸이 사라지고 다시 켤 수 없다.
+     - 그 종류가 유일한 받을 종류면 풀 수 없다(`setCatchKinds` 가 빈 목록을 `CATCH_KINDS_EMPTY` 로 거부한다 — 리뷰 2차 minor 고침). 칸을 끄고 안내를 「유일한 종류라 풀 수 없다 — 받을 종류를 먼저 켜고 풀거나 [지우기]로 받는 노드를 지운다」(`CATCH_KIND_OUTSIDE_LAST`)로 바꾼다. 붙은 노드의 종류를 모두 다른 받는 노드가 받고 있으면 「[지우기]로 받는 노드를 지운다」 만 보인다. 빈 목록 거부(flow-edit)는 그대로 둔다 — 받을 종류가 없는 받는 노드는 분석기가 거부하는 모양이다.
      - 받는 노드 안내 문구는 붙은 노드가 SET 이면 하위 세트 문장, 아니면 기존 문장이다. 둘 다 CATCH_SET 을 적는다.
   8. **SET 노드 설명(`view.descs`)은 이번에 열지 않았다** — `DESC_KINDS` 에 SET 이 없다. 외관을 열지 않는 스펙 §9 와 같은 판단이고, 필요하면 후속으로 한다.
   9. **구성 지침은 SET 노드가 있는 흐름에 적용하지 않는다**(리뷰 major) — 적용은 흐름을 `linearFlow(order)`(룰 ID 만)로 통째로 바꾸므로 SET 노드가 말없이 사라지고, 저장하면 CALL_SET_IDS 가 비워진다. `guideBlockReason` 에 「룰 세트 노드가 있는 흐름에는 적용하지 않는다」 를 더했다(받는 노드 판정 뒤). 분기·빈 단계·받는 노드와 같은 불변식이다.
@@ -195,6 +198,10 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
   11. **부르는 세트(CALLERS)는 쓰기 알림마다 다시 묻는다**(리뷰 minor, 결정 6 보탬) — 속성 패널이 열린 동안 어느 탭이든 세트를 쓰면(탭 틀 `written.seq`) 다시 묻는다. 그동안은 지난 목록을 보이고, 늦은 응답은 `alive` 로 버린다.
      - 리뷰 제안은 「그 하위 세트에 쓰기 알림이 오면」 이었다. 하지만 목록은 그 세트를 부르는 **다른** 세트(부모)의 RELEASED 행·상태(`SetCallIoReader.callers`)라, 바뀌는 쪽은 부모다. 그래서 알림의 세트 ID 로 거르지 않는다.
      - 패널은 탭 틀 문맥(`RuleSetTabsContext`)에서 seq 를 읽는다 — `SidePanel`·편집기 prop 을 늘리지 않는다.
+  12. **겉모양 받기 실패를 「받는 중」 과 가른다**(리뷰 2차 minor, 지적이 낸 (a)+(c)) — 상태 훅이 `callsFailed`(세트 ID 집합, 없으면 모듈 상수 — 같은 참조라 캔버스 노드 memo 를 다시 돌리지 않는다, §16)를 둔다.
+     - 노드 작은 줄은 「세트 정보를 받지 못했다」(`SET_FAILED_TEXT`), 속성 패널 세트명·상태 칸은 「세트 정보를 받지 못했다 — 흐름을 고치거나 다시 불러오면 다시 묻는다」(`flow-prop-set-failed`, 경고 배지)다. CALL_MISSING 경고는 그대로 남는다(맵에 없는 ID 는 없는 세트로 검사 — Ruling 8).
+     - 다시 묻기 시작하면 그 ID 를 집합에서 빼(「받는 중」), 실패하면 이 요청이 마지막으로 물은 ID 만 다시 넣는다. 다시 불러오면 비우고, 흐름에서 빠진 세트의 쓰기 알림이면 그 ID 를 뺀다.
+     - 다시 묻는 효과 의존성에 `flowVersion` 을 더했다. 받는 중·받은 ID 는 `fetchCalls` 가 건너뛰므로 실패한 ID 만 다시 묻는다. 디버거 하위 프레임 캔버스에는 넘기지 않는다(`calls` 와 같이 `top` 이면 undefined).
 - 남은 일(조정 세션)
   - e2e E19 실행: 새 mcm.db·mdm.db, 고정 데이터 적재, 서버 기동이 필요하다(사용자 승인 뒤).
   - 브라우저 확인: SET 노드 굵은 테두리와 칩 줄바꿈, 세트 검색 팝업 목록이 모달 안에서 잘리지 않는지(`IdPicker` 목록은 절대 위치 560px), 메시지 줄 링크 모양.
