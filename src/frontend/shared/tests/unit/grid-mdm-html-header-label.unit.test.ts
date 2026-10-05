@@ -16,14 +16,12 @@ import type { ColDef, ColGroupDef, GridApi } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import {
   AgDataGrid,
+  GRID_TOOLTIP_SHOW_DELAY_MS,
   MdmGridTooltip,
   buildColumnDefs,
   type GridColumn,
 } from "../../src/components/grid/AgDataGrid";
-import {
-  MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS,
-  MdmHeaderLabel,
-} from "../../src/components/grid/MdmHeaderLabel";
+import { MdmHeaderLabel } from "../../src/components/grid/MdmHeaderLabel";
 import { MdmMetaProvider, resetMdmMetaStore, type MdmColumnInfo } from "../../src/mdm-meta";
 import { TEXT_DOMAIN, TITLE, column, fakeMetaFetch, settle } from "./mdm-meta-fixtures";
 
@@ -279,7 +277,7 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     try {
       over(el);
-      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS);
+      advance(GRID_TOOLTIP_SHOW_DELAY_MS);
     } finally {
       vi.useRealTimers();
     }
@@ -481,27 +479,39 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       vi.useRealTimers();
     });
 
-    it(`지연(${MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS}ms) 전에 떠나면 카드가 뜨지 않는다`, async () => {
+    it(`지연(${GRID_TOOLTIP_SHOW_DELAY_MS}ms) 전에 떠나면 카드가 뜨지 않는다`, async () => {
       stub();
       await render(grid());
       const el = placeLabel();
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       over(el);
-      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS - 1);
+      advance(GRID_TOOLTIP_SHOW_DELAY_MS - 1);
       expect(portal()).toBeNull();
       out(el);
-      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS * 2);
+      advance(GRID_TOOLTIP_SHOW_DELAY_MS * 2);
       expect(portal()).toBeNull();
     });
 
-    it("지연이 지나면 카드가 뜬다 — 그리드 기본 tooltipShowDelay(2000ms)와 같다", async () => {
-      expect(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS).toBe(2000);
+    it("지연이 지나면 카드가 뜬다 — AgDataGrid 기본 tooltipShowDelay(500ms)와 같다", async () => {
+      expect(GRID_TOOLTIP_SHOW_DELAY_MS).toBe(500);
       stub();
       await render(grid());
       const el = placeLabel();
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       over(el);
-      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS - 1);
+      advance(GRID_TOOLTIP_SHOW_DELAY_MS - 1);
+      expect(portal()).toBeNull();
+      advance(1);
+      expect(portal()?.getAttribute("data-tip-interactive")).toBe("true");
+    });
+
+    it("화면이 tooltipShowDelay 를 주면 그 값 뒤에 뜬다", async () => {
+      stub();
+      await render(grid({ tooltipShowDelay: 900 }));
+      const el = placeLabel();
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      over(el);
+      advance(899);
       expect(portal()).toBeNull();
       advance(1);
       expect(portal()?.getAttribute("data-tip-interactive")).toBe("true");
@@ -513,7 +523,7 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       const el = placeLabel();
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       over(el);
-      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS);
+      advance(GRID_TOOLTIP_SHOW_DELAY_MS);
       expect(portal()).not.toBeNull();
       pointerDown(el);
       expect(portal()).toBeNull();
@@ -522,7 +532,7 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       over(el);
       advance(500);
       pointerDown(el);
-      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS * 2);
+      advance(GRID_TOOLTIP_SHOW_DELAY_MS * 2);
       expect(portal()).toBeNull();
     });
 
@@ -546,7 +556,7 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       touch("pointerup");
       touch("pointerout");
       over(el); // 브라우저가 탭 뒤에 흉내 mouseover(buttons 0)를 보낸다
-      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS * 2);
+      advance(GRID_TOOLTIP_SHOW_DELAY_MS * 2);
       expect(portal()).toBeNull();
       // 흉내 이벤트 창(1초)이 지난 뒤 실제 마우스로 들어오면 연다
       out(el);
@@ -556,7 +566,7 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       });
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       over(el);
-      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS);
+      advance(GRID_TOOLTIP_SHOW_DELAY_MS);
       expect(portal()).not.toBeNull();
       out(el);
       advance(200);
@@ -569,7 +579,7 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       const el = placeLabel();
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
       over(el, 1);
-      advance(MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS * 2);
+      advance(GRID_TOOLTIP_SHOW_DELAY_MS * 2);
       expect(portal()).toBeNull();
     });
   });
@@ -605,6 +615,15 @@ describe("AgDataGrid — HTML 설명 머리글 라벨 포털 카드(실제 그�
       expect(inst?.api, "그리드 api").toBeTruthy();
       return inst.api!;
     }
+
+    it("그리드 tooltipShowDelay 는 기본값(GRID_TOOLTIP_SHOW_DELAY_MS), 화면이 주면 그 값이다", async () => {
+      const renderSpy = vi.spyOn(AgGridReact.prototype, "render");
+      stub();
+      await render(grid());
+      expect(gridApi(renderSpy).getGridOption("tooltipShowDelay")).toBe(GRID_TOOLTIP_SHOW_DELAY_MS);
+      await render(grid({ tooltipShowDelay: 1200 }));
+      expect(gridApi(renderSpy).getGridOption("tooltipShowDelay")).toBe(1200);
+    });
 
     it("HTML 열이 없는 그리드는 메타 도착 전후로 refreshHeader 를 부르지 않는다", async () => {
       const renderSpy = vi.spyOn(AgGridReact.prototype, "render");

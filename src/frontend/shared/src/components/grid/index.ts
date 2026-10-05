@@ -1,6 +1,7 @@
 export {
   AgDataGrid,
   DataGrid,
+  GRID_TOOLTIP_SHOW_DELAY_MS,
   MdmGridTooltip,
   useResolvedGridColumns,
   type AgDataGridProps,

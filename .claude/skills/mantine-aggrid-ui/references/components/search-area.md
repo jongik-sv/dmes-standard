@@ -54,6 +54,15 @@ import { DatePicker } from "@dk-oasis/shared/form";
 
 텍스트칸은 최근 입력값 드롭다운이 붙을 수 있다. 현재는 pageId 가 `mpn:` 으로 시작하는 APS 화면에서만 켜지고 다른 모듈에서는 `historyKey` 가 아무 효과가 없다. 한 화면에 같은 label 의 텍스트칸이 둘 이상이면 `historyKey` 를 따로 준다.
 
+### MDM 라벨 툴팁(name·meta)
+
+`name` 을 주면 라벨에 마우스를 올릴 때 MDM 컬럼 사전 카드 툴팁이 뜬다([mdm-meta](mdm-meta.md) 의 `MdmFieldLabel` 과 같은 규칙: `name` → 물리명, `meta` 문자열이 `name` 보다 우선, `meta={false}` 면 끔). `name` 이 없으면 예전과 DOM·요청이 같다. 필터 키(`edt_`·`cbo_`)에서 이름을 추론하지 않으므로 업무 키를 직접 적는다. 라벨 글자는 기본(explicit)에서 `label` 그대로이고 Radio `name`·최근 입력값 키도 `label` 을 쓴다.
+
+```tsx
+<SearchField label="제목" name="title" value={f.title} onChange={(v) => set("title", v)} />
+<SearchField label="코드" name="code" meta="MASTER_CD" value={f.code} onChange={(v) => set("code", v)} />
+```
+
 ## Props
 
 SearchAreaProps
@@ -68,6 +77,8 @@ SearchFieldProps
 | Prop | 타입 | 기본값 | 설명 |
 |---|---|---|---|
 | label | `string` | 필수 | 라벨. `"~"` 이면 직전 필드와 묶인다. |
+| name | `string` | 없음 | MDM 컬럼 사전 키(업무 키, 예 `"title"`). 있고 사전에 있으면 라벨에 MDM 카드 툴팁이 뜬다. |
+| meta | `string \| false` | 없음 | 명시 물리명(`name` 보다 우선). `false` 면 MDM 연결을 끈다. `name` 이 있을 때만 쓴다. |
 | type | `"text" \| "select" \| "radio"` | `"text"` | 내장 입력 종류. `children` 이 있으면 무시된다. |
 | value | `string` | `""`(내장 입력) | 내장 입력의 값. |
 | onChange | `(value: string) => void` | 없음 | 내장 입력의 변경 콜백. |
@@ -94,6 +105,8 @@ SearchFieldProps
 | 기간을 `SearchField` 하나에 `div`·`span "~"` 로 묶는다 | `label="~"` 두 번째 SearchField 를 쓴다. |
 | select 에 "전체" 를 빼거나 `value` 를 `"all"` 로 둔다 | `{ value: "", label: "전체" }` 로 통일한다. |
 | `label` 이 같은 텍스트칸 둘에 `historyKey` 를 안 준다 | 최근 입력값이 서로 섞이므로 키를 따로 준다. |
+| 필터 키(`edt_title`·`cbo_type`)를 `name` 으로 준다 | 사전에 없는 이름이라 툴팁이 안 뜬다. 업무 키(`"title"`)나 `meta="TITLE"` 로 적는다. |
+| `name` 없이 `meta` 만 준다 | `meta` 는 `name` 이 있을 때만 쓴다. `name` 도 함께 준다. |
 
 ## 실제 사용 예
 
