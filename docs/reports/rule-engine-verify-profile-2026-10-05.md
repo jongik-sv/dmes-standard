@@ -514,3 +514,11 @@ flowchart LR
 | `lanes/profile/` | 보고서 `report.md`, JFR(`out/c1/bench-c1.jfr`, `out/c2/bench-c2.jfr`, `p3/mdm-p3.jfr`), 집계 코드(`Agg.java`, `p3/AggServer.java`), 넘김 대조 코드(`check/src/.../HandoffBench.java`), 실행 스크립트 |
 
 재실행 방법: dev `6709ce7e`(또는 비교할 커밋)의 `src/backend/maru-mdm-engine` 에서 `../gradlew testClasses` 로 클래스를 만든 뒤, `lanes/profile/run-p3.sh` 의 클래스 경로를 그 `build/classes/java` 로 바꿔 돌린다. 벤치는 `MDM_BENCH=1 ../gradlew -I profile-init.gradle test --rerun --tests '*RuleSetPrepareBenchTest'` 로 돌린다.
+
+---
+
+## 11. 결정 (2026-10-05)
+
+- 성능 개선은 진행하지 않는다. 룰 실행(판정 1회)이 약 0.2ms 라서, 업무 저장 때 사용자가 느끼는 지연이 없다.
+- 다시 볼 조건: 수천 행을 한 번에 저장하면서 룰 세트를 여러 개 거는 일괄 처리가 생길 때. 그때 6.1 의 엔진 대안 B 부터 본다.
+- 검증 빈칸(2.5 응답 모양, 2.6 시연용 칸)은 성능과 별개로 결정 대기다.
