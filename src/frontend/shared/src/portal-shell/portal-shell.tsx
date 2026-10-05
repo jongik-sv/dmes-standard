@@ -22,7 +22,7 @@ import { TabsBar } from "./tabs-bar/TabsBar";
 import { Dashboard } from "./dashboard/Dashboard";
 import { FavoriteFolderPickerModal, type FavoriteFolderChoice } from "./FavoriteFolderPickerModal";
 import { TabPageContext } from "./tab-page-context";
-import { MdmMetaProvider, isMdmMetaUnsupportedPage } from "../mdm-meta/context";
+import { MdmMetaProvider, isMdmMetaUnsupportedPage, mdmMetaModuleOfPage } from "../mdm-meta/context";
 import { ErrorBoundary } from "../components/error-boundary";
 import { createHomeTabId, usePortalTabs, type PortalShellTabState } from "./use-portal-tabs";
 import { usePortalFullscreen } from "./use-portal-fullscreen";
@@ -154,9 +154,14 @@ const TabPageSlot = memo(function TabPageSlot({
   return (
     <div className="portal-shell__tab-page" style={{ display: isActive ? "flex" : "none" }}>
       {/* MDM 화면 메타 공급자(spec 2026-10-03 B7) — 탭 pageId 의 모듈로 그리드·폼 캡션·툴팁 메타를 받는다. useTabPage 를 읽으므로 안쪽에 둔다.
-          mdmMeta 엔드포인트가 없는 모듈(mdm·analog) 탭은 미리 꺼 요청을 보내지 않는다. */}
+          mdmMeta 엔드포인트가 없는 모듈(analog) 탭은 미리 꺼 요청을 보내지 않고, 다른 모듈로 받는 모듈(mdm → mcm)은 그 모듈로 부른다. */}
       <TabPageContext.Provider value={contextValue}>
-        <MdmMetaProvider disabled={isMdmMetaUnsupportedPage(tab.pageId) || undefined}>{body}</MdmMetaProvider>
+        <MdmMetaProvider
+          module={mdmMetaModuleOfPage(tab.pageId)}
+          disabled={isMdmMetaUnsupportedPage(tab.pageId) || undefined}
+        >
+          {body}
+        </MdmMetaProvider>
       </TabPageContext.Provider>
     </div>
   );
