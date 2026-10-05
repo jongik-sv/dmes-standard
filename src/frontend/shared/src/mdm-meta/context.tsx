@@ -46,29 +46,24 @@ function moduleOfPageId(pageId: string): string | null {
 }
 
 /**
- * `mdmMeta` 엔드포인트가 없는 모듈 — 포털 탭은 이 모듈 화면에 메타를 부르지 않는다(요청 0).
- * analog BE 는 cactus-core 를 쓰지 않아 엔드포인트가 없다. 예전에는 첫 404 뒤 세션 동안 끄는 방식(spec 2026-10-03 B5)에 맡겨 세션마다 그 모듈
- * 첫 탭에서 404 가 한 번 남았다(2026-10-05 F7). store 의 404 끄기는 목록에 없는 모듈을 위한 방어로 그대로 둔다. 모듈이 엔드포인트를 새로 얻으면 여기서 뺀다.
+ * 포털 탭 모듈 중 메타를 pageId 모듈 그대로 받지 않는 모듈 → 메타 모듈. `null` 이면 그 탭은 메타를 부르지 않는다(요청 0). 표에 없는 모듈은 pageId 모듈 그대로다.
+ * - `mdm` → `mcm`: MDM 서버 자신은 `cactus.mdm.enabled` 를 켜지 않아(spec 2026-10-02 §5.1) `/api/mdm/mdmMeta` 가 404 이고, `/api/mcm/mdmMeta` 가 같은
+ *   컬럼 사전을 준다(2026-10-05 실측).
+ * - `analog` → 끔: analog BE 는 cactus-core 를 쓰지 않아 엔드포인트가 없다. 예전에는 첫 404 뒤 세션 동안 끄는 방식(spec 2026-10-03 B5)에 맡겨 세션마다
+ *   첫 탭에서 404 가 한 번 남았다(2026-10-05 F7). store 의 404 끄기는 표에 없는 모듈을 위한 방어로 그대로 둔다.
+ * 모듈이 엔드포인트를 새로 얻으면 여기서 뺀다.
  */
-export const MDM_META_UNSUPPORTED_MODULES: ReadonlySet<string> = new Set(["analog"]);
+const MDM_META_TAB_MODULES: ReadonlyMap<string, string | null> = new Map([
+  ["mdm", "mcm"],
+  ["analog", null],
+]);
 
-/**
- * 자기 `mdmMeta` 엔드포인트가 없어 다른 모듈의 엔드포인트로 같은 컬럼 사전을 받는 모듈(탭 모듈 → 메타 모듈).
- * MDM 서버 자신은 `cactus.mdm.enabled` 를 켜지 않아(spec 2026-10-02 §5.1) `/api/mdm/mdmMeta` 가 404 이고, `/api/mcm/mdmMeta` 가 같은 사전을 준다
- * (2026-10-05 실측). 그래서 mdm 탭은 메타를 끄지 않고 mcm 으로 부른다.
- */
-export const MDM_META_MODULE_ALIASES: ReadonlyMap<string, string> = new Map([["mdm", "mcm"]]);
-
-/** 포털 탭 pageId(`모듈:화면`)의 모듈이 `mdmMeta` 엔드포인트가 없는 모듈인가. */
-export function isMdmMetaUnsupportedPage(pageId: string): boolean {
+/** 포털 탭이 그 탭의 `MdmMetaProvider` 에 넘길 값(pageId `모듈:화면` 기준). 표에 없는 모듈이면 빈 객체 — 공급자가 pageId 모듈을 그대로 쓴다. */
+export function mdmMetaTabProps(pageId: string): { module?: string; disabled?: true } {
   const m = moduleOfPageId(pageId);
-  return m != null && MDM_META_UNSUPPORTED_MODULES.has(m);
-}
-
-/** 포털 탭 pageId 의 모듈이 다른 모듈로 메타를 받으면 그 모듈. 아니면 undefined(공급자가 pageId 모듈을 그대로 쓴다). */
-export function mdmMetaModuleOfPage(pageId: string): string | undefined {
-  const m = moduleOfPageId(pageId);
-  return m == null ? undefined : MDM_META_MODULE_ALIASES.get(m);
+  if (m == null || !MDM_META_TAB_MODULES.has(m)) return {};
+  const target = MDM_META_TAB_MODULES.get(m);
+  return target == null ? { disabled: true } : { module: target };
 }
 
 export function MdmMetaProvider({ module, captionPriority, disabled, children }: MdmMetaProviderProps) {

@@ -30,6 +30,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { HoverTipPortal, useHoverTip, type HoverTipOptions } from "../form/useHoverTip";
+import { GRID_TOOLTIP_SHOW_DELAY_MS } from "./grid-tooltip";
 import { MdmMetaCard, mdmCardTipOptions } from "../../mdm-meta/MdmMetaCard";
 import type { MdmDomainMeta, MdmScreenColumn } from "../../mdm-meta/types";
 
@@ -51,11 +52,6 @@ export interface MdmHeaderLabelProps extends Partial<MdmHeaderLabelParams> {
 
 /** 라벨 감싸개에 다는 클래스 — 이 부품이 싣는 규칙이 display:contents 로 둔다. */
 export const MDM_HEADER_LABEL_HOST_CLASS = "mdm-header-label-host";
-/**
- * 그리드가 tooltipShowDelay 를 정하지 않았을 때의 표시 지연. AgDataGrid 의 기본값(`GRID_TOOLTIP_SHOW_DELAY_MS`)이 이 값을 그대로 쓴다 —
- * AgDataGrid 는 늘 값을 넘기므로 라벨이 이 값을 직접 쓰는 것은 다른 ag-grid 에 달 때뿐이다.
- */
-export const MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS = 500;
 /** ag-grid 는 tooltipShowDelay 를 200ms 아래로 내리지 않는다(TooltipStateManager). */
 const MIN_SHOW_DELAY_MS = 200;
 /** 터치 pointer 이벤트 뒤 이 시간 안의 mouseenter 는 브라우저가 흉내 낸 것으로 보고 거른다. */
@@ -86,7 +82,7 @@ export function MdmHeaderLabel(props: MdmHeaderLabelProps) {
     const delay =
       typeof configured === "number"
         ? Math.max(MIN_SHOW_DELAY_MS, configured)
-        : MDM_HEADER_LABEL_DEFAULT_SHOW_DELAY_MS;
+        : GRID_TOOLTIP_SHOW_DELAY_MS;
     return { ...base, showDelayMs: delay };
   }, [column, api]);
   const { anchorRef, tipPos, showTip, hideTip, closeTip, box } = useHoverTip<HTMLSpanElement>(

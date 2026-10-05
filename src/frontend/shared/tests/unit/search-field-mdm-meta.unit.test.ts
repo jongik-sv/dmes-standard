@@ -116,7 +116,7 @@ describe("SearchField — name·meta", () => {
     expect(host.querySelector(".search-field__label")?.textContent).toBe("분류");
   });
 
-  it("radio name·최근 입력값 키는 name 이 아니라 label 그대로다", async () => {
+  it("radio name 은 name 이 아니라 label 그대로다", async () => {
     vi.stubGlobal("fetch", fakeMetaFetch({ columns: {} }).fn);
     const host = await show(
       inProvider(field({ label: "사용", name: "useYn", type: "radio", value: "Y", options: [{ value: "Y", label: "예" }] }))
