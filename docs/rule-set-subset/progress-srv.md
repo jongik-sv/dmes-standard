@@ -14,7 +14,8 @@
   1. `SetCallIoReader` memo: 얕은 자리에서 방어 없이 계산한 결과를 깊은 자리(깊이 방어가 걸려야 할 자리)에서 다시 쓴다. 저장된 사슬이 MAX_DEPTH 를 넘을 때만(그래프 검사가 막는 데이터).
   2. `SetCallerRecheck` 준비 순서: 저장된 자기 순환 조상(P→P)·마지막 단계 세트의 부르는 쪽 미수집. 순환·깊이 초과 데이터에서만.
   3. MDM010 시험의 쓸모없는 분기(`getErrors()` 가 비면 이름 비교) — 실패 원인 읽기만 어렵다.
-  4. 하위 세트 폐기 룰 경고는 실제 실행한 `calls` 만 따른다(최상위 룰은 탄 갈래와 무관) — 비대칭. 디버거 simulate 는 최상위만. 조정 결정 대기.
+  4. 하위 세트 폐기 룰 경고는 실제 실행한 `calls` 만 따른다(최상위 룰은 탄 갈래와 무관) — 비대칭. 디버거 simulate 는 최상위만. 조정 확정(2026-10-06): 이 비대칭을 그대로 두고 기록한다(D-135 대조용 동작 변경 기록 — 폐기 룰 경고 범위가 하위 세트까지 넓어짐).
+  6. eng 쪽 차이 4건(SetShape.inputs 의 CATCH_*, FlowKeys.needed 의 DECISION 결과 셀 이름, 식 이름 대소문자, DERIVE 이름 순서)은 조정자 마감 후속 목록으로 넘김. srv 는 시험으로 현재 동작을 고정했다.
   5. `SetCallIoEngineAgreementTest` 는 엔진 inputs 의 CATCH_* 를 빼고 견준다(편차 11). eng 이 같이 빼면 필터를 없앤다.
 - srv:6 묶음 A·B·C·D 끝(아래 「srv:6」). ui 에 코퍼스 111건(`MIN_CASES` 111), C 응답 모양(`search CALL_IO/CALLERS`·`view.calls`·`save.checks` WARN 네 코드·폐기 거부 문구), D 응답 모양(`execute` 의 `calls`·`path.callIndex`·`caught.setPath`, 디버거 `calledFlows`)을 알린다. eng:4 뒤 남은 시험: SET 실행·SetShape 일치(묶음 D 절) → 묶음 E1 에서 끝(코퍼스 112건 `MIN_CASES` 112, itemKey `SET:`, 하위 세트 폐기 룰 경고 — ui·eng 에 알릴 것은 E1 결정에 굵게). 묶음 E2(리뷰 낮은 지적 정리) 끝 — ui 에 알릴 것: `search CALLERS` 는 자기 자신을 부르는 행을 뺀다.
 - srv:5 리뷰(opus/high 1회) clean, 낮음 3건은 srv:6 으로 넘긴다:
