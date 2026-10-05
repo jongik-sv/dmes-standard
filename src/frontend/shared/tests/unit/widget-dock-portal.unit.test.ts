@@ -191,6 +191,35 @@ describe("PortalShell widgetDock", () => {
     expect(saved?.windows.map((w) => w.widgetId)).toEqual(["def.calc"]);
   });
 
+  it("창을 닫으면 키보드 포커스가 「도구」 버튼으로 돌아온다", async () => {
+    vi.stubGlobal("fetch", authFetch("u1"));
+    rendered = renderWithMantine(
+      shell({ widgetDock: { registry: REGISTRY, registryStatus: "ready", frame: WidgetFrame } })
+    );
+    await flush();
+    const tools = document.querySelector('[data-testid="widget-dock-tools"]') as HTMLButtonElement;
+    act(() => tools.click());
+    await flush();
+    act(() =>
+      (
+        document.querySelector(
+          '[data-testid="widget-dock-tools-menu"] [data-widget-id]'
+        ) as HTMLButtonElement
+      ).click()
+    );
+    await flush();
+    const close = document.querySelector(
+      '.cm-widget-dock button[aria-label="닫기"]'
+    ) as HTMLButtonElement;
+    close.focus();
+    act(() => close.click());
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
+    expect(document.querySelectorAll(".cm-widget-dock .cm-float-win")).toHaveLength(0);
+    expect(document.activeElement).toBe(tools);
+  });
+
   it("저장된 창을 다시 띄운다(접힌 창은 아이콘으로)", async () => {
     writeSecureJson(dockStorageKey("u1"), {
       version: 1,

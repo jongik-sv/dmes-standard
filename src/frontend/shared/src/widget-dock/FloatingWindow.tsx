@@ -6,10 +6,13 @@
  * - 접으면 같은 자리에 둥근 아이콘 버튼(기본: 제목 첫 글자)만 남는다. 아이콘은 누르면 펼치고, 4px 넘게 끌면 옮기기만 한다.
  * - 접혀도 본문은 마운트한 채 숨긴다 — 계산기 값·편집 중인 글이 사라지지 않게.
  * - 창 안을 누르거나 포커스가 들어오면 onFocus(맨 앞으로 가져오기)를 부른다.
+ * - 접기·펼치기를 이 창의 버튼으로 하면 키보드 포커스를 따라 옮긴다(접으면 아이콘, 펼치면 막대의 접기 버튼). 숨겨지는 버튼에 있던 포커스가 body 로 떨어지지 않게 한다.
+ *   바깥에서 접힘이 바뀌는 경우(「도구」 메뉴로 펼치기·저장값 복원)는 포커스를 건드리지 않는다.
  * 위치는 부모(position 이 있는 층) 기준 px 이고, 끌기·크기 조절은 bounds 안으로 자른다.
  */
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -18,6 +21,9 @@ import {
 import { IconGripVertical, IconMinus, IconX } from "@tabler/icons-react";
 
 import { FloatingWindowStyle } from "./styles";
+
+/** 접기·펼치기 버튼을 누른 뒤 이 시간 안에 접힘이 바뀌어야 포커스를 옮긴다(상위가 거절한 요청이 나중 변경에 포커스를 뺏지 않게). */
+const FOCUS_HANDOFF_MS = 1000;
 
 /** 접힌 아이콘의 클릭과 끌기를 가르는 거리(px). 창 막대·크기 손잡이도 이만큼 움직여야 끌기로 본다. */
 export const FLOATING_DRAG_THRESHOLD = 4;
@@ -101,6 +107,17 @@ export function FloatingWindow({
   const gestureRef = useRef<Gesture | null>(null);
   /** 아이콘을 끌고 놓은 뒤 따라오는 click 은 펼치기가 아니다. 다음 pointerdown 에서 풀린다(click 이 안 와도 남지 않게). */
   const suppressClickRef = useRef(false);
+  const iconRef = useRef<HTMLButtonElement>(null);
+  const collapseButtonRef = useRef<HTMLButtonElement>(null);
+  /** 이 창의 접기·펼치기 버튼이 막 눌렸다 — 접힘이 바뀌면 그 버튼이 사라지므로 반대편 버튼으로 포커스를 옮긴다. */
+  const focusHandoffRef = useRef<{ to: "icon" | "collapse"; at: number } | null>(null);
+
+  useEffect(() => {
+    const handoff = focusHandoffRef.current;
+    focusHandoffRef.current = null;
+    if (!handoff || Date.now() - handoff.at > FOCUS_HANDOFF_MS) return;
+    (handoff.to === "icon" ? iconRef.current : collapseButtonRef.current)?.focus();
+  }, [collapsed]);
 
   const setLiveRect = (rect: Rect | null) => {
     liveRef.current = rect;
@@ -183,13 +200,18 @@ export function FloatingWindow({
     onPointerCancel: (e: ReactPointerEvent<HTMLElement>) => finish(e, false),
   });
 
+  const toggleWithFocus = useCallback(() => {
+    focusHandoffRef.current = { to: collapsed ? "collapse" : "icon", at: Date.now() };
+    onToggleCollapse();
+  }, [collapsed, onToggleCollapse]);
+
   const onIconClick = useCallback(() => {
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
       return;
     }
-    onToggleCollapse();
-  }, [onToggleCollapse]);
+    toggleWithFocus();
+  }, [toggleWithFocus]);
 
   const rect = live ?? { x, y, w: width, h: height };
   const dragging = live !== null;
@@ -200,6 +222,7 @@ export function FloatingWindow({
       <FloatingWindowStyle />
       {collapsed && (
         <button
+          ref={iconRef}
           type="button"
           className="cm-float-win__icon"
           data-testid={testId ? `${testId}-icon` : undefined}
@@ -241,12 +264,13 @@ export function FloatingWindow({
             {title}
           </span>
           <button
+            ref={collapseButtonRef}
             type="button"
             className="cm-float-win__btn"
             data-action="collapse"
             title="접기"
             aria-label="접기"
-            onClick={onToggleCollapse}
+            onClick={toggleWithFocus}
           >
             <IconMinus size={14} stroke={2} />
           </button>

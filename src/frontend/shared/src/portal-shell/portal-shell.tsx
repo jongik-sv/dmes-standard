@@ -634,6 +634,16 @@ export function PortalShell({
     () => dock.windows.filter((w) => isDockableEntry(dockRegistry[w.widgetId])),
     [dock.windows, dockRegistry]
   );
+  // 창을 닫으면 닫기 버튼이 사라져 포커스가 body 로 떨어진다 — 「도구」 버튼으로 돌린다(다음 프레임: 창 제거 뒤).
+  const dockToolsRef = useRef<HTMLButtonElement>(null);
+  const closeDockWindow = dock.close;
+  const handleCloseDockWindow = useCallback(
+    (id: string) => {
+      closeDockWindow(id);
+      requestAnimationFrame(() => dockToolsRef.current?.focus());
+    },
+    [closeDockWindow]
+  );
   const openDockWidget = dock.open;
   const handleOpenDockWidget = useCallback((widgetId: string) => void openDockWidget(widgetId), [openDockWidget]);
 
@@ -660,6 +670,7 @@ export function PortalShell({
                 loaded={dock.loaded}
                 registryStatus={dockRegistryStatus}
                 onOpen={handleOpenDockWidget}
+                triggerRef={dockToolsRef}
               />
             ) : undefined
           }
@@ -756,7 +767,7 @@ export function PortalShell({
           onMove={dock.move}
           onResize={dock.resize}
           onToggleCollapse={dock.toggleCollapse}
-          onClose={dock.close}
+          onClose={handleCloseDockWindow}
           onFocus={dock.focus}
         />
       )}

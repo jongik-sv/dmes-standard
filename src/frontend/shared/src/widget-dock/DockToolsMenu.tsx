@@ -5,6 +5,7 @@
  * 버튼에는 열린 창 수, 항목에는 그 위젯의 열린 창 수를 보인다. 창 수 한도면 새로 여는 항목을 막는다
  * (한 번만 놓는 위젯이 이미 열려 있으면 그 창을 앞으로 가져오므로 막지 않는다).
  */
+import type { Ref } from "react";
 import { Menu, UnstyledButton } from "@mantine/core";
 import { IconChevronDown, IconTool } from "@tabler/icons-react";
 
@@ -24,6 +25,8 @@ export interface DockToolsMenuProps {
   onOpen: (widgetId: string) => void;
   maxWindows?: number;
   testId?: string;
+  /** 「도구」 버튼 요소 — 호스트가 창을 닫은 뒤 키보드 포커스를 이 버튼으로 돌릴 때 쓴다. */
+  triggerRef?: Ref<HTMLButtonElement>;
 }
 
 export function DockToolsMenu({
@@ -34,6 +37,7 @@ export function DockToolsMenu({
   onOpen,
   maxWindows = DOCK_MAX_WINDOWS,
   testId = "widget-dock-tools",
+  triggerRef,
 }: DockToolsMenuProps) {
   const openCount = windows.length;
   const atLimit = openCount >= maxWindows;
@@ -53,6 +57,7 @@ export function DockToolsMenu({
       >
         <Menu.Target>
           <UnstyledButton
+            ref={triggerRef}
             className="cm-widget-dock-tools"
             data-testid={testId}
             aria-label={openCount > 0 ? `도구 (열린 창 ${openCount}개)` : "도구"}

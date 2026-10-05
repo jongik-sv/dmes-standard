@@ -175,6 +175,57 @@ describe("FloatingWindow", () => {
     expect(p.onResize).toHaveBeenLastCalledWith(BOUNDS.width - 100, BOUNDS.height - 80);
   });
 
+  describe("키보드 포커스", () => {
+    function renderControlled(initialCollapsed = false) {
+      let setCollapsed: (v: boolean) => void = () => {};
+      const Controlled = () => {
+        const [collapsed, set] = useState(initialCollapsed);
+        setCollapsed = set;
+        return h(FloatingWindow, {
+          title: "계산기",
+          x: 100,
+          y: 80,
+          width: 300,
+          height: 240,
+          collapsed,
+          bounds: BOUNDS,
+          onMove: vi.fn(),
+          onResize: vi.fn(),
+          onToggleCollapse: () => set(!collapsed),
+          onClose: vi.fn(),
+          children: h("p", null, "본문"),
+        });
+      };
+      act(() => root.render(h(Controlled)));
+      return { set: (v: boolean) => act(() => setCollapsed(v)) };
+    }
+    const collapseBtn = () => q<HTMLButtonElement>('button[aria-label="접기"]');
+    const icon = () => q<HTMLButtonElement>(".cm-float-win__icon");
+
+    it("접기 버튼을 누르면 아이콘으로, 아이콘을 누르면 접기 버튼으로 포커스가 옮겨 간다", () => {
+      renderControlled();
+      collapseBtn().focus();
+      act(() => collapseBtn().click());
+      expect(icon()).not.toBeNull();
+      expect(document.activeElement).toBe(icon());
+      act(() => icon().click());
+      expect(icon()).toBeNull();
+      expect(document.activeElement).toBe(collapseBtn());
+    });
+
+    it("바깥에서 접힘이 바뀌어도(「도구」 메뉴로 펼치기·저장값 복원) 포커스를 가져오지 않는다", () => {
+      const view = renderControlled(true);
+      const other = document.createElement("button");
+      document.body.appendChild(other);
+      other.focus();
+      view.set(false);
+      expect(document.activeElement).toBe(other);
+      view.set(true);
+      expect(document.activeElement).toBe(other);
+      other.remove();
+    });
+  });
+
   it("창 안을 누르면 onFocus(맨 앞으로)를 부른다", () => {
     const p = renderWindow();
     pointer(q('[data-testid="body"]'), "pointerdown", 150, 150);
