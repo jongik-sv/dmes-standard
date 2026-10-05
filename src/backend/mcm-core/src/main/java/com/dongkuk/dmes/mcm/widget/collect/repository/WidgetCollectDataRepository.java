@@ -22,4 +22,13 @@ public interface WidgetCollectDataRepository extends JpaRepository<WidgetCollect
     @Modifying
     @Query("DELETE FROM WidgetCollectData d WHERE d.slot < :slot")
     int deleteBySlotBefore(@Param("slot") String slot);
+
+    /** SLOT 이 slot 이하인 값 삭제 — 보관 삭제를 나눠 지울 때의 한 덩어리. */
+    @Modifying
+    @Query("DELETE FROM WidgetCollectData d WHERE d.slot <= :slot")
+    int deleteBySlotAtMost(@Param("slot") String slot);
+
+    /** SLOT 이 slot 보다 작은 값의 SLOT 을 오름차순으로(중복 포함) 페이지만큼 — 덩어리 경계(n 번째 행의 SLOT)를 찾는다. */
+    @Query("SELECT d.slot FROM WidgetCollectData d WHERE d.slot < :slot ORDER BY d.slot ASC")
+    List<String> findSlotsBefore(@Param("slot") String slot, Pageable page);
 }

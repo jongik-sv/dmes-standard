@@ -24,6 +24,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.net.InetAddress;
 import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -252,6 +254,66 @@ class CollectSourcesTest {
         }
 
         @Test
+        @DisplayName("IPv6 에 묻힌 IPv4(IPv4 호환·NAT64·6to4)·AWS IPv6 메타데이터 fd00:ec2::254·알리바바 100.100.100.200 도 거절한다")
+        void embeddedAndMetadataAddresses() throws Exception {
+            for (String bad : List.of("fd00:ec2::254", "::169.254.169.254", "::a9fe:a9fe", "64:ff9b::a9fe:a9fe", "64:ff9b::169.254.169.254",
+                    "2002:a9fe:a9fe::1", "::224.0.0.1", "64:ff9b::e000:1", "100.100.100.200", "::ffff:169.254.169.254", "::ffff:100.100.100.200",
+                    "::0.0.0.0", "64:ff9b::6464:64c8", "::6464:64c8")) {
+                assertThat(HttpCollectSource.isUnsafe(InetAddress.getByName(bad))).as(bad).isTrue();
+            }
+            for (String ok : List.of("203.0.113.10", "10.1.2.3", "127.0.0.1", "192.168.0.5", "100.100.100.201", "2001:db8::1", "::1", "fd00:ec2::255",
+                    "64:ff9b::cb00:710a", "2002:cb00:710a::1", "::cb00:710a")) {
+                assertThat(HttpCollectSource.isUnsafe(InetAddress.getByName(ok))).as(ok).isFalse();
+            }
+            resolver = host -> {
+                try {
+                    return new InetAddress[] {InetAddress.getByName("64:ff9b::a9fe:a9fe")};
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            };
+            assertThatThrownBy(() -> source.collect(http("https://api.example.com/x", "v", "v"), TODAY)).hasMessageContaining("링크 로컬");
+            server.verify();
+        }
+
+        @Test
+        @DisplayName("이름 풀이가 상한 시간을 넘기면 실패한다 — 수집기 스레드는 풀이를 기다리며 묶이지 않는다")
+        void dnsResolutionTimesOut() {
+            RestClient.Builder builder = RestClient.builder();
+            MockRestServiceServer none = MockRestServiceServer.bindTo(builder).build();
+            HttpCollectSource slow = new HttpCollectSource(props, builder, host -> {
+                try {
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return new InetAddress[] {PUBLIC};
+            }, Duration.ofMillis(200));
+            long start = System.nanoTime();
+            assertThatThrownBy(() -> slow.collect(http("https://api.example.com/x", "v", "v"), TODAY))
+                    .isInstanceOf(CollectException.class).hasMessageContaining("끝나지 않았습니다");
+            assertThat(Duration.ofNanos(System.nanoTime() - start).toMillis()).isLessThan(2000);
+            none.verify(); // 요청은 보내지 않았다
+            assertThat(HttpCollectSource.DNS_TIMEOUT.toSeconds()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("지수가 큰 짧은 숫자(1e999999999·1e-100000000)는 변환하지 않고 빠르게 건너뛴다 — 다른 항목은 정상 저장")
+        void hugeExponentsSkippedQuickly() {
+            server.expect(requestTo("https://api.example.com/x")).andRespond(withSuccess(
+                    "{\"big\":1e999999999,\"tiny\":1e-100000000,\"neg\":-1E+400,\"ok\":12.5,\"txt\":\"1e999999999\",\"digits\":\"" + "9".repeat(150) + "\"}",
+                    MediaType.APPLICATION_JSON));
+            long start = System.nanoTime();
+            List<CollectItem> items = source.collect(http("https://api.example.com/x", "big", "big", "tiny", "tiny", "neg", "neg", "ok", "ok",
+                    "txt", "txt", "digits", "digits"), TODAY);
+            assertThat(Duration.ofNanos(System.nanoTime() - start).toMillis()).isLessThan(1000);
+            assertThat(items).extracting(CollectItem::key).containsExactly("ok", "txt", "digits");
+            assertThat(items.get(0).num()).isEqualByComparingTo("12.5");
+            assertThat(items.get(1).txt()).isEqualTo("1e999999999"); // 숫자 글자가 아니라 글자로 저장
+            assertThat(items.get(2).txt()).hasSize(150);              // 너무 긴 숫자 글자는 글자
+        }
+
+        @Test
         @DisplayName("사설·루프백 주소는 막지 않는다(허용 호스트가 사내 API 일 수 있다)")
         void privateAddressesAllowed() {
             resolver = host -> new InetAddress[] {addr(10, 1, 2, 3), addr(127, 0, 0, 1), addr(192, 168, 0, 5)};
@@ -326,6 +388,7 @@ class CollectSourcesTest {
         private List<ExchangeRatePoint> frankfurterPoints = List.of();
         private List<ExchangeRatePoint> koreaEximPoints = List.of();
         private RuntimeException frankfurterError;
+        private final WidgetCollectorJpaTest.MutableClock clock = new WidgetCollectorJpaTest.MutableClock(Instant.parse("2026-10-05T03:00:00Z"));
         private ExchangeCollectSource source;
 
         private ExchangeRateProvider fake(String id, java.util.function.Supplier<List<ExchangeRatePoint>> points) {
@@ -346,7 +409,7 @@ class CollectSourcesTest {
 
         @BeforeEach
         void setUp() {
-            source = new ExchangeCollectSource(ext, fake("frankfurter", () -> frankfurterPoints), fake("koreaexim", () -> koreaEximPoints));
+            source = new ExchangeCollectSource(ext, fake("frankfurter", () -> frankfurterPoints), fake("koreaexim", () -> koreaEximPoints), clock);
         }
 
         private static ExchangeRatePoint p(LocalDate date, String cur, String rate) {
@@ -371,6 +434,7 @@ class CollectSourcesTest {
         void outsideWindowIgnored() {
             frankfurterPoints = List.of(p(TODAY.minusDays(8), "USD", "1300"), p(TODAY.plusDays(1), "USD", "1500"), p(TODAY, "CHF", "1600"));
             assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY)).isEmpty();
+            clock.advance(Duration.ofMinutes(31)); // 캐시 만료
             frankfurterPoints = List.of(p(TODAY.minusDays(7), "USD", "1310"));
             assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1310"); // 경계 포함
         }
@@ -400,7 +464,7 @@ class CollectSourcesTest {
             };
             ext.getExchange().setProvider("koreaexim");
             ext.getExchange().setKoreaeximKey("KEY");
-            ExchangeCollectSource s = new ExchangeCollectSource(ext, fake("frankfurter", List::of), perDay);
+            ExchangeCollectSource s = new ExchangeCollectSource(ext, fake("frankfurter", List::of), perDay, clock);
 
             List<CollectItem> items = s.collect(new ExchangeSource(List.of("USD", "JPY", "GBP")), TODAY);
 
@@ -412,6 +476,9 @@ class CollectSourcesTest {
                     "[JPY, GBP]:2026-10-02:2026-10-02", "[GBP]:2026-10-01:2026-10-01", "[GBP]:2026-09-30:2026-09-30", "[GBP]:2026-09-29:2026-09-29",
                     "[GBP]:2026-09-28:2026-09-28");
             calls.clear();
+            assertThat(s.collect(new ExchangeSource(List.of("GBP")), TODAY)).isEmpty();
+            assertThat(calls).isEmpty(); // 「7일 안에 값 없음」도 30분 캐시된다
+            clock.advance(Duration.ofMinutes(31));
             assertThat(s.collect(new ExchangeSource(List.of("GBP")), TODAY)).isEmpty();
             assertThat(calls).hasSize(8); // 7일 전 포함 8일을 모두 물었는데 없다
         }
@@ -426,10 +493,11 @@ class CollectSourcesTest {
             assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1380");
             ext.getExchange().setKoreaeximKey("KEY");
             assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1400");
+            clock.advance(Duration.ofMinutes(31)); // 캐시는 제공자별이지만 같은 제공자 호출은 만료시켜 다시 묻게 한다
             ext.getExchange().setProvider(" KoreaExim ");
             assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1400");
             ext.getExchange().setProvider("frankfurter");
-            assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1380");
+            assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1380"); // frankfurter 캐시(첫 호출, 31분 전)는 만료
             assertThat(calls).extracting(c -> c.substring(0, c.indexOf(':'))).containsExactly("frankfurter", "koreaexim", "koreaexim", "frankfurter");
         }
 
@@ -445,7 +513,57 @@ class CollectSourcesTest {
             assertThatThrownBy(() -> source.collect(new ExchangeSource(List.of("USD")), TODAY)).isInstanceOf(CollectException.class)
                     .hasMessage("환율(Frankfurter) 요청 실패: HTTP 503");
             frankfurterError = null;
+            clock.advance(Duration.ofMinutes(11)); // 실패 10분 뒤에는 다시 묻는다
             assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("같은 (제공자, 통화)는 30분 캐시 — 여러 정의가 같은 통화를 물어도 외부 호출은 한 번, 모자란 통화만 더 묻고, 30분 뒤에 다시 묻는다")
+        void cachedFor30Minutes() {
+            frankfurterPoints = List.of(p(TODAY, "USD", "1380"), p(TODAY, "JPY", "9.5"), p(TODAY, "EUR", "1500"));
+            assertThat(source.collect(new ExchangeSource(List.of("USD", "JPY")), TODAY)).hasSize(2);
+            frankfurterPoints = List.of(p(TODAY, "USD", "9999")); // 캐시가 쓰이면 이 값은 보이지 않는다
+            assertThat(source.collect(new ExchangeSource(List.of("USD")), TODAY).get(0).num()).isEqualByComparingTo("1380");
+            assertThat(source.collect(new ExchangeSource(List.of("JPY", "USD")), TODAY)).extracting(CollectItem::key).containsExactly("JPY", "USD");
+            assertThat(calls).hasSize(1);
+
+            frankfurterPoints = List.of(p(TODAY, "EUR", "1500"));
+            assertThat(source.collect(new ExchangeSource(List.of("USD", "EUR")), TODAY)).extracting(CollectItem::key).containsExactly("USD", "EUR");
+            assertThat(calls).hasSize(2);
+            assertThat(calls.get(1)).contains("[EUR]"); // 없는 통화만 묻는다
+
+            clock.advance(Duration.ofMinutes(29));
+            source.collect(new ExchangeSource(List.of("USD", "EUR")), TODAY);
+            assertThat(calls).hasSize(2);
+            clock.advance(Duration.ofMinutes(2));
+            frankfurterPoints = List.of(p(TODAY, "USD", "1400"), p(TODAY, "EUR", "1510"));
+            assertThat(source.collect(new ExchangeSource(List.of("USD", "EUR")), TODAY).get(0).num()).isEqualByComparingTo("1400");
+            assertThat(calls).hasSize(3);
+        }
+
+        @Test
+        @DisplayName("실패한 (제공자, 통화)는 10분 동안 다시 묻지 않는다 — 캐시된 통화가 있으면 그것만 저장하고, 10분 뒤에 다시 묻는다")
+        void failedLookupsBackOffTenMinutes() {
+            frankfurterPoints = List.of(p(TODAY, "USD", "1380"));
+            source.collect(new ExchangeSource(List.of("USD")), TODAY); // USD 캐시
+            frankfurterError = new WidgetExtException("환율(Frankfurter) 요청 실패: HTTP 503");
+            // JPY 를 새로 묻다 실패 — USD 는 캐시로 저장된다
+            assertThat(source.collect(new ExchangeSource(List.of("USD", "JPY")), TODAY)).extracting(CollectItem::key).containsExactly("USD");
+            assertThat(calls).hasSize(2);
+            // 실패 기록 중에는 JPY 를 다시 묻지 않는다
+            assertThat(source.collect(new ExchangeSource(List.of("USD", "JPY")), TODAY)).extracting(CollectItem::key).containsExactly("USD");
+            assertThatThrownBy(() -> source.collect(new ExchangeSource(List.of("JPY")), TODAY)).isInstanceOf(CollectException.class)
+                    .hasMessage(ExchangeCollectSource.MSG_BACKOFF);
+            assertThat(calls).hasSize(2);
+
+            clock.advance(Duration.ofMinutes(9));
+            assertThatThrownBy(() -> source.collect(new ExchangeSource(List.of("JPY")), TODAY)).hasMessage(ExchangeCollectSource.MSG_BACKOFF);
+            assertThat(calls).hasSize(2);
+            clock.advance(Duration.ofMinutes(2));
+            frankfurterError = null;
+            frankfurterPoints = List.of(p(TODAY, "JPY", "9.5"));
+            assertThat(source.collect(new ExchangeSource(List.of("JPY")), TODAY).get(0).num()).isEqualByComparingTo("9.5");
+            assertThat(calls).hasSize(3);
         }
     }
 
@@ -463,6 +581,16 @@ class CollectSourcesTest {
         assertThat(CollectItem.of("k", new BigDecimal("12345678901234567")).txt()).isEqualTo("12345678901234567");
         assertThat(CollectItem.of("k", new BigDecimal("1234567890123456")).num()).isNotNull();
         assertThat(CollectItem.of("k", true).txt()).isEqualTo("true");
+        // 지수가 크거나 자릿수가 많은 십진수는 변환 없이 건너뛴다(OOM·수십 초 CPU 방지) — 경계는 ±100·유효 100자리
+        long start = System.nanoTime();
+        assertThat(CollectItem.of("k", new BigDecimal("1e999999999"))).isNull();
+        assertThat(CollectItem.of("k", new BigDecimal("1e-100000000"))).isNull();
+        assertThat(CollectItem.of("k", new BigDecimal("1e101"))).isNull();
+        assertThat(CollectItem.of("k", new BigDecimal("1e-101"))).isNull();
+        assertThat(CollectItem.of("k", new BigDecimal("1e100"))).isNotNull();
+        assertThat(CollectItem.of("k", new BigDecimal("1e-100")).num()).isEqualByComparingTo("0");
+        assertThat(CollectItem.of("k", new BigDecimal("1".repeat(101)))).isNull();
+        assertThat(Duration.ofNanos(System.nanoTime() - start).toMillis()).isLessThan(1000);
         assertThat(CollectItem.of("k", null)).isNull();
         assertThat(CollectItem.of("k", "   ")).isNull();
         assertThat(CollectItem.of(" ", 1)).isNull();

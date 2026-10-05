@@ -6,7 +6,15 @@ import com.dongkuk.dmes.mcm.widget.collect.entity.WidgetCollectRun;
 import com.dongkuk.dmes.mcm.widget.collect.entity.WidgetCollectRunId;
 import com.dongkuk.dmes.mcm.widget.collect.repository.WidgetCollectDataRepository;
 import com.dongkuk.dmes.mcm.widget.collect.repository.WidgetCollectRunRepository;
+import jakarta.persistence.PersistenceException;
 import java.time.Instant;
+import java.util.List;
+import java.util.function.ToIntFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class WidgetCollectWriter {
 
+    private static final Logger log = LoggerFactory.getLogger(WidgetCollectWriter.class);
+
     private final WidgetCollectRunRepository runRepository;
     private final WidgetCollectDataRepository dataRepository;
 
@@ -27,15 +37,35 @@ public class WidgetCollectWriter {
         this.dataRepository = dataRepository;
     }
 
+    /** 잠금 충돌 등으로 insert 가 실패했을 때 다시 해 보는 횟수(처음 시도 뒤)와 사이 대기 — SQLite 같은 파일 DB 의 쓰기 잠금 충돌용. */
+    static final int START_RETRIES = 2;
+    static final long START_RETRY_WAIT_MS = 50;
+
     /**
-     * 이 (정의, 시각)을 잡는다 — RUN 행을 먼저 넣는다. 이미 있으면 false(다른 인스턴스·이전 시도가 잡은 시각이라 건너뛴다).
-     * 동시에 두 인스턴스가 넣으면 뒤의 insert 가 PK 위반({@code DataIntegrityViolationException})을 던진다 — 호출자가 건너뜀으로 처리한다.
+     * 이 (정의, 시각)을 잡는다 — 확인 없이 RUN 행을 바로 insert 한다(먼저 읽고 넣으면 두 인스턴스가 모두 통과하는 틈이 생긴다).
+     * PK 위반이면 다른 인스턴스·이전 시도가 이미 잡은 시각이라 false(건너뜀). 잠금 충돌 등 다른 DB 오류는 짧게 {@value #START_RETRIES} 번 다시 해 보고
+     * 그래도 안 되면 false 로 건너뛴다(다음 분에 다시 잡는다). 트랜잭션은 저장소 호출 하나가 맡는다(여기서 묶으면 위반이 롤백 표식을 남긴다).
      */
-    @Transactional
     public boolean tryStart(String widgetId, String slot, Instant startedAt) {
-        if (runRepository.existsById(new WidgetCollectRunId(widgetId, slot))) return false;
-        runRepository.saveAndFlush(WidgetCollectRun.start(widgetId, slot, startedAt));
-        return true;
+        for (int attempt = 0; ; attempt++) {
+            try {
+                runRepository.saveAndFlush(WidgetCollectRun.start(widgetId, slot, startedAt));
+                return true;
+            } catch (DataIntegrityViolationException e) {
+                return false;
+            } catch (DataAccessException | PersistenceException e) {
+                if (attempt >= START_RETRIES) {
+                    log.warn("정시 수집 회차 잡기 실패 defId={} 원인={}", widgetId, e.getClass().getSimpleName());
+                    return false;
+                }
+                try {
+                    Thread.sleep(START_RETRY_WAIT_MS * (attempt + 1));
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+        }
     }
 
     /** 항목 하나를 넣는다. 같은 PK 가 이미 있으면 넣지 않고 false(PK 위반은 무시한다). */
@@ -57,9 +87,23 @@ public class WidgetCollectWriter {
         runRepository.save(run);
     }
 
-    /** SLOT 이 slot 보다 작은 값·회차를 지운다(보관 기간 밖). 지운 DATA·RUN 행 수 합. */
+    /**
+     * SLOT 이 cutoff 보다 작은(보관 기간 밖) 값·회차를 한 덩어리(최대 약 limit 행씩) 지운다. 한 번에 모두 지우면 긴 트랜잭션·언두가 쌓이므로
+     * n 번째 행의 SLOT 까지만 지운다(같은 SLOT 의 행은 함께 지우므로 덩어리가 limit 를 조금 넘을 수 있고 한 SLOT 은 최대 정의 50 x 항목 50 행이다).
+     * 호출자가 0 이 나올 때까지 되풀이한다.
+     *
+     * @return 이번 덩어리에서 지운 DATA·RUN 행 수 합(0 이면 더 지울 것이 없다)
+     */
     @Transactional
-    public int purgeBefore(String slot) {
-        return dataRepository.deleteBySlotBefore(slot) + runRepository.deleteBySlotBefore(slot);
+    public int purgeChunk(String cutoffSlot, int limit) {
+        return chunk(dataRepository.findSlotsBefore(cutoffSlot, PageRequest.of(limit - 1, 1)), cutoffSlot,
+                dataRepository::deleteBySlotAtMost, dataRepository::deleteBySlotBefore)
+                + chunk(runRepository.findSlotsBefore(cutoffSlot, PageRequest.of(limit - 1, 1)), cutoffSlot,
+                runRepository::deleteBySlotAtMost, runRepository::deleteBySlotBefore);
+    }
+
+    /** boundary 가 있으면(limit 행 넘게 있다) 그 SLOT 이하만, 없으면 cutoff 미만 전부 지운다. */
+    private static int chunk(List<String> boundary, String cutoffSlot, ToIntFunction<String> atMost, ToIntFunction<String> before) {
+        return boundary.isEmpty() ? before.applyAsInt(cutoffSlot) : atMost.applyAsInt(boundary.get(0));
     }
 }

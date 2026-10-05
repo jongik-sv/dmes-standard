@@ -5,6 +5,7 @@ import com.dongkuk.dmes.mcm.widget.collect.entity.WidgetCollectRun;
 import com.dongkuk.dmes.mcm.widget.def.entity.WidgetDef;
 import com.dongkuk.dmes.mcm.widget.def.repository.WidgetDefRepository;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>수집 시각 {@code slot} = 틱이 시작한 분({@code yyyyMMddHHmm}, Asia/Seoul). 지나간 시각은 따라잡지 않는다.</li>
  *   <li>중복 방지: RUN 행을 먼저 넣고(PK 위반이면 다른 인스턴스·이전 시도가 잡은 시각이라 건너뜀) 수집한다. ShedLock 이 없어도 같은 정의·같은 분은 한 번만 돈다.</li>
+ *   <li>틱이 시작한 지 45초가 지나면 새 정의를 시작하지 않고(건너뛴 수는 warn 로그) 다음 분 틱과 겹치지 않게 한다.</li>
  *   <li>한 틱에 최대 50개 정의를 정의 순서대로. 한 정의의 실패(설정 오류·원천 실패·DB 오류)는 다른 정의를 막지 않고, 예외는 삼키고 로그만 남긴다
  *       (주소·인증값·DB 메시지는 로그·RUN 행에 넣지 않는다).</li>
  *   <li>{@code dmes.widget.collect.enabled=false} 면 수집·삭제를 모두 하지 않는다.</li>
@@ -40,6 +42,11 @@ public class WidgetCollector {
     static final DateTimeFormatter SLOT = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
     static final int MAX_PER_TICK = 50;
     static final int RETENTION_DAYS = 90;
+    /** 보관 삭제 한 덩어리의 행 수와 한 번의 삭제에서 지우는 덩어리 수 상한(끝없는 반복 방지). */
+    static final int PURGE_CHUNK_ROWS = 5000;
+    static final int PURGE_MAX_CHUNKS = 2000;
+    /** 틱 시작 뒤 이 시간이 지나면 새 정의를 시작하지 않는다(다음 분 틱과 겹치지 않게). */
+    static final Duration TICK_DEADLINE = Duration.ofSeconds(45);
     static final String MSG_NO_ITEMS = "수집된 값이 없습니다.";
     static final String MSG_UNEXPECTED = "수집 중 오류가 발생했습니다: ";
 
@@ -99,6 +106,8 @@ public class WidgetCollector {
         String slot = SLOT.format(minute);
         List<WidgetDef> defs = defRepository.findBySrcTpAndTypeIdOrderByWidgetIdAsc(WidgetDef.SRC_DEF, CollectConfig.TYPE_ID);
         int started = 0;
+        int skippedByDeadline = 0;
+        Instant deadline = clock.instant().plus(TICK_DEADLINE);
         for (WidgetDef def : defs) {
             if (!def.isInUse()) continue;
             CollectConfig config;
@@ -109,6 +118,10 @@ public class WidgetCollector {
                 continue;
             }
             if (!config.schedule().isDue(minute)) continue;
+            if (!clock.instant().isBefore(deadline)) {
+                skippedByDeadline++; // 이미 시작이 늦었다 — 새 정의를 시작하지 않는다
+                continue;
+            }
             if (started >= MAX_PER_TICK) {
                 log.warn("정시 수집 한 틱 상한({})을 넘어 나머지 정의는 이번 시각을 건너뜁니다 slot={}", MAX_PER_TICK, slot);
                 break;
@@ -119,14 +132,24 @@ public class WidgetCollector {
                 log.warn("정시 수집 처리 실패 defId={} 원인={}", def.getWidgetId(), e.getClass().getSimpleName());
             }
         }
+        if (skippedByDeadline > 0) {
+            log.warn("정시 수집 틱이 {}초를 넘겨 {} 개 정의를 이번 시각({})에 건너뜁니다", TICK_DEADLINE.toSeconds(), skippedByDeadline, slot);
+        }
         return started;
     }
 
-    /** 보관 기간(90일, 오늘 0시 기준) 밖의 값·회차를 지운다. */
+    /** 보관 기간(90일, 오늘 0시 기준) 밖의 값·회차를 5천 행 안팎의 덩어리로 나눠 지운다. */
     public int purge() {
         if (!properties.isEnabled()) return 0;
         LocalDate today = LocalDateTime.ofInstant(clock.instant(), ZONE).toLocalDate();
-        return writer.purgeBefore(SLOT.format(today.minusDays(RETENTION_DAYS).atStartOfDay()));
+        String cutoff = SLOT.format(today.minusDays(RETENTION_DAYS).atStartOfDay());
+        int total = 0;
+        for (int chunk = 0; chunk < PURGE_MAX_CHUNKS; chunk++) {
+            int deleted = writer.purgeChunk(cutoff, PURGE_CHUNK_ROWS);
+            if (deleted == 0) break;
+            total += deleted;
+        }
+        return total;
     }
 
     /** @return 이 인스턴스가 이 시각을 잡아 수집했으면 true, 이미 잡혀 있어 건너뛰었으면 false */

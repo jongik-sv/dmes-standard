@@ -33,6 +33,8 @@ public final class CollectConfigs {
     /** interval 에 허용하는 분(1440 의 약수 중 자정에 맞춰지고 외부 호출이 잦지 않은 것). */
     public static final List<Integer> EVERY_MIN_ALLOWED = List.of(5, 10, 15, 20, 30, 60, 120, 180, 240, 360, 480, 720, 1440);
     public static final int AT_MAX = 24;
+    /** 환율 원천의 interval 최소 주기(분) — 외부 제공자 호출이 잦지 않게. */
+    public static final int EXCHANGE_EVERY_MIN_MIN = 60;
     public static final int ITEMS_MAX = 20;
     public static final int KEY_MAX = 100;
     public static final int PATH_MAX = 200;
@@ -47,7 +49,7 @@ public final class CollectConfigs {
 
     private static final Pattern AT = Pattern.compile("^([01][0-9]|2[0-3]):[0-5][0-9]$");
     private static final Pattern CURRENCY = Pattern.compile("^[A-Z]{3}$");
-    private static final Pattern PATH_NAME = Pattern.compile("^[A-Za-z0-9_$\\-]+$");
+    private static final Pattern PATH_NAME = Pattern.compile("^[\\p{L}\\p{N}_$\\-]+$");
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private CollectConfigs() {}
@@ -73,7 +75,7 @@ public final class CollectConfigs {
             if (!show.isObject()) throw invalid("정시 수집 표시 설정(show)은 객체여야 합니다.");
             JsonNode d = show.get("days");
             if (d != null && !d.isNull()) {
-                if (!d.isIntegralNumber() || d.asInt() < 1 || d.asInt() > DAYS_MAX) {
+                if (!d.isIntegralNumber() || !d.canConvertToInt() || d.asInt() < 1 || d.asInt() > DAYS_MAX) {
                     throw invalid("표시 기간(show.days)은 1~" + DAYS_MAX + " 사이 정수여야 합니다.");
                 }
                 days = d.asInt();
@@ -85,6 +87,9 @@ public final class CollectConfigs {
                 }
                 unit = u.asText();
             }
+        }
+        if (source instanceof ExchangeSource && schedule.mode() == Mode.INTERVAL && schedule.everyMin() < EXCHANGE_EVERY_MIN_MIN) {
+            throw invalid("환율 원천은 수집 주기(schedule.everyMin)를 " + EXCHANGE_EVERY_MIN_MIN + "분 이상으로 정해 주세요(정해진 시각 daily 는 가능합니다).");
         }
         return new CollectConfig(schedule, source, days, unit);
     }
@@ -110,7 +115,7 @@ public final class CollectConfigs {
         String mode = text(node, "mode");
         if ("interval".equals(mode)) {
             JsonNode every = node.get("everyMin");
-            if (every == null || !every.isIntegralNumber() || !EVERY_MIN_ALLOWED.contains(every.asInt())) {
+            if (every == null || !every.isIntegralNumber() || !every.canConvertToInt() || !EVERY_MIN_ALLOWED.contains(every.asInt())) {
                 throw invalid("수집 주기(schedule.everyMin)는 " + EVERY_MIN_ALLOWED.stream().map(String::valueOf)
                         .collect(java.util.stream.Collectors.joining("·")) + " 분 중 하나여야 합니다.");
             }

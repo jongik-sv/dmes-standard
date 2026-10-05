@@ -360,7 +360,7 @@ class WidgetCollectorJpaTest {
         WidgetCollector c = new WidgetCollector(defRepository, writer, properties, new SqlCollectSource(queryRunner),
                 new HttpCollectSource(properties), new ExchangeCollectSource(ext, new com.dongkuk.dmes.mcm.widget.ext.FrankfurterProvider(ext),
                         new com.dongkuk.dmes.mcm.widget.ext.KoreaEximProvider(ext)), clock);
-        def("def.e0000001", EVERY_10, "{\"kind\":\"exchange\",\"currencies\":[\"USD\"]}", "Y");
+        def("def.e0000001", "{\"mode\":\"daily\",\"at\":[\"00:10\"]}", "{\"kind\":\"exchange\",\"currencies\":[\"USD\"]}", "Y");
         assertThat(c.tick()).isEqualTo(1);
         assertThat(runs.findById(new WidgetCollectRunId("def.e0000001", SLOT0)).orElseThrow().getStatus()).isEqualTo("FAIL");
     }
@@ -383,7 +383,7 @@ class WidgetCollectorJpaTest {
             }
         };
         WidgetCollector c = new WidgetCollector(defRepository, writer, properties, new SqlCollectSource(queryRunner),
-                new HttpCollectSource(properties), new ExchangeCollectSource(new WidgetExtProperties(), fake, fake), clock);
+                new HttpCollectSource(properties), new ExchangeCollectSource(new WidgetExtProperties(), fake, fake, clock), clock);
         def("def.e0000001", "{\"mode\":\"interval\",\"everyMin\":60}", "{\"kind\":\"exchange\",\"currencies\":[\"USD\"]}", "Y");
         clock.set(Instant.parse("2026-10-04T03:00:05Z")); // 서울 일요일 12:00
 
@@ -400,6 +400,105 @@ class WidgetCollectorJpaTest {
         WidgetCollectRun failed = runs.findById(new WidgetCollectRunId("def.e0000001", "202610041300")).orElseThrow();
         assertThat(failed.getStatus()).isEqualTo("FAIL");
         assertThat(failed.getMsg()).isEqualTo("수집된 값이 없습니다.");
+    }
+
+    // ── 틱 마감 ──────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("틱 시작 45초 뒤에는 새 정의를 시작하지 않는다 — 시작한 것까지만 수집하고 나머지는 이번 시각을 건너뛴다")
+    void tickDeadlineStopsStartingNewDefinitions() {
+        for (int i = 0; i < 4; i++) def("def.t000000" + i, EVERY_10);
+        when(queryRunner.runCollect(anyString(), anyInt())).thenAnswer(inv -> {
+            clock.advance(Duration.ofSeconds(20)); // 한 정의가 20초 걸린다
+            return rows("L1", 5);
+        });
+
+        assertThat(collector.tick()).isEqualTo(3); // 0초·20초·40초에 시작, 60초에는 마감을 넘겼다
+
+        assertThat(runs.findAll()).extracting(WidgetCollectRun::getWidgetId).containsExactlyInAnyOrder("def.t0000000", "def.t0000001", "def.t0000002");
+        verify(queryRunner, times(3)).runCollect(anyString(), anyInt());
+        assertThat(WidgetCollector.TICK_DEADLINE).isEqualTo(Duration.ofSeconds(45));
+    }
+
+    // ── 회차 잡기 ────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("tryStart: 바로 insert 해 PK 위반이면 false, 잠금 충돌 같은 DB 오류는 짧게 두 번 다시 해 보고 그래도 안 되면 false(건너뜀)")
+    void tryStartInsertsFirstAndRetriesBriefly() {
+        assertThat(writer.tryStart("def.a0000001", SLOT0, T0)).isTrue();
+        assertThat(writer.tryStart("def.a0000001", SLOT0, T0)).isFalse();
+        assertThat(runs.count()).isEqualTo(1);
+
+        WidgetCollectRunRepository mockRuns = mock(WidgetCollectRunRepository.class);
+        WidgetCollectWriter w = new WidgetCollectWriter(mockRuns, data);
+        when(mockRuns.saveAndFlush(any(WidgetCollectRun.class)))
+                .thenThrow(new org.springframework.dao.CannotAcquireLockException("database is locked"))
+                .thenAnswer(inv -> inv.getArgument(0));
+        assertThat(w.tryStart("def.b0000001", SLOT0, T0)).isTrue();
+        verify(mockRuns, times(2)).saveAndFlush(any(WidgetCollectRun.class));
+        verify(mockRuns, never()).existsById(any()); // 먼저 읽고 넣지 않는다
+
+        WidgetCollectRunRepository locked = mock(WidgetCollectRunRepository.class);
+        when(locked.saveAndFlush(any(WidgetCollectRun.class))).thenThrow(new org.springframework.dao.CannotAcquireLockException("database is locked"));
+        assertThat(new WidgetCollectWriter(locked, data).tryStart("def.c0000001", SLOT0, T0)).isFalse();
+        verify(locked, times(1 + WidgetCollectWriter.START_RETRIES)).saveAndFlush(any(WidgetCollectRun.class));
+
+        WidgetCollectRunRepository dup = mock(WidgetCollectRunRepository.class);
+        when(dup.saveAndFlush(any(WidgetCollectRun.class))).thenThrow(new DataIntegrityViolationException("pk"));
+        assertThat(new WidgetCollectWriter(dup, data).tryStart("def.d0000001", SLOT0, T0)).isFalse();
+        verify(dup, times(1)).saveAndFlush(any(WidgetCollectRun.class)); // PK 위반은 다시 해 보지 않는다
+    }
+
+    // ── 인덱스·덩어리 삭제 ───────────────────────────────────────────
+
+    @Autowired DataSource dataSource;
+
+    @Test
+    @DisplayName("두 엔티티에 SLOT 인덱스가 있다 — 어노테이션과 실제로 만들어진 인덱스")
+    void slotIndexesExist() {
+        assertThat(WidgetCollectRun.class.getAnnotation(jakarta.persistence.Table.class).indexes()[0].columnList()).isEqualTo("SLOT");
+        assertThat(WidgetCollectData.class.getAnnotation(jakarta.persistence.Table.class).indexes()[0].columnList()).isEqualTo("SLOT");
+        org.springframework.jdbc.core.JdbcTemplate jdbc = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+        for (String name : List.of("IX_MCM_WCOL_RUN_SLOT", "IX_MCM_WCOL_DATA_SLOT")) {
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM INFORMATION_SCHEMA.INDEXES WHERE INDEX_NAME = ?", Long.class, name)).as(name).isPositive();
+        }
+    }
+
+    @Test
+    @DisplayName("보관 삭제는 limit 행 안팎의 덩어리로 나눠 지운다 — 덩어리마다 한 SLOT 경계까지, 기준 이후는 남는다")
+    void purgeInChunks() {
+        for (int day = 1; day <= 5; day++) {
+            String slot = "2026010" + day + "0000";
+            for (String key : List.of("A", "B")) data.saveAndFlush(new WidgetCollectData("def.a0000001", slot, key, BigDecimal.ONE, null));
+        }
+        runs.saveAndFlush(WidgetCollectRun.start("def.a0000001", "202601010000", T0));
+        runs.saveAndFlush(WidgetCollectRun.start("def.a0000001", "202601020000", T0));
+        data.saveAndFlush(new WidgetCollectData("def.a0000001", "202607070000", "A", BigDecimal.ONE, null)); // 기준 이후 — 남는다
+        String cutoff = "202607070000";
+
+        List<Integer> deleted = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            int n = writer.purgeChunk(cutoff, 3);
+            deleted.add(n);
+            if (n == 0) break;
+        }
+
+        // DATA 10행: 3번째 행(2일차)까지 4행 + RUN 2행 → 6, 이어서 4(3·4일차), 2(5일차), 0
+        assertThat(deleted).containsExactly(6, 4, 2, 0);
+        assertThat(data.findAll()).extracting(WidgetCollectData::getSlot).containsExactly("202607070000");
+        assertThat(runs.count()).isZero();
+    }
+
+    @Test
+    @DisplayName("collector.purge 는 덩어리 삭제를 0 이 나올 때까지 되풀이해 합계를 돌려준다(5천 행 덩어리)")
+    void purgeLoopsUntilEmpty() {
+        assertThat(WidgetCollector.PURGE_CHUNK_ROWS).isEqualTo(5000);
+        List<WidgetCollectData> old = new ArrayList<>();
+        for (int i = 0; i < 12; i++) old.add(new WidgetCollectData("def.a0000001", "20260101" + String.format("%04d", i), "K", BigDecimal.ONE, null));
+        data.saveAllAndFlush(old);
+        assertThat(collector.purge()).isEqualTo(12);
+        assertThat(data.count()).isZero();
+        assertThat(collector.purge()).isZero();
     }
 
     // ── 꺼짐 ─────────────────────────────────────────────────────────

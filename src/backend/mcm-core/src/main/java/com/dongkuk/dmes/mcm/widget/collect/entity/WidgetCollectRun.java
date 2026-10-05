@@ -5,6 +5,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
+import jakarta.persistence.Index;
 import jakarta.persistence.PostLoad;
 import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
@@ -19,7 +20,8 @@ import org.springframework.data.domain.Persistable;
  * 한다 — 같은 PK 를 두 번 넣으면 덮어쓰지 않고 무결성 예외가 난다.
  */
 @Entity
-@Table(name = "TB_MCM_WIDGET_COLLECT_RUN", schema = "MCMAPUSER")
+@Table(name = "TB_MCM_WIDGET_COLLECT_RUN", schema = "MCMAPUSER",
+        indexes = @Index(name = "IX_MCM_WCOL_RUN_SLOT", columnList = "SLOT")) // 90일 보관 삭제용
 @IdClass(WidgetCollectRunId.class)
 public class WidgetCollectRun extends McmAuditEntity implements Persistable<WidgetCollectRunId> {
 

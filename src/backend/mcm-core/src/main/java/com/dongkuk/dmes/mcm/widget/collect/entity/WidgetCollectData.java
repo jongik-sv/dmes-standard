@@ -5,6 +5,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
+import jakarta.persistence.Index;
 import jakarta.persistence.PostLoad;
 import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
@@ -17,7 +18,8 @@ import org.springframework.data.domain.Persistable;
  * {@link WidgetCollectRun} 과 같은 이유로 {@link Persistable} — 같은 PK 는 덮어쓰지 않고 insert 에서 막힌다.
  */
 @Entity
-@Table(name = "TB_MCM_WIDGET_COLLECT_DATA", schema = "MCMAPUSER")
+@Table(name = "TB_MCM_WIDGET_COLLECT_DATA", schema = "MCMAPUSER",
+        indexes = @Index(name = "IX_MCM_WCOL_DATA_SLOT", columnList = "SLOT")) // 90일 보관 삭제용
 @IdClass(WidgetCollectDataId.class)
 public class WidgetCollectData extends McmAuditEntity implements Persistable<WidgetCollectDataId> {
 
