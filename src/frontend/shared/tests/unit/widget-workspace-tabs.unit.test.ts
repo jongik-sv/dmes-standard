@@ -412,6 +412,46 @@ describe("WidgetWorkspace — 새 탭 ID 교체(공유 사본 덮어쓰기 방�
     expect(store.calls).toEqual(["load", "saveTab:tab-1:fresh", "saveTab:tab-1:-"]);
   });
 
+  it("새 탭 둘 중 첫 탭을 서버가 둘째 탭의 ID 로 옮겨도 ID 가 겹치지 않고, 둘째도 정상 저장된다(재리뷰)", async () => {
+    // 서버 쪽 탭 ID — 공유 사본 tab-1 이 이미 있다. fresh 저장이 이미 있는 ID 면 다음 빈 번호로 옮긴다.
+    const server = new Set(["home", "tab-1"]);
+    const store = makeStore(base());
+    (store.saveTab as ReturnType<typeof vi.fn>).mockImplementation(async (t: WidgetTab) => {
+      let id = t.tabId;
+      if (t.fresh && server.has(id)) {
+        let n = 1;
+        while (server.has(`tab-${n}`)) n += 1;
+        id = `tab-${n}`;
+      }
+      server.add(id);
+      store.calls.push(`saveTab:${t.tabId}->${id}:${t.fresh ? "fresh" : "-"}:${t.name}`);
+      return { tabId: id };
+    });
+    await mount(store);
+    const enter = () =>
+      act(() => (document.querySelector(".cm-widget-tab__name") as HTMLInputElement).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    click('[data-action="add-tab"]');
+    enter();
+    click('[data-action="add-tab"]');
+    enter();
+    expect(tabIds()).toEqual(["home", "tab-1", "tab-2"]);
+    click('[data-action="done-edit"]');
+    await flush();
+    // tab-1 은 서버에 있어 tab-2 로 옮겨지고, 화면의 tab-2(아직 저장 전)는 빈 ID 로 비켜 저장된다.
+    expect(store.calls[1]).toBe("saveTab:tab-1->tab-2:fresh:새 탭");
+    expect(store.calls[2]).toMatch(/^saveTab:tab-3->tab-3:fresh:새 탭 2$/);
+    const ids = tabIds();
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toEqual(["home", "tab-2", "tab-3"]);
+    expect($('[data-action="start-edit"]')).not.toBeNull(); // [완료] 성공
+    // 둘째 저장 뒤 같은 탭을 다시 저장하면 fresh 없이 제 ID 로 간다.
+    openMenu("tab-3");
+    act(() => menuItem("탭 잠그기")!.click());
+    await flush();
+    expect(store.calls[3]).toBe("saveTab:tab-3->tab-3:-:새 탭 2");
+    expect([...document.querySelectorAll('[role="tab"]')].map((e) => e.textContent?.replace(/[⋯🔒]/g, ""))).toEqual(["홈", "새 탭", "새 탭 2"]);
+  });
+
   it("가져오기도 fresh 로 저장하고, 옮겨진 ID 로 탭을 고른다", async () => {
     const { store } = movingStore(base(), "tab-4");
     await mount(store);

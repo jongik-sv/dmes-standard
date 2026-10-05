@@ -361,11 +361,26 @@ export function WidgetWorkspace({
    * 탭 하나 저장 — 「홈」을 저장하면 더는 기본 배치가 아니다. 저장된 탭 ID 를 돌려준다.
    * 새 탭(fresh)을 저장소가 다른 ID 로 옮겨 저장했으면(화면이 연 뒤 같은 tab-N 으로 공유 사본이 생긴 경우) 탭 상태·고른 탭·
    * 편집 기준(snapshot)·원래 배치·마지막 탭 기억을 새 ID 로 바꾼다. 위젯 instId 는 그대로다.
+   * 옮긴 ID 를 같은 [완료]에서 아직 저장하지 않은 다른 새 탭(batch.pending)이 쓰고 있으면 그 탭을 먼저 빈 ID 로 비켜 준다
+   * (한 화면에 같은 ID 탭이 둘이 되지 않게). 비켜 준 탭은 aside 로 돌려준다 — doneEdit 이 이어서 그 ID 로 저장한다.
    */
-  const persistTab = async (tab: WidgetTab): Promise<string> => {
+  const persistTab = async (
+    tab: WidgetTab,
+    batch?: { pending: readonly string[]; known: readonly string[] }
+  ): Promise<{ id: string; aside?: { from: string; to: string } }> => {
     const res = (await store.saveTab(tab)) as { tabId?: string } | undefined;
     const savedId = typeof res?.tabId === "string" && res.tabId ? res.tabId : tab.tabId;
     const moved = savedId !== tab.tabId;
+    let aside: { from: string; to: string } | undefined;
+    if (moved && batch?.pending.includes(savedId)) {
+      // 화면의 탭·이번 저장에서 쓰인 ID·서버가 준 ID 와 겹치지 않는 번호.
+      const used = new Set([...tabsRef.current.map((t) => t.tabId), ...batch.known, savedId, tab.tabId]);
+      let n = 1;
+      while (used.has(`tab-${n}`)) n += 1;
+      aside = { from: savedId, to: `tab-${n}` };
+    }
+    // 한 번에 같은 순서로 바꾼다: 겹친 새 탭 → 빈 ID, 저장한 탭 → 서버 ID.
+    const rename = (id: string) => (id === tab.tabId ? savedId : aside && id === aside.from ? aside.to : id);
     if (tab.tabId === HOME_TAB_ID) homeIsDefault.current = false;
     // 저장한 배치가 새 원래 배치다.
     if (moved) sourceItems.current.delete(tab.tabId);
@@ -374,16 +389,23 @@ export function WidgetWorkspace({
     // 기본 탭을 저장하면 사용자 재정의 행이 생긴다 — 다시 불러오지 않아도 「기본으로 되돌리기」가 켜지게.
     if (moved || tab.fresh || (tab.defaultTab && !tab.customized)) {
       setTabs((prev) =>
-        prev.map((t) => (t.tabId === tab.tabId ? { ...t, tabId: savedId, fresh: false, ...(t.defaultTab ? { customized: true } : {}) } : t))
+        prev.map((t) =>
+          t.tabId === tab.tabId
+            ? { ...t, tabId: savedId, fresh: false, ...(t.defaultTab ? { customized: true } : {}) }
+            : aside && t.tabId === aside.from && t.fresh
+              ? { ...t, tabId: aside.to }
+              : t
+        )
       );
     }
     if (moved) {
-      setActiveTabId((cur) => (cur === tab.tabId ? savedId : cur));
-      setRenamingTabId((cur) => (cur === tab.tabId ? savedId : cur));
+      setActiveTabId((cur) => rename(cur));
+      setRenamingTabId((cur) => (cur == null ? cur : rename(cur)));
       setSnapshot((prev) => (prev ? prev.map((s) => (s.tabId === tab.tabId ? { ...s, tabId: savedId } : s)) : prev));
-      if (readLastTab(memoUserId) === tab.tabId) writeLastTab(memoUserId, savedId);
+      const last = readLastTab(memoUserId);
+      if (last && rename(last) !== last) writeLastTab(memoUserId, rename(last));
     }
-    return savedId;
+    return { id: savedId, aside };
   };
 
   const active = tabs.find((t) => t.tabId === activeTabId) ?? tabs[0];
@@ -424,14 +446,25 @@ export function WidgetWorkspace({
     setSaving(true);
     // admin 은 기본 탭을 먼저, 「홈」을 마지막에 저장한다 — 빈 「홈」 거절(서버)이 기본 탭 저장을 막지 않게.
     const ordered = admin ? [...changedTabs.filter((t) => t.tabId !== HOME_TAB_ID), ...changedTabs.filter((t) => t.tabId === HOME_TAB_ID)] : changedTabs;
+    // 이번 [완료]에서 각 탭의 지금 ID — 저장소가 새 탭을 옮겨 다른 새 탭을 비켜 주면 바뀐다.
+    const idOf = new Map(ordered.map((t) => [t, t.tabId] as const));
+    const done = new Set<WidgetTab>();
     try {
       for (const t of ordered) {
+        const id = idOf.get(t)!;
         const seq = tabs.indexOf(t);
-        const savedId = await persistTab({ ...t, seq });
+        const pending = ordered.filter((o) => o !== t && o.fresh && !done.has(o)).map((o) => idOf.get(o)!);
+        const { id: savedId, aside } = await persistTab({ ...t, tabId: id, seq }, { pending, known: [...idOf.values()] });
+        done.add(t);
+        idOf.set(t, savedId);
+        if (aside) {
+          const other = ordered.find((o) => o !== t && !done.has(o) && idOf.get(o) === aside.from);
+          if (other) idOf.set(other, aside.to);
+        }
         // 저장된 탭은 되돌릴 기준(snapshot)도 새 값으로 — 뒤 탭이 실패해도 [취소]가 저장된 탭을 되돌리지 않는다.
         // 기본 탭은 저장으로 개인화됐으므로 [취소] 뒤에도 되돌리기가 켜져 있게 한다.
         const saved: WidgetTab = { ...t, seq, tabId: savedId, fresh: false, ...(t.defaultTab ? { customized: true } : {}) };
-        const same = (s: WidgetTab) => s.tabId === t.tabId || s.tabId === savedId;
+        const same = (s: WidgetTab) => s.tabId === id || s.tabId === savedId;
         setSnapshot((prev) => (prev ? (prev.some(same) ? prev.map((s) => (same(s) ? saved : s)) : [...prev, saved]) : prev));
       }
       finishEdit();
@@ -630,7 +663,7 @@ export function WidgetWorkspace({
     let savedId = tab.tabId;
     if (
       await saveNow([...current, tab], async () => {
-        savedId = await persistTab(tab);
+        savedId = (await persistTab(tab)).id;
       })
     ) {
       selectTab(savedId);
