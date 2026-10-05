@@ -187,6 +187,62 @@ export function newDefForm(type: WidgetTypeMeta): DefForm {
   };
 }
 
+/** 이름 칸 상한(validateDefForm 의 이름 규칙과 같다). */
+const TITLE_MAX = 50;
+export const COPY_TITLE_SUFFIX = " (사본)";
+
+/** 사본 이름 — 「<원래 이름> (사본)」. 50자를 넘으면 원래 이름을 잘라 접미사가 남게 한다. */
+export function copyTitle(title: string): string {
+  const base = title.trim();
+  return base.slice(0, TITLE_MAX - COPY_TITLE_SUFFIX.length) + COPY_TITLE_SUFFIX;
+}
+
+/**
+ * [복사] 를 쓸 수 없는 이유(쓸 수 있으면 null). 버튼 툴팁에 그대로 보인다.
+ * 코드 위젯은 관리자가 새로 만들 수 없고, 유형이 등록부에 없는 정의는 편집기를 못 열어 사본을 고칠 수 없다.
+ */
+export function copyBlockReason(
+  form: DefForm | null,
+  typeKnown: boolean
+): string | null {
+  if (!form) return "복사할 위젯을 먼저 고르세요.";
+  if (form.srcTp !== "D") return "코드 위젯은 복사할 수 없습니다. 새 위젯은 유형을 골라 만드세요.";
+  if (!form.widgetId) return "저장하지 않은 새 위젯입니다. 저장한 뒤 복사하세요.";
+  if (!typeKnown) return "알 수 없는 유형이라 복사할 수 없습니다.";
+  return null;
+}
+
+/** 사용자 데이터가 위젯 정의와 따로 쌓이는 유형의 복사 안내(해당 없으면 null). 사본은 정의 설정만 가져간다. */
+export function copyDataNotice(form: DefForm): string | null {
+  const config = form.config;
+  const scope = config !== null && typeof config === "object" ? (config as Record<string, unknown>).scope : undefined;
+  if (form.typeId === "memo" && scope === "personal") {
+    return "개인 메모는 정의 설정만 복사됩니다. 사용자가 쓴 메모 내용은 가져가지 않습니다.";
+  }
+  if (form.typeId === "collect") {
+    return "정시 수집은 정의 설정만 복사됩니다. 이미 모은 값은 가져가지 않고, 저장한 뒤부터 새로 쌓입니다.";
+  }
+  return null;
+}
+
+/**
+ * 정의 위젯 폼 → 「새 위젯」 작성 상태 폼(복사해서 만들기). 서버에는 아무것도 만들지 않는다 — 저장 때 새 ID 가 발급된다.
+ * - ID 는 비우고 이름은 「<원래 이름> (사본)」. 그 밖의 공통 칸과 설정(config 전체)은 그대로 깊은 복사한다(원본과 설정 객체를 공유하지 않는다).
+ * - 사용 여부는 늘 Y: 사용 중지한 원본의 사본이 말없이 중지로 만들어져 서랍에 안 보이는 혼선을 막는다.
+ * - config 의 화면 전용 `__*` 키(쿼리 시험 결과 등)는 복사하지 않는다.
+ * 이름 칸이 비어 있으면(DB 이름 NULL = 유형 이름을 쓰는 정의) fallbackTitle(목록에 보이는 이름)로 사본 이름을 만든다.
+ * 코드 위젯은 복사할 수 없다(copyBlockReason) — 호출 쪽이 먼저 확인한다.
+ */
+export function copyDefForm(form: DefForm, fallbackTitle = ""): DefForm {
+  return {
+    ...form,
+    widgetId: "",
+    title: copyTitle(form.title.trim() || fallbackTitle),
+    useYn: "Y",
+    config: deepCopy(stripScreenOnlyKeys(form.config)),
+  };
+}
+
 /** 상세 폼 → 행(빈 칸 → NULL). 코드 위젯은 typeId·dataSrc·config 를 늘 NULL 로 둔다(서버도 NULL 로 저장). */
 export function formToRow(form: DefForm): WidgetDefRow {
   const isDef = form.srcTp === "D";

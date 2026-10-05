@@ -7,6 +7,10 @@ import {
   buildAdminRows,
   canSaveForm,
   codeForm,
+  copyBlockReason,
+  copyDataNotice,
+  copyDefForm,
+  copyTitle,
   filterAdminRows,
   formToRow,
   isFormDirty,
@@ -405,6 +409,125 @@ describe("newDefForm", () => {
     expect(form.dataSrc).toBe("mcm");
     expect(formToRow(form).dataSrc).toBe("mcm");
     expect(formToRow({ ...form, dataSrc: null }).dataSrc).toBe("mcm");
+  });
+});
+
+describe("복사해서 만들기", () => {
+  const source = (): DefForm =>
+    rowToForm(
+      defRow({
+        widgetId: "def.q1",
+        srcTp: "D",
+        typeId: "query-table",
+        title: "라인 현황",
+        subtitle: "부제",
+        description: "설명",
+        defW: 12,
+        defH: 10,
+        minW: 6,
+        minH: 4,
+        maxW: 24,
+        maxH: 20,
+        refreshSec: 60,
+        linkPageId: "mls:lsh/noticeMgmt",
+        multipleYn: "N",
+        categoryCd: "PROD",
+        privateYn: "Y",
+        useYn: "N",
+        dataSrc: "mcm",
+        config: { sql: "select 1", columns: [{ key: "a" }], __preview: { rows: [] } },
+      })
+    );
+
+  it("ID 만 비우고 이름은 「(사본)」, 공통 칸·유형·실행 모듈·설정은 그대로 가져간다", () => {
+    const src = source();
+    const copy = copyDefForm(src);
+    expect(copy).toMatchObject({
+      widgetId: "",
+      srcTp: "D",
+      typeId: "query-table",
+      title: "라인 현황 (사본)",
+      subtitle: "부제",
+      description: "설명",
+      defW: "12",
+      defH: "10",
+      minW: "6",
+      minH: "4",
+      maxW: "24",
+      maxH: "20",
+      refreshSec: "60",
+      linkPageId: "mls:lsh/noticeMgmt",
+      multipleYn: "N",
+      categoryCd: "PROD",
+      privateYn: "Y",
+      dataSrc: "mcm",
+    });
+    expect(copy.config).toEqual({ sql: "select 1", columns: [{ key: "a" }] });
+  });
+
+  it("사용 중지한 원본의 사본도 사용 Y 로 시작한다", () => {
+    expect(source().useYn).toBe("N");
+    expect(copyDefForm(source()).useYn).toBe("Y");
+  });
+
+  it("설정은 깊은 복사 — 사본을 고쳐도 원본이 안 바뀐다. 화면 전용 __ 키는 가져가지 않는다", () => {
+    const src = source();
+    const copy = copyDefForm(src);
+    expect(copy.config).not.toBe(src.config);
+    const cols = (copy.config as { columns: { key: string }[] }).columns;
+    cols[0].key = "changed";
+    expect((src.config as { columns: { key: string }[] }).columns[0].key).toBe("a");
+    expect(JSON.stringify(copy.config)).not.toContain("__preview");
+    expect((src.config as Record<string, unknown>).__preview).toBeDefined();
+  });
+
+  it("사본은 저장 가능한 새 위젯이다 — 검사 통과, 저장 인자의 widgetId 는 빈 값, configJson 은 원본 설정", () => {
+    const copy = copyDefForm(source());
+    expect(validateDefForm(copy)).toEqual([]);
+    const params = toSaveParams(copy);
+    expect(params.widgetId).toBe("");
+    expect(params.title).toBe("라인 현황 (사본)");
+    expect(JSON.parse(params.configJson as string)).toEqual({ sql: "select 1", columns: [{ key: "a" }] });
+    // 새 위젯(widgetId "")은 손대지 않아도 저장할 수 있다.
+    expect(
+      canSaveForm({
+        loaded: true,
+        busy: false,
+        canSave: true,
+        form: copy,
+        baseline: copy,
+        unknownType: false,
+        errorCount: 0,
+        editorReady: true,
+      })
+    ).toBe(true);
+  });
+
+  it("이름이 50자에 걸리면 원래 이름을 잘라 접미사를 남긴다", () => {
+    const t = copyTitle("가".repeat(50));
+    expect(t.length).toBe(50);
+    expect(t.endsWith(" (사본)")).toBe(true);
+    expect(validateDefForm(copyDefForm(dForm({ widgetId: "def.x", title: "가".repeat(50) })))).toEqual([]);
+  });
+
+  it("이름 칸이 비어 있으면 목록에 보이는 이름(fallback)으로 사본 이름을 만든다", () => {
+    expect(copyDefForm(dForm({ widgetId: "def.x", title: "" }), "글(md)").title).toBe("글(md) (사본)");
+  });
+
+  it("copyBlockReason — 코드 위젯·고르지 않음·저장 전 새 위젯·알 수 없는 유형은 막고, 저장된 정의 위젯은 허용", () => {
+    expect(copyBlockReason(null, true)).toMatch(/먼저 고르세요/);
+    expect(copyBlockReason(codeForm("home.notice"), true)).toMatch(/코드 위젯/);
+    expect(copyBlockReason(dForm(), true)).toMatch(/저장한 뒤/);
+    expect(copyBlockReason(dForm({ widgetId: "def.x" }), false)).toMatch(/알 수 없는 유형/);
+    expect(copyBlockReason(dForm({ widgetId: "def.x" }), true)).toBeNull();
+  });
+
+  it("copyDataNotice — 개인 메모·정시 수집만 안내, 공용 메모·그 밖은 null", () => {
+    const memo = (scope: string) => dForm({ widgetId: "def.m", typeId: "memo", config: { scope, format: "text", content: "" } });
+    expect(copyDataNotice(memo("personal"))).toMatch(/개인 메모/);
+    expect(copyDataNotice(memo("shared"))).toBeNull();
+    expect(copyDataNotice(dForm({ widgetId: "def.c", typeId: "collect", config: {} }))).toMatch(/정시 수집/);
+    expect(copyDataNotice(dForm({ widgetId: "def.x" }))).toBeNull();
   });
 });
 
