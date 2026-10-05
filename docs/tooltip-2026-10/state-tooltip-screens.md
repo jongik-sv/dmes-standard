@@ -7,10 +7,10 @@
 
 | 항목 | 상태 | 커밋 | 비고 |
 |---|---|---|---|
-| B1 상세 `<th>` → `MdmFieldLabel` | 구현·리뷰 끝 | 1cec20f2(m-mcm) · dedcac91(m-mls) · 20e26693(m-mdm) · 위젯 실행 모듈 meta 끔 | 리뷰 결함 0, 권고 4건 중 1건 반영 |
-| B2 SearchField `name` 31곳 | 대기 | | tooltip-shared A2 가 dev 에 들어간 뒤 |
-| B3 그리드 열·FormGroup 범용 키 정리 | 대기 | | tooltip-shared A1 과 mdm-column-dict C1 확정 뒤 |
-| B4 마감 | 대기 | | 아래 B4 목록 참고 |
+| B1 상세 `<th>` → `MdmFieldLabel` | dev 머지 끝 | dffe0f95 | 리뷰 결함 0 |
+| B3 범용·UI 전용 `meta: false`, 표시용 meta 연결 | 구현·리뷰 끝 | dce036d6 · 623bbdb0 · 21392171(CD_V·COLUMN_ID) | 분류표 C1 + 지시 -4·-5 |
+| B2 SearchField `name` | 구현·리뷰 끝 | b2d5d4f9 · 85a0e171 | name 없이 둔 칸은 업무 키가 없는 칸 |
+| B4 마감 | 리뷰 수정 끝, 머지 요청 대기 | 37cfb3e4 · 016cf356 · 978b0180 · decision-table 주석 커밋 | opus/high 리뷰 15건 중 결함·권고 반영 |
 
 ## B1 결정 기록
 
@@ -20,7 +20,14 @@
 - 포털 탭 공급자가 mdm·analog 모듈의 mdmMeta 를 꺼 둔 상태(`MDM_META_UNSUPPORTED_MODULES`)라, tooltip-shared A1 이 dev 에 들어가기 전에는 m-mdm 라벨이 맨 글자로 그려진다. 동작 보존에는 문제가 없다.
 - 리뷰 권고 중 남긴 것: `ROLE_ID`(로컬 mdm.db 에서는 레거시 컬럼 뜻이지만 화면은 mcm 사전을 받는다), `layoutId`(라벨이 ID/버전 두 값이라 meta 를 끔).
 
-## B4 마감 목록
+## B4 리뷰 결과와 남긴 것
+
+- 반영: 정의·맥락·title 라벨 meta 해제(뜻이 고정된 단어), 범용 키 열 meta 누락 채움(m-mdm·m-mcm, 약 90곳), SearchField name==meta 군더더기 제거, PropertyPanel ruleId meta, grp_result 무효 meta 제거, 공지 화면 캡션 우선순위 범위(S1).
+- 남김(제안): 열마다 반복되는 `meta: false`(mdmCacheMng·commSyncMng·layoutConfirm 등)를 화면 안 `uiCols()` 도우미로 묶기, 위젯 유형 편집기 4개를 `<MdmMetaProvider disabled>` 로 감싸고 개별 meta 지우기, `description`·`source` 라벨 복붙 13·4곳 상수화. shared 몫 제안: 범용 키 목록을 `resolveMdmPhysName` 이 자동으로 끄면 화면의 `meta: false` 약 250곳이 사라진다.
+- 분류표 예외(조정이 mdm-column-dict 에 요청): DATA_SRC 실행 모듈(dataSrc), layoutId, labelLong, COLUMN_PHYS 는 화면이 meta={false} 유지.
+- 시험: m-mcm 58 파일·1248, m-mls 5 파일·61, m-mdm 3594(고부하 load 6~11 에서 3건 타이밍 실패, 단독 재실행 통과). 바뀐 112개 파일 M·A audit 의심 0건.
+
+## 이전 B4 목록(처리됨)
 
 - 지시 tooltip-screens-2: `m-mdm/tests/dme/ruleEdit/decision-table-card.test.ts` 737행 주석 "mdm 모듈은 mdmMeta 가 404 라 꺼지지만" 을 tooltip-shared A1(MDM_META_MODULE_ALIASES mdm→mcm) 뒤의 동작에 맞게 고친다. 시험 동작은 바꾸지 않고 docs 커밋으로 둔다. 기본 headerTooltip(표시 이름)은 `headerTooltip: ""` 로 끈다.
 - 중복된 라벨 패턴을 화면 안 작은 상수·도우미로 묶을 곳, 불필요한 meta 지정을 opus/high 리팩토링 리뷰로 점검한다.
