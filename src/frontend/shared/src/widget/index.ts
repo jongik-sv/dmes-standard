@@ -61,3 +61,6 @@ export {
   uniqueTabName,
 } from "./widget-layout";
 export type { TabImportContext, TabImportDrop, TabImportResult } from "./widget-layout";
+// 미리 배치(widget-tabs 항목 8)
+export { firstFreeSpot, placedSizeOf } from "./widget-layout";
+export type { WidgetBoardPreview } from "./WidgetBoard";

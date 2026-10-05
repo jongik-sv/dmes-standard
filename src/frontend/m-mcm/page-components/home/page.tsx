@@ -14,6 +14,7 @@ import { PageLayout } from "@dk-oasis/shared/layout";
 import { Badge, Button, SegmentedControl } from "@dk-oasis/shared/form";
 import { mergeWidgetRegistry, toWidgetDefRow, WidgetWorkspace, type WidgetDefRow, type WidgetRegistry } from "@dk-oasis/shared/widget";
 
+import { useWidgetCategories } from "@/page-components/csa/commWidgetMng/use-widget-categories";
 import { WIDGET_REGISTRY } from "@/lib/generated/widget-registry";
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
 import { onWidgetDefsChanged } from "@/lib/widget-defs-events";
@@ -44,6 +45,9 @@ export default function PortalHomePage(_props: PageProps) {
   const notices = useNotices();
   // [PDF] 인쇄 대상 — 홈 뿌리(.mcm-home) 전체.
   const homeRef = useRef<HTMLDivElement>(null);
+  // [위젯 추가] 서랍의 분류 묶음 — 조회 전·실패면 빈 값이라 undefined 를 넘겨 서랍이 분류 없이 보이게 한다.
+  const { titles: categoryTitleMap } = useWidgetCategories();
+  const categoryTitles = useMemo(() => (Object.keys(categoryTitleMap).length > 0 ? categoryTitleMap : undefined), [categoryTitleMap]);
 
   // 위젯 정의 조회 — 응답 전·실패 동안은 코드 등록부만으로 보이고 [배치 편집]이 막힌다(정의 위젯이 사용자 배치에서 지워지지 않게).
   // 등록부·기본 배치가 응답으로 바뀌면 WidgetWorkspace 가 가진 탭을 다시 정리하므로(다시 조회하지 않는다) 따로 다시 마운트하지 않는다.
@@ -169,6 +173,7 @@ export default function PortalHomePage(_props: PageProps) {
           registryStatus={defsState.status}
           onRetryRegistry={retryDefs}
           typeTitles={TYPE_TITLES}
+          categoryTitles={categoryTitles}
           pdfTarget={homeRef}
         />
       </div>
