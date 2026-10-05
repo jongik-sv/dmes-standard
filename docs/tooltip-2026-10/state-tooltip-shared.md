@@ -16,9 +16,15 @@
 | A6 리팩토링 리뷰·전체 시험 | 완료(리뷰 clean, shared 1540 통과) | fa28c5d5 | dev dffe0f95 합침 |
 | A7 FE 성능 | 대기(「측정 시작」 뒤) | — | tooltip-screens 머지 뒤 |
 
+## 머지
+- A1~A6: dev 머지 f36820bd(트리 4aafcb6f, 지시 tooltip-shared-2). 메인 체크아웃 shared·형제 tsup 재빌드 완료.
+
+## A7 준비(조정자에 제안 보냄)
+- layout 묶음(축소 67.6K) 중 SearchField→MdmFieldLabel 로만 들어온 코드 38.7K(DOMPurify 22.0K). splitting:false 라 DOMPurify 사본 10곳·store 사본 6곳.
+- 제안: dffe0f95 vs f36820bd 를 m-mcm next build 로 화면 청크 비교 → shared tsup splitting:true(사용자 결정) → 그 뒤 HTML 카드 DOMPurify 지연 로드.
+
 ## 남은 일
-1. A6: shared 전체 vitest(heavy.sh) → 머지 요청 → 허가 뒤 메인 체크아웃에서 --no-ff 머지 → 정리.
-2. A7: 조정자의 「측정 시작」 뒤 mdmMeta 묶음 횟수·열 정의 재생성 확인, perf-tooltip-shared.md.
+1. A7: 조정자의 「측정 시작」 뒤 mdmMeta 묶음 횟수·열 정의 재생성 확인, perf-tooltip-shared.md.
 
 ## 알려진 한계
 - 리팩토링 리뷰 질문(바꾸지 않음): 화면이 `headerTooltip: ""` 를 주면 머리글뿐 아니라 셀 MDM 카드(tooltipComponent)도 빠진다. 이 레인 전부터의 동작이다.
