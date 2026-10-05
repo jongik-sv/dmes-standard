@@ -47,7 +47,9 @@ refuse() { echo "REFUSED $h $1"; [ -n "${2:-}" ] && coord_log "$2"; exit 0; }
 # 그 아래 다음 가로줄까지가 이어지는 줄. 새 세션의 흐린 안내문(❯ Try "…")은 빈 것으로 본다.
 input_state() {
   LC_ALL=C sed $'s/\xc2\xa0/ /g' | awk '
-    function is_rule(x,   t, n) { t = x; n = gsub(/─/, "", t); return (n >= 10 && t ~ /^[[:space:]]*$/) }
+    # 가로줄: ─ 가 10개 이상이고 줄 맨 앞이 ─ 이다. `claude -n <이름>` 으로 띄우면 상단 줄에 이름이 붙으므로
+    # (예: ─────── kitfix-probe ─) 줄 전체가 ─ 뿐이어야 한다는 조건은 쓰지 않는다.
+    function is_rule(x,   t, n) { if (x !~ /^[[:space:]]*─/) return 0; t = x; n = gsub(/─/, "", t); return (n >= 10) }
     { line[NR] = $0 }
     END {
       p = 0
