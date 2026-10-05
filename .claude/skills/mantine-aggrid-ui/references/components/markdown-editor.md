@@ -1,9 +1,9 @@
 # MarkdownEditor
 
-메모·설명처럼 서식(제목·굵게·목록·할 일·인용·링크)이 있는 글을 마크다운 문자열로 편집하고 보여 줄 때 쓴다. 서식 모드와 MD(원문) 모드를 오가며 고친다.
+메모·설명처럼 서식(제목·굵게·목록·할 일·인용·링크)이 있는 글을 마크다운 문자열로 편집하고 보여 줄 때 쓴다. 서식 모드와 MD(원문) 모드를 오가며 고친다. 도움말·가이드 같은 긴 문서는 목차가 붙은 `MarkdownDocViewer` 로 읽기만 보여 준다.
 
-- import: `import { MarkdownEditor, MarkdownField, MarkdownView, type MarkdownEditorProps, type MarkdownFieldProps, type MarkdownViewProps, type MarkdownEditMode, type MarkdownToolbarPlacement } from "@dk-oasis/shared/markdown-editor";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣는다)
-- 소스: `src/frontend/shared/src/components/markdown-editor/` (`MarkdownEditor.tsx`·`MarkdownField.tsx`·`MarkdownView.tsx`·`MarkdownToolbar.tsx`·`markdown.ts`·`md-ops.ts`·`edit-mode.ts`·`styles.tsx`)
+- import: `import { MarkdownEditor, MarkdownField, MarkdownView, MarkdownDocViewer, splitMarkdownSections, tocOf, type MarkdownEditorProps, type MarkdownFieldProps, type MarkdownViewProps, type MarkdownDocViewerProps, type DocSection, type MarkdownEditMode, type MarkdownToolbarPlacement } from "@dk-oasis/shared/markdown-editor";` (CSS import 없음 — 컴포넌트가 자기 `<style>` 을 넣는다)
+- 소스: `src/frontend/shared/src/components/markdown-editor/` (`MarkdownEditor.tsx`·`MarkdownField.tsx`·`MarkdownView.tsx`·`MarkdownDocViewer.tsx`·`doc-sections.ts`·`MarkdownToolbar.tsx`·`markdown.ts`·`md-ops.ts`·`edit-mode.ts`·`styles.tsx`)
 - 내부 구현: 서식 모드는 Tiptap 3(`@tiptap/react`·`starter-kit`·`extension-list`·`markdown`), MD 모드는 `textarea` + 기호 넣기 함수(`md-ops.ts`). 마크다운 읽기는 HTML 을 만들지 않는 전용 `marked` 인스턴스. 도구 막대는 shared `Button`·`Input`(form) 과 Tabler 아이콘. Mantine `@mantine/tiptap` 은 쓰지 않는다([mantine-catalog](../mantine-catalog.md) ①).
 - Part B 허용 목록(§1): `markdown-editor` SHOULD.
 
@@ -85,6 +85,23 @@ import { MarkdownView } from "@dk-oasis/shared/markdown-editor";
 <MarkdownView value={row.description} />
 ```
 
+### 목차 있는 긴 문서(MarkdownDocViewer)
+
+도움말·가이드처럼 긴 마크다운 문서를 왼쪽 목차(`##`·`###`)와 오른쪽 본문으로 보여 준다. 목차를 누르면 그 절로 부드럽게 이동하고, 본문을 내리면 목차의 현재 절이 따라 바뀐다. 읽기 전용이며 본문은 `MarkdownView` 로 절마다 그린다.
+
+```tsx
+import { MarkdownDocViewer } from "@dk-oasis/shared/markdown-editor";
+
+// 모달·서랍 안에서 높이를 채운다(뿌리가 height:100% 이므로 부모가 높이를 가져야 한다).
+<div style={{ height: "calc(100vh - 120px)" }}>
+  <MarkdownDocViewer markdown={GUIDE_MARKDOWN} />
+</div>
+```
+
+- Props: `markdown`(원문, 필수), `testId`(기본 `md-doc-viewer`), `tocWidth`(목차 폭 px, 기본 220).
+- 문서 규칙: 제목은 `#`(문서 제목) + `##`(장) + `###`(절)까지만 목차가 된다. 코드 블록 안의 `#` 줄은 제목이 아니다. 표·그림·HTML 은 `MarkdownView` 가 그리지 않으므로 목록으로 쓴다.
+- 절을 직접 나눠야 하면 `splitMarkdownSections(markdown)`(순수 함수, `DocSection[]`)과 `tocOf(sections)` 를 쓴다.
+
 ## Props
 
 `MarkdownEditor`
@@ -134,6 +151,8 @@ import { MarkdownView } from "@dk-oasis/shared/markdown-editor";
 | `fill` 을 줬는데 높이가 늘지 않는다 | 부모 사슬이 세로 flex 가 아니다. 칸을 담은 요소들에 `display:flex; flex-direction:column` 과 `flex: 1 1 0; min-height: 0` 을 준다 |
 | 화면 CSS 로 `ul { list-style: none }` 을 되돌리거나 목록 기호를 다시 그린다 | 컴포넌트가 이미 명시한다. 화면에서 덮지 않는다 |
 | `onChange` 가 열기만 해도 불릴 거라 보고 저장 안 됨 표시를 따로 끈다 | 열기·밖에서 바뀐 값 맞추기에는 `onChange` 가 불리지 않는다 |
+| `MarkdownDocViewer` 를 높이 없는 부모에 넣어 본문이 안 접히고 목차만 길어진다 | 부모에 높이(예: 모달 본문 `calc(100vh - …)`)를 준다. 뿌리가 `height:100%` 라 그 높이 안에서 목차·본문이 따로 스크롤된다 |
+| 긴 문서에 마크다운 표를 쓴다 | 표는 그려지지 않는다. 목록으로 바꾼다 |
 
 ## 실제 사용 예
 
