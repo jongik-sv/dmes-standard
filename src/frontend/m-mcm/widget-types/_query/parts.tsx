@@ -30,6 +30,7 @@ export const QUERY_CSS = `
 .wq-cond__label { font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .wq-cond__req { margin-left: 2px; color: var(--color-danger); }
 .wq-cond__ctl { width: 150px; max-width: 100%; }
+.wq-error { flex-direction: column; gap: var(--spacing-sm); color: var(--color-danger); }
 .wq-params-hint { color: var(--color-danger); }
 `;
 

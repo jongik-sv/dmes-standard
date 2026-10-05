@@ -5,6 +5,7 @@ import {
   cleanValues,
   extractBindNames,
   initialValues,
+  normalizeDateDefault,
   missingRequired,
   optionsToText,
   paramsOf,
@@ -220,5 +221,60 @@ describe("선택지 글자 변환·SQL 에서 가져오기", () => {
       undeclared: ["b"],
       unused: ["z"],
     });
+  });
+});
+
+describe("date 형 기본값", () => {
+  it("normalizeDateDefault — yyyy-MM-dd·yyyyMMdd 실제 날짜만 yyyy-MM-dd 로", () => {
+    expect(normalizeDateDefault("2026-10-05")).toBe("2026-10-05");
+    expect(normalizeDateDefault("20261005")).toBe("2026-10-05");
+    expect(normalizeDateDefault("2024-02-29")).toBe("2024-02-29");
+    for (const bad of ["2026-02-30", "20261301", "2026-1-5", "2026-1005", "202610-05", "abc", "", "2026/10/05"]) {
+      expect(normalizeDateDefault(bad)).toBeNull();
+    }
+  });
+
+  it("initialValues — yyyyMMdd 는 바꾸고, 실제 날짜가 아니면 글자 그대로 둔다(검사가 막는다)", () => {
+    expect(initialValues([{ name: "d", type: "date", default: "20261005" }])).toEqual({ d: "2026-10-05" });
+    expect(initialValues([{ name: "d", type: "date", default: "20261399" }])).toEqual({ d: "20261399" });
+    expect(initialValues([{ name: "t", type: "text", default: "20261005" }])).toEqual({ t: "20261005" });
+  });
+
+  it("validateParams — date 기본값은 yyyy-MM-dd·yyyyMMdd 실제 날짜", () => {
+    const one = (def: string) => validateParams({ params: [{ name: "d", type: "date", default: def }] });
+    expect(one("2026-10-05")).toEqual([]);
+    expect(one("20261005")).toEqual([]);
+    expect(one("")).toEqual([]);
+    expect(one("2026-02-30")).toEqual(["조회 조건 1번의 기본값은 yyyy-MM-dd 또는 yyyyMMdd 형식의 실제 날짜로 입력하세요"]);
+    expect(one("오늘")).toHaveLength(1);
+  });
+});
+
+describe("validateParams — 서버와 같은 형·선택지 규칙", () => {
+  const one = (p: Record<string, unknown>) => validateParams({ params: [{ name: "a", ...p }] });
+
+  it("number 기본값은 숫자", () => {
+    expect(one({ type: "number", default: "12.5" })).toEqual([]);
+    expect(one({ type: "number", default: "-3" })).toEqual([]);
+    expect(one({ type: "number", default: "1,234" })).toEqual(["조회 조건 1번의 기본값은 숫자로 입력하세요"]);
+    expect(one({ type: "number", default: "abc" })).toHaveLength(1);
+  });
+
+  it("select 기본값은 선택지 값 중 하나", () => {
+    const options = [{ value: "A" }, { value: "B", label: "비" }];
+    expect(one({ type: "select", options, default: "B" })).toEqual([]);
+    expect(one({ type: "select", options })).toEqual([]);
+    expect(one({ type: "select", options, default: "C" })).toEqual(["조회 조건 1번의 기본값은 선택지 값 중 하나여야 합니다"]);
+  });
+
+  it("선택지 값 중복·50개 초과·값 200자 초과·라벨 50자 초과", () => {
+    expect(one({ type: "select", options: [{ value: "A" }, { value: "A" }] })).toEqual(["조회 조건 1번에 값이 겹치는 선택지가 있습니다"]);
+    const many = (n: number) => Array.from({ length: n }, (_, i) => ({ value: `v${i}` }));
+    expect(one({ type: "select", options: many(50) })).toEqual([]);
+    expect(one({ type: "select", options: many(51) })).toEqual(["조회 조건 1번의 선택지는 최대 50개까지 둘 수 있습니다"]);
+    expect(one({ type: "select", options: [{ value: "x".repeat(200) }] })).toEqual([]);
+    expect(one({ type: "select", options: [{ value: "x".repeat(201) }] })).toEqual(["조회 조건 1번의 선택지 값은 200자 이하로 입력하세요"]);
+    expect(one({ type: "select", options: [{ value: "A", label: "라".repeat(50) }] })).toEqual([]);
+    expect(one({ type: "select", options: [{ value: "A", label: "라".repeat(51) }] })).toEqual(["조회 조건 1번의 선택지 라벨은 50자 이하로 입력하세요"]);
   });
 });

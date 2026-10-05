@@ -497,6 +497,9 @@ export const PARAM_TYPE_LABELS: Readonly<Record<string, string>> = { text: "글�
 export const PARAM_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,29}$/;
 export const PARAM_MAX = 10;
 export const PARAM_VALUE_MAX = 200;
+/** 선택 형 선택지 개수·라벨 길이 상한(서버와 같다). 값은 PARAM_VALUE_MAX. */
+export const PARAM_OPTION_MAX = 50;
+export const PARAM_OPTION_LABEL_MAX = 50;
 /** 조건 이름으로 쓸 수 없는 시스템 변수 이름(콜론 뺀 것). */
 export const RESERVED_PARAM_NAMES: readonly string[] = SYSTEM_VARIABLES.map((v) => v.name.slice(1));
 
@@ -556,10 +559,26 @@ export function usableParams(params: readonly QueryParam[]): QueryParam[] {
 /** 조건 입력 값 모음 — 이름 → 글자. */
 export type ParamValues = Record<string, string>;
 
-/** 처음 보이는 값 — 기본값(200자까지), 없으면 빈 글자. */
+/** 실제 있는 날짜인지(2026-02-30 같은 값은 아니다). */
+function isRealDate(y: number, m: number, d: number): boolean {
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
+}
+
+/** date 형 기본값 읽기 — yyyy-MM-dd 또는 yyyyMMdd(실제 날짜일 때만)를 yyyy-MM-dd 로. 그 밖은 null. */
+export function normalizeDateDefault(v: string): string | null {
+  const m = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(v);
+  if (!m || (v.includes("-") && !/^\d{4}-\d{2}-\d{2}$/.test(v))) return null;
+  return isRealDate(Number(m[1]), Number(m[2]), Number(m[3])) ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
+/** 처음 보이는 값 — 기본값(200자까지), 없으면 빈 글자. date 형의 yyyyMMdd 는 날짜 입력 칸이 읽는 yyyy-MM-dd 로 바꾼다(실제 날짜일 때만). */
 export function initialValues(params: readonly QueryParam[]): ParamValues {
   const out: ParamValues = {};
-  for (const p of params) out[p.name] = (p.default ?? "").slice(0, PARAM_VALUE_MAX);
+  for (const p of params) {
+    const def = (p.default ?? "").slice(0, PARAM_VALUE_MAX);
+    out[p.name] = p.type === "date" ? (normalizeDateDefault(def) ?? def) : def;
+  }
   return out;
 }
 
@@ -657,10 +676,31 @@ export function validateParams(cfg: unknown): string[] {
     if (typeof p.default === "string" && p.default.length > PARAM_VALUE_MAX) {
       errors.push(`${at}의 기본값은 ${PARAM_VALUE_MAX}자 이하로 입력하세요`);
     }
+    const def = typeof p.default === "string" ? p.default : "";
+    if (type === "number" && def !== "" && !PLAIN_NUMBER_RE.test(def.trim())) {
+      errors.push(`${at}의 기본값은 숫자로 입력하세요`);
+    }
+    if (type === "date" && def !== "" && normalizeDateDefault(def) === null) {
+      errors.push(`${at}의 기본값은 yyyy-MM-dd 또는 yyyyMMdd 형식의 실제 날짜로 입력하세요`);
+    }
     if (type === "select") {
       const options = Array.isArray(p.options) ? p.options.filter(isRecord) : [];
       if (options.length === 0) errors.push(`${at}은 선택 형이라 선택지를 하나 이상 넣어야 합니다`);
-      else if (options.some((o) => scalarText(o.value) === undefined)) errors.push(`${at}에 값이 빈 선택지가 있습니다`);
+      else {
+        const values = options.map((o) => scalarText(o.value));
+        if (values.some((v) => v === undefined)) errors.push(`${at}에 값이 빈 선택지가 있습니다`);
+        if (options.length > PARAM_OPTION_MAX) errors.push(`${at}의 선택지는 최대 ${PARAM_OPTION_MAX}개까지 둘 수 있습니다`);
+        if (values.some((v) => v !== undefined && v.length > PARAM_VALUE_MAX)) {
+          errors.push(`${at}의 선택지 값은 ${PARAM_VALUE_MAX}자 이하로 입력하세요`);
+        }
+        if (new Set(values.filter((v) => v !== undefined)).size < values.filter((v) => v !== undefined).length) {
+          errors.push(`${at}에 값이 겹치는 선택지가 있습니다`);
+        }
+        if (options.some((o) => typeof o.label === "string" && o.label.length > PARAM_OPTION_LABEL_MAX)) {
+          errors.push(`${at}의 선택지 라벨은 ${PARAM_OPTION_LABEL_MAX}자 이하로 입력하세요`);
+        }
+        if (def !== "" && !values.includes(def)) errors.push(`${at}의 기본값은 선택지 값 중 하나여야 합니다`);
+      }
     }
   });
   return errors;

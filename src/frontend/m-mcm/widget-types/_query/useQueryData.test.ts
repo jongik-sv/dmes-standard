@@ -152,6 +152,12 @@ describe("useQueryData — 입력 조건", () => {
     expect(h.run).toHaveBeenLastCalledWith("def.q1234567", { x: "c" });
   });
 
+  it("date 형 기본값 yyyyMMdd 는 날짜 입력 칸이 읽는 yyyy-MM-dd 로 보이고 그 값으로 부른다", async () => {
+    await mount({ sql: "select :d", params: [{ name: "d", type: "date", default: "20261005" }] });
+    expect(now().condition.draft).toEqual({ d: "2026-10-05" });
+    expect(h.run).toHaveBeenLastCalledWith("def.q1234567", { d: "2026-10-05" });
+  });
+
   it("이름 형식이 틀리거나 겹친 조건은 그리지도 보내지도 않는다", async () => {
     await mount({ sql: "select 1", params: [{ name: "1bad", type: "text" }, { name: "ok", type: "text" }, { name: "ok", type: "date" }] });
     expect(now().condition.params).toEqual([{ name: "ok", type: "text" }]);
@@ -176,6 +182,71 @@ describe("useQueryData — 관리 화면 미리보기(__preview)", () => {
     await mount({ sql: "select 1" }, "def.preview");
     await mount({ sql: "select 1" }, "");
     expect(h.run).not.toHaveBeenCalled();
+  });
+});
+
+describe("useQueryData — 조건이 있는 위젯의 서버 오류", () => {
+  const def = { sql: "select :x", params: [{ name: "x", type: "text", default: "1" }] };
+  const errorsToFrame = () => h.setStatus.mock.calls.map((c) => c[0]).filter((s) => s.kind === "error");
+
+  it("틀에 오류를 알리지 않고 condition.error 로 돌려준다 — 조건 줄 정보와 값은 그대로", async () => {
+    h.run.mockRejectedValueOnce(new Error("서버 문구"));
+    await mount(def);
+    expect(errorsToFrame()).toEqual([]);
+    expect(h.setStatus).toHaveBeenLastCalledWith({ kind: "ready" });
+    expect(now().condition.error?.message).toBe("위젯 데이터를 불러오지 못했습니다");
+    expect(now().data).toBeNull();
+    expect(now().condition.params).toHaveLength(1);
+    expect(now().condition.draft).toEqual({ x: "1" });
+  });
+
+  it("[다시 시도] 는 확정한 값으로 다시 부르고, 성공하면 오류가 사라진다", async () => {
+    h.run.mockRejectedValueOnce(new Error("x"));
+    await mount(def);
+    await act(async () => now().condition.error!.retry());
+    expect(h.run).toHaveBeenCalledTimes(2);
+    expect(h.run).toHaveBeenLastCalledWith("def.q1234567", { x: "1" });
+    expect(now().condition.error).toBeNull();
+    expect(now().data?.rows).toEqual([{ A: 1 }]);
+  });
+
+  it("값을 고쳐 [검색] 하면 새 값으로 부르고 지난 오류는 사라진다", async () => {
+    h.run.mockRejectedValueOnce(new Error("x"));
+    await mount(def);
+    await act(async () => now().condition.setDraft("x", "2"));
+    await act(async () => now().condition.search());
+    expect(h.run).toHaveBeenLastCalledWith("def.q1234567", { x: "2" });
+    expect(now().condition.error).toBeNull();
+  });
+
+  it("늦게 온 옛 응답(결과·실패)은 무시한다", async () => {
+    let rejectOld: (e: Error) => void = () => {};
+    h.run.mockImplementationOnce(() => new Promise((_, rej) => (rejectOld = rej)));
+    await mount(def);
+    await act(async () => now().condition.setDraft("x", "2"));
+    await act(async () => now().condition.search());
+    expect(now().data?.rows).toEqual([{ A: 1 }]);
+    // 첫 호출(x=1)의 실패가 뒤늦게 와도 새 결과를 덮지 않는다.
+    await act(async () => rejectOld(new Error("옛 실패")));
+    expect(now().condition.error).toBeNull();
+    expect(now().data?.rows).toEqual([{ A: 1 }]);
+  });
+
+  it("늦게 온 옛 성공 응답이 새 결과를 덮지 않는다", async () => {
+    let resolveOld: (r: QueryResult) => void = () => {};
+    h.run.mockImplementationOnce(() => new Promise((res) => (resolveOld = res)));
+    await mount(def);
+    await act(async () => now().condition.setDraft("x", "2"));
+    await act(async () => now().condition.search());
+    await act(async () => resolveOld({ columns: ["A"], rows: [{ A: "옛" }], truncated: false }));
+    expect(now().data?.rows).toEqual([{ A: 1 }]);
+  });
+
+  it("조건이 없는 위젯은 지금처럼 틀에 오류를 알리고 condition.error 는 null", async () => {
+    h.run.mockRejectedValueOnce(new Error("x"));
+    await mount({ sql: "select 1" });
+    expect(errorsToFrame()).toHaveLength(1);
+    expect(now().condition.error).toBeNull();
   });
 });
 

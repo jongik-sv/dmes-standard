@@ -28,6 +28,11 @@ export interface QueryCondition {
   search: () => void;
   /** 필수 값이 비어 서버를 부르지 않는 중 — 「조건을 입력하고 검색하세요」 를 보인다. */
   needInput: boolean;
+  /**
+   * 조회 실패 — 조건이 있는 위젯만 틀에 알리지 않고 여기로 돌려준다(틀이 본문을 감추면 조건 줄이 사라져 값을 못 고치므로).
+   * QueryShell 이 조건 줄 아래에 문구와 [다시 시도] 를 그린다. 조건이 없는 위젯은 늘 null(틀의 오류 띠를 쓴다).
+   */
+  error: { message: string; retry: () => void } | null;
 }
 
 export interface QueryData {
@@ -43,6 +48,7 @@ export const NO_CONDITION: QueryCondition = {
   setDraft: () => {},
   search: () => {},
   needInput: false,
+  error: null,
 };
 
 interface ConditionState {
@@ -90,6 +96,9 @@ export function useQueryData(definition: unknown, widgetId: string, refreshKey: 
   const plan = useMemo(() => planRun(params, applied), [params, applied]);
   const [fetched, setFetched] = useState<QueryResult | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // 실패는 그때의 호출(조건 판정·refreshKey·다시 시도 횟수)에 묶어 둔다 — 새 호출이 시작되면 저절로 지난 실패가 된다.
+  const [failure, setFailure] = useState<{ plan: unknown; refreshKey: number; attempt: number } | null>(null);
+  const withBar = params.length > 0;
 
   useEffect(() => {
     // 미리보기 결과가 있거나 아직 저장되지 않은 정의(ID 없음·자리 표시 ID def.preview)면 서버를 부르지 않는다.
@@ -113,16 +122,25 @@ export function useQueryData(definition: unknown, widgetId: string, refreshKey: 
       () => {
         // 서버 메시지(DB 오류 등)는 보이지 않는다 — 서버 로그에 defId·원인이 남는다(§7.3).
         if (!alive) return;
+        if (withBar) {
+          // 조건 줄을 지키려고 틀에는 알리지 않는다(틀은 오류 때 본문 전체를 감춘다).
+          setFailure({ plan, refreshKey, attempt });
+          setStatus({ kind: "ready" });
+          return;
+        }
         setStatus({ kind: "error", message: QUERY_LOAD_ERROR, retry: () => setAttempt((a) => a + 1) });
       }
     );
     return () => {
       alive = false;
     };
-  }, [runnable, widgetId, refreshKey, attempt, plan, setStatus]);
+  }, [runnable, widgetId, refreshKey, attempt, plan, withBar, setStatus]);
+
+  const failed = failure !== null && failure.plan === plan && failure.refreshKey === refreshKey && failure.attempt === attempt;
+  const error = withBar && runnable && failed ? { message: QUERY_LOAD_ERROR, retry: () => setAttempt((a) => a + 1) } : null;
 
   return {
-    data: preview ?? (runnable && !plan.run ? null : fetched),
-    condition: { params, draft, setDraft, search, needInput: runnable && !plan.run },
+    data: preview ?? (runnable && (!plan.run || error) ? null : fetched),
+    condition: { params, draft, setDraft, search, needInput: runnable && !plan.run, error },
   };
 }

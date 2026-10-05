@@ -80,7 +80,7 @@ afterEach(() => {
   container.remove();
 });
 
-const NO_COND = { params: [], draft: {}, setDraft: () => {}, search: () => {}, needInput: false };
+const NO_COND = { params: [], draft: {}, setDraft: () => {}, search: () => {}, needInput: false, error: null };
 
 const q = (testId: string) => container.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
 const must = (testId: string) => {
@@ -268,6 +268,36 @@ describe("쿼리 표 — 조회 조건 줄", () => {
     expect(must("wq-need-input").textContent).toBe("조건을 입력하고 검색하세요");
     expect(q("grid")).toBeNull();
     expect(q("wq-cond-bar")).not.toBeNull();
+  });
+
+  it("안내 문구는 role=status 로 읽힌다", async () => {
+    h.condition.current = withParams({ needInput: true });
+    await renderTable(null);
+    expect(must("wq-need-input").getAttribute("role")).toBe("status");
+  });
+
+  it("조회 실패면 조건 줄은 그대로 두고 그 아래에 오류 문구와 [다시 시도] 를 보인다", async () => {
+    const retry = vi.fn();
+    h.condition.current = withParams({ error: { message: "위젯 데이터를 불러오지 못했습니다", retry } });
+    await renderTable(null);
+    expect(q("wq-cond-bar")).not.toBeNull();
+    expect(must("wq-error").textContent).toContain("위젯 데이터를 불러오지 못했습니다");
+    expect(must("wq-error").getAttribute("role")).toBe("alert");
+    expect(q("grid")).toBeNull();
+    await act(async () => must("wq-retry").click());
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("오류가 풀리면 다시 표를 그린다", async () => {
+    h.condition.current = withParams({ error: { message: "x", retry: () => {} } });
+    const props = await renderTable(null);
+    h.condition.current = withParams();
+    h.useQueryData.mockReturnValue({ data: result(sample()), condition: h.condition.current });
+    await act(async () => {
+      root.render(createElement(QueryTableRenderer, props as never));
+    });
+    expect(q("wq-error")).toBeNull();
+    expect(q("grid")).not.toBeNull();
   });
 
   it("[검색] 단추는 search 를 부른다", async () => {

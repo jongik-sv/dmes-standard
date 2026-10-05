@@ -5,13 +5,13 @@
  * 입력 칸은 입력 중인 값(draft)만 바꾸고, [검색]·Enter 가 확정한다(useQueryData). 입력 부품은 shared/form 것을 쓴다.
  * 조건이 없는 위젯은 아무것도 감싸지 않는다(QueryShell 이 children 만 돌려준다).
  */
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { Button, DatePicker, Input, Select } from "@dk-oasis/shared/form";
 
 import { PARAM_VALUE_MAX, QUERY_NEED_INPUT, type QueryParam } from "./format";
 import type { QueryCondition } from "./useQueryData";
 
-function ConditionField({ param, value, onChange }: { param: QueryParam; value: string; onChange: (value: string) => void }) {
+function ConditionField({ param, value, inputId, onChange }: { param: QueryParam; value: string; inputId: string; onChange: (value: string) => void }) {
   const label = param.label || param.name;
   const testId = `wq-cond-${param.name}-input`;
   let control: ReactNode;
@@ -22,12 +22,14 @@ function ConditionField({ param, value, onChange }: { param: QueryParam; value: 
         onChange={onChange}
         options={(param.options ?? []).map((o) => ({ value: o.value, label: o.label || o.value }))}
         placeholder="선택"
-        aria-label={label}
+        id={inputId}
+        aria-required={param.required || undefined}
         data-testid={testId}
       />
     );
   } else if (param.type === "date") {
-    control = <DatePicker value={value} onChange={onChange} aria-label={label} />;
+    // DatePicker 는 aria-required 를 받지 않는다 — 필수는 라벨의 * 로 알린다.
+    control = <DatePicker id={inputId} value={value} onChange={onChange} />;
   } else {
     control = (
       <Input
@@ -35,17 +37,18 @@ function ConditionField({ param, value, onChange }: { param: QueryParam; value: 
         value={value}
         onChange={onChange}
         maxLength={PARAM_VALUE_MAX}
-        aria-label={label}
+        id={inputId}
+        aria-required={param.required || undefined}
         data-testid={testId}
       />
     );
   }
   return (
     <div className="wq-cond" data-testid={`wq-cond-${param.name}`}>
-      <span className="wq-cond__label">
+      <label className="wq-cond__label" htmlFor={inputId}>
         {label}
         {param.required && <span className="wq-cond__req">*</span>}
-      </span>
+      </label>
       <div className="wq-cond__ctl">{control}</div>
     </div>
   );
@@ -61,11 +64,13 @@ export interface ConditionBarProps {
 export function ConditionBar({ condition, onHeight }: ConditionBarProps) {
   const { params, draft, setDraft, search } = condition;
   const ref = useRef<HTMLDivElement>(null);
+  const baseId = useId();
 
-  useEffect(() => {
+  // 그리기 전에 줄 높이를 재서 알린다(차트가 첫 그림부터 그 높이를 뺀다). 줄바꿈으로 높이가 바뀌면 ResizeObserver 가 다시 알린다.
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el || !onHeight) return;
-    const report = () => onHeight(Math.round(el.getBoundingClientRect().height));
+    const report = () => onHeight(el.offsetHeight);
     report();
     if (typeof ResizeObserver === "undefined") return () => onHeight(0);
     const ro = new ResizeObserver(report);
@@ -77,7 +82,8 @@ export function ConditionBar({ condition, onHeight }: ConditionBarProps) {
   }, [onHeight]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    // keyCode 229 는 Safari 가 한글 조합 확정 Enter 에 쓴다(isComposing 이 이미 false).
+    if (e.key !== "Enter" || e.nativeEvent.isComposing || e.keyCode === 229) return;
     // [검색] 단추의 Enter 는 단추 눌림으로 이미 검색된다.
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) {
       e.preventDefault();
@@ -88,7 +94,7 @@ export function ConditionBar({ condition, onHeight }: ConditionBarProps) {
   return (
     <div ref={ref} className="wq-cond-bar" role="search" onKeyDown={onKeyDown} data-testid="wq-cond-bar">
       {params.map((p) => (
-        <ConditionField key={p.name} param={p} value={draft[p.name] ?? ""} onChange={(v) => setDraft(p.name, v)} />
+        <ConditionField key={p.name} param={p} inputId={`${baseId}-${p.name}`} value={draft[p.name] ?? ""} onChange={(v) => setDraft(p.name, v)} />
       ))}
       <Button variant="primary" onClick={search} data-testid="wq-cond-search">
         검색
@@ -113,8 +119,15 @@ export function QueryShell({ condition, onBarHeight, children }: QueryShellProps
     <div className="wq-shell" data-testid="wq-shell">
       <ConditionBar condition={condition} onHeight={onBarHeight} />
       <div className="wq-main">
-        {condition.needInput ? (
-          <div className="wq-empty" data-testid="wq-need-input">
+        {condition.error ? (
+          <div className="wq-empty wq-error" role="alert" data-testid="wq-error">
+            {condition.error.message}
+            <Button onClick={condition.error.retry} data-testid="wq-retry">
+              다시 시도
+            </Button>
+          </div>
+        ) : condition.needInput ? (
+          <div className="wq-empty" role="status" data-testid="wq-need-input">
             {QUERY_NEED_INPUT}
           </div>
         ) : (

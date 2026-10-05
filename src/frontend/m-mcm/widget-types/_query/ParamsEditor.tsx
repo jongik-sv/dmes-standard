@@ -137,7 +137,11 @@ export function ParamsEditor({ sql, params, onChange }: ParamsEditorProps) {
       <span className="wq-hint">
         SQL 의 <code>:이름</code> 자리에 사용자가 위젯 위 줄에서 입력한 값을 넣습니다. 최대 {PARAM_MAX}개, 값은 {PARAM_VALUE_MAX}자까지입니다.
         선택 형은 선택지를 <code>값:라벨,값:라벨</code> 로 적습니다(값에 쉼표·콜론은 쓸 수 없습니다). 날짜는 yyyy-MM-dd 로 입력합니다.
-        기본값은 처음 값이자 [쿼리 시험]에 쓰는 값입니다. 시스템 변수와 같은 이름은 쓸 수 없습니다.
+        기본값은 처음 값이자 [쿼리 시험]에 쓰는 값입니다(날짜는 yyyy-MM-dd 또는 yyyyMMdd). 시스템 변수와 같은 이름은 쓸 수 없습니다.
+      </span>
+      <span className="wq-hint">
+        SQL 에는 날짜가 yyyyMMdd 글자로, 숫자는 숫자(NUMERIC)로 들어갑니다(<code>:today</code> 와 같은 형). 날짜 열과 비교할 때는{" "}
+        <code>{"TO_DATE(:이름,'YYYYMMDD')"}</code> 처럼 바꿔 쓰세요.
       </span>
     </div>
   );

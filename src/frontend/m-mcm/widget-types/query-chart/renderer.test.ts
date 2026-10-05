@@ -76,7 +76,7 @@ afterEach(() => {
   container.remove();
 });
 
-const NO_COND = { params: [], draft: {}, setDraft: () => {}, search: () => {}, needInput: false };
+const NO_COND = { params: [], draft: {}, setDraft: () => {}, search: () => {}, needInput: false, error: null };
 
 const q = (testId: string) => container.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
 
@@ -212,7 +212,7 @@ describe("쿼리 차트 — 조회 조건 줄", () => {
   });
 
   it("조건 줄이 차지한 높이만큼 뺀 본문 높이로 그림 크기를 정한다", async () => {
-    const spy = vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ height: 200 } as DOMRect);
+    const spy = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(200);
     try {
       h.condition.current = cond();
       await renderChart(result(sample()), pieDefinition([{ field: "QTY" }]));

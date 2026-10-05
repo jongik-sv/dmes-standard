@@ -4,11 +4,11 @@ import { Fragment, useState } from "react";
 import { Button, Textarea } from "@dk-oasis/shared/form";
 
 import { previewWidgetQuery } from "./api";
-import { summarizeResult, SYSTEM_VARIABLES, type QueryParam, type QueryResult } from "./format";
+import { summarizeResult, SYSTEM_VARIABLES, usableParams, type QueryParam, type QueryResult } from "./format";
 
 export interface SqlEditorProps {
   sql: string;
-  /** 입력 조건 정의 — [쿼리 시험] 이 정의 배열 전체를 서버에 보낸다(서버가 각 기본값으로 시험한다). 없거나 비면 보내지 않는다. */
+  /** 입력 조건 정의 — [쿼리 시험] 이 이름이 올바른(usableParams) 정의를 서버에 보낸다(서버가 각 기본값으로 시험한다). 없거나 비면 보내지 않는다. */
   params?: QueryParam[];
   /** 마지막 [쿼리 시험] 결과(정의 설정의 `__preview`). */
   preview: QueryResult | null;
@@ -33,7 +33,7 @@ export function SqlEditor({ sql, params, preview, onSqlChange, onPreview }: SqlE
     setBusy(true);
     setError(null);
     try {
-      onPreview(await previewWidgetQuery("mcm", sql, params));
+      onPreview(await previewWidgetQuery("mcm", sql, params && usableParams(params)));
     } catch (e) {
       // 이전 시험 결과가 남으면 미리보기·필드 고르기가 지금 SQL 과 어긋난다.
       onPreview(null);
