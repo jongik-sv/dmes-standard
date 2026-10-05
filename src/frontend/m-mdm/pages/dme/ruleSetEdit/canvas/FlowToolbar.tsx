@@ -6,7 +6,7 @@
  * 한 줄 툴바(2026-10-01): 세트 고르기 줄과 툴바 줄을 한 줄로 합치고, 글자 단추를 모두 아이콘 단추(`ToolButton`)로 바꿨다.
  * 세트 이름은 길면 말줄임하고 전체는 title 로 보인다. 상태 배지 title 은 저장이 어디에 쓰이는지 알린다(D-144 2단계: 내 DRAFT 버전, 확정해야 적용). 좁은 창에서는 묶음 단위로 다음 줄로 넘어간다.
  *
- * 폐기는 두 단계(폐기 → 폐기 확인/취소)로만 한다(I14·D14). 저장 버튼은 편집 모드·dirty·거부 검사 없음·조건식 IO 기다리지 않음일 때만 켜진다(P-D4·P10).
+ * 폐기는 두 단계(폐기 → 폐기 확인/취소)로만 한다(I14·D14). 저장 버튼은 편집 모드·dirty·조건식 IO 기다리지 않음일 때 켜진다(P-D4·P10). 거부 검사가 있어도 켜진다 — DRAFT 저장은 거부로 막지 않고 확정·되살리기만 막는다(2026-10-06 사용자 결정).
  *
  * 3단계(계획 P1·P12): 모드 단추 셋(보기·편집·디버그 — 디버그는 누구나), 되돌리기·다시 하기(편집 모드이고 기록이 있을 때), 미니맵 켜고 끄기.
  * [노드 찾기] 단추와 단축키 도움말 [?] 를 둔다(Task 8). 도움말은 지금 모드의 단축키만 짧은 정의 목록으로 보인다.
@@ -14,8 +14,9 @@
  * 단추는 모두 아이콘만 있고(`ToolButton`), 이름·꺼진 이유는 단추를 감싼 `span.rsf-tip[data-tip]` 가 그리는 즉시 CSS 툴팁(`styles/toolbox.ts`, 단추 아래 — 단추 루트가 overflow:hidden 이라 단추 안에서 그리면 잘린다)이고 `title` 은 두지 않는다(브라우저 툴팁과 겹침 방지).
  * S1 의 [공간] 토글은 4단계 P1 에서 도구 상자(`FlowToolbox`)로 옮겼다.
  *
- * 자동 저장: 편집 모드에서만 [세트 저장] 옆에 [자동 저장] 켜고 끄기 단추를 둔다. 상태 글(`set-autosave-status`)은 보류·실패·저장 뒤 경고만
- * 짧게 보이고(길면 말줄임 — 경고 문장이 있으면 title, 없으면 상태 글이 title), "저장 중"·마지막 자동 저장 시각은 단추 툴팁에 붙인다.
+ * 자동 저장: 편집 모드에서만 [세트 저장] 옆에 [자동 저장] 켜고 끄기 단추를 둔다. 상태 글(`set-autosave-status`)은 실패만 보이고,
+ * 툴바 줄이 아니라 툴바 아래 메시지 줄(`rsf-toolbar-message`)에 그린다 — 길이가 바뀌는 글이 툴바 줄에 있으면 끝 묶음의 단추 위치가 흔들린다(2026-10-06).
+ * "저장 중"·마지막 자동 저장 시각은 단추 툴팁에 붙인다.
  * 단추는 [미니맵]·[변수 흐름] 과 같은 `aria-pressed` 토글이다 — 체크박스 입력은 눌러도 초점을 가져가 스페이스+끌기의 스페이스가
  * 값을 뒤집는다(`keepFocusOffButtons` 는 단추만 막는다). 자동 저장이 진행 중이면 수동 쓰기([세트 저장]·폐기·되살리기)를 막는다(같은 row_version
  * 으로 두 요청이 나가지 않게). 편집·되돌리기는 막지 않는다.
@@ -52,7 +53,7 @@ import { badgeStyle } from "@/shell";
 
 import { callerSetIds } from "../caller-links";
 import type { VarDisplay } from "../types";
-import type { AutoSave } from "../state/useAutoSave";
+import type { AutoSave, AutoSaveStatus } from "../state/useAutoSave";
 import type { FlowMode, RuleSetEditState, RuleSetMessage } from "../state/useRuleSetEdit";
 import { SHORTCUT_HELP, isMacPlatform, isShown } from "./shortcuts";
 import { ToolButton } from "./ToolButton";
@@ -72,8 +73,7 @@ const DEPRECATE_WARNING = "폐기하면 이 세트를 부르는 호출은 판정
 /** 상태 배지 title — D-144 2단계부터 세트도 버전이 있다. 저장은 내 DRAFT 버전에 쓰고, 확정해야 판정에 쓰인다. */
 export const STATUS_TITLE = "세트 상태 — 저장은 내 DRAFT 버전에 쓰고, 확정해야 적용된다";
 /** 자동 저장 상태 글 색(의미 토큰). */
-const AUTO_STATUS_COLOR: Record<"warning" | "error", string> = {
-  warning: "var(--color-warning)",
+const AUTO_STATUS_COLOR: Record<AutoSaveStatus["kind"], string> = {
   error: "var(--color-danger)",
 };
 
@@ -154,8 +154,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
     return () => document.removeEventListener("keydown", onKey, true);
   }, [helpOpen]);
 
-  const hasReject = state.checks.some((c) => c.severity === "REJECT");
-  const canSave = editing && canEdit && state.dirty && !hasReject && !state.condIoPending && !writeBusy;
+  const canSave = editing && canEdit && state.dirty && !state.condIoPending && !writeBusy;
   // D-144 2단계 — 폐기는 선택 버전과 무관하다(미적용 버전이 없어야 하므로 내 DRAFT 를 고른 동안은 늘 불가). 서버 판정 flags.canDeprecate 를 따르고,
   // 버전 플래그가 없는 옛 응답이면 editable 로 본다. 담당자 여부는 서버가 다시 본다(MDM013).
   const deprecatable = view.flags ? view.flags.canDeprecate : view.editable;
@@ -163,13 +162,11 @@ export function FlowToolbar(props: FlowToolbarProps) {
   const canRestore = view.restorable && deprecated && canDo("restore") && !writeBusy;
   const saveTitle = !editing
     ? "편집 모드에서 저장한다"
-    : hasReject
-      ? "거부 검사가 있어 저장할 수 없다. 아래 검사 결과를 고친다"
-      : state.condIoPending
-        ? "조건식을 확인하는 중이다"
-        : state.autoSaving
-          ? "자동 저장하는 중이다"
-          : undefined;
+    : state.condIoPending
+      ? "조건식을 확인하는 중이다"
+      : state.autoSaving
+        ? "자동 저장하는 중이다"
+        : undefined;
   const autoStatus = autoSave.status;
 
   const message: RuleSetMessage | null = confirmDeprecate ? { kind: "error", text: DEPRECATE_WARNING } : state.message;
@@ -378,33 +375,34 @@ export function FlowToolbar(props: FlowToolbarProps) {
             onClick={() => void state.save()}
           />
           {editing && (
-            <>
-              <ToolButton
-                data-testid="set-autosave"
-                label="자동 저장"
-                tip={`자동 저장 — 켜 두면 마지막 변경 2초 뒤 저장한다. 거부 검사가 있으면 저장하지 않는다${state.autoSaving ? " · 저장 중" : autoSave.savedAt ? ` · 마지막 자동 저장 ${autoSave.savedAt}` : ""}`}
-                align="end"
-                icon={<IconClockPlay size={14} aria-hidden="true" />}
-                aria-pressed={autoSave.enabled}
-                variant={autoSave.enabled ? "primary" : "default"}
-                onClick={() => autoSave.setEnabled(!autoSave.enabled)}
-              />
-              {autoStatus && (
-                <span
-                  data-testid="set-autosave-status"
-                  className="rsf-autosave-status"
-                  role="status"
-                  title={autoStatus.title ?? autoStatus.text}
-                  style={{ color: AUTO_STATUS_COLOR[autoStatus.kind] }}
-                >
-                  {autoStatus.text}
-                </span>
-              )}
-            </>
+            <ToolButton
+              data-testid="set-autosave"
+              label="자동 저장"
+              tip={`자동 저장 — 켜 두면 마지막 변경 2초 뒤 저장한다${state.autoSaving ? " · 저장 중" : autoSave.savedAt ? ` · 마지막 자동 저장 ${autoSave.savedAt}` : ""}`}
+              align="end"
+              icon={<IconClockPlay size={14} aria-hidden="true" />}
+              aria-pressed={autoSave.enabled}
+              variant={autoSave.enabled ? "primary" : "default"}
+              onClick={() => autoSave.setEnabled(!autoSave.enabled)}
+            />
           )}
         </span>
       </div>
 
+      {editing && autoStatus && (
+        // 길이가 바뀌는 상태 글은 툴바 줄이 아니라 메시지 줄에 둔다 — 줄에 있으면 글이 생기고 사라질 때마다 끝 묶음의 단추가 흔들린다.
+        <div className="rsf-toolbar-message">
+          <span
+            data-testid="set-autosave-status"
+            className="rsf-autosave-status"
+            role="status"
+            title={autoStatus.title ?? autoStatus.text}
+            style={{ color: AUTO_STATUS_COLOR[autoStatus.kind] }}
+          >
+            {autoStatus.text}
+          </span>
+        </div>
+      )}
       {message && (
         <div
           data-testid="set-message"

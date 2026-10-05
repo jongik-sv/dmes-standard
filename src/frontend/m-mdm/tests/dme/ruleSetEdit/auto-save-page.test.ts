@@ -20,7 +20,7 @@ vi.mock("@/shell", async (importOriginal) => ({
 import { storeKeys } from "../../../pages/dme/ruleSetEdit/debugger/local-store";
 import type { RuleIo, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { typeInto, visibleText } from "../helpers/render";
-import { byTestId, calls, click, clickFake, installServer, ok, openSet, q, srv, uninstallServer, unmountPage } from "../helpers/rule-set-page";
+import { byTestId, calls, click, clickFake, installServer, ok, openSet, q, settle, srv, uninstallServer, unmountPage } from "../helpers/rule-set-page";
 
 const ioName = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
 const rule = (ruleId: string, cond: string, result: string): RuleIo => ({
@@ -28,10 +28,10 @@ const rule = (ruleId: string, cond: string, result: string): RuleIo => ({
   conds: [ioName(cond)], results: [{ ...ioName(result), source: null }],
 });
 
-function chainView(): RuleSetView {
+function chainView(opts: { missingRule?: boolean } = {}): RuleSetView {
   return {
     set: { setId: "E2S_CHAIN", setName: "사슬", description: null, status: "INUSE", rowVersion: 3, ruleIds: ["E2S_GRD", "E2S_FCT"], flow: null, branched: false },
-    rules: [rule("E2S_GRD", "SET_THK", "S_GRD"), rule("E2S_FCT", "S_GRD", "S_FCT")],
+    rules: [rule("E2S_GRD", "SET_THK", "S_GRD"), { ...rule("E2S_FCT", "S_GRD", "S_FCT"), exists: !opts.missingRule }],
     checks: [],
     condIo: {},
     editable: true,
@@ -166,5 +166,53 @@ describe("자동 저장 단추·상태 글", () => {
     expect(calls("save")).toHaveLength(1);
     expect(calls("view")).toHaveLength(2);
     expect(visibleText(byTestId("set-message"))).toContain("저장 · row_version 4");
+  });
+
+  it("7. 거부 검사가 있어도 [세트 저장] 이 켜지고 눌러 저장하며 보류 글·거부 문구가 없다(2026-10-06 사용자 결정)", async () => {
+    srv.replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
+    await openSet("E2S_CHAIN", chainView({ missingRule: true }));
+    await click("flow-mode-edit");
+    await typeInto(byTestId<HTMLInputElement>("set-name"), "사슬(거부)");
+    expect(byTestId<HTMLButtonElement>("set-save").disabled).toBe(false);
+    expect(byTestId("set-save").parentElement!.getAttribute("data-tip")).not.toContain("거부");
+    expect(status()).toBeNull();
+    await click("set-save");
+    await settle();
+    expect(calls("save")).toHaveLength(1);
+  });
+
+  it("8. 거부 검사가 있어도 자동 저장이 돌고 [자동 저장] 툴팁에 거부 문구가 없다", async () => {
+    srv.replies.save = ok({ setId: "E2S_CHAIN", rowVersion: 4, checks: [] });
+    await openSet("E2S_CHAIN", chainView({ missingRule: true }));
+    await click("flow-mode-edit");
+    await click("set-autosave");
+    expect(toggle().parentElement!.getAttribute("data-tip")).not.toContain("거부");
+    vi.useFakeTimers();
+    await typeInto(byTestId<HTMLInputElement>("set-name"), "사슬(거부 자동)");
+    await advance(2000);
+    await advance(50);
+    expect(calls("save")).toHaveLength(1);
+    expect(status()).toBeNull();
+  });
+
+  it("9. 자동 저장 실패 글은 툴바 줄(끝 묶음)이 아니라 메시지 줄에 보이고 메시지와 함께 보인다", async () => {
+    srv.replies.save = { meta: { success: false, code: "MDM999", message: "저장 중 서버 오류" } };
+    await openSet("E2S_CHAIN", chainView());
+    await click("flow-mode-edit");
+    await click("set-autosave");
+    vi.useFakeTimers();
+    await typeInto(byTestId<HTMLInputElement>("set-name"), "사슬(실패)");
+    await advance(2000);
+    await advance(50);
+    expect(calls("save")).toHaveLength(1);
+    const st = status()!;
+    expect(visibleText(st)).toBe("자동 저장 실패. 고치면 다시 저장한다");
+    expect(st.getAttribute("role")).toBe("status");
+    // 줄 안에 있으면 글이 생기고 사라질 때마다 단추가 흔들린다 — 끝 묶음 밖, 툴바 아래 메시지 줄에 있다.
+    expect(st.closest(".rsf-toolbar-end")).toBeNull();
+    expect(st.closest(".rsf-toolbar-message")).not.toBeNull();
+    expect(byTestId("flow-toolbar").querySelector(".rsf-toolbar-row")!.contains(st)).toBe(false);
+    // 저장 오류 메시지(set-message)도 같이 보인다.
+    expect(visibleText(byTestId("set-message"))).toContain("저장 중 서버 오류");
   });
 });

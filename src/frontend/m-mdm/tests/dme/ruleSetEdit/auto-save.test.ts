@@ -238,14 +238,16 @@ describe("자동 저장 — 켜고 끄기·디바운스", () => {
 });
 
 describe("자동 저장 — 저장하지 않는 조건", () => {
-  it("7. 거부 검사가 있으면 저장하지 않고 보류 문구를 보인다", async () => {
+  it("7. 거부 검사가 있어도 저장하고 보류 문구는 없다(2026-10-06 사용자 결정)", async () => {
+    api.saveSet.mockResolvedValue(saved(4));
     await openEdit(chainView({ missingRule: true }));
     await run((p) => p.a.setEnabled(true));
     await move();
     expect(h.current.s.checks.some((c) => c.severity === "REJECT")).toBe(true);
-    await advance(10_000);
-    expect(api.saveSet).not.toHaveBeenCalled();
-    expect(h.current.a.status?.text).toBe("거부 검사가 있어 자동 저장 보류");
+    expect(h.current.a.status).toBeNull();
+    await advance(AUTO_SAVE_DELAY_MS);
+    expect(api.saveSet).toHaveBeenCalledTimes(1);
+    expect(h.current.a.status).toBeNull();
   });
 
   it("8. 보기 모드·편집 권한 없음이면 저장하지 않는다", async () => {

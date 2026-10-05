@@ -169,7 +169,8 @@ export interface RuleSetEditState {
   clearError(): void;
 }
 
-const warnLines = (checks: RuleSetCheck[] | null | undefined) => (checks ?? []).map((c) => c.message);
+// 저장 응답의 checks 에는 거부(REJECT)도 실린다(2026-10-06 — 저장은 거부로 막지 않는다). 거부는 아래 검사 결과에 이미 보이므로 "경고" 줄에서 뺀다.
+const warnLines = (checks: RuleSetCheck[] | null | undefined) => (checks ?? []).filter((c) => c.severity !== "REJECT").map((c) => c.message);
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 function toMap(ios: readonly RuleIo[] | null | undefined, base: Record<string, RuleIo> = {}): Record<string, RuleIo> {
