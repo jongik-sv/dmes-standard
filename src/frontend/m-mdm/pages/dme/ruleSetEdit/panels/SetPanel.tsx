@@ -11,6 +11,7 @@ import { MutedText } from "@dk-oasis/shared/card";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Input, Textarea } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { DESCRIPTION_LABEL } from "@/ui-meta";
 
 import { GuideCard } from "../cards/GuideCard";
 import { SetIoTables } from "../cards/SetIoTables";
@@ -53,7 +54,7 @@ export function SetPanel(props: SetPanelProps) {
             </tr>
             <tr>
               <th style={DETAIL_LABEL_CELL}>
-                <MdmFieldLabel name="description" label="설명" meta={false} />
+                <MdmFieldLabel {...DESCRIPTION_LABEL} />
               </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Textarea data-testid="set-desc" value={description} rows={2} disabled={!editable} onChange={props.onDescription} />

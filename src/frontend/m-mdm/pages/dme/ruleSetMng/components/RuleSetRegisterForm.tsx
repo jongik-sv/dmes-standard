@@ -10,6 +10,7 @@ import { useState } from "react";
 import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
 import { Button, Input, Textarea } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { DESCRIPTION_LABEL } from "@/ui-meta";
 import { openMdmPage } from "@/shell";
 
 import { registerSet } from "../api";
@@ -93,7 +94,7 @@ export function RuleSetRegisterForm({ canRegister, onRegistered, onError }: Rule
           </tr>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="description" label="설명" meta={false} />
+              <MdmFieldLabel {...DESCRIPTION_LABEL} />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <Textarea

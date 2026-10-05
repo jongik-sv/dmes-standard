@@ -17,6 +17,7 @@ import { useMemo, useState, type CSSProperties } from "react";
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
+import { uiCols } from "@/ui-meta";
 
 import { REJECT_BADGE } from "../panels/ChecksPanel";
 import type { CaseDraft, CaseRunResult, RuleSetCaseView } from "../types";
@@ -59,11 +60,10 @@ function valueText(v: unknown): string {
   return typeof v === "string" ? v : JSON.stringify(v);
 }
 
-const CASE_COLUMNS: GridColumn[] = [
+const CASE_COLUMNS: GridColumn[] = uiCols([
   { key: "caseName", header: "이름", width: 130 },
   {
     key: "mark",
-    meta: false,
     header: "마지막 결과",
     width: 90,
     tooltip: false,
@@ -72,14 +72,14 @@ const CASE_COLUMNS: GridColumn[] = [
       return <span style={m.style()}>{m.text}</span>;
     },
   },
-  { key: "description", meta: false, header: "설명", width: 140 },
-];
+  { key: "description", header: "설명", width: 140 },
+], ["caseName"]);
 
-const DIFF_COLUMNS: GridColumn[] = [
-  { key: "key", meta: false, header: "키", width: 110 },
-  { key: "expected", meta: false, header: "기대", width: 100 },
-  { key: "actual", meta: false, header: "실제", width: 100 },
-];
+const DIFF_COLUMNS: GridColumn[] = uiCols([
+  { key: "key", header: "키", width: 110 },
+  { key: "expected", header: "기대", width: 100 },
+  { key: "actual", header: "실제", width: 100 },
+]);
 
 /** 케이스 저장 → 입력 묶음. */
 const inputOf = (c: RuleSetCaseView) => ({ recordJson: c.inputJson, evalTs: c.evalTs ?? "" });

@@ -8,6 +8,7 @@ import { useMemo, type CSSProperties, type ReactNode } from "react";
 
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
+import { uiCols } from "@/ui-meta";
 
 import { NO_LINK_TITLE, condTarget, openVar, resultTarget, type VarTarget } from "../links";
 import { isFinalResult } from "../set-model";
@@ -57,41 +58,37 @@ function Caption({ children }: { children: ReactNode }) {
   return <p style={{ margin: "var(--spacing-xs) 0", fontWeight: 600 }}>{children}</p>;
 }
 
-const INPUT_COLUMNS: GridColumn[] = [
+const INPUT_COLUMNS: GridColumn[] = uiCols([
   {
     key: "name",
-    meta: false,
     header: "변수",
     width: 120,
     tooltip: false,
     render: (_v, row) => <VarName name={String(row.name)} target={row.target as VarTarget} />,
   },
-  { key: "label", meta: false, header: "표시명", width: 100 },
-  { key: "type", meta: false, header: "타입", width: 90 },
+  { key: "label", header: "표시명", width: 100 },
+  { key: "type", header: "타입", width: 90 },
   {
     key: "source",
-    meta: false,
     header: "출처",
     width: 100,
     tooltip: false,
     render: (_v, row) => <span style={badgeStyle(SOURCE_TONE[row.source as IoSource])}>{SOURCE_LABEL[row.source as IoSource]}</span>,
   },
-  { key: "users", meta: false, header: "읽는 룰", width: 140 },
-];
+  { key: "users", header: "읽는 룰", width: 140 },
+]);
 
-const RESULT_COLUMNS: GridColumn[] = [
+const RESULT_COLUMNS: GridColumn[] = uiCols([
   {
     key: "name",
-    meta: false,
     header: "변수",
     width: 120,
     tooltip: false,
     render: (_v, row) => <VarName name={String(row.name)} target={row.target as VarTarget} />,
   },
-  { key: "type", meta: false, header: "타입", width: 90 },
+  { key: "type", header: "타입", width: 90 },
   {
     key: "kind",
-    meta: false,
     header: "구분",
     width: 70,
     tooltip: false,
@@ -99,7 +96,6 @@ const RESULT_COLUMNS: GridColumn[] = [
   },
   {
     key: "by",
-    meta: false,
     header: "만드는 룰",
     width: 140,
     tooltip: false,
@@ -110,8 +106,8 @@ const RESULT_COLUMNS: GridColumn[] = [
       </>
     ),
   },
-  { key: "readers", meta: false, header: "읽는 룰", width: 140 },
-];
+  { key: "readers", header: "읽는 룰", width: 140 },
+]);
 
 export function SetIoTables({ io }: { io: SetIo }) {
   const finals = io.results.filter(isFinalResult);

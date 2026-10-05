@@ -15,6 +15,7 @@ import { CardFrame, MutedText } from "@dk-oasis/shared/card";
 import { Button, Checkbox, Input, Select } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle, fmtVer } from "@/shell";
+import { uiCols } from "@/ui-meta";
 
 import { runValueTest, saveTestCase } from "../api";
 import type { RuleEditCardProps } from "../cards";
@@ -45,9 +46,9 @@ interface FieldActions {
 // 칸 안에 입력 요소를 직접 두면 그리드가 행 클릭 때 포커스를 가져가 글자가 들어가지 않는다. 열은 한 번만 만들고
 // 키 보냄 손잡이는 ref 로 넘긴다(TestCaseCard 의 동작 열과 같은 방식).
 function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
-  return [
+  return uiCols([
     {
-      key: "name", meta: false, header: "변수", width: 200, minWidth: 140,
+      key: "name", header: "변수", width: 200, minWidth: 140,
       render: (_v, row) => {
         const r = row as unknown as FieldRow;
         return (
@@ -58,16 +59,16 @@ function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
         );
       },
     },
-    { key: "typeBadge", meta: false, header: "타입", width: 90, minWidth: 80, align: "center", render: (v) => <span style={badgeStyle("neutral")}>{String(v)}</span> },
+    { key: "typeBadge", header: "타입", width: 90, minWidth: 80, align: "center", render: (v) => <span style={badgeStyle("neutral")}>{String(v)}</span> },
     {
-      key: "contractBadge", meta: false, header: "계약", width: 110, minWidth: 100, align: "center",
+      key: "contractBadge", header: "계약", width: 110, minWidth: 100, align: "center",
       render: (_v, row) => {
         const r = row as unknown as FieldRow;
         return r.contractBadge ? <span style={badgeStyle(r.always ? "info" : "muted")}>{r.contractBadge}</span> : null;
       },
     },
     {
-      key: "sent", meta: false, header: "키 보냄", width: 70, minWidth: 64, align: "center", tooltip: false,
+      key: "sent", header: "키 보냄", width: 70, minWidth: 64, align: "center", tooltip: false,
       render: (_v, row) => {
         const r = row as unknown as FieldRow;
         return (
@@ -78,7 +79,7 @@ function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
       },
     },
     {
-      key: "value", meta: false, header: "값", width: 220, minWidth: 140,
+      key: "value", header: "값", width: 220, minWidth: 140,
       editable: (row) => (row as unknown as FieldRow).sent,
       cellClassRules: { "cell-input": (row) => (row as unknown as FieldRow).sent },
       render: (_v, row) => {
@@ -87,8 +88,8 @@ function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
         return r.value === "" ? <MutedText>NULL</MutedText> : r.value;
       },
     },
-    { key: "note", meta: false, header: "설명", width: 260, minWidth: 100, render: (v) => (v ? <MutedText>{String(v)}</MutedText> : null) },
-  ];
+    { key: "note", header: "설명", width: 260, minWidth: 100, render: (v) => (v ? <MutedText>{String(v)}</MutedText> : null) },
+  ]);
 }
 
 const MODE_DESC = {

@@ -12,6 +12,7 @@ import { IconArrowBackUp, IconArrowDown, IconArrowUp, IconSearch, IconTrash, Ico
 
 import type { GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
+import { uiCols } from "@/ui-meta";
 
 import type { PreviewOutcome, ParseStatus } from "../../expr/parse-expr";
 import type { HitPolicyCode, ResolvedVar } from "../../types";
@@ -329,7 +330,7 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
   const isCond = (row: Record<string, unknown>) => g(row).varKind === "COND";
   const exprCond = (row: Record<string, unknown>) => isCond(row) && g(row).dispType === "Expression";
   const can = (row: Record<string, unknown>) => g(row).__editable;
-  const cols: GridColumn[] = [
+  const cols: GridColumn[] = uiCols([
     {
       key: "varId",
       header: "var_id",
@@ -346,7 +347,6 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
     },
     {
       key: "order",
-      meta: false,
       header: "순서",
       width: 56,
       align: "center",
@@ -383,121 +383,121 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
       cellClassRules: edited("varName"),
       render: (v, row) => (exprCond(row) ? <span style={MUTED}>-</span> : textCell("col-name", "변수")(v, row)),
     },
-  ];
+  ], ["varId", "varKind", "dispType", "varName"]);
   if (opts.derive) {
-    cols.push({
+    cols.push(...uiCols([{
       key: "expr",
-      meta: false,
       header: "결과 식",
       width: 240,
       editable: (row) => can(row) && !isCond(row),
       cellClassRules: edited("expr"),
       render: textCell("col-expr", "결과 식"),
-    });
+    }]));
   }
   cols.push(
-    { key: "label", meta: false, header: "표시명", width: 110, editable: can, cellClassRules: edited("label"), render: textCell("col-label") },
-    {
-      key: "dataType",
-      header: "값 타입",
-      width: 110,
-      editable: (row) => can(row) && !exprCond(row) && g(row).__row.domainId == null,
-      cellEditor: "select",
-      cellEditorValues: DATA_TYPES,
-      cellEditorValueLabels: { "": "타입 없음" },
-      cellClassRules: edited("dataType"),
-      render: (_v, row) => {
-        const r = g(row);
-        const d = r.__row;
-        if (exprCond(row)) return <span style={MUTED}>자유식</span>;
-        return (
-          <span data-testid={`col-type-${r.rowKey}`}>
-            {d.domainId != null ? (
-              `도메인 ${d.domainType ?? ""}`
-            ) : d.dataType != null ? (
-              d.dataType
-            ) : (
-              <span style={MUTED}>{r.__typeHint || "타입 없음"}</span>
-            )}
-          </span>
-        );
-      },
-    },
-    {
-      // 도메인명·표준명을 직접 넣는다 — 넣은 글자로 서버를 찾아 하나로 정해지면 바로 적용하고, 아니면 찾기 팝업을 연다(부모 handleCellChange).
-      // 도메인 번호(domainId)는 내부 키라 보이지 않는다.
-      // 찾기·해제 버튼도 이 칸 안에 둔다 — 편집 칸이라 `swallow` 로 전파를 끊어 버튼을 눌러도 편집이 같이 열리지 않게 한다.
-      key: "domain",
-      meta: false,
-      header: "도메인",
-      width: 176,
-      editable: (row) => can(row) && !exprCond(row),
-      cellClassRules: edited("domain"),
-      render: (v, row) => {
-        const r = g(row);
-        if (exprCond(row)) return <span style={MUTED}>-</span>;
-        const text = v == null ? "" : String(v);
-        const shown = r.__row.domainId != null ? text || "이름 없는 도메인" : "";
-        return (
-          // 글자는 왼쪽에, 찾기·해제 버튼은 칸 오른쪽 끝에 붙인다(space-between).
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 4,
-              width: "100%",
-              minWidth: 0,
-            }}
-          >
-            <span
-              data-testid={`col-domain-name-${r.rowKey}`}
-              title={shown || undefined}
-              style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-            >
-              {shown}
-            </span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: "none" }}>
-              <IconBtn
-                label="도메인 찾기"
-                testId={`col-domain-open-${r.rowKey}`}
-                disabled={!r.__editable}
-                swallow
-                onClick={() => h().openDomain(r.rowKey)}
-              >
-                <IconSearch size={ICON} />
-              </IconBtn>
-              {r.__row.domainId != null && (
-                <IconBtn
-                  label="도메인 해제"
-                  disabled={!r.__editable}
-                  swallow
-                  onClick={() => h().clearDomain(r.rowKey)}
-                >
-                  <IconX size={ICON} />
-                </IconBtn>
+    ...uiCols([
+      { key: "label", header: "표시명", width: 110, editable: can, cellClassRules: edited("label"), render: textCell("col-label") },
+      {
+        key: "dataType",
+        header: "값 타입",
+        width: 110,
+        editable: (row) => can(row) && !exprCond(row) && g(row).__row.domainId == null,
+        cellEditor: "select",
+        cellEditorValues: DATA_TYPES,
+        cellEditorValueLabels: { "": "타입 없음" },
+        cellClassRules: edited("dataType"),
+        render: (_v, row) => {
+          const r = g(row);
+          const d = r.__row;
+          if (exprCond(row)) return <span style={MUTED}>자유식</span>;
+          return (
+            <span data-testid={`col-type-${r.rowKey}`}>
+              {d.domainId != null ? (
+                `도메인 ${d.domainType ?? ""}`
+              ) : d.dataType != null ? (
+                d.dataType
+              ) : (
+                <span style={MUTED}>{r.__typeHint || "타입 없음"}</span>
               )}
             </span>
-          </span>
-        );
+          );
+        },
       },
-    },
-    {
-      key: "resGrp",
-      header: "그룹",
-      width: 110,
-      editable: (row) => can(row) && !isCond(row),
-      cellClassRules: edited("resGrp"),
-      render: (v, row) => (isCond(row) ? <span style={MUTED}>-</span> : textCell("col-grp", "그룹 = 결과 변수")(v, row)),
-    },
-    {
-      key: "grpCond",
-      header: "열 조건",
-      width: 170,
-      editable: (row) => can(row) && !isCond(row) && g(row).resGrp.trim() !== "",
-      cellClassRules: edited("grpCond"),
-      render: (v, row) => (v != null ? textCell("col-grpcond", "비우면 기본 열")(v, row) : <span style={MUTED}>-</span>),
-    },
+      {
+        // 도메인명·표준명을 직접 넣는다 — 넣은 글자로 서버를 찾아 하나로 정해지면 바로 적용하고, 아니면 찾기 팝업을 연다(부모 handleCellChange).
+        // 도메인 번호(domainId)는 내부 키라 보이지 않는다.
+        // 찾기·해제 버튼도 이 칸 안에 둔다 — 편집 칸이라 `swallow` 로 전파를 끊어 버튼을 눌러도 편집이 같이 열리지 않게 한다.
+        key: "domain",
+        header: "도메인",
+        width: 176,
+        editable: (row) => can(row) && !exprCond(row),
+        cellClassRules: edited("domain"),
+        render: (v, row) => {
+          const r = g(row);
+          if (exprCond(row)) return <span style={MUTED}>-</span>;
+          const text = v == null ? "" : String(v);
+          const shown = r.__row.domainId != null ? text || "이름 없는 도메인" : "";
+          return (
+            // 글자는 왼쪽에, 찾기·해제 버튼은 칸 오른쪽 끝에 붙인다(space-between).
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 4,
+                width: "100%",
+                minWidth: 0,
+              }}
+            >
+              <span
+                data-testid={`col-domain-name-${r.rowKey}`}
+                title={shown || undefined}
+                style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              >
+                {shown}
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flex: "none" }}>
+                <IconBtn
+                  label="도메인 찾기"
+                  testId={`col-domain-open-${r.rowKey}`}
+                  disabled={!r.__editable}
+                  swallow
+                  onClick={() => h().openDomain(r.rowKey)}
+                >
+                  <IconSearch size={ICON} />
+                </IconBtn>
+                {r.__row.domainId != null && (
+                  <IconBtn
+                    label="도메인 해제"
+                    disabled={!r.__editable}
+                    swallow
+                    onClick={() => h().clearDomain(r.rowKey)}
+                  >
+                    <IconX size={ICON} />
+                  </IconBtn>
+                )}
+              </span>
+            </span>
+          );
+        },
+      },
+      {
+        key: "resGrp",
+        header: "그룹",
+        width: 110,
+        editable: (row) => can(row) && !isCond(row),
+        cellClassRules: edited("resGrp"),
+        render: (v, row) => (isCond(row) ? <span style={MUTED}>-</span> : textCell("col-grp", "그룹 = 결과 변수")(v, row)),
+      },
+      {
+        key: "grpCond",
+        header: "열 조건",
+        width: 170,
+        editable: (row) => can(row) && !isCond(row) && g(row).resGrp.trim() !== "",
+        cellClassRules: edited("grpCond"),
+        render: (v, row) => (v != null ? textCell("col-grpcond", "비우면 기본 열")(v, row) : <span style={MUTED}>-</span>),
+      },
+    ], ["dataType", "resGrp", "grpCond"]),
   );
   if (opts.hitPolicy === "COLLECT") {
     cols.push({
@@ -522,26 +522,27 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
     });
   }
   cols.push(
-    { key: "description", meta: false, header: "설명", width: 140, editable: can, cellClassRules: edited("description"), render: textCell("col-desc") },
-    { key: "exprInfo", meta: false, header: "식 결과", width: 220, render: (_v, row) => exprInfoCell(g(row).__exprs) },
-    { key: "check", meta: false, header: "검사", width: 170, pinned: "right", render: (_v, row) => checkCell(g(row)) },
-    {
-      key: "del",
-      meta: false,
-      header: "삭제",
-      width: 48,
-      align: "center",
-      pinned: "right",
-      render: (_v, row) => {
-        const r = g(row);
-        const del = r.__row.deleted;
-        return (
-          <IconBtn label={`${name(r)} ${del ? "삭제 취소" : "삭제"}`} testId={`col-del-${r.rowKey}`} disabled={!r.__canEdit} onClick={() => h().remove(r.__row)}>
-            {del ? <IconArrowBackUp size={ICON} /> : <IconTrash size={ICON} />}
-          </IconBtn>
-        );
+    ...uiCols([
+      { key: "description", header: "설명", width: 140, editable: can, cellClassRules: edited("description"), render: textCell("col-desc") },
+      { key: "exprInfo", header: "식 결과", width: 220, render: (_v, row) => exprInfoCell(g(row).__exprs) },
+      { key: "check", header: "검사", width: 170, pinned: "right", render: (_v, row) => checkCell(g(row)) },
+      {
+        key: "del",
+        header: "삭제",
+        width: 48,
+        align: "center",
+        pinned: "right",
+        render: (_v, row) => {
+          const r = g(row);
+          const del = r.__row.deleted;
+          return (
+            <IconBtn label={`${name(r)} ${del ? "삭제 취소" : "삭제"}`} testId={`col-del-${r.rowKey}`} disabled={!r.__canEdit} onClick={() => h().remove(r.__row)}>
+              {del ? <IconArrowBackUp size={ICON} /> : <IconTrash size={ICON} />}
+            </IconBtn>
+          );
+        },
       },
-    },
+    ]),
   );
   return cols;
 }

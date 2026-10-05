@@ -30,6 +30,7 @@ import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oa
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { Button, Input, Select, Textarea } from "@dk-oasis/shared/form";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { DESCRIPTION_LABEL, SOURCE_LABEL } from "@/ui-meta";
 import { DraftLockBadge, HANDOVER_AVAILABLE, VersionActionBar, VersionStatusBadge, fmtVer, openMdmPage, sameVer } from "@/shell";
 import { CONFLICT_MESSAGE, writeFailure } from "@/dme/oasis-call";
 
@@ -311,7 +312,7 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
             </tr>
             <tr>
               <th style={DETAIL_LABEL_CELL}>
-                <MdmFieldLabel name="description" label="설명" meta={false} />
+                <MdmFieldLabel {...DESCRIPTION_LABEL} />
               </th>
               <td style={DETAIL_VALUE_CELL}>
                 <Textarea
@@ -339,7 +340,7 @@ export function RuleDetailPanel({ view, reload, canDo, busy: pageBusy, onError, 
             </tr>
             <tr>
               <th style={DETAIL_LABEL_CELL}>
-                <MdmFieldLabel name="source" label="원천" meta={false} />
+                <MdmFieldLabel {...SOURCE_LABEL} />
               </th>
               <td style={DETAIL_VALUE_CELL} data-testid="rule-header-source">
                 {external ? `EXTERNAL · ${header.sourceSystem ?? ""}` : "MDM"}
