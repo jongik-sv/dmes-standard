@@ -143,6 +143,21 @@ export function bringDockWindowToFront(windows: DockWindow[], id: string): DockW
   return windows.map((w) => (w.z === zOf.get(w.id) ? w : { ...w, z: zOf.get(w.id)! }));
 }
 
+/**
+ * 그릴 때 쓸 쌓임 높이(1..n) — 접힌 창(아이콘)은 늘 펼친 창들보다 위에, 각 묶음 안에서는 저장된 z 순서를 따른다.
+ * 아이콘이 펼친 창 뒤에 숨어 다시 열 수 없게 되는 일을 막는다. 저장된 z 는 정규화돼 있다고 보지 않는다(브라우저 저장값은 임의의 수).
+ * 같은 z 면 목록 앞쪽이 아래다. 상태의 z(저장값)는 바꾸지 않고 그릴 때만 쓴다.
+ */
+export function dockStackOrder(windows: readonly DockWindow[]): Map<string, number> {
+  const ranked = windows
+    .map((w, index) => ({ w, index }))
+    .sort(
+      (a, b) =>
+        Number(a.w.collapsed) - Number(b.w.collapsed) || a.w.z - b.w.z || a.index - b.index
+    );
+  return new Map(ranked.map(({ w }, i) => [w.id, i + 1]));
+}
+
 export type OpenDockResult =
   | { kind: "opened"; windows: DockWindow[]; id: string }
   /** multiple===false 위젯이 이미 열려 있어 그 창을 펼쳐 앞으로 가져왔다. */

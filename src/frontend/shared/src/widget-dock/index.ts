@@ -9,6 +9,7 @@ export {
   DOCK_MIN_SIZE,
   DOCK_WINDOW_ID_PATTERN,
   dockItemSize,
+  dockStackOrder,
   isDockableEntry,
   listDockableEntries,
   moveDockWindow,

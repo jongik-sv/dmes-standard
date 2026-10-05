@@ -268,6 +268,25 @@ describe("WidgetDockLayer", () => {
     expect(hs.onClose).toHaveBeenCalledWith("a");
   });
 
+  it("접힌 아이콘은 저장 z 가 낮아도 펼친 창보다 위에 그린다", async () => {
+    act(() =>
+      root.render(
+        h(WidgetDockLayer, {
+          windows: [win("open", { z: 20 }), win("icon", { z: 1, collapsed: true, x: 50, y: 50 })],
+          registry: { "def.calc": entry("def.calc") },
+          frame: WidgetFrame,
+          viewport: { width: 1200, height: 800 },
+          ...handlers(),
+        })
+      )
+    );
+    await flush();
+    const z = (sel: string) => Number(q<HTMLElement>(sel).style.zIndex);
+    expect(z('[data-testid="widget-dock-window-icon-icon"]')).toBeGreaterThan(
+      z('[data-testid="widget-dock-window-open"]')
+    );
+  });
+
   it("viewport 를 안 주면 창이 있는 동안 화면 크기를 직접 구독하고(rAF 로 묶어), 창이 없으면 구독하지 않는다", async () => {
     const add = vi.spyOn(window, "addEventListener");
     const resizeListeners = () => add.mock.calls.filter(([type]) => type === "resize").length;

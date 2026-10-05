@@ -15,6 +15,7 @@ import {
   DOCK_MAX_WINDOWS,
   DOCK_WINDOW_ID_PATTERN,
   dockItemSize,
+  dockStackOrder,
   dockWindowSlotId,
   isDockableEntry,
   listDockableEntries,
@@ -232,6 +233,34 @@ describe("dock-model — 자르기·앞으로·접기·닫기·옮기기", () =>
     expect(moveDockWindow(ws, "a", 100, 100, VP)).toBe(ws);
     expect(moveDockWindow(ws, "a", -10, -10, VP)[0]).toMatchObject({ x: 0, y: 0 });
     expect(resizeDockWindow(ws, "a", 50, 9999, VP)[0]).toMatchObject({ w: 220, h: VP.height });
+  });
+});
+
+describe("dock-model — 그릴 쌓임 높이(접힌 아이콘은 펼친 창 위)", () => {
+  it("접힌 창은 저장 z 가 낮거나 펼친 창 z 가 아무리 커도 늘 펼친 창들보다 위이고, 묶음 안에서는 z 순서를 따른다", () => {
+    const ws = [
+      win("open-big", { z: 500 }),
+      win("icon-low", { z: 1, collapsed: true }),
+      win("open-small", { z: 3 }),
+      win("icon-high", { z: 9, collapsed: true }),
+    ];
+    const order = dockStackOrder(ws);
+    expect([...order.entries()].sort((a, b) => a[1] - b[1]).map(([id]) => id)).toEqual([
+      "open-small",
+      "open-big",
+      "icon-low",
+      "icon-high",
+    ]);
+    expect(new Set(order.values()).size).toBe(4);
+    expect(Math.min(order.get("icon-low")!, order.get("icon-high")!)).toBeGreaterThan(
+      Math.max(order.get("open-big")!, order.get("open-small")!)
+    );
+  });
+
+  it("같은 z 는 목록 앞쪽이 아래이고, 빈 목록은 빈 맵이다", () => {
+    const order = dockStackOrder([win("a", { z: 2 }), win("b", { z: 2 })]);
+    expect(order.get("a")).toBeLessThan(order.get("b")!);
+    expect(dockStackOrder([]).size).toBe(0);
   });
 });
 

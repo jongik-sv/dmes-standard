@@ -18,6 +18,7 @@ import {
   DOCK_ICON_SIZE,
   DOCK_MIN_SIZE,
   dockItemSize,
+  dockStackOrder,
   isDockableEntry,
 } from "./dock-model";
 import { FloatingWindow } from "./FloatingWindow";
@@ -45,6 +46,8 @@ const noop = () => {};
 interface DockWindowViewProps {
   win: DockWindow;
   entry: WidgetRegistryEntry;
+  /** 그릴 쌓임 높이 — 접힌 아이콘이 펼친 창 위로 오도록 dockStackOrder 가 정한다. */
+  zIndex: number;
   frame: ComponentType<WidgetFrameProps>;
   viewport: DockViewport;
   onMove: WidgetDockLayerProps["onMove"];
@@ -58,6 +61,7 @@ interface DockWindowViewProps {
 const DockWindowView = memo(function DockWindowView({
   win,
   entry,
+  zIndex,
   frame: Frame,
   viewport,
   onMove,
@@ -99,7 +103,7 @@ const DockWindowView = memo(function DockWindowView({
       width={win.w}
       height={win.h}
       collapsed={win.collapsed}
-      zIndex={win.z}
+      zIndex={zIndex}
       bounds={viewport}
       minWidth={DOCK_MIN_SIZE.w}
       minHeight={DOCK_MIN_SIZE.h}
@@ -130,6 +134,7 @@ export function WidgetDockLayer({
 }: WidgetDockLayerProps) {
   const liveViewport = useDockViewport(viewportOverride === undefined && windows.length > 0);
   const viewport = viewportOverride ?? liveViewport;
+  const stack = useMemo(() => dockStackOrder(windows), [windows]);
   return (
     <div className="cm-widget-dock" data-testid={testId}>
       <WidgetDockStyle />
@@ -142,6 +147,7 @@ export function WidgetDockLayer({
             // 그릴 때만 뷰포트 안으로 자른다 — 창이 줄어든 화면 밖으로 사라지지 않게(상태는 그대로).
             win={clampDockWindow(win, viewport)}
             entry={entry}
+            zIndex={stack.get(win.id) ?? 1}
             frame={frame}
             viewport={viewport}
             onMove={onMove}
