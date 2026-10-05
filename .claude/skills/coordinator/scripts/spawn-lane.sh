@@ -102,11 +102,12 @@ resolve_target() {
     ./*|../*|"~"*|.|..) coord_die 2 "--worktree 는 절대경로, path:<경로>, Orca 선택자(name:·branch:·id:·current 등)만 받는다: $sel" ;;
     /*|path:*)
       p="${sel#path:}"
+      case "$p" in /*) ;; *) coord_die 2 "--worktree path: 값은 절대경로만 받는다: $sel" ;; esac
       [ -d "$p" ] || coord_die 2 "--worktree 폴더가 없다: $p"
       p="$(cd "$p" && pwd -P)"
       CD_PATH="$p"
       orca_known_path "$p" && TAB_SEL="path:$p" ;;
-    current|active|*:*) TAB_SEL="$sel" ;;
+    current|active|name:*|branch:*|id:*|identity:*|issue:*) TAB_SEL="$sel" ;;
     *) coord_die 2 "--worktree 는 절대경로, path:<경로>, Orca 선택자(name:·branch:·id:·current 등)만 받는다: $sel" ;;
   esac
 }
@@ -247,7 +248,7 @@ opencode)
   [ -n "$pfile" ] && coord_log "주의: opencode 는 --prompt-file 을 보내지 않는다 — worker-start --spec 으로 넣을 것"
   if [ "$dry" = 1 ]; then
     coord_log "DRY $(coord_q orca terminal create --worktree "$TAB_SEL" --title "$name" --json)"
-    coord_log "DRY term_send <h> $(coord_q "cd $CD_PATH && $cmd") --enter (셸 프롬프트가 보인 뒤)"
+    coord_log "DRY term_send <h> $(coord_q "cd $(dry_cd) && $cmd") --enter (셸 프롬프트가 보인 뒤)"
     coord_log "DRY tui-idle 대기 → 화면이 비어 있지 않은지 확인"
     coord_state_call lane-add "$name" "{\"session\":{\"kind\":\"opencode\",\"spawned_by\":\"coordinator\"},\"state\":\"active\"}"
     echo "DRY SPAWNED $name handle=- pid=- session_id=-"; exit 0
