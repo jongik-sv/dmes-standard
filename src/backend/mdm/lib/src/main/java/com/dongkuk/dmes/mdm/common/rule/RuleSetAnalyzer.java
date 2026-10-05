@@ -636,12 +636,9 @@ public final class RuleSetAnalyzer {
                     }
                 }
                 st.prodBy().put(x.name(), n);
-                // always=false 출력은 이미 반드시 정의된 이름이 아니면 일부 갈래에서만 정의된 이름이다(하위 세트 Ruling 7). prodBy 는 always 와 무관하게 갱신한다.
-                if (partial.contains(x.name()) && !st.defined().contains(x.name())) {
-                    st.maybe().add(x.name());
-                } else {
-                    st.defined().add(x.name());
-                }
+                // always=false 출력은 이미 반드시 정의된 이름이 아니면 일부 갈래에서만 정의된 이름이다(하위 세트 Ruling 7, 룰 확정 순서 검사와 한 벌).
+                // prodBy 는 always 와 무관하게 갱신한다.
+                RuleSetPathState.define(st.defined(), st.maybe(), x.name(), partial.contains(x.name()));
             }
         }
 
