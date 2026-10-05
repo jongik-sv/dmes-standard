@@ -10,8 +10,9 @@ import type { AgGridReact } from "ag-grid-react";
  * `overflow: hidden`·`contain: strict` 라서 좁은 그리드의 넓은 툴팁은 오른쪽이 잘렸다.
  *
  * `popupParent` 를 항상 body 로 두면 필터·열 메뉴·셀 편집기 팝업도 body 로 가서 모달 위에 가려지거나 테마 변수가 끊길 수 있으므로,
- * **툴팁이 뜰 수 있는 동안에만** body 로 바꾼다. 머리글·셀 위에 마우스가 오르면 바꾸고, 눌림(mousedown)·키 입력·그리드를 떠남·툴팁 숨김(`tooltipHide`)에서 되돌린다.
- * 팝업은 만들어질 때의 부모에 붙고 그 부모에서 지워지므로 되돌려도 떠 있는 툴팁은 그대로다.
+ * **마우스가 그리드의 머리글·셀 위에 있는 동안에만** body 로 바꾼다. 머리글·셀 위에 마우스가 오르면 바꾸고, 눌림(mousedown)·키 입력·그리드를 떠남에서 되돌린다.
+ * `tooltipHide` 에서는 되돌리지 않는다(2026-10-05 tts-7): ag-grid 는 이전 칸의 숨김 이벤트가 새 칸의 mouseover 뒤에 늦게 오기도 해서, 그때 되돌리면 새 툴팁이
+ * 그리드 안에 만들어져 둘째 툴팁부터 다시 잘렸다. 팝업은 만들어질 때의 부모에 붙고 그 부모에서 지워지므로 되돌려도 떠 있는 툴팁은 그대로다.
  * 편집·열 끌기·열 메뉴는 눌림이나 키 입력으로 시작하므로 그 팝업은 늘 그리드 안에 붙는다.
  *
  * 툴팁 바탕·글자 변수는 grid.css 의 `body > .ag-popup` 규칙이 body 쪽 팝업 감싸개에 준다. 감싸개에는 `ag-theme-alpine` 이 아니라 Theming API 의
@@ -27,7 +28,6 @@ export function useGridTooltipOutside(
     const el = containerRef.current;
     if (!el || typeof document === "undefined") return;
     let outside = false;
-    let hideListenerApi: unknown = null;
 
     const set = (on: boolean) => {
       if (outside === on) return;
@@ -36,10 +36,6 @@ export function useGridTooltipOutside(
       // 호출자가 popupParent 를 줬으면(body 가 아님) 그 값을 지키려고 건드리지 않는다.
       const given = api.getGridOption("popupParent");
       if (on && given && given !== document.body) return;
-      if (hideListenerApi !== api) {
-        hideListenerApi = api;
-        api.addEventListener("tooltipHide", () => set(false));
-      }
       outside = on;
       api.setGridOption("popupParent", on ? document.body : undefined);
     };
