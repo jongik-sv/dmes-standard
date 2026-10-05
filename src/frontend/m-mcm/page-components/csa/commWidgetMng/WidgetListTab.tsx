@@ -20,6 +20,7 @@ import { toWidgetDefRow, type WidgetDefRow } from "@dk-oasis/shared/widget";
 
 import { WIDGET_REGISTRY } from "@/lib/generated/widget-registry";
 import { WIDGET_TYPE_REGISTRY } from "@/lib/generated/widget-type-registry";
+import { uiCols } from "@/lib/ui-meta";
 import { notifyWidgetDefsChanged } from "@/lib/widget-defs-events";
 
 import { deleteWidgetDef, fetchWidgetDef, saveWidgetDef, searchWidgetDefs } from "./api";
@@ -48,13 +49,12 @@ import {
 import { WidgetDetailForm } from "./WidgetDetailForm";
 import { WidgetPreview } from "./WidgetPreview";
 
-const COLUMNS: GridColumn[] = [
+const COLUMNS: GridColumn[] = uiCols([
   { key: "widgetId", header: "ID", width: 3, minWidth: 120, align: "left" },
   { key: "title", header: "이름", width: 4, minWidth: 120, align: "left" },
   {
     key: "kind",
     header: "구분",
-    meta: false,
     width: 1,
     minWidth: 56,
     align: "center",
@@ -68,7 +68,6 @@ const COLUMNS: GridColumn[] = [
   {
     key: "typeTitle",
     header: "유형",
-    meta: false,
     width: 2,
     minWidth: 90,
     align: "left",
@@ -87,18 +86,17 @@ const COLUMNS: GridColumn[] = [
         <GridBadge label="사용" bg="var(--color-success-soft)" color="var(--color-success)" />
       ),
   },
-  { key: "defaultSize", header: "기본 크기", meta: false, width: 1, minWidth: 72, align: "center" },
-  { key: "userCount", header: "사용자 수", meta: false, width: 1, minWidth: 72, align: "right" },
+  { key: "defaultSize", header: "기본 크기", width: 1, minWidth: 72, align: "center" },
+  { key: "userCount", header: "사용자 수", width: 1, minWidth: 72, align: "right" },
   {
     key: "overridden",
     header: "덮어씀",
-    meta: false,
     width: 1,
     minWidth: 60,
     align: "center",
     render: (v) => (v === true ? <GridBadge label="덮어씀" bg="var(--color-warning-soft)" color="var(--color-warning)" /> : null),
   },
-];
+], ["widgetId", "title", "useYn"]);
 
 /** [새 위젯] 선택지 — 유형 등록부(생성물, 정적). 제목 — 설명. */
 const TYPE_OPTIONS = Object.values(WIDGET_TYPE_REGISTRY).map((t) => ({

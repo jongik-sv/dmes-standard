@@ -110,11 +110,10 @@ async function show(editor: typeof ChatEditor, value: unknown) {
   const el = createElement(
     DmesUiProvider,
     null,
-    createElement(
-      MdmMetaProvider,
-      { module: "mcm" },
-      createElement(editor, { value, onChange: () => undefined })
-    )
+    createElement(MdmMetaProvider, {
+      module: "mcm",
+      children: createElement(editor, { value, onChange: () => undefined }),
+    })
   );
   await act(async () => root!.render(el));
   // 배치 대기(MDM_META_BATCH_MS)와 응답 처리를 흘려보낸다.

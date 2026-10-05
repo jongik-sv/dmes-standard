@@ -14,6 +14,7 @@ import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oa
 import { Input, Radio, Select, Textarea } from "@dk-oasis/shared/form";
 import { ErrorBoundary } from "@dk-oasis/shared/error-boundary";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { DESCRIPTION_LABEL } from "@/lib/ui-meta";
 import {
   WIDGET_DEFAULT_MIN_SIZE,
   type WidgetMeta,
@@ -155,7 +156,7 @@ export function WidgetDetailForm({
           </td>
         </tr>
         <tr>
-          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="description" meta={false} label="설명" /></th>
+          <th style={DETAIL_LABEL_CELL}><MdmFieldLabel {...DESCRIPTION_LABEL} /></th>
           <td style={DETAIL_VALUE_CELL} colSpan={2}>
             <Textarea
               rows={2}

@@ -56,6 +56,8 @@ import {
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { uiCols } from "@/lib/ui-meta";
+
 import { reg as apiReg } from "./api";
 import {
   INITIAL_SYNC_ROWS,
@@ -73,16 +75,16 @@ import {
  * 본 GridColumn[] 에서 제외. As-Is xfdl `displaytype="checkboxcontrol" edittype="checkbox"` (xfdl:53)
  * 등가물 = onRowSelect callback 으로 selectedKeys 추적 (W6 commRoleMng / W7 commUserRoleCopy 정본 패턴).
  */
-const SYNC_COLUMNS: GridColumn[] = [
-  { key: "from1", header: "FROM (서버)", meta: false, width: 90, editable: false, align: "left" },
-  { key: "from2", header: "FROM (구분)", meta: false, width: 90, editable: false, align: "left" },
-  { key: "from3", header: "FROM (인스턴스)", meta: false, width: 130, editable: false, align: "left" },
-  { key: "from4", header: "FROM (스키마)", meta: false, width: 130, editable: false, align: "left" },
-  { key: "to1", header: "TO (서버)", meta: false, width: 90, editable: false, align: "left" },
-  { key: "to2", header: "TO (구분)", meta: false, width: 90, editable: false, align: "left" },
-  { key: "to3", header: "TO (인스턴스)", meta: false, width: 130, editable: false, align: "left" },
-  { key: "to4", header: "TO (스키마)", meta: false, width: 130, editable: false, align: "left" },
-];
+const SYNC_COLUMNS: GridColumn[] = uiCols([
+  { key: "from1", header: "FROM (서버)", width: 90, editable: false, align: "left" },
+  { key: "from2", header: "FROM (구분)", width: 90, editable: false, align: "left" },
+  { key: "from3", header: "FROM (인스턴스)", width: 130, editable: false, align: "left" },
+  { key: "from4", header: "FROM (스키마)", width: 130, editable: false, align: "left" },
+  { key: "to1", header: "TO (서버)", width: 90, editable: false, align: "left" },
+  { key: "to2", header: "TO (구분)", width: 90, editable: false, align: "left" },
+  { key: "to3", header: "TO (인스턴스)", width: 130, editable: false, align: "left" },
+  { key: "to4", header: "TO (스키마)", width: 130, editable: false, align: "left" },
+]);
 
 /**
  * 그리드 row — rowKey 는 targetid (16 행 정적, prefix 2자 + 1~4 — MA1~MA4 / RA1~RA4 / RB1~RB4 / NU1~NU4).

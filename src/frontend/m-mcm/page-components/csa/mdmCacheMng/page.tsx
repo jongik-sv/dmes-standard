@@ -23,6 +23,7 @@ import {
 import { AgDataGrid, GridBadge, GridPanel, type GridColumn } from "@dk-oasis/shared/grid";
 import { JsonView } from "@dk-oasis/shared/json-view";
 import { MdmFieldLabel } from "@dk-oasis/shared/mdm-meta";
+import { uiCols } from "@/lib/ui-meta";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 
 import { describeForceFailure, fetchAllStatus, fetchAppliedSeq, fetchEntries, fetchEntry, forceByType, groupByType } from "./api";
@@ -68,27 +69,25 @@ const STATE_BADGE: Record<ModuleState, { bg?: string; color?: string; muted?: bo
   DOWN: { muted: true },
 };
 
-const MODULE_COLUMNS: GridColumn[] = [
-  { key: "module", header: "모듈", meta: false, width: 80, align: "left" },
+const MODULE_COLUMNS: GridColumn[] = uiCols([
+  { key: "module", header: "모듈", width: 80, align: "left" },
   {
     key: "state",
     header: "상태",
-    meta: false,
     width: 80,
     align: "center",
     render: (v) => <GridBadge label={MODULE_STATE_LABELS[v as ModuleState] ?? String(v)} {...STATE_BADGE[v as ModuleState]} />,
   },
-  { key: "instanceId", header: "인스턴스", meta: false, width: 180, align: "left" },
-  { key: "appliedSeq", header: "적용 순번", meta: false, width: 100, align: "right", type: "number" },
-  { key: "latestSeq", header: "MDM 순번", meta: false, width: 100, align: "right", type: "number" },
-  { key: "lastSuccessAt", header: "마지막 확인", meta: false, width: 140, align: "center" },
-  { key: "consecutiveFailures", header: "연속 실패", meta: false, width: 100, align: "right", type: "number" },
-  { key: "total", header: "항목 수", meta: false, width: 100, align: "right", type: "number", headerTooltip: "목차 + 본문 합계" },
+  { key: "instanceId", header: "인스턴스", width: 180, align: "left" },
+  { key: "appliedSeq", header: "적용 순번", width: 100, align: "right", type: "number" },
+  { key: "latestSeq", header: "MDM 순번", width: 100, align: "right", type: "number" },
+  { key: "lastSuccessAt", header: "마지막 확인", width: 140, align: "center" },
+  { key: "consecutiveFailures", header: "연속 실패", width: 100, align: "right", type: "number" },
+  { key: "total", header: "항목 수", width: 100, align: "right", type: "number", headerTooltip: "목차 + 본문 합계" },
   // 크기는 숫자로 두고 render 로만 바꿔 쓴다 — 열 정렬은 숫자 값으로 한다. 상태를 받지 못한 행(null)은 다른 칸처럼 비운다.
   {
     key: "totalBytes",
     header: "캐시 추정 크기",
-    meta: false,
     width: 110,
     align: "right",
     type: "number",
@@ -98,23 +97,21 @@ const MODULE_COLUMNS: GridColumn[] = [
   {
     key: "heapUsed",
     header: "힙 사용/최대",
-    meta: false,
     width: 160,
     align: "right",
     type: "number",
     headerTooltip: "이 인스턴스 JVM 힙 — 사용 중 / 최대",
     render: (v, row) => (v == null && row.heapMax == null ? "" : `${formatBytes(v as number | null)} / ${formatBytes(row.heapMax as number | null)}`),
   },
-];
+]);
 
 /** 항목 열. "남은 수명" 머리 툴팁은 고른 모듈의 유휴 수명·절대 상한으로 만든다(모르면 툴팁 없음). */
-const entryColumns = (lifetimeHelp: string): GridColumn[] => [
-  { key: "type", header: "대상", meta: false, width: 100, align: "left", render: (v) => TARGET_TYPE_LABELS[v as MdmTargetType] ?? String(v) },
-  { key: "key", header: "키", meta: false, width: 180, minWidth: 180, align: "left" },
+const entryColumns = (lifetimeHelp: string): GridColumn[] => uiCols([
+  { key: "type", header: "대상", width: 100, align: "left", render: (v) => TARGET_TYPE_LABELS[v as MdmTargetType] ?? String(v) },
+  { key: "key", header: "키", width: 180, minWidth: 180, align: "left" },
   {
     key: "kind",
     header: "구분",
-    meta: false,
     width: 90,
     align: "center",
     headerTooltip: "목차 = 버전 목록, 본문(최종) = 지금 적용 중인 버전, 본문(옛) = 지난·예약 버전",
@@ -122,19 +119,17 @@ const entryColumns = (lifetimeHelp: string): GridColumn[] => [
   {
     key: "absent",
     header: "값",
-    meta: false,
     width: 80,
     align: "center",
     render: (v) =>
       v ? <GridBadge label="없음" muted /> : <GridBadge label="있음" bg="var(--color-success-soft)" color="var(--color-success)" />,
   },
-  { key: "loadedAt", header: "적재 시각", meta: false, width: 140, align: "center" },
-  { key: "lastAccessAt", header: "마지막 조회", meta: false, width: 140, align: "center" },
-  { key: "hits", header: "조회 수", meta: false, width: 100, align: "right", type: "number" },
+  { key: "loadedAt", header: "적재 시각", width: 140, align: "center" },
+  { key: "lastAccessAt", header: "마지막 조회", width: 140, align: "center" },
+  { key: "hits", header: "조회 수", width: 100, align: "right", type: "number" },
   {
     key: "remainingSeconds",
     header: "남은 수명(초)",
-    meta: false,
     width: 100,
     align: "right",
     type: "number",
@@ -143,14 +138,13 @@ const entryColumns = (lifetimeHelp: string): GridColumn[] => [
   {
     key: "bytes",
     header: "추정 크기",
-    meta: false,
     width: 100,
     align: "right",
     type: "number",
     headerTooltip: ESTIMATED_SIZE_HELP,
     render: (v) => formatBytes(v as number | null),
   },
-];
+]);
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
