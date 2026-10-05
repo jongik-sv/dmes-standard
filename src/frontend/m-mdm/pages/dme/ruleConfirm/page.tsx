@@ -5,7 +5,7 @@
  *
  * 정본: docs/mdm/screens/ruleConfirm/ruleConfirm_기능설계서.md, TSK-08-05 design.md §6.8. dmc/codeConfirm 화면 구조를
  * 룰 모양으로 복제했다. 왼쪽은 확정 대기 DRAFT 목록, 오른쪽은 확정 폼·검사 결과 표(항목 4 + 적용 순서)·입력 계약 변경·
- * row_id diff 다. 진입 룰·버전은 handoff(openMdmPage) > snapshot 순서로 정하고 받은 값은 snapshot 에 남긴다.
+ * row_id diff 다. 진입 룰·버전은 handoff(openMdmPage)로 정하고 snapshot 에 담지 않는다(R8, 2026-10-05).
  * 검사(`validate`)는 쓰기가 없고, 확정 버튼은 검사한 apply_from 이 지금 입력값과 같을 때만 켜진다(I34). 경고 확인과
  * 미래 적용 경고는 대화상자에서 한다(D4·D9). 서버 거부 message 는 오류 영역에 그대로 보인다(I39).
  * 시안 「상신」의 긴급·사유·결재 영역과 적용시점 하한은 만들지 않는다(spec 제약). OBJECT_ID = screenId = 'ruleConfirm'.
@@ -128,16 +128,9 @@ interface Target {
   ver: string | null;
 }
 
-/** handoff·snapshot 의 버전을 `"1.001"` 로 맞춘다(옛 snapshot 의 숫자도 받는다). 읽을 수 없으면 null(서버가 DRAFT 를 고른다). */
+/** handoff 의 버전을 `"1.001"` 로 맞춘다(옛 snapshot 의 숫자도 받는다). 읽을 수 없으면 null(서버가 DRAFT 를 고른다). */
 function toVer(value: unknown): string | null {
   return typeof value === "string" || typeof value === "number" ? normVer(value) : null;
-}
-
-function snapshotTarget(snapshot: unknown): Target | null {
-  if (!snapshot || typeof snapshot !== "object") return null;
-  const s = snapshot as Record<string, unknown>;
-  if (typeof s.maruRuleId !== "string" || !s.maruRuleId) return null;
-  return { maruRuleId: s.maruRuleId, ver: toVer(s.ver) };
 }
 
 interface Checked {
@@ -148,7 +141,7 @@ interface Checked {
   futureApplyFrom: boolean;
 }
 
-export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: RuleConfirmPageProps) {
+export default function RuleConfirmPage({ tabId }: RuleConfirmPageProps) {
   const { showMessage } = useMessage();
   const rbac = useUserButtonRbac();
   const canValidate = canDoButton(rbac, SCREEN_ID, "validate");
@@ -169,9 +162,6 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
   const [modalOpen, setModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const handedOff = useRef(false);
-  const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
 
   const fail = useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []);
 
@@ -207,25 +197,17 @@ export default function RuleConfirmPage({ tabId, snapshot, onSnapshotChange }: R
     setCheckedApplyFrom(null);
     setClosedPreviousVer(null);
     setError(null);
-    const base = (snapshotRef.current as Record<string, unknown> | null) ?? {};
-    onSnapshotChange?.({ ...base, maruRuleId: t.maruRuleId, ...(t.ver !== null ? { ver: t.ver } : {}) });
     void load(t);
-  }, [load, onSnapshotChange]);
+  }, [load]);
 
-  // 진입 값: handoff(한 번만) > snapshot. handoff 의 ver 문자열은 `normVer` 로 맞춘다(소수부를 버리지 않는다, D-144).
+  // 진입 값: handoff(한 번만). 선택 행은 snapshot 에 담지 않는다(R8). handoff 의 ver 문자열은 `normVer` 로 맞춘다(소수부를 버리지 않는다, D-144).
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruRuleId) {
-      handedOff.current = true;
       choose({ maruRuleId: params.maruRuleId, ver: toVer(params.ver) });
     }
   });
 
   useEffect(() => {
-    const fromSnapshot = snapshotTarget(snapshotRef.current);
-    if (!handedOff.current && fromSnapshot) {
-      setTarget(fromSnapshot);
-      void load(fromSnapshot);
-    }
     void refreshList("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

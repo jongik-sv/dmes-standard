@@ -9,7 +9,7 @@
  * 새 탭을 열지 않는다 — 등록 뒤에도 같은 화면에서 방금 만든 코드를 고른 채 보인다.
  * 오른쪽 상세의 모든 쓰기는 옛 codeEdit 그대로 `codeEdit` 서비스를 부르고 권한도 `canDoButton(rbac,"codeEdit",action)`
  * 으로 본다(서버 OBJECT codeEdit 는 메뉴만 없어지고 남는다). 등록만 `canDoButton(rbac,"codeMng","reg")`.
- * 진입 코드는 handoff(openMdmPage) > snapshot 순서로 정하고 받은 값은 snapshot 에 남긴다(§6.10, 옛 codeEdit 그대로).
+ * 진입 코드는 handoff(openMdmPage)로 정하고, 선택 코드·버전은 snapshot 에 담지 않는다(R8, 2026-10-05 결정).
  *
  * 선택과 응답의 정합(2026-09-28 검토 결함 1): 목록 강조(`selectedId`)와 상세(view·form·버전 선택)는 늘 같은 코드를
  * 가리켜야 한다. 그래서 선택을 바꾸는 길은 `select` 하나로 모은다. 코드에서 코드로 옮길 때(목록 행·handoff)는 이전 상세를
@@ -84,19 +84,7 @@ function DetailVeil({ stale, children }: { stale: boolean; children: ReactNode }
 
 type Mode = "none" | "detail";
 
-interface Target {
-  maruCodeId: string;
-  ver: string | null;
-}
-
-function snapshotTarget(snapshot: unknown): Target | null {
-  if (!snapshot || typeof snapshot !== "object") return null;
-  const s = snapshot as Record<string, unknown>;
-  if (typeof s.maruCodeId !== "string" || !s.maruCodeId) return null;
-  return { maruCodeId: s.maruCodeId, ver: typeof s.ver === "string" && s.ver ? s.ver : null };
-}
-
-export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeMngPageProps) {
+export default function CodeMngPage({ tabId }: CodeMngPageProps) {
   const { showMessage } = useMessage();
   const rbac = useUserButtonRbac(true);
 
@@ -127,7 +115,6 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
   const [error, setError] = useState<{ message: string; reload: boolean } | null>(null);
   const [newVersionKind, setNewVersionKind] = useState<VerKind | null>(null);
   const [handoverOpen, setHandoverOpen] = useState(false);
-  const handedOff = useRef(false);
   // 지금 보이는 상세의 코드 ID·서버 헤더 폼 값과 폼이 기대는 auditVer — 다시 읽은 응답이 사용자가 고친 폼을 덮지 않게 하는 데 쓴다.
   const shownId = useRef<string | null>(null);
   const serverForm = useRef<HeaderForm | null>(null);
@@ -136,29 +123,9 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
   const formRef = useRef(form);
   formRef.current = form;
   const [formAuditVer, setFormAuditVer] = useState<number | null>(null);
-  const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
 
   const begin = useCallback(() => setPending((n) => n + 1), []);
   const end = useCallback(() => setPending((n) => Math.max(0, n - 1)), []);
-
-  const writeSnapshotTarget = useCallback(
-    (id: string, ver: string | null) => {
-      const base = { ...((snapshotRef.current as Record<string, unknown> | null) ?? {}) };
-      base.maruCodeId = id;
-      if (ver) base.ver = ver;
-      else delete base.ver;
-      onSnapshotChange?.(base);
-    },
-    [onSnapshotChange],
-  );
-
-  const clearSnapshotTarget = useCallback(() => {
-    const base = { ...((snapshotRef.current as Record<string, unknown> | null) ?? {}) };
-    delete base.maruCodeId;
-    delete base.ver;
-    onSnapshotChange?.(base);
-  }, [onSnapshotChange]);
 
   // current=false 는 이미 다른 코드로 옮긴 뒤 도착한 쓰기 실패 — 알리기는 하되 지금 코드를 다시 불러오지는 않는다.
   const fail = useCallback((e: unknown, current = true) => {
@@ -185,7 +152,7 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
   );
 
   /**
-   * 선택을 바꾸는 유일한 길(목록 행·handoff·snapshot·삭제 성공·조회 실패). 열린 모달을 닫고 순번을 올려,
+   * 선택을 바꾸는 유일한 길(목록 행·handoff·삭제 성공·조회 실패). 열린 모달을 닫고 순번을 올려,
    * 이전 코드로 가던 응답이 도착해도 버려지게 한다. keepDetail 이면 이전 상세를 새 상세가 올 때까지 잠근 채 남기고
    * (`stale`), 아니면 상세·버전 선택을 바로 비운다.
    */
@@ -247,24 +214,22 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
         apply(next, ver, discard);
       } catch (e) {
         if (seq !== detailSeq.current) return;
-        // 강조만 남고 상세가 이전 코드로 남지 않게 선택을 비운다. snapshot 도 바로 지워 다시 열 때 같은 오류를 또 띄우지 않는다.
+        // 강조만 남고 상세가 이전 코드로 남지 않게 선택을 비운다.
         select(null, "none");
-        clearSnapshotTarget();
         fail(e);
       } finally {
         end();
       }
     },
-    [apply, begin, end, select, clearSnapshotTarget, fail],
+    [apply, begin, end, select, fail],
   );
 
   const chooseDetail = useCallback(
     (id: string, ver: string | null) => {
       select(id, "detail", true);
-      writeSnapshotTarget(id, ver);
       return loadDetail(id, ver);
     },
-    [select, writeSnapshotTarget, loadDetail],
+    [select, loadDetail],
   );
 
   const handleRowClick = useCallback(
@@ -275,11 +240,10 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
     [chooseDetail],
   );
 
-  // 진입 값: handoff(마운트 때·자기 탭 재활성화 때마다) > snapshot. handoff 는 목록도 함께 조회한다(§9) — 이미 열린
+  // 진입 값: handoff(마운트 때·자기 탭 재활성화 때마다). handoff 는 목록도 함께 조회한다(§9) — 이미 열린
   // 탭이 다시 handoff 를 받을 때(재활성화) 목록이 그 코드로 안 좁혀도 최소한 최신 상태를 보이게.
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruCodeId) {
-      handedOff.current = true;
       setKeyword("");
       setStatus("");
       void loadList("", "");
@@ -287,15 +251,7 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
     }
   });
 
-  useEffect(() => {
-    const fromSnapshot = snapshotTarget(snapshotRef.current);
-    if (!handedOff.current && fromSnapshot) {
-      select(fromSnapshot.maruCodeId, "detail");
-      void loadDetail(fromSnapshot.maruCodeId, fromSnapshot.ver);
-    }
-    // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청). snapshot 복원은 상세만 불러 목록에 기대지 않는다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청). 선택 코드·버전은 snapshot 에 담지 않는다(R8, 2026-10-05).
 
   const handleSearch = useCallback(() => void loadList(keyword, status), [loadList, keyword, status]);
 
@@ -349,7 +305,6 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
       // 그사이 다른 코드를 골랐으면(handoff) 그 선택은 그대로 둔다.
       if (selectedIdRef.current === id) {
         select(null, "none");
-        clearSnapshotTarget();
       }
       await reloadList();
     } catch (e) {
@@ -358,7 +313,7 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
       writing.current -= 1;
       end();
     }
-  }, [header, begin, end, showMessage, select, clearSnapshotTarget, reloadList, fail]);
+  }, [header, begin, end, showMessage, select, reloadList, fail]);
 
   const setField = useCallback((key: keyof HeaderForm, value: string) => {
     setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -368,10 +323,8 @@ export default function CodeMngPage({ tabId, snapshot, onSnapshotChange }: CodeM
     (ver: string) => {
       if (stale) return;
       setSelectedVer(ver);
-      // 버전 카드에서 고른 ver 도 snapshot 에 남겨 새로고침 뒤에도 그 버전을 고른 채 연다.
-      if (selectedIdRef.current) writeSnapshotTarget(selectedIdRef.current, ver);
     },
-    [stale, writeSnapshotTarget],
+    [stale],
   );
 
   const runDraft = useCallback(
