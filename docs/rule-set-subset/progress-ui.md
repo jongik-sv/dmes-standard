@@ -120,10 +120,12 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
   4. 브라우저 확인(조정 세션, 사용자 승인 뒤): 경로 줄 모양·좁은 폭 줄바꿈, 프레임 전환 때 화면 맞춤(`fitKey`), 경고 줄 색.
 
 ## ui:8. SET 노드 화면
-- 상태: 1단계(모델·상태) 끝. 캔버스·패널·팝업·툴바 링크·받는 노드 UI·e2e 는 다음 단계.
+- 상태: 1단계(모델·상태)·2단계(화면·e2e 시나리오) 끝. e2e E19 는 `--list` 까지만 했다(실행은 사용자 승인 뒤 조정 세션).
 - 커밋(1단계): `7209d80e`(types·api), `243e189f`(flow-edit·flow-vars·caller-links, 시험 `set-node-model.test.ts`), `eb3375f7`(useRuleSetEdit·편집기 한 줄, 시험 `set-calls-state.test.ts`·이 절)
+- 커밋(2단계): `2898a285`(캔버스 — SET 노드 그리기·도구 상자·메뉴·세트 검색 팝업·`styles/set.ts`·편집 동작), `48c47800`(오른쪽 패널 — 머리글 CALL·SET 속성·받는 노드 SET 종류·목록 밖 종류 풀기·입출력 표 세트 키, 시험 `set-node-canvas.test.ts`), `33b305e0`(편집기·툴바·디버거 연결, 시험 `set-node-page.test.ts`·`debug-subset.test.ts` 한 줄), `5f678e29`(e2e E19·고정 데이터), `e8947b7f`(다른 세트를 열면 편집 모드여도 팝업 닫기)
 - 시험 결과(1단계): `vitest run tests/dme/ruleSetEdit` → 101파일 1911 통과·0 실패(새 시험 27 = set-node-model 13 + set-calls-state 14), m-mdm `tsc --noEmit` 0, 바꾼 파일 mantine·aggrid audit 0건. `vitest run tests/dme tests/ui-meta-lock.test.ts` → 135파일 2549 통과·0 실패.
-- 다음 단계 넘김(1단계 grep 으로 본 자리): `FlowCanvas` 의 `edgeChips(vflow, rules)` 에 `calls`·memo 의존성, `BREAKABLE` 세 곳(FlowCanvas·debug-menu·useSimulation)에 SET, `nodes.tsx` 받는 노드 연결점·메뉴 조건(RULE·TASK)에 SET, `FlowCanvas` 이동 한계 종류 목록(RULE·TASK·IF·PARALLEL)에 SET, `flow-layout` 자동 배치(D-140)·받는 노드 자리(D-142·D-143)에서 SET 단계 확인, ui:5t 리뷰 넘김(목록 밖 저장 종류 칩 해제). `ASSIGNABLE_KINDS` 는 SET 을 빼는 것이 맞다.
+- 시험 결과(2단계): `vitest run tests/dme/ruleSetEdit tests/ui-meta-lock.test.ts` → 104파일 1940 통과·0 실패(새 시험 24 = set-node-page 13 + set-node-canvas 11, 기존 시험 기대 갱신 2파일 — 계획 조정 10). 그 뒤 하위 프레임 SET 노드 줄 한 건(계획 조정 14)을 더해 세 파일 38건 통과. `vitest run tests/dme tests/ui-meta-lock.test.ts` → 137파일 2573 통과·0 실패(팝업 닫기 fix `e8947b7f` 앞에서 돌렸고, fix 뒤 `set-node-page`·`set-tabs` 30건을 다시 돌려 통과). 디버그 입력 폼은 겉모양을 다시 받아도 이름이 같은 칸의 값을 남긴다(`fieldsOf` 가 이름으로 합친다). 새 고정 데이터는 세 e2e 스펙의 개수 단언(넓은 검색어 건수·목록 행 수)에 걸리지 않음을 grep 으로 확인했다. m-mdm `tsc --noEmit` 0, 바꾼 화면 파일 20개 mantine·aggrid audit 0건, `.css` import 0. `playwright test e2e/mdm-ruleSetEdit.spec.ts --list` → 19건(E19 포함), `mdm-ruleSetMng`·`mdm-ruleSetConfirm` `--list` 8건 그대로. 고정 데이터는 Flyway V1~V23 을 sqlite3 로 빈 DB(스크래치)에 깐 뒤 넣어 오류 없이 들어가는 것을 확인했다(서버 기동 없음).
+- 1단계가 넘긴 자리(2단계에서 모두 처리했다): `FlowCanvas` 의 `edgeChips(vflow, rules)` 에 `calls`·memo 의존성, `BREAKABLE` 세 곳(FlowCanvas·debug-menu·useSimulation)에 SET, `nodes.tsx` 받는 노드 연결점·메뉴 조건(RULE·TASK)에 SET, `FlowCanvas` 이동 한계 종류 목록(RULE·TASK·IF·PARALLEL)에 SET, `flow-layout` 자동 배치(D-140)·받는 노드 자리(D-142·D-143)에서 SET 단계 확인, ui:5t 리뷰 넘김(목록 밖 저장 종류 칩 해제). `ASSIGNABLE_KINDS` 는 SET 을 빼는 것이 맞다.
 - 계획 조정(본문과 다르게 한 것):
   1. **`node()` 는 그대로, setId 는 SET 노드에만** — 조정 확정(모든 노드 `setId: null` 방식 안 씀). `copyNode`(ui:9)와 같이 label 뒤에 둔다. 본문이 놓친 붙여넣기(`instantiate`)도 SET 이면 setId 를 옮긴다(안 하면 붙여 넣은 SET 이 세트를 잃는다).
   2. **`caller-links.ts` 정규식** — 본문은 `CALLER_BROKEN 세트 {P}:` 만 봤다. 서버를 읽어 보니 (a) 저장의 CALLER_BROKEN 은 거부가 아니라 WARN 사본(`callWarnings`)이라 경고 줄로 오고, 화면 경고 줄(`warnLines`)은 코드 없이 문구만이라 `세트 P: …` 꼴이다. (b) 부르는 행이 여럿이면 `세트 P v1.001: …`(`SetCallerRecheck`). 그래서 문구(거부) 쪽은 `CALLER_BROKEN 세트 P( vN.NNN)?: `·`CALLER_BROKEN 사용 중인 세트 P1, P2가 `(폐기 거부), 줄 쪽은 `^세트 P( vN.NNN)?: `·`^부르는 세트에 경고가 생겼다: P1, P2$` 를 본다. ID 는 서버 `STD_PHYS_NAME` 이 대문자로 시작하므로 `세트 호출이 순환한다`·`세트 노드 s1에` 같은 다른 경고는 걸리지 않는다(시험 고정). 이 화면에서 문구 쪽 CALLER_BROKEN 이 실제로 나는 길은 폐기 거부뿐이다(저장은 경고, 되살리기는 연쇄 재검사를 하지 않는다).
@@ -133,8 +135,57 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
   6. **`written` 반응은 훅 안에** — 본문은 편집기 효과(`flowSetIds(flowRef.current)`). 훅 옵션 `written`(탭 틀의 `RuleSetTabsApi.written`)을 받아 seq 가 바뀌면 판정한다(편집기는 넘기기만, 한 줄). 마운트 때 값은 새 알림이 아니다. 자기 세트 알림은 무시. 흐름이 부르면 이미 받았거나 받는 중이어도 다시 묻고(`refreshCalls` 와 같은 강제), 앞 요청의 응답은 그 ID 에 쓰지 않는다(ID 별 마지막 요청 번호). 흐름이 부르지 않으면 들고 있던 그 세트의 겉모양을 버린다(되돌리기로 SET 노드가 돌아오면 새로 묻게).
   7. **`checks`** — 본문의 plain `useMemo` 대신 기존 같은-참조 캐시(`checksMemo`)를 두고 비교에 `calls` 를 더했다.
   8. **`sim-dirty-subsets` 는 만들지 않는다** — ui:9 결정 4 의 `dbg-subset-unconfirmed`(C-D18 문구·조건)가 대신한다(조정 확정).
+  9. **「세트 탭으로 열기」 는 보기 메뉴(`view-menu`)에 둔다** — 본문은 편집 메뉴 SET 갈래 맨 앞 `set-open` 이다. 룰 노드 `open-rule` 처럼 모든 모드에서 열려야 보기 모드에서도 하위 세트로 갈 수 있어 보기 메뉴로 옮겼다. id·testid(`flow-menu-item-set-open`)는 그대로다. 편집 메뉴 SET 갈래는 복사·복제·예외 받기 추가·삭제다. 본문에 없던 `catch-add` 는 과제(받는 노드 UI 를 SET 에도)대로 더했다. 색상은 없다(스펙 §9).
+  10. **선 메뉴 「룰 세트 넣기」 는 「룰 넣기」 바로 뒤에 둔다** — 기존 `flow-menu.test.ts` 의 선 메뉴 정확 배열 4건에 `insert-set` 을 넣었다. `toolbox.test.ts` 이름표에는 「룰 세트」를 더했다(요소 여섯). 소유 시험이고 동작이 본문대로 바뀐 것이다.
+  11. **SET 노드 속성 패널 testid 는 `flow-prop-set-node`** — 본문의 `flow-prop-set` 은 이미 세트 전체 패널(`SetPanel`)의 testid 다. 섹션 id 는 `call-basic`·`call-inputs`·`call-outputs`·`call-callers` 다.
+     - 표 머리는 `MdmFieldLabel` 대신 글자로 둔다. `MdmFieldLabel` 을 더하면 `tests/fixtures/ui-meta-lock.json` 의 PropertyPanel 기록이 바뀌어 잠금 시험이 깨진다(시험·기록 파일은 이 레인 소유 밖).
+     - 같은 까닭으로 받는 노드의 「붙은 룰/붙은 노드」 식은 기록 글자(`onTask ? …`) 그대로 두고, `onTask` 를 TASK·SET 으로 넓혔다.
+  12. **`NO_RULE_LIST_KINDS` 에 `CALL` 을, `SetPanel` 에 `calls` 를 더했다** — 둘 다 본문에 없다. 없으면 SET 노드를 골라도 룰 목록 섹션이 붙는다(`ruleListMode` = insert). 또 `flowIo` 가 겉모양 없이 계산해 세트 입출력 표의 「세트 {ID}」 표시가 화면에 나오지 않는다.
+  13. **CSS** — 링크 단추는 `.rsf-set-link`(묶음 `.rsf-set-links`)다. 본문의 `.rsf-link` 는 연결 손잡이 클래스(`styles/connect.ts`)와 겹친다.
+     - 본문 토큰 `--color-bg-subtle` 은 없어 `--color-bg-header` 를 썼다.
+     - `SET_CSS` 는 `border-width` 만 둔다. `TASK_CSS` 뒤·`CATCH_CSS` 앞에 이어 caught 점선(2px)·상태 색이 이긴다.
+  14. **SetBody** — 본문 `TitleRow` 대신 같은 클래스로 직접 그린다(외관 아이콘이 없어 세트 아이콘을 고정한다). 작은 줄(`flow-set-sub-{id}`)은 다음과 같다.
+     - 겉모양 있음: 「룰 세트 {ID}」
+     - exists=false: 「없는 세트(확정 버전 없음)」
+     - 맵에 없음: 「세트 정보를 받는 중」
+     - 캔버스가 맵을 받지 않으면(디버거 하위 프레임 — `calls` 를 넘기지 않음) 받는 중 대신 「룰 세트 {ID}」 다(`FlowNodeData.callsGiven`).
+  15. **팝업** — 끼울 선은 편집기 상태(`pickEdge`, undefined 가 아니면 열림)다.
+     - 편집 모드를 나가거나 다른 세트를 열면 닫는다. 다시 편집 모드가 되어도 저절로 뜨지 않는다.
+     - 숨은 탭에서는 그리지 않고(`EditorActiveContext`), 그 탭을 다시 고르면 다시 보인다.
+     - 후보 거르기는 순수 함수 `setPickRows` 로 두고 시험했다.
+     - 계획 시험의 `typeInto(…"")`+`settle` 은 [찾기] 단추로 바꿨다. `IdPicker` 는 글자를 쳐도 찾지 않는다.
+  16. **편집기의 `written` 효과는 넣지 않았다** — 1단계 계획 조정 6 대로 훅이 처리한다. 넣으면 같은 요청이 두 번 나간다.
+  17. **디버그 입력 폼·조사식에 `calls` 를 넣었다** — 본문에 없다. `useSimulation` 다섯째 인자와 `VariablePanel` prop `calls` 로 `flowIo` 에 겉모양을 넣는다. 없으면 SET 노드가 부르는 세트의 입력을 디버그 입력 폼에서 받을 수 없다(엔진은 부모 입력 사전 검사에 하위 입력을 넣는다, 스펙 §12).
+  18. **e2e 는 E16 이 아니라 E19 다** — E16~E18 이 이미 있다(받는 노드·옛 형식·끝내는 갈래).
+  19. **e2e 시나리오를 서버 사실에 맞춰 바꿨다** — 본문 E16 은 A DRAFT 에 SET 을 넣어 저장한 뒤 B DRAFT 를 저장하고, B 메시지의 CALLER_WARN 과 A 탭 검사 변화를 단언했다.
+     - Java 를 읽어 보니 겉모양은 기준 시각의 RELEASED 로 계산한다(`SetCallIoReader.read`). 부르는 세트·연쇄 재검사는 부모 **RELEASED 행의 CALL_SET_IDS** 만 센다(`SetCallIoReader` Ruling 25, `RuleSetEditService.callWarnings`). 그래서 본문 순서로는 CALLER_WARN 도 A 탭 검사 변화도 생기지 않는다.
+     - 스펙 §12 의 "확정된 고정 데이터" 로 바꿨다. E2S_SUBB 를 부르는 확정 부모 E2S_SUBP(SET 노드 흐름, `CALL_SET_IDS ["E2S_SUBB"]`)를 고정 데이터로 둔다.
+     - (1) A(E2S_SUBA)에 SET 노드를 넣는 순간 E2S_SUBB RELEASED 겉모양으로 A 검사가 바뀐다(중복 대입 경고 1건).
+     - (2) 링크로 연 B 탭에서 E2S_TAG 를 더해 저장하면 A 탭이 CALL_IO 를 다시 묻는다(쓰기 알림). 겉모양은 RELEASED 라 A 검사가 그대로인 것도 단언한다. B 메시지에는 "부르는 세트에 경고가 생겼다: E2S_SUBP" 와 링크가 온다.
+     - (3) 링크로 연 E2S_SUBP 탭의 SET 노드 속성 패널에 부르는 세트로 E2S_SUBP 자신이 보인다.
+     - B 를 확정까지 하는 길은 확정 화면(다른 화면 폴더)을 거쳐야 해서 쓰지 않았다.
+  20. **고정 데이터는 새 문장만 더했다** — 기존 VALUES 목록과 DRAFT 문장(WHERE IN)은 그대로 둔다. 파일 끝에 룰 1(E2S_TAG)·세트 3(E2S_SUBA·E2S_SUBB·E2S_SUBP)·RELEASED 3·담당자 DRAFT 2 를 따로 넣었다.
+     - 머리 주석의 룰 수(8 → 9)와 세트 목록 줄을 고쳤다.
+     - `mdm-ruleSetMng.spec` 의 건수 단언(`ruleId: E2S_OLD` → 1건)은 새 세트가 E2S_OLD 를 담지 않아 그대로다. S_GRD 결과 변수 검색은 건수를 보지 않는다.
 - 결정:
   1. **새 API(다음 단계가 쓴다)** — `api.callIo(setIds)`·`api.callers(setId)`, `RuleSetEditState.calls`·`refreshCalls(ids)`, 훅 옵션 `written`, `flow-edit.insertSet(f, edgeId, setId, label?)`, `flow-vars.edgeChips(f, rules, calls?)`, `caller-links.callerSetIds(text, lines?)`, `types.RuleSetCallIoResult`·`RuleSetView.calls?`·`"CALLER_WARN"`.
   2. **SET 노드 = 단계** — `isStep` 에 SET: 지우기(붙은 받는 노드 같이)·옮기기·복사·복제·붙여넣기(접두어 `s`)·돌아오는 자리 걷기가 RULE·TASK 와 같다. 룰 지정(`assignRule`)은 그대로 빈 단계·룰만. 외관(`setNodeStyle`·`setNodesColor`)은 `STYLED_KINDS`(RULE·TASK)만이라 SET 은 거부·건너뜀(스펙 §9).
   3. **겉모양 받기 실패** — 오류 창(`state.error`, 조건식 IO 실패와 같은 길). 숨은 탭이면 탭을 고를 때 뜬다(ui:7 결정 6).
+  4. **캔버스에서 SET 노드는 RULE·TASK 와 같은 단계다**
+     - 손댄 자리: `BREAKABLE` 세 곳(캔버스·디버그 메뉴·`useSimulation`), 선 위로 옮기기(`isMovable`), 예외 연결점(`CatchHandle`·`handlesOf` — `CATCHABLE`). 노드 크기는 이미 `NODE_SIZE.SET` = 룰이다.
+     - 자동 배치(D-140)·받는 노드 자리(D-142·D-143)는 종류를 가리지 않거나 `CATCHABLE` 을 써서 고칠 것이 없었다. 같은 새 형식 흐름에서 SET 자리를 RULE 로 바꿔도 `autoLayout` 결과가 같음을 시험으로 고정했다. 옛 형식 MERGE 의 짝이 SET 이면 구조 오류라 배치가 달라지는 것은 ui:5t 규칙대로다.
+     - 이동 한계(`aac858aa`, 화면 범위 translateExtent)는 종류를 보지 않는다.
+  5. **링크로 열기는 `tabsApi.openSet` 한 길이다** — 노드 링크 아이콘·보기 메뉴 「세트 탭으로 열기」·속성 패널 [세트 탭으로 열기]·부르는 세트 목록·메시지 링크가 모두 이 길을 쓴다.
+     - 콜백은 탭 틀의 `useCallback` 이라 참조가 안정해 캔버스 노드 memo 를 다시 돌리지 않는다(§16).
+     - 겉모양 맵은 상태 참조라 바뀔 때만 새 객체다. 없으면 모듈 상수를 쓴다.
+  6. **부르는 세트 목록(CALLERS)** — SET 노드 속성 패널이 세트 ID 가 바뀔 때마다 묻고, 다른 노드로 옮긴 뒤 온 응답은 버린다(`alive`, §11).
+     - 실패하면 「부르는 세트를 받지 못했다」 한 줄만 보인다. 보조 정보라 오류 창을 띄우지 않는다.
+     - 확정 버전 기준이라 빈 목록은 「없음(확정 버전 기준)」 이다.
+  7. **받는 노드의 목록 밖 종류** — `catchKindsFor(붙은 노드 종류)` 밖인데 저장된 종류는 체크된 칸으로 보인다. 옆에 「이 노드에는 받을 수 없는 종류다. 풀어서 지운다」(`flow-prop-catch-outside-{k}`)를 단다.
+     - 풀면 칸이 사라지고 다시 켤 수 없다.
+     - 받는 노드 안내 문구는 붙은 노드가 SET 이면 하위 세트 문장, 아니면 기존 문장이다. 둘 다 CATCH_SET 을 적는다.
+  8. **SET 노드 설명(`view.descs`)은 이번에 열지 않았다** — `DESC_KINDS` 에 SET 이 없다. 외관을 열지 않는 스펙 §9 와 같은 판단이고, 필요하면 후속으로 한다.
+- 남은 일(조정 세션)
+  - e2e E19 실행: 새 mcm.db·mdm.db, 고정 데이터 적재, 서버 기동이 필요하다(사용자 승인 뒤).
+  - 브라우저 확인: SET 노드 굵은 테두리와 칩 줄바꿈, 세트 검색 팝업 목록이 모달 안에서 잘리지 않는지(`IdPicker` 목록은 절대 위치 560px), 메시지 줄 링크 모양.
 - 확인만 한 것: 확정 보고서의 CALLER_WARN·CALLER_BROKEN 항목 키 `SET:<setId>` 는 확정 화면(`ruleSetConfirm`) 몫이다. 이 화면이 받는 서버 응답(view·save·restore·delete·search)에는 그 키가 없다(Java 대조) — 이 레인은 다른 화면 폴더를 고치지 않으므로 조정 세션이 확정 화면 쪽에 넘긴다.
