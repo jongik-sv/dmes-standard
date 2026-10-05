@@ -13,18 +13,9 @@
 
 머지·측정처럼 바쁜 구간에는 메시지가 오면 그 턴에 처리하므로 틱을 줄이지 않는다. 측정 창 동안에는 측정 레인만 5분 간격 Monitor 로 본다.
 
-## 2. 틱 절차(SKILL.md 1~8 의 상세)
+## 2. 틱 절차
 
-1. `coord-status.sh` 로 상태표를 얻는다. 출력 칸:
-   - `LANE <레인> name=<세션> status=<busy|idle|gone> for=<분>m report=<HH:MM|-> commit=<HH:MM|-> ahead=<n|-> bg=<목록|-> ctx=<n|->% hold=<사유|->`
-   - `PC load1=<f> cpus=<n> per_core=<f> heavy=<held>/<waiting>/<K> swap_mb=<n|-> five=<n|-> week=<n|-> band=<띠>`
-   - `UNLINKED <이름> pid=<pid> cwd=<경로>`: state 에 없는 Claude 세션. 신원 보고를 요청할지 사용자에게 묻는다.
-   - `WINDOW <kind> lane=<레인|-> until=<iso>`: 열린 창.
-   - `status=gone` 은 세션이 사라진 것이다. 핸들 stale 이면 `protocol.md` 3.10 으로 신원을 다시 요청한다. 세션 자체가 죽었으면 사용자에게 알린다.
-2. 처리 안 한 메시지를 먼저 처리한다(SKILL.md 「메시지 분기표」).
-3. idle 판정과 배정(아래 3~5).
-4. `stall-check.sh`(`stall.md`), ctx 임계값(`compact.md`), 사용량 띠(`usage.md`), 창 끝(`heavy.md`), 확인 창(`approvals.md`).
-5. 바뀐 것이 없으면 아무 말 없이 끝낸다. 있으면 `coord-state.sh summary`.
+틱은 `scripts/tick.sh` 한 번이다. 이 스크립트가 `coord-status.sh`·`prompt-watch.sh`(+`auto-answer.sh`)·`idle-check.sh`·`stall-check.sh`·`ctx-usage.sh`·`usage-band.sh` 를 차례로 돌리고 행동 줄만 낸다. 줄별 처리는 SKILL.md 「틱 절차」 표다. 상태표 전체가 필요할 때(사용자가 상태를 물을 때, 판단 근거를 볼 때)만 `coord-status.sh` 를 따로 돌린다. 그 출력 칸은 `contract.md` §3.3 이다. `status=gone` 이고 핸들이 stale 이면 `protocol.md` 3.10 으로 신원을 다시 요청하고, 세션이 죽었으면 사용자에게 알린다.
 
 ## 3. 판정 신호와 규칙
 
