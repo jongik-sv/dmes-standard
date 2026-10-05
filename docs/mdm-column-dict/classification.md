@@ -7,18 +7,19 @@ m-mcm·m-mls·m-mdm 화면이 MDM 메타(머리글 툴팁)를 찾는 키를 모�
 
 | 분류 | 행 수 | 처리 |
 |---|---:|---|
-| 사전에 있음 (EXIST) | 44 | 그대로 둔다 |
-| 새 표준 컬럼 등록 (NEW) | 68 | 표준 컬럼 58개를 새로 만들고, 화면 키가 표준 물리명과 다르면 같은 save 에 MES 별칭으로 넣는다(별칭 59개) |
-| MES 별칭 등록 (ALIAS) | 79 | 기존 표준 컬럼 78개에 MES 별칭을 더한다 |
+| 사전에 있음 (EXIST) | 45 | 그대로 둔다 |
+| 사전에 있음 — MDM 별칭 (MDM) | 67 | 등록하지 않는다. C1b(mcm 조회 시스템 코드 `MES,MDM`) 뒤 hit 된다 |
+| 새 표준 컬럼 등록 (NEW) | 69 | 표준 컬럼 59개를 새로 만들고, 화면 키가 표준 물리명과 다르면 같은 save 에 MES 별칭으로 넣는다(별칭 59개). WIDGET_ID 는 용어 「위젯」 을 먼저 등록한다 |
+| MES 별칭 등록 (ALIAS) | 12 | 같은 뜻의 기존 표준 컬럼 12개에 MES 별칭을 더한다 |
 | 표시용 (DISPLAY) | 30 | 화면에서 `meta="표준 물리명"` 으로 원 컬럼에 연결한다(등록 없음) |
-| 범용 키 (GENERIC) | 107 | 화면에서 `meta={false}` 로 끈다(사전에 새로 넣지 않는다) |
+| 범용 키 (GENERIC) | 106 | 화면에서 `meta={false}` 로 끈다(사전에 새로 넣지 않는다) |
 | UI 전용 (UI) | 94 | 등록하지 않는다 |
-| 용어 등록 필요 (TERM) | 1 | 이번 회차 보류(WIDGET_ID — 용어 「위젯」 없음) |
 | 합계 | 423 | 물리명 417개 + 화면이 이미 meta=false 로 둔 키 6개 |
 
 - 등록 전 기준: 수집한 물리명 417개 중 mcm 메타 hit 62, missing 355, unavailable 0(`scripts/mdm-meta/check-meta.sh`, 2026-10-05 12시 로컬).
 - 조정자 실측(메뉴 관리 화면 키 18개 중 5개 hit)은 같은 결과로 재현된다. 이 표의 메뉴 관리 키는 검색 조건·상세 칸까지 넣어 24개다.
-- 등록이 끝나면 NEW·ALIAS 행(147)이 hit 으로 바뀌어야 한다. 범용 키 중 지금 hit 인 17개는 화면이 meta 를 끄면 요청에서 빠진다.
+- 등록과 C1b 가 끝나면 NEW·ALIAS 81행과 MDM 67행이 hit 으로 바뀌어야 한다. 범용 키 중 지금 hit 인 16개는 화면이 meta 를 끄면 요청에서 빠진다.
+- 2026-10-05 조정자 결정(지시 mdm-column-dict-2)을 반영했다: MDM 별칭 키는 MES 별칭으로 겹쳐 넣지 않는다, WIDGET_ID 는 용어를 등록해 신규로 넣는다, TITLE 은 사전에 있음으로 둔다.
 
 ## 2. 방법
 
@@ -46,33 +47,30 @@ m-mcm·m-mls·m-mdm 화면이 MDM 메타(머리글 툴팁)를 찾는 키를 모�
 
 ## 3. 판정 규칙
 
-1. **범용 키**: 수식어 없는 한 단어 키는 화면마다 뜻이 달라 사전 설명이 오해를 부른다. 사전에 있어도(hit 17개 포함) `meta={false}` 로 끈다. 명시 목록:
-   `NAME KEY CODE STATUS TYPE KIND VALUE VAL LABEL ITEM RESULT ID NO SEQ TITLE TEXT NOTE MESSAGE STATE MODE LEVEL ORDER PATH FORMAT COUNT TOTAL DETAIL MEMO TARGET SOURCE MODULE TABLE ROW FIELD HEADER POSITION DIRECTION WIDTH LENGTH SETTING CONDITION EXPR ACTION SORT CHANGE BEFORE AFTER LEFT RIGHT RANGE DOMAIN DISPLAY LABELS VARS USERS ISSUES ACT ACTUAL EXPECT EXPECTED DESCRIPTION DESC OP BY ZONE CHECK CHECKED CHK USE OPEN DEL DELETE PIN CONFIRM SAME NA IMPACT HIT MARK SENT SPARK SURFACE ABSENT FIRST_FALSE EVALUATED Q KEYWORD VER PARAM SERVICE`
+1. **범용 키**: 수식어 없는 한 단어 키는 화면마다 뜻이 달라 사전 설명이 오해를 부른다. 사전에 있어도(hit 16개 포함) `meta={false}` 로 끈다. 명시 목록:
+   `NAME KEY CODE STATUS TYPE KIND VALUE VAL LABEL ITEM RESULT ID NO SEQ TEXT NOTE MESSAGE STATE MODE LEVEL ORDER PATH FORMAT COUNT TOTAL DETAIL MEMO TARGET SOURCE MODULE TABLE ROW FIELD HEADER POSITION DIRECTION WIDTH LENGTH SETTING CONDITION EXPR ACTION SORT CHANGE BEFORE AFTER LEFT RIGHT RANGE DOMAIN DISPLAY LABELS VARS USERS ISSUES ACT ACTUAL EXPECT EXPECTED DESCRIPTION DESC OP BY ZONE CHECK CHECKED CHK USE OPEN DEL DELETE PIN CONFIRM SAME NA IMPACT HIT MARK SENT SPARK SURFACE ABSENT FIRST_FALSE EVALUATED Q KEYWORD VER PARAM SERVICE`
    - 범용 키에서 파생된 표시 키(`KIND_LABEL`·`VER_TEXT`·`TYPE_BADGE` 등)도 범용으로 본다.
    - 예외로 뜻이 고정된 한 단어(ENCODING·EMAIL·CONTEXT·DIMENSION·FACTOR·OFFSET·REQUIRED·DEFINITION·SYSTEMS·TRANSFORM)는 범용으로 보지 않는다.
+   - `TITLE` 은 범용에서 뺀다. 공지·위젯 제목이 사전 TITLE(제목)과 뜻이 같아 「사전에 있음」 으로 둔다(m-mls `NoticeTitleRow` 의 `MdmFieldLabel` 유지, 조정자 결정).
    - hit 이지만 뜻이 다른 `LINE_NO`(사전: 생산 라인 번호, 화면: CSV 줄 번호)도 `meta={false}` 로 둔다.
-   - `TITLE` 은 `m-mls` 공지 화면이 `MdmFieldLabel` 로 일부러 쓰고 있다. 규칙대로 범용에 넣었으니, 툴팁을 남길지 화면 레인이 정한다.
 2. **UI 전용**: 밑줄로 시작하는 키, 실제 DB 컬럼이 없고 화면이 계산하거나 서버 응답에만 있는 값(캐시 상태·건수·비교 결과·이전/이후 값 등).
 3. **표시용**: `*_LABEL`·`*_TEXT`·`*_NM`(SQL 계산 이름)·검색 조건 키(`CBO_*`·`EDT_*`·`FILTER_*`)처럼 원 컬럼이 따로 있는 키. 화면에서 `meta` 에 표준 물리명을 적는다. 신규 컬럼을 가리키는 행은 등록 뒤에 연결된다.
    - `OBJ_NM` 은 지금 hit 이지만 사전 OBJ_NM 은 「목적 명」(목적지)이라 뜻이 다르다. `meta="OBJECT_NM"` 으로 바로잡는다.
-4. **MES 별칭**: 같은 뜻의 표준 컬럼이 있으면 새 컬럼을 만들지 않고 화면 키를 MES 별칭으로 붙인다. 근거는 둘 중 하나다.
-   - MDM·APS 시스템 별칭이 이미 그 표준 컬럼을 가리킨다(67건 — m-mdm 키 66건과 SYSTEM_CODE).
-   - 용어 집합이 같은 표준 컬럼이 있다(mcm·mls 키 12건, 예: CODE_VAL → CD_V, CODE_ID → CD_TP_ID).
-5. **새 표준 컬럼**: 실제 DB 컬럼이고, 같은 뜻의 표준 컬럼이 없고, 논리명이 기존 용어로 모두 분해되는 키. 표준 물리명은 FORWARD 분해 결과(약어)를 쓰고, 화면 키와 다르면 같은 save 의 `systems` 에 MES 별칭을 넣는다.
+4. **사전에 있음 — MDM 별칭**: MDM 시스템 별칭이 이미 표준 컬럼을 가리키는 키(67건 — m-mdm 키 66건과 SYSTEM_CODE). MES 에 없는 필드를 MES 별칭으로 넣으면 사전 뜻이 틀어지므로 등록하지 않는다. C1b 로 mcm 이 `MES,MDM` 순서로 별칭을 찾게 되면 hit 한다.
+5. **MES 별칭**: MES 필드이고 같은 뜻의 표준 컬럼이 있으면 새 컬럼을 만들지 않고 화면 키를 MES 별칭으로 붙인다. 근거는 용어 집합이 같은 표준 컬럼이다(mcm·mls 키 12건, 예: CODE_VAL → CD_V, CODE_ID → CD_TP_ID).
+6. **새 표준 컬럼**: 실제 DB 컬럼이고, 같은 뜻의 표준 컬럼이 없고, 논리명이 용어로 모두 분해되는 키. 표준 물리명은 FORWARD 분해 결과(약어)를 쓰고, 화면 키와 다르면 같은 save 의 `systems` 에 MES 별칭을 넣는다.
    - 숫자 접미 키(`CODE_VAL_REF1~5`·`MASTER_CODE_REF1~5`·`MENU_PARAM1~3`)는 숫자가 토큰이 될 수 없어 표준 컬럼 하나에 별칭 여러 개를 단다(별칭 PK 가 컬럼·시스템·이름이라 허용된다).
    - 사전에 없는 용어는 있는 용어로 바꿔 분해했다: 역할→직무(용어 정의 「사용자의 업무 역할(Role)」), 게시→공지, 본문→내용, 다중→복수, 열람→조회, 부제→보조 제목.
+   - 대체할 용어가 없는 `WIDGET_ID` 는 용어 「위젯」(약어 WIDGET)을 먼저 등록하고 `WIDGET_ID`(위젯 아이디)를 만든다(조정자 결정).
    - 도메인은 FORWARD 추천값을 넣고, 추천이 없으면 비운다(도메인은 필수가 아니다, D-141).
-6. **용어 등록 필요**: 논리명을 기존 용어로 분해할 수 없는 키. 이번 회차에는 등록하지 않는다.
 
-## 4. 조정자 확인이 필요한 것
+## 4. 조정자 결정(지시 mdm-column-dict-2)
 
-1. **m-mdm 키의 MDM 별칭 문제**(막지 않음): m-mdm 키 66건은 MDM 시스템 별칭으로 이미 사전에 있지만, mcm 이 MES 로만 찾아 missing 이다.
-   - 기본안: 지시대로 같은 이름을 MES 별칭으로도 넣는다(이 표의 ALIAS).
-   - 대안 1: cactus 메타 조회가 시스템 코드를 여러 개(MES,MDM) 받게 고친다(src 수정, 별칭 66건 불필요).
-   - 대안 2: m-mdm 화면에서 열마다 `meta="표준 물리명"` 을 적는다(화면 수정 66곳).
-2. **WIDGET_ID**: 용어 「위젯」 이 없다. 용어를 등록할지, 이번에는 보류할지 정해 주면 된다(기본안: 보류).
-3. **뜻이 어긋난 hit 2건**: `OBJ_NM`(목적 명)·`LINE_NO`(라인 번호). 화면에서 meta 를 바꾸는 것으로 처리했고, 사전 쪽은 고치지 않는다.
-4. **CODE_ID·CODE_DESC → CD_TP_ID·CD_TP_DESC**: `TB_MCM_CODE_MASTER` 가 사전의 「코드 구분」 군(CD_TP_CHARACTER·CD_TP_VER·CD_TP_OWNER_EMP_NO)과 같은 구성이라 별칭으로 붙였다. 같은 테이블의 `CODE_NM` 은 「코드 구분 명」 이 없어 CD_TP_NM 을 새로 만든다.
+1. MDM 별칭 66건(+SYSTEM_CODE): MES 별칭으로 겹쳐 넣지 않는다. mdm 메타 피드가 쉼표로 이은 시스템 코드 목록을 받게 하고 mcm 을 `MES,MDM` 으로 바꾼다(C1b).
+2. WIDGET_ID: 보류하지 않는다. 용어 「위젯」 등록 + 신규 컬럼을 C2 등록 묶음에 넣는다(용어 → 컬럼 순서).
+3. 뜻이 어긋난 hit 2건(`OBJ_NM`·`LINE_NO`)은 이 표대로 화면 meta 로 처리한다. 사전 쪽은 고치지 않는다.
+4. TITLE 은 「사전에 있음」 으로 옮긴다.
+5. 참고 — CODE_ID·CODE_DESC → CD_TP_ID·CD_TP_DESC: `TB_MCM_CODE_MASTER` 가 사전의 「코드 구분」 군(CD_TP_CHARACTER·CD_TP_VER·CD_TP_OWNER_EMP_NO)과 같은 구성이라 별칭으로 붙였다. 같은 테이블의 `CODE_NM` 은 「코드 구분 명」 이 없어 CD_TP_NM 을 새로 만든다.
 
 ## 5. 다시 만들기
 
@@ -86,7 +84,7 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 
 ## 6. 분류별 목록
 
-### 범용 키 — 화면에서 `meta={false}` (107)
+### 범용 키 — 화면에서 `meta={false}` (106)
 
 | 키 | 모듈 | 머리글 | 근거 | 첫 위치 |
 |---|---|---|---|---|
@@ -175,7 +173,6 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | TABLE | m-mdm | 테이블 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmc/codeConfirm/page.tsx:96 |
 | TARGET | m-mdm | 영향도 대상 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/domainMng/components/DomainImpactPanel.tsx:11 |
 | TEXT | m-mdm | 값 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dmb/layoutMng/components/SampleMessagePanel.tsx:23 |
-| TITLE | m-mcm,m-mls | 이름{isDef ? " *" : ""} / 이름 / 제목 | 사전 hit(TITLE)이지만 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/commWidgetMng/WidgetDetailForm.tsx:145 |
 | TOTAL | m-mcm | 항목 수 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:84 |
 | TYPE | m-mcm,m-mdm | 대상 / 대상 종류 / 타입 | 화면마다 뜻이 다른 범용 키 | m-mcm/page-components/csa/mdmCacheMng/page.tsx:108 |
 | USE | m-mdm | 선택 | 화면마다 뜻이 다른 범용 키 | m-mdm/pages/dma/termRegPop/termRegPop.tsx:176 |
@@ -332,9 +329,26 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | USER_COUNT | m-mcm | 사용자 수 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mcm/page-components/csa/commWidgetMng/WidgetListTab.tsx:89 |
 | VER_STATE | m-mdm | 버전 상태 | 실제 DB 컬럼 없음 — 화면이 계산하거나 서버 응답에만 있는 값 | m-mdm/pages/dmb/layoutMng/components/ImpactPanel.tsx:19 |
 
-### MES 별칭 등록 — 기존 표준 컬럼에 별칭 추가 (79)
+### MES 별칭 등록 — 기존 표준 컬럼에 별칭 추가 (12)
 
 | 화면 키(별칭) | 표준 컬럼 | 머리글 | 근거 |
+|---|---|---|---|
+| CODE_DESC | CD_TP_DESC | 설명 | TB_MCM_CODE_MASTER.CODE_DESC — CD_TP_* 군 |
+| CODE_ID | CD_TP_ID | 코드ID | TB_MCM_CODE_MASTER(코드 구분 정의) — 사전 CD_TP_* 군(CD_TP_CHARACTER·CD_TP_VER·CD_TP_OWNER_EMP_NO)과 같은 테이블 구성 |
+| CODE_VAL | CD_V | 코드 값 / 코드값 | TB_MCM_CODE_DETAIL.CODE_VAL — 같은 용어 집합(코드 값) |
+| CODE_VAL_DESC | CD_V_DESC | 설명 / 코드설명 | TB_MCM_CODE_DETAIL — 같은 용어 집합(코드 값 설명) |
+| CODE_VAL_MEAN | CD_V_MEANING | 코드 의미 / 코드의미 | TB_MCM_CODE_DETAIL — 같은 용어 집합(코드 값 의미) |
+| COL_ID | COLUMN_ID | 영문항목명 | TB_MCA_RULE_COL_LIST.COL_ID — 같은 용어 집합(컬럼 아이디) |
+| COL_NM | COLUMN_NM | 한글항목명 | TB_MCA_RULE_COL_LIST.COL_NM — 같은 용어 집합(컬럼 명) |
+| ENDED_AT | END_DH | 종료 | TB_SEC_SCREEN_USAGE_LOG.ENDED_AT — 같은 용어 집합(종료 일시) |
+| PIN_YN | FIX_YN | 상단 고정 | TB_MLS_NOTICE.PIN_YN — 같은 용어 집합(고정 여부) |
+| MENU_TP | MENU_KND | 메뉴타입 / 메뉴 타입 | TB_MCM_SEC_MENU.MENU_TP — 메뉴 유형(구분↔유형 동의어), 기존 MES 별칭 MENU_TYPE |
+| MOBILE_TEL_NO | MOBILE_TEL | MOBILE / 모바일번호 | TB_MCM_SEC_USER.MOBILE_TEL_NO — 기존 '모바일 전화'(MES 별칭 MOBILE_PHONE) |
+| STARTED_AT | STR_DH | 시작 | TB_SEC_SCREEN_USAGE_LOG.STARTED_AT — 같은 용어 집합(시작 일시) |
+
+### 사전에 있음(MDM 별칭) — C1b(조회 시스템 코드 MES,MDM) 뒤 hit (67)
+
+| 화면 키 | 표준 컬럼 | 머리글 | 근거 |
 |---|---|---|---|
 | ALTER_NAME | ABBR_NM | 약칭 | MDM 별칭 ALTER_NAME→ABBR_NM(약어 명) 있음, 실제 컬럼 mdm.TB_MDM_CODE_ITEM,mdm.TB_MDM_DATA_ITEM |
 | COLLECT_AGG | AGG_WAY | 집계 | MDM 별칭 COLLECT_AGG→AGG_WAY(집계 방식) 있음, 실제 컬럼 mdm.TB_MDM_RULE_VAR |
@@ -345,14 +359,7 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | CATE_ID | CATEGORY_ID | ID / 카테고리 ID | MDM 별칭 CATE_ID→CATEGORY_ID(카테고리 아이디) 있음, 실제 컬럼 mdm.TB_MDM_CODE_CATE,mdm.TB_MDM_CODE_CATE_ITEM |
 | CATE_NAME | CATEGORY_NM | 이름 / 카테고리 정의 | MDM 별칭 CATE_NAME→CATEGORY_NM(카테고리 명) 있음, 실제 컬럼 mdm.TB_MDM_CODE_CATE,mdm.TB_MDM_DATA_CATE |
 | CODE_PATTERN | CD_REGEX | 키 패턴 | MDM 별칭 CODE_PATTERN→CD_REGEX(코드 정규식) 있음, 실제 컬럼 mdm.TB_MDM_DATA |
-| CODE_DESC | CD_TP_DESC | 설명 | TB_MCM_CODE_MASTER.CODE_DESC — CD_TP_* 군 |
-| CODE_ID | CD_TP_ID | 코드ID | TB_MCM_CODE_MASTER(코드 구분 정의) — 사전 CD_TP_* 군(CD_TP_CHARACTER·CD_TP_VER·CD_TP_OWNER_EMP_NO)과 같은 테이블 구성 |
-| CODE_VAL | CD_V | 코드 값 / 코드값 | TB_MCM_CODE_DETAIL.CODE_VAL — 같은 용어 집합(코드 값) |
-| CODE_VAL_DESC | CD_V_DESC | 설명 / 코드설명 | TB_MCM_CODE_DETAIL — 같은 용어 집합(코드 값 설명) |
-| CODE_VAL_MEAN | CD_V_MEANING | 코드 의미 / 코드의미 | TB_MCM_CODE_DETAIL — 같은 용어 집합(코드 값 의미) |
 | CHANGE_SUMMARY | CHG_CTT | 변경 | MDM 별칭 CHANGE_SUMMARY→CHG_CTT(변경 내용) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_VER |
-| COL_ID | COLUMN_ID | 영문항목명 | TB_MCA_RULE_COL_LIST.COL_ID — 같은 용어 집합(컬럼 아이디) |
-| COL_NM | COLUMN_NM | 한글항목명 | TB_MCA_RULE_COL_LIST.COL_NM — 같은 용어 집합(컬럼 명) |
 | TRANSFORM | CONV_RULE | 변환 규칙 | MDM 별칭 TRANSFORM→CONV_RULE(변환 규칙) 있음, 실제 컬럼 mdm.TB_MDM_COLUMN_SYSTEM |
 | SWITCH_MODE | CVT_MOD | 전환 방식 | MDM 별칭 SWITCH_MODE→CVT_MOD(전환 모드) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_VER |
 | DEFAULT_VALUE | DEFAULTS | 기본값 / 헤더 기본값 | MDM 별칭 DEFAULT_VALUE→DEFAULTS(기본값) 있음, 실제 컬럼 mdm.TB_MDM_COLUMN,mdm.TB_MDM_LAYOUT_ITEM |
@@ -366,14 +373,12 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | DOMAIN_NAME | DOMAIN_NM | 도메인명 / 하위 도메인 / 도메인 | MDM 별칭 DOMAIN_NAME→DOMAIN_NM(도메인 명) 있음, 실제 컬럼 mdm.TB_MDM_DOMAIN |
 | EAI_CODE | EAI_CD | EAI 코드 / 인코딩 / 패딩 규칙 / EAI | MDM 별칭 EAI_CODE→EAI_CD(EAI 코드) 있음, 실제 컬럼 mdm.TB_MDM_EAI,mdm.TB_MDM_LAYOUT_VER |
 | EAI_NAME | EAI_NM | EAI 이름 | MDM 별칭 EAI_NAME→EAI_NM(EAI 명) 있음, 실제 컬럼 mdm.TB_MDM_EAI |
-| ENDED_AT | END_DH | 종료 | TB_SEC_SCREEN_USAGE_LOG.ENDED_AT — 같은 용어 집합(종료 일시) |
 | VALID_TO | END_VLD_DD | 끝 | MDM 별칭 VALID_TO→END_VLD_DD(종료 유효 일자) 있음, 실제 컬럼 mdm.TB_MDM_DATA_ITEM,mdm.TB_MDM_DATA_CATE |
 | ENG_NAME | ENG_NM | 영문명 | MDM 별칭 ENG_NAME→ENG_NM(영문 명) 있음, 실제 컬럼 mdm.TB_MDM_TERM |
 | REQUIRED | ESSEN | 필수 | MDM 별칭 REQUIRED→ESSEN(필수) 있음, 실제 컬럼 mdm.TB_MDM_COLUMN |
 | FACTOR | EXC_COEFF | 환산 계수 | MDM 별칭 FACTOR→EXC_COEFF(환산 계수) 있음, 실제 컬럼 mdm.TB_MDM_UNIT |
 | EXPECTED_JSON | EXPCT_RST_JSON | 기대 | MDM 별칭 EXPECTED_JSON→EXPCT_RST_JSON(기대 결과 JSON) 있음, 실제 컬럼 mdm.TB_MDM_RULE_TEST_CASE,mdm.TB_MDM_RULE_SET_TEST_CASE |
 | FILL_KIND | FILL_KND | fill_kind / 채움 | MDM 별칭 FILL_KIND→FILL_KND(채움 유형) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
-| PIN_YN | FIX_YN | 상단 고정 | TB_MLS_NOTICE.PIN_YN — 같은 용어 집합(고정 여부) |
 | GRP_COND | GRP_CDN | 조건 / 열 조건 | MDM 별칭 GRP_COND→GRP_CDN(그룹 조건) 있음, 실제 컬럼 mdm.TB_MDM_RULE_VAR |
 | LAYOUT_NAME | LAYOUT_NM | 헤더 이름 / 전문 이름 / 이름 | MDM 별칭 LAYOUT_NAME→LAYOUT_NM(레이아웃 명) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT |
 | LVL_CNT | LEVEL_CNT | 계층 칸 수 | MDM 별칭 LVL_CNT→LEVEL_CNT(수준 수) 있음, 실제 컬럼 mdm.TB_MDM_CODE,mdm.TB_MDM_DATA |
@@ -383,8 +388,6 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | MARU_DATA_NAME | MARU_DATA_NM | 이름 | MDM 별칭 MARU_DATA_NAME→MARU_DATA_NM(마루 데이터 명) 있음, 실제 컬럼 mdm.TB_MDM_DATA |
 | MARU_RULE_NAME | MARU_RULE_NM | 이름 / 룰명 | MDM 별칭 MARU_RULE_NAME→MARU_RULE_NM(마루 규칙 명) 있음, 실제 컬럼 mdm.TB_MDM_RULE |
 | SENSE_NO | MEANING_NO | 의미 / 의미 번호 | MDM 별칭 SENSE_NO→MEANING_NO(의미 번호) 있음, 실제 컬럼 mdm.TB_MDM_TERM |
-| MENU_TP | MENU_KND | 메뉴타입 / 메뉴 타입 | TB_MCM_SEC_MENU.MENU_TP — 메뉴 유형(구분↔유형 동의어), 기존 MES 별칭 MENU_TYPE |
-| MOBILE_TEL_NO | MOBILE_TEL | MOBILE / 모바일번호 | TB_MCM_SEC_USER.MOBILE_TEL_NO — 기존 '모바일 전화'(MES 별칭 MOBILE_PHONE) |
 | NUM_FORMAT | NUM_FMT | 숫자 형식 | MDM 별칭 NUM_FORMAT→NUM_FMT(수치 형식) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
 | OFFSET | OFST | 오프셋 / 길이 / 오프셋 | MDM 별칭 OFFSET→OFST(오프셋) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
 | COLUMN_PHYS | PHYS_NM | 컬럼 / 표준 물리명 | MDM 별칭 COLUMN_PHYS→PHYS_NM(물리 명) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
@@ -402,7 +405,6 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | FILLER_LENGTH | SPR_LEN | FILLER 길이 | MDM 별칭 FILLER_LENGTH→SPR_LEN(예비 길이) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
 | SOURCE_KIND | SRC_KND | 원천 | MDM 별칭 SOURCE_KIND→SRC_KND(출처 유형) 있음, 실제 컬럼 mdm.TB_MDM_RULE,mdm.TB_MDM_CODE |
 | STD_NAME | STD_NM | 표준명 | MDM 별칭 STD_NAME→STD_NM(표준 명) 있음, 실제 컬럼 mdm.TB_MDM_DOMAIN |
-| STARTED_AT | STR_DH | 시작 | TB_SEC_SCREEN_USAGE_LOG.STARTED_AT — 같은 용어 집합(시작 일시) |
 | VALID_FROM | STR_VLD_DD | 시작 일시 / 시작 | MDM 별칭 VALID_FROM→STR_VLD_DD(시작 유효 일자) 있음, 실제 컬럼 mdm.TB_MDM_DATA_ITEM,mdm.TB_MDM_DATA_CATE |
 | SYSTEM_CODE | SYS_CD | SYSTEM / 시스템 | MDM 별칭 SYSTEM_CODE→SYS_CD(시스템 코드) 있음, 실제 컬럼 mcm.TB_MCM_SEC_OBJ,mdm.TB_MDM_SYSTEM |
 | SYSTEMS | SYS_LIST | 사용 시스템 | MDM 별칭 SYSTEMS→SYS_LIST(시스템 리스트) 있음, 실제 컬럼 mdm.TB_MDM_TERM |
@@ -416,7 +418,7 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | LABEL_LONG | WIDE_DISP_NM | 표시명 긴/중간/짧은 | MDM 별칭 LABEL_LONG→WIDE_DISP_NM(넓은 표시 명) 있음, 실제 컬럼 mdm.TB_MDM_COLUMN |
 | TRANS_UNIT | XMIT_UNIT | 전송 단위 / 단위 항목 / 전송 단위 | MDM 별칭 TRANS_UNIT→XMIT_UNIT(전송 단위) 있음, 실제 컬럼 mdm.TB_MDM_LAYOUT_ITEM |
 
-### 새 표준 컬럼 등록 (68)
+### 새 표준 컬럼 등록 (69)
 
 | 화면 키 | 표준 물리명 | 논리명 | MES 별칭 | 도메인 | 용어(의미 번호) | 근거 |
 |---|---|---|---|---|---|---|
@@ -488,14 +490,9 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | DURATION_MS | USE_TIM | 이용 시간 | DURATION_MS | 215 | 이용#1 시간#1 | TB_SEC_SCREEN_USAGE_*.DURATION_MS — 단위 ms 는 활용처 메모에 적는다 |
 | USER_CATEGORY_CD | USER_CLSF_CD | 사용자 분류 코드 | USER_CATEGORY_CD | 156 | 사용자#1 분류#1 코드#1 | TB_MCM_SEC_USER.USER_CATEGORY_CD |
 | PERMISSION_CUSTOM | USER_DEFINE_BTN_AUT | 사용자 정의 버튼 권한 | PERMISSION_CUSTOM |  | 사용자#1 정의#1 버튼#1 권한#1 | TB_MCM_SEC_PERM.PERMISSION_CUSTOM |
+| WIDGET_ID | WIDGET_ID | 위젯 아이디 | (물리명과 같음) | 168 | 위젯#1(신규) 아이디#1 | TB_MCM_WIDGET_DEF.WIDGET_ID — 용어 「위젯」(WIDGET)을 먼저 등록한다(조정자 결정 mdm-column-dict-2) |
 
-### 용어 등록 필요 — 이번 회차 보류 (1)
-
-| 화면 키 | 근거 |
-|---|---|
-| WIDGET_ID | TB_MCM_WIDGET_DEF.WIDGET_ID — 용어 '위젯'이 사전에 없다(용어 등록 뒤 새 표준 컬럼) |
-
-### 사전에 있음 (44)
+### 사전에 있음 (45)
 
 | 화면 키 | 표준 컬럼 | 근거 |
 |---|---|---|
@@ -536,6 +533,7 @@ scripts/mdm-meta/check-meta.sh --names /tmp/names.txt --list     # 지금 hit·m
 | START_ACTIVE_DATE | STR_VLD_DD | 사전 hit(MES 별칭 START_ACTIVE_DATE→STR_VLD_DD) |
 | SYS_CD | SYS_CD | 사전 hit |
 | TEL_NO | TEL_NO | 사전 hit |
+| TITLE | TITLE | 사전 TITLE(제목) — 공지·위젯 제목과 같은 뜻(조정자 결정 mdm-column-dict-2) |
 | UNIT_ITEM | UNIT_ITEM | 사전 hit |
 | USE_TP | USE_TP | 사전 hit |
 | USE_YN | USE_YN | 사전 hit |
