@@ -164,6 +164,11 @@ logs/
 # D'Flow 에이전트 스킬(dflow-*) — 2026-10-01 부터 이 리포가 정본이다(wbs-web 은 여기로 가는 링크).
 !.claude/skills/dflow-*/
 !.claude/skills/dflow-*/**
+# 조정자 스킬(여러 세션 조정). 설계: docs/superpowers/specs/2026-10-04-coordinator-skill-design.md
+!.claude/skills/coordinator/
+!.claude/skills/coordinator/**
+# 조정자 스킬 PC 전용 설정(공용은 .coord.json)
+.coord.local.json
 .claude/skills/dflow-*/**/__pycache__/
 .claude/skills/dflow-*/**/.pytest_cache/
 
