@@ -4,7 +4,7 @@ import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
 import java.util.List;
 
 /**
- * {@code ruleSetEdit} action={@code save} 응답 — 새 row_version 과 저장을 막지 않은 경고(WARN)들. {@code part=CASE} 면 {@code rowVersion} 은 케이스의
+ * {@code ruleSetEdit} action={@code save} 응답 — 새 row_version 과 저장을 막지 않은 검사(경고 WARN·거부 REJECT)들. {@code part=CASE} 면 {@code rowVersion} 은 케이스의
  * 것이고(삭제면 null) {@code caseId} 가 채워진다. 세트 저장이면 {@code caseId} 는 null.
  */
 public class RuleSetSaveResult {

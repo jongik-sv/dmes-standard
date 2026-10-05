@@ -9,7 +9,7 @@ import { gridRowById, gridRows } from "./support/grid";
  * mdm dme/ruleSetEdit(룰 세트 편집 — 흐름도 캔버스·디버거) — TSK-08-06 design.md §3.4.2 + 룰 세트 흐름도 2단계(Task 12).
  *
  * 스모크 넷: E1 메뉴 이동, E2 서버 데이터(캔버스 노드·입출력 표·검사), E5 수정 한 번(저장·다시 불러와도 유지), E8 서버 오류(MDM001).
- * 고유: E3 캔버스 편집(IF 끼우기 → 거부로 저장 꺼짐 → 조건식 → 저장 켜짐)·dirty 확인, E4 순환은 즉시 거부되고 저장이 꺼진다(P-D4),
+ * 고유: E3 캔버스 편집(IF 끼우기 → 거부 검사가 보여도 저장 켜짐 → 조건식 → 거부 사라짐)·dirty 확인, E4 순환은 즉시 거부로 보이지만 저장은 켜져 있다(2026-10-06),
  * (4단계) 룰은 도구 상자 [룰] 로 빈 단계를 놓고 오른쪽 「룰 지정」 으로 고른다 — 룰 찾기 팝업은 없다.
  * E5 수용 4 중복 대입 경고, E6 구성 지침 → 제안 순서 적용 → 저장 → 다시 열어 순서 유지, E7 폐기·되살리기, E9 권한(READ — 디버그 모드는 들어가지만 실행 단추가 꺼진다),
  * E10 속성 패널의 룰 편집 열기, E11 디버그 모드(단계 실행·중단점·계속·끝까지·값 표), E12 룰 박스 링크 아이콘과 박스 누르기,
@@ -27,7 +27,7 @@ import { gridRowById, gridRows } from "./support/grid";
  * 화면 구조: 세트를 열면 보기 모드다. 고치려면 [편집](flow-mode-edit)을 누른다. 캔버스 노드는 `flow-node-{nodeId}`,
  * 한 줄 세트(FLOW_JSON 없음)는 start · r1 … rN · end 의 노드 ID 로 그려진다(linearFlow). 노드를 누르면 오른쪽이 속성 패널이 되고
  * 세트명·입출력 표·지침(세트 패널)은 선택이 없을 때만 보인다 — 세트 패널을 쓰는 단계는 노드를 고르기 전에 한다.
- * 저장은 편집 모드에서 dirty 이고 거부(REJECT) 검사가 없을 때만 된다 — 서버 MDM024 거부 경로는 서버 테스트가 맡는다.
+ * 저장은 편집 모드에서 dirty 이고 조건식 확인 중이 아닐 때 된다. 거부(REJECT) 검사가 있어도 DRAFT 저장은 허용한다(2026-10-06) — 확정·되살리기 거부는 서버 테스트가 맡는다.
  * IF 는 합류 노드가 없다 — 갈래가 모이는 자리로 바로 간다(D-136). 저장된 옛 형식 세트(E2S_FLOW)는 열 때 바꿔 그린다.
  */
 
@@ -191,7 +191,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await page.screenshot({ path: screenshot("dme-ruleSetEdit-chain.png"), fullPage: true });
   });
 
-  test("E3 캔버스 편집: END 앞에 IF 를 끼우면 조건식 없음 거부로 저장이 꺼지고, 조건식을 넣으면 켜지며, dirty 확인이 뜬다", async ({ page }) => {
+  test("E3 캔버스 편집: END 앞에 IF 를 끼우면 조건식 없음 거부 검사가 보이되 저장은 켜지고, 조건식을 넣으면 거부가 사라지며, dirty 확인이 뜬다", async ({ page }) => {
     await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CHAIN");
@@ -209,10 +209,11 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(flowNodes(page)).toHaveCount(8);
     await expect(page.getByTestId("flow-canvas").locator('[data-kind="MERGE"]')).toHaveCount(0);
     await expect(page.getByTestId("set-checks")).toContainText("갈래 e5에 조건식이 없다");
-    await expect(page.getByTestId("set-save")).toBeDisabled();
+    // 거부(REJECT) 검사가 있어도 DRAFT 저장은 켜진다(2026-10-06) — 조건식 확인(validate) 응답을 기다리는 동안만 꺼진다.
+    await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: T.UI });
     await page.screenshot({ path: screenshot("dme-ruleSetEdit-if-reject.png"), fullPage: true });
 
-    // 새 IF 가 선택돼 있어 오른쪽이 속성 패널이다. 조건식을 넣으면 서버가 변수 정의를 확인(validate)한 뒤 저장이 켜진다.
+    // 새 IF 가 선택돼 있어 오른쪽이 속성 패널이다. 조건식을 넣으면 서버가 변수 정의를 확인(validate)한 뒤 거부 검사가 사라진다.
     await page.getByTestId("flow-prop-branch-e5-cond").fill('S_GRD = "A"');
     await expect(page.getByTestId("set-save")).toBeEnabled({ timeout: T.UI });
     await expect(page.getByTestId("set-checks")).not.toContainText("갈래 e5에 조건식이 없다");
@@ -231,7 +232,7 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expect(page.getByTestId("flow-node-if1")).toBeVisible();
   });
 
-  test("E4 수용 3: 순환이 생기면 즉시 거부가 보이고 저장이 꺼지며, 저장하지 않고 다시 불러오면 저장된 흐름 그대로다", async ({ page }) => {
+  test("E4 수용 3: 순환이 생기면 즉시 거부가 보이지만 저장은 켜져 있으며, 저장하지 않고 다시 불러오면 저장된 흐름 그대로다", async ({ page }) => {
     await login(page, STEWARD, LOGIN_OPTS);
     await openRuleSetEdit(page);
     await pickSet(page, "E2S_CYCSET");
@@ -241,8 +242,8 @@ test.describe("mdm dme/ruleSetEdit", () => {
     await expectRuleNode(page, "r2", "E2S_CYA");
     await expectRuleNode(page, "r3", "E2S_CYB");
     await expect(page.getByTestId("set-checks")).toContainText("E2S_CYA와 E2S_CYB가 서로의 결과 변수를 읽는다(순환)");
-    // 거부(REJECT) 검사가 있으면 저장 버튼이 꺼진다(P-D4). 서버의 MDM024 거부는 서버 테스트가 확인한다.
-    await expect(page.getByTestId("set-save")).toBeDisabled();
+    // 거부(REJECT) 검사가 있어도 DRAFT 저장은 허용한다(2026-10-06). 확정·되살리기 거부는 서버 테스트가 확인한다.
+    await expect(page.getByTestId("set-save")).toBeEnabled();
     await page.screenshot({ path: screenshot("dme-ruleSetEdit-cycle.png"), fullPage: true });
 
     // 다시 불러오면 저장된 흐름 그대로다 — 편집 중 흐름은 dirty 라 확인을 받아들인다.

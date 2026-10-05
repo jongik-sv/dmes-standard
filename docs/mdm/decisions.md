@@ -1431,3 +1431,11 @@
 - **Rationale**: 스펙 §1.2 벤치에서 현재 버전 본문은 0.83 MB 이고 색인 판정은 6 ns 였다. 판정 의미(버전 고르기·카테고리 소속)를 엔진 한 곳에 두면 MDM 과 업무 모듈이 같은 결과를 내고, 동치 시험으로 고정할 수 있다
 - **Reversible**: yes(cactus `versioned-feed: off` + 재기동. MDM 은 `part` 없는 경로가 그대로라 되돌릴 것이 없다)
 - **Source**: 스펙 [`2026-10-03-mdm-meta-cache-per-version-design.md`](../superpowers/specs/2026-10-03-mdm-meta-cache-per-version-design.md)(사용자 승인, 결정 P1~P13), 계획 [`2026-10-03-mdm-meta-cache-per-version.md`](../superpowers/plans/2026-10-03-mdm-meta-cache-per-version.md), 시험 `CodeVersionSlicerTest`·`MetaFeedLegacyGoldenTest`·`MetaFeedVersionedHttpTest`·`MdmMetaCacheVersionedTest`·`MdmMetaServiceVersionedTest`·`MdmVersionedEquivalenceTest`·`MdmMetaFeedContractHttpTest`
+
+## D-155 (2026-10-06T00:00:00Z)
+- **Phase**: build(룰 세트 편집 — 거부 검사가 있는 DRAFT 저장)
+- **Decision needed**: 룰 세트 편집 화면은 거부(REJECT) 검사가 하나라도 있으면 [세트 저장]·자동 저장을 끄고 서버 save 도 MDM024 로 거부해, 작업 중인 흐름을 DRAFT 로 남길 수 없었다. 또 자동 저장 상태 글(보류·실패)이 툴바 끝 묶음에 붙어 글이 생기고 사라질 때마다 단추 위치가 흔들렸다
+- **Decision made**: (1) 거부 검사가 있어도 DRAFT 저장은 수동·자동 모두 허용한다. 서버 `RuleSetEditService.save` 는 `rejectIfAny` 를 없애고 거부를 응답 checks 에 싣는다(흐름 형식 오류 MDM021·목록 저장의 흐름 덮어쓰기 거부 FLOW_READONLY·버전 가드·폐기 세트 거부는 입력·상태 거부라 그대로) (2) 확정(`ruleSetConfirm`, `RuleSetConfirmChecks`)과 되살리기(`restore`)는 지금처럼 거부로 막는다 (3) 화면은 `canSave`·자동 저장 `ready` 에서 거부 조건을 빼고 "거부 검사가 있어 자동 저장 보류" 상태를 없앤다. 저장 응답의 거부는 메시지 줄 "경고" 줄에서 뺀다(아래 검사 결과에 이미 보인다) (4) 남는 자동 저장 실패 글은 툴바 줄이 아니라 툴바 아래 메시지 줄에 둔다(Local-Rules §38)
+- **Rationale**: 거부는 확정·되살리기처럼 실제 실행에 닿는 순간에 막으면 충분하고, 편집 중 흐름을 저장하지 못하게 하면 작업을 잃기 쉽다
+- **Reversible**: yes(서버 `rejectIfAny` 복원 + 화면 조건 복원)
+- **Source**: 사용자 요청·결정 2026-10-06, 기능설계서 `docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md` N-8 재개정, 시험 `RuleSetEditServiceTest`·`RuleSetSubsetServiceTest`·`DmeOasisHttpTest`·`auto-save.test.ts`·`auto-save-page.test.ts`

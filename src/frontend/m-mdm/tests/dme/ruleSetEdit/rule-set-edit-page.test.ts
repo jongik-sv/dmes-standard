@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 
 // 룰 세트 편집 화면 렌더 테스트 — 2단계 계획 Task 10(캔버스 통합). 넘겨받은 setId 로 view(I22 받는 쪽), 캔버스 노드·보기/편집 모드,
-// 팔레트로 IF 끼우기 → 검사 패널·저장 막기(P-D4), 조건식 IO 디바운스(validate 400ms)·늦은 응답 버리기(Review Focus 5),
+// 팔레트로 IF 끼우기 → 검사 패널(거부가 있어도 저장은 켜진다, 2026-10-06; 조건식 확인 중에만 꺼진다), 조건식 IO 디바운스(validate 400ms)·늦은 응답 버리기(Review Focus 5),
 // 저장 flowJson 모양(grids 없음), 룰 박스 선택과 링크 아이콘, 속성 패널 읽기 전용, 룰 지우기·dirty 확인, 검사 항목 이동,
 // 분기 세트 편집, 구성 지침 적용(P-D5), 폐기 두 단계·되살리기·MDM001·RBAC(1단계 동작 그대로).
 import { createElement, act } from "react";
@@ -235,7 +235,7 @@ describe("RuleSetEditPage", () => {
   });
 
   // 2
-  it("[편집] → 팔레트가 보이고, [IF] 를 누르면 END 로 들어가는 선에 IF 가 끼워져 FLOW_IF_ELSE 거부가 보이고 저장이 꺼진다(P-D4)", async () => {
+  it("[편집] → 팔레트가 보이고, [IF] 를 누르면 END 로 들어가는 선에 IF 가 끼워져 FLOW_IF_ELSE 거부가 보이되 조건식 확인이 끝나면 저장이 켜져 있다(거부는 저장을 막지 않는다)", async () => {
     await openChain();
     await click("flow-mode-edit");
     expect(q("flow-palette")).not.toBeNull();
@@ -248,11 +248,14 @@ describe("RuleSetEditPage", () => {
     expect(checks).toContain("거부");
     expect(checks).toContain("빈 단계 2개"); // 「갈래 1」·모이는 자리 빈 단계의 EMPTY_TASK 경고 한 줄(implicit-join §8.2)
     expect(visibleText(byTestId("flow-tab-checks"))).toContain("검사 결과 2");
-    expect(saveButton().disabled).toBe(true);
+    // 조건식 확인(validate, 400ms 디바운스) 응답이 끝나면 거부가 남아 있어도 저장이 켜진다(2026-10-06 사용자 결정).
+    await settle(800);
+    expect(saveButton().disabled).toBe(false);
+    expect(visibleText(byTestId("flow-tab-checks"))).toContain("검사 결과 2");
   });
 
   // 3
-  it("조건식을 넣으면 400ms 뒤 validate 를 한 번 부르고, 응답 전에는 저장이 꺼져 있다가 응답 뒤 거부가 없어지면 켜진다", async () => {
+  it("조건식을 넣으면 400ms 뒤 validate 를 한 번 부르고, 응답 전에는(조건식 확인 중) 저장이 꺼져 있다가 응답 뒤 켜지고 거부가 없어진다", async () => {
     await openChain();
     await click("flow-mode-edit");
     vi.useFakeTimers();
@@ -264,7 +267,7 @@ describe("RuleSetEditPage", () => {
     await typeInto(byTestId<HTMLTextAreaElement>("flow-prop-branch-e5-cond"), 'S_GRD = "A"');
     await advance(399);
     expect(calls("validate")).toHaveLength(0);
-    expect(saveButton().disabled).toBe(true);
+    expect(saveButton().disabled).toBe(true); // 디바운스 중에도 확인 중이다
     await advance(1);
     expect(calls("validate")).toHaveLength(1);
     const sent = calls("validate")[0].body.params as Record<string, unknown>;
@@ -448,7 +451,7 @@ describe("RuleSetEditPage", () => {
     await click("flow-prop-add-branch");
     // 새 갈래 선 ID — 변환이 지운 합류 출구 e6 자리를 다시 쓴다(새 빈 단계 r4 → 모이는 자리 r3 선은 e8)
     expect(q("flow-prop-branch-e6-cond")).not.toBeNull();
-    expect(saveButton().disabled).toBe(true); // 새 갈래 조건식이 비어 거부
+    expect(saveButton().disabled).toBe(true); // 조건식 확인 중 — 거부 때문이 아니다(거부는 저장을 막지 않는다)
     expect(visibleText(byTestId("set-checks"))).toContain("IF if1의 갈래 e6에 조건식이 없다");
   });
 

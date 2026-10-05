@@ -2,7 +2,7 @@
 
 /**
  * 검사 결과 패널(2단계 계획 Task 10, P10) — 화면 즉시 검사(`flowChecks`) 요약 줄과 항목. 항목을 누르면 그 노드로 캔버스를 옮기고 고른다
- * (nodeId 가 없는 항목은 아무 일도 하지 않는다). 거부(REJECT)가 있으면 저장이 막힌다(P-D4).
+ * (nodeId 가 없는 항목은 아무 일도 하지 않는다). 거부(REJECT)가 있어도 DRAFT 저장은 되고 확정·되살리기에서만 막힌다(2026-10-06).
  */
 import type { CSSProperties } from "react";
 
