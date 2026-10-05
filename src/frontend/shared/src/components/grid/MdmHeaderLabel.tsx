@@ -8,6 +8,9 @@
  * 화면 안 위치 보정, 화면 높이 상한, 150ms 유예, Escape). 정렬·필터 아이콘·끌기·누름 정렬은 ag-grid 기본 머리글 그대로다
  * (tests/unit/aggrid-inner-header-capability.unit.test.ts).
  *
+ * - 트리거 범위(2026-10-05): 라벨 글자가 아니라 **머리글 칸 전체**(`.ag-header-cell`, ag-grid 머리글 인자 `eGridHeader`)다. 글자 밖(칸 빈 곳·정렬·필터·메뉴 아이콘 둘레)에
+ *   올려도 뜬다 — ag-grid 글자 머리글 툴팁이 이미 칸 전체에 걸려 있어 HTML 카드 열만 글자 위에서만 뜨던 불일치를 없앤다. 칸 안에서 옮겨 다니는 동안은 닫히지 않고
+ *   (mouseover·mouseout 의 relatedTarget 이 칸 안이면 무시), 칸 안 어디를 눌러도(정렬·메뉴·끌기 시작) 대기를 취소하고 닫는다. 카드 위치는 계속 라벨 글자 기준이다.
  * - 표시 지연: ag-grid 머리글 툴팁과 같게 그리드의 `tooltipShowDelay`(AgDataGrid 기본 500ms, 최소 200ms) 뒤에 연다. 머리글에서 행으로
  *   지나가기만 할 때 큰 카드가 첫 행을 덮지 않게 하려는 것이다. 라벨을 누르면(정렬·끌기 시작) 대기를 취소하고 열린 카드를 닫는다.
  *   버튼을 누른 채 들어오면(열 끌기 중) 열지 않는다. 터치로 누르면(태블릿에서 캡션을 탭해 정렬) 브라우저가 뒤따라 보내는 흉내 mouseenter 로는
@@ -20,14 +23,7 @@
  *   모드용이다 — 키보드 focus 는 ag-grid 머리글 칸(role=columnheader)으로 가므로 이 설명이 읽히지 않을 수 있다. 머리글 칸의 키보드 지원은 범위 밖이다.
  * - 툴팁 모양(.form-tip-text·.form-sr-only)은 호스트가 싣는 `@dk-oasis/shared/form.css` 를 쓴다(포털은 이미 싣는다).
  */
-import {
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent,
-} from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { HoverTipPortal, useHoverTip, type HoverTipOptions } from "../form/useHoverTip";
 import { GRID_TOOLTIP_SHOW_DELAY_MS } from "./grid-tooltip";
@@ -46,6 +42,8 @@ export interface MdmHeaderLabelProps extends Partial<MdmHeaderLabelParams> {
   innerHeaderComponentParams?: Partial<MdmHeaderLabelParams>;
   /** ag-grid React 가 넣어 주는 감싸개(div.ag-react-container). */
   reactContainer?: HTMLElement;
+  /** ag-grid 가 머리글 인자로 주는 머리글 칸(div.ag-header-cell) — 카드 트리거 범위. 없으면 라벨의 가장 가까운 `.ag-header-cell`, 그것도 없으면 라벨. */
+  eGridHeader?: HTMLElement;
   /** ag-grid 그리드 api(표시 지연 tooltipShowDelay 를 읽는다). */
   api?: { getGridOption?: (key: "tooltipShowDelay") => unknown };
 }
@@ -98,22 +96,49 @@ export function MdmHeaderLabel(props: MdmHeaderLabelProps) {
     host?.classList.add(MDM_HEADER_LABEL_HOST_CLASS);
   }, [host]);
 
-  if (!column) return <>{caption}</>;
+  // 트리거 = 머리글 칸 전체. 칸은 ag-grid 가 주는 eGridHeader 이고, 없으면 라벨에서 거슬러 찾는다(문서에 붙기 전에는 없을 수 있어 효과에서 찾는다).
+  const eGridHeader = props.eGridHeader;
+  const active = column != null;
+  useEffect(() => {
+    if (!active) return;
+    const label = anchorRef.current;
+    const cell = eGridHeader ?? label?.closest<HTMLElement>(".ag-header-cell") ?? label;
+    if (!cell) return;
+    const noteTouch = (e: Event) => {
+      if ((e as PointerEvent).pointerType === "touch") lastTouchRef.current = Date.now();
+    };
+    // mouseenter·mouseleave 대신 mouseover·mouseout 을 relatedTarget 으로 걸러 쓴다 — 칸 안 자식 사이 이동은 들어옴·나감이 아니다.
+    const onOver = (e: MouseEvent) => {
+      if (e.relatedTarget instanceof Node && cell.contains(e.relatedTarget)) return;
+      // 버튼을 누른 채 들어오면(열 끌기·머리글 위 끌기 중) 열지 않는다.
+      if (e.buttons !== 0) return;
+      // 터치 탭 뒤 브라우저가 흉내 낸 mouseenter 면 열지 않는다(폼 라벨은 예전 그대로 — 그리드 머리글만).
+      if (Date.now() - lastTouchRef.current < TOUCH_COMPAT_MOUSE_MS) return;
+      showTip(e);
+    };
+    const onOut = (e: MouseEvent) => {
+      if (e.relatedTarget instanceof Node && cell.contains(e.relatedTarget)) return;
+      hideTip(e);
+    };
+    const onPointerDown = (e: Event) => {
+      noteTouch(e);
+      closeTip();
+    };
+    cell.addEventListener("mouseover", onOver);
+    cell.addEventListener("mouseout", onOut);
+    cell.addEventListener("pointerover", noteTouch);
+    cell.addEventListener("pointerdown", onPointerDown);
+    cell.addEventListener("pointerup", noteTouch);
+    return () => {
+      cell.removeEventListener("mouseover", onOver);
+      cell.removeEventListener("mouseout", onOut);
+      cell.removeEventListener("pointerover", noteTouch);
+      cell.removeEventListener("pointerdown", onPointerDown);
+      cell.removeEventListener("pointerup", noteTouch);
+    };
+  }, [active, eGridHeader, anchorRef, showTip, hideTip, closeTip]);
 
-  const noteTouch = (e: ReactPointerEvent<HTMLSpanElement>) => {
-    if (e.pointerType === "touch") lastTouchRef.current = Date.now();
-  };
-  const onMouseEnter = (e: ReactMouseEvent<HTMLSpanElement>) => {
-    // 버튼을 누른 채 들어오면(열 끌기·머리글 위 끌기 중) 열지 않는다.
-    if (e.buttons !== 0) return;
-    // 터치 탭 뒤 브라우저가 흉내 낸 mouseenter 면 열지 않는다(폼 라벨은 예전 그대로 — 그리드 머리글만).
-    if (Date.now() - lastTouchRef.current < TOUCH_COMPAT_MOUSE_MS) return;
-    showTip(e);
-  };
-  const onPointerDown = (e: ReactPointerEvent<HTMLSpanElement>) => {
-    noteTouch(e);
-    closeTip();
-  };
+  if (!column) return <>{caption}</>;
 
   return (
     <>
@@ -121,11 +146,6 @@ export function MdmHeaderLabel(props: MdmHeaderLabelProps) {
         ref={anchorRef}
         className="mdm-header-label"
         aria-describedby={descId}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={hideTip}
-        onPointerEnter={noteTouch}
-        onPointerDown={onPointerDown}
-        onPointerUp={noteTouch}
       >
         {caption}
       </span>
