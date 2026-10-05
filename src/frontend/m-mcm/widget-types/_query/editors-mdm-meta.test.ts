@@ -124,28 +124,30 @@ async function show(editor: typeof ChatEditor, value: unknown) {
 
 const labels = () => [...host.querySelectorAll("th")].map((el) => el.textContent);
 const headers = () => [...host.querySelectorAll(".ag-header-cell-text")].map((el) => el.textContent);
+/** 「조회 조건」 목록 표 머리글 — 세 쿼리 유형 편집기가 같다. */
+const PARAM_HEADERS = ["이름 *", "라벨", "형", "기본값", "필수", "선택지(값:라벨,…)"];
 const metaCalls = () => f.calls.filter((u) => u.includes("mdmMeta"));
 
 describe("위젯 유형 편집기는 사전 연결 없이 적어 둔 글자 그대로 그린다", () => {
   it("query-number — 라벨 6개", async () => {
     await show(QueryNumberEditor, { sql: "select 1 a", labelField: "a", valueField: "a" });
-    expect(labels()).toEqual(["SQL *", "라벨 필드 *", "값 필드 *", "단위 필드", "단위", "값 형식"]);
+    expect(labels()).toEqual(["SQL *", "조회 조건", "라벨 필드 *", "값 필드 *", "단위 필드", "단위", "값 형식"]);
     expect(host.querySelector(".form-tip-trigger")).toBeNull();
     expect(metaCalls()).toEqual([]);
   });
 
   it("query-chart — 라벨 5개와 값 계열 표 머리글", async () => {
     await show(QueryChartEditor, { sql: "select 1 a", chartType: "bar", xField: "a", series: [{ field: "a" }] });
-    expect(labels()).toEqual(["SQL *", "차트 종류 *", "가로축 필드 *", "값 계열 *", "단위(원 차트)"]);
-    expect(headers()).toEqual(["필드 *", "이름(범례)"]);
+    expect(labels()).toEqual(["SQL *", "조회 조건", "차트 종류 *", "가로축 필드 *", "값 계열 *", "단위(원 차트)"]);
+    expect(headers()).toEqual([...PARAM_HEADERS, "필드 *", "이름(범례)"]);
     expect(host.querySelector(".form-tip-trigger")).toBeNull();
     expect(metaCalls()).toEqual([]);
   });
 
   it("query-table — 라벨 2개와 표시 컬럼 표 머리글", async () => {
     await show(QueryTableEditor, { sql: "select 1 a", columns: [{ field: "a" }] });
-    expect(labels()).toEqual(["SQL *", "표시 컬럼"]);
-    expect(headers()).toEqual(["필드 *", "머리글", "폭", "정렬", "형식"]);
+    expect(labels()).toEqual(["SQL *", "조회 조건", "표시 컬럼"]);
+    expect(headers()).toEqual([...PARAM_HEADERS, "필드 *", "머리글", "폭", "정렬", "형식"]);
     expect(host.querySelector(".form-tip-trigger")).toBeNull();
     expect(metaCalls()).toEqual([]);
   });

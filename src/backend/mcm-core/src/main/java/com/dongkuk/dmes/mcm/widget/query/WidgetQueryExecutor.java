@@ -51,6 +51,7 @@ import org.springframework.jdbc.core.PreparedStatementCreator;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterUtils;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.jdbc.support.JdbcUtils;
 import org.springframework.stereotype.Component;
@@ -65,8 +66,11 @@ import org.springframework.stereotype.Component;
  *   <li>실행은 {@link WidgetReadOnlyJdbc} 가 따로 빌린 연결에서 읽기 전용(readOnly·방언별 보강)으로 하고 <b>늘 롤백</b>한다.
  *       스레드에 묶인 업무 트랜잭션 연결은 쓰지 않는다. 행 상한+1·10초·가져오기 100(§7.3).</li>
  *   <li>시스템 변수(§7.2)는 SQL 이 쓰는 것만 만들고 바인딩한다. 사용자 값은 늘 인증 컨텍스트에서 얻는다(IDOR).</li>
- *   <li>결과 캐시: 키 (defId, 행 상한, 쓰인 시스템 변수 값들 — {@code :now} 는 30초 구간 시작), 30초. 정의 저장 이벤트가 오면
- *       그 defId 캐시를 비운다.</li>
+ *   <li>사용자 입력 조건(스펙 입력 조건): 정의 CONFIG_JSON 의 {@code params} 선언을 실행 때마다 다시 읽어 검사하고({@link QueryParams}),
+ *       SQL 의 {@code :name} 중 시스템 변수가 아닌 것은 선언된 것만 허락한다. 값은 서버가 형별로 해석한 스칼라(BigDecimal·String·null)로
+ *       <b>바인드 변수로만</b> 넣는다 — 문자열 이어붙이기는 없다.</li>
+ *   <li>결과 캐시: 키 (defId, 행 상한, 쓰인 시스템 변수 값들 — {@code :now} 는 30초 구간 시작 — 과 해석을 마친 사용자 조건 값들), 30초.
+ *       정의 저장 이벤트가 오면 그 defId 캐시를 비운다. 키가 끝없이 늘어도(조건 값 조합·사용자별 :userId) 정의 하나가 캐시 전체를 채우지 못하게 정의별 상한을 둔다.</li>
  *   <li>DB 오류: 사용자에게는 고정 문구, 서버 로그에는 defId·원인. 관리자 미리보기만 DB 메시지를 보여 준다.</li>
  * </ul>
  * <b>운영 주의</b>: SQL Server 에는 읽기 전용 트랜잭션이 없고({@code readOnly} 는 힌트일 뿐), {@code ;} 없이도 한 배치에 문장을
@@ -89,6 +93,8 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     static final Duration CACHE_TTL = Duration.ofSeconds(30);
     /** 캐시 항목 상한 — 사용자마다 키가 다른 SQL(:userId 등)이 많아도 메모리가 끝없이 늘지 않게. 넘으면 그 결과는 캐시하지 않는다. */
     static final int CACHE_MAX_ENTRIES = 1000;
+    /** 정의 하나가 차지할 수 있는 캐시 항목 상한 — 입력 조건 값 조합·사용자(:userId)마다 키가 달라 한 정의가 전체 상한을 채우지 못하게. 이름은 옛 이름 그대로. */
+    static final int CACHE_MAX_ENTRIES_PER_PARAM_DEF = 50;
     static final int CLOB_MAX_CHARS = 4000;
 
     static final String MSG_NOT_FOUND = "위젯 정의를 찾을 수 없습니다";
@@ -147,7 +153,7 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
     }
 
     @Override
-    public WidgetQueryResult runDefinition(String defId, int maxRows) {
+    public WidgetQueryResult runDefinition(String defId, int maxRows, Map<String, String> userValues) {
         requireMaxRows(maxRows);
         String id = defId == null ? null : defId.strip();
         if (id == null || id.isEmpty()) throw new BusinessException(ErrorCode.INVALID_VALUE, MSG_NOT_FOUND);
@@ -158,17 +164,21 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
             throw new BusinessException(ErrorCode.INVALID_VALUE, MSG_NOT_QUERY);
         }
         requireSupportedSource(def.getDataSrc());
-        SqlGuard.Validated validated = validate(sqlOf(def));
+        String sql = sqlOf(def);
+        // 저장 때 검사했어도 실행 때마다 서버가 다시 판정한다 — 정의가 DB 에서 바뀌었거나 검사를 거치지 않고 들어왔을 수 있다.
+        List<QueryParam> defs = QueryParams.fromConfig(def.getConfigJson());
+        SqlGuard.Validated validated = validate(sql, QueryParams.names(defs));
+        Map<String, QueryParams.Bound> userBinds = QueryParams.resolve(defs, validated.userVariables(), userValues, false);
         Map<String, Object> values = systemValues(validated.variables());
 
         Instant now = clock.instant();
-        CacheKey key = new CacheKey(id, validated.sql(), maxRows, cacheKeyValues(values, now));
+        CacheKey key = new CacheKey(id, validated.sql(), maxRows, cacheKeyValues(values, userBinds, now));
         CachedResult hit = cache.get(key);
         if (hit != null && now.isBefore(hit.expiresAt())) return hit.result();
 
         WidgetQueryResult result;
         try {
-            result = execute(validated.sql(), values, maxRows);
+            result = execute(validated.sql(), values, userBinds, maxRows);
         } catch (RuntimeException e) {
             // DB 메시지(표·컬럼 이름 등)는 사용자에게 보내지 않는다 — 서버 로그에만(§7.3).
             log.warn("위젯 쿼리 실행 실패 defId={} 원인={}", id, rootMessage(e));
@@ -176,18 +186,22 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, MSG_LOAD_FAILED);
         }
         cache.entrySet().removeIf(entry -> !now.isBefore(entry.getValue().expiresAt()));
-        if (cache.size() < CACHE_MAX_ENTRIES) cache.put(key, new CachedResult(result, now.plus(CACHE_TTL)));
+        boolean roomForDef = cache.keySet().stream().filter(k -> k.defId().equals(id)).count() < CACHE_MAX_ENTRIES_PER_PARAM_DEF;
+        if (roomForDef && cache.size() < CACHE_MAX_ENTRIES) cache.put(key, new CachedResult(result, now.plus(CACHE_TTL)));
         return result;
     }
 
     @Override
-    public WidgetQueryResult preview(String dataSrc, String sql, int maxRows) {
+    public WidgetQueryResult preview(String dataSrc, String sql, int maxRows, String paramDefsJson) {
         requireMaxRows(maxRows);
         requireSupportedSource(dataSrc);
-        SqlGuard.Validated validated = validate(sql);
+        List<QueryParam> defs = QueryParams.fromDefsJson(paramDefsJson);
+        SqlGuard.Validated validated = validate(sql, QueryParams.names(defs));
+        // 관리자 시험 실행 — 각 조건의 기본값을 값으로 쓰고, 값 없는 필수 조건도 형 붙은 null 로 둔다(컬럼 확인이 목적).
+        Map<String, QueryParams.Bound> userBinds = QueryParams.resolve(defs, validated.userVariables(), Map.of(), true);
         Map<String, Object> values = systemValues(validated.variables());
         try {
-            return execute(validated.sql(), values, maxRows);
+            return execute(validated.sql(), values, userBinds, maxRows);
         } catch (RuntimeException e) {
             // 관리자 SQL 작성 도움 — DB 메시지를 그대로 보여 준다(§7.3).
             throw new BusinessException(ErrorCode.INVALID_VALUE, MSG_PREVIEW_PREFIX + rootMessage(e));
@@ -196,7 +210,42 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
 
     @Override
     public void validateSql(String sql) {
-        validate(sql);
+        validate(sql, Set.of());
+    }
+
+    @Override
+    public List<String> validateSql(String sql, Set<String> declaredNames) {
+        return validate(sql, declaredNames).userVariables();
+    }
+
+    @Override
+    public void validateCollectSql(String sql) {
+        requireNoUserVariables(validate(sql, Set.of()));
+    }
+
+    @Override
+    public WidgetQueryResult runCollect(String sql, int maxRows) {
+        requireMaxRows(maxRows);
+        SqlGuard.Validated validated = validate(sql, Set.of());
+        requireNoUserVariables(validated);
+        Map<String, Object> values = systemValues(validated.variables()); // 사용자 변수가 없으니 인증 컨텍스트를 읽지 않는다
+        try {
+            return execute(validated.sql(), values, maxRows);
+        } catch (RuntimeException e) {
+            // DB 메시지는 RUN 행·로그로 새지 않게 서버 로그에만(§7.3).
+            log.warn("정시 수집 쿼리 실행 실패 원인={}", rootMessage(e));
+            log.debug("정시 수집 쿼리 실행 실패 상세", e);
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, MSG_LOAD_FAILED);
+        }
+    }
+
+    private static void requireNoUserVariables(SqlGuard.Validated validated) {
+        for (String name : validated.variables()) {
+            if ("userId".equals(name) || "deptCd".equals(name)) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE,
+                        "정시 수집 SQL 에는 사용자 변수(:userId·:deptCd)를 쓸 수 없습니다. 수집에는 사용자가 없습니다");
+            }
+        }
     }
 
     /** 정의를 저장·삭제하면 그 정의의 캐시 항목(모든 사용자·행 상한)을 비운다. */
@@ -221,10 +270,21 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
      * 바인딩 값은 그대로 현재 시각이다(캐시된 결과가 최대 30초 묵는 것은 다른 변수와 같다).
      */
     static Map<String, Object> cacheKeyValues(Map<String, Object> values, Instant now) {
-        if (!values.containsKey("now")) return values;
-        long ttl = CACHE_TTL.toSeconds();
+        return cacheKeyValues(values, Map.of(), now);
+    }
+
+    /**
+     * 시스템 변수 값에 사용자 입력 조건 값(서버가 형 변환·정규화를 마친 것 — 요청 원문이 아니다)을 한 맵으로 합친 캐시 키 값.
+     * 사용자 조건 이름은 시스템 변수 이름과 같을 수 없으므로(정의 검사) 서로 덮어쓰지 않는다.
+     */
+    static Map<String, Object> cacheKeyValues(Map<String, Object> values, Map<String, QueryParams.Bound> userBinds, Instant now) {
+        if (!values.containsKey("now") && userBinds.isEmpty()) return values;
         Map<String, Object> keyValues = new TreeMap<>(values);
-        keyValues.put("now", Instant.ofEpochSecond(Math.floorDiv(now.getEpochSecond(), ttl) * ttl));
+        if (values.containsKey("now")) {
+            long ttl = CACHE_TTL.toSeconds();
+            keyValues.put("now", Instant.ofEpochSecond(Math.floorDiv(now.getEpochSecond(), ttl) * ttl));
+        }
+        userBinds.forEach((name, bound) -> keyValues.put(name, bound.cacheValue()));
         return Collections.unmodifiableMap(keyValues);
     }
 
@@ -261,9 +321,18 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
      * 와도 읽기 전용 강제·롤백이 DB 를 바꾸지 못하게 막는다(시험이 이 메서드로 직접 넣어 본다). SQL 오류는 런타임 예외로 감싼다.
      */
     WidgetQueryResult execute(String sql, Map<String, Object> values, int maxRows) {
+        return execute(sql, values, Map.of(), maxRows);
+    }
+
+    /**
+     * 사용자 입력 조건(userBinds)은 형(number=NUMERIC, 그 밖=VARCHAR)을 붙여 바인드 변수로만 넣는다 — null 에도 형이 붙어 PostgreSQL·H2 가 받는다.
+     * 값은 {@link QueryParams} 가 만든 스칼라(BigDecimal·String·null)뿐이라 이름 붙은 변수 처리가 컬렉션·배열로 펼칠 일이 없다.
+     */
+    WidgetQueryResult execute(String sql, Map<String, Object> values, Map<String, QueryParams.Bound> userBinds, int maxRows) {
         MapSqlParameterSource params = new MapSqlParameterSource();
         // 값이 null(부서 없음)이어도 형을 알려 줘야 PostgreSQL·H2 가 받는다.
         values.forEach((name, value) -> params.addValue(name, value, "now".equals(name) ? Types.TIMESTAMP : Types.VARCHAR));
+        userBinds.forEach((name, bound) -> params.addValue(name, bound.value(), bound.sqlType()));
         String runSql = adaptForLocalSqlite(sql);
         try {
             return readOnlyJdbc.execute(con -> jdbc.queryLimited(con, runSql, params, maxRows + 1, rs -> extract(rs, maxRows)));
@@ -367,10 +436,14 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
      * </ol>
      * 거절은 {@code BusinessException} 이고 미리보기·실행의 DB 오류 감싸기(쿼리 오류·고정 문구) 밖에서 던진다 — 설정 안내가 그대로 보인다.
      */
-    private SqlGuard.Validated validate(String sql) {
-        SqlGuard.check(sql);
+    private SqlGuard.Validated validate(String sql, Set<String> declaredNames) {
+        SqlGuard.checkDeclared(sql, declaredNames);
         WidgetReadOnlyJdbc.Dialect dialect = requireRunnableDialect();
-        return SqlGuard.check(sql, dialect);
+        SqlGuard.Validated validated = SqlGuard.check(sql, dialect, declaredNames);
+        // 사후 검사 — Spring 이 이름 붙은 변수를 ? 로 바꾼 SQL 에 DB 가 따로 읽을 자리표시자가 남지 않았는지.
+        SqlGuard.requireNoLeftoverPlaceholders(NamedParameterUtils.substituteNamedParameters(
+                NamedParameterUtils.parseSqlStatement(validated.sql()), new MapSqlParameterSource()));
+        return validated;
     }
 
     private WidgetReadOnlyJdbc.Dialect requireRunnableDialect() {

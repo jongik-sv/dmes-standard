@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { LineChart, PieChart, StackedColumnChart } from "@dk-oasis/shared/charts";
 import { useWidgetBodySize, type WidgetProps } from "@dk-oasis/shared/widget";
 
@@ -18,6 +18,7 @@ import {
   type ChartData,
   type ChartType,
 } from "../_query/format";
+import { QueryShell } from "../_query/ConditionBar";
 import { QueryEmpty, QueryStyle } from "../_query/parts";
 import { useQueryData } from "../_query/useQueryData";
 
@@ -78,21 +79,29 @@ function ChartBody({
 
 /** 쿼리 차트(스펙 §6 query-chart) — xField 가 가로축, series[].field 값은 숫자로. 크기는 위젯 본문 크기(useWidgetBodySize). */
 export default function QueryChartRenderer({ definition, widgetId, refreshKey }: WidgetProps) {
-  const data = useQueryData(definition, widgetId, refreshKey);
-  const body = useWidgetBodySize();
+  const { data, condition } = useQueryData(definition, widgetId, refreshKey);
+  const frame = useWidgetBodySize();
+  // 조건 줄이 본문 위를 차지하므로 그림 크기는 그 높이를 뺀 값으로 정한다(줄이 없으면 0).
+  const [barHeight, setBarHeight] = useState(0);
+  const body = useMemo(
+    () => ({ width: frame.width, height: frame.height == null ? null : Math.max(0, frame.height - barHeight) }),
+    [frame.width, frame.height, barHeight]
+  );
   const cfg = useMemo(() => chartConfigOf(definition), [definition]);
   const chart = useMemo(() => (data ? toChartData(data.rows, cfg.xField, cfg.series) : null), [data, cfg]);
 
   return (
     <>
       <QueryStyle />
-      {data &&
-        chart &&
-        (data.rows.length === 0 || chart.series.length === 0 ? (
-          <QueryEmpty />
-        ) : (
-          <ChartBody type={cfg.chartType} chart={chart} body={body} unit={cfg.unit} />
-        ))}
+      <QueryShell condition={condition} onBarHeight={setBarHeight}>
+        {data &&
+          chart &&
+          (data.rows.length === 0 || chart.series.length === 0 ? (
+            <QueryEmpty />
+          ) : (
+            <ChartBody type={cfg.chartType} chart={chart} body={body} unit={cfg.unit} />
+          ))}
+      </QueryShell>
     </>
   );
 }
