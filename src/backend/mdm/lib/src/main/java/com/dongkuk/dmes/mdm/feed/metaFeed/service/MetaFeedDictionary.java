@@ -21,10 +21,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import kr.dongkuk.maru.mdm.engine.domain.EffectiveExpressions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,8 +64,10 @@ public class MetaFeedDictionary {
 
     /**
      * 키 = 대문자 이름(spec 2026-10-03-mdm-column-system-alias-design L1·L3·L4). 표준 물리명이 먼저다. 표준으로 못 찾은 키는 {@code systemCode}
-     * 가 있을 때만 그 시스템의 별칭({@code TB_MDM_COLUMN_SYSTEM.PHYS_NAME}, 대소문자 무시)으로 찾는다. 한 별칭이 서로 다른 컬럼을 가리키면
-     * 모호해서 빠지고(없음) WARN 을 남긴다. 키 수와 무관하게 표준 1·별칭 1·컬럼 1 문장이다(도메인 트리 읽기 별도).
+     * 가 있을 때만 그 시스템의 별칭({@code TB_MDM_COLUMN_SYSTEM.PHYS_NAME}, 대소문자 무시)으로 찾는다. {@code systemCode} 는 쉼표로 이은 목록일 수
+     * 있다({@code "MES,MDM"}, 2026-10-05) — 앞 코드부터 보고, 앞 코드에서 맞거나 모호했던 키는 뒤 코드에서 다시 찾지 않는다(모호한 이름을 다른 시스템
+     * 뜻으로 바꿔 답하지 않는다). 한 별칭이 같은 시스템 안에서 서로 다른 컬럼을 가리키면 모호해서 빠지고(없음) WARN 을 남긴다. 키 수와 무관하게
+     * 표준 1 + 코드마다 별칭 1·컬럼 1 문장이다(도메인 트리 읽기 별도).
      */
     public MetaFeedResult columns(Collection<String> physNames, String systemCode) {
         if (physNames.isEmpty()) {
@@ -74,10 +79,14 @@ public class MetaFeedDictionary {
             found.put(c.getPhysName().toUpperCase(Locale.ROOT),
                     MetaFeedJson.plain(columnMeta(c, chain(snapshot, c.getDomainId()), null, null)));
         }
-        String system = systemCode == null ? "" : systemCode.trim();
-        List<String> rest = physNames.stream().filter(k -> !found.containsKey(k)).distinct().toList();
-        if (!system.isEmpty() && !rest.isEmpty()) {
-            Map<String, MdmColumnSystem> byKey = aliasMatches(system, rest);
+        List<String> rest = new ArrayList<>(physNames.stream().filter(k -> !found.containsKey(k)).distinct().toList());
+        // 시스템 코드 목록(쉼표 구분)을 앞에서부터 본다 — 앞 코드에서 맞거나 모호했던 키는 뒤 코드에서 다시 찾지 않는다
+        for (String system : systemCodes(systemCode)) {
+            if (rest.isEmpty()) {
+                break;
+            }
+            Set<String> ambiguous = new HashSet<>();
+            Map<String, MdmColumnSystem> byKey = aliasMatches(system, rest, ambiguous);
             Map<Long, MdmColumn> byId = new HashMap<>();
             if (!byKey.isEmpty()) {
                 columns.findAllById(byKey.values().stream().map(MdmColumnSystem::getColumnId).distinct().toList())
@@ -91,6 +100,7 @@ public class MetaFeedDictionary {
                             columnMeta(c, chain(snapshot, c.getDomainId()), alias.getSystemCode(), alias.getPhysName())));
                 }
             }
+            rest.removeIf(k -> found.containsKey(k) || ambiguous.contains(k));
         }
         // 응답은 요청 키 순서로(표준·별칭이 섞여도)
         Map<String, Object> ordered = new LinkedHashMap<>();
@@ -103,11 +113,26 @@ public class MetaFeedDictionary {
         return new MetaFeedResult(ordered, Map.of());
     }
 
+    /** 쉼표로 이은 시스템 코드 목록 → 앞뒤 공백을 떼고 빈 항목·중복을 뺀 순서 그대로의 코드들. null·빈 값이면 빈 목록. */
+    static List<String> systemCodes(String systemCode) {
+        if (systemCode == null) {
+            return List.of();
+        }
+        Set<String> codes = new LinkedHashSet<>();
+        for (String part : systemCode.split(",")) {
+            String code = part.trim();
+            if (!code.isEmpty()) {
+                codes.add(code);
+            }
+        }
+        return List.copyOf(codes);
+    }
+
     /**
-     * 키별로 맞은 별칭 행 하나. 서로 다른 COLUMN_ID 를 가리키는 키는 빠진다(모호, WARN). 한 컬럼에 대소문자만 다른 별칭이 여럿이면 키와 글자까지
+     * 키별로 맞은 별칭 행 하나. 서로 다른 COLUMN_ID 를 가리키는 키는 빠지고 {@code ambiguous} 에 담긴다(모호, WARN). 한 컬럼에 대소문자만 다른 별칭이 여럿이면 키와 글자까지
      * 같은 원문을, 없으면 원문 사전순 첫 값을 고른다(응답이 늘 같게).
      */
-    private Map<String, MdmColumnSystem> aliasMatches(String system, List<String> keys) {
+    private Map<String, MdmColumnSystem> aliasMatches(String system, List<String> keys, Set<String> ambiguous) {
         Map<String, List<MdmColumnSystem>> grouped = new LinkedHashMap<>();
         for (MdmColumnSystem row : columnSystems.findBySystemCodeAndUpperPhysNameIn(system, keys)) {
             grouped.computeIfAbsent(row.getPhysName().toUpperCase(Locale.ROOT), k -> new ArrayList<>()).add(row);
@@ -117,6 +142,7 @@ public class MetaFeedDictionary {
             List<Long> ids = rows.stream().map(MdmColumnSystem::getColumnId).distinct().sorted().toList();
             if (ids.size() > 1) {
                 log.warn("MDM 컬럼 별칭이 모호해서 찾지 않습니다: system={}, key={}, columnIds={}", system, key, ids);
+                ambiguous.add(key);
                 return;
             }
             out.put(key, rows.stream()
