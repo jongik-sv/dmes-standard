@@ -65,6 +65,15 @@ public class SecWidgetTabWriter {
         }).toList());
     }
 
+    /** 다른 사용자에게 줄 탭 사본 하나 — 검증·이름·새 탭 ID·새 instId 를 마친 값. */
+    public record TabCopy(String userId, TabValues tab, List<WidgetValues> widgets) {}
+
+    /** 탭 공유 — 받는 사람들의 새 탭을 한 트랜잭션으로 넣는다(design-widget-tabs.md §3.1 shareTab). */
+    @Transactional
+    public void copyTabs(List<TabCopy> copies) {
+        for (TabCopy c : copies) replaceTab(c.userId(), c.tab(), c.widgets());
+    }
+
     /** 탭과 그 위젯을 지운다. 없으면 아무것도 하지 않는다. */
     @Transactional
     public void deleteTab(String userId, String tabId) {
