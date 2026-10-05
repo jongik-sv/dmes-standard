@@ -165,6 +165,7 @@ record_lane() {  # record_lane <handle> <pid|-> <sid|-> <addr>
                addr:(if $addr == "" then "" else "uds:" + $addr end)} + (if $win then {window:$win} else {} end)),
      worktree:$wt, state:"active"}')"
   coord_state_call event spawned "$name" "$(jq -cn --arg h "$1" --arg k "$kind" '{handle:$h, kind:$k}')"
+  bash "$SD/office.sh" lane-up "$name" >/dev/null 2>&1 || true   # 에이전트 오피스 표시(실패해도 무시)
 }
 claude_flags() {
   local f=" -n $name"

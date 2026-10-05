@@ -64,6 +64,8 @@ ev_append() {
     '{at:$at, kind:$k, lane:(if $l == "-" or $l == "" then null else $l end), data:$d}')"
   st_lock "$dir"; printf '%s\n' "$line" >> "$dir/events.jsonl"; st_unlock "$dir"
 }
+# 에이전트 오피스 표시(office.sh). 표시 전용이라 실패해도 상태 쓰기·stdout 계약은 그대로다.
+office() { bash "$COORD_SCRIPTS_DIR/office.sh" "$@" >/dev/null 2>&1 || true; }
 lane_name_ok() { case "$1" in ""|*[!A-Za-z0-9._-]*) coord_die 2 "레인 이름 형식 오류: '$1'" ;; esac; }
 lane_exists() {
   local f; f="$(state_file_checked)"
@@ -103,6 +105,7 @@ cmd_init() {
   [ -f "$dir/events.jsonl" ] || : > "$dir/events.jsonl"
   printf '%s\n' "$id" | atomic_write "$root/current" || coord_die 4 "current 쓰기 실패"
   ev_append "$dir" init - "$(jq -nc --arg g "$goal" '{goal:$g}')"
+  COORD_RUN="$id" office lead-up
   echo "RUN $id $dir"
 }
 
@@ -121,7 +124,16 @@ cmd_set() {
   [ $# -eq 2 ] || usage
   case "$1" in .*) ;; *) coord_die 2 "jq 경로는 . 으로 시작한다: $1" ;; esac
   json_ok "$2"
+  local merge_old="" merge_new=""
+  case "$1" in .merge*) merge_old="$(jq -r '.merge.in_flight.lane // empty' "$(state_file_checked)" 2>/dev/null)" ;; esac
   st_update --argjson v "$2" "$1 = \$v" || exit 4
+  case "$1" in .merge*)   # 머지 중 라벨(오피스)은 in_flight 레인이 바뀔 때만 다시 보낸다
+    merge_new="$(jq -r '.merge.in_flight.lane // empty' "$(state_file_checked)" 2>/dev/null)"
+    if [ "$merge_old" != "$merge_new" ]; then
+      [ -z "$merge_old" ] || office lane-state "$merge_old" auto
+      [ -z "$merge_new" ] || office lane-state "$merge_new" auto
+    fi ;;
+  esac
   echo OK
 }
 
@@ -131,6 +143,8 @@ cmd_lane_add() {
   st_update --arg l "$1" --argjson j "$2" --argjson sk "$LANE_SKEL" '.lanes[$l] = ($sk * (.lanes[$l] // {}) * $j)' || exit 4
   mkdir -p "$(run_dir)/lanes/$1"
   ev_append "$(run_dir)" lane-add "$1"
+  # 이미 오피스에 올라간 레인이면 지시 요약(brief)이 바뀐 것을 바로 반영한다(처음 올리는 일은 spawn-lane·beat 몫)
+  [ -z "$(jq -r --arg l "$1" '.office.sent[$l] // empty' "$(state_file_checked)" 2>/dev/null)" ] || office lane-state "$1" auto
   echo OK
 }
 
@@ -138,6 +152,7 @@ cmd_event() {
   [ $# -ge 1 ] || usage
   state_file_checked >/dev/null
   ev_append "$(run_dir)" "$1" "${2:--}" "${3:-}"
+  [ "$1" != run-closed ] || office finish   # 회차 마감(closing.md §6)
   echo OK
 }
 
@@ -173,6 +188,7 @@ cmd_report() {
   mkdir -p "$dir/lanes/$1"
   printf -- '- %s %s\n' "$now" "${2:-}" >> "$dir/lanes/$1/reports.md"
   ev_append "$dir" report "$1" "$(jq -nc --arg t "${2:-}" '{text:$t}')"
+  office lane-state "$1" auto
   echo OK
 }
 
@@ -188,6 +204,7 @@ cmd_item_done() {
     || coord_die 2 "없는 항목: $1 $2"
   st_update --arg l "$1" --arg i "$2" '(.lanes[$l].items[] | select((.id | tostring) == $i) | .done) = true' || exit 4
   ev_append "$(run_dir)" item-done "$1" "$(jq -nc --arg i "$2" '{item:$i}')"
+  office lane-state "$1" auto
   jq -r --arg l "$1" "$PCT_DEF"' .lanes[$l] | lpct | "PROGRESS \($l) \(.p)%"' "$f"
 }
 
@@ -210,6 +227,7 @@ cmd_hold() {
     st_update --arg l "$1" --arg r "$2" --arg u "${3:-}" '.lanes[$l].hold = {reason: $r, until: (if $u == "" then null else $u end)}' || exit 4
     ev_append "$(run_dir)" hold "$1" "$(jq -nc --arg r "$2" --arg u "${3:-}" '{reason:$r, until:(if $u == "" then null else $u end)}')"
   fi
+  office lane-state "$1" auto
   echo OK
 }
 

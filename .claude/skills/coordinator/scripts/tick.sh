@@ -115,4 +115,6 @@ done < <(printf '%s\n' "$status" | grep '^UNLINKED ')
 
 if [ "${#out[@]}" -eq 0 ]; then echo "TICK quiet"; else printf '%s\n' "${out[@]}"; fi
 [ "${#out[@]}" -gt 0 ] && coord_state_call event tick - "$(jq -cn --argjson n "${#out[@]}" '{actions:$n}')" >/dev/null 2>&1
+# 에이전트 오피스 하트비트(팀장·살아 있는 레인 전원을 state.json 기준으로 재전송). 실패·dry-run 이어도 틱 출력은 그대로다.
+[ "$dry" = 1 ] || bash "$SD/office.sh" beat >/dev/null 2>&1 || true
 exit 0

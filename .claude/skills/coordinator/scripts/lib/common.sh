@@ -43,6 +43,7 @@ COORD_DEFAULTS='{
   "approvals": {"auto_allow": ["read", "status"],
                 "auto_allow_spawned": ["read", "status", "edit-own", "commit-own", "heavy-build"]},
   "restart_rules": [],
+  "office": {"enabled": true, "project_id": null, "label_max": 40, "dflow_script": null},
   "records_check": false,
   "integration_check": "",
   "claude_projects_dir": "~/.claude/projects",
