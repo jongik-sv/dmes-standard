@@ -9003,6 +9003,26 @@
           { "code": "CYCLE", "severity": "REJECT", "ruleId": "SP", "otherRuleId": "R_B", "varName": "B",
             "message": "세트 SP와 R_B가 서로의 결과 변수를 읽는다(순환). 순서를 바꿔서는 풀리지 않는다", "nodeId": "s1" }]
       }
+    },
+    {
+      "name": "하위 세트 — 없는 룰·RELEASED 없는 룰의 노드에 SUBSET_ENDED 를 받아도 FLOW_CATCH 는 나온다(룰 존재 검사의 조기 return 앞)",
+      "flow": { "version": 1,
+        "nodes": [{ "id": "start", "kind": "START" }, { "id": "r1", "kind": "RULE", "ruleId": "R_GONE" }, { "id": "c1", "kind": "CATCH", "attachTo": "r1", "catches": ["SUBSET_ENDED"] },
+                  { "id": "r2", "kind": "RULE", "ruleId": "R_DRAFT" }, { "id": "c2", "kind": "CATCH", "attachTo": "r2", "catches": ["SUBSET_ENDED"] },
+                  { "id": "end", "kind": "END" }],
+        "edges": [{ "id": "e1", "from": "start", "to": "r1" }, { "id": "e2", "from": "r1", "to": "r2" }, { "id": "e3", "from": "c1", "to": "end" },
+                  { "id": "e4", "from": "r2", "to": "end" }, { "id": "e5", "from": "c2", "to": "end" }] },
+      "ids": ["R_GONE", "R_DRAFT"],
+      "rules": { "R_DRAFT": { "exists": true, "status": "CREATED", "releasedVer": null, "conds": [], "results": [] } },
+      "expect": {
+        "io": { "inputs": [], "results": [] },
+        "deps": { "R_GONE": [], "R_DRAFT": [] },
+        "checks": [
+          { "code": "RULE_NOT_FOUND", "severity": "REJECT", "ruleId": "R_GONE", "message": "R_GONE는 없는 룰이다", "nodeId": "r1" },
+          { "code": "NO_RELEASED", "severity": "WARN", "ruleId": "R_DRAFT", "message": "R_DRAFT는 RELEASED 버전이 없어 입출력을 계산하지 않았다. 이대로 부르면 판정 오류다", "nodeId": "r2" },
+          { "code": "FLOW_CATCH", "severity": "REJECT", "message": "받는 노드 c1: 룰 노드에는 하위 세트 예외 끝(SUBSET_ENDED)을 붙일 수 없다", "nodeId": "c1" },
+          { "code": "FLOW_CATCH", "severity": "REJECT", "message": "받는 노드 c2: 룰 노드에는 하위 세트 예외 끝(SUBSET_ENDED)을 붙일 수 없다", "nodeId": "c2" }]
+      }
     }
   ]
 }
