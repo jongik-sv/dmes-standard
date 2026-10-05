@@ -23,7 +23,7 @@
 ## S3. SearchField `name`·`meta`
 - 커밋: 562289e1
 - 바뀌기 전: `SearchField` 라벨은 `<Text>{label}</Text>`, MDM 메타를 쓰지 않았다.
-- 바뀐 뒤: optional `name`·`meta` 를 주면 라벨 안에 `MdmFieldLabel`(name→물리명, meta 문자열 우선, meta=false 끔)을 그린다. `layout` 묶음이 `mdm-meta/MdmFieldLabel` 을 직접 import 한다(배럴 아님). store·컨텍스트는 globalThis 단일 인스턴스라 tsup 분리 빌드에서도 요청이 한 묶음으로 모인다. 그 대신 `dist/layout.js` 가 54.4K(메인 체크아웃 dist, 변경 전) → 85.5K(이 브랜치)로 커진다(같은 코드가 form·grid·mdm-meta 묶음에도 이미 있다, splitting:false).
+- 바뀐 뒤: optional `name`·`meta` 를 주면 라벨 안에 `MdmFieldLabel`(name→물리명, meta 문자열 우선, meta=false 끔)을 그린다. `layout` 묶음이 `mdm-meta/MdmFieldLabel` 을 직접 import 한다(배럴 아님). store·컨텍스트는 globalThis 단일 인스턴스라 tsup 분리 빌드에서도 요청이 한 묶음으로 모인다. 그 대신 `dist/layout.js` 가 54.4K(메인 체크아웃 dist, 변경 전) → 85.5K(이 브랜치)로 커진다(같은 코드가 form·grid·mdm-meta 묶음에도 이미 있다, splitting:false). m-mcm 클라이언트 청크 전체는 오히려 −2.0% 였다(perf P1).
 - 바꾼 이유: 조회 영역 라벨에 컬럼 사전 툴팁이 없었다(tooltip-screens 의 SearchField 항목이 이 prop 을 쓴다).
 - 동작 보존 근거: `search-field-mdm-meta.unit.test.ts` 특성 시험 — name 없는 텍스트·선택·라디오·사용자 입력 칸이 공급자 안팎에서 같은 DOM(자동 id 정규화)이고 요청 0건. 구현 전 코드에서 먼저 통과를 확인했다.
 - 영향 범위: name 을 주는 화면만. 필터 키(edt_·cbo_)에서 이름을 추론하지 않는다. Radio name·최근 입력값 키는 계속 label.
