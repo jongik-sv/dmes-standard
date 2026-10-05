@@ -29,7 +29,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * 디버거 실행 응답 {@code calledFlows}(하위 세트 spec §8, srv:6 묶음 D) — 기록을 손으로 만들어 SET 노드 {@code sub} 를 따라 모은 세트의 판정 시각
- * RELEASED 흐름을 본다. SET 노드를 엔진으로 실제 실행해 얻은 기록으로 보는 시험은 eng:4 뒤에 둔다(SEAM T4).
+ * RELEASED 흐름을 본다. SET 노드를 엔진으로 실제 실행해 얻은 기록으로 보는 시험은 {@code RuleSetRunnerSubsetTest}(srv:6 E1).
  *
  * <p>판정 시각 2026-03-01 09:00(KST). 룰 QLTY_GRD_JDG 는 1.000(2026-01-01~)과 2.000(2026-09-01~) — rules 는 판정 시각의 1.000 으로 계산한다.
  */

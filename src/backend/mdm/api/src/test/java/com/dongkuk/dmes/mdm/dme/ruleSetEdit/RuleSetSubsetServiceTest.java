@@ -45,7 +45,7 @@ import org.springframework.test.context.ActiveProfiles;
 /**
  * 하위 세트 spec §5·§6.2·§6.3·§8, srv:6 조정 ①④ — 편집 서비스의 DRAFT 저장(CALL_SET_IDS 쓰기, 네 코드는 경고), 폐기 거부, 되살리기 거부(네 코드), 조회
  * (view.calls·search CALL_IO·CALLERS). 기준 시각은 모두 지금(시계 NOW = 2026-06-15 09:00). 필수 시험(Task 6 갱신 메모)의 저장 쪽은 확정까지 서비스로
- * 이어 본다(확정 쪽 단독 시험은 ruleSetConfirm/RuleSetSubsetConfirmSqliteTest). SET 노드가 든 흐름은 엔진으로 실행하지 않는다(SEAM T4).
+ * 이어 본다(확정 쪽 단독 시험은 ruleSetConfirm/RuleSetSubsetConfirmSqliteTest). SET 노드가 든 흐름은 여기서 엔진으로 실행하지 않는다(실행은 RuleSetRunnerSubsetTest).
  *
  * <p>룰(모두 1.000 RELEASED, 조건 하나·결과 하나): R_A(IN_A → OUT_A), R_B(IN_A → OUT_B), R_C1(IN_A → OUT_X), R_C2(IN_A → OUT_Y),
  * R_P(OUT_X → OUT_P — OUT_X 는 컬럼 사전에 없어 하위 세트가 만들어야 읽는다).
