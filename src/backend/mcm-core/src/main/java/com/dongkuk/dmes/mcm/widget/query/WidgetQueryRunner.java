@@ -57,4 +57,18 @@ public interface WidgetQueryRunner {
      * @return SQL 이 쓰는 사용자 입력 조건 이름(처음 나온 순서, 중복 없음)
      */
     List<String> validateSql(String sql, Set<String> declaredNames);
+
+    /**
+     * 정시 수집 SQL 저장 전 검사(스펙 2026-10-05 정시 수집 §2) — {@link #validateSql(String)} 와 같고, 수집에는 사용자가 없으므로
+     * {@code :userId}·{@code :deptCd} 를 거절한다. 사용자 입력 조건({@code :name})도 없다.
+     */
+    void validateCollectSql(String sql);
+
+    /**
+     * 정시 수집기용 실행 — 사용자 없이(인증 컨텍스트를 읽지 않는다) 읽기 전용 실행기로 돌린다. 같은 SQL 검사·{@link #validateCollectSql} 규칙을 거치고
+     * 결과 캐시는 쓰지 않는다. 실패는 {@code BusinessException}(고정 문구, DB 메시지는 서버 로그에만).
+     *
+     * @param maxRows 행 상한(수집은 50)
+     */
+    WidgetQueryResult runCollect(String sql, int maxRows);
 }

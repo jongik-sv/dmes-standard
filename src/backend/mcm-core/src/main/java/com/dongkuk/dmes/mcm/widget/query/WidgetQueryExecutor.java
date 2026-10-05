@@ -218,6 +218,36 @@ public class WidgetQueryExecutor implements WidgetQueryRunner {
         return validate(sql, declaredNames).userVariables();
     }
 
+    @Override
+    public void validateCollectSql(String sql) {
+        requireNoUserVariables(validate(sql, Set.of()));
+    }
+
+    @Override
+    public WidgetQueryResult runCollect(String sql, int maxRows) {
+        requireMaxRows(maxRows);
+        SqlGuard.Validated validated = validate(sql, Set.of());
+        requireNoUserVariables(validated);
+        Map<String, Object> values = systemValues(validated.variables()); // 사용자 변수가 없으니 인증 컨텍스트를 읽지 않는다
+        try {
+            return execute(validated.sql(), values, maxRows);
+        } catch (RuntimeException e) {
+            // DB 메시지는 RUN 행·로그로 새지 않게 서버 로그에만(§7.3).
+            log.warn("정시 수집 쿼리 실행 실패 원인={}", rootMessage(e));
+            log.debug("정시 수집 쿼리 실행 실패 상세", e);
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, MSG_LOAD_FAILED);
+        }
+    }
+
+    private static void requireNoUserVariables(SqlGuard.Validated validated) {
+        for (String name : validated.variables()) {
+            if ("userId".equals(name) || "deptCd".equals(name)) {
+                throw new BusinessException(ErrorCode.INVALID_VALUE,
+                        "정시 수집 SQL 에는 사용자 변수(:userId·:deptCd)를 쓸 수 없습니다. 수집에는 사용자가 없습니다");
+            }
+        }
+    }
+
     /** 정의를 저장·삭제하면 그 정의의 캐시 항목(모든 사용자·행 상한)을 비운다. */
     @EventListener
     public void onDefSaved(WidgetDefSavedEvent event) {
