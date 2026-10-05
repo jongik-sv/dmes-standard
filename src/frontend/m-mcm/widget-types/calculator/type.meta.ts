@@ -11,4 +11,5 @@ export const meta: WidgetTypeMeta = {
   defaultSize: { w: 6, h: 12 },
   minSize: { w: 4, h: 9 },
   initialConfig: { showHistory: true },
+  floatable: true,
 };
