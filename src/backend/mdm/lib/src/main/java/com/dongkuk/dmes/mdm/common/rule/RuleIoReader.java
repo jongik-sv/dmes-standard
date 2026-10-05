@@ -137,7 +137,7 @@ public class RuleIoReader {
         Map<String, Collected> collected = new LinkedHashMap<>();
         Set<String> names = new LinkedHashSet<>();
         released.forEach((id, ver) -> {
-            Collected c = collect(varsByRule.get(id), rowsByRule.getOrDefault(id, List.of()));
+            Collected c = collect(varsByRule.get(id), rowsByRule.getOrDefault(id, List.of()).stream().map(MdmRuleRow::getCells).toList());
             collected.put(id, c);
             names.addAll(c.condNames());
             c.results().values().forEach(v -> names.add(v.getVarName()));
@@ -237,7 +237,24 @@ public class RuleIoReader {
     private record Collected(Map<String, MdmRuleVar> results, List<String> condNames) {
     }
 
-    private static Collected collect(List<MdmRuleVar> vars, List<MdmRuleRow> rows) {
+    /**
+     * 저장하려는 정의의 입출력(하위 세트 spec §6.3) — 룰 저장 검사({@code RuleSetCallerCheck})가 그 룰을 담은 세트의 겉모양을 다시 계산할 때 쓴다. 원장을
+     * 읽지 않고 넘긴 변수·행으로 {@link #read} 와 같은 규칙(읽는 이름·만드는 이름·출처·타입)을 쓴다. 기본 행 여부는 {@code rowKind == DEFAULT} 행이 있는가.
+     *
+     * @param ver 저장하려는 버전(타입 해석 키 — 값은 보지 않는다)
+     */
+    public RuleIo draft(MdmRule rule, BigDecimal ver, String hitPolicy, List<MdmRuleVar> vars, List<RuleAnalysisInputMapper.StoredRow> rows,
+                        RuleVarTypeResolver.Scope scope) {
+        Collected c = collect(vars, rows.stream().map(RuleAnalysisInputMapper.StoredRow::cells).toList());
+        Set<String> names = new LinkedHashSet<>(c.condNames());
+        c.results().values().forEach(v -> names.add(v.getVarName()));
+        scope.preloadColumns(names);
+        boolean hasDefault = rows.stream().anyMatch(r -> "DEFAULT".equals(r.rowKind()));
+        return compute(rule, ver, hitPolicy, hasDefault, vars, c, scope);
+    }
+
+    /** rowCells 는 행마다 CELLS JSON(행 순서) — Expression 열이 있을 때만 읽는다. */
+    private static Collected collect(List<MdmRuleVar> vars, List<String> rowCells) {
         Map<String, MdmRuleVar> results = new LinkedHashMap<>();          // 결과 이름 → 대표 열(그룹이면 첫 열)
         for (MdmRuleVar v : vars) {
             String name = resName(v);
@@ -262,8 +279,8 @@ public class RuleIoReader {
         }
         List<MdmRuleVar> expressionColumns = vars.stream().filter(v -> EXPRESSION.equals(v.getDispType())).toList();
         if (!expressionColumns.isEmpty()) {
-            for (MdmRuleRow row : rows) {
-                Map<Integer, Map<String, Object>> cells = RuleCellsCodec.parse(row.getCells());
+            for (String rowJson : rowCells) {
+                Map<Integer, Map<String, Object>> cells = RuleCellsCodec.parse(rowJson);
                 for (MdmRuleVar v : expressionColumns) {
                     Map<String, Object> cell = cells.get(v.getVarId());
                     if (cell != null) {

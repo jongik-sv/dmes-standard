@@ -262,4 +262,20 @@ class RuleErrorTextTest {
         assertEquals("RS_A", RuleErrorText.missingSetId("세트가 없다: RS_A @ 2026-03-01T00:00:00Z"));
         assertEquals("룰 세트 RS_A 가 없습니다. 세트 ID 를 확인하세요.", RuleErrorText.setAbsent("RS_A"));
     }
+
+    @Test
+    void 세트_호출_순환_깊이는_원문을_문장_안에_남긴다() {
+        // 엔진 원문 모양은 eng:4 가 정한다 — 모양을 읽지 않으므로 무엇이 와도 원문이 남는다.
+        assertEquals("하위 세트 호출이 순환해 판정을 멈췄습니다(A › B › A). 세트가 서로를 부르지 않게 흐름을 고치세요.",
+                RuleErrorText.describe("SET_CHECK", "SET_CALL_CYCLE", null, "B", "A › B › A"));
+        assertEquals("하위 세트 호출 단계가 5 를 넘어 판정을 멈췄습니다(깊이 6). 부르는 단계를 줄이세요.",
+                RuleErrorText.describe("SET_CHECK", "SET_CALL_DEPTH", null, "F", "깊이 6"));
+    }
+
+    @Test
+    void withSetPath_는_경로가_있을_때만_앞에_붙인다() {
+        assertEquals("세트 A › 단가 결정(s1) › [R] 문구", RuleErrorText.withSetPath("세트 A › 단가 결정(s1) › ", "[R] 문구"));
+        assertEquals("[R] 문구", RuleErrorText.withSetPath("", "[R] 문구"));
+        assertEquals("[R] 문구", RuleErrorText.withSetPath(null, "[R] 문구"));
+    }
 }

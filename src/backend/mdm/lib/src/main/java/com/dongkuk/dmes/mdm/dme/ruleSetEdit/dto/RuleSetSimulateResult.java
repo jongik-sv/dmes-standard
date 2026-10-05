@@ -13,6 +13,11 @@ public class RuleSetSimulateResult {
     private List<Map<String, Object>> warnings;
     /** 케이스 일괄 실행({@code runCases})의 케이스별 결과. 단건 실행이면 null. */
     private List<Map<String, Object>> cases;
+    /**
+     * 실행 중 부른 세트(하위 세트 spec §8, 디버거 들어가기) — 세트 ID → {@code {setId, setName, flow(판정 시각 RELEASED 버전의 FLOW_JSON 맵, view 포함,
+     * 없으면 null), ruleIds, rules(RuleIo 목록)}}. 단건 실행에만 싣고, 부른 세트가 없거나 케이스 일괄 실행이면 빈 맵.
+     */
+    private Map<String, Object> calledFlows = Map.of();
 
     public RuleSetSimulateResult() {
     }
@@ -37,4 +42,7 @@ public class RuleSetSimulateResult {
 
     public void setTrace(Map<String, Object> v) { this.trace = v; }
     public void setWarnings(List<Map<String, Object>> v) { this.warnings = v; }
+
+    public Map<String, Object> getCalledFlows() { return calledFlows; }
+    public void setCalledFlows(Map<String, Object> v) { this.calledFlows = v; }
 }

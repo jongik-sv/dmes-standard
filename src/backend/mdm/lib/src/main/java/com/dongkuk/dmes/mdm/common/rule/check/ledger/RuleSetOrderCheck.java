@@ -4,8 +4,11 @@ import com.dongkuk.dmes.mdm.common.rule.RuleCellsCodec;
 import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetPathState;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetPathState.At;
+import com.dongkuk.dmes.mdm.common.rule.RuleSetPathState.SetOut;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetVersionQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleVersions;
+import com.dongkuk.dmes.mdm.common.rule.SetCallIo;
+import com.dongkuk.dmes.mdm.common.rule.SetCallIoReader;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleCheckReport;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleDefinitionReads;
 import com.dongkuk.dmes.mdm.common.rule.check.RuleDefinitionReads.Names;
@@ -50,7 +53,8 @@ import org.springframework.stereotype.Component;
  * (세트 저장 검사가 막는다). 규칙표는 계획 Task 9: SET_CYCLE·SET_ORDER·SET_PAR_SIBLING·SET_IF_SIBLING(ERROR), SET_DUP_RESULT(WARNING).
  *
  * <p>형제 읽기(SET_IF_SIBLING·SET_PAR_SIBLING 의 읽기 판정)는 2단계 계획 P4 로 노드 쌍 단위다 — 세트 저장 검사와 같은 경로 상태
- * ({@link RuleSetPathState#before})로, 읽는 노드 직전 경로에서 이미 정의됐을 수 있는 이름(defined·maybe)은 형제가 만들어도 문제 삼지 않는다.
+ * ({@link RuleSetPathState#before})로, 읽는 노드 직전 경로에서 이미 정의됐을 수 있는 이름(defined·maybe)은 형제가 만들어도 문제 삼지 않는다. 하위
+ * 세트를 부르는 SET 노드는 기준 시각의 그 세트 겉모양({@link SetCallIoReader#read}) 출력을 경로 상태에 더한다(srv:6).
  *
  * <p>받는 룰과 그 처리 갈래 안(중첩 포함) 룰은 EXCLUSIVE 로 본다(받는 노드 spec §5 — 실패한 룰의 결과는 정의되지 않은 것으로 보고, 처리 갈래가 같은
  * 결과 변수를 쓰는 것은 정상이다). {@code FlowTree.relation} 은 이 쌍을 BEFORE·AFTER 로 내므로 {@link #guardedPairs} 로 덮는다.
@@ -62,11 +66,13 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
     private final RuleQueries queries;
     private final RuleSetVersionQueries setVersions;
     private final Clock clock;
+    private final SetCallIoReader callReader;
 
-    public RuleSetOrderCheck(RuleQueries queries, RuleSetVersionQueries setVersions, Clock clock) {
+    public RuleSetOrderCheck(RuleQueries queries, RuleSetVersionQueries setVersions, Clock clock, SetCallIoReader callReader) {
         this.queries = queries;
         this.setVersions = setVersions;
         this.clock = clock;
+        this.callReader = callReader;
     }
 
     @Override
@@ -110,7 +116,7 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
             for (MdmRuleSetVer v : RuleVersions.releasedValidFrom(byId.get(set.getMaruRuleSetId()), at)) {
                 List<String> members = RuleSetVersionQueries.members(v);
                 if (members.contains(me)) {
-                    checkVersion(set.getMaruRuleSetId(), v, members, me, self, out, seen, siblings);
+                    checkVersion(set.getMaruRuleSetId(), v, members, me, self, at, out, seen, siblings);
                 }
             }
         }
@@ -118,8 +124,8 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
     }
 
     /** 세트 버전 하나의 흐름으로 판정한다. 문구 머리는 세트 ID·버전, 형제 읽기 쌍에는 세트 ID 만 적는다. */
-    private void checkVersion(String setId, MdmRuleSetVer v, List<String> members, String me, Names self, List<Map<String, Object>> out,
-            Set<Map<String, Object>> seen, List<SiblingRead> siblings) {
+    private void checkVersion(String setId, MdmRuleSetVer v, List<String> members, String me, Names self, LocalDateTime at,
+            List<Map<String, Object>> out, Set<Map<String, Object>> seen, List<SiblingRead> siblings) {
         FlowTree tree = tree(v);
         if (tree == null) {
             return;
@@ -135,9 +141,11 @@ public class RuleSetOrderCheck implements RuleSaveCheck {
             others.put(other, RuleDefinitionReads.of(queries.vars(other, ver),
                     queries.rows(other, ver).stream().map(r -> RuleCellsCodec.parse(r.getCells())).toList()));
         }
-        // P4 — 노드마다 직전 경로 상태. me 는 저장하려는 정의, 다른 룰은 최신 RELEASED(없으면 만드는 이름 없음).
+        // P4 — 노드마다 직전 경로 상태. me 는 저장하려는 정의, 다른 룰은 최신 RELEASED(없으면 만드는 이름 없음). SET 노드는 기준 시각의 하위 세트
+        // 겉모양 출력(always 는 defined, always=false 는 maybe — 하위 세트 spec §2, srv:5 넘김 1). SET 노드가 없으면 원장을 읽지 않는다.
+        Map<String, SetCallIo> calls = callReader.read(tree.setIds(), at);
         Map<String, At> before = RuleSetPathState.before(tree, id -> id.equals(me) ? self.produces()
-                : others.containsKey(id) ? others.get(id).produces() : Set.of());
+                : others.containsKey(id) ? others.get(id).produces() : Set.of(), id -> SetOut.of(calls.get(id)));
         Set<NodePair> guarded = guardedPairs(tree);
         for (Map.Entry<String, Names> e : others.entrySet()) {
             String other = e.getKey();

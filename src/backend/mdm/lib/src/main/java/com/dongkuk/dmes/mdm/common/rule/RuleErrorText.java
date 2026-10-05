@@ -66,6 +66,9 @@ public final class RuleErrorText {
                     + " 을 찾지 못했습니다. 룰의 적용 기간(시작·종료)과 판정 시각을 확인하세요.";
             case "SET_NOT_FOUND" -> setNotFound(body);
             case "SET_DEPRECATED" -> "폐기된 룰 세트라 판정하지 않습니다. 사용 중인 세트를 고르세요.";
+            // 하위 세트 spec §3.3 — 엔진 원문 모양은 eng:4 가 정한다. 모양을 읽지 않고 원문을 문장 안에 그대로 둔다(정보를 잃지 않는다).
+            case "SET_CALL_CYCLE" -> "하위 세트 호출이 순환해 판정을 멈췄습니다(" + body + "). 세트가 서로를 부르지 않게 흐름을 고치세요.";
+            case "SET_CALL_DEPTH" -> "하위 세트 호출 단계가 5 를 넘어 판정을 멈췄습니다(" + body + "). 부르는 단계를 줄이세요.";
             case "RESERVED_KEY" -> name != null && name.contains(",")
                     ? "대소문자만 다른 입력 이름이 둘 이상 있습니다(" + name + "). 하나만 남기세요."
                     : "입력 이름 " + name + " 은(는) '_' 로 시작해 쓸 수 없습니다(예약된 이름). 다른 이름으로 바꾸세요.";
@@ -236,6 +239,14 @@ public final class RuleErrorText {
         }
         return "판정 시각 " + kst(m.group(2)) + " 에 적용되는 룰 세트 " + m.group(1)
                 + " 의 버전이 없습니다. 세트 버전의 확정 여부와 적용 기간(시작·종료), 판정 시각을 확인하세요.";
+    }
+
+    /**
+     * 하위 세트에서 올라온 위반 — 문구 앞에 세트 경로({@code "세트 A › 단가 결정(s1) › "}, {@code RuleSetRunner.pathText})를 붙인다(하위 세트 spec §4.1).
+     * 경로가 null 이거나 비면 문구 그대로.
+     */
+    public static String withSetPath(String pathText, String text) {
+        return pathText == null || pathText.isEmpty() ? text : pathText + text;
     }
 
     /** 세트 원장에 그 ID 가 아예 없음. */

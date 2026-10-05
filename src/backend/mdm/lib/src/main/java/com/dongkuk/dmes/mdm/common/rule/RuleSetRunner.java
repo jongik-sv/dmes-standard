@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException;
 import kr.dongkuk.maru.mdm.engine.expr.EngineEvaluationException.Code;
@@ -40,6 +41,7 @@ import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowDefinition;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowNode;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.SetStatus;
 import org.slf4j.Logger;
@@ -223,19 +225,31 @@ public class RuleSetRunner {
         if (record == null) {
             throw new BusinessException(ErrorCode.INVALID_VALUE, "레코드 JSON 은 객체여야 합니다: " + request.getRecordJson());
         }
-        Instant ts = request.getEvalTs() == null || request.getEvalTs().isBlank() ? null : parseKst(request.getEvalTs());
+        // 판정 시각을 먼저 정한다 — 위반 문구의 세트 경로도 같은 시각의 세트 버전 흐름으로 읽는다(위반에는 결과가 없다).
+        Instant at = ts(request.getEvalTs() == null || request.getEvalTs().isBlank() ? null : parseKst(request.getEvalTs()));
         RuleSetResult r;
         try {
-            r = run(request.getSetId(), record, ts);
+            r = run(request.getSetId(), record, at);
         } catch (EngineEvaluationException e) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, e.violations().stream()
-                    .map(v -> (v.ruleId() == null ? "" : "[" + v.ruleId() + "] ") + userText(v))
+                    .map(v -> violationText(pathText(request.getSetId(), v.setPath(), id -> flowAt(id, at)), v, userText(v)))
                     .collect(Collectors.joining("; ")));
         } catch (StoredDefinitionException e) {
             // 저장된 행·FLOW_JSON(코덱)·AST(조립기)를 읽지 못함 — 데이터 손상(P-D9). 엔진 안의 IAE·ISE 는 여기서 잡지 않는다.
             throw MdmErrors.of(MdmErrorCode.STORED_DEFINITION_CORRUPT, "룰 세트 " + request.getSetId() + " 의 저장된 정의를 읽을 수 없어 판정하지 않습니다 — "
                     + e.getMessage(), List.of());
         }
+        RuleSetRunResult out = result(r);
+        out.setWarnings(warnings(request.getSetId(), r));
+        return out;
+    }
+
+    /**
+     * 엔진 결과 → 응답(경고 빼고). 경로 맵 {@code {nodeId, kind, chosenEdgeId, stepIndex, callIndex}}, 부른 세트 {@code calls}
+     * {@code {nodeId, setId, endedBy}}(이 세트의 SET 노드만, 실행 순서 — 손주는 {@code calls} 에 없고 하위 결과 안에 있다), 받은 exception
+     * {@code caught} 맵 끝에 {@code setPath}(하위 세트 spec §4.3·§8). 값이 null 인 칸도 키를 둔다.
+     */
+    static RuleSetRunResult result(RuleSetResult r) {
         RuleSetRunResult out = new RuleSetRunResult();
         out.setSetId(r.setId());
         out.setEvalTs(LocalDateTime.ofInstant(r.evalTs(), MdmClockConfig.KST).format(TS));
@@ -246,9 +260,16 @@ public class RuleSetRunner {
             m.put("kind", p.kind().name());
             m.put("chosenEdgeId", p.chosenEdgeId());
             m.put("stepIndex", p.stepIndex());
+            m.put("callIndex", p.callIndex());
             return m;
         }).toList());
-        out.setWarnings(warnings(request.getSetId(), r));
+        out.setCalls(r.calls().stream().map(c -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("nodeId", c.nodeId());
+            m.put("setId", c.setId());
+            m.put("endedBy", c.result().endedBy());
+            return m;
+        }).toList());
         out.setEndedBy(r.endedBy());
         out.setCaught(r.caught().stream().map(c -> {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -258,14 +279,15 @@ public class RuleSetRunner {
             m.put("kind", c.kind().name());
             m.put("code", c.code());
             m.put("message", c.message());
+            m.put("setPath", List.copyOf(c.setPath()));
             return m;
         }).toList());
         return out;
     }
 
     /**
-     * 응답 경고 — 폐기 룰 경고(판정에 쓴 세트 버전 흐름에서 룰 ID 가 처음 나온 순서) 다음에 엔진 경고(세트 경고, 이어서 실행한 룰의 경고를 실행 순서로).
-     * 폐기 룰이라도 판정은 막지 않는다(효력 시각이 없어 과거 시각 재판정까지 깨지므로). 룰 헤더는 한 번에 읽는다.
+     * 응답 경고 — 폐기 룰 경고(판정에 쓴 세트 버전 흐름에서 룰 ID 가 처음 나온 순서) 다음에 엔진 경고({@link #engineWarnings}).
+     * 폐기 룰이라도 판정은 막지 않는다(효력 시각이 없어 과거 시각 재판정까지 깨지므로). 룰 헤더는 한 번에 읽는다. 폐기 룰 경고는 최상위 세트의 룰만 본다.
      */
     private List<Map<String, Object>> warnings(String setId, RuleSetResult r) {
         LocalDateTime at = LocalDateTime.ofInstant(r.evalTs(), MdmClockConfig.KST);
@@ -274,12 +296,61 @@ public class RuleSetRunner {
         if (!out.isEmpty()) {
             log.warn("폐기된 룰이 든 세트를 판정했다 setId={} ruleIds={}", setId, out.stream().map(w -> w.get("ruleId")).toList());
         }
-        List<EngineWarning> engine = new ArrayList<>(r.warnings());
-        r.steps().forEach(s -> engine.addAll(s.warnings()));
-        for (EngineWarning w : engine) {
+        for (EngineWarning w : engineWarnings(r)) {
             out.add(warning(w.code().name(), w.ruleId(), w.message()));
         }
         return out;
+    }
+
+    /**
+     * 엔진 경고 — 세트 경고, 이어서 실행한 룰의 경고(실행 순서), 이어서 부른 하위 세트 결과마다({@code calls} 순서) 같은 순서를 재귀로(하위 세트 spec §8).
+     */
+    static List<EngineWarning> engineWarnings(RuleSetResult r) {
+        List<EngineWarning> out = new ArrayList<>();
+        collectWarnings(r, out);
+        return out;
+    }
+
+    private static void collectWarnings(RuleSetResult r, List<EngineWarning> out) {
+        out.addAll(r.warnings());
+        r.steps().forEach(s -> out.addAll(s.warnings()));
+        r.calls().forEach(c -> collectWarnings(c.result(), out));
+    }
+
+    /** 위반 한 건의 응답 문구 — 세트 경로({@link #pathText}) + 룰이 있으면 {@code [ruleId] } + 사용자 문구. */
+    static String violationText(String pathText, Violation v, String userText) {
+        return RuleErrorText.withSetPath(pathText, (v.ruleId() == null ? "" : "[" + v.ruleId() + "] ") + userText);
+    }
+
+    /**
+     * 위반의 {@code setPath} → {@code "세트 {최상위} › {label 또는 세트 ID}({노드 ID}) › …"}(하위 세트 spec §4.1). 경로가 비면 "". 단계마다 그 세트의
+     * 흐름({@code flows}: 세트 ID → 흐름, 모르면 null)에서 노드를 찾아 label(비었으면 세트 ID)을 쓰고 그 노드의 세트로 내려간다. 흐름·노드를 못 찾으면
+     * 그 단계부터는 노드 ID 만 쓴다.
+     */
+    static String pathText(String setId, List<String> setPath, Function<String, FlowDefinition> flows) {
+        if (setPath == null || setPath.isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder("세트 ").append(setId).append(" › ");
+        String cur = setId;
+        for (String nodeId : setPath) {
+            FlowDefinition flow = cur == null ? null : flows.apply(cur);
+            FlowNode n = flow == null ? null : flow.nodes().stream().filter(x -> nodeId.equals(x.id())).findFirst().orElse(null);
+            String label = n == null ? null : n.label() != null && !n.label().isBlank() ? n.label() : n.setId();
+            sb.append(label == null ? nodeId : label + "(" + nodeId + ")").append(" › ");
+            cur = n == null ? null : n.setId();
+        }
+        return sb.toString();
+    }
+
+    /** 판정 시각에 적용되는 세트 버전의 흐름(위반 문구의 세트 경로용). 버전이 없거나 저장값을 읽지 못하면 null(문구만 만들므로 던지지 않는다). */
+    FlowDefinition flowAt(String setId, Instant at) {
+        LocalDateTime t = LocalDateTime.ofInstant(at, MdmClockConfig.KST);
+        try {
+            return RuleVersions.currentReleased(setVersions.versions(setId), t).map(RuleSetVersionQueries::flow).orElse(null);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return null;
+        }
     }
 
     /**

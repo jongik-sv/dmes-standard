@@ -184,6 +184,22 @@ class RuleSetInterfaceTest {
     }
 
     @Test
+    void 구조_오류_흐름은_노드_배열_순서로_입출력을_세고_always_와_endsEarly_는_모두_false_다() {
+        // srv:5 넘김 2 — start → a(R_A: Y → A) → end, s1(G: P always)·b(R_B: A → B) 는 선이 없다(구조 오류 → 트리 없음). 저장 검사가 막는 모양이지만
+        // 겉모양 계산은 예외 없이 노드 배열 순서(RuleSetFlowJson.ruleIds 와 같은 규칙)로 세고, 끝 상태를 모르므로 어떤 출력도 always 가 아니다.
+        FlowDefinition f = flow(String.join(",", node("start", "START"), ruleNode("a", "R_A"), setNode("s1", "G"), ruleNode("b", "R_B"), node("end", "END")),
+                String.join(",", edge("e1", "start", "a"), edge("e2", "a", "end")));
+        assertNull(FlowParser.parse(f).tree(), "구조 오류라 트리가 없어야 이 사례가 뜻이 있다");
+        SetCallIo g = new SetCallIo("G", "G 세트", true, "INUSE", List.of(), List.of(new SetCallIo.OutputName("P", null, null, false, null, true)), true);
+        SetCallIo io = RuleSetInterface.of("S", "S 세트", true, "INUSE", f,
+                Map.of("R_A", rule("R_A", List.of("Y"), List.of("A")), "R_B", rule("R_B", List.of("A"), List.of("B"))), Map.of("G", g));
+        assertEquals(List.of("Y"), io.inputs().stream().map(IoName::name).toList());
+        assertEquals(List.of("P:false", "B:false"), outputs(io), "A 는 R_B 가 읽어 중간 결과");
+        assertFalse(io.endsEarly(), "하위 세트 G 의 endsEarly 는 이어지지 않는다");
+        assertTrue(io.exists());
+    }
+
+    @Test
     void 세트_키는_접두로_룰_ID_와_가른다() {
         assertEquals("set:SP", SetCallIo.key("SP"));
         assertTrue(SetCallIo.isKey("set:SP"));

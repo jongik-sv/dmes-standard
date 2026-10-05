@@ -82,6 +82,7 @@ class RuleConfirmQueryCountTest extends AbstractMdmSharedDbTest {
         }
         // 이름 변수 4(n 하나)마다 저장 검사기의 직전 RELEASED 정의 해석 4문만 는다
         assertEquals(6 * 4, counts.get("validate8") - counts.get("validate2"), counts::toString);
-        assertTrue(counts.get("validate2") <= 36, counts::toString);
+        // 37 = 36 + 부르는 세트 재검사(RuleSetCallerCheck, srv:6)의 세트 목록 1문 — 세트가 없으면 버전을 읽지 않는다. 변수 수와 무관하다.
+        assertTrue(counts.get("validate2") <= 37, counts::toString);
     }
 }
