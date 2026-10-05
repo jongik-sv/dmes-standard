@@ -172,9 +172,9 @@ flowchart TB
 
 - 공용 DB 쓰기는 0건이었다. 모든 위반 행에서 NOTICE_STATUS 를 빼서 수작업 오류가 반드시 나게 했고, 그래서 insert 까지 가지 않았다. 저장 전후 조회 결과가 모두 6건이고 최대 번호도 `NT202610040001` 로 같았다.
 
-### 2.5 응답 모양이 설계와 다르다
+### 2.5 응답의 meta.code 가 S001 이다 (알려진 프레임워크 관례)
 
-설계(스펙 2026-10-03 C9)는 저장 검증 실패를 `INVALID_VALUE` 로 돌려준다고 정했다. 실서버 응답은 HTTP 200 에 성공 코드 `S001` 과 `errors[]` 가 함께 왔다.
+설계(스펙 2026-10-03 C9)는 저장 검증 실패를 `BusinessException(INVALID_VALUE, …)` 로 던진다고 정했다. 실서버 응답은 HTTP 200 에 `meta.success=false`, `meta.code=S001`, `errors[]` 가 함께 왔다. `S001` 은 성공 코드가 아니라 `ErrorCode.INTERNAL_ERROR`(서버 내부 오류) 코드다. (레인 보고와 이 문서 첫 판은 S001 을 성공 코드로 잘못 적었다.)
 
 ```mermaid
 sequenceDiagram
@@ -187,11 +187,12 @@ sequenceDiagram
   V-->>N: BusinessException INVALID_VALUE (:141)
   N->>N: 수작업 오류와 합쳐 REQUIRED_VALUE 로 다시 던짐 (:256)
   N-->>O: 예외
-  O-->>C: HTTP 200, meta.code S001, errors[] (E001·E002)
+  O-->>C: HTTP 200, success=false, meta.code S001, errors[] (E001·E002)
 ```
 
-- 화면이 `errors[]` 를 읽으므로 칸 오류 표시는 동작할 가능성이 높다.
-- 그래도 성공 코드 S001 이 함께 나가는 것이 의도인지는 확인해야 한다. 스펙, 프론트의 오류 처리부, 실제 응답(`v3-violation-resp.txt`)을 대조하는 일이 남았다.
+- 원인: BPMN serviceTask 안에서 던진 예외는 OASIS 가 SYSTEM_ERROR 로 바꾼다. `CactusResponseConverter.convertError`(:97-101)는 원인 사슬에 `ResponseCodeAware` 가 없으면 `S001`(UserException 만 `E001`)을 쓴다. `BusinessException` 은 `ResponseCodeAware` 가 아니라서 E001·E002 대신 S001 이 된다. 이것은 TSK-04-04 design F12 에 적힌 기존 관례이며, 이번 저장 검증만의 문제가 아니다. HTTP 200 도 OASIS 응답의 공통 관례다.
+- 영향: 실패 여부(`meta.success=false`)와 칸 오류(`errors[].code` E001·E002, field, rowKey)는 맞게 온다. 화면은 이 둘을 읽으므로 동작에는 지장이 없다. 다만 `meta.code` 로 오류 종류를 가르는 곳(모니터링·로그 집계·연동 시스템)이 있다면 사용자 입력 오류가 서버 내부 오류로 분류된다.
+- 바로잡는 방법(제안): `BusinessException` 이 자기 `ErrorCode` 를 `ResponseCodeAware` 로 알려 주게 하면 `meta.code` 가 E001·E002 가 된다. cactus-core 공통 동작이 바뀌므로 S001 을 기대하는 기존 시험·화면이 있는지 먼저 본다.
 
 ### 2.6 남은 빈칸
 
@@ -489,7 +490,7 @@ flowchart LR
 
 1. 저장 경로 시연용 칸을 만들지 (MDM 메타·업무 코드 변경)
 2. ruleSets 를 넘기는 첫 업무 save 를 둘지 (evaluateSet 의 첫 실서비스 호출)
-3. 위반 저장 응답이 HTTP 200·S001 로 나가는 것을 고칠지 (2.5)
+3. 업무 오류의 `meta.code` 가 S001(서버 내부 오류)로 나가는 프레임워크 관례를 E001·E002 로 바로잡을지 (2.5)
 4. 성능 개선 착수 여부와 순서 (6.3)
 5. `perf-mdm-backend.md` 의 P5 수치를 C2 기준으로 정정할지, 엔진 성능은 C2 로 잰다는 관례를 가이드에 둘지
 
