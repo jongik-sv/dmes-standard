@@ -187,6 +187,46 @@ class MetaFeedColumnAliasSqliteTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 코드_목록이어도_표준_물리명이_두_코드의_별칭을_이긴다() {
+        column("STD_KEY", "표준 컬럼");
+        long mes = column("MES_COL", "MES 쪽 컬럼");
+        long mdm = column("MDM_COL", "MDM 쪽 컬럼");
+        alias(mes, "MES", "STD_KEY");
+        alias(mdm, "MDM", "STD_KEY");
+
+        Map<String, Object> v = value(view("MES,MDM", "STD_KEY"), "STD_KEY");
+        assertEquals("STD_KEY", v.get("physName"));
+        assertNull(v.get("matchedSystem"));
+    }
+
+    @Test
+    void 뒤_코드_안에서만_모호한_키도_없음이다() {
+        long a = column("MDM_A", "MDM A");
+        long b = column("MDM_B", "MDM B");
+        alias(a, "MDM", "AMB2");
+        alias(b, "MDM", "AMB2");
+
+        assertTrue(items(view("MES,MDM", "AMB2")).isEmpty());
+    }
+
+    @Test
+    void 앞_코드에서_모호한_키와_뒤_코드에서_맞는_키가_섞여도_키마다_갈린다() {
+        long a = column("AMB_A", "모호 A");
+        long b = column("AMB_B", "모호 B");
+        long c = column("AMB_C", "MDM 쪽");
+        long d = column("OK_COL", "MDM 정상");
+        alias(a, "MES", "AMB");
+        alias(b, "MES", "AMB");
+        alias(c, "MDM", "AMB");
+        alias(d, "MDM", "OK_KEY");
+
+        Map<String, Object> r = view("MES,MDM", "AMB", "OK_KEY");
+
+        assertEquals(List.of("OK_KEY"), items(r).stream().map(i -> i.get("key")).toList(), r.toString());
+        assertEquals("OK_COL", value(r, "OK_KEY").get("physName"));
+    }
+
+    @Test
     void 코드_목록의_공백_빈_항목_중복은_무시한다() {
         long mdm = column("MDM_COL", "MDM 쪽 컬럼");
         alias(mdm, "MDM", "MDM_KEY");
