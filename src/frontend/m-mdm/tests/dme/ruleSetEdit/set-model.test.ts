@@ -3,8 +3,29 @@
 import { describe, expect, it } from "vitest";
 
 import type { FlowEdge, FlowNode, FlowNodeKind, RuleSetFlow } from "../../../src/contract/engine-contract.generated";
-import { condMarks, flowChecks, flowIo, isFinalResult, laterDeps, setChecks, setDeps, setIo } from "../../../pages/dme/ruleSetEdit/set-model";
-import type { CondIo, IoName, IoSource, RuleIo, RuleSetCheck } from "../../../pages/dme/ruleSetEdit/types";
+import fs from "node:fs";
+import path from "node:path";
+
+import { flowRuleIds, linearFlow, parseFlow } from "../../../pages/dme/ruleSetEdit/flow-model";
+import {
+  callRuleIo,
+  callSteps,
+  condMarks,
+  flowCallKeys,
+  flowChecks,
+  flowDeps,
+  flowIo,
+  isFinalResult,
+  isSetKey,
+  laterDeps,
+  setChecks,
+  setDeps,
+  setIdOfKey,
+  setIo,
+  setKey,
+} from "../../../pages/dme/ruleSetEdit/set-model";
+import type { CondIo, IoName, IoSource, RuleIo, RuleSetCheck, SetCallIo } from "../../../pages/dme/ruleSetEdit/types";
+import { RULE_SET_CORPUS_PATH } from "../../helpers/engine-paths";
 
 const n = (name: string, source: IoSource | null = null, extra: Partial<IoName> = {}): IoName => ({
   name,
@@ -434,5 +455,122 @@ describe("flowChecks — 받는 노드(CATCH, 받는 노드 spec §5)", () => {
       rule("R4", [n("CATCH_CODE"), n("Y")], [n("Q")]),
     );
     expect(flowChecks(flow, rules, {}).map((c) => [c.code, c.ruleId, c.varName, c.nodeId])).toEqual([["FLOW_PARTIAL", "R4", "Y", "r4"]]);
+  });
+});
+
+// 하위 세트 계획 Task 5(TS 짝, ui:5t) — 서버 `RuleSetAnalyzer` 의 SET 처리. 문구·순서의 서버 동치 전체는 코퍼스 러너가 본다.
+describe("하위 세트(SET 노드) 분석", () => {
+  type CorpusLike = { name: string; ids: string[]; flow?: RuleSetFlow };
+  const read = (file: string) => (JSON.parse(fs.readFileSync(file, "utf8")) as { cases: CorpusLike[] }).cases;
+  const cases = [...read(RULE_SET_CORPUS_PATH), ...read(path.join(path.dirname(RULE_SET_CORPUS_PATH), "rule-set-fuzz.json"))];
+  /** 코퍼스 흐름의 빠진 칸을 null 로(러너와 같은 읽기 규칙). */
+  const flowOf = (c: CorpusLike): RuleSetFlow =>
+    c.flow
+      ? {
+          version: c.flow.version,
+          nodes: c.flow.nodes.map((x) => ({ ...x, ruleId: x.ruleId ?? null, splitId: x.splitId ?? null, label: x.label ?? null })),
+          edges: c.flow.edges.map((x) => ({ ...x, order: x.order ?? null, cond: x.cond ?? null, otherwise: x.otherwise ?? false, label: x.label ?? null })),
+        }
+      : linearFlow(c.ids);
+
+  it("모은 RULE·SET 단계의 RULE 부분은 ruleSteps, SET 부분은 setSteps 와 순서가 같고 세트 키를 뺀 키 목록은 flowRuleIds 와 같다(코퍼스·퍼즈 전체, 서버 단언과 같다)", () => {
+    expect(cases.length).toBeGreaterThan(300);
+    for (const c of cases) {
+      const f = flowOf(c);
+      const p = parseFlow(f);
+      if (p.tree) {
+        const all = callSteps(p.tree);
+        expect(all.filter((x) => x.type === "RULE"), `${c.name} RULE 단계 순서`).toEqual(p.tree.ruleSteps());
+        expect(all.filter((x) => x.type === "SET"), `${c.name} SET 단계 순서`).toEqual(p.tree.setSteps());
+      }
+      expect(flowCallKeys(f, p).filter((k) => !isSetKey(k)), `${c.name} 키의 룰 부분`).toEqual(flowRuleIds(f, p));
+    }
+  });
+
+  const setNode = (id: string, setId: string | null): FlowNode => ({ id, kind: "SET", ruleId: null, splitId: null, label: null, setId });
+  const fnode = (id: string, kind: FlowNodeKind, ruleId: string | null = null): FlowNode => ({ id, kind, ruleId, splitId: null, label: null });
+  const fedge = (id: string, from: string, to: string): FlowEdge => ({ id, from, to, order: null, cond: null, otherwise: false, label: null });
+  const call = (setId: string, over: Partial<SetCallIo> = {}): SetCallIo => ({
+    setId,
+    setName: null,
+    exists: true,
+    status: "INUSE",
+    inputs: [],
+    outputs: [],
+    endsEarly: false,
+    ...over,
+  });
+
+  it("세트 키 도우미와 겉모양 → 룰 입출력(releasedVer 는 문자열 \"1.000\", 없는 세트면 null)", () => {
+    expect(setKey("SP")).toBe("set:SP");
+    expect(isSetKey("set:SP")).toBe(true);
+    expect(isSetKey("R1")).toBe(false);
+    expect(setIdOfKey("set:SP")).toBe("SP");
+    expect(setIdOfKey("R1")).toBe("R1");
+    const io = callRuleIo(call("SP", { inputs: [n("X", "DICT")], outputs: [{ name: "P", dataType: "NUMBER", scale: 2, dateString: false, maruCodeId: null, always: false }] }));
+    expect(io).toEqual({
+      ruleId: "set:SP",
+      ruleName: null,
+      ruleKind: null,
+      status: "INUSE",
+      exists: true,
+      releasedVer: "1.000",
+      hitPolicy: null,
+      conds: [n("X", "DICT")],
+      results: [n("P", null, { dataType: "NUMBER", scale: 2 })],
+      hasDefault: false,
+    });
+    expect(callRuleIo(call("SQ", { exists: false })).releasedVer).toBeNull();
+  });
+
+  it("SET 노드만 있으면 EMPTY 가 아니고, 겉모양을 넘기지 않으면 CALL_MISSING 경고(WARN)다 — 입출력 표·의존 룰에는 세트 키가 나온다", () => {
+    const f: RuleSetFlow = { version: 1, nodes: [fnode("start", "START"), setNode("s1", "SP"), fnode("end", "END")], edges: [fedge("e1", "start", "s1"), fedge("e2", "s1", "end")] };
+    expect(flowChecks(f, {}, {})).toEqual([
+      { code: "CALL_MISSING", severity: "WARN", ruleId: "SP", otherRuleId: null, varName: null, message: "SP는 없는 세트다", nodeId: "s1", edgeId: null },
+    ]);
+    const calls = { SP: call("SP", { inputs: [n("X", "DICT")], outputs: [{ name: "P", dataType: null, scale: null, dateString: false, maruCodeId: null, always: true }] }) };
+    expect(flowChecks(f, {}, {}, calls)).toEqual([]);
+    expect(flowIo(f, {}, calls).inputs.map((i) => [i.name, i.users])).toEqual([["X", ["set:SP"]]]);
+    expect(flowDeps(f, {}, calls)).toEqual({ "set:SP": [] });
+  });
+
+  it("폐기된 세트(겉모양 exists=true, status DEPRECATED)는 CALL_MISSING 경고 \"{id}는 폐기된 세트다\"다", () => {
+    const f: RuleSetFlow = { version: 1, nodes: [fnode("start", "START"), setNode("s1", "SP"), fnode("end", "END")], edges: [fedge("e1", "start", "s1"), fedge("e2", "s1", "end")] };
+    expect(flowChecks(f, {}, {}, { SP: call("SP", { status: "DEPRECATED" }) })).toEqual([
+      { code: "CALL_MISSING", severity: "WARN", ruleId: "SP", otherRuleId: null, varName: null, message: "SP는 폐기된 세트다", nodeId: "s1", edgeId: null },
+    ]);
+  });
+
+  it("RULE 에 붙은 SUBSET_ENDED 받는 노드의 FLOW_CATCH 는 룰이 없거나 RELEASED 가 없어도 나온다(존재 검사로 빠지기 전에 낸다)", () => {
+    const f: RuleSetFlow = {
+      version: 1,
+      nodes: [
+        fnode("start", "START"),
+        fnode("r1", "RULE", "R9"),
+        { ...fnode("c1", "CATCH"), attachTo: "r1", catches: ["SUBSET_ENDED"] },
+        { ...fnode("m1", "MERGE"), splitId: "r1" },
+        fnode("end", "END"),
+      ],
+      edges: [fedge("e1", "start", "r1"), fedge("e2", "r1", "m1"), fedge("e3", "c1", "m1"), fedge("e4", "m1", "end")],
+    };
+    const flowCatch = { code: "FLOW_CATCH", severity: "REJECT", ruleId: null, otherRuleId: null, varName: null, message: "받는 노드 c1: 룰 노드에는 하위 세트 예외 끝(SUBSET_ENDED)을 붙일 수 없다", nodeId: "c1", edgeId: null };
+    // 없는 룰 — RULE_NOT_FOUND 바로 뒤에 FLOW_CATCH 하나
+    expect(flowChecks(f, {}, {})).toEqual([
+      { code: "RULE_NOT_FOUND", severity: "REJECT", ruleId: "R9", otherRuleId: null, varName: null, message: "R9는 없는 룰이다", nodeId: "r1", edgeId: null },
+      flowCatch,
+    ]);
+    // RELEASED 없는 룰 — NO_RELEASED 바로 뒤에 FLOW_CATCH 하나
+    const noReleased = flowChecks(f, byId(rule("R9", [], [], { releasedVer: null })), {});
+    expect(noReleased.map((c) => c.code)).toEqual(["NO_RELEASED", "FLOW_CATCH"]);
+    expect(noReleased[1]).toEqual(flowCatch);
+  });
+
+  it("RULE 만 있는 흐름은 calls 를 넘겨도 결과가 같다(기존 문구·순서 불변)", () => {
+    const rules = byId(rule("R1", [n("A", "DICT")], [n("P")]), rule("R2", [n("P"), n("Q")], [n("R")]));
+    const f = linearFlow(["R1", "R2"]);
+    const calls = { SP: call("SP", { outputs: [{ name: "Q", dataType: null, scale: null, dateString: false, maruCodeId: null, always: true }] }) };
+    expect(flowChecks(f, rules, {}, calls)).toEqual(flowChecks(f, rules, {}));
+    expect(flowIo(f, rules, calls)).toEqual(flowIo(f, rules));
+    expect(flowDeps(f, rules, calls)).toEqual(flowDeps(f, rules));
   });
 });

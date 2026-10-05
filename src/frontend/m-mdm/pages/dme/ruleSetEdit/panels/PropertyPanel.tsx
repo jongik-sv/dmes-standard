@@ -47,7 +47,7 @@ import { CATCH_KIND_LABEL, catchTitle } from "../catch-text";
 import { storeKeys } from "../debugger/local-store";
 import { MAX_DESC } from "../node-desc";
 import { restyleNode, type NodeLayoutSource } from "../flow-layout";
-import { CATCH_KINDS, catchesOf, endingBranches, parseFlow, type FlowTree } from "../flow-model";
+import { catchKindsFor, catchesOf, endingBranches, parseFlow, type FlowTree } from "../flow-model";
 import type { NodeStylePatch } from "../node-style";
 import type { IoName, RuleIo, RuleIoMap, RuleSetCheck } from "../types";
 import { CheckBadge } from "./ChecksPanel";
@@ -568,7 +568,7 @@ function CatchProps({ node, props }: { node: FlowNode; props: PropertyPanelProps
           </p>
         ))}
         <div className="rsf-catch-kinds">
-          {CATCH_KINDS.map((k) => {
+          {catchKindsFor(host?.kind).map((k) => {
             const owner = owners.get(k);
             const never = neverOf(k);
             return (

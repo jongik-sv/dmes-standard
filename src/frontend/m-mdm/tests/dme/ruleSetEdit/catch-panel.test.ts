@@ -115,9 +115,9 @@ describe("속성 패널: 받는 노드(받는 노드 spec §8)", () => {
     expect(panelTargetOf(f, {}, "c2", null, "세트").name).toBe("입력 오류");
   });
 
-  it("처리 갈래 첫 선의 변수 칩은 CATCH_* 넷이다", () => {
+  it("처리 갈래 첫 선의 변수 칩은 CATCH_* 다섯이다(하위 세트 Ruling 3·4 — CATCH_SET 포함)", () => {
     const f = twoCatches();
     const first = f.edges.find((e) => e.from === "c1")!;
-    expect(edgeChips(f, {})[first.id]).toEqual(["CATCH_KIND", "CATCH_RULE", "CATCH_CODE", "CATCH_MSG"]);
+    expect(edgeChips(f, {})[first.id]).toEqual(["CATCH_KIND", "CATCH_RULE", "CATCH_CODE", "CATCH_MSG", "CATCH_SET"]);
   });
 });
