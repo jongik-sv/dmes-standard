@@ -69,7 +69,7 @@ public final class MdmRuleEngine implements RuleEngine {
         Instant ts = truncate(evalTs);
         RuleDefinition def = definitions.rule(ruleId, ts).orElseThrow(() -> new EngineEvaluationException(List.of(
                 new Violation(Stage.INPUT_CHECK, Code.RULE_NOT_FOUND, ruleId, null, null,
-                        "룰이 없다: " + ruleId + " @ " + ts))));
+                        "룰이 없다: " + ruleId + " @ " + ts, List.of()))));
         List<Violation> reserved = RecordKeys.check(record.keySet(), Stage.INPUT_CHECK, ruleId);
         if (!reserved.isEmpty()) {
             throw new EngineEvaluationException(reserved);
@@ -86,7 +86,7 @@ public final class MdmRuleEngine implements RuleEngine {
         FlowRun run = new FlowRun(evaluator, runner, p.tree, p.defs, p.keys, record, ts, false, List.of());
         run.run();
         return new RuleSetResult(setId, ts, List.copyOf(run.steps), Collections.unmodifiableMap(run.finalValues),
-                List.copyOf(run.path), List.copyOf(run.warnings), List.copyOf(run.caught), run.endedBy);
+                List.copyOf(run.path), List.copyOf(run.warnings), List.copyOf(run.caught), run.endedBy, List.of());
     }
 
     @Override
@@ -214,7 +214,7 @@ public final class MdmRuleEngine implements RuleEngine {
     private Prepared prepare(RuleSetDefinition set, Map<String, Object> record, Instant ts) {
         if (set.status() == SetStatus.DEPRECATED) {
             throw new EngineEvaluationException(List.of(new Violation(Stage.SET_CHECK, Code.SET_DEPRECATED, null, null,
-                    null, "폐기된 세트는 판정하지 않는다: " + set.setId())));
+                    null, "폐기된 세트는 판정하지 않는다: " + set.setId(), List.of())));
         }
         Plan cached = cachedPlan(set);
         FlowTree tree = cached != null ? cached.tree : parse(set);
@@ -224,7 +224,7 @@ public final class MdmRuleEngine implements RuleEngine {
             Optional<RuleDefinition> def = definitions.rule(ruleId, ts);
             if (def.isEmpty()) {
                 violations.add(new Violation(Stage.SET_CHECK, Code.RULE_NOT_FOUND, ruleId, null, null,
-                        "세트 " + set.setId() + " 의 룰이 없다: " + ruleId + " @ " + ts));
+                        "세트 " + set.setId() + " 의 룰이 없다: " + ruleId + " @ " + ts, List.of()));
             } else {
                 defs.put(ruleId, def.get());
             }
@@ -252,7 +252,7 @@ public final class MdmRuleEngine implements RuleEngine {
         if (parsed.tree() == null) {
             throw new EngineEvaluationException(parsed.issues().stream()
                     .map(i -> new Violation(Stage.SET_CHECK, Code.FLOW_INVALID, null, null, i.nodeId(),
-                            "세트 " + set.setId() + " 의 흐름이 올바르지 않다: " + i.message()))
+                            "세트 " + set.setId() + " 의 흐름이 올바르지 않다: " + i.message(), List.of()))
                     .toList());
         }
         return parsed.tree();
@@ -266,7 +266,7 @@ public final class MdmRuleEngine implements RuleEngine {
         return definitions.rule(ruleId, ts)
                 .map(def -> toView(def, parts))
                 .orElseThrow(() -> new EngineEvaluationException(List.of(new Violation(Stage.INPUT_CHECK,
-                        Code.RULE_NOT_FOUND, ruleId, null, null, "룰이 없다: " + ruleId + " @ " + ts))));
+                        Code.RULE_NOT_FOUND, ruleId, null, null, "룰이 없다: " + ruleId + " @ " + ts, List.of()))));
     }
 
     /** 폐기 세트도 조회는 허용한다(판정이 아니라 이력 조회, design §6.14). */
@@ -284,7 +284,7 @@ public final class MdmRuleEngine implements RuleEngine {
                 views.add(toView(def.get(), parts));
             } else {
                 violations.add(new Violation(Stage.SET_CHECK, Code.RULE_NOT_FOUND, ruleId, null, null,
-                        "세트 " + setId + " 의 룰이 없다: " + ruleId + " @ " + ts));
+                        "세트 " + setId + " 의 룰이 없다: " + ruleId + " @ " + ts, List.of()));
             }
         }
         if (!violations.isEmpty()) {
@@ -301,7 +301,7 @@ public final class MdmRuleEngine implements RuleEngine {
 
     private RuleSetDefinition set(String setId, Instant ts) {
         return definitions.ruleSet(setId, ts).orElseThrow(() -> new EngineEvaluationException(List.of(new Violation(
-                Stage.SET_CHECK, Code.SET_NOT_FOUND, null, null, null, "세트가 없다: " + setId + " @ " + ts))));
+                Stage.SET_CHECK, Code.SET_NOT_FOUND, null, null, null, "세트가 없다: " + setId + " @ " + ts, List.of()))));
     }
 
     /** 스냅샷의 text·AST·계약을 그대로 꺼낸다. 식을 컴파일하지도 평가하지도 않는다(06:475·490-496). */

@@ -66,6 +66,21 @@ class RuleSetFlowJsonTest {
     }
 
     @Test
+    void setIds_는_트리가_있으면_깊이_우선_중복_없이_구조_오류면_노드_순서이고_빈_ID_는_뺀다() {
+        String ok = """
+                {"version":1,"nodes":[{"id":"start","kind":"START"},{"id":"s1","kind":"SET","setId":"B"},{"id":"s2","kind":"SET","setId":"A"},
+                 {"id":"s3","kind":"SET","setId":"B"},{"id":"s4","kind":"SET"},{"id":"end","kind":"END"}],
+                 "edges":[{"id":"e1","from":"start","to":"s1"},{"id":"e2","from":"s1","to":"s2"},{"id":"e3","from":"s2","to":"s3"},
+                 {"id":"e4","from":"s3","to":"s4"},{"id":"e5","from":"s4","to":"end"}]}""";
+        assertEquals(List.of("B", "A"), RuleSetFlowJson.setIds(RuleSetFlowJson.parse(ok)));
+        String broken = """
+                {"version":1,"nodes":[{"id":"s2","kind":"SET","setId":"A"},{"id":"s1","kind":"SET","setId":"B"},{"id":"s9","kind":"SET","setId":" "},
+                 {"id":"s1","kind":"SET","setId":"C"},{"id":"r1","kind":"RULE","ruleId":"R"}],"edges":[]}""";
+        assertEquals(List.of("A", "B"), RuleSetFlowJson.setIds(RuleSetFlowJson.parse(broken)), "겹친 노드 ID 는 첫 노드만 본다");
+        assertEquals(List.of(), RuleSetFlowJson.setIds(RuleSetFlowJson.parse(IF_FLOW)));
+    }
+
+    @Test
     void 노드_ID_가_겹치면_첫_노드만_룰_목록에_넣는다() {
         String dup = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"},{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"A\"},"
                 + "{\"id\":\"r1\",\"kind\":\"RULE\",\"ruleId\":\"B\"},{\"id\":\"end\",\"kind\":\"END\"}],"
@@ -193,5 +208,26 @@ class RuleSetFlowJsonTest {
             {"version":1,"nodes":[{"id":"c1","kind":"CATCH","attachTo":"r1","catches":[1]}],"edges":[]}""";
         assertEquals("nodes[0].catches 는 문자열 배열이어야 한다",
                 assertThrows(IllegalArgumentException.class, () -> RuleSetFlowJson.parse(badItem)).getMessage());
+    }
+
+    @Test
+    void SET_노드의_setId_를_읽고_정규_JSON_은_SET_노드에만_setId_를_쓴다() {
+        String in = """
+            {"version":1,"nodes":[{"id":"start","kind":"START"},{"id":"s1","kind":"SET","setId":"QD_S_PRICE","label":"단가 결정"},
+             {"id":"end","kind":"END"}],"edges":[{"id":"e1","from":"start","to":"s1"},{"id":"e2","from":"s1","to":"end"}]}""";
+        FlowDefinition f = RuleSetFlowJson.parse(in);
+        assertEquals("QD_S_PRICE", f.nodes().get(1).setId());
+        assertNull(f.nodes().get(0).setId());
+        String out = RuleSetFlowJson.canonical(in);
+        assertEquals(1, out.split("\"setId\"", -1).length - 1, "setId 는 SET 노드 하나에만 쓴다: " + out);
+        assertTrue(out.contains("\"setId\":\"QD_S_PRICE\""));
+    }
+
+    @Test
+    void setId_가_문자열이_아니면_형식_오류() {
+        String in = """
+            {"version":1,"nodes":[{"id":"s1","kind":"SET","setId":3}],"edges":[]}""";
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () -> RuleSetFlowJson.parse(in));
+        assertEquals("nodes[0].setId 는 문자열이어야 한다", e.getMessage());
     }
 }

@@ -83,6 +83,7 @@ const KIND_TEXT: Record<FlowNode["kind"], string> = {
   PARALLEL: "병렬 분기",
   MERGE: "병렬 합류",
   CATCH: "받는 노드 — 붙은 룰이 실패하거나 결과가 없을 때 처리 갈래를 실행한다",
+  SET: "룰 세트 — 다른 룰 세트를 부른다. 입력은 하위 세트의 입력, 돌려받는 값은 하위 세트의 최종 결과뿐이다",
 };
 
 const blankToNull = (v: string) => (v === "" ? null : v);

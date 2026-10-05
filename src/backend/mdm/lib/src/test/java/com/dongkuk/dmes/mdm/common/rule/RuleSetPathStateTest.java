@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
 import kr.dongkuk.maru.mdm.engine.flow.FlowParse;
 import kr.dongkuk.maru.mdm.engine.flow.FlowParser;
 import kr.dongkuk.maru.mdm.engine.flow.FlowTree;
@@ -122,7 +123,7 @@ class RuleSetPathStateTest {
         return "{\"id\":\"" + node + "\",\"kind\":\"CATCH\",\"attachTo\":\"" + attachTo + "\",\"catches\":[" + kinds + "]}";
     }
 
-    private static final Set<String> CATCH = Set.of("CATCH_KIND", "CATCH_RULE", "CATCH_CODE", "CATCH_MSG");
+    private static final Set<String> CATCH = ReservedNames.CATCH_NAMES;
 
     @Test
     void 받는_룰_처리_갈래는_룰_직전_상태에_CATCH_를_더해_시작하고_합류_뒤는_교집합이다() {

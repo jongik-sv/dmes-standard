@@ -325,12 +325,12 @@ class FlowParserTest {
         int depth = 99;
         List<FlowNode> nodes = new ArrayList<>();
         List<FlowEdge> edges = new ArrayList<>();
-        nodes.add(new FlowNode("start", NodeKind.START, null, null, null, null, null));
+        nodes.add(new FlowNode("start", NodeKind.START, null, null, null, null, null, null));
         for (int i = 1; i <= depth; i++) {
-            nodes.add(new FlowNode("if" + i, NodeKind.IF, null, null, null, null, null));
-            nodes.add(new FlowNode("m" + i, NodeKind.MERGE, null, "if" + i, null, null, null));
+            nodes.add(new FlowNode("if" + i, NodeKind.IF, null, null, null, null, null, null));
+            nodes.add(new FlowNode("m" + i, NodeKind.MERGE, null, "if" + i, null, null, null, null));
         }
-        nodes.add(new FlowNode("end", NodeKind.END, null, null, null, null, null));
+        nodes.add(new FlowNode("end", NodeKind.END, null, null, null, null, null, null));
         edges.add(new FlowEdge("e0", "start", "if1", null, null, false, null));
         for (int i = 1; i <= depth; i++) {
             String inner = i < depth ? "if" + (i + 1) : "m" + i;
@@ -409,7 +409,7 @@ class FlowParserTest {
     @Test
     void 받는_노드_오류는_FLOW_CATCH_로_모두_모은다() {
         FlowDefinition f = flow(List.of(start(), rule("r1", "R_A"), task("t1"), catchNode("c0", "zz", "NO_RESULT"), catchNode("c1", "t1", "NO_RESULT"),
-                        new FlowNode("c2", NodeKind.CATCH, null, null, null, "r1", List.of()), catchNode("c3", "r1", "NO_RESULT", "BOOM", "NO_RESULT"),
+                        new FlowNode("c2", NodeKind.CATCH, null, null, null, "r1", List.of(), null), catchNode("c3", "r1", "NO_RESULT", "BOOM", "NO_RESULT"),
                         catchNode("c4", "r1", "NO_RESULT"), end()),
                 List.of(e("e1", "start", "r1"), e("e2", "r1", "t1"), e("e3", "t1", "end"), e("e4", "c0", "end"), e("e5", "c1", "end"),
                         e("e6", "c2", "end"), e("e7", "c3", "end"), e("e8", "c4", "end")));
