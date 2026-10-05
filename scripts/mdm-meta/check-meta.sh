@@ -4,7 +4,7 @@
 #
 # 사용:
 #   scripts/mdm-meta/check-meta.sh [--base URL] [--module mcm] [--client-key KEY] [--user ID]
-#                                  [--names FILE] [--out FILE] [--list]
+#                                  [--names FILE] [--out FILE] [--list] [--baseline FILE]
 #   --base        업무 모듈 BE 주소(기본 http://localhost:8100). 포털 5100 은 로그인 쿠키가 필요해 BE 를 직접 부른다.
 #   --module      경로의 {module}(기본 mcm).
 #   --client-key  BFF 가 보내는 X-Client-Key(기본: 환경변수 BACKEND_CLIENT_KEY, 없으면 로컬 기본값).
@@ -12,6 +12,12 @@
 #   --names       한 줄에 키 하나인 파일(기본: collect-keys.mjs --names 로 화면에서 바로 모은다).
 #   --out         응답 JSON 전체를 저장할 파일.
 #   --list        missing·unavailable 키 이름도 출력한다.
+#   --baseline    앞서 --out 으로 저장한 응답 JSON. 새로 hit 된 키(gained)·hit 에서 빠진 키(lost)를 함께 낸다.
+#   --expect      hit 돼야 할 키 목록 파일. 그중 아직 hit 이 아닌 키(not_yet)를 낸다. 하나라도 있으면 exit 1.
+#
+# 등록 전후 비교(C3): 고정 키 목록 keys-2026-10-05.txt 와 등록 전 응답 baseline-2026-10-05.json 이 이 폴더에 있다.
+#   scripts/mdm-meta/check-meta.sh --names scripts/mdm-meta/keys-2026-10-05.txt \
+#     --baseline scripts/mdm-meta/baseline-2026-10-05.json --expect scripts/mdm-meta/expected-gain-2026-10-05.txt
 #
 # 출력 첫 줄: "requested=N hit=H missing=M unavailable=U" — 등록 전후 두 줄을 비교한다.
 set -euo pipefail
@@ -23,6 +29,8 @@ USER_ID="meta-check"
 NAMES_FILE=""
 OUT=""
 LIST=0
+BASELINE=""
+EXPECT=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --base) BASE="$2"; shift 2 ;;
@@ -32,7 +40,9 @@ while [ $# -gt 0 ]; do
     --names) NAMES_FILE="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --list) LIST=1; shift ;;
-    -h|--help) sed -n '2,16p' "$0"; exit 0 ;;
+    --baseline) BASELINE="$2"; shift 2 ;;
+    --expect) EXPECT="$2"; shift 2 ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
     *) echo "알 수 없는 인자: $1" >&2; exit 2 ;;
   esac
 done
@@ -64,4 +74,25 @@ jq -r --argjson n "$(jq '.names | length' "$TMP/body.json")" \
 
 if [ "$LIST" = 1 ]; then
   jq -r '(.data // .) as $d | ($d.missing | map("missing\t" + .)[]), ($d.unavailable | map("unavailable\t" + .)[])' "$TMP/resp.json"
+fi
+
+if [ -n "$BASELINE" ]; then
+  jq -r --slurpfile b "$BASELINE" '
+    ((.data // .).items | keys) as $now
+    | (($b[0].data // $b[0]).items | keys) as $was
+    | ($now - $was) as $gained | ($was - $now) as $lost
+    | "baseline_hit=\($was | length) gained=\($gained | length) lost=\($lost | length)",
+      ($gained | map("gained\t" + .)[]),
+      ($lost | map("lost\t" + .)[])' "$TMP/resp.json"
+fi
+
+if [ -n "$EXPECT" ]; then
+  grep -v '^[[:space:]]*\(#\|$\)' "$EXPECT" > "$TMP/expect.txt"
+  jq -r --rawfile e "$TMP/expect.txt" '
+    ((.data // .).items | keys) as $now
+    | ($e | split("\n") | map(select(length > 0))) as $want
+    | ($want - $now) as $miss
+    | "expected=\($want | length) not_yet=\($miss | length)",
+      ($miss | map("not_yet\t" + .)[])' "$TMP/resp.json" | tee "$TMP/expect.out"
+  head -1 "$TMP/expect.out" | grep -q ' not_yet=0$' || exit 1
 fi
