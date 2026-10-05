@@ -226,6 +226,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   const top: CallFrame | null = debugging ? stack.top : null;
   /** 캔버스가 지금 그리는 흐름 — 프레임 안이면 하위 흐름. 선택 정리·노드 판정이 쓴다. */
   const shownFlow = top ? top.flow : flow;
+  /** 찾기 위젯을 보이는가 — 찾기는 최상위 흐름(`useFind(flow)`)만 찾으므로 하위 프레임 안에서는 숨기고 열지 않는다(우클릭·F9 를 막은 것과 같은 규칙). 돌아오면 열린 채로 다시 보인다. */
+  const findShown = findOpen && !top;
   // 케이스 목록은 세트를 열거나 [다시 불러오기] 했을 때만 새 참조로 넘긴다(F25) — 자기 쓰기 뒤 다시 불러오기·케이스 쓰기는 목록을 바꾸지 않는다(P-D11).
   const viewEpoch = state.viewEpoch;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -656,7 +658,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
     if (!isShown(canvasHostRef.current)) return;
     const common: ShortcutHandlers = {
       escape: onEscape,
-      find: openFind,
+      // 하위 프레임 안에서는 키를 쓰지 않는다(찾기는 최상위 흐름만 찾는다 — findShown).
+      find: top ? undefined : openFind,
       fitView: fit,
       // 고른 것이 없으면 키를 쓰지 않는다(브라우저 기본 동작 그대로).
       fitSelection: () => (canvasFitSelectionRef.current?.() ? undefined : UNHANDLED),
@@ -860,7 +863,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
             showMiniMap={showMiniMap}
             onToggleMiniMap={onToggleMiniMap}
             onOpenFind={openFind}
-            findOpen={findOpen}
+            findOpen={findShown}
+            findDisabled={!!top}
             onHelpEscape={focusCanvas}
             autoSave={autoSave}
           />
@@ -919,7 +923,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                       </span>
                     </div>
                   )}
-                  <div ref={canvasHostRef} className="rsf-canvas-host" data-find-open={findOpen ? "" : undefined} onKeyDown={onCanvasKeyDown}>
+                  <div ref={canvasHostRef} className="rsf-canvas-host" data-find-open={findShown ? "" : undefined} onKeyDown={onCanvasKeyDown}>
                     <FlowCanvas
                       flow={top ? top.flow : flow}
                       rules={top ? top.rules : state.rules}
@@ -978,7 +982,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
                       onShiftSpace={onShiftSpace}
                     />
                     <FlowToolbox mode={mode} tool={tool} onTool={onTool} onPick={onPickElement} disabled={state.loading} />
-                    {findOpen && <FindWidget find={find} inputRef={findInputRef} focusSeq={findFocusSeq} onClose={closeFind} mac={mac} />}
+                    {findShown && <FindWidget find={find} inputRef={findInputRef} focusSeq={findFocusSeq} onClose={closeFind} mac={mac} />}
                     <ContextMenu items={menuItems} at={menu?.at ?? null} onClose={onCloseMenu} />
                   </div>
                 </div>

@@ -93,6 +93,8 @@ export interface FlowToolbarProps {
   onOpenFind: () => void;
   /** 찾기 위젯이 열려 있는가(`aria-expanded`). */
   findOpen: boolean;
+  /** [노드 찾기] 를 끈다 — 디버거가 하위 세트 프레임에 들어가 있을 때(찾기는 최상위 흐름만 찾는다). */
+  findDisabled?: boolean;
   /**
    * 도움말을 Esc 로 닫은 뒤, 초점이 [?] 단추·도움말 안·body 에 있을 때만 부른다 — page 가 캔버스로 초점을 돌려 다음 Esc·단축키가
    * 캔버스 디스패처에 닿게 한다(브라우저 확인 8번 단서).
@@ -110,7 +112,7 @@ export function keepFocusOffButtons(e: MouseEvent<HTMLElement>): void {
 
 export function FlowToolbar(props: FlowToolbarProps) {
   const { state, canDo, canEdit, mode, onMode, varDisplay, onToggleVars, onAutoLayout, onFit, showMiniMap, onToggleMiniMap } = props;
-  const { lead, onOpenFind, findOpen, onHelpEscape, autoSave } = props;
+  const { lead, onOpenFind, findOpen, findDisabled, onHelpEscape, autoSave } = props;
   const [helpOpen, setHelpOpen] = useState(false);
   const view = state.view!;
   const set = view.set;
@@ -245,6 +247,7 @@ export function FlowToolbar(props: FlowToolbarProps) {
             tip={`노드 찾기 (${mac ? "⌘F" : "Ctrl+F"})`}
             icon={<IconSearch size={14} aria-hidden="true" />}
             aria-expanded={findOpen}
+            disabled={findDisabled}
             onClick={onOpenFind}
           />
         </span>

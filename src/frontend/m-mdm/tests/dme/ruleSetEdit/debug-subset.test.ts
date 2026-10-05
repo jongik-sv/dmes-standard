@@ -256,6 +256,29 @@ describe("디버거 하위 세트", () => {
     expect(q("flow-menu-item-bp-toggle")).not.toBeNull();
   });
 
+  it("들어간 프레임에서는 찾기(Ctrl+F·[노드 찾기])가 열리지 않고, 최상위에서 연 찾기 위젯은 숨었다가 돌아오면 다시 보인다", async () => {
+    const ctrlF = async () => {
+      const ev = new KeyboardEvent("keydown", { key: "f", ctrlKey: true, bubbles: true, cancelable: true });
+      await act(async () => {
+        byTestId("flow-canvas").dispatchEvent(ev);
+      });
+      await flush();
+      return ev;
+    };
+    await runAndPickSet();
+    expect((await ctrlF()).defaultPrevented).toBe(true);
+    expect(q("flow-find-widget")).not.toBeNull();
+    await click("sim-detail-enter");
+    // 위젯은 최상위 흐름을 찾으므로 프레임 안에서는 숨기고, 키·단추로도 열지 않는다(키는 쓰지 않고 브라우저에 둔다).
+    expect(q("flow-find-widget")).toBeNull();
+    expect(byTestId("flow-find-open").hasAttribute("disabled")).toBe(true);
+    expect((await ctrlF()).defaultPrevented).toBe(false);
+    expect(q("flow-find-widget")).toBeNull();
+    await click("dbg-callpath-0");
+    expect(q("flow-find-widget")).not.toBeNull();
+    expect(byTestId("flow-find-open").hasAttribute("disabled")).toBe(false);
+  });
+
   it("들어간 프레임에서는 값 표가 그 하위 기록을 보인다", async () => {
     await runAndPickSet();
     await click("sim-detail-enter");
