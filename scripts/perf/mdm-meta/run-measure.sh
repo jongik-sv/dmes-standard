@@ -37,7 +37,7 @@ while [ $# -gt 0 ]; do
 done
 case "$PAIR" in mcm|feed|screen|all) ;; *) echo "--pair 는 mcm|feed|screen|all" >&2; exit 2 ;; esac
 for v in "$ROUNDS" "$REPS"; do
-  case "$v" in ''|*[!0-9]*|0) echo "--rounds·--reps 는 1 이상의 정수여야 합니다: $v" >&2; exit 2 ;; esac
+  case "$v" in ''|*[!0-9]*|0*) echo "--rounds·--reps 는 1 이상의 정수여야 합니다: $v" >&2; exit 2 ;; esac
 done
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -81,7 +81,7 @@ once() {
     --data-binary @"$TMP/$pair-$side.json")"
   read -r code ms bytes <<< "$w"
   [ "$code" = 200 ] || { echo "HTTP $code: $pair-$side $(head -c 200 "$TMP/resp.json")" >&2; return 1; }
-  hit="$(jq '(.data.result // .data // .).items | length' "$TMP/resp.json")"
+  hit="$(jq '(.data.result // .data // .).items | length' "$TMP/resp.json")" || { echo "응답이 JSON 이 아닙니다: $pair-$side" >&2; return 1; }
   awk -v s="$ms" -v b="$bytes" -v h="$hit" 'BEGIN { printf "%.2f %d %d\n", s * 1000, b, h }'
 }
 
@@ -119,7 +119,7 @@ for ((r = 1; r <= ROUNDS; r++)); do
     for s in "${order[@]}"; do
       # $(…) 안에서는 errexit 가 꺼지므로 파일로 받아 실패를 직접 본다 — HTTP 오류면 측정을 멈춘다
       side_run "$p" "$s" > "$TMP/side.txt" || { echo "측정 중단: $p-$s 요청 실패(회차 $r)" >&2; exit 1; }
-      read -r ms bytes hit < "$TMP/side.txt"
+      read -r ms bytes hit < "$TMP/side.txt" || true
       [ -n "$ms" ] || { echo "측정 중단: $p-$s 값이 비었습니다(회차 $r)" >&2; exit 1; }
       printf '%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$TAG" "$r" "$at" "$l1" "$l5" "$l15" "$p" "$s" "$ms" "$bytes" "$hit" >> "$ROUNDS_TSV"
     done
