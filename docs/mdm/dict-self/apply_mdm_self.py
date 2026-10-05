@@ -196,7 +196,7 @@ def main():
     db.rollback() if a.dry_run else db.commit()
     print(('[dry-run] ' if a.dry_run else '') + '추가/기존:', json.dumps(stat, ensure_ascii=False))
     print(f'MDM 물리 컬럼 {len(phys)}개 모두 등록됨')
-    if stat['alias'][0] or stat['column_system'][0] or stat['term'][0]:
+    if not a.dry_run and any(v[0] for v in stat.values()):
         print('주의: META_REV 를 남기지 않았다 — mcm 의 mdmCacheMng 에서 다시 읽기를 하거나 columnMng save(scripts/mdm-meta/register-columns.mjs)를 쓴다.',
               file=sys.stderr)
 

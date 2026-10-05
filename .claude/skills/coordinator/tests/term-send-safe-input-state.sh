@@ -16,8 +16,10 @@ check() {  # check <기대값> <고정 화면 파일>
 check empty   claude-empty-placeholder-named.txt     # 이름이 붙은 상단 줄 + Try "…" 안내문(2026-10-05 거부 사례)
 check empty   claude-empty-placeholder-unnamed.txt   # 이름 없는 상단 줄 + 안내문
 check empty   claude-empty-bare-named.txt            # 안내문이 사라진 빈 ❯
+check empty   claude-empty-placeholder-ellipsis.txt  # 폭이 좁아 … 로 잘린 안내문
 check draft   claude-draft-typed-named.txt           # 사용자가 친 글
 check draft   claude-draft-typed-try-word.txt        # Try 라는 한 단어만 친 글(안내문이 아니다)
+check draft   claude-draft-typed-try-quoted.txt     # Try "…" 로 시작하지만 뒤에 글이 더 붙은 사용자 글
 check unknown claude-no-input-box.txt                # 입력창이 없는 화면은 애매함으로 판정
 
 exit "$fail"
