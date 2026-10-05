@@ -402,3 +402,21 @@ React Flow 12 의 `useReactFlow().fitView()` 는 곧바로 화면을 옮기지 �
 
 - 표시 문구를 행 데이터에 미리 계산해 넣고(`rows.map(r => ({ ...r, kind: label(r.part, r.current) }))`, `useMemo`) 그 필드를 칸 `key` 로 쓴다.
 - 꾸밈만 하는 `render`(배지·서식)는 칸 필드 값만 읽게 한다.
+
+## 36. 탭마다 편집기를 마운트해 두는 화면 — 숨은 탭이 보이는 탭을 건드리지 않게 (2026-10-06)
+
+룰 세트 편집의 세트 탭(shared `closable-tabs`, 탭마다 `RuleSetEditor`)에서 실측한 함정이다. 숨은 탭도 마운트를 유지하므로 효과·리스너·포털이 그대로 살아 있다.
+
+- **숨은 패널은 `display:none` + 효과 유지로 둔다.** Mantine `Tabs` 의 `keepMounted` 기본 모드 `'activity'` 는 숨은 패널의 효과를 내린다(자동 저장·`beforeunload` 가 멎는다). `closable-tabs` 는 패널을 늘 그리고 `hidden` 으로만 숨긴다.
+- **`document`·`window` 리스너는 자기 패널이 보일 때만 처리한다.** 캔버스 host 가 `isShown` 이 아니면 ⌘Z·Delete·Esc 같은 단축키를 무시한다(숨은 패널 안에 초점이 남을 수 있다).
+- **캡처 단계 Esc 리스너의 `stopPropagation` 은 보이는 탭의 Esc 를 삼킨다.** 숨은 탭에 열려 있던 도움말이 Esc 를 가로채므로 `isShown` 판정을 건다.
+- **포털 대화 상자는 활성 탭일 때만 그린다.** 오류 창·케이스 편집 창처럼 body 로 포털하는 창은 `display:none` 을 따르지 않으므로 편집기가 `active`(`EditorActiveContext`)를 보고 그리지 않는다. 작성 중 상태는 부품에 남아 탭을 다시 고르면 이어진다. shared 안에서 포털하는 창(전역 메시지 창 등)은 편집기가 닫을 수 없다.
+- **React Flow 는 숨은 컨테이너(0 크기)를 500×500 으로 잰다.** 화면 한계 재맞춤을 그 크기로 하면 화면이 엉뚱하게 옮겨지므로 캔버스 DOM 이 보이지 않으면 건너뛴다(다시 보이면 크기가 바뀌어 다시 본다).
+- 시험: 두 번째 탭을 열어 숨은 탭에서 단축키·Esc·대화 상자·자동 저장 요청이 나가지 않는지 고정한다. 예: `m-mdm/tests/dme/ruleSetEdit/set-tabs.test.ts`·`set-tabs-dialog.test.ts`. 기록: `docs/rule-set-subset/progress-ui.md` ui:7.
+
+## 37. 보조 조회 응답 — 불러오기 세대 번호로 늦은 응답을 버린다 (2026-10-06)
+
+세트를 열 때마다 따로 묻는 보조 조회(룰 세트 편집의 `CALL_IO` 겉모양)는 응답이 늦게 올 수 있다. 「지금 세트 ID 와 같은가」로 버리면, **같은 세트를 다시 불러온 경우**(다시 불러오기·자기 쓰기 뒤) 떠나 있던 옛 응답이 새로 받은 서버 값을 덮는다.
+
+- 불러오기가 성공할 때마다 오르는 세대 번호(`callEpoch`)를 두고 응답이 돌아왔을 때 세대가 같을 때만 쓴다. 불러올 때 물은 ID 집합·요청 번호 맵도 새 객체로 바꿔 옛 요청이 새 세대를 건드리지 않게 한다.
+- 시험은 지연 응답(직접 resolve 하는 Promise)으로 「같은 세트를 다시 불러온 뒤 늦게 도착한 응답」을 고정한다. 예: `m-mdm/tests/dme/ruleSetEdit/set-calls-state.test.ts`. §11·§15·§34 의 요청 순번과 같은 갈래다.
