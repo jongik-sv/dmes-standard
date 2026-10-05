@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.dongkuk.dmes.mcm.widget.admin.service.CommWidgetMngService;
+import com.dongkuk.dmes.mcm.widget.layout.service.CommWidgetDefaultTabService;
 import com.dongkuk.dmes.mcm.widget.layout.service.CommWidgetLayoutService;
 import java.io.InputStream;
 import java.lang.reflect.Method;
@@ -24,8 +25,9 @@ import org.w3c.dom.NodeList;
 
 /**
  * {@code services/csa/commWidgetMng.bpmn} 의 OASIS 계약 — 스프링 없이 XML 만 파싱한다({@link SecWidgetBpmnActionTest} 와 같은 방식).
- * 정의 action 4개는 commWidgetMngService, 기본 배치 action 5개는 commWidgetLayoutService. saveLayout 은 dto(params) +
- * grids.widgets.rows 두 파라미터(secWidget saveTab 과 같은 모양). action 이름은 DataInitializer 의 PERM_ALL 토큰과 같아야 한다.
+ * 정의 action 4개는 commWidgetMngService, 기본 배치 action 5개는 commWidgetLayoutService, 기본 탭 action 4개는
+ * commWidgetDefaultTabService. saveLayout·saveDefaultTab 은 dto(params) + grids.widgets.rows, reorderDefaultTabs 는 dto +
+ * grids.tabs.rows 두 파라미터(secWidget saveTab 과 같은 모양). action 이름은 DataInitializer 의 PERM_ALL 토큰과 같아야 한다.
  */
 class CommWidgetMngBpmnActionTest {
 
@@ -34,29 +36,39 @@ class CommWidgetMngBpmnActionTest {
     private static final String MNG_DTO = "com.dongkuk.dmes.mcm.widget.admin.dto.CommWidgetMngRequest";
     private static final String SAVE_DTO = "com.dongkuk.dmes.mcm.widget.admin.dto.WidgetDefSaveRequest";
     private static final String LAYOUT_DTO = "com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetLayoutRequest";
+    private static final String TAB_DTO = "com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetDefaultTabRequest";
 
     /** action → (빈 이름, 서비스 클래스, dto). */
     private record Binding(String bean, Class<?> service, String dto) {}
 
-    private static final Map<String, Binding> EXPECTED = new TreeMap<>(Map.of(
-            "search", new Binding("commWidgetMngService", CommWidgetMngService.class, MNG_DTO),
-            "save", new Binding("commWidgetMngService", CommWidgetMngService.class, SAVE_DTO),
-            "delete", new Binding("commWidgetMngService", CommWidgetMngService.class, MNG_DTO),
-            "previewQuery", new Binding("commWidgetMngService", CommWidgetMngService.class, MNG_DTO),
-            "searchLayouts", new Binding("commWidgetLayoutService", CommWidgetLayoutService.class, LAYOUT_DTO),
-            "loadLayout", new Binding("commWidgetLayoutService", CommWidgetLayoutService.class, LAYOUT_DTO),
-            "saveLayout", new Binding("commWidgetLayoutService", CommWidgetLayoutService.class, LAYOUT_DTO),
-            "deleteLayout", new Binding("commWidgetLayoutService", CommWidgetLayoutService.class, LAYOUT_DTO),
-            "searchDepts", new Binding("commWidgetLayoutService", CommWidgetLayoutService.class, LAYOUT_DTO)));
+    private static final Map<String, Binding> EXPECTED = new TreeMap<>(Map.ofEntries(
+            Map.entry("search", new Binding("commWidgetMngService", CommWidgetMngService.class, MNG_DTO)),
+            Map.entry("save", new Binding("commWidgetMngService", CommWidgetMngService.class, SAVE_DTO)),
+            Map.entry("delete", new Binding("commWidgetMngService", CommWidgetMngService.class, MNG_DTO)),
+            Map.entry("previewQuery", new Binding("commWidgetMngService", CommWidgetMngService.class, MNG_DTO)),
+            Map.entry("searchLayouts", new Binding("commWidgetLayoutService", CommWidgetLayoutService.class, LAYOUT_DTO)),
+            Map.entry("loadLayout", new Binding("commWidgetLayoutService", CommWidgetLayoutService.class, LAYOUT_DTO)),
+            Map.entry("saveLayout", new Binding("commWidgetLayoutService", CommWidgetLayoutService.class, LAYOUT_DTO)),
+            Map.entry("deleteLayout", new Binding("commWidgetLayoutService", CommWidgetLayoutService.class, LAYOUT_DTO)),
+            Map.entry("searchDepts", new Binding("commWidgetLayoutService", CommWidgetLayoutService.class, LAYOUT_DTO)),
+            // 기본 탭(docs/widget-2026-10/design-widget-tabs.md §3.2)
+            Map.entry("loadDefaultTabs", new Binding("commWidgetDefaultTabService", CommWidgetDefaultTabService.class, TAB_DTO)),
+            Map.entry("saveDefaultTab", new Binding("commWidgetDefaultTabService", CommWidgetDefaultTabService.class, TAB_DTO)),
+            Map.entry("deleteDefaultTab", new Binding("commWidgetDefaultTabService", CommWidgetDefaultTabService.class, TAB_DTO)),
+            Map.entry("reorderDefaultTabs", new Binding("commWidgetDefaultTabService", CommWidgetDefaultTabService.class, TAB_DTO))));
+
+    /** dto + grids 두 파라미터 action → grids 파라미터 이름. */
+    private static final Map<String, String> GRID_PARAM = Map.of(
+            "saveLayout", "widgets", "saveDefaultTab", "widgets", "reorderDefaultTabs", "tabs");
 
     @Test
-    void commWidgetMng_는_아홉_분기이고_서비스_메서드와_대응한다() throws Exception {
+    void commWidgetMng_는_열세_분기이고_서비스_메서드와_대응한다() throws Exception {
         Document doc = parse("services/csa/commWidgetMng.bpmn");
 
         assertEquals("commWidgetMng", processId(doc));
         Map<String, Element> byAction = tasksByAction(doc);
         assertEquals(List.copyOf(EXPECTED.keySet()), List.copyOf(byAction.keySet()));
-        assertEquals(9, doc.getElementsByTagNameNS(BPMN, "serviceTask").getLength());
+        assertEquals(13, doc.getElementsByTagNameNS(BPMN, "serviceTask").getLength());
         assertEquals(0, doc.getElementsByTagNameNS(BPMN, "conditionExpression").getLength());
 
         for (Map.Entry<String, Element> e : byAction.entrySet()) {
@@ -73,15 +85,17 @@ class CommWidgetMngBpmnActionTest {
             Method m = method(expected.service(), action);
             assertEquals(expected.dto(), m.getParameterTypes()[0].getName(), action + " 첫 파라미터 = dto");
             assertEquals(Map.class, m.getReturnType(), action + " 반환 = Map(result)");
-            assertEquals("saveLayout".equals(action) ? 2 : 1, m.getParameterCount(), action + " 파라미터 수");
+            String grid = GRID_PARAM.get(action);
+            assertEquals(grid == null ? 1 : 2, m.getParameterCount(), action + " 파라미터 수");
+            if (grid != null) {
+                assertEquals(grid, m.getParameters()[1].getName(), action + " grids." + grid + ".rows ↔ 파라미터 이름 (§6-E-3)");
+                assertEquals(List.class, m.getParameterTypes()[1]);
+            }
         }
-
-        Method saveLayout = method(CommWidgetLayoutService.class, "saveLayout");
-        assertEquals("widgets", saveLayout.getParameters()[1].getName(), "grids.widgets.rows ↔ 파라미터 이름 (§6-E-3)");
-        assertEquals(List.class, saveLayout.getParameterTypes()[1]);
 
         assertServiceBean(CommWidgetMngService.class, "commWidgetMngService");
         assertServiceBean(CommWidgetLayoutService.class, "commWidgetLayoutService");
+        assertServiceBean(CommWidgetDefaultTabService.class, "commWidgetDefaultTabService");
     }
 
     private static void assertServiceBean(Class<?> type, String bean) {

@@ -21,6 +21,10 @@
       <bpmn:outgoing>flow_saveLayout</bpmn:outgoing>
       <bpmn:outgoing>flow_deleteLayout</bpmn:outgoing>
       <bpmn:outgoing>flow_searchDepts</bpmn:outgoing>
+      <bpmn:outgoing>flow_loadDefaultTabs</bpmn:outgoing>
+      <bpmn:outgoing>flow_saveDefaultTab</bpmn:outgoing>
+      <bpmn:outgoing>flow_deleteDefaultTab</bpmn:outgoing>
+      <bpmn:outgoing>flow_reorderDefaultTabs</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="searchTask" name="위젯 정의 목록·사용자 수" camunda:class="commWidgetMngService">
       <bpmn:extensionElements>
@@ -167,6 +171,71 @@
     <bpmn:sequenceFlow id="flow_deleteLayout_end" sourceRef="deleteLayoutTask" targetRef="endDeleteLayout" />
     <bpmn:sequenceFlow id="flow_searchDepts" name="searchDepts" sourceRef="actionGateway" targetRef="searchDeptsTask" />
     <bpmn:sequenceFlow id="flow_searchDepts_end" sourceRef="searchDeptsTask" targetRef="endSearchDepts" />
+    <!-- 기본 탭 action(docs/widget-2026-10/design-widget-tabs.md §3.2, 2026-10-05) — commWidgetDefaultTabService. -->
+    <bpmn:serviceTask id="loadDefaultTabsTask" name="기본 탭 불러오기" camunda:class="commWidgetDefaultTabService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="loadDefaultTabs" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetDefaultTabRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_loadDefaultTabs</bpmn:incoming>
+      <bpmn:outgoing>flow_loadDefaultTabs_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endLoadDefaultTabs">
+      <bpmn:incoming>flow_loadDefaultTabs_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="saveDefaultTabTask" name="기본 탭 저장(통째로 교체)" camunda:class="commWidgetDefaultTabService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="saveDefaultTab" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetDefaultTabRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_saveDefaultTab</bpmn:incoming>
+      <bpmn:outgoing>flow_saveDefaultTab_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endSaveDefaultTab">
+      <bpmn:incoming>flow_saveDefaultTab_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="deleteDefaultTabTask" name="기본 탭 지우기" camunda:class="commWidgetDefaultTabService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="deleteDefaultTab" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetDefaultTabRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_deleteDefaultTab</bpmn:incoming>
+      <bpmn:outgoing>flow_deleteDefaultTab_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endDeleteDefaultTab">
+      <bpmn:incoming>flow_deleteDefaultTab_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="reorderDefaultTabsTask" name="기본 탭 순서 바꾸기" camunda:class="commWidgetDefaultTabService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="reorderDefaultTabs" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mcm.widget.layout.dto.CommWidgetDefaultTabRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_reorderDefaultTabs</bpmn:incoming>
+      <bpmn:outgoing>flow_reorderDefaultTabs_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="endReorderDefaultTabs">
+      <bpmn:incoming>flow_reorderDefaultTabs_end</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="flow_loadDefaultTabs" name="loadDefaultTabs" sourceRef="actionGateway" targetRef="loadDefaultTabsTask" />
+    <bpmn:sequenceFlow id="flow_loadDefaultTabs_end" sourceRef="loadDefaultTabsTask" targetRef="endLoadDefaultTabs" />
+    <bpmn:sequenceFlow id="flow_saveDefaultTab" name="saveDefaultTab" sourceRef="actionGateway" targetRef="saveDefaultTabTask" />
+    <bpmn:sequenceFlow id="flow_saveDefaultTab_end" sourceRef="saveDefaultTabTask" targetRef="endSaveDefaultTab" />
+    <bpmn:sequenceFlow id="flow_deleteDefaultTab" name="deleteDefaultTab" sourceRef="actionGateway" targetRef="deleteDefaultTabTask" />
+    <bpmn:sequenceFlow id="flow_deleteDefaultTab_end" sourceRef="deleteDefaultTabTask" targetRef="endDeleteDefaultTab" />
+    <bpmn:sequenceFlow id="flow_reorderDefaultTabs" name="reorderDefaultTabs" sourceRef="actionGateway" targetRef="reorderDefaultTabsTask" />
+    <bpmn:sequenceFlow id="flow_reorderDefaultTabs_end" sourceRef="reorderDefaultTabsTask" targetRef="endReorderDefaultTabs" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="commWidgetMng">
@@ -340,6 +409,66 @@
       <bpmndi:BPMNEdge id="flow_searchDepts_end_di" bpmnElement="flow_searchDepts_end">
         <di:waypoint x="500" y="1220" />
         <di:waypoint x="582" y="1220" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="loadDefaultTabsTask_di" bpmnElement="loadDefaultTabsTask">
+        <dc:Bounds x="400" y="1320" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endLoadDefaultTabs_di" bpmnElement="endLoadDefaultTabs">
+        <dc:Bounds x="582" y="1342" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="saveDefaultTabTask_di" bpmnElement="saveDefaultTabTask">
+        <dc:Bounds x="400" y="1460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSaveDefaultTab_di" bpmnElement="endSaveDefaultTab">
+        <dc:Bounds x="582" y="1482" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="deleteDefaultTabTask_di" bpmnElement="deleteDefaultTabTask">
+        <dc:Bounds x="400" y="1600" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endDeleteDefaultTab_di" bpmnElement="endDeleteDefaultTab">
+        <dc:Bounds x="582" y="1622" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="reorderDefaultTabsTask_di" bpmnElement="reorderDefaultTabsTask">
+        <dc:Bounds x="400" y="1740" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endReorderDefaultTabs_di" bpmnElement="endReorderDefaultTabs">
+        <dc:Bounds x="582" y="1762" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="flow_loadDefaultTabs_di" bpmnElement="flow_loadDefaultTabs">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="1360" />
+        <di:waypoint x="400" y="1360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_loadDefaultTabs_end_di" bpmnElement="flow_loadDefaultTabs_end">
+        <di:waypoint x="500" y="1360" />
+        <di:waypoint x="582" y="1360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveDefaultTab_di" bpmnElement="flow_saveDefaultTab">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="1500" />
+        <di:waypoint x="400" y="1500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_saveDefaultTab_end_di" bpmnElement="flow_saveDefaultTab_end">
+        <di:waypoint x="500" y="1500" />
+        <di:waypoint x="582" y="1500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_deleteDefaultTab_di" bpmnElement="flow_deleteDefaultTab">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="1640" />
+        <di:waypoint x="400" y="1640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_deleteDefaultTab_end_di" bpmnElement="flow_deleteDefaultTab_end">
+        <di:waypoint x="500" y="1640" />
+        <di:waypoint x="582" y="1640" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_reorderDefaultTabs_di" bpmnElement="flow_reorderDefaultTabs">
+        <di:waypoint x="270" y="685" />
+        <di:waypoint x="270" y="1780" />
+        <di:waypoint x="400" y="1780" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_reorderDefaultTabs_end_di" bpmnElement="flow_reorderDefaultTabs_end">
+        <di:waypoint x="500" y="1780" />
+        <di:waypoint x="582" y="1780" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
