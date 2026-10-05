@@ -251,7 +251,7 @@ export function WidgetDetailForm({
         </tr>
         {isQuery && (
           <tr>
-            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="dataSrc" label="실행 모듈" /></th>
+            <th style={DETAIL_LABEL_CELL}><MdmFieldLabel name="dataSrc" label="실행 모듈" meta={false} /></th>
             <td style={DETAIL_VALUE_CELL} colSpan={2}>
               <Select
                 value={form?.dataSrc || "mcm"}
