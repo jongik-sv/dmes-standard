@@ -2,7 +2,6 @@ package com.dongkuk.dmes.mdm.common.rule.check.ledger;
 
 import com.dongkuk.dmes.mdm.common.rule.RuleIo;
 import com.dongkuk.dmes.mdm.common.rule.RuleIoReader;
-import com.dongkuk.dmes.mdm.common.rule.RuleQueries;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetCheck;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetFlowJson;
 import com.dongkuk.dmes.mdm.common.rule.RuleSetInterface;
@@ -48,6 +47,10 @@ import org.springframework.stereotype.Component;
  *   <li>다른 룰은 기준 시각의 RELEASED({@link RuleIoReader#readAt}, spec §6.4). 저장하려는 정의의 입출력({@link RuleIoReader#draft})은 부르는 세트가
  *       있는 S 를 찾은 뒤에만 계산한다.</li>
  *   <li>새 경고만 생긴 부모는 이슈로 내지 않는다(세트 확정의 CALLER_WARN 은 세트 쪽 몫).</li>
+ *   <li>원장은 {@link SetCallIoReader.Snapshot} 하나로 한 번 읽고 담은 세트 찾기·겉모양·연쇄 재검사가 같이 쓴다. 겉모양 차이는
+ *       {@link SetCallerRecheck#shapeChanged}(입출력 또는 endsEarly).</li>
+ *   <li>한계(srv:6 E2): S 의 미래 RELEASED(기준 시각 뒤에 시작하는 버전)는 보지 않는다 — 그 버전도 이 룰을 담아도, 그 버전이 적용될 때 부르는 세트가
+ *       깨지는지는 여기서 잡지 않는다.</li>
  * </ul>
  * 순서 번호 9 — 세트 순서·계약 변경 같은 가벼운 원장 검사 뒤, 가장 무거운 이 검사가 맨 뒤에 돈다(지금 쓰는 번호 1~6·8 다음).
  */
@@ -55,18 +58,13 @@ import org.springframework.stereotype.Component;
 @Order(9)
 public class RuleSetCallerCheck implements RuleSaveCheck {
 
-    private final RuleQueries queries;
-    private final RuleSetVersionQueries setVersions;
     private final MdmRuleRepository rules;
     private final RuleIoReader ioReader;
     private final SetCallIoReader callReader;
     private final SetCallerRecheck recheck;
     private final Clock clock;
 
-    public RuleSetCallerCheck(RuleQueries queries, RuleSetVersionQueries setVersions, MdmRuleRepository rules, RuleIoReader ioReader,
-                              SetCallIoReader callReader, SetCallerRecheck recheck, Clock clock) {
-        this.queries = queries;
-        this.setVersions = setVersions;
+    public RuleSetCallerCheck(MdmRuleRepository rules, RuleIoReader ioReader, SetCallIoReader callReader, SetCallerRecheck recheck, Clock clock) {
         this.rules = rules;
         this.ioReader = ioReader;
         this.callReader = callReader;
@@ -83,18 +81,17 @@ public class RuleSetCallerCheck implements RuleSaveCheck {
     public List<Map<String, Object>> check(RuleSaveContext ctx) {
         String me = ctx.ruleId();
         LocalDateTime at = ctx.referenceTime() != null ? ctx.referenceTime() : LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS);
-        List<MdmRuleSet> parents = queries.allSets().stream().filter(s -> !"DEPRECATED".equals(s.getStatus())).toList();
+        SetCallIoReader.Snapshot snap = callReader.snapshot();
+        List<MdmRuleSet> parents = snap.sets().stream().filter(s -> !"DEPRECATED".equals(s.getStatus())).toList();
         if (parents.isEmpty()) {
             return List.of();
         }
-        Map<String, List<MdmRuleSetVer>> byId = setVersions.versionsOf(parents.stream().map(MdmRuleSet::getMaruRuleSetId).toList());
         String severity = ctx.target() == RuleSaveTarget.STORED ? RuleCheckReport.ERROR : RuleCheckReport.WARNING;
-        SetCallIoReader.Snapshot snap = null;
         RuleIo draft = null;
         Set<String> messages = new LinkedHashSet<>();
         for (MdmRuleSet set : parents) {
             String sid = set.getMaruRuleSetId();
-            Optional<MdmRuleSetVer> cur = RuleVersions.currentReleased(byId.getOrDefault(sid, List.of()), at);
+            Optional<MdmRuleSetVer> cur = RuleVersions.currentReleased(snap.versions(sid), at);
             if (cur.isEmpty() || !RuleSetVersionQueries.members(cur.get()).contains(me)) {
                 continue;
             }
@@ -103,9 +100,6 @@ public class RuleSetCallerCheck implements RuleSaveCheck {
                 flow = RuleSetVersionQueries.flow(cur.get());
             } catch (IllegalArgumentException e) {
                 continue;
-            }
-            if (snap == null) {
-                snap = callReader.snapshot();
             }
             if (snap.callers(sid, at).isEmpty()) {
                 continue;
@@ -121,10 +115,10 @@ public class RuleSetCallerCheck implements RuleSaveCheck {
             Map<String, RuleIo> withDraft = new LinkedHashMap<>(ioReader.readAt(RuleSetFlowJson.ruleIds(flow), at, snap.scope()));
             withDraft.put(me, draft);
             SetCallIo after = RuleSetInterface.of(sid, before.setName(), true, before.status(), flow, withDraft, snap.callsOf(flow, at));
-            if (after.sameShape(before)) {
+            if (!SetCallerRecheck.shapeChanged(before, after)) {
                 continue;
             }
-            for (RuleSetCheck r : recheck.recheck(sid, after, at).rejects()) {
+            for (RuleSetCheck r : recheck.recheck(snap, sid, after, at).rejects()) {
                 messages.add("세트 " + sid + " 를 부르는 " + r.message());
             }
         }

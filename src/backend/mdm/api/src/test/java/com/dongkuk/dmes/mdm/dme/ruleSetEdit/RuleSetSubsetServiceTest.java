@@ -288,6 +288,28 @@ class RuleSetSubsetServiceTest extends AbstractMdmSharedDbTest {
     }
 
     @Test
+    void 입출력이_같아도_endsEarly_가_바뀌면_부르는_세트를_다시_검사한다() {
+        // C 1.000: r1(R_C1) → end, 처리 갈래 c1(r1) → rh(R_C3) → END — endsEarly. 2.000 은 한 줄 R_C1 — 입출력(IN_A → OUT_X always)은 같다.
+        // P 는 SET C 에 SUBSET_ENDED 를 받는다 — C 가 더는 일찍 끝나지 않으면 CATCH_NEVER 경고가 새로 생긴다.
+        rule("R_C3", "IN_A", "OUT_X");
+        String early = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"}," + ruleNode("r1", "R_C1")
+                + ",{\"id\":\"c1\",\"kind\":\"CATCH\",\"attachTo\":\"r1\",\"catches\":[\"EVAL_ERROR\"]}," + ruleNode("rh", "R_C3")
+                + ",{\"id\":\"end\",\"kind\":\"END\"}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"r1\"},{\"id\":\"e2\",\"from\":\"r1\",\"to\":\"end\"},"
+                + "{\"id\":\"e3\",\"from\":\"c1\",\"to\":\"rh\"},{\"id\":\"e4\",\"from\":\"rh\",\"to\":\"end\"}]}";
+        releasedFlow("C", "INUSE", "[\"R_C1\",\"R_C3\"]", early, "[]");
+        DmeTestSupport.ruleSetDraft(jdbc, "C", "2.000", "kim", "[\"R_C1\",\"R_C3\"]", 0);
+        String catching = "{\"version\":1,\"nodes\":[{\"id\":\"start\",\"kind\":\"START\"}," + setNode("s1", "C")
+                + ",{\"id\":\"c1\",\"kind\":\"CATCH\",\"attachTo\":\"s1\",\"catches\":[\"SUBSET_ENDED\"]}," + ruleNode("r1", "R_P")
+                + ",{\"id\":\"end\",\"kind\":\"END\"}],\"edges\":[{\"id\":\"e1\",\"from\":\"start\",\"to\":\"s1\"},{\"id\":\"e2\",\"from\":\"s1\",\"to\":\"r1\"},"
+                + "{\"id\":\"e3\",\"from\":\"r1\",\"to\":\"end\"},{\"id\":\"e4\",\"from\":\"c1\",\"to\":\"end\"}]}";
+        releasedFlow("P", "INUSE", "[\"R_P\"]", catching, "[\"C\"]");
+
+        RuleSetSaveResult r = saveFlow("C", 0, line(ruleNode("r1", "R_C1")));
+
+        assertThat(callLines(r.getChecks())).containsExactly("WARN CALLER_WARN 부르는 세트에 경고가 생겼다: P");
+    }
+
+    @Test
     void 겉모양이_그대로거나_부르는_세트가_폐기됐으면_연쇄_경고가_없다() {
         setWithDraft("C", "INUSE", "[\"R_C1\"]");
         parentP("DEPRECATED");

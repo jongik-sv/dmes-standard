@@ -905,10 +905,10 @@ public class RuleSetEditService {
             return out;
         }
         SetCallIo next = RuleSetInterface.of(setId, current.setName(), true, current.status(), flow, ioReader.readAt(ids, now, snap.scope()), calls);
-        if (current.sameShape(next)) {
+        if (!SetCallerRecheck.shapeChanged(current, next)) {
             return out;
         }
-        SetCallerRecheck.Outcome o = recheck.recheck(setId, next, now);
+        SetCallerRecheck.Outcome o = recheck.recheck(snap, setId, next, now);
         o.rejects().forEach(c -> out.add(c.asWarn()));
         if (!o.warnedCallers().isEmpty()) {
             out.add(new RuleSetCheck(RuleSetCheck.CALLER_WARN, RuleSetCheck.WARN, setId, null, null,
