@@ -59,6 +59,14 @@ export async function runWidgetQuery(defId: string, values?: Readonly<Record<str
 }
 
 /**
+ * 저장된 위젯 정의를 실행하고 풀어 낸 원본 응답을 그대로 돌려준다(columns·rows·truncated 말고도 collect 유형의 `lastRun` 이 함께 온다).
+ * 쿼리 위젯은 runWidgetQuery 를 쓴다 — 이 함수는 그 동작을 바꾸지 않는다. 오류·거절은 runWidgetQuery 와 같이 Error.
+ */
+export async function runWidgetRaw(defId: string): Promise<Record<string, unknown>> {
+  return post(WIDGET_DATA_RUN_URL, "HOME", { defId });
+}
+
+/**
  * 저장 전 SQL 시험 실행(관리자). 실패는 서버 메시지(「쿼리 오류: …」 등)를 담은 Error.
  * 입력 조건 정의가 있으면 정의 배열 전체를 `paramsJson` 으로 싣는다 — 서버가 각 정의의 기본값으로 시험한다.
  */

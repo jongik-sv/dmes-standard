@@ -612,6 +612,11 @@ export function planRun(params: readonly QueryParam[], applied: Readonly<Record<
  * 정식 판정은 서버가 한다(저장 때 SQL 의 바인드와 선언을 맞춰 본다).
  */
 export function extractBindNames(sql: string): string[] {
+  return extractAllBindNames(sql).filter((name) => !RESERVED_PARAM_NAMES.includes(name));
+}
+
+/** extractBindNames 와 같되 시스템 변수 이름(userId·today …)도 포함한다 — 수집 SQL 이 쓸 수 없는 변수를 알아볼 때 쓴다. */
+export function extractAllBindNames(sql: string): string[] {
   let code = "";
   let i = 0;
   const n = sql.length;
@@ -644,9 +649,7 @@ export function extractBindNames(sql: string): string[] {
   const names: string[] = [];
   const re = /(?<![:\w]):([A-Za-z][A-Za-z0-9_]*)/g;
   for (let m = re.exec(code); m; m = re.exec(code)) {
-    const name = m[1];
-    if (RESERVED_PARAM_NAMES.includes(name) || names.includes(name)) continue;
-    names.push(name);
+    if (!names.includes(m[1])) names.push(m[1]);
   }
   return names;
 }

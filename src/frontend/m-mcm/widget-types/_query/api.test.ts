@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PREVIEW_QUERY_URL, previewWidgetQuery, runWidgetQuery, unwrapResult, WIDGET_DATA_RUN_URL } from "./api";
+import { PREVIEW_QUERY_URL, previewWidgetQuery, runWidgetQuery, runWidgetRaw, unwrapResult, WIDGET_DATA_RUN_URL } from "./api";
 
 const fetchMock = vi.fn();
 
@@ -90,6 +90,41 @@ describe("runWidgetQuery", () => {
     reply({ message: "권한이 없습니다." }, 403);
 
     await expect(runWidgetQuery("def.a1234567")).rejects.toThrow("권한이 없습니다.");
+  });
+});
+
+describe("runWidgetRaw", () => {
+  it("defId 만 보내고 풀어 낸 원본 응답(lastRun 포함)을 그대로 돌려준다", async () => {
+    reply({
+      meta: { success: true },
+      data: {
+        result: {
+          columns: ["COLLECTED_AT", "ITEM_KEY", "VALUE"],
+          rows: [{ COLLECTED_AT: "2026-10-05T09:10:00", ITEM_KEY: "A", VALUE: 1 }],
+          truncated: false,
+          lastRun: { at: "2026-10-05T09:10:00", status: "FAIL", message: "x" },
+        },
+      },
+    });
+
+    const out = await runWidgetRaw("def.c1234567");
+
+    const req = sent();
+    expect(req.url).toBe(WIDGET_DATA_RUN_URL);
+    expect(req.body.params).toEqual({ defId: "def.c1234567" });
+    expect(req.body.meta).toEqual({ menuId: "HOME" });
+    expect(out.lastRun).toEqual({ at: "2026-10-05T09:10:00", status: "FAIL", message: "x" });
+    expect(out.rows).toEqual([{ COLLECTED_AT: "2026-10-05T09:10:00", ITEM_KEY: "A", VALUE: 1 }]);
+  });
+
+  it("업무 거절은 서버 메시지로 거절한다(고정 문구로 바꾸는 것은 화면 몫)", async () => {
+    reply({ meta: { success: false, message: "사용 중지된 위젯입니다" } });
+    await expect(runWidgetRaw("def.c1234567")).rejects.toThrow("사용 중지된 위젯입니다");
+  });
+
+  it("기존 runWidgetQuery 는 lastRun 을 떼고 { columns, rows, truncated } 만 돌려준다(동작 그대로)", async () => {
+    reply({ data: { result: { columns: ["A"], rows: [], truncated: false, lastRun: { status: "OK" } } } });
+    await expect(runWidgetQuery("def.a1234567")).resolves.toEqual({ columns: ["A"], rows: [], truncated: false });
   });
 });
 
