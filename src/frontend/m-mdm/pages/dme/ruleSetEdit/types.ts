@@ -118,7 +118,13 @@ export type RuleSetCheckCode =
   /** 받는 노드가 받는 종류가 그 룰에서 일어날 수 없다(WARN, 받는 노드 spec §5). nodeId = 받는 노드. */
   | "CATCH_NEVER"
   /** 흐름에 빈 단계(TASK)가 있다(WARN, 4단계 spec §1.1). 서버 `RuleSetAnalyzer`·화면 `set-model.ts` 가 내는 것은 Task 3. */
-  | "EMPTY_TASK";
+  | "EMPTY_TASK"
+  /** 하위 세트 spec §5 — SET 노드의 세트 ID 없음·없는 세트·폐기 세트(분석기 두 벌은 WARN, 확정·되살리기에서 거부 — 편차 13). */
+  | "CALL_MISSING"
+  /** 하위 세트 spec §5 — 서버만 낸다(세트 호출 순환·깊이 초과·부르는 세트가 깨짐). */
+  | "CALL_CYCLE"
+  | "CALL_DEPTH"
+  | "CALLER_BROKEN";
 
 /**
  * 저장 시 검사 한 건(§6.3, 계획 C4). 없는 칸은 null — EMPTY 는 ruleId 도 null, 1단계는 otherRuleId·varName 이 null.
@@ -163,6 +169,37 @@ export interface SetIo {
   inputs: InputRow[];
   results: ResultRow[];
 }
+
+/** 하위 세트의 최종 결과 하나 — always 는 END 에 닿는 모든 경로에서 반드시 만들어지는가(서버 `SetCallIo.OutputName`, 하위 세트 Ruling 16). */
+export interface SetCallOutput {
+  name: string;
+  dataType: string | null;
+  scale: number | null;
+  dateString: boolean;
+  maruCodeId: string | null;
+  always: boolean;
+}
+
+/**
+ * 하위 세트의 겉모양(하위 세트 spec §2, 서버 `SetCallIo`·`RuleSetInterface`) — 서버만 계산하고 화면은 검사에 넣기만 한다(C-D4).
+ * 분석기는 이것을 키 `set:{setId}` 의 룰 입출력처럼 본다(Ruling 6).
+ */
+export interface SetCallIo {
+  setId: string;
+  /** 세트명 — SET 노드 제목·속성 패널(Ruling 19). 없는 세트면 null. */
+  setName: string | null;
+  /** 기준 시각에 RELEASED 버전이 있는가(Ruling 24). DRAFT 만 있으면 false. */
+  exists: boolean;
+  status: string | null;
+  /** 하위 세트 흐름의 입력 변수 — 예약 이름 CATCH_* 는 뺐다(편차 11). */
+  inputs: IoName[];
+  outputs: SetCallOutput[];
+  /** endedBy 를 남기는 끝냄이 있는가(편차 10) — 처리 갈래가 END 로 가거나 처리 갈래 안 IF 갈래가 END 로 간다. SUBSET_ENDED CATCH_NEVER 판정이 쓴다. */
+  endsEarly: boolean;
+}
+
+/** 세트 ID → 겉모양. 없는 키는 아직 받지 않았거나 없는 세트다(검사는 CALL_MISSING 으로 본다, Ruling 8). */
+export type SetCallIoMap = Readonly<Record<string, SetCallIo | undefined>>;
 
 /** search target SET 의 후보 한 건. */
 export interface RuleSetPick {
