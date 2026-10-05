@@ -12,6 +12,7 @@ import kr.dongkuk.maru.mdm.engine.expr.AstExporter;
 import kr.dongkuk.maru.mdm.engine.expr.MasterBaseDt;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowEdge;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.FlowNode;
+import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.NodeKind;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RowContract;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleCell;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
@@ -152,6 +153,19 @@ final class MdmExprRefs {
             for (FlowNode n : set.flow().nodes()) {
                 if (n.ruleId() != null && !n.ruleId().isBlank()) {
                     out.add(n.ruleId());
+                }
+            }
+        }
+        return out;
+    }
+
+    /** 세트가 부르는 하위 세트 — 흐름의 {@code SET} 노드 {@code setId}(빈 값 제외), 처음 나온 순서로 중복 없이. */
+    static Set<String> setIds(RuleSetDefinition set) {
+        Set<String> out = new LinkedHashSet<>();
+        if (set.flow() != null && set.flow().nodes() != null) {
+            for (FlowNode n : set.flow().nodes()) {
+                if (n.kind() == NodeKind.SET && n.setId() != null && !n.setId().isBlank()) {
+                    out.add(n.setId());
                 }
             }
         }
