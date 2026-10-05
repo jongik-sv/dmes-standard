@@ -156,9 +156,13 @@ function edge(id: string, from: string, to: string, extra: Partial<Pick<FlowEdge
   return { id, from, to, order: extra.order ?? null, cond: extra.cond ?? null, otherwise: extra.otherwise === true, label: extra.label ?? null };
 }
 
-/** 모든 칸을 채운 노드 복사. 받는 노드(CATCH)만 attachTo·catches 를 label 뒤에 둔다(서버 정규 JSON 과 같은 키 순서, Ruling R11). */
+/**
+ * 모든 칸을 채운 노드 복사. 받는 노드(CATCH)만 attachTo·catches 를 label 뒤에 둔다(서버 정규 JSON 과 같은 키 순서, Ruling R11).
+ * 세트 노드(SET)는 setId 를 label 뒤에 남긴다(하위 세트 spec §1 — setId 는 SET 만 쓴다). 디버거 경고·들어가기(ui:9)가 편집 흐름의 setId 를 읽는다.
+ */
 const copyNode = (n: FlowNode): FlowNode => {
   const base = node(n.id, n.kind, str(n.ruleId), str(n.splitId), str(n.label));
+  if (n.kind === "SET") return { ...base, setId: str(n.setId) };
   if (n.kind !== "CATCH") return base;
   return { ...base, attachTo: str(n.attachTo), catches: Array.isArray(n.catches) ? n.catches.filter((k): k is string => typeof k === "string") : null };
 };

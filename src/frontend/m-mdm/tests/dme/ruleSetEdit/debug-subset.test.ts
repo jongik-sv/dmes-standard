@@ -1,13 +1,15 @@
 /** @vitest-environment happy-dom */
 // 하위 세트 spec §11 — 디버거: SET 노드 상세, 안으로 들어가기(같은 캔버스·경로 표시), ‹ ›, 돌아오기, 새 기록·모드 나가기에 비움, calledFlows 없을 때 안내.
+// 하위 세트 spec §10.4(C-D18) — 부르는 세트가 다른 탭에서 확정하지 않은 변경을 가지면 디버그 모드 경고.
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/dme/rule-handoff", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/dme/rule-handoff")>()) }));
 
 import type { RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
-import { flush } from "../helpers/render";
-import { byTestId, calls, canvasNodeIds, click, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
+import { flush, typeInto } from "../helpers/render";
+import { byTestId, calls, canvasNodeIds, click, handoff, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
+import { activateTab, clickIn, inPanel, qPanel, tabKeys } from "./set-tabs-helpers";
 
 const PARENT_FLOW = {
   version: 1,
@@ -263,5 +265,85 @@ describe("디버거 하위 세트", () => {
     expect(table.textContent).not.toContain("세트 CHILD");
     await click("dbg-callpath-0");
     expect(byTestId("sim-values").textContent).toContain("세트 CHILD");
+  });
+});
+
+// ── 확정하지 않은 하위 세트 경고(하위 세트 spec §10.4, C-D18) — 탭 틀 안 두 탭 ──
+
+function childView(draft = false): RuleSetView {
+  const base = {
+    set: { setId: "CHILD", setName: "하위", description: null, status: "INUSE", rowVersion: 3, ruleIds: [], flow: null, branched: false },
+    rules: [], checks: [], editable: true, restorable: false, condIo: {}, cases: [],
+  };
+  if (!draft) return base as unknown as RuleSetView;
+  return {
+    ...base,
+    set: { ...base.set, rowVersion: 0, ver: "2.000", verKind: "MAJOR", verLabel: "v2.000", verStatus: "DRAFT", ownerId: "tester" },
+    versions: [
+      { ver: "2.000", verKind: "MAJOR", verLabel: "v2.000", status: "DRAFT", applyFrom: null, applyTo: null, ownerId: "tester", rowVersion: 0, cancelConfirmable: false },
+      { ver: "1.000", verKind: "MAJOR", verLabel: "v1.000", status: "RELEASED", applyFrom: "2026-01-01 00:00:00", applyTo: "9999-12-31 00:00:00", ownerId: null, rowVersion: 3, cancelConfirmable: false },
+    ],
+    flags: { canNewMajor: false, canNewMinor: false, nextMajor: null, nextMinor: null, unappliedCount: 1, currentVer: "1.000", canDeprecate: false },
+    me: "tester",
+  } as unknown as RuleSetView;
+}
+
+/** 포털이 세트를 넘기고 이 화면 탭을 다시 고른 것처럼 연다(두 번째부터 새 탭). */
+async function openLink(setId: string, v: RuleSetView): Promise<void> {
+  srv.views[setId] = v;
+  handoff(setId);
+  await activateTab("T1");
+}
+
+const WARN_CHILD = "하위 세트 CHILD에 확정하지 않은 변경이 있다. 실행은 판정 시각의 RELEASED 로 한다.";
+
+describe("디버거 하위 세트 — 확정하지 않은 변경 경고", () => {
+  beforeEach(() => {
+    installServer();
+    localStorage.clear();
+  });
+  afterEach(uninstallServer);
+
+  it("부르는 세트의 탭에 저장 안 한 변경이 있으면 디버그 모드에 경고를 보이고, 그 탭을 닫으면 사라진다", async () => {
+    await openSet("PARENT", view(), { tabId: "T1" });
+    await openLink("CHILD", childView());
+    const child = tabKeys()[1];
+    await click("set-tab-t1");
+    await click("flow-mode-debug"); // t1 이 첫 패널·지금 탭
+    expect(qPanel("t1", "dbg-subset-unconfirmed")).toBeNull(); // 적용 중인 세트를 고치지 않고 열기만 했다
+
+    await click(`set-tab-${child}`);
+    await clickIn(child, "flow-mode-edit");
+    await typeInto(inPanel<HTMLInputElement>(child, "set-name"), "하위 고침");
+    await click("set-tab-t1");
+    expect(inPanel("t1", "dbg-subset-unconfirmed").textContent).toBe(WARN_CHILD);
+    expect(inPanel("t1", "dbg-subset-unconfirmed-CHILD").textContent).toBe(WARN_CHILD);
+    expect(qPanel(child, "dbg-subset-unconfirmed")).toBeNull(); // 하위 세트 탭 자신은 디버그 모드가 아니다
+
+    // 디버그 모드 밖에서는 보이지 않는다
+    await click("flow-mode-view");
+    expect(qPanel("t1", "dbg-subset-unconfirmed")).toBeNull();
+    await click("flow-mode-debug");
+    expect(qPanel("t1", "dbg-subset-unconfirmed")).not.toBeNull();
+
+    window.confirm = vi.fn(() => true);
+    await click(`set-tab-close-${child}`);
+    expect(tabKeys()).toEqual(["t1"]);
+    expect(qPanel("t1", "dbg-subset-unconfirmed")).toBeNull();
+  });
+
+  it("부르는 세트의 탭이 DRAFT 버전을 열고 있으면 저장 안 한 변경이 없어도 경고한다", async () => {
+    await openSet("PARENT", view(), { tabId: "T1" });
+    await click("flow-mode-debug");
+    expect(qPanel("t1", "dbg-subset-unconfirmed")).toBeNull();
+    await openLink("CHILD", childView(true));
+    expect(inPanel("t1", "dbg-subset-unconfirmed").textContent).toBe(WARN_CHILD);
+  });
+
+  it("흐름이 부르지 않는 세트의 확정 안 한 변경은 경고하지 않는다", async () => {
+    await openSet("PARENT", view(), { tabId: "T1" });
+    await click("flow-mode-debug");
+    await openLink("OTHER", { ...childView(true), set: { ...childView(true).set, setId: "OTHER" } } as RuleSetView);
+    expect(qPanel("t1", "dbg-subset-unconfirmed")).toBeNull();
   });
 });

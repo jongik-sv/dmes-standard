@@ -30,6 +30,8 @@
  * 겹침은 그 하위 기록의 프레임 커서로 그린다. 캔버스 위 경로 표시 줄(`dbg-callpath`)의 앞 조각을 누르면 돌아가고 ‹ › 가 프레임 커서를 옮긴다.
  * 프레임 안에서는 검사 표시·접기·중단점·우클릭 메뉴·값 고치기(오른쪽은 `FrameDetail`)가 꺼지고, 툴바·단축키의 단계 실행은 최상위 기록에만 쓴다(Ruling 21) —
  * 최상위 커서가 움직이면 최상위로 돌아온다. 새 기록이 오거나 디버그 모드를 나가면 프레임을 비운다.
+ * 디버그 모드에서 흐름의 SET 노드가 부르는 세트가 다른 탭에서 확정하지 않은 변경(저장 안 함·DRAFT 를 엶)을 갖고 있으면 디버그 툴바 아래에 세트마다 한 줄 경고를 보인다
+ * (`dbg-subset-unconfirmed`, 하위 세트 spec §10.4, C-D18 — 실행은 하위 세트의 DRAFT 를 쓰지 않는다).
  */
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
@@ -62,6 +64,7 @@ import {
   addCatch, connect, flowJsonOf, setCatchSpot, reconnectEdge, setGroupPad, setGroupsColor, setLabelOffset, setNodesColor, setPositions, setRoute, shiftRoutes, nextId, updateEdge, updateNodeLabel, updateNote,
   type CatchSpot, type EditFlow, type EditResult, type FlowNote, type FlowPos, type GroupPad, type LabelOffset, type LabelPart,
 } from "./flow-edit";
+import { flowSetIds } from "./flow-model";
 import { autoArrange, restyleNode, shiftSpace, type NodeLayoutSource, type SpaceAxis, type SpaceBlocks } from "./flow-layout";
 import type { NodeColor, NodeSize } from "./node-style";
 import { openRule } from "./links";
@@ -104,6 +107,9 @@ const NO_CHECKS: RuleSetCheck[] = [];
 const NO_SET: ReadonlySet<string> = new Set<string>();
 const NO_CALLED: Readonly<Record<string, CalledFlow>> = {};
 const noop = () => undefined;
+
+/** 디버거 경고(하위 세트 spec §10.4, C-D18) — 부르는 하위 세트가 다른 탭에서 확정하지 않은 변경을 갖고 있다. */
+export const subsetUnconfirmedText = (setId: string) => `하위 세트 ${setId}에 확정하지 않은 변경이 있다. 실행은 판정 시각의 RELEASED 로 한다.`;
 
 async function searchSetPicks(keyword: string): Promise<IdPickRow[]> {
   const res = await searchSets(keyword);
@@ -758,6 +764,10 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
     setFocus((f) => (focusNodeId ? { id: focusNodeId, seq: f.seq + 1 } : f.id === null ? f : { id: null, seq: f.seq }));
   }, [focusNodeId, focusRecord]);
 
+  /** 이 흐름의 SET 노드가 부르는 세트 가운데 다른 탭에서 확정하지 않은 것(흐름 순서). 흐름 해석은 흐름이 바뀔 때만 한다(Local-Rules §16). */
+  const calledSetIds = useMemo(() => (flow ? flowSetIds(flow) : []), [flow]);
+  const unconfirmedSubsets = debugging ? calledSetIds.filter((id) => id !== setId && tabsApi.unconfirmedSetIds.has(id)) : [];
+
   const usedRuleIds = useMemo(() => new Set((flow?.nodes ?? []).map((n) => n.ruleId).filter((x): x is string => !!x)), [flow]);
 
   const guideBlock = flow ? guideBlockReason(flow) : null;
@@ -855,6 +865,15 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
             autoSave={autoSave}
           />
           {debugging && <DebugToolbar sim={sim} canRun={canRun} selectedId={isFlowNode ? selectedId : null} />}
+          {unconfirmedSubsets.length > 0 && (
+            <div className="rsf-dbg-subset-warn" data-testid="dbg-subset-unconfirmed" role="status">
+              {unconfirmedSubsets.map((id) => (
+                <p key={id} data-testid={`dbg-subset-unconfirmed-${id}`}>
+                  {subsetUnconfirmedText(id)}
+                </p>
+              ))}
+            </div>
+          )}
           <ContentBody root direction="column" resizable storageKey={STORAGE_KEY}>
             <ContentBody key="main" resizable storageKey={`${STORAGE_KEY}.main`} flex="1 1 0" minSize={200}>
               {debugging && (

@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import type { NodeTrace, RunTrace, TypedValue } from "../../../src/contract/engine-contract.generated";
 import { callPath, caughtCount, enterFrame, frameValueAt, subTraceAt } from "../../../pages/dme/ruleSetEdit/debugger/call-stack";
-import { toEditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { flowJsonOf, toEditFlow } from "../../../pages/dme/ruleSetEdit/flow-edit";
+import { flowSetIds } from "../../../pages/dme/ruleSetEdit/flow-model";
 import { debugOverlay, frames, valueTable } from "../../../pages/dme/ruleSetEdit/trace-view";
 import type { CalledFlow } from "../../../pages/dme/ruleSetEdit/types";
 
@@ -108,6 +109,15 @@ describe("call-stack", () => {
     expect(frameValueAt({ ...f, cursor: 0 })("y")).toEqual(num("1"));
     expect(caughtCount(sub)).toBe(0);
     expect(caughtCount({ ...sub, nodes: [...sub.nodes.slice(0, 2), nodeT(3, "c1", "CATCH"), nodeT(4, "end", "END")] })).toBe(1);
+  });
+});
+
+describe("편집 흐름의 SET 노드 setId", () => {
+  it("편집기 변환은 SET 노드의 setId 를 남기고(다른 종류에는 칸을 더하지 않는다) 실행·저장 JSON 에도 싣는다", () => {
+    expect(parentFlow.nodes.find((x) => x.id === "s1")?.setId).toBe("CHILD");
+    expect("setId" in parentFlow.nodes.find((x) => x.id === "start")!).toBe(false);
+    expect(flowSetIds(parentFlow)).toEqual(["CHILD"]);
+    expect(JSON.parse(flowJsonOf(parentFlow)).nodes[1]).toEqual({ id: "s1", kind: "SET", ruleId: null, splitId: null, label: "단가 결정", setId: "CHILD" });
   });
 });
 
