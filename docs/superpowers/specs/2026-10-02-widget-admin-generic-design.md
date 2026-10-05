@@ -297,7 +297,7 @@ BE `EndpointPermissionFilter.AUTH_ONLY_OBJ_ACTION_PREFIXES` 와 FE `m-mcm/proxy.
 
 ### 5.3 서버 검사
 
-- 공통: `TITLE` 1~50자, 크기는 1 이상 정수이고 `MIN ≤ DEF ≤ MAX`, `DEF_W ≤ 24`, `REFRESH_SEC` 은 NULL 또는 30~86400.
+- 공통: `TITLE` 1~50자, 크기는 1 이상 정수이고 `MIN ≤ DEF ≤ MAX`, `DEF_W ≤ 24`, `REFRESH_SEC` 은 NULL 또는 600~86400(2026-10-05 최소값 600초로 올림, c6183e0d).
 - `D` 는 `TYPE_ID` 필수. 서버는 유형 목록을 모르므로(프런트 생성물) 형식만 본다(`^[a-z0-9-]{1,40}$`). 알 수 없는 유형은 화면이 「없는 위젯」으로 처리한다.
 - 쿼리 유형(`query-*`): `DATA_SRC` 는 지금 `mcm` 만 허용(그 밖: 「아직 지원하지 않는 모듈입니다」). `CONFIG_JSON.sql` 은 §7.1 검사를 저장 때도 한다.
 - `CONFIG_JSON` 은 JSON 으로 파싱되어야 하고 200KB 이하.
