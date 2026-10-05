@@ -128,7 +128,7 @@ interface Target {
   ver: string | null;
 }
 
-/** handoff 의 버전을 `"1.001"` 로 맞춘다(옛 snapshot 의 숫자도 받는다). 읽을 수 없으면 null(서버가 DRAFT 를 고른다). */
+/** handoff 의 버전을 `"1.001"` 로 맞춘다(숫자 ver 도 받는다). 읽을 수 없으면 null(서버가 DRAFT 를 고른다). */
 function toVer(value: unknown): string | null {
   return typeof value === "string" || typeof value === "number" ? normVer(value) : null;
 }

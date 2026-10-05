@@ -200,7 +200,7 @@ export default function CodeConfirmPage({ tabId }: CodeConfirmPageProps) {
     void load(t);
   }, [load]);
 
-  // 진입 값: handoff(한 번만) > snapshot
+  // 진입 값: handoff(한 번만). 선택 행은 snapshot 에 담지 않는다(R8)
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruCodeId) {
       choose({ maruCodeId: params.maruCodeId, ver: params.ver || null });
