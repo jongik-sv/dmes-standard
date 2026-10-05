@@ -6,6 +6,7 @@
  * 창 본문은 위젯 틀(WidgetFrame, 보기 모드)을 그대로 쓴다 — 지연 로딩·오류 경계·제목 줄·새로 고침은 틀이 맡는다.
  * 틀 컴포넌트는 호스트가 `@dk-oasis/shared/widget` 의 WidgetFrame 을 frame 으로 넘긴다. shared 는 진입점마다 따로 묶여(tsup splitting:false)
  * 이 층(portal-shell 진입점)이 틀을 직접 import 하면 틀의 WidgetFrameContext 가 위젯 본체(widget 진입점)가 읽는 것과 다른 객체가 된다.
+ * 창 크기(뷰포트)는 이 층이 직접 구독한다(창이 있을 때만, rAF 로 묶어) — 화면 크기가 바뀌어도 상위 셸이 다시 그려지지 않는다.
  * 등록부에 아직 없는 창(정의 조회 전)은 그리지 않고 상태에만 남긴다.
  */
 import { memo, useCallback, useMemo, type ComponentType } from "react";
@@ -22,13 +23,15 @@ import {
 import { FloatingWindow } from "./FloatingWindow";
 import { WidgetDockStyle } from "./styles";
 import type { DockViewport, DockWindow } from "./types";
+import { useDockViewport } from "./use-dock-viewport";
 
 export interface WidgetDockLayerProps {
   windows: DockWindow[];
   registry: WidgetRegistry;
   /** 위젯 틀 — 호스트가 위젯 본체와 같은 진입점(`@dk-oasis/shared/widget`)의 WidgetFrame 을 넘긴다. */
   frame: ComponentType<WidgetFrameProps>;
-  viewport: DockViewport;
+  /** 지정하면 이 크기를 쓴다(시험·고정 영역). 없으면 창이 있는 동안 화면 크기를 직접 구독한다. */
+  viewport?: DockViewport;
   onMove: (id: string, x: number, y: number) => void;
   onResize: (id: string, w: number, h: number) => void;
   onToggleCollapse: (id: string) => void;
@@ -117,7 +120,7 @@ export function WidgetDockLayer({
   windows,
   registry,
   frame,
-  viewport,
+  viewport: viewportOverride,
   onMove,
   onResize,
   onToggleCollapse,
@@ -125,6 +128,8 @@ export function WidgetDockLayer({
   onFocus,
   testId = "widget-dock",
 }: WidgetDockLayerProps) {
+  const liveViewport = useDockViewport(viewportOverride === undefined && windows.length > 0);
+  const viewport = viewportOverride ?? liveViewport;
   return (
     <div className="cm-widget-dock" data-testid={testId}>
       <WidgetDockStyle />

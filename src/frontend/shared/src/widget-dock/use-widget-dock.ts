@@ -5,6 +5,8 @@
  * - enabled=false 면 저장소를 만들지 않고 리스너도 달지 않는다(포털 셸이 widgetDock 을 받지 않은 경우).
  * - 사용자 ID 가 없으면(확인 전·로그아웃) 창이 없고 아무것도 저장하지 않는다. isSaveBlocked()가 true(로그아웃 중)여도 저장하지 않는다.
  * - 저장소가 바뀌면(사용자 바뀜) 그 렌더부터 빈 목록으로 보고 새 사용자 것을 불러온다 — 앞 사용자의 창이 잠깐도 보이거나 저장되지 않게.
+ * - 화면 크기는 상태로 들지 않는다 — 조작(열기·접기·옮기기·크기)이 호출 순간의 창 크기를 읽는다. 그릴 때 자르는 쪽은 창 층(useDockViewport)이 맡아
+ *   화면 크기가 바뀌어도 이 훅을 쓰는 상위 컴포넌트가 다시 그려지지 않는다.
  * - 등록부 정리(없는·사용 중지 위젯 창 제거)는 등록부가 ready 일 때만 하고 결과를 저장한다(dock-model sanitizeDockWindows).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -23,7 +25,8 @@ import {
   toggleDockCollapse,
   type OpenDockResult,
 } from "./dock-model";
-import type { DockRegistryStatus, DockViewport, DockWindow, WidgetDockStore } from "./types";
+import type { DockRegistryStatus, DockWindow, WidgetDockStore } from "./types";
+import { readDockViewport } from "./use-dock-viewport";
 
 export const DOCK_SAVE_DELAY_MS = 400;
 
@@ -45,7 +48,6 @@ export interface WidgetDockApi {
   loaded: boolean;
   /** 상태의 창 전부(등록부 준비 전이면 아직 그릴 수 없는 창도 들어 있다). */
   windows: DockWindow[];
-  viewport: DockViewport;
   open: (widgetId: string) => OpenDockResult["kind"] | "missing";
   close: (id: string) => void;
   focus: (id: string) => void;
@@ -63,11 +65,6 @@ interface DockState {
 }
 
 const EMPTY: DockWindow[] = [];
-
-function readViewport(): DockViewport {
-  if (typeof window === "undefined") return { width: 0, height: 0 };
-  return { width: window.innerWidth, height: window.innerHeight };
-}
 
 export function useWidgetDock({
   enabled,
@@ -100,9 +97,6 @@ export function useWidgetDock({
   ownerRef.current = activeStore;
   const blockedRef = useRef(isSaveBlocked);
   blockedRef.current = isSaveBlocked;
-  const [viewport, setViewport] = useState<DockViewport>(readViewport);
-  const viewportRef = useRef(viewport);
-  viewportRef.current = viewport;
 
   // ── 저장(디바운스) ──
   const pendingRef = useRef<{ store: WidgetDockStore; windows: DockWindow[] } | null>(null);
@@ -153,19 +147,6 @@ export function useWidgetDock({
     return () => window.removeEventListener("pagehide", flush);
   }, [enabled, flush]);
 
-  // 뷰포트 크기 — 창 자르기 기준. 창 상태는 그대로 두고 그릴 때 자른다.
-  useEffect(() => {
-    if (!enabled || typeof window === "undefined") return;
-    const onResize = () =>
-      setViewport((prev) => {
-        const next = readViewport();
-        return prev.width === next.width && prev.height === next.height ? prev : next;
-      });
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [enabled]);
-
   // 등록부가 ready 가 되면 없는·사용 중지·floatable 아닌 위젯 창을 정리하고 저장한다.
   const sanitized = state.loaded
     ? sanitizeDockWindows(state.windows, registry, registryStatus)
@@ -198,8 +179,8 @@ export function useWidgetDock({
     (widgetId: string): OpenDockResult["kind"] | "missing" => {
       const entry = registryRef.current[widgetId];
       if (!isDockableEntry(entry) || !loadedRef.current || !ownerRef.current) return "missing";
-      const kind = openDockWindow(windowsRef.current, entry, viewportRef.current).kind;
-      update((windows) => openDockWindow(windows, entry, viewportRef.current).windows);
+      const kind = openDockWindow(windowsRef.current, entry, readDockViewport()).kind;
+      update((windows) => openDockWindow(windows, entry, readDockViewport()).windows);
       return kind;
     },
     [update]
@@ -210,17 +191,17 @@ export function useWidgetDock({
     [update]
   );
   const toggleCollapse = useCallback(
-    (id: string) => update((ws) => toggleDockCollapse(ws, id, viewportRef.current)),
+    (id: string) => update((ws) => toggleDockCollapse(ws, id, readDockViewport())),
     [update]
   );
   const move = useCallback(
     (id: string, x: number, y: number) =>
-      update((ws) => moveDockWindow(ws, id, x, y, viewportRef.current)),
+      update((ws) => moveDockWindow(ws, id, x, y, readDockViewport())),
     [update]
   );
   const resize = useCallback(
     (id: string, w: number, h: number) =>
-      update((ws) => resizeDockWindow(ws, id, w, h, viewportRef.current)),
+      update((ws) => resizeDockWindow(ws, id, w, h, readDockViewport())),
     [update]
   );
 
@@ -228,7 +209,6 @@ export function useWidgetDock({
     () => ({
       loaded: state.loaded,
       windows: sanitized,
-      viewport,
       open,
       close,
       focus,
@@ -236,7 +216,7 @@ export function useWidgetDock({
       move,
       resize,
     }),
-    [state.loaded, sanitized, viewport, open, close, focus, toggleCollapse, move, resize]
+    [state.loaded, sanitized, open, close, focus, toggleCollapse, move, resize]
   );
 }
 

@@ -267,6 +267,38 @@ describe("WidgetDockLayer", () => {
     act(() => q<HTMLButtonElement>('.cm-float-win button[aria-label="닫기"]').click());
     expect(hs.onClose).toHaveBeenCalledWith("a");
   });
+
+  it("viewport 를 안 주면 창이 있는 동안 화면 크기를 직접 구독하고(rAF 로 묶어), 창이 없으면 구독하지 않는다", async () => {
+    const add = vi.spyOn(window, "addEventListener");
+    const resizeListeners = () => add.mock.calls.filter(([type]) => type === "resize").length;
+    const baseProps = {
+      registry: { "def.calc": entry("def.calc") },
+      frame: WidgetFrame,
+      ...handlers(),
+    };
+    Object.assign(window, { innerWidth: 1200, innerHeight: 800 });
+    act(() => root.render(h(WidgetDockLayer, { ...baseProps, windows: [] })));
+    await flush();
+    expect(resizeListeners()).toBe(0);
+
+    act(() => root.render(h(WidgetDockLayer, { ...baseProps, windows: [win("a", { x: 900, y: 700 })] })));
+    await flush();
+    expect(resizeListeners()).toBe(1);
+    expect(q<HTMLElement>(".cm-float-win").style.left).toBe("900px");
+
+    Object.assign(window, { innerWidth: 800, innerHeight: 600 });
+    act(() => void window.dispatchEvent(new Event("resize")));
+    act(() => void window.dispatchEvent(new Event("resize")));
+    // rAF 로 묶는다 — 이벤트 직후에는 아직 그대로, 한 프레임 뒤에 한 번 반영.
+    expect(q<HTMLElement>(".cm-float-win").style.left).toBe("900px");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(q<HTMLElement>(".cm-float-win").style.left).toBe("500px");
+    expect(q<HTMLElement>(".cm-float-win").style.top).toBe("360px");
+    add.mockRestore();
+    Object.assign(window, { innerWidth: 1024, innerHeight: 768 });
+  });
 });
 
 // ─────────────────────────────────────────────────────────── 도크 훅
@@ -293,6 +325,7 @@ function Harness(props: {
   status?: "loading" | "ready" | "error";
   blocked?: () => boolean;
   onApi: (api: WidgetDockApi) => void;
+  onRender?: () => void;
 }) {
   const api = useWidgetDock({
     enabled: true,
@@ -302,6 +335,7 @@ function Harness(props: {
     store: props.store,
     isSaveBlocked: props.blocked,
   });
+  props.onRender?.();
   useEffect(() => props.onApi(api));
   return null;
 }
@@ -329,6 +363,24 @@ describe("useWidgetDock", () => {
     act(() => vi.advanceTimersByTime(1));
     expect(store.saves).toHaveLength(1);
     expect(store.saves[0].find((w) => w.id === "a")!.collapsed).toBe(true);
+  });
+
+  it("화면 크기가 바뀌어도 훅을 쓰는 컴포넌트(셸)는 다시 그려지지 않는다", async () => {
+    const store = memoryStore([win("a")]);
+    let renders = 0;
+    act(() =>
+      root.render(h(Harness, { userId: "u1", store, onApi, onRender: () => void (renders += 1) }))
+    );
+    await flush();
+    const before = renders;
+    Object.assign(window, { innerWidth: 700, innerHeight: 500 });
+    act(() => void window.dispatchEvent(new Event("resize")));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
+    expect(renders).toBe(before);
+    expect("viewport" in api).toBe(false);
+    Object.assign(window, { innerWidth: 1024, innerHeight: 768 });
   });
 
   it("언마운트 때 남은 저장을 보낸다", async () => {

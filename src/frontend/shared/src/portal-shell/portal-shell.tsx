@@ -753,7 +753,6 @@ export function PortalShell({
           windows={dock.windows}
           registry={dockRegistry}
           frame={widgetDock.frame}
-          viewport={dock.viewport}
           onMove={dock.move}
           onResize={dock.resize}
           onToggleCollapse={dock.toggleCollapse}

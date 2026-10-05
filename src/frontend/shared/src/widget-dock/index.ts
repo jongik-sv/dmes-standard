@@ -29,6 +29,7 @@ export {
 } from "./browser-dock-store";
 export { DOCK_SAVE_DELAY_MS, useDockableEntries, useWidgetDock } from "./use-widget-dock";
 export type { UseWidgetDockOptions, WidgetDockApi } from "./use-widget-dock";
+export { readDockViewport, useDockViewport } from "./use-dock-viewport";
 export { FLOATING_DRAG_THRESHOLD, FloatingWindow } from "./FloatingWindow";
 export type { FloatingWindowProps } from "./FloatingWindow";
 export { WidgetDockLayer } from "./WidgetDockLayer";
