@@ -23,7 +23,7 @@
  * 코드 삭제·등록)가 진행 중이면 목록 행 클릭(↑/↓ 키 이동 포함)을 받지 않는다 — 사용자가 누른 쓰기의 결과(토스트,
  * 충돌 모달과 다시 불러오기)를 그 코드 위에서 보게 하려는 것이다. handoff 는 쓰기 중에도 받으므로 응답 가드는 그대로 둔다.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   ContentBody,

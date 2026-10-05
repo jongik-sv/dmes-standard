@@ -10,7 +10,7 @@
  * 미래 적용 경고는 대화상자에서 한다(D4·D9). 서버 거부 message 는 오류 영역에 그대로 보인다(I39).
  * 시안 「상신」의 긴급·사유·결재 영역과 적용시점 하한은 만들지 않는다(spec 제약). OBJECT_ID = screenId = 'ruleConfirm'.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";

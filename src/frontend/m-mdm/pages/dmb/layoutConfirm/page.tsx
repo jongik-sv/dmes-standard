@@ -6,7 +6,7 @@
  * 진입 레이아웃·버전은 handoff(openMdmPage)로 정하고 snapshot 에 담지 않는다(R8). 버전은 `normVer` 로만 다룬다(`"1.001"` 을 숫자로 바꾸지 않는다).
  * 검사(`validate`)는 쓰기가 없고, 확정 버튼은 검사한 apply_from 이 지금 입력값과 같을 때만 켜진다. OBJECT_ID = screenId = 'layoutConfirm'.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";

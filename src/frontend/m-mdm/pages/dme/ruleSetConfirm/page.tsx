@@ -6,7 +6,7 @@
  * 검사(`validate`)는 쓰기가 없고, 확정 버튼은 검사한 apply_from 이 지금 입력값과 같을 때만 켜진다. 경고 확인과 미래 적용 경고는
  * 대화상자(ruleConfirm 의 ConfirmModal)에서 한다. 서버 거부 message 는 오류 영역에 그대로 보인다. OBJECT_ID = screenId = 'ruleSetConfirm'.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";
