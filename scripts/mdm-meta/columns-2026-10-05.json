@@ -1860,6 +1860,7 @@
   "aliases": [
     {
       "physName": "CD_TP_DESC",
+      "columnName": "코드 구분 설명",
       "aliases": [
         {
           "systemCode": "MES",
@@ -1870,6 +1871,7 @@
     },
     {
       "physName": "CD_TP_ID",
+      "columnName": "코드 구분 아이디",
       "aliases": [
         {
           "systemCode": "MES",
@@ -1879,17 +1881,8 @@
       "evidence": "TB_MCM_CODE_MASTER(코드 구분 정의) — 사전 CD_TP_* 군(CD_TP_CHARACTER·CD_TP_VER·CD_TP_OWNER_EMP_NO)과 같은 테이블 구성"
     },
     {
-      "physName": "CD_V",
-      "aliases": [
-        {
-          "systemCode": "MES",
-          "physName": "CODE_VAL"
-        }
-      ],
-      "evidence": "TB_MCM_CODE_DETAIL.CODE_VAL — 같은 용어 집합(코드 값)"
-    },
-    {
       "physName": "CD_V_DESC",
+      "columnName": "코드 값 설명",
       "aliases": [
         {
           "systemCode": "MES",
@@ -1900,6 +1893,7 @@
     },
     {
       "physName": "CD_V_MEANING",
+      "columnName": "코드 값 의미",
       "aliases": [
         {
           "systemCode": "MES",
@@ -1909,17 +1903,8 @@
       "evidence": "TB_MCM_CODE_DETAIL — 같은 용어 집합(코드 값 의미)"
     },
     {
-      "physName": "COLUMN_ID",
-      "aliases": [
-        {
-          "systemCode": "MES",
-          "physName": "COL_ID"
-        }
-      ],
-      "evidence": "TB_MCA_RULE_COL_LIST.COL_ID — 같은 용어 집합(컬럼 아이디)"
-    },
-    {
       "physName": "COLUMN_NM",
+      "columnName": "컬럼 명",
       "aliases": [
         {
           "systemCode": "MES",
@@ -1930,6 +1915,7 @@
     },
     {
       "physName": "END_DH",
+      "columnName": "종료 일시",
       "aliases": [
         {
           "systemCode": "MES",
@@ -1940,6 +1926,7 @@
     },
     {
       "physName": "FIX_YN",
+      "columnName": "고정 여부",
       "aliases": [
         {
           "systemCode": "MES",
@@ -1950,6 +1937,7 @@
     },
     {
       "physName": "MENU_KND",
+      "columnName": "메뉴 유형",
       "aliases": [
         {
           "systemCode": "MES",
@@ -1960,6 +1948,7 @@
     },
     {
       "physName": "MOBILE_TEL",
+      "columnName": "모바일 전화",
       "aliases": [
         {
           "systemCode": "MES",
@@ -1970,6 +1959,7 @@
     },
     {
       "physName": "STR_DH",
+      "columnName": "시작 일시",
       "aliases": [
         {
           "systemCode": "MES",
