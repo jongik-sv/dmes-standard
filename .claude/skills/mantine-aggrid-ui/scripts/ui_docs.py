@@ -42,7 +42,7 @@ GROUPS: list[tuple[str, list[str]]] = [
     ("위젯 (`@dk-oasis/shared/widget`)", ["widget"]),
     ("위젯 도크·떠 있는 창 (`@dk-oasis/shared/portal-shell`)", ["widget-dock", "floating-window"]),
     ("MDM 화면 메타 (`@dk-oasis/shared/mdm-meta`)", ["mdm-meta"]),
-    ("탭·트리·룩업·기타", ["tabs", "tree", "lookup", "lookup-multi-modal", "markdown-editor", "html-editor", "notice-body-view", "detail-popover", "json-view", "card", "transfer-list", "matrix-table", "charts", "export-to-excel", "print-element-as-page", "icons"]),
+    ("탭·트리·룩업·기타", ["tabs", "closable-tabs", "tree", "lookup", "lookup-multi-modal", "markdown-editor", "html-editor", "notice-body-view", "detail-popover", "json-view", "card", "transfer-list", "matrix-table", "charts", "export-to-excel", "print-element-as-page", "icons"]),
 ]
 
 # 화면 문서에 싣지 않는 shared export 와 이유. coverage 가 이 목록을 "의도적 제외"로 본다.
@@ -96,6 +96,7 @@ EXPORT_FILES = [
     "components/form/index.ts",
     "components/grid/index.ts",
     "components/tabs/index.ts",
+    "components/closable-tabs/index.ts",
     "components/tree/index.ts",
     "components/lookup/index.ts",
     "components/markdown-editor/index.ts",
