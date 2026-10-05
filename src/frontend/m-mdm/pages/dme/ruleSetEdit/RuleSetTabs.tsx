@@ -3,7 +3,9 @@
 /**
  * 룰 세트 편집 화면의 세트 탭 틀(하위 세트 spec §10, C-D13·C-D14) — 탭 머리(세트 ID·저장 안 한 변경 점·닫기)와 탭마다 편집기(`RuleSetEditor`).
  * 탭 머리·숨김 패널은 shared `ClosableTabs` 가 그린다 — 패널은 탭마다 늘 그리고(마운트 유지) 고르지 않은 패널은 `hidden` + `display:none` 으로 숨긴다.
- * 숨은 패널은 `isShown` 이 거짓이라 ⌘Z·캔버스 단축키를 받지 않고, 편집기는 `active` 가 거짓이면 오류 창(포털)을 그리지 않는다.
+ * 숨은 패널은 `isShown` 이 거짓이라 ⌘Z·캔버스 단축키를 받지 않고, 편집기는 `active` 가 거짓이면 오류 창(포털)을 그리지 않으며
+ * 그 밖의 포털 대화 상자(테스트 케이스 편집 창)는 `EditorActiveContext` 가 거짓일 때 그리지 않는다.
+ * 요청한 세트를 못 불러온 탭은 빈 탭이다(`currentOf`) — 포털 파라미터가 그 탭을 다시 쓴다.
  * 세트 고르기는 따로 위 바를 두지 않고 편집기 툴바 줄 맨 앞(`IdPicker`)에 그대로 있다(ui:7 조정) — 고르면 `pickSet` 으로 여기 맡긴다.
  * 탭 사이 연동(`RuleSetTabsContext`): 링크로 열기(`openSet`), 고르기(`pickSet`), 쓰기 알림(`notifyWritten`·`written`),
  * 저장 안 한·확정 안 한 탭의 세트(`dirtySetIds`·`unconfirmedSetIds`), 보는 사람 설정 알림(`prefs`·`publishPrefs`).
@@ -49,7 +51,11 @@ export function RuleSetTabs({ tabId }: { tabId?: string }) {
 
   const openSet = useCallback((setId: string) => apply(openLinked(tabsRef.current, setId)), [apply]);
   const pickSet = useCallback(
-    (tabKey: string, setId: string, ver?: string | null) => apply(pickInTab(tabsRef.current, tabKey, setId, ver ?? null)),
+    (tabKey: string, setId: string, ver?: string | null) => {
+      const r = pickInTab(tabsRef.current, tabKey, setId, ver ?? null);
+      apply(r);
+      return r.state.active;
+    },
     [apply],
   );
   const notifyWritten = useCallback((setId: string) => setWritten((w) => ({ setId, seq: (w?.seq ?? 0) + 1 })), []);

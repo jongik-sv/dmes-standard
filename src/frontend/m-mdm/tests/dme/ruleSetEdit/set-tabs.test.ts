@@ -7,6 +7,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DmesUiProvider } from "@dk-oasis/shared/ui-provider";
 
 const mocks = vi.hoisted(() => ({ openRuleEdit: vi.fn(), openMdmPage: vi.fn() }));
+/** 탭 틀 컨텍스트의 확정 안 한 세트를 읽는 시험용 소비자의 마지막 값 — 편집기 아래 늘 그리는 ChecksPanel 을 감싸 읽는다. */
+const probe = vi.hoisted(() => ({ unconfirmed: null as ReadonlySet<string> | null, dirty: null as ReadonlySet<string> | null }));
+
+vi.mock("../../../pages/dme/ruleSetEdit/panels/ChecksPanel", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../pages/dme/ruleSetEdit/panels/ChecksPanel")>();
+  const react = await import("react");
+  const ctx = await import("../../../pages/dme/ruleSetEdit/tabs-context");
+  return {
+    ...actual,
+    ChecksPanel: (props: Parameters<typeof actual.ChecksPanel>[0]) => {
+      const api = react.useContext(ctx.RuleSetTabsContext);
+      probe.unconfirmed = api.unconfirmedSetIds;
+      probe.dirty = api.dirtySetIds;
+      return react.createElement(actual.ChecksPanel, props);
+    },
+  };
+});
 
 vi.mock("@/dme/rule-handoff", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/dme/rule-handoff")>()),
@@ -22,7 +39,7 @@ import { AUTO_SAVE_DELAY_MS } from "../../../pages/dme/ruleSetEdit/state/useAuto
 import { useRuleSetEdit, type RuleSetEditState } from "../../../pages/dme/ruleSetEdit/state/useRuleSetEdit";
 import type { RuleIo, RuleSetVersionRow, RuleSetView } from "../../../pages/dme/ruleSetEdit/types";
 import { flush, typeInto } from "../helpers/render";
-import { byTestId, calls, click, handoff, installServer, ok, openSet, q, settle, srv, uninstallServer } from "../helpers/rule-set-page";
+import { byTestId, calls, click, handoff, installServer, ok, openSet, q, renderPage, settle, srv, uninstallServer } from "../helpers/rule-set-page";
 import { activateTab, activeKey, clickIn, inPanel, pickInActive, qPanel, tabKeys } from "./set-tabs-helpers";
 
 const ioName = (n: string) => ({ name: n, source: "DICT" as const, label: null, dataType: null, scale: null, dateString: false, maruCodeId: null });
@@ -200,10 +217,13 @@ describe("세트 탭", () => {
     await openLink("S2");
     const second = tabKeys()[1];
     const viewsBefore = calls("view").length;
-    await pickInActive("S1"); // S2 탭에서 S1 을 고름
+    // S2 탭의 고르기 칸에 S1 을 쳐서 고르면 S1 탭으로 가고, 시작한 S2 탭의 칸은 그 탭의 세트 ID(S2)로 돌아온다
+    await pickInActive("S1");
     expect(activeKey()).toBe("t1");
     expect(calls("view")).toHaveLength(viewsBefore);
     expect(tabKeys()).toHaveLength(2);
+    expect(inPanel<HTMLInputElement>(second, "set-pick-keyword").value).toBe("S2");
+    expect(inPanel<HTMLInputElement>("t1", "set-pick-keyword").value).toBe("S1");
 
     srv.views.S3 = viewOf("S3");
     await click(`set-tab-${second}`);
@@ -212,6 +232,53 @@ describe("세트 탭", () => {
     expect(tabKeys()).toHaveLength(2);
     expect(byTestId(`set-tab-${second}`).textContent).toContain("S3");
     expect(calls("view").at(-1)!.body.params).toMatchObject({ setId: "S3" });
+    expect(inPanel<HTMLInputElement>(second, "set-pick-keyword").value).toBe("S3"); // 이 탭에서 연 세트가 칸에 남는다
+  });
+
+  it("첫 빈 탭의 불러오기가 실패하면 그 탭은 빈 탭이다 — 포털 파라미터가 새 탭을 열지 않고 그 탭에서 다시 연다", async () => {
+    handoff("S9"); // view 없음 → 불러오기 실패
+    await renderPage({ tabId: "T1" });
+    expect(bodyHas("룰 세트를 찾을 수 없습니다: S9")).toBe(true);
+    expect(tabKeys()).toEqual(["t1"]);
+    expect(tabTexts()).toEqual(["새 탭"]); // 머리에 못 연 ID 가 남지 않는다
+    // 같은 세트를 다시 넘기면(이제 있다) 새 탭이 아니라 그 탭에서 다시 불러온다
+    await openLink("S9");
+    expect(tabKeys()).toEqual(["t1"]);
+    expect(tabTexts()).toEqual([expect.stringContaining("S9")]);
+    expect(calls("view").map((r) => (r.body.params as Record<string, string>).setId)).toEqual(["S9", "S9"]);
+    // 이제 열린 탭이므로 한 번 더 넘기면 다시 불러오지 않고 그 탭으로 간다
+    await openLink("S9");
+    expect(calls("view")).toHaveLength(2);
+    expect(tabKeys()).toEqual(["t1"]);
+  });
+
+  it("두 번째 탭에서 불러오기에 실패하면 그 탭을 빈 탭으로 두고, 같은 세트를 다시 넘기면 새 탭에서 연다(실패한 탭으로 가기만 하지 않는다)", async () => {
+    await openSet("S1", viewOf("S1"), { tabId: "T1" });
+    handoff("S2"); // view 없음
+    await activateTab("T1");
+    const failedKey = tabKeys()[1];
+    expect(byTestId(`set-tab-${failedKey}`).textContent).toBe("새 탭");
+    await openLink("S2"); // 이제 있다
+    expect(tabKeys()).toHaveLength(3);
+    expect(tabTexts().filter((t) => t.includes("S2"))).toHaveLength(1);
+    expect(calls("view").map((r) => (r.body.params as Record<string, string>).setId)).toEqual(["S1", "S2", "S2"]);
+    // 실패한 탭의 고르기로 열린 세트(S1)를 고르면 그 탭(S1)으로 간다
+    await click(`set-tab-${failedKey}`);
+    await pickInActive("S1");
+    expect(activeKey()).toBe("t1");
+  });
+
+  it("DRAFT 버전을 연 탭의 세트는 탭 틀의 확정 안 한 세트에 들어가고, 저장 안 한 변경은 dirty 와 확정 안 한 세트 둘 다에 들어간다", async () => {
+    await openSet("S1", viewOf("S1"), { tabId: "T1" });
+    expect([...(probe.unconfirmed ?? [])]).toEqual([]); // 적용 중인 세트는 확정 안 한 것이 아니다
+    await openLink("S2", draftView("S2", "tester"));
+    expect([...(probe.unconfirmed ?? [])]).toEqual(["S2"]);
+    expect([...(probe.dirty ?? [])]).toEqual([]); // DRAFT 만으로는 저장 안 한 변경이 아니다
+    await click("set-tab-t1");
+    await click("flow-mode-edit");
+    await typeInto(inPanel<HTMLInputElement>("t1", "set-name"), "S1 고침");
+    expect([...(probe.dirty ?? [])]).toEqual(["S1"]);
+    expect([...(probe.unconfirmed ?? [])].sort()).toEqual(["S1", "S2"]);
   });
 
   it("숨은 탭의 흐름은 캔버스 밖 ⌘Z 로 되돌리지 않는다", async () => {

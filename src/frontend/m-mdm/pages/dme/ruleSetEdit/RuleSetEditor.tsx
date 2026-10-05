@@ -5,8 +5,10 @@
  * 정본: docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md, 스펙 §7(TSK-08-06, 2단계 계획 Task 10, 3단계 계획 Task 0).
  *
  * 열 세트는 탭 틀이 request 로 넘긴다(seq 가 바뀔 때만 연다 — 포털 파라미터·링크). 툴바 줄 맨 앞의 세트 고르기(`IdPicker`)는 탭 틀에 고르기를
- * 맡긴다(`pickSet` — 그 세트가 다른 탭에 열려 있으면 그 탭으로, 아니면 이 탭에서 연다).
- * 숨은 탭(active 거짓, 패널 display:none)은 포털로 그리는 오류 창을 그리지 않고(오류는 상태로 남아 탭을 고르면 보인다) 우클릭 메뉴를 닫는다.
+ * 맡긴다(`pickSet` — 그 세트가 다른 탭에 열려 있으면 그 탭으로, 아니면 이 탭에서 연다). 다른 탭으로 옮겨 갔으면 이 탭의 고르기 칸을 다시 마운트해 지금 세트 ID 로 되돌린다.
+ * 요청을 처리하면(불러왔든 실패했든) `settledSeq` 를 탭 틀에 알린다 — 못 연 세트를 연 탭으로 세지 않게.
+ * 숨은 탭(active 거짓, 패널 display:none)은 포털로 그리는 대화 상자를 그리지 않고(오류 창 `ErrorModal` 은 여기서, 그 밖의 창은 `EditorActiveContext` 를 읽는 쪽에서
+ * — 테스트 케이스 편집 창 `CaseEditModal`. 오류·작성 중 내용은 상태로 남아 탭을 고르면 이어진다) 우클릭 메뉴를 닫는다.
  * 단축키는 캔버스 감싸개가 보일 때만 받는다(`isShown`).
  * 세트 고르기와 흐름 툴바(`FlowToolbar`)는 한 줄이다(세트 고르기를 `lead` 로 넘긴다). 디버그 모드면 그 아래 줄에 `DebugToolbar`,
  * 본문 3단(왼쪽 | 흐름 캔버스 | 오른쪽), 아래 패널을 둔다.
@@ -68,7 +70,7 @@ import { useFind } from "./state/useFind";
 import { useRuleSearch } from "./state/useRuleSearch";
 import { useAutoSave } from "./state/useAutoSave";
 import { guideBlockReason, useRuleSetEdit, type FlowMode } from "./state/useRuleSetEdit";
-import { RuleSetTabsContext } from "./tabs-context";
+import { EditorActiveContext, RuleSetTabsContext } from "./tabs-context";
 import type { OpenRequest, TabStatus } from "./tabs-model";
 import { debugOverlay } from "./trace-view";
 import type { RuleIo, RuleSetCaseView, RuleSetView, VarDisplay } from "./types";
@@ -122,8 +124,12 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   const { open, edit, view, flow } = state;
 
   const requestSeq = request?.seq ?? null;
+  /** 처리를 끝낸 마지막 요청 번호 — 불러왔든 실패했든 확인에서 물렸든 `open` 이 끝나면 올린다. 탭 틀이 실패한 탭을 빈 탭으로 보게 한다. */
+  const [settledSeq, setSettledSeq] = useState<number | null>(null);
   useEffect(() => {
-    if (request) void open(request.setId, request.ver);
+    if (!request) return;
+    const seq = request.seq;
+    void open(request.setId, request.ver).then(() => setSettledSeq((cur) => Math.max(cur ?? 0, seq)));
     // seq 가 바뀔 때만 연다 — 같은 요청을 다시 그려도 다시 열지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestSeq]);
@@ -133,8 +139,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   const statusVer = view?.set.ver ?? null;
   const statusDraft = !!view && isDraftView(view);
   useEffect(() => {
-    onStatus(tabKey, { setId: statusSetId, setName: statusSetName, ver: statusVer, dirty: state.dirty, draft: statusDraft });
-  }, [onStatus, tabKey, statusSetId, statusSetName, statusVer, state.dirty, statusDraft]);
+    onStatus(tabKey, { setId: statusSetId, setName: statusSetName, ver: statusVer, dirty: state.dirty, draft: statusDraft, settledSeq });
+  }, [onStatus, tabKey, statusSetId, statusSetName, statusVer, state.dirty, statusDraft, settledSeq]);
 
   const canDo = useCallback((action: string) => canDoButton(rbac, SCREEN_ID, action), [rbac]);
   const canEdit = !!view && view.editable && view.set.status !== "DEPRECATED" && canDo("save"); // D-144 2단계 — CREATED 세트도 편집
@@ -184,6 +190,8 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   const [findOpen, setFindOpen] = useState(false);
   /** 올릴 때마다 위젯이 입력 칸에 초점을 두고 전체 선택한다(Ctrl/Cmd+F·툴바 [노드 찾기]). */
   const [findFocusSeq, setFindFocusSeq] = useState(0);
+  /** 세트 고르기 칸을 다시 마운트하는 번호 — 고른 세트가 다른 탭에 열려 있어 그 탭으로 옮겨 갔을 때 올린다. */
+  const [pickerEpoch, setPickerEpoch] = useState(0);
   const openFind = useCallback(() => {
     setFindOpen(true);
     setFindFocusSeq((s) => s + 1);
@@ -731,6 +739,7 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
   const picker = (
     <span data-testid="set-edit-topbar" className="rsf-toolbar-group">
       <IdPicker
+        key={pickerEpoch}
         placeholder="세트 ID·세트명"
         noun="세트"
         testId="set-pick"
@@ -738,14 +747,18 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
         limit={SET_PICK_LIMIT}
         inputWidth={150}
         currentId={view?.set.setId ?? null}
-        onPick={(id) => tabsApi.pickSet(tabKey, id)}
+        onPick={(id) => {
+          // 다른 탭에 열린 세트를 고르면 그 탭으로 가고 이 탭은 그대로다 — 이 탭의 고르기 칸에 친 ID 를 지금 세트 ID 로 되돌린다(칸을 다시 마운트).
+          const to = tabsApi.pickSet(tabKey, id);
+          if (to != null && to !== tabKey) setPickerEpoch((n) => n + 1);
+        }}
         onError={state.reportError}
       />
     </span>
   );
 
   return (
-    <>
+    <EditorActiveContext.Provider value={active}>
       {!view || !flow ? (
         <>
           <div className="rsf-toolbar">
@@ -919,6 +932,6 @@ export function RuleSetEditor({ tabKey, request, onStatus, active = true }: Rule
 
       {/* 오류 창은 body 로 포털되어 패널 display:none 을 따르지 않는다 — 숨은 탭의 오류(자동 저장·조건식 확인 실패 등)는 상태로 두었다가 탭을 고르면 보인다. */}
       {active && state.error && <ErrorModal message={state.error} onClose={state.clearError} />}
-    </>
+    </EditorActiveContext.Provider>
   );
 }

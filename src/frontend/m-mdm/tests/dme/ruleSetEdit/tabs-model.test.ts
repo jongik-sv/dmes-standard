@@ -142,4 +142,63 @@ describe("tabs-model", () => {
     expect([...unconfirmedSetIds(d)].sort()).toEqual(["S1", "S2"]);
     expect(unconfirmedSetIds(s).has("S3")).toBe(false);
   });
+
+  // --- 불러오기 실패한 탭(ui:7 후속) — 요청만 있고 처리가 끝났는데 불러온 세트가 없으면 빈 탭이다 ---
+  const failed = (s: TabsState, key: string): TabsState => {
+    const seq = s.tabs.find((t) => t.key === key)!.request!.seq;
+    return withStatus(s, key, { setId: null, setName: null, ver: null, dirty: false, draft: false, settledSeq: seq });
+  };
+
+  it("요청만 있고 아직 처리 중인 탭은 그 세트를 연 탭이다(불러오는 중)", () => {
+    const s = openInActive(initialTabs(), "S1");
+    expect(currentOf(s.tabs[0])).toBe("S1");
+    expect(s.tabs[0].settledSeq).toBeNull();
+    // 이전 요청의 처리 번호로는 지금 요청이 끝난 것으로 보지 않는다
+    const stale = withStatus(s, "t1", { setId: null, setName: null, ver: null, dirty: false, draft: false, settledSeq: s.tabs[0].request!.seq - 1 });
+    expect(currentOf(stale.tabs[0])).toBe("S1");
+  });
+
+  it("불러오기에 실패한 탭은 그 세트를 연 탭이 아니고 빈 탭이다", () => {
+    const s = failed(openInActive(initialTabs(), "S1"), "t1");
+    expect(currentOf(s.tabs[0])).toBeNull();
+    // 같은 값을 다시 알려도 같은 객체
+    expect(failed(s, "t1")).toBe(s);
+    // 포털 파라미터는 세트 없는 탭 하나뿐일 때 그 탭을 다시 쓴다 — 새 탭을 열지 않는다
+    const again = openFromParams(s, "S1");
+    expect(again.state.tabs).toHaveLength(1);
+    expect(again.state.tabs[0].request).toMatchObject({ setId: "S1" });
+    expect(again.state.tabs[0].request!.seq).toBeGreaterThan(s.tabs[0].request!.seq);
+    expect(currentOf(again.state.tabs[0])).toBe("S1"); // 새 요청은 다시 불러오는 중
+  });
+
+  it("실패한 탭은 링크·고르기·포털 파라미터가 '열린 탭' 으로 찾지 않는다(그 탭으로 가 놓고 다시 불러오지 않는 일이 없다)", () => {
+    let s = loaded(openInActive(initialTabs(), "S1"), "t1", "S1");
+    s = openLinked(s, "S2").state;
+    const k2 = s.active;
+    s = failed(s, k2); // S2 탭은 못 불러옴
+    // 링크는 새 탭을 연다(실패한 탭으로 가지 않는다)
+    const linked = openLinked(s, "S2");
+    expect(linked.state.tabs).toHaveLength(3);
+    expect(linked.state.tabs.filter((t) => t.request?.setId === "S2" && currentOf(t) === "S2")).toHaveLength(1);
+    // 고르기도 실패한 탭을 '다른 탭에 열린 세트' 로 보지 않아 시작한 탭에서 연다
+    const picked = pickInTab(selectTab(s, "t1"), "t1", "S2");
+    expect(picked.state.active).toBe("t1");
+    expect(picked.state.tabs[0].request).toMatchObject({ setId: "S2" });
+  });
+
+  it("불러온 세트가 있으면 그 세트가 먼저다 — 다음 요청이 실패해도 탭은 불러온 세트를 연 탭이다", () => {
+    let s = loaded(openInActive(initialTabs(), "S1"), "t1", "S1");
+    s = openInActive(s, "S2"); // 이 탭에서 S2 를 열려 했다
+    expect(currentOf(s.tabs[0])).toBe("S1");
+    s = withStatus(s, "t1", status("S1", { settledSeq: s.tabs[0].request!.seq })); // 실패 — 그대로 S1
+    expect(currentOf(s.tabs[0])).toBe("S1");
+  });
+
+  it("처리 번호가 바뀌면 상태 알림이 새 탭 객체를 만든다", () => {
+    const s = openInActive(initialTabs(), "S1");
+    expect(withStatus(s, "t1", { ...status("S1"), setId: null, settledSeq: null })).not.toBe(s); // 세트 이름 등이 달라 바뀜
+    const same = withStatus(s, "t1", { setId: null, setName: null, ver: null, dirty: false, draft: false });
+    expect(same).toBe(s); // 생략한 settledSeq 는 null 과 같다
+    expect(withStatus(s, "t1", { setId: null, setName: null, ver: null, dirty: false, draft: false, settledSeq: 2 })).not.toBe(s);
+  });
 });

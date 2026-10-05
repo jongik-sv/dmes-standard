@@ -1,6 +1,7 @@
 /**
  * 룰 세트 편집 화면 안 세트 탭(하위 세트 spec §10.3, C-D13) — 탭 목록 순수 함수. React 의존이 없다.
  * 탭은 열 세트를 요청(`request`)으로 받고, 편집기가 세트를 불러온 뒤 알린 상태(`setId`·`setName`·`ver`·`dirty`·`draft`)를 갖는다.
+ * 요청한 세트를 못 불러온 탭(`settledSeq` 가 마지막 요청 번호와 같고 불러온 세트가 없다)은 그 세트를 연 탭으로 세지 않고 빈 탭으로 다시 쓴다.
  * 같은 세트를 두 탭이 편집하지 않는다 — 고르기·링크·포털 파라미터 모두 그 세트가 이미 열린 탭이 있으면 그 탭으로 간다(ui:7 조정).
  */
 import { sameVer } from "@/shell/version-format";
@@ -28,6 +29,8 @@ export interface SetTab {
   draft: boolean;
   /** 마지막으로 보낸 열기 요청. seq 가 바뀔 때만 편집기가 연다. */
   request: OpenRequest | null;
+  /** 편집기가 끝까지 처리한(불러왔거나 실패했거나 확인에서 물린) 마지막 요청 번호. request.seq 와 같으면 그 요청은 더 이상 불러오는 중이 아니다. */
+  settledSeq: number | null;
 }
 
 export interface TabsState {
@@ -44,6 +47,8 @@ export interface TabStatus {
   ver: string | null;
   dirty: boolean;
   draft: boolean;
+  /** 편집기가 처리를 끝낸 마지막 요청 번호(없으면 null·생략). 불러오기 실패를 탭 틀에 알리는 길이다. */
+  settledSeq?: number | null;
 }
 
 export interface TabsResult {
@@ -52,15 +57,19 @@ export interface TabsResult {
 }
 
 const emptyTab = (key: string, request: OpenRequest | null): SetTab => ({
-  key, setId: null, setName: null, ver: null, dirty: false, draft: false, request,
+  key, setId: null, setName: null, ver: null, dirty: false, draft: false, request, settledSeq: null,
 });
 
 export function initialTabs(): TabsState {
   return { tabs: [emptyTab("t1", null)], active: "t1", seq: 1 };
 }
 
-/** 탭의 세트 — 불러온 세트, 아직이면 요청한 세트, 둘 다 없으면 null. */
-export const currentOf = (t: SetTab): string | null => t.setId ?? t.request?.setId ?? null;
+/**
+ * 탭의 세트 — 불러온 세트가 먼저, 없으면 아직 불러오는 중인 요청의 세트, 둘 다 없으면 null.
+ * 요청이 처리를 끝났는데(`settledSeq`) 불러온 세트가 없으면 실패한 탭이다 — 세트를 못 열었으니 빈 탭이다.
+ */
+export const currentOf = (t: SetTab): string | null =>
+  t.setId ?? (t.request && t.request.seq !== t.settledSeq ? t.request.setId : null);
 
 const done = (state: TabsState): TabsResult => ({ state, message: null });
 
@@ -70,7 +79,7 @@ function requestIn(s: TabsState, key: string, setId: string, ver: string | null)
   return { ...s, seq, active: key, tabs: s.tabs.map((t) => (t.key === key ? { ...t, request: { setId, ver, seq } } : t)) };
 }
 
-/** 그 세트가 열린 탭(불러온 세트 또는 요청한 세트). except 탭은 빼고 찾는다. */
+/** 그 세트가 열린 탭(불러온 세트 또는 불러오는 중인 요청의 세트). except 탭은 빼고 찾는다. */
 const openTabOf = (s: TabsState, setId: string, except?: string) => s.tabs.find((t) => t.key !== except && currentOf(t) === setId);
 
 /** 지금 탭에서 연다(저장 안 한 변경 확인은 편집기의 open 이 한다). 같은 세트여도 새 요청 번호를 준다(다시 불러오기). */
@@ -96,7 +105,7 @@ export function pickInTab(s: TabsState, tabKey: string, setId: string, ver: stri
 function goToOpen(s: TabsState, setId: string, ver: string | null): TabsState | null {
   const open = openTabOf(s, setId);
   if (!open) return null;
-  const loadedVer = open.setId === setId ? open.ver : (open.request?.ver ?? null);
+  const loadedVer = open.setId === setId ? open.ver : (open.request?.ver ?? null); // 불러온 세트가 없으면 불러오는 중인 요청
   if (ver != null && !sameVer(ver, loadedVer)) return requestIn(s, open.key, setId, ver);
   return selectTab(s, open.key);
 }
@@ -140,10 +149,11 @@ export function closeTab(s: TabsState, key: string): TabsState {
 export function withStatus(s: TabsState, key: string, st: TabStatus): TabsState {
   const t = s.tabs.find((x) => x.key === key);
   if (!t) return s;
-  if (t.setId === st.setId && t.setName === st.setName && t.ver === st.ver && t.dirty === st.dirty && t.draft === st.draft) return s;
+  const settled = st.settledSeq ?? null;
+  if (t.setId === st.setId && t.setName === st.setName && t.ver === st.ver && t.dirty === st.dirty && t.draft === st.draft && t.settledSeq === settled) return s;
   return {
     ...s,
-    tabs: s.tabs.map((x) => (x.key === key ? { ...x, setId: st.setId, setName: st.setName, ver: st.ver, dirty: st.dirty, draft: st.draft } : x)),
+    tabs: s.tabs.map((x) => (x.key === key ? { ...x, setId: st.setId, setName: st.setName, ver: st.ver, dirty: st.dirty, draft: st.draft, settledSeq: settled } : x)),
   };
 }
 
