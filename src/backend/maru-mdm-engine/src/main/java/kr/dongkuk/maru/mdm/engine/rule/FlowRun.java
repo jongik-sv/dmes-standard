@@ -3,9 +3,11 @@ package kr.dongkuk.maru.mdm.engine.rule;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -27,6 +29,7 @@ import kr.dongkuk.maru.mdm.engine.flow.Split;
 import kr.dongkuk.maru.mdm.engine.flow.TaskStep;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult.CaughtException;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult.PathStep;
+import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult.SetCall;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace.BranchOutcome;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace.BranchTrace;
 import kr.dongkuk.maru.mdm.engine.rule.RunTrace.NodeStatus;
@@ -44,19 +47,24 @@ import kr.dongkuk.maru.mdm.engine.spi.Nullable;
  * 던지기 직전 처리 중이던 노드를 {@link #failed} 로 ERROR 기록할 수 있게 둔다.
  *
  * <p>받는 노드 블록(받는 노드 spec §4, implicit-join spec §5): 단계가 실패했거나 결과가 없는데 그 종류를 받는 노드가 있으면 결과를 ctx 에 쓰지 않고
- * 룰 직전 ctx 로 되돌린 뒤 CATCH_* 넷을 넣고 처리 갈래를 실행한다. 블록이 돌아오는 자리(joinId)로 끝나면 CATCH_* 를 룰 직전 값으로 되돌리고
+ * 룰 직전 ctx 로 되돌린 뒤 CATCH_* 다섯(CATCH_SET 포함)을 넣고 처리 갈래를 실행한다. 블록이 돌아오는 자리(joinId)로 끝나면 CATCH_* 를 룰 직전 값으로 되돌리고
  * (중첩이면 바깥 값, R4) 옛 형식이면 MERGE 를 기록한다. 처리 갈래가 END 에 닿으면 {@link Ended} 로 세트를 끝낸다. 빈 단계 블록은 처리 갈래를 타지 않는다.
  * 끝내는 IF 갈래는 몸을 실행한 뒤 {@code Ended(null)} 을 던진다 — 처리 갈래 안이면 그 받는 노드의 끝냄으로 바꾼다(J-D18).
  *
  * <p>고친 값(4단계 spec §2.2): 노드를 시작할 때 다음 순번({@code nodes.size() + 1})이 {@code beforeSeq} 인 고친 값을 그 노드 범위의 ctx 에
  * {@link RecordKeys#putReplacing} 으로 넣고, 같은 이름(대소문자 무시)이 그 범위 made 에 있으면 made 도 같은 방법으로 바꾼다. 자리의 노드 ID 가
  * 다르면 {@code EDIT_POINT_MISMATCH} 로 멈춘다. 순번은 기록 노드 수로 세므로 고친 값은 {@code tracing} 에서만 받는다.
+ *
+ * <p>SET 노드(하위 세트 spec §3·§4): 준비된 하위 세트({@link PreparedSet#calls})를 부모 ctx 사본(CATCH_* 제외)으로 같은 평가 시각에 새 실행으로
+ * 돌린다. 끝까지 가면 겉모양 출력 가운데 하위 finalValues 에 있는 이름만 ctx·made 에 덮어쓴다. 하위의 처리되지 않은 위반은 setPath 앞에 SET 노드
+ * ID 를 붙여 다시 던지거나 그 SET 노드의 받는 노드로 넘긴다. 하위가 자기 처리 갈래로 끝났으면 SUBSET_ENDED 를 받는 노드가 있을 때만 처리 갈래로
+ * 간다. 하위 caught 는 setPath 를 붙여 이 세트 caught 에 잇는다. 하위 기록의 고친 값은 받지 않는다(최상위만).
  */
 final class FlowRun {
 
-    /** CATCH_* 넷의 고정 순서 — ctx 에 넣고 되돌릴 때 이 순서로 쓴다. */
-    private static final List<String> CATCH_ORDER =
-            List.of(ReservedNames.CATCH_KIND, ReservedNames.CATCH_RULE, ReservedNames.CATCH_CODE, ReservedNames.CATCH_MSG);
+    /** CATCH_* 다섯의 고정 순서 — ctx 에 넣고 되돌릴 때 이 순서로 쓴다(CATCH_SET 은 하위 세트 spec §4.1). */
+    private static final List<String> CATCH_ORDER = List.of(ReservedNames.CATCH_KIND, ReservedNames.CATCH_RULE, ReservedNames.CATCH_CODE,
+            ReservedNames.CATCH_MSG, ReservedNames.CATCH_SET);
 
     /** 끝냄 신호 — 위반이 아닌 제어 신호(R5, implicit-join R6). 처리 갈래 안 끝냄이면 그 받는 노드 ID, 끝내는 IF 갈래면 null. {@link #run} 이 받는다. */
     static final class Ended extends RuntimeException {
@@ -88,6 +96,7 @@ final class FlowRun {
 
     private final RuleEvaluator evaluator;
     private final ExpressionRunner runner;
+    private final PreparedSet p;
     private final FlowTree tree;
     private final Map<String, RuleDefinition> defs;
     private final FlowKeys keys;
@@ -108,6 +117,10 @@ final class FlowRun {
     final List<CaughtException> caught = new ArrayList<>();
     /** 처리 갈래 안에서 끝냈으면 그 받는 노드 ID(끝내는 IF 갈래로 끝나면 null). */
     String endedBy;
+    /** 실행한 SET 노드마다 하위 결과(RuleSetResult.calls, 하위 세트 spec §3.1), 실행 순서. */
+    final List<SetCall> callResults = new ArrayList<>();
+    /** 하위 세트에서 올라와 다시 던진 위반이 실제로 난 가장 안쪽 세트 ID. 이 세트의 노드에서 났으면 null(Ruling 4 — 부모의 CATCH_SET). */
+    String failedSetId;
 
     // 지금 처리 중인 노드 — 실행 중 위반이 나면 traceSet 이 ERROR 노드로 남긴다.
     private String curNodeId;
@@ -117,16 +130,23 @@ final class FlowRun {
     private Map<String, Object> curReads;
     private List<BranchTrace> curBranches;
     private String curChosen;
+    /** 지금 SET 노드의 하위 세트 기록(기록 실행만). */
+    private RunTrace curSub;
 
-    FlowRun(RuleEvaluator evaluator, ExpressionRunner runner, FlowTree tree, Map<String, RuleDefinition> defs, FlowKeys keys,
-            Map<String, Object> record, Instant ts, boolean tracing, List<TraceEdit> edits) {
+    /**
+     * @param p    준비된 세트(기억에서 나눠 쓰는 정의 부분)
+     * @param keys 이 판정 전용 입력 키 검사기 사본({@link FlowKeys#forRun}) — 사전 검사로 지연 목록이 채워져 있다
+     */
+    FlowRun(RuleEvaluator evaluator, ExpressionRunner runner, PreparedSet p, FlowKeys keys, Map<String, Object> record, Instant ts,
+            boolean tracing, List<TraceEdit> edits) {
         if (!tracing && !edits.isEmpty()) {
             throw new IllegalArgumentException("고친 값은 기록 실행(traceSet)에서만 쓴다");
         }
         this.evaluator = evaluator;
         this.runner = runner;
-        this.tree = tree;
-        this.defs = defs;
+        this.p = p;
+        this.tree = p.tree;
+        this.defs = p.defs;
         this.keys = keys;
         this.ts = ts;
         this.tracing = tracing;
@@ -149,7 +169,18 @@ final class FlowRun {
     /** 처리 중이던 노드의 ERROR 기록. */
     NodeTrace failed(List<Violation> violations) {
         return new NodeTrace(nodes.size() + 1, curNodeId, curKind, NodeStatus.ERROR, curRuleId, curVer, curReads, null,
-                curBranches == null ? null : List.copyOf(curBranches), curChosen, null, null, null, List.copyOf(violations), null, null, null, null, null);
+                curBranches == null ? null : List.copyOf(curBranches), curChosen, null, null, null, List.copyOf(violations), null, null, null, null, curSub);
+    }
+
+    /** 노드를 하나라도 시작했는가 — 하위 세트가 입력 키 사전 검사에서 멈췄으면 거짓(기록에 멈춘 노드를 덧붙이지 않는다). */
+    boolean started() {
+        return curNodeId != null;
+    }
+
+    /** 이 실행의 운영 결과(evaluateSet·하위 세트의 calls). */
+    RuleSetResult result() {
+        return new RuleSetResult(p.setId, ts, List.copyOf(steps), Collections.unmodifiableMap(finalValues), List.copyOf(path),
+                List.copyOf(warnings), List.copyOf(caught), endedBy, List.copyOf(callResults));
     }
 
     /** 정상 완료 뒤 쓰이지 않은 고친 값마다 위반 하나(없으면 빈 목록). 실행 중 오류로 멈춘 경우에는 부르지 않는다. 끝냄(R5)은 정상 완료다. */
@@ -172,6 +203,7 @@ final class FlowRun {
         curReads = null;
         curBranches = null;
         curChosen = null;
+        curSub = null;
     }
 
     /** 지금 시작한 노드(순번 nodes.size()+1)에 걸린 고친 값을 그 범위 ctx·made 에 넣는다(4단계 spec §2.2 퍼짐 규칙). */
@@ -233,7 +265,7 @@ final class FlowRun {
             switch (b) {
                 case RuleStep r -> rule(r, ctx, made);
                 case TaskStep t -> plain(t.nodeId(), NodeKind.TASK, ctx, made);
-                case SetStep s -> throw setNotYet(s); // SEAM(T4) — SET 노드 실행은 하위 세트 계획 Task 4(eng:4)가 넣는다
+                case SetStep s -> setCall(s, ctx, made);
                 case Guarded g -> guarded(g, ctx, made);
                 case Split s when s.kind() == NodeKind.IF -> ifSplit(s, ctx, made);
                 case Split s -> parallel(s, ctx, made);
@@ -303,7 +335,7 @@ final class FlowRun {
             record(t.nodeId(), NodeKind.TASK);
             seq(g.normal(), ctx, made);
         } else if (g.step() instanceof SetStep s) {
-            throw setNotYet(s); // SEAM(T4) — SET 받는 노드 실행은 하위 세트 계획 Task 4(eng:4)가 넣는다
+            guardedSet(s, g, ctx, made);
         } else {
             guardedRule((RuleStep) g.step(), g, ctx, made);
         }
@@ -319,11 +351,6 @@ final class FlowRun {
                 }
             }
         }
-    }
-
-    /** SET 노드 실행은 아직 없다(eng:4). 준비 단계가 SET 흐름을 막기 전까지 실행 경로에 오면 분명히 던진다. */
-    private static IllegalStateException setNotYet(SetStep s) {
-        return new IllegalStateException("SET 노드 실행은 하위 세트 계획 Task 4 가 넣는다: " + s.nodeId());
     }
 
     /** 룰이 받는 노드 블록의 단계일 때 — 받기 판정·정상 갈래·처리 갈래. */
@@ -360,11 +387,21 @@ final class FlowRun {
         ctx.clear();
         ctx.putAll(before); // 룰이 바꿔 넣은 입력 타입을 되돌린다(편차 F6)
         caughtRule(r, c);
-        catchNode(r, c, ctx, made);
+        enterHandler(c, r.ruleId(), p.setId, ctx, made);
+    }
+
+    /**
+     * CATCH 노드 → 처리 갈래 → 끝냄 신호(R1·R3·R5). RULE·SET 의 받는 노드가 함께 쓴다. 처리 갈래 안 IF 끝냄({@code Ended(null)})은 이 받는 노드의
+     * 끝냄이다(J-D18). 안쪽 받는 노드 끝냄은 그대로 던진다.
+     *
+     * @param ruleId   CATCH_RULE — 실패한 룰 ID(SET 이면 하위 세트 안의 룰)
+     * @param catchSet CATCH_SET — 위반이 난 가장 안쪽 세트 ID(Ruling 4)
+     */
+    private void enterHandler(Caught c, String ruleId, String catchSet, Map<String, Object> ctx, Map<String, Object> made) {
+        catchNode(ruleId, catchSet, c, ctx, made);
         try {
             seq(c.handler.body(), ctx, made);
         } catch (Ended e) {
-            // 처리 갈래 안 IF 끝냄(Ended(null))은 이 받는 노드의 끝냄이다(J-D18). 안쪽 받는 노드 끝냄은 그대로 던진다.
             throw e.catchNodeId == null ? new Ended(c.handler.catchNodeId()) : e;
         }
         if (c.handler.ends()) {
@@ -406,22 +443,23 @@ final class FlowRun {
     }
 
     /** CATCH 노드 — begin → 고친 값 → CATCH_* 넣기 → 처리 갈래 입력 키 → path·기록(R1·R3). */
-    private void catchNode(RuleStep r, Caught c, Map<String, Object> ctx, Map<String, Object> made) {
+    private void catchNode(String ruleId, String catchSet, Caught c, Map<String, Object> ctx, Map<String, Object> made) {
         String id = c.handler.catchNodeId();
         begin(id, NodeKind.CATCH);
-        curRuleId = r.ruleId();
+        curRuleId = ruleId;
         edit(ctx, made);
         RecordKeys.putReplacing(ctx, ReservedNames.CATCH_KIND, c.kind.name());
-        RecordKeys.putReplacing(ctx, ReservedNames.CATCH_RULE, r.ruleId());
+        RecordKeys.putReplacing(ctx, ReservedNames.CATCH_RULE, ruleId);
         RecordKeys.putReplacing(ctx, ReservedNames.CATCH_CODE, c.code);
         RecordKeys.putReplacing(ctx, ReservedNames.CATCH_MSG, c.message);
+        RecordKeys.putReplacing(ctx, ReservedNames.CATCH_SET, catchSet);
         List<Violation> missing = keys.check(c.handler.body(), ctx.keySet());
         if (!missing.isEmpty()) {
             throw new EngineEvaluationException(missing);
         }
         path.add(new PathStep(id, NodeKind.CATCH, null, null, null));
         if (tracing) {
-            nodes.add(new NodeTrace(nodes.size() + 1, id, NodeKind.CATCH, NodeStatus.OK, r.ruleId(), null, null, null, null, null, null,
+            nodes.add(new NodeTrace(nodes.size() + 1, id, NodeKind.CATCH, NodeStatus.OK, ruleId, null, null, null, null, null, null,
                     null, null, null, c.kind, c.code, c.message, null, null));
         }
     }
@@ -551,5 +589,227 @@ final class FlowRun {
             nodes.add(new NodeTrace(nodes.size() + 1, s.mergeId(), NodeKind.MERGE, NodeStatus.OK, null, null, null, null, null,
                     null, null, s.nodeId(), merged == null ? null : List.copyOf(merged), null, null, null, null, null, null));
         }
+    }
+
+    // ── 하위 세트(하위 세트 spec §3·§4) ──────────────────────────────────────────
+
+    /** 하위 세트 한 번의 실행. error 가 있으면 sub 는 멈춘 시점까지다. record 가 아니다(EngineContractSchemaTest). */
+    private static final class Called {
+        final FlowRun sub;
+        final Map<String, Object> input;
+        final EngineEvaluationException error;
+        /** error 가 실제로 난 가장 안쪽 세트 ID. */
+        final String innerSetId;
+
+        Called(FlowRun sub, Map<String, Object> input, EngineEvaluationException error, String innerSetId) {
+            this.sub = sub;
+            this.input = input;
+            this.error = error;
+            this.innerSetId = innerSetId;
+        }
+    }
+
+    /** 받는 노드 없는 SET 노드. 하위의 처리되지 않은 위반은 setPath 를 붙여 다시 던지고, 하위가 처리 갈래로 끝났어도 정상 완료로 본다(§4.2). */
+    private void setCall(SetStep s, Map<String, Object> ctx, Map<String, Object> made) {
+        PreparedSet child = beginSet(s, ctx, made, true);
+        Called c = runChild(child, ctx);
+        if (c.error != null) {
+            failedSetId = c.innerSetId;
+            throw rethrown(s, c.error);
+        }
+        completed(s, child, c, applyOutputs(child, c.sub, ctx, made));
+    }
+
+    /**
+     * 받는 노드가 붙은 SET 노드(하위 세트 spec §4). 하위의 처리되지 않은 위반은 CATCH 종류 표로, 하위가 자기 처리 갈래로 끝났으면(endedBy 있음)
+     * SUBSET_ENDED 로 종류를 정한다. 그 종류를 받는 노드가 있으면 출력을 쓰지 않고 처리 갈래로 간다. 없으면 위반은 다시 던지고 끝냄은 정상 완료다.
+     * 하위가 끝내는 IF 갈래로 끝났으면(endedBy 없음) 정상 완료다(J-D17). 돌아오는 자리는 {@link #guarded} 가 잇는다.
+     */
+    private void guardedSet(SetStep s, Guarded g, Map<String, Object> ctx, Map<String, Object> made) {
+        // INPUT_ERROR 를 받으면 지연 키를 여기서 보지 않는다 — 하위 세트가 runChild 안의 사전 검사로 MISSING_KEY 를 내고 받기로 넘어간다.
+        PreparedSet child = beginSet(s, ctx, made, g.handlerFor(CatchKind.INPUT_ERROR) == null);
+        Called c = runChild(child, ctx);
+        if (c.error != null) {
+            Caught got = caughtOf(g, c.error);
+            if (got == null) {
+                failedSetId = c.innerSetId;
+                throw rethrown(s, c.error);
+            }
+            List<Violation> vs = rethrown(s, c.error).violations();
+            String ruleId = c.error.violations().get(0).ruleId();
+            propagateCaught(s, c.sub);
+            path.add(new PathStep(s.nodeId(), NodeKind.SET, null, null, null));
+            caught.add(new CaughtException(s.nodeId(), ruleId, got.handler.catchNodeId(), got.kind, got.code, got.message, List.of()));
+            traceSet(s, NodeStatus.CAUGHT, vs, null);
+            enterHandler(new Caught(got.handler, got.kind, got.code, got.message, vs), ruleId, c.innerSetId, ctx, made);
+            return;
+        }
+        Guarded.Handler ended = c.sub.endedBy == null ? null : g.handlerFor(CatchKind.SUBSET_ENDED);
+        if (ended != null) {
+            String ruleId = endingRule(c.sub);
+            String code = CatchKind.SUBSET_ENDED.name();
+            String msg = child.catchLabels.getOrDefault(c.sub.endedBy, c.sub.endedBy);
+            propagateCaught(s, c.sub);
+            int index = addCall(s, child, c.sub);
+            path.add(new PathStep(s.nodeId(), NodeKind.SET, null, null, index));
+            caught.add(new CaughtException(s.nodeId(), ruleId, ended.catchNodeId(), CatchKind.SUBSET_ENDED, code, msg, List.of()));
+            traceSet(s, NodeStatus.CAUGHT, List.of(), null);
+            enterHandler(new Caught(ended, CatchKind.SUBSET_ENDED, code, msg, List.of()), ruleId, child.setId, ctx, made);
+            return;
+        }
+        // 정상 갈래 입력 키(CATCH R6) — 출력을 쓰기 전에 "ctx 키 ∪ 넘길 출력 이름" 으로 본다. 실패하면 이 SET 노드가 ERROR 다.
+        Set<String> available = new HashSet<>(ctx.keySet());
+        for (String name : child.shape.outputs()) {
+            if (c.sub.finalValues.containsKey(name)) {
+                available.add(name);
+            }
+        }
+        List<Violation> missing = keys.check(g.normal(), available);
+        if (!missing.isEmpty()) {
+            throw new EngineEvaluationException(missing);
+        }
+        completed(s, child, c, applyOutputs(child, c.sub, ctx, made));
+        seq(g.normal(), ctx, made);
+    }
+
+    /** SET 노드 시작 — begin·고친 값·읽은 값(기록)·지연 입력 키(부모 IF 일부 갈래에서만 만든 하위 입력, checkDeferred 일 때만). */
+    private PreparedSet beginSet(SetStep s, Map<String, Object> ctx, Map<String, Object> made, boolean checkDeferred) {
+        PreparedSet child = p.calls.get(s.nodeId()); // 준비 단계가 실패한 SET 노드는 실행 전에 막혔다
+        begin(s.nodeId(), NodeKind.SET);
+        edit(ctx, made);
+        if (tracing) {
+            Map<String, Object> reads = new LinkedHashMap<>();
+            for (String name : child.shape.inputs()) {
+                if (ctx.containsKey(name)) {
+                    reads.put(name, ctx.get(name));
+                }
+            }
+            curReads = Collections.unmodifiableMap(reads);
+        }
+        if (checkDeferred) {
+            List<Violation> missing = new ArrayList<>();
+            for (String name : keys.deferred(s.nodeId())) {
+                if (!ctx.containsKey(name)) {
+                    missing.add(FlowKeys.missingForSet(child.setId, name));
+                }
+            }
+            if (!missing.isEmpty()) {
+                throw new EngineEvaluationException(missing);
+            }
+        }
+        return child;
+    }
+
+    /**
+     * 하위 세트를 부모 ctx 사본(CATCH_* 다섯 제외, 편차 11)으로 같은 평가 시각에 실행한다. 하위 입력 키 사전 검사도 여기서 하위 세트 스스로 한다.
+     * 기록 실행이면 curSub 를 채운다.
+     */
+    private Called runChild(PreparedSet child, Map<String, Object> ctx) {
+        Map<String, Object> input = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : ctx.entrySet()) {
+            if (!ReservedNames.CATCH_NAMES.contains(e.getKey().toUpperCase(Locale.ROOT))) {
+                input.put(e.getKey(), e.getValue());
+            }
+        }
+        FlowKeys childKeys = child.keys.forRun();
+        FlowRun sub = new FlowRun(evaluator, runner, child, childKeys, input, ts, tracing, List.of());
+        Called c;
+        try {
+            List<Violation> missing = childKeys.check(child.tree.root(), input.keySet());
+            if (!missing.isEmpty()) {
+                throw new EngineEvaluationException(missing);
+            }
+            sub.run();
+            c = new Called(sub, input, null, null);
+        } catch (EngineEvaluationException e) {
+            c = new Called(sub, input, e, sub.failedSetId != null ? sub.failedSetId : child.setId);
+        }
+        if (tracing) {
+            curSub = childTrace(c);
+        }
+        return c;
+    }
+
+    /** 겉모양 출력 가운데 하위 finalValues 에 키가 있는 이름만 ctx·made 에 덮어쓴다(값이 NULL 이어도, Ruling 17). 넘긴 이름 → 값. */
+    private static Map<String, Object> applyOutputs(PreparedSet child, FlowRun sub, Map<String, Object> ctx, Map<String, Object> made) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (String name : child.shape.outputs()) {
+            if (sub.finalValues.containsKey(name)) {
+                Object v = sub.finalValues.get(name);
+                RecordKeys.putReplacing(ctx, name, v);
+                RecordKeys.putReplacing(made, name, v);
+                out.put(name, v);
+            }
+        }
+        return out;
+    }
+
+    /** 끝까지 간 SET 노드 — calls·caught·path·기록. */
+    private void completed(SetStep s, PreparedSet child, Called c, Map<String, Object> outputs) {
+        propagateCaught(s, c.sub);
+        int index = addCall(s, child, c.sub);
+        path.add(new PathStep(s.nodeId(), NodeKind.SET, null, null, index));
+        traceSet(s, NodeStatus.OK, null, Collections.unmodifiableMap(outputs));
+    }
+
+    private int addCall(SetStep s, PreparedSet child, FlowRun sub) {
+        callResults.add(new SetCall(s.nodeId(), child.setId, sub.result()));
+        return callResults.size() - 1;
+    }
+
+    /** 하위 세트가 받아 처리한 예외를 이 세트의 caught 에 이어 붙인다 — setPath 앞에 이 SET 노드 ID(하위 세트 spec §4.3). */
+    private void propagateCaught(SetStep s, FlowRun sub) {
+        for (CaughtException x : sub.caught) {
+            caught.add(new CaughtException(x.ruleNodeId(), x.ruleId(), x.catchNodeId(), x.kind(), x.code(), x.message(),
+                    prefixed(s.nodeId(), x.setPath())));
+        }
+    }
+
+    /** 하위 세트를 끝낸 받는 노드가 받은 룰 ID(Ruling 5) — 하위 자신의 caught 가운데 그 받는 노드의 마지막 항목. */
+    private static String endingRule(FlowRun sub) {
+        for (int i = sub.caught.size() - 1; i >= 0; i--) {
+            CaughtException x = sub.caught.get(i);
+            if (x.setPath().isEmpty() && x.catchNodeId().equals(sub.endedBy)) {
+                return x.ruleId();
+            }
+        }
+        return null;
+    }
+
+    /** SET 노드 기록(하위 세트 spec §3.2) — reads·outputs·sub. */
+    private void traceSet(SetStep s, NodeStatus status, List<Violation> violations, Map<String, Object> outputs) {
+        if (tracing) {
+            nodes.add(new NodeTrace(nodes.size() + 1, s.nodeId(), NodeKind.SET, status, null, null, curReads, null, null, null, null, null, null,
+                    violations == null ? null : List.copyOf(violations), null, null, null, outputs, curSub));
+        }
+    }
+
+    /** 하위 세트 기록 — 멈췄으면 멈춘 노드를 ERROR 로 덧붙인다(MdmRuleEngine.traceSet 과 같은 모양). 하위 기록 안 위반은 하위 세트 기준 setPath 다. */
+    private RunTrace childTrace(Called c) {
+        List<NodeTrace> list = new ArrayList<>(c.sub.nodes);
+        List<Violation> vs = null;
+        if (c.error != null) {
+            if (c.sub.started()) {
+                list.add(c.sub.failed(c.error.violations()));
+            }
+            vs = List.copyOf(c.error.violations());
+        }
+        return new RunTrace(c.sub.p.setId, ts, Collections.unmodifiableMap(c.input), List.copyOf(list),
+                Collections.unmodifiableMap(new LinkedHashMap<>(c.sub.finalValues)), vs, null, c.error == null ? c.sub.endedBy : null);
+    }
+
+    private static EngineEvaluationException rethrown(SetStep s, EngineEvaluationException e) {
+        List<Violation> out = new ArrayList<>();
+        for (Violation v : e.violations()) {
+            out.add(new Violation(v.stage(), v.code(), v.ruleId(), v.rowId(), v.name(), v.message(), prefixed(s.nodeId(), v.setPath())));
+        }
+        return new EngineEvaluationException(out);
+    }
+
+    private static List<String> prefixed(String nodeId, List<String> rest) {
+        List<String> out = new ArrayList<>(rest.size() + 1);
+        out.add(nodeId);
+        out.addAll(rest);
+        return List.copyOf(out);
     }
 }
