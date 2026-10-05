@@ -206,3 +206,9 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9 (u
   - e2e E19 실행: 새 mcm.db·mdm.db, 고정 데이터 적재, 서버 기동이 필요하다(사용자 승인 뒤).
   - 브라우저 확인: SET 노드 굵은 테두리와 칩 줄바꿈, 세트 검색 팝업 목록이 모달 안에서 잘리지 않는지(`IdPicker` 목록은 절대 위치 560px), 메시지 줄 링크 모양.
 - 확인만 한 것: 확정 보고서의 CALLER_WARN·CALLER_BROKEN 항목 키 `SET:<setId>` 는 확정 화면(`ruleSetConfirm`) 몫이다. 이 화면이 받는 서버 응답(view·save·restore·delete·search)에는 그 키가 없다(Java 대조) — 이 레인은 다른 화면 폴더를 고치지 않으므로 조정 세션이 확정 화면 쪽에 넘긴다.
+
+## 머지 3 — ui:8 + ui:9 함께(조정 지시 ui-8)
+- dev `bd482996`(srv:6 A~E·srv 완료 기록)를 합쳤다(충돌 없음). srv:6 A~D(`442be439`)·E(`fc204ec6`) TS 확인은 둘 다 초록으로 보고했다.
+- e2e 고정 데이터(조정 답 ui-8 조건): 기존 행 변경 없음(삭제 줄 0), 새 행은 `E2S_TAG`·`E2S_SUBA`·`E2S_SUBB`·`E2S_SUBP`(E2S_ 접두·파일 끝 자체 완결 문장), 머리 주석 세트 목록에 적음. `mdm-ruleSetMng.spec` 의 건수 단언(키워드 `E2S_`+룰 `E2S_OLD` → 1건, `NO_SUCH_SET` → 0건)은 새 세트와 겹치지 않는다(grep 확인).
+- 시험: m-mdm `node scripts/test.mjs` 241파일 3758 통과·0 실패, m-mdm `tsc --noEmit` 0, `playwright test --list mdm-ruleSetEdit mdm-ruleSetMng mdm-ruleSetConfirm` 27건(E19 포함). e2e 실제 실행·브라우저 확인은 머지 뒤 조정 세션.
+- 확정 보고 itemKey `SET:<setId>` 는 확정 화면(ruleSetConfirm) 몫이라 이 화면 응답에는 없다(ui:8 1단계에서 Java 대조). CALLERS 자기 행 제외는 서버가 하므로 화면 변경 없음.
