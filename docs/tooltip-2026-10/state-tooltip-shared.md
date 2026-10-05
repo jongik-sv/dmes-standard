@@ -14,13 +14,13 @@
 | A4 툴팁 지연 500ms | 완료·리뷰 지적 반영 | 8af10d91, 493fe2ed | 셀 툴팁도 빨라짐(문서화) |
 | A5 문서 | 완료 | 90aeaf59 | 스킬 문서·색인·FE 가이드 |
 | A6 리팩토링 리뷰·전체 시험 | 완료(리뷰 clean, shared 1540 통과) | fa28c5d5 | dev dffe0f95 합침 |
-| A7 FE 성능 | 준비 끝, 「측정 시작」 대기 | — | 측정 워크트리 tooltip-perf-base(dffe0f95)·tooltip-perf-head(f36820bd), shared·형제 빌드 완료, 절차는 perf-tooltip-shared.md |
+| A7 FE 성능 | 측정 끝(perf-tooltip-shared.md P1) | — | 측정 워크트리 tooltip-perf-base(dffe0f95)·tooltip-perf-head(f36820bd), shared·형제 빌드 완료, 절차는 perf-tooltip-shared.md |
 
 ## 머지
 - A1~A6: dev 머지 f36820bd(트리 4aafcb6f, 지시 tooltip-shared-2). 메인 체크아웃 shared·형제 tsup 재빌드 완료.
 
 ## A7 준비(조정자에 제안 보냄)
-- layout 묶음(축소 67.6K) 중 SearchField→MdmFieldLabel 로만 들어온 코드 38.7K(DOMPurify 22.0K). splitting:false 라 DOMPurify 사본 10곳·store 사본 6곳.
+- (정정) layout 에 더해진 shared 내부 코드는 축소 약 16.8K. DOMPurify 는 dist 가 외부 import 하므로 한 벌이다(처음 보고한 「사본 10곳」 은 오측). 메타 store 사본은 묶음 6개.
 - 제안: dffe0f95 vs f36820bd 를 m-mcm next build 로 화면 청크 비교 → shared tsup splitting:true(사용자 결정) → 그 뒤 HTML 카드 DOMPurify 지연 로드.
 
 ## 남은 일
