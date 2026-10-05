@@ -346,6 +346,7 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
     },
     {
       key: "order",
+      meta: false,
       header: "순서",
       width: 56,
       align: "center",
@@ -386,6 +387,7 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
   if (opts.derive) {
     cols.push({
       key: "expr",
+      meta: false,
       header: "결과 식",
       width: 240,
       editable: (row) => can(row) && !isCond(row),
@@ -426,6 +428,7 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
       // 도메인 번호(domainId)는 내부 키라 보이지 않는다.
       // 찾기·해제 버튼도 이 칸 안에 둔다 — 편집 칸이라 `swallow` 로 전파를 끊어 버튼을 눌러도 편집이 같이 열리지 않게 한다.
       key: "domain",
+      meta: false,
       header: "도메인",
       width: 176,
       editable: (row) => can(row) && !exprCond(row),
@@ -520,10 +523,11 @@ export function buildColumnGridColumns(opts: ColumnGridOptions): GridColumn[] {
   }
   cols.push(
     { key: "description", header: "설명", width: 140, editable: can, cellClassRules: edited("description"), render: textCell("col-desc") },
-    { key: "exprInfo", header: "식 결과", width: 220, render: (_v, row) => exprInfoCell(g(row).__exprs) },
-    { key: "check", header: "검사", width: 170, pinned: "right", render: (_v, row) => checkCell(g(row)) },
+    { key: "exprInfo", meta: false, header: "식 결과", width: 220, render: (_v, row) => exprInfoCell(g(row).__exprs) },
+    { key: "check", meta: false, header: "검사", width: 170, pinned: "right", render: (_v, row) => checkCell(g(row)) },
     {
       key: "del",
+      meta: false,
       header: "삭제",
       width: 48,
       align: "center",

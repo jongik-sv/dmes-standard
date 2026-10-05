@@ -43,6 +43,7 @@ export function buildItemColumns(header: DataItemHeader | null, handlers: ItemCo
     {
       key: "open",
       header: "상태",
+      meta: false,
       width: 60,
       minWidth: 56,
       align: "center",
@@ -56,6 +57,7 @@ export function buildItemColumns(header: DataItemHeader | null, handlers: ItemCo
     cols.push({
       key: "actions",
       header: "작업",
+      meta: false,
       width: 150,
       minWidth: 150,
       align: "center",

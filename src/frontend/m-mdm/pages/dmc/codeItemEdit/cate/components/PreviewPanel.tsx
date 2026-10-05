@@ -18,9 +18,9 @@ export interface PreviewPanelProps {
 export function PreviewPanel({ defKind, result }: PreviewPanelProps) {
   const columns: GridColumn[] = [
     { key: "code", header: "코드", width: 140 },
-    { key: "name", header: "이름", width: 160 },
-    { key: "targetValue", header: "대상 값", width: 140 },
-    { key: "hitMark", header: "해당", width: 60, align: "center" },
+    { key: "name", header: "이름", meta: false, width: 160 },
+    { key: "targetValue", header: "대상 값", meta: false, width: 140 },
+    { key: "hitMark", header: "해당", meta: false, width: 60, align: "center" },
   ];
   const rows = (result?.rows ?? []).map((r) => ({ ...r, hitMark: r.hit ? "●" : "○" }));
 

@@ -21,10 +21,11 @@ export const NO_PREVIOUS_NOTE = "이전 실행이 없다. 흐름을 고친 뒤 �
 
 const COLUMNS: GridColumn[] = [
   { key: "name", header: "이름", width: 140 },
-  { key: "before", header: "이전", width: 120 },
-  { key: "after", header: "지금", width: 120 },
+  { key: "before", meta: false, header: "이전", width: 120 },
+  { key: "after", meta: false, header: "지금", width: 120 },
   {
     key: "same",
+    meta: false,
     header: "같음/다름",
     width: 90,
     tooltip: false,

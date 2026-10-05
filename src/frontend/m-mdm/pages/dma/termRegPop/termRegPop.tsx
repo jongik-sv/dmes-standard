@@ -172,10 +172,11 @@ export function TermRegPopModal({
       { key: "senseNo", header: "의미", width: 60, align: "center" },
       { key: "definition", header: "정의", width: 220 },
       { key: "engAbbr", header: "약어", width: 90 },
-      { key: "reasonLabel", header: "근거", width: 110 },
+      { key: "reasonLabel", header: "근거", meta: false, width: 110 },
       {
         key: "use",
         header: "선택",
+        meta: false,
         width: 110,
         align: "center",
         render: (_value, row) => (

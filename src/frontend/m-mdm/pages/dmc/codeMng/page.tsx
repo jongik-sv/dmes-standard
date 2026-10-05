@@ -416,9 +416,9 @@ export default function CodeMngPage({ tabId }: CodeMngPageProps) {
       },
       { key: "maruCodeName", header: "이름", width: 150, align: "left" },
       { key: "sourceKind", header: "원천", width: 70, align: "center" },
-      { key: "currentVerLabel", header: "현재", width: 80, align: "left" },
+      { key: "currentVerLabel", header: "현재", meta: false, width: 80, align: "left" },
       { key: "status", header: "상태", width: 70, align: "center" },
-      { key: "unappliedLabel", header: "미적용", width: 80, align: "left" },
+      { key: "unappliedLabel", header: "미적용", meta: false, width: 80, align: "left" },
     ],
     [],
   );

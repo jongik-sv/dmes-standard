@@ -38,7 +38,7 @@ const VERSION_GRID_HEIGHT = 240;
 function versionColumns(currentUserId: string | null): GridColumn[] {
   return [
     {
-      key: "verLabel", header: "버전", width: 110,
+      key: "verLabel", header: "버전", meta: false, width: 110,
       render: (_v, row) => {
         const v = row as unknown as CodeEditView["versions"][number];
         return (
@@ -72,7 +72,7 @@ function versionColumns(currentUserId: string | null): GridColumn[] {
         return <DraftLockBadge status={v.status as MdmVersionStatus} ownerId={v.ownerId} currentUserId={currentUserId} />;
       },
     },
-    { key: "description", header: "설명", width: 160, render: (v) => (v as string | null | undefined) ?? "" },
+    { key: "description", header: "설명", meta: false, width: 160, render: (v) => (v as string | null | undefined) ?? "" },
   ];
 }
 

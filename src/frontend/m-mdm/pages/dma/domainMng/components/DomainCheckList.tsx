@@ -8,17 +8,17 @@ import type { IssueRow, TestResultRow } from "../types";
 import { hint } from "./styles";
 
 const ISSUE_COLUMNS: GridColumn[] = [
-  { key: "CODE", header: "규칙", width: 70, align: "center" },
-  { key: "LEVEL", header: "수준", width: 60, align: "center", render: (v) => issueLevelLabel(String(v ?? "")) },
-  { key: "FIELD", header: "필드", width: 110 },
-  { key: "MESSAGE", header: "메시지", width: 420 },
+  { key: "CODE", header: "규칙", meta: false, width: 70, align: "center" },
+  { key: "LEVEL", header: "수준", meta: false, width: 60, align: "center", render: (v) => issueLevelLabel(String(v ?? "")) },
+  { key: "FIELD", header: "필드", meta: false, width: 110 },
+  { key: "MESSAGE", header: "메시지", meta: false, width: 420 },
 ];
 
 const DESC_COLUMNS: GridColumn[] = [
   { key: "DOMAIN_NAME", header: "하위 도메인", width: 150 },
-  { key: "VALUE", header: "입력", width: 100 },
-  { key: "EXPECT", header: "기대", width: 60, render: (v) => String(v) },
-  { key: "RESULT", header: "결과", width: 90, render: (v) => resultLabel(String(v ?? "")) },
+  { key: "VALUE", header: "입력", meta: false, width: 100 },
+  { key: "EXPECT", header: "기대", meta: false, width: 60, render: (v) => String(v) },
+  { key: "RESULT", header: "결과", meta: false, width: 90, render: (v) => resultLabel(String(v ?? "")) },
 ];
 
 export interface DomainCheckListProps {

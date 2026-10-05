@@ -66,15 +66,16 @@ const INPUT_COLUMNS: GridColumn[] = [
     render: (_v, row) => <VarName name={String(row.name)} target={row.target as VarTarget} />,
   },
   { key: "label", header: "표시명", width: 100 },
-  { key: "type", header: "타입", width: 90 },
+  { key: "type", meta: false, header: "타입", width: 90 },
   {
     key: "source",
+    meta: false,
     header: "출처",
     width: 100,
     tooltip: false,
     render: (_v, row) => <span style={badgeStyle(SOURCE_TONE[row.source as IoSource])}>{SOURCE_LABEL[row.source as IoSource]}</span>,
   },
-  { key: "users", header: "읽는 룰", width: 140 },
+  { key: "users", meta: false, header: "읽는 룰", width: 140 },
 ];
 
 const RESULT_COLUMNS: GridColumn[] = [
@@ -85,7 +86,7 @@ const RESULT_COLUMNS: GridColumn[] = [
     tooltip: false,
     render: (_v, row) => <VarName name={String(row.name)} target={row.target as VarTarget} />,
   },
-  { key: "type", header: "타입", width: 90 },
+  { key: "type", meta: false, header: "타입", width: 90 },
   {
     key: "kind",
     header: "구분",
@@ -95,6 +96,7 @@ const RESULT_COLUMNS: GridColumn[] = [
   },
   {
     key: "by",
+    meta: false,
     header: "만드는 룰",
     width: 140,
     tooltip: false,
@@ -105,7 +107,7 @@ const RESULT_COLUMNS: GridColumn[] = [
       </>
     ),
   },
-  { key: "readers", header: "읽는 룰", width: 140 },
+  { key: "readers", meta: false, header: "읽는 룰", width: 140 },
 ];
 
 export function SetIoTables({ io }: { io: SetIo }) {

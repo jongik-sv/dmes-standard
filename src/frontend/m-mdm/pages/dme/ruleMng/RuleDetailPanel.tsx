@@ -90,7 +90,7 @@ const versionColumns: GridColumn[] = [
     tooltip: false,
     render: (_v, row) => <VersionStatusBadge status={row.status as RuleVersionInfo["status"]} applyFrom={row.applyFrom as string | null} />,
   },
-  { key: "range", header: "적용 구간", width: 190 },
+  { key: "range", meta: false, header: "적용 구간", width: 190 },
   { key: "ownerId", header: "소유자", width: 110 },
   { key: "baseVer", header: "base", width: 70, render: (value) => fmtVer(value as string | null) },
   // 버전마다 다를 수 있어 목록에 보인다(읽기 전용). 고치는 곳은 룰 편집 화면의 의사결정표(D-133).

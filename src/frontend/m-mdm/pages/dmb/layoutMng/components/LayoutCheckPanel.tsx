@@ -16,17 +16,17 @@ const RESULT_COLOR: Record<string, string> = { PASS: "var(--color-success)", FAI
 // 행·결과·메시지 testid 는 render 결과에 둔다(행 요소는 그리드가 그린다).
 const COLUMNS: GridColumn[] = [
   { key: "NO", header: "#", width: 40, align: "right", render: (v) => <span data-testid={`layout-check-row-${v}`}>{String(v)}</span> },
-  { key: "CONDITION", header: "거부 조건", width: 260 },
-  { key: "CODE", header: "코드", width: 60 },
+  { key: "CONDITION", meta: false, header: "거부 조건", width: 260 },
+  { key: "CODE", meta: false, header: "코드", width: 60 },
   {
-    key: "RESULT", header: "결과", width: 70, tooltip: false,
+    key: "RESULT", meta: false, header: "결과", width: 70, tooltip: false,
     render: (v, r) => (
       <span data-testid={`layout-check-result-${r.NO}`} style={{ ...badge, color: RESULT_COLOR[String(v)] }}>
         {RESULT_LABEL[String(v)] ?? String(v)}
       </span>
     ),
   },
-  { key: "MESSAGE", header: "메시지", width: 320, render: (v, r) => <span data-testid={`layout-check-message-${r.NO}`}>{String(v ?? "")}</span> },
+  { key: "MESSAGE", meta: false, header: "메시지", width: 320, render: (v, r) => <span data-testid={`layout-check-message-${r.NO}`}>{String(v ?? "")}</span> },
 ];
 
 export interface LayoutCheckPanelProps {

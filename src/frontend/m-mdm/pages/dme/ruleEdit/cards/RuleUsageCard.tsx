@@ -30,11 +30,11 @@ function RuleLinks({ ids }: { ids: string[] }) {
 }
 
 const usageColumns: GridColumn[] = [
-  { key: "setId", header: "룰 세트", width: 140 },
-  { key: "setName", header: "이름", width: 160 },
+  { key: "setId", meta: "MARU_RULE_SETS_ID", header: "룰 세트", width: 140 },
+  { key: "setName", meta: "MARU_RULE_SETS_NM", header: "이름", width: 160 },
   { key: "status", header: "상태", width: 100 },
-  { key: "dependsOn", header: "의존 룰", width: 200, tooltip: false, render: (_v, row) => <RuleLinks ids={(row.dependsOn as string[] | undefined) ?? []} /> },
-  { key: "dependedBy", header: "역의존 룰", width: 200, tooltip: false, render: (_v, row) => <RuleLinks ids={(row.dependedBy as string[] | undefined) ?? []} /> },
+  { key: "dependsOn", meta: false, header: "의존 룰", width: 200, tooltip: false, render: (_v, row) => <RuleLinks ids={(row.dependsOn as string[] | undefined) ?? []} /> },
+  { key: "dependedBy", meta: false, header: "역의존 룰", width: 200, tooltip: false, render: (_v, row) => <RuleLinks ids={(row.dependedBy as string[] | undefined) ?? []} /> },
 ];
 
 export function RuleUsageCard({ view }: RuleEditCardProps) {

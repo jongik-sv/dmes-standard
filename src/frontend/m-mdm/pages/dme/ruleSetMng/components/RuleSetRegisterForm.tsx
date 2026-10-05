@@ -55,7 +55,7 @@ export function RuleSetRegisterForm({ canRegister, onRegistered, onError }: Rule
         <tbody>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="setId" label="세트 ID" required />
+              <MdmFieldLabel name="setId" meta="MARU_RULE_SETS_ID" label="세트 ID" required />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <Input
@@ -79,7 +79,7 @@ export function RuleSetRegisterForm({ canRegister, onRegistered, onError }: Rule
           </tr>
           <tr>
             <th style={DETAIL_LABEL_CELL}>
-              <MdmFieldLabel name="setName" label="세트명" required />
+              <MdmFieldLabel name="setName" meta="MARU_RULE_SETS_NM" label="세트명" required />
             </th>
             <td style={DETAIL_VALUE_CELL}>
               <Input

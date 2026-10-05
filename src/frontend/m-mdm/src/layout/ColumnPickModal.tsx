@@ -17,7 +17,7 @@ const COLUMNS: GridColumn[] = [
   { key: "DISPLAY_NAME", header: "표시명", width: 160 },
   { key: "DOMAIN_NAME", header: "도메인", width: 140 },
   {
-    key: "LENGTH", header: "타입·길이", width: 120,
+    key: "LENGTH", header: "타입·길이", meta: false, width: 120,
     render: (_v, r) => `${r.DATA_TYPE ?? "-"} ${r.LENGTH ?? "-"}${r.SCALE ? `,${r.SCALE}` : ""}`,
   },
   { key: "UNIT_CODE", header: "단위", width: 70 },

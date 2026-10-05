@@ -25,8 +25,8 @@ const CATEGORY_COLUMNS: GridColumn[] = [
   { key: "cateId", header: "카테고리 ID", width: 120, align: "left" },
   { key: "cateName", header: "이름", width: 140, align: "left" },
   { key: "defKind", header: "종류", width: 80, align: "center" },
-  { key: "open", header: "열림", width: 70, align: "center", render: (v) => (v ? "열림" : "닫힘") },
-  { key: "matchCount", header: "매칭 건수", width: 90, align: "right" },
+  { key: "open", header: "열림", meta: false, width: 70, align: "center", render: (v) => (v ? "열림" : "닫힘") },
+  { key: "matchCount", header: "매칭 건수", meta: false, width: 90, align: "right" },
 ];
 
 /** busy·권한을 함께 보는 판정 — page.tsx 가 만들어 카드에 내려준다. */

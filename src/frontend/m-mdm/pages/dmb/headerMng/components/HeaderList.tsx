@@ -13,10 +13,10 @@ const COLUMNS: GridColumn[] = [
   { key: "EAI_CODE", header: "EAI", width: 90 },
   { key: "ENCODING", header: "인코딩", width: 80 },
   { key: "TOTAL_LENGTH", header: "길이", width: 70, align: "right" },
-  { key: "ITEM_COUNT", header: "항목", width: 60, align: "right" },
-  { key: "USED_BY_COUNT", header: "사용 전문", width: 80, align: "right" },
-  { key: "HEADER_VER", header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },
-  { key: "HEADER_STATE", header: "상태", width: 70, render: (v) => versionStateLabel(v as string | null) },
+  { key: "ITEM_COUNT", meta: false, header: "항목", width: 60, align: "right" },
+  { key: "USED_BY_COUNT", meta: false, header: "사용 전문", width: 80, align: "right" },
+  { key: "HEADER_VER", meta: false, header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },
+  { key: "HEADER_STATE", meta: false, header: "상태", width: 70, render: (v) => versionStateLabel(v as string | null) },
 ];
 
 export interface HeaderListProps {

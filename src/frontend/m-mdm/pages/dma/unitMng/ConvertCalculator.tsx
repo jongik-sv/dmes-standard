@@ -21,7 +21,7 @@ const DEBOUNCE_MS = 300;
 
 const RESULT_COLUMNS: GridColumn[] = [
   { key: "unitCode", header: "단위", width: 120, align: "left" },
-  { key: "display", header: "환산값", width: 200, align: "right" },
+  { key: "display", header: "환산값", meta: false, width: 200, align: "right" },
 ];
 
 /** 단위별 계산 결과 — display 는 서버 값의 표시 문자열, 실패면 "계산 실패". */

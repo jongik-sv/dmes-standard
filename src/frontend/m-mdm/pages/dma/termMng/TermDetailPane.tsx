@@ -31,11 +31,11 @@ export type TermDetailHandle = {
 
 /** A-RECO 유사어 추천 그리드 열. 행 키는 `{stage}-{termId}`(같은 용어가 1차·2차에 함께 나올 수 있다). */
 const RECO_COLUMNS_BASE: GridColumn[] = [
-  { key: "stageText", header: "구분", width: 70, align: "center" },
+  { key: "stageText", header: "구분", meta: false, width: 70, align: "center" },
   { key: "termName", header: "표기", width: 120, align: "left" },
   { key: "engName", header: "영문명", width: 150, align: "left" },
-  { key: "systemsText", header: "사용 시스템", width: 110, align: "left" },
-  { key: "scoreText", header: "유사도", width: 70, align: "right" },
+  { key: "systemsText", header: "사용 시스템", meta: "SYS_LIST", width: 110, align: "left" },
+  { key: "scoreText", header: "유사도", meta: false, width: 70, align: "right" },
 ];
 
 /** D-002(표기)가 2자 이상이어야 1차 추천을 실행한다(I18). */
@@ -152,6 +152,7 @@ export const TermDetailPane = memo(function TermDetailPane({ ref, busy }: { ref:
       {
         key: "confirm",
         header: "",
+        meta: false,
         width: 110,
         align: "center",
         sortable: false,

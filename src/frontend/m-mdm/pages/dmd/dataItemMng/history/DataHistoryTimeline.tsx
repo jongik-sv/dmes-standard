@@ -90,6 +90,7 @@ export function timelineColumns(target: HistoryTarget, header: DataHistoryResult
     {
       key: "eventLabel",
       header: "사건",
+      meta: false,
       width: 74,
       minWidth: 70,
       align: "center",
@@ -160,6 +161,7 @@ export function timelineColumns(target: HistoryTarget, header: DataHistoryResult
     cols.push({
       key: "memberKey",
       header: "항목 키",
+      meta: false,
       headerTooltip: "항목 키",
       width: 120,
       minWidth: 56,

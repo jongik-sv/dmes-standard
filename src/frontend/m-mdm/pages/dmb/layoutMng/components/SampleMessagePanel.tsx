@@ -17,11 +17,11 @@ const mono = { fontFamily: "var(--font-family-mono, monospace)", whiteSpace: "pr
 
 // 구간 목록 — 구간 수는 헤더 항목 수만큼 늘어나므로 고정 높이로 둔다.
 const SEGMENT_COLUMNS: GridColumn[] = [
-  { key: "POSITION", header: "위치", width: 80 },
-  { key: "ZONE", header: "구역", width: 70, tooltip: false, render: (v, r) => (v === "BODY" ? "본문" : String(r.ZONE_LABEL ?? "")) },
-  { key: "NAME", header: "항목", width: 140 },
+  { key: "POSITION", meta: false, header: "위치", width: 80 },
+  { key: "ZONE", meta: false, header: "구역", width: 70, tooltip: false, render: (v, r) => (v === "BODY" ? "본문" : String(r.ZONE_LABEL ?? "")) },
+  { key: "NAME", meta: false, header: "항목", width: 140 },
   { key: "FILL_KIND", header: "fill_kind", width: 80 },
-  { key: "TEXT", header: "값", width: 200, render: (v) => visibleText(String(v ?? "")) },
+  { key: "TEXT", meta: false, header: "값", width: 200, render: (v) => visibleText(String(v ?? "")) },
 ];
 
 export interface SampleMessagePanelProps {

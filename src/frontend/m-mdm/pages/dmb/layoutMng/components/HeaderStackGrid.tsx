@@ -48,15 +48,15 @@ export function HeaderStackGrid({ rows, readOnly, onAdd, onRemove, onEditConst, 
   actions.current = { onRemove, onEditConst };
   const columns = useMemo<GridColumn[]>(() => [
     { key: "SEQ", header: "순서", width: 70, align: "center", rowDrag: !readOnly },
-    { key: "HEADER_NAME", header: "헤더", width: 160 },
+    { key: "HEADER_NAME", meta: false, header: "헤더", width: 160 },
     { key: "EAI_CODE", header: "EAI", width: 90 },
-    { key: "HEADER_VER", header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },
-    { key: "HEADER_STATE", header: "상태", width: 90,
+    { key: "HEADER_VER", meta: false, header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },
+    { key: "HEADER_STATE", meta: false, header: "상태", width: 90,
       render: (v) => (v === "MISSING" ? <span style={{ color: "var(--color-danger, #b91c1c)" }}>{HEADER_MISSING_LABEL}</span> : headerStateLabel(v)) },
     { key: "TOTAL_LENGTH", header: "길이", width: 70, align: "right", render: (v) => lengthText(v as number | null) },
-    { key: "POSITION", header: "위치", width: 90, align: "center" },
-    { key: "OVERRIDES", header: "재정의한 상수", width: 160, render: (v) => (v ? String(v) : <span style={hint}>없음</span>) },
-    { key: "ACTIONS", header: "", width: 150,
+    { key: "POSITION", meta: false, header: "위치", width: 90, align: "center" },
+    { key: "OVERRIDES", meta: false, header: "재정의한 상수", width: 160, render: (v) => (v ? String(v) : <span style={hint}>없음</span>) },
+    { key: "ACTIONS", meta: false, header: "", width: 150,
       render: (_v, r) => (
         <span style={{ display: "inline-flex", gap: "var(--spacing-xs)" }}>
           <Button size="mini" data-testid={`const-edit-open-${r.SEQ}`} onClick={() => actions.current.onEditConst(String(r.KEY))}>상수 편집</Button>

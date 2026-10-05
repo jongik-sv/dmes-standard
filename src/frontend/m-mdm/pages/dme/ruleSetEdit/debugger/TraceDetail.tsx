@@ -71,10 +71,10 @@ function Sub({ children }: { children: ReactNode }) {
 }
 
 const ROW_COLUMNS: GridColumn[] = [
-  { key: "row", header: "행", width: 130 },
-  { key: "evaluated", header: "평가", width: 60 },
-  { key: "hit", header: "적중", width: 60 },
-  { key: "firstFalse", header: "처음 거짓 열", width: 110 },
+  { key: "row", meta: false, header: "행", width: 130 },
+  { key: "evaluated", meta: false, header: "평가", width: 60 },
+  { key: "hit", meta: false, header: "적중", width: 60 },
+  { key: "firstFalse", meta: false, header: "처음 거짓 열", width: 110 },
 ];
 
 /** 노드 설명(`view.descs`) — 있을 때만. 줄바꿈은 그대로 보인다. 지금 편집 중인 흐름의 설명이다(실행 사본에는 view 가 없다). */

@@ -13,13 +13,13 @@ import type { ColumnInfo, LayoutItemRow } from "./types";
 export function baseItemColumns(readOnly: boolean): GridColumn[] {
   return [
     { key: "SEQ", header: "순서", width: 70, align: "center", rowDrag: !readOnly },
-    { key: "ITEM_NAME", header: "항목명", width: 150 },
+    { key: "ITEM_NAME", header: "항목명", meta: false, width: 150 },
     // 물리명 옆 정보 아이콘 → 컬럼 사전 상세 팝오버(아이콘 클릭은 행 선택으로 번지지 않는다).
     { key: "COLUMN_PHYS", header: "표준 물리명", width: 140, render: (v) => createElement(ColumnPhysName, { physName: v as string | null }) },
     { key: "FILL_KIND", header: "채움", width: 80, align: "center" },
     { key: "OFFSET", header: "오프셋", width: 70, align: "right", render: (v) => lengthText(v as number | null | undefined) },
-    { key: "LENGTH", header: "길이", width: 60, align: "right" },
-    { key: "POSITION", header: "위치", width: 90, align: "center" },
+    { key: "LENGTH", header: "길이", meta: false, width: 60, align: "right" },
+    { key: "POSITION", header: "위치", meta: false, width: 90, align: "center" },
   ];
 }
 

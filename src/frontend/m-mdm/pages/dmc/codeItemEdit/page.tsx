@@ -367,7 +367,7 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
     });
     const cols: GridColumn[] = [
       {
-        key: "__drag", header: "", width: 40, tooltip: false,
+        key: "__drag", header: "", meta: false, width: 40, tooltip: false,
       },
       cell("code", "코드", 150),
       cell("name", "이름", 160),
@@ -377,7 +377,7 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
       ...attrLabels.map((a) => cell(`attr${String(a.no).padStart(2, "0")}`, a.label, 120)),
       cell("description", "설명", 180),
       {
-        key: "__change", header: "변경", width: 220, tooltip: false,
+        key: "__change", header: "변경", meta: false, width: 220, tooltip: false,
         render: (_v, row) => {
           const r = row as EditRow;
           const badge = badgeOf(r);
@@ -398,7 +398,7 @@ export default function CodeItemEditPage({ tabId }: { tabId?: string }) {
     ];
     if (editable) {
       cols.push({
-        key: "__action", header: "동작", width: 110, align: "center", tooltip: false,
+        key: "__action", header: "동작", meta: false, width: 110, align: "center", tooltip: false,
         render: (_v, row) => {
           const r = row as EditRow;
           if (r.__closed) {

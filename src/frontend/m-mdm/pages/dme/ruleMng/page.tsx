@@ -206,6 +206,7 @@ export default function RuleMngPage() {
       },
       {
         key: "releasedVer",
+        meta: false,
         header: "적용 버전",
         width: 80,
         minWidth: 60,
@@ -213,7 +214,7 @@ export default function RuleMngPage() {
         render: (value) => fmtVer(value as string | null),
       },
       { key: "hitPolicy", header: "적중 정책", width: 90, minWidth: 70, align: "center" },
-      { key: "pendingText", header: "미적용 버전", width: 180, minWidth: 90 },
+      { key: "pendingText", meta: false, header: "미적용 버전", width: 180, minWidth: 90 },
     ],
     [],
   );

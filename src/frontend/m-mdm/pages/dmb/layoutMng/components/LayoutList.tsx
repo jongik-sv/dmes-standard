@@ -12,10 +12,10 @@ const COLUMNS: GridColumn[] = [
   { key: "LAYOUT_NAME", header: "전문 이름", width: 170 },
   { key: "TOTAL_LENGTH", header: "총 길이", width: 70, align: "right", render: (v) => lengthText(v as number | null) },
   { key: "SND_SYSTEM", header: "송신→수신", width: 100, render: (_v, r) => `${r.SND_SYSTEM ?? "-"} → ${r.RCV_SYSTEM ?? "-"}` },
-  { key: "HEADER_SUMMARY", header: "헤더 구성", width: 240 },
-  { key: "ITEM_COUNT", header: "본문 항목", width: 70, align: "right" },
-  { key: "CURRENT_VER", header: "현재 버전", width: 70, render: (v) => fmtVer(v as string | null) },
-  { key: "DRAFT_VER", header: "DRAFT", width: 110,
+  { key: "HEADER_SUMMARY", meta: false, header: "헤더 구성", width: 240 },
+  { key: "ITEM_COUNT", meta: false, header: "본문 항목", width: 70, align: "right" },
+  { key: "CURRENT_VER", meta: false, header: "현재 버전", width: 70, render: (v) => fmtVer(v as string | null) },
+  { key: "DRAFT_VER", meta: false, header: "DRAFT", width: 110,
     render: (v, r) => (v ? `${fmtVer(v as string)}${r.DRAFT_OWNER ? ` (${String(r.DRAFT_OWNER)})` : ""}` : "") },
 ];
 

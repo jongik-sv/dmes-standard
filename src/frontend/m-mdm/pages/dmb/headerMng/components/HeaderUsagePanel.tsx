@@ -16,8 +16,8 @@ const COLUMNS: GridColumn[] = [
   { key: "SND_SYSTEM", header: "송신→수신", width: 110, render: (_v, r) => `${r.SND_SYSTEM ?? "-"} → ${r.RCV_SYSTEM ?? "-"}` },
   { key: "HEADER_SEQ", header: "쌓인 순서", width: 80, align: "center" },
   { key: "TOTAL_LENGTH", header: "총 길이", width: 80, align: "right", render: (v) => lengthText(v as number | null) },
-  { key: "VER", header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },
-  { key: "STATE", header: "상태", width: 70, render: (v) => versionStateLabel(v as string | null) },
+  { key: "VER", meta: false, header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },
+  { key: "STATE", meta: false, header: "상태", width: 70, render: (v) => versionStateLabel(v as string | null) },
 ];
 
 export function HeaderUsagePanel({ rows }: { rows: UsedByRow[] }) {

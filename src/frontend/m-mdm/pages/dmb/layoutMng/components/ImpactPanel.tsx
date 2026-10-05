@@ -15,12 +15,12 @@ import type { ImpactRow } from "../types";
 const COLUMNS: GridColumn[] = [
   { key: "COLUMN_PHYS", header: "컬럼", width: 130, render: (v) => <ColumnPhysName physName={v as string | null} /> },
   { key: "LAYOUT_NAME", header: "레이아웃", width: 190, render: (v, r) => (v == null ? "(없음)" : `${v}${r.LAYOUT_KIND === "HEADER" ? " (헤더)" : ""}`) },
-  { key: "VER", header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },
-  { key: "VER_STATE", header: "버전 상태", width: 80,
+  { key: "VER", meta: false, header: "버전", width: 70, render: (v) => fmtVer(v as string | null) },
+  { key: "VER_STATE", meta: false, header: "버전 상태", width: 80,
     render: (v) => ({ CURRENT: "현재", FUTURE: "적용 예정", DRAFT: "작성 중" } as Record<string, string>)[v as string] ?? "" },
-  { key: "ITEM", header: "항목", width: 190, render: (v) => (v == null ? "-" : String(v)) },
-  { key: "SND_RCV", header: "송신 → 수신", width: 100, render: (v, r) => (v == null ? (r.USED_BY_COUNT != null ? `사용 전문 ${r.USED_BY_COUNT}` : "-") : String(v)) },
-  { key: "IMPACT", header: "영향", width: 260 },
+  { key: "ITEM", meta: false, header: "항목", width: 190, render: (v) => (v == null ? "-" : String(v)) },
+  { key: "SND_RCV", meta: false, header: "송신 → 수신", width: 100, render: (v, r) => (v == null ? (r.USED_BY_COUNT != null ? `사용 전문 ${r.USED_BY_COUNT}` : "-") : String(v)) },
+  { key: "IMPACT", meta: false, header: "영향", width: 260 },
 ];
 
 export interface ImpactPanelProps {

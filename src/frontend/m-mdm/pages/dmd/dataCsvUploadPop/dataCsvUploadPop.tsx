@@ -35,12 +35,13 @@ export interface DataCsvUploadPopModalProps {
 }
 
 const columns: GridColumn[] = [
-  { key: "lineNo", header: "줄", width: 60, align: "right" },
+  { key: "lineNo", header: "줄", meta: false, width: 60, align: "right" },
   { key: "code", header: "키", width: 140 },
-  { key: "action", header: "동작", width: 90, align: "center" },
+  { key: "action", header: "동작", meta: false, width: 90, align: "center" },
   {
     key: "issues",
     header: "오류",
+    meta: false,
     width: 320,
     render: (_v, row) => {
       const issues = (row.issues as string[] | undefined) ?? [];
