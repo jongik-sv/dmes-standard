@@ -25,6 +25,12 @@
 - 지시 tooltip-screens-2: `m-mdm/tests/dme/ruleEdit/decision-table-card.test.ts` 737행 주석 "mdm 모듈은 mdmMeta 가 404 라 꺼지지만" 을 tooltip-shared A1(MDM_META_MODULE_ALIASES mdm→mcm) 뒤의 동작에 맞게 고친다. 시험 동작은 바꾸지 않고 docs 커밋으로 둔다. 기본 headerTooltip(표시 이름)은 `headerTooltip: ""` 로 끈다.
 - 중복된 라벨 패턴을 화면 안 작은 상수·도우미로 묶을 곳, 불필요한 meta 지정을 opus/high 리팩토링 리뷰로 점검한다.
 
+## B4 먼저 끝낸 것
+
+- B1 머지: dev `dffe0f95`(트리 5af6b880). 머지 뒤 dev 를 브랜치에 합쳤다(fast-forward).
+- 바뀐 화면 audit: `M audit`·`A audit` 38개 파일 의심 0건 통과(B1 범위). B2·B3 뒤 바뀐 파일로 다시 돌린다.
+- decision-table-card 주석은 A1 이 dev 에 들어간 뒤 실제 동작을 확인하고 고친다(지금 고치면 코드보다 앞선 문장이 된다).
+
 ## 환경 메모
 
 - 새 워크트리라 `deps.sh` 로 의존성을 설치하고 `pnpm --filter "@dk-oasis/m-mdm^..." build` 를 한 번 돌렸다.
