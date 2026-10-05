@@ -252,7 +252,9 @@ describe("MermaidDiagram 크기 조절 도구 막대", () => {
     await click(btn("도식 확대"));
     await click(btn("도식 확대"));
     expect(scale()).toBe("200%");
-    expect(btn("도식 확대").disabled).toBe(true);
+    expect(btn("도식 확대").getAttribute("aria-disabled")).toBe("true");
+    await click(btn("도식 확대"));
+    expect(scale()).toBe("200%"); // 끝에서는 눌려도 그대로
 
     await click(btn("도식 크기 맞춤"));
     expect(scale()).toBe("100%");
@@ -261,7 +263,7 @@ describe("MermaidDiagram 크기 조절 도구 막대", () => {
     await click(btn("도식 축소"));
     expect(scale()).toBe("50%");
     expect(svg().style.width).toBe("150px");
-    expect(btn("도식 축소").disabled).toBe(true);
+    expect(btn("도식 축소").getAttribute("aria-disabled")).toBe("true");
   });
 
   it("단추는 button 이고 접근 가능한 이름과 도구 막대 역할을 가진다", async () => {
@@ -273,6 +275,14 @@ describe("MermaidDiagram 크기 조절 도구 막대", () => {
       expect(b.getAttribute("type")).toBe("button");
     }
     expect(host.querySelector('[role="toolbar"]')).not.toBeNull();
+  });
+
+  it("viewBox 가 없는 svg 는 건드리지 않고 도구 막대도 두지 않는다", async () => {
+    mermaidMock.render.mockResolvedValue({ svg: '<svg data-x="nv"><g></g></svg>' });
+    await mount(SRC);
+    const svg = host.querySelector<SVGElement>('[role="img"] svg')!;
+    expect(svg.style.width).toBe("");
+    expect(host.querySelector('[role="toolbar"]')).toBeNull();
   });
 
   it("그리기에 실패하면 도구 막대 없이 코드 블록이 남는다", async () => {

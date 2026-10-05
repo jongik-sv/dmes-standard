@@ -88,9 +88,9 @@ const MERMAID_CSS = `
 .md-mermaid-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-bottom:4px;opacity:.65;transition:opacity .15s}
 .md-mermaid:hover .md-mermaid-toolbar,.md-mermaid:focus-within .md-mermaid-toolbar{opacity:1}
 .md-mermaid-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:1px solid var(--color-border);border-radius:4px;background:var(--color-bg-light);color:var(--color-text);cursor:pointer}
-.md-mermaid-btn:hover:not(:disabled){border-color:var(--color-primary)}
+.md-mermaid-btn:hover:not([aria-disabled="true"]){border-color:var(--color-primary)}
 .md-mermaid-btn:focus-visible{outline:2px solid var(--color-primary);outline-offset:1px}
-.md-mermaid-btn:disabled{opacity:.4;cursor:default}
+.md-mermaid-btn[aria-disabled="true"]{opacity:.4;cursor:default}
 .md-mermaid-scale{min-width:44px;text-align:center;font-size:var(--font-size-sm);color:var(--color-text);font-variant-numeric:tabular-nums}
 .md-mermaid-frame{box-sizing:border-box;overflow:auto;border:1px solid var(--color-border)}
 .md-mermaid-frame:focus-visible{outline:2px solid var(--color-primary);outline-offset:1px}
@@ -142,7 +142,9 @@ function DiagramView({ svg, code, testId }: { svg: string; code: string; testId:
   useEffect(() => setZoom(null), [code]);
 
   const measure = useCallback(() => {
-    const w = frameRef.current?.clientWidth ?? 0;
+    // clientWidth 는 정수로 반올림되어 틀을 넘칠 수 있으므로 실제 폭에서 테두리를 빼고 내린다.
+    const rect = frameRef.current?.getBoundingClientRect().width ?? 0;
+    const w = rect > 2 ? Math.floor(rect - 2) : 0;
     const h = maxFrameHeight();
     setLimit((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
   }, []);
@@ -193,8 +195,8 @@ function DiagramView({ svg, code, testId }: { svg: string; code: string; testId:
             className="md-mermaid-btn"
             aria-label="도식 축소"
             title="도식 축소"
-            disabled={!canOut}
-            onClick={() => setZoom(nextZoom(scale, -1))}
+            aria-disabled={!canOut}
+            onClick={() => canOut && setZoom(nextZoom(scale, -1))}
           >
             <IconMinus size={14} aria-hidden="true" focusable="false" />
           </button>
@@ -206,8 +208,8 @@ function DiagramView({ svg, code, testId }: { svg: string; code: string; testId:
             className="md-mermaid-btn"
             aria-label="도식 확대"
             title="도식 확대"
-            disabled={!canIn}
-            onClick={() => setZoom(nextZoom(scale, 1))}
+            aria-disabled={!canIn}
+            onClick={() => canIn && setZoom(nextZoom(scale, 1))}
           >
             <IconPlus size={14} aria-hidden="true" focusable="false" />
           </button>
