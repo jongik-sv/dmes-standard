@@ -31,6 +31,7 @@ import kr.dongkuk.maru.mdm.engine.expr.ReservedNames;
 import kr.dongkuk.maru.mdm.engine.rule.MdmRuleEngine;
 import kr.dongkuk.maru.mdm.engine.rule.RuleEngine;
 import kr.dongkuk.maru.mdm.engine.rule.RuleSetResult;
+import kr.dongkuk.maru.mdm.engine.rule.SetShape;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.DefinitionLookup.RuleSetDefinition;
 import kr.dongkuk.maru.mdm.engine.spi.EngineLookups;
@@ -44,7 +45,7 @@ import org.slf4j.LoggerFactory;
  * {@code save()} 가 명시적으로 부른다 — 검사할 컬럼·룰 세트를 요청에 적는다.
  *
  * <p>순서(§6.2): 행 거르기(삭제 행 건너뜀) → 키 정규화(물리명, 예약 키 제외) → <b>미리 받기</b>(호출자 스레드, 종류마다 묶음 한 번 — 컬럼·룰 세트와
- * 그 룰·식이 참조하는 코드) → 컬럼마다 길이·소수(cactus) → {@link DomainValidator}(엔진) → 룰 세트마다 {@link RuleEngine#evaluateSet}(엔진).
+ * 그 룰·하위 세트(깊이 5)·식이 참조하는 코드) → 컬럼마다 길이·소수(cactus) → {@link DomainValidator}(엔진) → 룰 세트마다 {@link RuleEngine#evaluateSet}(엔진).
  * 엔진 평가는 캐시 전용 조회기({@link MdmCachedDefinitions})로만 한다 — 평가 중에 MDM 을 부르지 않는다(C6). 그 엔진은 검증기가 스스로 만들고
  * 빈으로 받지도 내놓지도 않는다(모듈의 엔진 빈과 섞이지 않게). 평가 중 캐시 부재는 검증 한 번의
  * 부재 기록기로 잡아 "검증 불가"로 돌린다(엔진 예외 문구에 기대지 않는다).
@@ -243,13 +244,16 @@ public class MdmValidator {
                 skip(item(MdmTargetType.RULE_SET, setId), item(MdmTargetType.RULE_SET, setId), skipped, unavailable);
             }
             Map<String, Set<String>> rulesBySet = new LinkedHashMap<>();
+            Map<String, RuleSetDefinition> topDefs = new LinkedHashMap<>();
             sets.found().forEach((setId, at) -> {
                 if (at.body() instanceof RuleSetDefinition set) { // 적용 버전이 없으면 엔진이 SET_NOT_FOUND 로 행 오류를 낸다
+                    topDefs.put(setId, set);
                     rulesBySet.put(setId, MdmExprRefs.ruleIds(set));
                     codesByItem.put(item(MdmTargetType.RULE_SET, setId), new LinkedHashSet<>(refs.flowCodes(set)));
                     atByItem.put(item(MdmTargetType.RULE_SET, setId), new LinkedHashSet<>(refs.flowMasterAt(set)));
                 }
             });
+            prefetchSubsets(topDefs, sets.unavailable(), ts, rulesBySet, codesByItem, atByItem, skipped, unavailable);
             Set<String> ruleIds = new LinkedHashSet<>();
             rulesBySet.values().forEach(ruleIds::addAll);
             if (!ruleIds.isEmpty()) {
@@ -311,6 +315,83 @@ public class MdmValidator {
             });
         });
         return new Plan(columns, metas, skipped, unavailable, missing);
+    }
+
+    /**
+     * 하위 세트(SET 노드가 부르는 세트)를 최상위에서 {@link SetShape#MAX_CALL_DEPTH} 단계까지 미리 받는다(하위 세트 spec §8.1, C-D17). 단계마다
+     * 아직 받지 않은 세트 ID 를 같은 {@code ts} 로 한 번 묶어 받고, 받은 하위 세트의 룰·조건 코드·MASTER_AT 기준 시각을 그 하위 세트를 부른 최상위
+     * 세트 항목에 더한다(한 하위 세트를 여럿이 부르면 각자에). 최상위마다 이미 거친 세트는 다시 따라가지 않아 순환이어도 끝난다. 하위 세트가
+     * 받을 수 없으면(unavailable) 그것을 부른 최상위 세트 항목을 검증 불가로 건너뛴다. 없으면(missing) 아무것도 빼지 않는다 — 엔진이 SET_NOT_FOUND
+     * 로 행 오류를 낸다.
+     */
+    private void prefetchSubsets(Map<String, RuleSetDefinition> topDefs, Collection<String> unavailableTops, Instant ts,
+                                 Map<String, Set<String>> rulesBySet, Map<String, Set<String>> codesByItem,
+                                 Map<String, Set<MdmExprRefs.MasterAtRef>> atByItem, Set<String> skipped, Set<String> unavailable) {
+        Map<String, RuleSetDefinition> defs = new LinkedHashMap<>(topDefs); // 받은 세트 정의(최상위 + 하위)
+        Set<String> unavailableSets = new HashSet<>(unavailableTops);
+        Set<String> fetched = new HashSet<>(defs.keySet());
+        fetched.addAll(unavailableSets);
+        Map<String, Set<String>> seen = new LinkedHashMap<>(); // 최상위 → 이미 거친 세트(자신 포함)
+        Map<String, Set<String>> frontier = new LinkedHashMap<>(); // 최상위 → 이번 단계에서 하위 세트를 따라갈 세트
+        for (String top : topDefs.keySet()) {
+            seen.put(top, new LinkedHashSet<>(Set.of(top)));
+            frontier.put(top, new LinkedHashSet<>(Set.of(top)));
+        }
+        for (int depth = 1; depth <= SetShape.MAX_CALL_DEPTH; depth++) {
+            Map<String, Set<String>> next = new LinkedHashMap<>();
+            Set<String> need = new LinkedHashSet<>();
+            frontier.forEach((top, ids) -> {
+                Set<String> children = new LinkedHashSet<>();
+                for (String id : ids) {
+                    RuleSetDefinition def = defs.get(id);
+                    if (def == null) {
+                        continue;
+                    }
+                    for (String child : MdmExprRefs.setIds(def)) {
+                        if (seen.get(top).add(child)) {
+                            children.add(child);
+                            if (!fetched.contains(child)) {
+                                need.add(child);
+                            }
+                        }
+                    }
+                }
+                next.put(top, children);
+            });
+            if (need.isEmpty() && next.values().stream().allMatch(Set::isEmpty)) {
+                return;
+            }
+            if (!need.isEmpty()) {
+                MdmMetaService.MdmAtLookup lookup = service.lookupAt(MdmTargetType.RULE_SET, need, ts);
+                lookup.found().forEach((setId, at) -> {
+                    if (at.body() instanceof RuleSetDefinition set) {
+                        defs.put(setId, set);
+                    }
+                });
+                unavailableSets.addAll(lookup.unavailable());
+                fetched.addAll(need);
+            }
+            frontier.clear();
+            next.forEach((top, children) -> {
+                String topItem = item(MdmTargetType.RULE_SET, top);
+                Set<String> follow = new LinkedHashSet<>();
+                for (String child : children) {
+                    if (unavailableSets.contains(child)) {
+                        skip(topItem, item(MdmTargetType.RULE_SET, child), skipped, unavailable);
+                        continue;
+                    }
+                    RuleSetDefinition def = defs.get(child);
+                    if (def == null) { // MDM 에 없거나 적용 버전이 없다 — 엔진이 SET_NOT_FOUND 로 행 오류를 낸다
+                        continue;
+                    }
+                    rulesBySet.get(top).addAll(MdmExprRefs.ruleIds(def));
+                    codesByItem.get(topItem).addAll(refs.flowCodes(def));
+                    atByItem.get(topItem).addAll(refs.flowMasterAt(def));
+                    follow.add(child);
+                }
+                frontier.put(top, follow);
+            });
+        }
     }
 
     /** MASTER_AT 기준 시각 — 상수면 그 시각, 변수면 삭제가 아닌 행마다 그 물리명 칸이 하나뿐이고 문자열이며 풀리는 값. */
