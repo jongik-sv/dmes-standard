@@ -14,7 +14,7 @@
 | A4 툴팁 지연 500ms | 완료·리뷰 지적 반영 | 8af10d91, 493fe2ed | 셀 툴팁도 빨라짐(문서화) |
 | A5 문서 | 완료 | 90aeaf59 | 스킬 문서·색인·FE 가이드 |
 | A6 리팩토링 리뷰·전체 시험 | 완료(리뷰 clean, shared 1540 통과) | fa28c5d5 | dev dffe0f95 합침 |
-| A7 FE 성능 | 대기(「측정 시작」 뒤) | — | tooltip-screens 머지 뒤 |
+| A7 FE 성능 | 준비 끝, 「측정 시작」 대기 | — | 측정 워크트리 tooltip-perf-base(dffe0f95)·tooltip-perf-head(f36820bd), shared·형제 빌드 완료, 절차는 perf-tooltip-shared.md |
 
 ## 머지
 - A1~A6: dev 머지 f36820bd(트리 4aafcb6f, 지시 tooltip-shared-2). 메인 체크아웃 shared·형제 tsup 재빌드 완료.
