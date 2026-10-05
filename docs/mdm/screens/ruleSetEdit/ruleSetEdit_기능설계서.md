@@ -38,7 +38,7 @@ moduleGroup: dme
 | 화면명 | 룰 세트 편집 |
 | 화면 식별자 | `ruleSetEdit` |
 | 모듈 | `mdm`(마루 MDM) / moduleGroup `dme`(업무기준) |
-| 화면 목적 | 세트 하나를 골라 **흐름도 캔버스**에서 룰 박스와 분기(IF·병렬)를 그려 편집하고, 흐름이 바뀔 때마다 세트 입출력 표·세트 검사를 화면에서 즉시 다시 계산한다. 저장하면 서버가 같은 검사를 다시 돌려 거부(순환·순서·없는 룰·흐름 구조 오류 등)가 있으면 거부하고, 경고만 있으면 저장한다. 3단계 편집기는 끌어 놓기·선 위 [+]·되돌리기·우클릭 메뉴·복사 붙여넣기·분기 바꾸기·풀기·선 경로 편집·찾기·블록 접기를 준다. 저장하지 않은 흐름을 레코드 하나로 서버에서 기록 실행해 노드를 한 단계씩 따라가 보는 **디버그 모드**(단계 실행·중단점·조사식·식 즉석 평가·테스트 케이스·실행 비교)가 있다. 폐기·되살리기도 이 화면에서 한다 |
+| 화면 목적 | 세트 하나를 골라 **흐름도 캔버스**에서 룰 박스와 분기(IF·병렬)를 그려 편집하고, 흐름이 바뀔 때마다 세트 입출력 표·세트 검사를 화면에서 즉시 다시 계산한다. 저장하면 서버가 같은 검사를 다시 돌리고, 거부(순환·순서·없는 룰·흐름 구조 오류 등)가 있어도 DRAFT 는 저장해 검사 결과를 응답에 싣는다(2026-10-06 사용자 결정 — 확정·되살리기만 거부로 막는다). 3단계 편집기는 끌어 놓기·선 위 [+]·되돌리기·우클릭 메뉴·복사 붙여넣기·분기 바꾸기·풀기·선 경로 편집·찾기·블록 접기를 준다. 저장하지 않은 흐름을 레코드 하나로 서버에서 기록 실행해 노드를 한 단계씩 따라가 보는 **디버그 모드**(단계 실행·중단점·조사식·식 즉석 평가·테스트 케이스·실행 비교)가 있다. 폐기·되살리기도 이 화면에서 한다 |
 | 주요 사용자 | 담당자(`MDM_STEWARD`, 조회·편집·디버거 실행·테스트 케이스 저장) / 표준 관리자(`MDM_STD_ADMIN`, 조회만 — 디버그 모드에는 들어가 볼 수 있으나 실행·케이스 실행·식 평가·케이스 저장은 못 한다, 2단계 P-D3·3단계 P-D1·P-D2) |
 | 접근 경로 | 포털 → 마루 MDM > 업무기준 > 룰 세트 편집, 룰 세트(`ruleSetMng`) 등록 성공·세트 ID 링크 |
 
@@ -242,7 +242,7 @@ moduleGroup: dme
 | 버튼ID | 버튼명(testid) | 위치 | To-Be action | 설명 |
 |---|---|---|---|---|
 | B-001 | 찾기 | A-TOP | `search`(SET) | 세트 후보 |
-| B-002 | 세트 저장(`set-save`) | A-TOOL | `save` | 선택 버전이 내 DRAFT 이고(아니면 읽기 전용, D-144) 편집 모드이고 dirty 이며 **거부(REJECT) 검사가 없고** 조건식 IO 응답을 기다리지 않을 때만 켜진다(P-D4). 꺼진 까닭은 툴팁(`data-tip`)으로 보인다 |
+| B-002 | 세트 저장(`set-save`) | A-TOOL | `save` | 선택 버전이 내 DRAFT 이고(아니면 읽기 전용, D-144) 편집 모드이고 dirty 이며 조건식 IO 응답을 기다리지 않을 때 켜진다(P-D4). 거부(REJECT) 검사가 있어도 켜진다(2026-10-06 사용자 결정 — N-8 개정). 꺼진 까닭은 툴팁(`data-tip`)으로 보인다 |
 | B-003 | 폐기(`set-deprecate`) → 폐기 확인(`set-deprecate-confirm`)/취소(`set-deprecate-cancel`) | A-TOOL | `delete`(target `SET`) | 담당자·INUSE·미적용 버전 없음(`flags.canDeprecate`, Ruling P2-17)·`delete` 권한. 내 DRAFT 를 고른 동안에도 미적용 버전이 있으면 꺼진다. 두 단계로만 폐기한다(D14, I14) |
 | B-004 | 되살리기(`set-restore`) | A-TOOL | `restore` | DEPRECATED·restorable·`restore` 권한 |
 | B-005 | 다시 불러오기(`set-reload`) | A-TOOL | `view` | MDM001 충돌 뒤에만 보인다 |
@@ -297,7 +297,7 @@ moduleGroup: dme
 | 버튼ID | 트리거 | 선행 조건 | 동작(단계별) | 호출 액션 |
 |---|---|---|---|---|
 | (세트 열기) | 후보 클릭·넘겨받은 setId | dirty 면 확인 "저장하지 않은 변경이 있습니다. 버리고 이동할까요?" | `view{setId, ver?}`(`ver` 가 비면 서버가 고른다) → 세트·흐름·멤버 룰 입출력·검사·조건식 IO(`condIo`)·**테스트 케이스 목록(`cases`)**·`editable`·`restorable`·`versions`(VER 내림차순, 행마다 `verStatus`·`cancelConfirmable`)·`flags`(`canNewMajor`·`canNewMinor`·`nextMajor`·`nextMinor`·`unappliedCount`·`currentVer`·`canDeprecate`·`canEditCases`)·`me`. 흐름은 `toEditFlow` 로 편집 모델이 되고 모드는 보기다. 편집 이력은 비운다. 다른 세트로 바뀌면 선택·접힘·디버거 기록과 커서를 지우고 그 세트의 중단점·조사식·최근 입력을 브라우저 저장소에서 읽는다. 저장된 흐름을 읽을 수 없으면 MDM026 을 문장으로 보인다 | `view` |
-| B-002 | 클릭 | 위 조건 | 1) `save{setId, ver, setName, description?, rowVersion, flowJson}`(`ver` 필수 — `rowVersion` 은 그 버전 행의 값) — `flowJson` 은 `flowJsonOf(flow)`(P2 정규 JSON 과 같은 키 순서). `grids` 는 보내지 않는다 2) 서버 순서: 길이(262,144자) → 형식(MDM021) → 룰 ID 규칙 → 담당자 → 세트 저장 검사(거부면 MDM024) → 트랜잭션: 부모 조회 → 폐기 세트면 MDM009 → 내 DRAFT 가드(`beginDraftWrite`, §아래 D-144 문단과 같은 코드) → DRAFT 행의 정규 JSON·펼친 `RULE_IDS` 갱신 → 부모의 세트명·설명 갱신 3) 성공 "저장 · row_version N" + 경고 줄 → 서버 정규 흐름으로 다시 불러온다. **모드와 되돌리기 이력은 그대로다**(3단계 P1 — 편집 모드에서 저장하면 편집 모드에 남는다. 폐기·되살리기 뒤 편집할 수 없게 되면 보기로 내린다) 4) 거부는 서버 `meta.message`(`set-message`), 편집 중 흐름은 둔다 5) MDM001 은 "다른 창에서 바뀌었습니다. 다시 불러오세요" + 다시 불러오기 6) `flowJson` 없는 옛 목록 저장이 `FLOW_JSON` 이 있는 세트에 오면 `FLOW_READONLY` 로 거부한다(§6.2 XV-019) | `save` |
+| B-002 | 클릭 | 위 조건 | 1) `save{setId, ver, setName, description?, rowVersion, flowJson}`(`ver` 필수 — `rowVersion` 은 그 버전 행의 값) — `flowJson` 은 `flowJsonOf(flow)`(P2 정규 JSON 과 같은 키 순서). `grids` 는 보내지 않는다 2) 서버 순서: 길이(262,144자) → 형식(MDM021) → 룰 ID 규칙 → 담당자 → 세트 저장 검사(거부가 있어도 막지 않고 응답 checks 에 싣는다) → 트랜잭션: 부모 조회 → 폐기 세트면 MDM009 → 내 DRAFT 가드(`beginDraftWrite`, §아래 D-144 문단과 같은 코드) → DRAFT 행의 정규 JSON·펼친 `RULE_IDS` 갱신 → 부모의 세트명·설명 갱신 3) 성공 "저장 · row_version N" + 경고 줄(거부 검사는 아래 검사 결과에 이미 있어 경고 줄에서 뺀다) → 서버 정규 흐름으로 다시 불러온다. **모드와 되돌리기 이력은 그대로다**(3단계 P1 — 편집 모드에서 저장하면 편집 모드에 남는다. 폐기·되살리기 뒤 편집할 수 없게 되면 보기로 내린다) 4) 입력·상태 거부(MDM021·MDM009·MDM001 등)는 서버 `meta.message`(`set-message`), 편집 중 흐름은 둔다 5) MDM001 은 "다른 창에서 바뀌었습니다. 다시 불러오세요" + 다시 불러오기 6) `flowJson` 없는 옛 목록 저장이 `FLOW_JSON` 이 있는 세트에 오면 `FLOW_READONLY` 로 거부한다(§6.2 XV-019) | `save` |
 | (조건식 IO) | IF 의 "그 외"가 아닌 갈래의 `(id, cond)` 가 바뀜 | 편집 모드 | 400ms 디바운스 뒤 `validate{flowJson}` → `condIo`(선 ID → 조건식이 읽는 변수의 출처·타입). 요청 순번으로 늦게 온 응답은 버리고(Local-Rules §11), 응답을 기다리는 동안(`condIoPending`) 저장을 막는다. 실패하면 오류 창 + 기다림 해제(condIo 는 그대로) | `validate` |
 | B-003 | 폐기 → 폐기 확인 | INUSE·미적용 버전 없음 | 1) 폐기를 누르면 경고 "폐기하면 이 세트를 부르는 호출은 판정 오류가 난다."와 폐기 확인/취소 2) 폐기 확인 → `delete{setId, target:"SET"}` 3) "폐기. 행은 남기고 되살릴 수 있다" | `delete` |
 | B-004 | 클릭 | DEPRECATED | `restore{setId}` → 저장된 흐름으로 검사를 다시 돌려 거부가 없을 때만 INUSE. "되살림" + 경고. 저장된 흐름이 손상됐으면 MDM026 | `restore` |
@@ -491,7 +491,7 @@ moduleGroup: dme
 | XV-023 | `EMPTY_TASK` | 경고 | 흐름에 빈 단계(TASK) 노드가 있다(겹친 노드 ID 는 첫 노드만 센다). `EMPTY` 바로 뒤에 한 줄. 저장·되살리기를 막지 않는다. 빈 단계만 있고 룰이 없어도 `EMPTY` 는 내지 않는다(RULE·TASK 가 모두 없을 때만 `EMPTY`) | 빈 단계 {n}개 — 실행 때 그냥 지나간다 (D-125) |
 | XV-024 | `FLOW_CATCH` | 거부 | 받는 노드의 `attachTo` 가 없거나 룰이 아니다, `catches` 가 비었거나 모르는 키·겹친 키가 있다, 한 룰에서 같은 종류를 두 받는 노드가 받는다(문구·순서 정본은 `FlowParser`·`flow-model.ts`·코퍼스) | 받는 노드 {c}가 붙은 노드 {r}가 없다 / 받는 노드 {c}는 룰·빈 단계 노드에만 붙일 수 있다({r}는 {kind}) / 받는 노드 {c}에 받을 예외 종류가 없다 / 받는 노드 {c}의 예외 종류 {k}를 모른다 / 받는 노드 {c}에 예외 종류 {k}가 겹친다 / 룰 노드 {r}에서 예외 종류 {k}를 {c1}와 {c2}가 함께 받는다 (D-134) |
 | XV-025 | `CATCH_NEVER` | 경고 | 받는 종류가 그 룰에서 일어날 수 없다 — 결과 없음인데 최신 RELEASED 에 기본 행이 있음, 판정 충돌인데 적중 정책이 UNIQUE·ANY 가 아님 / 받는 노드가 빈 단계에 붙음(받는 노드마다 한 줄, ruleId 없음) | {id}에 기본 행이 있어 {c}가 받는 결과 없음이 일어나지 않는다 / {id}의 적중 정책 {정책}에서는 {c}가 받는 판정 충돌이 일어나지 않는다 / {t}는 빈 단계라 {c}가 받는 예외가 일어나지 않는다 (D-134·D-136) |
-| XV-009 | (MDM024) | — | 거부가 하나라도 있으면 저장·되살리기 거부 | 룰 세트 저장 검사를 통과하지 못했습니다: {ruleId}[{var}] {code} {문구}; … |
+| XV-009 | (MDM024) | — | 거부가 하나라도 있으면 되살리기·확정 거부(DRAFT 저장은 거부가 있어도 허용, 2026-10-06) | 룰 세트 저장 검사를 통과하지 못했습니다: {ruleId}[{var}] {code} {문구}; … |
 | XV-010 | (MDM001) | — | `ROW_VERSION` 불일치 | 다른 창에서 바뀌었습니다(화면 안내) |
 | XV-011 | (MDM009) | — | DEPRECATED 세트 저장·이미 DEPRECATED 폐기·INUSE 되살리기 | MDM009 허용되지 않는 상태 전이입니다 |
 | XV-012 | (MDM013) | — | 쓰기(save·delete·restore) 요청자가 담당자가 아니다 | MDM013 담당자 역할이 있어야 할 수 있습니다 |
@@ -586,12 +586,12 @@ moduleGroup: dme
 | N-5 | 순환은 이행적으로 본다(세 룰 고리도 `CYCLE`) | design D6 |
 | N-6 | 구성 지침 생산자 = DEPRECATED 아니고 RELEASED 있는 룰, 룰 ID 순 첫 룰, 여럿이면 "고르기". DICT·PROG 는 거슬러 찾지 않는다. 제안일 뿐 저장하지 않는다 | design D7·I16 |
 | N-7 | 저장 거부는 오류 코드 `MDM024`(400) + 상세 message. 병렬 Task 와 번호가 겹치면 머지하는 쪽이 다음 번호로 바꾼다 | design D8 |
-| N-8 | **개정(P-D4, D-113)**: 캔버스에서는 화면 즉시 검사에 거부(REJECT)가 하나라도 있으면 저장 버튼을 끈다(스펙 §7 "오류가 있으면 저장을 막는다"). 서버도 같은 검사로 다시 거부한다. 1단계의 "즉시 검사는 저장 버튼을 막지 않는다"(design D9)를 대체한다. 조건식 IO 응답을 기다리는 동안에도 저장을 막는다 | 스펙 §7, 계획 P-D4, D-113 |
+| N-8 | **재개정(2026-10-06 사용자 결정)**: 거부(REJECT) 검사가 있어도 DRAFT 저장은 수동·자동 모두 허용한다(저장 버튼·서버 save 모두 막지 않고 응답 checks 에 거부를 싣는다). 확정(`ruleSetConfirm`)과 되살리기(`restore`)에서만 거부로 막는다. 개정 전(P-D4, D-113)에는 화면 즉시 검사에 거부가 하나라도 있으면 저장 버튼을 끄고 서버도 MDM024 로 거부했다. 조건식 IO 응답을 기다리는 동안에는 지금도 저장을 막는다. 자동 저장 상태 글("자동 저장 실패…")은 툴바 줄이 아니라 툴바 아래 메시지 줄에 둔다 | 스펙 §7, 계획 P-D4, D-113 |
 | N-9 | 저장은 DRAFT 버전 행(`TB_MDM_RULE_SET_VER`)과 부모의 세트명·설명만 바꾼다. 배포(07)는 여전히 이번 범위 밖이다(D-144 2단계) | design D11·I23, PRD FR-E5 |
 | N-10 | 폐기는 두 단계 버튼(폐기 → 폐기 확인/취소) | design D14 |
 | N-11 | 같은 룰을 두 번 담지 않는다 | design D15 |
 | N-12 | 룰 목록 그리드 폭 문제(열 잘림)는 **그리드 삭제로 해당 없음**. 캔버스는 노드 크기가 고정(`NODE_SIZE`)이고 화면 맞춤으로 전체를 보인다 | D-113 |
-| N-13 | e2e `src/frontend/e2e/mdm-ruleSetEdit.spec.ts`(E1~E12, 스모크 넷 = E1·E2·E5·E8), 픽스처 `e2e/fixtures/mdm-ruleSet-data.sql`(분기 세트 `E2S_FLOW` 포함). 2단계에서 목록 testid 를 쓰던 E2·E3·E4·E5·E6·E7·E9·E10 을 캔버스 기준으로 다시 쓰고 E11(디버거)·E12(룰 박스 링크 vs 박스 누르기)를 더했다. 서버 MDM024 거부는 화면에서 저장 버튼이 꺼지므로(N-8) e2e 가 아니라 서버 테스트가 맡는다 | design §3.4.2, 2단계 Task 12 |
+| N-13 | e2e `src/frontend/e2e/mdm-ruleSetEdit.spec.ts`(E1~E12, 스모크 넷 = E1·E2·E5·E8), 픽스처 `e2e/fixtures/mdm-ruleSet-data.sql`(분기 세트 `E2S_FLOW` 포함). 2단계에서 목록 testid 를 쓰던 E2·E3·E4·E5·E6·E7·E9·E10 을 캔버스 기준으로 다시 쓰고 E11(디버거)·E12(룰 박스 링크 vs 박스 누르기)를 더했다. 거부 검사가 있는 DRAFT 저장 허용(N-8)과 확정·되살리기 거부는 e2e 가 아니라 서버 테스트·vitest 가 맡는다 | design §3.4.2, 2단계 Task 12 |
 | N-14 | **흐름 저장(1단계)** — `TB_MDM_RULE_SET.FLOW_JSON`(흐름 정의 + 화면 전용 view — `positions`·`notes`·`groups` 와 3단계 `routes`, §3.2)을 저장하고 `RULE_IDS` 는 서버가 흐름을 깊이 우선으로 펼친 중복 없는 룰 목록으로 채운다(요청의 룰 목록을 믿지 않는다). `FLOW_JSON` 이 NULL 이면 `RULE_IDS` 순서의 한 줄 흐름이다. 분기 세트는 목록 편집으로 저장할 수 없다(`FLOW_READONLY`) | 스펙 `docs/superpowers/specs/2026-09-29-rule-set-flow-design.md` §3.3, D-107 |
 | N-15 | 흐름 세트의 입출력 표·의존 룰은 1단계에서는 흐름을 펼친 룰 목록으로 계산했다. 2단계 세트 패널은 흐름 기준 `flowIo(flow, rules)`(경로 상태를 아는 입출력)로 계산하고, 속성 패널은 앞 룰이 만드는 변수와 컬럼 사전·프로그램 변수·"어디에도 없음"을 가려 보인다 | D-107(편차 D10), 2단계 Task 10 |
 | N-16 | **디버거(2단계)** — ① *저장 전 흐름 실행*: `execute{flowJson, recordJson, evalTs}` 는 화면의 저장하지 않은 흐름을 서버 `RuleSetRunner.trace` 로 돌려 엔진 계약 `RunTrace` 를 스키마 그대로 JSON 으로 돌려준다(골든 `rule-set-trace-golden.json` 7사례로 고정, `NodeTrace.result` 가 없으면 키를 뺀다). 응답 `warnings` 는 `RULE_DEPRECATED` → `BRANCH_COND_NULL` → 룰 경고 순이다(D-110 운영 응답과 같은 순서). 입력 오류: 흐름 없음은 REQUIRED_VALUE, `recordJson` 이 객체가 아니거나 판정 시각 형식(`yyyy-MM-dd HH:mm:ss` KST)이 틀리면 INVALID_VALUE, 저장값 손상은 MDM026. ② *값 표 병렬 의미*: 병렬 갈래는 분기 직전 값의 **사본**에서 돌고, 합류에서 **각 갈래가 실제로 쓴 이름만** 갈래 실행 순서대로 덮어쓴다(뒤 갈래가 이긴다, 엔진 `FlowRun` 과 같다 — Ruling 10). 첫 갈래 값이 두 번째 갈래 단계에 보이지 않는다. IF 는 사본을 만들지 않는다. 값이 없는 칸은 NULL 값과 구별해 `—` 로 보인다. ③ *표시 유지·지움*: 실행에 영향을 주는 칸(노드 id·kind·ruleId·splitId, 선 id·from·to·order·cond·otherwise)이 바뀔 때만 흐름 구조가 바뀐 것으로 본다. 2단계는 이때 실행 표시를 지웠지만 **3단계는 기록을 지우지 않고 「지난 흐름 기준」(낡은 기록)으로 둔다**(§7, N-19). 노드를 끌어 옮기거나 메모를 고치거나 **`label` 만 바꾼 것은 구조 변경이 아니다**(Ruling 12). 다른 세트를 열면 지운다. ④ *권한*: `execute` 는 EDIT 라 표준 관리자는 실행할 수 없다(P-D3). 3단계는 `execute` 에 `runCases`·`caseIds`·`setId` 칸을 더해 저장된 케이스를 일괄 실행한다(N-20) | 스펙 §8, P5·P9, D-116·D-117 |
