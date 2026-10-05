@@ -12,6 +12,15 @@
 #    있으면 건드리지 않는다. 외부 설계 문서 링크(dmes-standard docs/mdm/design)가 새 워크트리에 없어 팀원이 절대경로를
 #    추측해 읽은 일(2026-09-24 TSK-02-02)에서 나왔다. Windows(Git Bash) 의 ln -s 는 복사본을 만든다.
 #    `node_modules` 자체가 심링크인 것은 걸지 않는다 — 링크째 걸리면 워커의 설치가 사람 체크아웃에 쓴다.
+#    대상이 메인 체크아웃 안(폴더·파일·끊어진 링크 모두)을 가리키는 그 밖의 심링크도 걸지 않는다(DEPS_LINK_SKIP). 리포 밖(예 설계 문서)을 가리키는 것만 건다.
+# 1-0) 메인 쓰기 방지(2026-10-05 tooltip-screens 사고): 설치 전에 이 워크트리 안의 `node_modules` 심링크를 깊이 제한 없이 찾아
+#    그 대상이 워크트리(git rev-parse --show-toplevel, 물리 경로) 밖이거나 끊어졌으면 링크만 지운다
+#    (DEPS_UNLINKED <경로> -> <대상>; 대상 폴더는 건드리지 않는다). pnpm 워크스페이스의 install 은 각 패키지의 node_modules 에
+#    쓰므로, 패키지 node_modules 가 메인 체크아웃을 가리키는 심링크면 메인의 `node_modules/@dk-oasis/*` 링크가 워크트리 경로로
+#    다시 써져 메인 포털이 깨진다. 링크를 지운 폴더 쪽 설치 폴더는 루트 node_modules 가 이미 있어도 건너뛰지 않고 다시 설치한다
+#    (지운 자리를 설치가 워크트리 안에 독립된 node_modules 로 새로 만든다). 다시 부르는 경우(DEPS_BUSY 75)를 위해 지운 경로를
+#    git 디렉터리의 dflow-deps-relink 에 남겼다가, 그 경로를 맡은 설치 폴더(위로 올라가며 처음 만나는 lockfile 폴더)의 설치가 성공하면 지운다. 설치할 폴더 자신이 워크트리 밖으로 가는 심링크이면
+#    설치하지 않고 `DEPS_FAILED outside-worktree <폴더>` 로 끝낸다. 이 스크립트는 워크트리 밖 파일을 쓰지 않는다.
 # 2) JS 의존성 설치. 루트뿐 아니라 하위 폴더의 lockfile 도 찾아 각각 설치한다(예 src/frontend/pnpm-lock.yaml)
 #    — node_modules·.git·.claude(워크트리 포함) 는 제외하고 깊이는 DEPS_MAXDEPTH(기본 4)로 제한한다. 폴더마다
 #    한 줄씩 보고하며, 루트 줄의 형식은 기존 계약과 글자 그대로 같다(접미사 없음) — 하위 폴더 줄만 끝에 그 폴더
@@ -70,10 +79,10 @@
 #      줄이는 최적화이고, 실패 원인은 게이트가 다시 보여 준다. 표식을 남기지 않으므로 다음 호출이 다시 시도한다.
 #    - 슬롯을 못 얻으면(HEAVY_BUSY) `DEPS_BUSY prepare` 와 exit 75 — 설치와 같이 다시 부르면 준비만 이어서 돈다.
 #
-# 출력 첫 단어: DEPS_GRADLE_JAR · DEPS_GRADLE_JAR_MISSING · DEPS_LINK · DEPS_SKIP · DEPS_CLONED · DEPS_CLONE_FAILED ·
+# 출력 첫 단어: DEPS_GRADLE_JAR · DEPS_GRADLE_JAR_MISSING · DEPS_LINK · DEPS_LINK_SKIP · DEPS_UNLINKED · DEPS_SKIP · DEPS_CLONED · DEPS_CLONE_FAILED ·
 #   DEPS_CACHED · DEPS_SYNCED · DEPS_SYNC_FAILED · DEPS_INSTALLED · DEPS_FAILED(exit 는 설치 명령의 exit) ·
 #   DEPS_BUSY(exit 75, 다시 부른다) · DEPS_PREPARE · DEPS_PREPARED · DEPS_PREPARE_SKIP · DEPS_PREPARE_PENDING(exit 75, 다시
-#   부르면 준비만 돈다) · DEPS_PREPARE_FAIL(경고, exit 0)
+#   부르면 준비만 돈다) · DEPS_PREPARE_FAIL(경고, exit 0) · DEPS_WARN(경고, exit 0)
 set -u
 
 MAXDEPTH="${DEPS_MAXDEPTH:-4}"
@@ -107,6 +116,78 @@ heavy_install() {
   return "$rc"
 }
 
+# ---- 1-0) 워크트리 밖을 가리키는 node_modules 심링크 제거 ----
+# TOP_PHYS: 이 워크트리의 물리 경로. under_top <물리 경로>: 그 안(자신 포함)이면 0.
+TOP_PHYS="$(cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" && pwd -P)"
+under_top() { case "$1/" in "$TOP_PHYS"/*) return 0 ;; esac; return 1; }
+# 심링크의 최종 대상(물리 경로, 폴더일 때만). 끊어졌거나 폴더가 아니면 빈 문자열.
+link_target_dir() {
+  local l; l="$(readlink "$1" 2>/dev/null)"   # cd 하기 전에 읽는다(상대경로 $1 이 cd 뒤에는 달라진다)
+  [ -n "$l" ] || return 0                      # cd "" 는 성공하므로 빈 값은 여기서 막는다
+  ( cd "$(dirname "$1")" 2>/dev/null && cd "$l" 2>/dev/null && pwd -P )
+}
+# 심링크의 최종 대상(물리 경로, 폴더·파일·끊어진 링크 모두). 대상의 부모 폴더가 없으면 빈 문자열.
+link_target_any() {
+  local l abs d
+  l="$(readlink "$1" 2>/dev/null)"; [ -n "$l" ] || return 0
+  case "$l" in /*) abs="$l" ;; *) abs="$(dirname "$1")/$l" ;; esac
+  if [ -d "$abs" ]; then ( cd "$abs" 2>/dev/null && pwd -P ); return 0; fi
+  d="$(cd "$(dirname "$abs")" 2>/dev/null && pwd -P)" || { printf '%s' "$abs"; return 0; }   # 부모까지 없으면 글자 그대로 비교한다
+  [ -n "$d" ] && printf '%s/%s' "$d" "$(basename "$abs")"
+}
+# 지운 링크를 품은 설치 폴더는 이미 node_modules 가 있어도 다시 설치해야 한다(지운 자리를 설치가 새로 만든다).
+# 다시 부르는 경우(DEPS_BUSY 75)를 위해 표식을 작업 트리 밖 git 디렉터리에 남기고, 설치가 성공하면 지운다.
+RELINK=""; _gd="$(git rev-parse --absolute-git-dir 2>/dev/null)" && [ -n "$_gd" ] && RELINK="$_gd/dflow-deps-relink"
+# 표식 줄(<패키지>/node_modules)을 맡는 설치 폴더 = 그 패키지에서 위로 올라가며 처음 만나는 lockfile 폴더(없으면 루트 ".").
+relink_owner() {
+  local d; d="$(dirname "$1")"   # 패키지 폴더 자신부터 본다(lockfile 폴더 자신의 node_modules 링크도 그 폴더가 맡는다)
+  while [ "$d" != "." ] && [ "$d" != "/" ]; do
+    # install_dir 안(cd 한 뒤)에서도 부르므로 워크트리 루트 기준 절대경로로 본다
+    { [ -f "$TOP_PHYS/$d/pnpm-lock.yaml" ] || [ -f "$TOP_PHYS/$d/package-lock.json" ] || [ -f "$TOP_PHYS/$d/yarn.lock" ]; } && { printf '%s' "$d"; return 0; }
+    d="$(dirname "$d")"
+  done
+  printf '.'
+}
+UNLINKED_NOW=""   # 이번 호출에서 지운 경로(줄 구분). 표식 파일을 못 읽거나 써도 이번 호출의 재설치 판정은 이것으로 한다
+relink_wanted() {  # relink_wanted <설치 폴더(루트는 .)> → 그 폴더가 맡은 지운 링크가 남아 있으면 0
+  local u
+  while IFS= read -r u; do
+    [ -n "$u" ] && [ "$(relink_owner "$u")" = "$1" ] && return 0
+  done <<EOF
+$UNLINKED_NOW
+$([ -n "$RELINK" ] && [ -s "$RELINK" ] && cat "$RELINK" 2>/dev/null)
+EOF
+  return 1
+}
+relink_done() {  # relink_done <설치 폴더> → 그 폴더가 맡은 줄을 표식에서 뺀다(실제로 설치한 뒤에만 부른다)
+  [ -n "$RELINK" ] && [ -s "$RELINK" ] || return 0
+  local u keep=""
+  while IFS= read -r u; do
+    [ -n "$u" ] || continue
+    [ "$(relink_owner "$u")" = "$1" ] && continue
+    keep="$keep$u
+"
+  done < "$RELINK"
+  if [ -n "$keep" ]; then printf '%s' "$keep" > "$RELINK" 2>/dev/null || :; else rm -f "$RELINK" 2>/dev/null || :; fi
+  return 0
+}
+# 깊이를 제한하지 않는다: 실제 node_modules 폴더는 파고들지 않아 싸고, 제한하면 더 깊은 패키지의 링크를 놓친다.
+unlinked="$(find . \( -name .git -o -path ./.claude \) -prune -o \( -name node_modules -type d \) -prune -o \( -name node_modules -type l \) -print 2>/dev/null |
+while IFS= read -r nm; do
+  raw="$(readlink "$nm" 2>/dev/null)"
+  tgt="$(link_target_dir "$nm")"
+  if [ -z "$tgt" ] || ! under_top "$tgt"; then
+    rm -f "$nm" && { echo "DEPS_UNLINKED ${nm#./} -> ${tgt:-$raw}"; echo "RELINK ${nm#./}"; }
+  fi
+done)"
+if [ -n "$unlinked" ]; then
+  printf '%s\n' "$unlinked" | grep -v '^RELINK '
+  UNLINKED_NOW="$(printf '%s\n' "$unlinked" | sed -n 's/^RELINK //p')"
+  if [ -n "$RELINK" ]; then
+    printf '%s\n' "$UNLINKED_NOW" >> "$RELINK" 2>/dev/null || echo "DEPS_WARN 재설치 표식을 쓰지 못했다($RELINK) — 이번 호출 안에서만 재설치한다"
+  fi
+fi
+
 # ---- 1) gradle-wrapper.jar ----
 MAIN="${MAIN_CHECKOUT:-}"
 if [ -z "$MAIN" ]; then
@@ -136,6 +217,9 @@ if [ -n "$MAIN" ] && [ "$(cd "$MAIN" && pwd -P)" != "$(pwd -P)" ]; then
     [ "$(printf '%s' "$p" | tr -cd / | wc -c)" -lt "$MAXDEPTH" ] || continue
     [ -L "$MAIN/$p" ] || continue
     { [ -e "$p" ] || [ -L "$p" ]; } && continue
+    # 대상이 메인 체크아웃 안이면 건너뛴다 — 링크 너머로 쓰면 메인이 바뀐다. 리포 밖(설계 문서 등)을 가리키는 것만 건다.
+    tgt="$(link_target_any "$MAIN/$p")"
+    case "${tgt:+$tgt/}" in "$(cd "$MAIN" && pwd -P)"/*) echo "DEPS_LINK_SKIP $p (메인 체크아웃 안을 가리킨다)"; continue ;; esac
     mkdir -p "$(dirname "$p")" && ln -s "$MAIN/$p" "$p" && echo "DEPS_LINK $p"
   done
 fi
@@ -175,18 +259,25 @@ install_dir() (
   cd "$dir" || { echo "DEPS_FAILED cd $dir exit 1"; exit 1; }
   suffix=""
   [ "$dir" = "." ] || suffix=" $dir"
+  # 설치할 폴더가 심링크로 워크트리 밖(예 메인 체크아웃)을 가리키면 설치하지 않는다 — install 이 그 밖에 쓴다(1-0)
+  under_top "$(pwd -P)" || { echo "DEPS_FAILED outside-worktree $dir exit 1"; exit 1; }
 
   [ -f package.json ] || { echo "DEPS_SKIP package.json 없음$suffix"; exit 0; }
-  [ -e node_modules ] && { echo "DEPS_SKIP node_modules 있음$suffix"; exit 0; }
+  forced=0   # 지운 링크 때문에 node_modules 가 있어도 다시 설치하는 경우 — 캐시·메인 복제는 쓰지 않는다(기존 폴더 안으로 들어간다)
+  if [ -e node_modules ]; then
+    relink_wanted "$dir" || { echo "DEPS_SKIP node_modules 있음$suffix"; exit 0; }
+    forced=1
+  fi
 
   if [ -f package-lock.json ]; then
     key=$( { cksum < package-lock.json; node -v 2>/dev/null || echo nonode; uname -sm; printf '%s' "$dir"; } | cksum | cut -d' ' -f1)
     C="$(git rev-parse --path-format=absolute --git-common-dir)/dflow-deps"
     E="$C/$key"
-    if [ -f "$E/ok" ]; then
+    if [ "$forced" = 0 ] && [ -f "$E/ok" ]; then
       t="node_modules.dflow-tmp.$$"; rm -rf "$t"
       if clone_dir "$E/node_modules" "$t" && mv "$t" node_modules; then
         touch "$E"   # 최근 사용 표시(정리 순서)
+        relink_done "$dir"
         echo "DEPS_CLONED $key$suffix"; exit 0
       fi
       rm -rf "$t" node_modules
@@ -195,6 +286,7 @@ install_dir() (
     heavy_install npm ci; rc=$?
     [ "$HBUSY" = 1 ] && { echo "DEPS_BUSY $dir"; exit "$BUSY_RC"; }
     [ "$rc" -eq 0 ] || { echo "DEPS_FAILED npm ci exit $rc$suffix"; exit "$rc"; }
+    relink_done "$dir"
     echo "DEPS_INSTALLED npm ci$suffix"
     # 캐시 채우기. mkdir 에 성공한 한 팀원만 쓰고, 다 쓴 뒤 ok 를 남긴다. 실패해도 설치 결과는 유효하다.
     mkdir -p "$C" 2>/dev/null
@@ -215,7 +307,7 @@ install_dir() (
   elif [ -f pnpm-lock.yaml ]; then
     # 2-b) 메인 체크아웃의 설치본을 복제한 뒤 이 워크트리의 lockfile 로 바로잡는다(머리 주석).
     src_root="$MAIN/$dir"
-    if [ "${DFLOW_DEPS_MAIN_CLONE:-0}" = 1 ] && [ -n "$MAIN" ] && [ -d "$src_root/node_modules" ] && [ ! -L "$src_root/node_modules" ]; then
+    if [ "$forced" = 0 ] && [ "${DFLOW_DEPS_MAIN_CLONE:-0}" = 1 ] && [ -n "$MAIN" ] && [ -d "$src_root/node_modules" ] && [ ! -L "$src_root/node_modules" ]; then
       cloned=""; ok=1
       t="node_modules.dflow-tmp.$$"; rm -rf "$t"
       if clone_dir "$src_root/node_modules" "$t" && mv "$t" node_modules; then
@@ -247,7 +339,7 @@ EOF
         if [ "$HBUSY" = 1 ]; then
           :   # 아래에서 복제본을 지우고 DEPS_BUSY 로 끝낸다(다시 부르면 처음부터 — 멱등)
         elif [ "$rc" -eq 0 ]; then
-          echo "DEPS_SYNCED pnpm 메인 복제 + frozen install$suffix"; exit 0
+          relink_done "$dir"; echo "DEPS_SYNCED pnpm 메인 복제 + frozen install$suffix"; exit 0
         else
           echo "DEPS_SYNC_FAILED pnpm install exit $rc, 복제본을 지우고 새로 설치한다$suffix"
         fi
@@ -263,11 +355,14 @@ EOF
     heavy_install pnpm install $PNPM_FLAGS; rc=$?
     [ "$HBUSY" = 1 ] && { echo "DEPS_BUSY $dir"; exit "$BUSY_RC"; }
     [ "$rc" -eq 0 ] || { echo "DEPS_FAILED pnpm install --frozen-lockfile exit $rc$suffix"; exit "$rc"; }
+    relink_done "$dir"
     echo "DEPS_INSTALLED pnpm$suffix"
   elif [ -f yarn.lock ]; then
-    heavy_install yarn install --frozen-lockfile; rc=$?
+    ycheck=""; [ "$forced" = 1 ] && ycheck="--check-files"   # 무결성 기록이 맞으면 지운 패키지 폴더를 다시 만들지 않고 끝날 수 있다
+    heavy_install yarn install --frozen-lockfile $ycheck; rc=$?
     [ "$HBUSY" = 1 ] && { echo "DEPS_BUSY $dir"; exit "$BUSY_RC"; }
     [ "$rc" -eq 0 ] || { echo "DEPS_FAILED yarn install --frozen-lockfile exit $rc$suffix"; exit "$rc"; }
+    relink_done "$dir"
     echo "DEPS_INSTALLED yarn$suffix"
   else
     echo "DEPS_SKIP lockfile 없음$suffix"

@@ -25,16 +25,20 @@
 
 기본은 `scripts/spawn-lane.sh`(`--dry-run` 가능)다. 직접 명령으로 풀어 쓸 때의 흐름은 아래 표다. 사용자가 띄운 세션은 생성하지 않고 신원 보고로 연결한다(4).
 
-`scripts/spawn-lane.sh --name <n> --kind <claude|glm|opencode> [--worktree <sel>] [--model m] [--effort e] [--autocompact t] [--prompt-file f]`
+`scripts/spawn-lane.sh --name <n> --kind <claude|glm|opencode> [--worktree <경로|선택자>] [--model m] [--effort e] [--autocompact t] [--prompt-file f]`
+
+- **탭은 조정자의 워크트리에 만든다**(Orca 가 아는 폴더여야 사용자 화면에 보인다). `--worktree <절대경로|path:경로>` 는 세션이 일할 폴더이고, 스크립트가 빈 탭을 만든 뒤 `cd <그 폴더> && <실행 명령>` 을 send 한다. 그 폴더를 Orca 가 모르면(`git worktree add` 로 만든 레인 워크트리) 탭은 조정자 워크트리에, 알면 그 워크트리에 만든다. `name:`·`branch:`·`id:` 같은 Orca 선택자를 주면 그 워크트리에 탭을 만들고 그 폴더에서 시작한다. 안 주면 조정자의 현재 워크트리 폴더에서 시작한다(탭은 Orca 가 아는 워크트리에 만든다). 상대경로·`~` 는 받지 않는다.
+- `orca worktree create` 는 메인 체크아웃 안에 폴더를 만들어 dev 에 untracked 로 잡히므로 레인 워크트리 용도로 쓰지 않는다. `git worktree add` 로 만든 폴더를 `--worktree <그 폴더>` 로 넘긴다.
+- `current`·`active` 선택자는 현재 폴더가 Orca 가 모르는 git worktree 이면 `selector_not_found` 가 된다. 스크립트는 현재 폴더, 없으면 메인 체크아웃의 `path:` 선택자를 쓴다.
 
 출력: `SPAWNED <n> handle=<h> pid=<pid|-> session_id=<id|->` 또는 `SPAWN_FAIL <n> <wait|process|screen|preflight|glm-cap> <사유>`.
 
 | 경우 | 명령 흐름 |
 |---|---|
-| 새 레인(Claude Code, 오래 감) | `orca terminal create --worktree <sel> --title <레인> --command "<launch.claude> -n <레인> --model <m> --effort <e> [--autocompact <tokens>] \"<첫 지시>\"" --json` → `orca terminal wait --terminal <h> --for tui-idle --timeout-ms 60000 --json`(**`satisfied: true` 확인**) → 첫 지시가 명령줄에 없으면 `orca terminal send --terminal <h> --text "<지시>" --enter --wait-submit 10 --json` |
+| 새 레인(Claude Code, 오래 감) | `orca terminal create --worktree <탭 워크트리> --title <레인> --json`(**`--command` 를 쓰지 않는다**: `Timed out waiting for terminal handle after creation` 으로 실패하고 터미널이 남지 않은 적이 있다) → 셸 프롬프트가 보인 뒤 `orca terminal send --terminal <h> --text "cd <레인 폴더> && <launch.claude> -n <레인> --model <m> --effort <e> [--autocompact <tokens>]" --enter --json` → `orca terminal wait --terminal <h> --for tui-idle --timeout-ms 60000 --json`(**`satisfied: true` 확인**) → 첫 지시는 `term-send-safe.sh` 로 |
 | 새 레인, 새 워크트리까지 | `orca worktree create --name <n> --agent claude --prompt "<지시>" --json` 은 모델·effort 를 못 준다. 모델이 필요하면 `worktree create`(agent 없이) 뒤 위 `terminal create` |
 | 감독형 단일 과제 워커(Claude) | `orca orchestration worker-start --spec "<과제>" --agent claude --model <m> --effort <e> --worktree current --json` → 완료(`worker_done`) → `worker-release` → `check --ack` |
-| opencode 워커 | `orca terminal create --worktree current --title <n> --command "<launch.opencode>" --json` → `terminal wait --for tui-idle` 뒤 `terminal read --screen` 으로 빈 입력창 확인 → `worker-start --terminal <h> --worktree current --spec "<지시>"`. 지시문에 `!`·`/`·`@` 금지. `--agent opencode` 는 쓰지 않는다 |
+| opencode 워커 | `orca terminal create --worktree <탭 워크트리> --title <n> --json` → 셸 프롬프트가 보인 뒤 `orca terminal send --terminal <h> --text "cd <폴더> && <launch.opencode>" --enter --json`(`--command` 는 시간 초과로 실패한 적이 있어 쓰지 않는다) → `terminal wait --for tui-idle` 뒤 `terminal read --screen` 으로 빈 입력창 확인 → `worker-start --terminal <h> --worktree current --spec "<지시>"`. 지시문에 `!`·`/`·`@` 금지. `--agent opencode` 는 쓰지 않는다 |
 | GLM 세션 | `glm-preflight.sh` 가 `ok` 일 때만(3). `fail` 이면 같은 흐름으로 Sonnet 세션 |
 
 - **띄운 직후에는 `tui-idle` 의 `satisfied: true` 를 확인한 뒤에만 입력을 보낸다.** 아직 시작 중인 TUI 에 친 글은 사라진다.

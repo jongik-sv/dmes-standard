@@ -1,5 +1,11 @@
 """MDM 자체 테이블(TB_MDM_*) 컬럼 → 앱 DB(mdm.db) 용어·도메인·컬럼 사전과 MDM 시스템별 필드 등록.
 
+!! 경고 (2026-10-05): mcm 이 MDM 별칭(시스템 코드 MES,MDM)도 찾아 캐시한다. 이 스크립트는 SQL 로 별칭·컬럼을 직접 넣고
+!! TB_MDM_META_REV(메타 변경 기록)를 남기지 않으므로, 이 스크립트로 별칭을 바꾸면 mcm 캐시가 낡은 채 남는다.
+!! 별칭을 새로 넣거나 바꿀 때는 columnMng save 경로(scripts/mdm-meta/register-columns.mjs)를 쓴다 — 저장 서비스가 같은 트랜잭션에서
+!! META_REV 를 남긴다. 이 스크립트를 이미 돌렸다면 실행 뒤 mcm 의 mdmCacheMng 화면에서 다시 읽기를 한다.
+!! (META_REV 행을 이 스크립트가 직접 넣지 않는 이유: 키가 COLUMN 별칭뿐 아니라 LAYOUT·DOMAIN 으로도 펼쳐져 SQL 로 맞추기 어렵다.)
+
 입력: 같은 폴더의 decisions.json (물리명마다 기존 표준 컬럼에 붙일지(map), 새로 만들지(new) 판정한 결과)
 
 원칙
@@ -190,6 +196,9 @@ def main():
     db.rollback() if a.dry_run else db.commit()
     print(('[dry-run] ' if a.dry_run else '') + '추가/기존:', json.dumps(stat, ensure_ascii=False))
     print(f'MDM 물리 컬럼 {len(phys)}개 모두 등록됨')
+    if not a.dry_run and any(v[0] for v in stat.values()):
+        print('주의: META_REV 를 남기지 않았다 — mcm 의 mdmCacheMng 에서 다시 읽기를 하거나 columnMng save(scripts/mdm-meta/register-columns.mjs)를 쓴다.',
+              file=sys.stderr)
 
 
 if __name__ == '__main__':
