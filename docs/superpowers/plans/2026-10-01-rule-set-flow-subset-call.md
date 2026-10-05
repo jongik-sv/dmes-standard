@@ -2,42 +2,43 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 룰 세트 흐름에 다른 룰 세트를 블랙박스처럼 부르는 `SET` 노드를 더하고(엔진 실행·정적 검사·연쇄 재검사·디버거 "안으로 들어가기"), 룰 세트 편집 화면 안에 세트 탭을 여러 개(최대 8) 띄운다.
+> **갱신 2026-10-06(조정 회차 rule-set-subset-call-2026-10-06, 항목 plan:0):** 이 계획은 2026-10-01 에 커밋 `2e02d29d`(CATCH 구현 전) 기준으로 썼다. 그 뒤 CATCH(D-134)·D-136(IF·예외 합류 노드 없애기)·D-144(세트 버전 관리)가 dev 에 들어갔다. plan:0 은 **공통부**(머리말·선행 조건·편차·레인 표·Global Constraints·Review Focus·Rulings)와 Task 0(이름 대조표)·Task 3(DB)·Task c(cactus)·Task 10(문서)을 지금 dev 에 맞췄다. **Task 1·2·4·5·6·7·8·9 의 본문은 옛 코드 기준 그대로다.** 각 Task 머리의 「갱신 메모」 와 Task 0 대조표를 먼저 읽고, 레인이 착수 첫 단계에서 자기 Task 를 현재 코드에 맞춰 읽는다. 레인은 이 계획 파일을 고치지 않는다(세 레인이 한 파일을 고치면 머지 충돌이 난다). 본문과 다르게 한 것은 자기 기록 문서 `docs/rule-set-subset/progress-<레인>.md` 의 「계획 조정」 에 적는다.
 
-**Architecture:** 엔진 계약(Task 1)과 흐름 구조(Task 2)를 먼저 넓힌 뒤, 엔진 실행(Task 4)과 서버·화면 분석기(Task 5)를 병렬로, 그 둘과 DB(Task 3)가 모이면 서비스·연쇄 재검사(Task 6)를 한다. 화면은 세트 탭 분리(Task 7)를 백엔드와 병렬로 먼저 하고, SET 노드 화면(Task 8)과 디버거 들어가기(Task 9)를 그 위에 얹는다. 엔진은 지금처럼 DB 를 부르지 않고 하위 세트도 `DefinitionLookup.ruleSet` 으로 받는다(ADR-0005 D1·D3). 겉모양(`SetCallIo`)은 서버가 계산해 화면에 주고, 엔진은 실행에 필요한 같은 값을 같은 알고리즘으로 스스로 계산한다(편차 8).
+**Goal:** 룰 세트 흐름에 다른 룰 세트를 블랙박스처럼 부르는 `SET` 노드를 더하고(엔진 실행·정적 검사·확정 검사의 연쇄 재검사·디버거 "안으로 들어가기"), 룰 세트 편집 화면 안에 세트 탭을 여러 개(최대 8) 띄운다. cactus 모듈 저장 검증의 미리 받기가 하위 세트를 재귀로 받는다.
+
+**Architecture:** 엔진 계약(Task 1)과 흐름 구조(Task 2)를 먼저 넓힌 뒤, 엔진 실행(Task 4)·cactus 미리 받기(Task c)와 서버·화면 분석기(Task 5)를 나란히, DB(Task 3)와 그 둘이 모이면 서비스·확정 검사·연쇄 재검사(Task 6)를 한다. 화면은 세트 탭 분리(Task 7)를 백엔드와 나란히 먼저 하고, SET 노드 화면(Task 8)과 디버거 들어가기(Task 9)를 그 위에 얹는다. 엔진은 지금처럼 DB 를 부르지 않고 하위 세트도 `DefinitionLookup.ruleSet` 으로 받는다(ADR-0005 D1·D3). 겉모양(`SetCallIo`)은 서버가 계산해 화면에 주고, 엔진은 실행에 필요한 같은 값을 같은 알고리즘으로 스스로 계산한다(편차 8). 실행은 판정 시각의 RELEASED 버전만 쓰므로 하위 세트 변경이 부모를 깨는지는 **확정 검사**에서 막고 DRAFT 저장은 경고만 한다(U2).
 
 **Tech Stack:** Java 21, Spring Boot + OASIS(BPMN), SQLite(Flyway), JUnit 5, TypeScript + React 19, `@dk-oasis/shared`(Mantine 9.6 래퍼), `@xyflow/react` 12, Vitest(happy-dom), json-schema-to-typescript(`gen:contract`), Playwright(e2e 목록 확인만).
 
-**Spec:** `docs/superpowers/specs/2026-10-01-rule-set-flow-subset-call-design.md`(정본, 결정 C-D1~C-D16 은 사용자 승인 — 바꾸지 않는다). 앞 스펙 `2026-10-01-rule-set-flow-catch-design.md`(받는 노드 CATCH), `2026-09-29-rule-set-flow-design.md`(흐름 모델 §3·실행 의미 §4·검사 §5). 이 계획의 편차·Ruling 은 스펙이 코드와 어긋나거나 정하지 않은 세부만 정한다.
+**Spec:** `docs/superpowers/specs/2026-10-01-rule-set-flow-subset-call-design.md`(정본, 2026-10-06 갱신판. 결정 C-D1~C-D19 — C-D10·C-D11 은 U2 판). 앞 스펙 `2026-10-02-rule-set-flow-implicit-join-design.md`(D-136, 특히 §13), `2026-10-01-rule-set-flow-catch-design.md`(받는 노드 CATCH), `2026-09-29-rule-set-flow-design.md`(흐름 모델 §3·실행 의미 §4·검사 §5). 이 계획의 편차·Ruling 은 스펙이 코드와 어긋나거나 정하지 않은 세부만 정한다.
 
-**작업 위치:** 워크트리 `.claude/worktrees/rule-set-subset`, 브랜치 `feat/rule-set-subset-call`(**CATCH 계획이 dev 에 병합된 뒤의 dev** 에서 분기, 이 계획 커밋 포함). 태스크마다 하위 워크트리 `.claude/worktrees/rssc-tN`(브랜치 `rssc-tN`, 그때의 feat 끝에서 분기)에서 구현하고, 리뷰 통과 뒤 feat 에 `--no-ff` 로 병합한다. 아래 명령은 모두 해당 워크트리 루트 기준이다.
+**작업 위치:** 레인 3개가 각자 워크트리에서 한다(사용자 결정 U1). 기준은 dev 최신 커밋이다. 아래 명령은 모두 해당 워크트리 루트 기준이다. 레인 공통 규칙은 `docs/rule-set-subset/README.md` 가 정본이다.
 
-**줄 번호 기준:** 이 계획의 줄 번호는 모두 커밋 `2e02d29d`(CATCH 구현 전 dev) 기준이다. CATCH 계획이 고치는 파일(`FlowRun.java`·`FlowKeys.java`·`FlowParser.java`·`FlowTree.java`·`MdmRuleEngine.java`·`RunTrace.java`·`RuleSetResult.java`·`DefinitionLookup.java`·`ReservedNames.java`·`RuleSetAnalyzer.java`·`RuleSetPathState.java`·`RuleIo.java`·`RuleIoReader.java`·`RunTraceJson.java`·`RuleSetFlowJson.java`·`RuleSetRunner.java`·`engine-contract.schema.json`·`flow-model.ts`·`set-model.ts`·`types.ts`·`trace-view.ts`·캔버스·디버거)은 줄 번호 대신 **메서드·레코드 이름을 기준점**으로 적는다. 구현자는 기준점을 grep 으로 찾는다.
+| 레인 | 브랜치 | 워크트리 | 항목(= 이 계획의 Task) |
+|---|---|---|---|
+| eng | `feat/rule-set-subset-engine` | `/Users/jji/project/dmes-standard-wt/rssc-eng` | eng:1(Task 1) → eng:2(Task 2 의 Java) → eng:4(Task 4), eng:c(Task c) |
+| srv | `feat/rule-set-subset-server` | `/Users/jji/project/dmes-standard-wt/rssc-srv` | srv:3(Task 3), srv:5(Task 5 의 서버·코퍼스 JSON·Task 2 의 구조 코퍼스 사례), srv:6(Task 6) |
+| ui | `feat/rule-set-subset-ui` | `/Users/jji/project/dmes-standard-wt/rssc-ui` | ui:7(Task 7), ui:5t(Task 2·5 의 TS 짝), ui:8(Task 8), ui:9(Task 9) |
+
+plan:0(이 갱신)과 Task 10(문서·결정 D-135)은 조정 세션이 한다.
+
+**기준점:** 본문의 줄 번호는 모두 `2e02d29d` 기준이라 지금 코드와 맞지 않는다. **줄 번호를 쓰지 말고 메서드·레코드·상수 이름을 기준점으로 grep 해서 찾는다.** 이름이 바뀐 것은 Task 0 대조표를 따른다.
 
 ---
 
-## 선행 조건: CATCH 계획 병합
+## 선행 조건: dev 반영 상태(2026-10-06 확인)
 
-이 계획은 `docs/superpowers/plans/2026-10-01-rule-set-flow-catch.md`(받는 노드 CATCH, 이 계획을 쓰는 동안 작성된 미커밋본)가 **dev 에 병합된 뒤** 시작한다. 그 전에는 Task 0 도 열지 않는다. 아래 이름은 그 CATCH 계획의 Produces·코드 블록과 대조해 이 계획의 코드에 직접 썼다. Task 0 이 병합된 코드에서 같은 이름인지 확인해 진행 장부에 적고, 다르면 **실제 이름을 쓴다**(이 계획의 코드 블록에서 해당 이름만 바꾼다).
+다음이 모두 dev 에 있다. 이 계획은 그 위에서 시작한다.
 
-| 구분 | 이름(CATCH 계획) | 이 계획에서 쓰는 곳 |
+| 선행 | dev 상태 | 이 계획에 주는 영향 |
 |---|---|---|
-| 엔진 spi | `DefinitionLookup.NodeKind.CATCH`, `FlowNode(id, kind, ruleId, splitId, label, attachTo, catches)` — `catches` 는 `List<String>` | Task 1(새 칸 `setId` 를 끝 8번째에 둔다), Task 2(`attachTo` 가 SET 을 가리킴) |
-| 엔진 enum | `kr.dongkuk.maru.mdm.engine.flow.CatchKind { NO_RESULT, INPUT_ERROR, EVAL_ERROR, HIT_CONFLICT }` — 상수마다 코드 이름 목록, `parse`·`ofCode`·`NO_RESULT_CODE`·`NO_RESULT_MESSAGE` | Task 1(`SUBSET_ENDED(List.of())` 추가), Task 4(`ofCode` 는 `SET_CALL_*` 를 받지 않는다) |
-| 엔진 블록 | `flow.Guarded(RuleStep rule, Seq normal, List<Handler> handlers, String mergeId)`·`nodeId()`·`handlerFor(CatchKind)`, `Guarded.Handler(catchNodeId, kinds, body, ends)`, `FlowParser.catchable(NodeKind)`·`FlowParser.CATCH` | Task 2(`rule` 타입을 `CallStep` 으로 넓힘, `catchable` 에 SET), Task 4·5 |
-| 엔진 실행 | `FlowRun.guarded`·`catchNode`·`caughtRule`·`noResult`·`caughtOf`·`catchValues`·`restoreCatch`·`CATCH_ORDER`, 내부 `final class Caught`·`Ended(catchNodeId)`, 필드 `caught`·`endedBy` | Task 4(`enterHandler`·`closeGuard` 로 나눠 SET 이 함께 씀, `CATCH_ORDER` 에 `CATCH_SET`) |
-| 엔진 입력 키 | `FlowKeys` 의 `ruleKeys(RuleStep, late, …)`·`produced`·`guardSure`·`guardAll` | Task 4(`callKeys`·`setKeys`·`producible`) |
-| 엔진 결과 | `RuleSetResult(…, caught, endedBy)`, `RuleSetResult.CaughtException(ruleNodeId, ruleId, catchNodeId, kind, code, message)` | Task 1(`calls`·`CaughtException.setPath`), Task 4(하위 `caught` 이어 붙이기) |
-| 엔진 기록 | `RunTrace.NodeStatus.CAUGHT`, `RunTrace(…, edits, endedBy)`, `NodeTrace(…, violations, catchKind, code, message)` | Task 1(`NodeTrace` 새 칸 `outputs`·`sub` 를 이 셋 **뒤**에 둔다), Task 4·9 |
-| 계약 시험 | `EngineContractSchemaTest` 의 `E12 CatchKind`·`R20 CaughtException`, `EngineContractConstantsTest.받는_노드_예약_이름은_CATCH_네_개다`, `CatchKindTableTest` | Task 1(`R21 SetCall`, 상수 시험을 다섯 이름으로) |
-| 예약 이름 | `ReservedNames` 의 `CATCH_KIND`·`CATCH_RULE`·`CATCH_CODE`·`CATCH_MSG`·`CATCH_NAMES`(넷) | Task 1(`CATCH_SET` 추가, `CATCH_NAMES` 다섯), Task 4(하위 입력에서 다섯 이름을 뺀다) |
-| 검사 코드 | `RuleSetCheck.FLOW_CATCH`(REJECT)·`RuleSetCheck.CATCH_NEVER`(WARN) | Task 5(SET 노드 규칙 추가) |
-| 룰 입출력 | `RuleIo.hasDefault`(끝 칸, `hasDefault=false` 인 9칸 위임 생성자) | Task 5·6(`RuleIo` 생성자 인자 순서) |
-| 화면 | `flow-model.ts` 의 `Guarded`(`type: "GUARDED"`)·`Handler`·`CATCH_KINDS`·`CATCHABLE`·`catchesOf`, `flow-edit.ts` 의 `addCatch` | Task 2(`CATCHABLE`·`CATCH_KINDS` 확장)·5·8(`CATCH_KINDS_FOR`) |
-| 시험 도우미 | `FlowFixtures.catchNode(id, attachTo, String... kinds)`·`guardMerge(id, ruleNodeId)` | Task 2·4(라벨이 필요하면 `SubsetFlows.labeledCatch`) |
-| 코퍼스 | `rule-set-corpus.json` 의 받는 노드 사례, `MIN_CASES = 64`(CATCH Task 4) | Task 5(73 으로) |
-
-CATCH 가 정했을 세부 가운데 이 계획이 그대로 따르는 것: 받는 노드가 있는 RULE 의 실행 자리(엔진 `FlowRun` 의 Guarded 처리 메서드), 처리 갈래가 END 로 갈 때 `endedBy` 를 채우는 자리, `INPUT_ERROR` 를 받는 RULE 의 입력을 사전 검사에서 빼는 자리(`FlowKeys`), `CATCH_*` 를 MERGE·END 에서 `ctx` 에서 빼는 자리. 이 계획은 그 자리마다 "RULE 과 같은 방식으로 SET 도"라고만 넓힌다.
+| CATCH(D-134, 받는 노드) | 병합 | 받는 노드 블록 `Guarded`·`CatchKind`·`CATCH_*` 예약 이름·`FLOW_CATCH`·`CATCH_NEVER` 가 있다 |
+| D-136(IF·예외 합류 노드 없애기) | 병합 | 합류는 병렬에만. 블록은 `Step`(RULE·TASK)·`Guarded(step, normal, handlers, mergeId, joinId)`·`Split(…, joinId, …)`. TASK 에도 받는 노드. 끝내는 IF 갈래. 편집기는 열 때 옛 형식을 바꾼다. 스펙 §13 이 SET 에 주는 영향을 정했다 |
+| D-144 2단계(룰 세트 버전) | 병합 | 흐름·`RULE_IDS` 는 버전 행 `TB_MDM_RULE_SET_VER` 에 있다. 저장은 소유 DRAFT 에만(`RuleSetWrites.updateDraft`), 확정은 `RuleSetConfirmCheck`(`VersionConfirmCheckSpi`). 실행은 판정 시각의 RELEASED |
+| 엔진 준비 캐시(`d56dde59`) | 병합 | `MdmRuleEngine.plans`(세트 ID 키, `sameDefs`) — 하위 세트 정의도 동일성 비교에 넣어야 한다(Task 4) |
+| evalex shared 이동(`f057bdb8`) | 병합 | 생성 TS 정본은 `src/frontend/shared/src/evalex/engine-contract.generated.ts`, `m-mdm/src/contract/engine-contract.generated.ts` 는 재내보내기다. 생성기 `gen:contract` 는 shared 쪽에 쓴다. 고친 뒤 shared 를 다시 빌드한다 |
+| FlowParser 메서드 분할(`50c5d09e`) | 병합 | Task 2 의 고칠 자리는 나뉜 메서드 이름으로 찾는다 |
+| 캔버스 변경(D-140 자동 배치, D-142·D-143 받는 노드 위치, `aac858aa` 이동 한계) | 병합 | Task 8·9 의 그리기·배치 자리가 바뀌었다 |
 
 ---
 
@@ -45,156 +46,184 @@ CATCH 가 정했을 세부 가운데 이 계획이 그대로 따르는 것: 받�
 
 | # | 스펙 | 실제 코드·근거 | 이 계획 |
 |---|---|---|---|
-| 1 | §8 `ruleSetEdit.bpmn` 에 action `callIo`·`callers` 를 더한다 | 권한 action 은 `allActions` 에 없으면 SYSADMIN 도 403 이다(`docs/mdm/adr/0003-module-boundary-screens-roles.md:26`). `MdmOasisActionVocabularyTest` 가 BPMN action 을 16개 어휘(`ALLOWED_ACTIONS`)로 묶는다. 이 화면은 새 조회를 `search` 의 `target` 으로 가른다(`RuleSetEditSearchRequest.java:4` "새 action 은 mcm 시드 어휘 밖이라 search 안에서 target 으로 가른다", `RuleSetEditService.java:118-131` SET·RULE·GUIDE). 4단계 계획도 "새 action 동사를 만들지 않는다(ADR-0003 D5)" 로 같은 판단을 했다 | `search` 에 `target=CALL_IO`(`setIdsJson`: 세트 ID JSON 배열 문자열)와 `target=CALLERS`(`setId`)를 더한다. BPMN 은 고치지 않는다. 목록은 JSON 문자열로 받는다(OASIS params 는 List DTO 칸을 묶지 못한다 — 4단계 Global Constraints) |
-| 2 | §8 "`simulate` 응답(`RuleSetSimulateResult`)" | action 이름은 `execute` 이고 서비스 메서드가 `simulate()` 다(`RuleSetEditService.java:305-334`) | `execute` action·`simulate()` 메서드·`RuleSetSimulateResult` 에 `calledFlows` 를 더한다 |
-| 3 | §6.3 `RuleSetCallerCheck` 는 `@Order(2)` | `@Order(2)` 는 이미 `ContractChangeCheck` 다(`ContractChangeCheck.java:31`). 쓰는 번호는 1~6·8 이다. `RuleSaveValidator` 는 앞 단계 ERROR 가 없으면 모든 검사를 순서대로 다 돌린다(`RuleSaveValidator.java:73`) — 번호는 이슈 순서에만 영향을 준다 | `@Order(9)`(맨 뒤). 기존 검사의 이슈 순서가 바뀌지 않는다 |
-| 4 | §1.1 V16 은 "V14 와 같은 방식"(세트 표만 다시 만들기) | V15 가 `TB_MDM_RULE_SET_TEST_CASE` → `TB_MDM_RULE_SET` FK 를 만들었다(`V15__create_mdm_rule_set_test_case.sql` `FK_TB_MDM_RULE_SET_TEST_CASE_SET`, 머리 주석 "세트 테이블을 DROP/RENAME 으로 다시 만드는 마이그레이션은 이 테이블을 먼저 옮기거나 다시 만들어야 한다"). `foreign_keys` 는 드라이버 속성으로 켜져 있고(`application-local.yml:10`), 참조 행이 있으면 DROP 의 암묵 DELETE 가 FK 위반으로 실패한다(V9 머리 주석 205-207행) | V16 은 케이스 표를 FK 없는 임시 표로 옮기고 → 케이스 표 DROP → 세트 표 DROP → 새 세트 표 RENAME → 케이스 표를 V15 정의 그대로 다시 만들고 → 되돌려 넣고 → 임시 표 DROP 한다. **케이스 행이 든 DB 에 V16 을 적용하는 테스트**를 둔다(Task 3) |
-| 5 | §1 예시 `{ "type": "SET", ... }` | 저장 JSON 의 종류 키는 `kind` 다(`RuleSetFlowJson.java:169`, 코퍼스도 `kind`) | `{ "id": "s1", "kind": "SET", "setId": "QD_S_PRICE", "label": "단가 결정" }`. 정규 JSON 은 `setId` 를 **SET 노드에만** 쓴다 — 모든 칸을 null 까지 쓰는 지금 규칙(`RuleSetFlowJson.java:50-57`)대로 늘 쓰면 SET 없는 세트의 정규 문자열이 바뀌어 `RuleSetFlowJsonTest.java:146-155` 와 저장된 흐름의 dirty 기준이 흔들린다 |
-| 6 | §10.2 Mantine `Tabs` `keepMounted` 로 탭마다 `RuleSetEditor` 를 띄우고, §10.3 닫기 확인은 `modals.openConfirmModal` | 화면 모듈은 `@mantine/*` 를 import 하지 않는다(`.claude/skills/mantine-aggrid-ui/SKILL.md` §3). shared `Tabs`(`shared/src/components/tabs/Tabs.tsx`)는 탭 머리만 그리고 패널·`keepMounted`·닫기 단추가 없다(라벨에 닫기 단추를 넣으면 `button` 안에 `button` 이 된다). shared 래퍼 추가는 사용자 승인 사항이다(4단계·외관 계획 선례) | 탭 머리는 네이티브 `div role="tablist"` + `button role="tab"` + 닫기 `button`, 패널은 탭마다 `div role="tabpanel"` 을 늘 그리고 고르지 않은 패널은 `hidden`(= `display:none`)으로 숨긴다(스펙 §10.2 의 대안 "숨은 패널에 `display:none` 을 직접 준다"). Mantine 9.6 `keepMounted` 동작은 Task 7 Step 1 이 스킬 조회 스크립트로 확인해 보고에 적는다. 닫기 확인은 이 화면의 기존 dirty 확인(`window.confirm`, `useRuleSetEdit.ts:263-266`)과 같은 방식으로 한다 |
-| 7 | §3 "SET 노드에 닿음 → 조회기로 하위 세트를 읽는다. 없으면 `SET_NOT_FOUND`, 폐기면 `SET_DEPRECATED`" | 부모의 입력 키 사전 검사(§3 둘째 줄)는 실행 전에 하위 세트의 반드시 실행되는 입력을 알아야 하고, 순환·깊이도 하위 세트를 읽어야 안다. 룰은 이미 준비 단계에서 모두 읽고 없으면 `RULE_NOT_FOUND` 로 실행 전에 멈춘다(`MdmRuleEngine.java:149-157`) | 하위 세트는 **준비 단계**(`prepare`)에서 재귀로 모두 읽고, 없음·폐기·순환·깊이 초과를 그때 `SET_CHECK` 단계 위반으로 낸다(룰과 같은 시점). 그래서 타지 않는 IF 갈래 안 SET 노드의 하위 세트가 없어도 세트가 멈춘다 — 룰과 같다. 네 코드 모두 받지 않는 코드라 스펙의 결과(세트 중단)는 같다 |
-| 8 | §2 "겉모양은 서버에서만 계산한다(C-D4)" | 엔진은 `RuleIo` 를 모르고 DB 를 부르지 않는다. 실행 때 "넘겨받을 출력 이름"·"반드시 정의되는가"·"부모 사전 검사에 넣을 입력"을 알아야 한다. C-D4 는 화면과 서버 사이의 결정(화면이 저장 안 한 하위 세트로 다시 계산하지 않는다)이다 | 엔진이 실행용 겉모양 `SetShape`(입력·반드시 읽는 입력·출력·출력별 always)를 `RuleDefinition` 으로 같은 알고리즘(깊이 우선 순서로 앞에서 만든 이름을 뒤에서 읽으면 중간 결과, END 직전 상태로 always)으로 계산한다. 화면은 여전히 서버 `SetCallIo` 만 쓴다. 두 계산이 같은 이름을 내는지 SQLite 시험 하나로 묶는다(Task 6) |
-| 9 | §1 "기존 생성자는 null 로 위임한다" | 계약 record 의 생성자는 `Record` 생성자만 부를 수 있다(`ContractTypeShapeTest.계약_record_생성자는_Record_생성자만_부른다` — `this(...)` 위임도 막힌다) | 새 칸을 더한 계약 record(`FlowNode`·`Violation`·`PathStep`·`RuleSetResult`·`NodeTrace`·`CaughtException`)는 **모든 호출부**에 새 인자를 적는다(Task 1 이 grep 으로 찾는다. 2e02d29d 기준 `new FlowNode(` 15곳, `new Violation(` 20곳, `new NodeTrace(` 7곳, `new PathStep(` 6곳, `new RuleSetResult(` 1곳 + CATCH 가 더한 곳) |
-| 10 | §2 `SetCallIo(setId, exists, status, inputs, outputs)` | §5 표의 `CATCH_NEVER`(SUBSET_ENDED 인데 하위 세트에 END 로 가는 처리 갈래가 없다)를 화면·서버가 판정하려면 그 정보가 겉모양에 있어야 한다 | `SetCallIo` 를 `(setId, setName, exists, status, inputs, outputs, endsEarly)` 로 둔다. `endsEarly`(하위 세트 흐름에 END 로 가는 처리 갈래가 있는가)는 `CATCH_NEVER` 판정에, `setName` 은 SET 노드 제목(§9 "라벨·세트명·세트 ID")에 쓴다(Ruling 19). 둘 다 연쇄 재검사의 겉모양 비교(§6.1-2)에는 넣지 않는다(경고·표시만 바뀐다) |
-| 11 | §3 "부모 `ctx` 의 사본을 입력 레코드로" | 처리 갈래 안의 `ctx` 에는 `CATCH_*` 가 있고, 예약 이름은 레코드 키로 오면 `RESERVED_KEY` 다(CATCH 스펙 §6 `ReservedNames`). 그대로 넘기면 처리 갈래 안 SET 노드는 늘 하위 세트의 레코드 키 검사에서 멈춘다 | 하위 세트 입력 = 부모 `ctx` 사본에서 `CATCH_KIND`·`CATCH_RULE`·`CATCH_CODE`·`CATCH_MSG`·`CATCH_SET` 다섯 이름(대소문자 무시)을 뺀 것(Ruling 3, Review Focus 3) |
-| 12 | §6.2 폐기 때 INUSE 부모가 있으면 거부 | 지금 폐기는 "검사를 돌리지 않는다(I14)"(`RuleSetEditService.java:244`) | 스펙대로 부르는 세트 검사를 넣는다. I14 가 "폐기는 경로 검사를 돌리지 않고, 부르는 INUSE 세트가 있으면 거부한다" 로 바뀐다(D-135 에 적는다) |
+| 1 | §8 `ruleSetEdit.bpmn` 에 action `callIo`·`callers` 를 더한다 | 권한 action 은 `allActions` 에 없으면 SYSADMIN 도 403 이다(`docs/mdm/adr/0003-module-boundary-screens-roles.md`). `MdmOasisActionVocabularyTest` 가 BPMN action 을 정해진 어휘(`ALLOWED_ACTIONS`)로 묶는다. 이 화면은 새 조회를 `search` 의 `target` 으로 가른다(`RuleSetEditSearchRequest` 머리 주석) | `search` 에 `target=CALL_IO`(`setIdsJson`: 세트 ID JSON 배열 문자열)와 `target=CALLERS`(`setId`)를 더한다. BPMN 은 고치지 않는다. 목록은 JSON 문자열로 받는다(OASIS params 는 List DTO 칸을 묶지 못한다) |
+| 2 | §8 "`simulate` 응답(`RuleSetSimulateResult`)" | action 이름은 `execute` 이고 서비스 메서드가 `simulate()` 다 | `execute` action·`simulate()` 메서드·`RuleSetSimulateResult` 에 `calledFlows` 를 더한다 |
+| 3 | (옛) §6.3 `RuleSetCallerCheck` 는 `@Order(2)` | **U2 로 바뀜.** 룰 쪽 거부는 확정 검사(`RuleConfirmCheck` → `RuleConfirmChecks`)로 옮겼고, 룰 DRAFT 저장 검사(`RuleSaveCheck`)는 경고만 낸다 | 옛 판단 "`@Order(9)`(맨 뒤)" 는 폐기한다. 저장 검사 순서 번호는 srv:6 이 지금 쓰는 번호를 다시 세어 정한다(이슈 순서만 바뀌는지 확인) |
+| 4 | (옛) V16 이 세트 표를 다시 만들며 케이스 표(V15 FK)를 함께 옮긴다 | **없어짐.** `CALL_SET_IDS` 는 VER 표 `TB_MDM_RULE_SET_VER` 칸이다. 그 표를 가리키는 FK 는 없다 | V23 은 VER 표만 V22 방식(`_BAK`)으로 다시 만든다(Task 3) |
+| 5 | §1 예시 `{ "type": "SET", ... }` | 저장 JSON 의 종류 키는 `kind` 다(`RuleSetFlowJson`, 코퍼스도 `kind`). 스펙은 2026-10-06 에 고쳤다 | `{ "id": "s1", "kind": "SET", "setId": "QD_S_PRICE", "label": "단가 결정" }`. 정규 JSON 은 `setId` 를 **SET 노드에만** 쓴다 — SET 없는 세트의 정규 문자열과 저장된 흐름의 dirty 기준이 흔들리지 않게 한다(CATCH 의 `attachTo`·`catches` 와 같은 원칙) |
+| 6 | §10.2 Mantine `Tabs` `keepMounted` 로 탭마다 `RuleSetEditor` 를 띄우고, §10.3 닫기 확인은 `modals.openConfirmModal` | 화면 모듈은 `@mantine/*` 를 import 하지 않는다(`mantine-aggrid-ui` SKILL §3). shared `Tabs`(`shared/src/components/tabs/`)는 탭 머리만 그리고 패널·`keepMounted`·닫기 단추가 없다 | **2026-10-06 조정자 판단으로 바뀜:** 세트 탭 틀(탭 머리 + 닫기 단추 + 숨김 패널)은 **shared 새 컴포넌트**로 등록한다(CLAUDE.md 공통 컴포넌트 행동강령, Part B §18 — 새 등록은 승인 없이, 같은 작업 안에서 `mantine-aggrid-ui` 컴포넌트 문서·색인 갱신). 기존 `shared/src/components/tabs/**` 는 고치지 않는다(props·동작 변경은 승인 대상). 고르지 않은 패널은 `display:none` 으로 숨긴다(스펙 §10.2 대안). 닫기 확인은 이 화면의 기존 dirty 확인과 같은 방식으로 한다 |
+| 7 | §3 "SET 노드에 닿음 → 조회기로 하위 세트를 읽는다" | 부모의 입력 키 사전 검사는 실행 전에 하위 세트의 반드시 읽는 입력을 알아야 하고, 순환·깊이도 하위 세트를 읽어야 안다. 룰은 이미 준비 단계에서 모두 읽고 없으면 `RULE_NOT_FOUND` 로 실행 전에 멈춘다 | 하위 세트는 **준비 단계**(`prepare`)에서 재귀로 모두 읽고, 없음·폐기·순환·깊이 초과를 그때 `SET_CHECK` 단계 위반으로 낸다. 네 코드 모두 받지 않는 코드라 스펙의 결과(세트 중단)는 같다 |
+| 8 | §2 "겉모양은 서버에서만 계산한다(C-D4)" | 엔진은 `RuleIo` 를 모르고 DB 를 부르지 않는다. 실행 때 "넘겨받을 출력 이름"·"반드시 정의되는가"·"부모 사전 검사에 넣을 입력"을 알아야 한다 | 엔진이 실행용 겉모양 `SetShape`(입력·반드시 읽는 입력·출력·출력별 always)를 같은 알고리즘으로 계산한다. always 는 정상 끝 + 모든 끝냄 지점(끝내는 처리 갈래·끝내는 IF 갈래) 상태의 합(D-136 §13). 화면은 서버 `SetCallIo` 만 쓴다. 두 계산이 같은 이름을 내는지 SQLite 시험 하나로 묶는다(Task 6) |
+| 9 | §1 "기존 생성자는 null 로 위임한다"(스펙은 2026-10-06 에 고쳤다) | 계약 record 의 생성자는 `Record` 생성자만 부를 수 있다(`ContractTypeShapeTest`) | 새 칸을 더한 계약 record 는 **모든 호출부**에 새 인자를 적는다. 호출부는 grep 이 정본이다(2026-10-06 `new FlowNode(` 는 5개 파일) |
+| 10 | §2 `SetCallIo(setId, exists, status, inputs, outputs)` | `CATCH_NEVER`(SUBSET_ENDED 인데 END 로 가는 처리 갈래가 없다)를 화면·서버가 판정하려면 그 정보가 겉모양에 있어야 한다 | `SetCallIo` 를 `(setId, setName, exists, status, inputs, outputs, endsEarly)` 로 둔다. `endsEarly` = `endedBy` 를 남기는 끝냄이 있는가(처리 갈래가 END 로 감 + 처리 갈래 안 IF 갈래가 END 로 감, 스펙 §4.2). 끝내는 IF 갈래(처리 갈래 밖)는 세지 않는다. 둘 다 연쇄 재검사의 겉모양 비교에는 넣지 않는다 |
+| 11 | §3 "부모 `ctx` 의 사본을 입력 레코드로" | 처리 갈래 안의 `ctx` 에는 `CATCH_*` 가 있고, 예약 이름은 레코드 키로 오면 `RESERVED_KEY` 다 | 하위 세트 입력 = 부모 `ctx` 사본에서 `CATCH_*` 다섯 이름(대소문자 무시)을 뺀 것(Ruling 3, Review Focus 3) |
+| 12 | §6.3 폐기 때 부르는 부모가 있으면 거부 | 지금 폐기는 "검사를 돌리지 않는다(I14)" | 스펙대로 부르는 세트 검사를 넣는다. I14 가 "폐기는 경로 검사를 돌리지 않고, 지금 이후 유효한 RELEASED 버전이 이 세트를 부르는 폐기하지 않은 세트가 있으면 거부한다" 로 바뀐다(D-135 에 적는다) |
+| 13 | §5 네 코드(`CALL_*`·`CALLER_BROKEN`)의 수준 | U2: 확정·되살리기에서 거부, DRAFT 저장에서 경고. 코퍼스는 Java·TS 분석기의 수준 문자열까지 묶는다 | 분석기 두 벌은 `CALL_MISSING` 을 WARN 으로 낸다. 확정 검사·되살리기 검사가 네 코드를 수준과 상관없이 거부로 본다(`RuleSetCheck` 에 네 코드 모음 상수) |
 
 ---
 
-## 병렬 표
+## 레인 표와 의존 쌍
 
-| 태스크 | 모델 | 먼저 병합돼야 할 태스크 | 고치는 파일(요약) | 겹침 |
-|---|---|---|---|---|
-| 0 선행 확인 | haiku | CATCH 계획 dev 병합 | 없음(진행 장부만) | — |
-| 1 엔진 계약 | sonnet | 0 | 엔진 spi·expr·rule 계약 타입, 스키마, `RunTraceJson`, `RuleSetFlowJson`, 생성 TS, TS `Record<FlowNodeKind>` 맵·`CATCH_KIND_LABEL` | Task 3·7 과 겹치는 파일 없음 → 병렬 |
-| 2 흐름 구조(SET) | sonnet | 1 | `flow/SetStep`·`CallStep`·`FlowParser`·`FlowTree`, TS `flow-model.ts`·`flow-edit.ts`(`addCatch` 한 줄), 구조 코퍼스 | Task 7 과 겹치는 파일 없음 |
-| 3 DB `CALL_SET_IDS` | sonnet | 0 | V16, `MdmRuleSet`, `RuleSetWrites`, 샘플 SQL, 마이그레이션 시험 | Task 1·2·7 과 병렬 |
-| 4 엔진 실행 | opus | 2 | `MdmRuleEngine`·`FlowRun`·`FlowKeys`·새 `SetShape` | Task 5 와 겹치는 파일 없음 → 병렬 |
-| 5 분석기(SET) | opus | 2 | 서버 `SetCallIo`·`RuleSetInterface`·`RuleSetAnalyzer`·`RuleSetPathState`, TS `set-model.ts`·`types.ts`, 코퍼스 | Task 4 와 병렬 |
-| 6 서비스·연쇄 재검사 | opus | 3, 4, 5 | `SetCallIoReader`·`RuleSetCallGraph`·`SetCallerRecheck`·`RuleSetCallerCheck`·`RuleSetEditService`·`RuleSetRunner`·`StoredDefinitionLookup`·DTO | 단독 |
-| 7 화면 세트 탭 | opus | 0 | `page.tsx` → `RuleSetEditor.tsx`(새)·`RuleSetTabs.tsx`(새)·`tabs-model.ts`(새)·`useRuleSetEdit.ts`·`styles/tabs.ts`(새) | 백엔드 태스크와 병렬(화면 파일만) |
-| 8 화면 SET 노드 | opus | 1, 2, 5, 6, 7 | `api.ts`·`types.ts`·`flow-edit.ts`·`flow-layout.ts`·캔버스·패널·`RuleSetEditor.tsx`·e2e | 단독 |
-| 9 디버거 들어가기 | sonnet | 6, 7 | `debugger/call-stack.ts`(새)·`useSimulation.ts`·`trace-view.ts`·`TraceDetail.tsx`·`RuleSetEditor.tsx` | Task 8 과 `RuleSetEditor.tsx`·`TraceDetail.tsx` 가 겹친다 → Task 8 병합 뒤 |
-| 10 문서·결정 | haiku | 1~9 | `docs/mdm/decisions.md`(D-135)·`docs/mdm/engine-contract.md`·기능설계서 | 단독 |
+레인과 항목은 머리말 표와 같다. 의존 쌍 `A → B` 는 "B 는 A 가 dev 에 머지된 뒤(같은 레인이면 A 가 끝난 뒤) 시작한다" 는 뜻이다. 다른 레인 항목을 받으려면 dev 최신을 자기 브랜치에 합친다.
 
-순서: Task 0 → (Task 1 ∥ Task 3 ∥ Task 7) → Task 2 → (Task 4 ∥ Task 5) → Task 6 → Task 8 → Task 9 → Task 10. 동시에 도는 구현 에이전트는 셋까지다. 첫 물결은 1·3·7 이다.
+| 의존 쌍 | 까닭 |
+|---|---|
+| eng:1 → eng:2 | 흐름 구조가 `NodeKind.SET`·`FlowNode.setId` 를 쓴다 |
+| eng:2 → eng:4 | 실행이 `SetStep`·`Guarded.step` 의 SET 을 쓴다 |
+| eng:2 → eng:c | cactus 가 `FlowNode.setId` 와 흐름 해석을 쓴다 |
+| eng:2 → srv:5 | 서버 분석기가 SET 블록을 쓴다 |
+| eng:1 → ui:5t | TS 짝이 생성 TS 의 `SET`·`SUBSET_ENDED` 를 쓴다 |
+| srv:5 → ui:5t | TS 분석기가 코퍼스 JSON(srv 소유)의 새 사례로 묶인다 |
+| srv:3 → srv:6 | 서비스가 `CALL_SET_IDS` 칸을 쓴다 |
+| srv:5 → srv:6 | 서비스가 `SetCallIo`·`RuleSetInterface` 를 쓴다 |
+| eng:4 → srv:6 | `RuleSetRunner`·`SetCallIoEngineAgreementTest` 가 엔진 실행을 쓴다 |
+| ui:7 → ui:8 | SET 노드 화면이 세트 탭 틀을 쓴다 |
+| ui:5t → ui:8 | SET 노드 화면이 TS 검사를 쓴다 |
+| srv:6 → ui:8 | 화면이 `CALL_IO`·`CALLERS`·`view.calls` 응답을 쓴다 |
+| ui:8 → ui:9 | 디버거가 `RuleSetEditor`·`TraceDetail` 을 함께 고친다 |
+| srv:6 → ui:9 | 디버거가 `calledFlows` 를 쓴다 |
+
+처음 바로 시작할 수 있는 항목: eng:1, srv:3, ui:7.
+
+파일 소유(겹침 방지):
+- 생성 TS 두 벌(`shared/src/evalex/engine-contract.generated.ts`·`m-mdm/src/contract/engine-contract.generated.ts`)과 `flow-edit.ts`·`flow-layout.ts`·`flow-model.ts` 는 **eng:1 동안 eng 소유**, eng:1 머지 뒤로는 **ui 소유**다. 그래서 Task 2·5 의 TS 부분(`flow-model.ts` 의 `SetStep`·`CATCHABLE`·h2 문구, `set-model.ts`·`types.ts`, TS 시험)은 ui:5t 가 한다. eng:2 는 Java 만 한다.
+- 코퍼스 JSON(`mdm/lib/src/test/resources/…/rule-set-corpus.json`)은 **srv 소유**다. Task 2 의 구조 코퍼스 사례와 Task 5 의 분석 사례를 srv:5 가 넣는다. `MIN_CASES`(Java `RuleSetCorpusTest`·TS `rule-set-corpus.test.ts`, 지금 둘 다 90)는 srv:5 가 Java 쪽을, ui:5t 가 TS 쪽을 같은 값으로 올린다.
+- `src/frontend/m-mdm/tests/helpers/engine-paths.ts` 는 어느 레인 소유 목록에도 없다. ui:5t 가 고치되 조정 세션에 먼저 알린다.
 
 ---
 
 ## Global Constraints
 
-- **CATCH 계획 병합 뒤에 시작한다.** 선행 조건 표의 이름은 Task 0 이 확인한 실제 이름을 쓴다.
-- 공개 엔진 계약(`engine-contract.schema.json`·Java 계약 타입·`engine-contract.generated.ts`·`RunTraceJson`)의 **모양**은 Task 1 만 바꾼다. 다른 태스크는 계약 파일의 모양을 고치지 않는다(필요하면 BLOCKED 로 보고). `docs/mdm/engine-contract.md` 문서는 Task 10 이 갱신한다(스키마와 문서를 대조하는 시험은 없다 — `grep -rn "engine-contract.md" src` 는 주석 하나뿐이다).
-- 저장 형식: `FLOW_JSON` 노드에 `"kind": "SET"` 과 `setId` 가 더해진다. `version` 은 1 그대로다(C-D16). `RULE_IDS` 는 지금처럼 이 세트의 RULE 노드만 담는다(C-D3). 새 칸 `CALL_SET_IDS` 는 서버가 흐름에서 계산해 채우고 화면은 보내지 않는다.
-- 계약 record 에 칸을 더할 때는 위임 생성자를 만들지 않고 호출부를 모두 고친다(편차 9). 새 칸의 JSON 은 기존 골든이 한 글자도 바뀌지 않게 쓴다: `Violation.setPath`·`CaughtException.setPath` 는 빈 목록이면 키를 뺀다, `NodeTrace.outputs`·`sub` 와 `PathStep.callIndex` 는 null 이면 키를 뺀다(4단계 `edits` 와 같은 원칙).
-- 깊이 상한 상수는 **5**(최상위에서 하위로 들어가는 단계 수 5 까지 허용, 6 부터 거부)이고 엔진 `SET_CALL_DEPTH`·서버 `CALL_DEPTH` 가 같은 값을 쓴다. 엔진 상수 `SetShape.MAX_CALL_DEPTH = 5`, 서버 상수 `RuleSetCallGraph.MAX_DEPTH = 5`.
-- 세트 탭 상한 **8**. 문구: `"세트 탭은 8개까지 연다. 다른 탭을 닫고 다시 연다"`, 닫기 확인 `"저장하지 않은 변경이 있다. 닫으면 변경을 버린다."`, 디버거 경고 `"하위 세트 {S}에 저장하지 않은 변경이 있다. 실행은 저장된 정의로 한다."`(스펙 §10.3·§10.4 그대로).
-- 새 action 동사를 만들지 않는다(편차 1). `ruleSetEdit` 는 search·view·save·delete·restore·validate·execute 7개 그대로다.
-- DB 검증은 SQLite 와 단위 시험으로만 한다. 도커를 쓰지 않는다. 구현 태스크는 서버(bootRun·local-run·fe-run)를 띄우지 않는다. e2e 는 `--list` 로 목록에 잡히는지만 확인하고, 실제 실행은 **사용자 승인 뒤** 컨트롤러가 한다.
-- 화면 작업은 `.claude/skills/mantine-aggrid-ui/SKILL.md` 를 끝까지 읽고 따른다. 화면 모듈은 `@mantine/*` 를 import 하지 않고 `@dk-oasis/shared/*` 만 쓴다. shared 래퍼 추가는 사용자 승인 사항이라 하지 않는다(편차 6). **바꾼 파일은 커밋 전 스킬의 audit 두 개가 0건이어야 한다.** 규칙 정본 `docs/guide/FrontEnd/Local-Rules.md`(§8 한 변 색 바 금지, §11 늦은 응답 버리기, §16 무거운 계산 의존성, §17 로컬 `.css` import 금지, §19 React Flow 캔버스 함정). 새 CSS 는 `styles/*.ts` 의 TS 문자열 상수로만 넣고 `rsf-styles.ts` 가 잇는다. 색은 의미 토큰(`var(--color-*)`)만 쓴다. 아이콘은 `@tabler/icons-react`.
+- **스펙 2026-10-06 판이 정본이다.** 이름은 Task 0 대조표의 지금 이름을 쓴다. 줄 번호 대신 메서드·레코드·상수 이름으로 찾는다.
+- 공개 엔진 계약(`engine-contract.schema.json`·Java 계약 타입·생성 TS·`RunTraceJson`)의 **모양**은 Task 1(eng:1)만 바꾼다. 다른 항목은 계약 파일의 모양을 고치지 않는다(필요하면 조정 세션에 알리고 BLOCKED). `docs/mdm/engine-contract.md` 문서는 Task 10 이 갱신한다.
+- 저장 형식: `FLOW_JSON` 노드에 `"kind": "SET"` 과 `setId` 가 더해진다. `version` 은 1 그대로다(C-D16). `RULE_IDS` 는 버전 행에서 지금처럼 이 세트의 RULE 노드만 담는다(C-D3). 새 칸 `TB_MDM_RULE_SET_VER.CALL_SET_IDS` 는 서버가 흐름에서 계산해 채우고 화면은 보내지 않는다.
+- 계약 record 에 칸을 더할 때는 위임 생성자를 만들지 않고 호출부를 모두 고친다(편차 9). 새 칸의 JSON 은 기존 골든이 한 글자도 바뀌지 않게 쓴다: `Violation.setPath`·`CaughtException.setPath` 는 빈 목록이면 키를 빼고, `NodeTrace.outputs`·`sub` 와 `PathStep.callIndex` 는 null 이면 키를 뺀다.
+- 깊이 상한은 **5**(최상위에서 하위로 들어가는 단계 수 5 까지 허용, 6 부터 거부)다. 엔진 `SET_CALL_DEPTH`·서버 `CALL_DEPTH`·cactus 미리 받기가 같은 값을 쓴다. 엔진 상수 `SetShape.MAX_CALL_DEPTH = 5`, 서버 상수 `RuleSetCallGraph.MAX_DEPTH = 5`. cactus 는 엔진 상수가 공개면 그것을 쓰고, 아니면 같은 값 5 를 상수로 둔다.
+- 확정·저장 수준(U2): §5 의 네 코드는 DRAFT 저장에서 WARN, 확정·되살리기에서 거부다(편차 13). 폐기 거부(C-D12)는 그대로다.
+- 세트 탭 상한 **8**. 문구: `"세트 탭은 8개까지 연다. 다른 탭을 닫고 다시 연다"`, 닫기 확인 `"저장하지 않은 변경이 있다. 닫으면 변경을 버린다."`, 디버거 경고 `"하위 세트 {S}에 확정하지 않은 변경이 있다. 실행은 판정 시각의 RELEASED 로 한다."`(스펙 §10.3·§10.4, C-D18).
+- 새 action 동사를 만들지 않는다(편차 1). `ruleSetEdit` 의 지금 action 그대로다.
+- DB 검증은 SQLite 와 단위 시험으로만 한다. 도커를 쓰지 않는다. 레인은 서버(bootRun·local-run·fe-run)를 띄우지 않고 브라우저를 열지 않는다 — 서버 기동·브라우저 확인은 조정 세션만 한다. e2e 는 `--list` 로 목록에 잡히는지만 확인하고, 실제 실행은 **사용자 승인 뒤** 조정 세션이 한다.
+- 마이그레이션 번호 V23 은 머지 직전에 dev 의 마지막 번호를 다시 확인한다(`outOfOrder=false`). 겹치면 다음 빈 번호로 옮기고 시험·주석의 번호를 함께 고친다.
+- 화면 작업은 `.claude/skills/mantine-aggrid-ui/SKILL.md` 를 끝까지 읽고 따른다. 화면 모듈은 `@mantine/*` 를 import 하지 않고 `@dk-oasis/shared/*` 만 쓴다. **새 shared 컴포넌트 등록은 승인 없이** 하고 같은 작업 안에서 스킬의 컴포넌트 문서·색인을 갱신한다(Part B §18). **기존 shared 컴포넌트의 props·동작·모습 변경은 조정 세션 승인 뒤**에 한다. 바꾼 파일은 커밋 전 스킬의 audit 두 개가 0건이어야 한다. 규칙 정본 `docs/guide/FrontEnd/Local-Rules.md`(§8 한 변 색 바 금지, §11 늦은 응답 버리기, §16 무거운 계산 의존성, §17 로컬 `.css` import 금지, §19 React Flow 캔버스 함정). 새 CSS 는 `styles/*.ts` 의 TS 문자열 상수로만 넣는다. 색은 의미 토큰(`var(--color-*)`)만 쓴다. 아이콘은 `@tabler/icons-react`.
 - 컴포넌트 시험은 `src/frontend/m-mdm/tests/**/*.test.ts` 에 `createElement` 로 쓴다(vitest include 가 `.ts` 만 본다). 렌더 시험은 파일 첫 줄 `/** @vitest-environment happy-dom */`.
-- `docs/mdm/decisions.md` 는 append-only 이고 **Task 10 만** 쓴다.
-- git: 워크트리 루트에서 `/usr/bin/git` 단순 한 줄 명령만(cd 결합·파이프 금지). 자기가 만든·고친 파일만 경로로 지정해 `/usr/bin/git add <paths>` 뒤 `/usr/bin/git commit -m "..." -- <paths>`. `add -A`·`add .`·`stash`·`reset --hard`·브랜치 전환 금지. 메시지는 `type(scope): 한국어 요약` + 빈 줄 + 트레일러 한 줄 `Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>`.
+- `docs/mdm/decisions.md` 는 append-only 이고 **Task 10(조정 세션)만** 쓴다.
+- git: 워크트리 루트에서 `/usr/bin/git` 단순 한 줄 명령만(cd 결합·파이프·변수·`$(…)`·heredoc 금지). 자기가 만든·고친 파일만 경로로 지정해 `/usr/bin/git add <paths>` 뒤 `/usr/bin/git commit -m "..." -- <paths>`. `add -A`·`add .`·`stash`·`reset --hard`·브랜치 전환 금지. 메시지는 `type(scope): 한국어 요약` + 빈 줄 + 트레일러 한 줄 `Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>`.
+- 프론트 의존성: **`pnpm install` 은 자기 워크트리 안에서만** 한다. 먼저 `ls -la src/frontend/node_modules` 로 메인 저장소를 가리키는 심링크인지 확인하고, 심링크면 install 하지 않는다(심링크 안에서 install 하면 메인의 `@dk-oasis/*` 링크가 바뀌어 사용자의 포털이 깨진다 — 2026-10-05 사고). 형제 패키지 dist 가 없으면 그 패키지 폴더에서 `npx tsup` 을 한 번 돌린다. shared 빌드가 exit 144 로 끝나면 dev watch 대기다 — 실패가 아니니 dist 를 grep 으로 확인한다.
 - 명령(워크트리 루트 기준):
   - 공통 환경: `export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home PATH=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home/bin:$PATH`
   - 엔진: `(cd src/backend/maru-mdm-engine && ../gradlew test --console=plain -q)` / 한 클래스 `--tests '*이름'`
+  - cactus-core: `(cd src/backend && ./gradlew :cactus-core:test --console=plain -q)`(프로젝트 경로는 착수 때 `settings.gradle` 로 확인)
   - mdm/lib: `(cd src/backend/mdm && ../gradlew :lib:test --console=plain -q)` / 한 클래스 `--tests '*이름'`
   - mdm/api(SQLite): `(cd src/backend/mdm && ../gradlew :api:test --tests '<패턴>' --console=plain)`
-  - 화면: 워크트리에서 처음 한 번 `pnpm --dir src/frontend install --frozen-lockfile=false` 뒤 `pnpm --dir src/frontend --filter @dk-oasis/shared build`. 시험 파일 하나 `pnpm --dir src/frontend --filter @dk-oasis/m-mdm exec vitest run <m-mdm 기준 경로>`, 화면 묶음 `pnpm --dir src/frontend --filter @dk-oasis/m-mdm test tests/dme/ruleSetEdit`, 완료 게이트 `pnpm --dir src/frontend --filter @dk-oasis/m-mdm test` 의 `[m-mdm test 합계]` 줄.
-  - 타입 검사: `rtk proxy pnpm --dir src/frontend --filter @dk-oasis/m-mdm run lint`(tsc --noEmit, rtk 가 eslint 로 바꾸지 않게 `rtk proxy`). 오류 0.
-  - 계약 생성: `pnpm --dir src/frontend --filter @dk-oasis/m-mdm gen:contract`.
+  - 화면: 시험 파일 하나 `pnpm --dir src/frontend --filter @dk-oasis/m-mdm exec vitest run <m-mdm 기준 경로>`, 화면 묶음 `pnpm --dir src/frontend --filter @dk-oasis/m-mdm test tests/dme/ruleSetEdit`, 완료 게이트 `pnpm --dir src/frontend --filter @dk-oasis/m-mdm test` 의 `[m-mdm test 합계]` 줄.
+  - 타입 검사: `rtk proxy pnpm --dir src/frontend --filter @dk-oasis/m-mdm run lint`(tsc --noEmit). 오류 0.
+  - 계약 생성: `pnpm --dir src/frontend --filter @dk-oasis/m-mdm gen:contract`(shared 쪽 생성 파일을 쓴다) 뒤 `pnpm --dir src/frontend --filter @dk-oasis/shared build`.
   - audit: `python3 .claude/skills/mantine-aggrid-ui/scripts/mantine_docs.py audit <바꾼 파일…>` 와 `python3 .claude/skills/mantine-aggrid-ui/scripts/aggrid_docs.py audit <바꾼 파일…>` 0건.
   - `.css` import 없음: `grep -rnE "import ['\"]\.{1,2}/[^'\"]*\.css['\"]" src/frontend/m-mdm/pages/dme/ruleSetEdit` 0건.
   - e2e 목록: `pnpm --dir src/frontend exec playwright test e2e/mdm-ruleSetEdit.spec.ts --list`(실행 아님).
-- 기준선: 착수 때 컨트롤러가 엔진·lib·api·화면 시험 수를 한 번 돌려 진행 장부에 적는다. 각 태스크 완료 보고는 기준선 대비 증감과 audit·lint 결과를 적는다.
+- 기준선: 각 레인이 착수 때 자기 영역 시험 수를 한 번 돌려 `progress-<레인>.md` 에 적는다. 항목 완료 보고는 기준선 대비 증감과 audit·lint 결과를 적는다.
 
 ## Review Focus
 
-1. **하위 세트가 넘기는 이름이 엔진과 서버에서 같은가** — 엔진 `SetShape.outputs`(실행 때 부모 `ctx` 에 덮어쓰는 이름)와 서버 `SetCallIo.outputs`(화면 검사·연쇄 재검사가 쓰는 이름)가 같은 저장 세트에 대해 같은 이름·같은 `always` 를 낸다. 특히 "앞 룰이 입력으로 읽고 뒤 룰이 같은 이름을 만드는" 경우는 최종 결과다(readers 는 만든 뒤에 읽는 룰만 센다). 담당: Task 4(`SubsetShapeTest` 「앞에서 읽고 뒤에서 만든 이름은 최종 결과」)·Task 6(`SetCallIoEngineAgreementTest`).
-2. **하위 세트가 부모 값을 바꾸지 못하고, 값 없는 출력은 덮지 않는다** — 하위 세트 안에서 부모 입력과 같은 이름을 중간 결과로 만들어도 부모 `ctx` 는 그대로이고, `always=false` 출력이 이번 실행에서 안 만들어졌으면 부모의 같은 이름 값(이미 있던 값)이 남는다. 담당: Task 4(`SubsetCallTest` 「중간 결과는 넘기지 않는다」「안 만든 출력은 부모 값을 남긴다」).
-3. **처리 갈래 안의 SET 노드** — 받는 노드 처리 갈래 안(=`ctx` 에 `CATCH_*` 가 있음)에서 SET 노드를 불러도 하위 세트가 `RESERVED_KEY` 로 멈추지 않고, 하위 세트 안의 받는 노드가 새 `CATCH_*` 를 쓰며, 돌아온 뒤 부모 처리 갈래의 `CATCH_*` 는 그대로다. 담당: Task 4(`SubsetCatchTest` 「처리 갈래 안 SET 노드」).
-4. **깊이 경계가 엔진·서버에서 같다** — 단계 5 짜리 사슬(세트 6개)은 저장·실행 모두 통과, 단계 6 짜리(세트 7개)는 저장 `CALL_DEPTH`·실행 `SET_CALL_DEPTH` 로 막힌다. 부르는 쪽 깊이를 합친 경우(이 세트가 이미 깊이 3 에서 불리는데 아래로 3 단계를 더함)도 저장에서 막는다. 담당: Task 4(`SubsetCycleDepthTest`)·Task 6(`RuleSetCallGraphTest`).
-5. **연쇄 재검사가 새 거부만 막고 이미 있던 거부·새 경고는 막지 않는다** — 부모 P 에 원래 거부가 있었으면(저장 뒤 룰이 폐기돼 생긴 RULE_DEPRECATED 등) 하위 세트 S 저장이 그 때문에 막히지 않는다. 새 경고(`FLOW_PARTIAL`)만 생기면 저장은 되고 메시지에 부모 목록이 실린다. 조부모까지 겉모양이 이어서 바뀌는 3단 연쇄도 막는다. 담당: Task 6(`RuleSetSubsetServiceTest` 의 `부모에_원래_있던_거부는_새_거부가_아니다`·`부르는_세트에_새_경고만_생기면_저장하고_CALLER_WARN_으로_알린다`·`연쇄로_조부모까지_올라가_새_거부를_막는다`, `RuleSetCallerCheckTest` 의 `결과_이름을_바꾸면_룰_세트_부모_조부모를_따라가_SET_CALLER_BROKEN`).
+1. **하위 세트가 넘기는 이름이 엔진과 서버에서 같은가** — 엔진 `SetShape.outputs` 와 서버 `SetCallIo.outputs` 가 같은 저장 세트에 대해 같은 이름·같은 `always` 를 낸다. "앞 룰이 입력으로 읽고 뒤 룰이 같은 이름을 만드는" 경우는 최종 결과다. `always` 는 끝내는 IF 갈래 끝 상태까지 합친다(D-136 §13). 담당: eng:4(`SubsetShapeTest`)·srv:6(`SetCallIoEngineAgreementTest`).
+2. **하위 세트가 부모 값을 바꾸지 못하고, 값 없는 출력은 덮지 않는다** — 담당: eng:4(`SubsetCallTest` 「중간 결과는 넘기지 않는다」「안 만든 출력은 부모 값을 남긴다」).
+3. **처리 갈래 안의 SET 노드** — 처리 갈래 안(`ctx` 에 `CATCH_*`)에서 SET 노드를 불러도 하위 세트가 `RESERVED_KEY` 로 멈추지 않고, 하위 세트 안의 받는 노드가 새 `CATCH_*` 를 쓰며, 돌아온 뒤 부모 처리 갈래의 `CATCH_*` 는 그대로다. 처리 갈래는 돌아오는 자리로 돌아온다(D-136). 담당: eng:4(`SubsetCatchTest`).
+4. **깊이 경계가 엔진·서버·cactus 에서 같다** — 단계 5 짜리 사슬(세트 6개)은 통과, 단계 6 짜리(세트 7개)는 확정 `CALL_DEPTH`·실행 `SET_CALL_DEPTH` 로 막히고 DRAFT 저장은 경고다. cactus 미리 받기는 단계 5 까지 받는다. 담당: eng:4(`SubsetCycleDepthTest`)·srv:6(`RuleSetCallGraphTest`)·eng:c.
+5. **연쇄 재검사가 새 거부만 막고, 막는 자리는 확정이다** — 부모 P 에 원래 있던 거부는 하위 세트 S 확정을 막지 않는다. 새 경고만 생기면 확정은 되고 결과에 부모 목록이 실린다. 조부모까지 3단 연쇄도 막는다. 같은 경우 DRAFT 저장은 막지 않고 경고만 낸다. 두 DRAFT 가 순환을 반씩 만들면 나중 확정이 `CALL_CYCLE` 로 막힌다. 담당: srv:6.
+6. **D-136 위에서 SET 이 RULE·TASK 와 같은 단계인가** — SET 이 모이는 자리·돌아오는 자리가 될 수 있고, SET 받는 노드의 처리 갈래가 돌아오는 자리로 돌아오며, 하위 세트가 끝내는 IF 갈래로 끝나면 부모는 정상 완료다. 담당: eng:2·eng:4·srv:5(코퍼스).
 
 ## Rulings(스펙이 정하지 않은 세부 — 이 계획이 정했다)
 
-1. **블록 타입:** 엔진 `flow` 패키지에 `SetStep(nodeId, setId)` 와 봉인 인터페이스 `CallStep permits RuleStep, SetStep`(공통 `nodeId()`)을 둔다. `Block` 의 허용 목록에 `SetStep` 을 더하고, CATCH 의 `Guarded.rule` 타입을 `CallStep` 으로 넓힌다. TS `flow-model.ts` 는 `SetStep { type: "SET"; nodeId; setId }` 와 `type CallStep = RuleStep | SetStep` 을 같은 모양으로 둔다.
-2. **`FlowTree` 새 질의:** `setSteps()`(모든 SET 노드, 깊이 우선), `setIds()`(처음 나온 순서로 중복 없이 = `CALL_SET_IDS`), `callSteps()`(RULE·SET 을 깊이 우선 한 목록). `ruleSteps()`·`ruleIds()` 는 RULE 만 그대로다(C-D3). SET 노드도 `relation()` 의 대상이다.
-3. **하위 세트 입력:** 부모 `ctx` 사본에서 예약 이름 `CATCH_KIND`·`CATCH_RULE`·`CATCH_CODE`·`CATCH_MSG`·`CATCH_SET`(대소문자 무시)을 뺀 맵(편차 11). 엔진 상수 `ReservedNames.CATCH_NAMES`(Task 1)에 다섯 이름을 모은다.
-4. **`CATCH_SET` 값:** RULE 에 붙은 받는 노드에서는 지금 실행 중인 세트 ID(기록 실행의 저장 전 흐름이면 `RuleSetRunner.UNSAVED` 인 `"(저장 전)"`), SET 에 붙은 받는 노드에서는 위반이 실제로 난 가장 안쪽 세트 ID, `SUBSET_ENDED` 면 하위 세트를 끝낸 받는 노드가 있는 세트 ID.
-5. **`SUBSET_ENDED` 의 `CATCH_RULE`·`CATCH_MSG`:** 하위 세트를 끝낸 받는 노드가 받은 `CaughtException` 의 `ruleId`, 그 받는 노드의 `label`(없으면 노드 ID). 하위 세트가 다시 하위 세트의 `SUBSET_ENDED` 를 받아 끝났으면 그 `CaughtException` 의 `ruleId` 를 그대로 쓴다.
-6. **분석기 안 세트 키:** 서버·화면 분석기는 SET 노드의 겉모양을 룰 입출력 맵에 `"set:" + setId` 키로 넣어 RULE 처럼 돈다(룰 ID 와 세트 ID 는 같은 정규식이라 키가 겹칠 수 있다 — 소문자 `set:` 은 ID 정규식에 없다). 검사 문구에서는 `세트 {setId}` 로, `RuleSetCheck.ruleId`·`otherRuleId` 칸에는 `setId` 그대로 쓴다. RULE 만 있는 흐름의 문구·순서는 한 글자도 바뀌지 않는다(기존 코퍼스 불변).
-7. **`always=false` 출력:** 분석기는 SET 노드 뒤에서 그 이름이 이미 `defined` 가 아니면 `maybe` 에 넣는다(이미 `defined` 면 그대로 — 엔진이 값 없는 출력은 덮지 않으므로 앞 값이 남는다). `prodBy` 는 always 와 무관하게 갱신한다(`DUP_RESULT` 판정).
-8. **`CALL_MISSING` 문구**(서버·화면 같은 문구, 노드 배열에서 그 세트 ID 의 첫 SET 노드에 건다): `setId` 비었음 `"세트 노드 {nodeId}에 세트 ID가 없다"`, 겉모양 맵에 없거나 `exists=false` `"{setId}는 없는 세트다"`, `status=DEPRECATED` `"{setId}는 폐기된 세트다"`. 화면은 `callIo` 응답이 오기 전에도 같은 규칙을 쓴다(잠깐 `CALL_MISSING` 이 보일 수 있다 — 서버와 같은 결과를 내는 쪽을 택했다).
-9. **`FLOW_CATCH`·`CATCH_NEVER` 의 SET 문구:** SET 노드 받는 노드에 `NO_RESULT` `"받는 노드 {catchId}: 세트 노드에는 결과 없음(NO_RESULT)을 붙일 수 없다"`, RULE 노드 받는 노드에 `SUBSET_ENDED` `"받는 노드 {catchId}: 룰 노드에는 하위 세트 예외 끝(SUBSET_ENDED)을 붙일 수 없다"`, `CATCH_NEVER` `"받는 노드 {catchId}: 세트 {setId}에는 END 로 가는 처리 갈래가 없어 하위 세트 예외 끝이 일어나지 않는다"`.
-10. **`CALL_CYCLE`·`CALL_DEPTH`·`CALLER_BROKEN` 문구:** 순환 `"세트 호출이 순환한다: A › B › A"`, 깊이 `"세트 호출이 {n}단계다. 5단계까지 부른다: A › B › …"`(가장 긴 사슬 하나), 부모 거부 `"세트 {P}: {P 의 새 거부 문구}"`, 폐기 거부 `"사용 중인 세트 {P1, P2}가 이 세트를 불러 폐기할 수 없다. 부르는 세트를 먼저 고치거나 폐기한다"`, 새 경고 알림(저장 결과 메시지 줄) `"부르는 세트에 경고가 생겼다: {P1, P2}"`.
-11. **`RuleSaveIssueCode.SET_CALLER_BROKEN`** 이슈 문구는 `"세트 {S} 를 부르는 세트 {P}: {P 의 새 거부 문구}"`, 수준 ERROR.
-12. **탭 상태 위치:** 탭 목록은 `RuleSetTabs` 의 `useState`(순수 함수 `tabs-model.ts` 로 열기·닫기·고르기). 탭마다 `RuleSetEditor` 하나가 `useRuleSetEdit()` 한 벌을 갖는다. 탭 머리의 dirty 점과 세트 ID 는 편집기가 `onStatus(tabKey, {setId, setName, dirty})` 로 알린다.
-13. **포털 파라미터:** `useMdmPageParams` 는 탭 틀(`RuleSetTabs`)에서만 부른다. 열린 탭이 세트 없는 빈 탭 하나뿐이면 그 탭에서, 아니면 링크와 같이 연다(스펙 §10.3).
+1. **블록 타입(2026-10-06 재정의):** 엔진 `flow` 패키지에 `SetStep(nodeId, setId) implements Step` 을 두고 `Step` 의 permits 에 더한다(지금 `RuleStep`·`TaskStep`). `Guarded.step` 이 그대로 받는다(D-136 J-D11). 옛 `CallStep` 봉인 인터페이스는 두지 않는다 — `Step` 이 이미 그 자리다. RULE·SET 만 고르는 곳은 `instanceof` 로 가른다. TS `flow-model.ts` 는 `SetStep { type: "SET"; nodeId; setId }` 를 `Step` 합에 더한다.
+2. **`FlowTree` 새 질의:** `setSteps()`(모든 SET 노드, 깊이 우선), `setIds()`(처음 나온 순서로 중복 없이 = `CALL_SET_IDS`). `ruleSteps()`·`ruleIds()` 는 RULE 만 그대로다(C-D3). 옛 `callSteps()` 는 쓰는 곳이 생길 때만 eng:2 가 판단해 둔다. SET 노드도 `relation()` 의 대상이다.
+3. **하위 세트 입력:** 부모 `ctx` 사본에서 예약 이름 `CATCH_KIND`·`CATCH_RULE`·`CATCH_CODE`·`CATCH_MSG`·`CATCH_SET`(대소문자 무시)을 뺀 맵(편차 11). 엔진 상수 `ReservedNames.CATCH_NAMES`(지금 넷, Task 1 이 다섯으로)에 모은다.
+4. **`CATCH_SET` 값:** RULE 에 붙은 받는 노드에서는 지금 실행 중인 세트 ID(기록 실행의 저장 전 흐름이면 `RuleSetRunner.UNSAVED`), SET 에 붙은 받는 노드에서는 위반이 실제로 난 가장 안쪽 세트 ID, `SUBSET_ENDED` 면 하위 세트를 끝낸 받는 노드가 있는 세트 ID.
+5. **`SUBSET_ENDED` 의 `CATCH_RULE`·`CATCH_MSG`:** 하위 세트를 끝낸 받는 노드가 받은 `CaughtException` 의 `ruleId`, 그 받는 노드의 `label`(없으면 노드 ID). 하위 세트가 다시 하위 세트의 `SUBSET_ENDED` 를 받아 끝났으면 그 `CaughtException` 의 `ruleId` 를 그대로 쓴다. 하위 세트가 끝내는 IF 갈래로 끝나면(`endedBy` 없음) `SUBSET_ENDED` 가 아니다(스펙 §4.2).
+6. **분석기 안 세트 키:** 서버·화면 분석기는 SET 노드의 겉모양을 룰 입출력 맵에 `"set:" + setId` 키로 넣어 RULE 처럼 돈다. 검사 문구에서는 `세트 {setId}` 로, `RuleSetCheck.ruleId`·`otherRuleId` 칸에는 `setId` 그대로 쓴다. RULE 만 있는 흐름의 문구·순서는 한 글자도 바뀌지 않는다(기존 코퍼스 불변).
+7. **`always=false` 출력:** 분석기는 SET 노드 뒤에서 그 이름이 이미 `defined` 가 아니면 `maybe` 에 넣는다. `prodBy` 는 always 와 무관하게 갱신한다(`DUP_RESULT` 판정).
+8. **`CALL_MISSING` 문구**(서버·화면 같은 문구, 노드 배열에서 그 세트 ID 의 첫 SET 노드에 건다, 수준 WARN — 편차 13): `setId` 비었음 `"세트 노드 {nodeId}에 세트 ID가 없다"`, 겉모양 맵에 없거나 `exists=false` `"{setId}는 없는 세트다"`, `status=DEPRECATED` `"{setId}는 폐기된 세트다"`. 화면은 `callIo` 응답이 오기 전에도 같은 규칙을 쓴다.
+9. **`FLOW_CATCH`·`CATCH_NEVER` 의 SET 문구:** SET 노드 받는 노드에 `NO_RESULT` `"받는 노드 {catchId}: 세트 노드에는 결과 없음(NO_RESULT)을 붙일 수 없다"`, RULE·TASK 노드 받는 노드에 `SUBSET_ENDED` `"받는 노드 {catchId}: 룰 노드에는 하위 세트 예외 끝(SUBSET_ENDED)을 붙일 수 없다"`(TASK 문구는 ui:5t·srv:5 가 지금 TASK 문구 방식에 맞춰 함께 정한다), `CATCH_NEVER` `"받는 노드 {catchId}: 세트 {setId}에는 END 로 가는 처리 갈래가 없어 하위 세트 예외 끝이 일어나지 않는다"`.
+10. **`CALL_CYCLE`·`CALL_DEPTH`·`CALLER_BROKEN` 문구:** 순환 `"세트 호출이 순환한다: A › B › A"`, 깊이 `"세트 호출이 {n}단계다. 5단계까지 부른다: A › B › …"`(가장 긴 사슬 하나), 부모 거부 `"세트 {P}: {P 의 새 거부 문구}"`, 폐기 거부 `"사용 중인 세트 {P1, P2}가 이 세트를 불러 폐기할 수 없다. 부르는 세트를 먼저 고치거나 폐기한다"`, 새 경고 알림 `"부르는 세트에 경고가 생겼다: {P1, P2}"`.
+11. **`RuleSaveIssueCode.SET_CALLER_BROKEN`** 이슈 문구는 `"세트 {S} 를 부르는 세트 {P}: {P 의 새 거부 문구}"`. 수준은 룰 DRAFT 저장에서 WARN, 룰 확정 검사에서는 거부 항목이다(U2).
+12. **탭 상태 위치:** 탭 목록은 탭 틀의 `useState`(순수 함수 `tabs-model.ts` 로 열기·닫기·고르기). 탭마다 `RuleSetEditor` 하나가 `useRuleSetEdit()` 한 벌(자동 저장·DRAFT 선점 포함)을 갖는다. 탭 머리의 dirty 점과 세트 ID 는 편집기가 `onStatus(tabKey, {setId, setName, dirty})` 로 알린다. 탭 머리·닫기·숨김 패널 틀 자체는 shared 새 컴포넌트다(편차 6).
+13. **포털 파라미터:** `useMdmPageParams` 는 탭 틀에서만 부른다. 열린 탭이 세트 없는 빈 탭 하나뿐이면 그 탭에서, 아니면 링크와 같이 연다.
 14. **위 바 `IdPicker`:** 탭 틀 위 바에 두고 고른 세트를 **지금 탭**에서 연다(dirty 확인은 그 탭 편집기의 `open` 이 지금처럼 한다).
 15. **디버거 들어가기 상태:** `useSimulation` 밖의 작은 훅 `useCallStack(last)` 가 `frames: {nodeId, setId, trace, flow}[]` 를 갖고, 캔버스·값 표·노드 상세는 맨 위 프레임을 본다. 새 기록이 오거나 모드를 나가면 비운다. 하위 프레임에서는 편집·E4 고치기·중단점을 끈다.
-16. **`always` 판정:** END 에 닿는 모든 경로에서 END 직전에 반드시 정의된 출력만 `always=true` 다. 정상 끝 상태와, 처리 갈래로 끝내는 경로(`endedBy`)마다 그 처리 갈래 끝 상태를 교집합한다. 엔진 `SetShape.endSure` 와 서버 `RuleSetInterface` 의 `endSure` 가 같은 알고리즘이다.
-17. **NULL 출력도 덮는다:** 하위 `finalValues` 에 키가 있으면 값이 NULL 이어도 부모 `ctx` 에 덮어쓴다. RULE 이 NULL 결과를 덮어쓰는 지금 규칙과 같다. 키가 없으면(그 출력을 만든 룰이 이번에 안 돌았으면) 덮지 않는다.
+16. **`always` 판정:** END 에 닿는 모든 경로에서 END 직전에 반드시 정의된 출력만 `always=true` 다. 루트 순차 끝 상태와, 모든 끝냄 지점(끝내는 처리 갈래 끝·처리 갈래 안 IF 끝냄·끝내는 IF 갈래 끝) 상태를 교집합한다(D-136 §13). 엔진 `SetShape` 과 서버 `RuleSetInterface` 가 같은 알고리즘이다.
+17. **NULL 출력도 덮는다:** 하위 `finalValues` 에 키가 있으면 값이 NULL 이어도 부모 `ctx` 에 덮어쓴다. 키가 없으면 덮지 않는다.
 18. **`EMPTY`:** RULE·TASK·SET 노드가 하나도 없을 때만 낸다. SET 노드만 있는 세트도 저장할 수 있다.
-19. **`SetCallIo` 의 `setName`·`endsEarly`:** SET 노드 제목(세트명)과 `CATCH_NEVER` 판정을 위해 서버가 겉모양에 세트명과 "처리 갈래로 끝내는 경로가 있는가" 를 함께 싣는다. 화면은 이 값을 그대로 쓰고 세트명을 따로 조회하지 않는다.
-20. **`COND_UNTYPED` 의 선언 이름:** 지금처럼 이 세트의 룰 선언만 센다. 엔진 `FlowKeys.condTypes` 가 하위 세트 선언을 쓰지 않으므로 서버·화면도 맞춘다.
-21. **단계 실행은 최상위만:** 툴바의 단계 실행(F10·F5 등)·중단점은 최상위 기록에만 쓴다. 하위 프레임에서는 경로 표시 줄의 ‹ › 로 그 하위 기록의 커서만 옮긴다.
-22. **보는 사람 설정 공유:** 변수 표시·미니맵은 각 편집기가 localStorage 에서 읽고 쓰되, 바꿀 때 탭 틀에 알리고(`publishPrefs`) 다른 탭은 디버그 모드가 아니면 바로 따른다. 디버그 모드의 자동 켜기·되돌리기(P-D16)는 탭마다 지킨다. 분할 크기는 같은 `storageKey` 라 새로 여는 탭이 따른다.
+19. **`SetCallIo` 의 `setName`·`endsEarly`:** SET 노드 제목(세트명)과 `CATCH_NEVER` 판정을 위해 서버가 겉모양에 세트명과 `endsEarly`(편차 10)를 함께 싣는다. 화면은 이 값을 그대로 쓰고 세트명을 따로 조회하지 않는다.
+20. **`COND_UNTYPED` 의 선언 이름:** 지금처럼 이 세트의 룰 선언만 센다.
+21. **단계 실행은 최상위만:** 툴바의 단계 실행·중단점은 최상위 기록에만 쓴다. 하위 프레임에서는 경로 표시 줄의 ‹ › 로 그 하위 기록의 커서만 옮긴다.
+22. **보는 사람 설정 공유:** 변수 표시·미니맵은 각 편집기가 localStorage 에서 읽고 쓰되, 바꿀 때 탭 틀에 알리고(`publishPrefs`) 다른 탭은 디버그 모드가 아니면 바로 따른다. 분할 크기는 같은 `storageKey` 라 새로 여는 탭이 따른다.
 23. **오른쪽 머리글 종류:** SET 노드 속성 패널의 `PanelKind` 는 `CALL`(라벨 "하위 세트")이다. 기존 `"SET"` 은 세트 전체 패널이 이미 쓴다.
+24. **겉모양 기준 시각(2026-10-06):** `view`·`callIo`·`callers` 와 DRAFT 저장 경고는 지금, 확정 검사는 apply_from, 실행은 판정 시각이다. 기준 시각에 RELEASED 가 없는 세트는 `exists=false` 다(DRAFT 만 있음 = 없음).
+25. **부르는 쪽 행(2026-10-06):** 호출 그래프와 `callers` 는 `STATUS = 'RELEASED'` 이고 기준 시각 이후에도 유효한(`APPLY_TO` 가 기준 시각보다 뒤) VER 행의 `CALL_SET_IDS` 만 센다. 부모 세트가 폐기면 세지 않는다. DRAFT 행은 그 DRAFT 자신의 저장 경고·확정 검사에서만 쓴다.
 
 ---
-### Task 0: 선행 확인 — CATCH 병합과 이름 맞추기
+### Task 0: 이름 대조표 갱신
 
-**모델:** haiku — grep 으로 이름을 확인해 진행 장부에 적는 일이다. 코드는 고치지 않는다.
+**담당:** plan:0 이 2026-10-06 dev(`f169accb`)로 채웠다. 각 레인은 착수 첫 단계에서 자기 Task 에 걸린 줄만 Step 1 의 grep 으로 다시 확인하고, 달라졌으면 `progress-<레인>.md` 「계획 조정」 에 적는다. 코드는 고치지 않는다.
 
-**Files:**
-- 없음(진행 장부 `docs/superpowers/plans/2026-10-01-rule-set-flow-subset-call.progress.md` 에만 적는다. 이 파일은 컨트롤러가 만든 진행 장부이고 커밋하지 않는다)
+**대조표(본문 이름 → 2026-10-06 dev 이름):**
 
-**Interfaces:**
-- Consumes: dev 에 병합된 CATCH 계획 결과.
-- Produces: 진행 장부의 「CATCH 이름표」 — 선행 조건 표의 이름마다 실제 이름·파일·줄. Task 1~9 는 이 표의 실제 이름을 쓴다.
+| 구분 | 계획 본문(2e02d29d·CATCH 계획 기준) | 2026-10-06 dev | 쓰는 Task |
+|---|---|---|---|
+| 엔진 spi | `FlowNode(id, kind, ruleId, splitId, label, attachTo, catches)` | 같다. 새 칸 `setId` 는 끝(8번째)에 둔다 | 1·2 |
+| 엔진 spi | `NodeKind { …, CATCH }` | `START, END, RULE, TASK, IF, PARALLEL, MERGE, CATCH` — `SET` 은 맨 끝 | 1 |
+| 엔진 블록 | `Guarded(RuleStep rule, Seq normal, List<Handler> handlers, String mergeId)` | `Guarded(Step step, Seq normal, List<Handler> handlers, @Nullable String mergeId, @Nullable String joinId)`. `mergeId` 는 옛 형식만, 새 형식은 `joinId`(돌아오는 자리) | 2·4·5·9 |
+| 엔진 블록 | `CallStep permits RuleStep, SetStep` | 없음 — `Step permits RuleStep, TaskStep` 에 `SetStep` 을 더한다(Ruling 1) | 2·4·5 |
+| 엔진 블록 | `Split(…, mergeId, …)` | `Split(nodeId, kind, @Nullable mergeId, joinId, branches)` | 2·4 |
+| 엔진 블록 | `Guarded.Handler(catchNodeId, kinds, body, ends)` | 같다 | 4 |
+| 엔진 흐름 | `FlowParser.catchable(NodeKind)` = RULE | `FlowParser.catchable` = RULE·TASK. SET 을 더한다. `FlowParser` 는 `50c5d09e` 로 메서드가 나뉘었다 | 2 |
+| 엔진 실행 | `FlowRun.guarded`·`catchNode`·`CATCH_ORDER`·`Caught`·`Ended`·`endedBy` | 같은 이름이 있다. `catchNode(RuleStep r, …)` 는 지금 RULE 만 받는다 | 4 |
+| 엔진 실행 | `MdmRuleEngine.Prepared` | 준비 캐시 `MdmRuleEngine.plans`(세트 ID 키, `Plan.sameDefs`)가 더해졌다 — 하위 세트 정의(손주까지)를 동일성 비교에 넣는다 | 4 |
+| 엔진 결과 | `RuleSetResult(…, caught, endedBy)`·`PathStep(nodeId, kind, chosenEdgeId, stepIndex)`·`CaughtException(ruleNodeId, ruleId, catchNodeId, kind, code, message)` | 같다 | 1·4 |
+| 엔진 기록 | `NodeTrace(…, violations, catchKind, code, message)` | 같다. 새 칸 `outputs`·`sub` 는 이 셋 뒤 | 1·4·9 |
+| 예약 이름 | `ReservedNames.CATCH_NAMES`(넷) | 같다(`CATCH_KIND`·`CATCH_RULE`·`CATCH_CODE`·`CATCH_MSG`) | 1·4 |
+| 엔진 enum | `CatchKind { NO_RESULT, INPUT_ERROR, EVAL_ERROR, HIT_CONFLICT }` | 같다. `SUBSET_ENDED(List.of())` 를 끝에 | 1 |
+| 계약 호출부 | `new FlowNode(` 15곳 | 5개 파일(`FlowParser`·`RuleSetFlowJson`·시험 `FlowFixtures`·`FlowParserTest`·`FlowParserStageOneCharacterizationTest`) — grep 이 정본 | 1 |
+| 생성 TS | `m-mdm/src/contract/engine-contract.generated.ts` | 정본은 `shared/src/evalex/engine-contract.generated.ts`, m-mdm 쪽은 재내보내기(`f057bdb8`) | 1 |
+| TS 맵 | `Record<FlowNodeKind>` 맵 | `flow-edit.ts`·`flow-layout.ts`·`flow-model.ts` 세 파일 | 1 |
+| TS 모델 | `CATCHABLE` = RULE | `CATCHABLE` = RULE·TASK, `CATCH_KINDS`·`CATCH_NAMES`(넷)·`Step = RuleStep \| TaskStep`·`Guarded` 가 `flow-model.ts` 에 있다 | 2·5(ui:5t) |
+| 서버 검사 | `RuleSetCheck.FLOW_CATCH`·`CATCH_NEVER` | 같다. TASK 받는 노드 `CATCH_NEVER`(D-136 A4)가 있다 | 5 |
+| 서버 표 | `TB_MDM_RULE_SET.CALL_SET_IDS`·`MdmRuleSet`·`RuleSetWrites.update`·`SetState` | `TB_MDM_RULE_SET_VER.CALL_SET_IDS`·`MdmRuleSetVer`·`RuleSetWrites.updateDraft(setId, ver, ruleIdsJson, flowJson)`·새 버전 복사 `RuleSetVersionService` | 3·6 |
+| 서버 확정 | (없음) | `RuleSetConfirmCheck`·`RuleSetConfirmChecks.report(draft, applyFrom)`·`RuleConfirmCheck`·`RuleConfirmChecks`(`VersionConfirmCheckSpi`) | 6 |
+| 코퍼스 | `MIN_CASES = 64` | Java `RuleSetCorpusTest.MIN_CASES = 90`, TS `rule-set-corpus.test.ts` `MIN_CASES = 90` | 5(srv:5·ui:5t) |
+| 시험 도우미 | `FlowFixtures.catchNode(id, attachTo, String... kinds)`·`guardMerge` | `catchNode` 는 같다. 새 형식 시험은 돌아오는 MERGE 없이 쓴다 | 2·4 |
+| 화면 | `page.tsx` 812줄 | 872줄(`SetVersionRow`·`useAutoSave`·`ViewportGuard` 가 더해졌다) | 7 |
+| DB 번호 | V16 | V23(마지막 V22, V19 비어 있음, `outOfOrder=false`) | 3 |
 
-- [ ] **Step 1: CATCH 병합 확인**
+- [ ] **Step 1: 대조 확인(레인 착수 때, 자기 Task 줄만)**
 
-Run: `/usr/bin/git log --oneline dev -- docs/superpowers/plans/2026-10-01-rule-set-flow-catch.md`
-Expected: CATCH 계획 커밋이 보이고, `/usr/bin/git log --oneline --merges dev` 에 CATCH 태스크 병합 커밋들이 있다. 없으면 BLOCKED 로 보고하고 멈춘다.
-
-- [ ] **Step 2: 엔진 이름 확인**
-
-Run(각각):
+Run(필요한 줄만):
 ```bash
-grep -rn "CATCH" src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/spi/DefinitionLookup.java
-grep -rn "enum CatchKind\|record Guarded\|record Handler\|record CaughtException\|CAUGHT\|endedBy" src/backend/maru-mdm-engine/src/main/java
-grep -n "CATCH_" src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/expr/ReservedNames.java
-grep -n "record FlowNode\|record NodeTrace\|record RuleSetResult\|record RunTrace(" -A4 src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/spi/DefinitionLookup.java src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/rule/RunTrace.java src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/rule/RuleSetResult.java
+grep -n "record Guarded\|record Handler" src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/flow/Guarded.java
+grep -n "permits" src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/flow/Step.java
+grep -n "record FlowNode\|enum NodeKind" -A2 src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/spi/DefinitionLookup.java
+grep -n "CATCH_NAMES" src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/expr/ReservedNames.java
+grep -rln "new FlowNode(" src/backend
+grep -n "MIN_CASES =" src/backend/mdm/lib/src/test/java/com/dongkuk/dmes/mdm/common/rule/RuleSetCorpusTest.java src/frontend/m-mdm/tests/dme/ruleSetEdit/rule-set-corpus.test.ts
+grep -n "CATCHABLE\|CATCH_KINDS\|CATCH_NAMES\|export type Step" src/frontend/m-mdm/pages/dme/ruleSetEdit/flow-model.ts
+ls src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/
 ```
-Expected: `FlowNode` 의 마지막 두 칸이 `attachTo`·`catches`, `NodeTrace` 의 마지막 세 칸이 `catchKind`·`code`·`message`, `RuleSetResult` 의 마지막 두 칸이 `caught`·`endedBy`, `RunTrace` 의 마지막 칸이 `endedBy` 이다. 순서·이름이 다르면 진행 장부에 실제 순서를 적는다(Task 1 은 새 칸을 **CATCH 칸들 뒤**에 둔다는 원칙만 지키면 된다).
+Expected: 대조표와 같다. 다르면 지금 이름을 쓰고 `progress-<레인>.md` 에 적는다.
 
-- [ ] **Step 3: 서버·화면 이름 확인**
+- [ ] **Step 2: 기준선**
 
-Run(각각):
-```bash
-grep -n "FLOW_CATCH\|CATCH_NEVER" src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleSetCheck.java
-grep -n "hasDefault" src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleIo.java
-grep -n "Guarded\|CatchKind\|attachTo" src/frontend/m-mdm/pages/dme/ruleSetEdit/flow-model.ts src/frontend/m-mdm/pages/dme/ruleSetEdit/set-model.ts
-grep -n "MIN_CASES" src/backend/mdm/lib/src/test/java/com/dongkuk/dmes/mdm/common/rule/RuleSetCorpusTest.java src/frontend/m-mdm/tests/dme/ruleSetEdit/rule-set-corpus.test.ts
-grep -n "Guarded\|ends\b\|endedBy" src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/rule/FlowRun.java src/backend/maru-mdm-engine/src/main/java/kr/dongkuk/maru/mdm/engine/rule/FlowKeys.java src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/common/rule/RuleSetPathState.java
-```
-Expected: 다섯 명령 모두 결과가 있다. `MIN_CASES` 두 값이 같다(그 값을 장부에 적는다 — Task 2·5 가 이 값에 더한다). FlowRun·FlowKeys·RuleSetPathState 에서 받는 노드를 처리하는 메서드 이름(예: `guarded`)을 장부에 적는다.
-
-- [ ] **Step 4: 기준선**
-
-Run(공통 환경 뒤):
-```bash
-(cd src/backend/maru-mdm-engine && ../gradlew test --console=plain -q)
-(cd src/backend/mdm && ../gradlew :lib:test --console=plain -q)
-(cd src/backend/mdm && ../gradlew :api:test --console=plain -q)
-pnpm --dir src/frontend --filter @dk-oasis/m-mdm test
-```
-Expected: 모두 초록. 각 시험 수와 `[m-mdm test 합계]` 줄을 장부에 적는다. 빨강이 있으면 이 계획을 시작하지 않고 보고한다.
+자기 레인 영역 시험만 돌린다(공통 환경 뒤). eng: 엔진·cactus-core, srv: mdm `:lib:test`·`:api:test`, ui: `[m-mdm test 합계]`·lint. 모두 초록이어야 하고 시험 수를 `progress-<레인>.md` 에 적는다. 빨강이 있으면 착수하지 않고 조정 세션에 보고한다.
 
 ---
+
 
 ### Task 1: 엔진 계약 — `SET` 노드·`setId`·`SUBSET_ENDED`·호출 오류 두 코드·`setPath`·`calls`·`callIndex`·`outputs`/`sub`·`CATCH_SET`
+
+> **갱신 메모(레인이 착수 때 반영, 2026-10-06 plan:0)** — 아래 본문은 `2e02d29d` 기준이다. 본문보다 이 메모와 Task 0 대조표가 앞선다.
+> - 담당 eng:1. 이 항목 동안 생성 TS 두 벌과 `flow-edit.ts`·`flow-layout.ts`·`flow-model.ts` 는 eng 소유다(머지 뒤 ui 소유).
+> - `Guarded` 는 지금 `(Step step, Seq normal, handlers, @Nullable mergeId, @Nullable joinId)`, `Step` 은 `RuleStep | TaskStep` 이다. `SetStep` 은 `Step` 에 더한다(Ruling 1 재정의 — `CallStep` 을 두지 않는다). 계약 타입 쪽(이 Task)은 `NodeKind.SET`·`FlowNode.setId` 만 넓히고 블록은 eng:2 가 한다. `callSteps()` 가 필요한지는 eng:2 가 판단한다.
+> - 생성 TS 정본은 `shared/src/evalex/engine-contract.generated.ts`(`f057bdb8`), `m-mdm/src/contract/engine-contract.generated.ts` 는 재내보내기다. `gen:contract` 뒤 shared 를 다시 빌드한다.
+> - `Record<FlowNodeKind, …>` 맵은 `flow-edit.ts`·`flow-layout.ts`·`flow-model.ts` 세 파일에 있다. SET 항목을 더한다(동작은 RULE·TASK 와 같은 단계로).
+> - `new FlowNode(` 호출 파일은 5개다(Task 0). `ReservedNames.CATCH_NAMES` 는 지금 넷 → 다섯.
 
 **모델:** sonnet — 네 벌(Java·스키마·생성 TS·`RunTraceJson`)과 코덱을 같은 이름으로 맞추고 호출부를 기계적으로 고치는 다파일 작업이다. 실행 의미는 Task 4 가 맡는다.
 
@@ -688,6 +717,13 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/bac
 ---
 
 ### Task 2: 흐름 구조 — `SetStep`·`CallStep`·`FlowTree.setSteps/setIds/callSteps`·TS 짝·`RuleSetFlowJson.setIds`
+
+> **갱신 메모(레인이 착수 때 반영, 2026-10-06 plan:0)** — 아래 본문은 `2e02d29d` 기준이다. 본문보다 이 메모와 Task 0 대조표가 앞선다.
+> - 담당: Java 는 eng:2, TS 짝(`flow-model.ts`·`flow-edit.ts` 의 SET 처리, TS 시험)은 ui:5t, 구조 코퍼스 사례(`rule-set-corpus.json`)는 srv:5 다(레인 표의 파일 소유).
+> - D-136 §13 을 따른다: "돌아오는 MERGE `splitId`=SET" 은 **지운다**(옛 형식에 SET 이 없다). SET 의 들어오는 선은 1 이상(2 이상은 모이는 자리·돌아오는 자리만), 나가는 선 1 — 지금 RULE·TASK 의 d1 규칙에 SET 을 넣는다.
+> - `catchable`·`CATCHABLE` 은 RULE·TASK·SET. h2 문구 "받는 노드 {c}는 룰·빈 단계·룰 세트 노드에만 붙일 수 있다({t}는 {KIND})".
+> - 끝내는 IF 갈래(B1)와 처리 갈래 안 끝냄(J-D9·J-D18)이 SET 받는 노드에도 그대로 쓰이는지 시험한다.
+> - `FlowParser` 는 `50c5d09e` 로 메서드가 나뉘었다. 본문의 줄 번호·메서드 위치 대신 지금 메서드 이름으로 찾는다. `Guarded.rule` → 지금 `Guarded.step`(타입 `Step`), `CallStep` 대신 `Step` 에 `SetStep` 을 더한다(Ruling 1).
 
 **모델:** sonnet — Java·TS 파서 두 벌에 같은 블록을 더하는 일이고, 받는 노드 처리는 CATCH 가 만든 자리를 넓히기만 한다.
 
@@ -1198,106 +1234,65 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/bac
 
 ---
 
-### Task 3: DB — `CALL_SET_IDS` 칸(V16)·엔티티·쓰기·샘플·마이그레이션 시험
+### Task 3: DB — `TB_MDM_RULE_SET_VER.CALL_SET_IDS` 칸(V23)·엔티티·DRAFT 쓰기·새 버전 복사·샘플·마이그레이션 시험
 
-**모델:** sonnet — 정해진 순서의 SQL 과 기대값 표를 맞추는 일이다. 함정(케이스 표 FK)은 편차 4 가 정했다.
+**담당:** srv:3. **모델:** sonnet — 정해진 순서의 SQL 과 기대값 표를 맞추는 일이다. (2026-10-06 plan:0 이 현재 dev 기준으로 다시 썼다.)
 
 **이 태스크가 정한 것:**
-- `CALL_SET_IDS TEXT NOT NULL DEFAULT '[]' CONSTRAINT CK_TB_MDM_RULE_SET_CALL_SET_IDS_JSON CHECK (json_valid(CALL_SET_IDS))` 를 `FLOW_JSON` 바로 뒤에 둔다(칼럼 순서 불변식). 지금 SET 노드가 있는 세트는 없어 이관 값은 모두 `'[]'` 다.
-- `RuleSetWrites.update` 는 `callSetIdsJson` 인자를 받는다. 이 태스크에서는 호출자(`RuleSetEditService.save`)가 늘 `"[]"` 를 넘긴다(`// SEAM(T6)` — Task 6 이 흐름에서 계산한 목록으로 바꾼다). `SetState` 에 `callSetIds` 를 더한다.
-- 등록(`RuleSetMngService.reg`)은 엔티티 생성자를 쓰므로 엔티티 필드 기본값을 `"[]"` 로 둔다(NOT NULL 위반 방지).
-- 샘플 SQL 에 SET 노드 시연 세트 `SHIP_PLAN`(PKG_WGT 와 PACK_TYPE_SET 를 차례로 부름)을 더한다(로컬 브라우저 확인용).
+- `CALL_SET_IDS TEXT NOT NULL DEFAULT '[]' CONSTRAINT CK_TB_MDM_RULE_SET_VER_CALL_SET_IDS_JSON CHECK (json_valid(CALL_SET_IDS))` 를 VER 표의 `FLOW_JSON` 바로 뒤에 둔다(칼럼 순서 불변식). 지금 SET 노드가 있는 버전은 없어 이관 값은 모두 `'[]'` 다.
+- **VER 표만** V22 방식으로 다시 만든다: `_BAK` 복사(제약 없음) → 옛 표 DROP → 최종 이름으로 V18 정의 + 새 칸 생성 → 칼럼명을 모두 적어 복사 → `_BAK` DROP. RENAME·PRAGMA 를 쓰지 않는다. `TB_MDM_RULE_SET_VER` 를 가리키는 FK 가 없고(V18·V20~V22) V18 은 이 표에 인덱스·트리거를 두지 않았으므로 다시 만들 것이 없다. 부모 `TB_MDM_RULE_SET`·케이스 `TB_MDM_RULE_SET_TEST_CASE` 는 건드리지 않는다(옛 편차 4 는 없어졌다).
+- `RuleSetWrites.updateDraft` 가 `callSetIdsJson` 인자를 받는다. 이 태스크에서는 호출자(`RuleSetEditService.save`)가 늘 `"[]"` 를 넘긴다(`// SEAM(T6)` — Task 6 이 흐름에서 계산한 목록으로 바꾼다).
+- 엔티티 `MdmRuleSetVer` 에 `callSetIds` 필드(기본값 `"[]"`)를 둔다. 등록(`RuleSetMngService.reg`)의 1.000 DRAFT 는 생성자를 쓰므로 이 기본값으로 NOT NULL 을 지킨다. 새 버전 만들기(`RuleSetVersionService`, 원본 버전의 `ruleIds`·`flowJson` 복사 자리)는 `callSetIds` 도 복사한다.
+- 샘플 SQL 에 SET 노드 시연 세트 `SHIP_PLAN`(PKG_WGT 와 PACK_TYPE_SET 를 차례로 부름)을 더한다(로컬 브라우저 확인용). 지금 샘플의 세트 적재 방식(`TMP_RULE_SET` 임시 표 → 부모 행 + 1.000 MAJOR RELEASED 버전 행)을 따른다.
+- 번호 V23 은 머지 직전에 dev 의 마지막 번호를 다시 확인한다. 겹치면 다음 빈 번호로 옮기고 파일 이름·시험의 번호를 함께 고친다(Global Constraints).
 
 **Files:**
-- Create: `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V16__add_rule_set_call_set_ids.sql`
-- Modify: `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/entity/MdmRuleSet.java:26-31, 45-51, 53-65`
-- Modify: `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetWrites.java:22-23, 35-43, 59-72`
-- Modify: `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetEditService.java:236`(`writes.update` 인자 — `SEAM(T6)`)
-- Modify: `src/backend/mdm/sample/mdm-local-sample.sql`(파일 끝 `COMMIT;` 앞에 `SHIP_PLAN`)
-- Modify(Test): `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmBusinessRuleExpectations.java:31-36, 67-68, 78, 104-105`
-- Modify(Test): `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmBusinessRuleMigrationTest.java:85-92(뒤에 V16), 196-246, 258-268`
-- Create(Test): `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmRuleSetCallSetIdsRebuildTest.java`
+- Create: `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V23__rule_set_ver_call_set_ids.sql`
+- Modify: `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/entity/MdmRuleSetVer.java`(`flowJson` 필드 뒤 `callSetIds`, getter·setter)
+- Modify: `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetWrites.java`(`updateDraft`)
+- Modify: `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetEditService.java`(`save` 의 `writes.updateDraft` 인자 — `SEAM(T6)`)
+- Modify: `src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetVersionService.java`(새 버전 복사)
+- Modify: `src/backend/mdm/sample/mdm-local-sample.sql`(06 룰 세트 `TMP_RULE_SET` 블록 — 임시 표에 `CALL_SET_IDS` 칸, `SHIP_PLAN` 행)
+- Modify(Test): `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmBusinessRuleExpectations.java`(`BUSINESS_COLUMNS`·`JSON_COLUMNS`·`CONSTRAINTS` 의 `TB_MDM_RULE_SET_VER`)
+- Modify(Test): `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmBusinessRuleMigrationTest.java`(JSON CHECK 시험의 `inserts`·칼럼 수·`jsonParams`, 기본값 시험)
+- Modify(Test): `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmSharedContractMigrationTest.java`(적용 버전 목록에 `"23"`, 메서드 이름·주석)
+- Create(Test): `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmRuleSetVerCallSetIdsMigrationTest.java`
 - Modify(Test): `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dme/DmeTestSupport.java`(새 `ruleSetCalls`)
-- Modify(Test): `src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dme/ruleSetMng/RuleSetMngServiceTest.java`(등록 행의 `CALL_SET_IDS`)
+- Modify(Test): 새 버전 복사 시험이 있는 클래스(`grep -rln "copy\|newVersion" src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit` 로 찾는다)
 
 **Interfaces:**
-- Consumes: 없음(Task 0 뒤 첫 물결).
+- Consumes: 없음(첫 물결).
 - Produces:
-  - DB `TB_MDM_RULE_SET.CALL_SET_IDS`(JSON 배열 문자열, 기본 `'[]'`).
-  - Java `MdmRuleSet.getCallSetIds(): String`, `setCallSetIds(String)`.
-  - Java `RuleSetWrites.update(String setId, String name, String ruleIdsJson, String flowJson, String callSetIdsJson, String description, long rowVersion): int`
-  - Java `record RuleSetWrites.SetState(String status, long rowVersion, String ruleIds, String flowJson, String callSetIds)`
-  - 시험 도우미 `DmeTestSupport.ruleSetCalls(JdbcTemplate jdbc, String setId, String callSetIdsJson)`.
+  - DB `TB_MDM_RULE_SET_VER.CALL_SET_IDS`(JSON 배열 문자열, 기본 `'[]'`).
+  - Java `MdmRuleSetVer.getCallSetIds(): String`, `setCallSetIds(String)`.
+  - Java `RuleSetWrites.updateDraft(String setId, BigDecimal ver, String ruleIdsJson, String flowJson, String callSetIdsJson): int`
+  - 시험 도우미 `DmeTestSupport.ruleSetCalls(JdbcTemplate jdbc, String setId, String ver, String callSetIdsJson)`(+ `ver` 를 뺀 1.000 판).
 
 - [ ] **Step 1: 마이그레이션 실패 시험**
 
 `MdmBusinessRuleExpectations.java`:
-- 31행 주석 `JSON CHECK 가 걸린 8칼럼(F5 + 흐름도 FLOW_JSON)` → `JSON CHECK 가 걸린 칼럼(F5 + 흐름도 FLOW_JSON + 하위 세트 CALL_SET_IDS)`.
-- 67-68행:
-```java
-        BUSINESS_COLUMNS.put("TB_MDM_RULE_SET", List.of(
-                "MARU_RULE_SET_ID", "MARU_RULE_SET_NAME", "RULE_IDS", "FLOW_JSON", "CALL_SET_IDS", "DESCRIPTION", "STATUS", "ROW_VERSION"));
-```
-- 78행: `JSON_COLUMNS.put("TB_MDM_RULE_SET", List.of("RULE_IDS", "FLOW_JSON", "CALL_SET_IDS"));`
-- 104-105행:
-```java
-        CONSTRAINTS.put("TB_MDM_RULE_SET", List.of(
-                "PK_TB_MDM_RULE_SET", "CK_TB_MDM_RULE_SET_STATUS", "CK_TB_MDM_RULE_SET_RULE_IDS_JSON", "CK_TB_MDM_RULE_SET_FLOW_JSON",
-                "CK_TB_MDM_RULE_SET_CALL_SET_IDS_JSON"));
-```
-(`CONSTRAINTS` 의 순서가 DDL 등장 순서로 검사되면 DDL 에서 `CALL_SET_IDS` 줄이 `FLOW_JSON` 뒤이므로 위 순서가 맞다. 순서를 보지 않으면 그대로 둔다.)
+- `JSON_COLUMNS` 머리 주석의 칼럼 설명에 `+ 하위 세트 CALL_SET_IDS` 를 더한다.
+- `BUSINESS_COLUMNS.put("TB_MDM_RULE_SET_VER", …)` 의 `"FLOW_JSON"` 뒤에 `"CALL_SET_IDS"`.
+- `JSON_COLUMNS.put("TB_MDM_RULE_SET_VER", List.of("RULE_IDS", "FLOW_JSON", "CALL_SET_IDS"));`
+- `CONSTRAINTS.put("TB_MDM_RULE_SET_VER", …)` 끝에 `"CK_TB_MDM_RULE_SET_VER_CALL_SET_IDS_JSON"`(목록 순서를 보는지 시험 코드로 확인하고, 보면 DDL 등장 순서에 맞춘다).
 
 `MdmBusinessRuleMigrationTest.java`:
-- `flyway_가_V15_를_success_로_적용했다` 뒤에:
+- JSON CHECK 시험(`JSON_CHECK_는_10칼럼에서_…`)의 이름을 `JSON_CHECK_는_11칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다` 로, `assertEquals(10, checked, …)` 를 `assertEquals(11, checked, "JSON 칼럼은 정확히 11개다(F5 + FLOW_JSON + CALL_SET_IDS + 세트 케이스 2개)")` 로 바꾼다. `inserts.put("FLOW_JSON", …)` 뒤에:
 ```java
-    @Test
-    void flyway_가_V16_을_success_로_적용했다() throws SQLException {
-        try (Connection c = dataSource.getConnection(); Statement s = c.createStatement();
-             ResultSet rs = s.executeQuery("SELECT success FROM flyway_schema_history WHERE version = '16'")) {
-            assertTrue(rs.next(), "flyway_schema_history 에 version=16 행이 없다");
-            assertTrue(rs.getBoolean(1), "V16 이 success 가 아니다");
-        }
-    }
+                inserts.put("CALL_SET_IDS", "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS, CALL_SET_IDS) VALUES (?, ?, '[]', ?)");
+```
+- `jsonParams` 의 `case "RULE_IDS", "FLOW_JSON"` 줄을 `case "RULE_IDS", "FLOW_JSON", "CALL_SET_IDS" -> new Object[] {ruleId, n, json};` 로 넓힌다(소유자 갈래는 이미 VER 표면 세트 ID 를 고른다). `CALL_SET_IDS` 는 NOT NULL 이므로 `NULLABLE_JSON_COLUMNS` 에 넣지 않는다.
+- 기본값 시험 `칼럼을_생략한_INSERT_는_기본값을_쓴다` 의 VER 행 확인 SELECT 에 `|| '|' || CALL_SET_IDS` 를 더하고 기대 문자열 끝에 `|[]` 를 더한다.
 
-    @Test
-    void CALL_SET_IDS_를_빼고_넣으면_빈_배열이다() throws SQLException {
-        try (Connection c = dataSource.getConnection()) {
-            c.setAutoCommit(false);
-            try {
-                String set = "SC" + SEQ.incrementAndGet();
-                exec(c, "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS) VALUES (?, '세트', '[]')", set);
-                try (PreparedStatement ps = c.prepareStatement("SELECT CALL_SET_IDS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?")) {
-                    ps.setString(1, set);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        assertTrue(rs.next());
-                        assertEquals("[]", rs.getString(1));
-                    }
-                }
-            } finally {
-                c.rollback();
-                c.setAutoCommit(true);
-            }
-        }
-    }
-```
-- JSON 시험(196-246행): 메서드 이름 `JSON_CHECK_는_10칼럼에서_…` → `JSON_CHECK_는_11칼럼에서_부정형을_거부하고_NULL_허용_칼럼만_NULL_을_통과시킨다`, `inserts.put("FLOW_JSON", …)` 뒤에 한 줄, `assertEquals(10, checked, …)` → `assertEquals(11, checked, "JSON 칼럼은 정확히 11개다(F5 + FLOW_JSON + CALL_SET_IDS + 세트 케이스 2개)");`.
-```java
-                inserts.put("CALL_SET_IDS", "INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, CALL_SET_IDS) "
-                        + "VALUES (?, ?, '[]', ?)");
-```
-- `jsonParams` 의 `case "FLOW_JSON"` 뒤에:
-```java
-            case "CALL_SET_IDS" -> new Object[] {"C" + n, "호출 세트", json};
-```
+`MdmSharedContractMigrationTest.java`: 적용 버전 집합에 `"23"` 을 더하고, 메서드 이름 끝 `…_V22_를_적용했다` 를 `…_V22_V23_를_적용했다` 로, 주석에 `하위 세트 호출 — V23(세트 버전 행 CALL_SET_IDS) 추가 반영.` 한 줄을 더한다.
 
-`MdmRuleSetCallSetIdsRebuildTest.java` 를 만든다(Spring 없이 Flyway API — `MdmDomainCodeFkRebuildTest` 와 같은 방식).
+`MdmRuleSetVerCallSetIdsMigrationTest.java` 를 만든다(Spring 없이 Flyway API — `MdmLayoutItemPinMigrationTest` 와 같은 방식).
 
 ```java
 package com.dongkuk.dmes.mdm;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -1308,63 +1303,65 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import org.flywaydb.core.Flyway;
-import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * 하위 세트 계획 편차 4 — V16 은 세트 표를 다시 만들 때 V15 세트 테스트 케이스 표(세트를 가리키는 FK)를 함께 옮긴다. 케이스 행이 든 DB 에
- * foreign_keys=ON 으로 적용해 행·FK·칼럼 순서가 남는지 본다.
+ * 하위 세트 호출(D-135) — V23: 세트 버전 표 TB_MDM_RULE_SET_VER 에 CALL_SET_IDS 칸을 FLOW_JSON 뒤에 더한다(표 재생성, V22 방식).
+ * 버전 행·케이스 행이 든 DB 에 foreign_keys=ON 으로 적용해 행·칼럼 순서·제약이 남는지 본다.
  */
-class MdmRuleSetCallSetIdsRebuildTest {
-
-    private static final String LOCATION = "classpath:db/migration/mdm/sqlite";
+class MdmRuleSetVerCallSetIdsMigrationTest {
 
     @TempDir
-    Path tempDir;
+    Path dir;
 
-    @Test
-    void 케이스_행이_있는_DB_에_V16_을_적용해도_세트와_케이스가_남고_FK_가_살아_있다() throws SQLException {
-        String url = "jdbc:sqlite:" + tempDir.resolve("v16.db") + "?foreign_keys=true";
-        flyway(url, MigrationVersion.fromVersion("15")).migrate();
-        try (Connection c = DriverManager.getConnection(url); Statement s = c.createStatement()) {
-            s.executeUpdate("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, FLOW_JSON, STATUS, ROW_VERSION) "
-                    + "VALUES ('S_A', '세트 A', '[\"R1\"]', NULL, 'INUSE', 4)");
-            s.executeUpdate("INSERT INTO TB_MDM_RULE_SET_TEST_CASE (MARU_RULE_SET_ID, CASE_ID, CASE_NAME, INPUT_JSON, EVAL_TS) "
-                    + "VALUES ('S_A', 1, '케이스', '{\"X\":\"1\"}', '2026-10-01 09:00:00')");
-        }
-
-        flyway(url, MigrationVersion.fromVersion("16")).migrate();
-
-        try (Connection c = DriverManager.getConnection(url); Statement s = c.createStatement()) {
-            try (ResultSet rs = s.executeQuery("SELECT RULE_IDS, CALL_SET_IDS, ROW_VERSION FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'S_A'")) {
-                assertTrue(rs.next());
-                assertEquals("[\"R1\"]", rs.getString(1));
-                assertEquals("[]", rs.getString(2));
-                assertEquals(4L, rs.getLong(3));
-            }
-            try (ResultSet rs = s.executeQuery("SELECT CASE_NAME, EVAL_TS FROM TB_MDM_RULE_SET_TEST_CASE WHERE MARU_RULE_SET_ID = 'S_A'")) {
-                assertTrue(rs.next());
-                assertEquals("케이스", rs.getString(1));
-                assertEquals("2026-10-01 09:00:00", rs.getString(2));
-            }
-            assertEquals(List.of("MARU_RULE_SET_ID", "MARU_RULE_SET_NAME", "RULE_IDS", "FLOW_JSON", "CALL_SET_IDS", "DESCRIPTION", "STATUS",
-                    "ROW_VERSION", "C_USR_ID", "C_AT", "C_SVC_ID", "C_PGM_ID", "U_USR_ID", "U_AT", "U_SVC_ID", "U_PGM_ID", "VER"),
-                    columns(s, "TB_MDM_RULE_SET"));
-            assertThrows(SQLException.class, () -> s.executeUpdate(
-                    "INSERT INTO TB_MDM_RULE_SET_TEST_CASE (MARU_RULE_SET_ID, CASE_ID, INPUT_JSON) VALUES ('NOPE', 1, '{}')"),
-                    "케이스 FK 가 다시 걸려 있어야 한다");
-            assertThrows(SQLException.class, () -> s.executeUpdate("DELETE FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = 'S_A'"),
-                    "케이스가 있는 세트는 지울 수 없다(V15 FK)");
-            try (ResultSet rs = s.executeQuery("SELECT COUNT(*) FROM sqlite_master WHERE name LIKE '%_V16' OR name LIKE '%_NEW'")) {
-                assertTrue(rs.next());
-                assertEquals(0, rs.getInt(1), "임시 표가 남았다");
-            }
-        }
+    private Flyway flyway(String url, String target) {
+        return Flyway.configure().dataSource(url, null, null)
+                .locations("classpath:db/migration/mdm/sqlite").target(target).load();
     }
 
-    private static Flyway flyway(String url, MigrationVersion target) {
-        return Flyway.configure().dataSource(url, "", "").locations(LOCATION).target(target).load();
+    @Test
+    void existingVersionRowsKeepTheirValuesAndGetAnEmptyCallList() throws Exception {
+        String url = "jdbc:sqlite:" + dir.resolve("m.db") + "?foreign_keys=true";
+        flyway(url, "22").migrate();
+        try (Connection c = DriverManager.getConnection(url); Statement s = c.createStatement()) {
+            s.execute("INSERT INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME) VALUES ('S_A', '세트 A')");
+            s.execute("INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, VER_KIND, STATUS, APPLY_FROM, APPLY_TO, RULE_IDS, FLOW_JSON, ROW_VERSION) "
+                    + "VALUES ('S_A', 1, 'MAJOR', 'RELEASED', '2000-01-01 00:00:00', '9999-12-31 00:00:00', '[\"R1\"]', NULL, 4)");
+            s.execute("INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS) VALUES ('S_A', 2, '[\"R1\",\"R2\"]')");
+            s.execute("INSERT INTO TB_MDM_RULE_SET_TEST_CASE (MARU_RULE_SET_ID, CASE_ID, CASE_NAME, INPUT_JSON) VALUES ('S_A', 1, '케이스', '{}')");
+        }
+
+        flyway(url, "23").migrate();
+
+        try (Connection c = DriverManager.getConnection(url); Statement s = c.createStatement()) {
+            List<String> rows = new ArrayList<>();
+            try (ResultSet rs = s.executeQuery("SELECT VER, STATUS, RULE_IDS, CALL_SET_IDS, ROW_VERSION FROM TB_MDM_RULE_SET_VER "
+                    + "WHERE MARU_RULE_SET_ID = 'S_A' ORDER BY VER")) {
+                while (rs.next()) {
+                    rows.add(rs.getInt(1) + "|" + rs.getString(2) + "|" + rs.getString(3) + "|" + rs.getString(4) + "|" + rs.getLong(5));
+                }
+            }
+            assertThat(rows).containsExactly("1|RELEASED|[\"R1\"]|[]|4", "2|DRAFT|[\"R1\",\"R2\"]|[]|0");
+            assertThat(columns(s, "TB_MDM_RULE_SET_VER")).containsExactly(
+                    "MARU_RULE_SET_ID", "VER", "VER_KIND", "STATUS", "BASE_VER", "OWNER_ID", "APPLY_FROM", "APPLY_TO", "RULE_IDS", "FLOW_JSON",
+                    "CALL_SET_IDS", "REQUESTED_BY", "REQUESTED_AT", "RELEASED_AT", "ROW_VERSION",
+                    "C_USR_ID", "C_AT", "C_SVC_ID", "C_PGM_ID", "U_USR_ID", "U_AT", "U_SVC_ID", "U_PGM_ID", "AUD_VER");
+            assertThrows(SQLException.class, () -> s.execute(
+                    "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS, CALL_SET_IDS) VALUES ('S_A', 3, '[]', '{bad')"),
+                    "CALL_SET_IDS JSON CHECK");
+            assertThrows(SQLException.class, () -> s.execute(
+                    "INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, RULE_IDS) VALUES ('NOPE', 1, '[]')"),
+                    "부모 세트 FK 가 다시 걸려 있어야 한다");
+            try (ResultSet rs = s.executeQuery("SELECT COUNT(*) FROM TB_MDM_RULE_SET_TEST_CASE WHERE MARU_RULE_SET_ID = 'S_A'")) {
+                rs.next();
+                assertThat(rs.getInt(1)).isEqualTo(1);
+            }
+            try (ResultSet rs = s.executeQuery("SELECT COUNT(*) FROM sqlite_master WHERE name LIKE '%_BAK'")) {
+                rs.next();
+                assertThat(rs.getInt(1)).as("임시 표가 남았다").isZero();
+            }
+        }
     }
 
     private static List<String> columns(Statement s, String table) throws SQLException {
@@ -1378,37 +1375,55 @@ class MdmRuleSetCallSetIdsRebuildTest {
     }
 }
 ```
+(시험 안의 `PRAGMA table_info` 는 확인용이다. 마이그레이션 SQL 은 PRAGMA 를 쓰지 않는다.)
 
 - [ ] **Step 2: 실패 확인**
 
-Run(공통 환경 뒤): `(cd src/backend/mdm && ../gradlew :api:test --tests '*MdmBusinessRuleMigrationTest' --tests '*MdmRuleSetCallSetIdsRebuildTest' --console=plain)`
-Expected: FAIL — V16 이 없어 `version=16` 행이 없고 `CALL_SET_IDS` 칼럼이 없다.
+Run(공통 환경 뒤): `(cd src/backend/mdm && ../gradlew :api:test --tests '*MdmBusinessRuleMigrationTest' --tests '*MdmRuleSetVerCallSetIdsMigrationTest' --tests '*MdmSharedContractMigrationTest' --console=plain)`
+Expected: FAIL — V23 이 없어 `CALL_SET_IDS` 칼럼과 `version=23` 행이 없다.
 
-- [ ] **Step 3: V16 작성**
+- [ ] **Step 3: V23 작성**
 
-`V16__add_rule_set_call_set_ids.sql`:
+먼저 `ls src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/` 로 마지막 번호가 V22 인지 본다. `V18__rule_set_version.sql` 의 `CREATE TABLE TB_MDM_RULE_SET_VER` 정의를 글자 그대로 옮기고 `FLOW_JSON` 줄 뒤에 새 칸 한 줄만 더한다.
+
+`V23__rule_set_ver_call_set_ids.sql`:
 ```sql
--- 2026-10-01 — 룰 세트가 부르는 하위 세트 목록 CALL_SET_IDS 를 더한다.
+-- 2026-10-06 — 룰 세트 버전 행에 부르는 하위 세트 목록 CALL_SET_IDS 를 더한다(D-135, 하위 세트 호출).
 --
 -- 왜: 룰 세트 흐름에 다른 세트를 부르는 SET 노드가 생긴다(spec docs/superpowers/specs/2026-10-01-rule-set-flow-subset-call-design.md §1.1).
--- "이 세트를 부르는 세트" 를 모든 FLOW_JSON 을 해석하지 않고 찾으려고, 서버가 저장 때 흐름의 SET 노드를 깊이 우선으로 펼친 중복 없는 세트 ID
--- 목록(JSON 배열)을 채운다. RULE_IDS 는 지금처럼 이 세트 흐름의 RULE 노드만 담는다. 지금 SET 노드가 있는 세트는 없어 기존 행은 '[]' 다.
+--   "이 세트를 부르는 세트" 를 모든 FLOW_JSON 을 해석하지 않고 찾으려고, 서버가 DRAFT 저장 때 흐름의 SET 노드를 깊이 우선으로 펼친
+--   중복 없는 세트 ID 목록(JSON 배열)을 채운다. 흐름이 버전마다 다르므로 목록도 버전 행에 둔다. RULE_IDS 는 지금처럼 이 버전 흐름의
+--   RULE 노드만 담는다. 지금 SET 노드가 있는 버전은 없어 기존 행은 '[]' 다.
+-- 칼럼: CALL_SET_IDS TEXT NOT NULL DEFAULT '[]', json_valid CHECK. FLOW_JSON 바로 뒤 — 칼럼 순서 불변식(업무 칼럼 + 감사 칼럼,
+--   MdmBusinessRuleExpectations).
+-- 표 재생성: ADD COLUMN 대신 다시 만든다(V22 와 같은 판단). TB_MDM_RULE_SET_VER 를 가리키는 FK 는 없고(V18·V20~V22 확인),
+--   V18 은 이 표에 인덱스·트리거를 두지 않았다. 그래서 V22 처럼 _BAK 복사 → DROP → 최종 이름으로 생성 → 칼럼명을 모두 적어 복사 →
+--   _BAK DROP 순서로 한다. RENAME 과 PRAGMA 를 쓰지 않는다(V13 주석). 부모 TB_MDM_RULE_SET 와 케이스 표는 건드리지 않는다.
 --
--- ADD COLUMN 대신 테이블을 다시 만든다: 칼럼 순서 불변식(업무 칼럼 + 감사 칼럼, MdmBusinessRuleMigrationTest)을 지키려면 CALL_SET_IDS 가
--- FLOW_JSON 바로 뒤에 있어야 한다. V14 와 달리 V15 의 TB_MDM_RULE_SET_TEST_CASE 가 세트를 가리키는 FK 를 가지므로(V15 머리 주석),
--- 케이스 행이 있으면 세트 표 DROP 의 암묵 DELETE 가 FK 위반으로 실패한다(V9 머리 주석). 그래서 케이스 표를 FK 없는 임시 표로 옮기고,
--- 두 표를 지운 뒤 세트 표를 이름 바꾸고, 케이스 표를 V15 정의 그대로 다시 만들어 되돌려 넣는다.
--- V13·V14 와 같은 규칙: INSERT ... SELECT * 를 쓰지 않고 칼럼명을 모두 적는다. PRAGMA 를 쓰지 않는다.
--- 되돌리려면: 새 마이그레이션에서 CALL_SET_IDS 를 뺀 V14 정의로 같은 방식(케이스 표 포함)의 재생성을 한다. SET 노드는 FLOW_JSON 에 남는다.
+-- 되돌리려면: 새 마이그레이션에서 같은 _BAK 방식으로 CALL_SET_IDS 를 뺀 V18 정의의 표를 다시 만든다. SET 노드는 FLOW_JSON 에 남는다.
 
-CREATE TABLE TB_MDM_RULE_SET_NEW (
+-- ① 임시 복사(제약 없음)
+CREATE TABLE TB_MDM_RULE_SET_VER_BAK AS SELECT * FROM TB_MDM_RULE_SET_VER;
+
+-- ② 옛 표 삭제 — 이 표를 가리키는 FK 가 없어 위반·연쇄 삭제가 없다
+DROP TABLE TB_MDM_RULE_SET_VER;
+
+-- ③ 새 표 — V18 정의 + CALL_SET_IDS(FLOW_JSON 뒤)
+CREATE TABLE TB_MDM_RULE_SET_VER (
     MARU_RULE_SET_ID VARCHAR(50) NOT NULL,
-    MARU_RULE_SET_NAME TEXT NOT NULL,
-    RULE_IDS TEXT NOT NULL CONSTRAINT CK_TB_MDM_RULE_SET_RULE_IDS_JSON CHECK (json_valid(RULE_IDS)),
-    FLOW_JSON TEXT CONSTRAINT CK_TB_MDM_RULE_SET_FLOW_JSON CHECK (FLOW_JSON IS NULL OR json_valid(FLOW_JSON)),
-    CALL_SET_IDS TEXT NOT NULL DEFAULT '[]' CONSTRAINT CK_TB_MDM_RULE_SET_CALL_SET_IDS_JSON CHECK (json_valid(CALL_SET_IDS)),
-    DESCRIPTION TEXT,
-    STATUS VARCHAR(20) NOT NULL DEFAULT 'INUSE',
+    VER NUMERIC(7,3) NOT NULL,
+    VER_KIND VARCHAR(20) NOT NULL DEFAULT 'MAJOR',
+    STATUS VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+    BASE_VER NUMERIC(7,3),
+    OWNER_ID VARCHAR(50),
+    APPLY_FROM TEXT,
+    APPLY_TO TEXT,
+    RULE_IDS TEXT NOT NULL CONSTRAINT CK_TB_MDM_RULE_SET_VER_RULE_IDS_JSON CHECK (json_valid(RULE_IDS)),
+    FLOW_JSON TEXT CONSTRAINT CK_TB_MDM_RULE_SET_VER_FLOW_JSON CHECK (FLOW_JSON IS NULL OR json_valid(FLOW_JSON)),
+    CALL_SET_IDS TEXT NOT NULL DEFAULT '[]' CONSTRAINT CK_TB_MDM_RULE_SET_VER_CALL_SET_IDS_JSON CHECK (json_valid(CALL_SET_IDS)),
+    REQUESTED_BY VARCHAR(50),
+    REQUESTED_AT TEXT,
+    RELEASED_AT TEXT,
     ROW_VERSION BIGINT NOT NULL DEFAULT 0,
     C_USR_ID VARCHAR(100),
     C_AT TIMESTAMP,
@@ -1418,169 +1433,116 @@ CREATE TABLE TB_MDM_RULE_SET_NEW (
     U_AT TIMESTAMP,
     U_SVC_ID VARCHAR(100),
     U_PGM_ID VARCHAR(100),
-    VER BIGINT,
-    CONSTRAINT PK_TB_MDM_RULE_SET PRIMARY KEY (MARU_RULE_SET_ID),
-    CONSTRAINT CK_TB_MDM_RULE_SET_STATUS CHECK (STATUS IN ('INUSE','DEPRECATED'))
+    AUD_VER BIGINT,
+    CONSTRAINT PK_TB_MDM_RULE_SET_VER PRIMARY KEY (MARU_RULE_SET_ID, VER),
+    CONSTRAINT FK_TB_MDM_RULE_SET_VER_SET FOREIGN KEY (MARU_RULE_SET_ID) REFERENCES TB_MDM_RULE_SET (MARU_RULE_SET_ID),
+    CONSTRAINT CK_TB_MDM_RULE_SET_VER_STATUS CHECK (STATUS IN ('DRAFT','REQUESTED','APPROVED','RELEASED','CANCELLED')),
+    CONSTRAINT CK_TB_MDM_RULE_SET_VER_KIND CHECK (VER_KIND IN ('MAJOR','MINOR')),
+    CONSTRAINT CK_TB_MDM_RULE_SET_VER_APPLY CHECK (STATUS = 'DRAFT' OR (APPLY_FROM IS NOT NULL AND APPLY_TO IS NOT NULL))
 );
 
-INSERT INTO TB_MDM_RULE_SET_NEW (
-    MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, FLOW_JSON, CALL_SET_IDS, DESCRIPTION, STATUS, ROW_VERSION,
-    C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER
-)
-SELECT
-    MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, FLOW_JSON, '[]', DESCRIPTION, STATUS, ROW_VERSION,
-    C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER
-FROM TB_MDM_RULE_SET;
+-- ④ 복사 — 칼럼명을 모두 적는다(SELECT * 금지). 새 칸은 기본값 '[]'
+INSERT INTO TB_MDM_RULE_SET_VER (MARU_RULE_SET_ID, VER, VER_KIND, STATUS, BASE_VER, OWNER_ID, APPLY_FROM, APPLY_TO, RULE_IDS, FLOW_JSON,
+    REQUESTED_BY, REQUESTED_AT, RELEASED_AT, ROW_VERSION, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, AUD_VER)
+SELECT MARU_RULE_SET_ID, VER, VER_KIND, STATUS, BASE_VER, OWNER_ID, APPLY_FROM, APPLY_TO, RULE_IDS, FLOW_JSON,
+    REQUESTED_BY, REQUESTED_AT, RELEASED_AT, ROW_VERSION, C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, AUD_VER
+FROM TB_MDM_RULE_SET_VER_BAK;
 
-CREATE TABLE TB_MDM_RULE_SET_TEST_CASE_V16 AS
-SELECT
-    MARU_RULE_SET_ID, CASE_ID, CASE_NAME, INPUT_JSON, EVAL_TS, EXPECTED_JSON, DESCRIPTION, ROW_VERSION,
-    C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER
-FROM TB_MDM_RULE_SET_TEST_CASE;
-
-DROP TABLE TB_MDM_RULE_SET_TEST_CASE;
-DROP TABLE TB_MDM_RULE_SET;
-ALTER TABLE TB_MDM_RULE_SET_NEW RENAME TO TB_MDM_RULE_SET;
-
--- V15 정의를 글자 그대로 옮긴다.
-CREATE TABLE TB_MDM_RULE_SET_TEST_CASE (
-    MARU_RULE_SET_ID VARCHAR(50) NOT NULL,
-    CASE_ID INTEGER NOT NULL,
-    CASE_NAME TEXT,
-    INPUT_JSON TEXT NOT NULL CONSTRAINT CK_TB_MDM_RULE_SET_TEST_CASE_INPUT_JSON CHECK (json_valid(INPUT_JSON)),
-    EVAL_TS VARCHAR(19),
-    EXPECTED_JSON TEXT CONSTRAINT CK_TB_MDM_RULE_SET_TEST_CASE_EXPECTED_JSON CHECK (EXPECTED_JSON IS NULL OR json_valid(EXPECTED_JSON)),
-    DESCRIPTION TEXT,
-    ROW_VERSION BIGINT NOT NULL DEFAULT 0,
-    C_USR_ID VARCHAR(100),
-    C_AT TIMESTAMP,
-    C_SVC_ID VARCHAR(100),
-    C_PGM_ID VARCHAR(100),
-    U_USR_ID VARCHAR(100),
-    U_AT TIMESTAMP,
-    U_SVC_ID VARCHAR(100),
-    U_PGM_ID VARCHAR(100),
-    VER BIGINT,
-    CONSTRAINT PK_TB_MDM_RULE_SET_TEST_CASE PRIMARY KEY (MARU_RULE_SET_ID, CASE_ID),
-    CONSTRAINT FK_TB_MDM_RULE_SET_TEST_CASE_SET FOREIGN KEY (MARU_RULE_SET_ID) REFERENCES TB_MDM_RULE_SET (MARU_RULE_SET_ID)
-);
-
-INSERT INTO TB_MDM_RULE_SET_TEST_CASE (
-    MARU_RULE_SET_ID, CASE_ID, CASE_NAME, INPUT_JSON, EVAL_TS, EXPECTED_JSON, DESCRIPTION, ROW_VERSION,
-    C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER
-)
-SELECT
-    MARU_RULE_SET_ID, CASE_ID, CASE_NAME, INPUT_JSON, EVAL_TS, EXPECTED_JSON, DESCRIPTION, ROW_VERSION,
-    C_USR_ID, C_AT, C_SVC_ID, C_PGM_ID, U_USR_ID, U_AT, U_SVC_ID, U_PGM_ID, VER
-FROM TB_MDM_RULE_SET_TEST_CASE_V16;
-
-DROP TABLE TB_MDM_RULE_SET_TEST_CASE_V16;
+DROP TABLE TB_MDM_RULE_SET_VER_BAK;
 ```
+V18 정의를 옮길 때 V18 파일과 한 줄씩 대조한다(위는 2026-10-06 V18 그대로다). V20~V22 가 이 표를 바꾸지 않았는지 `grep -n "TB_MDM_RULE_SET_VER" src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V2*.sql` 로 확인한다(2026-10-06 결과 없음).
 
-V15 파일 끝(30행 뒤)에 인덱스·트리거가 있으면(`sed -n 30,60p src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V15__create_mdm_rule_set_test_case.sql`) 그것도 V16 끝에 그대로 다시 만든다. 2e02d29d 기준 V15 는 표 하나뿐이다.
+- [ ] **Step 4: 엔티티·쓰기·복사 구현**
 
-- [ ] **Step 4: 엔티티·쓰기 구현**
-
-`MdmRuleSet.java` — `flowJson` 필드 뒤:
+`MdmRuleSetVer.java` — `flowJson` 필드 뒤:
 ```java
-    /** 흐름의 SET 노드를 깊이 우선으로 펼친 중복 없는 세트 ID JSON 배열(하위 세트 spec §1.1). 서버가 저장 때 계산한다. */
-    @Column(name = "CALL_SET_IDS", nullable = false)
+    /** 흐름의 SET 노드를 깊이 우선으로 펼친 중복 없는 세트 ID JSON 배열(하위 세트 spec §1.1). 서버가 DRAFT 저장 때 계산한다. */
+    @Column(name = "CALL_SET_IDS", nullable = false, updatable = false)
     private String callSetIds = "[]";
 ```
-getter·setter 를 `getFlowJson`·`setFlowJson` 옆에 둔다.
-```java
-    public String getCallSetIds() { return callSetIds; }
-```
-```java
-    public void setCallSetIds(String v) { this.callSetIds = v; }
-```
-클래스 javadoc 끝에 ` {@code CALL_SET_IDS} 는 흐름의 SET 노드가 부르는 세트 ID 목록(JSON, 기본 [])이다.` 를 더한다.
+`updatable = false` 는 `RULE_IDS`·`FLOW_JSON` 과 같게 맞춘다(쓰기는 네이티브 `updateDraft` 몫 — 그 두 칸의 지금 `@Column` 설정을 보고 같게 둔다). getter·setter 를 `getFlowJson`·`setFlowJson` 옆에 둔다.
 
-`RuleSetWrites.java`:
+`RuleSetWrites.updateDraft`:
 ```java
-    public record SetState(String status, long rowVersion, String ruleIds, String flowJson, String callSetIds) {
-    }
-```
-```java
-    /** 저장 — INUSE 이고 row_version 이 같을 때만 세트명·룰 목록(JSON)·흐름(JSON, NULL 허용)·부르는 세트 목록(JSON)·설명을 바꾸고 row_version 을 올린다. */
-    public int update(String setId, String name, String ruleIdsJson, String flowJson, String callSetIdsJson, String description, long rowVersion) {
-        NativeQuery<?> q = audited("UPDATE TB_MDM_RULE_SET SET MARU_RULE_SET_NAME = :name, RULE_IDS = :ids, FLOW_JSON = :flow, "
-                + "CALL_SET_IDS = :calls, DESCRIPTION = :desc, ROW_VERSION = ROW_VERSION + 1, " + AUDIT_SET
-                + " WHERE MARU_RULE_SET_ID = :id AND ROW_VERSION = :rv AND STATUS = 'INUSE'")
-                .setParameter("id", setId).setParameter("rv", rowVersion).setParameter("name", name).setParameter("ids", ruleIdsJson)
+    /** DRAFT 의 흐름·룰 목록·부르는 세트 목록. row_version 은 호출 직전 공통 가드({@code beginDraftWrite})가 올렸다. DRAFT 가 아니면 0행. */
+    public int updateDraft(String setId, BigDecimal ver, String ruleIdsJson, String flowJson, String callSetIdsJson) {
+        NativeQuery<?> q = audited("UPDATE TB_MDM_RULE_SET_VER SET RULE_IDS = :ids, FLOW_JSON = :flow, CALL_SET_IDS = :calls, " + AUDIT_SET
+                + ", AUD_VER = COALESCE(AUD_VER, 0) + 1 WHERE MARU_RULE_SET_ID = :id AND VER = :ver AND STATUS = 'DRAFT'")
+                .setParameter("id", setId).setParameter("ver", VersionNumbers.scaled(ver)).setParameter("ids", ruleIdsJson)
                 .setParameter("calls", callSetIdsJson);
         q.setParameter("flow", flowJson, String.class);
-        q.setParameter("desc", description, String.class);
         return q.executeUpdate();
     }
 ```
-`state(...)`:
-```java
-        List<Object[]> rows = entityManager.createQuery(
-                        "SELECT s.status, s.rowVersion, s.ruleIds, s.flowJson, s.callSetIds FROM MdmRuleSet s WHERE s.maruRuleSetId = :id", Object[].class)
-                .setParameter("id", setId).getResultList();
-        if (rows.isEmpty()) {
-            return Optional.empty();
-        }
-        Object[] r = rows.get(0);
-        return Optional.of(new SetState((String) r[0], ((Number) r[1]).longValue(), (String) r[2], (String) r[3], (String) r[4]));
-```
 
-`RuleSetEditService.java:236`:
+`RuleSetEditService.save` 의 `writes.updateDraft(...)` 호출:
 ```java
             // SEAM(T6) — Task 6 이 흐름에서 계산한 CALL_SET_IDS 로 바꾼다.
-            if (writes.update(setId, name, DomainJson.write(ids), flowJson, "[]", description, rv) == 0) {
+            if (writes.updateDraft(setId, ver, DomainJson.write(ids), flowJson, "[]") == 0) {
 ```
+다른 `updateDraft` 호출부가 있으면(`grep -rn "updateDraft(" src/backend/mdm/lib/src`) 모두 같은 방식으로 고친다.
 
-`DmeTestSupport.java` — `ruleSetFlow(...)` 뒤:
+`RuleSetVersionService` — 새 버전을 만드는 자리(`new MdmRuleSetVer(...)` 뒤 원본의 `getFlowJson()` 을 복사하는 줄) 옆에 `created.setCallSetIds(s.getCallSetIds());` 를 더한다(원본이 없으면 엔티티 기본값 `"[]"`).
+
+`DmeTestSupport.java` — `ruleSetFlow(...)` 두 판 뒤:
 ```java
-    /** 이미 넣은 세트 행의 CALL_SET_IDS 를 바꾼다(하위 세트 픽스처). 흐름의 SET 노드와 맞춰 둔다. */
+    /** 이미 넣은 세트 버전 행의 CALL_SET_IDS 를 바꾼다(하위 세트 픽스처). 흐름의 SET 노드와 맞춰 둔다. */
     public static void ruleSetCalls(JdbcTemplate jdbc, String setId, String callSetIdsJson) {
-        jdbc.update("UPDATE TB_MDM_RULE_SET SET CALL_SET_IDS = ? WHERE MARU_RULE_SET_ID = ?", callSetIdsJson, setId);
+        ruleSetCalls(jdbc, setId, "1.000", callSetIdsJson);
+    }
+
+    public static void ruleSetCalls(JdbcTemplate jdbc, String setId, String ver, String callSetIdsJson) {
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET CALL_SET_IDS = ? WHERE MARU_RULE_SET_ID = ? AND VER = ?",
+                callSetIdsJson, setId, new java.math.BigDecimal(ver));
     }
 ```
+(`ruleSetFlow` 가 VER 를 묶는 방식을 그대로 따른다 — 그 메서드의 바인딩을 보고 맞춘다.)
 
-`RuleSetMngServiceTest.java` 의 등록 시험(새 세트를 등록하고 행을 읽는 시험 — `grep -n "reg(" RuleSetMngServiceTest.java` 로 찾는다) 끝에 한 줄을 더한다.
-```java
-        assertEquals("[]", jdbc.queryForObject("SELECT CALL_SET_IDS FROM TB_MDM_RULE_SET WHERE MARU_RULE_SET_ID = ?", String.class, id));
-```
-(`id` 는 그 시험이 등록한 세트 ID 변수 이름으로 맞춘다.)
+새 버전 복사 시험(Files 의 grep 으로 찾은 클래스)에 "원본 버전의 `CALL_SET_IDS` 가 새 DRAFT 에 복사된다" 단언 한 줄을 더한다(`DmeTestSupport.ruleSetCalls` 로 원본에 `["S_B"]` 를 넣고 새 버전 행을 읽는다).
 
 - [ ] **Step 5: 샘플 SQL**
 
-`mdm-local-sample.sql` 의 마지막 `COMMIT;` 앞에 더한다.
+`mdm-local-sample.sql` 의 「06 룰 세트」 블록:
+- `CREATE TEMP TABLE TMP_RULE_SET (...)` 에 `CALL_SET_IDS TEXT` 칸을 더하고, `INSERT INTO TB_MDM_RULE_SET_VER (...) SELECT ...` 의 칼럼 목록 `FLOW_JSON` 뒤에 `CALL_SET_IDS` 를, SELECT 목록에 `COALESCE(CALL_SET_IDS, '[]')` 를 더한다.
+- 그 블록의 `INSERT INTO TMP_RULE_SET` 이 끝난 뒤(부모·버전 적재 전)에 `SHIP_PLAN` 을 임시 표에 넣는다. `PKG_WGT`·`PACK_TYPE_SET` 세트가 샘플에서 이 블록보다 뒤에 적재되면, `SHIP_PLAN` 은 파일 끝 `COMMIT;` 앞에 같은 임시 표 방식으로 따로 둔다(부르는 세트가 먼저 있어야 로컬 확인 때 `CALL_MISSING` 이 안 난다 — FK 는 없으니 순서는 확인용이다).
 ```sql
--- 하위 세트 호출 데모(2026-10-01 하위 세트 spec): SHIP_PLAN 은 룰 없이 두 세트를 SET 노드로 차례로 부른다 — PKG_WGT(출하 중량)·PACK_TYPE_SET(포장 방식).
--- 입력은 두 하위 세트 입력의 합, 결과는 두 하위 세트의 최종 결과(PACK_WGT·GROSS_WGT·LOAD_CNT·PACK_TYPE)다. CALL_SET_IDS 는 서버가 저장 때 계산하는 값과 같게 적는다.
-INSERT OR IGNORE INTO TB_MDM_RULE_SET (MARU_RULE_SET_ID, MARU_RULE_SET_NAME, RULE_IDS, FLOW_JSON, CALL_SET_IDS, DESCRIPTION, STATUS, ROW_VERSION, C_USR_ID, C_AT, C_PGM_ID, U_USR_ID, U_AT, U_PGM_ID, VER) VALUES
+-- 하위 세트 호출 데모(D-135): SHIP_PLAN 은 룰 없이 두 세트를 SET 노드로 차례로 부른다 — PKG_WGT(출하 중량)·PACK_TYPE_SET(포장 방식).
+-- CALL_SET_IDS 는 서버가 저장 때 계산하는 값과 같게 적는다. 흐름은 D-136 새 형식(합류 없음)이다.
     ('SHIP_PLAN', '출하 계획(하위 세트 데모)', '[]',
      '{"version":1,"nodes":[{"id":"start","kind":"START","ruleId":null,"splitId":null,"label":null},{"id":"s1","kind":"SET","ruleId":null,"splitId":null,"label":"출하 중량","setId":"PKG_WGT"},{"id":"s2","kind":"SET","ruleId":null,"splitId":null,"label":"포장 방식","setId":"PACK_TYPE_SET"},{"id":"end","kind":"END","ruleId":null,"splitId":null,"label":null}],"edges":[{"id":"e1","from":"start","to":"s1","order":null,"cond":null,"otherwise":false,"label":null},{"id":"e2","from":"s1","to":"s2","order":null,"cond":null,"otherwise":false,"label":null},{"id":"e3","from":"s2","to":"end","order":null,"cond":null,"otherwise":false,"label":null}],"view":{"positions":{},"notes":[],"groups":[]}}',
-     '["PKG_WGT","PACK_TYPE_SET"]', '하위 세트 호출 데모 — SET 노드 두 개', 'INUSE', 0, 'kim', '2026-10-01 10:00:00', 'mdm-local-sample', 'kim', '2026-10-01 10:00:00', 'mdm-local-sample', 0);
+     '["PKG_WGT","PACK_TYPE_SET"]', '하위 세트 호출 데모 — SET 노드 두 개', 'INUSE', 0, 'kim', '2026-10-06 10:00:00', 'mdm-local-sample', 'kim', '2026-10-06 10:00:00', 'mdm-local-sample', 0)
 ```
-CATCH 의 정규 JSON 은 CATCH 노드에만 `attachTo`·`catches` 를 쓴다(CATCH 계획 R11). 그래서 위 노드들에는 두 키를 넣지 않는다. 서버가 다시 저장해도 글자가 바뀌지 않는다.
+위 값 행의 칼럼 순서는 그 자리 `INSERT INTO TMP_RULE_SET (...)` 의 칼럼 목록에 맞춘다(`FLOW_JSON`·`CALL_SET_IDS` 를 목록에 넣는다). 정규 JSON 은 지금 `RuleSetFlowJson` 이 쓰는 모양과 같아야 한다 — 시연 세트의 흐름 JSON 을 서버로 한 번 정규화해 볼 수 없으므로, 샘플의 다른 흐름 세트(FLOW_JSON 이 있는 행)의 키 모양을 보고 맞춘다. `setId` 는 Task 1 이 정규 JSON 에 SET 노드에만 쓰기로 했다(편차 5).
 
 - [ ] **Step 6: 통과 확인**
 
-Run(차례로):
+Run(차례로, 공통 환경 뒤):
 ```bash
-(cd src/backend/mdm && ../gradlew :api:test --tests '*MdmBusinessRuleMigrationTest' --tests '*MdmRuleSetCallSetIdsRebuildTest' --tests '*MdmLocalSample*' --tests '*RuleSetMngServiceTest' --tests '*RuleSetEditServiceTest' --console=plain)
+(cd src/backend/mdm && ../gradlew :api:test --tests '*MdmBusinessRuleMigrationTest' --tests '*MdmRuleSetVerCallSetIdsMigrationTest' --tests '*MdmSharedContractMigrationTest' --tests '*MdmLocalSample*' --tests '*RuleSetEdit*' --tests '*RuleSetMng*' --tests '*RuleSetVersion*' --console=plain)
 (cd src/backend/mdm && ../gradlew :lib:test --console=plain -q)
 (cd src/backend/mdm && ../gradlew :api:test --console=plain -q)
 ```
-Expected: PASS. `MdmLocalSampleStrictTest`(OR IGNORE 를 뗀 엄격 적재)가 `SHIP_PLAN` 행을 넣는다.
+Expected: PASS. `MdmLocalSampleStrictTest`(OR IGNORE 를 뗀 엄격 적재)가 `SHIP_PLAN` 행을 넣는다. 엔진 eng:1 이 dev 에 들어가기 전이면 `SHIP_PLAN` 흐름의 `"kind":"SET"` 을 해석하는 시험이 없어야 한다 — 샘플 적재 시험이 흐름을 해석하면 `SHIP_PLAN` 행 추가는 srv:6 으로 미룬다(`progress-srv.md` 에 적는다).
 
 - [ ] **Step 7: 커밋**
 
 ```bash
-/usr/bin/git add src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V16__add_rule_set_call_set_ids.sql src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/entity/MdmRuleSet.java src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetWrites.java src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetEditService.java src/backend/mdm/sample/mdm-local-sample.sql src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmBusinessRuleExpectations.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmBusinessRuleMigrationTest.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmRuleSetCallSetIdsRebuildTest.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dme/DmeTestSupport.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dme/ruleSetMng/RuleSetMngServiceTest.java
-/usr/bin/git commit -m "feat(mdm): 룰 세트 표에 부르는 하위 세트 목록 CALL_SET_IDS 칸을 더한다(V16)
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V16__add_rule_set_call_set_ids.sql src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/entity/MdmRuleSet.java src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetWrites.java src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetEditService.java src/backend/mdm/sample/mdm-local-sample.sql src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmBusinessRuleExpectations.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmBusinessRuleMigrationTest.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmRuleSetCallSetIdsRebuildTest.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dme/DmeTestSupport.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dme/ruleSetMng/RuleSetMngServiceTest.java
+/usr/bin/git add src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/V23__rule_set_ver_call_set_ids.sql src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/entity/MdmRuleSetVer.java src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetWrites.java src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetEditService.java src/backend/mdm/lib/src/main/java/com/dongkuk/dmes/mdm/dme/ruleSetEdit/service/RuleSetVersionService.java src/backend/mdm/sample/mdm-local-sample.sql src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmBusinessRuleExpectations.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmBusinessRuleMigrationTest.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmSharedContractMigrationTest.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/MdmRuleSetVerCallSetIdsMigrationTest.java src/backend/mdm/api/src/test/java/com/dongkuk/dmes/mdm/dme/DmeTestSupport.java
+/usr/bin/git commit -m "feat(mdm): 룰 세트 버전 행에 부르는 하위 세트 목록 CALL_SET_IDS 칸을 더한다(V23)" -m "Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- <위 add 와 같은 경로들 + 새 버전 복사 시험 파일>
 ```
+(새 버전 복사 시험 파일도 add 와 commit 경로에 함께 넣는다.)
 
 ---
 
+
 ### Task 4: 엔진 실행 — 하위 세트 준비(재귀)·`SetShape`·SET 노드 실행·받는 노드·`setPath`·`calls`·`sub`
+
+> **갱신 메모(레인이 착수 때 반영, 2026-10-06 plan:0)** — 아래 본문은 `2e02d29d` 기준이다. 본문보다 이 메모와 Task 0 대조표가 앞선다.
+> - 담당 eng:4.
+> - `d56dde59` 준비 캐시 `MdmRuleEngine.plans`(세트 ID 키, `Plan.sameDefs`)가 있다. 하위 세트 정의(손주까지)의 동일성을 비교에 넣는다 — 하위 세트 버전이 바뀌면 부모 계획을 다시 만든다. `RuleSetPreparePlanCacheTest` 에 그 사례를 더한다.
+> - `always` = 루트 순차 끝 상태 + 모든 끝냄 지점(끝내는 처리 갈래·처리 갈래 안 IF 끝냄·끝내는 IF 갈래) 상태의 교집합(Ruling 16, D-136 §13).
+> - 하위 세트가 끝내는 IF 갈래로 끝나면(`endedBy` 없음) 부모에는 정상 완료다 — `SUBSET_ENDED` 받는 노드를 타지 않는다(J-D17).
+> - `FlowRun` 의 `mergeId` 는 nullable(옛 형식만)이다. 처리 갈래가 끝난 뒤 이어 갈 자리는 `Guarded.joinId`(돌아오는 자리) 기준으로 잡는다. 본문의 `enterHandler`·`closeGuard` 추출은 지금 `guarded`·`catchNode` 모양을 보고 다시 판단한다. `catchNode(RuleStep r, …)` 는 SET 도 받게 넓힌다.
 
 **모델:** opus — 준비 단계 재귀, 입력 키 사전 검사, 받는 노드(CATCH)와의 맞물림, 기록 실행이 한꺼번에 바뀐다. 결정적 실행·기존 기록 모양을 깨지 않아야 한다.
 
@@ -2967,6 +2929,12 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/bac
 
 ### Task 5: 분석기 — `SetCallIo`·`RuleSetInterface`·SET 노드 검사(서버·화면 두 벌)·`CALL_MISSING`·받는 노드 SET 규칙·코퍼스
 
+> **갱신 메모(레인이 착수 때 반영, 2026-10-06 plan:0)** — 아래 본문은 `2e02d29d` 기준이다. 본문보다 이 메모와 Task 0 대조표가 앞선다.
+> - 담당: 서버(`SetCallIo`·`RuleSetInterface`·`RuleSetAnalyzer`·`RuleSetPathState`)와 코퍼스 JSON 은 srv:5, TS(`set-model.ts`·`types.ts`, `flow-model.test.ts`·`set-model.test.ts`·`helpers/engine-paths.ts`)는 ui:5t. 코퍼스 JSON 은 Java·TS 공용이고 srv 소유다. `MIN_CASES` 는 지금 90 이다(Java·TS 같은 값으로 올린다).
+> - `SetCallIo.exists` = 기준 시각에 RELEASED 가 있음(DRAFT 만 있으면 없음, Ruling 24). `CALL_MISSING` 수준은 WARN(편차 13).
+> - TASK 받는 노드의 `CATCH_NEVER`(D-136 A4) 옆에 SET 규칙(`SUBSET_ENDED` + `endsEarly=false`)을 둔다. `endsEarly` 는 편차 10 의 정의를 쓴다.
+> - 구조 코퍼스 사례(Task 2 몫)도 srv:5 가 함께 넣는다: SET 이 모이는 자리·돌아오는 자리, SET 받는 노드 처리 갈래의 돌아옴·끝냄·끝내는 IF 갈래, h2 문구.
+
 **모델:** opus — 서버·화면 두 분석기를 같은 문구·같은 순서로 넓히고, 코퍼스로 두 벌을 묶는다. 기존 RULE 만 있는 흐름의 문구·순서가 한 글자도 바뀌면 안 된다.
 
 **이 태스크가 정한 것:**
@@ -4135,6 +4103,14 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/bac
 ---
 
 ### Task 6: 서비스·연쇄 재검사 — `CALL_SET_IDS` 저장·호출 그래프·부르는 세트 재검사·폐기 거부·룰 저장 검사·조회·실행 응답
+
+> **갱신 메모(레인이 착수 때 반영, 2026-10-06 plan:0)** — 아래 본문은 `2e02d29d` 기준이다. 본문보다 이 메모와 Task 0 대조표가 앞선다.
+> - 담당 srv:6. **크게 바뀐다(U2).** 연쇄 재검사의 거부 자리는 저장이 아니라 **확정 검사**다: 세트는 `RuleSetConfirmCheck` → `RuleSetConfirmChecks.report(draft, applyFrom)`, 룰은 `RuleConfirmCheck` → `RuleConfirmChecks`(둘 다 `VersionConfirmCheckSpi`). 기준 시각은 확정하려는 apply_from 이다. 네 코드(`CALLER_BROKEN`·`CALL_CYCLE`·`CALL_DEPTH`·`CALL_MISSING`)를 거부로 본다(스펙 §5·§6.1·§6.4).
+> - DRAFT 저장(`RuleSetEditService.save`)은 같은 계산을 지금 기준으로 돌려 네 코드를 **경고**로만 돌려준다. 다른 흐름 거부는 지금처럼 `rejectIfAny` 로 막는다. 룰 DRAFT 저장 검사(`RuleSaveCheck`)도 `SET_CALLER_BROKEN` 을 경고 이슈로만 낸다. `@Order` 는 지금 쓰는 번호를 다시 세어 정한다(편차 3).
+> - 폐기는 그대로 거부(C-D12), 되살리기는 네 코드를 거부로 본다(스펙 §6.3).
+> - 부르는 쪽 행은 RELEASED 이고 기준 시각 이후 유효한 VER 행만 센다(Ruling 25). `callIo`·`callers`·`view.calls` 의 기준 시각은 지금(Ruling 24).
+> - 필수 시험: 두 DRAFT 가 순환을 반씩 만든 뒤 각자 저장은 경고로 통과하고, 먼저 확정은 통과, 나중 확정이 `CALL_CYCLE` 로 막힌다. 같은 부모 깨짐이 DRAFT 저장에서는 경고, 확정에서는 거부다.
+> - `SEAM(T6)`(Task 3)을 흐름에서 계산한 `CALL_SET_IDS` 로 바꾼다. `RuleSetVersionService` 복사는 Task 3 이 했다.
 
 **모델:** opus — 저장·폐기·되살리기·룰 저장 네 경로가 같은 재검사를 함께 쓰고, OASIS 응답·오류 문구·DB 시험이 얽힌다.
 
@@ -5561,6 +5537,10 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/bac
 
 ### Task 7: 화면 — 편집 화면 안 세트 탭(`RuleSetEditor`·`RuleSetTabs`·`tabs-model`)
 
+> **갱신 메모(레인이 착수 때 반영, 2026-10-06 plan:0)** — 아래 본문은 `2e02d29d` 기준이다. 본문보다 이 메모와 Task 0 대조표가 앞선다.
+> - 담당 ui:7. 본문은 사실상 다시 쓴다: `page.tsx` 는 지금 872줄이고 `SetVersionRow`·`useAutoSave`·`ViewportGuard` 가 더해졌다(D-144). 편차 6 은 **shared 새 컴포넌트 등록**으로 바뀌었다 — 세트 탭 틀(탭 머리·닫기 단추·숨김 패널)을 `@dk-oasis/shared` 새 컴포넌트로 만들고 같은 작업 안에서 `mantine-aggrid-ui` 스킬의 컴포넌트 문서와 색인을 갱신한다. 기존 `shared/src/components/tabs/**` 는 고치지 않는다.
+> - 자동 저장(`useAutoSave`)·DRAFT 선점(버전 행)·버전 줄(`SetVersionRow`)은 **탭마다 독립**이다. 한 탭의 자동 저장·선점이 다른 탭 세트에 닿지 않는지 시험한다.
+
 **모델:** opus — 812줄 `page.tsx` 를 탭 틀과 편집기로 나누면서 단축키·되돌리기·beforeunload·포털 파라미터 동작을 그대로 지켜야 한다. 백엔드 태스크와 겹치는 파일이 없어 첫 물결에서 돈다.
 
 **이 태스크가 정한 것:**
@@ -6256,6 +6236,12 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/fro
 ---
 
 ### Task 8: 화면 — SET 노드(놓기·검색 팝업·그리기·속성 패널·받는 노드)·탭 연동·e2e 시나리오
+
+> **갱신 메모(레인이 착수 때 반영, 2026-10-06 plan:0)** — 아래 본문은 `2e02d29d` 기준이다. 본문보다 이 메모와 Task 0 대조표가 앞선다.
+> - 담당 ui:8. 캔버스가 바뀌었다: 받는 노드 위치(D-142·D-143), 자동 배치(D-140), 이동 한계(`aac858aa`). SET 노드는 RULE·TASK 와 같은 단계로 이 자리들에 넣는다.
+> - e2e 노드 수 기대는 D-136 새 형식(IF 합류 없음) 기준이다. 하위 세트 탭의 겉모양 갱신은 RELEASED 기준이라(Ruling 24) 시나리오는 B 확정까지 하거나 확정된 고정 데이터를 쓴다(스펙 §12).
+> - 디버그 모드 경고 문구는 `"하위 세트 {S}에 확정하지 않은 변경이 있다. 실행은 판정 시각의 RELEASED 로 한다."`, 조건은 하위 세트 탭에 저장 안 한 변경이 있거나 DRAFT 를 열고 있을 때다(C-D18).
+> - 저장 응답의 `CALL_*`·`CALLER_BROKEN` 은 경고 목록으로 온다(확정 거부는 확정 화면 몫). 메시지 줄 부모 링크는 경고 줄에서도 뽑는다.
 
 **모델:** opus — 편집 연산·캔버스·패널·탭 연동·서버 응답이 한꺼번에 맞물린다. 캔버스 memo 의존성(Local-Rules §16·§19)과 늦은 응답 버리기(§11)를 지켜야 한다.
 
@@ -7188,6 +7174,10 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/fro
 
 ### Task 9: 디버거 — SET 노드 표시·노드 상세·"안으로 들어가기"(같은 캔버스, 경로 표시)
 
+> **갱신 메모(레인이 착수 때 반영, 2026-10-06 plan:0)** — 아래 본문은 `2e02d29d` 기준이다. 본문보다 이 메모와 Task 0 대조표가 앞선다.
+> - 담당 ui:9. 캔버스 변경(D-140·D-142·D-143·`aac858aa`)과 D-136 그리기(병렬 합류 속 빈 막대, IF 합류 없음, 끝낸 IF 갈래 표시 §11)를 하위 프레임에도 쓴다. 하위 흐름이 옛 형식이면 `toEditFlow` 변환을 거쳐 그린다(스펙 §11).
+> - `trace-view.ts` 의 SEAM 은 지금 `Guarded.step` 을 푸는 자리에서 찾는다(`Guarded.rule` 이 아니다).
+
 **모델:** sonnet — 순수 함수(`call-stack.ts`)와 작은 훅 하나를 두고, 편집기·패널·값 표에 "지금 보고 있는 단계(세트)"를 넘기는 일이다. 실행은 바꾸지 않는다.
 
 **이 태스크가 정한 것(Ruling 15·21):**
@@ -7714,7 +7704,34 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/fro
 
 ---
 
-### Task 10: 문서·결정 — D-135(C-D1~C-D16)·엔진 계약 문서·기능설계서
+### Task c: cactus 미리 받기 — 하위 세트 재귀(U3)
+
+**담당:** eng:c(eng:2 뒤). **모델:** sonnet — 미리 받기 반복 하나를 넓히고 시험을 더하는 일이다. 스펙 §8.1, C-D17.
+
+**건드릴 곳(2026-10-06 코드 확인):**
+- `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/mdm/MdmExprRefs.java` — `ruleIds(RuleSetDefinition)` 옆에 `static Set<String> setIds(RuleSetDefinition set)` 를 둔다: 흐름 노드 가운데 `kind == SET` 이고 `setId` 가 비지 않은 것의 `setId`, 처음 나온 순서로 중복 없이. `FlowNode.setId` 는 eng:1 이 더한다.
+- `src/backend/cactus-core/src/main/java/com/dongkuk/dmes/cactus/mdm/MdmValidator.java` 의 `prefetch` — 「룰 세트와 그 룰」 블록. 지금은 `service.lookupAt(RULE_SET, setIds, ts)` 로 요청 세트만 받고 `rulesBySet` 에 그 세트의 `ruleIds` 를 모은다. 이것을 다음처럼 넓힌다.
+  - 요청 세트마다 받은 정의에서 `setIds` 를 모아, 아직 받지 않은 하위 세트 ID 를 같은 `ts` 로 `lookupAt(RULE_SET, …)` 한다. 단계마다 한 번 묶어 부르고, 최상위에서 5 단계까지 되풀이한다(엔진 깊이 상한과 같은 값, Global Constraints). 이미 받은 세트 ID 는 다시 받지 않는다(순환이어도 끝난다).
+  - 하위 세트의 `ruleIds`·`flowCodes`·`flowMasterAt` 를 그 하위 세트를 부른 **최상위 요청 세트 항목**(`item(RULE_SET, 최상위 ID)`)의 `rulesBySet`·`codesByItem`·`atByItem` 에 더한다. 한 하위 세트를 여러 최상위 세트가 부르면 각자에 더한다.
+  - 하위 세트가 `unavailable` 이면 그 하위 세트를 부른 최상위 항목을 `skip(최상위 항목, item(RULE_SET, 하위 ID), …)` 로 검증 불가로 둔다. `missing` 이면 아무것도 빼지 않는다(엔진이 `SET_NOT_FOUND` 로 행 오류를 낸다 — 지금 룰 없음과 같은 처리).
+  - 뒤따르는 룰 받기·코드 받기·`MASTER_AT` 받기는 지금 코드 그대로 넓어진 모음을 쓴다.
+- 클래스 javadoc 의 순서 설명(§6.2 미리 받기)에 "하위 세트(깊이 5)" 를 더한다.
+
+**시험(`src/backend/cactus-core/src/test/java/com/dongkuk/dmes/cactus/mdm/`, `FakeMetaFeed` 로 정의를 준다 — `MdmValidatorTest`·`MdmValidatorVersionedTest` 의 준비 방식을 따른다):**
+- 하위·손주 세트를 미리 받는다: 최상위 A → B → C, C 의 룰을 평가 중 캐시 부재 없이 쓴다(검증 불가 없음).
+- 순환 A → B → A 에서 미리 받기가 끝난다(엔진은 실행에서 `SET_CALL_CYCLE` 로 행 오류).
+- 깊이 5 상한: 6 단계 아래 세트는 받지 않는다.
+- 하위 세트의 룰이 `unavailable` 이면 최상위 세트 항목이 `unavailable` 에 들고 그 세트 검사를 건너뛴다.
+- 없는 하위 세트는 항목을 빼지 않고, 행 오류(`SET_NOT_FOUND`)가 결과에 남는다.
+- 같은 판정 시각: 하위 세트도 요청 `evalTs` 의 버전으로 고른다(`MdmValidatorVersionedTest` 방식).
+
+**확인과 커밋:** `(cd src/backend && ./gradlew :cactus-core:test --console=plain -q)`(프로젝트 경로는 `settings.gradle` 로 확인) 초록. 커밋은 두 소스 파일과 시험 파일만 경로로 지정한다(`feat(cactus): 저장 검증 미리 받기가 하위 룰 세트를 깊이 5 까지 받는다`).
+
+---
+
+### Task 10: 문서·결정 — D-135(C-D1~C-D19)·엔진 계약 문서·기능설계서
+
+> **갱신 메모(2026-10-06 plan:0)** — 담당은 조정 세션(fin)이다. `docs/mdm/decisions.md` 에서 D-135 자리는 비어 있다(D-134 다음이 D-136). 기록은 스펙 2026-10-06 판의 C-D1~C-D19 를 옮긴다 — 아래 형판의 C-D2·C-D3·C-D10·C-D11·V23·I14 는 그 판에 맞춰 고쳤다. 반드시 함께 적을 것: (1) I14 변경 — "폐기는 경로 검사를 돌리지 않고, 지금 이후 유효한 RELEASED 버전이 이 세트를 부르는 폐기하지 않은 세트가 있으면 거부한다", (2) 확정 검사 변경 — `RuleSetConfirmCheck`·`RuleConfirmCheck` 가 연쇄 재검사·호출 그래프로 네 코드를 거부하고 DRAFT 저장은 경고만 한다(U2), (3) cactus 미리 받기 재귀(U3), (4) D-136 위 SET 규칙(C-D19). 병합 커밋은 레인 머지 커밋(eng·srv·ui)으로 적는다. 기능설계서에는 확정 화면 쪽 거부 문구도 더한다.
 
 **모델:** haiku — 정해진 문구를 정해진 자리에 옮겨 적는 일이다.
 
@@ -7724,7 +7741,7 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- src/fro
 - Modify: `docs/mdm/screens/ruleSetEdit/ruleSetEdit_기능설계서.md`(§2 화면 영역, §5.1 버튼, §5.3 캔버스, §5.5 우클릭, §6.2 세트 검사, §11 설계 결정)
 
 **Interfaces:**
-- Consumes: Task 1~9 의 병합 커밋, 진행 장부의 Ruling·태스크 보고서의 편차.
+- Consumes: 세 레인의 dev 머지 커밋, 레인 기록 문서 `docs/rule-set-subset/progress-<레인>.md` 의 결정·계획 조정.
 - Produces: 없음(문서).
 
 - [ ] **Step 1: decisions.md 끝 형식 확인**
@@ -7734,15 +7751,15 @@ Expected: 마지막 항목이 CATCH 의 `## D-134 (…)` 이고, 항목마다 `-
 
 - [ ] **Step 2: D-135 을 끝에 더한다**
 
-**Source** 끝의 커밋은 `/usr/bin/git log --oneline --merges feat/rule-set-subset-call` 에서 Task 1~9 병합 커밋을 찾아 `Task N <해시>` 로 적는다.
+**Source** 끝의 커밋은 `/usr/bin/git log --oneline --merges dev` 에서 세 레인(`feat/rule-set-subset-engine`·`-server`·`-ui`) 머지 커밋을 찾아 `레인 <해시>` 로 적는다.
 ```markdown
 ## D-135 (2026-10-01T00:00:00Z)
 - **Phase**: plan·implement(룰 세트 흐름도 — 하위 세트 호출(SET 노드)·편집 화면 안 세트 탭, 사용자가 방향을 승인하고 세부 판단을 맡김)
 - **Decision needed**: 룰 세트에서 다른 룰 세트를 부르는 방법과, 여러 세트를 한 편집 화면 안에서 함께 여는 방법(사용자 요청 "룰 세트에서 또 다른 룰 세트를 호출하게 하려면", "룰세트 편집 안에 여러개의 탭")
-- **Decision made**: C-D1 하위 세트는 블랙박스 `SET` 노드(입력은 하위 입력, 출력은 최종 결과만, 이름은 그대로 주고받는다) · C-D2 호출 시점의 저장된 현재 행, INUSE 만 · C-D3 `TB_MDM_RULE_SET.CALL_SET_IDS`(서버가 흐름에서 계산), `RULE_IDS` 는 자기 RULE 노드만 · C-D4 겉모양(`SetCallIo`)은 서버만 계산하고 화면은 받아서 검사에 넣는다 · C-D5 출력마다 `always`, 일부 경로 출력은 `maybe`(`FLOW_PARTIAL`) · C-D6 하위 세트의 처리되지 않은 위반은 SET 노드에서 같은 종류로 받고, 받지 않는 코드는 중단 · C-D7 예약 이름 `CATCH_SET` · C-D8 하위 세트의 처리 갈래 끝냄은 opt-in 종류 `SUBSET_ENDED`(받는 노드가 없으면 정상 완료) · C-D9 `caught` 는 `setPath` 를 붙여 최상위까지 이어 붙이고 `endedBy` 는 자기 세트만 · C-D10 순환·깊이 5 초과는 저장 때 거부(`CALL_CYCLE`·`CALL_DEPTH`), 실행 때 `SET_CALL_CYCLE`·`SET_CALL_DEPTH` · C-D11 겉모양이 바뀌는 저장(세트·룰)은 부르는 세트를 연쇄 재검사해 새 거부는 막고(`CALLER_BROKEN`·`SET_CALLER_BROKEN`) 새 경고는 알린다(`CALLER_WARN`) · C-D12 부르는 INUSE 세트가 있으면 폐기 거부 · C-D13 편집 화면 안 세트 탭(최대 8), SET 링크는 같은 화면의 새 탭 · C-D14 탭마다 세트 상태·되돌리기·디버거를 따로, 보는 사람 설정은 함께 · C-D15 디버거 "안으로 들어가기"는 같은 캔버스에서 경로 표시로 오가고 탭을 열지 않는다 · C-D16 흐름 `version` 1 유지. 구현 편차(계획 `docs/superpowers/plans/2026-10-01-rule-set-flow-subset-call.md`): 새 조회는 action 이 아니라 `search` 의 `target` `CALL_IO`·`CALLERS`(ADR-0003 권한 어휘), 룰 저장 검사 `RuleSetCallerCheck` 는 `@Order(9)`, V16 은 세트 테스트 케이스 표(V15 FK)를 함께 옮겨 다시 만든다, 하위 세트는 준비 단계에서 읽고 판정한다(룰 없음과 같은 시점), 엔진은 실행용 겉모양 `SetShape` 을 같은 알고리즘으로 스스로 계산한다, 하위 세트 입력에서 `CATCH_*` 다섯 이름을 뺀다, `SetCallIo` 에 `setName`·`endsEarly` 를 더한다, 세트 탭은 네이티브 탭 머리 + `display:none` 패널이다(Mantine `Tabs` 는 화면에서 쓰지 못하고 9.6 의 `keepMounted` 기본 모드 `activity` 는 숨은 탭의 효과를 내린다), I14 가 "폐기는 경로 검사를 하지 않고, 부르는 INUSE 세트가 있으면 거부한다" 로 바뀐다.
+- **Decision made**: C-D1 하위 세트는 블랙박스 `SET` 노드(입력은 하위 입력, 출력은 최종 결과만, 이름은 그대로 주고받는다) · C-D2 하위 세트는 판정 시각에 유효한 RELEASED 버전, 폐기 아닌 세트만 · C-D3 `TB_MDM_RULE_SET_VER.CALL_SET_IDS`(버전 행, 서버가 흐름에서 계산), `RULE_IDS` 는 자기 RULE 노드만 · C-D4 겉모양(`SetCallIo`)은 서버만 계산하고 화면은 받아서 검사에 넣는다 · C-D5 출력마다 `always`, 일부 경로 출력은 `maybe`(`FLOW_PARTIAL`) · C-D6 하위 세트의 처리되지 않은 위반은 SET 노드에서 같은 종류로 받고, 받지 않는 코드는 중단 · C-D7 예약 이름 `CATCH_SET` · C-D8 하위 세트의 처리 갈래 끝냄은 opt-in 종류 `SUBSET_ENDED`(받는 노드가 없으면 정상 완료) · C-D9 `caught` 는 `setPath` 를 붙여 최상위까지 이어 붙이고 `endedBy` 는 자기 세트만 · C-D10 순환·깊이 5 초과는 확정·되살리기 때 거부, DRAFT 저장 때 경고(`CALL_CYCLE`·`CALL_DEPTH`), 실행 때 `SET_CALL_CYCLE`·`SET_CALL_DEPTH` · C-D11 겉모양이 바뀌는 확정(세트·룰, 기준 apply_from)은 부르는 세트를 연쇄 재검사해 새 거부는 막고(`CALLER_BROKEN`·`SET_CALLER_BROKEN`) DRAFT 저장은 경고만 하며 새 경고는 알린다(`CALLER_WARN`) — 2026-10-06 사용자 결정 U2 · C-D12 부르는 INUSE 세트가 있으면 폐기 거부 · C-D13 편집 화면 안 세트 탭(최대 8), SET 링크는 같은 화면의 새 탭 · C-D14 탭마다 세트 상태·되돌리기·디버거를 따로, 보는 사람 설정은 함께 · C-D15 디버거 "안으로 들어가기"는 같은 캔버스에서 경로 표시로 오가고 탭을 열지 않는다 · C-D16 흐름 `version` 1 유지 · C-D17 cactus 저장 검증 미리 받기가 하위 세트를 깊이 5 까지 재귀로 받는다(U3) · C-D18 디버거 경고 "확정하지 않은 변경, 실행은 판정 시각의 RELEASED" · C-D19 SET 은 D-136 모델의 단계(들어오는 선 1 이상, 처리 갈래는 돌아오는 자리로, `catchable` RULE·TASK·SET, 하위 세트의 끝내는 IF 갈래 끝은 부모에 정상 완료). 구현 편차(계획 `docs/superpowers/plans/2026-10-01-rule-set-flow-subset-call.md`): 새 조회는 action 이 아니라 `search` 의 `target` `CALL_IO`·`CALLERS`(ADR-0003 권한 어휘), 룰 쪽 거부는 확정 검사(`RuleConfirmChecks`)가, 룰 DRAFT 저장은 경고만, V23 은 VER 표만 `_BAK` 방식으로 다시 만든다, 분석기는 `CALL_MISSING` 을 WARN 으로 내고 확정·되살리기가 네 코드를 거부로 본다, 하위 세트는 준비 단계에서 읽고 판정한다(룰 없음과 같은 시점), 엔진은 실행용 겉모양 `SetShape` 을 같은 알고리즘으로 스스로 계산한다, 하위 세트 입력에서 `CATCH_*` 다섯 이름을 뺀다, `SetCallIo` 에 `setName`·`endsEarly` 를 더한다, 세트 탭 틀은 shared 새 컴포넌트(숨은 패널 `display:none`)다, I14 가 "폐기는 경로 검사를 하지 않고, 지금 이후 유효한 RELEASED 버전이 이 세트를 부르는 폐기하지 않은 세트가 있으면 거부한다" 로 바뀐다.
 - **Rationale**: 분석기가 SET 을 RULE 처럼 보면 기존 경로 검사가 그대로 돈다. 중간 결과를 숨기면 이름 충돌이 줄어든다. 실행이 저장된 하위 세트를 쓰므로 하위 세트 수정이 부모 동작을 즉시 바꾼다 — 그래서 저장 때 부모를 다시 검사한다. 같은 화면 안 탭이라 저장 알림으로 부모 탭 검사를 바로 갱신할 수 있다. ADR-0005 의 원칙(엔진이 흐름을 실행하고 DB 를 부르지 않음, 흐름 안에 저장·외부 호출 노드 없음)은 그대로 유효하다 — SET 노드는 판정 흐름을 부르는 것이고 하위 세트도 `DefinitionLookup.ruleSet` 으로 받는다.
-- **Reversible**: no(흐름 JSON 에 SET 노드, 표에 CALL_SET_IDS 가 저장된다)
-- **Source**: 스펙 `docs/superpowers/specs/2026-10-01-rule-set-flow-subset-call-design.md` §13, 계획 편차·Ruling, 사용자 요청. 영향: 엔진 계약(`NodeKind.SET`·`FlowNode.setId`·`CatchKind.SUBSET_ENDED`·오류 코드 둘·`Violation.setPath`·`RuleSetResult.calls`·`PathStep.callIndex`·`CaughtException.setPath`·`NodeTrace.outputs`/`sub`·`CATCH_SET`), DB V16, `ruleSetEdit` search target 둘·view `calls`·execute `calledFlows`, 룰 저장 검사, 화면 탭·SET 노드·디버거. 병합 커밋: (Task 1~9 해시)
+- **Reversible**: no(흐름 JSON 에 SET 노드, 버전 행에 CALL_SET_IDS 가 저장된다)
+- **Source**: 스펙 `docs/superpowers/specs/2026-10-01-rule-set-flow-subset-call-design.md` §13, 계획 편차·Ruling, 사용자 요청. 영향: 엔진 계약(`NodeKind.SET`·`FlowNode.setId`·`CatchKind.SUBSET_ENDED`·오류 코드 둘·`Violation.setPath`·`RuleSetResult.calls`·`PathStep.callIndex`·`CaughtException.setPath`·`NodeTrace.outputs`/`sub`·`CATCH_SET`), DB V23, `ruleSetEdit` search target 둘·view `calls`·execute `calledFlows`, 세트·룰 확정 검사와 DRAFT 저장 경고, cactus 미리 받기, 화면 탭(shared 새 컴포넌트)·SET 노드·디버거. 병합 커밋: (eng·srv·ui 레인 머지 해시)
 ```
 
 - [ ] **Step 3: 엔진 계약 문서**
@@ -7767,7 +7784,7 @@ Expected: 마지막 항목이 CATCH 의 `## D-134 (…)` 이고, 항목마다 `-
 - §5.3 캔버스: SET 노드 모양(룰과 같은 크기, 굵은 테두리, 제목은 라벨·세트명·세트 ID 순, "룰 세트 {ID}" 줄, 입력·출력 개수 칩), SET 노드 뒤 선의 변수 칩은 하위 세트 출력, 받는 노드는 RULE·SET 에 붙는다(SET 은 `SUBSET_ENDED` 를 고를 수 있고 `NO_RESULT` 는 없다), 외관 옵션은 SET 에 없다.
 - §5.5 우클릭: SET 노드 「세트 열기」·「복사」·「복제」·「삭제」, 선 「룰 세트 넣기」.
 - §6.2 세트 검사 표: `CALL_MISSING`(거부, 화면·서버 — 문구 Ruling 8), `CALL_CYCLE`·`CALL_DEPTH`·`CALLER_BROKEN`(거부, 서버만 — 저장 응답), `CALLER_WARN`(경고, 서버만 — 저장 결과), `FLOW_CATCH` 의 SET 규칙과 `CATCH_NEVER`(SUBSET_ENDED) 문구(Ruling 9), `EMPTY` 는 RULE·TASK·SET 노드가 하나도 없을 때. 세트 검사 문구에서 하위 세트는 `세트 {ID}` 로 보인다.
-- §11 설계 결정: `D-135 하위 세트 호출·세트 탭 — 스펙 2026-10-01-rule-set-flow-subset-call-design.md §13, 계획 편차 1~14` 한 줄.
+- §11 설계 결정: `D-135 하위 세트 호출·세트 탭 — 스펙 2026-10-01-rule-set-flow-subset-call-design.md §13(2026-10-06 판), 계획 편차 1~13` 한 줄.
 
 - [ ] **Step 5: 확인과 커밋**
 
@@ -7783,9 +7800,9 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>" -- docs/md
 
 ---
 
-## 최종 검증(컨트롤러)
+## 최종 검증(조정 세션)
 
-Task 10 병합 뒤 feat 브랜치 끝에서 한 번 돌린다(공통 환경 뒤).
+세 레인 머지 뒤 dev 에서 조정 세션이 한 번 돌린다(공통 환경 뒤). cactus-core 시험도 함께 돌린다.
 ```bash
 (cd src/backend/maru-mdm-engine && ../gradlew test --console=plain -q)
 (cd src/backend/mdm && ../gradlew :lib:test --console=plain -q)
@@ -7795,11 +7812,11 @@ rtk proxy pnpm --dir src/frontend --filter @dk-oasis/m-mdm run lint
 grep -rn "SEAM(T4)\|SEAM(T5)\|SEAM(T6)\|SEAM(T8)\|SEAM(T9)" src/backend src/frontend/m-mdm/pages
 pnpm --dir src/frontend exec playwright test e2e/mdm-ruleSetEdit.spec.ts --list
 ```
-Expected: 모두 초록, 기준선 대비 늘어난 시험 수를 진행 장부에 적는다. `SEAM(T…)` 0건. e2e 목록에 E1~E16. 마지막으로 `superpowers:requesting-code-review` 로 브랜치 전체 리뷰를 받는다(Review Focus 다섯 줄을 리뷰어에게 넘긴다).
+Expected: 모두 초록, 기준선 대비 늘어난 시험 수를 조정 기록에 적는다. `SEAM(T…)` 0건. e2e 목록에 E1~E16. 마지막으로 `superpowers:requesting-code-review` 로 브랜치 전체 리뷰를 받는다(Review Focus 다섯 줄을 리뷰어에게 넘긴다).
 
-## 수동 브라우저 확인(컨트롤러, 사용자 승인 뒤, ego-browser)
+## 수동 브라우저 확인(조정 세션, 사용자 승인 뒤)
 
-로컬 기동·브라우저 확인은 사용자 승인 뒤에만 한다(Local-Rules §4). 이 PC 의 브라우저 확인은 `ego-browser` 스킬을 쓴다. 로컬 샘플(`mdm-local-sample.sql`)의 `SHIP_PLAN` 으로 본다.
+로컬 기동·브라우저 확인은 조정 세션만, 사용자 승인 뒤에만 한다(Local-Rules §4). 브라우저 도구는 PC 설정(CLAUDE.md)을 따른다. 로컬 샘플(`mdm-local-sample.sql`)의 `SHIP_PLAN` 으로 본다.
 1. 룰 세트 편집에서 `SHIP_PLAN` 을 연다 — SET 노드 둘(출하 중량·포장 방식)에 입력·출력 칩이 보이고 검사에 거부가 없다.
 2. SET 노드 링크 → `PKG_WGT` 가 같은 화면의 새 탭으로 열린다. 탭 머리·닫기·● 표시, 숨은 탭에서 ⌘Z 가 지금 탭에만 듣는지 본다.
 3. 디버그 모드에서 `SHIP_PLAN` 을 실행하고 SET 노드 상세 → [안으로 들어가기] → 하위 흐름·경로 표시 → 앞 단계 눌러 돌아오기.
@@ -7810,12 +7827,14 @@ Expected: 모두 초록, 기준선 대비 늘어난 시험 수를 진행 장부�
 
 ## 자체 점검(계획 작성자)
 
+> 2026-10-01 작성 당시의 점검 기록이다. 스펙 대응 표만 2026-10-06 에 고쳤고, 2·3·4 의 이름(`CallStep` 등)은 Task 0 대조표로 읽는다.
+
 **1. 스펙 대응**
 
 | 스펙 | 태스크 |
 |---|---|
 | §1 노드·저장 형식(`kind`·`setId`·`attachTo`·`splitId`·`version`) | 1(계약·코덱), 2(구조), 8(편집 연산) |
-| §1.1 DB `CALL_SET_IDS`·V16·엔티티·쓰기·테스트·샘플 | 3, 6(저장 때 계산) |
+| §1.1 DB `CALL_SET_IDS`·V23·엔티티·쓰기·새 버전 복사·테스트·샘플 | 3, 6(저장 때 계산) |
 | §2 겉모양 `SetCallIo`(inputs·outputs·always·손주) | 5(서버), 4(엔진 `SetShape`, 편차 8), 6(조회기) |
 | §3 실행 의미·입력 사전 검사·결정적 실행 | 4 |
 | §3.1 운영 결과 `calls`·`callIndex`·`finalValues` | 1, 4, 6(Runner) |
@@ -7825,16 +7844,18 @@ Expected: 모두 초록, 기준선 대비 늘어난 시험 수를 진행 장부�
 | §4.2 `SUBSET_ENDED` | 1, 4, 5(검사), 8(화면) |
 | §4.3 `caught`·`endedBy` 전달 | 4, 6(OASIS `caught.setPath`) |
 | §5 정적 검사(SET 을 RULE 처럼, always=false, CALL_*·FLOW_CATCH·CATCH_NEVER) | 5, 6 |
-| §6.1 세트 저장 연쇄 재검사 | 6 |
-| §6.2 폐기 거부·되살리기 | 6 |
-| §6.3 룰 저장 `RuleSetCallerCheck`·`SetCallerRecheck` | 6 |
+| §6.1 세트 확정 연쇄 재검사 | 6 |
+| §6.2 세트 DRAFT 저장 경고 | 6 |
+| §6.3 폐기 거부·되살리기 | 6 |
+| §6.4 룰 확정·저장 `SetCallerRecheck` | 6 |
+| §8.1 cactus 미리 받기 | c |
 | §7 엔진 계약 네 벌 | 1, 10(문서) |
 | §8 서버·OASIS(`calls` 요약·조회기 캐시·조회 둘·view·simulate) | 6 |
 | §9 편집기 SET 노드(놓기·모양·링크·속성 패널·받는 노드·칩) | 8 |
 | §10 세트 탭(구조·나누기·열기·닫기·연동) | 7, 8 |
 | §11 디버거 | 9 |
 | §12 테스트(엔진·서버·코퍼스·화면·e2e) | 4, 5, 6, 7, 8, 9 |
-| §13 결정 D-135 | 10 |
+| §13 결정 D-135(C-D1~C-D19) | 10 |
 | §14 미루는 것 | 다루지 않는다(하위 기록 안 E4 는 Task 9 가 끈다) |
 
 **2. 자리 표시 점검**: "TBD·나중에·적절히" 같은 빈 지시가 없는지 훑었다. CATCH 계획 문서(`2026-10-01-rule-set-flow-catch.md`)가 생긴 뒤 그 Produces 이름과 대조해 코드 블록에 직접 썼다(`CatchKind` 는 `flow` 패키지·코드 목록 생성자, `CATCH_NAMES` 는 CATCH 가 넷으로 만든 것을 다섯으로, `catchable`·`CATCHABLE`·`CATCH_KINDS`, `catchNode(id, attachTo, kinds...)`, R20 다음 R21). 남은 "Task 0 장부" 언급은 CATCH 구현이 계획과 다르게 병합됐을 때의 대비다. `<이 태스크가 바꾼 화면 파일 모두>` 는 `git status` 로 모으는 목록이다(파일 목록 자체가 태스크 Files 에 있다).

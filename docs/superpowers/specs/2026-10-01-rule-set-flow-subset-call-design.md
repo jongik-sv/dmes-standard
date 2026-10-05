@@ -1,11 +1,13 @@
 # 룰 세트 흐름도 — 하위 세트 호출(SET 노드)과 편집 화면 안 세트 탭
 
 - 날짜: 2026-10-01
-- 갱신 2026-10-02: C-D2·§0·§1.1·§6·§8·§14 를 룰 세트 버전 관리(D-144 2단계, docs/superpowers/plans/2026-10-02-mdm-versioning-phase2-rule-set.md)에 맞췄다. D-136 모델 반영은 따로 한다.
-- 앞 문서: `2026-10-01-rule-set-flow-catch-design.md`(받는 노드 `CATCH` — 이 문서는 받는 노드를 `SET` 노드에도 붙인다), `2026-09-29-rule-set-flow-design.md`(흐름 모델 §3·실행 의미 §4·검사 §5·OASIS §6)
-- 엔진: `src/backend/maru-mdm-engine`(`spi/DefinitionLookup`·`flow/*`·`rule/MdmRuleEngine`·`rule/RuleSetResult`·`rule/RunTrace`·`expr/EngineEvaluationException`)
-- 서버: `src/backend/mdm/lib`(`common/rule/RuleSetAnalyzer`·`RuleSetPathState`·`RuleIoReader`·`RuleSetRunner`·`definition/StoredDefinitionLookup`·`check/ledger/RuleSetOrderCheck`, `dme/ruleSetEdit/service/RuleSetEditService`·`RuleSetWrites`, `entity/MdmRuleSet`)
-- DB: `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/`(`TB_MDM_RULE_SET` 은 V8 생성·V14 재생성, 세트 버전 표 `TB_MDM_RULE_SET_VER` 는 D-144 2단계 V18. 새 번호는 착수 시 확인)
+- 갱신 2026-10-02: C-D2·§0·§1.1·§6·§8·§14 를 룰 세트 버전 관리(D-144 2단계, docs/superpowers/plans/2026-10-02-mdm-versioning-phase2-rule-set.md)에 맞췄다.
+- 갱신 2026-10-06: D-136(IF·예외 합류 노드 없애기, `2026-10-02-rule-set-flow-implicit-join-design.md` §13)을 §1·§2·§4·§12 에 반영했다. 사용자 결정 U2(연쇄 재검사는 확정 검사에서 거부, DRAFT 저장 때는 경고만 — C-D10·C-D11 수정, §5·§6)와 U3(cactus 미리 받기가 하위 세트를 재귀로 받음, 깊이 5 — §8.1, C-D17)를 넣었다. 디버거 경고 문구를 "확정하지 않은 변경" 으로 바꿨다(§10.4, C-D18). DB 번호를 V23 으로 정했다(§1.1).
+- 앞 문서: `2026-10-01-rule-set-flow-catch-design.md`(받는 노드 `CATCH` — 이 문서는 받는 노드를 `SET` 노드에도 붙인다), `2026-10-02-rule-set-flow-implicit-join-design.md`(D-136 — 합류는 병렬에만, IF 모이는 자리·받는 노드 돌아오는 자리 계산, 끝내는 IF 갈래. 이 문서는 그 모델 위에 SET 노드를 더한다), `2026-09-29-rule-set-flow-design.md`(흐름 모델 §3·실행 의미 §4·검사 §5·OASIS §6)
+- 엔진: `src/backend/maru-mdm-engine`(`spi/DefinitionLookup`·`flow/*`(`FlowParser`·`FlowTree`·`Step`·`Guarded`·`Split`)·`rule/MdmRuleEngine`·`rule/FlowRun`·`rule/FlowKeys`·`rule/RuleSetResult`·`rule/RunTrace`·`expr/EngineEvaluationException`)
+- cactus: `src/backend/cactus-core`(`cactus/mdm/MdmValidator`·`MdmExprRefs` — 모듈 저장 검증의 미리 받기, §8.1)
+- 서버: `src/backend/mdm/lib`(`common/rule/RuleSetAnalyzer`·`RuleSetPathState`·`RuleIoReader`·`RuleSetRunner`·`definition/StoredDefinitionLookup`·`check/ledger/RuleSetOrderCheck`, `common/rule/confirm/RuleSetConfirmCheck`·`RuleSetConfirmChecks`·`RuleConfirmCheck`·`RuleConfirmChecks`, `dme/ruleSetEdit/service/RuleSetEditService`·`RuleSetWrites`·`RuleSetVersionService`, `entity/MdmRuleSetVer`)
+- DB: `src/backend/mdm/api/src/main/resources/db/migration/mdm/sqlite/`(`TB_MDM_RULE_SET` 은 V8 생성·V14 재생성, 세트 버전 표 `TB_MDM_RULE_SET_VER` 는 D-144 2단계 V18. 이 스펙의 칸은 V23 — §1.1)
 - 화면: `src/frontend/m-mdm/pages/dme/ruleSetEdit/`(`page.tsx`·`state/useRuleSetEdit.ts`·`state/edit-history.ts`·`canvas/shortcuts.ts`·`set-model.ts`·`flow-model.ts`·`links.ts`·디버거)
 
 ## 0. 범위와 사용자 요청
@@ -19,36 +21,47 @@
 
 - 하위 세트를 **룰 하나처럼 다루는 블랙박스 노드**로 만든다. 입력은 하위 세트의 입력이고, 돌려받는 값은 하위 세트의 **최종 결과**(세트 안에서 아무도 읽지 않는 결과, `set-model.ts` `isFinalResult`)뿐이다.
 - 하위 세트는 **판정 시각에 유효한 RELEASED 버전**을 쓰고(2026-10-02 D-144 2단계, 세트 버전 관리), 폐기(DEPRECATED)하지 않은 세트만 부른다.
-- 하위 세트를 고칠 때 부르는 세트가 깨지지 않게 저장 때 다시 검사한다. 세트끼리의 순환은 저장 때 막고 실행 때는 깊이를 제한한다.
+- 하위 세트를 고칠 때 부르는 세트가 깨지지 않게 다시 검사한다. 실행은 RELEASED 버전만 쓰므로 막는 자리는 **확정 검사**이고, DRAFT 저장 때는 같은 검사를 돌려 경고로 알린다(2026-10-06 U2). 세트끼리의 순환도 확정 때 막고 실행 때는 깊이를 제한한다.
 - 하위 세트에서 처리되지 않은 exception 은 부모의 `SET` 노드에서 난 것으로 올라와, 부모가 받는 노드로 받을 수 있다.
 - 실행 기록에 하위 기록을 품고, 디버거는 "안으로 들어가기"로 하위 흐름을 따라간다.
 
 제외(§14): 변수 이름 바꿔 넘기기(매핑), 캔버스에서 하위 세트 펼쳐 보이기, 재귀 호출, 편집 화면 밖(포털 탭)으로 세트를 여러 개 여는 방식.
 
+2026-10-06 착수 전 사용자 결정(조정 회차 rule-set-subset-call-2026-10-06):
+
+| ID | 결정 | 반영 |
+|---|---|---|
+| U1 | 구현을 레인 3개(엔진 eng·서버 srv·화면 ui)로 나눈다 | 계획 머리말·레인 표 |
+| U2 | 연쇄 재검사는 확정 검사(`RuleSetConfirmCheck`·`RuleConfirmCheck`, 기준 시각 apply_from)에서 거부한다(`CALLER_BROKEN`·`CALL_CYCLE`·`CALL_DEPTH`·`CALL_MISSING`). DRAFT 저장 때는 경고만 한다 | §5·§6, C-D10·C-D11 |
+| U3 | cactus 모듈 저장 검증의 미리 받기가 하위 세트를 재귀로 받는다(깊이 5). 이번 범위에 넣는다 | §8.1, C-D17 |
+
 ## 1. 노드와 저장 형식
 
-`FLOW_JSON` 의 `nodes` 에 `SET` 노드를 더한다. 흐름 구조에서는 RULE 과 같다(들어오는 선 1, 나가는 선 1, 갈래 안·밖 어디든).
+`FLOW_JSON` 의 `nodes` 에 `SET` 노드를 더한다. 흐름 구조에서는 RULE·TASK 와 같다(D-136 §3.1 d1): 들어오는 선 1 이상(2 이상은 그 노드가 IF 의 모이는 자리나 받는 노드의 돌아오는 자리일 때만), 나가는 선 1, 갈래 안·밖 어디든.
 
 ```json
-{ "id": "s1", "type": "SET", "setId": "QD_S_PRICE", "label": "단가 결정" }
+{ "id": "s1", "kind": "SET", "setId": "QD_S_PRICE", "label": "단가 결정" }
 ```
 
-- `setId`: 부르는 세트 ID. `label`: 화면 표시용.
-- 받는 노드(`CATCH`)의 `attachTo` 는 RULE 또는 SET 을 가리킬 수 있다. 돌아오는 MERGE 의 `splitId` 도 SET 노드 ID 일 수 있다(CATCH 스펙 §2·§3 의 RULE 자리에 SET 을 함께 둔다).
+- `setId`: 부르는 세트 ID. `label`: 화면 표시용. 종류 키는 저장 형식대로 `kind` 다.
+- 받는 노드(`CATCH`)의 `attachTo` 는 RULE·TASK·SET 을 가리킬 수 있다. 받을 수 있는 종류 모음(Java `FlowParser.catchable`, TS `CATCHABLE`)에 SET 을 더하고, 1단계 h2 문구를 "받는 노드 {c}는 룰·빈 단계·룰 세트 노드에만 붙일 수 있다({t}는 {KIND})" 로 넓힌다.
+- SET 노드의 처리 갈래는 D-136 §2.3 처럼 돌아오는 MERGE 없이 정상 경로 위 노드(돌아오는 자리)로 바로 돌아오거나 END 로 가서 끝낸다. `splitId` 가 SET 노드를 가리키는 돌아오는 MERGE 는 없다(옛 형식은 SET 노드가 생기기 전 형식이므로 받을 까닭이 없다).
+- 끝내는 IF 갈래(D-136 B1·J-D9)와 처리 갈래 안 끝냄(J-D18)은 SET 노드에 붙은 받는 노드의 처리 갈래 안에서도 그대로 쓴다.
+- 블록 트리: `Step`(지금 `RuleStep`·`TaskStep`)에 `SetStep(nodeId, setId)` 를 더한다. `Guarded.step` 이 그대로 받는다(D-136 J-D11 — 이름을 다시 바꾸지 않는다).
 - `version` 은 1 그대로 둔다(CATCH 스펙 X-D7, D-125 와 같은 판단).
-- Java `FlowNode` 에 `setId`(SET 만 씀)를 더하고 `NodeKind` 에 `SET` 을 더한다. 기존 생성자는 null 로 위임한다.
+- Java `FlowNode` 에 `setId`(SET 만 씀)를 끝 칸으로 더하고 `NodeKind` 에 `SET` 을 더한다. 계약 record 는 위임 생성자를 둘 수 없으므로 호출부를 모두 고친다(계획 편차 9).
 
 ### 1.1 DB: `CALL_SET_IDS` 칸(세트 버전 행)
 
-`TB_MDM_RULE_SET_VER`(D-144 2단계 V18 이 만든 세트 버전 표 — 흐름이 버전마다 다르므로 부르는 세트 목록도 버전마다다)에 `CALL_SET_IDS`(TEXT, NOT NULL, 기본 `'[]'`, `json_valid` CHECK)를 더한다. 흐름의 SET 노드를 깊이 우선으로 펼친 **중복 없는 세트 ID 목록**이다. 서버가 저장할 때 흐름에서 계산해 채우고, 화면은 보내지 않는다.
+`TB_MDM_RULE_SET_VER`(D-144 2단계 V18 이 만든 세트 버전 표 — 흐름이 버전마다 다르므로 부르는 세트 목록도 버전마다다)에 `CALL_SET_IDS`(TEXT, NOT NULL, 기본 `'[]'`, `json_valid` CHECK)를 더한다. 흐름의 SET 노드를 깊이 우선으로 펼친 **중복 없는 세트 ID 목록**이다. 서버가 DRAFT 를 저장할 때(`RuleSetWrites.updateDraft`) 흐름에서 계산해 채우고, 화면은 보내지 않는다. 새 버전 만들기(`RuleSetVersionService`, 원본 버전 복사)는 `RULE_IDS`·`FLOW_JSON` 과 함께 이 칸도 복사한다.
 
-- 쓰는 곳: "이 세트를 부르는 세트" 조회(§6 연쇄 재검사, 폐기 거부, 속성 패널의 부르는 세트 목록).
+- 쓰는 곳: "이 세트를 부르는 세트" 조회(§6 연쇄 재검사, 폐기 거부, 속성 패널의 부르는 세트 목록). 부르는 쪽으로 세는 행은 **RELEASED 버전 행 가운데 기준 시각 이후에도 유효한 것**(`STATUS = 'RELEASED'` 이고 `APPLY_TO` 가 기준 시각보다 뒤)과 폐기하지 않은 부모 세트뿐이다. DRAFT 행의 목록은 그 DRAFT 의 저장 경고·확정 검사에만 쓴다.
 - `RULE_IDS` 는 지금처럼 **이 세트 흐름의 RULE 노드만** 담는다. 하위 세트 안의 룰은 넣지 않는다. 그래서 "이 룰을 담은 세트" 조회(`RuleSetOrderCheck`, 세트 목록 화면)의 뜻은 바뀌지 않고, 간접 포함은 `CALL_SET_IDS` 로 따라간다.
-- 마이그레이션: 번호는 착수 시 `flyway-migration-add` 로 다시 정한다(V16·V17·V18 은 이미 쓰였다). MDM 은 SQLite 방언만 있다(ADR-0004). `flyway-migration-add` 스킬의 무조건 적용 조건은 aps-core·mcm-core 라 해당하지 않는다. V14 와 같은 방식으로 쓴다.
-  - ADD COLUMN 대신 테이블을 다시 만든다. 칼럼 순서 불변식(업무 칼럼 + 감사 칼럼, `MdmBusinessRuleMigrationTest`) 때문에 `CALL_SET_IDS` 를 `FLOW_JSON` 바로 뒤에 둔다.
-  - 재생성 순서는 V17·V18 의 `_BAK` 경유 순서를 따른다.
-  - `INSERT ... SELECT` 는 칼럼명을 모두 적고 `CALL_SET_IDS` 에 `'[]'` 를 넣는다. 지금 SET 노드가 있는 세트는 없으므로 데이터 이관은 없다. PRAGMA 를 쓰지 않는다.
-  - `MdmRuleSetVer` 엔티티, `RuleSetWrites.updateDraft`, `MdmBusinessRuleMigrationTest` 기대 칼럼, `mdm/sample/mdm-local-sample.sql` 을 함께 고친다.
+- 마이그레이션: **V23**(`V23__rule_set_ver_call_set_ids.sql`). 2026-10-06 dev 의 마지막 번호는 V22 이고, V19 는 비어 있지만 Flyway `outOfOrder=false` 라 쓰지 않는다. 다른 작업이 V23 을 먼저 dev 에 넣을 수 있으므로 머지 직전에 다시 확인하고, 겹치면 다음 빈 번호로 옮긴다(V21 선례). MDM 은 SQLite 방언만 있다(ADR-0004). `flyway-migration-add` 스킬의 무조건 적용 조건은 aps-core·mcm-core 라 해당하지 않는다.
+  - ADD COLUMN 대신 **VER 표만** 다시 만든다. 칼럼 순서 불변식(업무 칼럼 + 감사 칼럼, `MdmBusinessRuleExpectations`) 때문에 `CALL_SET_IDS` 를 `FLOW_JSON` 바로 뒤에 둔다. 부모 표 `TB_MDM_RULE_SET` 와 케이스 표 `TB_MDM_RULE_SET_TEST_CASE` 는 건드리지 않는다.
+  - 재생성 순서는 V22 방식이다: `_BAK` 로 복사(제약 없음) → 옛 표 DROP → 최종 이름으로 V18 정의 + 새 칸 생성 → 칼럼명을 모두 적어 `INSERT ... SELECT`(새 칸은 기본값 `'[]'`) → `_BAK` DROP. RENAME 과 PRAGMA 를 쓰지 않는다. `TB_MDM_RULE_SET_VER` 를 가리키는 FK 는 없고(V18·V20~V22 확인) V18 은 이 표에 인덱스·트리거를 두지 않았다 — SQL 머리 주석에 그 확인을 적는다.
+  - 지금 SET 노드가 있는 버전은 없으므로 데이터 이관은 없다.
+  - `MdmRuleSetVer` 엔티티(필드 기본값 `"[]"` — 등록 `RuleSetMngService.reg` 의 1.000 DRAFT 도 이 값을 쓴다), `RuleSetWrites.updateDraft`, `RuleSetVersionService`(새 버전 복사), `MdmBusinessRuleExpectations`·`MdmBusinessRuleMigrationTest` 기대 칼럼·제약·JSON 칼럼 수, `MdmSharedContractMigrationTest` 의 적용 버전 목록, `mdm/sample/mdm-local-sample.sql` 을 함께 고친다.
 
 ## 2. 하위 세트의 겉모양(interface)
 
@@ -61,7 +74,8 @@ OutputName = IoName + always(boolean)
 
 - `inputs`: 하위 세트 흐름의 입력 변수(`RuleSetAnalyzer.io(flow, rules).inputs`, 화면 `flowIo` 와 같은 값). 일부 IF 갈래에서만 읽는 입력도 넣는다.
 - `outputs`: 하위 세트의 최종 결과(같은 `io` 의 결과 가운데 readers 가 빈 것). 중간 결과는 넣지 않는다.
-- `always`: END 에서 반드시 정의되는가. 하위 세트 흐름을 `RuleSetPathState` 로 END 까지 돌려, END 직전 상태의 `defined` 에 있으면 true, `maybe` 에만 있으면 false 다. END 로 가는 모든 경로를 센다. 받는 노드의 처리 갈래가 END 로 가는 경로도 포함한다.
+- `always`: END 에서 반드시 정의되는가. 하위 세트 흐름을 `RuleSetPathState` 로 END 까지 돌려, END 직전 상태의 `defined` 에 있으면 true, `maybe` 에만 있으면 false 다. END 로 가는 모든 경로를 센다. "END 직전 상태" 는 루트 순차 끝 상태와 **모든 끝냄 지점**(END 로 가는 처리 갈래 끝, 끝내는 IF 갈래 끝 — D-136 B1)의 상태를 IF 합치기 규칙(교집합)으로 합친 것이다(D-136 §13).
+- 기준 시각: 겉모양은 기준 시각에 유효한 하위 세트의 **RELEASED** 버전과, 같은 기준 시각의 룰 RELEASED 로 계산한다. 기준 시각에 RELEASED 가 없으면(DRAFT 만 있으면) `exists=false` 다. 기준 시각은 화면 조회(`view`·`callIo`)와 DRAFT 저장 경고는 지금, 확정 검사는 확정하려는 apply_from 이다(§6).
 - 하위 세트가 다시 SET 노드를 가지면 그 손주 세트의 겉모양을 먼저 구해 RULE 처럼 끼운다(깊이 상한 §3.3 안에서 끝난다).
 - **겉모양은 서버에서만 계산한다**(`RuleSetInterface`, `mdm/lib common/rule`). 화면은 서버가 준 `SetCallIo` 를 받아 부모 흐름의 검사(`flowChecks`)에 넣기만 한다. 실행도 저장된 하위 세트를 쓰므로, 화면이 저장 안 한 하위 세트로 겉모양을 다시 계산하면 실행과 어긋난다. 동치 코퍼스는 "SET 노드가 있는 부모 흐름 + 주어진 `SetCallIo`" 사례로 분석기 두 벌을 고정한다.
 
@@ -69,7 +83,7 @@ OutputName = IoName + always(boolean)
 
 | 상황 | 실행 |
 |---|---|
-| SET 노드에 닿음 | 조회기 `ruleSet(setId)` 로 하위 세트를 읽는다. 없으면 `SET_NOT_FOUND`, 폐기면 `SET_DEPRECATED`(둘 다 받지 않는 코드, 세트 중단) |
+| SET 노드에 닿음 | 조회기 `ruleSet(setId, evalTs)` 로 판정 시각에 유효한 하위 세트 RELEASED 버전을 읽는다. 없으면 `SET_NOT_FOUND`, 폐기면 `SET_DEPRECATED`(둘 다 받지 않는 코드, 세트 중단. 읽는 시점은 준비 단계 — 계획 편차 7) |
 | 하위 세트 실행 | 부모 `ctx` 의 **사본**을 입력 레코드로 하고, 같은 `evalTs` 로 하위 흐름을 실행한다 |
 | 하위 세트가 끝까지 감 | 하위 세트 `ctx` 에서 겉모양 `outputs` 이름 가운데 **값이 있는 이름만** 부모 `ctx` 에 덮어쓴다. 중간 결과와 하위 세트의 `CATCH_*` 는 넘기지 않는다 |
 | 하위 세트에서 처리되지 않은 exception | §4 |
@@ -93,7 +107,7 @@ OutputName = IoName + always(boolean)
 
 - 실행 중인 호출 경로(세트 ID 목록)에 같은 세트가 다시 나오면 `SET_CALL_CYCLE` 로 중단한다.
 - 최상위 세트에서 하위로 들어가는 단계가 **5 를 넘으면** `SET_CALL_DEPTH` 로 중단한다.
-- 둘 다 받지 않는 코드다. 저장 때 검사(§5)가 먼저 막으므로, 실행 때 검사는 동시 수정 같은 예외 상황의 안전장치다.
+- 둘 다 받지 않는 코드다. 확정 검사(§5·§6.1)가 먼저 막으므로, 실행 때 검사는 동시 확정 같은 예외 상황의 안전장치다.
 
 ## 4. exception 과 받는 노드
 
@@ -114,6 +128,8 @@ OutputName = IoName + always(boolean)
 - 받는 노드가 있으면 출력을 넘기지 않고 처리 갈래를 실행한다. `CATCH_CODE` 는 `SUBSET_ENDED`, `CATCH_RULE`·`CATCH_SET` 은 하위 세트를 끝낸 받는 노드가 받은 룰과 세트, `CATCH_MSG` 는 그 받는 노드의 `label`(없으면 노드 ID)이다.
 - 기본안(늘 정상 완료로 보고 `caught` 에만 남김)에서 바꾼 이유: 기본안이면 부모 작성자가 하위 세트의 조기 종료에 대응할 방법이 없다. opt-in 으로 두면 받는 노드가 없을 때의 동작은 기본안과 같고, 필요한 부모만 처리할 수 있다.
 - `NO_RESULT` 는 SET 노드에 붙일 수 없다. 하위 세트 안 룰의 결과 없음은 하위 세트의 일이고, 처리되지 않으면 NULL 로 진행하므로 부모까지 오지 않는다.
+- `SUBSET_ENDED` 는 `endedBy` 가 있는 끝냄만 본다(D-136 §13). 하위 세트가 **끝내는 IF 갈래로 끝나면**(`endedBy` 없음) 부모에게는 정상 완료다(D-136 J-D17 과 같은 판단). 처리 갈래 안의 IF 갈래로 끝나면 `endedBy` 가 그 처리 갈래의 받는 노드이므로(J-D18) `SUBSET_ENDED` 대상이다. 그래서 `CATCH_NEVER`(§5)의 "END 로 가는 처리 갈래" 는 처리 갈래가 END 로 바로 가는 경우와 처리 갈래 안 IF 갈래가 END 로 가는 경우를 함께 센다.
+- 병렬 갈래 안 끝냄(CATCH X-D11, D-136 J-D18)이 하위 세트 안에서 나도 하위 세트 안의 일이다. 부모의 병렬 갈래에는 번지지 않는다(하위 세트는 정상 완료이거나 `SUBSET_ENDED` 다).
 
 ### 4.3 `caught`·`endedBy` 전달
 
@@ -127,40 +143,49 @@ OutputName = IoName + always(boolean)
 - `always=false` 인 출력은 그 SET 노드 뒤에서 `maybe` 로 센다. 뒤에서 읽으면 `FLOW_PARTIAL` 경고다.
 - 받는 노드가 붙은 SET 노드의 정의된 변수 규칙은 CATCH 스펙 §5 와 같다(RULE 자리에 SET).
 
-| 코드(`RuleSetCheck`) | 수준 | 내용 |
-|---|---|---|
-| `CALL_MISSING` | 거부 | `setId` 가 없거나, 세트가 없거나, 폐기 세트다 |
-| `CALL_CYCLE` | 거부 | 저장된 세트들의 `CALL_SET_IDS` 와 이 흐름을 합친 호출 그래프에 순환이 있다(자기 자신 호출 포함) |
-| `CALL_DEPTH` | 거부 | 이 세트에서 가장 깊은 하위 세트까지 단계가 5 를 넘는다. 이 세트를 부르는 부모까지 합친 깊이도 본다 |
-| `CALLER_BROKEN` | 거부 | 이 저장으로 겉모양이 바뀌어, 부르는 세트에 없던 거부 검사가 새로 생긴다(§6) |
-| `FLOW_CATCH`(CATCH 스펙) | 거부 | SET 노드 받는 노드에 `NO_RESULT`, RULE 노드 받는 노드에 `SUBSET_ENDED` |
-| `CATCH_NEVER`(CATCH 스펙) | 경고 | `SUBSET_ENDED` 인데 하위 세트에 END 로 가는 처리 갈래가 없다 |
+| 코드(`RuleSetCheck`) | DRAFT 저장·화면 | 확정·되살리기 | 내용 |
+|---|---|---|---|
+| `CALL_MISSING` | 경고 | 거부 | `setId` 가 없거나, 기준 시각에 RELEASED 가 없거나(DRAFT 만 있음), 폐기 세트다 |
+| `CALL_CYCLE` | 경고 | 거부 | 부르는 쪽으로 세는 RELEASED 버전(§1.1)의 `CALL_SET_IDS` 와 이 흐름을 합친 호출 그래프에 순환이 있다(자기 자신 호출 포함) |
+| `CALL_DEPTH` | 경고 | 거부 | 이 세트에서 가장 깊은 하위 세트까지 단계가 5 를 넘는다. 이 세트를 부르는 부모까지 합친 깊이도 본다 |
+| `CALLER_BROKEN` | 경고 | 거부 | 이 버전으로 겉모양이 바뀌어, 부르는 세트에 없던 거부 검사가 새로 생긴다(§6) |
+| `FLOW_CATCH`(CATCH 스펙) | 거부 | 거부 | SET 노드 받는 노드에 `NO_RESULT`, RULE·TASK 노드 받는 노드에 `SUBSET_ENDED` |
+| `CATCH_NEVER`(CATCH 스펙) | 경고 | 경고 | `SUBSET_ENDED` 인데 하위 세트에 END 로 가는 처리 갈래가 없다(§4.2). TASK 받는 노드의 `CATCH_NEVER`(D-136 A4) 옆에 SET 규칙을 둔다 |
 
-- `CALL_CYCLE`·`CALL_DEPTH`·`CALLER_BROKEN` 은 저장된 다른 세트를 읽어야 하므로 서버만 판정한다. 화면은 저장 응답의 거부 목록으로 보인다. `CALL_MISSING` 은 화면이 가진 `SetCallIo.exists`·`status` 로 미리 보인다.
+- **수준은 쓰는 자리가 정한다(U2).** 실행은 판정 시각의 RELEASED 만 쓰므로, 실행에 닿는 동작(확정·되살리기·폐기)만 막고 실행에 닿지 않는 DRAFT 저장은 막지 않는다. 판정 코드와 문구는 하나다. 분석기 두 벌(서버 `RuleSetAnalyzer`·화면 `set-model.ts`)은 `CALL_MISSING` 을 **WARN** 으로 내고 코퍼스 기대도 WARN 이다. 서버의 DRAFT 저장은 네 코드를 WARN 으로 돌려준다. 확정 검사(`RuleSetConfirmChecks`·`RuleConfirmChecks`)와 되살리기 검사는 네 코드를 수준과 상관없이 거부로 본다(`RuleSetCheck` 에 네 코드 모음 상수를 둔다).
+- `CALL_CYCLE`·`CALL_DEPTH`·`CALLER_BROKEN` 은 저장된 다른 세트를 읽어야 하므로 서버만 판정한다. 화면은 저장 응답의 경고 목록과 확정 응답의 거부 목록으로 보인다. `CALL_MISSING` 은 화면이 가진 `SetCallIo.exists`·`status` 로 미리 보인다.
 
 ## 6. 연쇄 재검사
 
-하위 세트나 그 안의 룰을 바꾸면 부르는 세트의 동작이 즉시 바뀐다. 그래서 겉모양이 바뀌는 저장은 부르는 세트를 다시 검사한다.
+하위 세트나 그 안의 룰의 새 버전이 적용되면 부르는 세트의 동작이 바뀐다. 실행은 판정 시각의 RELEASED 버전만 쓰므로(D-144), 부모가 실제로 깨지는 때는 **확정**(apply_from 부터 적용)이다. 그래서 겉모양이 바뀌는 확정은 부르는 세트를 다시 검사해 새 거부가 생기면 막고, DRAFT 저장은 같은 계산을 지금 기준으로 돌려 경고로 알린다(2026-10-06 U2).
 
-### 6.1 세트 S 저장(`RuleSetEditService.save`)
+### 6.1 세트 S 확정(`RuleSetConfirmCheck` → `RuleSetConfirmChecks`, 기준 시각 T = 확정하려는 apply_from)
 
-1. S 흐름의 검사(지금의 `RuleSetAnalyzer.checks` + §5)를 돌린다.
-2. S 의 새 겉모양 I′ 을 계산해 저장된 겉모양 I 와 비교한다. 비교 대상은 입력의 이름·타입, 출력의 이름·타입·`always` 다. 같으면 끝이다.
-3. 다르면 `CALL_SET_IDS` 에 S 를 담은 **폐기하지 않은 부모의 RELEASED 버전**(저장 기준 시각 이후 유효한 것) P 마다, P 흐름을 S 의 겉모양만 I′ 으로 바꿔 다시 검사한다. 저장 전 P 검사 결과에 없던 거부 항목이 생기면 S 저장을 거부한다(`CALLER_BROKEN`, 문구 "세트 P: {P 의 새 거부 문구}").
-4. P 의 겉모양도 바뀌면 P 를 부르는 세트로 3 을 되풀이한다. 깊이 상한(5) 안에서 끝난다.
-5. 경고(`FLOW_PARTIAL` 등)가 새로 생기는 것은 막지 않는다. 저장 결과 메시지에 "부르는 세트에 경고가 생겼다"와 세트 목록을 싣는다.
+1. S DRAFT 흐름의 검사(지금의 `RuleSetConfirmChecks` 흐름 검사 + §5)를 T 기준으로 돌린다. §5 의 네 코드는 거부다.
+2. 호출 그래프: 부르는 쪽으로 세는 RELEASED 버전(§1.1, T 이후에도 유효한 것)의 `CALL_SET_IDS` 에 S 의 DRAFT 목록을 덮어 `CALL_CYCLE`·`CALL_DEPTH` 를 본다.
+3. S 의 새 겉모양 I′(DRAFT, T 기준 룰)을 T 에 지금 유효한 S 의 RELEASED 겉모양 I 와 비교한다. 비교 대상은 입력의 이름·타입, 출력의 이름·타입·`always` 다. 같으면 끝이다. T 에 유효한 RELEASED 가 없으면(첫 확정) 부르는 세트도 없으므로 끝이다.
+4. 다르면 `CALL_SET_IDS` 에 S 를 담은 **폐기하지 않은 부모의 RELEASED 버전**(T 이후 유효한 것) P 마다, P 흐름을 S 의 겉모양만 I′ 으로 바꿔 다시 검사한다. 바꾸기 전 P 검사 결과에 없던 거부 항목이 생기면 S 확정을 거부한다(`CALLER_BROKEN`, 문구 "세트 P: {P 의 새 거부 문구}").
+5. P 의 겉모양도 바뀌면 P 를 부르는 세트로 4 를 되풀이한다. 깊이 상한(5) 안에서 끝난다.
+6. 경고(`FLOW_PARTIAL` 등)가 새로 생기는 것은 막지 않는다. 확정 검사 결과에 "부르는 세트에 경고가 생겼다"와 세트 목록을 싣는다.
 
-### 6.2 세트 S 폐기(`delete`)·되살리기(`restore`)
+동시 수정: 두 세트의 DRAFT 가 순환을 반씩 만들어도(A DRAFT 가 B 를, B DRAFT 가 A 를 부름) 각자의 저장은 경고로 통과한다. 먼저 확정하는 쪽은 상대가 아직 RELEASED 가 아니라 순환이 없어 통과하고, 나중에 확정하는 쪽이 앞서 확정된 RELEASED 와 합쳐 `CALL_CYCLE` 로 막힌다. 실행 때 `SET_CALL_CYCLE`(§3.3)은 그래도 남는 안전장치다.
 
-- 부모의 유효한 RELEASED 버전이 S 를 부르면 폐기를 거부한다(`CALLER_BROKEN`, 문구에 부모 목록). 부모를 먼저 고치거나 폐기해야 한다.
-- 되살리기는 S 자신의 검사만 돈다(지금과 같다). 순환·깊이는 §5 가 본다.
+### 6.2 세트 S DRAFT 저장(`RuleSetEditService.save`, 기준 시각 = 지금)
 
-### 6.3 룰 R 저장·상신(`RuleSetOrderCheck` 와 같은 지점: TABLE·COLUMNS·STORED)
+- §6.1 의 1~6 을 지금 기준으로 돌리되, 네 코드(§5)는 **경고**로 돌려주고 저장은 막지 않는다. 다른 흐름 거부(구조·`FLOW_CATCH` 등)는 지금처럼 저장을 막는다.
+- 저장 때 흐름에서 `CALL_SET_IDS` 를 계산해 DRAFT 행에 쓴다(§1.1).
 
-- 새 검사 `RuleSetCallerCheck`(`RuleSaveCheck`, `@Order(2)`)를 더한다. R 을 `RULE_IDS` 에 담은, 폐기하지 않은 세트의 RELEASED 버전(저장 기준 시각 이후 유효한 것) S 마다, R 만 저장하려는 정의로 바꿔 S 의 겉모양을 다시 계산한다(다른 룰은 `RuleSetOrderCheck` 처럼 최신 RELEASED).
-- S 의 겉모양이 바뀌면 §6.1 의 3·4 를 그대로 돈다. 부모에 새 거부 항목이 생기면 룰 저장 검사 오류 `SET_CALLER_BROKEN`(`RuleSaveIssueCode`)으로 막는다.
+### 6.3 세트 S 폐기(`delete`)·되살리기(`restore`)
+
+- 폐기는 지금 바로 실행에 닿는다. 부르는 쪽으로 세는 부모의 RELEASED 버전(지금 이후 유효한 것)이 S 를 부르면 폐기를 거부한다(`CALLER_BROKEN`, 문구에 부모 목록). 부모를 먼저 고치거나 폐기해야 한다(C-D12, U2 뒤에도 그대로).
+- 되살리기도 지금 바로 실행에 닿는다. S 자신의 검사와 호출 그래프 검사(`CALL_MISSING`·`CALL_CYCLE`·`CALL_DEPTH`)를 지금 기준으로 돌리고 네 코드를 거부로 본다.
+
+### 6.4 룰 R 확정·저장
+
+- **확정**(`RuleConfirmCheck` → `RuleConfirmChecks`, 기준 시각 T = apply_from): R 을 `RULE_IDS` 에 담은, 폐기하지 않은 세트의 RELEASED 버전(T 이후 유효한 것) S 마다, R 만 확정하려는 정의로 바꿔 S 의 겉모양을 다시 계산한다(다른 룰은 T 의 RELEASED). S 의 겉모양이 바뀌면 §6.1 의 4·5 를 그대로 돈다. 부모에 새 거부 항목이 생기면 확정을 거부한다(`SET_CALLER_BROKEN`).
+- **DRAFT 저장**(`RuleSetOrderCheck` 와 같은 지점: TABLE·COLUMNS·STORED, 새 `RuleSaveCheck`): 같은 계산을 지금 기준으로 돌려 `SET_CALLER_BROKEN`(`RuleSaveIssueCode`)을 **경고** 이슈로 낸다. 저장은 막지 않는다.
 - 연쇄: 룰 R → R 을 담은 세트 S → S 를 부르는 부모 P → P 를 부르는 세트 … 순으로 올라간다.
-- 공용 계산은 `SetCallerRecheck`(mdm/lib `common/rule`) 한 곳에 두고 세트 저장·폐기와 룰 검사가 함께 쓴다.
+- 공용 계산은 `SetCallerRecheck`(mdm/lib `common/rule`) 한 곳에 두고 세트 확정·저장·폐기와 룰 확정·저장이 기준 시각과 수준만 달리해 함께 쓴다.
 
 ## 7. 엔진 계약 변경
 
@@ -185,15 +210,23 @@ OutputName = IoName + always(boolean)
 
 - `RuleSetRunner.run`·`execute` 는 바뀐 `RuleSetResult` 를 그대로 싣는다. `RuleSetRunResult` 에 `calls` 요약(노드 ID·세트 ID·하위 `endedBy`)을 더한다.
 - `StoredDefinitionLookup.ruleSet(setId, evalTs)` 는 D-144 2단계에서 (세트, 판정 시각) 캐시를 이미 갖는다. 하위 세트도 같은 `evalTs` 로 고른다. 한 실행에서 같은 하위 세트를 여러 번 부를 수 있고, 인스턴스는 호출마다 만들므로 다른 실행과 캐시를 나누지 않는다.
-- `ruleSetEdit.bpmn` 에 action 두 개를 더한다.
-  - `callIo`: 세트 ID 목록 → `SetCallIo` 목록. 팔레트로 SET 노드를 놓을 때와 다른 탭이 저장했을 때 쓴다.
-  - `callers`: 세트 ID → 그 세트를 부르는, 폐기하지 않은 세트 목록(유효한 RELEASED 버전이 부르는 것, 속성 패널).
+- `ruleSetEdit.bpmn` 에 action 두 개를 더한다(계획 편차 1: 실제로는 `search` 의 `target` 으로 가른다).
+  - `callIo`: 세트 ID 목록 → `SetCallIo` 목록(기준 시각 = 지금, §2). 팔레트로 SET 노드를 놓을 때와 다른 탭이 저장했을 때 쓴다.
+  - `callers`: 세트 ID → 그 세트를 부르는, 폐기하지 않은 세트 목록(지금 이후 유효한 RELEASED 버전이 부르는 것, 속성 패널).
 - `view` 응답(`RuleSetViewResult`)에 흐름의 SET 노드들의 `SetCallIo` 를 싣는다. 룰 입출력을 싣는 방식과 같다.
 - `simulate` 응답(`RuleSetSimulateResult`)에 `calledFlows`(실행 중 부른 세트 ID → 판정 시각의 RELEASED 버전 `FLOW_JSON`, `view` 포함)를 싣는다. 디버거가 하위 흐름을 그릴 때 쓴다(§11).
 
+### 8.1 cactus 모듈 저장 검증의 미리 받기(U3)
+
+모듈(MES 등)의 저장 검증 `MdmValidator.validate` 는 평가 전에 호출자 스레드에서 정의를 미리 받는다(`prefetch`). 지금은 요청 세트의 룰(`MdmExprRefs.ruleIds` — `ruleIds` 와 흐름 RULE 노드)과 식이 참조하는 마루 코드만 받는다. 하위 세트를 받지 않으면 평가 중 캐시 부재가 검증 불가로 잡힌다. 그래서 미리 받기를 하위 세트로 넓힌다.
+
+- 받은 세트 정의마다 흐름의 SET 노드 `setId` 를 모아(`MdmExprRefs.setIds`, 빈 값 제외) 같은 판정 시각으로 `lookupAt(RULE_SET, …)` 를 되풀이한다. 깊이는 최상위에서 5 단계까지(§3.3 과 같은 상한), 이미 받은 세트는 다시 받지 않는다(순환이어도 끝난다).
+- 하위 세트(손주 포함)의 룰·흐름 조건식·`MASTER_AT` 참조는 **최상위 요청 세트 항목**에 모은다. 그래서 하위 세트의 룰이나 코드가 검증 불가(unavailable)면 최상위 세트 항목이 검증 불가가 된다.
+- MDM 에 없는(missing) 하위 세트는 항목을 빼지 않는다 — 엔진이 `SET_NOT_FOUND` 로 행 오류를 낸다(룰 없음 `RULE_NOT_FOUND` 와 같은 처리).
+
 ## 9. 편집기: SET 노드
 
-- **놓기**: 도구 상자(`FlowToolbox`)와 우클릭·[+] 메뉴에 「룰 세트」를 더한다. 검색 팝업은 폐기하지 않은 세트만 보이고, 지금 세트 자신은 뺀다. 순환이 될 세트는 저장 때 `CALL_CYCLE` 로 거부하므로 팝업에서 미리 거르지는 않는다.
+- **놓기**: 도구 상자(`FlowToolbox`)와 우클릭·[+] 메뉴에 「룰 세트」를 더한다. 검색 팝업은 폐기하지 않은 세트만 보이고, 지금 세트 자신은 뺀다. 순환이 될 세트는 저장 때 `CALL_CYCLE` 경고, 확정 때 거부로 알리므로 팝업에서 미리 거르지는 않는다.
 - **모양**: 룰 노드와 같은 크기에 굵은 테두리(BPMN call activity)와 세트 아이콘. 제목은 `label`, 없으면 세트 이름이다. 입력·출력 개수 칩을 보인다. 외관 옵션(`view.styles`)은 이번에 SET 에 열지 않는다.
 - **링크 아이콘**: 하위 세트를 **같은 화면 안의 새 탭**으로 연다(§10). 룰 노드의 링크 아이콘이 `openRuleEdit` 로 포털 탭을 여는 것과 다르다.
 - **속성 패널**: 세트 ID·이름·상태, 겉모양 표(입력, 출력과 "항상 / 일부 경로" 표시), 이 세트를 부르는 세트 목록(`callers`, 누르면 탭으로 열기).
@@ -230,24 +263,27 @@ OutputName = IoName + always(boolean)
 ### 10.4 탭 사이 연동
 
 - 탭 틀이 `RuleSetTabsContext` 로 `openSet(setId)` 와 `notifyWritten(setId)` 를 내려 준다.
-- 어떤 탭에서 세트 S 를 저장·폐기·되살리기하면 `notifyWritten(S)` 를 부른다. 흐름에 `setId=S` 인 SET 노드가 있는 다른 탭은 `callIo([S])` 로 겉모양을 다시 받고, 검사를 다시 계산한다(`checks` 는 `rules` 와 함께 SetCallIo 맵이 바뀌면 다시 계산).
+- 어떤 탭에서 세트 S 를 저장·폐기·되살리기하거나 버전을 조작하면 `notifyWritten(S)` 를 부른다. 겉모양은 지금 유효한 RELEASED 로 계산하므로(§2) DRAFT 저장만으로는 바뀌지 않을 수 있지만, 그래도 다시 받는다(폐기·되살리기는 바뀐다). 흐름에 `setId=S` 인 SET 노드가 있는 다른 탭은 `callIo([S])` 로 겉모양을 다시 받고, 검사를 다시 계산한다(`checks` 는 `rules` 와 함께 SetCallIo 맵이 바뀌면 다시 계산).
 - 세트 S 저장이 `CALLER_BROKEN` 으로 거부되면, 메시지 줄의 부모 세트 이름을 누를 때 `openSet` 으로 그 세트를 탭에 연다.
-- 부모 탭에서 디버거를 실행할 때, 부르는 하위 세트의 탭이 저장 안 한 상태면 경고를 보인다. "하위 세트 S 에 저장하지 않은 변경이 있다. 실행은 저장된 정의로 한다."
+- 부모 탭에서 디버거를 실행할 때, 부르는 하위 세트의 탭에 저장 안 한 변경이 있거나 그 탭이 DRAFT 버전을 열고 있으면 경고를 보인다. "하위 세트 S 에 확정하지 않은 변경이 있다. 실행은 판정 시각의 RELEASED 로 한다." 실행은 하위 세트의 DRAFT 를 쓰지 않으므로(§3) "저장" 이 아니라 "확정" 이 기준이다(C-D18).
 
 ## 11. 디버거
 
 - SET 노드: 실행되면 초록 표시에 넘겨받은 출력 대표값 칩을 보인다. 하위 세트에서 처리되지 않은 오류로 멈췄으면 빨간 테두리, 받는 노드로 넘겼으면 CATCH 스펙의 CAUGHT 표시다.
 - **안으로 들어가기**: SET 노드 상세에 [안으로 들어가기] 를 둔다. 누르면 **같은 캔버스**가 하위 세트 흐름(`calledFlows`)을 읽기 전용으로 그리고, 하위 `RunTrace` 로 겹침과 따라가기를 바꾼다. 캔버스 위에 경로 표시("세트 A › 단가 결정(s1)")를 두고, 앞 단계를 누르면 돌아온다. 새 탭을 열지 않는다. 이것은 기록 재생이지 편집이 아니라서, 탭을 열면 기록 문맥(어느 실행의 어느 호출인가)이 끊긴다. 하위 세트를 고치려면 SET 노드 링크로 탭을 연다.
 - 하위 흐름 안에서는 편집·E4 값 고치기를 끈다. 값 표·실행 비교 탭은 지금 보고 있는 단계(세트)의 기록을 보인다.
+- 하위 흐름도 D-136 새 형식(IF 합류 없음)으로 그린다. 하위 세트가 옛 형식이면 편집기가 열 때 쓰는 변환(`toEditFlow`)을 거쳐 그린다. 끝내는 IF 갈래로 끝난 하위 기록은 D-136 §11 처럼 "IF {제목}의 「{갈래 이름}」 갈래에서 끝냈다" 를 보인다.
 - 노드 상세: SET 노드는 세트 ID, 읽은 입력값 표, 넘겨받은 출력 표, 하위 `endedBy`·`caught` 건수를 보인다.
 
 ## 12. 테스트
 
 - 엔진: 하위 세트 출력 넘기기(최종 결과만, 중간 결과·`CATCH_*` 제외), 부모 `ctx` 사본(하위 세트가 부모 값을 바꾸지 못함), `always=false` 출력이 없을 때 넘기지 않음, `SET_NOT_FOUND`·`SET_DEPRECATED` 중단, 하위 위반을 부모 받는 노드가 받음(`CATCH_SET`·`CATCH_RULE`), `SUBSET_ENDED` 받음·안 받음, `caught`·`setPath` 전달, `SET_CALL_CYCLE`·`SET_CALL_DEPTH`, 부모 입력 사전 검사에 하위 입력 포함·`INPUT_ERROR` 받으면 제외, `evaluateSet`·`traceSet` 경로와 `calls`·`sub` 일치.
-- 서버: 겉모양 계산(`always`, 손주 세트), `CALL_SET_IDS` 저장, 연쇄 재검사 3단(룰 → 세트 → 부모 → 조부모), 폐기 거부, `CALL_CYCLE`·`CALL_DEPTH`, `RuleSetCallerCheck`, 마이그레이션(§1.1)과 칼럼 순서 테스트.
-- 코퍼스(`rule-set-corpus.json`): SET 노드가 있는 부모 흐름 + 주어진 `SetCallIo` 로 `ORDER`·`DUP_RESULT`·`FLOW_PARTIAL`(always=false)·`IF_SIBLING`·`CALL_MISSING`·`FLOW_CATCH`(SET 의 `NO_RESULT`) 사례. Java·TS 가 같은 결과를 내야 한다.
+- 엔진(D-136): 하위 세트가 끝내는 IF 갈래로 끝나면 부모는 정상 완료·`SUBSET_ENDED` 받는 노드를 타지 않음, 처리 갈래 안 IF 끝냄은 `SUBSET_ENDED` 대상, SET 받는 노드의 처리 갈래가 돌아오는 자리로 돌아옴·END 로 끝냄, 하위 세트 안 병렬 갈래 끝냄이 부모 병렬에 번지지 않음, `always` 가 끝내는 IF 갈래 끝 상태를 합침.
+- 서버: 겉모양 계산(`always`, 손주 세트, 기준 시각 RELEASED·DRAFT 만 있으면 `exists=false`), `CALL_SET_IDS` 저장·새 버전 복사, 확정 검사의 연쇄 재검사 3단(룰 → 세트 → 부모 → 조부모), DRAFT 저장은 같은 경우에 경고만, 두 DRAFT 가 순환을 반씩 만든 뒤 나중 확정이 `CALL_CYCLE` 로 막힘, 폐기 거부, 되살리기 거부, `CALL_CYCLE`·`CALL_DEPTH`, 룰 확정 거부·룰 저장 경고, 마이그레이션(§1.1)과 칼럼 순서 테스트.
+- cactus(§8.1): 하위·손주 세트를 미리 받음, 순환에서 끝남, 깊이 5 상한, 하위 세트 룰 검증 불가면 최상위 세트 항목이 검증 불가, 없는 하위 세트는 항목을 빼지 않음.
+- 코퍼스(`rule-set-corpus.json`): SET 노드가 있는 부모 흐름 + 주어진 `SetCallIo` 로 `ORDER`·`DUP_RESULT`·`FLOW_PARTIAL`(always=false)·`IF_SIBLING`·`CALL_MISSING`(WARN)·`FLOW_CATCH`(SET 의 `NO_RESULT`) 사례, 구조 사례(SET 이 모이는 자리·돌아오는 자리, SET 받는 노드의 끝내는 IF 갈래, h2 문구). Java·TS 가 같은 결과를 내야 한다.
 - 화면: SET 노드 놓기·검색, 링크로 새 탭·이미 열린 탭으로 이동, 탭 상한, dirty 탭 닫기 확인, 숨은 탭에서 ⌘Z 무시, 다른 탭 저장 뒤 부모 탭 검사 갱신, 디버거 들어가기·돌아오기.
-- e2e(`mdm-ruleSetEdit.spec`): 세트 A 에 세트 B 를 SET 노드로 넣고 저장한 뒤, 링크로 B 탭을 열어 B 를 고쳐 저장하고 A 탭 검사가 바뀌는 시나리오 하나. 실행은 사용자 승인 뒤에 한다.
+- e2e(`mdm-ruleSetEdit.spec`): 세트 A 에 세트 B 를 SET 노드로 넣고 저장한 뒤, 링크로 B 탭을 열어 B 를 고쳐 저장하고 A 탭 검사가 바뀌는 시나리오 하나. 노드 수 기대는 D-136 새 형식(IF 합류 없음) 기준이다. B 의 RELEASED 가 바뀌어야 A 탭 겉모양이 바뀌므로 시나리오는 B 확정까지 포함하거나 확정된 고정 데이터를 쓴다. 실행은 사용자 승인 뒤에 한다.
 
 ## 13. 결정
 
@@ -264,15 +300,18 @@ OutputName = IoName + always(boolean)
 | C-D7 | 예약 이름 `CATCH_SET` 추가(CATCH 스펙 §4·§6 보정 필요) | 하위 세트 깊은 곳의 실패를 처리 갈래가 구분할 수 있게 한다 |
 | C-D8 | 하위 세트의 처리 갈래 끝냄은 opt-in 종류 `SUBSET_ENDED`. 받는 노드가 없으면 정상 완료 | 기본안(늘 정상 완료)이면 부모가 대응할 수 없다. opt-in 이면 받는 노드 없을 때 동작은 기본안과 같다(CATCH X-D3 와 같은 규칙) |
 | C-D9 | `caught` 는 최상위까지 `setPath` 를 붙여 이어 붙이고, `endedBy` 는 자기 세트만 | OASIS 는 최상위 결과만 본다. `endedBy` 를 섞으면 어느 세트가 끝났는지 모호해진다 |
-| C-D10 | 순환은 저장 때 거부, 깊이 5 초과도 거부. 실행 때 두 코드로 다시 막는다 | 저장 검사가 주 방어고, 실행 검사는 동시 수정 대비 안전장치다 |
-| C-D11 | 겉모양이 바뀌는 저장(세트·룰)은 부르는 세트를 연쇄로 다시 검사하고, 새 거부가 생기면 막는다. 새 경고는 막지 않고 알린다 | 하위 세트 수정이 부모 동작을 즉시 바꾸므로 부모가 조용히 깨지면 안 된다 |
+| C-D10 | 순환·깊이 5 초과는 확정·되살리기 때 거부하고 DRAFT 저장 때는 경고한다. 실행 때 두 코드로 다시 막는다(2026-10-06 U2 로 "저장 때 거부" 에서 바꿈) | 실행은 RELEASED 만 쓰므로 확정 검사가 주 방어다. 실행 검사는 동시 확정 대비 안전장치다 |
+| C-D11 | 겉모양이 바뀌는 확정(세트·룰)은 부르는 세트를 연쇄로 다시 검사하고(기준 시각 apply_from), 새 거부가 생기면 확정을 막는다. DRAFT 저장은 같은 계산을 지금 기준으로 돌려 경고만 한다. 새 경고는 막지 않고 알린다(2026-10-06 U2 로 "저장 때 거부" 에서 바꿈) | 하위 세트 수정이 부모 동작을 바꾸는 때는 확정이다(D-144). DRAFT 저장을 막으면 아직 실행에 닿지 않는 편집 중간 상태가 막힌다. 부모가 조용히 깨지면 안 된다는 원래 목적은 확정 검사가 지킨다 |
 | C-D12 | 부모의 유효한 RELEASED 버전이 부르는 세트는 폐기를 거부한다 | 폐기하면 부모 실행이 `SET_DEPRECATED` 로 멈춘다 |
 | C-D13 | 편집 화면 안에 세트 탭(최대 8)을 두고, SET 링크는 같은 화면의 새 탭으로 연다 | 사용자 요청. 같은 화면 안이라 저장 알림으로 부모 탭 검사를 바로 갱신할 수 있다 |
 | C-D14 | 탭마다 세트 상태·되돌리기·디버거를 따로, 보는 사람 설정은 함께 | 세트별 상태가 섞이면 되돌리기가 다른 세트를 덮는다. 보기 취향은 화면 단위다 |
 | C-D15 | 디버거 "안으로 들어가기"는 같은 캔버스에서 경로 표시로 오가고 탭을 열지 않는다 | 기록 재생이지 편집이 아니다. 탭을 열면 기록 문맥이 끊긴다 |
 | C-D16 | `version` 1 유지 | CATCH X-D7, D-125 와 같은 판단 |
+| C-D17 | cactus 저장 검증의 미리 받기는 하위 세트를 재귀로 받고(깊이 5, 이미 받은 세트 건너뜀) 하위의 룰·코드 참조를 최상위 세트 항목에 모은다(2026-10-06 U3) | 평가 중 캐시 부재가 검증 불가로 잡히지 않게 한다. 최상위 항목에 모으면 검증 불가 판단이 요청 단위(세트)로 남는다 |
+| C-D18 | 디버거 경고는 "하위 세트 S 에 확정하지 않은 변경이 있다. 실행은 판정 시각의 RELEASED 로 한다." 이고, 하위 세트 탭에 저장 안 한 변경이 있거나 DRAFT 를 열고 있을 때 낸다(2026-10-06 조정자 판단) | 실행은 DRAFT 를 쓰지 않는다. "저장된 정의로 한다" 는 D-144 뒤에는 틀린 안내다 |
+| C-D19 | SET 노드는 D-136 모델을 그대로 따른다 — 들어오는 선 1 이상(모이는 자리만 2 이상), 처리 갈래는 돌아오는 자리로, `catchable` 은 RULE·TASK·SET, 블록은 `SetStep` 을 `Guarded.step` 이 받는다. 하위 세트가 끝내는 IF 갈래로 끝나면 부모에게는 정상 완료(2026-10-06 갱신) | D-136 §13. 합류 노드가 없는 모델에서 SET 은 RULE·TASK 와 같은 "단계" 다 |
 
-구현이 끝나면 `docs/mdm/decisions.md` 에 D-135 으로 C-D1~C-D16 을 남긴다. ADR-0005 의 원칙(엔진이 흐름을 실행하고 DB 를 부르지 않음, 흐름 안에 저장·외부 호출 노드 없음)은 그대로 유효하다. SET 노드는 판정 흐름을 부르는 것이고, 하위 세트도 조회기로 받는다.
+구현이 끝나면 `docs/mdm/decisions.md` 에 D-135 으로 C-D1~C-D19 를 남긴다. 이 스펙의 C-D10·C-D11 은 2026-10-06 U2 판이 정본이다. ADR-0005 의 원칙(엔진이 흐름을 실행하고 DB 를 부르지 않음, 흐름 안에 저장·외부 호출 노드 없음)은 그대로 유효하다. SET 노드는 판정 흐름을 부르는 것이고, 하위 세트도 조회기로 받는다.
 
 ## 14. 미루는 것
 
@@ -283,3 +322,4 @@ OutputName = IoName + always(boolean)
 - SET 노드 외관 옵션(`view.styles`)
 - 편집 화면 밖(포털 탭)으로 세트를 여러 개 여는 방식
 - 부르는 세트 목록을 세트 목록 화면(`ruleSetMng`)에 보이기
+- 확정 취소(ADR-0002 D8)로 하위 세트의 앞 RELEASED 가 되살아나 겉모양이 바뀔 때의 연쇄 재검사(이번에는 실행 때 `SET_*` 코드와 다음 확정 검사가 막는다)
