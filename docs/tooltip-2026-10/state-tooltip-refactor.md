@@ -1,6 +1,6 @@
 # tooltip-refactor 레인 정본 메모
 
-**상태: 머지 요청 직전(2026-10-05).** D1·D2·D3 구현·리뷰(opus/high, 동작 보존 OK)·audit 통과. 구조 기록은 `structure-tooltip-refactor.md`.
+**상태: 완료(2026-10-05).** dev 머지 `d437a6ea`(트리 32e373ce), 워크트리·브랜치 정리 끝. D1·D2·D3 구현·리뷰(opus/high, 동작 보존 OK)·audit 통과. 구조 기록은 `structure-tooltip-refactor.md`.
 
 - 브랜치: `refactor/tooltip-screens-followup` / 워크트리: `/Users/jji/project/dmes-standard-wt/tooltip-refactor` / 기준 dev `6e80a51e` / 지시 tooltip-refactor-1
 
@@ -11,10 +11,10 @@
 | D2 위젯 유형 편집기 4개 `MdmMetaProvider disabled` | 끝 | 3d5e5396 · 79697c00 |
 | D1 열 `meta: false` → `uiCols` | 끝 | 7d7fa2ce(고정 시험) · 99801410 · ec7cd38c · 609fa68d · 7f87a1f3 · af9ec3da |
 | D3 설명·원천 라벨 상수 | 끝 | D1 커밋에 포함 |
-| D4 마감 | 머지 요청 대기 | 구조 기록 커밋 |
+| D4 마감 | 끝 | 구조 기록·정본 메모 커밋 → 머지 d437a6ea |
 
 ## 남은 일
-1. 조정 세션 머지 허가 → `--no-ff` 머지 → `머지 완료` 보고 → 워크트리·브랜치 정리.
+1. (끝) 머지·정리. 메인 체크아웃의 형제 tsup 재빌드는 조정자 몫.
 2. 후속(제안): shared 몫 — 범용 키 목록을 `resolveMdmPhysName` 이 자동으로 끄면 화면의 `meta: false` 약 160곳이 더 줄어든다(남은 것은 `cell()` 형태·SearchField·라벨 등). `uiCols` 두 사본(m-mdm/src, m-mcm/lib)은 shared 승격 시 하나가 된다.
 3. 후속(기존): `m-mdm/tests/dma/domainMng/page-render.test.ts` 고정 20ms 대기 flake(변경 전에도 재현).
 
