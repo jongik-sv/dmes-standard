@@ -41,7 +41,7 @@
    - 탭 화면 안에서 연 드롭다운(탭 목록·page-layout·ComboBox, z 1000)은 셸 쌓임에 참여해 창 위에 보인다 — 방금 연 메뉴가 창에 가려지지 않는 쪽이 맞아 그대로 둔다.
 6. **접힘**: 본문(WidgetFrame)을 마운트한 채 `display:none` — 계산기 값·편집 중 메모가 남는다. 틀이 폭 0 을 무시하고 숨은 동안 자동 새로 고침을 멈춘다.
 7. **정리 시점**: 등록부가 `ready` 일 때만 없는·사용 중지·floatable 아닌 위젯 창과 multiple=false 중복 창을 지우고 저장한다. 정의 조회 전(loading)·실패(error)에는 지우지 않고 그리지만 않는다.
-8. **창 막대 제목**: 막대에 `meta.title` 을 보이고 WidgetFrame 제목 줄은 그대로 둔다(제목이 두 번 보인다). 메모 이름(useWidgetTitle)은 틀 제목 줄에만 나타나므로 틀 제목을 숨기지 않았다 — 아래 요청 1.
+8. **창 막대 제목**: 막대에 `meta.title` 을 보이고, 조정 세션 승인(2026-10-05)으로 `WidgetFrame` 에 추가한 선택 prop `hideTitle`(기본 false)로 틀 제목·부제를 숨긴다. 메모 이름(useWidgetTitle)은 도구 창에서 보이지 않는다(막대는 등록부 제목) — 필요하면 `onTitleChange` 콜백을 후속으로 요청.
 9. **로그아웃**: 도크 저장값은 지우지 않는다(사용자 키라 다음 사용자에게 보이지 않는다). 로그아웃 중에는 저장하지 않는다.
 
 ## 남은 일
@@ -56,6 +56,6 @@
 6. **후속 — 사용자 상태 구독 범위**(리뷰 8): 셸이 `useCurrentUserState` 로 사용자 상태 전체를 구독해 사용자 ID 가 아닌 값(이름 등)이 바뀌어도 셸이 다시 그려진다. 필요한 값(userId)만 고르는 구독으로 좁힌다.
 7. **후속 — 「도구」 메뉴 한도 계산**(리뷰 10): 항목마다 `countOf` 가 창 목록을 훑고 한도(atLimit)도 렌더마다 다시 센다. 위젯별 개수를 한 번에 모은 맵으로 바꾼다(창 8개 한도라 지금은 비용이 작다).
 8. **후속 — 사용자 확인 실패 시 메뉴 재시도**(리뷰 11): `/api/auth/me` 가 실패하면 사용자 ID 가 비어 「도구」 메뉴가 계속 불러오는 중으로 남는다. 실패를 알리고 다시 시도하는 길이 없다.
-9. **후속 — 제목 이중 표시**(리뷰 12): 창 막대 제목과 위젯 틀 제목 줄이 겹친다(결정 8, 소유 밖 요청 1 의 `WidgetFrame` prop 이 들어오면 함께 정리).
+9. (처리 끝) **제목 이중 표시**(리뷰 12): `hideTitle` 로 해소. 같은 aria-label 이 dialog section 과 틀 section 에 두 번 붙는 점은 남아 있다.
 10. (처리 끝) **스킬 문서 갱신**: `.claude/skills/mantine-aggrid-ui/references/components/widget-dock.md`·`floating-window.md` 에 이번 변경(훅 `viewport` 제거·`WidgetDockLayer viewport` 선택 prop·`DockToolsMenu triggerRef`·`dockStackOrder`·`placeDockWindow`·사이드바 z 150)을 반영해야 한다.
 11. **기존 문제(이 레인 아님)**: mantine-aggrid-ui `ui_docs.py coverage` 의 `useWidgetVisible` 미등재 1건.

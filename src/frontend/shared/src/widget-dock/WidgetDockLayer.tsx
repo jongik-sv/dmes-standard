@@ -87,7 +87,7 @@ const DockWindowView = memo(function DockWindowView({
     [id, win.widgetId, size.w, size.h]
   );
   const frame = useMemo(
-    () => <Frame item={item} entry={entry} editing={false} onToggleLock={noop} onRemove={noop} />,
+    () => <Frame item={item} entry={entry} editing={false} onToggleLock={noop} onRemove={noop} hideTitle />,
     [Frame, item, entry]
   );
   const move = useCallback((x: number, y: number) => onMove(id, x, y), [onMove, id]);
