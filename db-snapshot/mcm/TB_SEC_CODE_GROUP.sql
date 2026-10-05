@@ -1,0 +1,1 @@
+INSERT INTO "TB_SEC_CODE_GROUP"("GROUP_CD","GROUP_DESC","GROUP_NM","USE_YN","C_AT","C_USR_ID","C_PGM_ID","C_SVC_ID","U_AT","U_USR_ID","U_PGM_ID","U_SVC_ID","VER") VALUES('WIDGET_CTG','위젯 서랍·위젯 관리의 위젯 분류','위젯 분류','Y','2026-10-05 13:25:39','admin','DataInitializer','DataInitializer','2026-10-05 13:25:39','admin','DataInitializer','DataInitializer',0);

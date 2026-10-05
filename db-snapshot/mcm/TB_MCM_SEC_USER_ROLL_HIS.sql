@@ -1,0 +1,1 @@
+-- 데이터 제외(스키마만): TB_MCM_SEC_USER_ROLL_HIS

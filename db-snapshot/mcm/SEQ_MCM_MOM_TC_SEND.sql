@@ -1,0 +1,1 @@
+INSERT INTO "SEQ_MCM_MOM_TC_SEND"("next_val") VALUES(1);
