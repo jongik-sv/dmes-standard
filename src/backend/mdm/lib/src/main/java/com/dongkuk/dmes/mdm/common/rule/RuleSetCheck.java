@@ -6,7 +6,7 @@ import java.util.Set;
  * 룰 세트 저장 시 검사 한 건(TSK-08-06 design §6.3, 흐름도 계획 C4). 서버 {@link RuleSetAnalyzer#checks} 와 화면 {@code set-model.ts} 가 같은
  * 코드·문구·순서로 만든다.
  *
- * @param severity    {@link #REJECT}(확정·되살리기 거부, DRAFT 저장은 막지 않는다) 또는 {@link #WARN}
+ * @param severity    {@link #REJECT}(확정·되살리기 거부. 분석기가 내는 거부 검사는 DRAFT 저장을 막지 않는다 — 저장 자체의 FLOW_READONLY·폐기의 CALLER_BROKEN 은 별도) 또는 {@link #WARN}
  * @param ruleId      검사가 걸린 룰(SET 노드면 세트 ID — 하위 세트 Ruling 6). {@link #EMPTY}·구조·조건식 검사는 null
  * @param otherRuleId 상대 룰·세트 ID(ORDER·CYCLE·DUP_RESULT·IF_SIBLING·PAR_SIBLING). 그 밖은 null
  * @param varName     걸린 변수 이름(2단계 검사). 1단계·EMPTY·구조는 null

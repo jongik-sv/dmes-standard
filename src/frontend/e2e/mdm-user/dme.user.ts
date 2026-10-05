@@ -1822,7 +1822,7 @@ test.describe("C 룰 세트", () => {
     watcher.assertClean("ruleSetEdit");
   });
 
-  test("TC-DME-SED-02 룰 추가 — 편집 모드에서 순서가 거꾸로 담기면 룰 박스에 거부 표시·검사 항목이 보이고 저장이 꺼지며, 이미 담은 룰은 사용 중으로 표시된다", async () => {
+  test("TC-DME-SED-02 룰 추가 — 편집 모드에서 순서가 거꾸로 담기면 룰 박스에 거부 표시·검사 항목이 보이되 저장은 켜져 있으며, 이미 담은 룰은 사용 중으로 표시된다", async () => {
     await enterFlowEdit(page);
     await addToSet(SB);
     await addToSet(SA);
@@ -2398,7 +2398,7 @@ test.describe("D 화면 연결·넘기기·충돌·드래그·읽기 전용", ()
     const set = uid("DMEROS");
     // 세트에는 확정된 룰만 담는다(D-144 — 세트는 판정 시각의 RELEASED 버전을 참조한다. 룰 지정 목록이 "확정된 룰이 없다" 를 보인다).
     // 방금 등록한 DRAFT 룰은 담을 수 없으므로 로컬 샘플의 사용 중 룰(전제 DB) 중 입력이 컬럼 사전에만 있는 WID_CHK(입력 COIL_WID)를 담는다
-    // (다른 룰 결과를 읽는 룰을 혼자 담으면 세트 검사가 거부해 저장이 꺼진다).
+    // (다른 룰 결과를 읽는 룰을 혼자 담으면 세트 검사가 거부로 보이므로 결과 변수를 읽지 않는 룰을 쓴다).
     const releasedRule = "WID_CHK";
     const owner = await openAs(browser, "stw", testInfo);
     try {
