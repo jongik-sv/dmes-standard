@@ -6,15 +6,17 @@
 - 착수 커밋: dev c12e99a4(plan:0 반영) / 시험: srv:3 대상 묶음은 아래 항목에 적는다.
 
 ## 지금 상태·다음 단계
+- **srv 레인 완료(2026-10-06).** srv:3·srv:5·srv:6 모두 dev 에 들어갔다. 이 기록을 담은 머지가 마지막 머지(조정 지시 srv-7, 7b89f75f 위 문서 커밋)이고, 그 뒤 워크트리·브랜치를 정리한다. 남은 일은 아래 후속 목록뿐이며 조정자 마감 후속으로 넘긴다.
 - srv:3 dev 머지 끝(2b638315, 머지 뒤 :api 마이그레이션 시험 15클래스 88건 통과).
 - srv:5 는 ui 가 ui:5t 와 함께 dev 에 넣었다(f6f744d7).
 - srv:6 묶음 A~D dev 머지 끝(c55bb430, 트리 80fc7186, 머지 전 lib 2053·api 1791 통과).
-- srv:6 묶음 E1·E2 끝(리뷰 각 1회 clean) — 머지 요청 대기. 머지 전 전체 시험 lib 2058·api 1818 통과.
+- srv:6 묶음 E1·E2 끝(리뷰 각 1회 clean) — 마지막 머지로 dev 반영(조정 허가 srv-7, ui TS 러너 112건 초록 확인). 머지 전 전체 시험 lib 2058·api 1818 통과.
 - 남은 낮은 지적(후속, 정상 데이터에서는 안 생기는 경계):
   1. `SetCallIoReader` memo: 얕은 자리에서 방어 없이 계산한 결과를 깊은 자리(깊이 방어가 걸려야 할 자리)에서 다시 쓴다. 저장된 사슬이 MAX_DEPTH 를 넘을 때만(그래프 검사가 막는 데이터).
   2. `SetCallerRecheck` 준비 순서: 저장된 자기 순환 조상(P→P)·마지막 단계 세트의 부르는 쪽 미수집. 순환·깊이 초과 데이터에서만.
   3. MDM010 시험의 쓸모없는 분기(`getErrors()` 가 비면 이름 비교) — 실패 원인 읽기만 어렵다.
-  4. 하위 세트 폐기 룰 경고는 실제 실행한 `calls` 만 따른다(최상위 룰은 탄 갈래와 무관) — 비대칭. 디버거 simulate 는 최상위만. 조정 결정 대기.
+  4. 하위 세트 폐기 룰 경고는 실제 실행한 `calls` 만 따른다(최상위 룰은 탄 갈래와 무관) — 비대칭. 디버거 simulate 는 최상위만. 조정 확정(2026-10-06): 이 비대칭을 그대로 두고 기록한다(D-135 대조용 동작 변경 기록 — 폐기 룰 경고 범위가 하위 세트까지 넓어짐).
+  6. eng 쪽 차이 4건(SetShape.inputs 의 CATCH_*, FlowKeys.needed 의 DECISION 결과 셀 이름, 식 이름 대소문자, DERIVE 이름 순서)은 조정자 마감 후속 목록으로 넘김. srv 는 시험으로 현재 동작을 고정했다.
   5. `SetCallIoEngineAgreementTest` 는 엔진 inputs 의 CATCH_* 를 빼고 견준다(편차 11). eng 이 같이 빼면 필터를 없앤다.
 - srv:6 묶음 A·B·C·D 끝(아래 「srv:6」). ui 에 코퍼스 111건(`MIN_CASES` 111), C 응답 모양(`search CALL_IO/CALLERS`·`view.calls`·`save.checks` WARN 네 코드·폐기 거부 문구), D 응답 모양(`execute` 의 `calls`·`path.callIndex`·`caught.setPath`, 디버거 `calledFlows`)을 알린다. eng:4 뒤 남은 시험: SET 실행·SetShape 일치(묶음 D 절) → 묶음 E1 에서 끝(코퍼스 112건 `MIN_CASES` 112, itemKey `SET:`, 하위 세트 폐기 룰 경고 — ui·eng 에 알릴 것은 E1 결정에 굵게). 묶음 E2(리뷰 낮은 지적 정리) 끝 — ui 에 알릴 것: `search CALLERS` 는 자기 자신을 부르는 행을 뺀다.
 - srv:5 리뷰(opus/high 1회) clean, 낮음 3건은 srv:6 으로 넘긴다:
