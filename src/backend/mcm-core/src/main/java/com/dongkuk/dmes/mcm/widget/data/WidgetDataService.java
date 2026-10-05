@@ -2,6 +2,7 @@ package com.dongkuk.dmes.mcm.widget.data;
 
 import com.dongkuk.dmes.mcm.common.exception.BusinessException;
 import com.dongkuk.dmes.mcm.common.exception.ErrorCode;
+import com.dongkuk.dmes.mcm.widget.query.QueryParams;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryResult;
 import com.dongkuk.dmes.mcm.widget.query.WidgetQueryRunner;
 import java.util.LinkedHashMap;
@@ -11,7 +12,7 @@ import org.springframework.stereotype.Service;
 /**
  * 쿼리 위젯 데이터 — OASIS {@code widgetData}(스펙 2026-10-02-widget-admin-generic §5.1). 로그인만 되면 부를 수 있다(AUTH_ONLY).
  * <ul>
- *   <li>{@code defId} 만 읽는다. 요청 본문의 SQL 은 어떤 경우에도 실행하지 않는다(W-D23).</li>
+ *   <li>{@code defId} 와 입력 조건 값({@code paramsJson})만 읽는다. 요청 본문의 SQL 은 어떤 경우에도 실행하지 않는다(W-D23).</li>
  *   <li>정의 검사(사용 중·query-* 유형·mcm)·SQL 검사·시스템 변수(:userId 등, 인증 컨텍스트)·캐시는 {@link WidgetQueryRunner} 가 맡는다.</li>
  *   <li>{@code @Transactional} 을 붙이지 않는다 — 실행기가 별도 읽기 전용·늘 롤백 트랜잭션을 연다(BackEnd 표준 §6-B-1).</li>
  * </ul>
@@ -34,7 +35,9 @@ public class WidgetDataService {
         if (defId == null || defId.isEmpty()) {
             throw new BusinessException(ErrorCode.REQUIRED_VALUE, "위젯 정의 ID 가 없습니다");
         }
-        WidgetQueryResult data = queryRunner.runDefinition(defId, MAX_ROWS);
+        // 값은 스칼라 글자로만 받는다(배열·객체 거절). 선언·형·길이 판정은 실행기가 정의의 params 로 다시 한다.
+        Map<String, String> values = QueryParams.parseValues(request.getParamsJson());
+        WidgetQueryResult data = queryRunner.runDefinition(defId, MAX_ROWS, values);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("columns", data.columns());
         result.put("rows", data.rows());

@@ -62,12 +62,12 @@ class WidgetDataServiceTest {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("A", 1);
         row.put("B", null);
-        when(queryRunner.runDefinition("def.k3x9q2ab", 500))
+        when(queryRunner.runDefinition("def.k3x9q2ab", 500, Map.of()))
                 .thenReturn(new WidgetQueryResult(List.of("A", "B"), List.of(row), true));
 
         Map<String, Object> result = service.run(request("  def.k3x9q2ab "));
 
-        verify(queryRunner).runDefinition("def.k3x9q2ab", 500);
+        verify(queryRunner).runDefinition("def.k3x9q2ab", 500, Map.of());
         assertThat(result.keySet()).containsExactly("columns", "rows", "truncated");
         assertThat(result.get("columns")).isEqualTo(List.of("A", "B"));
         assertThat(result.get("rows")).isEqualTo(List.of(row));
@@ -75,9 +75,44 @@ class WidgetDataServiceTest {
     }
 
     @Test
+    @DisplayName("paramsJson 의 값은 글자·숫자·불리언을 글자로 바꿔 3인자로 넘긴다(null 은 값 없음)")
+    void passesInputValues() {
+        WidgetDataRunRequest r = request("def.k3x9q2ab");
+        r.setParamsJson("{\"plant\":\"P1\",\"qty\":12.50,\"on\":true,\"skip\":null}");
+        when(queryRunner.runDefinition("def.k3x9q2ab", 500, Map.of("plant", "P1", "qty", "12.50", "on", "true")))
+                .thenReturn(new WidgetQueryResult(List.of(), List.of(), false));
+
+        service.run(r);
+
+        verify(queryRunner).runDefinition("def.k3x9q2ab", 500, Map.of("plant", "P1", "qty", "12.50", "on", "true"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "[\"a\"]", "\"x\"", "12", "not json", "{\"a\":[\"x\",\"y\"]}", "{\"a\":{\"b\":1}}",
+            "{\"a\":\"1\",\"a\":\"2\"}", "{\"a\":\"1\"} junk"})
+    @DisplayName("paramsJson 이 객체가 아니거나 값이 배열·객체이거나 겹친 키·군더더기가 있으면 실행기를 부르지 않고 거절한다")
+    void rejectsNonScalarValues(String paramsJson) {
+        WidgetDataRunRequest r = request("def.k3x9q2ab");
+        r.setParamsJson(paramsJson);
+        assertThatThrownBy(() -> service.run(r)).isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(ErrorCode.INVALID_VALUE));
+        verifyNoInteractions(queryRunner);
+    }
+
+    @Test
+    @DisplayName("paramsJson 이 4000자를 넘으면 거절한다")
+    void rejectsTooLongParamsJson() {
+        WidgetDataRunRequest r = request("def.k3x9q2ab");
+        r.setParamsJson("{\"a\":\"" + "x".repeat(4000) + "\"}");
+        assertThatThrownBy(() -> service.run(r)).isInstanceOf(BusinessException.class).hasMessageContaining("너무 깁니다");
+        verifyNoInteractions(queryRunner);
+    }
+
+    @Test
     @DisplayName("실행기 거절(사용 중지 등)은 그대로 전한다")
     void propagatesRunnerErrors() {
-        when(queryRunner.runDefinition("def.off00000", 500))
+        when(queryRunner.runDefinition("def.off00000", 500, Map.of()))
                 .thenThrow(new BusinessException(ErrorCode.BUSINESS_ERROR, "사용 중지된 위젯입니다"));
         assertThatThrownBy(() -> service.run(request("def.off00000"))).hasMessage("사용 중지된 위젯입니다");
     }

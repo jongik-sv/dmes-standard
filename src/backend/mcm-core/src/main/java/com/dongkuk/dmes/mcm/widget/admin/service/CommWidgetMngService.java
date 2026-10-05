@@ -198,12 +198,12 @@ public class CommWidgetMngService {
         return result;
     }
 
-    /** 저장 전 SQL 시험 실행 — 관리자 본인 시스템 변수로, 행 상한 50(§5.2). 검사·실행 오류는 실행기가 던진다. */
+    /** 저장 전 SQL 시험 실행 — 관리자 본인 시스템 변수·입력 조건 기본값으로, 행 상한 50(§5.2). 검사·실행 오류는 실행기가 던진다. */
     public Map<String, Object> previewQuery(CommWidgetMngRequest request) {
         String dataSrc = WidgetDefConfigRules.requireDataSrc(request.getDataSrc());
         String sql = blankToNull(request.getSql());
         if (sql == null) throw new BusinessException(ErrorCode.REQUIRED_VALUE, "SQL 을 입력해 주세요.");
-        WidgetQueryResult r = queryRunner.preview(dataSrc, sql, PREVIEW_MAX_ROWS);
+        WidgetQueryResult r = queryRunner.preview(dataSrc, sql, PREVIEW_MAX_ROWS, blankToNull(request.getParamsJson()));
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("columns", r.columns());
         result.put("rows", r.rows());
