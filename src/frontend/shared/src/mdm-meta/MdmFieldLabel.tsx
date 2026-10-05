@@ -7,8 +7,10 @@
  * 상세 영역을 th/td 표로 그리는 화면(`DETAIL_LABEL_CELL`)은 `FormGroup` 을 쓰지 않아 라벨 툴팁이 없었다. 그 자리에 이 부품을 둔다.
  * `FormGroup name` 과 같은 규칙(`name` → 물리명 D7, `meta`, 캡션 우선순위, 툴팁 모양·위치·aria)을 따른다.
  *
- * - 공급자(포털 탭) 밖이거나 사전에 없거나 아직 못 받았으면 `label ?? name` 글자 그대로이고 요청·툴팁이 없다. 값은 단순 텍스트와 같은 DOM 이다
+ * - 공급자(포털 탭) 밖이거나 아직 못 받았으면 `label ?? name` 글자 그대로이고 요청·툴팁이 없다. 값은 단순 텍스트와 같은 DOM 이다
  *   (`className`·`style` 을 줬을 때만 그 값을 가진 `<span>` 으로 감싼다).
+ * - 공급자 안에서 사전에 없거나(`meta={false}` 포함) 받은 결과가 없으면 라벨 글자 툴팁을 띄운다 — 첫 줄 라벨, 둘째 줄 흐린 글자 `name`(`name` 이 라벨과 같으면 생략).
+ *   트리거는 같은 `span.form-tip-trigger` 이지만 스크린리더 사본(`aria-describedby`)은 두지 않는다(라벨과 같은 글자라 중복이다).
  * - 사전에 있으면 글자가 `span.form-tip-trigger` 가 된다. 이 span 은 Tab 순서에 들지 않고(tabIndex -1 — 입력 화면에서 Tab 이 라벨마다 멈추지 않게) hover·focus 때 `.form-tip-text--portal` 을
  *   document.body 에 띄운다. 스크린리더 설명(`aria-describedby`)은 body 로 포털한 `.form-sr-only` 에 두므로 th 의 글자·접근 이름은 늘지 않는다.
  * - 툴팁 모양은 form.css(`.form-tip-text`)가 정한다 — 호스트 앱이 `@dk-oasis/shared/form.css` 를 싣는다(포털은 이미 싣는다).
@@ -18,10 +20,11 @@
  */
 import { useId, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { LabelNameTip } from "../components/form/LabelNameTip";
 import { HoverTipPortal, useHoverTip } from "../components/form/useHoverTip";
 import { MdmMetaCard, mdmCardTipOptions } from "./MdmMetaCard";
 import { resolveCaption } from "./caption";
-import { useMdmCaptionPriority, useMdmColumn } from "./context";
+import { useMdmCaptionPriority, useMdmColumn, useMdmMetaScope } from "./context";
 import type { MdmCaptionKind } from "./types";
 
 export interface MdmFieldLabelProps {
@@ -48,18 +51,40 @@ export function MdmFieldLabel({
   className,
   style,
 }: MdmFieldLabelProps) {
-  const { column, domain } = useMdmColumn(name, meta);
+  const { column, domain, loading } = useMdmColumn(name, meta);
   const captionPriority = useMdmCaptionPriority();
+  const inMdmScope = useMdmMetaScope() !== null;
   const descId = `${useId()}-tip`;
   // 카드는 글자 툴팁보다 크다 — 위쪽 공간 판정이 노드 툴팁 높이를 쓴다. HTML 설명 카드면 상호작용 툴팁이다.
   const htmlTipOptions = mdmCardTipOptions(column);
+  const caption = resolveCaption(column, kind, label, captionPriority, name);
+  const text = required ? `${caption} *` : caption;
+  // 사전에 없거나(missing)·meta=false 인 라벨은 공급자(포털 탭) 안에서만 글자 툴팁을 띄운다. 아직 받는 중이면 띄우지 않는다 —
+  // 받은 뒤에 사전에 있으면 카드로 바뀌므로 글자 툴팁이 먼저 떴다 사라지는 깜박임을 막는다.
+  const fallbackTip = !column && !loading && inMdmScope && caption !== "";
   const { anchorRef, tipPos, showTip, hideTip, box } = useHoverTip<HTMLSpanElement>(
-    false,
+    fallbackTip,
     htmlTipOptions
   );
 
-  const caption = resolveCaption(column, kind, label, captionPriority, name);
-  const text = required ? `${caption} *` : caption;
+  if (fallbackTip) {
+    return (
+      <>
+        <span
+          ref={anchorRef}
+          className={className ? `form-tip-trigger ${className}` : "form-tip-trigger"}
+          style={style}
+          onMouseEnter={showTip}
+          onMouseLeave={hideTip}
+        >
+          {text}
+        </span>
+        <HoverTipPortal tipPos={tipPos} box={box}>
+          <LabelNameTip label={caption} name={name} />
+        </HoverTipPortal>
+      </>
+    );
+  }
 
   if (!column) {
     // 단순 텍스트와 같은 DOM. 꾸밈(className·style)을 받았을 때만 span.
