@@ -80,4 +80,8 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9
   5. **`trace-view.catchValues` 는 넷 그대로** — `NodeTrace` 에 CATCH_SET 값을 읽을 칸이 없다. CATCH 노드 기록의 CATCH_SET 표시·값 흐름은 엔진 실행(eng:4)과 디버거(ui:9, Task 9 의 `frames`·`chipOf`·`valueTable` SET 갈래)에서 정한다. `frames`·`valueTable` 의 SET `outputs` 반영도 Task 9 몫이라 하지 않았다.
   6. 속성 패널 안내 문구("CATCH_KIND·CATCH_RULE·CATCH_CODE·CATCH_MSG 를 읽을 수 있다")·"붙은 룰" 라벨·SET 노드 그리기·속성 패널·flow-edit SET 붙여넣기(`isStep`·`NODE_PREFIX`)는 화면 표시라 ui:8 에 남긴다.
   7. `tests/helpers/engine-paths.ts` 는 고치지 않았다(코퍼스 경로가 이미 있다).
+- 리뷰 반영(minor 2건):
+  1. 정본 갈래 두 개가 시험에 없었다 → `98b68f3d` 로 `set-model.test.ts`「하위 세트(SET 노드) 분석」에 둘을 더했다. (a) 겉모양 exists=true·status DEPRECATED → `CALL_MISSING` WARN "SP는 폐기된 세트다"(nodeId s1). (b) RULE 에 붙은 SUBSET_ENDED 받는 노드 → 룰이 없으면 `RULE_NOT_FOUND` 바로 뒤, RELEASED 가 없으면 `NO_RELEASED` 바로 뒤에 `FLOW_CATCH`(REJECT, ruleId null, nodeId c1) 하나(조기 return 앞에서 낸다는 순서 고정). 구현 변경은 없다(Java `RuleSetAnalyzer.never`·`callMissing` 과 이미 같다). 같은 두 사례를 srv:6 코퍼스에도 넣을지는 조정 세션이 srv 에 정한다.
+  2. 속성 패널 받을 예외 목록이 `catchKindsFor(붙은 노드 종류)` 라 RULE·TASK 에 이미 저장된 SUBSET_ENDED 키는 칩이 없어 패널에서 풀 수 없다 → 화면 표시라 ui:8 몫(저장됐지만 목록 밖인 종류도 칩으로 보여 해제할 수 있게). ui:5t 에서는 고치지 않았다 — 분석기는 이 키를 `FLOW_CATCH` 로 알린다.
+  - 리뷰 반영 뒤 시험: `vitest run tests/dme/ruleSetEdit/set-model.test.ts` → 33 통과, `vitest run tests/dme` → 130파일 2490 통과·0 실패, `tsc --noEmit` → 0.
 - 넘긴 일: srv:6 묶음 A 코퍼스 사례(setId "" + 받는 노드, PARALLEL 형제 SET, SET 낀 CYCLE)가 머지되면 TS 러너를 다시 돌린다(조정 ui-4).
