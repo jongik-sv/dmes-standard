@@ -69,13 +69,14 @@ describe("buildColumnDefs — MDM 없음(공급자 밖)", () => {
         { key: "a", header: "제품코드" },
         { key: "codeNm" },
         { key: "btn", header: "" },
+        { key: "sp", header: "  " },
         { key: "c", header: "C", headerTooltip: "화면 툴팁" },
         { key: "d", header: "D", headerTooltip: "" },
         { key: "e", header: "E", headerComponent: Header },
       ],
       OPTS
     ) as ColDef[];
-    expect(defs.map((d) => d.headerTooltip)).toEqual(["제품코드", "codeNm", undefined, "화면 툴팁", "", undefined]);
+    expect(defs.map((d) => d.headerTooltip)).toEqual(["제품코드", "codeNm", undefined, undefined, "화면 툴팁", "", undefined]);
   });
 
   it("열 그룹 머리는 기본 툴팁을 두지 않고 그 안 잎 열은 둔다", () => {
@@ -138,6 +139,12 @@ describe("buildColumnDefs — MDM 있음", () => {
     expect(defs[1].headerComponent).toBe(Header);
     expect(defs[1].tooltipComponent).toBeUndefined();
     expect(defs[1].headerName).toBe("제목");
+  });
+
+  it('사전에 있는 열도 화면이 headerTooltip: "" 를 주면 카드 없이 꺼 둔다', () => {
+    const [d] = buildColumnDefs([{ key: "title", headerTooltip: "" }], { ...OPTS, mdm: mdm() }) as ColDef[];
+    expect(d.headerTooltip).toBe("");
+    expect(d.tooltipComponent).toBeUndefined();
   });
 
   it('머리글이 "" 로 비면 툴팁 문자열은 물리명으로 채운다(ag-grid 는 빈 문자열 툴팁을 띄우지 않는다)', () => {

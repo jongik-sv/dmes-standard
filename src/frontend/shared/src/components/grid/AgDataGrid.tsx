@@ -251,7 +251,10 @@ export interface GridColumn {
    * 그리드에 `onRowOrderChange` 가 있을 때만 의미가 있다(TSK-05-02 D6).
    */
   rowDrag?: boolean;
-  /** 머리 툴팁 (ag-grid ColDef/ColGroupDef.headerTooltip 패스스루). */
+  /**
+   * 머리 툴팁 (ag-grid ColDef/ColGroupDef.headerTooltip 패스스루). 잎 열은 비우면 MDM 메타 카드, 메타가 없으면 표시 머리글 이름이 기본이다
+   * (빈 이름 열·headerComponent 열 제외). `""` 를 주면 끈다.
+   */
   headerTooltip?: string;
   /** 머리 칸 인라인 스타일 (ag-grid ColDef/ColGroupDef.headerStyle 패스스루). 색은 의미 토큰(var(--color-*))만 쓴다. */
   headerStyle?: ColDef["headerStyle"];
