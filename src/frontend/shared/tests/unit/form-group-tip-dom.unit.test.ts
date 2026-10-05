@@ -146,6 +146,44 @@ describe("FormGroup 포털 툴팁", () => {
     expect(r.host.querySelector(".form-tip-trigger")).toBeNull();
   });
 
+  it("공급자 안에서 사전에 없는 라벨은 라벨 글자 + 흐린 글자 name 툴팁이 뜨고 필드 focus·스크린리더 설명은 없다", async () => {
+    vi.stubGlobal("fetch", fakeMetaFetch({ columns: {} }).fn);
+    r = renderWithMantine(
+      createElement(MdmMetaProvider, { module: "mls" }, createElement(FormGroup, { label: "분류", name: "category" }, input()))
+    );
+    await act(async () => {
+      await settle(60);
+    });
+    await act(async () => {
+      await settle(60);
+    });
+    expect(r.host.querySelector("label")?.className).toContain("has-tip");
+    expect(r.host.querySelector(".form-sr-only")).toBeNull();
+    expect(r.host.querySelector("input")?.hasAttribute("aria-describedby")).toBe(false);
+    act(() => (r!.host.querySelector("input") as HTMLInputElement).focus());
+    expect(portal()).toBeNull(); // 필드 focus 로는 열리지 않는다
+    placeLabel({ left: 100, top: 400, bottom: 420 });
+    hover(true);
+    const p = portal()!;
+    expect(p.firstChild?.textContent).toBe("분류");
+    expect(p.querySelector("span")?.textContent).toBe("category");
+    expect(p.style.transform).toBe("translateY(-100%)"); // 글자 툴팁 예상 높이(72)로 위쪽 판정
+    hover(false);
+    expect(portal()).toBeNull();
+  });
+
+  it("공급자 안에서 name 이 없는 라벨은 라벨 글자만 뜬다", async () => {
+    vi.stubGlobal("fetch", fakeMetaFetch({ columns: {} }).fn);
+    r = renderWithMantine(createElement(MdmMetaProvider, { module: "mls" }, createElement(FormGroup, { label: "제목" }, input())));
+    await act(async () => {
+      await settle(60);
+    });
+    placeLabel({ left: 100, top: 400, bottom: 420 });
+    hover(true);
+    expect(portal()!.textContent).toBe("제목");
+    expect(portal()!.querySelector("span")).toBeNull();
+  });
+
   it("MDM 카드 tip 도 같은 포털(.form-tip-text--portal)에 카드를 그린다", async () => {
     vi.stubGlobal("fetch", fakeMetaFetch({ columns: { TITLE }, domains: { D_TEXT: TEXT_DOMAIN } }).fn);
     r = renderWithMantine(createElement(MdmMetaProvider, { module: "mls" }, createElement(FormGroup, { name: "title" }, input())));
