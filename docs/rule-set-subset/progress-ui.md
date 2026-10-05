@@ -85,3 +85,7 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9
   2. 속성 패널 받을 예외 목록이 `catchKindsFor(붙은 노드 종류)` 라 RULE·TASK 에 이미 저장된 SUBSET_ENDED 키는 칩이 없어 패널에서 풀 수 없다 → 화면 표시라 ui:8 몫(저장됐지만 목록 밖인 종류도 칩으로 보여 해제할 수 있게). ui:5t 에서는 고치지 않았다 — 분석기는 이 키를 `FLOW_CATCH` 로 알린다.
   - 리뷰 반영 뒤 시험: `vitest run tests/dme/ruleSetEdit/set-model.test.ts` → 33 통과, `vitest run tests/dme` → 130파일 2490 통과·0 실패, `tsc --noEmit` → 0.
 - 넘긴 일: srv:6 묶음 A 코퍼스 사례(setId "" + 받는 노드, PARALLEL 형제 SET, SET 낀 CYCLE)가 머지되면 TS 러너를 다시 돌린다(조정 ui-4).
+
+## 머지 2 — srv:5 + ui:5t 짝 머지(조정 지시 ui-6)
+- ui 브랜치에 srv:5(10fb5284)가 들어 있어 한 머지로 넣는다. dev 최신 `136ec85b`(eng:4·eng:c·문서)를 합쳤다(충돌 없음, 프론트 소스 변경 없음).
+- 시험: m-mdm `node scripts/test.mjs` 235파일 3670 중 3669 통과·1 실패 — 실패는 `tests/dma/domainMng/page-render.test.ts`「행이 있으면 들여쓴 이름이 보인다」로, 단독 3회 재실행에서 1회 실패·2회 통과한 간헐 실패(타이밍, ruleSetEdit 무관, 이번 합치기의 프론트 변경 없음). m-mdm `tsc --noEmit` 0. `src/backend/mdm` 에서 `heavy.sh ../gradlew :lib:test --max-workers=2` → 116 클래스 2027건 통과·0 실패.
