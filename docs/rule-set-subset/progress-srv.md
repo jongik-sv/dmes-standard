@@ -8,7 +8,7 @@
 ## 지금 상태·다음 단계
 - srv:3 dev 머지 끝(2b638315, 머지 뒤 :api 마이그레이션 시험 15클래스 88건 통과).
 - srv:5 구현·코퍼스 끝(b89509f3·80d0a74b, 아래 「srv:5」). ui:5t 가 이 브랜치를 합쳐 TS 초록을 알리면 머지 요청한다(짝 머지).
-- srv:6 묶음 A·B·C·D 끝(아래 「srv:6」). ui 에 코퍼스 111건(`MIN_CASES` 111), C 응답 모양(`search CALL_IO/CALLERS`·`view.calls`·`save.checks` WARN 네 코드·폐기 거부 문구), D 응답 모양(`execute` 의 `calls`·`path.callIndex`·`caught.setPath`, 디버거 `calledFlows`)을 알린다. eng:4 뒤 남은 시험: SET 실행·SetShape 일치(묶음 D 절) → 묶음 E1 에서 끝(코퍼스 112건 `MIN_CASES` 112, itemKey `SET:`, 하위 세트 폐기 룰 경고 — ui·eng 에 알릴 것은 E1 결정에 굵게).
+- srv:6 묶음 A·B·C·D 끝(아래 「srv:6」). ui 에 코퍼스 111건(`MIN_CASES` 111), C 응답 모양(`search CALL_IO/CALLERS`·`view.calls`·`save.checks` WARN 네 코드·폐기 거부 문구), D 응답 모양(`execute` 의 `calls`·`path.callIndex`·`caught.setPath`, 디버거 `calledFlows`)을 알린다. eng:4 뒤 남은 시험: SET 실행·SetShape 일치(묶음 D 절) → 묶음 E1 에서 끝(코퍼스 112건 `MIN_CASES` 112, itemKey `SET:`, 하위 세트 폐기 룰 경고 — ui·eng 에 알릴 것은 E1 결정에 굵게). 묶음 E2(리뷰 낮은 지적 정리) 끝 — ui 에 알릴 것: `search CALLERS` 는 자기 자신을 부르는 행을 뺀다.
 - srv:5 리뷰(opus/high 1회) clean, 낮음 3건은 srv:6 으로 넘긴다:
   1. `RuleSetPathState.before` 3인자는 SET always 출력만 defined 로 센다. always=false 출력을 maybe 에 넣는 분석기와 갈린다. srv:6 이 `RuleSetOrderCheck` 에 연결할 때 partial 출력도 받게 넓히고 사례를 더한다(예: SET G(P always=false) → IF [R1 이 P 만듦][R2 가 P 읽음]).
   2. 코퍼스 보강: setId `""` SET 노드 + 받는 노드, PARALLEL 형제 SET 출력 읽기(PAR_SIBLING), SET 이 낀 CYCLE 문구, `RuleSetInterfaceTest` 구조 오류 흐름. 더하면 Java·TS `MIN_CASES` 를 함께 올리고 ui 에 알린다.
@@ -16,7 +16,7 @@
 - 메모: dev c12e99a4 의 m-mdm `tests/ui-meta-lock.test.ts` 1건 실패는 기존 실패이고 dev 14ec1124 에서 고쳐졌다. 머지 요청 전에 dev 를 합친다.
 - 메모: eng:1 이 `RuleSetRunner` 의 `new Violation(…FLOW_INVALID…)` 에 `List.of()` 인자를 더한다. srv:6 은 그 뒤 모양을 기준으로 고친다.
 
-## srv:6. 서비스·연쇄 재검사 (구현 끝 — eng:4 뒤 SET 실행·SetShape 일치 시험은 묶음 E1 에서 끝)
+## srv:6. 서비스·연쇄 재검사 (구현 끝 — eng:4 뒤 SET 실행·SetShape 일치 시험은 묶음 E1, 리뷰 낮은 지적 정리는 묶음 E2 에서 끝)
 - 기준선: srv:5 기록의 `:lib:test` 2027건 통과(HEAD 10fb5284 는 그 뒤 문서 커밋뿐이라 다시 돌리지 않았다).
 - 조정 세션이 준 판단 ①~⑤(srv6-adapt 메모)를 따른다. 묶음 A → (B ∥ C) → D.
 
@@ -135,6 +135,31 @@
 - 계획 조정(본문과 다르게 한 것):
   - 본문 `SetCallIoEngineAgreementTest` 의 `reader.read(List.of(…))`·`runner.trace(parent, …)` 한 건 → `read(ids, at)`, 코퍼스 전수 대조·저장 세트 엔진 겉모양·endsEarly 실행·이름 출처·`CATCH_*` 편차 시험을 더했다. 엔진 겉모양 접근은 시험 도우미(엔진 패키지)로.
   - 본문 `RuleSetRunnerSubsetTest` 의 `ruleSet(…, "INUSE", 0)`·`ruleSetFlow`·`ruleSetCalls` 그대로, `assertThrows` 대신 AssertJ. 본문 두 건에 손주 경로·caught setPath 두 갈래·하위 세트 경고·하위 세트 폐기 룰 경고·simulate calledFlows(실제 기록)를 더했다.
+
+### 묶음 E2 — 앞 묶음 리뷰의 낮은 지적 정리 (끝)
+- 커밋:
+  - 9a983b0c `SetCallIoReader` — 순환·깊이 방어가 아래에서 걸린 세트의 겉모양은 memo 에 넣지 않는다(`Computed(io, cut)`). `callIds` 는 깨진 CALL_SET_IDS(JSON 배열 아님)를 빈 목록으로, 배열 안 null·빈 값은 뺀다(javadoc 에 정책). `Snapshot.sets()`·`versions(setId)` 접근자. 시험 `SetCallIoReaderSqliteTest` +3(깊이 방어 memo·다이아몬드 한 번 계산·깨진 CALL_SET_IDS).
+  - 299e666d `SetCallerRecheck` — 미래 RELEASED 만 있는 부모는 위로 잇지 않음, 다이아몬드 순서, `shapeChanged`(입출력 또는 endsEarly), `recheck(Snapshot, …)` 오버로드. `RuleSetConfirmChecks`·`RuleSetEditService.callWarnings`·`RuleSetCallerCheck` 가 자기 스냅샷을 넘기고 진입 조건을 `shapeChanged` 로. `RuleSetCallerCheck` 는 원장을 스냅샷 하나로만 읽는다(생성자에서 `RuleQueries`·`RuleSetVersionQueries` 뺌). 시험 `SetCallerRecheckSqliteTest` +3·`RuleSetSubsetServiceTest` +1(endsEarly 만 바뀐 DRAFT 저장의 CALLER_WARN).
+  - 38f1c01c `RuleSetEditService` — `search CALLERS` 자기 행 제외, `RuleSetVersionQueries.mayBeCalled` 로 SET 노드 없는 저장·폐기의 원장 전체 읽기 건너뜀. 시험 `RuleSetEditQueryCountTest` save 상한 13, `SetCallIoReaderSqliteTest` +1(`mayBeCalled`), `RuleSetSubsetServiceTest` CALLERS 자기 행 단언.
+  - cefd3d8a 시험 보강 — `RuleSetCallerCheckTest` +1(`RuleConfirmService.confirm` MDM010·v2 DRAFT 유지, 보고서 ERROR 는 SET_CALLER_BROKEN 뿐), `RuleLedgerChecksTest` +1(always=false 하위 세트 출력은 maybe — SET_IF_SIBLING 아님), `DmeOasisHttpTest` +1(search CALL_IO·CALLERS).
+- 시험(src/backend/mdm, JDK 21, `--max-workers=2`):
+  - 묶음 시험마다 고친 클래스를 돌렸다. 새 시험이 헛돌지 않는지 변이로 확인하고 되돌렸다: memo 를 늘 넣으면 깊이 방어 memo 시험 1건 실패, `orElse(null)` → 첫 행·준비 조건 없앰·`shapeChanged` 에서 endsEarly 뺌을 한꺼번에 넣으면 새 시험 4건 모두 실패, `SetOut.of` 가 partial 을 버리면 새 형제 읽기 시험 실패.
+  - save SQL 문 수: 걸러내기 전 14, 뒤 13(`mayBeCalled` 를 끈 채 같은 시험으로 쟀다). `RuleConfirmQueryCountTest` validate2 = 37 그대로(상한 37).
+  - 마지막: `../gradlew :lib:test :api:test --tests 'com.dongkuk.dmes.mdm.common.rule.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleSetEdit.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleSetConfirm.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleEdit.*' --tests 'com.dongkuk.dmes.mdm.dme.ruleConfirm.*' --tests '*DmeOasisHttpTest' --continue` → lib 118클래스 2058건, api 45클래스 475건 통과, 실패·오류·건너뜀 0(BUILD SUCCESSFUL, 쿼리 수 시험 `RuleSetEditQueryCountTest`·`RuleConfirmQueryCountTest` 포함).
+- 결정:
+  - **위로 잇기(A 결정 바꿈)**: 부모의 행 가운데 기준 시각에 적용 중인 행이 없으면(미래 RELEASED 만) 그 부모 행들은 검사하되 위로 잇지 않는다 — 조부모의 `read(at)` 에서 그 부모는 없는 세트라 겉모양이 바뀌지 않는다. A 의 "없으면 첫 행" 은 조부모에 헛 깨짐을 냈다.
+  - **endsEarly**: `SetCallerRecheck.shapeChanged(before, after)` = `!sameShape || endsEarly 다름`(`sameShape` 는 그대로). 분석기는 SET 노드의 SUBSET_ENDED 받는 노드를 endsEarly 로 판정(CATCH_NEVER)하므로 확정 검사·DRAFT 저장 경고·룰 저장 검사의 진입 조건과 위로 잇기 네 곳 모두 이것을 쓴다(위로 잇기만 바꾸면 첫 단계에서 재검사가 아예 돌지 않는다). endsEarly 는 흐름 구조로만 정해져 하위 세트가 바뀌어도 부모의 endsEarly 는 그대로라, 실제로 차이가 나는 곳은 진입 조건이다.
+  - **다이아몬드(고침, 한계 아님)**: 바뀐 세트에서 위로 `MAX_DEPTH` 단계까지 부르는 세트(자기를 부르는 행 제외)를 먼저 모으고, 아래에서 모은 세트를 모두 끝낸 부모부터(같이 준비되면 찾은 순서 = 단계, 그 안에서 세트 ID 순) 한 번씩 검사한다. 부모의 행 가운데 지금까지 바뀐 세트를 부르는 행만 검사하고(문구 머리의 행 수도 이 행들로 센다) 그런 행이 없으면 건너뛴다. 저장된 순환으로 준비된 부모가 없으면 찾은 순서의 첫 부모부터 한다(순환은 그래프 검사가 막는다). 기존 시험의 문구 순서(P, G / M, P, P, G)는 그대로다.
+  - **CALL_SET_IDS 깨짐**: FLOW_JSON 과 같은 정책 — 그 행은 아무 세트도 부르지 않는다(던지지 않음). SQLite 는 `json_valid` CHECK 가 있어 시험은 배열 아닌 JSON(`{}`)과 엔티티 직접 값으로 했다.
+  - **memo**: 방어(순환·깊이)가 걸린 결과와 그 위쪽 세트들은 부른 자리마다 달라 memo 에 넣지 않는다. 방어가 없는 세트는 한 read 안에서 한 번만 계산한다(다이아몬드 시험이 `readAt` 호출 수로 확인).
+  - **원장 읽기**: `recheck(Snapshot, setId, newIo, at)` 오버로드 — 세트 확정 검사·DRAFT 저장·`RuleSetCallerCheck` 가 자기 스냅샷을 넘긴다(C 의 "재검사기는 자기 스냅샷을 따로 연다" 를 바꿈). `RuleSetCallerCheck` 는 세트 목록·버전도 스냅샷에서 읽어 원장을 두 문장으로 한 번만 읽는다.
+  - **save·폐기 원장 읽기**: `RuleSetVersionQueries.mayBeCalled(setId)` — RELEASED 행 CALL_SET_IDS 에 `"세트 ID"` 가 든 행이 있는지 한 문장(1행)으로 본다. LIKE 의 `_` 거짓 양성은 원장 읽기가 정확히 가린다. 흐름에 SET 노드가 없고 불릴 수 없으면 DRAFT 저장의 호출 검사를 건너뛴다 — 그래프에 이 세트를 지나는 선이 없고 연쇄 재검사할 부모도 없어 결과가 같다. 폐기 거부도 불릴 수 없으면 원장을 읽지 않는다.
+  - **search CALLERS**: 폐기 거부와 같게 자기 자신을 부르는 행을 뺀다. **ui 에 알린다.**
+  - **한계(룰 쪽)**: `RuleSetCallerCheck` 는 룰을 담은 세트 S 의 기준 시각에 적용 중인 버전만 보고 S 의 미래 RELEASED 는 보지 않는다 — 그 버전이 적용될 때 부르는 세트가 깨지는지는 룰 저장·확정에서 잡지 않는다.
+- 계획 조정(지시와 다르게 한 것):
+  - 다이아몬드는 한계로 남기지 않고 고쳤다(위 결정).
+  - `RuleSetEditService.callWarnings` 도 진입 조건을 `shapeChanged` 로, 재검사에 자기 스냅샷을 넘기게 바꿨다(지시는 `RuleSetCallerCheck`·`RuleSetConfirmChecks` 만 적었다 — 같은 계산이라 맞췄다).
+  - 다이아몬드 한 번 계산 시험은 새 스프링 문맥을 만들지 않게 `@MockitoSpyBean` 대신 `Mockito.spy(ioReader)` 로 만든 `SetCallIoReader` 를 썼다.
 
 ## srv:5. 서버 분석기·코퍼스 (구현 끝 — ui:5t 짝 머지 대기)
 - 커밋: b89509f3(분석기 `SetCallIo`·`RuleSetInterface`·`RuleSetAnalyzer`·`RuleSetPathState`·`RuleSetCheck` 상수 넷, 시험 `RuleSetInterfaceTest`·`RuleSetPathStateTest` 3건), 80d0a74b(코퍼스 18건·`RuleSetCorpusTest` calls 읽기·단계 순서 단언, TS `MIN_CASES` 한 줄).
