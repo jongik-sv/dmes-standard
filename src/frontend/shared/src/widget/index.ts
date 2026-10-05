@@ -20,17 +20,6 @@ export {
   validateWidgetMeta,
 } from "./widget-layout";
 export {
-  buildTabExport,
-  fixedTabCount,
-  isFixedTab,
-  orderTabs,
-  parseTabImport,
-  shareResultMessage,
-  tabImportMessage,
-  uniqueTabName,
-} from "./widget-layout";
-export type { TabImportContext, TabImportDrop, TabImportResult } from "./widget-layout";
-export {
   applyWidgetOverride,
   defWidgetLoader,
   defWidgetMeta,
@@ -59,3 +48,15 @@ export { WidgetPicker } from "./WidgetPicker";
 export type { WidgetPickerProps } from "./WidgetPicker";
 export { WidgetWorkspace } from "./WidgetWorkspace";
 export type { WidgetWorkspaceProps } from "./WidgetWorkspace";
+// 기본 탭·공유·탭 파일(widget-tabs 2026-10-05)
+export {
+  buildTabExport,
+  fixedTabCount,
+  isFixedTab,
+  orderTabs,
+  parseTabImport,
+  shareResultMessage,
+  tabImportMessage,
+  uniqueTabName,
+} from "./widget-layout";
+export type { TabImportContext, TabImportDrop, TabImportResult } from "./widget-layout";

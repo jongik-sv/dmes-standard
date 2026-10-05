@@ -189,6 +189,51 @@ describe("parseTabImport", () => {
   });
 });
 
+describe("parseTabImport — 값 검사(리뷰 9)", () => {
+  const base = [tab("home", "홈", 0)];
+  const one = (over: Record<string, unknown>) => file({ items: [{ widgetId: "t.a", x: 0, y: 0, w: 6, h: 6, ...over }] });
+
+  it("widgetId 가 100자를 넘으면 모양 오류다", () => {
+    expect(parseTabImport(one({ widgetId: `t.${"a".repeat(99)}` }), { registry: REG, tabs: base })).toEqual({ ok: false, error: "1번째 위젯의 모양이 틀립니다." });
+  });
+
+  it.each([
+    ["배열", [1, 2]],
+    ["문자열", "x"],
+    ["숫자", 3],
+  ])("config 가 객체·null 이 아니면 모양 오류다 — %s", (_l, config) => {
+    expect(parseTabImport(one({ config }), { registry: REG, tabs: base })).toEqual({ ok: false, error: "1번째 위젯의 모양이 틀립니다." });
+  });
+
+  it("config JSON 이 4000자를 넘으면 거절하고, null·없음은 받는다", () => {
+    const out = parseTabImport(one({ config: { s: "x".repeat(4000) } }), { registry: REG, tabs: base });
+    expect(out).toEqual({ ok: false, error: "1번째 위젯의 설정이 너무 깁니다(4000자 이하)." });
+    expect(parseTabImport(one({ config: null }), { registry: REG, tabs: base, newId }).ok).toBe(true);
+    expect(parseTabImport(one({}), { registry: REG, tabs: base, newId }).ok).toBe(true);
+  });
+
+  it("__proto__·constructor 가 든 파일도 Object 원형을 건드리지 않고, 그런 위젯 ID 는 없는 위젯으로 뺀다", () => {
+    const text = `{"version":1,"kind":"dmes-widget-tab","name":"생산","__proto__":{"polluted":1},"items":[
+      {"widgetId":"__proto__","x":0,"y":0,"w":6,"h":6},
+      {"widgetId":"constructor","x":0,"y":0,"w":6,"h":6},
+      {"widgetId":"t.a","x":0,"y":0,"w":6,"h":6,"config":{"__proto__":{"polluted":2}}}]}`;
+    const out = parseTabImport(text, { registry: REG, tabs: base, newId });
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.tab.items.map((i) => i.widgetId)).toEqual(["t.a"]);
+    expect(out.dropped).toEqual([
+      { widgetId: "__proto__", reason: "missing" },
+      { widgetId: "constructor", reason: "missing" },
+    ]);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
+  it("알림의 긴 위젯 ID 는 40자로 자른다", () => {
+    const long = `t.${"b".repeat(60)}`;
+    expect(tabImportMessage("생산", [{ widgetId: long, reason: "missing" }])).toBe(`「생산」 탭을 가져왔습니다. 없는 위젯(${long.slice(0, 40)}…)은(는) 빼고 가져왔습니다.`);
+  });
+});
+
 describe("tabImportMessage", () => {
   it("뺀 위젯이 없으면 한 문장이다", () => {
     expect(tabImportMessage("생산", [])).toBe("「생산」 탭을 가져왔습니다.");
@@ -196,13 +241,13 @@ describe("tabImportMessage", () => {
 });
 
 describe("shareResultMessage", () => {
-  it("모두 성공이면 success 와 만든 탭 이름", () => {
+  it("모두 성공이면 success 와 사람 수(받는 사람마다 탭 이름 꼬리가 달라도 같은 문구)", () => {
     expect(
       shareResultMessage([
         { userId: "u1", ok: true, tabNm: "(공유) 생산", message: "" },
-        { userId: "u2", ok: true, tabNm: "(공유) 생산", message: "" },
+        { userId: "u2", ok: true, tabNm: "(공유) 생산 2", message: "" },
       ])
-    ).toEqual({ kind: "success", text: "2명에게 「(공유) 생산」 탭으로 보냈습니다." });
+    ).toEqual({ kind: "success", text: "2명에게 공유했습니다." });
   });
 
   it("실패가 있으면 error 와 사람별 사유(이름이 있으면 이름)", () => {
@@ -214,7 +259,7 @@ describe("shareResultMessage", () => {
         ],
         { u2: "김철수" }
       )
-    ).toEqual({ kind: "error", text: "1명에게 보냈고 1명은 보내지 못했습니다. 김철수: 탭 수 한도를 넘습니다." });
-    expect(shareResultMessage([{ userId: "u3", ok: false, tabNm: "", message: "" }]).text).toBe("보내지 못했습니다. u3: 보내지 못했습니다");
+    ).toEqual({ kind: "error", text: "1명에게 공유했고 1명은 보내지 못했습니다. 김철수: 탭 수 한도를 넘습니다." });
+    expect(shareResultMessage([{ userId: "u3", ok: false, tabNm: "", message: "" }]).text).toBe("공유하지 못했습니다. u3: 보내지 못했습니다");
   });
 });

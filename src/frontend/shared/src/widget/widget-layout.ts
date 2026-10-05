@@ -350,8 +350,14 @@ export interface TabImportContext {
 }
 
 const SHAPE_ERROR = "위젯 탭 파일 모양이 아닙니다.";
+/** 가져오기 위젯 ID 최대 길이(서버 WIDGET_ID 칸과 같다). */
+const IMPORT_WIDGET_ID_MAX = 100;
+/** 가져오기 위젯 설정(config) JSON 최대 길이. */
+const IMPORT_CONFIG_JSON_MAX = 4000;
 const isRecord = (v: unknown): v is Record<string, unknown> => v != null && typeof v === "object" && !Array.isArray(v);
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+/** 등록부의 자기 항목만 본다 — "__proto__"·"constructor" 같은 ID 가 Object 원형을 집지 않게. */
+const ownEntry = (registry: WidgetRegistry, id: string) => (Object.prototype.hasOwnProperty.call(registry, id) ? registry[id] : undefined);
 
 /**
  * 탭 가져오기 — 파일 글을 검사해 새 일반 탭을 만든다(서버 저장은 호출자 몫).
@@ -386,15 +392,21 @@ export function parseTabImport(text: string, ctx: TabImportContext): TabImportRe
       !isRecord(r) ||
       typeof r.widgetId !== "string" ||
       !r.widgetId ||
+      r.widgetId.length > IMPORT_WIDGET_ID_MAX ||
       !isNum(r.x) ||
       !isNum(r.y) ||
       !isNum(r.w) ||
       !isNum(r.h) ||
-      (r.locked !== undefined && typeof r.locked !== "boolean")
+      (r.locked !== undefined && typeof r.locked !== "boolean") ||
+      // 설정은 객체이거나 없음(null)이다.
+      (r.config != null && !isRecord(r.config))
     ) {
       return { ok: false, error: `${n + 1}번째 위젯의 모양이 틀립니다.` };
     }
-    const meta = ctx.registry[r.widgetId]?.meta;
+    if (r.config != null && JSON.stringify(r.config).length > IMPORT_CONFIG_JSON_MAX) {
+      return { ok: false, error: `${n + 1}번째 위젯의 설정이 너무 깁니다(${IMPORT_CONFIG_JSON_MAX}자 이하).` };
+    }
+    const meta = ownEntry(ctx.registry, r.widgetId)?.meta;
     if (!meta) dropped.push({ widgetId: r.widgetId, reason: "missing" });
     else if (meta.disabled) dropped.push({ widgetId: r.widgetId, reason: "disabled" });
     else if (meta.multiple === false && kept.some((k) => k.widgetId === r.widgetId)) dropped.push({ widgetId: r.widgetId, reason: "duplicate" });
@@ -414,7 +426,9 @@ export function parseTabImport(text: string, ctx: TabImportContext): TabImportRe
 export function tabImportMessage(tabName: string, dropped: readonly TabImportDrop[]): string {
   const head = `「${tabName}」 탭을 가져왔습니다.`;
   if (dropped.length === 0) return head;
-  const ids = (reason: TabImportDrop["reason"]) => [...new Set(dropped.filter((d) => d.reason === reason).map((d) => d.widgetId))];
+  // 파일에 적힌 ID 는 길 수 있다 — 알림에는 40자까지만 보인다.
+  const shortId = (id: string) => (id.length > 40 ? `${id.slice(0, 40)}…` : id);
+  const ids = (reason: TabImportDrop["reason"]) => [...new Set(dropped.filter((d) => d.reason === reason).map((d) => shortId(d.widgetId)))];
   const groups: [string, string[]][] = [
     ["없는 위젯", ids("missing")],
     ["사용 중지 위젯", ids("disabled")],
@@ -426,6 +440,7 @@ export function tabImportMessage(tabName: string, dropped: readonly TabImportDro
 
 /**
  * 공유 결과 알림 — 모두 성공이면 success, 하나라도 실패면 error 와 실패 사유. names 는 userId → 표시 이름.
+ * 받는 사람마다 탭 이름 꼬리(「(공유) 이름 2」)가 다를 수 있어 성공 문구에는 탭 이름 대신 사람 수만 적는다.
  */
 export function shareResultMessage(
   results: readonly WidgetShareResult[],
@@ -435,13 +450,10 @@ export function shareResultMessage(
   const ok = results.filter((r) => r.ok);
   const failed = results.filter((r) => !r.ok);
   if (results.length === 0) return { kind: "error", text: "공유한 사람이 없습니다." };
-  if (failed.length === 0) {
-    const tabNm = ok[0].tabNm;
-    return { kind: "success", text: `${ok.length}명에게 ${tabNm ? `「${tabNm}」 ` : ""}탭으로 보냈습니다.` };
-  }
+  if (failed.length === 0) return { kind: "success", text: `${ok.length}명에게 공유했습니다.` };
   const reasons = failed.map((f) => `${who(f.userId)}: ${f.message || "보내지 못했습니다"}`).join(" / ");
   return {
     kind: "error",
-    text: ok.length > 0 ? `${ok.length}명에게 보냈고 ${failed.length}명은 보내지 못했습니다. ${reasons}` : `보내지 못했습니다. ${reasons}`,
+    text: ok.length > 0 ? `${ok.length}명에게 공유했고 ${failed.length}명은 보내지 못했습니다. ${reasons}` : `공유하지 못했습니다. ${reasons}`,
   };
 }
