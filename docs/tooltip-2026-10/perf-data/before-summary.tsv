@@ -1,0 +1,7 @@
+tag	pair	side	rounds	median_ms	min_ms	max_ms	bytes	hit
+before	mcm	A	5	7.20	3.38	7.77	79007	116
+before	mcm	B	5	3.72	2.66	3.91	1921	0
+before	feed	A	5	11.26	9.31	11.45	139	0
+before	feed	B	5	8.72	8.33	11.87	139	0
+before	screen	A	5	4.12	2.75	6.11	46290	61
+before	screen	B	5	4.88	2.62	6.12	46290	61
