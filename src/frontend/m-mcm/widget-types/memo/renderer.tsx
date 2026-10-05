@@ -68,6 +68,7 @@ import {
   MEMO_PREVIEW_TEXT,
   MEMO_SAVE_ERROR,
   MEMO_SHARED_EMPTY_TEXT,
+  memoBaseHash,
   memoDraftKey,
   memoDraftNoticeText,
   memoEditBase,
@@ -329,7 +330,8 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey, title: def
 
   /**
    * 틀 제목 줄의 이름 바꾸기(2026-10-05) — 편집 모드 없이 제목만 바꾼다. 보기 모드에서만 켜고(편집 모드는 자기 제목 입력칸이 있다),
-   * 지금 서버 메모의 형식·내용을 그대로 실어 기존 saveMemo 로 보낸다. 저장이 성공하면 setMemo → useWidgetTitle 경로로 틀 제목이 바뀐다.
+   * 저장 직전에 서버 메모를 다시 읽어 그 형식·내용을 그대로 실어 기존 saveMemo 로 보낸다(서버는 제목만 보내는 경로가 없고 충돌 감지도 없어서,
+   * 화면의 옛 글을 보내면 다른 탭·브라우저에서 고친 내용을 덮는다). 저장이 성공하면 setMemo → useWidgetTitle 경로로 틀 제목이 바뀐다.
    * 실패하면 던진 문장을 틀이 입력칸 아래에 알린다. 저장 동안 새로 고침이 응답을 가로채지 않게 lockRef 를 건다(편집 저장과 같다).
    */
   const renameTitle = async (raw: string) => {
@@ -343,17 +345,20 @@ function PersonalMemo({ instanceId, widgetId, definition, refreshKey, title: def
     setStatus({ kind: "ready" }); // 버린 불러오기가 남긴 「불러오는 중」 표시를 풀지 못하므로 여기서 푼다
     setRenaming(true);
     try {
+      const current = await fetchMemo(instanceId);
+      if (gen !== genRef.current) return; // 위젯이 사라졌거나 다른 인스턴스가 됐다 — 정상 종료(저장하지 않는다)
       const saved = await saveMemo({
         instId: instanceId,
         defId: widgetId,
-        format: before?.format ?? initialFormat,
-        content: before?.content ?? "",
+        format: current?.format ?? initialFormat,
+        content: current?.content ?? "",
         title: title || null,
       });
-      if (gen !== genRef.current) return;
+      if (gen !== genRef.current) return; // 저장은 끝났지만 화면이 이미 없다 — 상태를 쓰지 않는 정상 종료
       setMemo(saved);
       // 쓰다 만 글의 제목·기준이 옛 제목에 묶여 있으면 새 제목으로 따라가게 한다(이어 쓰기가 제목을 되돌리지 않도록).
-      const synced = syncDraftAfterRename(readDraft(draftKey), before, saved);
+      // 서버 메모가 화면의 것과 달랐으면(다른 곳에서 바뀜) 기준 해시는 옮기지 않아 그 안내가 남는다.
+      const synced = syncDraftAfterRename(readDraft(draftKey), before, saved, memoBaseHash(current) === memoBaseHash(before));
       if (synced) writeDraft(draftKey, synced);
     } catch (e) {
       throw new Error(memoErrorMessage(e, MEMO_SAVE_ERROR));

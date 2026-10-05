@@ -594,6 +594,12 @@ describe("틀 제목 줄 이름 바꾸기 뒤 임시본 따라가기(syncDraftAf
     expect(cleared!.title).toBe("");
   });
 
+  it("moveBase=false 면 제목만 따라가고 기준 해시는 그대로 둔다", () => {
+    const draft = draftOf(rec("옛"), { title: "옛" });
+    const next = syncDraftAfterRename(draft, rec("옛"), rec("새"), false);
+    expect(next).toMatchObject({ title: "새", baseHash: draft.baseHash });
+  });
+
   it("메모가 아직 없던 칸(none)의 임시본도 따라간다", () => {
     const next = syncDraftAfterRename(draftOf(null, { title: "" }), null, rec("첫"));
     expect(next).toMatchObject({ title: "첫", baseHash: memoBaseHash(rec("첫")) });

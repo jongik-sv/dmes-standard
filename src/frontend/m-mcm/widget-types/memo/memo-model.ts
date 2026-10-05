@@ -375,11 +375,17 @@ export function formatDraftTime(epochMs: number): string {
 /**
  * 틀 제목 줄에서 제목만 바꾼 뒤 쓰다 만 글을 따라가게 한다 — 임시본이 바꾸기 전 메모(before)를 기준으로 만들어졌다면 기준 해시를 새 메모(saved)로 옮기고,
  * 임시본의 제목이 바꾸기 전 제목 그대로(손대지 않음)였다면 새 제목으로 바꾼다. 그래야 [이어 쓰기]가 방금 바꾼 제목을 옛 제목으로 되돌리지 않고
- * 「다른 곳에서 메모가 바뀌었습니다」도 뜨지 않는다. 고칠 것이 없으면 null.
+ * 「다른 곳에서 메모가 바뀌었습니다」도 뜨지 않는다. 이름을 바꾸다 서버 메모가 화면의 것과 달라졌음을 알았다면(moveBase=false) 기준 해시는 옮기지 않아
+ * 그 안내가 남게 한다. 고칠 것이 없으면 null.
  */
-export function syncDraftAfterRename(draft: MemoDraft | null, before: MemoRecord | null, saved: MemoRecord): MemoDraft | null {
+export function syncDraftAfterRename(
+  draft: MemoDraft | null,
+  before: MemoRecord | null,
+  saved: MemoRecord,
+  moveBase: boolean = true
+): MemoDraft | null {
   if (!draft || draft.baseHash !== memoBaseHash(before)) return null;
-  const next: MemoDraft = { ...draft, baseHash: memoBaseHash(saved) };
+  const next: MemoDraft = { ...draft, baseHash: moveBase ? memoBaseHash(saved) : draft.baseHash };
   if (draft.title !== undefined && normalizeTitle(draft.title) === normalizeTitle(before?.title ?? "")) next.title = saved.title ?? "";
   return next;
 }

@@ -2117,6 +2117,7 @@ describe("개인 메모 — 틀 제목 줄 이름 바꾸기(2026-10-05)", () => 
     await act(async () => {
       first = h.renameHandler!("새 이름");
     });
+    await flush();
     expect(must("memo-edit").hasAttribute("disabled")).toBe(true);
     expect(await rename("또 다른 이름")).not.toBeNull();
     expect(h.saveMemo).toHaveBeenCalledTimes(1);
@@ -2138,11 +2139,12 @@ describe("개인 메모 — 틀 제목 줄 이름 바꾸기(2026-10-05)", () => 
     await act(async () => {
       pendingRename = h.renameHandler!("새 이름");
     });
+    await flush();
     await act(async () => {
       root.render(createElement(MemoRenderer, { ...props, refreshKey: 1 } as never));
     });
     await flush();
-    expect(h.fetchMemo).toHaveBeenCalledTimes(1); // 새로 읽지 않았다
+    expect(h.fetchMemo).toHaveBeenCalledTimes(2); // 처음 불러오기 + 이름 바꾸기 직전 읽기 — 새로 고침은 읽지 않았다
     await act(async () => {
       d.resolve(record({ format: "md", content: "서버 글", title: "새 이름" }));
       await pendingRename;
@@ -2163,6 +2165,81 @@ describe("개인 메모 — 틀 제목 줄 이름 바꾸기(2026-10-05)", () => 
     expect(draft).toMatchObject({ content: "쓰던 글", title: "새 이름", baseHash: memoBaseHash(record({ format: "md", content: "서버 글", title: "새 이름" })) });
     await click("memo-edit");
     expect(must("memo-draft-text").textContent).not.toContain("다른 곳에서");
+    await click("memo-draft-resume");
+    expect((must("memo-title-input") as HTMLInputElement).value).toBe("새 이름");
+  });
+});
+
+describe("개인 메모 — 이름 바꾸기는 저장 직전에 서버 메모를 다시 읽는다(2026-10-05)", () => {
+  const KEY = "dmes:widget:memo-draft:v1:u1:inst-1";
+  const SAVED = record({ format: "text", content: "화면에 있던 글", title: "저장된 제목" });
+  const ELSEWHERE = record({ format: "md", content: "다른 곳에서 고친 글", title: "저장된 제목" });
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 9, 5, 15, 0).getTime());
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const rename = async (title: string) => {
+    await act(async () => {
+      await h.renameHandler!(title);
+    });
+  };
+  const putDraft = () =>
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify({ format: "text", content: "쓰던 글", title: "저장된 제목", baseHash: memoBaseHash(SAVED), savedAt: new Date(2026, 9, 5, 14, 0).getTime() })
+    );
+
+  it("서버 메모가 화면과 달라졌으면 서버의 형식·내용으로 저장해 다른 곳의 수정을 덮지 않는다", async () => {
+    h.fetchMemo.mockResolvedValueOnce(SAVED).mockResolvedValueOnce(ELSEWHERE);
+    h.saveMemo.mockResolvedValue({ ...ELSEWHERE, title: "새 이름" });
+    await renderWidget();
+    await rename("새 이름");
+    expect(h.fetchMemo).toHaveBeenCalledTimes(2);
+    expect(h.saveMemo).toHaveBeenCalledWith({ instId: "inst-1", defId: "def.abc12345", format: "md", content: "다른 곳에서 고친 글", title: "새 이름" });
+    expect(h.frameTitle).toBe("새 이름");
+    expect(must("widget-memo-body").textContent).toContain("다른 곳에서 고친 글"); // 화면도 서버 글로 바뀐다
+  });
+
+  it("다시 읽지 못하면 저장하지 않고 저장 실패 문구를 던진다 — 잠금은 풀린다", async () => {
+    h.fetchMemo.mockResolvedValueOnce(SAVED).mockRejectedValueOnce(new Error("network"));
+    await renderWidget();
+    let message = "";
+    await act(async () => {
+      try {
+        await h.renameHandler!("새 이름");
+      } catch (e) {
+        message = (e as Error).message;
+      }
+    });
+    expect(message).toBe("메모를 저장하지 못했습니다. 잠시 뒤 다시 시도하세요.");
+    expect(h.saveMemo).not.toHaveBeenCalled();
+    expect(must("memo-edit").hasAttribute("disabled")).toBe(false);
+  });
+
+  it("서버 메모가 화면과 같으면 임시본 기준 해시를 새 메모로 옮긴다", async () => {
+    h.fetchMemo.mockResolvedValue(SAVED);
+    const renamed = { ...SAVED, title: "새 이름" };
+    h.saveMemo.mockResolvedValue(renamed);
+    putDraft();
+    await renderWidget();
+    await rename("새 이름");
+    expect(JSON.parse(window.localStorage.getItem(KEY)!)).toMatchObject({ title: "새 이름", baseHash: memoBaseHash(renamed) });
+  });
+
+  it("서버 메모가 화면과 달랐으면 임시본 기준 해시는 옮기지 않아 「다른 곳에서 바뀜」 안내가 남고, 제목은 새 제목을 따라간다", async () => {
+    h.fetchMemo.mockResolvedValueOnce(SAVED).mockResolvedValueOnce(ELSEWHERE);
+    h.saveMemo.mockResolvedValue({ ...ELSEWHERE, title: "새 이름" });
+    putDraft();
+    await renderWidget();
+    await rename("새 이름");
+    expect(JSON.parse(window.localStorage.getItem(KEY)!)).toMatchObject({ title: "새 이름", baseHash: memoBaseHash(SAVED) });
+    await click("memo-edit");
+    expect(must("memo-draft-text").textContent).toContain("다른 곳에서");
     await click("memo-draft-resume");
     expect((must("memo-title-input") as HTMLInputElement).value).toBe("새 이름");
   });
