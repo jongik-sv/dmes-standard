@@ -8,10 +8,12 @@
  */
 import { useCallback, useRef, useState } from "react";
 
+import { Button } from "@dk-oasis/shared/form";
 import { PageLayout, type PageButton } from "@dk-oasis/shared/layout";
 import { useMessage } from "@dk-oasis/shared/message-provider";
 import { Tabs, type TabItem } from "@dk-oasis/shared/tabs";
 
+import { WidgetHelpModal } from "./help/WidgetHelpModal";
 import { LayoutTab } from "./LayoutTab";
 import { SCREEN_ID } from "./types";
 import { WidgetListTab } from "./WidgetListTab";
@@ -27,6 +29,8 @@ export default function CommWidgetMngPage() {
   const { showMessage } = useMessage();
   const [tab, setTab] = useState<AdminTab>("list");
   const [reloadSignal, setReloadSignal] = useState(0);
+  /** 「도움말」 모달(위젯 만드는 여러 가지 방법) — 열 때만 마운트해 문서를 닫혀 있는 동안 그리지 않는다. */
+  const [helpOpen, setHelpOpen] = useState(false);
   /** 위젯 목록 탭이 조회·저장·삭제 처리 중인지 — 그동안 [조회] 를 막는다. 탭은 첫 조회 중으로 마운트된다. */
   const [listBusy, setListBusy] = useState(true);
   /** 위젯 목록 탭에 저장하지 않은 변경이 있는지 — 탭을 바꾸면 그 탭 상태가 사라지므로 먼저 묻는다. */
@@ -81,7 +85,14 @@ export default function CommWidgetMngPage() {
     >
       {/* data-testid 용 감싸기 — display:contents 라 PageLayout 의 세로 배치에 끼지 않는다. */}
       <div data-testid="widget-admin-page" style={{ display: "contents" }}>
-        <Tabs items={TAB_ITEMS} activeKey={tab} onChange={handleTabChange} />
+        {/* 도움말은 업무 권한(PageButton action)과 무관한 안내라 페이지 버튼이 아니라 탭 줄 오른쪽에 둔다(권한 없는 사용자도 읽는다). */}
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+          <Tabs items={TAB_ITEMS} activeKey={tab} onChange={handleTabChange} style={{ flex: 1 }} />
+          <Button size="sm" onClick={() => setHelpOpen(true)} data-testid="widget-admin-help-btn">
+            도움말
+          </Button>
+        </div>
+        {helpOpen ? <WidgetHelpModal open onClose={() => setHelpOpen(false)} /> : null}
         {tab === "list" ? (
           <WidgetListTab reloadSignal={reloadSignal} onDirtyChange={handleDirtyChange} onBusyChange={setListBusy} />
         ) : (
