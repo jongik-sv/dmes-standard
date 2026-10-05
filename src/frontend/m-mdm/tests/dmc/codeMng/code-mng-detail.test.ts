@@ -2,7 +2,7 @@
 
 // TSK-06-02 design.md §3.3 — codeMng 오른쪽 상세(옛 codeEdit) 렌더 스모크. 2026-09-28 통합(D-101·D-102):
 // 코드 선택은 목록 행 클릭(ComboBox 없앰), [코드 편집] 단일 버튼(버전 선택만 있으면 늘 켠다), 헤더 [폐기]↔[삭제]
-// 전환(flags.neverReleased·canDeleteCode), handoff/snapshot·MDM001 오류 재조회·확정 이동 handoff 는 그대로 옮겼다.
+// 전환(flags.neverReleased·canDeleteCode), handoff·MDM001 오류 재조회·확정 이동 handoff 는 그대로 옮겼다.
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
@@ -71,7 +71,9 @@ async function flush() {
   });
 }
 
-async function render(props: Record<string, unknown> = {}) {
+/** entry 는 화면을 그 값으로 여는 handoff 다 — 선택 행은 snapshot 으로 복원하지 않는다(R8). */
+async function render({ entry, ...props }: Record<string, unknown> = {}) {
+  if (entry) openMdmPage("dmc/codeMng", entry as Record<string, string>);
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -187,7 +189,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
   });
 
   it("같은 코드를 다시 불러오는 사이 고친 헤더 폼은 늦게 온 view 응답이 덮지 않는다", async () => {
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     await search();
     expect((byTestId("header-name") as HTMLInputElement).value).toBe("공정 코드");
 
@@ -213,7 +215,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
   // 2026-10-03 팀장 결정 — ruleMng 과 같은 규칙: 같은 행을 다시 눌러 다시 읽어도 저장하지 않은 입력은 남기고, 저장은 입력을
   // 시작할 때의 auditVer 로 보낸다(다른 창 변경은 MDM001 로 드러난다). 고친 칸이 없으면 서버 값으로 바꾼다.
   it("누르기 전에 고친 헤더 입력은 같은 행을 다시 눌러 다시 읽어도 남고, 저장은 입력을 시작할 때의 auditVer 로 보낸다", async () => {
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     await search();
     await typeInto("header-name", "고치는 중");
     // 다른 창에서 헤더가 바뀌었다(auditVer 0→1).
@@ -228,7 +230,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
   });
 
   it("고친 칸이 없으면 같은 행을 다시 눌러 다시 읽은 서버 값과 auditVer 로 바뀐다", async () => {
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     await search();
     nextView = () => viewResult({ header: { ...viewResult().header, maruCodeName: "다른 창 이름", auditVer: 1 } });
     const row = Array.from(document.body.querySelectorAll('[data-testid="code-list"] .ag-row')).find((r) => r.textContent?.includes("PROC_CD"));
@@ -243,7 +245,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
   // 검토 I1 — 서버는 저장 때 값을 trim 한다. 끝 공백을 남긴 채 저장에 성공하면 응답 값이 보낸 값과 달라도
   // 고친 입력으로 보지 않고 서버 값·새 auditVer 로 맞춰야 한다(아니면 다음 저장이 옛 auditVer 로 거짓 충돌).
   it("끝 공백을 넣어 헤더 저장에 성공하면 서버가 trim 한 값과 새 auditVer 로 맞추고, 다음 저장은 새 auditVer 를 보낸다", async () => {
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     await search();
     await typeInto("header-name", "새 이름 ");
     const trimmed = viewResult({ header: { ...viewResult().header, maruCodeName: "새 이름", auditVer: 1 } });
@@ -261,7 +263,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
   // 검토 M1 — 입력을 남기더라도 다시 읽은 헤더 값이 입력을 시작할 때와 칸마다 같으면(VER 만 오른 자기 쓰기 등) 다른 창이 헤더를
   // 고치지 않은 것이므로 저장할 auditVer 를 새 값으로 올린다. 헤더 칸이 바뀐 진짜 충돌은 여전히 옛 auditVer 로 드러난다.
   it("입력을 남긴 채 다시 읽었는데 헤더 값은 그대로이고 auditVer 만 올랐으면 저장은 새 auditVer 를 보낸다", async () => {
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     await search();
     await typeInto("header-name", "고치는 중");
     nextView = () => viewResult({ header: { ...viewResult().header, auditVer: 1 } });
@@ -282,17 +284,17 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     expect(byTestId("version-list")).toBeNull();
   });
 
-  it("handoff 로 받은 코드를 불러와 버전 목록과 잠금 배지를 보이고 snapshot 에 남긴다", async () => {
+  it("handoff 로 받은 코드를 불러와 버전 목록과 잠금 배지를 보이고 snapshot 은 건드리지 않는다", async () => {
     const snapshots: unknown[] = [];
     openMdmPage("dmc/codeMng", { maruCodeId: "PROC_CD" });
-    await render({ snapshot: { maruCodeId: "OTHER" }, onSnapshotChange: (s: unknown) => snapshots.push(s) });
+    await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
     expect(actions("view").map((c) => c.params.maruCodeId)).toEqual(["PROC_CD"]);
     const list = byTestId("version-list")!;
     expect(visibleText(list)).toContain("v1.000");
     expect(visibleText(list)).toContain("편집 중(나)");
     expect((byTestId("header-name") as HTMLInputElement).value).toBe("공정 코드");
     expect((byTestId("label-attr01") as HTMLInputElement).value).toBe("인장강도");
-    expect(snapshots).toContainEqual({ maruCodeId: "PROC_CD" });
+    expect(snapshots).toHaveLength(0);
   });
 
   it("handoff 가 ver 를 주면 그 버전 행이 골라진 채로 보인다", async () => {
@@ -314,9 +316,9 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     expect(versionRow("1.000")?.classList.contains("ag-row-highlighted")).toBe(true);
   });
 
-  it("handoff 가 없으면 snapshot 의 코드를 불러온다", async () => {
+  it("snapshot 에 선택 코드가 있어도 복원하지 않는다(R8, 2026-10-05)", async () => {
     await render({ snapshot: { maruCodeId: "PROC_CD" } });
-    expect(actions("view").map((c) => c.params.maruCodeId)).toEqual(["PROC_CD"]);
+    expect(actions("view")).toHaveLength(0);
   });
 
   it("목록에서 코드를 고르면 상세가 보인다", async () => {
@@ -328,13 +330,13 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
 
   it("버전이 없으면 빈 상태를 보인다", async () => {
     nextView = () => viewResult({ versions: [], flags: { ...viewResult().flags, unappliedCount: 0, canNewMajor: true } });
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     expect(byTestId("version-empty")?.textContent).toContain("버전이 없습니다");
   });
 
   it("MDM001 오류 모달을 닫으면 view 를 다시 부른다", async () => {
     saveResponse = { meta: { success: false, message: "다른 사용자가 수정했습니다. 다시 불러오세요" } };
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     await typeInto("header-name", "새 이름");
     await click(byTestId("header-save"));
     expect(actions("save")[0].params).toMatchObject({ maruCodeId: "PROC_CD", auditVer: 0, maruCodeName: "새 이름" });
@@ -351,7 +353,8 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     const listener = (e: Event) => opened.push((e as CustomEvent).detail);
     window.addEventListener("portal-open-tab", listener);
     try {
-      await render({ snapshot: { maruCodeId: "PROC_CD" } });
+      await render({ entry: { maruCodeId: "PROC_CD" } });
+      opened.length = 0; // 진입 handoff 가 낸 이벤트는 뺀다
       expect((byTestId("ver-confirm-move") as HTMLButtonElement).disabled).toBe(true);
       await click(versionRow("1.000")?.querySelector(".ag-cell"));
       expect((byTestId("ver-confirm-move") as HTMLButtonElement).disabled).toBe(false);
@@ -373,7 +376,8 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
     const listener = (e: Event) => opened.push((e as CustomEvent).detail);
     window.addEventListener("portal-open-tab", listener);
     try {
-      await render({ snapshot: { maruCodeId: "PROC_CD" } });
+      await render({ entry: { maruCodeId: "PROC_CD" } });
+      opened.length = 0; // 진입 handoff 가 낸 이벤트는 뺀다
       expect((byTestId("ver-item-edit") as HTMLButtonElement).disabled).toBe(true);
       await click(versionRow("1.000")?.querySelector(".ag-cell"));
       expect((byTestId("ver-item-edit") as HTMLButtonElement).disabled).toBe(false);
@@ -391,7 +395,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
       flags: { ...viewResult().flags, unappliedCount: 0, canNewMajor: true, canNewMinor: true, nextMajor: "2.000", nextMinor: "1.001" },
       restoreSources: ["1.000"],
     });
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     await click(byTestId("ver-new-major"));
     expect(byTestId("newver-number")?.textContent).toBe("v2.000");
     expect(byTestId("newver-content-restore-1.000")).toBeTruthy();
@@ -408,14 +412,14 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
   it("미적용 버전이 2개면 경고 문구가 보인다", async () => {
     const draft2 = { ...viewResult().versions[0], ver: "1.001", verLabel: "v1.001", ownerId: "other" };
     nextView = () => viewResult({ versions: [draft2, viewResult().versions[0]], flags: { ...viewResult().flags, unappliedCount: 2 } });
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     expect(byTestId("ver-unapplied-warning")?.textContent).toContain("미적용 버전이 2개입니다. 하나를 삭제하세요");
     expect((byTestId("header-save") as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("flags.neverReleased 면 헤더에 [폐기] 대신 [삭제] 가 보인다", async () => {
     nextView = () => viewResult({ flags: { ...viewResult().flags, neverReleased: true, canDeleteCode: true } });
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     expect(byTestId("header-deprecate")).toBeNull();
     expect(byTestId("header-delete-code")).toBeTruthy();
     expect((byTestId("header-delete-code") as HTMLButtonElement).disabled).toBe(false);
@@ -423,7 +427,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
 
   it("flags.neverReleased·canDeleteCode 가 아니면 [삭제] 가 비활성이다", async () => {
     nextView = () => viewResult({ flags: { ...viewResult().flags, neverReleased: true, canDeleteCode: false } });
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     expect((byTestId("header-delete-code") as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -452,7 +456,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
       return jsonResponse({}, 404);
     }) as typeof fetch;
 
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
     const searchCountBefore = actions("search").length;
     await click(byTestId("header-delete-code"));
     await confirmDialog();
@@ -487,7 +491,7 @@ describe("codeMng — 오른쪽 상세(옛 codeEdit)", () => {
       return baseFetch(input, init);
     }) as typeof fetch;
 
-    await render({ snapshot: { maruCodeId: "PROC_CD" } });
+    await render({ entry: { maruCodeId: "PROC_CD" } });
 
     // 소유자가 나면 배지는 '편집 중(나)' — 남의 소유자가 아니라 잠김이 아니다.
     expect(visibleText(byTestId("version-list")!)).toContain("편집 중(나)");

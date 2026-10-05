@@ -8,7 +8,7 @@
  * [데이터 등록]이 여는 팝업(`components/DataRegisterForm.tsx`)에서 하며 팝업을 여닫아도 선택·상세는 그대로다. 새 탭을 열지 않는다 — 등록 뒤에도 같은 화면에서 방금 만든 데이터를 고른 채 보인다. 항목 편집은 [항목 편집 →]
  * 으로 dataItemMng 탭을 열어 `{ maruDataId }` 를 넘긴다.
  * 상세의 쓰기(저장·폐기)는 옛 dataEdit 그대로 `dataEdit` 서비스를 부르고 권한도 `canDoButton(rbac,"dataEdit",action)`
- * 으로 본다. 등록만 `canDoButton(rbac,"dataMng","reg")`. 진입 데이터는 handoff(openMdmPage) > snapshot 순서로 정한다.
+ * 으로 본다. 등록만 `canDoButton(rbac,"dataMng","reg")`. 진입 데이터는 handoff(openMdmPage)로 정하고, 선택 행은 snapshot 에 담지 않는다(R8).
  *
  * 선택과 응답의 정합(codeMng 와 같음): 목록 강조(`selectedId`)와 상세(view·form)는 늘 같은 데이터를 가리켜야 하므로
  * 선택을 바꾸는 길은 `select` 하나로 모은다. 데이터에서 데이터로 옮길 때는 이전 상세를 새 상세가 올 때까지 잠근 채
@@ -19,7 +19,7 @@
  * 쓰기(저장·폐기·등록)가 진행 중이면 목록 행 클릭을 받지 않는다 — 결과(토스트, 충돌 모달과 다시 불러오기)를 그
  * 데이터 위에서 보게 하려는 것이다. handoff 는 쓰기 중에도 받으므로 응답 가드는 그대로 둔다.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   ContentBody,
@@ -68,15 +68,7 @@ function DetailVeil({ stale, children }: { stale: boolean; children: ReactNode }
 
 type Mode = "none" | "detail";
 
-function snapshotId(snapshot: unknown): string | null {
-  if (snapshot && typeof snapshot === "object" && "maruDataId" in snapshot) {
-    const id = (snapshot as Record<string, unknown>).maruDataId;
-    return typeof id === "string" && id ? id : null;
-  }
-  return null;
-}
-
-export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataMngPageProps) {
+export default function DataMngPage({ tabId }: DataMngPageProps) {
   const { showMessage } = useMessage();
   const rbac = useUserButtonRbac(true);
 
@@ -104,7 +96,6 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
   const [form, setForm] = useState<HeaderForm | null>(null);
   const [pending, setPending] = useState(0);
   const [error, setError] = useState<{ message: string; reload: boolean } | null>(null);
-  const handedOff = useRef(false);
   // 지금 보이는 상세의 데이터 ID·서버 헤더 폼 값과 폼이 기대는 auditVer — 다시 읽은 응답이 사용자가 고친 폼을 덮지 않게 하는 데 쓴다.
   const shownId = useRef<string | null>(null);
   const serverForm = useRef<HeaderForm | null>(null);
@@ -113,24 +104,9 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
   const formRef = useRef(form);
   formRef.current = form;
   const [formAuditVer, setFormAuditVer] = useState(0);
-  const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
 
   const begin = useCallback(() => setPending((n) => n + 1), []);
   const end = useCallback(() => setPending((n) => Math.max(0, n - 1)), []);
-
-  const writeSnapshotId = useCallback(
-    (next: string) => {
-      onSnapshotChange?.({ ...((snapshotRef.current as Record<string, unknown> | null) ?? {}), maruDataId: next });
-    },
-    [onSnapshotChange],
-  );
-
-  const clearSnapshotId = useCallback(() => {
-    const base = { ...((snapshotRef.current as Record<string, unknown> | null) ?? {}) };
-    delete base.maruDataId;
-    onSnapshotChange?.(base);
-  }, [onSnapshotChange]);
 
   // current=false 는 이미 다른 데이터로 옮긴 뒤 도착한 쓰기 실패 — 알리기는 하되 지금 데이터를 다시 불러오지는 않는다.
   const fail = useCallback((e: unknown, current = true) => {
@@ -160,7 +136,7 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
   );
 
   /**
-   * 선택을 바꾸는 유일한 길(목록 행·handoff·snapshot·조회 실패). 순번을 올려 이전 데이터로 가던 응답이
+   * 선택을 바꾸는 유일한 길(목록 행·handoff·조회 실패). 순번을 올려 이전 데이터로 가던 응답이
    * 도착해도 버려지게 한다. keepDetail 이면 이전 상세를 새 상세가 올 때까지 잠근 채 남기고(`stale`), 아니면 바로 비운다.
    */
   const select = useCallback((next: string | null, nextMode: Mode, keepDetail = false) => {
@@ -212,24 +188,22 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
         apply(next, discard);
       } catch (e) {
         if (seq !== detailSeq.current) return;
-        // 강조만 남고 상세가 이전 데이터로 남지 않게 선택을 비운다. snapshot 도 바로 지워 다시 열 때 같은 오류를 또 띄우지 않는다.
+        // 강조만 남고 상세가 이전 데이터로 남지 않게 선택을 비운다.
         select(null, "none");
-        clearSnapshotId();
         fail(e);
       } finally {
         end();
       }
     },
-    [apply, begin, end, select, clearSnapshotId, fail],
+    [apply, begin, end, select, fail],
   );
 
   const chooseDetail = useCallback(
     (target: string) => {
       select(target, "detail", true);
-      writeSnapshotId(target);
       return loadDetail(target);
     },
-    [select, writeSnapshotId, loadDetail],
+    [select, loadDetail],
   );
 
   const handleRowClick = useCallback(
@@ -240,11 +214,10 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
     [chooseDetail],
   );
 
-  // 진입 값: handoff(마운트 때·자기 탭 재활성화 때마다) > snapshot. handoff 는 목록도 함께 조회한다 — 이미 열린 탭이
+  // 진입 값: handoff(마운트 때·자기 탭 재활성화 때마다). handoff 는 목록도 함께 조회한다 — 이미 열린 탭이
   // 다시 handoff 를 받을 때 방금 등록된 데이터가 목록에 보이도록.
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruDataId) {
-      handedOff.current = true;
       setId("");
       setName("");
       setStatus("");
@@ -253,15 +226,7 @@ export default function DataMngPage({ tabId, snapshot, onSnapshotChange }: DataM
     }
   });
 
-  useEffect(() => {
-    const fromSnapshot = snapshotId(snapshotRef.current);
-    if (!handedOff.current && fromSnapshot) {
-      select(fromSnapshot, "detail");
-      void loadDetail(fromSnapshot);
-    }
-    // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청). snapshot 복원은 상세만 불러 목록에 기대지 않는다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청). 선택 행은 snapshot 에 담지 않는다(R8, 2026-10-05).
 
   const handleSearch = useCallback(() => void loadList(id, name, status), [loadList, id, name, status]);
 

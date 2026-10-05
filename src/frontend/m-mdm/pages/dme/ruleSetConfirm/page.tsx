@@ -2,11 +2,11 @@
 
 /**
  * ruleSetConfirm — 룰 세트 확정(D-144 2단계, 화면 제목은 메뉴 이름과 같다). 구조는 ruleConfirm 과 같다: 왼쪽 DRAFT 목록, 오른쪽 확정 폼·검사 결과 표(4항목 + 적용 순서)·흐름 diff.
- * 입력 계약 변경 카드는 없다. 진입 세트·버전은 handoff(openMdmPage) > snapshot 순서로 정하고 받은 값은 snapshot 에 남긴다.
+ * 입력 계약 변경 카드는 없다. 진입 세트·버전은 handoff(openMdmPage)로 정하고 snapshot 에 담지 않는다(R8, 2026-10-05).
  * 검사(`validate`)는 쓰기가 없고, 확정 버튼은 검사한 apply_from 이 지금 입력값과 같을 때만 켜진다. 경고 확인과 미래 적용 경고는
  * 대화상자(ruleConfirm 의 ConfirmModal)에서 한다. 서버 거부 message 는 오류 영역에 그대로 보인다. OBJECT_ID = screenId = 'ruleSetConfirm'.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";
@@ -116,16 +116,9 @@ interface Target {
   ver: string | null;
 }
 
-/** handoff·snapshot 의 버전을 `"1.001"` 로 맞춘다. 읽을 수 없으면 null(서버가 DRAFT 를 고른다). */
+/** handoff 의 버전을 `"1.001"` 로 맞춘다. 읽을 수 없으면 null(서버가 DRAFT 를 고른다). */
 function toVer(value: unknown): string | null {
   return typeof value === "string" || typeof value === "number" ? normVer(value) : null;
-}
-
-function snapshotTarget(snapshot: unknown): Target | null {
-  if (!snapshot || typeof snapshot !== "object") return null;
-  const s = snapshot as Record<string, unknown>;
-  if (typeof s.setId !== "string" || !s.setId) return null;
-  return { setId: s.setId, ver: toVer(s.ver) };
 }
 
 interface Checked {
@@ -135,7 +128,7 @@ interface Checked {
   futureApplyFrom: boolean;
 }
 
-export default function RuleSetConfirmPage({ tabId, snapshot, onSnapshotChange }: RuleSetConfirmPageProps) {
+export default function RuleSetConfirmPage({ tabId }: RuleSetConfirmPageProps) {
   const { showMessage } = useMessage();
   const rbac = useUserButtonRbac();
   const canValidate = canDoButton(rbac, SCREEN_ID, "validate");
@@ -156,9 +149,6 @@ export default function RuleSetConfirmPage({ tabId, snapshot, onSnapshotChange }
   const [modalOpen, setModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const handedOff = useRef(false);
-  const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
 
   const fail = useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []);
 
@@ -194,25 +184,17 @@ export default function RuleSetConfirmPage({ tabId, snapshot, onSnapshotChange }
     setCheckedApplyFrom(null);
     setClosedPreviousVer(null);
     setError(null);
-    const base = (snapshotRef.current as Record<string, unknown> | null) ?? {};
-    onSnapshotChange?.({ ...base, setId: t.setId, ...(t.ver !== null ? { ver: t.ver } : {}) });
     void load(t);
-  }, [load, onSnapshotChange]);
+  }, [load]);
 
-  // 진입 값: handoff(한 번만) > snapshot. handoff 의 ver 문자열은 `normVer` 로 맞춘다(소수부를 버리지 않는다).
+  // 진입 값: handoff(한 번만). 선택 행은 snapshot 에 담지 않는다(R8). handoff 의 ver 문자열은 `normVer` 로 맞춘다(소수부를 버리지 않는다).
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.setId) {
-      handedOff.current = true;
       choose({ setId: params.setId, ver: toVer(params.ver) });
     }
   });
 
   useEffect(() => {
-    const fromSnapshot = snapshotTarget(snapshotRef.current);
-    if (!handedOff.current && fromSnapshot) {
-      setTarget(fromSnapshot);
-      void load(fromSnapshot);
-    }
     void refreshList("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

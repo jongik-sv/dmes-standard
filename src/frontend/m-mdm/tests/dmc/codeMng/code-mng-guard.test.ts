@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 
 // 2026-09-28 codeMng 검토 결함 회귀 — 목록 강조와 상세·쓰기 대상의 정합(결함 1: 조회 실패·응답 순서 뒤바뀜·쓰기 중 행
-// 클릭), 삭제 중 선택 변경(2), 등록 뒤 busy(3), 적용된 조회 조건(4), snapshot(5), 등록 [취소](6), 그리고 버튼 권한이
+// 클릭), 삭제 중 선택 변경(2), 등록 뒤 busy(3), 적용된 조회 조건(4), snapshot 비복원(5), 등록 [취소](6), 그리고 버튼 권한이
 // OBJECT 이름(codeMng·codeEdit)으로 갈리는지(8a)와 넘기기 끄기 표시(8b). 서버 응답은 키(`{action}:{maruCodeId}`)별로
 // 잡아 두었다가(`hold`) 원하는 순서로 풀어(`release`) 경합을 재현한다.
 import { createElement } from "react";
@@ -94,7 +94,9 @@ async function flush() {
   });
 }
 
-async function render(props: Record<string, unknown> = {}) {
+/** entry 는 화면을 그 값으로 여는 handoff 다 — 선택 행은 snapshot 으로 복원하지 않는다(R8). */
+async function render({ entry, ...props }: Record<string, unknown> = {}) {
+  if (entry) openMdmPage("dmc/codeMng", entry as Record<string, string>);
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -263,7 +265,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     expect(byTestId("version-list")).toBeNull();
     expect(visibleText(container)).toContain(GUIDE);
     expect(highlighted()).toEqual([]);
-    expect(snapshots.at(-1)).toEqual({});
+    expect(snapshots).toHaveLength(0);
     expect(actions("save")).toHaveLength(0);
   });
 
@@ -316,7 +318,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
     expect((byTestId("header-name") as HTMLInputElement).disabled).toBe(true);
     await click(versionRow("1.000")?.querySelector(".ag-cell"));
     expect(versionRow("1.000")?.classList.contains("ag-row-highlighted")).toBe(false);
-    expect(snapshots.at(-1)).toEqual({ maruCodeId: "PROC_B" });
+    expect(snapshots).toHaveLength(0);
 
     await release("view:PROC_B");
     expect(byTestId("detail-stale")).toBeNull();
@@ -454,25 +456,19 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
 
   // ── 결함 5 ──
 
-  it("snapshot 의 코드가 없어졌으면 오류를 한 번 띄우고 snapshot 의 maruCodeId·ver 를 지운다", async () => {
-    viewFail.add("GONE");
-    const snapshots: unknown[] = [];
-    await render({ snapshot: { maruCodeId: "GONE", ver: "1.000", other: 1 }, onSnapshotChange: (s: unknown) => snapshots.push(s) });
-    expect(document.body.querySelectorAll(".error-modal__body")).toHaveLength(1);
-    expect(snapshots.at(-1)).toEqual({ other: 1 });
-    await confirmDialog();
-    expect(actions("view")).toHaveLength(1);
+  it("snapshot 에 선택 코드가 있어도 복원하지 않는다(R8, 2026-10-05)", async () => {
+    await render({ snapshot: { maruCodeId: "GONE", ver: "1.000", other: 1 } });
+    expect(actions("view")).toHaveLength(0);
     expect(visibleText(container)).toContain(GUIDE);
   });
 
-  it("버전 카드에서 고른 ver 를 snapshot 에 남긴다", async () => {
+  it("행 클릭·버전 카드 선택은 onSnapshotChange 를 부르지 않는다(R8)", async () => {
     const snapshots: unknown[] = [];
     await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
     await search();
     await clickRow("PROC_A");
-    expect(snapshots.at(-1)).toEqual({ maruCodeId: "PROC_A" });
     await click(versionRow("1.000")?.querySelector(".ag-cell"));
-    expect(snapshots.at(-1)).toEqual({ maruCodeId: "PROC_A", ver: "1.000" });
+    expect(snapshots).toHaveLength(0);
   });
 
   // ── 결함 6 ──
@@ -512,7 +508,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
 
   it("codeMng reg 권한만 있으면 [코드 등록]·등록은 되고 상세 쓰기 버튼은 꺼진다", async () => {
     rbacRows = [{ objId: "codeMng", action: "search" }, { objId: "codeMng", action: "reg" }];
-    await render({ snapshot: { maruCodeId: "PROC_A" } });
+    await render({ entry: { maruCodeId: "PROC_A" } });
     // RBAC 로딩 중에는 모든 버튼이 꺼지므로, [코드 등록] 이 켜진 것(= 로딩 끝)을 먼저 확인한다.
     await vi.waitFor(() => expect(regButton()?.disabled).toBe(false));
     expect(headerId()).toBe("PROC_A");
@@ -531,7 +527,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
       { objId: "codeEdit", action: "unlock" },
       { objId: "codeEdit", action: "delete" },
     ];
-    await render({ snapshot: { maruCodeId: "PROC_A" } });
+    await render({ entry: { maruCodeId: "PROC_A" } });
     await vi.waitFor(() => expect(button("header-save")?.disabled).toBe(false));
     await click(versionRow("1.000")?.querySelector(".ag-cell"));
     expect(button("ver-unlock").disabled).toBe(false);
@@ -544,7 +540,7 @@ describe("codeMng — 선택·응답 정합과 권한(검토 결함 회귀)", ()
 
   it("넘기기는 매트릭스상 켜질 버전(내 DRAFT·미적용 1개)을 골라도 꺼진 채 준비 중 안내를 보인다", async () => {
     expect(HANDOVER_AVAILABLE).toBe(false);
-    await render({ snapshot: { maruCodeId: "PROC_A" } });
+    await render({ entry: { maruCodeId: "PROC_A" } });
     await click(versionRow("1.000")?.querySelector(".ag-cell"));
     // 같은 조건의 [해제] 는 켜진다 — 넘기기가 꺼진 까닭이 매트릭스·권한이 아니라 HANDOVER_AVAILABLE 임을 보인다.
     expect(button("ver-unlock").disabled).toBe(false);

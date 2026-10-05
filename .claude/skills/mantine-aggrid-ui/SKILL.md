@@ -105,6 +105,7 @@ python3 $D/aggrid_docs.py recommendations           # 공식 ag-dev 의 LLM 흔�
 | 결과 0건이면 그리드를 언마운트하고 `<p>` 로 바꿈(3항·`&&` 모두) | `AgDataGrid` 를 늘 두고 `emptyMessage` 로 안내 — audit `P-R6`, [가이드 R6](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
 | 상세 폼 state 를 화면 루트에 둠(한 글자마다 루트·그리드 전체 재렌더) | 상세 폼을 별도 컴포넌트로 분리하고 루트는 `ref` 핸들(`load`·`getForm`)로 대화 — screen-patterns.md §성능 기본 구조, 가이드 R12 |
 | 그리드 `columns` 를 `useMemo(..., [form])` 처럼 폼 객체에 의존시킴 | 모듈 상수 또는 안정값(불리언·고정 콜백)만 deps 에 둔 `useMemo` |
+| 행 클릭·선택 때 `onSnapshotChange` 로 선택 행 ID 를 snapshot 에 넣음(클릭마다 포털 셸 재렌더) | snapshot 에 선택 행을 넣지 않는다. 탭 복귀 때 되살릴 값(조회 조건)이 바뀔 때만 부른다 — audit `P-R8`, [가이드 R8](../../../docs/guide/FrontEnd/Screen-Performance-Guide.md) |
 | `fetch("/api/auth/me")` 직접 호출, 하위·팝업마다 `useUserButtonRbac()` | `getCurrentUser()`·`useCurrentUserId()`, 권한 훅은 화면 루트 한 곳 — 가이드 R9 |
 | 화면에서 `import { Button, Group } from "@mantine/core"` | `@dk-oasis/shared/form` · `layout` 래퍼 |
 | `PageLayout buttons` 에 `<Button>` JSX 를 넣음 | `PageButton` 객체 배열(`{ id, label, onClick, type, action }`) — [screen-patterns.md](references/screen-patterns.md) §상단 버튼 |

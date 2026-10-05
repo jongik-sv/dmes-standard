@@ -231,14 +231,20 @@ describe("RuleConfirmPage", () => {
     expect(gridRoot()).toBe(first);
   });
 
-  it("P1 핸드오프 {maruRuleId, ver: \"2\"} 로 열면 ver 를 \"2.000\" 으로 맞춰 view 를 부르고 snapshot 에 남긴다", async () => {
+  it("P1 핸드오프 {maruRuleId, ver: \"2\"} 로 열면 ver 를 \"2.000\" 으로 맞춰 view 를 부르고 snapshot 은 건드리지 않는다", async () => {
     const snapshots: unknown[] = [];
     openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: "2" });
-    await render({ snapshot: { maruRuleId: "OTHER", ver: 9 }, onSnapshotChange: (s: unknown) => snapshots.push(s) });
+    await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
     expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: "2.000" }]);
-    expect(snapshots).toContainEqual({ maruRuleId: "QLTY_GRD_JDG", ver: "2.000" });
+    expect(snapshots).toHaveLength(0);
     expect(byTestId("rc-target")?.textContent).toBe("QLTY_GRD_JDG 버전 v2.000 · DECISION");
     expect(visibleText(byTestId("rc-previous")!)).toContain("버전 v1.000 · 2026-01-01 00:00:00");
+  });
+
+  it("P1 숫자 ver(2)로 넘겨받아도 \"2.000\" 으로 맞춰 view 를 부른다", async () => {
+    openMdmPage("dme/ruleConfirm", { maruRuleId: "QLTY_GRD_JDG", ver: 2 as unknown as string });
+    await render();
+    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: "2.000" }]);
   });
 
   it("P1 minor 버전(ver \"1.001\")을 넘겨받으면 소수부를 지키고 대상 버전을 v1.001 로 보인다(D-144)", async () => {
@@ -263,14 +269,9 @@ describe("RuleConfirmPage", () => {
     expect("ver" in params).toBe(false);
   });
 
-  it("핸드오프가 없으면 snapshot 의 룰·버전을 불러온다(옛 snapshot 의 숫자 ver 도 \"2.000\" 으로 읽는다)", async () => {
-    await render({ snapshot: { maruRuleId: "QLTY_GRD_JDG", ver: 2 } });
-    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: "2.000" }]);
-  });
-
-  it("snapshot 의 minor 버전 문자열은 그대로 불러온다", async () => {
+  it("snapshot 에 선택 룰이 있어도 복원하지 않는다(R8, 2026-10-05)", async () => {
     await render({ snapshot: { maruRuleId: "QLTY_GRD_JDG", ver: "1.001" } });
-    expect(actions("view").map((c) => c.params)).toEqual([{ maruRuleId: "QLTY_GRD_JDG", ver: "1.001" }]);
+    expect(actions("view")).toHaveLength(0);
   });
 
   it("diff 는 건수 요약을 보이고 같은 행은 접었다가 토글로 편다. 바뀐 칸은 변수 라벨로 보인다", async () => {

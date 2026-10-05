@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 
 // TSK-07-02 design.md §3.2·§4 — dataMng 통합 화면(D-104, dataMng+dataEdit) 렌더 스모크: 목록 행 클릭으로 상세 교체,
-// [데이터 등록] 팝업·등록 뒤 상세 선택, handoff·snapshot 진입, 헤더 저장, MDM001 오류 모달, 항목 편집 이동 파라미터.
+// [데이터 등록] 팝업·등록 뒤 상세 선택, handoff 진입, 헤더 저장, MDM001 오류 모달, 항목 편집 이동 파라미터.
 // codeMng/code-mng-page.test.ts 선례.
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -74,7 +74,9 @@ async function flush() {
   });
 }
 
-async function render(props: Record<string, unknown> = {}) {
+/** entry 는 화면을 그 값으로 여는 handoff 다 — 선택 행은 snapshot 으로 복원하지 않는다(R8). */
+async function render({ entry, ...props }: Record<string, unknown> = {}) {
+  if (entry) openMdmPage("dmd/dataMng", entry as Record<string, string>);
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -228,7 +230,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
       expect(byTestId("data-edit-item-count")?.textContent).toBe("7");
       expect(byTestId("data-edit-categories")?.textContent).toContain("BASE");
       expect(byTestId("data-edit-attr01Name")).toBeTruthy();
-      expect(snapshots).toContainEqual({ maruDataId: "PORT" });
+      expect(snapshots).toHaveLength(0); // 행 클릭은 snapshot 을 바꾸지 않는다(R8)
       expect(opened).toHaveLength(0);
     } finally {
       window.removeEventListener("portal-open-tab", listener);
@@ -337,35 +339,34 @@ describe("DataMngPage(dataEdit 통합)", () => {
   it("handoff 로 받은 ID 의 상세를 목록 조회와 함께 골라 둔다", async () => {
     const snapshots: unknown[] = [];
     openMdmPage("dmd/dataMng", { maruDataId: "PORT" });
-    await render({ snapshot: { maruDataId: "OTHER" }, onSnapshotChange: (s: unknown) => snapshots.push(s) });
+    await render({ onSnapshotChange: (s: unknown) => snapshots.push(s) });
 
     expect(actions("dataEdit", "view").map((c) => c.params.maruDataId)).toEqual(["PORT"]);
     expect(actions("dataMng", "search")).toHaveLength(1);
     expect(nameValue()).toBe("항구");
-    expect(snapshots).toContainEqual({ maruDataId: "PORT" });
+    expect(snapshots).toHaveLength(0);
   });
 
-  it("handoff 가 없으면 snapshot 의 ID 를 불러온다", async () => {
+  it("snapshot 에 선택 ID 가 있어도 복원하지 않는다(R8, 2026-10-05)", async () => {
     await render({ snapshot: { maruDataId: "PORT" } });
-    expect(actions("dataEdit", "view").map((c) => c.params.maruDataId)).toEqual(["PORT"]);
-    expect(nameValue()).toBe("항구");
+    expect(actions("dataEdit", "view")).toHaveLength(0);
   });
 
   it("헤더 저장 1건 → 갱신된 값이 보이고 목록을 다시 조회한다", async () => {
     saveResponse = { meta: { success: true }, data: { result: viewResult({ maruDataName: "항구(개정)", auditVer: 1 }) } };
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
 
     await typeInto("data-edit-name", "항구(개정)");
     await click(byTestId("data-edit-save"));
 
     expect(actions("dataEdit", "save")[0].params).toMatchObject({ maruDataId: "PORT", auditVer: 0, maruDataName: "항구(개정)" });
     expect(nameValue()).toBe("항구(개정)");
-    expect(actions("dataMng", "search")).toHaveLength(1); // 진입 자동 조회 없음 + 저장 뒤 재조회 1건
+    expect(actions("dataMng", "search")).toHaveLength(2); // handoff 진입 때 목록 조회 1건 + 저장 뒤 재조회 1건
   });
 
   it("편집 불가(폐기됨) 데이터는 입력·[헤더 저장]·[폐기] 가 꺼지지만 [항목 편집 →] 은 켜져 있다", async () => {
     nextView = (id) => viewResult({ maruDataId: id, status: "DEPRECATED", editable: false });
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
 
     expect((byTestId("data-edit-name") as HTMLInputElement).disabled).toBe(true);
     expect((byTestId("data-edit-save") as HTMLButtonElement).disabled).toBe(true);
@@ -374,7 +375,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
   });
 
   it("이름·키 패턴이 비면 저장하지 않고 오류 모달을 보인다", async () => {
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
     await typeInto("data-edit-name", "");
     await click(byTestId("data-edit-save"));
     expect(actions("dataEdit", "save")).toHaveLength(0);
@@ -382,7 +383,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
   });
 
   it("[폐기] 는 확인 뒤에만 delete 를 auditVer 와 함께 부른다", async () => {
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
     await click(byTestId("data-edit-deprecate"));
     expect(actions("dataEdit", "delete")).toHaveLength(0);
     expect(visibleText(document.body)).toContain("폐기할까요?");
@@ -394,7 +395,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
 
   it("MDM001 오류 모달을 닫으면 view 를 다시 부른다", async () => {
     saveResponse = { meta: { success: false, message: "다른 사용자가 수정했습니다. 다시 불러오세요" } };
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
 
     await typeInto("data-edit-name", "새 이름");
     await click(byTestId("data-edit-save"));
@@ -426,7 +427,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
   });
 
   it("같은 데이터를 다시 불러오는 사이 고친 폼은 늦게 온 view 응답이 덮지 않는다", async () => {
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
     await search();
     expect(nameValue()).toBe("항구");
 
@@ -451,7 +452,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
   // 2026-10-03 팀장 결정 — ruleMng 과 같은 규칙: 같은 행을 다시 눌러 다시 읽어도 저장하지 않은 입력은 남기고, 저장은 입력을
   // 시작할 때의 auditVer 로 보낸다(다른 창 변경은 충돌 알림으로 드러난다). 고친 칸이 없으면 서버 값으로 바꾼다.
   it("누르기 전에 고친 입력은 같은 행을 다시 눌러 다시 읽어도 남고, 저장은 입력을 시작할 때의 auditVer 로 보낸다", async () => {
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
     await search();
     await typeInto("data-edit-name", "고치는 중");
     nextView = (id) => viewResult({ maruDataId: id, maruDataName: "다른 창 이름", auditVer: 1 });
@@ -464,7 +465,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
   });
 
   it("고친 칸이 없으면 같은 행을 다시 눌러 다시 읽은 서버 값과 auditVer 로 바뀐다", async () => {
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
     await search();
     nextView = (id) => viewResult({ maruDataId: id, maruDataName: "다른 창 이름", auditVer: 1 });
     await clickListRow("PORT");
@@ -478,7 +479,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
   // 검토 I1 — 서버는 저장 때 값을 trim 한다. 끝 공백을 남긴 채 저장에 성공하면 응답 값이 보낸 값과 달라도
   // 고친 입력으로 보지 않고 서버 값·새 auditVer 로 맞춰야 한다(아니면 다음 저장이 옛 auditVer 로 거짓 충돌).
   it("끝 공백을 넣어 헤더 저장에 성공하면 서버가 trim 한 값과 새 auditVer 로 맞추고, 다음 저장은 새 auditVer 를 보낸다", async () => {
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
     await search();
     await typeInto("data-edit-name", "새 이름 ");
     saveResponse = { meta: { success: true }, data: { result: viewResult({ maruDataName: "새 이름", auditVer: 1 }) } };
@@ -495,7 +496,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
   // 검토 M1 — 입력을 남기더라도 다시 읽은 헤더 값이 입력을 시작할 때와 칸마다 같으면(VER 만 오른 자기 쓰기 등) 다른 창이 헤더를
   // 고치지 않은 것이므로 저장할 auditVer 를 새 값으로 올린다. 헤더 칸이 바뀐 진짜 충돌은 여전히 옛 auditVer 로 드러난다.
   it("입력을 남긴 채 다시 읽었는데 헤더 값은 그대로이고 auditVer 만 올랐으면 저장은 새 auditVer 를 보낸다", async () => {
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
     await search();
     await typeInto("data-edit-name", "고치는 중");
     nextView = (id) => viewResult({ maruDataId: id, auditVer: 1 });
@@ -507,7 +508,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
   });
 
   it("다른 데이터로 옮길 때는 응답이 폼을 새 값으로 바꾼다(이전 입력 폐기)", async () => {
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
     await search();
     await typeInto("data-edit-name", "고친 이름");
     await clickListRow("SHIP");
@@ -527,7 +528,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
     }) as typeof fetch;
     const errors = vi.spyOn(console, "error");
     try {
-      await render({ snapshot: { maruDataId: "PORT" } });
+      await render({ entry: { maruDataId: "PORT" } });
       await search();
       await clickListRow("SHIP");
       expect(byTestId("detail-stale")).toBeTruthy();
@@ -551,7 +552,7 @@ describe("DataMngPage(dataEdit 통합)", () => {
       }
       return baseFetch(input, init);
     }) as typeof fetch;
-    await render({ snapshot: { maruDataId: "PORT" } });
+    await render({ entry: { maruDataId: "PORT" } });
     await search();
 
     await typeInto("data-edit-name", "항구(개정)");

@@ -5,7 +5,7 @@
  *
  * 정본: docs/mdm/screens/codeConfirm/codeConfirm_기능설계서.md, TSK-06-05 design.md §6.7.
  * 왼쪽은 확정 대기 DRAFT 목록, 오른쪽은 확정 폼·검사 결과 표·diff·바뀐 카테고리 요약이다. 진입 코드·버전은
- * handoff(openMdmPage) > snapshot 순서로 정하고 받은 값은 snapshot 에 남긴다(06-02 §6.10).
+ * handoff(openMdmPage)로 정하고 snapshot 에 담지 않는다(R8, 2026-10-05).
  * 검사(`validate`)는 쓰기가 없고, 확정 버튼은 검사한 apply_from 이 지금 입력값과 같을 때만 켜진다(I30). 경고 확인과
  * 미래 적용 경고는 대화상자에서 한다(D6·D7). 서버 거부 message 는 오류 영역에 그대로 보인다(I35).
  * 시안 탭7 의 상신·긴급·사유·결재 영역은 만들지 않는다(spec 제약). OBJECT_ID = screenId = BPMN process id = 'codeConfirm'.
@@ -117,13 +117,6 @@ interface Target {
   ver: string | null;
 }
 
-function snapshotTarget(snapshot: unknown): Target | null {
-  if (!snapshot || typeof snapshot !== "object") return null;
-  const s = snapshot as Record<string, unknown>;
-  if (typeof s.maruCodeId !== "string" || !s.maruCodeId) return null;
-  return { maruCodeId: s.maruCodeId, ver: typeof s.ver === "string" && s.ver ? s.ver : null };
-}
-
 /** diff 값 맵을 "칼럼=값" 목록으로. CHANGED 면 값이 다른 칼럼만 보인다. */
 function valuesText(values: Record<string, unknown> | null, other: Record<string, unknown> | null): string {
   if (!values) return "";
@@ -137,7 +130,7 @@ function countText(n: number | null): string {
   return n === null || n === undefined ? "없음" : `${n}건`;
 }
 
-export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: CodeConfirmPageProps) {
+export default function CodeConfirmPage({ tabId }: CodeConfirmPageProps) {
   const { showMessage } = useMessage();
   const rbac = useUserButtonRbac();
   const canValidate = canDoButton(rbac, SCREEN_ID, "validate");
@@ -154,7 +147,6 @@ export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: C
   const [modalOpen, setModalOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const handedOff = useRef(false);
   // 고른 횟수(choice)와 지금 view 가 어느 선택의 것인지(viewChoice) — 다르면 이전 선택의 view 를 잠근 채 보이는 중이다.
   // viewSeq 는 view 요청 순번 — 늦게 온 이전 요청의 응답을 버린다.
   const choiceRef = useRef(0);
@@ -162,8 +154,6 @@ export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: C
   const [viewChoice, setViewChoice] = useState(0);
   const viewChoiceRef = useRef(0);
   const viewSeq = useRef(0);
-  const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
 
   const fail = useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []);
 
@@ -207,25 +197,17 @@ export default function CodeConfirmPage({ tabId, snapshot, onSnapshotChange }: C
     setChoice(choiceRef.current);
     setTarget(t);
     setError(null);
-    const base = (snapshotRef.current as Record<string, unknown> | null) ?? {};
-    onSnapshotChange?.({ ...base, maruCodeId: t.maruCodeId, ...(t.ver ? { ver: t.ver } : {}) });
     void load(t);
-  }, [load, onSnapshotChange]);
+  }, [load]);
 
-  // 진입 값: handoff(한 번만) > snapshot
+  // 진입 값: handoff(한 번만). 선택 행은 snapshot 에 담지 않는다(R8)
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     if (params.maruCodeId) {
-      handedOff.current = true;
       choose({ maruCodeId: params.maruCodeId, ver: params.ver || null });
     }
   });
 
   useEffect(() => {
-    const fromSnapshot = snapshotTarget(snapshotRef.current);
-    if (!handedOff.current && fromSnapshot) {
-      setTarget(fromSnapshot);
-      void load(fromSnapshot);
-    }
     void refreshList("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

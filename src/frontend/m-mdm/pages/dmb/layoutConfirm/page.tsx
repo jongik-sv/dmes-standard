@@ -3,10 +3,10 @@
 /**
  * layoutConfirm — 전문·헤더 공용 레이아웃 버전 확정(D-144 3단계). ruleConfirm 화면 구성을 본보기로 한다.
  * 왼쪽은 확정 대기 DRAFT 목록, 오른쪽은 대상·적용 시각·검사 표·동시 전환 강조·헤더 영향도·EAI·경고 확인이다.
- * 진입 레이아웃·버전은 handoff(openMdmPage) > snapshot 순서로 정한다. 버전은 `normVer` 로만 다룬다(`"1.001"` 을 숫자로 바꾸지 않는다).
+ * 진입 레이아웃·버전은 handoff(openMdmPage)로 정하고 snapshot 에 담지 않는다(R8). 버전은 `normVer` 로만 다룬다(`"1.001"` 을 숫자로 바꾸지 않는다).
  * 검사(`validate`)는 쓰기가 없고, 확정 버튼은 검사한 apply_from 이 지금 입력값과 같을 때만 켜진다. OBJECT_ID = screenId = 'layoutConfirm'.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ContentBody, ContentPanel, canDoButton, useUserButtonRbac } from "@dk-oasis/shared/layout";
 import { Button, Checkbox, DateTimePicker, Input } from "@dk-oasis/shared/form";
@@ -70,13 +70,6 @@ function toVer(value: unknown): string | null {
   return typeof value === "string" || typeof value === "number" ? normVer(value) : null;
 }
 
-function snapshotTarget(snapshot: unknown): Target | null {
-  if (!snapshot || typeof snapshot !== "object") return null;
-  const s = snapshot as Record<string, unknown>;
-  const id = Number(s.layoutId);
-  return Number.isFinite(id) && id > 0 ? { layoutId: id, ver: toVer(s.ver) } : null;
-}
-
 const draftKey = (layoutId: number, ver: string | null) => `${layoutId}-${normVer(ver) ?? ""}`;
 
 interface Checked {
@@ -84,7 +77,7 @@ interface Checked {
   applyFrom: string;
 }
 
-export default function LayoutConfirmPage({ tabId, snapshot, onSnapshotChange }: LayoutConfirmPageProps) {
+export default function LayoutConfirmPage({ tabId }: LayoutConfirmPageProps) {
   const { showMessage } = useMessage();
   const rbac = useUserButtonRbac();
   const canValidate = canDoButton(rbac, SCREEN_ID, "validate");
@@ -104,9 +97,6 @@ export default function LayoutConfirmPage({ tabId, snapshot, onSnapshotChange }:
   const [done, setDone] = useState<{ closedPreviousVer: string | null; applyFrom: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const handedOff = useRef(false);
-  const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
 
   const fail = useCallback((e: unknown) => setError(e instanceof Error ? e.message : String(e)), []);
 
@@ -141,26 +131,18 @@ export default function LayoutConfirmPage({ tabId, snapshot, onSnapshotChange }:
     setAcknowledged(false);
     setDone(null);
     setError(null);
-    const base = (snapshotRef.current as Record<string, unknown> | null) ?? {};
-    onSnapshotChange?.({ ...base, layoutId: t.layoutId, ...(t.ver !== null ? { ver: t.ver } : {}) });
     void load(t);
-  }, [load, onSnapshotChange]);
+  }, [load]);
 
-  // 진입 값: handoff(한 번만) > snapshot. handoff 의 ver 문자열은 `normVer` 로 맞춘다(소수부를 버리지 않는다).
+  // 진입 값: handoff(한 번만). 선택 행은 snapshot 에 담지 않는다(R8). handoff 의 ver 문자열은 `normVer` 로 맞춘다(소수부를 버리지 않는다).
   useMdmPageParams(COMPONENT_PATH, tabId, (params) => {
     const id = Number(params.layoutId);
     if (Number.isFinite(id) && id > 0) {
-      handedOff.current = true;
       choose({ layoutId: id, ver: toVer(params.ver) });
     }
   });
 
   useEffect(() => {
-    const fromSnapshot = snapshotTarget(snapshotRef.current);
-    if (!handedOff.current && fromSnapshot) {
-      setTarget(fromSnapshot);
-      void load(fromSnapshot);
-    }
     void refreshList("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
