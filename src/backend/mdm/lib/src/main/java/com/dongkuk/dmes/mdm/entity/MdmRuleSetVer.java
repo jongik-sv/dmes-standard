@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 
 /**
  * 룰 세트 버전 — {@code TB_MDM_RULE_SET_VER}(D-144 2단계, V18). 흐름({@code FLOW_JSON}, NULL 이면 RULE_IDS 한 줄 흐름)과 펼친 룰 목록
- * ({@code RULE_IDS}) 을 버전마다 둔다. 감사 카운터는 업무 VER 와 겹치지 않게 {@code AUD_VER}(D-034).
+ * ({@code RULE_IDS}), 흐름의 SET 노드가 부르는 세트 ID 목록({@code CALL_SET_IDS}, JSON, 기본 [], V23)을 버전마다 둔다. 감사 카운터는 업무 VER 와 겹치지 않게 {@code AUD_VER}(D-034).
  *
  * <p>상태·소유자·적용 구간·확정 칸·{@code ROW_VERSION} 은 공통 버전 엔진이 네이티브 SQL 로만 바꾼다({@code updatable = false}). 흐름 저장은
  * {@code RuleSetWrites} 의 네이티브 UPDATE 다. 엔티티 저장은 새 버전 INSERT 에만 쓴다.
@@ -61,6 +61,10 @@ public class MdmRuleSetVer extends CactusAuditEntity implements VersionedRow {
     @Column(name = "FLOW_JSON", updatable = false)
     private String flowJson;
 
+    /** 흐름의 SET 노드를 깊이 우선으로 펼친 중복 없는 세트 ID JSON 배열(하위 세트 spec §1.1, V23). 서버가 DRAFT 저장 때 계산한다. */
+    @Column(name = "CALL_SET_IDS", nullable = false, updatable = false)
+    private String callSetIds = "[]";
+
     @Column(name = "REQUESTED_BY", length = 50, updatable = false)
     private String requestedBy;
 
@@ -96,6 +100,7 @@ public class MdmRuleSetVer extends CactusAuditEntity implements VersionedRow {
     @Override public LocalDateTime getApplyTo() { return applyTo; }
     public String getRuleIds() { return ruleIds; }
     public String getFlowJson() { return flowJson; }
+    public String getCallSetIds() { return callSetIds; }
     public String getRequestedBy() { return requestedBy; }
     public LocalDateTime getReleasedAt() { return releasedAt; }
     public long getRowVersion() { return rowVersion; }
@@ -106,6 +111,7 @@ public class MdmRuleSetVer extends CactusAuditEntity implements VersionedRow {
     public void setApplyFrom(LocalDateTime v) { this.applyFrom = v; }
     public void setApplyTo(LocalDateTime v) { this.applyTo = v; }
     public void setFlowJson(String v) { this.flowJson = v; }
+    public void setCallSetIds(String v) { this.callSetIds = v; }
     public void setRequestedBy(String v) { this.requestedBy = v; }
     public void setReleasedAt(LocalDateTime v) { this.releasedAt = v; }
     public void setRowVersion(long v) { this.rowVersion = v; }

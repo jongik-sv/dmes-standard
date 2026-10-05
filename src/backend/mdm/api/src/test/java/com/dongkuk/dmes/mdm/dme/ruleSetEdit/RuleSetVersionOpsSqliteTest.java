@@ -51,6 +51,7 @@ class RuleSetVersionOpsSqliteTest extends AbstractMdmSharedDbTest {
         AuditHolder.setAudit(new CactusAudit("kim", "ruleSetEditMenu", "ruleSetEdit"));
         DmeTestSupport.ruleSet(jdbc, "S_O", "조작 세트", "[\"R1\",\"R2\"]", "INUSE", 0);
         DmeTestSupport.ruleSetFlow(jdbc, "S_O", "{\"version\":1,\"nodes\":[],\"edges\":[]}");
+        DmeTestSupport.ruleSetCalls(jdbc, "S_O", "[\"S_B\"]");
     }
 
     @AfterEach
@@ -89,6 +90,7 @@ class RuleSetVersionOpsSqliteTest extends AbstractMdmSharedDbTest {
         assertThat(DmeTestSupport.setVerValue(jdbc, "S_O", "1.001", "OWNER_ID")).isEqualTo("kim");
         assertThat(DmeTestSupport.setVerValue(jdbc, "S_O", "1.001", "RULE_IDS")).isEqualTo("[\"R1\",\"R2\"]");
         assertThat(DmeTestSupport.setVerValue(jdbc, "S_O", "1.001", "FLOW_JSON")).isEqualTo("{\"version\":1,\"nodes\":[],\"edges\":[]}");
+        assertThat(DmeTestSupport.setVerValue(jdbc, "S_O", "1.001", "CALL_SET_IDS")).isEqualTo("[\"S_B\"]");
         assertThat(DmeTestSupport.setVerValue(jdbc, "S_O", "1.001", "BASE_VER")).startsWith("1");
         assertThat(DmeTestSupport.setVerValue(jdbc, "S_O", "1.001", "APPLY_FROM")).isNull();
     }
