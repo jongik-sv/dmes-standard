@@ -12,13 +12,15 @@
 #    있으면 건드리지 않는다. 외부 설계 문서 링크(dmes-standard docs/mdm/design)가 새 워크트리에 없어 팀원이 절대경로를
 #    추측해 읽은 일(2026-09-24 TSK-02-02)에서 나왔다. Windows(Git Bash) 의 ln -s 는 복사본을 만든다.
 #    `node_modules` 자체가 심링크인 것은 걸지 않는다 — 링크째 걸리면 워커의 설치가 사람 체크아웃에 쓴다.
-#    대상이 메인 체크아웃 안을 가리키는 그 밖의 심링크도 걸지 않는다(DEPS_LINK_SKIP). 리포 밖(예 설계 문서)을 가리키는 것만 건다.
-# 1-0) 메인 쓰기 방지(2026-10-05 tooltip-screens 사고): 설치 전에 이 워크트리 안의 `node_modules` 심링크를 찾아 그 대상이
-#    워크트리(git rev-parse --show-toplevel, 물리 경로) 밖이면 링크만 지운다(DEPS_UNLINKED <경로> -> <대상>; 대상 폴더는 건드리지 않는다).
-#    pnpm 워크스페이스의 install 은 각 패키지의 node_modules 에 쓰므로, 패키지 node_modules 가 메인 체크아웃을 가리키는
-#    심링크면 메인의 `node_modules/@dk-oasis/*` 링크가 워크트리 경로로 다시 써져 메인 포털이 깨진다. 지운 자리는 아래 설치가
-#    워크트리 안에 독립된 node_modules 로 새로 만든다. 설치할 폴더 자신이 워크트리 밖으로 가는 심링크이면 설치하지 않고
-#    `DEPS_FAILED outside-worktree <폴더>` 로 끝낸다. 이 스크립트는 워크트리 밖 파일을 쓰지 않는다.
+#    대상이 메인 체크아웃 안(폴더·파일·끊어진 링크 모두)을 가리키는 그 밖의 심링크도 걸지 않는다(DEPS_LINK_SKIP). 리포 밖(예 설계 문서)을 가리키는 것만 건다.
+# 1-0) 메인 쓰기 방지(2026-10-05 tooltip-screens 사고): 설치 전에 이 워크트리 안의 `node_modules` 심링크를 깊이 제한 없이 찾아
+#    그 대상이 워크트리(git rev-parse --show-toplevel, 물리 경로) 밖이거나 끊어졌으면 링크만 지운다
+#    (DEPS_UNLINKED <경로> -> <대상>; 대상 폴더는 건드리지 않는다). pnpm 워크스페이스의 install 은 각 패키지의 node_modules 에
+#    쓰므로, 패키지 node_modules 가 메인 체크아웃을 가리키는 심링크면 메인의 `node_modules/@dk-oasis/*` 링크가 워크트리 경로로
+#    다시 써져 메인 포털이 깨진다. 링크를 지운 폴더 쪽 설치 폴더는 루트 node_modules 가 이미 있어도 건너뛰지 않고 다시 설치한다
+#    (지운 자리를 설치가 워크트리 안에 독립된 node_modules 로 새로 만든다). 다시 부르는 경우(DEPS_BUSY 75)를 위해 지운 경로를
+#    git 디렉터리의 dflow-deps-relink 에 남겼다가 그 설치가 성공하면 지운다. 설치할 폴더 자신이 워크트리 밖으로 가는 심링크이면
+#    설치하지 않고 `DEPS_FAILED outside-worktree <폴더>` 로 끝낸다. 이 스크립트는 워크트리 밖 파일을 쓰지 않는다.
 # 2) JS 의존성 설치. 루트뿐 아니라 하위 폴더의 lockfile 도 찾아 각각 설치한다(예 src/frontend/pnpm-lock.yaml)
 #    — node_modules·.git·.claude(워크트리 포함) 는 제외하고 깊이는 DEPS_MAXDEPTH(기본 4)로 제한한다. 폴더마다
 #    한 줄씩 보고하며, 루트 줄의 형식은 기존 계약과 글자 그대로 같다(접미사 없음) — 하위 폴더 줄만 끝에 그 폴더
@@ -124,14 +126,49 @@ link_target_dir() {
   [ -n "$l" ] || return 0                      # cd "" 는 성공하므로 빈 값은 여기서 막는다
   ( cd "$(dirname "$1")" 2>/dev/null && cd "$l" 2>/dev/null && pwd -P )
 }
-find . -maxdepth "$MAXDEPTH" \( -name .git -o -path ./.claude \) -prune -o \( -name node_modules -type d \) -prune -o \( -name node_modules -type l \) -print 2>/dev/null |
+# 심링크의 최종 대상(물리 경로, 폴더·파일·끊어진 링크 모두). 대상의 부모 폴더가 없으면 빈 문자열.
+link_target_any() {
+  local l abs d
+  l="$(readlink "$1" 2>/dev/null)"; [ -n "$l" ] || return 0
+  case "$l" in /*) abs="$l" ;; *) abs="$(dirname "$1")/$l" ;; esac
+  if [ -d "$abs" ]; then ( cd "$abs" 2>/dev/null && pwd -P ); return 0; fi
+  d="$(cd "$(dirname "$abs")" 2>/dev/null && pwd -P)" || return 0
+  [ -n "$d" ] && printf '%s/%s' "$d" "$(basename "$abs")"
+}
+# 지운 링크를 품은 설치 폴더는 이미 node_modules 가 있어도 다시 설치해야 한다(지운 자리를 설치가 새로 만든다).
+# 다시 부르는 경우(DEPS_BUSY 75)를 위해 표식을 작업 트리 밖 git 디렉터리에 남기고, 설치가 성공하면 지운다.
+RELINK=""; _gd="$(git rev-parse --absolute-git-dir 2>/dev/null)" && [ -n "$_gd" ] && RELINK="$_gd/dflow-deps-relink"
+relink_wanted() {  # relink_wanted <설치 폴더(루트는 .)> → 그 아래 지운 링크가 남아 있으면 0
+  [ -n "$RELINK" ] && [ -s "$RELINK" ] || return 1
+  local u
+  while IFS= read -r u; do
+    case "$1" in .) return 0 ;; *) case "$u" in "$1"/*) return 0 ;; esac ;; esac
+  done < "$RELINK"
+  return 1
+}
+relink_done() {  # relink_done <설치 폴더> → 그 아래 줄을 표식에서 뺀다
+  [ -n "$RELINK" ] && [ -s "$RELINK" ] || return 0
+  local u keep=""
+  while IFS= read -r u; do
+    case "$1" in .) continue ;; *) case "$u" in "$1"/*) continue ;; esac ;; esac
+    keep="$keep$u
+"
+  done < "$RELINK"
+  if [ -n "$keep" ]; then printf '%s' "$keep" > "$RELINK"; else rm -f "$RELINK"; fi
+}
+# 깊이를 제한하지 않는다: 실제 node_modules 폴더는 파고들지 않아 싸고, 제한하면 더 깊은 패키지의 링크를 놓친다.
+unlinked="$(find . \( -name .git -o -path ./.claude \) -prune -o \( -name node_modules -type d \) -prune -o \( -name node_modules -type l \) -print 2>/dev/null |
 while IFS= read -r nm; do
   raw="$(readlink "$nm" 2>/dev/null)"
   tgt="$(link_target_dir "$nm")"
   if [ -z "$tgt" ] || ! under_top "$tgt"; then
-    rm -f "$nm" && echo "DEPS_UNLINKED ${nm#./} -> ${tgt:-$raw}"
+    rm -f "$nm" && { echo "DEPS_UNLINKED ${nm#./} -> ${tgt:-$raw}"; echo "RELINK ${nm#./}"; }
   fi
-done
+done)"
+if [ -n "$unlinked" ]; then
+  printf '%s\n' "$unlinked" | grep -v '^RELINK '
+  if [ -n "$RELINK" ]; then printf '%s\n' "$unlinked" | sed -n 's/^RELINK //p' >> "$RELINK"; fi
+fi
 
 # ---- 1) gradle-wrapper.jar ----
 MAIN="${MAIN_CHECKOUT:-}"
@@ -163,7 +200,7 @@ if [ -n "$MAIN" ] && [ "$(cd "$MAIN" && pwd -P)" != "$(pwd -P)" ]; then
     [ -L "$MAIN/$p" ] || continue
     { [ -e "$p" ] || [ -L "$p" ]; } && continue
     # 대상이 메인 체크아웃 안이면 건너뛴다 — 링크 너머로 쓰면 메인이 바뀐다. 리포 밖(설계 문서 등)을 가리키는 것만 건다.
-    tgt="$(link_target_dir "$MAIN/$p")"
+    tgt="$(link_target_any "$MAIN/$p")"
     case "${tgt:+$tgt/}" in "$(cd "$MAIN" && pwd -P)"/*) echo "DEPS_LINK_SKIP $p (메인 체크아웃 안을 가리킨다)"; continue ;; esac
     mkdir -p "$(dirname "$p")" && ln -s "$MAIN/$p" "$p" && echo "DEPS_LINK $p"
   done
@@ -208,7 +245,7 @@ install_dir() (
   under_top "$(pwd -P)" || { echo "DEPS_FAILED outside-worktree $dir exit 1"; exit 1; }
 
   [ -f package.json ] || { echo "DEPS_SKIP package.json 없음$suffix"; exit 0; }
-  [ -e node_modules ] && { echo "DEPS_SKIP node_modules 있음$suffix"; exit 0; }
+  if [ -e node_modules ] && ! relink_wanted "$dir"; then echo "DEPS_SKIP node_modules 있음$suffix"; exit 0; fi
 
   if [ -f package-lock.json ]; then
     key=$( { cksum < package-lock.json; node -v 2>/dev/null || echo nonode; uname -sm; printf '%s' "$dir"; } | cksum | cut -d' ' -f1)
@@ -307,7 +344,7 @@ EOF
 
 status=0
 # 설치 슬롯을 못 얻은 폴더(DEPS_BUSY, exit 75)가 나오면 거기서 멈추고 75 로 끝난다 — 다시 부르면 이어서 진행한다
-install_dir . || status=$?
+install_dir . && relink_done . || status=$?
 [ "$status" -eq "$BUSY_RC" ] && exit "$BUSY_RC"
 
 # 하위 폴더의 lockfile 도 찾는다(루트 자신은 제외). node_modules·.git·.claude(워크트리 포함) 는 배제한다.
@@ -319,7 +356,7 @@ sub_dirs=$(find . -maxdepth "$MAXDEPTH" \( -name node_modules -o -name .git -o -
 if [ -n "$sub_dirs" ]; then
   while IFS= read -r d; do
     [ -z "$d" ] && continue
-    install_dir "$d" || { rc=$?; [ "$rc" -eq "$BUSY_RC" ] && exit "$BUSY_RC"; [ "$status" -eq 0 ] && status=$rc; }
+    install_dir "$d" && relink_done "$d" || { rc=$?; [ "$rc" -eq "$BUSY_RC" ] && exit "$BUSY_RC"; [ "$status" -eq 0 ] && status=$rc; }
   done <<EOF
 $sub_dirs
 EOF
