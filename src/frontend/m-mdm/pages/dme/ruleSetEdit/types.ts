@@ -124,7 +124,9 @@ export type RuleSetCheckCode =
   /** 하위 세트 spec §5 — 서버만 낸다(세트 호출 순환·깊이 초과·부르는 세트가 깨짐). */
   | "CALL_CYCLE"
   | "CALL_DEPTH"
-  | "CALLER_BROKEN";
+  | "CALLER_BROKEN"
+  /** 부르는 세트에 새 경고가 생겼다(WARN, 서버만 — 저장 결과, 문구 "부르는 세트에 경고가 생겼다: P1, P2"). 막지 않는다. */
+  | "CALLER_WARN";
 
 /**
  * 저장 시 검사 한 건(§6.3, 계획 C4). 없는 칸은 null — EMPTY 는 ruleId 도 null, 1단계는 otherRuleId·varName 이 null.
@@ -212,6 +214,11 @@ export interface RuleSetPickResult {
   sets?: RuleSetPick[] | null;
 }
 
+/** search target CALL_IO 응답(서버 `RuleSetCallIoResult`) — 요청 순서의 겉모양, 중복·빈 ID 는 뺐다. RELEASED 가 없는 세트도 `exists=false` 로 온다. */
+export interface RuleSetCallIoResult {
+  calls?: SetCallIo[] | null;
+}
+
 /** search target RULE — 룰 20건과 그 IO. */
 export interface RuleSetRuleSearchResult {
   rules?: RuleIo[] | null;
@@ -274,6 +281,8 @@ export interface RuleSetView {
   versions?: RuleSetVersionRow[];
   flags?: RuleSetVersionFlags;
   me?: string | null;
+  /** 저장된 흐름의 SET 노드가 부르는 세트의 겉모양(세트 ID →, 하위 세트 spec §8, 기준 시각 = 지금). 흐름이 없으면 빈 맵, 옛 응답에는 없을 수 있다. */
+  calls?: Record<string, SetCallIo>;
 }
 
 /** 룰 세트 테스트 케이스 한 건(3단계 P8, `TB_MDM_RULE_SET_TEST_CASE`). evalTs 는 KST `yyyy-MM-dd HH:mm:ss` 문자열(P-D6). */

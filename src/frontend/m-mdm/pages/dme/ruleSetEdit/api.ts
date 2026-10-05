@@ -1,5 +1,5 @@
 /**
- * ruleSetEdit 화면의 OASIS 호출(TSK-08-06 design §6.6·§6.12, 2단계 P6) — `search`(target SET·RULE·GUIDE)·`view`·`save`·`delete`(폐기)·
+ * ruleSetEdit 화면의 OASIS 호출(TSK-08-06 design §6.6·§6.12, 2단계 P6) — `search`(target SET·RULE·GUIDE·CALL_IO·CALLERS)·`view`·`save`·`delete`(폐기)·
  * `restore`(되살리기)·`validate`(조건식 IO)·`execute`(기록 실행).
  * 3단계(P8): 테스트 케이스 저장·삭제는 `save` 의 `part=CASE`, 일괄 실행은 `execute` 의 `runCases`, 식 파싱은 `validate` 의 `exprText` 로 한다(새 action 동사 없음).
  * 흐름은 params 의 Map 을 OASIS 가 받지 못하므로(P-D1) 정규 JSON 문자열 `flowJson` 으로 보낸다. grids 는 보내지 않는다.
@@ -10,6 +10,7 @@ import { callOasis } from "@/dme/oasis-call";
 import type {
   CaseDraft,
   GuideResult,
+  RuleSetCallIoResult,
   RuleSetCaseRunResult,
   RuleSetCondIoResult,
   RuleSetExprParseResult,
@@ -43,6 +44,19 @@ export function searchRules(keyword: string): Promise<RuleSetRuleSearchResult> {
 /** 구성 지침 — 결과 변수에서 거슬러 올라가 제안 순서를 받는다(저장하지 않는다). */
 export function guide(resultVar: string): Promise<GuideResult> {
   return callOasis<GuideResult>(SERVICE, "search", { target: "GUIDE", resultVar: blankToUndefined(resultVar) });
+}
+
+/**
+ * 하위 세트 겉모양(하위 세트 spec §8, 기준 시각 = 지금) — SET 노드를 놓거나 다른 탭이 그 세트를 썼을 때. 목록은 JSON 배열 문자열 `setIdsJson` 으로 보낸다
+ * (OASIS params 는 List 칸을 묶지 못한다 — 서버 `RuleSetEditSearchRequest.setIdsJson`). 응답은 요청 순서, 중복·빈 ID 는 서버가 뺀다.
+ */
+export function callIo(setIds: readonly string[]): Promise<RuleSetCallIoResult> {
+  return callOasis<RuleSetCallIoResult>(SERVICE, "search", { target: "CALL_IO", setIdsJson: JSON.stringify(setIds) });
+}
+
+/** 이 세트를 부르는 세트(속성 패널, 하위 세트 spec §8) — 폐기하지 않은 세트의 지금 이후 유효한 RELEASED 가 부르는 것, 세트 ID 순·계산 상태. */
+export function callers(setId: string): Promise<RuleSetPickResult> {
+  return callOasis<RuleSetPickResult>(SERVICE, "search", { target: "CALLERS", setId });
 }
 
 /** 세트 보기 — ver 가 없으면 서버가 고른다(내 DRAFT → 지금 적용 중인 RELEASED → VER 최대). */
