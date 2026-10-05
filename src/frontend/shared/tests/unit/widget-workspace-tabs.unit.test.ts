@@ -226,7 +226,7 @@ describe("WidgetWorkspace — 공유", () => {
     click('[data-action="lookup-multi-confirm"]');
     await flush();
     expect(shareTab).toHaveBeenCalledWith("tab-1", ["u2"]);
-    expect(notify).toHaveBeenCalledWith("1명에게 「(공유) 내 탭」 탭으로 보냈습니다.", "success");
+    expect(notify).toHaveBeenCalledWith("1명에게 공유했습니다.", "success");
     expect(document.querySelector('[data-testid="widget-share-dialog"]')).toBeNull();
   });
 
@@ -343,6 +343,212 @@ describe("WidgetWorkspace — 가져오기", () => {
     expect($('[data-action="import-tab"]')!.disabled).toBe(false);
     click('[data-action="start-edit"]');
     expect($('[data-action="import-tab"]')!.disabled).toBe(true);
+  });
+});
+
+/* ── 리뷰 수정(2026-10-05) ── */
+
+describe("WidgetWorkspace — 새 탭 ID 교체(공유 사본 덮어쓰기 방지)", () => {
+  /** saveTab 이 fresh 탭을 받으면 ID 를 옮겨 저장한 것처럼 돌려주는 저장소. */
+  function movingStore(tabs: WidgetTab[], moveTo: string | null) {
+    const saved: WidgetTab[] = [];
+    const store = makeStore(tabs);
+    (store.saveTab as ReturnType<typeof vi.fn>).mockImplementation(async (t: WidgetTab) => {
+      saved.push(t);
+      store.calls.push(`saveTab:${t.tabId}:${t.fresh ? "fresh" : "-"}`);
+      return t.fresh && moveTo ? { tabId: moveTo } : { tabId: t.tabId };
+    });
+    return { store, saved };
+  }
+  const base = (): WidgetTab[] => [{ tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("h1")] }];
+
+  it("(+) 새 탭의 첫 저장은 fresh 이고, 저장소가 다른 ID 를 돌려주면 탭·고른 탭·마지막 탭 기억이 그 ID 로 바뀐다(instId 유지)", async () => {
+    // happy-dom 이 localStorage 를 노출하지 않을 수 있어 Map 스텁을 잠깐 둔다(widget-workspace 시험 방식).
+    const mem = new Map<string, string>();
+    const prev = Object.getOwnPropertyDescriptor(window, "localStorage");
+    Object.defineProperty(window, "localStorage", {
+      value: { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) },
+      configurable: true,
+    });
+    try {
+      const { store, saved } = movingStore(base(), "tab-5");
+      await mount(store, { userId: "u1" });
+      click('[data-action="add-tab"]');
+      act(() => (document.querySelector(".cm-widget-tab__name") as HTMLInputElement).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+      click('.cm-widget-picker [data-widget-id="t.a"]');
+      const instId = document.querySelector(".cm-widget")!.getAttribute("data-inst-id");
+      // 마지막 탭 기억이 옛 ID 를 가리키는 경우(탭을 골라 둔 뒤 저장)
+      mem.set("dmes:widget:lastTab:u1", "tab-1");
+      click('[data-action="done-edit"]');
+      await flush();
+      expect(store.calls).toEqual(["load", "saveTab:tab-1:fresh"]);
+      expect(saved[0].fresh).toBe(true);
+      expect(tabIds()).toEqual(["home", "tab-5"]);
+      expect($('[data-tab-id="tab-5"]')!.getAttribute("aria-selected")).toBe("true");
+      expect(document.querySelector(".cm-widget")!.getAttribute("data-inst-id")).toBe(instId);
+      expect(mem.get("dmes:widget:lastTab:u1")).toBe("tab-5");
+      // 다음 저장은 새 ID 로, fresh 없이
+      openMenu("tab-5");
+      act(() => menuItem("탭 잠그기")!.click());
+      await flush();
+      expect(store.calls).toEqual(["load", "saveTab:tab-1:fresh", "saveTab:tab-5:-"]);
+    } finally {
+      if (prev) Object.defineProperty(window, "localStorage", prev);
+      else delete (window as unknown as { localStorage?: unknown }).localStorage;
+    }
+  });
+
+  it("충돌이 없으면 ID 는 그대로이고 두 번째 저장에는 fresh 를 보내지 않는다", async () => {
+    const { store } = movingStore(base(), null);
+    await mount(store);
+    click('[data-action="add-tab"]');
+    act(() => (document.querySelector(".cm-widget-tab__name") as HTMLInputElement).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    click('[data-action="done-edit"]');
+    await flush();
+    expect(tabIds()).toEqual(["home", "tab-1"]);
+    openMenu("tab-1");
+    act(() => menuItem("탭 잠그기")!.click());
+    await flush();
+    expect(store.calls).toEqual(["load", "saveTab:tab-1:fresh", "saveTab:tab-1:-"]);
+  });
+
+  it("가져오기도 fresh 로 저장하고, 옮겨진 ID 로 탭을 고른다", async () => {
+    const { store } = movingStore(base(), "tab-4");
+    await mount(store);
+    const input = document.querySelector('[data-action="import-file"]') as HTMLInputElement;
+    const text = JSON.stringify({ version: 1, kind: "dmes-widget-tab", name: "가져옴", items: [{ widgetId: "t.a", x: 0, y: 0, w: 6, h: 6 }] });
+    Object.defineProperty(input, "files", { value: [new File([text], "t.json")], configurable: true });
+    act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+    await flush();
+    expect(store.calls).toEqual(["load", "saveTab:tab-1:fresh"]);
+    expect(tabIds()).toEqual(["home", "tab-4"]);
+    expect($('[data-tab-id="tab-4"]')!.getAttribute("aria-selected")).toBe("true");
+  });
+});
+
+describe("WidgetWorkspace — 리뷰 낮음 항목", () => {
+  it("되돌리기 요청 중에는 [배치 편집]·(+) 가 막힌다(리뷰 6)", async () => {
+    let release!: () => void;
+    const resetTab = vi.fn(() => new Promise<void>((r) => (release = r)));
+    await mount(makeStore(serverTabs(true), { resetTab }));
+    openMenu("def-3");
+    act(() => menuItem("기본으로 되돌리기")!.click());
+    await flush();
+    expect($('[data-action="start-edit"]')!.disabled).toBe(true);
+    expect($('[data-action="add-tab"]')!.disabled).toBe(true);
+    await act(async () => release());
+    await flush();
+    expect($('[data-action="start-edit"]')!.disabled).toBe(false);
+  });
+
+  it("기본 탭 저장 뒤 다른 탭 저장이 실패하고 [취소]해도 되돌리기는 켜져 있다(리뷰 7)", async () => {
+    const store = makeStore(serverTabs(), { resetTab: vi.fn(async () => {}) });
+    (store.saveTab as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {}).mockRejectedValueOnce(new Error("저장 실패"));
+    await mount(store);
+    click('[data-action="start-edit"]');
+    click('[data-tab-id="def-3"]');
+    click('.cm-widget[data-inst-id="p1"] [data-action="remove"]');
+    click('[data-tab-id="tab-1"]');
+    click('.cm-widget[data-inst-id="u1"] [data-action="remove"]');
+    click('[data-action="done-edit"]');
+    await flush();
+    click('[data-action="cancel-edit"]');
+    await flush();
+    openMenu("def-3");
+    expect(menuLabels()).toContain("기본으로 되돌리기");
+  });
+
+  it("1MB 를 넘는 파일은 읽지 않고 거절하고, 읽기 실패는 알린다(리뷰 8)", async () => {
+    const store = makeStore(serverTabs());
+    const { notify } = await mount(store);
+    const input = document.querySelector('[data-action="import-file"]') as HTMLInputElement;
+    const big = new File(["x"], "big.json");
+    Object.defineProperty(big, "size", { value: 1024 * 1024 + 1 });
+    const textSpy = vi.fn();
+    Object.defineProperty(big, "text", { value: textSpy });
+    Object.defineProperty(input, "files", { value: [big], configurable: true });
+    act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+    await flush();
+    expect(textSpy).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledWith("파일이 너무 큽니다(최대 1MB).", "error");
+    const broken = new File(["{}"], "broken.json");
+    Object.defineProperty(broken, "text", { value: () => Promise.reject(new Error("읽기 실패")) });
+    Object.defineProperty(input, "files", { value: [broken], configurable: true });
+    act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+    await flush();
+    expect(notify).toHaveBeenCalledWith("파일을 읽지 못했습니다.", "error");
+    expect(store.calls).toEqual(["load"]);
+  });
+
+  async function openShare(store: WidgetStore, notify = vi.fn()) {
+    mantine = renderWithMantine(h(WidgetWorkspace, { registry: REG, homeDefault: HOME_DEFAULT, store, notify, confirm: vi.fn(async () => true), boardWidth: 1440 }));
+    await flush();
+    openMenu("tab-1");
+    act(() => menuItem("공유…")!.click());
+    await flush();
+    const input = document.querySelector('input[aria-label="검색어"]') as HTMLInputElement;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "팀원");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    click('[data-action="lookup-multi-search"]');
+    await flush();
+    return notify;
+  }
+  const people = [
+    { userId: "u2", userNm: "김철수", deptNm: "생산팀" },
+    { userId: "u3", userNm: "이영희", deptNm: "품질팀" },
+  ];
+  const box = (code: string) => document.querySelector(`[data-code="${code}"] input[type="checkbox"]`) as HTMLInputElement;
+
+  it("일부만 실패하면 알리고 창을 둔 채 실패한 사람만 고른 상태로 남긴다(리뷰 10)", async () => {
+    const shareTab = vi.fn(async () => [
+      { userId: "u2", ok: true, tabNm: "(공유) 내 탭", message: "" },
+      { userId: "u3", ok: false, tabNm: "", message: "탭 수 한도를 넘습니다." },
+    ]);
+    const notify = await openShare(makeStore(serverTabs(), { searchUsers: vi.fn(async () => people), shareTab }));
+    act(() => box("u2").click());
+    act(() => box("u3").click());
+    click('[data-action="lookup-multi-confirm"]');
+    await flush();
+    expect(notify).toHaveBeenCalledWith("1명에게 공유했고 1명은 보내지 못했습니다. 이영희: 탭 수 한도를 넘습니다.", "error");
+    expect(document.querySelector('[data-testid="widget-share-dialog"]')).not.toBeNull();
+    expect(box("u2").checked).toBe(false);
+    expect(box("u3").checked).toBe(true);
+  });
+
+  it("[보내기]를 두 번 눌러도 shareTab 은 한 번이다(리뷰 15)", async () => {
+    let release!: () => void;
+    const shareTab = vi.fn(
+      () =>
+        new Promise<{ userId: string; ok: boolean; tabNm: string; message: string }[]>((r) => (release = () => r([{ userId: "u2", ok: true, tabNm: "x", message: "" }])))
+    );
+    await openShare(makeStore(serverTabs(), { searchUsers: vi.fn(async () => people), shareTab }));
+    act(() => box("u2").click());
+    await act(async () => {
+      $('[data-action="lookup-multi-confirm"]')!.click();
+      $('[data-action="lookup-multi-confirm"]')!.click();
+    });
+    await act(async () => release());
+    await flush();
+    expect(shareTab).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("WidgetWorkspace — admin 모드 저장 순서", () => {
+  it("[완료]는 기본 탭을 먼저, 「홈」을 마지막에 저장한다(리뷰 5)", async () => {
+    const store = makeStore([
+      { tabId: "home", name: "홈", seq: 0, locked: false, items: [it_("h1"), it_("h2", 6, 0)] },
+      { tabId: "def-3", name: "생산 현황", seq: 1, locked: false, items: [it_("p1"), it_("p2", 6, 0)] },
+    ]);
+    await mount(store, { mode: "admin" });
+    click('[data-action="start-edit"]');
+    click('.cm-widget[data-inst-id="h1"] [data-action="remove"]');
+    click('[data-tab-id="def-3"]');
+    click('.cm-widget[data-inst-id="p1"] [data-action="remove"]');
+    click('[data-action="done-edit"]');
+    await flush();
+    expect(store.calls).toEqual(["load", "saveTab:def-3:생산 현황:1", "saveTab:home:홈:1"]);
   });
 });
 

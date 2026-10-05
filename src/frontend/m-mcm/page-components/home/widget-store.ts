@@ -63,10 +63,12 @@ export const secWidgetStore: WidgetStore = {
         })),
     }));
   },
+  // 새 탭(fresh)의 첫 저장에만 newYn=Y — 서버는 같은 tab-N 이 이미 있으면(화면이 연 뒤 생긴 공유 사본) 덮어쓰지 않고
+  // 다음 빈 번호로 저장해 result.tabId 로 돌려준다. 작업 공간이 그 ID 로 탭을 바꾼다.
   async saveTab(tab) {
-    await call(
+    const out = await call(
       "saveTab",
-      { tabId: tab.tabId, tabNm: tab.name, tabSeq: tab.seq, lockYn: tab.locked ? "Y" : "N" },
+      { tabId: tab.tabId, tabNm: tab.name, tabSeq: tab.seq, lockYn: tab.locked ? "Y" : "N", ...(tab.fresh ? { newYn: "Y" } : {}) },
       {
         widgets: tab.items.map((i) => ({
           instId: i.instId,
@@ -80,6 +82,7 @@ export const secWidgetStore: WidgetStore = {
         })),
       }
     );
+    return { tabId: text(out.tabId) || tab.tabId };
   },
   async deleteTab(tabId) {
     await call("deleteTab", { tabId });

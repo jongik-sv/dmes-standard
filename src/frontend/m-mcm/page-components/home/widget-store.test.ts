@@ -40,6 +40,25 @@ describe("secWidgetStore.load — 기본 탭 칸", () => {
   });
 });
 
+describe("secWidgetStore.saveTab — 새 탭(newYn)", () => {
+  const TAB = { tabId: "tab-3", name: "새 탭", seq: 2, locked: false, items: [] };
+
+  it("fresh 탭이면 newYn=Y 를 보내고 서버가 옮긴 tabId 를 돌려준다", async () => {
+    reply({ tabId: "tab-4", count: 0 });
+    expect(await secWidgetStore.saveTab({ ...TAB, fresh: true })).toEqual({ tabId: "tab-4" });
+    expect(sent().body.params).toEqual({ tabId: "tab-3", tabNm: "새 탭", tabSeq: 2, lockYn: "N", newYn: "Y" });
+  });
+
+  it("fresh 가 아니면 newYn 을 보내지 않고, 응답에 tabId 가 없으면 요청 ID 를 돌려준다", async () => {
+    reply({ count: 0 });
+    expect(await secWidgetStore.saveTab({ ...TAB, fresh: false })).toEqual({ tabId: "tab-3" });
+    expect(sent().body.params).toEqual({ tabId: "tab-3", tabNm: "새 탭", tabSeq: 2, lockYn: "N" });
+    reply({ tabId: "tab-3" });
+    await secWidgetStore.saveTab(TAB);
+    expect(sent(1).body.params).not.toHaveProperty("newYn");
+  });
+});
+
 describe("secWidgetStore 새 동작", () => {
   it("resetTab 은 secWidget/resetTab 에 tabId 를 보낸다", async () => {
     reply({ deleted: 3 });

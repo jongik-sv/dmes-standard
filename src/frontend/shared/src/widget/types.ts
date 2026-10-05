@@ -149,7 +149,7 @@ export interface WidgetStore {
   /** 사용자 탭 전체. 「홈」 탭을 한 번도 저장하지 않았으면 결과에 home 이 없다. */
   load(): Promise<WidgetTab[]>;
   /** 탭 하나를 통째로 바꾼다(없으면 만든다). */
-  saveTab(tab: WidgetTab): Promise<void>;
+  saveTab(tab: WidgetTab): Promise<void | { tabId?: string }>;
   deleteTab(tabId: string): Promise<void>;
   /** 「홈」을 뺀 탭 ID 를 새 순서대로. */
   reorderTabs(tabIds: string[]): Promise<void>;
@@ -166,6 +166,12 @@ export interface WidgetTab {
   defaultTab?: boolean;
   /** 기본 탭을 사용자가 개인화했는가(사용자 재정의 행 있음). 「기본으로 되돌리기」는 이때만 켜진다. */
   customized?: boolean;
+  /**
+   * 화면이 새로 만들어 아직 한 번도 저장하지 않은 탭((+)·가져오기). 저장소는 첫 저장에 「새 탭」임을 알려(secWidget newYn=Y)
+   * 같은 ID 가 서버에 이미 있으면(화면이 연 뒤 생긴 공유 사본 등) 덮어쓰지 않고 새 ID 로 저장한 뒤 saveTab 결과 tabId 로 돌려준다.
+   * 작업 공간은 저장에 성공하면 끄고, 돌려받은 ID 가 다르면 탭 ID 를 바꾼다.
+   */
+  fresh?: boolean;
 }
 
 /** 공유 받는 사람 검색 결과 한 줄(secWidget/searchUsers). */
