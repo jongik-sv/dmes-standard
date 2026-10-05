@@ -1,5 +1,8 @@
 # tooltip-screens 레인 정본 메모
 
+**상태: 완료(2026-10-05).** B1 dev `dffe0f95`, B2·B3·B4 dev `2922c58a`(트리 4836dd71) 머지, 워크트리·브랜치 정리 끝.
+남은 일: ① 제안 3건(열 반복 `meta: false` 도우미화·위젯 유형 편집기 `MdmMetaProvider disabled`·라벨 복붙 상수화) ② shared 몫 제안(범용 키 목록을 `resolveMdmPhysName` 이 자동으로 끄기) ③ 분류표 예외 4건(dataSrc·layoutId·labelLong·COLUMN_PHYS) mdm-column-dict 반영 확인. 브라우저 확인·mdmMeta 요청 수 측정은 조정자 몫.
+
 - 브랜치: `fix/tooltip-screens` / 워크트리: `/Users/jji/project/dmes-standard-wt/tooltip-screens` / 기준 dev `e00a3c7c`
 - 지시: tooltip-screens-1(B1~B4), tooltip-screens-2(B4 때 주석 수정)
 
@@ -8,9 +11,9 @@
 | 항목 | 상태 | 커밋 | 비고 |
 |---|---|---|---|
 | B1 상세 `<th>` → `MdmFieldLabel` | dev 머지 끝 | dffe0f95 | 리뷰 결함 0 |
-| B3 범용·UI 전용 `meta: false`, 표시용 meta 연결 | 구현·리뷰 끝 | dce036d6 · 623bbdb0 · 21392171(CD_V·COLUMN_ID) | 분류표 C1 + 지시 -4·-5 |
-| B2 SearchField `name` | 구현·리뷰 끝 | b2d5d4f9 · 85a0e171 | name 없이 둔 칸은 업무 키가 없는 칸 |
-| B4 마감 | 리뷰 수정 끝, 머지 요청 대기 | 37cfb3e4 · 016cf356 · 978b0180 · decision-table 주석 커밋 | opus/high 리뷰 15건 중 결함·권고 반영 |
+| B3 범용·UI 전용 `meta: false`, 표시용 meta 연결 | dev 머지 끝 | dce036d6 · 623bbdb0 · 21392171(CD_V·COLUMN_ID) | 분류표 C1 + 지시 -4·-5 |
+| B2 SearchField `name` | dev 머지 끝 | b2d5d4f9 · 85a0e171 | name 없이 둔 칸은 업무 키가 없는 칸 |
+| B4 마감 | dev 머지 끝(2922c58a) | 37cfb3e4 · 016cf356 · 978b0180 · decision-table 주석 커밋 | opus/high 리뷰 15건 중 결함·권고 반영 |
 
 ## B1 결정 기록
 
