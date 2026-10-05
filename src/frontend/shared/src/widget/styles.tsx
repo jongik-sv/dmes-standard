@@ -38,6 +38,9 @@ export const WIDGET_CSS = `
 .cm-widget__head { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; min-height: 34px; padding: 0 6px 0 12px; border-bottom: 1px solid var(--color-border-light); outline: none; }
 .cm-widget__head:focus-visible { box-shadow: inset 0 0 0 2px var(--color-focus); }
 .cm-widget__title { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-lg); font-weight: 700; color: var(--color-text); }
+.cm-widget__rename { flex: 0 1 280px; min-width: 0; height: 24px; padding: 0 6px; border: 1px solid var(--color-primary); border-radius: var(--radius-sm); background: var(--color-bg); color: var(--color-text); font: inherit; font-size: var(--font-size-lg); font-weight: 700; }
+.cm-widget__rename:read-only { opacity: 0.7; }
+.cm-widget__rename-error { position: absolute; left: 12px; top: 38px; z-index: 6; max-width: calc(100% - 24px); padding: 4px 8px; border-radius: var(--radius-sm); background: var(--color-danger-soft); color: var(--color-danger); font-size: var(--font-size-xs); }
 .cm-widget__sub { flex-shrink: 0; font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .cm-widget__title-extra { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
 .cm-widget__spacer { flex: 1 1 auto; }

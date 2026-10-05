@@ -32,12 +32,13 @@ export type { WidgetFrameProps } from "./WidgetFrame";
 export {
   openPortalPage,
   useWidgetBodySize,
+  useWidgetRename,
   useWidgetStatus,
   useWidgetTitle,
   WidgetHeaderActions,
   WidgetTitleExtra,
 } from "./frame-context";
-export type { WidgetStatus } from "./frame-context";
+export type { WidgetRenameHandler, WidgetStatus } from "./frame-context";
 export { WIDGET_CSS, WidgetStyle } from "./styles";
 export { WidgetBoard } from "./WidgetBoard";
 export type { WidgetBoardProps } from "./WidgetBoard";

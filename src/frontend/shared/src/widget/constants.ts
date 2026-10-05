@@ -13,6 +13,8 @@ export const MAX_TABS = 10;
 export const MAX_WIDGETS_PER_TAB = 30;
 export const TAB_NAME_MAX = 20;
 export const MIN_REFRESH_SEC = 30;
+/** 틀 제목 줄에서 바꾸는 위젯 이름의 최대 글자 수(코드 포인트 기준 — 개인 메모장 제목 한도와 같다). */
+export const WIDGET_TITLE_MAX = 40;
 
 /* 기본 탭·공유·내보내기(widget-tabs 2026-10-05, 설계 design-widget-tabs §3·§4). */
 /** 관리자 기본 탭 한도(배치 키당). 관리자 화면 탭 수는 홈 + 이 값. */
