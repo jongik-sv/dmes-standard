@@ -10,6 +10,7 @@
  *   Local-Rules §12). 원래 타입(NULL 이면 세트 선언 타입)에 맞지 않으면 거절하고 새 행 객체로 다시 그려 칸을 되돌린다. LIST 는 [비우기]만. 줄 끝 [비우기]·[되돌리기], 아래 [변수 추가]·[고침 취소].
  *   받는 노드가 넣는 CATCH_* 줄은 고치지 않고(칸·[비우기] 없음) [변수 추가] 도 그 이름을 거절한다(컨트롤러 Ruling 3 — `catchEditText`).
  * - 노드 상세: 고른 흐름 노드가 커서 앞에서 실행됐으면 2단계 `TraceDetail`(`sim-detail*`), 아니면 "아직 실행하지 않은 노드다"(P-D13).
+ *   SET 노드 상세의 [안으로 들어가기]는 `onEnterSet` 으로 편집기에 알린다(하위 세트 spec §11).
  * - 식 평가: Enter 로 서버 파싱 → 화면 평가(`useExprEval`). `validate` 권한이 없으면 칸이 꺼진다(P-D1).
  * 기록이 없으면 변수 표·식 평가 자리에 "실행하면 커서 시점 값이 보인다". 낡은 기록(P-D9)도 옛 기록 기준으로 보인다(툴바가 배지를 보인다).
  */
@@ -43,6 +44,8 @@ export interface VariablePanelProps {
   /** 식 파싱(validate) 권한 — 없으면 식 평가 칸이 꺼진다(P-D1). */
   canParse: boolean;
   onOpenRule(ruleId: string): void;
+  /** SET 노드 상세의 [안으로 들어가기](하위 세트 spec §11) — 노드 상세(`TraceDetail`)로 넘긴다. */
+  onEnterSet?: (nodeId: string) => void;
 }
 
 export const NO_RECORD_NOTE = "실행하면 커서 시점 값이 보인다";
@@ -144,7 +147,7 @@ function clickedColumn(ev: Event): string | null {
   return t?.closest?.("[col-id]")?.getAttribute("col-id") ?? null;
 }
 
-export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, onOpenRule }: VariablePanelProps) {
+export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, onOpenRule, onEnterSet }: VariablePanelProps) {
   const last = sim.last;
 
   // ── 조사식 ──
@@ -363,6 +366,8 @@ export function VariablePanel({ sim, setId, flow, rules, selectedId, canParse, o
               desc={flow.view.descs?.[selectedId]}
               onOpenRule={onOpenRule}
               endedBranch={endedBranch}
+              onEnter={onEnterSet}
+              calledFlows={last.calledFlows}
             />
           ) : (
             <div className="rsf-panel" data-testid="sim-detail">

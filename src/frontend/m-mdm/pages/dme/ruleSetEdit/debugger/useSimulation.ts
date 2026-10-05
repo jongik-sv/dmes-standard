@@ -26,7 +26,7 @@ import { simulate } from "../api";
 import type { EditFlow } from "../flow-edit";
 import { flowJsonOf } from "../flow-edit";
 import { flowIo } from "../set-model";
-import type { InputRow, RuleIoMap, SimWarning } from "../types";
+import type { CalledFlow, InputRow, RuleIoMap, SimWarning } from "../types";
 import { validEdits } from "../trace-view";
 import {
   applyPending,
@@ -59,6 +59,8 @@ export interface SimResult {
   flow: EditFlow;
   flowVersion: number;
   input: DebugInput;
+  /** 실행 중 부른 세트의 저장된 흐름(들어가기, 하위 세트 spec §8). 서버가 주지 않으면 빈 객체다. */
+  calledFlows: Readonly<Record<string, CalledFlow>>;
 }
 
 /** 입력 폼 한 칸 — 폼 줄과 그 이름의 세트 입력 변수 정보(계약 밖 키는 meta 가 null). */
@@ -143,6 +145,7 @@ const NO_BREAKPOINTS: ReadonlySet<string> = new Set<string>();
 const NO_RECENT: DebugInput[] = [];
 const NO_VARIABLES: DebugVar[] = [];
 const NO_EDITS: readonly TraceEdit[] = [];
+const NO_CALLED: Readonly<Record<string, CalledFlow>> = {};
 const joinNotice = (a: string | null, b: string | null) => (a && b ? `${a} · ${b}` : (a ?? b));
 
 /** 최근 입력 개수(세트별). */
@@ -471,7 +474,7 @@ export function useSimulation(flow: EditFlow | null, rules: RuleIoMap, flowVersi
           return;
         }
         const trace = Array.isArray(res.trace.nodes) ? res.trace : { ...res.trace, nodes: [] };
-        const record: Stored = { trace, warnings: res.warnings ?? [], flow: f, setId: forSet, flowVersion: version, input };
+        const record: Stored = { trace, warnings: res.warnings ?? [], flow: f, setId: forSet, flowVersion: version, input, calledFlows: res.calledFlows ?? NO_CALLED };
         const next = pick(trace);
         writeRec((r) => ({
           ...r,

@@ -3,21 +3,27 @@
 /**
  * 실행 비교 탭(3단계 계획 E7, 스펙 §4.7) — 바로 전 실행(`sim.previous`)과 이번 실행(`sim.last`)의 최종 결과 값(`run-compare-values`: 이름·이전·지금·같음/다름,
  * 다른 줄 강조)과 한쪽 실행에만 지난 노드(`run-compare-path`: "이전에만"·"지금만"). 비교는 `compareRuns` 로 기록이 바뀔 때만 한다(Local-Rules §16).
+ * 하위 세트 프레임에 들어가 있으면(`framePath`, 하위 세트 spec §11) 두 실행에서 같은 SET 노드 경로를 따라간 하위 기록끼리 견준다(`subTraceAt`).
  */
 import { useMemo } from "react";
 
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
 
+import { subTraceAt } from "./call-stack";
 import { compareRuns } from "./debug-model";
 import { cellText } from "./ValueTable";
 import type { Simulation } from "./useSimulation";
 
 export interface RunCompareProps {
   sim: Simulation;
+  /** 들어간 프레임의 SET 노드 경로(바깥부터) — 있으면 두 실행에서 같은 경로의 하위 기록끼리 견준다. */
+  framePath?: readonly string[];
 }
 
 export const NO_PREVIOUS_NOTE = "이전 실행이 없다. 흐름을 고친 뒤 같은 입력으로 다시 돌리면 차이가 보인다";
+/** 이전 실행에 같은 SET 노드 경로의 하위 기록이 없을 때(그 노드를 지나지 않았거나 하위 세트 전에 멈춤). */
+export const NO_PREVIOUS_SUB_NOTE = "이전 실행에는 이 하위 세트 기록이 없다";
 
 const COLUMNS: GridColumn[] = [
   { key: "name", meta: false, header: "이름", width: 140 },
@@ -53,10 +59,18 @@ function NodeList({ testId, label, ids }: { testId: string; label: string; ids: 
   );
 }
 
-export function RunCompare({ sim }: RunCompareProps) {
+export function RunCompare({ sim, framePath }: RunCompareProps) {
   const before = sim.previous;
   const after = sim.last;
-  const diff = useMemo(() => (before && after ? compareRuns(before.trace, after.trace) : null), [before, after]);
+  /** 경로 배열은 렌더마다 새로 올 수 있어 글자 키로 비교한다(Local-Rules §16). */
+  const pathKey = (framePath ?? []).join(">");
+  const diff = useMemo(() => {
+    if (!before || !after) return null;
+    const path = pathKey === "" ? [] : pathKey.split(">");
+    const b = subTraceAt(before.trace, path);
+    const a = subTraceAt(after.trace, path);
+    return b && a ? compareRuns(b, a) : null;
+  }, [before, after, pathKey]);
   const rows = useMemo(
     () => (diff?.values ?? []).map((v) => ({ name: v.name, before: cellText(v.before), after: cellText(v.after), same: v.same })),
     [diff],
@@ -65,7 +79,7 @@ export function RunCompare({ sim }: RunCompareProps) {
   if (!diff) {
     return (
       <div className="rsf-run-compare" data-testid="run-compare">
-        <p className="rsf-panel-note">{NO_PREVIOUS_NOTE}</p>
+        <p className="rsf-panel-note">{before && after && pathKey !== "" ? NO_PREVIOUS_SUB_NOTE : NO_PREVIOUS_NOTE}</p>
       </div>
     );
   }
