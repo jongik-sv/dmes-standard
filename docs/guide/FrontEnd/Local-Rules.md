@@ -308,7 +308,7 @@ shared `Modal` 의 `lg`·`xl` 은 최소 높이(70·80vh)만 있고 고정 높�
 - **th/td 상세 표 라벨은 `MdmFieldLabel`**: 상세 표(`DETAIL_*`)는 `FormGroup` 을 쓰지 않으므로 th 안에 `<MdmFieldLabel name="TITLE" label="제목" required />` 을 둔다(캡션 우선순위는 `FormGroup` 과 같고, 사전에 있으면 라벨에 올릴 때 MDM 컬럼·도메인 카드 툴팁이 뜬다. 사전에 없거나 포털 밖이면 `label` 글자 그대로). th 에 `{caption} *` 를 손으로 그리거나 `resolveCaption` 으로 라벨만 만들지 않는다.
 - **조회 영역 `SearchField` 도 `name`(+필요하면 `meta`)을 주면 라벨에 MDM 카드 툴팁이 뜬다**(`MdmFieldLabel` 과 같은 규칙, 없으면 예전과 같음). 필터 키(`edt_`·`cbo_`)에서 이름을 추론하지 않으므로 업무 키(`name="title"`)를 적는다. 라벨 글자는 기본(explicit)에서 `label` 그대로다.
 - **그리드 머리글 툴팁은 MDM 메타가 없는 열도 표시 머리글 이름을 기본으로 띄운다**(빈 이름·화면이 `headerTooltip`·`headerComponent` 를 준 열·메타 카드 열 제외, 끄려면 열에 `headerTooltip: ""`). 머리글·셀 값·MDM 카드 툴팁 지연은 `AgDataGrid tooltipShowDelay` 로 기본 500ms(예전 ag-grid 기본 2000ms)이고 셀 값 툴팁은 잘림과 상관없이 모든 셀 값에 뜨므로 열에서 끄려면 `tooltip: false`, 폼 라벨 지연은 그대로다.
-- **mdm 탭도 MDM 메타를 받는다**: 포털이 `mdm` 탭 메타를 `mcm` 모듈(`MDM_META_MODULE_ALIASES`)로 부른다(`/api/mdm/mdmMeta` 는 404, `/api/mcm/mdmMeta` 가 같은 사전). `analog` 만 `MDM_META_UNSUPPORTED_MODULES` 로 끈다.
+- **mdm 탭도 MDM 메타를 받는다**: 포털이 `mdm` 탭 메타를 `mcm` 모듈로 부른다(`/api/mdm/mdmMeta` 는 404, `/api/mcm/mdmMeta` 가 같은 사전). `analog` 탭만 끈다(표 `MDM_META_TAB_MODULES`).
 - **컬럼 설명이 HTML(`descriptionHtml`)이면 화면이 직접 그리지 않는다** — 카드(`MdmMetaCard`)가 브라우저에서 한 번 더 소독해 그리고, 그 카드만 마우스가 들어갈 수 있는 넓은 포털 툴팁(640px·설명 60vh 스크롤·150ms 유예·Escape 닫기)이 된다. 그리드는 HTML 열 머리글의 캡션 글자(안쪽 라벨)에서 같은 포털 카드를 띄우고 ag-grid `tooltipInteraction` 은 쓰지 않는다(화면이 켜지 않는다). 상세: [mdm-meta](../../../.claude/skills/mantine-aggrid-ui/references/components/mdm-meta.md) §HTML 설명·상호작용 툴팁.
 
 **값 검증**
