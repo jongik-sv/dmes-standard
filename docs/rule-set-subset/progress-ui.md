@@ -48,9 +48,9 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9
 
 ## ui:5t. TS 흐름·분석기 짝
 - 상태: 구현 끝, TS 코퍼스 러너 초록(srv:5 `10fb5284` 를 합친 `dae06a22` 위). srv:5 와 짝 머지 대기.
-- 커밋: `6d4f04ca`(흐름 해석 — `flow-model.ts`·`flow-edit.ts` addCatch 종류·`PropertyPanel.tsx` 받을 예외 목록·`trace-view.ts`, 시험 `flow-model.test.ts`·`catch-edit.test.ts`·`catch-panel.test.ts`), `7aff5fed`(분석기 — `set-model.ts`·`types.ts`, 시험 `set-model.test.ts`·`rule-set-corpus.test.ts`)
+- 커밋(`6d4f04ca` 혼자는 `set-model.ts` 가 옛 `Step` 합에 맞춰 있어 tsc 가 깨진다 — `7aff5fed` 까지가 초록 단위): `6d4f04ca`(흐름 해석 — `flow-model.ts`·`flow-edit.ts` addCatch 종류·`PropertyPanel.tsx` 받을 예외 목록·`trace-view.ts`, 시험 `flow-model.test.ts`·`catch-edit.test.ts`·`catch-panel.test.ts`), `7aff5fed`(분석기 — `set-model.ts`·`types.ts`, 시험 `set-model.test.ts`·`rule-set-corpus.test.ts`)
 - 시험 결과(m-mdm, workers 2):
-  - 착수 때 `vitest run tests/dme/ruleSetEdit/rule-set-corpus.test.ts` → 하위 세트 사례 18건 실패(SET 사례 17 + h2 문구 1).
+  - 착수 기준은 조정 지시의 "하위 세트 사례 18건 실패"이고 직접 돌리지는 않았다. 정적으로는 calls·SET·SUBSET_ENDED 사례 17건과 h2 사례 1건(코퍼스의 기대 문구가 새 h2 문구 — grep 1건)으로 수가 맞는다. 조정 지시의 합계(18 + 368 = 386)와 이 러너의 시험 수(310 = 코퍼스 108 + 퍼즈 200 + 머리 2)는 다르다 — 다른 코퍼스·퍼즈 판(srv:6 등)을 센 것인지 조정 세션이 확인한다.
   - 구현 뒤 같은 명령 → 310 통과·0 실패(코퍼스 108·퍼즈 200·머리 2).
   - `vitest run tests/dme/ruleSetEdit` → 97파일 1855 통과·0 실패.
   - `vitest run tests/dme` → 130파일 2488 통과·0 실패.
@@ -75,6 +75,8 @@ ui:7 → (eng:1·srv:5 머지 뒤) ui:5t → (srv:6 머지 뒤) ui:8 → ui:9
   2. 본문 `CALL_MISSING` 수준 REJECT → WARN(편차 13·서버·코퍼스), 본문 `callRuleIo.releasedVer: 1` → `"1.000"`, 본문 `step()` 에 없던 R13 예약 이름 처리를 되살렸다(srv 와 같음), 본문 `never` 의 RULE 캐스트 대신 SET → TASK → RULE 분기.
   3. 본문 `CATCH_KINDS_FOR` 는 RULE·SET 두 키 → TASK 키를 더했다(TASK 받는 노드도 지금 네 종류를 고른다).
   4. **기존 시험 2건 기대값을 바꿨다**(소유 시험, 동작이 정본대로 바뀐 것): `catch-panel.test.ts`「처리 갈래 첫 선의 변수 칩」 넷 → 다섯(`CATCH_SET`, Ruling 3·4 — RULE 처리 갈래에도 CATCH_SET 이 있다), `catch-edit.test.ts` 의 `CATCH_ONLY_RULE` 문구(결정 4).
+     - RULE 만 있는 흐름의 동작이 바뀐 곳 하나 더(코퍼스 사례는 없음, 서버와 같음): 처리 갈래 밖에서 `CATCH_SET` 을 읽는 룰은 이제 R13 ORDER("…는 받는 노드의 처리 갈래 안에서만 있다")다.
+     - 위 세 가지는 조정 세션 승인 대상으로 올린다.
   5. **`trace-view.catchValues` 는 넷 그대로** — `NodeTrace` 에 CATCH_SET 값을 읽을 칸이 없다. CATCH 노드 기록의 CATCH_SET 표시·값 흐름은 엔진 실행(eng:4)과 디버거(ui:9, Task 9 의 `frames`·`chipOf`·`valueTable` SET 갈래)에서 정한다. `frames`·`valueTable` 의 SET `outputs` 반영도 Task 9 몫이라 하지 않았다.
   6. 속성 패널 안내 문구("CATCH_KIND·CATCH_RULE·CATCH_CODE·CATCH_MSG 를 읽을 수 있다")·"붙은 룰" 라벨·SET 노드 그리기·속성 패널·flow-edit SET 붙여넣기(`isStep`·`NODE_PREFIX`)는 화면 표시라 ui:8 에 남긴다.
   7. `tests/helpers/engine-paths.ts` 는 고치지 않았다(코퍼스 경로가 이미 있다).
