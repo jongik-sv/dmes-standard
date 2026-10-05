@@ -286,9 +286,19 @@ public final class DmeTestSupport {
                 flowJson, setId, new BigDecimal(ver).setScale(3));
     }
 
+    /** 1.000 버전 행의 CALL_SET_IDS 를 바꾼다(하위 세트 픽스처). 흐름의 SET 노드와 맞춰 둔다. */
+    public static void ruleSetCalls(JdbcTemplate jdbc, String setId, String callSetIdsJson) {
+        ruleSetCalls(jdbc, setId, "1.000", callSetIdsJson);
+    }
+
+    public static void ruleSetCalls(JdbcTemplate jdbc, String setId, String ver, String callSetIdsJson) {
+        jdbc.update("UPDATE TB_MDM_RULE_SET_VER SET CALL_SET_IDS = ? WHERE MARU_RULE_SET_ID = ? AND VER = ?",
+                callSetIdsJson, setId, new BigDecimal(ver).setScale(3));
+    }
+
     /** 세트 버전 행의 칼럼 하나(글자). 칼럼 이름은 아래 목록만 받는다. */
     public static String setVerValue(JdbcTemplate jdbc, String setId, String ver, String column) {
-        if (!Set.of("RULE_IDS", "FLOW_JSON", "ROW_VERSION", "STATUS", "OWNER_ID", "APPLY_FROM", "APPLY_TO", "VER_KIND", "BASE_VER")
+        if (!Set.of("RULE_IDS", "FLOW_JSON", "CALL_SET_IDS", "ROW_VERSION", "STATUS", "OWNER_ID", "APPLY_FROM", "APPLY_TO", "VER_KIND", "BASE_VER")
                 .contains(column)) {
             throw new IllegalArgumentException(column);
         }

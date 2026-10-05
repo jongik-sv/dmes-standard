@@ -26,7 +26,7 @@ public final class RecordKeys {
         record.keySet().stream().sorted(Comparator.naturalOrder()).forEach(key -> {
             Code code = codeOf(key);
             if (code != null) {
-                out.add(new Violation(Stage.INPUT_CHECK, code, null, null, key, message(code, key)));
+                out.add(new Violation(Stage.INPUT_CHECK, code, null, null, key, message(code, key), List.of()));
             }
         });
         return out;

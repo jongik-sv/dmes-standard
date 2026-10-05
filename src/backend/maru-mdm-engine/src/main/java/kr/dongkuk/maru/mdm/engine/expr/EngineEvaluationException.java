@@ -46,12 +46,18 @@ public class EngineEvaluationException extends RuntimeException {
          * 디버거에서 고친 값(4단계 spec §2.2)의 자리가 실행 순서와 어긋났거나(그 순번 노드 ID 가 다르다), 실행이 오류 없이 끝났는데 쓰이지 않은
          * 고친 값이 남았다. 단계는 늘 {@link Stage#INPUT_CHECK} 이다.
          */
-        EDIT_POINT_MISMATCH
+        EDIT_POINT_MISMATCH,
+        /** 세트 호출 경로에 같은 세트가 다시 나왔다(하위 세트 spec §3.3). 저장 검사 CALL_CYCLE 이 먼저 막는다. 단계는 늘 {@link Stage#SET_CHECK}. */
+        SET_CALL_CYCLE,
+        /** 최상위 세트에서 하위로 들어가는 단계가 5 를 넘었다(하위 세트 spec §3.3). 단계는 늘 {@link Stage#SET_CHECK}. */
+        SET_CALL_DEPTH
     }
 
     /**
-     * @param name 변수 이름(키 없음·NULL·타입 변환) 또는 함수 이름(평가 오류)
+     * @param name    변수 이름(키 없음·NULL·타입 변환) 또는 함수 이름(평가 오류). 세트 호출 오류는 부르는 세트 ID
+     * @param setPath 최상위 세트에서 이 위반이 난 세트까지 거친 SET 노드 ID(바깥부터). 이 세트에서 났으면 빈 목록(하위 세트 spec §4.1)
      */
     public record Violation(
-            Stage stage, Code code, @Nullable String ruleId, @Nullable Integer rowId, @Nullable String name, String message) {}
+            Stage stage, Code code, @Nullable String ruleId, @Nullable Integer rowId, @Nullable String name, String message,
+            List<String> setPath) {}
 }

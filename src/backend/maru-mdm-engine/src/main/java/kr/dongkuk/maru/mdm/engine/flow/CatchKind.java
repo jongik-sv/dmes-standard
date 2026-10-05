@@ -13,7 +13,9 @@ public enum CatchKind {
     NO_RESULT(List.of()),
     INPUT_ERROR(List.of("MISSING_KEY", "REQUIRED_NULL", "TYPE_CONVERSION")),
     EVAL_ERROR(List.of("EVALUATION_ERROR")),
-    HIT_CONFLICT(List.of("UNIQUE_MULTIPLE_HITS", "ANY_CONFLICT"));
+    HIT_CONFLICT(List.of("UNIQUE_MULTIPLE_HITS", "ANY_CONFLICT")),
+    /** 하위 세트가 자기 받는 노드의 처리 갈래로 END 에 닿았다(하위 세트 spec §4.2). SET 노드에 붙은 받는 노드만 고른다. 오류 코드와 짝이 없다. */
+    SUBSET_ENDED(List.of());
 
     /** 결과 없음일 때 CATCH_CODE 값. */
     public static final String NO_RESULT_CODE = "NO_RESULT";

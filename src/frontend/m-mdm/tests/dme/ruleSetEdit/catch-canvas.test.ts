@@ -90,7 +90,7 @@ describe("받는 노드 캔버스 규칙(받는 노드 spec §8)", () => {
   });
 
   it("종류 이름은 결과 없음·입력 오류·계산 오류·판정 충돌이다", () => {
-    expect(CATCH_KIND_LABEL).toEqual({ NO_RESULT: "결과 없음", INPUT_ERROR: "입력 오류", EVAL_ERROR: "계산 오류", HIT_CONFLICT: "판정 충돌" });
+    expect(CATCH_KIND_LABEL).toEqual({ NO_RESULT: "결과 없음", INPUT_ERROR: "입력 오류", EVAL_ERROR: "계산 오류", HIT_CONFLICT: "판정 충돌", SUBSET_ENDED: "하위 세트 예외 끝" });
   });
 });
 describe("받는 노드 캔버스 그리기", () => {

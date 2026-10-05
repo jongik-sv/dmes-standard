@@ -133,13 +133,13 @@ public final class DefaultDomainValidator implements DomainValidator {
             return r.getBooleanValue();
         }
         throw new EngineEvaluationException(List.of(new Violation(Stage.RESULT_EVAL, Code.EVALUATION_ERROR, null, null,
-                null, "검증식 결과가 불린이 아니다: " + text + " = " + r.getValue())));
+                null, "검증식 결과가 불린이 아니다: " + text + " = " + r.getValue(), List.of())));
     }
 
     /** 식 하나의 실패를 판정 오류로 옮긴다. stage 는 RESULT_EVAL(클래스 주석). */
     private static EngineEvaluationException judgmentError(ExpressionFailure f) {
         return new EngineEvaluationException(List.of(
-                new Violation(Stage.RESULT_EVAL, f.code(), null, null, f.name(), f.getMessage())));
+                new Violation(Stage.RESULT_EVAL, f.code(), null, null, f.name(), f.getMessage(), List.of())));
     }
 
     private static ValidationResult fail(Object value, Step step, String message) {
