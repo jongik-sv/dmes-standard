@@ -8,13 +8,42 @@
 ## 지금 상태·다음 단계
 - srv:3 dev 머지 끝(2b638315, 머지 뒤 :api 마이그레이션 시험 15클래스 88건 통과).
 - srv:5 구현·코퍼스 끝(b89509f3·80d0a74b, 아래 「srv:5」). ui:5t 가 이 브랜치를 합쳐 TS 초록을 알리면 머지 요청한다(짝 머지).
-- 다음: srv:6(srv:3·srv:5·eng:4 뒤).
+- srv:6 묶음 A 끝(아래 「srv:6」). 다음: 묶음 B(확정 검사 연결)·C(편집 서비스) — A 의 상수·읽기기를 읽기만 한다. ui 에 코퍼스 111건(`MIN_CASES` 111)을 알린다.
 - srv:5 리뷰(opus/high 1회) clean, 낮음 3건은 srv:6 으로 넘긴다:
   1. `RuleSetPathState.before` 3인자는 SET always 출력만 defined 로 센다. always=false 출력을 maybe 에 넣는 분석기와 갈린다. srv:6 이 `RuleSetOrderCheck` 에 연결할 때 partial 출력도 받게 넓히고 사례를 더한다(예: SET G(P always=false) → IF [R1 이 P 만듦][R2 가 P 읽음]).
   2. 코퍼스 보강: setId `""` SET 노드 + 받는 노드, PARALLEL 형제 SET 출력 읽기(PAR_SIBLING), SET 이 낀 CYCLE 문구, `RuleSetInterfaceTest` 구조 오류 흐름. 더하면 Java·TS `MIN_CASES` 를 함께 올리고 ui 에 알린다.
   3. 편차 13 의 네 코드 모음 상수와 확정·되살리기 검사 연결(그 전까지 WARN 인 CALL_MISSING 은 확정을 막지 않는다 — srv:5 전보다 나빠진 것은 아니다).
 - 메모: dev c12e99a4 의 m-mdm `tests/ui-meta-lock.test.ts` 1건 실패는 기존 실패이고 dev 14ec1124 에서 고쳐졌다. 머지 요청 전에 dev 를 합친다.
 - 메모: eng:1 이 `RuleSetRunner` 의 `new Violation(…FLOW_INVALID…)` 에 `List.of()` 인자를 더한다. srv:6 은 그 뒤 모양을 기준으로 고친다.
+
+## srv:6. 서비스·연쇄 재검사 (진행 중)
+- 기준선: srv:5 기록의 `:lib:test` 2027건 통과(HEAD 10fb5284 는 그 뒤 문서 커밋뿐이라 다시 돌리지 않았다).
+- 조정 세션이 준 판단 ①~⑤(srv6-adapt 메모)를 따른다. 묶음 A → (B ∥ C) → D.
+
+### 묶음 A — 그래프·읽기기·공용 상수 (끝)
+- 커밋:
+  - 47b40551 `RuleSetCallGraph`(MAX_DEPTH=5, Ruling 10 문구, 늘 REJECT)·`RuleSetCheck.CALL_CODES`·`CALLER_WARN`·`asWarn()`·`asReject()`·`RuleSaveIssueCode.SET_CALLER_BROKEN`, 시험 `RuleSetCallGraphTest` 7건.
+  - 77a22ab1 `RuleSetPathState.before` 3인자를 `Function<String, SetOut>`(`SetOut(always, partial)`, `SetOut.of(SetCallIo)`)로 넓힘(srv:5 넘김 1). 분석기는 같은 도우미 `RuleSetPathState.define` 을 쓸 뿐 동작은 그대로. `RuleSetPathStateTest` +4.
+  - 31a94a1e `SetCallIoReader`(read·callsOf·of·callers·edges, 모두 `at`)·`Snapshot`·`SetCallerRecheck.recheck(setId, newIo, at)`·`RuleIoReader.draft`, `DmeTestSupport` 흐름 도우미(`ruleNode`·`setNode`·`line`), 시험 `SetCallIoReaderSqliteTest` 12건·`SetCallerRecheckSqliteTest` 6건·`RuleIoReaderTest` +1.
+  - ef8c9088 코퍼스 108 → 111건(srv:5 넘김 2)·Java/TS `MIN_CASES` 111·`RuleSetInterfaceTest` 구조 오류 흐름 +1.
+- 시험(src/backend/mdm, JDK 21, `--max-workers=2`):
+  - `../gradlew :lib:test` → 2045건 통과, 실패 0(2027 + 그래프 7 + 경로 상태 4 + 코퍼스 3사례×2 + 겉모양 1).
+  - `../gradlew :api:test --tests '*RuleLedgerChecksTest' --tests '*RuleSetEdit*' --tests '*RuleSetConfirm*' --tests '*SetCallIoReaderSqliteTest' --tests '*SetCallerRecheckSqliteTest' --tests '*RuleIoReaderTest' --tests '*RuleSetVersion*'` → 13클래스 146건 통과, 실패 0.
+  - TS 러너는 돌리지 않았다(ui:5t 몫 — 새 사례 3건이 TS 분석기와 같은지 ui 가 확인한다).
+- 결정:
+  - `SetCallIoReader` 는 시계를 갖지 않고 모든 질의가 `at` 을 받는다. 겉모양 = `at` 에 적용 중인 RELEASED(`currentReleased`) 의 흐름·`readAt(at)` 룰·손주(재귀), 상태 = `effectiveStatus(parent, vers, at)`. DRAFT 만·적용 전·부모 없음 = `SetCallIo.missing`. 흐름이 깨진 버전 = 입출력이 빈 겉모양(exists=true).
+  - 부르는 쪽(`callers`·`edges`) = 저장 상태가 DEPRECATED 가 아닌 부모(CREATED 포함)의 `releasedValidFrom(vers, at)` 행 중 CALL_SET_IDS 에 든 것. `callers` 는 `Caller(parent, ver)` 로 세트 ID 순·VER 오름차순. `edges` 는 행들의 합집합, 부르는 것이 없는 세트는 키에서 뺀다.
+  - 원장 읽기는 `Snapshot` 하나가 `allSets()` + `versionsOf(전부)` 두 문장으로 하고 룰 타입 해석 범위 하나를 같이 쓴다. 빈 입력의 `read`·SET 없는 `callsOf` 는 원장을 읽지 않는다(C 의 `RuleSetEditQueryCountTest` 가드용).
+  - 연쇄 재검사 문구 머리: 부모의 부르는 행이 하나면 `"세트 P: "`, 여럿(지금 + 미래 RELEASED)이면 `"세트 P v1.001: "`. 같은 문구는 한 번. 부모 흐름에 새로 생긴 `CALL_CODES` 는 WARN 이어도 거부(CALLER_BROKEN)로 센다(조정 ②와 같은 기준).
+  - 위로 이어 갈 부모 겉모양은 `at` 에 적용 중인 행의 것(조부모의 `read(at)` 이 보는 것), 없으면 첫 행. 바뀐 세트 자신이 자기를 부르는 행은 건너뛴다(순환은 그래프 검사 몫).
+  - `RuleSetCheck.asWarn()`·`asReject()` 는 위치(nodeId·edgeId)를 지킨 사본. B 의 확정·C 의 되살리기는 `asReject`, C 의 DRAFT 저장은 `asWarn` 을 쓴다.
+  - 코퍼스 새 사례 셋(ui 가 TS 로 맞출 것): ① 세트 ID `""` SET + 받는 노드(SUBSET_ENDED·NO_RESULT) — CALL_MISSING(s1) 뒤 NO_RESULT FLOW_CATCH 만, SUBSET_ENDED 는 판정 없음, 처리 갈래가 END 로 끝나 정상 갈래 룰은 블록 뒤라 ids 가 `[R_H, R_A]`. ② PARALLEL 형제의 SET 출력·룰 결과 서로 읽기 → PAR_SIBLING 둘(SET 쪽 문구 "세트 SP가 병렬 형제 갈래의 R_USE가 만드는 Q를 읽는다…"). ③ SET → 룰 순환 → CYCLE "세트 SP와 R_B가 서로의 결과 변수를 읽는다(순환)…".
+- 계획 조정(본문과 다르게 한 것):
+  - 본문 `read(Collection)`·`callsOf(flow)`·`of(…)`·`callers(setId): List<MdmRuleSet>`·`inuseEdges()`·`flowOf(MdmRuleSet)` → 모두 `at` 인자, `callers` 는 `List<Caller>`, `inuseEdges` → `edges(at)`(Ruling 25 — INUSE 부모 행이 아니라 폐기 안 한 부모의 `at` 이후 유효한 RELEASED VER 행), `flowOf` 는 두지 않고 `RuleSetVersionQueries.flow(ver)` 를 쓴다. 생성자는 `(RuleQueries, RuleSetVersionQueries, RuleIoReader)`.
+  - 본문 `recheck(setId, newIo)` → `recheck(setId, newIo, at)`. 부모 룰은 최신 RELEASED(`read`)가 아니라 `readAt(at)`(스펙 §6.4).
+  - 본문 `RuleIoReader.compute` 분리(`fromVars`) 대신 private `collect` 가 행 CELLS 문자열 목록을 받게 하고 `draft(rule, BigDecimal ver, hitPolicy, vars, List<StoredRow>, scope)` 가 `collect` → `compute` 를 부른다.
+  - `RuleSetPathState.before` 3인자의 setProduces 형을 `Function<String, Set<String>>` → `Function<String, SetOut>` 로 바꿨다(호출자는 시험뿐이었다).
+  - `RuleSetCallerCheck`·`RuleSetCallIoResult`·`RuleSetOrderCheck` 연결은 B·C 로 둔다.
 
 ## srv:5. 서버 분석기·코퍼스 (구현 끝 — ui:5t 짝 머지 대기)
 - 커밋: b89509f3(분석기 `SetCallIo`·`RuleSetInterface`·`RuleSetAnalyzer`·`RuleSetPathState`·`RuleSetCheck` 상수 넷, 시험 `RuleSetInterfaceTest`·`RuleSetPathStateTest` 3건), 80d0a74b(코퍼스 18건·`RuleSetCorpusTest` calls 읽기·단계 순서 단언, TS `MIN_CASES` 한 줄).
