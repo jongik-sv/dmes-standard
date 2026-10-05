@@ -4,6 +4,9 @@ import { useEffect, type RefObject } from "react";
 import type { AgGridReact } from "ag-grid-react";
 
 /**
+ * ★현재 AgDataGrid 는 이 훅을 쓰지 않는다(2026-10-05 회귀로 뺌): 마우스를 옮길 때마다 popupParent 를 바꾸면 ag-grid 툴팁 상태(표시 타이머·현재 툴팁 숨김)가 끊겨
+ * 앞 칸의 툴팁이 남거나 한 칸씩 밀려 뜨고 일부 칸은 툴팁이 없었다. 잘림은 다른 방법으로 다시 푼다(조정 세션 tts-5). 아래는 빼기 전의 설계 설명이다.
+ *
  * 그리드 툴팁(머리글·셀 값·MDM 카드·검증 오류)을 그리드 밖(`document.body`)에 띄우는 훅 (2026-10-05).
  *
  * ag-grid 는 팝업을 그리드 안(`popupParent` 기본값)에 붙이고 위치를 그 안으로 맞춘다. 그리드(`.cm-data-grid`·`.grid-panel`)는 성능 때문에
