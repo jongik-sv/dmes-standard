@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fetchRuleCalcIo, RULE_CALC_IO_URL, RULE_CALC_RUN_URL, runRuleCalc, unwrapRuleCalc } from "./api";
+import { fetchRuleCalcIo, RULE_CALC_EXECUTE_URL, RULE_CALC_VIEW_URL, runRuleCalc, unwrapRuleCalc } from "./api";
 
 describe("unwrapRuleCalc", () => {
   it("meta.success=false 면 서버 메시지로 거절한다", () => {
@@ -18,9 +18,9 @@ describe("unwrapRuleCalc", () => {
 });
 
 describe("호출 경로", () => {
-  it("MDM 서비스 ruleCalc 의 io·run", () => {
-    expect(RULE_CALC_IO_URL).toBe("/api/mdm/oasis/ruleCalc/io");
-    expect(RULE_CALC_RUN_URL).toBe("/api/mdm/oasis/ruleCalc/run");
+  it("MDM 서비스 ruleCalc 의 view·execute", () => {
+    expect(RULE_CALC_VIEW_URL).toBe("/api/mdm/oasis/ruleCalc/view");
+    expect(RULE_CALC_EXECUTE_URL).toBe("/api/mdm/oasis/ruleCalc/execute");
   });
 });
 
