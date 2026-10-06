@@ -2,6 +2,10 @@
 # 사용법: console-poll.sh start | stop | status | --once [--dry-run] | run
 #         console-poll.sh handle-record team --agent <신원>/<host>/lead --repo <MAIN> [--slots n] [--busy n] [--until-label 글] [--project id]
 #         console-poll.sh handle-clear team --repo <MAIN>
+#         console-poll.sh input-handled (--lane <레인> | --lead <세션8>) --by <coordinator|auto> [--expect-full <창 지문>]
+#         console-poll.sh judge-sha --lane <레인>   `JUDGE <h> <kind> <창 지문>` · `NONE <h>` · `STALE <h>` · `NOFP <h>`(창 머리를 못 찾아
+#                                                  지문 없음 — 직접 답하지 않는다)(조정자가 판단 올리기 전에 기억했다가
+#                                                  term-send-safe.sh --raw --lane <레인> --expect-sha <지문> 으로 답한다)
 #   오피스 콘솔 폴러(정본: ../references/contract.md §4.1, 서버 쪽 dflow-work/references/api-contract.md §2.12). LLM 을 부르지 않는다.
 #   PC 하나 × 신원 하나당 하나. 잠금 $DFLOW_CONSOLE_DIR/poller-<신원>.lock/(pid·pstart·since·cycle), 로그 poller-<신원>.log.
 #   start   잠금을 잡고 백그라운드 루프(run)를 띄운다 · `CONSOLE_POLLER started pid=<pid>` · 이미 돌면 `CONSOLE_POLLER running pid=<pid>`
@@ -12,16 +16,27 @@
 #           하려던 일을 stderr 에 `DRY` 로 찍는다(claim 하고 ack 하지 않으면 프롬프트가 unknown 으로 버려지므로 poll 도 하지 않는다)
 #   run     루프(내부용). 한 주기(COORD_CONSOLE_CYCLE_S, 기본 30초 — 루프는 직렬이라 주기가 겹치지 않는다):
 #           ① 생존 감시 office.sh reap(늘) ② 프롬프트 전달 ③ 화면 올리기(②③ 은 서버가 console 을 알 때만 — console-poll 이 exit 7 이면 10분 쉼)
-#           ② 는 `console-poll --limit 1` 로 한 건씩 집어 전달·ack 를 끝낸 뒤 다음 건을 집는다(빈 응답까지, 한 주기 최대 20건).
+#           ② 는 `console-poll --accepts keys --limit 1` 로 한 건씩 집어 전달·ack 를 끝낸 뒤 다음 건을 집는다(빈 응답까지, 한 주기 최대 20건).
+#             키 입력 답하기는 기본 꺼짐: 꺼져 있으면 --accepts keys 를 보내지 않고, 그래도 받은 키 행은 키를 보내지 않고 refused·reason error·detail keys_disabled 로 ack 한다(서버 reason 목록에 새 값을 더하지 않는다).
+#             키 행(kind:'keys')은 켰을 때 검증(대상·만료·허용 키·화면 재판정·소비·레인 잠금·보내기 직전 재확인) 뒤 term_send_keys 한 번으로 넣는다(§4.1 「키 입력 답하기」).
 #             compacting 의 retry ack 는 그 주기의 poll 이 끝난 뒤 보낸다(retry 행이 바로 다시 나와 맴돌지 않게). 다만 claim(poll 직전) 뒤
 #             120초 ack 창 − 한 건 최대 처리 시간(보내기 60초 + ack 재시도 40초) = 20초가 지나면 다음 poll 전에 먼저 보낸다. 그렇게 돌려보낸
 #             행이 같은 주기에 다시 나오면 보내지 않고 새 토큰으로 다시 붙잡는다(한 주기에 같은 id 를 두 번 넣지 않는다).
-#             poll 이 exit 5 + forbidden_role(프로젝트 한정 PAT)이면 그 프로세스 동안 poll·ack 만 끈다(reap·화면은 계속)
+#             poll 이 exit 5 + forbidden_role(프로젝트 한정 PAT)이면 COORD_CONSOLE_OFF_RETRY_S(기본 30분) 동안 poll·ack 만 끈다(reap·화면은 계속), 지나면 한 번 다시 시도
 #           ③ 화면은 `term_read_screen <h> 41`(가림 라이브러리가 맨 앞 줄을 줄 이음 판정에만 쓰고 마지막 40줄을 낸다).
 #             captured_at 은 UTC(…Z). 한 요청에 같은 대상을 두 번 넣지 않고, 올리기 실패면 sha 기록을 그대로 둬 다음 주기에 다시 보낸다
+#             같은 화면으로 입력 요청(확인·선택·질문 창)을 판정해 $DFLOW_CONSOLE_DIR/input/<kind>_<ref>.json 을 만들고·고치고·지운다
+#             (coord_lane·coord_lead·team_lead, §4.1 「입력 요청 감지」). 바뀐 대상은 ④ 에서 알린다
+#           ④ 입력 요청 알림: coord_lane → `COORD_RUN=<회차> office.sh lane-state <레인> auto`, coord_lead → `office.sh lead-sync`,
+#             team_lead → 폴러가 직접 `dflow.sh watch … --until "답 대기"`(창이 사라지면 기록의 until_label 로 되돌림)
+#   input-handled  조정자·auto-answer 가 창에 답한 뒤 부른다: 기록의 handled 를 {by,at} 로 바꾸고 (since, sha)·(since, full) 을 소비 목록에
+#           넣은 뒤 office.sh 를 부른다 · `OK` · 기록이 없으면 `NONE` · --expect-full <지문> 을 주었는데 기록의 full 이 다르면(기록이 이미
+#           다음 창) 아무것도 하지 않고 `NONE prompt-changed`
 #           시간 상한: 프롬프트 전달 구간을 뺀 나머지(생존 감시·터미널 목록·화면 읽기·화면 올리기)는 구간마다
 #             COORD_CONSOLE_PHASE_MAX_S(기본 10초)와 주기 몫 COORD_CONSOLE_CYCLE_MAX_S(기본 25초)의 남은 시간 중 작은 값 안에 끝낸다.
 #             넘으면 그 구간을 버리고(자손까지 죽임) 로그에 경고 한 줄을 남긴다. orca·lead-state·dflow.sh 호출은 모두 시간 제한 안에서 돈다.
+#             ④ 입력 요청 알림은 office.sh 한 번이 20초(watch 3번 × 5초 + 여유)까지 걸리므로 주기 몫과 따로 COORD_CONSOLE_NOTIFY_MAX_S
+#             (기본 45초) 안에 돈다. 끊긴 office.sh 의 잠금은 office.sh trap·coord_lock 탈취가 푼다.
 #           매 주기 office.enabled 를 다시 읽어 false 면 스스로 끝낸다.
 #           이 신원·host 의 살아 있는 조정 세션 기록(pid>0)·살아 있음이 확인된 열린 회차·살아 있는 팀장 핸들 기록이 없는 주기가
 #           두 번 이어지면 잠금을 풀고 끝낸다(pid 0·빈 값인 기록·회차는 할 일로 세지 않는다 — 대상 해석에서는 센다).
@@ -33,10 +48,12 @@
 #   잠금: 폴더 안에 pid·pstart·since·cycle·tmpd(루프의 임시 폴더). stop 은 TERM 뒤 기다려도 안 끝나면 자손까지 KILL 하고
 #         tmpd 를 대신 지운다. 신원을 못 구하면(설정이 꺼진 뒤 등) $DFLOW_CONSOLE_DIR/poller-*.lock 을 훑어 처리한다.
 #   환경: DFLOW_CONSOLE_DIR(기본 ~/.dflow/console) · COORD_STATE_ROOT · COORD_CONSOLE_CYCLE_S · COORD_CONSOLE_CYCLE_MAX_S ·
-#         COORD_CONSOLE_PHASE_MAX_S · COORD_DRY
+#         COORD_CONSOLE_PHASE_MAX_S · COORD_DRY ·
+#         COORD_CONSOLE_KEYS_ENABLED=1(웹 키 입력 답하기 켬 — 설정 console.keys_enabled 와 같다, 기본 꺼짐)
 #         시험용: COORD_TERM_SEND_SAFE(term-send-safe.sh 경로) · COORD_LEAD_STATE(lead-state.sh 경로) · CONSOLE_POLL_IDENT(신원) ·
 #         COORD_CONSOLE_HELD_MAX_S(retry 를 먼저 보내는 나이, 기본 20) · COORD_CONSOLE_STOP_WAIT_S(stop 이 TERM 뒤 기다리는 초, 기본 10) ·
-#         COORD_CONSOLE_LS_TIMEOUT_S(lead-state 상한, 기본 5)
+#         COORD_CONSOLE_LS_TIMEOUT_S(lead-state 상한, 기본 5) · COORD_OFFICE_SH(office.sh 경로) ·
+#         COORD_CONSOLE_LANE_LOCK_WAIT_S(레인 잠금 대기, 기본 10) · COORD_CONSOLE_SENT_GRACE_S(보낸 직후 같은 창을 다시 세지 않는 초, 기본 10)
 #   비밀: 프롬프트 본문·claim_token·화면 원문·dflow.sh 오류 본문은 로그·stderr 에 남기지 않는다(시각·대상·결과·사유만).
 set -uo pipefail
 . "$(dirname "$0")/lib/common.sh"
@@ -51,15 +68,24 @@ if [ -f "$COORD_LIB_DIR/console-redact.sh" ] && . "$COORD_LIB_DIR/console-redact
   REDACT_OK=1
   for _fn in console_screen_filter console_screen_sha console_clean_prompt; do declare -F "$_fn" >/dev/null || REDACT_OK=0; done
 fi
+# 입력 요청·키 입력(contract §4.1). 가림 라이브러리와 함께 있어야 한다(없으면 감지하지 않고 키 행은 refused error).
+INPUT_OK=0
+if [ "$REDACT_OK" = 1 ] && [ -f "$COORD_LIB_DIR/console-input.sh" ] && . "$COORD_LIB_DIR/console-input.sh" 2>/dev/null; then
+  INPUT_OK=1
+  for _fn in console_input_snapshot console_full_sha console_lane_lock console_consumed_add console_input_write console_input_mark_handled term_send_keys; do declare -F "$_fn" >/dev/null || INPUT_OK=0; done
+fi
 
-usage() { coord_log "사용법: console-poll.sh start|stop|status|--once [--dry-run]|run|handle-record team …|handle-clear team --repo <MAIN>"; exit 2; }
+usage() { coord_log "사용법: console-poll.sh start|stop|status|--once [--dry-run]|run|handle-record team …|handle-clear team --repo <MAIN>|input-handled (--lane L|--lead S8) --by coordinator|auto [--expect-full F]|judge-sha --lane L"; exit 2; }
 
 CD="$(console_dir)"
 CYCLE="${COORD_CONSOLE_CYCLE_S:-30}"
 case "$CYCLE" in ''|*[!0-9]*|0) CYCLE=30 ;; esac
 TSS="${COORD_TERM_SEND_SAFE:-$COORD_SCRIPTS_DIR/term-send-safe.sh}"
-OFFICE="$COORD_SCRIPTS_DIR/office.sh"
+OFFICE="${COORD_OFFICE_SH:-$COORD_SCRIPTS_DIR/office.sh}"
 DFL_TIMEOUT="${COORD_CONSOLE_DFLOW_TIMEOUT_S:-10}"
+OFFICE_TIMEOUT=20           # office.sh 한 번(최악: watch 3번 × 5초 + 여유). 끊겨도 office.sh 가 쥔 잠금은 trap·탈취로 풀린다
+LEAD_WATCH_TIMEOUT=5        # /dflow-team 팀장 watch 한 번
+KEYS_SEND_TIMEOUT=15        # 키 한 묶음 보내기
 ME_TIMEOUT=5
 SEND_TIMEOUT=60
 MAX_PER_CYCLE=20
@@ -69,6 +95,7 @@ ACK_WINDOW_S=120            # 서버 ack 창(claimed_at + 120초, api-contract �
 ACK_MAX_S=40                # ack 한 건 최대(DFL_TIMEOUT 10초 × 4번)
 posint() { case "${1:-}" in ''|*[!0-9]*) echo "$2" ;; *) [ "$1" -gt 0 ] && echo "$1" || echo "$2" ;; esac; }
 CYCLE_MAX="$(posint "${COORD_CONSOLE_CYCLE_MAX_S:-}" 25)"     # 한 주기 몫(프롬프트 전달 구간 제외)
+NOTIFY_MAX="$(posint "${COORD_CONSOLE_NOTIFY_MAX_S:-}" 45)"   # 「입력 요청 알림」 구간(주기 몫·구간 상한 밖, office.sh 한 번 20초)
 PHASE_MAX="$(posint "${COORD_CONSOLE_PHASE_MAX_S:-}" 10)"     # 생존 감시·화면 읽기·화면 올리기 구간마다
 LIST_MAX=5                                                     # 터미널 목록 구간
 SCREEN_READ_MAX=5                                              # 화면 하나 읽기
@@ -78,7 +105,8 @@ STOP_WAIT_S="$(posint "${COORD_CONSOLE_STOP_WAIT_S:-}" 10)"
 FLUSH_EXIT_MAX_S=4          # 멈출 때 retry ack 전체 상한(한 번에 3초)
 DRY="${COORD_DRY:-0}"
 LOG=""; LK=""; IDENT=""; HOST=""; SKIP=""; HELD=""; DFLOW=""; REPO=""
-SKIP_IDS=" "; OLD_UNTIL=0; SLEEP_PID=""; CONSOLE_OFF=0; RETRIED_IDS=" "
+SKIP_IDS=" "; OLD_UNTIL=0; SLEEP_PID=""; CONSOLE_OFF=0; CONSOLE_OFF_WARNED=0; RETRIED_IDS=" "
+OFF_RETRY_S="${COORD_CONSOLE_OFF_RETRY_S:-1800}"; case "$OFF_RETRY_S" in ''|*[!0-9]*|0) OFF_RETRY_S=1800 ;; esac
 CYC_T0=0; DELIV_S=0
 
 TMPD="$(mktemp -d "${TMPDIR:-/tmp}/coord-console.XXXXXX" 2>/dev/null)" || exit 0
@@ -271,17 +299,175 @@ ack() {  # ack <id> <claim_token> <result> <reason|-> <detail|-> <대상 설명>
     esac
   done
 }
+# ---- ②' 키 입력 답하기(contract §4.1 「키 입력 답하기」) ----------------------------------------
+# 키 목록: 배열·1~4개·모두 문자열이고, 앞자리는 Up·Down 만, 마지막 자리는 Up|Down|Tab|1~9|Enter|Esc 하나(보안 재리뷰 (d')).
+# 원소마다 \A…\z 로 검사한다(합친 글을 정규식으로 보면 ["Down,Enter"]·"Down\nEnter" 가 빠져나간다). 통과하면 공백으로 이은 이름들.
+KEYS_JQ='.keys as $k
+  | if ($k | type) == "array" and ($k | length) >= 1 and ($k | length) <= 4 and ($k | all(type == "string"))
+       and ($k[:-1] | all(test("\\A(?:Up|Down)\\z")))
+       and ($k[-1] | test("\\A(?:Up|Down|Tab|[1-9]|Enter|Esc)\\z"))
+    then $k | join(" ") else "" end'
+# 웹 키 입력 답하기 켜짐 여부 — 기본 꺼짐. 환경변수 COORD_CONSOLE_KEYS_ENABLED=1 또는 설정 console.keys_enabled=true 일 때만 켠다.
+keys_enabled() {
+  [ "${COORD_CONSOLE_KEYS_ENABLED:-}" = 1 ] && return 0
+  [ "$(coord_cfg_json '.console.keys_enabled' 2>/dev/null)" = true ]
+}
+keys_ok() {  # 셸에서 한 번 더(위치 규칙 포함)
+  local n=$# i=0 k
+  [ "$n" -ge 1 ] && [ "$n" -le 4 ] || return 1
+  for k in "$@"; do
+    i=$((i + 1))
+    if [ "$i" -lt "$n" ]; then case "$k" in Up|Down) ;; *) return 1 ;; esac
+    else case "$k" in Up|Down|Tab|Enter|Esc|[1-9]) ;; *) return 1 ;; esac; fi
+  done
+}
+now_ms() { console_iso_to_ms "$(console_now_ms_iso)"; }
+# exp_state <만료 ms> — 0 아직 · 1 지남 · 2 지금 시각을 숫자로 못 구함(불확실하면 보내지 않는다)
+exp_state() {
+  local n; n="$(now_ms 2>/dev/null)"
+  case "$n" in ''|*[!0-9]*) return 2 ;; esac
+  [ "$n" -gt "$1" ] && return 1
+  return 0
+}
+# judge_lane <h> — 화면을 새로 읽어(41줄) 감지와 같은 함수로 판정한다. rc 0 창 있음(CI_KIND·CI_SHA·CI_FULL — 지문이 없으면 CI_FULL 빈 값)
+#   · 1 창 없음 · 2 가림 실패 · 3 stale · 4 읽기 실패
+judge_lane() {
+  local rc
+  run_limited "$SCREEN_READ_MAX" "$TMPD/kscr" /dev/null /dev/null term_read_screen "$1" 41; rc=$?
+  if [ "$rc" != 0 ]; then rm -f "$TMPD/kscr"; [ "$rc" = 3 ] && return 3; return 4; fi
+  console_input_snapshot "$TMPD/kscr"; rc=$?
+  rm -f "$TMPD/kscr"
+  return "$rc"
+}
+# keys_judge_ok <h> <요청 kind> <요청 sha> <요청 since ms> <기록 이름> — 재판정. 같으면 0, 아니면 KJ_WHY 에 ack 사유
+#   기록의 since 와 full(창 지문 — 발췌에 안 든 창 앞부분·가린 자리까지)도 지금 화면과 같아야 한다. 지문이 없으면(창 머리를 못 찾음)
+#   보내지 않는다(prompt_changed). 소비는 (since, 발췌 sha) 와 (since, full) 둘 다 본다.
+keys_judge_ok() {
+  local rs rr rc rf
+  rs="$(jq -r '.since // empty | tostring' "$(console_input_file "$5")" 2>/dev/null)"
+  rf="$(jq -r '.full // empty | tostring' "$(console_input_file "$5")" 2>/dev/null)"
+  rr="$(console_iso_to_ms "$rs" 2>/dev/null)"
+  if [ -z "$rr" ] || [ "$rr" != "$4" ]; then KJ_WHY=prompt_changed; KJ_LOG="기록 since 다름·없음"; return 1; fi
+  judge_lane "$1"; rc=$?
+  case "$rc" in
+    0) ;;
+    1) KJ_WHY=prompt_changed; KJ_LOG="창 없음"; return 1 ;;
+    3) KJ_WHY=stale; KJ_LOG="화면 읽기 stale"; return 1 ;;
+    *) KJ_WHY=error; KJ_LOG="화면 읽기·가림 실패 rc=$rc"; return 1 ;;
+  esac
+  if [ "$CI_KIND" != "$2" ] || [ "$CI_SHA" != "$3" ]; then KJ_WHY=prompt_changed; KJ_LOG="kind·발췌 다름"; return 1; fi
+  if [ -z "$CI_FULL" ]; then KJ_WHY=prompt_changed; KJ_LOG="창 머리를 찾지 못해 지문 없음"; return 1; fi
+  if [ -z "$rf" ] || [ "$rf" != "$CI_FULL" ]; then KJ_WHY=prompt_changed; KJ_LOG="창 지문(full) 다름·기록에 없음"; return 1; fi
+  if console_consumed_has "$5" "$rs" "$3" "$rf"; then KJ_WHY=prompt_changed; KJ_LOG="이미 소비된 (since, sha|full)"; return 1; fi
+  return 0
+}
+KJ_WHY=""; KJ_LOG=""
+# 보낸 뒤(또는 넣었을 수 있을 때): 소비로 기억하고, 보낸 표식을 남기고, 기록을 지운 뒤 알림 표식
+keys_consume() {  # <이름> <레인> <since> <sha> [full]
+  console_consumed_add "$1" "$3" "$4" "${5:-}"
+  console_lane_mark_sent "$2" "$4"
+  if console_input_rec_lock "$1"; then rm -f "$(console_input_file "$1")"; console_input_rec_unlock "$1"; fi
+  in_mark "$1"
+}
+handle_keys() {  # handle_keys <행 JSON> <id> <claim_token> <target_kind> <target_ref> — 행의 모든 칸을 믿지 않는다
+  local j="$1" id="$2" tok="$3" tk="$4" ref="$5" what keys ik is ish rq exp_ms h rc name trc res
+  what="keys $tk/$( console_input_ref_ok "$ref" && printf '%s' "$ref" || printf '?' )"
+  if [ "$INPUT_OK" != 1 ]; then plog "prompt id=$id $what 입력 요청 라이브러리 없음"; ack "$id" "$tok" refused error - "$what"; return 0; fi
+  # ⓑ 대상 종류·참조
+  if [ "$tk" != coord_lane ] || ! console_input_ref_ok "$ref"; then ack "$id" "$tok" refused error - "$what"; return 0; fi
+  # ⓓ 허용 키
+  keys="$(printf '%s' "$j" | jq -r "$KEYS_JQ" 2>/dev/null)"
+  # shellcheck disable=SC2086
+  if [ -z "$keys" ] || ! keys_ok $keys; then plog "prompt id=$id $what 키 형식 위반"; ack "$id" "$tok" refused error - "$what"; return 0; fi
+  ik="$(printf '%s' "$j" | jq -r '.input_request.kind // empty | tostring' 2>/dev/null)"
+  is="$(printf '%s' "$j" | jq -r '.input_request.since // empty | tostring' 2>/dev/null)"
+  ish="$(printf '%s' "$j" | jq -r '.input_request.sha // empty | tostring' 2>/dev/null)"
+  case "$ik" in permission|question|choice|usage-limit|trust|message) ;; *) plog "prompt id=$id $what input_request.kind 형식 오류"; ack "$id" "$tok" refused error - "$what"; return 0 ;; esac
+  rq="$(console_iso_to_ms "$is")"
+  if ! printf '%s' "$ish" | grep -Eqx '[0-9a-f]{64}' || [ -z "$rq" ]; then plog "prompt id=$id $what input_request 형식 오류"; ack "$id" "$tok" refused error - "$what"; return 0; fi
+  # ⓒ 만료
+  exp_ms="$(console_iso_to_ms "$(printf '%s' "$j" | jq -r '.expires_at // empty | tostring' 2>/dev/null)")"
+  [ -n "$exp_ms" ] || { plog "prompt id=$id $what expires_at 형식 오류"; ack "$id" "$tok" refused error - "$what"; return 0; }
+  exp_state "$exp_ms"
+  case "$?" in
+    1) ack "$id" "$tok" refused stale - "$what"; return 0 ;;
+    2) plog "prompt id=$id $what 지금 시각을 구하지 못함 → error"; ack "$id" "$tok" refused error - "$what"; return 0 ;;
+  esac
+  # ⓔ 대상 해석
+  h="$(console_resolve coord_lane "$ref")"; rc=$?
+  case "$rc" in
+    0) ;;
+    2) ack "$id" "$tok" refused ambiguous - "$what"; return 0 ;;
+    *) ack "$id" "$tok" refused target-not-found - "$what"; return 0 ;;
+  esac
+  in_terms "$h" || { ack "$id" "$tok" refused stale - "$what"; return 0; }
+  name="coord_lane_$ref"
+  # ⓕ 재판정(기록 since·화면 kind·발췌 sha) ⓖ 소비 확인
+  if ! keys_judge_ok "$h" "$ik" "$ish" "$rq" "$name"; then
+    plog "prompt id=$id $what 재판정 불일치($KJ_LOG) → $KJ_WHY"; ack "$id" "$tok" refused "$KJ_WHY" - "$what"; return 0
+  fi
+  # ⓗ 레인 잠금(auto-answer 와 공유)
+  if ! console_lane_lock "$ref"; then
+    plog "prompt id=$id $what 레인 잠금을 얻지 못함(다른 쪽이 답하는 중) → prompt_changed"; ack "$id" "$tok" refused prompt_changed - "$what"; return 0
+  fi
+  # ⓘ 잠금 안에서 보내기 직전 다시: 보낸 직후 표식·기록·화면·소비, 그다음(보내기 바로 앞) 만료
+  if console_lane_recent_send "$ref" "$ish"; then
+    console_lane_unlock "$ref"; plog "prompt id=$id $what 방금 다른 답이 들어감 → prompt_changed"; ack "$id" "$tok" refused prompt_changed - "$what"; return 0
+  fi
+  if ! keys_judge_ok "$h" "$ik" "$ish" "$rq" "$name"; then
+    console_lane_unlock "$ref"; plog "prompt id=$id $what 보내기 직전 불일치($KJ_LOG) → $KJ_WHY"; ack "$id" "$tok" refused "$KJ_WHY" - "$what"; return 0
+  fi
+  # 만료는 재판정(화면 읽기로 시간이 걸린다) 뒤, 보내기 바로 앞에서 본다(최종 계약 (g))
+  exp_state "$exp_ms"
+  case "$?" in
+    1) console_lane_unlock "$ref"; plog "prompt id=$id $what 재판정 뒤 만료 → stale"; ack "$id" "$tok" refused stale - "$what"; return 0 ;;
+    2) console_lane_unlock "$ref"; plog "prompt id=$id $what 지금 시각을 구하지 못함 → error"; ack "$id" "$tok" refused error - "$what"; return 0 ;;
+  esac
+  # ⓙ 보내기: 키 전체를 한 번에. 소비에 쓸 지문은 잠금 안 재판정의 것(기록의 full 과 같음을 확인했다)
+  local kfull="$CI_FULL"
+  mkdir -p "$CD/inflight" 2>/dev/null
+  printf '%s %s\n' "$(coord_now_iso)" "$what" > "$CD/inflight/$id"
+  # shellcheck disable=SC2086
+  run_limited "$KEYS_SEND_TIMEOUT" "$TMPD/keys.out" /dev/null /dev/null term_send_keys "$h" $keys; trc=$?
+  res="$(head -1 "$TMPD/keys.out" 2>/dev/null)"; rm -f "$TMPD/keys.out"
+  case "$trc:$res" in
+    0:accepted|0:submitted|0:turn_started)
+      keys_consume "$name" "$ref" "$is" "$ish" "$kfull"; console_lane_unlock "$ref"
+      ack "$id" "$tok" sent - "$res" "$what" && rm -f "$CD/inflight/$id" ;;
+    0:stale)        # 넣지 못했음이 확실하다
+      console_lane_unlock "$ref"; ack "$id" "$tok" refused stale - "$what" && rm -f "$CD/inflight/$id" ;;
+    "0:error bad-key")   # 보내기 전에 걸렀다(아무것도 넣지 않음)
+      console_lane_unlock "$ref"; ack "$id" "$tok" refused error - "$what" && rm -f "$CD/inflight/$id" ;;
+    *)              # 키를 일부 넣었을 수 있다: refused 로 ack 하지 않는다(ack 생략 → 서버가 120초 뒤 unknown). 같은 창은 소비로 기억
+      keys_consume "$name" "$ref" "$is" "$ish" "$kfull"; console_lane_unlock "$ref"
+      plog "prompt id=$id $what 보내기 결과를 알 수 없음(rc=$trc ${res%% *}) — ack 생략(unknown)" ;;
+  esac
+  return 0
+}
+
 handle_prompt() {  # handle_prompt <프롬프트 JSON 한 줄> <claim 시각(poll 직전 epoch)>
-  local j="$1" ct="$2" id kind ref tok h rc crc hdr res trc what det
+  local j="$1" ct="$2" id kind ref tok h rc crc hdr res trc what det rkind rref
   id="$(printf '%s' "$j" | jq -r '.id // empty' 2>/dev/null)"
   kind="$(printf '%s' "$j" | jq -r '.target_kind // empty' 2>/dev/null)"
   ref="$(printf '%s' "$j" | jq -r '.target_ref // empty' 2>/dev/null)"
   tok="$(printf '%s' "$j" | jq -r '.claim_token // empty' 2>/dev/null)"
+  rkind="$(printf '%s' "$j" | jq -r '.kind // empty | tostring' 2>/dev/null)"
   printf '%s' "$id" | grep -Eq '^[0-9a-fA-F-]{8,64}$' || { plog "prompt 형식 오류(id) — 건너뜀"; return 0; }
+  case "$kind" in *[!a-z_]*) kind="?" ;; esac
+  rref="$ref"
   case "$ref" in *[!A-Za-z0-9._:-]*) ref="?" ;; esac
   what="$kind/$ref"
   case "$SKIP_IDS" in *" $id "*) plog "prompt id=$id $what inflight 남음 — 다시 보내지 않음"; return 0 ;; esac
   [ -n "$tok" ] || { plog "prompt id=$id claim_token 없음 — 건너뜀"; return 0; }
+  # 키 입력 행은 따로 처리한다(text 칸은 읽지 않는다). 모르는 kind 는 글로 넣지 않고 거절한다.
+  case "$rkind" in
+    '') ;;
+    keys)
+      # 웹 키 입력은 기본 꺼짐: 꺼져 있으면 화면 재판정·term_send_keys 앞에서 바로 거절한다(키 전송 0)
+      if ! keys_enabled; then plog "prompt id=$id $what 키 입력 꺼짐(console.keys_enabled) — 거절"; ack "$id" "$tok" refused error keys_disabled "$what"; return 0; fi
+      handle_keys "$j" "$id" "$tok" "$kind" "$rref"; return 0 ;;
+    *) ack "$id" "$tok" refused error - "$what"; plog "prompt id=$id 모르는 행 종류 — 거절"; return 0 ;;
+  esac
   # 이 주기에 이미 compacting 으로 돌려보낸(retry) 행이 다시 나왔다: 다시 넣어 보지 않고 새 토큰·claim 시각으로 붙잡는다
   case "$RETRIED_IDS" in *" $id "*)
     plog "prompt id=$id $what 이 주기에 이미 retry — 다시 붙잡음"
@@ -348,8 +534,9 @@ held_old() {  # 가장 오래 붙잡은 행(claim 시각 기준)이 HELD_MAX_AGE
 phase_prompts() {
   [ "$REDACT_OK" = 1 ] || { plog "프롬프트 건너뜀: 가림·정리 라이브러리 없음"; return 0; }
   [ -n "$TL" ] || { plog "프롬프트 건너뜀: 터미널 목록을 못 읽음"; return 0; }
-  [ "$CONSOLE_OFF" = 0 ] || return 0      # 프로젝트 한정 PAT(forbidden_role) — 이 프로세스 동안 전달하지 않는다
-  if [ "$DRY" = 1 ]; then drylog "dflow.sh console-poll --host $HOST --limit 1 (claim 하지 않음)"; return 0; fi
+  # 프로젝트 한정 PAT(forbidden_role) — OFF_RETRY_S(기본 30분) 동안 전달하지 않고, 지나면 한 번 다시 시도한다(서버가 한정 PAT 의 조정 칸을 허용하게 바뀔 수 있다)
+  [ "$CONSOLE_OFF" = 0 ] || [ "$(coord_now_epoch)" -ge "$CONSOLE_OFF" ] || return 0
+  if [ "$DRY" = 1 ]; then drylog "dflow.sh console-poll --host $HOST$(keys_enabled && printf ' --accepts keys') --limit 1 (claim 하지 않음)"; return 0; fi
   : > "$TMPD/held"; RETRIED_IDS=" "
   poll_loop
   flush_held
@@ -359,15 +546,19 @@ poll_loop() {  # 한 건씩 claim → 전달 → ack 를 대기열이 빌 때까
   while [ "$i" -lt "$MAX_PER_CYCLE" ]; do
     held_old && flush_held
     ct="$(coord_now_epoch)"   # claim 시각(보수적으로 poll 직전)
-    dfl /dev/null console-poll --host "$HOST" --limit 1; rc=$?
+    if keys_enabled; then dfl /dev/null console-poll --host "$HOST" --accepts keys --limit 1; rc=$?
+    else dfl /dev/null console-poll --host "$HOST" --limit 1; rc=$?; fi   # 꺼져 있으면 accepts 를 보내지 않는다(서버가 키 행을 주지 않게)
     case "$rc" in
       0) ;;
       7) OLD_UNTIL=$(( $(coord_now_epoch) + OLD_PAUSE_S )); plog "옛 서버(console-poll rc=7) — ②③ 을 ${OLD_PAUSE_S}초 쉼"; return 0 ;;
       5) if [ "$(jq -r '.code // empty' "$TMPD/err" 2>/dev/null)" = forbidden_role ]; then
            # 프로젝트로 한정한 PAT: 콘솔 전달(poll·ack)만 끈다. 생존 감시·화면 올리기는 계속, 폴러를 다시 시작하면 다시 시도
-           CONSOLE_OFF=1
-           plog "프로젝트 한정 PAT 라 오피스 프롬프트 전달 불가. 한정 없는 PAT 필요"
-           coord_log "console-poll: 프로젝트 한정 PAT 라 오피스 프롬프트 전달 불가. 한정 없는 PAT 필요"
+           CONSOLE_OFF=$(( $(coord_now_epoch) + OFF_RETRY_S ))
+           if [ "$CONSOLE_OFF_WARNED" = 0 ]; then   # 안내는 프로세스마다 한 번만(다시 시도해도 같은 말을 되풀이하지 않는다)
+             CONSOLE_OFF_WARNED=1
+             plog "프로젝트 한정 PAT 라 오피스 프롬프트 전달 불가. 한정 없는 PAT 필요"
+             coord_log "console-poll: 프로젝트 한정 PAT 라 오피스 프롬프트 전달 불가. 한정 없는 PAT 필요"
+           fi
          else plog "console-poll 실패 rc=5 — 이번 주기 건너뜀"; fi
          return 0 ;;
       *) plog "console-poll 실패 rc=$rc — 이번 주기 건너뜀"; return 0 ;;
@@ -383,6 +574,213 @@ poll_loop() {  # 한 건씩 claim → 전달 → ack 를 대기열이 빌 때까
   plog "한 주기 상한(${MAX_PER_CYCLE}건)에 닿음 — 나머지는 다음 주기"
 }
 
+# ---- 입력 요청 감지·알림(contract §4.1 「입력 요청 감지」) -------------------------------------------
+# 기록 $CD/input/<kind>_<ref>.json = {v:1, kind, since(UTC ms ISO), excerpt[≤10], handled:null|{by,at}, full, run, handle} — 쓰는 쪽은 폴러,
+# 읽는 쪽은 office.sh. full·run·handle 은 킷 내부 칸(서버로 보내지 않는다).
+# 바뀐 대상은 $CD/input/.notify/<이름> 표식을 남기고 ④ 가 알린 뒤 지운다(시간 상한으로 못 알리면 다음 주기에 다시).
+in_mark() { [ "$DRY" = 1 ] && return 0; mkdir -p "$CD/input/.notify" 2>/dev/null; : > "$CD/input/.notify/$1"; }
+# 레인 → 그 레인이 있는 살아 있는 열린 회차(정확히 하나일 때): `<state.json>\t<run-id>`
+lane_run() {
+  local sf out="" n=0
+  while IFS=$'\t' read -r sf _; do
+    [ -n "$sf" ] || continue
+    [ "$(jq -r --arg l "$1" '.lanes[$l] // empty | select((.state // "active") != "closed") | "y"' "$sf" 2>/dev/null)" = y ] || continue
+    n=$((n + 1)); out="$sf"
+  done < <(_cr_live_runs)
+  [ "$n" = 1 ] || return 1
+  printf '%s\t%s\n' "$out" "$(basename "$(dirname "$out")")"
+}
+# 조정 세션 → 그 세션의 열린 회차 하나(이름 순 첫째)의 run-id
+lead_run() {
+  local sf s8 best=""
+  while IFS=$'\t' read -r sf s8; do
+    [ "$s8" = "$1" ] || continue
+    sf="$(basename "$(dirname "$sf")")"
+    if [ -z "$best" ] || [[ "$sf" < "$best" ]]; then best="$sf"; fi
+  done < <(_cr_live_runs)
+  [ -n "$best" ] && printf '%s\n' "$best"
+}
+# 레인 + 핸들 → 그 핸들로 그 레인을 가진 살아 있는 열린 회차의 run-id(정확히 하나일 때). 입력 요청 기록의 run 칸
+lane_run_h() {
+  local sf out="" n=0
+  [ -n "${2:-}" ] || return 1
+  while IFS=$'\t' read -r sf _; do
+    [ -n "$sf" ] || continue
+    [ "$(jq -r --arg l "$1" --arg h "$2" '.lanes[$l] // empty | select((.state // "active") != "closed" and ((.session.handle // "") | tostring) == $h) | "y"' "$sf" 2>/dev/null)" = y ] || continue
+    n=$((n + 1)); out="$sf"
+  done < <(_cr_live_runs)
+  [ "$n" = 1 ] || return 1
+  basename "$(dirname "$out")"
+}
+# 기록 JSON(stdin)이 「살아 있는」 입력 요청(handled null·usage-limit·trust 아님)이면 y
+rec_active() { jq -r 'if type == "object" and .handled == null and .kind != "usage-limit" and .kind != "trust" then "y" else "n" end' 2>/dev/null; }
+# 문장 질문(kind 'message'): 레인 state 의 .question = {at, text}. 기록 JSON(없으면 빈 출력). $2 = 지금 기록, $3 = run-id, $4 = 핸들
+message_rec() {
+  local sf q at ms since t ex
+  [ -n "${3:-}" ] || return 0
+  sf="$ROOT/$3/state.json"; [ -f "$sf" ] || return 0
+  q="$(jq -c --arg l "$1" '.lanes[$l].question // empty | objects' "$sf" 2>/dev/null)"
+  [ -n "$q" ] || return 0
+  at="$(printf '%s' "$q" | jq -r '.at // empty | tostring')"
+  ms="$(console_iso_to_ms "$at")" || return 0
+  since="$(console_ms_to_iso "$ms")" || return 0
+  # 첫 줄 → 가림 → 정리(제어 문자 삭제·200자)
+  t="$(printf '%s' "$q" | jq -r '.text // "" | tostring | split("\n")[0]')"
+  t="$(printf '%s\n' "$t" | console_redact_text 2>/dev/null)" || return 0
+  ex="$(printf '%s' "$t" | jq -Rsc '[split("\n")[0] | gsub("[\u0000-\u001f\u007f-\u009f]"; "") | sub(" +\\z"; "") | .[0:200] | sub(" +\\z"; "")] | map(select(test("\\S")))')" || return 0
+  printf '%s' "$ex" | jq -e 'length == 1' >/dev/null 2>&1 || return 0
+  jq -nc --arg s "$since" --argjson ex "$ex" --argjson cur "${2:-null}" --arg run "$3" --arg h "${4:-}" '
+    {v:1, kind:"message", since:$s, excerpt:$ex,
+     handled:(if ($cur | type) == "object" and $cur.kind == "message" and $cur.since == $s then ($cur.handled // null) else null end),
+     full:null, run:$run, handle:$h}'
+}
+# input_detect <kind> <ref> <화면 파일> <핸들> — 기록을 만들고·고치고·지운다(화면 원문·발췌는 로그에 남기지 않는다)
+#   기록에는 서버로 보내지 않는 내부 칸 full(창 지문, console_full_sha — 창 머리를 못 찾으면 null)·run(조정 레인의 회차)·
+#   handle(그 세션 핸들)도 둔다 — office.sh 는 input_request 를 {v,kind,since,excerpt,handled} 로만 추려 보내고, 자기 회차·같은
+#   핸들의 기록만 쓴다. full·handle·run 이 바뀌면 같은 kind 여도 새 창으로 본다(since 를 새로). full 이 없는(null) 창은 발췌 sha 가
+#   바뀌어도 새 창으로 본다. 창 밖 줄(상태줄·사용량 %)만 바뀐 화면은 full 이 같아 since 를 유지한다.
+input_detect() {
+  local k="$1" ref="$2" scr="$3" h="${4:-}" name f rc cur ck cs cf ch cr new had=0 now hd run="" ca na
+  console_input_ref_ok "$ref" || return 0
+  name="${k}_$ref"; f="$(console_input_file "$name")"
+  [ "$k" = coord_lane ] && run="$(lane_run_h "$ref" "$h" 2>/dev/null)"
+  console_input_snapshot "$scr"; rc=$?
+  if [ "$rc" = 2 ]; then plog "input $k/$ref 가림·해시 실패 — 기록하지 않음"; return 0; fi
+  [ "$DRY" = 1 ] && { [ "$rc" = 0 ] && drylog "input $k/$ref $CI_KIND (기록하지 않음)"; return 0; }
+  console_input_rec_lock "$name" || { plog "input $k/$ref 기록 잠금 실패 — 다음 주기"; return 0; }
+  cur="$(cat "$f" 2>/dev/null)"
+  printf '%s' "$cur" | jq -e 'type == "object"' >/dev/null 2>&1 || cur=""
+  [ -n "$cur" ] && had=1
+  ca="$(printf '%s' "${cur:-null}" | rec_active)"
+  new=""
+  if [ "$rc" = 1 ]; then
+    # 화면 창 없음: 조정 레인이면 문장 질문(state 의 .question), 아니면 기록을 지운다
+    [ "$k" = coord_lane ] && new="$(message_rec "$ref" "$cur" "$run" "$h")"
+    if [ -z "$new" ]; then
+      if [ "$had" = 1 ]; then
+        rm -f "$f"; plog "input $k/$ref 창 사라짐 — 기록 지움"
+        # team_lead 는 답 대기에서 돌아올 때만(살아 있던 기록이 사라짐) 알린다
+        if [ "$k" != team_lead ] || [ "$ca" = y ]; then in_mark "$name"; fi
+      fi
+      console_input_rec_unlock "$name"; return 0
+    fi
+  else
+    ck="$(printf '%s' "$cur" | jq -r '.kind // empty' 2>/dev/null)"
+    cs="$(printf '%s' "$cur" | jq -r '.since // empty' 2>/dev/null)"
+    cf="$(printf '%s' "$cur" | jq -r '.full // empty | tostring' 2>/dev/null)"
+    ch="$(printf '%s' "$cur" | jq -r '.handle // empty | tostring' 2>/dev/null)"
+    cr="$(printf '%s' "$cur" | jq -r '.run // empty | tostring' 2>/dev/null)"
+    if [ "$had" = 0 ] || [ "$ck" != "$CI_KIND" ] || [ "$cf" != "$CI_FULL" ] || [ "$ch" != "$h" ] || [ "$cr" != "$run" ] \
+       || { [ -z "$CI_FULL" ] && [ "$(printf '%s' "$cur" | jq -c '.excerpt // []' 2>/dev/null | console_excerpt_sha_json)" != "$CI_SHA" ]; } \
+       || console_consumed_has_since "$name" "$cs"; then
+      # 새 창(또는 소비된 창과 같은 모양이 다시 뜸·창 앞부분이 바뀜) → since 를 새로.
+      # 단 키를 막 보낸 같은 창(아직 화면에 반영 전)은 이번 주기에 세지 않는다
+      if [ "$k" = coord_lane ] && console_lane_recent_send "$ref" "$CI_SHA"; then console_input_rec_unlock "$name"; return 0; fi
+      now="$(console_now_ms_iso)"; hd=null
+      case "$CI_KIND" in usage-limit|trust) hd="$(jq -nc --arg a "$now" '{by:"auto", at:$a}')" ;; esac
+      new="$(jq -nc --arg k "$CI_KIND" --arg s "$now" --argjson ex "$CI_EXC" --argjson hd "$hd" --arg fu "$CI_FULL" --arg run "$run" --arg h "$h" \
+        '{v:1, kind:$k, since:$s, excerpt:$ex, handled:$hd, full:(if $fu == "" then null else $fu end), run:$run, handle:$h}')"
+    else
+      new="$(printf '%s' "$cur" | jq -c --argjson ex "$CI_EXC" '.excerpt = $ex')"   # 같은 창: since·handled·full 유지, 발췌만
+    fi
+  fi
+  if [ -n "$new" ] && [ "$(printf '%s' "$new" | jq -cS . 2>/dev/null)" != "$(printf '%s' "$cur" | jq -cS . 2>/dev/null)" ]; then
+    if console_input_write "$name" "$new"; then
+      plog "input $k/$ref $(printf '%s' "$new" | jq -r '.kind') $([ "$had" = 1 ] && echo 갱신 || echo 생성)"
+      # team_lead 는 답 대기 전환·복귀(살아 있는 기록 있음↔없음)만 알린다 — 자동 처리 창(usage-limit·trust)은 답 대기가 아니다
+      na="$(printf '%s' "$new" | rec_active)"
+      if [ "$k" != team_lead ] || [ "$na" != "$ca" ]; then in_mark "$name"; fi
+    fi
+  fi
+  console_input_rec_unlock "$name"
+  return 0
+}
+# 이번 주기에 해석되지 않은(사라진·터미널이 없는) 대상의 기록을 지운다. 읽기 실패한 대상은 seen 이라 그대로 둔다
+input_sweep() {
+  local f name a
+  for f in "$CD"/input/*.json; do
+    [ -f "$f" ] || continue
+    name="$(basename "$f" .json)"
+    grep -qxF -- "$name" "$TMPD/in_seen" 2>/dev/null && continue
+    [ "$DRY" = 1 ] && { drylog "input $name 대상 없음 — 기록 지움(하지 않음)"; continue; }
+    if console_input_rec_lock "$name"; then
+      a="$(rec_active < "$f")"
+      rm -f "$f"; console_input_rec_unlock "$name"; plog "input $name 대상 없음 — 기록 지움"
+      if [ "$name" != team_lead_lead ] || [ "$a" = y ]; then in_mark "$name"; fi
+    fi
+  done
+}
+office_call() {  # office_call <run-id> <office.sh 인자…> — OFFICE_TIMEOUT(20초) 제한, 실패 무시
+  local rid="$1"; shift
+  if [ "$DRY" = 1 ]; then drylog "COORD_RUN=$rid office.sh $*"; return 0; fi
+  run_limited "$OFFICE_TIMEOUT" /dev/null /dev/null /dev/null env COORD_RUN="$rid" bash "$OFFICE" "$@"
+}
+# 레인 → 그 레인(닫히지 않은)이 있는 살아 있는 열린 회차들의 run-id(줄마다). 같은 이름 레인이 두 회차에 있으면 둘 다 알린다 —
+# office.sh 가 자기 회차·핸들의 기록만 쓰므로 섞이지 않는다
+lane_runs_all() {
+  local sf
+  while IFS=$'\t' read -r sf _; do
+    [ -n "$sf" ] || continue
+    [ "$(jq -r --arg l "$1" '.lanes[$l] // empty | select((.state // "active") != "closed") | "y"' "$sf" 2>/dev/null)" = y ] || continue
+    basename "$(dirname "$sf")"
+  done < <(_cr_live_runs)
+}
+# dflow-team 팀장의 답 대기 전환·복귀(바뀔 때만 — 표식이 있을 때만 부른다)
+lead_watch() {
+  local lf a s b ul pj until rc args
+  lf="$(_cr_live_leads)"
+  [ "$(_cr_count "$lf")" = 1 ] || { plog "input team_lead 알림: 살아 있는 팀장 기록이 하나가 아님 — 건너뜀"; return 0; }
+  a="$(jq -r '.agent // empty' "$lf" 2>/dev/null)"; s="$(jq -r '.slots // empty | tostring' "$lf" 2>/dev/null)"
+  b="$(jq -r '.busy // empty | tostring' "$lf" 2>/dev/null)"; ul="$(jq -r '.until_label // empty | tostring' "$lf" 2>/dev/null)"
+  pj="$(jq -r '.project // empty | tostring' "$lf" 2>/dev/null)"
+  [ -n "$a" ] || return 0
+  # 답 대기 = 살아 있는 기록(handled null·usage-limit·trust 아님)일 때만. 자동 처리 창이면 원래 라벨
+  if [ -f "$(console_input_file team_lead_lead)" ] && [ "$(rec_active < "$(console_input_file team_lead_lead)")" = y ]; then until="답 대기"
+  else
+    until="$ul"
+    [ -n "$until" ] || { plog "input team_lead 복귀: until_label 이 비어 watch 를 보내지 않음"; return 0; }
+  fi
+  args=(watch --agent "$a")
+  case "$s" in ''|*[!0-9]*) ;; *) args+=(--slots "$s") ;; esac
+  case "$b" in ''|*[!0-9]*) ;; *) args+=(--busy "$b") ;; esac
+  args+=(--until "$until")
+  [ -n "$pj" ] && args+=(--project "$pj")
+  if [ "$DRY" = 1 ]; then drylog "dflow.sh watch (team_lead until=$until)"; return 0; fi
+  local DFL_TIMEOUT="$LEAD_WATCH_TIMEOUT"
+  dfl /dev/null "${args[@]}"; rc=$?
+  rm -f "$TMPD/out" "$TMPD/err"
+  plog "input team_lead → watch until=$([ "$until" = "답 대기" ] && echo 답대기 || echo 복귀) rc=$rc"
+  return "$rc"
+}
+# ④ 표식마다 알린다. 시간 초과(124)·네트워크(6)면 표식을 남겨 다음 주기에 다시.
+#   구간 상한(NOTIFY_MAX) 안에 office.sh 한 번(OFFICE_TIMEOUT)이 다 들어갈 수 없으면 남은 표식은 다음 주기로 미룬다(중간에 끊지 않게).
+input_notify() {
+  local m name ref rid rc t0 r1 any n=0
+  t0="$(coord_now_epoch)"
+  for m in "$CD"/input/.notify/*; do
+    [ -f "$m" ] || continue
+    if [ "$n" -gt 0 ] && [ $(( $(coord_now_epoch) - t0 + OFFICE_TIMEOUT )) -gt "$NOTIFY_MAX" ]; then plog "입력 요청 알림: 구간 상한이 모자라 남은 표식은 다음 주기에"; break; fi
+    n=$((n + 1))
+    name="$(basename "$m")"; rc=0
+    case "$name" in
+      coord_lane_*)
+        ref="${name#coord_lane_}"; any=0
+        for rid in $(lane_runs_all "$ref"); do
+          any=1; office_call "$rid" lane-state "$ref" auto; r1=$?
+          case "$r1" in 6|124) rc="$r1" ;; esac
+        done
+        [ "$any" = 1 ] || plog "input $name 알림: 회차를 못 찾아 건너뜀" ;;
+      coord_lead_*)
+        ref="${name#coord_lead_}"
+        if rid="$(lead_run "$ref")"; then office_call "$rid" lead-sync; rc=$?
+        else plog "input $name 알림: 열린 회차를 못 찾아 건너뜀"; fi ;;
+      team_lead_lead) lead_watch; rc=$? ;;
+    esac
+    case "$rc" in 6|124) ;; *) rm -f "$m" ;; esac
+  done
+  return 0
+}
+
 # ---- ③ 화면 올리기 ----------------------------------------------------------------------------
 # 화면 읽기 구간(run_phase 가 백그라운드로 돌린다 — 전역 값은 파일로만 넘긴다): items.jsonl·pending.tsv 를 만든다
 screens_collect() {
@@ -395,7 +793,11 @@ screens_collect() {
     [ -n "$h" ] || continue
     in_terms "$h" || continue
     # 41줄: 가림 라이브러리가 맨 앞 한 줄을 줄 이음 판정에만 쓰고 마지막 40줄을 낸다
-    run_limited "$SCREEN_READ_MAX" "$TMPD/scr" /dev/null /dev/null term_read_screen "$h" 41 || { rm -f "$TMPD/scr"; continue; }
+    # 읽기 실패는 일시적일 수 있으므로 입력 요청 기록을 그대로 둔다(seen)
+    run_limited "$SCREEN_READ_MAX" "$TMPD/scr" /dev/null /dev/null term_read_screen "$h" 41 || { rm -f "$TMPD/scr"; printf '%s_%s\n' "$kind" "$ref" >> "$TMPD/in_seen"; continue; }
+    # 입력 요청 감지(같은 화면, 새 읽기 없음). 팀원(team_worker)은 하지 않는다
+    if [ "$INPUT_OK" = 1 ] && [ "$kind" != team_worker ]; then input_detect "$kind" "$ref" "$TMPD/scr" "$h"; fi
+    printf '%s_%s\n' "$kind" "$ref" >> "$TMPD/in_seen"
     console_screen_filter < "$TMPD/scr" > "$TMPD/filt" 2>/dev/null || { plog "screen $kind/$ref 가림 실패 — 올리지 않음"; continue; }
     sha="$(console_screen_sha < "$TMPD/filt" 2>/dev/null)"
     printf '%s' "$sha" | grep -Eq '^[0-9a-f]{64}$' || { plog "screen $kind/$ref sha 실패 — 올리지 않음"; continue; }
@@ -412,6 +814,7 @@ screens_collect() {
     printf '%s\t%s\t%s\n' "$kind" "$ref" "$sha" >> "$TMPD/pending.tsv"
   done < "$TMPD/targets"
   rm -f "$TMPD/scr" "$TMPD/filt"
+  [ "$INPUT_OK" = 1 ] && input_sweep
   printf '%s %s\n' "$full" "$touch" > "$TMPD/counts"
 }
 # 화면 올리기 구간(백그라운드): 옛 서버(rc 7)는 $TMPD/old7 표식으로 알린다
@@ -448,13 +851,23 @@ phase_screens() {
   local rc
   [ "$REDACT_OK" = 1 ] || return 0
   [ -n "$TL" ] || return 0
-  rm -f "$TMPD/targets" "$TMPD/counts" "$TMPD/old7"; : > "$TMPD/items.jsonl"; : > "$TMPD/pending.tsv"
+  rm -f "$TMPD/targets" "$TMPD/counts" "$TMPD/old7"; : > "$TMPD/items.jsonl"; : > "$TMPD/pending.tsv"; : > "$TMPD/in_seen"
   run_phase "화면 읽기" "$PHASE_MAX" /dev/null /dev/stderr screens_collect; rc=$?
   rm -f "$TMPD/scr" "$TMPD/filt"   # 상한으로 끊겼을 때 남은 화면 원문
   # 읽기를 다 못 끝냈으면(상한 초과) 반쪽 항목을 올리지 않는다
   if [ "$rc" = 0 ]; then run_phase "화면 올리기" "$PHASE_MAX" /dev/null /dev/stderr screens_upload; fi
   [ -f "$TMPD/old7" ] && OLD_UNTIL=$(( $(coord_now_epoch) + OLD_PAUSE_S ))
-  rm -f "$TMPD/items.jsonl" "$TMPD/pending.tsv" "$TMPD/batches" "$TMPD/old7"
+  rm -f "$TMPD/items.jsonl" "$TMPD/pending.tsv" "$TMPD/batches" "$TMPD/old7" "$TMPD/in_seen"
+  return 0
+}
+# 입력 요청 알림은 office.sh 한 번이 OFFICE_TIMEOUT(20초)까지 걸릴 수 있어 주기 몫(CYCLE_MAX)·구간 상한(PHASE_MAX)과 따로
+# NOTIFY_MAX(기본 45초, COORD_CONSOLE_NOTIFY_MAX_S) 안에 돈다(주기의 마지막 일이라 다음 일을 밀지 않는다).
+phase_input_notify() {
+  local rc
+  [ "$INPUT_OK" = 1 ] || return 0
+  ls "$CD"/input/.notify/* >/dev/null 2>&1 || return 0
+  run_limited "$NOTIFY_MAX" /dev/null /dev/stderr /dev/null input_notify; rc=$?
+  [ "$rc" = 124 ] && plog "경고: '입력 요청 알림' 이 ${NOTIFY_MAX}초 상한을 넘어 이번 주기 몫을 버림"
   return 0
 }
 
@@ -491,8 +904,9 @@ cycle() {
   t1="$(coord_now_epoch)"
   phase_prompts
   DELIV_S=$(( $(coord_now_epoch) - t1 ))
-  [ "$OLD_UNTIL" -gt "$(coord_now_epoch)" ] && return 0
-  phase_screens
+  if [ "$OLD_UNTIL" -le "$(coord_now_epoch)" ]; then phase_screens; fi
+  # ④ 입력 요청 알림(키 입력 뒤의 기록 삭제도 여기서 알린다)
+  phase_input_notify
   return 0
 }
 
@@ -679,6 +1093,87 @@ cmd_handle_clear() {
   echo OK
 }
 
+# input-handled (--lane <레인> | --lead <세션8>) --by <coordinator|auto> [--expect-full <지문>] — 조정자·auto-answer 가 창에 답했다고
+#   기록한다. --expect-full 을 주면 기록의 full 이 그 값일 때만(답한 창이 아직 기록의 창일 때만) 처리하고, 다르면 `NONE prompt-changed`.
+#   기록 잠금 안의 처리는 lib console_input_mark_handled(term-send-safe.sh·auto-answer.sh 가 레인 잠금 안에서 직접 부르는 것과 같은 함수)
+cmd_input_handled() {
+  local lane="" lead="" by="" k ref name cur rid rr expect="" has_exp=0 mrc
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --lane) lane="${2:-}"; shift ;;
+      --lead) lead="${2:-}"; shift ;;
+      --by) by="${2:-}"; shift ;;
+      --expect-full) expect="${2:-}"; has_exp=1; shift ;;
+      *) usage ;;
+    esac
+    shift
+  done
+  if [ -n "$lane" ] && [ -z "$lead" ]; then k=coord_lane; ref="$lane"
+  elif [ -n "$lead" ] && [ -z "$lane" ]; then k=coord_lead; ref="$lead"
+  else usage; fi
+  case "$by" in coordinator|auto) ;; *) usage ;; esac
+  if [ "$has_exp" = 1 ]; then printf '%s' "$expect" | grep -Eqx '[0-9a-f]{64}' || usage; fi
+  [ "$INPUT_OK" = 1 ] || { coord_log "console-poll: 입력 요청 라이브러리 없음"; echo NONE; exit 0; }
+  console_input_ref_ok "$ref" || usage
+  name="${k}_$ref"
+  console_input_mark_handled "$name" "$by" "$expect"; mrc=$?
+  case "$mrc" in
+    0) [ "$CI_MH_CONS" = 1 ] || coord_log "console-poll: 소비 목록 쓰기 실패($name)" ;;
+    1) echo NONE; exit 0 ;;
+    2) echo "NONE prompt-changed"; exit 0 ;;
+    *) coord_log "console-poll: 기록 잠금·쓰기 실패($name)"; exit 4 ;;
+  esac
+  cur="$CI_MH_REC"
+  # office.sh 갱신: 회차는 COORD_RUN(그 레인·세션의 것일 때) → 이 신원의 살아 있는 열린 회차에서 찾기
+  rid=""
+  # 기록에 적힌 회차(폴러가 쓴 run 칸)가 있으면 그것을 먼저 쓴다
+  if [ "$k" = coord_lane ]; then
+    rr="$(printf '%s' "$cur" | jq -r '.run // empty | tostring' 2>/dev/null)"
+    case "$rr" in ''|.*|*/*) ;; *) [ -f "$(coord_state_root)/$rr/state.json" ] && rid="$rr" ;; esac
+  fi
+  if [ -z "$rid" ] && [ -n "${COORD_RUN:-}" ] && [ -f "$(coord_state_root)/$COORD_RUN/state.json" ]; then
+    if [ "$k" = coord_lane ]; then
+      [ "$(jq -r --arg l "$ref" '.lanes | has($l)' "$(coord_state_root)/$COORD_RUN/state.json" 2>/dev/null)" = true ] && rid="$COORD_RUN"
+    else [ "$(coord_sess8 "$(coord_state_root)/$COORD_RUN/state.json")" = "$ref" ] && rid="$COORD_RUN"; fi
+  fi
+  if [ -z "$rid" ]; then
+    setup >/dev/null 2>&1; need_ident cache-first >/dev/null 2>&1
+    if [ "$k" = coord_lane ]; then rr="$(lane_run "$ref")" && rid="${rr#*$'\t'}"; else rid="$(lead_run "$ref")"; fi
+  fi
+  if [ -n "$rid" ]; then
+    if [ "$k" = coord_lane ]; then office_call "$rid" lane-state "$ref" auto; else office_call "$rid" lead-sync; fi
+    case "$?" in 6|124) in_mark "$name" ;; esac   # 시간 초과·네트워크면 폴러가 다음 주기에 다시 알린다
+  else in_mark "$name"; fi    # 회차를 못 찾으면 폴러가 다음 주기에 알린다
+  echo OK
+}
+
+# judge-sha --lane <레인> — 그 레인 화면을 지금 읽어(41줄) 창 지문(CI_FULL, console_full_sha)을 낸다. 조정자가 판단 올리기 전에 기억해
+#   두고 `term-send-safe.sh --lane <레인> --raw --expect-sha <지문>` 으로 답한다(잠금 안에서 다시 읽은 화면이 다르면 보내지 않는다).
+#   stdout: `JUDGE <h> <kind> <지문>` · 창이 없으면 `NONE <h>` · 읽기 stale 이면 `STALE <h>` · 창은 있는데 머리를 읽은 화면 안에서
+#   못 찾아 지문이 없으면 `NOFP <h>`(직접 답하지 않는다 — 터미널에서 사람이 답하거나 창이 바뀌기를 기다린다). 핸들은 현재 회차
+#   (COORD_RUN·current)의 lanes.<레인>.session.handle(term-send-safe.sh --lane 과 같다). 화면 원문·발췌는 내지 않는다.
+cmd_judge_sha() {
+  local lane="" h rc
+  while [ $# -gt 0 ]; do
+    case "$1" in --lane) lane="${2:-}"; shift ;; *) usage ;; esac
+    shift
+  done
+  console_input_ref_ok "$lane" || usage
+  [ "$INPUT_OK" = 1 ] || coord_die 4 "console-poll: 입력 요청 라이브러리 없음"
+  coord_has_run || coord_die 3 "현재 회차가 없다"
+  h="$(coord_lane_get "$lane" .session.handle 2>/dev/null)"
+  [ -n "$h" ] && [ "$h" != null ] || coord_die 3 "레인 $lane 의 handle 이 상태에 없다"
+  run_limited "$SCREEN_READ_MAX" "$TMPD/jscr" /dev/null /dev/null term_read_screen "$h" 41; rc=$?
+  if [ "$rc" != 0 ]; then rm -f "$TMPD/jscr"; [ "$rc" = 3 ] && { echo "STALE $h"; exit 0; }; coord_die 4 "화면을 읽지 못했다: $h"; fi
+  console_input_snapshot "$TMPD/jscr"; rc=$?
+  rm -f "$TMPD/jscr"
+  case "$rc" in
+    0) if [ -n "$CI_FULL" ]; then echo "JUDGE $h $CI_KIND $CI_FULL"; else echo "NOFP $h"; fi ;;
+    1) echo "NONE $h" ;;
+    *) coord_die 4 "가림·해시 실패: $h" ;;
+  esac
+}
+
 [ $# -ge 1 ] || usage
 sub="$1"; shift
 case "$sub" in
@@ -694,6 +1189,8 @@ case "$sub" in
     cmd_once ;;
   handle-record) cmd_handle_record "$@" ;;
   handle-clear) cmd_handle_clear "$@" ;;
+  input-handled) cmd_input_handled "$@" ;;
+  judge-sha) cmd_judge_sha "$@" ;;
   -h|--help|help) sed -n '2,/^set -uo/p' "$0" | sed '$d' >&2; exit 0 ;;
   *) usage ;;
 esac

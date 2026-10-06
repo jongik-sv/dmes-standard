@@ -24,14 +24,17 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 5. **단순 시험은 빠르게.** 단일 시험 파일·클래스·`tsc`·lint 는 Workflow·heavy 슬롯 없이 바로(측정 창·금지 통지 중만 미룬다). 전체 시험은 머지 요청 직전 한 번.
 6. **시험 실패는 사다리로.** 환경 실패는 같은 등급 한 번 재실행, 코드 실패는 `workflow.escalation.ladder` 를 한 칸씩, 끝 칸에서도 실패하면 blocked 보고(`references/workflow.md` §7).
 7. **조정자는 적게 읽고 적게 말한다.** 틱은 `tick.sh` 한 번이고 `TICK quiet` 면 말 없이 끝낸다. reference 는 그 절차를 탈 때 그 절만 읽는다. 레인에 다시 묻기 전에 state·보고를 본다.
-8. **사용량 띠가 오르면 상한을 낮춘다.** Y: 사다리 끝 opus/high·대기 작업 배정 중단 · O: opus 는 판정만·새 Workflow 금지 · R: 머지·정리만(`references/usage.md`).
+8. **사용량 띠가 오르면 등급을 낮춘다.** Y: 사다리 끝 opus/high·대기 작업 배정 중단 · O: opus 는 판정만·새 Workflow 금지 · R: 머지·정리만. **새 레인은 1주 사용률 `usage.spawn_week_max`(95%) 미만이면 띠와 상관없이 띄운다.** 동시 agent 상한은 R 말고는 늘 2(`references/usage.md`).
 9. **같은 일을 두 번 하지 않는다.** 재개 캐시를 깨는 지시 수정, 도는 Workflow 와 겹치는 지시, 같은 질문 반복을 피한다.
+10. **남의 진단은 직접 재 보고 옮긴다.** 레인·다른 세션의 원인 진단을 확인 없이 사용자에게 전하지 않는다. 화면 한 줄로 결론 내지 않고, 부하는 `ps`·`time` 으로 잰 숫자로 말한다(`stall.md` §5, `heavy.md` §4).
 
 ## 판단 올리기
 
 조정자는 medium 이므로 다음은 **opus/high 서브에이전트**에 원문(게이트 출력·명령 전문·jstack 발췌·분해 입력)과 해당 reference 절을 넘겨 결론을 받고 그대로 집행한다: `merge-gate.sh` 의 `SHARED_API`·`OUTSIDE` 판정(`merge-gate.md`), `auto-answer.sh` 의 권한 창 `ESCALATE`(`approvals.md`), `STALL` 원인(`stall.md`), `start` 의 분해 초안(`decompose.md`), `finish` 의 결정·후속 정리(`closing.md`).
 
 ## 시작 절차 (`start <run-id> [목표]`)
+
+조정 세션 하나에는 회차 하나만 둔다. 열린 회차가 있는데 새 업무가 들어오면 새 회차를 열지 않고 그 회차에 `lane-add` 하고 `run.goal` 을 덧붙인다(`decompose.md` §1).
 
 1. 설정 확인: `<repo>/.coord.json`(공용)·`.coord.local.json`(PC 전용). `launch.claude`·`integration_check`·`git_bin` 처럼 PC마다 다른 값은 사용자에게 한 번 확인한다.
 2. `scripts/coord-state.sh init <run-id> --goal "<목표>" [--rules-doc <경로>]`
@@ -51,7 +54,7 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 |---|---|
 | `ANSWER …` | 기록만 됐다. 할 일 없음 |
 | `DENY …` | 레인에 `확인 창 거부` 통지(`protocol.md`) |
-| `ESCALATE … permission` | 판단 올리기 → `term-send-safe.sh --raw`. 사용자 결정 항목이면 사용자에게 한 줄 |
+| `ESCALATE … permission` | `console-poll.sh judge-sha --lane <레인>` 로 화면 sha 기억 → 판단 올리기 → `term-send-safe.sh --lane <레인> --raw --expect-sha <sha>` (`SENT` 면 처리됨·소비는 term-send-safe 가 이미 남기므로 input-handled 를 부르지 않는다 — 키를 다른 경로로 보냈을 때만 `--expect-full <sha>` 와 함께, `approvals.md` §3). 사용자 결정 항목이면 사용자에게 한 줄 |
 | `ESCALATE …`(그 밖) · `WAIT_USER` | 사용자에게 한 줄 알림. 덮어 보내지 않는다 |
 | `IDLE <레인>` | `references/monitor.md` 배정(queue → backlog → 쉬어라). 띠별 범위 |
 | `STALL?`·`STALL` | `references/stall.md`(원인은 판단 올리기). 프로세스를 직접 죽이지 않는다 |
@@ -67,15 +70,17 @@ description: 큰 업무 하나를 여러 Claude Code 세션(레인)과 임시 �
 
 4. 바뀐 것이 있었으면 `coord-state.sh summary`.
 
+레인 상태 판단은 state.json 요약(`coord-state.sh get`·`summary`)이 기본이고, 터미널 화면은 `prompt-watch.sh` 가 이상을 판정한 레인 하나만 읽는다.
+
 ## 메시지 분기
 
-첫 줄 `[보내는쪽→받는쪽] <종류>:` 로 분기한다. 받으면 `coord-state.sh report <레인> "<요약>"`, 첫 줄에 `instr_id` 가 있으면 `ack`.
+첫 줄 `[보내는쪽→받는쪽] <종류>:` 로 분기한다. 받으면 `coord-state.sh report <레인> "<요약>"`, 첫 줄에 `instr_id` 가 있으면 `coord-state.sh ack <instr-id>`(레인 이름을 앞에 붙이면 사용법 오류다).
 
 | 종류 | 처리 |
 |---|---|
 | `신원` | `coord-state.sh set '.lanes.<레인>.session' …`(`spawn.md` 신원 연결) |
 | `진행 보고` | `item-done` → `progress`(`monitor.md` 진도율) |
-| `질문` | 근거 확인 뒤 직접 답한다. 삭제·shared 기존 API 변경·사용자 결정이면 `pending_user` 에 올려 사용자에게 |
+| `질문` | `coord-state.sh report <레인> "<요약>" --question "<첫 줄>"` 로 적고 근거 확인 뒤 직접 답한다 → `report <레인> --answered`(화면 창에 `term-send-safe.sh --lane … --raw` 로 답했으면 처리됨은 이미 남았다 — 다른 경로로 답했을 때만 `console-poll.sh input-handled --lane <레인> --by coordinator --expect-full <judge-sha 의 지문>`). 삭제·shared 기존 API 변경·사용자 결정이면 `pending_user` 에 올려 사용자에게 |
 | `머지 요청` | `merge-gate.md`(`merge-gate.sh`). 한 번에 하나만 허가, 허가에 「머지 뒤 다음 일」 |
 | `머지 완료`·`정리 완료` | 트리 대조 → `merge.history`, 다음 허가. 남긴 브랜치는 `pending_user` |
 | `측정 끝` | `measure-window.sh close` → 전 레인 `무거운 작업 재개` |

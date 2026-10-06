@@ -129,6 +129,8 @@ done < <(coord_stale_runs "$(basename "$RD")")
 if [ "${#out[@]}" -eq 0 ]; then echo "TICK quiet"; else printf '%s\n' "${out[@]}"; fi
 [ "${#out[@]}" -gt 0 ] && coord_state_call event tick - "$(jq -cn --argjson n "${#out[@]}" '{actions:$n}')" >/dev/null 2>&1
 # 에이전트 오피스 하트비트(팀장·살아 있는 레인 전원을 state.json 기준으로 재전송). 실패·dry-run 이어도 틱 출력은 그대로다.
+# 그 전에 틱 시각을 남긴다(팀장 자리 요약의 alive.last_tick_at — contract §4).
+[ "$dry" = 1 ] || coord_state_call set '.run.last_tick_at' "$(jq -nc --arg t "$(coord_now_iso)" '$t')" >/dev/null 2>&1 || true
 [ "$dry" = 1 ] || bash "$SD/office.sh" beat >/dev/null 2>&1 || true
 # 오피스 콘솔 폴러가 죽었으면 다시 띄운다(이미 돌면 아무 일도 하지 않는다 — contract §4.1). COORD_CONSOLE_POLL=0 이면 건너뜀.
 [ "$dry" = 1 ] || [ "${COORD_CONSOLE_POLL:-1}" = 0 ] || bash "$SD/console-poll.sh" start >/dev/null 2>&1 </dev/null || true

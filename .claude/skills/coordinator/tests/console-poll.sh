@@ -30,7 +30,7 @@ chk() { if [ "$1" = ok ]; then pass=$((pass + 1)); echo "ok   $2"; else fail=1; 
 eq() { if [ "$2" = "$3" ]; then chk ok "$1"; else chk fail "$1" "기대 [$3] 실제 [$2]"; fi; }
 
 # ---- 격리 -------------------------------------------------------------------------------------
-unset ORCA_TERMINAL_HANDLE CLAUDE_PID COORD_SESSION_ID CLAUDE_CODE_SESSION_ID COORD_RUN DFLOW_CONFIG_DIR COORD_DRY CONSOLE_POLL_IDENT COORD_CONSOLE_POLL
+unset ORCA_TERMINAL_HANDLE CLAUDE_PID COORD_SESSION_ID CLAUDE_CODE_SESSION_ID COORD_RUN DFLOW_CONFIG_DIR COORD_DRY CONSOLE_POLL_IDENT COORD_CONSOLE_POLL COORD_CONSOLE_KEYS_ENABLED
 mkdir -p "$tmp/bin" "$tmp/repo" "$tmp/home"
 export HOME="$tmp/home" COORD_REPO="$tmp/repo" COORD_CONSOLE_CYCLE_S=1
 export COORD_TERM_SEND_SAFE="$tmp/bin/fake-tss.sh" COORD_LEAD_STATE="$tmp/bin/fake-lead-state.sh"
@@ -323,7 +323,7 @@ seq_got="$(grep -E '^console-(poll|ack) ' "$FAKE_LOG" | cut -d' ' -f1 | sed 's/c
 eq "순서: poll 한 건 → ack → 다음 poll(빈 응답까지), retry ack 는 맨 끝" "$seq_got" "P A P A P A P A P A P A P P A P A P A P A P A P A"
 eq "retry ack 뒤 서버는 그 행을 다시 pending 으로(가짜 대기열 맨 앞)" "$(head -1 "$FAKE_DIR/queue" | jq -r .id)" "$(pid_n 7)"
 eq "compacting 대상에는 이 주기에 한 번만 넣어 본다" "$(grep -c '^h=hb ' "$FAKE_DIR/tss.log")" 1
-eq "poll 마다 --limit 1" "$(grep '^console-poll ' "$FAKE_LOG" | sort -u)" "console-poll --host $host --limit 1"
+eq "poll 마다 --limit 1(키 입력 답하기 기본 꺼짐 — accepts 없음)" "$(grep '^console-poll ' "$FAKE_LOG" | sort -u)" "console-poll --host $host --limit 1"
 eq "보낸 글: 한 줄 머리글·줄바꿈과 탭은 공백(레인)" "$(grep '^h=hk ' "$FAKE_DIR/tss.log")" "h=hk busy=yes text=[오피스→kit] 프롬프트: 안녕 하세요 탭"
 eq "보낸 글: coord_lead 는 lead" "$(grep '^h=hL ' "$FAKE_DIR/tss.log")" "h=hL busy=yes text=[오피스→lead] 프롬프트: 조정 팀장에게"
 eq "보낸 글: team_lead 는 lead" "$(grep '^h=hT ' "$FAKE_DIR/tss.log")" "h=hT busy=yes text=[오피스→lead] 프롬프트: 팀장에게"
@@ -504,6 +504,19 @@ eq "forbidden_role 루프: 화면 올리기는 주기마다 계속" "$([ "$WAITE
 eq "forbidden_role 루프: poll 은 첫 주기 한 번뿐(이 프로세스 동안 끔)" "$(grep -c '^console-poll' "$FAKE_LOG")" 1
 eq "forbidden_role 루프: 로그 안내는 한 번(시작한 프로세스마다)" "$(grep -c "$MSG" "$DFLOW_CONSOLE_DIR/poller-jji-test.log")" 2
 eq "forbidden_role 루프: stop" "$(bash "$CP" stop)" "CONSOLE_POLLER stopped"
+# 기본 30분이 아니라 2초로 줄이면 지난 뒤 poll 을 한 번 더 시도하고, 안내는 그 프로세스에서 한 번뿐이다
+: > "$FAKE_LOG"; before="$(grep -c "$MSG" "$DFLOW_CONSOLE_DIR/poller-jji-test.log")"
+st="$(COORD_CONSOLE_OFF_RETRY_S=2 bash "$CP" start)"
+eq "forbidden_role 재시도: start" "$(echo "$st" | cut -d' ' -f1-2)" "CONSOLE_POLLER started"
+polls2() { [ "$(grep -c '^console-poll' "$FAKE_LOG")" -ge 2 ]; }
+wait_for 20 polls2
+eq "forbidden_role 재시도: 2초 뒤 poll 을 다시 시도한다" "$([ "$WAITED" = timeout ] && echo no || echo yes)" yes
+eq "forbidden_role 재시도: 안내는 이 프로세스에서 한 번만" "$(( $(grep -c "$MSG" "$DFLOW_CONSOLE_DIR/poller-jji-test.log") - before ))" 1
+echo ok > "$FAKE_DIR/poll_mode"; : > "$FAKE_LOG"
+polls3() { [ "$(grep -c '^console-poll' "$FAKE_LOG")" -ge 1 ]; }
+wait_for 20 polls3
+eq "forbidden_role 재시도: 한정이 풀리면(poll 이 성공) 전달을 다시 한다" "$([ "$WAITED" = timeout ] && echo no || echo yes)" yes
+eq "forbidden_role 재시도: stop" "$(bash "$CP" stop)" "CONSOLE_POLLER stopped"
 rm -f "$FAKE_DIR/poll_mode"
 
 # =================================================================================================
@@ -808,6 +821,26 @@ eq "탈취 경쟁: 네 번 모두 started 는 하나" "$race_ok" 4
 eq "탈취 경쟁: 옮긴 옛 잠금·탈취 잠금이 남지 않는다" "$(ls -d "$DFLOW_CONSOLE_DIR"/poller-*.lock.* 2>/dev/null | grep -c .)" 0
 wait_for 5 back_to_start
 eq "정리: 남은 폴러·감시자 프로세스 없음(시작 때 ${RUN0}개 이하)" "$(back_to_start && echo ok || echo "$(n_run)개")" ok
+
+# =================================================================================================
+# 16. 입력 요청 감지가 화면 올리기와 같은 읽기에서 돈다(k11 — 세부 상태기계·키 입력은 tests/console-keys.sh)
+newenv input
+mksess aaaa1111 $$ hL
+mkrun r1 aaaa1111-0000 $$
+addlane r1 kit hk
+mklead L1 $$ hT
+printf '%s\n' 'SLOT 1 abcd1234 tsk=T order=o kind=new state=spawn resolve=0 worktree=/w handle=hw1' > "$FAKE_DIR/slots"
+echo "hk hL hT hw1" > "$FAKE_DIR/terms"
+for h in hk hw1; do cp "$here/fixtures/prompt-permission.txt" "$FAKE_DIR/screens/$h.txt"; done
+printf '%s\n' "조정 중" > "$FAKE_DIR/screens/hL.txt"; printf '%s\n' "팀장 작업 중" > "$FAKE_DIR/screens/hT.txt"
+printf '#!/bin/sh\n[ "$1" = reap ] && exit 0\necho "COORD_RUN=${COORD_RUN:-} $*" >> "$FAKE_DIR/office.log"\n' > "$tmp/bin/fake-office.sh"; chmod +x "$tmp/bin/fake-office.sh"
+: > "$FAKE_DIR/orca.log"
+COORD_OFFICE_SH="$tmp/bin/fake-office.sh" bash "$CP" --once 2>/dev/null
+eq "입력 요청: 레인 창 → input/coord_lane_kit.json" "$(jq -r .kind "$DFLOW_CONSOLE_DIR/input/coord_lane_kit.json" 2>/dev/null)" permission
+eq "입력 요청: 팀원(team_worker)은 기록하지 않는다" "$(ls "$DFLOW_CONSOLE_DIR/input" | grep -c team_worker)" 0
+eq "입력 요청: 화면 읽기는 대상마다 한 번(새 읽기 없음)" "$(grep -c '^terminal read ' "$FAKE_DIR/orca.log")" 4
+eq "입력 요청: 화면 올리기는 그대로" "$(jq -r '[.[] | select(.target_ref == "kit") | has("lines")] | .[0]' "$FAKE_DIR/screen.1.json")" true
+eq "입력 요청: office.sh lane-state 를 그 회차로" "$(cat "$FAKE_DIR/office.log" 2>/dev/null)" "COORD_RUN=r1 lane-state kit auto"
 
 echo "통과 $pass · 실패 $([ "$fail" = 0 ] && echo 0 || echo '1+')"
 exit "$fail"

@@ -187,7 +187,11 @@ eq "머지와 무관한 set 은 보내지 않는다" "$(lines)" 0
 $CS lane-add a1 '{"items":[{"id":"1","title":"항목","weight":1,"done":false}]}' >/dev/null
 reset
 $CS report a1 "중간 보고" >/dev/null
-eq "report 훅: 값이 같으면 보내지 않는다" "$(lines)" 0
+# 보고 시각(last_report_at)이 레인 요약에 실리므로 키·라벨이 같아도 요약 갱신 한 건은 보낸다(contract §4 「레인 요약」)
+eq "report 훅: 키·라벨이 같아도 요약이 바뀌면 팀원 한 건" "$(log | grep -c -- '임시:a1·')$(log | grep -c -- '--stop')" "10"
+reset
+$OFF lane-state a1 auto
+eq "report 뒤 다시 lane-state auto: 요약까지 같으면 보내지 않는다" "$(lines)" 0
 $OFF lane-state a1 "머지 중"
 eq "lane-state 명시: 머지 중" "$(log | grep -c -- "--until 머지 중")" 1
 reset

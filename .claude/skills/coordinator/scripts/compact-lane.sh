@@ -5,9 +5,12 @@
 #         · cooldown(compact.cooldown_min 안) · unsupported-kind(opencode·agy 등) · no-handle · term-send-safe 의 거부 사유 그대로.
 #   stdout: `COMPACT_REFUSED <레인> <사유>` · `COMPACT_DONE <레인> before=<n|-> after=<n|->` · `COMPACT_TIMEOUT <레인>`.
 #   --dry-run: 판정·화면 확인은 실제로, 보내기 직전에 멈추고 `DRY COMPACT_DONE <레인> before=<n|-> after=-`.
+#   재측정(after)이 직전(before)과 같거나 못 읽으면 transcript 가 아직 안 갱신된 것이다: 화면 상태줄의 ctx % 로 after 를 어림하고
+#   (ctx % × 창 크기), 그것도 없으면 화면의 Compacted 문구만 확인한 채 after=- 로 낸다. 보조 경로를 쓰면 stderr 에만 알린다.
 set -uo pipefail
 . "$(dirname "$0")/lib/common.sh"
 . "$(dirname "$0")/lib/term.sh"
+. "$(dirname "$0")/lib/compact-screen.sh"
 SD="$(dirname "$0")"
 
 lane="" force=0 dry=0
@@ -93,6 +96,22 @@ while has_compacting; do
   sleep 10
 done
 after="$(ctx_tokens)"
+# 재측정이 직전 값과 같으면 transcript 가 아직 갱신되지 않은 것이다 — 화면으로 확인한다(compact.md §6)
+if [ "$after" = "$before" ] || [ "$after" = "-" ]; then
+  scr="$(term_read_screen "$h" 40 2>/dev/null || true)"
+  pct="$(printf '%s\n' "$scr" | compact_screen_ctx_pct)"
+  if [ -n "$pct" ]; then
+    win="$(coord_lane_get "$lane" .session.window)"; win="${win:-$(coord_cfg .compact.default_window)}"; win="${win:-200000}"
+    after=$(( pct * win / 100 ))
+    coord_log "COMPACT_NOTE $lane transcript 가 아직 갱신되지 않아 화면 ctx ${pct}% 로 after 를 어림했다(약 ${after} 토큰, 창 ${win})"
+  elif printf '%s\n' "$scr" | compact_screen_compacted; then
+    after="-"
+    coord_log "COMPACT_NOTE $lane transcript 가 아직 갱신되지 않아 화면 Compacted 문구로만 확인했다(after=-)"
+  else
+    after="-"
+    coord_log "COMPACT_NOTE $lane 재측정이 직전 값과 같은데 화면에서도 ctx %·Compacted 를 찾지 못했다(after=-). 화면을 직접 확인할 것"
+  fi
+fi
 
 now="$(coord_now_iso)"
 hist="$(jq -c --arg l "$lane" '.lanes[$l].compact.history // []' "$SF")"

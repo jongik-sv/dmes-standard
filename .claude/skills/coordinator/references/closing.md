@@ -23,6 +23,7 @@ dev 로 서버를 재기동하고 주요 화면을 확인한다(조정자만). �
 - 워크트리·브랜치 목록에 남은 것(`git_bin worktree list`, `git_bin branch`).
 - Orca 터미널 목록과 reclaimable 워커.
 - 끝나지 않은 세션은 `spawn.md` 5 절차로 닫는다(`close-lane.sh`).
+- 레인의 정리 완료 보고에 「남은 백그라운드 0」 이 있는지(시험 입력·성능 측정·로컬 DB·고아 `awk` 등). 없으면 되묻고 `ps` 로 그 레인 워크트리를 cwd 로 둔 프로세스를 확인한다(`heavy.md` §7).
 - 감시 cron 삭제: state `run.cron_id` 로 `CronDelete`, `coord-state.sh set '.run.cron_id' null`.
 - 측정·금지 창이 모두 닫혔는지(`measure-window.sh status`), `load.banned` 가 비었는지.
 - `wake_targets` 갱신이 필요한지.
@@ -49,3 +50,13 @@ dev 로 서버를 재기동하고 주요 화면을 확인한다(조정자만). �
 - 끝낸 회차의 `.run.state` 같은 칸을 직접 써서 마감을 표시하지 않는다(계약에 없는 칸이라 아무 동작도 하지 않는다).
 - 마감하지 못한 채 새 회차를 시작했다면 `init` 이 낸 `SESSION_RUNS <세션8> open=<n>` 줄(같은 세션의 열린 회차, 자동 마감하지 않는다)을 보고 끝난 회차를 `COORD_RUN=<회차> coord-state.sh close-run` 으로 직접 닫는다. `STALE_RUN` 줄(init·틱)은 다른 조정 세션의 회차에 대한 경고뿐이라 진행 중이면 그대로 둔다.
 - 조정자 자신의 세션은 사용자가 닫는다. state 폴더는 지우지 않는다(다음 회차 근거).
+
+## 7. push·배포(사용자가 「main 까지 push」 처럼 지시했을 때만)
+
+사용자 지시가 없으면 push·릴리스 반영은 하지 않는다(SKILL.md 금지). 지시가 있으면 리포가 아래 어느 형식인지 리포 문서·각 PC 설정으로 확인하고 순서대로 한다. 통합 브랜치는 설정 `integration_branch`, 릴리스 브랜치·원격 이름은 리포 문서를 따른다(이 문서에 리포·브랜치 이름을 적지 않는다). 어느 단계든 거절·충돌이 나면 강제로 밀지 않고 멈춰 사용자에게 알린다.
+
+1. **fast-forward 가 되는 리포**: 통합 브랜치에 머지 → `push origin <통합>` → `push origin <통합>:<릴리스>`(fast-forward 만).
+2. **릴리스 브랜치에 반영 머지 커밋이 따로 쌓여 fast-forward 가 안 되는 리포**: 단계 브랜치 push → 임시 워크트리를 만들어 `origin/<릴리스>` 를 받고 `merge --no-ff origin/<단계>` → push → 그 임시 워크트리를 지운다(만든 것만, `--force` 없이).
+3. **마이그레이션이 든 배포**: 단계 환경에 적용 → 읽기 전용 검증 SQL(레인이 만든다) → 「단계 검증됨」 표식 빈 커밋(문구는 리포 규칙) → 운영 환경에 적용 → 같은 검증 → 릴리스 브랜치 반영. 검증 SQL 이 없으면 레인에게 먼저 만들게 한다. 환경 접속 정보는 문서·지시문에 쓰지 않는다(각 PC 설정).
+
+push 뒤에는 그 사실을 `merge.history`·마감 보고에 적고, 메인 체크아웃의 사용자 미커밋 파일을 건드리지 않았는지 `git status --short` 로 확인한다(`merge-gate.md` 2.1).

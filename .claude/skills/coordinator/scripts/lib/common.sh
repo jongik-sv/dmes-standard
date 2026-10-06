@@ -16,14 +16,14 @@ COORD_DEFAULTS='{
                         {"kind": "limits-dir", "path": "~/.dflow/limits"}],
             "max_age_min": 30,
             "bands": {"Y": {"five": 60, "week": 70}, "O": {"five": 80, "week": 85}, "R": {"five": 95, "week": 95}},
-            "week_pace": true},
+            "week_pace": true, "spawn_week_max": 95},
   "compact": {"threshold_pct": 40, "threshold_tokens": null,
               "by_window": {"1000000": {"pct": 40}, "200000": {"pct": 70}},
               "hard_pct": 70, "cooldown_min": 30, "default_window": 200000, "wait_max_min": 10},
   "idle": {"idle_min": 5, "cooldown_min": 15, "confirm_gap_min": 2, "bg_recent_min": 10, "stall_max_min": 90},
   "stall": {"quiet_min": 20},
   "tick": {"cron": "7,27,47 * * * *"},
-  "workflow": {"agents_by_band": {"G": 3, "Y": 2, "O": 1, "R": 0},
+  "workflow": {"agents_by_band": {"G": 2, "Y": 2, "O": 2, "R": 0},
                "model_table": [
                  {"stage": "단순 시험 실행·결과 확인·기계적 치환", "size": "*", "model": "haiku", "effort": "low"},
                  {"stage": "조사·위치 찾기·영향 범위·사용처 목록", "size": "*", "model": "search", "effort": "-"},
@@ -44,7 +44,8 @@ COORD_DEFAULTS='{
                 "auto_allow_spawned": ["read", "status", "edit-own", "commit-own", "heavy-build"],
                 "watch_every_s": 10},
   "restart_rules": [],
-  "office": {"enabled": true, "project_id": null, "label_max": 40, "dflow_script": null},
+  "office": {"enabled": true, "project_id": null, "label_max": 40, "dflow_script": null, "quiet_min": 30},
+  "console": {"keys_enabled": false},
   "records_check": false,
   "integration_check": "",
   "claude_projects_dir": "~/.claude/projects",
@@ -161,14 +162,48 @@ coord_iso_to_epoch() {
 }
 coord_file_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null; }
 
+# mkdir 잠금 `<dir>.lock/`(안에 주인 pid·pstart). 최대 30초 기다리고 못 얻으면 rc 1(로그 한 줄).
+# 주인이 죽었거나(pid 없음·pstart 다름) 잠금이 COORD_LOCK_STALE_S(기본 60초)보다 오래됐으면 탈취한다 — 시간 제한으로 끊긴
+# 프로세스(office.sh·coord-state.sh)가 남긴 잠금이 뒤 호출을 막지 않게. 탈취끼리는 짧은 탈취 잠금(`.lock.steal`)으로 겨루지 않는다.
+_coord_lock_stale() {  # <잠금 폴더> — 탈취해도 되면 0
+  local d="$1" p ps mt max="${COORD_LOCK_STALE_S:-60}"
+  case "$max" in ''|*[!0-9]*) max=60 ;; esac
+  [ -d "$d" ] || return 1
+  mt="$(coord_file_mtime "$d")"; case "$mt" in ''|*[!0-9]*) return 1 ;; esac
+  [ $(( $(date +%s) - mt )) -ge "$max" ] && return 0
+  p="$(cat "$d/pid" 2>/dev/null)"
+  case "$p" in ''|*[!0-9]*) return 1 ;; esac      # 막 만든 직후(주인을 쓰기 전)·옛 형식은 오래될 때만
+  kill -0 "$p" 2>/dev/null || return 0
+  ps="$(cat "$d/pstart" 2>/dev/null)"
+  [ -n "$ps" ] && [ "$ps" != "$(coord_pstart "$p")" ] && return 0   # pid 재사용
+  return 1
+}
+_coord_lock_own() { printf '%s\n' "$$" > "$1/pid" 2>/dev/null; coord_pstart "$$" > "$1/pstart" 2>/dev/null; return 0; }
 coord_lock() {
-  local d="$1.lock" i=0
+  local d="$1.lock" i=0 m st
+  m="$d.steal"
   while ! mkdir "$d" 2>/dev/null; do
+    if _coord_lock_stale "$d" && mkdir "$m" 2>/dev/null; then
+      if _coord_lock_stale "$d"; then      # 탈취 잠금 아래에서 다시 확인하고 옆으로 옮긴 뒤 새로 만든다
+        st="$d.stale.$$"; mv "$d" "$st" 2>/dev/null; rm -rf "$st"
+        coord_log "죽은·오래된 잠금 탈취: $d"
+        if mkdir "$d" 2>/dev/null; then _coord_lock_own "$d"; rmdir "$m" 2>/dev/null; return 0; fi
+      fi
+      rmdir "$m" 2>/dev/null
+    elif [ -d "$m" ] && [ $(( $(date +%s) - $(coord_file_mtime "$m" 2>/dev/null || echo 0) )) -ge 10 ]; then rmdir "$m" 2>/dev/null
+    fi
     i=$((i + 1)); [ "$i" -ge 300 ] && { coord_log "잠금 실패: $d"; return 1; }
     sleep 0.1
   done
+  _coord_lock_own "$d"
 }
-coord_unlock() { rmdir "$1.lock" 2>/dev/null || true; }
+# 내가 쥔 잠금만 푼다(주인 pid 가 나이거나 비었을 때). 탈취당한 뒤 남의 새 잠금을 지우지 않는다
+coord_unlock() {
+  local d="$1.lock" p
+  p="$(cat "$d/pid" 2>/dev/null)"
+  [ -z "$p" ] || [ "$p" = "$$" ] || return 0
+  rm -f "$d/pid" "$d/pstart" 2>/dev/null; rmdir "$d" 2>/dev/null || true
+}
 
 coord_git() { local g; g="$(coord_cfg .git_bin)"; "${g:-git}" "$@"; }
 
@@ -303,13 +338,13 @@ coord_session_file() {
   return 1
 }
 # 레인 워크트리를 cwd 로 둔 빌드·시험 프로세스(S7 라). 한 줄에 `<pid>\t<이름>`.
-# 이름: GradleWrapperMain·gradle·vitest·playwright·tsc. 서버(bootRun)·공용 데몬(GradleDaemon)은 뺀다.
+# 이름: GradleWrapperMain·gradle·vitest·playwright·tsc. 서버(bootRun·`-Dbe.run.module=` 로 띄운 앱 JVM)·공용 데몬(GradleDaemon)은 뺀다.
 coord_wt_procs() {
   local wt="$1" cand pids
   [ -n "$wt" ] || return 0
   cand="$(ps -axo pid=,args= 2>/dev/null | awk '
     { a = $0; sub(/^ *[0-9]+ +/, "", a); n = "" }
-    a ~ /^([^ ]*\/)?awk / || a ~ /bootRun|GradleDaemon/ { next }
+    a ~ /^([^ ]*\/)?awk / || a ~ /bootRun|be\.run\.module|GradleDaemon/ { next }
     a ~ /GradleWrapperMain/ { n = "GradleWrapperMain" }
     n == "" && a ~ /(^|[\/ ])gradlew?( |$)|org\.gradle\.launcher\.GradleMain/ { n = "gradle" }
     n == "" && a ~ /vitest/ { n = "vitest" }

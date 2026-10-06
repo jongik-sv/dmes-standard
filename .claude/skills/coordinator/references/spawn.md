@@ -44,8 +44,9 @@
 - **띄운 직후에는 `tui-idle` 의 `satisfied: true` 를 확인한 뒤에만 입력을 보낸다.** 아직 시작 중인 TUI 에 친 글은 사라진다.
 - `launch.claude` 는 이 PC 에서 claude 플래그가 통과하는 실행 명령이다(설정, 킷에 박지 않는다). `-n`·`--model`·`--effort`·`--autocompact` 가 통과하는지 첫 기동 때 확인한다.
 - `--autocompact <tokens>` 는 백스톱이다. 정확한 발동 토큰이 확인되지 않아 주 경로는 외부 `/compact`(`compact.md`)다.
-- 레인 수 상한은 사용량 띠(`usage.md`: Y 부터 새 레인 금지)와, dflow-team 의 `capacity.sh` 가 있는 PC 에서는 그 판정(free·swap·load)으로 정한다. 없으면 건너뛴다.
+- 레인 수 상한은 사용량 띠(`usage.md`: 1주 사용률이 `usage.spawn_week_max` 미만이면 띠와 상관없이 허용)와, dflow-team 의 `capacity.sh` 가 있는 PC 에서는 그 판정(free·swap·load)으로 정한다. 없으면 건너뛴다.
 - 터미널 입력은 `term-send-safe.sh` 만 쓴다.
+- 레인 이름은 40자 이하다(`lane-add` 가 넘으면 거절한다). 띄운 뒤 첫 `lane-add` 에 정본 메모 경로 `memo` 도 함께 넣는다. 비면 compact 문구가 「정본은 -」 로 나가고 `lane-add` 가 stderr 에 `WARN` 을 낸다(`decompose.md` §5).
 
 ## 3. GLM 기동 절차
 
