@@ -87,6 +87,7 @@ LookupModal
 | initialKeyword | `string` | `""` | 열릴 때 검색어 칸에 먼저 채울 값 |
 | filters | `LookupFilter[]` | - | 고유 조회조건. `LookupFilter`: `key`, `label`, `type?`(`"select" \| "text"`), `options?`, `defaultValue?`, `placeholder?`, `width?`(기본 130) |
 | searchOnOpen | `boolean` | `false` | 참이면 열리자마자 첫 페이지를 조회한다 |
+| gridId | `string` | `"lookup"` | 안쪽 그리드의 컬럼 개인화 저장 이름([AgDataGrid](ag-data-grid.md) `gridId`). 한 화면에서 룩업을 여럿 쓰면 호출처마다 다른 이름(예: `"modal-user"`)을 준다. 서버 페이징이라 정렬은 저장하지 않는다 |
 
 `LookupRow` 는 `{ code: string; name: string }` 하나뿐이다. 다른 열이 필요하면 `fetchFn` 안에서 `code`·`name` 으로 매핑한다.
 
@@ -122,6 +123,7 @@ LookupIconButton: `onClick`(필수), `disabled`(`false`), `ariaLabel`(`"상세 �
 | 열 때마다 이전 검색어가 남기를 기대한다 | 열릴 때 상태가 초기화된다. 값은 `initialKeyword` 로 넘긴다 |
 | 기본 조회 버튼을 눌러야 해서 빈 팝업이 먼저 보인다 | 바로 보여야 하면 `searchOnOpen` 을 켠다 |
 | `LookupRow` 에 없는 열을 넘긴다 | 코드·명 두 칸만 그린다. 필요한 값은 `onSelect` 뒤 화면이 별도로 조회한다 |
+| 한 화면에서 `LookupModal` 을 여럿 쓰면서 `gridId` 를 안 준다 | 모두 `"lookup"` 이라 컬럼 개인화 저장 키가 겹친다. 같은 탭에 먼저 떠 있는 그리드만 개인화되니 호출처마다 다른 `gridId` 를 준다 |
 | 배경·여백을 화면 CSS 로 바꾼다 | 이 팝업은 16진수 색·인라인 스타일을 내부에 쓰며 테마 토큰을 따르지 않는다. 바꾸려면 shared 를 고친다(보강 후보) |
 
 ## 실제 사용 예
