@@ -242,14 +242,16 @@ export default function ColumnMngPage() {
     [fail, list, setSelectedColumnId],
   );
 
-  // 분리 창이 이어받은 선택 컬럼이 있으면 상세를 서버에서 다시 읽는다(상세는 컬럼 ID 로 읽는다). 행 없이 복원돼 재조회 중이면 도메인 이름 칸만 「도메인 번호」 로 보인다. 포털 탭은 복원값이 없어 아무것도 하지 않는다.
+  // 분리 창이 이어받은 선택 컬럼이 있으면 상세를 서버에서 다시 읽는다(상세는 컬럼 ID 로 읽는다). `openColumn` 이 도메인 이름을 목록 행에서 찾으므로
+  // 행이 있을 때 부른다 — 행이 함께 왔으면 마운트 직후, 행 없이 복원돼 재조회 중이면 목록이 도착한 뒤 한 번. 포털 탭은 복원값이 없어 아무것도 하지 않는다.
   const restored = useCarryRestored();
+  const pendingRestoreId = useRef<number | null>(restored ? selectedColumnId : null);
   useEffect(() => {
-    // 서버 조회 결과를 상태에 담는 호출이라 effect 안 setState 규칙에 걸린다(분리 창 복원 때만 돈다).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (restored && selectedColumnId != null) void openColumn(selectedColumnId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const id = pendingRestoreId.current;
+    if (id == null || list.length === 0) return;
+    pendingRestoreId.current = null;
+    void openColumn(id);
+  }, [list, openColumn]);
 
   // ── 자동 생성 ─────────────────────────────────────────────────────────
   const runCompare = useCallback(
