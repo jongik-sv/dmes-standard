@@ -147,7 +147,7 @@
 - `merge.in_flight` = `{"lane","branch","expected_tree","granted_at"}`. 완료 보고 뒤 `history` 로 옮기고 `merged`·`tree`·`cleaned` 를 채운다.
 - `windows[]` = `{"kind":"measure|move|ban","lane":<측정 레인|null>,"opened_at","until","notified":[],"hold_job":<heavy detach id|null>}`. 닫으면 배열에서 빼고 이벤트로 남긴다.
 - `ctx` = `{"tokens","window","pct","src","at"}`.
-- `run.closed_at` = 회차를 마감한 시각(ISO)이고, 열린 회차는 `null`. `coord-state.sh close-run`(또는 `event run-closed`)만 쓴다. 이 칸이 비고 같은 조정 세션이 아닌 다른 세션이 연 회차가 살아 있는 레인을 둔 채 오래 조용하면 `init`·`tick.sh` 가 `STALE_RUN` 으로 알린다(경고뿐, 자동 마감하지 않는다). 계약에 없는 칸(`.run.state` 등)으로 마감을 표시하지 않는다.
+- `run.closed_at` = 회차를 마감한 시각(ISO)이고, 열린 회차는 `null`. `coord-state.sh close-run`(또는 `event run-closed`)만 쓴다. 이 칸이 비고 다른 조정 세션이 연 회차는 `init` 이 조건 없이, `tick.sh` 는 살아 있는 레인이 있고 `state.json` 이 120분 넘게 조용할 때만 `STALE_RUN` 으로 알린다(경고뿐, 자동 마감하지 않는다). 계약에 없는 칸(`.run.state` 등)으로 마감을 표시하지 않는다.
 
 ## 3. 스크립트
 
@@ -200,7 +200,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 
 | 하위명령 | 하는 일 · stdout |
 |---|---|
-| `init <run-id> [--goal 글] [--rules-doc 경로]` | 회차 폴더·빈 state.json 생성, current 지정 · `RUN <run-id> <폴더>`. 현재 세션 id(`COORD_SESSION_ID` → `CLAUDE_CODE_SESSION_ID`)와 조정 세션 pid(`CLAUDE_PID` → `$PPID`)를 `.run.coordinator.session_id`·`.pid` 에 적는다. 같은 세션 id 의 다른 열린 회차가 있으면 회차는 만들되(**자동 마감하지 않는다**) stderr 경고와 stdout `SESSION_RUNS <세션8> open=<n>` 한 줄을 낸다 — 팀장 칸은 그 회차들과 공유된다. 그 밖의 세션의 마감 표식 없는 회차는 `STALE_RUN <run-id> open session=<id\|-> idle=<분>m`(경고만) |
+| `init <run-id> [--goal 글] [--rules-doc 경로]` | 회차 폴더·빈 state.json 생성, current 지정 · `RUN <run-id> <폴더>`. 현재 세션 id(`COORD_SESSION_ID` → `CLAUDE_CODE_SESSION_ID`)와 조정 세션 pid(`CLAUDE_PID`, 없으면 0 — 생존 판정에서 빠지고 TTL 에 맡긴다)를 `.run.coordinator.session_id`·`.pid` 에 적는다. 같은 세션 id 의 다른 열린 회차가 있으면 회차는 만들되(**자동 마감하지 않는다**) stderr 경고와 stdout `SESSION_RUNS <세션8> open=<n>` 한 줄을 낸다 — 팀장 칸은 그 회차들과 공유된다. 그 밖의 세션의 마감 표식 없는 회차는 `STALE_RUN <run-id> open session=<id\|-> idle=<분>m`(경고만) |
 | `use <run-id>` | current 바꾸기 |
 | `get [jq식]` | state.json 에 jq 적용 결과 |
 | `set <jq경로> <json값>` | 값 쓰기(예: `set '.lanes.a8.priority' 3`) · `OK` |
@@ -237,7 +237,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 
 | 대상 | 키 | 비고 |
 |---|---|---|
-| 팀장 | `<신원>/<host>/coord:<세션8>` | **조정 세션당 하나**다(회차가 아니다). `<세션8>` = 조정 세션 id(`COORD_SESSION_ID` → `CLAUDE_CODE_SESSION_ID`)의 앞 8자를 소문자 `[a-z0-9]` 로 거른 값, 세션 id 를 모르면 `p<CLAUDE_PID 또는 $PPID>`. `slots` = 그 세션의 **열린 회차 전부**(`run.closed_at` 이 null) 에서 합산한 살아 있는 레인 수(state 가 closed 가 아닌 레인), `busy` = 그중 작업 중·머지 중 레인 수. 레인이 0 이어도 `slots 0 busy 0` 을 보낸다. 회차가 열리고 닫혀도 키는 바뀌지 않고, 그 세션의 **마지막 열린 회차를 닫을 때만** 내린다. 서로 다른 세션 id 의 조정 세션 둘은 팀장 둘이다(정상) |
+| 팀장 | `<신원>/<host>/coord:<세션8>` | **조정 세션당 하나**다(회차가 아니다). `<세션8>` = 조정 세션 id(`COORD_SESSION_ID` → `CLAUDE_CODE_SESSION_ID`)의 앞 8자를 소문자 `[a-z0-9]` 로 거른 값, 세션 id 를 모르면 `p<조정 세션 pid>`, pid 도 모르면 회차 id(이 경우 키가 회차 단위로 돌아가므로 `init` 이 stderr 경고를 낸다). `slots` = 그 세션의 **열린 회차 전부**(`run.closed_at` 이 null) 에서 합산한 살아 있는 레인 수(state 가 closed 가 아닌 레인), `busy` = 그중 작업 중·머지 중 레인 수. 레인이 0 이어도 `slots 0 busy 0` 을 보낸다. 회차가 열리고 닫혀도 키는 바뀌지 않고, 그 세션의 **마지막 열린 회차를 닫을 때만** 내린다. 서로 다른 세션 id 의 조정 세션 둘은 팀장 둘이다(정상) |
 | 팀원 | `<신원>/<host>/임시:<레인>·<지시 요약>` | `until` 칸에 상태 라벨. `slots`·`busy` 는 보내지 않는다. 레인 이름은 키에서 40자로 잘리므로 `lane-add` 가 40자를 넘는 이름을 거절한다 |
 
 - `<신원>/<host>` 는 `dflow.sh` 의 `watcher_id_default`(`<신원>/<host>/poll`)에서 마지막 토막만 뗀 값이다(신원 = `/me` 의 user_email 로컬 파트, host = hostname 첫 토막, 둘 다 소문자 `[a-z0-9-]` 슬러그). 킷에 PC별 이름을 박지 않는다. 신원은 `state.json` 의 `.office.user` 에 캐시한다.
@@ -264,7 +264,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 | `coord-state.sh set '.merge…'` 로 `in_flight` 레인이 바뀔 때(머지 허가·완료) | 이전·새 레인에 `lane-state <레인> auto` |
 | `close-lane.sh` 가 레인을 closed 로 쓴 뒤 | `lane-down <레인>` |
 | `tick.sh` 끝(`--dry-run` 제외) | `beat` — 팀장과 살아 있는 레인 전원을 같은 키로 재전송(하트비트). 끝난 레인·state 에서 사라진 레인은 stop. 개별 호출이 빠져도 beat 가 state.json 기준으로 바로잡는다. 마감 뒤에는 `.office.sent` 에 남은 키만 stop 한다 |
-| `console-poll.sh` 생존 감시(§4.1, 30초마다) | `reap` — `_session/*.json` 의 `pid` 가 죽은 세션은 팀장 키와 그 세션 회차들(마감 여부 무관)의 `.office.sent` 팀원 키를 stop 하고 그 회차들에 `.office.finished=true` 를 남긴다. 세션 기록은 모든 stop 이 성공했을 때만 지운다(실패분은 다음 주기가 다시 시도). 살아 있는(또는 기록 없는) 세션의 열린 회차에서는 `session.pid` 가 죽은 레인의 팀원 키만 stop 하고 기록을 지운다. pid 0·빈 값은 판정에서 뺀다. 한 호출의 ABORT 는 호출 전체에 걸린다 |
+| `console-poll.sh` 생존 감시(§4.1, 30초마다) | `reap` — `_session/*.json` 의 `pid` 가 죽은 세션은 팀장 키와 그 세션 회차들(마감 여부 무관)의 `.office.sent` 팀원 키를 stop 한다. **`.office.finished` 표식은 남기지 않는다**(잘못 죽었다고 판정된 살아 있는 세션이 다음 beat 에서 다시 올라올 수 있어야 한다). 죽은 세션의 회차는 열린 채 남으므로 폴러·대상 해석은 「살아 있는 세션의 열린 회차」(세션 기록이 있고 pid 가 살아 있는 세션)만 센다. 세션 기록은 모든 stop 이 성공했을 때만 지운다(실패분은 다음 주기가 다시 시도). 살아 있는(또는 기록 없는) 세션의 열린 회차에서는 `session.pid` 가 죽은 레인의 팀원 키만 stop 하고 기록을 지운다. pid 0·빈 값은 판정에서 뺀다. 한 호출의 ABORT 는 호출 전체에 걸린다 |
 | `coord-state.sh close-run`·`event run-closed`(`closing.md` §6) | `finish` — 레인마다 ABORT 를 풀고 이 회차의 팀원 키를 모두 stop 한다(한 건의 실패가 나머지를 막지 않는다). **팀장 키는 이 세션에 다른 열린 회차가 남아 있으면 stop 하지 않고 `slots`·`busy` 만 다시 합산해 보내며, 마지막 열린 회차를 닫을 때만 stop 한다.** `.office.finished=true` 는 늘 남기며, 그 뒤 그 회차의 `office.sh` 는 `beat` 만 동작해 stop 이 실패해 기록에 남은 키를 마저 내린다(유령 행 방지) |
 
 `lane-state`·`lane-up` 은 키·라벨이 기록과 같으면 보내지 않는다(beat·lead-up 은 늘 보낸다). 사용자가 띄운 세션처럼 `lane-up` 을 거치지 않은 레인은 다음 beat 에서 등록된다.
@@ -284,7 +284,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 
 **주기**: 30초(서버 watch 응답의 `console.poll_s` 가 있으면 15~120 으로 잘라 따른다). 한 주기는 아래 세 일을 순서대로 하고, 한 일의 실패가 나머지를 막지 않는다.
 
-1. **생존 감시(서버 지원과 무관하게 늘 한다)**: `_session/*.json` 의 `pid` 와 열린 회차 레인의 `session.pid` 를 `kill -0` 으로 확인해 죽은 대상의 오피스 키를 stop 한다(§4 「생존 판정」). 확인할 조정 세션·열린 회차·팀장 기록이 하나도 없으면 폴러는 두 주기 연속 빈 채로 보고 스스로 끝난다.
+1. **생존 감시(서버 지원과 무관하게 늘 한다)**: `_session/*.json` 의 `pid` 와 열린 회차 레인의 `session.pid` 를 `kill -0` 으로 확인해 죽은 대상의 오피스 키를 stop 한다(§4 「생존 판정」). 확인할 조정 세션 기록(`_session/*.json`)·살아 있는 세션의 열린 회차·팀장 핸들 기록이 하나도 없으면 폴러는 두 주기 연속 빈 채로 보고 스스로 끝난다.
 2. **프롬프트 전달**(watch 응답에 `console` 칸이 있는 서버에서만): `dflow.sh console-poll --host <host>` → 프롬프트마다 대상 해석 → 안전 입력 → `console-ack`.
 3. **화면 올리기**(2 와 같은 조건): 해석되는 대상마다 화면 끝 40줄을 읽어 가린 뒤 `console-screen` 으로 올린다.
 

@@ -13,7 +13,8 @@
 #     WINDOW_DUE <kind> lane=<레인|-> until=<iso>
 #     UNACKED <instr-id> <레인> <분>m
 #     UNLINKED <이름> pid=<pid>                          (처음 본 것만)
-#     STALE_RUN <run-id> session=<id>                    (같은 조정 세션의 다른 회차가 마감 표식 없이 팀장 키를 남김 → close-run)
+#     STALE_RUN <run-id> session=<id|-> idle=<분>m       (다른 조정 세션이 연 회차가 마감 표식 없이 살아 있는 레인을 둔 채 남음 — 경고만.
+#                                                         같은 세션의 열린 회차는 팀장 칸을 공유하는 정상 상태라 알리지 않는다)
 #     TICK quiet                                          (위 줄이 하나도 없을 때)
 set -uo pipefail
 SD="$(cd "$(dirname "$0")" && pwd)"
@@ -114,13 +115,16 @@ while read -r _ nm pidf _; do
   grep -qxF "$nm" "$seen" || { echo "$nm" >> "$seen"; emit "UNLINKED $nm $pidf"; }
 done < <(printf '%s\n' "$status" | grep '^UNLINKED ')
 
-# 9. 같은 조정 세션이 앞서 돌린 회차가 마감 없이 남음(오피스 팀장 칸이 둘로 보이는 사고). 다른 세션의 회차는 진행 중일 수 있어 건드리지 않는다.
-me="${self:-${COORD_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
-if [ -n "$me" ]; then
-  while IFS=$'\t' read -r rid sid; do
-    [ "$sid" = "$me" ] && emit "STALE_RUN $rid session=$sid"
-  done < <(coord_stale_runs "$(basename "$RD")")
-fi
+# 9. 다른 조정 세션이 연 회차가 마감 표식 없이 살아 있는 레인을 둔 채 남음(contract §2.1·§3.3, 경고만 — 자동 마감하지 않는다).
+#    팀장 키는 조정 세션 단위라 같은 세션의 다른 열린 회차는 정상(팀장 칸 공유)이므로 알리지 않는다.
+me8="$(coord_sess8 "$RD/state.json")"
+while IFS=$'\t' read -r rid sid s8 alive; do
+  [ -n "$rid" ] && [ "$s8" != "$me8" ] && [ "${alive:-0}" -gt 0 ] || continue
+  mt="$(coord_file_mtime "$(coord_state_root)/$rid/state.json")"; age="-"
+  # 조정 세션이 둘이면 서로의 회차가 늘 보이므로, state.json 이 STALE_MIN(120)분 넘게 조용한 회차만 알린다(mtime 을 모르면 알린다).
+  if [ -n "$mt" ]; then [ $(( (now - mt) / 60 )) -ge 120 ] || continue; age="$(( (now - mt) / 60 ))m"; fi
+  emit "STALE_RUN $rid session=$sid idle=$age"
+done < <(coord_stale_runs "$(basename "$RD")")
 
 if [ "${#out[@]}" -eq 0 ]; then echo "TICK quiet"; else printf '%s\n' "${out[@]}"; fi
 [ "${#out[@]}" -gt 0 ] && coord_state_call event tick - "$(jq -cn --argjson n "${#out[@]}" '{actions:$n}')" >/dev/null 2>&1

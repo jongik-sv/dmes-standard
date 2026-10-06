@@ -17,7 +17,8 @@
 #   summary                                        summary.md 재생성 · 경로
 # state.json 은 이 스크립트만 쓴다. 쓰기는 mkdir 잠금(<회차>/.lock) 아래에서 임시 파일 → mv 로 원자적으로 한다.
 # 회차는 COORD_RUN 환경 변수 → <state_dir>/current 순으로 정한다(init 은 인자의 run-id).
-# init 은 마감 표식(.run.closed_at)이 없고 오피스 팀장 키가 남은 다른 회차를 `STALE_RUN` 줄로 알린다(같은 조정 세션이면 자동 마감).
+# init 은 조정 세션 id·pid(CLAUDE_PID, 없으면 0 — TTL 에 맡긴다)를 .run.coordinator 에 적고, 같은 조정 세션의 다른 열린 회차가 있으면
+# `SESSION_RUNS <세션8> open=<n>`, 다른 세션의 마감 표식 없는 회차는 `STALE_RUN <run-id> open …` 줄로 알린다(둘 다 경고만, 자동 마감 없음).
 set -uo pipefail
 # shellcheck source=lib/common.sh
 . "$(dirname "$0")/lib/common.sh"
@@ -77,9 +78,10 @@ lane_exists() {
 json_ok() { printf '%s' "$1" | jq empty >/dev/null 2>&1 && [ -n "$1" ] || coord_die 2 "json 오류: $1"; }
 
 cmd_init() {
-  local id="${1:-}" goal="" rules="" root dir sid="${COORD_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}"
+  local id="${1:-}" goal="" rules="" root dir sid="${COORD_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}" cpid="${CLAUDE_PID:-0}"
   [ -n "$id" ] || usage; shift
-  case "$id" in */*|.*|current|ctx|*[!A-Za-z0-9._-]*) coord_die 2 "run-id 형식 오류: $id" ;; esac
+  case "$id" in */*|.*|current|ctx|_session|*[!A-Za-z0-9._-]*) coord_die 2 "run-id 형식 오류: $id" ;; esac
+  case "$cpid" in ''|*[!0-9]*) cpid=0 ;; esac
   while [ $# -gt 0 ]; do
     case "$1" in
       --goal) goal="${2:-}"; shift ;;
@@ -92,10 +94,10 @@ cmd_init() {
   [ -f "$dir/state.json" ] && coord_die 2 "이미 있는 회차: $dir (이어 쓰려면 use $id)"
   mkdir -p "$dir/lanes" "$dir/ticks" || coord_die 4 "폴더 생성 실패: $dir"
   jq -n --arg id "$id" --arg goal "$goal" --arg rules "$rules" --arg ib "$(coord_cfg .integration_branch)" \
-    --arg now "$(coord_now_iso)" --arg sid "$sid" '{
+    --arg now "$(coord_now_iso)" --arg sid "$sid" --argjson cpid "$cpid" '{
       schema: 1,
       run: {id: $id, goal: $goal, rules_doc: $rules, integration_branch: $ib, created_at: $now, closed_at: null,
-            coordinator: {name: "", addr: "", session_id: $sid, handle: "", pid: 0},
+            coordinator: {name: "", addr: "", session_id: $sid, handle: "", pid: $cpid},
             cron_id: null, usage_band_notified: null},
       lanes: {}, deps: [],
       merge: {in_flight: null, queue: [], history: []},
@@ -110,25 +112,29 @@ cmd_init() {
   ev_append "$dir" init - "$(jq -nc --arg g "$goal" '{goal:$g}')"
   COORD_RUN="$id" office lead-up
   echo "RUN $id $dir"
-  init_stale_check "$id" "$sid"
+  local s8; s8="$(coord_sess8 "$dir/state.json")"
+  # 세션 id 도 pid 도 모르면 <세션8> 이 회차 id 로 떨어져 회차마다 팀장 칸이 따로 생긴다(contract §4).
+  [ "$s8" != "$id" ] || coord_log "경고: 조정 세션 id(COORD_SESSION_ID·CLAUDE_CODE_SESSION_ID)와 CLAUDE_PID 를 모른다 — 오피스 팀장 칸이 이 회차 단위로 따로 생긴다. 조정 세션 안에서 init 하라"
+  init_stale_check "$id" "$s8"
 }
 
-# 새 회차를 시작할 때 앞 회차가 마감되지 않은 채 남았는지 본다(오피스에 팀장 칸이 둘 보이는 사고 방지).
-# 같은 조정 세션(session_id 가 같음)의 회차는 자동 마감하고, 그 밖에는 경고만 낸다(다른 조정자의 진행 중 회차일 수 있다).
-init_stale_check() {  # init_stale_check <새 run-id> <현재 세션 id>
-  local rid sid age mt now; now="$(coord_now_epoch)"
-  while IFS=$'\t' read -r rid sid; do
+# 새 회차를 시작할 때 마감 표식 없는 다른 회차를 알린다(자동 마감하지 않는다 — contract §3.4).
+# 같은 조정 세션(<세션8> 이 같음)의 열린 회차는 팀장 칸을 공유하는 정상 상태라 `SESSION_RUNS <세션8> open=<n>` 한 줄(n 은 새 회차 포함
+# 이 세션의 열린 회차 수)과 stderr 경고만 낸다. 다른 세션의 회차는 `STALE_RUN <run-id> open session=<id|-> idle=<분>m` 경고만 낸다.
+init_stale_check() {  # init_stale_check <새 run-id> <새 회차의 세션8>
+  local rid sid s8 _alive age mt now same=0; now="$(coord_now_epoch)"
+  while IFS=$'\t' read -r rid sid s8 _alive; do
     [ -n "$rid" ] || continue
-    if [ -n "$2" ] && [ "$sid" = "$2" ]; then
-      COORD_RUN="$rid" bash "$COORD_SCRIPTS_DIR/coord-state.sh" close-run "$(jq -nc --arg by "$1" '{auto:"init", by:$by}')" >/dev/null 2>&1 \
-        && echo "STALE_RUN $rid auto-closed session=$sid" || echo "STALE_RUN $rid close-failed session=$sid"
-    else
-      mt="$(coord_file_mtime "$(coord_state_root)/$rid/state.json")"; age="-"
-      [ -n "$mt" ] && age="$(( (now - mt) / 60 ))m"
-      echo "STALE_RUN $rid open session=$sid idle=$age"
-      coord_log "STALE_RUN $rid: 마감 표식이 없는데 오피스 팀장 키가 남아 있다. 끝난 회차라면 COORD_RUN=$rid coord-state.sh close-run (진행 중인 다른 조정자의 회차면 그대로 둔다)"
-    fi
+    if [ -n "$2" ] && [ "$s8" = "$2" ]; then same=$((same + 1)); continue; fi
+    mt="$(coord_file_mtime "$(coord_state_root)/$rid/state.json")"; age="-"
+    [ -n "$mt" ] && age="$(( (now - mt) / 60 ))m"
+    echo "STALE_RUN $rid open session=$sid idle=$age"
+    coord_log "STALE_RUN $rid: 다른 조정 세션의 회차가 마감 표식 없이 남아 있다(경고만). 끝난 회차라면 COORD_RUN=$rid coord-state.sh close-run (진행 중인 다른 조정자의 회차면 그대로 둔다)"
   done < <(coord_stale_runs "$1")
+  if [ "$same" -gt 0 ]; then
+    echo "SESSION_RUNS $2 open=$((same + 1))"
+    coord_log "SESSION_RUNS $2: 이 조정 세션에 열린 회차가 $((same + 1))개다(앞 회차는 자동 마감하지 않는다). 오피스 팀장 칸 하나를 공유하고 slots·busy 는 합산된다. 끝난 회차는 COORD_RUN=<회차> coord-state.sh close-run 으로 닫는다"
+  fi
 }
 
 # 회차 마감(closing.md §6): run-closed 이벤트 → 오피스 finish(팀장·팀원 표시 내림) → .run.closed_at 기록.
@@ -177,6 +183,8 @@ cmd_set() {
 cmd_lane_add() {
   [ $# -eq 2 ] || usage
   lane_name_ok "$1"; json_ok "$2"
+  # 오피스 팀원 키가 레인 이름을 40자로 자르므로(contract §4) 더 긴 이름은 폴러가 대상을 못 찾는다.
+  [ "${#1}" -le 40 ] || coord_die 2 "레인 이름은 40자 이하: ${#1}자"
   st_update --arg l "$1" --argjson j "$2" --argjson sk "$LANE_SKEL" '.lanes[$l] = ($sk * (.lanes[$l] // {}) * $j)' || exit 4
   mkdir -p "$(run_dir)/lanes/$1"
   ev_append "$(run_dir)" lane-add "$1"
@@ -343,6 +351,6 @@ case "$sub" in
   hold) cmd_hold "$@" ;;
   close-run) cmd_close_run "$@" ;;
   summary) cmd_summary ;;
-  -h|--help|help) sed -n '2,19p' "$0" >&2; exit 0 ;;
+  -h|--help|help) sed -n '2,21p' "$0" >&2; exit 0 ;;
   *) usage ;;
 esac

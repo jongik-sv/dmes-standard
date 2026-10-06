@@ -90,7 +90,44 @@ coord_cfg_all() {
 coord_cfg() { coord_cfg_all | jq -r "($1) // empty | if type==\"string\" or type==\"number\" or type==\"boolean\" then tostring else tojson end"; }
 coord_cfg_json() { coord_cfg_all | jq -c "($1)"; }
 
-coord_state_root() { coord_expand "$(coord_cfg .state_dir)"; }
+# 상태 뿌리. COORD_STATE_ROOT 환경 변수가 있으면 그것(office.sh reap --state-dir 이 하위 호출에 넘긴다), 없으면 설정 state_dir.
+coord_state_root() {
+  if [ -n "${COORD_STATE_ROOT:-}" ]; then coord_expand "$COORD_STATE_ROOT"; return; fi
+  coord_expand "$(coord_cfg .state_dir)"
+}
+# 조정 세션 식별자 <세션8>(contract §4): session_id 앞 8자를 소문자 [a-z0-9] 로 거른 값. 거른 뒤 비면 p<pid>,
+# pid 도 0·빈 값이면 회차 id(슬래시·개행·탭·공백 제거). jq 정의(COORD_S8_JQ)와 셸 함수가 같은 규칙이다.
+COORD_S8_JQ='def coord_s8: (.run.coordinator.session_id // "" | tostring | .[0:8] | ascii_downcase | gsub("[^a-z0-9]"; "")) as $s
+  | ((.run.coordinator.pid // 0) | tostring) as $p
+  | if $s != "" then $s
+    elif ($p != "0" and $p != "" and $p != "null") then "p" + $p
+    else (.run.id // "" | tostring | gsub("[/\r\n\t ]"; "")) end;'
+coord_sess8() {  # coord_sess8 <state.json> — 그 회차의 <세션8>. 읽기 실패면 빈 출력
+  jq -r "$COORD_S8_JQ"' coord_s8' "$1" 2>/dev/null
+}
+# 상태 뿌리 아래 회차마다 한 줄 요약(깨진 파일은 건너뛴다):
+#   <run-id>\t<세션8>\t<open 1|0>\t<finished 1|0>\t<살아 있는 레인 수>\t<작업 중·머지 중 레인 수>\t<session_id|->\t<coordinator pid|0>
+# open = .run.closed_at 이 null. 레인 판정은 office.sh 의 상태 라벨 규칙(closed=끝, in_flight=머지 중, hold·closing=대기)과 같다.
+# 인자: [제외할 run-id] [그 회차에서 제외할 레인]
+coord_runs_summary() {
+  local root d; root="$(coord_state_root)"
+  for d in "$root"/*/; do
+    [ -f "${d}state.json" ] || continue
+    jq -r --arg xr "${1:-}" --arg xl "${2:-}" --arg id "$(basename "$d")" "$COORD_S8_JQ"'
+      . as $r
+      | [(.lanes // {}) | keys[] | select(($id == $xr and . == $xl) | not) | . as $k | $r.lanes[$k] as $l
+         | if ($l.state // "active") == "closed" then "끝"
+           elif ($r.merge.in_flight.lane // "") == $k then "머지 중"
+           elif $l.hold != null or ($l.state // "") == "closing" then "대기"
+           else "작업 중" end | select(. != "끝")] as $alive
+      | [$id, coord_s8, (if (.run.closed_at // null) == null then "1" else "0" end),
+         (if (.office.finished // false) == true then "1" else "0" end),
+         ($alive | length | tostring), ([$alive[] | select(. == "작업 중" or . == "머지 중")] | length | tostring),
+         (.run.coordinator.session_id // "" | tostring | if . == "" then "-" else . end),
+         ((.run.coordinator.pid // 0) | tostring)] | @tsv' "${d}state.json" 2>/dev/null
+  done
+  return 0
+}
 coord_run_id() {
   if [ -n "${1:-}" ]; then printf '%s' "$1"; return; fi
   if [ -n "${COORD_RUN:-}" ]; then printf '%s' "$COORD_RUN"; return; fi
@@ -157,17 +194,16 @@ coord_has_run() {
   local id; id="$(coord_run_id 2>/dev/null)" || return 1
   [ -n "$id" ] && [ -f "$(coord_state_root)/$id/state.json" ]
 }
-# 마감 표식(.run.closed_at·.office.finished)이 없고 오피스 팀장 키(.office.sent._lead)가 남은 회차. 인자: <제외할 run-id>.
-# 한 줄에 `<run-id>\t<조정 세션 id|->`. 다른 조정자의 진행 중 회차도 걸리므로 호출자가 세션 id 로 가른다.
+# 마감 표식(.run.closed_at·.office.finished)이 없는 회차. 인자: <제외할 run-id>.
+# 한 줄에 `<run-id>\t<조정 세션 id|->\t<세션8>\t<살아 있는 레인 수>`. 같은 세션(<세션8>)의 회차는 팀장 칸을 공유하는 정상 상태이므로
+# 호출자가 <세션8> 로 갈라 다른 세션의 회차만 STALE_RUN 으로 알린다(경고만, 자동 마감 없음 — contract §2.1·§3.3·§3.4).
 coord_stale_runs() {
-  local root d id sid; root="$(coord_state_root)"
-  for d in "$root"/*/; do
-    [ -f "${d}state.json" ] || continue
-    id="$(basename "$d")"; [ "$id" != "${1:-}" ] || continue
-    sid="$(jq -r 'select((.run.closed_at // null) == null and (.office.finished // false) != true and (.office.sent._lead // null) != null)
-      | (.run.coordinator.session_id // "") | if . == "" then "-" else . end' "${d}state.json" 2>/dev/null)"
-    [ -n "$sid" ] && printf '%s\t%s\n' "$id" "$sid"
-  done
+  local rid s8 open fin alive _busy sid _pid
+  while IFS=$'\t' read -r rid s8 open fin alive _busy sid _pid; do
+    [ -n "$rid" ] && [ "$rid" != "${1:-}" ] || continue
+    [ "$open" = 1 ] && [ "$fin" = 0 ] || continue
+    printf '%s\t%s\t%s\t%s\n' "$rid" "$sid" "$s8" "$alive"
+  done < <(coord_runs_summary)
   return 0
 }
 # 레인 값 읽기: coord_lane_get <레인> <jq 하위경로 예: .session.handle>. 없거나 null 이면 빈 줄. 회차 없으면 rc 3.
