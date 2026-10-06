@@ -459,5 +459,6 @@ AgDataGrid 는 사용자별로 컬럼 순서·너비·표시·고정·정렬을 
 
 ## 42. 위젯 본문 높이 채우기 — ContentBody 를 쓰는 위젯은 flex 사슬을 직접 잇는다 (2026-10-07)
 
-- `ContentBody`·`ContentPanel` 의 가로 배치·높이 규칙(`flex:1`·`height:0`·패널 `height:100%`)은 `.page-layout`·`.cm-modal-body` 안에서만 걸린다. 위젯 본문(`cm-widget__body`) 안에서는 이 규칙에 기대지 말고, 위젯 루트에 자기 클래스를 두어 직접 채운다. 홈 공지(`home.notice`)가 위쪽 약 180px 만 쓰고 아래가 비던 결함이 이 경우였다.
+- `ContentBody`·`ContentPanel` 의 가로 배치·높이 규칙(`flex:1`·`height:0`·패널 `height:100%`)은 `.page-layout`·`.cm-modal-body` 안에서만 걸린다. 위젯 본문(`cm-widget__body`) 안에서는 이 규칙에 기대지 말고, 위젯 루트에 자기 클래스를 두어 직접 채운다.
 - 위젯 루트는 `height:100%` 백분율 사슬 대신 `position:absolute; inset:0; display:flex; flex-direction:column; min-height:0` 로 두고, 위젯 본문에는 `.cm-widget__body:has(.클래스){ position:relative; overflow:hidden }` 를 준다. 그 안의 ContentBody 는 `flex:1 1 0; min-height:0`, 패널은 `min-height:0; overflow:hidden` 으로 이어 넘칠 때만 패널 안에서 스크롤되게 한다. 견본: `m-mcm/page-components/home/home-styles.ts` 의 `.mcm-home-notice`.
+- 위젯이 resizable `ContentBody` 의 패널 안에서 그려지면(위젯 관리 미리보기 등) 부모 context 가 위젯 틀을 넘어 위젯 안 ContentBody 까지 내려온다. 그러면 그 ContentBody 가 `content-body--nested` 로 판정되고, 바깥 패널의 저장 비율이 인라인 `flex`(예: `0 1 35.25%`)와 `min-width` 로 붙는다. 인라인은 클래스 규칙을 이기므로 위젯 루트 바로 아래 ContentBody 의 `flex`·`min-width` 는 `!important` 로 고정한다(범위는 그 한 요소만). 홈 공지(`home.notice`)가 위젯 관리 미리보기에서 위쪽 약 160px 만 쓰고 아래가 비던 결함이 이 경우였다(2026-10-07 재지적). 홈 화면만 확인하면 놓치므로, ContentBody 를 쓰는 위젯은 위젯 관리 미리보기에서도 높이를 확인한다.
