@@ -47,8 +47,10 @@ interface PopoutInitialState {
 }
 
 // useState 초기화 함수는 StrictMode 에서 두 번 불린다. opener 보관소·handoff 는 한 번만 꺼낼 수 있으므로,
-// 같은 렌더 안의 두 번째 호출은 첫 결과를 그대로 받게 token 별로 잠깐 둔다(다음 microtask 에 지운다 — 메모리를 붙잡지 않는다).
+// 같은 렌더 안의 두 번째 호출(또는 버려졌다 다시 시도되는 렌더)이 첫 결과를 그대로 받게 token 별로 둔다.
+// 마운트 effect 가 지우고(커밋됐으면 state 가 값을 들고 있다), 커밋되지 않고 버려진 경우를 위해 시간 제한으로도 지운다 — 큰 값을 붙잡지 않는다.
 const initialStateByToken = new Map<string, PopoutInitialState>();
+const INITIAL_STATE_CACHE_MS = 10_000;
 
 /**
  * 마운트 때 한 번 정하는 처음 상태.
@@ -83,7 +85,7 @@ function resolveInitialState(token: string | null, pageId: string, opener: Windo
 
   const result = { snapshot, restore };
   initialStateByToken.set(token, result);
-  queueMicrotask(() => initialStateByToken.delete(token));
+  setTimeout(() => initialStateByToken.delete(token), INITIAL_STATE_CACHE_MS);
   return result;
 }
 
@@ -111,6 +113,10 @@ export function PortalPageWindow({
     resolveInitialState(token, pageId, opener !== undefined ? opener : typeof window === "undefined" ? null : window.opener)
   );
   const [snapshot, setSnapshot] = useState<unknown>(initial.snapshot);
+  // 커밋됐다 — 이제 state 가 값을 들고 있으니 재시도용 보관을 지운다.
+  useEffect(() => {
+    if (token) initialStateByToken.delete(token);
+  }, [token]);
 
   // 화면 상태 등록소 — 화면이 useCarryState 로 올린 값을 pagehide 때 모아 새로고침(F5)용으로 이 창 sessionStorage 에 둔다.
   const [carryRegistry] = useState(createCarryRegistry);
