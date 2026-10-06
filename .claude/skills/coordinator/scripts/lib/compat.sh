@@ -15,6 +15,8 @@
 #   compat_kill_tree <pid>          후손부터 TERM → 0.3초 → 남은 것 KILL
 #   compat_pgrep_f <정규식>         args 가 맞는 pid(자기 자신·자기 파이프라인 제외). `pgrep -f` 대용
 #   compat_pkill_f <정규식>         위 pid 에 TERM
+#   compat_pgrep_s / compat_pkill_s <문자열>   위와 같되 정규식이 아니라 고정 문자열(경로 등)
+#   compat_posix_path <경로>        Git Bash 에서 C:/x 를 /c/x 꼴로(cygpath), 그 밖에는 그대로
 #   compat_pid_cwd <pid>            프로세스 작업 폴더(알 수 없으면 빈 출력)
 #   compat_pid_alive <pid>          살아 있으면 0(Git Bash 는 네이티브 Windows pid 라 ps -W 로 한 번 더 본다)
 #   compat_sha256                   표준입력 → 소문자 hex 64자 한 줄(openssl → sha256sum → shasum → node)
@@ -115,6 +117,7 @@ compat_proc_cwds() {  # pid 콤마 목록 → 한 줄에 `<pid>\t<cwd>`(lsof 가
 
 # 프로세스 그룹(시험 정리용): 그룹 전체에 KILL·생존 확인. `kill -- -<pgid>` 는 macOS·Git Bash 모두 내장이다.
 compat_kill_pgroup() { _compat_pid_ok "${1:-}" && kill -KILL -- "-$1" 2>/dev/null; return 0; }
+# 주의(Git Bash): 네이티브 Windows pid 가 리더인 그룹(node detached 등)은 MSYS 의 kill 이 알지 못해 늘 「없음」으로 나온다 — MSYS 가 만든 그룹에만 유효하다.
 compat_pgroup_alive() { _compat_pid_ok "${1:-}" && kill -0 -- "-$1" 2>/dev/null; }
 
 compat_descendants() {  # 깊은 쪽부터(후위 순회) — 부모를 죽여도 자식을 잃지 않게 후손부터 보낼 수 있다
@@ -143,18 +146,39 @@ compat_kill_tree() {
   return 0
 }
 
-compat_pgrep_f() {
-  [ -n "${1:-}" ] || return 0
-  # 패턴은 환경 변수로 넘긴다 — awk 의 인자에 두면 awk 자신의 명령줄이 패턴에 맞아 잡힌다(pgrep -f 는 자기 자신을 뺀다).
-  # bash 3.2(macOS 기본)에는 BASHPID 가 없어 서브셸 안의 pid 를 알 수 없으므로 호출 셸($$)만 뺀다.
-  compat_ps_table | COMPAT_PAT="$1" awk -v me="$$" '
-    $1 == me || $1 !~ /^[0-9]+$/ { next }
-    { a = $0; sub(/^ *[0-9]+ +[0-9]+ */, "", a); if (a ~ ENVIRON["COMPAT_PAT"]) print $1 }'
+# 후보 판정 공용 본체: <f=정규식|s=고정 문자열> <패턴>. 호출 셸($$)과 그 셸의 복제(`a | b`·`$(…)` 서브셸은 호출 셸과 명령줄이 같다)는 뺀다 —
+# pgrep -f 가 자기 자신·자기 파이프라인을 잡지 않는 것과 같게. 호출 셸의 일반 자식(다른 명령줄)은 그대로 잡힌다.
+_compat_pgrep() {
+  [ -n "${2:-}" ] || return 0
+  # 패턴은 환경 변수로 넘긴다 — awk 의 인자에 두면 awk 자신의 명령줄이 패턴에 맞아 잡힌다.
+  compat_ps_table | COMPAT_PAT="$2" COMPAT_MODE="$1" awk -v me="$$" '
+    $1 !~ /^[0-9]+$/ { next }
+    { a = $0; sub(/^ *[0-9]+ +[0-9]+ */, "", a); pid[NR] = $1; args[NR] = a; if ($1 == me) mine = a }
+    END {
+      for (i = 1; i <= NR; i++) {
+        if (pid[i] == me || (mine != "" && args[i] == mine)) continue
+        if (ENVIRON["COMPAT_MODE"] == "s" ? index(args[i], ENVIRON["COMPAT_PAT"]) > 0 : args[i] ~ ENVIRON["COMPAT_PAT"]) print pid[i]
+      }
+    }'
+}
+compat_pgrep_f() { _compat_pgrep f "${1:-}"; }
+# 고정 문자열 판(정규식 아님): 임시 폴더 경로처럼 공백·`(`·`+` 가 들어 있을 수 있는 값은 이쪽을 쓴다.
+compat_pgrep_s() { _compat_pgrep s "${1:-}"; }
+compat_pkill_s() {
+  local p
+  for p in $(compat_pgrep_s "$1"); do _compat_pid_ok "$p" && kill -TERM "$p" 2>/dev/null; done
+  return 0
 }
 compat_pkill_f() {
   local p
   for p in $(compat_pgrep_f "$1"); do _compat_pid_ok "$p" && kill -TERM "$p" 2>/dev/null; done
   return 0
+}
+
+# Git Bash 의 경로 꼴 맞춤: C:\x·C:/x → /c/x(cygpath 가 있을 때). 그 밖의 OS·cygpath 없음이면 그대로.
+compat_posix_path() {
+  local o
+  if [ "$COMPAT_WIN" = 1 ] && command -v cygpath >/dev/null 2>&1 && o="$(cygpath -u "$1" 2>/dev/null)" && [ -n "$o" ]; then printf '%s' "$o"; else printf '%s' "$1"; fi
 }
 
 compat_pid_cwd() {

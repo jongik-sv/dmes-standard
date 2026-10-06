@@ -3,7 +3,8 @@
 # source 로만 쓴다. 설정 = 기본값(COORD_DEFAULTS) * <repo>/.coord.json * <repo>/.coord.local.json (jq 깊은 병합).
 
 # 플랫폼 차이(stat·date·프로세스 표·후손·cwd·sha256)는 compat.sh 한 곳에 모은다(macOS·Git Bash — ../../../_shared/platform-support.md)
-. "${BASH_SOURCE[0]%/*}/compat.sh"
+_coord_d="${BASH_SOURCE[0]%/*}"; [ "$_coord_d" != "${BASH_SOURCE[0]}" ] || _coord_d=.   # 슬래시 없이 `. common.sh` 해도 같은 폴더를 가리키게
+. "$_coord_d/compat.sh"
 
 COORD_DEFAULTS='{
   "integration_branch": "dev",
@@ -421,6 +422,7 @@ coord_wt_abs() {
 # <경로> 가 <워크트리> 안이면 0. 워크트리가 메인 체크아웃이면 그 아래 .claude/worktrees/ 는 다른 워크트리라 뺀다.
 coord_path_in_wt() {
   local p="${1%/}" w="${2%/}" repo
+  if [ "$COMPAT_WIN" = 1 ]; then p="$(compat_posix_path "$p")"; w="$(compat_posix_path "$w")"; p="${p%/}"; w="${w%/}"; fi   # Git Bash: C:/x 와 /c/x 를 같은 꼴로
   [ -n "$p" ] && [ -n "$w" ] || return 1
   case "$p/" in "$w/"*) ;; *) return 1 ;; esac
   repo="$(coord_repo 2>/dev/null)"

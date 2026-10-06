@@ -14,7 +14,7 @@ BG=""
 cleanup() {
   local p
   for p in $BG; do kill "$p" 2>/dev/null; done
-  compat_pkill_f "$tmp/bin/"
+  compat_pkill_s "$tmp/bin/"
   rm -rf "$tmp"
 }
 trap cleanup EXIT

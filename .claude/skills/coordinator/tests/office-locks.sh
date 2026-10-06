@@ -10,7 +10,7 @@ SD="$(cd "$here/../scripts" && pwd)"
 . "$SD/lib/compat.sh"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/office-locks-test.XXXXXX")" && tmp="$(cd "$tmp" && pwd -P)"
 BG=""
-cleanup() { local p; for p in $BG; do kill "$p" 2>/dev/null; done; compat_pkill_f "$tmp/"; rm -rf "$tmp"; }
+cleanup() { local p; for p in $BG; do kill "$p" 2>/dev/null; done; compat_pkill_s "$tmp/"; rm -rf "$tmp"; }
 trap cleanup EXIT
 fail=0; pass=0
 chk() { if [ "$1" = ok ]; then pass=$((pass+1)); echo "ok   $2"; else fail=$((fail+1)); echo "FAIL $2${3:+ — $3}"; fi; }
@@ -99,8 +99,8 @@ for off in 0.2 0.6 1.0 1.6 2.3 3.1; do
   sleep 0.2
   [ -n "$(ls -d "$tmp"/state/_session/*.lock "$tmp"/state/t1/.lock 2>/dev/null)" ] && bad="$bad lock@$off"
   [ -n "$(ls -d "$TMPDIR"/coord-office.* 2>/dev/null)" ] && bad="$bad tmp@$off"
-  [ -n "$(compat_pgrep_f "$tmp/fake-dflow.sh")" ] && bad="$bad child@$off"
-  rm -rf "$TMPDIR"/coord-office.* 2>/dev/null; compat_pkill_f "$tmp/fake-dflow.sh"
+  [ -n "$(compat_pgrep_s "$tmp/fake-dflow.sh")" ] && bad="$bad child@$off"
+  rm -rf "$TMPDIR"/coord-office.* 2>/dev/null; compat_pkill_s "$tmp/fake-dflow.sh"
   $CS set '.office.label.a1' '"작업 중"' >/dev/null 2>&1   # 다음 반복도 보내게 라벨 기록을 되돌린다
 done
 eq "중간에 끊어도 잠금·임시 폴더·dflow 자식이 남지 않는다(시점 6곳)" "${bad:-none}" none
@@ -111,7 +111,7 @@ eq "끊긴 뒤 이어서 부른 lead-sync 가 곧바로 끝난다" "$([ $(( $(da
 echo 5 > "$tmp/watch_delay"
 bash "$OFF" lead-sync >/dev/null 2>&1 &
 op=$!; sleep 1; kill -TERM "$op"; wait "$op" 2>/dev/null; sleep 0.5
-eq "TERM 만 보내도 돌던 dflow.sh 와 임시 폴더를 거둔다" "$([ -n "$(compat_pgrep_f "$tmp/fake-dflow.sh")" ] && echo child || echo none):$(ls -d "$TMPDIR"/coord-office.* 2>/dev/null | grep -c .)" "none:0"
+eq "TERM 만 보내도 돌던 dflow.sh 와 임시 폴더를 거둔다" "$([ -n "$(compat_pgrep_s "$tmp/fake-dflow.sh")" ] && echo child || echo none):$(ls -d "$TMPDIR"/coord-office.* 2>/dev/null | grep -c .)" "none:0"
 rm -f "$tmp/watch_delay"
 
 # ---- 4. 폴러: office.sh 한 번 20초·알림 구간은 주기 몫과 따로 -----------------------------------------------------
@@ -119,6 +119,6 @@ eq "폴러 office_call 상한 20초" "$(grep -cE '^OFFICE_TIMEOUT=20 ' "$SD/cons
 eq "알림 구간은 run_phase(주기 몫) 밖에서 NOTIFY_MAX 로" "$(grep -c 'run_limited "\$NOTIFY_MAX" /dev/null /dev/stderr /dev/null input_notify' "$SD/console-poll.sh")" 1
 
 for p in $BG; do kill "$p" 2>/dev/null; wait "$p" 2>/dev/null; done; BG=""
-eq "정리: 이 시험의 프로세스가 남지 않는다" "$(compat_pgrep_f "$tmp/" | grep -c .)" 0
+eq "정리: 이 시험의 프로세스가 남지 않는다" "$(compat_pgrep_s "$tmp/" | grep -c .)" 0
 echo "통과 $pass · 실패 $fail"
 exit "$fail"

@@ -22,7 +22,7 @@ cleanup() {
   for d in "$tmp"/*/console; do
     for l in "$d"/poller-*.lock; do [ -f "$l/pid" ] && kill "$(cat "$l/pid")" 2>/dev/null; done
   done
-  compat_pkill_f "$tmp/bin/"   # 멈춘 가짜(orca·lead-state·dflow·tss)가 남지 않게
+  compat_pkill_s "$tmp/bin/"   # 멈춘 가짜(orca·lead-state·dflow·tss)가 남지 않게
   rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -116,7 +116,7 @@ chmod +x "$tmp/bin/"*
 export PATH="$tmp/bin:$PATH"
 eq "격리: 가짜 orca 가 PATH 맨 앞" "$(command -v orca)" "$tmp/bin/orca"
 
-RUN0="$(compat_pgrep_f "$CP run" | grep -c .)"   # 시작 때 이미 있던 같은 경로의 폴러(다른 시험의 남은 것 등)
+RUN0="$(compat_pgrep_s "$CP run" | grep -c .)"   # 시작 때 이미 있던 같은 경로의 폴러(다른 시험의 남은 것 등)
 host="$(hostname | cut -d. -f1 | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g')"
 ID="jji-test/$host"
 dead_pid() { sh -c 'exit 0' & local p=$!; wait "$p" 2>/dev/null; echo "$p"; }
@@ -644,9 +644,9 @@ COORD_DRY=1 COORD_SESSION_ID=init9999-xx bash "$SD/coord-state.sh" init ri3 >/de
 eq "init: COORD_DRY=1 이면 폴러를 띄우지 않는다" "$(bash "$CP" status)" "CONSOLE_POLLER down"
 
 # 이 시험이 띄운 폴러·시간 감시자가 남지 않는다(같은 경로의 run 프로세스 수가 시작 때와 같다)
-n_run() { compat_pgrep_f "$CP run" | grep -c .; }
+n_run() { compat_pgrep_s "$CP run" | grep -c .; }
 back_to_start() { [ "$(n_run)" -le "$RUN0" ]; }
-no_fakes() { [ -z "$(compat_pgrep_f "$tmp/bin/")" ]; }
+no_fakes() { [ -z "$(compat_pgrep_s "$tmp/bin/")" ]; }
 lockdir() { echo "$DFLOW_CONSOLE_DIR/poller-jji-test.lock"; }
 lock_free() { [ ! -d "$(lockdir)" ]; }
 
@@ -671,7 +671,7 @@ is_tmpd() { case "$1" in */coord-console.*) [ -d "$1" ] && echo yes ;; esac; }
 eq "잠금 폴더에 루프의 임시 폴더 경로" "$(is_tmpd "$TD")" yes
 eq "멈춘 read: stop" "$(bash "$CP" stop)" "CONSOLE_POLLER stopped"
 wait_for 3 no_fakes
-eq "멈춘 read: stop 뒤 가짜 orca 고아 없음" "$(no_fakes && echo 0 || compat_pgrep_f "$tmp/bin/" | grep -c .)" 0
+eq "멈춘 read: stop 뒤 가짜 orca 고아 없음" "$(no_fakes && echo 0 || compat_pgrep_s "$tmp/bin/" | grep -c .)" 0
 eq "멈춘 read: stop 뒤 임시 폴더 없음" "$([ -d "$TD" ] && echo left || echo gone)" gone
 rm -f "$FAKE_DIR/hang_read"
 

@@ -21,7 +21,7 @@ BG=""
 cleanup() {
   local p
   for p in $BG; do kill "$p" 2>/dev/null; done
-  compat_pkill_f "$tmp/bin/"
+  compat_pkill_s "$tmp/bin/"
   rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -179,6 +179,6 @@ eq "환경변수 켬: poll 에 --accepts keys" "$(grep '^console-poll ' "$FAKE_L
 # =================================================================================================
 echo "남은 프로세스 확인"
 for p in $BG; do kill "$p" 2>/dev/null; wait "$p" 2>/dev/null; done; BG=""
-eq "정리: 이 시험의 폴러·sleep 이 남지 않는다" "$(compat_pgrep_f "$tmp" | grep -c .)" 0
+eq "정리: 이 시험의 폴러·sleep 이 남지 않는다" "$(compat_pgrep_s "$tmp" | grep -c .)" 0
 echo "통과 $pass · 실패 $([ "$fail" = 0 ] && echo 0 || echo '1+')"
 exit "$fail"
