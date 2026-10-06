@@ -19,6 +19,7 @@ import {
 } from "@dk-oasis/shared/layout";
 import { AgDataGrid, GridPanel, Pagination, type GridColumn } from "@dk-oasis/shared/grid";
 import { Input, Select } from "@dk-oasis/shared/form";
+import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { MdmPageLayout, openMdmPage } from "@/shell";
 
 import { searchSets } from "./api";
@@ -44,11 +45,12 @@ const STATUS_FILTER_OPTIONS = [
 
 export default function RuleSetMngPage() {
   const rbac = useUserButtonRbac();
-  const [filters, setFilters] = useState<RuleSetSearchFilters>(emptyFilters);
-  const [applied, setApplied] = useState<RuleSetSearchFilters>(emptyFilters);
-  const [rows, setRows] = useState<RuleSetListRow[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [page, setPage] = useState(0);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·마지막 조회 조건·조회 결과(bulky)·건수·쪽.
+  const [filters, setFilters] = useCarryState<RuleSetSearchFilters>("filters", emptyFilters);
+  const [applied, setApplied] = useCarryState<RuleSetSearchFilters>("applied", emptyFilters);
+  const [rows, setRows] = useCarryState<RuleSetListRow[]>("rows", [], { bulky: true });
+  const [totalCount, setTotalCount] = useCarryState("totalCount", 0);
+  const [page, setPage] = useCarryState("page", 0);
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -65,9 +67,11 @@ export default function RuleSetMngPage() {
     } finally {
       setIsBusy(false);
     }
-  }, []);
+  }, [setRows, setTotalCount, setPage, setApplied]);
 
   // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청)
+  // 분리 창이 조회 결과(행)를 못 받았을 때만 이어받은 조건·쪽으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
+  useCarryRefetch(() => load(applied, page));
 
   const handleSearch = useCallback(() => void load(filters, 0), [filters, load]);
 

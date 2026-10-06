@@ -33,6 +33,7 @@ import {
 import { AgDataGrid, GridPanel, Pagination, type GridColumn } from "@dk-oasis/shared/grid";
 import { Input } from "@dk-oasis/shared/form";
 import { Modal } from "@dk-oasis/shared/modal";
+import { useCarryRefetch, useCarryState } from "@dk-oasis/shared/portal-shell";
 import { MdmPageLayout, badgeStyle, fmtVer } from "@/shell";
 import { openRuleEdit } from "@/dme/rule-handoff";
 
@@ -72,11 +73,13 @@ function pendingText(row: RuleListRow): string {
 
 export default function RuleMngPage() {
   const rbac = useUserButtonRbac();
-  const [filters, setFilters] = useState<RuleSearchFilters>(emptyFilters);
-  const [applied, setApplied] = useState<RuleSearchFilters>(emptyFilters);
-  const [rows, setRows] = useState<RuleListRow[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [page, setPage] = useState(0);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·마지막 조회 조건·조회 결과(bulky)·건수·쪽.
+  // 선택 룰(selectedId)·상세(헤더 입력·버전)는 이어받지 않는다 — 상세는 새 창에서 룰을 다시 골라 읽는다.
+  const [filters, setFilters] = useCarryState<RuleSearchFilters>("filters", emptyFilters);
+  const [applied, setApplied] = useCarryState<RuleSearchFilters>("applied", emptyFilters);
+  const [rows, setRows] = useCarryState<RuleListRow[]>("rows", [], { bulky: true });
+  const [totalCount, setTotalCount] = useCarryState("totalCount", 0);
+  const [page, setPage] = useCarryState("page", 0);
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   // 선택된 룰의 상세(D-105) — 목록에서 고른 룰 하나만 불러온다.
@@ -149,10 +152,12 @@ export default function RuleMngPage() {
         setIsBusy(false);
       }
     },
-    [choose, loadDetail],
+    [choose, loadDetail, setRows, setTotalCount, setPage, setApplied],
   );
 
   // 첫 진입 자동 조회 없음 — [조회] 버튼으로만 조회(2026-10-02 사용자 요청)
+  // 분리 창이 조회 결과(행)를 못 받았을 때만 이어받은 조건·쪽으로 한 번 다시 조회한다(조회 안 한 탭은 재조회하지 않는다).
+  useCarryRefetch(() => load(applied, page));
 
   const handleSearch = useCallback(() => void load(filters, 0, true), [filters, load]);
 

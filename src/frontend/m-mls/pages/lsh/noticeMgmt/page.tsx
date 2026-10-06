@@ -32,6 +32,7 @@ import {
 } from "@dk-oasis/shared/form";
 import { toFieldErrors } from "@dk-oasis/shared/http";
 import { useMessage } from "@dk-oasis/shared/message-provider";
+import { useCarryRestored, useCarryState } from "@dk-oasis/shared/portal-shell";
 import {
   MdmFieldLabel,
   MdmMetaProvider,
@@ -100,12 +101,15 @@ import {
  */
 export default function NoticeMgmtScreen() {
   const { showMessage } = useMessage();
-  const [filters, setFilters] = useState<NoticeMgmtFilters>(emptyFilters);
-  const [rows, setRows] = useState<NoticeRow[]>([]);
+  // 새 창으로 분리할 때 이어받는 상태(useCarryState) — 조회 조건·조회 결과(bulky)·건수·전체 보기 여부.
+  // 선택 공지(selectedRow)·상세 폼(form·baseline)은 이어받지 않는다 — 편집 중인 폼은 새 창에서 다시 공지를 골라 읽는다.
+  const [filters, setFilters] = useCarryState<NoticeMgmtFilters>("filters", emptyFilters);
+  const [rows, setRows] = useCarryState<NoticeRow[]>("rows", [], { bulky: true });
   /** 목록이 상한으로 잘렸을 때의 전체 건수(안 잘렸으면 null). */
-  const [rowsTotal, setRowsTotal] = useState<number | null>(null);
-  /** 마지막 조회가 [전체 보기](상한 없음)였는지 — 저장·삭제·게시중지 뒤 재조회가 이 모드를 따른다. */
-  const showAllRef = useRef(false);
+  const [rowsTotal, setRowsTotal] = useCarryState<number | null>("rowsTotal", null);
+  /** 마지막 조회가 [전체 보기](상한 없음)였는지 — 저장·삭제·게시중지 뒤 재조회가 이 모드를 따른다(ref 는 읽기용 사본, 이어받기는 showAllCarry). */
+  const [showAllCarry, setShowAllCarry] = useCarryState("showAll", false);
+  const showAllRef = useRef(showAllCarry);
   /** 늦게 도착한 이전 상세 응답을 버리기 위한 요청 순번. */
   const detailSeq = useRef(0);
   /** 목록 조회 전용 로딩 — 저장·상태 변경 중에는 목록 오버레이를 띄우지 않는다(Local-Rules §11). */
@@ -223,6 +227,7 @@ export default function NoticeMgmtScreen() {
         );
         if (seq !== searchSeq.current) return;
         showAllRef.current = showAll;
+        setShowAllCarry(showAll);
         const list = payload.list ?? [];
         setRows(list);
         setRowsTotal(payload.truncated ? (payload.totalCount ?? null) : null);
@@ -250,12 +255,15 @@ export default function NoticeMgmtScreen() {
         if (seq === searchSeq.current) setListLoading(false);
       }
     },
-    [bindDetail, loadDetail, showMessage],
+    [bindDetail, loadDetail, showMessage, setRows, setRowsTotal, setShowAllCarry],
   );
 
   // 진입 시 1회 자동 조회 + 역할 선택 목록. 역할 목록 실패는 치명적이지 않다(ID 로 보인다).
+  // 분리 창이 이어받은 목록이 있으면 자동 조회를 건너뛴다(행 없이 복원됐거나 비었으면 이어받은 조건으로 한 번 조회한다).
+  // 처음 진입(복원값 없음)에서는 filters 가 빈 조건·showAllCarry 가 false 라 이전과 같다.
+  const restored = useCarryRestored();
   useEffect(() => {
-    void runSearch(emptyFilters(), undefined, false);
+    if (!restored || rows.length === 0) void runSearch(filters, undefined, showAllCarry);
     let alive = true;
     searchRoles()
       .then((list) => alive && setRoles(list))
