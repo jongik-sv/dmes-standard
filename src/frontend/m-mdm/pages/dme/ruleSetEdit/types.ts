@@ -405,13 +405,13 @@ export interface RuleSetSimulateResult {
   warnings: SimWarning[];
   /** 실행 중 부른 세트 ID → 저장된 흐름(하위 세트 spec §8). 서버(srv:6)가 아직 주지 않으면 없다 — 디버거는 [안으로 들어가기]를 끈다. */
   calledFlows?: Record<string, CalledFlow>;
-  /** 실행한 룰 버전 모드·DRAFT 로 실행한 룰·세트(spec 2026-10-06 §4.5). 서버가 주지 않으면 없다. */
+  /** 실행한 룰 버전 모드·흐름(하위 세트 포함)에 든 DRAFT 룰·세트(spec 2026-10-06 §4.5). 서버가 주지 않으면 없다. */
   ruleVersions?: RuleVersionMode;
   draftVersions?: DraftVersions;
 }
 
 /** 룰 버전 모드(spec 2026-10-06 §3.1) — 적용 중(기본) · 내 DRAFT 우선. */
 export type RuleVersionMode = "RELEASED" | "MY_DRAFT";
-/** DRAFT 로 실행한 룰·하위 세트 → VER(scale 3 글자). 서버 `RuleSetSimulateResult.draftVersions`. */
+/** 흐름(하위 세트 포함)에 든 DRAFT 룰·세트 → VER(scale 3 글자). 서버 `RuleSetSimulateResult.draftVersions`. */
 export interface DraftVersions { rules: Record<string, string>; sets: Record<string, string> }
 export const NO_DRAFTS: DraftVersions = Object.freeze({ rules: {}, sets: {} }) as DraftVersions;

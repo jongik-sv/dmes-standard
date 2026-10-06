@@ -93,12 +93,12 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
         this.pick = pick;
     }
 
-    /** DRAFT 로 실제 정의를 돌려준 룰 → VER({@link #rule} 이 읽은 것만, prefetch 는 아니다). 넣은 순서. */
+    /** 엔진이 흐름을 준비하며 {@link #rule} 로 정의를 물어 DRAFT 로 돌려준 룰 → VER(흐름·하위 세트에 든 것이며 지나간 갈래만이 아니다). prefetch 만으로는 남지 않는다. 넣은 순서. */
     public Map<String, BigDecimal> draftRules() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(draftRules));
     }
 
-    /** DRAFT 로 실제 정의를 돌려준 세트 → 그 버전 행({@link #ruleSet} 이 읽은 것만). 넣은 순서. */
+    /** 엔진이 흐름을 준비하며 {@link #ruleSet} 으로 정의를 물어 DRAFT 로 돌려준 세트 → 그 버전 행(흐름·하위 세트에 든 것이며 지나간 갈래만이 아니다). prefetch 만으로는 남지 않는다. 넣은 순서. */
     public Map<String, MdmRuleSetVer> draftSets() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(draftSets));
     }
@@ -120,7 +120,7 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
     }
 
     /**
-     * 판정 시각 {@code evalTs} 로 {@link #rule} 을 부를 룰들을 미리 한 번에 읽어 둔다 — 헤더·버전 목록, 그 시각에 고를 RELEASED 버전의 변수·행.
+     * 판정 시각 {@code evalTs} 로 {@link #rule} 을 부를 룰들을 미리 한 번에 읽어 둔다 — 헤더·버전 목록, 그 시각에 모드({@link RuleVersionPick})대로 고를 버전(RELEASED 면 판정 시각의 RELEASED, MY_DRAFT 면 내 DRAFT 우선)의 변수·행.
      * 룰마다 따로 읽을 것을 묶을 뿐 읽는 행은 같다. 저장값을 해석하지 않으므로 손상으로 던지지 않는다(손상 판단은 {@link #rule} 이 지금처럼 한다).
      * 엔진이 실제로 정의를 물을 룰만 넘긴다(흐름 구조가 올바를 때 트리의 룰).
      */
@@ -170,7 +170,7 @@ public final class StoredDefinitionLookup implements DefinitionLookup {
         return out;
     }
 
-    /** 판정 시각에 적용되는 RELEASED 세트 버전({@link RuleVersions#currentReleased}). 한 인스턴스 안에서 (세트, 시각)마다 캐시한다. */
+    /** 모드({@link RuleVersionPick})에 따라 고른 세트 버전: RELEASED 면 판정 시각에 적용되는 RELEASED({@link RuleVersions#currentReleased}), MY_DRAFT 면 내 DRAFT 우선. 한 인스턴스 안에서 (세트, 시각)마다 캐시한다. */
     @Override
     public Optional<RuleSetDefinition> ruleSet(String setId, Instant evalTs) {
         String key = setId + "@" + evalTs;

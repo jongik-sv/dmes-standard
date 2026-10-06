@@ -116,7 +116,7 @@ public class RuleSetRunner {
     /**
      * 한 요청 안에서 기록 실행을 여러 번 하거나(테스트 케이스 일괄 실행) 기록 실행 뒤 폐기 룰 경고를 만들 때 쓰는 실행 묶음. 룰 정의 조회기
      * ({@link StoredDefinitionLookup}) 하나를 같이 써 같은 룰 정의를 다시 읽지 않는다. 판정 시각은 호출마다 따로 정하고, 조회기는 판정 시각마다
-     * 그 시각의 RELEASED 버전을 고르므로 결과는 호출마다 새로 실행한 것과 같다. 요청을 넘겨 들고 있지 않는다(원장을 고치는 요청에서 쓰지 않는다).
+     * 그 시각의 버전을 고르므로({@code session()} 은 RELEASED, {@code session(pick)} 은 넘긴 모드를 따른다) 결과는 호출마다 새로 실행한 것과 같다. 요청을 넘겨 들고 있지 않는다(원장을 고치는 요청에서 쓰지 않는다).
      */
     public Session session() {
         return session(RuleVersionPick.RELEASED);

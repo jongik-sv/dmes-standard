@@ -728,10 +728,12 @@ describe("룰 버전 모드(spec 2026-10-06 §7.3)", () => {
   it("모드를 바꾸면 새로 실행", async () => {
     await mount();
     await act(() => h.current.next());
+    expect(h.current.canEditValues).toBe(true);
     act(() => h.current.setRuleVersions("MY_DRAFT"));
     expect(h.current.canEditValues).toBe(false);
     await act(() => h.current.next());
     expect(executes()).toHaveLength(2);
+    expect((executes()[1][2] as { ruleVersions?: string }).ruleVersions).toBe("MY_DRAFT");
   });
   it("RELEASED 는 칸을 보내지 않는다", async () => {
     await mount();

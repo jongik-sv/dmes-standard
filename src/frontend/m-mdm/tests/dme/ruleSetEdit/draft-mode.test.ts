@@ -76,7 +76,7 @@ describe("DRAFT 표시 판정(spec 2026-10-06 §7.4)", () => {
     expect(isDraftNode(drafts, null, 2)).toBe(false);
   });
   it("실행 요약과 모드 차이 문구", () => {
-    expect(draftRunText(drafts)).toBe("내 DRAFT 우선으로 실행 · DRAFT 룰 1개·세트 1개");
+    expect(draftRunText(drafts)).toBe("내 DRAFT 우선으로 실행 · 흐름의 DRAFT 룰 1개·세트 1개");
     expect(modeDiffNote("RELEASED", "MY_DRAFT")).toBe("이전 실행은 적용 중, 지금은 내 DRAFT 우선으로 돌렸다");
     expect(modeDiffNote("MY_DRAFT", "MY_DRAFT")).toBeNull();
   });
@@ -116,7 +116,7 @@ describe("툴바·실행 비교 — DRAFT 안내", () => {
     ({ running: false, last: result("MY_DRAFT"), cursor: 6, pendingEdit: null, appliedEdits: [], notice: null, error: null, stale: false, ruleVersions: "MY_DRAFT", ...over }) as unknown as Simulation;
   it("내 DRAFT 우선 실행이면 요약 배지가 보이고 적용 중 실행이면 없다", async () => {
     await mount0(createElement(DebugToolbar, { sim: toolbarSim({}), canRun: true, selectedId: null }));
-    expect(container!.querySelector('[data-testid="dbg-draft-run"]')?.textContent).toBe("내 DRAFT 우선으로 실행 · DRAFT 룰 1개·세트 0개");
+    expect(container!.querySelector('[data-testid="dbg-draft-run"]')?.textContent).toBe("내 DRAFT 우선으로 실행 · 흐름의 DRAFT 룰 1개·세트 0개");
     await mount0(createElement(DebugToolbar, { sim: toolbarSim({ last: result("RELEASED") }), canRun: true, selectedId: null }));
     expect(container!.querySelector('[data-testid="dbg-draft-run"]')).toBeNull();
   });

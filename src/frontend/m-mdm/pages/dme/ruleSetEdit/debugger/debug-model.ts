@@ -342,9 +342,9 @@ export function isDraftNode(drafts: DraftVersions, ruleId: string | null | undef
 
 export const MODE_LABEL: Record<RuleVersionMode, string> = { RELEASED: "적용 중", MY_DRAFT: "내 DRAFT 우선" };
 
-/** 기록 머리 요약(spec §7.4). */
+/** 기록 머리 요약(spec §7.4). 엔진이 흐름 준비 때 묻는 DRAFT(하위 세트 포함, 지나간 갈래만이 아님)의 개수다. */
 export const draftRunText = (d: DraftVersions) =>
-  `내 DRAFT 우선으로 실행 · DRAFT 룰 ${Object.keys(d.rules).length}개·세트 ${Object.keys(d.sets).length}개`;
+  `내 DRAFT 우선으로 실행 · 흐름의 DRAFT 룰 ${Object.keys(d.rules).length}개·세트 ${Object.keys(d.sets).length}개`;
 
 /** 두 실행의 모드가 다르면 안내(spec §7.3), 같으면 null. */
 export const modeDiffNote = (before: RuleVersionMode, now: RuleVersionMode): string | null =>
