@@ -165,11 +165,11 @@ WidgetTabsProps: `tabs`·`activeTabId`·`editing`·`renamingTabId`·`onSelect`·
 
 WidgetPickerProps: `registry`·`items`·`onAdd(widgetId)`, 선택 `typeTitles`(유형 ID → 이름, 정의 위젯 제목 아래 작은 글씨)·`categoryTitles`(분류 코드 → 이름, 분류별 묶음·칩 필터)·`onPreview(meta | null)`(항목에 마우스 진입/이탈). [위젯 추가] 서랍 — 검색·눌러 추가·격자로 끌어 놓기. 사용 중지 위젯은 보이지 않고, 이미 놓인 위젯(`multiple: false`)과 탭 한도(30개)는 막는다.
 
-WidgetMeta: `id`(`"{모듈}.{이름}"` 또는 `def.{key}`, 저장 키)·`title`·`defaultSize`(필수), `subtitle`·`description`·`minSize`(기본 `{ w: 4, h: 6 }`)·`maxSize`·`refreshSec`(600 미만이면 600, 비우면 자동 새로 고침 없음)·`linkPageId`·`multiple`(기본 true)·`bodyPadding`(기본 true)·`disabled`(관리자 사용 중지)·`kind`(`"code"` | `"def"`, 없으면 code)·`typeId`(정의 위젯의 유형 ID).
+WidgetMeta: `id`(`"{모듈}.{이름}"` 또는 `def.{key}`, 저장 키)·`title`·`defaultSize`(필수), `subtitle`·`description`·`minSize`(기본 `{ w: 4, h: 6 }`)·`maxSize`·`refreshSec`(600 미만이면 600, 비우면 자동 새로 고침 없음)·`linkPageId`·`multiple`(기본 true)·`bodyPadding`(기본 true)·`disabled`(관리자 사용 중지)·`kind`(`"code"` | `"def"`, 없으면 code)·`typeId`(정의 위젯의 유형 ID)·`floatable`(도구 창으로 띄울 수 있는지, 기본 false)·`icon`(접힌 도구 창 단추의 아이콘 컴포넌트 `WidgetIcon`, 없으면 제목 첫 글자).
 
 WidgetProps(위젯 본체가 받는 값): `instanceId`·`size`·`config`(인스턴스 설정 — 지금은 늘 `null`)·`refreshKey`(바뀌면 다시 조회)·`definition`(정의 위젯의 정의 설정, 코드 위젯은 `null`)·`widgetId`(정의 위젯이 자기 defId 로 서버를 부를 때).
 
-유형 계약: `WidgetTypeMeta`(`id`·`title`·`defaultSize`·`initialConfig` 필수, `description`·`minSize`·`maxSize`·`bodyPadding`), `WidgetTypeRegistryEntry`(`meta`·`loadRenderer`·`loadEditor`), `WidgetTypeRegistry`, `WidgetTypeEditorProps`(`value`·`onChange`·`onValidate?`), `WidgetTypeEditorComponent`, `WidgetDefRow`(`widgetDef/list`·`commWidgetMng/search` 응답 한 줄).
+유형 계약: `WidgetTypeMeta`(`id`·`title`·`defaultSize`·`initialConfig` 필수, `description`·`minSize`·`maxSize`·`bodyPadding`·`floatable`·`icon`), `WidgetTypeRegistryEntry`(`meta`·`loadRenderer`·`loadEditor`), `WidgetTypeRegistry`, `WidgetTypeEditorProps`(`value`·`onChange`·`onValidate?`), `WidgetTypeEditorComponent`, `WidgetDefRow`(`widgetDef/list`·`commWidgetMng/search` 응답 한 줄).
 
 등록부 순수 함수(`widget-registry.ts`): `mergeWidgetRegistry(code, types, defs, prev?)`(실행 시 등록부. 선택 `prev` 는 지난번 결과 — 합친 결과의 항목이 모두 같은 객체면 `prev` 를 그대로 돌려줘 화면이 같은 등록부를 새것으로 보지 않게 한다), `toWidgetDefRow(raw)`(서버 응답 한 줄 → `WidgetDefRow`, `configJson` 문자열 파싱, srcTp 가 C·D 가 아니면 `null`), `applyWidgetOverride(meta, row)`(코드 메타 + 덮어쓰기 행), `defWidgetMeta(row, type)`(정의 위젯 메타), `defWidgetLoader(type, definition)`(유형 렌더러에 `definition` 을 끼운 본체 로더). 관리 화면 미리보기는 저장 전 폼 값으로 `applyWidgetOverride`·`defWidgetMeta`·`defWidgetLoader` 를 불러 `WidgetFrame` 에 넘긴다.
 
