@@ -5,6 +5,7 @@
 set -uo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 SD="$here/../scripts"
+. "$SD/lib/compat.sh"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/office-sum-test.XXXXXX")" && tmp="$(cd "$tmp" && pwd -P)"
 trap 'rm -rf "$tmp"' EXIT
 fail=0; pass=0
@@ -35,7 +36,7 @@ pick() { jq -c --arg s "$1" 'select((index("--stop") | not) and ((.[(index("--ag
 argof() { jq -r --arg f "$1" 'index($f) as $i | if $i == null then "<없음>" else .[$i + 1] end'; }   # stdin = 인자 배열 한 줄
 lastsum() { pick "임시:$1" | tail -1 | argof --summary-json; }
 lastlead() { pick "/coord:${2:-$S8}" | tail -1 | argof "${1:---lead-summary-json}"; }
-iso_ago() { date -u -r $(( $(date +%s) - $1 )) +%Y-%m-%dT%H:%M:%SZ; }   # <초> 전 UTC ISO
+iso_ago() { compat_epoch_fmt $(( $(date +%s) - $1 )) %Y-%m-%dT%H:%M:%SZ -u; }   # <초> 전 UTC ISO
 bytes() { printf '%s' "$1" | wc -c | tr -d ' '; }
 
 # ---- 1. 레인 summary: 모든 필드·정리·비밀 미포함 ----------------------------------------
