@@ -448,6 +448,13 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
    */
   const claimedRef = useRef(false);
   const [waiting, setWaitingState] = useState(false);
+  /**
+   * 그리드가 이미 준비된 뒤에 차지했을 때(꺼짐 → 켬·기다리다 이어받음) 한 번 올려 다시 렌더한다 — 그래야 handle.enabled 가 true 로 그려진다.
+   * 마운트 때는 그리드가 아직 준비 전이라 올리지 않는다(준비되며 setGridReady 가 다시 렌더한다 — 렌더 횟수를 늘리지 않는다).
+   */
+  const [, setClaimTick] = useState(0);
+  const gridReadyRef = useRef(gridReady);
+  gridReadyRef.current = gridReady;
   const waitingRef = useRef(false);
   const setWaiting = (v: boolean) => {
     if (waitingRef.current === v) return;
@@ -493,7 +500,8 @@ export function useGridPersonalize(opts: UseGridPersonalizeOptions): GridPersona
         claimedRef.current = true;
         unsubscribe();
         unsubscribe = noopUnsubscribe;
-        setWaiting(false);
+        if (waitingRef.current) setWaiting(false);
+        else if (gridReadyRef.current) setClaimTick((t) => t + 1);
         return;
       }
       setWaiting(true);

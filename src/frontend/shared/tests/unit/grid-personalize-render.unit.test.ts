@@ -3,7 +3,7 @@
  * AgDataGrid 컬럼 개인화 연결(C2) — 실제 ag-grid 로 그려 복원·자동 저장·자동 너비 가드·등록부·재주입·켜고 끄기를 확인한다.
  * 그리드 api 는 AgGridReact.render 의 this 로 잡는다(grid-mdm-html-header-label 시험과 같은 방식).
  */
-import { StrictMode, act, createElement, type ReactNode } from "react";
+import { StrictMode, act, createElement, useEffect, useRef, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { AgGridReact } from "ag-grid-react";
 import type { GridApi } from "ag-grid-community";
@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 
 import { AgDataGrid, type AgDataGridProps, type GridColumn } from "../../src/components/grid/AgDataGrid";
 import { gridPrefKey, type GridPrefs } from "../../src/components/grid/grid-personalize";
-import { GRID_PERSONALIZE_SAVE_DEBOUNCE_MS } from "../../src/components/grid/grid-personalize-hook";
+import { GRID_PERSONALIZE_SAVE_DEBOUNCE_MS, useGridPersonalize } from "../../src/components/grid/grid-personalize-hook";
 import { TabPageContext } from "../../src/portal-shell/tab-page-context";
 import { installMemoryLocalStorage, seedCurrentUser } from "./grid-personalize-test-env";
 
@@ -402,5 +402,85 @@ describe("personalize 가 마운트 뒤에 바뀜(숨은 탭 패널)", () => {
     await uiResize(b, "name", 166);
     await wait(GRID_PERSONALIZE_SAVE_DEBOUNCE_MS + 50);
     expect(saved()!.cols.find((c) => c.colId === "name")!.width).toBe(166);
+  });
+});
+
+describe("handle.enabled 가 렌더된 값으로 바뀐다(C3 컬럼 설정 버튼·메뉴가 읽는 값)", () => {
+  const fakeApi = {
+    isDestroyed: () => false,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    getColumnState: () => [],
+    applyColumnState: () => true,
+    resetColumnState: () => {},
+  } as unknown as GridApi;
+  const DEFS = [{ field: "code" }, { field: "name" }];
+  let renders = 0;
+
+  /** AgDataGrid 처럼 마운트 뒤 효과에서 그리드가 준비되는 탐침. handle.enabled 를 글자로 그린다. */
+  function Probe({ id, on }: { id: string; on: boolean }) {
+    renders++;
+    const [ready, setReady] = useState(false);
+    useEffect(() => setReady(true), []);
+    const sizedColumnsRef = useRef<ReadonlySet<string>>(new Set());
+    const h = useGridPersonalize({
+      getApi: () => fakeApi,
+      gridReady: ready,
+      personalize: on ? undefined : false,
+      columns: COLUMNS,
+      columnDefs: DEFS,
+      selectable: false,
+      rowKey: "code",
+      sizedColumnsRef,
+      onRestored: () => {},
+      onReset: () => {},
+    });
+    return createElement("span", { "data-probe": id }, String(h.enabled));
+  }
+  const probes = (...list: Array<{ id: string; on: boolean }>) =>
+    createElement(
+      TabPageContext.Provider,
+      { value: { pageId: SCREEN, serviceId: "", tabId: "t1" } },
+      ...list.map((p) => createElement(Probe, { key: p.id, ...p })),
+    );
+  const shown = (id: string) => container.querySelector(`[data-probe="${id}"]`)?.textContent;
+
+  it("켬 → 끔 → 켬(그리드가 이미 준비된 뒤)에도 enabled 가 true·false·true 로 그려진다", async () => {
+    await stubUser("u1");
+    await show(probes({ id: "A", on: true }));
+    expect(shown("A")).toBe("true");
+    await show(probes({ id: "A", on: false }));
+    expect(shown("A")).toBe("false");
+    await show(probes({ id: "A", on: true }));
+    expect(shown("A")).toBe("true");
+  });
+
+  it("기다리던 그리드가 이어받으면 enabled 가 true 로, 꺼진 쪽은 false 로 그려진다", async () => {
+    await stubUser("u1");
+    await show(probes({ id: "A", on: true }, { id: "B", on: true }));
+    expect([shown("A"), shown("B")]).toEqual(["true", "false"]);
+    await show(probes({ id: "B", on: true }));
+    expect(shown("B")).toBe("true");
+  });
+
+  it("A 켬·B 끔 → A 끔·B 켬이면 B 가 true, A 가 false 로 그려진다", async () => {
+    await stubUser("u1");
+    await show(probes({ id: "A", on: true }, { id: "B", on: false }));
+    expect([shown("A"), shown("B")]).toEqual(["true", "false"]);
+    await show(probes({ id: "A", on: false }, { id: "B", on: true }));
+    expect([shown("A"), shown("B")]).toEqual(["false", "true"]);
+  });
+
+  it("마운트 때 바로 차지하면 다시 렌더를 더하지 않는다(끈 탐침과 렌더 횟수가 같다)", async () => {
+    await stubUser("u1");
+    renders = 0;
+    await show(probes({ id: "A", on: false }));
+    const off = renders;
+    await act(async () => root!.unmount());
+    root = createRoot(container);
+    renders = 0;
+    await show(probes({ id: "A", on: true }));
+    expect(renders).toBe(off);
+    expect(shown("A")).toBe("true");
   });
 });
