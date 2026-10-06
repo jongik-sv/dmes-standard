@@ -30,8 +30,10 @@ export const HOME_CSS = `
 .mcm-home-nlist__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--color-text); }
 .mcm-home-nlist__meta { grid-column: 2 / 4; display: flex; gap: var(--spacing-sm); min-width: 0; font-size: var(--font-size-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .mcm-home-nlist__pin { color: var(--color-primary); font-weight: 600; }
+.mcm-home-nlist__meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcm-home-nlist__meta > span:last-child, .mcm-home-nlist__pin { flex-shrink: 0; }
 
-.mcm-home-viewer { padding: var(--spacing-md) 14px; }
+.mcm-home-viewer { box-sizing: border-box; min-width: 0; max-width: 100%; padding: var(--spacing-md) 14px; }
 .mcm-home-viewer__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-bottom: var(--spacing-sm); margin-bottom: var(--spacing-md); border-bottom: 1px solid var(--color-border-light); }
 .mcm-home-viewer__title { flex-basis: 100%; margin: 0; font-size: 14px; font-weight: 700; line-height: 1.35; color: var(--color-text); overflow-wrap: anywhere; }
 .mcm-home-viewer__meta { font-size: var(--font-size-xs); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
