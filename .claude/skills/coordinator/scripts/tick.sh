@@ -13,13 +13,14 @@
 #     WINDOW_DUE <kind> lane=<레인|-> until=<iso>
 #     UNACKED <instr-id> <레인> <분>m
 #     UNLINKED <이름> pid=<pid>                          (처음 본 것만)
+#     STALE_RUN <run-id> session=<id>                    (같은 조정 세션의 다른 회차가 마감 표식 없이 팀장 키를 남김 → close-run)
 #     TICK quiet                                          (위 줄이 하나도 없을 때)
 set -uo pipefail
 SD="$(cd "$(dirname "$0")" && pwd)"
 source "$SD/lib/common.sh"
 
 answer=1 dry=0
-for a in "$@"; do case "$a" in --no-answer) answer=0 ;; --dry-run) dry=1; export COORD_DRY=1 ;; -h|--help) sed -n 2,18p "$0"; exit 0 ;; esac; done
+for a in "$@"; do case "$a" in --no-answer) answer=0 ;; --dry-run) dry=1; export COORD_DRY=1 ;; -h|--help) sed -n 2,19p "$0"; exit 0 ;; esac; done
 coord_has_run || coord_die 3 "현재 회차가 없다"
 RD="$(coord_run_dir)"; mkdir -p "$RD/ticks"
 out=()
@@ -112,6 +113,14 @@ seen="$RD/ticks/unlinked"; touch "$seen"
 while read -r _ nm pidf _; do
   grep -qxF "$nm" "$seen" || { echo "$nm" >> "$seen"; emit "UNLINKED $nm $pidf"; }
 done < <(printf '%s\n' "$status" | grep '^UNLINKED ')
+
+# 9. 같은 조정 세션이 앞서 돌린 회차가 마감 없이 남음(오피스 팀장 칸이 둘로 보이는 사고). 다른 세션의 회차는 진행 중일 수 있어 건드리지 않는다.
+me="${self:-${COORD_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-}}}"
+if [ -n "$me" ]; then
+  while IFS=$'\t' read -r rid sid; do
+    [ "$sid" = "$me" ] && emit "STALE_RUN $rid session=$sid"
+  done < <(coord_stale_runs "$(basename "$RD")")
+fi
 
 if [ "${#out[@]}" -eq 0 ]; then echo "TICK quiet"; else printf '%s\n' "${out[@]}"; fi
 [ "${#out[@]}" -gt 0 ] && coord_state_call event tick - "$(jq -cn --argjson n "${#out[@]}" '{actions:$n}')" >/dev/null 2>&1

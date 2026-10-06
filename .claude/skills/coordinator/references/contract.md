@@ -116,7 +116,7 @@
   "schema": 1,
   "run": {"id": "", "goal": "", "rules_doc": "", "integration_branch": "dev", "created_at": "",
           "coordinator": {"name": "", "addr": "", "session_id": "", "handle": "", "pid": 0},
-          "cron_id": null, "usage_band_notified": null},
+          "cron_id": null, "usage_band_notified": null, "closed_at": null},
   "lanes": {
     "<레인>": {
       "session": {"name": "", "addr": "", "session_id": "", "pid": 0, "handle": "",
@@ -147,6 +147,7 @@
 - `merge.in_flight` = `{"lane","branch","expected_tree","granted_at"}`. 완료 보고 뒤 `history` 로 옮기고 `merged`·`tree`·`cleaned` 를 채운다.
 - `windows[]` = `{"kind":"measure|move|ban","lane":<측정 레인|null>,"opened_at","until","notified":[],"hold_job":<heavy detach id|null>}`. 닫으면 배열에서 빼고 이벤트로 남긴다.
 - `ctx` = `{"tokens","window","pct","src","at"}`.
+- `run.closed_at` = 회차를 마감한 시각(ISO)이고, 열린 회차는 `null`. `coord-state.sh close-run`(또는 `event run-closed`)만 쓴다. 이 칸이 비고 오피스 팀장 키가 남은 회차를 `init`·`tick.sh` 가 `STALE_RUN` 으로 알린다. 계약에 없는 칸(`.run.state` 등)으로 마감을 표시하지 않는다.
 
 ## 3. 스크립트
 
@@ -180,7 +181,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 
 | 스크립트 | 인자 | stdout |
 |---|---|---|
-| `tick.sh` | `[--no-answer] [--dry-run]` | 감시 틱 한 번을 묶어 행동 줄만 낸다: `ANSWER/DENY/ESCALATE … lane=<레인>`(확인 창 자동 응답) · `PROMPT <레인> <kind>`(`--no-answer`) · `IDLE`·`WAIT_USER`·`STALL?`·`GONE`(idle-check) · `STALL`(stall-check) · `CTX_OVER <레인> pct=<n> thr=<n>` · `CTX_OVER_SELF pct=<n> thr=<n>` · `BAND_CHANGED <이전> <지금> five=<n> week=<n>`(state.usage 갱신, 한 번만) · `LOAD_SOFT\|LOAD_HARD\|LOAD_RELEASE per_core=<f>`(두 틱 연속) · `WINDOW_DUE <kind> lane=<레인\|-> until=<iso>` · `UNACKED <instr-id> <레인> <분>m` · `UNLINKED <이름> pid=<pid>`(처음 본 것만). 하나도 없으면 `TICK quiet` |
+| `tick.sh` | `[--no-answer] [--dry-run]` | 감시 틱 한 번을 묶어 행동 줄만 낸다: `ANSWER/DENY/ESCALATE … lane=<레인>`(확인 창 자동 응답) · `PROMPT <레인> <kind>`(`--no-answer`) · `IDLE`·`WAIT_USER`·`STALL?`·`GONE`(idle-check) · `STALL`(stall-check) · `CTX_OVER <레인> pct=<n> thr=<n>` · `CTX_OVER_SELF pct=<n> thr=<n>` · `BAND_CHANGED <이전> <지금> five=<n> week=<n>`(state.usage 갱신, 한 번만) · `LOAD_SOFT\|LOAD_HARD\|LOAD_RELEASE per_core=<f>`(두 틱 연속) · `WINDOW_DUE <kind> lane=<레인\|-> until=<iso>` · `UNACKED <instr-id> <레인> <분>m` · `UNLINKED <이름> pid=<pid>`(처음 본 것만) · `STALE_RUN <run-id> session=<id>`(내 조정 세션이 돌린 다른 회차가 마감 표식 없이 오피스 팀장 키를 남김 → `close-run`). 하나도 없으면 `TICK quiet` |
 | `ctx-usage.sh` | `<session-id>` \| `--pid <pid>` \| `--lane <레인>` `[--window N]` | `CTX <session-id> tokens=<n> window=<n> pct=<n> src=transcript|dump at=<iso>` 또는 `CTX <id> unknown <사유>` |
 | `usage-band.sh` | 없음 | `BAND <G|Y|O|R|UNKNOWN> five=<n|-> week=<n|-> week_allow=<n|-> src=<kind|-> at=<iso|-> five_reset=<iso|-> week_reset=<iso|->` |
 | `coord-status.sh` | `[--json]` | 레인마다 `LANE <레인> name=<세션> status=<busy|idle|gone> for=<분>m report=<HH:MM|-> commit=<HH:MM|-> ahead=<n|-> bg=<콤마목록|-> ctx=<n|->% hold=<사유|->`, 이어 `PC load1=<f> cpus=<n> per_core=<f> heavy=<held>/<waiting>/<K> swap_mb=<n|-> five=<n|-> week=<n|-> band=<띠>`, 상태에 없는 Claude 세션마다 `UNLINKED <이름> pid=<pid> cwd=<경로>`, 회차의 창마다 `WINDOW <kind> lane=<레인|-> until=<iso>` |
@@ -197,7 +198,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 
 | 하위명령 | 하는 일 · stdout |
 |---|---|
-| `init <run-id> [--goal 글] [--rules-doc 경로]` | 회차 폴더·빈 state.json 생성, current 지정 · `RUN <run-id> <폴더>` |
+| `init <run-id> [--goal 글] [--rules-doc 경로]` | 회차 폴더·빈 state.json 생성, current 지정 · `RUN <run-id> <폴더>`. 현재 세션 id(`COORD_SESSION_ID` → `CLAUDE_CODE_SESSION_ID`)를 `.run.coordinator.session_id` 에 적는다. 이어 마감 표식(`.run.closed_at`·`.office.finished`)이 없고 오피스 팀장 키(`.office.sent._lead`)가 남은 다른 회차마다 한 줄: 세션 id 가 같으면 자동 마감하고 `STALE_RUN <run-id> auto-closed session=<id>`, 그 밖에는 `STALE_RUN <run-id> open session=<id\|-> idle=<분>m`(경고만, 안내는 stderr) |
 | `use <run-id>` | current 바꾸기 |
 | `get [jq식]` | state.json 에 jq 적용 결과 |
 | `set <jq경로> <json값>` | 값 쓰기(예: `set '.lanes.a8.priority' 3`) · `OK` |
@@ -209,6 +210,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 | `item-done <레인> <항목id>` | 항목 완료 · `PROGRESS <레인> <pct>%` |
 | `progress` | 레인마다 `PROGRESS <레인> <pct>% <끝난가중치>/<전체가중치>`, 마지막 `PROGRESS ALL <pct>%` |
 | `hold <레인> <사유|-> [until-iso]` | hold 세우기(`-` 는 풀기) |
+| `close-run [json]` | 회차 마감: `run-closed` 이벤트 → `office.sh finish` → `.run.closed_at` 에 마감 시각(이미 있으면 처음 값 유지, finish 는 다시 건다) · `OK`. `event run-closed` 도 같은 함수를 탄다 |
 | `summary` | summary.md 재생성 · 경로 |
 
 ### 3.5 부작용 있는 스크립트(모두 `--dry-run`)
@@ -255,7 +257,7 @@ macOS(BSD `date`·`stat`) 와 GNU 양쪽에서 돈다. 기계가 읽는 결과�
 | `coord-state.sh set '.merge…'` 로 `in_flight` 레인이 바뀔 때(머지 허가·완료) | 이전·새 레인에 `lane-state <레인> auto` |
 | `close-lane.sh` 가 레인을 closed 로 쓴 뒤 | `lane-down <레인>` |
 | `tick.sh` 끝(`--dry-run` 제외) | `beat` — 팀장과 살아 있는 레인 전원을 같은 키로 재전송(하트비트). 끝난 레인·state 에서 사라진 레인은 stop. 개별 호출이 빠져도 beat 가 state.json 기준으로 바로잡는다. 마감 뒤에는 `.office.sent` 에 남은 키만 stop 한다 |
-| `coord-state.sh event run-closed`(`closing.md` §6) | `finish` — 레인마다 ABORT 를 풀고 팀장·팀원 키를 모두 stop 한다(한 건의 실패가 나머지를 막지 않는다). `.office.finished=true` 는 늘 남기며, 그 뒤 그 회차의 `office.sh` 는 `beat` 만 동작해 stop 이 실패해 기록에 남은 키를 마저 내린다(유령 행 방지) |
+| `coord-state.sh close-run`·`event run-closed`(`closing.md` §6) | `finish` — 레인마다 ABORT 를 풀고 팀장·팀원 키를 모두 stop 한다(한 건의 실패가 나머지를 막지 않는다). `.office.finished=true` 는 늘 남기며, 그 뒤 그 회차의 `office.sh` 는 `beat` 만 동작해 stop 이 실패해 기록에 남은 키를 마저 내린다(유령 행 방지) |
 
 `lane-state`·`lane-up` 은 키·라벨이 기록과 같으면 보내지 않는다(beat·lead-up 은 늘 보낸다). 사용자가 띄운 세션처럼 `lane-up` 을 거치지 않은 레인은 다음 beat 에서 등록된다.
 
