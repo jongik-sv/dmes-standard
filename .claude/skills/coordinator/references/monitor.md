@@ -15,7 +15,7 @@
 
 ## 2. 틱 절차
 
-틱은 `scripts/tick.sh` 한 번이다. 이 스크립트가 `coord-status.sh`·`prompt-watch.sh`(+`auto-answer.sh`)·`idle-check.sh`·`stall-check.sh`·`ctx-usage.sh`·`usage-band.sh` 를 차례로 돌리고 행동 줄만 낸다. 줄별 처리는 SKILL.md 「틱 절차」 표다. 상태표 전체가 필요할 때(사용자가 상태를 물을 때, 판단 근거를 볼 때)만 `coord-status.sh` 를 따로 돌린다. 그 출력 칸은 `contract.md` §3.3 이다. `status=gone` 이고 핸들이 stale 이면 `protocol.md` 3.10 으로 신원을 다시 요청하고, 세션이 죽었으면 사용자에게 알린다.
+틱은 `scripts/tick.sh` 한 번이다. 이 스크립트가 `coord-status.sh`·`prompt-watch.sh`(+`auto-answer.sh`)·`idle-check.sh`·`stall-check.sh`·`ctx-usage.sh`·`usage-band.sh` 를 차례로 돌리고 행동 줄만 낸다. 줄별 처리는 SKILL.md 「틱 절차」 표다. 상태표 전체가 필요할 때(사용자가 상태를 물을 때, 판단 근거를 볼 때)만 `coord-status.sh` 를 따로 돌린다. 그 출력 칸은 `contract.md` §3.3 이다. 콘솔 폴러가 돌면 `prompt-watch.sh`(틱·`--follow` Monitor 모두)는 폴러가 남긴 화면 캐시로 판정해 화면을 직접 읽지 않는다(캐시가 없거나 낡으면 직접 읽는다 — `contract.md` §3.3·§4.1). `status=gone` 이고 핸들이 stale 이면 `protocol.md` 3.10 으로 신원을 다시 요청하고, 세션이 죽었으면 사용자에게 알린다.
 
 ## 3. 판정 신호와 규칙
 

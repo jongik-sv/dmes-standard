@@ -25,6 +25,10 @@
 #             poll 이 exit 5 + forbidden_role(프로젝트 한정 PAT)이면 COORD_CONSOLE_OFF_RETRY_S(기본 30분) 동안 poll·ack 만 끈다(reap·화면은 계속), 지나면 한 번 다시 시도
 #           ③ 화면은 `term_read_screen <h> 41`(가림 라이브러리가 맨 앞 줄을 줄 이음 판정에만 쓰고 마지막 40줄을 낸다).
 #             captured_at 은 UTC(…Z). 한 요청에 같은 대상을 두 번 넣지 않고, 올리기 실패면 sha 기록을 그대로 둬 다음 주기에 다시 보낸다
+#             조정 레인 화면은 같은 읽기 결과를 $DFLOW_CONSOLE_DIR/screen/<handle>.txt·.json(700/600)에 남긴다 — prompt-watch.sh 가 폴러가 도는 동안 화면을 직접 읽지 않게 하는 캐시(lib/screen-cache.sh,
+#             설정 approvals.screen_cache_s 가 0 이면 쓰지 않음). 읽기에 실패한 handle 의 캐시는 지우고 10분 넘은 파일은 주기마다 지운다. 자동 응답 직전 재판정은 이 캐시를 쓰지 않는다
+#             상주 폴러(run)는 창(kind≠none)이 보인 레인만 REREAD_S(기본 5)초 뒤 한 번 더 읽어 캐시를 바로 갱신한다(⑤ 화면 재읽기 — 주기당·레인당 한 번, 입력 요청 알림 다음, 구간 상한 안).
+#             폴러가 끝나면(stop·TERM·자동 종료·--once 끝) 잠금 주인으로서 화면 캐시 폴더의 파일을 모두 지운다(원문이 로컬에 남지 않게 — prompt-watch 는 직접 읽기로 물러난다).
 #             같은 화면으로 입력 요청(확인·선택·질문 창)을 판정해 $DFLOW_CONSOLE_DIR/input/<kind>_<ref>.json 을 만들고·고치고·지운다
 #             (coord_lane·coord_lead·team_lead, §4.1 「입력 요청 감지」). 바뀐 대상은 ④ 에서 알린다
 #           ④ 입력 요청 알림: coord_lane → `COORD_RUN=<회차> office.sh lane-state <레인> auto`, coord_lead → `office.sh lead-sync`,
@@ -56,9 +60,11 @@
 #         COORD_CONSOLE_LANE_LOCK_WAIT_S(레인 잠금 대기, 기본 10) · COORD_CONSOLE_SENT_GRACE_S(보낸 직후 같은 창을 다시 세지 않는 초, 기본 10)
 #   비밀: 프롬프트 본문·claim_token·화면 원문·dflow.sh 오류 본문은 로그·stderr 에 남기지 않는다(시각·대상·결과·사유만).
 set -uo pipefail
-. "$(dirname "$0")/lib/common.sh"
-. "$(dirname "$0")/lib/term.sh"
-. "$(dirname "$0")/lib/console-resolve.sh"
+_SD="${0%/*}"; [ "$_SD" != "$0" ] || _SD=.   # dirname 대신(프로세스 0개)
+. "$_SD/lib/common.sh"
+. "$_SD/lib/term.sh"
+. "$_SD/lib/console-resolve.sh"
+. "$_SD/lib/screen-cache.sh"   # 레인 화면 캐시(prompt-watch 의 읽기 중복 제거 — 쓰는 쪽은 여기뿐)
 coord_default_repo
 SELF="$COORD_SCRIPTS_DIR/console-poll.sh"
 
@@ -99,6 +105,8 @@ NOTIFY_MAX="$(posint "${COORD_CONSOLE_NOTIFY_MAX_S:-}" 45)"   # 「입력 요청
 PHASE_MAX="$(posint "${COORD_CONSOLE_PHASE_MAX_S:-}" 10)"     # 생존 감시·화면 읽기·화면 올리기 구간마다
 LIST_MAX=5                                                     # 터미널 목록 구간
 SCREEN_READ_MAX=5                                              # 화면 하나 읽기
+REREAD_S="$(posint "${COORD_CONSOLE_REREAD_S:-}" 5)"           # 창이 보인 레인을 다시 읽기까지(시험용 COORD_CONSOLE_REREAD_S)
+REREAD_ON=0                                                    # 상주 폴러(cmd_run)만 1 — --once 는 다시 읽지 않는다
 LS_TIMEOUT="$(posint "${COORD_CONSOLE_LS_TIMEOUT_S:-}" 5)"     # lead-state 한 번
 HELD_MAX_AGE_S="$(posint "${COORD_CONSOLE_HELD_MAX_S:-}" $((ACK_WINDOW_S - SEND_TIMEOUT - ACK_MAX_S)))"
 STOP_WAIT_S="$(posint "${COORD_CONSOLE_STOP_WAIT_S:-}" 10)"
@@ -134,20 +142,26 @@ kill_tree() {
   for p in $all; do kill -0 "$p" 2>/dev/null && kill -KILL "$p" 2>/dev/null; done
   return 0
 }
-# 겹쳐 불러도 된다(구간 함수 안에서 다시 부름): 표식 파일을 호출마다 따로 만든다.
+# 겹쳐 불러도 된다(구간 함수 안에서 다시 부름): 시간 초과 표식 파일을 호출마다 따로 둔다($$ + 호출 번호 — 자식 프로세스는 부모의 번호에서
+# 이어 세므로 부모가 기다리는 동안 안쪽 호출과 겹치지 않는다). 표식은 시간 초과일 때만 만들어지고 바로 지운다.
+# 감시자는 sleep 의 pid 를 직접 쥐고(TERM trap 으로 그 sleep 만 죽인다) 끝나므로 pkill -P·mktemp·rm 이 필요 없다.
+RL_SEQ=0
 run_limited() {  # run_limited <초> <stdout 파일> <stderr 파일> <stdin 파일> <명령…> — 0 성공 · 124 시간 초과 · 그 밖 종료 코드
   local secs="$1" out="$2" err="$3" in="$4" pid wd rc mk; shift 4
-  mk="$(mktemp -d "$TMPD/rl.XXXXXX" 2>/dev/null)" || return 125
+  RL_SEQ=$((RL_SEQ + 1)); mk="$TMPD/rl.$$.$RL_SEQ.timeout"
   "$@" >"$out" 2>"$err" <"$in" &
   pid=$!; RL_PID="$pid"
-  ( sleep "$secs"; [ -f "$mk/done" ] && exit 0; : > "$mk/timeout"; kill_tree "$pid" ) >/dev/null 2>&1 &
+  ( trap 'kill "$sp" 2>/dev/null; exit 0' TERM
+    sleep "$secs" & sp=$!
+    wait "$sp" 2>/dev/null || exit 0       # sleep 이 중간에 죽었으면(=명령이 먼저 끝나 정리됨) 시간 초과가 아니다
+    kill -0 "$pid" 2>/dev/null || exit 0   # 막 끝난 명령(또는 pid 재사용)은 건드리지 않는다
+    trap '' TERM                           # 정리(TERM → 0.3초 → KILL)를 끝까지 한다
+    : > "$mk"; kill_tree "$pid" ) >/dev/null 2>&1 &
   wd=$!; RL_WD="$wd"
   wait "$pid" 2>/dev/null; rc=$?
-  : > "$mk/done"
-  pkill -P "$wd" 2>/dev/null; kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
+  kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
   RL_PID=""; RL_WD=""
-  [ -f "$mk/timeout" ] && rc=124
-  rm -rf "$mk"
+  if [ -f "$mk" ]; then rm -f "$mk"; rc=124; fi
   return "$rc"
 }
 RL_PID=""; RL_WD=""
@@ -204,13 +218,13 @@ lock_live() {  # 잠금을 쥔 프로세스가 살아 있으면 0(HELD=pid). pid
   local p ps
   HELD=""
   [ -d "$LK" ] || return 1
-  p="$(cat "$LK/pid" 2>/dev/null)"
+  coord_read1 p "$LK/pid"
   if [ -z "$p" ]; then   # 막 mkdir 한 직후(pid 를 쓰기 전)
     [ "$(( $(coord_now_epoch) - $(coord_file_mtime "$LK" || echo 0) ))" -lt 5 ] && { HELD="-"; return 0; }
     return 1
   fi
   kill -0 "$p" 2>/dev/null || return 1
-  ps="$(cat "$LK/pstart" 2>/dev/null)"
+  coord_read1 ps "$LK/pstart"
   [ -z "$ps" ] || [ "$ps" = "$(coord_pstart "$p")" ] || return 1
   HELD="$p"
 }
@@ -244,7 +258,7 @@ lock_take() {  # 잡으면 0(pid = $$), 산 주인이 있으면 1(HELD)
   lock_live && return 1
   lock_steal
 }
-lock_mine() { [ "$(cat "$LK/pid" 2>/dev/null)" = "$$" ]; }
+lock_mine() { local _p; coord_read1 _p "$LK/pid"; [ "$_p" = "$$" ]; }
 lock_note_tmpd() { printf '%s\n' "$TMPD" > "$LK/tmpd" 2>/dev/null; }   # stop 의 KILL 분기가 대신 지운다
 
 # ---- 할 일 판정 ------------------------------------------------------------------------------
@@ -280,7 +294,7 @@ inflight_sweep() {  # 남은 inflight 파일의 id 는 다시 보내지 않는�
 }
 
 # ---- ② 프롬프트 전달 ---------------------------------------------------------------------------
-in_terms() { printf '%s\n' "$TL" | grep -qxF -- "$1"; }
+in_terms() { case $'\n'"$TL"$'\n' in *$'\n'"$1"$'\n'*) return 0 ;; esac; return 1; }   # grep -qxF 와 같은 한 줄 전체 일치(프로세스 없이)
 ack() {  # ack <id> <claim_token> <result> <reason|-> <detail|-> <대상 설명> — 성공 0
   local id="$1" tok="$2" res="$3" rs="$4" dt="$5" what="$6" n=0 rc
   local args=(console-ack "$id" "$tok" "$res")
@@ -528,7 +542,8 @@ flush_held() {
   : > "$TMPD/held"
 }
 held_old() {  # 가장 오래 붙잡은 행(claim 시각 기준)이 HELD_MAX_AGE_S 를 넘었으면 0
-  local t; t="$(head -1 "$TMPD/held" 2>/dev/null | cut -f4)"
+  local t; [ -s "$TMPD/held" ] || return 1   # 붙잡은 행이 없으면 head·cut 을 부르지 않는다
+  t="$(head -1 "$TMPD/held" 2>/dev/null | cut -f4)"
   [ -n "$t" ] && [ $(( $(coord_now_epoch) - t )) -ge "$HELD_MAX_AGE_S" ]
 }
 phase_prompts() {
@@ -564,7 +579,7 @@ poll_loop() {  # 한 건씩 claim → 전달 → ack 를 대기열이 빌 때까
       *) plog "console-poll 실패 rc=$rc — 이번 주기 건너뜀"; return 0 ;;
     esac
     # 응답(프롬프트 본문·claim_token)은 메모리로 읽고 파일은 바로 지운다
-    line="$(grep -m 1 . "$TMPD/out" 2>/dev/null)"
+    line=""; { while IFS= read -r line || [ -n "$line" ]; do [ -z "$line" ] || break; done < "$TMPD/out"; } 2>/dev/null   # grep -m 1 . (첫 비지 않은 줄)
     rm -f "$TMPD/out" "$TMPD/err"
     [ -n "$line" ] || return 0     # 대기열이 비었다
     i=$((i + 1))
@@ -578,7 +593,7 @@ poll_loop() {  # 한 건씩 claim → 전달 → ack 를 대기열이 빌 때까
 # 기록 $CD/input/<kind>_<ref>.json = {v:1, kind, since(UTC ms ISO), excerpt[≤10], handled:null|{by,at}, full, run, handle} — 쓰는 쪽은 폴러,
 # 읽는 쪽은 office.sh. full·run·handle 은 킷 내부 칸(서버로 보내지 않는다).
 # 바뀐 대상은 $CD/input/.notify/<이름> 표식을 남기고 ④ 가 알린 뒤 지운다(시간 상한으로 못 알리면 다음 주기에 다시).
-in_mark() { [ "$DRY" = 1 ] && return 0; mkdir -p "$CD/input/.notify" 2>/dev/null; : > "$CD/input/.notify/$1"; }
+in_mark() { [ "$DRY" = 1 ] && return 0; coord_mkdirp "$CD/input/.notify"; : > "$CD/input/.notify/$1"; }
 # 레인 → 그 레인이 있는 살아 있는 열린 회차(정확히 하나일 때): `<state.json>\t<run-id>`
 lane_run() {
   local sf out="" n=0
@@ -588,14 +603,14 @@ lane_run() {
     n=$((n + 1)); out="$sf"
   done < <(_cr_live_runs)
   [ "$n" = 1 ] || return 1
-  printf '%s\t%s\n' "$out" "$(basename "$(dirname "$out")")"
+  sf="${out%/*}"; printf '%s\t%s\n' "$out" "${sf##*/}"
 }
 # 조정 세션 → 그 세션의 열린 회차 하나(이름 순 첫째)의 run-id
 lead_run() {
   local sf s8 best=""
   while IFS=$'\t' read -r sf s8; do
     [ "$s8" = "$1" ] || continue
-    sf="$(basename "$(dirname "$sf")")"
+    sf="${sf%/*}"; sf="${sf##*/}"
     if [ -z "$best" ] || [[ "$sf" < "$best" ]]; then best="$sf"; fi
   done < <(_cr_live_runs)
   [ -n "$best" ] && printf '%s\n' "$best"
@@ -610,7 +625,7 @@ lane_run_h() {
     n=$((n + 1)); out="$sf"
   done < <(_cr_live_runs)
   [ "$n" = 1 ] || return 1
-  basename "$(dirname "$out")"
+  out="${out%/*}"; printf '%s\n' "${out##*/}"
 }
 # 기록 JSON(stdin)이 「살아 있는」 입력 요청(handled null·usage-limit·trust 아님)이면 y
 rec_active() { jq -r 'if type == "object" and .handled == null and .kind != "usage-limit" and .kind != "trust" then "y" else "n" end' 2>/dev/null; }
@@ -722,7 +737,7 @@ lane_runs_all() {
   while IFS=$'\t' read -r sf _; do
     [ -n "$sf" ] || continue
     [ "$(jq -r --arg l "$1" '.lanes[$l] // empty | select((.state // "active") != "closed") | "y"' "$sf" 2>/dev/null)" = y ] || continue
-    basename "$(dirname "$sf")"
+    sf="${sf%/*}"; printf '%s\n' "${sf##*/}"
   done < <(_cr_live_runs)
 }
 # dflow-team 팀장의 답 대기 전환·복귀(바뀔 때만 — 표식이 있을 때만 부른다)
@@ -782,6 +797,7 @@ input_notify() {
 }
 
 # ---- ③ 화면 올리기 ----------------------------------------------------------------------------
+sc_drop_live() { [ "$DRY" = 1 ] || sc_drop "$1"; }   # dry-run 은 화면 캐시도 건드리지 않는다
 # 화면 읽기 구간(run_phase 가 백그라운드로 돌린다 — 전역 값은 파일로만 넘긴다): items.jsonl·pending.tsv 를 만든다
 screens_collect() {
   local kind ref h sha shaf at lines full=0 touch=0
@@ -789,14 +805,27 @@ screens_collect() {
   # 한 요청에 같은 대상(kind+ref)을 두 번 넣지 않는다(서버가 앞의 것을 duplicate_target 으로 거절). 둘 이상 나온 대상은
   # 해석이 애매한 것이므로 모두 뺀다.
   console_list_targets 2>/dev/null | awk -F'\t' '{ k = $1 "\t" $2; n[k]++; l[NR] = $0; key[NR] = k } END { for (i = 1; i <= NR; i++) if (n[key[i]] == 1) print l[i] }' > "$TMPD/targets"
+  local rt sc_on=0
+  [ "$DRY" = 1 ] || [ "$(sc_ttl)" -le 0 ] || sc_on=1   # 화면 캐시: 설정 approvals.screen_cache_s 가 0 이거나 dry-run 이면 쓰지 않는다
   while IFS=$'\t' read -r kind ref h; do
     [ -n "$h" ] || continue
-    in_terms "$h" || continue
+    in_terms "$h" || { [ "$kind" = coord_lane ] && sc_drop_live "$h"; continue; }
     # 41줄: 가림 라이브러리가 맨 앞 한 줄을 줄 이음 판정에만 쓰고 마지막 40줄을 낸다
-    # 읽기 실패는 일시적일 수 있으므로 입력 요청 기록을 그대로 둔다(seen)
-    run_limited "$SCREEN_READ_MAX" "$TMPD/scr" /dev/null /dev/null term_read_screen "$h" 41 || { rm -f "$TMPD/scr"; printf '%s_%s\n' "$kind" "$ref" >> "$TMPD/in_seen"; continue; }
+    # 읽기 실패는 일시적일 수 있으므로 입력 요청 기록을 그대로 둔다(seen). 단 화면 캐시는 낡게 두지 않고 지운다
+    run_limited "$SCREEN_READ_MAX" "$TMPD/scr" /dev/null /dev/null term_read_screen "$h" 41 || { rm -f "$TMPD/scr"; [ "$kind" = coord_lane ] && sc_drop_live "$h"; printf '%s_%s\n' "$kind" "$ref" >> "$TMPD/in_seen"; continue; }
+    [ "$kind" = coord_lane ] && rt="$(sc_now_ms)"   # 화면을 읽은 시각(캐시의 read_at_ms)
     # 입력 요청 감지(같은 화면, 새 읽기 없음). 팀원(team_worker)은 하지 않는다
+    CI_KIND=""; CI_FULL=""
     if [ "$INPUT_OK" = 1 ] && [ "$kind" != team_worker ]; then input_detect "$kind" "$ref" "$TMPD/scr" "$h"; fi
+    # 화면 캐시(레인 화면만): 같은 읽기 결과를 로컬 600 에 남긴다(prompt-watch 가 읽는다 — 새 읽기 없음). 원문은 로그에 남기지 않는다
+    if [ "$kind" = coord_lane ]; then
+      if [ "$sc_on" = 1 ]; then
+        if sc_store "$h" "$TMPD/scr" "$rt" "${CI_FULL:-}"; then
+          # 창이 보이면 그 레인만 잠깐 뒤 한 번 더 읽는다(⑤ phase_reread — 이 구간 파일로만 넘긴다)
+          if [ "$REREAD_ON" = 1 ] && [ -n "$SC_STORED_KIND" ]; then printf '%s\t%s\n' "$h" "$(coord_now_epoch)" >> "$TMPD/reread"; fi
+        else plog "screen-cache $kind/$ref 쓰기 실패"; fi
+      else sc_drop_live "$h"; fi
+    fi
     printf '%s_%s\n' "$kind" "$ref" >> "$TMPD/in_seen"
     console_screen_filter < "$TMPD/scr" > "$TMPD/filt" 2>/dev/null || { plog "screen $kind/$ref 가림 실패 — 올리지 않음"; continue; }
     sha="$(console_screen_sha < "$TMPD/filt" 2>/dev/null)"
@@ -814,6 +843,7 @@ screens_collect() {
     printf '%s\t%s\t%s\n' "$kind" "$ref" "$sha" >> "$TMPD/pending.tsv"
   done < "$TMPD/targets"
   rm -f "$TMPD/scr" "$TMPD/filt"
+  [ "$DRY" = 1 ] || sc_prune 10   # 대상에서 빠진 handle·끝난 회차의 오래된(10분) 화면 캐시를 지운다
   [ "$INPUT_OK" = 1 ] && input_sweep
   printf '%s %s\n' "$full" "$touch" > "$TMPD/counts"
 }
@@ -851,13 +881,35 @@ phase_screens() {
   local rc
   [ "$REDACT_OK" = 1 ] || return 0
   [ -n "$TL" ] || return 0
-  rm -f "$TMPD/targets" "$TMPD/counts" "$TMPD/old7"; : > "$TMPD/items.jsonl"; : > "$TMPD/pending.tsv"; : > "$TMPD/in_seen"
+  rm -f "$TMPD/targets" "$TMPD/counts" "$TMPD/old7" "$TMPD/reread"; : > "$TMPD/items.jsonl"; : > "$TMPD/pending.tsv"; : > "$TMPD/in_seen"
   run_phase "화면 읽기" "$PHASE_MAX" /dev/null /dev/stderr screens_collect; rc=$?
   rm -f "$TMPD/scr" "$TMPD/filt"   # 상한으로 끊겼을 때 남은 화면 원문
   # 읽기를 다 못 끝냈으면(상한 초과) 반쪽 항목을 올리지 않는다
   if [ "$rc" = 0 ]; then run_phase "화면 올리기" "$PHASE_MAX" /dev/null /dev/stderr screens_upload; fi
   [ -f "$TMPD/old7" ] && OLD_UNTIL=$(( $(coord_now_epoch) + OLD_PAUSE_S ))
   rm -f "$TMPD/items.jsonl" "$TMPD/pending.tsv" "$TMPD/batches" "$TMPD/old7" "$TMPD/in_seen"
+  return 0
+}
+# ⑤ 화면 재읽기(상주 폴러만): 화면 읽기에서 창이 보인 레인만 REREAD_S 초 뒤 한 번 더 읽어 화면 캐시를 바로 갱신한다 — 창이 사라졌는지·바뀌었는지를
+#   다음 30초 주기까지 기다리지 않고 prompt-watch 가 믿게 한다(낡은 창을 믿는 시간·연속 창을 놓치는 틈을 줄인다). 주기당 한 번·레인당 한 번.
+#   입력 요청 기록·서버 올리기는 하지 않는다(다음 주기 몫). 읽기에 실패하면 그 레인의 캐시를 지운다.
+screens_reread() {
+  local h t0 w full
+  while IFS=$'\t' read -r h t0; do
+    [ -n "$h" ] || continue
+    w=$(( REREAD_S - ($(coord_now_epoch) - ${t0:-0}) ))
+    [ "$w" -gt 0 ] && sleep "$w"
+    run_limited "$SCREEN_READ_MAX" "$TMPD/scr2" /dev/null /dev/null term_read_screen "$h" 41 || { rm -f "$TMPD/scr2"; sc_drop_live "$h"; continue; }
+    full=""
+    [ "$INPUT_OK" = 1 ] && full="$(console_full_sha < "$TMPD/scr2" 2>/dev/null)"
+    sc_store "$h" "$TMPD/scr2" "$(sc_now_ms)" "$full" || plog "screen-cache 재읽기 쓰기 실패"
+  done < "$TMPD/reread"
+  rm -f "$TMPD/scr2"
+}
+phase_reread() {
+  [ "$REREAD_ON" = 1 ] && [ "$DRY" != 1 ] && [ -s "$TMPD/reread" ] || { rm -f "$TMPD/reread"; return 0; }
+  run_phase "화면 재읽기" "$PHASE_MAX" /dev/null /dev/stderr screens_reread
+  rm -f "$TMPD/reread" "$TMPD/scr2"
   return 0
 }
 # 입력 요청 알림은 office.sh 한 번이 OFFICE_TIMEOUT(20초)까지 걸릴 수 있어 주기 몫(CYCLE_MAX)·구간 상한(PHASE_MAX)과 따로
@@ -907,6 +959,8 @@ cycle() {
   if [ "$OLD_UNTIL" -le "$(coord_now_epoch)" ]; then phase_screens; fi
   # ④ 입력 요청 알림(키 입력 뒤의 기록 삭제도 여기서 알린다)
   phase_input_notify
+  # ⑤ 화면 재읽기(창이 보인 레인만, 상주 폴러만)
+  phase_reread
   return 0
 }
 
@@ -915,6 +969,8 @@ forget_session_env() { unset COORD_RUN COORD_SESSION_ID CLAUDE_CODE_SESSION_ID C
 
 cmd_run() {
   local i=0 ok=1
+  coord_clock_init   # 이후 coord_now_epoch 은 date 를 부르지 않는다
+  REREAD_ON=1
   forget_session_env
   setup || ok=0
   need_ident || ok=0
@@ -952,19 +1008,25 @@ on_exit() {
   trap '' TERM INT HUP   # 정리 도중 다시 불리지 않게
   [ -n "$SLEEP_PID" ] && kill "$SLEEP_PID" 2>/dev/null
   # 주기 도중에 멈추면(stop) 진행 중이던 호출과 그 시간 감시자를 함께 거둔다(고아로 남지 않게)
-  [ -n "$RL_WD" ] && { pkill -P "$RL_WD" 2>/dev/null; kill "$RL_WD" 2>/dev/null; }
+  [ -n "$RL_WD" ] && { kill "$RL_WD" 2>/dev/null; }   # 감시자의 TERM trap 이 자기 sleep 을 죽인다
   [ -n "$RL_PID" ] && kill_tree "$RL_PID"
+  [ -n "$RL_WD" ] && wait "$RL_WD" 2>/dev/null
   RL_PID=""; RL_WD=""
   # 붙잡아 둔 retry(compacting) 를 짧게 돌려보낸다(한 번에 3초, 다시 부르지 않음, 모두 합쳐 FLUSH_EXIT_MAX_S)
   if [ "$DRY" != 1 ] && [ -s "$TMPD/held" ] && [ -n "$DFLOW" ]; then
     DFL_TIMEOUT=3; ACK_RETRY=0
     flush_held "$FLUSH_EXIT_MAX_S"
   fi
-  if lock_mine; then rm -rf "$LK"; plog "폴러 끝 pid=$$"; fi
+  if lock_mine; then
+    rm -rf "$LK"; plog "폴러 끝 pid=$$"
+    # 단일 인스턴스 잠금의 주인이 끝나는 것이라 화면 캐시(원문 .txt·임시 파일)를 지운다. dry-run 은 건드리지 않는다(시험용 KEEP 도 같다)
+    [ "$DRY" = 1 ] || [ "${COORD_CONSOLE_KEEP_SCREEN:-}" = 1 ] || sc_clear
+  fi
   rm -rf "$TMPD"
 }
 
 cmd_once() {
+  coord_clock_init
   forget_session_env
   setup || { coord_log "console-poll: 건너뜀($SKIP)"; exit 0; }
   need_ident || { coord_log "console-poll: 건너뜀($SKIP)"; exit 0; }
@@ -1011,6 +1073,7 @@ stop_one() {
     case "$t" in
       /*/coord-console.*) case "$t" in *..*) ;; *) case "${t##*/}" in coord-console.*) [ -d "$t" ] && rm -rf "$t" ;; esac ;; esac ;;
     esac
+    sc_clear   # KILL 당한 폴러는 on_exit 을 못 돌리므로 화면 캐시도 대신 지운다
     plog "stop pid=$HELD — TERM 뒤 ${STOP_WAIT_S}초 안에 끝나지 않아 자손까지 KILL·임시 폴더 정리"
   fi
   rm -rf "$LK"; plog "stop pid=$HELD"

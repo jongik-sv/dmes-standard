@@ -219,12 +219,13 @@ COORD_RUN=t3 COORD_SESSION_ID="OTHER999-0000" $OFF lead-up
 eq "다른 세션 팀장 칸은 자기 회차만" "$(lastlead --lead-summary-json other999 | jq -c '[.runs[].run]')" '["t3"]'
 
 # ---- 6. 팀장 8192바이트·5회차 상한 ------------------------------------------------------
+# 회차 상태 파일을 바로 고친다(sjq <회차> <jq 식> [jq 인자…]). 이 구간이 보는 것은 lead-up 의 출력이라 coord-state.sh set 마다 붙는 office 훅(lead-sync,
+# set 한 번에 0.3초 CPU)을 거치지 않고 값만 넣는다. init 은 그대로 부른다(세션·회차 기록은 실제 경로로 만든다).
+sjq() { local r="$1" e="$2" f; shift 2; f="$tmp/state/$r/state.json"; jq "$@" "$e" "$f" > "$f.tmp" && mv "$f.tmp" "$f"; }
 big() { local i; for i in 1 2 3 4 5 6; do
   COORD_RUN=big$i COORD_SESSION_ID="BIGSESS1-0000" $CS init big$i --goal "$(rep "$emo" 130)" >/dev/null 2>&1
-  COORD_RUN=big$i $CS set '.run.created_at' "\"2026-10-06T0$i:00:00Z\"" >/dev/null
-  COORD_RUN=big$i $CS set '.merge.queue' "$(jq -nc --arg q "$(rep "$emo" 70)" '[range(12) | $q]')" >/dev/null 2>&1
-  COORD_RUN=big$i $CS set '.merge.in_flight' "$(jq -nc --arg q "$(rep "$emo" 70)" '{lane:$q}')" >/dev/null 2>&1
-  COORD_RUN=big$i $CS set '.pending_user' "$(jq -nc --arg t "$(rep "$emo" 120)" '[{at:"x", text:$t}]')" >/dev/null 2>&1
+  sjq big$i '.run.created_at = $ca | .merge.queue = [range(12) | $q] | .merge.in_flight = {lane:$q} | .pending_user = [{at:"x", text:$t}]' \
+    --arg ca "2026-10-06T0$i:00:00Z" --arg q "$(rep "$emo" 70)" --arg t "$(rep "$emo" 120)"
 done; }
 big
 reset; COORD_RUN=big1 $OFF lead-up
@@ -235,7 +236,7 @@ eq "회차 칸 상한(queue 10·각 60·goal 120·first_title 100)" "$(printf '%
 reset; COORD_RUN=big1 COORD_OFFICE_LEAD_MAX=4000 $OFF lead-up
 L="$(lastlead --lead-summary-json bigsess1)"
 eq "시험 상한 4000: 그 안으로 runs 축소" "$([ "$(bytes "$L")" -le 4000 ] && echo yes)$(printf '%s' "$L" | jq '.runs | length < 5')" "yestrue"
-for i in 1 2 3 4 5 6; do COORD_RUN=big$i $CS set '.merge.queue' '[]' >/dev/null 2>&1; COORD_RUN=big$i $CS set '.pending_user' '[]' >/dev/null; COORD_RUN=big$i $CS set '.merge.in_flight' null >/dev/null; done
+for i in 1 2 3 4 5 6; do sjq big$i '.merge.queue = [] | .pending_user = [] | .merge.in_flight = null'; done
 reset; COORD_RUN=big1 $OFF lead-up
 eq "작은 회차 6개면 runs 5(최근 5, 오래된 순)" "$(lastlead --lead-summary-json bigsess1 | jq -c '[.runs[].run]')" '["big2","big3","big4","big5","big6"]'
 

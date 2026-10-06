@@ -49,7 +49,8 @@ ID="jji-test/$host"
 log() { cat "$FAKE_LOG" 2>/dev/null; }
 reset() { : > "$FAKE_LOG"; }
 lines() { log | grep -c .; }
-sent() { $CS get ".office.sent[\"$1\"] // \"\""; }
+# 회차 t1 의 상태 파일을 jq 로 바로 읽는다(coord-state.sh get 을 매번 띄우지 않는다 — 읽기만이라 같은 값)
+sent() { jq -r ".office.sent[\"$1\"] // \"\"" "$tmp/state/t1/state.json"; }
 S8=s1a2b3c4
 LK="$ID/coord:$S8"                      # 팀장 키(조정 세션 단위)
 SREC="$tmp/state/_session/$S8.json"     # 조정 세션 기록
