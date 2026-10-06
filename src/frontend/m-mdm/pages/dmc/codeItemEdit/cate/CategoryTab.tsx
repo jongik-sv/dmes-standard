@@ -127,7 +127,7 @@ export function CategoryTab({ cate, loaded, editable, canEdit, rowVersion, lvlCn
       render: (value) => `${value ?? 0}건`,
     },
     {
-      key: "__action", header: "동작", meta: false, width: 150, align: "center",
+      key: "__action", header: "동작", meta: false, width: 150, align: "center", hideable: false,
       render: (_v, row) => {
         const r = row as { cateId: string; defKind: string; __local: string };
         if (r.cateId === BASE_CATE_ID) return null;

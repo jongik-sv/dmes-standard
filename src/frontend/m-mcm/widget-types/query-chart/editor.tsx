@@ -32,7 +32,7 @@ export default function QueryChartEditor(props: WidgetTypeEditorProps) {
         editable: true,
         ...(columns.length > 0 ? { cellEditor: "select" as const, cellEditorValues: columns } : {}),
       },
-      { key: "label", header: "이름(범례)", width: 160, editable: true },
+      { key: "label", header: "이름(범례)", width: 160, editable: true, hideable: true },
     ],
     [columns]
   );

@@ -37,9 +37,9 @@ export interface DataCsvUploadPopModalProps {
 const columns: GridColumn[] = [
   { key: "lineNo", header: "줄", meta: false, width: 60, align: "right" },
   { key: "code", header: "키", meta: false, width: 140 },
-  { key: "action", header: "동작", meta: false, width: 90, align: "center" },
+  { key: "action", header: "동작", meta: false, width: 90, align: "center", hideable: false },
   {
-    key: "issues",
+    key: "issues", hideable: false,
     header: "오류",
     meta: false,
     width: 320,

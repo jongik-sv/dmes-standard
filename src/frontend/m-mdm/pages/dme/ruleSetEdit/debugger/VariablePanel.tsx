@@ -121,7 +121,7 @@ function varColumns(actions: { current: VarActions }): GridColumn[] {
     },
     // 동작 칸 — 칸 값(act = "clear"·"undo"·"")이 상태와 함께 바뀌어야 AG Grid 가 이 칸을 다시 그린다(값이 같으면 렌더러를 다시 부르지 않는다).
     {
-      key: "act",
+      key: "act", hideable: false,
       header: "",
       width: 40,
       align: "center",

@@ -64,7 +64,7 @@ const labelOf = (labels: Readonly<Record<string, string>>) => (v: unknown) => la
 
 const COLUMNS: GridColumn[] = [
   { key: "name", header: "이름 *", width: 110, editable: true },
-  { key: "label", header: "라벨", width: 110, editable: true },
+  { key: "label", header: "라벨", width: 110, editable: true, hideable: true },
   {
     key: "type",
     header: "형",

@@ -97,7 +97,7 @@ function buildMasterColumns(masterLov: MasterLov[]): GridColumn[] {
     },
     { key: "CODE_NM", header: "코드명 *", width: 200, editable: true },
     { key: "MASTER_CODE", header: "마스터코드", width: 200, editable: true },
-    { key: "CODE_DESC", header: "설명", width: 200, editable: true },
+    { key: "CODE_DESC", header: "설명", width: 200, editable: true, hideable: true },
     {
       key: "MASTER_CODE_REF1",
       header: "참조1",
@@ -229,7 +229,7 @@ function buildDetailColumns(
     },
     { key: "CATEGORY_NM", header: "카테고리명", width: 120, editable: false },
     { key: "SORT_SEQ", header: "정렬순서", width: 90, editable: true, type: "number", align: "right" },
-    { key: "CODE_VAL_DESC", header: "설명", width: 180, editable: true },
+    { key: "CODE_VAL_DESC", header: "설명", width: 180, editable: true, hideable: true },
     { key: "CODE_VAL_REF1", header: "참조1", width: 100, ...buildRefCombo("MASTER_CODE_REF1", refLovs.ref1) },
     { key: "CODE_VAL_REF2", header: "참조2", width: 100, ...buildRefCombo("MASTER_CODE_REF2", refLovs.ref2) },
     { key: "CODE_VAL_REF3", header: "참조3", width: 100, ...buildRefCombo("MASTER_CODE_REF3", refLovs.ref3) },

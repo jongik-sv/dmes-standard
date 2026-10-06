@@ -68,7 +68,7 @@ function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
       },
     },
     {
-      key: "sent", header: "키 보냄", width: 70, minWidth: 64, align: "center", tooltip: false,
+      key: "sent", header: "키 보냄", width: 70, minWidth: 64, align: "center", tooltip: false, hideable: false,
       render: (_v, row) => {
         const r = row as unknown as FieldRow;
         return (
