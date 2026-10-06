@@ -166,6 +166,18 @@ describe("GridPanel 의 자동 저장 스위치", () => {
     expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: false });
   });
 
+  it("스위치는 마우스 클릭을 받지 않고(pointer-events: none) 항목이 받는다 — 트랙 클릭이 label 합성 클릭과 겹쳐 두 번 토글되지 않는다", async () => {
+    await show(panel([gridEl()]));
+    await openMenu();
+    const root = switchInput()!.closest<HTMLElement>(".mantine-Switch-root")!;
+    expect(root.style.pointerEvents).toBe("none");
+    // pointer-events 가 막은 마우스 클릭은 스위치 아래의 오른쪽 구역(항목의 일부)에 닿는다
+    await click(root.parentElement);
+    await wait(60);
+    expect(JSON.parse(localStorage.getItem(OPTS)!)).toEqual({ autoSave: false });
+    expect(switchInput()!.checked).toBe(false);
+  });
+
   it("옆 키가 false 면 꺼진 채 그려지고, 헤더를 옮겨도 debounce 가 지난 뒤 저장 키가 바뀌지 않는다", async () => {
     seed(SEEDED);
     localStorage.setItem(OPTS, JSON.stringify({ autoSave: false }));

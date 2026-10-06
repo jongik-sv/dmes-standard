@@ -183,3 +183,21 @@ describe("메뉴가 없는 곳과 대상이 아닌 그리드", () => {
     expect((h.exportToExcel.mock.calls[0] as [unknown, string])[1]).toBe("둘째_20261006.xlsx");
   });
 });
+
+describe("대상 선정", () => {
+  it("엑셀만 켠 그리드가 먼저 등록돼도 개인화 그리드가 대상이라 컬럼 설정 항목이 남는다", async () => {
+    await show(
+      panel([
+        gridEl({ gridId: "x", personalize: false, excelExport: { title: "엑셀전용", testId: "xl-x" } }, "x"),
+        gridEl({ gridId: "p", excelExport: { title: "개인화", testId: "xl-p" } }, "p"),
+      ]),
+    );
+    await openMenu();
+    expect(tid("grid-columns-button")).not.toBeNull();
+    // 메뉴는 개인화 그리드가 맡으므로 그 그리드의 아래 줄 단추만 빠지고, 엑셀 전용 그리드는 단추가 남는다
+    expect(tid("xl-p")).toBeNull();
+    expect(tid("xl-x")).not.toBeNull();
+    await click(tid("grid-excel"));
+    expect((h.exportToExcel.mock.calls[0] as [unknown, string])[1]).toBe("개인화_20261006.xlsx");
+  });
+});

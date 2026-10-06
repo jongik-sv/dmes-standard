@@ -1,7 +1,7 @@
 "use client";
 
 import "./grid.css";
-import React, { useState, useMemo, useRef, useEffect, useCallback, memo } from "react";
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback, memo } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, ModuleRegistry } from "ag-grid-community";
 import type {
@@ -380,7 +380,8 @@ function AgDataGridComponent({
   const gridPanelRegistry = useGridPanelRegistry();
   // 이 그리드가 GridPanel 설정 메뉴의 대상이면 아래 줄 [엑셀] 단추를 뺀다(메뉴가 엑셀을 맡는다). 한 패널에 그리드가 여럿이면 대상이 아닌 그리드는 단추를 그대로 둔다.
   const [isMenuTarget, setIsMenuTarget] = useState(false);
-  useEffect(() => {
+  // 페인트 전에 등록해야 대상이 된 그리드의 아래 줄 [엑셀] 단추가 첫 프레임에 보였다 사라지지 않는다.
+  useLayoutEffect(() => {
     if (!gridPanelRegistry || !(personalizeEnabled || hasExcel)) return;
     // React context 는 포털을 넘어 오므로, GridPanel 안에서 띄운 팝업(룩업 등)의 그리드도 여기로 온다. 실제로 그 패널의
     // 그리드 영역 안에 있고 대화 상자 안이 아닌 그리드만 등록한다 — 개인화가 꺼진 패널에 남의 설정 메뉴가 생기지 않게.

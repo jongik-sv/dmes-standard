@@ -82,7 +82,8 @@ function GridSettingsMenuComponent({
                   aria-hidden="true"
                   data-testid="grid-autosave-switch"
                   onChange={() => {}}
-                  styles={{ root: { display: "flex" } }}
+                  // 스위치 입력·트랙이 클릭을 따로 받으면 label 이 합성 클릭을 한 번 더 보내 항목 onClick 이 두 번 돈다. 항목 버튼만 받게 한다.
+                  styles={{ root: { display: "flex", pointerEvents: "none" } }}
                 />
               }
               onClick={() => onToggleAutoSave(!autoSave)}

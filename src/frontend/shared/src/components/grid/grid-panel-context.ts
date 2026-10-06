@@ -33,7 +33,7 @@ export interface GridPanelGridControls {
 
 export interface GridPanelRegistry {
   /**
-   * 명령을 등록한다. 돌려주는 함수로 해제한다. 같은 GridPanel 에 여럿이면 먼저 등록한 것이 대상이다.
+   * 명령을 등록한다. 돌려주는 함수로 해제한다. 같은 GridPanel 에 여럿이면 개인화 명령을 가진 그리드 중 먼저 등록한 것이 대상이고, 없으면 먼저 등록한 것이다.
    * `onTargetChange` 는 이 그리드가 대상이 되거나 대상에서 빠질 때(등록 직후 포함) 부른다 — 대상이 된 그리드만 아래 줄 [엑셀] 단추를 숨기려고 쓴다.
    */
   register(controls: GridPanelGridControls, onTargetChange?: (isTarget: boolean) => void): () => void;

@@ -143,7 +143,7 @@ function GridPanelComponent({
   const [allowedButtons, setAllowedButtons] = useState<string[]>([]);
   const tempIdCounter = useRef(0);
 
-  // 안쪽 AgDataGrid(컬럼 개인화가 켜졌거나 엑셀 내려받기를 켠 것)가 올려 둔 명령 — 등록 순서대로 쌓고, 대상은 맨 앞(먼저 등록한 그리드)이다.
+  // 안쪽 AgDataGrid(컬럼 개인화가 켜졌거나 엑셀 내려받기를 켠 것)가 올려 둔 명령 — 등록 순서대로 쌓고, 대상은 개인화가 켜진 그리드 중 맨 앞(없으면 먼저 등록한 그리드)이다.
   // 등록·해제는 ref 만 바꾸고 「대상이 바뀌었는가」가 바뀔 때만 한 번 다시 그린다(그리드가 늘 같은 명령 객체를 내주므로 렌더마다 갱신하지 않는다).
   // 대상이 바뀌면 스위치 구독을 새 대상으로 갈아 끼우고, 등록한 그리드마다 「내가 대상인가」를 알려 준다(대상 그리드만 아래 줄 [엑셀] 단추를 숨긴다).
   const gridEntriesRef = useRef<Array<{ controls: GridPanelGridControls; onTargetChange?: (isTarget: boolean) => void }>>([]);
@@ -152,7 +152,8 @@ function GridPanelComponent({
   const gridRegistry = useMemo<GridPanelRegistry>(() => {
     const syncTarget = () => {
       const list = gridEntriesRef.current;
-      const first = list[0]?.controls ?? null;
+      // 대상 — 개인화 명령을 가진 그리드를 먼저 찾고(엑셀만 켠 그리드가 앞서 등록돼도 컬럼 설정 항목이 사라지지 않게), 없으면 먼저 등록한 그리드.
+      const first = (list.find((e) => e.controls.openSettings) ?? list[0])?.controls ?? null;
       setGridTarget(first);
       for (const entry of [...list]) entry.onTargetChange?.(entry.controls === first);
     };
