@@ -4,7 +4,7 @@
 
 ## 0. 공통
 
-- 서비스: `POST /api/mdm/oasis/ruleCalc/{view|execute}`, action 은 `view`(입출력 모양 조회)·`execute`(계산) 두 가지다. 액션 이름은 MDM 공통 액션 어휘(RBAC 키)이고, 서비스의 자바 메서드명(`io`·`run`)과는 별개다. 두 액션 모두 인증만 요구한다(AUTH_ONLY). 구현은 `RuleIoReader`·`RuleSetRunner`·`SetCallIoReader` 를 감싸며, 기존 `ruleEdit`·`ruleSetEdit` 의 execute 는 건드리지 않는다.
+- 서비스: `POST /api/mdm/oasis/ruleCalc/{view|execute|search}`, action 은 `view`(입출력 모양 조회)·`execute`(계산)·`search`(룰·세트 찾기, §1.1) 세 가지다. 액션 이름은 MDM 공통 액션 어휘(RBAC 키)이고, 서비스의 자바 메서드명(`io`·`run`·`search`)과는 별개다. 세 액션 모두 인증만 요구한다(AUTH_ONLY). 구현은 `RuleIoReader`·`RuleSetRunner`·`SetCallIoReader` 를 감싸며, 기존 `ruleEdit`·`ruleSetEdit` 의 execute 는 건드리지 않는다.
 - 요청·응답은 JSON 객체이고, OASIS 공통 응답 규칙에 따라 업무 오류(권한·형식 오류)는 HTTP 오류와 메시지로 나간다. 계산을 못 하는 사유(확정 버전 없음, 입력 누락, 평가 오류)는 오류가 아니라 응답 본문의 `messages` 로 돌려준다.
 - 버전 선택: **RELEASED 만 쓴다**(룰마다 판정 시각에 적용되는 RELEASED, `RuleVersionPick.RELEASED`). `preview=true` 일 때만 로그인 사용자의 DRAFT(`RuleVersionPick.myDraft`, 상태가 정확히 DRAFT 이고 소유자가 본인인 버전, 없으면 RELEASED)를 쓴다. 사용자 ID 는 요청이 아니라 서버의 `MdmCurrentUser` 에서만 얻으며 요청 본문에 사용자 키를 두지 않는다.
 - 숫자 값은 소수 자리를 보존하도록 **문자열**(BigDecimal `toPlainString`)로 주고받는다. 단 너무 큰 출력은 `toString` 으로 과학 표기(`"1E+5000"`)가 된다. 세부는 §4.
@@ -17,6 +17,56 @@
 | `targetTp` | `"RULE"` \| `"SET"` | 룰 또는 룰 세트 |
 | `targetId` | string | 룰 ID(예 `M47C0001`) 또는 룰 세트 ID(예 `M47_COAT_WT`) |
 | `preview` | boolean, 기본 `false` | `true` 이면 내 DRAFT 를 우선 사용(관리 화면 미리보기 전용) |
+
+## 1.1 `search`: 룰·세트 찾기(메서드 `search`)
+
+조업 계산기 편집기에서 룰·세트 ID 를 고르는 용도다. 계산할 수 있는(지금 적용 중인 RELEASED 가 있는) 룰·세트만 찾는다. 읽기 전용이고 인증만 요구한다(AUTH_ONLY, `view`·`execute` 와 같다).
+
+요청: `POST /api/mdm/oasis/ruleCalc/search` `{"targetTp":"ALL","keyword":"M47","preview":false,"limit":50}`
+
+| 키 | 타입 | 설명 |
+|---|---|---|
+| `targetTp` | `"RULE"` \| `"SET"` \| `"ALL"`, 기본 `"ALL"` | 찾을 종류. 대소문자 무시, 비면 `ALL`. 그 밖의 값은 `INVALID_VALUE` 오류 |
+| `keyword` | string, 기본 비움 | ID·이름 부분 일치(대소문자 무시, 앞뒤 공백은 뗀다). 비면 전체. `%`·`_`·`\` 는 와일드카드가 아니라 글자 그대로다 |
+| `preview` | boolean, 기본 `false` | `true` 이면 **내**(로그인 사용자) DRAFT 가 있는 룰·세트도 넣는다. 사용자 ID 는 요청이 아니라 서버가 정한다 |
+| `limit` | integer, 기본 50, 최대 200 | 돌려줄 최대 건수. 1 미만은 기본, 200 초과는 200 으로 줄인다 |
+
+응답:
+
+```json
+{
+  "ok": true,
+  "rows": [
+    {"tp": "RULE", "id": "M47C0001", "name": "원판 중량", "ver": "1.000", "verStatus": "RELEASED", "desc": "설명"},
+    {"tp": "SET", "id": "M47_COAT_WT", "name": "코팅 중량", "ver": "1.000", "verStatus": "RELEASED"}
+  ],
+  "messages": []
+}
+```
+
+| 키 | 타입 | 규칙 |
+|---|---|---|
+| `ok` | boolean | 항상 `true`(결과가 0건이어도) |
+| `rows[].tp` | `"RULE"` \| `"SET"` | 룰 또는 룰 세트 |
+| `rows[].id`·`name` | string | 룰·세트 ID, 헤더 이름 |
+| `rows[].ver` | string | `view` 가 고르는 것과 같은 버전, scale 3 문자열(`"1.000"`). `preview=false` 이면 지금 적용 중인 RELEASED, `preview=true` 이고 내 DRAFT 가 있으면 그 DRAFT |
+| `rows[].verStatus` | `"RELEASED"` \| `"DRAFT"` | 위 버전의 상태 |
+| `rows[].desc` | string | 룰·세트 헤더의 설명이 있을 때만. 없으면 키가 없다 |
+| `messages` | array | 지금은 늘 빈 배열(§3 모양을 맞추기 위해 둔다) |
+
+규칙:
+
+- 대상은 **폐기(`DEPRECATED`)가 아닌** 룰·세트 가운데 **판정 시각(지금)에 적용 중인 RELEASED 가 있는 것**이다. RELEASED 가 없고 DRAFT·REQUESTED·APPROVED 만 있거나 미래 적용분만 있는 룰·세트는 빠진다. 폐기 헤더는 `preview=true` 여도 뺀다.
+- `preview=true` 이면 상태가 정확히 DRAFT 이고 소유자가 본인인 버전이 있는 룰·세트도 넣는다(RELEASED 가 없어도). 남의 DRAFT 만 있는 것은 넣지 않는다. 내 DRAFT 도 있고 RELEASED 도 있으면 `ver`·`verStatus` 는 DRAFT 쪽이다(`view` 의 `preview` 선택과 같다). REQUESTED·APPROVED 는 DRAFT 가 아니므로 넣지 않는다.
+- 정렬은 ID 오름차순(`ALL` 은 룰과 세트를 합쳐 ID 순, 같은 ID 면 룰이 먼저)이고 그 위에서 `limit` 으로 자른다. 정렬은 각 DB 쿼리의 ID 정렬로 limit 을 자른 뒤 `ALL` 병합에서만 자바에서 다시 정렬한다. DB 정렬 규칙이 코드 단위 순서와 다르면(예: PostgreSQL 비 C 로케일) 경계 한 건은 순서가 다를 수 있다.
+- 조건과 건수 제한은 DB 쿼리에서 걸고(큰 테이블을 통째로 읽지 않는다), 버전은 돌려줄 행에 대해서만 읽는다.
+
+한계:
+
+- 잘렸는지 알리지 않는다(`limit` 건이 돌아오면 더 있을 수 있다). 편집기는 키워드를 더 좁혀 다시 찾는다.
+- 찾은 룰·세트가 `view`·`execute` 로 끝까지 계산된다는 보장은 아니다(세트 안 룰의 RELEASED 가 빠졌거나 정의가 깨졌으면 `view` 가 `NO_RELEASED`·`MDM026` 으로 알린다). 이 액션은 대상 자신의 버전만 본다.
+- 하위 세트·세트에 든 룰의 DRAFT 는 보지 않는다(`preview` 는 목록에 오를 대상의 버전만 정한다).
+- 이름 검색은 헤더 이름(`MARU_RULE_NAME`·`MARU_RULE_SET_NAME`)과 ID 만 본다. 설명·결과 변수 이름은 보지 않는다.
 
 ## 2. `view`: 입력·출력 모양 조회(메서드 `io`)
 
@@ -159,6 +209,7 @@
 - 세트 입출력·앞 결과 제외: `RuleSetAnalyzer.io`, `RuleSetInterface.of`, `SetCallIoReader`
 - 실행: `RuleSetRunner`(`run`·`session(RuleVersionPick)`), 엔진 `MdmRuleEngine.evaluate`(룰)·`evaluateSet`(세트)
 - 버전 선택: `common/rule/definition/RuleVersionPick.java`
-- 서비스·BPMN: `mdm/lib/.../dme/ruleCalc/service/RuleCalcService.java`, `mdm/api/src/main/resources/services/dme/ruleCalc.bpmn`(action `view`→`io`, `execute`→`run`)
+- 서비스·BPMN: `mdm/lib/.../dme/ruleCalc/service/RuleCalcService.java`, `mdm/api/src/main/resources/services/dme/ruleCalc.bpmn`(action `view`→`io`, `execute`→`run`, `search`→`search`)
+- 룰·세트 찾기 쿼리: `RuleQueries.searchCallable`(룰)·`RuleSetVersionQueries.searchCallable`(세트), 서비스 `RuleCalcService.search`, DTO `RuleCalcSearchRequest`·`RuleCalcSearchResult`
 - 결과: 엔진 `RuleResult`(`hits`·`defaultApplied`·`results`), `RuleSetResult`(`steps`·`finalValues`)
 - 위반 코드: 엔진 `EngineEvaluationException.Code`

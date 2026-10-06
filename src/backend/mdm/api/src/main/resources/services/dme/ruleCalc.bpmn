@@ -6,6 +6,7 @@
 
 action=view    -&gt; ioTask  (ruleCalcService.io)  READ — 입력·출력 모양 조회(입력 칸·결과 칸·세트 단계), 판정 시각은 지금
 action=execute -&gt; runTask (ruleCalcService.run) READ — 입력 값으로 계산(최종 결과·룰별 단계·메시지)
+action=search  -&gt; searchTask (ruleCalcService.search) READ — 계산할 수 있는(현재 RELEASED 가 있는) 룰·세트 ID 찾기(편집기용)
 
 BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개다. 버전은 RELEASED 만 쓰고 preview=true 일 때만 내 DRAFT 를 쓴다. 확정 버전 없음·입력 누락·평가 오류는 예외가 아니라 응답 messages 로 돌려준다.</bpmn:documentation>
     <bpmn:startEvent id="start" name="시작">
@@ -20,6 +21,7 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
       <bpmn:incoming>flow_to_gw</bpmn:incoming>
       <bpmn:outgoing>flow_io</bpmn:outgoing>
       <bpmn:outgoing>flow_run</bpmn:outgoing>
+      <bpmn:outgoing>flow_search</bpmn:outgoing>
     </bpmn:exclusiveGateway>
     <bpmn:serviceTask id="ioTask" name="입출력 모양 조회" camunda:class="ruleCalcService">
       <bpmn:extensionElements>
@@ -43,17 +45,33 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
       <bpmn:incoming>flow_run</bpmn:incoming>
       <bpmn:outgoing>flow_run_end</bpmn:outgoing>
     </bpmn:serviceTask>
+    <bpmn:serviceTask id="searchTask" name="룰·세트 찾기" camunda:class="ruleCalcService">
+      <bpmn:extensionElements>
+        <camunda:properties>
+          <camunda:property name="method" value="search" />
+          <camunda:property name="output" value="result" />
+          <camunda:property name="dto" value="com.dongkuk.dmes.mdm.dme.ruleCalc.dto.RuleCalcSearchRequest" />
+        </camunda:properties>
+      </bpmn:extensionElements>
+      <bpmn:incoming>flow_search</bpmn:incoming>
+      <bpmn:outgoing>flow_search_end</bpmn:outgoing>
+    </bpmn:serviceTask>
     <bpmn:endEvent id="endIo" name="조회 완료">
       <bpmn:incoming>flow_io_end</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:endEvent id="endRun" name="계산 완료">
       <bpmn:incoming>flow_run_end</bpmn:incoming>
     </bpmn:endEvent>
+    <bpmn:endEvent id="endSearch" name="찾기 완료">
+      <bpmn:incoming>flow_search_end</bpmn:incoming>
+    </bpmn:endEvent>
     <bpmn:sequenceFlow id="flow_to_gw" sourceRef="start" targetRef="actionGateway" />
     <bpmn:sequenceFlow id="flow_io" name="view" sourceRef="actionGateway" targetRef="ioTask" />
     <bpmn:sequenceFlow id="flow_run" name="execute" sourceRef="actionGateway" targetRef="runTask" />
+    <bpmn:sequenceFlow id="flow_search" name="search" sourceRef="actionGateway" targetRef="searchTask" />
     <bpmn:sequenceFlow id="flow_io_end" sourceRef="ioTask" targetRef="endIo" />
     <bpmn:sequenceFlow id="flow_run_end" sourceRef="runTask" targetRef="endRun" />
+    <bpmn:sequenceFlow id="flow_search_end" sourceRef="searchTask" targetRef="endSearch" />
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="ruleCalc">
@@ -68,6 +86,12 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="runTask_di" bpmnElement="runTask">
         <dc:Bounds x="400" y="300" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="searchTask_di" bpmnElement="searchTask">
+        <dc:Bounds x="400" y="200" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="endSearch_di" bpmnElement="endSearch">
+        <dc:Bounds x="600" y="222" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="endIo_di" bpmnElement="endIo">
         <dc:Bounds x="600" y="100" width="36" height="36" />
@@ -95,6 +119,13 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
           <dc:Bounds x="317.5" y="233" width="18" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_di" bpmnElement="flow_search">
+        <di:waypoint x="300" y="225" />
+        <di:waypoint x="400" y="240" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="337" y="222" width="30" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="flow_io_end_di" bpmnElement="flow_io_end">
         <di:waypoint x="500" y="140" />
         <di:waypoint x="600" y="118" />
@@ -102,6 +133,10 @@ BPMN 의 action(RBAC 키)과 서비스의 method(자바 메서드명)는 별개�
       <bpmndi:BPMNEdge id="flow_run_end_di" bpmnElement="flow_run_end">
         <di:waypoint x="500" y="340" />
         <di:waypoint x="600" y="318" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="flow_search_end_di" bpmnElement="flow_search_end">
+        <di:waypoint x="500" y="240" />
+        <di:waypoint x="600" y="240" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

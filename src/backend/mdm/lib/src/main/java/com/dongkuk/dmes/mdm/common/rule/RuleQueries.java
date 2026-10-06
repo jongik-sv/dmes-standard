@@ -118,6 +118,32 @@ public class RuleQueries {
         return q.setMaxResults(limit).getResultList();
     }
 
+    /**
+     * 조업 계산기 룰 찾기 — 폐기(DEPRECATED)가 아닌 룰 가운데 판정 시각 {@code now} 에 적용 중인 RELEASED 가 있는 룰(그리고 {@code draftOwner} 가 있으면
+     * 그 사람의 DRAFT 가 있는 룰)을 룰 ID 순으로 {@code limit} 건. 키워드는 룰 ID·룰명 부분 일치(대소문자 무시, {@code %}·{@code _}·{@code \} 는 글자
+     * 그대로), null 이면 전체. 현재 RELEASED 판정은 {@link RuleVersions#isCurrentReleased} 의 JPQL 판(APPLY_FROM 포함·APPLY_TO 미포함)이다.
+     */
+    public List<MdmRule> searchCallable(String keyword, String draftOwner, LocalDateTime now, int limit) {
+        StringBuilder jpql = new StringBuilder("SELECT r FROM MdmRule r WHERE r.status <> 'DEPRECATED'");
+        if (keyword != null) {
+            jpql.append(" AND (UPPER(r.maruRuleId) LIKE :kw ESCAPE '\\' OR UPPER(r.maruRuleName) LIKE :kw ESCAPE '\\')");
+        }
+        jpql.append(" AND (EXISTS (SELECT v.ver FROM MdmRuleVer v WHERE v.maruRuleId = r.maruRuleId AND v.status = 'RELEASED' "
+                + "AND v.applyFrom <= :now AND (v.applyTo IS NULL OR v.applyTo > :now))");
+        if (draftOwner != null) {
+            jpql.append(" OR EXISTS (SELECT v.ver FROM MdmRuleVer v WHERE v.maruRuleId = r.maruRuleId AND v.status = 'DRAFT' AND v.ownerId = :owner)");
+        }
+        jpql.append(") ORDER BY r.maruRuleId");
+        TypedQuery<MdmRule> q = entityManager.createQuery(jpql.toString(), MdmRule.class).setParameter("now", now);
+        if (keyword != null) {
+            q.setParameter("kw", "%" + escapeLike(keyword.toUpperCase(Locale.ROOT)) + "%");
+        }
+        if (draftOwner != null) {
+            q.setParameter("owner", draftOwner);
+        }
+        return q.setMaxResults(limit).getResultList();
+    }
+
     /** 한 룰의 버전 전부 — VER 내림차순. */
     public List<MdmRuleVer> versions(String ruleId) {
         List<MdmRuleVer> out = new ArrayList<>(entityManager.createQuery("SELECT v FROM MdmRuleVer v WHERE v.maruRuleId = :id",
@@ -211,7 +237,8 @@ public class RuleQueries {
         return out;
     }
 
-    private static String escapeLike(String s) {
+    /** LIKE 패턴 안의 {@code \}·{@code %}·{@code _} 를 글자 그대로로(ESCAPE '\' 와 짝). 세트 찾기({@link RuleSetVersionQueries})도 쓴다. */
+    static String escapeLike(String s) {
         return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
