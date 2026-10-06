@@ -131,6 +131,7 @@ export default function ExchangeWidget({ definition, refreshKey }: WidgetProps) 
       ) : (
         <>
           <AgDataGrid
+            personalize={false}
             rowKey="cur"
             columns={COLUMNS}
             data={rows}

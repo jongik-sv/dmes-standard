@@ -459,6 +459,7 @@ export default function MdmCacheMngPage() {
         <ContentPanel>
           <GridPanel title={latestSeq >= 0 ? `모듈 상태 (MDM 최신 순번 ${latestSeq})` : "모듈 상태"} count={modules.length}>
             <AgDataGrid
+              gridId="moduleStatus"
               rowKey="module"
               columns={MODULE_COLUMNS}
               data={modules}
@@ -477,6 +478,8 @@ export default function MdmCacheMngPage() {
               buttons={[{ id: "btn_grid_detail_close", label: "상세 닫기", onClick: closeDetail, disabled: !detailTarget }]}
             >
               <AgDataGrid
+                gridId="cacheEntries"
+                personalize={{ sort: false }}
                 rowKey="rowId"
                 columns={entryGridColumns}
                 data={entryRows}

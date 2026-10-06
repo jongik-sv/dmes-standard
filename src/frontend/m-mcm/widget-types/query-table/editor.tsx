@@ -44,7 +44,7 @@ export default function QueryTableEditor(props: WidgetTypeEditorProps) {
         editable: true,
         ...(columns.length > 0 ? { cellEditor: "select" as const, cellEditorValues: columns } : {}),
       },
-      { key: "header", header: "머리글", width: 130, editable: true },
+      { key: "header", header: "머리글", width: 130, editable: true, hideable: true },
       { key: "width", header: "폭", width: 60, align: "right", editable: true, cellEditor: "number" },
       {
         key: "align",

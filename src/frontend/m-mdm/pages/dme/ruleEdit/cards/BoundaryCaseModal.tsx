@@ -307,7 +307,7 @@ export function BoundaryCaseModal({ session, busy, canExecute, commit, onClose }
             <div data-testid="bc-grid" style={gridBox}>
               <div style={gridFill}>
                 {/* height 를 주지 않으면 AgDataGrid 는 부모 높이 100% 를 쓴다 — 절대 위치 칸을 채운다. */}
-                <AgDataGrid
+                <AgDataGrid gridId="modal-boundaryCandidates"
                   columns={columns}
                   data={rows as unknown as Record<string, unknown>[]}
                   rowKey="key"

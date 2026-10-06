@@ -68,7 +68,7 @@ function fieldColumns(actions: { current: FieldActions | null }): GridColumn[] {
       },
     },
     {
-      key: "sent", header: "키 보냄", width: 70, minWidth: 64, align: "center", tooltip: false,
+      key: "sent", header: "키 보냄", width: 70, minWidth: 64, align: "center", tooltip: false, hideable: false,
       render: (_v, row) => {
         const r = row as unknown as FieldRow;
         return (
@@ -283,7 +283,7 @@ export function ValueTestCard({ view, editable, canDo, busy, runWrite }: RuleEdi
 
       {/* 입력 변수가 없으면 숨기되(display:none) 그리드는 늘 마운트해 룰을 바꿀 때 다시 만들지 않는다 */}
       <div style={{ paddingTop: "var(--spacing-xs)", display: fields.length > 0 ? undefined : "none" }}>
-        <AgDataGrid
+        <AgDataGrid gridId="valueTestInput"
           columns={columns}
           data={rows as unknown as Record<string, unknown>[]}
           rowKey="name"

@@ -51,7 +51,7 @@ export function ImpactPanel({ rows, loading, onSearch }: ImpactPanelProps) {
       </div>
       {/* 아직 조회 전(rows == null)이면 그리드는 마운트한 채 숨긴다 — 0건이면 빈 문구, 조회 전엔 아무것도 안 보인다. */}
       <div data-testid="impact-list" style={rows == null ? { display: "none" } : undefined}>
-        <AgDataGrid
+        <AgDataGrid gridId="columnImpact"
           columnSizing="fit"
           columns={COLUMNS}
           data={data}

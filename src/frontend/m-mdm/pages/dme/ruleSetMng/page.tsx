@@ -133,7 +133,7 @@ export default function RuleSetMngPage() {
         <ContentPanel>
           <GridPanel title="룰 세트 목록" count={totalCount}>
             <div data-testid="set-list" style={{ position: "absolute", inset: 0 }}>
-              <AgDataGrid
+              <AgDataGrid gridId="ruleSetList" personalize={{ sort: false }}
                 columnSizing="fit"
                 columns={columns}
                 data={gridRows}

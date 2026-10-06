@@ -492,6 +492,7 @@ export function WidgetListTab({ reloadSignal, onDirtyChange, onBusyChange }: Wid
               }
             >
               <AgDataGrid
+                gridId="widgetList"
                 rowKey="widgetId"
                 columns={COLUMNS}
                 data={visibleRows}

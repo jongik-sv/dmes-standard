@@ -689,7 +689,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                       </p>
                     )}
                     <div style={{ flex: 1, minHeight: 0 }}>
-                      <AgDataGrid
+                      <AgDataGrid gridId="dataItems" personalize={{ sort: false }}
                         columns={columns}
                         data={gridRows}
                         rowKey="code"
@@ -761,7 +761,7 @@ export default function DataItemMngPage({ tabId, snapshot, onSnapshotChange }: D
                     </div>
                     {history ? (
                       <div style={{ flex: 1, minHeight: 0 }}>
-                        <DataHistoryTimeline result={history} />
+                        <DataHistoryTimeline result={history} gridId="itemHistory" />
                       </div>
                     ) : (
                       <p data-testid="item-history-empty" style={hint}>행의 [이력] 을 누르면 여기에 보입니다</p>

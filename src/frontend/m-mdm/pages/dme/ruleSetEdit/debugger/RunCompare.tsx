@@ -5,7 +5,8 @@
  * 다른 줄 강조)과 한쪽 실행에만 지난 노드(`run-compare-path`: "이전에만"·"지금만"). 비교는 `compareRuns` 로 기록이 바뀔 때만 한다(Local-Rules §16).
  * 하위 세트 프레임에 들어가 있으면(`framePath`, 하위 세트 spec §11) 두 실행에서 같은 SET 노드 경로를 따라간 하위 기록끼리 견준다(`subTraceAt`).
  */
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
+import { EditorActiveContext } from "../tabs-context";
 
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
 import { badgeStyle } from "@/shell";
@@ -60,6 +61,7 @@ function NodeList({ testId, label, ids }: { testId: string; label: string; ids: 
 }
 
 export function RunCompare({ sim, framePath }: RunCompareProps) {
+  const active = useContext(EditorActiveContext);
   const before = sim.previous;
   const after = sim.last;
   /** 경로 배열은 렌더마다 새로 올 수 있어 글자 키로 비교한다(Local-Rules §16). */
@@ -90,7 +92,7 @@ export function RunCompare({ sim, framePath }: RunCompareProps) {
       {modeNote && <p className="rsf-panel-note" data-testid="run-compare-mode" role="status">{modeNote}</p>}
       <p className="rsf-panel-sub">{`결과 값 — ${rows.length}개 가운데 ${changed}개 다름`}</p>
       <div data-testid="run-compare-values">
-        <AgDataGrid columns={COLUMNS} data={rows} rowKey="name" height="auto" sortable={false} getRowClassExtra={rowClass} emptyMessage="두 실행 모두 결과 값이 없다" ariaLabel="실행 비교 결과 값" />
+        <AgDataGrid gridId="debugRunCompare" personalize={active ? undefined : false} columns={COLUMNS} data={rows} rowKey="name" height="auto" sortable={false} getRowClassExtra={rowClass} emptyMessage="두 실행 모두 결과 값이 없다" ariaLabel="실행 비교 결과 값" />
       </div>
       <p className="rsf-panel-sub">지난 노드 차이</p>
       <ul className="rsf-cmp-path" data-testid="run-compare-path">

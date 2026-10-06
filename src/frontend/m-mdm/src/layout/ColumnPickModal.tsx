@@ -30,9 +30,11 @@ export interface ColumnPickModalProps {
   search: (keyword: string) => Promise<ColumnInfo[]>;
   /** 이미 쓴 물리명 — 고를 수 없다(같은 레이아웃 컬럼 중복 L06). */
   used?: string[];
+  /** 그리드 이름 — 호출처가 구분 값을 넘긴다(기본 modal-columnPick). */
+  gridId?: string;
 }
 
-export function ColumnPickModal({ open, onClose, onPick, search, used = [] }: ColumnPickModalProps) {
+export function ColumnPickModal({ open, onClose, onPick, search, used = [], gridId = "modal-columnPick" }: ColumnPickModalProps) {
   const [keyword, setKeyword] = useState("");
   const [rows, setRows] = useState<ColumnInfo[] | null>(null);
   const [selected, setSelected] = useState<ColumnInfo | null>(null);
@@ -94,7 +96,7 @@ export function ColumnPickModal({ open, onClose, onPick, search, used = [] }: Co
         {rows === null && <p style={empty}>검색어를 넣고 조회하세요. 컬럼 사전에 있는 컬럼만 항목이 됩니다.</p>}
         {/* 조회 전·오류로 0건이면 숨기되(display:none) 그리드는 늘 마운트해 0↔N건 전환 때 다시 만들지 않는다 */}
         <div data-testid="column-pick-grid" style={rows === null || (rows.length === 0 && error) ? { display: "none" } : undefined}>
-          <AgDataGrid
+          <AgDataGrid gridId={gridId}
             columnSizing="fit"
             columns={COLUMNS}
             data={(rows ?? []) as unknown as Record<string, unknown>[]}

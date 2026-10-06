@@ -924,6 +924,7 @@ export default function CommUserMngPage() {
             loading={isSaving}
           >
             <AgDataGrid
+              gridId="userList"
               columnSizing="fit"
               columns={USER_COLUMNS}
               data={visibleRows}
@@ -1305,6 +1306,7 @@ export default function CommUserMngPage() {
             selectedRowKey={selectedUrgKey}
           >
             <AgDataGrid
+              gridId="userRoleGrp"
               columnSizing="fit"
               columns={USER_ROLEGRP_COLUMNS}
               data={userRoleGrpRows.filter((r) => r.nativeeditor_status !== "deleted")}
@@ -1339,6 +1341,7 @@ export default function CommUserMngPage() {
             columns={AVAIL_ROLEGRP_COLUMNS}
           >
             <AgDataGrid
+              gridId="availRoleGrp"
               columnSizing="fit"
               columns={AVAIL_ROLEGRP_COLUMNS}
               data={availRoleGrpRows}

@@ -178,7 +178,7 @@ export function DataCategoryCard({ view, allowed, editable, itemEditEnabled, onS
         ③ 카테고리 요약 · 항목 <span data-testid="data-edit-item-count">{view.itemCount}</span>건
       </p>
       <div data-testid="data-edit-categories" style={{ padding: "var(--spacing-xs) var(--spacing-md)" }}>
-        <AgDataGrid
+        <AgDataGrid gridId="dataCategories"
           columnSizing="fit"
           height="auto"
           columns={CATEGORY_COLUMNS}

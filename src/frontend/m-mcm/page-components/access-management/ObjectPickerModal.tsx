@@ -82,6 +82,7 @@ const ObjectPickerModalImpl = ({ open, onClose, onSelect }: Props) => {
           placeholder="OBJECT ID / 객체명 / 모듈 검색"
         />
         <AgDataGrid
+          gridId="modal-objectPicker"
           columns={COLUMNS}
           data={filteredRows as unknown as Record<string, unknown>[]}
           rowKey="objId"

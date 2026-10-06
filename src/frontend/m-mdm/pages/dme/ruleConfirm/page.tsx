@@ -397,7 +397,7 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, total, onSh
         <GridLimitNotice shownCount={drafts?.length ?? 0} totalCount={total} onShowAll={onShowAll} testId="rc-list-limit" />
       </div>
       <div style={{ ...section, flex: 1, minHeight: 0 }}>
-        <AgDataGrid
+        <AgDataGrid gridId="draftList"
           columnSizing="fit"
           columns={DRAFT_COLUMNS}
           data={draftRows}
@@ -452,7 +452,7 @@ function CheckTable({ items, applyFromCheck, caseSummary }: CheckTableProps) {
     <div data-testid="rc-checks">
       <div style={cardTitle}>검사 결과</div>
       <div style={section}>
-        <AgDataGrid
+        <AgDataGrid gridId="checkResult"
           height="auto"
           columnSizing="fit"
           sortable={false}
@@ -533,7 +533,7 @@ function DiffTable({ entries, counts, vars }: { entries: DiffRow[]; counts?: Dif
       <div style={section}>
         {changed.length === 0 && diffRows.length > 0 && <p style={mutedText}>바뀐 행이 없습니다</p>}
         <div style={{ height: DIFF_GRID_HEIGHT }}>
-          <AgDataGrid
+          <AgDataGrid gridId="diffRows"
             columnSizing="fit"
             columns={DIFF_COLUMNS}
             data={diffRows}

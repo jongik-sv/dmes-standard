@@ -12,7 +12,8 @@
  * - 요약 "p/t 통과" 의 분모는 기대값이 있는 케이스만이다(pass=null "실행만" 은 뺀다).
  * - 오류로 끝난 케이스는 차이 표 대신 오류 문장을 보이고 단계·코드는 title 에 둔다(Local-Rules §13).
  */
-import { useMemo, useState, type CSSProperties } from "react";
+import { useContext, useMemo, useState, type CSSProperties } from "react";
+import { EditorActiveContext } from "../tabs-context";
 
 import { Button } from "@dk-oasis/shared/form";
 import { AgDataGrid, type GridColumn } from "@dk-oasis/shared/grid";
@@ -85,6 +86,7 @@ const DIFF_COLUMNS: GridColumn[] = uiCols([
 const inputOf = (c: RuleSetCaseView) => ({ recordJson: c.inputJson, evalTs: c.evalTs ?? "" });
 
 export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePanelProps) {
+  const active = useContext(EditorActiveContext);
   const { cases, results } = tests;
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -222,7 +224,7 @@ export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePane
         </Button>
       </div>
       <div data-testid="case-grid" className="rsf-case-grid">
-        <AgDataGrid
+        <AgDataGrid gridId="debugCases" personalize={active ? undefined : false}
           columns={CASE_COLUMNS}
           data={rows}
           rowKey="caseId"
@@ -288,7 +290,7 @@ export function TestCasePanel({ sim, tests, canEditCases, canRun }: TestCasePane
             </ul>
           ) : (
             <div data-testid="case-diff">
-              <AgDataGrid columns={DIFF_COLUMNS} data={diffRows} rowKey="key" height="auto" sortable={false} emptyMessage="다른 값이 없다" ariaLabel="기대·실제 차이" />
+              <AgDataGrid gridId="debugCaseDiff" personalize={active ? undefined : false} columns={DIFF_COLUMNS} data={diffRows} rowKey="key" height="auto" sortable={false} emptyMessage="다른 값이 없다" ariaLabel="기대·실제 차이" />
             </div>
           )}
         </div>

@@ -41,7 +41,7 @@ export function DomainTestCaseGrid({ cases, results, readOnly, showVars, onChang
     { key: "VALUE", header: "입력", width: 140, editable: !readOnly },
     { key: "EXPECT", header: "기대", width: 70, editable: !readOnly, cellEditor: "select", cellEditorValues: ["true", "false"] },
     { key: "VARS", header: "변수(JSON)", width: 140, editable: !readOnly, hide: !showVars },
-    { key: "MEMO", header: "메모", width: 140, editable: !readOnly },
+    { key: "MEMO", header: "메모", width: 140, editable: !readOnly, hideable: true },
     {
       key: "RESULT_TEXT", header: "결과", width: 70, tooltip: false,
       render: (v, r) => <span title={String(r.RESULT_MESSAGE ?? "") || undefined}>{String(v ?? "")}</span>,
@@ -55,7 +55,7 @@ export function DomainTestCaseGrid({ cases, results, readOnly, showVars, onChang
   ]), [readOnly, showVars, onChange]);
   return (
     <div>
-      <AgDataGrid
+      <AgDataGrid gridId="testCases"
         columnSizing="fit"
         columns={columns}
         data={rows}

@@ -83,7 +83,7 @@ export function HeaderStackGrid({ rows, readOnly, onAdd, onRemove, onEditConst, 
         </p>
       )}
       <div data-testid="layout-header-stack">
-        <AgDataGrid
+        <AgDataGrid gridId="headerStack"
           columnSizing="fit"
           columns={columns}
           data={data}

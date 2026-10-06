@@ -41,6 +41,7 @@ export default function ShipmentsWidget({ title }: WidgetProps) {
 
   return (
     <AgDataGrid
+      personalize={false}
       rowKey="id"
       columns={SHIPMENT_COLUMNS}
       data={SHIPMENT_DATA}

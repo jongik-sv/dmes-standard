@@ -69,6 +69,7 @@ export default function DeptTab({ data, query, busy }: StatTabViewProps) {
       <ContentPanel>
         <GridPanel title="부서별 이용" count={data.depts.length}>
           <AgDataGrid
+            gridId="deptUsage"
             rowKey="deptCd"
             columns={DEPT_COLUMNS}
             data={data.depts}
@@ -82,6 +83,7 @@ export default function DeptTab({ data, query, busy }: StatTabViewProps) {
       <ContentPanel height="40%">
         <GridPanel title="선택 부서의 화면별 이용" count={deptScreens.length}>
           <AgDataGrid
+            gridId="deptScreenUsage"
             rowKey="pageId"
             columns={SCREEN_COLUMNS}
             data={deptScreens}

@@ -170,9 +170,10 @@ export function ParentLinkModal({ open, mode, rows, domain, dirty, onClose, onCh
         </table>
         <DomainCheckList validated={validation !== null} ok={validation?.ok} issues={validation?.issues ?? []}
           descendantResults={results.filter((r) => !r.OWN)}
+          gridId="modal-parentLinkCheck"
           pendingHint={busy ? "검사 중입니다" : "새 부모를 고르면 검사 목록과 영향도가 보입니다"} />
         <DomainImpactPanel impact={validation?.impact} classification={validation?.classification}
-          diff={validation?.diff ?? []} />
+          diff={validation?.diff ?? []} gridId="modal-parentLinkImpact" />
       </div>
     </Modal>
   );

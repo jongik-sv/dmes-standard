@@ -29,9 +29,11 @@ export interface DomainCheckListProps {
   descendantResults: TestResultRow[];
   /** 검사 전 안내 문구. */
   pendingHint?: string;
+  /** 그리드 이름의 바탕 — 같은 화면에 두 번 뜨면(부모 연결 모달) 구분 값을 넘긴다. 검사 목록은 `{gridId}Issues`, 하위 결과는 `{gridId}Descendants`. */
+  gridId?: string;
 }
 
-export function DomainCheckList({ validated, ok, issues, descendantResults, pendingHint }: DomainCheckListProps) {
+export function DomainCheckList({ validated, ok, issues, descendantResults, pendingHint, gridId = "check" }: DomainCheckListProps) {
   const issueData = useMemo(() => issues.map((i, idx) => ({ ...i, ROW_KEY: idx })), [issues]);
   const descData = useMemo(() => descendantResults.map((r, idx) => ({ ...r, ROW_KEY: idx })), [descendantResults]);
   if (!validated) return <p style={hint}>{pendingHint ?? "[도메인검증] 을 누르면 검사 목록이 보입니다"}</p>;
@@ -42,11 +44,11 @@ export function DomainCheckList({ validated, ok, issues, descendantResults, pend
         {issues.filter((i) => i.LEVEL === "WARN").length}건
       </p>
       {issues.length > 0 && (
-        <AgDataGrid columnSizing="fit" columns={ISSUE_COLUMNS} data={issueData} rowKey="ROW_KEY"
+        <AgDataGrid gridId={`${gridId}Issues`} columnSizing="fit" columns={ISSUE_COLUMNS} data={issueData} rowKey="ROW_KEY"
           height={160} />
       )}
       {descendantResults.length > 0 && (
-        <AgDataGrid columnSizing="fit" columns={DESC_COLUMNS} data={descData}
+        <AgDataGrid gridId={`${gridId}Descendants`} columnSizing="fit" columns={DESC_COLUMNS} data={descData}
           rowKey="ROW_KEY" height={140} />
       )}
     </div>

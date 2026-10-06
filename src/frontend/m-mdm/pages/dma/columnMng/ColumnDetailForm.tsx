@@ -304,7 +304,7 @@ const SystemFieldsGrid = memo(function SystemFieldsGrid({
       },
       { key: "physName", header: "실제 필드명", width: 200, editable: true },
       { key: "transform", header: "변환 규칙", width: 120, editable: true },
-      { key: "note", header: "note", meta: false, width: 160, editable: true },
+      { key: "note", header: "note", meta: false, width: 160, editable: true, hideable: true },
     ],
     [systems],
   );
@@ -345,7 +345,7 @@ const SystemFieldsGrid = memo(function SystemFieldsGrid({
           onSelect(null);
         }}
       >
-        <AgDataGrid
+        <AgDataGrid gridId="systemFields"
           columnSizing="fit"
           columns={columns}
           data={rows}

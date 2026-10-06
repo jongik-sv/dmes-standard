@@ -313,7 +313,7 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onShowAll, 
         <Button data-testid="lc-search" onClick={onSearch}>조회</Button>
       </div>
       <div style={{ ...section, flex: 1, minHeight: 0 }}>
-        <AgDataGrid
+        <AgDataGrid gridId="draftList"
           columnSizing="fit"
           columns={DRAFT_COLUMNS}
           data={rows}
@@ -386,7 +386,7 @@ function ImpactArea({ impact, eais }: { impact: ImpactRow[]; eais: string[] }) {
         <div style={cardTitle}>영향받는 전문</div>
         <div style={section}>
           <div style={{ height: IMPACT_GRID_HEIGHT }}>
-            <AgDataGrid columnSizing="fit" columns={IMPACT_COLUMNS} data={rows} rowKey="rowId" ariaLabel="영향받는 전문"
+            <AgDataGrid gridId="affectedLayouts" columnSizing="fit" columns={IMPACT_COLUMNS} data={rows} rowKey="rowId" ariaLabel="영향받는 전문"
               emptyMessage="이 헤더를 쓰는 전문이 없습니다" />
           </div>
         </div>

@@ -217,7 +217,7 @@ const RecoPanel = memo(function RecoPanel({
   return (
     <ContentPanel height={300}>
       <GridPanel title={`유사어 추천${stage2Enabled ? "" : " (1차 이름 비교만, 임베딩 인코더 꺼짐)"}`} count={rows.length}>
-        <AgDataGrid
+        <AgDataGrid gridId="similarReco"
           ariaLabel="유사어 추천"
           columnSizing="fit"
           columns={columns}

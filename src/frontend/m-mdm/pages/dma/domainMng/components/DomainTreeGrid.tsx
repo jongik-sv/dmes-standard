@@ -44,7 +44,7 @@ export function DomainTreeGrid({ rows, selectedId, loading, onSelect }: DomainTr
   return (
     <GridPanel title="도메인 목록" count={rows.length}>
       <span className="domain-mng__count" style={hint}>{`도메인 ${rows.length}건`}</span>
-      <AgDataGrid
+      <AgDataGrid gridId="domainTree"
         columnSizing="fit"
         columns={COLUMNS}
         data={gridRows as unknown as Record<string, unknown>[]}

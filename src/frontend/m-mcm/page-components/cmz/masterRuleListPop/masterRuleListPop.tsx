@@ -171,6 +171,7 @@ export function MasterRuleListPopModal({ open, initRuleId, initRuleNm, onSelect,
         {/* A-004 그리드 G-001 — 3 cols 읽기 전용, 더블클릭 선택 반환 (GB-002) */}
         <div style={{ flex: 1, minHeight: 0 }}>
           <AgDataGrid
+            gridId="modal-ruleSelectPop"
             columnSizing="fit"
             columns={POP_COLUMNS}
             data={displayRows}

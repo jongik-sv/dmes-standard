@@ -1133,6 +1133,7 @@ export default function CommMenuMngPage() {
             loading={isSaving}
           >
             <AgDataGrid
+              gridId="menuList"
               columnSizing="fit"
               columns={MENU_LIST_COLUMNS}
               data={rows}
@@ -1156,6 +1157,7 @@ export default function CommMenuMngPage() {
               columns={OBJ_COLUMNS}
             >
               <AgDataGrid
+                gridId="menuObject"
                 columnSizing="fit"
                 columns={OBJ_COLUMNS}
                 data={objRows.map((r, i) => ({ ...r, __objRowId: `obj-${i}` }))}
@@ -1269,6 +1271,7 @@ export default function CommMenuMngPage() {
           </div>
           <div className="cm-objlov-grid" style={{ height: 360 }}>
             <AgDataGrid
+              gridId="modal-objectLookup"
               columns={[
                 { key: "OBJECT_ID", header: "OBJECT ID", width: 160 },
                 { key: "OBJECT_NM", header: "OBJECT 명", width: 200 },
@@ -1354,6 +1357,7 @@ export default function CommMenuMngPage() {
           >
             <div className="cm-fldmng-grid" style={{ height: 360 }}>
               <AgDataGrid
+                gridId="modal-menuField"
                 // ※ 위 GridPanel 의 columns 와 동일해야 한다 — 컬럼 추가·변경 시 두 곳을 함께 고칠 것.
                 columns={[
                   { key: "MENU_ID", header: "MENU_ID *", width: 160, editable: true, align: "left" },

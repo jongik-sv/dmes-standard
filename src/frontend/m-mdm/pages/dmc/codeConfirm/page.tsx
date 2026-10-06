@@ -375,7 +375,7 @@ function DraftList({ drafts, keyword, selected, onKeyword, onSearch, onSelect }:
         <Button data-testid="cf-search" onClick={onSearch}>조회</Button>
       </div>
       <div style={{ ...section, flex: 1, minHeight: 0 }}>
-        <AgDataGrid
+        <AgDataGrid gridId="draftList"
           columnSizing="fit"
           columns={DRAFT_COLUMNS}
           data={draftRows}
@@ -395,7 +395,7 @@ function CheckTable({ rows }: { rows: CheckRow[] }) {
     <div data-testid="cf-checks">
       <div style={cardTitle}>검사 결과</div>
       <div style={section}>
-        <AgDataGrid
+        <AgDataGrid gridId="checkResult"
           height="auto"
           columnSizing="fit"
           columns={CHECK_COLUMNS}
@@ -418,7 +418,7 @@ function DiffTable({ entries }: { entries: DiffEntry[] }) {
       <div style={cardTitle}>직전 RELEASED 대비 변경</div>
       <div style={section}>
         <div style={{ height: DIFF_GRID_HEIGHT }}>
-          <AgDataGrid
+          <AgDataGrid gridId="diffRows"
             columnSizing="fit"
             columns={DIFF_COLUMNS}
             data={diffRows}

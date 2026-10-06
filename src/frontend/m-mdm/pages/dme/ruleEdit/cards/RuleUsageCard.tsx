@@ -45,7 +45,7 @@ export function RuleUsageCard({ view }: RuleEditCardProps) {
         <strong>활용처 메모</strong> {usage.usageNote ? usage.usageNote : <MutedText>없음</MutedText>}
       </p>
       <div data-testid="rule-usage-sets">
-        <AgDataGrid
+        <AgDataGrid gridId="ruleUsage"
           columns={usageColumns}
           data={usage.sets as unknown as Record<string, unknown>[]}
           rowKey="setId"

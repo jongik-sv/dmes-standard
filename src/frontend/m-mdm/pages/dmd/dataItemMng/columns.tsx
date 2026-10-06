@@ -26,9 +26,9 @@ export function isRowEditable(header: DataItemHeader | null | undefined, row: Re
 export function buildItemColumns(header: DataItemHeader | null, handlers: ItemColumnHandlers = {}): GridColumn[] {
   const editable = (row: Record<string, unknown>) => isRowEditable(header, row);
   const cols: GridColumn[] = uiCols([
-    { key: "code", header: "키", width: 120, minWidth: 100, align: "left", pinned: "left" },
+    { key: "code", header: "키", width: 120, minWidth: 100, align: "left", pinned: "left", hideable: false },
     { key: "name", header: "이름", width: 150, minWidth: 100, align: "left", editable },
-    { key: "alterName", header: "약칭", width: 100, minWidth: 70, align: "left", editable },
+    { key: "alterName", header: "약칭", width: 100, minWidth: 70, align: "left", editable, hideable: true },
     { key: "seq", header: "순서", width: 60, minWidth: 50, align: "right", editable, cellEditor: "number" },
   ], ["alterName"]);
   const lvlCnt = Math.max(0, Math.min(5, header?.lvlCnt ?? 0));
@@ -42,7 +42,7 @@ export function buildItemColumns(header: DataItemHeader | null, handlers: ItemCo
   }
   cols.push(
     {
-      key: "open",
+      key: "open", hideable: false,
       header: "상태",
       meta: false,
       width: 60,
@@ -56,7 +56,7 @@ export function buildItemColumns(header: DataItemHeader | null, handlers: ItemCo
     const render = handlers.renderActions;
     // 키·작업 열은 고정한다 — 동적 열이 많아 가로로 밀려도 어느 행의 버튼인지 보인다.
     cols.push({
-      key: "actions",
+      key: "actions", hideable: false,
       header: "작업",
       meta: false,
       width: 150,

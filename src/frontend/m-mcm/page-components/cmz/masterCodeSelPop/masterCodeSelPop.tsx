@@ -327,6 +327,7 @@ export function MasterCodeSelPopDialog({
       {/* A-GRID (결과 그리드) — 분석 §3.3 / 디자인 §3.4 5 컬럼 */}
       <div style={{ height: 420 }}>
         <AgDataGrid
+          gridId="modal-codeSelectPop"
           columns={GRID_COLUMNS}
           data={keyedRows}
           rowKey="__rowKey"

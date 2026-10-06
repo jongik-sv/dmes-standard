@@ -337,7 +337,7 @@ export default function HeaderMngPage() {
         </ContentPanel>
       </ContentBody>
 
-      <ColumnPickModal open={picking} onClose={() => setPicking(false)} onPick={addColumn} search={searchColumns}
+      <ColumnPickModal gridId="modal-columnPick" open={picking} onClose={() => setPicking(false)} onPick={addColumn} search={searchColumns}
         used={items.map((r) => r.COLUMN_PHYS).filter((p): p is string => !!p)} />
       {errorMessage && <ErrorModal message={errorMessage} onClose={() => setErrorMessage(null)} />}
     </MdmPageLayout>

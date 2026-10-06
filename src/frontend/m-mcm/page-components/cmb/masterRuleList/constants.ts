@@ -29,7 +29,7 @@ const insertedOnly = (r: Record<string, unknown>) =>
 export const RULE_COLUMNS: GridColumn[] = [
   { key: "ruleId", header: "업무기준ID *", width: 140, editable: insertedOnly },
   { key: "ruleNm", header: "업무기준명 *", width: 200, editable: true, align: "left" },
-  { key: "ruleDesc", header: "설명", width: 240, editable: true, align: "left" },
+  { key: "ruleDesc", header: "설명", width: 240, editable: true, align: "left", hideable: true },
   { key: "useTp", header: "사용여부", width: 90, editable: true },
   { key: "ruleVer", header: "Version", width: 90, editable: false, align: "right" },
   { key: "ruleOwnerEmpNo", header: "담당자", width: 120, editable: insertedOnly },

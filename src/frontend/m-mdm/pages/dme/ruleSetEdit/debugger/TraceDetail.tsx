@@ -11,7 +11,8 @@
  *  - 세트 노드(하위 세트 spec §11, `sim-detail-set`): 세트 ID, [안으로 들어가기](`sim-detail-enter` — 하위 기록이 있을 때, 하위 흐름을 받지 못했으면 꺼지고 안내),
  *    읽은 입력값, 넘겨받은 출력(`sim-detail-outputs`), 하위 세트가 끝난 방식과 받아 처리한 예외 건수(`sim-detail-sub-summary`).
  */
-import { useMemo, type ReactNode } from "react";
+import { useContext, useMemo, type ReactNode } from "react";
+import { EditorActiveContext } from "../tabs-context";
 
 import { IconExternalLink } from "@tabler/icons-react";
 
@@ -118,6 +119,7 @@ export interface TraceDetailProps {
 export const ENTER_OFF_NOTE = "하위 세트 흐름을 받지 못해 안으로 들어갈 수 없다";
 
 export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenRule, endedBranch, onEnter, calledFlows, draftVersions = NO_DRAFTS }: TraceDetailProps) {
+  const active = useContext(EditorActiveContext);
   const edges = useMemo(() => new Map(flow.edges.map((e) => [e.id, e] as const)), [flow]);
   const edgeName = (id: string) => edges.get(id)?.label ?? id;
   const flowNode = flow.nodes.find((n) => n.id === nodeId);
@@ -251,7 +253,7 @@ export function TraceDetail({ nodeId, node, flow, traceViolations, desc, onOpenR
               <Pairs testId="sim-detail-results" values={result.results} empty="결과값이 없다" />
               <Sub>행 판정</Sub>
               <div data-testid="sim-detail-rows">
-                <AgDataGrid columns={ROW_COLUMNS} data={rowData} rowKey="rowId" height="auto" sortable={false} emptyMessage="판정한 행이 없다" ariaLabel="행 판정" />
+                <AgDataGrid gridId="debugTraceRows" personalize={active ? undefined : false} columns={ROW_COLUMNS} data={rowData} rowKey="rowId" height="auto" sortable={false} emptyMessage="판정한 행이 없다" ariaLabel="행 판정" />
               </div>
               {result.warnings.length > 0 && (
                 <ul className="rsim-list" data-testid="sim-detail-warnings">

@@ -32,7 +32,7 @@ export function LayoutList({ rows, selectedId, loading, onSelect, titleExtra }: 
   return (
     <GridPanel title="전문 목록" count={rows.length} titleExtra={titleExtra}>
       <div data-testid="layout-list" style={{ position: "absolute", inset: 0 }}>
-        <AgDataGrid
+        <AgDataGrid gridId="layoutList"
           columnSizing="fit"
           columns={COLUMNS}
           data={rows as unknown as Record<string, unknown>[]}

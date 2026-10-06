@@ -405,7 +405,7 @@ export function DecisionTableCard(props: DecisionTableCardProps) {
       )}
 
       <div ref={gridBoxRef} data-testid="dt-grid" style={{ height: gridHeight }}>
-        <AgDataGrid
+        <AgDataGrid gridId="decisionTable"
           key={gridKey}
           columns={columns}
           data={data}

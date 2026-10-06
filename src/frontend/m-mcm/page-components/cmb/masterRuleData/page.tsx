@@ -86,7 +86,7 @@ export default function MasterRuleDataPage() {
     const cols: GridColumn[] = [
       { key: "SEQ", header: "순번", meta: false, width: 70, editable: false, align: "center" },
       {
-        key: "rowStatus", header: "상태", meta: false, width: 70, editable: false, align: "center",
+        key: "rowStatus", header: "상태", meta: false, width: 70, editable: false, hideable: false, align: "center",
         render: (v) => STATUS_LABEL[String(v ?? "")] ?? "",
       },
     ];
@@ -416,6 +416,8 @@ export default function MasterRuleDataPage() {
             ]}
           >
             <AgDataGrid
+              gridId="ruleData"
+              personalize={{ sort: false }}
               columnSizing="fit"
               columns={gridColumns}
               data={rows}

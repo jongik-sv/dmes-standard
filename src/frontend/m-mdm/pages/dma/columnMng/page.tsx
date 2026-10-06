@@ -546,7 +546,7 @@ export default function ColumnMngPage() {
                   />
                 }
               >
-                <AgDataGrid
+                <AgDataGrid gridId="columnList"
                   columnSizing="fit"
                   columns={LIST_COLUMNS}
                   data={listRows}
@@ -614,7 +614,7 @@ export default function ColumnMngPage() {
               {gen ? (
                 <>
                   <div style={{ marginTop: "var(--spacing-sm)" }}>
-                    <AgDataGrid
+                    <AgDataGrid gridId="nameTokens"
                       columnSizing="fit"
                       columns={tokenColumns}
                       data={tokenRows}
