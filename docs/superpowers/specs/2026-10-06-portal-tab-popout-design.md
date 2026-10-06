@@ -127,7 +127,7 @@ export interface PortalPageWindowProps {
 - 권한: pageId 가 내 메뉴(`buildMenuSearchItems` 결과)에 없으면 화면을 불러오지 않고 "이 화면을 열 권한이 없습니다." 를 보인다.
 - serviceId: 셸 안에 있던 계산을 순수 함수 `buildServiceIdByPageId(menuItems)`(새 `service-id.ts`)로 옮겨 셸과 이 부품이 같이 쓴다. 셸 쪽은 동작 보존 리팩터다.
 - 그리기: `TabPageContext.Provider({pageId, serviceId, tabId})` → `MdmMetaProvider {...mdmMetaTabProps(pageId)}` → `ErrorBoundary` → 화면. tabId 는 `popout-{token}`(token 이 없으면 `popout`)이다. 셸의 탭 화면과 같은 감싸기다.
-- snapshot: 처음 마운트 때 `takePopoutHandoff(token)` 로 받는다. 받은 값과 이후 `onSnapshotChange` 값은 sessionStorage `oasis.portal.popout.snap.{token}` 에 둔다. 그래서 새 창에서 새로고침해도 상태가 남는다. 키에 token 을 넣는 이유는 opener 의 sessionStorage 가 복사되는 브라우저에서도 키가 섞이지 않게 하기 위해서다.
+- snapshot: 처음 마운트 때 `takePopoutHandoff(token)` 로 받는다. 받은 값과 이후 `onSnapshotChange` 값은 sessionStorage `oasis.portal.popoutSnap.{token}` (D7)에 둔다. 그래서 새 창에서 새로고침해도 상태가 남는다. 키에 token 을 넣는 이유는 opener 의 sessionStorage 가 복사되는 브라우저에서도 키가 섞이지 않게 하기 위해서다.
 - 창 제목: `document.title = "{메뉴 표시명} - {appName}"`.
 - 화면 안 이동: 새 창 안에서 `portal-open-tab` 이벤트가 나면 opener(포털)가 살아 있을 때 opener 창에 같은 이벤트를 다시 내고 opener 에 focus 를 준다. opener 가 없으면 무시한다.
 - 화면 사용 통계: `onUsageSegments` 가 있으면 `UsageTracker` + `installUsageActivity` 를 창 하나 단위로 붙인다(구간 key 는 tabId). 포털 탭과 같은 규칙(첫 업무 호출부터 OPEN)이다.
@@ -204,4 +204,4 @@ shared 단위 시험(vitest, jsdom):
 | D4 | 중복 탭 번호는 표시 때 계산하고 저장 제목에 넣지 않는다 | 제목 동기화 effect 가 메뉴 표시명으로 덮어씀 |
 | D5 | 히스토리 state 에 탭 id 를 싣고 pageId 는 대체 키로 둔다 | 중복 탭 사이 뒤로가기 구분, 옛 기록 호환 |
 | D6 | `/popup` 경로는 첫 칸을 moduleId 로 재정의하고 인증 layout 을 둔다 | 기존 경로는 mpp 고정·호출처 0건·인증 없음 |
-| D7 | 분리 창 snapshot 의 sessionStorage 키를 `oasis.portal.popoutSnap.{token}` 으로 정한다(설계 5.4 의 `oasis.portal.popout.snap.{token}` 에서 변경) | handoff 키 접두(`oasis.portal.popout.`)와 겹치지 않게 해 접두로 훑는 handoff 정리가 snapshot 키를 건드리지 않도록 함 |
+| D7 | 분리 창 snapshot 의 sessionStorage 키를 `oasis.portal.popoutSnap.{token}` 으로 정한다(설계 5.4 초안의 `oasis.portal.popout.snap.{token}` 에서 변경) | 구현 계획(Global Constraints)에서 handoff 키 접두 `oasis.portal.popout.` 와 이름이 겹치지 않게 갈랐다. 두 키는 저장소도 다르다(handoff localStorage, snapshot sessionStorage) |

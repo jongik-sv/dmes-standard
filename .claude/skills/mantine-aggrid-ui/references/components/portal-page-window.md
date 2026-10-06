@@ -24,7 +24,9 @@
 />
 ```
 
-창 쪽은 `/popup/{moduleId}/{pageName…}?h={token}` 라우트 한 파일이다. 메뉴 로딩이 끝난 뒤에 `PortalPageWindow` 를 마운트한다(그 전에 마운트하면 handoff 를 먼저 읽고 잃을 수 있다). 아래는 m-mcm `app/popup/[...slug]/page.tsx` 를 줄인 것이다.
+창 쪽은 `/popup/{moduleId}/{pageName…}?h={token}` 라우트 한 파일이다. 메뉴 조회가 끝난 뒤에 `PortalPageWindow` 를 마운트한다.
+
+(줄임 — 실제 라우트는 m-mcm `app/popup/[...slug]/page.tsx`)
 
 ```tsx
 "use client";
@@ -102,7 +104,7 @@ export default function PopupRoute({ params, searchParams }: { params: Promise<{
 |---|---|
 | `openPagePopout` 앞에 `await` 를 두거나 클릭 처리기 밖(타이머·`then`)에서 부름 | 팝업 차단에 걸린다. 클릭 처리기 안에서 동기로 부른다. `PortalShell` 의 `onPopoutTab` 이 이미 그렇게 한다 |
 | `window.open` features 에 `noopener` 를 넣음 | 반환값이 늘 `null` 이라 차단과 구분할 수 없다. 같은 출처 창이라 넣지 않는다 |
-| 메뉴 로딩 전에 `PortalPageWindow` 를 마운트함 | 메뉴가 올 때까지 호스트가 따로 로딩을 그린 뒤 마운트한다. handoff 는 마운트 때 한 번만 읽고 지우므로, 메뉴가 없는 채로 마운트하면 상태를 잃는다 |
+| 메뉴 조회가 끝나기 전에 `PortalPageWindow` 를 마운트하려 함 | `menu` 는 필수 prop 이라 호출부가 메뉴 조회를 끝낸 뒤에 마운트한다(그 동안 호스트가 로딩을 그린다). 메뉴에 없는 pageId 로 마운트하면 handoff 는 마운트 때 소비되어 사라지고 화면은 그려지지 않는다(「권한 없음」) |
 | 화면이 메뉴에 없는 pageId(화면 안 이동으로 연 탭)인데 분리를 허용함 | 창은 「권한 없음」 이 되고 원래 탭만 닫힌다. `PortalShell` 이 `canPopoutPage` 로 항목을 비활성으로 둔다 |
 | 포털 탭 저장소·`useGfnMessage` 를 이 부품이나 셸에서 직접 씀 | 탭 저장소는 건드리지 않는다. 차단 안내는 호출부가 `popout.onBlocked` 로 한다(셸은 MessageProvider 없이도 그려져야 한다) |
 | 분리 창에서 쓰는 화면이 snapshot 을 안 씀 | 상태가 넘어가지 않고 처음 상태로 열린다. 지금은 snapshot 을 쓰는 화면만 넘어간다(설계 §7 후속 F1). 이 부품이 아니라 그 화면이 snapshot 을 남기게 고친다 |
