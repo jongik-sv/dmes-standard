@@ -7,7 +7,9 @@
  * 미리보기는 저장 전에 입력 칸이 어떻게 생기는지(라벨·단위·필수·결과·단계)를 보는 용도이며 위젯 실행과 달리 내 DRAFT 를 쓴다.
  */
 import { useRef, useState } from "react";
-import { Button, Checkbox, ComboBox, FormGroup, Input, Select } from "@dk-oasis/shared/form";
+import { Button, Checkbox, ComboBox, Input, Select } from "@dk-oasis/shared/form";
+import { DETAIL_LABEL_CELL, DETAIL_TABLE_STYLE, DETAIL_VALUE_CELL } from "@dk-oasis/shared/layout";
+import { MdmFieldLabel, MdmMetaProvider } from "@dk-oasis/shared/mdm-meta";
 import type { WidgetTypeEditorProps } from "@dk-oasis/shared/widget";
 
 import { useReportErrors } from "../_content/hooks";
@@ -141,116 +143,148 @@ export default function RuleCalcTypeEditor({ value, onChange, onValidate }: Widg
   };
 
   return (
-    <div className="mcm-rc-editor" data-testid="widget-type-editor-rule-calc">
-      <style href={RULE_CALC_STYLE_HREF} precedence="default">
-        {RULE_CALC_CSS}
-      </style>
-      <FormGroup label="대상" required>
-        <div className="mcm-rc-editor__row">
-          <Select
-            aria-label="대상 종류"
-            value={cfg.targetTp}
-            options={TARGET_OPTIONS}
-            onChange={(v) => patch({ targetTp: v === "SET" ? "SET" : "RULE" })}
-            data-testid="rc-editor-tp"
-          />
-          <Input
-            className="mcm-rc-editor__grow"
-            aria-label="룰 ID 또는 룰 세트 ID"
-            placeholder={cfg.targetTp === "SET" ? "룰 세트 ID (예: M47_COAT_WT)" : "룰 ID (예: M47C0001)"}
-            value={cfg.targetId}
-            onChange={(v) => patch({ targetId: v.trim() })}
-            data-testid="rc-editor-id"
-          />
+    <MdmMetaProvider disabled>
+      <div className="mcm-rc-editor" data-testid="widget-type-editor-rule-calc">
+        <style href={RULE_CALC_STYLE_HREF} precedence="default">
+          {RULE_CALC_CSS}
+        </style>
+        {/* 위 공통 칸과 같은 라벨 칸·값 칸 표(shared DETAIL_*). 입력은 Mantine 래퍼가 폭을 정하므로 className 이 아니라 감싼 칸으로 폭을 준다. */}
+        <table style={DETAIL_TABLE_STYLE}>
+          <tbody>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="rcTarget" label="대상" required />
+              </th>
+              <td style={DETAIL_VALUE_CELL}>
+                <div className="mcm-rc-editor__row">
+                  <div className="mcm-rc-editor__tp">
+                    <Select
+                      aria-label="대상 종류"
+                      value={cfg.targetTp}
+                      options={TARGET_OPTIONS}
+                      onChange={(v) => patch({ targetTp: v === "SET" ? "SET" : "RULE" })}
+                      data-testid="rc-editor-tp"
+                    />
+                  </div>
+                  <div className="mcm-rc-editor__grow">
+                    <Input
+                      aria-label="룰 ID 또는 룰 세트 ID"
+                      placeholder={cfg.targetTp === "SET" ? "룰 세트 ID (예: M47_COAT_WT)" : "룰 ID (예: M47C0001)"}
+                      value={cfg.targetId}
+                      onChange={(v) => patch({ targetId: v.trim() })}
+                      data-testid="rc-editor-id"
+                    />
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="rcSearch" label="찾기" />
+              </th>
+              <td style={DETAIL_VALUE_CELL}>
+                <div className="mcm-rc-editor__row">
+                  <div className="mcm-rc-editor__grow">
+                    <Input
+                      aria-label="룰·룰 세트 검색어"
+                      placeholder="이름 또는 ID 로 찾기"
+                      value={keyword}
+                      onChange={setKeyword}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          doSearch();
+                        }
+                      }}
+                      data-testid="rc-editor-keyword"
+                    />
+                  </div>
+                  <Button onClick={doSearch} disabled={search.status === "loading"} data-testid="rc-editor-search">
+                    {search.status === "loading" ? "찾는 중…" : "찾기"}
+                  </Button>
+                </div>
+                {search.status === "error" && (
+                  <div className="mcm-rc__msg mcm-rc__msg--error" role="alert" data-testid="rc-editor-search-error">
+                    {search.message}
+                  </div>
+                )}
+                {search.status === "done" && rows.length >= RULE_CALC_SEARCH_LIMIT && (
+                  <span className="mcm-rc-editor__note" data-testid="rc-editor-more">
+                    {RULE_CALC_SEARCH_LIMIT}건까지만 보입니다. 더 있을 수 있으니 검색어를 좁히세요.
+                  </span>
+                )}
+                {search.status === "done" && (
+                  <div className="mcm-rc-editor__row" data-testid="rc-editor-results">
+                    {rows.length === 0 ? (
+                      <span className="mcm-rc-editor__note">찾은 룰·룰 세트가 없습니다</span>
+                    ) : (
+                      <div className="mcm-rc-editor__grow">
+                        <ComboBox
+                          aria-label="찾은 룰·룰 세트"
+                          data={rows.map((r) => ({ value: searchRowValue(r), label: searchRowLabel(r), row: r }))}
+                          // 지금 대상이 결과 목록에 있을 때만 선택으로 보인다(없는 값을 넣으면 ComboBox 가 내부 값 「TP:ID」 를 글자로 보인다).
+                          value={rows.some((r) => searchRowValue(r) === searchRowValue({ tp: cfg.targetTp, id: cfg.targetId })) ? searchRowValue({ tp: cfg.targetTp, id: cfg.targetId }) : ""}
+                          placeholder={`${rows.length}건 — 골라 넣기`}
+                          onChange={(_v, item) => {
+                            const row = (item as { row?: RuleCalcSearchRow } | undefined)?.row;
+                            if (row) patch({ targetTp: row.tp, targetId: row.id });
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </td>
+            </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="rcSteps" label="중간값" />
+              </th>
+              <td style={DETAIL_VALUE_CELL}>
+                <Checkbox
+                  checked={cfg.targetTp === "SET" && cfg.showSteps}
+                  disabled={cfg.targetTp !== "SET"}
+                  onChange={(showSteps) => patch({ showSteps })}
+                  label="단계별 중간값 보이기"
+                  aria-label="단계별 중간값 보이기"
+                />
+              </td>
+            </tr>
+            <tr>
+              <th style={DETAIL_LABEL_CELL}>
+                <MdmFieldLabel name="rcFill" label="화면 값 채우기" />
+              </th>
+              <td style={DETAIL_VALUE_CELL}>
+                <Select
+                  aria-label="업무 화면 값 채우기 방식"
+                  value={cfg.fillMode}
+                  options={FILL_OPTIONS}
+                  onChange={(v) => patch({ fillMode: v === "button" || v === "off" ? v : "auto" })}
+                  data-testid="rc-editor-fill"
+                />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div className="mcm-rc-editor__note">
+          업무 화면의 도구 창에서 쓸 때, 화면에서 고른 행의 값 가운데 입력 변수 이름과 같은 것(대소문자·밑줄 차이는 무시)을 입력 칸에 넣습니다. 계산은 직접 눌러야 하며, 위젯 화면(보드)에서는 동작하지 않습니다.
         </div>
-      </FormGroup>
-      <FormGroup label="찾기">
         <div className="mcm-rc-editor__row">
-          <Input
-            className="mcm-rc-editor__grow"
-            aria-label="룰·룰 세트 검색어"
-            placeholder="이름 또는 ID 로 찾기"
-            value={keyword}
-            onChange={setKeyword}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                doSearch();
-              }
-            }}
-            data-testid="rc-editor-keyword"
-          />
-          <Button onClick={doSearch} disabled={search.status === "loading"} data-testid="rc-editor-search">
-            {search.status === "loading" ? "찾는 중…" : "찾기"}
+          <Button onClick={check} disabled={!cfg.targetId || preview.status === "loading"} data-testid="rc-editor-check">
+            {preview.status === "loading" ? "확인 중…" : "입력 칸 확인"}
           </Button>
+          <span className="mcm-rc-editor__note">내가 작성 중인 DRAFT 버전이 있으면 그것으로 보입니다. 위젯 실행은 확정 버전만 씁니다.</span>
         </div>
-      </FormGroup>
-      {search.status === "error" && (
-        <div className="mcm-rc__msg mcm-rc__msg--error" role="alert" data-testid="rc-editor-search-error">
-          {search.message}
+        {preview.status === "error" && (
+          <div className="mcm-rc__msg mcm-rc__msg--error" role="alert" data-testid="rc-editor-error">
+            {preview.message}
+          </div>
+        )}
+        {preview.status === "ready" && <IoPreview io={preview.io} />}
+        <div className="mcm-rc-editor__note">
+          룰 또는 룰 세트 ID 만 정하면 입력 칸이 자동으로 만들어집니다. 세트에서 앞 룰 결과로 채워지는 값은 입력 칸에서 빠집니다.
         </div>
-      )}
-      {search.status === "done" && rows.length >= RULE_CALC_SEARCH_LIMIT && (
-        <span className="mcm-rc-editor__note" data-testid="rc-editor-more">
-          {RULE_CALC_SEARCH_LIMIT}건까지만 보입니다. 더 있을 수 있으니 검색어를 좁히세요.
-        </span>
-      )}
-      {search.status === "done" && (
-        <div className="mcm-rc-editor__row" data-testid="rc-editor-results">
-          {rows.length === 0 ? (
-            <span className="mcm-rc-editor__note">찾은 룰·룰 세트가 없습니다</span>
-          ) : (
-            <ComboBox
-              className="mcm-rc-editor__grow"
-              aria-label="찾은 룰·룰 세트"
-              data={rows.map((r) => ({ value: searchRowValue(r), label: searchRowLabel(r), row: r }))}
-              // 지금 대상이 결과 목록에 있을 때만 선택으로 보인다(없는 값을 넣으면 ComboBox 가 내부 값 「TP:ID」 를 글자로 보인다).
-              value={rows.some((r) => searchRowValue(r) === searchRowValue({ tp: cfg.targetTp, id: cfg.targetId })) ? searchRowValue({ tp: cfg.targetTp, id: cfg.targetId }) : ""}
-              placeholder={`${rows.length}건 — 골라 넣기`}
-              onChange={(_v, item) => {
-                const row = (item as { row?: RuleCalcSearchRow } | undefined)?.row;
-                if (row) patch({ targetTp: row.tp, targetId: row.id });
-              }}
-            />
-          )}
-        </div>
-      )}
-      <FormGroup label="중간값">
-        <Checkbox
-          checked={cfg.targetTp === "SET" && cfg.showSteps}
-          disabled={cfg.targetTp !== "SET"}
-          onChange={(showSteps) => patch({ showSteps })}
-          label="단계별 중간값 보이기"
-          aria-label="단계별 중간값 보이기"
-        />
-      </FormGroup>
-      <FormGroup label="화면 값 채우기">
-        <Select
-          aria-label="업무 화면 값 채우기 방식"
-          value={cfg.fillMode}
-          options={FILL_OPTIONS}
-          onChange={(v) => patch({ fillMode: v === "button" || v === "off" ? v : "auto" })}
-          data-testid="rc-editor-fill"
-        />
-      </FormGroup>
-      <div className="mcm-rc-editor__note">
-        업무 화면의 도구 창에서 쓸 때, 화면에서 고른 행의 값 가운데 입력 변수 이름과 같은 것(대소문자·밑줄 차이는 무시)을 입력 칸에 넣습니다. 계산은 직접 눌러야 하며, 위젯 화면(보드)에서는 동작하지 않습니다.
       </div>
-      <div className="mcm-rc-editor__row">
-        <Button onClick={check} disabled={!cfg.targetId || preview.status === "loading"} data-testid="rc-editor-check">
-          {preview.status === "loading" ? "확인 중…" : "입력 칸 확인"}
-        </Button>
-        <span className="mcm-rc-editor__note">내가 작성 중인 DRAFT 버전이 있으면 그것으로 보입니다. 위젯 실행은 확정 버전만 씁니다.</span>
-      </div>
-      {preview.status === "error" && (
-        <div className="mcm-rc__msg mcm-rc__msg--error" role="alert" data-testid="rc-editor-error">
-          {preview.message}
-        </div>
-      )}
-      {preview.status === "ready" && <IoPreview io={preview.io} />}
-      <div className="mcm-rc-editor__note">
-        룰 또는 룰 세트 ID 만 정하면 입력 칸이 자동으로 만들어집니다. 세트에서 앞 룰 결과로 채워지는 값은 입력 칸에서 빠집니다.
-      </div>
-    </div>
+    </MdmMetaProvider>
   );
 }

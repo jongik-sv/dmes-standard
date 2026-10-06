@@ -51,6 +51,8 @@ export const RULE_CALC_CSS = `
 .mcm-rc-editor { display: flex; flex-direction: column; gap: var(--spacing-sm); min-width: 0; }
 .mcm-rc-editor__row { display: flex; align-items: center; gap: var(--spacing-xs); min-width: 0; }
 .mcm-rc-editor__row > .mcm-rc-editor__grow { flex: 1 1 auto; min-width: 0; }
+.mcm-rc-editor__row > .mcm-rc-editor__tp { flex: 0 0 9rem; min-width: 0; }
+.mcm-rc-editor__row + .mcm-rc-editor__row, .mcm-rc-editor__row + .mcm-rc__msg, .mcm-rc__msg + .mcm-rc-editor__row { margin-top: var(--spacing-xs); }
 .mcm-rc-editor__note { font-size: var(--font-size-xs); color: var(--color-text-muted); }
 .mcm-rc-editor__preview { display: flex; flex-direction: column; gap: var(--spacing-xs); padding: var(--spacing-sm); border: 1px solid var(--color-border-light); border-radius: var(--radius-sm); background: var(--color-bg-light); font-size: var(--font-size-sm); }
 .mcm-rc-editor__list { margin: 0; padding-left: var(--spacing-lg); }
