@@ -204,3 +204,4 @@ shared 단위 시험(vitest, jsdom):
 | D4 | 중복 탭 번호는 표시 때 계산하고 저장 제목에 넣지 않는다 | 제목 동기화 effect 가 메뉴 표시명으로 덮어씀 |
 | D5 | 히스토리 state 에 탭 id 를 싣고 pageId 는 대체 키로 둔다 | 중복 탭 사이 뒤로가기 구분, 옛 기록 호환 |
 | D6 | `/popup` 경로는 첫 칸을 moduleId 로 재정의하고 인증 layout 을 둔다 | 기존 경로는 mpp 고정·호출처 0건·인증 없음 |
+| D7 | 분리 창 snapshot 의 sessionStorage 키를 `oasis.portal.popoutSnap.{token}` 으로 정한다(설계 5.4 의 `oasis.portal.popout.snap.{token}` 에서 변경) | handoff 키 접두(`oasis.portal.popout.`)와 겹치지 않게 해 접두로 훑는 handoff 정리가 snapshot 키를 건드리지 않도록 함 |
